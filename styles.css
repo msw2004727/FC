@@ -74,7 +74,8 @@ a:hover { color: var(--accent-secondary); }
 ======================================== */
 .container { max-width: 1200px; margin: 0 auto; padding: 0 20px; }
 .section { padding: 60px 20px; }
-.page-section { padding: 100px 20px 60px; }
+/* 修改：增加頂部 Padding 防止導航列遮擋內容 */
+.page-section { padding: 120px 20px 60px; }
 .page { display: none; animation: fadeIn 0.4s ease; }
 .page.active { display: block; }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
@@ -180,6 +181,7 @@ a:hover { color: var(--accent-secondary); }
     cursor: pointer;
     transition: all 0.2s;
     text-decoration: none;
+    white-space: nowrap; /* 防止按鈕文字換行 */
 }
 .btn-primary { background: var(--gradient-hero); color: white; box-shadow: 0 4px 15px rgba(45,138,78,0.3); }
 .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(45,138,78,0.4); }
@@ -225,6 +227,7 @@ a:hover { color: var(--accent-secondary); }
     color: var(--text-primary);
     font-size: 1rem;
     transition: all 0.2s;
+    min-width: 0; /* Flex item fix */
 }
 .form-input:focus, .form-select:focus, .form-textarea:focus {
     outline: none;
@@ -234,7 +237,7 @@ a:hover { color: var(--accent-secondary); }
 .form-textarea { min-height: 120px; resize: vertical; }
 .form-checkbox { display: flex; align-items: center; gap: 10px; cursor: pointer; }
 .form-checkbox input { width: 20px; height: 20px; accent-color: var(--accent-primary); }
-.toggle-switch { position: relative; width: 52px; height: 28px; }
+.toggle-switch { position: relative; width: 52px; height: 28px; display: inline-block; }
 .toggle-switch input { opacity: 0; width: 0; height: 0; }
 .toggle-slider {
     position: absolute;
@@ -261,12 +264,12 @@ a:hover { color: var(--accent-secondary); }
 /* ========================================
    [區塊8] 標籤與徽章
 ======================================== */
-.badge { display: inline-flex; align-items: center; padding: 4px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: 600; }
+.badge { display: inline-flex; align-items: center; padding: 4px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: 600; white-space: nowrap; }
 .badge-primary { background: rgba(45,138,78,0.15); color: var(--accent-primary); }
 .badge-gold { background: rgba(212,165,52,0.15); color: var(--accent-gold); }
 .badge-danger { background: rgba(217,69,69,0.15); color: var(--accent-danger); }
 .badge-info { background: rgba(59,130,246,0.15); color: #3b82f6; }
-.role-badge { padding: 6px 14px; border-radius: 8px; font-size: 0.85rem; font-weight: 600; }
+.role-badge { padding: 6px 14px; border-radius: 8px; font-size: 0.85rem; font-weight: 600; white-space: nowrap; }
 .role-rookie { background: #e3f2fd; color: #1976d2; }
 .role-veteran { background: #fff3e0; color: #f57c00; }
 .role-coach { background: #fce4ec; color: #c2185b; }
@@ -349,8 +352,8 @@ a:hover { color: var(--accent-secondary); }
 /* ========================================
    [區塊12] 排行榜
 ======================================== */
-.leaderboard-tabs { display: flex; gap: 8px; margin-bottom: 24px; flex-wrap: wrap; }
-.leaderboard-tab { padding: 10px 20px; border-radius: 10px; background: var(--bg-tertiary); color: var(--text-secondary); font-weight: 500; cursor: pointer; border: none; transition: all 0.2s; }
+.leaderboard-tabs { display: flex; gap: 8px; margin-bottom: 24px; flex-wrap: wrap; position: relative; z-index: 5; }
+.leaderboard-tab { padding: 10px 20px; border-radius: 10px; background: var(--bg-tertiary); color: var(--text-secondary); font-weight: 500; cursor: pointer; border: none; transition: all 0.2s; white-space: nowrap; }
 .leaderboard-tab.active, .leaderboard-tab:hover { background: var(--accent-primary); color: white; }
 .leaderboard-list { display: flex; flex-direction: column; gap: 12px; }
 .leaderboard-item { display: flex; align-items: center; gap: 16px; padding: 16px 20px; background: var(--bg-card); border-radius: 16px; border: 1px solid var(--border-color); transition: all 0.2s; }
@@ -375,7 +378,7 @@ a:hover { color: var(--accent-secondary); }
 .chart-container { position: relative; height: 280px; padding: 20px; }
 
 /* ========================================
-   [區塊14] 管理員面板
+   [區塊14] 管理員面板與表格 (修改重點)
 ======================================== */
 .admin-section { margin-bottom: 40px; }
 .admin-section-title { font-size: 1.3rem; font-weight: 700; margin-bottom: 20px; padding-bottom: 12px; border-bottom: 2px solid var(--accent-primary); display: flex; align-items: center; gap: 10px; }
@@ -384,11 +387,14 @@ a:hover { color: var(--accent-secondary); }
 .admin-stat-icon { font-size: 2.5rem; margin-bottom: 12px; }
 .admin-stat-value { font-family: 'Orbitron', sans-serif; font-size: 2rem; font-weight: 700; color: var(--accent-primary); }
 .admin-stat-label { color: var(--text-muted); font-size: 0.9rem; margin-top: 4px; }
+
+/* 表格樣式優化 */
+.table-responsive { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 .data-table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-.data-table th, .data-table td { padding: 14px 16px; text-align: left; border-bottom: 1px solid var(--border-color); }
+/* 修改：強制不換行，解決擠壓問題 */
+.data-table th, .data-table td { padding: 14px 16px; text-align: left; border-bottom: 1px solid var(--border-color); white-space: nowrap; }
 .data-table th { background: var(--bg-tertiary); font-weight: 600; color: var(--text-secondary); }
 .data-table tr:hover td { background: var(--bg-tertiary); }
-.table-responsive { overflow-x: auto; }
 
 /* ========================================
    [區塊15] Modal 彈窗
@@ -438,7 +444,7 @@ a:hover { color: var(--accent-secondary); }
 .share-btn.copy { background: var(--text-muted); }
 
 /* ========================================
-   [區塊17] 響應式設計
+   [區塊17] 響應式設計 (大幅優化)
 ======================================== */
 @media (max-width: 768px) {
     .navbar-menu { position: fixed; top: 70px; left: 0; right: 0; background: var(--bg-secondary); flex-direction: column; padding: 20px; border-bottom: 1px solid var(--border-color); transform: translateY(-100%); opacity: 0; visibility: hidden; transition: all 0.3s; }
@@ -451,13 +457,80 @@ a:hover { color: var(--accent-secondary); }
     .profile-stats { justify-content: center; }
     .event-grid { grid-template-columns: 1fr; }
     .modal { max-width: 100%; margin: 10px; max-height: calc(100vh - 20px); }
+
+    /* --- [優化] 表格轉卡片式設計 (Better Way) --- */
+    /* 隱藏表頭 */
+    .data-table thead { display: none; }
+    
+    /* 每一行變成獨立卡片 */
+    .data-table tbody tr {
+        display: block;
+        margin-bottom: 16px;
+        background: var(--bg-card);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        box-shadow: var(--shadow-sm);
+        padding: 16px;
+    }
+
+    /* 每個單元格變成 Flex 佈局 */
+    .data-table td {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 10px 0;
+        border-bottom: 1px dashed var(--border-color);
+        text-align: right;
+        white-space: normal; /* 卡片內允許換行 */
+    }
+    .data-table td:last-child { border-bottom: none; padding-bottom: 0; }
+    
+    /* 圖片特殊處理 */
+    .data-table td img {
+        margin-left: auto; /* 靠右對齊 */
+    }
+
+    /* 使用 CSS 偽元素添加標題 (針對特定表格) */
+    
+    /* 活動管理表格 (#adminEventTable) */
+    #adminEventTable td:nth-of-type(1)::before { content: "活動名稱"; font-weight: 600; color: var(--text-secondary); margin-right: 12px; text-align: left; }
+    #adminEventTable td:nth-of-type(2)::before { content: "時間"; font-weight: 600; color: var(--text-secondary); margin-right: 12px; text-align: left; }
+    #adminEventTable td:nth-of-type(3)::before { content: "地點"; font-weight: 600; color: var(--text-secondary); margin-right: 12px; text-align: left; }
+    #adminEventTable td:nth-of-type(4)::before { content: "報名/上限"; font-weight: 600; color: var(--text-secondary); margin-right: 12px; text-align: left; }
+    #adminEventTable td:nth-of-type(5)::before { content: "狀態"; font-weight: 600; color: var(--text-secondary); margin-right: 12px; text-align: left; }
+    #adminEventTable td:nth-of-type(6)::before { content: "操作"; font-weight: 600; color: var(--text-secondary); margin-right: 12px; text-align: left; }
+
+    /* 用戶管理表格 (#adminUserTable) */
+    #adminUserTable td:nth-of-type(1)::before { content: "頭像"; font-weight: 600; color: var(--text-secondary); margin-right: 12px; text-align: left; }
+    #adminUserTable td:nth-of-type(2)::before { content: "暱稱"; font-weight: 600; color: var(--text-secondary); margin-right: 12px; text-align: left; }
+    #adminUserTable td:nth-of-type(3)::before { content: "角色"; font-weight: 600; color: var(--text-secondary); margin-right: 12px; text-align: left; }
+    #adminUserTable td:nth-of-type(4)::before { content: "完成/取消"; font-weight: 600; color: var(--text-secondary); margin-right: 12px; text-align: left; }
+    #adminUserTable td:nth-of-type(5)::before { content: "積分"; font-weight: 600; color: var(--text-secondary); margin-right: 12px; text-align: left; }
+    #adminUserTable td:nth-of-type(6)::before { content: "操作"; font-weight: 600; color: var(--text-secondary); margin-right: 12px; text-align: left; }
+
+    /* --- [優化] 活動列表篩選列防止擠壓 --- */
+    #page-events .card-body .d-flex.flex-wrap {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    #page-events .card-body .d-flex.flex-wrap > * {
+        width: 100% !important; /* 強制全寬 */
+        margin-bottom: 8px;
+        min-width: 0 !important;
+    }
+    #page-events .card-body .d-flex.flex-wrap > button {
+        width: 100%;
+    }
 }
+
 @media (max-width: 480px) {
     .hero { padding: 100px 15px 60px; }
     .hero-title { font-size: 2rem; }
     .container { padding: 0 15px; }
     .btn { padding: 10px 18px; }
     .card-body { padding: 16px; }
+    /* 排行榜按鈕微調 */
+    .leaderboard-tabs { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 8px; -webkit-overflow-scrolling: touch; }
 }
 
 /* ========================================
