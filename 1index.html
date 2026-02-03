@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>⚽ KICKOFF 足球報名系統</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
+    <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-spinner"></div>
+        <p class="loading-text">載入中...</p>
+    </div>
+    <div class="toast-container" id="toastContainer"></div>
+
+    <!-- 導航列 -->
+    <nav class="navbar">
+        <div class="navbar-inner">
+            <a class="navbar-brand" onclick="App.navigateTo('home')">
+                <span class="logo">⚽</span><span>KICKOFF</span>
+            </a>
+            <div class="navbar-menu" id="navMenu">
+                <span class="nav-link active" data-page="home" onclick="App.navigateTo('home')">首頁</span>
+                <span class="nav-link" data-page="events" onclick="App.navigateTo('events')">活動列表</span>
+                <span class="nav-link" data-page="leaderboard" onclick="App.navigateTo('leaderboard')">排行榜</span>
+                <span class="nav-link" data-page="stats" onclick="App.navigateTo('stats')">數據統計</span>
+                <span class="nav-link admin-only hidden" data-page="admin" onclick="App.navigateTo('admin')">管理中心</span>
+            </div>
+            <div class="navbar-actions">
+                <button class="theme-toggle" onclick="App.toggleTheme()" title="切換主題"><span id="themeIcon">🌙</span></button>
+                <button class="btn btn-line" id="loginBtn" onclick="App.handleLogin()">LINE 登入</button>
+                <div id="userMenu" class="hidden">
+                    <img src="" alt="頭像" class="user-avatar" id="userAvatar" onclick="App.navigateTo('profile')">
+                </div>
+                <button class="hamburger" onclick="App.toggleMobileMenu()"><span></span><span></span><span></span></button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 首頁 -->
+    <div class="page active" id="page-home">
+        <section class="hero">
+            <div class="hero-content">
+                <h1 class="hero-title">加入我們的足球盛宴</h1>
+                <p class="hero-subtitle">透過 LINE 輕鬆報名，與志同道合的球友一起踢球！</p>
+                <button class="btn btn-lg btn-primary" onclick="App.handleLogin()" id="heroCTA">立即報名參加</button>
+                <div class="hero-stats">
+                    <div class="hero-stat"><div class="hero-stat-value" id="statTotalUsers">0</div><div class="hero-stat-label">註冊球友</div></div>
+                    <div class="hero-stat"><div class="hero-stat-value" id="statTotalEvents">0</div><div class="hero-stat-label">累計活動</div></div>
+                    <div class="hero-stat"><div class="hero-stat-value" id="statTotalGames">0</div><div class="hero-stat-label">完成場次</div></div>
+                </div>
+            </div>
+        </section>
+        <section class="container section">
+            <div class="d-flex justify-between align-center mb-3">
+                <h2>🔥 近期熱門活動</h2>
+                <button class="btn btn-outline btn-sm" onclick="App.navigateTo('events')">查看全部 →</button>
+            </div>
+            <div class="event-grid" id="homeEventGrid"></div>
+        </section>
+    </div>
+
+    <!-- 活動列表頁 -->
+    <div class="page" id="page-events">
+        <section class="container page-section">
+            <h1 class="mb-3">📅 活動列表</h1>
+            <div class="card mb-3">
+                <div class="card-body">
+                    <div class="d-flex gap-2 flex-wrap">
+                        <select class="form-select" style="width:auto;min-width:150px" id="filterStatus">
+                            <option value="all">所有狀態</option>
+                            <option value="open">開放報名</option>
+                            <option value="full">已額滿</option>
+                            <option value="closed">已關閉</option>
+                        </select>
+                        <input type="date" class="form-input" style="width:auto" id="filterDate">
+                        <button class="btn btn-secondary btn-sm" onclick="App.filterEvents()">篩選</button>
+                        <button class="btn btn-outline btn-sm" onclick="App.resetFilters()">重置</button>
+                    </div>
+                </div>
+            </div>
+            <div class="event-grid" id="eventGrid"></div>
+        </section>
+    </div>
+
+    <!-- 會員中心頁 -->
+    <div class="page" id="page-profile">
+        <section class="container page-section">
+            <div class="profile-header">
+                <img src="" alt="頭像" class="profile-avatar" id="profileAvatar">
+                <div class="profile-info">
+                    <h2 id="profileName">訪客</h2>
+                    <div class="d-flex align-center gap-2">
+                        <span class="role-badge role-rookie" id="profileRole">新手</span>
+                        <span class="badge badge-gold" id="profileGlory">🏆 新星球員</span>
+                    </div>
+                    <div class="profile-stats">
+                        <div class="profile-stat"><div class="profile-stat-value" id="profileCompleted">0</div><div class="profile-stat-label">完成場次</div></div>
+                        <div class="profile-stat"><div class="profile-stat-value" id="profileCanceled">0</div><div class="profile-stat-label">取消次數</div></div>
+                        <div class="profile-stat"><div class="profile-stat-value" id="profilePoints">0</div><div class="profile-stat-label">累計積分</div></div>
+                    </div>
+                </div>
+            </div>
+            <div class="card mb-3">
+                <div class="card-header"><h3>📋 個人資料</h3></div>
+                <div class="card-body">
+                    <form id="profileForm">
+                        <div class="profile-grid">
+                            <div class="form-group"><label class="form-label">UID</label><input type="text" class="form-input" id="profileUID" readonly></div>
+                            <div class="form-group"><label class="form-label">LINE 暱稱</label><input type="text" class="form-input" id="profileLineNickname" readonly></div>
+                            <div class="form-group"><label class="form-label">性別</label><select class="form-select" id="profileGender"><option value="">請選擇</option><option value="male">男</option><option value="female">女</option><option value="other">其他</option></select></div>
+                            <div class="form-group"><label class="form-label">年齡</label><input type="number" class="form-input" id="profileAge" min="1" max="100"></div>
+                            <div class="form-group"><label class="form-label">聯繫方式</label><input type="text" class="form-input" id="profileContact" placeholder="手機或Email"></div>
+                            <div class="form-group"><label class="form-label">慣用腳</label><select class="form-select" id="profileFoot"><option value="">請選擇</option><option value="left">左腳</option><option value="right">右腳</option><option value="both">雙腳</option></select></div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">足球位置（可多選）</label>
+                            <div class="d-flex gap-2 flex-wrap">
+                                <label class="form-checkbox"><input type="checkbox" name="position" value="GK"> GK</label>
+                                <label class="form-checkbox"><input type="checkbox" name="position" value="CB"> CB</label>
+                                <label class="form-checkbox"><input type="checkbox" name="position" value="LB"> LB</label>
+                                <label class="form-checkbox"><input type="checkbox" name="position" value="RB"> RB</label>
+                                <label class="form-checkbox"><input type="checkbox" name="position" value="CDM"> CDM</label>
+                                <label class="form-checkbox"><input type="checkbox" name="position" value="CM"> CM</label>
+                                <label class="form-checkbox"><input type="checkbox" name="position" value="CAM"> CAM</label>
+                                <label class="form-checkbox"><input type="checkbox" name="position" value="LW"> LW</label>
+                                <label class="form-checkbox"><input type="checkbox" name="position" value="RW"> RW</label>
+                                <label class="form-checkbox"><input type="checkbox" name="position" value="ST"> ST</label>
+                            </div>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-primary">儲存變更</button>
+                            <button type="button" class="btn btn-secondary" onclick="App.openModal('shareModal')">分享個人頁</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            <div class="card mb-3"><div class="card-header"><h3>📝 我的報名</h3></div><div class="card-body"><div id="myRegistrations" class="empty-state"><div class="empty-state-icon">📭</div><div class="empty-state-title">尚無報名紀錄</div></div></div></div>
+            <div class="card mb-3"><div class="card-header"><h3>🏆 成就解鎖</h3></div><div class="card-body"><div class="empty-state"><div class="empty-state-icon">🔒</div><div class="empty-state-title">敬請期待</div></div></div></div>
+            <div class="card"><div class="card-header"><h3>💰 金庫（足球幣）</h3></div><div class="card-body"><div class="d-flex align-center gap-3"><div style="font-size:2.5rem">🪙</div><div><div class="admin-stat-value" id="profileCoins">0</div><div class="text-muted">足球幣餘額</div></div></div></div></div>
+        </section>
+    </div>
+
+    <!-- 排行榜頁 -->
+    <div class="page" id="page-leaderboard">
+        <section class="container page-section">
+            <h1 class="mb-3">🏆 積分排行榜</h1>
+            <div class="leaderboard-tabs">
+                <button class="leaderboard-tab active" onclick="App.switchLeaderboard('week',this)">本週</button>
+                <button class="leaderboard-tab" onclick="App.switchLeaderboard('biweek',this)">雙週</button>
+                <button class="leaderboard-tab" onclick="App.switchLeaderboard('month',this)">本月</button>
+                <button class="leaderboard-tab" onclick="App.switchLeaderboard('quarter',this)">本季</button>
+                <button class="leaderboard-tab" onclick="App.switchLeaderboard('year',this)">本年</button>
+            </div>
+            <div class="card"><div class="card-body"><div class="leaderboard-list" id="leaderboardList"></div></div></div>
+        </section>
+    </div>
+
+    <!-- 數據統計頁 -->
+    <div class="page" id="page-stats">
+        <section class="container page-section">
+            <h1 class="mb-3">📊 用戶數據統計</h1>
+            <div class="stats-grid">
+                <div class="card"><div class="card-header"><h3>性別分佈</h3></div><div class="chart-container"><canvas id="genderChart"></canvas></div></div>
+                <div class="card"><div class="card-header"><h3>年齡區間</h3></div><div class="chart-container"><canvas id="ageChart"></canvas></div></div>
+                <div class="card"><div class="card-header"><h3>慣用腳分佈</h3></div><div class="chart-container"><canvas id="footChart"></canvas></div></div>
+                <div class="card"><div class="card-header"><h3>熱門位置</h3></div><div class="chart-container"><canvas id="positionChart"></canvas></div></div>
+            </div>
+        </section>
+    </div>
+
+    <!-- 管理中心頁 -->
+    <div class="page" id="page-admin">
+        <section class="container page-section">
+            <h1 class="mb-3">⚙️ 管理中心</h1>
+            <div class="admin-section">
+                <h3 class="admin-section-title">📈 系統總覽</h3>
+                <div class="admin-grid">
+                    <div class="admin-stat-card"><div class="admin-stat-icon">👥</div><div class="admin-stat-value" id="adminTotalUsers">0</div><div class="admin-stat-label">總用戶數</div></div>
+                    <div class="admin-stat-card"><div class="admin-stat-icon">📅</div><div class="admin-stat-value" id="adminTotalEvents">0</div><div class="admin-stat-label">總活動數</div></div>
+                    <div class="admin-stat-card"><div class="admin-stat-icon">✅</div><div class="admin-stat-value" id="adminTotalCheckIns">0</div><div class="admin-stat-label">總報到數</div></div>
+                    <div class="admin-stat-card"><div class="admin-stat-icon">💵</div><div class="admin-stat-value" id="adminTotalRevenue">$0</div><div class="admin-stat-label">總收入估計</div></div>
+                </div>
+            </div>
+            <div class="admin-section">
+                <div class="d-flex justify-between align-center"><h3 class="admin-section-title">📅 活動管理</h3><button class="btn btn-primary" onclick="App.openEventModal()">➕ 建立新活動</button></div>
+                <div class="card"><div class="card-body table-responsive"><table class="data-table" id="adminEventTable"><thead><tr><th>活動名稱</th><th>時間</th><th>地點</th><th>報名/上限</th><th>狀態</th><th>操作</th></tr></thead><tbody></tbody></table></div></div>
+            </div>
+            <div class="admin-section">
+                <h3 class="admin-section-title">🧮 積分公式設定</h3>
+                <div class="card"><div class="card-body">
+                    <div class="profile-grid">
+                        <div class="form-group"><label class="form-label">完成活動獲得積分</label><input type="number" class="form-input" id="pointsComplete" value="10" min="0"></div>
+                        <div class="form-group"><label class="form-label">臨時取消扣除積分</label><input type="number" class="form-input" id="pointsCancel" value="5" min="0"></div>
+                        <div class="form-group"><label class="form-label">準時報到額外積分</label><input type="number" class="form-input" id="pointsOnTime" value="2" min="0"></div>
+                        <div class="form-group"><label class="form-label">積分最低限制</label><input type="number" class="form-input" id="pointsMin" value="0" readonly></div>
+                    </div>
+                    <button class="btn btn-primary" onclick="App.savePointsFormula()">儲存設定</button>
+                </div></div>
+            </div>
+            <div class="admin-section">
+                <h3 class="admin-section-title">👥 用戶管理</h3>
+                <div class="card"><div class="card-body table-responsive"><table class="data-table" id="adminUserTable"><thead><tr><th>頭像</th><th>暱稱</th><th>角色</th><th>完成/取消</th><th>積分</th><th>操作</th></tr></thead><tbody></tbody></table></div></div>
+            </div>
+            <div class="admin-section">
+                <h3 class="admin-section-title">🛒 二手交易區（開發中）</h3>
+                <div class="card"><div class="card-body"><div class="empty-state"><div class="empty-state-icon">🚧</div><div class="empty-state-title">功能開發中</div></div></div></div>
+            </div>
+        </section>
+    </div>
+
+    <!-- Modals -->
+    <div class="modal-overlay" id="eventDetailModal">
+        <div class="modal">
+            <div class="modal-header"><h3 class="modal-title" id="eventDetailTitle">活動詳情</h3><button class="modal-close" onclick="App.closeModal('eventDetailModal')">×</button></div>
+            <div class="modal-body">
+                <div id="eventDetailContent"></div>
+                <div class="qr-section"><h4>📱 現場報到 QR Code</h4><div class="qr-code-display" id="qrCodeDisplay"></div><p class="text-muted">掃描 QR Code 完成報到</p></div>
+                <div class="mt-3"><h4 class="mb-2">📋 報名名單</h4><div id="registrationList"></div></div>
+            </div>
+            <div class="modal-footer"><button class="btn btn-secondary" onclick="App.closeModal('eventDetailModal')">關閉</button><button class="btn btn-primary" onclick="App.handleEventRegister()">立即報名</button></div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="eventFormModal">
+        <div class="modal">
+            <div class="modal-header"><h3 class="modal-title" id="eventFormTitle">建立新活動</h3><button class="modal-close" onclick="App.closeModal('eventFormModal')">×</button></div>
+            <div class="modal-body">
+                <form id="eventForm">
+                    <input type="hidden" id="eventId">
+                    <div class="form-group"><label class="form-label">活動名稱 *</label><input type="text" class="form-input" id="eventName" required></div>
+                    <div class="form-group"><label class="form-label">Banner 圖片</label><input type="file" class="form-input" id="eventBanner" accept="image/*"><div id="bannerPreview" class="mt-1"></div></div>
+                    <div class="profile-grid">
+                        <div class="form-group"><label class="form-label">活動日期 *</label><input type="date" class="form-input" id="eventDate" required></div>
+                        <div class="form-group"><label class="form-label">開始時間 *</label><input type="time" class="form-input" id="eventTime" required></div>
+                    </div>
+                    <div class="form-group"><label class="form-label">活動地點 *</label><input type="text" class="form-input" id="eventLocation" required></div>
+                    <div class="profile-grid">
+                        <div class="form-group"><label class="form-label">費用 (NT$) *</label><input type="number" class="form-input" id="eventPrice" required min="0"></div>
+                        <div class="form-group"><label class="form-label">人數上限 *</label><input type="number" class="form-input" id="eventCapacity" required min="1"></div>
+                    </div>
+                    <div class="form-group"><label class="form-label">活動描述</label><textarea class="form-textarea" id="eventDescription"></textarea></div>
+                    <div class="profile-grid">
+                        <div class="form-group"><label class="form-label">預約發布時間</label><input type="datetime-local" class="form-input" id="eventPublishAt"></div>
+                        <div class="form-group"><label class="form-label">自動關閉時間</label><input type="datetime-local" class="form-input" id="eventCloseAt"></div>
+                    </div>
+                    <div class="form-group"><label class="form-checkbox"><input type="checkbox" id="eventIsOpen" checked> 立即開放報名</label></div>
+                </form>
+            </div>
+            <div class="modal-footer"><button class="btn btn-secondary" onclick="App.closeModal('eventFormModal')">取消</button><button class="btn btn-primary" onclick="App.saveEvent()">儲存活動</button></div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="shareModal">
+        <div class="modal" style="max-width:400px">
+            <div class="modal-header"><h3 class="modal-title">分享</h3><button class="modal-close" onclick="App.closeModal('shareModal')">×</button></div>
+            <div class="modal-body text-center">
+                <p class="mb-3">分享給朋友一起來踢球！</p>
+                <div class="share-buttons" style="justify-content:center">
+                    <button class="share-btn line" onclick="App.shareToLine()">📱</button>
+                    <button class="share-btn facebook" onclick="App.shareToFacebook()">f</button>
+                    <button class="share-btn twitter" onclick="App.shareToTwitter()">𝕏</button>
+                    <button class="share-btn copy" onclick="App.copyShareLink()">📋</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="userRoleModal">
+        <div class="modal" style="max-width:400px">
+            <div class="modal-header"><h3 class="modal-title">修改用戶角色</h3><button class="modal-close" onclick="App.closeModal('userRoleModal')">×</button></div>
+            <div class="modal-body">
+                <input type="hidden" id="editUserId">
+                <div class="form-group"><label class="form-label">用戶暱稱</label><input type="text" class="form-input" id="editUserName" readonly></div>
+                <div class="form-group"><label class="form-label">角色等級</label><select class="form-select" id="editUserRole"><option value="rookie">新手</option><option value="veteran">老手</option><option value="coach">教練</option><option value="admin">管理者</option></select></div>
+            </div>
+            <div class="modal-footer"><button class="btn btn-secondary" onclick="App.closeModal('userRoleModal')">取消</button><button class="btn btn-primary" onclick="App.saveUserRole()">儲存</button></div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

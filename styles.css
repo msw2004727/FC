@@ -1,0 +1,484 @@
+/* ========================================
+   [區塊1] CSS 變數與主題設定
+======================================== */
+:root {
+    --bg-primary: #f0f4f0;
+    --bg-secondary: #ffffff;
+    --bg-tertiary: #e8efe8;
+    --bg-card: #ffffff;
+    --text-primary: #1a2e1a;
+    --text-secondary: #4a5e4a;
+    --text-muted: #7a8e7a;
+    --accent-primary: #2d8a4e;
+    --accent-secondary: #45b369;
+    --accent-tertiary: #1e6b3a;
+    --accent-gold: #d4a534;
+    --accent-danger: #d94545;
+    --accent-warning: #e8a838;
+    --border-color: #d0dcd0;
+    --shadow-sm: 0 2px 8px rgba(0,0,0,0.08);
+    --shadow-md: 0 4px 20px rgba(0,0,0,0.12);
+    --shadow-lg: 0 8px 40px rgba(0,0,0,0.16);
+    --gradient-hero: linear-gradient(135deg, #2d8a4e 0%, #1e6b3a 50%, #0f4a25 100%);
+    --gradient-card: linear-gradient(180deg, rgba(45,138,78,0.05) 0%, transparent 100%);
+    --field-pattern: repeating-linear-gradient(0deg, transparent, transparent 30px, rgba(45,138,78,0.03) 30px, rgba(45,138,78,0.03) 60px);
+}
+
+[data-theme="dark"] {
+    --bg-primary: #0a1210;
+    --bg-secondary: #141f1a;
+    --bg-tertiary: #1a2a22;
+    --bg-card: #1a2a22;
+    --text-primary: #e8f5e8;
+    --text-secondary: #a8c8a8;
+    --text-muted: #6a8a6a;
+    --accent-primary: #45b369;
+    --accent-secondary: #5dd47f;
+    --accent-tertiary: #2d8a4e;
+    --border-color: #2a3a30;
+    --shadow-sm: 0 2px 8px rgba(0,0,0,0.3);
+    --shadow-md: 0 4px 20px rgba(0,0,0,0.4);
+    --shadow-lg: 0 8px 40px rgba(0,0,0,0.5);
+    --gradient-hero: linear-gradient(135deg, #1a3a28 0%, #0f2a1a 50%, #051510 100%);
+    --gradient-card: linear-gradient(180deg, rgba(69,179,105,0.08) 0%, transparent 100%);
+    --field-pattern: repeating-linear-gradient(0deg, transparent, transparent 30px, rgba(69,179,105,0.05) 30px, rgba(69,179,105,0.05) 60px);
+}
+
+/* ========================================
+   [區塊2] 基礎重置與全域樣式
+======================================== */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+    font-family: 'Noto Sans TC', sans-serif;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    min-height: 100vh;
+    line-height: 1.6;
+    transition: background 0.3s ease, color 0.3s ease;
+}
+body::before {
+    content: '';
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: var(--field-pattern);
+    pointer-events: none;
+    z-index: -1;
+}
+h1, h2, h3, h4, h5, h6 { font-weight: 700; line-height: 1.3; }
+a { color: var(--accent-primary); text-decoration: none; transition: color 0.2s; }
+a:hover { color: var(--accent-secondary); }
+
+/* ========================================
+   [區塊3] 容器與佈局
+======================================== */
+.container { max-width: 1200px; margin: 0 auto; padding: 0 20px; }
+.section { padding: 60px 20px; }
+.page-section { padding: 100px 20px 60px; }
+.page { display: none; animation: fadeIn 0.4s ease; }
+.page.active { display: block; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+/* ========================================
+   [區塊4] 導航列
+======================================== */
+.navbar {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-color);
+    z-index: 1000;
+    backdrop-filter: blur(10px);
+}
+.navbar-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 70px;
+    padding: 0 20px;
+    max-width: 1400px;
+    margin: 0 auto;
+}
+.navbar-brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-family: 'Orbitron', sans-serif;
+    font-weight: 700;
+    font-size: 1.4rem;
+    color: var(--accent-primary);
+    cursor: pointer;
+}
+.navbar-brand .logo {
+    width: 40px; height: 40px;
+    background: var(--gradient-hero);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+}
+.navbar-menu { display: flex; align-items: center; gap: 8px; }
+.nav-link {
+    padding: 10px 16px;
+    border-radius: 8px;
+    color: var(--text-secondary);
+    font-weight: 500;
+    font-size: 0.95rem;
+    transition: all 0.2s;
+    cursor: pointer;
+}
+.nav-link:hover, .nav-link.active { background: var(--bg-tertiary); color: var(--accent-primary); }
+.navbar-actions { display: flex; align-items: center; gap: 12px; }
+.theme-toggle {
+    width: 44px; height: 44px;
+    border-radius: 12px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    transition: all 0.2s;
+}
+.theme-toggle:hover { background: var(--accent-primary); color: white; border-color: var(--accent-primary); }
+.user-avatar {
+    width: 44px; height: 44px;
+    border-radius: 50%;
+    border: 2px solid var(--accent-primary);
+    object-fit: cover;
+    cursor: pointer;
+    transition: transform 0.2s;
+}
+.user-avatar:hover { transform: scale(1.05); }
+.hamburger {
+    display: none;
+    flex-direction: column;
+    gap: 5px;
+    padding: 10px;
+    cursor: pointer;
+    background: none;
+    border: none;
+}
+.hamburger span { width: 24px; height: 2px; background: var(--text-primary); border-radius: 2px; transition: all 0.3s; }
+
+/* ========================================
+   [區塊5] 按鈕樣式
+======================================== */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px 24px;
+    border-radius: 12px;
+    font-weight: 600;
+    font-size: 1rem;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-decoration: none;
+}
+.btn-primary { background: var(--gradient-hero); color: white; box-shadow: 0 4px 15px rgba(45,138,78,0.3); }
+.btn-primary:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(45,138,78,0.4); }
+.btn-secondary { background: var(--bg-tertiary); color: var(--text-primary); border: 1px solid var(--border-color); }
+.btn-secondary:hover { background: var(--accent-primary); color: white; border-color: var(--accent-primary); }
+.btn-outline { background: transparent; color: var(--accent-primary); border: 2px solid var(--accent-primary); }
+.btn-outline:hover { background: var(--accent-primary); color: white; }
+.btn-danger { background: var(--accent-danger); color: white; }
+.btn-danger:hover { background: #c03030; }
+.btn-line { background: #06C755; color: white; }
+.btn-line:hover { background: #05b04c; }
+.btn-sm { padding: 8px 16px; font-size: 0.9rem; }
+.btn-lg { padding: 16px 32px; font-size: 1.1rem; }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none !important; }
+
+/* ========================================
+   [區塊6] 卡片樣式
+======================================== */
+.card {
+    background: var(--bg-card);
+    border-radius: 16px;
+    border: 1px solid var(--border-color);
+    box-shadow: var(--shadow-sm);
+    overflow: hidden;
+    transition: all 0.3s;
+}
+.card:hover { box-shadow: var(--shadow-md); }
+.card-header { padding: 20px 24px; border-bottom: 1px solid var(--border-color); background: var(--gradient-card); }
+.card-body { padding: 24px; }
+.card-footer { padding: 16px 24px; border-top: 1px solid var(--border-color); background: var(--bg-tertiary); }
+
+/* ========================================
+   [區塊7] 表單元素
+======================================== */
+.form-group { margin-bottom: 20px; }
+.form-label { display: block; margin-bottom: 8px; font-weight: 500; color: var(--text-secondary); }
+.form-input, .form-select, .form-textarea {
+    width: 100%;
+    padding: 12px 16px;
+    border-radius: 12px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    font-size: 1rem;
+    transition: all 0.2s;
+}
+.form-input:focus, .form-select:focus, .form-textarea:focus {
+    outline: none;
+    border-color: var(--accent-primary);
+    box-shadow: 0 0 0 3px rgba(45,138,78,0.15);
+}
+.form-textarea { min-height: 120px; resize: vertical; }
+.form-checkbox { display: flex; align-items: center; gap: 10px; cursor: pointer; }
+.form-checkbox input { width: 20px; height: 20px; accent-color: var(--accent-primary); }
+.toggle-switch { position: relative; width: 52px; height: 28px; }
+.toggle-switch input { opacity: 0; width: 0; height: 0; }
+.toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: 28px;
+    transition: 0.3s;
+}
+.toggle-slider::before {
+    position: absolute;
+    content: "";
+    height: 20px; width: 20px;
+    left: 3px; bottom: 3px;
+    background: white;
+    border-radius: 50%;
+    transition: 0.3s;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+}
+.toggle-switch input:checked + .toggle-slider { background: var(--accent-primary); border-color: var(--accent-primary); }
+.toggle-switch input:checked + .toggle-slider::before { transform: translateX(24px); }
+
+/* ========================================
+   [區塊8] 標籤與徽章
+======================================== */
+.badge { display: inline-flex; align-items: center; padding: 4px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: 600; }
+.badge-primary { background: rgba(45,138,78,0.15); color: var(--accent-primary); }
+.badge-gold { background: rgba(212,165,52,0.15); color: var(--accent-gold); }
+.badge-danger { background: rgba(217,69,69,0.15); color: var(--accent-danger); }
+.badge-info { background: rgba(59,130,246,0.15); color: #3b82f6; }
+.role-badge { padding: 6px 14px; border-radius: 8px; font-size: 0.85rem; font-weight: 600; }
+.role-rookie { background: #e3f2fd; color: #1976d2; }
+.role-veteran { background: #fff3e0; color: #f57c00; }
+.role-coach { background: #fce4ec; color: #c2185b; }
+.role-admin { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
+[data-theme="dark"] .role-rookie { background: rgba(25,118,210,0.2); }
+[data-theme="dark"] .role-veteran { background: rgba(245,124,0,0.2); }
+[data-theme="dark"] .role-coach { background: rgba(194,24,91,0.2); }
+
+/* ========================================
+   [區塊9] Hero 區塊
+======================================== */
+.hero {
+    padding: 120px 20px 80px;
+    background: var(--gradient-hero);
+    position: relative;
+    overflow: hidden;
+}
+.hero::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.05'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+    opacity: 0.5;
+}
+.hero-content { position: relative; z-index: 1; text-align: center; color: white; max-width: 800px; margin: 0 auto; }
+.hero-title { font-family: 'Orbitron', sans-serif; font-size: clamp(2.5rem, 6vw, 4rem); font-weight: 900; margin-bottom: 16px; text-shadow: 0 4px 20px rgba(0,0,0,0.3); }
+.hero-subtitle { font-size: 1.2rem; opacity: 0.9; margin-bottom: 32px; }
+.hero-stats { display: flex; justify-content: center; gap: 40px; margin-top: 40px; }
+.hero-stat { text-align: center; }
+.hero-stat-value { font-family: 'Orbitron', sans-serif; font-size: 2.5rem; font-weight: 700; }
+.hero-stat-label { font-size: 0.9rem; opacity: 0.8; }
+
+/* ========================================
+   [區塊10] 活動卡片
+======================================== */
+.event-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 24px; margin-top: 30px; }
+.event-card {
+    background: var(--bg-card);
+    border-radius: 20px;
+    border: 1px solid var(--border-color);
+    overflow: hidden;
+    transition: all 0.3s;
+    cursor: pointer;
+}
+.event-card:hover { transform: translateY(-5px); box-shadow: var(--shadow-lg); }
+.event-banner { position: relative; height: 180px; background: var(--gradient-hero); overflow: hidden; }
+.event-banner img { width: 100%; height: 100%; object-fit: cover; }
+.event-status { position: absolute; top: 12px; right: 12px; padding: 6px 14px; border-radius: 20px; font-size: 0.8rem; font-weight: 600; backdrop-filter: blur(10px); }
+.event-status.open { background: rgba(45,138,78,0.9); color: white; }
+.event-status.closed { background: rgba(217,69,69,0.9); color: white; }
+.event-status.full { background: rgba(232,168,56,0.9); color: white; }
+.event-content { padding: 20px; }
+.event-title { font-size: 1.3rem; font-weight: 700; margin-bottom: 12px; color: var(--text-primary); }
+.event-meta { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+.event-meta-item { display: flex; align-items: center; gap: 10px; color: var(--text-secondary); font-size: 0.95rem; }
+.event-meta-item .icon { width: 20px; text-align: center; color: var(--accent-primary); }
+.event-price { font-family: 'Orbitron', sans-serif; font-size: 1.5rem; font-weight: 700; color: var(--accent-primary); margin-bottom: 16px; }
+.event-price span { font-size: 0.9rem; color: var(--text-muted); font-family: 'Noto Sans TC', sans-serif; }
+.event-capacity { margin-bottom: 16px; }
+.capacity-bar { height: 8px; background: var(--bg-tertiary); border-radius: 4px; overflow: hidden; margin-bottom: 8px; }
+.capacity-fill { height: 100%; background: var(--accent-primary); border-radius: 4px; transition: width 0.3s; }
+.capacity-fill.warning { background: var(--accent-warning); }
+.capacity-fill.full { background: var(--accent-danger); }
+.capacity-text { display: flex; justify-content: space-between; font-size: 0.85rem; color: var(--text-muted); }
+.event-actions { display: flex; gap: 12px; }
+.event-actions .btn { flex: 1; }
+
+/* ========================================
+   [區塊11] 會員中心
+======================================== */
+.profile-header { display: flex; align-items: center; gap: 24px; padding: 30px; background: var(--gradient-hero); border-radius: 20px; color: white; margin-bottom: 30px; }
+.profile-avatar { width: 100px; height: 100px; border-radius: 50%; border: 4px solid white; object-fit: cover; }
+.profile-info h2 { font-size: 1.8rem; margin-bottom: 8px; }
+.profile-stats { display: flex; gap: 30px; margin-top: 12px; }
+.profile-stat { text-align: center; }
+.profile-stat-value { font-family: 'Orbitron', sans-serif; font-size: 1.5rem; font-weight: 700; }
+.profile-stat-label { font-size: 0.85rem; opacity: 0.8; }
+.profile-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; }
+
+/* ========================================
+   [區塊12] 排行榜
+======================================== */
+.leaderboard-tabs { display: flex; gap: 8px; margin-bottom: 24px; flex-wrap: wrap; }
+.leaderboard-tab { padding: 10px 20px; border-radius: 10px; background: var(--bg-tertiary); color: var(--text-secondary); font-weight: 500; cursor: pointer; border: none; transition: all 0.2s; }
+.leaderboard-tab.active, .leaderboard-tab:hover { background: var(--accent-primary); color: white; }
+.leaderboard-list { display: flex; flex-direction: column; gap: 12px; }
+.leaderboard-item { display: flex; align-items: center; gap: 16px; padding: 16px 20px; background: var(--bg-card); border-radius: 16px; border: 1px solid var(--border-color); transition: all 0.2s; }
+.leaderboard-item:hover { border-color: var(--accent-primary); }
+.leaderboard-item.top-1 { background: linear-gradient(135deg, rgba(255,215,0,0.15) 0%, rgba(255,215,0,0.05) 100%); border-color: #ffd700; }
+.leaderboard-item.top-2 { background: linear-gradient(135deg, rgba(192,192,192,0.15) 0%, rgba(192,192,192,0.05) 100%); border-color: #c0c0c0; }
+.leaderboard-item.top-3 { background: linear-gradient(135deg, rgba(205,127,50,0.15) 0%, rgba(205,127,50,0.05) 100%); border-color: #cd7f32; }
+.leaderboard-rank { font-family: 'Orbitron', sans-serif; font-size: 1.3rem; font-weight: 700; width: 40px; text-align: center; color: var(--text-muted); }
+.leaderboard-item.top-1 .leaderboard-rank { color: #ffd700; }
+.leaderboard-item.top-2 .leaderboard-rank { color: #c0c0c0; }
+.leaderboard-item.top-3 .leaderboard-rank { color: #cd7f32; }
+.leaderboard-avatar { width: 50px; height: 50px; border-radius: 50%; object-fit: cover; border: 2px solid var(--border-color); }
+.leaderboard-info { flex: 1; }
+.leaderboard-name { font-weight: 600; font-size: 1.05rem; margin-bottom: 4px; }
+.leaderboard-tags { display: flex; gap: 6px; flex-wrap: wrap; }
+.leaderboard-score { font-family: 'Orbitron', sans-serif; font-size: 1.4rem; font-weight: 700; color: var(--accent-primary); }
+
+/* ========================================
+   [區塊13] 統計圖表
+======================================== */
+.stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px; }
+.chart-container { position: relative; height: 280px; padding: 20px; }
+
+/* ========================================
+   [區塊14] 管理員面板
+======================================== */
+.admin-section { margin-bottom: 40px; }
+.admin-section-title { font-size: 1.3rem; font-weight: 700; margin-bottom: 20px; padding-bottom: 12px; border-bottom: 2px solid var(--accent-primary); display: flex; align-items: center; gap: 10px; }
+.admin-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; }
+.admin-stat-card { background: var(--bg-card); border-radius: 16px; padding: 24px; border: 1px solid var(--border-color); text-align: center; }
+.admin-stat-icon { font-size: 2.5rem; margin-bottom: 12px; }
+.admin-stat-value { font-family: 'Orbitron', sans-serif; font-size: 2rem; font-weight: 700; color: var(--accent-primary); }
+.admin-stat-label { color: var(--text-muted); font-size: 0.9rem; margin-top: 4px; }
+.data-table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+.data-table th, .data-table td { padding: 14px 16px; text-align: left; border-bottom: 1px solid var(--border-color); }
+.data-table th { background: var(--bg-tertiary); font-weight: 600; color: var(--text-secondary); }
+.data-table tr:hover td { background: var(--bg-tertiary); }
+.table-responsive { overflow-x: auto; }
+
+/* ========================================
+   [區塊15] Modal 彈窗
+======================================== */
+.modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(5px); display: flex; align-items: center; justify-content: center; z-index: 2000; padding: 20px; opacity: 0; visibility: hidden; transition: all 0.3s; }
+.modal-overlay.active { opacity: 1; visibility: visible; }
+.modal { background: var(--bg-card); border-radius: 20px; width: 100%; max-width: 600px; max-height: 90vh; overflow-y: auto; transform: scale(0.9); transition: transform 0.3s; }
+.modal-overlay.active .modal { transform: scale(1); }
+.modal-header { display: flex; align-items: center; justify-content: space-between; padding: 20px 24px; border-bottom: 1px solid var(--border-color); }
+.modal-title { font-size: 1.3rem; font-weight: 700; }
+.modal-close { width: 36px; height: 36px; border-radius: 10px; border: none; background: var(--bg-tertiary); color: var(--text-secondary); cursor: pointer; font-size: 1.2rem; transition: all 0.2s; }
+.modal-close:hover { background: var(--accent-danger); color: white; }
+.modal-body { padding: 24px; }
+.modal-footer { display: flex; justify-content: flex-end; gap: 12px; padding: 16px 24px; border-top: 1px solid var(--border-color); }
+
+/* ========================================
+   [區塊16] QR Code / 載入 / Toast
+======================================== */
+.qr-section { text-align: center; padding: 40px 20px; }
+.qr-code-display { width: 250px; height: 250px; margin: 20px auto; padding: 20px; background: white; border-radius: 20px; box-shadow: var(--shadow-md); }
+.qr-code-display canvas { width: 100% !important; height: 100% !important; }
+
+.loading-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: var(--bg-primary); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 9999; transition: opacity 0.5s; }
+.loading-overlay.hidden { opacity: 0; pointer-events: none; }
+.loading-spinner { width: 60px; height: 60px; border: 4px solid var(--border-color); border-top-color: var(--accent-primary); border-radius: 50%; animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading-text { margin-top: 20px; font-weight: 500; color: var(--text-secondary); }
+
+.toast-container { position: fixed; top: 90px; right: 20px; z-index: 3000; display: flex; flex-direction: column; gap: 10px; }
+.toast { padding: 16px 24px; background: var(--bg-card); border-radius: 12px; border: 1px solid var(--border-color); box-shadow: var(--shadow-md); display: flex; align-items: center; gap: 12px; animation: slideIn 0.3s ease; max-width: 400px; }
+@keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+.toast.success { border-left: 4px solid var(--accent-primary); }
+.toast.error { border-left: 4px solid var(--accent-danger); }
+.toast.warning { border-left: 4px solid var(--accent-warning); }
+.toast.info { border-left: 4px solid #3b82f6; }
+
+.empty-state { text-align: center; padding: 60px 20px; color: var(--text-muted); }
+.empty-state-icon { font-size: 4rem; margin-bottom: 20px; opacity: 0.5; }
+.empty-state-title { font-size: 1.3rem; font-weight: 600; margin-bottom: 8px; color: var(--text-secondary); }
+
+.share-buttons { display: flex; gap: 12px; flex-wrap: wrap; }
+.share-btn { width: 50px; height: 50px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; color: white; cursor: pointer; border: none; transition: transform 0.2s; }
+.share-btn:hover { transform: scale(1.1); }
+.share-btn.line { background: #06C755; }
+.share-btn.facebook { background: #1877f2; }
+.share-btn.twitter { background: #1da1f2; }
+.share-btn.copy { background: var(--text-muted); }
+
+/* ========================================
+   [區塊17] 響應式設計
+======================================== */
+@media (max-width: 768px) {
+    .navbar-menu { position: fixed; top: 70px; left: 0; right: 0; background: var(--bg-secondary); flex-direction: column; padding: 20px; border-bottom: 1px solid var(--border-color); transform: translateY(-100%); opacity: 0; visibility: hidden; transition: all 0.3s; }
+    .navbar-menu.active { transform: translateY(0); opacity: 1; visibility: visible; }
+    .hamburger { display: flex; }
+    .nav-link { width: 100%; text-align: center; padding: 14px; }
+    .hero-stats { flex-wrap: wrap; gap: 20px; }
+    .hero-stat { flex: 1; min-width: 100px; }
+    .profile-header { flex-direction: column; text-align: center; }
+    .profile-stats { justify-content: center; }
+    .event-grid { grid-template-columns: 1fr; }
+    .modal { max-width: 100%; margin: 10px; max-height: calc(100vh - 20px); }
+}
+@media (max-width: 480px) {
+    .hero { padding: 100px 15px 60px; }
+    .hero-title { font-size: 2rem; }
+    .container { padding: 0 15px; }
+    .btn { padding: 10px 18px; }
+    .card-body { padding: 16px; }
+}
+
+/* ========================================
+   [區塊18] 輔助類別
+======================================== */
+.text-center { text-align: center; }
+.text-muted { color: var(--text-muted); }
+.text-primary { color: var(--accent-primary); }
+.text-danger { color: var(--accent-danger); }
+.mt-1 { margin-top: 8px; }
+.mt-2 { margin-top: 16px; }
+.mt-3 { margin-top: 24px; }
+.mb-1 { margin-bottom: 8px; }
+.mb-2 { margin-bottom: 16px; }
+.mb-3 { margin-bottom: 24px; }
+.d-flex { display: flex; }
+.align-center { align-items: center; }
+.justify-between { justify-content: space-between; }
+.flex-wrap { flex-wrap: wrap; }
+.gap-1 { gap: 8px; }
+.gap-2 { gap: 16px; }
+.gap-3 { gap: 24px; }
+.w-100 { width: 100%; }
+.hidden { display: none !important; }
