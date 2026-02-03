@@ -1,0 +1,322 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>⚽️ 報名系統 - 測試頁</title>
+
+  <!-- LIFF SDK -->
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+
+  <style>
+    :root{
+      --bg:#fff; --fg:#111; --card:#f6f6f6; --muted:#666; --bd:#e5e5e5;
+      --btn:#111; --btnfg:#fff;
+    }
+    [data-theme="dark"]{
+      --bg:#0b0d10; --fg:#f2f2f2; --card:#141821; --muted:#a0a7b4; --bd:#262c38;
+      --btn:#f2f2f2; --btnfg:#0b0d10;
+    }
+    body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans TC",sans-serif;background:var(--bg);color:var(--fg);}
+    .wrap{max-width:980px;margin:0 auto;padding:16px;}
+    .card{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:16px;}
+    .row{display:flex;gap:12px;flex-wrap:wrap;align-items:center;}
+    .btn{padding:10px 12px;border-radius:10px;border:1px solid var(--bd);background:transparent;color:var(--fg);cursor:pointer;}
+    .btn.primary{background:var(--btn);color:var(--btnfg);border-color:transparent;}
+    .small{font-size:12px;color:var(--muted);}
+    code, pre{background:rgba(127,127,127,0.12);border-radius:10px;padding:10px;overflow:auto;}
+    img{border-radius:999px;}
+    input{padding:10px;border-radius:10px;border:1px solid var(--bd);background:transparent;color:var(--fg);width:100%;}
+    .grid{display:grid;grid-template-columns:1fr;gap:12px;}
+    @media(min-width:900px){.grid{grid-template-columns:1fr 1fr;}}
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+    <div class="row" style="justify-content:space-between;margin-bottom:12px;">
+      <div style="font-weight:900;">⚽️ LINE 足球報名系統 - 測試頁</div>
+      <button class="btn" id="themeBtn">🌙/☀️</button>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <div style="font-weight:800;margin-bottom:8px;">1) 設定區（先填好再按初始化）</div>
+
+        <div class="small">LIFF ID</div>
+        <input id="liffId" placeholder="例如：200xxxxx-xxxxxxx" />
+
+        <div style="height:10px"></div>
+
+        <div class="small">Functions Base URL（可選）</div>
+        <input id="fnBase" placeholder="例如：https://asia-east1-你的專案.cloudfunctions.net" />
+
+        <div style="height:10px"></div>
+
+        <div class="small">Firebase Config（必填）</div>
+        <div class="small">到 Firebase Console → Project settings → SDK setup → Config</div>
+
+        <div style="height:8px"></div>
+
+        <div class="row">
+          <div style="flex:1;">
+            <div class="small">apiKey</div>
+            <input id="fb_apiKey" />
+          </div>
+          <div style="flex:1;">
+            <div class="small">authDomain</div>
+            <input id="fb_authDomain" />
+          </div>
+        </div>
+
+        <div style="height:8px"></div>
+
+        <div class="row">
+          <div style="flex:1;">
+            <div class="small">projectId</div>
+            <input id="fb_projectId" />
+          </div>
+          <div style="flex:1;">
+            <div class="small">appId</div>
+            <input id="fb_appId" />
+          </div>
+        </div>
+
+        <div style="height:12px"></div>
+        <div class="row">
+          <button class="btn primary" id="btnInit">初始化（LIFF + Firebase）</button>
+          <button class="btn" id="btnClear">清空</button>
+        </div>
+
+        <div style="margin-top:12px" class="small">
+          ✅ 初始化成功後，你就能測試：LIFF Profile、Functions createCustomToken、Firebase 登入。
+        </div>
+      </div>
+
+      <div class="card">
+        <div style="font-weight:800;margin-bottom:8px;">2) 測試動作</div>
+
+        <div class="row" style="margin-bottom:8px;">
+          <button class="btn primary" id="btnLiff">取得 LIFF Profile</button>
+          <button class="btn" id="btnToken">呼叫 createCustomToken</button>
+          <button class="btn" id="btnSignOut">Firebase 登出</button>
+        </div>
+
+        <div class="small">Check-in Token（測試用）</div>
+        <input id="checkinToken" placeholder="貼上 getCheckinQrToken 產生的 token（若你有做）" />
+
+        <div style="height:10px"></div>
+        <div class="row">
+          <button class="btn" id="btnCheckin">呼叫 checkinByToken（可選）</button>
+        </div>
+
+        <div style="height:12px"></div>
+        <div class="small">狀態 / Log</div>
+        <pre id="log" style="min-height:220px;white-space:pre-wrap;"></pre>
+      </div>
+    </div>
+  </div>
+
+  <!-- Firebase SDK (Modular) via CDN -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
+    import { getAuth, onAuthStateChanged, signInWithCustomToken, signOut } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
+
+    const els = {
+      themeBtn: document.getElementById("themeBtn"),
+      btnInit: document.getElementById("btnInit"),
+      btnClear: document.getElementById("btnClear"),
+      btnLiff: document.getElementById("btnLiff"),
+      btnToken: document.getElementById("btnToken"),
+      btnSignOut: document.getElementById("btnSignOut"),
+      btnCheckin: document.getElementById("btnCheckin"),
+      log: document.getElementById("log"),
+
+      liffId: document.getElementById("liffId"),
+      fnBase: document.getElementById("fnBase"),
+
+      fb_apiKey: document.getElementById("fb_apiKey"),
+      fb_authDomain: document.getElementById("fb_authDomain"),
+      fb_projectId: document.getElementById("fb_projectId"),
+      fb_appId: document.getElementById("fb_appId"),
+
+      checkinToken: document.getElementById("checkinToken"),
+    };
+
+    function log(...args){
+      const msg = args.map(a => (typeof a === "string" ? a : JSON.stringify(a, null, 2))).join(" ");
+      els.log.textContent += msg + "\n";
+      els.log.scrollTop = els.log.scrollHeight;
+      console.log(...args);
+    }
+
+    function setTheme(t){
+      document.documentElement.setAttribute("data-theme", t);
+      localStorage.setItem("theme", t);
+    }
+    function getTheme(){
+      return localStorage.getItem("theme") === "dark" ? "dark" : "light";
+    }
+    setTheme(getTheme());
+    els.themeBtn.onclick = () => setTheme(getTheme() === "dark" ? "light" : "dark");
+
+    // 保存/載入設定
+    const KEY = "lfss_test_config";
+    function saveConfig(){
+      const cfg = {
+        liffId: els.liffId.value.trim(),
+        fnBase: els.fnBase.value.trim(),
+        firebase: {
+          apiKey: els.fb_apiKey.value.trim(),
+          authDomain: els.fb_authDomain.value.trim(),
+          projectId: els.fb_projectId.value.trim(),
+          appId: els.fb_appId.value.trim(),
+        }
+      };
+      localStorage.setItem(KEY, JSON.stringify(cfg));
+    }
+    function loadConfig(){
+      const raw = localStorage.getItem(KEY);
+      if(!raw) return;
+      try{
+        const cfg = JSON.parse(raw);
+        els.liffId.value = cfg.liffId || "";
+        els.fnBase.value = cfg.fnBase || "";
+        els.fb_apiKey.value = cfg.firebase?.apiKey || "";
+        els.fb_authDomain.value = cfg.firebase?.authDomain || "";
+        els.fb_projectId.value = cfg.firebase?.projectId || "";
+        els.fb_appId.value = cfg.firebase?.appId || "";
+      }catch{}
+    }
+    loadConfig();
+
+    let app = null;
+    let auth = null;
+    let inited = false;
+
+    async function initAll(){
+      saveConfig();
+
+      const liffId = els.liffId.value.trim();
+      if(!liffId) { alert("請填 LIFF ID"); return; }
+      if(!window.liff) { alert("LIFF SDK 未載入"); return; }
+
+      const fb = {
+        apiKey: els.fb_apiKey.value.trim(),
+        authDomain: els.fb_authDomain.value.trim(),
+        projectId: els.fb_projectId.value.trim(),
+        appId: els.fb_appId.value.trim(),
+      };
+      if(!fb.apiKey || !fb.authDomain || !fb.projectId || !fb.appId){
+        alert("Firebase config 請填完整");
+        return;
+      }
+
+      log("=== 初始化開始 ===");
+      log("LIFF init…");
+      await window.liff.init({ liffId });
+      if(!window.liff.isLoggedIn()){
+        log("LIFF 未登入，導向 login…");
+        window.liff.login();
+        return;
+      }
+      log("LIFF ✅ 已登入");
+
+      log("Firebase init…");
+      app = initializeApp(fb);
+      auth = getAuth(app);
+
+      onAuthStateChanged(auth, (u) => {
+        if(u) log("Firebase ✅ 已登入 uid:", u.uid);
+        else log("Firebase ⛔ 尚未登入");
+      });
+
+      inited = true;
+      log("=== 初始化完成 ✅ ===");
+    }
+
+    async function getProfile(){
+      if(!inited) { alert("請先初始化"); return; }
+      const profile = await window.liff.getProfile();
+      log("LIFF Profile:", profile);
+      const idToken = window.liff.getIDToken();
+      log("LIFF idToken length:", idToken?.length || 0);
+      return { profile, idToken };
+    }
+
+    async function callCreateCustomToken(){
+      if(!inited) { alert("請先初始化"); return; }
+
+      const { profile, idToken } = await getProfile();
+      const fnBase = els.fnBase.value.trim();
+
+      // 你在 functions 裡 export 的 https onRequest: createCustomToken
+      // 走 HTTP 方式呼叫（不需要 firebase callable）
+      // URL: {fnBase}/createCustomToken
+      if(!fnBase){
+        alert("請填 Functions Base URL（例如：https://asia-east1-xxx.cloudfunctions.net）");
+        return;
+      }
+
+      log("呼叫 createCustomToken…");
+      const resp = await fetch(`${fnBase}/createCustomToken`, {
+        method: "POST",
+        headers: { "Content-Type":"application/json" },
+        body: JSON.stringify({
+          idToken,
+          profile: {
+            userId: profile.userId,
+            displayName: profile.displayName,
+            pictureUrl: profile.pictureUrl
+          }
+        })
+      });
+
+      const data = await resp.json();
+      log("createCustomToken resp:", data);
+
+      if(!data.token) {
+        alert("沒有拿到 token，請看 log");
+        return;
+      }
+
+      log("用 custom token 登入 Firebase…");
+      await signInWithCustomToken(auth, data.token);
+      log("Firebase 登入成功 ✅");
+    }
+
+    async function doSignOut(){
+      if(!auth) return;
+      await signOut(auth);
+      log("Firebase 已登出");
+    }
+
+    async function callCheckinByToken(){
+      if(!inited) { alert("請先初始化"); return; }
+      if(!auth?.currentUser) { alert("請先 Firebase 登入（呼叫 createCustomToken）"); return; }
+
+      const token = els.checkinToken.value.trim();
+      if(!token) { alert("請貼上 token"); return; }
+
+      // 這裡用 HTTP call 版本會需要你自己做一個 onRequest endpoint；
+      // 目前你 functions checkinByToken 是 onCall callable
+      // 所以這個測試先提示你：要測 onCall 建議在 React/Vite 用 httpsCallable
+      log("⚠️ checkinByToken 目前是 functions.https.onCall（callable），本純 HTML 頁不直接呼叫。");
+      log("建議：先在 React 版用 httpsCallable 測，或我幫你另外加一個 /checkinByTokenHttp endpoint。");
+    }
+
+    // 綁定按鈕
+    els.btnInit.onclick = initAll;
+    els.btnClear.onclick = () => {
+      localStorage.removeItem(KEY);
+      location.reload();
+    };
+    els.btnLiff.onclick = () => getProfile().catch(e => log("ERR", e.message));
+    els.btnToken.onclick = () => callCreateCustomToken().catch(e => log("ERR", e.message));
+    els.btnSignOut.onclick = () => doSignOut().catch(e => log("ERR", e.message));
+    els.btnCheckin.onclick = () => callCheckinByToken().catch(e => log("ERR", e.message));
+
+    log("✅ 測試頁已載入。先填 LIFF / Firebase / Functions Base URL → 按「初始化」。");
+  </script>
+</body>
+</html>
