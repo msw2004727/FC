@@ -1,0 +1,65 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function userDoc(uid) { return get(/databases/$(database)/documents/users/$(uid)); }
+    function myUser() { return signedIn() ? userDoc(request.auth.uid) : null; }
+    function role() { return signedIn() ? myUser().data.role : null; }
+    function perms() { return signedIn() ? myUser().data.permissions : []; }
+    function isAdmin() { return role() == "admin"; }
+    function hasPerm(p) { return isAdmin() || (p in perms()); }
+
+    match /users/{uid} {
+      allow read: if signedIn();
+
+      // 使用者只能改自己的「個資欄位」，不能改 points/role/stats 等系統欄位
+      allow update: if signedIn() && request.auth.uid == uid
+        && request.resource.data.diff(resource.data).changedKeys()
+          .hasOnly([
+            "gender","age","contact","dominantFoot","positions",
+            "displayName","updatedAt"
+          ]);
+
+      // 建立使用者資料由後端 Functions 負責（避免造假 role）
+      allow create: if false;
+
+      // 管理者可管理使用者（包含 role/perms）
+      allow update: if hasPerm("user:manage");
+    }
+
+    match /configs/{docId} {
+      allow read: if signedIn();
+      allow write: if hasPerm("formula:edit");
+    }
+
+    match /activities/{activityId} {
+      allow read: if true;
+
+      allow create, update, delete: if hasPerm("activity:edit") || hasPerm("activity:create");
+
+      match /registrations/{uid} {
+        allow read: if signedIn();
+
+        // 一般使用者：只能對自己的報名做 create/update（受限制）
+        allow create: if signedIn() && request.auth.uid == uid;
+        allow update: if signedIn() && request.auth.uid == uid
+          && request.resource.data.diff(resource.data).changedKeys()
+            .hasOnly(["status","cancelAt","updatedAt"]);
+
+        // 管理端：可手動勾選報到/調整狀態
+        allow update: if hasPerm("activity:checkin");
+      }
+    }
+
+    match /leaderboards/{docId} {
+      allow read: if true;
+      allow write: if hasPerm("report:view"); // 通常由後端寫入
+    }
+
+    match /stats/{docId} {
+      allow read: if hasPerm("report:view");
+      allow write: if hasPerm("report:view");
+    }
+  }
+}
