@@ -17,15 +17,42 @@ const ROLE_LEVEL_MAP = { user:0, coach:1, captain:2, venue_owner:3, admin:4, sup
 // ─── Demo Data ───
 const DemoData = {
   events: [
-    { id: 'e1', title: '週六足球友誼賽', location: '台北市大安運動中心', date: '2026/03/15 14:00~16:00', fee: 300, max: 20, current: 12, waitlist: 3, waitlistMax: 5, creator: '教練小陳', contact: '0912-345-678', gradient: 'linear-gradient(135deg,#0d9488,#065f46)', icon: '⚽', countdown: '2天 5時', participants: ['王小明','李大華','張三','陳美玲','林志偉','周杰倫','黃小琳','吳宗翰','鄭家豪','許志安','蔡依林','劉德華'], waitlistNames: ['候補A','候補B','候補C'] },
-    { id: 'e2', title: '新手足球訓練營', location: '台中市豐原體育場', date: '2026/03/18 09:00~11:00', fee: 200, max: 15, current: 15, waitlist: 5, waitlistMax: 5, creator: '教練阿豪', contact: '0922-111-222', gradient: 'linear-gradient(135deg,#7c3aed,#4338ca)', icon: '🏃', countdown: '5天 2時', participants: ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O'], waitlistNames: ['W1','W2','W3','W4','W5'] },
-    { id: 'e3', title: '籃球三對三鬥牛', location: '高雄市三民體育館', date: '2026/03/20 18:00~20:00', fee: 0, max: 12, current: 8, waitlist: 0, waitlistMax: 3, creator: '場主老王', contact: '', gradient: 'linear-gradient(135deg,#dc2626,#991b1b)', icon: '🏀', countdown: '7天 14時', participants: ['P1','P2','P3','P4','P5','P6','P7','P8'], waitlistNames: [] },
-    { id: 'e4', title: '週日排球輕鬆打', location: '台北市信義運動中心', date: '2026/03/22 10:00~12:00', fee: 150, max: 18, current: 6, waitlist: 0, waitlistMax: 4, creator: '教練小美', contact: '0933-444-555', gradient: 'linear-gradient(135deg,#d97706,#92400e)', icon: '🏐', countdown: '9天 6時', participants: ['V1','V2','V3','V4','V5','V6'], waitlistNames: [] },
+    // ── 2月（近期熱門 — 本週~兩週內） ──
+    { id: 'eh1', title: '週三足球基礎訓練', type: 'training', status: 'open', location: '台北市大安運動中心', date: '2026/02/11 19:00~21:00', fee: 200, max: 20, current: 14, waitlist: 0, waitlistMax: 5, creator: '教練小陳', contact: '0912-345-678', gradient: 'linear-gradient(135deg,#0d9488,#065f46)', icon: '⚽', countdown: '2天 10時', participants: ['王小明','李大華','張三','陳美玲','林志偉','周杰倫','黃小琳','吳宗翰','鄭家豪','許志安','蔡依林','劉德華','A','B'], waitlistNames: [] },
+    { id: 'eh2', title: '歐冠觀賽之夜', type: 'watch', status: 'open', location: '台北市Goal Sports Bar', date: '2026/02/12 20:30~23:00', fee: 350, max: 40, current: 28, waitlist: 0, waitlistMax: 10, creator: '場主老王', contact: '02-2771-5566', gradient: 'linear-gradient(135deg,#f59e0b,#d97706)', icon: '⚽', countdown: '3天 11時', participants: [], waitlistNames: [] },
+    { id: 'eh3', title: '週六足球友誼賽', type: 'friendly', status: 'open', location: '台北市信義運動中心', date: '2026/02/14 14:00~16:00', fee: 300, max: 22, current: 16, waitlist: 0, waitlistMax: 5, creator: '教練小陳', contact: '0912-345-678', gradient: 'linear-gradient(135deg,#0d9488,#065f46)', icon: '⚽', countdown: '5天 5時', participants: [], waitlistNames: [] },
+    { id: 'eh4', title: '五人制室內足球', type: 'friendly', status: 'full', location: '高雄市三民體育館', date: '2026/02/18 18:00~20:00', fee: 200, max: 12, current: 12, waitlist: 3, waitlistMax: 5, creator: '場主老王', contact: '', gradient: 'linear-gradient(135deg,#0d9488,#065f46)', icon: '⚽', countdown: '9天 9時', participants: [], waitlistNames: ['候補X','候補Y','候補Z'] },
+    { id: 'eh5', title: '英超直播派對', type: 'watch', status: 'open', location: '台中市Kick-Off 運動餐廳', date: '2026/02/21 22:00~00:30', fee: 280, max: 50, current: 18, waitlist: 0, waitlistMax: 0, creator: '場主大衛', contact: '04-2225-8888', gradient: 'linear-gradient(135deg,#f59e0b,#d97706)', icon: '⚽', countdown: '12天 13時', participants: [], waitlistNames: [] },
+    // ── 2月（已結束） ──
+    { id: 'e0a', title: '冬季足球體能測試', type: 'test', status: 'ended', location: '台北市大安運動中心', date: '2026/02/22 08:00~12:00', fee: 0, max: 30, current: 28, waitlist: 0, waitlistMax: 0, creator: '教練阿豪', contact: '0922-111-222', gradient: 'linear-gradient(135deg,#d97706,#92400e)', icon: '⚽', countdown: '已結束', participants: ['王小明','李大華','張三','陳美玲','林志偉','黃小琳','吳宗翰','鄭家豪'], waitlistNames: [] },
+    { id: 'e0b', title: '週六足球友誼賽', type: 'friendly', status: 'ended', location: '台北市大安運動中心', date: '2026/02/22 14:00~16:00', fee: 300, max: 20, current: 20, waitlist: 2, waitlistMax: 5, creator: '教練小陳', contact: '0912-345-678', gradient: 'linear-gradient(135deg,#0d9488,#065f46)', icon: '⚽', countdown: '已結束', participants: ['王小明','李大華','張三','陳美玲','林志偉','周杰倫','黃小琳','吳宗翰','鄭家豪','許志安','蔡依林','劉德華','A','B','C','D','E','F','G','H'], waitlistNames: ['候補A','候補B'] },
+    { id: 'e0c', title: '足球新手學習營（第一梯）', type: 'camp', status: 'ended', location: '台中市豐原體育場', date: '2026/02/25 09:00~12:00', fee: 500, max: 20, current: 20, waitlist: 8, waitlistMax: 5, creator: '教練阿豪', contact: '0922-111-222', gradient: 'linear-gradient(135deg,#7c3aed,#4338ca)', icon: '⚽', countdown: '已結束', participants: [], waitlistNames: [] },
+    // ── 3月 ──
+    { id: 'e1', title: '春季聯賽第三輪', type: 'league', status: 'ended', location: '台北市大安運動中心', date: '2026/03/01 14:00~18:00', fee: 0, max: 22, current: 22, waitlist: 0, waitlistMax: 0, creator: '管理員', contact: '', gradient: 'linear-gradient(135deg,#dc2626,#991b1b)', icon: '⚽', countdown: '已結束', participants: [], waitlistNames: [] },
+    { id: 'e2', title: '守門員專項訓練班', type: 'training', status: 'ended', location: '台北市信義運動中心', date: '2026/03/05 09:00~11:00', fee: 250, max: 10, current: 10, waitlist: 3, waitlistMax: 3, creator: '教練小陳', contact: '0912-345-678', gradient: 'linear-gradient(135deg,#0d9488,#065f46)', icon: '⚽', countdown: '已結束', participants: [], waitlistNames: [] },
+    { id: 'e3', title: '五人制室內足球', type: 'friendly', status: 'ended', location: '高雄市三民體育館', date: '2026/03/08 18:00~20:00', fee: 200, max: 12, current: 12, waitlist: 0, waitlistMax: 3, creator: '場主老王', contact: '', gradient: 'linear-gradient(135deg,#0d9488,#065f46)', icon: '⚽', countdown: '已結束', participants: ['P1','P2','P3','P4','P5','P6','P7','P8','P9','P10','P11','P12'], waitlistNames: [] },
+    { id: 'e4', title: '週六足球友誼賽', type: 'friendly', status: 'open', location: '台北市大安運動中心', date: '2026/03/15 14:00~16:00', fee: 300, max: 20, current: 12, waitlist: 3, waitlistMax: 5, creator: '教練小陳', contact: '0912-345-678', gradient: 'linear-gradient(135deg,#0d9488,#065f46)', icon: '⚽', countdown: '2天 5時', participants: ['王小明','李大華','張三','陳美玲','林志偉','周杰倫','黃小琳','吳宗翰','鄭家豪','許志安','蔡依林','劉德華'], waitlistNames: ['候補A','候補B','候補C'] },
+    { id: 'e5', title: '足球戰術研習營', type: 'camp', status: 'full', location: '台中市豐原體育場', date: '2026/03/18 09:00~12:00', fee: 400, max: 15, current: 15, waitlist: 5, waitlistMax: 5, creator: '教練阿豪', contact: '0922-111-222', gradient: 'linear-gradient(135deg,#7c3aed,#4338ca)', icon: '⚽', countdown: '5天 2時', participants: ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O'], waitlistNames: ['W1','W2','W3','W4','W5'] },
+    { id: 'e6', title: '足球體能訓練', type: 'training', status: 'open', location: '高雄市三民體育館', date: '2026/03/20 07:00~09:00', fee: 150, max: 25, current: 8, waitlist: 0, waitlistMax: 3, creator: '教練阿豪', contact: '0922-111-222', gradient: 'linear-gradient(135deg,#0d9488,#065f46)', icon: '⚽', countdown: '7天 14時', participants: ['P1','P2','P3','P4','P5','P6','P7','P8'], waitlistNames: [] },
+    { id: 'e7', title: '週六11人制友誼賽', type: 'friendly', status: 'open', location: '台北市信義運動中心', date: '2026/03/22 14:00~16:30', fee: 350, max: 24, current: 18, waitlist: 0, waitlistMax: 5, creator: '教練小陳', contact: '0912-345-678', gradient: 'linear-gradient(135deg,#0d9488,#065f46)', icon: '⚽', countdown: '9天 6時', participants: [], waitlistNames: [] },
+    { id: 'e8', title: '春季聯賽第四輪', type: 'league', status: 'open', location: '台北市大安運動中心', date: '2026/03/29 14:00~18:00', fee: 0, max: 22, current: 22, waitlist: 0, waitlistMax: 0, creator: '管理員', contact: '', gradient: 'linear-gradient(135deg,#dc2626,#991b1b)', icon: '⚽', countdown: '16天 5時', participants: [], waitlistNames: [] },
+    { id: 'e9', title: '足球裁判培訓班', type: 'camp', status: 'open', location: '台北市大安運動中心', date: '2026/03/29 09:00~12:00', fee: 600, max: 12, current: 5, waitlist: 0, waitlistMax: 0, creator: '管理員', contact: '', gradient: 'linear-gradient(135deg,#7c3aed,#4338ca)', icon: '⚽', countdown: '16天 0時', participants: [], waitlistNames: [] },
+    // ── 4月 ──
+    { id: 'e10', title: '守門員撲救專訓', type: 'training', status: 'open', location: '台北市信義運動中心', date: '2026/04/02 09:00~11:00', fee: 250, max: 10, current: 4, waitlist: 0, waitlistMax: 3, creator: '教練小陳', contact: '0912-345-678', gradient: 'linear-gradient(135deg,#0d9488,#065f46)', icon: '⚽', countdown: '20天 0時', participants: [], waitlistNames: [] },
+    { id: 'e11', title: '新春盃淘汰賽首輪', type: 'cup', status: 'full', location: '台中市豐原體育場', date: '2026/04/05 13:00~17:00', fee: 0, max: 32, current: 32, waitlist: 0, waitlistMax: 0, creator: '管理員', contact: '', gradient: 'linear-gradient(135deg,#d97706,#92400e)', icon: '⚽', countdown: '23天 4時', participants: [], waitlistNames: [] },
+    { id: 'e12', title: '足球新手學習營（第二梯）', type: 'camp', status: 'open', location: '台中市豐原體育場', date: '2026/04/06 09:00~12:00', fee: 500, max: 20, current: 7, waitlist: 0, waitlistMax: 5, creator: '教練阿豪', contact: '0922-111-222', gradient: 'linear-gradient(135deg,#7c3aed,#4338ca)', icon: '⚽', countdown: '24天 0時', participants: [], waitlistNames: [] },
+    { id: 'e13', title: '週六足球友誼賽', type: 'friendly', status: 'upcoming', location: '台北市大安運動中心', date: '2026/04/12 14:00~16:00', fee: 300, max: 20, current: 0, waitlist: 0, waitlistMax: 5, creator: '教練小陳', contact: '0912-345-678', gradient: 'linear-gradient(135deg,#0d9488,#065f46)', icon: '⚽', countdown: '30天 5時', participants: [], waitlistNames: [] },
+    { id: 'e14', title: '春季足球體能測試', type: 'test', status: 'upcoming', location: '高雄市三民體育館', date: '2026/04/15 08:00~12:00', fee: 0, max: 30, current: 0, waitlist: 0, waitlistMax: 0, creator: '教練阿豪', contact: '0922-111-222', gradient: 'linear-gradient(135deg,#d97706,#92400e)', icon: '⚽', countdown: '33天 0時', participants: [], waitlistNames: [] },
+    { id: 'e15', title: '新春盃淘汰賽八強', type: 'cup', status: 'upcoming', location: '台中市豐原體育場', date: '2026/04/19 13:00~17:00', fee: 0, max: 16, current: 0, waitlist: 0, waitlistMax: 0, creator: '管理員', contact: '', gradient: 'linear-gradient(135deg,#d97706,#92400e)', icon: '⚽', countdown: '37天 4時', participants: [], waitlistNames: [] },
+    { id: 'e16', title: '五人制足球友誼賽', type: 'friendly', status: 'cancelled', location: '高雄市三民體育館', date: '2026/04/20 18:00~20:00', fee: 200, max: 12, current: 4, waitlist: 0, waitlistMax: 3, creator: '場主老王', contact: '', gradient: 'linear-gradient(135deg,#0d9488,#065f46)', icon: '⚽', countdown: '已取消', participants: [], waitlistNames: [] },
+    { id: 'e17', title: '春季聯賽第五輪', type: 'league', status: 'upcoming', location: '台北市大安運動中心', date: '2026/04/26 14:00~18:00', fee: 0, max: 22, current: 0, waitlist: 0, waitlistMax: 0, creator: '管理員', contact: '', gradient: 'linear-gradient(135deg,#dc2626,#991b1b)', icon: '⚽', countdown: '44天 5時', participants: [], waitlistNames: [] },
   ],
 
   tournaments: [
     { id: 't1', name: '2026 春季足球聯賽', type: '聯賽（雙循環）', teams: 8, matches: 56, status: '進行中', gradient: 'linear-gradient(135deg,#dc2626,#991b1b)' },
     { id: 't2', name: '新春盃足球淘汰賽', type: '盃賽（單敗淘汰）', teams: 16, matches: 15, status: '即將開始', gradient: 'linear-gradient(135deg,#7c3aed,#4338ca)' },
+    { id: 't3', name: '2025 秋季足球聯賽', type: '聯賽（雙循環）', teams: 8, matches: 56, status: '已結束', gradient: 'linear-gradient(135deg,#6b7280,#374151)' },
+    { id: 't4', name: '市長盃五人制足球賽', type: '盃賽（分組+淘汰）', teams: 12, matches: 20, status: '報名中', gradient: 'linear-gradient(135deg,#0d9488,#065f46)' },
   ],
 
   teams: [
@@ -55,9 +82,9 @@ const DemoData = {
   ],
 
   badges: [
-    { name: '足球達人', icon: '⚽' }, { name: '籃球新手', icon: '🏀' },
-    { name: '守門員', icon: '🧤' }, { name: '前鋒王', icon: '🎯' },
-    { name: '助攻王', icon: '🤝' }, { name: '最佳隊友', icon: '🌟' },
+    { name: '足球達人', icon: '⚽' }, { name: '守門員', icon: '🧤' },
+    { name: '前鋒王', icon: '🎯' }, { name: '助攻王', icon: '🤝' },
+    { name: '最佳隊友', icon: '🌟' }, { name: '鐵腿王', icon: '🦵' },
   ],
 
   shopItems: [
@@ -168,11 +195,12 @@ const DemoData = {
   ],
 
   activityRecords: [
-    { name: '週六足球友誼賽', date: '03/08', status: 'completed' },
-    { name: '週三訓練', date: '03/05', status: 'completed' },
-    { name: '新手教學', date: '03/01', status: 'cancelled' },
+    { name: '五人制室內足球', date: '03/08', status: 'completed' },
+    { name: '守門員專項訓練班', date: '03/05', status: 'completed' },
+    { name: '春季聯賽第三輪', date: '03/01', status: 'completed' },
     { name: '週六足球友誼賽', date: '02/22', status: 'completed' },
-    { name: '室內五人制', date: '02/15', status: 'early-left' },
+    { name: '冬季足球體能測試', date: '02/22', status: 'early-left' },
+    { name: '足球新手學習營', date: '02/25', status: 'cancelled' },
   ],
 };
 
@@ -203,12 +231,14 @@ const DRAWER_MENUS = [
 const App = {
   currentRole: 'user',
   currentPage: 'page-home',
+  currentTournament: 't1',
   pageHistory: [],
   bannerIndex: 0,
   bannerTimer: null,
 
   init() {
     this.bindRoleSwitcher();
+    this.bindSportPicker();
     this.bindNavigation();
     this.bindDrawer();
     this.bindTheme();
@@ -217,6 +247,8 @@ const App = {
     this.bindTabBars();
     this.bindTournamentTabs();
     this.bindScanModes();
+    this.bindFloatingAds();
+    this.bindNotifBtn();
     this.startBannerCarousel();
     this.renderAll();
     this.applyRole('user');
@@ -224,12 +256,107 @@ const App = {
 
   // ── Role System ──
   bindRoleSwitcher() {
-    document.querySelectorAll('.role-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        document.querySelectorAll('.role-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        this.applyRole(btn.dataset.role);
+    const wrapper = document.getElementById('role-switcher-wrapper');
+    if (!wrapper) return;
+
+    const avatarBtn = wrapper.querySelector('.role-avatar-btn');
+    const dropdown = wrapper.querySelector('.role-dropdown');
+    const dropdownItems = wrapper.querySelectorAll('.role-dropdown-item');
+
+    if (!avatarBtn || !dropdown) return;
+
+    // 點擊頭像按鈕展開/收合選單
+    avatarBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const isOpen = dropdown.classList.contains('open');
+      avatarBtn.classList.toggle('open', !isOpen);
+      dropdown.classList.toggle('open', !isOpen);
+    });
+
+    // 點擊選單項目切換身份
+    dropdownItems.forEach(item => {
+      item.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const role = item.dataset.role;
+        const roleLabel = item.querySelector('span:last-child')?.textContent || '';
+
+        dropdownItems.forEach(i => i.classList.remove('active'));
+        item.classList.add('active');
+
+        const labelEl = wrapper.querySelector('.role-current-label');
+        if (labelEl) labelEl.textContent = roleLabel;
+
+        this.applyRole(role);
+
+        avatarBtn.classList.remove('open');
+        dropdown.classList.remove('open');
       });
+    });
+
+    // 點擊下拉選單外的地方關閉選單
+    document.addEventListener('click', (e) => {
+      if (!wrapper.contains(e.target)) {
+        avatarBtn.classList.remove('open');
+        dropdown.classList.remove('open');
+      }
+    });
+  },
+
+  // ── Sport Picker ──
+  bindSportPicker() {
+    const wrapper = document.getElementById('sport-picker-wrapper');
+    if (!wrapper) return;
+
+    const btn = wrapper.querySelector('.sport-picker-btn');
+    const dropdown = wrapper.querySelector('.sport-picker-dropdown');
+    const items = wrapper.querySelectorAll('.sport-picker-item');
+
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      // 關閉其他可能開啟的下拉選單
+      document.querySelectorAll('.role-dropdown.open').forEach(d => d.classList.remove('open'));
+      document.querySelectorAll('.role-avatar-btn.open').forEach(b => b.classList.remove('open'));
+
+      const isOpen = dropdown.classList.contains('open');
+      btn.classList.toggle('open', !isOpen);
+      dropdown.classList.toggle('open', !isOpen);
+    });
+
+    items.forEach(item => {
+      item.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (item.classList.contains('locked')) return;
+
+        const icon = item.querySelector('.sp-icon').textContent;
+
+        items.forEach(i => i.classList.remove('active'));
+        item.classList.add('active');
+
+        // 更新按鈕圖示
+        btn.querySelector('.sport-picker-icon').textContent = icon;
+
+        // 同步首頁運動類別列的 active 狀態
+        const catItems = document.querySelectorAll('.cat-item:not(.add-cat)');
+        catItems.forEach(c => {
+          const catIcon = c.querySelector('span')?.textContent;
+          c.classList.toggle('active', catIcon === icon);
+        });
+
+        btn.classList.remove('open');
+        dropdown.classList.remove('open');
+
+        this.showToast(`已選擇「${item.querySelector('span:nth-child(2)').textContent}」`);
+      });
+    });
+
+    // 點擊外部關閉
+    document.addEventListener('click', (e) => {
+      if (!wrapper.contains(e.target)) {
+        btn.classList.remove('open');
+        dropdown.classList.remove('open');
+      }
     });
   },
 
@@ -402,14 +529,8 @@ const App = {
     });
   },
 
-  // ── Tournament Tabs ──
-  bindTournamentTabs() {
-    document.querySelectorAll('[data-ttab]').forEach(tab => {
-      tab.addEventListener('click', () => {
-        this.renderTournamentTab(tab.dataset.ttab);
-      });
-    });
-  },
+  // ── Tournament Tabs (bound dynamically in showTournamentDetail) ──
+  bindTournamentTabs() {},
 
   // ── Scan Mode ──
   bindScanModes() {
@@ -421,12 +542,22 @@ const App = {
     });
   },
 
+  // ── Notif Button → Messages Page ──
+  bindNotifBtn() {
+    document.getElementById('notif-btn')?.addEventListener('click', () => {
+      this.showPage('page-messages');
+      // deactivate bottom tabs since messages is no longer a bottom tab
+      document.querySelectorAll('.bot-tab').forEach(t => t.classList.remove('active'));
+    });
+  },
+
   // ── Banner Carousel ──
   startBannerCarousel() {
     const track = document.getElementById('banner-track');
     const dots = document.getElementById('banner-dots');
     const slides = track.querySelectorAll('.banner-slide');
     const count = slides.length;
+    this.bannerCount = count;
 
     // Create dots
     dots.innerHTML = '';
@@ -436,6 +567,14 @@ const App = {
       dot.addEventListener('click', () => this.goToBanner(i));
       dots.appendChild(dot);
     }
+
+    // Arrow buttons
+    document.getElementById('banner-prev')?.addEventListener('click', () => {
+      this.goToBanner((this.bannerIndex - 1 + count) % count);
+    });
+    document.getElementById('banner-next')?.addEventListener('click', () => {
+      this.goToBanner((this.bannerIndex + 1) % count);
+    });
 
     this.bannerTimer = setInterval(() => {
       this.bannerIndex = (this.bannerIndex + 1) % count;
@@ -461,8 +600,7 @@ const App = {
     this.renderBadges();
     this.renderShop();
     this.renderLeaderboard();
-    this.renderTournamentList();
-    this.renderTournamentTab('schedule');
+    this.renderTournamentTimeline();
     this.renderActivityRecords();
     this.renderAdminUsers();
     this.renderExpLogs();
@@ -477,28 +615,40 @@ const App = {
     this.renderUserCard();
   },
 
-  // ── Render: Hot Events ──
+  // ── Render: Hot Events (next 2 weeks only) ──
   renderHotEvents() {
     const container = document.getElementById('hot-events');
-    container.innerHTML = DemoData.events.map(e => `
-      <div class="h-card" onclick="App.showEventDetail('${e.id}')">
-        <div class="h-card-img" style="background:${e.gradient}">${e.icon}</div>
-        <div class="h-card-body">
-          <div class="h-card-title">${e.title}</div>
-          <div class="h-card-meta">
-            <span>📍 ${e.location.split('市')[0]}市</span>
-            <span>👥 ${e.current}/${e.max}</span>
+    const now = new Date();
+    const twoWeeksLater = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
+
+    const upcoming = DemoData.events.filter(e => {
+      if (e.status === 'ended' || e.status === 'cancelled') return false;
+      const parts = e.date.split(' ')[0].split('/');
+      const eventDate = new Date(+parts[0], +parts[1] - 1, +parts[2]);
+      return eventDate >= now && eventDate <= twoWeeksLater;
+    });
+
+    container.innerHTML = upcoming.length > 0
+      ? upcoming.map(e => `
+        <div class="h-card" onclick="App.showEventDetail('${e.id}')">
+          <div class="h-card-img" style="background:${e.gradient}">${e.icon}</div>
+          <div class="h-card-body">
+            <div class="h-card-title">${e.title}</div>
+            <div class="h-card-meta">
+              <span>📍 ${e.location.split('市')[0]}市</span>
+              <span>👥 ${e.current}/${e.max}</span>
+            </div>
           </div>
         </div>
-      </div>
-    `).join('');
+      `).join('')
+      : '<div style="padding:1rem;font-size:.82rem;color:var(--text-muted)">近兩週內無活動</div>';
   },
 
   // ── Render: Ongoing Tournaments ──
   renderOngoingTournaments() {
     const container = document.getElementById('ongoing-tournaments');
     container.innerHTML = DemoData.tournaments.map(t => `
-      <div class="h-card" onclick="App.showPage('page-tournament-detail')">
+      <div class="h-card" onclick="App.showTournamentDetail('${t.id}')">
         <div class="h-card-img" style="background:${t.gradient}">🏆</div>
         <div class="h-card-body">
           <div class="h-card-title">${t.name}</div>
@@ -511,30 +661,93 @@ const App = {
     `).join('');
   },
 
-  // ── Render: Activity List ──
+  // ── Type icons & labels ──
+  TYPE_CONFIG: {
+    friendly: { icon: '🤝', label: '友誼賽', color: 'friendly' },
+    training: { icon: '🏋️', label: '訓練', color: 'training' },
+    league:   { icon: '🏆', label: '聯賽', color: 'league' },
+    cup:      { icon: '🥊', label: '盃賽', color: 'cup' },
+    test:     { icon: '📋', label: '測試', color: 'test' },
+    camp:     { icon: '🎓', label: '學習營', color: 'camp' },
+    watch:    { icon: '📺', label: '觀賽', color: 'watch' },
+  },
+
+  STATUS_CONFIG: {
+    open:      { label: '報名中', css: 'open' },
+    full:      { label: '已額滿', css: 'full' },
+    ended:     { label: '已結束', css: 'ended' },
+    upcoming:  { label: '即將開放', css: 'upcoming' },
+    cancelled: { label: '已取消', css: 'cancelled' },
+  },
+
+  DAY_NAMES: ['日','一','二','三','四','五','六'],
+
+  // ── Render: Activity Timeline ──
   renderActivityList() {
     const container = document.getElementById('activity-list');
-    container.innerHTML = DemoData.events.map(e => `
-      <div class="event-card" onclick="App.showEventDetail('${e.id}')">
-        <div class="event-card-top" style="background:${e.gradient}">
-          ${e.icon}
-          <div class="event-countdown">⏰ ${e.countdown}</div>
-        </div>
-        <div class="event-card-body">
-          <div class="event-card-title">${e.title}</div>
-          <div class="event-meta">
-            <span class="event-meta-item"><span class="event-meta-icon">📍</span>${e.location}</span>
-            <span class="event-meta-item"><span class="event-meta-icon">🕐</span>${e.date}</span>
-            <span class="event-meta-item"><span class="event-meta-icon">💰</span>${e.fee > 0 ? '$'+e.fee : '免費'}</span>
-            <span class="event-meta-item"><span class="event-meta-icon">👥</span>${e.current}/${e.max} (候${e.waitlist})</span>
-          </div>
-          <div class="event-card-footer">
-            <button class="primary-btn small" onclick="event.stopPropagation(); App.handleSignup('${e.id}')">${e.current >= e.max ? '候補報名' : '立即報名'}</button>
-            <button class="outline-btn small" onclick="event.stopPropagation(); App.showToast('已發送站內信')">站內信聯繫</button>
-          </div>
-        </div>
-      </div>
-    `).join('');
+    if (!container) return;
+
+    // 將事件依月份 → 日期分組
+    const monthGroups = {};
+    DemoData.events.forEach(e => {
+      const parts = e.date.split(' ')[0].split('/');
+      const monthKey = `${parts[0]}/${parts[1]}`;
+      const day = parseInt(parts[2], 10);
+      const dateObj = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, day);
+      const dayName = this.DAY_NAMES[dateObj.getDay()];
+
+      if (!monthGroups[monthKey]) monthGroups[monthKey] = {};
+      if (!monthGroups[monthKey][day]) {
+        monthGroups[monthKey][day] = { day, dayName, dateObj, events: [] };
+      }
+      monthGroups[monthKey][day].events.push(e);
+    });
+
+    const today = new Date();
+    const todayStr = `${today.getFullYear()}/${today.getMonth()+1}/${today.getDate()}`;
+
+    let html = '';
+    Object.keys(monthGroups).sort().forEach(monthKey => {
+      const [y, m] = monthKey.split('/');
+      const monthLabel = `${y} 年 ${parseInt(m)} 月`;
+      html += `<div class="tl-month-group">`;
+      html += `<div class="tl-month-header">${monthLabel}</div>`;
+
+      const days = Object.values(monthGroups[monthKey]).sort((a, b) => a.day - b.day);
+      days.forEach(dayInfo => {
+        const isToday = todayStr === `${y}/${parseInt(m)}/${dayInfo.day}`;
+        html += `<div class="tl-day-group">`;
+        html += `<div class="tl-date-col${isToday ? ' today' : ''}">
+          <div class="tl-day-num">${dayInfo.day}</div>
+          <div class="tl-day-name">週${dayInfo.dayName}</div>
+        </div>`;
+        html += `<div class="tl-events-col">`;
+
+        dayInfo.events.forEach(e => {
+          const typeConf = this.TYPE_CONFIG[e.type] || this.TYPE_CONFIG.friendly;
+          const statusConf = this.STATUS_CONFIG[e.status] || this.STATUS_CONFIG.open;
+          const time = e.date.split(' ')[1] || '';
+          const isEnded = e.status === 'ended' || e.status === 'cancelled';
+
+          html += `
+            <div class="tl-event-row${isEnded ? ' tl-past' : ''}" onclick="App.showEventDetail('${e.id}')">
+              <div class="tl-type-icon ${typeConf.color}">${typeConf.icon}</div>
+              <div class="tl-event-info">
+                <div class="tl-event-title">${e.title}</div>
+                <div class="tl-event-meta">${time} · ${e.location.split('市')[1] || e.location} · ${e.current}/${e.max}人</div>
+              </div>
+              <span class="tl-event-status ${statusConf.css}">${statusConf.label}</span>
+              <span class="tl-event-arrow">›</span>
+            </div>`;
+        });
+
+        html += `</div></div>`;
+      });
+
+      html += `</div>`;
+    });
+
+    container.innerHTML = html;
   },
 
   // ── Show Event Detail ──
@@ -701,44 +914,75 @@ const App = {
   },
 
   // ── Render: Tournament List ──
-  renderTournamentList() {
-    const container = document.getElementById('tournament-list');
-    container.innerHTML = DemoData.tournaments.map(t => `
-      <div class="event-card" onclick="App.showPage('page-tournament-detail')">
-        <div class="event-card-top" style="background:${t.gradient}">🏆</div>
-        <div class="event-card-body">
-          <div class="event-card-title">${t.name}</div>
-          <div class="event-meta">
-            <span class="event-meta-item">${t.type}</span>
-            <span class="event-meta-item">👥 ${t.teams} 隊</span>
-            <span class="event-meta-item">⚔ ${t.matches} 場</span>
-            <span class="event-meta-item">📌 ${t.status}</span>
-          </div>
-        </div>
-      </div>
-    `).join('');
+  // ── Render: Tournament Timeline (bottom tab page) ──
+  renderTournamentTimeline() {
+    const container = document.getElementById('tournament-timeline');
+    if (!container) return;
+
+    const leagues = DemoData.tournaments.filter(t => t.type.includes('聯賽'));
+    const cups = DemoData.tournaments.filter(t => !t.type.includes('聯賽'));
+
+    const renderSection = (title, icon, items) => {
+      let html = `<div class="tl-month-header">${icon} ${title}</div>`;
+      items.forEach(t => {
+        const statusMap = { '進行中': 'open', '即將開始': 'upcoming', '報名中': 'open', '已結束': 'ended' };
+        const css = statusMap[t.status] || 'open';
+        html += `
+          <div class="tl-event-row" onclick="App.showTournamentDetail('${t.id}')" style="margin-bottom:.4rem">
+            <div class="tl-type-icon league">🏆</div>
+            <div class="tl-event-info">
+              <div class="tl-event-title">${t.name}</div>
+              <div class="tl-event-meta">${t.type} · ${t.teams}隊 · ${t.matches}場</div>
+            </div>
+            <span class="tl-event-status ${css}">${t.status}</span>
+            <span class="tl-event-arrow">›</span>
+          </div>`;
+      });
+      return html;
+    };
+
+    container.innerHTML =
+      renderSection('聯賽', '🏆', leagues) +
+      '<div style="height:.5rem"></div>' +
+      renderSection('盃賽', '🥊', cups);
+  },
+
+  // ── Show Tournament Detail ──
+  showTournamentDetail(id) {
+    this.currentTournament = id;
+    const t = DemoData.tournaments.find(x => x.id === id);
+    if (!t) return;
+    document.getElementById('td-title').textContent = t.name;
+    this.showPage('page-tournament-detail');
+
+    // Rebind detail tabs
+    document.querySelectorAll('#td-tabs .tab').forEach(tab => {
+      tab.onclick = () => {
+        document.querySelectorAll('#td-tabs .tab').forEach(x => x.classList.remove('active'));
+        tab.classList.add('active');
+        this.renderTournamentTab(tab.dataset.ttab);
+      };
+    });
+    // Reset to schedule tab
+    document.querySelectorAll('#td-tabs .tab').forEach(x => x.classList.toggle('active', x.dataset.ttab === 'schedule'));
+    this.renderTournamentTab('schedule');
   },
 
   // ── Render: Tournament Tab Content ──
   renderTournamentTab(tab) {
     const container = document.getElementById('tournament-content');
+    if (!container) return;
+    const t = DemoData.tournaments.find(x => x.id === this.currentTournament);
+    const isCup = t && !t.type.includes('聯賽');
+
     if (tab === 'schedule') {
-      container.innerHTML = '<div style="font-size:.78rem;color:var(--text-muted);margin-bottom:.5rem">第 3 輪</div>' +
-        DemoData.matches.map(m => `
-          <div class="match-card">
-            <div class="match-teams">
-              <span>${m.home}</span>
-              <span class="match-score">${m.scoreH !== null ? `${m.scoreH} : ${m.scoreA}` : 'vs'}</span>
-              <span>${m.away}</span>
-            </div>
-            <div class="match-meta"><span>📍 ${m.venue}</span><span>🕐 ${m.time}</span></div>
-            ${m.scoreH !== null ? `<div class="match-cards-display">
-              <span class="yellow-card">🟨×${m.yellowH}</span> <span class="red-card">🟥×${m.redH}</span>
-              　
-              <span class="yellow-card">🟨×${m.yellowA}</span> <span class="red-card">🟥×${m.redA}</span>
-            </div>` : ''}
-          </div>
-        `).join('');
+      if (isCup) {
+        // Bracket diagram for cups
+        container.innerHTML = this.renderBracket();
+      } else {
+        // Compact match cards + round-robin
+        container.innerHTML = this.renderLeagueSchedule();
+      }
     } else if (tab === 'standings') {
       container.innerHTML = `<table class="standings-table">
         <tr><th>#</th><th>隊名</th><th>勝</th><th>平</th><th>負</th><th>積分</th></tr>
@@ -749,16 +993,113 @@ const App = {
         <div style="padding:.5rem;margin-bottom:.5rem;font-size:.82rem;color:var(--text-secondary)">
           交易窗口：03/01~03/20　狀態：<span style="color:var(--success);font-weight:600">🟢 開放中</span>
         </div>
-        ${DemoData.trades.map(t => `
+        ${DemoData.trades.map(tr => `
           <div class="trade-card">
-            <div style="font-weight:600;margin-bottom:.25rem">${t.from} → ${t.to}</div>
-            <div>球員：${t.player}　價值：${t.value} 積分</div>
-            <div style="margin-top:.3rem"><span class="trade-status ${t.status}">${t.status === 'success' ? '✅ 成交' : '⏳ 待確認'}</span> <span style="font-size:.72rem;color:var(--text-muted)">${t.date}</span></div>
+            <div style="font-weight:600;margin-bottom:.25rem">${tr.from} → ${tr.to}</div>
+            <div>球員：${tr.player}　價值：${tr.value} 積分</div>
+            <div style="margin-top:.3rem"><span class="trade-status ${tr.status}">${tr.status === 'success' ? '✅ 成交' : '⏳ 待確認'}</span> <span style="font-size:.72rem;color:var(--text-muted)">${tr.date}</span></div>
           </div>
         `).join('')}`;
-    } else {
-      container.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--text-muted)">紀錄資料載入中...</div>';
     }
+  },
+
+  // ── League: Compact Schedule + Round Robin ──
+  renderLeagueSchedule() {
+    const teams = DemoData.teams;
+    const matches = DemoData.matches;
+
+    // Compact match cards
+    let html = '<div style="font-size:.78rem;font-weight:700;color:var(--text-muted);margin-bottom:.4rem">賽程</div>';
+    matches.forEach(m => {
+      const homeTeam = teams.find(t => t.name === m.home);
+      const awayTeam = teams.find(t => t.name === m.away);
+      html += `
+        <div class="match-card-compact">
+          <div class="mc-team">
+            <div class="mc-emblem" style="background:${homeTeam?.color || '#666'}22;color:${homeTeam?.color || '#666'}">${homeTeam?.emblem || '?'}</div>
+            <span>${m.home}</span>
+          </div>
+          <div class="mc-score">${m.scoreH !== null ? `${m.scoreH} : ${m.scoreA}` : 'vs'}</div>
+          <div class="mc-team away">
+            <span>${m.away}</span>
+            <div class="mc-emblem" style="background:${awayTeam?.color || '#666'}22;color:${awayTeam?.color || '#666'}">${awayTeam?.emblem || '?'}</div>
+          </div>
+        </div>
+        <div class="mc-meta"><span>📍 ${m.venue}</span><span>🕐 ${m.time}</span></div>`;
+    });
+
+    // Round-robin cross table
+    html += '<div style="font-size:.78rem;font-weight:700;color:var(--text-muted);margin:.8rem 0 .4rem">循環對戰表</div>';
+    html += '<div class="rr-table-wrap"><table class="rr-table"><tr><th></th>';
+    teams.forEach(t => { html += `<th>${t.emblem}</th>`; });
+    html += '</tr>';
+    teams.forEach((home, hi) => {
+      html += `<tr><td class="rr-team-cell">${home.emblem} ${home.name}</td>`;
+      teams.forEach((away, ai) => {
+        if (hi === ai) {
+          html += '<td class="rr-self">—</td>';
+        } else {
+          const m = matches.find(x => (x.home === home.name && x.away === away.name));
+          if (m && m.scoreH !== null) {
+            const cls = m.scoreH > m.scoreA ? 'rr-win' : m.scoreH < m.scoreA ? 'rr-loss' : 'rr-draw';
+            html += `<td class="${cls}">${m.scoreH}:${m.scoreA}</td>`;
+          } else {
+            html += '<td style="color:var(--text-muted)">-</td>';
+          }
+        }
+      });
+      html += '</tr>';
+    });
+    html += '</table></div>';
+    return html;
+  },
+
+  // ── Cup: Bracket Diagram ──
+  renderBracket() {
+    const bracketData = [
+      // Quarter-finals
+      { round: '八強', matches: [
+        { t1: '雷霆隊', s1: 3, t2: '旋風B隊', s2: 0, e1: '⚡', e2: '🌀' },
+        { t1: '閃電隊', s1: 2, t2: '火焰B隊', s2: 1, e1: '🌩', e2: '🔥' },
+        { t1: '旋風隊', s1: 1, t2: '獵鷹隊', s2: 1, e1: '🌀', e2: '🦅' },
+        { t1: '火焰隊', s1: 4, t2: '鐵衛隊', s2: 2, e1: '🔥', e2: '🛡' },
+      ]},
+      // Semi-finals
+      { round: '四強', matches: [
+        { t1: '雷霆隊', s1: null, t2: '閃電隊', s2: null, e1: '⚡', e2: '🌩' },
+        { t1: '?', s1: null, t2: '火焰隊', s2: null, e1: '?', e2: '🔥' },
+      ]},
+      // Final
+      { round: '決賽', matches: [
+        { t1: '?', s1: null, t2: '?', s2: null, e1: '?', e2: '?' },
+      ]},
+    ];
+
+    let html = '<div class="bracket-container"><div class="bracket">';
+    bracketData.forEach((round, ri) => {
+      html += `<div class="bracket-round">
+        <div class="bracket-round-title">${round.round}</div>`;
+      round.matches.forEach(m => {
+        const w1 = m.s1 !== null && m.s2 !== null && m.s1 > m.s2;
+        const w2 = m.s1 !== null && m.s2 !== null && m.s2 > m.s1;
+        html += `<div class="bracket-match">
+          <div class="bracket-team${w1 ? ' winner' : ''}">
+            <span>${m.e1}</span> ${m.t1}
+            <span class="bt-score">${m.s1 !== null ? m.s1 : ''}</span>
+          </div>
+          <div class="bracket-team${w2 ? ' winner' : ''}">
+            <span>${m.e2}</span> ${m.t2}
+            <span class="bt-score">${m.s2 !== null ? m.s2 : ''}</span>
+          </div>
+        </div>`;
+      });
+      html += '</div>';
+      if (ri < bracketData.length - 1) {
+        html += '<div class="bracket-connector"></div>';
+      }
+    });
+    html += '</div></div>';
+    return html;
   },
 
   // ── Render: Activity Records ──
@@ -965,10 +1306,20 @@ const App = {
   renderMyActivities() {
     const container = document.getElementById('my-activity-list');
     if (!container) return;
-    container.innerHTML = DemoData.events.slice(0, 2).map(e => `
+    // Show events not ended/cancelled (up to 6), prioritizing recent
+    const myEvents = DemoData.events
+      .filter(e => e.status !== 'ended' && e.status !== 'cancelled')
+      .slice(0, 6);
+    container.innerHTML = myEvents.length > 0
+      ? myEvents.map(e => {
+        const statusConf = this.STATUS_CONFIG[e.status] || this.STATUS_CONFIG.open;
+        return `
       <div class="event-card">
         <div class="event-card-body">
-          <div class="event-card-title">${e.title}</div>
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div class="event-card-title">${e.title}</div>
+            <span class="tl-event-status ${statusConf.css}" style="font-size:.68rem">${statusConf.label}</span>
+          </div>
           <div class="event-meta">
             <span class="event-meta-item">📍 ${e.location}</span>
             <span class="event-meta-item">🕐 ${e.date}</span>
@@ -980,8 +1331,9 @@ const App = {
             <button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem;color:var(--danger)">關閉</button>
           </div>
         </div>
-      </div>
-    `).join('');
+      </div>`;
+      }).join('')
+      : '<div style="padding:1rem;font-size:.82rem;color:var(--text-muted)">尚無管理中的活動</div>';
   },
 
   // ── Render: User Card ──
@@ -1044,6 +1396,127 @@ const App = {
     document.getElementById('modal-overlay').classList.remove('open');
   },
 
+  // ── Floating Ads Smooth Scroll ──
+  bindFloatingAds() {
+    const floatingAds = document.getElementById('floating-ads');
+    if (!floatingAds) return;
+
+    let targetOffset = 0;
+    let currentOffset = 0;
+    let rafId = null;
+
+    // 使用 lerp 插值讓移動絲滑
+    const lerp = (start, end, factor) => start + (end - start) * factor;
+
+    const animate = () => {
+      currentOffset = lerp(currentOffset, targetOffset, 0.06);
+
+      // 當幾乎到達目標時停止動畫
+      if (Math.abs(currentOffset - targetOffset) < 0.5) {
+        currentOffset = targetOffset;
+      }
+
+      floatingAds.style.transform = `translateY(calc(-50% + ${currentOffset}px))`;
+
+      if (Math.abs(currentOffset - targetOffset) > 0.5) {
+        rafId = requestAnimationFrame(animate);
+      } else {
+        rafId = null;
+      }
+    };
+
+    const startAnimation = () => {
+      if (!rafId) {
+        rafId = requestAnimationFrame(animate);
+      }
+    };
+
+    // 滾動時計算目標偏移：以頁面中心為基準，輕微跟隨滾動
+    window.addEventListener('scroll', () => {
+      const scrollY = window.scrollY || 0;
+      const docHeight = document.documentElement.scrollHeight - window.innerHeight;
+      // 將滾動進度映射到 ±60px 的小範圍偏移，產生微妙的浮動感
+      const progress = docHeight > 0 ? (scrollY / docHeight) : 0;
+      targetOffset = (progress - 0.5) * 120;
+      startAnimation();
+    }, { passive: true });
+
+    // 初始化位置
+    floatingAds.style.top = '50vh';
+    floatingAds.style.transform = 'translateY(-50%)';
+  },
+
+  // ── Create Event ──
+  _eventCounter: 100,
+  handleCreateEvent() {
+    const title = document.getElementById('ce-title').value.trim();
+    const type = document.getElementById('ce-type').value;
+    const location = document.getElementById('ce-location').value.trim();
+    const dateVal = document.getElementById('ce-date').value;
+    const timeVal = document.getElementById('ce-time').value.trim();
+    const fee = parseInt(document.getElementById('ce-fee').value) || 0;
+    const max = parseInt(document.getElementById('ce-max').value) || 20;
+    const waitlistMax = parseInt(document.getElementById('ce-waitlist').value) || 0;
+
+    if (!title) { this.showToast('請輸入活動名稱'); return; }
+    if (!location) { this.showToast('請輸入地點'); return; }
+    if (!dateVal) { this.showToast('請選擇日期'); return; }
+
+    const dateParts = dateVal.split('-');
+    const dateStr = `${dateParts[0]}/${parseInt(dateParts[1])}/${parseInt(dateParts[2])}`;
+    const fullDate = timeVal ? `${dateParts[0]}/${parseInt(dateParts[1]).toString().padStart(2,'0')}/${parseInt(dateParts[2]).toString().padStart(2,'0')} ${timeVal}` : dateStr;
+
+    const typeConf = this.TYPE_CONFIG[type] || this.TYPE_CONFIG.friendly;
+    const gradients = {
+      friendly: 'linear-gradient(135deg,#0d9488,#065f46)',
+      training: 'linear-gradient(135deg,#7c3aed,#4338ca)',
+      league:   'linear-gradient(135deg,#dc2626,#991b1b)',
+      cup:      'linear-gradient(135deg,#d97706,#92400e)',
+      test:     'linear-gradient(135deg,#2563eb,#1e40af)',
+      camp:     'linear-gradient(135deg,#ec4899,#be185d)',
+      watch:    'linear-gradient(135deg,#f59e0b,#d97706)',
+    };
+
+    this._eventCounter++;
+    const newEvent = {
+      id: 'ce' + this._eventCounter,
+      title,
+      type,
+      status: 'open',
+      location,
+      date: fullDate,
+      fee,
+      max,
+      current: 0,
+      waitlist: 0,
+      waitlistMax,
+      creator: ROLES[this.currentRole]?.label || '一般用戶',
+      contact: '',
+      gradient: gradients[type] || gradients.friendly,
+      icon: '⚽',
+      countdown: '即將開始',
+      participants: [],
+      waitlistNames: [],
+    };
+
+    DemoData.events.unshift(newEvent);
+
+    // Re-render relevant sections
+    this.renderActivityList();
+    this.renderHotEvents();
+    this.renderMyActivities();
+
+    this.closeModal();
+    this.showToast(`活動「${title}」已建立！`);
+
+    // Reset form
+    document.getElementById('ce-title').value = '';
+    document.getElementById('ce-location').value = '';
+    document.getElementById('ce-fee').value = '300';
+    document.getElementById('ce-max').value = '20';
+    document.getElementById('ce-waitlist').value = '5';
+  },
+
   // ── Toast ──
   showToast(msg) {
     const toast = document.getElementById('toast');
@@ -1055,7 +1528,9 @@ const App = {
 };
 
 // ── Init on DOM Ready ──
-document.addEventListener('DOMContentLoaded', () => App.init());
+document.addEventListener('DOMContentLoaded', () => {
+  App.init();
+});
 
 // Close modal on overlay click
 document.getElementById('modal-overlay')?.addEventListener('click', () => App.closeModal());
