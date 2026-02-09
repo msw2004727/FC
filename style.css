@@ -696,13 +696,71 @@ img { max-width: 100%; display: block; }
 .participant-tag { padding: .2rem .5rem; border-radius: var(--radius-full); background: var(--bg-elevated); font-size: .75rem; color: var(--text-secondary); }
 
 /* ─── Team Card ─── */
-.team-card { background: var(--bg-card); border-radius: var(--radius); border: 1px solid var(--border); padding: .85rem; cursor: pointer; transition: all var(--transition); display: flex; align-items: center; gap: .75rem; }
-.team-card:hover { border-color: var(--accent); box-shadow: var(--shadow); }
-.team-emblem { width: 50px; height: 50px; border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; font-size: 1.5rem; flex-shrink: 0; }
-.team-info { flex: 1; }
-.team-name { font-weight: 700; font-size: .92rem; }
-.team-meta { font-size: .75rem; color: var(--text-secondary); margin-top: .15rem; }
-.team-badge-inactive { display: inline-block; padding: .1rem .4rem; background: var(--text-muted); color: #fff; font-size: .65rem; border-radius: var(--radius-full); opacity: .7; margin-left: .4rem; }
+/* ─── Team Grid (vertical cards) ─── */
+.team-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: .65rem; padding-bottom: 1rem; }
+.tc-card {
+  background: var(--bg-card);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: all var(--transition);
+  overflow: hidden;
+}
+.tc-card:hover { border-color: var(--accent); box-shadow: var(--shadow); transform: translateY(-2px); }
+.tc-img-placeholder {
+  width: 100%;
+  aspect-ratio: 1/1;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: .72rem;
+  color: var(--text-muted);
+  background: var(--bg-elevated);
+  border: 2px dashed var(--border) !important;
+  border-radius: var(--radius) var(--radius) 0 0;
+}
+.tc-body { padding: .65rem; }
+.tc-name { font-weight: 700; font-size: .92rem; }
+.tc-name-en { font-size: .68rem; color: var(--text-muted); font-family: var(--font-display); margin-bottom: .4rem; }
+.tc-info-row { display: flex; justify-content: space-between; align-items: center; font-size: .72rem; padding: .18rem 0; color: var(--text-secondary); }
+.tc-label { font-weight: 600; }
+
+/* ─── Team Detail ─── */
+.team-detail-name-en { font-size: .72rem; color: var(--text-muted); font-family: var(--font-display); font-weight: 500; }
+.td-card {
+  background: var(--bg-card);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  padding: .85rem;
+  margin-bottom: .65rem;
+}
+.td-card-title { font-weight: 700; font-size: .88rem; margin-bottom: .6rem; padding-bottom: .4rem; border-bottom: 1px solid var(--border); }
+.td-card-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; }
+.td-card-item { display: flex; flex-direction: column; gap: .15rem; padding: .4rem; background: var(--bg-elevated); border-radius: var(--radius-sm); }
+.td-card-label { font-size: .7rem; color: var(--text-muted); }
+.td-card-value { font-size: .85rem; font-weight: 600; }
+.td-member-list { display: grid; grid-template-columns: 1fr 1fr; gap: .4rem; }
+.td-member-card {
+  display: flex; align-items: center; gap: .5rem;
+  padding: .45rem .5rem;
+  background: var(--bg-elevated);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+}
+.td-member-avatar {
+  width: 32px; height: 32px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: .78rem; flex-shrink: 0;
+}
+.td-member-info { flex: 1; min-width: 0; }
+.td-member-name { font-size: .78rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.td-member-role { font-size: .62rem; padding: .1rem .35rem; border-radius: var(--radius-full); font-weight: 600; }
+.td-member-role.captain { background: #fbbf2422; color: #d97706; }
+.td-member-role.coach { background: #7c3aed22; color: #7c3aed; }
+.td-member-role.player { background: var(--bg-elevated); color: var(--text-muted); }
+.td-member-more { grid-column: 1 / -1; text-align: center; font-size: .75rem; color: var(--text-muted); padding: .3rem; }
+.td-actions { display: flex; gap: .5rem; padding: .5rem 0; }
 
 /* ─── Message Card ─── */
 .msg-card { background: var(--bg-card); border-radius: var(--radius); border: 1px solid var(--border); padding: .75rem .85rem; cursor: pointer; transition: all var(--transition); }

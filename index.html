@@ -222,17 +222,19 @@
       <div class="my-section" data-min-role="captain">
         <button class="action-btn" onclick="App.showPage('page-team-manage')">⚙ 球隊管理</button>
       </div>
-      <div class="card-list" id="team-list">
+      <div class="team-grid" id="team-list">
         <!-- Populated by JS -->
       </div>
     </section>
 
     <!-- PAGE: Team Detail -->
     <section class="page" id="page-team-detail">
-      <div class="detail-banner" style="background:linear-gradient(135deg,#7c3aed,#4338ca)">
+      <div class="page-header">
         <button class="back-btn" onclick="App.goBack()">←</button>
         <h2 id="team-detail-title">球隊名稱</h2>
+        <span class="team-detail-name-en" id="team-detail-name-en"></span>
       </div>
+      <div class="td-img-placeholder" id="team-detail-img">球隊封面 800 × 300</div>
       <div class="detail-body" id="team-detail-body"></div>
     </section>
 

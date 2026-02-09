@@ -56,10 +56,10 @@ const DemoData = {
   ],
 
   teams: [
-    { id: 'tm1', name: '雷霆隊', emblem: '⚡', captain: '隊長A', coaches: ['教練B','教練C'], members: 18, color: '#3b82f6', active: true },
-    { id: 'tm2', name: '閃電隊', emblem: '🌩', captain: '隊長D', coaches: ['教練E'], members: 15, color: '#eab308', active: true },
-    { id: 'tm3', name: '旋風隊', emblem: '🌀', captain: '隊長F', coaches: [], members: 12, color: '#10b981', active: true },
-    { id: 'tm4', name: '火焰隊', emblem: '🔥', captain: '隊長G', coaches: ['教練H'], members: 20, color: '#ef4444', active: true },
+    { id: 'tm1', name: '雷霆隊', nameEn: 'Thunder FC', emblem: '⚡', captain: '隊長A', coaches: ['教練B','教練C'], members: 18, color: '#3b82f6', region: '台北市', active: true },
+    { id: 'tm2', name: '閃電隊', nameEn: 'Lightning FC', emblem: '🌩', captain: '隊長D', coaches: ['教練E'], members: 15, color: '#eab308', region: '台中市', active: true },
+    { id: 'tm3', name: '旋風隊', nameEn: 'Cyclone FC', emblem: '🌀', captain: '隊長F', coaches: [], members: 12, color: '#10b981', region: '高雄市', active: true },
+    { id: 'tm4', name: '火焰隊', nameEn: 'Blaze FC', emblem: '🔥', captain: '隊長G', coaches: ['教練H'], members: 20, color: '#ef4444', region: '台北市', active: true },
   ],
 
   messages: [
@@ -796,11 +796,15 @@ const App = {
   renderTeamList() {
     const container = document.getElementById('team-list');
     container.innerHTML = DemoData.teams.map(t => `
-      <div class="team-card" onclick="App.showTeamDetail('${t.id}')">
-        <div class="team-emblem" style="background:${t.color}22;color:${t.color}">${t.emblem}</div>
-        <div class="team-info">
-          <div class="team-name">${t.name}</div>
-          <div class="team-meta">👑 ${t.captain} ・ 👥 ${t.members}人</div>
+      <div class="tc-card" onclick="App.showTeamDetail('${t.id}')">
+        <div class="tc-img-placeholder">隊徽 120 × 120</div>
+        <div class="tc-body">
+          <div class="tc-name">${t.name}</div>
+          <div class="tc-name-en">${t.nameEn || ''}</div>
+          <div class="tc-info-row"><span class="tc-label">👑 領隊</span><span>${t.captain}</span></div>
+          <div class="tc-info-row"><span class="tc-label">🏋️ 教練</span><span>${t.coaches.length > 0 ? t.coaches.join('、') : '—'}</span></div>
+          <div class="tc-info-row"><span class="tc-label">👥 隊員</span><span>${t.members} 人</span></div>
+          <div class="tc-info-row"><span class="tc-label">📍 地區</span><span>${t.region}</span></div>
         </div>
       </div>
     `).join('');
@@ -810,31 +814,60 @@ const App = {
     const t = DemoData.teams.find(tm => tm.id === id);
     if (!t) return;
     document.getElementById('team-detail-title').textContent = t.name;
+    document.getElementById('team-detail-name-en').textContent = t.nameEn || '';
     document.getElementById('team-detail-body').innerHTML = `
-      <div class="info-card">
-        <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:.75rem">
-          <div class="team-emblem" style="background:${t.color}22;color:${t.color};font-size:2rem">${t.emblem}</div>
-          <div>
-            <div style="font-weight:700;font-size:1.1rem">${t.name}</div>
-            <div style="font-size:.8rem;color:var(--text-secondary)">👑 領隊：${t.captain}</div>
-            <div style="font-size:.8rem;color:var(--text-secondary)">🏋 教練：${t.coaches.length > 0 ? t.coaches.join('、') : '無'}</div>
-            <div style="font-size:.8rem;color:var(--text-secondary)">👥 成員：${t.members} 人</div>
+      <!-- 基本資訊卡片 -->
+      <div class="td-card">
+        <div class="td-card-title">球隊資訊</div>
+        <div class="td-card-grid">
+          <div class="td-card-item">
+            <span class="td-card-label">👑 領隊</span>
+            <span class="td-card-value">${t.captain}</span>
+          </div>
+          <div class="td-card-item">
+            <span class="td-card-label">🏋️ 教練</span>
+            <span class="td-card-value">${t.coaches.length > 0 ? t.coaches.join('、') : '無'}</span>
+          </div>
+          <div class="td-card-item">
+            <span class="td-card-label">👥 隊員數</span>
+            <span class="td-card-value">${t.members} 人</span>
+          </div>
+          <div class="td-card-item">
+            <span class="td-card-label">📍 地區</span>
+            <span class="td-card-value">${t.region}</span>
           </div>
         </div>
       </div>
+
+      <!-- 分頁 -->
       <div class="tab-bar compact">
         <button class="tab active">成員</button>
         <button class="tab">戰績</button>
         <button class="tab">賽事</button>
       </div>
-      <div class="info-card">
-        <div class="info-title">成員列表</div>
-        ${Array.from({length: Math.min(t.members, 8)}, (_, i) => `
-          <div class="info-row"><span>球員${i+1}</span><span style="font-size:.72rem;color:var(--text-muted)">${i === 0 ? '領隊' : i <= t.coaches.length ? '教練' : '球員'}</span></div>
-        `).join('')}
-        ${t.members > 8 ? `<div style="text-align:center;font-size:.78rem;color:var(--text-muted);padding:.3rem">... 共 ${t.members} 人</div>` : ''}
+
+      <!-- 成員列表卡片 -->
+      <div class="td-card">
+        <div class="td-card-title">成員列表</div>
+        <div class="td-member-list">
+          ${Array.from({length: Math.min(t.members, 8)}, (_, i) => {
+            const role = i === 0 ? '領隊' : i <= t.coaches.length ? '教練' : '球員';
+            const roleClass = i === 0 ? 'captain' : i <= t.coaches.length ? 'coach' : 'player';
+            return `
+            <div class="td-member-card">
+              <div class="td-member-avatar" style="background:${t.color}22;color:${t.color}">${i === 0 ? t.captain.charAt(t.captain.length - 1) : String.fromCharCode(65 + i)}</div>
+              <div class="td-member-info">
+                <div class="td-member-name">${i === 0 ? t.captain : i <= t.coaches.length ? t.coaches[i - 1] : '球員' + String.fromCharCode(65 + i)}</div>
+                <span class="td-member-role ${roleClass}">${role}</span>
+              </div>
+            </div>`;
+          }).join('')}
+          ${t.members > 8 ? `<div class="td-member-more">... 共 ${t.members} 人</div>` : ''}
+        </div>
       </div>
-      <div style="display:flex;gap:.5rem;padding:.5rem 0">
+
+      <!-- 操作按鈕 -->
+      <div class="td-actions">
         <button class="primary-btn" onclick="App.showToast('已送出加入申請！')">申請加入</button>
         <button class="outline-btn" onclick="App.showToast('透過站內信聯繫')">聯繫領隊</button>
       </div>
