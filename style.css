@@ -805,7 +805,7 @@ img { max-width: 100%; display: block; }
 }
 .tc-img-placeholder {
   width: 100%;
-  aspect-ratio: 1/1;
+  aspect-ratio: 4/3;
   border-bottom: 1px solid var(--border);
   display: flex;
   align-items: center;
@@ -815,6 +815,13 @@ img { max-width: 100%; display: block; }
   background: var(--bg-elevated);
   border: 2px dashed var(--border) !important;
   border-radius: var(--radius) var(--radius) 0 0;
+  overflow: hidden;
+}
+.tc-img-placeholder img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 .tc-body { padding: .65rem; }
 .tc-name { font-weight: 700; font-size: .92rem; }
@@ -953,14 +960,33 @@ img { max-width: 100%; display: block; }
 .doll-item.locked { opacity: .4; cursor: not-allowed; }
 .doll-actions { display: flex; gap: .5rem; padding: .5rem; justify-content: center; }
 
-/* ─── Achievement / Badge Grid ─── */
-.achievement-grid, .badge-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: .6rem; padding: .5rem; }
-.ach-item, .badge-item { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: .75rem .5rem; text-align: center; transition: all var(--transition); }
-.ach-item:hover, .badge-item:hover { border-color: var(--accent); }
-.ach-icon { font-size: 2rem; margin-bottom: .3rem; }
-.ach-name { font-size: .72rem; font-weight: 600; }
-.ach-item.locked { opacity: .35; }
-.ach-item.locked .ach-icon { color: var(--text-muted); }
+/* ─── Achievement Progress Cards (Waterfall) ─── */
+.achievement-grid { display: flex; flex-direction: column; gap: .4rem; padding: .5rem; }
+.ach-progress-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: .65rem .75rem; transition: all var(--transition); }
+.ach-progress-card:hover { border-color: var(--accent); }
+.ach-progress-card.ach-completed { background: var(--bg-elevated); opacity: .75; }
+.ach-progress-header { display: flex; align-items: center; gap: .35rem; margin-bottom: .2rem; }
+.ach-progress-name { font-size: .85rem; font-weight: 700; flex: 1; }
+.ach-done-tag { font-size: .65rem; font-weight: 700; color: var(--success); background: rgba(16,185,129,.1); padding: .1rem .4rem; border-radius: var(--radius-full); }
+.ach-cat-tag { font-size: .65rem; font-weight: 700; color: #fff; padding: .12rem .4rem; border-radius: var(--radius-full); flex-shrink: 0; }
+.ach-progress-desc { font-size: .75rem; color: var(--text-muted); margin-bottom: .35rem; }
+.ach-progress-bar-wrap { width: 100%; height: 6px; background: var(--bg-elevated); border-radius: 3px; overflow: hidden; }
+.ach-progress-bar { height: 100%; border-radius: 3px; transition: width .4s ease; }
+.ach-progress-num { font-size: .7rem; color: var(--text-muted); margin-top: .2rem; text-align: right; font-weight: 600; }
+
+/* ─── Badge Grid ─── */
+.badge-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: .6rem; padding: .5rem; }
+.badge-card { background: var(--bg-card); border: 2px solid var(--border); border-radius: var(--radius); padding: .65rem .5rem; text-align: center; transition: all var(--transition); }
+.badge-card:hover { box-shadow: var(--shadow); }
+.badge-card.badge-locked { opacity: .4; }
+.badge-img-placeholder { width: 56px; height: 56px; margin: 0 auto .4rem; border: 2px dashed var(--border); border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; background: var(--bg-elevated); overflow: hidden; }
+.badge-img-placeholder img { width: 100%; height: 100%; object-fit: cover; }
+.badge-img-placeholder.small { width: 36px; height: 36px; margin: 0; }
+.badge-card-name { font-size: .72rem; font-weight: 600; }
+.badge-earned-tag { font-size: .65rem; font-weight: 700; margin-top: .2rem; }
+.badge-locked-tag { font-size: .65rem; color: var(--text-muted); margin-top: .2rem; }
+
+/* ─── Achievement Mini Tag ─── */
 .ach-mini { display: inline-block; padding: .2rem .55rem; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius-full); font-size: .72rem; font-weight: 500; color: var(--text-secondary); }
 
 /* ─── Title Config ─── */
@@ -1337,7 +1363,6 @@ img { max-width: 100%; display: block; }
 /* ─── Admin Achievement/Badge Rows ─── */
 .admin-ach-row { display: flex; align-items: center; gap: .6rem; padding: .55rem .6rem; border-bottom: 1px solid var(--border); }
 .admin-ach-row:last-child { border-bottom: none; }
-.admin-ach-icon { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff; font-size: .8rem; font-weight: 700; flex-shrink: 0; }
 .admin-ach-info { flex: 1; min-width: 0; }
 .admin-ach-name { font-size: .82rem; font-weight: 600; }
 .admin-ach-status { font-size: .7rem; margin-top: .1rem; }
@@ -1451,7 +1476,7 @@ img { max-width: 100%; display: block; }
 @media (min-width: 600px) {
   #main-content { padding: .75rem 1rem; }
   .shop-grid { grid-template-columns: repeat(3, 1fr); }
-  .achievement-grid, .badge-grid { grid-template-columns: repeat(4, 1fr); }
+  .badge-grid { grid-template-columns: repeat(4, 1fr); }
 }
 @media (min-width: 800px) {
   .shop-grid { grid-template-columns: repeat(4, 1fr); }

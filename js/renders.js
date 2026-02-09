@@ -213,7 +213,7 @@ Object.assign(App, {
     return `
       <div class="tc-card${pinnedClass}" onclick="App.showTeamDetail('${t.id}')">
         ${t.pinned ? '<div class="tc-pin-badge">至頂</div>' : ''}
-        <div class="tc-img-placeholder">隊徽 120 × 120</div>
+        <div class="tc-img-placeholder">球隊封面 800 × 300</div>
         <div class="tc-body">
           <div class="tc-name">${t.name}</div>
           <div class="tc-name-en">${t.nameEn || ''}</div>
@@ -351,22 +351,47 @@ Object.assign(App, {
 
   renderAchievements() {
     const container = document.getElementById('achievement-grid');
-    container.innerHTML = ApiService.getAchievements().map(a => `
-      <div class="ach-item ${a.unlocked ? '' : 'locked'}">
-        <div class="ach-icon">${a.unlocked ? a.icon : ''}</div>
-        <div class="ach-name">${a.name}</div>
-      </div>
-    `).join('');
+    if (!container) return;
+    const achievements = ApiService.getAchievements();
+    const catColors = { gold: '#d4a017', silver: '#9ca3af', bronze: '#b87333' };
+    const catLabels = { gold: '金', silver: '銀', bronze: '銅' };
+    container.innerHTML = achievements.map(a => {
+      const completed = a.current >= a.target;
+      const pct = Math.min(100, Math.round(a.current / a.target * 100));
+      const color = catColors[a.category] || catColors.bronze;
+      return `
+      <div class="ach-progress-card ${completed ? 'ach-completed' : ''}" style="border-left:3px solid ${color}">
+        <div class="ach-progress-header">
+          <span class="ach-cat-tag" style="background:${color}">${catLabels[a.category] || '銅'}</span>
+          <span class="ach-progress-name">${a.name}</span>
+          ${completed ? '<span class="ach-done-tag">已完成</span>' : ''}
+        </div>
+        <div class="ach-progress-desc">${a.desc}</div>
+        <div class="ach-progress-bar-wrap">
+          <div class="ach-progress-bar" style="width:${pct}%;background:${color}"></div>
+        </div>
+        <div class="ach-progress-num">${a.current} / ${a.target}</div>
+      </div>`;
+    }).join('');
   },
 
   renderBadges() {
     const container = document.getElementById('badge-grid');
-    container.innerHTML = ApiService.getBadges().map(b => `
-      <div class="badge-item">
-        <div class="ach-icon">${b.icon}</div>
-        <div class="ach-name">${b.name}</div>
-      </div>
-    `).join('');
+    if (!container) return;
+    const badges = ApiService.getBadges();
+    const achievements = ApiService.getAchievements();
+    const catColors = { gold: '#d4a017', silver: '#9ca3af', bronze: '#b87333' };
+    container.innerHTML = badges.map(b => {
+      const ach = achievements.find(a => a.id === b.achId);
+      const earned = ach ? ach.current >= ach.target : false;
+      const color = catColors[b.category] || catColors.bronze;
+      return `
+      <div class="badge-card ${earned ? '' : 'badge-locked'}" style="border-color:${color}">
+        <div class="badge-img-placeholder" style="border-color:${color}">${b.image ? `<img src="${b.image}">` : ''}</div>
+        <div class="badge-card-name">${b.name}</div>
+        ${earned ? `<div class="badge-earned-tag" style="color:${color}">已獲得</div>` : '<div class="badge-locked-tag">未解鎖</div>'}
+      </div>`;
+    }).join('');
   },
 
   // ══════════════════════════════════
