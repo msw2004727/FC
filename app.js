@@ -654,10 +654,28 @@ const App = {
 
     if (!roleSwitcher || !lineWrapper) return;
 
-    // ── Demo 模式：顯示角色切換器，隱藏 LINE ──
+    // ── Demo 模式：隱藏舊角色切換器，用 LINE 區域顯示 Demo 頭像 + 角色選單 ──
     if (ModeManager.isDemo()) {
-      roleSwitcher.style.display = '';
-      lineWrapper.style.display = 'none';
+      roleSwitcher.style.display = 'none';
+      lineWrapper.style.display = '';
+      const loginBtn = document.getElementById('line-login-btn');
+      const userTopbar = document.getElementById('line-user-topbar');
+      if (loginBtn) loginBtn.style.display = 'none';
+      if (userTopbar) {
+        userTopbar.style.display = '';
+        userTopbar.innerHTML = `
+          <div class="line-avatar-topbar line-avatar-fallback" id="demo-avatar-btn" onclick="App.toggleDemoRoleMenu()">麥</div>
+          <div id="demo-role-dropdown" class="user-menu-dropdown demo-role-menu" style="display:none">
+            <div class="user-menu-name">切換 Demo 身份</div>
+            <div class="user-menu-divider"></div>
+            <button class="user-menu-item demo-role-item active" data-role="user" onclick="App.selectDemoRole('user')">一般用戶</button>
+            <button class="user-menu-item demo-role-item" data-role="coach" onclick="App.selectDemoRole('coach')">教練</button>
+            <button class="user-menu-item demo-role-item" data-role="captain" onclick="App.selectDemoRole('captain')">領隊</button>
+            <button class="user-menu-item demo-role-item" data-role="venue_owner" onclick="App.selectDemoRole('venue_owner')">場主</button>
+            <button class="user-menu-item demo-role-item" data-role="admin" onclick="App.selectDemoRole('admin')">管理員</button>
+            <button class="user-menu-item demo-role-item" data-role="super_admin" onclick="App.selectDemoRole('super_admin')">總管</button>
+          </div>`;
+      }
       if (drawerAvatar) { drawerAvatar.className = 'drawer-avatar'; drawerAvatar.innerHTML = '麥'; }
       if (drawerName) drawerName.textContent = '冠軍.全勤.小麥';
       if (profileAvatar) { profileAvatar.className = 'profile-avatar'; profileAvatar.innerHTML = '麥'; }
@@ -820,6 +838,35 @@ const App = {
     if (typeof LineAuth !== 'undefined') {
       LineAuth.logout();
     }
+  },
+
+  toggleDemoRoleMenu() {
+    const menu = document.getElementById('demo-role-dropdown');
+    if (!menu) return;
+    const isOpen = menu.style.display !== 'none';
+    menu.style.display = isOpen ? 'none' : '';
+    if (!isOpen) {
+      setTimeout(() => {
+        const close = (e) => {
+          if (!menu.contains(e.target) && e.target.id !== 'demo-avatar-btn') {
+            menu.style.display = 'none';
+            document.removeEventListener('click', close);
+          }
+        };
+        document.addEventListener('click', close);
+      }, 0);
+    }
+  },
+
+  selectDemoRole(role) {
+    const menu = document.getElementById('demo-role-dropdown');
+    if (menu) {
+      menu.querySelectorAll('.demo-role-item').forEach(i => i.classList.remove('active'));
+      const selected = menu.querySelector(`[data-role="${role}"]`);
+      if (selected) selected.classList.add('active');
+      menu.style.display = 'none';
+    }
+    this.applyRole(role);
   },
 
   saveFirstLoginProfile() {
