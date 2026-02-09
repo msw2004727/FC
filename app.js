@@ -683,11 +683,21 @@ const App = {
       if (loginPrompt) loginPrompt.style.display = '';
       if (drawerAvatar) { drawerAvatar.className = 'drawer-avatar'; drawerAvatar.innerHTML = '?'; }
       if (drawerName) drawerName.textContent = '未登入';
+      // 未登入也套用一般用戶抽屜選單
+      this.currentRole = 'user';
+      const roleTag = document.getElementById('drawer-role-tag');
+      if (roleTag) {
+        roleTag.textContent = '未登入';
+        roleTag.style.background = '#6b728022';
+        roleTag.style.color = '#6b7280';
+      }
+      this.renderDrawerMenu();
       return;
     }
 
     // 已登入
     const profile = LineAuth.getProfile();
+    const currentUser = ApiService.getCurrentUser();
     if (loginBtn) loginBtn.style.display = 'none';
     if (userTopbar) userTopbar.style.display = '';
     if (profile.pictureUrl && avatarImg) {
@@ -720,6 +730,28 @@ const App = {
         drawerAvatar.innerHTML = profile.displayName.charAt(0);
       }
     }
+
+    // 依資料庫角色套用抽屜選單與身份標籤
+    const userRole = (currentUser && currentUser.role) ? currentUser.role : 'user';
+    this.currentRole = userRole;
+    const roleInfo = ROLES[userRole] || ROLES.user;
+    const roleTag = document.getElementById('drawer-role-tag');
+    if (roleTag) {
+      roleTag.textContent = roleInfo.label;
+      roleTag.style.background = roleInfo.color + '22';
+      roleTag.style.color = roleInfo.color;
+    }
+    this.renderDrawerMenu();
+
+    // 依角色控制頁面內 data-min-role 元素
+    const level = ROLE_LEVEL_MAP[userRole] || 0;
+    document.querySelectorAll('[data-min-role]').forEach(el => {
+      const minLevel = ROLE_LEVEL_MAP[el.dataset.minRole] || 0;
+      el.style.display = level >= minLevel ? '' : 'none';
+    });
+    document.querySelectorAll('.contact-row').forEach(el => {
+      el.style.display = level >= 1 ? 'flex' : 'none';
+    });
   },
 
   renderProfileData() {
@@ -727,16 +759,34 @@ const App = {
     const user = ApiService.getCurrentUser();
     if (!user) return;
     const el = (id) => document.getElementById(id);
-    if (el('profile-title')) el('profile-title').textContent = user.displayName || '';
-    if (el('profile-lv')) el('profile-lv').textContent = `Lv.${user.level || 1}`;
-    if (el('profile-exp-text')) el('profile-exp-text').textContent = `${user.exp || 0} / ${((user.level || 1) + 1) * 200}`;
+    const v = (val) => val || '-';
+
+    // 名稱
+    if (el('profile-title')) el('profile-title').textContent = v(user.displayName);
+
+    // 等級 & 經驗值
+    const level = user.level || 1;
+    const exp = user.exp || 0;
+    const nextExp = (level + 1) * 200;
+    if (el('profile-lv')) el('profile-lv').textContent = `Lv.${level}`;
+    if (el('profile-exp-text')) el('profile-exp-text').textContent = `${exp} / ${nextExp}`;
     if (el('profile-exp-fill')) {
-      const next = ((user.level || 1) + 1) * 200;
-      el('profile-exp-fill').style.width = `${Math.min(100, Math.round(((user.exp || 0) / next) * 100))}%`;
+      el('profile-exp-fill').style.width = `${Math.min(100, Math.round((exp / nextExp) * 100))}%`;
     }
-    if (el('profile-gender')) el('profile-gender').textContent = user.gender || '—';
-    if (el('profile-birthday')) el('profile-birthday').textContent = user.birthday || '—';
-    if (el('profile-region')) el('profile-region').textContent = user.region || '—';
+
+    // 統計數據
+    if (el('profile-stat-total')) el('profile-stat-total').textContent = user.totalGames || 0;
+    if (el('profile-stat-done')) el('profile-stat-done').textContent = user.completedGames || 0;
+    if (el('profile-stat-rate')) el('profile-stat-rate').textContent = user.attendanceRate ? `${user.attendanceRate}%` : '0%';
+    if (el('profile-stat-badges')) el('profile-stat-badges').textContent = user.badgeCount || 0;
+
+    // 我的資料
+    if (el('profile-gender')) el('profile-gender').textContent = v(user.gender);
+    if (el('profile-birthday')) el('profile-birthday').textContent = v(user.birthday);
+    if (el('profile-region')) el('profile-region').textContent = v(user.region);
+    if (el('profile-sports')) el('profile-sports').textContent = v(user.sports);
+    if (el('profile-team')) el('profile-team').textContent = v(user.teamName);
+    if (el('profile-phone')) el('profile-phone').textContent = v(user.phone);
   },
 
   saveFirstLoginProfile() {
@@ -767,7 +817,10 @@ const App = {
       const overlay = document.getElementById('loading-overlay');
       if (overlay) overlay.style.display = '';
       try {
-        await FirebaseService.init();
+        const timeout = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Firebase init timeout')), 10000)
+        );
+        await Promise.race([FirebaseService.init(), timeout]);
         console.log('[App] Firebase 已初始化');
       } catch (err) {
         console.error('[App] Firebase 初始化失敗，退回 Demo:', err);
@@ -857,7 +910,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     const overlay = document.getElementById('loading-overlay');
     if (overlay) overlay.style.display = '';
     try {
-      await FirebaseService.init();
+      // 設定 10 秒超時，避免 Firebase 連線問題導致永久載入
+      const timeout = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Firebase init timeout')), 10000)
+      );
+      await Promise.race([FirebaseService.init(), timeout]);
       console.log('[App] Firebase 模式啟動');
     } catch (err) {
       console.error('[App] Firebase 初始化失敗，退回 Demo 模式:', err);

@@ -12,6 +12,17 @@ const DemoData = {
     role: 'user',
     exp: 2350,
     level: 25,
+    gender: '男',
+    birthday: '1995/03/15',
+    region: '台北市',
+    sports: '足球、籃球',
+    teamId: 't1',
+    teamName: '雷霆隊',
+    phone: '0912-345-678',
+    totalGames: 42,
+    completedGames: 38,
+    attendanceRate: 90,
+    badgeCount: 4,
   },
 
   events: [

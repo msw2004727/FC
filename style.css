@@ -1588,5 +1588,4 @@ img { max-width: 100%; display: block; }
 /* ─── Production 早期隱藏（防重整閃現 Demo 畫面）─── */
 html.prod-early #role-switcher-wrapper { display: none !important; }
 html.prod-early #line-login-wrapper { display: flex !important; }
-html.prod-early .loading-overlay { display: flex !important; }
 html.prod-early #mode-badge { display: none !important; }

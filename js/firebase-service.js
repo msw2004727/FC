@@ -336,7 +336,7 @@ const FirebaseService = {
     const now = new Date().toISOString();
 
     if (snapshot.empty) {
-      // 新用戶
+      // 新用戶：建立完整欄位
       const userData = {
         lineUserId,
         displayName,
@@ -345,6 +345,17 @@ const FirebaseService = {
         role: 'user',
         exp: 0,
         level: 1,
+        gender: null,
+        birthday: null,
+        region: null,
+        sports: null,
+        teamId: null,
+        teamName: null,
+        phone: null,
+        totalGames: 0,
+        completedGames: 0,
+        attendanceRate: 0,
+        badgeCount: 0,
         createdAt: now,
         lastLogin: now,
       };
