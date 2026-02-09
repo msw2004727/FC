@@ -26,6 +26,7 @@ const App = {
     this.bindFloatingAds();
     this.bindNotifBtn();
     this.bindModeSwitch();
+    this.bindLineLogin();
     this.bindImageUpload('ce-image', 'ce-upload-preview');
     this.bindImageUpload('ct-image', 'ct-upload-preview');
     this.bindImageUpload('cs-img1', 'cs-preview1');
@@ -590,23 +591,70 @@ const App = {
       }
     });
 
-    // 方式 3：Console 指令
-    window.__switchMode = () => this._switchMode();
-    window.__setMode = (mode) => {
-      if (mode !== 'demo' && mode !== 'production') {
-        console.warn('[SportHub] 參數錯誤，請使用 "demo" 或 "production"');
+    // 方式 3：Console 指令（密碼保護）
+    window.switchMode = (pwd) => {
+      if (pwd !== 'fc2026') {
+        console.warn('[SportHub] 密碼錯誤');
         return;
       }
-      if (ModeManager.getMode() === mode) {
-        console.log(`[SportHub] 已經是 ${mode.toUpperCase()} 模式`);
-        return;
-      }
-      ModeManager.setMode(mode);
-      this._onModeChanged();
+      this._switchMode();
     };
 
     // 初始化 badge
     this._updateModeBadge();
+  },
+
+  // ══════════════════════════════════
+  //  LINE Login
+  // ══════════════════════════════════
+
+  async bindLineLogin() {
+    if (!ModeManager.isDemo() && typeof LineAuth !== 'undefined') {
+      await LineAuth.init();
+      if (LineAuth.isLoggedIn()) {
+        try {
+          await ApiService.loginUser(LineAuth.getProfile());
+        } catch (err) {
+          console.error('[App] 用戶資料同步失敗:', err);
+        }
+      }
+    }
+    this.renderLoginUI();
+  },
+
+  renderLoginUI() {
+    const container = document.getElementById('login-area');
+    if (!container) return;
+
+    if (ModeManager.isDemo()) {
+      const user = DemoData.currentUser;
+      container.innerHTML = `
+        <div class="login-user-info">
+          <div class="login-avatar-placeholder">${user.displayName.charAt(0)}</div>
+          <span class="login-name">${user.displayName}</span>
+        </div>`;
+      return;
+    }
+
+    if (typeof LineAuth === 'undefined' || !LineAuth.isLoggedIn()) {
+      container.innerHTML = `
+        <button class="line-login-btn" onclick="LineAuth.login()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="#fff"><path d="M12 2C6.48 2 2 5.83 2 10.5c0 4.18 3.66 7.68 8.58 8.38.33.07.78.22.9.5.1.26.07.66.03.92l-.15.86c-.04.26-.2 1.01.88.55s5.88-3.47 8.03-5.93C22.08 13.79 22 12.18 22 10.5 22 5.83 17.52 2 12 2z"/></svg>
+          LINE 登入
+        </button>`;
+      return;
+    }
+
+    const profile = LineAuth.getProfile();
+    container.innerHTML = `
+      <div class="login-user-info">
+        ${profile.pictureUrl
+          ? `<img class="login-avatar" src="${profile.pictureUrl}" alt="">`
+          : `<div class="login-avatar-placeholder">${profile.displayName.charAt(0)}</div>`
+        }
+        <span class="login-name">${profile.displayName}</span>
+        <button class="logout-btn" onclick="LineAuth.logout()">登出</button>
+      </div>`;
   },
 
   async _switchMode() {
@@ -633,6 +681,7 @@ const App = {
     }
 
     this._updateModeBadge();
+    this.renderLoginUI();
     this.renderAll();
     const modeLabel = ModeManager.isDemo() ? 'DEMO 演示' : 'PRODUCTION 正式';
     this.showToast(`已切換至「${modeLabel}」模式`);

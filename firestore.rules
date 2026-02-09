@@ -1,131 +1,29 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // ─── Helper Functions ───
-    function isAuth() {
-      return request.auth != null;
-    }
-
-    function getUserRole() {
-      return get(/databases/$(database)/documents/adminUsers/$(request.auth.uid)).data.role;
-    }
-
-    function isAdmin() {
-      return isAuth() && getUserRole() in ['admin', 'super_admin'];
-    }
-
-    function isSuperAdmin() {
-      return isAuth() && getUserRole() == 'super_admin';
-    }
-
-    // ─── Events：公開讀取，認證建立，管理員/建立者修改 ───
+    // Events：所有人可讀，登入可寫
     match /events/{eventId} {
       allow read: if true;
-      allow create: if isAuth();
-      allow update, delete: if isAuth() && isAdmin();
+      allow write: if request.auth != null;
     }
-
-    // ─── Registrations：用戶管理自己的報名 ───
+    // Users：登入可讀，本人或 admin 可寫
+    match /users/{userId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && (
+        request.auth.uid == userId ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
+      );
+    }
+    // Registrations：登入可讀寫
     match /registrations/{regId} {
-      allow read: if isAuth() && (
-        resource.data.userId == request.auth.uid || isAdmin()
-      );
-      allow create: if isAuth() && request.resource.data.userId == request.auth.uid;
-      allow update: if isAuth() && (
-        resource.data.userId == request.auth.uid || isAdmin()
-      );
-      allow delete: if isAdmin();
+      allow read: if request.auth != null;
+      allow create: if request.auth != null;
+      allow update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
     }
-
-    // ─── Users：用戶讀改自己，管理員讀取全部 ───
-    match /adminUsers/{userId} {
-      allow read: if isAuth();
-      allow create: if isAuth() && request.auth.uid == userId;
-      allow update: if isAuth() && (
-        request.auth.uid == userId || isAdmin()
-      );
-      allow delete: if isSuperAdmin();
-    }
-
-    // ─── Tournaments / Teams：公開讀取，管理員寫入 ───
-    match /tournaments/{docId} {
+    // 其他集合：公開可讀，登入可寫
+    match /{collection}/{docId} {
       allow read: if true;
-      allow write: if isAuth() && isAdmin();
-    }
-
-    match /teams/{docId} {
-      allow read: if true;
-      allow write: if isAuth() && isAdmin();
-    }
-
-    // ─── Shop：公開讀取，認證建立，管理員管理 ───
-    match /shopItems/{docId} {
-      allow read: if true;
-      allow create: if isAuth();
-      allow update, delete: if isAuth() && isAdmin();
-    }
-
-    // ─── 公開唯讀集合 ───
-    match /leaderboard/{docId} {
-      allow read: if true;
-      allow write: if isAuth() && isAdmin();
-    }
-
-    match /standings/{docId} {
-      allow read: if true;
-      allow write: if isAuth() && isAdmin();
-    }
-
-    match /matches/{docId} {
-      allow read: if true;
-      allow write: if isAuth() && isAdmin();
-    }
-
-    match /trades/{docId} {
-      allow read: if true;
-      allow write: if isAuth() && isAdmin();
-    }
-
-    match /messages/{docId} {
-      allow read: if isAuth();
-      allow write: if isAuth() && isAdmin();
-    }
-
-    match /achievements/{docId} {
-      allow read: if true;
-      allow write: if isSuperAdmin();
-    }
-
-    match /badges/{docId} {
-      allow read: if true;
-      allow write: if isSuperAdmin();
-    }
-
-    // ─── 管理後台集合 ───
-    match /expLogs/{docId} {
-      allow read: if isAuth() && isAdmin();
-      allow write: if isAuth() && isAdmin();
-    }
-
-    match /operationLogs/{docId} {
-      allow read: if isAuth() && isAdmin();
-      allow write: if isAuth() && isAdmin();
-    }
-
-    match /banners/{docId} {
-      allow read: if true;
-      allow write: if isAuth() && isAdmin();
-    }
-
-    match /permissions/{docId} {
-      allow read: if isAuth();
-      allow write: if isSuperAdmin();
-    }
-
-    match /activityRecords/{docId} {
-      allow read: if isAuth();
-      allow write: if isAuth() && isAdmin();
+      allow write: if request.auth != null;
     }
   }
 }

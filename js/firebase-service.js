@@ -30,6 +30,7 @@ const FirebaseService = {
     permissions: [],
     activityRecords: [],
     registrations: [],
+    currentUser: null,
   },
 
   _listeners: [],
@@ -321,6 +322,63 @@ const FirebaseService = {
     this._cache.expLogs.unshift(log);
 
     return user;
+  },
+
+  // ════════════════════════════════
+  //  Users（LINE 登入用戶）
+  // ════════════════════════════════
+
+  async createOrUpdateUser(lineProfile) {
+    const { userId: lineUserId, displayName, pictureUrl, email } = lineProfile;
+    const snapshot = await db.collection('users')
+      .where('lineUserId', '==', lineUserId).limit(1).get();
+
+    const now = new Date().toISOString();
+
+    if (snapshot.empty) {
+      // 新用戶
+      const userData = {
+        lineUserId,
+        displayName,
+        pictureUrl: pictureUrl || null,
+        email: email || null,
+        role: 'user',
+        exp: 0,
+        level: 1,
+        createdAt: now,
+        lastLogin: now,
+      };
+      const docRef = await db.collection('users').add({
+        ...userData,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+        lastLogin: firebase.firestore.FieldValue.serverTimestamp(),
+      });
+      userData._docId = docRef.id;
+      this._cache.currentUser = userData;
+      console.log('[FirebaseService] 新用戶建立:', displayName);
+      return userData;
+    } else {
+      // 既有用戶：更新 displayName, pictureUrl, lastLogin
+      const doc = snapshot.docs[0];
+      const existing = { ...doc.data(), _docId: doc.id };
+      const updates = { displayName, pictureUrl: pictureUrl || null, lastLogin: now };
+      await db.collection('users').doc(doc.id).update({
+        ...updates,
+        lastLogin: firebase.firestore.FieldValue.serverTimestamp(),
+      });
+      Object.assign(existing, updates);
+      this._cache.currentUser = existing;
+      console.log('[FirebaseService] 用戶登入更新:', displayName);
+      return existing;
+    }
+  },
+
+  async getUser(lineUserId) {
+    const snapshot = await db.collection('users')
+      .where('lineUserId', '==', lineUserId).limit(1).get();
+    if (snapshot.empty) return null;
+    const doc = snapshot.docs[0];
+    return { ...doc.data(), _docId: doc.id };
   },
 
   // ════════════════════════════════

@@ -5,20 +5,20 @@
 // ─── Mode Manager（Demo / Production 切換）───
 const ModeManager = {
   _STORAGE_KEY: 'sporthub_mode',
-  _DEFAULT: 'demo',        // ← 正式部署時改為 'production'
+  // 自動偵測：GitHub Pages = production，本地 = demo
+  _DEFAULT: location.hostname === 'msw2004727.github.io' ? 'production' : 'demo',
   _mode: null,
 
   init() {
     this._mode = localStorage.getItem(this._STORAGE_KEY) || this._DEFAULT;
     console.log(
-      `%c[SportHub] 模式: ${this._mode.toUpperCase()}`,
+      `%c[SportHub] 模式: ${this._mode.toUpperCase()} (${location.hostname})`,
       'color:#0d9488;font-weight:bold;font-size:14px'
     );
     console.log('%c[SportHub] 隱藏切換方式:', 'color:#6b7280');
     console.log('  1. 連續點擊 Logo 5 次（3 秒內）');
     console.log('  2. 按鍵組合 Shift + Alt + D');
-    console.log('  3. Console 指令: __switchMode()');
-    console.log('  4. Console 指令: __setMode("demo") 或 __setMode("production")');
+    console.log("  3. Console 指令: switchMode('fc2026')");
   },
 
   getMode()  { return this._mode; },
@@ -40,6 +40,12 @@ const ModeManager = {
   },
 };
 ModeManager.init();
+
+// ─── LINE Login Config ───
+const LINE_CONFIG = {
+  LIFF_ID: '2009084941-zgn7tQOp',
+  CHANNEL_ID: '2009084941',
+};
 
 // ─── Role Hierarchy & Config ───
 const ROLES = {

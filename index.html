@@ -19,6 +19,9 @@
       <span class="logo-text">圖斯特Hub Demo</span>
     </div>
     <div class="top-bar-right">
+      <div id="login-area" class="login-area">
+        <!-- JS renderLoginUI() 填充 -->
+      </div>
       <div class="sport-picker-wrapper" id="sport-picker-wrapper">
         <button class="sport-picker-btn" id="sport-picker-btn" aria-label="選擇運動類別">
           <span class="sport-picker-icon">⚽</span>
@@ -1075,12 +1078,16 @@
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-storage-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
 
+  <!-- LINE LIFF SDK -->
+  <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+
   <!-- App Scripts -->
   <script src="js/config.js"></script>
   <script src="js/data.js"></script>
   <script src="js/firebase-config.js"></script>
   <script src="js/firebase-service.js"></script>
   <script src="js/api-service.js"></script>
+  <script src="js/line-auth.js"></script>
   <script src="app.js"></script>
   <script src="js/renders.js"></script>
   <script src="js/admin.js"></script>

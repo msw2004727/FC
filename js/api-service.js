@@ -309,4 +309,18 @@ const ApiService = {
     if (this._demoMode) return DemoData.permissions;
     return FirebaseService._cache.permissions;
   },
+
+  // ════════════════════════════════
+  //  Current User（登入用戶）
+  // ════════════════════════════════
+
+  getCurrentUser() {
+    if (this._demoMode) return DemoData.currentUser;
+    return FirebaseService._cache.currentUser || null;
+  },
+
+  async loginUser(lineProfile) {
+    if (this._demoMode) return DemoData.currentUser;
+    return await FirebaseService.createOrUpdateUser(lineProfile);
+  },
 };

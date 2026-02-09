@@ -21,4 +21,4 @@ firebase.initializeApp(firebaseConfig);
 // Global references
 const db = firebase.firestore();
 const storage = firebase.storage();
-// const auth = firebase.auth();  // 啟用 LINE@ Auth 時取消註解
+const auth = firebase.auth();

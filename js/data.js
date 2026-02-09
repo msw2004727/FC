@@ -4,6 +4,16 @@
    ================================================ */
 
 const DemoData = {
+  currentUser: {
+    uid: 'demo-user',
+    lineUserId: 'demo',
+    displayName: 'Demo 用戶',
+    pictureUrl: null,
+    role: 'user',
+    exp: 2350,
+    level: 25,
+  },
+
   events: [
     // ── 2月（近期熱門 — 本週~兩週內） ──
     { id: 'eh1', title: '週三足球基礎訓練', type: 'training', status: 'open', location: '台北市大安運動中心', date: '2026/02/11 19:00~21:00', fee: 200, max: 20, current: 14, waitlist: 0, waitlistMax: 5, creator: '教練小陳', contact: '0912-345-678', gradient: 'linear-gradient(135deg,#0d9488,#065f46)', icon: '', countdown: '2天 10時', participants: ['王小明','李大華','張三','陳美玲','林志偉','周杰倫','黃小琳','吳宗翰','鄭家豪','許志安','蔡依林','劉德華','A','B'], waitlistNames: [] },
