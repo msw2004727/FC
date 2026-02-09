@@ -171,7 +171,8 @@ const App = {
         const onClick = item.action === 'share'
           ? `App.showToast('已複製分享連結！')`
           : `App.showPage('${item.page}'); App.closeDrawer()`;
-        html += `<div class="drawer-item" onclick="${onClick}">
+        const roleColor = item.minRole && ROLES[item.minRole] ? `color:${ROLES[item.minRole].color}` : '';
+        html += `<div class="drawer-item" onclick="${onClick}" style="${roleColor}">
           <span class="di-icon">${item.icon}</span>${item.label}
         </div>`;
       }
@@ -386,9 +387,9 @@ const App = {
     document.querySelector('#page-user-card .page-header h2').textContent = '用戶資料卡片';
     document.getElementById('user-card-full').innerHTML = `
       <div class="uc-header">
-        <div class="uc-doll-frame"></div>
+        <div class="uc-doll-frame">紙娃娃預留</div>
         <div class="profile-title">${name}</div>
-        <div style="margin-top:.3rem">${this._userTag(name)}</div>
+        <div style="margin-top:.2rem;font-size:.75rem;color:${roleInfo.color};font-weight:600">${roleInfo.label}</div>
         <div class="profile-level">
           <span>Lv.${Math.floor(Math.random()*25+5)}</span>
           <div class="exp-bar"><div class="exp-fill" style="width:${Math.floor(Math.random()*80+10)}%"></div></div>
@@ -396,7 +397,6 @@ const App = {
       </div>
       <div class="info-card">
         <div class="info-title">基本資料</div>
-        <div class="info-row"><span>身份</span><span style="color:${roleInfo.color};font-weight:600">${roleInfo.label}</span></div>
         <div class="info-row"><span>地區</span><span>台北市</span></div>
         <div class="info-row"><span>運動類別</span><span>足球</span></div>
       </div>
@@ -513,10 +513,9 @@ const App = {
 
           html += `
             <div class="tl-event-row${isEnded ? ' tl-past' : ''}" onclick="App.showEventDetail('${e.id}')">
-              <div class="tl-type-icon ${typeConf.color}">${typeConf.label[0]}</div>
               <div class="tl-event-info">
                 <div class="tl-event-title">${e.title}</div>
-                <div class="tl-event-meta">${time} · ${e.location.split('市')[1] || e.location} · ${e.current}/${e.max}人</div>
+                <div class="tl-event-meta">${typeConf.label} · ${time} · ${e.location.split('市')[1] || e.location} · ${e.current}/${e.max}人</div>
               </div>
               <span class="tl-event-status ${statusConf.css}">${statusConf.label}</span>
               <span class="tl-event-arrow">›</span>
@@ -566,7 +565,7 @@ const App = {
       </div>` : ''}
       <div style="display:flex;gap:.5rem;margin:1rem 0">
         <button class="primary-btn" onclick="App.handleSignup('${e.id}')">${e.current >= e.max ? '候補報名' : '立即報名'}</button>
-        <button class="outline-btn" onclick="App.showToast('已發送站內信')">透過站內信聯繫</button>
+        <button class="outline-btn disabled" disabled>聯繫主辦人</button>
       </div>
       <div class="detail-section">
         <div class="detail-section-title">報名名單 (${e.current})</div>
@@ -884,8 +883,7 @@ const App = {
         const statusMap = { '進行中': 'open', '即將開始': 'upcoming', '報名中': 'open', '已結束': 'ended' };
         const css = statusMap[t.status] || 'open';
         html += `
-          <div class="tl-event-row" onclick="App.showTournamentDetail('${t.id}')" style="margin-bottom:.4rem">
-            <div class="tl-type-icon league"></div>
+          <div class="tl-event-row tl-tournament-card ${t.type.includes('聯賽') ? 'tl-league' : 'tl-cup'}" onclick="App.showTournamentDetail('${t.id}')" style="margin-bottom:.4rem">
             <div class="tl-event-info">
               <div class="tl-event-title">${t.name}</div>
               <div class="tl-event-meta">${t.type} · ${t.teams}隊 · ${t.matches}場</div>

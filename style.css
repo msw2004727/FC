@@ -256,6 +256,7 @@ img { max-width: 100%; display: block; }
   font-size: 1.15rem;
   transition: all var(--transition);
   cursor: pointer;
+  color: var(--text-primary);
 }
 .sport-picker-btn:hover {
   background: var(--accent-bg);
@@ -628,6 +629,10 @@ img { max-width: 100%; display: block; }
 .tl-event-row:active {
   transform: scale(.98);
 }
+.tl-tournament-card.tl-league { border-left: 3px solid #dc2626; background: rgba(220,38,38,.04); }
+.tl-tournament-card.tl-cup { border-left: 3px solid #d97706; background: rgba(217,119,6,.04); }
+[data-theme="dark"] .tl-tournament-card.tl-league { background: rgba(220,38,38,.08); }
+[data-theme="dark"] .tl-tournament-card.tl-cup { background: rgba(217,119,6,.08); }
 .tl-type-icon {
   width: 32px;
   height: 32px;
@@ -906,6 +911,7 @@ img { max-width: 100%; display: block; }
 .primary-btn.full-width { width: 100%; text-align: center; margin-top: .5rem; }
 .outline-btn { border: 1.5px solid var(--border); padding: .5rem 1rem; border-radius: var(--radius-sm); font-weight: 600; font-size: .82rem; color: var(--text-secondary); transition: all var(--transition); }
 .outline-btn:hover { border-color: var(--accent); color: var(--accent); }
+.outline-btn.disabled, .outline-btn:disabled { opacity: .4; cursor: not-allowed; pointer-events: none; }
 .outline-btn.full-width { width: 100%; text-align: center; }
 .text-btn { color: var(--accent); font-weight: 600; font-size: .82rem; padding: .3rem .5rem; }
 .text-btn:hover { background: var(--accent-bg); border-radius: var(--radius-sm); }
@@ -1305,7 +1311,7 @@ img { max-width: 100%; display: block; }
 /* ─── User Card Full ─── */
 .user-card-full { padding: .5rem; }
 .uc-header { text-align: center; padding: 1.5rem 0 1rem; }
-.uc-doll-frame { width: 100px; height: 100px; margin: 0 auto .5rem; background: var(--bg-elevated); border-radius: var(--radius); display: flex; align-items: center; justify-content: center; font-size: 2.5rem; border: 2px solid var(--border); }
+.uc-doll-frame { width: 100px; height: 100px; margin: 0 auto .5rem; background: var(--bg-elevated); border-radius: var(--radius); display: flex; align-items: center; justify-content: center; font-size: .7rem; color: var(--text-muted); border: 2px dashed var(--border); }
 
 /* ─── Modal ─── */
 .modal-overlay {
