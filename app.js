@@ -703,7 +703,9 @@ const App = {
     if (profile.pictureUrl && avatarImg) {
       avatarImg.src = profile.pictureUrl;
     } else if (userTopbar) {
-      userTopbar.innerHTML = `<div class="line-avatar-topbar line-avatar-fallback">${profile.displayName.charAt(0)}</div>`;
+      const dropdown = document.getElementById('user-menu-dropdown');
+      const dropdownHtml = dropdown ? dropdown.outerHTML : '';
+      userTopbar.innerHTML = `<div class="line-avatar-topbar line-avatar-fallback" onclick="App.toggleUserMenu()">${profile.displayName.charAt(0)}</div>${dropdownHtml}`;
     }
 
     // 更新 profile 頁面
@@ -761,8 +763,10 @@ const App = {
     const el = (id) => document.getElementById(id);
     const v = (val) => val || '-';
 
-    // 名稱
-    if (el('profile-title')) el('profile-title').textContent = v(user.displayName);
+    // 暱稱：優先使用 LINE API 的 displayName
+    const lineProfile = (typeof LineAuth !== 'undefined' && LineAuth.isLoggedIn()) ? LineAuth.getProfile() : null;
+    const displayName = (lineProfile && lineProfile.displayName) ? lineProfile.displayName : user.displayName;
+    if (el('profile-title')) el('profile-title').textContent = v(displayName);
 
     // 等級 & 經驗值
     const level = user.level || 1;
@@ -787,6 +791,35 @@ const App = {
     if (el('profile-sports')) el('profile-sports').textContent = v(user.sports);
     if (el('profile-team')) el('profile-team').textContent = v(user.teamName);
     if (el('profile-phone')) el('profile-phone').textContent = v(user.phone);
+  },
+
+  toggleUserMenu() {
+    const menu = document.getElementById('user-menu-dropdown');
+    if (!menu) return;
+    const isOpen = menu.style.display !== 'none';
+    menu.style.display = isOpen ? 'none' : '';
+    if (!isOpen) {
+      // 填入用戶名稱
+      const nameEl = document.getElementById('user-menu-name');
+      const profile = (typeof LineAuth !== 'undefined' && LineAuth.isLoggedIn()) ? LineAuth.getProfile() : null;
+      if (nameEl && profile) nameEl.textContent = profile.displayName;
+      // 點擊外部關閉
+      setTimeout(() => {
+        const close = (e) => {
+          if (!menu.contains(e.target) && e.target.id !== 'line-avatar-topbar') {
+            menu.style.display = 'none';
+            document.removeEventListener('click', close);
+          }
+        };
+        document.addEventListener('click', close);
+      }, 0);
+    }
+  },
+
+  logoutLine() {
+    if (typeof LineAuth !== 'undefined') {
+      LineAuth.logout();
+    }
   },
 
   saveFirstLoginProfile() {

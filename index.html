@@ -96,7 +96,13 @@
           LINE 登入
         </button>
         <div id="line-user-topbar" class="line-user-topbar" style="display:none">
-          <img id="line-avatar-topbar" class="line-avatar-topbar" src="" alt="">
+          <img id="line-avatar-topbar" class="line-avatar-topbar" src="" alt="" onclick="App.toggleUserMenu()">
+          <div id="user-menu-dropdown" class="user-menu-dropdown" style="display:none">
+            <div class="user-menu-name" id="user-menu-name"></div>
+            <div class="user-menu-divider"></div>
+            <button class="user-menu-item" onclick="App.showPage('page-profile'); App.toggleUserMenu()">我的資料</button>
+            <button class="user-menu-item user-menu-logout" onclick="App.logoutLine()">登出</button>
+          </div>
         </div>
       </div>
     </div>

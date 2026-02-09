@@ -1506,8 +1506,30 @@ img { max-width: 100%; display: block; }
 
 /* ─── LINE Login Wrapper ─── */
 .line-login-wrapper { display: flex; align-items: center; }
-.line-user-topbar { display: flex; align-items: center; }
+.line-user-topbar { display: flex; align-items: center; position: relative; }
 .line-login-btn.large { padding: .5rem 1.2rem; font-size: .85rem; }
+.line-avatar-topbar { cursor: pointer; }
+
+/* ─── User Menu Dropdown（右上角頭像選單）─── */
+.user-menu-dropdown {
+  position: absolute; top: 42px; right: 0;
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); box-shadow: var(--shadow-lg);
+  min-width: 160px; z-index: 1000; overflow: hidden;
+}
+.user-menu-name {
+  padding: .6rem .85rem; font-size: .8rem; font-weight: 600;
+  color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.user-menu-divider { height: 1px; background: var(--border); }
+.user-menu-item {
+  display: block; width: 100%; padding: .55rem .85rem;
+  font-size: .78rem; color: var(--text); background: none;
+  border: none; text-align: left; cursor: pointer;
+  transition: background var(--transition);
+}
+.user-menu-item:hover { background: var(--bg-hover, rgba(0,0,0,.05)); }
+.user-menu-logout { color: var(--danger); font-weight: 600; }
 
 /* ─── Drawer Avatar (LINE image) ─── */
 .drawer-avatar-img { background: none !important; overflow: hidden; }
