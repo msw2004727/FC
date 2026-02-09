@@ -610,9 +610,10 @@
         <button class="back-btn" onclick="App.goBack()">←</button>
         <h2>球隊管理</h2>
       </div>
-      <div class="card-list" id="admin-team-list">
-        <!-- Populated by JS -->
+      <div class="admin-search">
+        <input type="text" id="team-search-input" placeholder="搜尋球隊名稱 / 領隊..." oninput="App.filterAdminTeams()">
       </div>
+      <div class="card-list" id="admin-team-list"></div>
     </section>
 
     <!-- PAGE: Backend - Message Management (Admin+) -->
@@ -620,14 +621,25 @@
       <div class="page-header">
         <button class="back-btn" onclick="App.goBack()">←</button>
         <h2>站內信管理</h2>
-        <button class="primary-btn small">＋ 群發</button>
+        <button class="primary-btn small" onclick="App.showMsgCompose()">＋ 群發</button>
       </div>
-      <div class="tab-bar">
-        <button class="tab active">已發送</button>
-        <button class="tab">已排程</button>
-        <button class="tab">已回收</button>
+      <div class="tab-bar" id="msg-manage-tabs">
+        <button class="tab active" data-mfilter="sent">已發送</button>
+        <button class="tab" data-mfilter="scheduled">已排程</button>
+        <button class="tab" data-mfilter="recalled">已回收</button>
       </div>
       <div class="card-list" id="msg-manage-list"></div>
+      <div class="form-card" id="msg-compose" style="display:none;margin-top:.5rem">
+        <div class="role-editor-header"><span>撰寫群發信</span><button class="text-btn" onclick="document.getElementById('msg-compose').style.display='none'">取消</button></div>
+        <div class="form-row"><label>標題</label><input type="text" id="msg-title" placeholder="信件標題"></div>
+        <div class="form-row"><label>對象</label><select id="msg-target"><option>全體用戶</option><option>教練以上</option><option>管理員</option><option>指定球隊</option></select></div>
+        <div class="form-row"><label>內容</label><textarea id="msg-body" rows="4" placeholder="信件內容..."></textarea></div>
+        <div class="form-row">
+          <label>排程發送</label>
+          <input type="datetime-local" id="msg-schedule">
+        </div>
+        <button class="primary-btn full-width" onclick="App.sendDemoMsg()">發送</button>
+      </div>
     </section>
 
     <!-- PAGE: Backend - Tournament Management (Admin+) -->
@@ -645,55 +657,13 @@
       <div class="page-header">
         <button class="back-btn" onclick="App.goBack()">←</button>
         <h2>成就 / 徽章管理</h2>
-        <button class="primary-btn small">＋ 新增</button>
       </div>
-      <div class="achievement-builder" id="achievement-builder">
-        <div class="form-card">
-          <div class="form-row"><label>成就名稱</label><input type="text" placeholder="例：全勤之星"></div>
-          <div class="form-row">
-            <label>成就分類</label>
-            <div class="radio-group">
-              <label><input type="radio" name="ach-type" checked> 大成就</label>
-              <label><input type="radio" name="ach-type"> 普通成就</label>
-            </div>
-          </div>
-          <div class="form-row"><label>徽章圖 (50×50)</label><button class="outline-btn">選擇檔案</button></div>
-          <div class="condition-builder">
-            <div class="info-title">觸發條件</div>
-            <div class="condition-group" id="condition-group-1">
-              <div class="group-label">群組 1 <span class="group-logic">AND</span></div>
-              <div class="condition-row">
-                <select><option>累計完成活動</option><option>連續出席週數</option><option>等級</option><option>交易次數</option></select>
-                <select><option>≥</option><option>=</option><option>≤</option></select>
-                <input type="number" value="10">
-                <button class="remove-btn">✕</button>
-              </div>
-              <button class="text-btn">＋ 新增條件</button>
-            </div>
-            <div class="or-divider">── OR ──</div>
-            <div class="condition-group">
-              <div class="group-label">群組 2 <span class="group-logic">AND</span></div>
-              <div class="condition-row">
-                <select><option>連續出席週數</option></select>
-                <select><option>≥</option></select>
-                <input type="number" value="20">
-                <button class="remove-btn">✕</button>
-              </div>
-              <button class="text-btn">＋ 新增條件</button>
-            </div>
-            <button class="outline-btn full-width">＋ 新增群組 (OR)</button>
-          </div>
-          <div class="form-row">
-            <label>獎勵設定</label>
-            <div class="reward-tags">
-              <span class="reward-tag">球衣A <button>✕</button></span>
-              <span class="reward-tag">全勤稱號 <button>✕</button></span>
-              <button class="text-btn">＋ 新增獎勵</button>
-            </div>
-          </div>
-          <button class="primary-btn full-width">儲存成就</button>
-        </div>
+      <div class="tab-bar" id="admin-ach-tabs">
+        <button class="tab active" data-atype="achievements">成就</button>
+        <button class="tab" data-atype="badges">徽章</button>
       </div>
+      <div id="admin-ach-list"></div>
+      <button class="primary-btn full-width" style="margin-top:.5rem" onclick="App.showToast('新增成就（Demo）')">＋ 新增</button>
     </section>
 
     <!-- PAGE: Backend - Custom Roles (Super Admin) -->
@@ -1041,5 +1011,7 @@
   <script src="js/firebase-service.js"></script>
   <script src="js/api-service.js"></script>
   <script src="app.js"></script>
+  <script src="js/renders.js"></script>
+  <script src="js/admin.js"></script>
 </body>
 </html>

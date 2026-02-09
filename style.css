@@ -1287,11 +1287,13 @@ img { max-width: 100%; display: block; }
 .perm-category-title { font-size: .78rem; font-weight: 700; color: var(--accent); padding: .4rem 0; cursor: pointer; display: flex; align-items: center; gap: .3rem; }
 .perm-category-title::before { content: '▼'; font-size: .6rem; transition: transform var(--transition); }
 .perm-category.collapsed .perm-category-title::before { transform: rotate(-90deg); }
-.perm-items { display: flex; flex-direction: column; gap: .1rem; }
+.perm-items { display: flex; flex-direction: column; gap: 0; border-radius: var(--radius-sm); overflow: hidden; }
 .perm-category.collapsed .perm-items { display: none; }
-.perm-item { display: flex; align-items: center; gap: .5rem; padding: .3rem .5rem; border-radius: var(--radius-sm); font-size: .78rem; }
-.perm-item:hover { background: var(--bg-elevated); }
-.perm-item input[type="checkbox"] { accent-color: var(--accent); }
+.perm-item { display: flex; align-items: center; gap: .5rem; padding: .4rem .6rem; font-size: .78rem; }
+.perm-item:nth-child(odd) { background: var(--bg-elevated); }
+.perm-item:nth-child(even) { background: transparent; }
+.perm-item input[type="checkbox"] { accent-color: var(--accent); flex-shrink: 0; width: 16px; height: 16px; margin: 0; }
+.perm-item span { flex: 1; }
 
 /* ─── Log List ─── */
 .log-list { display: flex; flex-direction: column; gap: .3rem; }
@@ -1331,6 +1333,15 @@ img { max-width: 100%; display: block; }
 .status-active { background: rgba(52,211,153,.15); color: var(--success); }
 .status-scheduled { background: rgba(96,165,250,.15); color: var(--info); }
 .status-expired { background: rgba(248,113,113,.15); color: var(--danger); }
+
+/* ─── Admin Achievement/Badge Rows ─── */
+.admin-ach-row { display: flex; align-items: center; gap: .6rem; padding: .55rem .6rem; border-bottom: 1px solid var(--border); }
+.admin-ach-row:last-child { border-bottom: none; }
+.admin-ach-icon { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff; font-size: .8rem; font-weight: 700; flex-shrink: 0; }
+.admin-ach-info { flex: 1; min-width: 0; }
+.admin-ach-name { font-size: .82rem; font-weight: 600; }
+.admin-ach-status { font-size: .7rem; margin-top: .1rem; }
+.admin-ach-actions { display: flex; gap: .4rem; flex-shrink: 0; }
 
 /* ─── Message Manage ─── */
 .msg-manage-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: .75rem; }
