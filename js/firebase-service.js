@@ -352,6 +352,8 @@ const FirebaseService = {
         teamId: null,
         teamName: null,
         phone: null,
+        titleBig: null,
+        titleNormal: null,
         totalGames: 0,
         completedGames: 0,
         attendanceRate: 0,

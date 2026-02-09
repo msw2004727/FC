@@ -227,6 +227,7 @@ const App = {
       target.classList.add('active');
       this.currentPage = pageId;
       window.scrollTo({ top: 0, behavior: 'smooth' });
+      if (pageId === 'page-titles') this.renderTitlePage();
     }
   },
 
@@ -772,8 +773,8 @@ const App = {
       // Demo 模式：從 DemoData.currentUser 帶入
       const user = ApiService.getCurrentUser();
       if (!user) return;
-      if (el('profile-avatar')) { el('profile-avatar').className = 'profile-avatar'; el('profile-avatar').innerHTML = '麥'; }
-      if (el('profile-title')) el('profile-title').textContent = user.displayName || '冠軍.全勤.小麥';
+      if (el('profile-avatar')) { el('profile-avatar').className = 'profile-avatar'; el('profile-avatar').innerHTML = (user.displayName || '麥').charAt(0); }
+      if (el('profile-title')) el('profile-title').textContent = this._buildTitleDisplay(user);
       const level = user.level || 1, exp = user.exp || 0, nextExp = (level + 1) * 200;
       if (el('profile-lv')) el('profile-lv').textContent = `Lv.${level}`;
       if (el('profile-exp-text')) el('profile-exp-text').textContent = `${exp} / ${nextExp}`;
@@ -795,10 +796,11 @@ const App = {
     const user = ApiService.getCurrentUser();
     if (!user) return;
 
-    // 暱稱：優先使用 LINE API 的 displayName
+    // 暱稱：LINE API displayName + 資料庫稱號
     const lineProfile = (typeof LineAuth !== 'undefined' && LineAuth.isLoggedIn()) ? LineAuth.getProfile() : null;
-    const displayName = (lineProfile && lineProfile.displayName) ? lineProfile.displayName : user.displayName;
-    if (el('profile-title')) el('profile-title').textContent = v(displayName);
+    const lineName = (lineProfile && lineProfile.displayName) ? lineProfile.displayName : user.displayName;
+    const titleDisplay = this._buildTitleDisplay(user, lineName);
+    if (el('profile-title')) el('profile-title').textContent = titleDisplay;
 
     // 頭像：使用 LINE 頭像
     if (el('profile-avatar')) {
@@ -808,7 +810,7 @@ const App = {
         el('profile-avatar').innerHTML = `<img src="${pic}" alt="">`;
       } else {
         el('profile-avatar').className = 'profile-avatar';
-        el('profile-avatar').innerHTML = displayName ? displayName.charAt(0) : '?';
+        el('profile-avatar').innerHTML = lineName ? lineName.charAt(0) : '?';
       }
     }
 
@@ -835,6 +837,78 @@ const App = {
     if (el('profile-sports')) el('profile-sports').textContent = v(user.sports);
     if (el('profile-team')) el('profile-team').textContent = v(user.teamName);
     if (el('profile-phone')) el('profile-phone').textContent = v(user.phone);
+  },
+
+  // 組合稱號顯示：大成就.普通.暱稱
+  _buildTitleDisplay(user, overrideName) {
+    const parts = [];
+    if (user.titleBig) parts.push(user.titleBig);
+    if (user.titleNormal) parts.push(user.titleNormal);
+    const name = overrideName || user.displayName || '-';
+    parts.push(name);
+    return parts.join('.');
+  },
+
+  // 渲染稱號設定頁
+  renderTitlePage() {
+    const user = ApiService.getCurrentUser();
+    const lineProfile = (!ModeManager.isDemo() && typeof LineAuth !== 'undefined' && LineAuth.isLoggedIn()) ? LineAuth.getProfile() : null;
+    const lineName = lineProfile ? lineProfile.displayName : (user ? user.displayName : '-');
+
+    // LINE 暱稱
+    const nameInput = document.getElementById('title-line-name');
+    if (nameInput) nameInput.value = lineName || '-';
+
+    // 大成就稱號選項：從已完成的成就中取
+    const achievements = ApiService.getAchievements();
+    const bigTitles = achievements.filter(a => a.category === 'gold' && a.current >= a.target).map(a => a.name);
+    const normalTitles = achievements.filter(a => a.category !== 'gold' && a.current >= a.target).map(a => a.name);
+
+    const bigSelect = document.getElementById('title-big');
+    const normalSelect = document.getElementById('title-normal');
+    if (bigSelect) {
+      const cur = user && user.titleBig ? user.titleBig : '';
+      bigSelect.innerHTML = '<option value="">（無）</option>' + bigTitles.map(t =>
+        `<option value="${t}" ${t === cur ? 'selected' : ''}>${t}</option>`
+      ).join('');
+    }
+    if (normalSelect) {
+      const cur = user && user.titleNormal ? user.titleNormal : '';
+      normalSelect.innerHTML = '<option value="">（無）</option>' + normalTitles.map(t =>
+        `<option value="${t}" ${t === cur ? 'selected' : ''}>${t}</option>`
+      ).join('');
+    }
+
+    // 即時預覽
+    this._updateTitlePreview();
+    if (bigSelect && !bigSelect.dataset.bound) {
+      bigSelect.dataset.bound = '1';
+      bigSelect.addEventListener('change', () => this._updateTitlePreview());
+    }
+    if (normalSelect && !normalSelect.dataset.bound) {
+      normalSelect.dataset.bound = '1';
+      normalSelect.addEventListener('change', () => this._updateTitlePreview());
+    }
+  },
+
+  _updateTitlePreview() {
+    const big = document.getElementById('title-big')?.value || '';
+    const normal = document.getElementById('title-normal')?.value || '';
+    const name = document.getElementById('title-line-name')?.value || '-';
+    const parts = [];
+    if (big) parts.push(big);
+    if (normal) parts.push(normal);
+    parts.push(name);
+    const preview = document.getElementById('title-preview');
+    if (preview) preview.textContent = parts.join('.');
+  },
+
+  saveTitles() {
+    const titleBig = document.getElementById('title-big')?.value || null;
+    const titleNormal = document.getElementById('title-normal')?.value || null;
+    ApiService.updateCurrentUser({ titleBig, titleNormal });
+    this.renderProfileData();
+    this.showToast('稱號已儲存');
   },
 
   toggleUserMenu() {

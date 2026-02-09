@@ -399,20 +399,20 @@
         <h2>稱號設定</h2>
       </div>
       <div class="title-config">
-        <div class="title-preview" id="title-preview">冠軍.全勤.小麥</div>
+        <div class="title-preview" id="title-preview">-</div>
         <div class="title-row">
           <label>大成就稱號</label>
-          <select id="title-big"><option>冠軍</option><option>MVP</option><option>（無）</option></select>
+          <select id="title-big"><option value="">（無）</option></select>
         </div>
         <div class="title-row">
           <label>普通稱號</label>
-          <select id="title-normal"><option>全勤</option><option>鐵人</option><option>（無）</option></select>
+          <select id="title-normal"><option value="">（無）</option></select>
         </div>
         <div class="title-row">
           <label>LINE 暱稱</label>
-          <input type="text" value="小麥" disabled>
+          <input type="text" id="title-line-name" value="" disabled>
         </div>
-        <button class="primary-btn full-width">儲存稱號</button>
+        <button class="primary-btn full-width" onclick="App.saveTitles()">儲存稱號</button>
       </div>
     </section>
 
