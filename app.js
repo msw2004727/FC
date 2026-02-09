@@ -460,7 +460,10 @@ const App = {
     document.querySelector('#page-user-card .page-header h2').textContent = '用戶資料卡片';
     document.getElementById('user-card-full').innerHTML = `
       <div class="uc-header">
-        <div class="uc-doll-frame">紙娃娃預留</div>
+        <div class="uc-visual-row">
+          <div class="uc-avatar-circle">${name.charAt(0)}</div>
+          <div class="uc-doll-frame">紙娃娃預留</div>
+        </div>
         <div class="profile-title">${name}</div>
         <div style="margin-top:.2rem;font-size:.75rem;color:${roleInfo.color};font-weight:600">${roleInfo.label}</div>
         <div class="profile-level">
@@ -623,38 +626,53 @@ const App = {
   },
 
   renderLoginUI() {
-    const container = document.getElementById('login-area');
-    if (!container) return;
+    const wrapper = document.getElementById('role-switcher-wrapper');
+    const profileAvatar = document.getElementById('profile-avatar');
+    if (!wrapper) return;
 
+    // Demo 模式：保留角色切換器，不做任何改動
     if (ModeManager.isDemo()) {
-      const user = DemoData.currentUser;
-      container.innerHTML = `
-        <div class="login-user-info">
-          <div class="login-avatar-placeholder">${user.displayName.charAt(0)}</div>
-          <span class="login-name">${user.displayName}</span>
-        </div>`;
+      wrapper.style.display = '';
+      if (profileAvatar) {
+        profileAvatar.className = 'profile-avatar';
+        profileAvatar.innerHTML = '麥';
+      }
       return;
     }
 
-    if (typeof LineAuth === 'undefined' || !LineAuth.isLoggedIn()) {
-      container.innerHTML = `
+    // Production 模式：替換角色切換器為 LINE 登入
+    const isLoggedIn = typeof LineAuth !== 'undefined' && LineAuth.isLoggedIn();
+
+    if (!isLoggedIn) {
+      // 未登入：顯示 LINE 登入按鈕
+      wrapper.innerHTML = `
         <button class="line-login-btn" onclick="LineAuth.login()">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="#fff"><path d="M12 2C6.48 2 2 5.83 2 10.5c0 4.18 3.66 7.68 8.58 8.38.33.07.78.22.9.5.1.26.07.66.03.92l-.15.86c-.04.26-.2 1.01.88.55s5.88-3.47 8.03-5.93C22.08 13.79 22 12.18 22 10.5 22 5.83 17.52 2 12 2z"/></svg>
           LINE 登入
         </button>`;
+      if (profileAvatar) {
+        profileAvatar.className = 'profile-avatar';
+        profileAvatar.innerHTML = '?';
+      }
       return;
     }
 
+    // 已登入：顯示 LINE 頭像
     const profile = LineAuth.getProfile();
-    container.innerHTML = `
-      <div class="login-user-info">
-        ${profile.pictureUrl
-          ? `<img class="login-avatar" src="${profile.pictureUrl}" alt="">`
-          : `<div class="login-avatar-placeholder">${profile.displayName.charAt(0)}</div>`
-        }
-        <span class="login-name">${profile.displayName}</span>
-        <button class="logout-btn" onclick="LineAuth.logout()">登出</button>
-      </div>`;
+    wrapper.innerHTML = profile.pictureUrl
+      ? `<img class="line-avatar-topbar" src="${profile.pictureUrl}" alt="${profile.displayName}">`
+      : `<div class="line-avatar-topbar line-avatar-fallback">${profile.displayName.charAt(0)}</div>`;
+
+    // 更新「我的」頁面頭像
+    if (profileAvatar) {
+      if (profile.pictureUrl) {
+        profileAvatar.className = 'profile-avatar profile-avatar-img';
+        profileAvatar.innerHTML = `<img src="${profile.pictureUrl}" alt="">`;
+      } else {
+        profileAvatar.className = 'profile-avatar';
+        profileAvatar.innerHTML = profile.displayName.charAt(0);
+      }
+    }
   },
 
   async _switchMode() {

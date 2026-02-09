@@ -932,7 +932,10 @@ Object.assign(App, {
     const teamName = this._userTeam ? (ApiService.getTeam(this._userTeam)?.name || '—') : '無';
     container.innerHTML = `
       <div class="uc-header">
-        <div class="uc-doll-frame"></div>
+        <div class="uc-visual-row">
+          <div class="uc-avatar-circle">王</div>
+          <div class="uc-doll-frame">紙娃娃預留</div>
+        </div>
         <div class="profile-title">全勤.王小明</div>
         <div style="margin-top:.3rem">${this._userTag('王小明')}</div>
         <div class="profile-level">
