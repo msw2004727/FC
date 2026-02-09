@@ -251,11 +251,11 @@ const App = {
       const label = document.querySelector('#theme-toggle span:nth-child(2)');
       if (isDark) {
         toggle.classList.remove('active');
-        icon.textContent = '☀️';
+        icon.textContent = '';
         label.textContent = '淺色模式';
       } else {
         toggle.classList.add('active');
-        icon.textContent = '🌙';
+        icon.textContent = '';
         label.textContent = '深色模式';
       }
     });
@@ -386,7 +386,7 @@ const App = {
     document.querySelector('#page-user-card .page-header h2').textContent = '用戶資料卡片';
     document.getElementById('user-card-full').innerHTML = `
       <div class="uc-header">
-        <div class="uc-doll-frame">👤</div>
+        <div class="uc-doll-frame"></div>
         <div class="profile-title">${name}</div>
         <div style="margin-top:.3rem">${this._userTag(name)}</div>
         <div class="profile-level">
@@ -398,13 +398,13 @@ const App = {
         <div class="info-title">基本資料</div>
         <div class="info-row"><span>身份</span><span style="color:${roleInfo.color};font-weight:600">${roleInfo.label}</span></div>
         <div class="info-row"><span>地區</span><span>台北市</span></div>
-        <div class="info-row"><span>運動類別</span><span>⚽</span></div>
+        <div class="info-row"><span>運動類別</span><span>足球</span></div>
       </div>
       <div class="info-card">
         <div class="info-title">成就 & 徽章</div>
         <div style="display:flex;gap:.5rem;flex-wrap:wrap">
-          <span style="font-size:1.5rem">🌱</span>
-          <span style="font-size:1.5rem">⭐</span>
+          <span class="ach-mini">新手</span>
+          <span class="ach-mini">全勤</span>
         </div>
       </div>
       <p style="text-align:center;font-size:.78rem;color:var(--text-muted);margin-top:1rem">此為用戶公開資訊頁面預留位置</p>
@@ -429,8 +429,8 @@ const App = {
           <div class="h-card-body">
             <div class="h-card-title">${e.title}</div>
             <div class="h-card-meta">
-              <span>📍 ${e.location.split('市')[0]}市</span>
-              <span>👥 ${e.current}/${e.max}</span>
+              <span>${e.location.split('市')[0]}市</span>
+              <span>${e.current}/${e.max} 人</span>
             </div>
           </div>
         </div>
@@ -513,7 +513,7 @@ const App = {
 
           html += `
             <div class="tl-event-row${isEnded ? ' tl-past' : ''}" onclick="App.showEventDetail('${e.id}')">
-              <div class="tl-type-icon ${typeConf.color}">${typeConf.icon}</div>
+              <div class="tl-type-icon ${typeConf.color}">${typeConf.label[0]}</div>
               <div class="tl-event-info">
                 <div class="tl-event-title">${e.title}</div>
                 <div class="tl-event-meta">${time} · ${e.location.split('市')[1] || e.location} · ${e.current}/${e.max}人</div>
@@ -551,14 +551,14 @@ const App = {
     }
     document.getElementById('detail-title').textContent = e.title;
     document.getElementById('detail-body').innerHTML = `
-      <div class="detail-row"><span class="icon">📍</span>${e.location}</div>
-      <div class="detail-row"><span class="icon">🕐</span>${e.date}</div>
-      <div class="detail-row"><span class="icon">💰</span>${e.fee > 0 ? '$'+e.fee : '免費'}</div>
-      <div class="detail-row"><span class="icon">👥</span>已報 ${e.current}/${e.max}　候補 ${e.waitlist}/${e.waitlistMax}</div>
-      <div class="detail-row"><span class="icon">🔞</span>年齡限制：${e.minAge > 0 ? e.minAge + ' 歲以上' : '無限制'}</div>
-      <div class="detail-row"><span class="icon">👤</span>${e.creator}</div>
-      ${e.contact ? `<div class="detail-row"><span class="icon">📞</span>${e.contact}</div>` : ''}
-      <div class="detail-row"><span class="icon">⏰</span>活動倒數：${e.countdown}</div>
+      <div class="detail-row"><span class="detail-label">地點</span>${e.location}</div>
+      <div class="detail-row"><span class="detail-label">時間</span>${e.date}</div>
+      <div class="detail-row"><span class="detail-label">費用</span>${e.fee > 0 ? '$'+e.fee : '免費'}</div>
+      <div class="detail-row"><span class="detail-label">人數</span>已報 ${e.current}/${e.max}　候補 ${e.waitlist}/${e.waitlistMax}</div>
+      <div class="detail-row"><span class="detail-label">年齡</span>${e.minAge > 0 ? e.minAge + ' 歲以上' : '無限制'}</div>
+      <div class="detail-row"><span class="detail-label">主辦</span>${e.creator}</div>
+      ${e.contact ? `<div class="detail-row"><span class="detail-label">聯繫</span>${e.contact}</div>` : ''}
+      <div class="detail-row"><span class="detail-label">倒數</span>${e.countdown}</div>
       ${e.notes ? `
       <div class="detail-section">
         <div class="detail-section-title">注意事項</div>
@@ -587,7 +587,7 @@ const App = {
 
     if (ApiService._demoMode) {
       // Demo 模式：僅顯示提示
-      this.showToast(e.current >= e.max ? '⚠️ 已額滿，已加入候補名單' : '✅ 報名成功！');
+      this.showToast(e.current >= e.max ? '已額滿，已加入候補名單' : '報名成功！');
       return;
     }
 
@@ -597,12 +597,12 @@ const App = {
     const userName = '用戶';
     FirebaseService.registerForEvent(id, userId, userName)
       .then(result => {
-        this.showToast(result.status === 'waitlisted' ? '⚠️ 已額滿，已加入候補名單' : '✅ 報名成功！');
+        this.showToast(result.status === 'waitlisted' ? '已額滿，已加入候補名單' : '報名成功！');
         this.showEventDetail(id);
       })
       .catch(err => {
         console.error('[handleSignup]', err);
-        this.showToast('❌ ' + (err.message || '報名失敗，請稍後再試'));
+        this.showToast(err.message || '報名失敗，請稍後再試');
       });
   },
 
@@ -623,15 +623,15 @@ const App = {
     const pinnedClass = t.pinned ? ' tc-pinned' : '';
     return `
       <div class="tc-card${pinnedClass}" onclick="App.showTeamDetail('${t.id}')">
-        ${t.pinned ? '<div class="tc-pin-badge">📌 至頂</div>' : ''}
+        ${t.pinned ? '<div class="tc-pin-badge">至頂</div>' : ''}
         <div class="tc-img-placeholder">隊徽 120 × 120</div>
         <div class="tc-body">
           <div class="tc-name">${t.name}</div>
           <div class="tc-name-en">${t.nameEn || ''}</div>
-          <div class="tc-info-row"><span class="tc-label">👑 領隊</span><span>${this._userTag(t.captain, 'captain')}</span></div>
-          <div class="tc-info-row"><span class="tc-label">🏋️ 教練</span><span>${t.coaches.length > 0 ? t.coaches.map(c => this._userTag(c, 'coach')).join(' ') : '—'}</span></div>
-          <div class="tc-info-row"><span class="tc-label">👥 隊員</span><span>${t.members} 人</span></div>
-          <div class="tc-info-row"><span class="tc-label">📍 地區</span><span>${t.region}</span></div>
+          <div class="tc-info-row"><span class="tc-label">領隊</span><span>${this._userTag(t.captain, 'captain')}</span></div>
+          <div class="tc-info-row"><span class="tc-label">教練</span><span>${t.coaches.length > 0 ? t.coaches.map(c => this._userTag(c, 'coach')).join(' ') : '—'}</span></div>
+          <div class="tc-info-row"><span class="tc-label">隊員</span><span>${t.members} 人</span></div>
+          <div class="tc-info-row"><span class="tc-label">地區</span><span>${t.region}</span></div>
         </div>
       </div>`;
   },
@@ -679,10 +679,10 @@ const App = {
       <div class="td-card">
         <div class="td-card-title">球隊資訊</div>
         <div class="td-card-grid">
-          <div class="td-card-item"><span class="td-card-label">👑 領隊</span><span class="td-card-value">${this._userTag(t.captain, 'captain')}</span></div>
-          <div class="td-card-item"><span class="td-card-label">🏋️ 教練</span><span class="td-card-value">${t.coaches.length > 0 ? t.coaches.map(c => this._userTag(c, 'coach')).join(' ') : '無'}</span></div>
-          <div class="td-card-item"><span class="td-card-label">👥 隊員數</span><span class="td-card-value">${t.members} 人</span></div>
-          <div class="td-card-item"><span class="td-card-label">📍 地區</span><span class="td-card-value">${t.region}</span></div>
+          <div class="td-card-item"><span class="td-card-label">領隊</span><span class="td-card-value">${this._userTag(t.captain, 'captain')}</span></div>
+          <div class="td-card-item"><span class="td-card-label">教練</span><span class="td-card-value">${t.coaches.length > 0 ? t.coaches.map(c => this._userTag(c, 'coach')).join(' ') : '無'}</span></div>
+          <div class="td-card-item"><span class="td-card-label">隊員數</span><span class="td-card-value">${t.members} 人</span></div>
+          <div class="td-card-item"><span class="td-card-label">地區</span><span class="td-card-value">${t.region}</span></div>
         </div>
       </div>
       <div class="td-card">
@@ -764,7 +764,7 @@ const App = {
     const container = document.getElementById('achievement-grid');
     container.innerHTML = ApiService.getAchievements().map(a => `
       <div class="ach-item ${a.unlocked ? '' : 'locked'}">
-        <div class="ach-icon">${a.unlocked ? a.icon : '🔒'}</div>
+        <div class="ach-icon">${a.unlocked ? a.icon : ''}</div>
         <div class="ach-name">${a.name}</div>
       </div>
     `).join('');
@@ -885,7 +885,7 @@ const App = {
         const css = statusMap[t.status] || 'open';
         html += `
           <div class="tl-event-row" onclick="App.showTournamentDetail('${t.id}')" style="margin-bottom:.4rem">
-            <div class="tl-type-icon league">🏆</div>
+            <div class="tl-type-icon league"></div>
             <div class="tl-event-info">
               <div class="tl-event-title">${t.name}</div>
               <div class="tl-event-meta">${t.type} · ${t.teams}隊 · ${t.matches}場</div>
@@ -898,9 +898,9 @@ const App = {
     };
 
     container.innerHTML =
-      renderSection('聯賽', '🏆', leagues) +
+      renderSection('聯賽', '', leagues) +
       '<div style="height:.5rem"></div>' +
-      renderSection('盃賽', '🥊', cups);
+      renderSection('盃賽', '', cups);
   },
 
   showTournamentDetail(id) {
@@ -947,13 +947,13 @@ const App = {
     } else if (tab === 'trades') {
       container.innerHTML = `
         <div style="padding:.5rem;margin-bottom:.5rem;font-size:.82rem;color:var(--text-secondary)">
-          交易窗口：03/01~03/20　狀態：<span style="color:var(--success);font-weight:600">🟢 開放中</span>
+          交易窗口：03/01~03/20　狀態：<span style="color:var(--success);font-weight:600">開放中</span>
         </div>
         ${ApiService.getTrades().map(tr => `
           <div class="trade-card">
             <div style="font-weight:600;margin-bottom:.25rem">${tr.from} → ${tr.to}</div>
             <div>球員：${tr.player}　價值：${tr.value} 積分</div>
-            <div style="margin-top:.3rem"><span class="trade-status ${tr.status}">${tr.status === 'success' ? '✅ 成交' : '⏳ 待確認'}</span> <span style="font-size:.72rem;color:var(--text-muted)">${tr.date}</span></div>
+            <div style="margin-top:.3rem"><span class="trade-status ${tr.status}">${tr.status === 'success' ? '成交' : '待確認'}</span> <span style="font-size:.72rem;color:var(--text-muted)">${tr.date}</span></div>
           </div>
         `).join('')}`;
     }
@@ -979,7 +979,7 @@ const App = {
             <div class="mc-emblem" style="background:${awayTeam?.color || '#666'}22;color:${awayTeam?.color || '#666'}">${awayTeam?.emblem || '?'}</div>
           </div>
         </div>
-        <div class="mc-meta"><span>📍 ${m.venue}</span><span>🕐 ${m.time}</span></div>`;
+        <div class="mc-meta"><span>${m.venue}</span><span>${m.time}</span></div>`;
     });
 
     html += '<div style="font-size:.78rem;font-weight:700;color:var(--text-muted);margin:.8rem 0 .4rem">循環對戰表</div>';
@@ -1010,14 +1010,14 @@ const App = {
   renderBracket() {
     const bracketData = [
       { round: '八強', matches: [
-        { t1: '雷霆隊', s1: 3, t2: '旋風B隊', s2: 0, e1: '⚡', e2: '🌀' },
-        { t1: '閃電隊', s1: 2, t2: '火焰B隊', s2: 1, e1: '🌩', e2: '🔥' },
-        { t1: '旋風隊', s1: 1, t2: '獵鷹隊', s2: 1, e1: '🌀', e2: '🦅' },
-        { t1: '火焰隊', s1: 4, t2: '鐵衛隊', s2: 2, e1: '🔥', e2: '🛡' },
+        { t1: '雷霆隊', s1: 3, t2: '旋風B隊', s2: 0, e1: '雷', e2: '旋' },
+        { t1: '閃電隊', s1: 2, t2: '火焰B隊', s2: 1, e1: '電', e2: '火' },
+        { t1: '旋風隊', s1: 1, t2: '獵鷹隊', s2: 1, e1: '旋', e2: '鷹' },
+        { t1: '火焰隊', s1: 4, t2: '鐵衛隊', s2: 2, e1: '火', e2: '鐵' },
       ]},
       { round: '四強', matches: [
-        { t1: '雷霆隊', s1: null, t2: '閃電隊', s2: null, e1: '⚡', e2: '🌩' },
-        { t1: '?', s1: null, t2: '火焰隊', s2: null, e1: '?', e2: '🔥' },
+        { t1: '雷霆隊', s1: null, t2: '閃電隊', s2: null, e1: '雷', e2: '電' },
+        { t1: '?', s1: null, t2: '火焰隊', s2: null, e1: '?', e2: '火' },
       ]},
       { round: '決賽', matches: [
         { t1: '?', s1: null, t2: '?', s2: null, e1: '?', e2: '?' },
@@ -1097,7 +1097,7 @@ const App = {
 
   handlePromote(select, name) {
     if (select.value) {
-      this.showToast(`✅ 已將「${name}」晉升為「${select.value}」`);
+      this.showToast(`已將「${name}」晉升為「${select.value}」`);
       select.value = '';
     }
   },
@@ -1140,7 +1140,7 @@ const App = {
         <div class="banner-manage-info">
           <div class="banner-manage-title">${b.title}</div>
           <div class="banner-manage-meta">${b.position} ・ ${b.publishAt}~${b.unpublishAt} ・ 點擊 ${b.clicks}</div>
-          <span class="banner-manage-status status-${b.status}">${b.status === 'active' ? '🟢 啟用中' : b.status === 'scheduled' ? '🔵 已排程' : '🔴 已到期'}</span>
+          <span class="banner-manage-status status-${b.status}">${b.status === 'active' ? '啟用中' : b.status === 'scheduled' ? '已排程' : '已到期'}</span>
         </div>
       </div>
     `).join('');
@@ -1221,16 +1221,16 @@ const App = {
         <div class="event-card-body">
           <div style="display:flex;justify-content:space-between;align-items:center">
             <div class="event-card-title">${t.emblem} ${t.name} <span style="font-size:.72rem;color:var(--text-muted)">${t.nameEn}</span></div>
-            ${t.pinned ? '<span style="font-size:.72rem;color:var(--warning);font-weight:600">📌 至頂</span>' : ''}
+            ${t.pinned ? '<span style="font-size:.72rem;color:var(--warning);font-weight:600">至頂</span>' : ''}
           </div>
           <div class="event-meta">
-            <span class="event-meta-item">👑 ${t.captain}</span>
-            <span class="event-meta-item">👥 ${t.members}人</span>
-            <span class="event-meta-item">📍 ${t.region}</span>
+            <span class="event-meta-item">領隊 ${t.captain}</span>
+            <span class="event-meta-item">${t.members}人</span>
+            <span class="event-meta-item">${t.region}</span>
             <span class="event-meta-item" style="color:${t.active ? 'var(--success)' : 'var(--danger)'}">${t.active ? '上架中' : '已下架'}</span>
           </div>
           <div style="display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.5rem">
-            <button class="primary-btn small" onclick="App.toggleTeamPin('${t.id}')">${t.pinned ? '📌 取消至頂' : '📌 至頂'}</button>
+            <button class="primary-btn small" onclick="App.toggleTeamPin('${t.id}')">${t.pinned ? '取消至頂' : '至頂'}</button>
             <button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem" onclick="App.toggleTeamActive('${t.id}')">${t.active ? '下架' : '上架'}</button>
             <button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem" onclick="App.showTeamDetail('${t.id}')">查看</button>
           </div>
@@ -1295,13 +1295,13 @@ const App = {
     if (!container) return;
     container.innerHTML = `
       <div class="inactive-card">
-        <div style="font-weight:700">🛡 鳳凰隊</div>
+        <div style="font-weight:700">鳳凰隊</div>
         <div style="font-size:.78rem;color:var(--text-muted);margin-top:.3rem">解散日期：2025/12/15</div>
         <div style="font-size:.78rem;color:var(--text-muted)">原領隊：暱稱Z ・ 原成員：14 人</div>
         <button class="text-btn" style="margin-top:.4rem">查看完整歷史資料</button>
       </div>
       <div class="inactive-card">
-        <div style="font-weight:700">🛡 颱風隊</div>
+        <div style="font-weight:700">颱風隊</div>
         <div style="font-size:.78rem;color:var(--text-muted);margin-top:.3rem">解散日期：2025/08/20</div>
         <div style="font-size:.78rem;color:var(--text-muted)">原領隊：暱稱W ・ 原成員：10 人</div>
         <button class="text-btn" style="margin-top:.4rem">查看完整歷史資料</button>
@@ -1328,9 +1328,9 @@ const App = {
             <span class="tl-event-status ${statusConf.css}" style="font-size:.68rem">${statusConf.label}</span>
           </div>
           <div class="event-meta">
-            <span class="event-meta-item">📍 ${e.location}</span>
-            <span class="event-meta-item">🕐 ${e.date}</span>
-            <span class="event-meta-item">👥 ${e.current}/${e.max}</span>
+            <span class="event-meta-item">${e.location}</span>
+            <span class="event-meta-item">${e.date}</span>
+            <span class="event-meta-item">${e.current}/${e.max} 人</span>
           </div>
           <div style="display:flex;gap:.3rem;margin-top:.5rem">
             <button class="primary-btn small">編輯</button>
@@ -1352,7 +1352,7 @@ const App = {
     if (!container) return;
     container.innerHTML = `
       <div class="uc-header">
-        <div class="uc-doll-frame">👤</div>
+        <div class="uc-doll-frame"></div>
         <div class="profile-title">全勤.王小明</div>
         <div style="margin-top:.3rem">${this._userTag('王小明')}</div>
         <div class="profile-level">
@@ -1366,14 +1366,14 @@ const App = {
         <div class="info-row"><span>性別</span><span>男</span></div>
         <div class="info-row"><span>生日</span><span>2000/05/20</span></div>
         <div class="info-row"><span>地區</span><span>台北市</span></div>
-        <div class="info-row"><span>運動類別</span><span>⚽</span></div>
+        <div class="info-row"><span>運動類別</span><span>足球</span></div>
         <div class="info-row"><span>所屬球隊</span><span>雷霆隊</span></div>
       </div>
       <div class="info-card">
         <div class="info-title">成就 & 徽章</div>
         <div style="display:flex;gap:.5rem;flex-wrap:wrap">
-          <span style="font-size:1.5rem">🌱</span>
-          <span style="font-size:1.5rem">⭐</span>
+          <span class="ach-mini">新手</span>
+          <span class="ach-mini">全勤</span>
         </div>
       </div>
       <div class="info-card">
@@ -1493,7 +1493,7 @@ const App = {
       creator: ROLES[this.currentRole]?.label || '一般用戶',
       contact: '',
       gradient: GRADIENT_MAP[type] || GRADIENT_MAP.friendly,
-      icon: '⚽',
+      icon: '',
       countdown: '即將開始',
       participants: [],
       waitlistNames: [],
@@ -1518,7 +1518,7 @@ const App = {
     const cePreview = document.getElementById('ce-upload-preview');
     if (cePreview) {
       cePreview.classList.remove('has-image');
-      cePreview.innerHTML = '<span class="ce-upload-icon">📷</span><span class="ce-upload-text">點擊上傳圖片</span><span class="ce-upload-hint">建議尺寸 800 × 300 px｜JPG / PNG｜最大 2MB</span>';
+      cePreview.innerHTML = '<span class="ce-upload-icon">+</span><span class="ce-upload-text">點擊上傳圖片</span><span class="ce-upload-hint">建議尺寸 800 × 300 px｜JPG / PNG｜最大 2MB</span>';
     }
   },
 
@@ -1591,7 +1591,7 @@ const App = {
     const preview = document.getElementById('ct-upload-preview');
     if (preview) {
       preview.classList.remove('has-image');
-      preview.innerHTML = '<span class="ce-upload-icon">📷</span><span class="ce-upload-text">點擊上傳圖片</span><span class="ce-upload-hint">建議尺寸 800 × 300 px｜JPG / PNG｜最大 2MB</span>';
+      preview.innerHTML = '<span class="ce-upload-icon">+</span><span class="ce-upload-text">點擊上傳圖片</span><span class="ce-upload-hint">建議尺寸 800 × 300 px｜JPG / PNG｜最大 2MB</span>';
     }
   },
 
@@ -1633,7 +1633,7 @@ const App = {
     });
     ['cs-preview1','cs-preview2','cs-preview3'].forEach(id => {
       const el = document.getElementById(id);
-      if (el) { el.classList.remove('has-image'); el.innerHTML = '<span class="ce-upload-icon">📷</span><span class="ce-upload-hint">JPG/PNG 2MB</span>'; }
+      if (el) { el.classList.remove('has-image'); el.innerHTML = '<span class="ce-upload-icon">+</span><span class="ce-upload-hint">JPG/PNG 2MB</span>'; }
     });
   },
 

@@ -32,13 +32,13 @@ const DEMO_USERS = {
 
 // ─── Type & Status Config ───
 const TYPE_CONFIG = {
-  friendly: { icon: '🤝', label: '友誼賽', color: 'friendly' },
-  training: { icon: '🏋️', label: '訓練', color: 'training' },
-  league:   { icon: '🏆', label: '聯賽', color: 'league' },
-  cup:      { icon: '🥊', label: '盃賽', color: 'cup' },
-  test:     { icon: '📋', label: '測試', color: 'test' },
-  camp:     { icon: '🎓', label: '學習營', color: 'camp' },
-  watch:    { icon: '📺', label: '觀賽', color: 'watch' },
+  friendly: { icon: '', label: '友誼賽', color: 'friendly' },
+  training: { icon: '', label: '訓練', color: 'training' },
+  league:   { icon: '', label: '聯賽', color: 'league' },
+  cup:      { icon: '', label: '盃賽', color: 'cup' },
+  test:     { icon: '', label: '測試', color: 'test' },
+  camp:     { icon: '', label: '學習營', color: 'camp' },
+  watch:    { icon: '', label: '觀賽', color: 'watch' },
 };
 
 const STATUS_CONFIG = {
@@ -70,24 +70,24 @@ const TOURNAMENT_GRADIENT_MAP = {
 
 // ─── Drawer Menu Config ───
 const DRAWER_MENUS = [
-  { icon: '🏆', label: '賽事中心', page: 'page-tournaments', minRole: 'user' },
-  { icon: '🛒', label: '二手商品區', page: 'page-shop', minRole: 'user' },
-  { icon: '📊', label: '排行榜', page: 'page-leaderboard', minRole: 'user' },
-  { icon: '🔗', label: '分享網頁', action: 'share', minRole: 'user' },
+  { icon: '', label: '賽事中心', page: 'page-tournaments', minRole: 'user' },
+  { icon: '', label: '二手商品區', page: 'page-shop', minRole: 'user' },
+  { icon: '', label: '排行榜', page: 'page-leaderboard', minRole: 'user' },
+  { icon: '', label: '分享網頁', action: 'share', minRole: 'user' },
   { divider: true },
-  { icon: '📋', label: '我的活動管理', page: 'page-my-activities', minRole: 'coach' },
-  { icon: '📷', label: '掃碼簽到/簽退', page: 'page-scan', minRole: 'coach' },
+  { icon: '', label: '我的活動管理', page: 'page-my-activities', minRole: 'coach' },
+  { icon: '', label: '掃碼簽到/簽退', page: 'page-scan', minRole: 'coach' },
   { divider: true, minRole: 'admin' },
   { sectionLabel: '後台管理', minRole: 'admin' },
-  { icon: '👥', label: '用戶管理', page: 'page-admin-users', minRole: 'admin' },
-  { icon: '✨', label: '手動 EXP 管理', page: 'page-admin-exp', minRole: 'super_admin' },
-  { icon: '🖼', label: 'Banner 管理', page: 'page-admin-banners', minRole: 'admin' },
-  { icon: '🏷', label: '二手商品管理', page: 'page-admin-shop', minRole: 'admin' },
-  { icon: '📬', label: '站內信管理', page: 'page-admin-messages', minRole: 'admin' },
-  { icon: '⚽', label: '球隊管理', page: 'page-admin-teams', minRole: 'admin' },
-  { icon: '🏟', label: '賽事管理', page: 'page-admin-tournaments', minRole: 'admin' },
-  { icon: '🏅', label: '成就/徽章管理', page: 'page-admin-achievements', minRole: 'super_admin' },
-  { icon: '⚙', label: '自訂層級管理', page: 'page-admin-roles', minRole: 'super_admin' },
-  { icon: '📂', label: '無效資料查詢', page: 'page-admin-inactive', minRole: 'super_admin' },
-  { icon: '📝', label: '操作日誌', page: 'page-admin-logs', minRole: 'super_admin' },
+  { icon: '', label: '用戶管理', page: 'page-admin-users', minRole: 'admin' },
+  { icon: '', label: '手動 EXP 管理', page: 'page-admin-exp', minRole: 'super_admin' },
+  { icon: '', label: 'Banner 管理', page: 'page-admin-banners', minRole: 'admin' },
+  { icon: '', label: '二手商品管理', page: 'page-admin-shop', minRole: 'admin' },
+  { icon: '', label: '站內信管理', page: 'page-admin-messages', minRole: 'admin' },
+  { icon: '', label: '球隊管理', page: 'page-admin-teams', minRole: 'admin' },
+  { icon: '', label: '賽事管理', page: 'page-admin-tournaments', minRole: 'admin' },
+  { icon: '', label: '成就/徽章管理', page: 'page-admin-achievements', minRole: 'super_admin' },
+  { icon: '', label: '自訂層級管理', page: 'page-admin-roles', minRole: 'super_admin' },
+  { icon: '', label: '無效資料查詢', page: 'page-admin-inactive', minRole: 'super_admin' },
+  { icon: '', label: '操作日誌', page: 'page-admin-logs', minRole: 'super_admin' },
 ];
