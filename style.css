@@ -455,13 +455,8 @@ img { max-width: 100%; display: block; }
 
 /* ─── Announcement ─── */
 .announce-card { background: var(--bg-card); border-radius: var(--radius); border: 1px solid var(--border); overflow: hidden; margin-bottom: .8rem; }
-.announce-header { display: flex; justify-content: space-between; align-items: center; padding: .7rem 1rem; font-weight: 600; font-size: .85rem; cursor: pointer; }
-.announce-toggle { font-size: .72rem; color: var(--accent); font-weight: 600; }
+.announce-header { display: flex; justify-content: space-between; align-items: center; padding: .7rem 1rem; font-weight: 600; font-size: .85rem; }
 .announce-body { padding: 0 1rem .8rem; font-size: .82rem; color: var(--text-secondary); line-height: 1.6; }
-.announce-card.collapsed .announce-body { display: none; }
-.announce-card.collapsed .announce-toggle::after { content: '展開 ▼'; }
-.announce-card.collapsed .announce-toggle { font-size: 0; }
-.announce-card.collapsed .announce-toggle::after { font-size: .72rem; }
 
 /* ─── Horizontal Scroll Cards ─── */
 .horizontal-scroll { display: flex; gap: .65rem; overflow-x: auto; padding: .2rem .2rem .6rem; -webkit-overflow-scrolling: touch; scroll-snap-type: x mandatory; scroll-behavior: smooth; }
@@ -1377,6 +1372,9 @@ img { max-width: 100%; display: block; }
 .admin-ach-name { font-size: .82rem; font-weight: 600; }
 .admin-ach-status { font-size: .7rem; margin-top: .1rem; }
 .admin-ach-actions { display: flex; gap: .4rem; flex-shrink: 0; }
+
+/* ─── Admin Section Label ─── */
+.admin-section-label { font-weight: 700; font-size: .85rem; color: var(--text-secondary); padding: .5rem 0 .3rem; margin-top: .5rem; border-bottom: 1px solid var(--border); margin-bottom: .5rem; }
 
 /* ─── Message Manage ─── */
 .msg-manage-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: .75rem; }

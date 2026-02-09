@@ -149,11 +149,8 @@
       <div class="announce-card" id="announce-card">
         <div class="announce-header">
           <span>系統公告</span>
-          <button class="announce-toggle">收合 ▲</button>
         </div>
-        <div class="announce-body">
-          <p>歡迎使用 SportHub！春季聯賽報名已開始，請至賽事中心查看詳情。如有問題請透過站內信聯繫管理員。</p>
-        </div>
+        <div class="announce-body" id="announce-body"></div>
       </div>
 
       <!-- Hot Events -->
@@ -168,17 +165,8 @@
         <!-- Populated by JS -->
       </div>
 
-      <!-- Floating Ads -->
-      <div class="floating-ads" id="floating-ads">
-        <div class="float-ad">
-          <div class="float-ad-img">AD 1</div>
-          <small>贊助廣告</small>
-        </div>
-        <div class="float-ad">
-          <div class="float-ad-img">AD 2</div>
-          <small>贊助廣告</small>
-        </div>
-      </div>
+      <!-- Floating Ads (Populated by JS) -->
+      <div class="floating-ads" id="floating-ads"></div>
     </section>
 
     <!-- PAGE: Activities -->
@@ -581,14 +569,33 @@
       </div>
     </section>
 
-    <!-- PAGE: Backend - Banner Management (Admin+) -->
+    <!-- PAGE: Backend - Ad Management (Admin+) -->
     <section class="page" id="page-admin-banners" data-min-role="admin">
       <div class="page-header">
         <button class="back-btn" onclick="App.goBack()">←</button>
-        <h2>Banner 管理</h2>
-        <button class="primary-btn small">＋ 新增</button>
+        <h2>廣告管理</h2>
       </div>
+      <div class="admin-section-label">Banner 廣告</div>
       <div class="card-list" id="banner-manage-list"></div>
+      <button class="primary-btn full-width" style="margin:.5rem 0" onclick="App.showBannerForm()">＋ 新增 Banner</button>
+      <div class="form-card" id="banner-form-card" style="display:none">
+        <div class="role-editor-header"><span id="banner-form-title">新增 Banner</span><button class="text-btn" onclick="App.hideBannerForm()">取消</button></div>
+        <div class="form-row"><label>標題</label><input type="text" id="banner-input-title" placeholder="例：春季聯賽 Banner"></div>
+        <div class="form-row"><label>位置</label><select id="banner-input-position"><option value="主輪播">主輪播</option><option value="側邊浮動">側邊浮動</option></select></div>
+        <div class="form-row"><label>上架時間</label><input type="datetime-local" id="banner-input-publish"></div>
+        <div class="form-row"><label>下架時間</label><input type="datetime-local" id="banner-input-unpublish"></div>
+        <button class="primary-btn full-width" onclick="App.saveBanner()">儲存</button>
+      </div>
+      <div class="admin-section-label" style="margin-top:1.2rem">浮動廣告 (AD1 / AD2)</div>
+      <div class="card-list" id="floating-ad-manage-list"></div>
+      <button class="primary-btn full-width" style="margin:.5rem 0" onclick="App.showFloatingAdForm()">＋ 新增浮動廣告</button>
+      <div class="form-card" id="floatad-form-card" style="display:none">
+        <div class="role-editor-header"><span id="floatad-form-title">新增浮動廣告</span><button class="text-btn" onclick="App.hideFloatingAdForm()">取消</button></div>
+        <div class="form-row"><label>廣告標題</label><input type="text" id="floatad-input-title" placeholder="例：球鞋促銷"></div>
+        <div class="form-row"><label>上架時間</label><input type="datetime-local" id="floatad-input-publish"></div>
+        <div class="form-row"><label>下架時間</label><input type="datetime-local" id="floatad-input-unpublish"></div>
+        <button class="primary-btn full-width" onclick="App.saveFloatingAd()">儲存</button>
+      </div>
     </section>
 
     <!-- PAGE: Backend - Shop Management (Admin+) -->
@@ -707,6 +714,24 @@
         </div>
         <div style="font-size:.72rem;color:var(--text-muted);margin-bottom:.5rem">徽章圖片將來可從此處上傳（目前顯示為預留框）</div>
         <button class="primary-btn full-width" onclick="App.saveBadge()">儲存</button>
+      </div>
+    </section>
+
+    <!-- PAGE: Backend - Announcement Management (Super Admin) -->
+    <section class="page" id="page-admin-announcements" data-min-role="super_admin">
+      <div class="page-header">
+        <button class="back-btn" onclick="App.goBack()">←</button>
+        <h2>系統公告管理</h2>
+      </div>
+      <div class="card-list" id="announcement-manage-list"></div>
+      <button class="primary-btn full-width" style="margin:.5rem 0" onclick="App.showAnnouncementForm()">＋ 新增公告</button>
+      <div class="form-card" id="announcement-form-card" style="display:none">
+        <div class="role-editor-header"><span id="announcement-form-title">新增公告</span><button class="text-btn" onclick="App.hideAnnouncementForm()">取消</button></div>
+        <div class="form-row"><label>公告標題</label><input type="text" id="ann-input-title" placeholder="例：系統維護通知"></div>
+        <div class="form-row"><label>公告內容</label><textarea id="ann-input-content" rows="4" placeholder="公告內容..."></textarea></div>
+        <div class="form-row"><label>發布方式</label><select id="ann-input-publish-type" onchange="App.toggleAnnSchedule()"><option value="now">立即發布</option><option value="scheduled">預約發布</option></select></div>
+        <div class="form-row" id="ann-schedule-row" style="display:none"><label>預約發布時間</label><input type="datetime-local" id="ann-input-schedule"></div>
+        <button class="primary-btn full-width" onclick="App.saveAnnouncementItem()">儲存</button>
       </div>
     </section>
 

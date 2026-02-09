@@ -19,7 +19,6 @@ const App = {
     this.bindNavigation();
     this.bindDrawer();
     this.bindTheme();
-    this.bindAnnouncement();
     this.bindFilterToggle();
     this.bindTabBars();
     this.bindTournamentTabs();
@@ -271,10 +270,29 @@ const App = {
     });
   },
 
-  bindAnnouncement() {
-    document.querySelector('.announce-header')?.addEventListener('click', () => {
-      document.getElementById('announce-card').classList.toggle('collapsed');
-    });
+  renderAnnouncement() {
+    const container = document.getElementById('announce-body');
+    const card = document.getElementById('announce-card');
+    if (!container || !card) return;
+    const ann = ApiService.getActiveAnnouncement();
+    if (ann) {
+      container.innerHTML = `<p>${ann.content}</p>`;
+      card.style.display = '';
+    } else {
+      card.style.display = 'none';
+    }
+  },
+
+  renderFloatingAds() {
+    const container = document.getElementById('floating-ads');
+    if (!container) return;
+    const ads = ApiService.getFloatingAds().filter(a => a.status === 'active');
+    container.innerHTML = ads.map(ad => `
+      <div class="float-ad" title="${ad.title}">
+        <div class="float-ad-img" style="background:${ad.gradient || 'linear-gradient(135deg,#374151,#1f2937)'}">${ad.image ? `<img src="${ad.image}" style="width:100%;height:100%;object-fit:cover">` : ad.title.slice(0, 3)}</div>
+        <small>贊助廣告</small>
+      </div>
+    `).join('');
   },
 
   bindFilterToggle() {
@@ -370,7 +388,11 @@ const App = {
     this.renderAdminUsers();
     this.renderExpLogs();
     this.renderOperationLogs();
+    this.renderAnnouncement();
+    this.renderFloatingAds();
     this.renderBannerManage();
+    this.renderFloatingAdManage();
+    this.renderAnnouncementManage();
     this.renderShopManage();
     this.renderMsgManage();
     this.renderTournamentManage();

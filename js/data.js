@@ -143,9 +143,20 @@ const DemoData = {
   ],
 
   banners: [
-    { title: '春季聯賽 Banner', status: 'active', position: '主輪播', publishAt: '03/01', unpublishAt: '03/31', clicks: 1234, gradient: 'linear-gradient(135deg,#0d9488,#065f46)' },
-    { title: '友誼賽推廣', status: 'scheduled', position: '側邊浮動', publishAt: '03/20', unpublishAt: '04/15', clicks: 0, gradient: 'linear-gradient(135deg,#7c3aed,#4338ca)' },
-    { title: '二手球具展', status: 'expired', position: '主輪播', publishAt: '02/01', unpublishAt: '02/28', clicks: 567, gradient: 'linear-gradient(135deg,#dc2626,#991b1b)' },
+    { id: 'ban1', title: '春季聯賽 Banner', image: null, status: 'active', position: '主輪播', publishAt: '2026/03/01 00:00', unpublishAt: '2026/03/31 23:59', clicks: 1234, gradient: 'linear-gradient(135deg,#0d9488,#065f46)' },
+    { id: 'ban2', title: '友誼賽推廣', image: null, status: 'scheduled', position: '側邊浮動', publishAt: '2026/03/20 09:00', unpublishAt: '2026/04/15 23:59', clicks: 0, gradient: 'linear-gradient(135deg,#7c3aed,#4338ca)' },
+    { id: 'ban3', title: '二手球具展', image: null, status: 'expired', position: '主輪播', publishAt: '2026/02/01 00:00', unpublishAt: '2026/02/28 23:59', clicks: 567, gradient: 'linear-gradient(135deg,#dc2626,#991b1b)' },
+  ],
+
+  announcements: [
+    { id: 'ann1', title: '系統公告', content: '歡迎使用 SportHub！春季聯賽報名已開始，請至賽事中心查看詳情。如有問題請透過站內信聯繫管理員。', status: 'active', publishAt: '2026/03/01 10:00', createdAt: '2026/03/01 09:00', createdBy: '總管' },
+    { id: 'ann2', title: '系統維護通知', content: '本週六凌晨 02:00~04:00 將進行系統維護，届時將暫時無法使用，敬請見諒。', status: 'scheduled', publishAt: '2026/03/20 08:00', createdAt: '2026/03/15 14:00', createdBy: '總管' },
+    { id: 'ann3', title: '新功能上線', content: '二手商品區已正式上線，歡迎大家上架閒置球具！', status: 'expired', publishAt: '2026/02/01 10:00', createdAt: '2026/01/30 10:00', createdBy: '管理員' },
+  ],
+
+  floatingAds: [
+    { id: 'fad1', title: 'AD1 - 球鞋促銷', image: null, status: 'active', publishAt: '2026/03/01 00:00', unpublishAt: '2026/04/30 23:59', clicks: 89, gradient: 'linear-gradient(135deg,#374151,#1f2937)' },
+    { id: 'fad2', title: 'AD2 - 聯賽贊助', image: null, status: 'active', publishAt: '2026/03/01 00:00', unpublishAt: '2026/05/31 23:59', clicks: 45, gradient: 'linear-gradient(135deg,#374151,#1f2937)' },
   ],
 
   permissions: [

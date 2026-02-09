@@ -74,19 +74,291 @@ Object.assign(App, {
     `).join('');
   },
 
+  // ══════════════════════════════════
+  //  Ad Management — Banner CRUD
+  // ══════════════════════════════════
+
+  _bannerEditId: null,
+
+  _formatDT(isoStr) {
+    const d = new Date(isoStr);
+    return `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+  },
+
+  _remainDays(unpublishAt) {
+    const diff = new Date(unpublishAt.replace(/\//g, '-')) - new Date();
+    return Math.max(0, Math.ceil(diff / 86400000));
+  },
+
   renderBannerManage() {
     const container = document.getElementById('banner-manage-list');
     if (!container) return;
-    container.innerHTML = ApiService.getBanners().map(b => `
+    const items = ApiService.getBanners();
+    container.innerHTML = items.length ? items.map(b => {
+      const remain = this._remainDays(b.unpublishAt);
+      const remainText = b.status === 'expired' ? '已到期' : `剩餘 ${remain} 天`;
+      return `
       <div class="banner-manage-card">
-        <div class="banner-thumb" style="background:${b.gradient}">${b.title.slice(0,2)}</div>
+        <div class="banner-thumb" style="background:${b.gradient};overflow:hidden">${b.image ? `<img src="${b.image}" style="width:100%;height:100%;object-fit:cover">` : b.title.slice(0,2)}</div>
         <div class="banner-manage-info">
           <div class="banner-manage-title">${b.title}</div>
-          <div class="banner-manage-meta">${b.position} ・ ${b.publishAt}~${b.unpublishAt} ・ 點擊 ${b.clicks}</div>
+          <div class="banner-manage-meta">${b.position} ・ ${b.publishAt} ~ ${b.unpublishAt}</div>
+          <div class="banner-manage-meta">點擊 ${b.clicks} ・ ${remainText}</div>
           <span class="banner-manage-status status-${b.status}">${b.status === 'active' ? '啟用中' : b.status === 'scheduled' ? '已排程' : '已到期'}</span>
         </div>
+        <div class="admin-ach-actions" style="flex-shrink:0;display:flex;flex-direction:column;gap:.2rem">
+          <button class="text-btn" style="font-size:.72rem" onclick="App.editBannerItem('${b.id}')">編輯</button>
+          ${b.status !== 'expired' ? `<button class="text-btn" style="font-size:.72rem;color:var(--warning)" onclick="App.offlineBanner('${b.id}')">下架</button>` : ''}
+          <button class="text-btn" style="font-size:.72rem;color:var(--danger)" onclick="App.deleteBannerItem('${b.id}')">刪除</button>
+        </div>
+      </div>`;
+    }).join('') : '<div style="text-align:center;padding:1.5rem;color:var(--text-muted);font-size:.82rem">尚無 Banner</div>';
+  },
+
+  showBannerForm(editData) {
+    const form = document.getElementById('banner-form-card');
+    if (!form) return;
+    form.style.display = '';
+    this._bannerEditId = editData ? editData.id : null;
+    document.getElementById('banner-form-title').textContent = editData ? '編輯 Banner' : '新增 Banner';
+    document.getElementById('banner-input-title').value = editData ? editData.title : '';
+    document.getElementById('banner-input-position').value = editData ? editData.position : '主輪播';
+    document.getElementById('banner-input-publish').value = editData ? editData.publishAt.replace(/\//g, '-').replace(' ', 'T') : '';
+    document.getElementById('banner-input-unpublish').value = editData ? editData.unpublishAt.replace(/\//g, '-').replace(' ', 'T') : '';
+    form.scrollIntoView({ behavior: 'smooth' });
+  },
+
+  hideBannerForm() {
+    const form = document.getElementById('banner-form-card');
+    if (form) form.style.display = 'none';
+    this._bannerEditId = null;
+  },
+
+  saveBanner() {
+    const title = document.getElementById('banner-input-title').value.trim();
+    const position = document.getElementById('banner-input-position').value;
+    const publishVal = document.getElementById('banner-input-publish').value;
+    const unpublishVal = document.getElementById('banner-input-unpublish').value;
+    if (!title) { this.showToast('請輸入標題'); return; }
+    if (!publishVal || !unpublishVal) { this.showToast('請選擇上下架時間'); return; }
+    const publishAt = this._formatDT(publishVal);
+    const unpublishAt = this._formatDT(unpublishVal);
+    const status = new Date(publishVal) > new Date() ? 'scheduled' : 'active';
+    if (this._bannerEditId) {
+      ApiService.updateBanner(this._bannerEditId, { title, position, publishAt, unpublishAt, status });
+      this.showToast(`Banner「${title}」已更新`);
+    } else {
+      ApiService.createBanner({ id: 'ban' + Date.now(), title, image: null, status, position, publishAt, unpublishAt, clicks: 0, gradient: GRADIENT_MAP.friendly });
+      this.showToast(`Banner「${title}」已建立`);
+    }
+    this.hideBannerForm();
+    this.renderBannerManage();
+  },
+
+  editBannerItem(id) {
+    const item = ApiService.getBanners().find(b => b.id === id);
+    if (item) this.showBannerForm(item);
+  },
+
+  offlineBanner(id) {
+    ApiService.updateBanner(id, { status: 'expired' });
+    this.renderBannerManage();
+    this.showToast('Banner 已下架');
+  },
+
+  deleteBannerItem(id) {
+    const item = ApiService.getBanners().find(b => b.id === id);
+    ApiService.deleteBanner(id);
+    this.renderBannerManage();
+    this.showToast(`Banner「${item?.title || ''}」已刪除`);
+  },
+
+  // ══════════════════════════════════
+  //  Ad Management — Floating Ad CRUD
+  // ══════════════════════════════════
+
+  _floatAdEditId: null,
+
+  renderFloatingAdManage() {
+    const container = document.getElementById('floating-ad-manage-list');
+    if (!container) return;
+    const items = ApiService.getFloatingAds();
+    container.innerHTML = items.length ? items.map(ad => {
+      const remain = this._remainDays(ad.unpublishAt);
+      const remainText = ad.status === 'expired' ? '已到期' : `剩餘 ${remain} 天`;
+      return `
+      <div class="banner-manage-card">
+        <div class="banner-thumb" style="background:${ad.gradient || 'linear-gradient(135deg,#374151,#1f2937)'};overflow:hidden">${ad.image ? `<img src="${ad.image}" style="width:100%;height:100%;object-fit:cover">` : 'AD'}</div>
+        <div class="banner-manage-info">
+          <div class="banner-manage-title">${ad.title}</div>
+          <div class="banner-manage-meta">${ad.publishAt} ~ ${ad.unpublishAt}</div>
+          <div class="banner-manage-meta">點擊 ${ad.clicks} ・ ${remainText}</div>
+          <span class="banner-manage-status status-${ad.status}">${ad.status === 'active' ? '啟用中' : ad.status === 'scheduled' ? '已排程' : '已到期'}</span>
+        </div>
+        <div class="admin-ach-actions" style="flex-shrink:0;display:flex;flex-direction:column;gap:.2rem">
+          <button class="text-btn" style="font-size:.72rem" onclick="App.editFloatingAd('${ad.id}')">編輯</button>
+          ${ad.status !== 'expired' ? `<button class="text-btn" style="font-size:.72rem;color:var(--warning)" onclick="App.offlineFloatingAd('${ad.id}')">下架</button>` : ''}
+          <button class="text-btn" style="font-size:.72rem;color:var(--danger)" onclick="App.deleteFloatingAdItem('${ad.id}')">刪除</button>
+        </div>
+      </div>`;
+    }).join('') : '<div style="text-align:center;padding:1.5rem;color:var(--text-muted);font-size:.82rem">尚無浮動廣告</div>';
+  },
+
+  showFloatingAdForm(editData) {
+    const form = document.getElementById('floatad-form-card');
+    if (!form) return;
+    form.style.display = '';
+    this._floatAdEditId = editData ? editData.id : null;
+    document.getElementById('floatad-form-title').textContent = editData ? '編輯浮動廣告' : '新增浮動廣告';
+    document.getElementById('floatad-input-title').value = editData ? editData.title : '';
+    document.getElementById('floatad-input-publish').value = editData ? editData.publishAt.replace(/\//g, '-').replace(' ', 'T') : '';
+    document.getElementById('floatad-input-unpublish').value = editData ? editData.unpublishAt.replace(/\//g, '-').replace(' ', 'T') : '';
+    form.scrollIntoView({ behavior: 'smooth' });
+  },
+
+  hideFloatingAdForm() {
+    const form = document.getElementById('floatad-form-card');
+    if (form) form.style.display = 'none';
+    this._floatAdEditId = null;
+  },
+
+  saveFloatingAd() {
+    const title = document.getElementById('floatad-input-title').value.trim();
+    const publishVal = document.getElementById('floatad-input-publish').value;
+    const unpublishVal = document.getElementById('floatad-input-unpublish').value;
+    if (!title) { this.showToast('請輸入廣告標題'); return; }
+    if (!publishVal || !unpublishVal) { this.showToast('請選擇上下架時間'); return; }
+    const publishAt = this._formatDT(publishVal);
+    const unpublishAt = this._formatDT(unpublishVal);
+    const status = new Date(publishVal) > new Date() ? 'scheduled' : 'active';
+    if (this._floatAdEditId) {
+      ApiService.updateFloatingAd(this._floatAdEditId, { title, publishAt, unpublishAt, status });
+      this.showToast(`浮動廣告「${title}」已更新`);
+    } else {
+      ApiService.createFloatingAd({ id: 'fad' + Date.now(), title, image: null, status, publishAt, unpublishAt, clicks: 0, gradient: 'linear-gradient(135deg,#374151,#1f2937)' });
+      this.showToast(`浮動廣告「${title}」已建立`);
+    }
+    this.hideFloatingAdForm();
+    this.renderFloatingAdManage();
+    this.renderFloatingAds();
+  },
+
+  editFloatingAd(id) {
+    const item = ApiService.getFloatingAds().find(a => a.id === id);
+    if (item) this.showFloatingAdForm(item);
+  },
+
+  offlineFloatingAd(id) {
+    ApiService.updateFloatingAd(id, { status: 'expired' });
+    this.renderFloatingAdManage();
+    this.renderFloatingAds();
+    this.showToast('浮動廣告已下架');
+  },
+
+  deleteFloatingAdItem(id) {
+    const item = ApiService.getFloatingAds().find(a => a.id === id);
+    ApiService.deleteFloatingAd(id);
+    this.renderFloatingAdManage();
+    this.renderFloatingAds();
+    this.showToast(`浮動廣告「${item?.title || ''}」已刪除`);
+  },
+
+  // ══════════════════════════════════
+  //  Announcement CRUD
+  // ══════════════════════════════════
+
+  _annEditId: null,
+
+  renderAnnouncementManage() {
+    const container = document.getElementById('announcement-manage-list');
+    if (!container) return;
+    const items = ApiService.getAnnouncements();
+    const statusLabels = { active: '已發布', scheduled: '已排程', expired: '已過期' };
+    container.innerHTML = items.length ? items.map(a => `
+      <div class="banner-manage-card">
+        <div class="banner-thumb" style="background:var(--accent)">公告</div>
+        <div class="banner-manage-info">
+          <div class="banner-manage-title">${a.title}</div>
+          <div class="banner-manage-meta">${a.publishAt} ・ ${a.createdBy}</div>
+          <span class="banner-manage-status status-${a.status}">${statusLabels[a.status] || a.status}</span>
+        </div>
+        <div class="admin-ach-actions" style="flex-shrink:0;display:flex;flex-direction:column;gap:.2rem">
+          <button class="text-btn" style="font-size:.72rem" onclick="App.editAnnouncementItem('${a.id}')">編輯</button>
+          <button class="text-btn" style="font-size:.72rem;color:var(--danger)" onclick="App.deleteAnnouncementItem('${a.id}')">刪除</button>
+        </div>
       </div>
-    `).join('');
+    `).join('') : '<div style="text-align:center;padding:1.5rem;color:var(--text-muted);font-size:.82rem">尚無公告</div>';
+  },
+
+  showAnnouncementForm(editData) {
+    const form = document.getElementById('announcement-form-card');
+    if (!form) return;
+    form.style.display = '';
+    this._annEditId = editData ? editData.id : null;
+    document.getElementById('announcement-form-title').textContent = editData ? '編輯公告' : '新增公告';
+    document.getElementById('ann-input-title').value = editData ? editData.title : '';
+    document.getElementById('ann-input-content').value = editData ? editData.content : '';
+    const isScheduled = editData && editData.status === 'scheduled';
+    document.getElementById('ann-input-publish-type').value = isScheduled ? 'scheduled' : 'now';
+    this.toggleAnnSchedule();
+    if (isScheduled) {
+      document.getElementById('ann-input-schedule').value = editData.publishAt.replace(/\//g, '-').replace(' ', 'T');
+    }
+    form.scrollIntoView({ behavior: 'smooth' });
+  },
+
+  hideAnnouncementForm() {
+    const form = document.getElementById('announcement-form-card');
+    if (form) form.style.display = 'none';
+    this._annEditId = null;
+  },
+
+  toggleAnnSchedule() {
+    const type = document.getElementById('ann-input-publish-type').value;
+    document.getElementById('ann-schedule-row').style.display = type === 'scheduled' ? '' : 'none';
+  },
+
+  saveAnnouncementItem() {
+    const title = document.getElementById('ann-input-title').value.trim();
+    const content = document.getElementById('ann-input-content').value.trim();
+    const publishType = document.getElementById('ann-input-publish-type').value;
+    if (!title) { this.showToast('請輸入公告標題'); return; }
+    if (!content) { this.showToast('請輸入公告內容'); return; }
+    let publishAt, status;
+    if (publishType === 'scheduled') {
+      const scheduleVal = document.getElementById('ann-input-schedule').value;
+      if (!scheduleVal) { this.showToast('請選擇預約發布時間'); return; }
+      publishAt = this._formatDT(scheduleVal);
+      status = 'scheduled';
+    } else {
+      publishAt = this._formatDT(new Date().toISOString());
+      status = 'active';
+    }
+    if (this._annEditId) {
+      ApiService.updateAnnouncement(this._annEditId, { title, content, status, publishAt });
+      this.showToast(`公告「${title}」已更新`);
+    } else {
+      ApiService.createAnnouncement({ id: 'ann' + Date.now(), title, content, status, publishAt, createdAt: this._formatDT(new Date().toISOString()), createdBy: ROLES[this.currentRole]?.label || '總管' });
+      this.showToast(status === 'scheduled' ? `公告「${title}」已排程` : `公告「${title}」已發布`);
+    }
+    this.hideAnnouncementForm();
+    this.renderAnnouncementManage();
+    this.renderAnnouncement();
+  },
+
+  editAnnouncementItem(id) {
+    const item = ApiService.getAnnouncements().find(a => a.id === id);
+    if (item) this.showAnnouncementForm(item);
+  },
+
+  deleteAnnouncementItem(id) {
+    const items = ApiService.getAnnouncements();
+    const item = items.find(a => a.id === id);
+    if (!item) return;
+    ApiService.deleteAnnouncement(id);
+    this.renderAnnouncementManage();
+    this.renderAnnouncement();
+    this.showToast(`公告「${item.title}」已刪除`);
   },
 
   renderShopManage() {
