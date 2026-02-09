@@ -636,9 +636,15 @@ const App = {
         } catch (err) {
           console.error('[App] 用戶資料同步失敗:', err);
         }
+        // 註冊即時回調：當資料庫用戶資料變更時自動更新 UI
+        FirebaseService._onUserChanged = () => {
+          this.renderProfileData();
+          this.renderLoginUI();
+        };
       }
     }
     this.renderLoginUI();
+    this.renderProfileData();
     if (this._pendingFirstLogin) {
       this.showModal('first-login-modal');
     }

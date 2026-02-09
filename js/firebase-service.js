@@ -34,6 +34,8 @@ const FirebaseService = {
   },
 
   _listeners: [],
+  _userListener: null,
+  _onUserChanged: null,
   _initialized: false,
 
   // ════════════════════════════════
@@ -41,7 +43,7 @@ const FirebaseService = {
   // ════════════════════════════════
 
   async init() {
-    const collectionNames = Object.keys(this._cache);
+    const collectionNames = Object.keys(this._cache).filter(k => k !== 'currentUser');
 
     // 平行載入所有集合
     const snapshots = await Promise.all(
@@ -368,6 +370,7 @@ const FirebaseService = {
       });
       userData._docId = docRef.id;
       this._cache.currentUser = userData;
+      this._setupUserListener(docRef.id);
       console.log('[FirebaseService] 新用戶建立:', displayName);
       return userData;
     } else {
@@ -381,9 +384,30 @@ const FirebaseService = {
       });
       Object.assign(existing, updates);
       this._cache.currentUser = existing;
+      this._setupUserListener(doc.id);
       console.log('[FirebaseService] 用戶登入更新:', displayName);
       return existing;
     }
+  },
+
+  // ════════════════════════════════
+  //  即時監聽：當前用戶文件
+  // ════════════════════════════════
+
+  _setupUserListener(docId) {
+    if (this._userListener) {
+      this._userListener();
+      this._userListener = null;
+    }
+    this._userListener = db.collection('users').doc(docId).onSnapshot(
+      doc => {
+        if (doc.exists) {
+          this._cache.currentUser = { ...doc.data(), _docId: doc.id };
+          if (this._onUserChanged) this._onUserChanged();
+        }
+      },
+      err => console.warn('[onSnapshot] currentUser 監聽錯誤:', err)
+    );
   },
 
   async getUser(lineUserId) {
@@ -423,6 +447,11 @@ const FirebaseService = {
   destroy() {
     this._listeners.forEach(unsub => unsub());
     this._listeners = [];
+    if (this._userListener) {
+      this._userListener();
+      this._userListener = null;
+    }
+    this._onUserChanged = null;
     this._initialized = false;
   },
 };
