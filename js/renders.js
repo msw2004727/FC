@@ -336,6 +336,14 @@ Object.assign(App, {
     this.showToast('已送出加入申請！');
   },
 
+  goMyTeam() {
+    if (this._userTeam) {
+      this.showTeamDetail(this._userTeam);
+    } else {
+      this.showPage('page-teams');
+    }
+  },
+
   // ══════════════════════════════════
   //  Render: Messages
   // ══════════════════════════════════
@@ -372,7 +380,9 @@ Object.assign(App, {
     const container = document.getElementById('achievement-grid');
     if (!container) return;
     const sorted = this._sortByCat(ApiService.getAchievements());
-    container.innerHTML = sorted.map(a => {
+    const pending = sorted.filter(a => a.current < a.target);
+    const completed = sorted.filter(a => a.current >= a.target);
+    const renderRow = a => {
       const done = a.current >= a.target;
       const pct = a.target > 0 ? Math.min(100, Math.round(a.current / a.target * 100)) : 0;
       const bg = this._catBg[a.category] || this._catBg.bronze;
@@ -386,7 +396,13 @@ Object.assign(App, {
         ${done ? `<span class="ach-row-done">已完成</span>` : ''}
         ${done && a.completedAt ? `<span class="ach-row-time">${a.completedAt}</span>` : ''}
       </div>`;
-    }).join('');
+    };
+    let html = pending.map(renderRow).join('');
+    if (pending.length && completed.length) {
+      html += '<div class="ach-divider"><span>已完成</span></div>';
+    }
+    html += completed.map(renderRow).join('');
+    container.innerHTML = html;
   },
 
   renderBadges() {

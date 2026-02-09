@@ -394,6 +394,13 @@ const App = {
   showUserProfile(name) {
     const role = ApiService.getUserRole(name);
     const roleInfo = ROLES[role];
+    const badges = ApiService.getBadges();
+    const achievements = ApiService.getAchievements();
+    const earned = badges.filter(b => {
+      const ach = achievements.find(a => a.id === b.achId);
+      return ach && ach.current >= ach.target;
+    });
+    const catColors = { gold: '#d4a017', silver: '#9ca3af', bronze: '#b87333' };
     document.querySelector('#page-user-card .page-header h2').textContent = '用戶資料卡片';
     document.getElementById('user-card-full').innerHTML = `
       <div class="uc-header">
@@ -410,6 +417,16 @@ const App = {
         <div class="info-row"><span>性別</span><span>${Math.random()>.5?'男':'女'}</span></div>
         <div class="info-row"><span>地區</span><span>台北市</span></div>
         <div class="info-row"><span>所屬球隊</span><span>雷霆隊</span></div>
+      </div>
+      <div class="info-card">
+        <div class="info-title">已獲得徽章</div>
+        ${earned.length ? `<div class="uc-badge-list">${earned.map(b => {
+          const color = catColors[b.category] || catColors.bronze;
+          return `<div class="uc-badge-item">
+            <div class="badge-img-placeholder" style="border-color:${color}">${b.image ? `<img src="${b.image}">` : ''}</div>
+            <span class="uc-badge-name">${b.name}</span>
+          </div>`;
+        }).join('')}</div>` : '<div style="font-size:.82rem;color:var(--text-muted)">尚未獲得徽章</div>'}
       </div>
     `;
     this.showPage('page-user-card');

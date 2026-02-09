@@ -618,6 +618,13 @@ Object.assign(App, {
   renderUserCard() {
     const container = document.getElementById('user-card-full');
     if (!container) return;
+    const badges = ApiService.getBadges();
+    const achievements = ApiService.getAchievements();
+    const earned = badges.filter(b => {
+      const ach = achievements.find(a => a.id === b.achId);
+      return ach && ach.current >= ach.target;
+    });
+    const teamName = this._userTeam ? (ApiService.getTeam(this._userTeam)?.name || '—') : '無';
     container.innerHTML = `
       <div class="uc-header">
         <div class="uc-doll-frame"></div>
@@ -635,14 +642,17 @@ Object.assign(App, {
         <div class="info-row"><span>生日</span><span>2000/05/20</span></div>
         <div class="info-row"><span>地區</span><span>台北市</span></div>
         <div class="info-row"><span>運動類別</span><span>足球</span></div>
-        <div class="info-row"><span>所屬球隊</span><span>雷霆隊</span></div>
+        <div class="info-row"><span>所屬球隊</span><span>${teamName}</span></div>
       </div>
       <div class="info-card">
-        <div class="info-title">成就 & 徽章</div>
-        <div style="display:flex;gap:.5rem;flex-wrap:wrap">
-          <span class="ach-mini">新手</span>
-          <span class="ach-mini">全勤</span>
-        </div>
+        <div class="info-title">已獲得徽章</div>
+        ${earned.length ? `<div class="uc-badge-list">${earned.map(b => {
+          const color = this._catColors[b.category] || this._catColors.bronze;
+          return `<div class="uc-badge-item">
+            <div class="badge-img-placeholder" style="border-color:${color}">${b.image ? `<img src="${b.image}">` : ''}</div>
+            <span class="uc-badge-name">${b.name}</span>
+          </div>`;
+        }).join('')}</div>` : '<div style="font-size:.82rem;color:var(--text-muted)">尚未獲得徽章</div>'}
       </div>
       <div class="info-card">
         <div class="info-title">交易價值紀錄</div>
