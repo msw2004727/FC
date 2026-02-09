@@ -14,6 +14,22 @@ const ROLES = {
 
 const ROLE_LEVEL_MAP = { user:0, coach:1, captain:2, venue_owner:3, admin:4, super_admin:5 };
 
+// ─── Demo User → Role Mapping (for capsule tags) ───
+const DEMO_USERS = {
+  '王小明': 'user', '李大華': 'coach', '張三': 'user', '陳美玲': 'user',
+  '林志偉': 'user', '周杰倫': 'user', '黃小琳': 'user', '吳宗翰': 'user',
+  '鄭家豪': 'user', '許志安': 'user', '蔡依林': 'user', '劉德華': 'user',
+  '王大明': 'captain', '李小華': 'coach', '張美玲': 'captain', '陳志偉': 'venue_owner',
+  '小麥': 'user', '林大豪': 'user', '周書翰': 'user',
+  '教練小陳': 'coach', '場主老王': 'venue_owner', '教練阿豪': 'coach',
+  '管理員': 'admin', '場主大衛': 'venue_owner',
+  '隊長A': 'captain', '隊長D': 'captain', '隊長F': 'captain',
+  '隊長G': 'captain', '隊長I': 'captain', '隊長K': 'captain',
+  '教練B': 'coach', '教練C': 'coach', '教練E': 'coach',
+  '教練H': 'coach', '教練J': 'coach', '教練L': 'coach', '教練M': 'coach',
+  '暱稱A': 'user', '暱稱B': 'user', '暱稱C': 'coach', '暱稱D': 'user',
+};
+
 // ─── Demo Data ───
 const DemoData = {
   events: [
@@ -207,6 +223,27 @@ const DemoData = {
     { name: '足球新手學習營', date: '02/25', status: 'cancelled' },
   ],
 };
+
+// ── Enhance Events with Age Restriction & Notes ──
+(function() {
+  const ageMap = { eh1:16, eh2:18, eh3:0, eh4:16, eh5:18, e0a:0, e0b:0, e0c:12, e1:0, e2:16, e3:16, e4:0, e5:16, e6:0, e7:18, e8:0, e9:20, e10:16, e11:0, e12:12, e13:0, e14:0, e15:0, e16:16, e17:0 };
+  const notesMap = {
+    eh1: '請自備球鞋及飲用水，訓練場地為室內人工草皮。遲到15分鐘以上視為缺席。',
+    eh2: '現場提供飲料一杯，需年滿18歲入場。座位有限，請提早報名。',
+    eh3: '歡迎新手參加，會依程度分組。請穿著合適運動服裝與球鞋。',
+    eh4: '室內場地禁止穿著釘鞋，請穿平底室內足球鞋。比賽規則依五人制國際規則。',
+    eh5: '本次轉播英超焦點賽事，現場大螢幕觀賽，附設餐飲可另外點餐。',
+    e0c: '適合初學者，教練團全程指導。請攜帶水壺及毛巾，穿著運動服裝。',
+    e2: '專項守門員訓練，需具備基本足球經驗。請自備守門員手套。',
+    e5: '本營著重戰術分析與陣型演練，建議有基礎足球經驗者報名。',
+    e9: '培訓內容含規則講解、實際執法演練，完成者可獲裁判資格證明。',
+    e12: '第二梯次開放報名，歡迎零基礎新手，無需自備裝備。',
+  };
+  DemoData.events.forEach(e => {
+    e.minAge = ageMap[e.id] || 0;
+    e.notes = notesMap[e.id] || '';
+  });
+})();
 
 // ─── Drawer Menu Config ───
 const DRAWER_MENUS = [
@@ -761,6 +798,44 @@ const App = {
     container.innerHTML = html;
   },
 
+  // ── Universal User Capsule Tag ──
+  _userTag(name, forceRole) {
+    const role = forceRole || DEMO_USERS[name] || 'user';
+    return `<span class="user-capsule uc-${role}" onclick="App.showUserProfile('${name}')" title="${ROLES[role]?.label || '一般用戶'}">${name}</span>`;
+  },
+
+  showUserProfile(name) {
+    const role = DEMO_USERS[name] || 'user';
+    const roleInfo = ROLES[role];
+    document.querySelector('#page-user-card .page-header h2').textContent = '用戶資料卡片';
+    document.getElementById('user-card-full').innerHTML = `
+      <div class="uc-header">
+        <div class="uc-doll-frame">👤</div>
+        <div class="profile-title">${name}</div>
+        <div style="margin-top:.3rem">${this._userTag(name)}</div>
+        <div class="profile-level">
+          <span>Lv.${Math.floor(Math.random()*25+5)}</span>
+          <div class="exp-bar"><div class="exp-fill" style="width:${Math.floor(Math.random()*80+10)}%"></div></div>
+        </div>
+      </div>
+      <div class="info-card">
+        <div class="info-title">基本資料</div>
+        <div class="info-row"><span>身份</span><span style="color:${roleInfo.color};font-weight:600">${roleInfo.label}</span></div>
+        <div class="info-row"><span>地區</span><span>台北市</span></div>
+        <div class="info-row"><span>運動類別</span><span>⚽</span></div>
+      </div>
+      <div class="info-card">
+        <div class="info-title">成就 & 徽章</div>
+        <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+          <span style="font-size:1.5rem">🌱</span>
+          <span style="font-size:1.5rem">⭐</span>
+        </div>
+      </div>
+      <p style="text-align:center;font-size:.78rem;color:var(--text-muted);margin-top:1rem">此為用戶公開資訊頁面預留位置</p>
+    `;
+    this.showPage('page-user-card');
+  },
+
   // ── Show Event Detail ──
   showEventDetail(id) {
     const e = DemoData.events.find(ev => ev.id === id);
@@ -771,21 +846,27 @@ const App = {
       <div class="detail-row"><span class="icon">🕐</span>${e.date}</div>
       <div class="detail-row"><span class="icon">💰</span>${e.fee > 0 ? '$'+e.fee : '免費'}</div>
       <div class="detail-row"><span class="icon">👥</span>已報 ${e.current}/${e.max}　候補 ${e.waitlist}/${e.waitlistMax}</div>
+      <div class="detail-row"><span class="icon">🔞</span>年齡限制：${e.minAge > 0 ? e.minAge + ' 歲以上' : '無限制'}</div>
       <div class="detail-row"><span class="icon">👤</span>${e.creator}</div>
       ${e.contact ? `<div class="detail-row"><span class="icon">📞</span>${e.contact}</div>` : ''}
       <div class="detail-row"><span class="icon">⏰</span>活動倒數：${e.countdown}</div>
+      ${e.notes ? `
+      <div class="detail-section">
+        <div class="detail-section-title">注意事項</div>
+        <p style="font-size:.85rem;color:var(--text-secondary);line-height:1.7;white-space:pre-wrap">${e.notes}</p>
+      </div>` : ''}
       <div style="display:flex;gap:.5rem;margin:1rem 0">
         <button class="primary-btn" onclick="App.handleSignup('${e.id}')">${e.current >= e.max ? '候補報名' : '立即報名'}</button>
         <button class="outline-btn" onclick="App.showToast('已發送站內信')">透過站內信聯繫</button>
       </div>
       <div class="detail-section">
         <div class="detail-section-title">報名名單 (${e.current})</div>
-        <div class="participant-list">${e.participants.map(p => `<span class="participant-tag">${p}</span>`).join('')}</div>
+        <div class="participant-list">${e.participants.map(p => this._userTag(p)).join('')}</div>
       </div>
       ${e.waitlistNames.length > 0 ? `
       <div class="detail-section">
         <div class="detail-section-title">候補名單 (${e.waitlist})</div>
-        <div class="participant-list">${e.waitlistNames.map(p => `<span class="participant-tag">${p}</span>`).join('')}</div>
+        <div class="participant-list">${e.waitlistNames.map(p => this._userTag(p)).join('')}</div>
       </div>` : ''}
     `;
     this.showPage('page-activity-detail');
@@ -821,8 +902,8 @@ const App = {
         <div class="tc-body">
           <div class="tc-name">${t.name}</div>
           <div class="tc-name-en">${t.nameEn || ''}</div>
-          <div class="tc-info-row"><span class="tc-label">👑 領隊</span><span>${t.captain}</span></div>
-          <div class="tc-info-row"><span class="tc-label">🏋️ 教練</span><span>${t.coaches.length > 0 ? t.coaches.join('、') : '—'}</span></div>
+          <div class="tc-info-row"><span class="tc-label">👑 領隊</span><span>${this._userTag(t.captain, 'captain')}</span></div>
+          <div class="tc-info-row"><span class="tc-label">🏋️ 教練</span><span>${t.coaches.length > 0 ? t.coaches.map(c => this._userTag(c, 'coach')).join(' ') : '—'}</span></div>
           <div class="tc-info-row"><span class="tc-label">👥 隊員</span><span>${t.members} 人</span></div>
           <div class="tc-info-row"><span class="tc-label">📍 地區</span><span>${t.region}</span></div>
         </div>
@@ -873,8 +954,8 @@ const App = {
       <div class="td-card">
         <div class="td-card-title">球隊資訊</div>
         <div class="td-card-grid">
-          <div class="td-card-item"><span class="td-card-label">👑 領隊</span><span class="td-card-value">${t.captain}</span></div>
-          <div class="td-card-item"><span class="td-card-label">🏋️ 教練</span><span class="td-card-value">${t.coaches.length > 0 ? t.coaches.join('、') : '無'}</span></div>
+          <div class="td-card-item"><span class="td-card-label">👑 領隊</span><span class="td-card-value">${this._userTag(t.captain, 'captain')}</span></div>
+          <div class="td-card-item"><span class="td-card-label">🏋️ 教練</span><span class="td-card-value">${t.coaches.length > 0 ? t.coaches.map(c => this._userTag(c, 'coach')).join(' ') : '無'}</span></div>
           <div class="td-card-item"><span class="td-card-label">👥 隊員數</span><span class="td-card-value">${t.members} 人</span></div>
           <div class="td-card-item"><span class="td-card-label">📍 地區</span><span class="td-card-value">${t.region}</span></div>
         </div>
@@ -913,14 +994,16 @@ const App = {
         <div class="td-card-title">成員列表</div>
         <div class="td-member-list">
           ${Array.from({length: Math.min(t.members, 8)}, (_, i) => {
-            const role = i === 0 ? '領隊' : i <= t.coaches.length ? '教練' : '球員';
+            const role = i === 0 ? 'captain' : i <= t.coaches.length ? 'coach' : 'user';
+            const roleLabel = i === 0 ? '領隊' : i <= t.coaches.length ? '教練' : '球員';
             const roleClass = i === 0 ? 'captain' : i <= t.coaches.length ? 'coach' : 'player';
+            const memberName = i === 0 ? t.captain : i <= t.coaches.length ? t.coaches[i - 1] : '球員' + String.fromCharCode(65 + i);
             return `
             <div class="td-member-card">
               <div class="td-member-avatar" style="background:${t.color}22;color:${t.color}">${i === 0 ? t.captain.charAt(t.captain.length - 1) : String.fromCharCode(65 + i)}</div>
               <div class="td-member-info">
-                <div class="td-member-name">${i === 0 ? t.captain : i <= t.coaches.length ? t.coaches[i - 1] : '球員' + String.fromCharCode(65 + i)}</div>
-                <span class="td-member-role ${roleClass}">${role}</span>
+                <div class="td-member-name">${this._userTag(memberName, role)}</div>
+                <span class="td-member-role ${roleClass}">${roleLabel}</span>
               </div>
             </div>`;
           }).join('')}
@@ -1046,7 +1129,7 @@ const App = {
           <div class="lb-rank ${rankClass}">${i + 1}</div>
           <div class="lb-avatar">${p.avatar}</div>
           <div class="lb-info">
-            <div class="lb-name">${p.name}</div>
+            <div class="lb-name">${this._userTag(p.name)}</div>
             <div class="lb-sub">Lv.${p.level}</div>
           </div>
           <div class="lb-exp">${p.exp.toLocaleString()}</div>
@@ -1274,12 +1357,12 @@ const App = {
         <div class="admin-user-card">
           <div class="profile-avatar small">${u.name[0]}</div>
           <div class="admin-user-info">
-            <div class="admin-user-name">${u.name}</div>
+            <div class="admin-user-name">${this._userTag(u.name, u.role)}</div>
             <div class="admin-user-meta">${u.uid} ・ ${ROLES[u.role]?.label || u.role} ・ Lv.${u.level} ・ ${u.region}</div>
           </div>
           <div class="admin-user-actions">
             ${promoteOptions ? `<select class="promote-select" onchange="App.handlePromote(this, '${u.name}')">${promoteOptions}</select>` : ''}
-            <button class="text-btn" onclick="App.showPage('page-user-card')">查看</button>
+            <button class="text-btn" onclick="App.showUserProfile('${u.name}')">查看</button>
           </div>
         </div>
       `;
@@ -1300,7 +1383,7 @@ const App = {
     container.innerHTML = DemoData.expLogs.map(l => `
       <div class="log-item">
         <span class="log-time">${l.time}</span>
-        <span class="log-content">${l.target} <strong>${l.amount}</strong>「${l.reason}」</span>
+        <span class="log-content">${this._userTag(l.target)} <strong>${l.amount}</strong>「${l.reason}」</span>
       </div>
     `).join('');
   },
@@ -1541,6 +1624,7 @@ const App = {
       <div class="uc-header">
         <div class="uc-doll-frame">👤</div>
         <div class="profile-title">全勤.王小明</div>
+        <div style="margin-top:.3rem">${this._userTag('王小明')}</div>
         <div class="profile-level">
           <span>Lv.10</span>
           <div class="exp-bar"><div class="exp-fill" style="width:40%"></div></div>
@@ -1654,10 +1738,13 @@ const App = {
     const fee = parseInt(document.getElementById('ce-fee').value) || 0;
     const max = parseInt(document.getElementById('ce-max').value) || 20;
     const waitlistMax = parseInt(document.getElementById('ce-waitlist').value) || 0;
+    const minAge = parseInt(document.getElementById('ce-min-age').value) || 0;
+    const notes = document.getElementById('ce-notes').value.trim();
 
     if (!title) { this.showToast('請輸入活動名稱'); return; }
     if (!location) { this.showToast('請輸入地點'); return; }
     if (!dateVal) { this.showToast('請選擇日期'); return; }
+    if (notes.length > 500) { this.showToast('注意事項不可超過 500 字'); return; }
 
     const dateParts = dateVal.split('-');
     const dateStr = `${dateParts[0]}/${parseInt(dateParts[1])}/${parseInt(dateParts[2])}`;
@@ -1687,6 +1774,8 @@ const App = {
       current: 0,
       waitlist: 0,
       waitlistMax,
+      minAge,
+      notes,
       creator: ROLES[this.currentRole]?.label || '一般用戶',
       contact: '',
       gradient: gradients[type] || gradients.friendly,
@@ -1712,6 +1801,8 @@ const App = {
     document.getElementById('ce-fee').value = '300';
     document.getElementById('ce-max').value = '20';
     document.getElementById('ce-waitlist').value = '5';
+    document.getElementById('ce-min-age').value = '0';
+    document.getElementById('ce-notes').value = '';
     document.getElementById('ce-image').value = '';
     const cePreview = document.getElementById('ce-upload-preview');
     if (cePreview) {
