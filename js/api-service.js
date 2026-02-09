@@ -271,8 +271,12 @@ const ApiService = {
   },
 
   createAnnouncement(data) {
-    const source = this._demoMode ? DemoData.announcements : FirebaseService._cache.announcements;
-    source.unshift(data);
+    if (this._demoMode) {
+      DemoData.announcements.unshift(data);
+      return data;
+    }
+    FirebaseService._cache.announcements.unshift(data);
+    FirebaseService.addAnnouncement(data).catch(err => console.error('[createAnnouncement]', err));
     return data;
   },
 
@@ -280,6 +284,9 @@ const ApiService = {
     const source = this._demoMode ? DemoData.announcements : FirebaseService._cache.announcements;
     const item = source.find(a => a.id === id);
     if (item) Object.assign(item, updates);
+    if (!this._demoMode) {
+      FirebaseService.updateAnnouncement(id, updates).catch(err => console.error('[updateAnnouncement]', err));
+    }
     return item;
   },
 
@@ -287,6 +294,9 @@ const ApiService = {
     const source = this._demoMode ? DemoData.announcements : FirebaseService._cache.announcements;
     const idx = source.findIndex(a => a.id === id);
     if (idx >= 0) source.splice(idx, 1);
+    if (!this._demoMode) {
+      FirebaseService.deleteAnnouncement(id).catch(err => console.error('[deleteAnnouncement]', err));
+    }
   },
 
   // ════════════════════════════════

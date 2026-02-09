@@ -30,6 +30,7 @@ const FirebaseService = {
     permissions: [],
     activityRecords: [],
     registrations: [],
+    announcements: [],
     currentUser: null,
   },
 
@@ -77,7 +78,7 @@ const FirebaseService = {
     const liveCollections = [
       'events', 'tournaments', 'teams', 'shopItems',
       'messages', 'registrations', 'leaderboard',
-      'standings', 'matches', 'trades',
+      'standings', 'matches', 'trades', 'announcements',
     ];
 
     liveCollections.forEach(name => {
@@ -291,6 +292,36 @@ const FirebaseService = {
     });
     data._docId = docRef.id;
     return data;
+  },
+
+  // ════════════════════════════════
+  //  Announcements（系統公告）
+  // ════════════════════════════════
+
+  async addAnnouncement(data) {
+    const docRef = await db.collection('announcements').add({
+      ...data,
+      _docId: undefined,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    });
+    data._docId = docRef.id;
+    return data;
+  },
+
+  async updateAnnouncement(id, updates) {
+    const doc = this._cache.announcements.find(a => a.id === id);
+    if (!doc || !doc._docId) return null;
+    updates.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
+    await db.collection('announcements').doc(doc._docId).update(updates);
+    return doc;
+  },
+
+  async deleteAnnouncement(id) {
+    const doc = this._cache.announcements.find(a => a.id === id);
+    if (!doc || !doc._docId) return false;
+    await db.collection('announcements').doc(doc._docId).delete();
+    return true;
   },
 
   // ════════════════════════════════
