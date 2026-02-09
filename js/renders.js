@@ -327,8 +327,13 @@ Object.assign(App, {
   },
 
   handleJoinTeam() {
-    if (this._userTeam) {
-      const team = ApiService.getTeam(this._userTeam);
+    let teamId = this._userTeam;
+    if (!ModeManager.isDemo()) {
+      const user = ApiService.getCurrentUser();
+      teamId = user && user.teamId ? user.teamId : null;
+    }
+    if (teamId) {
+      const team = ApiService.getTeam(teamId);
       const teamName = team ? team.name : '球隊';
       this.showToast(`您已加入「${teamName}」，無法重複加入其他球隊`);
       return;
@@ -337,10 +342,16 @@ Object.assign(App, {
   },
 
   goMyTeam() {
-    if (this._userTeam) {
-      this.showTeamDetail(this._userTeam);
+    // 正式版：從資料庫取 teamId
+    let teamId = this._userTeam;
+    if (!ModeManager.isDemo()) {
+      const user = ApiService.getCurrentUser();
+      teamId = user && user.teamId ? user.teamId : null;
+    }
+    if (teamId) {
+      this.showTeamDetail(teamId);
     } else {
-      this.showPage('page-teams');
+      this.showToast('您目前沒有加入任何球隊');
     }
   },
 
