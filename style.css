@@ -1093,7 +1093,7 @@ img { max-width: 100%; display: block; }
 .shop-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: .6rem; padding: .2rem; }
 .shop-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; cursor: pointer; transition: all var(--transition); }
 .shop-card:hover { border-color: var(--accent); box-shadow: var(--shadow); }
-.shop-img { aspect-ratio: 1; background: var(--bg-elevated); display: flex; align-items: center; justify-content: center; font-size: 2.5rem; }
+.shop-img-placeholder { aspect-ratio: 1; background: var(--bg-elevated); display: flex; align-items: center; justify-content: center; font-size: .72rem; color: var(--text-muted); border-bottom: 1px solid var(--border); border: 2px dashed var(--border) !important; border-radius: var(--radius) var(--radius) 0 0; }
 .shop-body { padding: .6rem; }
 .shop-name { font-weight: 600; font-size: .82rem; margin-bottom: .15rem; }
 .shop-price { color: var(--accent); font-weight: 700; font-size: .9rem; }

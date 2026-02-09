@@ -977,7 +977,7 @@ const App = {
     const container = document.getElementById('shop-grid');
     container.innerHTML = DemoData.shopItems.map(s => `
       <div class="shop-card">
-        <div class="shop-img">${s.icon}</div>
+        <div class="shop-img-placeholder">商品圖 150 × 150</div>
         <div class="shop-body">
           <div class="shop-name">${s.name}</div>
           <div class="shop-price">$${s.price.toLocaleString()}</div>
