@@ -23,6 +23,7 @@ const App = {
     this.bindTournamentTabs();
     this.bindScanModes();
     this.bindFloatingAds();
+    this.bindScrollArrows();
     this.bindNotifBtn();
     this.bindImageUpload('ce-image', 'ce-upload-preview');
     this.bindImageUpload('ct-image', 'ct-upload-preview');
@@ -331,7 +332,7 @@ const App = {
     this.bannerTimer = setInterval(() => {
       this.bannerIndex = (this.bannerIndex + 1) % count;
       this.goToBanner(this.bannerIndex);
-    }, 4000);
+    }, 8000);
   },
 
   goToBanner(idx) {
@@ -434,6 +435,7 @@ const App = {
         </div>
       `).join('')
       : '<div style="padding:1rem;font-size:.82rem;color:var(--text-muted)">近兩週內無活動</div>';
+    this._refreshScrollArrows(container);
   },
 
   // ══════════════════════════════════
@@ -454,6 +456,7 @@ const App = {
         </div>
       </div>
     `).join('');
+    this._refreshScrollArrows(container);
   },
 
   // ══════════════════════════════════
@@ -1366,6 +1369,54 @@ const App = {
   closeModal() {
     document.querySelectorAll('.modal.open').forEach(m => m.classList.remove('open'));
     document.getElementById('modal-overlay').classList.remove('open');
+  },
+
+  // ══════════════════════════════════
+  //  Scroll Arrows (PC horizontal scroll)
+  // ══════════════════════════════════
+
+  bindScrollArrows() {
+    document.querySelectorAll('.scroll-arrow').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const target = document.getElementById(btn.dataset.target);
+        if (!target) return;
+        const dir = btn.classList.contains('scroll-arrow-left') ? -1 : 1;
+        target.scrollBy({ left: dir * 240, behavior: 'smooth' });
+      });
+    });
+
+    // Update arrow visibility on scroll & resize
+    document.querySelectorAll('.scroll-wrapper').forEach(wrapper => {
+      const scroller = wrapper.querySelector('.horizontal-scroll');
+      if (!scroller) return;
+      const updateArrows = () => {
+        const leftBtn = wrapper.querySelector('.scroll-arrow-left');
+        const rightBtn = wrapper.querySelector('.scroll-arrow-right');
+        if (!leftBtn || !rightBtn) return;
+        const canLeft = scroller.scrollLeft > 4;
+        const canRight = scroller.scrollLeft < scroller.scrollWidth - scroller.clientWidth - 4;
+        leftBtn.classList.toggle('visible', canLeft);
+        rightBtn.classList.toggle('visible', canRight);
+      };
+      scroller.addEventListener('scroll', updateArrows);
+      new ResizeObserver(updateArrows).observe(scroller);
+      // Initial check after render
+      setTimeout(updateArrows, 200);
+    });
+  },
+
+  _refreshScrollArrows(scroller) {
+    const wrapper = scroller.closest('.scroll-wrapper');
+    if (!wrapper) return;
+    setTimeout(() => {
+      const leftBtn = wrapper.querySelector('.scroll-arrow-left');
+      const rightBtn = wrapper.querySelector('.scroll-arrow-right');
+      if (!leftBtn || !rightBtn) return;
+      const canLeft = scroller.scrollLeft > 4;
+      const canRight = scroller.scrollLeft < scroller.scrollWidth - scroller.clientWidth - 4;
+      leftBtn.classList.toggle('visible', canLeft);
+      rightBtn.classList.toggle('visible', canRight);
+    }, 50);
   },
 
   // ══════════════════════════════════
