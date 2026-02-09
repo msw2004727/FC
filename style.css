@@ -1172,7 +1172,7 @@ img { max-width: 100%; display: block; }
 .ce-upload-placeholder {
   width: 100%;
   aspect-ratio: 2.5/1;
-  border: 2px dashed var(--border);
+  border: 2px dashed var(--border) !important;
   border-radius: var(--radius-sm);
   display: flex;
   flex-direction: column;
