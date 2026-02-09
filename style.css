@@ -468,7 +468,9 @@ img { max-width: 100%; display: block; }
 }
 .h-card { min-width: 220px; max-width: 220px; background: var(--bg-card); border-radius: var(--radius); border: 1px solid var(--border); overflow: hidden; scroll-snap-align: start; cursor: pointer; transition: all var(--transition); flex-shrink: 0; }
 .h-card:hover { border-color: var(--accent); transform: translateY(-2px); box-shadow: var(--shadow); }
-.h-card-img { height: 90px; display: flex; align-items: center; justify-content: center; font-size: 2rem; color: #fff; }
+.h-card-img { height: 90px; overflow: hidden; }
+.h-card-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.h-card-placeholder { border: 2px dashed var(--border); background: var(--bg-elevated); display: flex; align-items: center; justify-content: center; font-size: .72rem; font-weight: 600; color: var(--text-muted); font-family: monospace; }
 .h-card-body { padding: .65rem .75rem; }
 .h-card-title { font-weight: 700; font-size: .85rem; margin-bottom: .2rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .h-card-meta { font-size: .72rem; color: var(--text-secondary); display: flex; flex-wrap: wrap; gap: .3rem .8rem; }

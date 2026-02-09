@@ -423,7 +423,9 @@ const App = {
     container.innerHTML = upcoming.length > 0
       ? upcoming.map(e => `
         <div class="h-card" onclick="App.showEventDetail('${e.id}')">
-          <div class="h-card-img" style="background:${e.gradient}">${e.icon}</div>
+          ${e.image
+            ? `<div class="h-card-img"><img src="${e.image}" alt="${e.title}"></div>`
+            : `<div class="h-card-img h-card-placeholder">220 × 90</div>`}
           <div class="h-card-body">
             <div class="h-card-title">${e.title}</div>
             <div class="h-card-meta">
@@ -445,7 +447,9 @@ const App = {
     const container = document.getElementById('ongoing-tournaments');
     container.innerHTML = ApiService.getTournaments().map(t => `
       <div class="h-card" onclick="App.showTournamentDetail('${t.id}')">
-        <div class="h-card-img" style="background:${t.gradient}">🏆</div>
+        ${t.image
+          ? `<div class="h-card-img"><img src="${t.image}" alt="${t.name}"></div>`
+          : `<div class="h-card-img h-card-placeholder">220 × 90</div>`}
         <div class="h-card-body">
           <div class="h-card-title">${t.name}</div>
           <div class="h-card-meta">
@@ -535,6 +539,16 @@ const App = {
   showEventDetail(id) {
     const e = ApiService.getEvent(id);
     if (!e) return;
+    const detailImg = document.getElementById('detail-img-placeholder');
+    if (detailImg) {
+      if (e.image) {
+        detailImg.innerHTML = `<img src="${e.image}" alt="${e.title}" style="width:100%;height:100%;object-fit:cover;display:block;border-radius:var(--radius)">`;
+        detailImg.style.border = 'none';
+      } else {
+        detailImg.textContent = '活動圖片 800 × 300';
+        detailImg.style.border = '';
+      }
+    }
     document.getElementById('detail-title').textContent = e.title;
     document.getElementById('detail-body').innerHTML = `
       <div class="detail-row"><span class="icon">📍</span>${e.location}</div>
@@ -878,6 +892,16 @@ const App = {
     this.currentTournament = id;
     const t = ApiService.getTournament(id);
     if (!t) return;
+    const tdImg = document.getElementById('td-img-placeholder');
+    if (tdImg) {
+      if (t.image) {
+        tdImg.innerHTML = `<img src="${t.image}" alt="${t.name}" style="width:100%;height:100%;object-fit:cover;display:block;border-radius:var(--radius)">`;
+        tdImg.style.border = 'none';
+      } else {
+        tdImg.textContent = '賽事圖片 800 × 300';
+        tdImg.style.border = '';
+      }
+    }
     document.getElementById('td-title').textContent = t.name;
     this.showPage('page-tournament-detail');
 
@@ -1437,6 +1461,11 @@ const App = {
     if (!dateVal) { this.showToast('請選擇日期'); return; }
     if (notes.length > 500) { this.showToast('注意事項不可超過 500 字'); return; }
 
+    // Capture uploaded image (base64 data URL or null)
+    const cePreviewEl = document.getElementById('ce-upload-preview');
+    const ceImg = cePreviewEl?.querySelector('img');
+    const image = ceImg ? ceImg.src : null;
+
     const dateParts = dateVal.split('-');
     const dateStr = `${dateParts[0]}/${parseInt(dateParts[1])}/${parseInt(dateParts[2])}`;
     const fullDate = timeVal ? `${dateParts[0]}/${parseInt(dateParts[1]).toString().padStart(2,'0')}/${parseInt(dateParts[2]).toString().padStart(2,'0')} ${timeVal}` : dateStr;
@@ -1445,7 +1474,7 @@ const App = {
     const newEvent = {
       id: 'ce' + this._eventCounter,
       title, type, status: 'open', location, date: fullDate,
-      fee, max, current: 0, waitlist: 0, waitlistMax, minAge, notes,
+      fee, max, current: 0, waitlist: 0, waitlistMax, minAge, notes, image,
       creator: ROLES[this.currentRole]?.label || '一般用戶',
       contact: '',
       gradient: GRADIENT_MAP[type] || GRADIENT_MAP.friendly,
@@ -1524,12 +1553,16 @@ const App = {
 
     if (!name) { this.showToast('請輸入賽事名稱'); return; }
 
+    const ctPreviewEl = document.getElementById('ct-upload-preview');
+    const ctImg = ctPreviewEl?.querySelector('img');
+    const image = ctImg ? ctImg.src : null;
+
     this._tournamentCounter++;
     ApiService.createTournament({
       id: 'ct' + this._tournamentCounter,
       name, type, teams,
       matches: type.includes('聯賽') ? teams * (teams - 1) : teams - 1,
-      status,
+      status, image,
       gradient: TOURNAMENT_GRADIENT_MAP[type] || TOURNAMENT_GRADIENT_MAP['聯賽（雙循環）'],
     });
 
