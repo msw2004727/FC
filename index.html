@@ -115,30 +115,7 @@
       <!-- Banner Carousel -->
       <div class="banner-carousel">
         <div class="banner-track" id="banner-track">
-          <div class="banner-slide banner-placeholder">
-            <div class="banner-img-placeholder">1200 × 400</div>
-            <div class="banner-content">
-              <div class="banner-tag">聯賽</div>
-              <h2>2026 春季足球聯賽</h2>
-              <p>報名開始！12 支隊伍角逐冠軍</p>
-            </div>
-          </div>
-          <div class="banner-slide banner-placeholder">
-            <div class="banner-img-placeholder">1200 × 400</div>
-            <div class="banner-content">
-              <div class="banner-tag">活動</div>
-              <h2>週末足球友誼賽</h2>
-              <p>每週六下午・新手歡迎</p>
-            </div>
-          </div>
-          <div class="banner-slide banner-placeholder">
-            <div class="banner-img-placeholder">1200 × 400</div>
-            <div class="banner-content">
-              <div class="banner-tag">二手</div>
-              <h2>二手球具特賣展示</h2>
-              <p>優質球鞋、球衣・超值好物</p>
-            </div>
-          </div>
+          <!-- Populated by JS renderBannerCarousel() -->
         </div>
         <button class="banner-arrow banner-arrow-left" id="banner-prev">‹</button>
         <button class="banner-arrow banner-arrow-right" id="banner-next">›</button>
@@ -580,7 +557,17 @@
       <div class="form-card" id="banner-form-card" style="display:none">
         <div class="role-editor-header"><span id="banner-form-title">編輯 Banner</span><button class="text-btn" onclick="App.hideBannerForm()">取消</button></div>
         <div class="form-row"><label>廣告位</label><span id="banner-slot-display" style="font-weight:600"></span></div>
-        <div class="form-row"><label>廣告圖片</label><input type="file" id="banner-image" accept="image/jpeg,image/png"><div class="upload-preview" id="banner-preview"></div></div>
+        <div class="form-row">
+          <label>廣告圖片</label>
+          <div class="ce-upload">
+            <input type="file" id="banner-image" accept=".jpg,.jpeg,.png" hidden>
+            <div class="ce-upload-placeholder" id="banner-preview" onclick="document.getElementById('banner-image').click()">
+              <span class="ce-upload-icon">+</span>
+              <span class="ce-upload-text">點擊上傳圖片</span>
+              <span class="ce-upload-hint">建議尺寸 1200 × 400 px｜JPG / PNG｜最大 2MB</span>
+            </div>
+          </div>
+        </div>
         <div class="form-row"><label>標題</label><input type="text" id="banner-input-title" placeholder="例：春季聯賽 Banner"></div>
         <div class="form-row"><label>啟用方式</label><select id="banner-input-mode" onchange="App.toggleBannerSchedule()"><option value="now">立即啟用</option><option value="scheduled">預約啟用</option></select></div>
         <div class="form-row" id="banner-publish-row" style="display:none"><label>啟用時間</label><input type="datetime-local" id="banner-input-publish"></div>
@@ -591,7 +578,17 @@
       <div id="floating-ad-manage-list"></div>
       <div class="form-card" id="floatad-form-card" style="display:none">
         <div class="role-editor-header"><span id="floatad-form-title">編輯浮動廣告</span><button class="text-btn" onclick="App.hideFloatingAdForm()">取消</button></div>
-        <div class="form-row"><label>廣告圖片</label><input type="file" id="floatad-image" accept="image/jpeg,image/png"><div class="upload-preview" id="floatad-preview"></div></div>
+        <div class="form-row">
+          <label>廣告圖片</label>
+          <div class="ce-upload">
+            <input type="file" id="floatad-image" accept=".jpg,.jpeg,.png" hidden>
+            <div class="ce-upload-placeholder" id="floatad-preview" onclick="document.getElementById('floatad-image').click()">
+              <span class="ce-upload-icon">+</span>
+              <span class="ce-upload-text">點擊上傳圖片</span>
+              <span class="ce-upload-hint">建議尺寸 200 × 200 px｜JPG / PNG｜最大 2MB</span>
+            </div>
+          </div>
+        </div>
         <div class="form-row"><label>廣告標題</label><input type="text" id="floatad-input-title" placeholder="例：球鞋促銷"></div>
         <div class="form-row"><label>啟用方式</label><select id="floatad-input-mode" onchange="App.toggleFloatAdSchedule()"><option value="now">立即啟用</option><option value="scheduled">預約啟用</option></select></div>
         <div class="form-row" id="floatad-publish-row" style="display:none"><label>啟用時間</label><input type="datetime-local" id="floatad-input-publish"></div>

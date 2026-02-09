@@ -102,9 +102,12 @@ Object.assign(App, {
       const statusClass = isActive ? 'active' : isScheduled ? 'scheduled' : 'expired';
       const timeInfo = b.publishAt && b.unpublishAt ? `${b.publishAt} ~ ${b.unpublishAt}` : '尚未設定時間';
       const remainText = isActive ? `剩餘 ${remain} 天` : '';
+      const thumb = b.image
+        ? `<div class="banner-thumb" style="overflow:hidden"><img src="${b.image}" style="width:100%;height:100%;object-fit:cover"></div>`
+        : `<div class="banner-thumb banner-thumb-empty"><span>1200<br>×<br>400</span></div>`;
       return `
       <div class="banner-manage-card" style="margin-bottom:.5rem">
-        <div class="banner-thumb" style="background:${b.gradient};overflow:hidden">${b.image ? `<img src="${b.image}" style="width:100%;height:100%;object-fit:cover">` : `廣告${b.slot}`}</div>
+        ${thumb}
         <div class="banner-manage-info">
           <div class="banner-manage-title">廣告位 ${b.slot}${b.title ? ' — ' + b.title : ''}</div>
           <div class="banner-manage-meta">${timeInfo}${remainText ? ' ・ ' + remainText : ''}</div>
@@ -126,12 +129,13 @@ Object.assign(App, {
     document.getElementById('banner-form-title').textContent = `編輯廣告位 ${editData.slot}`;
     document.getElementById('banner-input-title').value = editData.title || '';
     document.getElementById('banner-slot-display').textContent = `廣告位 ${editData.slot}`;
-    // Show existing image in preview
     const preview = document.getElementById('banner-preview');
     if (editData.image) {
       preview.innerHTML = `<img src="${editData.image}" style="width:100%;height:100%;object-fit:cover;border-radius:var(--radius-sm)">`;
+      preview.classList.add('has-image');
     } else {
-      preview.innerHTML = '';
+      preview.classList.remove('has-image');
+      preview.innerHTML = '<span class="ce-upload-icon">+</span><span class="ce-upload-text">點擊上傳圖片</span><span class="ce-upload-hint">建議尺寸 1200 × 400 px｜JPG / PNG｜最大 2MB</span>';
     }
     document.getElementById('banner-image').value = '';
     // Mode
@@ -179,6 +183,7 @@ Object.assign(App, {
     this.showToast(status === 'scheduled' ? `Banner 已排程，將於 ${publishAt} 啟用` : 'Banner 已更新並立即啟用');
     this.hideBannerForm();
     this.renderBannerManage();
+    this.renderBannerCarousel();
   },
 
   editBannerItem(id) {
@@ -204,9 +209,12 @@ Object.assign(App, {
       const statusClass = isActive ? 'active' : isScheduled ? 'scheduled' : 'expired';
       const timeInfo = ad.publishAt && ad.unpublishAt ? `${ad.publishAt} ~ ${ad.unpublishAt}` : '尚未設定時間';
       const remainText = isActive ? `剩餘 ${remain} 天` : '';
+      const thumb = ad.image
+        ? `<div class="banner-thumb banner-thumb-circle" style="overflow:hidden"><img src="${ad.image}" style="width:100%;height:100%;object-fit:cover;border-radius:50%"></div>`
+        : `<div class="banner-thumb banner-thumb-circle banner-thumb-empty"><span>200<br>×<br>200</span></div>`;
       return `
       <div class="banner-manage-card" style="margin-bottom:.5rem">
-        <div class="banner-thumb" style="background:linear-gradient(135deg,#374151,#1f2937);overflow:hidden;border-radius:50%">${ad.image ? `<img src="${ad.image}" style="width:100%;height:100%;object-fit:cover">` : ad.slot}</div>
+        ${thumb}
         <div class="banner-manage-info">
           <div class="banner-manage-title">${ad.slot}${ad.title ? ' — ' + ad.title : ''}</div>
           <div class="banner-manage-meta">${timeInfo}${remainText ? ' ・ ' + remainText : ''}</div>
@@ -226,12 +234,13 @@ Object.assign(App, {
     this._floatAdEditId = editData.id;
     document.getElementById('floatad-form-title').textContent = `編輯 ${editData.slot}`;
     document.getElementById('floatad-input-title').value = editData.title || '';
-    // Show existing image in preview
     const preview = document.getElementById('floatad-preview');
     if (editData.image) {
       preview.innerHTML = `<img src="${editData.image}" style="width:100%;height:100%;object-fit:cover;border-radius:var(--radius-sm)">`;
+      preview.classList.add('has-image');
     } else {
-      preview.innerHTML = '';
+      preview.classList.remove('has-image');
+      preview.innerHTML = '<span class="ce-upload-icon">+</span><span class="ce-upload-text">點擊上傳圖片</span><span class="ce-upload-hint">建議尺寸 200 × 200 px｜JPG / PNG｜最大 2MB</span>';
     }
     document.getElementById('floatad-image').value = '';
     // Mode

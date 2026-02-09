@@ -32,6 +32,7 @@ const App = {
     this.bindImageUpload('cs-img3', 'cs-preview3');
     this.bindImageUpload('banner-image', 'banner-preview');
     this.bindImageUpload('floatad-image', 'floatad-preview');
+    this.renderBannerCarousel();
     this.startBannerCarousel();
     this.renderAll();
     this.applyRole('user');
@@ -339,30 +340,55 @@ const App = {
   //  Banner Carousel
   // ══════════════════════════════════
 
-  startBannerCarousel() {
+  renderBannerCarousel() {
     const track = document.getElementById('banner-track');
-    const dots = document.getElementById('banner-dots');
-    const slides = track.querySelectorAll('.banner-slide');
-    const count = slides.length;
-    this.bannerCount = count;
-
-    dots.innerHTML = '';
-    for (let i = 0; i < count; i++) {
-      const dot = document.createElement('div');
-      dot.className = 'banner-dot' + (i === 0 ? ' active' : '');
-      dot.addEventListener('click', () => this.goToBanner(i));
-      dots.appendChild(dot);
+    if (!track) return;
+    const banners = ApiService.getBanners().filter(b => b.status === 'active');
+    if (banners.length === 0) {
+      track.innerHTML = `<div class="banner-slide banner-placeholder">
+        <div class="banner-img-placeholder">1200 × 400</div>
+        <div class="banner-content"><div class="banner-tag">廣告</div><h2>暫無廣告</h2><p>敬請期待</p></div>
+      </div>`;
+    } else {
+      track.innerHTML = banners.map(b => {
+        if (b.image) {
+          return `<div class="banner-slide" style="background-image:url('${b.image}');background-size:cover;background-position:center">
+            <div class="banner-content"><div class="banner-tag">廣告位 ${b.slot}</div><h2>${b.title || ''}</h2></div>
+          </div>`;
+        }
+        return `<div class="banner-slide banner-placeholder" style="background:${b.gradient || 'var(--bg-elevated)'}">
+          <div class="banner-img-placeholder">1200 × 400</div>
+          <div class="banner-content"><div class="banner-tag">廣告位 ${b.slot}</div><h2>${b.title || ''}</h2></div>
+        </div>`;
+      }).join('');
     }
+    this.bannerIndex = 0;
+    this.bannerCount = track.querySelectorAll('.banner-slide').length;
+    const dots = document.getElementById('banner-dots');
+    if (dots) {
+      dots.innerHTML = '';
+      for (let i = 0; i < this.bannerCount; i++) {
+        const dot = document.createElement('div');
+        dot.className = 'banner-dot' + (i === 0 ? ' active' : '');
+        dot.addEventListener('click', () => this.goToBanner(i));
+        dots.appendChild(dot);
+      }
+    }
+    track.style.transform = 'translateX(0)';
+  },
 
+  startBannerCarousel() {
     document.getElementById('banner-prev')?.addEventListener('click', () => {
-      this.goToBanner((this.bannerIndex - 1 + count) % count);
+      const cnt = this.bannerCount || 1;
+      this.goToBanner((this.bannerIndex - 1 + cnt) % cnt);
     });
     document.getElementById('banner-next')?.addEventListener('click', () => {
-      this.goToBanner((this.bannerIndex + 1) % count);
+      const cnt = this.bannerCount || 1;
+      this.goToBanner((this.bannerIndex + 1) % cnt);
     });
-
     this.bannerTimer = setInterval(() => {
-      this.bannerIndex = (this.bannerIndex + 1) % count;
+      const cnt = this.bannerCount || 1;
+      this.bannerIndex = (this.bannerIndex + 1) % cnt;
       this.goToBanner(this.bannerIndex);
     }, 8000);
   },
@@ -395,6 +421,7 @@ const App = {
     this.renderOperationLogs();
     this.renderAnnouncement();
     this.renderFloatingAds();
+    this.renderBannerCarousel();
     this.renderBannerManage();
     this.renderFloatingAdManage();
     this.renderAnnouncementManage();
