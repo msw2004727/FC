@@ -94,37 +94,54 @@ Object.assign(App, {
     const container = document.getElementById('banner-manage-list');
     if (!container) return;
     const items = ApiService.getBanners();
-    container.innerHTML = items.length ? items.map(b => {
-      const remain = this._remainDays(b.unpublishAt);
-      const remainText = b.status === 'expired' ? '已到期' : `剩餘 ${remain} 天`;
+    container.innerHTML = items.map(b => {
+      const isActive = b.status === 'active';
+      const isScheduled = b.status === 'scheduled';
+      const remain = b.unpublishAt ? this._remainDays(b.unpublishAt) : 0;
+      const statusLabel = isActive ? '啟用中' : isScheduled ? '已排程' : '已下架';
+      const statusClass = isActive ? 'active' : isScheduled ? 'scheduled' : 'expired';
+      const timeInfo = b.publishAt && b.unpublishAt ? `${b.publishAt} ~ ${b.unpublishAt}` : '尚未設定時間';
+      const remainText = isActive ? `剩餘 ${remain} 天` : '';
       return `
-      <div class="banner-manage-card">
-        <div class="banner-thumb" style="background:${b.gradient};overflow:hidden">${b.image ? `<img src="${b.image}" style="width:100%;height:100%;object-fit:cover">` : b.title.slice(0,2)}</div>
+      <div class="banner-manage-card" style="margin-bottom:.5rem">
+        <div class="banner-thumb" style="background:${b.gradient};overflow:hidden">${b.image ? `<img src="${b.image}" style="width:100%;height:100%;object-fit:cover">` : `廣告${b.slot}`}</div>
         <div class="banner-manage-info">
-          <div class="banner-manage-title">${b.title}</div>
-          <div class="banner-manage-meta">${b.position} ・ ${b.publishAt} ~ ${b.unpublishAt}</div>
-          <div class="banner-manage-meta">點擊 ${b.clicks} ・ ${remainText}</div>
-          <span class="banner-manage-status status-${b.status}">${b.status === 'active' ? '啟用中' : b.status === 'scheduled' ? '已排程' : '已到期'}</span>
+          <div class="banner-manage-title">廣告位 ${b.slot}${b.title ? ' — ' + b.title : ''}</div>
+          <div class="banner-manage-meta">${timeInfo}${remainText ? ' ・ ' + remainText : ''}</div>
+          <div class="banner-manage-meta">點擊 ${b.clicks}</div>
+          <span class="banner-manage-status status-${statusClass}">${statusLabel}</span>
         </div>
-        <div class="admin-ach-actions" style="flex-shrink:0;display:flex;flex-direction:column;gap:.2rem">
+        <div style="flex-shrink:0">
           <button class="text-btn" style="font-size:.72rem" onclick="App.editBannerItem('${b.id}')">編輯</button>
-          ${b.status !== 'expired' ? `<button class="text-btn" style="font-size:.72rem;color:var(--warning)" onclick="App.offlineBanner('${b.id}')">下架</button>` : ''}
-          <button class="text-btn" style="font-size:.72rem;color:var(--danger)" onclick="App.deleteBannerItem('${b.id}')">刪除</button>
         </div>
       </div>`;
-    }).join('') : '<div style="text-align:center;padding:1.5rem;color:var(--text-muted);font-size:.82rem">尚無 Banner</div>';
+    }).join('');
   },
 
   showBannerForm(editData) {
     const form = document.getElementById('banner-form-card');
     if (!form) return;
     form.style.display = '';
-    this._bannerEditId = editData ? editData.id : null;
-    document.getElementById('banner-form-title').textContent = editData ? '編輯 Banner' : '新增 Banner';
-    document.getElementById('banner-input-title').value = editData ? editData.title : '';
-    document.getElementById('banner-input-position').value = editData ? editData.position : '主輪播';
-    document.getElementById('banner-input-publish').value = editData ? editData.publishAt.replace(/\//g, '-').replace(' ', 'T') : '';
-    document.getElementById('banner-input-unpublish').value = editData ? editData.unpublishAt.replace(/\//g, '-').replace(' ', 'T') : '';
+    this._bannerEditId = editData.id;
+    document.getElementById('banner-form-title').textContent = `編輯廣告位 ${editData.slot}`;
+    document.getElementById('banner-input-title').value = editData.title || '';
+    document.getElementById('banner-slot-display').textContent = `廣告位 ${editData.slot}`;
+    // Show existing image in preview
+    const preview = document.getElementById('banner-preview');
+    if (editData.image) {
+      preview.innerHTML = `<img src="${editData.image}" style="width:100%;height:100%;object-fit:cover;border-radius:var(--radius-sm)">`;
+    } else {
+      preview.innerHTML = '';
+    }
+    document.getElementById('banner-image').value = '';
+    // Mode
+    const isScheduled = editData.status === 'scheduled';
+    document.getElementById('banner-input-mode').value = isScheduled ? 'scheduled' : 'now';
+    this.toggleBannerSchedule();
+    if (isScheduled && editData.publishAt) {
+      document.getElementById('banner-input-publish').value = editData.publishAt.replace(/\//g, '-').replace(' ', 'T');
+    }
+    document.getElementById('banner-input-unpublish').value = editData.unpublishAt ? editData.unpublishAt.replace(/\//g, '-').replace(' ', 'T') : '';
     form.scrollIntoView({ behavior: 'smooth' });
   },
 
@@ -134,23 +151,32 @@ Object.assign(App, {
     this._bannerEditId = null;
   },
 
+  toggleBannerSchedule() {
+    const mode = document.getElementById('banner-input-mode').value;
+    document.getElementById('banner-publish-row').style.display = mode === 'scheduled' ? '' : 'none';
+  },
+
   saveBanner() {
-    const title = document.getElementById('banner-input-title').value.trim();
-    const position = document.getElementById('banner-input-position').value;
-    const publishVal = document.getElementById('banner-input-publish').value;
     const unpublishVal = document.getElementById('banner-input-unpublish').value;
-    if (!title) { this.showToast('請輸入標題'); return; }
-    if (!publishVal || !unpublishVal) { this.showToast('請選擇上下架時間'); return; }
-    const publishAt = this._formatDT(publishVal);
+    if (!unpublishVal) { this.showToast('請選擇結束時間'); return; }
+    const title = document.getElementById('banner-input-title').value.trim();
+    const mode = document.getElementById('banner-input-mode').value;
     const unpublishAt = this._formatDT(unpublishVal);
-    const status = new Date(publishVal) > new Date() ? 'scheduled' : 'active';
-    if (this._bannerEditId) {
-      ApiService.updateBanner(this._bannerEditId, { title, position, publishAt, unpublishAt, status });
-      this.showToast(`Banner「${title}」已更新`);
+    let publishAt, status;
+    if (mode === 'scheduled') {
+      const publishVal = document.getElementById('banner-input-publish').value;
+      if (!publishVal) { this.showToast('請選擇啟用時間'); return; }
+      publishAt = this._formatDT(publishVal);
+      status = 'scheduled';
     } else {
-      ApiService.createBanner({ id: 'ban' + Date.now(), title, image: null, status, position, publishAt, unpublishAt, clicks: 0, gradient: GRADIENT_MAP.friendly });
-      this.showToast(`Banner「${title}」已建立`);
+      publishAt = this._formatDT(new Date().toISOString());
+      status = 'active';
     }
+    // Get image from preview
+    const previewImg = document.querySelector('#banner-preview img');
+    const image = previewImg ? previewImg.src : (ApiService.getBanners().find(b => b.id === this._bannerEditId)?.image || null);
+    ApiService.updateBanner(this._bannerEditId, { title, image, publishAt, unpublishAt, status });
+    this.showToast(status === 'scheduled' ? `Banner 已排程，將於 ${publishAt} 啟用` : 'Banner 已更新並立即啟用');
     this.hideBannerForm();
     this.renderBannerManage();
   },
@@ -158,19 +184,6 @@ Object.assign(App, {
   editBannerItem(id) {
     const item = ApiService.getBanners().find(b => b.id === id);
     if (item) this.showBannerForm(item);
-  },
-
-  offlineBanner(id) {
-    ApiService.updateBanner(id, { status: 'expired' });
-    this.renderBannerManage();
-    this.showToast('Banner 已下架');
-  },
-
-  deleteBannerItem(id) {
-    const item = ApiService.getBanners().find(b => b.id === id);
-    ApiService.deleteBanner(id);
-    this.renderBannerManage();
-    this.showToast(`Banner「${item?.title || ''}」已刪除`);
   },
 
   // ══════════════════════════════════
@@ -182,37 +195,53 @@ Object.assign(App, {
   renderFloatingAdManage() {
     const container = document.getElementById('floating-ad-manage-list');
     if (!container) return;
-    const items = ApiService.getFloatingAds();
-    container.innerHTML = items.length ? items.map(ad => {
-      const remain = this._remainDays(ad.unpublishAt);
-      const remainText = ad.status === 'expired' ? '已到期' : `剩餘 ${remain} 天`;
+    const ads = ApiService.getFloatingAds();
+    container.innerHTML = ads.map(ad => {
+      const isActive = ad.status === 'active';
+      const isScheduled = ad.status === 'scheduled';
+      const remain = ad.unpublishAt ? this._remainDays(ad.unpublishAt) : 0;
+      const statusLabel = isActive ? '啟用中' : isScheduled ? '已排程' : '已下架';
+      const statusClass = isActive ? 'active' : isScheduled ? 'scheduled' : 'expired';
+      const timeInfo = ad.publishAt && ad.unpublishAt ? `${ad.publishAt} ~ ${ad.unpublishAt}` : '尚未設定時間';
+      const remainText = isActive ? `剩餘 ${remain} 天` : '';
       return `
-      <div class="banner-manage-card">
-        <div class="banner-thumb" style="background:${ad.gradient || 'linear-gradient(135deg,#374151,#1f2937)'};overflow:hidden">${ad.image ? `<img src="${ad.image}" style="width:100%;height:100%;object-fit:cover">` : 'AD'}</div>
+      <div class="banner-manage-card" style="margin-bottom:.5rem">
+        <div class="banner-thumb" style="background:linear-gradient(135deg,#374151,#1f2937);overflow:hidden;border-radius:50%">${ad.image ? `<img src="${ad.image}" style="width:100%;height:100%;object-fit:cover">` : ad.slot}</div>
         <div class="banner-manage-info">
-          <div class="banner-manage-title">${ad.title}</div>
-          <div class="banner-manage-meta">${ad.publishAt} ~ ${ad.unpublishAt}</div>
-          <div class="banner-manage-meta">點擊 ${ad.clicks} ・ ${remainText}</div>
-          <span class="banner-manage-status status-${ad.status}">${ad.status === 'active' ? '啟用中' : ad.status === 'scheduled' ? '已排程' : '已到期'}</span>
+          <div class="banner-manage-title">${ad.slot}${ad.title ? ' — ' + ad.title : ''}</div>
+          <div class="banner-manage-meta">${timeInfo}${remainText ? ' ・ ' + remainText : ''}</div>
+          <span class="banner-manage-status status-${statusClass}">${statusLabel}</span>
         </div>
-        <div class="admin-ach-actions" style="flex-shrink:0;display:flex;flex-direction:column;gap:.2rem">
+        <div style="flex-shrink:0">
           <button class="text-btn" style="font-size:.72rem" onclick="App.editFloatingAd('${ad.id}')">編輯</button>
-          ${ad.status !== 'expired' ? `<button class="text-btn" style="font-size:.72rem;color:var(--warning)" onclick="App.offlineFloatingAd('${ad.id}')">下架</button>` : ''}
-          <button class="text-btn" style="font-size:.72rem;color:var(--danger)" onclick="App.deleteFloatingAdItem('${ad.id}')">刪除</button>
         </div>
       </div>`;
-    }).join('') : '<div style="text-align:center;padding:1.5rem;color:var(--text-muted);font-size:.82rem">尚無浮動廣告</div>';
+    }).join('');
   },
 
   showFloatingAdForm(editData) {
     const form = document.getElementById('floatad-form-card');
     if (!form) return;
     form.style.display = '';
-    this._floatAdEditId = editData ? editData.id : null;
-    document.getElementById('floatad-form-title').textContent = editData ? '編輯浮動廣告' : '新增浮動廣告';
-    document.getElementById('floatad-input-title').value = editData ? editData.title : '';
-    document.getElementById('floatad-input-publish').value = editData ? editData.publishAt.replace(/\//g, '-').replace(' ', 'T') : '';
-    document.getElementById('floatad-input-unpublish').value = editData ? editData.unpublishAt.replace(/\//g, '-').replace(' ', 'T') : '';
+    this._floatAdEditId = editData.id;
+    document.getElementById('floatad-form-title').textContent = `編輯 ${editData.slot}`;
+    document.getElementById('floatad-input-title').value = editData.title || '';
+    // Show existing image in preview
+    const preview = document.getElementById('floatad-preview');
+    if (editData.image) {
+      preview.innerHTML = `<img src="${editData.image}" style="width:100%;height:100%;object-fit:cover;border-radius:var(--radius-sm)">`;
+    } else {
+      preview.innerHTML = '';
+    }
+    document.getElementById('floatad-image').value = '';
+    // Mode
+    const isScheduled = editData.status === 'scheduled';
+    document.getElementById('floatad-input-mode').value = isScheduled ? 'scheduled' : 'now';
+    this.toggleFloatAdSchedule();
+    if (isScheduled && editData.publishAt) {
+      document.getElementById('floatad-input-publish').value = editData.publishAt.replace(/\//g, '-').replace(' ', 'T');
+    }
+    document.getElementById('floatad-input-unpublish').value = editData.unpublishAt ? editData.unpublishAt.replace(/\//g, '-').replace(' ', 'T') : '';
     form.scrollIntoView({ behavior: 'smooth' });
   },
 
@@ -222,22 +251,32 @@ Object.assign(App, {
     this._floatAdEditId = null;
   },
 
+  toggleFloatAdSchedule() {
+    const mode = document.getElementById('floatad-input-mode').value;
+    document.getElementById('floatad-publish-row').style.display = mode === 'scheduled' ? '' : 'none';
+  },
+
   saveFloatingAd() {
-    const title = document.getElementById('floatad-input-title').value.trim();
-    const publishVal = document.getElementById('floatad-input-publish').value;
     const unpublishVal = document.getElementById('floatad-input-unpublish').value;
-    if (!title) { this.showToast('請輸入廣告標題'); return; }
-    if (!publishVal || !unpublishVal) { this.showToast('請選擇上下架時間'); return; }
-    const publishAt = this._formatDT(publishVal);
+    if (!unpublishVal) { this.showToast('請選擇結束時間'); return; }
+    const title = document.getElementById('floatad-input-title').value.trim();
+    const mode = document.getElementById('floatad-input-mode').value;
     const unpublishAt = this._formatDT(unpublishVal);
-    const status = new Date(publishVal) > new Date() ? 'scheduled' : 'active';
-    if (this._floatAdEditId) {
-      ApiService.updateFloatingAd(this._floatAdEditId, { title, publishAt, unpublishAt, status });
-      this.showToast(`浮動廣告「${title}」已更新`);
+    let publishAt, status;
+    if (mode === 'scheduled') {
+      const publishVal = document.getElementById('floatad-input-publish').value;
+      if (!publishVal) { this.showToast('請選擇啟用時間'); return; }
+      publishAt = this._formatDT(publishVal);
+      status = 'scheduled';
     } else {
-      ApiService.createFloatingAd({ id: 'fad' + Date.now(), title, image: null, status, publishAt, unpublishAt, clicks: 0, gradient: 'linear-gradient(135deg,#374151,#1f2937)' });
-      this.showToast(`浮動廣告「${title}」已建立`);
+      publishAt = this._formatDT(new Date().toISOString());
+      status = 'active';
     }
+    // Get image from preview
+    const previewImg = document.querySelector('#floatad-preview img');
+    const image = previewImg ? previewImg.src : (ApiService.getFloatingAds().find(a => a.id === this._floatAdEditId)?.image || null);
+    ApiService.updateFloatingAd(this._floatAdEditId, { title, image, publishAt, unpublishAt, status });
+    this.showToast(status === 'scheduled' ? `浮動廣告已排程，將於 ${publishAt} 啟用` : '浮動廣告已更新並立即啟用');
     this.hideFloatingAdForm();
     this.renderFloatingAdManage();
     this.renderFloatingAds();
@@ -246,21 +285,6 @@ Object.assign(App, {
   editFloatingAd(id) {
     const item = ApiService.getFloatingAds().find(a => a.id === id);
     if (item) this.showFloatingAdForm(item);
-  },
-
-  offlineFloatingAd(id) {
-    ApiService.updateFloatingAd(id, { status: 'expired' });
-    this.renderFloatingAdManage();
-    this.renderFloatingAds();
-    this.showToast('浮動廣告已下架');
-  },
-
-  deleteFloatingAdItem(id) {
-    const item = ApiService.getFloatingAds().find(a => a.id === id);
-    ApiService.deleteFloatingAd(id);
-    this.renderFloatingAdManage();
-    this.renderFloatingAds();
-    this.showToast(`浮動廣告「${item?.title || ''}」已刪除`);
   },
 
   // ══════════════════════════════════

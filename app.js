@@ -30,6 +30,8 @@ const App = {
     this.bindImageUpload('cs-img1', 'cs-preview1');
     this.bindImageUpload('cs-img2', 'cs-preview2');
     this.bindImageUpload('cs-img3', 'cs-preview3');
+    this.bindImageUpload('banner-image', 'banner-preview');
+    this.bindImageUpload('floatad-image', 'floatad-preview');
     this.startBannerCarousel();
     this.renderAll();
     this.applyRole('user');
@@ -286,13 +288,16 @@ const App = {
   renderFloatingAds() {
     const container = document.getElementById('floating-ads');
     if (!container) return;
-    const ads = ApiService.getFloatingAds().filter(a => a.status === 'active');
-    container.innerHTML = ads.map(ad => `
-      <div class="float-ad" title="${ad.title}">
-        <div class="float-ad-img" style="background:${ad.gradient || 'linear-gradient(135deg,#374151,#1f2937)'}">${ad.image ? `<img src="${ad.image}" style="width:100%;height:100%;object-fit:cover">` : ad.title.slice(0, 3)}</div>
+    const ads = ApiService.getFloatingAds();
+    container.innerHTML = ads.map(ad => {
+      const active = ad.status === 'active';
+      const hasImg = active && ad.image;
+      return `
+      <div class="float-ad" title="${active ? ad.title : '贊助廣告'}">
+        <div class="float-ad-img">${hasImg ? `<img src="${ad.image}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">` : ad.slot}</div>
         <small>贊助廣告</small>
-      </div>
-    `).join('');
+      </div>`;
+    }).join('');
   },
 
   bindFilterToggle() {

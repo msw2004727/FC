@@ -575,25 +575,27 @@
         <button class="back-btn" onclick="App.goBack()">←</button>
         <h2>廣告管理</h2>
       </div>
-      <div class="admin-section-label">Banner 廣告</div>
+      <div class="admin-section-label">Banner 廣告（3 個廣告位）</div>
       <div class="card-list" id="banner-manage-list"></div>
-      <button class="primary-btn full-width" style="margin:.5rem 0" onclick="App.showBannerForm()">＋ 新增 Banner</button>
       <div class="form-card" id="banner-form-card" style="display:none">
-        <div class="role-editor-header"><span id="banner-form-title">新增 Banner</span><button class="text-btn" onclick="App.hideBannerForm()">取消</button></div>
+        <div class="role-editor-header"><span id="banner-form-title">編輯 Banner</span><button class="text-btn" onclick="App.hideBannerForm()">取消</button></div>
+        <div class="form-row"><label>廣告位</label><span id="banner-slot-display" style="font-weight:600"></span></div>
+        <div class="form-row"><label>廣告圖片</label><input type="file" id="banner-image" accept="image/jpeg,image/png"><div class="upload-preview" id="banner-preview"></div></div>
         <div class="form-row"><label>標題</label><input type="text" id="banner-input-title" placeholder="例：春季聯賽 Banner"></div>
-        <div class="form-row"><label>位置</label><select id="banner-input-position"><option value="主輪播">主輪播</option><option value="側邊浮動">側邊浮動</option></select></div>
-        <div class="form-row"><label>上架時間</label><input type="datetime-local" id="banner-input-publish"></div>
-        <div class="form-row"><label>下架時間</label><input type="datetime-local" id="banner-input-unpublish"></div>
+        <div class="form-row"><label>啟用方式</label><select id="banner-input-mode" onchange="App.toggleBannerSchedule()"><option value="now">立即啟用</option><option value="scheduled">預約啟用</option></select></div>
+        <div class="form-row" id="banner-publish-row" style="display:none"><label>啟用時間</label><input type="datetime-local" id="banner-input-publish"></div>
+        <div class="form-row"><label>結束時間</label><input type="datetime-local" id="banner-input-unpublish"></div>
         <button class="primary-btn full-width" onclick="App.saveBanner()">儲存</button>
       </div>
       <div class="admin-section-label" style="margin-top:1.2rem">浮動廣告 (AD1 / AD2)</div>
-      <div class="card-list" id="floating-ad-manage-list"></div>
-      <button class="primary-btn full-width" style="margin:.5rem 0" onclick="App.showFloatingAdForm()">＋ 新增浮動廣告</button>
+      <div id="floating-ad-manage-list"></div>
       <div class="form-card" id="floatad-form-card" style="display:none">
-        <div class="role-editor-header"><span id="floatad-form-title">新增浮動廣告</span><button class="text-btn" onclick="App.hideFloatingAdForm()">取消</button></div>
+        <div class="role-editor-header"><span id="floatad-form-title">編輯浮動廣告</span><button class="text-btn" onclick="App.hideFloatingAdForm()">取消</button></div>
+        <div class="form-row"><label>廣告圖片</label><input type="file" id="floatad-image" accept="image/jpeg,image/png"><div class="upload-preview" id="floatad-preview"></div></div>
         <div class="form-row"><label>廣告標題</label><input type="text" id="floatad-input-title" placeholder="例：球鞋促銷"></div>
-        <div class="form-row"><label>上架時間</label><input type="datetime-local" id="floatad-input-publish"></div>
-        <div class="form-row"><label>下架時間</label><input type="datetime-local" id="floatad-input-unpublish"></div>
+        <div class="form-row"><label>啟用方式</label><select id="floatad-input-mode" onchange="App.toggleFloatAdSchedule()"><option value="now">立即啟用</option><option value="scheduled">預約啟用</option></select></div>
+        <div class="form-row" id="floatad-publish-row" style="display:none"><label>啟用時間</label><input type="datetime-local" id="floatad-input-publish"></div>
+        <div class="form-row"><label>結束時間</label><input type="datetime-local" id="floatad-input-unpublish"></div>
         <button class="primary-btn full-width" onclick="App.saveFloatingAd()">儲存</button>
       </div>
     </section>

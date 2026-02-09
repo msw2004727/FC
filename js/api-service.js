@@ -250,23 +250,11 @@ const ApiService = {
     return FirebaseService._cache.banners;
   },
 
-  createBanner(data) {
-    const source = this._demoMode ? DemoData.banners : FirebaseService._cache.banners;
-    source.unshift(data);
-    return data;
-  },
-
   updateBanner(id, updates) {
     const source = this._demoMode ? DemoData.banners : FirebaseService._cache.banners;
     const item = source.find(b => b.id === id);
     if (item) Object.assign(item, updates);
     return item;
-  },
-
-  deleteBanner(id) {
-    const source = this._demoMode ? DemoData.banners : FirebaseService._cache.banners;
-    const idx = source.findIndex(b => b.id === id);
-    if (idx >= 0) source.splice(idx, 1);
   },
 
   // ════════════════════════════════
@@ -310,23 +298,11 @@ const ApiService = {
     return FirebaseService._cache.floatingAds;
   },
 
-  createFloatingAd(data) {
-    const source = this._demoMode ? DemoData.floatingAds : FirebaseService._cache.floatingAds;
-    source.unshift(data);
-    return data;
-  },
-
   updateFloatingAd(id, updates) {
     const source = this._demoMode ? DemoData.floatingAds : FirebaseService._cache.floatingAds;
     const item = source.find(a => a.id === id);
     if (item) Object.assign(item, updates);
     return item;
-  },
-
-  deleteFloatingAd(id) {
-    const source = this._demoMode ? DemoData.floatingAds : FirebaseService._cache.floatingAds;
-    const idx = source.findIndex(a => a.id === id);
-    if (idx >= 0) source.splice(idx, 1);
   },
 
   getPermissions() {
