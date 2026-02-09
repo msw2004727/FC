@@ -9,6 +9,16 @@
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 </head>
 <body>
+  <script>
+    // 早期模式偵測：防止正式版重整時閃現 Demo 畫面
+    (function(){
+      var mode = localStorage.getItem('sporthub_mode') ||
+        (location.hostname === 'msw2004727.github.io' ? 'production' : 'demo');
+      if (mode !== 'demo') {
+        document.documentElement.classList.add('prod-early');
+      }
+    })();
+  </script>
 
   <!-- ============ TOP BAR ============ -->
   <header id="top-bar">
@@ -44,7 +54,7 @@
       </div>
       <button id="notif-btn" aria-label="通知">
         <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
-        <span class="notif-badge">3</span>
+        <span class="notif-badge" id="notif-badge">3</span>
       </button>
       <div class="role-switcher-wrapper" id="role-switcher-wrapper">
         <button id="role-avatar-btn" class="role-avatar-btn" aria-label="切換身份">
@@ -226,7 +236,7 @@
     <section class="page" id="page-messages">
       <div class="page-header">
         <h2>訊息</h2>
-        <button class="text-btn">全讀</button>
+        <button class="text-btn" onclick="App.markAllRead()">全讀</button>
       </div>
       <div class="tab-bar">
         <button class="tab active" data-tab="all">全部</button>
@@ -238,7 +248,7 @@
       <div class="card-list" id="message-list">
         <!-- Populated by JS -->
       </div>
-      <div class="storage-bar">剩餘容量：<strong>38</strong>/50</div>
+      <div class="storage-bar" id="storage-bar">剩餘容量：<strong>38</strong>/50</div>
     </section>
 
     <!-- PAGE: Profile (My) -->

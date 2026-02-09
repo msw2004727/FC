@@ -349,9 +349,10 @@ Object.assign(App, {
   // ══════════════════════════════════
 
   renderMessageList() {
+    const messages = ApiService.getMessages();
     const container = document.getElementById('message-list');
-    container.innerHTML = ApiService.getMessages().map(m => `
-      <div class="msg-card">
+    container.innerHTML = messages.map(m => `
+      <div class="msg-card${m.unread ? ' msg-unread' : ''}" onclick="App.readMessage(this, '${m.id}')">
         <div class="msg-card-header">
           <span class="msg-dot ${m.unread ? 'unread' : 'read'}"></span>
           <span class="msg-type">${m.typeName}</span>
@@ -361,6 +362,8 @@ Object.assign(App, {
         <div class="msg-time">${m.time}</div>
       </div>
     `).join('');
+    this.updateNotifBadge();
+    this.updateStorageBar();
   },
 
   // ══════════════════════════════════

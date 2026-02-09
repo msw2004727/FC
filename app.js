@@ -444,6 +444,8 @@ const App = {
     this.renderMyActivities();
     this.renderUserCard();
     this.renderProfileData();
+    this.updateNotifBadge();
+    this.updateStorageBar();
   },
 
   // ══════════════════════════════════
@@ -790,8 +792,54 @@ const App = {
   },
 
   // ══════════════════════════════════
-  //  Toast
   // ══════════════════════════════════
+  //  Notification Badge & Storage Bar
+  // ══════════════════════════════════
+
+  updateNotifBadge() {
+    const messages = ApiService.getMessages();
+    const unreadCount = messages.filter(m => m.unread).length;
+    const badge = document.getElementById('notif-badge');
+    if (!badge) return;
+    badge.textContent = unreadCount;
+    badge.style.display = unreadCount > 0 ? '' : 'none';
+  },
+
+  updateStorageBar() {
+    const bar = document.getElementById('storage-bar');
+    if (!bar) return;
+    const total = 50;
+    const used = ApiService.getMessages().length;
+    const remaining = Math.max(0, total - used);
+    bar.innerHTML = `剩餘容量：<strong>${remaining}</strong>/${total}`;
+  },
+
+  markAllRead() {
+    const messages = ApiService.getMessages();
+    let changed = 0;
+    messages.forEach(m => {
+      if (m.unread) { m.unread = false; changed++; }
+    });
+    if (changed === 0) {
+      this.showToast('沒有未讀訊息');
+      return;
+    }
+    this.renderMessageList();
+    this.updateNotifBadge();
+    this.showToast(`已將 ${changed} 則訊息標為已讀`);
+  },
+
+  readMessage(el, id) {
+    const messages = ApiService.getMessages();
+    const msg = messages.find(m => m.id === id);
+    if (msg && msg.unread) {
+      msg.unread = false;
+      el.classList.remove('msg-unread');
+      el.querySelector('.msg-dot').classList.remove('unread');
+      el.querySelector('.msg-dot').classList.add('read');
+      this.updateNotifBadge();
+    }
+  },
 
   showToast(msg) {
     const toast = document.getElementById('toast');
@@ -819,4 +867,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
   App.init();
+  // 移除早期模式偵測的 CSS class，讓 JS 接手控制
+  document.documentElement.classList.remove('prod-early');
 });
