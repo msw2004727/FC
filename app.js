@@ -678,7 +678,6 @@ const App = {
       }
       if (drawerAvatar) { drawerAvatar.className = 'drawer-avatar'; drawerAvatar.innerHTML = '麥'; }
       if (drawerName) drawerName.textContent = '冠軍.全勤.小麥';
-      if (profileAvatar) { profileAvatar.className = 'profile-avatar'; profileAvatar.innerHTML = '麥'; }
       if (profileContent) profileContent.style.display = '';
       if (loginPrompt) loginPrompt.style.display = 'none';
       return;
@@ -726,18 +725,9 @@ const App = {
       userTopbar.innerHTML = `<div class="line-avatar-topbar line-avatar-fallback" onclick="App.toggleUserMenu()">${profile.displayName.charAt(0)}</div>${dropdownHtml}`;
     }
 
-    // 更新 profile 頁面
+    // 更新 profile 頁面（資料由 renderProfileData() 統一處理）
     if (profileContent) profileContent.style.display = '';
     if (loginPrompt) loginPrompt.style.display = 'none';
-    if (profileAvatar) {
-      if (profile.pictureUrl) {
-        profileAvatar.className = 'profile-avatar profile-avatar-img';
-        profileAvatar.innerHTML = `<img src="${profile.pictureUrl}" alt="">`;
-      } else {
-        profileAvatar.className = 'profile-avatar';
-        profileAvatar.innerHTML = profile.displayName.charAt(0);
-      }
-    }
 
     // 更新 drawer
     if (drawerName) drawerName.textContent = profile.displayName;
@@ -775,16 +765,52 @@ const App = {
   },
 
   renderProfileData() {
-    if (ModeManager.isDemo()) return;
-    const user = ApiService.getCurrentUser();
-    if (!user) return;
     const el = (id) => document.getElementById(id);
     const v = (val) => val || '-';
+
+    if (ModeManager.isDemo()) {
+      // Demo 模式：從 DemoData.currentUser 帶入
+      const user = ApiService.getCurrentUser();
+      if (!user) return;
+      if (el('profile-avatar')) { el('profile-avatar').className = 'profile-avatar'; el('profile-avatar').innerHTML = '麥'; }
+      if (el('profile-title')) el('profile-title').textContent = user.displayName || '冠軍.全勤.小麥';
+      const level = user.level || 1, exp = user.exp || 0, nextExp = (level + 1) * 200;
+      if (el('profile-lv')) el('profile-lv').textContent = `Lv.${level}`;
+      if (el('profile-exp-text')) el('profile-exp-text').textContent = `${exp} / ${nextExp}`;
+      if (el('profile-exp-fill')) el('profile-exp-fill').style.width = `${Math.min(100, Math.round((exp / nextExp) * 100))}%`;
+      if (el('profile-stat-total')) el('profile-stat-total').textContent = user.totalGames || 0;
+      if (el('profile-stat-done')) el('profile-stat-done').textContent = user.completedGames || 0;
+      if (el('profile-stat-rate')) el('profile-stat-rate').textContent = user.attendanceRate ? `${user.attendanceRate}%` : '0%';
+      if (el('profile-stat-badges')) el('profile-stat-badges').textContent = user.badgeCount || 0;
+      if (el('profile-gender')) el('profile-gender').textContent = v(user.gender);
+      if (el('profile-birthday')) el('profile-birthday').textContent = v(user.birthday);
+      if (el('profile-region')) el('profile-region').textContent = v(user.region);
+      if (el('profile-sports')) el('profile-sports').textContent = v(user.sports);
+      if (el('profile-team')) el('profile-team').textContent = v(user.teamName);
+      if (el('profile-phone')) el('profile-phone').textContent = v(user.phone);
+      return;
+    }
+
+    // 正式版：從 Firebase 用戶資料帶入
+    const user = ApiService.getCurrentUser();
+    if (!user) return;
 
     // 暱稱：優先使用 LINE API 的 displayName
     const lineProfile = (typeof LineAuth !== 'undefined' && LineAuth.isLoggedIn()) ? LineAuth.getProfile() : null;
     const displayName = (lineProfile && lineProfile.displayName) ? lineProfile.displayName : user.displayName;
     if (el('profile-title')) el('profile-title').textContent = v(displayName);
+
+    // 頭像：使用 LINE 頭像
+    if (el('profile-avatar')) {
+      const pic = lineProfile && lineProfile.pictureUrl;
+      if (pic) {
+        el('profile-avatar').className = 'profile-avatar profile-avatar-img';
+        el('profile-avatar').innerHTML = `<img src="${pic}" alt="">`;
+      } else {
+        el('profile-avatar').className = 'profile-avatar';
+        el('profile-avatar').innerHTML = displayName ? displayName.charAt(0) : '?';
+      }
+    }
 
     // 等級 & 經驗值
     const level = user.level || 1;
