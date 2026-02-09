@@ -70,7 +70,6 @@ const TOURNAMENT_GRADIENT_MAP = {
 
 // ─── Drawer Menu Config ───
 const DRAWER_MENUS = [
-  { icon: '', label: '賽事中心', page: 'page-tournaments', minRole: 'user' },
   { icon: '', label: '二手商品區', page: 'page-shop', minRole: 'user' },
   { icon: '', label: '排行榜', page: 'page-leaderboard', minRole: 'user' },
   { icon: '', label: '分享網頁', action: 'share', minRole: 'user' },

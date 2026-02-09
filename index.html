@@ -303,11 +303,11 @@
       </div>
       <div class="info-card">
         <div class="info-title">報名紀錄</div>
-        <div class="tab-bar compact">
-          <button class="tab active">全部</button>
-          <button class="tab">完成</button>
-          <button class="tab">取消</button>
-          <button class="tab">早退</button>
+        <div class="tab-bar compact" id="record-tabs">
+          <button class="tab active" data-filter="all">全部</button>
+          <button class="tab" data-filter="completed">完成</button>
+          <button class="tab" data-filter="cancelled">取消</button>
+          <button class="tab" data-filter="early-left">早退</button>
         </div>
         <div class="mini-activity-list" id="my-activity-records"></div>
       </div>

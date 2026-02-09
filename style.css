@@ -367,11 +367,10 @@ img { max-width: 100%; display: block; }
 .drawer-item .di-icon:empty { display: none; }
 .drawer-divider { height: 1px; background: var(--border); margin: .4rem 1.2rem; }
 .drawer-section-label { padding: .5rem 1.2rem .2rem; font-size: .7rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: .05em; }
-.drawer-admin-group { padding: .3rem 1rem; }
-.drawer-admin-level { font-size: .68rem; font-weight: 700; margin-bottom: .3rem; }
-.drawer-admin-btns { display: flex; flex-wrap: wrap; gap: .3rem; }
-.drawer-capsule { padding: .3rem .6rem; border-radius: var(--radius-full); font-size: .72rem; font-weight: 500; background: transparent; border: 1.5px solid; cursor: pointer; transition: all var(--transition); white-space: nowrap; }
-.drawer-capsule:hover { opacity: .8; background: var(--bg-elevated); }
+.drawer-role-admin { background: rgba(37,99,235,.06); }
+.drawer-role-super { background: rgba(220,38,38,.06); }
+[data-theme="dark"] .drawer-role-admin { background: rgba(37,99,235,.1); }
+[data-theme="dark"] .drawer-role-super { background: rgba(220,38,38,.1); }
 .drawer-footer { padding: .75rem 1.2rem; border-top: 1px solid var(--border); }
 #theme-toggle { display: flex; align-items: center; gap: .6rem; width: 100%; font-size: .88rem; color: var(--text-secondary); padding: .5rem 0; }
 .toggle-switch { margin-left: auto; width: 40px; height: 22px; border-radius: 11px; background: var(--border); position: relative; transition: background var(--transition); }
@@ -633,6 +632,20 @@ img { max-width: 100%; display: block; }
 .tl-tournament-card.tl-cup { border-left: 3px solid #d97706; background: rgba(217,119,6,.04); }
 [data-theme="dark"] .tl-tournament-card.tl-league { background: rgba(220,38,38,.08); }
 [data-theme="dark"] .tl-tournament-card.tl-cup { background: rgba(217,119,6,.08); }
+.tl-type-friendly { border-left: 3px solid #0d9488; background: rgba(13,148,136,.04); }
+.tl-type-training { border-left: 3px solid #7c3aed; background: rgba(124,58,237,.04); }
+.tl-type-league   { border-left: 3px solid #dc2626; background: rgba(220,38,38,.04); }
+.tl-type-cup      { border-left: 3px solid #d97706; background: rgba(217,119,6,.04); }
+.tl-type-test     { border-left: 3px solid #2563eb; background: rgba(37,99,235,.04); }
+.tl-type-camp     { border-left: 3px solid #ec4899; background: rgba(236,72,153,.04); }
+.tl-type-watch    { border-left: 3px solid #f59e0b; background: rgba(245,158,11,.04); }
+[data-theme="dark"] .tl-type-friendly { background: rgba(13,148,136,.08); }
+[data-theme="dark"] .tl-type-training { background: rgba(124,58,237,.08); }
+[data-theme="dark"] .tl-type-league   { background: rgba(220,38,38,.08); }
+[data-theme="dark"] .tl-type-cup      { background: rgba(217,119,6,.08); }
+[data-theme="dark"] .tl-type-test     { background: rgba(37,99,235,.08); }
+[data-theme="dark"] .tl-type-camp     { background: rgba(236,72,153,.08); }
+[data-theme="dark"] .tl-type-watch    { background: rgba(245,158,11,.08); }
 .tl-type-icon {
   width: 32px;
   height: 32px;
@@ -1298,6 +1311,10 @@ img { max-width: 100%; display: block; }
 .mini-activity-status.cancelled { background: var(--warning); }
 .mini-activity-status.early-left { background: var(--danger); }
 .mini-activity-name { flex: 1; }
+.mini-activity-tag { font-size: .62rem; font-weight: 600; padding: .1rem .35rem; border-radius: var(--radius-full); }
+.mini-activity-tag.completed { background: rgba(52,211,153,.12); color: var(--success); }
+.mini-activity-tag.cancelled { background: rgba(251,191,36,.12); color: var(--warning); }
+.mini-activity-tag.early-left { background: rgba(248,113,113,.12); color: var(--danger); }
 .mini-activity-date { font-size: .72rem; color: var(--text-muted); }
 
 /* ─── Inactive Card ─── */

@@ -159,60 +159,31 @@ const App = {
     const container = document.getElementById('drawer-menu');
     const level = ROLE_LEVEL_MAP[this.currentRole];
     let html = '';
-    let inAdminSection = false;
-    const adminGroups = {};
+    let lastMinRole = null;
 
     DRAWER_MENUS.forEach(item => {
       const minLevel = ROLE_LEVEL_MAP[item.minRole] || 0;
       if (level < minLevel) return;
-
-      if (item.sectionLabel) {
-        inAdminSection = true;
-        return;
-      }
-      if (item.divider && item.minRole === 'admin') {
-        inAdminSection = true;
-        return;
-      }
-
-      if (inAdminSection && !item.divider) {
-        const role = item.minRole || 'user';
-        if (!adminGroups[role]) adminGroups[role] = [];
-        adminGroups[role].push(item);
-        return;
-      }
-
       if (item.divider) {
         html += '<div class="drawer-divider"></div>';
+      } else if (item.sectionLabel) {
+        html += `<div class="drawer-section-label">${item.sectionLabel}</div>`;
       } else {
         const onClick = item.action === 'share'
           ? `App.showToast('已複製分享連結！')`
           : `App.showPage('${item.page}'); App.closeDrawer()`;
-        html += `<div class="drawer-item" onclick="${onClick}">
-          <span class="di-icon">${item.icon}</span>${item.label}
+        const role = item.minRole || 'user';
+        const roleInfo = ROLES[role];
+        const bgClass = minLevel >= 5 ? 'drawer-role-super' : minLevel >= 4 ? 'drawer-role-admin' : '';
+        if (lastMinRole !== role && minLevel >= 4) {
+          if (lastMinRole && ROLE_LEVEL_MAP[lastMinRole] >= 4) html += '<div class="drawer-divider"></div>';
+          lastMinRole = role;
+        }
+        html += `<div class="drawer-item ${bgClass}" onclick="${onClick}">
+          ${item.label}
         </div>`;
       }
     });
-
-    const adminRoles = Object.keys(adminGroups);
-    if (adminRoles.length > 0) {
-      html += '<div class="drawer-divider"></div>';
-      html += '<div class="drawer-section-label">後台管理</div>';
-      const roleOrder = ['coach', 'captain', 'venue_owner', 'admin', 'super_admin'];
-      roleOrder.forEach(role => {
-        const items = adminGroups[role];
-        if (!items) return;
-        const roleInfo = ROLES[role];
-        html += `<div class="drawer-admin-group">
-          <div class="drawer-admin-level" style="color:${roleInfo.color}">${roleInfo.label}</div>
-          <div class="drawer-admin-btns">`;
-        items.forEach(item => {
-          const onClick = `App.showPage('${item.page}'); App.closeDrawer()`;
-          html += `<button class="drawer-capsule" style="border-color:${roleInfo.color};color:${roleInfo.color}" onclick="${onClick}">${item.label}</button>`;
-        });
-        html += `</div></div>`;
-      });
-    }
 
     container.innerHTML = html;
   },
@@ -548,7 +519,7 @@ const App = {
           const isEnded = e.status === 'ended' || e.status === 'cancelled';
 
           html += `
-            <div class="tl-event-row${isEnded ? ' tl-past' : ''}" onclick="App.showEventDetail('${e.id}')">
+            <div class="tl-event-row tl-type-${e.type}${isEnded ? ' tl-past' : ''}" onclick="App.showEventDetail('${e.id}')">
               <div class="tl-event-info">
                 <div class="tl-event-title">${e.title}</div>
                 <div class="tl-event-meta">${typeConf.label} · ${time} · ${e.location.split('市')[1] || e.location} · ${e.current}/${e.max}人</div>
@@ -1089,15 +1060,32 @@ const App = {
   //  Render: Activity Records & Admin
   // ══════════════════════════════════
 
-  renderActivityRecords() {
+  renderActivityRecords(filter) {
     const container = document.getElementById('my-activity-records');
-    container.innerHTML = ApiService.getActivityRecords().map(r => `
+    if (!container) return;
+    const all = ApiService.getActivityRecords();
+    const filtered = (!filter || filter === 'all') ? all : all.filter(r => r.status === filter);
+    const statusLabel = { completed: '完成', cancelled: '取消', 'early-left': '早退' };
+    container.innerHTML = filtered.length ? filtered.map(r => `
       <div class="mini-activity">
         <span class="mini-activity-status ${r.status}"></span>
         <span class="mini-activity-name">${r.name}</span>
+        <span class="mini-activity-tag ${r.status}">${statusLabel[r.status] || ''}</span>
         <span class="mini-activity-date">${r.date}</span>
       </div>
-    `).join('');
+    `).join('') : '<div style="text-align:center;padding:1rem;font-size:.8rem;color:var(--text-muted)">無紀錄</div>';
+
+    const tabs = document.getElementById('record-tabs');
+    if (tabs && !tabs.dataset.bound) {
+      tabs.dataset.bound = '1';
+      tabs.querySelectorAll('.tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+          tabs.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+          tab.classList.add('active');
+          this.renderActivityRecords(tab.dataset.filter);
+        });
+      });
+    }
   },
 
   renderAdminUsers() {
