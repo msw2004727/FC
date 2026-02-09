@@ -960,19 +960,26 @@ img { max-width: 100%; display: block; }
 .doll-item.locked { opacity: .4; cursor: not-allowed; }
 .doll-actions { display: flex; gap: .5rem; padding: .5rem; justify-content: center; }
 
-/* ─── Achievement Progress Cards (Waterfall) ─── */
-.achievement-grid { display: flex; flex-direction: column; gap: .4rem; padding: .5rem; }
-.ach-progress-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: .65rem .75rem; transition: all var(--transition); }
-.ach-progress-card:hover { border-color: var(--accent); }
-.ach-progress-card.ach-completed { background: var(--bg-elevated); opacity: .75; }
-.ach-progress-header { display: flex; align-items: center; gap: .35rem; margin-bottom: .2rem; }
-.ach-progress-name { font-size: .85rem; font-weight: 700; flex: 1; }
-.ach-done-tag { font-size: .65rem; font-weight: 700; color: var(--success); background: rgba(16,185,129,.1); padding: .1rem .4rem; border-radius: var(--radius-full); }
+/* ─── Achievement Compact Rows ─── */
+.achievement-grid { display: flex; flex-direction: column; gap: .3rem; padding: .5rem; }
+.ach-row { display: flex; align-items: center; gap: .45rem; padding: .5rem .6rem; border-radius: var(--radius-sm); transition: all var(--transition); }
+.ach-row:hover { filter: brightness(1.05); }
+.ach-row.ach-done { opacity: .55; background: var(--bg-elevated) !important; }
+.ach-cat-chip { flex-shrink: 0; font-size: .62rem; font-weight: 700; color: #fff; width: 1.5rem; height: 1.5rem; border-radius: .35rem; display: flex; align-items: center; justify-content: center; }
+.ach-cat-gold { background: #d4a017; }
+.ach-cat-silver { background: #9ca3af; }
+.ach-cat-bronze { background: #b87333; }
+.ach-row-name { font-size: .8rem; font-weight: 700; white-space: nowrap; flex-shrink: 0; }
+.ach-row-desc { font-size: .72rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex-shrink: 1; }
+.ach-bar-mini { flex: 1; min-width: 40px; max-width: 100px; height: 6px; background: var(--bg-elevated); border-radius: 3px; overflow: hidden; }
+.ach-bar-fill { height: 100%; border-radius: 3px; background: linear-gradient(90deg, #3b82f6, #60a5fa); transition: width .4s ease; }
+.ach-row-num { font-size: .68rem; font-weight: 600; color: var(--text-secondary); white-space: nowrap; flex-shrink: 0; }
+.ach-row-done { font-size: .6rem; font-weight: 700; color: var(--success); background: rgba(16,185,129,.1); padding: .1rem .35rem; border-radius: var(--radius-full); white-space: nowrap; flex-shrink: 0; }
+.ach-row-time { font-size: .58rem; color: var(--text-muted); white-space: nowrap; flex-shrink: 0; }
+/* keep .ach-cat-tag for admin */
 .ach-cat-tag { font-size: .65rem; font-weight: 700; color: #fff; padding: .12rem .4rem; border-radius: var(--radius-full); flex-shrink: 0; }
-.ach-progress-desc { font-size: .75rem; color: var(--text-muted); margin-bottom: .35rem; }
 .ach-progress-bar-wrap { width: 100%; height: 6px; background: var(--bg-elevated); border-radius: 3px; overflow: hidden; }
 .ach-progress-bar { height: 100%; border-radius: 3px; transition: width .4s ease; }
-.ach-progress-num { font-size: .7rem; color: var(--text-muted); margin-top: .2rem; text-align: right; font-weight: 600; }
 
 /* ─── Badge Grid ─── */
 .badge-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: .6rem; padding: .5rem; }

@@ -8,6 +8,7 @@ const App = {
   currentRole: 'user',
   currentPage: 'page-home',
   currentTournament: 't1',
+  _userTeam: 'tm1',
   pageHistory: [],
   bannerIndex: 0,
   bannerTimer: null,

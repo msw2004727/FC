@@ -293,7 +293,7 @@ Object.assign(App, {
     const catLabels = { gold: '金', silver: '銀', bronze: '銅' };
 
     if (t === 'achievements') {
-      const items = ApiService.getAchievements();
+      const items = this._sortByCat(ApiService.getAchievements());
       container.innerHTML = items.map((a, i) => {
         const color = catColors[a.category] || catColors.bronze;
         const pct = a.target > 0 ? Math.min(100, Math.round(a.current / a.target * 100)) : 0;
@@ -308,7 +308,7 @@ Object.assign(App, {
             </div>
             <div class="admin-ach-status" style="color:var(--text-muted)">${a.desc} ・ 目標 ${a.target}</div>
             <div class="ach-progress-bar-wrap" style="margin-top:.25rem;height:4px">
-              <div class="ach-progress-bar" style="width:${pct}%;background:${color}"></div>
+              <div class="ach-progress-bar" style="width:${pct}%;background:linear-gradient(90deg,#3b82f6,#60a5fa)"></div>
             </div>
           </div>
           <div class="admin-ach-actions">
@@ -319,7 +319,7 @@ Object.assign(App, {
       }).join('') || '<div style="text-align:center;padding:1.5rem;color:var(--text-muted);font-size:.82rem">尚無成就</div>';
 
     } else {
-      const items = ApiService.getBadges();
+      const items = this._sortByCat(ApiService.getBadges());
       const achievements = ApiService.getAchievements();
       container.innerHTML = items.map((b, i) => {
         const color = catColors[b.category] || catColors.bronze;
@@ -394,14 +394,18 @@ Object.assign(App, {
         item.desc = desc;
         const oldTarget = item.target;
         item.target = target;
-        // If target changed, recalculate completion for demo user
-        // current stays the same — completion is derived from current >= target
+        item.category = category;
+        if (item.current >= item.target && !item.completedAt) {
+          const d = new Date(); item.completedAt = `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}`;
+        } else if (item.current < item.target) {
+          item.completedAt = null;
+        }
         this.showToast(`成就「${name}」已更新（目標 ${oldTarget} → ${target}）`);
       }
     } else {
       const newId = 'a' + Date.now();
       const newBadgeId = 'b' + Date.now();
-      data.push({ id: newId, name, desc, target, current: 0, category, badgeId: newBadgeId });
+      data.push({ id: newId, name, desc, target, current: 0, category, badgeId: newBadgeId, completedAt: null });
       // Auto-create linked badge
       ApiService.getBadges().push({ id: newBadgeId, name: name + '徽章', achId: newId, category, image: null });
       this.showToast(`成就「${name}」已建立，已自動建立關聯徽章`);

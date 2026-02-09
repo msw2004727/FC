@@ -319,11 +319,21 @@ Object.assign(App, {
         </div>
       </div>
       <div class="td-actions">
-        <button class="primary-btn" onclick="App.showToast('已送出加入申請！')">申請加入</button>
+        <button class="primary-btn" onclick="App.handleJoinTeam()">申請加入</button>
         <button class="outline-btn" onclick="App.showToast('透過站內信聯繫')">聯繫領隊</button>
       </div>
     `;
     this.showPage('page-team-detail');
+  },
+
+  handleJoinTeam() {
+    if (this._userTeam) {
+      const team = ApiService.getTeam(this._userTeam);
+      const teamName = team ? team.name : '球隊';
+      this.showToast(`您已加入「${teamName}」，無法重複加入其他球隊`);
+      return;
+    }
+    this.showToast('已送出加入申請！');
   },
 
   // ══════════════════════════════════
@@ -349,28 +359,32 @@ Object.assign(App, {
   //  Render: Achievements & Badges
   // ══════════════════════════════════
 
+  _catOrder: { gold: 0, silver: 1, bronze: 2 },
+  _catColors: { gold: '#d4a017', silver: '#9ca3af', bronze: '#b87333' },
+  _catBg: { gold: 'rgba(212,160,23,.12)', silver: 'rgba(156,163,175,.12)', bronze: 'rgba(184,115,51,.12)' },
+  _catLabels: { gold: '金', silver: '銀', bronze: '銅' },
+
+  _sortByCat(items) {
+    return [...items].sort((a, b) => (this._catOrder[a.category] ?? 9) - (this._catOrder[b.category] ?? 9));
+  },
+
   renderAchievements() {
     const container = document.getElementById('achievement-grid');
     if (!container) return;
-    const achievements = ApiService.getAchievements();
-    const catColors = { gold: '#d4a017', silver: '#9ca3af', bronze: '#b87333' };
-    const catLabels = { gold: '金', silver: '銀', bronze: '銅' };
-    container.innerHTML = achievements.map(a => {
-      const completed = a.current >= a.target;
-      const pct = Math.min(100, Math.round(a.current / a.target * 100));
-      const color = catColors[a.category] || catColors.bronze;
+    const sorted = this._sortByCat(ApiService.getAchievements());
+    container.innerHTML = sorted.map(a => {
+      const done = a.current >= a.target;
+      const pct = a.target > 0 ? Math.min(100, Math.round(a.current / a.target * 100)) : 0;
+      const bg = this._catBg[a.category] || this._catBg.bronze;
       return `
-      <div class="ach-progress-card ${completed ? 'ach-completed' : ''}" style="border-left:3px solid ${color}">
-        <div class="ach-progress-header">
-          <span class="ach-cat-tag" style="background:${color}">${catLabels[a.category] || '銅'}</span>
-          <span class="ach-progress-name">${a.name}</span>
-          ${completed ? '<span class="ach-done-tag">已完成</span>' : ''}
-        </div>
-        <div class="ach-progress-desc">${a.desc}</div>
-        <div class="ach-progress-bar-wrap">
-          <div class="ach-progress-bar" style="width:${pct}%;background:${color}"></div>
-        </div>
-        <div class="ach-progress-num">${a.current} / ${a.target}</div>
+      <div class="ach-row ${done ? 'ach-done' : ''}" style="background:${done ? 'var(--bg-elevated)' : bg}">
+        <span class="ach-cat-chip ach-cat-${a.category}">${this._catLabels[a.category] || '銅'}</span>
+        <span class="ach-row-name">${a.name}</span>
+        <span class="ach-row-desc">${a.desc}</span>
+        <div class="ach-bar-mini"><div class="ach-bar-fill" style="width:${pct}%"></div></div>
+        <span class="ach-row-num">${a.current}/${a.target}</span>
+        ${done ? `<span class="ach-row-done">已完成</span>` : ''}
+        ${done && a.completedAt ? `<span class="ach-row-time">${a.completedAt}</span>` : ''}
       </div>`;
     }).join('');
   },
@@ -378,13 +392,12 @@ Object.assign(App, {
   renderBadges() {
     const container = document.getElementById('badge-grid');
     if (!container) return;
-    const badges = ApiService.getBadges();
     const achievements = ApiService.getAchievements();
-    const catColors = { gold: '#d4a017', silver: '#9ca3af', bronze: '#b87333' };
-    container.innerHTML = badges.map(b => {
+    const sorted = this._sortByCat(ApiService.getBadges());
+    container.innerHTML = sorted.map(b => {
       const ach = achievements.find(a => a.id === b.achId);
       const earned = ach ? ach.current >= ach.target : false;
-      const color = catColors[b.category] || catColors.bronze;
+      const color = this._catColors[b.category] || this._catColors.bronze;
       return `
       <div class="badge-card ${earned ? '' : 'badge-locked'}" style="border-color:${color}">
         <div class="badge-img-placeholder" style="border-color:${color}">${b.image ? `<img src="${b.image}">` : ''}</div>
