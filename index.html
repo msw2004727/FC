@@ -16,30 +16,29 @@
       <span></span><span></span><span></span>
     </button>
     <div class="logo">
-      <span class="logo-icon">FC</span>
       <span class="logo-text">圖斯特Hub Demo</span>
     </div>
     <div class="top-bar-right">
       <div class="sport-picker-wrapper" id="sport-picker-wrapper">
         <button class="sport-picker-btn" id="sport-picker-btn" aria-label="選擇運動類別">
-          <svg class="sport-picker-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/><path d="M2 12h20"/></svg>
+          <span class="sport-picker-icon">⚽</span>
         </button>
         <div class="sport-picker-dropdown" id="sport-picker-dropdown">
           <div class="sport-picker-header">選擇運動類別</div>
           <button class="sport-picker-item active" data-sport="football">
-            <span class="sp-icon">足</span><span>足球</span>
+            <span class="sp-icon">⚽</span><span>足球</span>
           </button>
           <button class="sport-picker-item locked" data-sport="basketball" disabled>
-            <span class="sp-icon">籃</span><span>籃球</span><span class="sp-lock">鎖</span>
+            <span class="sp-icon">🏀</span><span>籃球</span><span class="sp-lock">🔒</span>
           </button>
           <button class="sport-picker-item locked" data-sport="volleyball" disabled>
-            <span class="sp-icon">排</span><span>排球</span><span class="sp-lock">鎖</span>
+            <span class="sp-icon">🏐</span><span>排球</span><span class="sp-lock">🔒</span>
           </button>
           <button class="sport-picker-item locked" data-sport="tennis" disabled>
-            <span class="sp-icon">網</span><span>網球</span><span class="sp-lock">鎖</span>
+            <span class="sp-icon">🎾</span><span>網球</span><span class="sp-lock">🔒</span>
           </button>
           <button class="sport-picker-item locked" data-sport="badminton" disabled>
-            <span class="sp-icon">羽</span><span>羽球</span><span class="sp-lock">鎖</span>
+            <span class="sp-icon">🏸</span><span>羽球</span><span class="sp-lock">🔒</span>
           </button>
         </div>
       </div>
@@ -702,17 +701,29 @@
       <div class="page-header">
         <button class="back-btn" onclick="App.goBack()">←</button>
         <h2>自訂層級管理</h2>
-        <button class="primary-btn small">＋ 新增</button>
       </div>
-      <div class="form-card">
-        <div class="form-row"><label>層級名稱</label><input type="text" placeholder="例：裁判"></div>
-        <div class="form-row">
-          <label>插入位置</label>
-          <select><option>教練 與 領隊 之間</option><option>領隊 與 場主 之間</option></select>
+      <div class="role-hierarchy-card">
+        <div class="role-hierarchy-title">目前層級架構</div>
+        <div class="role-hierarchy-list" id="role-hierarchy-list"></div>
+      </div>
+      <div class="role-editor-card" id="role-editor-card" style="display:none">
+        <div class="role-editor-header">
+          <span id="role-editor-title">新增自訂層級</span>
+          <button class="text-btn" onclick="document.getElementById('role-editor-card').style.display='none'">取消</button>
         </div>
-        <div class="permissions-list" id="permissions-list"></div>
-        <button class="primary-btn full-width">儲存層級</button>
+        <div class="form-row"><label>層級名稱</label><input type="text" id="role-name-input" placeholder="例：裁判、助理教練"></div>
+        <div class="form-row"><label>層級顏色</label><input type="color" id="role-color-input" value="#6366f1" style="width:100%;height:36px;border:none;cursor:pointer"></div>
+        <div class="form-row">
+          <label>插入位置（介於）</label>
+          <select id="role-position-select"></select>
+        </div>
+        <div class="form-row">
+          <label>權限設定</label>
+          <div class="permissions-list" id="permissions-list"></div>
+        </div>
+        <button class="primary-btn full-width" onclick="App.showToast('層級已儲存（Demo）')">儲存層級</button>
       </div>
+      <button class="primary-btn full-width" style="margin-top:.5rem" onclick="App.openRoleEditor()">＋ 新增自訂層級</button>
     </section>
 
     <!-- PAGE: Backend - Inactive Data (Super Admin) -->

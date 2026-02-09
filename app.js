@@ -159,24 +159,60 @@ const App = {
     const container = document.getElementById('drawer-menu');
     const level = ROLE_LEVEL_MAP[this.currentRole];
     let html = '';
+    let inAdminSection = false;
+    const adminGroups = {};
 
     DRAWER_MENUS.forEach(item => {
       const minLevel = ROLE_LEVEL_MAP[item.minRole] || 0;
       if (level < minLevel) return;
+
+      if (item.sectionLabel) {
+        inAdminSection = true;
+        return;
+      }
+      if (item.divider && item.minRole === 'admin') {
+        inAdminSection = true;
+        return;
+      }
+
+      if (inAdminSection && !item.divider) {
+        const role = item.minRole || 'user';
+        if (!adminGroups[role]) adminGroups[role] = [];
+        adminGroups[role].push(item);
+        return;
+      }
+
       if (item.divider) {
         html += '<div class="drawer-divider"></div>';
-      } else if (item.sectionLabel) {
-        html += `<div class="drawer-section-label">${item.sectionLabel}</div>`;
       } else {
         const onClick = item.action === 'share'
           ? `App.showToast('已複製分享連結！')`
           : `App.showPage('${item.page}'); App.closeDrawer()`;
-        const roleColor = item.minRole && ROLES[item.minRole] ? `color:${ROLES[item.minRole].color}` : '';
-        html += `<div class="drawer-item" onclick="${onClick}" style="${roleColor}">
+        html += `<div class="drawer-item" onclick="${onClick}">
           <span class="di-icon">${item.icon}</span>${item.label}
         </div>`;
       }
     });
+
+    const adminRoles = Object.keys(adminGroups);
+    if (adminRoles.length > 0) {
+      html += '<div class="drawer-divider"></div>';
+      html += '<div class="drawer-section-label">後台管理</div>';
+      const roleOrder = ['coach', 'captain', 'venue_owner', 'admin', 'super_admin'];
+      roleOrder.forEach(role => {
+        const items = adminGroups[role];
+        if (!items) return;
+        const roleInfo = ROLES[role];
+        html += `<div class="drawer-admin-group">
+          <div class="drawer-admin-level" style="color:${roleInfo.color}">${roleInfo.label}</div>
+          <div class="drawer-admin-btns">`;
+        items.forEach(item => {
+          const onClick = `App.showPage('${item.page}'); App.closeDrawer()`;
+          html += `<button class="drawer-capsule" style="border-color:${roleInfo.color};color:${roleInfo.color}" onclick="${onClick}">${item.label}</button>`;
+        });
+        html += `</div></div>`;
+      });
+    }
 
     container.innerHTML = html;
   },
@@ -366,7 +402,7 @@ const App = {
     this.renderMsgManage();
     this.renderTournamentManage();
     this.renderAdminTeams();
-    this.renderPermissions();
+    this.renderRoleHierarchy();
     this.renderInactiveData();
     this.renderMyActivities();
     this.renderUserCard();
@@ -1286,6 +1322,41 @@ const App = {
         </div>
       </div>
     `).join('');
+  },
+
+  renderRoleHierarchy() {
+    const container = document.getElementById('role-hierarchy-list');
+    if (!container) return;
+    const roles = ['user', 'coach', 'captain', 'venue_owner', 'admin', 'super_admin'];
+    container.innerHTML = roles.map((key, i) => {
+      const r = ROLES[key];
+      return `<div class="role-level-row">
+        <span class="role-level-num">Lv.${i}</span>
+        <span class="role-level-badge" style="background:${r.color}">${r.label}</span>
+        <span class="role-level-key">${key}</span>
+        ${i >= 4 ? '' : '<button class="role-insert-btn" onclick="App.openRoleEditorAt(' + i + ')">＋ 插入</button>'}
+      </div>`;
+    }).join('');
+  },
+
+  openRoleEditor() {
+    const editor = document.getElementById('role-editor-card');
+    editor.style.display = '';
+    document.getElementById('role-editor-title').textContent = '新增自訂層級';
+    document.getElementById('role-name-input').value = '';
+    const select = document.getElementById('role-position-select');
+    const roles = ['user', 'coach', 'captain', 'venue_owner', 'admin'];
+    select.innerHTML = roles.map((key, i) => {
+      const next = ['coach', 'captain', 'venue_owner', 'admin', 'super_admin'][i];
+      return `<option value="${i}">${ROLES[key].label} 與 ${ROLES[next].label} 之間</option>`;
+    }).join('');
+    this.renderPermissions();
+    editor.scrollIntoView({ behavior: 'smooth' });
+  },
+
+  openRoleEditorAt(levelIndex) {
+    this.openRoleEditor();
+    document.getElementById('role-position-select').value = levelIndex;
   },
 
   renderInactiveData() {

@@ -236,7 +236,6 @@ img { max-width: 100%; display: block; }
 #menu-toggle:hover { background: var(--bg-elevated); }
 #menu-toggle span { display: block; width: 20px; height: 2px; background: var(--text-primary); border-radius: 2px; transition: var(--transition); }
 .logo { display: flex; align-items: center; gap: .4rem; }
-.logo-icon { font-size: .85rem; font-weight: 800; font-family: var(--font-display); color: var(--accent); }
 .logo-text { font-family: var(--font-display); font-weight: 800; font-size: 1.2rem; letter-spacing: -.02em; }
 #notif-btn { position: relative; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; border-radius: var(--radius-sm); }
 #notif-btn:hover { background: var(--bg-elevated); }
@@ -256,7 +255,6 @@ img { max-width: 100%; display: block; }
   font-size: 1.15rem;
   transition: all var(--transition);
   cursor: pointer;
-  color: var(--text-primary);
 }
 .sport-picker-btn:hover {
   background: var(--accent-bg);
@@ -323,16 +321,13 @@ img { max-width: 100%; display: block; }
   filter: grayscale(60%);
 }
 .sport-picker-item .sp-icon {
-  font-size: .78rem;
-  font-weight: 700;
+  font-size: 1.1rem;
   width: 24px;
   text-align: center;
-  color: var(--text-muted);
 }
 .sport-picker-item .sp-lock {
   margin-left: auto;
-  font-size: .65rem;
-  color: var(--text-muted);
+  font-size: .7rem;
 }
 
 /* ─── Side Drawer ─── */
@@ -372,6 +367,11 @@ img { max-width: 100%; display: block; }
 .drawer-item .di-icon:empty { display: none; }
 .drawer-divider { height: 1px; background: var(--border); margin: .4rem 1.2rem; }
 .drawer-section-label { padding: .5rem 1.2rem .2rem; font-size: .7rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: .05em; }
+.drawer-admin-group { padding: .3rem 1rem; }
+.drawer-admin-level { font-size: .68rem; font-weight: 700; margin-bottom: .3rem; }
+.drawer-admin-btns { display: flex; flex-wrap: wrap; gap: .3rem; }
+.drawer-capsule { padding: .3rem .6rem; border-radius: var(--radius-full); font-size: .72rem; font-weight: 500; background: transparent; border: 1.5px solid; cursor: pointer; transition: all var(--transition); white-space: nowrap; }
+.drawer-capsule:hover { opacity: .8; background: var(--bg-elevated); }
 .drawer-footer { padding: .75rem 1.2rem; border-top: 1px solid var(--border); }
 #theme-toggle { display: flex; align-items: center; gap: .6rem; width: 100%; font-size: .88rem; color: var(--text-secondary); padding: .5rem 0; }
 .toggle-switch { margin-left: auto; width: 40px; height: 22px; border-radius: 11px; background: var(--border); position: relative; transition: background var(--transition); }
@@ -1257,6 +1257,19 @@ img { max-width: 100%; display: block; }
 
 /* ─── Permissions List ─── */
 .permissions-list { max-height: 350px; overflow-y: auto; }
+/* ─── Role Hierarchy Management ─── */
+.role-hierarchy-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: .85rem; margin-bottom: .65rem; }
+.role-hierarchy-title { font-weight: 700; font-size: .85rem; margin-bottom: .6rem; padding-bottom: .4rem; border-bottom: 1px solid var(--border); }
+.role-level-row { display: flex; align-items: center; gap: .5rem; padding: .45rem .3rem; border-bottom: 1px solid var(--border); }
+.role-level-row:last-child { border-bottom: none; }
+.role-level-num { font-family: var(--font-display); font-size: .7rem; font-weight: 700; color: var(--text-muted); min-width: 2rem; }
+.role-level-badge { display: inline-block; padding: .15rem .5rem; border-radius: var(--radius-full); color: #fff; font-size: .72rem; font-weight: 600; min-width: 3rem; text-align: center; }
+.role-level-key { font-size: .68rem; color: var(--text-muted); font-family: monospace; flex: 1; }
+.role-insert-btn { font-size: .65rem; color: var(--accent); font-weight: 600; padding: .15rem .4rem; border-radius: var(--radius-full); border: 1px solid var(--accent); background: transparent; cursor: pointer; transition: all var(--transition); white-space: nowrap; }
+.role-insert-btn:hover { background: var(--accent-bg); }
+.role-editor-card { background: var(--bg-card); border: 1px solid var(--accent); border-radius: var(--radius); padding: .85rem; margin-bottom: .65rem; }
+.role-editor-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: .65rem; padding-bottom: .4rem; border-bottom: 1px solid var(--border); font-weight: 700; font-size: .85rem; }
+
 .perm-category { margin-bottom: .5rem; }
 .perm-category-title { font-size: .78rem; font-weight: 700; color: var(--accent); padding: .4rem 0; cursor: pointer; display: flex; align-items: center; gap: .3rem; }
 .perm-category-title::before { content: '▼'; font-size: .6rem; transition: transform var(--transition); }
