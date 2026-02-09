@@ -44,6 +44,14 @@ const FirebaseService = {
   // ════════════════════════════════
 
   async init() {
+    // 匿名登入 Firebase Auth（讓 Firestore 安全規則 request.auth != null 通過）
+    try {
+      await auth.signInAnonymously();
+      console.log('[FirebaseService] Firebase Auth 匿名登入成功');
+    } catch (err) {
+      console.warn('[FirebaseService] Firebase Auth 匿名登入失敗:', err);
+    }
+
     const collectionNames = Object.keys(this._cache).filter(k => k !== 'currentUser');
 
     // 平行載入所有集合
