@@ -56,12 +56,12 @@ const DemoData = {
   ],
 
   teams: [
-    { id: 'tm1', name: '雷霆隊', nameEn: 'Thunder FC', emblem: '⚡', captain: '隊長A', coaches: ['教練B','教練C'], members: 18, color: '#3b82f6', region: '台北市', active: true, pinned: true, wins: 12, draws: 3, losses: 2, gf: 35, ga: 15, history: [{name:'2026春季聯賽',result:'進行中 — 第1名'},{name:'2025秋季聯賽',result:'冠軍🏆'},{name:'新春盃淘汰賽',result:'四強'}] },
-    { id: 'tm2', name: '閃電隊', nameEn: 'Lightning FC', emblem: '🌩', captain: '隊長D', coaches: ['教練E'], members: 15, color: '#eab308', region: '台中市', active: true, pinned: true, wins: 9, draws: 4, losses: 4, gf: 28, ga: 20, history: [{name:'2026春季聯賽',result:'進行中 — 第2名'},{name:'2025秋季聯賽',result:'季軍'}] },
-    { id: 'tm3', name: '旋風隊', nameEn: 'Cyclone FC', emblem: '🌀', captain: '隊長F', coaches: [], members: 12, color: '#10b981', region: '高雄市', active: true, pinned: true, wins: 7, draws: 5, losses: 5, gf: 22, ga: 21, history: [{name:'2026春季聯賽',result:'進行中 — 第3名'},{name:'新春盃淘汰賽',result:'八強'}] },
-    { id: 'tm4', name: '火焰隊', nameEn: 'Blaze FC', emblem: '🔥', captain: '隊長G', coaches: ['教練H'], members: 20, color: '#ef4444', region: '台北市', active: true, pinned: true, wins: 6, draws: 3, losses: 8, gf: 20, ga: 28, history: [{name:'2026春季聯賽',result:'進行中 — 第4名'},{name:'2025秋季聯賽',result:'亞軍'}] },
-    { id: 'tm5', name: '獵鷹隊', nameEn: 'Falcon FC', emblem: '🦅', captain: '隊長I', coaches: ['教練J'], members: 16, color: '#8b5cf6', region: '新北市', active: true, pinned: false, wins: 4, draws: 2, losses: 3, gf: 14, ga: 12, history: [{name:'市長盃五人制',result:'報名中'}] },
-    { id: 'tm6', name: '黑熊隊', nameEn: 'Bears FC', emblem: '🐻', captain: '隊長K', coaches: ['教練L','教練M'], members: 22, color: '#1e293b', region: '桃園市', active: true, pinned: false, wins: 8, draws: 1, losses: 6, gf: 25, ga: 23, history: [{name:'2025秋季聯賽',result:'第5名'},{name:'新春盃淘汰賽',result:'十六強'}] },
+    { id: 'tm1', name: '雷霆隊', nameEn: 'Thunder FC', emblem: '⚡', captain: '隊長A', coaches: ['教練B','教練C'], members: 18, color: '#3b82f6', region: '台北市', active: true, pinned: true, pinOrder: 1, wins: 12, draws: 3, losses: 2, gf: 35, ga: 15, history: [{name:'2026春季聯賽',result:'進行中 — 第1名'},{name:'2025秋季聯賽',result:'冠軍🏆'},{name:'新春盃淘汰賽',result:'四強'}] },
+    { id: 'tm2', name: '閃電隊', nameEn: 'Lightning FC', emblem: '🌩', captain: '隊長D', coaches: ['教練E'], members: 15, color: '#eab308', region: '台中市', active: true, pinned: true, pinOrder: 2, wins: 9, draws: 4, losses: 4, gf: 28, ga: 20, history: [{name:'2026春季聯賽',result:'進行中 — 第2名'},{name:'2025秋季聯賽',result:'季軍'}] },
+    { id: 'tm3', name: '旋風隊', nameEn: 'Cyclone FC', emblem: '🌀', captain: '隊長F', coaches: [], members: 12, color: '#10b981', region: '高雄市', active: true, pinned: true, pinOrder: 3, wins: 7, draws: 5, losses: 5, gf: 22, ga: 21, history: [{name:'2026春季聯賽',result:'進行中 — 第3名'},{name:'新春盃淘汰賽',result:'八強'}] },
+    { id: 'tm4', name: '火焰隊', nameEn: 'Blaze FC', emblem: '🔥', captain: '隊長G', coaches: ['教練H'], members: 20, color: '#ef4444', region: '台北市', active: true, pinned: true, pinOrder: 4, wins: 6, draws: 3, losses: 8, gf: 20, ga: 28, history: [{name:'2026春季聯賽',result:'進行中 — 第4名'},{name:'2025秋季聯賽',result:'亞軍'}] },
+    { id: 'tm5', name: '獵鷹隊', nameEn: 'Falcon FC', emblem: '🦅', captain: '隊長I', coaches: ['教練J'], members: 16, color: '#8b5cf6', region: '新北市', active: true, pinned: false, pinOrder: 0, wins: 4, draws: 2, losses: 3, gf: 14, ga: 12, history: [{name:'市長盃五人制',result:'報名中'}] },
+    { id: 'tm6', name: '黑熊隊', nameEn: 'Bears FC', emblem: '🐻', captain: '隊長K', coaches: ['教練L','教練M'], members: 22, color: '#1e293b', region: '桃園市', active: true, pinned: false, pinOrder: 0, wins: 8, draws: 1, losses: 6, gf: 25, ga: 23, history: [{name:'2025秋季聯賽',result:'第5名'},{name:'新春盃淘汰賽',result:'十六強'}] },
   ],
 
   messages: [
@@ -799,9 +799,21 @@ const App = {
   },
 
   // ── Render: Teams ──
+  _sortTeams(teams) {
+    // Pinned first (by pinOrder ascending), then non-pinned
+    return [...teams].sort((a, b) => {
+      if (a.pinned && !b.pinned) return -1;
+      if (!a.pinned && b.pinned) return 1;
+      if (a.pinned && b.pinned) return (a.pinOrder || 0) - (b.pinOrder || 0);
+      return 0;
+    });
+  },
+
   _teamCardHTML(t) {
+    const pinnedClass = t.pinned ? ' tc-pinned' : '';
     return `
-      <div class="tc-card" onclick="App.showTeamDetail('${t.id}')">
+      <div class="tc-card${pinnedClass}" onclick="App.showTeamDetail('${t.id}')">
+        ${t.pinned ? '<div class="tc-pin-badge">📌 至頂</div>' : ''}
         <div class="tc-img-placeholder">隊徽 120 × 120</div>
         <div class="tc-body">
           <div class="tc-name">${t.name}</div>
@@ -816,46 +828,15 @@ const App = {
 
   renderTeamList() {
     const container = document.getElementById('team-list');
-    const pinnedContainer = document.getElementById('team-pinned-list');
-    const pinnedTitle = document.getElementById('team-pinned-title');
     if (!container) return;
-
-    const activeTeams = DemoData.teams.filter(t => t.active);
-    const pinned = activeTeams.filter(t => t.pinned);
-    const all = activeTeams;
-
-    // Render pinned horizontal scroll
-    if (pinnedContainer) {
-      if (pinned.length > 0) {
-        pinnedTitle.style.display = '';
-        pinnedContainer.style.display = '';
-        pinnedContainer.innerHTML = pinned.map(t => `
-          <div class="h-card tc-pinned-card" onclick="App.showTeamDetail('${t.id}')">
-            <div class="h-card-img" style="background:${t.color}22;border:2px dashed var(--border)">
-              <span style="font-size:1.8rem">${t.emblem}</span>
-            </div>
-            <div class="h-card-body">
-              <div class="h-card-title">${t.name}</div>
-              <div class="h-card-meta"><span>📍 ${t.region}</span><span>👥 ${t.members}人</span></div>
-            </div>
-          </div>
-        `).join('');
-      } else {
-        pinnedTitle.style.display = 'none';
-        pinnedContainer.style.display = 'none';
-      }
-    }
-
-    // Render all teams grid
-    container.innerHTML = all.map(t => this._teamCardHTML(t)).join('');
+    const sorted = this._sortTeams(DemoData.teams.filter(t => t.active));
+    container.innerHTML = sorted.map(t => this._teamCardHTML(t)).join('');
   },
 
   filterTeams() {
     const query = (document.getElementById('team-search')?.value || '').trim().toLowerCase();
     const region = document.getElementById('team-region-filter')?.value || '';
     const container = document.getElementById('team-list');
-    const pinnedContainer = document.getElementById('team-pinned-list');
-    const pinnedTitle = document.getElementById('team-pinned-title');
 
     let filtered = DemoData.teams.filter(t => t.active);
     if (query) {
@@ -869,18 +850,9 @@ const App = {
       filtered = filtered.filter(t => t.region === region);
     }
 
-    // Hide pinned section when filtering
-    if (query || region) {
-      if (pinnedTitle) pinnedTitle.style.display = 'none';
-      if (pinnedContainer) pinnedContainer.style.display = 'none';
-    } else {
-      const pinned = DemoData.teams.filter(t => t.active && t.pinned);
-      if (pinnedTitle) pinnedTitle.style.display = pinned.length > 0 ? '' : 'none';
-      if (pinnedContainer) pinnedContainer.style.display = pinned.length > 0 ? '' : 'none';
-    }
-
-    container.innerHTML = filtered.length > 0
-      ? filtered.map(t => this._teamCardHTML(t)).join('')
+    const sorted = this._sortTeams(filtered);
+    container.innerHTML = sorted.length > 0
+      ? sorted.map(t => this._teamCardHTML(t)).join('')
       : '<div style="grid-column:1/-1;text-align:center;padding:2rem;color:var(--text-muted);font-size:.85rem">找不到符合的球隊</div>';
   },
 
@@ -1409,10 +1381,17 @@ const App = {
     `).join('');
   },
 
+  _pinCounter: 100,
   toggleTeamPin(id) {
     const t = DemoData.teams.find(tm => tm.id === id);
     if (!t) return;
     t.pinned = !t.pinned;
+    if (t.pinned) {
+      this._pinCounter++;
+      t.pinOrder = this._pinCounter;
+    } else {
+      t.pinOrder = 0;
+    }
     this.renderAdminTeams();
     this.renderTeamList();
     this.showToast(t.pinned ? `已至頂「${t.name}」` : `已取消至頂「${t.name}」`);

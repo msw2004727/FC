@@ -709,8 +709,20 @@ img { max-width: 100%; display: block; }
   cursor: pointer;
   transition: all var(--transition);
   overflow: hidden;
+  position: relative;
 }
 .tc-card:hover { border-color: var(--accent); box-shadow: var(--shadow); transform: translateY(-2px); }
+.tc-card.tc-pinned { border: 2px solid #d4a017; box-shadow: 0 0 12px rgba(212,160,23,.25); }
+.tc-card.tc-pinned:hover { border-color: #f5c518; box-shadow: 0 0 18px rgba(245,197,24,.35); }
+.tc-pin-badge {
+  position: absolute; top: .4rem; right: .4rem; z-index: 2;
+  font-size: .62rem; font-weight: 700;
+  padding: .15rem .4rem;
+  background: linear-gradient(135deg, #f5c518, #d4a017);
+  color: #fff;
+  border-radius: var(--radius-full);
+  box-shadow: 0 1px 4px rgba(212,160,23,.4);
+}
 .tc-img-placeholder {
   width: 100%;
   aspect-ratio: 1/1;
@@ -773,7 +785,6 @@ img { max-width: 100%; display: block; }
 .td-history-row:last-child { border-bottom: none; }
 .td-history-name { font-weight: 600; color: var(--text-primary); }
 .td-history-result { color: var(--text-secondary); font-size: .78rem; }
-.tc-pinned-card .h-card-img { display: flex; align-items: center; justify-content: center; }
 
 /* ─── Message Card ─── */
 .msg-card { background: var(--bg-card); border-radius: var(--radius); border: 1px solid var(--border); padding: .75rem .85rem; cursor: pointer; transition: all var(--transition); }
