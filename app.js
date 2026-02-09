@@ -56,10 +56,12 @@ const DemoData = {
   ],
 
   teams: [
-    { id: 'tm1', name: '雷霆隊', nameEn: 'Thunder FC', emblem: '⚡', captain: '隊長A', coaches: ['教練B','教練C'], members: 18, color: '#3b82f6', region: '台北市', active: true },
-    { id: 'tm2', name: '閃電隊', nameEn: 'Lightning FC', emblem: '🌩', captain: '隊長D', coaches: ['教練E'], members: 15, color: '#eab308', region: '台中市', active: true },
-    { id: 'tm3', name: '旋風隊', nameEn: 'Cyclone FC', emblem: '🌀', captain: '隊長F', coaches: [], members: 12, color: '#10b981', region: '高雄市', active: true },
-    { id: 'tm4', name: '火焰隊', nameEn: 'Blaze FC', emblem: '🔥', captain: '隊長G', coaches: ['教練H'], members: 20, color: '#ef4444', region: '台北市', active: true },
+    { id: 'tm1', name: '雷霆隊', nameEn: 'Thunder FC', emblem: '⚡', captain: '隊長A', coaches: ['教練B','教練C'], members: 18, color: '#3b82f6', region: '台北市', active: true, pinned: true, wins: 12, draws: 3, losses: 2, gf: 35, ga: 15, history: [{name:'2026春季聯賽',result:'進行中 — 第1名'},{name:'2025秋季聯賽',result:'冠軍🏆'},{name:'新春盃淘汰賽',result:'四強'}] },
+    { id: 'tm2', name: '閃電隊', nameEn: 'Lightning FC', emblem: '🌩', captain: '隊長D', coaches: ['教練E'], members: 15, color: '#eab308', region: '台中市', active: true, pinned: true, wins: 9, draws: 4, losses: 4, gf: 28, ga: 20, history: [{name:'2026春季聯賽',result:'進行中 — 第2名'},{name:'2025秋季聯賽',result:'季軍'}] },
+    { id: 'tm3', name: '旋風隊', nameEn: 'Cyclone FC', emblem: '🌀', captain: '隊長F', coaches: [], members: 12, color: '#10b981', region: '高雄市', active: true, pinned: true, wins: 7, draws: 5, losses: 5, gf: 22, ga: 21, history: [{name:'2026春季聯賽',result:'進行中 — 第3名'},{name:'新春盃淘汰賽',result:'八強'}] },
+    { id: 'tm4', name: '火焰隊', nameEn: 'Blaze FC', emblem: '🔥', captain: '隊長G', coaches: ['教練H'], members: 20, color: '#ef4444', region: '台北市', active: true, pinned: true, wins: 6, draws: 3, losses: 8, gf: 20, ga: 28, history: [{name:'2026春季聯賽',result:'進行中 — 第4名'},{name:'2025秋季聯賽',result:'亞軍'}] },
+    { id: 'tm5', name: '獵鷹隊', nameEn: 'Falcon FC', emblem: '🦅', captain: '隊長I', coaches: ['教練J'], members: 16, color: '#8b5cf6', region: '新北市', active: true, pinned: false, wins: 4, draws: 2, losses: 3, gf: 14, ga: 12, history: [{name:'市長盃五人制',result:'報名中'}] },
+    { id: 'tm6', name: '黑熊隊', nameEn: 'Bears FC', emblem: '🐻', captain: '隊長K', coaches: ['教練L','教練M'], members: 22, color: '#1e293b', region: '桃園市', active: true, pinned: false, wins: 8, draws: 1, losses: 6, gf: 25, ga: 23, history: [{name:'2025秋季聯賽',result:'第5名'},{name:'新春盃淘汰賽',result:'十六強'}] },
   ],
 
   messages: [
@@ -112,6 +114,8 @@ const DemoData = {
     { rank: 2, name: '閃電隊', w: 3, d: 2, l: 1, pts: 11 },
     { rank: 3, name: '旋風隊', w: 2, d: 3, l: 1, pts: 9 },
     { rank: 4, name: '火焰隊', w: 2, d: 1, l: 3, pts: 7 },
+    { rank: 5, name: '獵鷹隊', w: 1, d: 2, l: 3, pts: 5 },
+    { rank: 6, name: '黑熊隊', w: 1, d: 1, l: 4, pts: 4 },
   ],
 
   matches: [
@@ -220,6 +224,7 @@ const DRAWER_MENUS = [
   { icon: '🖼', label: 'Banner 管理', page: 'page-admin-banners', minRole: 'admin' },
   { icon: '🏷', label: '二手商品管理', page: 'page-admin-shop', minRole: 'admin' },
   { icon: '📬', label: '站內信管理', page: 'page-admin-messages', minRole: 'admin' },
+  { icon: '⚽', label: '球隊管理', page: 'page-admin-teams', minRole: 'admin' },
   { icon: '🏟', label: '賽事管理', page: 'page-admin-tournaments', minRole: 'admin' },
   { icon: '🏅', label: '成就/徽章管理', page: 'page-admin-achievements', minRole: 'super_admin' },
   { icon: '⚙', label: '自訂層級管理', page: 'page-admin-roles', minRole: 'super_admin' },
@@ -611,6 +616,7 @@ const App = {
     this.renderShopManage();
     this.renderMsgManage();
     this.renderTournamentManage();
+    this.renderAdminTeams();
     this.renderPermissions();
     this.renderInactiveData();
     this.renderMyActivities();
@@ -793,9 +799,8 @@ const App = {
   },
 
   // ── Render: Teams ──
-  renderTeamList() {
-    const container = document.getElementById('team-list');
-    container.innerHTML = DemoData.teams.map(t => `
+  _teamCardHTML(t) {
+    return `
       <div class="tc-card" onclick="App.showTeamDetail('${t.id}')">
         <div class="tc-img-placeholder">隊徽 120 × 120</div>
         <div class="tc-body">
@@ -806,8 +811,77 @@ const App = {
           <div class="tc-info-row"><span class="tc-label">👥 隊員</span><span>${t.members} 人</span></div>
           <div class="tc-info-row"><span class="tc-label">📍 地區</span><span>${t.region}</span></div>
         </div>
-      </div>
-    `).join('');
+      </div>`;
+  },
+
+  renderTeamList() {
+    const container = document.getElementById('team-list');
+    const pinnedContainer = document.getElementById('team-pinned-list');
+    const pinnedTitle = document.getElementById('team-pinned-title');
+    if (!container) return;
+
+    const activeTeams = DemoData.teams.filter(t => t.active);
+    const pinned = activeTeams.filter(t => t.pinned);
+    const all = activeTeams;
+
+    // Render pinned horizontal scroll
+    if (pinnedContainer) {
+      if (pinned.length > 0) {
+        pinnedTitle.style.display = '';
+        pinnedContainer.style.display = '';
+        pinnedContainer.innerHTML = pinned.map(t => `
+          <div class="h-card tc-pinned-card" onclick="App.showTeamDetail('${t.id}')">
+            <div class="h-card-img" style="background:${t.color}22;border:2px dashed var(--border)">
+              <span style="font-size:1.8rem">${t.emblem}</span>
+            </div>
+            <div class="h-card-body">
+              <div class="h-card-title">${t.name}</div>
+              <div class="h-card-meta"><span>📍 ${t.region}</span><span>👥 ${t.members}人</span></div>
+            </div>
+          </div>
+        `).join('');
+      } else {
+        pinnedTitle.style.display = 'none';
+        pinnedContainer.style.display = 'none';
+      }
+    }
+
+    // Render all teams grid
+    container.innerHTML = all.map(t => this._teamCardHTML(t)).join('');
+  },
+
+  filterTeams() {
+    const query = (document.getElementById('team-search')?.value || '').trim().toLowerCase();
+    const region = document.getElementById('team-region-filter')?.value || '';
+    const container = document.getElementById('team-list');
+    const pinnedContainer = document.getElementById('team-pinned-list');
+    const pinnedTitle = document.getElementById('team-pinned-title');
+
+    let filtered = DemoData.teams.filter(t => t.active);
+    if (query) {
+      filtered = filtered.filter(t =>
+        t.name.toLowerCase().includes(query) ||
+        (t.nameEn || '').toLowerCase().includes(query) ||
+        t.captain.toLowerCase().includes(query)
+      );
+    }
+    if (region) {
+      filtered = filtered.filter(t => t.region === region);
+    }
+
+    // Hide pinned section when filtering
+    if (query || region) {
+      if (pinnedTitle) pinnedTitle.style.display = 'none';
+      if (pinnedContainer) pinnedContainer.style.display = 'none';
+    } else {
+      const pinned = DemoData.teams.filter(t => t.active && t.pinned);
+      if (pinnedTitle) pinnedTitle.style.display = pinned.length > 0 ? '' : 'none';
+      if (pinnedContainer) pinnedContainer.style.display = pinned.length > 0 ? '' : 'none';
+    }
+
+    container.innerHTML = filtered.length > 0
+      ? filtered.map(t => this._teamCardHTML(t)).join('')
+      : '<div style="grid-column:1/-1;text-align:center;padding:2rem;color:var(--text-muted);font-size:.85rem">找不到符合的球隊</div>';
   },
 
   showTeamDetail(id) {
@@ -815,35 +889,48 @@ const App = {
     if (!t) return;
     document.getElementById('team-detail-title').textContent = t.name;
     document.getElementById('team-detail-name-en').textContent = t.nameEn || '';
+
+    const totalGames = t.wins + t.draws + t.losses;
+    const winRate = totalGames > 0 ? Math.round(t.wins / totalGames * 100) : 0;
+
     document.getElementById('team-detail-body').innerHTML = `
       <!-- 基本資訊卡片 -->
       <div class="td-card">
         <div class="td-card-title">球隊資訊</div>
         <div class="td-card-grid">
-          <div class="td-card-item">
-            <span class="td-card-label">👑 領隊</span>
-            <span class="td-card-value">${t.captain}</span>
-          </div>
-          <div class="td-card-item">
-            <span class="td-card-label">🏋️ 教練</span>
-            <span class="td-card-value">${t.coaches.length > 0 ? t.coaches.join('、') : '無'}</span>
-          </div>
-          <div class="td-card-item">
-            <span class="td-card-label">👥 隊員數</span>
-            <span class="td-card-value">${t.members} 人</span>
-          </div>
-          <div class="td-card-item">
-            <span class="td-card-label">📍 地區</span>
-            <span class="td-card-value">${t.region}</span>
-          </div>
+          <div class="td-card-item"><span class="td-card-label">👑 領隊</span><span class="td-card-value">${t.captain}</span></div>
+          <div class="td-card-item"><span class="td-card-label">🏋️ 教練</span><span class="td-card-value">${t.coaches.length > 0 ? t.coaches.join('、') : '無'}</span></div>
+          <div class="td-card-item"><span class="td-card-label">👥 隊員數</span><span class="td-card-value">${t.members} 人</span></div>
+          <div class="td-card-item"><span class="td-card-label">📍 地區</span><span class="td-card-value">${t.region}</span></div>
         </div>
       </div>
 
-      <!-- 分頁 -->
-      <div class="tab-bar compact">
-        <button class="tab active">成員</button>
-        <button class="tab">戰績</button>
-        <button class="tab">賽事</button>
+      <!-- 戰績卡片 -->
+      <div class="td-card">
+        <div class="td-card-title">球隊戰績</div>
+        <div class="td-stats-row">
+          <div class="td-stat"><span class="td-stat-num" style="color:var(--success)">${t.wins}</span><span class="td-stat-label">勝</span></div>
+          <div class="td-stat"><span class="td-stat-num" style="color:var(--warning)">${t.draws}</span><span class="td-stat-label">平</span></div>
+          <div class="td-stat"><span class="td-stat-num" style="color:var(--danger)">${t.losses}</span><span class="td-stat-label">負</span></div>
+          <div class="td-stat"><span class="td-stat-num">${winRate}%</span><span class="td-stat-label">勝率</span></div>
+        </div>
+        <div class="td-card-grid" style="margin-top:.5rem">
+          <div class="td-card-item"><span class="td-card-label">進球</span><span class="td-card-value">${t.gf}</span></div>
+          <div class="td-card-item"><span class="td-card-label">失球</span><span class="td-card-value">${t.ga}</span></div>
+          <div class="td-card-item"><span class="td-card-label">淨勝球</span><span class="td-card-value">${t.gf - t.ga > 0 ? '+' : ''}${t.gf - t.ga}</span></div>
+          <div class="td-card-item"><span class="td-card-label">總場次</span><span class="td-card-value">${totalGames}</span></div>
+        </div>
+      </div>
+
+      <!-- 賽事紀錄卡片 -->
+      <div class="td-card">
+        <div class="td-card-title">賽事紀錄</div>
+        ${(t.history || []).map(h => `
+          <div class="td-history-row">
+            <span class="td-history-name">${h.name}</span>
+            <span class="td-history-result">${h.result}</span>
+          </div>
+        `).join('') || '<div style="font-size:.82rem;color:var(--text-muted);padding:.3rem">尚無賽事紀錄</div>'}
       </div>
 
       <!-- 成員列表卡片 -->
@@ -1293,6 +1380,51 @@ const App = {
         </div>
       </div>
     `).join('');
+  },
+
+  // ── Render: Admin Team Management ──
+  renderAdminTeams() {
+    const container = document.getElementById('admin-team-list');
+    if (!container) return;
+    container.innerHTML = DemoData.teams.map(t => `
+      <div class="event-card">
+        <div class="event-card-body">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div class="event-card-title">${t.emblem} ${t.name} <span style="font-size:.72rem;color:var(--text-muted)">${t.nameEn}</span></div>
+            ${t.pinned ? '<span style="font-size:.72rem;color:var(--warning);font-weight:600">📌 至頂</span>' : ''}
+          </div>
+          <div class="event-meta">
+            <span class="event-meta-item">👑 ${t.captain}</span>
+            <span class="event-meta-item">👥 ${t.members}人</span>
+            <span class="event-meta-item">📍 ${t.region}</span>
+            <span class="event-meta-item" style="color:${t.active ? 'var(--success)' : 'var(--danger)'}">${t.active ? '上架中' : '已下架'}</span>
+          </div>
+          <div style="display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.5rem">
+            <button class="primary-btn small" onclick="App.toggleTeamPin('${t.id}')">${t.pinned ? '📌 取消至頂' : '📌 至頂'}</button>
+            <button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem" onclick="App.toggleTeamActive('${t.id}')">${t.active ? '下架' : '上架'}</button>
+            <button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem" onclick="App.showTeamDetail('${t.id}')">查看</button>
+          </div>
+        </div>
+      </div>
+    `).join('');
+  },
+
+  toggleTeamPin(id) {
+    const t = DemoData.teams.find(tm => tm.id === id);
+    if (!t) return;
+    t.pinned = !t.pinned;
+    this.renderAdminTeams();
+    this.renderTeamList();
+    this.showToast(t.pinned ? `已至頂「${t.name}」` : `已取消至頂「${t.name}」`);
+  },
+
+  toggleTeamActive(id) {
+    const t = DemoData.teams.find(tm => tm.id === id);
+    if (!t) return;
+    t.active = !t.active;
+    this.renderAdminTeams();
+    this.renderTeamList();
+    this.showToast(t.active ? `已上架「${t.name}」` : `已下架「${t.name}」`);
   },
 
   // ── Render: Permissions ──

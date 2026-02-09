@@ -695,7 +695,11 @@ img { max-width: 100%; display: block; }
 .participant-list { display: flex; flex-wrap: wrap; gap: .3rem; }
 .participant-tag { padding: .2rem .5rem; border-radius: var(--radius-full); background: var(--bg-elevated); font-size: .75rem; color: var(--text-secondary); }
 
-/* ─── Team Card ─── */
+/* ─── Team Search Bar ─── */
+.team-search-bar { display: flex; gap: .4rem; padding: .2rem 0 .5rem; }
+.team-search-bar input { flex: 2; }
+.team-search-bar select { flex: 1; }
+
 /* ─── Team Grid (vertical cards) ─── */
 .team-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: .65rem; padding-bottom: 1rem; }
 .tc-card {
@@ -761,6 +765,15 @@ img { max-width: 100%; display: block; }
 .td-member-role.player { background: var(--bg-elevated); color: var(--text-muted); }
 .td-member-more { grid-column: 1 / -1; text-align: center; font-size: .75rem; color: var(--text-muted); padding: .3rem; }
 .td-actions { display: flex; gap: .5rem; padding: .5rem 0; }
+.td-stats-row { display: flex; justify-content: space-around; text-align: center; padding: .3rem 0; }
+.td-stat { display: flex; flex-direction: column; gap: .1rem; }
+.td-stat-num { font-size: 1.3rem; font-weight: 800; font-family: var(--font-display); }
+.td-stat-label { font-size: .68rem; color: var(--text-muted); }
+.td-history-row { display: flex; justify-content: space-between; align-items: center; padding: .45rem .3rem; border-bottom: 1px solid var(--border); font-size: .82rem; }
+.td-history-row:last-child { border-bottom: none; }
+.td-history-name { font-weight: 600; color: var(--text-primary); }
+.td-history-result { color: var(--text-secondary); font-size: .78rem; }
+.tc-pinned-card .h-card-img { display: flex; align-items: center; justify-content: center; }
 
 /* ─── Message Card ─── */
 .msg-card { background: var(--bg-card); border-radius: var(--radius); border: 1px solid var(--border); padding: .75rem .85rem; cursor: pointer; transition: all var(--transition); }
