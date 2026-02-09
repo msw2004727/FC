@@ -454,15 +454,18 @@ img { max-width: 100%; display: block; }
 .announce-card.collapsed .announce-toggle::after { font-size: .72rem; }
 
 /* ─── Horizontal Scroll Cards ─── */
-.scroll-wrapper { position: relative; }
-.scroll-arrow { position: absolute; top: 50%; transform: translateY(-60%); z-index: 3; width: 34px; height: 34px; border-radius: 50%; background: rgba(0,0,0,.35); color: #fff; font-size: 1.3rem; display: none; align-items: center; justify-content: center; border: none; cursor: pointer; backdrop-filter: blur(4px); transition: background var(--transition), opacity .2s; opacity: .85; }
-.scroll-arrow:hover { background: rgba(0,0,0,.55); opacity: 1; }
-.scroll-arrow-left { left: .4rem; }
-.scroll-arrow-right { right: .4rem; }
-.scroll-arrow.visible { display: flex; }
-@media (max-width: 600px) { .scroll-arrow { display: none !important; } }
-.horizontal-scroll { display: flex; gap: .65rem; overflow-x: auto; padding: .2rem .2rem .8rem; -webkit-overflow-scrolling: touch; scroll-snap-type: x mandatory; scroll-behavior: smooth; }
+.horizontal-scroll { display: flex; gap: .65rem; overflow-x: auto; padding: .2rem .2rem .6rem; -webkit-overflow-scrolling: touch; scroll-snap-type: x mandatory; scroll-behavior: smooth; }
+/* Mobile: hide scrollbar, use touch */
 .horizontal-scroll::-webkit-scrollbar { display: none; }
+.horizontal-scroll { scrollbar-width: none; }
+/* PC wide: show styled scrollbar */
+@media (min-width: 601px) {
+  .horizontal-scroll { scrollbar-width: thin; scrollbar-color: var(--accent) transparent; padding-bottom: .9rem; }
+  .horizontal-scroll::-webkit-scrollbar { display: block; height: 6px; }
+  .horizontal-scroll::-webkit-scrollbar-track { background: transparent; margin: 0 .5rem; }
+  .horizontal-scroll::-webkit-scrollbar-thumb { background: var(--accent); border-radius: 3px; }
+  .horizontal-scroll::-webkit-scrollbar-thumb:hover { background: var(--accent-hover, #1d4ed8); }
+}
 .h-card { min-width: 220px; max-width: 220px; background: var(--bg-card); border-radius: var(--radius); border: 1px solid var(--border); overflow: hidden; scroll-snap-align: start; cursor: pointer; transition: all var(--transition); flex-shrink: 0; }
 .h-card:hover { border-color: var(--accent); transform: translateY(-2px); box-shadow: var(--shadow); }
 .h-card-img { height: 90px; display: flex; align-items: center; justify-content: center; font-size: 2rem; color: #fff; }
