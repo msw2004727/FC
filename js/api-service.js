@@ -1,16 +1,16 @@
 /* ================================================
    SportHub — API Service 抽象層
    ================================================
-   _demoMode = true  → 讀取 DemoData（Demo 演示）
-   _demoMode = false → 讀取 FirebaseService._cache（正式版）
+   ModeManager.isDemo() = true  → 讀取 DemoData（Demo 演示）
+   ModeManager.isDemo() = false → 讀取 FirebaseService._cache（正式版）
 
-   切換方式：將 _demoMode 改為 false 即可。
+   切換方式：透過 ModeManager 統一管理
    App 層的渲染邏輯完全不需要改動。
    ================================================ */
 
 const ApiService = {
 
-  _demoMode: true,   // ← 改為 false 啟用 Firebase
+  get _demoMode() { return ModeManager.isDemo(); },
 
   // ════════════════════════════════
   //  Events（活動）

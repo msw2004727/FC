@@ -2,6 +2,45 @@
    SportHub — Config & Constants
    ================================================ */
 
+// ─── Mode Manager（Demo / Production 切換）───
+const ModeManager = {
+  _STORAGE_KEY: 'sporthub_mode',
+  _DEFAULT: 'demo',        // ← 正式部署時改為 'production'
+  _mode: null,
+
+  init() {
+    this._mode = localStorage.getItem(this._STORAGE_KEY) || this._DEFAULT;
+    console.log(
+      `%c[SportHub] 模式: ${this._mode.toUpperCase()}`,
+      'color:#0d9488;font-weight:bold;font-size:14px'
+    );
+    console.log('%c[SportHub] 隱藏切換方式:', 'color:#6b7280');
+    console.log('  1. 連續點擊 Logo 5 次（3 秒內）');
+    console.log('  2. 按鍵組合 Shift + Alt + D');
+    console.log('  3. Console 指令: __switchMode()');
+    console.log('  4. Console 指令: __setMode("demo") 或 __setMode("production")');
+  },
+
+  getMode()  { return this._mode; },
+  isDemo()   { return this._mode === 'demo'; },
+
+  setMode(mode) {
+    if (mode !== 'demo' && mode !== 'production') return;
+    this._mode = mode;
+    localStorage.setItem(this._STORAGE_KEY, mode);
+    console.log(
+      `%c[SportHub] 已切換至: ${mode.toUpperCase()}`,
+      'color:#d97706;font-weight:bold;font-size:14px'
+    );
+  },
+
+  toggle() {
+    this.setMode(this._mode === 'demo' ? 'production' : 'demo');
+    return this._mode;
+  },
+};
+ModeManager.init();
+
 // ─── Role Hierarchy & Config ───
 const ROLES = {
   user:        { level: 0, label: '一般用戶', color: '#6b7280' },
