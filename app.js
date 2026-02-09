@@ -584,11 +584,26 @@ const App = {
   handleSignup(id) {
     const e = ApiService.getEvent(id);
     if (!e) return;
-    if (e.current >= e.max) {
-      this.showToast('⚠️ 已額滿，已加入候補名單');
-    } else {
-      this.showToast('✅ 報名成功！');
+
+    if (ApiService._demoMode) {
+      // Demo 模式：僅顯示提示
+      this.showToast(e.current >= e.max ? '⚠️ 已額滿，已加入候補名單' : '✅ 報名成功！');
+      return;
     }
+
+    // Firebase 模式：真正建立報名記錄
+    // TODO: 實裝 Auth 後改為 firebase.auth().currentUser
+    const userId = 'current_user';
+    const userName = '用戶';
+    FirebaseService.registerForEvent(id, userId, userName)
+      .then(result => {
+        this.showToast(result.status === 'waitlisted' ? '⚠️ 已額滿，已加入候補名單' : '✅ 報名成功！');
+        this.showEventDetail(id);
+      })
+      .catch(err => {
+        console.error('[handleSignup]', err);
+        this.showToast('❌ ' + (err.message || '報名失敗，請稍後再試'));
+      });
   },
 
   // ══════════════════════════════════
@@ -1636,7 +1651,21 @@ const App = {
 };
 
 // ── Init on DOM Ready ──
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+  // Firebase 模式：先初始化快取，再啟動 App
+  if (!ApiService._demoMode) {
+    const overlay = document.getElementById('loading-overlay');
+    if (overlay) overlay.style.display = '';
+    try {
+      await FirebaseService.init();
+      console.log('[App] Firebase 模式啟動');
+    } catch (err) {
+      console.error('[App] Firebase 初始化失敗，退回 Demo 模式:', err);
+      ApiService._demoMode = true;
+    } finally {
+      if (overlay) overlay.style.display = 'none';
+    }
+  }
   App.init();
 });
 
