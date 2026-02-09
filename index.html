@@ -80,6 +80,15 @@
           </button>
         </div>
       </div>
+      <div id="line-login-wrapper" class="line-login-wrapper" style="display:none">
+        <button id="line-login-btn" class="line-login-btn" onclick="LineAuth.login()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="#fff"><path d="M12 2C6.48 2 2 5.83 2 10.5c0 4.18 3.66 7.68 8.58 8.38.33.07.78.22.9.5.1.26.07.66.03.92l-.15.86c-.04.26-.2 1.01.88.55s5.88-3.47 8.03-5.93C22.08 13.79 22 12.18 22 10.5 22 5.83 17.52 2 12 2z"/></svg>
+          LINE 登入
+        </button>
+        <div id="line-user-topbar" class="line-user-topbar" style="display:none">
+          <img id="line-avatar-topbar" class="line-avatar-topbar" src="" alt="">
+        </div>
+      </div>
     </div>
   </header>
 
@@ -88,9 +97,9 @@
   <nav id="side-drawer">
     <div class="drawer-header">
       <div class="drawer-user">
-        <div class="drawer-avatar">麥</div>
+        <div class="drawer-avatar" id="drawer-avatar">麥</div>
         <div>
-          <div class="drawer-name">冠軍.全勤.小麥</div>
+          <div class="drawer-name" id="drawer-name">冠軍.全勤.小麥</div>
           <div class="drawer-role-tag" id="drawer-role-tag">一般用戶</div>
         </div>
       </div>
@@ -234,47 +243,62 @@
 
     <!-- PAGE: Profile (My) -->
     <section class="page" id="page-profile">
-      <div class="profile-header">
-        <div class="profile-avatar" id="profile-avatar">麥</div>
-        <div class="profile-title" id="profile-title">冠軍.全勤.小麥</div>
-        <div class="profile-level">
-          <span>Lv.25</span>
-          <div class="exp-bar"><div class="exp-fill" style="width:78%"></div></div>
-          <span class="exp-text">2350 / 3000</span>
+      <!-- 未登入提示（正式版用） -->
+      <div id="profile-login-prompt" class="profile-login-prompt" style="display:none">
+        <div class="login-prompt-content">
+          <div class="login-prompt-icon">👤</div>
+          <h3>尚未登入</h3>
+          <p>請先使用 LINE 帳號登入以查看個人資料</p>
+          <button class="line-login-btn large" onclick="LineAuth.login()">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="#fff"><path d="M12 2C6.48 2 2 5.83 2 10.5c0 4.18 3.66 7.68 8.58 8.38.33.07.78.22.9.5.1.26.07.66.03.92l-.15.86c-.04.26-.2 1.01.88.55s5.88-3.47 8.03-5.93C22.08 13.79 22 12.18 22 10.5 22 5.83 17.52 2 12 2z"/></svg>
+            LINE 登入
+          </button>
         </div>
       </div>
-      <div class="profile-stats">
-        <div class="stat-item"><span class="stat-num">42</span><span class="stat-label">參加場次</span></div>
-        <div class="stat-item"><span class="stat-num">38</span><span class="stat-label">完成</span></div>
-        <div class="stat-item"><span class="stat-num">90%</span><span class="stat-label">出席率</span></div>
-        <div class="stat-item"><span class="stat-num">4</span><span class="stat-label">徽章</span></div>
-      </div>
-      <div class="quick-grid">
-        <button class="quick-item" onclick="App.showPage('page-qrcode')">QR Code</button>
-        <button class="quick-item disabled" disabled>紙娃娃</button>
-        <button class="quick-item" onclick="App.showPage('page-achievements')">成就</button>
-        <button class="quick-item" onclick="App.showPage('page-badges')">徽章</button>
-        <button class="quick-item" onclick="App.showPage('page-titles')">稱號</button>
-        <button class="quick-item" onclick="App.goMyTeam()">球隊</button>
-      </div>
-      <div class="info-card">
-        <div class="info-title">我的資料</div>
-        <div class="info-row"><span>性別</span><span>男</span></div>
-        <div class="info-row"><span>生日</span><span>1995/03/15</span></div>
-        <div class="info-row"><span>地區</span><span>台北市 <button class="edit-btn">編輯</button></span></div>
-        <div class="info-row"><span>運動類別</span><span>足球、籃球</span></div>
-        <div class="info-row"><span>所屬球隊</span><span>雷霆隊</span></div>
-        <div class="info-row contact-row" data-min-role="coach"><span>聯繫方式</span><span>0912-345-678 <button class="edit-btn">編輯</button></span></div>
-      </div>
-      <div class="info-card">
-        <div class="info-title">報名紀錄</div>
-        <div class="tab-bar compact" id="record-tabs">
-          <button class="tab active" data-filter="all">全部</button>
-          <button class="tab" data-filter="completed">完成</button>
-          <button class="tab" data-filter="cancelled">取消</button>
-          <button class="tab" data-filter="early-left">早退</button>
+      <!-- Profile 主內容 -->
+      <div id="profile-content">
+        <div class="profile-header">
+          <div class="profile-avatar" id="profile-avatar">麥</div>
+          <div class="profile-title" id="profile-title">冠軍.全勤.小麥</div>
+          <div class="profile-level" id="profile-level">
+            <span id="profile-lv">Lv.25</span>
+            <div class="exp-bar"><div class="exp-fill" id="profile-exp-fill" style="width:78%"></div></div>
+            <span class="exp-text" id="profile-exp-text">2350 / 3000</span>
+          </div>
         </div>
-        <div class="mini-activity-list" id="my-activity-records"></div>
+        <div class="profile-stats">
+          <div class="stat-item"><span class="stat-num" id="profile-stat-total">42</span><span class="stat-label">參加場次</span></div>
+          <div class="stat-item"><span class="stat-num" id="profile-stat-done">38</span><span class="stat-label">完成</span></div>
+          <div class="stat-item"><span class="stat-num" id="profile-stat-rate">90%</span><span class="stat-label">出席率</span></div>
+          <div class="stat-item"><span class="stat-num" id="profile-stat-badges">4</span><span class="stat-label">徽章</span></div>
+        </div>
+        <div class="quick-grid">
+          <button class="quick-item" onclick="App.showPage('page-qrcode')">QR Code</button>
+          <button class="quick-item disabled" disabled>紙娃娃</button>
+          <button class="quick-item" onclick="App.showPage('page-achievements')">成就</button>
+          <button class="quick-item" onclick="App.showPage('page-badges')">徽章</button>
+          <button class="quick-item" onclick="App.showPage('page-titles')">稱號</button>
+          <button class="quick-item" onclick="App.goMyTeam()">球隊</button>
+        </div>
+        <div class="info-card" id="profile-info-card">
+          <div class="info-title">我的資料</div>
+          <div class="info-row"><span>性別</span><span id="profile-gender">男</span></div>
+          <div class="info-row"><span>生日</span><span id="profile-birthday">1995/03/15</span></div>
+          <div class="info-row"><span>地區</span><span id="profile-region">台北市</span></div>
+          <div class="info-row"><span>運動類別</span><span>足球、籃球</span></div>
+          <div class="info-row"><span>所屬球隊</span><span id="profile-team">雷霆隊</span></div>
+          <div class="info-row contact-row" data-min-role="coach"><span>聯繫方式</span><span>0912-345-678 <button class="edit-btn">編輯</button></span></div>
+        </div>
+        <div class="info-card">
+          <div class="info-title">報名紀錄</div>
+          <div class="tab-bar compact" id="record-tabs">
+            <button class="tab active" data-filter="all">全部</button>
+            <button class="tab" data-filter="completed">完成</button>
+            <button class="tab" data-filter="cancelled">取消</button>
+            <button class="tab" data-filter="early-left">早退</button>
+          </div>
+          <div class="mini-activity-list" id="my-activity-records"></div>
+        </div>
       </div>
     </section>
 
@@ -821,6 +845,31 @@
   <!-- ============ MODALS ============ -->
   <div class="modal-overlay" id="modal-overlay"></div>
   
+  <!-- First Login Modal (forced) -->
+  <div class="modal" id="first-login-modal">
+    <div class="modal-header"><h3>完善個人資料</h3></div>
+    <div class="modal-body">
+      <p class="fl-hint">首次登入，請填寫以下基本資料</p>
+      <div class="ce-form">
+        <div class="ce-row">
+          <label>性別 <span class="required">*必填</span></label>
+          <select id="fl-gender"><option value="">請選擇</option><option value="男">男</option><option value="女">女</option><option value="其他">其他</option></select>
+        </div>
+        <div class="ce-row">
+          <label>生日 <span class="required">*必填</span></label>
+          <input type="date" id="fl-birthday">
+        </div>
+        <div class="ce-row">
+          <label>地區 <span class="required">*必填</span></label>
+          <select id="fl-region"><option value="">請選擇</option><option>台北市</option><option>新北市</option><option>桃園市</option><option>台中市</option><option>台南市</option><option>高雄市</option><option>其他</option></select>
+        </div>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="primary-btn" onclick="App.saveFirstLoginProfile()">確認送出</button>
+    </div>
+  </div>
+
   <div class="modal" id="rules-modal">
     <div class="modal-header">
       <h3>賽事規則</h3>

@@ -381,6 +381,13 @@ const FirebaseService = {
     return { ...doc.data(), _docId: doc.id };
   },
 
+  async updateUser(docId, updates) {
+    await db.collection('users').doc(docId).update({
+      ...updates,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    });
+  },
+
   // ════════════════════════════════
   //  Image Upload（Firebase Storage）
   // ════════════════════════════════

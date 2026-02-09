@@ -323,4 +323,19 @@ const ApiService = {
     if (this._demoMode) return DemoData.currentUser;
     return await FirebaseService.createOrUpdateUser(lineProfile);
   },
+
+  updateCurrentUser(updates) {
+    if (this._demoMode) {
+      Object.assign(DemoData.currentUser, updates);
+      return DemoData.currentUser;
+    }
+    const user = FirebaseService._cache.currentUser;
+    if (user) {
+      Object.assign(user, updates);
+      if (user._docId) {
+        FirebaseService.updateUser(user._docId, updates).catch(err => console.error('[updateCurrentUser]', err));
+      }
+    }
+    return user;
+  },
 };

@@ -211,6 +211,13 @@ const App = {
   },
 
   showPage(pageId) {
+    // 正式版未登入不能進「我的」
+    if (pageId === 'page-profile' && !ModeManager.isDemo()) {
+      if (typeof LineAuth === 'undefined' || !LineAuth.isLoggedIn()) {
+        this.showToast('請先登入 LINE 帳號');
+        return;
+      }
+    }
     if (this.currentPage !== pageId) {
       this.pageHistory.push(this.currentPage);
     }
@@ -436,6 +443,7 @@ const App = {
     this.renderInactiveData();
     this.renderMyActivities();
     this.renderUserCard();
+    this.renderProfileData();
   },
 
   // ══════════════════════════════════
@@ -611,59 +619,84 @@ const App = {
   //  LINE Login
   // ══════════════════════════════════
 
+  _pendingFirstLogin: false,
+
   async bindLineLogin() {
     if (!ModeManager.isDemo() && typeof LineAuth !== 'undefined') {
       await LineAuth.init();
       if (LineAuth.isLoggedIn()) {
         try {
-          await ApiService.loginUser(LineAuth.getProfile());
+          const user = await ApiService.loginUser(LineAuth.getProfile());
+          if (user && (!user.gender || !user.birthday || !user.region)) {
+            this._pendingFirstLogin = true;
+          }
         } catch (err) {
           console.error('[App] 用戶資料同步失敗:', err);
         }
       }
     }
     this.renderLoginUI();
+    if (this._pendingFirstLogin) {
+      this.showModal('first-login-modal');
+    }
   },
 
   renderLoginUI() {
-    const wrapper = document.getElementById('role-switcher-wrapper');
+    const roleSwitcher = document.getElementById('role-switcher-wrapper');
+    const lineWrapper = document.getElementById('line-login-wrapper');
     const profileAvatar = document.getElementById('profile-avatar');
-    if (!wrapper) return;
+    const profileContent = document.getElementById('profile-content');
+    const loginPrompt = document.getElementById('profile-login-prompt');
+    const drawerAvatar = document.getElementById('drawer-avatar');
+    const drawerName = document.getElementById('drawer-name');
 
-    // Demo 模式：保留角色切換器，不做任何改動
+    if (!roleSwitcher || !lineWrapper) return;
+
+    // ── Demo 模式：顯示角色切換器，隱藏 LINE ──
     if (ModeManager.isDemo()) {
-      wrapper.style.display = '';
-      if (profileAvatar) {
-        profileAvatar.className = 'profile-avatar';
-        profileAvatar.innerHTML = '麥';
-      }
+      roleSwitcher.style.display = '';
+      lineWrapper.style.display = 'none';
+      if (drawerAvatar) { drawerAvatar.className = 'drawer-avatar'; drawerAvatar.innerHTML = '麥'; }
+      if (drawerName) drawerName.textContent = '冠軍.全勤.小麥';
+      if (profileAvatar) { profileAvatar.className = 'profile-avatar'; profileAvatar.innerHTML = '麥'; }
+      if (profileContent) profileContent.style.display = '';
+      if (loginPrompt) loginPrompt.style.display = 'none';
       return;
     }
 
-    // Production 模式：替換角色切換器為 LINE 登入
+    // ── 正式版：隱藏角色切換器，顯示 LINE ──
+    roleSwitcher.style.display = 'none';
+    lineWrapper.style.display = '';
+
     const isLoggedIn = typeof LineAuth !== 'undefined' && LineAuth.isLoggedIn();
+    const loginBtn = document.getElementById('line-login-btn');
+    const userTopbar = document.getElementById('line-user-topbar');
+    const avatarImg = document.getElementById('line-avatar-topbar');
 
     if (!isLoggedIn) {
-      // 未登入：顯示 LINE 登入按鈕
-      wrapper.innerHTML = `
-        <button class="line-login-btn" onclick="LineAuth.login()">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="#fff"><path d="M12 2C6.48 2 2 5.83 2 10.5c0 4.18 3.66 7.68 8.58 8.38.33.07.78.22.9.5.1.26.07.66.03.92l-.15.86c-.04.26-.2 1.01.88.55s5.88-3.47 8.03-5.93C22.08 13.79 22 12.18 22 10.5 22 5.83 17.52 2 12 2z"/></svg>
-          LINE 登入
-        </button>`;
-      if (profileAvatar) {
-        profileAvatar.className = 'profile-avatar';
-        profileAvatar.innerHTML = '?';
-      }
+      // 未登入
+      if (loginBtn) loginBtn.style.display = '';
+      if (userTopbar) userTopbar.style.display = 'none';
+      if (profileContent) profileContent.style.display = 'none';
+      if (loginPrompt) loginPrompt.style.display = '';
+      if (drawerAvatar) { drawerAvatar.className = 'drawer-avatar'; drawerAvatar.innerHTML = '?'; }
+      if (drawerName) drawerName.textContent = '未登入';
       return;
     }
 
-    // 已登入：顯示 LINE 頭像
+    // 已登入
     const profile = LineAuth.getProfile();
-    wrapper.innerHTML = profile.pictureUrl
-      ? `<img class="line-avatar-topbar" src="${profile.pictureUrl}" alt="${profile.displayName}">`
-      : `<div class="line-avatar-topbar line-avatar-fallback">${profile.displayName.charAt(0)}</div>`;
+    if (loginBtn) loginBtn.style.display = 'none';
+    if (userTopbar) userTopbar.style.display = '';
+    if (profile.pictureUrl && avatarImg) {
+      avatarImg.src = profile.pictureUrl;
+    } else if (userTopbar) {
+      userTopbar.innerHTML = `<div class="line-avatar-topbar line-avatar-fallback">${profile.displayName.charAt(0)}</div>`;
+    }
 
-    // 更新「我的」頁面頭像
+    // 更新 profile 頁面
+    if (profileContent) profileContent.style.display = '';
+    if (loginPrompt) loginPrompt.style.display = 'none';
     if (profileAvatar) {
       if (profile.pictureUrl) {
         profileAvatar.className = 'profile-avatar profile-avatar-img';
@@ -673,6 +706,50 @@ const App = {
         profileAvatar.innerHTML = profile.displayName.charAt(0);
       }
     }
+
+    // 更新 drawer
+    if (drawerName) drawerName.textContent = profile.displayName;
+    if (drawerAvatar) {
+      if (profile.pictureUrl) {
+        drawerAvatar.className = 'drawer-avatar drawer-avatar-img';
+        drawerAvatar.innerHTML = `<img src="${profile.pictureUrl}" alt="">`;
+      } else {
+        drawerAvatar.className = 'drawer-avatar';
+        drawerAvatar.innerHTML = profile.displayName.charAt(0);
+      }
+    }
+  },
+
+  renderProfileData() {
+    if (ModeManager.isDemo()) return;
+    const user = ApiService.getCurrentUser();
+    if (!user) return;
+    const el = (id) => document.getElementById(id);
+    if (el('profile-title')) el('profile-title').textContent = user.displayName || '';
+    if (el('profile-lv')) el('profile-lv').textContent = `Lv.${user.level || 1}`;
+    if (el('profile-exp-text')) el('profile-exp-text').textContent = `${user.exp || 0} / ${((user.level || 1) + 1) * 200}`;
+    if (el('profile-exp-fill')) {
+      const next = ((user.level || 1) + 1) * 200;
+      el('profile-exp-fill').style.width = `${Math.min(100, Math.round(((user.exp || 0) / next) * 100))}%`;
+    }
+    if (el('profile-gender')) el('profile-gender').textContent = user.gender || '—';
+    if (el('profile-birthday')) el('profile-birthday').textContent = user.birthday || '—';
+    if (el('profile-region')) el('profile-region').textContent = user.region || '—';
+  },
+
+  saveFirstLoginProfile() {
+    const gender = document.getElementById('fl-gender').value;
+    const birthday = document.getElementById('fl-birthday').value;
+    const region = document.getElementById('fl-region').value;
+    if (!gender || !birthday || !region) {
+      this.showToast('請填寫所有必填欄位');
+      return;
+    }
+    ApiService.updateCurrentUser({ gender, birthday, region });
+    this._pendingFirstLogin = false;
+    this.closeModal();
+    this.renderProfileData();
+    this.showToast('個人資料已儲存');
   },
 
   async _switchMode() {
