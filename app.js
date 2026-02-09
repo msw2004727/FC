@@ -249,6 +249,8 @@ const App = {
     this.bindScanModes();
     this.bindFloatingAds();
     this.bindNotifBtn();
+    this.bindImageUpload('ce-image', 'ce-upload-preview');
+    this.bindImageUpload('ct-image', 'ct-upload-preview');
     this.startBannerCarousel();
     this.renderAll();
     this.applyRole('user');
@@ -755,7 +757,6 @@ const App = {
     const e = DemoData.events.find(ev => ev.id === id);
     if (!e) return;
     document.getElementById('detail-title').textContent = e.title;
-    document.querySelector('#page-activity-detail .detail-banner').style.background = e.gradient;
     document.getElementById('detail-body').innerHTML = `
       <div class="detail-row"><span class="icon">📍</span>${e.location}</div>
       <div class="detail-row"><span class="icon">🕐</span>${e.date}</div>
@@ -1515,6 +1516,86 @@ const App = {
     document.getElementById('ce-fee').value = '300';
     document.getElementById('ce-max').value = '20';
     document.getElementById('ce-waitlist').value = '5';
+    document.getElementById('ce-image').value = '';
+    const cePreview = document.getElementById('ce-upload-preview');
+    if (cePreview) {
+      cePreview.classList.remove('has-image');
+      cePreview.innerHTML = '<span class="ce-upload-icon">📷</span><span class="ce-upload-text">點擊上傳圖片</span><span class="ce-upload-hint">建議尺寸 800 × 300 px｜JPG / PNG｜最大 2MB</span>';
+    }
+  },
+
+  // ── Image Upload Preview ──
+  bindImageUpload(inputId, previewId) {
+    const input = document.getElementById(inputId);
+    if (!input) return;
+    input.addEventListener('change', () => {
+      const file = input.files[0];
+      if (!file) return;
+      // Validate format
+      const validTypes = ['image/jpeg', 'image/png'];
+      if (!validTypes.includes(file.type)) {
+        this.showToast('僅支援 JPG / PNG 格式');
+        input.value = '';
+        return;
+      }
+      // Validate size (2MB)
+      if (file.size > 2 * 1024 * 1024) {
+        this.showToast('檔案大小不可超過 2MB');
+        input.value = '';
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const preview = document.getElementById(previewId);
+        if (preview) {
+          preview.innerHTML = `<img src="${ev.target.result}" style="width:100%;height:100%;object-fit:cover;border-radius:var(--radius-sm)">`;
+          preview.classList.add('has-image');
+        }
+      };
+      reader.readAsDataURL(file);
+    });
+  },
+
+  // ── Create Tournament ──
+  _tournamentCounter: 100,
+  handleCreateTournament() {
+    const name = document.getElementById('ct-name').value.trim();
+    const type = document.getElementById('ct-type').value;
+    const teams = parseInt(document.getElementById('ct-teams').value) || 8;
+    const status = document.getElementById('ct-status').value;
+
+    if (!name) { this.showToast('請輸入賽事名稱'); return; }
+
+    const gradients = {
+      '聯賽（雙循環）': 'linear-gradient(135deg,#dc2626,#991b1b)',
+      '盃賽（單敗淘汰）': 'linear-gradient(135deg,#7c3aed,#4338ca)',
+      '盃賽（分組+淘汰）': 'linear-gradient(135deg,#0d9488,#065f46)',
+    };
+
+    this._tournamentCounter++;
+    DemoData.tournaments.unshift({
+      id: 'ct' + this._tournamentCounter,
+      name,
+      type,
+      teams,
+      matches: type.includes('聯賽') ? teams * (teams - 1) : teams - 1,
+      status,
+      gradient: gradients[type] || gradients['聯賽（雙循環）'],
+    });
+
+    this.renderTournamentTimeline();
+    this.renderOngoingTournaments();
+    this.renderTournamentManage();
+    this.closeModal();
+    this.showToast(`賽事「${name}」已建立！`);
+
+    document.getElementById('ct-name').value = '';
+    // Reset upload preview
+    const preview = document.getElementById('ct-upload-preview');
+    if (preview) {
+      preview.classList.remove('has-image');
+      preview.innerHTML = '<span class="ce-upload-icon">📷</span><span class="ce-upload-text">點擊上傳圖片</span><span class="ce-upload-hint">建議尺寸 800 × 300 px｜JPG / PNG｜最大 2MB</span>';
+    }
   },
 
   // ── Toast ──
