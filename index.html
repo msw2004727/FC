@@ -185,7 +185,10 @@
           <option value="play">PLAY</option>
           <option value="watch">觀賽</option>
         </select>
-        <input type="text" id="activity-filter-keyword" placeholder="搜尋活動名稱 / 地點...">
+        <div style="display:flex;flex:1;min-width:100px;gap:0">
+          <input type="text" id="activity-filter-keyword" placeholder="搜尋名稱 / 地點..." style="flex:1;border-radius:var(--radius-sm) 0 0 var(--radius-sm);border-right:none;min-width:0">
+          <button id="activity-filter-search-btn" style="padding:.45rem .7rem;font-size:.78rem;font-weight:600;background:var(--accent);color:#fff;border:none;border-radius:0 var(--radius-sm) var(--radius-sm) 0;cursor:pointer;white-space:nowrap">搜尋</button>
+        </div>
       </div>
       <!-- Coach+ : My Activity Management -->
       <div class="my-section" data-min-role="coach">

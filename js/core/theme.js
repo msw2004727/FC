@@ -32,15 +32,13 @@ Object.assign(App, {
     document.getElementById('activity-filter-type')?.addEventListener('change', () => {
       this.renderActivityList();
     });
-    // 關鍵字即時搜尋（防抖 300ms）
-    const kwInput = document.getElementById('activity-filter-keyword');
-    if (kwInput) {
-      let _kwTimer = null;
-      kwInput.addEventListener('input', () => {
-        clearTimeout(_kwTimer);
-        _kwTimer = setTimeout(() => this.renderActivityList(), 300);
-      });
-    }
+    // 關鍵字搜尋：按鈕 + Enter
+    document.getElementById('activity-filter-search-btn')?.addEventListener('click', () => {
+      this.renderActivityList();
+    });
+    document.getElementById('activity-filter-keyword')?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') this.renderActivityList();
+    });
   },
 
   bindTabBars() {
