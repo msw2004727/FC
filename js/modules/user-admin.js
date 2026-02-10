@@ -45,32 +45,27 @@ Object.assign(App, {
     }
 
     container.innerHTML = users.map(u => {
-      let promoteOptions = '';
-      if (myLevel >= 5) {
-        promoteOptions = '<option value="">晉升▼</option><option>管理員</option><option>教練</option><option>領隊</option><option>場主</option>';
-      } else if (myLevel >= 4) {
-        promoteOptions = '<option value="">晉升▼</option><option>教練</option><option>領隊</option><option>場主</option>';
-      }
-
       const avatar = u.pictureUrl
-        ? `<img src="${u.pictureUrl}" class="profile-avatar small" style="object-fit:cover">`
-        : `<div class="profile-avatar small">${u.name[0]}</div>`;
+        ? `<img src="${u.pictureUrl}" class="au-avatar" style="object-fit:cover">`
+        : `<div class="au-avatar au-avatar-fallback">${(u.name || '?')[0]}</div>`;
 
       const teamInfo = u.teamName ? ` ・ ${escapeHTML(u.teamName)}` : '';
       const genderIcon = u.gender === '男' ? '♂' : u.gender === '女' ? '♀' : '';
+      const safeName = escapeHTML(u.name || '').replace(/'/g, "\\'");
 
       return `
         <div class="admin-user-card">
           ${avatar}
-          <div class="admin-user-info">
-            <div class="admin-user-name">${this._userTag(u.name, u.role)}</div>
-            <div class="admin-user-meta">${escapeHTML(u.uid)} ・ ${ROLES[u.role]?.label || u.role} ・ Lv.${u.level} ・ ${escapeHTML(u.region)}${genderIcon ? ' ' + genderIcon : ''}${teamInfo}</div>
-            <div class="admin-user-meta" style="font-size:.72rem">${escapeHTML(u.sports || '—')} ・ EXP ${u.exp}</div>
-          </div>
-          <div class="admin-user-actions">
-            ${promoteOptions ? `<select class="promote-select" onchange="App.handlePromote(this, '${u.name}')">${promoteOptions}</select>` : ''}
-            <button class="text-btn" onclick="App.showUserEditModal('${u.name}')">編輯</button>
-            <button class="text-btn" onclick="App.showUserProfile('${u.name}')">查看</button>
+          <div class="admin-user-body">
+            <div class="admin-user-info">
+              <div class="admin-user-name">${this._userTag(u.name, u.role)}</div>
+              <div class="admin-user-meta">${escapeHTML(u.uid)} ・ ${ROLES[u.role]?.label || u.role} ・ Lv.${u.level} ・ ${escapeHTML(u.region || '—')}${genderIcon ? ' ' + genderIcon : ''}${teamInfo}</div>
+              <div class="admin-user-meta">${escapeHTML(u.sports || '—')} ・ EXP ${u.exp}</div>
+            </div>
+            <div class="admin-user-actions">
+              <button class="au-btn au-btn-edit" onclick="App.showUserEditModal('${safeName}')">編輯</button>
+              <button class="au-btn au-btn-view" onclick="App.showUserProfile('${safeName}')">查看</button>
+            </div>
           </div>
         </div>
       `;
