@@ -60,7 +60,7 @@ Object.assign(App, {
     const total = 50;
     const used = ApiService.getMessages().length;
     const remaining = Math.max(0, total - used);
-    bar.innerHTML = `剩餘容量：<strong>${remaining}</strong>/${total}`;
+    bar.innerHTML = `剩餘容量：<strong style="color:#111">${remaining}</strong>/${total}`;
   },
 
   markAllRead() {

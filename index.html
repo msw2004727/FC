@@ -242,10 +242,11 @@
     <section class="page" id="page-messages">
       <div class="page-header">
         <h2>訊息</h2>
-        <div style="display:flex;gap:.4rem">
-          <button class="primary-btn small" style="font-size:.78rem;padding:.3rem .7rem" onclick="App.markAllRead()">一鍵全讀</button>
-          <button class="outline-btn" style="font-size:.78rem;padding:.3rem .7rem;color:var(--danger);border-color:var(--danger)" onclick="App.clearAllMessages()">清空訊息</button>
-        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:.4rem;padding:0 .5rem .4rem;flex-wrap:wrap">
+        <button class="primary-btn small" style="font-size:.75rem;padding:.28rem .6rem" onclick="App.markAllRead()">一鍵全讀</button>
+        <button style="font-size:.75rem;padding:.28rem .6rem;border:none;border-radius:var(--radius-sm);background:#ef4444;color:#fff;cursor:pointer;font-weight:600" onclick="App.clearAllMessages()">清空訊息</button>
+        <span id="storage-bar" style="font-size:.75rem;padding:.28rem .6rem;border-radius:var(--radius-sm);background:#fff;border:1px solid var(--border);color:#3b82f6;font-weight:600">剩餘容量：<strong style="color:#111">50</strong>/50</span>
       </div>
       <div class="tab-bar" id="msg-inbox-tabs">
         <button class="tab active" data-msgtype="all">全部</button>
@@ -257,7 +258,6 @@
       <div class="card-list" id="message-list">
         <!-- Populated by JS -->
       </div>
-      <div class="storage-bar" id="storage-bar">剩餘容量：<strong>38</strong>/50</div>
     </section>
 
     <!-- PAGE: Profile (My) -->
