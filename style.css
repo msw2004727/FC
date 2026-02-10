@@ -543,10 +543,7 @@ img { max-width: 100%; display: block; }
   font-weight: 800;
   font-size: .95rem;
   color: var(--accent);
-  position: sticky;
-  top: var(--topbar-h);
   background: var(--bg-root);
-  z-index: 10;
 }
 .tl-month-header::after {
   content: '';
