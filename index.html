@@ -699,6 +699,7 @@
         <button class="tab active" data-mfilter="sent">已發送</button>
         <button class="tab" data-mfilter="scheduled">已排程</button>
         <button class="tab" data-mfilter="recalled">已回收</button>
+        <button class="tab" data-mfilter="deleted">已刪除</button>
       </div>
       <div class="card-list" id="msg-manage-list"></div>
       <!-- 站內信詳情彈窗 -->
@@ -711,7 +712,16 @@
       <!-- 撰寫站內信 -->
       <div class="form-card" id="msg-compose" style="display:none;margin-top:.5rem">
         <div class="role-editor-header"><span id="msg-compose-title">撰寫站內信</span><button class="text-btn" onclick="App.hideMsgCompose()">取消</button></div>
-        <div class="form-row"><label>標題</label><input type="text" id="msg-title" placeholder="信件標題" maxlength="50"></div>
+        <div class="form-row">
+          <label>信件類別</label>
+          <select id="msg-category">
+            <option value="system">系統</option>
+            <option value="activity">活動</option>
+            <option value="trade">交易</option>
+            <option value="private">私訊</option>
+          </select>
+        </div>
+        <div class="form-row"><label>標題（上限 12 字）</label><input type="text" id="msg-title" placeholder="信件標題" maxlength="12"></div>
         <div class="form-row">
           <label>發送方式</label>
           <select id="msg-target" onchange="App.onMsgTargetChange()">
@@ -727,7 +737,7 @@
           <input type="text" id="msg-individual-target" placeholder="輸入 UID 或暱稱搜尋" oninput="App.searchMsgTarget()">
           <div id="msg-target-result" style="font-size:.75rem;margin-top:.2rem;color:var(--text-muted)"></div>
         </div>
-        <div class="form-row"><label>內容</label><textarea id="msg-body" rows="4" placeholder="信件內容..."></textarea></div>
+        <div class="form-row"><label>內容（上限 300 字）</label><textarea id="msg-body" rows="4" placeholder="信件內容..." maxlength="300"></textarea></div>
         <div class="form-row">
           <label>排程發送（留空＝立即發送）</label>
           <input type="datetime-local" id="msg-schedule">

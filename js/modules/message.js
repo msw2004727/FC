@@ -68,6 +68,22 @@ Object.assign(App, {
   },
 
   // ══════════════════════════════════
+  //  Helper：取得發送人暱稱
+  // ══════════════════════════════════
+
+  _getMsgSenderName() {
+    // 優先用 LINE 暱稱
+    if (typeof LineAuth !== 'undefined' && LineAuth.isLoggedIn()) {
+      const profile = LineAuth.getProfile();
+      if (profile && profile.displayName) return profile.displayName;
+    }
+    // 其次用 currentUser
+    const user = ApiService.getCurrentUser?.() || null;
+    if (user && user.displayName) return user.displayName;
+    return '系統';
+  },
+
+  // ══════════════════════════════════
   //  Admin Message Management (後台)
   // ══════════════════════════════════
 
@@ -79,44 +95,74 @@ Object.assign(App, {
     const f = filter || this._msgCurrentFilter || 'sent';
     this._msgCurrentFilter = f;
     const allItems = ApiService.getAdminMessages();
-    const items = allItems.filter(m => m.status === f);
+    // 排程 tab 同時顯示 scheduled + cancelled
+    const items = f === 'scheduled'
+      ? allItems.filter(m => m.status === 'scheduled' || m.status === 'cancelled')
+      : allItems.filter(m => m.status === f);
 
-    // 已發送數量
+    // 統計數量
     const countEl = document.getElementById('msg-sent-count');
     if (countEl) {
       const sentCount = allItems.filter(m => m.status === 'sent').length;
       const scheduledCount = allItems.filter(m => m.status === 'scheduled').length;
       const recalledCount = allItems.filter(m => m.status === 'recalled').length;
-      countEl.textContent = `已發送 ${sentCount} 封 ・ 排程 ${scheduledCount} 封 ・ 已回收 ${recalledCount} 封`;
+      const deletedCount = allItems.filter(m => m.status === 'deleted').length;
+      countEl.textContent = `已發送 ${sentCount} 封 ・ 排程 ${scheduledCount} 封 ・ 已回收 ${recalledCount} 封 ・ 已刪除 ${deletedCount} 封`;
     }
 
     container.innerHTML = items.length ? items.map(m => {
       const targetLabel = m.targetUid
         ? `${m.targetName || m.targetUid}（${m.targetUid}）`
         : m.target;
-      const senderLabel = m.senderUid ? `發送人：${m.senderUid}` : '';
+      const senderLabel = m.senderName ? `發送人：${m.senderName}` : '';
       const s = 'font-size:.72rem;padding:.2rem .5rem';
       let btns = '';
+      let scheduleInfo = '';
+
       if (m.status === 'sent') {
         btns = `<button class="primary-btn small" style="${s}" onclick="App.viewMsgDetail('${m.id}')">查看</button>`
              + `<button class="outline-btn" style="${s};color:var(--danger)" onclick="App.recallMsg('${m.id}')">回收</button>`
              + `<button class="outline-btn" style="${s};color:var(--danger)" onclick="App.deleteMsg('${m.id}')">刪除</button>`;
       } else if (m.status === 'scheduled') {
+        // 排程時間提示
+        if (m.scheduledAt) {
+          const schedDate = new Date(m.scheduledAt);
+          const schedStr = `${schedDate.getFullYear()}/${String(schedDate.getMonth()+1).padStart(2,'0')}/${String(schedDate.getDate()).padStart(2,'0')} ${String(schedDate.getHours()).padStart(2,'0')}:${String(schedDate.getMinutes()).padStart(2,'0')}`;
+          scheduleInfo = `<div style="font-size:.72rem;margin-top:.2rem;padding:.2rem .5rem;background:rgba(59,130,246,.1);color:#3b82f6;border-radius:4px;display:inline-block">&#128339; 預約發送：${schedStr}</div>`;
+        }
         btns = `<button class="primary-btn small" style="${s}" onclick="App.viewMsgDetail('${m.id}')">查看</button>`
              + `<button class="outline-btn" style="${s};color:var(--warning)" onclick="App.cancelScheduleMsg('${m.id}')">取消排程</button>`
              + `<button class="outline-btn" style="${s};color:var(--danger)" onclick="App.deleteMsg('${m.id}')">刪除</button>`;
-      } else {
+      } else if (m.status === 'recalled') {
         btns = `<button class="primary-btn small" style="${s}" onclick="App.viewMsgDetail('${m.id}')">查看</button>`
              + `<button class="outline-btn" style="${s};color:var(--danger)" onclick="App.deleteMsg('${m.id}')">刪除</button>`;
+      } else if (m.status === 'cancelled') {
+        // 已取消排程 → 可恢復排程
+        if (m.scheduledAt) {
+          const schedDate = new Date(m.scheduledAt);
+          const schedStr = `${schedDate.getFullYear()}/${String(schedDate.getMonth()+1).padStart(2,'0')}/${String(schedDate.getDate()).padStart(2,'0')} ${String(schedDate.getHours()).padStart(2,'0')}:${String(schedDate.getMinutes()).padStart(2,'0')}`;
+          scheduleInfo = `<div style="font-size:.72rem;margin-top:.2rem;padding:.2rem .5rem;background:rgba(156,163,175,.15);color:var(--text-muted);border-radius:4px;display:inline-block;text-decoration:line-through">&#128339; 原排程：${schedStr}</div>`;
+        }
+        btns = `<button class="primary-btn small" style="${s}" onclick="App.viewMsgDetail('${m.id}')">查看</button>`
+             + `<button class="outline-btn" style="${s};color:var(--success)" onclick="App.restoreScheduleMsg('${m.id}')">恢復排程</button>`
+             + `<button class="outline-btn" style="${s};color:var(--danger)" onclick="App.deleteMsg('${m.id}')">刪除</button>`;
+      } else if (m.status === 'deleted') {
+        btns = `<button class="primary-btn small" style="${s}" onclick="App.viewMsgDetail('${m.id}')">查看</button>`;
       }
+
+      // 狀態標籤
+      const statusMap = { sent: ['active', '已發送'], scheduled: ['scheduled', '排程中'], recalled: ['expired', '已回收'], cancelled: ['empty', '已取消'], deleted: ['expired', '已刪除'] };
+      const [statusClass, statusText] = statusMap[m.status] || ['empty', m.status];
+
       return `
       <div class="msg-manage-card" style="margin-bottom:.5rem">
         <div style="display:flex;align-items:center;gap:.4rem;margin-bottom:.2rem">
           <span class="msg-manage-title" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${m.title}</span>
-          <span class="banner-manage-status status-${m.status === 'sent' ? 'active' : m.status === 'scheduled' ? 'scheduled' : 'expired'}">${m.status === 'sent' ? '已發送' : m.status === 'scheduled' ? '排程中' : '已回收'}</span>
+          <span class="banner-manage-status status-${statusClass}">${statusText}</span>
         </div>
-        <div style="font-size:.75rem;color:var(--text-muted)">對象：${targetLabel} ・ ${m.time}${senderLabel ? ' ・ ' + senderLabel : ''}</div>
+        <div style="font-size:.75rem;color:var(--text-muted)">${m.categoryName ? '[' + m.categoryName + '] ' : ''}對象：${targetLabel} ・ ${m.time}${senderLabel ? ' ・ ' + senderLabel : ''}</div>
         <div style="font-size:.75rem;color:var(--text-secondary);margin-top:.2rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${m.body}</div>
+        ${scheduleInfo}
         <div style="display:flex;gap:.3rem;margin-top:.3rem">${btns}</div>
       </div>`;
     }).join('') : '<div style="text-align:center;padding:1.5rem;color:var(--text-muted);font-size:.82rem">無信件</div>';
@@ -144,13 +190,21 @@ Object.assign(App, {
     const targetLabel = m.targetUid
       ? `${m.targetName || m.targetUid}（${m.targetUid}）`
       : m.target;
+    const statusMap = { sent: '已發送', scheduled: '排程中', recalled: '已回收', cancelled: '已取消排程', deleted: '已刪除' };
+    let schedHtml = '';
+    if (m.scheduledAt) {
+      const d = new Date(m.scheduledAt);
+      schedHtml = `<div>排程時間：${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}</div>`;
+    }
     content.innerHTML = `
       <h3 style="margin:0 0 .6rem;font-size:1rem">${m.title}</h3>
       <div style="font-size:.78rem;color:var(--text-muted);margin-bottom:.5rem">
+        ${m.categoryName ? `<div>類別：${m.categoryName}</div>` : ''}
         <div>對象：${targetLabel}</div>
         <div>時間：${m.time}</div>
-        ${m.senderUid ? `<div>發送人 UID：${m.senderUid}</div>` : ''}
-        <div>狀態：${m.status === 'sent' ? '已發送' : m.status === 'scheduled' ? '排程中' : '已回收'}</div>
+        ${m.senderName ? `<div>發送人：${m.senderName}</div>` : ''}
+        ${schedHtml}
+        <div>狀態：${statusMap[m.status] || m.status}</div>
       </div>
       <div style="font-size:.85rem;line-height:1.6;padding:.6rem;background:var(--bg-elevated);border-radius:var(--radius-sm);white-space:pre-wrap">${m.body}</div>
     `;
@@ -165,26 +219,34 @@ Object.assign(App, {
     this.showToast('已回收信件');
   },
 
-  // ── 刪除信件 ──
+  // ── 刪除信件（軟刪除，保留紀錄） ──
   deleteMsg(id) {
-    if (!confirm('確定要刪除此信件？刪除後無法恢復。')) return;
-    ApiService.deleteAdminMessage(id);
+    if (!confirm('確定要刪除此信件？')) return;
+    ApiService.updateAdminMessage(id, { status: 'deleted' });
     this.renderMsgManage();
-    this.showToast('信件已刪除');
+    this.showToast('信件已移至已刪除');
   },
 
-  // ── 取消排程 ──
+  // ── 取消排程（改為 cancelled，可恢復） ──
   cancelScheduleMsg(id) {
     if (!confirm('確定要取消此排程信件？')) return;
-    ApiService.deleteAdminMessage(id);
+    ApiService.updateAdminMessage(id, { status: 'cancelled' });
     this.renderMsgManage('scheduled');
     this.showToast('已取消排程');
+  },
+
+  // ── 恢復排程 ──
+  restoreScheduleMsg(id) {
+    ApiService.updateAdminMessage(id, { status: 'scheduled' });
+    this.renderMsgManage('cancelled');
+    this.showToast('已恢復排程');
   },
 
   // ── 撰寫信件 ──
   showMsgCompose() {
     const el = document.getElementById('msg-compose');
     if (!el) return;
+    document.getElementById('msg-category').value = 'system';
     document.getElementById('msg-title').value = '';
     document.getElementById('msg-body').value = '';
     document.getElementById('msg-schedule').value = '';
@@ -219,10 +281,10 @@ Object.assign(App, {
     const users = ApiService.getAdminUsers();
     const match = users.find(u => u.uid === input || u.name === input);
     if (match) {
-      result.innerHTML = `<span style="color:var(--success)">✓ 找到：${match.name}（${match.uid}）・ ${match.role}</span>`;
+      result.innerHTML = `<span style="color:var(--success)">&#10003; 找到：${match.name}（${match.uid}）・ ${match.role}</span>`;
       this._msgMatchedUser = match;
     } else {
-      result.innerHTML = `<span style="color:var(--danger)">✗ 找不到此用戶</span>`;
+      result.innerHTML = `<span style="color:var(--danger)">&#10007; 找不到此用戶</span>`;
       this._msgMatchedUser = null;
     }
   },
@@ -231,8 +293,12 @@ Object.assign(App, {
   sendMessage() {
     const title = document.getElementById('msg-title')?.value.trim();
     if (!title) { this.showToast('請輸入信件標題'); return; }
+    if (title.length > 12) { this.showToast('標題不可超過 12 字'); return; }
     const body = document.getElementById('msg-body')?.value.trim();
     if (!body) { this.showToast('請輸入信件內容'); return; }
+    if (body.length > 300) { this.showToast('內容不可超過 300 字'); return; }
+    const category = document.getElementById('msg-category')?.value || 'system';
+    const catNames = { system: '系統', activity: '活動', trade: '交易', private: '私訊' };
     const targetType = document.getElementById('msg-target')?.value || 'all';
     const schedule = document.getElementById('msg-schedule')?.value;
 
@@ -253,9 +319,8 @@ Object.assign(App, {
       targetName = this._msgMatchedUser.name;
     }
 
-    // 發送人 UID（取當前登入用戶或 demo 角色）
-    const currentUser = ApiService.getCurrentUser?.() || null;
-    const senderUid = currentUser?.uid || 'SYSTEM';
+    // 發送人：LINE 暱稱優先
+    const senderName = this._getMsgSenderName();
 
     const now = new Date();
     const timeStr = `${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
@@ -265,10 +330,12 @@ Object.assign(App, {
     const adminMsg = {
       id: 'mg_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
       title,
+      category,
+      categoryName: catNames[category] || '系統',
       target: targetLabel,
       targetUid: targetUid || null,
       targetName: targetName || null,
-      senderUid,
+      senderName,
       readRate: '-',
       time: timeStr,
       status: isScheduled ? 'scheduled' : 'sent',
@@ -277,9 +344,9 @@ Object.assign(App, {
     };
     ApiService.createAdminMessage(adminMsg);
 
-    // 立即發送 → 同時投遞到用戶收件箱
+    // 立即發送 → 同時投遞到用戶收件箱（只投一封）
     if (!isScheduled) {
-      this._deliverMessageToInbox(title, body, targetLabel, targetUid, senderUid);
+      this._deliverMessageToInbox(title, body, category, catNames[category], targetUid, senderName);
     }
 
     // 重置表單
@@ -295,20 +362,20 @@ Object.assign(App, {
     this.showToast(isScheduled ? '信件已排程' : '信件已發送');
   },
 
-  // ── 投遞到用戶收件箱 ──
-  _deliverMessageToInbox(title, body, targetLabel, targetUid, senderUid) {
+  // ── 投遞到用戶收件箱（只建立一封） ──
+  _deliverMessageToInbox(title, body, category, categoryName, targetUid, senderName) {
     const preview = body.length > 40 ? body.slice(0, 40) + '...' : body;
     const now = new Date();
     const timeStr = `${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
     const newMsg = {
       id: 'msg_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
-      type: targetUid ? 'private' : 'system',
-      typeName: targetUid ? '私訊' : '系統',
+      type: category,
+      typeName: categoryName,
       title,
       preview,
       time: timeStr,
       unread: true,
-      senderUid,
+      senderName,
     };
     // 加入用戶收件箱
     const source = ModeManager.isDemo() ? DemoData.messages : FirebaseService._cache.messages;

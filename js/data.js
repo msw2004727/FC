@@ -230,11 +230,11 @@ const DemoData = {
   ],
 
   adminMessages: [
-    { id:'mg1', title:'春季聯賽報名開始', target:'全體用戶', targetUid:null, targetName:null, senderUid:'SYSTEM', readRate:'72%', time:'2026/03/01 10:00', status:'sent', body:'2026 春季足球聯賽現已開放報名，請至賽事中心查看詳情。' },
-    { id:'mg2', title:'系統維護通知', target:'全體用戶', targetUid:null, targetName:null, senderUid:'SYSTEM', readRate:'85%', time:'2026/02/18 11:00', status:'sent', body:'本週六凌晨將進行系統更新，預計停機2小時。' },
-    { id:'mg3', title:'球隊集訓通知', target:'指定球隊', targetUid:null, targetName:null, senderUid:'U7g8h9i', readRate:'90%', time:'2026/02/15 09:00', status:'sent', body:'本週六下午2點集合於大安運動中心進行球隊集訓。' },
-    { id:'mg4', title:'新春盃報名提醒', target:'全體用戶', targetUid:null, targetName:null, senderUid:'SYSTEM', readRate:'-', time:'2026/03/20 08:00', status:'scheduled', body:'新春盃淘汰賽即將截止報名，請把握機會。' },
-    { id:'mg5', title:'教練升級通知', target:'李大華', targetUid:'U4d5e6f', targetName:'李大華', senderUid:'SYSTEM', readRate:'-', time:'2026/01/10 14:00', status:'recalled', body:'您的角色已升級為教練，請確認新權限。' },
+    { id:'mg1', title:'春季聯賽報名開始', target:'全體用戶', targetUid:null, targetName:null, senderName:'系統', readRate:'72%', time:'2026/03/01 10:00', status:'sent', body:'2026 春季足球聯賽現已開放報名，請至賽事中心查看詳情。' },
+    { id:'mg2', title:'系統維護通知', target:'全體用戶', targetUid:null, targetName:null, senderName:'系統', readRate:'85%', time:'2026/02/18 11:00', status:'sent', body:'本週六凌晨將進行系統更新，預計停機2小時。' },
+    { id:'mg3', title:'球隊集訓通知', target:'指定球隊', targetUid:null, targetName:null, senderName:'張美玲', readRate:'90%', time:'2026/02/15 09:00', status:'sent', body:'本週六下午2點集合於大安運動中心進行球隊集訓。' },
+    { id:'mg4', title:'新春盃報名提醒', target:'全體用戶', targetUid:null, targetName:null, senderName:'系統', readRate:'-', time:'2026/03/20 08:00', status:'scheduled', scheduledAt:'2026-03-20T08:00', body:'新春盃淘汰賽即將截止報名，請把握機會。' },
+    { id:'mg5', title:'教練升級通知', target:'李大華', targetUid:'U4d5e6f', targetName:'李大華', senderName:'系統', readRate:'-', time:'2026/01/10 14:00', status:'recalled', body:'您的角色已升級為教練，請確認新權限。' },
   ],
 
   activityRecords: [
