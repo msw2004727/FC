@@ -20,12 +20,12 @@ Object.assign(App, {
           : '';
         if (b.image) {
           return `<div class="banner-slide" style="background-image:url('${b.image}');background-size:cover;background-position:center" ${clickHandler}>
-            <div class="banner-content"><div class="banner-tag">廣告位 ${b.slot}</div><h2>${b.title || ''}</h2></div>
+            <div class="banner-content"><div class="banner-tag">${b.slotName || '廣告位 ' + b.slot}</div><h2>${b.title || ''}</h2></div>
           </div>`;
         }
         return `<div class="banner-slide banner-placeholder" style="background:${b.gradient || 'var(--bg-elevated)'}" ${clickHandler}>
           <div class="banner-img-placeholder">1200 × 400</div>
-          <div class="banner-content"><div class="banner-tag">廣告位 ${b.slot}</div><h2>${b.title || ''}</h2></div>
+          <div class="banner-content"><div class="banner-tag">${b.slotName || '廣告位 ' + b.slot}</div><h2>${b.title || ''}</h2></div>
         </div>`;
       }).join('');
     }

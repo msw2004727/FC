@@ -104,7 +104,7 @@ Object.assign(App, {
   // ── 通用：刪除（清空欄位，恢復空白） ──
   clearAdSlot(type, id) {
     if (!confirm('確定要刪除此廣告？將清空所有設定。')) return;
-    const emptyData = { title: '', linkUrl: '', image: null, publishAt: null, unpublishAt: null, status: 'empty', clicks: 0 };
+    const emptyData = { title: '', slotName: '', linkUrl: '', image: null, publishAt: null, unpublishAt: null, status: 'empty', clicks: 0 };
     if (type === 'banner') {
       ApiService.updateBanner(id, emptyData);
       this.renderBannerManage();
@@ -162,7 +162,7 @@ Object.assign(App, {
         ${thumb}
         <div class="banner-manage-info">
           <div style="display:flex;align-items:center;gap:.4rem">
-            <div class="banner-manage-title">廣告位 ${b.slot}${b.title ? ' — ' + b.title : ''}</div>
+            <div class="banner-manage-title">${b.slotName || '廣告位 ' + b.slot}${b.title ? ' — ' + b.title : ''}</div>
             <span class="banner-manage-status status-${statusClass}">${statusLabel}</span>
           </div>
           <div class="banner-manage-meta">${timeInfo}${remainText ? ' ・ ' + remainText : ''}${!isEmpty ? ' ・ 點擊 ' + (b.clicks || 0) + ' 次' : ''}</div>
@@ -180,10 +180,11 @@ Object.assign(App, {
     form.style.display = '';
     this._bannerEditId = editData.id;
     const isEmpty = editData.status === 'empty';
-    document.getElementById('banner-form-title').textContent = isEmpty ? `設定廣告位 ${editData.slot}` : `編輯廣告位 ${editData.slot}`;
+    const slotLabel = editData.slotName || `廣告位 ${editData.slot}`;
+    document.getElementById('banner-form-title').textContent = isEmpty ? `設定 ${slotLabel}` : `編輯 ${slotLabel}`;
     document.getElementById('banner-input-title').value = editData.title || '';
     document.getElementById('banner-input-link').value = editData.linkUrl || '';
-    document.getElementById('banner-slot-display').textContent = `廣告位 ${editData.slot}`;
+    document.getElementById('banner-slot-display').value = slotLabel;
     const preview = document.getElementById('banner-preview');
     if (editData.image) {
       preview.innerHTML = `<img src="${editData.image}" style="width:100%;height:100%;object-fit:cover;border-radius:var(--radius-sm)">`;
@@ -219,6 +220,9 @@ Object.assign(App, {
     if (!unpublishVal) { this.showToast('請選擇結束時間'); return; }
     const title = document.getElementById('banner-input-title').value.trim();
     if (title.length > 12) { this.showToast('標題不可超過 12 字'); return; }
+    const slotName = document.getElementById('banner-slot-display').value.trim();
+    if (!slotName) { this.showToast('請輸入廣告位名稱'); return; }
+    if (slotName.length > 12) { this.showToast('廣告位名稱不可超過 12 字'); return; }
     const linkUrl = document.getElementById('banner-input-link').value.trim();
     const mode = document.getElementById('banner-input-mode').value;
     const unpublishAt = this._formatDT(unpublishVal);
@@ -240,7 +244,7 @@ Object.assign(App, {
       if (!url) { this.showToast('圖片上傳失敗，請重試'); return; }
       image = url;
     }
-    ApiService.updateBanner(this._bannerEditId, { title, linkUrl, image, publishAt, unpublishAt, status });
+    ApiService.updateBanner(this._bannerEditId, { title, slotName, linkUrl, image, publishAt, unpublishAt, status });
     this.showToast(status === 'scheduled' ? `Banner 已排程，將於 ${publishAt} 啟用` : 'Banner 已更新並立即啟用');
     this.hideBannerForm();
     this.renderBannerManage();
