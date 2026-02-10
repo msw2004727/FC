@@ -18,6 +18,49 @@ Object.assign(App, {
     return ROLES[this.currentRole]?.label || '一般用戶';
   },
 
+  _getEventCreatorUid() {
+    const user = ApiService.getCurrentUser?.() || null;
+    return user?.uid || 'unknown';
+  },
+
+  _getEventCreatorTeam() {
+    const user = ApiService.getCurrentUser?.() || null;
+    if (!user) return { teamId: null, teamName: null };
+    return { teamId: user.teamId || null, teamName: user.teamName || null };
+  },
+
+  /** 判斷當前用戶是否為該活動建立者 */
+  _isEventOwner(e) {
+    if (!e.creatorUid) {
+      // 舊資料無 creatorUid，用 creator 名稱比對
+      const name = this._getEventCreatorName();
+      return e.creator === name;
+    }
+    return e.creatorUid === this._getEventCreatorUid();
+  },
+
+  /** 場主(含)以下只能管理自己的活動，admin+ 可管理全部 */
+  _canManageEvent(e) {
+    const myLevel = ROLE_LEVEL_MAP[this.currentRole] || 0;
+    if (myLevel >= ROLE_LEVEL_MAP.admin) return true; // admin, super_admin
+    return this._isEventOwner(e);
+  },
+
+  /** 取得當前用戶可見的活動列表（過濾球隊限定） */
+  _getVisibleEvents() {
+    const all = ApiService.getEvents();
+    const user = ApiService.getCurrentUser?.() || null;
+    const myTeamId = user?.teamId || null;
+    const myLevel = ROLE_LEVEL_MAP[this.currentRole] || 0;
+    return all.filter(e => {
+      if (!e.teamOnly) return true;
+      // admin+ 可看全部
+      if (myLevel >= ROLE_LEVEL_MAP.admin) return true;
+      // 球隊限定：只有同隊可見
+      return e.creatorTeamId && e.creatorTeamId === myTeamId;
+    });
+  },
+
   /** 解析活動日期字串，回傳開始時間的 Date 物件 */
   _parseEventStartDate(dateStr) {
     if (!dateStr) return null;
@@ -28,14 +71,14 @@ Object.assign(App, {
     const m = parseInt(dateParts[1]) - 1;
     const d = parseInt(dateParts[2]);
     if (parts[1]) {
-      const timePart = parts[1].split('~')[0]; // 取開始時間
+      const timePart = parts[1].split('~')[0];
       const [hh, mm] = timePart.split(':').map(Number);
       return new Date(y, m, d, hh || 0, mm || 0);
     }
     return new Date(y, m, d);
   },
 
-  /** 計算倒數文字：剩餘 X日Y時 / X時Y分 / 已結束 */
+  /** 計算倒數文字 */
   _calcCountdown(e) {
     if (e.status === 'ended') return '已結束';
     if (e.status === 'cancelled') return '已取消';
@@ -83,16 +126,23 @@ Object.assign(App, {
   renderHotEvents() {
     this._autoEndExpiredEvents();
     const container = document.getElementById('hot-events');
-    const upcoming = ApiService.getHotEvents(14);
+    // 用可見活動過濾
+    const now = new Date();
+    const twoWeeks = 14 * 24 * 60 * 60 * 1000;
+    const visible = this._getVisibleEvents().filter(e => {
+      if (e.status === 'ended' || e.status === 'cancelled') return false;
+      const start = this._parseEventStartDate(e.date);
+      return start && (start - now) <= twoWeeks && (start - now) > 0;
+    });
 
-    container.innerHTML = upcoming.length > 0
-      ? upcoming.map(e => `
+    container.innerHTML = visible.length > 0
+      ? visible.map(e => `
         <div class="h-card" onclick="App.showEventDetail('${e.id}')">
           ${e.image
             ? `<div class="h-card-img"><img src="${e.image}" alt="${e.title}"></div>`
             : `<div class="h-card-img h-card-placeholder">220 × 90</div>`}
           <div class="h-card-body">
-            <div class="h-card-title">${e.title}</div>
+            <div class="h-card-title">${e.title}${e.teamOnly ? '<span class="tl-teamonly-badge">限定</span>' : ''}</div>
             <div class="h-card-meta">
               <span>${e.location.split('市')[0]}市</span>
               <span>${e.current}/${e.max} 人</span>
@@ -112,7 +162,7 @@ Object.assign(App, {
     if (!container) return;
 
     const monthGroups = {};
-    ApiService.getEvents().forEach(e => {
+    this._getVisibleEvents().forEach(e => {
       const parts = e.date.split(' ')[0].split('/');
       const monthKey = `${parts[0]}/${parts[1]}`;
       const day = parseInt(parts[2], 10);
@@ -152,12 +202,15 @@ Object.assign(App, {
           const time = e.date.split(' ')[1] || '';
           const isEnded = e.status === 'ended' || e.status === 'cancelled';
           const waitlistTag = (e.waitlist || 0) > 0 ? ` · 候補(${e.waitlist})` : '';
+          // 球隊限定用特殊色
+          const rowClass = e.teamOnly ? 'tl-type-teamonly' : `tl-type-${e.type}`;
+          const teamBadge = e.teamOnly ? `<span class="tl-teamonly-badge">${e.creatorTeamName || '限定'}</span>` : '';
 
           html += `
-            <div class="tl-event-row tl-type-${e.type}${isEnded ? ' tl-past' : ''}" onclick="App.showEventDetail('${e.id}')">
+            <div class="tl-event-row ${rowClass}${isEnded ? ' tl-past' : ''}" onclick="App.showEventDetail('${e.id}')">
               ${e.image ? `<div class="tl-event-thumb"><img src="${e.image}"></div>` : ''}
               <div class="tl-event-info">
-                <div class="tl-event-title">${e.title}</div>
+                <div class="tl-event-title">${e.title}${teamBadge}</div>
                 <div class="tl-event-meta">${typeConf.label} · ${time} · ${e.location.split('市')[1] || e.location} · ${e.current}/${e.max}人${waitlistTag}</div>
               </div>
               <span class="tl-event-status ${statusConf.css}">${statusConf.label}</span>
@@ -193,14 +246,10 @@ Object.assign(App, {
     }
     document.getElementById('detail-title').textContent = e.title;
 
-    // 動態倒數
     const countdown = this._calcCountdown(e);
-
-    // Google Maps 搜尋連結
     const mapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(e.location)}`;
     const locationHtml = `<a href="${mapUrl}" target="_blank" rel="noopener" style="color:var(--primary);text-decoration:none">${e.location} 📍</a>`;
 
-    // 動態報名按鈕
     const isEnded = e.status === 'ended' || e.status === 'cancelled';
     const isFull = e.current >= e.max;
     const isSignedUp = this._isUserSignedUp(e);
@@ -215,6 +264,8 @@ Object.assign(App, {
       signupBtn = `<button class="primary-btn" onclick="App.handleSignup('${e.id}')">立即報名</button>`;
     }
 
+    const teamTag = e.teamOnly ? `<div class="detail-row"><span class="detail-label">限定</span><span style="color:#e11d48;font-weight:600">${e.creatorTeamName || '球隊'} 專屬活動</span></div>` : '';
+
     document.getElementById('detail-body').innerHTML = `
       <div class="detail-row"><span class="detail-label">地點</span>${locationHtml}</div>
       <div class="detail-row"><span class="detail-label">時間</span>${e.date}</div>
@@ -223,6 +274,7 @@ Object.assign(App, {
       <div class="detail-row"><span class="detail-label">年齡</span>${e.minAge > 0 ? e.minAge + ' 歲以上' : '無限制'}</div>
       <div class="detail-row"><span class="detail-label">主辦</span>${e.creator}</div>
       ${e.contact ? `<div class="detail-row"><span class="detail-label">聯繫</span>${e.contact}</div>` : ''}
+      ${teamTag}
       <div class="detail-row"><span class="detail-label">倒數</span><span style="color:${isEnded ? 'var(--text-muted)' : 'var(--primary)' };font-weight:600">${countdown}</span></div>
       ${e.notes ? `
       <div class="detail-section">
@@ -271,12 +323,39 @@ Object.assign(App, {
 
   handleCancelSignup(id) {
     if (!confirm('確定要取消報名？')) return;
+    const user = ApiService.getCurrentUser();
+    const userName = user?.displayName || user?.name || '用戶';
+    const userId = user?.uid || 'unknown';
+
     if (ApiService._demoMode) {
+      // Demo 模式：從 participants / waitlistNames 移除
+      const e = ApiService.getEvent(id);
+      if (e) {
+        const pi = (e.participants || []).indexOf(userName);
+        if (pi !== -1) {
+          e.participants.splice(pi, 1);
+          e.current = Math.max(0, e.current - 1);
+          // 若候補有人，遞補
+          if (e.waitlistNames && e.waitlistNames.length > 0) {
+            const promoted = e.waitlistNames.shift();
+            e.participants.push(promoted);
+            e.current++;
+            e.waitlist = Math.max(0, e.waitlist - 1);
+          }
+          if (e.current < e.max && e.status === 'full') e.status = 'open';
+        } else {
+          const wi = (e.waitlistNames || []).indexOf(userName);
+          if (wi !== -1) {
+            e.waitlistNames.splice(wi, 1);
+            e.waitlist = Math.max(0, e.waitlist - 1);
+          }
+        }
+      }
       this.showToast('已取消報名');
+      this.showEventDetail(id);
       return;
     }
-    const user = ApiService.getCurrentUser();
-    const userId = user?.uid || 'unknown';
+
     if (typeof FirebaseService.unregisterFromEvent === 'function') {
       FirebaseService.unregisterFromEvent(id, userId)
         .then(() => { this.showToast('已取消報名'); this.showEventDetail(id); })
@@ -298,7 +377,14 @@ Object.assign(App, {
     const f = filter || this._myActivityFilter || 'all';
     this._myActivityFilter = f;
 
-    const allEvents = ApiService.getEvents();
+    const myLevel = ROLE_LEVEL_MAP[this.currentRole] || 0;
+    const isAdmin = myLevel >= ROLE_LEVEL_MAP.admin;
+
+    // 場主(含)以下只看自己的活動
+    let allEvents = ApiService.getEvents();
+    if (!isAdmin) {
+      allEvents = allEvents.filter(e => this._isEventOwner(e));
+    }
     const filtered = f === 'all' ? allEvents : allEvents.filter(e => e.status === f);
 
     // 統計
@@ -315,27 +401,33 @@ Object.assign(App, {
     container.innerHTML = filtered.length > 0
       ? filtered.map(e => {
         const statusConf = STATUS_CONFIG[e.status] || STATUS_CONFIG.open;
+        const canManage = this._canManageEvent(e);
         let btns = '';
-        if (e.status === 'open' || e.status === 'full') {
-          btns = `<button class="primary-btn small" style="${s}" onclick="App.showMyActivityDetail('${e.id}')">查看名單</button>`
-               + `<button class="outline-btn" style="${s}" onclick="App.editMyActivity('${e.id}')">編輯</button>`
-               + `<button class="outline-btn" style="${s};color:var(--warning)" onclick="App.closeMyActivity('${e.id}')">結束</button>`
-               + `<button class="outline-btn" style="${s};color:var(--danger)" onclick="App.cancelMyActivity('${e.id}')">取消</button>`;
-        } else if (e.status === 'ended') {
-          btns = `<button class="primary-btn small" style="${s}" onclick="App.showMyActivityDetail('${e.id}')">查看名單</button>`
-               + `<button class="outline-btn" style="${s};color:var(--success)" onclick="App.reopenMyActivity('${e.id}')">重新開放</button>`
-               + `<button class="outline-btn" style="${s};color:var(--danger)" onclick="App.deleteMyActivity('${e.id}')">刪除</button>`;
-        } else if (e.status === 'cancelled') {
-          btns = `<button class="primary-btn small" style="${s}" onclick="App.showMyActivityDetail('${e.id}')">查看名單</button>`
-               + `<button class="outline-btn" style="${s};color:var(--success)" onclick="App.reopenMyActivity('${e.id}')">重新開放</button>`
-               + `<button class="outline-btn" style="${s};color:var(--danger)" onclick="App.deleteMyActivity('${e.id}')">刪除</button>`;
+        if (canManage) {
+          if (e.status === 'open' || e.status === 'full') {
+            btns = `<button class="primary-btn small" style="${s}" onclick="App.showMyActivityDetail('${e.id}')">查看名單</button>`
+                 + `<button class="outline-btn" style="${s}" onclick="App.editMyActivity('${e.id}')">編輯</button>`
+                 + `<button class="outline-btn" style="${s};color:var(--warning)" onclick="App.closeMyActivity('${e.id}')">結束</button>`
+                 + `<button class="outline-btn" style="${s};color:var(--danger)" onclick="App.cancelMyActivity('${e.id}')">取消</button>`;
+          } else if (e.status === 'ended') {
+            btns = `<button class="primary-btn small" style="${s}" onclick="App.showMyActivityDetail('${e.id}')">查看名單</button>`
+                 + `<button class="outline-btn" style="${s};color:var(--success)" onclick="App.reopenMyActivity('${e.id}')">重新開放</button>`
+                 + `<button class="outline-btn" style="${s};color:var(--danger)" onclick="App.deleteMyActivity('${e.id}')">刪除</button>`;
+          } else if (e.status === 'cancelled') {
+            btns = `<button class="primary-btn small" style="${s}" onclick="App.showMyActivityDetail('${e.id}')">查看名單</button>`
+                 + `<button class="outline-btn" style="${s};color:var(--success)" onclick="App.reopenMyActivity('${e.id}')">重新開放</button>`
+                 + `<button class="outline-btn" style="${s};color:var(--danger)" onclick="App.deleteMyActivity('${e.id}')">刪除</button>`;
+          }
+        } else {
+          btns = `<button class="primary-btn small" style="${s}" onclick="App.showMyActivityDetail('${e.id}')">查看名單</button>`;
         }
         const progressPct = e.max > 0 ? Math.min(100, Math.round(e.current / e.max * 100)) : 0;
         const progressColor = progressPct >= 100 ? 'var(--danger)' : progressPct >= 70 ? 'var(--warning)' : 'var(--success)';
+        const teamBadge = e.teamOnly ? '<span class="tl-teamonly-badge" style="margin-left:.3rem">限定</span>' : '';
         return `
       <div class="msg-manage-card" style="margin-bottom:.5rem">
         <div style="display:flex;align-items:center;gap:.4rem;margin-bottom:.2rem">
-          <span class="msg-manage-title" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e.title}</span>
+          <span class="msg-manage-title" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e.title}${teamBadge}</span>
           <span class="banner-manage-status status-${statusConf.css}">${statusConf.label}</span>
         </div>
         <div style="font-size:.75rem;color:var(--text-muted)">${e.location} ・ ${e.date}</div>
@@ -400,10 +492,11 @@ Object.assign(App, {
     modal.style.display = 'flex';
   },
 
-  // ── 編輯活動（開啟新增表單並填入資料） ──
+  // ── 編輯活動 ──
   editMyActivity(id) {
     const e = ApiService.getEvent(id);
     if (!e) return;
+    if (!this._canManageEvent(e)) { this.showToast('您只能編輯自己的活動'); return; }
     this._editEventId = id;
     this.showModal('create-event-modal');
     document.getElementById('ce-title').value = e.title || '';
@@ -414,7 +507,6 @@ Object.assign(App, {
     if (dateParts.length === 3) {
       document.getElementById('ce-date').value = `${dateParts[0]}-${dateParts[1].padStart(2,'0')}-${dateParts[2].padStart(2,'0')}`;
     }
-    // 時間下拉選單
     const timeStr = dateTime[1] || '';
     const timeParts = timeStr.split('~');
     const ceTimeStart = document.getElementById('ce-time-start');
@@ -428,6 +520,12 @@ Object.assign(App, {
     document.getElementById('ce-waitlist').value = e.waitlistMax || 0;
     document.getElementById('ce-min-age').value = e.minAge || 0;
     document.getElementById('ce-notes').value = e.notes || '';
+    // 球隊限定
+    const ceTeamOnly = document.getElementById('ce-team-only');
+    if (ceTeamOnly) {
+      ceTeamOnly.checked = !!e.teamOnly;
+      this._updateTeamOnlyLabel();
+    }
     const preview = document.getElementById('ce-upload-preview');
     if (e.image && preview) {
       preview.innerHTML = `<img src="${e.image}" style="width:100%;height:100%;object-fit:cover;border-radius:var(--radius-sm)">`;
@@ -437,6 +535,8 @@ Object.assign(App, {
 
   // ── 結束活動 ──
   closeMyActivity(id) {
+    const e = ApiService.getEvent(id);
+    if (e && !this._canManageEvent(e)) { this.showToast('您只能管理自己的活動'); return; }
     if (!confirm('確定要結束此活動？')) return;
     ApiService.updateEvent(id, { status: 'ended' });
     this.renderMyActivities();
@@ -447,6 +547,8 @@ Object.assign(App, {
 
   // ── 取消活動 ──
   cancelMyActivity(id) {
+    const e = ApiService.getEvent(id);
+    if (e && !this._canManageEvent(e)) { this.showToast('您只能管理自己的活動'); return; }
     if (!confirm('確定要取消此活動？')) return;
     ApiService.updateEvent(id, { status: 'cancelled' });
     this.renderMyActivities();
@@ -459,6 +561,7 @@ Object.assign(App, {
   reopenMyActivity(id) {
     const e = ApiService.getEvent(id);
     if (!e) return;
+    if (!this._canManageEvent(e)) { this.showToast('您只能管理自己的活動'); return; }
     const newStatus = e.current >= e.max ? 'full' : 'open';
     ApiService.updateEvent(id, { status: newStatus });
     this.renderMyActivities();
@@ -469,6 +572,8 @@ Object.assign(App, {
 
   // ── 刪除活動 ──
   deleteMyActivity(id) {
+    const e = ApiService.getEvent(id);
+    if (e && !this._canManageEvent(e)) { this.showToast('您只能管理自己的活動'); return; }
     if (!confirm('確定要刪除此活動？刪除後無法恢復。')) return;
     ApiService.deleteEvent(id);
     this.renderMyActivities();
@@ -483,12 +588,32 @@ Object.assign(App, {
 
   _editEventId: null,
 
+  /** 球隊限定開關 label 更新 */
+  _updateTeamOnlyLabel() {
+    const cb = document.getElementById('ce-team-only');
+    const label = document.getElementById('ce-team-only-label');
+    if (!cb || !label) return;
+    if (cb.checked) {
+      const team = this._getEventCreatorTeam();
+      label.textContent = `開啟 — 僅 ${team.teamName || '您的球隊'} 可見`;
+      label.style.color = '#e11d48';
+    } else {
+      label.textContent = '關閉 — 所有人可見';
+      label.style.color = 'var(--text-muted)';
+    }
+  },
+
+  /** 綁定球隊限定開關事件 */
+  bindTeamOnlyToggle() {
+    const cb = document.getElementById('ce-team-only');
+    if (cb) cb.addEventListener('change', () => this._updateTeamOnlyLabel());
+  },
+
   handleCreateEvent() {
     const title = document.getElementById('ce-title').value.trim();
     const type = document.getElementById('ce-type').value;
     const location = document.getElementById('ce-location').value.trim();
     const dateVal = document.getElementById('ce-date').value;
-    // 時間下拉選單
     const ceTimeStart = document.getElementById('ce-time-start');
     const ceTimeEnd = document.getElementById('ce-time-end');
     const timeVal = (ceTimeStart && ceTimeEnd) ? `${ceTimeStart.value}~${ceTimeEnd.value}` : '';
@@ -497,12 +622,17 @@ Object.assign(App, {
     const waitlistMax = parseInt(document.getElementById('ce-waitlist').value) || 0;
     const minAge = parseInt(document.getElementById('ce-min-age').value) || 0;
     const notes = document.getElementById('ce-notes').value.trim();
+    const teamOnly = !!document.getElementById('ce-team-only')?.checked;
 
     if (!title) { this.showToast('請輸入活動名稱'); return; }
     if (title.length > 12) { this.showToast('活動名稱不可超過 12 字'); return; }
     if (!location) { this.showToast('請輸入地點'); return; }
     if (!dateVal) { this.showToast('請選擇日期'); return; }
     if (notes.length > 500) { this.showToast('注意事項不可超過 500 字'); return; }
+    if (teamOnly) {
+      const team = this._getEventCreatorTeam();
+      if (!team.teamId) { this.showToast('您尚未加入球隊，無法開啟球隊限定'); return; }
+    }
 
     const cePreviewEl = document.getElementById('ce-upload-preview');
     const ceImg = cePreviewEl?.querySelector('img');
@@ -511,11 +641,17 @@ Object.assign(App, {
     const dateParts = dateVal.split('-');
     const fullDate = timeVal ? `${dateParts[0]}/${parseInt(dateParts[1]).toString().padStart(2,'0')}/${parseInt(dateParts[2]).toString().padStart(2,'0')} ${timeVal}` : `${dateParts[0]}/${parseInt(dateParts[1])}/${parseInt(dateParts[2])}`;
 
+    const team = this._getEventCreatorTeam();
+
     if (this._editEventId) {
-      ApiService.updateEvent(this._editEventId, {
+      const updates = {
         title, type, location, date: fullDate, fee, max, waitlistMax, minAge, notes, image,
         gradient: GRADIENT_MAP[type] || GRADIENT_MAP.friendly,
-      });
+        teamOnly,
+        creatorTeamId: teamOnly ? team.teamId : null,
+        creatorTeamName: teamOnly ? team.teamName : null,
+      };
+      ApiService.updateEvent(this._editEventId, updates);
       this.closeModal();
       this._editEventId = null;
       this.renderActivityList();
@@ -524,17 +660,22 @@ Object.assign(App, {
       this.showToast(`活動「${title}」已更新！`);
     } else {
       const creatorName = this._getEventCreatorName();
+      const creatorUid = this._getEventCreatorUid();
       const newEvent = {
         id: 'ce_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
         title, type, status: 'open', location, date: fullDate,
         fee, max, current: 0, waitlist: 0, waitlistMax, minAge, notes, image,
         creator: creatorName,
+        creatorUid,
         contact: '',
         gradient: GRADIENT_MAP[type] || GRADIENT_MAP.friendly,
         icon: '',
         countdown: '即將開始',
         participants: [],
         waitlistNames: [],
+        teamOnly,
+        creatorTeamId: teamOnly ? team.teamId : null,
+        creatorTeamName: teamOnly ? team.teamName : null,
       };
       ApiService.createEvent(newEvent);
       this.closeModal();
@@ -556,6 +697,8 @@ Object.assign(App, {
     document.getElementById('ce-image').value = '';
     if (ceTimeStart) ceTimeStart.value = '14:00';
     if (ceTimeEnd) ceTimeEnd.value = '16:00';
+    const ceTeamOnly = document.getElementById('ce-team-only');
+    if (ceTeamOnly) { ceTeamOnly.checked = false; this._updateTeamOnlyLabel(); }
     const cePreview = document.getElementById('ce-upload-preview');
     if (cePreview) {
       cePreview.classList.remove('has-image');

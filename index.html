@@ -1111,6 +1111,16 @@
           <input type="number" id="ce-min-age" placeholder="0" value="0" min="0">
         </div>
         <div class="ce-row">
+          <label>球隊限定</label>
+          <div style="display:flex;align-items:center;gap:.5rem">
+            <label class="toggle-switch" style="margin:0">
+              <input type="checkbox" id="ce-team-only">
+              <span class="toggle-slider"></span>
+            </label>
+            <span id="ce-team-only-label" style="font-size:.78rem;color:var(--text-muted)">關閉 — 所有人可見</span>
+          </div>
+        </div>
+        <div class="ce-row">
           <label>注意事項（上限 500 字）</label>
           <textarea id="ce-notes" rows="3" maxlength="500" placeholder="例如：請自備球鞋、飲用水，遲到15分鐘以上視為缺席..."></textarea>
         </div>
