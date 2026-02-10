@@ -253,9 +253,6 @@ Object.assign(App, {
       if (!ModeManager.isDemo()) {
         try {
           await FirebaseService.updateShopItem(this._shopEditId, updates);
-          // 同步更新快取
-          const cached = FirebaseService._cache.shopItems.find(s => s.id === this._shopEditId);
-          if (cached) Object.assign(cached, updates);
         } catch (err) {
           console.error('[updateShopItem]', err);
           this.showToast('商品更新失敗，請重試');
@@ -305,8 +302,9 @@ Object.assign(App, {
     if (!ModeManager.isDemo()) {
       try { await FirebaseService.updateShopItem(id, { status: 'delisted' }); }
       catch (err) { console.error('[delistShopItem]', err); this.showToast('下架失敗'); return; }
+    } else {
+      s.status = 'delisted';
     }
-    s.status = 'delisted';
     this.renderShop();
     this.renderShopManage();
     this.showToast(`「${s.name}」已下架`);
@@ -318,8 +316,9 @@ Object.assign(App, {
     if (!ModeManager.isDemo()) {
       try { await FirebaseService.updateShopItem(id, { status: 'on_sale' }); }
       catch (err) { console.error('[relistShopItem]', err); this.showToast('上架失敗'); return; }
+    } else {
+      s.status = 'on_sale';
     }
-    s.status = 'on_sale';
     this.renderShop();
     this.renderShopManage();
     this.showToast(`「${s.name}」已重新上架`);
@@ -332,11 +331,10 @@ Object.assign(App, {
     if (!ModeManager.isDemo()) {
       try { await FirebaseService.deleteShopItem(id); }
       catch (err) { console.error('[removeShopItem]', err); this.showToast('刪除失敗'); return; }
+    } else {
+      const idx = DemoData.shopItems.findIndex(si => si.id === id);
+      if (idx >= 0) DemoData.shopItems.splice(idx, 1);
     }
-    // 從快取中移除
-    const source = ModeManager.isDemo() ? DemoData.shopItems : FirebaseService._cache.shopItems;
-    const idx = source.findIndex(s => s.id === id);
-    if (idx >= 0) source.splice(idx, 1);
     this.renderShop();
     this.renderShopManage();
     this.showToast(`「${s.name}」已刪除`);
