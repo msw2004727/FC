@@ -142,7 +142,10 @@ Object.assign(App, {
         </div>
       </div>
       <div class="td-actions">
-        <button class="primary-btn" onclick="App.handleJoinTeam('${t.id}')">申請加入</button>
+        ${this._isTeamMember(t.id)
+          ? `<button style="background:var(--danger);color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;font-weight:600;cursor:pointer" onclick="App.handleLeaveTeam('${t.id}')">退出球隊</button>`
+          : `<button class="primary-btn" onclick="App.handleJoinTeam('${t.id}')">申請加入</button>`
+        }
         <button class="outline-btn" onclick="App.showToast('透過站內信聯繫')">聯繫領隊</button>
       </div>
     `;
@@ -211,6 +214,55 @@ Object.assign(App, {
     );
 
     this.showToast('已送出加入申請！');
+  },
+
+  _isTeamMember(teamId) {
+    if (ModeManager.isDemo()) return this._userTeam === teamId;
+    const user = ApiService.getCurrentUser();
+    return user && user.teamId === teamId;
+  },
+
+  async handleLeaveTeam(teamId) {
+    const t = ApiService.getTeam(teamId);
+    if (!t) return;
+    if (!(await this.appConfirm(`確定要退出「${t.name}」球隊？此操作無法自行撤回。`))) return;
+
+    const curUser = ApiService.getCurrentUser();
+    const userName = curUser?.displayName || (ModeManager.isDemo() ? DemoData.currentUser.displayName : '');
+
+    // 領隊不能退出
+    if (t.captain === userName) {
+      this.showToast('領隊無法退出球隊，請先轉移領隊職務');
+      return;
+    }
+
+    // 清除用戶球隊資料
+    if (ModeManager.isDemo()) {
+      DemoData.currentUser.teamId = null;
+      DemoData.currentUser.teamName = null;
+      this._userTeam = null;
+    } else {
+      ApiService.updateCurrentUser({ teamId: null, teamName: null });
+    }
+    // 同步 adminUsers
+    const users = ApiService.getAdminUsers();
+    const uid = curUser?.uid || (ModeManager.isDemo() ? DemoData.currentUser.uid : null);
+    const adminUser = users.find(u => u.uid === uid);
+    if (adminUser) {
+      adminUser.teamId = null;
+      adminUser.teamName = null;
+      if (!ModeManager.isDemo() && adminUser._docId) {
+        FirebaseService.updateUser(adminUser._docId, { teamId: null, teamName: null }).catch(err => console.error('[leaveTeam]', err));
+      }
+    }
+
+    // 球隊人數 -1
+    ApiService.updateTeam(teamId, { members: Math.max(0, (t.members || 1) - 1) });
+
+    this.showToast(`已退出「${t.name}」`);
+    this.showTeamDetail(teamId);
+    this.renderTeamList();
+    this.renderProfileData();
   },
 
   goMyTeam() {
