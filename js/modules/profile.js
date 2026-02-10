@@ -279,6 +279,16 @@ Object.assign(App, {
     const titleDisplay = this._buildTitleDisplay(user, lineProfile ? lineProfile.displayName : null);
     if (el('profile-title')) el('profile-title').textContent = titleDisplay;
 
+    // UID 顯示 + 迷你 QR 按鈕
+    const uidWrap = el('profile-uid-wrap');
+    if (uidWrap) {
+      const uid = user.uid || user.lineUserId || '-';
+      uidWrap.innerHTML = `<span style="font-size:.72rem;color:var(--text-muted);letter-spacing:.3px">${uid}</span>`
+        + `<button onclick="App.showUidQrCode()" style="background:none;border:none;cursor:pointer;padding:2px;display:flex;align-items:center" title="顯示 UID QR Code">`
+        + `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="3" height="3"/><line x1="21" y1="14" x2="21" y2="17"/><line x1="17" y1="21" x2="21" y2="21"/></svg>`
+        + `</button>`;
+    }
+
     // 角色膠囊
     const roleTagWrap = el('profile-role-tag-wrap');
     if (roleTagWrap) {
@@ -553,6 +563,24 @@ Object.assign(App, {
         <div style="font-size:.82rem;color:var(--text-muted)">目前無交易紀錄</div>
       </div>
     `;
+  },
+
+  /** 顯示 UID 專屬 QR Code 彈窗 */
+  showUidQrCode() {
+    const user = ApiService.getCurrentUser();
+    const uid = user?.uid || user?.lineUserId || 'unknown';
+    const modal = document.getElementById('uid-qr-modal');
+    const content = document.getElementById('uid-qr-content');
+    if (!modal || !content) return;
+    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(uid)}`;
+    content.innerHTML = `
+      <div style="font-size:.85rem;font-weight:700;margin-bottom:.8rem">我的 UID QR Code</div>
+      <div style="background:#fff;display:inline-block;padding:12px;border-radius:var(--radius)">
+        <img src="${qrUrl}" alt="QR Code" width="180" height="180" style="display:block">
+      </div>
+      <div style="margin-top:.7rem;font-size:.75rem;color:var(--text-muted);word-break:break-all">${uid}</div>
+    `;
+    modal.style.display = 'flex';
   },
 
 });

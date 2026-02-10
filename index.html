@@ -307,6 +307,7 @@
         <div class="profile-header">
           <div class="profile-avatar" id="profile-avatar"></div>
           <div class="profile-title" id="profile-title">-</div>
+          <div id="profile-uid-wrap" style="margin-top:.25rem;display:flex;align-items:center;justify-content:center;gap:.3rem"></div>
           <div id="profile-role-tag-wrap" style="margin-top:.3rem"></div>
           <div class="profile-level" id="profile-level">
             <span id="profile-lv">Lv.1</span>
@@ -1027,6 +1028,14 @@
         <span class="popup-ad-counter" id="popup-ad-counter"></span>
         <button class="popup-ad-dismiss-btn" id="popup-ad-dismiss-btn" onclick="App.togglePopupDismiss()">今日不再顯示</button>
       </div>
+    </div>
+  </div>
+
+  <!-- UID QR Code Popup -->
+  <div id="uid-qr-modal" style="display:none;position:fixed;inset:0;z-index:1200;background:rgba(0,0,0,.5);backdrop-filter:blur(4px);align-items:center;justify-content:center" onclick="if(event.target===this)this.style.display='none'">
+    <div style="background:var(--bg-card);border-radius:var(--radius-lg);max-width:320px;width:85%;padding:1.5rem;text-align:center;position:relative">
+      <button style="position:absolute;top:.5rem;right:.7rem;background:none;border:none;font-size:1.2rem;cursor:pointer;color:var(--text-muted)" onclick="document.getElementById('uid-qr-modal').style.display='none'">✕</button>
+      <div id="uid-qr-content"></div>
     </div>
   </div>
 
