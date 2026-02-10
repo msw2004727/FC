@@ -132,7 +132,7 @@ Object.assign(App, {
       startAnimation();
     }, { passive: true });
 
-    floatingAds.style.top = '50vh';
+    floatingAds.style.top = '85vh';
     floatingAds.style.transform = 'translateY(-50%)';
   },
 
