@@ -146,7 +146,7 @@ Object.assign(App, {
           ? `<button style="background:var(--danger);color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;font-weight:600;cursor:pointer" onclick="App.handleLeaveTeam('${t.id}')">退出球隊</button>`
           : `<button class="primary-btn" onclick="App.handleJoinTeam('${t.id}')">申請加入</button>`
         }
-        <button class="outline-btn" onclick="App.showToast('透過站內信聯繫')">聯繫領隊</button>
+        <button class="outline-btn" onclick="App.showUserProfile('${escapeHTML(t.captain)}')">聯繫領隊</button>
       </div>
     `;
     this.showPage('page-team-detail');
