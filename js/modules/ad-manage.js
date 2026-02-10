@@ -16,6 +16,104 @@ Object.assign(App, {
     return Math.max(0, Math.ceil(diff / 86400000));
   },
 
+  // 廣告動作按鈕 HTML
+  _adActionBtns(type, id, status, unpublishAt) {
+    const btns = [];
+    if (status === 'empty') {
+      btns.push(`<button class="text-btn" style="font-size:.72rem" onclick="App.editAd('${type}','${id}')">設定</button>`);
+    } else if (status === 'active') {
+      btns.push(`<button class="text-btn" style="font-size:.72rem" onclick="App.editAd('${type}','${id}')">編輯</button>`);
+      btns.push(`<button class="text-btn" style="font-size:.72rem;color:var(--danger)" onclick="App.delistAd('${type}','${id}')">下架</button>`);
+    } else if (status === 'scheduled') {
+      btns.push(`<button class="text-btn" style="font-size:.72rem" onclick="App.editAd('${type}','${id}')">編輯</button>`);
+      btns.push(`<button class="text-btn" style="font-size:.72rem;color:var(--danger)" onclick="App.clearAdSlot('${type}','${id}')">刪除</button>`);
+    } else {
+      // expired / delisted
+      const canRelist = unpublishAt && this._remainDays(unpublishAt) > 0;
+      if (canRelist) {
+        btns.push(`<button class="text-btn" style="font-size:.72rem;color:var(--success)" onclick="App.relistAd('${type}','${id}')">重新上架</button>`);
+      }
+      btns.push(`<button class="text-btn" style="font-size:.72rem" onclick="App.editAd('${type}','${id}')">編輯</button>`);
+      btns.push(`<button class="text-btn" style="font-size:.72rem;color:var(--danger)" onclick="App.clearAdSlot('${type}','${id}')">刪除</button>`);
+    }
+    return btns.join('');
+  },
+
+  // ── 通用：編輯 ──
+  editAd(type, id) {
+    if (type === 'banner') this.editBannerItem(id);
+    else if (type === 'float') this.editFloatingAd(id);
+    else if (type === 'popup') this.editPopupAd(id);
+  },
+
+  // ── 通用：下架 ──
+  delistAd(type, id) {
+    if (type === 'banner') {
+      ApiService.updateBanner(id, { status: 'expired' });
+      this.renderBannerManage();
+      this.renderBannerCarousel();
+    } else if (type === 'float') {
+      ApiService.updateFloatingAd(id, { status: 'expired' });
+      this.renderFloatingAdManage();
+      this.renderFloatingAds();
+    } else if (type === 'popup') {
+      ApiService.updatePopupAd(id, { status: 'expired' });
+      this.renderPopupAdManage();
+    }
+    this.showToast('廣告已下架');
+  },
+
+  // ── 通用：重新上架 ──
+  relistAd(type, id) {
+    if (type === 'banner') {
+      ApiService.updateBanner(id, { status: 'active' });
+      this.renderBannerManage();
+      this.renderBannerCarousel();
+    } else if (type === 'float') {
+      ApiService.updateFloatingAd(id, { status: 'active' });
+      this.renderFloatingAdManage();
+      this.renderFloatingAds();
+    } else if (type === 'popup') {
+      ApiService.updatePopupAd(id, { status: 'active' });
+      this.renderPopupAdManage();
+    }
+    this.showToast('廣告已重新上架');
+  },
+
+  // ── 通用：刪除（清空欄位，恢復空白） ──
+  clearAdSlot(type, id) {
+    if (!confirm('確定要刪除此廣告？將清空所有設定。')) return;
+    const emptyData = { title: '', linkUrl: '', image: null, publishAt: null, unpublishAt: null, status: 'empty', clicks: 0 };
+    if (type === 'banner') {
+      ApiService.updateBanner(id, emptyData);
+      this.renderBannerManage();
+      this.renderBannerCarousel();
+    } else if (type === 'float') {
+      ApiService.updateFloatingAd(id, emptyData);
+      this.renderFloatingAdManage();
+      this.renderFloatingAds();
+    } else if (type === 'popup') {
+      ApiService.updatePopupAd(id, emptyData);
+      this.renderPopupAdManage();
+    }
+    this.showToast('廣告已刪除');
+  },
+
+  // ── 通用：點擊計數 ──
+  trackAdClick(type, id) {
+    let item;
+    if (type === 'banner') {
+      item = ApiService.getBanners().find(b => b.id === id);
+      if (item) { item.clicks = (item.clicks || 0) + 1; ApiService.updateBanner(id, { clicks: item.clicks }); }
+    } else if (type === 'float') {
+      item = ApiService.getFloatingAds().find(a => a.id === id);
+      if (item) { item.clicks = (item.clicks || 0) + 1; ApiService.updateFloatingAd(id, { clicks: item.clicks }); }
+    } else if (type === 'popup') {
+      item = ApiService.getPopupAds().find(a => a.id === id);
+      if (item) { item.clicks = (item.clicks || 0) + 1; ApiService.updatePopupAd(id, { clicks: item.clicks }); }
+    }
+  },
+
   // ══════════════════════════════════
   //  Banner CRUD
   // ══════════════════════════════════
@@ -44,11 +142,11 @@ Object.assign(App, {
         <div class="banner-manage-info">
           <div class="banner-manage-title">廣告位 ${b.slot}${b.title ? ' — ' + b.title : ''}</div>
           <div class="banner-manage-meta">${timeInfo}${remainText ? ' ・ ' + remainText : ''}</div>
-          ${!isEmpty ? `<div class="banner-manage-meta">點擊 ${b.clicks}</div>` : ''}
+          ${!isEmpty ? `<div class="banner-manage-meta">點擊 ${b.clicks || 0} 次</div>` : ''}
           <span class="banner-manage-status status-${statusClass}">${statusLabel}</span>
         </div>
-        <div style="flex-shrink:0">
-          <button class="text-btn" style="font-size:.72rem" onclick="App.editBannerItem('${b.id}')">${isEmpty ? '設定' : '編輯'}</button>
+        <div style="flex-shrink:0;display:flex;flex-direction:column;gap:.2rem">
+          ${this._adActionBtns('banner', b.id, b.status, b.unpublishAt)}
         </div>
       </div>`;
     }).join('');
@@ -73,7 +171,6 @@ Object.assign(App, {
       preview.innerHTML = '<span class="ce-upload-icon">+</span><span class="ce-upload-text">點擊上傳圖片</span><span class="ce-upload-hint">建議尺寸 1200 × 400 px｜JPG / PNG｜最大 2MB</span>';
     }
     document.getElementById('banner-image').value = '';
-    // Mode
     const isScheduled = editData.status === 'scheduled';
     document.getElementById('banner-input-mode').value = isScheduled ? 'scheduled' : 'now';
     this.toggleBannerSchedule();
@@ -112,10 +209,8 @@ Object.assign(App, {
       publishAt = this._formatDT(new Date().toISOString());
       status = 'active';
     }
-    // Get image from preview
     const previewImg = document.querySelector('#banner-preview img');
     let image = previewImg ? previewImg.src : (ApiService.getBanners().find(b => b.id === this._bannerEditId)?.image || null);
-    // 正式版：上傳 base64 圖片到 Storage
     if (image && image.startsWith('data:') && !ModeManager.isDemo()) {
       this.showToast('圖片上傳中...');
       const url = await FirebaseService._uploadImage(image, `banners/${this._bannerEditId}`);
@@ -162,10 +257,11 @@ Object.assign(App, {
         <div class="banner-manage-info">
           <div class="banner-manage-title">${ad.slot}${ad.title ? ' — ' + ad.title : ''}</div>
           <div class="banner-manage-meta">${timeInfo}${remainText ? ' ・ ' + remainText : ''}</div>
+          ${!isEmpty ? `<div class="banner-manage-meta">點擊 ${ad.clicks || 0} 次</div>` : ''}
           <span class="banner-manage-status status-${statusClass}">${statusLabel}</span>
         </div>
-        <div style="flex-shrink:0">
-          <button class="text-btn" style="font-size:.72rem" onclick="App.editFloatingAd('${ad.id}')">${isEmpty ? '設定' : '編輯'}</button>
+        <div style="flex-shrink:0;display:flex;flex-direction:column;gap:.2rem">
+          ${this._adActionBtns('float', ad.id, ad.status, ad.unpublishAt)}
         </div>
       </div>`;
     }).join('');
@@ -189,7 +285,6 @@ Object.assign(App, {
       preview.innerHTML = '<span class="ce-upload-icon">+</span><span class="ce-upload-text">點擊上傳圖片</span><span class="ce-upload-hint">建議尺寸 200 × 200 px｜JPG / PNG｜最大 2MB</span>';
     }
     document.getElementById('floatad-image').value = '';
-    // Mode
     const isScheduled = editData.status === 'scheduled';
     document.getElementById('floatad-input-mode').value = isScheduled ? 'scheduled' : 'now';
     this.toggleFloatAdSchedule();
@@ -228,10 +323,8 @@ Object.assign(App, {
       publishAt = this._formatDT(new Date().toISOString());
       status = 'active';
     }
-    // Get image from preview
     const previewImg = document.querySelector('#floatad-preview img');
     let image = previewImg ? previewImg.src : (ApiService.getFloatingAds().find(a => a.id === this._floatAdEditId)?.image || null);
-    // 正式版：上傳 base64 圖片到 Storage
     if (image && image.startsWith('data:') && !ModeManager.isDemo()) {
       this.showToast('圖片上傳中...');
       const url = await FirebaseService._uploadImage(image, `floatingAds/${this._floatAdEditId}`);
@@ -278,11 +371,11 @@ Object.assign(App, {
         <div class="banner-manage-info">
           <div class="banner-manage-title">第 ${ad.layer} 層${ad.title ? ' — ' + ad.title : ''}</div>
           <div class="banner-manage-meta">${timeInfo}${remainText ? ' ・ ' + remainText : ''}</div>
-          ${!isEmpty ? `<div class="banner-manage-meta">點擊 ${ad.clicks || 0}</div>` : ''}
+          ${!isEmpty ? `<div class="banner-manage-meta">點擊 ${ad.clicks || 0} 次</div>` : ''}
           <span class="banner-manage-status status-${statusClass}">${statusLabel}</span>
         </div>
-        <div style="flex-shrink:0">
-          <button class="text-btn" style="font-size:.72rem" onclick="App.editPopupAd('${ad.id}')">${isEmpty ? '設定' : '編輯'}</button>
+        <div style="flex-shrink:0;display:flex;flex-direction:column;gap:.2rem">
+          ${this._adActionBtns('popup', ad.id, ad.status, ad.unpublishAt)}
         </div>
       </div>`;
     }).join('');
@@ -345,10 +438,8 @@ Object.assign(App, {
       publishAt = this._formatDT(new Date().toISOString());
       status = 'active';
     }
-    // Get image from preview
     const previewImg = document.querySelector('#popupad-preview img');
     let image = previewImg ? previewImg.src : (ApiService.getPopupAds().find(a => a.id === this._popupAdEditId)?.image || null);
-    // 正式版：上傳 base64 圖片到 Storage
     if (image && image.startsWith('data:') && !ModeManager.isDemo()) {
       this.showToast('圖片上傳中...');
       const url = await FirebaseService._uploadImage(image, `popupAds/${this._popupAdEditId}`);

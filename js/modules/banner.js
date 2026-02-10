@@ -15,13 +15,15 @@ Object.assign(App, {
       </div>`;
     } else {
       track.innerHTML = banners.map(b => {
-        const linkAttr = b.linkUrl ? `onclick="window.open('${b.linkUrl}','_blank')" style="cursor:pointer"` : '';
+        const clickHandler = b.linkUrl
+          ? `onclick="App.trackAdClick('banner','${b.id}');window.open('${b.linkUrl}','_blank')" style="cursor:pointer"`
+          : '';
         if (b.image) {
-          return `<div class="banner-slide" style="background-image:url('${b.image}');background-size:cover;background-position:center" ${linkAttr}>
+          return `<div class="banner-slide" style="background-image:url('${b.image}');background-size:cover;background-position:center" ${clickHandler}>
             <div class="banner-content"><div class="banner-tag">廣告位 ${b.slot}</div><h2>${b.title || ''}</h2></div>
           </div>`;
         }
-        return `<div class="banner-slide banner-placeholder" style="background:${b.gradient || 'var(--bg-elevated)'}" ${linkAttr}>
+        return `<div class="banner-slide banner-placeholder" style="background:${b.gradient || 'var(--bg-elevated)'}" ${clickHandler}>
           <div class="banner-img-placeholder">1200 × 400</div>
           <div class="banner-content"><div class="banner-tag">廣告位 ${b.slot}</div><h2>${b.title || ''}</h2></div>
         </div>`;
@@ -85,9 +87,11 @@ Object.assign(App, {
     container.innerHTML = ads.map(ad => {
       const active = ad.status === 'active';
       const hasImg = active && ad.image;
-      const linkAttr = active && ad.linkUrl ? `onclick="window.open('${ad.linkUrl}','_blank')"` : '';
+      const clickHandler = active && ad.linkUrl
+        ? `onclick="App.trackAdClick('float','${ad.id}');window.open('${ad.linkUrl}','_blank')"`
+        : '';
       return `
-      <div class="float-ad" title="${active ? ad.title : '贊助廣告'}" ${linkAttr}>
+      <div class="float-ad" title="${active ? ad.title : '贊助廣告'}" ${clickHandler}>
         <div class="float-ad-img">${hasImg ? `<img src="${ad.image}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">` : ad.slot}</div>
         <small>贊助廣告</small>
       </div>`;
