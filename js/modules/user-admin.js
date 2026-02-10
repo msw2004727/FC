@@ -110,7 +110,7 @@ Object.assign(App, {
       bdInput.value = '';
     }
 
-    this.openModal('user-edit-modal');
+    this.showModal('user-edit-modal');
   },
 
   saveUserEdit() {

@@ -120,8 +120,16 @@ Object.assign(App, {
   _isUserSignedUp(e) {
     const user = ApiService.getCurrentUser?.();
     if (!user) return false;
-    const name = user.displayName || user.name || '';
     const uid = user.uid || '';
+    const name = user.displayName || user.name || '';
+
+    // Production 模式：用 registrations 的 userId 比對（最可靠）
+    if (!ModeManager.isDemo() && uid) {
+      const regs = FirebaseService._cache.registrations || [];
+      return regs.some(r => r.eventId === e.id && r.userId === uid && r.status !== 'cancelled');
+    }
+
+    // Demo 模式：名單比對
     const inParticipants = (e.participants || []).some(p => p === name || p === uid);
     const inWaitlist = (e.waitlistNames || []).some(p => p === name || p === uid);
     return inParticipants || inWaitlist;
@@ -745,6 +753,13 @@ Object.assign(App, {
     if (title.length > 12) { this.showToast('活動名稱不可超過 12 字'); return; }
     if (!location) { this.showToast('請輸入地點'); return; }
     if (!dateVal) { this.showToast('請選擇日期'); return; }
+    // 新增模式：不允許選擇過去的日期
+    if (!this._editEventId) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const selected = new Date(dateVal + 'T00:00:00');
+      if (selected < today) { this.showToast('活動日期不可早於今天'); return; }
+    }
     if (notes.length > 500) { this.showToast('注意事項不可超過 500 字'); return; }
     // 球隊限定：決定 teamId / teamName
     let resolvedTeamId = null, resolvedTeamName = null;

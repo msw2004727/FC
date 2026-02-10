@@ -572,6 +572,29 @@ Object.assign(App, {
     `;
   },
 
+  /** 渲染「我的 QR Code」頁面 */
+  renderQrCodePage() {
+    const user = ApiService.getCurrentUser();
+    const uid = user?.uid || user?.lineUserId || 'unknown';
+    const container = document.getElementById('page-qr-canvas');
+    const uidText = document.getElementById('page-qr-uid');
+    if (!container) return;
+    if (uidText) uidText.textContent = `UID: ${uid}`;
+    if (typeof QRCode !== 'undefined' && QRCode.toCanvas) {
+      container.innerHTML = '';
+      container.style.display = 'flex';
+      container.style.alignItems = 'center';
+      container.style.justifyContent = 'center';
+      const canvas = document.createElement('canvas');
+      QRCode.toCanvas(canvas, uid, { width: 160, margin: 0 }, (err) => {
+        if (!err) {
+          canvas.style.display = 'block';
+          container.appendChild(canvas);
+        }
+      });
+    }
+  },
+
   /** 顯示 UID 專屬 QR Code 彈窗 */
   showUidQrCode() {
     const user = ApiService.getCurrentUser();
@@ -579,14 +602,21 @@ Object.assign(App, {
     const modal = document.getElementById('uid-qr-modal');
     const content = document.getElementById('uid-qr-content');
     if (!modal || !content) return;
-    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(uid)}`;
     content.innerHTML = `
       <div style="font-size:.85rem;font-weight:700;margin-bottom:.8rem">我的 UID QR Code</div>
-      <div style="background:#fff;display:inline-block;padding:12px;border-radius:var(--radius)">
-        <img src="${qrUrl}" alt="QR Code" width="180" height="180" style="display:block">
-      </div>
+      <div id="uid-qr-canvas" style="background:#fff;display:inline-block;padding:12px;border-radius:var(--radius)"></div>
       <div style="margin-top:.7rem;font-size:.75rem;color:var(--text-muted);word-break:break-all">${escapeHTML(uid)}</div>
     `;
+    // 本地生成 QR Code
+    if (typeof QRCode !== 'undefined' && QRCode.toCanvas) {
+      const canvas = document.createElement('canvas');
+      QRCode.toCanvas(canvas, uid, { width: 180, margin: 0 }, (err) => {
+        if (!err) {
+          canvas.style.display = 'block';
+          document.getElementById('uid-qr-canvas')?.appendChild(canvas);
+        }
+      });
+    }
     modal.style.display = 'flex';
   },
 

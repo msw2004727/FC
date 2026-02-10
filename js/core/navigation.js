@@ -41,6 +41,7 @@ Object.assign(App, {
       if (pageId === 'page-my-activities') this.renderMyActivities();
       if (pageId === 'page-team-manage') this.renderTeamManage();
       if (pageId === 'page-scan') this.renderScanPage();
+      if (pageId === 'page-qrcode') this.renderQrCodePage();
       if (pageId !== 'page-scan' && this._stopCamera) this._stopCamera();
     }
   },

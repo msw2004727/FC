@@ -378,8 +378,8 @@
       </div>
       <div class="center-content">
         <div class="qr-placeholder">
-          <div class="qr-box">QR<br>CODE</div>
-          <p class="uid-text">UID: U1a2b3c4d5e</p>
+          <div class="qr-box" id="page-qr-canvas">QR<br>CODE</div>
+          <p class="uid-text" id="page-qr-uid">UID: —</p>
           <p class="qr-hint">掃碼查看個人資料卡片</p>
         </div>
       </div>
@@ -1512,6 +1512,8 @@
 
   <!-- QR Code Scanner -->
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <!-- QR Code Generator (local) -->
+  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js"></script>
 
   <!-- 基礎層 -->
   <script src="js/config.js"></script>
