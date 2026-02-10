@@ -41,7 +41,7 @@ const App = {
     this.renderBannerCarousel();
     this.startBannerCarousel();
     this.renderAll();
-    this.applyRole('user');
+    this.applyRole('user', true);
   },
 
   renderAll() {

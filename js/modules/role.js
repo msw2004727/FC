@@ -43,7 +43,7 @@ Object.assign(App, {
     });
   },
 
-  applyRole(role) {
+  applyRole(role, silent) {
     this.currentRole = role;
     const roleInfo = ROLES[role];
     const level = ROLE_LEVEL_MAP[role];
@@ -81,7 +81,7 @@ Object.assign(App, {
       if (level < minLevel) this.showPage('page-home');
     }
 
-    this.showToast(`已切換為「${roleInfo.label}」身份`);
+    if (!silent) this.showToast(`已切換為「${roleInfo.label}」身份`);
   },
 
   renderDrawerMenu() {
