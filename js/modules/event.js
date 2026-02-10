@@ -26,7 +26,15 @@ Object.assign(App, {
   _getEventCreatorTeam() {
     const user = ApiService.getCurrentUser?.() || null;
     if (!user) return { teamId: null, teamName: null };
-    return { teamId: user.teamId || null, teamName: user.teamName || null };
+    // 優先從 currentUser 取
+    if (user.teamId) return { teamId: user.teamId, teamName: user.teamName || null };
+    // 從 adminUsers 查找（正式版 currentUser 可能沒有 teamId）
+    const uid = user.uid || '';
+    const name = user.displayName || user.name || '';
+    const adminUsers = ApiService.getAdminUsers?.() || [];
+    const match = adminUsers.find(u => (uid && u.uid === uid) || (name && u.name === name));
+    if (match && match.teamId) return { teamId: match.teamId, teamName: match.teamName || null };
+    return { teamId: null, teamName: null };
   },
 
   /** 判斷當前用戶是否為該活動建立者 */
@@ -683,14 +691,31 @@ Object.assign(App, {
   _updateTeamOnlyLabel() {
     const cb = document.getElementById('ce-team-only');
     const label = document.getElementById('ce-team-only-label');
+    const select = document.getElementById('ce-team-select');
     if (!cb || !label) return;
     if (cb.checked) {
       const team = this._getEventCreatorTeam();
-      label.textContent = `開啟 — 僅 ${team.teamName || '您的球隊'} 可見`;
-      label.style.color = '#e11d48';
+      if (team.teamId) {
+        // 用戶有球隊，直接顯示
+        label.textContent = `開啟 — 僅 ${team.teamName || '您的球隊'} 可見`;
+        label.style.color = '#e11d48';
+        if (select) select.style.display = 'none';
+      } else {
+        // 用戶無球隊，顯示下拉選擇
+        label.textContent = '開啟 — 選擇球隊：';
+        label.style.color = '#e11d48';
+        if (select) {
+          const teams = ApiService.getTeams?.() || [];
+          const activeTeams = teams.filter(t => t.active !== false);
+          select.innerHTML = '<option value="">請選擇球隊</option>' +
+            activeTeams.map(t => `<option value="${t.id}" data-name="${t.name}">${t.name}</option>`).join('');
+          select.style.display = '';
+        }
+      }
     } else {
       label.textContent = '關閉 — 所有人可見';
       label.style.color = 'var(--text-muted)';
+      if (select) select.style.display = 'none';
     }
   },
 
@@ -720,9 +745,21 @@ Object.assign(App, {
     if (!location) { this.showToast('請輸入地點'); return; }
     if (!dateVal) { this.showToast('請選擇日期'); return; }
     if (notes.length > 500) { this.showToast('注意事項不可超過 500 字'); return; }
+    // 球隊限定：決定 teamId / teamName
+    let resolvedTeamId = null, resolvedTeamName = null;
     if (teamOnly) {
       const team = this._getEventCreatorTeam();
-      if (!team.teamId) { this.showToast('您尚未加入球隊，無法開啟球隊限定'); return; }
+      if (team.teamId) {
+        resolvedTeamId = team.teamId;
+        resolvedTeamName = team.teamName;
+      } else {
+        // 從下拉選單取
+        const select = document.getElementById('ce-team-select');
+        const selVal = select?.value;
+        if (!selVal) { this.showToast('請選擇限定球隊'); return; }
+        resolvedTeamId = selVal;
+        resolvedTeamName = select.options[select.selectedIndex]?.dataset?.name || selVal;
+      }
     }
 
     const cePreviewEl = document.getElementById('ce-upload-preview');
@@ -732,15 +769,13 @@ Object.assign(App, {
     const dateParts = dateVal.split('-');
     const fullDate = timeVal ? `${dateParts[0]}/${parseInt(dateParts[1]).toString().padStart(2,'0')}/${parseInt(dateParts[2]).toString().padStart(2,'0')} ${timeVal}` : `${dateParts[0]}/${parseInt(dateParts[1])}/${parseInt(dateParts[2])}`;
 
-    const team = this._getEventCreatorTeam();
-
     if (this._editEventId) {
       const updates = {
         title, type, location, date: fullDate, fee, max, waitlistMax, minAge, notes, image,
         gradient: GRADIENT_MAP[type] || GRADIENT_MAP.friendly,
         teamOnly,
-        creatorTeamId: teamOnly ? team.teamId : null,
-        creatorTeamName: teamOnly ? team.teamName : null,
+        creatorTeamId: teamOnly ? resolvedTeamId : null,
+        creatorTeamName: teamOnly ? resolvedTeamName : null,
       };
       ApiService.updateEvent(this._editEventId, updates);
       this.closeModal();
@@ -765,8 +800,8 @@ Object.assign(App, {
         participants: [],
         waitlistNames: [],
         teamOnly,
-        creatorTeamId: teamOnly ? team.teamId : null,
-        creatorTeamName: teamOnly ? team.teamName : null,
+        creatorTeamId: teamOnly ? resolvedTeamId : null,
+        creatorTeamName: teamOnly ? resolvedTeamName : null,
       };
       ApiService.createEvent(newEvent);
       this.closeModal();
