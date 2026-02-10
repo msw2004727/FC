@@ -59,10 +59,11 @@ const FirebaseService = {
 
     // 匿名登入 Firebase Auth（讓 Firestore 安全規則 request.auth != null 通過）
     try {
-      await auth.signInAnonymously();
-      console.log('[FirebaseService] Firebase Auth 匿名登入成功');
+      const cred = await auth.signInAnonymously();
+      console.log('[FirebaseService] Firebase Auth 匿名登入成功, uid:', cred.user?.uid);
     } catch (err) {
-      console.warn('[FirebaseService] Firebase Auth 匿名登入失敗:', err);
+      console.error('[FirebaseService] Firebase Auth 匿名登入失敗:', err.code, err.message);
+      this._authError = err;
     }
 
     const collectionNames = Object.keys(this._cache).filter(k => k !== 'currentUser');
@@ -514,6 +515,8 @@ const FirebaseService = {
       .where('lineUserId', '==', lineUserId).limit(1).get();
 
     const now = new Date().toISOString();
+
+    console.log('[FirebaseService] createOrUpdateUser 查詢結果: empty=', snapshot.empty, 'auth.uid=', auth.currentUser?.uid);
 
     if (snapshot.empty) {
       // 新用戶：建立完整欄位（以 lineUserId 作為 doc ID，確保可預測且符合安全規則）

@@ -111,7 +111,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       ]);
       console.log('[App] Firebase + LIFF 初始化完成');
     } catch (err) {
-      console.error('[App] 初始化失敗，退回 Demo 模式:', err);
+      console.error('[App] 初始化失敗，退回 Demo 模式:', err.message || err);
+      alert('[診斷] Firebase 初始化失敗: ' + (err.message || err) + '\n將退回 Demo 模式，LINE 登入不可用');
       ModeManager.setMode('demo');
     } finally {
       if (overlay) overlay.style.display = 'none';

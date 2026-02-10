@@ -98,20 +98,28 @@ Object.assign(App, {
         await LineAuth.init();
       }
 
+      console.log('[App] bindLineLogin: LIFF ready=', LineAuth._ready,
+        'loggedIn=', LineAuth.isLoggedIn(),
+        'initError=', LineAuth._initError?.message || 'none',
+        'isDemo=', ModeManager.isDemo());
+
       // 如果 LIFF 初始化有錯誤且用戶尚未登入，顯示提示
       if (LineAuth._initError && !LineAuth.isLoggedIn()) {
-        console.warn('[App] LINE 登入初始化異常:', LineAuth._initError);
-        this.showToast('LINE 登入異常，請重新嘗試');
+        console.error('[App] LINE 登入初始化異常:', LineAuth._initError);
+        this.showToast('LINE 登入異常：' + (LineAuth._initError.message || '請重新嘗試'));
       }
 
       if (LineAuth.isLoggedIn()) {
+        const profile = LineAuth.getProfile();
+        console.log('[App] LINE 已登入, userId:', profile.userId, 'name:', profile.displayName);
         try {
-          const user = await ApiService.loginUser(LineAuth.getProfile());
+          const user = await ApiService.loginUser(profile);
+          console.log('[App] createOrUpdateUser 成功:', user?.displayName, 'docId:', user?._docId);
           if (user && (!user.gender || !user.birthday || !user.region)) {
             this._pendingFirstLogin = true;
           }
         } catch (err) {
-          console.error('[App] 用戶資料同步失敗:', err);
+          console.error('[App] 用戶資料同步失敗:', err.code, err.message, err);
           const code = err?.code || '';
           if (code === 'permission-denied') {
             this.showToast('登入失敗：資料庫權限不足，請聯繫管理員更新 Firestore 規則');
