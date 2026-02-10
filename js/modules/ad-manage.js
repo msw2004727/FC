@@ -62,6 +62,7 @@ Object.assign(App, {
     const isEmpty = editData.status === 'empty';
     document.getElementById('banner-form-title').textContent = isEmpty ? `設定廣告位 ${editData.slot}` : `編輯廣告位 ${editData.slot}`;
     document.getElementById('banner-input-title').value = editData.title || '';
+    document.getElementById('banner-input-link').value = editData.linkUrl || '';
     document.getElementById('banner-slot-display').textContent = `廣告位 ${editData.slot}`;
     const preview = document.getElementById('banner-preview');
     if (editData.image) {
@@ -98,6 +99,7 @@ Object.assign(App, {
     const unpublishVal = document.getElementById('banner-input-unpublish').value;
     if (!unpublishVal) { this.showToast('請選擇結束時間'); return; }
     const title = document.getElementById('banner-input-title').value.trim();
+    const linkUrl = document.getElementById('banner-input-link').value.trim();
     const mode = document.getElementById('banner-input-mode').value;
     const unpublishAt = this._formatDT(unpublishVal);
     let publishAt, status;
@@ -120,7 +122,7 @@ Object.assign(App, {
       if (!url) { this.showToast('圖片上傳失敗，請重試'); return; }
       image = url;
     }
-    ApiService.updateBanner(this._bannerEditId, { title, image, publishAt, unpublishAt, status });
+    ApiService.updateBanner(this._bannerEditId, { title, linkUrl, image, publishAt, unpublishAt, status });
     this.showToast(status === 'scheduled' ? `Banner 已排程，將於 ${publishAt} 啟用` : 'Banner 已更新並立即啟用');
     this.hideBannerForm();
     this.renderBannerManage();
@@ -177,6 +179,7 @@ Object.assign(App, {
     const isEmpty = editData.status === 'empty';
     document.getElementById('floatad-form-title').textContent = isEmpty ? `設定 ${editData.slot}` : `編輯 ${editData.slot}`;
     document.getElementById('floatad-input-title').value = editData.title || '';
+    document.getElementById('floatad-input-link').value = editData.linkUrl || '';
     const preview = document.getElementById('floatad-preview');
     if (editData.image) {
       preview.innerHTML = `<img src="${editData.image}" style="width:100%;height:100%;object-fit:cover;border-radius:var(--radius-sm)">`;
@@ -212,6 +215,7 @@ Object.assign(App, {
     const unpublishVal = document.getElementById('floatad-input-unpublish').value;
     if (!unpublishVal) { this.showToast('請選擇結束時間'); return; }
     const title = document.getElementById('floatad-input-title').value.trim();
+    const linkUrl = document.getElementById('floatad-input-link').value.trim();
     const mode = document.getElementById('floatad-input-mode').value;
     const unpublishAt = this._formatDT(unpublishVal);
     let publishAt, status;
@@ -234,7 +238,7 @@ Object.assign(App, {
       if (!url) { this.showToast('圖片上傳失敗，請重試'); return; }
       image = url;
     }
-    ApiService.updateFloatingAd(this._floatAdEditId, { title, image, publishAt, unpublishAt, status });
+    ApiService.updateFloatingAd(this._floatAdEditId, { title, linkUrl, image, publishAt, unpublishAt, status });
     this.showToast(status === 'scheduled' ? `浮動廣告已排程，將於 ${publishAt} 啟用` : '浮動廣告已更新並立即啟用');
     this.hideFloatingAdForm();
     this.renderFloatingAdManage();

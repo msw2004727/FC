@@ -492,9 +492,9 @@ img { max-width: 100%; display: block; }
   gap: .5rem;
   will-change: transform;
 }
-.float-ad { width: 40px; height: 40px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 50%; overflow: hidden; text-align: center; cursor: pointer; opacity: .25; transition: opacity var(--transition); display: flex; align-items: center; justify-content: center; }
-.float-ad:hover { opacity: .6; }
-.float-ad-img { width: 100%; height: 100%; background: linear-gradient(135deg, #374151, #1f2937); color: var(--text-muted); display: flex; align-items: center; justify-content: center; font-size: .45rem; font-weight: 600; }
+.float-ad { width: 160px; height: 160px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 50%; overflow: hidden; text-align: center; cursor: pointer; opacity: .35; transition: opacity var(--transition); display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 16px rgba(0,0,0,.15); }
+.float-ad:hover { opacity: .75; }
+.float-ad-img { width: 100%; height: 100%; background: linear-gradient(135deg, #374151, #1f2937); color: var(--text-muted); display: flex; align-items: center; justify-content: center; font-size: 1rem; font-weight: 600; }
 .float-ad small { display: none; }
 
 /* ─── Page Header ─── */
