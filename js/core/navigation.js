@@ -34,6 +34,7 @@ Object.assign(App, {
       this.currentPage = pageId;
       window.scrollTo({ top: 0, behavior: 'smooth' });
       if (pageId === 'page-titles') this.renderTitlePage();
+      if (pageId === 'page-my-activities') this.renderMyActivities();
     }
   },
 
