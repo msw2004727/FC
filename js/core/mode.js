@@ -74,7 +74,7 @@ Object.assign(App, {
     this._updateModeBadge();
     this.renderLoginUI();
     this.renderAll();
-    const modeLabel = ModeManager.isDemo() ? 'DEMO 演示' : 'PRODUCTION 正式';
+    const modeLabel = ModeManager.isDemo() ? '演示版' : '正式版';
     this.showToast(`已切換至「${modeLabel}」模式`);
   },
 
