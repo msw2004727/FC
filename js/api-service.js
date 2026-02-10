@@ -521,6 +521,17 @@ const ApiService = {
     return item;
   },
 
+  deleteAdminMessage(id) {
+    const source = this._demoMode ? DemoData.adminMessages : FirebaseService._cache.adminMessages;
+    const idx = source.findIndex(m => m.id === id);
+    if (idx >= 0) {
+      source.splice(idx, 1);
+      if (!this._demoMode) {
+        FirebaseService.deleteAdminMessage(id).catch(err => console.error('[deleteAdminMessage]', err));
+      }
+    }
+  },
+
   // ════════════════════════════════
   //  Message Read（訊息已讀持久化）
   // ════════════════════════════════

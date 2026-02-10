@@ -692,24 +692,47 @@
       <div class="page-header">
         <button class="back-btn" onclick="App.goBack()">←</button>
         <h2>站內信管理</h2>
-        <button class="primary-btn small" onclick="App.showMsgCompose()">＋ 群發</button>
+        <button class="primary-btn small" onclick="App.showMsgCompose()">＋ 發送</button>
       </div>
+      <div id="msg-sent-count" style="text-align:right;font-size:.75rem;color:var(--text-muted);padding:0 .5rem .3rem"></div>
       <div class="tab-bar" id="msg-manage-tabs">
         <button class="tab active" data-mfilter="sent">已發送</button>
         <button class="tab" data-mfilter="scheduled">已排程</button>
         <button class="tab" data-mfilter="recalled">已回收</button>
       </div>
       <div class="card-list" id="msg-manage-list"></div>
+      <!-- 站內信詳情彈窗 -->
+      <div id="msg-detail-modal" style="display:none;position:fixed;inset:0;z-index:1200;background:rgba(0,0,0,.45);backdrop-filter:blur(4px);display:none;align-items:center;justify-content:center">
+        <div style="background:var(--bg-card);border-radius:var(--radius-lg);max-width:420px;width:90%;max-height:80vh;overflow-y:auto;padding:1.2rem;position:relative">
+          <button style="position:absolute;top:.6rem;right:.8rem;background:none;border:none;font-size:1.2rem;cursor:pointer;color:var(--text-muted)" onclick="document.getElementById('msg-detail-modal').style.display='none'">✕</button>
+          <div id="msg-detail-content"></div>
+        </div>
+      </div>
+      <!-- 撰寫站內信 -->
       <div class="form-card" id="msg-compose" style="display:none;margin-top:.5rem">
-        <div class="role-editor-header"><span>撰寫群發信</span><button class="text-btn" onclick="document.getElementById('msg-compose').style.display='none'">取消</button></div>
-        <div class="form-row"><label>標題</label><input type="text" id="msg-title" placeholder="信件標題"></div>
-        <div class="form-row"><label>對象</label><select id="msg-target"><option>全體用戶</option><option>教練以上</option><option>管理員</option><option>指定球隊</option></select></div>
+        <div class="role-editor-header"><span id="msg-compose-title">撰寫站內信</span><button class="text-btn" onclick="App.hideMsgCompose()">取消</button></div>
+        <div class="form-row"><label>標題</label><input type="text" id="msg-title" placeholder="信件標題" maxlength="50"></div>
+        <div class="form-row">
+          <label>發送方式</label>
+          <select id="msg-target" onchange="App.onMsgTargetChange()">
+            <option value="all">全體用戶</option>
+            <option value="coach_up">教練以上</option>
+            <option value="admin">管理員</option>
+            <option value="team">指定球隊</option>
+            <option value="individual">指定用戶 (UID/暱稱)</option>
+          </select>
+        </div>
+        <div class="form-row" id="msg-individual-row" style="display:none">
+          <label>對象 UID 或暱稱</label>
+          <input type="text" id="msg-individual-target" placeholder="輸入 UID 或暱稱搜尋" oninput="App.searchMsgTarget()">
+          <div id="msg-target-result" style="font-size:.75rem;margin-top:.2rem;color:var(--text-muted)"></div>
+        </div>
         <div class="form-row"><label>內容</label><textarea id="msg-body" rows="4" placeholder="信件內容..."></textarea></div>
         <div class="form-row">
-          <label>排程發送</label>
+          <label>排程發送（留空＝立即發送）</label>
           <input type="datetime-local" id="msg-schedule">
         </div>
-        <button class="primary-btn full-width" onclick="App.sendDemoMsg()">發送</button>
+        <button class="primary-btn full-width" onclick="App.sendMessage()">發送</button>
       </div>
     </section>
 

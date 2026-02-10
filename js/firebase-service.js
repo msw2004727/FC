@@ -707,6 +707,22 @@ const FirebaseService = {
     return doc;
   },
 
+  async deleteAdminMessage(id) {
+    const doc = this._cache.adminMessages.find(m => m.id === id);
+    if (!doc || !doc._docId) return null;
+    await db.collection('adminMessages').doc(doc._docId).delete();
+    return doc;
+  },
+
+  async addMessage(data) {
+    const docRef = await db.collection('messages').add({
+      ..._stripDocId(data),
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+    });
+    data._docId = docRef.id;
+    return data;
+  },
+
   // ════════════════════════════════
   //  User Role（用戶晉升）
   // ════════════════════════════════
