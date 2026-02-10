@@ -603,7 +603,7 @@ const ApiService = {
     opSource.unshift(opLog);
     if (!this._demoMode) {
       if (user._docId) {
-        db.collection('adminUsers').doc(user._docId).update({ exp: user.exp }).catch(err => console.error('[adjustUserExp]', err));
+        db.collection('users').doc(user._docId).update({ exp: user.exp }).catch(err => console.error('[adjustUserExp]', err));
       }
       db.collection('expLogs').add({ ...log, createdAt: firebase.firestore.FieldValue.serverTimestamp() }).catch(err => console.error('[adjustUserExp log]', err));
       FirebaseService.addOperationLog(opLog).catch(err => console.error('[adjustUserExp opLog]', err));

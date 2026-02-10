@@ -50,6 +50,17 @@ const FirebaseService = {
   _onUserChanged: null,
   _initialized: false,
 
+  /** 將 users 集合文件映射為 adminUsers 格式（補齊 name / uid / lastActive） */
+  _mapUserDoc(data, docId) {
+    return {
+      ...data,
+      name: data.displayName || data.name || '未知',
+      uid: data.uid || data.lineUserId || docId,
+      lastActive: data.lastLogin || data.lastActive || null,
+      _docId: docId,
+    };
+  },
+
   // ════════════════════════════════
   //  初始化：載入所有集合到快取
   // ════════════════════════════════
@@ -66,17 +77,22 @@ const FirebaseService = {
       this._authError = err;
     }
 
-    const collectionNames = Object.keys(this._cache).filter(k => k !== 'currentUser');
+    // adminUsers 不是獨立集合，改從 users 集合映射
+    const collectionNames = Object.keys(this._cache).filter(k => k !== 'currentUser' && k !== 'adminUsers');
 
-    // 平行載入所有集合
-    const snapshots = await Promise.all(
-      collectionNames.map(name =>
+    // 平行載入所有集合 + users 集合（映射為 adminUsers）
+    const [usersSnapshot, ...snapshots] = await Promise.all([
+      db.collection('users').get().catch(err => {
+        console.warn('Collection "users" 載入失敗:', err);
+        return { docs: [] };
+      }),
+      ...collectionNames.map(name =>
         db.collection(name).get().catch(err => {
           console.warn(`Collection "${name}" 載入失敗:`, err);
           return { docs: [] };
         })
-      )
-    );
+      ),
+    ]);
 
     // 填入快取
     collectionNames.forEach((name, i) => {
@@ -85,6 +101,11 @@ const FirebaseService = {
         _docId: doc.id,
       }));
     });
+
+    // users → adminUsers 映射
+    this._cache.adminUsers = usersSnapshot.docs.map(doc =>
+      this._mapUserDoc(doc.data(), doc.id)
+    );
 
     // 自動建立空白廣告欄位（若 Firestore 尚無資料）
     await this._seedAdSlots();
@@ -169,7 +190,7 @@ const FirebaseService = {
       'messages', 'registrations', 'leaderboard',
       'standings', 'matches', 'trades',
       'banners', 'floatingAds', 'popupAds', 'sponsors', 'announcements', 'attendanceRecords',
-      'achievements', 'badges', 'adminUsers',
+      'achievements', 'badges',
       'expLogs', 'operationLogs', 'adminMessages',
     ];
 
@@ -185,6 +206,17 @@ const FirebaseService = {
       );
       this._listeners.push(unsub);
     });
+
+    // users 集合 → adminUsers 快取（即時同步）
+    const unsubUsers = db.collection('users').onSnapshot(
+      snapshot => {
+        this._cache.adminUsers = snapshot.docs.map(doc =>
+          this._mapUserDoc(doc.data(), doc.id)
+        );
+      },
+      err => console.warn('[onSnapshot] users→adminUsers 監聽錯誤:', err)
+    );
+    this._listeners.push(unsubUsers);
   },
 
   // ════════════════════════════════
@@ -483,7 +515,7 @@ const FirebaseService = {
     user.exp = (user.exp || 0) + pointsDelta;
 
     if (user._docId) {
-      await db.collection('adminUsers').doc(user._docId).update({
+      await db.collection('users').doc(user._docId).update({
         exp: user.exp,
       });
     }
@@ -812,7 +844,7 @@ const FirebaseService = {
   // ════════════════════════════════
 
   async updateUserRole(docId, newRole) {
-    await db.collection('adminUsers').doc(docId).update({
+    await db.collection('users').doc(docId).update({
       role: newRole,
       updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
     });
