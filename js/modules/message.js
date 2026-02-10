@@ -130,15 +130,15 @@ Object.assign(App, {
       if (msg.actionStatus === 'pending') {
         actionHtml = `
           <div class="msg-action-btns">
-            <button class="msg-action-approve" onclick="App.handleTeamJoinAction('${msg.id}','approve')">同意 Approve</button>
-            <button class="msg-action-reject" onclick="App.handleTeamJoinAction('${msg.id}','reject')">拒絕 Reject</button>
-            <button class="msg-action-ignore" onclick="App.handleTeamJoinAction('${msg.id}','ignore')">忽略 Ignore</button>
+            <button class="msg-action-approve" onclick="App.handleTeamJoinAction('${msg.id}','approve')">同意</button>
+            <button class="msg-action-reject" onclick="App.handleTeamJoinAction('${msg.id}','reject')">拒絕</button>
+            <button class="msg-action-ignore" onclick="App.handleTeamJoinAction('${msg.id}','ignore')">忽略</button>
           </div>`;
       } else {
         const statusLabels = {
-          approved: ['background:var(--success);color:#fff', '已同意 Approved'],
-          rejected: ['background:var(--danger);color:#fff', '已拒絕 Rejected'],
-          ignored: ['background:var(--border);color:var(--text-secondary)', '已忽略 Ignored'],
+          approved: ['background:var(--success);color:#fff', '已同意'],
+          rejected: ['background:var(--danger);color:#fff', '已拒絕'],
+          ignored: ['background:var(--border);color:var(--text-secondary)', '已忽略'],
         };
         const [style, label] = statusLabels[msg.actionStatus] || ['', msg.actionStatus];
         actionHtml = `<div class="msg-action-status" style="${style}">${label}</div>`;
@@ -150,7 +150,7 @@ Object.assign(App, {
       <div style="font-size:.75rem;color:var(--text-muted);margin-bottom:.5rem">
         <span class="msg-type msg-type-${msg.type}">${escapeHTML(msg.typeName)}</span>
         <span style="margin-left:.4rem">${escapeHTML(msg.time)}</span>
-        ${msg.senderName ? `<span style="margin-left:.4rem">from ${escapeHTML(msg.senderName)}</span>` : ''}
+        ${msg.senderName ? `<span style="margin-left:.4rem">來自 ${escapeHTML(msg.senderName)}</span>` : ''}
       </div>
       <div style="font-size:.85rem;line-height:1.7;padding:.6rem;background:var(--bg-elevated);border-radius:var(--radius-sm);white-space:pre-wrap">${escapeHTML(msg.body)}</div>
       ${actionHtml}
@@ -190,7 +190,7 @@ Object.assign(App, {
       // 3. Send approval notification to applicant
       this._deliverMessageToInbox(
         '球隊申請通過',
-        `恭喜！您已成功加入「${teamName}」球隊，歡迎成為團隊的一員！\nCongratulations! You have been accepted into "${teamName}". Welcome to the team!`,
+        `恭喜！您已成功加入「${teamName}」球隊，歡迎成為團隊的一員！`,
         'system', '系統', applicantUid, '系統'
       );
 
@@ -203,7 +203,7 @@ Object.assign(App, {
       // Send rejection notification to applicant
       this._deliverMessageToInbox(
         '球隊申請結果',
-        `很抱歉，您申請加入「${teamName}」球隊未獲通過。如有疑問，請聯繫球隊領隊。\nWe're sorry, your application to join "${teamName}" has been declined. Please contact the team captain if you have any questions.`,
+        `很抱歉，您申請加入「${teamName}」球隊未獲通過。如有疑問，請聯繫球隊領隊。`,
         'system', '系統', applicantUid, '系統'
       );
 

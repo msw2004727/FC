@@ -204,7 +204,7 @@ Object.assign(App, {
     // 6. Send join request message to captain
     this._deliverMessageToInbox(
       '球隊加入申請',
-      `${applicantName} 申請加入「${t.name}」球隊，請審核此申請。\n${applicantName} has applied to join "${t.name}". Please review this request.`,
+      `${applicantName} 申請加入「${t.name}」球隊，請審核此申請。`,
       'system', '系統', captainUid, applicantName,
       {
         actionType: 'team_join_request',
