@@ -8,6 +8,12 @@
    4. onSnapshot 監聽器即時同步遠端更新
    ================================================ */
 
+// 移除 _docId（Firestore 不接受 undefined 值）
+function _stripDocId(obj) {
+  const { _docId, ...rest } = obj;
+  return rest;
+}
+
 const FirebaseService = {
 
   // ─── 記憶體快取（與 DemoData 結構一致）───
@@ -176,8 +182,7 @@ const FirebaseService = {
       eventData.image = await this._uploadImage(eventData.image, `events/${eventData.id}`);
     }
     const docRef = await db.collection('events').add({
-      ...eventData,
-      _docId: undefined,
+      ..._stripDocId(eventData),
       createdAt: firebase.firestore.FieldValue.serverTimestamp(),
       updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
     });
@@ -332,8 +337,7 @@ const FirebaseService = {
       data.image = await this._uploadImage(data.image, `tournaments/${data.id}`);
     }
     const docRef = await db.collection('tournaments').add({
-      ...data,
-      _docId: undefined,
+      ..._stripDocId(data),
       createdAt: firebase.firestore.FieldValue.serverTimestamp(),
     });
     data._docId = docRef.id;
@@ -359,8 +363,7 @@ const FirebaseService = {
     // 過濾 base64 圖片（避免超過 Firestore 1MB 限制）
     const cleanImages = (data.images || []).filter(img => !img.startsWith('data:'));
     const docRef = await db.collection('shopItems').add({
-      ...data,
-      _docId: undefined,
+      ..._stripDocId(data),
       images: cleanImages,
       createdAt: firebase.firestore.FieldValue.serverTimestamp(),
       updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
@@ -394,8 +397,7 @@ const FirebaseService = {
 
   async addAnnouncement(data) {
     const docRef = await db.collection('announcements').add({
-      ...data,
-      _docId: undefined,
+      ..._stripDocId(data),
       createdAt: firebase.firestore.FieldValue.serverTimestamp(),
       updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
     });
@@ -604,7 +606,7 @@ const FirebaseService = {
       data.image = await this._uploadImage(data.image, `popupAds/${data.id}`);
     }
     const docRef = await db.collection('popupAds').add({
-      ...data, _docId: undefined,
+      ..._stripDocId(data),
       createdAt: firebase.firestore.FieldValue.serverTimestamp(),
       updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
     });
@@ -635,7 +637,7 @@ const FirebaseService = {
 
   async addAchievement(data) {
     const docRef = await db.collection('achievements').add({
-      ...data, _docId: undefined,
+      ..._stripDocId(data),
       createdAt: firebase.firestore.FieldValue.serverTimestamp(),
     });
     data._docId = docRef.id;
@@ -663,7 +665,7 @@ const FirebaseService = {
 
   async addBadge(data) {
     const docRef = await db.collection('badges').add({
-      ...data, _docId: undefined,
+      ..._stripDocId(data),
       createdAt: firebase.firestore.FieldValue.serverTimestamp(),
     });
     data._docId = docRef.id;
@@ -691,7 +693,7 @@ const FirebaseService = {
 
   async addAdminMessage(data) {
     const docRef = await db.collection('adminMessages').add({
-      ...data, _docId: undefined,
+      ..._stripDocId(data),
       createdAt: firebase.firestore.FieldValue.serverTimestamp(),
     });
     data._docId = docRef.id;
@@ -743,7 +745,7 @@ const FirebaseService = {
 
   async addOperationLog(data) {
     await db.collection('operationLogs').add({
-      ...data, _docId: undefined,
+      ..._stripDocId(data),
       createdAt: firebase.firestore.FieldValue.serverTimestamp(),
     });
   },
