@@ -534,7 +534,22 @@
         <h2>我的活動管理</h2>
         <button class="primary-btn small" onclick="App.showModal('create-event-modal')">＋ 新增</button>
       </div>
+      <div id="my-activity-stats" style="font-size:.75rem;color:var(--text-muted);padding:0 .5rem .3rem;text-align:right"></div>
+      <div class="tab-bar" id="my-activity-tabs">
+        <button class="tab active" data-afilter="all">全部</button>
+        <button class="tab" data-afilter="open">報名中</button>
+        <button class="tab" data-afilter="full">已額滿</button>
+        <button class="tab" data-afilter="ended">已結束</button>
+        <button class="tab" data-afilter="cancelled">已取消</button>
+      </div>
       <div class="card-list" id="my-activity-list"></div>
+      <!-- 查看名單彈窗 -->
+      <div id="my-activity-detail-modal" style="display:none;position:fixed;inset:0;z-index:1200;background:rgba(0,0,0,.45);backdrop-filter:blur(4px);align-items:center;justify-content:center" onclick="if(event.target===this)this.style.display='none'">
+        <div style="background:var(--bg-card);border-radius:var(--radius-lg);max-width:440px;width:92%;max-height:85vh;overflow-y:auto;padding:1.2rem;position:relative">
+          <button style="position:absolute;top:.6rem;right:.8rem;background:none;border:none;font-size:1.2rem;cursor:pointer;color:var(--text-muted)" onclick="document.getElementById('my-activity-detail-modal').style.display='none'">✕</button>
+          <div id="my-activity-detail-content"></div>
+        </div>
+      </div>
     </section>
 
     <!-- PAGE: Backend - User Management (Admin+) -->

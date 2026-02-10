@@ -1376,6 +1376,11 @@ img { max-width: 100%; display: block; }
 .status-scheduled { background: rgba(96,165,250,.15); color: var(--info); }
 .status-expired { background: rgba(248,113,113,.15); color: var(--danger); }
 .status-empty { background: rgba(160,160,160,.15); color: var(--text-muted); }
+.status-open { background: rgba(52,211,153,.15); color: var(--success); }
+.status-full { background: rgba(245,158,11,.15); color: #f59e0b; }
+.status-ended { background: rgba(160,160,160,.15); color: var(--text-muted); }
+.status-cancelled { background: rgba(248,113,113,.15); color: var(--danger); }
+.status-upcoming { background: rgba(96,165,250,.15); color: var(--info); }
 
 /* ─── Admin Achievement/Badge Rows ─── */
 .admin-ach-row { display: flex; align-items: center; gap: .6rem; padding: .55rem .6rem; border-bottom: 1px solid var(--border); }
