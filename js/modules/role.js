@@ -105,7 +105,8 @@ Object.assign(App, {
           : `App.showPage('${item.page}'); App.closeDrawer()`;
         const role = item.minRole || 'user';
         const roleInfo = ROLES[role];
-        const bgClass = minLevel >= 5 ? 'drawer-role-super' : minLevel >= 4 ? 'drawer-role-admin' : '';
+        const bgClass = item.highlight === 'yellow' ? 'drawer-role-yellow'
+          : minLevel >= 5 ? 'drawer-role-super' : minLevel >= 4 ? 'drawer-role-admin' : '';
         if (lastMinRole !== role && minLevel >= 4) {
           if (lastMinRole && ROLE_LEVEL_MAP[lastMinRole] >= 4) html += '<div class="drawer-divider"></div>';
           lastMinRole = role;
