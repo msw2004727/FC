@@ -182,8 +182,9 @@ Object.assign(App, {
       return;
     }
 
-    const userId = 'current_user';
-    const userName = '用戶';
+    const user = ApiService.getCurrentUser();
+    const userId = user?.uid || 'unknown';
+    const userName = user?.displayName || user?.name || '用戶';
     FirebaseService.registerForEvent(id, userId, userName)
       .then(result => {
         this.showToast(result.status === 'waitlisted' ? '已額滿，已加入候補名單' : '報名成功！');

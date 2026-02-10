@@ -1055,14 +1055,12 @@ const App = {
 
   markAllRead() {
     const messages = ApiService.getMessages();
-    let changed = 0;
-    messages.forEach(m => {
-      if (m.unread) { m.unread = false; changed++; }
-    });
+    let changed = messages.filter(m => m.unread).length;
     if (changed === 0) {
       this.showToast('沒有未讀訊息');
       return;
     }
+    ApiService.markAllMessagesRead();
     this.renderMessageList();
     this.updateNotifBadge();
     this.showToast(`已將 ${changed} 則訊息標為已讀`);
@@ -1072,7 +1070,7 @@ const App = {
     const messages = ApiService.getMessages();
     const msg = messages.find(m => m.id === id);
     if (msg && msg.unread) {
-      msg.unread = false;
+      ApiService.markMessageRead(id);
       el.classList.remove('msg-unread');
       el.querySelector('.msg-dot').classList.remove('unread');
       el.querySelector('.msg-dot').classList.add('read');

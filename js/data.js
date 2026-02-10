@@ -223,6 +223,14 @@ const DemoData = {
     ]},
   ],
 
+  adminMessages: [
+    { id:'mg1', title:'春季聯賽報名開始', target:'全體', readRate:'72%', time:'03/01', status:'sent', body:'2026 春季足球聯賽現已開放報名，請至賽事中心查看詳情。' },
+    { id:'mg2', title:'系統維護通知', target:'全體', readRate:'85%', time:'02/18', status:'sent', body:'本週六凌晨將進行系統更新，預計停機2小時。' },
+    { id:'mg3', title:'球隊集訓通知', target:'雷霆隊', readRate:'90%', time:'02/15', status:'sent', body:'本週六下午2點集合於大安運動中心進行球隊集訓。' },
+    { id:'mg4', title:'新春盃報名提醒', target:'全體', readRate:'-', time:'03/20', status:'scheduled', body:'新春盃淘汰賽即將截止報名，請把握機會。' },
+    { id:'mg5', title:'舊版本停用通知', target:'全體', readRate:'45%', time:'01/10', status:'recalled', body:'此信件已回收。' },
+  ],
+
   activityRecords: [
     { name: '五人制室內足球', date: '03/08', status: 'completed' },
     { name: '守門員專項訓練班', date: '03/05', status: 'completed' },

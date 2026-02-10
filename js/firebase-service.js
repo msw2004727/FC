@@ -31,6 +31,8 @@ const FirebaseService = {
     activityRecords: [],
     registrations: [],
     announcements: [],
+    floatingAds: [],
+    adminMessages: [],
     currentUser: null,
   },
 
@@ -86,7 +88,10 @@ const FirebaseService = {
     const liveCollections = [
       'events', 'tournaments', 'teams', 'shopItems',
       'messages', 'registrations', 'leaderboard',
-      'standings', 'matches', 'trades', 'announcements',
+      'standings', 'matches', 'trades',
+      'banners', 'floatingAds', 'announcements',
+      'achievements', 'badges', 'adminUsers',
+      'expLogs', 'operationLogs', 'adminMessages',
     ];
 
     liveCollections.forEach(name => {
@@ -477,6 +482,177 @@ const FirebaseService = {
       console.error('[Storage] 圖片上傳失敗:', err);
       return null;
     }
+  },
+
+  // ════════════════════════════════
+  //  Banners
+  // ════════════════════════════════
+
+  async updateBanner(id, updates) {
+    const doc = this._cache.banners.find(b => b.id === id);
+    if (!doc || !doc._docId) return null;
+    updates.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
+    await db.collection('banners').doc(doc._docId).update(updates);
+    return doc;
+  },
+
+  // ════════════════════════════════
+  //  Floating Ads
+  // ════════════════════════════════
+
+  async updateFloatingAd(id, updates) {
+    const doc = this._cache.floatingAds.find(a => a.id === id);
+    if (!doc || !doc._docId) return null;
+    updates.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
+    await db.collection('floatingAds').doc(doc._docId).update(updates);
+    return doc;
+  },
+
+  // ════════════════════════════════
+  //  Announcements
+  // ════════════════════════════════
+
+  async addAnnouncement(data) {
+    const docRef = await db.collection('announcements').add({
+      ...data, _docId: undefined,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+    });
+    data._docId = docRef.id;
+    return data;
+  },
+
+  async updateAnnouncement(id, updates) {
+    const doc = this._cache.announcements.find(a => a.id === id);
+    if (!doc || !doc._docId) return null;
+    updates.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
+    await db.collection('announcements').doc(doc._docId).update(updates);
+    return doc;
+  },
+
+  async deleteAnnouncement(id) {
+    const doc = this._cache.announcements.find(a => a.id === id);
+    if (!doc || !doc._docId) return false;
+    await db.collection('announcements').doc(doc._docId).delete();
+    return true;
+  },
+
+  // ════════════════════════════════
+  //  Achievements
+  // ════════════════════════════════
+
+  async addAchievement(data) {
+    const docRef = await db.collection('achievements').add({
+      ...data, _docId: undefined,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+    });
+    data._docId = docRef.id;
+    return data;
+  },
+
+  async updateAchievement(id, updates) {
+    const doc = this._cache.achievements.find(a => a.id === id);
+    if (!doc || !doc._docId) return null;
+    updates.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
+    await db.collection('achievements').doc(doc._docId).update(updates);
+    return doc;
+  },
+
+  async deleteAchievement(id) {
+    const doc = this._cache.achievements.find(a => a.id === id);
+    if (!doc || !doc._docId) return false;
+    await db.collection('achievements').doc(doc._docId).delete();
+    return true;
+  },
+
+  // ════════════════════════════════
+  //  Badges
+  // ════════════════════════════════
+
+  async addBadge(data) {
+    const docRef = await db.collection('badges').add({
+      ...data, _docId: undefined,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+    });
+    data._docId = docRef.id;
+    return data;
+  },
+
+  async updateBadge(id, updates) {
+    const doc = this._cache.badges.find(b => b.id === id);
+    if (!doc || !doc._docId) return null;
+    updates.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
+    await db.collection('badges').doc(doc._docId).update(updates);
+    return doc;
+  },
+
+  async deleteBadge(id) {
+    const doc = this._cache.badges.find(b => b.id === id);
+    if (!doc || !doc._docId) return false;
+    await db.collection('badges').doc(doc._docId).delete();
+    return true;
+  },
+
+  // ════════════════════════════════
+  //  Admin Messages（後台站內信）
+  // ════════════════════════════════
+
+  async addAdminMessage(data) {
+    const docRef = await db.collection('adminMessages').add({
+      ...data, _docId: undefined,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+    });
+    data._docId = docRef.id;
+    return data;
+  },
+
+  async updateAdminMessage(id, updates) {
+    const doc = this._cache.adminMessages.find(m => m.id === id);
+    if (!doc || !doc._docId) return null;
+    await db.collection('adminMessages').doc(doc._docId).update(updates);
+    return doc;
+  },
+
+  // ════════════════════════════════
+  //  User Role（用戶晉升）
+  // ════════════════════════════════
+
+  async updateUserRole(docId, newRole) {
+    await db.collection('adminUsers').doc(docId).update({
+      role: newRole,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    });
+  },
+
+  // ════════════════════════════════
+  //  Message Read Status（訊息已讀）
+  // ════════════════════════════════
+
+  async updateMessageRead(msgId) {
+    const doc = this._cache.messages.find(m => m.id === msgId);
+    if (!doc || !doc._docId) return null;
+    await db.collection('messages').doc(doc._docId).update({ unread: false });
+    return doc;
+  },
+
+  async markAllMessagesRead() {
+    const unread = this._cache.messages.filter(m => m.unread && m._docId);
+    if (unread.length === 0) return;
+    const batch = db.batch();
+    unread.forEach(m => {
+      batch.update(db.collection('messages').doc(m._docId), { unread: false });
+    });
+    await batch.commit();
+  },
+
+  // ════════════════════════════════
+  //  Operation Log（操作日誌）
+  // ════════════════════════════════
+
+  async addOperationLog(data) {
+    await db.collection('operationLogs').add({
+      ...data, _docId: undefined,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+    });
   },
 
   // ════════════════════════════════

@@ -39,10 +39,14 @@ Object.assign(App, {
   },
 
   handlePromote(select, name) {
-    if (select.value) {
-      this.showToast(`已將「${name}」晉升為「${select.value}」`);
-      select.value = '';
-    }
+    if (!select.value) return;
+    const roleMap = { '管理員': 'admin', '教練': 'coach', '領隊': 'captain', '場主': 'venue_owner' };
+    const roleKey = roleMap[select.value];
+    if (!roleKey) return;
+    ApiService.promoteUser(name, roleKey);
+    this.renderAdminUsers();
+    this.showToast(`已將「${name}」晉升為「${select.value}」`);
+    select.value = '';
   },
 
   renderExpLogs() {
@@ -57,7 +61,43 @@ Object.assign(App, {
   },
 
   demoExpSearch() {
-    this.showToast('已搜尋到用戶「暱稱A」');
+    const keyword = (document.getElementById('exp-search')?.value || '').trim();
+    if (!keyword) { this.showToast('請輸入 UID 或暱稱'); return; }
+    const users = ApiService.getAdminUsers();
+    const found = users.find(u => u.name === keyword || u.uid === keyword);
+    const card = document.getElementById('exp-target-card');
+    if (!card) return;
+    if (found) {
+      card.style.display = '';
+      card.querySelector('.exp-target-name').textContent = found.name;
+      card.querySelector('.exp-target-detail').textContent = `UID: ${found.uid} ・ Lv.${found.level} ・ EXP: ${found.exp}`;
+      card.querySelector('.profile-avatar').textContent = found.name[0];
+      card.dataset.targetName = found.name;
+      this.showToast(`已搜尋到用戶「${found.name}」`);
+    } else {
+      card.style.display = 'none';
+      this.showToast('找不到該用戶');
+    }
+  },
+
+  handleExpSubmit() {
+    const card = document.getElementById('exp-target-card');
+    const targetName = card?.dataset.targetName;
+    if (!targetName) { this.showToast('請先搜尋用戶'); return; }
+    const amountInput = card.querySelector('input[type="number"]');
+    const reasonInput = card.querySelectorAll('input[type="text"]')[0];
+    const amount = parseInt(amountInput?.value) || 0;
+    const reason = (reasonInput?.value || '').trim();
+    if (amount === 0) { this.showToast('請輸入 EXP 調整值'); return; }
+    if (!reason) { this.showToast('請輸入備註原因'); return; }
+    const operatorLabel = ROLES[this.currentRole]?.label || '管理員';
+    const user = ApiService.adjustUserExp(targetName, amount, reason, operatorLabel);
+    if (user) {
+      card.querySelector('.exp-target-detail').textContent = `UID: ${user.uid} ・ Lv.${user.level} ・ EXP: ${user.exp}`;
+      this.renderExpLogs();
+      this.renderOperationLogs();
+      this.showToast(`已調整「${targetName}」EXP ${amount > 0 ? '+' : ''}${amount}`);
+    }
   },
 
   renderOperationLogs() {
@@ -416,19 +456,11 @@ Object.assign(App, {
   //  Render: Message Management
   // ══════════════════════════════════
 
-  _msgData: [
-    { id:'mg1', title:'春季聯賽報名開始', target:'全體', readRate:'72%', time:'03/01', status:'sent', body:'2026 春季足球聯賽現已開放報名，請至賽事中心查看詳情。' },
-    { id:'mg2', title:'系統維護通知', target:'全體', readRate:'85%', time:'02/18', status:'sent', body:'本週六凌晨將進行系統更新，預計停機2小時。' },
-    { id:'mg3', title:'球隊集訓通知', target:'雷霆隊', readRate:'90%', time:'02/15', status:'sent', body:'本週六下午2點集合於大安運動中心進行球隊集訓。' },
-    { id:'mg4', title:'新春盃報名提醒', target:'全體', readRate:'-', time:'03/20', status:'scheduled', body:'新春盃淘汰賽即將截止報名，請把握機會。' },
-    { id:'mg5', title:'舊版本停用通知', target:'全體', readRate:'45%', time:'01/10', status:'recalled', body:'此信件已回收。' },
-  ],
-
   renderMsgManage(filter) {
     const container = document.getElementById('msg-manage-list');
     if (!container) return;
     const f = filter || 'sent';
-    const items = this._msgData.filter(m => m.status === f);
+    const items = ApiService.getAdminMessages().filter(m => m.status === f);
     container.innerHTML = items.length ? items.map(m => `
       <div class="msg-manage-card">
         <div class="msg-manage-header">
@@ -459,8 +491,9 @@ Object.assign(App, {
   },
 
   recallMsg(id) {
-    const m = this._msgData.find(x => x.id === id);
-    if (m) { m.status = 'recalled'; this.renderMsgManage('sent'); this.showToast('已回收信件'); }
+    ApiService.updateAdminMessage(id, { status: 'recalled' });
+    this.renderMsgManage('sent');
+    this.showToast('已回收信件');
   },
 
   showMsgCompose() {
@@ -473,7 +506,7 @@ Object.assign(App, {
     const target = document.getElementById('msg-target')?.value || '全體用戶';
     const body = document.getElementById('msg-body')?.value || '';
     const schedule = document.getElementById('msg-schedule')?.value;
-    this._msgData.unshift({
+    ApiService.createAdminMessage({
       id: 'mg' + Date.now(), title, target, readRate: '-', time: new Date().toLocaleDateString('zh-TW').replace(/\//g, '/'),
       status: schedule ? 'scheduled' : 'sent', body: body || title
     });
@@ -691,28 +724,24 @@ Object.assign(App, {
     const category = document.getElementById('ach-input-category').value;
     if (!name) { this.showToast('請輸入成就名稱'); return; }
 
-    const data = ApiService.getAchievements();
     if (this._achEditId) {
-      const item = data.find(a => a.id === this._achEditId);
+      const item = ApiService.getAchievements().find(a => a.id === this._achEditId);
       if (item) {
-        item.name = name;
-        item.desc = desc;
         const oldTarget = item.target;
-        item.target = target;
-        item.category = category;
-        if (item.current >= item.target && !item.completedAt) {
-          const d = new Date(); item.completedAt = `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}`;
-        } else if (item.current < item.target) {
-          item.completedAt = null;
+        let completedAt = item.completedAt;
+        if (item.current >= target && !completedAt) {
+          const d = new Date(); completedAt = `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}`;
+        } else if (item.current < target) {
+          completedAt = null;
         }
+        ApiService.updateAchievement(this._achEditId, { name, desc, target, category, completedAt });
         this.showToast(`成就「${name}」已更新（目標 ${oldTarget} → ${target}）`);
       }
     } else {
       const newId = 'a' + Date.now();
       const newBadgeId = 'b' + Date.now();
-      data.push({ id: newId, name, desc, target, current: 0, category, badgeId: newBadgeId, completedAt: null });
-      // Auto-create linked badge
-      ApiService.getBadges().push({ id: newBadgeId, name: name + '徽章', achId: newId, category, image: null });
+      ApiService.createAchievement({ id: newId, name, desc, target, current: 0, category, badgeId: newBadgeId, completedAt: null });
+      ApiService.createBadge({ id: newBadgeId, name: name + '徽章', achId: newId, category, image: null });
       this.showToast(`成就「${name}」已建立，已自動建立關聯徽章`);
     }
 
@@ -729,15 +758,12 @@ Object.assign(App, {
 
   deleteAchievement(id) {
     const data = ApiService.getAchievements();
-    const idx = data.findIndex(a => a.id === id);
-    if (idx === -1) return;
-    const name = data[idx].name;
-    const badgeId = data[idx].badgeId;
-    data.splice(idx, 1);
-    // Also delete linked badge
-    const badges = ApiService.getBadges();
-    const bIdx = badges.findIndex(b => b.id === badgeId);
-    if (bIdx !== -1) badges.splice(bIdx, 1);
+    const item = data.find(a => a.id === id);
+    if (!item) return;
+    const name = item.name;
+    const badgeId = item.badgeId;
+    ApiService.deleteAchievement(id);
+    if (badgeId) ApiService.deleteBadge(badgeId);
     this.renderAdminAchievements();
     this.renderAchievements();
     this.renderBadges();
@@ -773,13 +799,11 @@ Object.assign(App, {
     const achId = document.getElementById('badge-input-ach').value;
     if (!name) { this.showToast('請輸入徽章名稱'); return; }
 
-    const badges = ApiService.getBadges();
     if (this._badgeEditId) {
-      const item = badges.find(b => b.id === this._badgeEditId);
-      if (item) { item.name = name; item.category = category; item.achId = achId; }
+      ApiService.updateBadge(this._badgeEditId, { name, category, achId });
       this.showToast(`徽章「${name}」已更新`);
     } else {
-      badges.push({ id: 'b' + Date.now(), name, achId, category, image: null });
+      ApiService.createBadge({ id: 'b' + Date.now(), name, achId, category, image: null });
       this.showToast(`徽章「${name}」已建立`);
     }
 
@@ -795,10 +819,10 @@ Object.assign(App, {
 
   deleteBadge(id) {
     const badges = ApiService.getBadges();
-    const idx = badges.findIndex(b => b.id === id);
-    if (idx === -1) return;
-    const name = badges[idx].name;
-    badges.splice(idx, 1);
+    const item = badges.find(b => b.id === id);
+    if (!item) return;
+    const name = item.name;
+    ApiService.deleteBadge(id);
     this.renderAdminAchievements();
     this.renderBadges();
     this.showToast(`徽章「${name}」已刪除，所有用戶同步移除`);
