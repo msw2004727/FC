@@ -9,15 +9,20 @@ Object.assign(App, {
   _popupDismissToday: false,
 
   showPopupAdsOnLoad() {
-    const dismissKey = 'sporthub_popup_dismiss';
-    const dismissVal = localStorage.getItem(dismissKey);
-    if (dismissVal) {
-      const now = new Date();
-      if (new Date(dismissVal).toDateString() === now.toDateString()) return;
-    }
     const activeAds = ApiService.getActivePopupAds();
     if (!activeAds || activeAds.length === 0) return;
+    // 產生當前活躍廣告的 ID 指紋（排序後合併）
+    const activeKey = activeAds.map(a => a.id).sort().join(',');
+    const dismissKey = 'sporthub_popup_dismiss';
+    try {
+      const stored = JSON.parse(localStorage.getItem(dismissKey));
+      if (stored && stored.adKey === activeKey) {
+        const now = new Date();
+        if (new Date(stored.date).toDateString() === now.toDateString()) return;
+      }
+    } catch (_) { /* 舊格式或無效 JSON，忽略 */ }
     this._popupAdQueue = [...activeAds].sort((a, b) => a.layer - b.layer);
+    this._popupAdActiveKey = activeKey;
     this._popupAdIndex = 0;
     this._popupDismissToday = false;
     this._showNextPopupAd();
@@ -67,7 +72,10 @@ Object.assign(App, {
 
   closePopupAd() {
     if (this._popupDismissToday) {
-      localStorage.setItem('sporthub_popup_dismiss', new Date().toISOString());
+      localStorage.setItem('sporthub_popup_dismiss', JSON.stringify({
+        date: new Date().toISOString(),
+        adKey: this._popupAdActiveKey || '',
+      }));
       const overlay = document.getElementById('popup-ad-overlay');
       if (overlay) overlay.style.display = 'none';
       return;
