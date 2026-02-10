@@ -801,9 +801,12 @@ Object.assign(App, {
   _renderDelegateTags() {
     const container = document.getElementById('ce-delegate-tags');
     if (!container) return;
-    container.innerHTML = this._delegates.map(d =>
-      `<span class="ce-delegate-tag">${escapeHTML(d.name)}<span class="ce-delegate-remove" onclick="App._removeDelegate('${d.uid}')">✕</span></span>`
-    ).join('');
+    const users = ApiService.getAdminUsers?.() || [];
+    container.innerHTML = this._delegates.map(d => {
+      const u = users.find(u => u.uid === d.uid);
+      const role = u?.role || 'user';
+      return `<span class="ce-delegate-tag">${this._userTag(d.name, role)}<span class="ce-delegate-remove" onclick="App._removeDelegate('${d.uid}')">✕</span></span>`;
+    }).join('');
   },
 
   _updateDelegateInput() {

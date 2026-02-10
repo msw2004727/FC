@@ -1664,14 +1664,15 @@ a.social-btn { text-decoration: none; }
 .ce-delegate-tags { display: flex; flex-wrap: wrap; gap: .3rem; margin-bottom: .3rem; }
 .ce-delegate-tags:empty { margin-bottom: 0; }
 .ce-delegate-tag {
-  display: inline-flex; align-items: center; gap: .25rem;
-  background: var(--primary); color: #fff; font-size: .75rem;
-  padding: .2rem .5rem; border-radius: 999px;
+  display: inline-flex; align-items: center; gap: .2rem;
+  background: transparent; font-size: .75rem;
+  padding: 0; border-radius: 999px;
 }
+.ce-delegate-tag .user-capsule { margin: 0; }
 .ce-delegate-tag .ce-delegate-remove {
-  cursor: pointer; font-size: .85rem; line-height: 1; opacity: .8;
+  cursor: pointer; font-size: .82rem; line-height: 1; color: var(--text-muted); padding: .1rem .15rem;
 }
-.ce-delegate-tag .ce-delegate-remove:hover { opacity: 1; }
+.ce-delegate-tag .ce-delegate-remove:hover { color: var(--danger); }
 .ce-delegate-dropdown {
   display: none; position: absolute; left: 0; right: 0; top: 100%;
   background: #1a1a2e; border: 1px solid var(--border);
