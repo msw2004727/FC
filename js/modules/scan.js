@@ -325,6 +325,31 @@ Object.assign(App, {
     if (this._scanResultsLog.length > 20) this._scanResultsLog.length = 20;
     this._renderScanResults();
     this._renderAttendanceSections();
+
+    // 相機掃碼時彈跳結果視窗
+    if (this._scannerInstance) {
+      this._showScanResultPopup(resultClass, resultMsg, userName);
+    }
+  },
+
+  _showScanResultPopup(cls, msg, userName) {
+    const icons = { success: '\u2705', warning: '\u26A0\uFE0F', error: '\u274C' };
+    const modal = document.getElementById('scan-result-modal');
+    const box = document.getElementById('scan-result-box');
+    document.getElementById('scan-result-icon').textContent = icons[cls] || '';
+    document.getElementById('scan-result-title').textContent = msg;
+    document.getElementById('scan-result-name').textContent = userName || '';
+    box.className = 'scan-result-box ' + cls;
+    modal.classList.add('open');
+    // 3 秒後自動關閉
+    clearTimeout(this._scanResultTimer);
+    this._scanResultTimer = setTimeout(() => this.closeScanResult(), 3000);
+  },
+
+  closeScanResult() {
+    clearTimeout(this._scanResultTimer);
+    const modal = document.getElementById('scan-result-modal');
+    if (modal) modal.classList.remove('open');
   },
 
   // ══════════════════════════════════

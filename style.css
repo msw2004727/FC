@@ -1143,6 +1143,22 @@ a.social-btn { text-decoration: none; }
 .scan-section-unreg .scan-user-tag { background: rgba(248,113,113,.15); color: #f87171; border-color: rgba(248,113,113,.3); }
 .scan-stats { display: flex; gap: .5rem; justify-content: center; flex-wrap: wrap; font-size: .82rem; color: var(--text-secondary); padding: .55rem; background: var(--bg-card); border-radius: var(--radius); border: 1px solid var(--border); margin-bottom: .5rem; }
 .scan-stats span { white-space: nowrap; }
+/* Scan result popup */
+.scan-result-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 210; align-items: center; justify-content: center; }
+.scan-result-overlay.open { display: flex; }
+.scan-result-box { background: var(--bg-card); border-radius: 16px; padding: 1.8rem 1.5rem 1.3rem; width: 280px; text-align: center; animation: scanPopIn .25s ease; }
+@keyframes scanPopIn { from { transform: scale(.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+.scan-result-icon { font-size: 2.8rem; margin-bottom: .5rem; }
+.scan-result-title { font-size: 1.1rem; font-weight: 700; margin-bottom: .3rem; }
+.scan-result-name { font-size: .82rem; color: var(--text-muted); margin-bottom: 1rem; }
+.scan-result-close { width: 100%; padding: .55rem; border: none; border-radius: var(--radius-sm); font-weight: 600; font-size: .88rem; cursor: pointer; background: var(--primary); color: #fff; }
+.scan-result-box.success .scan-result-title { color: #34d399; }
+.scan-result-box.success .scan-result-close { background: #34d399; }
+.scan-result-box.warning .scan-result-title { color: #fbbf24; }
+.scan-result-box.warning .scan-result-close { background: #fbbf24; color: #1a1a2e; }
+.scan-result-box.error .scan-result-title { color: #f87171; }
+.scan-result-box.error .scan-result-close { background: #f87171; }
+
 /* Scan choice modal */
 .scan-choice-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 200; align-items: center; justify-content: center; }
 .scan-choice-overlay.open { display: flex; }
