@@ -48,9 +48,20 @@ Object.assign(App, {
     const roleInfo = ROLES[role];
     const level = ROLE_LEVEL_MAP[role];
 
+    // Demo 模式同步 currentUser.role，讓個人資料頁膠囊正確顯示
+    if (ModeManager.isDemo()) {
+      DemoData.currentUser.role = role;
+    }
+
     document.getElementById('drawer-role-tag').textContent = roleInfo.label;
     document.getElementById('drawer-role-tag').style.background = roleInfo.color + '22';
     document.getElementById('drawer-role-tag').style.color = roleInfo.color;
+
+    // 更新個人資料頁角色膠囊
+    const roleTagWrap = document.getElementById('profile-role-tag-wrap');
+    if (roleTagWrap) {
+      roleTagWrap.innerHTML = `<span class="uc-role-tag" style="background:${roleInfo.color}22;color:${roleInfo.color}">${roleInfo.label}</span>`;
+    }
 
     document.querySelectorAll('[data-min-role]').forEach(el => {
       const minLevel = ROLE_LEVEL_MAP[el.dataset.minRole] || 0;

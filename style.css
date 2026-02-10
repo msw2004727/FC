@@ -1365,11 +1365,15 @@ img { max-width: 100%; display: block; }
 .mini-activity-status.completed { background: var(--success); }
 .mini-activity-status.cancelled { background: var(--warning); }
 .mini-activity-status.early-left { background: var(--danger); }
+.mini-activity-status.registered { background: var(--accent); }
+.mini-activity-status.waitlisted { background: #7c3aed; }
 .mini-activity-name { flex: 1; }
 .mini-activity-tag { font-size: .62rem; font-weight: 600; padding: .1rem .35rem; border-radius: var(--radius-full); }
 .mini-activity-tag.completed { background: rgba(52,211,153,.12); color: var(--success); }
 .mini-activity-tag.cancelled { background: rgba(251,191,36,.12); color: var(--warning); }
 .mini-activity-tag.early-left { background: rgba(248,113,113,.12); color: var(--danger); }
+.mini-activity-tag.registered { background: rgba(52,211,153,.08); color: var(--accent); }
+.mini-activity-tag.waitlisted { background: rgba(124,58,237,.1); color: #7c3aed; }
 .mini-activity-date { font-size: .72rem; color: var(--text-muted); }
 
 /* ─── Inactive Card ─── */

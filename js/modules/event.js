@@ -313,17 +313,53 @@ Object.assign(App, {
   handleSignup(id) {
     const e = ApiService.getEvent(id);
     if (!e) return;
+    const user = ApiService.getCurrentUser();
+    const userName = user?.displayName || user?.name || '用戶';
+    const userId = user?.uid || 'unknown';
 
     if (ApiService._demoMode) {
-      this.showToast(e.current >= e.max ? '已加入候補名單' : '報名成功！');
+      // 檢查是否已報名
+      if (this._isUserSignedUp(e)) {
+        this.showToast('您已報名此活動');
+        return;
+      }
+      const isWaitlist = e.current >= e.max;
+      if (isWaitlist) {
+        if (!e.waitlistNames) e.waitlistNames = [];
+        e.waitlistNames.push(userName);
+        e.waitlist = (e.waitlist || 0) + 1;
+      } else {
+        if (!e.participants) e.participants = [];
+        e.participants.push(userName);
+        e.current++;
+        if (e.current >= e.max) e.status = 'full';
+      }
+      // 寫入報名紀錄
+      const dateParts = e.date.split(' ')[0].split('/');
+      const dateStr = `${dateParts[1]}/${dateParts[2]}`;
+      ApiService.addActivityRecord({
+        eventId: e.id,
+        name: e.title,
+        date: dateStr,
+        status: isWaitlist ? 'waitlisted' : 'registered',
+        uid: userId,
+      });
+      this.showToast(isWaitlist ? '已加入候補名單' : '報名成功！');
+      this.showEventDetail(id);
       return;
     }
 
-    const user = ApiService.getCurrentUser();
-    const userId = user?.uid || 'unknown';
-    const userName = user?.displayName || user?.name || '用戶';
     FirebaseService.registerForEvent(id, userId, userName)
       .then(result => {
+        const dateParts = e.date.split(' ')[0].split('/');
+        const dateStr = `${dateParts[1]}/${dateParts[2]}`;
+        ApiService.addActivityRecord({
+          eventId: e.id,
+          name: e.title,
+          date: dateStr,
+          status: result.status === 'waitlisted' ? 'waitlisted' : 'registered',
+          uid: userId,
+        });
         this.showToast(result.status === 'waitlisted' ? '已加入候補名單' : '報名成功！');
         this.showEventDetail(id);
       })
@@ -340,14 +376,12 @@ Object.assign(App, {
     const userId = user?.uid || 'unknown';
 
     if (ApiService._demoMode) {
-      // Demo 模式：從 participants / waitlistNames 移除
       const e = ApiService.getEvent(id);
       if (e) {
         const pi = (e.participants || []).indexOf(userName);
         if (pi !== -1) {
           e.participants.splice(pi, 1);
           e.current = Math.max(0, e.current - 1);
-          // 若候補有人，遞補
           if (e.waitlistNames && e.waitlistNames.length > 0) {
             const promoted = e.waitlistNames.shift();
             e.participants.push(promoted);
@@ -362,6 +396,12 @@ Object.assign(App, {
             e.waitlist = Math.max(0, e.waitlist - 1);
           }
         }
+        // 更新報名紀錄狀態為取消
+        const records = ApiService.getActivityRecords();
+        const rec = records.find(r => r.eventId === id && r.uid === userId);
+        if (rec) {
+          rec.status = 'cancelled';
+        }
       }
       this.showToast('已取消報名');
       this.showEventDetail(id);
@@ -370,7 +410,13 @@ Object.assign(App, {
 
     if (typeof FirebaseService.unregisterFromEvent === 'function') {
       FirebaseService.unregisterFromEvent(id, userId)
-        .then(() => { this.showToast('已取消報名'); this.showEventDetail(id); })
+        .then(() => {
+          const records = ApiService.getActivityRecords();
+          const rec = records.find(r => r.eventId === id && r.uid === userId);
+          if (rec) rec.status = 'cancelled';
+          this.showToast('已取消報名');
+          this.showEventDetail(id);
+        })
         .catch(err => { console.error('[cancelSignup]', err); this.showToast('取消失敗'); });
     } else {
       this.showToast('已取消報名');

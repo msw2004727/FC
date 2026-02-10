@@ -246,7 +246,11 @@ const ApiService = {
   },
 
   getUserRole(name) {
-    if (this._demoMode) return DEMO_USERS[name] || 'user';
+    if (this._demoMode) {
+      if (DEMO_USERS[name]) return DEMO_USERS[name];
+      const u = DemoData.adminUsers.find(u => u.name === name);
+      return u ? u.role : 'user';
+    }
     const user = FirebaseService._cache.adminUsers.find(u => u.name === name);
     return user ? user.role : 'user';
   },
@@ -299,9 +303,26 @@ const ApiService = {
     return FirebaseService._cache.leaderboard;
   },
 
-  getActivityRecords() {
-    if (this._demoMode) return DemoData.activityRecords;
-    return FirebaseService._cache.activityRecords;
+  getActivityRecords(uid) {
+    const source = this._demoMode ? DemoData.activityRecords : FirebaseService._cache.activityRecords;
+    if (uid) return source.filter(r => r.uid === uid);
+    return source;
+  },
+
+  addActivityRecord(record) {
+    const source = this._demoMode ? DemoData.activityRecords : FirebaseService._cache.activityRecords;
+    source.unshift(record);
+    return record;
+  },
+
+  removeActivityRecord(eventId, uid) {
+    const source = this._demoMode ? DemoData.activityRecords : FirebaseService._cache.activityRecords;
+    const idx = source.findIndex(r => r.eventId === eventId && r.uid === uid);
+    if (idx >= 0) {
+      source.splice(idx, 1);
+      return true;
+    }
+    return false;
   },
 
   // ════════════════════════════════

@@ -262,12 +262,12 @@ const DemoData = {
   ],
 
   activityRecords: [
-    { name: '五人制室內足球', date: '03/08', status: 'completed' },
-    { name: '守門員專項教學', date: '03/05', status: 'completed' },
-    { name: '春季PLAY第三輪', date: '03/01', status: 'completed' },
-    { name: '週六足球友誼賽', date: '02/22', status: 'completed' },
-    { name: '冬季足球體能活動', date: '02/22', status: 'early-left' },
-    { name: '足球新手教學', date: '02/25', status: 'cancelled' },
+    { eventId: 'e3', name: '五人制室內足球', date: '03/08', status: 'completed', uid: 'demo-user' },
+    { eventId: 'e2', name: '守門員專項教學', date: '03/05', status: 'completed', uid: 'demo-user' },
+    { eventId: 'e1', name: '春季PLAY第三輪', date: '03/01', status: 'completed', uid: 'demo-user' },
+    { eventId: 'e0b', name: '週六足球友誼賽', date: '02/22', status: 'completed', uid: 'demo-user' },
+    { eventId: 'e0a', name: '冬季足球體能活動', date: '02/22', status: 'early-left', uid: 'demo-user' },
+    { eventId: 'e0c', name: '足球新手教學', date: '02/25', status: 'cancelled', uid: 'demo-user' },
   ],
 };
 
