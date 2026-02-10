@@ -224,6 +224,7 @@ Object.assign(App, {
             <button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem">輸入比分</button>
             <button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem">交易設定</button>
             <button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem">紅黃牌</button>
+            <button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem;color:var(--danger)" onclick="App.handleDeleteTournament('${t.id}')">刪除</button>
           </div>
         </div>
       </div>
@@ -266,6 +267,17 @@ Object.assign(App, {
       preview.classList.remove('has-image');
       preview.innerHTML = '<span class="ce-upload-icon">+</span><span class="ce-upload-text">點擊上傳圖片</span><span class="ce-upload-hint">建議尺寸 800 × 300 px｜JPG / PNG｜最大 2MB</span>';
     }
+  },
+
+  handleDeleteTournament(id) {
+    const t = ApiService.getTournament(id);
+    if (!t) return;
+    if (!confirm(`確定要刪除賽事「${t.name}」？刪除後無法恢復。`)) return;
+    ApiService.deleteTournament(id);
+    this.renderTournamentTimeline();
+    this.renderOngoingTournaments();
+    this.renderTournamentManage();
+    this.showToast(`賽事「${t.name}」已刪除`);
   },
 
 });

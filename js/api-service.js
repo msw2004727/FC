@@ -97,6 +97,17 @@ const ApiService = {
     return data;
   },
 
+  deleteTournament(id) {
+    const source = this._demoMode ? DemoData.tournaments : FirebaseService._cache.tournaments;
+    const idx = source.findIndex(t => t.id === id);
+    if (idx === -1) return;
+    const removed = source.splice(idx, 1)[0];
+    if (!this._demoMode && removed._docId) {
+      db.collection('tournaments').doc(removed._docId).delete()
+        .catch(err => console.error('[deleteTournament]', err));
+    }
+  },
+
   getStandings() {
     if (this._demoMode) return DemoData.standings;
     return FirebaseService._cache.standings;
