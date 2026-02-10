@@ -336,7 +336,7 @@ Object.assign(App, {
     const box = document.getElementById('scan-result-box');
     document.getElementById('scan-result-icon').textContent = icons[cls] || '';
     document.getElementById('scan-result-title').textContent = msg;
-    document.getElementById('scan-result-name').textContent = userName || '';
+    document.getElementById('scan-result-name').textContent = '';
     box.className = 'scan-result-box ' + cls;
     modal.classList.add('open');
     // 3 秒後自動關閉
