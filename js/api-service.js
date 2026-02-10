@@ -337,6 +337,25 @@ const ApiService = {
   },
 
   // ════════════════════════════════
+  //  Attendance Records（簽到/簽退）
+  // ════════════════════════════════
+
+  getAttendanceRecords(eventId) {
+    const source = this._demoMode ? DemoData.attendanceRecords : FirebaseService._cache.attendanceRecords;
+    if (eventId) return source.filter(r => r.eventId === eventId);
+    return source;
+  },
+
+  addAttendanceRecord(record) {
+    const source = this._demoMode ? DemoData.attendanceRecords : FirebaseService._cache.attendanceRecords;
+    source.push(record);
+    if (!this._demoMode) {
+      FirebaseService.addAttendanceRecord(record).catch(err => console.error('[addAttendanceRecord]', err));
+    }
+    return record;
+  },
+
+  // ════════════════════════════════
   //  Achievements & Badges
   // ════════════════════════════════
 

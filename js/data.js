@@ -261,6 +261,12 @@ const DemoData = {
     { id:'mg5', title:'教練升級通知', target:'李大華', targetUid:'U4d5e6f', targetName:'李大華', senderName:'系統', readRate:'-', time:'2026/01/10 14:00', status:'recalled', body:'您的角色已升級為教練，請確認新權限。' },
   ],
 
+  attendanceRecords: [
+    { id:'att_d1', eventId:'e0b', uid:'U1a2b3c', userName:'王小明', type:'checkin', time:'2026/02/22 13:55' },
+    { id:'att_d2', eventId:'e0b', uid:'U1a2b3c', userName:'王小明', type:'checkout', time:'2026/02/22 16:05' },
+    { id:'att_d3', eventId:'e0b', uid:'U4d5e6f', userName:'李大華', type:'checkin', time:'2026/02/22 14:02' },
+  ],
+
   activityRecords: [
     { eventId: 'e3', name: '五人制室內足球', date: '03/08', status: 'completed', uid: 'demo-user' },
     { eventId: 'e2', name: '守門員專項教學', date: '03/05', status: 'completed', uid: 'demo-user' },

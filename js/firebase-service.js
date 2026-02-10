@@ -34,6 +34,7 @@ const FirebaseService = {
     badges: [],
     adminUsers: [],
     permissions: [],
+    attendanceRecords: [],
     activityRecords: [],
     registrations: [],
     announcements: [],
@@ -164,7 +165,7 @@ const FirebaseService = {
       'events', 'tournaments', 'teams', 'shopItems',
       'messages', 'registrations', 'leaderboard',
       'standings', 'matches', 'trades',
-      'banners', 'floatingAds', 'popupAds', 'sponsors', 'announcements',
+      'banners', 'floatingAds', 'popupAds', 'sponsors', 'announcements', 'attendanceRecords',
       'achievements', 'badges', 'adminUsers',
       'expLogs', 'operationLogs', 'adminMessages',
     ];
@@ -214,6 +215,19 @@ const FirebaseService = {
     if (!doc || !doc._docId) return false;
     await db.collection('events').doc(doc._docId).delete();
     return true;
+  },
+
+  // ════════════════════════════════
+  //  Attendance Records（簽到/簽退）
+  // ════════════════════════════════
+
+  async addAttendanceRecord(data) {
+    const docRef = await db.collection('attendanceRecords').add({
+      ..._stripDocId(data),
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+    });
+    data._docId = docRef.id;
+    return data;
   },
 
   // ════════════════════════════════

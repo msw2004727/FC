@@ -55,12 +55,7 @@ Object.assign(App, {
   bindTournamentTabs() {},
 
   bindScanModes() {
-    document.querySelectorAll('.scan-mode').forEach(btn => {
-      btn.addEventListener('click', () => {
-        document.querySelectorAll('.scan-mode').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-      });
-    });
+    // 已移至 js/modules/scan.js
   },
 
   bindSportPicker() {
