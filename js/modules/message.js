@@ -16,7 +16,7 @@ Object.assign(App, {
       <div class="msg-card${m.unread ? ' msg-unread' : ''}" onclick="App.readMessage(this, '${m.id}')">
         <div class="msg-card-header">
           <span class="msg-dot ${m.unread ? 'unread' : 'read'}"></span>
-          <span class="msg-type">${m.typeName}</span>
+          <span class="msg-type msg-type-${m.type}">${m.typeName}</span>
           <span class="msg-title">${m.title}</span>
         </div>
         <div class="msg-preview">${m.preview}</div>

@@ -877,7 +877,11 @@ img { max-width: 100%; display: block; }
 .msg-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
 .msg-dot.unread { background: var(--info); }
 .msg-dot.read { background: var(--border); }
-.msg-type { font-size: .7rem; padding: .1rem .4rem; border-radius: var(--radius-full); background: var(--accent-bg); color: var(--accent); font-weight: 600; }
+.msg-type { font-size: .7rem; padding: .1rem .4rem; border-radius: var(--radius-full); font-weight: 600; background: var(--accent-bg); color: var(--accent); }
+.msg-type-system { background: rgba(59,130,246,.12); color: #3b82f6; }
+.msg-type-activity { background: rgba(16,185,129,.12); color: #10b981; }
+.msg-type-trade { background: rgba(245,158,11,.12); color: #f59e0b; }
+.msg-type-private { background: rgba(168,85,247,.12); color: #a855f7; }
 .msg-title { font-weight: 600; font-size: .85rem; flex: 1; }
 .msg-preview { font-size: .78rem; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .msg-time { font-size: .7rem; color: var(--text-muted); margin-top: .2rem; }
