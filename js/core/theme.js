@@ -28,6 +28,19 @@ Object.assign(App, {
     document.getElementById('filter-toggle')?.addEventListener('click', () => {
       document.getElementById('filter-bar').classList.toggle('visible');
     });
+    // 類別下拉篩選
+    document.getElementById('activity-filter-type')?.addEventListener('change', () => {
+      this.renderActivityList();
+    });
+    // 關鍵字即時搜尋（防抖 300ms）
+    const kwInput = document.getElementById('activity-filter-keyword');
+    if (kwInput) {
+      let _kwTimer = null;
+      kwInput.addEventListener('input', () => {
+        clearTimeout(_kwTimer);
+        _kwTimer = setTimeout(() => this.renderActivityList(), 300);
+      });
+    }
   },
 
   bindTabBars() {

@@ -178,9 +178,14 @@
         <button class="filter-btn" id="filter-toggle">篩選 ▾</button>
       </div>
       <div class="filter-bar" id="filter-bar">
-        <select><option>全部類別</option><option>友誼賽</option><option>訓練</option><option>學習營</option><option>聯賽</option><option>盃賽</option><option>測試</option><option>觀賽</option></select>
-        <select><option>全部地區</option><option>台北</option><option>台中</option><option>高雄</option></select>
-        <input type="text" placeholder="搜尋活動...">
+        <select id="activity-filter-type">
+          <option value="">全部類別</option>
+          <option value="friendly">友誼</option>
+          <option value="camp">教學</option>
+          <option value="play">PLAY</option>
+          <option value="watch">觀賽</option>
+        </select>
+        <input type="text" id="activity-filter-keyword" placeholder="搜尋活動名稱 / 地點...">
       </div>
       <!-- Coach+ : My Activity Management -->
       <div class="my-section" data-min-role="coach">

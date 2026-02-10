@@ -126,14 +126,15 @@ Object.assign(App, {
   renderHotEvents() {
     this._autoEndExpiredEvents();
     const container = document.getElementById('hot-events');
-    // 用可見活動過濾
-    const now = new Date();
-    const twoWeeks = 14 * 24 * 60 * 60 * 1000;
-    const visible = this._getVisibleEvents().filter(e => {
-      if (e.status === 'ended' || e.status === 'cancelled') return false;
-      const start = this._parseEventStartDate(e.date);
-      return start && (start - now) <= twoWeeks && (start - now) > 0;
-    });
+    // 顯示最近 10 場未結束活動（依日期排序）
+    const visible = this._getVisibleEvents()
+      .filter(e => e.status !== 'ended' && e.status !== 'cancelled')
+      .sort((a, b) => {
+        const da = this._parseEventStartDate(a.date);
+        const db = this._parseEventStartDate(b.date);
+        return (da || 0) - (db || 0);
+      })
+      .slice(0, 10);
 
     container.innerHTML = visible.length > 0
       ? visible.map(e => `
@@ -150,7 +151,7 @@ Object.assign(App, {
           </div>
         </div>
       `).join('')
-      : '<div style="padding:1rem;font-size:.82rem;color:var(--text-muted)">近兩週內無活動</div>';
+      : '<div style="padding:1rem;font-size:.82rem;color:var(--text-muted)">目前沒有進行中的活動</div>';
   },
 
   // ══════════════════════════════════
@@ -161,8 +162,19 @@ Object.assign(App, {
     const container = document.getElementById('activity-list');
     if (!container) return;
 
+    // 篩選：類別 + 關鍵字
+    const filterType = document.getElementById('activity-filter-type')?.value || '';
+    const filterKw = (document.getElementById('activity-filter-keyword')?.value || '').trim().toLowerCase();
+
+    let events = this._getVisibleEvents();
+    if (filterType) events = events.filter(e => e.type === filterType);
+    if (filterKw) events = events.filter(e =>
+      (e.title || '').toLowerCase().includes(filterKw) ||
+      (e.location || '').toLowerCase().includes(filterKw)
+    );
+
     const monthGroups = {};
-    this._getVisibleEvents().forEach(e => {
+    events.forEach(e => {
       const parts = e.date.split(' ')[0].split('/');
       const monthKey = `${parts[0]}/${parts[1]}`;
       const day = parseInt(parts[2], 10);
@@ -224,7 +236,7 @@ Object.assign(App, {
       html += `</div>`;
     });
 
-    container.innerHTML = html;
+    container.innerHTML = html || '<div style="padding:1.5rem;font-size:.82rem;color:var(--text-muted);text-align:center">沒有符合條件的活動</div>';
   },
 
   // ══════════════════════════════════
