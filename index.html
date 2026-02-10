@@ -611,7 +611,7 @@
       <div class="page-header">
         <button class="back-btn" onclick="App.goBack()">←</button>
         <h2>我的活動管理</h2>
-        <button class="primary-btn small" onclick="App.showModal('create-event-modal')">＋ 新增</button>
+        <button class="primary-btn small" onclick="App.openCreateEventModal()">＋ 新增</button>
       </div>
       <div id="my-activity-stats" style="font-size:.75rem;color:var(--text-muted);padding:0 .5rem .3rem;text-align:right"></div>
       <div class="tab-bar" id="my-activity-tabs">
@@ -1313,6 +1313,14 @@
             </label>
             <span id="ce-team-only-label" style="font-size:.78rem;color:var(--text-muted)">關閉 — 所有人可見</span>
             <select id="ce-team-select" style="display:none;font-size:.78rem;padding:.2rem .4rem;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--card-bg);color:var(--text-primary)"></select>
+          </div>
+        </div>
+        <div class="ce-row">
+          <label>委託人（最多 3 人）</label>
+          <div class="ce-delegate-wrap">
+            <div class="ce-delegate-tags" id="ce-delegate-tags"></div>
+            <input type="text" id="ce-delegate-search" placeholder="搜尋 UID 或暱稱..." autocomplete="off">
+            <div class="ce-delegate-dropdown" id="ce-delegate-dropdown"></div>
           </div>
         </div>
         <div class="ce-row">

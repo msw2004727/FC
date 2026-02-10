@@ -26,7 +26,13 @@ Object.assign(App, {
       e.status === 'open' || e.status === 'full' || e.status === 'ended'
     );
     if (!isAdmin) {
-      events = events.filter(e => this._isEventOwner(e));
+      const now = new Date();
+      const todayStr = `${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')}`;
+      events = events.filter(e => {
+        const isOwnerOrDelegate = this._isEventOwner(e) || this._isEventDelegate(e);
+        const eventDateStr = (e.date || '').split(' ')[0];
+        return isOwnerOrDelegate && eventDateStr === todayStr;
+      });
     }
 
     select.innerHTML = '<option value="">— 請選擇活動 —</option>';

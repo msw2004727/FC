@@ -47,11 +47,18 @@ Object.assign(App, {
     return e.creatorUid === this._getEventCreatorUid();
   },
 
-  /** 場主(含)以下只能管理自己的活動，admin+ 可管理全部 */
+  /** 判斷當前用戶是否為該活動委託人 */
+  _isEventDelegate(e) {
+    if (!e.delegates || !e.delegates.length) return false;
+    const myUid = this._getEventCreatorUid();
+    return e.delegates.some(d => d.uid === myUid);
+  },
+
+  /** 場主(含)以下只能管理自己的活動或受委託的活動，admin+ 可管理全部 */
   _canManageEvent(e) {
     const myLevel = ROLE_LEVEL_MAP[this.currentRole] || 0;
     if (myLevel >= ROLE_LEVEL_MAP.admin) return true; // admin, super_admin
-    return this._isEventOwner(e);
+    return this._isEventOwner(e) || this._isEventDelegate(e);
   },
 
   /** 取得當前用戶可見的活動列表（過濾球隊限定） */
@@ -301,7 +308,8 @@ Object.assign(App, {
       <div class="detail-row"><span class="detail-label">費用</span>${e.fee > 0 ? '$'+e.fee : '免費'}</div>
       <div class="detail-row"><span class="detail-label">人數</span>已報 ${e.current}/${e.max}　候補 ${e.waitlist}/${e.waitlistMax}</div>
       <div class="detail-row"><span class="detail-label">年齡</span>${e.minAge > 0 ? e.minAge + ' 歲以上' : '無限制'}</div>
-      <div class="detail-row"><span class="detail-label">主辦</span>${escapeHTML(e.creator)}</div>
+      <div class="detail-row"><span class="detail-label">主辦</span><span class="participant-list" style="display:inline-flex;gap:.3rem;flex-wrap:wrap">${this._userTag(e.creator)}</span></div>
+      ${(e.delegates && e.delegates.length) ? `<div class="detail-row"><span class="detail-label">委託</span><span class="participant-list" style="display:inline-flex;gap:.3rem;flex-wrap:wrap">${e.delegates.map(d => this._userTag(d.name)).join('')}</span></div>` : ''}
       ${e.contact ? `<div class="detail-row"><span class="detail-label">聯繫</span>${escapeHTML(e.contact)}</div>` : ''}
       ${teamTag}
       <div class="detail-row"><span class="detail-label">倒數</span><span style="color:${isEnded ? 'var(--text-muted)' : 'var(--primary)' };font-weight:600">${countdown}</span></div>
@@ -488,10 +496,10 @@ Object.assign(App, {
     const myLevel = ROLE_LEVEL_MAP[this.currentRole] || 0;
     const isAdmin = myLevel >= ROLE_LEVEL_MAP.admin;
 
-    // 場主(含)以下只看自己的活動
+    // 場主(含)以下只看自己的活動或受委託的活動
     let allEvents = ApiService.getEvents();
     if (!isAdmin) {
-      allEvents = allEvents.filter(e => this._isEventOwner(e));
+      allEvents = allEvents.filter(e => this._isEventOwner(e) || this._isEventDelegate(e));
     }
     const filtered = f === 'all' ? allEvents : allEvents.filter(e => e.status === f);
 
@@ -639,6 +647,9 @@ Object.assign(App, {
       preview.innerHTML = `<img src="${e.image}" style="width:100%;height:100%;object-fit:cover;border-radius:var(--radius-sm)">`;
       preview.classList.add('has-image');
     }
+    // 委託人預填
+    this._delegates = Array.isArray(e.delegates) ? [...e.delegates] : [];
+    this._initDelegateSearch();
   },
 
   // ── 結束活動 ──
@@ -695,6 +706,112 @@ Object.assign(App, {
   // ══════════════════════════════════
 
   _editEventId: null,
+
+  openCreateEventModal() {
+    this._editEventId = null;
+    this._delegates = [];
+    this.showModal('create-event-modal');
+    this._initDelegateSearch();
+  },
+
+  // ── 委託人搜尋 ──
+  _delegates: [],
+  _delegateSearchBound: false,
+
+  _initDelegateSearch() {
+    const input = document.getElementById('ce-delegate-search');
+    const dropdown = document.getElementById('ce-delegate-dropdown');
+    if (!input || !dropdown) return;
+
+    if (!this._delegateSearchBound) {
+      this._delegateSearchBound = true;
+
+      input.addEventListener('input', () => {
+        const q = input.value.trim();
+        if (q.length < 1) { dropdown.classList.remove('open'); dropdown.innerHTML = ''; return; }
+        this._searchDelegates(q);
+      });
+
+      input.addEventListener('blur', () => {
+        setTimeout(() => { dropdown.classList.remove('open'); }, 200);
+      });
+
+      input.addEventListener('focus', () => {
+        const q = input.value.trim();
+        if (q.length >= 1) this._searchDelegates(q);
+      });
+    }
+
+    this._renderDelegateTags();
+    this._updateDelegateInput();
+  },
+
+  _searchDelegates(query) {
+    const dropdown = document.getElementById('ce-delegate-dropdown');
+    if (!dropdown) return;
+    const q = query.toLowerCase();
+    const myUid = this._getEventCreatorUid();
+    const selectedUids = this._delegates.map(d => d.uid);
+
+    const allUsers = ApiService.getAdminUsers?.() || [];
+    const results = allUsers.filter(u => {
+      if (u.uid === myUid) return false;
+      if (selectedUids.includes(u.uid)) return false;
+      return (u.name || '').toLowerCase().includes(q) || (u.uid || '').toLowerCase().includes(q);
+    }).slice(0, 5);
+
+    if (results.length === 0) {
+      dropdown.innerHTML = '<div style="padding:.4rem .6rem;font-size:.78rem;color:var(--text-muted)">找不到符合的用戶</div>';
+    } else {
+      const roleLabels = typeof ROLES !== 'undefined' ? ROLES : {};
+      dropdown.innerHTML = results.map(u => {
+        const roleLabel = roleLabels[u.role]?.label || u.role || '';
+        return `<div class="ce-delegate-item" data-uid="${u.uid}" data-name="${escapeHTML(u.name)}">
+          <span class="ce-delegate-item-name">${escapeHTML(u.name)}</span>
+          <span class="ce-delegate-item-meta">${u.uid} · ${roleLabel}</span>
+        </div>`;
+      }).join('');
+
+      dropdown.querySelectorAll('.ce-delegate-item').forEach(item => {
+        item.addEventListener('mousedown', (ev) => {
+          ev.preventDefault();
+          this._addDelegate(item.dataset.uid, item.dataset.name);
+          document.getElementById('ce-delegate-search').value = '';
+          dropdown.classList.remove('open');
+        });
+      });
+    }
+    dropdown.classList.add('open');
+  },
+
+  _addDelegate(uid, name) {
+    if (this._delegates.length >= 3) return;
+    if (this._delegates.some(d => d.uid === uid)) return;
+    this._delegates.push({ uid, name });
+    this._renderDelegateTags();
+    this._updateDelegateInput();
+  },
+
+  _removeDelegate(uid) {
+    this._delegates = this._delegates.filter(d => d.uid !== uid);
+    this._renderDelegateTags();
+    this._updateDelegateInput();
+  },
+
+  _renderDelegateTags() {
+    const container = document.getElementById('ce-delegate-tags');
+    if (!container) return;
+    container.innerHTML = this._delegates.map(d =>
+      `<span class="ce-delegate-tag">${escapeHTML(d.name)}<span class="ce-delegate-remove" onclick="App._removeDelegate('${d.uid}')">✕</span></span>`
+    ).join('');
+  },
+
+  _updateDelegateInput() {
+    const input = document.getElementById('ce-delegate-search');
+    if (!input) return;
+    input.disabled = this._delegates.length >= 3;
+    input.placeholder = this._delegates.length >= 3 ? '已達上限 3 人' : '搜尋 UID 或暱稱...';
+  },
 
   /** 球隊限定開關 label 更新 */
   _updateTeamOnlyLabel() {
@@ -792,6 +909,7 @@ Object.assign(App, {
         teamOnly,
         creatorTeamId: teamOnly ? resolvedTeamId : null,
         creatorTeamName: teamOnly ? resolvedTeamName : null,
+        delegates: [...this._delegates],
       };
       ApiService.updateEvent(this._editEventId, updates);
       this.closeModal();
@@ -818,6 +936,7 @@ Object.assign(App, {
         teamOnly,
         creatorTeamId: teamOnly ? resolvedTeamId : null,
         creatorTeamName: teamOnly ? resolvedTeamName : null,
+        delegates: [...this._delegates],
       };
       ApiService.createEvent(newEvent);
       this.closeModal();
@@ -839,6 +958,9 @@ Object.assign(App, {
     document.getElementById('ce-image').value = '';
     if (ceTimeStart) ceTimeStart.value = '14:00';
     if (ceTimeEnd) ceTimeEnd.value = '16:00';
+    this._delegates = [];
+    this._renderDelegateTags();
+    this._updateDelegateInput();
     const ceTeamOnly = document.getElementById('ce-team-only');
     if (ceTeamOnly) { ceTeamOnly.checked = false; this._updateTeamOnlyLabel(); }
     const cePreview = document.getElementById('ce-upload-preview');
