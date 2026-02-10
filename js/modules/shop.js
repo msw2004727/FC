@@ -276,7 +276,6 @@ Object.assign(App, {
       if (!ModeManager.isDemo()) {
         try {
           await FirebaseService.addShopItem(newItem);
-          FirebaseService._cache.shopItems.unshift(newItem);
         } catch (err) {
           console.error('[addShopItem]', err);
           this.showToast('商品建立失敗，請重試');
