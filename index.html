@@ -665,7 +665,7 @@
       <div class="page-header">
         <button class="back-btn" onclick="App.goBack()">←</button>
         <h2>二手商品管理</h2>
-        <button class="primary-btn small" onclick="App.showModal('create-shop-modal')">＋ 新增</button>
+        <button class="primary-btn small" onclick="App.showShopForm()">＋ 新增</button>
       </div>
       <div class="admin-search">
         <input type="text" placeholder="搜尋商品...">
@@ -1146,7 +1146,7 @@
     </div>
     <div class="modal-actions">
       <button class="outline-btn" onclick="App.closeModal()">取消</button>
-      <button class="primary-btn" onclick="App.handleCreateShopItem()">上架商品</button>
+      <button class="primary-btn" onclick="App.handleSaveShopItem()">上架商品</button>
     </div>
   </div>
 

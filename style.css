@@ -1234,6 +1234,7 @@ img { max-width: 100%; display: block; }
 .sm-info { flex: 1; min-width: 0; }
 .sm-title { font-weight: 700; font-size: .85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sm-meta { font-size: .72rem; color: var(--text-secondary); margin-top: .15rem; }
+.sm-delisted { opacity: .55; }
 
 /* Create Shop - 3 image row */
 .cs-img-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: .4rem; }

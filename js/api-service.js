@@ -165,6 +165,26 @@ const ApiService = {
     return data;
   },
 
+  updateShopItem(id, updates) {
+    const source = this._demoMode ? DemoData.shopItems : FirebaseService._cache.shopItems;
+    const item = source.find(s => s.id === id);
+    if (item) Object.assign(item, updates);
+    if (!this._demoMode) {
+      FirebaseService.updateShopItem(id, updates).catch(err => console.error('[updateShopItem]', err));
+    }
+    return item;
+  },
+
+  deleteShopItem(id) {
+    const source = this._demoMode ? DemoData.shopItems : FirebaseService._cache.shopItems;
+    const idx = source.findIndex(s => s.id === id);
+    if (idx >= 0) source.splice(idx, 1);
+    if (!this._demoMode) {
+      FirebaseService.deleteShopItem(id).catch(err => console.error('[deleteShopItem]', err));
+    }
+    return true;
+  },
+
   // ════════════════════════════════
   //  Users & Admin（用戶管理）
   // ════════════════════════════════

@@ -104,12 +104,12 @@ const DemoData = {
   ],
 
   shopItems: [
-    { id:'sh1', name:'Nike Phantom GT2', price:1800, condition:'9成新', year:2025, size:'US10', desc:'穿過約10次，鞋底磨損極少，適合草地場。附原廠鞋盒。' },
-    { id:'sh2', name:'Adidas 訓練球衣', price:500, condition:'8成新', year:2024, size:'L', desc:'白色訓練球衣，透氣排汗材質，領口有輕微使用痕跡。' },
-    { id:'sh3', name:'Puma 護脛', price:300, condition:'全新', year:2026, size:'M', desc:'全新未拆封，輕量化設計，附收納袋。' },
-    { id:'sh4', name:'手套 (守門員)', price:600, condition:'7成新', year:2024, size:'L', desc:'Reusch 守門員手套，掌面乳膠仍有良好抓力，適合練習使用。' },
-    { id:'sh5', name:'Joma 球褲', price:350, condition:'9成新', year:2025, size:'M', desc:'黑色短褲，彈性腰帶，側邊口袋。只穿過幾次比賽。' },
-    { id:'sh6', name:'運動水壺 1L', price:150, condition:'全新', year:2026, size:'—', desc:'不鏽鋼保溫水壺，雙層真空，可保冷12小時。全新未使用。' },
+    { id:'sh1', name:'Nike Phantom GT2', price:1800, condition:'9成新', year:2025, size:'US10', desc:'穿過約10次，鞋底磨損極少，適合草地場。附原廠鞋盒。', status:'on_sale', images:[] },
+    { id:'sh2', name:'Adidas 訓練球衣', price:500, condition:'8成新', year:2024, size:'L', desc:'白色訓練球衣，透氣排汗材質，領口有輕微使用痕跡。', status:'on_sale', images:[] },
+    { id:'sh3', name:'Puma 護脛', price:300, condition:'全新', year:2026, size:'M', desc:'全新未拆封，輕量化設計，附收納袋。', status:'on_sale', images:[] },
+    { id:'sh4', name:'手套 (守門員)', price:600, condition:'7成新', year:2024, size:'L', desc:'Reusch 守門員手套，掌面乳膠仍有良好抓力，適合練習使用。', status:'on_sale', images:[] },
+    { id:'sh5', name:'Joma 球褲', price:350, condition:'9成新', year:2025, size:'M', desc:'黑色短褲，彈性腰帶，側邊口袋。只穿過幾次比賽。', status:'on_sale', images:[] },
+    { id:'sh6', name:'運動水壺 1L', price:150, condition:'全新', year:2026, size:'—', desc:'不鏽鋼保溫水壺，雙層真空，可保冷12小時。全新未使用。', status:'on_sale', images:[] },
   ],
 
   leaderboard: [

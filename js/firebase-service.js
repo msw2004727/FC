@@ -356,15 +356,36 @@ const FirebaseService = {
   // ════════════════════════════════
 
   async addShopItem(data) {
-    // images 已在 handleCreateShopItem 中上傳完畢（base64 → Storage URL）
+    // 過濾 base64 圖片（避免超過 Firestore 1MB 限制）
+    const cleanImages = (data.images || []).filter(img => !img.startsWith('data:'));
     const docRef = await db.collection('shopItems').add({
       ...data,
       _docId: undefined,
-      images: data.images || [],
+      images: cleanImages,
       createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
     });
     data._docId = docRef.id;
     return data;
+  },
+
+  async updateShopItem(id, updates) {
+    const doc = this._cache.shopItems.find(s => s.id === id);
+    if (!doc || !doc._docId) return null;
+    // 過濾 base64 圖片
+    if (updates.images) {
+      updates.images = updates.images.filter(img => !img.startsWith('data:'));
+    }
+    updates.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
+    await db.collection('shopItems').doc(doc._docId).update(updates);
+    return doc;
+  },
+
+  async deleteShopItem(id) {
+    const doc = this._cache.shopItems.find(s => s.id === id);
+    if (!doc || !doc._docId) return false;
+    await db.collection('shopItems').doc(doc._docId).delete();
+    return true;
   },
 
   // ════════════════════════════════

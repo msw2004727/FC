@@ -35,6 +35,7 @@ const App = {
     this.bindImageUpload('banner-image', 'banner-preview');
     this.bindImageUpload('floatad-image', 'floatad-preview');
     this.bindImageUpload('popupad-image', 'popupad-preview');
+    this.bindShopSearch();
     this.renderBannerCarousel();
     this.startBannerCarousel();
     this.renderAll();
