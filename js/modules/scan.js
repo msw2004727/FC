@@ -339,13 +339,9 @@ Object.assign(App, {
     document.getElementById('scan-result-name').textContent = '';
     box.className = 'scan-result-box ' + cls;
     modal.classList.add('open');
-    // 3 秒後自動關閉
-    clearTimeout(this._scanResultTimer);
-    this._scanResultTimer = setTimeout(() => this.closeScanResult(), 3000);
   },
 
   closeScanResult() {
-    clearTimeout(this._scanResultTimer);
     const modal = document.getElementById('scan-result-modal');
     if (modal) modal.classList.remove('open');
   },
