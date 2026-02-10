@@ -254,8 +254,7 @@ Object.assign(App, {
     document.getElementById('msg-individual-row').style.display = 'none';
     document.getElementById('msg-individual-target').value = '';
     document.getElementById('msg-target-result').textContent = '';
-    el.style.display = '';
-    el.scrollIntoView({ behavior: 'smooth' });
+    el.style.display = 'flex';
   },
 
   hideMsgCompose() {
