@@ -93,9 +93,12 @@ Object.assign(App, {
         <div class="float-ad-img">${ad.image ? `<img src="${ad.image}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">` : '廣告'}</div>
       </div>`;
     }).join('');
-    // 重設位置與 lerp offset，避免渲染後偏移
+    // 重設位置與狀態，避免渲染後偏移
     this._floatAdOffset = 0;
     this._floatAdTarget = 0;
+    this._floatAdDragged = false;
+    const el = document.getElementById('floating-ads');
+    if (el) el.classList.remove('dragging');
     this._positionFloatingAds();
   },
 
@@ -145,6 +148,8 @@ Object.assign(App, {
     if (topPx < minTop) topPx = minTop;
 
     floatingAds.style.top = topPx + 'px';
+    floatingAds.style.left = '';
+    floatingAds.style.right = '.75rem';
     floatingAds.style.transform = 'translateY(-50%)';
   },
 
