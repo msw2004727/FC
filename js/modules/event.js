@@ -360,6 +360,13 @@ Object.assign(App, {
           status: result.status === 'waitlisted' ? 'waitlisted' : 'registered',
           uid: userId,
         });
+        // 同步寫入 Firestore activityRecords
+        db.collection('activityRecords').add({
+          eventId: e.id, name: e.title, date: dateStr,
+          status: result.status === 'waitlisted' ? 'waitlisted' : 'registered',
+          uid: userId,
+          createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+        }).catch(err => console.error('[activityRecord]', err));
         this.showToast(result.status === 'waitlisted' ? '已加入候補名單' : '報名成功！');
         this.showEventDetail(id);
       })
@@ -408,18 +415,44 @@ Object.assign(App, {
       return;
     }
 
-    if (typeof FirebaseService.unregisterFromEvent === 'function') {
-      FirebaseService.unregisterFromEvent(id, userId)
+    // 正式版：從 registrations 快取找到該筆報名紀錄，呼叫 cancelRegistration
+    const reg = FirebaseService._cache.registrations.find(
+      r => r.eventId === id && r.userId === userId && r.status !== 'cancelled'
+    );
+    if (reg) {
+      FirebaseService.cancelRegistration(reg.id)
         .then(() => {
+          // 更新 activityRecords 狀態
           const records = ApiService.getActivityRecords();
-          const rec = records.find(r => r.eventId === id && r.uid === userId);
-          if (rec) rec.status = 'cancelled';
+          const rec = records.find(r => r.eventId === id && r.uid === userId && r.status !== 'cancelled');
+          if (rec) {
+            rec.status = 'cancelled';
+            if (rec._docId) {
+              db.collection('activityRecords').doc(rec._docId).update({ status: 'cancelled' })
+                .catch(err => console.error('[activityRecord cancel]', err));
+            }
+          }
           this.showToast('已取消報名');
           this.showEventDetail(id);
         })
-        .catch(err => { console.error('[cancelSignup]', err); this.showToast('取消失敗'); });
+        .catch(err => { console.error('[cancelSignup]', err); this.showToast('取消失敗：' + (err.message || '')); });
     } else {
+      // 如果 registrations 沒找到，嘗試直接從 event participants 移除
+      const e = ApiService.getEvent(id);
+      if (e) {
+        const pi = (e.participants || []).indexOf(userName);
+        if (pi !== -1) {
+          e.participants.splice(pi, 1);
+          e.current = Math.max(0, e.current - 1);
+          if (e._docId) {
+            db.collection('events').doc(e._docId).update({
+              current: e.current, participants: e.participants,
+            }).catch(err => console.error('[cancelSignup fallback]', err));
+          }
+        }
+      }
       this.showToast('已取消報名');
+      this.showEventDetail(id);
     }
   },
 
