@@ -83,17 +83,14 @@ Object.assign(App, {
   renderFloatingAds() {
     const container = document.getElementById('floating-ads');
     if (!container) return;
-    const ads = ApiService.getFloatingAds();
+    const ads = ApiService.getFloatingAds().filter(ad => ad.status === 'active');
     container.innerHTML = ads.map(ad => {
-      const active = ad.status === 'active';
-      const hasImg = active && ad.image;
-      const clickHandler = active && ad.linkUrl
+      const clickHandler = ad.linkUrl
         ? `onclick="App.trackAdClick('float','${ad.id}');window.open('${ad.linkUrl}','_blank')"`
         : '';
       return `
-      <div class="float-ad" title="${active ? ad.title : '贊助廣告'}" ${clickHandler}>
-        <div class="float-ad-img">${hasImg ? `<img src="${ad.image}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">` : ad.slot}</div>
-        <small>贊助廣告</small>
+      <div class="float-ad" title="${ad.title || '贊助廣告'}" ${clickHandler}>
+        <div class="float-ad-img">${ad.image ? `<img src="${ad.image}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">` : '廣告'}</div>
       </div>`;
     }).join('');
   },
