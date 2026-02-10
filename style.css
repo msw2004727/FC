@@ -980,6 +980,47 @@ img { max-width: 100%; display: block; }
 .quick-item.disabled { opacity: 0.4; cursor: not-allowed; background: var(--bg-elevated); pointer-events: none; }
 .quick-item.disabled span { filter: grayscale(100%); }
 
+/* ─── Social Grid ─── */
+.social-grid { display: flex; justify-content: center; gap: .65rem; padding: 0 .5rem .5rem; margin-bottom: .5rem; }
+.social-btn {
+  width: 42px; height: 42px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--bg-card);
+  border: 2px dashed var(--border);
+  color: var(--text-muted);
+  transition: all var(--transition);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.social-btn:hover { border-color: var(--accent); color: var(--accent); transform: translateY(-2px); }
+a.social-btn { text-decoration: none; }
+.social-btn.active { border-style: solid; border-color: currentColor; }
+.social-btn.active[data-platform="fb"] { color: #1877F2; background: rgba(24,119,242,.08); }
+.social-btn.active[data-platform="ig"] { color: #E4405F; background: rgba(228,64,95,.08); }
+.social-btn.active[data-platform="threads"] { color: #000000; background: rgba(0,0,0,.06); }
+.social-btn.active[data-platform="yt"] { color: #FF0000; background: rgba(255,0,0,.08); }
+.social-btn.active[data-platform="twitter"] { color: #000000; background: rgba(0,0,0,.06); }
+[data-theme="dark"] .social-btn.active[data-platform="threads"] { color: #ffffff; background: rgba(255,255,255,.1); }
+[data-theme="dark"] .social-btn.active[data-platform="twitter"] { color: #ffffff; background: rgba(255,255,255,.1); }
+
+/* Social Link Modal URL prefix */
+.social-url-row { display: flex; align-items: center; gap: 0; }
+.social-url-prefix {
+  font-size: .75rem; color: var(--text-muted);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-right: none;
+  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+  padding: .55rem .5rem;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.social-url-row input {
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  flex: 1;
+  min-width: 0;
+}
+
 /* ─── Info Card ─── */
 .info-card { background: var(--bg-card); border-radius: var(--radius); border: 1px solid var(--border); padding: .85rem; margin-bottom: .65rem; }
 .info-title { font-weight: 700; font-size: .85rem; margin-bottom: .6rem; padding-bottom: .4rem; border-bottom: 1px solid var(--border); }

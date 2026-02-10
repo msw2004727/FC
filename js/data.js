@@ -25,6 +25,7 @@ const DemoData = {
     completedGames: 38,
     attendanceRate: 90,
     badgeCount: 4,
+    socialLinks: { fb: 'xiaomai.football', ig: 'xiaomai_fc', threads: '', yt: '', twitter: '' },
   },
 
   events: [
