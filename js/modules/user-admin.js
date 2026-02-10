@@ -59,7 +59,7 @@ Object.assign(App, {
               <div class="admin-user-meta">${escapeHTML(u.sports || '—')} ・ EXP ${u.exp}</div>
             </div>
             <div class="admin-user-actions">
-              <button class="au-btn au-btn-edit" onclick="App.showUserEditModal('${safeName}')">編輯</button>
+              ${u.role !== 'super_admin' ? `<button class="au-btn au-btn-edit" onclick="App.showUserEditModal('${safeName}')">編輯</button>` : ''}
               <button class="au-btn au-btn-view" onclick="App.showUserProfile('${safeName}')">查看</button>
             </div>
           </div>
