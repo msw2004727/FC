@@ -112,8 +112,8 @@ Object.assign(App, {
   },
 
   // ── 通用：刪除（清空欄位，恢復空白） ──
-  clearAdSlot(type, id) {
-    if (!confirm('確定要刪除此廣告？將清空所有設定。')) return;
+  async clearAdSlot(type, id) {
+    if (!(await this.appConfirm('確定要刪除此廣告？將清空所有設定。'))) return;
     const emptyData = { title: '', slotName: '', linkUrl: '', image: null, publishAt: null, unpublishAt: null, status: 'empty', clicks: 0 };
     if (type === 'banner') {
       ApiService.updateBanner(id, emptyData);
@@ -623,8 +623,8 @@ Object.assign(App, {
     this.renderSponsors();
   },
 
-  clearSponsorRow(id) {
-    if (!confirm('確定要清除此贊助商欄位？')) return;
+  async clearSponsorRow(id) {
+    if (!(await this.appConfirm('確定要清除此贊助商欄位？'))) return;
     ApiService.updateSponsor(id, {
       title: '', image: null, linkUrl: '', status: 'empty',
       publishAt: null, unpublishAt: null, clicks: 0

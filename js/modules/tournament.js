@@ -269,10 +269,10 @@ Object.assign(App, {
     }
   },
 
-  handleDeleteTournament(id) {
+  async handleDeleteTournament(id) {
     const t = ApiService.getTournament(id);
     if (!t) return;
-    if (!confirm(`確定要刪除賽事「${t.name}」？刪除後無法恢復。`)) return;
+    if (!(await this.appConfirm(`確定要刪除賽事「${t.name}」？刪除後無法恢復。`))) return;
     ApiService.deleteTournament(id);
     this.renderTournamentTimeline();
     this.renderOngoingTournaments();

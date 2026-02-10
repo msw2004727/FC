@@ -1159,6 +1159,16 @@ a.social-btn { text-decoration: none; }
 .scan-result-box.error .scan-result-title { color: #f87171; }
 .scan-result-box.error .scan-result-close { background: #f87171; }
 
+/* App confirm modal */
+.app-confirm-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 1300; align-items: center; justify-content: center; }
+.app-confirm-overlay.open { display: flex; }
+.app-confirm-box { background: var(--bg-card); border-radius: 14px; padding: 1.5rem 1.3rem 1.2rem; width: 280px; text-align: center; animation: scanPopIn .2s ease; }
+.app-confirm-msg { font-size: .92rem; font-weight: 600; line-height: 1.5; margin-bottom: 1.2rem; color: var(--text-primary); }
+.app-confirm-btns { display: flex; gap: .5rem; }
+.app-confirm-btns button { flex: 1; padding: .55rem; border: none; border-radius: var(--radius-sm); font-weight: 600; font-size: .88rem; cursor: pointer; }
+.app-confirm-cancel { background: var(--bg-elevated); color: var(--text-secondary); }
+.app-confirm-ok { background: var(--primary); color: #fff; }
+
 /* Scan choice modal */
 .scan-choice-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 200; align-items: center; justify-content: center; }
 .scan-choice-overlay.open { display: flex; }

@@ -401,8 +401,8 @@ Object.assign(App, {
       });
   },
 
-  handleCancelSignup(id) {
-    if (!confirm('確定要取消報名？')) return;
+  async handleCancelSignup(id) {
+    if (!await this.appConfirm('確定要取消報名？')) return;
     const user = ApiService.getCurrentUser();
     const userName = user?.displayName || user?.name || '用戶';
     const userId = user?.uid || 'unknown';
@@ -653,10 +653,10 @@ Object.assign(App, {
   },
 
   // ── 結束活動 ──
-  closeMyActivity(id) {
+  async closeMyActivity(id) {
     const e = ApiService.getEvent(id);
     if (e && !this._canManageEvent(e)) { this.showToast('您只能管理自己的活動'); return; }
-    if (!confirm('確定要結束此活動？')) return;
+    if (!await this.appConfirm('確定要結束此活動？')) return;
     ApiService.updateEvent(id, { status: 'ended' });
     this.renderMyActivities();
     this.renderActivityList();
@@ -665,10 +665,10 @@ Object.assign(App, {
   },
 
   // ── 取消活動 ──
-  cancelMyActivity(id) {
+  async cancelMyActivity(id) {
     const e = ApiService.getEvent(id);
     if (e && !this._canManageEvent(e)) { this.showToast('您只能管理自己的活動'); return; }
-    if (!confirm('確定要取消此活動？')) return;
+    if (!await this.appConfirm('確定要取消此活動？')) return;
     ApiService.updateEvent(id, { status: 'cancelled' });
     this.renderMyActivities();
     this.renderActivityList();
@@ -690,10 +690,10 @@ Object.assign(App, {
   },
 
   // ── 刪除活動 ──
-  deleteMyActivity(id) {
+  async deleteMyActivity(id) {
     const e = ApiService.getEvent(id);
     if (e && !this._canManageEvent(e)) { this.showToast('您只能管理自己的活動'); return; }
-    if (!confirm('確定要刪除此活動？刪除後無法恢復。')) return;
+    if (!(await this.appConfirm('確定要刪除此活動？刪除後無法恢復。'))) return;
     ApiService.deleteEvent(id);
     this.renderMyActivities();
     this.renderActivityList();

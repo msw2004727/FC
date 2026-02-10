@@ -325,7 +325,7 @@ Object.assign(App, {
   async removeShopItem(id) {
     const s = ApiService.getShopItem(id);
     if (!s) return;
-    if (!confirm(`確定要刪除「${s.name}」？此操作無法復原。`)) return;
+    if (!(await this.appConfirm(`確定要刪除「${s.name}」？此操作無法復原。`))) return;
     if (!ModeManager.isDemo()) {
       try { await FirebaseService.deleteShopItem(id); }
       catch (err) { console.error('[removeShopItem]', err); this.showToast('刪除失敗'); return; }

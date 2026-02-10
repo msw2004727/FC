@@ -35,6 +35,13 @@ Object.assign(App, {
       });
     }
 
+    // 依活動日期排序：越近的越上面（降序）
+    events.sort((a, b) => {
+      const da = (a.date || '').split(' ')[0];
+      const db = (b.date || '').split(' ')[0];
+      return db.localeCompare(da);
+    });
+
     select.innerHTML = '<option value="">— 請選擇活動 —</option>';
     events.forEach(e => {
       const opt = document.createElement('option');

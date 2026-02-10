@@ -76,7 +76,7 @@ Object.assign(App, {
   async clearAllMessages() {
     const messages = ApiService.getMessages();
     if (!messages.length) { this.showToast('沒有訊息可清空'); return; }
-    if (!confirm(`確定要清空全部 ${messages.length} 則訊息？此操作無法恢復。`)) return;
+    if (!(await this.appConfirm(`確定要清空全部 ${messages.length} 則訊息？此操作無法恢復。`))) return;
     if (ModeManager.isDemo()) {
       DemoData.messages.length = 0;
     } else {
@@ -250,24 +250,24 @@ Object.assign(App, {
   },
 
   // ── 回收信件 ──
-  recallMsg(id) {
-    if (!confirm('確定要回收此信件？')) return;
+  async recallMsg(id) {
+    if (!(await this.appConfirm('確定要回收此信件？'))) return;
     ApiService.updateAdminMessage(id, { status: 'recalled' });
     this.renderMsgManage('sent');
     this.showToast('已回收信件');
   },
 
   // ── 刪除信件（軟刪除，保留紀錄） ──
-  deleteMsg(id) {
-    if (!confirm('確定要刪除此信件？')) return;
+  async deleteMsg(id) {
+    if (!(await this.appConfirm('確定要刪除此信件？'))) return;
     ApiService.updateAdminMessage(id, { status: 'deleted' });
     this.renderMsgManage();
     this.showToast('信件已移至已刪除');
   },
 
   // ── 取消排程（改為 cancelled，可恢復） ──
-  cancelScheduleMsg(id) {
-    if (!confirm('確定要取消此排程信件？')) return;
+  async cancelScheduleMsg(id) {
+    if (!(await this.appConfirm('確定要取消此排程信件？'))) return;
     ApiService.updateAdminMessage(id, { status: 'cancelled' });
     this.renderMsgManage('scheduled');
     this.showToast('已取消排程');

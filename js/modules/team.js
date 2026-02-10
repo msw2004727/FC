@@ -477,10 +477,10 @@ Object.assign(App, {
     }).join('');
   },
 
-  removeTeam(id) {
+  async removeTeam(id) {
     const t = ApiService.getTeam(id);
     if (!t) return;
-    if (!confirm(`確定要刪除「${t.name}」？此操作無法復原。`)) return;
+    if (!(await this.appConfirm(`確定要刪除「${t.name}」？此操作無法復原。`))) return;
     ApiService.deleteTeam(id);
     this.showToast(`已刪除「${t.name}」`);
     this.showPage('page-teams');

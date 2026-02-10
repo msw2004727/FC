@@ -90,6 +90,25 @@ const App = {
     clearTimeout(this._toastTimer);
     this._toastTimer = setTimeout(() => toast.classList.remove('show'), 2500);
   },
+
+  /** 自訂確認 Modal（取代原生 confirm，不會被瀏覽器封鎖） */
+  appConfirm(msg) {
+    return new Promise(resolve => {
+      const modal = document.getElementById('app-confirm-modal');
+      document.getElementById('app-confirm-msg').textContent = msg;
+      modal.classList.add('open');
+      const ok = document.getElementById('app-confirm-ok');
+      const cancel = document.getElementById('app-confirm-cancel');
+      const cleanup = (result) => {
+        modal.classList.remove('open');
+        ok.replaceWith(ok.cloneNode(true));
+        cancel.replaceWith(cancel.cloneNode(true));
+        resolve(result);
+      };
+      ok.addEventListener('click', () => cleanup(true), { once: true });
+      cancel.addEventListener('click', () => cleanup(false), { once: true });
+    });
+  },
 };
 
 // ── Init on DOM Ready ──
