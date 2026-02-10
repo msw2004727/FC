@@ -326,10 +326,8 @@ Object.assign(App, {
     this._renderScanResults();
     this._renderAttendanceSections();
 
-    // 相機掃碼時彈跳結果視窗
-    if (this._scannerInstance) {
-      this._showScanResultPopup(resultClass, resultMsg, userName);
-    }
+    // 彈跳結果視窗（相機掃碼 + 手動輸入皆觸發）
+    this._showScanResultPopup(resultClass, resultMsg, userName);
   },
 
   _showScanResultPopup(cls, msg, userName) {
