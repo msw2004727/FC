@@ -96,8 +96,7 @@ Object.assign(App, {
     // 重設位置與 lerp offset，避免渲染後偏移
     this._floatAdOffset = 0;
     this._floatAdTarget = 0;
-    container.style.top = '77vh';
-    container.style.transform = 'translateY(-50%)';
+    this._positionFloatingAds();
   },
 
   renderSponsors() {
@@ -122,6 +121,32 @@ Object.assign(App, {
   _floatAdOffset: 0,
   _floatAdTarget: 0,
   _floatAdRaf: null,
+
+  /** 計算浮動廣告最佳 top：預設螢幕正中央，若與贊助商重疊則上移 */
+  _positionFloatingAds() {
+    const floatingAds = document.getElementById('floating-ads');
+    if (!floatingAds) return;
+    const vh = window.innerHeight;
+    let topPx = vh / 2; // 螢幕正中央
+
+    // 偵測贊助商區塊位置，避免遮擋
+    const sponsorGrid = document.getElementById('sponsor-grid');
+    if (sponsorGrid) {
+      const rect = sponsorGrid.getBoundingClientRect();
+      const adH = floatingAds.offsetHeight || 170; // 兩顆廣告 + gap ≈170
+      const adBottom = topPx + adH / 2;
+      if (adBottom > rect.top - 12) {
+        topPx = rect.top - 12 - adH / 2;
+      }
+    }
+
+    // 不超出上方邊界
+    const minTop = (floatingAds.offsetHeight || 170) / 2 + 60;
+    if (topPx < minTop) topPx = minTop;
+
+    floatingAds.style.top = topPx + 'px';
+    floatingAds.style.transform = 'translateY(-50%)';
+  },
 
   bindFloatingAds() {
     const floatingAds = document.getElementById('floating-ads');
@@ -159,8 +184,10 @@ Object.assign(App, {
       startAnimation();
     }, { passive: true });
 
-    floatingAds.style.top = '47vh';
-    floatingAds.style.transform = 'translateY(-50%)';
+    // 視窗大小改變時重新計算位置
+    window.addEventListener('resize', () => this._positionFloatingAds(), { passive: true });
+
+    this._positionFloatingAds();
   },
 
 });
