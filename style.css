@@ -1430,33 +1430,47 @@ img { max-width: 100%; display: block; }
 /* ─── Popup Ad Overlay ─── */
 .popup-ad-overlay {
   position: fixed; inset: 0; z-index: 1200;
-  background: rgba(0,0,0,.65);
+  background: rgba(0,0,0,.55);
   display: flex; align-items: center; justify-content: center;
   animation: popupFadeIn .3s ease;
+  backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
 }
 .popup-ad-container {
-  position: relative; width: 85%; max-width: 360px; max-height: 80vh;
-  background: var(--bg-card); border-radius: var(--radius); overflow: hidden;
-  box-shadow: 0 20px 60px rgba(0,0,0,.3);
+  position: relative; width: 82%; max-width: 340px;
+  background: var(--bg-card); border-radius: 16px; overflow: hidden;
+  box-shadow: 0 24px 64px rgba(0,0,0,.35), 0 0 0 1px rgba(255,255,255,.06);
   animation: popupSlideUp .35s cubic-bezier(.4,0,.2,1);
 }
 .popup-ad-close {
-  position: absolute; top: 8px; right: 8px; width: 32px; height: 32px;
-  border-radius: 50%; background: rgba(0,0,0,.5); color: #fff;
-  font-size: 1rem; display: flex; align-items: center; justify-content: center;
+  position: absolute; top: 10px; right: 10px; width: 30px; height: 30px;
+  border-radius: 50%; background: rgba(0,0,0,.45); color: #fff;
+  font-size: .85rem; display: flex; align-items: center; justify-content: center;
   cursor: pointer; z-index: 2; border: none;
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  transition: background .2s;
 }
 .popup-ad-close:hover { background: rgba(0,0,0,.7); }
-.popup-ad-body img { display: block; width: 100%; max-height: 70vh; object-fit: contain; }
+.popup-ad-body img { display: block; width: 100%; max-height: 65vh; object-fit: contain; border-radius: 0; }
 .popup-ad-placeholder {
   display: flex; flex-direction: column; align-items: center; justify-content: center;
-  min-height: 300px; background: linear-gradient(135deg, #374151, #1f2937); color: #fff; cursor: pointer;
+  min-height: 280px; background: linear-gradient(135deg, #374151, #1f2937); color: #fff; cursor: pointer;
 }
-.popup-ad-dismiss {
-  display: flex; align-items: center; justify-content: center; gap: .4rem;
-  padding: .6rem; font-size: .75rem; color: var(--text-muted); cursor: pointer;
+.popup-ad-footer {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: .55rem .75rem; border-top: 1px solid var(--border);
 }
-.popup-ad-dismiss input { cursor: pointer; }
+.popup-ad-counter {
+  font-size: .72rem; color: var(--text-muted); font-weight: 500; min-width: 2.5rem;
+}
+.popup-ad-dismiss-btn {
+  font-size: .72rem; padding: .3rem .7rem; border-radius: 20px;
+  border: 1.5px solid var(--border); background: transparent;
+  color: var(--text-muted); cursor: pointer; transition: all .2s; font-weight: 500;
+}
+.popup-ad-dismiss-btn:hover { border-color: var(--accent); color: var(--accent); }
+.popup-ad-dismiss-btn.active {
+  background: var(--accent); color: #fff; border-color: var(--accent);
+}
 @keyframes popupSlideUp {
   from { opacity: 0; transform: translateY(30px) scale(.95); }
   to   { opacity: 1; transform: translateY(0) scale(1); }

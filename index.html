@@ -882,13 +882,14 @@
   </nav>
 
   <!-- ============ POPUP AD OVERLAY ============ -->
-  <div id="popup-ad-overlay" class="popup-ad-overlay" style="display:none">
-    <div class="popup-ad-container" id="popup-ad-container">
-      <button class="popup-ad-close" id="popup-ad-close" onclick="App.closePopupAd()">✕</button>
+  <div id="popup-ad-overlay" class="popup-ad-overlay" style="display:none" onclick="App.closePopupAd()">
+    <div class="popup-ad-container" id="popup-ad-container" onclick="event.stopPropagation()">
+      <button class="popup-ad-close" onclick="App.closePopupAd()">✕</button>
       <div class="popup-ad-body" id="popup-ad-body"></div>
-      <label class="popup-ad-dismiss">
-        <input type="checkbox" id="popup-ad-dismiss-check"> 今日不再顯示
-      </label>
+      <div class="popup-ad-footer">
+        <span class="popup-ad-counter" id="popup-ad-counter"></span>
+        <button class="popup-ad-dismiss-btn" id="popup-ad-dismiss-btn" onclick="App.togglePopupDismiss()">今日不再顯示</button>
+      </div>
     </div>
   </div>
 

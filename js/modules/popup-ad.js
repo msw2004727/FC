@@ -6,6 +6,7 @@ Object.assign(App, {
 
   _popupAdQueue: [],
   _popupAdIndex: 0,
+  _popupDismissToday: false,
 
   showPopupAdsOnLoad() {
     const dismissKey = 'sporthub_popup_dismiss';
@@ -18,6 +19,7 @@ Object.assign(App, {
     if (!activeAds || activeAds.length === 0) return;
     this._popupAdQueue = [...activeAds].sort((a, b) => a.layer - b.layer);
     this._popupAdIndex = 0;
+    this._popupDismissToday = false;
     this._showNextPopupAd();
   },
 
@@ -31,6 +33,7 @@ Object.assign(App, {
     const overlay = document.getElementById('popup-ad-overlay');
     const body = document.getElementById('popup-ad-body');
     if (!overlay || !body) return;
+
     const linkAttr = ad.linkUrl ? `onclick="window.open('${ad.linkUrl}','_blank')" style="cursor:pointer"` : '';
     body.innerHTML = ad.image
       ? `<img src="${ad.image}" alt="${ad.title || ''}" ${linkAttr}>`
@@ -38,15 +41,31 @@ Object.assign(App, {
            <div style="font-size:1.1rem;font-weight:700;margin-bottom:.3rem">${ad.title || '廣告'}</div>
            <div style="font-size:.75rem;color:rgba(255,255,255,.6)">600 × 800</div>
          </div>`;
+
+    // 更新計數器
     const counter = document.getElementById('popup-ad-counter');
-    if (counter) counter.textContent = `${this._popupAdIndex + 1} / ${this._popupAdQueue.length}`;
+    if (counter) {
+      counter.textContent = this._popupAdQueue.length > 1
+        ? `${this._popupAdIndex + 1} / ${this._popupAdQueue.length}`
+        : '';
+    }
+
+    // 同步按鈕狀態
+    const btn = document.getElementById('popup-ad-dismiss-btn');
+    if (btn) btn.classList.toggle('active', this._popupDismissToday);
+
     overlay.style.display = '';
     ad.clicks = (ad.clicks || 0) + 1;
   },
 
+  togglePopupDismiss() {
+    this._popupDismissToday = !this._popupDismissToday;
+    const btn = document.getElementById('popup-ad-dismiss-btn');
+    if (btn) btn.classList.toggle('active', this._popupDismissToday);
+  },
+
   closePopupAd() {
-    const checkbox = document.getElementById('popup-ad-dismiss-check');
-    if (checkbox && checkbox.checked) {
+    if (this._popupDismissToday) {
       localStorage.setItem('sporthub_popup_dismiss', new Date().toISOString());
       const overlay = document.getElementById('popup-ad-overlay');
       if (overlay) overlay.style.display = 'none';
