@@ -510,9 +510,12 @@ img { max-width: 100%; display: block; }
 .page-header .back-btn { position: static; background: var(--bg-elevated); color: var(--text-primary); flex-shrink: 0; }
 
 /* ─── Filter Bar ─── */
-.filter-bar { display: none; gap: .4rem; flex-wrap: wrap; padding: .4rem .2rem .8rem; }
+.filter-bar { display: none; gap: .4rem; padding: .4rem .2rem .8rem; width: 100%; }
 .filter-bar.visible { display: flex; }
-.filter-bar select, .filter-bar input { flex: 1; min-width: 100px; font-size: .8rem; padding: .45rem .6rem; }
+.filter-bar select { width: 110px; flex-shrink: 0; font-size: .8rem; padding: .45rem .6rem; }
+.filter-bar input { flex: 1; min-width: 0; font-size: .8rem; padding: .45rem .6rem; }
+.filter-bar .filter-search-wrap { display: flex; flex: 1; min-width: 0; }
+.filter-search-btn { padding: .45rem .7rem; font-size: .78rem; font-weight: 600; background: var(--accent); color: #fff; border: none; border-radius: 0 var(--radius-sm) var(--radius-sm) 0; cursor: pointer; white-space: nowrap; flex-shrink: 0; }
 .filter-btn { font-size: .8rem; color: var(--accent); font-weight: 600; padding: .3rem .6rem; border-radius: var(--radius-sm); }
 .filter-btn:hover { background: var(--accent-bg); }
 
@@ -525,6 +528,8 @@ img { max-width: 100%; display: block; }
 /* ─── Timeline Calendar ─── */
 .timeline-calendar {
   padding-bottom: 1rem;
+  overflow: hidden;
+  width: 100%;
 }
 .tl-month-group {
   margin-bottom: .5rem;
@@ -606,6 +611,7 @@ img { max-width: 100%; display: block; }
 }
 .tl-events-col {
   flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: .4rem;
@@ -625,6 +631,8 @@ img { max-width: 100%; display: block; }
   border-radius: var(--radius-sm);
   cursor: pointer;
   transition: all var(--transition);
+  min-width: 0;
+  overflow: hidden;
 }
 .tl-event-row:hover {
   border-color: var(--accent);
