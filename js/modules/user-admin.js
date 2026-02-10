@@ -350,7 +350,17 @@ Object.assign(App, {
     const users = ApiService.getAdminUsers();
     const inactiveUsers = users.filter(u => {
       if (!u.lastActive) return true;
-      const last = new Date(u.lastActive.replace(/\//g, '-'));
+      // lastActive 可能是字串（"2026/02/10"）或 Firestore Timestamp 物件
+      let last;
+      if (typeof u.lastActive === 'string') {
+        last = new Date(u.lastActive.replace(/\//g, '-'));
+      } else if (u.lastActive?.toDate) {
+        last = u.lastActive.toDate();
+      } else if (u.lastActive?.seconds) {
+        last = new Date(u.lastActive.seconds * 1000);
+      } else {
+        return true;
+      }
       const daysSince = (Date.now() - last.getTime()) / (1000 * 60 * 60 * 24);
       return daysSince > 60;
     });
