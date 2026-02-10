@@ -89,6 +89,8 @@ Object.assign(App, {
       } else {
         const onClick = item.action === 'share'
           ? `App.showToast('已複製分享連結！')`
+          : item.action === 'coming-soon'
+          ? `App.showToast('功能尚未開放'); App.closeDrawer()`
           : `App.showPage('${item.page}'); App.closeDrawer()`;
         const role = item.minRole || 'user';
         const roleInfo = ROLES[role];

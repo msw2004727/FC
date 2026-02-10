@@ -61,8 +61,7 @@ Object.assign(App, {
         <p style="font-size:.85rem;color:var(--text-secondary);line-height:1.7">${s.desc || '賣家未提供描述。'}</p>
       </div>
       <div class="td-actions">
-        <button class="primary-btn" onclick="App.showToast('已發送購買意願！')">我想購買</button>
-        <button class="outline-btn" onclick="App.showToast('已透過站內信聯繫賣家')">聯繫賣家</button>
+        <button class="primary-btn" disabled style="opacity:.45;cursor:not-allowed">聯繫賣家</button>
       </div>
     `;
     this.showPage('page-shop-detail');
