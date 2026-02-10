@@ -100,7 +100,8 @@ Object.assign(App, {
 
       // 如果 LIFF 初始化有錯誤且用戶尚未登入，顯示提示
       if (LineAuth._initError && !LineAuth.isLoggedIn()) {
-        console.warn('[App] LINE 登入初始化異常，用戶可重新嘗試登入');
+        console.warn('[App] LINE 登入初始化異常:', LineAuth._initError);
+        this.showToast('LINE 登入異常，請重新嘗試');
       }
 
       if (LineAuth.isLoggedIn()) {
@@ -111,6 +112,12 @@ Object.assign(App, {
           }
         } catch (err) {
           console.error('[App] 用戶資料同步失敗:', err);
+          const code = err?.code || '';
+          if (code === 'permission-denied') {
+            this.showToast('登入失敗：資料庫權限不足，請聯繫管理員更新 Firestore 規則');
+          } else {
+            this.showToast('登入失敗：' + (err?.message || '資料同步異常'));
+          }
         }
         // 註冊即時回調：當資料庫用戶資料變更時自動更新 UI
         FirebaseService._onUserChanged = () => {

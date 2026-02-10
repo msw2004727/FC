@@ -87,8 +87,8 @@ const LineAuth = {
       App.showToast('LINE 登入服務尚未準備好');
       return;
     }
-    // 明確指定 redirectUri，確保與 LINE Developer Console 設定一致
-    liff.login({ redirectUri: this._getBaseUrl() });
+    // 不指定 redirectUri，由 LIFF SDK 自動使用 Developer Console 設定的 endpoint URL
+    liff.login();
   },
 
   logout() {

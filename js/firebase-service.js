@@ -516,8 +516,9 @@ const FirebaseService = {
     const now = new Date().toISOString();
 
     if (snapshot.empty) {
-      // 新用戶：建立完整欄位
+      // 新用戶：建立完整欄位（以 lineUserId 作為 doc ID，確保可預測且符合安全規則）
       const userData = {
+        uid: lineUserId,
         lineUserId,
         displayName,
         pictureUrl: pictureUrl || null,
@@ -541,21 +542,24 @@ const FirebaseService = {
         createdAt: now,
         lastLogin: now,
       };
-      const docRef = await db.collection('users').add({
-        ...userData,
+      const docId = lineUserId;
+      await db.collection('users').doc(docId).set({
+        ..._stripDocId(userData),
         createdAt: firebase.firestore.FieldValue.serverTimestamp(),
         lastLogin: firebase.firestore.FieldValue.serverTimestamp(),
       });
-      userData._docId = docRef.id;
+      userData._docId = docId;
       this._cache.currentUser = userData;
-      this._setupUserListener(docRef.id);
-      console.log('[FirebaseService] 新用戶建立:', displayName);
+      this._setupUserListener(docId);
+      console.log('[FirebaseService] 新用戶建立:', displayName, 'docId:', docId);
       return userData;
     } else {
-      // 既有用戶：更新 displayName, pictureUrl, lastLogin
+      // 既有用戶：更新 displayName, pictureUrl, lastLogin（並補齊 uid 欄位）
       const doc = snapshot.docs[0];
       const existing = { ...doc.data(), _docId: doc.id };
       const updates = { displayName, pictureUrl: pictureUrl || null, lastLogin: now };
+      // 補齊早期缺少的 uid 欄位
+      if (!existing.uid) updates.uid = lineUserId;
       await db.collection('users').doc(doc.id).update({
         ...updates,
         lastLogin: firebase.firestore.FieldValue.serverTimestamp(),
