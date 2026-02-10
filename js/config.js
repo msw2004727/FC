@@ -5,8 +5,8 @@
 // ─── Mode Manager（Demo / Production 切換）───
 const ModeManager = {
   _STORAGE_KEY: 'sporthub_mode',
-  // 自動偵測：GitHub Pages = production，本地 = demo
-  _DEFAULT: location.hostname === 'msw2004727.github.io' ? 'production' : 'demo',
+  // 預設正式版模式
+  _DEFAULT: 'production',
   _mode: null,
 
   init() {

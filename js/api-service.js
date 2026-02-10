@@ -326,6 +326,47 @@ const ApiService = {
   },
 
   // ════════════════════════════════
+  //  Popup Ads（彈跳廣告）
+  // ════════════════════════════════
+
+  getPopupAds() {
+    if (this._demoMode) return DemoData.popupAds;
+    return FirebaseService._cache.popupAds;
+  },
+
+  getActivePopupAds() {
+    return this.getPopupAds().filter(a => a.status === 'active');
+  },
+
+  createPopupAd(data) {
+    const source = this._demoMode ? DemoData.popupAds : FirebaseService._cache.popupAds;
+    source.push(data);
+    if (!this._demoMode) {
+      FirebaseService.addPopupAd(data).catch(err => console.error('[createPopupAd]', err));
+    }
+    return data;
+  },
+
+  updatePopupAd(id, updates) {
+    const source = this._demoMode ? DemoData.popupAds : FirebaseService._cache.popupAds;
+    const item = source.find(a => a.id === id);
+    if (item) Object.assign(item, updates);
+    if (!this._demoMode) {
+      FirebaseService.updatePopupAd(id, updates).catch(err => console.error('[updatePopupAd]', err));
+    }
+    return item;
+  },
+
+  deletePopupAd(id) {
+    const source = this._demoMode ? DemoData.popupAds : FirebaseService._cache.popupAds;
+    const idx = source.findIndex(a => a.id === id);
+    if (idx >= 0) source.splice(idx, 1);
+    if (!this._demoMode) {
+      FirebaseService.deletePopupAd(id).catch(err => console.error('[deletePopupAd]', err));
+    }
+  },
+
+  // ════════════════════════════════
   //  Achievements CRUD
   // ════════════════════════════════
 

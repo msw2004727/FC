@@ -635,6 +635,29 @@
         <div class="form-row"><label>結束時間</label><input type="datetime-local" id="floatad-input-unpublish"></div>
         <button class="primary-btn full-width" onclick="App.saveFloatingAd()">儲存</button>
       </div>
+      <div class="admin-section-label" style="margin-top:1.2rem">彈跳廣告（3 個廣告位）</div>
+      <div id="popup-ad-manage-list"></div>
+      <div class="form-card" id="popupad-form-card" style="display:none">
+        <div class="role-editor-header"><span id="popupad-form-title">編輯彈跳廣告</span><button class="text-btn" onclick="App.hidePopupAdForm()">取消</button></div>
+        <div class="form-row"><label>廣告位</label><span id="popupad-layer-display" style="font-weight:600"></span></div>
+        <div class="form-row">
+          <label>廣告圖片</label>
+          <div class="ce-upload">
+            <input type="file" id="popupad-image" accept=".jpg,.jpeg,.png" hidden>
+            <div class="ce-upload-placeholder" id="popupad-preview" onclick="document.getElementById('popupad-image').click()">
+              <span class="ce-upload-icon">+</span>
+              <span class="ce-upload-text">點擊上傳圖片</span>
+              <span class="ce-upload-hint">建議尺寸 600 × 800 px｜JPG / PNG｜最大 2MB</span>
+            </div>
+          </div>
+        </div>
+        <div class="form-row"><label>廣告標題</label><input type="text" id="popupad-input-title" placeholder="例：春季聯賽宣傳"></div>
+        <div class="form-row"><label>連結網址（選填）</label><input type="text" id="popupad-input-link" placeholder="https://..."></div>
+        <div class="form-row"><label>啟用方式</label><select id="popupad-input-mode" onchange="App.togglePopupAdSchedule()"><option value="now">立即啟用</option><option value="scheduled">預約啟用</option></select></div>
+        <div class="form-row" id="popupad-publish-row" style="display:none"><label>啟用時間</label><input type="datetime-local" id="popupad-input-publish"></div>
+        <div class="form-row"><label>結束時間</label><input type="datetime-local" id="popupad-input-unpublish"></div>
+        <button class="primary-btn full-width" onclick="App.savePopupAd()">儲存</button>
+      </div>
     </section>
 
     <!-- PAGE: Backend - Shop Management (Admin+) -->
@@ -857,6 +880,17 @@
       <span>我的</span>
     </button>
   </nav>
+
+  <!-- ============ POPUP AD OVERLAY ============ -->
+  <div id="popup-ad-overlay" class="popup-ad-overlay" style="display:none">
+    <div class="popup-ad-container" id="popup-ad-container">
+      <button class="popup-ad-close" id="popup-ad-close" onclick="App.closePopupAd()">✕</button>
+      <div class="popup-ad-body" id="popup-ad-body"></div>
+      <label class="popup-ad-dismiss">
+        <input type="checkbox" id="popup-ad-dismiss-check"> 今日不再顯示
+      </label>
+    </div>
+  </div>
 
   <!-- ============ MODALS ============ -->
   <div class="modal-overlay" id="modal-overlay"></div>
@@ -1143,15 +1177,37 @@
   <!-- LINE LIFF SDK -->
   <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 
-  <!-- App Scripts -->
+  <!-- 基礎層 -->
   <script src="js/config.js"></script>
   <script src="js/data.js"></script>
   <script src="js/firebase-config.js"></script>
   <script src="js/firebase-service.js"></script>
   <script src="js/api-service.js"></script>
   <script src="js/line-auth.js"></script>
+
+  <!-- 核心（定義 App 物件 + init/renderAll/showToast） -->
   <script src="app.js"></script>
-  <script src="js/renders.js"></script>
-  <script src="js/admin.js"></script>
+
+  <!-- 核心擴充 -->
+  <script src="js/core/navigation.js"></script>
+  <script src="js/core/theme.js"></script>
+  <script src="js/core/mode.js"></script>
+
+  <!-- 功能模組 -->
+  <script src="js/modules/image-upload.js"></script>
+  <script src="js/modules/role.js"></script>
+  <script src="js/modules/profile.js"></script>
+  <script src="js/modules/banner.js"></script>
+  <script src="js/modules/ad-manage.js"></script>
+  <script src="js/modules/popup-ad.js"></script>
+  <script src="js/modules/announcement.js"></script>
+  <script src="js/modules/event.js"></script>
+  <script src="js/modules/tournament.js"></script>
+  <script src="js/modules/team.js"></script>
+  <script src="js/modules/message.js"></script>
+  <script src="js/modules/achievement.js"></script>
+  <script src="js/modules/shop.js"></script>
+  <script src="js/modules/leaderboard.js"></script>
+  <script src="js/modules/user-admin.js"></script>
 </body>
 </html>

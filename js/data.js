@@ -166,9 +166,9 @@ const DemoData = {
   ],
 
   banners: [
-    { id: 'ban1', slot: 1, title: '春季聯賽 Banner', image: null, status: 'active', publishAt: '2026/03/01 00:00', unpublishAt: '2026/03/31 23:59', clicks: 1234, gradient: 'linear-gradient(135deg,#0d9488,#065f46)' },
-    { id: 'ban2', slot: 2, title: '友誼賽推廣', image: null, status: 'scheduled', publishAt: '2026/03/20 09:00', unpublishAt: '2026/04/15 23:59', clicks: 0, gradient: 'linear-gradient(135deg,#7c3aed,#4338ca)' },
-    { id: 'ban3', slot: 3, title: '二手球具展', image: null, status: 'expired', publishAt: '2026/02/01 00:00', unpublishAt: '2026/02/28 23:59', clicks: 567, gradient: 'linear-gradient(135deg,#dc2626,#991b1b)' },
+    { id: 'ban1', slot: 1, title: '', image: null, status: 'empty', publishAt: null, unpublishAt: null, clicks: 0, gradient: '' },
+    { id: 'ban2', slot: 2, title: '', image: null, status: 'empty', publishAt: null, unpublishAt: null, clicks: 0, gradient: '' },
+    { id: 'ban3', slot: 3, title: '', image: null, status: 'empty', publishAt: null, unpublishAt: null, clicks: 0, gradient: '' },
   ],
 
   announcements: [
@@ -178,8 +178,14 @@ const DemoData = {
   ],
 
   floatingAds: [
-    { id: 'fad1', slot: 'AD1', title: '球鞋促銷', image: null, status: 'active', publishAt: '2026/03/01 00:00', unpublishAt: '2026/04/30 23:59', clicks: 89 },
-    { id: 'fad2', slot: 'AD2', title: '聯賽贊助', image: null, status: 'active', publishAt: '2026/03/01 00:00', unpublishAt: '2026/05/31 23:59', clicks: 45 },
+    { id: 'fad1', slot: 'AD1', title: '', image: null, status: 'empty', publishAt: null, unpublishAt: null, clicks: 0 },
+    { id: 'fad2', slot: 'AD2', title: '', image: null, status: 'empty', publishAt: null, unpublishAt: null, clicks: 0 },
+  ],
+
+  popupAds: [
+    { id: 'pad1', layer: 1, title: '', image: null, status: 'empty', publishAt: null, unpublishAt: null, clicks: 0, linkUrl: '' },
+    { id: 'pad2', layer: 2, title: '', image: null, status: 'empty', publishAt: null, unpublishAt: null, clicks: 0, linkUrl: '' },
+    { id: 'pad3', layer: 3, title: '', image: null, status: 'empty', publishAt: null, unpublishAt: null, clicks: 0, linkUrl: '' },
   ],
 
   permissions: [

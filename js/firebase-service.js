@@ -32,6 +32,7 @@ const FirebaseService = {
     registrations: [],
     announcements: [],
     floatingAds: [],
+    popupAds: [],
     adminMessages: [],
     currentUser: null,
   },
@@ -74,10 +75,67 @@ const FirebaseService = {
       }));
     });
 
+    // 自動建立空白廣告欄位（若 Firestore 尚無資料）
+    await this._seedAdSlots();
+
     // 啟動即時監聽
     this._setupListeners();
     this._initialized = true;
     console.log('[FirebaseService] 快取載入完成，共', collectionNames.length, '個集合');
+  },
+
+  // ════════════════════════════════
+  //  自動建立空白廣告欄位
+  // ════════════════════════════════
+
+  async _seedAdSlots() {
+    try {
+      // Banner 欄位（3 個）
+      if (this._cache.banners.length === 0) {
+        console.log('[FirebaseService] 建立空白 Banner 欄位...');
+        const bannerSlots = [
+          { id: 'ban1', slot: 1, title: '', image: null, status: 'empty', publishAt: null, unpublishAt: null, clicks: 0, gradient: '' },
+          { id: 'ban2', slot: 2, title: '', image: null, status: 'empty', publishAt: null, unpublishAt: null, clicks: 0, gradient: '' },
+          { id: 'ban3', slot: 3, title: '', image: null, status: 'empty', publishAt: null, unpublishAt: null, clicks: 0, gradient: '' },
+        ];
+        for (const slot of bannerSlots) {
+          const docRef = await db.collection('banners').add({ ...slot, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+          slot._docId = docRef.id;
+          this._cache.banners.push(slot);
+        }
+      }
+
+      // 浮動廣告欄位（2 個）
+      if (this._cache.floatingAds.length === 0) {
+        console.log('[FirebaseService] 建立空白浮動廣告欄位...');
+        const floatSlots = [
+          { id: 'fad1', slot: 'AD1', title: '', image: null, status: 'empty', publishAt: null, unpublishAt: null, clicks: 0 },
+          { id: 'fad2', slot: 'AD2', title: '', image: null, status: 'empty', publishAt: null, unpublishAt: null, clicks: 0 },
+        ];
+        for (const slot of floatSlots) {
+          const docRef = await db.collection('floatingAds').add({ ...slot, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+          slot._docId = docRef.id;
+          this._cache.floatingAds.push(slot);
+        }
+      }
+
+      // 彈跳廣告欄位（3 個）
+      if (this._cache.popupAds.length === 0) {
+        console.log('[FirebaseService] 建立空白彈跳廣告欄位...');
+        const popupSlots = [
+          { id: 'pad1', layer: 1, title: '', image: null, status: 'empty', publishAt: null, unpublishAt: null, clicks: 0, linkUrl: '' },
+          { id: 'pad2', layer: 2, title: '', image: null, status: 'empty', publishAt: null, unpublishAt: null, clicks: 0, linkUrl: '' },
+          { id: 'pad3', layer: 3, title: '', image: null, status: 'empty', publishAt: null, unpublishAt: null, clicks: 0, linkUrl: '' },
+        ];
+        for (const slot of popupSlots) {
+          const docRef = await db.collection('popupAds').add({ ...slot, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+          slot._docId = docRef.id;
+          this._cache.popupAds.push(slot);
+        }
+      }
+    } catch (err) {
+      console.warn('[FirebaseService] 廣告欄位建立失敗:', err);
+    }
   },
 
   // ════════════════════════════════
@@ -89,7 +147,7 @@ const FirebaseService = {
       'events', 'tournaments', 'teams', 'shopItems',
       'messages', 'registrations', 'leaderboard',
       'standings', 'matches', 'trades',
-      'banners', 'floatingAds', 'announcements',
+      'banners', 'floatingAds', 'popupAds', 'announcements',
       'achievements', 'badges', 'adminUsers',
       'expLogs', 'operationLogs', 'adminMessages',
     ];
@@ -298,9 +356,11 @@ const FirebaseService = {
   // ════════════════════════════════
 
   async addShopItem(data) {
+    // images 已在 handleCreateShopItem 中上傳完畢（base64 → Storage URL）
     const docRef = await db.collection('shopItems').add({
       ...data,
       _docId: undefined,
+      images: data.images || [],
       createdAt: firebase.firestore.FieldValue.serverTimestamp(),
     });
     data._docId = docRef.id;
@@ -475,11 +535,14 @@ const FirebaseService = {
 
   async _uploadImage(base64DataUrl, path) {
     try {
+      if (!storage) { console.error('[Storage] storage 未初始化'); return null; }
       const ref = storage.ref().child(`images/${path}_${Date.now()}`);
       const snapshot = await ref.putString(base64DataUrl, 'data_url');
-      return await snapshot.ref.getDownloadURL();
+      const url = await snapshot.ref.getDownloadURL();
+      console.log('[Storage] 圖片上傳成功:', path);
+      return url;
     } catch (err) {
-      console.error('[Storage] 圖片上傳失敗:', err);
+      console.error('[Storage] 圖片上傳失敗:', err.code || err.message || err);
       return null;
     }
   },
@@ -491,6 +554,8 @@ const FirebaseService = {
   async updateBanner(id, updates) {
     const doc = this._cache.banners.find(b => b.id === id);
     if (!doc || !doc._docId) return null;
+    // 避免 base64 寫入 Firestore（超過 1MB 限制）
+    if (updates.image && updates.image.startsWith('data:')) delete updates.image;
     updates.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
     await db.collection('banners').doc(doc._docId).update(updates);
     return doc;
@@ -503,9 +568,44 @@ const FirebaseService = {
   async updateFloatingAd(id, updates) {
     const doc = this._cache.floatingAds.find(a => a.id === id);
     if (!doc || !doc._docId) return null;
+    if (updates.image && updates.image.startsWith('data:')) delete updates.image;
     updates.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
     await db.collection('floatingAds').doc(doc._docId).update(updates);
     return doc;
+  },
+
+  // ════════════════════════════════
+  //  Popup Ads（彈跳廣告）
+  // ════════════════════════════════
+
+  async addPopupAd(data) {
+    if (data.image && data.image.startsWith('data:')) {
+      data.image = await this._uploadImage(data.image, `popupAds/${data.id}`);
+    }
+    const docRef = await db.collection('popupAds').add({
+      ...data, _docId: undefined,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    });
+    data._docId = docRef.id;
+    return data;
+  },
+
+  async updatePopupAd(id, updates) {
+    const doc = this._cache.popupAds.find(a => a.id === id);
+    if (!doc || !doc._docId) return null;
+    // 避免 base64 寫入 Firestore（圖片已在 savePopupAd 上傳）
+    if (updates.image && updates.image.startsWith('data:')) delete updates.image;
+    updates.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
+    await db.collection('popupAds').doc(doc._docId).update(updates);
+    return doc;
+  },
+
+  async deletePopupAd(id) {
+    const doc = this._cache.popupAds.find(a => a.id === id);
+    if (!doc || !doc._docId) return false;
+    await db.collection('popupAds').doc(doc._docId).delete();
+    return true;
   },
 
   // ════════════════════════════════
