@@ -22,7 +22,7 @@ Object.assign(App, {
           <div class="shop-img-wrap">${imgHtml}</div>
           <div class="shop-body">
             <div class="shop-name">${s.name}</div>
-            <div class="shop-price">$${s.price.toLocaleString()}</div>
+            <div class="shop-price">NT$${s.price.toLocaleString()}</div>
             <div class="shop-meta">${s.condition} ・ ${s.size}</div>
           </div>
         </div>`;
@@ -52,7 +52,7 @@ Object.assign(App, {
         <div class="td-card-grid">
           <div class="td-card-item"><span class="td-card-label">品名</span><span class="td-card-value">${s.name}</span></div>
           <div class="td-card-item"><span class="td-card-label">新舊程度</span><span class="td-card-value">${s.condition}</span></div>
-          <div class="td-card-item"><span class="td-card-label">價格</span><span class="td-card-value" style="color:var(--accent)">$${s.price.toLocaleString()}</span></div>
+          <div class="td-card-item"><span class="td-card-label">價格</span><span class="td-card-value" style="color:var(--accent)">NT$${s.price.toLocaleString()}</span></div>
           <div class="td-card-item"><span class="td-card-label">尺寸</span><span class="td-card-value">${s.size}</span></div>
         </div>
       </div>
@@ -122,7 +122,7 @@ Object.assign(App, {
               <div class="sm-title">${s.name}</div>
               ${statusHtml}
             </div>
-            <div class="sm-meta">${s.condition} ・ ${s.size} ・ <strong style="color:var(--accent)">$${s.price.toLocaleString()}</strong></div>
+            <div class="sm-meta">${s.condition} ・ ${s.size} ・ <strong style="color:var(--accent)">NT$${s.price.toLocaleString()}</strong></div>
             <div style="display:flex;gap:.3rem;margin-top:.3rem">
               <button class="primary-btn small" style="font-size:.72rem;padding:.2rem .5rem" onclick="App.editShopItem('${s.id}')">編輯</button>
               <button class="outline-btn" style="font-size:.72rem;padding:.2rem .5rem" onclick="App.showShopDetail('${s.id}')">查看</button>
@@ -215,7 +215,9 @@ Object.assign(App, {
     const desc = document.getElementById('cs-desc').value.trim();
 
     if (!name) { this.showToast('請輸入商品名稱'); return; }
+    if (name.length > 20) { this.showToast('商品名稱不可超過 20 字'); return; }
     if (price <= 0) { this.showToast('請輸入價格'); return; }
+    if (price > 999999) { this.showToast('金額上限為 NT$999,999'); return; }
     if (desc.length > 500) { this.showToast('描述不可超過 500 字'); return; }
 
     // 收集圖片（可能是 base64 或已有 URL）
