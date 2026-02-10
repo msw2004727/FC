@@ -35,25 +35,27 @@ Object.assign(App, {
     check(ApiService.getPopupAds(), (id, u) => ApiService.updatePopupAd(id, u));
   },
 
-  // 廣告動作按鈕 HTML
+  // 廣告動作按鈕 HTML（水平排列，比照商品管理）
   _adActionBtns(type, id, status, unpublishAt) {
+    const s = 'font-size:.72rem;padding:.2rem .5rem';
     const btns = [];
     if (status === 'empty') {
-      btns.push(`<button class="text-btn" style="font-size:.72rem" onclick="App.editAd('${type}','${id}')">設定</button>`);
+      btns.push(`<button class="primary-btn small" style="${s}" onclick="App.editAd('${type}','${id}')">設定</button>`);
     } else if (status === 'active') {
-      btns.push(`<button class="text-btn" style="font-size:.72rem" onclick="App.editAd('${type}','${id}')">編輯</button>`);
-      btns.push(`<button class="text-btn" style="font-size:.72rem;color:var(--danger)" onclick="App.delistAd('${type}','${id}')">下架</button>`);
+      btns.push(`<button class="primary-btn small" style="${s}" onclick="App.editAd('${type}','${id}')">編輯</button>`);
+      btns.push(`<button class="outline-btn" style="${s};color:var(--danger)" onclick="App.delistAd('${type}','${id}')">下架</button>`);
+      btns.push(`<button class="outline-btn" style="${s};color:var(--danger)" onclick="App.clearAdSlot('${type}','${id}')">刪除</button>`);
     } else if (status === 'scheduled') {
-      btns.push(`<button class="text-btn" style="font-size:.72rem" onclick="App.editAd('${type}','${id}')">編輯</button>`);
-      btns.push(`<button class="text-btn" style="font-size:.72rem;color:var(--danger)" onclick="App.clearAdSlot('${type}','${id}')">刪除</button>`);
+      btns.push(`<button class="primary-btn small" style="${s}" onclick="App.editAd('${type}','${id}')">編輯</button>`);
+      btns.push(`<button class="outline-btn" style="${s};color:var(--danger)" onclick="App.clearAdSlot('${type}','${id}')">刪除</button>`);
     } else {
       // expired / delisted
       const canRelist = unpublishAt && this._remainDays(unpublishAt) > 0;
+      btns.push(`<button class="primary-btn small" style="${s}" onclick="App.editAd('${type}','${id}')">編輯</button>`);
       if (canRelist) {
-        btns.push(`<button class="text-btn" style="font-size:.72rem;color:var(--success)" onclick="App.relistAd('${type}','${id}')">重新上架</button>`);
+        btns.push(`<button class="outline-btn" style="${s};color:var(--success)" onclick="App.relistAd('${type}','${id}')">重新上架</button>`);
       }
-      btns.push(`<button class="text-btn" style="font-size:.72rem" onclick="App.editAd('${type}','${id}')">編輯</button>`);
-      btns.push(`<button class="text-btn" style="font-size:.72rem;color:var(--danger)" onclick="App.clearAdSlot('${type}','${id}')">刪除</button>`);
+      btns.push(`<button class="outline-btn" style="${s};color:var(--danger)" onclick="App.clearAdSlot('${type}','${id}')">刪除</button>`);
     }
     return btns.join('');
   },
@@ -159,13 +161,14 @@ Object.assign(App, {
       <div class="banner-manage-card" style="margin-bottom:.5rem">
         ${thumb}
         <div class="banner-manage-info">
-          <div class="banner-manage-title">廣告位 ${b.slot}${b.title ? ' — ' + b.title : ''}</div>
-          <div class="banner-manage-meta">${timeInfo}${remainText ? ' ・ ' + remainText : ''}</div>
-          ${!isEmpty ? `<div class="banner-manage-meta">點擊 ${b.clicks || 0} 次</div>` : ''}
-          <span class="banner-manage-status status-${statusClass}">${statusLabel}</span>
-        </div>
-        <div style="flex-shrink:0;display:flex;flex-direction:column;gap:.2rem">
-          ${this._adActionBtns('banner', b.id, b.status, b.unpublishAt)}
+          <div style="display:flex;align-items:center;gap:.4rem">
+            <div class="banner-manage-title">廣告位 ${b.slot}${b.title ? ' — ' + b.title : ''}</div>
+            <span class="banner-manage-status status-${statusClass}">${statusLabel}</span>
+          </div>
+          <div class="banner-manage-meta">${timeInfo}${remainText ? ' ・ ' + remainText : ''}${!isEmpty ? ' ・ 點擊 ' + (b.clicks || 0) + ' 次' : ''}</div>
+          <div style="display:flex;gap:.3rem;margin-top:.3rem">
+            ${this._adActionBtns('banner', b.id, b.status, b.unpublishAt)}
+          </div>
         </div>
       </div>`;
     }).join('');
@@ -215,7 +218,7 @@ Object.assign(App, {
     const unpublishVal = document.getElementById('banner-input-unpublish').value;
     if (!unpublishVal) { this.showToast('請選擇結束時間'); return; }
     const title = document.getElementById('banner-input-title').value.trim();
-    if (title.length > 30) { this.showToast('標題不可超過 30 字'); return; }
+    if (title.length > 12) { this.showToast('標題不可超過 12 字'); return; }
     const linkUrl = document.getElementById('banner-input-link').value.trim();
     const mode = document.getElementById('banner-input-mode').value;
     const unpublishAt = this._formatDT(unpublishVal);
@@ -275,13 +278,14 @@ Object.assign(App, {
       <div class="banner-manage-card" style="margin-bottom:.5rem">
         ${thumb}
         <div class="banner-manage-info">
-          <div class="banner-manage-title">${ad.slot}${ad.title ? ' — ' + ad.title : ''}</div>
-          <div class="banner-manage-meta">${timeInfo}${remainText ? ' ・ ' + remainText : ''}</div>
-          ${!isEmpty ? `<div class="banner-manage-meta">點擊 ${ad.clicks || 0} 次</div>` : ''}
-          <span class="banner-manage-status status-${statusClass}">${statusLabel}</span>
-        </div>
-        <div style="flex-shrink:0;display:flex;flex-direction:column;gap:.2rem">
-          ${this._adActionBtns('float', ad.id, ad.status, ad.unpublishAt)}
+          <div style="display:flex;align-items:center;gap:.4rem">
+            <div class="banner-manage-title">${ad.slot}${ad.title ? ' — ' + ad.title : ''}</div>
+            <span class="banner-manage-status status-${statusClass}">${statusLabel}</span>
+          </div>
+          <div class="banner-manage-meta">${timeInfo}${remainText ? ' ・ ' + remainText : ''}${!isEmpty ? ' ・ 點擊 ' + (ad.clicks || 0) + ' 次' : ''}</div>
+          <div style="display:flex;gap:.3rem;margin-top:.3rem">
+            ${this._adActionBtns('float', ad.id, ad.status, ad.unpublishAt)}
+          </div>
         </div>
       </div>`;
     }).join('');
@@ -330,7 +334,7 @@ Object.assign(App, {
     const unpublishVal = document.getElementById('floatad-input-unpublish').value;
     if (!unpublishVal) { this.showToast('請選擇結束時間'); return; }
     const title = document.getElementById('floatad-input-title').value.trim();
-    if (title.length > 30) { this.showToast('標題不可超過 30 字'); return; }
+    if (title.length > 12) { this.showToast('標題不可超過 12 字'); return; }
     const linkUrl = document.getElementById('floatad-input-link').value.trim();
     const mode = document.getElementById('floatad-input-mode').value;
     const unpublishAt = this._formatDT(unpublishVal);
@@ -390,13 +394,14 @@ Object.assign(App, {
       <div class="banner-manage-card" style="margin-bottom:.5rem">
         ${thumb}
         <div class="banner-manage-info">
-          <div class="banner-manage-title">第 ${ad.layer} 層${ad.title ? ' — ' + ad.title : ''}</div>
-          <div class="banner-manage-meta">${timeInfo}${remainText ? ' ・ ' + remainText : ''}</div>
-          ${!isEmpty ? `<div class="banner-manage-meta">點擊 ${ad.clicks || 0} 次</div>` : ''}
-          <span class="banner-manage-status status-${statusClass}">${statusLabel}</span>
-        </div>
-        <div style="flex-shrink:0;display:flex;flex-direction:column;gap:.2rem">
-          ${this._adActionBtns('popup', ad.id, ad.status, ad.unpublishAt)}
+          <div style="display:flex;align-items:center;gap:.4rem">
+            <div class="banner-manage-title">第 ${ad.layer} 層${ad.title ? ' — ' + ad.title : ''}</div>
+            <span class="banner-manage-status status-${statusClass}">${statusLabel}</span>
+          </div>
+          <div class="banner-manage-meta">${timeInfo}${remainText ? ' ・ ' + remainText : ''}${!isEmpty ? ' ・ 點擊 ' + (ad.clicks || 0) + ' 次' : ''}</div>
+          <div style="display:flex;gap:.3rem;margin-top:.3rem">
+            ${this._adActionBtns('popup', ad.id, ad.status, ad.unpublishAt)}
+          </div>
         </div>
       </div>`;
     }).join('');
@@ -446,7 +451,7 @@ Object.assign(App, {
     const unpublishVal = document.getElementById('popupad-input-unpublish').value;
     if (!unpublishVal) { this.showToast('請選擇結束時間'); return; }
     const title = document.getElementById('popupad-input-title').value.trim();
-    if (title.length > 30) { this.showToast('標題不可超過 30 字'); return; }
+    if (title.length > 12) { this.showToast('標題不可超過 12 字'); return; }
     const linkUrl = document.getElementById('popupad-input-link').value.trim();
     const mode = document.getElementById('popupad-input-mode').value;
     const unpublishAt = this._formatDT(unpublishVal);
