@@ -93,7 +93,16 @@ Object.assign(App, {
 
   async bindLineLogin() {
     if (!ModeManager.isDemo() && typeof LineAuth !== 'undefined') {
-      await LineAuth.init();
+      // LIFF 已在 DOMContentLoaded 平行初始化，若尚未完成則等待
+      if (!LineAuth._ready) {
+        await LineAuth.init();
+      }
+
+      // 如果 LIFF 初始化有錯誤且用戶尚未登入，顯示提示
+      if (LineAuth._initError && !LineAuth.isLoggedIn()) {
+        console.warn('[App] LINE 登入初始化異常，用戶可重新嘗試登入');
+      }
+
       if (LineAuth.isLoggedIn()) {
         try {
           const user = await ApiService.loginUser(LineAuth.getProfile());

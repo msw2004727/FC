@@ -10,6 +10,25 @@
 const LineAuth = {
   _profile: null,
   _ready: false,
+  _initError: null,
+
+  /** 取得乾淨的基礎 URL（去除 query params 與 hash） */
+  _getBaseUrl() {
+    return window.location.origin + window.location.pathname;
+  },
+
+  /** 清除 URL 中殘留的 LIFF auth 參數（防止重新整理時重複使用已失效的 code） */
+  _cleanUrl() {
+    const url = new URL(window.location.href);
+    const liffParams = ['code', 'state', 'liffClientId', 'liffRedirectUri', 'error', 'error_description'];
+    let dirty = false;
+    liffParams.forEach(p => {
+      if (url.searchParams.has(p)) { url.searchParams.delete(p); dirty = true; }
+    });
+    if (dirty) {
+      window.history.replaceState({}, '', url.pathname + (url.search || '') + (url.hash || ''));
+    }
+  },
 
   async init() {
     try {
@@ -18,16 +37,31 @@ const LineAuth = {
 
       if (liff.isLoggedIn()) {
         const profile = await liff.getProfile();
+
+        // getDecodedIDToken 可能在某些情境下拋錯，安全取值
+        let email = null;
+        try {
+          email = liff.getDecodedIDToken()?.email || null;
+        } catch (_) { /* ID Token 不可用，忽略 */ }
+
         this._profile = {
           userId: profile.userId,
           displayName: profile.displayName,
           pictureUrl: profile.pictureUrl || null,
-          email: liff.getDecodedIDToken()?.email || null,
+          email,
         };
         console.log('[LineAuth] 已登入:', this._profile.displayName);
       }
+
+      // 初始化成功後清除 URL 中的 auth 參數
+      this._cleanUrl();
+
     } catch (err) {
       console.error('[LineAuth] LIFF 初始化失敗:', err);
+      this._initError = err;
+
+      // 清除 URL 中殘留的 auth code，避免重新整理時再次觸發 400
+      this._cleanUrl();
     }
     this._ready = true;
   },
@@ -53,7 +87,8 @@ const LineAuth = {
       App.showToast('LINE 登入服務尚未準備好');
       return;
     }
-    liff.login();
+    // 明確指定 redirectUri，確保與 LINE Developer Console 設定一致
+    liff.login({ redirectUri: this._getBaseUrl() });
   },
 
   logout() {

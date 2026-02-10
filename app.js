@@ -94,7 +94,7 @@ const App = {
 
 // ── Init on DOM Ready ──
 document.addEventListener('DOMContentLoaded', async () => {
-  // 正式版模式：先初始化 Firebase 快取，再啟動 App
+  // 正式版模式：Firebase + LIFF 平行初始化（避免 LIFF auth code 過期）
   if (!ModeManager.isDemo()) {
     const overlay = document.getElementById('loading-overlay');
     if (overlay) overlay.style.display = '';
@@ -103,10 +103,15 @@ document.addEventListener('DOMContentLoaded', async () => {
       const timeout = new Promise((_, reject) =>
         setTimeout(() => reject(new Error('Firebase init timeout')), 10000)
       );
-      await Promise.race([FirebaseService.init(), timeout]);
-      console.log('[App] Firebase 模式啟動');
+      // LIFF 與 Firebase 平行初始化：LIFF 需盡早處理 URL 中的 auth code
+      const liffReady = (typeof LineAuth !== 'undefined') ? LineAuth.init() : Promise.resolve();
+      await Promise.race([
+        Promise.all([FirebaseService.init(), liffReady]),
+        timeout,
+      ]);
+      console.log('[App] Firebase + LIFF 初始化完成');
     } catch (err) {
-      console.error('[App] Firebase 初始化失敗，退回 Demo 模式:', err);
+      console.error('[App] 初始化失敗，退回 Demo 模式:', err);
       ModeManager.setMode('demo');
     } finally {
       if (overlay) overlay.style.display = 'none';
