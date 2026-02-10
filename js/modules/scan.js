@@ -431,9 +431,9 @@ Object.assign(App, {
       <div class="scan-user-tags">${unregList.map(tag).join('')}</div>
     </div>` : '';
 
-    // Stats
+    // Stats（已簽到 = checkedInOnly 已包含所有簽到者，不重複計算）
     const totalParticipants = participants.length;
-    const totalCheckedIn = checkedInOnly.length + checkedOutList.length;
+    const totalCheckedIn = checkedInOnly.length;
     const completionRate = totalParticipants > 0 ? Math.round(totalCheckedIn / totalParticipants * 100) : 0;
 
     statsDiv.innerHTML = `
