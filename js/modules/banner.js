@@ -96,7 +96,7 @@ Object.assign(App, {
     // 重設位置與 lerp offset，避免渲染後偏移
     this._floatAdOffset = 0;
     this._floatAdTarget = 0;
-    container.style.top = '80vh';
+    container.style.top = '77vh';
     container.style.transform = 'translateY(-50%)';
   },
 
@@ -159,7 +159,7 @@ Object.assign(App, {
       startAnimation();
     }, { passive: true });
 
-    floatingAds.style.top = '72vh';
+    floatingAds.style.top = '77vh';
     floatingAds.style.transform = 'translateY(-50%)';
   },
 

@@ -490,7 +490,7 @@ img { max-width: 100%; display: block; }
 .floating-ads {
   position: fixed;
   right: .75rem;
-  top: 72vh;
+  top: 77vh;
   transform: translateY(-50%);
   z-index: 50;
   display: flex;
