@@ -108,6 +108,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
   App.init();
+  // 自動下架過期廣告（啟動時 + 每 60 秒檢查）
+  App._autoExpireAds();
+  setInterval(() => App._autoExpireAds(), 60000);
   // 彈跳廣告（延遲 500ms 確保資料已載入）
   setTimeout(() => App.showPopupAdsOnLoad(), 500);
   // 移除早期模式偵測的 CSS class，讓 JS 接手控制

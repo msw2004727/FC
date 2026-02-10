@@ -16,6 +16,25 @@ Object.assign(App, {
     return Math.max(0, Math.ceil(diff / 86400000));
   },
 
+  // 自動下架已過期廣告
+  _autoExpireAds() {
+    const now = new Date();
+    const check = (items, updateFn) => {
+      items.forEach(ad => {
+        if ((ad.status === 'active' || ad.status === 'scheduled') && ad.unpublishAt) {
+          const end = new Date(ad.unpublishAt.replace(/\//g, '-'));
+          if (end <= now) {
+            ad.status = 'expired';
+            updateFn(ad.id, { status: 'expired' });
+          }
+        }
+      });
+    };
+    check(ApiService.getBanners(), (id, u) => ApiService.updateBanner(id, u));
+    check(ApiService.getFloatingAds(), (id, u) => ApiService.updateFloatingAd(id, u));
+    check(ApiService.getPopupAds(), (id, u) => ApiService.updatePopupAd(id, u));
+  },
+
   // 廣告動作按鈕 HTML
   _adActionBtns(type, id, status, unpublishAt) {
     const btns = [];
@@ -196,6 +215,7 @@ Object.assign(App, {
     const unpublishVal = document.getElementById('banner-input-unpublish').value;
     if (!unpublishVal) { this.showToast('請選擇結束時間'); return; }
     const title = document.getElementById('banner-input-title').value.trim();
+    if (title.length > 30) { this.showToast('標題不可超過 30 字'); return; }
     const linkUrl = document.getElementById('banner-input-link').value.trim();
     const mode = document.getElementById('banner-input-mode').value;
     const unpublishAt = this._formatDT(unpublishVal);
@@ -310,6 +330,7 @@ Object.assign(App, {
     const unpublishVal = document.getElementById('floatad-input-unpublish').value;
     if (!unpublishVal) { this.showToast('請選擇結束時間'); return; }
     const title = document.getElementById('floatad-input-title').value.trim();
+    if (title.length > 30) { this.showToast('標題不可超過 30 字'); return; }
     const linkUrl = document.getElementById('floatad-input-link').value.trim();
     const mode = document.getElementById('floatad-input-mode').value;
     const unpublishAt = this._formatDT(unpublishVal);
@@ -425,6 +446,7 @@ Object.assign(App, {
     const unpublishVal = document.getElementById('popupad-input-unpublish').value;
     if (!unpublishVal) { this.showToast('請選擇結束時間'); return; }
     const title = document.getElementById('popupad-input-title').value.trim();
+    if (title.length > 30) { this.showToast('標題不可超過 30 字'); return; }
     const linkUrl = document.getElementById('popupad-input-link').value.trim();
     const mode = document.getElementById('popupad-input-mode').value;
     const unpublishAt = this._formatDT(unpublishVal);

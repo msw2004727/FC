@@ -608,7 +608,7 @@
             </div>
           </div>
         </div>
-        <div class="form-row"><label>標題</label><input type="text" id="banner-input-title" placeholder="例：春季聯賽 Banner"></div>
+        <div class="form-row"><label>標題</label><input type="text" id="banner-input-title" placeholder="例：春季聯賽 Banner" maxlength="30"></div>
         <div class="form-row"><label>跳轉連結（選填）</label><input type="text" id="banner-input-link" placeholder="https://..."></div>
         <div class="form-row"><label>啟用方式</label><select id="banner-input-mode" onchange="App.toggleBannerSchedule()"><option value="now">立即啟用</option><option value="scheduled">預約啟用</option></select></div>
         <div class="form-row" id="banner-publish-row" style="display:none"><label>啟用時間</label><input type="datetime-local" id="banner-input-publish"></div>
@@ -630,7 +630,7 @@
             </div>
           </div>
         </div>
-        <div class="form-row"><label>廣告標題</label><input type="text" id="floatad-input-title" placeholder="例：球鞋促銷"></div>
+        <div class="form-row"><label>廣告標題</label><input type="text" id="floatad-input-title" placeholder="例：球鞋促銷" maxlength="30"></div>
         <div class="form-row"><label>跳轉連結（選填）</label><input type="text" id="floatad-input-link" placeholder="https://..."></div>
         <div class="form-row"><label>啟用方式</label><select id="floatad-input-mode" onchange="App.toggleFloatAdSchedule()"><option value="now">立即啟用</option><option value="scheduled">預約啟用</option></select></div>
         <div class="form-row" id="floatad-publish-row" style="display:none"><label>啟用時間</label><input type="datetime-local" id="floatad-input-publish"></div>
@@ -653,7 +653,7 @@
             </div>
           </div>
         </div>
-        <div class="form-row"><label>廣告標題</label><input type="text" id="popupad-input-title" placeholder="例：春季聯賽宣傳"></div>
+        <div class="form-row"><label>廣告標題</label><input type="text" id="popupad-input-title" placeholder="例：春季聯賽宣傳" maxlength="30"></div>
         <div class="form-row"><label>連結網址（選填）</label><input type="text" id="popupad-input-link" placeholder="https://..."></div>
         <div class="form-row"><label>啟用方式</label><select id="popupad-input-mode" onchange="App.togglePopupAdSchedule()"><option value="now">立即啟用</option><option value="scheduled">預約啟用</option></select></div>
         <div class="form-row" id="popupad-publish-row" style="display:none"><label>啟用時間</label><input type="datetime-local" id="popupad-input-publish"></div>
