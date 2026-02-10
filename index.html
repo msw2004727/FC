@@ -167,6 +167,13 @@
         <!-- Populated by JS -->
       </div>
 
+      <!-- Sponsors -->
+      <hr style="border:none;border-top:1px solid var(--border);margin:1rem 0 .5rem">
+      <div class="section-title">贊助商</div>
+      <div class="sponsor-grid" id="sponsor-grid">
+        <!-- 6col × 4row = 24 slots, JS 渲染 -->
+      </div>
+
       <!-- Floating Ads (Populated by JS) -->
       <div class="floating-ads" id="floating-ads"></div>
     </section>
@@ -244,6 +251,20 @@
       </div>
       <div class="td-img-placeholder" id="team-detail-img">球隊封面 800 × 300</div>
       <div class="detail-body" id="team-detail-body"></div>
+    </section>
+
+    <!-- PAGE: Team Manage (Captain+) -->
+    <section class="page" id="page-team-manage" data-min-role="captain">
+      <div class="page-header">
+        <button class="back-btn" onclick="App.goBack()">←</button>
+        <h2>球隊管理</h2>
+        <button class="primary-btn small" onclick="App.showTeamForm()">＋ 新增球隊</button>
+      </div>
+      <div class="tab-bar" id="team-manage-tabs">
+        <button class="tab active" data-tab="my-teams">我的球隊</button>
+        <button class="tab" data-tab="all-teams">所有球隊</button>
+      </div>
+      <div class="card-list" id="team-manage-list"></div>
     </section>
 
     <!-- PAGE: Messages -->
@@ -618,73 +639,106 @@
         <button class="back-btn" onclick="App.goBack()">←</button>
         <h2>廣告管理</h2>
       </div>
-      <div class="admin-section-label">Banner 廣告（3 個廣告位）</div>
-      <div class="card-list" id="banner-manage-list"></div>
-      <div class="form-card" id="banner-form-card" style="display:none">
-        <div class="role-editor-header"><span id="banner-form-title">編輯 Banner</span><button class="text-btn" onclick="App.hideBannerForm()">取消</button></div>
-        <div class="form-row"><label>廣告位名稱</label><input type="text" id="banner-slot-display" placeholder="例：廣告位 1" maxlength="12"></div>
-        <div class="form-row">
-          <label>廣告圖片</label>
-          <div class="ce-upload">
-            <input type="file" id="banner-image" accept=".jpg,.jpeg,.png" hidden>
-            <div class="ce-upload-placeholder" id="banner-preview" onclick="document.getElementById('banner-image').click()">
-              <span class="ce-upload-icon">+</span>
-              <span class="ce-upload-text">點擊上傳圖片</span>
-              <span class="ce-upload-hint">建議尺寸 1200 × 400 px｜JPG / PNG｜最大 2MB</span>
+      <!-- Banner 廣告 -->
+      <div class="ad-collapse-section">
+        <div class="admin-section-label ad-collapse-toggle" onclick="App.toggleAdSection(this)">
+          <span>Banner 廣告（3 個廣告位）</span><span class="ad-collapse-arrow">▶</span>
+        </div>
+        <div class="ad-collapse-content" style="display:none">
+          <div class="card-list" id="banner-manage-list"></div>
+          <div class="form-card" id="banner-form-card" style="display:none">
+            <div class="role-editor-header"><span id="banner-form-title">編輯 Banner</span><button class="text-btn" onclick="App.hideBannerForm()">取消</button></div>
+            <div class="form-row"><label>廣告位名稱</label><input type="text" id="banner-slot-display" placeholder="例：廣告位 1" maxlength="12"></div>
+            <div class="form-row">
+              <label>廣告圖片</label>
+              <div class="ce-upload">
+                <input type="file" id="banner-image" accept=".jpg,.jpeg,.png" hidden>
+                <div class="ce-upload-placeholder" id="banner-preview" onclick="document.getElementById('banner-image').click()">
+                  <span class="ce-upload-icon">+</span>
+                  <span class="ce-upload-text">點擊上傳圖片</span>
+                  <span class="ce-upload-hint">建議尺寸 1200 × 400 px｜JPG / PNG｜最大 2MB</span>
+                </div>
+              </div>
             </div>
+            <div class="form-row"><label>標題</label><input type="text" id="banner-input-title" placeholder="例：春季聯賽 Banner" maxlength="12"></div>
+            <div class="form-row"><label>跳轉連結（選填）</label><input type="text" id="banner-input-link" placeholder="https://..."></div>
+            <div class="form-row"><label>啟用方式</label><select id="banner-input-mode" onchange="App.toggleBannerSchedule()"><option value="now">立即啟用</option><option value="scheduled">預約啟用</option></select></div>
+            <div class="form-row" id="banner-publish-row" style="display:none"><label>啟用時間</label><input type="datetime-local" id="banner-input-publish"></div>
+            <div class="form-row"><label>結束時間</label><input type="datetime-local" id="banner-input-unpublish"></div>
+            <button class="primary-btn full-width" onclick="App.saveBanner()">儲存</button>
           </div>
         </div>
-        <div class="form-row"><label>標題</label><input type="text" id="banner-input-title" placeholder="例：春季聯賽 Banner" maxlength="12"></div>
-        <div class="form-row"><label>跳轉連結（選填）</label><input type="text" id="banner-input-link" placeholder="https://..."></div>
-        <div class="form-row"><label>啟用方式</label><select id="banner-input-mode" onchange="App.toggleBannerSchedule()"><option value="now">立即啟用</option><option value="scheduled">預約啟用</option></select></div>
-        <div class="form-row" id="banner-publish-row" style="display:none"><label>啟用時間</label><input type="datetime-local" id="banner-input-publish"></div>
-        <div class="form-row"><label>結束時間</label><input type="datetime-local" id="banner-input-unpublish"></div>
-        <button class="primary-btn full-width" onclick="App.saveBanner()">儲存</button>
       </div>
-      <div class="admin-section-label" style="margin-top:1.2rem">浮動廣告 (AD1 / AD2)</div>
-      <div id="floating-ad-manage-list"></div>
-      <div class="form-card" id="floatad-form-card" style="display:none">
-        <div class="role-editor-header"><span id="floatad-form-title">編輯浮動廣告</span><button class="text-btn" onclick="App.hideFloatingAdForm()">取消</button></div>
-        <div class="form-row">
-          <label>廣告圖片</label>
-          <div class="ce-upload">
-            <input type="file" id="floatad-image" accept=".jpg,.jpeg,.png" hidden>
-            <div class="ce-upload-placeholder" id="floatad-preview" onclick="document.getElementById('floatad-image').click()">
-              <span class="ce-upload-icon">+</span>
-              <span class="ce-upload-text">點擊上傳圖片</span>
-              <span class="ce-upload-hint">建議尺寸 200 × 200 px｜JPG / PNG｜最大 2MB</span>
+
+      <!-- 浮動廣告 -->
+      <div class="ad-collapse-section">
+        <div class="admin-section-label ad-collapse-toggle" onclick="App.toggleAdSection(this)">
+          <span>浮動廣告（AD1 / AD2）</span><span class="ad-collapse-arrow">▶</span>
+        </div>
+        <div class="ad-collapse-content" style="display:none">
+          <div id="floating-ad-manage-list"></div>
+          <div class="form-card" id="floatad-form-card" style="display:none">
+            <div class="role-editor-header"><span id="floatad-form-title">編輯浮動廣告</span><button class="text-btn" onclick="App.hideFloatingAdForm()">取消</button></div>
+            <div class="form-row">
+              <label>廣告圖片</label>
+              <div class="ce-upload">
+                <input type="file" id="floatad-image" accept=".jpg,.jpeg,.png" hidden>
+                <div class="ce-upload-placeholder" id="floatad-preview" onclick="document.getElementById('floatad-image').click()">
+                  <span class="ce-upload-icon">+</span>
+                  <span class="ce-upload-text">點擊上傳圖片</span>
+                  <span class="ce-upload-hint">建議尺寸 200 × 200 px｜JPG / PNG｜最大 2MB</span>
+                </div>
+              </div>
             </div>
+            <div class="form-row"><label>廣告標題</label><input type="text" id="floatad-input-title" placeholder="例：球鞋促銷" maxlength="12"></div>
+            <div class="form-row"><label>跳轉連結（選填）</label><input type="text" id="floatad-input-link" placeholder="https://..."></div>
+            <div class="form-row"><label>啟用方式</label><select id="floatad-input-mode" onchange="App.toggleFloatAdSchedule()"><option value="now">立即啟用</option><option value="scheduled">預約啟用</option></select></div>
+            <div class="form-row" id="floatad-publish-row" style="display:none"><label>啟用時間</label><input type="datetime-local" id="floatad-input-publish"></div>
+            <div class="form-row"><label>結束時間</label><input type="datetime-local" id="floatad-input-unpublish"></div>
+            <button class="primary-btn full-width" onclick="App.saveFloatingAd()">儲存</button>
           </div>
         </div>
-        <div class="form-row"><label>廣告標題</label><input type="text" id="floatad-input-title" placeholder="例：球鞋促銷" maxlength="12"></div>
-        <div class="form-row"><label>跳轉連結（選填）</label><input type="text" id="floatad-input-link" placeholder="https://..."></div>
-        <div class="form-row"><label>啟用方式</label><select id="floatad-input-mode" onchange="App.toggleFloatAdSchedule()"><option value="now">立即啟用</option><option value="scheduled">預約啟用</option></select></div>
-        <div class="form-row" id="floatad-publish-row" style="display:none"><label>啟用時間</label><input type="datetime-local" id="floatad-input-publish"></div>
-        <div class="form-row"><label>結束時間</label><input type="datetime-local" id="floatad-input-unpublish"></div>
-        <button class="primary-btn full-width" onclick="App.saveFloatingAd()">儲存</button>
       </div>
-      <div class="admin-section-label" style="margin-top:1.2rem">彈跳廣告（3 個廣告位）</div>
-      <div id="popup-ad-manage-list"></div>
-      <div class="form-card" id="popupad-form-card" style="display:none">
-        <div class="role-editor-header"><span id="popupad-form-title">編輯彈跳廣告</span><button class="text-btn" onclick="App.hidePopupAdForm()">取消</button></div>
-        <div class="form-row"><label>廣告位</label><span id="popupad-layer-display" style="font-weight:600"></span></div>
-        <div class="form-row">
-          <label>廣告圖片</label>
-          <div class="ce-upload">
-            <input type="file" id="popupad-image" accept=".jpg,.jpeg,.png" hidden>
-            <div class="ce-upload-placeholder" id="popupad-preview" onclick="document.getElementById('popupad-image').click()">
-              <span class="ce-upload-icon">+</span>
-              <span class="ce-upload-text">點擊上傳圖片</span>
-              <span class="ce-upload-hint">建議尺寸 600 × 800 px｜JPG / PNG｜最大 2MB</span>
+
+      <!-- 彈跳廣告 -->
+      <div class="ad-collapse-section">
+        <div class="admin-section-label ad-collapse-toggle" onclick="App.toggleAdSection(this)">
+          <span>彈跳廣告（3 個廣告位）</span><span class="ad-collapse-arrow">▶</span>
+        </div>
+        <div class="ad-collapse-content" style="display:none">
+          <div id="popup-ad-manage-list"></div>
+          <div class="form-card" id="popupad-form-card" style="display:none">
+            <div class="role-editor-header"><span id="popupad-form-title">編輯彈跳廣告</span><button class="text-btn" onclick="App.hidePopupAdForm()">取消</button></div>
+            <div class="form-row"><label>廣告位</label><span id="popupad-layer-display" style="font-weight:600"></span></div>
+            <div class="form-row">
+              <label>廣告圖片</label>
+              <div class="ce-upload">
+                <input type="file" id="popupad-image" accept=".jpg,.jpeg,.png" hidden>
+                <div class="ce-upload-placeholder" id="popupad-preview" onclick="document.getElementById('popupad-image').click()">
+                  <span class="ce-upload-icon">+</span>
+                  <span class="ce-upload-text">點擊上傳圖片</span>
+                  <span class="ce-upload-hint">建議尺寸 600 × 800 px｜JPG / PNG｜最大 2MB</span>
+                </div>
+              </div>
             </div>
+            <div class="form-row"><label>廣告標題</label><input type="text" id="popupad-input-title" placeholder="例：春季聯賽宣傳" maxlength="12"></div>
+            <div class="form-row"><label>連結網址（選填）</label><input type="text" id="popupad-input-link" placeholder="https://..."></div>
+            <div class="form-row"><label>啟用方式</label><select id="popupad-input-mode" onchange="App.togglePopupAdSchedule()"><option value="now">立即啟用</option><option value="scheduled">預約啟用</option></select></div>
+            <div class="form-row" id="popupad-publish-row" style="display:none"><label>啟用時間</label><input type="datetime-local" id="popupad-input-publish"></div>
+            <div class="form-row"><label>結束時間</label><input type="datetime-local" id="popupad-input-unpublish"></div>
+            <button class="primary-btn full-width" onclick="App.savePopupAd()">儲存</button>
           </div>
         </div>
-        <div class="form-row"><label>廣告標題</label><input type="text" id="popupad-input-title" placeholder="例：春季聯賽宣傳" maxlength="12"></div>
-        <div class="form-row"><label>連結網址（選填）</label><input type="text" id="popupad-input-link" placeholder="https://..."></div>
-        <div class="form-row"><label>啟用方式</label><select id="popupad-input-mode" onchange="App.togglePopupAdSchedule()"><option value="now">立即啟用</option><option value="scheduled">預約啟用</option></select></div>
-        <div class="form-row" id="popupad-publish-row" style="display:none"><label>啟用時間</label><input type="datetime-local" id="popupad-input-publish"></div>
-        <div class="form-row"><label>結束時間</label><input type="datetime-local" id="popupad-input-unpublish"></div>
-        <button class="primary-btn full-width" onclick="App.savePopupAd()">儲存</button>
+      </div>
+
+      <!-- 贊助商 -->
+      <div class="ad-collapse-section">
+        <div class="admin-section-label ad-collapse-toggle" onclick="App.toggleAdSection(this)">
+          <span>贊助商（24 個欄位）</span><span class="ad-collapse-arrow">▶</span>
+        </div>
+        <div class="ad-collapse-content" style="display:none">
+          <div id="sponsor-manage-list"></div>
+        </div>
       </div>
     </section>
 
@@ -706,6 +760,7 @@
       <div class="page-header">
         <button class="back-btn" onclick="App.goBack()">←</button>
         <h2>球隊管理</h2>
+        <button class="primary-btn small" onclick="App.showTeamForm()">＋ 新增球隊</button>
       </div>
       <div class="admin-search">
         <input type="text" id="team-search-input" placeholder="搜尋球隊名稱 / 領隊..." oninput="App.filterAdminTeams()">
@@ -1264,6 +1319,77 @@
     </div>
   </div>
 
+  <!-- Create Team Modal -->
+  <div class="modal" id="create-team-modal">
+    <div class="modal-header">
+      <h3 id="ct-team-modal-title">新增球隊</h3>
+      <button class="modal-close" onclick="App.closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="ce-form">
+        <div class="ce-row">
+          <label>球隊封面</label>
+          <div class="ce-upload-placeholder" id="ct-team-preview" onclick="document.getElementById('ct-team-image').click()">
+            <span class="ce-upload-icon">+</span>
+            <span class="ce-upload-text">點擊上傳封面圖片</span>
+            <span class="ce-upload-hint">建議尺寸 800 × 300 px｜JPG / PNG｜最大 2MB</span>
+          </div>
+          <input type="file" id="ct-team-image" accept=".jpg,.jpeg,.png" hidden>
+        </div>
+        <div class="ce-row">
+          <label>球隊名稱（最多 10 字）</label>
+          <input type="text" id="ct-team-name" maxlength="10" placeholder="例：雷霆隊">
+        </div>
+        <div class="ce-row">
+          <label>英文名稱</label>
+          <input type="text" id="ct-team-name-en" placeholder="例：Thunder FC">
+        </div>
+        <div class="ce-row" style="display:flex;gap:.5rem">
+          <div style="flex:1">
+            <label>國籍</label>
+            <input type="text" id="ct-team-nationality" maxlength="20" placeholder="例：台灣" value="台灣">
+          </div>
+          <div style="flex:1">
+            <label>地區</label>
+            <input type="text" id="ct-team-region" maxlength="20" placeholder="例：台北市">
+          </div>
+        </div>
+        <div class="ce-row">
+          <label>創立年份</label>
+          <input type="number" id="ct-team-founded" min="1900" max="2099" placeholder="例：2024">
+        </div>
+        <div class="ce-row" id="ct-captain-row" style="position:relative">
+          <label>領隊</label>
+          <div id="ct-captain-display" style="font-size:.85rem;font-weight:600;color:var(--text-primary);padding:.3rem 0"></div>
+          <div id="ct-captain-transfer" style="display:none">
+            <div style="font-size:.75rem;color:var(--text-muted);margin-bottom:.3rem">轉移領隊：搜尋新領隊後點選</div>
+            <input type="text" id="ct-captain-search" placeholder="搜尋 UID 或暱稱..." oninput="App.searchTeamCaptain()" autocomplete="off">
+            <div class="team-user-suggest" id="ct-captain-suggest"></div>
+            <div id="ct-captain-selected"></div>
+          </div>
+        </div>
+        <div class="ce-row">
+          <label>聯繫方式</label>
+          <input type="text" id="ct-team-contact" maxlength="100" placeholder="例：LINE ID、電話、Email">
+        </div>
+        <div class="ce-row" style="position:relative">
+          <label>教練（可多位）</label>
+          <input type="text" id="ct-coach-search" placeholder="搜尋 UID 或暱稱..." oninput="App.searchTeamCoach()" autocomplete="off">
+          <div class="team-user-suggest" id="ct-coach-suggest"></div>
+          <div id="ct-coach-tags"></div>
+        </div>
+        <div class="ce-row">
+          <label>球隊簡介</label>
+          <textarea id="ct-team-bio" maxlength="500" rows="3" placeholder="簡短介紹球隊（最多 500 字）"></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="outline-btn" onclick="App.closeModal()">取消</button>
+      <button class="primary-btn" id="ct-team-save-btn" onclick="App.handleSaveTeam()">建立球隊</button>
+    </div>
+  </div>
+
   <!-- Lightbox -->
   <div id="lightbox" class="lightbox" onclick="App.closeLightbox()">
     <img id="lightbox-img" src="" alt="">
@@ -1317,7 +1443,7 @@
   <script src="js/modules/announcement.js"></script>
   <script src="js/modules/event.js"></script>
   <script src="js/modules/tournament.js"></script>
-  <script src="js/modules/team.js"></script>
+  <script src="js/modules/team.js?v=2"></script>
   <script src="js/modules/message.js"></script>
   <script src="js/modules/achievement.js"></script>
   <script src="js/modules/shop.js"></script>

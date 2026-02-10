@@ -39,6 +39,7 @@ const FirebaseService = {
     announcements: [],
     floatingAds: [],
     popupAds: [],
+    sponsors: [],
     adminMessages: [],
     currentUser: null,
   },
@@ -139,6 +140,16 @@ const FirebaseService = {
           this._cache.popupAds.push(slot);
         }
       }
+      // 贊助商欄位（24 個）
+      if (this._cache.sponsors.length === 0) {
+        console.log('[FirebaseService] 建立空白贊助商欄位...');
+        for (let i = 1; i <= 24; i++) {
+          const slot = { id: 'sp' + i, slot: i, title: '', image: null, status: 'empty', linkUrl: '', publishAt: null, unpublishAt: null, clicks: 0 };
+          const docRef = await db.collection('sponsors').add({ ...slot, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+          slot._docId = docRef.id;
+          this._cache.sponsors.push(slot);
+        }
+      }
     } catch (err) {
       console.warn('[FirebaseService] 廣告欄位建立失敗:', err);
     }
@@ -153,7 +164,7 @@ const FirebaseService = {
       'events', 'tournaments', 'teams', 'shopItems',
       'messages', 'registrations', 'leaderboard',
       'standings', 'matches', 'trades',
-      'banners', 'floatingAds', 'popupAds', 'announcements',
+      'banners', 'floatingAds', 'popupAds', 'sponsors', 'announcements',
       'achievements', 'badges', 'adminUsers',
       'expLogs', 'operationLogs', 'adminMessages',
     ];
@@ -348,11 +359,35 @@ const FirebaseService = {
   //  Teams
   // ════════════════════════════════
 
+  async addTeam(data) {
+    if (data.image && data.image.startsWith('data:')) {
+      data.image = await this._uploadImage(data.image, `teams/${data.id}`);
+    }
+    const docRef = await db.collection('teams').add({
+      ..._stripDocId(data),
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    });
+    data._docId = docRef.id;
+    return data;
+  },
+
   async updateTeam(id, updates) {
     const doc = this._cache.teams.find(t => t.id === id);
     if (!doc || !doc._docId) return null;
+    if (updates.image && updates.image.startsWith('data:')) {
+      updates.image = await this._uploadImage(updates.image, `teams/${id}`);
+    }
+    updates.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
     await db.collection('teams').doc(doc._docId).update(updates);
     return doc;
+  },
+
+  async deleteTeam(id) {
+    const doc = this._cache.teams.find(t => t.id === id);
+    if (!doc || !doc._docId) return false;
+    await db.collection('teams').doc(doc._docId).delete();
+    return true;
   },
 
   // ════════════════════════════════
@@ -629,6 +664,19 @@ const FirebaseService = {
     if (!doc || !doc._docId) return false;
     await db.collection('popupAds').doc(doc._docId).delete();
     return true;
+  },
+
+  // ════════════════════════════════
+  //  Sponsors（贊助商）
+  // ════════════════════════════════
+
+  async updateSponsor(id, updates) {
+    const doc = this._cache.sponsors.find(s => s.id === id);
+    if (!doc || !doc._docId) return null;
+    if (updates.image && updates.image.startsWith('data:')) delete updates.image;
+    updates.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
+    await db.collection('sponsors').doc(doc._docId).update(updates);
+    return doc;
   },
 
   // ════════════════════════════════

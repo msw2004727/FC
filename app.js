@@ -35,6 +35,7 @@ const App = {
     this.bindImageUpload('banner-image', 'banner-preview');
     this.bindImageUpload('floatad-image', 'floatad-preview');
     this.bindImageUpload('popupad-image', 'popupad-preview');
+    this.bindImageUpload('ct-team-image', 'ct-team-preview');
     this.bindShopSearch();
     this.bindTeamOnlyToggle();
     this.renderBannerCarousel();
@@ -64,11 +65,14 @@ const App = {
     this.renderBannerManage();
     this.renderFloatingAdManage();
     this.renderPopupAdManage();
+    this.renderSponsorManage();
+    this.renderSponsors();
     this.renderAnnouncementManage();
     this.renderShopManage();
     this.renderMsgManage();
     this.renderTournamentManage();
     this.renderAdminTeams();
+    this.renderTeamManage();
     this.renderAdminAchievements();
     this.renderRoleHierarchy();
     this.renderInactiveData();

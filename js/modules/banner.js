@@ -95,6 +95,25 @@ Object.assign(App, {
     }).join('');
   },
 
+  renderSponsors() {
+    const grid = document.getElementById('sponsor-grid');
+    if (!grid) return;
+    const sponsors = ApiService.getSponsors();
+    grid.innerHTML = sponsors.map(sp => {
+      const isActive = sp.status === 'active' && sp.image;
+      const hasLink = isActive && sp.linkUrl;
+      const clickHandler = hasLink
+        ? `onclick="App.trackAdClick('sponsor','${sp.id}');window.open('${sp.linkUrl}','_blank')"`
+        : '';
+      if (isActive) {
+        return `<div class="sponsor-slot${hasLink ? ' has-link' : ''}" title="${sp.title || '贊助商'}" ${clickHandler}>
+          <img src="${sp.image}" alt="${sp.title || ''}">
+        </div>`;
+      }
+      return `<div class="sponsor-slot">贊助商</div>`;
+    }).join('');
+  },
+
   bindFloatingAds() {
     const floatingAds = document.getElementById('floating-ads');
     if (!floatingAds) return;

@@ -1,8 +1,12 @@
 /* ================================================
-   SportHub — Team (Render + Admin Management)
+   SportHub — Team (Render + CRUD + Admin Management)
    ================================================ */
 
 Object.assign(App, {
+
+  _teamEditId: null,
+  _teamCaptainUid: null,
+  _teamCoachUids: [],
 
   _sortTeams(teams) {
     return [...teams].sort((a, b) => {
@@ -18,12 +22,12 @@ Object.assign(App, {
     return `
       <div class="tc-card${pinnedClass}" onclick="App.showTeamDetail('${t.id}')">
         ${t.pinned ? '<div class="tc-pin-badge">至頂</div>' : ''}
-        <div class="tc-img-placeholder">球隊封面 800 × 300</div>
+        ${t.image ? `<img src="${t.image}" style="width:100%;height:120px;object-fit:cover;border-radius:8px 8px 0 0">` : '<div class="tc-img-placeholder">球隊封面 800 × 300</div>'}
         <div class="tc-body">
           <div class="tc-name">${t.name}</div>
           <div class="tc-name-en">${t.nameEn || ''}</div>
           <div class="tc-info-row"><span class="tc-label">領隊</span><span>${this._userTag(t.captain, 'captain')}</span></div>
-          <div class="tc-info-row"><span class="tc-label">教練</span><span>${t.coaches.length > 0 ? t.coaches.map(c => this._userTag(c, 'coach')).join(' ') : '—'}</span></div>
+          <div class="tc-info-row"><span class="tc-label">教練</span><span>${(t.coaches || []).length > 0 ? t.coaches.map(c => this._userTag(c, 'coach')).join(' ') : '—'}</span></div>
           <div class="tc-info-row"><span class="tc-label">隊員</span><span>${t.members} 人</span></div>
           <div class="tc-info-row"><span class="tc-label">地區</span><span>${t.region}</span></div>
         </div>
@@ -66,31 +70,45 @@ Object.assign(App, {
     document.getElementById('team-detail-title').textContent = t.name;
     document.getElementById('team-detail-name-en').textContent = t.nameEn || '';
 
-    const totalGames = t.wins + t.draws + t.losses;
-    const winRate = totalGames > 0 ? Math.round(t.wins / totalGames * 100) : 0;
+    const imgEl = document.getElementById('team-detail-img');
+    if (t.image) {
+      imgEl.innerHTML = `<img src="${t.image}" style="width:100%;height:100%;object-fit:cover">`;
+    } else {
+      imgEl.innerHTML = '球隊封面 800 × 300';
+    }
+
+    const totalGames = (t.wins || 0) + (t.draws || 0) + (t.losses || 0);
+    const winRate = totalGames > 0 ? Math.round((t.wins || 0) / totalGames * 100) : 0;
 
     document.getElementById('team-detail-body').innerHTML = `
       <div class="td-card">
         <div class="td-card-title">球隊資訊</div>
         <div class="td-card-grid">
           <div class="td-card-item"><span class="td-card-label">領隊</span><span class="td-card-value">${this._userTag(t.captain, 'captain')}</span></div>
-          <div class="td-card-item"><span class="td-card-label">教練</span><span class="td-card-value">${t.coaches.length > 0 ? t.coaches.map(c => this._userTag(c, 'coach')).join(' ') : '無'}</span></div>
+          <div class="td-card-item"><span class="td-card-label">教練</span><span class="td-card-value">${(t.coaches || []).length > 0 ? t.coaches.map(c => this._userTag(c, 'coach')).join(' ') : '無'}</span></div>
           <div class="td-card-item"><span class="td-card-label">隊員數</span><span class="td-card-value">${t.members} 人</span></div>
           <div class="td-card-item"><span class="td-card-label">地區</span><span class="td-card-value">${t.region}</span></div>
+          ${t.nationality ? `<div class="td-card-item"><span class="td-card-label">國籍</span><span class="td-card-value">${t.nationality}</span></div>` : ''}
+          ${t.founded ? `<div class="td-card-item"><span class="td-card-label">創立時間</span><span class="td-card-value">${t.founded}</span></div>` : ''}
+          ${t.contact ? `<div class="td-card-item"><span class="td-card-label">聯繫方式</span><span class="td-card-value">${t.contact}</span></div>` : ''}
         </div>
       </div>
+      ${t.bio ? `<div class="td-card">
+        <div class="td-card-title" style="text-align:center">簡介</div>
+        <div style="font-size:.82rem;color:var(--text-secondary);line-height:1.6;white-space:pre-wrap;word-break:break-word">${t.bio}</div>
+      </div>` : ''}
       <div class="td-card">
         <div class="td-card-title">球隊戰績</div>
         <div class="td-stats-row">
-          <div class="td-stat"><span class="td-stat-num" style="color:var(--success)">${t.wins}</span><span class="td-stat-label">勝</span></div>
-          <div class="td-stat"><span class="td-stat-num" style="color:var(--warning)">${t.draws}</span><span class="td-stat-label">平</span></div>
-          <div class="td-stat"><span class="td-stat-num" style="color:var(--danger)">${t.losses}</span><span class="td-stat-label">負</span></div>
+          <div class="td-stat"><span class="td-stat-num" style="color:var(--success)">${t.wins || 0}</span><span class="td-stat-label">勝</span></div>
+          <div class="td-stat"><span class="td-stat-num" style="color:var(--warning)">${t.draws || 0}</span><span class="td-stat-label">平</span></div>
+          <div class="td-stat"><span class="td-stat-num" style="color:var(--danger)">${t.losses || 0}</span><span class="td-stat-label">負</span></div>
           <div class="td-stat"><span class="td-stat-num">${winRate}%</span><span class="td-stat-label">勝率</span></div>
         </div>
         <div class="td-card-grid" style="margin-top:.5rem">
-          <div class="td-card-item"><span class="td-card-label">進球</span><span class="td-card-value">${t.gf}</span></div>
-          <div class="td-card-item"><span class="td-card-label">失球</span><span class="td-card-value">${t.ga}</span></div>
-          <div class="td-card-item"><span class="td-card-label">淨勝球</span><span class="td-card-value">${t.gf - t.ga > 0 ? '+' : ''}${t.gf - t.ga}</span></div>
+          <div class="td-card-item"><span class="td-card-label">進球</span><span class="td-card-value">${t.gf || 0}</span></div>
+          <div class="td-card-item"><span class="td-card-label">失球</span><span class="td-card-value">${t.ga || 0}</span></div>
+          <div class="td-card-item"><span class="td-card-label">淨勝球</span><span class="td-card-value">${(t.gf || 0) - (t.ga || 0) > 0 ? '+' : ''}${(t.gf || 0) - (t.ga || 0)}</span></div>
           <div class="td-card-item"><span class="td-card-label">總場次</span><span class="td-card-value">${totalGames}</span></div>
         </div>
       </div>
@@ -107,13 +125,13 @@ Object.assign(App, {
         <div class="td-card-title">成員列表</div>
         <div class="td-member-list">
           ${Array.from({length: Math.min(t.members, 8)}, (_, i) => {
-            const role = i === 0 ? 'captain' : i <= t.coaches.length ? 'coach' : 'user';
-            const roleLabel = i === 0 ? '領隊' : i <= t.coaches.length ? '教練' : '球員';
-            const roleClass = i === 0 ? 'captain' : i <= t.coaches.length ? 'coach' : 'player';
-            const memberName = i === 0 ? t.captain : i <= t.coaches.length ? t.coaches[i - 1] : '球員' + String.fromCharCode(65 + i);
+            const role = i === 0 ? 'captain' : i <= (t.coaches || []).length ? 'coach' : 'user';
+            const roleLabel = i === 0 ? '領隊' : i <= (t.coaches || []).length ? '教練' : '球員';
+            const roleClass = i === 0 ? 'captain' : i <= (t.coaches || []).length ? 'coach' : 'player';
+            const memberName = i === 0 ? t.captain : i <= (t.coaches || []).length ? t.coaches[i - 1] : '球員' + String.fromCharCode(65 + i);
             return `
             <div class="td-member-card">
-              <div class="td-member-avatar" style="background:${t.color}22;color:${t.color}">${i === 0 ? t.captain.charAt(t.captain.length - 1) : String.fromCharCode(65 + i)}</div>
+              <div class="td-member-avatar" style="background:${(t.color || '#3b82f6')}22;color:${t.color || '#3b82f6'}">${i === 0 ? t.captain.charAt(t.captain.length - 1) : String.fromCharCode(65 + i)}</div>
               <div class="td-member-info">
                 <div class="td-member-name">${this._userTag(memberName, role)}</div>
                 <span class="td-member-role ${roleClass}">${roleLabel}</span>
@@ -147,7 +165,6 @@ Object.assign(App, {
   },
 
   goMyTeam() {
-    // 正式版：從資料庫取 teamId
     let teamId = this._userTeam;
     if (!ModeManager.isDemo()) {
       const user = ApiService.getCurrentUser();
@@ -158,6 +175,376 @@ Object.assign(App, {
     } else {
       this.showToast('您目前沒有加入任何球隊');
     }
+  },
+
+  // ══════════════════════════════════
+  //  Team Form (Create / Edit)
+  // ══════════════════════════════════
+
+  _isTeamOwner(t) {
+    if (ModeManager.isDemo()) {
+      return t.id === this._userTeam;
+    }
+    const user = ApiService.getCurrentUser();
+    return user && user.teamId === t.id;
+  },
+
+  _resetTeamForm() {
+    document.getElementById('ct-team-name').value = '';
+    document.getElementById('ct-team-name-en').value = '';
+    document.getElementById('ct-team-nationality').value = '台灣';
+    document.getElementById('ct-team-region').value = '';
+    document.getElementById('ct-team-founded').value = '';
+    document.getElementById('ct-captain-search').value = '';
+    document.getElementById('ct-captain-selected').innerHTML = '';
+    document.getElementById('ct-captain-suggest').innerHTML = '';
+    document.getElementById('ct-captain-suggest').classList.remove('show');
+    document.getElementById('ct-captain-display').innerHTML = '';
+    document.getElementById('ct-captain-transfer').style.display = 'none';
+    document.getElementById('ct-team-contact').value = '';
+    document.getElementById('ct-coach-search').value = '';
+    document.getElementById('ct-coach-tags').innerHTML = '';
+    document.getElementById('ct-coach-suggest').innerHTML = '';
+    document.getElementById('ct-coach-suggest').classList.remove('show');
+    document.getElementById('ct-team-bio').value = '';
+    this._teamCaptainUid = null;
+    this._teamCoachUids = [];
+    const preview = document.getElementById('ct-team-preview');
+    preview.innerHTML = '<span class="ce-upload-icon">+</span><span class="ce-upload-text">點擊上傳封面圖片</span><span class="ce-upload-hint">建議尺寸 800 × 300 px｜JPG / PNG｜最大 2MB</span>';
+    preview.style.backgroundImage = '';
+    preview.classList.remove('has-image');
+    const fileInput = document.getElementById('ct-team-image');
+    if (fileInput) fileInput.value = '';
+  },
+
+  _getCurrentUserName() {
+    if (ModeManager.isDemo()) return DemoData.currentUser.displayName;
+    const user = ApiService.getCurrentUser();
+    return user ? user.displayName : '';
+  },
+
+  _getCurrentUserUid() {
+    if (ModeManager.isDemo()) return DemoData.currentUser.uid;
+    const user = ApiService.getCurrentUser();
+    return user ? user.uid : '';
+  },
+
+  showTeamForm(id) {
+    this._teamEditId = id || null;
+    const titleEl = document.getElementById('ct-team-modal-title');
+    const saveBtn = document.getElementById('ct-team-save-btn');
+    const captainDisplay = document.getElementById('ct-captain-display');
+    const captainTransfer = document.getElementById('ct-captain-transfer');
+
+    if (id) {
+      const t = ApiService.getTeam(id);
+      if (!t) return;
+      titleEl.textContent = '編輯球隊';
+      saveBtn.textContent = '儲存變更';
+      document.getElementById('ct-team-name').value = t.name || '';
+      document.getElementById('ct-team-name-en').value = t.nameEn || '';
+      document.getElementById('ct-team-nationality').value = t.nationality || '';
+      document.getElementById('ct-team-region').value = t.region || '';
+      document.getElementById('ct-team-founded').value = t.founded || '';
+      document.getElementById('ct-team-contact').value = t.contact || '';
+      document.getElementById('ct-team-bio').value = t.bio || '';
+
+      // 編輯模式：顯示目前領隊 + 轉移搜尋
+      captainDisplay.innerHTML = `目前領隊：<span style="color:var(--accent)">${t.captain || '（未設定）'}</span>`;
+      captainTransfer.style.display = '';
+
+      // 預設保留原領隊
+      this._teamCaptainUid = null;
+      document.getElementById('ct-captain-search').value = '';
+      document.getElementById('ct-captain-selected').innerHTML = '';
+      if (t.captain) {
+        const users = ApiService.getAdminUsers();
+        const found = users.find(u => u.name === t.captain);
+        this._teamCaptainUid = found ? found.uid : '__legacy__';
+      }
+
+      // Restore coaches
+      this._teamCoachUids = [];
+      document.getElementById('ct-coach-search').value = '';
+      document.getElementById('ct-coach-tags').innerHTML = '';
+      if (t.coaches && t.coaches.length) {
+        const users = ApiService.getAdminUsers();
+        t.coaches.forEach(cName => {
+          const found = users.find(u => u.name === cName);
+          if (found) {
+            this.selectTeamCoach(found.uid);
+          } else {
+            this._teamCoachUids.push('__legacy_' + cName);
+            this._renderCoachTags();
+          }
+        });
+      }
+
+      const preview = document.getElementById('ct-team-preview');
+      if (t.image) {
+        preview.innerHTML = '';
+        preview.style.backgroundImage = `url(${t.image})`;
+        preview.style.backgroundSize = 'cover';
+        preview.style.backgroundPosition = 'center';
+        preview.classList.add('has-image');
+      } else {
+        preview.innerHTML = '<span class="ce-upload-icon">+</span><span class="ce-upload-text">點擊上傳封面圖片</span><span class="ce-upload-hint">建議尺寸 800 × 300 px｜JPG / PNG｜最大 2MB</span>';
+        preview.style.backgroundImage = '';
+        preview.classList.remove('has-image');
+      }
+    } else {
+      // 新增模式：自動帶入當前用戶為領隊
+      titleEl.textContent = '新增球隊';
+      saveBtn.textContent = '建立球隊';
+      this._resetTeamForm();
+
+      const myName = this._getCurrentUserName();
+      const myUid = this._getCurrentUserUid();
+      captainDisplay.innerHTML = `領隊：<span style="color:var(--accent)">${myName || '（目前用戶）'}</span>`;
+      captainTransfer.style.display = 'none';
+      this._teamCaptainUid = myUid || '__self__';
+    }
+    this.showModal('create-team-modal');
+  },
+
+  handleSaveTeam() {
+    const name = document.getElementById('ct-team-name').value.trim();
+    const nameEn = document.getElementById('ct-team-name-en').value.trim();
+    const nationality = document.getElementById('ct-team-nationality').value;
+    const region = document.getElementById('ct-team-region').value;
+    const founded = document.getElementById('ct-team-founded').value;
+    const contact = document.getElementById('ct-team-contact').value.trim();
+    const bio = document.getElementById('ct-team-bio').value.trim();
+
+    if (!name) { this.showToast('請輸入球隊名稱'); return; }
+
+    // Resolve captain name
+    const users = ApiService.getAdminUsers();
+    let captain = '';
+    if (this._teamCaptainUid) {
+      if (this._teamCaptainUid === '__self__') {
+        captain = this._getCurrentUserName();
+      } else if (this._teamCaptainUid === '__legacy__') {
+        // 編輯模式下保留原領隊名稱
+        const t = this._teamEditId ? ApiService.getTeam(this._teamEditId) : null;
+        captain = t ? t.captain : '';
+      } else {
+        const capUser = users.find(u => u.uid === this._teamCaptainUid);
+        captain = capUser ? capUser.name : '';
+      }
+    }
+
+    // Resolve coach names
+    const coaches = this._teamCoachUids.map(uid => {
+      if (uid.startsWith('__legacy_')) return uid.replace('__legacy_', '');
+      const u = users.find(u => u.uid === uid);
+      return u ? u.name : '';
+    }).filter(Boolean);
+
+    const members = 1 + coaches.length;
+
+    const preview = document.getElementById('ct-team-preview');
+    let image = null;
+    const imgEl = preview.querySelector('img');
+    if (imgEl) {
+      image = imgEl.src;
+    } else {
+      const bgImg = preview.style.backgroundImage;
+      if (bgImg && bgImg !== 'none' && bgImg !== '') {
+        image = bgImg.replace(/^url\(["']?/, '').replace(/["']?\)$/, '');
+      }
+    }
+
+    if (this._teamEditId) {
+      const updates = { name, nameEn, nationality, region, founded, contact, bio, captain, coaches, members };
+      if (image) updates.image = image;
+      ApiService.updateTeam(this._teamEditId, updates);
+      this.showToast('球隊資料已更新');
+    } else {
+      const data = {
+        id: 'tm_' + Date.now(),
+        name, nameEn, nationality, captain, coaches, members,
+        region, founded, contact, bio, image,
+        active: true, pinned: false, pinOrder: 0,
+        wins: 0, draws: 0, losses: 0, gf: 0, ga: 0,
+        history: [],
+      };
+      ApiService.createTeam(data);
+      this.showToast('球隊建立成功！');
+    }
+
+    this.closeModal();
+    this._teamEditId = null;
+    this.renderTeamList();
+    this.renderAdminTeams();
+    this.renderTeamManage();
+  },
+
+  // ── Captain / Coach Search & Select ──
+
+  _teamSearchUsers(query, excludeUids) {
+    const users = ApiService.getAdminUsers();
+    const q = query.toLowerCase();
+    return users.filter(u =>
+      !excludeUids.includes(u.uid) &&
+      (u.name.toLowerCase().includes(q) || u.uid.toLowerCase().includes(q))
+    ).slice(0, 5);
+  },
+
+  _renderSuggestList(containerId, results, onSelectFn) {
+    const el = document.getElementById(containerId);
+    if (!results.length) { el.innerHTML = ''; el.classList.remove('show'); return; }
+    el.innerHTML = results.map(u =>
+      `<div class="team-user-suggest-item" onclick="App.${onSelectFn}('${u.uid}')">
+        <span class="tus-name">${u.name}</span>
+        <span class="tus-uid">${u.uid}</span>
+      </div>`
+    ).join('');
+    el.classList.add('show');
+  },
+
+  searchTeamCaptain() {
+    const q = document.getElementById('ct-captain-search').value.trim();
+    if (!q) { document.getElementById('ct-captain-suggest').classList.remove('show'); return; }
+    const exclude = [...this._teamCoachUids];
+    if (this._teamCaptainUid && this._teamCaptainUid !== '__legacy__') exclude.push(this._teamCaptainUid);
+    const results = this._teamSearchUsers(q, exclude);
+    this._renderSuggestList('ct-captain-suggest', results, 'selectTeamCaptain');
+  },
+
+  selectTeamCaptain(uid) {
+    const users = ApiService.getAdminUsers();
+    const user = users.find(u => u.uid === uid);
+    if (!user) return;
+    this._teamCaptainUid = uid;
+    document.getElementById('ct-captain-search').value = '';
+    document.getElementById('ct-captain-suggest').innerHTML = '';
+    document.getElementById('ct-captain-suggest').classList.remove('show');
+    document.getElementById('ct-captain-selected').innerHTML =
+      `<span class="team-tag">轉移至：${user.name}<span class="team-tag-x" onclick="App.clearTeamCaptain()">×</span></span>`;
+  },
+
+  clearTeamCaptain() {
+    // 編輯模式：恢復原領隊
+    if (this._teamEditId) {
+      const t = ApiService.getTeam(this._teamEditId);
+      if (t && t.captain) {
+        const users = ApiService.getAdminUsers();
+        const found = users.find(u => u.name === t.captain);
+        this._teamCaptainUid = found ? found.uid : '__legacy__';
+      } else {
+        this._teamCaptainUid = null;
+      }
+    } else {
+      // 新增模式不應能清除（自動帶入）
+      this._teamCaptainUid = this._getCurrentUserUid() || '__self__';
+    }
+    document.getElementById('ct-captain-selected').innerHTML = '';
+  },
+
+  searchTeamCoach() {
+    const q = document.getElementById('ct-coach-search').value.trim();
+    if (!q) { document.getElementById('ct-coach-suggest').classList.remove('show'); return; }
+    const exclude = [...this._teamCoachUids];
+    if (this._teamCaptainUid && this._teamCaptainUid !== '__legacy__') exclude.push(this._teamCaptainUid);
+    const results = this._teamSearchUsers(q, exclude);
+    this._renderSuggestList('ct-coach-suggest', results, 'selectTeamCoach');
+  },
+
+  selectTeamCoach(uid) {
+    if (this._teamCoachUids.includes(uid)) return;
+    this._teamCoachUids.push(uid);
+    document.getElementById('ct-coach-search').value = '';
+    document.getElementById('ct-coach-suggest').innerHTML = '';
+    document.getElementById('ct-coach-suggest').classList.remove('show');
+    this._renderCoachTags();
+  },
+
+  removeTeamCoach(uid) {
+    this._teamCoachUids = this._teamCoachUids.filter(u => u !== uid);
+    this._renderCoachTags();
+  },
+
+  _renderCoachTags() {
+    const users = ApiService.getAdminUsers();
+    document.getElementById('ct-coach-tags').innerHTML = this._teamCoachUids.map(uid => {
+      if (uid.startsWith('__legacy_')) {
+        const legacyName = uid.replace('__legacy_', '');
+        return `<span class="team-tag">${legacyName}<span class="team-tag-x" onclick="App.removeTeamCoach('${uid}')">×</span></span>`;
+      }
+      const u = users.find(u => u.uid === uid);
+      return u ? `<span class="team-tag">${u.name}<span class="team-tag-x" onclick="App.removeTeamCoach('${uid}')">×</span></span>` : '';
+    }).join('');
+  },
+
+  removeTeam(id) {
+    const t = ApiService.getTeam(id);
+    if (!t) return;
+    if (!confirm(`確定要刪除「${t.name}」？此操作無法復原。`)) return;
+    ApiService.deleteTeam(id);
+    this.showToast(`已刪除「${t.name}」`);
+    this.renderTeamList();
+    this.renderAdminTeams();
+    this.renderTeamManage();
+  },
+
+  // ══════════════════════════════════
+  //  Team Manage Page (Captain+)
+  // ══════════════════════════════════
+
+  renderTeamManage(filter) {
+    const container = document.getElementById('team-manage-list');
+    if (!container) return;
+
+    const tabs = document.getElementById('team-manage-tabs');
+    if (tabs && !tabs.dataset.bound) {
+      tabs.dataset.bound = '1';
+      tabs.querySelectorAll('.tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+          tabs.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+          tab.classList.add('active');
+          this.renderTeamManage(tab.dataset.tab);
+        });
+      });
+    }
+
+    const currentFilter = filter || tabs?.querySelector('.tab.active')?.dataset.tab || 'my-teams';
+    const isAdmin = ROLE_LEVEL_MAP[this.currentRole] >= ROLE_LEVEL_MAP['admin'];
+
+    let teams;
+    if (currentFilter === 'my-teams' && !isAdmin) {
+      teams = ApiService.getTeams().filter(t => this._isTeamOwner(t));
+    } else {
+      teams = ApiService.getTeams();
+    }
+
+    if (!teams.length) {
+      container.innerHTML = '<div style="padding:2rem;text-align:center;color:var(--text-muted);font-size:.85rem">尚無球隊資料</div>';
+      return;
+    }
+
+    container.innerHTML = teams.map(t => {
+      const canEdit = isAdmin || this._isTeamOwner(t);
+      return `
+      <div class="event-card">
+        <div class="event-card-body">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div class="event-card-title">${t.name} <span style="font-size:.72rem;color:var(--text-muted)">${t.nameEn || ''}</span></div>
+            <span style="font-size:.72rem;color:${t.active ? 'var(--success)' : 'var(--danger)'}">${t.active ? '上架中' : '已下架'}</span>
+          </div>
+          <div class="event-meta">
+            <span class="event-meta-item">領隊 ${t.captain}</span>
+            <span class="event-meta-item">${t.members}人</span>
+            <span class="event-meta-item">${t.region}</span>
+          </div>
+          <div style="display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.5rem">
+            ${canEdit ? `<button class="primary-btn small" onclick="App.showTeamForm('${t.id}')">編輯</button>` : ''}
+            <button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem" onclick="App.showTeamDetail('${t.id}')">查看</button>
+            ${canEdit ? `<button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem;color:var(--danger)" onclick="App.removeTeam('${t.id}')">刪除</button>` : ''}
+          </div>
+        </div>
+      </div>`;
+    }).join('');
   },
 
   // ══════════════════════════════════
@@ -176,12 +563,12 @@ Object.assign(App, {
     if (!container) return;
     const q = searchQuery || '';
     let teams = ApiService.getTeams();
-    if (q) teams = teams.filter(t => t.name.toLowerCase().includes(q) || t.nameEn.toLowerCase().includes(q) || t.captain.includes(q) || t.region.includes(q));
+    if (q) teams = teams.filter(t => t.name.toLowerCase().includes(q) || (t.nameEn || '').toLowerCase().includes(q) || t.captain.includes(q) || t.region.includes(q));
     container.innerHTML = teams.length ? teams.map(t => `
       <div class="event-card">
         <div class="event-card-body">
           <div style="display:flex;justify-content:space-between;align-items:center">
-            <div class="event-card-title">${t.name} <span style="font-size:.72rem;color:var(--text-muted)">${t.nameEn}</span></div>
+            <div class="event-card-title">${t.name} <span style="font-size:.72rem;color:var(--text-muted)">${t.nameEn || ''}</span></div>
             ${t.pinned ? '<span style="font-size:.72rem;color:var(--warning);font-weight:600">至頂</span>' : ''}
           </div>
           <div class="event-meta">
@@ -191,9 +578,11 @@ Object.assign(App, {
             <span class="event-meta-item" style="color:${t.active ? 'var(--success)' : 'var(--danger)'}">${t.active ? '上架中' : '已下架'}</span>
           </div>
           <div style="display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.5rem">
-            <button class="primary-btn small" onclick="App.toggleTeamPin('${t.id}')">${t.pinned ? '取消至頂' : '至頂'}</button>
+            <button class="primary-btn small" onclick="App.showTeamForm('${t.id}')">編輯</button>
+            <button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem" onclick="App.toggleTeamPin('${t.id}')">${t.pinned ? '取消至頂' : '至頂'}</button>
             <button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem" onclick="App.toggleTeamActive('${t.id}')">${t.active ? '下架' : '上架'}</button>
             <button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem" onclick="App.showTeamDetail('${t.id}')">查看</button>
+            <button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem;color:var(--danger)" onclick="App.removeTeam('${t.id}')">刪除</button>
           </div>
         </div>
       </div>

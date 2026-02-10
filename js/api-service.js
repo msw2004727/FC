@@ -131,6 +131,16 @@ const ApiService = {
     return FirebaseService._cache.teams.find(t => t.id === id) || null;
   },
 
+  createTeam(data) {
+    if (this._demoMode) {
+      DemoData.teams.unshift(data);
+      return data;
+    }
+    FirebaseService._cache.teams.unshift(data);
+    FirebaseService.addTeam(data).catch(err => console.error('[createTeam]', err));
+    return data;
+  },
+
   updateTeam(id, updates) {
     const source = this._demoMode ? DemoData.teams : FirebaseService._cache.teams;
     const t = source.find(tm => tm.id === id);
@@ -139,6 +149,16 @@ const ApiService = {
       FirebaseService.updateTeam(id, updates).catch(err => console.error('[updateTeam]', err));
     }
     return t;
+  },
+
+  deleteTeam(id) {
+    const source = this._demoMode ? DemoData.teams : FirebaseService._cache.teams;
+    const idx = source.findIndex(t => t.id === id);
+    if (idx >= 0) source.splice(idx, 1);
+    if (!this._demoMode) {
+      FirebaseService.deleteTeam(id).catch(err => console.error('[deleteTeam]', err));
+    }
+    return true;
   },
 
   // ════════════════════════════════
@@ -551,6 +571,29 @@ const ApiService = {
     if (!this._demoMode) {
       FirebaseService.markAllMessagesRead().catch(err => console.error('[markAllMessagesRead]', err));
     }
+  },
+
+  // ════════════════════════════════
+  //  Sponsors（贊助商）
+  // ════════════════════════════════
+
+  getSponsors() {
+    if (this._demoMode) return DemoData.sponsors;
+    return FirebaseService._cache.sponsors || [];
+  },
+
+  getActiveSponsors() {
+    return this.getSponsors().filter(s => s.status === 'active');
+  },
+
+  updateSponsor(id, updates) {
+    const source = this._demoMode ? DemoData.sponsors : (FirebaseService._cache.sponsors || []);
+    const item = source.find(s => s.id === id);
+    if (item) Object.assign(item, updates);
+    if (!this._demoMode) {
+      FirebaseService.updateSponsor(id, updates).catch(err => console.error('[updateSponsor]', err));
+    }
+    return item;
   },
 
   // ════════════════════════════════

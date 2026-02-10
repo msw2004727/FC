@@ -33,6 +33,7 @@ Object.assign(App, {
     check(ApiService.getBanners(), (id, u) => ApiService.updateBanner(id, u));
     check(ApiService.getFloatingAds(), (id, u) => ApiService.updateFloatingAd(id, u));
     check(ApiService.getPopupAds(), (id, u) => ApiService.updatePopupAd(id, u));
+    check(ApiService.getSponsors(), (id, u) => ApiService.updateSponsor(id, u));
   },
 
   // 廣告動作按鈕 HTML（水平排列，比照商品管理）
@@ -65,6 +66,7 @@ Object.assign(App, {
     if (type === 'banner') this.editBannerItem(id);
     else if (type === 'float') this.editFloatingAd(id);
     else if (type === 'popup') this.editPopupAd(id);
+    else if (type === 'sponsor') this.editSponsorItem(id);
   },
 
   // ── 通用：下架 ──
@@ -80,6 +82,10 @@ Object.assign(App, {
     } else if (type === 'popup') {
       ApiService.updatePopupAd(id, { status: 'expired' });
       this.renderPopupAdManage();
+    } else if (type === 'sponsor') {
+      ApiService.updateSponsor(id, { status: 'expired' });
+      this.renderSponsorManage();
+      this.renderSponsors();
     }
     this.showToast('廣告已下架');
   },
@@ -97,6 +103,10 @@ Object.assign(App, {
     } else if (type === 'popup') {
       ApiService.updatePopupAd(id, { status: 'active' });
       this.renderPopupAdManage();
+    } else if (type === 'sponsor') {
+      ApiService.updateSponsor(id, { status: 'active' });
+      this.renderSponsorManage();
+      this.renderSponsors();
     }
     this.showToast('廣告已重新上架');
   },
@@ -116,6 +126,10 @@ Object.assign(App, {
     } else if (type === 'popup') {
       ApiService.updatePopupAd(id, emptyData);
       this.renderPopupAdManage();
+    } else if (type === 'sponsor') {
+      ApiService.updateSponsor(id, emptyData);
+      this.renderSponsorManage();
+      this.renderSponsors();
     }
     this.showToast('廣告已刪除');
   },
@@ -132,6 +146,9 @@ Object.assign(App, {
     } else if (type === 'popup') {
       item = ApiService.getPopupAds().find(a => a.id === id);
       if (item) { item.clicks = (item.clicks || 0) + 1; ApiService.updatePopupAd(id, { clicks: item.clicks }); }
+    } else if (type === 'sponsor') {
+      item = ApiService.getSponsors().find(s => s.id === id);
+      if (item) { item.clicks = (item.clicks || 0) + 1; ApiService.updateSponsor(id, { clicks: item.clicks }); }
     }
   },
 
@@ -486,6 +503,141 @@ Object.assign(App, {
   editPopupAd(id) {
     const item = ApiService.getPopupAds().find(a => a.id === id);
     if (item) this.showPopupAdForm(item);
+  },
+
+  // ══════════════════════════════════
+  //  Collapse Toggle
+  // ══════════════════════════════════
+
+  toggleAdSection(labelEl) {
+    labelEl.classList.toggle('open');
+    const content = labelEl.nextElementSibling;
+    if (content) {
+      content.style.display = content.style.display === 'none' ? '' : 'none';
+    }
+  },
+
+  // ══════════════════════════════════
+  //  Sponsor CRUD（直式 24 列）
+  // ══════════════════════════════════
+
+  renderSponsorManage() {
+    const container = document.getElementById('sponsor-manage-list');
+    if (!container) return;
+    const items = ApiService.getSponsors();
+    container.innerHTML = items.map(sp => {
+      const hasImage = sp.image && sp.status !== 'empty';
+      const thumb = hasImage
+        ? `<img src="${sp.image}" style="width:100%;height:100%;object-fit:cover;border-radius:4px">`
+        : `<span class="sp-row-upload-hint">+</span>`;
+      return `
+      <div class="sp-manage-row" data-id="${sp.id}">
+        <span class="sp-row-num">${sp.slot}</span>
+        <div class="sp-row-thumb${hasImage ? ' has-img' : ''}" onclick="App.triggerSponsorUpload('${sp.id}')">
+          ${thumb}
+          <input type="file" class="sp-row-file" data-sp="${sp.id}" accept=".jpg,.jpeg,.png" hidden>
+        </div>
+        <input type="text" class="sp-row-link" data-sp="${sp.id}" value="${sp.linkUrl || ''}" placeholder="連結網址（選填）">
+        <button class="sp-row-save" onclick="App.saveSponsorRow('${sp.id}')">儲存</button>
+        ${hasImage ? `<button class="sp-row-del" onclick="App.clearSponsorRow('${sp.id}')" title="清除">✕</button>` : ''}
+      </div>`;
+    }).join('');
+
+    // 綁定每一列的 file input change
+    container.querySelectorAll('.sp-row-file').forEach(input => {
+      input.addEventListener('change', (e) => this._handleSponsorFileChange(e));
+    });
+  },
+
+  triggerSponsorUpload(id) {
+    const input = document.querySelector(`.sp-row-file[data-sp="${id}"]`);
+    if (input) input.click();
+  },
+
+  _handleSponsorFileChange(e) {
+    const input = e.target;
+    const file = input.files[0];
+    if (!file) return;
+    if (!['image/jpeg', 'image/png'].includes(file.type)) {
+      this.showToast('僅支援 JPG / PNG 格式');
+      input.value = '';
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      this.showToast('檔案大小不可超過 2MB');
+      input.value = '';
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const thumb = input.closest('.sp-manage-row').querySelector('.sp-row-thumb');
+      if (thumb) {
+        thumb.innerHTML = `<img src="${ev.target.result}" style="width:100%;height:100%;object-fit:cover;border-radius:4px">${input.outerHTML}`;
+        thumb.classList.add('has-img');
+        // 重新綁定新 input
+        const newInput = thumb.querySelector('.sp-row-file');
+        if (newInput) newInput.addEventListener('change', (e2) => this._handleSponsorFileChange(e2));
+      }
+    };
+    reader.readAsDataURL(file);
+  },
+
+  async saveSponsorRow(id) {
+    const row = document.querySelector(`.sp-manage-row[data-id="${id}"]`);
+    if (!row) return;
+    const thumbImg = row.querySelector('.sp-row-thumb img');
+    const linkInput = row.querySelector('.sp-row-link');
+    const linkUrl = linkInput ? linkInput.value.trim() : '';
+
+    let image = thumbImg ? thumbImg.src : null;
+    if (!image) {
+      // 保留原有圖片
+      const sp = ApiService.getSponsors().find(s => s.id === id);
+      image = sp ? sp.image : null;
+    }
+
+    if (!image) {
+      this.showToast('請先上傳圖片');
+      return;
+    }
+
+    // Firebase 模式上傳 base64
+    if (image.startsWith('data:') && !ModeManager.isDemo()) {
+      this.showToast('圖片上傳中...');
+      const url = await FirebaseService._uploadImage(image, `sponsors/${id}`);
+      if (!url) { this.showToast('圖片上傳失敗，請重試'); return; }
+      image = url;
+    }
+
+    const now = this._formatDT(new Date().toISOString());
+    ApiService.updateSponsor(id, {
+      image,
+      linkUrl,
+      status: 'active',
+      publishAt: now,
+      unpublishAt: null,
+      title: ''
+    });
+    this.showToast('贊助商已儲存');
+    this.renderSponsorManage();
+    this.renderSponsors();
+  },
+
+  clearSponsorRow(id) {
+    if (!confirm('確定要清除此贊助商欄位？')) return;
+    ApiService.updateSponsor(id, {
+      title: '', image: null, linkUrl: '', status: 'empty',
+      publishAt: null, unpublishAt: null, clicks: 0
+    });
+    this.showToast('已清除');
+    this.renderSponsorManage();
+    this.renderSponsors();
+  },
+
+  editSponsorItem(id) {
+    // 直式模式不需要單獨表單，直接滾動到該列
+    const row = document.querySelector(`.sp-manage-row[data-id="${id}"]`);
+    if (row) row.scrollIntoView({ behavior: 'smooth' });
   },
 
 });
