@@ -8,7 +8,7 @@ Object.assign(App, {
 
   _userTag(name, forceRole) {
     const role = forceRole || ApiService.getUserRole(name);
-    return `<span class="user-capsule uc-${role}" onclick="App.showUserProfile('${name}')" title="${ROLES[role]?.label || '一般用戶'}">${name}</span>`;
+    return `<span class="user-capsule uc-${role}" onclick="App.showUserProfile('${escapeHTML(name)}')" title="${ROLES[role]?.label || '一般用戶'}">${escapeHTML(name)}</span>`;
   },
 
   _findUserByName(name) {
@@ -49,7 +49,7 @@ Object.assign(App, {
       : (user && user.pictureUrl);
 
     const avatarHtml = pic
-      ? `<img src="${pic}" alt="${name}">`
+      ? `<img src="${pic}" alt="${escapeHTML(name)}">`
       : name.charAt(0);
     const teamHtml = user ? this._getUserTeamHtml(user) : '無';
 
@@ -60,7 +60,7 @@ Object.assign(App, {
           <div class="uc-avatar-circle">${avatarHtml}</div>
           <div class="uc-doll-frame">紙娃娃預留</div>
         </div>
-        <div class="profile-title">${name}</div>
+        <div class="profile-title">${escapeHTML(name)}</div>
         <div style="margin-top:.3rem"><span class="uc-role-tag" style="background:${roleInfo.color}22;color:${roleInfo.color}">${roleInfo.label}</span></div>
         <div class="profile-level">
           <span>Lv.${level}</span>
@@ -70,10 +70,10 @@ Object.assign(App, {
       </div>
       <div class="info-card">
         <div class="info-title">基本資料</div>
-        <div class="info-row"><span>性別</span><span>${gender}</span></div>
-        <div class="info-row"><span>生日</span><span>${birthday}</span></div>
-        <div class="info-row"><span>地區</span><span>${region}</span></div>
-        <div class="info-row"><span>運動類別</span><span>${sports}</span></div>
+        <div class="info-row"><span>性別</span><span>${escapeHTML(gender)}</span></div>
+        <div class="info-row"><span>生日</span><span>${escapeHTML(birthday)}</span></div>
+        <div class="info-row"><span>地區</span><span>${escapeHTML(region)}</span></div>
+        <div class="info-row"><span>運動類別</span><span>${escapeHTML(sports)}</span></div>
         <div class="info-row"><span>所屬球隊</span><span>${teamHtml}</span></div>
       </div>
       <div class="info-card">
@@ -202,7 +202,7 @@ Object.assign(App, {
     } else if (userTopbar) {
       const dropdown = document.getElementById('user-menu-dropdown');
       const dropdownHtml = dropdown ? dropdown.outerHTML : '';
-      userTopbar.innerHTML = `<div class="line-avatar-topbar line-avatar-fallback" onclick="App.toggleUserMenu()">${profile.displayName.charAt(0)}</div>${dropdownHtml}`;
+      userTopbar.innerHTML = `<div class="line-avatar-topbar line-avatar-fallback" onclick="App.toggleUserMenu()">${escapeHTML(profile.displayName.charAt(0))}</div>${dropdownHtml}`;
     }
 
     // 更新 profile 頁面（資料由 renderProfileData() 統一處理）
@@ -257,7 +257,7 @@ Object.assign(App, {
     });
     if (teamSet.size === 0) return '無';
     return Array.from(teamSet.entries()).map(([id, name]) =>
-      `<span class="uc-team-link" onclick="App.showTeamDetail('${id}')">${name}</span>`
+      `<span class="uc-team-link" onclick="App.showTeamDetail('${escapeHTML(id)}')">${escapeHTML(name)}</span>`
     ).join('、');
   },
 
@@ -290,7 +290,7 @@ Object.assign(App, {
     const uidWrap = el('profile-uid-wrap');
     if (uidWrap) {
       const uid = user.uid || user.lineUserId || '-';
-      uidWrap.innerHTML = `<span style="font-size:.72rem;color:var(--text-muted);letter-spacing:.3px">${uid}</span>`
+      uidWrap.innerHTML = `<span style="font-size:.72rem;color:var(--text-muted);letter-spacing:.3px">${escapeHTML(uid)}</span>`
         + `<button onclick="App.showUidQrCode()" style="background:none;border:none;cursor:pointer;padding:2px;display:flex;align-items:center" title="顯示 UID QR Code">`
         + `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="3" height="3"/><line x1="21" y1="14" x2="21" y2="17"/><line x1="17" y1="21" x2="21" y2="21"/></svg>`
         + `</button>`;
@@ -520,7 +520,7 @@ Object.assign(App, {
     const phone = (user && user.phone) || '-';
 
     const avatarHtml = pic
-      ? `<img src="${pic}" alt="${displayName}">`
+      ? `<img src="${pic}" alt="${escapeHTML(displayName)}">`
       : (displayName || '?').charAt(0);
     const teamHtml = user ? this._getUserTeamHtml(user) : '無';
 
@@ -538,7 +538,7 @@ Object.assign(App, {
           <div class="uc-avatar-circle">${avatarHtml}</div>
           <div class="uc-doll-frame">紙娃娃預留</div>
         </div>
-        <div class="profile-title">${titleDisplay}</div>
+        <div class="profile-title">${escapeHTML(titleDisplay)}</div>
         <div style="margin-top:.3rem"><span class="uc-role-tag" style="background:${roleInfo.color}22;color:${roleInfo.color}">${roleInfo.label}</span></div>
         <div class="profile-level">
           <span>Lv.${level}</span>
@@ -548,12 +548,12 @@ Object.assign(App, {
       </div>
       <div class="info-card">
         <div class="info-title">基本資料</div>
-        <div class="info-row"><span>性別</span><span>${gender}</span></div>
-        <div class="info-row"><span>生日</span><span>${birthday}</span></div>
-        <div class="info-row"><span>地區</span><span>${region}</span></div>
-        <div class="info-row"><span>運動類別</span><span>${sports}</span></div>
+        <div class="info-row"><span>性別</span><span>${escapeHTML(gender)}</span></div>
+        <div class="info-row"><span>生日</span><span>${escapeHTML(birthday)}</span></div>
+        <div class="info-row"><span>地區</span><span>${escapeHTML(region)}</span></div>
+        <div class="info-row"><span>運動類別</span><span>${escapeHTML(sports)}</span></div>
         <div class="info-row"><span>所屬球隊</span><span>${teamHtml}</span></div>
-        <div class="info-row"><span>聯繫方式</span><span>${phone}</span></div>
+        <div class="info-row"><span>聯繫方式</span><span>${escapeHTML(phone)}</span></div>
       </div>
       <div class="info-card">
         <div class="info-title">已獲得徽章</div>
@@ -585,7 +585,7 @@ Object.assign(App, {
       <div style="background:#fff;display:inline-block;padding:12px;border-radius:var(--radius)">
         <img src="${qrUrl}" alt="QR Code" width="180" height="180" style="display:block">
       </div>
-      <div style="margin-top:.7rem;font-size:.75rem;color:var(--text-muted);word-break:break-all">${uid}</div>
+      <div style="margin-top:.7rem;font-size:.75rem;color:var(--text-muted);word-break:break-all">${escapeHTML(uid)}</div>
     `;
     modal.style.display = 'flex';
   },

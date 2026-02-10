@@ -21,9 +21,9 @@ Object.assign(App, {
         <div class="shop-card" onclick="App.showShopDetail('${s.id}')">
           <div class="shop-img-wrap">${imgHtml}</div>
           <div class="shop-body">
-            <div class="shop-name">${s.name}</div>
+            <div class="shop-name">${escapeHTML(s.name)}</div>
             <div class="shop-price">NT$${s.price.toLocaleString()}</div>
-            <div class="shop-meta">${s.condition} ・ ${s.size}</div>
+            <div class="shop-meta">${escapeHTML(s.condition)} ・ ${escapeHTML(s.size)}</div>
           </div>
         </div>`;
       }).join('')
@@ -50,15 +50,15 @@ Object.assign(App, {
       <div class="td-card">
         <div class="td-card-title">商品資訊</div>
         <div class="td-card-grid">
-          <div class="td-card-item"><span class="td-card-label">品名</span><span class="td-card-value">${s.name}</span></div>
-          <div class="td-card-item"><span class="td-card-label">新舊程度</span><span class="td-card-value">${s.condition}</span></div>
+          <div class="td-card-item"><span class="td-card-label">品名</span><span class="td-card-value">${escapeHTML(s.name)}</span></div>
+          <div class="td-card-item"><span class="td-card-label">新舊程度</span><span class="td-card-value">${escapeHTML(s.condition)}</span></div>
           <div class="td-card-item"><span class="td-card-label">價格</span><span class="td-card-value" style="color:var(--accent)">NT$${s.price.toLocaleString()}</span></div>
-          <div class="td-card-item"><span class="td-card-label">尺寸</span><span class="td-card-value">${s.size}</span></div>
+          <div class="td-card-item"><span class="td-card-label">尺寸</span><span class="td-card-value">${escapeHTML(s.size)}</span></div>
         </div>
       </div>
       <div class="td-card">
         <div class="td-card-title">商品描述</div>
-        <p style="font-size:.85rem;color:var(--text-secondary);line-height:1.7">${s.desc || '賣家未提供描述。'}</p>
+        <p style="font-size:.85rem;color:var(--text-secondary);line-height:1.7">${escapeHTML(s.desc || '賣家未提供描述。')}</p>
       </div>
       <div class="td-actions">
         <button class="primary-btn" disabled style="opacity:.45;cursor:not-allowed">聯繫賣家</button>
@@ -118,10 +118,10 @@ Object.assign(App, {
           ${thumbHtml}
           <div class="sm-info">
             <div style="display:flex;align-items:center;gap:.4rem">
-              <div class="sm-title">${s.name}</div>
+              <div class="sm-title">${escapeHTML(s.name)}</div>
               ${statusHtml}
             </div>
-            <div class="sm-meta">${s.condition} ・ ${s.size} ・ <strong style="color:var(--accent)">NT$${s.price.toLocaleString()}</strong></div>
+            <div class="sm-meta">${escapeHTML(s.condition)} ・ ${escapeHTML(s.size)} ・ <strong style="color:var(--accent)">NT$${s.price.toLocaleString()}</strong></div>
             <div style="display:flex;gap:.3rem;margin-top:.3rem">
               <button class="primary-btn small" style="font-size:.72rem;padding:.2rem .5rem" onclick="App.editShopItem('${s.id}')">編輯</button>
               <button class="outline-btn" style="font-size:.72rem;padding:.2rem .5rem" onclick="App.showShopDetail('${s.id}')">查看</button>

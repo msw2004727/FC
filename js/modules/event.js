@@ -148,12 +148,12 @@ Object.assign(App, {
       ? visible.map(e => `
         <div class="h-card" onclick="App.showEventDetail('${e.id}')">
           ${e.image
-            ? `<div class="h-card-img"><img src="${e.image}" alt="${e.title}"></div>`
+            ? `<div class="h-card-img"><img src="${e.image}" alt="${escapeHTML(e.title)}"></div>`
             : `<div class="h-card-img h-card-placeholder">220 × 90</div>`}
           <div class="h-card-body">
-            <div class="h-card-title">${e.title}${e.teamOnly ? '<span class="tl-teamonly-badge">限定</span>' : ''}</div>
+            <div class="h-card-title">${escapeHTML(e.title)}${e.teamOnly ? '<span class="tl-teamonly-badge">限定</span>' : ''}</div>
             <div class="h-card-meta">
-              <span>${e.location.split('市')[0]}市</span>
+              <span>${escapeHTML(e.location.split('市')[0])}市</span>
               <span>${e.current}/${e.max} 人</span>
             </div>
           </div>
@@ -224,14 +224,14 @@ Object.assign(App, {
           const waitlistTag = (e.waitlist || 0) > 0 ? ` · 候補(${e.waitlist})` : '';
           // 球隊限定用特殊色
           const rowClass = e.teamOnly ? 'tl-type-teamonly' : `tl-type-${e.type}`;
-          const teamBadge = e.teamOnly ? `<span class="tl-teamonly-badge">${e.creatorTeamName || '限定'}</span>` : '';
+          const teamBadge = e.teamOnly ? `<span class="tl-teamonly-badge">${escapeHTML(e.creatorTeamName || '限定')}</span>` : '';
 
           html += `
             <div class="tl-event-row ${rowClass}${isEnded ? ' tl-past' : ''}" onclick="App.showEventDetail('${e.id}')">
               ${e.image ? `<div class="tl-event-thumb"><img src="${e.image}"></div>` : ''}
               <div class="tl-event-info">
-                <div class="tl-event-title">${e.title}${teamBadge}</div>
-                <div class="tl-event-meta">${typeConf.label} · ${time} · ${e.location.split('市')[1] || e.location} · ${e.current}/${e.max}人${waitlistTag}</div>
+                <div class="tl-event-title">${escapeHTML(e.title)}${teamBadge}</div>
+                <div class="tl-event-meta">${typeConf.label} · ${time} · ${escapeHTML(e.location.split('市')[1] || e.location)} · ${e.current}/${e.max}人${waitlistTag}</div>
               </div>
               <span class="tl-event-status ${statusConf.css}">${statusConf.label}</span>
               <span class="tl-event-arrow">›</span>
@@ -258,7 +258,7 @@ Object.assign(App, {
     const detailImg = document.getElementById('detail-img-placeholder');
     if (detailImg) {
       if (e.image) {
-        detailImg.innerHTML = `<img src="${e.image}" alt="${e.title}" style="width:100%;height:100%;object-fit:cover;display:block;border-radius:var(--radius)">`;
+        detailImg.innerHTML = `<img src="${e.image}" alt="${escapeHTML(e.title)}" style="width:100%;height:100%;object-fit:cover;display:block;border-radius:var(--radius)">`;
         detailImg.style.border = 'none';
       } else {
         detailImg.textContent = '活動圖片 800 × 300';
@@ -269,7 +269,7 @@ Object.assign(App, {
 
     const countdown = this._calcCountdown(e);
     const mapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(e.location)}`;
-    const locationHtml = `<a href="${mapUrl}" target="_blank" rel="noopener" style="color:var(--primary);text-decoration:none">${e.location} 📍</a>`;
+    const locationHtml = `<a href="${mapUrl}" target="_blank" rel="noopener" style="color:var(--primary);text-decoration:none">${escapeHTML(e.location)} 📍</a>`;
 
     const isEnded = e.status === 'ended' || e.status === 'cancelled';
     const isFull = e.current >= e.max;
@@ -285,22 +285,22 @@ Object.assign(App, {
       signupBtn = `<button class="primary-btn" onclick="App.handleSignup('${e.id}')">立即報名</button>`;
     }
 
-    const teamTag = e.teamOnly ? `<div class="detail-row"><span class="detail-label">限定</span><span style="color:#e11d48;font-weight:600">${e.creatorTeamName || '球隊'} 專屬活動</span></div>` : '';
+    const teamTag = e.teamOnly ? `<div class="detail-row"><span class="detail-label">限定</span><span style="color:#e11d48;font-weight:600">${escapeHTML(e.creatorTeamName || '球隊')} 專屬活動</span></div>` : '';
 
     document.getElementById('detail-body').innerHTML = `
       <div class="detail-row"><span class="detail-label">地點</span>${locationHtml}</div>
-      <div class="detail-row"><span class="detail-label">時間</span>${e.date}</div>
+      <div class="detail-row"><span class="detail-label">時間</span>${escapeHTML(e.date)}</div>
       <div class="detail-row"><span class="detail-label">費用</span>${e.fee > 0 ? '$'+e.fee : '免費'}</div>
       <div class="detail-row"><span class="detail-label">人數</span>已報 ${e.current}/${e.max}　候補 ${e.waitlist}/${e.waitlistMax}</div>
       <div class="detail-row"><span class="detail-label">年齡</span>${e.minAge > 0 ? e.minAge + ' 歲以上' : '無限制'}</div>
-      <div class="detail-row"><span class="detail-label">主辦</span>${e.creator}</div>
-      ${e.contact ? `<div class="detail-row"><span class="detail-label">聯繫</span>${e.contact}</div>` : ''}
+      <div class="detail-row"><span class="detail-label">主辦</span>${escapeHTML(e.creator)}</div>
+      ${e.contact ? `<div class="detail-row"><span class="detail-label">聯繫</span>${escapeHTML(e.contact)}</div>` : ''}
       ${teamTag}
       <div class="detail-row"><span class="detail-label">倒數</span><span style="color:${isEnded ? 'var(--text-muted)' : 'var(--primary)' };font-weight:600">${countdown}</span></div>
       ${e.notes ? `
       <div class="detail-section">
         <div class="detail-section-title">注意事項</div>
-        <p style="font-size:.85rem;color:var(--text-secondary);line-height:1.7;white-space:pre-wrap">${e.notes}</p>
+        <p style="font-size:.85rem;color:var(--text-secondary);line-height:1.7;white-space:pre-wrap">${escapeHTML(e.notes)}</p>
       </div>` : ''}
       <div style="display:flex;gap:.5rem;margin:1rem 0">
         ${signupBtn}
@@ -527,10 +527,10 @@ Object.assign(App, {
         return `
       <div class="msg-manage-card" style="margin-bottom:.5rem">
         <div style="display:flex;align-items:center;gap:.4rem;margin-bottom:.2rem">
-          <span class="msg-manage-title" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e.title}${teamBadge}</span>
+          <span class="msg-manage-title" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHTML(e.title)}${teamBadge}</span>
           <span class="banner-manage-status status-${statusConf.css}">${statusConf.label}</span>
         </div>
-        <div style="font-size:.75rem;color:var(--text-muted)">${e.location} ・ ${e.date}</div>
+        <div style="font-size:.75rem;color:var(--text-muted)">${escapeHTML(e.location)} ・ ${escapeHTML(e.date)}</div>
         <div style="display:flex;align-items:center;gap:.5rem;margin-top:.3rem">
           <div style="flex:1;height:6px;background:var(--border);border-radius:3px;overflow:hidden">
             <div style="width:${progressPct}%;height:100%;background:${progressColor};border-radius:3px;transition:width .3s"></div>
@@ -567,20 +567,20 @@ Object.assign(App, {
     const participants = (e.participants || []).map((p, i) =>
       `<div style="display:flex;align-items:center;gap:.4rem;padding:.3rem 0;border-bottom:1px solid var(--border)">
         <span style="font-size:.72rem;color:var(--text-muted);min-width:1.5rem">${i + 1}.</span>
-        <span style="font-size:.82rem">${p}</span>
+        <span style="font-size:.82rem">${escapeHTML(p)}</span>
       </div>`
     ).join('');
     const waitlist = (e.waitlistNames || []).map((p, i) =>
       `<div style="display:flex;align-items:center;gap:.4rem;padding:.3rem 0;border-bottom:1px solid var(--border)">
         <span style="font-size:.72rem;color:var(--text-muted);min-width:1.5rem">${i + 1}.</span>
-        <span style="font-size:.82rem">${p}</span>
+        <span style="font-size:.82rem">${escapeHTML(p)}</span>
       </div>`
     ).join('');
     content.innerHTML = `
-      <h3 style="margin:0 0 .4rem;font-size:1rem">${e.title}</h3>
+      <h3 style="margin:0 0 .4rem;font-size:1rem">${escapeHTML(e.title)}</h3>
       <div style="font-size:.78rem;color:var(--text-muted);margin-bottom:.6rem">
-        <div>${e.location} ・ ${e.date}</div>
-        <div>費用：${e.fee > 0 ? 'NT$' + e.fee : '免費'} ・ 狀態：${statusConf.label} ・ 主辦：${e.creator}</div>
+        <div>${escapeHTML(e.location)} ・ ${escapeHTML(e.date)}</div>
+        <div>費用：${e.fee > 0 ? 'NT$' + e.fee : '免費'} ・ 狀態：${statusConf.label} ・ 主辦：${escapeHTML(e.creator)}</div>
       </div>
       <div style="font-size:.85rem;font-weight:700;margin-bottom:.3rem">報名名單（${e.current}/${e.max}）</div>
       ${participants || '<div style="font-size:.8rem;color:var(--text-muted);padding:.3rem 0">尚無報名</div>'}

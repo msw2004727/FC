@@ -15,8 +15,8 @@ Object.assign(App, {
       <div class="banner-manage-card">
         <div class="banner-thumb" style="background:var(--accent)">公告</div>
         <div class="banner-manage-info">
-          <div class="banner-manage-title">${a.title}</div>
-          <div class="banner-manage-meta">${a.publishAt} ・ ${a.createdBy}</div>
+          <div class="banner-manage-title">${escapeHTML(a.title)}</div>
+          <div class="banner-manage-meta">${escapeHTML(a.publishAt)} ・ ${escapeHTML(a.createdBy)}</div>
           <span class="banner-manage-status status-${a.status}">${statusLabels[a.status] || a.status}</span>
         </div>
         <div class="admin-ach-actions" style="flex-shrink:0;display:flex;flex-direction:column;gap:.2rem">

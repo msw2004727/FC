@@ -39,13 +39,14 @@ Object.assign(App, {
     const body = document.getElementById('popup-ad-body');
     if (!overlay || !body) return;
 
-    const clickHandler = ad.linkUrl
-      ? `onclick="App.trackAdClick('popup','${ad.id}');window.open('${ad.linkUrl}','_blank')" style="cursor:pointer"`
+    const safeUrl = (ad.linkUrl && /^https?:\/\//.test(ad.linkUrl)) ? escapeHTML(ad.linkUrl) : '';
+    const clickHandler = safeUrl
+      ? `onclick="App.trackAdClick('popup','${escapeHTML(ad.id)}');window.open('${safeUrl}','_blank')" style="cursor:pointer"`
       : '';
     body.innerHTML = ad.image
-      ? `<img src="${ad.image}" alt="${ad.title || ''}" ${clickHandler}>`
+      ? `<img src="${ad.image}" alt="${escapeHTML(ad.title || '')}" ${clickHandler}>`
       : `<div class="popup-ad-placeholder" ${clickHandler}>
-           <div style="font-size:1.1rem;font-weight:700;margin-bottom:.3rem">${ad.title || '廣告'}</div>
+           <div style="font-size:1.1rem;font-weight:700;margin-bottom:.3rem">${escapeHTML(ad.title || '廣告')}</div>
            <div style="font-size:.75rem;color:rgba(255,255,255,.6)">600 × 800</div>
          </div>`;
 

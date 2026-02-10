@@ -24,12 +24,12 @@ Object.assign(App, {
         ${t.pinned ? '<div class="tc-pin-badge">至頂</div>' : ''}
         ${t.image ? `<img src="${t.image}" style="width:100%;height:120px;object-fit:cover;border-radius:8px 8px 0 0">` : '<div class="tc-img-placeholder">球隊封面 800 × 300</div>'}
         <div class="tc-body">
-          <div class="tc-name">${t.name}</div>
-          <div class="tc-name-en">${t.nameEn || ''}</div>
+          <div class="tc-name">${escapeHTML(t.name)}</div>
+          <div class="tc-name-en">${escapeHTML(t.nameEn || '')}</div>
           <div class="tc-info-row"><span class="tc-label">領隊</span><span>${this._userTag(t.captain, 'captain')}</span></div>
           <div class="tc-info-row"><span class="tc-label">教練</span><span>${(t.coaches || []).length > 0 ? t.coaches.map(c => this._userTag(c, 'coach')).join(' ') : '—'}</span></div>
           <div class="tc-info-row"><span class="tc-label">隊員</span><span>${t.members} 人</span></div>
-          <div class="tc-info-row"><span class="tc-label">地區</span><span>${t.region}</span></div>
+          <div class="tc-info-row"><span class="tc-label">地區</span><span>${escapeHTML(t.region)}</span></div>
         </div>
       </div>`;
   },
@@ -87,15 +87,15 @@ Object.assign(App, {
           <div class="td-card-item"><span class="td-card-label">領隊</span><span class="td-card-value">${this._userTag(t.captain, 'captain')}</span></div>
           <div class="td-card-item"><span class="td-card-label">教練</span><span class="td-card-value">${(t.coaches || []).length > 0 ? t.coaches.map(c => this._userTag(c, 'coach')).join(' ') : '無'}</span></div>
           <div class="td-card-item"><span class="td-card-label">隊員數</span><span class="td-card-value">${t.members} 人</span></div>
-          <div class="td-card-item"><span class="td-card-label">地區</span><span class="td-card-value">${t.region}</span></div>
-          ${t.nationality ? `<div class="td-card-item"><span class="td-card-label">國籍</span><span class="td-card-value">${t.nationality}</span></div>` : ''}
-          ${t.founded ? `<div class="td-card-item"><span class="td-card-label">創立時間</span><span class="td-card-value">${t.founded}</span></div>` : ''}
-          ${t.contact ? `<div class="td-card-item"><span class="td-card-label">聯繫方式</span><span class="td-card-value">${t.contact}</span></div>` : ''}
+          <div class="td-card-item"><span class="td-card-label">地區</span><span class="td-card-value">${escapeHTML(t.region)}</span></div>
+          ${t.nationality ? `<div class="td-card-item"><span class="td-card-label">國籍</span><span class="td-card-value">${escapeHTML(t.nationality)}</span></div>` : ''}
+          ${t.founded ? `<div class="td-card-item"><span class="td-card-label">創立時間</span><span class="td-card-value">${escapeHTML(t.founded)}</span></div>` : ''}
+          ${t.contact ? `<div class="td-card-item"><span class="td-card-label">聯繫方式</span><span class="td-card-value">${escapeHTML(t.contact)}</span></div>` : ''}
         </div>
       </div>
       ${t.bio ? `<div class="td-card">
         <div class="td-card-title" style="text-align:center">簡介</div>
-        <div style="font-size:.82rem;color:var(--text-secondary);line-height:1.6;white-space:pre-wrap;word-break:break-word">${t.bio}</div>
+        <div style="font-size:.82rem;color:var(--text-secondary);line-height:1.6;white-space:pre-wrap;word-break:break-word">${escapeHTML(t.bio)}</div>
       </div>` : ''}
       <div class="td-card">
         <div class="td-card-title">球隊戰績</div>
@@ -116,8 +116,8 @@ Object.assign(App, {
         <div class="td-card-title">賽事紀錄</div>
         ${(t.history || []).map(h => `
           <div class="td-history-row">
-            <span class="td-history-name">${h.name}</span>
-            <span class="td-history-result">${h.result}</span>
+            <span class="td-history-name">${escapeHTML(h.name)}</span>
+            <span class="td-history-result">${escapeHTML(h.result)}</span>
           </div>
         `).join('') || '<div style="font-size:.82rem;color:var(--text-muted);padding:.3rem">尚無賽事紀錄</div>'}
       </div>
@@ -362,7 +362,7 @@ Object.assign(App, {
       this.showToast('球隊資料已更新');
     } else {
       const data = {
-        id: 'tm_' + Date.now(),
+        id: generateId('tm_'),
         name, nameEn, nationality, captain, coaches, members,
         region, founded, contact, bio, image,
         active: true, pinned: false, pinOrder: 0,
@@ -396,8 +396,8 @@ Object.assign(App, {
     if (!results.length) { el.innerHTML = ''; el.classList.remove('show'); return; }
     el.innerHTML = results.map(u =>
       `<div class="team-user-suggest-item" onclick="App.${onSelectFn}('${u.uid}')">
-        <span class="tus-name">${u.name}</span>
-        <span class="tus-uid">${u.uid}</span>
+        <span class="tus-name">${escapeHTML(u.name)}</span>
+        <span class="tus-uid">${escapeHTML(u.uid)}</span>
       </div>`
     ).join('');
     el.classList.add('show');
@@ -534,13 +534,13 @@ Object.assign(App, {
       <div class="event-card${dim}">
         <div class="event-card-body">
           <div style="display:flex;justify-content:space-between;align-items:center">
-            <div class="event-card-title">${t.name} <span style="font-size:.72rem;color:var(--text-muted)">${t.nameEn || ''}</span></div>
+            <div class="event-card-title">${escapeHTML(t.name)} <span style="font-size:.72rem;color:var(--text-muted)">${escapeHTML(t.nameEn || '')}</span></div>
             <span style="font-size:.72rem;color:${t.active ? 'var(--success)' : 'var(--danger)'}">${t.active ? '上架中' : '已下架'}</span>
           </div>
           <div class="event-meta">
-            <span class="event-meta-item">領隊 ${t.captain}</span>
+            <span class="event-meta-item">領隊 ${escapeHTML(t.captain)}</span>
             <span class="event-meta-item">${t.members}人</span>
-            <span class="event-meta-item">${t.region}</span>
+            <span class="event-meta-item">${escapeHTML(t.region)}</span>
           </div>
           <div style="display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.5rem">
             ${canEdit ? `<button class="primary-btn small" onclick="App.showTeamForm('${t.id}')">編輯</button>` : ''}
@@ -587,13 +587,13 @@ Object.assign(App, {
       <div class="event-card${dim}">
         <div class="event-card-body">
           <div style="display:flex;justify-content:space-between;align-items:center">
-            <div class="event-card-title">${t.name} <span style="font-size:.72rem;color:var(--text-muted)">${t.nameEn || ''}</span></div>
+            <div class="event-card-title">${escapeHTML(t.name)} <span style="font-size:.72rem;color:var(--text-muted)">${escapeHTML(t.nameEn || '')}</span></div>
             ${t.pinned ? '<span style="font-size:.72rem;color:var(--warning);font-weight:600">至頂</span>' : ''}
           </div>
           <div class="event-meta">
-            <span class="event-meta-item">領隊 ${t.captain}</span>
+            <span class="event-meta-item">領隊 ${escapeHTML(t.captain)}</span>
             <span class="event-meta-item">${t.members}人</span>
-            <span class="event-meta-item">${t.region}</span>
+            <span class="event-meta-item">${escapeHTML(t.region)}</span>
             <span class="event-meta-item" style="color:${t.active ? 'var(--success)' : 'var(--danger)'}">${t.active ? '上架中' : '已下架'}</span>
           </div>
           <div style="display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.5rem">

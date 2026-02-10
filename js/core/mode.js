@@ -53,6 +53,11 @@ Object.assign(App, {
   async _onModeChanged() {
     const isDemo = ModeManager.isDemo();
 
+    // 切換到 Demo 模式：清理 Firebase 監聽器和快取
+    if (isDemo && typeof FirebaseService !== 'undefined') {
+      FirebaseService.destroy();
+    }
+
     // 切換到正式版：嘗試初始化 Firebase
     if (!isDemo && typeof FirebaseService !== 'undefined') {
       const overlay = document.getElementById('loading-overlay');

@@ -21,11 +21,11 @@ Object.assign(App, {
       <div class="msg-card${m.unread ? ' msg-unread' : ''}" onclick="App.readMessage(this, '${m.id}')">
         <div class="msg-card-header">
           <span class="msg-dot ${m.unread ? 'unread' : 'read'}"></span>
-          <span class="msg-type msg-type-${m.type}">${m.typeName}</span>
-          <span class="msg-title">${m.title}</span>
+          <span class="msg-type msg-type-${m.type}">${escapeHTML(m.typeName)}</span>
+          <span class="msg-title">${escapeHTML(m.title)}</span>
         </div>
-        <div class="msg-preview">${m.preview}</div>
-        <div class="msg-time">${m.time}</div>
+        <div class="msg-preview">${escapeHTML(m.preview)}</div>
+        <div class="msg-time">${escapeHTML(m.time)}</div>
       </div>
     `).join('') : '<div style="text-align:center;padding:1.5rem;color:var(--text-muted);font-size:.82rem">此分類沒有訊息</div>';
     this.updateNotifBadge();
@@ -195,11 +195,11 @@ Object.assign(App, {
       return `
       <div class="msg-manage-card" style="margin-bottom:.5rem">
         <div style="display:flex;align-items:center;gap:.4rem;margin-bottom:.2rem">
-          <span class="msg-manage-title" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${m.title}</span>
+          <span class="msg-manage-title" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHTML(m.title)}</span>
           <span class="banner-manage-status status-${statusClass}">${statusText}</span>
         </div>
-        <div style="font-size:.75rem;color:var(--text-muted)">${m.categoryName ? '[' + m.categoryName + '] ' : ''}對象：${targetLabel} ・ ${m.time}${senderLabel ? ' ・ ' + senderLabel : ''}</div>
-        <div style="font-size:.75rem;color:var(--text-secondary);margin-top:.2rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${m.body}</div>
+        <div style="font-size:.75rem;color:var(--text-muted)">${m.categoryName ? '[' + escapeHTML(m.categoryName) + '] ' : ''}對象：${escapeHTML(targetLabel)} ・ ${m.time}${senderLabel ? ' ・ ' + escapeHTML(senderLabel) : ''}</div>
+        <div style="font-size:.75rem;color:var(--text-secondary);margin-top:.2rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHTML(m.body)}</div>
         ${scheduleInfo}
         <div style="display:flex;gap:.3rem;margin-top:.3rem">${btns}</div>
       </div>`;
@@ -235,16 +235,16 @@ Object.assign(App, {
       schedHtml = `<div>排程時間：${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}</div>`;
     }
     content.innerHTML = `
-      <h3 style="margin:0 0 .6rem;font-size:1rem">${m.title}</h3>
+      <h3 style="margin:0 0 .6rem;font-size:1rem">${escapeHTML(m.title)}</h3>
       <div style="font-size:.78rem;color:var(--text-muted);margin-bottom:.5rem">
-        ${m.categoryName ? `<div>類別：${m.categoryName}</div>` : ''}
-        <div>對象：${targetLabel}</div>
-        <div>時間：${m.time}</div>
-        ${m.senderName ? `<div>發送人：${m.senderName}</div>` : ''}
+        ${m.categoryName ? `<div>類別：${escapeHTML(m.categoryName)}</div>` : ''}
+        <div>對象：${escapeHTML(targetLabel)}</div>
+        <div>時間：${escapeHTML(m.time)}</div>
+        ${m.senderName ? `<div>發送人：${escapeHTML(m.senderName)}</div>` : ''}
         ${schedHtml}
         <div>狀態：${statusMap[m.status] || m.status}</div>
       </div>
-      <div style="font-size:.85rem;line-height:1.6;padding:.6rem;background:var(--bg-elevated);border-radius:var(--radius-sm);white-space:pre-wrap">${m.body}</div>
+      <div style="font-size:.85rem;line-height:1.6;padding:.6rem;background:var(--bg-elevated);border-radius:var(--radius-sm);white-space:pre-wrap">${escapeHTML(m.body)}</div>
     `;
     modal.style.display = 'flex';
   },

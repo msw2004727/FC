@@ -15,17 +15,18 @@ Object.assign(App, {
       </div>`;
     } else {
       track.innerHTML = banners.map(b => {
-        const clickHandler = b.linkUrl
-          ? `onclick="App.trackAdClick('banner','${b.id}');window.open('${b.linkUrl}','_blank')" style="cursor:pointer"`
+        const safeUrl = (b.linkUrl && /^https?:\/\//.test(b.linkUrl)) ? escapeHTML(b.linkUrl) : '';
+        const clickHandler = safeUrl
+          ? `onclick="App.trackAdClick('banner','${escapeHTML(b.id)}');window.open('${safeUrl}','_blank')" style="cursor:pointer"`
           : '';
         if (b.image) {
           return `<div class="banner-slide" style="background-image:url('${b.image}');background-size:cover;background-position:center" ${clickHandler}>
-            <div class="banner-content"><div class="banner-tag">${b.slotName || '廣告位 ' + b.slot}</div><h2>${b.title || ''}</h2></div>
+            <div class="banner-content"><div class="banner-tag">${escapeHTML(b.slotName || '廣告位 ' + b.slot)}</div><h2>${escapeHTML(b.title || '')}</h2></div>
           </div>`;
         }
         return `<div class="banner-slide banner-placeholder" style="background:${b.gradient || 'var(--bg-elevated)'}" ${clickHandler}>
           <div class="banner-img-placeholder">1200 × 400</div>
-          <div class="banner-content"><div class="banner-tag">${b.slotName || '廣告位 ' + b.slot}</div><h2>${b.title || ''}</h2></div>
+          <div class="banner-content"><div class="banner-tag">${escapeHTML(b.slotName || '廣告位 ' + b.slot)}</div><h2>${escapeHTML(b.title || '')}</h2></div>
         </div>`;
       }).join('');
     }
@@ -73,7 +74,7 @@ Object.assign(App, {
     if (!container || !card) return;
     const ann = ApiService.getActiveAnnouncement();
     if (ann) {
-      container.innerHTML = `<p>${ann.content}</p>`;
+      container.innerHTML = `<p>${escapeHTML(ann.content)}</p>`;
       card.style.display = '';
     } else {
       card.style.display = 'none';
@@ -85,11 +86,12 @@ Object.assign(App, {
     if (!container) return;
     const ads = ApiService.getFloatingAds().filter(ad => ad.status === 'active');
     container.innerHTML = ads.map(ad => {
-      const clickHandler = ad.linkUrl
-        ? `onclick="App.trackAdClick('float','${ad.id}');window.open('${ad.linkUrl}','_blank')"`
+      const safeUrl = (ad.linkUrl && /^https?:\/\//.test(ad.linkUrl)) ? escapeHTML(ad.linkUrl) : '';
+      const clickHandler = safeUrl
+        ? `onclick="App.trackAdClick('float','${escapeHTML(ad.id)}');window.open('${safeUrl}','_blank')"`
         : '';
       return `
-      <div class="float-ad" title="${ad.title || '贊助廣告'}" ${clickHandler}>
+      <div class="float-ad" title="${escapeHTML(ad.title || '贊助廣告')}" ${clickHandler}>
         <div class="float-ad-img">${ad.image ? `<img src="${ad.image}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">` : '廣告'}</div>
       </div>`;
     }).join('');
@@ -109,12 +111,13 @@ Object.assign(App, {
     grid.innerHTML = sponsors.map(sp => {
       const isActive = sp.status === 'active' && sp.image;
       const hasLink = isActive && sp.linkUrl;
-      const clickHandler = hasLink
-        ? `onclick="App.trackAdClick('sponsor','${sp.id}');window.open('${sp.linkUrl}','_blank')"`
+      const safeUrl = (hasLink && /^https?:\/\//.test(sp.linkUrl)) ? escapeHTML(sp.linkUrl) : '';
+      const clickHandler = safeUrl
+        ? `onclick="App.trackAdClick('sponsor','${escapeHTML(sp.id)}');window.open('${safeUrl}','_blank')"`
         : '';
       if (isActive) {
-        return `<div class="sponsor-slot${hasLink ? ' has-link' : ''}" title="${sp.title || '贊助商'}" ${clickHandler}>
-          <img src="${sp.image}" alt="${sp.title || ''}">
+        return `<div class="sponsor-slot${hasLink ? ' has-link' : ''}" title="${escapeHTML(sp.title || '贊助商')}" ${clickHandler}>
+          <img src="${sp.image}" alt="${escapeHTML(sp.title || '')}">
         </div>`;
       }
       return `<div class="sponsor-slot">贊助商</div>`;

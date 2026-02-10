@@ -26,12 +26,12 @@ Object.assign(App, {
       return `
       <div class="ach-row ${done ? 'ach-done' : ''}" style="background:${done ? 'var(--bg-elevated)' : bg}">
         <span class="ach-cat-chip ach-cat-${a.category}">${this._catLabels[a.category] || '銅'}</span>
-        <span class="ach-row-name">${a.name}</span>
-        <span class="ach-row-desc">${a.desc}</span>
+        <span class="ach-row-name">${escapeHTML(a.name)}</span>
+        <span class="ach-row-desc">${escapeHTML(a.desc)}</span>
         <div class="ach-bar-mini"><div class="ach-bar-fill" style="width:${pct}%"></div></div>
         <span class="ach-row-num">${a.current}/${a.target}</span>
         ${done ? `<span class="ach-row-done">已完成</span>` : ''}
-        ${done && a.completedAt ? `<span class="ach-row-time">${a.completedAt}</span>` : ''}
+        ${done && a.completedAt ? `<span class="ach-row-time">${escapeHTML(a.completedAt)}</span>` : ''}
       </div>`;
     };
     let html = pending.map(renderRow).join('');
@@ -54,7 +54,7 @@ Object.assign(App, {
       return `
       <div class="badge-card ${earned ? '' : 'badge-locked'}" style="border-color:${color}">
         <div class="badge-img-placeholder" style="border-color:${color}">${b.image ? `<img src="${b.image}">` : ''}</div>
-        <div class="badge-card-name">${b.name}</div>
+        <div class="badge-card-name">${escapeHTML(b.name)}</div>
         ${earned ? `<div class="badge-earned-tag" style="color:${color}">已獲得</div>` : '<div class="badge-locked-tag">未解鎖</div>'}
       </div>`;
     }).join('');
@@ -87,10 +87,10 @@ Object.assign(App, {
           <div class="admin-ach-info" style="flex:1;min-width:0">
             <div style="display:flex;align-items:center;gap:.3rem">
               <span class="ach-cat-tag" style="background:${color};font-size:.6rem;padding:.1rem .3rem">${catLabels[a.category]}</span>
-              <span class="admin-ach-name">${a.name}</span>
+              <span class="admin-ach-name">${escapeHTML(a.name)}</span>
               ${completed ? '<span style="font-size:.6rem;color:var(--success);font-weight:600">已完成</span>' : ''}
             </div>
-            <div class="admin-ach-status" style="color:var(--text-muted)">${a.desc} ・ 目標 ${a.target}</div>
+            <div class="admin-ach-status" style="color:var(--text-muted)">${escapeHTML(a.desc)} ・ 目標 ${a.target}</div>
             <div class="ach-progress-bar-wrap" style="margin-top:.25rem;height:4px">
               <div class="ach-progress-bar" style="width:${pct}%;background:linear-gradient(90deg,#3b82f6,#60a5fa)"></div>
             </div>
@@ -115,9 +115,9 @@ Object.assign(App, {
           <div class="admin-ach-info" style="flex:1;min-width:0">
             <div style="display:flex;align-items:center;gap:.3rem">
               <span class="ach-cat-tag" style="background:${color};font-size:.6rem;padding:.1rem .3rem">${catLabels[b.category]}</span>
-              <span class="admin-ach-name">${b.name}</span>
+              <span class="admin-ach-name">${escapeHTML(b.name)}</span>
             </div>
-            <div class="admin-ach-status" style="color:var(--text-muted)">關聯成就：${achName}</div>
+            <div class="admin-ach-status" style="color:var(--text-muted)">關聯成就：${escapeHTML(achName)}</div>
           </div>
           <div class="admin-ach-actions">
             <button class="text-btn" style="font-size:.72rem" onclick="App.editBadge('${b.id}')">編輯</button>
@@ -184,8 +184,8 @@ Object.assign(App, {
         this.showToast(`成就「${name}」已更新（目標 ${oldTarget} → ${target}）`);
       }
     } else {
-      const newId = 'a' + Date.now();
-      const newBadgeId = 'b' + Date.now();
+      const newId = generateId('a');
+      const newBadgeId = generateId('b');
       ApiService.createAchievement({ id: newId, name, desc, target, current: 0, category, badgeId: newBadgeId, completedAt: null });
       ApiService.createBadge({ id: newBadgeId, name: name + '徽章', achId: newId, category, image: null });
       this.showToast(`成就「${name}」已建立，已自動建立關聯徽章`);
@@ -229,7 +229,7 @@ Object.assign(App, {
     // Populate achievement select
     const select = document.getElementById('badge-input-ach');
     select.innerHTML = '<option value="">（不關聯成就）</option>' +
-      ApiService.getAchievements().map(a => `<option value="${a.id}" ${editData && editData.achId === a.id ? 'selected' : ''}>${a.name}</option>`).join('');
+      ApiService.getAchievements().map(a => `<option value="${a.id}" ${editData && editData.achId === a.id ? 'selected' : ''}>${escapeHTML(a.name)}</option>`).join('');
     form.scrollIntoView({ behavior: 'smooth' });
   },
 
@@ -249,7 +249,7 @@ Object.assign(App, {
       ApiService.updateBadge(this._badgeEditId, { name, category, achId });
       this.showToast(`徽章「${name}」已更新`);
     } else {
-      ApiService.createBadge({ id: 'b' + Date.now(), name, achId, category, image: null });
+      ApiService.createBadge({ id: generateId('b'), name, achId, category, image: null });
       this.showToast(`徽章「${name}」已建立`);
     }
 

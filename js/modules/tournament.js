@@ -9,12 +9,12 @@ Object.assign(App, {
     container.innerHTML = ApiService.getTournaments().map(t => `
       <div class="h-card" onclick="App.showTournamentDetail('${t.id}')">
         ${t.image
-          ? `<div class="h-card-img"><img src="${t.image}" alt="${t.name}"></div>`
+          ? `<div class="h-card-img"><img src="${t.image}" alt="${escapeHTML(t.name)}"></div>`
           : `<div class="h-card-img h-card-placeholder">220 × 90</div>`}
         <div class="h-card-body">
-          <div class="h-card-title">${t.name}</div>
+          <div class="h-card-title">${escapeHTML(t.name)}</div>
           <div class="h-card-meta">
-            <span>${t.type}</span>
+            <span>${escapeHTML(t.type)}</span>
             <span>${t.teams} 隊</span>
           </div>
         </div>
@@ -38,8 +38,8 @@ Object.assign(App, {
         html += `
           <div class="tl-event-row tl-tournament-card ${t.type.includes('聯賽') ? 'tl-league' : 'tl-cup'}" onclick="App.showTournamentDetail('${t.id}')" style="margin-bottom:.4rem">
             <div class="tl-event-info">
-              <div class="tl-event-title">${t.name}</div>
-              <div class="tl-event-meta">${t.type} · ${t.teams}隊 · ${t.matches}場</div>
+              <div class="tl-event-title">${escapeHTML(t.name)}</div>
+              <div class="tl-event-meta">${escapeHTML(t.type)} · ${t.teams}隊 · ${t.matches}場</div>
             </div>
             <span class="tl-event-status ${css}">${t.status}</span>
             <span class="tl-event-arrow">›</span>
@@ -61,7 +61,7 @@ Object.assign(App, {
     const tdImg = document.getElementById('td-img-placeholder');
     if (tdImg) {
       if (t.image) {
-        tdImg.innerHTML = `<img src="${t.image}" alt="${t.name}" style="width:100%;height:100%;object-fit:cover;display:block;border-radius:var(--radius)">`;
+        tdImg.innerHTML = `<img src="${t.image}" alt="${escapeHTML(t.name)}" style="width:100%;height:100%;object-fit:cover;display:block;border-radius:var(--radius)">`;
         tdImg.style.border = 'none';
       } else {
         tdImg.textContent = '賽事圖片 800 × 300';
@@ -213,9 +213,9 @@ Object.assign(App, {
       <div class="event-card">
         ${t.image ? `<div class="event-card-img"><img src="${t.image}" style="width:100%;height:120px;object-fit:cover;display:block;border-radius:var(--radius) var(--radius) 0 0"></div>` : ''}
         <div class="event-card-body">
-          <div class="event-card-title">${t.name}</div>
+          <div class="event-card-title">${escapeHTML(t.name)}</div>
           <div class="event-meta">
-            <span class="event-meta-item">${t.type}</span>
+            <span class="event-meta-item">${escapeHTML(t.type)}</span>
             <span class="event-meta-item">${t.teams} 隊</span>
             <span class="event-meta-item">${t.status}</span>
           </div>

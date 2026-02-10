@@ -11,7 +11,7 @@ Object.assign(App, {
       return `
         <div class="lb-item">
           <div class="lb-rank ${rankClass}">${i + 1}</div>
-          <div class="lb-avatar">${p.avatar}</div>
+          <div class="lb-avatar">${escapeHTML(p.avatar)}</div>
           <div class="lb-info">
             <div class="lb-name">${this._userTag(p.name)}</div>
             <div class="lb-sub">Lv.${p.level}</div>
@@ -47,8 +47,8 @@ Object.assign(App, {
     container.innerHTML = filtered.length ? filtered.map(r => `
       <div class="mini-activity">
         <span class="mini-activity-status ${r.status}"></span>
-        <span class="mini-activity-name">${r.name}</span>
-        <span class="mini-activity-tag ${r.status}">${statusLabel[r.status] || r.status}</span>
+        <span class="mini-activity-name">${escapeHTML(r.name)}</span>
+        <span class="mini-activity-tag ${r.status}">${escapeHTML(statusLabel[r.status] || r.status)}</span>
         <span class="mini-activity-date">${r.date}</span>
       </div>
     `).join('') : '<div style="text-align:center;padding:1rem;font-size:.8rem;color:var(--text-muted)">無紀錄</div>';

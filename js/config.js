@@ -18,7 +18,7 @@ const ModeManager = {
     console.log('%c[SportHub] 隱藏切換方式:', 'color:#6b7280');
     console.log('  1. 連續點擊 Logo 5 次（3 秒內）');
     console.log('  2. 按鍵組合 Shift + Alt + D');
-    console.log("  3. Console 指令: switchMode('fc2026')");
+    console.log("  3. Console 指令: switchMode('<密碼>')");
   },
 
   getMode()  { return this._mode; },
@@ -92,6 +92,21 @@ const STATUS_CONFIG = {
 };
 
 const DAY_NAMES = ['日','一','二','三','四','五','六'];
+
+// ─── Security Utilities ───
+function escapeHTML(str) {
+  if (str == null) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function generateId(prefix) {
+  return (prefix || '') + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+}
 
 // ─── Gradient Map (for event creation) ───
 const GRADIENT_MAP = {

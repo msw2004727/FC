@@ -56,7 +56,7 @@ Object.assign(App, {
         ? `<img src="${u.pictureUrl}" class="profile-avatar small" style="object-fit:cover">`
         : `<div class="profile-avatar small">${u.name[0]}</div>`;
 
-      const teamInfo = u.teamName ? ` ・ ${u.teamName}` : '';
+      const teamInfo = u.teamName ? ` ・ ${escapeHTML(u.teamName)}` : '';
       const genderIcon = u.gender === '男' ? '♂' : u.gender === '女' ? '♀' : '';
 
       return `
@@ -64,8 +64,8 @@ Object.assign(App, {
           ${avatar}
           <div class="admin-user-info">
             <div class="admin-user-name">${this._userTag(u.name, u.role)}</div>
-            <div class="admin-user-meta">${u.uid} ・ ${ROLES[u.role]?.label || u.role} ・ Lv.${u.level} ・ ${u.region}${genderIcon ? ' ' + genderIcon : ''}${teamInfo}</div>
-            <div class="admin-user-meta" style="font-size:.72rem">${u.sports || '—'} ・ EXP ${u.exp}</div>
+            <div class="admin-user-meta">${escapeHTML(u.uid)} ・ ${ROLES[u.role]?.label || u.role} ・ Lv.${u.level} ・ ${escapeHTML(u.region)}${genderIcon ? ' ' + genderIcon : ''}${teamInfo}</div>
+            <div class="admin-user-meta" style="font-size:.72rem">${escapeHTML(u.sports || '—')} ・ EXP ${u.exp}</div>
           </div>
           <div class="admin-user-actions">
             ${promoteOptions ? `<select class="promote-select" onchange="App.handlePromote(this, '${u.name}')">${promoteOptions}</select>` : ''}
@@ -162,8 +162,8 @@ Object.assign(App, {
     if (!container) return;
     container.innerHTML = ApiService.getExpLogs().map(l => `
       <div class="log-item">
-        <span class="log-time">${l.time}</span>
-        <span class="log-content">${this._userTag(l.target)} <strong>${l.amount}</strong>「${l.reason}」</span>
+        <span class="log-time">${escapeHTML(l.time)}</span>
+        <span class="log-content">${this._userTag(l.target)} <strong>${escapeHTML(String(l.amount))}</strong>「${escapeHTML(l.reason)}」</span>
       </div>
     `).join('');
   },
@@ -241,10 +241,10 @@ Object.assign(App, {
 
     container.innerHTML = logs.map(l => `
       <div class="log-item">
-        <span class="log-time">${l.time}</span>
+        <span class="log-time">${escapeHTML(l.time)}</span>
         <span class="log-content">
-          <span class="log-type ${l.type}">${l.typeName}</span>
-          ${l.operator}：${l.content}
+          <span class="log-type ${l.type}">${escapeHTML(l.typeName)}</span>
+          ${escapeHTML(l.operator)}：${escapeHTML(l.content)}
         </span>
       </div>
     `).join('');
@@ -370,9 +370,9 @@ Object.assign(App, {
       html += '<div style="font-weight:700;margin-bottom:.5rem;color:var(--text-secondary)">已解散球隊</div>';
       html += teams.map(t => `
         <div class="inactive-card">
-          <div style="font-weight:700">${t.name}</div>
-          <div style="font-size:.78rem;color:var(--text-muted);margin-top:.3rem">原領隊：${t.captain || '—'} ・ 原成員：${t.members || 0} 人</div>
-          <div style="font-size:.78rem;color:var(--text-muted)">${t.region || '—'}</div>
+          <div style="font-weight:700">${escapeHTML(t.name)}</div>
+          <div style="font-size:.78rem;color:var(--text-muted);margin-top:.3rem">原領隊：${escapeHTML(t.captain || '—')} ・ 原成員：${t.members || 0} 人</div>
+          <div style="font-size:.78rem;color:var(--text-muted)">${escapeHTML(t.region || '—')}</div>
         </div>
       `).join('');
     } else {
@@ -383,9 +383,9 @@ Object.assign(App, {
       html += '<div style="font-weight:700;margin:.8rem 0 .5rem;color:var(--text-secondary)">長期未活動用戶（60天以上）</div>';
       html += inactiveUsers.map(u => `
         <div class="inactive-card">
-          <div style="font-weight:700">${u.name} <span style="font-weight:400;font-size:.78rem;color:var(--text-muted)">${ROLES[u.role]?.label || u.role}</span></div>
-          <div style="font-size:.78rem;color:var(--text-muted);margin-top:.3rem">UID: ${u.uid} ・ Lv.${u.level} ・ ${u.region}</div>
-          <div style="font-size:.78rem;color:var(--text-muted)">最後活動：${u.lastActive || '未知'} ・ 球隊：${u.teamName || '無'}</div>
+          <div style="font-weight:700">${escapeHTML(u.name)} <span style="font-weight:400;font-size:.78rem;color:var(--text-muted)">${ROLES[u.role]?.label || u.role}</span></div>
+          <div style="font-size:.78rem;color:var(--text-muted);margin-top:.3rem">UID: ${escapeHTML(u.uid)} ・ Lv.${u.level} ・ ${escapeHTML(u.region)}</div>
+          <div style="font-size:.78rem;color:var(--text-muted)">最後活動：${escapeHTML(u.lastActive || '未知')} ・ 球隊：${escapeHTML(u.teamName || '無')}</div>
         </div>
       `).join('');
     } else {
@@ -407,9 +407,9 @@ Object.assign(App, {
       const statusLabel = e.status === 'ended' ? '已結束' : '已取消';
       return `
         <div class="inactive-card">
-          <div style="font-weight:700">${e.title} <span style="font-weight:400;font-size:.78rem;color:var(--text-muted)">${statusLabel}</span></div>
-          <div style="font-size:.78rem;color:var(--text-muted);margin-top:.3rem">${e.date} ・ ${e.location}</div>
-          <div style="font-size:.78rem;color:var(--text-muted)">建立者：${e.creator} ・ 參加：${e.current}/${e.max}</div>
+          <div style="font-weight:700">${escapeHTML(e.title)} <span style="font-weight:400;font-size:.78rem;color:var(--text-muted)">${statusLabel}</span></div>
+          <div style="font-size:.78rem;color:var(--text-muted);margin-top:.3rem">${escapeHTML(e.date)} ・ ${escapeHTML(e.location)}</div>
+          <div style="font-size:.78rem;color:var(--text-muted)">建立者：${escapeHTML(e.creator)} ・ 參加：${e.current}/${e.max}</div>
         </div>
       `;
     }).join('');

@@ -179,7 +179,7 @@ Object.assign(App, {
         ${thumb}
         <div class="banner-manage-info">
           <div style="display:flex;align-items:center;gap:.4rem">
-            <div class="banner-manage-title">${b.slotName || '廣告位 ' + b.slot}${b.title ? ' — ' + b.title : ''}</div>
+            <div class="banner-manage-title">${escapeHTML(b.slotName || '廣告位 ' + b.slot)}${b.title ? ' — ' + escapeHTML(b.title) : ''}</div>
             <span class="banner-manage-status status-${statusClass}">${statusLabel}</span>
           </div>
           <div class="banner-manage-meta">${timeInfo}${remainText ? ' ・ ' + remainText : ''}${!isEmpty ? ' ・ 點擊 ' + (b.clicks || 0) + ' 次' : ''}</div>
@@ -300,7 +300,7 @@ Object.assign(App, {
         ${thumb}
         <div class="banner-manage-info">
           <div style="display:flex;align-items:center;gap:.4rem">
-            <div class="banner-manage-title">${ad.slot}${ad.title ? ' — ' + ad.title : ''}</div>
+            <div class="banner-manage-title">${escapeHTML(ad.slot)}${ad.title ? ' — ' + escapeHTML(ad.title) : ''}</div>
             <span class="banner-manage-status status-${statusClass}">${statusLabel}</span>
           </div>
           <div class="banner-manage-meta">${timeInfo}${remainText ? ' ・ ' + remainText : ''}${!isEmpty ? ' ・ 點擊 ' + (ad.clicks || 0) + ' 次' : ''}</div>
@@ -416,7 +416,7 @@ Object.assign(App, {
         ${thumb}
         <div class="banner-manage-info">
           <div style="display:flex;align-items:center;gap:.4rem">
-            <div class="banner-manage-title">第 ${ad.layer} 層${ad.title ? ' — ' + ad.title : ''}</div>
+            <div class="banner-manage-title">第 ${ad.layer} 層${ad.title ? ' — ' + escapeHTML(ad.title) : ''}</div>
             <span class="banner-manage-status status-${statusClass}">${statusLabel}</span>
           </div>
           <div class="banner-manage-meta">${timeInfo}${remainText ? ' ・ ' + remainText : ''}${!isEmpty ? ' ・ 點擊 ' + (ad.clicks || 0) + ' 次' : ''}</div>
@@ -537,7 +537,7 @@ Object.assign(App, {
           ${thumb}
           <input type="file" class="sp-row-file" data-sp="${sp.id}" accept=".jpg,.jpeg,.png" hidden>
         </div>
-        <input type="text" class="sp-row-link" data-sp="${sp.id}" value="${sp.linkUrl || ''}" placeholder="連結網址（選填）">
+        <input type="text" class="sp-row-link" data-sp="${sp.id}" value="${escapeHTML(sp.linkUrl || '')}" placeholder="連結網址（選填）">
         <button class="sp-row-save" onclick="App.saveSponsorRow('${sp.id}')">儲存</button>
         ${hasImage ? `<button class="sp-row-del" onclick="App.clearSponsorRow('${sp.id}')" title="清除">✕</button>` : ''}
       </div>`;

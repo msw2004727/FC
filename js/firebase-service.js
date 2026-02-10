@@ -55,6 +55,8 @@ const FirebaseService = {
   // ════════════════════════════════
 
   async init() {
+    if (this._initialized) return;
+
     // 匿名登入 Firebase Auth（讓 Firestore 安全規則 request.auth != null 通過）
     try {
       await auth.signInAnonymously();
@@ -323,7 +325,7 @@ const FirebaseService = {
         if (promotedReg) {
           promotedReg.status = 'confirmed';
           if (promotedReg._docId) {
-            db.collection('registrations').doc(promotedReg._docId).update({ status: 'confirmed' });
+            await db.collection('registrations').doc(promotedReg._docId).update({ status: 'confirmed' });
           }
         }
       }
@@ -854,5 +856,10 @@ const FirebaseService = {
     }
     this._onUserChanged = null;
     this._initialized = false;
+    // 重置快取到初始空白狀態
+    Object.keys(this._cache).forEach(k => {
+      if (k === 'currentUser') { this._cache[k] = null; }
+      else { this._cache[k] = []; }
+    });
   },
 };
