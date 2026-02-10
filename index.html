@@ -242,14 +242,17 @@
     <section class="page" id="page-messages">
       <div class="page-header">
         <h2>訊息</h2>
-        <button class="primary-btn small" style="font-size:.78rem;padding:.3rem .7rem" onclick="App.markAllRead()">一鍵全讀</button>
+        <div style="display:flex;gap:.4rem">
+          <button class="primary-btn small" style="font-size:.78rem;padding:.3rem .7rem" onclick="App.markAllRead()">一鍵全讀</button>
+          <button class="outline-btn" style="font-size:.78rem;padding:.3rem .7rem;color:var(--danger);border-color:var(--danger)" onclick="App.clearAllMessages()">清空訊息</button>
+        </div>
       </div>
-      <div class="tab-bar">
-        <button class="tab active" data-tab="all">全部</button>
-        <button class="tab" data-tab="system">系統</button>
-        <button class="tab" data-tab="activity">活動</button>
-        <button class="tab" data-tab="trade">交易</button>
-        <button class="tab" data-tab="private">私訊</button>
+      <div class="tab-bar" id="msg-inbox-tabs">
+        <button class="tab active" data-msgtype="all">全部</button>
+        <button class="tab" data-msgtype="system">系統</button>
+        <button class="tab" data-msgtype="activity">活動</button>
+        <button class="tab" data-msgtype="trade">交易</button>
+        <button class="tab" data-msgtype="private">私訊</button>
       </div>
       <div class="card-list" id="message-list">
         <!-- Populated by JS -->

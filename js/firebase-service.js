@@ -723,6 +723,14 @@ const FirebaseService = {
     return data;
   },
 
+  async clearAllMessages() {
+    const msgs = this._cache.messages.filter(m => m._docId);
+    if (!msgs.length) return;
+    const batch = db.batch();
+    msgs.forEach(m => batch.delete(db.collection('messages').doc(m._docId)));
+    await batch.commit();
+  },
+
   // ════════════════════════════════
   //  User Role（用戶晉升）
   // ════════════════════════════════

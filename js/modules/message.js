@@ -8,8 +8,13 @@ Object.assign(App, {
   //  User Inbox (前台)
   // ══════════════════════════════════
 
-  renderMessageList() {
-    const messages = ApiService.getMessages();
+  _msgInboxFilter: 'all',
+
+  renderMessageList(filter) {
+    const f = filter || this._msgInboxFilter || 'all';
+    this._msgInboxFilter = f;
+    const allMessages = ApiService.getMessages();
+    const messages = f === 'all' ? allMessages : allMessages.filter(m => m.type === f);
     const container = document.getElementById('message-list');
     if (!container) return;
     container.innerHTML = messages.length ? messages.map(m => `
@@ -22,9 +27,22 @@ Object.assign(App, {
         <div class="msg-preview">${m.preview}</div>
         <div class="msg-time">${m.time}</div>
       </div>
-    `).join('') : '<div style="text-align:center;padding:1.5rem;color:var(--text-muted);font-size:.82rem">沒有訊息</div>';
+    `).join('') : '<div style="text-align:center;padding:1.5rem;color:var(--text-muted);font-size:.82rem">此分類沒有訊息</div>';
     this.updateNotifBadge();
     this.updateStorageBar();
+
+    // 綁定分類 tabs
+    const tabs = document.getElementById('msg-inbox-tabs');
+    if (tabs && !tabs.dataset.bound) {
+      tabs.dataset.bound = '1';
+      tabs.querySelectorAll('.tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+          tabs.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+          tab.classList.add('active');
+          this.renderMessageList(tab.dataset.msgtype);
+        });
+      });
+    }
   },
 
   updateNotifBadge() {
@@ -53,6 +71,22 @@ Object.assign(App, {
     this.renderMessageList();
     this.updateNotifBadge();
     this.showToast(`已將 ${changed} 則訊息標為已讀`);
+  },
+
+  clearAllMessages() {
+    const messages = ApiService.getMessages();
+    if (!messages.length) { this.showToast('沒有訊息可清空'); return; }
+    if (!confirm(`確定要清空全部 ${messages.length} 則訊息？此操作無法恢復。`)) return;
+    if (ModeManager.isDemo()) {
+      DemoData.messages.length = 0;
+    } else {
+      FirebaseService._cache.messages.length = 0;
+      // Firestore batch delete
+      FirebaseService.clearAllMessages?.().catch(err => console.error('[clearAllMessages]', err));
+    }
+    this.renderMessageList();
+    this.updateNotifBadge();
+    this.showToast('已清空所有訊息');
   },
 
   readMessage(el, id) {
