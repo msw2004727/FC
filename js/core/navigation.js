@@ -4,6 +4,14 @@
 
 Object.assign(App, {
 
+  /** 正式版未登入時擋住並提示，回傳 true 代表被擋 */
+  _requireLogin() {
+    if (ModeManager.isDemo()) return false;
+    if (typeof LineAuth !== 'undefined' && LineAuth.isLoggedIn()) return false;
+    this.showToast('請先登入LINE帳號');
+    return true;
+  },
+
   bindNavigation() {
     document.querySelectorAll('.bot-tab').forEach(tab => {
       tab.addEventListener('click', () => {
@@ -17,13 +25,9 @@ Object.assign(App, {
   },
 
   showPage(pageId) {
-    // 正式版未登入不能進「我的」
-    if (pageId === 'page-profile' && !ModeManager.isDemo()) {
-      if (typeof LineAuth === 'undefined' || !LineAuth.isLoggedIn()) {
-        this.showToast('請先登入 LINE 帳號');
-        return;
-      }
-    }
+    // 正式版未登入：擋住球隊、賽事、我的、訊息頁
+    const guardedPages = ['page-profile', 'page-teams', 'page-tournaments', 'page-messages'];
+    if (guardedPages.includes(pageId) && this._requireLogin()) return;
     if (this.currentPage !== pageId) {
       this.pageHistory.push(this.currentPage);
     }
@@ -91,6 +95,7 @@ Object.assign(App, {
 
   bindNotifBtn() {
     document.getElementById('notif-btn')?.addEventListener('click', () => {
+      if (this._requireLogin()) return;
       this.showPage('page-messages');
       document.querySelectorAll('.bot-tab').forEach(t => t.classList.remove('active'));
     });

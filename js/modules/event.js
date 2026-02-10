@@ -252,6 +252,7 @@ Object.assign(App, {
   // ══════════════════════════════════
 
   showEventDetail(id) {
+    if (this._requireLogin()) return;
     const e = ApiService.getEvent(id);
     if (!e) return;
     const detailImg = document.getElementById('detail-img-placeholder');
