@@ -148,16 +148,20 @@ Object.assign(App, {
     floatingAds.style.transform = 'translateY(-50%)';
   },
 
+  _floatAdDragged: false,
+
   bindFloatingAds() {
     const floatingAds = document.getElementById('floating-ads');
     if (!floatingAds) return;
 
     this._floatAdOffset = 0;
     this._floatAdTarget = 0;
+    this._floatAdDragged = false;
 
     const lerp = (start, end, factor) => start + (end - start) * factor;
 
     const animate = () => {
+      if (this._floatAdDragged) { this._floatAdRaf = null; return; }
       this._floatAdOffset = lerp(this._floatAdOffset, this._floatAdTarget, 0.06);
       if (Math.abs(this._floatAdOffset - this._floatAdTarget) < 0.5) {
         this._floatAdOffset = this._floatAdTarget;
@@ -171,12 +175,14 @@ Object.assign(App, {
     };
 
     const startAnimation = () => {
+      if (this._floatAdDragged) return;
       if (!this._floatAdRaf) {
         this._floatAdRaf = requestAnimationFrame(animate);
       }
     };
 
     window.addEventListener('scroll', () => {
+      if (this._floatAdDragged) return;
       const scrollY = window.scrollY || 0;
       const docHeight = document.documentElement.scrollHeight - window.innerHeight;
       const progress = docHeight > 0 ? (scrollY / docHeight) : 0;
@@ -184,10 +190,83 @@ Object.assign(App, {
       startAnimation();
     }, { passive: true });
 
-    // 視窗大小改變時重新計算位置
-    window.addEventListener('resize', () => this._positionFloatingAds(), { passive: true });
+    // 視窗大小改變時重新計算位置（未拖曳時才生效）
+    window.addEventListener('resize', () => {
+      if (!this._floatAdDragged) this._positionFloatingAds();
+    }, { passive: true });
 
     this._positionFloatingAds();
+
+    // ── 拖曳功能 ──
+    let dragging = false, startX = 0, startY = 0, origX = 0, origY = 0, moved = false;
+
+    const getPos = (e) => {
+      const t = e.touches ? e.touches[0] : e;
+      return { x: t.clientX, y: t.clientY };
+    };
+
+    const onStart = (e) => {
+      const pos = getPos(e);
+      startX = pos.x; startY = pos.y;
+      const rect = floatingAds.getBoundingClientRect();
+      origX = rect.left; origY = rect.top;
+      dragging = true; moved = false;
+    };
+
+    const onMove = (e) => {
+      if (!dragging) return;
+      const pos = getPos(e);
+      const dx = pos.x - startX, dy = pos.y - startY;
+      if (!moved && Math.abs(dx) < 5 && Math.abs(dy) < 5) return;
+      moved = true;
+      if (!this._floatAdDragged) {
+        this._floatAdDragged = true;
+        floatingAds.classList.add('dragging');
+      }
+      // 用 fixed 定位直接設座標
+      const newX = origX + dx, newY = origY + dy;
+      floatingAds.style.top = newY + 'px';
+      floatingAds.style.right = 'auto';
+      floatingAds.style.left = newX + 'px';
+      floatingAds.style.transform = 'none';
+      e.preventDefault();
+    };
+
+    const onEnd = (e) => {
+      if (!dragging) return;
+      dragging = false;
+      if (moved) {
+        // 阻止拖曳結束時觸發 onclick
+        floatingAds.querySelectorAll('.float-ad').forEach(ad => {
+          ad.style.pointerEvents = 'none';
+          setTimeout(() => { ad.style.pointerEvents = ''; }, 300);
+        });
+        // 吸附到最近的邊緣
+        const rect = floatingAds.getBoundingClientRect();
+        const vw = window.innerWidth;
+        const vh = window.innerHeight;
+        const centerX = rect.left + rect.width / 2;
+        const edgeGap = 8;
+        const snapLeft = edgeGap;
+        const snapRight = vw - rect.width - edgeGap;
+        const targetX = centerX < vw / 2 ? snapLeft : snapRight;
+        // Y 方向限制不超出螢幕
+        let targetY = rect.top;
+        if (targetY < edgeGap) targetY = edgeGap;
+        if (targetY + rect.height > vh - edgeGap) targetY = vh - rect.height - edgeGap;
+        floatingAds.style.transition = 'left .3s ease, top .3s ease';
+        floatingAds.style.left = targetX + 'px';
+        floatingAds.style.top = targetY + 'px';
+        setTimeout(() => { floatingAds.style.transition = 'none'; }, 350);
+      }
+    };
+
+    floatingAds.addEventListener('mousedown', onStart);
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onEnd);
+    floatingAds.addEventListener('touchstart', onStart, { passive: true });
+    document.addEventListener('touchmove', onMove, { passive: false });
+    document.addEventListener('touchend', onEnd);
   },
 
 });
