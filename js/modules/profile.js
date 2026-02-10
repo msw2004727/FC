@@ -601,6 +601,51 @@ Object.assign(App, {
     `;
   },
 
+  /**
+   * 穩定 QR Code 生成（本地庫優先 → API 圖片備援）
+   * @param {HTMLElement} container - 放置 QR Code 的容器
+   * @param {string} data - 要編碼的資料（UID）
+   * @param {number} size - 尺寸（px）
+   */
+  _generateQrCode(container, data, size) {
+    if (!container || !data || data === 'unknown') {
+      if (container) container.innerHTML = '<div style="font-size:.78rem;color:var(--text-muted);padding:1rem">無法生成 QR Code（UID 無效）</div>';
+      return;
+    }
+    container.innerHTML = '';
+    // 方案 A：本地 qrcode 庫（canvas）
+    if (typeof QRCode !== 'undefined' && QRCode.toCanvas) {
+      const canvas = document.createElement('canvas');
+      QRCode.toCanvas(canvas, data, { width: size, margin: 1, errorCorrectionLevel: 'H' }, (err) => {
+        if (!err) {
+          canvas.style.display = 'block';
+          container.appendChild(canvas);
+        } else {
+          console.warn('[QR] 本地生成失敗，切換 API:', err);
+          this._qrFallbackImg(container, data, size);
+        }
+      });
+    } else {
+      // 方案 B：外部 API 圖片
+      console.warn('[QR] qrcode 庫未載入，使用 API 備援');
+      this._qrFallbackImg(container, data, size);
+    }
+  },
+
+  /** QR Code API 備援（純 img 標籤，不依賴任何 JS 庫） */
+  _qrFallbackImg(container, data, size) {
+    const img = document.createElement('img');
+    img.src = `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&ecc=H&data=${encodeURIComponent(data)}`;
+    img.width = size;
+    img.height = size;
+    img.alt = 'QR Code';
+    img.style.display = 'block';
+    img.onerror = () => {
+      container.innerHTML = '<div style="font-size:.78rem;color:var(--text-muted);padding:1rem">QR Code 生成失敗，請檢查網路連線</div>';
+    };
+    container.appendChild(img);
+  },
+
   /** 渲染「我的 QR Code」頁面 */
   renderQrCodePage() {
     const user = ApiService.getCurrentUser();
@@ -609,19 +654,10 @@ Object.assign(App, {
     const uidText = document.getElementById('page-qr-uid');
     if (!container) return;
     if (uidText) uidText.textContent = `UID: ${uid}`;
-    if (typeof QRCode !== 'undefined' && QRCode.toCanvas) {
-      container.innerHTML = '';
-      container.style.display = 'flex';
-      container.style.alignItems = 'center';
-      container.style.justifyContent = 'center';
-      const canvas = document.createElement('canvas');
-      QRCode.toCanvas(canvas, uid, { width: 160, margin: 0 }, (err) => {
-        if (!err) {
-          canvas.style.display = 'block';
-          container.appendChild(canvas);
-        }
-      });
-    }
+    container.style.display = 'flex';
+    container.style.alignItems = 'center';
+    container.style.justifyContent = 'center';
+    this._generateQrCode(container, uid, 160);
   },
 
   // ── 社群連結相關 ──
@@ -720,16 +756,7 @@ Object.assign(App, {
       <div id="uid-qr-canvas" style="background:#fff;display:inline-block;padding:12px;border-radius:var(--radius)"></div>
       <div style="margin-top:.7rem;font-size:.75rem;color:var(--text-muted);word-break:break-all">${escapeHTML(uid)}</div>
     `;
-    // 本地生成 QR Code
-    if (typeof QRCode !== 'undefined' && QRCode.toCanvas) {
-      const canvas = document.createElement('canvas');
-      QRCode.toCanvas(canvas, uid, { width: 180, margin: 0 }, (err) => {
-        if (!err) {
-          canvas.style.display = 'block';
-          document.getElementById('uid-qr-canvas')?.appendChild(canvas);
-        }
-      });
-    }
+    this._generateQrCode(document.getElementById('uid-qr-canvas'), uid, 180);
     modal.style.display = 'flex';
   },
 
