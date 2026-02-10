@@ -1586,10 +1586,11 @@ img { max-width: 100%; display: block; }
 .ce-form { display: flex; flex-direction: column; gap: .75rem; }
 .ce-row { display: flex; flex-direction: column; gap: .3rem; }
 .ce-row label { font-size: .78rem; font-weight: 600; color: var(--text-secondary); }
-.ce-row-half { flex-direction: row; gap: .6rem; }
-.ce-row-half > div { flex: 1; display: flex; flex-direction: column; gap: .3rem; min-width: 0; }
-.ce-row-half > div:first-child { flex: 0 0 35%; }
-.ce-row-half input[type="date"] { width: 100%; min-width: 0; box-sizing: border-box; }
+.ce-row-half { flex-direction: row; gap: .4rem; }
+.ce-row-half > div { flex: 1; display: flex; flex-direction: column; gap: .3rem; min-width: 0; overflow: hidden; }
+.ce-row-half > div:first-child { flex: 0 0 40%; }
+.ce-row-half input[type="date"] { width: 100%; min-width: 0; box-sizing: border-box; padding: .45rem .35rem; font-size: .82rem; }
+.ce-row-half select { padding: .45rem .35rem; font-size: .82rem; padding-right: 1.4rem; background-position: right .3rem center; }
 
 /* Image Upload */
 .ce-upload { width: 100%; }
