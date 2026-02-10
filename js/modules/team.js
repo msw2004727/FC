@@ -483,9 +483,11 @@ Object.assign(App, {
     if (!confirm(`確定要刪除「${t.name}」？此操作無法復原。`)) return;
     ApiService.deleteTeam(id);
     this.showToast(`已刪除「${t.name}」`);
+    this.showPage('page-teams');
     this.renderTeamList();
     this.renderAdminTeams();
     this.renderTeamManage();
+    this.renderProfileData();
   },
 
   // ══════════════════════════════════
@@ -523,10 +525,13 @@ Object.assign(App, {
       return;
     }
 
-    container.innerHTML = teams.map(t => {
+    const activeTeams = teams.filter(t => t.active);
+    const inactiveTeams = teams.filter(t => !t.active);
+    const renderCard = (t) => {
       const canEdit = isAdmin || this._isTeamOwner(t);
+      const dim = !t.active ? ' team-inactive' : '';
       return `
-      <div class="event-card">
+      <div class="event-card${dim}">
         <div class="event-card-body">
           <div style="display:flex;justify-content:space-between;align-items:center">
             <div class="event-card-title">${t.name} <span style="font-size:.72rem;color:var(--text-muted)">${t.nameEn || ''}</span></div>
@@ -544,7 +549,13 @@ Object.assign(App, {
           </div>
         </div>
       </div>`;
-    }).join('');
+    };
+    let html = activeTeams.map(renderCard).join('');
+    if (inactiveTeams.length) {
+      html += '<hr class="team-section-divider"><div class="team-section-label">已下架球隊</div>';
+      html += inactiveTeams.map(renderCard).join('');
+    }
+    container.innerHTML = html;
   },
 
   // ══════════════════════════════════
@@ -564,8 +575,16 @@ Object.assign(App, {
     const q = searchQuery || '';
     let teams = ApiService.getTeams();
     if (q) teams = teams.filter(t => t.name.toLowerCase().includes(q) || (t.nameEn || '').toLowerCase().includes(q) || t.captain.includes(q) || t.region.includes(q));
-    container.innerHTML = teams.length ? teams.map(t => `
-      <div class="event-card">
+    if (!teams.length) {
+      container.innerHTML = '<div style="padding:1rem;font-size:.82rem;color:var(--text-muted);text-align:center">未找到符合條件的球隊</div>';
+      return;
+    }
+    const activeT = teams.filter(t => t.active);
+    const inactiveT = teams.filter(t => !t.active);
+    const adminCard = (t) => {
+      const dim = !t.active ? ' team-inactive' : '';
+      return `
+      <div class="event-card${dim}">
         <div class="event-card-body">
           <div style="display:flex;justify-content:space-between;align-items:center">
             <div class="event-card-title">${t.name} <span style="font-size:.72rem;color:var(--text-muted)">${t.nameEn || ''}</span></div>
@@ -585,8 +604,14 @@ Object.assign(App, {
             <button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem;color:var(--danger)" onclick="App.removeTeam('${t.id}')">刪除</button>
           </div>
         </div>
-      </div>
-    `).join('') : '<div style="padding:1rem;font-size:.82rem;color:var(--text-muted);text-align:center">未找到符合條件的球隊</div>';
+      </div>`;
+    };
+    let html = activeT.map(adminCard).join('');
+    if (inactiveT.length) {
+      html += '<hr class="team-section-divider"><div class="team-section-label">已下架球隊</div>';
+      html += inactiveT.map(adminCard).join('');
+    }
+    container.innerHTML = html;
   },
 
   toggleTeamPin(id) {
@@ -612,6 +637,7 @@ Object.assign(App, {
     ApiService.updateTeam(id, { active: t.active });
     this.renderAdminTeams();
     this.renderTeamList();
+    this.renderTeamManage();
     this.showToast(t.active ? `已上架「${t.name}」` : `已下架「${t.name}」`);
   },
 

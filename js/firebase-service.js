@@ -140,10 +140,10 @@ const FirebaseService = {
           this._cache.popupAds.push(slot);
         }
       }
-      // 贊助商欄位（24 個）
+      // 贊助商欄位（6 個）
       if (this._cache.sponsors.length === 0) {
         console.log('[FirebaseService] 建立空白贊助商欄位...');
-        for (let i = 1; i <= 24; i++) {
+        for (let i = 1; i <= 6; i++) {
           const slot = { id: 'sp' + i, slot: i, title: '', image: null, status: 'empty', linkUrl: '', publishAt: null, unpublishAt: null, clicks: 0 };
           const docRef = await db.collection('sponsors').add({ ...slot, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
           slot._docId = docRef.id;

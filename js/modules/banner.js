@@ -93,12 +93,17 @@ Object.assign(App, {
         <div class="float-ad-img">${ad.image ? `<img src="${ad.image}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">` : '廣告'}</div>
       </div>`;
     }).join('');
+    // 重設位置與 lerp offset，避免渲染後偏移
+    this._floatAdOffset = 0;
+    this._floatAdTarget = 0;
+    container.style.top = '80vh';
+    container.style.transform = 'translateY(-50%)';
   },
 
   renderSponsors() {
     const grid = document.getElementById('sponsor-grid');
     if (!grid) return;
-    const sponsors = ApiService.getSponsors();
+    const sponsors = ApiService.getSponsors().sort((a, b) => (a.slot || 0) - (b.slot || 0));
     grid.innerHTML = sponsors.map(sp => {
       const isActive = sp.status === 'active' && sp.image;
       const hasLink = isActive && sp.linkUrl;
@@ -114,32 +119,35 @@ Object.assign(App, {
     }).join('');
   },
 
+  _floatAdOffset: 0,
+  _floatAdTarget: 0,
+  _floatAdRaf: null,
+
   bindFloatingAds() {
     const floatingAds = document.getElementById('floating-ads');
     if (!floatingAds) return;
 
-    let targetOffset = 0;
-    let currentOffset = 0;
-    let rafId = null;
+    this._floatAdOffset = 0;
+    this._floatAdTarget = 0;
 
     const lerp = (start, end, factor) => start + (end - start) * factor;
 
     const animate = () => {
-      currentOffset = lerp(currentOffset, targetOffset, 0.06);
-      if (Math.abs(currentOffset - targetOffset) < 0.5) {
-        currentOffset = targetOffset;
+      this._floatAdOffset = lerp(this._floatAdOffset, this._floatAdTarget, 0.06);
+      if (Math.abs(this._floatAdOffset - this._floatAdTarget) < 0.5) {
+        this._floatAdOffset = this._floatAdTarget;
       }
-      floatingAds.style.transform = `translateY(calc(-50% + ${currentOffset}px))`;
-      if (Math.abs(currentOffset - targetOffset) > 0.5) {
-        rafId = requestAnimationFrame(animate);
+      floatingAds.style.transform = `translateY(calc(-50% + ${this._floatAdOffset}px))`;
+      if (Math.abs(this._floatAdOffset - this._floatAdTarget) > 0.5) {
+        this._floatAdRaf = requestAnimationFrame(animate);
       } else {
-        rafId = null;
+        this._floatAdRaf = null;
       }
     };
 
     const startAnimation = () => {
-      if (!rafId) {
-        rafId = requestAnimationFrame(animate);
+      if (!this._floatAdRaf) {
+        this._floatAdRaf = requestAnimationFrame(animate);
       }
     };
 
@@ -147,11 +155,11 @@ Object.assign(App, {
       const scrollY = window.scrollY || 0;
       const docHeight = document.documentElement.scrollHeight - window.innerHeight;
       const progress = docHeight > 0 ? (scrollY / docHeight) : 0;
-      targetOffset = (progress - 0.5) * 120;
+      this._floatAdTarget = (progress - 0.5) * 120;
       startAnimation();
     }, { passive: true });
 
-    floatingAds.style.top = '70vh';
+    floatingAds.style.top = '80vh';
     floatingAds.style.transform = 'translateY(-50%)';
   },
 

@@ -153,11 +153,42 @@ const ApiService = {
 
   deleteTeam(id) {
     const source = this._demoMode ? DemoData.teams : FirebaseService._cache.teams;
+
+    // 正式版：先取得 _docId 再刪 Firestore，最後才從快取移除
+    if (!this._demoMode) {
+      const doc = source.find(t => t.id === id);
+      if (doc && doc._docId) {
+        FirebaseService.deleteTeam(id).catch(err => console.error('[deleteTeam]', err));
+      }
+    }
+
+    // 從快取移除
     const idx = source.findIndex(t => t.id === id);
     if (idx >= 0) source.splice(idx, 1);
-    if (!this._demoMode) {
-      FirebaseService.deleteTeam(id).catch(err => console.error('[deleteTeam]', err));
+
+    // 清除所有引用此球隊的用戶
+    const users = this._demoMode ? DemoData.adminUsers : FirebaseService._cache.adminUsers;
+    users.forEach(u => {
+      if (u.teamId === id) {
+        u.teamId = null;
+        u.teamName = null;
+        if (!this._demoMode && u._docId) {
+          FirebaseService.updateUser(u._docId, { teamId: null, teamName: null })
+            .catch(err => console.error('[deleteTeam] clear user team:', err));
+        }
+      }
+    });
+    // 清除 currentUser 的球隊引用
+    const cur = this._demoMode ? DemoData.currentUser : (FirebaseService._cache.currentUser || null);
+    if (cur && cur.teamId === id) {
+      cur.teamId = null;
+      cur.teamName = null;
+      if (!this._demoMode && cur._docId) {
+        FirebaseService.updateUser(cur._docId, { teamId: null, teamName: null })
+          .catch(err => console.error('[deleteTeam] clear currentUser team:', err));
+      }
     }
+
     return true;
   },
 
@@ -579,7 +610,7 @@ const ApiService = {
 
   getSponsors() {
     if (this._demoMode) return DemoData.sponsors;
-    return FirebaseService._cache.sponsors || [];
+    return (FirebaseService._cache.sponsors || []).filter(s => s.slot <= 6);
   },
 
   getActiveSponsors() {

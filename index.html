@@ -169,7 +169,6 @@
 
       <!-- Sponsors -->
       <hr style="border:none;border-top:1px solid var(--border);margin:1rem 0 .5rem">
-      <div class="section-title">贊助商</div>
       <div class="sponsor-grid" id="sponsor-grid">
         <!-- 6col × 4row = 24 slots, JS 渲染 -->
       </div>
@@ -329,13 +328,32 @@
           <button class="quick-item" onclick="App.goMyTeam()">球隊</button>
         </div>
         <div class="info-card" id="profile-info-card">
-          <div class="info-title">我的資料</div>
-          <div class="info-row"><span>性別</span><span id="profile-gender">-</span></div>
-          <div class="info-row"><span>生日</span><span id="profile-birthday">-</span></div>
-          <div class="info-row"><span>地區</span><span id="profile-region">-</span></div>
-          <div class="info-row"><span>運動類別</span><span id="profile-sports">-</span></div>
-          <div class="info-row"><span>所屬球隊</span><span id="profile-team">-</span></div>
-          <div class="info-row contact-row" data-min-role="coach"><span>聯繫方式</span><span id="profile-phone">-</span></div>
+          <div class="info-title" style="display:flex;justify-content:space-between;align-items:center">
+            <span>我的資料</span>
+            <button class="outline-btn" style="font-size:.7rem;padding:.2rem .5rem" id="profile-edit-btn" onclick="App.toggleProfileEdit()">編輯</button>
+          </div>
+          <!-- 顯示模式 -->
+          <div id="profile-info-display">
+            <div class="info-row"><span>性別</span><span id="profile-gender">-</span></div>
+            <div class="info-row"><span>生日</span><span id="profile-birthday">-</span></div>
+            <div class="info-row"><span>地區</span><span id="profile-region">-</span></div>
+            <div class="info-row"><span>運動類別</span><span id="profile-sports">-</span></div>
+            <div class="info-row"><span>所屬球隊</span><span id="profile-team">-</span></div>
+            <div class="info-row"><span>聯繫方式</span><span id="profile-phone">-</span></div>
+          </div>
+          <!-- 編輯模式 -->
+          <div id="profile-info-edit" style="display:none">
+            <div class="info-row"><span>性別</span><span id="profile-gender-display">-</span></div>
+            <div class="info-row"><span>生日</span><input type="date" id="profile-edit-birthday" class="profile-edit-input"></div>
+            <div class="info-row"><span>地區</span><input type="text" id="profile-edit-region" class="profile-edit-input" placeholder="例：台北市"></div>
+            <div class="info-row"><span>運動類別</span><span id="profile-sports-display">-</span></div>
+            <div class="info-row"><span>所屬球隊</span><span id="profile-team-display">-</span></div>
+            <div class="info-row"><span>聯繫方式</span><input type="tel" id="profile-edit-phone" class="profile-edit-input" placeholder="例：0912-345-678"></div>
+            <div style="display:flex;gap:.5rem;margin-top:.5rem;justify-content:flex-end">
+              <button class="outline-btn" style="font-size:.75rem;padding:.3rem .8rem" onclick="App.toggleProfileEdit()">取消</button>
+              <button class="primary-btn small" onclick="App.saveProfileInfo()">儲存</button>
+            </div>
+          </div>
         </div>
         <div class="info-card">
           <div class="info-title">報名紀錄</div>
@@ -734,7 +752,7 @@
       <!-- 贊助商 -->
       <div class="ad-collapse-section">
         <div class="admin-section-label ad-collapse-toggle" onclick="App.toggleAdSection(this)">
-          <span>贊助商（24 個欄位）</span><span class="ad-collapse-arrow">▶</span>
+          <span>贊助商（6 個欄位）</span><span class="ad-collapse-arrow">▶</span>
         </div>
         <div class="ad-collapse-content" style="display:none">
           <div id="sponsor-manage-list"></div>

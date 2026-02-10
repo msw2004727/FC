@@ -518,21 +518,21 @@ Object.assign(App, {
   },
 
   // ══════════════════════════════════
-  //  Sponsor CRUD（直式 24 列）
+  //  Sponsor CRUD（直式 6 列）
   // ══════════════════════════════════
 
   renderSponsorManage() {
     const container = document.getElementById('sponsor-manage-list');
     if (!container) return;
-    const items = ApiService.getSponsors();
-    container.innerHTML = items.map(sp => {
+    const items = ApiService.getSponsors().sort((a, b) => (a.slot || 0) - (b.slot || 0));
+    container.innerHTML = items.map((sp, idx) => {
       const hasImage = sp.image && sp.status !== 'empty';
       const thumb = hasImage
         ? `<img src="${sp.image}" style="width:100%;height:100%;object-fit:cover;border-radius:4px">`
         : `<span class="sp-row-upload-hint">+</span>`;
       return `
       <div class="sp-manage-row" data-id="${sp.id}">
-        <span class="sp-row-num">${sp.slot}</span>
+        <span class="sp-row-num">${idx + 1}</span>
         <div class="sp-row-thumb${hasImage ? ' has-img' : ''}" onclick="App.triggerSponsorUpload('${sp.id}')">
           ${thumb}
           <input type="file" class="sp-row-file" data-sp="${sp.id}" accept=".jpg,.jpeg,.png" hidden>
