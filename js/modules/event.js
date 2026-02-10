@@ -210,7 +210,6 @@ Object.assign(App, {
   //  Create Event
   // ══════════════════════════════════
 
-  _eventCounter: 100,
   handleCreateEvent() {
     const title = document.getElementById('ce-title').value.trim();
     const type = document.getElementById('ce-type').value;
@@ -236,9 +235,8 @@ Object.assign(App, {
     const dateStr = `${dateParts[0]}/${parseInt(dateParts[1])}/${parseInt(dateParts[2])}`;
     const fullDate = timeVal ? `${dateParts[0]}/${parseInt(dateParts[1]).toString().padStart(2,'0')}/${parseInt(dateParts[2]).toString().padStart(2,'0')} ${timeVal}` : dateStr;
 
-    this._eventCounter++;
     const newEvent = {
-      id: 'ce' + this._eventCounter,
+      id: 'ce_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
       title, type, status: 'open', location, date: fullDate,
       fee, max, current: 0, waitlist: 0, waitlistMax, minAge, notes, image,
       creator: ROLES[this.currentRole]?.label || '一般用戶',

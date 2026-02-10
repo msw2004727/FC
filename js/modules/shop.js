@@ -154,7 +154,6 @@ Object.assign(App, {
   //  Create / Edit Shop Item
   // ══════════════════════════════════
 
-  _shopCounter: 100,
   _shopEditId: null,   // null = 新增模式，有值 = 編輯模式
 
   showShopForm(id) {
@@ -228,7 +227,7 @@ Object.assign(App, {
     });
 
     const isEdit = !!this._shopEditId;
-    const itemId = isEdit ? this._shopEditId : 'cs' + (++this._shopCounter);
+    const itemId = isEdit ? this._shopEditId : 'cs_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
 
     // 正式版：上傳新的 base64 圖片到 Storage
     if (!ModeManager.isDemo()) {

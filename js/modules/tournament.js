@@ -234,7 +234,6 @@ Object.assign(App, {
   //  Create Tournament
   // ══════════════════════════════════
 
-  _tournamentCounter: 100,
   handleCreateTournament() {
     const name = document.getElementById('ct-name').value.trim();
     const type = document.getElementById('ct-type').value;
@@ -247,9 +246,8 @@ Object.assign(App, {
     const ctImg = ctPreviewEl?.querySelector('img');
     const image = ctImg ? ctImg.src : null;
 
-    this._tournamentCounter++;
     ApiService.createTournament({
-      id: 'ct' + this._tournamentCounter,
+      id: 'ct_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
       name, type, teams,
       matches: type.includes('聯賽') ? teams * (teams - 1) : teams - 1,
       status, image,
