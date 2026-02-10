@@ -43,6 +43,7 @@ Object.assign(App, {
     const birthday = (user && user.birthday) || '-';
     const region = (user && user.region) || '-';
     const sports = (user && user.sports) || '-';
+    const phone = (user && user.phone) || '-';
     // 頭像：自己用 LINE 頭像，他人用資料庫 pictureUrl
     const pic = isSelf
       ? ((lineProfile && lineProfile.pictureUrl) || (user && user.pictureUrl))
@@ -76,6 +77,7 @@ Object.assign(App, {
         <div class="info-row"><span>地區</span><span>${escapeHTML(region)}</span></div>
         <div class="info-row"><span>運動類別</span><span>${escapeHTML(sports)}</span></div>
         <div class="info-row"><span>所屬球隊</span><span>${teamHtml}</span></div>
+        <div class="info-row"><span>聯繫方式</span><span>${escapeHTML(phone)}</span></div>
       </div>
       <div class="info-card">
         <div class="info-title">已獲得徽章</div>
