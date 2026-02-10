@@ -279,6 +279,14 @@ Object.assign(App, {
     const titleDisplay = this._buildTitleDisplay(user, lineProfile ? lineProfile.displayName : null);
     if (el('profile-title')) el('profile-title').textContent = titleDisplay;
 
+    // 角色膠囊
+    const roleTagWrap = el('profile-role-tag-wrap');
+    if (roleTagWrap) {
+      const role = user.role || 'user';
+      const roleInfo = ROLES[role] || ROLES.user;
+      roleTagWrap.innerHTML = `<span class="uc-role-tag" style="background:${roleInfo.color}22;color:${roleInfo.color}">${roleInfo.label}</span>`;
+    }
+
     // 等級 & 經驗值
     const level = user.level || 1, exp = user.exp || 0, nextExp = (level + 1) * 200;
     if (el('profile-lv')) el('profile-lv').textContent = `Lv.${level}`;

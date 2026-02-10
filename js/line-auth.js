@@ -32,9 +32,21 @@ const LineAuth = {
     this._ready = true;
   },
 
+  isLocalhost() {
+    const h = location.hostname;
+    return h === 'localhost' || h === '127.0.0.1' || h.startsWith('192.168.');
+  },
+
   login() {
     if (ModeManager.isDemo()) {
       App.showToast('DEMO 模式無法使用 LINE 登入');
+      return;
+    }
+    if (this.isLocalhost()) {
+      // 本機環境 LIFF 無法回調 localhost，自動切換 Demo 模式
+      ModeManager.setMode('demo');
+      App.showToast('本機環境已自動切換至 Demo 模式');
+      location.reload();
       return;
     }
     if (!this._ready) {

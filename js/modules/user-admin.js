@@ -4,12 +4,47 @@
 
 Object.assign(App, {
 
-  renderAdminUsers() {
+  // ─── 用戶列表: 當前篩選狀態 ───
+  _userEditTarget: null,
+
+  // ─── Step 1: 搜尋與篩選 ───
+  filterAdminUsers() {
+    const keyword = (document.getElementById('admin-user-search')?.value || '').trim().toLowerCase();
+    const roleFilter = document.getElementById('admin-user-role-filter')?.value || '';
+    const regionFilter = document.getElementById('admin-user-region-filter')?.value || '';
+
+    let users = ApiService.getAdminUsers();
+
+    if (keyword) {
+      users = users.filter(u =>
+        u.name.toLowerCase().includes(keyword) ||
+        u.uid.toLowerCase().includes(keyword)
+      );
+    }
+    if (roleFilter) {
+      users = users.filter(u => u.role === roleFilter);
+    }
+    if (regionFilter) {
+      users = users.filter(u => u.region === regionFilter);
+    }
+
+    this.renderAdminUsers(users);
+  },
+
+  // ─── Step 2: 用戶列表渲染（可接收篩選後的 users） ───
+  renderAdminUsers(users) {
     const container = document.getElementById('admin-user-list');
     if (!container) return;
     const myLevel = ROLE_LEVEL_MAP[this.currentRole];
 
-    container.innerHTML = ApiService.getAdminUsers().map(u => {
+    if (!users) users = ApiService.getAdminUsers();
+
+    if (users.length === 0) {
+      container.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--text-muted)">沒有符合條件的用戶</div>';
+      return;
+    }
+
+    container.innerHTML = users.map(u => {
       let promoteOptions = '';
       if (myLevel >= 5) {
         promoteOptions = '<option value="">晉升▼</option><option>管理員</option><option>教練</option><option>領隊</option><option>場主</option>';
@@ -17,15 +52,24 @@ Object.assign(App, {
         promoteOptions = '<option value="">晉升▼</option><option>教練</option><option>領隊</option><option>場主</option>';
       }
 
+      const avatar = u.pictureUrl
+        ? `<img src="${u.pictureUrl}" class="profile-avatar small" style="object-fit:cover">`
+        : `<div class="profile-avatar small">${u.name[0]}</div>`;
+
+      const teamInfo = u.teamName ? ` ・ ${u.teamName}` : '';
+      const genderIcon = u.gender === '男' ? '♂' : u.gender === '女' ? '♀' : '';
+
       return `
         <div class="admin-user-card">
-          <div class="profile-avatar small">${u.name[0]}</div>
+          ${avatar}
           <div class="admin-user-info">
             <div class="admin-user-name">${this._userTag(u.name, u.role)}</div>
-            <div class="admin-user-meta">${u.uid} ・ ${ROLES[u.role]?.label || u.role} ・ Lv.${u.level} ・ ${u.region}</div>
+            <div class="admin-user-meta">${u.uid} ・ ${ROLES[u.role]?.label || u.role} ・ Lv.${u.level} ・ ${u.region}${genderIcon ? ' ' + genderIcon : ''}${teamInfo}</div>
+            <div class="admin-user-meta" style="font-size:.72rem">${u.sports || '—'} ・ EXP ${u.exp}</div>
           </div>
           <div class="admin-user-actions">
             ${promoteOptions ? `<select class="promote-select" onchange="App.handlePromote(this, '${u.name}')">${promoteOptions}</select>` : ''}
+            <button class="text-btn" onclick="App.showUserEditModal('${u.name}')">編輯</button>
             <button class="text-btn" onclick="App.showUserProfile('${u.name}')">查看</button>
           </div>
         </div>
@@ -39,11 +83,80 @@ Object.assign(App, {
     const roleKey = roleMap[select.value];
     if (!roleKey) return;
     ApiService.promoteUser(name, roleKey);
-    this.renderAdminUsers();
+    this.filterAdminUsers();
     this.showToast(`已將「${name}」晉升為「${select.value}」`);
     select.value = '';
   },
 
+  // ─── Step 3: 用戶編輯 Modal ───
+  showUserEditModal(name) {
+    const users = ApiService.getAdminUsers();
+    const user = users.find(u => u.name === name);
+    if (!user) { this.showToast('找不到該用戶'); return; }
+
+    this._userEditTarget = name;
+    document.getElementById('user-edit-modal-title').textContent = `編輯用戶 — ${name}`;
+
+    document.getElementById('ue-role').value = user.role || 'user';
+    document.getElementById('ue-region').value = user.region || '台北';
+    document.getElementById('ue-gender').value = user.gender || '男';
+    document.getElementById('ue-sports').value = user.sports || '';
+    document.getElementById('ue-phone').value = user.phone || '';
+
+    const bdInput = document.getElementById('ue-birthday');
+    if (user.birthday) {
+      bdInput.value = user.birthday.replace(/\//g, '-');
+    } else {
+      bdInput.value = '';
+    }
+
+    this.openModal('user-edit-modal');
+  },
+
+  saveUserEdit() {
+    const name = this._userEditTarget;
+    if (!name) return;
+
+    const updates = {
+      role: document.getElementById('ue-role').value,
+      region: document.getElementById('ue-region').value,
+      gender: document.getElementById('ue-gender').value,
+      sports: document.getElementById('ue-sports').value.trim(),
+      phone: document.getElementById('ue-phone').value.trim(),
+    };
+
+    const bdVal = document.getElementById('ue-birthday').value;
+    if (bdVal) {
+      updates.birthday = bdVal.replace(/-/g, '/');
+    }
+
+    const result = ApiService.updateAdminUser(name, updates);
+    if (result) {
+      this.closeUserEditModal();
+      this.filterAdminUsers();
+      this.showToast(`已更新「${name}」的資料`);
+
+      // 寫入操作紀錄
+      const now = new Date();
+      const timeStr = `${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+      const opLog = {
+        time: timeStr,
+        operator: ROLES[this.currentRole]?.label || '管理員',
+        type: 'role',
+        typeName: '用戶編輯',
+        content: `編輯「${name}」資料（角色：${ROLES[updates.role]?.label || updates.role}、地區：${updates.region}）`
+      };
+      const opSource = ApiService._demoMode ? DemoData.operationLogs : FirebaseService._cache.operationLogs;
+      opSource.unshift(opLog);
+    }
+  },
+
+  closeUserEditModal() {
+    this._userEditTarget = null;
+    this.closeModal();
+  },
+
+  // ─── EXP Management ───
   renderExpLogs() {
     const container = document.getElementById('exp-log-list');
     if (!container) return;
@@ -95,10 +208,38 @@ Object.assign(App, {
     }
   },
 
-  renderOperationLogs() {
+  // ─── Step 5: 操作紀錄渲染 + 篩選 ───
+  filterOperationLogs() {
+    const keyword = (document.getElementById('oplog-search')?.value || '').trim().toLowerCase();
+    const typeFilter = document.getElementById('oplog-type-filter')?.value || '';
+
+    let logs = ApiService.getOperationLogs();
+
+    if (keyword) {
+      logs = logs.filter(l =>
+        l.operator.toLowerCase().includes(keyword) ||
+        l.content.toLowerCase().includes(keyword)
+      );
+    }
+    if (typeFilter) {
+      logs = logs.filter(l => l.type === typeFilter);
+    }
+
+    this.renderOperationLogs(logs);
+  },
+
+  renderOperationLogs(logs) {
     const container = document.getElementById('operation-log-list');
     if (!container) return;
-    container.innerHTML = ApiService.getOperationLogs().map(l => `
+
+    if (!logs) logs = ApiService.getOperationLogs();
+
+    if (logs.length === 0) {
+      container.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--text-muted)">沒有符合條件的紀錄</div>';
+      return;
+    }
+
+    container.innerHTML = logs.map(l => `
       <div class="log-item">
         <span class="log-time">${l.time}</span>
         <span class="log-content">
@@ -109,18 +250,25 @@ Object.assign(App, {
     `).join('');
   },
 
-  renderPermissions() {
+  // ─── Step 4: 權限系統（依角色對照表） ───
+  _permSelectedRole: 'user',
+
+  renderPermissions(role) {
     const container = document.getElementById('permissions-list');
     if (!container) return;
-    container.innerHTML = ApiService.getPermissions().map((cat, ci) => `
+
+    if (role) this._permSelectedRole = role;
+    const currentPerms = ApiService.getRolePermissions(this._permSelectedRole);
+
+    container.innerHTML = ApiService.getPermissions().map(cat => `
       <div class="perm-category">
         <div class="perm-category-title" onclick="this.parentElement.classList.toggle('collapsed')">
           ${cat.cat}
         </div>
         <div class="perm-items">
-          ${cat.items.map((p, pi) => `
+          ${cat.items.map(p => `
             <label class="perm-item">
-              <input type="checkbox" ${Math.random() > 0.5 ? 'checked' : ''}>
+              <input type="checkbox" data-code="${p.code}" ${currentPerms.includes(p.code) ? 'checked' : ''} onchange="App.togglePermission('${p.code}')">
               <span>${p.name}</span>
             </label>
           `).join('')}
@@ -129,6 +277,23 @@ Object.assign(App, {
     `).join('');
   },
 
+  togglePermission(code) {
+    const perms = ApiService.getRolePermissions(this._permSelectedRole);
+    const idx = perms.indexOf(code);
+    const source = ApiService._demoMode ? DemoData.rolePermissions : (FirebaseService._cache.rolePermissions || DemoData.rolePermissions);
+    if (!source[this._permSelectedRole]) source[this._permSelectedRole] = [];
+    if (idx >= 0) {
+      source[this._permSelectedRole] = source[this._permSelectedRole].filter(c => c !== code);
+    } else {
+      source[this._permSelectedRole].push(code);
+    }
+  },
+
+  savePermissions() {
+    this.showToast(`已儲存「${ROLES[this._permSelectedRole]?.label || this._permSelectedRole}」的權限設定`);
+  },
+
+  // ─── Role Hierarchy ───
   renderRoleHierarchy() {
     const container = document.getElementById('role-hierarchy-list');
     if (!container) return;
@@ -164,23 +329,90 @@ Object.assign(App, {
     document.getElementById('role-position-select').value = levelIndex;
   },
 
+  // ─── Step 6: 不活躍用戶/球隊（從資料讀取） ───
   renderInactiveData() {
     const container = document.getElementById('inactive-list');
     if (!container) return;
-    container.innerHTML = `
-      <div class="inactive-card">
-        <div style="font-weight:700">鳳凰隊</div>
-        <div style="font-size:.78rem;color:var(--text-muted);margin-top:.3rem">解散日期：2025/12/15</div>
-        <div style="font-size:.78rem;color:var(--text-muted)">原領隊：暱稱Z ・ 原成員：14 人</div>
-        <button class="text-btn" style="margin-top:.4rem">查看完整歷史資料</button>
-      </div>
-      <div class="inactive-card">
-        <div style="font-weight:700">颱風隊</div>
-        <div style="font-size:.78rem;color:var(--text-muted);margin-top:.3rem">解散日期：2025/08/20</div>
-        <div style="font-size:.78rem;color:var(--text-muted)">原領隊：暱稱W ・ 原成員：10 人</div>
-        <button class="text-btn" style="margin-top:.4rem">查看完整歷史資料</button>
-      </div>
-    `;
+
+    const section = document.getElementById('page-admin-inactive');
+    const tabs = section?.querySelector('.tab-bar');
+    if (tabs && !tabs.dataset.bound) {
+      tabs.dataset.bound = '1';
+      const tabBtns = tabs.querySelectorAll('.tab');
+      tabBtns.forEach((btn, i) => {
+        btn.addEventListener('click', () => {
+          tabBtns.forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          if (i === 0) this._renderInactiveTeams(container);
+          else this._renderInactiveEvents(container);
+        });
+      });
+    }
+
+    this._renderInactiveTeams(container);
+  },
+
+  _renderInactiveTeams(container) {
+    const teams = ApiService.getTeams().filter(t => t.active === false);
+
+    // 也找沒有球隊或長期未活動的用戶
+    const users = ApiService.getAdminUsers();
+    const inactiveUsers = users.filter(u => {
+      if (!u.lastActive) return true;
+      const last = new Date(u.lastActive.replace(/\//g, '-'));
+      const daysSince = (Date.now() - last.getTime()) / (1000 * 60 * 60 * 24);
+      return daysSince > 60;
+    });
+
+    let html = '';
+
+    if (teams.length > 0) {
+      html += '<div style="font-weight:700;margin-bottom:.5rem;color:var(--text-secondary)">已解散球隊</div>';
+      html += teams.map(t => `
+        <div class="inactive-card">
+          <div style="font-weight:700">${t.name}</div>
+          <div style="font-size:.78rem;color:var(--text-muted);margin-top:.3rem">原領隊：${t.captain || '—'} ・ 原成員：${t.members || 0} 人</div>
+          <div style="font-size:.78rem;color:var(--text-muted)">${t.region || '—'}</div>
+        </div>
+      `).join('');
+    } else {
+      html += '<div style="text-align:center;padding:1.5rem;color:var(--text-muted)">目前沒有已解散球隊</div>';
+    }
+
+    if (inactiveUsers.length > 0) {
+      html += '<div style="font-weight:700;margin:.8rem 0 .5rem;color:var(--text-secondary)">長期未活動用戶（60天以上）</div>';
+      html += inactiveUsers.map(u => `
+        <div class="inactive-card">
+          <div style="font-weight:700">${u.name} <span style="font-weight:400;font-size:.78rem;color:var(--text-muted)">${ROLES[u.role]?.label || u.role}</span></div>
+          <div style="font-size:.78rem;color:var(--text-muted);margin-top:.3rem">UID: ${u.uid} ・ Lv.${u.level} ・ ${u.region}</div>
+          <div style="font-size:.78rem;color:var(--text-muted)">最後活動：${u.lastActive || '未知'} ・ 球隊：${u.teamName || '無'}</div>
+        </div>
+      `).join('');
+    } else {
+      html += '<div style="text-align:center;padding:1rem;color:var(--text-muted)">沒有長期未活動的用戶</div>';
+    }
+
+    container.innerHTML = html;
+  },
+
+  _renderInactiveEvents(container) {
+    const events = ApiService.getEvents().filter(e => e.status === 'ended' || e.status === 'cancelled');
+
+    if (events.length === 0) {
+      container.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--text-muted)">沒有已結束/取消的賽事</div>';
+      return;
+    }
+
+    container.innerHTML = events.map(e => {
+      const statusLabel = e.status === 'ended' ? '已結束' : '已取消';
+      return `
+        <div class="inactive-card">
+          <div style="font-weight:700">${e.title} <span style="font-weight:400;font-size:.78rem;color:var(--text-muted)">${statusLabel}</span></div>
+          <div style="font-size:.78rem;color:var(--text-muted);margin-top:.3rem">${e.date} ・ ${e.location}</div>
+          <div style="font-size:.78rem;color:var(--text-muted)">建立者：${e.creator} ・ 參加：${e.current}/${e.max}</div>
+        </div>
+      `;
+    }).join('');
   },
 
 });

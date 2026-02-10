@@ -251,6 +251,22 @@ const ApiService = {
     return user ? user.role : 'user';
   },
 
+  updateAdminUser(name, updates) {
+    const source = this._demoMode ? DemoData.adminUsers : FirebaseService._cache.adminUsers;
+    const user = source.find(u => u.name === name);
+    if (!user) return null;
+    Object.assign(user, updates);
+    if (!this._demoMode && user._docId) {
+      FirebaseService.updateUser(user._docId, updates).catch(err => console.error('[updateAdminUser]', err));
+    }
+    return user;
+  },
+
+  getRolePermissions(role) {
+    if (this._demoMode) return DemoData.rolePermissions[role] || [];
+    return (FirebaseService._cache.rolePermissions || DemoData.rolePermissions || {})[role] || [];
+  },
+
   // ════════════════════════════════
   //  Registrations（報名管理 — 僅 Firebase 模式）
   // ════════════════════════════════
