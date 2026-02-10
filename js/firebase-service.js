@@ -279,7 +279,14 @@ const FirebaseService = {
     );
     if (existing) throw new Error('已報名此活動');
 
-    const status = event.current >= event.max ? 'waitlisted' : 'confirmed';
+    const isWaitlist = event.current >= event.max;
+
+    // 候補已滿（waitlistMax > 0 才有上限）
+    if (isWaitlist && (event.waitlistMax || 0) > 0 && (event.waitlist || 0) >= event.waitlistMax) {
+      throw new Error('正取及候補皆已額滿');
+    }
+
+    const status = isWaitlist ? 'waitlisted' : 'confirmed';
     const registration = {
       id: 'reg_' + Date.now(),
       eventId,
@@ -303,17 +310,26 @@ const FirebaseService = {
       if (!event.participants) event.participants = [];
       event.participants.push(userName);
     } else {
-      event.waitlist++;
+      event.waitlist = (event.waitlist || 0) + 1;
       if (!event.waitlistNames) event.waitlistNames = [];
       event.waitlistNames.push(userName);
     }
 
-    await db.collection('events').doc(event._docId).update({
+    // 判斷是否真正額滿（正取+候補都滿）
+    const trulyFull = event.current >= event.max
+      && (event.waitlistMax || 0) > 0
+      && (event.waitlist || 0) >= event.waitlistMax;
+    if (trulyFull) event.status = 'full';
+
+    const eventUpdate = {
       current: event.current,
       waitlist: event.waitlist,
       participants: event.participants,
       waitlistNames: event.waitlistNames,
-    });
+    };
+    if (trulyFull) eventUpdate.status = 'full';
+
+    await db.collection('events').doc(event._docId).update(eventUpdate);
 
     return { registration, status };
   },
@@ -363,12 +379,19 @@ const FirebaseService = {
         }
       }
 
+      // 遞補後重新判斷 status
+      const stillFull = event.current >= event.max
+        && (event.waitlistMax || 0) > 0
+        && (event.waitlist || 0) >= event.waitlistMax;
+      if (event.status === 'full' && !stillFull) event.status = 'open';
+
       if (event._docId) {
         await db.collection('events').doc(event._docId).update({
           current: event.current,
           waitlist: event.waitlist,
           participants: event.participants,
           waitlistNames: event.waitlistNames,
+          status: event.status,
         });
       }
     }
@@ -824,6 +847,13 @@ const FirebaseService = {
     });
     data._docId = docRef.id;
     return data;
+  },
+
+  async updateMessage(msgId, updates) {
+    const doc = this._cache.messages.find(m => m.id === msgId);
+    if (!doc || !doc._docId) return null;
+    await db.collection('messages').doc(doc._docId).update(updates);
+    return doc;
   },
 
   async clearAllMessages() {

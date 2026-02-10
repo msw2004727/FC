@@ -654,6 +654,16 @@ const ApiService = {
   //  Message Read（訊息已讀持久化）
   // ════════════════════════════════
 
+  updateMessage(msgId, updates) {
+    const source = this._demoMode ? DemoData.messages : FirebaseService._cache.messages;
+    const msg = source.find(m => m.id === msgId);
+    if (msg) Object.assign(msg, updates);
+    if (!this._demoMode) {
+      FirebaseService.updateMessage(msgId, updates).catch(err => console.error('[updateMessage]', err));
+    }
+    return msg;
+  },
+
   markMessageRead(msgId) {
     const source = this._demoMode ? DemoData.messages : FirebaseService._cache.messages;
     const msg = source.find(m => m.id === msgId);

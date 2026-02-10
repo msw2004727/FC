@@ -47,6 +47,13 @@ Object.assign(App, {
     return e.creatorUid === this._getEventCreatorUid();
   },
 
+  /** 判斷活動是否真正額滿（正取+候補都滿） */
+  _isEventTrulyFull(e) {
+    if (e.current < e.max) return false;           // 正取未滿
+    if ((e.waitlistMax || 0) <= 0) return false;    // 無限候補 → 永不額滿
+    return (e.waitlist || 0) >= e.waitlistMax;       // 候補也滿了
+  },
+
   /** 判斷當前用戶是否為該活動委託人 */
   _isEventDelegate(e) {
     if (!e.delegates || !e.delegates.length) return false;
@@ -231,6 +238,13 @@ Object.assign(App, {
         </div>`;
         html += `<div class="tl-events-col">`;
 
+        // 同一天內依開始時間排序（越早越上面）
+        dayInfo.events.sort((a, b) => {
+          const ta = (a.date || '').split(' ')[1] || '';
+          const tb = (b.date || '').split(' ')[1] || '';
+          return ta.localeCompare(tb);
+        });
+
         dayInfo.events.forEach(e => {
           const typeConf = TYPE_CONFIG[e.type] || TYPE_CONFIG.friendly;
           const statusConf = STATUS_CONFIG[e.status] || STATUS_CONFIG.open;
@@ -287,14 +301,17 @@ Object.assign(App, {
     const locationHtml = `<a href="${mapUrl}" target="_blank" rel="noopener" style="color:var(--primary);text-decoration:none">${escapeHTML(e.location)} 📍</a>`;
 
     const isEnded = e.status === 'ended' || e.status === 'cancelled';
-    const isFull = e.current >= e.max;
+    const isTrulyFull = this._isEventTrulyFull(e);
+    const isMainFull = e.current >= e.max;
     const isSignedUp = this._isUserSignedUp(e);
     let signupBtn = '';
     if (isEnded) {
       signupBtn = `<button style="background:#333;color:#999;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:not-allowed" disabled>已結束</button>`;
     } else if (isSignedUp) {
       signupBtn = `<button style="background:#dc2626;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:pointer" onclick="App.handleCancelSignup('${e.id}')">取消報名</button>`;
-    } else if (isFull) {
+    } else if (isTrulyFull) {
+      signupBtn = `<button style="background:#333;color:#999;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:not-allowed" disabled>已額滿</button>`;
+    } else if (isMainFull) {
       signupBtn = `<button style="background:#7c3aed;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:pointer" onclick="App.handleSignup('${e.id}')">報名候補</button>`;
     } else {
       signupBtn = `<button class="primary-btn" onclick="App.handleSignup('${e.id}')">立即報名</button>`;
@@ -306,7 +323,7 @@ Object.assign(App, {
       <div class="detail-row"><span class="detail-label">地點</span>${locationHtml}</div>
       <div class="detail-row"><span class="detail-label">時間</span>${escapeHTML(e.date)}</div>
       <div class="detail-row"><span class="detail-label">費用</span>${e.fee > 0 ? '$'+e.fee : '免費'}</div>
-      <div class="detail-row"><span class="detail-label">人數</span>已報 ${e.current}/${e.max}　候補 ${e.waitlist}/${e.waitlistMax}</div>
+      <div class="detail-row"><span class="detail-label">人數</span>已報 ${e.current}/${e.max}　候補 ${e.waitlist}/${(e.waitlistMax || 0) > 0 ? e.waitlistMax : '∞'}</div>
       <div class="detail-row"><span class="detail-label">年齡</span>${e.minAge > 0 ? e.minAge + ' 歲以上' : '無限制'}</div>
       <div class="detail-row"><span class="detail-label">主辦</span><span class="participant-list" style="display:inline-flex;gap:.3rem;flex-wrap:wrap">${this._userTag(e.creator)}</span></div>
       ${(e.delegates && e.delegates.length) ? `<div class="detail-row"><span class="detail-label">委託</span><span class="participant-list" style="display:inline-flex;gap:.3rem;flex-wrap:wrap">${e.delegates.map(d => this._userTag(d.name)).join('')}</span></div>` : ''}
@@ -329,7 +346,7 @@ Object.assign(App, {
       ${(e.waitlistNames || []).length > 0 ? `
       <div class="detail-section">
         <div class="detail-section-title">候補名單 (${e.waitlist})</div>
-        <div class="participant-list">${e.waitlistNames.map(p => this._userTag(p)).join('')}</div>
+        <div class="participant-list">${e.waitlistNames.map((p, i) => `<span class="wl-pos">${i + 1}</span>${this._userTag(p)}`).join('')}</div>
       </div>` : ''}
     `;
     this.showPage('page-activity-detail');
@@ -350,6 +367,11 @@ Object.assign(App, {
       }
       const isWaitlist = e.current >= e.max;
       if (isWaitlist) {
+        // 候補已滿（waitlistMax > 0 才有上限）
+        if ((e.waitlistMax || 0) > 0 && (e.waitlist || 0) >= e.waitlistMax) {
+          this.showToast('正取及候補皆已額滿');
+          return;
+        }
         if (!e.waitlistNames) e.waitlistNames = [];
         e.waitlistNames.push(userName);
         e.waitlist = (e.waitlist || 0) + 1;
@@ -357,7 +379,9 @@ Object.assign(App, {
         if (!e.participants) e.participants = [];
         e.participants.push(userName);
         e.current++;
-        if (e.current >= e.max) e.status = 'full';
+      }
+      if (this._isEventTrulyFull(e)) {
+        e.status = 'full';
       }
       // 寫入報名紀錄
       const dateParts = e.date.split(' ')[0].split('/');
@@ -420,7 +444,7 @@ Object.assign(App, {
             e.current++;
             e.waitlist = Math.max(0, e.waitlist - 1);
           }
-          if (e.current < e.max && e.status === 'full') e.status = 'open';
+          if (e.status === 'full' && !this._isEventTrulyFull(e)) e.status = 'open';
         } else {
           const wi = (e.waitlistNames || []).indexOf(userName);
           if (wi !== -1) {
@@ -601,7 +625,7 @@ Object.assign(App, {
       <div style="font-size:.85rem;font-weight:700;margin-bottom:.3rem">報名名單（${e.current}/${e.max}）</div>
       ${participants || '<div style="font-size:.8rem;color:var(--text-muted);padding:.3rem 0">尚無報名</div>'}
       ${e.waitlist > 0 ? `
-        <div style="font-size:.85rem;font-weight:700;margin:.6rem 0 .3rem">候補名單（${e.waitlist}/${e.waitlistMax}）</div>
+        <div style="font-size:.85rem;font-weight:700;margin:.6rem 0 .3rem">候補名單（${e.waitlist}/${(e.waitlistMax || 0) > 0 ? e.waitlistMax : '∞'}）</div>
         ${waitlist}
       ` : ''}
     `;
@@ -681,7 +705,7 @@ Object.assign(App, {
     const e = ApiService.getEvent(id);
     if (!e) return;
     if (!this._canManageEvent(e)) { this.showToast('您只能管理自己的活動'); return; }
-    const newStatus = e.current >= e.max ? 'full' : 'open';
+    const newStatus = this._isEventTrulyFull(e) ? 'full' : 'open';
     ApiService.updateEvent(id, { status: newStatus });
     this.renderMyActivities();
     this.renderActivityList();

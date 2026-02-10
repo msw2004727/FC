@@ -13,7 +13,10 @@ Object.assign(App, {
   renderMessageList(filter) {
     const f = filter || this._msgInboxFilter || 'all';
     this._msgInboxFilter = f;
-    const allMessages = ApiService.getMessages();
+    const myUid = ApiService.getCurrentUser()?.uid || null;
+    const allMessages = ApiService.getMessages().filter(m =>
+      !m.targetUid || !myUid || m.targetUid === myUid
+    );
     const messages = f === 'all' ? allMessages : allMessages.filter(m => m.type === f);
     const container = document.getElementById('message-list');
     if (!container) return;
@@ -46,7 +49,10 @@ Object.assign(App, {
   },
 
   updateNotifBadge() {
-    const messages = ApiService.getMessages();
+    const myUid = ApiService.getCurrentUser()?.uid || null;
+    const messages = ApiService.getMessages().filter(m =>
+      !m.targetUid || !myUid || m.targetUid === myUid
+    );
     const unreadCount = messages.filter(m => m.unread).length;
     const badge = document.getElementById('notif-badge');
     if (!badge) return;
@@ -58,7 +64,10 @@ Object.assign(App, {
     const bar = document.getElementById('storage-bar');
     if (!bar) return;
     const total = 50;
-    const used = ApiService.getMessages().length;
+    const myUid = ApiService.getCurrentUser()?.uid || null;
+    const used = ApiService.getMessages().filter(m =>
+      !m.targetUid || !myUid || m.targetUid === myUid
+    ).length;
     const remaining = Math.max(0, total - used);
     bar.innerHTML = `剩餘容量：<strong style="color:#111">${remaining}</strong>/${total}`;
   },
@@ -103,6 +112,114 @@ Object.assign(App, {
       el.querySelector('.msg-dot').classList.add('read');
       this.updateNotifBadge();
     }
+    if (msg && msg.body) {
+      this.showMessageDetail(id);
+    }
+  },
+
+  showMessageDetail(id) {
+    const messages = ApiService.getMessages();
+    const msg = messages.find(m => m.id === id);
+    if (!msg) return;
+    const modal = document.getElementById('msg-inbox-detail-modal');
+    const content = document.getElementById('msg-inbox-detail-content');
+    if (!modal || !content) return;
+
+    let actionHtml = '';
+    if (msg.actionType === 'team_join_request') {
+      if (msg.actionStatus === 'pending') {
+        actionHtml = `
+          <div class="msg-action-btns">
+            <button class="msg-action-approve" onclick="App.handleTeamJoinAction('${msg.id}','approve')">同意 Approve</button>
+            <button class="msg-action-reject" onclick="App.handleTeamJoinAction('${msg.id}','reject')">拒絕 Reject</button>
+            <button class="msg-action-ignore" onclick="App.handleTeamJoinAction('${msg.id}','ignore')">忽略 Ignore</button>
+          </div>`;
+      } else {
+        const statusLabels = {
+          approved: ['background:var(--success);color:#fff', '已同意 Approved'],
+          rejected: ['background:var(--danger);color:#fff', '已拒絕 Rejected'],
+          ignored: ['background:var(--border);color:var(--text-secondary)', '已忽略 Ignored'],
+        };
+        const [style, label] = statusLabels[msg.actionStatus] || ['', msg.actionStatus];
+        actionHtml = `<div class="msg-action-status" style="${style}">${label}</div>`;
+      }
+    }
+
+    content.innerHTML = `
+      <h3 style="margin:0 0 .6rem;font-size:1rem">${escapeHTML(msg.title)}</h3>
+      <div style="font-size:.75rem;color:var(--text-muted);margin-bottom:.5rem">
+        <span class="msg-type msg-type-${msg.type}">${escapeHTML(msg.typeName)}</span>
+        <span style="margin-left:.4rem">${escapeHTML(msg.time)}</span>
+        ${msg.senderName ? `<span style="margin-left:.4rem">from ${escapeHTML(msg.senderName)}</span>` : ''}
+      </div>
+      <div style="font-size:.85rem;line-height:1.7;padding:.6rem;background:var(--bg-elevated);border-radius:var(--radius-sm);white-space:pre-wrap">${escapeHTML(msg.body)}</div>
+      ${actionHtml}
+    `;
+    modal.style.display = 'flex';
+  },
+
+  async handleTeamJoinAction(msgId, action) {
+    const messages = ApiService.getMessages();
+    const msg = messages.find(m => m.id === msgId);
+    if (!msg || !msg.meta) return;
+
+    const { teamId, teamName, applicantUid, applicantName } = msg.meta;
+
+    if (action === 'approve') {
+      // 1. Update applicant's teamId + teamName
+      const users = ApiService.getAdminUsers();
+      const applicant = users.find(u => u.uid === applicantUid);
+      if (applicant) {
+        Object.assign(applicant, { teamId, teamName });
+        if (!ModeManager.isDemo() && applicant._docId) {
+          FirebaseService.updateUser(applicant._docId, { teamId, teamName }).catch(err => console.error('[approve] updateUser:', err));
+        }
+      }
+      // Also update currentUser if it's the applicant
+      const curUser = ApiService.getCurrentUser();
+      if (curUser && curUser.uid === applicantUid) {
+        ApiService.updateCurrentUser({ teamId, teamName });
+      }
+
+      // 2. Update team members +1
+      const team = ApiService.getTeam(teamId);
+      if (team) {
+        ApiService.updateTeam(teamId, { members: (team.members || 0) + 1 });
+      }
+
+      // 3. Send approval notification to applicant
+      this._deliverMessageToInbox(
+        '球隊申請通過',
+        `恭喜！您已成功加入「${teamName}」球隊，歡迎成為團隊的一員！\nCongratulations! You have been accepted into "${teamName}". Welcome to the team!`,
+        'system', '系統', applicantUid, '系統'
+      );
+
+      // 4. Update message status
+      ApiService.updateMessage(msgId, { actionStatus: 'approved' });
+      msg.actionStatus = 'approved';
+      this.showToast('已同意加入申請');
+
+    } else if (action === 'reject') {
+      // Send rejection notification to applicant
+      this._deliverMessageToInbox(
+        '球隊申請結果',
+        `很抱歉，您申請加入「${teamName}」球隊未獲通過。如有疑問，請聯繫球隊領隊。\nWe're sorry, your application to join "${teamName}" has been declined. Please contact the team captain if you have any questions.`,
+        'system', '系統', applicantUid, '系統'
+      );
+
+      ApiService.updateMessage(msgId, { actionStatus: 'rejected' });
+      msg.actionStatus = 'rejected';
+      this.showToast('已拒絕加入申請');
+
+    } else if (action === 'ignore') {
+      ApiService.updateMessage(msgId, { actionStatus: 'ignored' });
+      msg.actionStatus = 'ignored';
+      this.showToast('已忽略此申請');
+    }
+
+    // Close modal and refresh
+    document.getElementById('msg-inbox-detail-modal').style.display = 'none';
+    this.renderMessageList();
   },
 
   // ══════════════════════════════════
@@ -400,7 +517,7 @@ Object.assign(App, {
   },
 
   // ── 投遞到用戶收件箱（只建立一封） ──
-  _deliverMessageToInbox(title, body, category, categoryName, targetUid, senderName) {
+  _deliverMessageToInbox(title, body, category, categoryName, targetUid, senderName, extra) {
     const preview = body.length > 40 ? body.slice(0, 40) + '...' : body;
     const now = new Date();
     const timeStr = `${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
@@ -410,9 +527,12 @@ Object.assign(App, {
       typeName: categoryName,
       title,
       preview,
+      body,
       time: timeStr,
       unread: true,
       senderName,
+      targetUid: targetUid || null,
+      ...(extra || {}),
     };
     // 加入用戶收件箱
     const source = ModeManager.isDemo() ? DemoData.messages : FirebaseService._cache.messages;

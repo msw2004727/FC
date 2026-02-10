@@ -123,44 +123,93 @@ Object.assign(App, {
       </div>
       <div class="td-card">
         <div class="td-card-title">成員列表</div>
-        <div class="td-member-list">
-          ${Array.from({length: Math.min(t.members, 8)}, (_, i) => {
-            const role = i === 0 ? 'captain' : i <= (t.coaches || []).length ? 'coach' : 'user';
-            const roleLabel = i === 0 ? '領隊' : i <= (t.coaches || []).length ? '教練' : '球員';
-            const roleClass = i === 0 ? 'captain' : i <= (t.coaches || []).length ? 'coach' : 'player';
-            const memberName = i === 0 ? t.captain : i <= (t.coaches || []).length ? t.coaches[i - 1] : '球員' + String.fromCharCode(65 + i);
-            return `
-            <div class="td-member-card">
-              <div class="td-member-avatar" style="background:${(t.color || '#3b82f6')}22;color:${t.color || '#3b82f6'}">${i === 0 ? t.captain.charAt(t.captain.length - 1) : String.fromCharCode(65 + i)}</div>
-              <div class="td-member-info">
-                <div class="td-member-name">${this._userTag(memberName, role)}</div>
-                <span class="td-member-role ${roleClass}">${roleLabel}</span>
-              </div>
-            </div>`;
-          }).join('')}
-          ${t.members > 8 ? `<div class="td-member-more">... 共 ${t.members} 人</div>` : ''}
+        <div class="td-member-tags">
+          ${(() => {
+            const tags = [];
+            tags.push(`<span class="user-capsule uc-captain" onclick="App.showUserProfile('${escapeHTML(t.captain)}')" title="領隊">領隊 ${escapeHTML(t.captain)}</span>`);
+            (t.coaches || []).forEach(c => {
+              tags.push(`<span class="user-capsule uc-coach" onclick="App.showUserProfile('${escapeHTML(c)}')" title="教練">教練 ${escapeHTML(c)}</span>`);
+            });
+            const coachCount = (t.coaches || []).length;
+            const playerCount = Math.min(t.members - 1 - coachCount, 8 - 1 - coachCount);
+            for (let i = 0; i < Math.max(playerCount, 0); i++) {
+              const name = '球員' + String.fromCharCode(65 + i);
+              tags.push(`<span class="user-capsule uc-user" onclick="App.showUserProfile('${escapeHTML(name)}')" title="隊員">隊員 ${escapeHTML(name)}</span>`);
+            }
+            return tags.join('');
+          })()}
+          ${t.members > 8 ? `<span class="td-member-more">... 共 ${t.members} 人</span>` : ''}
         </div>
       </div>
       <div class="td-actions">
-        <button class="primary-btn" onclick="App.handleJoinTeam()">申請加入</button>
+        <button class="primary-btn" onclick="App.handleJoinTeam('${t.id}')">申請加入</button>
         <button class="outline-btn" onclick="App.showToast('透過站內信聯繫')">聯繫領隊</button>
       </div>
     `;
     this.showPage('page-team-detail');
   },
 
-  handleJoinTeam() {
-    let teamId = this._userTeam;
+  handleJoinTeam(teamId) {
+    // 1. Check if user already has a team
+    let currentTeamId = this._userTeam;
     if (!ModeManager.isDemo()) {
       const user = ApiService.getCurrentUser();
-      teamId = user && user.teamId ? user.teamId : null;
+      currentTeamId = user && user.teamId ? user.teamId : null;
     }
-    if (teamId) {
-      const team = ApiService.getTeam(teamId);
-      const teamName = team ? team.name : '球隊';
+    if (currentTeamId) {
+      const currentTeam = ApiService.getTeam(currentTeamId);
+      const teamName = currentTeam ? currentTeam.name : '球隊';
       this.showToast(`您已加入「${teamName}」，無法重複加入其他球隊`);
       return;
     }
+
+    // 2. Get target team
+    const t = ApiService.getTeam(teamId);
+    if (!t) { this.showToast('找不到此球隊'); return; }
+
+    // 3. Get current user info
+    const curUser = ApiService.getCurrentUser();
+    const applicantUid = curUser?.uid || (ModeManager.isDemo() ? DemoData.currentUser.uid : null);
+    const applicantName = curUser?.displayName || (ModeManager.isDemo() ? DemoData.currentUser.displayName : '未知');
+    if (!applicantUid) { this.showToast('請先登入'); return; }
+
+    // 4. Check for existing pending application
+    const allMessages = ApiService.getMessages();
+    const hasPending = allMessages.find(m =>
+      m.actionType === 'team_join_request' &&
+      m.actionStatus === 'pending' &&
+      m.meta && m.meta.teamId === teamId &&
+      m.meta.applicantUid === applicantUid
+    );
+    if (hasPending) {
+      this.showToast('您已申請此球隊，審核中請耐心等候');
+      return;
+    }
+
+    // 5. Find captain UID
+    const users = ApiService.getAdminUsers();
+    let captainUid = t.captainUid || null;
+    if (!captainUid && t.captain) {
+      const capUser = users.find(u => u.name === t.captain);
+      captainUid = capUser ? capUser.uid : null;
+    }
+    if (!captainUid) {
+      this.showToast('無法找到領隊，請聯繫管理員');
+      return;
+    }
+
+    // 6. Send join request message to captain
+    this._deliverMessageToInbox(
+      '球隊加入申請',
+      `${applicantName} 申請加入「${t.name}」球隊，請審核此申請。\n${applicantName} has applied to join "${t.name}". Please review this request.`,
+      'system', '系統', captainUid, applicantName,
+      {
+        actionType: 'team_join_request',
+        actionStatus: 'pending',
+        meta: { teamId, teamName: t.name, applicantUid, applicantName },
+      }
+    );
+
     this.showToast('已送出加入申請！');
   },
 
@@ -356,14 +405,14 @@ Object.assign(App, {
     }
 
     if (this._teamEditId) {
-      const updates = { name, nameEn, nationality, region, founded, contact, bio, captain, coaches, members };
+      const updates = { name, nameEn, nationality, region, founded, contact, bio, captain, captainUid: this._teamCaptainUid || null, coaches, members };
       if (image) updates.image = image;
       ApiService.updateTeam(this._teamEditId, updates);
       this.showToast('球隊資料已更新');
     } else {
       const data = {
         id: generateId('tm_'),
-        name, nameEn, nationality, captain, coaches, members,
+        name, nameEn, nationality, captain, captainUid: this._teamCaptainUid || null, coaches, members,
         region, founded, contact, bio, image,
         active: true, pinned: false, pinOrder: 0,
         wins: 0, draws: 0, losses: 0, gf: 0, ga: 0,

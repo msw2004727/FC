@@ -26,6 +26,7 @@
   --text-primary: #f5f7fa;
   --text-secondary: #e8ecf2;
   --text-muted: #cdd3de;
+  --primary: #3b82f6;
   --accent: #34d399;
   --accent-hover: #6ee7b7;
   --accent-bg: rgba(52,211,153,.16);
@@ -46,6 +47,7 @@
   --text-primary: #1a1d24;
   --text-secondary: #5a6478;
   --text-muted: #8892a4;
+  --primary: #2563eb;
   --accent: #0d9488;
   --accent-hover: #0f766e;
   --accent-bg: rgba(13,148,136,.1);
@@ -752,6 +754,7 @@ img { max-width: 100%; display: block; }
 .detail-section-title { font-weight: 700; font-size: .85rem; margin-bottom: .5rem; border-bottom: 1px solid var(--border); padding-bottom: .3rem; }
 .participant-list { display: flex; flex-wrap: wrap; gap: .4rem; }
 .participant-tag { padding: .2rem .5rem; border-radius: var(--radius-full); background: var(--bg-elevated); font-size: .75rem; color: var(--text-secondary); }
+.wl-pos { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 50%; background: #7c3aed; color: #fff; font-size: .65rem; font-weight: 700; flex-shrink: 0; }
 
 /* ─── Universal User Capsule Tags ─── */
 .user-capsule {
@@ -901,6 +904,7 @@ img { max-width: 100%; display: block; }
 .td-card-item { display: flex; flex-direction: column; gap: .15rem; padding: .4rem; background: var(--bg-elevated); border-radius: var(--radius-sm); }
 .td-card-label { font-size: .7rem; color: var(--text-muted); }
 .td-card-value { font-size: .85rem; font-weight: 600; }
+.td-member-tags { display: flex; flex-wrap: wrap; gap: .4rem; }
 .td-member-list { display: grid; grid-template-columns: 1fr 1fr; gap: .4rem; }
 .td-member-card {
   display: flex; align-items: center; gap: .5rem;
@@ -2051,6 +2055,14 @@ a.social-btn { text-decoration: none; }
 .ad-collapse-content {
   padding-top: .4rem;
 }
+
+/* ─── 訊息動作按鈕 & 狀態標籤 ─── */
+.msg-action-btns { display: flex; gap: .4rem; margin-top: .8rem; }
+.msg-action-btns button { flex: 1; padding: .45rem; border-radius: var(--radius); border: none; font-size: .8rem; font-weight: 600; cursor: pointer; }
+.msg-action-approve { background: var(--success); color: #fff; }
+.msg-action-reject { background: var(--danger); color: #fff; }
+.msg-action-ignore { background: var(--border); color: var(--text-secondary); }
+.msg-action-status { display: inline-block; padding: .2rem .5rem; border-radius: var(--radius-full); font-size: .72rem; font-weight: 600; margin-top: .5rem; }
 
 /* ─── Production 早期隱藏（防重整閃現 Demo 畫面）─── */
 html.prod-early #role-switcher-wrapper { display: none !important; }
