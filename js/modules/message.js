@@ -73,16 +73,20 @@ Object.assign(App, {
     this.showToast(`已將 ${changed} 則訊息標為已讀`);
   },
 
-  clearAllMessages() {
+  async clearAllMessages() {
     const messages = ApiService.getMessages();
     if (!messages.length) { this.showToast('沒有訊息可清空'); return; }
     if (!confirm(`確定要清空全部 ${messages.length} 則訊息？此操作無法恢復。`)) return;
     if (ModeManager.isDemo()) {
       DemoData.messages.length = 0;
     } else {
-      FirebaseService._cache.messages.length = 0;
-      // Firestore batch delete
-      FirebaseService.clearAllMessages?.().catch(err => console.error('[clearAllMessages]', err));
+      try {
+        await FirebaseService.clearAllMessages();
+      } catch (err) {
+        console.error('[clearAllMessages]', err);
+        this.showToast('清空失敗，請重試');
+        return;
+      }
     }
     this.renderMessageList();
     this.updateNotifBadge();

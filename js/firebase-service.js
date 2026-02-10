@@ -725,10 +725,15 @@ const FirebaseService = {
 
   async clearAllMessages() {
     const msgs = this._cache.messages.filter(m => m._docId);
-    if (!msgs.length) return;
-    const batch = db.batch();
-    msgs.forEach(m => batch.delete(db.collection('messages').doc(m._docId)));
-    await batch.commit();
+    if (!msgs.length) { this._cache.messages.length = 0; return; }
+    // Firestore batch 上限 500，分批刪除
+    for (let i = 0; i < msgs.length; i += 450) {
+      const chunk = msgs.slice(i, i + 450);
+      const batch = db.batch();
+      chunk.forEach(m => batch.delete(db.collection('messages').doc(m._docId)));
+      await batch.commit();
+    }
+    this._cache.messages.length = 0;
   },
 
   // ════════════════════════════════
