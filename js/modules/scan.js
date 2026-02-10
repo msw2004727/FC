@@ -398,10 +398,10 @@ Object.assign(App, {
       }
     });
 
-    // checkedIn = has checkin but NO checkout
+    // checkedIn = 所有有簽到紀錄的人（不因簽退而消失）
     const checkedInOnly = [];
-    checkinUsers.forEach((val, uid) => {
-      if (!checkoutUsers.has(uid)) checkedInOnly.push(val.name);
+    checkinUsers.forEach((val) => {
+      checkedInOnly.push(val.name);
     });
 
     // checkedOut = has both checkin + checkout
