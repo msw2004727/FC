@@ -5,10 +5,83 @@
 Object.assign(App, {
 
   // ══════════════════════════════════
+  //  Helpers
+  // ══════════════════════════════════
+
+  _getEventCreatorName() {
+    if (typeof LineAuth !== 'undefined' && LineAuth.isLoggedIn()) {
+      const profile = LineAuth.getProfile();
+      if (profile && profile.displayName) return profile.displayName;
+    }
+    const user = ApiService.getCurrentUser?.() || null;
+    if (user && user.displayName) return user.displayName;
+    return ROLES[this.currentRole]?.label || '一般用戶';
+  },
+
+  /** 解析活動日期字串，回傳開始時間的 Date 物件 */
+  _parseEventStartDate(dateStr) {
+    if (!dateStr) return null;
+    const parts = dateStr.split(' ');
+    const dateParts = parts[0].split('/');
+    if (dateParts.length < 3) return null;
+    const y = parseInt(dateParts[0]);
+    const m = parseInt(dateParts[1]) - 1;
+    const d = parseInt(dateParts[2]);
+    if (parts[1]) {
+      const timePart = parts[1].split('~')[0]; // 取開始時間
+      const [hh, mm] = timePart.split(':').map(Number);
+      return new Date(y, m, d, hh || 0, mm || 0);
+    }
+    return new Date(y, m, d);
+  },
+
+  /** 計算倒數文字：剩餘 X日Y時 / X時Y分 / 已結束 */
+  _calcCountdown(e) {
+    if (e.status === 'ended') return '已結束';
+    if (e.status === 'cancelled') return '已取消';
+    const start = this._parseEventStartDate(e.date);
+    if (!start) return '';
+    const now = new Date();
+    const diff = start - now;
+    if (diff <= 0) return '已結束';
+    const totalMin = Math.floor(diff / 60000);
+    const days = Math.floor(totalMin / 1440);
+    const hours = Math.floor((totalMin % 1440) / 60);
+    const mins = totalMin % 60;
+    if (days > 0) return `剩餘 ${days}日${hours}時`;
+    if (hours > 0) return `剩餘 ${hours}時${mins}分`;
+    return `剩餘 ${mins}分`;
+  },
+
+  /** 自動將過期的 open/full 活動改為 ended */
+  _autoEndExpiredEvents() {
+    const now = new Date();
+    ApiService.getEvents().forEach(e => {
+      if (e.status !== 'open' && e.status !== 'full') return;
+      const start = this._parseEventStartDate(e.date);
+      if (start && start <= now) {
+        ApiService.updateEvent(e.id, { status: 'ended' });
+      }
+    });
+  },
+
+  /** 判斷當前用戶是否已報名 */
+  _isUserSignedUp(e) {
+    const user = ApiService.getCurrentUser?.();
+    if (!user) return false;
+    const name = user.displayName || user.name || '';
+    const uid = user.uid || '';
+    const inParticipants = (e.participants || []).some(p => p === name || p === uid);
+    const inWaitlist = (e.waitlistNames || []).some(p => p === name || p === uid);
+    return inParticipants || inWaitlist;
+  },
+
+  // ══════════════════════════════════
   //  Render: Hot Events
   // ══════════════════════════════════
 
   renderHotEvents() {
+    this._autoEndExpiredEvents();
     const container = document.getElementById('hot-events');
     const upcoming = ApiService.getHotEvents(14);
 
@@ -78,13 +151,14 @@ Object.assign(App, {
           const statusConf = STATUS_CONFIG[e.status] || STATUS_CONFIG.open;
           const time = e.date.split(' ')[1] || '';
           const isEnded = e.status === 'ended' || e.status === 'cancelled';
+          const waitlistTag = (e.waitlist || 0) > 0 ? ` · 候補(${e.waitlist})` : '';
 
           html += `
             <div class="tl-event-row tl-type-${e.type}${isEnded ? ' tl-past' : ''}" onclick="App.showEventDetail('${e.id}')">
               ${e.image ? `<div class="tl-event-thumb"><img src="${e.image}"></div>` : ''}
               <div class="tl-event-info">
                 <div class="tl-event-title">${e.title}</div>
-                <div class="tl-event-meta">${typeConf.label} · ${time} · ${e.location.split('市')[1] || e.location} · ${e.current}/${e.max}人</div>
+                <div class="tl-event-meta">${typeConf.label} · ${time} · ${e.location.split('市')[1] || e.location} · ${e.current}/${e.max}人${waitlistTag}</div>
               </div>
               <span class="tl-event-status ${statusConf.css}">${statusConf.label}</span>
               <span class="tl-event-arrow">›</span>
@@ -118,29 +192,52 @@ Object.assign(App, {
       }
     }
     document.getElementById('detail-title').textContent = e.title;
+
+    // 動態倒數
+    const countdown = this._calcCountdown(e);
+
+    // Google Maps 搜尋連結
+    const mapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(e.location)}`;
+    const locationHtml = `<a href="${mapUrl}" target="_blank" rel="noopener" style="color:var(--primary);text-decoration:none">${e.location} 📍</a>`;
+
+    // 動態報名按鈕
+    const isEnded = e.status === 'ended' || e.status === 'cancelled';
+    const isFull = e.current >= e.max;
+    const isSignedUp = this._isUserSignedUp(e);
+    let signupBtn = '';
+    if (isEnded) {
+      signupBtn = `<button style="background:#333;color:#999;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:not-allowed" disabled>已結束</button>`;
+    } else if (isSignedUp) {
+      signupBtn = `<button style="background:#dc2626;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:pointer" onclick="App.handleCancelSignup('${e.id}')">取消報名</button>`;
+    } else if (isFull) {
+      signupBtn = `<button style="background:#7c3aed;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:pointer" onclick="App.handleSignup('${e.id}')">報名候補</button>`;
+    } else {
+      signupBtn = `<button class="primary-btn" onclick="App.handleSignup('${e.id}')">立即報名</button>`;
+    }
+
     document.getElementById('detail-body').innerHTML = `
-      <div class="detail-row"><span class="detail-label">地點</span>${e.location}</div>
+      <div class="detail-row"><span class="detail-label">地點</span>${locationHtml}</div>
       <div class="detail-row"><span class="detail-label">時間</span>${e.date}</div>
       <div class="detail-row"><span class="detail-label">費用</span>${e.fee > 0 ? '$'+e.fee : '免費'}</div>
       <div class="detail-row"><span class="detail-label">人數</span>已報 ${e.current}/${e.max}　候補 ${e.waitlist}/${e.waitlistMax}</div>
       <div class="detail-row"><span class="detail-label">年齡</span>${e.minAge > 0 ? e.minAge + ' 歲以上' : '無限制'}</div>
       <div class="detail-row"><span class="detail-label">主辦</span>${e.creator}</div>
       ${e.contact ? `<div class="detail-row"><span class="detail-label">聯繫</span>${e.contact}</div>` : ''}
-      <div class="detail-row"><span class="detail-label">倒數</span>${e.countdown}</div>
+      <div class="detail-row"><span class="detail-label">倒數</span><span style="color:${isEnded ? 'var(--text-muted)' : 'var(--primary)' };font-weight:600">${countdown}</span></div>
       ${e.notes ? `
       <div class="detail-section">
         <div class="detail-section-title">注意事項</div>
         <p style="font-size:.85rem;color:var(--text-secondary);line-height:1.7;white-space:pre-wrap">${e.notes}</p>
       </div>` : ''}
       <div style="display:flex;gap:.5rem;margin:1rem 0">
-        <button class="primary-btn" onclick="App.handleSignup('${e.id}')">${e.current >= e.max ? '候補報名' : '立即報名'}</button>
+        ${signupBtn}
         <button class="outline-btn disabled" disabled>聯繫主辦人</button>
       </div>
       <div class="detail-section">
         <div class="detail-section-title">報名名單 (${e.current})</div>
-        <div class="participant-list">${e.participants.map(p => this._userTag(p)).join('')}</div>
+        <div class="participant-list">${(e.participants || []).map(p => this._userTag(p)).join('')}</div>
       </div>
-      ${e.waitlistNames.length > 0 ? `
+      ${(e.waitlistNames || []).length > 0 ? `
       <div class="detail-section">
         <div class="detail-section-title">候補名單 (${e.waitlist})</div>
         <div class="participant-list">${e.waitlistNames.map(p => this._userTag(p)).join('')}</div>
@@ -154,7 +251,7 @@ Object.assign(App, {
     if (!e) return;
 
     if (ApiService._demoMode) {
-      this.showToast(e.current >= e.max ? '已額滿，已加入候補名單' : '報名成功！');
+      this.showToast(e.current >= e.max ? '已加入候補名單' : '報名成功！');
       return;
     }
 
@@ -163,13 +260,30 @@ Object.assign(App, {
     const userName = user?.displayName || user?.name || '用戶';
     FirebaseService.registerForEvent(id, userId, userName)
       .then(result => {
-        this.showToast(result.status === 'waitlisted' ? '已額滿，已加入候補名單' : '報名成功！');
+        this.showToast(result.status === 'waitlisted' ? '已加入候補名單' : '報名成功！');
         this.showEventDetail(id);
       })
       .catch(err => {
         console.error('[handleSignup]', err);
         this.showToast(err.message || '報名失敗，請稍後再試');
       });
+  },
+
+  handleCancelSignup(id) {
+    if (!confirm('確定要取消報名？')) return;
+    if (ApiService._demoMode) {
+      this.showToast('已取消報名');
+      return;
+    }
+    const user = ApiService.getCurrentUser();
+    const userId = user?.uid || 'unknown';
+    if (typeof FirebaseService.unregisterFromEvent === 'function') {
+      FirebaseService.unregisterFromEvent(id, userId)
+        .then(() => { this.showToast('已取消報名'); this.showEventDetail(id); })
+        .catch(err => { console.error('[cancelSignup]', err); this.showToast('取消失敗'); });
+    } else {
+      this.showToast('已取消報名');
+    }
   },
 
   // ══════════════════════════════════
@@ -300,7 +414,15 @@ Object.assign(App, {
     if (dateParts.length === 3) {
       document.getElementById('ce-date').value = `${dateParts[0]}-${dateParts[1].padStart(2,'0')}-${dateParts[2].padStart(2,'0')}`;
     }
-    document.getElementById('ce-time').value = dateTime[1] || '';
+    // 時間下拉選單
+    const timeStr = dateTime[1] || '';
+    const timeParts = timeStr.split('~');
+    const ceTimeStart = document.getElementById('ce-time-start');
+    const ceTimeEnd = document.getElementById('ce-time-end');
+    if (ceTimeStart && ceTimeEnd) {
+      ceTimeStart.value = timeParts[0] || '14:00';
+      ceTimeEnd.value = timeParts[1] || '16:00';
+    }
     document.getElementById('ce-fee').value = e.fee || 0;
     document.getElementById('ce-max').value = e.max || 20;
     document.getElementById('ce-waitlist').value = e.waitlistMax || 0;
@@ -366,7 +488,10 @@ Object.assign(App, {
     const type = document.getElementById('ce-type').value;
     const location = document.getElementById('ce-location').value.trim();
     const dateVal = document.getElementById('ce-date').value;
-    const timeVal = document.getElementById('ce-time').value.trim();
+    // 時間下拉選單
+    const ceTimeStart = document.getElementById('ce-time-start');
+    const ceTimeEnd = document.getElementById('ce-time-end');
+    const timeVal = (ceTimeStart && ceTimeEnd) ? `${ceTimeStart.value}~${ceTimeEnd.value}` : '';
     const fee = parseInt(document.getElementById('ce-fee').value) || 0;
     const max = parseInt(document.getElementById('ce-max').value) || 20;
     const waitlistMax = parseInt(document.getElementById('ce-waitlist').value) || 0;
@@ -374,6 +499,7 @@ Object.assign(App, {
     const notes = document.getElementById('ce-notes').value.trim();
 
     if (!title) { this.showToast('請輸入活動名稱'); return; }
+    if (title.length > 12) { this.showToast('活動名稱不可超過 12 字'); return; }
     if (!location) { this.showToast('請輸入地點'); return; }
     if (!dateVal) { this.showToast('請選擇日期'); return; }
     if (notes.length > 500) { this.showToast('注意事項不可超過 500 字'); return; }
@@ -386,7 +512,6 @@ Object.assign(App, {
     const fullDate = timeVal ? `${dateParts[0]}/${parseInt(dateParts[1]).toString().padStart(2,'0')}/${parseInt(dateParts[2]).toString().padStart(2,'0')} ${timeVal}` : `${dateParts[0]}/${parseInt(dateParts[1])}/${parseInt(dateParts[2])}`;
 
     if (this._editEventId) {
-      // 編輯模式
       ApiService.updateEvent(this._editEventId, {
         title, type, location, date: fullDate, fee, max, waitlistMax, minAge, notes, image,
         gradient: GRADIENT_MAP[type] || GRADIENT_MAP.friendly,
@@ -398,12 +523,12 @@ Object.assign(App, {
       this.renderMyActivities();
       this.showToast(`活動「${title}」已更新！`);
     } else {
-      // 新增模式
+      const creatorName = this._getEventCreatorName();
       const newEvent = {
         id: 'ce_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
         title, type, status: 'open', location, date: fullDate,
         fee, max, current: 0, waitlist: 0, waitlistMax, minAge, notes, image,
-        creator: ROLES[this.currentRole]?.label || '一般用戶',
+        creator: creatorName,
         contact: '',
         gradient: GRADIENT_MAP[type] || GRADIENT_MAP.friendly,
         icon: '',
@@ -429,6 +554,8 @@ Object.assign(App, {
     document.getElementById('ce-min-age').value = '0';
     document.getElementById('ce-notes').value = '';
     document.getElementById('ce-image').value = '';
+    if (ceTimeStart) ceTimeStart.value = '14:00';
+    if (ceTimeEnd) ceTimeEnd.value = '16:00';
     const cePreview = document.getElementById('ce-upload-preview');
     if (cePreview) {
       cePreview.classList.remove('has-image');

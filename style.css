@@ -628,18 +628,12 @@ img { max-width: 100%; display: block; }
 [data-theme="dark"] .tl-tournament-card.tl-league { background: rgba(220,38,38,.08); }
 [data-theme="dark"] .tl-tournament-card.tl-cup { background: rgba(217,119,6,.08); }
 .tl-type-friendly { border-left: 3px solid #0d9488; background: rgba(13,148,136,.04); }
-.tl-type-training { border-left: 3px solid #7c3aed; background: rgba(124,58,237,.04); }
-.tl-type-league   { border-left: 3px solid #dc2626; background: rgba(220,38,38,.04); }
-.tl-type-cup      { border-left: 3px solid #d97706; background: rgba(217,119,6,.04); }
-.tl-type-test     { border-left: 3px solid #2563eb; background: rgba(37,99,235,.04); }
 .tl-type-camp     { border-left: 3px solid #ec4899; background: rgba(236,72,153,.04); }
+.tl-type-play     { border-left: 3px solid #7c3aed; background: rgba(124,58,237,.04); }
 .tl-type-watch    { border-left: 3px solid #f59e0b; background: rgba(245,158,11,.04); }
 [data-theme="dark"] .tl-type-friendly { background: rgba(13,148,136,.08); }
-[data-theme="dark"] .tl-type-training { background: rgba(124,58,237,.08); }
-[data-theme="dark"] .tl-type-league   { background: rgba(220,38,38,.08); }
-[data-theme="dark"] .tl-type-cup      { background: rgba(217,119,6,.08); }
-[data-theme="dark"] .tl-type-test     { background: rgba(37,99,235,.08); }
 [data-theme="dark"] .tl-type-camp     { background: rgba(236,72,153,.08); }
+[data-theme="dark"] .tl-type-play     { background: rgba(124,58,237,.08); }
 [data-theme="dark"] .tl-type-watch    { background: rgba(245,158,11,.08); }
 .tl-type-icon {
   width: 32px;
@@ -654,11 +648,8 @@ img { max-width: 100%; display: block; }
   color: #fff;
 }
 .tl-type-icon.friendly { background: linear-gradient(135deg, #0d9488, #065f46); }
-.tl-type-icon.training { background: linear-gradient(135deg, #7c3aed, #4338ca); }
-.tl-type-icon.league   { background: linear-gradient(135deg, #dc2626, #991b1b); }
-.tl-type-icon.cup      { background: linear-gradient(135deg, #d97706, #92400e); }
-.tl-type-icon.test     { background: linear-gradient(135deg, #2563eb, #1e40af); }
 .tl-type-icon.camp     { background: linear-gradient(135deg, #ec4899, #be185d); }
+.tl-type-icon.play     { background: linear-gradient(135deg, #7c3aed, #4338ca); }
 .tl-type-icon.watch    { background: linear-gradient(135deg, #f59e0b, #d97706); }
 .tl-event-thumb { width: 48px; height: 48px; border-radius: var(--radius-sm); overflow: hidden; flex-shrink: 0; }
 .tl-event-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }

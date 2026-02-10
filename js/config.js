@@ -77,12 +77,9 @@ const DEMO_USERS = {
 
 // ─── Type & Status Config ───
 const TYPE_CONFIG = {
-  friendly: { icon: '', label: '友誼賽', color: 'friendly' },
-  training: { icon: '', label: '訓練', color: 'training' },
-  league:   { icon: '', label: '聯賽', color: 'league' },
-  cup:      { icon: '', label: '盃賽', color: 'cup' },
-  test:     { icon: '', label: '測試', color: 'test' },
-  camp:     { icon: '', label: '學習營', color: 'camp' },
+  friendly: { icon: '', label: '友誼', color: 'friendly' },
+  camp:     { icon: '', label: '教學', color: 'camp' },
+  play:     { icon: '', label: 'PLAY', color: 'play' },
   watch:    { icon: '', label: '觀賽', color: 'watch' },
 };
 
@@ -99,11 +96,8 @@ const DAY_NAMES = ['日','一','二','三','四','五','六'];
 // ─── Gradient Map (for event creation) ───
 const GRADIENT_MAP = {
   friendly: 'linear-gradient(135deg,#0d9488,#065f46)',
-  training: 'linear-gradient(135deg,#7c3aed,#4338ca)',
-  league:   'linear-gradient(135deg,#dc2626,#991b1b)',
-  cup:      'linear-gradient(135deg,#d97706,#92400e)',
-  test:     'linear-gradient(135deg,#2563eb,#1e40af)',
   camp:     'linear-gradient(135deg,#ec4899,#be185d)',
+  play:     'linear-gradient(135deg,#7c3aed,#4338ca)',
   watch:    'linear-gradient(135deg,#f59e0b,#d97706)',
 };
 
