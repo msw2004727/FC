@@ -11,7 +11,6 @@ Object.assign(App, {
   filterAdminUsers() {
     const keyword = (document.getElementById('admin-user-search')?.value || '').trim().toLowerCase();
     const roleFilter = document.getElementById('admin-user-role-filter')?.value || '';
-    const regionFilter = document.getElementById('admin-user-region-filter')?.value || '';
 
     let users = ApiService.getAdminUsers();
 
@@ -23,9 +22,6 @@ Object.assign(App, {
     }
     if (roleFilter) {
       users = users.filter(u => u.role === roleFilter);
-    }
-    if (regionFilter) {
-      users = users.filter(u => u.region === regionFilter);
     }
 
     this.renderAdminUsers(users);
