@@ -173,25 +173,13 @@ Object.assign(App, {
       if (!el) return;
 
       if (t.status === 'active' && t.image) {
-        el.style.backgroundImage = `url("${t.image}")`;
-        el.style.backgroundSize = 'cover';
-        el.style.backgroundRepeat = 'no-repeat';
-        if (t.slot === 'theme_bg') {
-          el.style.backgroundAttachment = 'fixed';
-          el.style.backgroundPosition = 'center top';
-        } else {
-          el.style.backgroundPosition = 'center center';
-        }
+        // 用 background 簡寫覆蓋 stylesheet 的 background 簡寫
+        const pos = t.slot === 'theme_bg' ? 'center top' : 'center center';
+        const attach = t.slot === 'theme_bg' ? 'fixed' : 'scroll';
+        el.style.background = `url("${t.image}") ${pos} / cover no-repeat ${attach}`;
       } else {
-        el.style.backgroundImage = '';
-        el.style.backgroundSize = '';
-        el.style.backgroundRepeat = '';
-        if (t.slot === 'theme_bg') {
-          el.style.backgroundAttachment = '';
-          el.style.backgroundPosition = '';
-        } else {
-          el.style.backgroundPosition = '';
-        }
+        // 移除 inline background，還原 stylesheet 預設
+        el.style.background = '';
       }
     });
   },
