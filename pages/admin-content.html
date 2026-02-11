@@ -138,6 +138,7 @@
       <div class="page-header">
         <button class="back-btn" onclick="App.goBack()">←</button>
         <h2>站內信管理</h2>
+        <button class="primary-btn small" onclick="App.showTemplateEditor()" style="background:#3b82f6">編輯腳本</button>
         <button class="primary-btn small" onclick="App.showMsgCompose()">＋ 發送</button>
       </div>
       <div id="msg-sent-count" style="text-align:right;font-size:.75rem;color:var(--text-muted);padding:0 .5rem .3rem"></div>
@@ -190,6 +191,15 @@
             <input type="datetime-local" id="msg-schedule">
           </div>
           <button class="primary-btn full-width" onclick="App.sendMessage()">發送</button>
+        </div>
+      </div>
+      <!-- 通知腳本編輯器（疊窗） -->
+      <div id="notif-template-editor" style="display:none;position:fixed;inset:0;z-index:1200;background:rgba(0,0,0,.45);backdrop-filter:blur(4px);align-items:center;justify-content:center" onclick="if(event.target===this)App.hideTemplateEditor()">
+        <div style="background:var(--bg-card);border-radius:var(--radius-lg);max-width:460px;width:92%;max-height:85vh;overflow-y:auto;padding:1.2rem;position:relative">
+          <div class="role-editor-header" style="margin-bottom:.6rem"><span style="font-size:.95rem;font-weight:700">編輯通知腳本</span><button style="background:none;border:none;font-size:1.2rem;cursor:pointer;color:var(--text-muted)" onclick="App.hideTemplateEditor()">✕</button></div>
+          <div style="font-size:.75rem;color:var(--text-muted);margin-bottom:.8rem">使用 {佔位符} 來動態插入資訊，例如 {userName}、{eventName}</div>
+          <div id="notif-template-list"></div>
+          <button class="primary-btn full-width" onclick="App.saveAllTemplates()">儲存所有模板</button>
         </div>
       </div>
     </section>

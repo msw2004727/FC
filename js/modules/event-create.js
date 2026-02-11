@@ -210,6 +210,12 @@ Object.assign(App, {
     const fullDate = timeVal ? `${dateParts[0]}/${parseInt(dateParts[1]).toString().padStart(2,'0')}/${parseInt(dateParts[2]).toString().padStart(2,'0')} ${timeVal}` : `${dateParts[0]}/${parseInt(dateParts[1])}/${parseInt(dateParts[2])}`;
 
     if (this._editEventId) {
+      // Trigger 6：活動變更通知 — 先取得現有報名者
+      const existingEvent = ApiService.getEvent(this._editEventId);
+      const notifyNames = existingEvent
+        ? [...(existingEvent.participants || []), ...(existingEvent.waitlistNames || [])]
+        : [];
+
       const updates = {
         title, type, location, date: fullDate, fee, max, waitlistMax, minAge, notes, image,
         gradient: GRADIENT_MAP[type] || GRADIENT_MAP.friendly,
@@ -219,6 +225,34 @@ Object.assign(App, {
         delegates: [...this._delegates],
       };
       ApiService.updateEvent(this._editEventId, updates);
+
+      // 發送活動變更通知給所有報名者
+      if (notifyNames.length > 0) {
+        const adminUsers = ApiService.getAdminUsers();
+        notifyNames.forEach(name => {
+          const u = adminUsers.find(au => au.name === name);
+          if (u) {
+            this._sendNotifFromTemplate('event_changed', {
+              eventName: title, date: fullDate, location,
+            }, u.uid, 'activity', '活動');
+          }
+        });
+        // Firebase 模式：補查 registrations 確保不遺漏
+        if (!ModeManager.isDemo()) {
+          const regs = (FirebaseService._cache.registrations || []).filter(
+            r => r.eventId === this._editEventId && r.status !== 'cancelled'
+          );
+          const notifiedNames = new Set(notifyNames);
+          regs.forEach(r => {
+            if (r.userId && !notifiedNames.has(r.userName)) {
+              this._sendNotifFromTemplate('event_changed', {
+                eventName: title, date: fullDate, location,
+              }, r.userId, 'activity', '活動');
+            }
+          });
+        }
+      }
+
       this.closeModal();
       this._editEventId = null;
       this.renderActivityList();

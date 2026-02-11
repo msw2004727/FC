@@ -193,6 +193,35 @@ Object.assign(App, {
     const e = ApiService.getEvent(id);
     if (e && !this._canManageEvent(e)) { this.showToast('您只能管理自己的活動'); return; }
     if (!await this.appConfirm('確定要取消此活動？')) return;
+
+    // Trigger 4：活動取消通知 — 通知所有報名者與候補者
+    if (e) {
+      const adminUsers = ApiService.getAdminUsers();
+      const allNames = [...(e.participants || []), ...(e.waitlistNames || [])];
+      allNames.forEach(name => {
+        const u = adminUsers.find(au => au.name === name);
+        if (u) {
+          this._sendNotifFromTemplate('event_cancelled', {
+            eventName: e.title, date: e.date, location: e.location,
+          }, u.uid, 'activity', '活動');
+        }
+      });
+      // Firebase 模式：補查 registrations 確保不遺漏
+      if (!ModeManager.isDemo()) {
+        const regs = (FirebaseService._cache.registrations || []).filter(
+          r => r.eventId === id && r.status !== 'cancelled'
+        );
+        const notifiedNames = new Set(allNames);
+        regs.forEach(r => {
+          if (r.userId && !notifiedNames.has(r.userName)) {
+            this._sendNotifFromTemplate('event_cancelled', {
+              eventName: e.title, date: e.date, location: e.location,
+            }, r.userId, 'activity', '活動');
+          }
+        });
+      }
+    }
+
     ApiService.updateEvent(id, { status: 'cancelled' });
     this.renderMyActivities();
     this.renderActivityList();

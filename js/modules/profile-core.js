@@ -119,6 +119,10 @@ Object.assign(App, {
         try {
           const user = await ApiService.loginUser(profile);
           console.log('[App] createOrUpdateUser 成功:', user?.displayName, 'docId:', user?._docId);
+          // Trigger 1：歡迎訊息（首次註冊）
+          if (user && user._isNewUser) {
+            this._sendNotifFromTemplate('welcome', { userName: profile.displayName }, user.uid);
+          }
           if (user && (!user.gender || !user.birthday || !user.region)) {
             this._pendingFirstLogin = true;
           }

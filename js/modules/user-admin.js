@@ -73,7 +73,14 @@ Object.assign(App, {
     const roleMap = { '管理員': 'admin', '教練': 'coach', '領隊': 'captain', '場主': 'venue_owner' };
     const roleKey = roleMap[select.value];
     if (!roleKey) return;
+    const user = ApiService.getAdminUsers().find(u => u.name === name);
     ApiService.promoteUser(name, roleKey);
+    // Trigger 5：身份變更通知
+    if (user) {
+      this._sendNotifFromTemplate('role_upgrade', {
+        userName: name, roleName: select.value,
+      }, user.uid, 'private', '私訊');
+    }
     this.filterAdminUsers();
     this.showToast(`已將「${name}」晉升為「${select.value}」`);
     select.value = '';
@@ -108,6 +115,10 @@ Object.assign(App, {
     const name = this._userEditTarget;
     if (!name) return;
 
+    // 記錄舊角色以偵測變更
+    const oldUser = ApiService.getAdminUsers().find(u => u.name === name);
+    const oldRole = oldUser ? oldUser.role : null;
+
     const updates = {
       role: document.getElementById('ue-role').value,
       region: document.getElementById('ue-region').value,
@@ -122,6 +133,14 @@ Object.assign(App, {
     }
 
     const result = ApiService.updateAdminUser(name, updates);
+
+    // Trigger 5：身份變更通知
+    if (result && oldRole && oldRole !== updates.role) {
+      const roleName = ROLES[updates.role]?.label || updates.role;
+      this._sendNotifFromTemplate('role_upgrade', {
+        userName: name, roleName,
+      }, result.uid, 'private', '私訊');
+    }
     if (result) {
       this.closeUserEditModal();
       this.filterAdminUsers();

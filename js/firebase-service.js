@@ -42,6 +42,7 @@ const FirebaseService = {
     popupAds: [],
     sponsors: [],
     adminMessages: [],
+    notifTemplates: [],
     currentUser: null,
   },
 
@@ -109,6 +110,8 @@ const FirebaseService = {
 
     // 自動建立空白廣告欄位（若 Firestore 尚無資料）
     await this._seedAdSlots();
+    // 自動建立通知模板（若 Firestore 尚無資料）
+    await this._seedNotifTemplates();
 
     // 啟動即時監聽
     this._setupListeners();
@@ -166,6 +169,51 @@ const FirebaseService = {
   },
 
   // ════════════════════════════════
+  //  自動建立通知模板
+  // ════════════════════════════════
+
+  async _seedNotifTemplates() {
+    if (this._cache.notifTemplates.length > 0) return;
+    console.log('[FirebaseService] 建立預設通知模板...');
+    const defaults = [
+      { key: 'welcome', title: '歡迎加入 SportHub！', body: '嗨 {userName}，歡迎加入 SportHub 平台！\n\n您可以在這裡瀏覽並報名各類足球活動、加入球隊、參與聯賽。\n祝您使用愉快！' },
+      { key: 'signup_success', title: '報名成功通知', body: '您已成功報名以下活動：\n\n活動名稱：{eventName}\n活動時間：{date}\n活動地點：{location}\n報名狀態：{status}\n\n請準時出席，如需取消請提前至活動頁面操作。' },
+      { key: 'waitlist_promoted', title: '候補遞補通知', body: '恭喜！由於有人取消報名，您已從候補名單自動遞補為正式參加者。\n\n活動名稱：{eventName}\n活動時間：{date}\n活動地點：{location}\n\n請準時出席！' },
+      { key: 'event_cancelled', title: '活動取消通知', body: '很抱歉通知您，以下活動因故取消：\n\n活動名稱：{eventName}\n原定時間：{date}\n原定地點：{location}\n\n如您已繳費，費用將於 3 個工作天內退還。造成不便深感抱歉。' },
+      { key: 'role_upgrade', title: '身份變更通知', body: '恭喜 {userName}！您的身份已變更為「{roleName}」。\n\n新身份可能帶來新的權限與功能，請至個人資料頁面查看詳情。\n感謝您對社群的貢獻！' },
+      { key: 'event_changed', title: '活動變更通知', body: '您報名的活動資訊有所變更，請留意：\n\n活動名稱：{eventName}\n活動時間：{date}\n活動地點：{location}\n\n如因變更需要取消報名，請至活動頁面操作。' },
+    ];
+    try {
+      const batch = db.batch();
+      defaults.forEach(t => {
+        const ref = db.collection('notifTemplates').doc(t.key);
+        batch.set(ref, { ...t, createdAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true });
+      });
+      await batch.commit();
+      defaults.forEach(t => {
+        t._docId = t.key;
+        this._cache.notifTemplates.push(t);
+      });
+    } catch (err) {
+      console.warn('[FirebaseService] 通知模板建立失敗:', err);
+    }
+  },
+
+  async updateNotifTemplate(key, updates) {
+    const doc = this._cache.notifTemplates.find(t => t.key === key);
+    if (doc) Object.assign(doc, updates);
+    try {
+      await db.collection('notifTemplates').doc(key).update({
+        ...updates,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      });
+    } catch (err) {
+      console.error('[updateNotifTemplate]', err);
+    }
+    return doc;
+  },
+
+  // ════════════════════════════════
   //  即時監聽（可變集合）
   // ════════════════════════════════
 
@@ -176,7 +224,7 @@ const FirebaseService = {
       'standings', 'matches', 'trades',
       'banners', 'floatingAds', 'popupAds', 'sponsors', 'announcements', 'attendanceRecords',
       'achievements', 'badges',
-      'expLogs', 'operationLogs', 'adminMessages',
+      'expLogs', 'operationLogs', 'adminMessages', 'notifTemplates',
     ];
 
     liveCollections.forEach(name => {
@@ -362,6 +410,7 @@ const FirebaseService = {
         );
         if (promotedReg) {
           promotedReg.status = 'confirmed';
+          reg._promotedUserId = promotedReg.userId;
           if (promotedReg._docId) {
             await db.collection('registrations').doc(promotedReg._docId).update({ status: 'confirmed' });
           }
@@ -593,6 +642,7 @@ const FirebaseService = {
         lastLogin: firebase.firestore.FieldValue.serverTimestamp(),
       });
       userData._docId = docId;
+      userData._isNewUser = true;
       this._cache.currentUser = userData;
       this._setupUserListener(docId);
       console.log('[FirebaseService] 新用戶建立:', displayName, 'docId:', docId);

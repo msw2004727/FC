@@ -344,6 +344,25 @@ const ApiService = {
 
   getAdminMessages() { return this._src('adminMessages'); },
 
+  // ════════════════════════════════
+  //  Notification Templates（通知模板）
+  // ════════════════════════════════
+
+  getNotifTemplates() { return this._src('notifTemplates'); },
+
+  getNotifTemplate(key) {
+    return this._src('notifTemplates').find(t => t.key === key) || null;
+  },
+
+  updateNotifTemplate(key, updates) {
+    const t = this._src('notifTemplates').find(t => t.key === key);
+    if (t) Object.assign(t, updates);
+    if (!this._demoMode) {
+      FirebaseService.updateNotifTemplate(key, updates).catch(err => console.error('[updateNotifTemplate]', err));
+    }
+    return t;
+  },
+
   createAdminMessage(data)        { return this._create('adminMessages', data, FirebaseService.addAdminMessage, 'createAdminMessage'); },
   updateAdminMessage(id, updates) { return this._update('adminMessages', id, updates, FirebaseService.updateAdminMessage, 'updateAdminMessage'); },
 

@@ -223,6 +223,73 @@ Object.assign(App, {
   },
 
   // ══════════════════════════════════
+  //  Notification Template Utilities
+  // ══════════════════════════════════
+
+  _renderTemplate(str, vars) {
+    if (!str) return '';
+    return str.replace(/\{(\w+)\}/g, (_, key) => (vars && vars[key] != null) ? vars[key] : `{${key}}`);
+  },
+
+  _sendNotifFromTemplate(key, vars, targetUid, category, categoryName) {
+    const tpl = ApiService.getNotifTemplate(key);
+    if (!tpl) { console.warn('[Notif] 找不到模板:', key); return; }
+    const title = this._renderTemplate(tpl.title, vars);
+    const body = this._renderTemplate(tpl.body, vars);
+    this._deliverMessageToInbox(title, body, category || 'system', categoryName || '系統', targetUid, '系統');
+  },
+
+  // ══════════════════════════════════
+  //  Notification Template Editor
+  // ══════════════════════════════════
+
+  showTemplateEditor() {
+    const modal = document.getElementById('notif-template-editor');
+    if (!modal) return;
+    const list = document.getElementById('notif-template-list');
+    if (!list) return;
+    const templates = ApiService.getNotifTemplates();
+    const placeholderHints = {
+      welcome: '{userName}',
+      signup_success: '{eventName} {date} {location} {status}',
+      waitlist_promoted: '{eventName} {date} {location}',
+      event_cancelled: '{eventName} {date} {location}',
+      role_upgrade: '{userName} {roleName}',
+      event_changed: '{eventName} {date} {location}',
+    };
+    list.innerHTML = templates.map(t => `
+      <div class="form-card" style="margin-bottom:.6rem">
+        <div style="font-size:.82rem;font-weight:700;margin-bottom:.3rem">${escapeHTML(t.key)}</div>
+        <div style="font-size:.72rem;color:var(--text-muted);margin-bottom:.4rem">佔位符：${escapeHTML(placeholderHints[t.key] || '無')}</div>
+        <div class="form-row"><label>標題</label><input type="text" data-tpl-key="${t.key}" data-tpl-field="title" value="${escapeHTML(t.title)}" maxlength="12"></div>
+        <div class="form-row"><label>內容</label><textarea data-tpl-key="${t.key}" data-tpl-field="body" rows="4" maxlength="300">${escapeHTML(t.body)}</textarea></div>
+      </div>
+    `).join('');
+    modal.style.display = 'flex';
+  },
+
+  hideTemplateEditor() {
+    const modal = document.getElementById('notif-template-editor');
+    if (modal) modal.style.display = 'none';
+  },
+
+  saveAllTemplates() {
+    const inputs = document.querySelectorAll('[data-tpl-key][data-tpl-field]');
+    const updates = {};
+    inputs.forEach(el => {
+      const key = el.dataset.tplKey;
+      const field = el.dataset.tplField;
+      if (!updates[key]) updates[key] = {};
+      updates[key][field] = el.value;
+    });
+    Object.keys(updates).forEach(key => {
+      ApiService.updateNotifTemplate(key, updates[key]);
+    });
+    this.hideTemplateEditor();
+    this.showToast('通知模板已儲存');
+  },
+
+  // ══════════════════════════════════
   //  Helper：取得發送人暱稱
   // ══════════════════════════════════
 

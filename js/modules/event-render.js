@@ -411,6 +411,11 @@ Object.assign(App, {
         uid: userId,
       });
       this.showToast(isWaitlist ? '已加入候補名單' : '報名成功！');
+      // Trigger 2：報名成功通知
+      this._sendNotifFromTemplate('signup_success', {
+        eventName: e.title, date: e.date, location: e.location,
+        status: isWaitlist ? '候補' : '正取',
+      }, userId, 'activity', '活動');
       this.showEventDetail(id);
       return;
     }
@@ -433,6 +438,11 @@ Object.assign(App, {
           uid: userId,
           createdAt: firebase.firestore.FieldValue.serverTimestamp(),
         }).catch(err => console.error('[activityRecord]', err));
+        // Trigger 2：報名成功通知
+        this._sendNotifFromTemplate('signup_success', {
+          eventName: e.title, date: e.date, location: e.location,
+          status: result.status === 'waitlisted' ? '候補' : '正取',
+        }, userId, 'activity', '活動');
         this.showToast(result.status === 'waitlisted' ? '已加入候補名單' : '報名成功！');
         this.showEventDetail(id);
       })
@@ -466,6 +476,14 @@ Object.assign(App, {
               e.participants.push(promoted);
               e.current++;
             }
+            // Trigger 3：候補遞補通知
+            const adminUsers = ApiService.getAdminUsers();
+            const promotedUser = adminUsers.find(u => u.name === promoted);
+            if (promotedUser) {
+              this._sendNotifFromTemplate('waitlist_promoted', {
+                eventName: e.title, date: e.date, location: e.location,
+              }, promotedUser.uid, 'activity', '活動');
+            }
           }
           e.status = e.current >= e.max ? 'full' : 'open';
         } else {
@@ -493,7 +511,16 @@ Object.assign(App, {
     );
     if (reg) {
       FirebaseService.cancelRegistration(reg.id)
-        .then(() => {
+        .then((cancelledReg) => {
+          // Trigger 3：候補遞補通知（Firebase 模式）
+          if (cancelledReg && cancelledReg._promotedUserId) {
+            const ev = ApiService.getEvent(id);
+            if (ev) {
+              this._sendNotifFromTemplate('waitlist_promoted', {
+                eventName: ev.title, date: ev.date, location: ev.location,
+              }, cancelledReg._promotedUserId, 'activity', '活動');
+            }
+          }
           // 更新 activityRecords 狀態
           const records = ApiService.getActivityRecords();
           const rec = records.find(r => r.eventId === id && r.uid === userId && r.status !== 'cancelled');
