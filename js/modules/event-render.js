@@ -354,7 +354,7 @@ Object.assign(App, {
       </div>` : ''}
       <div style="display:flex;gap:.5rem;margin:1rem 0">
         ${signupBtn}
-        <button class="outline-btn disabled" disabled>聯繫主辦人</button>
+        <button class="outline-btn" onclick="App.showUserProfile('${escapeHTML(e.creator)}')">聯繫主辦人</button>
       </div>
       <div class="detail-section">
         <div class="detail-section-title">報名名單 (${e.current})</div>
