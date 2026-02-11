@@ -64,6 +64,14 @@ Object.assign(App, {
     const pending = sorted.filter(a => a.current < this._getAchThreshold(a));
     const completed = sorted.filter(a => a.current >= this._getAchThreshold(a));
 
+    // 已完成的徽章（用於頂部展示區）
+    const earnedBadges = completed.map(a => {
+      const badge = badges.find(b => b.id === a.badgeId);
+      if (!badge) return null;
+      const color = this._catColors[a.category] || this._catColors.bronze;
+      return { badge, color, achName: a.name };
+    }).filter(Boolean);
+
     const renderCard = a => {
       const threshold = this._getAchThreshold(a);
       const done = a.current >= threshold;
@@ -99,14 +107,36 @@ Object.assign(App, {
     };
 
     let html = '';
+
+    // ── 徽章展示區 ──
+    if (earnedBadges.length) {
+      html += '<div class="ach-section-title">已獲得徽章</div>';
+      html += '<div class="ach-badge-showcase">' + earnedBadges.map(({ badge, color, achName }) => `
+        <div class="ach-showcase-item">
+          <div class="ach-showcase-img" style="border-color:${color}">${badge.image ? `<img src="${badge.image}">` : '<span>🏅</span>'}</div>
+          <span class="ach-showcase-name">${escapeHTML(badge.name)}</span>
+        </div>
+      `).join('') + '</div>';
+      html += '<div class="ach-divider"></div>';
+    }
+
+    // ── 未完成 ──
     if (pending.length) {
       html += '<div class="ach-section-title">進行中</div>';
       html += '<div class="ach-card-grid">' + pending.map(renderCard).join('') + '</div>';
     }
+
+    // ── 分隔線 ──
+    if (pending.length && completed.length) {
+      html += '<div class="ach-divider"></div>';
+    }
+
+    // ── 已完成 ──
     if (completed.length) {
       html += '<div class="ach-section-title">已完成</div>';
       html += '<div class="ach-card-grid">' + completed.map(renderCard).join('') + '</div>';
     }
+
     if (!pending.length && !completed.length) {
       html = '<div style="text-align:center;padding:2rem;color:var(--text-muted);font-size:.85rem">尚無成就</div>';
     }
@@ -150,7 +180,7 @@ Object.assign(App, {
       const badge = badges.find(b => b.id === a.badgeId);
       const badgeImg = badge && badge.image
         ? `<img src="${badge.image}" style="width:100%;height:100%;object-fit:cover;border-radius:4px">`
-        : '';
+        : '<span style="font-size:.9rem">🏅</span>';
       const desc = this._generateConditionDesc(a.condition, a.desc);
       return `
       <div class="admin-ach-row" style="background:${i % 2 === 0 ? 'var(--bg-elevated)' : 'transparent'};border-left:3px solid ${color}">
