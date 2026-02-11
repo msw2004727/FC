@@ -1,0 +1,209 @@
+/* ================================================
+   SportHub — Profile & User Styles
+   Profile, Achievements, Badges, User Cards
+   ================================================ */
+
+/* ─── Universal User Capsule Tags ─── */
+.user-capsule {
+  display: inline-block;
+  padding: .25rem .65rem;
+  border-radius: var(--radius-full);
+  font-size: .78rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition);
+  white-space: nowrap;
+  border: 1px solid transparent;
+  line-height: 1.4;
+}
+.user-capsule:hover {
+  filter: brightness(0.92);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(0,0,0,.1);
+}
+/* Role-based capsule colors */
+.uc-user { background: var(--bg-elevated); color: var(--text-secondary); border-color: var(--border); }
+.uc-coach { background: #fef3c7; color: #92400e; border-color: #fde68a; }
+.uc-captain { background: #ede9fe; color: #5b21b6; border-color: #ddd6fe; }
+.uc-venue_owner { background: #ffedd5; color: #9a3412; border-color: #fed7aa; }
+.uc-admin { background: #dbeafe; color: #1e40af; border-color: #bfdbfe; }
+.uc-super_admin { background: #fee2e2; color: #991b1b; border-color: #fecaca; }
+/* Dark theme adjustments */
+[data-theme="dark"] .uc-user { background: var(--bg-elevated); color: var(--text-secondary); border-color: var(--border); }
+[data-theme="dark"] .uc-coach { background: rgba(251,191,36,.20); color: #fcd34d; border-color: rgba(251,191,36,.4); }
+[data-theme="dark"] .uc-captain { background: rgba(139,92,246,.20); color: #c4b5fd; border-color: rgba(139,92,246,.4); }
+[data-theme="dark"] .uc-venue_owner { background: rgba(217,119,6,.20); color: #fbbf24; border-color: rgba(217,119,6,.4); }
+[data-theme="dark"] .uc-admin { background: rgba(59,130,246,.20); color: #93bbfc; border-color: rgba(59,130,246,.4); }
+[data-theme="dark"] .uc-super_admin { background: rgba(239,68,68,.20); color: #fca5a5; border-color: rgba(239,68,68,.4); }
+/* Capsule inside leaderboard / admin - smaller variant */
+.lb-name .user-capsule, .admin-user-name .user-capsule { font-size: .75rem; padding: .15rem .5rem; }
+.td-member-name .user-capsule { font-size: .75rem; padding: .15rem .5rem; }
+.td-card-value .user-capsule { font-size: .75rem; padding: .15rem .45rem; }
+.tc-info-row .user-capsule { font-size: .72rem; padding: .12rem .4rem; }
+
+/* ─── Profile ─── */
+.profile-header { text-align: center; padding: 1.5rem 1rem .5rem; }
+.profile-avatar { width: 72px; height: 72px; border-radius: 50%; background: linear-gradient(135deg, var(--accent), #0d9488); display: flex; align-items: center; justify-content: center; color: #fff; font-size: 1.5rem; font-weight: 800; margin: 0 auto .6rem; border: 3px solid var(--bg-card); box-shadow: 0 0 0 3px var(--accent); }
+.profile-avatar.small { width: 40px; height: 40px; font-size: .9rem; margin: 0; box-shadow: none; border: none; }
+.profile-title { font-weight: 700; font-size: 1rem; margin-bottom: .4rem; }
+.profile-level { display: flex; align-items: center; gap: .5rem; justify-content: center; font-size: .78rem; color: var(--text-secondary); }
+.exp-bar { flex: 1; max-width: 140px; height: 8px; background: var(--bg-elevated); border-radius: 4px; overflow: hidden; }
+.exp-fill { height: 100%; background: linear-gradient(90deg, var(--accent), #6ee7b7); border-radius: 4px; transition: width .5s ease; }
+.exp-text { font-size: .7rem; color: var(--text-muted); }
+
+/* ─── Profile Stats ─── */
+.profile-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: .5rem; padding: .5rem .5rem 0; margin-bottom: .25rem; }
+.stat-item { display: flex; flex-direction: column; align-items: center; gap: .15rem; padding: .5rem .3rem; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm); }
+.stat-num { font-family: var(--font-display); font-weight: 800; font-size: 1.05rem; color: var(--accent); }
+.stat-label { font-size: .65rem; color: var(--text-muted); font-weight: 500; }
+
+/* ─── Quick Grid ─── */
+.quick-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: .5rem; padding: .5rem; margin-bottom: .5rem; }
+.quick-item { display: flex; flex-direction: column; align-items: center; gap: .25rem; padding: .65rem .3rem; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); font-size: .73rem; font-weight: 500; color: var(--text-secondary); transition: all var(--transition); }
+.quick-item span { font-size: 1.3rem; }
+.quick-item:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-bg); }
+.quick-item.disabled { opacity: 0.4; cursor: not-allowed; background: var(--bg-elevated); pointer-events: none; }
+.quick-item.disabled span { filter: grayscale(100%); }
+
+/* ─── Social Grid ─── */
+.social-grid { display: flex; justify-content: center; gap: .65rem; padding: 0 .5rem .5rem; margin-bottom: .5rem; }
+.social-btn {
+  width: 42px; height: 42px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--bg-card);
+  border: 2px dashed var(--border);
+  color: var(--text-muted);
+  transition: all var(--transition);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.social-btn:hover { border-color: var(--accent); color: var(--accent); transform: translateY(-2px); }
+a.social-btn { text-decoration: none; }
+.social-btn.active { border-style: solid; border-color: currentColor; }
+.social-btn.active[data-platform="fb"] { color: #1877F2; background: rgba(24,119,242,.08); }
+.social-btn.active[data-platform="ig"] { color: #E4405F; background: rgba(228,64,95,.08); }
+.social-btn.active[data-platform="threads"] { color: #000000; background: rgba(0,0,0,.06); }
+.social-btn.active[data-platform="yt"] { color: #FF0000; background: rgba(255,0,0,.08); }
+.social-btn.active[data-platform="twitter"] { color: #000000; background: rgba(0,0,0,.06); }
+[data-theme="dark"] .social-btn.active[data-platform="threads"] { color: #ffffff; background: rgba(255,255,255,.1); }
+[data-theme="dark"] .social-btn.active[data-platform="twitter"] { color: #ffffff; background: rgba(255,255,255,.1); }
+
+/* Social Link Modal URL prefix */
+.social-url-row { display: flex; align-items: center; gap: 0; }
+.social-url-prefix {
+  font-size: .75rem; color: var(--text-muted);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-right: none;
+  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+  padding: .55rem .5rem;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.social-url-row input {
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  flex: 1;
+  min-width: 0;
+}
+
+/* ─── QR Code Page ─── */
+.center-content { display: flex; flex-direction: column; align-items: center; padding: 2rem 1rem; }
+.qr-placeholder { text-align: center; }
+.qr-box { width: 180px; height: 180px; background: #fff; border-radius: var(--radius); display: flex; align-items: center; justify-content: center; color: #333; font-family: var(--font-display); font-weight: 800; font-size: 1.5rem; margin: 0 auto 1rem; border: 3px solid var(--accent); }
+.uid-text { font-family: monospace; color: var(--text-secondary); font-size: .85rem; margin-bottom: .3rem; }
+.qr-hint { font-size: .78rem; color: var(--text-muted); }
+
+/* ─── Paper Doll ─── */
+.paperdoll-preview { display: flex; justify-content: center; padding: 1rem; }
+.doll-canvas { width: 160px; height: 200px; background: var(--bg-elevated); border-radius: var(--radius); border: 2px dashed var(--border); display: grid; place-items: center; position: relative; }
+.doll-layer { position: absolute; font-size: 2rem; transition: all .3s ease; }
+.doll-layer.bg { font-size: 3rem; opacity: .3; }
+.doll-layer.silhouette { font-size: 4rem; opacity: .15; }
+.doll-items { display: flex; gap: .5rem; padding: .5rem; flex-wrap: wrap; justify-content: center; }
+.doll-item { width: 50px; height: 50px; background: var(--bg-card); border: 2px solid var(--border); border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; font-size: 1.5rem; cursor: pointer; transition: all var(--transition); }
+.doll-item.selected { border-color: var(--accent); background: var(--accent-bg); }
+.doll-item.locked { opacity: .4; cursor: not-allowed; }
+.doll-actions { display: flex; gap: .5rem; padding: .5rem; justify-content: center; }
+
+/* ─── Achievement Compact Rows ─── */
+.achievement-grid { display: flex; flex-direction: column; gap: .3rem; padding: .5rem; }
+.ach-row { display: flex; align-items: center; gap: .45rem; padding: .5rem .6rem; border-radius: var(--radius-sm); transition: all var(--transition); }
+.ach-row:hover { filter: brightness(1.05); }
+.ach-row.ach-done { opacity: .55; background: var(--bg-elevated) !important; }
+.ach-cat-chip { flex-shrink: 0; font-size: .62rem; font-weight: 700; color: #fff; width: 1.5rem; height: 1.5rem; border-radius: .35rem; display: flex; align-items: center; justify-content: center; }
+.ach-cat-gold { background: #d4a017; }
+.ach-cat-silver { background: #9ca3af; }
+.ach-cat-bronze { background: #b87333; }
+.ach-row-name { font-size: .8rem; font-weight: 700; white-space: nowrap; flex-shrink: 0; }
+.ach-row-desc { font-size: .72rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex-shrink: 1; }
+.ach-bar-mini { flex: 1; min-width: 40px; max-width: 100px; height: 6px; background: var(--bg-elevated); border-radius: 3px; overflow: hidden; }
+.ach-bar-fill { height: 100%; border-radius: 3px; background: linear-gradient(90deg, #3b82f6, #60a5fa); transition: width .4s ease; }
+.ach-row-num { font-size: .68rem; font-weight: 600; color: var(--text-secondary); white-space: nowrap; flex-shrink: 0; }
+.ach-row-done { font-size: .6rem; font-weight: 700; color: var(--success); background: rgba(16,185,129,.1); padding: .1rem .35rem; border-radius: var(--radius-full); white-space: nowrap; flex-shrink: 0; }
+.ach-row-time { font-size: .58rem; color: var(--text-muted); white-space: nowrap; flex-shrink: 0; }
+.ach-divider { display: flex; align-items: center; gap: .5rem; padding: .35rem .6rem; margin: .15rem 0; }
+.ach-divider::before, .ach-divider::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+.ach-divider span { font-size: .65rem; font-weight: 600; color: var(--text-muted); white-space: nowrap; }
+/* keep .ach-cat-tag for admin */
+.ach-cat-tag { font-size: .65rem; font-weight: 700; color: #fff; padding: .12rem .4rem; border-radius: var(--radius-full); flex-shrink: 0; }
+.ach-progress-bar-wrap { width: 100%; height: 6px; background: var(--bg-elevated); border-radius: 3px; overflow: hidden; }
+.ach-progress-bar { height: 100%; border-radius: 3px; transition: width .4s ease; }
+
+/* ─── Badge Grid ─── */
+.badge-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: .6rem; padding: .5rem; }
+.badge-card { background: var(--bg-card); border: 2px solid var(--border); border-radius: var(--radius); padding: .65rem .5rem; text-align: center; transition: all var(--transition); }
+.badge-card:hover { box-shadow: var(--shadow); }
+.badge-card.badge-locked { opacity: .4; }
+.badge-img-placeholder { width: 56px; height: 56px; margin: 0 auto .4rem; border: 2px dashed var(--border); border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; background: var(--bg-elevated); overflow: hidden; }
+.badge-img-placeholder img { width: 100%; height: 100%; object-fit: cover; }
+.badge-img-placeholder.small { width: 36px; height: 36px; margin: 0; }
+.badge-card-name { font-size: .72rem; font-weight: 600; }
+.badge-earned-tag { font-size: .65rem; font-weight: 700; margin-top: .2rem; }
+.badge-locked-tag { font-size: .65rem; color: var(--text-muted); margin-top: .2rem; }
+
+/* ─── Achievement Mini Tag ─── */
+.ach-mini { display: inline-block; padding: .2rem .55rem; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius-full); font-size: .72rem; font-weight: 500; color: var(--text-secondary); }
+
+/* ─── Title Config ─── */
+.title-config { padding: .5rem; }
+.title-preview { text-align: center; font-family: var(--font-display); font-size: 1.3rem; font-weight: 800; padding: 1rem; margin-bottom: 1rem; background: var(--bg-card); border-radius: var(--radius); border: 1px solid var(--border); color: var(--accent); }
+.title-row { margin-bottom: .75rem; }
+.title-row label { display: block; font-size: .78rem; color: var(--text-muted); margin-bottom: .3rem; font-weight: 600; }
+
+/* ─── User Card Full ─── */
+.user-card-full { padding: .5rem; }
+.uc-header { text-align: center; padding: 1.5rem 0 1rem; }
+.uc-doll-frame { width: 90px; height: 90px; margin: 0; background: var(--bg-elevated); border-radius: var(--radius); display: flex; align-items: center; justify-content: center; font-size: .7rem; color: var(--text-muted); border: 2px dashed var(--border); flex-shrink: 0; }
+.uc-badge-list { display: flex; gap: .6rem; flex-wrap: wrap; }
+.uc-badge-item { display: flex; flex-direction: column; align-items: center; gap: .25rem; width: 60px; }
+.uc-badge-item .badge-img-placeholder { width: 44px; height: 44px; margin: 0; }
+.uc-badge-name { font-size: .65rem; font-weight: 600; text-align: center; color: var(--text-secondary); line-height: 1.2; }
+
+/* ─── User Card: Avatar + Paper Doll side by side ─── */
+.uc-visual-row {
+  display: flex; align-items: center; justify-content: center; gap: .6rem;
+  margin-bottom: .6rem;
+}
+.uc-avatar-circle {
+  width: 90px; height: 90px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent), #0d9488);
+  display: flex; align-items: center; justify-content: center;
+  color: #fff; font-size: 1.8rem; font-weight: 800;
+  border: 3px solid var(--bg-card); box-shadow: 0 0 0 3px var(--accent);
+  flex-shrink: 0; overflow: hidden;
+}
+.uc-avatar-circle img {
+  width: 100%; height: 100%; object-fit: cover; border-radius: 50%;
+}
+.uc-role-tag { display: inline-block; font-size: .7rem; padding: .15rem .5rem; border-radius: var(--radius-full); font-weight: 600; }
+.uc-team-link {
+  color: var(--accent); cursor: pointer; text-decoration: underline;
+}
+.profile-edit-input {
+  flex: 1; padding: .35rem .5rem; border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--bg-card); color: var(--text-primary); font-size: .82rem;
+  max-width: 180px;
+}
+
+/* Dark theme */
+[data-theme="dark"] .ach-row-done { background: rgba(16,185,129,.16); }

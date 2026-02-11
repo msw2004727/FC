@@ -1,0 +1,115 @@
+    <!-- PAGE: Second Hand Shop -->
+    <section class="page" id="page-shop">
+      <div class="page-header">
+        <button class="back-btn" onclick="App.goBack()">←</button>
+        <h2>二手商品區</h2>
+      </div>
+      <div class="filter-bar visible">
+        <select><option>全部分類</option><option>球鞋</option><option>球衣</option><option>護具</option></select>
+        <select><option>全部價格</option><option>$0~500</option><option>$500~1500</option><option>$1500+</option></select>
+        <select><option>最新上架</option><option>最舊上架</option></select>
+      </div>
+      <div class="shop-grid" id="shop-grid"></div>
+    </section>
+
+    <!-- PAGE: Shop Detail -->
+    <section class="page" id="page-shop-detail">
+      <div class="page-header">
+        <button class="back-btn" onclick="App.goBack()">←</button>
+        <h2 id="shop-detail-title">商品名稱</h2>
+      </div>
+      <div class="detail-body" id="shop-detail-body"></div>
+    </section>
+
+    <!-- PAGE: Leaderboard -->
+    <section class="page" id="page-leaderboard">
+      <div class="page-header">
+        <button class="back-btn" onclick="App.goBack()">←</button>
+        <h2>排行榜</h2>
+      </div>
+      <div class="tab-bar compact">
+        <button class="tab active">週</button>
+        <button class="tab">雙週</button>
+        <button class="tab">月</button>
+        <button class="tab">季</button>
+        <button class="tab">年</button>
+      </div>
+      <div class="leaderboard-list" id="leaderboard-list"></div>
+    </section>
+
+  <!-- Create Shop Item Modal -->
+  <div class="modal" id="create-shop-modal">
+    <div class="modal-header">
+      <h3>新增二手商品</h3>
+      <button class="modal-close" onclick="App.closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="ce-form">
+        <div class="ce-row">
+          <label>商品圖片（最多 3 張）</label>
+          <div class="cs-img-row">
+            <div class="cs-img-upload">
+              <input type="file" id="cs-img1" accept=".jpg,.jpeg,.png" hidden>
+              <div class="ce-upload-placeholder cs-preview" id="cs-preview1" onclick="document.getElementById('cs-img1').click()">
+                <span class="ce-upload-icon">+</span>
+                <span class="ce-upload-hint">JPG/PNG 2MB</span>
+              </div>
+            </div>
+            <div class="cs-img-upload">
+              <input type="file" id="cs-img2" accept=".jpg,.jpeg,.png" hidden>
+              <div class="ce-upload-placeholder cs-preview" id="cs-preview2" onclick="document.getElementById('cs-img2').click()">
+                <span class="ce-upload-icon">+</span>
+                <span class="ce-upload-hint">JPG/PNG 2MB</span>
+              </div>
+            </div>
+            <div class="cs-img-upload">
+              <input type="file" id="cs-img3" accept=".jpg,.jpeg,.png" hidden>
+              <div class="ce-upload-placeholder cs-preview" id="cs-preview3" onclick="document.getElementById('cs-img3').click()">
+                <span class="ce-upload-icon">+</span>
+                <span class="ce-upload-hint">JPG/PNG 2MB</span>
+              </div>
+            </div>
+          </div>
+          <span class="ce-upload-hint" style="margin-top:.2rem">建議尺寸 400 × 300 px｜JPG / PNG｜每張最大 2MB</span>
+        </div>
+        <div class="ce-row">
+          <label>商品名稱</label>
+          <input type="text" id="cs-name" placeholder="例：Nike Phantom GT2" maxlength="20">
+        </div>
+        <div class="ce-row ce-row-half">
+          <div>
+            <label>新舊程度</label>
+            <select id="cs-condition">
+              <option value="全新">全新</option>
+              <option value="9成新" selected>9成新</option>
+              <option value="8成新">8成新</option>
+              <option value="7成新">7成新</option>
+              <option value="6成新以下">6成新以下</option>
+            </select>
+          </div>
+          <div>
+            <label>價格 (NT$)</label>
+            <input type="number" id="cs-price" placeholder="0" max="999999">
+          </div>
+        </div>
+        <div class="ce-row">
+          <label>尺寸 / 規格</label>
+          <input type="text" id="cs-size" placeholder="例：US10、L、M">
+        </div>
+        <div class="ce-row">
+          <label>商品描述（上限 500 字）</label>
+          <textarea id="cs-desc" rows="4" maxlength="500" placeholder="描述商品狀況、使用次數、附贈配件等..."></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="outline-btn" onclick="App.closeModal()">取消</button>
+      <button class="primary-btn" onclick="App.handleSaveShopItem()">上架商品</button>
+    </div>
+  </div>
+
+  <!-- Lightbox -->
+  <div id="lightbox" class="lightbox" onclick="App.closeLightbox()">
+    <img id="lightbox-img" src="" alt="">
+    <button class="lightbox-close">✕</button>
+  </div>

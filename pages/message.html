@@ -1,0 +1,26 @@
+<!-- PAGE: Messages -->
+<section class="page" id="page-messages">
+  <div class="page-header">
+    <h2>訊息</h2>
+  </div>
+  <div style="display:flex;align-items:center;gap:.4rem;padding:0 .5rem .4rem;flex-wrap:wrap">
+    <button class="primary-btn small" style="font-size:.75rem;padding:.28rem .6rem" onclick="App.markAllRead()">一鍵全讀</button>
+    <button style="font-size:.75rem;padding:.28rem .6rem;border:none;border-radius:var(--radius-sm);background:#ef4444;color:#fff;cursor:pointer;font-weight:600" onclick="App.clearAllMessages()">清空訊息</button>
+    <span id="storage-bar" style="font-size:.75rem;padding:.28rem .6rem;border-radius:var(--radius-sm);background:#fff;border:1px solid var(--border);color:#3b82f6;font-weight:600">剩餘容量：<strong style="color:#111">50</strong>/50</span>
+  </div>
+  <div class="tab-bar" id="msg-inbox-tabs">
+    <button class="tab active" data-msgtype="all">全部</button>
+    <button class="tab" data-msgtype="system">系統</button>
+    <button class="tab" data-msgtype="activity">活動</button>
+    <button class="tab" data-msgtype="trade">交易</button>
+    <button class="tab" data-msgtype="private">私訊</button>
+  </div>
+  <div class="card-list" id="message-list"></div>
+  <!-- 收件箱信件詳情彈窗 -->
+  <div id="msg-inbox-detail-modal" style="display:none;position:fixed;inset:0;z-index:1200;background:rgba(0,0,0,.45);backdrop-filter:blur(4px);align-items:center;justify-content:center" onclick="if(event.target===this)this.style.display='none'">
+    <div style="background:var(--bg-card);border-radius:var(--radius-lg);max-width:400px;width:90%;max-height:80vh;overflow-y:auto;padding:1.2rem;position:relative">
+      <button style="position:absolute;top:.6rem;right:.8rem;background:none;border:none;font-size:1.2rem;cursor:pointer;color:var(--text-muted)" onclick="document.getElementById('msg-inbox-detail-modal').style.display='none'">&#10005;</button>
+      <div id="msg-inbox-detail-content"></div>
+    </div>
+  </div>
+</section>

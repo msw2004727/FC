@@ -1,0 +1,420 @@
+/* ================================================
+   SportHub — Layout Styles
+   Top Bar, Side Drawer, Bottom Tabs, Navigation
+   ================================================ */
+
+/* ─── Role Switcher (Demo) ─── */
+#role-switcher {
+  display: none; /* 隱藏原本的頂部身份切換欄 */
+}
+[data-theme="light"] #role-switcher { display: none; }
+
+/* Role Switcher Wrapper */
+.role-switcher-wrapper {
+  position: relative;
+  z-index: 1000;
+}
+
+/* Role Avatar Button */
+.role-avatar-btn {
+  display: flex; align-items: center; gap: .4rem;
+  padding: .3rem .6rem .3rem .3rem;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  color: var(--text-primary);
+  font-size: .75rem;
+  font-weight: 600;
+  transition: all var(--transition);
+  cursor: pointer;
+  position: relative;
+  z-index: 1001;
+}
+.role-avatar-btn:hover {
+  background: var(--accent-bg);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.role-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent), #0d9488);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-weight: 700;
+  font-size: .85rem;
+  flex-shrink: 0;
+}
+.role-current-label {
+  white-space: nowrap;
+}
+.role-arrow {
+  font-size: .6rem;
+  opacity: .6;
+  transition: transform var(--transition);
+}
+.role-avatar-btn.open .role-arrow {
+  transform: rotate(180deg);
+}
+
+/* Role Dropdown */
+.role-dropdown {
+  position: absolute;
+  top: calc(100% + .5rem);
+  right: 0;
+  min-width: 180px;
+  background: var(--bg-card);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-lg);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-10px);
+  transition: all .3s cubic-bezier(.4,0,.2,1);
+  overflow: hidden;
+  z-index: 1002;
+}
+.role-dropdown.open {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+.role-dropdown-header {
+  padding: .6rem .85rem;
+  font-size: .75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: var(--bg-elevated);
+  border-bottom: 1px solid var(--border);
+}
+.role-dropdown-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: .6rem;
+  padding: .65rem .85rem;
+  font-size: .82rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  background: transparent;
+  border: none;
+  text-align: left;
+  transition: all var(--transition);
+  cursor: pointer;
+}
+.role-dropdown-item:hover {
+  background: var(--accent-bg);
+  color: var(--accent);
+}
+.role-dropdown-item.active {
+  background: var(--accent-bg);
+  color: var(--accent);
+  font-weight: 600;
+}
+.role-dropdown-item .role-icon {
+  font-size: .75rem;
+  font-weight: 700;
+  width: 24px;
+  height: 24px;
+  text-align: center;
+  line-height: 24px;
+  background: var(--bg-elevated);
+  border-radius: 50%;
+  color: var(--text-secondary);
+}
+
+/* ─── Top Bar ─── */
+#top-bar {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 900;
+  height: var(--topbar-h);
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 1rem;
+  backdrop-filter: blur(12px);
+  transition: background var(--transition);
+}
+.top-bar-right {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+}
+#menu-toggle { width: 36px; height: 36px; display: flex; flex-direction: column; justify-content: center; gap: 5px; align-items: center; padding: 6px; border-radius: var(--radius-sm); }
+#menu-toggle:hover { background: var(--bg-elevated); }
+#menu-toggle span { display: block; width: 20px; height: 2px; background: var(--text-primary); border-radius: 2px; transition: var(--transition); }
+.logo { display: flex; align-items: center; gap: .4rem; }
+.logo-text { font-family: var(--font-display); font-weight: 800; font-size: 1.2rem; letter-spacing: -.02em; }
+#notif-btn { position: relative; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; border-radius: var(--radius-sm); }
+#notif-btn:hover { background: var(--bg-elevated); }
+.notif-badge { position: absolute; top: 2px; right: 2px; width: 16px; height: 16px; border-radius: 50%; background: var(--danger); color: #fff; font-size: .6rem; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+
+/* ─── Sport Picker (Top Bar) ─── */
+.sport-picker-wrapper {
+  position: relative;
+  z-index: 1000;
+}
+.sport-picker-btn {
+  width: 36px; height: 36px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  border: 1.5px solid var(--border);
+  font-size: 1.15rem;
+  transition: all var(--transition);
+  cursor: pointer;
+}
+.sport-picker-btn:hover {
+  background: var(--accent-bg);
+  border-color: var(--accent);
+}
+.sport-picker-btn.open {
+  background: var(--accent-bg);
+  border-color: var(--accent);
+}
+.sport-picker-dropdown {
+  position: absolute;
+  top: calc(100% + .5rem);
+  right: 0;
+  min-width: 170px;
+  background: var(--bg-card);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-lg);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-10px) scale(.95);
+  transition: all .25s cubic-bezier(.4,0,.2,1);
+  overflow: hidden;
+  z-index: 1002;
+}
+.sport-picker-dropdown.open {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0) scale(1);
+}
+.sport-picker-header {
+  padding: .55rem .8rem;
+  font-size: .72rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: var(--bg-elevated);
+  border-bottom: 1px solid var(--border);
+}
+.sport-picker-item {
+  width: 100%;
+  display: flex; align-items: center; gap: .55rem;
+  padding: .6rem .8rem;
+  font-size: .82rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  background: transparent;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  transition: all var(--transition);
+}
+.sport-picker-item:hover:not(.locked) {
+  background: var(--accent-bg);
+  color: var(--accent);
+}
+.sport-picker-item.active {
+  background: var(--accent-bg);
+  color: var(--accent);
+  font-weight: 600;
+}
+.sport-picker-item.locked {
+  opacity: .35;
+  cursor: not-allowed;
+  filter: grayscale(60%);
+}
+.sport-picker-item .sp-icon {
+  font-size: 1.1rem;
+  width: 24px;
+  text-align: center;
+}
+.sport-picker-item .sp-lock {
+  margin-left: auto;
+  font-size: .7rem;
+}
+
+/* ─── Side Drawer ─── */
+#drawer-overlay {
+  position: fixed; inset: 0; z-index: 950;
+  background: var(--overlay);
+  opacity: 0; pointer-events: none;
+  transition: opacity var(--transition);
+}
+#drawer-overlay.open { opacity: 1; pointer-events: auto; }
+#side-drawer {
+  position: fixed; top: 0; left: 0; bottom: 0; z-index: 960;
+  width: 280px; max-width: 85vw;
+  background: var(--bg-card);
+  transform: translateX(-100%);
+  transition: transform .3s cubic-bezier(.4,0,.2,1);
+  display: flex; flex-direction: column;
+  border-right: 1px solid var(--border);
+}
+#side-drawer.open { transform: translateX(0); }
+.drawer-header { padding: 1.5rem 1.2rem 1rem; border-bottom: 1px solid var(--border); }
+.drawer-user { display: flex; align-items: center; gap: .75rem; }
+.drawer-avatar { width: 44px; height: 44px; border-radius: 50%; background: linear-gradient(135deg, var(--accent), #0d9488); display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: 1.1rem; flex-shrink: 0; }
+.drawer-name { font-weight: 700; font-size: .95rem; }
+.drawer-role-tag { display: inline-block; font-size: .7rem; padding: .15rem .5rem; border-radius: var(--radius-full); background: var(--accent-bg); color: var(--accent); font-weight: 600; margin-top: .2rem; }
+.drawer-menu { flex: 1; overflow-y: auto; padding: .5rem 0; }
+.drawer-item {
+  display: flex; align-items: center; gap: .65rem;
+  padding: .7rem 1.2rem;
+  font-size: .88rem;
+  color: var(--text-secondary);
+  transition: all var(--transition);
+  cursor: pointer;
+}
+.drawer-item:hover, .drawer-item.active { background: var(--accent-bg); color: var(--accent); }
+.drawer-item .di-icon { width: 22px; text-align: center; font-size: 1rem; }
+.drawer-item .di-icon:empty { display: none; }
+.drawer-divider { height: 1px; background: var(--border); margin: .4rem 1.2rem; }
+.drawer-section-label { padding: .5rem 1.2rem .2rem; font-size: .7rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: .05em; }
+.drawer-role-admin { background: rgba(37,99,235,.06); }
+.drawer-role-super { background: rgba(220,38,38,.06); }
+.drawer-role-yellow { background: rgba(234,179,8,.12); }
+[data-theme="dark"] .drawer-role-admin { background: rgba(37,99,235,.15); }
+[data-theme="dark"] .drawer-role-super { background: rgba(220,38,38,.15); }
+[data-theme="dark"] .drawer-role-yellow { background: rgba(234,179,8,.22); }
+.drawer-footer { padding: .75rem 1.2rem; border-top: 1px solid var(--border); }
+#theme-toggle { display: flex; align-items: center; gap: .6rem; width: 100%; font-size: .88rem; color: var(--text-secondary); padding: .5rem 0; }
+.toggle-switch { margin-left: auto; width: 40px; height: 22px; border-radius: 11px; background: var(--border); position: relative; transition: background var(--transition); }
+.toggle-switch.active { background: var(--accent); }
+.toggle-knob { position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: transform var(--transition); box-shadow: 0 1px 3px rgba(0,0,0,.2); }
+.toggle-switch.active .toggle-knob { transform: translateX(18px); }
+/* checkbox-based toggle */
+.toggle-switch input[type="checkbox"] { display:none }
+.toggle-slider { display:block;width:40px;height:22px;border-radius:11px;background:var(--border);position:relative;cursor:pointer;transition:background var(--transition) }
+.toggle-slider::after { content:'';position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2);transition:transform var(--transition) }
+.toggle-switch input:checked + .toggle-slider { background:var(--accent) }
+.toggle-switch input:checked + .toggle-slider::after { transform:translateX(18px) }
+
+/* ─── Bottom Tab Bar ─── */
+#bottom-tabs {
+  position: fixed; bottom: 0; left: 0; right: 0; z-index: 900;
+  height: var(--bottombar-h);
+  background: var(--bg-card);
+  border-top: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-around;
+  padding-bottom: env(safe-area-inset-bottom, 0);
+  transition: background var(--transition);
+}
+.bot-tab {
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  padding: .4rem .5rem;
+  font-size: .65rem;
+  color: var(--text-muted);
+  transition: color var(--transition);
+  position: relative;
+  min-width: 52px;
+}
+.bot-tab svg { stroke: var(--text-muted); transition: stroke var(--transition); }
+.bot-tab.active { color: var(--accent); }
+.bot-tab.active svg { stroke: var(--accent); }
+.tab-badge { position: absolute; top: 0; right: 4px; min-width: 16px; height: 16px; border-radius: 8px; background: var(--danger); color: #fff; font-size: .6rem; font-weight: 700; display: flex; align-items: center; justify-content: center; padding: 0 4px; }
+
+/* ─── Page Header ─── */
+.page-header { display: flex; align-items: center; justify-content: space-between; padding: .6rem .2rem; gap: .5rem; }
+.page-header h2 { font-family: var(--font-display); font-size: 1.15rem; font-weight: 800; flex: 1; }
+.page-header .back-btn { position: static; background: var(--bg-elevated); color: var(--text-primary); flex-shrink: 0; }
+
+/* ─── Filter Bar ─── */
+.filter-bar { display: none; gap: .4rem; padding: .4rem .2rem .8rem; width: 100%; }
+.filter-bar.visible { display: flex; }
+.filter-bar select { width: 110px; flex-shrink: 0; font-size: .8rem; padding: .45rem .6rem; }
+.filter-bar input { flex: 1; min-width: 0; font-size: .8rem; padding: .45rem .6rem; }
+.filter-bar .filter-search-wrap { display: flex; flex: 1; min-width: 0; }
+.filter-search-btn { padding: .45rem .7rem; font-size: .78rem; font-weight: 600; background: var(--accent); color: #fff; border: none; border-radius: 0 var(--radius-sm) var(--radius-sm) 0; cursor: pointer; white-space: nowrap; flex-shrink: 0; }
+.filter-btn { font-size: .8rem; color: var(--accent); font-weight: 600; padding: .3rem .6rem; border-radius: var(--radius-sm); }
+.filter-btn:hover { background: var(--accent-bg); }
+
+/* ─── Mode Badge ─── */
+/* ─── LINE Login (Top Bar) ─── */
+.line-login-btn {
+  display: flex; align-items: center; gap: .3rem;
+  background: #06C755; color: #fff;
+  padding: .35rem .7rem; border-radius: var(--radius-full);
+  font-size: .72rem; font-weight: 600; white-space: nowrap;
+  border: none; cursor: pointer; transition: background var(--transition);
+}
+.line-login-btn:hover { background: #05b34c; }
+.line-avatar-topbar {
+  width: 32px; height: 32px; border-radius: 50%;
+  object-fit: cover; border: 2px solid var(--accent);
+  cursor: default;
+}
+.line-avatar-fallback {
+  background: linear-gradient(135deg, #06C755, #04a645);
+  display: flex; align-items: center; justify-content: center;
+  color: #fff; font-weight: 700; font-size: .9rem;
+}
+
+/* ─── Profile Avatar (LINE image override) ─── */
+.profile-avatar-img {
+  background: none !important; box-shadow: none !important; border: none !important;
+  overflow: hidden;
+}
+.profile-avatar-img img {
+  width: 100%; height: 100%; object-fit: cover; border-radius: 50%;
+}
+
+/* ─── LINE Login Wrapper ─── */
+.line-login-wrapper { display: flex; align-items: center; }
+.line-user-topbar { display: flex; align-items: center; position: relative; }
+.line-login-btn.large { padding: .5rem 1.2rem; font-size: .85rem; }
+.line-avatar-topbar { cursor: pointer; }
+
+/* ─── User Menu Dropdown（右上角頭像選單）─── */
+.user-menu-dropdown {
+  position: absolute; top: 42px; right: 0;
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); box-shadow: var(--shadow-lg);
+  min-width: 160px; z-index: 1000; overflow: hidden;
+}
+.user-menu-name {
+  padding: .6rem .85rem; font-size: .8rem; font-weight: 600;
+  color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.user-menu-divider { height: 1px; background: var(--border); }
+.user-menu-item {
+  display: block; width: 100%; padding: .55rem .85rem;
+  font-size: .78rem; color: var(--text-primary); background: none;
+  border: none; text-align: left; cursor: pointer;
+  transition: background var(--transition);
+}
+.user-menu-item:hover { background: var(--bg-elevated); }
+.user-menu-logout { color: var(--danger); font-weight: 600; }
+
+/* ─── Demo Role Menu ─── */
+.demo-role-menu { min-width: 150px; }
+.demo-role-menu .user-menu-name { font-weight: 600; color: var(--text-muted); font-size: .72rem; }
+.demo-role-item.active { color: var(--accent); font-weight: 600; background: var(--accent-bg, rgba(13,148,136,.08)); }
+
+/* ─── Drawer Avatar (LINE image) ─── */
+.drawer-avatar-img { background: none !important; overflow: hidden; }
+.drawer-avatar-img img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+
+/* ─── Profile Login Prompt ─── */
+.profile-login-prompt {
+  display: flex; align-items: center; justify-content: center;
+  min-height: 60vh; padding: 2rem;
+}
+.login-prompt-content { text-align: center; }
+.login-prompt-content .login-prompt-icon { font-size: 3rem; margin-bottom: .5rem; }
+.login-prompt-content h3 { font-size: 1.1rem; margin-bottom: .3rem; color: var(--text-primary); }
+.login-prompt-content p { font-size: .82rem; color: var(--text-muted); margin-bottom: 1rem; }
+
+/* ─── First Login Modal ─── */
+.fl-hint { font-size: .82rem; color: var(--text-secondary); margin-bottom: .8rem; text-align: center; }
+#first-login-modal .modal-header { justify-content: center; }
+
+/* ─── Production 早期隱藏（防重整閃現 Demo 畫面）─── */
+html.prod-early #role-switcher-wrapper { display: none !important; }
+html.prod-early #line-login-wrapper { display: flex !important; }

@@ -1,0 +1,57 @@
+<!-- PAGE: Scan QR -->
+<section class="page" id="page-scan" data-min-role="coach">
+  <div class="page-header">
+    <button class="back-btn" onclick="App.goBack()">←</button>
+    <h2>掃碼簽到 / 簽退</h2>
+  </div>
+  <div class="scan-content">
+    <select id="scan-event-select" class="scan-event-select">
+      <option value="">— 請選擇活動 —</option>
+    </select>
+    <div class="scan-mode-toggle">
+      <button class="scan-mode active" data-mode="checkin">簽到</button>
+      <button class="scan-mode" data-mode="checkout">簽退</button>
+    </div>
+    <div class="scan-camera">
+      <div class="scan-qr-reader" id="scan-qr-reader">
+        <span style="color:var(--text-muted);font-size:.85rem;">點擊下方按鈕開啟相機</span>
+      </div>
+      <button class="scan-camera-btn" id="scan-camera-btn" disabled>開啟相機掃碼</button>
+    </div>
+    <div class="scan-manual">
+      <span>或手動輸入 UID：</span>
+      <div class="scan-input-row">
+        <input type="text" id="scan-uid-input" placeholder="U1a2b3c..." disabled>
+        <button class="primary-btn" id="scan-manual-btn" disabled>確認</button>
+      </div>
+    </div>
+    <div class="scan-results" id="scan-results"></div>
+    <div class="scan-stats" id="scan-stats"></div>
+    <div id="scan-checkin-section"></div>
+    <div id="scan-checkout-section"></div>
+    <div id="scan-unreg-section"></div>
+  </div>
+</section>
+
+<!-- Scan result popup -->
+<div class="scan-result-overlay" id="scan-result-modal">
+  <div class="scan-result-box" id="scan-result-box">
+    <div class="scan-result-icon" id="scan-result-icon"></div>
+    <div class="scan-result-title" id="scan-result-title"></div>
+    <div class="scan-result-name" id="scan-result-name"></div>
+    <button class="scan-result-close" onclick="App.closeScanResult()">確認</button>
+  </div>
+</div>
+
+<!-- Scan choice modal -->
+<div class="scan-choice-overlay" id="scan-choice-modal">
+  <div class="scan-choice-box">
+    <h3 id="scan-choice-name"></h3>
+    <p id="scan-choice-uid"></p>
+    <div class="scan-choice-btns">
+      <button class="scan-choice-checkin-btn" id="scan-choice-checkin">簽到</button>
+      <button class="scan-choice-checkout-btn" id="scan-choice-checkout">簽退</button>
+      <button class="scan-choice-cancel-btn" id="scan-choice-cancel">取消</button>
+    </div>
+  </div>
+</div>

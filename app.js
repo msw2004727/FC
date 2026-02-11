@@ -113,6 +113,9 @@ const App = {
 
 // ── Init on DOM Ready ──
 document.addEventListener('DOMContentLoaded', async () => {
+  // 載入所有頁面片段（pages/*.html → #main-content / #modal-container）
+  await PageLoader.loadAll();
+
   // 正式版模式：Firebase + LIFF 平行初始化（避免 LIFF auth code 過期）
   if (!ModeManager.isDemo()) {
     const overlay = document.getElementById('loading-overlay');

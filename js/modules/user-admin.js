@@ -168,9 +168,12 @@ Object.assign(App, {
     if (!card) return;
     if (found) {
       card.style.display = '';
-      card.querySelector('.exp-target-name').textContent = found.name;
-      card.querySelector('.exp-target-detail').textContent = `UID: ${found.uid} ・ Lv.${found.level} ・ EXP: ${found.exp}`;
-      card.querySelector('.profile-avatar').textContent = found.name[0];
+      const nameEl = card.querySelector('.exp-target-name');
+      const detailEl = card.querySelector('.exp-target-detail');
+      const avatarEl = card.querySelector('.profile-avatar');
+      if (nameEl) nameEl.textContent = found.name;
+      if (detailEl) detailEl.textContent = `UID: ${found.uid} ・ Lv.${found.level} ・ EXP: ${found.exp}`;
+      if (avatarEl) avatarEl.textContent = found.name[0];
       card.dataset.targetName = found.name;
       this.showToast(`已搜尋到用戶「${found.name}」`);
     } else {
@@ -192,7 +195,8 @@ Object.assign(App, {
     const operatorLabel = ROLES[this.currentRole]?.label || '管理員';
     const user = ApiService.adjustUserExp(targetName, amount, reason, operatorLabel);
     if (user) {
-      card.querySelector('.exp-target-detail').textContent = `UID: ${user.uid} ・ Lv.${user.level} ・ EXP: ${user.exp}`;
+      const updatedDetail = card.querySelector('.exp-target-detail');
+      if (updatedDetail) updatedDetail.textContent = `UID: ${user.uid} ・ Lv.${user.level} ・ EXP: ${user.exp}`;
       this.renderExpLogs();
       this.renderOperationLogs();
       this.showToast(`已調整「${targetName}」EXP ${amount > 0 ? '+' : ''}${amount}`);

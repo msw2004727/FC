@@ -351,7 +351,7 @@ Object.assign(App, {
       document.getElementById('ct-team-bio').value = t.bio || '';
 
       // 編輯模式：顯示目前領隊 + 轉移搜尋
-      captainDisplay.innerHTML = `目前領隊：<span style="color:var(--accent)">${t.captain || '（未設定）'}</span>`;
+      captainDisplay.innerHTML = `目前領隊：<span style="color:var(--accent)">${escapeHTML(t.captain || '（未設定）')}</span>`;
       captainTransfer.style.display = '';
 
       // 預設保留原領隊
@@ -401,7 +401,7 @@ Object.assign(App, {
 
       const myName = this._getCurrentUserName();
       const myUid = this._getCurrentUserUid();
-      captainDisplay.innerHTML = `領隊：<span style="color:var(--accent)">${myName || '（目前用戶）'}</span>`;
+      captainDisplay.innerHTML = `領隊：<span style="color:var(--accent)">${escapeHTML(myName || '（目前用戶）')}</span>`;
       captainTransfer.style.display = 'none';
       this._teamCaptainUid = myUid || '__self__';
     }
@@ -496,7 +496,7 @@ Object.assign(App, {
     const el = document.getElementById(containerId);
     if (!results.length) { el.innerHTML = ''; el.classList.remove('show'); return; }
     el.innerHTML = results.map(u =>
-      `<div class="team-user-suggest-item" onclick="App.${onSelectFn}('${u.uid}')">
+      `<div class="team-user-suggest-item" onclick="App.${onSelectFn}('${escapeHTML(u.uid)}')">
         <span class="tus-name">${escapeHTML(u.name)}</span>
         <span class="tus-uid">${escapeHTML(u.uid)}</span>
       </div>`

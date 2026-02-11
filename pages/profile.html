@@ -1,0 +1,251 @@
+    <!-- PAGE: Profile (My) -->
+    <section class="page" id="page-profile">
+      <!-- 未登入提示（正式版用） -->
+      <div id="profile-login-prompt" class="profile-login-prompt" style="display:none">
+        <div class="login-prompt-content">
+          <div class="login-prompt-icon">👤</div>
+          <h3>尚未登入</h3>
+          <p>請先使用 LINE 帳號登入以查看個人資料</p>
+          <button class="line-login-btn large" onclick="LineAuth.login()">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="#fff"><path d="M12 2C6.48 2 2 5.83 2 10.5c0 4.18 3.66 7.68 8.58 8.38.33.07.78.22.9.5.1.26.07.66.03.92l-.15.86c-.04.26-.2 1.01.88.55s5.88-3.47 8.03-5.93C22.08 13.79 22 12.18 22 10.5 22 5.83 17.52 2 12 2z"/></svg>
+            LINE 登入
+          </button>
+        </div>
+      </div>
+      <!-- Profile 主內容 -->
+      <div id="profile-content">
+        <div class="profile-header">
+          <div class="profile-avatar" id="profile-avatar"></div>
+          <div class="profile-title" id="profile-title">-</div>
+          <div id="profile-uid-wrap" style="margin-top:.25rem;display:flex;align-items:center;justify-content:center;gap:.3rem"></div>
+          <div id="profile-role-tag-wrap" style="margin-top:.3rem"></div>
+          <div class="profile-level" id="profile-level">
+            <span id="profile-lv">Lv.1</span>
+            <div class="exp-bar"><div class="exp-fill" id="profile-exp-fill" style="width:0%"></div></div>
+            <span class="exp-text" id="profile-exp-text">0 / 400</span>
+          </div>
+        </div>
+        <div class="profile-stats">
+          <div class="stat-item"><span class="stat-num" id="profile-stat-total">0</span><span class="stat-label">參加場次</span></div>
+          <div class="stat-item"><span class="stat-num" id="profile-stat-done">0</span><span class="stat-label">完成</span></div>
+          <div class="stat-item"><span class="stat-num" id="profile-stat-rate">0%</span><span class="stat-label">出席率</span></div>
+          <div class="stat-item"><span class="stat-num" id="profile-stat-badges">0</span><span class="stat-label">徽章</span></div>
+        </div>
+        <div class="quick-grid">
+          <button class="quick-item" onclick="App.showPage('page-achievements')"><span>🏅</span>徽章/成就</button>
+          <button class="quick-item" onclick="App.showPage('page-titles')"><span>🎖️</span>稱號</button>
+          <button class="quick-item disabled" disabled><span>👤</span>紙娃娃</button>
+        </div>
+        <!-- 社群連結按鈕列 -->
+        <div class="social-grid" id="social-grid">
+          <button class="social-btn" data-platform="fb" onclick="App.openSocialLinkModal('fb')" title="Facebook">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+          </button>
+          <button class="social-btn" data-platform="ig" onclick="App.openSocialLinkModal('ig')" title="Instagram">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/></svg>
+          </button>
+          <button class="social-btn" data-platform="threads" onclick="App.openSocialLinkModal('threads')" title="Threads">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M12.186 24h-.007c-3.581-.024-6.334-1.205-8.184-3.509C2.35 18.44 1.5 15.586 1.472 12.01v-.017c.03-3.579.879-6.43 2.525-8.482C5.845 1.205 8.6.024 12.18 0h.014c2.746.02 5.043.725 6.826 2.098 1.677 1.29 2.858 3.13 3.509 5.467l-2.04.569c-1.104-3.96-3.898-5.984-8.304-6.015-2.91.022-5.11.936-6.54 2.717C4.307 6.504 3.616 8.914 3.59 12c.025 3.086.718 5.496 2.057 7.164 1.432 1.781 3.632 2.695 6.54 2.717 2.227-.017 4.074-.517 5.49-1.482 1.2-.82 2.12-2.012 2.7-3.508l1.942.672a10.987 10.987 0 01-3.335 4.397C17.165 23.275 14.898 23.98 12.186 24zm4.394-8.858c-.095-1.17-.584-2.098-1.422-2.698-.7-.5-1.6-.775-2.617-.8-.87.02-1.653.26-2.262.687-.66.47-1.065 1.12-1.138 1.822-.078.78.225 1.41.85 1.776.54.313 1.19.48 1.92.49.95-.01 1.82-.32 2.42-.86.44-.39.7-.86.77-1.38.03-.16.04-.32.04-.48v-.01c-.005-.185-.02-.365-.046-.537l-.015-.01zm1.87-1.06c.068.36.113.73.134 1.11.03.52.003 1.04-.084 1.55-.242 1.39-.98 2.56-2.14 3.38-1.15.82-2.54 1.257-4.02 1.267h-.05c-1.12-.01-2.1-.275-2.913-.786-1.125-.706-1.68-1.844-1.54-3.15.12-1.13.747-2.097 1.76-2.72.88-.54 1.96-.837 3.12-.86h.06c.68.01 1.33.11 1.93.29-.16-.6-.48-1.07-.96-1.4-.58-.4-1.32-.61-2.16-.61h-.04c-.96.01-1.79.24-2.46.67l-.96-1.72c.97-.61 2.15-.95 3.44-.97h.06c1.34.02 2.5.4 3.39 1.1.78.62 1.3 1.45 1.55 2.44l.04.17z"/></svg>
+          </button>
+          <button class="social-btn" data-platform="yt" onclick="App.openSocialLinkModal('yt')" title="YouTube">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M23.498 6.186a3.016 3.016 0 00-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 00.502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 002.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 002.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
+          </button>
+          <button class="social-btn" data-platform="twitter" onclick="App.openSocialLinkModal('twitter')" title="X (Twitter)">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+          </button>
+        </div>
+        <div class="info-card" id="profile-info-card">
+          <div class="info-title" style="display:flex;justify-content:space-between;align-items:center">
+            <span>我的資料</span>
+            <button class="outline-btn" style="font-size:.7rem;padding:.2rem .5rem" id="profile-edit-btn" onclick="App.toggleProfileEdit()">編輯</button>
+          </div>
+          <!-- 顯示模式 -->
+          <div id="profile-info-display">
+            <div class="info-row"><span>性別</span><span id="profile-gender">-</span></div>
+            <div class="info-row"><span>生日</span><span id="profile-birthday">-</span></div>
+            <div class="info-row"><span>地區</span><span id="profile-region">-</span></div>
+            <div class="info-row"><span>運動類別</span><span id="profile-sports">-</span></div>
+            <div class="info-row"><span>所屬球隊</span><span id="profile-team">-</span></div>
+            <div class="info-row"><span>聯繫方式</span><span id="profile-phone">-</span></div>
+          </div>
+          <!-- 編輯模式 -->
+          <div id="profile-info-edit" style="display:none">
+            <div class="info-row"><span>性別</span><span id="profile-gender-display">-</span></div>
+            <div class="info-row"><span>生日</span><input type="date" id="profile-edit-birthday" class="profile-edit-input"></div>
+            <div class="info-row"><span>地區</span><input type="text" id="profile-edit-region" class="profile-edit-input" placeholder="例：台北市"></div>
+            <div class="info-row"><span>運動類別</span><span id="profile-sports-display">-</span></div>
+            <div class="info-row"><span>所屬球隊</span><span id="profile-team-display">-</span></div>
+            <div class="info-row"><span>聯繫方式</span><input type="tel" id="profile-edit-phone" class="profile-edit-input" placeholder="例：0912-345-678"></div>
+            <div style="display:flex;gap:.5rem;margin-top:.5rem;justify-content:flex-end">
+              <button class="outline-btn" style="font-size:.75rem;padding:.3rem .8rem" onclick="App.toggleProfileEdit()">取消</button>
+              <button class="primary-btn small" onclick="App.saveProfileInfo()">儲存</button>
+            </div>
+          </div>
+        </div>
+        <div class="info-card">
+          <div class="info-title">報名紀錄</div>
+          <div class="tab-bar compact" id="record-tabs">
+            <button class="tab active" data-filter="all">全部</button>
+            <button class="tab" data-filter="completed">完成</button>
+            <button class="tab" data-filter="cancelled">取消</button>
+            <button class="tab" data-filter="early-left">早退</button>
+          </div>
+          <div class="mini-activity-list" id="my-activity-records"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PAGE: QR Code -->
+    <section class="page" id="page-qrcode">
+      <div class="page-header">
+        <button class="back-btn" onclick="App.goBack()">←</button>
+        <h2>我的 QR Code</h2>
+      </div>
+      <div class="center-content">
+        <div class="qr-placeholder">
+          <div class="qr-box" id="page-qr-canvas">QR<br>CODE</div>
+          <p class="uid-text" id="page-qr-uid">UID: —</p>
+          <p class="qr-hint">掃碼查看個人資料卡片</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- PAGE: Paper Doll -->
+    <section class="page" id="page-paperdoll">
+      <div class="page-header">
+        <button class="back-btn" onclick="App.goBack()">←</button>
+        <h2>紙娃娃編輯</h2>
+        <button class="text-btn">儲存</button>
+      </div>
+      <div class="paperdoll-preview">
+        <div class="doll-canvas" id="doll-canvas">
+          <div class="doll-layer bg">背景</div>
+          <div class="doll-layer silhouette">人形</div>
+          <div class="doll-layer shoes">鞋</div>
+          <div class="doll-layer pants">褲</div>
+          <div class="doll-layer body">衣</div>
+          <div class="doll-layer head">頭</div>
+          <div class="doll-layer pet">寵物</div>
+          <div class="doll-layer accessory">配件</div>
+        </div>
+      </div>
+      <div class="tab-bar compact">
+        <button class="tab active">頭部</button>
+        <button class="tab">球衣</button>
+        <button class="tab">球褲</button>
+        <button class="tab">鞋子</button>
+        <button class="tab">寵物</button>
+        <button class="tab">背景</button>
+        <button class="tab">配件</button>
+      </div>
+      <div class="doll-items">
+        <div class="doll-item selected">球</div>
+        <div class="doll-item">帽</div>
+        <div class="doll-item">冠</div>
+        <div class="doll-item locked">鎖</div>
+        <div class="doll-item locked">鎖</div>
+      </div>
+      <div class="doll-actions">
+        <button class="outline-btn">移除此部位</button>
+        <button class="primary-btn">穿戴選中</button>
+      </div>
+    </section>
+
+    <!-- PAGE: Achievements -->
+    <section class="page" id="page-achievements">
+      <div class="page-header">
+        <button class="back-btn" onclick="App.goBack()">←</button>
+        <h2>成就系統</h2>
+      </div>
+      <div class="achievement-grid" id="achievement-grid"></div>
+    </section>
+
+    <!-- PAGE: Badges -->
+    <section class="page" id="page-badges">
+      <div class="page-header">
+        <button class="back-btn" onclick="App.goBack()">←</button>
+        <h2>徽章收藏</h2>
+      </div>
+      <div class="badge-grid" id="badge-grid"></div>
+    </section>
+
+    <!-- PAGE: Titles -->
+    <section class="page" id="page-titles">
+      <div class="page-header">
+        <button class="back-btn" onclick="App.goBack()">←</button>
+        <h2>稱號設定</h2>
+      </div>
+      <div class="title-config">
+        <div class="title-preview" id="title-preview">-</div>
+        <div class="title-row">
+          <label>大成就稱號</label>
+          <select id="title-big"><option value="">（無）</option></select>
+        </div>
+        <div class="title-row">
+          <label>普通稱號</label>
+          <select id="title-normal"><option value="">（無）</option></select>
+        </div>
+        <div class="title-row">
+          <label>LINE 暱稱</label>
+          <input type="text" id="title-line-name" value="" disabled>
+        </div>
+        <button class="primary-btn full-width" onclick="App.saveTitles()">儲存稱號</button>
+      </div>
+    </section>
+
+    <!-- PAGE: User Card (Scan result) -->
+    <section class="page" id="page-user-card">
+      <div class="page-header">
+        <button class="back-btn" onclick="App.goBack()">←</button>
+        <h2>用戶資料卡片</h2>
+      </div>
+      <div class="user-card-full" id="user-card-full"></div>
+    </section>
+
+  <!-- First Login Modal (forced) -->
+  <div class="modal" id="first-login-modal">
+    <div class="modal-header"><h3>完善個人資料</h3></div>
+    <div class="modal-body">
+      <p class="fl-hint">首次登入，請填寫以下基本資料</p>
+      <div class="ce-form">
+        <div class="ce-row">
+          <label>性別 <span class="required">*必填</span></label>
+          <select id="fl-gender"><option value="">請選擇</option><option value="男">男</option><option value="女">女</option><option value="其他">其他</option></select>
+        </div>
+        <div class="ce-row">
+          <label>生日 <span class="required">*必填</span></label>
+          <input type="date" id="fl-birthday">
+        </div>
+        <div class="ce-row">
+          <label>地區 <span class="required">*必填</span></label>
+          <select id="fl-region"><option value="">請選擇</option><option>台北市</option><option>新北市</option><option>桃園市</option><option>台中市</option><option>台南市</option><option>高雄市</option><option>其他</option></select>
+        </div>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="primary-btn" onclick="App.saveFirstLoginProfile()">確認送出</button>
+    </div>
+  </div>
+
+  <!-- Social Link Edit Modal -->
+  <div class="modal" id="social-link-modal">
+    <div class="modal-header">
+      <h3 id="social-modal-title">編輯社群連結</h3>
+      <button class="modal-close" onclick="App.closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="ce-form">
+        <div class="ce-row">
+          <label id="social-modal-label">你的帳號 ID</label>
+          <div class="social-url-row">
+            <span class="social-url-prefix" id="social-url-prefix"></span>
+            <input type="text" id="social-link-input" placeholder="your_id">
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="outline-btn" id="social-clear-btn" onclick="App.clearSocialLink()" style="color:var(--danger);border-color:var(--danger)">清除</button>
+      <button class="primary-btn" onclick="App.saveSocialLink()">儲存</button>
+    </div>
+  </div>

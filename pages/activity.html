@@ -1,0 +1,201 @@
+    <!-- PAGE: Activities -->
+    <section class="page" id="page-activities">
+      <div class="page-header">
+        <h2>活動行事曆</h2>
+        <button class="filter-btn" id="filter-toggle">篩選 ▾</button>
+      </div>
+      <div class="filter-bar" id="filter-bar">
+        <select id="activity-filter-type">
+          <option value="">全部類別</option>
+          <option value="friendly">友誼</option>
+          <option value="camp">教學</option>
+          <option value="play">PLAY</option>
+          <option value="watch">觀賽</option>
+        </select>
+        <div class="filter-search-wrap">
+          <input type="text" id="activity-filter-keyword" placeholder="搜尋名稱 / 地點..." style="border-radius:var(--radius-sm) 0 0 var(--radius-sm);border-right:none">
+          <button id="activity-filter-search-btn" class="filter-search-btn">搜尋</button>
+        </div>
+      </div>
+      <!-- Coach+ : My Activity Management -->
+      <div class="my-section" data-min-role="coach">
+        <button class="action-btn" onclick="App.showPage('page-my-activities')">我的活動管理</button>
+      </div>
+      <div class="timeline-calendar" id="activity-list">
+        <!-- Populated by JS -->
+      </div>
+    </section>
+
+    <!-- PAGE: Activity Detail -->
+    <section class="page" id="page-activity-detail">
+      <div class="page-header">
+        <button class="back-btn" onclick="App.goBack()">←</button>
+        <h2 id="detail-title">活動名稱</h2>
+      </div>
+      <div class="td-img-placeholder" id="detail-img-placeholder">活動圖片 800 × 300</div>
+      <div class="detail-body" id="detail-body">
+        <!-- Populated by JS -->
+      </div>
+    </section>
+
+    <section class="page" id="page-my-activities" data-min-role="coach">
+      <div class="page-header">
+        <button class="back-btn" onclick="App.goBack()">←</button>
+        <h2>我的活動管理</h2>
+        <button class="primary-btn small" onclick="App.openCreateEventModal()">＋ 新增</button>
+      </div>
+      <div id="my-activity-stats" style="font-size:.75rem;color:var(--text-muted);padding:0 .5rem .3rem;text-align:right"></div>
+      <div class="tab-bar" id="my-activity-tabs">
+        <button class="tab active" data-afilter="all">全部</button>
+        <button class="tab" data-afilter="open">報名中</button>
+        <button class="tab" data-afilter="full">已額滿</button>
+        <button class="tab" data-afilter="ended">已結束</button>
+        <button class="tab" data-afilter="cancelled">已取消</button>
+      </div>
+      <div class="card-list" id="my-activity-list"></div>
+      <!-- 查看名單彈窗 -->
+      <div id="my-activity-detail-modal" style="display:none;position:fixed;inset:0;z-index:1200;background:rgba(0,0,0,.45);backdrop-filter:blur(4px);align-items:center;justify-content:center" onclick="if(event.target===this)this.style.display='none'">
+        <div style="background:var(--bg-card);border-radius:var(--radius-lg);max-width:440px;width:92%;max-height:85vh;overflow-y:auto;padding:1.2rem;position:relative">
+          <button style="position:absolute;top:.6rem;right:.8rem;background:none;border:none;font-size:1.2rem;cursor:pointer;color:var(--text-muted)" onclick="document.getElementById('my-activity-detail-modal').style.display='none'">✕</button>
+          <div id="my-activity-detail-content"></div>
+        </div>
+      </div>
+    </section>
+
+  <!-- Create Event Modal -->
+  <div class="modal" id="create-event-modal">
+    <div class="modal-header">
+      <h3>新增活動</h3>
+      <button class="modal-close" onclick="App.closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="ce-form">
+        <div class="ce-row">
+          <label>活動封面圖片</label>
+          <div class="ce-upload" id="ce-upload-area">
+            <input type="file" id="ce-image" accept=".jpg,.jpeg,.png" hidden>
+            <div class="ce-upload-placeholder" id="ce-upload-preview" onclick="document.getElementById('ce-image').click()">
+              <span class="ce-upload-icon">+</span>
+              <span class="ce-upload-text">點擊上傳圖片</span>
+              <span class="ce-upload-hint">建議尺寸 800 × 300 px｜JPG / PNG｜最大 2MB</span>
+            </div>
+          </div>
+        </div>
+        <div class="ce-row">
+          <label>活動名稱</label>
+          <input type="text" id="ce-title" placeholder="例：週六足球友誼賽" maxlength="12">
+        </div>
+        <div class="ce-row">
+          <label>活動類型</label>
+          <select id="ce-type">
+            <option value="friendly">友誼</option>
+            <option value="camp">教學</option>
+            <option value="play">PLAY</option>
+            <option value="watch">觀賽</option>
+          </select>
+        </div>
+        <div class="ce-row">
+          <label>地點</label>
+          <input type="text" id="ce-location" placeholder="例：台北市大安運動中心">
+        </div>
+        <div class="ce-row ce-row-half">
+          <div>
+            <label>日期</label>
+            <input type="date" id="ce-date" value="2026-03-01">
+          </div>
+          <div>
+            <label>時間</label>
+            <div style="display:flex;gap:.3rem;align-items:center">
+              <select id="ce-time-start" style="flex:1">
+                <option value="06:00">06:00</option><option value="06:30">06:30</option>
+                <option value="07:00">07:00</option><option value="07:30">07:30</option>
+                <option value="08:00">08:00</option><option value="08:30">08:30</option>
+                <option value="09:00">09:00</option><option value="09:30">09:30</option>
+                <option value="10:00">10:00</option><option value="10:30">10:30</option>
+                <option value="11:00">11:00</option><option value="11:30">11:30</option>
+                <option value="12:00">12:00</option><option value="12:30">12:30</option>
+                <option value="13:00">13:00</option><option value="13:30">13:30</option>
+                <option value="14:00" selected>14:00</option><option value="14:30">14:30</option>
+                <option value="15:00">15:00</option><option value="15:30">15:30</option>
+                <option value="16:00">16:00</option><option value="16:30">16:30</option>
+                <option value="17:00">17:00</option><option value="17:30">17:30</option>
+                <option value="18:00">18:00</option><option value="18:30">18:30</option>
+                <option value="19:00">19:00</option><option value="19:30">19:30</option>
+                <option value="20:00">20:00</option><option value="20:30">20:30</option>
+                <option value="21:00">21:00</option><option value="21:30">21:30</option>
+                <option value="22:00">22:00</option><option value="22:30">22:30</option>
+                <option value="23:00">23:00</option><option value="23:30">23:30</option>
+              </select>
+              <span style="font-size:.82rem;color:var(--text-muted)">~</span>
+              <select id="ce-time-end" style="flex:1">
+                <option value="06:00">06:00</option><option value="06:30">06:30</option>
+                <option value="07:00">07:00</option><option value="07:30">07:30</option>
+                <option value="08:00">08:00</option><option value="08:30">08:30</option>
+                <option value="09:00">09:00</option><option value="09:30">09:30</option>
+                <option value="10:00">10:00</option><option value="10:30">10:30</option>
+                <option value="11:00">11:00</option><option value="11:30">11:30</option>
+                <option value="12:00">12:00</option><option value="12:30">12:30</option>
+                <option value="13:00">13:00</option><option value="13:30">13:30</option>
+                <option value="14:00">14:00</option><option value="14:30">14:30</option>
+                <option value="15:00">15:00</option><option value="15:30">15:30</option>
+                <option value="16:00" selected>16:00</option><option value="16:30">16:30</option>
+                <option value="17:00">17:00</option><option value="17:30">17:30</option>
+                <option value="18:00">18:00</option><option value="18:30">18:30</option>
+                <option value="19:00">19:00</option><option value="19:30">19:30</option>
+                <option value="20:00">20:00</option><option value="20:30">20:30</option>
+                <option value="21:00">21:00</option><option value="21:30">21:30</option>
+                <option value="22:00">22:00</option><option value="22:30">22:30</option>
+                <option value="23:00">23:00</option><option value="23:30">23:30</option>
+                <option value="00:00">00:00</option><option value="00:30">00:30</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <div class="ce-row ce-row-half">
+          <div>
+            <label>費用 ($)</label>
+            <input type="number" id="ce-fee" placeholder="0" value="300">
+          </div>
+          <div>
+            <label>人數上限</label>
+            <input type="number" id="ce-max" placeholder="20" value="20">
+          </div>
+        </div>
+        <div class="ce-row">
+          <label>候補上限</label>
+          <input type="number" id="ce-waitlist" placeholder="0 = 無限制" value="5">
+        </div>
+        <div class="ce-row">
+          <label>年齡限制（歲以上，0 為不限）</label>
+          <input type="number" id="ce-min-age" placeholder="0" value="0" min="0">
+        </div>
+        <div class="ce-row">
+          <label>球隊限定</label>
+          <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
+            <label class="toggle-switch" style="margin:0">
+              <input type="checkbox" id="ce-team-only">
+              <span class="toggle-slider"></span>
+            </label>
+            <span id="ce-team-only-label" style="font-size:.78rem;color:var(--text-muted)">關閉 — 所有人可見</span>
+            <select id="ce-team-select" style="display:none;font-size:.78rem;padding:.2rem .4rem;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--card-bg);color:var(--text-primary)"></select>
+          </div>
+        </div>
+        <div class="ce-row">
+          <label>委託人（最多 3 人）</label>
+          <div class="ce-delegate-wrap">
+            <div class="ce-delegate-tags" id="ce-delegate-tags"></div>
+            <input type="text" id="ce-delegate-search" placeholder="搜尋 UID 或暱稱..." autocomplete="off">
+            <div class="ce-delegate-dropdown" id="ce-delegate-dropdown"></div>
+          </div>
+        </div>
+        <div class="ce-row">
+          <label>注意事項（上限 500 字）</label>
+          <textarea id="ce-notes" rows="3" maxlength="500" placeholder="例如：請自備球鞋、飲用水，遲到15分鐘以上視為缺席..."></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="outline-btn" onclick="App.closeModal()">取消</button>
+      <button class="primary-btn" onclick="App.handleCreateEvent()">建立活動</button>
+    </div>
+  </div>

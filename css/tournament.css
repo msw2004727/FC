@@ -1,0 +1,196 @@
+/* ================================================
+   SportHub — Tournament Styles
+   ================================================ */
+
+/* ─── Tournament Detail ─── */
+.td-img-placeholder {
+  width: 100%;
+  aspect-ratio: 2.5/1;
+  border: 2px dashed var(--border);
+  border-radius: var(--radius);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: .8rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  font-family: monospace;
+  background: var(--bg-elevated);
+  margin-bottom: .75rem;
+}
+
+/* ─── Tournament Content ─── */
+.tournament-content { padding: .5rem 0; }
+.match-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: .75rem; margin-bottom: .5rem; }
+.match-teams { display: flex; align-items: center; justify-content: center; gap: .8rem; font-weight: 700; font-size: .95rem; }
+.match-score { background: var(--bg-elevated); padding: .2rem .6rem; border-radius: var(--radius-sm); font-family: var(--font-display); }
+.match-meta { display: flex; justify-content: center; gap: 1rem; font-size: .72rem; color: var(--text-muted); margin-top: .4rem; }
+.match-cards-display { display: flex; justify-content: center; gap: .5rem; font-size: .72rem; margin-top: .3rem; }
+.yellow-card { color: #eab308; }
+.red-card { color: #ef4444; }
+.standings-table { width: 100%; font-size: .78rem; border-collapse: collapse; }
+.standings-table th { text-align: left; padding: .5rem .4rem; color: var(--text-muted); font-weight: 600; border-bottom: 1px solid var(--border); font-size: .7rem; }
+.standings-table td { padding: .5rem .4rem; border-bottom: 1px solid var(--border); }
+.standings-table tr:first-child td { font-weight: 600; color: var(--accent); }
+.trade-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: .75rem; margin-bottom: .5rem; font-size: .82rem; }
+.trade-status { display: inline-block; padding: .1rem .4rem; border-radius: var(--radius-full); font-size: .7rem; font-weight: 600; }
+.trade-status.success { background: rgba(52,211,153,.15); color: var(--success); }
+.trade-status.pending { background: rgba(251,191,36,.15); color: var(--warning); }
+
+/* ─── Match Card Compact ─── */
+.match-card-compact {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: .5rem .6rem;
+  margin-bottom: .4rem;
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+}
+.mc-team {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: .35rem;
+  font-size: .78rem;
+  font-weight: 600;
+}
+.mc-team.away { justify-content: flex-end; text-align: right; }
+.mc-emblem {
+  width: 24px; height: 24px; border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: .7rem; flex-shrink: 0;
+}
+.mc-score {
+  min-width: 48px;
+  text-align: center;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: .85rem;
+  padding: .15rem .3rem;
+  background: var(--bg-elevated);
+  border-radius: 6px;
+}
+.mc-meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: .65rem;
+  color: var(--text-muted);
+  padding: 0 .2rem;
+  margin-top: .15rem;
+}
+
+/* ─── Bracket (Cup) ─── */
+.bracket-container {
+  overflow-x: auto;
+  padding: .5rem 0 1rem;
+  -webkit-overflow-scrolling: touch;
+}
+.bracket {
+  display: flex;
+  gap: 1.5rem;
+  min-width: max-content;
+  align-items: center;
+}
+.bracket-round {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-width: 130px;
+}
+.bracket-round-title {
+  text-align: center;
+  font-size: .68rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  margin-bottom: .3rem;
+  text-transform: uppercase;
+}
+.bracket-match {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+.bracket-team {
+  display: flex;
+  align-items: center;
+  gap: .35rem;
+  padding: .35rem .5rem;
+  font-size: .72rem;
+  font-weight: 500;
+  border-bottom: 1px solid var(--border);
+}
+.bracket-team:last-child { border-bottom: none; }
+.bracket-team.winner { font-weight: 700; color: var(--accent); }
+.bracket-team .bt-score {
+  margin-left: auto;
+  font-weight: 700;
+  font-family: var(--font-display);
+}
+.bracket-connector {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  width: 20px;
+  position: relative;
+}
+.bracket-connector::before {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 25%;
+  bottom: 25%;
+  width: 1.5px;
+  background: var(--border);
+}
+.bracket-connector::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 50%;
+  width: 20px;
+  height: 1.5px;
+  background: var(--border);
+}
+
+/* ─── Round Robin Table ─── */
+.rr-table-wrap {
+  overflow-x: auto;
+  padding: .5rem 0;
+  -webkit-overflow-scrolling: touch;
+}
+.rr-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: .72rem;
+  min-width: 320px;
+}
+.rr-table th, .rr-table td {
+  padding: .4rem .3rem;
+  text-align: center;
+  border: 1px solid var(--border);
+}
+.rr-table th {
+  background: var(--bg-elevated);
+  font-weight: 700;
+  color: var(--text-secondary);
+  font-size: .65rem;
+  white-space: nowrap;
+}
+.rr-table .rr-team-cell {
+  text-align: left;
+  font-weight: 600;
+  white-space: nowrap;
+  padding-left: .5rem;
+}
+.rr-table .rr-self {
+  background: var(--bg-elevated);
+}
+.rr-table .rr-win { color: var(--success); font-weight: 700; }
+.rr-table .rr-draw { color: var(--warning); }
+.rr-table .rr-loss { color: var(--danger); }
+
+[data-theme="dark"] .trade-status.success { background: rgba(52,211,153,.20); }
+[data-theme="dark"] .trade-status.pending { background: rgba(251,191,36,.20); }

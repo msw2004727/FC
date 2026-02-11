@@ -108,8 +108,8 @@ Object.assign(App, {
     if (msg && msg.unread) {
       ApiService.markMessageRead(id);
       el.classList.remove('msg-unread');
-      el.querySelector('.msg-dot').classList.remove('unread');
-      el.querySelector('.msg-dot').classList.add('read');
+      const dot = el.querySelector('.msg-dot');
+      if (dot) { dot.classList.remove('unread'); dot.classList.add('read'); }
       this.updateNotifBadge();
     }
     if (msg && msg.body) {
@@ -435,7 +435,7 @@ Object.assign(App, {
     const users = ApiService.getAdminUsers();
     const match = users.find(u => u.uid === input || u.name === input);
     if (match) {
-      result.innerHTML = `<span style="color:var(--success)">&#10003; 找到：${match.name}（${match.uid}）・ ${match.role}</span>`;
+      result.innerHTML = `<span style="color:var(--success)">&#10003; 找到：${escapeHTML(match.name)}（${escapeHTML(match.uid)}）・ ${escapeHTML(match.role)}</span>`;
       this._msgMatchedUser = match;
     } else {
       result.innerHTML = `<span style="color:var(--danger)">&#10007; 找不到此用戶</span>`;

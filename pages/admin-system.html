@@ -1,0 +1,133 @@
+    <!-- PAGE: Backend - Achievement Management (Super Admin) -->
+    <section class="page" id="page-admin-achievements" data-min-role="super_admin">
+      <div class="page-header">
+        <button class="back-btn" onclick="App.goBack()">←</button>
+        <h2>成就 / 徽章管理</h2>
+      </div>
+      <div class="tab-bar" id="admin-ach-tabs">
+        <button class="tab active" data-atype="achievements">成就</button>
+        <button class="tab" data-atype="badges">徽章</button>
+      </div>
+      <div id="admin-ach-list"></div>
+      <button class="primary-btn full-width" style="margin-top:.5rem" onclick="App._adminAchTab==='achievements'?App.showAchForm():App.showBadgeForm()">＋ 新增</button>
+
+      <!-- Achievement Create/Edit Form -->
+      <div class="form-card" id="ach-form-card" style="display:none;margin-top:.5rem">
+        <div class="role-editor-header">
+          <span id="ach-form-title">新增成就</span>
+          <button class="text-btn" onclick="App.hideAchForm()">取消</button>
+        </div>
+        <div class="form-row"><label>成就名稱</label><input type="text" id="ach-input-name" placeholder="例：百場達人"></div>
+        <div class="form-row"><label>描述（目標條件）</label><input type="text" id="ach-input-desc" placeholder="例：累計參加 100 場活動"></div>
+        <div class="form-row"><label>目標次數</label><input type="number" id="ach-input-target" value="10" min="1"></div>
+        <div class="form-row">
+          <label>類別（框線顏色）</label>
+          <select id="ach-input-category">
+            <option value="bronze">銅</option>
+            <option value="silver">銀</option>
+            <option value="gold">金</option>
+          </select>
+        </div>
+        <div style="font-size:.72rem;color:var(--text-muted);margin-bottom:.5rem">建立成就時會自動建立關聯徽章；修改目標次數後，未達新目標的用戶將變回未完成</div>
+        <button class="primary-btn full-width" onclick="App.saveAchievement()">儲存</button>
+      </div>
+
+      <!-- Badge Create/Edit Form -->
+      <div class="form-card" id="badge-form-card" style="display:none;margin-top:.5rem">
+        <div class="role-editor-header">
+          <span id="badge-form-title">新增徽章</span>
+          <button class="text-btn" onclick="App.hideBadgeForm()">取消</button>
+        </div>
+        <div class="form-row"><label>徽章名稱</label><input type="text" id="badge-input-name" placeholder="例：冠軍徽章"></div>
+        <div class="form-row">
+          <label>類別（框線顏色）</label>
+          <select id="badge-input-category">
+            <option value="bronze">銅</option>
+            <option value="silver">銀</option>
+            <option value="gold">金</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <label>關聯成就</label>
+          <select id="badge-input-ach"><option value="">（不關聯成就）</option></select>
+        </div>
+        <div style="font-size:.72rem;color:var(--text-muted);margin-bottom:.5rem">徽章圖片將來可從此處上傳（目前顯示為預留框）</div>
+        <button class="primary-btn full-width" onclick="App.saveBadge()">儲存</button>
+      </div>
+    </section>
+
+    <!-- PAGE: Backend - Announcement Management (Super Admin) -->
+    <section class="page" id="page-admin-announcements" data-min-role="super_admin">
+      <div class="page-header">
+        <button class="back-btn" onclick="App.goBack()">←</button>
+        <h2>系統公告管理</h2>
+      </div>
+      <div class="card-list" id="announcement-manage-list"></div>
+      <button class="primary-btn full-width" style="margin:.5rem 0" onclick="App.showAnnouncementForm()">＋ 新增公告</button>
+      <div class="form-card" id="announcement-form-card" style="display:none">
+        <div class="role-editor-header"><span id="announcement-form-title">新增公告</span><button class="text-btn" onclick="App.hideAnnouncementForm()">取消</button></div>
+        <div class="form-row"><label>公告標題</label><input type="text" id="ann-input-title" placeholder="例：系統維護通知"></div>
+        <div class="form-row"><label>公告內容</label><textarea id="ann-input-content" rows="4" placeholder="公告內容..."></textarea></div>
+        <div class="form-row"><label>發布方式</label><select id="ann-input-publish-type" onchange="App.toggleAnnSchedule()"><option value="now">立即發布</option><option value="scheduled">預約發布</option></select></div>
+        <div class="form-row" id="ann-schedule-row" style="display:none"><label>預約發布時間</label><input type="datetime-local" id="ann-input-schedule"></div>
+        <button class="primary-btn full-width" onclick="App.saveAnnouncementItem()">儲存</button>
+      </div>
+    </section>
+
+    <!-- PAGE: Backend - Custom Roles (Super Admin) -->
+    <section class="page" id="page-admin-roles" data-min-role="super_admin">
+      <div class="page-header">
+        <button class="back-btn" onclick="App.goBack()">←</button>
+        <h2>自訂層級管理</h2>
+      </div>
+      <div class="role-hierarchy-card">
+        <div class="role-hierarchy-title">目前層級架構</div>
+        <div class="role-hierarchy-list" id="role-hierarchy-list"></div>
+      </div>
+      <div class="role-editor-card" id="role-editor-card" style="display:none">
+        <div class="role-editor-header">
+          <span id="role-editor-title">新增自訂層級</span>
+          <button class="text-btn" onclick="document.getElementById('role-editor-card').style.display='none'">取消</button>
+        </div>
+        <div class="form-row"><label>層級名稱</label><input type="text" id="role-name-input" placeholder="例：裁判、助理教練"></div>
+        <div class="form-row"><label>層級顏色</label><input type="color" id="role-color-input" value="#6366f1" style="width:100%;height:36px;border:none;cursor:pointer"></div>
+        <div class="form-row">
+          <label>插入位置（介於）</label>
+          <select id="role-position-select"></select>
+        </div>
+        <div class="form-row">
+          <label>權限設定</label>
+          <div class="permissions-list" id="permissions-list"></div>
+        </div>
+        <button class="primary-btn full-width" onclick="App.showToast('層級已儲存（Demo）')">儲存層級</button>
+      </div>
+      <button class="primary-btn full-width" style="margin-top:.5rem" onclick="App.openRoleEditor()">＋ 新增自訂層級</button>
+    </section>
+
+    <!-- PAGE: Backend - Inactive Data (Super Admin) -->
+    <section class="page" id="page-admin-inactive" data-min-role="super_admin">
+      <div class="page-header">
+        <button class="back-btn" onclick="App.goBack()">←</button>
+        <h2>無效資料查詢</h2>
+      </div>
+      <div class="tab-bar">
+        <button class="tab active">已解散球隊</button>
+        <button class="tab">已結束賽事</button>
+      </div>
+      <div class="card-list" id="inactive-list"></div>
+    </section>
+
+    <!-- PAGE: Backend - Operation Logs (Super Admin) -->
+    <section class="page" id="page-admin-logs" data-min-role="super_admin">
+      <div class="page-header">
+        <button class="back-btn" onclick="App.goBack()">←</button>
+        <h2>操作日誌</h2>
+      </div>
+      <div class="admin-search">
+        <input type="text" id="oplog-search" placeholder="搜尋操作者 / 目標..." oninput="App.filterOperationLogs()">
+        <div class="admin-filters">
+          <select id="oplog-type-filter" onchange="App.filterOperationLogs()"><option value="">全部類型</option><option value="exp">手動EXP</option><option value="role">晉升用戶</option><option value="event">活動管理</option></select>
+        </div>
+      </div>
+      <div class="log-list" id="operation-log-list"></div>
+    </section>

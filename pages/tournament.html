@@ -1,0 +1,92 @@
+<!-- PAGE: Tournament Center -->
+<section class="page" id="page-tournaments">
+  <div class="page-header">
+    <h2>賽事中心</h2>
+  </div>
+  <div id="tournament-timeline"></div>
+</section>
+
+<!-- PAGE: Tournament Detail -->
+<section class="page" id="page-tournament-detail">
+  <div class="page-header">
+    <button class="back-btn" onclick="App.goBack()">←</button>
+    <h2 id="td-title">賽事名稱</h2>
+    <button class="text-btn" onclick="App.toggleModal('rules-modal')">規則</button>
+  </div>
+  <div class="td-img-placeholder" id="td-img-placeholder">賽事圖片 800 × 300</div>
+  <div class="tab-bar" id="td-tabs">
+    <button class="tab active" data-ttab="schedule">賽程</button>
+    <button class="tab" data-ttab="standings">排名</button>
+    <button class="tab" data-ttab="trades">交易</button>
+  </div>
+  <div class="tournament-content" id="tournament-content"></div>
+</section>
+
+<!-- Rules Modal -->
+<div class="modal" id="rules-modal">
+  <div class="modal-header">
+    <h3>賽事規則</h3>
+    <button class="modal-close" onclick="App.closeModal()">✕</button>
+  </div>
+  <div class="modal-body">
+    <h4>積分規則</h4>
+    <p>勝利：3分 ・ 平手：1分 ・ 落敗：0分</p>
+    <h4>紅黃牌規則（預設英超）</h4>
+    <p>累計 5 張黃牌 → 停賽 1 場<br>累計 10 張黃牌 → 停賽 2 場<br>直接紅牌 → 停賽 3 場（最低）</p>
+    <h4>交易窗口</h4>
+    <p>2026/03/01 ~ 2026/03/20</p>
+  </div>
+</div>
+
+<!-- Create Tournament Modal -->
+<div class="modal" id="create-tournament-modal">
+  <div class="modal-header">
+    <h3>新增賽事</h3>
+    <button class="modal-close" onclick="App.closeModal()">✕</button>
+  </div>
+  <div class="modal-body">
+    <div class="ce-form">
+      <div class="ce-row">
+        <label>賽事封面圖片</label>
+        <div class="ce-upload" id="ct-upload-area">
+          <input type="file" id="ct-image" accept=".jpg,.jpeg,.png" hidden>
+          <div class="ce-upload-placeholder" id="ct-upload-preview" onclick="document.getElementById('ct-image').click()">
+            <span class="ce-upload-icon">+</span>
+            <span class="ce-upload-text">點擊上傳圖片</span>
+            <span class="ce-upload-hint">建議尺寸 800 × 300 px｜JPG / PNG｜最大 2MB</span>
+          </div>
+        </div>
+      </div>
+      <div class="ce-row">
+        <label>賽事名稱</label>
+        <input type="text" id="ct-name" placeholder="例：2026 春季足球聯賽">
+      </div>
+      <div class="ce-row">
+        <label>賽事類型</label>
+        <select id="ct-type">
+          <option value="聯賽（雙循環）">聯賽（雙循環）</option>
+          <option value="盃賽（單敗淘汰）">盃賽（單敗淘汰）</option>
+          <option value="盃賽（分組+淘汰）">盃賽（分組+淘汰）</option>
+        </select>
+      </div>
+      <div class="ce-row ce-row-half">
+        <div>
+          <label>參賽隊伍數</label>
+          <input type="number" id="ct-teams" value="8">
+        </div>
+        <div>
+          <label>賽事狀態</label>
+          <select id="ct-status">
+            <option value="報名中">報名中</option>
+            <option value="即將開始">即將開始</option>
+            <option value="進行中">進行中</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="modal-actions">
+    <button class="outline-btn" onclick="App.closeModal()">取消</button>
+    <button class="primary-btn" onclick="App.handleCreateTournament()">建立賽事</button>
+  </div>
+</div>

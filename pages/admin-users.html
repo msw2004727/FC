@@ -1,0 +1,101 @@
+    <!-- PAGE: Backend - User Management (Admin+) -->
+    <section class="page" id="page-admin-users" data-min-role="admin">
+      <div class="page-header">
+        <button class="back-btn" onclick="App.goBack()">←</button>
+        <h2>用戶管理</h2>
+      </div>
+      <div class="admin-search">
+        <input type="text" id="admin-user-search" placeholder="搜尋 UID 或暱稱..." oninput="App.filterAdminUsers()">
+        <div class="admin-filters">
+          <select id="admin-user-role-filter" onchange="App.filterAdminUsers()"><option value="">全部身份</option><option value="user">一般用戶</option><option value="coach">教練</option><option value="captain">領隊</option><option value="venue_owner">場主</option></select>
+
+        </div>
+      </div>
+      <div class="admin-card-list" id="admin-user-list"></div>
+    </section>
+
+    <!-- PAGE: Backend - EXP Management (Super Admin) -->
+    <section class="page" id="page-admin-exp" data-min-role="super_admin">
+      <div class="page-header">
+        <button class="back-btn" onclick="App.goBack()">←</button>
+        <h2>手動 EXP 管理</h2>
+      </div>
+      <div class="admin-search">
+        <input type="text" placeholder="搜尋 UID 或暱稱..." id="exp-search">
+        <button class="primary-btn" onclick="App.demoExpSearch()">搜尋</button>
+      </div>
+      <div class="exp-target-card" id="exp-target-card">
+        <div class="exp-target-info">
+          <div class="profile-avatar small">A</div>
+          <div>
+            <div class="exp-target-name">暱稱A</div>
+            <div class="exp-target-detail">UID: Uxxxxxx ・ Lv.25 ・ EXP: 2350</div>
+          </div>
+        </div>
+        <div class="exp-form">
+          <div class="form-row">
+            <label>EXP 調整</label>
+            <input type="number" placeholder="+500 或 -100" value="500">
+          </div>
+          <div class="form-row">
+            <label>備註原因 <span class="required">*必填</span></label>
+            <input type="text" placeholder="例：活動獎勵">
+          </div>
+          <button class="primary-btn full-width" onclick="App.handleExpSubmit()">確認送出</button>
+        </div>
+      </div>
+      <div class="info-card">
+        <div class="info-title">最近操作紀錄</div>
+        <div class="log-list" id="exp-log-list"></div>
+      </div>
+    </section>
+
+  <!-- User Edit Modal -->
+  <div class="modal" id="user-edit-modal">
+    <div class="modal-header">
+      <h3 id="user-edit-modal-title">編輯用戶</h3>
+      <button class="modal-close" onclick="App.closeUserEditModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="ce-form">
+        <div class="ce-row">
+          <label>權限</label>
+          <select id="ue-role">
+            <option value="user">一般用戶</option>
+            <option value="coach">教練</option>
+            <option value="captain">領隊</option>
+            <option value="venue_owner">場主</option>
+          </select>
+        </div>
+        <div class="ce-row">
+          <label>地區</label>
+          <select id="ue-region">
+            <option value="台北">台北</option><option value="新北">新北</option><option value="桃園">桃園</option>
+            <option value="台中">台中</option><option value="台南">台南</option><option value="高雄">高雄</option><option value="其他">其他</option>
+          </select>
+        </div>
+        <div class="ce-row">
+          <label>性別</label>
+          <select id="ue-gender">
+            <option value="男">男</option><option value="女">女</option><option value="其他">其他</option>
+          </select>
+        </div>
+        <div class="ce-row">
+          <label>生日</label>
+          <input type="date" id="ue-birthday">
+        </div>
+        <div class="ce-row">
+          <label>運動類別</label>
+          <input type="text" id="ue-sports" placeholder="例：足球、籃球">
+        </div>
+        <div class="ce-row">
+          <label>聯繫電話</label>
+          <input type="text" id="ue-phone" placeholder="例：0912-345-678">
+        </div>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="outline-btn" onclick="App.closeUserEditModal()">取消</button>
+      <button class="primary-btn" onclick="App.saveUserEdit()">儲存</button>
+    </div>
+  </div>

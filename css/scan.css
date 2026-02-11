@@ -1,0 +1,76 @@
+/* ================================================
+   SportHub — Scan Styles
+   ================================================ */
+
+/* ─── Scan Page ─── */
+.scan-content { padding: .5rem; }
+.scan-event-select { width: 100%; padding: .55rem .75rem; border-radius: var(--radius); border: 1px solid var(--border); background: var(--bg-card); color: var(--text-primary); font-size: .85rem; margin-bottom: .75rem; appearance: auto; }
+.scan-mode-toggle { display: flex; gap: .3rem; background: var(--bg-elevated); border-radius: var(--radius); padding: .25rem; margin-bottom: .75rem; }
+.scan-mode { flex: 1; padding: .45rem; border-radius: var(--radius-sm); font-weight: 600; font-size: .85rem; text-align: center; color: var(--text-muted); transition: all var(--transition); cursor: pointer; border: none; background: none; }
+.scan-mode.active { background: var(--bg-card); color: var(--accent); box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+.scan-camera { margin-bottom: .75rem; }
+.scan-qr-reader { min-height: 200px; background: var(--bg-elevated); border: 2px dashed var(--border); border-radius: var(--radius); display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative; }
+.scan-qr-reader video { width: 100%; border-radius: var(--radius); }
+.scan-camera-btn { width: 100%; padding: .5rem; border-radius: var(--radius-sm); border: none; background: var(--accent); color: #fff; font-weight: 600; font-size: .85rem; cursor: pointer; margin-top: .4rem; }
+.scan-camera-btn:disabled { opacity: .5; cursor: not-allowed; }
+.scan-manual { margin-bottom: .75rem; font-size: .85rem; color: var(--text-secondary); }
+.scan-input-row { display: flex; gap: .4rem; margin-top: .3rem; }
+.scan-input-row input { flex: 1; }
+.scan-input-row .primary-btn:disabled { opacity: .5; cursor: not-allowed; }
+.scan-results { display: flex; flex-direction: column; gap: .3rem; margin-bottom: .75rem; max-height: 150px; overflow-y: auto; }
+.scan-result { padding: .5rem .75rem; border-radius: var(--radius-sm); font-size: .82rem; font-weight: 500; }
+.scan-result.success { background: rgba(52,211,153,.12); color: var(--success); }
+.scan-result.warning { background: rgba(251,191,36,.12); color: var(--warning); }
+.scan-result.error { background: rgba(248,113,113,.12); color: var(--danger); }
+.scan-section { padding: .65rem .75rem; border-radius: var(--radius); border: 1px solid; margin-bottom: .5rem; }
+.scan-section h4 { font-size: .82rem; margin: 0 0 .4rem 0; font-weight: 600; }
+.scan-section-checkin { background: rgba(52,211,153,.08); border-color: rgba(52,211,153,.25); }
+.scan-section-checkin h4 { color: #34d399; }
+.scan-section-checkout { background: rgba(13,148,136,.08); border-color: rgba(13,148,136,.25); }
+.scan-section-checkout h4 { color: #0d9488; }
+.scan-section-unreg { background: rgba(248,113,113,.08); border-color: rgba(248,113,113,.25); }
+.scan-section-unreg h4 { color: #f87171; }
+.scan-user-tags { display: flex; flex-wrap: wrap; gap: .3rem; }
+.scan-user-tag { display: inline-block; padding: .2rem .55rem; border-radius: 99px; font-size: .75rem; font-weight: 500; background: rgba(255,255,255,.15); border: 1px solid rgba(255,255,255,.1); }
+.scan-section-checkin .scan-user-tag { background: rgba(52,211,153,.15); color: #34d399; border-color: rgba(52,211,153,.3); }
+.scan-section-checkout .scan-user-tag { background: rgba(13,148,136,.15); color: #0d9488; border-color: rgba(13,148,136,.3); }
+.scan-section-unreg .scan-user-tag { background: rgba(248,113,113,.15); color: #f87171; border-color: rgba(248,113,113,.3); }
+.scan-stats { display: flex; gap: .5rem; justify-content: center; flex-wrap: wrap; font-size: .82rem; color: var(--text-secondary); padding: .55rem; background: var(--bg-card); border-radius: var(--radius); border: 1px solid var(--border); margin-bottom: .5rem; }
+.scan-stats span { white-space: nowrap; }
+/* Scan result popup */
+.scan-result-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 210; align-items: center; justify-content: center; }
+.scan-result-overlay.open { display: flex; }
+.scan-result-box { background: var(--bg-card); border-radius: 16px; padding: 1.8rem 1.5rem 1.3rem; width: 280px; text-align: center; animation: scanPopIn .25s ease; }
+@keyframes scanPopIn { from { transform: scale(.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+.scan-result-icon { font-size: 2.8rem; margin-bottom: .5rem; }
+.scan-result-title { font-size: 1.1rem; font-weight: 700; margin-bottom: .3rem; }
+.scan-result-name { font-size: .82rem; color: var(--text-muted); margin-bottom: 1rem; }
+.scan-result-close { width: 100%; padding: .55rem; border: none; border-radius: var(--radius-sm); font-weight: 600; font-size: .88rem; cursor: pointer; background: var(--primary); color: #fff; }
+.scan-result-box.success .scan-result-title { color: #34d399; }
+.scan-result-box.success .scan-result-close { background: #34d399; }
+.scan-result-box.warning .scan-result-title { color: #fbbf24; }
+.scan-result-box.warning .scan-result-close { background: #fbbf24; color: #1a1a2e; }
+.scan-result-box.error .scan-result-title { color: #f87171; }
+.scan-result-box.error .scan-result-close { background: #f87171; }
+
+/* Scan choice modal */
+.scan-choice-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 200; align-items: center; justify-content: center; }
+.scan-choice-overlay.open { display: flex; }
+.scan-choice-box { background: var(--bg-card); border-radius: var(--radius); padding: 1.2rem; width: 280px; text-align: center; }
+.scan-choice-box h3 { margin: 0 0 .3rem; font-size: 1rem; }
+.scan-choice-box p { margin: 0 0 .8rem; font-size: .85rem; color: var(--text-secondary); }
+.scan-choice-btns { display: flex; gap: .5rem; }
+.scan-choice-btns button { flex: 1; padding: .5rem; border: none; border-radius: var(--radius-sm); font-weight: 600; font-size: .85rem; cursor: pointer; }
+.scan-choice-checkin-btn { background: #34d399; color: #fff; }
+.scan-choice-checkout-btn { background: #0d9488; color: #fff; }
+.scan-choice-cancel-btn { background: var(--bg-elevated); color: var(--text-secondary); }
+
+[data-theme="dark"] .scan-result.success { background: rgba(52,211,153,.18); }
+[data-theme="dark"] .scan-result.warning { background: rgba(251,191,36,.18); }
+[data-theme="dark"] .scan-result.error { background: rgba(248,113,113,.18); }
+[data-theme="dark"] .scan-section-checkin { background: rgba(52,211,153,.14); border-color: rgba(52,211,153,.35); }
+[data-theme="dark"] .scan-section-checkout { background: rgba(13,148,136,.14); border-color: rgba(13,148,136,.35); }
+[data-theme="dark"] .scan-section-unreg { background: rgba(248,113,113,.14); border-color: rgba(248,113,113,.35); }
+[data-theme="dark"] .scan-section-checkin .scan-user-tag { background: rgba(52,211,153,.22); }
+[data-theme="dark"] .scan-section-checkout .scan-user-tag { background: rgba(13,148,136,.22); }
+[data-theme="dark"] .scan-section-unreg .scan-user-tag { background: rgba(248,113,113,.22); }

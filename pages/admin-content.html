@@ -1,0 +1,205 @@
+    <!-- PAGE: Backend - Ad Management (Admin+) -->
+    <section class="page" id="page-admin-banners" data-min-role="admin">
+      <div class="page-header">
+        <button class="back-btn" onclick="App.goBack()">←</button>
+        <h2>廣告管理</h2>
+      </div>
+      <!-- Banner 廣告 -->
+      <div class="ad-collapse-section">
+        <div class="admin-section-label ad-collapse-toggle" onclick="App.toggleAdSection(this)">
+          <span>Banner 廣告（3 個廣告位）</span><span class="ad-collapse-arrow">▶</span>
+        </div>
+        <div class="ad-collapse-content" style="display:none">
+          <div class="card-list" id="banner-manage-list"></div>
+          <div class="form-card" id="banner-form-card" style="display:none">
+            <div class="role-editor-header"><span id="banner-form-title">編輯 Banner</span><button class="text-btn" onclick="App.hideBannerForm()">取消</button></div>
+            <div class="form-row"><label>廣告位名稱</label><input type="text" id="banner-slot-display" placeholder="例：廣告位 1" maxlength="12"></div>
+            <div class="form-row">
+              <label>廣告圖片</label>
+              <div class="ce-upload">
+                <input type="file" id="banner-image" accept=".jpg,.jpeg,.png" hidden>
+                <div class="ce-upload-placeholder" id="banner-preview" onclick="document.getElementById('banner-image').click()">
+                  <span class="ce-upload-icon">+</span>
+                  <span class="ce-upload-text">點擊上傳圖片</span>
+                  <span class="ce-upload-hint">建議尺寸 1200 × 400 px｜JPG / PNG｜最大 2MB</span>
+                </div>
+              </div>
+            </div>
+            <div class="form-row"><label>標題</label><input type="text" id="banner-input-title" placeholder="例：春季聯賽 Banner" maxlength="12"></div>
+            <div class="form-row"><label>跳轉連結（選填）</label><input type="text" id="banner-input-link" placeholder="https://..."></div>
+            <div class="form-row"><label>啟用方式</label><select id="banner-input-mode" onchange="App.toggleBannerSchedule()"><option value="now">立即啟用</option><option value="scheduled">預約啟用</option></select></div>
+            <div class="form-row" id="banner-publish-row" style="display:none"><label>啟用時間</label><input type="datetime-local" id="banner-input-publish"></div>
+            <div class="form-row"><label>結束時間</label><input type="datetime-local" id="banner-input-unpublish"></div>
+            <button class="primary-btn full-width" onclick="App.saveBanner()">儲存</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 浮動廣告 -->
+      <div class="ad-collapse-section">
+        <div class="admin-section-label ad-collapse-toggle" onclick="App.toggleAdSection(this)">
+          <span>浮動廣告（AD1 / AD2）</span><span class="ad-collapse-arrow">▶</span>
+        </div>
+        <div class="ad-collapse-content" style="display:none">
+          <div id="floating-ad-manage-list"></div>
+          <div class="form-card" id="floatad-form-card" style="display:none">
+            <div class="role-editor-header"><span id="floatad-form-title">編輯浮動廣告</span><button class="text-btn" onclick="App.hideFloatingAdForm()">取消</button></div>
+            <div class="form-row">
+              <label>廣告圖片</label>
+              <div class="ce-upload">
+                <input type="file" id="floatad-image" accept=".jpg,.jpeg,.png" hidden>
+                <div class="ce-upload-placeholder" id="floatad-preview" onclick="document.getElementById('floatad-image').click()">
+                  <span class="ce-upload-icon">+</span>
+                  <span class="ce-upload-text">點擊上傳圖片</span>
+                  <span class="ce-upload-hint">建議尺寸 200 × 200 px｜JPG / PNG｜最大 2MB</span>
+                </div>
+              </div>
+            </div>
+            <div class="form-row"><label>廣告標題</label><input type="text" id="floatad-input-title" placeholder="例：球鞋促銷" maxlength="12"></div>
+            <div class="form-row"><label>跳轉連結（選填）</label><input type="text" id="floatad-input-link" placeholder="https://..."></div>
+            <div class="form-row"><label>啟用方式</label><select id="floatad-input-mode" onchange="App.toggleFloatAdSchedule()"><option value="now">立即啟用</option><option value="scheduled">預約啟用</option></select></div>
+            <div class="form-row" id="floatad-publish-row" style="display:none"><label>啟用時間</label><input type="datetime-local" id="floatad-input-publish"></div>
+            <div class="form-row"><label>結束時間</label><input type="datetime-local" id="floatad-input-unpublish"></div>
+            <button class="primary-btn full-width" onclick="App.saveFloatingAd()">儲存</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 彈跳廣告 -->
+      <div class="ad-collapse-section">
+        <div class="admin-section-label ad-collapse-toggle" onclick="App.toggleAdSection(this)">
+          <span>彈跳廣告（3 個廣告位）</span><span class="ad-collapse-arrow">▶</span>
+        </div>
+        <div class="ad-collapse-content" style="display:none">
+          <div id="popup-ad-manage-list"></div>
+          <div class="form-card" id="popupad-form-card" style="display:none">
+            <div class="role-editor-header"><span id="popupad-form-title">編輯彈跳廣告</span><button class="text-btn" onclick="App.hidePopupAdForm()">取消</button></div>
+            <div class="form-row"><label>廣告位</label><span id="popupad-layer-display" style="font-weight:600"></span></div>
+            <div class="form-row">
+              <label>廣告圖片</label>
+              <div class="ce-upload">
+                <input type="file" id="popupad-image" accept=".jpg,.jpeg,.png" hidden>
+                <div class="ce-upload-placeholder" id="popupad-preview" onclick="document.getElementById('popupad-image').click()">
+                  <span class="ce-upload-icon">+</span>
+                  <span class="ce-upload-text">點擊上傳圖片</span>
+                  <span class="ce-upload-hint">建議尺寸 600 × 800 px｜JPG / PNG｜最大 2MB</span>
+                </div>
+              </div>
+            </div>
+            <div class="form-row"><label>廣告標題</label><input type="text" id="popupad-input-title" placeholder="例：春季聯賽宣傳" maxlength="12"></div>
+            <div class="form-row"><label>連結網址（選填）</label><input type="text" id="popupad-input-link" placeholder="https://..."></div>
+            <div class="form-row"><label>啟用方式</label><select id="popupad-input-mode" onchange="App.togglePopupAdSchedule()"><option value="now">立即啟用</option><option value="scheduled">預約啟用</option></select></div>
+            <div class="form-row" id="popupad-publish-row" style="display:none"><label>啟用時間</label><input type="datetime-local" id="popupad-input-publish"></div>
+            <div class="form-row"><label>結束時間</label><input type="datetime-local" id="popupad-input-unpublish"></div>
+            <button class="primary-btn full-width" onclick="App.savePopupAd()">儲存</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 贊助商 -->
+      <div class="ad-collapse-section">
+        <div class="admin-section-label ad-collapse-toggle" onclick="App.toggleAdSection(this)">
+          <span>贊助商（6 個欄位）</span><span class="ad-collapse-arrow">▶</span>
+        </div>
+        <div class="ad-collapse-content" style="display:none">
+          <div id="sponsor-manage-list"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PAGE: Backend - Shop Management (Admin+) -->
+    <section class="page" id="page-admin-shop" data-min-role="admin">
+      <div class="page-header">
+        <button class="back-btn" onclick="App.goBack()">←</button>
+        <h2>二手商品管理</h2>
+        <button class="primary-btn small" onclick="App.showShopForm()">＋ 新增</button>
+      </div>
+      <div class="admin-search">
+        <input type="text" placeholder="搜尋商品...">
+      </div>
+      <div class="card-list" id="shop-manage-list"></div>
+    </section>
+
+    <!-- PAGE: Backend - Team Management (Admin+) -->
+    <section class="page" id="page-admin-teams" data-min-role="admin">
+      <div class="page-header">
+        <button class="back-btn" onclick="App.goBack()">←</button>
+        <h2>球隊管理</h2>
+        <button class="primary-btn small" onclick="App.showTeamForm()">＋ 新增球隊</button>
+      </div>
+      <div class="admin-search">
+        <input type="text" id="team-search-input" placeholder="搜尋球隊名稱 / 領隊..." oninput="App.filterAdminTeams()">
+      </div>
+      <div class="card-list" id="admin-team-list"></div>
+    </section>
+
+    <!-- PAGE: Backend - Message Management (Admin+) -->
+    <section class="page" id="page-admin-messages" data-min-role="admin">
+      <div class="page-header">
+        <button class="back-btn" onclick="App.goBack()">←</button>
+        <h2>站內信管理</h2>
+        <button class="primary-btn small" onclick="App.showMsgCompose()">＋ 發送</button>
+      </div>
+      <div id="msg-sent-count" style="text-align:right;font-size:.75rem;color:var(--text-muted);padding:0 .5rem .3rem"></div>
+      <div class="tab-bar" id="msg-manage-tabs">
+        <button class="tab active" data-mfilter="sent">已發送</button>
+        <button class="tab" data-mfilter="scheduled">已排程</button>
+        <button class="tab" data-mfilter="recalled">已回收</button>
+        <button class="tab" data-mfilter="deleted">已刪除</button>
+      </div>
+      <div class="card-list" id="msg-manage-list"></div>
+      <!-- 站內信詳情彈窗 -->
+      <div id="msg-detail-modal" style="display:none;position:fixed;inset:0;z-index:1200;background:rgba(0,0,0,.45);backdrop-filter:blur(4px);align-items:center;justify-content:center">
+        <div style="background:var(--bg-card);border-radius:var(--radius-lg);max-width:420px;width:90%;max-height:80vh;overflow-y:auto;padding:1.2rem;position:relative">
+          <button style="position:absolute;top:.6rem;right:.8rem;background:none;border:none;font-size:1.2rem;cursor:pointer;color:var(--text-muted)" onclick="document.getElementById('msg-detail-modal').style.display='none'">✕</button>
+          <div id="msg-detail-content"></div>
+        </div>
+      </div>
+      <!-- 撰寫站內信（疊窗） -->
+      <div id="msg-compose" style="display:none;position:fixed;inset:0;z-index:1200;background:rgba(0,0,0,.45);backdrop-filter:blur(4px);align-items:center;justify-content:center" onclick="if(event.target===this)App.hideMsgCompose()">
+        <div style="background:var(--bg-card);border-radius:var(--radius-lg);max-width:440px;width:92%;max-height:85vh;overflow-y:auto;padding:1.2rem;position:relative">
+          <div class="role-editor-header" style="margin-bottom:.6rem"><span id="msg-compose-title" style="font-size:.95rem;font-weight:700">撰寫站內信</span><button style="background:none;border:none;font-size:1.2rem;cursor:pointer;color:var(--text-muted)" onclick="App.hideMsgCompose()">✕</button></div>
+          <div class="form-row">
+            <label>信件類別</label>
+            <select id="msg-category">
+              <option value="system">系統</option>
+              <option value="activity">活動</option>
+              <option value="trade">交易</option>
+              <option value="private">私訊</option>
+            </select>
+          </div>
+          <div class="form-row"><label>標題（上限 12 字）</label><input type="text" id="msg-title" placeholder="信件標題" maxlength="12"></div>
+          <div class="form-row">
+            <label>發送方式</label>
+            <select id="msg-target" onchange="App.onMsgTargetChange()">
+              <option value="all">全體用戶</option>
+              <option value="coach_up">教練以上</option>
+              <option value="admin">管理員</option>
+              <option value="team">指定球隊</option>
+              <option value="individual">指定用戶 (UID/暱稱)</option>
+            </select>
+          </div>
+          <div class="form-row" id="msg-individual-row" style="display:none">
+            <label>對象 UID 或暱稱</label>
+            <input type="text" id="msg-individual-target" placeholder="輸入 UID 或暱稱搜尋" oninput="App.searchMsgTarget()">
+            <div id="msg-target-result" style="font-size:.75rem;margin-top:.2rem;color:var(--text-muted)"></div>
+          </div>
+          <div class="form-row"><label>內容（上限 300 字）</label><textarea id="msg-body" rows="4" placeholder="信件內容..." maxlength="300"></textarea></div>
+          <div class="form-row">
+            <label>排程發送（留空＝立即發送）</label>
+            <input type="datetime-local" id="msg-schedule">
+          </div>
+          <button class="primary-btn full-width" onclick="App.sendMessage()">發送</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- PAGE: Backend - Tournament Management (Admin+) -->
+    <section class="page" id="page-admin-tournaments" data-min-role="admin">
+      <div class="page-header">
+        <button class="back-btn" onclick="App.goBack()">←</button>
+        <h2>賽事管理</h2>
+        <button class="primary-btn small" onclick="App.showModal('create-tournament-modal')">＋ 新增</button>
+      </div>
+      <div class="card-list" id="tournament-manage-list"></div>
+    </section>

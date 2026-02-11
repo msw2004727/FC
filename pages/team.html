@@ -1,0 +1,119 @@
+    <!-- PAGE: Teams -->
+    <section class="page" id="page-teams">
+      <div class="page-header">
+        <h2>球隊</h2>
+      </div>
+      <div class="team-search-bar">
+        <input type="text" id="team-search" placeholder="搜尋球隊名稱..." oninput="App.filterTeams()">
+        <select id="team-region-filter" onchange="App.filterTeams()">
+          <option value="">全部地區</option>
+          <option value="台北市">台北市</option>
+          <option value="新北市">新北市</option>
+          <option value="桃園市">桃園市</option>
+          <option value="台中市">台中市</option>
+          <option value="高雄市">高雄市</option>
+        </select>
+      </div>
+      <div class="my-section" data-min-role="captain">
+        <button class="action-btn" onclick="App.showPage('page-team-manage')">球隊管理</button>
+      </div>
+      <div class="team-grid" id="team-list">
+        <!-- Populated by JS -->
+      </div>
+    </section>
+
+    <!-- PAGE: Team Detail -->
+    <section class="page" id="page-team-detail">
+      <div class="page-header">
+        <button class="back-btn" onclick="App.goBack()">←</button>
+        <h2 id="team-detail-title">球隊名稱</h2>
+        <span class="team-detail-name-en" id="team-detail-name-en"></span>
+      </div>
+      <div class="td-img-placeholder" id="team-detail-img">球隊封面 800 × 300</div>
+      <div class="detail-body" id="team-detail-body"></div>
+    </section>
+
+    <!-- PAGE: Team Manage (Captain+) -->
+    <section class="page" id="page-team-manage" data-min-role="captain">
+      <div class="page-header">
+        <button class="back-btn" onclick="App.goBack()">←</button>
+        <h2>球隊管理</h2>
+        <button class="primary-btn small" onclick="App.showTeamForm()">＋ 新增球隊</button>
+      </div>
+      <div class="tab-bar" id="team-manage-tabs">
+        <button class="tab active" data-tab="my-teams">我的球隊</button>
+        <button class="tab" data-tab="all-teams">所有球隊</button>
+      </div>
+      <div class="card-list" id="team-manage-list"></div>
+    </section>
+
+  <!-- Create Team Modal -->
+  <div class="modal" id="create-team-modal">
+    <div class="modal-header">
+      <h3 id="ct-team-modal-title">新增球隊</h3>
+      <button class="modal-close" onclick="App.closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="ce-form">
+        <div class="ce-row">
+          <label>球隊封面</label>
+          <div class="ce-upload-placeholder" id="ct-team-preview" onclick="document.getElementById('ct-team-image').click()">
+            <span class="ce-upload-icon">+</span>
+            <span class="ce-upload-text">點擊上傳封面圖片</span>
+            <span class="ce-upload-hint">建議尺寸 800 × 300 px｜JPG / PNG｜最大 2MB</span>
+          </div>
+          <input type="file" id="ct-team-image" accept=".jpg,.jpeg,.png" hidden>
+        </div>
+        <div class="ce-row">
+          <label>球隊名稱（最多 10 字）</label>
+          <input type="text" id="ct-team-name" maxlength="10" placeholder="例：雷霆隊">
+        </div>
+        <div class="ce-row">
+          <label>英文名稱</label>
+          <input type="text" id="ct-team-name-en" placeholder="例：Thunder FC">
+        </div>
+        <div class="ce-row" style="display:flex;gap:.5rem">
+          <div style="flex:1">
+            <label>國籍</label>
+            <input type="text" id="ct-team-nationality" maxlength="20" placeholder="例：台灣" value="台灣">
+          </div>
+          <div style="flex:1">
+            <label>地區</label>
+            <input type="text" id="ct-team-region" maxlength="20" placeholder="例：台北市">
+          </div>
+        </div>
+        <div class="ce-row">
+          <label>創立年份</label>
+          <input type="number" id="ct-team-founded" min="1900" max="2099" placeholder="例：2024">
+        </div>
+        <div class="ce-row" id="ct-captain-row" style="position:relative">
+          <label>領隊</label>
+          <div id="ct-captain-display" style="font-size:.85rem;font-weight:600;color:var(--text-primary);padding:.3rem 0"></div>
+          <div id="ct-captain-transfer" style="display:none">
+            <div style="font-size:.75rem;color:var(--text-muted);margin-bottom:.3rem">轉移領隊：搜尋新領隊後點選</div>
+            <input type="text" id="ct-captain-search" placeholder="搜尋 UID 或暱稱..." oninput="App.searchTeamCaptain()" autocomplete="off">
+            <div class="team-user-suggest" id="ct-captain-suggest"></div>
+            <div id="ct-captain-selected"></div>
+          </div>
+        </div>
+        <div class="ce-row">
+          <label>聯繫方式</label>
+          <input type="text" id="ct-team-contact" maxlength="100" placeholder="例：LINE ID、電話、Email">
+        </div>
+        <div class="ce-row" style="position:relative">
+          <label>教練（可多位）</label>
+          <input type="text" id="ct-coach-search" placeholder="搜尋 UID 或暱稱..." oninput="App.searchTeamCoach()" autocomplete="off">
+          <div class="team-user-suggest" id="ct-coach-suggest"></div>
+          <div id="ct-coach-tags"></div>
+        </div>
+        <div class="ce-row">
+          <label>球隊簡介</label>
+          <textarea id="ct-team-bio" maxlength="500" rows="3" placeholder="簡短介紹球隊（最多 500 字）"></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="outline-btn" onclick="App.closeModal()">取消</button>
+      <button class="primary-btn" id="ct-team-save-btn" onclick="App.handleSaveTeam()">建立球隊</button>
+    </div>
+  </div>

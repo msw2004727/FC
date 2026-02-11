@@ -1,0 +1,46 @@
+<!-- ============ POPUP AD OVERLAY ============ -->
+<div id="popup-ad-overlay" class="popup-ad-overlay" style="display:none" onclick="App.closePopupAd()">
+  <div class="popup-ad-container" id="popup-ad-container" onclick="event.stopPropagation()">
+    <button class="popup-ad-close" onclick="App.closePopupAd()">✕</button>
+    <div class="popup-ad-body" id="popup-ad-body"></div>
+    <div class="popup-ad-footer">
+      <span class="popup-ad-counter" id="popup-ad-counter"></span>
+      <button class="popup-ad-dismiss-btn" id="popup-ad-dismiss-btn" onclick="App.togglePopupDismiss()">今日不再顯示</button>
+    </div>
+  </div>
+</div>
+
+<!-- UID QR Code Popup -->
+<div id="uid-qr-modal" style="display:none;position:fixed;inset:0;z-index:1200;background:rgba(0,0,0,.5);backdrop-filter:blur(4px);align-items:center;justify-content:center" onclick="if(event.target===this)this.style.display='none'">
+  <div style="background:var(--bg-card);border-radius:var(--radius-lg);max-width:320px;width:85%;padding:1.5rem;text-align:center;position:relative">
+    <button style="position:absolute;top:.5rem;right:.7rem;background:none;border:none;font-size:1.2rem;cursor:pointer;color:var(--text-muted)" onclick="document.getElementById('uid-qr-modal').style.display='none'">✕</button>
+    <div id="uid-qr-content"></div>
+  </div>
+</div>
+
+<!-- Custom Confirm Modal -->
+<div class="app-confirm-overlay" id="app-confirm-modal">
+  <div class="app-confirm-box">
+    <div class="app-confirm-msg" id="app-confirm-msg"></div>
+    <div class="app-confirm-btns">
+      <button class="app-confirm-cancel" id="app-confirm-cancel">取消</button>
+      <button class="app-confirm-ok" id="app-confirm-ok">確定</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ MODAL OVERLAY ============ -->
+<div class="modal-overlay" id="modal-overlay"></div>
+
+<!-- Confirm Modal -->
+<div class="modal" id="confirm-modal">
+  <div class="modal-header">
+    <h3 id="confirm-title">確認操作</h3>
+    <button class="modal-close" onclick="App.closeModal()">✕</button>
+  </div>
+  <div class="modal-body" id="confirm-body"></div>
+  <div class="modal-actions">
+    <button class="outline-btn" onclick="App.closeModal()">取消</button>
+    <button class="primary-btn" onclick="App.closeModal()">確認</button>
+  </div>
+</div>

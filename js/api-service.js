@@ -13,29 +13,65 @@ const ApiService = {
   get _demoMode() { return ModeManager.isDemo(); },
 
   // ════════════════════════════════
+  //  通用工具方法（消除重複的 demo/production 分支）
+  // ════════════════════════════════
+
+  /** 取得資料來源陣列 */
+  _src(key) {
+    return this._demoMode ? DemoData[key] : FirebaseService._cache[key];
+  },
+
+  /** 根據 id 查找單筆資料 */
+  _findById(key, id) {
+    return this._src(key).find(item => item.id === id) || null;
+  },
+
+  /** 通用新增：寫入快取 + 非同步寫入 Firebase */
+  _create(key, data, firebaseMethod, label, prepend) {
+    const source = this._src(key);
+    if (prepend !== false) { source.unshift(data); } else { source.push(data); }
+    if (!this._demoMode && firebaseMethod) {
+      firebaseMethod.call(FirebaseService, data).catch(err => console.error(`[${label}]`, err));
+    }
+    return data;
+  },
+
+  /** 通用更新：快取 Object.assign + 非同步寫入 Firebase */
+  _update(key, id, updates, firebaseMethod, label) {
+    const item = this._findById(key, id);
+    if (item) Object.assign(item, updates);
+    if (!this._demoMode && firebaseMethod) {
+      firebaseMethod.call(FirebaseService, id, updates).catch(err => console.error(`[${label}]`, err));
+    }
+    return item;
+  },
+
+  /** 通用刪除：快取 splice + 非同步刪除 Firebase */
+  _delete(key, id, firebaseMethod, label) {
+    const source = this._src(key);
+    const idx = source.findIndex(item => item.id === id);
+    if (idx >= 0) source.splice(idx, 1);
+    if (!this._demoMode && firebaseMethod) {
+      firebaseMethod.call(FirebaseService, id).catch(err => console.error(`[${label}]`, err));
+    }
+    return true;
+  },
+
+  // ════════════════════════════════
   //  Events（活動）
   // ════════════════════════════════
 
-  getEvents() {
-    if (this._demoMode) return DemoData.events;
-    return FirebaseService._cache.events;
-  },
-
-  getEvent(id) {
-    if (this._demoMode) return DemoData.events.find(e => e.id === id) || null;
-    return FirebaseService._cache.events.find(e => e.id === id) || null;
-  },
+  getEvents()       { return this._src('events'); },
+  getEvent(id)      { return this._findById('events', id); },
 
   getActiveEvents() {
-    if (this._demoMode) return DemoData.events.filter(e => e.status !== 'ended' && e.status !== 'cancelled');
-    return FirebaseService._cache.events.filter(e => e.status !== 'ended' && e.status !== 'cancelled');
+    return this._src('events').filter(e => e.status !== 'ended' && e.status !== 'cancelled');
   },
 
   getHotEvents(withinDays) {
-    const source = this._demoMode ? DemoData.events : FirebaseService._cache.events;
     const now = new Date();
     const limit = new Date(now.getTime() + (withinDays || 14) * 24 * 60 * 60 * 1000);
-    return source.filter(e => {
+    return this._src('events').filter(e => {
       if (e.status === 'ended' || e.status === 'cancelled') return false;
       const parts = e.date.split(' ')[0].split('/');
       const eventDate = new Date(+parts[0], +parts[1] - 1, +parts[2]);
@@ -43,62 +79,24 @@ const ApiService = {
     });
   },
 
-  createEvent(data) {
-    if (this._demoMode) {
-      DemoData.events.unshift(data);
-      return data;
-    }
-    FirebaseService._cache.events.unshift(data);
-    FirebaseService.addEvent(data).catch(err => console.error('[createEvent]', err));
-    return data;
-  },
-
-  updateEvent(id, updates) {
-    const source = this._demoMode ? DemoData.events : FirebaseService._cache.events;
-    const e = source.find(ev => ev.id === id);
-    if (e) Object.assign(e, updates);
-    if (!this._demoMode) {
-      FirebaseService.updateEvent(id, updates).catch(err => console.error('[updateEvent]', err));
-    }
-    return e;
-  },
-
-  deleteEvent(id) {
-    const source = this._demoMode ? DemoData.events : FirebaseService._cache.events;
-    const idx = source.findIndex(e => e.id === id);
-    if (idx >= 0) source.splice(idx, 1);
-    if (!this._demoMode) {
-      FirebaseService.deleteEvent(id).catch(err => console.error('[deleteEvent]', err));
-    }
-    return true;
-  },
+  createEvent(data)         { return this._create('events', data, FirebaseService.addEvent, 'createEvent'); },
+  updateEvent(id, updates)  { return this._update('events', id, updates, FirebaseService.updateEvent, 'updateEvent'); },
+  deleteEvent(id)           { return this._delete('events', id, FirebaseService.deleteEvent, 'deleteEvent'); },
 
   // ════════════════════════════════
   //  Tournaments（賽事）
   // ════════════════════════════════
 
-  getTournaments() {
-    if (this._demoMode) return DemoData.tournaments;
-    return FirebaseService._cache.tournaments;
-  },
+  getTournaments()    { return this._src('tournaments'); },
+  getTournament(id)   { return this._findById('tournaments', id); },
+  getStandings()      { return this._src('standings'); },
+  getMatches()        { return this._src('matches'); },
+  getTrades()         { return this._src('trades'); },
 
-  getTournament(id) {
-    if (this._demoMode) return DemoData.tournaments.find(t => t.id === id) || null;
-    return FirebaseService._cache.tournaments.find(t => t.id === id) || null;
-  },
-
-  createTournament(data) {
-    if (this._demoMode) {
-      DemoData.tournaments.unshift(data);
-      return data;
-    }
-    FirebaseService._cache.tournaments.unshift(data);
-    FirebaseService.addTournament(data).catch(err => console.error('[createTournament]', err));
-    return data;
-  },
+  createTournament(data) { return this._create('tournaments', data, FirebaseService.addTournament, 'createTournament'); },
 
   deleteTournament(id) {
-    const source = this._demoMode ? DemoData.tournaments : FirebaseService._cache.tournaments;
+    const source = this._src('tournaments');
     const idx = source.findIndex(t => t.id === id);
     if (idx === -1) return;
     const removed = source.splice(idx, 1)[0];
@@ -108,62 +106,19 @@ const ApiService = {
     }
   },
 
-  getStandings() {
-    if (this._demoMode) return DemoData.standings;
-    return FirebaseService._cache.standings;
-  },
-
-  getMatches() {
-    if (this._demoMode) return DemoData.matches;
-    return FirebaseService._cache.matches;
-  },
-
-  getTrades() {
-    if (this._demoMode) return DemoData.trades;
-    return FirebaseService._cache.trades;
-  },
-
   // ════════════════════════════════
   //  Teams（球隊）
   // ════════════════════════════════
 
-  getTeams() {
-    if (this._demoMode) return DemoData.teams;
-    return FirebaseService._cache.teams;
-  },
+  getTeams()        { return this._src('teams'); },
+  getTeam(id)       { return this._findById('teams', id); },
+  getActiveTeams()  { return this._src('teams').filter(t => t.active); },
 
-  getActiveTeams() {
-    if (this._demoMode) return DemoData.teams.filter(t => t.active);
-    return FirebaseService._cache.teams.filter(t => t.active);
-  },
-
-  getTeam(id) {
-    if (this._demoMode) return DemoData.teams.find(t => t.id === id) || null;
-    return FirebaseService._cache.teams.find(t => t.id === id) || null;
-  },
-
-  createTeam(data) {
-    if (this._demoMode) {
-      DemoData.teams.unshift(data);
-      return data;
-    }
-    FirebaseService._cache.teams.unshift(data);
-    FirebaseService.addTeam(data).catch(err => console.error('[createTeam]', err));
-    return data;
-  },
-
-  updateTeam(id, updates) {
-    const source = this._demoMode ? DemoData.teams : FirebaseService._cache.teams;
-    const t = source.find(tm => tm.id === id);
-    if (t) Object.assign(t, updates);
-    if (!this._demoMode) {
-      FirebaseService.updateTeam(id, updates).catch(err => console.error('[updateTeam]', err));
-    }
-    return t;
-  },
+  createTeam(data)        { return this._create('teams', data, FirebaseService.addTeam, 'createTeam'); },
+  updateTeam(id, updates) { return this._update('teams', id, updates, FirebaseService.updateTeam, 'updateTeam'); },
 
   deleteTeam(id) {
-    const source = this._demoMode ? DemoData.teams : FirebaseService._cache.teams;
+    const source = this._src('teams');
 
     // 正式版：先取得 _docId 再刪 Firestore，最後才從快取移除
     if (!this._demoMode) {
@@ -178,7 +133,7 @@ const ApiService = {
     if (idx >= 0) source.splice(idx, 1);
 
     // 清除所有引用此球隊的用戶
-    const users = this._demoMode ? DemoData.adminUsers : FirebaseService._cache.adminUsers;
+    const users = this._src('adminUsers');
     users.forEach(u => {
       if (u.teamId === id) {
         u.teamId = null;
@@ -190,7 +145,7 @@ const ApiService = {
       }
     });
     // 清除 currentUser 的球隊引用
-    const cur = this._demoMode ? DemoData.currentUser : (FirebaseService._cache.currentUser || null);
+    const cur = this.getCurrentUser();
     if (cur && cur.teamId === id) {
       cur.teamId = null;
       cur.teamName = null;
@@ -207,54 +162,18 @@ const ApiService = {
   //  Shop（二手商品）
   // ════════════════════════════════
 
-  getShopItems() {
-    if (this._demoMode) return DemoData.shopItems;
-    return FirebaseService._cache.shopItems;
-  },
+  getShopItems()    { return this._src('shopItems'); },
+  getShopItem(id)   { return this._findById('shopItems', id); },
 
-  getShopItem(id) {
-    if (this._demoMode) return DemoData.shopItems.find(s => s.id === id) || null;
-    return FirebaseService._cache.shopItems.find(s => s.id === id) || null;
-  },
-
-  createShopItem(data) {
-    if (this._demoMode) {
-      DemoData.shopItems.unshift(data);
-      return data;
-    }
-    FirebaseService._cache.shopItems.unshift(data);
-    FirebaseService.addShopItem(data).catch(err => console.error('[createShopItem]', err));
-    return data;
-  },
-
-  updateShopItem(id, updates) {
-    const source = this._demoMode ? DemoData.shopItems : FirebaseService._cache.shopItems;
-    const item = source.find(s => s.id === id);
-    if (item) Object.assign(item, updates);
-    if (!this._demoMode) {
-      FirebaseService.updateShopItem(id, updates).catch(err => console.error('[updateShopItem]', err));
-    }
-    return item;
-  },
-
-  deleteShopItem(id) {
-    const source = this._demoMode ? DemoData.shopItems : FirebaseService._cache.shopItems;
-    const idx = source.findIndex(s => s.id === id);
-    if (idx >= 0) source.splice(idx, 1);
-    if (!this._demoMode) {
-      FirebaseService.deleteShopItem(id).catch(err => console.error('[deleteShopItem]', err));
-    }
-    return true;
-  },
+  createShopItem(data)        { return this._create('shopItems', data, FirebaseService.addShopItem, 'createShopItem'); },
+  updateShopItem(id, updates) { return this._update('shopItems', id, updates, FirebaseService.updateShopItem, 'updateShopItem'); },
+  deleteShopItem(id)          { return this._delete('shopItems', id, FirebaseService.deleteShopItem, 'deleteShopItem'); },
 
   // ════════════════════════════════
   //  Users & Admin（用戶管理）
   // ════════════════════════════════
 
-  getAdminUsers() {
-    if (this._demoMode) return DemoData.adminUsers;
-    return FirebaseService._cache.adminUsers;
-  },
+  getAdminUsers() { return this._src('adminUsers'); },
 
   getUserRole(name) {
     if (this._demoMode) {
@@ -267,8 +186,7 @@ const ApiService = {
   },
 
   updateAdminUser(name, updates) {
-    const source = this._demoMode ? DemoData.adminUsers : FirebaseService._cache.adminUsers;
-    const user = source.find(u => u.name === name);
+    const user = this._src('adminUsers').find(u => u.name === name);
     if (!user) return null;
     Object.assign(user, updates);
     if (!this._demoMode && user._docId) {
@@ -300,34 +218,44 @@ const ApiService = {
   //  Messages（站內信）
   // ════════════════════════════════
 
-  getMessages() {
-    if (this._demoMode) return DemoData.messages;
-    return FirebaseService._cache.messages;
+  getMessages() { return this._src('messages'); },
+
+  updateMessage(msgId, updates) { return this._update('messages', msgId, updates, FirebaseService.updateMessage, 'updateMessage'); },
+
+  markMessageRead(msgId) {
+    const msg = this._findById('messages', msgId);
+    if (msg) msg.unread = false;
+    if (!this._demoMode) {
+      FirebaseService.updateMessageRead(msgId).catch(err => console.error('[markMessageRead]', err));
+    }
+  },
+
+  markAllMessagesRead() {
+    this._src('messages').forEach(m => { m.unread = false; });
+    if (!this._demoMode) {
+      FirebaseService.markAllMessagesRead().catch(err => console.error('[markAllMessagesRead]', err));
+    }
   },
 
   // ════════════════════════════════
   //  Leaderboard & Records（排行榜 & 紀錄）
   // ════════════════════════════════
 
-  getLeaderboard() {
-    if (this._demoMode) return DemoData.leaderboard;
-    return FirebaseService._cache.leaderboard;
-  },
+  getLeaderboard() { return this._src('leaderboard'); },
 
   getActivityRecords(uid) {
-    const source = this._demoMode ? DemoData.activityRecords : FirebaseService._cache.activityRecords;
+    const source = this._src('activityRecords');
     if (uid) return source.filter(r => r.uid === uid);
     return source;
   },
 
   addActivityRecord(record) {
-    const source = this._demoMode ? DemoData.activityRecords : FirebaseService._cache.activityRecords;
-    source.unshift(record);
+    this._src('activityRecords').unshift(record);
     return record;
   },
 
   removeActivityRecord(eventId, uid) {
-    const source = this._demoMode ? DemoData.activityRecords : FirebaseService._cache.activityRecords;
+    const source = this._src('activityRecords');
     const idx = source.findIndex(r => r.eventId === eventId && r.uid === uid);
     if (idx >= 0) {
       source.splice(idx, 1);
@@ -341,14 +269,13 @@ const ApiService = {
   // ════════════════════════════════
 
   getAttendanceRecords(eventId) {
-    const source = this._demoMode ? DemoData.attendanceRecords : FirebaseService._cache.attendanceRecords;
+    const source = this._src('attendanceRecords');
     if (eventId) return source.filter(r => r.eventId === eventId);
     return source;
   },
 
   addAttendanceRecord(record) {
-    const source = this._demoMode ? DemoData.attendanceRecords : FirebaseService._cache.attendanceRecords;
-    source.push(record);
+    this._src('attendanceRecords').push(record);
     if (!this._demoMode) {
       FirebaseService.addAttendanceRecord(record).catch(err => console.error('[addAttendanceRecord]', err));
     }
@@ -359,325 +286,75 @@ const ApiService = {
   //  Achievements & Badges
   // ════════════════════════════════
 
-  getAchievements() {
-    if (this._demoMode) return DemoData.achievements;
-    return FirebaseService._cache.achievements;
-  },
+  getAchievements() { return this._src('achievements'); },
+  getBadges()       { return this._src('badges'); },
 
-  getBadges() {
-    if (this._demoMode) return DemoData.badges;
-    return FirebaseService._cache.badges;
-  },
+  createAchievement(data)        { return this._create('achievements', data, FirebaseService.addAchievement, 'createAchievement', false); },
+  updateAchievement(id, updates) { return this._update('achievements', id, updates, FirebaseService.updateAchievement, 'updateAchievement'); },
+  deleteAchievement(id)          { return this._delete('achievements', id, FirebaseService.deleteAchievement, 'deleteAchievement'); },
+
+  createBadge(data)        { return this._create('badges', data, FirebaseService.addBadge, 'createBadge', false); },
+  updateBadge(id, updates) { return this._update('badges', id, updates, FirebaseService.updateBadge, 'updateBadge'); },
+  deleteBadge(id)          { return this._delete('badges', id, FirebaseService.deleteBadge, 'deleteBadge'); },
 
   // ════════════════════════════════
   //  Admin：Logs, Banners, Permissions
   // ════════════════════════════════
 
-  getExpLogs() {
-    if (this._demoMode) return DemoData.expLogs;
-    return FirebaseService._cache.expLogs;
-  },
+  getExpLogs()       { return this._src('expLogs'); },
+  getOperationLogs() { return this._src('operationLogs'); },
+  getBanners()       { return this._src('banners'); },
+  getPermissions()   { return this._src('permissions'); },
 
-  getOperationLogs() {
-    if (this._demoMode) return DemoData.operationLogs;
-    return FirebaseService._cache.operationLogs;
-  },
-
-  getBanners() {
-    if (this._demoMode) return DemoData.banners;
-    return FirebaseService._cache.banners;
-  },
-
-  updateBanner(id, updates) {
-    const source = this._demoMode ? DemoData.banners : FirebaseService._cache.banners;
-    const item = source.find(b => b.id === id);
-    if (item) Object.assign(item, updates);
-    if (!this._demoMode) {
-      FirebaseService.updateBanner(id, updates).catch(err => console.error('[updateBanner]', err));
-    }
-    return item;
-  },
+  updateBanner(id, updates) { return this._update('banners', id, updates, FirebaseService.updateBanner, 'updateBanner'); },
 
   // ════════════════════════════════
   //  Announcements（系統公告）
   // ════════════════════════════════
 
-  getAnnouncements() {
-    if (this._demoMode) return DemoData.announcements;
-    return FirebaseService._cache.announcements;
-  },
+  getAnnouncements()      { return this._src('announcements'); },
+  getActiveAnnouncement() { return this.getAnnouncements().find(a => a.status === 'active') || null; },
 
-  getActiveAnnouncement() {
-    return this.getAnnouncements().find(a => a.status === 'active') || null;
-  },
-
-  createAnnouncement(data) {
-    const source = this._demoMode ? DemoData.announcements : FirebaseService._cache.announcements;
-    source.unshift(data);
-    if (!this._demoMode) {
-      FirebaseService.addAnnouncement(data).catch(err => console.error('[createAnnouncement]', err));
-    }
-    return data;
-  },
-
-  updateAnnouncement(id, updates) {
-    const source = this._demoMode ? DemoData.announcements : FirebaseService._cache.announcements;
-    const item = source.find(a => a.id === id);
-    if (item) Object.assign(item, updates);
-    if (!this._demoMode) {
-      FirebaseService.updateAnnouncement(id, updates).catch(err => console.error('[updateAnnouncement]', err));
-    }
-    return item;
-  },
-
-  deleteAnnouncement(id) {
-    const source = this._demoMode ? DemoData.announcements : FirebaseService._cache.announcements;
-    const idx = source.findIndex(a => a.id === id);
-    if (idx >= 0) source.splice(idx, 1);
-    if (!this._demoMode) {
-      FirebaseService.deleteAnnouncement(id).catch(err => console.error('[deleteAnnouncement]', err));
-    }
-  },
+  createAnnouncement(data)        { return this._create('announcements', data, FirebaseService.addAnnouncement, 'createAnnouncement'); },
+  updateAnnouncement(id, updates) { return this._update('announcements', id, updates, FirebaseService.updateAnnouncement, 'updateAnnouncement'); },
+  deleteAnnouncement(id)          { return this._delete('announcements', id, FirebaseService.deleteAnnouncement, 'deleteAnnouncement'); },
 
   // ════════════════════════════════
   //  Floating Ads（浮動廣告）
   // ════════════════════════════════
 
-  getFloatingAds() {
-    if (this._demoMode) return DemoData.floatingAds;
-    return FirebaseService._cache.floatingAds;
-  },
+  getFloatingAds() { return this._src('floatingAds'); },
 
-  updateFloatingAd(id, updates) {
-    const source = this._demoMode ? DemoData.floatingAds : FirebaseService._cache.floatingAds;
-    const item = source.find(a => a.id === id);
-    if (item) Object.assign(item, updates);
-    if (!this._demoMode) {
-      FirebaseService.updateFloatingAd(id, updates).catch(err => console.error('[updateFloatingAd]', err));
-    }
-    return item;
-  },
-
-  getPermissions() {
-    if (this._demoMode) return DemoData.permissions;
-    return FirebaseService._cache.permissions;
-  },
+  updateFloatingAd(id, updates) { return this._update('floatingAds', id, updates, FirebaseService.updateFloatingAd, 'updateFloatingAd'); },
 
   // ════════════════════════════════
   //  Popup Ads（彈跳廣告）
   // ════════════════════════════════
 
-  getPopupAds() {
-    if (this._demoMode) return DemoData.popupAds;
-    return FirebaseService._cache.popupAds;
-  },
+  getPopupAds()       { return this._src('popupAds'); },
+  getActivePopupAds() { return this.getPopupAds().filter(a => a.status === 'active'); },
 
-  getActivePopupAds() {
-    return this.getPopupAds().filter(a => a.status === 'active');
-  },
-
-  createPopupAd(data) {
-    const source = this._demoMode ? DemoData.popupAds : FirebaseService._cache.popupAds;
-    source.push(data);
-    if (!this._demoMode) {
-      FirebaseService.addPopupAd(data).catch(err => console.error('[createPopupAd]', err));
-    }
-    return data;
-  },
-
-  updatePopupAd(id, updates) {
-    const source = this._demoMode ? DemoData.popupAds : FirebaseService._cache.popupAds;
-    const item = source.find(a => a.id === id);
-    if (item) Object.assign(item, updates);
-    if (!this._demoMode) {
-      FirebaseService.updatePopupAd(id, updates).catch(err => console.error('[updatePopupAd]', err));
-    }
-    return item;
-  },
-
-  deletePopupAd(id) {
-    const source = this._demoMode ? DemoData.popupAds : FirebaseService._cache.popupAds;
-    const idx = source.findIndex(a => a.id === id);
-    if (idx >= 0) source.splice(idx, 1);
-    if (!this._demoMode) {
-      FirebaseService.deletePopupAd(id).catch(err => console.error('[deletePopupAd]', err));
-    }
-  },
-
-  // ════════════════════════════════
-  //  Achievements CRUD
-  // ════════════════════════════════
-
-  createAchievement(data) {
-    const source = this._demoMode ? DemoData.achievements : FirebaseService._cache.achievements;
-    source.push(data);
-    if (!this._demoMode) {
-      FirebaseService.addAchievement(data).catch(err => console.error('[createAchievement]', err));
-    }
-    return data;
-  },
-
-  updateAchievement(id, updates) {
-    const source = this._demoMode ? DemoData.achievements : FirebaseService._cache.achievements;
-    const item = source.find(a => a.id === id);
-    if (item) Object.assign(item, updates);
-    if (!this._demoMode) {
-      FirebaseService.updateAchievement(id, updates).catch(err => console.error('[updateAchievement]', err));
-    }
-    return item;
-  },
-
-  deleteAchievement(id) {
-    const source = this._demoMode ? DemoData.achievements : FirebaseService._cache.achievements;
-    const idx = source.findIndex(a => a.id === id);
-    if (idx >= 0) source.splice(idx, 1);
-    if (!this._demoMode) {
-      FirebaseService.deleteAchievement(id).catch(err => console.error('[deleteAchievement]', err));
-    }
-  },
-
-  // ════════════════════════════════
-  //  Badges CRUD
-  // ════════════════════════════════
-
-  createBadge(data) {
-    const source = this._demoMode ? DemoData.badges : FirebaseService._cache.badges;
-    source.push(data);
-    if (!this._demoMode) {
-      FirebaseService.addBadge(data).catch(err => console.error('[createBadge]', err));
-    }
-    return data;
-  },
-
-  updateBadge(id, updates) {
-    const source = this._demoMode ? DemoData.badges : FirebaseService._cache.badges;
-    const item = source.find(b => b.id === id);
-    if (item) Object.assign(item, updates);
-    if (!this._demoMode) {
-      FirebaseService.updateBadge(id, updates).catch(err => console.error('[updateBadge]', err));
-    }
-    return item;
-  },
-
-  deleteBadge(id) {
-    const source = this._demoMode ? DemoData.badges : FirebaseService._cache.badges;
-    const idx = source.findIndex(b => b.id === id);
-    if (idx >= 0) source.splice(idx, 1);
-    if (!this._demoMode) {
-      FirebaseService.deleteBadge(id).catch(err => console.error('[deleteBadge]', err));
-    }
-  },
-
-  // ════════════════════════════════
-  //  User Promotion（用戶晉升）
-  // ════════════════════════════════
-
-  promoteUser(name, newRole) {
-    const source = this._demoMode ? DemoData.adminUsers : FirebaseService._cache.adminUsers;
-    const user = source.find(u => u.name === name);
-    if (user) {
-      user.role = newRole;
-      if (!this._demoMode && user._docId) {
-        FirebaseService.updateUserRole(user._docId, newRole).catch(err => console.error('[promoteUser]', err));
-      }
-    }
-    return user;
-  },
-
-  // ════════════════════════════════
-  //  EXP Adjustment（手動 EXP）
-  // ════════════════════════════════
-
-  adjustUserExp(nameOrUid, amount, reason, operatorLabel) {
-    const source = this._demoMode ? DemoData.adminUsers : FirebaseService._cache.adminUsers;
-    const user = source.find(u => u.name === nameOrUid || u.uid === nameOrUid);
-    if (!user) return null;
-    user.exp = (user.exp || 0) + amount;
-    const now = new Date();
-    const timeStr = `${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
-    const log = { time: timeStr, target: user.name, amount: (amount > 0 ? '+' : '') + amount, reason };
-    const logSource = this._demoMode ? DemoData.expLogs : FirebaseService._cache.expLogs;
-    logSource.unshift(log);
-    const opLog = { time: timeStr, operator: operatorLabel || '管理員', type: 'exp', typeName: '手動EXP', content: `${user.name} ${log.amount}「${reason}」` };
-    const opSource = this._demoMode ? DemoData.operationLogs : FirebaseService._cache.operationLogs;
-    opSource.unshift(opLog);
-    if (!this._demoMode) {
-      if (user._docId) {
-        db.collection('users').doc(user._docId).update({ exp: user.exp }).catch(err => console.error('[adjustUserExp]', err));
-      }
-      db.collection('expLogs').add({ ...log, createdAt: firebase.firestore.FieldValue.serverTimestamp() }).catch(err => console.error('[adjustUserExp log]', err));
-      FirebaseService.addOperationLog(opLog).catch(err => console.error('[adjustUserExp opLog]', err));
-    }
-    return user;
-  },
+  createPopupAd(data)        { return this._create('popupAds', data, FirebaseService.addPopupAd, 'createPopupAd', false); },
+  updatePopupAd(id, updates) { return this._update('popupAds', id, updates, FirebaseService.updatePopupAd, 'updatePopupAd'); },
+  deletePopupAd(id)          { return this._delete('popupAds', id, FirebaseService.deletePopupAd, 'deletePopupAd'); },
 
   // ════════════════════════════════
   //  Admin Messages（後台站內信）
   // ════════════════════════════════
 
-  getAdminMessages() {
-    if (this._demoMode) return DemoData.adminMessages;
-    return FirebaseService._cache.adminMessages;
-  },
+  getAdminMessages() { return this._src('adminMessages'); },
 
-  createAdminMessage(data) {
-    const source = this._demoMode ? DemoData.adminMessages : FirebaseService._cache.adminMessages;
-    source.unshift(data);
-    if (!this._demoMode) {
-      FirebaseService.addAdminMessage(data).catch(err => console.error('[createAdminMessage]', err));
-    }
-    return data;
-  },
-
-  updateAdminMessage(id, updates) {
-    const source = this._demoMode ? DemoData.adminMessages : FirebaseService._cache.adminMessages;
-    const item = source.find(m => m.id === id);
-    if (item) Object.assign(item, updates);
-    if (!this._demoMode) {
-      FirebaseService.updateAdminMessage(id, updates).catch(err => console.error('[updateAdminMessage]', err));
-    }
-    return item;
-  },
+  createAdminMessage(data)        { return this._create('adminMessages', data, FirebaseService.addAdminMessage, 'createAdminMessage'); },
+  updateAdminMessage(id, updates) { return this._update('adminMessages', id, updates, FirebaseService.updateAdminMessage, 'updateAdminMessage'); },
 
   deleteAdminMessage(id) {
-    const source = this._demoMode ? DemoData.adminMessages : FirebaseService._cache.adminMessages;
+    const source = this._src('adminMessages');
     const idx = source.findIndex(m => m.id === id);
     if (idx >= 0) {
       source.splice(idx, 1);
       if (!this._demoMode) {
         FirebaseService.deleteAdminMessage(id).catch(err => console.error('[deleteAdminMessage]', err));
       }
-    }
-  },
-
-  // ════════════════════════════════
-  //  Message Read（訊息已讀持久化）
-  // ════════════════════════════════
-
-  updateMessage(msgId, updates) {
-    const source = this._demoMode ? DemoData.messages : FirebaseService._cache.messages;
-    const msg = source.find(m => m.id === msgId);
-    if (msg) Object.assign(msg, updates);
-    if (!this._demoMode) {
-      FirebaseService.updateMessage(msgId, updates).catch(err => console.error('[updateMessage]', err));
-    }
-    return msg;
-  },
-
-  markMessageRead(msgId) {
-    const source = this._demoMode ? DemoData.messages : FirebaseService._cache.messages;
-    const msg = source.find(m => m.id === msgId);
-    if (msg) msg.unread = false;
-    if (!this._demoMode) {
-      FirebaseService.updateMessageRead(msgId).catch(err => console.error('[markMessageRead]', err));
-    }
-  },
-
-  markAllMessagesRead() {
-    const source = this._demoMode ? DemoData.messages : FirebaseService._cache.messages;
-    source.forEach(m => { m.unread = false; });
-    if (!this._demoMode) {
-      FirebaseService.markAllMessagesRead().catch(err => console.error('[markAllMessagesRead]', err));
     }
   },
 
@@ -702,6 +379,45 @@ const ApiService = {
       FirebaseService.updateSponsor(id, updates).catch(err => console.error('[updateSponsor]', err));
     }
     return item;
+  },
+
+  // ════════════════════════════════
+  //  User Promotion（用戶晉升）
+  // ════════════════════════════════
+
+  promoteUser(name, newRole) {
+    const user = this._src('adminUsers').find(u => u.name === name);
+    if (user) {
+      user.role = newRole;
+      if (!this._demoMode && user._docId) {
+        FirebaseService.updateUserRole(user._docId, newRole).catch(err => console.error('[promoteUser]', err));
+      }
+    }
+    return user;
+  },
+
+  // ════════════════════════════════
+  //  EXP Adjustment（手動 EXP）
+  // ════════════════════════════════
+
+  adjustUserExp(nameOrUid, amount, reason, operatorLabel) {
+    const user = this._src('adminUsers').find(u => u.name === nameOrUid || u.uid === nameOrUid);
+    if (!user) return null;
+    user.exp = (user.exp || 0) + amount;
+    const now = new Date();
+    const timeStr = `${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+    const log = { time: timeStr, target: user.name, amount: (amount > 0 ? '+' : '') + amount, reason };
+    this._src('expLogs').unshift(log);
+    const opLog = { time: timeStr, operator: operatorLabel || '管理員', type: 'exp', typeName: '手動EXP', content: `${user.name} ${log.amount}「${reason}」` };
+    this._src('operationLogs').unshift(opLog);
+    if (!this._demoMode) {
+      if (user._docId) {
+        db.collection('users').doc(user._docId).update({ exp: user.exp }).catch(err => console.error('[adjustUserExp]', err));
+      }
+      db.collection('expLogs').add({ ...log, createdAt: firebase.firestore.FieldValue.serverTimestamp() }).catch(err => console.error('[adjustUserExp log]', err));
+      FirebaseService.addOperationLog(opLog).catch(err => console.error('[adjustUserExp opLog]', err));
+    }
+    return user;
   },
 
   // ════════════════════════════════
