@@ -250,12 +250,13 @@ Object.assign(App, {
       if (targetUid) this._queueLinePush(targetUid, category, title, body);
       return;
     }
+    // 與 sendMessage() 的 roleTargetMap 保持一致
     const roleFilter = {
       coach_up: ['coach', 'captain', 'venue_owner', 'admin', 'super_admin'],
       admin: ['admin', 'super_admin'],
-      coach: ['coach'],
-      captain: ['captain'],
-      venue_owner: ['venue_owner'],
+      coach: ['coach', 'admin', 'super_admin'],
+      captain: ['captain', 'admin', 'super_admin'],
+      venue_owner: ['venue_owner', 'admin', 'super_admin'],
     };
     const users = ApiService.getAdminUsers() || [];
     users.forEach(u => {
@@ -265,13 +266,20 @@ Object.assign(App, {
     });
   },
 
+  // category → lineNotify settings key 映射（private 歸入 system）
+  _linePushCategoryKey(category) {
+    if (category === 'private') return 'system';
+    return category; // system, activity, tournament 直接對應
+  },
+
   _queueLinePush(uid, category, title, body) {
     if (!uid) return;
     // 查找目標用戶的 lineNotify 設定
     const users = ApiService.getAdminUsers();
     const target = users.find(u => u.uid === uid);
     if (!target || !target.lineNotify || !target.lineNotify.bound) return;
-    if (!target.lineNotify.settings[category]) return;
+    const settingsKey = this._linePushCategoryKey(category);
+    if (!target.lineNotify.settings[settingsKey]) return;
 
     if (ModeManager.isDemo()) {
       console.log('[LINE Push]', { uid, category, title, body });
