@@ -84,6 +84,54 @@
             </div>
           </div>
         </div>
+        <!-- LINE 推播通知綁定 -->
+        <div class="info-card" id="profile-line-notify">
+          <div class="info-title" style="display:flex;justify-content:space-between;align-items:center">
+            <span>LINE 推播通知</span>
+            <span class="line-notify-status" id="line-notify-badge"></span>
+          </div>
+          <!-- 已綁定 -->
+          <div id="line-notify-bound" style="display:none">
+            <div class="line-notify-row">
+              <span>LINE 帳號</span>
+              <span id="line-notify-name">-</span>
+            </div>
+            <div class="line-notify-row">
+              <span>綁定時間</span>
+              <span id="line-notify-time">-</span>
+            </div>
+            <div style="border-top:1px solid var(--border);margin:.5rem 0"></div>
+            <div style="font-size:.78rem;font-weight:600;margin-bottom:.35rem">通知設定</div>
+            <div class="line-notify-row">
+              <span>活動提醒（報名成功/開始前）<span class="line-notify-sub"></span></span>
+              <label class="toggle-switch"><input type="checkbox" id="line-toggle-activity" onchange="App.toggleLineNotify('activity')"><span class="toggle-slider"></span></label>
+            </div>
+            <div class="line-notify-row">
+              <span>系統通知（站內信/公告）<span class="line-notify-sub"></span></span>
+              <label class="toggle-switch"><input type="checkbox" id="line-toggle-system" onchange="App.toggleLineNotify('system')"><span class="toggle-slider"></span></label>
+            </div>
+            <div class="line-notify-row">
+              <span>賽事通知（報名/賽程更新）<span class="line-notify-sub"></span></span>
+              <label class="toggle-switch"><input type="checkbox" id="line-toggle-tournament" onchange="App.toggleLineNotify('tournament')"><span class="toggle-slider"></span></label>
+            </div>
+            <div style="text-align:center;margin-top:.7rem">
+              <button class="outline-btn" style="color:var(--danger);border-color:var(--danger);font-size:.75rem;padding:.3rem .8rem" onclick="App.unbindLineNotify()">解除綁定</button>
+            </div>
+          </div>
+          <!-- 未綁定 -->
+          <div id="line-notify-unbound" style="display:none">
+            <div class="line-notify-empty">
+              <svg width="40" height="40" viewBox="0 0 24 24" fill="#06C755" style="margin-bottom:.5rem"><path d="M12 2C6.48 2 2 5.83 2 10.5c0 4.18 3.66 7.68 8.58 8.38.33.07.78.22.9.5.1.26.07.66.03.92l-.15.86c-.04.26-.2 1.01.88.55s5.88-3.47 8.03-5.93C22.08 13.79 22 12.18 22 10.5 22 5.83 17.52 2 12 2z"/></svg>
+              <div>綁定 LINE 帳號即可接收<br>活動提醒與系統通知推播</div>
+            </div>
+            <div style="text-align:center;padding-bottom:.3rem">
+              <button class="line-login-btn" onclick="App.bindLineNotify()">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="#fff"><path d="M12 2C6.48 2 2 5.83 2 10.5c0 4.18 3.66 7.68 8.58 8.38.33.07.78.22.9.5.1.26.07.66.03.92l-.15.86c-.04.26-.2 1.01.88.55s5.88-3.47 8.03-5.93C22.08 13.79 22 12.18 22 10.5 22 5.83 17.52 2 12 2z"/></svg>
+                綁定 LINE 帳號
+              </button>
+            </div>
+          </div>
+        </div>
         <div class="info-card">
           <div class="info-title">報名紀錄</div>
           <div class="tab-bar compact" id="record-tabs">

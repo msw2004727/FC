@@ -120,21 +120,29 @@ Object.assign(App, {
   renderSponsors() {
     const grid = document.getElementById('sponsor-grid');
     if (!grid) return;
-    const sponsors = ApiService.getSponsors().sort((a, b) => (a.slot || 0) - (b.slot || 0));
-    grid.innerHTML = sponsors.map(sp => {
-      const isActive = sp.status === 'active' && sp.image;
-      const hasLink = isActive && sp.linkUrl;
-      const safeUrl = (hasLink && /^https?:\/\//.test(sp.linkUrl)) ? escapeHTML(sp.linkUrl) : '';
-      const clickHandler = safeUrl
-        ? `onclick="App.trackAdClick('sponsor','${escapeHTML(sp.id)}');window.open('${safeUrl}','_blank')"`
-        : '';
-      if (isActive) {
-        return `<div class="sponsor-slot${hasLink ? ' has-link' : ''}" title="${escapeHTML(sp.title || '贊助商')}" ${clickHandler}>
-          <img src="${sp.image}" alt="${escapeHTML(sp.title || '')}">
-        </div>`;
+    const sponsorMap = {};
+    ApiService.getSponsors().forEach(sp => { sponsorMap[sp.slot] = sp; });
+    // 永遠渲染 6 格，即使 Firestore 資料為空也保持 UI 完整
+    const html = [];
+    for (let i = 1; i <= 6; i++) {
+      const sp = sponsorMap[i];
+      if (sp) {
+        const isActive = sp.status === 'active' && sp.image;
+        const hasLink = isActive && sp.linkUrl;
+        const safeUrl = (hasLink && /^https?:\/\//.test(sp.linkUrl)) ? escapeHTML(sp.linkUrl) : '';
+        const clickHandler = safeUrl
+          ? `onclick="App.trackAdClick('sponsor','${escapeHTML(sp.id)}');window.open('${safeUrl}','_blank')"`
+          : '';
+        if (isActive) {
+          html.push(`<div class="sponsor-slot${hasLink ? ' has-link' : ''}" title="${escapeHTML(sp.title || '贊助商')}" ${clickHandler}>
+            <img src="${sp.image}" alt="${escapeHTML(sp.title || '')}">
+          </div>`);
+          continue;
+        }
       }
-      return `<div class="sponsor-slot">贊助商</div>`;
-    }).join('');
+      html.push(`<div class="sponsor-slot">贊助商</div>`);
+    }
+    grid.innerHTML = html.join('');
   },
 
   _floatAdOffset: 0,

@@ -171,36 +171,42 @@ const FirebaseService = {
       });
     };
 
-    try {
-      await seedCollection('banners', [
+    // 每個集合獨立 try-catch，避免單一失敗導致後續全部跳過
+    const seeds = [
+      ['banners', [
         { id: 'ban1', slot: 1, title: '', image: null, status: 'empty', publishAt: null, unpublishAt: null, clicks: 0, gradient: '' },
         { id: 'ban2', slot: 2, title: '', image: null, status: 'empty', publishAt: null, unpublishAt: null, clicks: 0, gradient: '' },
         { id: 'ban3', slot: 3, title: '', image: null, status: 'empty', publishAt: null, unpublishAt: null, clicks: 0, gradient: '' },
-      ]);
-      await seedCollection('floatingAds', [
+      ]],
+      ['floatingAds', [
         { id: 'fad1', slot: 'AD1', title: '', image: null, status: 'empty', publishAt: null, unpublishAt: null, clicks: 0 },
         { id: 'fad2', slot: 'AD2', title: '', image: null, status: 'empty', publishAt: null, unpublishAt: null, clicks: 0 },
-      ]);
-      await seedCollection('popupAds', [
+      ]],
+      ['popupAds', [
         { id: 'pad1', layer: 1, title: '', image: null, status: 'empty', publishAt: null, unpublishAt: null, clicks: 0, linkUrl: '' },
         { id: 'pad2', layer: 2, title: '', image: null, status: 'empty', publishAt: null, unpublishAt: null, clicks: 0, linkUrl: '' },
         { id: 'pad3', layer: 3, title: '', image: null, status: 'empty', publishAt: null, unpublishAt: null, clicks: 0, linkUrl: '' },
-      ]);
-      await seedCollection('sponsors', [
+      ]],
+      ['sponsors', [
         { id: 'sp1', slot: 1, title: '', image: null, status: 'empty', linkUrl: '', publishAt: null, unpublishAt: null, clicks: 0 },
         { id: 'sp2', slot: 2, title: '', image: null, status: 'empty', linkUrl: '', publishAt: null, unpublishAt: null, clicks: 0 },
         { id: 'sp3', slot: 3, title: '', image: null, status: 'empty', linkUrl: '', publishAt: null, unpublishAt: null, clicks: 0 },
         { id: 'sp4', slot: 4, title: '', image: null, status: 'empty', linkUrl: '', publishAt: null, unpublishAt: null, clicks: 0 },
         { id: 'sp5', slot: 5, title: '', image: null, status: 'empty', linkUrl: '', publishAt: null, unpublishAt: null, clicks: 0 },
         { id: 'sp6', slot: 6, title: '', image: null, status: 'empty', linkUrl: '', publishAt: null, unpublishAt: null, clicks: 0 },
-      ]);
-      await seedCollection('siteThemes', [
+      ]],
+      ['siteThemes', [
         { id: 'sth1', slot: 'theme_topbar', label: '上方橫條背景', spec: '750 × 56 px', image: null, status: 'empty' },
         { id: 'sth2', slot: 'theme_bottombar', label: '下方橫條背景', spec: '750 × 64 px', image: null, status: 'empty' },
         { id: 'sth3', slot: 'theme_bg', label: '網站背景', spec: '750 × 1334 px', image: null, status: 'empty' },
-      ]);
-    } catch (err) {
-      console.warn('[FirebaseService] 廣告欄位建立失敗:', err);
+      ]],
+    ];
+    for (const [name, slots] of seeds) {
+      try {
+        await seedCollection(name, slots);
+      } catch (err) {
+        console.warn(`[FirebaseService] ${name} 欄位建立失敗:`, err);
+      }
     }
   },
 

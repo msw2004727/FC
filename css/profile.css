@@ -205,5 +205,13 @@ a.social-btn { text-decoration: none; }
   max-width: 180px;
 }
 
+/* ─── LINE Notify Card ─── */
+.line-notify-status { font-size:.68rem; padding:.15rem .5rem; border-radius:var(--radius-full); font-weight:600; }
+.line-notify-status.bound { background:rgba(6,199,85,.15); color:#06C755; }
+.line-notify-status.unbound { background:var(--bg-elevated); color:var(--text-muted); }
+.line-notify-empty { text-align:center; padding:1.2rem 0 .8rem; color:var(--text-muted); font-size:.82rem; line-height:1.7; }
+.line-notify-row { display:flex; justify-content:space-between; align-items:center; padding:.4rem 0; font-size:.82rem; }
+.line-notify-sub { font-size:.68rem; color:var(--text-muted); font-weight:400; display:block; }
+
 /* Dark theme */
 [data-theme="dark"] .ach-row-done { background: rgba(16,185,129,.16); }

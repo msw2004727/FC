@@ -96,6 +96,9 @@ Object.assign(App, {
     // 社群連結
     this.renderSocialLinks(user);
 
+    // LINE 推播通知卡片
+    this.renderLineNotifyCard();
+
     // 編輯模式的靜態欄位
     if (el('profile-gender-display')) el('profile-gender-display').textContent = v(user.gender);
     if (el('profile-sports-display')) el('profile-sports-display').textContent = v(user.sports);
@@ -247,6 +250,72 @@ Object.assign(App, {
     if (typeof LineAuth !== 'undefined') {
       LineAuth.logout();
     }
+  },
+
+  // ── LINE 推播通知 ──
+  renderLineNotifyCard() {
+    const user = ApiService.getCurrentUser();
+    if (!user) return;
+    const ln = user.lineNotify || { bound: false, settings: {} };
+    const badge = document.getElementById('line-notify-badge');
+    const boundEl = document.getElementById('line-notify-bound');
+    const unboundEl = document.getElementById('line-notify-unbound');
+    if (!badge || !boundEl || !unboundEl) return;
+
+    if (ln.bound) {
+      badge.textContent = '已綁定';
+      badge.className = 'line-notify-status bound';
+      boundEl.style.display = '';
+      unboundEl.style.display = 'none';
+      const nameEl = document.getElementById('line-notify-name');
+      const timeEl = document.getElementById('line-notify-time');
+      if (nameEl) nameEl.textContent = user.displayName || '-';
+      if (timeEl) timeEl.textContent = ln.boundAt || '-';
+      const keys = ['activity', 'system', 'tournament'];
+      keys.forEach(k => {
+        const cb = document.getElementById('line-toggle-' + k);
+        if (cb) cb.checked = !!ln.settings[k];
+      });
+    } else {
+      badge.textContent = '未綁定';
+      badge.className = 'line-notify-status unbound';
+      boundEl.style.display = 'none';
+      unboundEl.style.display = '';
+    }
+  },
+
+  bindLineNotify() {
+    const user = ApiService.getCurrentUser();
+    if (!user) return;
+    const today = new Date();
+    const dateStr = today.getFullYear() + '/' + String(today.getMonth() + 1).padStart(2, '0') + '/' + String(today.getDate()).padStart(2, '0');
+    user.lineNotify = {
+      bound: true,
+      boundAt: dateStr,
+      settings: { activity: true, system: true, tournament: false }
+    };
+    this.renderLineNotifyCard();
+    this.showToast('LINE 綁定成功');
+  },
+
+  async unbindLineNotify() {
+    const yes = await this.appConfirm('確定要解除 LINE 綁定嗎？解除後將無法收到推播通知。');
+    if (!yes) return;
+    const user = ApiService.getCurrentUser();
+    if (!user) return;
+    user.lineNotify = { bound: false, settings: { activity: true, system: true, tournament: false } };
+    this.renderLineNotifyCard();
+    this.showToast('已解除 LINE 綁定');
+  },
+
+  toggleLineNotify(key) {
+    const user = ApiService.getCurrentUser();
+    if (!user || !user.lineNotify || !user.lineNotify.bound) return;
+    const settings = user.lineNotify.settings;
+    settings[key] = !settings[key];
+    const labels = { activity: '活動提醒', system: '系統通知', tournament: '賽事通知' };
+    const label = labels[key] || key;
+    this.showToast(settings[key] ? '已開啟' + label : '已關閉' + label);
   },
 
   saveFirstLoginProfile() {

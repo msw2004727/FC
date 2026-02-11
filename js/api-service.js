@@ -393,7 +393,7 @@ const ApiService = {
 
   getSponsors() {
     if (this._demoMode) return DemoData.sponsors;
-    return (FirebaseService._cache.sponsors || []).filter(s => s.slot <= 6);
+    return (FirebaseService._cache.sponsors || []).filter(s => s.slot != null && s.slot <= 6);
   },
 
   getActiveSponsors() {

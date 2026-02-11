@@ -27,6 +27,11 @@ const DemoData = {
     badgeCount: 4,
     socialLinks: { fb: 'xiaomai.football', ig: 'xiaomai_fc', threads: '', yt: '', twitter: '' },
     joinDate: '2025/09/01',
+    lineNotify: {
+      bound: true,
+      boundAt: '2025/09/15',
+      settings: { activity: true, system: true, tournament: false }
+    },
   },
 
   events: [
