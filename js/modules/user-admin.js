@@ -577,13 +577,78 @@ Object.assign(App, {
   },
 
   // ─── Step 4: 權限系統（依角色對照表） ───
-  _permSelectedRole: 'user',
+  _permSelectedRole: null,
+
+  // ─── Role Hierarchy ───
+
+  _getBuiltinRoles() {
+    return ['user', 'coach', 'captain', 'venue_owner', 'admin', 'super_admin'];
+  },
+
+  _getCustomRoles() {
+    return (ModeManager.isDemo() ? DemoData.customRoles : (FirebaseService._cache.customRoles || [])) || [];
+  },
+
+  _getAllRoleKeys() {
+    const builtins = this._getBuiltinRoles();
+    const customs = this._getCustomRoles();
+    // 自訂層級插在 builtins 之間（依 afterRole 排序）
+    const result = [];
+    for (const key of builtins) {
+      result.push(key);
+      customs.filter(c => c.afterRole === key).forEach(c => result.push(c.key));
+    }
+    return result;
+  },
+
+  _getRoleInfo(key) {
+    if (ROLES[key]) return ROLES[key];
+    const custom = this._getCustomRoles().find(c => c.key === key);
+    if (custom) return { level: -1, label: custom.label, color: custom.color, custom: true };
+    return { level: -1, label: key, color: '#6b7280', custom: false };
+  },
+
+  _isCustomRole(key) {
+    return !ROLES[key];
+  },
+
+  renderRoleHierarchy() {
+    const container = document.getElementById('role-hierarchy-list');
+    if (!container) return;
+    const allKeys = this._getAllRoleKeys();
+    container.innerHTML = allKeys.map((key, i) => {
+      const r = this._getRoleInfo(key);
+      const isCustom = this._isCustomRole(key);
+      const isSelected = this._permSelectedRole === key;
+      return `<div class="role-level-row ${isSelected ? 'role-level-selected' : ''}" onclick="App.selectRoleForPerms('${key}')" style="cursor:pointer">
+        <span class="role-level-num">Lv.${i}</span>
+        <span class="role-level-badge" style="background:${r.color}">${escapeHTML(r.label)}</span>
+        <span class="role-level-key">${escapeHTML(key)}${isCustom ? ' <span style="font-size:.6rem;color:var(--accent)">(自訂)</span>' : ''}</span>
+        ${isCustom ? `<button class="role-delete-btn" onclick="event.stopPropagation();App.confirmDeleteCustomRole('${key}')" title="刪除此層級">✕</button>` : ''}
+      </div>`;
+    }).join('');
+  },
+
+  selectRoleForPerms(roleKey) {
+    this._permSelectedRole = roleKey;
+    this.renderRoleHierarchy();
+    this.renderPermissions(roleKey);
+    const panel = document.getElementById('role-perm-panel');
+    if (panel) {
+      panel.style.display = '';
+      const info = this._getRoleInfo(roleKey);
+      document.getElementById('role-perm-panel-title').innerHTML =
+        `<span class="role-level-badge" style="background:${info.color};font-size:.7rem;padding:.1rem .4rem">${escapeHTML(info.label)}</span> 後台權限`;
+      panel.scrollIntoView({ behavior: 'smooth' });
+    }
+  },
 
   renderPermissions(role) {
     const container = document.getElementById('permissions-list');
     if (!container) return;
 
     if (role) this._permSelectedRole = role;
+    if (!this._permSelectedRole) return;
     const currentPerms = ApiService.getRolePermissions(this._permSelectedRole);
 
     container.innerHTML = ApiService.getPermissions().map(cat => `
@@ -592,67 +657,119 @@ Object.assign(App, {
           ${cat.cat}
         </div>
         <div class="perm-items">
-          ${cat.items.map(p => `
-            <label class="perm-item">
-              <input type="checkbox" data-code="${p.code}" ${currentPerms.includes(p.code) ? 'checked' : ''} onchange="App.togglePermission('${p.code}')">
+          ${cat.items.map(p => {
+            const checked = currentPerms.includes(p.code);
+            return `
+            <div class="perm-item">
               <span>${p.name}</span>
-            </label>
-          `).join('')}
+              <label class="toggle-switch ${checked ? 'active' : ''}">
+                <input type="checkbox" ${checked ? 'checked' : ''} onchange="App.togglePermission('${p.code}')">
+                <span class="toggle-slider"></span>
+              </label>
+            </div>`;
+          }).join('')}
         </div>
       </div>
     `).join('');
   },
 
   togglePermission(code) {
-    const perms = ApiService.getRolePermissions(this._permSelectedRole);
-    const idx = perms.indexOf(code);
-    const source = ApiService._demoMode ? DemoData.rolePermissions : (FirebaseService._cache.rolePermissions || DemoData.rolePermissions);
+    const source = ModeManager.isDemo() ? DemoData.rolePermissions : (FirebaseService._cache.rolePermissions || DemoData.rolePermissions);
     if (!source[this._permSelectedRole]) source[this._permSelectedRole] = [];
+    const idx = source[this._permSelectedRole].indexOf(code);
     if (idx >= 0) {
       source[this._permSelectedRole] = source[this._permSelectedRole].filter(c => c !== code);
     } else {
       source[this._permSelectedRole].push(code);
     }
+    this.renderPermissions(this._permSelectedRole);
   },
 
-  savePermissions() {
-    this.showToast(`已儲存「${ROLES[this._permSelectedRole]?.label || this._permSelectedRole}」的權限設定`);
-  },
-
-  // ─── Role Hierarchy ───
-  renderRoleHierarchy() {
-    const container = document.getElementById('role-hierarchy-list');
-    if (!container) return;
-    const roles = ['user', 'coach', 'captain', 'venue_owner', 'admin', 'super_admin'];
-    container.innerHTML = roles.map((key, i) => {
-      const r = ROLES[key];
-      return `<div class="role-level-row">
-        <span class="role-level-num">Lv.${i}</span>
-        <span class="role-level-badge" style="background:${r.color}">${r.label}</span>
-        <span class="role-level-key">${key}</span>
-        ${i >= 4 ? '' : '<button class="role-insert-btn" onclick="App.openRoleEditorAt(' + i + ')">＋ 插入</button>'}
-      </div>`;
-    }).join('');
-  },
+  // ─── Role Editor (新增自訂層級) ───
 
   openRoleEditor() {
     const editor = document.getElementById('role-editor-card');
     editor.style.display = '';
     document.getElementById('role-editor-title').textContent = '新增自訂層級';
     document.getElementById('role-name-input').value = '';
-    const select = document.getElementById('role-position-select');
-    const roles = ['user', 'coach', 'captain', 'venue_owner', 'admin'];
-    select.innerHTML = roles.map((key, i) => {
-      const next = ['coach', 'captain', 'venue_owner', 'admin', 'super_admin'][i];
-      return `<option value="${i}">${ROLES[key].label} 與 ${ROLES[next].label} 之間</option>`;
-    }).join('');
-    this.renderPermissions();
+    document.getElementById('role-color-input').value = '#6366f1';
     editor.scrollIntoView({ behavior: 'smooth' });
   },
 
-  openRoleEditorAt(levelIndex) {
-    this.openRoleEditor();
-    document.getElementById('role-position-select').value = levelIndex;
+  hideRoleEditor() {
+    const editor = document.getElementById('role-editor-card');
+    if (editor) editor.style.display = 'none';
+  },
+
+  saveCustomRole() {
+    const label = document.getElementById('role-name-input').value.trim();
+    if (!label) { this.showToast('請輸入層級名稱'); return; }
+    const color = document.getElementById('role-color-input').value || '#6366f1';
+    const key = 'custom_' + Date.now();
+    // 預設插在 captain 與 venue_owner 之間
+    const afterRole = 'captain';
+    const customRoles = this._getCustomRoles();
+    const newRole = { key, label, color, afterRole };
+    customRoles.push(newRole);
+
+    // 初始化權限（複製 afterRole 的權限作為基底）
+    const source = ModeManager.isDemo() ? DemoData.rolePermissions : (FirebaseService._cache.rolePermissions || DemoData.rolePermissions);
+    source[key] = [...(source[afterRole] || [])];
+
+    this.hideRoleEditor();
+    this.renderRoleHierarchy();
+    this.showToast(`自訂層級「${label}」已建立，預設插入於領隊之後`);
+  },
+
+  // ─── 刪除自訂層級 ───
+
+  _pendingDeleteRoleKey: null,
+
+  confirmDeleteCustomRole(key) {
+    const info = this._getRoleInfo(key);
+    const overlay = document.getElementById('role-delete-overlay');
+    const msg = document.getElementById('role-delete-msg');
+    if (!overlay || !msg) return;
+    this._pendingDeleteRoleKey = key;
+    msg.innerHTML = `確定要刪除自訂層級「<strong>${escapeHTML(info.label)}</strong>」嗎？<br><br><span style="color:var(--danger);font-size:.78rem">該層級的所有用戶將自動降為下一級。此操作無法復原。</span>`;
+    const btn = document.getElementById('role-delete-confirm-btn');
+    btn.onclick = () => App.executeDeleteCustomRole();
+    overlay.style.display = '';
+  },
+
+  executeDeleteCustomRole() {
+    const key = this._pendingDeleteRoleKey;
+    if (!key) return;
+    const customRoles = this._getCustomRoles();
+    const idx = customRoles.findIndex(c => c.key === key);
+    if (idx < 0) return;
+    const info = this._getRoleInfo(key);
+    const demoteToRole = customRoles[idx].afterRole || 'user';
+
+    // 降級該層級的用戶
+    const users = ApiService.getAdminUsers ? ApiService.getAdminUsers() : [];
+    users.forEach(u => {
+      if (u.role === key) u.role = demoteToRole;
+    });
+
+    // 移除自訂層級
+    customRoles.splice(idx, 1);
+
+    // 移除權限
+    const source = ModeManager.isDemo() ? DemoData.rolePermissions : (FirebaseService._cache.rolePermissions || DemoData.rolePermissions);
+    delete source[key];
+
+    // 清除選中狀態
+    if (this._permSelectedRole === key) {
+      this._permSelectedRole = null;
+      const panel = document.getElementById('role-perm-panel');
+      if (panel) panel.style.display = 'none';
+    }
+
+    document.getElementById('role-delete-overlay').style.display = 'none';
+    this._pendingDeleteRoleKey = null;
+    this.renderRoleHierarchy();
+    this.showToast(`層級「${info.label}」已刪除，相關用戶已降為「${ROLES[demoteToRole]?.label || demoteToRole}」`);
   },
 
   // ─── Step 6: 不活躍用戶/球隊（從資料讀取） ───

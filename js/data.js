@@ -210,6 +210,8 @@ const DemoData = {
     { name: '許志安', uid: 'Ub2c3d4', role: 'user', region: '新北', exp: 3800, gender: '男', birthday: '1998/02/14', sports: '足球', teamId: 'tm5', teamName: '獵鷹隊', pictureUrl: null, phone: '0911-222-333', lastActive: '2025/12/10', joinDate: '2025/12/01' },
   ],
 
+  customRoles: [],
+
   rolePermissions: {
     user: ['event.create', 'event.edit_own', 'event.delete_own', 'event.view_participants'],
     coach: ['event.create', 'event.edit_own', 'event.delete_own', 'event.edit_all', 'event.publish', 'event.scan_qr', 'event.manual_checkin', 'event.view_participants', 'team.manage_own', 'team.approve_join', 'team.create_team_event', 'team.toggle_event_public', 'tournament.input_score', 'tournament.input_cards'],

@@ -57,8 +57,12 @@
 .role-level-num { font-family: var(--font-display); font-size: .7rem; font-weight: 700; color: var(--text-muted); min-width: 2rem; }
 .role-level-badge { display: inline-block; padding: .15rem .5rem; border-radius: var(--radius-full); color: #fff; font-size: .72rem; font-weight: 600; min-width: 3rem; text-align: center; }
 .role-level-key { font-size: .68rem; color: var(--text-muted); font-family: monospace; flex: 1; }
-.role-insert-btn { font-size: .65rem; color: var(--accent); font-weight: 600; padding: .15rem .4rem; border-radius: var(--radius-full); border: 1px solid var(--accent); background: transparent; cursor: pointer; transition: all var(--transition); white-space: nowrap; }
-.role-insert-btn:hover { background: var(--accent-bg); }
+.role-level-row:hover { background: var(--accent-bg); }
+.role-level-row.role-level-selected { background: var(--accent-bg); border-color: var(--accent); }
+.role-delete-btn { width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--danger); background: transparent; color: var(--danger); font-size: .7rem; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: all .15s; line-height: 1; }
+.role-delete-btn:hover { background: var(--danger); color: #fff; }
+.role-perm-panel { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: .85rem; margin-bottom: .65rem; }
+.role-perm-panel-header { font-weight: 700; font-size: .85rem; margin-bottom: .6rem; padding-bottom: .4rem; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: .4rem; }
 .role-editor-card { background: var(--bg-card); border: 1px solid var(--accent); border-radius: var(--radius); padding: .85rem; margin-bottom: .65rem; }
 .role-editor-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: .65rem; padding-bottom: .4rem; border-bottom: 1px solid var(--border); font-weight: 700; font-size: .85rem; }
 
@@ -68,11 +72,11 @@
 .perm-category.collapsed .perm-category-title::before { transform: rotate(-90deg); }
 .perm-items { display: flex; flex-direction: column; gap: 0; border-radius: var(--radius-sm); overflow: hidden; }
 .perm-category.collapsed .perm-items { display: none; }
-.perm-item { display: flex; align-items: center; gap: .5rem; padding: .4rem .6rem; font-size: .78rem; }
+.perm-item { display: flex; align-items: center; justify-content: space-between; gap: .5rem; padding: .45rem .6rem; font-size: .78rem; }
 .perm-item:nth-child(odd) { background: var(--bg-elevated); }
 .perm-item:nth-child(even) { background: transparent; }
-.perm-item input[type="checkbox"] { accent-color: var(--accent); flex-shrink: 0; width: 16px; height: 16px; margin: 0; }
 .perm-item span { flex: 1; }
+.perm-item .toggle-switch { margin-left: 0; flex-shrink: 0; }
 
 /* ─── Log List ─── */
 .log-list { display: flex; flex-direction: column; gap: .3rem; }

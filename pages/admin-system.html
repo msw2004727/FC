@@ -44,7 +44,7 @@
           </div>
           <div class="form-row">
             <label>目標數值</label>
-            <input type="number" id="ach-cond-threshold" value="1" min="1" oninput="App._updateConditionPreview()">
+            <input type="number" id="ach-cond-threshold" value="1" min="0" oninput="App._updateConditionPreview()">
           </div>
           <div class="ach-cond-preview-wrap">
             <span style="font-size:.72rem;color:var(--text-muted)">條件預覽：</span>
@@ -142,27 +142,47 @@
         <h2>自訂層級管理</h2>
       </div>
       <div class="role-hierarchy-card">
-        <div class="role-hierarchy-title">目前層級架構</div>
+        <div class="role-hierarchy-title">目前層級架構 <span style="font-size:.68rem;font-weight:400;color:var(--text-muted)">（點擊查看權限）</span></div>
         <div class="role-hierarchy-list" id="role-hierarchy-list"></div>
       </div>
+
+      <!-- 權限面板（點擊層級時顯示） -->
+      <div class="role-perm-panel" id="role-perm-panel" style="display:none">
+        <div class="role-perm-panel-header">
+          <span id="role-perm-panel-title">權限設定</span>
+        </div>
+        <div class="permissions-list" id="permissions-list"></div>
+      </div>
+
+      <!-- 新增自訂層級表單 -->
       <div class="role-editor-card" id="role-editor-card" style="display:none">
         <div class="role-editor-header">
           <span id="role-editor-title">新增自訂層級</span>
-          <button class="text-btn" onclick="document.getElementById('role-editor-card').style.display='none'">取消</button>
+          <button class="text-btn" onclick="App.hideRoleEditor()">取消</button>
         </div>
-        <div class="form-row"><label>層級名稱</label><input type="text" id="role-name-input" placeholder="例：裁判、助理教練"></div>
+        <div class="form-row"><label>層級名稱 <span class="required">*必填</span></label><input type="text" id="role-name-input" placeholder="例：裁判、助理教練"></div>
         <div class="form-row"><label>層級顏色</label><input type="color" id="role-color-input" value="#6366f1" style="width:100%;height:36px;border:none;cursor:pointer"></div>
-        <div class="form-row">
-          <label>插入位置（介於）</label>
-          <select id="role-position-select"></select>
-        </div>
-        <div class="form-row">
-          <label>權限設定</label>
-          <div class="permissions-list" id="permissions-list"></div>
-        </div>
-        <button class="primary-btn full-width" onclick="App.showToast('層級已儲存（Demo）')">儲存層級</button>
+        <div style="font-size:.72rem;color:var(--text-muted);margin-bottom:.5rem">新增後可於層級架構中點擊該層級設定權限</div>
+        <button class="primary-btn full-width" onclick="App.saveCustomRole()">儲存層級</button>
       </div>
       <button class="primary-btn full-width" style="margin-top:.5rem" onclick="App.openRoleEditor()">＋ 新增自訂層級</button>
+
+      <!-- 刪除確認彈窗 -->
+      <div class="modal-overlay" id="role-delete-overlay" style="display:none" onclick="if(event.target===this)this.style.display='none'">
+        <div class="modal" style="max-width:320px">
+          <div class="modal-header">
+            <h3>確認刪除層級</h3>
+            <button class="modal-close" onclick="document.getElementById('role-delete-overlay').style.display='none'">✕</button>
+          </div>
+          <div class="modal-body">
+            <p id="role-delete-msg" style="font-size:.85rem;line-height:1.6"></p>
+          </div>
+          <div class="modal-actions">
+            <button class="outline-btn" onclick="document.getElementById('role-delete-overlay').style.display='none'">取消</button>
+            <button class="primary-btn" style="background:var(--danger)" id="role-delete-confirm-btn">確認刪除</button>
+          </div>
+        </div>
+      </div>
     </section>
 
     <!-- PAGE: Backend - Inactive Data (Super Admin) -->

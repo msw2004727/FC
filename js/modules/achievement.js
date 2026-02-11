@@ -24,7 +24,7 @@ Object.assign(App, {
     const filterCfg = ac.filters.find(f => f.key === condition.filter);
     const actionLabel = actionCfg ? actionCfg.label : condition.action;
     const unit = actionCfg ? actionCfg.unit : '';
-    const threshold = condition.threshold || 0;
+    const threshold = condition.threshold != null ? condition.threshold : 0;
 
     // 特殊：連續 N 天
     if (condition.timeRange === 'streak') {
@@ -46,7 +46,9 @@ Object.assign(App, {
   },
 
   _getAchThreshold(ach) {
-    return (ach.condition && ach.condition.threshold) || ach.target || 1;
+    if (ach.condition && ach.condition.threshold != null) return ach.condition.threshold;
+    if (ach.target != null) return ach.target;
+    return 1;
   },
 
   // ══════════════════════════════════
@@ -190,7 +192,7 @@ Object.assign(App, {
     document.getElementById('ach-cond-streakdays').value = cond.streakDays || 7;
     document.getElementById('ach-cond-action').value = cond.action || 'complete_event';
     document.getElementById('ach-cond-filter').value = cond.filter || 'all';
-    document.getElementById('ach-cond-threshold').value = cond.threshold || 1;
+    document.getElementById('ach-cond-threshold').value = cond.threshold != null ? cond.threshold : 1;
 
     // 徽章圖片預覽
     const preview = document.getElementById('ach-badge-preview');
@@ -234,7 +236,7 @@ Object.assign(App, {
       streakDays: parseInt(document.getElementById('ach-cond-streakdays').value) || 7,
       action: document.getElementById('ach-cond-action').value,
       filter: document.getElementById('ach-cond-filter').value,
-      threshold: parseInt(document.getElementById('ach-cond-threshold').value) || 1,
+      threshold: parseInt(document.getElementById('ach-cond-threshold').value) || 0,
     };
     preview.textContent = '「' + this._generateConditionDesc(condition) + '」';
   },
@@ -284,7 +286,7 @@ Object.assign(App, {
       streakDays: parseInt(document.getElementById('ach-cond-streakdays').value) || 7,
       action: document.getElementById('ach-cond-action').value,
       filter: document.getElementById('ach-cond-filter').value,
-      threshold: parseInt(document.getElementById('ach-cond-threshold').value) || 1,
+      threshold: parseInt(document.getElementById('ach-cond-threshold').value) || 0,
     };
     // 非 streak 時不保留 streakDays
     if (condition.timeRange !== 'streak') delete condition.streakDays;
