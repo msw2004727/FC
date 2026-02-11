@@ -62,7 +62,10 @@
 .role-delete-btn { width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--danger); background: transparent; color: var(--danger); font-size: .7rem; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: all .15s; line-height: 1; }
 .role-delete-btn:hover { background: var(--danger); color: #fff; }
 .role-perm-panel { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: .85rem; margin-bottom: .65rem; }
-.role-perm-panel-header { font-weight: 700; font-size: .85rem; margin-bottom: .6rem; padding-bottom: .4rem; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: .4rem; }
+.role-perm-panel-header { font-weight: 700; font-size: .85rem; margin-bottom: .6rem; padding-bottom: .4rem; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; cursor: pointer; }
+.role-perm-reset-btn { font-size: .68rem !important; color: var(--accent) !important; padding: .15rem .4rem; border: 1px solid var(--accent); border-radius: var(--radius-sm); background: transparent; }
+.role-perm-reset-btn:active { background: var(--accent); color: #fff !important; }
+.role-perm-arrow { font-size: .65rem; color: var(--text-muted); user-select: none; }
 .role-editor-card { background: var(--bg-card); border: 1px solid var(--accent); border-radius: var(--radius); padding: .85rem; margin-bottom: .65rem; }
 .role-editor-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: .65rem; padding-bottom: .4rem; border-bottom: 1px solid var(--border); font-weight: 700; font-size: .85rem; }
 

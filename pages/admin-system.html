@@ -146,14 +146,6 @@
         <div class="role-hierarchy-list" id="role-hierarchy-list"></div>
       </div>
 
-      <!-- 權限面板（點擊層級時顯示） -->
-      <div class="role-perm-panel" id="role-perm-panel" style="display:none">
-        <div class="role-perm-panel-header">
-          <span id="role-perm-panel-title">權限設定</span>
-        </div>
-        <div class="permissions-list" id="permissions-list"></div>
-      </div>
-
       <!-- 新增自訂層級表單 -->
       <div class="role-editor-card" id="role-editor-card" style="display:none">
         <div class="role-editor-header">
@@ -161,11 +153,24 @@
           <button class="text-btn" onclick="App.hideRoleEditor()">取消</button>
         </div>
         <div class="form-row"><label>層級名稱 <span class="required">*必填</span></label><input type="text" id="role-name-input" placeholder="例：裁判、助理教練"></div>
+        <div class="form-row"><label>插入位置</label><select id="role-position-select"></select></div>
         <div class="form-row"><label>層級顏色</label><input type="color" id="role-color-input" value="#6366f1" style="width:100%;height:36px;border:none;cursor:pointer"></div>
-        <div style="font-size:.72rem;color:var(--text-muted);margin-bottom:.5rem">新增後可於層級架構中點擊該層級設定權限</div>
+        <div style="font-size:.72rem;color:var(--text-muted);margin-bottom:.5rem">新增後可於層級架構中點擊該層級設定權限（預設複製前一層級的權限）</div>
         <button class="primary-btn full-width" onclick="App.saveCustomRole()">儲存層級</button>
       </div>
       <button class="primary-btn full-width" style="margin-top:.5rem" onclick="App.openRoleEditor()">＋ 新增自訂層級</button>
+
+      <!-- 權限面板（點擊層級時顯示） -->
+      <div class="role-perm-panel" id="role-perm-panel" style="display:none">
+        <div class="role-perm-panel-header" onclick="App.togglePermPanel()" style="cursor:pointer">
+          <span id="role-perm-panel-title">權限設定</span>
+          <div style="display:flex;align-items:center;gap:.4rem">
+            <button class="text-btn role-perm-reset-btn" onclick="event.stopPropagation();App.resetRolePermissions()" title="復原為預設權限">復原預設</button>
+            <span class="role-perm-arrow" id="role-perm-arrow">▼</span>
+          </div>
+        </div>
+        <div class="permissions-list" id="permissions-list" style="display:none"></div>
+      </div>
 
       <!-- 刪除確認彈窗 -->
       <div class="modal-overlay" id="role-delete-overlay" style="display:none" onclick="if(event.target===this)this.style.display='none'">

@@ -639,8 +639,40 @@ Object.assign(App, {
       const info = this._getRoleInfo(roleKey);
       document.getElementById('role-perm-panel-title').innerHTML =
         `<span class="role-level-badge" style="background:${info.color};font-size:.7rem;padding:.1rem .4rem">${escapeHTML(info.label)}</span> 後台權限`;
+      // 展開權限列表
+      const list = document.getElementById('permissions-list');
+      const arrow = document.getElementById('role-perm-arrow');
+      if (list) list.style.display = '';
+      if (arrow) arrow.textContent = '▲';
       panel.scrollIntoView({ behavior: 'smooth' });
     }
+  },
+
+  togglePermPanel() {
+    const list = document.getElementById('permissions-list');
+    const arrow = document.getElementById('role-perm-arrow');
+    if (!list) return;
+    const collapsed = list.style.display === 'none';
+    list.style.display = collapsed ? '' : 'none';
+    if (arrow) arrow.textContent = collapsed ? '▲' : '▼';
+  },
+
+  resetRolePermissions() {
+    if (!this._permSelectedRole) return;
+    const role = this._permSelectedRole;
+    const defaults = DemoData.rolePermissions[role];
+    if (!defaults) {
+      this.showToast('此層級無預設權限可復原');
+      return;
+    }
+    const source = ModeManager.isDemo() ? DemoData.rolePermissions : (FirebaseService._cache.rolePermissions || DemoData.rolePermissions);
+    source[role] = [...defaults];
+    if (!ModeManager.isDemo()) {
+      FirebaseService.saveRolePermissions(role, source[role]);
+    }
+    this.renderPermissions(role);
+    const info = this._getRoleInfo(role);
+    this.showToast(`「${info.label}」權限已復原為預設值`);
   },
 
   renderPermissions(role) {
@@ -697,6 +729,21 @@ Object.assign(App, {
     document.getElementById('role-editor-title').textContent = '新增自訂層級';
     document.getElementById('role-name-input').value = '';
     document.getElementById('role-color-input').value = '#6366f1';
+
+    // 填充插入位置下拉選單
+    const allKeys = this._getAllRoleKeys();
+    const posSelect = document.getElementById('role-position-select');
+    if (posSelect) {
+      posSelect.innerHTML = allKeys.slice(0, -1).map((key, i) => {
+        const cur = this._getRoleInfo(key);
+        const next = this._getRoleInfo(allKeys[i + 1]);
+        return `<option value="${key}">${escapeHTML(cur.label)} 與 ${escapeHTML(next.label)} 之間</option>`;
+      }).join('');
+      // 預設選「領隊與場主之間」
+      const captainIdx = allKeys.indexOf('captain');
+      if (captainIdx >= 0) posSelect.value = allKeys[captainIdx];
+    }
+
     editor.scrollIntoView({ behavior: 'smooth' });
   },
 
@@ -710,8 +757,9 @@ Object.assign(App, {
     if (!label) { this.showToast('請輸入層級名稱'); return; }
     const color = document.getElementById('role-color-input').value || '#6366f1';
     const key = 'custom_' + Date.now();
-    // 預設插在 captain 與 venue_owner 之間
-    const afterRole = 'captain';
+    const posSelect = document.getElementById('role-position-select');
+    const afterRole = posSelect ? posSelect.value : 'captain';
+    const afterInfo = this._getRoleInfo(afterRole);
     const customRoles = this._getCustomRoles();
     const newRole = { key, label, color, afterRole };
     customRoles.push(newRole);
@@ -728,7 +776,7 @@ Object.assign(App, {
 
     this.hideRoleEditor();
     this.renderRoleHierarchy();
-    this.showToast(`自訂層級「${label}」已建立，預設插入於領隊之後`);
+    this.showToast(`自訂層級「${label}」已建立，插入於「${afterInfo.label}」之後`);
   },
 
   // ─── 刪除自訂層級 ───
