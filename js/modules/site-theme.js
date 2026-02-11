@@ -98,11 +98,15 @@ Object.assign(App, {
     if (input) input.value = '';
 
     overlay.classList.add('open');
+    overlay.querySelector('.modal').classList.add('open');
   },
 
   hideThemeForm() {
     const overlay = document.getElementById('theme-form-overlay');
-    if (overlay) overlay.classList.remove('open');
+    if (overlay) {
+      overlay.classList.remove('open');
+      overlay.querySelector('.modal').classList.remove('open');
+    }
     this._themeEditId = null;
   },
 
