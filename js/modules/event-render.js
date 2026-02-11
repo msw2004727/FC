@@ -48,11 +48,9 @@ Object.assign(App, {
     return e.creatorUid === this._getEventCreatorUid();
   },
 
-  /** 判斷活動是否真正額滿（正取+候補都滿） */
+  /** 判斷活動是否額滿（正取滿即為額滿，候補無限） */
   _isEventTrulyFull(e) {
-    if (e.current < e.max) return false;           // 正取未滿
-    if ((e.waitlistMax || 0) <= 0) return false;    // 無限候補 → 永不額滿
-    return (e.waitlist || 0) >= e.waitlistMax;       // 候補也滿了
+    return e.current >= e.max;
   },
 
   /** 判斷當前用戶是否為該活動委託人 */
@@ -311,8 +309,6 @@ Object.assign(App, {
       signupBtn = `<button style="background:#333;color:#999;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:not-allowed" disabled>已結束</button>`;
     } else if (isSignedUp) {
       signupBtn = `<button style="background:#dc2626;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:pointer" onclick="App.handleCancelSignup('${e.id}')">取消報名</button>`;
-    } else if (isTrulyFull) {
-      signupBtn = `<button style="background:#333;color:#999;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:not-allowed" disabled>已額滿</button>`;
     } else if (isMainFull) {
       signupBtn = `<button style="background:#7c3aed;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:pointer" onclick="App.handleSignup('${e.id}')">報名候補</button>`;
     } else {
@@ -325,7 +321,7 @@ Object.assign(App, {
       <div class="detail-row"><span class="detail-label">地點</span>${locationHtml}</div>
       <div class="detail-row"><span class="detail-label">時間</span>${escapeHTML(e.date)}</div>
       <div class="detail-row"><span class="detail-label">費用</span>${e.fee > 0 ? '$'+e.fee : '免費'}</div>
-      <div class="detail-row"><span class="detail-label">人數</span>已報 ${e.current}/${e.max}　候補 ${e.waitlist}/${(e.waitlistMax || 0) > 0 ? e.waitlistMax : '∞'}</div>
+      <div class="detail-row"><span class="detail-label">人數</span>已報 ${e.current}/${e.max}${(e.waitlist || 0) > 0 ? '　候補 ' + e.waitlist : ''}</div>
       <div class="detail-row"><span class="detail-label">年齡</span>${e.minAge > 0 ? e.minAge + ' 歲以上' : '無限制'}</div>
       <div class="detail-row"><span class="detail-label">主辦</span><span class="participant-list" style="display:inline-flex;gap:.3rem;flex-wrap:wrap">${this._userTag(e.creator)}</span></div>
       ${(e.delegates && e.delegates.length) ? `<div class="detail-row"><span class="detail-label">委託</span><span class="participant-list" style="display:inline-flex;gap:.3rem;flex-wrap:wrap">${e.delegates.map(d => this._userTag(d.name)).join('')}</span></div>` : ''}
@@ -369,22 +365,22 @@ Object.assign(App, {
       }
       const isWaitlist = e.current >= e.max;
       if (isWaitlist) {
-        // 候補已滿（waitlistMax > 0 才有上限）
-        if ((e.waitlistMax || 0) > 0 && (e.waitlist || 0) >= e.waitlistMax) {
-          this.showToast('正取及候補皆已額滿');
-          return;
-        }
         if (!e.waitlistNames) e.waitlistNames = [];
-        e.waitlistNames.push(userName);
+        if (!e.waitlistNames.includes(userName)) e.waitlistNames.push(userName);
         e.waitlist = (e.waitlist || 0) + 1;
+        // 安全移除：確保不在正取名單
+        const pi = (e.participants || []).indexOf(userName);
+        if (pi >= 0) { e.participants.splice(pi, 1); e.current = Math.max(0, e.current - 1); }
       } else {
         if (!e.participants) e.participants = [];
-        e.participants.push(userName);
+        if (!e.participants.includes(userName)) e.participants.push(userName);
         e.current++;
+        // 安全移除：確保不在候補名單
+        const wi = (e.waitlistNames || []).indexOf(userName);
+        if (wi >= 0) { e.waitlistNames.splice(wi, 1); e.waitlist = Math.max(0, (e.waitlist || 0) - 1); }
       }
-      if (this._isEventTrulyFull(e)) {
-        e.status = 'full';
-      }
+      // 正取滿即標記為 full
+      if (e.current >= e.max) e.status = 'full';
       // 寫入報名紀錄
       const dateParts = e.date.split(' ')[0].split('/');
       const dateStr = `${dateParts[1]}/${dateParts[2]}`;
@@ -442,11 +438,14 @@ Object.assign(App, {
           e.current = Math.max(0, e.current - 1);
           if (e.waitlistNames && e.waitlistNames.length > 0) {
             const promoted = e.waitlistNames.shift();
-            e.participants.push(promoted);
-            e.current++;
             e.waitlist = Math.max(0, e.waitlist - 1);
+            // 確保遞補者不會重複出現在正取名單
+            if (!e.participants.includes(promoted)) {
+              e.participants.push(promoted);
+              e.current++;
+            }
           }
-          if (e.status === 'full' && !this._isEventTrulyFull(e)) e.status = 'open';
+          e.status = e.current >= e.max ? 'full' : 'open';
         } else {
           const wi = (e.waitlistNames || []).indexOf(userName);
           if (wi !== -1) {

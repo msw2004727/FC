@@ -168,7 +168,7 @@ Object.assign(App, {
     const timeVal = (ceTimeStart && ceTimeEnd) ? `${ceTimeStart.value}~${ceTimeEnd.value}` : '';
     const fee = parseInt(document.getElementById('ce-fee').value) || 0;
     const max = parseInt(document.getElementById('ce-max').value) || 20;
-    const waitlistMax = parseInt(document.getElementById('ce-waitlist').value) || 0;
+    const waitlistMax = 0; // 候補無限
     const minAge = parseInt(document.getElementById('ce-min-age').value) || 0;
     const notes = document.getElementById('ce-notes').value.trim();
     const teamOnly = !!document.getElementById('ce-team-only')?.checked;
@@ -259,7 +259,7 @@ Object.assign(App, {
     document.getElementById('ce-location').value = '';
     document.getElementById('ce-fee').value = '300';
     document.getElementById('ce-max').value = '20';
-    document.getElementById('ce-waitlist').value = '5';
+    document.getElementById('ce-waitlist').value = '0';
     document.getElementById('ce-min-age').value = '0';
     document.getElementById('ce-notes').value = '';
     document.getElementById('ce-image').value = '';

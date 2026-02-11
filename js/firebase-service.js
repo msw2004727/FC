@@ -265,12 +265,6 @@ const FirebaseService = {
     if (existing) throw new Error('已報名此活動');
 
     const isWaitlist = event.current >= event.max;
-
-    // 候補已滿（waitlistMax > 0 才有上限）
-    if (isWaitlist && (event.waitlistMax || 0) > 0 && (event.waitlist || 0) >= event.waitlistMax) {
-      throw new Error('正取及候補皆已額滿');
-    }
-
     const status = isWaitlist ? 'waitlisted' : 'confirmed';
     const registration = {
       id: 'reg_' + Date.now(),
@@ -289,30 +283,37 @@ const FirebaseService = {
     registration._docId = docRef.id;
     this._cache.registrations.push(registration);
 
-    // 更新活動計數
+    // 更新活動計數（確保不會同時出現在兩個名單）
     if (status === 'confirmed') {
       event.current++;
       if (!event.participants) event.participants = [];
-      event.participants.push(userName);
+      if (!event.participants.includes(userName)) event.participants.push(userName);
+      // 安全移除：確保不在候補名單
+      if (event.waitlistNames) {
+        const wi = event.waitlistNames.indexOf(userName);
+        if (wi >= 0) { event.waitlistNames.splice(wi, 1); event.waitlist = Math.max(0, (event.waitlist || 0) - 1); }
+      }
     } else {
       event.waitlist = (event.waitlist || 0) + 1;
       if (!event.waitlistNames) event.waitlistNames = [];
-      event.waitlistNames.push(userName);
+      if (!event.waitlistNames.includes(userName)) event.waitlistNames.push(userName);
+      // 安全移除：確保不在正取名單
+      if (event.participants) {
+        const pi = event.participants.indexOf(userName);
+        if (pi >= 0) { event.participants.splice(pi, 1); event.current = Math.max(0, event.current - 1); }
+      }
     }
 
-    // 判斷是否真正額滿（正取+候補都滿）
-    const trulyFull = event.current >= event.max
-      && (event.waitlistMax || 0) > 0
-      && (event.waitlist || 0) >= event.waitlistMax;
-    if (trulyFull) event.status = 'full';
+    // 正取滿即標記為 full（候補無限）
+    if (event.current >= event.max) event.status = 'full';
 
     const eventUpdate = {
       current: event.current,
       waitlist: event.waitlist,
       participants: event.participants,
       waitlistNames: event.waitlistNames,
+      status: event.status,
     };
-    if (trulyFull) eventUpdate.status = 'full';
 
     await db.collection('events').doc(event._docId).update(eventUpdate);
 
@@ -349,8 +350,11 @@ const FirebaseService = {
       if (event.waitlistNames && event.waitlistNames.length > 0 && event.current < event.max) {
         const promoted = event.waitlistNames.shift();
         event.waitlist = Math.max(0, event.waitlist - 1);
-        event.participants.push(promoted);
-        event.current++;
+        // 確保遞補者不會重複出現在正取名單
+        if (!event.participants.includes(promoted)) {
+          event.participants.push(promoted);
+          event.current++;
+        }
 
         // 更新被遞補者的 registration 狀態
         const promotedReg = this._cache.registrations.find(
@@ -364,11 +368,8 @@ const FirebaseService = {
         }
       }
 
-      // 遞補後重新判斷 status
-      const stillFull = event.current >= event.max
-        && (event.waitlistMax || 0) > 0
-        && (event.waitlist || 0) >= event.waitlistMax;
-      if (event.status === 'full' && !stillFull) event.status = 'open';
+      // 遞補後重新判斷 status：正取滿=full，有空位=open
+      event.status = event.current >= event.max ? 'full' : 'open';
 
       if (event._docId) {
         await db.collection('events').doc(event._docId).update({

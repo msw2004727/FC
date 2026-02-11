@@ -125,7 +125,7 @@ Object.assign(App, {
       <div style="font-size:.85rem;font-weight:700;margin-bottom:.3rem">報名名單（${e.current}/${e.max}）</div>
       ${participants || '<div style="font-size:.8rem;color:var(--text-muted);padding:.3rem 0">尚無報名</div>'}
       ${e.waitlist > 0 ? `
-        <div style="font-size:.85rem;font-weight:700;margin:.6rem 0 .3rem">候補名單（${e.waitlist}/${(e.waitlistMax || 0) > 0 ? e.waitlistMax : '∞'}）</div>
+        <div style="font-size:.85rem;font-weight:700;margin:.6rem 0 .3rem">候補名單（${e.waitlist}）</div>
         ${waitlist}
       ` : ''}
     `;
@@ -157,7 +157,7 @@ Object.assign(App, {
     }
     document.getElementById('ce-fee').value = e.fee || 0;
     document.getElementById('ce-max').value = e.max || 20;
-    document.getElementById('ce-waitlist').value = e.waitlistMax || 0;
+    document.getElementById('ce-waitlist').value = 0;
     document.getElementById('ce-min-age').value = e.minAge || 0;
     document.getElementById('ce-notes').value = e.notes || '';
     // 球隊限定
