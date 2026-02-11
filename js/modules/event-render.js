@@ -5,6 +5,16 @@
 
 Object.assign(App, {
 
+  _activityActiveTab: 'normal',
+
+  switchActivityTab(tab) {
+    this._activityActiveTab = tab;
+    document.querySelectorAll('#activity-tabs .tab').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.atab === tab);
+    });
+    this.renderActivityList();
+  },
+
   // ══════════════════════════════════
   //  Helpers
   // ══════════════════════════════════
@@ -214,6 +224,15 @@ Object.assign(App, {
     const filterKw = (document.getElementById('activity-filter-keyword')?.value || '').trim().toLowerCase();
 
     let events = this._getVisibleEvents();
+
+    // 頁簽篩選：一般 = 非已結束/已取消，已結束 = ended/cancelled
+    const activeTab = this._activityActiveTab || 'normal';
+    if (activeTab === 'ended') {
+      events = events.filter(e => e.status === 'ended' || e.status === 'cancelled');
+    } else {
+      events = events.filter(e => e.status !== 'ended' && e.status !== 'cancelled');
+    }
+
     if (filterType) events = events.filter(e => e.type === filterType);
     if (filterKw) events = events.filter(e =>
       (e.title || '').toLowerCase().includes(filterKw) ||

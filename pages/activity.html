@@ -21,6 +21,10 @@
       <div class="my-section" data-min-role="coach">
         <button class="action-btn" onclick="App.showPage('page-my-activities')">活動管理</button>
       </div>
+      <div class="tab-bar" id="activity-tabs">
+        <button class="tab active" data-atab="normal" onclick="App.switchActivityTab('normal')">一般</button>
+        <button class="tab" data-atab="ended" onclick="App.switchActivityTab('ended')">已結束</button>
+      </div>
       <div class="timeline-calendar" id="activity-list">
         <!-- Populated by JS -->
       </div>
