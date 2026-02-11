@@ -241,6 +241,23 @@ Object.assign(App, {
     this._queueLinePush(targetUid, category || 'system', title, body);
   },
 
+  _queueLinePushByTarget(targetType, targetUid, category, title, body) {
+    if (targetType === 'individual') {
+      if (targetUid) this._queueLinePush(targetUid, category, title, body);
+      return;
+    }
+    // 全體 / 教練以上 / 管理員 → 遍歷符合條件的用戶
+    const coachUp = ['coach', 'captain', 'venue_owner', 'admin', 'super_admin'];
+    const adminOnly = ['admin', 'super_admin'];
+    const users = ApiService.getAdminUsers() || [];
+    users.forEach(u => {
+      if (targetType === 'coach_up' && !coachUp.includes(u.role)) return;
+      if (targetType === 'admin' && !adminOnly.includes(u.role)) return;
+      if (targetType === 'team' && u.teamId !== ApiService.getCurrentUser()?.teamId) return;
+      this._queueLinePush(u.uid, category, title, body);
+    });
+  },
+
   _queueLinePush(uid, category, title, body) {
     if (!uid) return;
     // 查找目標用戶的 lineNotify 設定
@@ -593,6 +610,8 @@ Object.assign(App, {
     // 立即發送 → 同時投遞到用戶收件箱（只投一封）
     if (!isScheduled) {
       this._deliverMessageToInbox(title, body, category, catNames[category], targetUid, senderName);
+      // LINE 推播：依對象類型篩選目標用戶
+      this._queueLinePushByTarget(targetType, targetUid, category, title, body);
     }
 
     // 重置表單
