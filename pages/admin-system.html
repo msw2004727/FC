@@ -79,7 +79,6 @@
             <div class="form-row"><label>發布方式</label><select id="ann-input-publish-type" onchange="App.toggleAnnSchedule()"><option value="now">立即發布</option><option value="scheduled">預約發布</option></select></div>
             <div class="form-row" id="ann-schedule-row" style="display:none"><label>預約發布時間</label><input type="datetime-local" id="ann-input-schedule"></div>
             <div class="form-row"><label>結束時間（選填）</label><input type="datetime-local" id="ann-input-unpublish"></div>
-            <div class="form-row"><label>操作人暱稱</label><input type="text" id="ann-input-operator" maxlength="10" placeholder="例：總管"></div>
             <button class="primary-btn full-width" onclick="App.saveAnnouncementItem()">儲存</button>
           </div>
         </div>

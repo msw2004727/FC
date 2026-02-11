@@ -107,7 +107,6 @@ Object.assign(App, {
     document.getElementById('ann-input-title').value = editData ? editData.title : '';
     document.getElementById('ann-input-content').value = editData ? editData.content : '';
     document.getElementById('ann-content-count').textContent = (editData ? editData.content.length : 0) + '/50';
-    document.getElementById('ann-input-operator').value = editData ? (editData.operatorName || '') : (ROLES[this.currentRole]?.label || '總管');
 
     const isScheduled = editData && editData.status === 'scheduled';
     document.getElementById('ann-input-publish-type').value = isScheduled ? 'scheduled' : 'now';
@@ -142,7 +141,8 @@ Object.assign(App, {
     const title = document.getElementById('ann-input-title').value.trim();
     const content = document.getElementById('ann-input-content').value.trim();
     const publishType = document.getElementById('ann-input-publish-type').value;
-    const operatorName = document.getElementById('ann-input-operator').value.trim() || '總管';
+    const curUser = ApiService.getCurrentUser();
+    const operatorName = curUser?.displayName || ROLES[this.currentRole]?.label || '總管';
 
     if (!title) { this.showToast('請輸入公告標題'); return; }
     if (title.length > 12) { this.showToast('標題不得超過 12 字'); return; }
