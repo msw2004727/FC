@@ -64,6 +64,17 @@ Object.assign(App, {
         const progressPct = e.max > 0 ? Math.min(100, Math.round(e.current / e.max * 100)) : 0;
         const progressColor = progressPct >= 100 ? 'var(--danger)' : progressPct >= 70 ? 'var(--warning)' : 'var(--success)';
         const teamBadge = e.teamOnly ? '<span class="tl-teamonly-badge" style="margin-left:.3rem">限定</span>' : '';
+        // Fee summary
+        const fee = e.fee || 0;
+        const checkoutCount = fee > 0 ? new Set(ApiService.getAttendanceRecords(e.id).filter(r => r.type === 'checkout').map(r => r.uid)).size : 0;
+        const feeExpected = fee * e.current;
+        const feeActual = fee * checkoutCount;
+        const feeShort = feeExpected - feeActual;
+        const feeBox = fee > 0 ? `<div style="margin-left:auto;padding:.2rem .45rem;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:.68rem;color:var(--text-secondary);display:inline-flex;gap:.5rem;background:var(--bg-elevated);white-space:nowrap">
+          <span>應收<b style="color:var(--text-primary)">$${feeExpected}</b></span>
+          <span>實收<b style="color:var(--success)">$${feeActual}</b></span>
+          <span>短收<b style="color:${feeShort > 0 ? 'var(--danger)' : 'var(--success)'}">$${feeShort}</b></span>
+        </div>` : '';
         return `
       <div class="msg-manage-card" style="margin-bottom:.5rem">
         <div style="display:flex;align-items:center;gap:.4rem;margin-bottom:.2rem">
@@ -77,7 +88,7 @@ Object.assign(App, {
           </div>
           <span style="font-size:.72rem;color:var(--text-muted);white-space:nowrap">${e.current}/${e.max} 人${e.waitlist > 0 ? ' ・ 候補 ' + e.waitlist : ''}</span>
         </div>
-        <div style="display:flex;gap:.3rem;margin-top:.4rem;flex-wrap:wrap">${btns}</div>
+        <div style="display:flex;gap:.3rem;margin-top:.4rem;flex-wrap:wrap;align-items:center">${btns}${feeBox}</div>
       </div>`;
       }).join('')
       : '<div style="padding:1rem;font-size:.82rem;color:var(--text-muted);text-align:center">此分類沒有活動</div>';
