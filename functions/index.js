@@ -72,6 +72,18 @@ exports.processLinePushQueue = onDocumentCreated(
         error: err.message || String(err),
         processedAt: FieldValue.serverTimestamp(),
       });
+
+      // 推播失敗 → 自動解綁用戶的 LINE 推播
+      try {
+        const userDoc = db.collection("users").doc(uid);
+        const userSnap = await userDoc.get();
+        if (userSnap.exists) {
+          await userDoc.update({ "lineNotify.bound": false });
+          console.log(`[LinePush] 已自動解綁用戶推播: ${uid}`);
+        }
+      } catch (unbindErr) {
+        console.error(`[LinePush] 自動解綁失敗: ${uid}`, unbindErr);
+      }
     }
   }
 );

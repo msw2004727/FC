@@ -45,6 +45,7 @@ ModeManager.init();
 const LINE_CONFIG = {
   LIFF_ID: '2009084941-zgn7tQOp',
   CHANNEL_ID: '2009084941',
+  BOT_BASIC_ID: '@830utvza',
 };
 
 // ─── Role Hierarchy & Config ───

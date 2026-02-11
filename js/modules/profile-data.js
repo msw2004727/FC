@@ -284,10 +284,42 @@ Object.assign(App, {
     }
   },
 
-  bindLineNotify() {
+  async bindLineNotify() {
     const user = ApiService.getCurrentUser();
     if (!user) return;
     const btn = document.querySelector('.line-login-btn');
+
+    // Demo 模式 → 直接綁定
+    if (ModeManager.isDemo()) {
+      this._completeLineBinding(btn);
+      return;
+    }
+
+    // 檢查 LIFF 登入狀態
+    if (typeof liff === 'undefined' || !liff.isLoggedIn()) {
+      this.showToast('請先登入 LINE 帳號');
+      return;
+    }
+
+    if (btn) btn.classList.add('loading');
+
+    try {
+      const { friendFlag } = await liff.getFriendship();
+      if (!friendFlag) {
+        if (btn) btn.classList.remove('loading');
+        window.open(`https://line.me/R/ti/p/${LINE_CONFIG.BOT_BASIC_ID}`, '_blank');
+        this.showToast('請先加入官方帳號好友，再重新綁定');
+        return;
+      }
+      this._completeLineBinding(btn);
+    } catch (err) {
+      console.error('[LineNotify] getFriendship 失敗:', err);
+      if (btn) btn.classList.remove('loading');
+      this.showToast('好友狀態檢查失敗，請稍後再試');
+    }
+  },
+
+  _completeLineBinding(btn) {
     if (btn) btn.classList.add('loading');
     const today = new Date();
     const dateStr = today.getFullYear() + '/' + String(today.getMonth() + 1).padStart(2, '0') + '/' + String(today.getDate()).padStart(2, '0');
