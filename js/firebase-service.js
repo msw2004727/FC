@@ -576,7 +576,7 @@ const FirebaseService = {
     const user = this._cache.adminUsers.find(u => u.uid === userId);
     if (!user) throw new Error('用戶不存在');
 
-    user.exp = (user.exp || 0) + pointsDelta;
+    user.exp = Math.max(0, (user.exp || 0) + pointsDelta);
 
     if (user._docId) {
       await db.collection('users').doc(user._docId).update({

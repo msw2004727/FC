@@ -209,7 +209,11 @@
       <div class="page-header">
         <button class="back-btn" onclick="App.goBack()">←</button>
         <h2>賽事管理</h2>
-        <button class="primary-btn small" onclick="App.showModal('create-tournament-modal')">＋ 新增</button>
+        <button class="primary-btn small" onclick="App.openCreateTournamentModal()">＋ 新增</button>
+      </div>
+      <div class="tab-bar" id="tm-tabs">
+        <button class="tab active" data-tmtab="active" onclick="App.switchTournamentManageTab('active')">進行中</button>
+        <button class="tab" data-tmtab="ended" onclick="App.switchTournamentManageTab('ended')">已結束</button>
       </div>
       <div class="card-list" id="tournament-manage-list"></div>
     </section>

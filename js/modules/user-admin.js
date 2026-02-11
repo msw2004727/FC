@@ -55,8 +55,8 @@ Object.assign(App, {
           <div class="admin-user-body">
             <div class="admin-user-info">
               <div class="admin-user-name">${this._userTag(u.name, u.role)}</div>
-              <div class="admin-user-meta">${escapeHTML(u.uid)} ・ ${ROLES[u.role]?.label || u.role} ・ Lv.${u.level} ・ ${escapeHTML(u.region || '—')}${genderIcon ? ' ' + genderIcon : ''}${teamInfo}</div>
-              <div class="admin-user-meta">${escapeHTML(u.sports || '—')} ・ EXP ${u.exp}</div>
+              <div class="admin-user-meta">${escapeHTML(u.uid)} ・ ${ROLES[u.role]?.label || u.role} ・ Lv.${App._calcLevelFromExp(u.exp || 0).level} ・ ${escapeHTML(u.region || '—')}${genderIcon ? ' ' + genderIcon : ''}${teamInfo}</div>
+              <div class="admin-user-meta">${escapeHTML(u.sports || '—')} ・ EXP ${(u.exp || 0).toLocaleString()}</div>
             </div>
             <div class="admin-user-actions">
               ${u.role !== 'super_admin' ? `<button class="au-btn au-btn-edit" onclick="App.showUserEditModal('${safeName}')">編輯</button>` : ''}
@@ -191,7 +191,7 @@ Object.assign(App, {
       const detailEl = card.querySelector('.exp-target-detail');
       const avatarEl = card.querySelector('.profile-avatar');
       if (nameEl) nameEl.textContent = found.name;
-      if (detailEl) detailEl.textContent = `UID: ${found.uid} ・ Lv.${found.level} ・ EXP: ${found.exp}`;
+      if (detailEl) detailEl.textContent = `UID: ${found.uid} ・ Lv.${App._calcLevelFromExp(found.exp || 0).level} ・ EXP: ${(found.exp || 0).toLocaleString()}`;
       if (avatarEl) avatarEl.textContent = found.name[0];
       card.dataset.targetName = found.name;
       this.showToast(`已搜尋到用戶「${found.name}」`);
@@ -215,9 +215,10 @@ Object.assign(App, {
     const user = ApiService.adjustUserExp(targetName, amount, reason, operatorLabel);
     if (user) {
       const updatedDetail = card.querySelector('.exp-target-detail');
-      if (updatedDetail) updatedDetail.textContent = `UID: ${user.uid} ・ Lv.${user.level} ・ EXP: ${user.exp}`;
+      if (updatedDetail) updatedDetail.textContent = `UID: ${user.uid} ・ Lv.${App._calcLevelFromExp(user.exp || 0).level} ・ EXP: ${(user.exp || 0).toLocaleString()}`;
       this.renderExpLogs();
       this.renderOperationLogs();
+      this.updatePointsDisplay();
       this.showToast(`已調整「${targetName}」EXP ${amount > 0 ? '+' : ''}${amount}`);
     }
   },
@@ -408,7 +409,7 @@ Object.assign(App, {
       html += inactiveUsers.map(u => `
         <div class="inactive-card">
           <div style="font-weight:700">${escapeHTML(u.name)} <span style="font-weight:400;font-size:.78rem;color:var(--text-muted)">${ROLES[u.role]?.label || u.role}</span></div>
-          <div style="font-size:.78rem;color:var(--text-muted);margin-top:.3rem">UID: ${escapeHTML(u.uid)} ・ Lv.${u.level} ・ ${escapeHTML(u.region)}</div>
+          <div style="font-size:.78rem;color:var(--text-muted);margin-top:.3rem">UID: ${escapeHTML(u.uid)} ・ Lv.${App._calcLevelFromExp(u.exp || 0).level} ・ ${escapeHTML(u.region)}</div>
           <div style="font-size:.78rem;color:var(--text-muted)">最後活動：${escapeHTML(u.lastActive || '未知')} ・ 球隊：${escapeHTML(u.teamName || '無')}</div>
         </div>
       `).join('');

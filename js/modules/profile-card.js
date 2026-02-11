@@ -16,10 +16,9 @@ Object.assign(App, {
     const role = (user && user.role) || 'user';
     const roleInfo = ROLES[role] || ROLES.user;
 
-    const level = user ? (user.level || 1) : 1;
-    const exp = user ? (user.exp || 0) : 0;
-    const nextExp = (level + 1) * 200;
-    const expPct = Math.min(100, Math.round((exp / nextExp) * 100));
+    const totalExp = user ? (user.exp || 0) : 0;
+    const { level, progress, needed } = App._calcLevelFromExp(totalExp);
+    const expPct = Math.min(100, Math.round((progress / needed) * 100));
 
     const gender = (user && user.gender) || '-';
     const birthday = (user && user.birthday) || '-';
@@ -51,7 +50,7 @@ Object.assign(App, {
         <div class="profile-level">
           <span>Lv.${level}</span>
           <div class="exp-bar"><div class="exp-fill" style="width:${expPct}%"></div></div>
-          <span class="exp-text">${exp} / ${nextExp}</span>
+          <span class="exp-text">${progress.toLocaleString()} / ${needed.toLocaleString()}</span>
         </div>
       </div>
       ${this._buildSocialLinksHtml(user)}

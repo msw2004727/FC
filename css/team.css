@@ -8,8 +8,8 @@
 .team-search-bar input { flex: 2; }
 .team-search-bar select { flex: 1; }
 
-/* ─── Team Grid (vertical cards) ─── */
-.team-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: .65rem; padding-bottom: 1rem; }
+/* ─── Team Grid (vertical cards — 4 per row) ─── */
+.team-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: .45rem; padding-bottom: 1rem; }
 .tc-card {
   background: var(--bg-card);
   border-radius: var(--radius);
@@ -23,22 +23,33 @@
 .tc-card.tc-pinned { border: 2px solid #d4a017; box-shadow: 0 0 12px rgba(212,160,23,.25); }
 .tc-card.tc-pinned:hover { border-color: #f5c518; box-shadow: 0 0 18px rgba(245,197,24,.35); }
 .tc-pin-badge {
-  position: absolute; top: .4rem; right: .4rem; z-index: 2;
-  font-size: .62rem; font-weight: 700;
-  padding: .15rem .4rem;
+  position: absolute; top: .25rem; right: .25rem; z-index: 2;
+  font-size: .55rem; font-weight: 700;
+  padding: .1rem .3rem;
   background: linear-gradient(135deg, #f5c518, #d4a017);
   color: #fff;
   border-radius: var(--radius-full);
   box-shadow: 0 1px 4px rgba(212,160,23,.4);
 }
+.tc-emblem {
+  width: 100%;
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: #fff;
+  border-radius: var(--radius) var(--radius) 0 0;
+}
 .tc-img-placeholder {
   width: 100%;
-  aspect-ratio: 4/3;
+  aspect-ratio: 1;
   border-bottom: 1px solid var(--border);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: .72rem;
+  font-size: .58rem;
   color: var(--text-muted);
   background: var(--bg-elevated);
   border: 2px dashed var(--border) !important;
@@ -51,10 +62,10 @@
   object-fit: cover;
   display: block;
 }
-.tc-body { padding: .65rem; }
-.tc-name { font-weight: 700; font-size: .92rem; }
-.tc-name-en { font-size: .68rem; color: var(--text-muted); font-family: var(--font-display); margin-bottom: .4rem; }
-.tc-info-row { display: flex; justify-content: space-between; align-items: center; font-size: .72rem; padding: .18rem 0; color: var(--text-secondary); }
+.tc-body { padding: .4rem; }
+.tc-name { font-weight: 700; font-size: .72rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tc-name-en { font-size: .58rem; color: var(--text-muted); font-family: var(--font-display); margin-bottom: .2rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tc-info-row { display: flex; justify-content: space-between; align-items: center; font-size: .62rem; padding: .1rem 0; color: var(--text-secondary); }
 .tc-label { font-weight: 600; }
 .team-inactive { opacity: .45; }
 .team-section-divider { border: none; border-top: 1px solid var(--border); margin: 1rem 0 .5rem; }

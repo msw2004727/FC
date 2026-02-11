@@ -19,6 +19,36 @@
   margin-bottom: .75rem;
 }
 
+/* ─── Tournament Info Card ─── */
+.td-info-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: .15rem 0;
+}
+.td-info-row {
+  display: flex;
+  align-items: flex-start;
+  padding: .45rem .75rem;
+  gap: .6rem;
+  border-bottom: 1px solid var(--border);
+}
+.td-info-row:last-child { border-bottom: none; }
+.td-info-label {
+  flex-shrink: 0;
+  width: 4rem;
+  font-size: .75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  padding-top: .1rem;
+}
+.td-info-value {
+  flex: 1;
+  font-size: .82rem;
+  color: var(--text-primary);
+  min-width: 0;
+}
+
 /* ─── Tournament Content ─── */
 .tournament-content { padding: .5rem 0; }
 .match-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: .75rem; margin-bottom: .5rem; }

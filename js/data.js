@@ -10,7 +10,7 @@ const DemoData = {
     displayName: '小麥',
     pictureUrl: null,
     role: 'user',
-    exp: 2350,
+    exp: 33300,
     level: 25,
     titleBig: '冠軍',
     titleNormal: '全勤',
@@ -62,10 +62,10 @@ const DemoData = {
   ],
 
   tournaments: [
-    { id: 't1', name: '2026 春季足球聯賽', type: '盃賽', teams: 8, matches: 56, regStart: '2026-01-15T08:00', regEnd: '2026-02-01T23:59', matchDates: ['2026-03-01','2026-03-08','2026-03-15','2026-03-22','2026-03-29'], description: '春季盃賽，採淘汰制，每週六進行。', status: '截止報名', gradient: 'linear-gradient(135deg,#dc2626,#991b1b)' },
-    { id: 't2', name: '新春盃足球淘汰賽', type: '盃賽', teams: 16, matches: 15, regStart: '2026-02-10T08:00', regEnd: '2026-03-10T23:59', matchDates: ['2026-03-22','2026-03-29','2026-04-05'], description: '新春盃淘汰賽，16 隊角逐冠軍。', status: '報名中', gradient: 'linear-gradient(135deg,#7c3aed,#4338ca)' },
-    { id: 't3', name: '2025 秋季足球聯賽', type: '盃賽', teams: 8, matches: 56, regStart: '2025-08-01T08:00', regEnd: '2025-08-31T23:59', matchDates: [], description: '2025 秋季聯賽已結束。', status: '截止報名', gradient: 'linear-gradient(135deg,#6b7280,#374151)' },
-    { id: 't4', name: '市長盃五人制足球賽', type: '盃賽', teams: 12, matches: 20, regStart: '2026-02-01T08:00', regEnd: '2026-03-15T23:59', matchDates: ['2026-04-12','2026-04-13'], description: '市長盃五人制足球賽，歡迎各隊報名參加。', status: '報名中', gradient: 'linear-gradient(135deg,#0d9488,#065f46)' },
+    { id: 't1', name: '2026 春季盃足球賽', type: '盃賽', teams: 8, matches: 7, region: '台北市', regStart: '2026-01-15T08:00', regEnd: '2026-02-01T23:59', matchDates: ['2026-03-01','2026-03-08','2026-03-15','2026-03-22'], description: '2026 春季盃足球賽，採單敗淘汰制，共 8 隊參賽。每週六於大安運動中心進行比賽，歡迎各隊球迷到場觀賽加油！\n\n賽事規則：\n- 單敗淘汰制，每場 80 分鐘（上下半場各 40 分鐘）\n- 平手進行 PK 賽決定晉級\n- 累計 2 張黃牌停賽 1 場，直接紅牌停賽 2 場', organizer: '管理員', creatorUid: 'admin', maxTeams: 8, registeredTeams: ['tm1','tm2','tm3','tm4','tm5','tm6'], venues: ['大安運動中心','信義運動中心'], fee: 3000, delegates: [{uid:'U4d5e6f',name:'李大華'}], ended: false, status: '截止報名', gradient: 'linear-gradient(135deg,#dc2626,#991b1b)' },
+    { id: 't2', name: '新春盃足球淘汰賽', type: '盃賽', teams: 16, matches: 15, region: '台中市', regStart: '2026-02-10T08:00', regEnd: '2026-03-10T23:59', matchDates: ['2026-03-22','2026-03-29','2026-04-05'], description: '新春盃淘汰賽，16 隊角逐冠軍！本屆賽事規模擴大，歡迎全台各地球隊報名挑戰。\n\n比賽地點：台中市豐原體育場\n賽事規則：單敗淘汰制\n\n冠軍獎金 NT$30,000、亞軍 NT$15,000、季軍 NT$8,000', organizer: '教練阿豪', creatorUid: 'U4d5e6f', maxTeams: 16, registeredTeams: ['tm1','tm2','tm3','tm4'], venues: ['豐原體育場'], fee: 5000, delegates: [{uid:'U7g8h9i',name:'張美玲'},{uid:'Uv4w5x6',name:'吳宗翰'}], ended: false, status: '報名中', gradient: 'linear-gradient(135deg,#7c3aed,#4338ca)' },
+    { id: 't3', name: '2025 秋季足球聯賽', type: '盃賽', teams: 8, matches: 7, region: '台北市', regStart: '2025-08-01T08:00', regEnd: '2025-08-31T23:59', matchDates: ['2025-09-06','2025-09-13','2025-09-20','2025-09-27','2025-10-04'], description: '2025 秋季聯賽已圓滿結束。恭喜雷霆隊奪得冠軍！\n\n最終排名：\n1. 雷霆隊\n2. 火焰隊\n3. 閃電隊\n4. 旋風隊', organizer: '管理員', creatorUid: 'admin', maxTeams: 8, registeredTeams: ['tm1','tm2','tm3','tm4','tm5','tm6'], venues: ['大安運動中心'], fee: 2000, delegates: [], ended: true, status: '截止報名', gradient: 'linear-gradient(135deg,#6b7280,#374151)' },
+    { id: 't4', name: '市長盃五人制足球賽', type: '盃賽', teams: 12, matches: 11, region: '高雄市', regStart: '2026-02-01T08:00', regEnd: '2026-03-15T23:59', matchDates: ['2026-04-12','2026-04-13'], description: '市長盃五人制足球賽，歡迎各隊報名參加！本賽事由高雄市政府主辦，採五人制規則進行。\n\n比賽地點：高雄市三民體育館\n報名費：每隊 NT$2,000\n\n前三名頒發獎盃及獎金，所有參賽隊伍獲得紀念球衣一件。', organizer: '場主老王', creatorUid: 'Uj1k2l3', maxTeams: 12, registeredTeams: ['tm1','tm3','tm5','tm6','tm2','tm4'], venues: ['三民體育館','鳳山體育場'], fee: 2000, delegates: [{uid:'Up7q8r9',name:'林志偉'}], ended: false, status: '報名中', gradient: 'linear-gradient(135deg,#0d9488,#065f46)' },
   ],
 
   teams: [
@@ -132,14 +132,14 @@ const DemoData = {
   ],
 
   leaderboard: [
-    { name: '王大明', avatar: '王', exp: 5200, level: 32 },
-    { name: '李小華', avatar: '李', exp: 4850, level: 30 },
-    { name: '張美玲', avatar: '張', exp: 4300, level: 28 },
-    { name: '陳志偉', avatar: '陳', exp: 3900, level: 26 },
-    { name: '小麥', avatar: '麥', exp: 2350, level: 25 },
-    { name: '林大豪', avatar: '林', exp: 2100, level: 22 },
-    { name: '黃小琳', avatar: '黃', exp: 1800, level: 20 },
-    { name: '周書翰', avatar: '周', exp: 1500, level: 18 },
+    { name: '王大明', avatar: '王', exp: 54000 },
+    { name: '李小華', avatar: '李', exp: 47500 },
+    { name: '張美玲', avatar: '張', exp: 41500 },
+    { name: '陳志偉', avatar: '陳', exp: 35800 },
+    { name: '小麥', avatar: '麥', exp: 33300 },
+    { name: '林大豪', avatar: '林', exp: 25900 },
+    { name: '黃小琳', avatar: '黃', exp: 21500 },
+    { name: '周書翰', avatar: '周', exp: 17500 },
   ],
 
   standings: [
@@ -177,16 +177,16 @@ const DemoData = {
   ],
 
   adminUsers: [
-    { name: '王小明', uid: 'U1a2b3c', role: 'user', level: 10, region: '台北', exp: 800, gender: '男', birthday: '2000/05/20', sports: '足球', teamId: 'tm1', teamName: '雷霆隊', pictureUrl: null, phone: '0911-111-111', lastActive: '2026/02/10' },
-    { name: '李大華', uid: 'U4d5e6f', role: 'coach', level: 22, region: '台中', exp: 2100, gender: '男', birthday: '1988/11/03', sports: '足球、籃球', teamId: 'tm2', teamName: '閃電隊', pictureUrl: null, phone: '0922-222-222', lastActive: '2026/02/09' },
-    { name: '張美玲', uid: 'U7g8h9i', role: 'captain', level: 28, region: '台北', exp: 4300, gender: '女', birthday: '1992/07/14', sports: '排球、羽球', teamId: 'tm3', teamName: '旋風隊', pictureUrl: null, phone: '0933-333-333', lastActive: '2026/02/08' },
-    { name: '陳志偉', uid: 'Uj1k2l3', role: 'venue_owner', level: 15, region: '高雄', exp: 1200, gender: '男', birthday: '1985/01/28', sports: '足球', teamId: null, teamName: null, pictureUrl: null, phone: '0944-444-444', lastActive: '2026/01/15' },
-    { name: '周書翰', uid: 'Um4n5o6', role: 'user', level: 5, region: '台北', exp: 300, gender: '男', birthday: '2001/09/10', sports: '籃球', teamId: 'tm1', teamName: '雷霆隊', pictureUrl: null, phone: '0955-555-555', lastActive: '2026/02/07' },
-    { name: '林志偉', uid: 'Up7q8r9', role: 'user', level: 18, region: '新北', exp: 1500, gender: '男', birthday: '1997/04/22', sports: '足球', teamId: 'tm4', teamName: '火焰隊', pictureUrl: null, phone: '0966-666-666', lastActive: '2026/02/06' },
-    { name: '黃小琳', uid: 'Us1t2u3', role: 'user', level: 20, region: '高雄', exp: 1800, gender: '女', birthday: '1999/08/15', sports: '足球、排球', teamId: 'tm3', teamName: '旋風隊', pictureUrl: null, phone: '0977-777-777', lastActive: '2026/02/05' },
-    { name: '吳宗翰', uid: 'Uv4w5x6', role: 'coach', level: 25, region: '桃園', exp: 3200, gender: '男', birthday: '1990/12/01', sports: '足球', teamId: 'tm6', teamName: '黑熊隊', pictureUrl: null, phone: '0988-888-888', lastActive: '2026/02/04' },
-    { name: '鄭家豪', uid: 'Uy7z8a1', role: 'user', level: 3, region: '台中', exp: 150, gender: '男', birthday: '2003/06/30', sports: '籃球、網球', teamId: null, teamName: null, pictureUrl: null, phone: '0999-999-999', lastActive: '2025/11/20' },
-    { name: '許志安', uid: 'Ub2c3d4', role: 'user', level: 8, region: '新北', exp: 600, gender: '男', birthday: '1998/02/14', sports: '足球', teamId: 'tm5', teamName: '獵鷹隊', pictureUrl: null, phone: '0911-222-333', lastActive: '2025/12/10' },
+    { name: '王小明', uid: 'U1a2b3c', role: 'user', region: '台北', exp: 5800, gender: '男', birthday: '2000/05/20', sports: '足球', teamId: 'tm1', teamName: '雷霆隊', pictureUrl: null, phone: '0911-111-111', lastActive: '2026/02/10' },
+    { name: '李大華', uid: 'U4d5e6f', role: 'coach', region: '台中', exp: 25900, gender: '男', birthday: '1988/11/03', sports: '足球、籃球', teamId: 'tm2', teamName: '閃電隊', pictureUrl: null, phone: '0922-222-222', lastActive: '2026/02/09' },
+    { name: '張美玲', uid: 'U7g8h9i', role: 'captain', region: '台北', exp: 41500, gender: '女', birthday: '1992/07/14', sports: '排球、羽球', teamId: 'tm3', teamName: '旋風隊', pictureUrl: null, phone: '0933-333-333', lastActive: '2026/02/08' },
+    { name: '陳志偉', uid: 'Uj1k2l3', role: 'venue_owner', region: '高雄', exp: 12400, gender: '男', birthday: '1985/01/28', sports: '足球', teamId: null, teamName: null, pictureUrl: null, phone: '0944-444-444', lastActive: '2026/01/15' },
+    { name: '周書翰', uid: 'Um4n5o6', role: 'user', region: '台北', exp: 1700, gender: '男', birthday: '2001/09/10', sports: '籃球', teamId: 'tm1', teamName: '雷霆隊', pictureUrl: null, phone: '0955-555-555', lastActive: '2026/02/07' },
+    { name: '林志偉', uid: 'Up7q8r9', role: 'user', region: '新北', exp: 17500, gender: '男', birthday: '1997/04/22', sports: '足球', teamId: 'tm4', teamName: '火焰隊', pictureUrl: null, phone: '0966-666-666', lastActive: '2026/02/06' },
+    { name: '黃小琳', uid: 'Us1t2u3', role: 'user', region: '高雄', exp: 21500, gender: '女', birthday: '1999/08/15', sports: '足球、排球', teamId: 'tm3', teamName: '旋風隊', pictureUrl: null, phone: '0977-777-777', lastActive: '2026/02/05' },
+    { name: '吳宗翰', uid: 'Uv4w5x6', role: 'coach', region: '桃園', exp: 33100, gender: '男', birthday: '1990/12/01', sports: '足球', teamId: 'tm6', teamName: '黑熊隊', pictureUrl: null, phone: '0988-888-888', lastActive: '2026/02/04' },
+    { name: '鄭家豪', uid: 'Uy7z8a1', role: 'user', region: '台中', exp: 700, gender: '男', birthday: '2003/06/30', sports: '籃球、網球', teamId: null, teamName: null, pictureUrl: null, phone: '0999-999-999', lastActive: '2025/11/20' },
+    { name: '許志安', uid: 'Ub2c3d4', role: 'user', region: '新北', exp: 3800, gender: '男', birthday: '1998/02/14', sports: '足球', teamId: 'tm5', teamName: '獵鷹隊', pictureUrl: null, phone: '0911-222-333', lastActive: '2025/12/10' },
   ],
 
   rolePermissions: {

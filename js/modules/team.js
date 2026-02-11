@@ -19,17 +19,17 @@ Object.assign(App, {
 
   _teamCardHTML(t) {
     const pinnedClass = t.pinned ? ' tc-pinned' : '';
+    const color = t.color || '#6b7280';
     return `
       <div class="tc-card${pinnedClass}" onclick="App.showTeamDetail('${t.id}')">
         ${t.pinned ? '<div class="tc-pin-badge">至頂</div>' : ''}
-        ${t.image ? `<img src="${t.image}" style="width:100%;height:120px;object-fit:cover;border-radius:8px 8px 0 0">` : '<div class="tc-img-placeholder">球隊封面 800 × 300</div>'}
+        ${t.image
+          ? `<div style="width:100%;aspect-ratio:1;overflow:hidden;border-radius:var(--radius) var(--radius) 0 0"><img src="${t.image}" style="width:100%;height:100%;object-fit:cover;display:block"></div>`
+          : `<div class="tc-img-placeholder">球隊圖片</div>`}
         <div class="tc-body">
           <div class="tc-name">${escapeHTML(t.name)}</div>
-          <div class="tc-name-en">${escapeHTML(t.nameEn || '')}</div>
-          <div class="tc-info-row"><span class="tc-label">領隊</span><span>${this._userTag(t.captain, 'captain')}</span></div>
-          <div class="tc-info-row"><span class="tc-label">教練</span><span>${(t.coaches || []).length > 0 ? t.coaches.map(c => this._userTag(c, 'coach')).join(' ') : '—'}</span></div>
           <div class="tc-info-row"><span class="tc-label">隊員</span><span>${t.members} 人</span></div>
-          <div class="tc-info-row"><span class="tc-label">地區</span><span>${escapeHTML(t.region)}</span></div>
+          <div class="tc-info-row"><span class="tc-label">地區</span><span>${escapeHTML(t.region || '')}</span></div>
         </div>
       </div>`;
   },

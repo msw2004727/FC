@@ -67,11 +67,12 @@ Object.assign(App, {
       roleTagWrap.innerHTML = `<span class="uc-role-tag" style="background:${roleInfo.color}22;color:${roleInfo.color}">${roleInfo.label}</span>`;
     }
 
-    // 等級 & 經驗值
-    const level = user.level || 1, exp = user.exp || 0, nextExp = (level + 1) * 200;
+    // 等級 & 經驗值（由累計積分推算）
+    const totalExp = user.exp || 0;
+    const { level, progress, needed } = this._calcLevelFromExp(totalExp);
     if (el('profile-lv')) el('profile-lv').textContent = `Lv.${level}`;
-    if (el('profile-exp-text')) el('profile-exp-text').textContent = `${exp} / ${nextExp}`;
-    if (el('profile-exp-fill')) el('profile-exp-fill').style.width = `${Math.min(100, Math.round((exp / nextExp) * 100))}%`;
+    if (el('profile-exp-text')) el('profile-exp-text').textContent = `${progress.toLocaleString()} / ${needed.toLocaleString()}`;
+    if (el('profile-exp-fill')) el('profile-exp-fill').style.width = `${Math.min(100, Math.round((progress / needed) * 100))}%`;
 
     // 統計數據
     if (el('profile-stat-total')) el('profile-stat-total').textContent = user.totalGames || 0;

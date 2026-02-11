@@ -147,6 +147,34 @@
 #menu-toggle span { display: block; width: 20px; height: 2px; background: var(--text-primary); border-radius: 2px; transition: var(--transition); }
 .logo { display: flex; align-items: center; gap: .4rem; }
 .logo-text { font-family: var(--font-display); font-weight: 800; font-size: 1.2rem; letter-spacing: -.02em; }
+/* ─── Points Display ─── */
+.points-display {
+  display: flex;
+  align-items: center;
+  gap: .25rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0 .5rem;
+  height: 36px;
+  cursor: default;
+}
+.points-icon {
+  font-family: var(--font-display);
+  font-size: .62rem;
+  font-weight: 700;
+  color: var(--accent);
+  line-height: 1;
+}
+.points-value {
+  font-family: var(--font-display);
+  font-size: .78rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: .02em;
+  line-height: 1;
+}
+
 #notif-btn { position: relative; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; border-radius: var(--radius-sm); }
 #notif-btn:hover { background: var(--bg-elevated); }
 .notif-badge { position: absolute; top: 2px; right: 2px; width: 16px; height: 16px; border-radius: 50%; background: var(--danger); color: #fff; font-size: .6rem; font-weight: 700; display: flex; align-items: center; justify-content: center; }

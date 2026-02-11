@@ -29,6 +29,9 @@ const App = {
     this.bindLineLogin();
     this.bindImageUpload('ce-image', 'ce-upload-preview');
     this.bindImageUpload('ct-image', 'ct-upload-preview');
+    this.bindImageUpload('ct-content-image', 'ct-content-upload-preview');
+    this.bindImageUpload('et-image', 'et-upload-preview');
+    this.bindImageUpload('et-content-image', 'et-content-upload-preview');
     this.bindImageUpload('cs-img1', 'cs-preview1');
     this.bindImageUpload('cs-img2', 'cs-preview2');
     this.bindImageUpload('cs-img3', 'cs-preview3');
@@ -84,6 +87,7 @@ const App = {
     this.renderUserCard();
     this.renderProfileData();
     this.updateNotifBadge();
+    this.updatePointsDisplay();
     this.updateStorageBar();
   },
 

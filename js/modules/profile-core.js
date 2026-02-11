@@ -7,6 +7,31 @@ Object.assign(App, {
 
   _pendingFirstLogin: false,
 
+  /**
+   * 等級公式：升到 level L 的累計 EXP = 50 * L * (L+1)
+   * 每級所需：level N → N+1 需要 (N+1)*100 EXP
+   * @param {number} totalExp - 累計總積分
+   * @returns {{ level:number, progress:number, needed:number }}
+   */
+  _calcLevelFromExp(totalExp) {
+    if (totalExp <= 0) return { level: 0, progress: 0, needed: 100 };
+    let level = Math.floor((-1 + Math.sqrt(1 + 4 * totalExp / 50)) / 2);
+    if (level < 0) level = 0;
+    if (level > 999) level = 999;
+    const baseExp = 50 * level * (level + 1);
+    const progress = totalExp - baseExp;
+    const needed = (level + 1) * 100;
+    return { level, progress, needed };
+  },
+
+  updatePointsDisplay() {
+    const el = document.getElementById('points-value');
+    if (!el) return;
+    const user = ApiService.getCurrentUser();
+    const exp = (user && user.exp) || 0;
+    el.textContent = exp.toLocaleString();
+  },
+
   _userTag(name, forceRole) {
     const role = forceRole || ApiService.getUserRole(name);
     return `<span class="user-capsule uc-${role}" onclick="App.showUserProfile('${escapeHTML(name)}')" title="${ROLES[role]?.label || '一般用戶'}">${escapeHTML(name)}</span>`;
@@ -36,10 +61,9 @@ Object.assign(App, {
     });
     const catColors = { gold: '#d4a017', silver: '#9ca3af', bronze: '#b87333' };
 
-    const level = user ? (user.level || 1) : 1;
-    const exp = user ? (user.exp || 0) : 0;
-    const nextExp = (level + 1) * 200;
-    const expPct = Math.min(100, Math.round((exp / nextExp) * 100));
+    const totalExp = user ? (user.exp || 0) : 0;
+    const { level, progress, needed } = this._calcLevelFromExp(totalExp);
+    const expPct = Math.min(100, Math.round((progress / needed) * 100));
     const gender = (user && user.gender) || '-';
     const birthday = (user && user.birthday) || '-';
     const region = (user && user.region) || '-';
@@ -68,7 +92,7 @@ Object.assign(App, {
         <div class="profile-level">
           <span>Lv.${level}</span>
           <div class="exp-bar"><div class="exp-fill" style="width:${expPct}%"></div></div>
-          <span class="exp-text">${exp} / ${nextExp}</span>
+          <span class="exp-text">${progress.toLocaleString()} / ${needed.toLocaleString()}</span>
         </div>
       </div>
       ${this._buildSocialLinksHtml(user)}

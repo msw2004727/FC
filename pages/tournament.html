@@ -3,6 +3,38 @@
   <div class="page-header">
     <h2>賽事中心</h2>
   </div>
+  <div class="team-search-bar">
+    <input type="text" id="tc-search" placeholder="搜尋賽事名稱..." oninput="App.filterTournamentCenter()">
+    <select id="tc-region-filter" onchange="App.filterTournamentCenter()">
+      <option value="">全部地區</option>
+      <option value="台北市">台北市</option>
+      <option value="新北市">新北市</option>
+      <option value="桃園市">桃園市</option>
+      <option value="台中市">台中市</option>
+      <option value="台南市">台南市</option>
+      <option value="高雄市">高雄市</option>
+      <option value="基隆市">基隆市</option>
+      <option value="新竹市">新竹市</option>
+      <option value="嘉義市">嘉義市</option>
+      <option value="新竹縣">新竹縣</option>
+      <option value="苗栗縣">苗栗縣</option>
+      <option value="彰化縣">彰化縣</option>
+      <option value="南投縣">南投縣</option>
+      <option value="雲林縣">雲林縣</option>
+      <option value="嘉義縣">嘉義縣</option>
+      <option value="屏東縣">屏東縣</option>
+      <option value="宜蘭縣">宜蘭縣</option>
+      <option value="花蓮縣">花蓮縣</option>
+      <option value="台東縣">台東縣</option>
+      <option value="澎湖縣">澎湖縣</option>
+      <option value="金門縣">金門縣</option>
+      <option value="連江縣">連江縣</option>
+    </select>
+  </div>
+  <div class="tab-bar" id="tc-tabs">
+    <button class="tab active" data-tctab="active" onclick="App.switchTournamentCenterTab('active')">進行中</button>
+    <button class="tab" data-tctab="ended" onclick="App.switchTournamentCenterTab('ended')">已結束</button>
+  </div>
   <div id="tournament-timeline"></div>
 </section>
 
@@ -11,13 +43,18 @@
   <div class="page-header">
     <button class="back-btn" onclick="App.goBack()">←</button>
     <h2 id="td-title">賽事名稱</h2>
-    <button class="text-btn" onclick="App.toggleModal('rules-modal')">規則</button>
   </div>
   <div class="td-img-placeholder" id="td-img-placeholder">賽事圖片 800 × 300</div>
+  <!-- 報名按鈕區 -->
+  <div id="td-register-area" style="padding:.6rem .8rem"></div>
+  <!-- 賽事資訊區 -->
+  <div id="td-info-section" style="padding:0 .8rem .5rem"></div>
+  <!-- 新頁簽 -->
   <div class="tab-bar" id="td-tabs">
-    <button class="tab active" data-ttab="schedule">賽程</button>
-    <button class="tab" data-ttab="standings">排名</button>
-    <button class="tab" data-ttab="trades">交易</button>
+    <button class="tab active" data-ttab="info">說明</button>
+    <button class="tab" data-ttab="teams">球隊</button>
+    <button class="tab" data-ttab="schedule">賽程</button>
+    <button class="tab" data-ttab="stats">統計</button>
   </div>
   <div class="tournament-content" id="tournament-content"></div>
 </section>
@@ -48,7 +85,7 @@
     <div class="ce-form">
       <div class="ce-row">
         <label>賽事名稱</label>
-        <input type="text" id="ct-name" placeholder="例：2026 春季盃足球賽">
+        <input type="text" id="ct-name" placeholder="例：2026 春季盃足球賽" maxlength="15">
       </div>
       <div class="ce-row">
         <label>賽事類型</label>
@@ -65,6 +102,36 @@
         <div style="font-size:.72rem;color:var(--text-muted);margin-bottom:.3rem">點擊月曆勾選所有比賽日</div>
         <div id="ct-match-dates-wrap" style="display:flex;flex-wrap:wrap;gap:.3rem;margin-bottom:.3rem"></div>
         <input type="date" id="ct-match-date-picker" onchange="App.addMatchDate(this.value)">
+      </div>
+      <div class="ce-row">
+        <label>舉辦地區</label>
+        <input type="text" id="ct-region" list="ct-region-list" placeholder="輸入或選擇縣市..." autocomplete="off">
+        <datalist id="ct-region-list">
+          <option value="台北市"><option value="新北市"><option value="桃園市"><option value="台中市"><option value="台南市"><option value="高雄市">
+          <option value="基隆市"><option value="新竹市"><option value="嘉義市"><option value="新竹縣"><option value="苗栗縣"><option value="彰化縣">
+          <option value="南投縣"><option value="雲林縣"><option value="嘉義縣"><option value="屏東縣"><option value="宜蘭縣"><option value="花蓮縣">
+          <option value="台東縣"><option value="澎湖縣"><option value="金門縣"><option value="連江縣">
+        </datalist>
+      </div>
+      <div class="ce-row">
+        <label>場地（可新增多個）</label>
+        <div style="display:flex;gap:.3rem;margin-bottom:.3rem">
+          <input type="text" id="ct-venue-input" placeholder="例：大安運動中心" style="flex:1">
+          <button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem;white-space:nowrap" onclick="App.addTournamentVenue()">新增</button>
+        </div>
+        <div id="ct-venue-tags" style="display:flex;flex-wrap:wrap;gap:.3rem"></div>
+      </div>
+      <div class="ce-row">
+        <label>報名費（每隊）</label>
+        <input type="number" id="ct-fee" value="0" min="0" placeholder="0 為免費">
+      </div>
+      <div class="ce-row">
+        <label>委託人（最多 10 人）</label>
+        <div class="ce-delegate-wrap">
+          <div class="ce-delegate-tags" id="ct-delegate-tags"></div>
+          <input type="text" id="ct-delegate-search" placeholder="搜尋 UID 或暱稱..." autocomplete="off">
+          <div class="ce-delegate-dropdown" id="ct-delegate-dropdown"></div>
+        </div>
       </div>
       <div class="ce-row ce-row-half">
         <div>
@@ -93,10 +160,127 @@
           </div>
         </div>
       </div>
+      <div class="ce-row">
+        <label>賽事內容圖片</label>
+        <div style="font-size:.72rem;color:var(--text-muted);margin-bottom:.3rem">顯示於說明頁文字下方，用於圖片補充說明</div>
+        <div class="ce-upload" id="ct-content-upload-area">
+          <input type="file" id="ct-content-image" accept=".jpg,.jpeg,.png" hidden>
+          <div class="ce-upload-placeholder" id="ct-content-upload-preview" onclick="document.getElementById('ct-content-image').click()">
+            <span class="ce-upload-icon">+</span>
+            <span class="ce-upload-text">點擊上傳圖片</span>
+            <span class="ce-upload-hint">建議尺寸 800 × 600 px｜JPG / PNG｜最大 2MB</span>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
   <div class="modal-actions">
     <button class="outline-btn" onclick="App.closeModal()">取消</button>
     <button class="primary-btn" onclick="App.handleCreateTournament()">建立賽事</button>
+  </div>
+</div>
+
+<!-- Edit Tournament Modal -->
+<div class="modal" id="edit-tournament-modal">
+  <div class="modal-header">
+    <h3>編輯賽事</h3>
+    <button class="modal-close" onclick="App.closeModal()">✕</button>
+  </div>
+  <div class="modal-body">
+    <div class="ce-form">
+      <div class="ce-row">
+        <label>賽事名稱</label>
+        <input type="text" id="et-name" placeholder="例：2026 春季盃足球賽" maxlength="15">
+      </div>
+      <div class="ce-row">
+        <label>賽事類型</label>
+        <select id="et-type">
+          <option value="盃賽">盃賽</option>
+        </select>
+      </div>
+      <div class="ce-row">
+        <label>參賽隊伍數</label>
+        <input type="number" id="et-teams" value="8" min="2">
+      </div>
+      <div class="ce-row">
+        <label>舉辦地區</label>
+        <input type="text" id="et-region" list="et-region-list" placeholder="輸入或選擇縣市..." autocomplete="off">
+        <datalist id="et-region-list">
+          <option value="台北市"><option value="新北市"><option value="桃園市"><option value="台中市"><option value="台南市"><option value="高雄市">
+          <option value="基隆市"><option value="新竹市"><option value="嘉義市"><option value="新竹縣"><option value="苗栗縣"><option value="彰化縣">
+          <option value="南投縣"><option value="雲林縣"><option value="嘉義縣"><option value="屏東縣"><option value="宜蘭縣"><option value="花蓮縣">
+          <option value="台東縣"><option value="澎湖縣"><option value="金門縣"><option value="連江縣">
+        </datalist>
+      </div>
+      <div class="ce-row">
+        <label>場地（可新增多個）</label>
+        <div style="display:flex;gap:.3rem;margin-bottom:.3rem">
+          <input type="text" id="et-venue-input" placeholder="例：大安運動中心" style="flex:1">
+          <button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem;white-space:nowrap" onclick="App.addTournamentVenue('et')">新增</button>
+        </div>
+        <div id="et-venue-tags" style="display:flex;flex-wrap:wrap;gap:.3rem"></div>
+      </div>
+      <div class="ce-row">
+        <label>報名費（每隊）</label>
+        <input type="number" id="et-fee" value="0" min="0" placeholder="0 為免費">
+      </div>
+      <div class="ce-row">
+        <label>委託人（最多 10 人）</label>
+        <div class="ce-delegate-wrap">
+          <div class="ce-delegate-tags" id="et-delegate-tags"></div>
+          <input type="text" id="et-delegate-search" placeholder="搜尋 UID 或暱稱..." autocomplete="off">
+          <div class="ce-delegate-dropdown" id="et-delegate-dropdown"></div>
+        </div>
+      </div>
+      <div class="ce-row">
+        <label>比賽日期（可複選）</label>
+        <div style="font-size:.72rem;color:var(--text-muted);margin-bottom:.3rem">點擊月曆勾選所有比賽日</div>
+        <div id="et-match-dates-wrap" style="display:flex;flex-wrap:wrap;gap:.3rem;margin-bottom:.3rem"></div>
+        <input type="date" id="et-match-date-picker" onchange="App.addEditMatchDate(this.value)">
+      </div>
+      <div class="ce-row ce-row-half">
+        <div>
+          <label>報名開始</label>
+          <input type="datetime-local" id="et-reg-start">
+        </div>
+        <div>
+          <label>報名截止</label>
+          <input type="datetime-local" id="et-reg-end">
+        </div>
+      </div>
+      <div style="font-size:.72rem;color:var(--text-muted);margin:-.2rem 0 .4rem">區間前＝準備中，區間內＝報名中，區間後＝截止報名</div>
+      <div class="ce-row">
+        <label>活動說明（上限 500 字）</label>
+        <textarea id="et-desc" rows="4" maxlength="500" placeholder="賽事規則、注意事項..." oninput="document.getElementById('et-desc-count').textContent=this.value.length+'/500'"></textarea>
+        <span id="et-desc-count" style="font-size:.68rem;color:var(--text-muted);text-align:right">0/500</span>
+      </div>
+      <div class="ce-row">
+        <label>賽事封面圖片</label>
+        <div class="ce-upload" id="et-upload-area">
+          <input type="file" id="et-image" accept=".jpg,.jpeg,.png" hidden>
+          <div class="ce-upload-placeholder" id="et-upload-preview" onclick="document.getElementById('et-image').click()">
+            <span class="ce-upload-icon">+</span>
+            <span class="ce-upload-text">點擊上傳圖片</span>
+            <span class="ce-upload-hint">建議尺寸 800 × 300 px｜JPG / PNG｜最大 2MB</span>
+          </div>
+        </div>
+      </div>
+      <div class="ce-row">
+        <label>賽事內容圖片</label>
+        <div style="font-size:.72rem;color:var(--text-muted);margin-bottom:.3rem">顯示於說明頁文字下方，用於圖片補充說明</div>
+        <div class="ce-upload" id="et-content-upload-area">
+          <input type="file" id="et-content-image" accept=".jpg,.jpeg,.png" hidden>
+          <div class="ce-upload-placeholder" id="et-content-upload-preview" onclick="document.getElementById('et-content-image').click()">
+            <span class="ce-upload-icon">+</span>
+            <span class="ce-upload-text">點擊上傳圖片</span>
+            <span class="ce-upload-hint">建議尺寸 800 × 600 px｜JPG / PNG｜最大 2MB</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="modal-actions">
+    <button class="outline-btn" onclick="App.closeModal()">取消</button>
+    <button class="primary-btn" onclick="App.handleSaveEditTournament()">儲存變更</button>
   </div>
 </div>

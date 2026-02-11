@@ -431,7 +431,7 @@ const ApiService = {
   adjustUserExp(nameOrUid, amount, reason, operatorLabel) {
     const user = this._src('adminUsers').find(u => u.name === nameOrUid || u.uid === nameOrUid);
     if (!user) return null;
-    user.exp = (user.exp || 0) + amount;
+    user.exp = Math.max(0, (user.exp || 0) + amount);
     const now = new Date();
     const timeStr = `${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
     const log = { time: timeStr, target: user.name, amount: (amount > 0 ? '+' : '') + amount, reason };
