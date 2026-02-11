@@ -873,7 +873,10 @@ const FirebaseService = {
       console.log('[Storage] 圖片上傳成功:', path);
       return url;
     } catch (err) {
-      console.error('[Storage] 圖片上傳失敗:', err.code || err.message || err);
+      console.error('[Storage] 圖片上傳失敗:', path, err.code, err.message, err);
+      if (typeof App !== 'undefined' && App.showToast) {
+        App.showToast('圖片上傳失敗，請稍後重試');
+      }
       return null;
     }
   },
@@ -998,11 +1001,19 @@ const FirebaseService = {
   // ════════════════════════════════
 
   async addBadge(data) {
+    const writeData = { ..._stripDocId(data) };
     if (data.image && data.image.startsWith('data:')) {
-      data.image = await this._uploadImage(data.image, `badges/${data.id}`);
+      const url = await this._uploadImage(data.image, `badges/${data.id}`);
+      if (url) {
+        data.image = url;
+        writeData.image = url;
+      } else {
+        // 上傳失敗：快取保留 dataURL 供顯示，Firestore 不寫入 base64
+        writeData.image = null;
+      }
     }
     const docRef = await db.collection('badges').add({
-      ..._stripDocId(data),
+      ...writeData,
       createdAt: firebase.firestore.FieldValue.serverTimestamp(),
     });
     data._docId = docRef.id;
@@ -1012,11 +1023,20 @@ const FirebaseService = {
   async updateBadge(id, updates) {
     const doc = this._cache.badges.find(b => b.id === id);
     if (!doc || !doc._docId) return null;
+    const writeUpdates = { ...updates };
     if (updates.image && updates.image.startsWith('data:')) {
-      updates.image = await this._uploadImage(updates.image, `badges/${id}`);
+      const url = await this._uploadImage(updates.image, `badges/${id}`);
+      if (url) {
+        updates.image = url;
+        writeUpdates.image = url;
+        if (doc) doc.image = url;
+      } else {
+        // 上傳失敗：快取保留 dataURL，Firestore 不寫入 base64
+        delete writeUpdates.image;
+      }
     }
-    updates.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
-    await db.collection('badges').doc(doc._docId).update(updates);
+    writeUpdates.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
+    await db.collection('badges').doc(doc._docId).update(writeUpdates);
     return doc;
   },
 
