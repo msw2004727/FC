@@ -31,6 +31,23 @@
   </div>
 </div>
 
+<!-- ============ 自訂層級刪除確認彈窗 ============ -->
+<div class="modal-overlay" id="role-delete-overlay" style="display:none;align-items:center;justify-content:center" onclick="if(event.target===this){this.style.display='none';this.classList.remove('open')}">
+  <div class="modal" style="max-width:320px;position:static;border-radius:var(--radius);transform:none">
+    <div class="modal-header">
+      <h3>確認刪除層級</h3>
+      <button class="modal-close" onclick="var o=document.getElementById('role-delete-overlay');o.style.display='none';o.classList.remove('open')">✕</button>
+    </div>
+    <div class="modal-body">
+      <p id="role-delete-msg" style="font-size:.85rem;line-height:1.6"></p>
+    </div>
+    <div class="modal-actions">
+      <button class="outline-btn" onclick="var o=document.getElementById('role-delete-overlay');o.style.display='none';o.classList.remove('open')">取消</button>
+      <button class="primary-btn" style="background:var(--danger)" id="role-delete-confirm-btn">確認刪除</button>
+    </div>
+  </div>
+</div>
+
 <!-- ============ MODAL OVERLAY ============ -->
 <div class="modal-overlay" id="modal-overlay"></div>
 

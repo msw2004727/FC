@@ -78,7 +78,15 @@ Object.assign(App, {
     if (el('profile-stat-total')) el('profile-stat-total').textContent = user.totalGames || 0;
     if (el('profile-stat-done')) el('profile-stat-done').textContent = user.completedGames || 0;
     if (el('profile-stat-rate')) el('profile-stat-rate').textContent = user.attendanceRate ? `${user.attendanceRate}%` : '0%';
-    if (el('profile-stat-badges')) el('profile-stat-badges').textContent = user.badgeCount || 0;
+    // 徽章數量：從成就資料動態計算
+    if (el('profile-stat-badges')) {
+      const _achs = ApiService.getAchievements().filter(a => a.status !== 'archived');
+      const _badgeCount = _achs.filter(a => {
+        const t = a.condition && a.condition.threshold != null ? a.condition.threshold : (a.target != null ? a.target : 1);
+        return a.current >= t;
+      }).length;
+      el('profile-stat-badges').textContent = _badgeCount;
+    }
 
     // 我的資料（顯示模式）
     if (el('profile-gender')) el('profile-gender').textContent = v(user.gender);

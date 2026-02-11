@@ -13,7 +13,8 @@ Object.assign(App, {
   // 判斷訊息對當前用戶是否未讀（per-user readBy 追蹤，向下相容舊 unread 欄位）
   _isMessageUnread(msg) {
     const myUid = ApiService.getCurrentUser()?.uid;
-    if (myUid && Array.isArray(msg.readBy)) return !msg.readBy.includes(myUid);
+    if (!myUid) return false; // 未登入 → 不顯示未讀
+    if (Array.isArray(msg.readBy)) return !msg.readBy.includes(myUid);
     return !!msg.unread;
   },
 
@@ -93,6 +94,7 @@ Object.assign(App, {
     unread.forEach(m => {
       if (!Array.isArray(m.readBy)) m.readBy = [];
       if (myUid && !m.readBy.includes(myUid)) m.readBy.push(myUid);
+      m.unread = false;
     });
     if (!ModeManager.isDemo() && myUid) {
       const docsToUpdate = unread.filter(m => m._docId);
@@ -100,7 +102,8 @@ Object.assign(App, {
         const batch = db.batch();
         docsToUpdate.forEach(m => {
           batch.update(db.collection('messages').doc(m._docId), {
-            readBy: firebase.firestore.FieldValue.arrayUnion(myUid)
+            readBy: firebase.firestore.FieldValue.arrayUnion(myUid),
+            unread: false
           });
         });
         batch.commit().catch(err => console.error('[markAllRead]', err));
@@ -151,9 +154,11 @@ Object.assign(App, {
       const myUid = ApiService.getCurrentUser()?.uid;
       if (!Array.isArray(msg.readBy)) msg.readBy = [];
       if (myUid && !msg.readBy.includes(myUid)) msg.readBy.push(myUid);
+      msg.unread = false;
       if (!ModeManager.isDemo() && msg._docId && myUid) {
         db.collection('messages').doc(msg._docId).update({
-          readBy: firebase.firestore.FieldValue.arrayUnion(myUid)
+          readBy: firebase.firestore.FieldValue.arrayUnion(myUid),
+          unread: false
         }).catch(err => console.error('[readMessage]', err));
       }
       el.classList.remove('msg-unread');

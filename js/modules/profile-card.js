@@ -71,8 +71,8 @@ Object.assign(App, {
         ${earned.length ? `<div class="uc-badge-list">${earned.map(b => {
           const color = catColors[b.category] || catColors.bronze;
           return `<div class="uc-badge-item">
-            <div class="badge-img-placeholder" style="border-color:${color}">${b.image ? `<img src="${b.image}">` : ''}</div>
-            <span class="uc-badge-name">${b.name}</span>
+            <div class="badge-img-placeholder" style="border-color:${color}">${b.image ? `<img src="${b.image}">` : '<span style="font-size:1.2rem">🏅</span>'}</div>
+            <span class="uc-badge-name">${escapeHTML(b.name)}</span>
           </div>`;
         }).join('')}</div>` : '<div style="font-size:.82rem;color:var(--text-muted)">尚未獲得徽章</div>'}
       </div>

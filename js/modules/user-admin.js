@@ -792,6 +792,7 @@ Object.assign(App, {
     msg.innerHTML = `確定要刪除自訂層級「<strong>${escapeHTML(info.label)}</strong>」嗎？<br><br><span style="color:var(--danger);font-size:.78rem">該層級所屬用戶皆會變成一般用戶。此操作無法復原。</span>`;
     const btn = document.getElementById('role-delete-confirm-btn');
     btn.onclick = () => App.executeDeleteCustomRole();
+    overlay.style.display = 'flex';
     overlay.classList.add('open');
   },
 
@@ -834,7 +835,9 @@ Object.assign(App, {
       if (panel) panel.style.display = 'none';
     }
 
-    document.getElementById('role-delete-overlay').classList.remove('open');
+    const delOverlay = document.getElementById('role-delete-overlay');
+    delOverlay.style.display = 'none';
+    delOverlay.classList.remove('open');
     this._pendingDeleteRoleKey = null;
     this.renderRoleHierarchy();
     this.showToast(`層級「${info.label}」已刪除，相關用戶已降為一般用戶`);
