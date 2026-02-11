@@ -201,6 +201,7 @@ Object.assign(App, {
         <div class="admin-ach-actions">
           <button class="text-btn" style="font-size:.72rem" onclick="App.editAchievement('${a.id}')">編輯</button>
           <button class="text-btn" style="font-size:.72rem;color:${isArchived ? 'var(--success)' : 'var(--danger)'}" onclick="App.toggleAchievementStatus('${a.id}')">${isArchived ? '上架' : '下架'}</button>
+          <button class="text-btn" style="font-size:.72rem;color:var(--danger)" onclick="App.confirmDeleteAchievement('${a.id}')">刪除</button>
         </div>
       </div>`;
     }).join('') || '<div style="text-align:center;padding:1.5rem;color:var(--text-muted);font-size:.82rem">尚無成就</div>';
@@ -369,6 +370,21 @@ Object.assign(App, {
     this.renderAdminAchievements();
     this.renderAchievements();
     this.showToast(`成就「${item.name}」已${newStatus === 'archived' ? '下架' : '上架'}`);
+  },
+
+  async confirmDeleteAchievement(id) {
+    const item = ApiService.getAchievements().find(a => a.id === id);
+    if (!item) return;
+    const ok = await this.appConfirm(`確定要刪除成就「${item.name}」嗎？\n關聯的徽章也會一併刪除，此操作無法復原。`);
+    if (!ok) return;
+    // 刪除關聯徽章
+    if (item.badgeId) {
+      ApiService.deleteBadge(item.badgeId);
+    }
+    ApiService.deleteAchievement(id);
+    this.renderAdminAchievements();
+    this.renderAchievements();
+    this.showToast(`成就「${item.name}」已刪除`);
   },
 
 });
