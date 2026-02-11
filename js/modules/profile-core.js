@@ -27,6 +27,11 @@ Object.assign(App, {
   updatePointsDisplay() {
     const el = document.getElementById('points-value');
     if (!el) return;
+    const isLoggedIn = ModeManager.isDemo() || (typeof LineAuth !== 'undefined' && LineAuth.isLoggedIn());
+    if (!isLoggedIn) {
+      el.textContent = '-';
+      return;
+    }
     const user = ApiService.getCurrentUser();
     const exp = (user && user.exp) || 0;
     el.textContent = exp.toLocaleString();
