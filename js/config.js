@@ -3,7 +3,7 @@
    ================================================ */
 
 // ─── Cache Version（更新此值以清除瀏覽器快取）───
-const CACHE_VERSION = '20260211h';
+const CACHE_VERSION = '20260211i';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {

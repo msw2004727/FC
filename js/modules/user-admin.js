@@ -789,10 +789,10 @@ Object.assign(App, {
     const msg = document.getElementById('role-delete-msg');
     if (!overlay || !msg) return;
     this._pendingDeleteRoleKey = key;
-    msg.innerHTML = `確定要刪除自訂層級「<strong>${escapeHTML(info.label)}</strong>」嗎？<br><br><span style="color:var(--danger);font-size:.78rem">該層級的所有用戶將自動降為下一級。此操作無法復原。</span>`;
+    msg.innerHTML = `確定要刪除自訂層級「<strong>${escapeHTML(info.label)}</strong>」嗎？<br><br><span style="color:var(--danger);font-size:.78rem">該層級所屬用戶皆會變成一般用戶。此操作無法復原。</span>`;
     const btn = document.getElementById('role-delete-confirm-btn');
     btn.onclick = () => App.executeDeleteCustomRole();
-    overlay.style.display = '';
+    overlay.classList.add('open');
   },
 
   executeDeleteCustomRole() {
@@ -802,16 +802,14 @@ Object.assign(App, {
     const idx = customRoles.findIndex(c => c.key === key);
     if (idx < 0) return;
     const info = this._getRoleInfo(key);
-    const demoteToRole = customRoles[idx].afterRole || 'user';
 
-    // 降級該層級的用戶
+    // 降級該層級的用戶（一律降為一般用戶）
     const users = ApiService.getAdminUsers ? ApiService.getAdminUsers() : [];
     users.forEach(u => {
       if (u.role === key) {
-        u.role = demoteToRole;
-        // 正式版：更新 Firestore 用戶角色
+        u.role = 'user';
         if (!ModeManager.isDemo() && u._docId) {
-          FirebaseService.updateUserRole(u._docId, demoteToRole).catch(err => console.error('[deleteCustomRole] demote user:', err));
+          FirebaseService.updateUserRole(u._docId, 'user').catch(err => console.error('[deleteCustomRole] demote user:', err));
         }
       }
     });
@@ -836,10 +834,10 @@ Object.assign(App, {
       if (panel) panel.style.display = 'none';
     }
 
-    document.getElementById('role-delete-overlay').style.display = 'none';
+    document.getElementById('role-delete-overlay').classList.remove('open');
     this._pendingDeleteRoleKey = null;
     this.renderRoleHierarchy();
-    this.showToast(`層級「${info.label}」已刪除，相關用戶已降為「${ROLES[demoteToRole]?.label || demoteToRole}」`);
+    this.showToast(`層級「${info.label}」已刪除，相關用戶已降為一般用戶`);
   },
 
   // ─── Step 6: 不活躍用戶/球隊（從資料讀取） ───
