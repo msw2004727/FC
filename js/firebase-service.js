@@ -138,9 +138,16 @@ const FirebaseService = {
       livePromise,
     ]);
 
-    // 填入靜態集合快取
+    // 填入靜態集合快取（以 id 欄位去重，防止 Firestore 有重複文件）
     this._staticCollections.forEach((name, i) => {
-      this._cache[name] = staticSnapshots[i].docs.map(doc => ({ ...doc.data(), _docId: doc.id }));
+      const docs = staticSnapshots[i].docs.map(doc => ({ ...doc.data(), _docId: doc.id }));
+      const seen = new Set();
+      this._cache[name] = docs.filter(d => {
+        if (!d.id) return true;
+        if (seen.has(d.id)) return false;
+        seen.add(d.id);
+        return true;
+      });
     });
 
     // ── rolePermissions：特殊載入（map 結構，非 flat array）──
@@ -152,6 +159,8 @@ const FirebaseService = {
       }
     } catch (err) { console.warn('[FirebaseService] rolePermissions 載入失敗:', err); }
 
+    // 清除 Firestore 中的重複文件（一次性修復）
+    await this._cleanupDuplicateDocs();
     // 自動建立空白廣告欄位（若 Firestore 尚無資料）
     await this._seedAdSlots();
     // 自動建立通知模板（若 Firestore 尚無資料）
@@ -164,6 +173,43 @@ const FirebaseService = {
     this._initialized = true;
     const totalCollections = this._liveCollections.length + this._staticCollections.length + 1;
     console.log('[FirebaseService] 快取載入完成，共', totalCollections, '個集合（即時:', this._liveCollections.length + 1, '/ 靜態:', this._staticCollections.length, '）');
+  },
+
+  // ════════════════════════════════
+  //  清除重複文件（一次性修復）
+  // ════════════════════════════════
+
+  async _cleanupDuplicateDocs() {
+    const collectionsToCheck = ['achievements', 'badges'];
+    for (const name of collectionsToCheck) {
+      try {
+        const snap = await db.collection(name).get();
+        const seen = new Map();
+        const toDelete = [];
+        snap.docs.forEach(doc => {
+          const id = doc.data().id;
+          if (!id) return;
+          if (seen.has(id)) {
+            // 保留 doc ID === id 的文件（seed 建立的），刪除 auto-generated 的
+            const kept = seen.get(id);
+            if (kept === id) {
+              toDelete.push(doc.id);
+            } else {
+              toDelete.push(kept);
+              seen.set(id, doc.id === id ? id : doc.id);
+            }
+          } else {
+            seen.set(id, doc.id);
+          }
+        });
+        if (toDelete.length > 0) {
+          console.log(`[FirebaseService] 清除 ${name} 重複文件:`, toDelete.length, '筆');
+          const batch = db.batch();
+          toDelete.forEach(docId => batch.delete(db.collection(name).doc(docId)));
+          await batch.commit();
+        }
+      } catch (err) { console.warn(`[FirebaseService] ${name} 重複清除失敗:`, err); }
+    }
   },
 
   // ════════════════════════════════
