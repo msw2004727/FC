@@ -41,6 +41,7 @@ const FirebaseService = {
     floatingAds: [],
     popupAds: [],
     sponsors: [],
+    siteThemes: [],
     adminMessages: [],
     notifTemplates: [],
     currentUser: null,
@@ -162,6 +163,11 @@ const FirebaseService = {
         { id: 'sp4', slot: 4, title: '', image: null, status: 'empty', linkUrl: '', publishAt: null, unpublishAt: null, clicks: 0 },
         { id: 'sp5', slot: 5, title: '', image: null, status: 'empty', linkUrl: '', publishAt: null, unpublishAt: null, clicks: 0 },
         { id: 'sp6', slot: 6, title: '', image: null, status: 'empty', linkUrl: '', publishAt: null, unpublishAt: null, clicks: 0 },
+      ]);
+      await seedCollection('siteThemes', [
+        { id: 'sth1', slot: 'theme_topbar', label: '上方橫條背景', spec: '750 × 56 px', image: null, status: 'empty' },
+        { id: 'sth2', slot: 'theme_bottombar', label: '下方橫條背景', spec: '750 × 64 px', image: null, status: 'empty' },
+        { id: 'sth3', slot: 'theme_bg', label: '網站背景', spec: '750 × 1334 px', image: null, status: 'empty' },
       ]);
     } catch (err) {
       console.warn('[FirebaseService] 廣告欄位建立失敗:', err);
@@ -790,6 +796,19 @@ const FirebaseService = {
     if (updates.image && updates.image.startsWith('data:')) delete updates.image;
     updates.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
     await db.collection('sponsors').doc(doc._docId).update(updates);
+    return doc;
+  },
+
+  // ════════════════════════════════
+  //  Site Themes（佈景主題）
+  // ════════════════════════════════
+
+  async updateSiteTheme(id, updates) {
+    const doc = this._cache.siteThemes.find(t => t.id === id);
+    if (!doc || !doc._docId) return null;
+    if (updates.image && updates.image.startsWith('data:')) delete updates.image;
+    updates.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
+    await db.collection('siteThemes').doc(doc._docId).update(updates);
     return doc;
   },
 
