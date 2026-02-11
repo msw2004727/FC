@@ -8,12 +8,22 @@
     <div class="banner-dots" id="banner-dots"></div>
   </div>
 
-  <!-- System Announcement -->
-  <div class="announce-card" id="announce-card">
-    <div class="announce-header">
-      <span>系統公告</span>
+  <!-- System Announcement Marquee -->
+  <div class="announce-marquee-wrap" id="announce-marquee-wrap" style="display:none">
+    <span class="announce-marquee-label">公告</span>
+    <div class="announce-marquee-track" id="announce-marquee-track"></div>
+  </div>
+
+  <!-- Announcement Detail Modal -->
+  <div class="modal-overlay" id="announce-detail-modal" onclick="if(event.target===this){this.classList.remove('open');this.querySelector('.modal').classList.remove('open')}">
+    <div class="modal" style="max-height:60vh">
+      <div class="modal-header">
+        <h3 id="ann-detail-title"></h3>
+        <button class="modal-close" onclick="document.getElementById('announce-detail-modal').classList.remove('open');document.querySelector('#announce-detail-modal .modal').classList.remove('open')">✕</button>
+      </div>
+      <div class="modal-body" id="ann-detail-body"></div>
+      <div id="ann-detail-footer" style="padding:.4rem 1.2rem .8rem;display:flex;align-items:center;gap:.5rem;font-size:.72rem;color:var(--text-muted)"></div>
     </div>
-    <div class="announce-body" id="announce-body"></div>
   </div>
 
   <!-- Hot Events -->

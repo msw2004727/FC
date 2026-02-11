@@ -70,16 +70,28 @@ Object.assign(App, {
   },
 
   renderAnnouncement() {
-    const container = document.getElementById('announce-body');
-    const card = document.getElementById('announce-card');
-    if (!container || !card) return;
-    const ann = ApiService.getActiveAnnouncement();
-    if (ann) {
-      container.innerHTML = `<p>${escapeHTML(ann.content)}</p>`;
-      card.style.display = '';
-    } else {
-      card.style.display = 'none';
+    // Marquee version — delegated to announcement.js
+    // This is kept as a fallback; announcement.js overrides it via Object.assign
+    const wrap = document.getElementById('announce-marquee-wrap');
+    const track = document.getElementById('announce-marquee-track');
+    if (!wrap || !track) return;
+
+    const items = ApiService.getActiveAnnouncements();
+    if (!items.length) {
+      wrap.style.display = 'none';
+      track.innerHTML = '';
+      return;
     }
+
+    const html = items.map(a =>
+      `<span class="announce-marquee-item" onclick="App.showAnnDetail('${a.id}')">${escapeHTML(a.title)}：${escapeHTML(a.content)}</span>`
+    ).join('');
+    track.innerHTML = `<div class="announce-marquee-inner">${html}${html}</div>`;
+    wrap.style.display = '';
+
+    const totalChars = items.reduce((sum, a) => sum + (a.title + a.content).length, 0);
+    const duration = Math.max(10, totalChars * 0.35);
+    track.querySelector('.announce-marquee-inner').style.setProperty('--marquee-duration', duration + 's');
   },
 
   renderFloatingAds() {

@@ -205,9 +205,9 @@ const DemoData = {
   ],
 
   announcements: [
-    { id: 'ann1', title: '系統公告', content: '歡迎使用 SportHub！春季聯賽報名已開始，請至賽事中心查看詳情。如有問題請透過站內信聯繫管理員。', status: 'active', publishAt: '2026/03/01 10:00', createdAt: '2026/03/01 09:00', createdBy: '總管' },
-    { id: 'ann2', title: '系統維護通知', content: '本週六凌晨 02:00~04:00 將進行系統維護，届時將暫時無法使用，敬請見諒。', status: 'scheduled', publishAt: '2026/03/20 08:00', createdAt: '2026/03/15 14:00', createdBy: '總管' },
-    { id: 'ann3', title: '新功能上線', content: '二手商品區已正式上線，歡迎大家上架閒置球具！', status: 'expired', publishAt: '2026/02/01 10:00', createdAt: '2026/01/30 10:00', createdBy: '管理員' },
+    { id: 'ann1', title: '春季聯賽報名', content: '春季聯賽報名已開始，請至賽事中心查看詳情並完成報名手續。', status: 'active', sortOrder: 1, publishAt: '2026/03/01 10:00', unpublishAt: null, createdAt: '2026/03/01 09:00', createdBy: '總管', operatorName: '總管' },
+    { id: 'ann2', title: '系統維護通知', content: '本週六凌晨 02:00~04:00 將進行系統維護，届時暫停服務。', status: 'active', sortOrder: 2, publishAt: '2026/03/10 08:00', unpublishAt: '2026/03/22 08:00', createdAt: '2026/03/08 14:00', createdBy: '總管', operatorName: '總管' },
+    { id: 'ann3', title: '二手商城上線', content: '二手商品區已正式上線，歡迎上架閒置球具！', status: 'expired', sortOrder: 3, publishAt: '2026/02/01 10:00', unpublishAt: '2026/02/28 23:59', createdAt: '2026/01/30 10:00', createdBy: '管理員', operatorName: '管理員B' },
   ],
 
   floatingAds: [

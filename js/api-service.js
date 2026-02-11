@@ -312,8 +312,9 @@ const ApiService = {
   //  Announcements（系統公告）
   // ════════════════════════════════
 
-  getAnnouncements()      { return this._src('announcements'); },
-  getActiveAnnouncement() { return this.getAnnouncements().find(a => a.status === 'active') || null; },
+  getAnnouncements()       { return this._src('announcements'); },
+  getActiveAnnouncements() { return this.getAnnouncements().filter(a => a.status === 'active').sort((a, b) => (a.sortOrder || 99) - (b.sortOrder || 99)); },
+  getActiveAnnouncement()  { return this.getActiveAnnouncements()[0] || null; },
 
   createAnnouncement(data)        { return this._create('announcements', data, FirebaseService.addAnnouncement, 'createAnnouncement'); },
   updateAnnouncement(id, updates) { return this._update('announcements', id, updates, FirebaseService.updateAnnouncement, 'updateAnnouncement'); },

@@ -45,10 +45,40 @@
   right: 2px;
 }
 
-/* ─── Announcement ─── */
-.announce-card { background: var(--bg-card); border-radius: var(--radius); border: 1px solid var(--border); overflow: hidden; margin-bottom: .8rem; }
-.announce-header { display: flex; justify-content: space-between; align-items: center; padding: .7rem 1rem; font-weight: 600; font-size: .85rem; }
-.announce-body { padding: 0 1rem .8rem; font-size: .82rem; color: var(--text-secondary); line-height: 1.6; }
+/* ─── Announcement Marquee ─── */
+.announce-marquee-wrap {
+  display: flex; align-items: center; gap: .5rem;
+  background: var(--bg-card); border-radius: var(--radius); border: 1px solid var(--border);
+  overflow: hidden; margin-bottom: .8rem; height: 38px; padding: 0 .6rem;
+}
+.announce-marquee-label {
+  flex-shrink: 0; padding: .15rem .55rem; border-radius: var(--radius-full);
+  background: var(--accent); color: #fff; font-size: .7rem; font-weight: 700;
+  letter-spacing: .5px;
+}
+.announce-marquee-track {
+  flex: 1; overflow: hidden; position: relative; height: 100%;
+  display: flex; align-items: center; mask-image: linear-gradient(to right, transparent 0%, #000 5%, #000 95%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to right, transparent 0%, #000 5%, #000 95%, transparent 100%);
+}
+.announce-marquee-inner {
+  display: inline-flex; gap: 2.5rem; white-space: nowrap;
+  animation: marquee-scroll var(--marquee-duration, 20s) linear infinite;
+}
+.announce-marquee-inner:hover { animation-play-state: paused; }
+.announce-marquee-item {
+  font-size: .82rem; color: var(--text-secondary); cursor: pointer;
+  transition: color .2s; display: inline-flex; align-items: center; gap: .3rem;
+}
+.announce-marquee-item::before {
+  content: ''; display: inline-block; width: 5px; height: 5px;
+  border-radius: 50%; background: var(--accent); flex-shrink: 0;
+}
+.announce-marquee-item:hover { color: var(--accent); }
+@keyframes marquee-scroll {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
 
 /* ─── Horizontal Scroll Cards ─── */
 .horizontal-scroll { display: flex; gap: .65rem; overflow-x: auto; padding: .2rem .2rem .6rem; -webkit-overflow-scrolling: touch; scroll-snap-type: x mandatory; scroll-behavior: smooth; }
