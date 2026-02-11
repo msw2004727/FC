@@ -56,6 +56,37 @@
       </div>
     </section>
 
+    <!-- PAGE: Backend - Site Theme Management (Super Admin) -->
+    <section class="page" id="page-admin-themes" data-min-role="super_admin">
+      <div class="page-header">
+        <button class="back-btn" onclick="App.goBack()">←</button>
+        <h2>佈景主題</h2>
+      </div>
+      <div style="font-size:.78rem;color:var(--text-muted);padding:0 .3rem .6rem">替換網站元素背景圖片，打造節慶氛圍。下架即恢復預設風格。</div>
+      <div class="card-list" id="theme-manage-list"></div>
+
+      <!-- Theme Edit Modal -->
+      <div class="modal-overlay" id="theme-form-overlay" onclick="if(event.target===this)App.hideThemeForm()">
+        <div class="modal" style="max-height:85vh">
+          <div class="modal-header">
+            <h3 id="theme-form-title">設定佈景圖片</h3>
+            <button class="modal-close" onclick="App.hideThemeForm()">✕</button>
+          </div>
+          <div class="modal-body" style="display:flex;flex-direction:column;gap:.65rem">
+            <div class="form-row">
+              <label>圖片上傳（JPG / PNG，2MB 以內）</label>
+              <div id="theme-preview" class="upload-preview" style="width:100%;height:120px;border:2px dashed var(--border);border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center;overflow:hidden;cursor:pointer" onclick="document.getElementById('theme-image').click()">
+                <span style="color:var(--text-muted);font-size:.8rem">點擊上傳圖片</span>
+              </div>
+              <input type="file" id="theme-image" accept="image/jpeg,image/png" style="display:none">
+            </div>
+            <div id="theme-spec-hint" style="font-size:.75rem;color:var(--text-muted)"></div>
+            <button class="primary-btn full-width" onclick="App.saveThemeItem()">儲存並上架</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <!-- PAGE: Backend - Announcement Management (Super Admin) -->
     <section class="page" id="page-admin-announcements" data-min-role="super_admin">
       <div class="page-header">

@@ -36,10 +36,12 @@ const App = {
     this.bindImageUpload('floatad-image', 'floatad-preview');
     this.bindImageUpload('popupad-image', 'popupad-preview');
     this.bindImageUpload('ct-team-image', 'ct-team-preview');
+    this.bindImageUpload('theme-image', 'theme-preview');
     this.bindShopSearch();
     this.bindTeamOnlyToggle();
     this.renderBannerCarousel();
     this.startBannerCarousel();
+    this.applySiteThemes();
     this.renderAll();
     this.applyRole('user', true);
   },
@@ -67,6 +69,7 @@ const App = {
     this.renderPopupAdManage();
     this.renderSponsorManage();
     this.renderSponsors();
+    this.renderThemeManage();
     this.renderAnnouncementManage();
     this.renderShopManage();
     this.renderMsgManage();

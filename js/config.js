@@ -139,6 +139,7 @@ const DRAWER_MENUS = [
   { icon: '', label: '站內信管理', page: 'page-admin-messages', minRole: 'admin' },
   { icon: '', label: '球隊管理', page: 'page-admin-teams', minRole: 'admin' },
   { icon: '', label: '賽事管理', page: 'page-admin-tournaments', minRole: 'admin' },
+  { icon: '', label: '佈景主題', page: 'page-admin-themes', minRole: 'super_admin' },
   { icon: '', label: '手動 EXP 管理', page: 'page-admin-exp', minRole: 'super_admin' },
   { icon: '', label: '系統公告管理', page: 'page-admin-announcements', minRole: 'super_admin' },
   { icon: '', label: '成就/徽章管理', page: 'page-admin-achievements', minRole: 'super_admin' },

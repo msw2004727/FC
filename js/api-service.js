@@ -309,6 +309,14 @@ const ApiService = {
   updateBanner(id, updates) { return this._update('banners', id, updates, FirebaseService.updateBanner, 'updateBanner'); },
 
   // ════════════════════════════════
+  //  Site Themes（佈景主題）
+  // ════════════════════════════════
+
+  getSiteThemes() { return this._src('siteThemes'); },
+
+  updateSiteTheme(id, updates) { return this._update('siteThemes', id, updates, FirebaseService.updateSiteTheme, 'updateSiteTheme'); },
+
+  // ════════════════════════════════
   //  Announcements（系統公告）
   // ════════════════════════════════
 

@@ -204,6 +204,12 @@ const DemoData = {
     { id: 'ban3', slot: 3, title: '', image: null, status: 'empty', publishAt: null, unpublishAt: null, clicks: 0, gradient: '' },
   ],
 
+  siteThemes: [
+    { id:'sth1', slot:'theme_topbar', label:'上方橫條背景', spec:'750 × 56 px', image:null, status:'empty' },
+    { id:'sth2', slot:'theme_bottombar', label:'下方橫條背景', spec:'750 × 64 px', image:null, status:'empty' },
+    { id:'sth3', slot:'theme_bg', label:'網站背景', spec:'750 × 1334 px', image:null, status:'empty' },
+  ],
+
   announcements: [
     { id: 'ann1', title: '春季聯賽報名', content: '春季聯賽報名已開始，請至賽事中心查看詳情並完成報名手續。', status: 'active', sortOrder: 1, publishAt: '2026/03/01 10:00', unpublishAt: null, createdAt: '2026/03/01 09:00', createdBy: '總管', operatorName: '總管' },
     { id: 'ann2', title: '系統維護通知', content: '本週六凌晨 02:00~04:00 將進行系統維護，届時暫停服務。', status: 'active', sortOrder: 2, publishAt: '2026/03/10 08:00', unpublishAt: '2026/03/22 08:00', createdAt: '2026/03/08 14:00', createdBy: '總管', operatorName: '總管' },
