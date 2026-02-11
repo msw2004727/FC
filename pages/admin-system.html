@@ -17,7 +17,7 @@
           <span id="ach-form-title">新增成就</span>
           <button class="text-btn" onclick="App.hideAchForm()">取消</button>
         </div>
-        <div class="form-row"><label>成就名稱</label><input type="text" id="ach-input-name" placeholder="例：百場達人"></div>
+        <div class="form-row"><label>成就名稱 <span class="required">*必填</span></label><input type="text" id="ach-input-name" placeholder="例：百場達人"></div>
         <div class="form-row"><label>描述（目標條件）</label><input type="text" id="ach-input-desc" placeholder="例：累計參加 100 場活動"></div>
         <div class="form-row"><label>目標次數</label><input type="number" id="ach-input-target" value="10" min="1"></div>
         <div class="form-row">
@@ -38,7 +38,7 @@
           <span id="badge-form-title">新增徽章</span>
           <button class="text-btn" onclick="App.hideBadgeForm()">取消</button>
         </div>
-        <div class="form-row"><label>徽章名稱</label><input type="text" id="badge-input-name" placeholder="例：冠軍徽章"></div>
+        <div class="form-row"><label>徽章名稱 <span class="required">*必填</span></label><input type="text" id="badge-input-name" placeholder="例：冠軍徽章"></div>
         <div class="form-row">
           <label>類別（框線顏色）</label>
           <select id="badge-input-category">
@@ -111,8 +111,8 @@
             <button class="modal-close" onclick="App.hideAnnouncementForm()">✕</button>
           </div>
           <div class="modal-body" style="display:flex;flex-direction:column;gap:.65rem">
-            <div class="form-row"><label>公告標題（12 字內）</label><input type="text" id="ann-input-title" maxlength="12" placeholder="例：系統維護通知"></div>
-            <div class="form-row"><label>公告內容（50 字內）</label><textarea id="ann-input-content" rows="3" maxlength="50" placeholder="公告內容..." oninput="document.getElementById('ann-content-count').textContent=this.value.length+'/50'"></textarea><span id="ann-content-count" style="font-size:.68rem;color:var(--text-muted);text-align:right">0/50</span></div>
+            <div class="form-row"><label>公告標題（12 字內） <span class="required">*必填</span></label><input type="text" id="ann-input-title" maxlength="12" placeholder="例：系統維護通知"></div>
+            <div class="form-row"><label>公告內容（50 字內） <span class="required">*必填</span></label><textarea id="ann-input-content" rows="3" maxlength="50" placeholder="公告內容..." oninput="document.getElementById('ann-content-count').textContent=this.value.length+'/50'"></textarea><span id="ann-content-count" style="font-size:.68rem;color:var(--text-muted);text-align:right">0/50</span></div>
             <div class="form-row"><label>發布方式</label><select id="ann-input-publish-type" onchange="App.toggleAnnSchedule()"><option value="now">立即發布</option><option value="scheduled">預約發布</option></select></div>
             <div class="form-row" id="ann-schedule-row" style="display:none"><label>預約發布時間</label><input type="datetime-local" id="ann-input-schedule"></div>
             <div class="form-row"><label>結束時間（選填）</label><input type="datetime-local" id="ann-input-unpublish"></div>

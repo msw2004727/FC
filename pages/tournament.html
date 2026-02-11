@@ -84,7 +84,7 @@
   <div class="modal-body">
     <div class="ce-form">
       <div class="ce-row">
-        <label>賽事名稱</label>
+        <label>賽事名稱 <span class="required">*必填</span></label>
         <input type="text" id="ct-name" placeholder="例：2026 春季盃足球賽" maxlength="15">
       </div>
       <div class="ce-row">
@@ -104,7 +104,7 @@
         <input type="date" id="ct-match-date-picker" onchange="App.addMatchDate(this.value)">
       </div>
       <div class="ce-row">
-        <label>舉辦地區</label>
+        <label>舉辦地區 <span class="required">*必填</span></label>
         <input type="text" id="ct-region" list="ct-region-list" placeholder="輸入或選擇縣市..." autocomplete="off">
         <datalist id="ct-region-list">
           <option value="台北市"><option value="新北市"><option value="桃園市"><option value="台中市"><option value="台南市"><option value="高雄市">
@@ -135,11 +135,11 @@
       </div>
       <div class="ce-row ce-row-half">
         <div>
-          <label>報名開始</label>
+          <label>報名開始 <span class="required">*必填</span></label>
           <input type="datetime-local" id="ct-reg-start">
         </div>
         <div>
-          <label>報名截止</label>
+          <label>報名截止 <span class="required">*必填</span></label>
           <input type="datetime-local" id="ct-reg-end">
         </div>
       </div>
@@ -189,7 +189,7 @@
   <div class="modal-body">
     <div class="ce-form">
       <div class="ce-row">
-        <label>賽事名稱</label>
+        <label>賽事名稱 <span class="required">*必填</span></label>
         <input type="text" id="et-name" placeholder="例：2026 春季盃足球賽" maxlength="15">
       </div>
       <div class="ce-row">
@@ -203,7 +203,7 @@
         <input type="number" id="et-teams" value="8" min="2">
       </div>
       <div class="ce-row">
-        <label>舉辦地區</label>
+        <label>舉辦地區 <span class="required">*必填</span></label>
         <input type="text" id="et-region" list="et-region-list" placeholder="輸入或選擇縣市..." autocomplete="off">
         <datalist id="et-region-list">
           <option value="台北市"><option value="新北市"><option value="桃園市"><option value="台中市"><option value="台南市"><option value="高雄市">
@@ -240,11 +240,11 @@
       </div>
       <div class="ce-row ce-row-half">
         <div>
-          <label>報名開始</label>
+          <label>報名開始 <span class="required">*必填</span></label>
           <input type="datetime-local" id="et-reg-start">
         </div>
         <div>
-          <label>報名截止</label>
+          <label>報名截止 <span class="required">*必填</span></label>
           <input type="datetime-local" id="et-reg-end">
         </div>
       </div>

@@ -88,6 +88,9 @@ Object.assign(App, {
       document.querySelectorAll('.modal.open').forEach(m => m.classList.remove('open'));
       modal.classList.add('open');
       overlay.classList.add('open');
+      modal.scrollTop = 0;
+      const modalBody = modal.querySelector('.modal-body');
+      if (modalBody) modalBody.scrollTop = 0;
     }
   },
 

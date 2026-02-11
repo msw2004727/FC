@@ -169,7 +169,7 @@
               <option value="private">私訊</option>
             </select>
           </div>
-          <div class="form-row"><label>標題（上限 12 字）</label><input type="text" id="msg-title" placeholder="信件標題" maxlength="12"></div>
+          <div class="form-row"><label>標題（上限 12 字） <span class="required">*必填</span></label><input type="text" id="msg-title" placeholder="信件標題" maxlength="12"></div>
           <div class="form-row">
             <label>發送方式</label>
             <select id="msg-target" onchange="App.onMsgTargetChange()">
@@ -185,7 +185,7 @@
             <input type="text" id="msg-individual-target" placeholder="輸入 UID 或暱稱搜尋" oninput="App.searchMsgTarget()">
             <div id="msg-target-result" style="font-size:.75rem;margin-top:.2rem;color:var(--text-muted)"></div>
           </div>
-          <div class="form-row"><label>內容（上限 300 字）</label><textarea id="msg-body" rows="4" placeholder="信件內容..." maxlength="300"></textarea></div>
+          <div class="form-row"><label>內容（上限 300 字） <span class="required">*必填</span></label><textarea id="msg-body" rows="4" placeholder="信件內容..." maxlength="300"></textarea></div>
           <div class="form-row">
             <label>排程發送（留空＝立即發送）</label>
             <input type="datetime-local" id="msg-schedule">

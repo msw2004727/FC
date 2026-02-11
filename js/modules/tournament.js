@@ -703,6 +703,10 @@ Object.assign(App, {
     this._renderMatchDateTags('ct');
     this._renderTournamentDelegateTags('ct');
     this._updateTournamentDelegateInput('ct');
+    this._renderHistoryChips('ct-region', 'ct-region');
+    this._renderHistoryChips('ct-fee', 'ct-fee');
+    this._renderHistoryChips('ct-venue', 'ct-venue-input');
+    this._renderRecentDelegateChips('ct-delegate-tags', 'ct');
   },
 
   handleCreateTournament() {
@@ -745,6 +749,11 @@ Object.assign(App, {
     data.status = this.getTournamentStatus(data);
 
     ApiService.createTournament(data);
+
+    this._saveInputHistory('ct-region', region);
+    if (fee > 0) this._saveInputHistory('ct-fee', fee);
+    venues.forEach(v => this._saveInputHistory('ct-venue', v));
+    this._saveRecentDelegates(this._ctDelegates);
 
     this.renderTournamentTimeline();
     this.renderOngoingTournaments();

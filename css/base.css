@@ -164,6 +164,29 @@ img { max-width: 100%; display: block; }
 .radio-group { display: flex; gap: 1rem; font-size: .85rem; }
 .radio-group label { display: flex; align-items: center; gap: .3rem; cursor: pointer; color: var(--text-primary); font-weight: 400; }
 
+/* ─── Input History Chips ─── */
+.input-history-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .25rem;
+  margin-top: .25rem;
+}
+.input-history-chip {
+  font-size: .68rem;
+  padding: .15rem .45rem;
+  border-radius: 20px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background .15s;
+}
+.input-history-chip:hover {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+}
+
 /* App confirm modal */
 .app-confirm-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 1300; align-items: center; justify-content: center; }
 .app-confirm-overlay.open { display: flex; }
