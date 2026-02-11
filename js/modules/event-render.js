@@ -148,6 +148,23 @@ Object.assign(App, {
     return inParticipants || inWaitlist;
   },
 
+  /** 判斷當前用戶是否在候補名單中 */
+  _isUserOnWaitlist(e) {
+    const user = ApiService.getCurrentUser?.();
+    if (!user) return false;
+    const uid = user.uid || '';
+    const name = user.displayName || user.name || '';
+
+    // Production 模式
+    if (!ModeManager.isDemo() && uid) {
+      const regs = FirebaseService._cache.registrations || [];
+      return regs.some(r => r.eventId === e.id && r.userId === uid && r.status === 'waitlisted');
+    }
+
+    // Demo 模式
+    return (e.waitlistNames || []).some(p => p === name || p === uid);
+  },
+
   // ══════════════════════════════════
   //  Render: Hot Events
   // ══════════════════════════════════
@@ -301,12 +318,14 @@ Object.assign(App, {
     const locationHtml = `<a href="${mapUrl}" target="_blank" rel="noopener" style="color:var(--primary);text-decoration:none">${escapeHTML(e.location)} 📍</a>`;
 
     const isEnded = e.status === 'ended' || e.status === 'cancelled';
-    const isTrulyFull = this._isEventTrulyFull(e);
     const isMainFull = e.current >= e.max;
     const isSignedUp = this._isUserSignedUp(e);
+    const isOnWaitlist = isSignedUp && this._isUserOnWaitlist(e);
     let signupBtn = '';
     if (isEnded) {
       signupBtn = `<button style="background:#333;color:#999;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:not-allowed" disabled>已結束</button>`;
+    } else if (isOnWaitlist) {
+      signupBtn = `<button style="background:#7c3aed;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:pointer" onclick="App.handleCancelSignup('${e.id}')">取消候補</button>`;
     } else if (isSignedUp) {
       signupBtn = `<button style="background:#dc2626;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:pointer" onclick="App.handleCancelSignup('${e.id}')">取消報名</button>`;
     } else if (isMainFull) {
@@ -424,7 +443,10 @@ Object.assign(App, {
   },
 
   async handleCancelSignup(id) {
-    if (!await this.appConfirm('確定要取消報名？')) return;
+    const e0 = ApiService.getEvent(id);
+    const isWaitlist = e0 && this._isUserOnWaitlist(e0);
+    const confirmMsg = isWaitlist ? '確定要取消候補？' : '確定要取消報名？';
+    if (!await this.appConfirm(confirmMsg)) return;
     const user = ApiService.getCurrentUser();
     const userName = user?.displayName || user?.name || '用戶';
     const userId = user?.uid || 'unknown';
@@ -460,7 +482,7 @@ Object.assign(App, {
           rec.status = 'cancelled';
         }
       }
-      this.showToast('已取消報名');
+      this.showToast(isWaitlist ? '已取消候補' : '已取消報名');
       this.showEventDetail(id);
       return;
     }
@@ -482,7 +504,7 @@ Object.assign(App, {
                 .catch(err => console.error('[activityRecord cancel]', err));
             }
           }
-          this.showToast('已取消報名');
+          this.showToast(isWaitlist ? '已取消候補' : '已取消報名');
           this.showEventDetail(id);
         })
         .catch(err => { console.error('[cancelSignup]', err); this.showToast('取消失敗：' + (err.message || '')); });
@@ -501,7 +523,7 @@ Object.assign(App, {
           }
         }
       }
-      this.showToast('已取消報名');
+      this.showToast(isWaitlist ? '已取消候補' : '已取消報名');
       this.showEventDetail(id);
     }
   },
