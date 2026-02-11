@@ -46,14 +46,15 @@ const ApiService = {
     return item;
   },
 
-  /** 通用刪除：快取 splice + 非同步刪除 Firebase */
+  /** 通用刪除：先呼叫 Firebase（需要讀取 _docId），再從快取 splice */
   _delete(key, id, firebaseMethod, label) {
     const source = this._src(key);
-    const idx = source.findIndex(item => item.id === id);
-    if (idx >= 0) source.splice(idx, 1);
+    // 必須先呼叫 Firebase 刪除（需要從 cache 中找到 _docId），再 splice
     if (!this._demoMode && firebaseMethod) {
       firebaseMethod.call(FirebaseService, id).catch(err => console.error(`[${label}]`, err));
     }
+    const idx = source.findIndex(item => item.id === id);
+    if (idx >= 0) source.splice(idx, 1);
     return true;
   },
 
@@ -378,13 +379,12 @@ const ApiService = {
 
   deleteAdminMessage(id) {
     const source = this._src('adminMessages');
-    const idx = source.findIndex(m => m.id === id);
-    if (idx >= 0) {
-      source.splice(idx, 1);
-      if (!this._demoMode) {
-        FirebaseService.deleteAdminMessage(id).catch(err => console.error('[deleteAdminMessage]', err));
-      }
+    // 先呼叫 Firebase 刪除（需要從 cache 中找到 _docId），再 splice
+    if (!this._demoMode) {
+      FirebaseService.deleteAdminMessage(id).catch(err => console.error('[deleteAdminMessage]', err));
     }
+    const idx = source.findIndex(m => m.id === id);
+    if (idx >= 0) source.splice(idx, 1);
   },
 
   // ════════════════════════════════

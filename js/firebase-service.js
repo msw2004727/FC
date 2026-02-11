@@ -328,18 +328,14 @@ const FirebaseService = {
   ],
 
   async _seedAchievements() {
-    // 檢查是否已完成初始化（防止刪除後重新建立）
-    try {
-      const metaDoc = await db.collection('_meta').doc('achievements_seeded').get();
-      if (metaDoc.exists) return;
-    } catch (err) { /* 首次可能無 _meta 集合，繼續執行 */ }
+    // 使用 localStorage 標記（比 Firestore _meta 更可靠，不受權限影響）
+    if (localStorage.getItem('sporthub_ach_seeded')) return;
 
     const existing = this._cache.achievements;
 
     // 已有資料 → 標記已初始化並檢查遷移
     if (existing.length > 0) {
-      // 標記為已初始化
-      db.collection('_meta').doc('achievements_seeded').set({ seededAt: firebase.firestore.FieldValue.serverTimestamp() }).catch(() => {});
+      localStorage.setItem('sporthub_ach_seeded', '1');
       // 檢查是否需要遷移（舊版 seed 全部 current:0）
       const needsMigration = existing.every(a => !a.current && !a.completedAt);
       if (!needsMigration) return;
@@ -370,9 +366,8 @@ const FirebaseService = {
       this._defaultBadges.forEach(b => {
         batch.set(db.collection('badges').doc(b.id), { ...b, createdAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true });
       });
-      // 標記為已初始化
-      batch.set(db.collection('_meta').doc('achievements_seeded'), { seededAt: firebase.firestore.FieldValue.serverTimestamp() });
       await batch.commit();
+      localStorage.setItem('sporthub_ach_seeded', '1');
       this._defaultAchievements.forEach(a => { a._docId = a.id; this._cache.achievements.push({ ...a }); });
       this._defaultBadges.forEach(b => { b._docId = b.id; this._cache.badges.push({ ...b }); });
       console.log('[FirebaseService] 預設成就與徽章建立完成');
