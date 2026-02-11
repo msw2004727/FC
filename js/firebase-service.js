@@ -565,7 +565,7 @@ const FirebaseService = {
   //  User Points（積分系統）
   // ════════════════════════════════
 
-  async updateUserPoints(userId, pointsDelta, reason) {
+  async updateUserPoints(userId, pointsDelta, reason, operatorLabel) {
     const user = this._cache.adminUsers.find(u => u.uid === userId);
     if (!user) throw new Error('用戶不存在');
 
@@ -584,6 +584,7 @@ const FirebaseService = {
       target: user.name,
       amount: (pointsDelta > 0 ? '+' : '') + pointsDelta,
       reason: reason,
+      operator: operatorLabel || '管理員',
     };
     await db.collection('expLogs').add({
       ...log,

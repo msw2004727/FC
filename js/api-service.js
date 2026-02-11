@@ -434,7 +434,7 @@ const ApiService = {
     user.exp = Math.max(0, (user.exp || 0) + amount);
     const now = new Date();
     const timeStr = `${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
-    const log = { time: timeStr, target: user.name, amount: (amount > 0 ? '+' : '') + amount, reason };
+    const log = { time: timeStr, target: user.name, amount: (amount > 0 ? '+' : '') + amount, reason, operator: operatorLabel || '管理員' };
     this._src('expLogs').unshift(log);
     const opLog = { time: timeStr, operator: operatorLabel || '管理員', type: 'exp', typeName: '手動EXP', content: `${user.name} ${log.amount}「${reason}」` };
     this._src('operationLogs').unshift(opLog);

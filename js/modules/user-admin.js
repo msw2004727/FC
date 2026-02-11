@@ -167,60 +167,236 @@ Object.assign(App, {
   },
 
   // ─── EXP Management ───
-  renderExpLogs() {
-    const container = document.getElementById('exp-log-list');
-    if (!container) return;
-    container.innerHTML = ApiService.getExpLogs().map(l => `
-      <div class="log-item">
-        <span class="log-time">${escapeHTML(l.time)}</span>
-        <span class="log-content">${this._userTag(l.target)} <strong>${escapeHTML(String(l.amount))}</strong>「${escapeHTML(l.reason)}」</span>
-      </div>
-    `).join('');
+  _expBatchSelected: [],
+  _expTeamMembers: [],
+
+  // ── 頁簽切換 ──
+  switchExpTab(tab) {
+    const tabs = document.querySelectorAll('#exp-tab-bar .tab');
+    const panels = ['individual', 'batch', 'team'];
+    tabs.forEach((btn, i) => {
+      btn.classList.toggle('active', panels[i] === tab);
+    });
+    panels.forEach(p => {
+      const el = document.getElementById('exp-panel-' + p);
+      if (el) el.style.display = p === tab ? '' : 'none';
+    });
+    if (tab === 'team') this._populateExpTeamDropdown();
   },
 
-  demoExpSearch() {
-    const keyword = (document.getElementById('exp-search')?.value || '').trim();
-    if (!keyword) { this.showToast('請輸入 UID 或暱稱'); return; }
+  // ── 操作者名稱 ──
+  _getExpOperatorLabel() {
+    if (ApiService._demoMode) return ROLES[this.currentRole]?.label || '管理員';
+    const cur = ApiService.getCurrentUser();
+    return cur?.displayName || ROLES[this.currentRole]?.label || '管理員';
+  },
+
+  // ── 個別搜尋 ──
+  expFuzzySearch() {
+    const keyword = (document.getElementById('exp-search')?.value || '').trim().toLowerCase();
+    const dd = document.getElementById('exp-search-dropdown');
+    if (!dd) return;
+    if (!keyword) { dd.style.display = 'none'; return; }
+    const users = ApiService.getAdminUsers().filter(u =>
+      u.name.toLowerCase().includes(keyword) || u.uid.toLowerCase().includes(keyword)
+    ).slice(0, 8);
+    if (users.length === 0) { dd.style.display = 'none'; return; }
+    dd.innerHTML = users.map(u => {
+      const safeName = escapeHTML(u.name).replace(/'/g, "\\'");
+      return `<div class="delegate-option" onclick="App._selectExpTarget('${safeName}')">${escapeHTML(u.name)} <span style="color:var(--text-muted);font-size:.72rem">${escapeHTML(u.uid)}</span></div>`;
+    }).join('');
+    dd.style.display = '';
+  },
+
+  _selectExpTarget(name) {
+    const dd = document.getElementById('exp-search-dropdown');
+    if (dd) dd.style.display = 'none';
+    const input = document.getElementById('exp-search');
+    if (input) input.value = name;
     const users = ApiService.getAdminUsers();
-    const found = users.find(u => u.name === keyword || u.uid === keyword);
+    const found = users.find(u => u.name === name);
     const card = document.getElementById('exp-target-card');
-    if (!card) return;
-    if (found) {
-      card.style.display = '';
-      const nameEl = card.querySelector('.exp-target-name');
-      const detailEl = card.querySelector('.exp-target-detail');
-      const avatarEl = card.querySelector('.profile-avatar');
-      if (nameEl) nameEl.textContent = found.name;
-      if (detailEl) detailEl.textContent = `UID: ${found.uid} ・ Lv.${App._calcLevelFromExp(found.exp || 0).level} ・ EXP: ${(found.exp || 0).toLocaleString()}`;
-      if (avatarEl) avatarEl.textContent = found.name[0];
-      card.dataset.targetName = found.name;
-      this.showToast(`已搜尋到用戶「${found.name}」`);
-    } else {
-      card.style.display = 'none';
-      this.showToast('找不到該用戶');
-    }
+    if (!card || !found) return;
+    card.style.display = '';
+    const nameEl = card.querySelector('.exp-target-name');
+    const detailEl = card.querySelector('.exp-target-detail');
+    const avatarEl = card.querySelector('.profile-avatar');
+    if (nameEl) nameEl.textContent = found.name;
+    if (detailEl) detailEl.textContent = `UID: ${found.uid} ・ Lv.${App._calcLevelFromExp(found.exp || 0).level} ・ EXP: ${(found.exp || 0).toLocaleString()}`;
+    if (avatarEl) avatarEl.textContent = (found.name || '?')[0];
+    card.dataset.targetName = found.name;
   },
 
+  // ── 個別送出 ──
   handleExpSubmit() {
     const card = document.getElementById('exp-target-card');
     const targetName = card?.dataset.targetName;
-    if (!targetName) { this.showToast('請先搜尋用戶'); return; }
-    const amountInput = card.querySelector('input[type="number"]');
-    const reasonInput = card.querySelectorAll('input[type="text"]')[0];
-    const amount = parseInt(amountInput?.value) || 0;
-    const reason = (reasonInput?.value || '').trim();
+    if (!targetName) { this.showToast('請先搜尋並選擇用戶'); return; }
+    const amount = parseInt(document.getElementById('exp-amount')?.value) || 0;
+    const reason = (document.getElementById('exp-reason')?.value || '').trim();
     if (amount === 0) { this.showToast('請輸入 EXP 調整值'); return; }
     if (!reason) { this.showToast('請輸入備註原因'); return; }
-    const operatorLabel = ROLES[this.currentRole]?.label || '管理員';
+    const operatorLabel = this._getExpOperatorLabel();
     const user = ApiService.adjustUserExp(targetName, amount, reason, operatorLabel);
     if (user) {
       const updatedDetail = card.querySelector('.exp-target-detail');
       if (updatedDetail) updatedDetail.textContent = `UID: ${user.uid} ・ Lv.${App._calcLevelFromExp(user.exp || 0).level} ・ EXP: ${(user.exp || 0).toLocaleString()}`;
+      document.getElementById('exp-amount').value = '';
+      document.getElementById('exp-reason').value = '';
       this.renderExpLogs();
       this.renderOperationLogs();
       this.updatePointsDisplay();
       this.showToast(`已調整「${targetName}」EXP ${amount > 0 ? '+' : ''}${amount}`);
     }
+  },
+
+  // ── 批次搜尋 ──
+  expBatchSearch() {
+    const keyword = (document.getElementById('exp-batch-search')?.value || '').trim().toLowerCase();
+    const dd = document.getElementById('exp-batch-dropdown');
+    if (!dd) return;
+    if (!keyword) { dd.style.display = 'none'; return; }
+    const selected = this._expBatchSelected;
+    const users = ApiService.getAdminUsers().filter(u =>
+      !selected.includes(u.name) &&
+      (u.name.toLowerCase().includes(keyword) || u.uid.toLowerCase().includes(keyword))
+    ).slice(0, 8);
+    if (users.length === 0) { dd.style.display = 'none'; return; }
+    dd.innerHTML = users.map(u => {
+      const safeName = escapeHTML(u.name).replace(/'/g, "\\'");
+      return `<div class="delegate-option" onclick="App._addExpBatchUser('${safeName}')">${escapeHTML(u.name)} <span style="color:var(--text-muted);font-size:.72rem">${escapeHTML(u.uid)}</span></div>`;
+    }).join('');
+    dd.style.display = '';
+  },
+
+  _addExpBatchUser(name) {
+    if (!this._expBatchSelected.includes(name)) this._expBatchSelected.push(name);
+    const dd = document.getElementById('exp-batch-dropdown');
+    if (dd) dd.style.display = 'none';
+    const input = document.getElementById('exp-batch-search');
+    if (input) input.value = '';
+    this._renderExpBatchTags();
+  },
+
+  _removeExpBatchUser(name) {
+    this._expBatchSelected = this._expBatchSelected.filter(n => n !== name);
+    this._renderExpBatchTags();
+  },
+
+  _renderExpBatchTags() {
+    const container = document.getElementById('exp-batch-tags');
+    if (!container) return;
+    if (this._expBatchSelected.length === 0) {
+      container.innerHTML = '<span style="color:var(--text-muted);font-size:.78rem">尚未選擇用戶</span>';
+      return;
+    }
+    container.innerHTML = this._expBatchSelected.map(name => {
+      const safeName = escapeHTML(name).replace(/'/g, "\\'");
+      return `<span class="reward-tag">${escapeHTML(name)}<button onclick="App._removeExpBatchUser('${safeName}')">✕</button></span>`;
+    }).join('') + `<span style="font-size:.72rem;color:var(--text-muted);align-self:center">共 ${this._expBatchSelected.length} 人</span>`;
+  },
+
+  // ── 批次送出 ──
+  handleBatchExpSubmit() {
+    if (this._expBatchSelected.length === 0) { this.showToast('請先選擇用戶'); return; }
+    const amount = parseInt(document.getElementById('exp-batch-amount')?.value) || 0;
+    const reason = (document.getElementById('exp-batch-reason')?.value || '').trim();
+    if (amount === 0) { this.showToast('請輸入 EXP 調整值'); return; }
+    if (!reason) { this.showToast('請輸入備註原因'); return; }
+    const operatorLabel = this._getExpOperatorLabel();
+    let successCount = 0;
+    this._expBatchSelected.forEach(name => {
+      const user = ApiService.adjustUserExp(name, amount, reason, operatorLabel);
+      if (user) successCount++;
+    });
+    document.getElementById('exp-batch-amount').value = '';
+    document.getElementById('exp-batch-reason').value = '';
+    this._expBatchSelected = [];
+    this._renderExpBatchTags();
+    this.renderExpLogs();
+    this.renderOperationLogs();
+    this.updatePointsDisplay();
+    this.showToast(`批次調整完成：${successCount} 人 EXP ${amount > 0 ? '+' : ''}${amount}`);
+  },
+
+  // ── 球隊下拉 ──
+  _populateExpTeamDropdown() {
+    const sel = document.getElementById('exp-team-select');
+    if (!sel) return;
+    const teams = ApiService.getActiveTeams();
+    sel.innerHTML = '<option value="">— 請選擇球隊 —</option>' +
+      teams.map(t => `<option value="${t.id}">${escapeHTML(t.name)}（${t.members || 0} 人）</option>`).join('');
+  },
+
+  // ── 球隊選擇 ──
+  expTeamSelect() {
+    const teamId = document.getElementById('exp-team-select')?.value;
+    const container = document.getElementById('exp-team-members');
+    if (!container) return;
+    if (!teamId) { container.innerHTML = ''; this._expTeamMembers = []; return; }
+    const members = ApiService.getAdminUsers().filter(u => u.teamId === teamId);
+    this._expTeamMembers = members;
+    if (members.length === 0) {
+      container.innerHTML = '<span style="color:var(--text-muted);font-size:.78rem">該球隊無成員資料</span>';
+      return;
+    }
+    container.innerHTML = members.map(u =>
+      `<span class="reward-tag">${escapeHTML(u.name)}</span>`
+    ).join('') + `<span style="font-size:.72rem;color:var(--text-muted);align-self:center">共 ${members.length} 人</span>`;
+  },
+
+  // ── 球隊送出 ──
+  handleTeamExpSubmit() {
+    if (this._expTeamMembers.length === 0) { this.showToast('請先選擇球隊'); return; }
+    const amount = parseInt(document.getElementById('exp-team-amount')?.value) || 0;
+    const reason = (document.getElementById('exp-team-reason')?.value || '').trim();
+    if (amount === 0) { this.showToast('請輸入 EXP 調整值'); return; }
+    if (!reason) { this.showToast('請輸入備註原因'); return; }
+    const operatorLabel = this._getExpOperatorLabel();
+    let successCount = 0;
+    this._expTeamMembers.forEach(u => {
+      const result = ApiService.adjustUserExp(u.name, amount, reason, operatorLabel);
+      if (result) successCount++;
+    });
+    document.getElementById('exp-team-amount').value = '';
+    document.getElementById('exp-team-reason').value = '';
+    this.renderExpLogs();
+    this.renderOperationLogs();
+    this.updatePointsDisplay();
+    this.showToast(`全隊調整完成：${successCount} 人 EXP ${amount > 0 ? '+' : ''}${amount}`);
+  },
+
+  // ── 操作紀錄渲染 ──
+  renderExpLogs(logs) {
+    const container = document.getElementById('exp-log-list');
+    if (!container) return;
+    if (!logs) logs = ApiService.getExpLogs();
+    if (logs.length === 0) {
+      container.innerHTML = '<div style="text-align:center;padding:1rem;color:var(--text-muted)">沒有操作紀錄</div>';
+      return;
+    }
+    container.innerHTML = logs.map(l => `
+      <div class="log-item">
+        <span class="log-time">${escapeHTML(l.time)}</span>
+        <span class="log-content">${this._userTag(l.target)} <strong>${escapeHTML(String(l.amount))}</strong>「${escapeHTML(l.reason)}」${l.operator ? `<span class="exp-log-operator">— ${escapeHTML(l.operator)}</span>` : ''}</span>
+      </div>
+    `).join('');
+  },
+
+  // ── 操作紀錄篩選 ──
+  filterExpLogs() {
+    const keyword = (document.getElementById('exp-log-search')?.value || '').trim().toLowerCase();
+    const dateVal = document.getElementById('exp-log-date')?.value || '';
+    let logs = ApiService.getExpLogs();
+    if (keyword) {
+      logs = logs.filter(l => (l.target || '').toLowerCase().includes(keyword));
+    }
+    if (dateVal) {
+      const parts = dateVal.split('-');
+      const datePrefix = `${parts[1]}/${parts[2]}`;
+      logs = logs.filter(l => l.time.startsWith(datePrefix));
+    }
+    this.renderExpLogs(logs);
   },
 
   // ─── Step 5: 操作紀錄渲染 + 篩選 ───

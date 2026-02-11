@@ -209,6 +209,15 @@
   padding-top: .4rem;
 }
 
+/* ─── EXP Log Operator Label ─── */
+.exp-log-operator { font-size: .72rem; font-style: italic; color: var(--text-muted); margin-left: .3rem; }
+
+/* ─── EXP Batch Tags & Team Members Scroll ─── */
+#exp-batch-tags, #exp-team-members { max-height: 120px; overflow-y: auto; }
+
+/* ─── EXP Tab Panels ─── */
+.exp-tab-panel { padding: .3rem .2rem; }
+
 /* ─── Dark Theme Log Types ─── */
 [data-theme="dark"] .log-type.exp { background: rgba(96,165,250,.20); }
 [data-theme="dark"] .log-type.role { background: rgba(167,139,250,.20); }

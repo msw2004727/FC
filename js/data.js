@@ -163,9 +163,9 @@ const DemoData = {
   ],
 
   expLogs: [
-    { time: '03/01 14:32', target: '暱稱A', amount: '+500', reason: '活動獎勵' },
-    { time: '02/28 10:15', target: '暱稱B', amount: '-100', reason: '違規扣除' },
-    { time: '02/25 09:00', target: '暱稱C', amount: '+200', reason: '賽事MVP' },
+    { time: '03/01 14:32', target: '暱稱A', amount: '+500', reason: '活動獎勵', operator: '總管' },
+    { time: '02/28 10:15', target: '暱稱B', amount: '-100', reason: '違規扣除', operator: '管理員B' },
+    { time: '02/25 09:00', target: '暱稱C', amount: '+200', reason: '賽事MVP', operator: '總管' },
   ],
 
   operationLogs: [
