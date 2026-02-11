@@ -301,23 +301,9 @@ Object.assign(App, {
       return;
     }
 
-    if (btn) btn.classList.add('loading');
-
-    try {
-      const { friendFlag } = await liff.getFriendship();
-      if (!friendFlag) {
-        if (btn) btn.classList.remove('loading');
-        window.open(`https://line.me/R/ti/p/${LINE_CONFIG.BOT_BASIC_ID}`, '_blank');
-        this.showToast('請先加入官方帳號好友，再重新綁定');
-        return;
-      }
-      this._completeLineBinding(btn);
-    } catch (err) {
-      // getFriendship 不可用（如 LIFF 未設定 Bot link）→ 直接允許綁定
-      // 若實際非好友，推播失敗時 Cloud Function 會自動解綁
-      console.warn('[LineNotify] getFriendship 不可用，直接綁定:', err.message || err);
-      this._completeLineBinding(btn);
-    }
+    // 綁定同時開啟加好友頁面（確保用戶已加官方帳號好友）
+    window.open(`https://line.me/R/ti/p/${LINE_CONFIG.BOT_BASIC_ID}`, '_blank');
+    this._completeLineBinding(btn);
   },
 
   _completeLineBinding(btn) {
