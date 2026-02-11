@@ -61,14 +61,28 @@
 }
 
 /* ─── Reset ─── */
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-html { font-size: 15px; scroll-behavior: smooth; -webkit-tap-highlight-color: transparent; }
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+input, textarea, [contenteditable] {
+  -webkit-user-select: auto;
+  user-select: auto;
+}
+html { font-size: 15px; scroll-behavior: smooth; }
 body {
   font-family: var(--font-body);
   background: var(--bg-root);
   color: var(--text-primary);
   min-height: 100dvh;
   overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
   padding-top: var(--topbar-h);
   padding-bottom: var(--bottombar-h);
   transition: background var(--transition), color var(--transition);
