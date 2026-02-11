@@ -157,6 +157,7 @@ Object.assign(App, {
   renderHotEvents() {
     this._autoEndExpiredEvents();
     const container = document.getElementById('hot-events');
+    if (!container) return;
     // 顯示最近 10 場未結束活動（依日期排序）
     const visible = this._getVisibleEvents()
       .filter(e => e.status !== 'ended' && e.status !== 'cancelled')

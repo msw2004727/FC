@@ -64,6 +64,7 @@ Object.assign(App, {
   goToBanner(idx) {
     this.bannerIndex = idx;
     const track = document.getElementById('banner-track');
+    if (!track) return;
     track.style.transform = `translateX(-${idx * 100}%)`;
     document.querySelectorAll('.banner-dot').forEach((d, i) => d.classList.toggle('active', i === idx));
   },
