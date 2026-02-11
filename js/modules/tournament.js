@@ -207,40 +207,86 @@ Object.assign(App, {
   //  Tournament Management (Admin)
   // ══════════════════════════════════
 
+  /** 根據報名區間計算賽事狀態 */
+  getTournamentStatus(t) {
+    if (!t.regStart || !t.regEnd) return t.status || '準備中';
+    const now = new Date();
+    const start = new Date(t.regStart);
+    const end = new Date(t.regEnd);
+    if (now < start) return '準備中';
+    if (now >= start && now <= end) return '報名中';
+    return '截止報名';
+  },
+
   renderTournamentManage() {
     const container = document.getElementById('tournament-manage-list');
     if (!container) return;
-    container.innerHTML = ApiService.getTournaments().map(t => `
+    container.innerHTML = ApiService.getTournaments().map(t => {
+      const status = this.getTournamentStatus(t);
+      const statusMap = { '準備中': '#6b7280', '報名中': '#10b981', '截止報名': '#f59e0b' };
+      const statusColor = statusMap[status] || '#6b7280';
+
+      return `
       <div class="event-card">
         ${t.image ? `<div class="event-card-img"><img src="${t.image}" style="width:100%;height:120px;object-fit:cover;display:block;border-radius:var(--radius) var(--radius) 0 0"></div>` : ''}
         <div class="event-card-body">
-          <div class="event-card-title">${escapeHTML(t.name)}</div>
+          <div style="display:flex;align-items:center;gap:.4rem">
+            <div class="event-card-title" style="flex:1">${escapeHTML(t.name)}</div>
+            <span style="font-size:.68rem;padding:.15rem .45rem;border-radius:20px;background:${statusColor}18;color:${statusColor};font-weight:600;white-space:nowrap">${status}</span>
+          </div>
           <div class="event-meta">
             <span class="event-meta-item">${escapeHTML(t.type)}</span>
             <span class="event-meta-item">${t.teams} 隊</span>
-            <span class="event-meta-item">${t.status}</span>
+            ${t.matchDates && t.matchDates.length ? `<span class="event-meta-item">比賽日 ${t.matchDates.length} 天</span>` : ''}
           </div>
           <div style="display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.5rem">
             <button class="primary-btn small">管理賽程</button>
-            <button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem">輸入比分</button>
-            <button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem">交易設定</button>
-            <button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem">紅黃牌</button>
+            <button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem">賽事統計</button>
+            <button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem">參賽管理</button>
             <button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem;color:var(--danger)" onclick="App.handleDeleteTournament('${t.id}')">刪除</button>
           </div>
         </div>
-      </div>
-    `).join('');
+      </div>`;
+    }).join('');
   },
 
   // ══════════════════════════════════
   //  Create Tournament
   // ══════════════════════════════════
 
+  _ctMatchDates: [],
+
+  addMatchDate(val) {
+    if (!val || this._ctMatchDates.includes(val)) return;
+    this._ctMatchDates.push(val);
+    this._ctMatchDates.sort();
+    this._renderMatchDateTags();
+    document.getElementById('ct-match-date-picker').value = '';
+  },
+
+  removeMatchDate(val) {
+    this._ctMatchDates = this._ctMatchDates.filter(d => d !== val);
+    this._renderMatchDateTags();
+  },
+
+  _renderMatchDateTags() {
+    const wrap = document.getElementById('ct-match-dates-wrap');
+    if (!wrap) return;
+    wrap.innerHTML = this._ctMatchDates.map(d => {
+      const parts = d.split('-');
+      const label = `${parseInt(parts[1])}/${parseInt(parts[2])}`;
+      return `<span style="display:inline-flex;align-items:center;gap:.2rem;font-size:.72rem;padding:.2rem .5rem;border-radius:20px;background:var(--accent);color:#fff">${label}<span style="cursor:pointer;margin-left:.1rem" onclick="App.removeMatchDate('${d}')">✕</span></span>`;
+    }).join('');
+  },
+
   handleCreateTournament() {
     const name = document.getElementById('ct-name').value.trim();
     const type = document.getElementById('ct-type').value;
     const teams = parseInt(document.getElementById('ct-teams').value) || 8;
-    const status = document.getElementById('ct-status').value;
+    const regStart = document.getElementById('ct-reg-start').value || null;
+    const regEnd = document.getElementById('ct-reg-end').value || null;
+    const desc = document.getElementById('ct-desc').value.trim();
+    const matchDates = [...this._ctMatchDates];
 
     if (!name) { this.showToast('請輸入賽事名稱'); return; }
 
@@ -248,13 +294,18 @@ Object.assign(App, {
     const ctImg = ctPreviewEl?.querySelector('img');
     const image = ctImg ? ctImg.src : null;
 
-    ApiService.createTournament({
+    const data = {
       id: 'ct_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
       name, type, teams,
-      matches: type.includes('聯賽') ? teams * (teams - 1) : teams - 1,
-      status, image,
-      gradient: TOURNAMENT_GRADIENT_MAP[type] || TOURNAMENT_GRADIENT_MAP['聯賽（雙循環）'],
-    });
+      matches: teams - 1,
+      regStart, regEnd, matchDates, description: desc,
+      image,
+      gradient: TOURNAMENT_GRADIENT_MAP[type] || 'linear-gradient(135deg,#7c3aed,#4338ca)',
+    };
+    // 自動計算狀態
+    data.status = this.getTournamentStatus(data);
+
+    ApiService.createTournament(data);
 
     this.renderTournamentTimeline();
     this.renderOngoingTournaments();
@@ -262,7 +313,14 @@ Object.assign(App, {
     this.closeModal();
     this.showToast(`賽事「${name}」已建立！`);
 
+    // Reset form
     document.getElementById('ct-name').value = '';
+    document.getElementById('ct-reg-start').value = '';
+    document.getElementById('ct-reg-end').value = '';
+    document.getElementById('ct-desc').value = '';
+    document.getElementById('ct-desc-count').textContent = '0/500';
+    this._ctMatchDates = [];
+    this._renderMatchDateTags();
     const preview = document.getElementById('ct-upload-preview');
     if (preview) {
       preview.classList.remove('has-image');

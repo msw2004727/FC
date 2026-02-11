@@ -62,10 +62,10 @@ const DemoData = {
   ],
 
   tournaments: [
-    { id: 't1', name: '2026 春季足球聯賽', type: '聯賽（雙循環）', teams: 8, matches: 56, status: '進行中', gradient: 'linear-gradient(135deg,#dc2626,#991b1b)' },
-    { id: 't2', name: '新春盃足球淘汰賽', type: '盃賽（單敗淘汰）', teams: 16, matches: 15, status: '即將開始', gradient: 'linear-gradient(135deg,#7c3aed,#4338ca)' },
-    { id: 't3', name: '2025 秋季足球聯賽', type: '聯賽（雙循環）', teams: 8, matches: 56, status: '已結束', gradient: 'linear-gradient(135deg,#6b7280,#374151)' },
-    { id: 't4', name: '市長盃五人制足球賽', type: '盃賽（分組+淘汰）', teams: 12, matches: 20, status: '報名中', gradient: 'linear-gradient(135deg,#0d9488,#065f46)' },
+    { id: 't1', name: '2026 春季足球聯賽', type: '盃賽', teams: 8, matches: 56, regStart: '2026-01-15T08:00', regEnd: '2026-02-01T23:59', matchDates: ['2026-03-01','2026-03-08','2026-03-15','2026-03-22','2026-03-29'], description: '春季盃賽，採淘汰制，每週六進行。', status: '截止報名', gradient: 'linear-gradient(135deg,#dc2626,#991b1b)' },
+    { id: 't2', name: '新春盃足球淘汰賽', type: '盃賽', teams: 16, matches: 15, regStart: '2026-02-10T08:00', regEnd: '2026-03-10T23:59', matchDates: ['2026-03-22','2026-03-29','2026-04-05'], description: '新春盃淘汰賽，16 隊角逐冠軍。', status: '報名中', gradient: 'linear-gradient(135deg,#7c3aed,#4338ca)' },
+    { id: 't3', name: '2025 秋季足球聯賽', type: '盃賽', teams: 8, matches: 56, regStart: '2025-08-01T08:00', regEnd: '2025-08-31T23:59', matchDates: [], description: '2025 秋季聯賽已結束。', status: '截止報名', gradient: 'linear-gradient(135deg,#6b7280,#374151)' },
+    { id: 't4', name: '市長盃五人制足球賽', type: '盃賽', teams: 12, matches: 20, regStart: '2026-02-01T08:00', regEnd: '2026-03-15T23:59', matchDates: ['2026-04-12','2026-04-13'], description: '市長盃五人制足球賽，歡迎各隊報名參加。', status: '報名中', gradient: 'linear-gradient(135deg,#0d9488,#065f46)' },
   ],
 
   teams: [

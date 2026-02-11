@@ -47,6 +47,42 @@
   <div class="modal-body">
     <div class="ce-form">
       <div class="ce-row">
+        <label>賽事名稱</label>
+        <input type="text" id="ct-name" placeholder="例：2026 春季盃足球賽">
+      </div>
+      <div class="ce-row">
+        <label>賽事類型</label>
+        <select id="ct-type">
+          <option value="盃賽">盃賽</option>
+        </select>
+      </div>
+      <div class="ce-row">
+        <label>參賽隊伍數</label>
+        <input type="number" id="ct-teams" value="8" min="2">
+      </div>
+      <div class="ce-row">
+        <label>比賽日期（可複選）</label>
+        <div style="font-size:.72rem;color:var(--text-muted);margin-bottom:.3rem">點擊月曆勾選所有比賽日</div>
+        <div id="ct-match-dates-wrap" style="display:flex;flex-wrap:wrap;gap:.3rem;margin-bottom:.3rem"></div>
+        <input type="date" id="ct-match-date-picker" onchange="App.addMatchDate(this.value)">
+      </div>
+      <div class="ce-row ce-row-half">
+        <div>
+          <label>報名開始</label>
+          <input type="datetime-local" id="ct-reg-start">
+        </div>
+        <div>
+          <label>報名截止</label>
+          <input type="datetime-local" id="ct-reg-end">
+        </div>
+      </div>
+      <div style="font-size:.72rem;color:var(--text-muted);margin:-.2rem 0 .4rem">區間前＝準備中，區間內＝報名中，區間後＝截止報名</div>
+      <div class="ce-row">
+        <label>活動說明（上限 500 字）</label>
+        <textarea id="ct-desc" rows="4" maxlength="500" placeholder="賽事規則、注意事項..." oninput="document.getElementById('ct-desc-count').textContent=this.value.length+'/500'"></textarea>
+        <span id="ct-desc-count" style="font-size:.68rem;color:var(--text-muted);text-align:right">0/500</span>
+      </div>
+      <div class="ce-row">
         <label>賽事封面圖片</label>
         <div class="ce-upload" id="ct-upload-area">
           <input type="file" id="ct-image" accept=".jpg,.jpeg,.png" hidden>
@@ -55,32 +91,6 @@
             <span class="ce-upload-text">點擊上傳圖片</span>
             <span class="ce-upload-hint">建議尺寸 800 × 300 px｜JPG / PNG｜最大 2MB</span>
           </div>
-        </div>
-      </div>
-      <div class="ce-row">
-        <label>賽事名稱</label>
-        <input type="text" id="ct-name" placeholder="例：2026 春季足球聯賽">
-      </div>
-      <div class="ce-row">
-        <label>賽事類型</label>
-        <select id="ct-type">
-          <option value="聯賽（雙循環）">聯賽（雙循環）</option>
-          <option value="盃賽（單敗淘汰）">盃賽（單敗淘汰）</option>
-          <option value="盃賽（分組+淘汰）">盃賽（分組+淘汰）</option>
-        </select>
-      </div>
-      <div class="ce-row ce-row-half">
-        <div>
-          <label>參賽隊伍數</label>
-          <input type="number" id="ct-teams" value="8">
-        </div>
-        <div>
-          <label>賽事狀態</label>
-          <select id="ct-status">
-            <option value="報名中">報名中</option>
-            <option value="即將開始">即將開始</option>
-            <option value="進行中">進行中</option>
-          </select>
         </div>
       </div>
     </div>

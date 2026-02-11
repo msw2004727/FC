@@ -117,9 +117,7 @@ const GRADIENT_MAP = {
 };
 
 const TOURNAMENT_GRADIENT_MAP = {
-  '聯賽（雙循環）': 'linear-gradient(135deg,#dc2626,#991b1b)',
-  '盃賽（單敗淘汰）': 'linear-gradient(135deg,#7c3aed,#4338ca)',
-  '盃賽（分組+淘汰）': 'linear-gradient(135deg,#0d9488,#065f46)',
+  '盃賽': 'linear-gradient(135deg,#7c3aed,#4338ca)',
 };
 
 // ─── Drawer Menu Config ───
