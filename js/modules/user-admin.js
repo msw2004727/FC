@@ -169,11 +169,14 @@ Object.assign(App, {
   // ─── EXP Management ───
   _expBatchSelected: [],
   _expTeamMembers: [],
+  _expLogPage: 1,
+  _expLogPerPage: 30,
+  _expLogFilteredCache: null,
 
   // ── 頁簽切換 ──
   switchExpTab(tab) {
     const tabs = document.querySelectorAll('#exp-tab-bar .tab');
-    const panels = ['individual', 'batch', 'team'];
+    const panels = ['individual', 'batch', 'team', 'teamExp'];
     tabs.forEach((btn, i) => {
       btn.classList.toggle('active', panels[i] === tab);
     });
@@ -196,21 +199,21 @@ Object.assign(App, {
     const keyword = (document.getElementById('exp-search')?.value || '').trim().toLowerCase();
     const dd = document.getElementById('exp-search-dropdown');
     if (!dd) return;
-    if (!keyword) { dd.style.display = 'none'; return; }
+    if (!keyword) { dd.classList.remove('open'); return; }
     const users = ApiService.getAdminUsers().filter(u =>
       u.name.toLowerCase().includes(keyword) || u.uid.toLowerCase().includes(keyword)
     ).slice(0, 8);
-    if (users.length === 0) { dd.style.display = 'none'; return; }
+    if (users.length === 0) { dd.classList.remove('open'); return; }
     dd.innerHTML = users.map(u => {
       const safeName = escapeHTML(u.name).replace(/'/g, "\\'");
-      return `<div class="delegate-option" onclick="App._selectExpTarget('${safeName}')">${escapeHTML(u.name)} <span style="color:var(--text-muted);font-size:.72rem">${escapeHTML(u.uid)}</span></div>`;
+      return `<div class="ce-delegate-item" onclick="App._selectExpTarget('${safeName}')"><span class="ce-delegate-item-name">${escapeHTML(u.name)}</span><span style="color:var(--text-muted);font-size:.72rem">${escapeHTML(u.uid)}</span></div>`;
     }).join('');
-    dd.style.display = '';
+    dd.classList.add('open');
   },
 
   _selectExpTarget(name) {
     const dd = document.getElementById('exp-search-dropdown');
-    if (dd) dd.style.display = 'none';
+    if (dd) dd.classList.remove('open');
     const input = document.getElementById('exp-search');
     if (input) input.value = name;
     const users = ApiService.getAdminUsers();
@@ -255,24 +258,24 @@ Object.assign(App, {
     const keyword = (document.getElementById('exp-batch-search')?.value || '').trim().toLowerCase();
     const dd = document.getElementById('exp-batch-dropdown');
     if (!dd) return;
-    if (!keyword) { dd.style.display = 'none'; return; }
+    if (!keyword) { dd.classList.remove('open'); return; }
     const selected = this._expBatchSelected;
     const users = ApiService.getAdminUsers().filter(u =>
       !selected.includes(u.name) &&
       (u.name.toLowerCase().includes(keyword) || u.uid.toLowerCase().includes(keyword))
     ).slice(0, 8);
-    if (users.length === 0) { dd.style.display = 'none'; return; }
+    if (users.length === 0) { dd.classList.remove('open'); return; }
     dd.innerHTML = users.map(u => {
       const safeName = escapeHTML(u.name).replace(/'/g, "\\'");
-      return `<div class="delegate-option" onclick="App._addExpBatchUser('${safeName}')">${escapeHTML(u.name)} <span style="color:var(--text-muted);font-size:.72rem">${escapeHTML(u.uid)}</span></div>`;
+      return `<div class="ce-delegate-item" onclick="App._addExpBatchUser('${safeName}')"><span class="ce-delegate-item-name">${escapeHTML(u.name)}</span><span style="color:var(--text-muted);font-size:.72rem">${escapeHTML(u.uid)}</span></div>`;
     }).join('');
-    dd.style.display = '';
+    dd.classList.add('open');
   },
 
   _addExpBatchUser(name) {
     if (!this._expBatchSelected.includes(name)) this._expBatchSelected.push(name);
     const dd = document.getElementById('exp-batch-dropdown');
-    if (dd) dd.style.display = 'none';
+    if (dd) dd.classList.remove('open');
     const input = document.getElementById('exp-batch-search');
     if (input) input.value = '';
     this._renderExpBatchTags();
@@ -366,28 +369,159 @@ Object.assign(App, {
     this.showToast(`全隊調整完成：${successCount} 人 EXP ${amount > 0 ? '+' : ''}${amount}`);
   },
 
-  // ── 操作紀錄渲染 ──
+  // ── 球隊積分搜尋 ──
+  _expTeamExpSelectedId: null,
+
+  expTeamExpSearch() {
+    const keyword = (document.getElementById('exp-team-exp-search')?.value || '').trim().toLowerCase();
+    const dd = document.getElementById('exp-team-exp-dropdown');
+    if (!dd) return;
+    if (!keyword) { dd.classList.remove('open'); return; }
+    const teams = ApiService.getActiveTeams().filter(t =>
+      t.name.toLowerCase().includes(keyword) || (t.nameEn || '').toLowerCase().includes(keyword)
+    ).slice(0, 8);
+    if (teams.length === 0) { dd.classList.remove('open'); return; }
+    dd.innerHTML = teams.map(t => {
+      const thumb = t.image
+        ? `<img src="${t.image}" style="width:24px;height:24px;border-radius:50%;object-fit:cover;flex-shrink:0">`
+        : `<span style="width:24px;height:24px;border-radius:50%;border:1.5px dashed var(--border);display:inline-flex;flex-shrink:0"></span>`;
+      return `<div class="ce-delegate-item" style="display:flex;align-items:center;gap:.4rem" onclick="App._selectExpTeamTarget('${escapeHTML(t.id)}')">${thumb}<span class="ce-delegate-item-name">${escapeHTML(t.name)}</span><span style="color:var(--text-muted);font-size:.68rem;margin-left:auto">${(t.teamExp || 0).toLocaleString()}</span></div>`;
+    }).join('');
+    dd.classList.add('open');
+  },
+
+  _selectExpTeamTarget(teamId) {
+    const dd = document.getElementById('exp-team-exp-dropdown');
+    if (dd) dd.classList.remove('open');
+    const input = document.getElementById('exp-team-exp-search');
+    const team = ApiService.getTeam(teamId);
+    if (!team) return;
+    if (input) input.value = team.name;
+    this._expTeamExpSelectedId = teamId;
+    const card = document.getElementById('exp-team-exp-card');
+    if (!card) return;
+    card.style.display = '';
+    const rank = this._getTeamRank ? this._getTeamRank(team.teamExp) : (function() {
+      const exp = team.teamExp || 0;
+      for (let i = TEAM_RANK_CONFIG.length - 1; i >= 0; i--) {
+        if (exp >= TEAM_RANK_CONFIG[i].min) return TEAM_RANK_CONFIG[i];
+      }
+      return TEAM_RANK_CONFIG[0];
+    })();
+    const avatarEl = document.getElementById('exp-team-exp-avatar');
+    const nameEl = document.getElementById('exp-team-exp-name');
+    const detailEl = document.getElementById('exp-team-exp-detail');
+    if (avatarEl) {
+      if (team.image) {
+        avatarEl.innerHTML = `<img src="${team.image}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`;
+        avatarEl.style.border = 'none';
+        avatarEl.style.background = 'none';
+      } else {
+        avatarEl.innerHTML = '';
+        avatarEl.style.border = '2px dashed var(--border)';
+        avatarEl.style.background = 'var(--bg-elevated)';
+      }
+    }
+    if (nameEl) nameEl.innerHTML = `${escapeHTML(team.name)} <span style="color:${rank.color};font-weight:900;margin-left:.3rem">${(team.teamExp || 0).toLocaleString()} ${rank.rank}</span>`;
+    if (detailEl) detailEl.textContent = `積分: ${(team.teamExp || 0).toLocaleString()} ・ ${team.members} 人 ・ ${team.region || '—'}`;
+  },
+
+  handleTeamExpSubmit2() {
+    if (!this._expTeamExpSelectedId) { this.showToast('請先搜尋並選擇球隊'); return; }
+    const amount = parseInt(document.getElementById('exp-team-exp-amount')?.value) || 0;
+    const reason = (document.getElementById('exp-team-exp-reason')?.value || '').trim();
+    if (amount === 0) { this.showToast('請輸入積分調整值'); return; }
+    if (!reason) { this.showToast('請輸入備註原因'); return; }
+    const operatorLabel = this._getExpOperatorLabel();
+    const team = ApiService.adjustTeamExp(this._expTeamExpSelectedId, amount, reason, operatorLabel);
+    if (team) {
+      this._selectExpTeamTarget(this._expTeamExpSelectedId);
+      document.getElementById('exp-team-exp-amount').value = '';
+      document.getElementById('exp-team-exp-reason').value = '';
+      this.renderExpLogs();
+      this.renderOperationLogs();
+      this.showToast(`已調整「${team.name}」球隊積分 ${amount > 0 ? '+' : ''}${amount}`);
+    }
+  },
+
+  // ── 操作紀錄渲染（分頁） ──
   renderExpLogs(logs) {
     const container = document.getElementById('exp-log-list');
     if (!container) return;
-    if (!logs) logs = ApiService.getExpLogs();
+    if (!logs) {
+      const userLogs = ApiService.getExpLogs().map(l => ({ ...l, logType: 'user' }));
+      const teamLogs = ApiService.getTeamExpLogs().map(l => ({ ...l, logType: 'team' }));
+      logs = [...userLogs, ...teamLogs].sort((a, b) => {
+        if (a.time > b.time) return -1;
+        if (a.time < b.time) return 1;
+        return 0;
+      });
+    }
+    this._expLogFilteredCache = logs;
+
     if (logs.length === 0) {
       container.innerHTML = '<div style="text-align:center;padding:1rem;color:var(--text-muted)">沒有操作紀錄</div>';
+      const pgEl = document.getElementById('exp-log-pagination');
+      if (pgEl) pgEl.innerHTML = '';
       return;
     }
-    container.innerHTML = logs.map(l => `
-      <div class="log-item">
+
+    const perPage = this._expLogPerPage;
+    const totalPages = Math.ceil(logs.length / perPage);
+    if (this._expLogPage > totalPages) this._expLogPage = totalPages;
+    if (this._expLogPage < 1) this._expLogPage = 1;
+    const start = (this._expLogPage - 1) * perPage;
+    const pageItems = logs.slice(start, start + perPage);
+
+    container.innerHTML = pageItems.map(l => {
+      const isPlus = String(l.amount).includes('+');
+      let colorClass = '';
+      if (l.logType === 'team') {
+        colorClass = isPlus ? 'log-team-plus' : 'log-team-minus';
+      } else {
+        colorClass = isPlus ? 'log-user-plus' : 'log-user-minus';
+      }
+      const typeTag = l.logType === 'team' ? '<span class="log-type team_exp">球隊</span>' : '';
+      return `
+      <div class="log-item ${colorClass}">
         <span class="log-time">${escapeHTML(l.time)}</span>
-        <span class="log-content">${this._userTag(l.target)} <strong>${escapeHTML(String(l.amount))}</strong>「${escapeHTML(l.reason)}」${l.operator ? `<span class="exp-log-operator">— ${escapeHTML(l.operator)}</span>` : ''}</span>
-      </div>
-    `).join('');
+        <span class="log-content">${typeTag}${l.logType === 'team' ? escapeHTML(l.target) : this._userTag(l.target)} <strong>${escapeHTML(String(l.amount))}</strong>「${escapeHTML(l.reason)}」${l.operator ? `<span class="exp-log-operator">— ${escapeHTML(l.operator)}</span>` : ''}</span>
+      </div>`;
+    }).join('');
+
+    this._renderExpLogPagination(totalPages);
+  },
+
+  _renderExpLogPagination(totalPages) {
+    const pgEl = document.getElementById('exp-log-pagination');
+    if (!pgEl) return;
+    if (totalPages <= 1) { pgEl.innerHTML = ''; return; }
+    const cur = this._expLogPage;
+    let html = '';
+    if (cur > 1) html += `<button class="exp-pg-btn" onclick="App.goExpLogPage(${cur - 1})">‹</button>`;
+    for (let i = 1; i <= totalPages; i++) {
+      html += `<button class="exp-pg-btn${i === cur ? ' active' : ''}" onclick="App.goExpLogPage(${i})">${i}</button>`;
+    }
+    if (cur < totalPages) html += `<button class="exp-pg-btn" onclick="App.goExpLogPage(${cur + 1})">›</button>`;
+    pgEl.innerHTML = html;
+  },
+
+  goExpLogPage(page) {
+    this._expLogPage = page;
+    this.renderExpLogs(this._expLogFilteredCache);
   },
 
   // ── 操作紀錄篩選 ──
   filterExpLogs() {
     const keyword = (document.getElementById('exp-log-search')?.value || '').trim().toLowerCase();
     const dateVal = document.getElementById('exp-log-date')?.value || '';
-    let logs = ApiService.getExpLogs();
+    const userLogs = ApiService.getExpLogs().map(l => ({ ...l, logType: 'user' }));
+    const teamLogs = ApiService.getTeamExpLogs().map(l => ({ ...l, logType: 'team' }));
+    let logs = [...userLogs, ...teamLogs].sort((a, b) => {
+      if (a.time > b.time) return -1;
+      if (a.time < b.time) return 1;
+      return 0;
+    });
     if (keyword) {
       logs = logs.filter(l => (l.target || '').toLowerCase().includes(keyword));
     }
@@ -396,6 +530,7 @@ Object.assign(App, {
       const datePrefix = `${parts[1]}/${parts[2]}`;
       logs = logs.filter(l => l.time.startsWith(datePrefix));
     }
+    this._expLogPage = 1;
     this.renderExpLogs(logs);
   },
 

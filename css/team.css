@@ -146,6 +146,22 @@
 }
 .team-tag .team-tag-x:hover { opacity: .7; }
 
+/* ─── Team Rank Badge ─── */
+.tc-rank-badge {
+  position: absolute; bottom: .25rem; right: .25rem;
+  font-size: .7rem; font-weight: 900;
+  font-family: var(--font-display);
+  line-height: 1; z-index: 2; pointer-events: none;
+}
+.tc-rank-badge-lg {
+  font-size: 1.4rem; bottom: .5rem; right: .6rem;
+}
+.tc-rank-score {
+  font-size: inherit; font-weight: 700;
+  margin-right: .2rem;
+  color: #000; text-shadow: none;
+}
+
 /* Dark theme */
 [data-theme="dark"] .td-member-role.captain { background: rgba(251,191,36,.18); color: #fcd34d; }
 [data-theme="dark"] .td-member-role.coach { background: rgba(124,58,237,.18); color: #c4b5fd; }

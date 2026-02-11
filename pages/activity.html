@@ -46,11 +46,17 @@
       <div class="page-header">
         <button class="back-btn" onclick="App.goBack()">←</button>
         <h2>活動管理</h2>
+        <div id="my-activity-creator-wrap" style="display:none;position:relative">
+          <input type="text" id="my-activity-creator-input" placeholder="篩選主辦人..." autocomplete="off" oninput="App.searchCreatorFilter()" style="font-size:.72rem;padding:.25rem 1.4rem .25rem .4rem;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-card);color:var(--text-primary);width:110px">
+          <span id="my-activity-creator-clear" onclick="App.clearCreatorFilter()" style="display:none;position:absolute;right:4px;top:50%;transform:translateY(-50%);cursor:pointer;font-size:.7rem;color:var(--text-muted);line-height:1">✕</span>
+          <div id="my-activity-creator-dropdown" class="ce-delegate-dropdown" style="min-width:140px"></div>
+        </div>
         <button class="primary-btn small" onclick="App.openCreateEventModal()">＋ 新增</button>
       </div>
       <div id="my-activity-stats" style="font-size:.75rem;color:var(--text-muted);padding:0 .5rem .3rem;text-align:right"></div>
       <div class="tab-bar" id="my-activity-tabs">
         <button class="tab active" data-afilter="all">全部</button>
+        <button class="tab" data-afilter="upcoming">即將開放</button>
         <button class="tab" data-afilter="open">報名中</button>
         <button class="tab" data-afilter="full">已額滿</button>
         <button class="tab" data-afilter="ended">已結束</button>
@@ -86,7 +92,7 @@
           </div>
         </div>
         <div class="ce-row">
-          <label>活動名稱</label>
+          <label>活動名稱 <span class="required">*必填</span></label>
           <input type="text" id="ce-title" placeholder="例：週六足球友誼賽" maxlength="12">
         </div>
         <div class="ce-row">
@@ -99,7 +105,7 @@
           </select>
         </div>
         <div class="ce-row">
-          <label>地點</label>
+          <label>地點 <span class="required">*必填</span></label>
           <input type="text" id="ce-location" placeholder="例：台北市大安運動中心">
         </div>
         <div class="ce-row ce-row-half">
@@ -155,13 +161,18 @@
             </div>
           </div>
         </div>
+        <div class="ce-row">
+          <label>開放報名時間 <span style="font-size:.68rem;color:var(--text-muted);font-weight:400">（未設定則立即開放）</span></label>
+          <input type="datetime-local" id="ce-reg-open-time" style="width:100%">
+          <div style="font-size:.68rem;color:var(--text-muted);margin-top:.2rem">報名時間未到將顯示「即將開放」，到達時間後自動變為「報名中」</div>
+        </div>
         <div class="ce-row ce-row-half">
           <div>
             <label>費用 ($)</label>
             <input type="number" id="ce-fee" placeholder="0" value="300">
           </div>
           <div>
-            <label>人數上限</label>
+            <label>人數上限 <span class="required">*必填</span></label>
             <input type="number" id="ce-max" placeholder="20" value="20">
           </div>
         </div>

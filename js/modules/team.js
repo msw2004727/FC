@@ -8,6 +8,15 @@ Object.assign(App, {
   _teamCaptainUid: null,
   _teamCoachUids: [],
 
+  _getTeamRank(teamExp) {
+    const exp = teamExp || 0;
+    for (let i = TEAM_RANK_CONFIG.length - 1; i >= 0; i--) {
+      const cfg = TEAM_RANK_CONFIG[i];
+      if (exp >= cfg.min) return { rank: cfg.rank, color: cfg.color };
+    }
+    return { rank: 'E', color: '#6b7280' };
+  },
+
   _sortTeams(teams) {
     return [...teams].sort((a, b) => {
       if (a.pinned && !b.pinned) return -1;
@@ -20,12 +29,13 @@ Object.assign(App, {
   _teamCardHTML(t) {
     const pinnedClass = t.pinned ? ' tc-pinned' : '';
     const color = t.color || '#6b7280';
+    const rank = this._getTeamRank(t.teamExp);
     return `
       <div class="tc-card${pinnedClass}" onclick="App.showTeamDetail('${t.id}')">
         ${t.pinned ? '<div class="tc-pin-badge">至頂</div>' : ''}
         ${t.image
-          ? `<div style="width:100%;aspect-ratio:1;overflow:hidden;border-radius:var(--radius) var(--radius) 0 0"><img src="${t.image}" style="width:100%;height:100%;object-fit:cover;display:block"></div>`
-          : `<div class="tc-img-placeholder">球隊圖片</div>`}
+          ? `<div style="position:relative;width:100%;aspect-ratio:1;overflow:hidden;border-radius:var(--radius) var(--radius) 0 0"><img src="${t.image}" style="width:100%;height:100%;object-fit:cover;display:block"><span class="tc-rank-badge" style="color:${rank.color}"><span class="tc-rank-score">${(t.teamExp || 0).toLocaleString()}</span>${rank.rank}</span></div>`
+          : `<div class="tc-img-placeholder" style="position:relative">球隊圖片<span class="tc-rank-badge" style="color:${rank.color}"><span class="tc-rank-score">${(t.teamExp || 0).toLocaleString()}</span>${rank.rank}</span></div>`}
         <div class="tc-body">
           <div class="tc-name">${escapeHTML(t.name)}</div>
           <div class="tc-info-row"><span class="tc-label">隊員</span><span>${t.members} 人</span></div>
@@ -71,10 +81,12 @@ Object.assign(App, {
     document.getElementById('team-detail-name-en').textContent = t.nameEn || '';
 
     const imgEl = document.getElementById('team-detail-img');
+    const detailRank = this._getTeamRank(t.teamExp);
+    imgEl.style.position = 'relative';
     if (t.image) {
-      imgEl.innerHTML = `<img src="${t.image}" style="width:100%;height:100%;object-fit:cover">`;
+      imgEl.innerHTML = `<img src="${t.image}" style="width:100%;height:100%;object-fit:cover"><span class="tc-rank-badge tc-rank-badge-lg" style="color:${detailRank.color}"><span class="tc-rank-score">${(t.teamExp || 0).toLocaleString()}</span>${detailRank.rank}</span>`;
     } else {
-      imgEl.innerHTML = '球隊封面 800 × 300';
+      imgEl.innerHTML = `球隊封面 800 × 300<span class="tc-rank-badge tc-rank-badge-lg" style="color:${detailRank.color}"><span class="tc-rank-score">${(t.teamExp || 0).toLocaleString()}</span>${detailRank.rank}</span>`;
     }
 
     const totalGames = (t.wins || 0) + (t.draws || 0) + (t.losses || 0);

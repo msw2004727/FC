@@ -218,7 +218,21 @@
 /* ─── EXP Tab Panels ─── */
 .exp-tab-panel { padding: .3rem .2rem; }
 
+/* ─── EXP Log Pagination ─── */
+.exp-log-pagination { display: flex; justify-content: center; gap: .25rem; padding: .6rem 0 .3rem; flex-wrap: wrap; }
+.exp-pg-btn { min-width: 28px; height: 28px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: transparent; color: var(--text-secondary); font-size: .75rem; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all .15s; }
+.exp-pg-btn:hover { border-color: var(--primary); color: var(--primary); }
+.exp-pg-btn.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+
+/* ─── EXP Log Color Classes ─── */
+.log-item.log-user-plus  { background: rgba(34,197,94,.10); border-radius: 6px; }
+.log-item.log-user-minus { background: rgba(239,68,68,.10); border-radius: 6px; }
+.log-item.log-team-plus  { background: rgba(168,85,247,.10); border-radius: 6px; }
+.log-item.log-team-minus { background: rgba(234,179,8,.10); border-radius: 6px; }
+.log-type.team_exp { background: rgba(168,85,247,.15); color: #a855f7; }
+
 /* ─── Dark Theme Log Types ─── */
 [data-theme="dark"] .log-type.exp { background: rgba(96,165,250,.20); }
 [data-theme="dark"] .log-type.role { background: rgba(167,139,250,.20); }
 [data-theme="dark"] .log-type.event { background: rgba(52,211,153,.20); }
+[data-theme="dark"] .log-type.team_exp { background: rgba(168,85,247,.25); }

@@ -113,6 +113,7 @@ Object.assign(App, {
   _calcCountdown(e) {
     if (e.status === 'ended') return '已結束';
     if (e.status === 'cancelled') return '已取消';
+    if (e.status === 'upcoming' && e.regOpenTime) return '即將開放';
     const start = this._parseEventStartDate(e.date);
     if (!start) return '';
     const now = new Date();
@@ -127,10 +128,18 @@ Object.assign(App, {
     return `剩餘 ${mins}分`;
   },
 
-  /** 自動將過期的 open/full 活動改為 ended */
+  /** 自動將過期的 open/full 活動改為 ended；報名時間到達的 upcoming 改為 open */
   _autoEndExpiredEvents() {
     const now = new Date();
     ApiService.getEvents().forEach(e => {
+      // upcoming → open（報名時間已到）
+      if (e.status === 'upcoming' && e.regOpenTime) {
+        const regOpen = new Date(e.regOpenTime);
+        if (regOpen <= now) {
+          ApiService.updateEvent(e.id, { status: 'open' });
+        }
+        return;
+      }
       if (e.status !== 'open' && e.status !== 'full') return;
       const start = this._parseEventStartDate(e.date);
       if (start && start <= now) {
@@ -337,11 +346,14 @@ Object.assign(App, {
     const locationHtml = `<a href="${mapUrl}" target="_blank" rel="noopener" style="color:var(--primary);text-decoration:none">${escapeHTML(e.location)} 📍</a>`;
 
     const isEnded = e.status === 'ended' || e.status === 'cancelled';
+    const isUpcoming = e.status === 'upcoming';
     const isMainFull = e.current >= e.max;
     const isSignedUp = this._isUserSignedUp(e);
     const isOnWaitlist = isSignedUp && this._isUserOnWaitlist(e);
     let signupBtn = '';
-    if (isEnded) {
+    if (isUpcoming) {
+      signupBtn = `<button style="background:#64748b;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:not-allowed" disabled>報名尚未開放</button>`;
+    } else if (isEnded) {
       signupBtn = `<button style="background:#333;color:#999;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:not-allowed" disabled>已結束</button>`;
     } else if (isOnWaitlist) {
       signupBtn = `<button style="background:#7c3aed;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:pointer" onclick="App.handleCancelSignup('${e.id}')">取消候補</button>`;
@@ -355,9 +367,27 @@ Object.assign(App, {
 
     const teamTag = e.teamOnly ? `<div class="detail-row"><span class="detail-label">限定</span><span style="color:#e11d48;font-weight:600">${escapeHTML(e.creatorTeamName || '球隊')} 專屬活動</span></div>` : '';
 
+    // 開放報名時間顯示
+    let regOpenHtml = '';
+    if (e.regOpenTime) {
+      const regDate = new Date(e.regOpenTime);
+      const regStr = `${regDate.getFullYear()}/${String(regDate.getMonth()+1).padStart(2,'0')}/${String(regDate.getDate()).padStart(2,'0')} ${String(regDate.getHours()).padStart(2,'0')}:${String(regDate.getMinutes()).padStart(2,'0')}`;
+      if (isUpcoming) {
+        const diff = regDate - new Date();
+        const totalMin = Math.max(0, Math.floor(diff / 60000));
+        const days = Math.floor(totalMin / 1440);
+        const hours = Math.floor((totalMin % 1440) / 60);
+        const countdownTxt = days > 0 ? `${days}日${hours}時後開放` : hours > 0 ? `${hours}時${totalMin % 60}分後開放` : `${totalMin}分後開放`;
+        regOpenHtml = `<div class="detail-row"><span class="detail-label">開放報名</span><span style="color:var(--info);font-weight:600">${regStr}（${countdownTxt}）</span></div>`;
+      } else {
+        regOpenHtml = `<div class="detail-row"><span class="detail-label">開放報名</span>${regStr}（已開放）</div>`;
+      }
+    }
+
     document.getElementById('detail-body').innerHTML = `
       <div class="detail-row"><span class="detail-label">地點</span>${locationHtml}</div>
       <div class="detail-row"><span class="detail-label">時間</span>${escapeHTML(e.date)}</div>
+      ${regOpenHtml}
       <div class="detail-row"><span class="detail-label">費用</span>${e.fee > 0 ? '$'+e.fee : '免費'}</div>
       <div class="detail-row"><span class="detail-label">人數</span>已報 ${e.current}/${e.max}${(e.waitlist || 0) > 0 ? '　候補 ' + e.waitlist : ''}</div>
       <div class="detail-row"><span class="detail-label">年齡</span>${e.minAge > 0 ? e.minAge + ' 歲以上' : '無限制'}</div>
@@ -391,6 +421,7 @@ Object.assign(App, {
   handleSignup(id) {
     const e = ApiService.getEvent(id);
     if (!e) return;
+    if (e.status === 'upcoming') { this.showToast('報名尚未開放，請稍後再試'); return; }
     const user = ApiService.getCurrentUser();
     const userName = user?.displayName || user?.name || '用戶';
     const userId = user?.uid || 'unknown';

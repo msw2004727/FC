@@ -86,6 +86,8 @@ Object.assign(App, {
     if (el('profile-region')) el('profile-region').textContent = v(user.region);
     if (el('profile-sports')) el('profile-sports').textContent = v(user.sports);
     if (el('profile-phone')) el('profile-phone').textContent = v(user.phone);
+    if (el('profile-join-date')) el('profile-join-date').textContent = v(user.joinDate);
+    if (el('profile-join-date-edit')) el('profile-join-date-edit').textContent = v(user.joinDate);
 
     // 所屬球隊（含領隊球隊，可點擊）
     const teamEl = el('profile-team');

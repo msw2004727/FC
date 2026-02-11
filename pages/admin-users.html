@@ -25,14 +25,15 @@
       <div class="tab-bar" id="exp-tab-bar">
         <button class="tab active" onclick="App.switchExpTab('individual')">個別調整</button>
         <button class="tab" onclick="App.switchExpTab('batch')">批次調整</button>
-        <button class="tab" onclick="App.switchExpTab('team')">球隊調整</button>
+        <button class="tab" onclick="App.switchExpTab('team')">整隊調整</button>
+        <button class="tab" onclick="App.switchExpTab('teamExp')">球隊積分</button>
       </div>
 
       <!-- 個別調整 -->
       <div class="exp-tab-panel" id="exp-panel-individual">
         <div class="admin-search" style="position:relative">
           <input type="text" placeholder="輸入暱稱模糊搜尋..." id="exp-search" oninput="App.expFuzzySearch()">
-          <div class="delegate-dropdown" id="exp-search-dropdown" style="display:none"></div>
+          <div class="ce-delegate-dropdown" id="exp-search-dropdown"></div>
         </div>
         <div class="exp-target-card" id="exp-target-card" style="display:none">
           <div class="exp-target-info">
@@ -60,7 +61,7 @@
       <div class="exp-tab-panel" id="exp-panel-batch" style="display:none">
         <div class="admin-search" style="position:relative">
           <input type="text" placeholder="搜尋用戶加入批次..." id="exp-batch-search" oninput="App.expBatchSearch()">
-          <div class="delegate-dropdown" id="exp-batch-dropdown" style="display:none"></div>
+          <div class="ce-delegate-dropdown" id="exp-batch-dropdown"></div>
         </div>
         <div id="exp-batch-tags" class="reward-tags" style="margin-bottom:.65rem"></div>
         <div class="exp-form">
@@ -98,6 +99,34 @@
         </div>
       </div>
 
+      <!-- 球隊積分 -->
+      <div class="exp-tab-panel" id="exp-panel-teamExp" style="display:none">
+        <div class="admin-search" style="position:relative">
+          <input type="text" placeholder="輸入球隊名稱搜尋..." id="exp-team-exp-search" oninput="App.expTeamExpSearch()">
+          <div class="ce-delegate-dropdown" id="exp-team-exp-dropdown"></div>
+        </div>
+        <div class="exp-target-card" id="exp-team-exp-card" style="display:none">
+          <div class="exp-target-info">
+            <div id="exp-team-exp-avatar" class="profile-avatar small" style="background:var(--accent)">隊</div>
+            <div>
+              <div class="exp-target-name" id="exp-team-exp-name"></div>
+              <div class="exp-target-detail" id="exp-team-exp-detail"></div>
+            </div>
+          </div>
+          <div class="exp-form">
+            <div class="form-row">
+              <label>球隊積分調整</label>
+              <input type="number" id="exp-team-exp-amount" placeholder="+500 或 -200">
+            </div>
+            <div class="form-row">
+              <label>備註原因 <span class="required">*必填</span></label>
+              <input type="text" id="exp-team-exp-reason" placeholder="例：聯賽冠軍獎勵">
+            </div>
+            <button class="primary-btn full-width" onclick="App.handleTeamExpSubmit2()">確認送出</button>
+          </div>
+        </div>
+      </div>
+
       <!-- 操作紀錄 -->
       <div class="info-card" style="margin-top:.75rem">
         <div class="info-title">最近操作紀錄</div>
@@ -106,6 +135,7 @@
           <input type="date" id="exp-log-date" onchange="App.filterExpLogs()" style="max-width:140px">
         </div>
         <div class="log-list" id="exp-log-list"></div>
+        <div class="exp-log-pagination" id="exp-log-pagination"></div>
       </div>
     </section>
 

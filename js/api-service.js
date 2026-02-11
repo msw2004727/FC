@@ -302,6 +302,7 @@ const ApiService = {
   // ════════════════════════════════
 
   getExpLogs()       { return this._src('expLogs'); },
+  getTeamExpLogs()   { return this._src('teamExpLogs'); },
   getOperationLogs() { return this._src('operationLogs'); },
   getBanners()       { return this._src('banners'); },
   getPermissions()   { return this._src('permissions'); },
@@ -446,6 +447,26 @@ const ApiService = {
       FirebaseService.addOperationLog(opLog).catch(err => console.error('[adjustUserExp opLog]', err));
     }
     return user;
+  },
+
+  adjustTeamExp(teamId, amount, reason, operatorLabel) {
+    const team = this._findById('teams', teamId);
+    if (!team) return null;
+    team.teamExp = Math.min(10000, Math.max(0, (team.teamExp || 0) + amount));
+    const now = new Date();
+    const timeStr = `${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+    const log = { time: timeStr, target: team.name, targetId: teamId, amount: (amount > 0 ? '+' : '') + amount, reason, operator: operatorLabel || '管理員' };
+    this._src('teamExpLogs').unshift(log);
+    const opLog = { time: timeStr, operator: operatorLabel || '管理員', type: 'team_exp', typeName: '球隊積分', content: `${team.name} ${log.amount}「${reason}」` };
+    this._src('operationLogs').unshift(opLog);
+    if (!this._demoMode) {
+      if (team._docId) {
+        db.collection('teams').doc(team._docId).update({ teamExp: team.teamExp }).catch(err => console.error('[adjustTeamExp]', err));
+      }
+      db.collection('teamExpLogs').add({ ...log, createdAt: firebase.firestore.FieldValue.serverTimestamp() }).catch(err => console.error('[adjustTeamExp log]', err));
+      FirebaseService.addOperationLog(opLog).catch(err => console.error('[adjustTeamExp opLog]', err));
+    }
+    return team;
   },
 
   // ════════════════════════════════

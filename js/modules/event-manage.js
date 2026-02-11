@@ -10,6 +10,7 @@ Object.assign(App, {
   // ══════════════════════════════════
 
   _myActivityFilter: 'all',
+  _myActivityCreatorFilter: '',
 
   renderMyActivities(filter) {
     const container = document.getElementById('my-activity-list');
@@ -25,16 +26,30 @@ Object.assign(App, {
     if (!isAdmin) {
       allEvents = allEvents.filter(e => this._isEventOwner(e) || this._isEventDelegate(e));
     }
+
+    // 管理員主辦人篩選
+    const creatorWrap = document.getElementById('my-activity-creator-wrap');
+    if (creatorWrap) creatorWrap.style.display = isAdmin ? '' : 'none';
+    const creatorInput = document.getElementById('my-activity-creator-input');
+    const creatorClear = document.getElementById('my-activity-creator-clear');
+    const creatorFilter = this._myActivityCreatorFilter;
+    if (creatorInput && creatorFilter) creatorInput.value = creatorFilter;
+    if (creatorClear) creatorClear.style.display = creatorFilter ? '' : 'none';
+    if (creatorFilter) {
+      allEvents = allEvents.filter(e => e.creator === creatorFilter);
+    }
+
     const filtered = f === 'all' ? allEvents : allEvents.filter(e => e.status === f);
 
     // 統計
     const statsEl = document.getElementById('my-activity-stats');
     if (statsEl) {
+      const upcomingCount = allEvents.filter(e => e.status === 'upcoming').length;
       const openCount = allEvents.filter(e => e.status === 'open').length;
       const fullCount = allEvents.filter(e => e.status === 'full').length;
       const endedCount = allEvents.filter(e => e.status === 'ended').length;
       const cancelledCount = allEvents.filter(e => e.status === 'cancelled').length;
-      statsEl.textContent = `共 ${allEvents.length} 場 ・ 報名中 ${openCount} ・ 已額滿 ${fullCount} ・ 已結束 ${endedCount} ・ 已取消 ${cancelledCount}`;
+      statsEl.textContent = `共 ${allEvents.length} 場${upcomingCount ? ' ・ 即將開放 ' + upcomingCount : ''} ・ 報名中 ${openCount} ・ 已額滿 ${fullCount} ・ 已結束 ${endedCount} ・ 已取消 ${cancelledCount}`;
     }
 
     const s = 'font-size:.72rem;padding:.2rem .5rem';
@@ -44,7 +59,11 @@ Object.assign(App, {
         const canManage = this._canManageEvent(e);
         let btns = '';
         if (canManage) {
-          if (e.status === 'open' || e.status === 'full') {
+          if (e.status === 'upcoming') {
+            btns = `<button class="primary-btn small" style="${s}" onclick="App.showMyActivityDetail('${e.id}')">查看名單</button>`
+                 + `<button class="outline-btn" style="${s}" onclick="App.editMyActivity('${e.id}')">編輯</button>`
+                 + `<button class="outline-btn" style="${s};color:var(--danger)" onclick="App.cancelMyActivity('${e.id}')">取消</button>`;
+          } else if (e.status === 'open' || e.status === 'full') {
             btns = `<button class="primary-btn small" style="${s}" onclick="App.showMyActivityDetail('${e.id}')">查看名單</button>`
                  + `<button class="outline-btn" style="${s}" onclick="App.editMyActivity('${e.id}')">編輯</button>`
                  + `<button class="outline-btn" style="${s};color:var(--warning)" onclick="App.closeMyActivity('${e.id}')">結束</button>`
@@ -79,6 +98,7 @@ Object.assign(App, {
       <div class="msg-manage-card" style="margin-bottom:.5rem">
         <div style="display:flex;align-items:center;gap:.4rem;margin-bottom:.2rem">
           <span class="msg-manage-title" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHTML(e.title)}${teamBadge}</span>
+          ${this._userTag(e.creator, ApiService.getUserRole(e.creator))}
           <span class="banner-manage-status status-${statusConf.css}">${statusConf.label}</span>
         </div>
         <div style="font-size:.75rem;color:var(--text-muted)">${escapeHTML(e.location)} ・ ${escapeHTML(e.date)}</div>
@@ -171,6 +191,9 @@ Object.assign(App, {
     document.getElementById('ce-waitlist').value = 0;
     document.getElementById('ce-min-age').value = e.minAge || 0;
     document.getElementById('ce-notes').value = e.notes || '';
+    // 開放報名時間
+    const regOpenInput = document.getElementById('ce-reg-open-time');
+    if (regOpenInput) regOpenInput.value = e.regOpenTime || '';
     // 球隊限定
     const ceTeamOnly = document.getElementById('ce-team-only');
     if (ceTeamOnly) {
@@ -251,6 +274,48 @@ Object.assign(App, {
     this.renderActivityList();
     this.renderHotEvents();
     this.showToast('活動已重新開放');
+  },
+
+  // ── 主辦人模糊搜尋篩選（管理員+） ──
+  searchCreatorFilter() {
+    const input = document.getElementById('my-activity-creator-input');
+    const dd = document.getElementById('my-activity-creator-dropdown');
+    if (!input || !dd) return;
+    const keyword = input.value.trim().toLowerCase();
+    if (!keyword) {
+      dd.classList.remove('open');
+      if (this._myActivityCreatorFilter) {
+        this._myActivityCreatorFilter = '';
+        this.renderMyActivities();
+      }
+      return;
+    }
+    const allEvents = ApiService.getEvents();
+    const creators = [...new Set(allEvents.map(e => e.creator).filter(Boolean))];
+    const matched = creators.filter(c => c.toLowerCase().includes(keyword)).slice(0, 8);
+    if (!matched.length) { dd.classList.remove('open'); return; }
+    dd.innerHTML = matched.map(c => {
+      const safeC = escapeHTML(c).replace(/'/g, "\\'");
+      const count = allEvents.filter(e => e.creator === c).length;
+      return `<div class="ce-delegate-item" onclick="App._selectCreatorFilter('${safeC}')"><span class="ce-delegate-item-name">${escapeHTML(c)}</span><span style="color:var(--text-muted);font-size:.68rem">${count} 場</span></div>`;
+    }).join('');
+    dd.classList.add('open');
+  },
+
+  _selectCreatorFilter(name) {
+    const input = document.getElementById('my-activity-creator-input');
+    const dd = document.getElementById('my-activity-creator-dropdown');
+    if (input) input.value = name;
+    if (dd) dd.classList.remove('open');
+    this._myActivityCreatorFilter = name;
+    this.renderMyActivities();
+  },
+
+  clearCreatorFilter() {
+    const input = document.getElementById('my-activity-creator-input');
+    if (input) input.value = '';
+    this._myActivityCreatorFilter = '';
+    this.renderMyActivities();
   },
 
   // ── 刪除活動 ──

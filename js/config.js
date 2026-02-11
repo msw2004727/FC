@@ -120,6 +120,19 @@ const TOURNAMENT_GRADIENT_MAP = {
   '盃賽': 'linear-gradient(135deg,#7c3aed,#4338ca)',
 };
 
+const TEAM_RANK_CONFIG = [
+  { min: 0,    max: 999,   rank: 'E',   color: '#6b7280' },
+  { min: 1000, max: 1999,  rank: 'D',   color: '#22c55e' },
+  { min: 2000, max: 2999,  rank: 'C',   color: '#3b82f6' },
+  { min: 3000, max: 3999,  rank: 'B',   color: '#8b5cf6' },
+  { min: 4000, max: 4999,  rank: 'A',   color: '#f59e0b' },
+  { min: 5000, max: 5999,  rank: 'A+',  color: '#f97316' },
+  { min: 6000, max: 6999,  rank: 'A++', color: '#ef4444' },
+  { min: 7000, max: 7999,  rank: 'S',   color: '#ec4899' },
+  { min: 8000, max: 8999,  rank: 'SS',  color: '#14b8a6' },
+  { min: 9000, max: 10000, rank: 'SSS', color: '#dc2626' },
+];
+
 // ─── Drawer Menu Config ───
 const DRAWER_MENUS = [
   { icon: '', label: '二手商品區', page: 'page-shop', minRole: 'user' },
