@@ -118,22 +118,22 @@ const DemoData = {
   ],
 
   achievements: [
-    { id: 'a5', name: '冠軍', desc: '贏得聯賽冠軍', target: 1, current: 0, category: 'gold', badgeId: 'b5', completedAt: null },
-    { id: 'a6', name: 'MVP', desc: '獲得單場 MVP 3 次', target: 3, current: 1, category: 'gold', badgeId: 'b6', completedAt: null },
-    { id: 'a7', name: '百場達人', desc: '累計參加 100 場活動', target: 100, current: 42, category: 'gold', badgeId: 'b7', completedAt: null },
-    { id: 'a8', name: '傳奇球員', desc: '累計進球 50 球', target: 50, current: 12, category: 'gold', badgeId: 'b8', completedAt: null },
-    { id: 'a2', name: '全勤之星', desc: '連續出席 10 場活動', target: 10, current: 10, category: 'silver', badgeId: 'b2', completedAt: '2026/01/20' },
-    { id: 'a3', name: '鐵人精神', desc: '累計參加 30 場活動', target: 30, current: 30, category: 'silver', badgeId: 'b3', completedAt: '2026/02/05' },
-    { id: 'a1', name: '初心者', desc: '參加 1 場活動', target: 1, current: 1, category: 'bronze', badgeId: 'b1', completedAt: '2025/09/10' },
+    { id: 'a7', name: '百場達人', category: 'gold', badgeId: 'b7', completedAt: null, current: 42, condition: { timeRange: 'none', action: 'complete_event', filter: 'all', threshold: 100 } },
+    { id: 'a6', name: '活動策劃師', category: 'gold', badgeId: 'b6', completedAt: null, current: 2, condition: { timeRange: 'none', action: 'organize_event', filter: 'all', threshold: 10 } },
+    { id: 'a5', name: '月活躍玩家', category: 'gold', badgeId: 'b5', completedAt: null, current: 3, condition: { timeRange: '30d', action: 'complete_event', filter: 'all', threshold: 5 } },
+    { id: 'a2', name: '全勤之星', category: 'silver', badgeId: 'b2', completedAt: '2026/01/20', current: 90, condition: { timeRange: 'none', action: 'attendance_rate', filter: 'all', threshold: 90 } },
+    { id: 'a3', name: '鐵人精神', category: 'silver', badgeId: 'b3', completedAt: '2026/02/05', current: 30, condition: { timeRange: 'none', action: 'complete_event', filter: 'all', threshold: 30 } },
+    { id: 'a4', name: '社群達人', category: 'silver', badgeId: 'b4', completedAt: '2026/01/15', current: 1, condition: { timeRange: 'none', action: 'bind_line_notify', filter: 'all', threshold: 1 } },
+    { id: 'a1', name: '初心者', category: 'bronze', badgeId: 'b1', completedAt: '2025/09/10', current: 1, condition: { timeRange: 'none', action: 'register_event', filter: 'all', threshold: 1 } },
   ],
 
   badges: [
-    { id: 'b5', name: '冠軍徽章', achId: 'a5', category: 'gold', image: null },
-    { id: 'b6', name: 'MVP 徽章', achId: 'a6', category: 'gold', image: null },
     { id: 'b7', name: '百場徽章', achId: 'a7', category: 'gold', image: null },
-    { id: 'b8', name: '傳奇徽章', achId: 'a8', category: 'gold', image: null },
+    { id: 'b6', name: '策劃師徽章', achId: 'a6', category: 'gold', image: null },
+    { id: 'b5', name: '月活躍徽章', achId: 'a5', category: 'gold', image: null },
     { id: 'b2', name: '全勤徽章', achId: 'a2', category: 'silver', image: null },
     { id: 'b3', name: '鐵人徽章', achId: 'a3', category: 'silver', image: null },
+    { id: 'b4', name: '社群徽章', achId: 'a4', category: 'silver', image: null },
     { id: 'b1', name: '新手徽章', achId: 'a1', category: 'bronze', image: null },
   ],
 

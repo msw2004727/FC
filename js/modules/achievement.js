@@ -1,5 +1,6 @@
 /* ================================================
    SportHub — Achievement & Badge (Render + Admin CRUD)
+   成就條件式系統 — 條件下拉組合 + 徽章圖片上傳
    ================================================ */
 
 Object.assign(App, {
@@ -13,147 +14,197 @@ Object.assign(App, {
     return [...items].sort((a, b) => (this._catOrder[a.category] ?? 9) - (this._catOrder[b.category] ?? 9));
   },
 
+  // ── 條件描述自動產生 ──
+
+  _generateConditionDesc(condition, desc) {
+    if (!condition) return desc || '（未設定條件）';
+    const ac = ACHIEVEMENT_CONDITIONS;
+    const actionCfg = ac.actions.find(a => a.key === condition.action);
+    const timeRangeCfg = ac.timeRanges.find(t => t.key === condition.timeRange);
+    const filterCfg = ac.filters.find(f => f.key === condition.filter);
+    const actionLabel = actionCfg ? actionCfg.label : condition.action;
+    const unit = actionCfg ? actionCfg.unit : '';
+    const threshold = condition.threshold || 0;
+
+    // 特殊：連續 N 天
+    if (condition.timeRange === 'streak') {
+      const days = condition.streakDays || threshold;
+      const filterText = (filterCfg && condition.filter !== 'all' && actionCfg && actionCfg.needsFilter) ? ` ${filterCfg.label}` : '';
+      return `連續 ${days} 天${actionLabel}${filterText}`;
+    }
+
+    // 無單位型（如 bind_line_notify, complete_profile, join_team）
+    if (!unit && threshold <= 1) return actionLabel;
+
+    const timeText = (timeRangeCfg && condition.timeRange !== 'none') ? `${timeRangeCfg.label}` : '';
+    const filterText = (filterCfg && condition.filter !== 'all' && actionCfg && actionCfg.needsFilter) ? ` ${filterCfg.label}` : '';
+
+    if (timeText) {
+      return `${timeText}${actionLabel}${filterText} ${threshold}${unit ? ' ' + unit : ''}`.trim();
+    }
+    return `${actionLabel}${filterText} ${threshold}${unit ? ' ' + unit : ''}`.trim();
+  },
+
+  _getAchThreshold(ach) {
+    return (ach.condition && ach.condition.threshold) || ach.target || 1;
+  },
+
+  // ══════════════════════════════════
+  //  User-facing: 合併成就+徽章頁面
+  // ══════════════════════════════════
+
   renderAchievements() {
     const container = document.getElementById('achievement-grid');
     if (!container) return;
-    const sorted = this._sortByCat(ApiService.getAchievements());
-    const pending = sorted.filter(a => a.current < a.target);
-    const completed = sorted.filter(a => a.current >= a.target);
-    const renderRow = a => {
-      const done = a.current >= a.target;
-      const pct = a.target > 0 ? Math.min(100, Math.round(a.current / a.target * 100)) : 0;
-      const bg = this._catBg[a.category] || this._catBg.bronze;
+    const achievements = ApiService.getAchievements();
+    const badges = ApiService.getBadges();
+    const sorted = this._sortByCat(achievements);
+    const pending = sorted.filter(a => a.current < this._getAchThreshold(a));
+    const completed = sorted.filter(a => a.current >= this._getAchThreshold(a));
+
+    const renderCard = a => {
+      const threshold = this._getAchThreshold(a);
+      const done = a.current >= threshold;
+      const pct = threshold > 0 ? Math.min(100, Math.round(a.current / threshold * 100)) : 0;
+      const badge = badges.find(b => b.id === a.badgeId);
+      const badgeImg = badge && badge.image
+        ? `<img src="${badge.image}" alt="${escapeHTML(badge.name)}">`
+        : `<span style="font-size:1.2rem;color:var(--text-muted)">🏅</span>`;
+      const desc = this._generateConditionDesc(a.condition, a.desc);
+      const catColor = this._catColors[a.category] || this._catColors.bronze;
+
       return `
-      <div class="ach-row ${done ? 'ach-done' : ''}" style="background:${done ? 'var(--bg-elevated)' : bg}">
-        <span class="ach-cat-chip ach-cat-${a.category}">${this._catLabels[a.category] || '銅'}</span>
-        <span class="ach-row-name">${escapeHTML(a.name)}</span>
-        <span class="ach-row-desc">${escapeHTML(a.desc)}</span>
-        <div class="ach-bar-mini"><div class="ach-bar-fill" style="width:${pct}%"></div></div>
-        <span class="ach-row-num">${a.current}/${a.target}</span>
-        ${done ? `<span class="ach-row-done">已完成</span>` : ''}
-        ${done && a.completedAt ? `<span class="ach-row-time">${escapeHTML(a.completedAt)}</span>` : ''}
+      <div class="ach-card ${done ? 'ach-card-done' : ''}" style="border-color:${catColor}">
+        <div class="ach-card-badge ${done ? '' : 'ach-badge-gray'}">
+          ${badgeImg}
+          ${done ? '<div class="ach-card-done-overlay">已完成</div>' : ''}
+        </div>
+        <div class="ach-card-body">
+          <div class="ach-card-top">
+            <span class="ach-cat-chip ach-cat-${a.category}">${this._catLabels[a.category] || '銅'}</span>
+            <span class="ach-card-name">${escapeHTML(a.name)}</span>
+          </div>
+          <div class="ach-card-desc">${escapeHTML(desc)}</div>
+          ${done
+            ? `<div class="ach-card-completed-date">${a.completedAt ? escapeHTML(a.completedAt) : ''}</div>`
+            : `<div class="ach-card-progress">
+                <div class="ach-bar-mini"><div class="ach-bar-fill" style="width:${pct}%"></div></div>
+                <span class="ach-card-num">${a.current}/${threshold}</span>
+              </div>`
+          }
+        </div>
       </div>`;
     };
-    let html = pending.map(renderRow).join('');
-    if (pending.length && completed.length) {
-      html += '<div class="ach-divider"><span>已完成</span></div>';
+
+    let html = '';
+    if (pending.length) {
+      html += '<div class="ach-section-title">進行中</div>';
+      html += '<div class="ach-card-grid">' + pending.map(renderCard).join('') + '</div>';
     }
-    html += completed.map(renderRow).join('');
+    if (completed.length) {
+      html += '<div class="ach-section-title">已完成</div>';
+      html += '<div class="ach-card-grid">' + completed.map(renderCard).join('') + '</div>';
+    }
+    if (!pending.length && !completed.length) {
+      html = '<div style="text-align:center;padding:2rem;color:var(--text-muted);font-size:.85rem">尚無成就</div>';
+    }
     container.innerHTML = html;
   },
 
-  renderBadges() {
-    const container = document.getElementById('badge-grid');
-    if (!container) return;
-    const achievements = ApiService.getAchievements();
-    const sorted = this._sortByCat(ApiService.getBadges());
-    container.innerHTML = sorted.map(b => {
-      const ach = achievements.find(a => a.id === b.achId);
-      const earned = ach ? ach.current >= ach.target : false;
-      const color = this._catColors[b.category] || this._catColors.bronze;
-      return `
-      <div class="badge-card ${earned ? '' : 'badge-locked'}" style="border-color:${color}">
-        <div class="badge-img-placeholder" style="border-color:${color}">${b.image ? `<img src="${b.image}">` : ''}</div>
-        <div class="badge-card-name">${escapeHTML(b.name)}</div>
-        ${earned ? `<div class="badge-earned-tag" style="color:${color}">已獲得</div>` : '<div class="badge-locked-tag">未解鎖</div>'}
-      </div>`;
-    }).join('');
+  // ══════════════════════════════════
+  //  Admin: 合併管理（無頁簽）
+  // ══════════════════════════════════
+
+  _populateAchConditionSelects() {
+    const ac = ACHIEVEMENT_CONDITIONS;
+    const trSel = document.getElementById('ach-cond-timerange');
+    const actSel = document.getElementById('ach-cond-action');
+    const filtSel = document.getElementById('ach-cond-filter');
+    if (trSel && !trSel.options.length) {
+      trSel.innerHTML = ac.timeRanges.map(t => `<option value="${t.key}">${escapeHTML(t.label)}</option>`).join('');
+    }
+    if (actSel && !actSel.options.length) {
+      actSel.innerHTML = ac.actions.map(a => `<option value="${a.key}">${escapeHTML(a.label)}</option>`).join('');
+    }
+    if (filtSel && !filtSel.options.length) {
+      filtSel.innerHTML = ac.filters.map(f => `<option value="${f.key}">${escapeHTML(f.label)}</option>`).join('');
+    }
   },
 
-  // ══════════════════════════════════
-  //  Admin Achievement / Badge Management
-  // ══════════════════════════════════
-
-  _adminAchTab: 'achievements',
   _achEditId: null,
-  _badgeEditId: null,
+  _achBadgeDataURL: null,
 
-  renderAdminAchievements(type) {
+  renderAdminAchievements() {
     const container = document.getElementById('admin-ach-list');
     if (!container) return;
-    const t = type || this._adminAchTab;
-    this._adminAchTab = t;
-    const catColors = { gold: '#d4a017', silver: '#9ca3af', bronze: '#b87333' };
-    const catLabels = { gold: '金', silver: '銀', bronze: '銅' };
+    const items = this._sortByCat(ApiService.getAchievements());
+    const badges = ApiService.getBadges();
 
-    if (t === 'achievements') {
-      const items = this._sortByCat(ApiService.getAchievements());
-      container.innerHTML = items.map((a, i) => {
-        const color = catColors[a.category] || catColors.bronze;
-        const pct = a.target > 0 ? Math.min(100, Math.round(a.current / a.target * 100)) : 0;
-        const completed = a.current >= a.target;
-        return `
-        <div class="admin-ach-row" style="background:${i % 2 === 0 ? 'var(--bg-elevated)' : 'transparent'};border-left:3px solid ${color}">
-          <div class="admin-ach-info" style="flex:1;min-width:0">
-            <div style="display:flex;align-items:center;gap:.3rem">
-              <span class="ach-cat-tag" style="background:${color};font-size:.6rem;padding:.1rem .3rem">${catLabels[a.category]}</span>
-              <span class="admin-ach-name">${escapeHTML(a.name)}</span>
-              ${completed ? '<span style="font-size:.6rem;color:var(--success);font-weight:600">已完成</span>' : ''}
-            </div>
-            <div class="admin-ach-status" style="color:var(--text-muted)">${escapeHTML(a.desc)} ・ 目標 ${a.target}</div>
-            <div class="ach-progress-bar-wrap" style="margin-top:.25rem;height:4px">
-              <div class="ach-progress-bar" style="width:${pct}%;background:linear-gradient(90deg,#3b82f6,#60a5fa)"></div>
-            </div>
+    container.innerHTML = items.map((a, i) => {
+      const color = this._catColors[a.category] || this._catColors.bronze;
+      const threshold = this._getAchThreshold(a);
+      const pct = threshold > 0 ? Math.min(100, Math.round(a.current / threshold * 100)) : 0;
+      const completed = a.current >= threshold;
+      const badge = badges.find(b => b.id === a.badgeId);
+      const badgeImg = badge && badge.image
+        ? `<img src="${badge.image}" style="width:100%;height:100%;object-fit:cover;border-radius:4px">`
+        : '';
+      const desc = this._generateConditionDesc(a.condition, a.desc);
+      return `
+      <div class="admin-ach-row" style="background:${i % 2 === 0 ? 'var(--bg-elevated)' : 'transparent'};border-left:3px solid ${color}">
+        <div class="badge-img-placeholder small" style="border-color:${color};flex-shrink:0">${badgeImg}</div>
+        <div class="admin-ach-info" style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;gap:.3rem">
+            <span class="ach-cat-tag" style="background:${color};font-size:.6rem;padding:.1rem .3rem">${this._catLabels[a.category]}</span>
+            <span class="admin-ach-name">${escapeHTML(a.name)}</span>
+            ${completed ? '<span style="font-size:.6rem;color:var(--success);font-weight:600">已完成</span>' : ''}
           </div>
-          <div class="admin-ach-actions">
-            <button class="text-btn" style="font-size:.72rem" onclick="App.editAchievement('${a.id}')">編輯</button>
-            <button class="text-btn" style="font-size:.72rem;color:var(--danger)" onclick="App.deleteAchievement('${a.id}')">刪除</button>
+          <div class="admin-ach-status" style="color:var(--text-muted)">${escapeHTML(desc)}</div>
+          <div class="ach-progress-bar-wrap" style="margin-top:.25rem;height:4px">
+            <div class="ach-progress-bar" style="width:${pct}%;background:linear-gradient(90deg,#3b82f6,#60a5fa)"></div>
           </div>
-        </div>`;
-      }).join('') || '<div style="text-align:center;padding:1.5rem;color:var(--text-muted);font-size:.82rem">尚無成就</div>';
-
-    } else {
-      const items = this._sortByCat(ApiService.getBadges());
-      const achievements = ApiService.getAchievements();
-      container.innerHTML = items.map((b, i) => {
-        const color = catColors[b.category] || catColors.bronze;
-        const ach = achievements.find(a => a.id === b.achId);
-        const achName = ach ? ach.name : '（未關聯）';
-        return `
-        <div class="admin-ach-row" style="background:${i % 2 === 0 ? 'var(--bg-elevated)' : 'transparent'};border-left:3px solid ${color}">
-          <div class="badge-img-placeholder small" style="border-color:${color};flex-shrink:0">${b.image ? `<img src="${b.image}">` : ''}</div>
-          <div class="admin-ach-info" style="flex:1;min-width:0">
-            <div style="display:flex;align-items:center;gap:.3rem">
-              <span class="ach-cat-tag" style="background:${color};font-size:.6rem;padding:.1rem .3rem">${catLabels[b.category]}</span>
-              <span class="admin-ach-name">${escapeHTML(b.name)}</span>
-            </div>
-            <div class="admin-ach-status" style="color:var(--text-muted)">關聯成就：${escapeHTML(achName)}</div>
-          </div>
-          <div class="admin-ach-actions">
-            <button class="text-btn" style="font-size:.72rem" onclick="App.editBadge('${b.id}')">編輯</button>
-            <button class="text-btn" style="font-size:.72rem;color:var(--danger)" onclick="App.deleteBadge('${b.id}')">刪除</button>
-          </div>
-        </div>`;
-      }).join('') || '<div style="text-align:center;padding:1.5rem;color:var(--text-muted);font-size:.82rem">尚無徽章</div>';
-    }
-
-    // Bind tabs once
-    const tabs = document.getElementById('admin-ach-tabs');
-    if (tabs && !tabs.dataset.bound) {
-      tabs.dataset.bound = '1';
-      tabs.querySelectorAll('.tab').forEach(tab => {
-        tab.addEventListener('click', () => {
-          tabs.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
-          tab.classList.add('active');
-          this._adminAchTab = tab.dataset.atype;
-          this.renderAdminAchievements(tab.dataset.atype);
-        });
-      });
-    }
+        </div>
+        <div class="admin-ach-actions">
+          <button class="text-btn" style="font-size:.72rem" onclick="App.editAchievement('${a.id}')">編輯</button>
+          <button class="text-btn" style="font-size:.72rem;color:var(--danger)" onclick="App.deleteAchievement('${a.id}')">刪除</button>
+        </div>
+      </div>`;
+    }).join('') || '<div style="text-align:center;padding:1.5rem;color:var(--text-muted);font-size:.82rem">尚無成就</div>';
   },
 
-  // ── Achievement CRUD ──
+  // ── Achievement Form (條件選單) ──
 
   showAchForm(editData) {
     const form = document.getElementById('ach-form-card');
     if (!form) return;
     form.style.display = '';
     this._achEditId = editData ? editData.id : null;
+    this._achBadgeDataURL = null;
     document.getElementById('ach-form-title').textContent = editData ? '編輯成就' : '新增成就';
     document.getElementById('ach-input-name').value = editData ? editData.name : '';
-    document.getElementById('ach-input-desc').value = editData ? editData.desc : '';
-    document.getElementById('ach-input-target').value = editData ? editData.target : 10;
     document.getElementById('ach-input-category').value = editData ? editData.category : 'bronze';
+
+    // 條件欄位
+    const cond = editData && editData.condition ? editData.condition : {};
+    document.getElementById('ach-cond-timerange').value = cond.timeRange || 'none';
+    document.getElementById('ach-cond-streakdays').value = cond.streakDays || 7;
+    document.getElementById('ach-cond-action').value = cond.action || 'complete_event';
+    document.getElementById('ach-cond-filter').value = cond.filter || 'all';
+    document.getElementById('ach-cond-threshold').value = cond.threshold || 1;
+
+    // 徽章圖片預覽
+    const preview = document.getElementById('ach-badge-preview');
+    if (preview) {
+      const badge = editData ? ApiService.getBadges().find(b => b.id === editData.badgeId) : null;
+      if (badge && badge.image) {
+        preview.innerHTML = `<img src="${badge.image}" style="width:100%;height:100%;object-fit:cover;border-radius:4px">`;
+      } else {
+        preview.innerHTML = '<span style="color:var(--text-muted);font-size:.7rem">點擊上傳</span>';
+      }
+    }
+
+    this._updateAchConditionUI();
+    this._updateConditionPreview();
     form.scrollIntoView({ behavior: 'smooth' });
   },
 
@@ -161,40 +212,114 @@ Object.assign(App, {
     const form = document.getElementById('ach-form-card');
     if (form) form.style.display = 'none';
     this._achEditId = null;
+    this._achBadgeDataURL = null;
+  },
+
+  _updateAchConditionUI() {
+    const timeRange = document.getElementById('ach-cond-timerange').value;
+    const action = document.getElementById('ach-cond-action').value;
+    const streakRow = document.getElementById('ach-cond-streakdays-row');
+    const filterRow = document.getElementById('ach-cond-filter-row');
+    const actionCfg = ACHIEVEMENT_CONDITIONS.actions.find(a => a.key === action);
+
+    if (streakRow) streakRow.style.display = timeRange === 'streak' ? '' : 'none';
+    if (filterRow) filterRow.style.display = (actionCfg && actionCfg.needsFilter) ? '' : 'none';
+  },
+
+  _updateConditionPreview() {
+    const preview = document.getElementById('ach-cond-preview');
+    if (!preview) return;
+    const condition = {
+      timeRange: document.getElementById('ach-cond-timerange').value,
+      streakDays: parseInt(document.getElementById('ach-cond-streakdays').value) || 7,
+      action: document.getElementById('ach-cond-action').value,
+      filter: document.getElementById('ach-cond-filter').value,
+      threshold: parseInt(document.getElementById('ach-cond-threshold').value) || 1,
+    };
+    preview.textContent = '「' + this._generateConditionDesc(condition) + '」';
+  },
+
+  _readFileAsDataURL(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = e => resolve(e.target.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  },
+
+  _bindAchBadgeUpload() {
+    const input = document.getElementById('ach-badge-image');
+    if (!input || input.dataset.bound) return;
+    input.dataset.bound = '1';
+    input.addEventListener('change', async () => {
+      const file = input.files[0];
+      if (!file) return;
+      if (!['image/jpeg', 'image/png'].includes(file.type)) {
+        this.showToast('僅支援 JPG / PNG 格式');
+        input.value = '';
+        return;
+      }
+      if (file.size > 2 * 1024 * 1024) {
+        this.showToast('檔案大小不可超過 2MB');
+        input.value = '';
+        return;
+      }
+      const dataURL = await this._readFileAsDataURL(file);
+      this._achBadgeDataURL = dataURL;
+      const preview = document.getElementById('ach-badge-preview');
+      if (preview) {
+        preview.innerHTML = `<img src="${dataURL}" style="width:100%;height:100%;object-fit:cover;border-radius:4px">`;
+      }
+    });
   },
 
   saveAchievement() {
     const name = document.getElementById('ach-input-name').value.trim();
-    const desc = document.getElementById('ach-input-desc').value.trim();
-    const target = parseInt(document.getElementById('ach-input-target').value) || 1;
     const category = document.getElementById('ach-input-category').value;
     if (!name) { this.showToast('請輸入成就名稱'); return; }
+
+    const condition = {
+      timeRange: document.getElementById('ach-cond-timerange').value,
+      streakDays: parseInt(document.getElementById('ach-cond-streakdays').value) || 7,
+      action: document.getElementById('ach-cond-action').value,
+      filter: document.getElementById('ach-cond-filter').value,
+      threshold: parseInt(document.getElementById('ach-cond-threshold').value) || 1,
+    };
+    // 非 streak 時不保留 streakDays
+    if (condition.timeRange !== 'streak') delete condition.streakDays;
 
     if (this._achEditId) {
       const item = ApiService.getAchievements().find(a => a.id === this._achEditId);
       if (item) {
-        const oldTarget = item.target;
+        const oldThreshold = this._getAchThreshold(item);
         let completedAt = item.completedAt;
-        if (item.current >= target && !completedAt) {
-          const d = new Date(); completedAt = `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}`;
-        } else if (item.current < target) {
+        if (item.current >= condition.threshold && !completedAt) {
+          const d = new Date();
+          completedAt = `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}`;
+        } else if (item.current < condition.threshold) {
           completedAt = null;
         }
-        ApiService.updateAchievement(this._achEditId, { name, desc, target, category, completedAt });
-        this.showToast(`成就「${name}」已更新（目標 ${oldTarget} → ${target}）`);
+        ApiService.updateAchievement(this._achEditId, { name, category, condition, completedAt });
+        // 更新關聯徽章
+        if (item.badgeId) {
+          const updates = { name: name + '徽章', category };
+          if (this._achBadgeDataURL) updates.image = this._achBadgeDataURL;
+          ApiService.updateBadge(item.badgeId, updates);
+        }
+        this.showToast(`成就「${name}」已更新`);
       }
     } else {
       const newId = generateId('a');
       const newBadgeId = generateId('b');
-      ApiService.createAchievement({ id: newId, name, desc, target, current: 0, category, badgeId: newBadgeId, completedAt: null });
-      ApiService.createBadge({ id: newBadgeId, name: name + '徽章', achId: newId, category, image: null });
+      ApiService.createAchievement({ id: newId, name, category, badgeId: newBadgeId, completedAt: null, current: 0, condition });
+      ApiService.createBadge({ id: newBadgeId, name: name + '徽章', achId: newId, category, image: this._achBadgeDataURL || null });
       this.showToast(`成就「${name}」已建立，已自動建立關聯徽章`);
     }
 
     this.hideAchForm();
-    this.renderAdminAchievements('achievements');
+    this.renderAdminAchievements();
     this.renderAchievements();
-    this.renderBadges();
   },
 
   editAchievement(id) {
@@ -212,66 +337,7 @@ Object.assign(App, {
     if (badgeId) ApiService.deleteBadge(badgeId);
     this.renderAdminAchievements();
     this.renderAchievements();
-    this.renderBadges();
-    this.showToast(`成就「${name}」及關聯徽章已刪除，所有用戶同步移除`);
-  },
-
-  // ── Badge CRUD ──
-
-  showBadgeForm(editData) {
-    const form = document.getElementById('badge-form-card');
-    if (!form) return;
-    form.style.display = '';
-    this._badgeEditId = editData ? editData.id : null;
-    document.getElementById('badge-form-title').textContent = editData ? '編輯徽章' : '新增徽章';
-    document.getElementById('badge-input-name').value = editData ? editData.name : '';
-    document.getElementById('badge-input-category').value = editData ? editData.category : 'bronze';
-    // Populate achievement select
-    const select = document.getElementById('badge-input-ach');
-    select.innerHTML = '<option value="">（不關聯成就）</option>' +
-      ApiService.getAchievements().map(a => `<option value="${a.id}" ${editData && editData.achId === a.id ? 'selected' : ''}>${escapeHTML(a.name)}</option>`).join('');
-    form.scrollIntoView({ behavior: 'smooth' });
-  },
-
-  hideBadgeForm() {
-    const form = document.getElementById('badge-form-card');
-    if (form) form.style.display = 'none';
-    this._badgeEditId = null;
-  },
-
-  saveBadge() {
-    const name = document.getElementById('badge-input-name').value.trim();
-    const category = document.getElementById('badge-input-category').value;
-    const achId = document.getElementById('badge-input-ach').value;
-    if (!name) { this.showToast('請輸入徽章名稱'); return; }
-
-    if (this._badgeEditId) {
-      ApiService.updateBadge(this._badgeEditId, { name, category, achId });
-      this.showToast(`徽章「${name}」已更新`);
-    } else {
-      ApiService.createBadge({ id: generateId('b'), name, achId, category, image: null });
-      this.showToast(`徽章「${name}」已建立`);
-    }
-
-    this.hideBadgeForm();
-    this.renderAdminAchievements('badges');
-    this.renderBadges();
-  },
-
-  editBadge(id) {
-    const item = ApiService.getBadges().find(b => b.id === id);
-    if (item) this.showBadgeForm(item);
-  },
-
-  deleteBadge(id) {
-    const badges = ApiService.getBadges();
-    const item = badges.find(b => b.id === id);
-    if (!item) return;
-    const name = item.name;
-    ApiService.deleteBadge(id);
-    this.renderAdminAchievements();
-    this.renderBadges();
-    this.showToast(`徽章「${name}」已刪除，所有用戶同步移除`);
+    this.showToast(`成就「${name}」及關聯徽章已刪除`);
   },
 
 });

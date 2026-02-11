@@ -368,7 +368,7 @@ img { max-width: 100%; display: block; }
 @media (min-width: 600px) {
   #main-content { padding: .75rem 1rem; }
   .shop-grid { grid-template-columns: repeat(3, 1fr); }
-  .badge-grid { grid-template-columns: repeat(4, 1fr); }
+  .ach-card-grid { grid-template-columns: repeat(3, 1fr); }
 }
 @media (min-width: 800px) {
   .shop-grid { grid-template-columns: repeat(4, 1fr); }

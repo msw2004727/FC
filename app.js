@@ -40,6 +40,8 @@ const App = {
     this.bindImageUpload('popupad-image', 'popupad-preview');
     this.bindImageUpload('ct-team-image', 'ct-team-preview');
     this.bindImageUpload('theme-image', 'theme-preview');
+    this._bindAchBadgeUpload();
+    this._populateAchConditionSelects();
     this.bindShopSearch();
     this.bindTeamOnlyToggle();
     this.renderBannerCarousel();
@@ -56,7 +58,6 @@ const App = {
     this.renderTeamList();
     this.renderMessageList();
     this.renderAchievements();
-    this.renderBadges();
     this.renderShop();
     this.renderLeaderboard();
     this.renderTournamentTimeline();

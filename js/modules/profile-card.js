@@ -36,7 +36,8 @@ Object.assign(App, {
     const achievements = ApiService.getAchievements();
     const earned = badges.filter(b => {
       const ach = achievements.find(a => a.id === b.achId);
-      return ach && ach.current >= ach.target;
+      const threshold = ach && ach.condition ? ach.condition.threshold : (ach ? ach.target : 0);
+      return ach && ach.current >= (threshold || 1);
     });
     const catColors = { gold: '#d4a017', silver: '#9ca3af', bronze: '#b87333' };
 

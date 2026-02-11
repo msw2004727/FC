@@ -4,55 +4,68 @@
         <button class="back-btn" onclick="App.goBack()">←</button>
         <h2>成就 / 徽章管理</h2>
       </div>
-      <div class="tab-bar" id="admin-ach-tabs">
-        <button class="tab active" data-atype="achievements">成就</button>
-        <button class="tab" data-atype="badges">徽章</button>
-      </div>
       <div id="admin-ach-list"></div>
-      <button class="primary-btn full-width" style="margin-top:.5rem" onclick="App._adminAchTab==='achievements'?App.showAchForm():App.showBadgeForm()">＋ 新增</button>
+      <button class="primary-btn full-width" style="margin-top:.5rem" onclick="App.showAchForm()">＋ 新增成就</button>
 
-      <!-- Achievement Create/Edit Form -->
+      <!-- Achievement Create/Edit Form (條件選單) -->
       <div class="form-card" id="ach-form-card" style="display:none;margin-top:.5rem">
         <div class="role-editor-header">
           <span id="ach-form-title">新增成就</span>
           <button class="text-btn" onclick="App.hideAchForm()">取消</button>
         </div>
         <div class="form-row"><label>成就名稱 <span class="required">*必填</span></label><input type="text" id="ach-input-name" placeholder="例：百場達人"></div>
-        <div class="form-row"><label>描述（目標條件）</label><input type="text" id="ach-input-desc" placeholder="例：累計參加 100 場活動"></div>
-        <div class="form-row"><label>目標次數</label><input type="number" id="ach-input-target" value="10" min="1"></div>
         <div class="form-row">
-          <label>類別（框線顏色）</label>
+          <label>類別（等級）</label>
           <select id="ach-input-category">
             <option value="bronze">銅</option>
             <option value="silver">銀</option>
             <option value="gold">金</option>
           </select>
         </div>
-        <div style="font-size:.72rem;color:var(--text-muted);margin-bottom:.5rem">建立成就時會自動建立關聯徽章；修改目標次數後，未達新目標的用戶將變回未完成</div>
-        <button class="primary-btn full-width" onclick="App.saveAchievement()">儲存</button>
-      </div>
 
-      <!-- Badge Create/Edit Form -->
-      <div class="form-card" id="badge-form-card" style="display:none;margin-top:.5rem">
-        <div class="role-editor-header">
-          <span id="badge-form-title">新增徽章</span>
-          <button class="text-btn" onclick="App.hideBadgeForm()">取消</button>
+        <!-- 條件設定區塊 -->
+        <div class="ach-cond-section">
+          <div class="ach-cond-section-title">條件設定</div>
+          <div class="form-row">
+            <label>時間範圍</label>
+            <select id="ach-cond-timerange" onchange="App._updateAchConditionUI();App._updateConditionPreview()"></select>
+          </div>
+          <div class="form-row" id="ach-cond-streakdays-row" style="display:none">
+            <label>連續天數</label>
+            <input type="number" id="ach-cond-streakdays" value="7" min="1" oninput="App._updateConditionPreview()">
+          </div>
+          <div class="form-row">
+            <label>動作類型</label>
+            <select id="ach-cond-action" onchange="App._updateAchConditionUI();App._updateConditionPreview()"></select>
+          </div>
+          <div class="form-row" id="ach-cond-filter-row" style="display:none">
+            <label>活動篩選</label>
+            <select id="ach-cond-filter" onchange="App._updateConditionPreview()"></select>
+          </div>
+          <div class="form-row">
+            <label>目標數值</label>
+            <input type="number" id="ach-cond-threshold" value="1" min="1" oninput="App._updateConditionPreview()">
+          </div>
+          <div class="ach-cond-preview-wrap">
+            <span style="font-size:.72rem;color:var(--text-muted)">條件預覽：</span>
+            <span id="ach-cond-preview" style="font-size:.78rem;font-weight:600;color:var(--accent)"></span>
+          </div>
         </div>
-        <div class="form-row"><label>徽章名稱 <span class="required">*必填</span></label><input type="text" id="badge-input-name" placeholder="例：冠軍徽章"></div>
-        <div class="form-row">
-          <label>類別（框線顏色）</label>
-          <select id="badge-input-category">
-            <option value="bronze">銅</option>
-            <option value="silver">銀</option>
-            <option value="gold">金</option>
-          </select>
+
+        <!-- 徽章圖片 -->
+        <div class="ach-cond-section">
+          <div class="ach-cond-section-title">徽章圖片</div>
+          <div style="display:flex;align-items:center;gap:.6rem">
+            <div id="ach-badge-preview" class="ach-badge-upload-box" onclick="document.getElementById('ach-badge-image').click()">
+              <span style="color:var(--text-muted);font-size:.7rem">點擊上傳</span>
+            </div>
+            <input type="file" id="ach-badge-image" accept="image/jpeg,image/png" style="display:none">
+            <span style="font-size:.7rem;color:var(--text-muted)">50×50，JPG/PNG，建議正方形</span>
+          </div>
         </div>
-        <div class="form-row">
-          <label>關聯成就</label>
-          <select id="badge-input-ach"><option value="">（不關聯成就）</option></select>
-        </div>
-        <div style="font-size:.72rem;color:var(--text-muted);margin-bottom:.5rem">徽章圖片將來可從此處上傳（目前顯示為預留框）</div>
-        <button class="primary-btn full-width" onclick="App.saveBadge()">儲存</button>
+
+        <div style="font-size:.72rem;color:var(--text-muted);margin-bottom:.5rem">建立成就時會自動建立關聯徽章；修改目標後，未達新目標的用戶將變回未完成</div>
+        <button class="primary-btn full-width" onclick="App.saveAchievement()">儲存</button>
       </div>
     </section>
 

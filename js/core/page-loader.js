@@ -37,7 +37,7 @@ const PageLoader = {
     const [pageResults, modalResults] = await Promise.all([
       Promise.all(
         this._pages.map(name =>
-          fetch(`pages/${name}.html`).then(r => r.text()).catch(err => {
+          fetch(`pages/${name}.html?v=${CACHE_VERSION}`).then(r => r.text()).catch(err => {
             console.warn(`[PageLoader] pages/${name}.html 載入失敗:`, err);
             return '';
           })
@@ -45,7 +45,7 @@ const PageLoader = {
       ),
       Promise.all(
         this._modals.map(name =>
-          fetch(`pages/${name}.html`).then(r => r.text()).catch(err => {
+          fetch(`pages/${name}.html?v=${CACHE_VERSION}`).then(r => r.text()).catch(err => {
             console.warn(`[PageLoader] pages/${name}.html 載入失敗:`, err);
             return '';
           })

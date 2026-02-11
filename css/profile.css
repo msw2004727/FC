@@ -125,41 +125,39 @@ a.social-btn { text-decoration: none; }
 .doll-item.locked { opacity: .4; cursor: not-allowed; }
 .doll-actions { display: flex; gap: .5rem; padding: .5rem; justify-content: center; }
 
-/* ─── Achievement Compact Rows ─── */
-.achievement-grid { display: flex; flex-direction: column; gap: .3rem; padding: .5rem; }
-.ach-row { display: flex; align-items: center; gap: .45rem; padding: .5rem .6rem; border-radius: var(--radius-sm); transition: all var(--transition); }
-.ach-row:hover { filter: brightness(1.05); }
-.ach-row.ach-done { opacity: .55; background: var(--bg-elevated) !important; }
+/* ─── Achievement Card Grid (合併成就+徽章) ─── */
+.ach-section-title { font-size: .78rem; font-weight: 700; color: var(--text-secondary); padding: .5rem .5rem .25rem; }
+.ach-card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: .5rem; padding: 0 .5rem .5rem; }
+.ach-card { background: var(--bg-card); border: 2px solid var(--border); border-radius: var(--radius); padding: .6rem; display: flex; gap: .5rem; align-items: flex-start; transition: all var(--transition); }
+.ach-card:hover { box-shadow: var(--shadow); }
+.ach-card-badge { width: 50px; height: 50px; flex-shrink: 0; border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; background: var(--bg-elevated); overflow: hidden; position: relative; border: 2px dashed var(--border); }
+.ach-card-badge img { width: 100%; height: 100%; object-fit: cover; }
+.ach-badge-gray { filter: grayscale(100%); opacity: .5; }
+.ach-card-done-overlay { position: absolute; inset: 0; background: rgba(0,0,0,.55); color: #fff; font-size: .6rem; font-weight: 700; display: flex; align-items: center; justify-content: center; border-radius: var(--radius-sm); }
+.ach-card-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: .2rem; }
+.ach-card-top { display: flex; align-items: center; gap: .3rem; }
+.ach-card-name { font-size: .8rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ach-card-desc { font-size: .7rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ach-card-progress { display: flex; align-items: center; gap: .4rem; }
+.ach-card-num { font-size: .68rem; font-weight: 600; color: var(--text-secondary); white-space: nowrap; }
+.ach-card-completed-date { font-size: .65rem; color: var(--success); font-weight: 600; }
+.ach-card-done { border-style: solid; }
+
+/* ─── Shared Achievement Elements ─── */
 .ach-cat-chip { flex-shrink: 0; font-size: .62rem; font-weight: 700; color: #fff; width: 1.5rem; height: 1.5rem; border-radius: .35rem; display: flex; align-items: center; justify-content: center; }
 .ach-cat-gold { background: #d4a017; }
 .ach-cat-silver { background: #9ca3af; }
 .ach-cat-bronze { background: #b87333; }
-.ach-row-name { font-size: .8rem; font-weight: 700; white-space: nowrap; flex-shrink: 0; }
-.ach-row-desc { font-size: .72rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex-shrink: 1; }
 .ach-bar-mini { flex: 1; min-width: 40px; max-width: 100px; height: 6px; background: var(--bg-elevated); border-radius: 3px; overflow: hidden; }
 .ach-bar-fill { height: 100%; border-radius: 3px; background: linear-gradient(90deg, #3b82f6, #60a5fa); transition: width .4s ease; }
-.ach-row-num { font-size: .68rem; font-weight: 600; color: var(--text-secondary); white-space: nowrap; flex-shrink: 0; }
-.ach-row-done { font-size: .6rem; font-weight: 700; color: var(--success); background: rgba(16,185,129,.1); padding: .1rem .35rem; border-radius: var(--radius-full); white-space: nowrap; flex-shrink: 0; }
-.ach-row-time { font-size: .58rem; color: var(--text-muted); white-space: nowrap; flex-shrink: 0; }
-.ach-divider { display: flex; align-items: center; gap: .5rem; padding: .35rem .6rem; margin: .15rem 0; }
-.ach-divider::before, .ach-divider::after { content: ''; flex: 1; height: 1px; background: var(--border); }
-.ach-divider span { font-size: .65rem; font-weight: 600; color: var(--text-muted); white-space: nowrap; }
-/* keep .ach-cat-tag for admin */
 .ach-cat-tag { font-size: .65rem; font-weight: 700; color: #fff; padding: .12rem .4rem; border-radius: var(--radius-full); flex-shrink: 0; }
 .ach-progress-bar-wrap { width: 100%; height: 6px; background: var(--bg-elevated); border-radius: 3px; overflow: hidden; }
 .ach-progress-bar { height: 100%; border-radius: 3px; transition: width .4s ease; }
 
-/* ─── Badge Grid ─── */
-.badge-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: .6rem; padding: .5rem; }
-.badge-card { background: var(--bg-card); border: 2px solid var(--border); border-radius: var(--radius); padding: .65rem .5rem; text-align: center; transition: all var(--transition); }
-.badge-card:hover { box-shadow: var(--shadow); }
-.badge-card.badge-locked { opacity: .4; }
+/* ─── Badge Placeholder (admin) ─── */
 .badge-img-placeholder { width: 56px; height: 56px; margin: 0 auto .4rem; border: 2px dashed var(--border); border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; background: var(--bg-elevated); overflow: hidden; }
 .badge-img-placeholder img { width: 100%; height: 100%; object-fit: cover; }
 .badge-img-placeholder.small { width: 36px; height: 36px; margin: 0; }
-.badge-card-name { font-size: .72rem; font-weight: 600; }
-.badge-earned-tag { font-size: .65rem; font-weight: 700; margin-top: .2rem; }
-.badge-locked-tag { font-size: .65rem; color: var(--text-muted); margin-top: .2rem; }
 
 /* ─── Achievement Mini Tag ─── */
 .ach-mini { display: inline-block; padding: .2rem .55rem; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius-full); font-size: .72rem; font-weight: 500; color: var(--text-secondary); }
@@ -222,4 +220,4 @@ a.social-btn { text-decoration: none; }
 /* Dark theme */
 [data-theme="dark"] .line-notify-status.bound { background:rgba(6,199,85,.2); color:#4ade80; }
 [data-theme="dark"] .line-notify-status.unbound { background:rgba(255,255,255,.08); color:var(--text-muted); }
-[data-theme="dark"] .ach-row-done { background: rgba(16,185,129,.16); }
+[data-theme="dark"] .ach-card-completed-date { color: #4ade80; }

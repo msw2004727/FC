@@ -236,3 +236,11 @@
 [data-theme="dark"] .log-type.role { background: rgba(167,139,250,.20); }
 [data-theme="dark"] .log-type.event { background: rgba(52,211,153,.20); }
 [data-theme="dark"] .log-type.team_exp { background: rgba(168,85,247,.25); }
+
+/* ─── Achievement Condition Form ─── */
+.ach-cond-section { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: .6rem; margin-bottom: .5rem; background: var(--bg-elevated); }
+.ach-cond-section-title { font-size: .78rem; font-weight: 700; color: var(--text-secondary); margin-bottom: .4rem; }
+.ach-cond-preview-wrap { display: flex; align-items: center; gap: .3rem; padding: .4rem 0 0; border-top: 1px dashed var(--border); margin-top: .4rem; }
+.ach-badge-upload-box { width: 50px; height: 50px; border: 2px dashed var(--border); border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; cursor: pointer; background: var(--bg-main); overflow: hidden; flex-shrink: 0; transition: border-color .2s; }
+.ach-badge-upload-box:hover { border-color: var(--accent); }
+.ach-badge-upload-box img { width: 100%; height: 100%; object-fit: cover; border-radius: 4px; }

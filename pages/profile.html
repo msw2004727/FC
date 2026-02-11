@@ -32,7 +32,7 @@
           <div class="stat-item"><span class="stat-num" id="profile-stat-badges">0</span><span class="stat-label">徽章</span></div>
         </div>
         <div class="quick-grid">
-          <button class="quick-item" onclick="App.showPage('page-achievements')"><span>🏅</span>徽章/成就</button>
+          <button class="quick-item" onclick="App.showPage('page-achievements')"><span>🏅</span>成就/徽章</button>
           <button class="quick-item" onclick="App.showPage('page-titles')"><span>🎖️</span>稱號</button>
           <button class="quick-item disabled" disabled><span>👤</span>紙娃娃</button>
         </div>
@@ -201,22 +201,13 @@
       </div>
     </section>
 
-    <!-- PAGE: Achievements -->
+    <!-- PAGE: Achievements & Badges (合併) -->
     <section class="page" id="page-achievements">
       <div class="page-header">
         <button class="back-btn" onclick="App.goBack()">←</button>
-        <h2>成就系統</h2>
+        <h2>成就與徽章</h2>
       </div>
-      <div class="achievement-grid" id="achievement-grid"></div>
-    </section>
-
-    <!-- PAGE: Badges -->
-    <section class="page" id="page-badges">
-      <div class="page-header">
-        <button class="back-btn" onclick="App.goBack()">←</button>
-        <h2>徽章收藏</h2>
-      </div>
-      <div class="badge-grid" id="badge-grid"></div>
+      <div id="achievement-grid"></div>
     </section>
 
     <!-- PAGE: Titles -->
