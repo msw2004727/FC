@@ -45,6 +45,8 @@ const FirebaseService = {
     siteThemes: [],
     adminMessages: [],
     notifTemplates: [],
+    rolePermissions: {},
+    customRoles: [],
     currentUser: null,
   },
 
@@ -77,7 +79,7 @@ const FirebaseService = {
     'trades', 'banners', 'floatingAds', 'popupAds', 'sponsors',
     'announcements', 'attendanceRecords', 'achievements', 'badges',
     'expLogs', 'teamExpLogs', 'operationLogs', 'activityRecords', 'siteThemes',
-    'adminMessages', 'notifTemplates', 'permissions',
+    'adminMessages', 'notifTemplates', 'permissions', 'customRoles',
   ],
 
   async init() {
@@ -141,12 +143,23 @@ const FirebaseService = {
       this._cache[name] = staticSnapshots[i].docs.map(doc => ({ ...doc.data(), _docId: doc.id }));
     });
 
+    // ── rolePermissions：特殊載入（map 結構，非 flat array）──
+    try {
+      const rpSnap = await db.collection('rolePermissions').get();
+      if (!rpSnap.empty) {
+        this._cache.rolePermissions = {};
+        rpSnap.docs.forEach(doc => { this._cache.rolePermissions[doc.id] = doc.data().permissions || []; });
+      }
+    } catch (err) { console.warn('[FirebaseService] rolePermissions 載入失敗:', err); }
+
     // 自動建立空白廣告欄位（若 Firestore 尚無資料）
     await this._seedAdSlots();
     // 自動建立通知模板（若 Firestore 尚無資料）
     await this._seedNotifTemplates();
     // 自動建立預設成就與徽章（若 Firestore 尚無資料）
     await this._seedAchievements();
+    // 自動建立權限定義與角色權限（若 Firestore 尚無資料）
+    await this._seedRoleData();
 
     this._initialized = true;
     const totalCollections = this._liveCollections.length + this._staticCollections.length + 1;
@@ -284,6 +297,76 @@ const FirebaseService = {
     } catch (err) {
       console.warn('[FirebaseService] 成就與徽章建立失敗:', err);
     }
+  },
+
+  // ════════════════════════════════
+  //  自動建立權限定義與角色權限
+  // ════════════════════════════════
+
+  async _seedRoleData() {
+    // 1. Seed permissions（權限分類定義）
+    if (this._cache.permissions.length === 0) {
+      console.log('[FirebaseService] 建立預設權限定義...');
+      try {
+        const perms = DemoData.permissions;
+        const batch = db.batch();
+        perms.forEach((cat, i) => {
+          const docId = 'perm_' + i;
+          batch.set(db.collection('permissions').doc(docId), cat, { merge: true });
+        });
+        await batch.commit();
+        this._cache.permissions = perms.map((cat, i) => ({ ...cat, _docId: 'perm_' + i }));
+      } catch (err) { console.warn('[FirebaseService] 權限定義建立失敗:', err); }
+    }
+
+    // 2. Seed rolePermissions（角色→權限映射）
+    if (Object.keys(this._cache.rolePermissions).length === 0) {
+      console.log('[FirebaseService] 建立預設角色權限...');
+      try {
+        const rp = DemoData.rolePermissions;
+        const batch = db.batch();
+        Object.entries(rp).forEach(([role, permissions]) => {
+          batch.set(db.collection('rolePermissions').doc(role), { permissions }, { merge: true });
+        });
+        await batch.commit();
+        this._cache.rolePermissions = { ...rp };
+        console.log('[FirebaseService] 預設角色權限建立完成');
+      } catch (err) { console.warn('[FirebaseService] 角色權限建立失敗:', err); }
+    }
+  },
+
+  // ════════════════════════════════
+  //  Role Permissions CRUD
+  // ════════════════════════════════
+
+  async saveRolePermissions(roleKey, permissions) {
+    try {
+      await db.collection('rolePermissions').doc(roleKey).set({ permissions }, { merge: true });
+    } catch (err) { console.error('[saveRolePermissions]', err); }
+  },
+
+  async deleteRolePermissions(roleKey) {
+    try {
+      await db.collection('rolePermissions').doc(roleKey).delete();
+    } catch (err) { console.error('[deleteRolePermissions]', err); }
+  },
+
+  // ════════════════════════════════
+  //  Custom Roles CRUD
+  // ════════════════════════════════
+
+  async addCustomRole(data) {
+    try {
+      await db.collection('customRoles').doc(data.key).set(data, { merge: true });
+      data._docId = data.key;
+    } catch (err) { console.error('[addCustomRole]', err); }
+    return data;
+  },
+
+  async deleteCustomRole(key) {
+    try {
+      await db.collection('customRoles').doc(key).delete();
+    } catch (err) { console.error('[deleteCustomRole]', err); }
   },
 
   async updateNotifTemplate(key, updates) {
@@ -1034,6 +1117,7 @@ const FirebaseService = {
     // 重置快取到初始空白狀態
     Object.keys(this._cache).forEach(k => {
       if (k === 'currentUser') { this._cache[k] = null; }
+      else if (k === 'rolePermissions') { this._cache[k] = {}; }
       else { this._cache[k] = []; }
     });
   },

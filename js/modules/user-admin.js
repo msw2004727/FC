@@ -682,6 +682,10 @@ Object.assign(App, {
     } else {
       source[this._permSelectedRole].push(code);
     }
+    // 正式版：寫入 Firestore
+    if (!ModeManager.isDemo()) {
+      FirebaseService.saveRolePermissions(this._permSelectedRole, source[this._permSelectedRole]);
+    }
     this.renderPermissions(this._permSelectedRole);
   },
 
@@ -716,6 +720,12 @@ Object.assign(App, {
     const source = ModeManager.isDemo() ? DemoData.rolePermissions : (FirebaseService._cache.rolePermissions || DemoData.rolePermissions);
     source[key] = [...(source[afterRole] || [])];
 
+    // 正式版：寫入 Firestore
+    if (!ModeManager.isDemo()) {
+      FirebaseService.addCustomRole(newRole);
+      FirebaseService.saveRolePermissions(key, source[key]);
+    }
+
     this.hideRoleEditor();
     this.renderRoleHierarchy();
     this.showToast(`自訂層級「${label}」已建立，預設插入於領隊之後`);
@@ -749,7 +759,13 @@ Object.assign(App, {
     // 降級該層級的用戶
     const users = ApiService.getAdminUsers ? ApiService.getAdminUsers() : [];
     users.forEach(u => {
-      if (u.role === key) u.role = demoteToRole;
+      if (u.role === key) {
+        u.role = demoteToRole;
+        // 正式版：更新 Firestore 用戶角色
+        if (!ModeManager.isDemo() && u._docId) {
+          FirebaseService.updateUserRole(u._docId, demoteToRole).catch(err => console.error('[deleteCustomRole] demote user:', err));
+        }
+      }
     });
 
     // 移除自訂層級
@@ -758,6 +774,12 @@ Object.assign(App, {
     // 移除權限
     const source = ModeManager.isDemo() ? DemoData.rolePermissions : (FirebaseService._cache.rolePermissions || DemoData.rolePermissions);
     delete source[key];
+
+    // 正式版：刪除 Firestore 資料
+    if (!ModeManager.isDemo()) {
+      FirebaseService.deleteCustomRole(key);
+      FirebaseService.deleteRolePermissions(key);
+    }
 
     // 清除選中狀態
     if (this._permSelectedRole === key) {
