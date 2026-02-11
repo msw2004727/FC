@@ -261,38 +261,63 @@ const FirebaseService = {
   //  自動建立預設成就與徽章
   // ════════════════════════════════
 
+  // 預設成就與徽章資料（與 DemoData 一致）
+  _defaultAchievements: [
+    { id: 'a1', name: '初心者', category: 'bronze', badgeId: 'b1', completedAt: '2025/09/10', current: 1, status: 'active', condition: { timeRange: 'none', action: 'register_event', filter: 'all', threshold: 1 } },
+    { id: 'a2', name: '全勤之星', category: 'silver', badgeId: 'b2', completedAt: '2026/01/20', current: 90, status: 'active', condition: { timeRange: 'none', action: 'attendance_rate', filter: 'all', threshold: 90 } },
+    { id: 'a3', name: '鐵人精神', category: 'silver', badgeId: 'b3', completedAt: '2026/02/05', current: 30, status: 'active', condition: { timeRange: 'none', action: 'complete_event', filter: 'all', threshold: 30 } },
+    { id: 'a4', name: '社群達人', category: 'silver', badgeId: 'b4', completedAt: '2026/01/15', current: 1, status: 'active', condition: { timeRange: 'none', action: 'bind_line_notify', filter: 'all', threshold: 1 } },
+    { id: 'a5', name: '月活躍玩家', category: 'gold', badgeId: 'b5', completedAt: null, current: 3, status: 'active', condition: { timeRange: '30d', action: 'complete_event', filter: 'all', threshold: 5 } },
+    { id: 'a6', name: '活動策劃師', category: 'gold', badgeId: 'b6', completedAt: null, current: 2, status: 'active', condition: { timeRange: 'none', action: 'organize_event', filter: 'all', threshold: 10 } },
+    { id: 'a7', name: '百場達人', category: 'gold', badgeId: 'b7', completedAt: null, current: 42, status: 'active', condition: { timeRange: 'none', action: 'complete_event', filter: 'all', threshold: 100 } },
+  ],
+  _defaultBadges: [
+    { id: 'b1', name: '新手徽章', achId: 'a1', category: 'bronze', image: null },
+    { id: 'b2', name: '全勤徽章', achId: 'a2', category: 'silver', image: null },
+    { id: 'b3', name: '鐵人徽章', achId: 'a3', category: 'silver', image: null },
+    { id: 'b4', name: '社群徽章', achId: 'a4', category: 'silver', image: null },
+    { id: 'b5', name: '月活躍徽章', achId: 'a5', category: 'gold', image: null },
+    { id: 'b6', name: '策劃師徽章', achId: 'a6', category: 'gold', image: null },
+    { id: 'b7', name: '百場徽章', achId: 'a7', category: 'gold', image: null },
+  ],
+
   async _seedAchievements() {
-    if (this._cache.achievements.length > 0) return;
+    const existing = this._cache.achievements;
+
+    // 已有資料 → 檢查是否需要遷移（舊版 seed 全部 current:0）
+    if (existing.length > 0) {
+      const needsMigration = existing.every(a => !a.current && !a.completedAt);
+      if (!needsMigration) return;
+      console.log('[FirebaseService] 遷移成就資料（補上初始進度）...');
+      try {
+        const batch = db.batch();
+        this._defaultAchievements.forEach(def => {
+          const doc = existing.find(a => a.id === def.id);
+          if (doc && doc._docId) {
+            batch.update(db.collection('achievements').doc(doc._docId), { current: def.current, completedAt: def.completedAt });
+            doc.current = def.current;
+            doc.completedAt = def.completedAt;
+          }
+        });
+        await batch.commit();
+        console.log('[FirebaseService] 成就資料遷移完成');
+      } catch (err) { console.warn('[FirebaseService] 成就遷移失敗:', err); }
+      return;
+    }
+
+    // 全新建立
     console.log('[FirebaseService] 建立預設成就與徽章...');
-    const achievements = [
-      { id: 'a1', name: '初心者', category: 'bronze', badgeId: 'b1', completedAt: null, current: 0, status: 'active', condition: { timeRange: 'none', action: 'register_event', filter: 'all', threshold: 1 } },
-      { id: 'a2', name: '全勤之星', category: 'silver', badgeId: 'b2', completedAt: null, current: 0, status: 'active', condition: { timeRange: 'none', action: 'attendance_rate', filter: 'all', threshold: 90 } },
-      { id: 'a3', name: '鐵人精神', category: 'silver', badgeId: 'b3', completedAt: null, current: 0, status: 'active', condition: { timeRange: 'none', action: 'complete_event', filter: 'all', threshold: 30 } },
-      { id: 'a4', name: '社群達人', category: 'silver', badgeId: 'b4', completedAt: null, current: 0, status: 'active', condition: { timeRange: 'none', action: 'bind_line_notify', filter: 'all', threshold: 1 } },
-      { id: 'a5', name: '月活躍玩家', category: 'gold', badgeId: 'b5', completedAt: null, current: 0, status: 'active', condition: { timeRange: '30d', action: 'complete_event', filter: 'all', threshold: 5 } },
-      { id: 'a6', name: '活動策劃師', category: 'gold', badgeId: 'b6', completedAt: null, current: 0, status: 'active', condition: { timeRange: 'none', action: 'organize_event', filter: 'all', threshold: 10 } },
-      { id: 'a7', name: '百場達人', category: 'gold', badgeId: 'b7', completedAt: null, current: 0, status: 'active', condition: { timeRange: 'none', action: 'complete_event', filter: 'all', threshold: 100 } },
-    ];
-    const badges = [
-      { id: 'b1', name: '新手徽章', achId: 'a1', category: 'bronze', image: null },
-      { id: 'b2', name: '全勤徽章', achId: 'a2', category: 'silver', image: null },
-      { id: 'b3', name: '鐵人徽章', achId: 'a3', category: 'silver', image: null },
-      { id: 'b4', name: '社群徽章', achId: 'a4', category: 'silver', image: null },
-      { id: 'b5', name: '月活躍徽章', achId: 'a5', category: 'gold', image: null },
-      { id: 'b6', name: '策劃師徽章', achId: 'a6', category: 'gold', image: null },
-      { id: 'b7', name: '百場徽章', achId: 'a7', category: 'gold', image: null },
-    ];
     try {
       const batch = db.batch();
-      achievements.forEach(a => {
+      this._defaultAchievements.forEach(a => {
         batch.set(db.collection('achievements').doc(a.id), { ...a, createdAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true });
       });
-      badges.forEach(b => {
+      this._defaultBadges.forEach(b => {
         batch.set(db.collection('badges').doc(b.id), { ...b, createdAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true });
       });
       await batch.commit();
-      achievements.forEach(a => { a._docId = a.id; this._cache.achievements.push(a); });
-      badges.forEach(b => { b._docId = b.id; this._cache.badges.push(b); });
+      this._defaultAchievements.forEach(a => { a._docId = a.id; this._cache.achievements.push({ ...a }); });
+      this._defaultBadges.forEach(b => { b._docId = b.id; this._cache.badges.push({ ...b }); });
       console.log('[FirebaseService] 預設成就與徽章建立完成');
     } catch (err) {
       console.warn('[FirebaseService] 成就與徽章建立失敗:', err);
