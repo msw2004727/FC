@@ -28,6 +28,7 @@ const FirebaseService = {
     matches: [],
     trades: [],
     expLogs: [],
+    teamExpLogs: [],
     operationLogs: [],
     banners: [],
     achievements: [],
@@ -75,7 +76,7 @@ const FirebaseService = {
     'tournaments', 'shopItems', 'leaderboard', 'standings', 'matches',
     'trades', 'banners', 'floatingAds', 'popupAds', 'sponsors',
     'announcements', 'attendanceRecords', 'achievements', 'badges',
-    'expLogs', 'operationLogs', 'activityRecords', 'siteThemes',
+    'expLogs', 'teamExpLogs', 'operationLogs', 'activityRecords', 'siteThemes',
     'adminMessages', 'notifTemplates', 'permissions',
   ],
 

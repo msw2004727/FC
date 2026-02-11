@@ -287,15 +287,24 @@ Object.assign(App, {
   bindLineNotify() {
     const user = ApiService.getCurrentUser();
     if (!user) return;
+    const btn = document.querySelector('.line-login-btn');
+    if (btn) btn.classList.add('loading');
     const today = new Date();
     const dateStr = today.getFullYear() + '/' + String(today.getMonth() + 1).padStart(2, '0') + '/' + String(today.getDate()).padStart(2, '0');
-    user.lineNotify = {
+    const notify = {
       bound: true,
       boundAt: dateStr,
       settings: { activity: true, system: true, tournament: false }
     };
-    this.renderLineNotifyCard();
-    this.showToast('LINE 綁定成功');
+    ApiService.updateCurrentUser({ lineNotify: notify });
+    setTimeout(() => {
+      if (btn) btn.classList.remove('loading');
+      const boundEl = document.getElementById('line-notify-bound');
+      const unboundEl = document.getElementById('line-notify-unbound');
+      if (boundEl) boundEl.classList.add('fadeIn');
+      this.renderLineNotifyCard();
+      this.showToast('LINE 綁定成功');
+    }, 600);
   },
 
   async unbindLineNotify() {
@@ -303,7 +312,9 @@ Object.assign(App, {
     if (!yes) return;
     const user = ApiService.getCurrentUser();
     if (!user) return;
-    user.lineNotify = { bound: false, settings: { activity: true, system: true, tournament: false } };
+    ApiService.updateCurrentUser({ lineNotify: { bound: false, settings: { activity: true, system: true, tournament: false } } });
+    const unboundEl = document.getElementById('line-notify-unbound');
+    if (unboundEl) unboundEl.classList.add('fadeIn');
     this.renderLineNotifyCard();
     this.showToast('已解除 LINE 綁定');
   },
@@ -312,10 +323,11 @@ Object.assign(App, {
     const user = ApiService.getCurrentUser();
     if (!user || !user.lineNotify || !user.lineNotify.bound) return;
     const settings = user.lineNotify.settings;
-    settings[key] = !settings[key];
+    const newSettings = { ...settings, [key]: !settings[key] };
+    ApiService.updateCurrentUser({ lineNotify: { ...user.lineNotify, settings: newSettings } });
     const labels = { activity: '活動提醒', system: '系統通知', tournament: '賽事通知' };
     const label = labels[key] || key;
-    this.showToast(settings[key] ? '已開啟' + label : '已關閉' + label);
+    this.showToast(newSettings[key] ? '已開啟' + label : '已關閉' + label);
   },
 
   saveFirstLoginProfile() {

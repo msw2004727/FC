@@ -449,8 +449,8 @@ Object.assign(App, {
     const container = document.getElementById('exp-log-list');
     if (!container) return;
     if (!logs) {
-      const userLogs = ApiService.getExpLogs().map(l => ({ ...l, logType: 'user' }));
-      const teamLogs = ApiService.getTeamExpLogs().map(l => ({ ...l, logType: 'team' }));
+      const userLogs = (ApiService.getExpLogs() || []).map(l => ({ ...l, logType: 'user' }));
+      const teamLogs = (ApiService.getTeamExpLogs() || []).map(l => ({ ...l, logType: 'team' }));
       logs = [...userLogs, ...teamLogs].sort((a, b) => {
         if (a.time > b.time) return -1;
         if (a.time < b.time) return 1;
@@ -515,8 +515,8 @@ Object.assign(App, {
   filterExpLogs() {
     const keyword = (document.getElementById('exp-log-search')?.value || '').trim().toLowerCase();
     const dateVal = document.getElementById('exp-log-date')?.value || '';
-    const userLogs = ApiService.getExpLogs().map(l => ({ ...l, logType: 'user' }));
-    const teamLogs = ApiService.getTeamExpLogs().map(l => ({ ...l, logType: 'team' }));
+    const userLogs = (ApiService.getExpLogs() || []).map(l => ({ ...l, logType: 'user' }));
+    const teamLogs = (ApiService.getTeamExpLogs() || []).map(l => ({ ...l, logType: 'team' }));
     let logs = [...userLogs, ...teamLogs].sort((a, b) => {
       if (a.time > b.time) return -1;
       if (a.time < b.time) return 1;

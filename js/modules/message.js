@@ -237,6 +237,31 @@ Object.assign(App, {
     const title = this._renderTemplate(tpl.title, vars);
     const body = this._renderTemplate(tpl.body, vars);
     this._deliverMessageToInbox(title, body, category || 'system', categoryName || '系統', targetUid, '系統');
+    // LINE 推播排隊（供 Cloud Functions 消費）
+    this._queueLinePush(targetUid, category || 'system', title, body);
+  },
+
+  _queueLinePush(uid, category, title, body) {
+    if (!uid) return;
+    // 查找目標用戶的 lineNotify 設定
+    const users = ApiService.getAdminUsers();
+    const target = users.find(u => u.uid === uid);
+    if (!target || !target.lineNotify || !target.lineNotify.bound) return;
+    if (!target.lineNotify.settings[category]) return;
+
+    if (ModeManager.isDemo()) {
+      console.log('[LINE Push]', { uid, category, title, body });
+      this.showToast('LINE 推播已排入佇列（Demo）');
+    } else {
+      db.collection('linePushQueue').add({
+        uid,
+        title,
+        body,
+        category,
+        status: 'pending',
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      }).catch(err => console.error('[LINE Push] 寫入失敗:', err));
+    }
   },
 
   // ══════════════════════════════════
