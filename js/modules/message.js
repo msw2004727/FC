@@ -10,6 +10,13 @@ Object.assign(App, {
 
   _msgInboxFilter: 'all',
 
+  // 判斷訊息對當前用戶是否未讀（per-user readBy 追蹤，向下相容舊 unread 欄位）
+  _isMessageUnread(msg) {
+    const myUid = ApiService.getCurrentUser()?.uid;
+    if (myUid && Array.isArray(msg.readBy)) return !msg.readBy.includes(myUid);
+    return !!msg.unread;
+  },
+
   _filterMyMessages(messages) {
     const curUser = ApiService.getCurrentUser();
     const myUid = curUser?.uid || null;
@@ -30,17 +37,19 @@ Object.assign(App, {
     const messages = f === 'all' ? allMessages : allMessages.filter(m => m.type === f);
     const container = document.getElementById('message-list');
     if (!container) return;
-    container.innerHTML = messages.length ? messages.map(m => `
-      <div class="msg-card${m.unread ? ' msg-unread' : ''}" onclick="App.readMessage(this, '${m.id}')">
+    container.innerHTML = messages.length ? messages.map(m => {
+      const isUnread = this._isMessageUnread(m);
+      return `
+      <div class="msg-card${isUnread ? ' msg-unread' : ''}" onclick="App.readMessage(this, '${m.id}')">
         <div class="msg-card-header">
-          <span class="msg-dot ${m.unread ? 'unread' : 'read'}"></span>
+          <span class="msg-dot ${isUnread ? 'unread' : 'read'}"></span>
           <span class="msg-type msg-type-${m.type}">${escapeHTML(m.typeName)}</span>
           <span class="msg-title">${escapeHTML(m.title)}</span>
         </div>
         <div class="msg-preview">${escapeHTML(m.preview)}</div>
         <div class="msg-time">${escapeHTML(m.time)}</div>
-      </div>
-    `).join('') : '<div style="text-align:center;padding:1.5rem;color:var(--text-muted);font-size:.82rem">此分類沒有訊息</div>';
+      </div>`;
+    }).join('') : '<div style="text-align:center;padding:1.5rem;color:var(--text-muted);font-size:.82rem">此分類沒有訊息</div>';
     this.updateNotifBadge();
     this.updateStorageBar();
 
@@ -60,7 +69,7 @@ Object.assign(App, {
 
   updateNotifBadge() {
     const messages = this._filterMyMessages(ApiService.getMessages());
-    const unreadCount = messages.filter(m => m.unread).length;
+    const unreadCount = messages.filter(m => this._isMessageUnread(m)).length;
     const badge = document.getElementById('notif-badge');
     if (!badge) return;
     badge.textContent = unreadCount;
@@ -77,24 +86,53 @@ Object.assign(App, {
   },
 
   markAllRead() {
-    const messages = ApiService.getMessages();
-    let changed = messages.filter(m => m.unread).length;
-    if (changed === 0) { this.showToast('沒有未讀訊息'); return; }
-    ApiService.markAllMessagesRead();
+    const myMessages = this._filterMyMessages(ApiService.getMessages());
+    const myUid = ApiService.getCurrentUser()?.uid;
+    const unread = myMessages.filter(m => this._isMessageUnread(m));
+    if (unread.length === 0) { this.showToast('沒有未讀訊息'); return; }
+    unread.forEach(m => {
+      if (!Array.isArray(m.readBy)) m.readBy = [];
+      if (myUid && !m.readBy.includes(myUid)) m.readBy.push(myUid);
+    });
+    if (!ModeManager.isDemo() && myUid) {
+      const docsToUpdate = unread.filter(m => m._docId);
+      if (docsToUpdate.length > 0) {
+        const batch = db.batch();
+        docsToUpdate.forEach(m => {
+          batch.update(db.collection('messages').doc(m._docId), {
+            readBy: firebase.firestore.FieldValue.arrayUnion(myUid)
+          });
+        });
+        batch.commit().catch(err => console.error('[markAllRead]', err));
+      }
+    }
     this.renderMessageList();
     this.updateNotifBadge();
-    this.showToast(`已將 ${changed} 則訊息標為已讀`);
+    this.showToast(`已將 ${unread.length} 則訊息標為已讀`);
   },
 
   async clearAllMessages() {
-    const messages = ApiService.getMessages();
-    if (!messages.length) { this.showToast('沒有訊息可清空'); return; }
-    if (!(await this.appConfirm(`確定要清空全部 ${messages.length} 則訊息？此操作無法恢復。`))) return;
+    const myMessages = this._filterMyMessages(ApiService.getMessages());
+    if (!myMessages.length) { this.showToast('沒有訊息可清空'); return; }
+    if (!(await this.appConfirm(`確定要清空全部 ${myMessages.length} 則訊息？此操作無法恢復。`))) return;
     if (ModeManager.isDemo()) {
-      DemoData.messages.length = 0;
+      myMessages.forEach(m => {
+        const idx = DemoData.messages.indexOf(m);
+        if (idx >= 0) DemoData.messages.splice(idx, 1);
+      });
     } else {
       try {
-        await FirebaseService.clearAllMessages();
+        const toDelete = myMessages.filter(m => m._docId);
+        for (let i = 0; i < toDelete.length; i += 450) {
+          const chunk = toDelete.slice(i, i + 450);
+          const batch = db.batch();
+          chunk.forEach(m => batch.delete(db.collection('messages').doc(m._docId)));
+          await batch.commit();
+        }
+        toDelete.forEach(m => {
+          const idx = FirebaseService._cache.messages.indexOf(m);
+          if (idx >= 0) FirebaseService._cache.messages.splice(idx, 1);
+        });
       } catch (err) {
         console.error('[clearAllMessages]', err);
         this.showToast('清空失敗，請重試');
@@ -109,8 +147,15 @@ Object.assign(App, {
   readMessage(el, id) {
     const messages = ApiService.getMessages();
     const msg = messages.find(m => m.id === id);
-    if (msg && msg.unread) {
-      ApiService.markMessageRead(id);
+    if (msg && this._isMessageUnread(msg)) {
+      const myUid = ApiService.getCurrentUser()?.uid;
+      if (!Array.isArray(msg.readBy)) msg.readBy = [];
+      if (myUid && !msg.readBy.includes(myUid)) msg.readBy.push(myUid);
+      if (!ModeManager.isDemo() && msg._docId && myUid) {
+        db.collection('messages').doc(msg._docId).update({
+          readBy: firebase.firestore.FieldValue.arrayUnion(myUid)
+        }).catch(err => console.error('[readMessage]', err));
+      }
       el.classList.remove('msg-unread');
       const dot = el.querySelector('.msg-dot');
       if (dot) { dot.classList.remove('unread'); dot.classList.add('read'); }
@@ -847,6 +892,7 @@ Object.assign(App, {
       body,
       time: timeStr,
       unread: true,
+      readBy: [],
       senderName,
       targetUid: targetUid || null,
       ...(extra || {}),

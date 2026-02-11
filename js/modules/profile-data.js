@@ -313,9 +313,10 @@ Object.assign(App, {
       }
       this._completeLineBinding(btn);
     } catch (err) {
-      console.error('[LineNotify] getFriendship 失敗:', err);
-      if (btn) btn.classList.remove('loading');
-      this.showToast('好友狀態檢查失敗，請稍後再試');
+      // getFriendship 不可用（如 LIFF 未設定 Bot link）→ 直接允許綁定
+      // 若實際非好友，推播失敗時 Cloud Function 會自動解綁
+      console.warn('[LineNotify] getFriendship 不可用，直接綁定:', err.message || err);
+      this._completeLineBinding(btn);
     }
   },
 
