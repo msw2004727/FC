@@ -18,41 +18,54 @@ Object.assign(App, {
     container.innerHTML = items.map(t => {
       const hasImage = !!t.image;
       const isActive = t.status === 'active';
+
+      // ── Status badge ──
       const statusLabel = isActive ? '上架中' : (hasImage ? '已下架' : '未設定');
-      const statusColor = isActive ? '#10b981' : (hasImage ? '#f59e0b' : '#6b7280');
+      const statusClass = isActive ? 'active' : (hasImage ? 'scheduled' : 'empty');
 
+      // ── Slot visual indicator ──
+      const slotIcons = {
+        theme_topbar: '↑ 頂部',
+        theme_bottombar: '↓ 底部',
+        theme_bg: '▣ 全頁',
+      };
+      const slotIcon = slotIcons[t.slot] || '';
+
+      // ── Preview area ──
       const preview = hasImage
-        ? `<img src="${t.image}" style="width:100%;height:100%;object-fit:cover;border-radius:var(--radius-sm)">`
-        : `<span style="color:var(--text-muted);font-size:.72rem">${escapeHTML(t.spec)}</span>`;
+        ? `<img src="${t.image}" style="width:100%;height:100%;object-fit:cover">`
+        : `<div style="display:flex;flex-direction:column;align-items:center;gap:2px">
+             <span style="font-size:.65rem;color:var(--text-muted)">尚未上傳</span>
+             <span style="font-size:.6rem;color:var(--text-muted)">${escapeHTML(t.spec)}</span>
+           </div>`;
 
-      let buttons = '';
+      // ── Action buttons ──
+      let actions = '';
       if (!hasImage) {
-        buttons = `<button class="text-btn" style="font-size:.75rem" onclick="App.showThemeForm('${t.id}')">設定</button>`;
-      } else if (isActive) {
-        buttons = `
-          <button class="text-btn" style="font-size:.75rem" onclick="App.showThemeForm('${t.id}')">更換</button>
-          <button class="text-btn" style="font-size:.75rem;color:#f59e0b" onclick="App.toggleThemeStatus('${t.id}')">下架</button>
-          <button class="text-btn" style="font-size:.75rem;color:#ef4444" onclick="App.clearThemeSlot('${t.id}')">清除</button>`;
+        actions = `<button class="primary-btn" style="font-size:.72rem;padding:.3rem .8rem" onclick="App.showThemeForm('${t.id}')">上傳圖片</button>`;
       } else {
-        buttons = `
-          <button class="text-btn" style="font-size:.75rem" onclick="App.showThemeForm('${t.id}')">更換</button>
-          <button class="text-btn" style="font-size:.75rem;color:#10b981" onclick="App.toggleThemeStatus('${t.id}')">上架</button>
-          <button class="text-btn" style="font-size:.75rem;color:#ef4444" onclick="App.clearThemeSlot('${t.id}')">清除</button>`;
+        const toggleBtn = isActive
+          ? `<button class="text-btn" style="font-size:.72rem;color:#f59e0b;border:1px solid #f59e0b;padding:.25rem .6rem;border-radius:var(--radius-sm)" onclick="App.toggleThemeStatus('${t.id}')">下架</button>`
+          : `<button class="text-btn" style="font-size:.72rem;color:#10b981;border:1px solid #10b981;padding:.25rem .6rem;border-radius:var(--radius-sm)" onclick="App.toggleThemeStatus('${t.id}')">上架</button>`;
+        actions = `
+          <button class="text-btn" style="font-size:.72rem;border:1px solid var(--border);padding:.25rem .6rem;border-radius:var(--radius-sm)" onclick="App.showThemeForm('${t.id}')">更換圖片</button>
+          ${toggleBtn}
+          <button class="text-btn" style="font-size:.72rem;color:#ef4444;padding:.25rem .4rem" onclick="App.clearThemeSlot('${t.id}')">清除</button>`;
       }
 
       return `
-        <div class="banner-manage-card" style="align-items:center">
-          <div style="width:80px;height:50px;border-radius:var(--radius-sm);overflow:hidden;display:flex;align-items:center;justify-content:center;background:var(--bg-card);border:1px solid var(--border);flex-shrink:0">
+        <div class="banner-manage-card" style="flex-direction:column;align-items:stretch;gap:.5rem">
+          <div style="display:flex;align-items:center;gap:.5rem">
+            <span style="font-size:.7rem;background:var(--bg-main);padding:.15rem .45rem;border-radius:var(--radius-sm);color:var(--text-secondary);font-weight:600;white-space:nowrap">${slotIcon}</span>
+            <span class="banner-manage-title" style="flex:1">${escapeHTML(t.label)}</span>
+            <span class="banner-manage-status status-${statusClass}">${statusLabel}</span>
+          </div>
+          <div style="width:100%;height:72px;border-radius:var(--radius-sm);overflow:hidden;display:flex;align-items:center;justify-content:center;background:var(--bg-main);border:${hasImage ? 'none' : '2px dashed var(--border)'};cursor:${hasImage ? 'default' : 'pointer'}" ${!hasImage ? `onclick="App.showThemeForm('${t.id}')"` : ''}>
             ${preview}
           </div>
-          <div class="banner-manage-info" style="flex:1;min-width:0;margin-left:.5rem">
-            <div class="banner-manage-title">${escapeHTML(t.label)}</div>
-            <div class="banner-manage-meta" style="display:flex;align-items:center;gap:.4rem">
-              <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${statusColor}"></span>
-              <span>${statusLabel}</span>
-              <span style="color:var(--text-muted)">・${escapeHTML(t.spec)}</span>
-            </div>
-            <div style="display:flex;gap:.5rem;margin-top:.3rem">${buttons}</div>
+          <div style="display:flex;align-items:center;gap:.3rem;flex-wrap:wrap">
+            <span style="font-size:.68rem;color:var(--text-muted);margin-right:auto">建議：${escapeHTML(t.spec)}</span>
+            ${actions}
           </div>
         </div>`;
     }).join('');
@@ -69,13 +82,17 @@ Object.assign(App, {
     const input = document.getElementById('theme-image');
 
     document.getElementById('theme-form-title').textContent = item.label;
-    hint.textContent = `建議尺寸：${item.spec}`;
+    hint.textContent = `建議尺寸：${item.spec}（JPG / PNG，2MB 以內）`;
 
     if (item.image) {
       preview.innerHTML = `<img src="${item.image}" style="width:100%;height:100%;object-fit:cover;border-radius:var(--radius-sm)">`;
       preview.classList.add('has-image');
     } else {
-      preview.innerHTML = '<span style="color:var(--text-muted);font-size:.8rem">點擊上傳圖片</span>';
+      preview.innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;gap:4px">
+        <span style="font-size:1.5rem">📁</span>
+        <span style="color:var(--text-muted);font-size:.78rem">點擊選擇圖片</span>
+        <span style="color:var(--text-muted);font-size:.68rem">${escapeHTML(item.spec)}</span>
+      </div>`;
       preview.classList.remove('has-image');
     }
     if (input) input.value = '';
