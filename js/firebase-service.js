@@ -121,60 +121,45 @@ const FirebaseService = {
   // ════════════════════════════════
 
   async _seedAdSlots() {
+    // 使用固定 doc ID + set(merge) 確保冪等性，避免重複建立
+    const seedCollection = async (collectionName, slots) => {
+      if (this._cache[collectionName].length > 0) return;
+      console.log(`[FirebaseService] 建立空白 ${collectionName} 欄位...`);
+      const batch = db.batch();
+      slots.forEach(slot => {
+        const ref = db.collection(collectionName).doc(slot.id);
+        batch.set(ref, { ...slot, createdAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true });
+      });
+      await batch.commit();
+      slots.forEach(slot => {
+        slot._docId = slot.id;
+        this._cache[collectionName].push(slot);
+      });
+    };
+
     try {
-      // Banner 欄位（3 個）
-      if (this._cache.banners.length === 0) {
-        console.log('[FirebaseService] 建立空白 Banner 欄位...');
-        const bannerSlots = [
-          { id: 'ban1', slot: 1, title: '', image: null, status: 'empty', publishAt: null, unpublishAt: null, clicks: 0, gradient: '' },
-          { id: 'ban2', slot: 2, title: '', image: null, status: 'empty', publishAt: null, unpublishAt: null, clicks: 0, gradient: '' },
-          { id: 'ban3', slot: 3, title: '', image: null, status: 'empty', publishAt: null, unpublishAt: null, clicks: 0, gradient: '' },
-        ];
-        for (const slot of bannerSlots) {
-          const docRef = await db.collection('banners').add({ ...slot, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
-          slot._docId = docRef.id;
-          this._cache.banners.push(slot);
-        }
-      }
-
-      // 浮動廣告欄位（2 個）
-      if (this._cache.floatingAds.length === 0) {
-        console.log('[FirebaseService] 建立空白浮動廣告欄位...');
-        const floatSlots = [
-          { id: 'fad1', slot: 'AD1', title: '', image: null, status: 'empty', publishAt: null, unpublishAt: null, clicks: 0 },
-          { id: 'fad2', slot: 'AD2', title: '', image: null, status: 'empty', publishAt: null, unpublishAt: null, clicks: 0 },
-        ];
-        for (const slot of floatSlots) {
-          const docRef = await db.collection('floatingAds').add({ ...slot, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
-          slot._docId = docRef.id;
-          this._cache.floatingAds.push(slot);
-        }
-      }
-
-      // 彈跳廣告欄位（3 個）
-      if (this._cache.popupAds.length === 0) {
-        console.log('[FirebaseService] 建立空白彈跳廣告欄位...');
-        const popupSlots = [
-          { id: 'pad1', layer: 1, title: '', image: null, status: 'empty', publishAt: null, unpublishAt: null, clicks: 0, linkUrl: '' },
-          { id: 'pad2', layer: 2, title: '', image: null, status: 'empty', publishAt: null, unpublishAt: null, clicks: 0, linkUrl: '' },
-          { id: 'pad3', layer: 3, title: '', image: null, status: 'empty', publishAt: null, unpublishAt: null, clicks: 0, linkUrl: '' },
-        ];
-        for (const slot of popupSlots) {
-          const docRef = await db.collection('popupAds').add({ ...slot, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
-          slot._docId = docRef.id;
-          this._cache.popupAds.push(slot);
-        }
-      }
-      // 贊助商欄位（6 個）
-      if (this._cache.sponsors.length === 0) {
-        console.log('[FirebaseService] 建立空白贊助商欄位...');
-        for (let i = 1; i <= 6; i++) {
-          const slot = { id: 'sp' + i, slot: i, title: '', image: null, status: 'empty', linkUrl: '', publishAt: null, unpublishAt: null, clicks: 0 };
-          const docRef = await db.collection('sponsors').add({ ...slot, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
-          slot._docId = docRef.id;
-          this._cache.sponsors.push(slot);
-        }
-      }
+      await seedCollection('banners', [
+        { id: 'ban1', slot: 1, title: '', image: null, status: 'empty', publishAt: null, unpublishAt: null, clicks: 0, gradient: '' },
+        { id: 'ban2', slot: 2, title: '', image: null, status: 'empty', publishAt: null, unpublishAt: null, clicks: 0, gradient: '' },
+        { id: 'ban3', slot: 3, title: '', image: null, status: 'empty', publishAt: null, unpublishAt: null, clicks: 0, gradient: '' },
+      ]);
+      await seedCollection('floatingAds', [
+        { id: 'fad1', slot: 'AD1', title: '', image: null, status: 'empty', publishAt: null, unpublishAt: null, clicks: 0 },
+        { id: 'fad2', slot: 'AD2', title: '', image: null, status: 'empty', publishAt: null, unpublishAt: null, clicks: 0 },
+      ]);
+      await seedCollection('popupAds', [
+        { id: 'pad1', layer: 1, title: '', image: null, status: 'empty', publishAt: null, unpublishAt: null, clicks: 0, linkUrl: '' },
+        { id: 'pad2', layer: 2, title: '', image: null, status: 'empty', publishAt: null, unpublishAt: null, clicks: 0, linkUrl: '' },
+        { id: 'pad3', layer: 3, title: '', image: null, status: 'empty', publishAt: null, unpublishAt: null, clicks: 0, linkUrl: '' },
+      ]);
+      await seedCollection('sponsors', [
+        { id: 'sp1', slot: 1, title: '', image: null, status: 'empty', linkUrl: '', publishAt: null, unpublishAt: null, clicks: 0 },
+        { id: 'sp2', slot: 2, title: '', image: null, status: 'empty', linkUrl: '', publishAt: null, unpublishAt: null, clicks: 0 },
+        { id: 'sp3', slot: 3, title: '', image: null, status: 'empty', linkUrl: '', publishAt: null, unpublishAt: null, clicks: 0 },
+        { id: 'sp4', slot: 4, title: '', image: null, status: 'empty', linkUrl: '', publishAt: null, unpublishAt: null, clicks: 0 },
+        { id: 'sp5', slot: 5, title: '', image: null, status: 'empty', linkUrl: '', publishAt: null, unpublishAt: null, clicks: 0 },
+        { id: 'sp6', slot: 6, title: '', image: null, status: 'empty', linkUrl: '', publishAt: null, unpublishAt: null, clicks: 0 },
+      ]);
     } catch (err) {
       console.warn('[FirebaseService] 廣告欄位建立失敗:', err);
     }
