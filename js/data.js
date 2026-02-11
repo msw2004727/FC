@@ -94,8 +94,8 @@ const DemoData = {
 
   messages: [
     // ── 系統類 ──
-    { id: 'm1', type: 'system', typeName: '系統', title: '春季聯賽報名開始！', preview: '2026 春季足球聯賽現已開放報名...', body: '2026 春季足球聯賽現已開放報名，本季共 8 隊參賽，採用雙循環賽制。\n\n報名截止日期：2026/03/15\n參賽資格：已註冊球隊，隊員 12 人以上\n\n請各隊領隊於截止前完成報名手續，逾期不候。', time: '2026/03/01 10:00', unread: true, senderName: '系統' },
-    { id: 'm5', type: 'system', typeName: '系統', title: '系統維護通知', preview: '本週六凌晨將進行系統更新...', body: '親愛的用戶您好，\n\n本系統將於 2026/02/22（六）凌晨 02:00 ~ 04:00 進行例行維護更新，届時將暫停所有服務。\n\n更新內容：\n1. 修復報名系統已知問題\n2. 優化頁面載入速度\n3. 新增候補自動遞補功能\n\n造成不便敬請見諒。', time: '2026/02/18 11:00', unread: false, senderName: '系統' },
+    { id: 'm1', type: 'system', typeName: '系統', title: '春季聯賽報名開始！', preview: '2026 春季足球聯賽現已開放報名...', body: '2026 春季足球聯賽現已開放報名，本季共 8 隊參賽，採用雙循環賽制。\n\n報名截止日期：2026/03/15\n參賽資格：已註冊球隊，隊員 12 人以上\n\n請各隊領隊於截止前完成報名手續，逾期不候。', time: '2026/03/01 10:00', unread: true, senderName: '系統', adminMsgId: 'mg1' },
+    { id: 'm5', type: 'system', typeName: '系統', title: '系統維護通知', preview: '本週六凌晨將進行系統更新...', body: '親愛的用戶您好，\n\n本系統將於 2026/02/22（六）凌晨 02:00 ~ 04:00 進行例行維護更新，届時將暫停所有服務。\n\n更新內容：\n1. 修復報名系統已知問題\n2. 優化頁面載入速度\n3. 新增候補自動遞補功能\n\n造成不便敬請見諒。', time: '2026/02/18 11:00', unread: false, senderName: '系統', adminMsgId: 'mg2' },
     { id: 'm10', type: 'system', typeName: '系統', title: '帳號安全提醒', preview: '您的帳號近期在新裝置上登入...', body: '您的帳號於 2026/02/15 21:34 在一台新裝置上登入（iOS 18.2，台北市）。\n\n如果這是您本人的操作，請忽略此訊息。\n如非本人操作，建議您立即更改密碼並聯繫管理員。', time: '2026/02/15 21:35', unread: false, senderName: '系統' },
     { id: 'm16', type: 'system', typeName: '系統', title: '歡迎加入 SportHub！', preview: '感謝您註冊 SportHub 平台...', body: '感謝您註冊 SportHub 平台！\n\n您可以在這裡：\n- 瀏覽並報名各類足球活動\n- 加入喜歡的球隊\n- 參與聯賽與盃賽\n- 在二手商城買賣裝備\n\n如有任何問題，歡迎透過收件箱聯繫管理員。\n祝您使用愉快！', time: '2026/01/10 09:00', unread: false, senderName: '系統' },
     // ── 活動類 ──

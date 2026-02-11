@@ -493,14 +493,20 @@ Object.assign(App, {
   // ── 回收信件（同時從用戶收件箱移除） ──
   async recallMsg(id) {
     if (!(await this.appConfirm('確定要回收此信件？收件人信箱中的信件將被移除。'))) return;
+    // 取得 admin 記錄（用於 fallback 比對）
+    const adminMsg = ApiService.getAdminMessages().find(m => m.id === id);
     // 1. 更新 adminMessage status
     ApiService.updateAdminMessage(id, { status: 'recalled' });
     // 2. 從用戶收件箱移除對應訊息
     const source = ModeManager.isDemo() ? DemoData.messages : FirebaseService._cache.messages;
     const toRemove = [];
     for (let i = source.length - 1; i >= 0; i--) {
-      if (source[i].adminMsgId === id) {
-        toRemove.push(source[i]);
+      const m = source[i];
+      // 優先用 adminMsgId 匹配；fallback: 用 title + body 比對（舊信件無 adminMsgId）
+      const matched = m.adminMsgId === id
+        || (!m.adminMsgId && adminMsg && m.title === adminMsg.title && m.body === adminMsg.body);
+      if (matched) {
+        toRemove.push(m);
         source.splice(i, 1);
       }
     }
