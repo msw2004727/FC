@@ -10,6 +10,7 @@ Object.assign(App, {
 
   renderShop() {
     const container = document.getElementById('shop-grid');
+    if (!container) return;
     const items = ApiService.getShopItems().filter(s => s.status !== 'delisted');
     container.innerHTML = items.length > 0
       ? items.map(s => {

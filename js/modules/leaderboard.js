@@ -6,6 +6,7 @@ Object.assign(App, {
 
   renderLeaderboard() {
     const container = document.getElementById('leaderboard-list');
+    if (!container) return;
     container.innerHTML = ApiService.getLeaderboard().map((p, i) => {
       const rankClass = i === 0 ? 'gold' : i === 1 ? 'silver' : i === 2 ? 'bronze' : 'normal';
       return `

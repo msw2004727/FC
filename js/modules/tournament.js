@@ -6,6 +6,7 @@ Object.assign(App, {
 
   renderOngoingTournaments() {
     const container = document.getElementById('ongoing-tournaments');
+    if (!container) return;
     container.innerHTML = ApiService.getTournaments().map(t => `
       <div class="h-card" onclick="App.showTournamentDetail('${t.id}')">
         ${t.image
