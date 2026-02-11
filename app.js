@@ -70,6 +70,7 @@ const App = {
     this.renderSponsorManage();
     this.renderSponsors();
     this.renderThemeManage();
+    this.applySiteThemes();
     this.renderAnnouncementManage();
     this.renderShopManage();
     this.renderMsgManage();

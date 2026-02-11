@@ -110,7 +110,7 @@ Object.assign(App, {
     this._themeEditId = null;
   },
 
-  saveThemeItem() {
+  async saveThemeItem() {
     if (!this._themeEditId) return;
     const preview = document.getElementById('theme-preview');
     const img = preview ? preview.querySelector('img') : null;
@@ -119,7 +119,17 @@ Object.assign(App, {
       return;
     }
 
-    ApiService.updateSiteTheme(this._themeEditId, { image: img.src, status: 'active' });
+    let image = img.src;
+
+    // 正式版：上傳至 Firebase Storage 取得公開 URL
+    if (image.startsWith('data:') && !ModeManager.isDemo()) {
+      this.showToast('圖片上傳中...');
+      const url = await FirebaseService._uploadImage(image, `siteThemes/${this._themeEditId}`);
+      if (!url) { this.showToast('圖片上傳失敗，請重試'); return; }
+      image = url;
+    }
+
+    ApiService.updateSiteTheme(this._themeEditId, { image, status: 'active' });
     this.hideThemeForm();
     this.renderThemeManage();
     this.applySiteThemes();
