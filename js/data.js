@@ -78,11 +78,28 @@ const DemoData = {
   ],
 
   messages: [
-    { id: 'm1', type: 'system', typeName: '系統', title: '春季聯賽報名開始！', preview: '2026 春季足球聯賽現已開放報名...', time: '2026/03/01 10:00', unread: true },
-    { id: 'm2', type: 'activity', typeName: '活動', title: '候補遞補通知', preview: '您已成功遞補「週六足球友誼賽」...', time: '2026/02/28 15:30', unread: true },
-    { id: 'm3', type: 'trade', typeName: '交易', title: '球員交易確認', preview: '雷霆隊向閃電隊提出交易申請...', time: '2026/02/25 09:00', unread: true },
-    { id: 'm4', type: 'private', typeName: '私訊', title: '管理員通知', preview: '您的身份已升級為教練...', time: '2026/02/20 14:00', unread: false },
-    { id: 'm5', type: 'system', typeName: '系統', title: '系統維護通知', preview: '本週六凌晨將進行系統更新...', time: '2026/02/18 11:00', unread: false },
+    // ── 系統類 ──
+    { id: 'm1', type: 'system', typeName: '系統', title: '春季聯賽報名開始！', preview: '2026 春季足球聯賽現已開放報名...', body: '2026 春季足球聯賽現已開放報名，本季共 8 隊參賽，採用雙循環賽制。\n\n報名截止日期：2026/03/15\n參賽資格：已註冊球隊，隊員 12 人以上\n\n請各隊領隊於截止前完成報名手續，逾期不候。', time: '2026/03/01 10:00', unread: true, senderName: '系統' },
+    { id: 'm5', type: 'system', typeName: '系統', title: '系統維護通知', preview: '本週六凌晨將進行系統更新...', body: '親愛的用戶您好，\n\n本系統將於 2026/02/22（六）凌晨 02:00 ~ 04:00 進行例行維護更新，届時將暫停所有服務。\n\n更新內容：\n1. 修復報名系統已知問題\n2. 優化頁面載入速度\n3. 新增候補自動遞補功能\n\n造成不便敬請見諒。', time: '2026/02/18 11:00', unread: false, senderName: '系統' },
+    { id: 'm10', type: 'system', typeName: '系統', title: '帳號安全提醒', preview: '您的帳號近期在新裝置上登入...', body: '您的帳號於 2026/02/15 21:34 在一台新裝置上登入（iOS 18.2，台北市）。\n\n如果這是您本人的操作，請忽略此訊息。\n如非本人操作，建議您立即更改密碼並聯繫管理員。', time: '2026/02/15 21:35', unread: false, senderName: '系統' },
+    { id: 'm16', type: 'system', typeName: '系統', title: '歡迎加入 SportHub！', preview: '感謝您註冊 SportHub 平台...', body: '感謝您註冊 SportHub 平台！\n\n您可以在這裡：\n- 瀏覽並報名各類足球活動\n- 加入喜歡的球隊\n- 參與聯賽與盃賽\n- 在二手商城買賣裝備\n\n如有任何問題，歡迎透過收件箱聯繫管理員。\n祝您使用愉快！', time: '2026/01/10 09:00', unread: false, senderName: '系統' },
+    // ── 活動類 ──
+    { id: 'm2', type: 'activity', typeName: '活動', title: '候補遞補通知', preview: '您已成功遞補「週六足球友誼賽」...', body: '恭喜！由於有人取消報名，您已從候補名單自動遞補為正式參加者。\n\n活動名稱：週六足球友誼賽\n活動時間：2026/03/08 14:00~16:00\n活動地點：台北市大安運動中心\n\n請準時出席，如需取消請提前至活動頁面操作。', time: '2026/02/28 15:30', unread: true, senderName: '系統' },
+    { id: 'm6', type: 'activity', typeName: '活動', title: '活動即將開始提醒', preview: '您報名的「足球新手教學」將於明天...', body: '您報名的活動即將開始，請做好準備！\n\n活動名稱：足球新手教學\n活動時間：2026/03/02 09:00~12:00\n活動地點：台北市大安運動中心\n\n溫馨提醒：\n- 請攜帶運動鞋、飲用水\n- 遲到 15 分鐘以上視為缺席\n- 如需取消請提前 24 小時操作', time: '2026/03/01 18:00', unread: true, senderName: '系統' },
+    { id: 'm11', type: 'activity', typeName: '活動', title: '活動已取消通知', preview: '很抱歉，「五人制足球友誼賽」已取消...', body: '很抱歉通知您，以下活動因故取消：\n\n活動名稱：五人制足球友誼賽\n原定時間：2026/04/20 18:00~20:00\n原定地點：高雄市三民體育館\n\n取消原因：場地維修無法使用\n\n如您已繳費，費用將於 3 個工作天內退還。造成不便深感抱歉。', time: '2026/02/14 10:00', unread: false, senderName: '場主老王' },
+    { id: 'm13', type: 'activity', typeName: '活動', title: '報名成功通知', preview: '您已成功報名「守門員撲救教學」...', body: '報名成功！以下為您的報名資訊：\n\n活動名稱：守門員撲救教學\n活動時間：2026/04/02 09:00~11:00\n活動地點：台北市信義運動中心\n費用：NT$250\n\n請於活動當日攜帶手套及護膝。期待您的參加！', time: '2026/02/10 14:22', unread: false, senderName: '系統' },
+    { id: 'm17', type: 'activity', typeName: '活動', title: '活動變更通知', preview: '「週六11人制友誼賽」地點已變更...', body: '您報名的活動資訊有所變更，請留意：\n\n活動名稱：週六11人制友誼賽\n\n變更項目：\n- 地點：台北市信義運動中心 → 台北市大安運動中心\n- 時間不變：2026/03/22 14:00~16:30\n\n如因變更需要取消報名，請至活動頁面操作。', time: '2026/02/08 09:15', unread: false, senderName: '教練小陳' },
+    // ── 交易類 ──
+    { id: 'm3', type: 'trade', typeName: '交易', title: '商品詢問通知', preview: '有人對您的「Nike Phantom GT2」有興趣...', body: '有買家對您刊登的商品感興趣！\n\n商品名稱：Nike Phantom GT2\n刊登價格：NT$1,800\n\n買家留言：「請問鞋底磨損程度如何？可以面交看實物嗎？我在大安區。」\n\n請至商城頁面回覆買家。', time: '2026/02/25 09:00', unread: true, senderName: '系統' },
+    { id: 'm7', type: 'trade', typeName: '交易', title: '商品已售出', preview: '恭喜！您的「Adidas 訓練球衣」已成交...', body: '恭喜！您的商品已成功售出。\n\n商品名稱：Adidas 訓練球衣\n成交價格：NT$500\n買家：陳大明\n\n請與買家約定交貨時間及方式。交易完成後請至商城確認收款。', time: '2026/02/22 16:40', unread: false, senderName: '系統' },
+    { id: 'm14', type: 'trade', typeName: '交易', title: '商品降價通知', preview: '您關注的「Puma 護脛板」已降價...', body: '您關注的商品價格已更新！\n\n商品名稱：Puma 護脛板\n原價：NT$400\n新價：NT$280（降價 30%）\n\n賣家備註：「搬家出清，先搶先贏！」\n\n前往商城查看詳情。', time: '2026/02/05 11:30', unread: false, senderName: '系統' },
+    // ── 私訊類 ──
+    { id: 'm4', type: 'private', typeName: '私訊', title: '身份升級通知', preview: '您的身份已升級為教練...', body: '恭喜！經管理員審核，您的身份已從「一般用戶」升級為「教練」。\n\n新增權限：\n- 建立與管理活動\n- 委託他人協助管理活動\n- 進入「我的活動管理」頁面\n\n感謝您對社群的貢獻！', time: '2026/02/20 14:00', unread: false, senderName: '管理員' },
+    { id: 'm8', type: 'private', typeName: '私訊', title: '來自教練小陳的訊息', preview: '週六的友誼賽需要你幫忙守門...', body: '嗨！\n\n週六的友誼賽我們少一個守門員，聽說你之前有守門經驗，能不能來幫忙？\n\n時間：2026/03/08 14:00\n地點：大安運動中心\n\n如果可以的話回覆我一下，感謝！', time: '2026/02/19 20:15', unread: true, senderName: '教練小陳' },
+    { id: 'm15', type: 'private', typeName: '私訊', title: '來自隊長A的訊息', preview: '歡迎加入雷霆隊！本週六有練球...', body: '歡迎加入雷霆隊！很高興有你加入我們。\n\n本週六下午 2 點在大安運動中心有固定練球，記得帶：\n- 白色球衣（隊服之後會統一訂）\n- 黑色短褲\n- 運動鞋和水\n\n有問題隨時問我，期待一起踢球！', time: '2026/02/01 10:30', unread: false, senderName: '隊長A' },
+    // ── 球隊申請（含互動按鈕） ──
+    { id: 'm9', type: 'system', typeName: '系統', title: '球隊加入申請', preview: '用戶「陳大明」申請加入「雷霆隊」...', body: '收到一筆新的球隊加入申請：\n\n申請人：陳大明（UID: user_chen）\n申請球隊：雷霆隊\n申請時間：2026/03/01 08:45\n\n申請留言：「我有 3 年踢球經驗，主要踢中場，希望能加入貴隊一起訓練！」\n\n請審核此申請。', time: '2026/03/01 08:45', unread: true, senderName: '系統', actionType: 'team_join_request', actionStatus: 'pending', meta: { teamId: 'tm1', teamName: '雷霆隊', applicantUid: 'user_chen', applicantName: '陳大明' } },
+    { id: 'm12', type: 'system', typeName: '系統', title: '球隊申請通過', preview: '恭喜！您已成功加入「雷霆隊」...', body: '恭喜！您的球隊加入申請已通過。\n\n球隊名稱：雷霆隊\n審核結果：已同意\n\n歡迎成為團隊的一員！請聯繫隊長了解練球時間與注意事項。', time: '2026/02/12 17:20', unread: false, senderName: '系統' },
   ],
 
   achievements: [
