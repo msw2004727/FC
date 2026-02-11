@@ -58,7 +58,7 @@ Object.assign(App, {
   renderAchievements() {
     const container = document.getElementById('achievement-grid');
     if (!container) return;
-    const achievements = ApiService.getAchievements();
+    const achievements = ApiService.getAchievements().filter(a => a.status !== 'archived');
     const badges = ApiService.getBadges();
     const sorted = this._sortByCat(achievements);
     const pending = sorted.filter(a => a.current < this._getAchThreshold(a));
@@ -173,6 +173,7 @@ Object.assign(App, {
     const badges = ApiService.getBadges();
 
     container.innerHTML = items.map((a, i) => {
+      const isArchived = a.status === 'archived';
       const color = this._catColors[a.category] || this._catColors.bronze;
       const threshold = this._getAchThreshold(a);
       const pct = threshold > 0 ? Math.min(100, Math.round(a.current / threshold * 100)) : 0;
@@ -183,13 +184,14 @@ Object.assign(App, {
         : '<span style="font-size:.9rem">🏅</span>';
       const desc = this._generateConditionDesc(a.condition, a.desc);
       return `
-      <div class="admin-ach-row" style="background:${i % 2 === 0 ? 'var(--bg-elevated)' : 'transparent'};border-left:3px solid ${color}">
+      <div class="admin-ach-row" style="background:${i % 2 === 0 ? 'var(--bg-elevated)' : 'transparent'};border-left:3px solid ${isArchived ? 'var(--text-muted)' : color};${isArchived ? 'opacity:.55;' : ''}">
         <div class="badge-img-placeholder small" style="border-color:${color};flex-shrink:0">${badgeImg}</div>
         <div class="admin-ach-info" style="flex:1;min-width:0">
-          <div style="display:flex;align-items:center;gap:.3rem">
+          <div style="display:flex;align-items:center;gap:.3rem;flex-wrap:wrap">
             <span class="ach-cat-tag" style="background:${color};font-size:.6rem;padding:.1rem .3rem">${this._catLabels[a.category]}</span>
             <span class="admin-ach-name">${escapeHTML(a.name)}</span>
-            ${completed ? '<span style="font-size:.6rem;color:var(--success);font-weight:600">已完成</span>' : ''}
+            ${isArchived ? '<span style="font-size:.6rem;color:var(--danger);font-weight:600">已下架</span>' : ''}
+            ${!isArchived && completed ? '<span style="font-size:.6rem;color:var(--success);font-weight:600">已完成</span>' : ''}
           </div>
           <div class="admin-ach-status" style="color:var(--text-muted)">${escapeHTML(desc)}</div>
           <div class="ach-progress-bar-wrap" style="margin-top:.25rem;height:4px">
@@ -198,7 +200,7 @@ Object.assign(App, {
         </div>
         <div class="admin-ach-actions">
           <button class="text-btn" style="font-size:.72rem" onclick="App.editAchievement('${a.id}')">編輯</button>
-          <button class="text-btn" style="font-size:.72rem;color:var(--danger)" onclick="App.deleteAchievement('${a.id}')">刪除</button>
+          <button class="text-btn" style="font-size:.72rem;color:${isArchived ? 'var(--success)' : 'var(--danger)'}" onclick="App.toggleAchievementStatus('${a.id}')">${isArchived ? '上架' : '下架'}</button>
         </div>
       </div>`;
     }).join('') || '<div style="text-align:center;padding:1.5rem;color:var(--text-muted);font-size:.82rem">尚無成就</div>';
@@ -344,7 +346,7 @@ Object.assign(App, {
     } else {
       const newId = generateId('a');
       const newBadgeId = generateId('b');
-      ApiService.createAchievement({ id: newId, name, category, badgeId: newBadgeId, completedAt: null, current: 0, condition });
+      ApiService.createAchievement({ id: newId, name, category, badgeId: newBadgeId, completedAt: null, current: 0, status: 'active', condition });
       ApiService.createBadge({ id: newBadgeId, name: name + '徽章', achId: newId, category, image: this._achBadgeDataURL || null });
       this.showToast(`成就「${name}」已建立，已自動建立關聯徽章`);
     }
@@ -359,17 +361,14 @@ Object.assign(App, {
     if (item) this.showAchForm(item);
   },
 
-  deleteAchievement(id) {
-    const data = ApiService.getAchievements();
-    const item = data.find(a => a.id === id);
+  toggleAchievementStatus(id) {
+    const item = ApiService.getAchievements().find(a => a.id === id);
     if (!item) return;
-    const name = item.name;
-    const badgeId = item.badgeId;
-    ApiService.deleteAchievement(id);
-    if (badgeId) ApiService.deleteBadge(badgeId);
+    const newStatus = item.status === 'archived' ? 'active' : 'archived';
+    ApiService.updateAchievement(id, { status: newStatus });
     this.renderAdminAchievements();
     this.renderAchievements();
-    this.showToast(`成就「${name}」及關聯徽章已刪除`);
+    this.showToast(`成就「${item.name}」已${newStatus === 'archived' ? '下架' : '上架'}`);
   },
 
 });

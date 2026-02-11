@@ -33,7 +33,7 @@ Object.assign(App, {
     const teamHtml = user ? this._getUserTeamHtml(user) : '無';
 
     const badges = ApiService.getBadges();
-    const achievements = ApiService.getAchievements();
+    const achievements = ApiService.getAchievements().filter(a => a.status !== 'archived');
     const earned = badges.filter(b => {
       const ach = achievements.find(a => a.id === b.achId);
       const threshold = ach && ach.condition && ach.condition.threshold != null ? ach.condition.threshold : (ach && ach.target != null ? ach.target : 1);

@@ -252,13 +252,13 @@ const FirebaseService = {
     if (this._cache.achievements.length > 0) return;
     console.log('[FirebaseService] 建立預設成就與徽章...');
     const achievements = [
-      { id: 'a1', name: '初心者', category: 'bronze', badgeId: 'b1', completedAt: null, current: 0, condition: { timeRange: 'none', action: 'register_event', filter: 'all', threshold: 1 } },
-      { id: 'a2', name: '全勤之星', category: 'silver', badgeId: 'b2', completedAt: null, current: 0, condition: { timeRange: 'none', action: 'attendance_rate', filter: 'all', threshold: 90 } },
-      { id: 'a3', name: '鐵人精神', category: 'silver', badgeId: 'b3', completedAt: null, current: 0, condition: { timeRange: 'none', action: 'complete_event', filter: 'all', threshold: 30 } },
-      { id: 'a4', name: '社群達人', category: 'silver', badgeId: 'b4', completedAt: null, current: 0, condition: { timeRange: 'none', action: 'bind_line_notify', filter: 'all', threshold: 1 } },
-      { id: 'a5', name: '月活躍玩家', category: 'gold', badgeId: 'b5', completedAt: null, current: 0, condition: { timeRange: '30d', action: 'complete_event', filter: 'all', threshold: 5 } },
-      { id: 'a6', name: '活動策劃師', category: 'gold', badgeId: 'b6', completedAt: null, current: 0, condition: { timeRange: 'none', action: 'organize_event', filter: 'all', threshold: 10 } },
-      { id: 'a7', name: '百場達人', category: 'gold', badgeId: 'b7', completedAt: null, current: 0, condition: { timeRange: 'none', action: 'complete_event', filter: 'all', threshold: 100 } },
+      { id: 'a1', name: '初心者', category: 'bronze', badgeId: 'b1', completedAt: null, current: 0, status: 'active', condition: { timeRange: 'none', action: 'register_event', filter: 'all', threshold: 1 } },
+      { id: 'a2', name: '全勤之星', category: 'silver', badgeId: 'b2', completedAt: null, current: 0, status: 'active', condition: { timeRange: 'none', action: 'attendance_rate', filter: 'all', threshold: 90 } },
+      { id: 'a3', name: '鐵人精神', category: 'silver', badgeId: 'b3', completedAt: null, current: 0, status: 'active', condition: { timeRange: 'none', action: 'complete_event', filter: 'all', threshold: 30 } },
+      { id: 'a4', name: '社群達人', category: 'silver', badgeId: 'b4', completedAt: null, current: 0, status: 'active', condition: { timeRange: 'none', action: 'bind_line_notify', filter: 'all', threshold: 1 } },
+      { id: 'a5', name: '月活躍玩家', category: 'gold', badgeId: 'b5', completedAt: null, current: 0, status: 'active', condition: { timeRange: '30d', action: 'complete_event', filter: 'all', threshold: 5 } },
+      { id: 'a6', name: '活動策劃師', category: 'gold', badgeId: 'b6', completedAt: null, current: 0, status: 'active', condition: { timeRange: 'none', action: 'organize_event', filter: 'all', threshold: 10 } },
+      { id: 'a7', name: '百場達人', category: 'gold', badgeId: 'b7', completedAt: null, current: 0, status: 'active', condition: { timeRange: 'none', action: 'complete_event', filter: 'all', threshold: 100 } },
     ];
     const badges = [
       { id: 'b1', name: '新手徽章', achId: 'a1', category: 'bronze', image: null },
@@ -890,6 +890,9 @@ const FirebaseService = {
   // ════════════════════════════════
 
   async addBadge(data) {
+    if (data.image && data.image.startsWith('data:')) {
+      data.image = await this._uploadImage(data.image, `badges/${data.id}`);
+    }
     const docRef = await db.collection('badges').add({
       ..._stripDocId(data),
       createdAt: firebase.firestore.FieldValue.serverTimestamp(),
@@ -901,6 +904,9 @@ const FirebaseService = {
   async updateBadge(id, updates) {
     const doc = this._cache.badges.find(b => b.id === id);
     if (!doc || !doc._docId) return null;
+    if (updates.image && updates.image.startsWith('data:')) {
+      updates.image = await this._uploadImage(updates.image, `badges/${id}`);
+    }
     updates.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
     await db.collection('badges').doc(doc._docId).update(updates);
     return doc;

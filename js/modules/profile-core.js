@@ -59,7 +59,7 @@ Object.assign(App, {
     const role = user ? user.role : ApiService.getUserRole(name);
     const roleInfo = ROLES[role] || ROLES.user;
     const badges = ApiService.getBadges();
-    const achievements = ApiService.getAchievements();
+    const achievements = ApiService.getAchievements().filter(a => a.status !== 'archived');
     const earned = badges.filter(b => {
       const ach = achievements.find(a => a.id === b.achId);
       const threshold = ach && ach.condition && ach.condition.threshold != null ? ach.condition.threshold : (ach && ach.target != null ? ach.target : 1);

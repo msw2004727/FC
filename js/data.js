@@ -118,13 +118,13 @@ const DemoData = {
   ],
 
   achievements: [
-    { id: 'a7', name: '百場達人', category: 'gold', badgeId: 'b7', completedAt: null, current: 42, condition: { timeRange: 'none', action: 'complete_event', filter: 'all', threshold: 100 } },
-    { id: 'a6', name: '活動策劃師', category: 'gold', badgeId: 'b6', completedAt: null, current: 2, condition: { timeRange: 'none', action: 'organize_event', filter: 'all', threshold: 10 } },
-    { id: 'a5', name: '月活躍玩家', category: 'gold', badgeId: 'b5', completedAt: null, current: 3, condition: { timeRange: '30d', action: 'complete_event', filter: 'all', threshold: 5 } },
-    { id: 'a2', name: '全勤之星', category: 'silver', badgeId: 'b2', completedAt: '2026/01/20', current: 90, condition: { timeRange: 'none', action: 'attendance_rate', filter: 'all', threshold: 90 } },
-    { id: 'a3', name: '鐵人精神', category: 'silver', badgeId: 'b3', completedAt: '2026/02/05', current: 30, condition: { timeRange: 'none', action: 'complete_event', filter: 'all', threshold: 30 } },
-    { id: 'a4', name: '社群達人', category: 'silver', badgeId: 'b4', completedAt: '2026/01/15', current: 1, condition: { timeRange: 'none', action: 'bind_line_notify', filter: 'all', threshold: 1 } },
-    { id: 'a1', name: '初心者', category: 'bronze', badgeId: 'b1', completedAt: '2025/09/10', current: 1, condition: { timeRange: 'none', action: 'register_event', filter: 'all', threshold: 1 } },
+    { id: 'a7', name: '百場達人', category: 'gold', badgeId: 'b7', completedAt: null, current: 42, status: 'active', condition: { timeRange: 'none', action: 'complete_event', filter: 'all', threshold: 100 } },
+    { id: 'a6', name: '活動策劃師', category: 'gold', badgeId: 'b6', completedAt: null, current: 2, status: 'active', condition: { timeRange: 'none', action: 'organize_event', filter: 'all', threshold: 10 } },
+    { id: 'a5', name: '月活躍玩家', category: 'gold', badgeId: 'b5', completedAt: null, current: 3, status: 'active', condition: { timeRange: 'none', action: 'complete_event', filter: 'all', threshold: 5 } },
+    { id: 'a2', name: '全勤之星', category: 'silver', badgeId: 'b2', completedAt: '2026/01/20', current: 90, status: 'active', condition: { timeRange: 'none', action: 'attendance_rate', filter: 'all', threshold: 90 } },
+    { id: 'a3', name: '鐵人精神', category: 'silver', badgeId: 'b3', completedAt: '2026/02/05', current: 30, status: 'active', condition: { timeRange: 'none', action: 'complete_event', filter: 'all', threshold: 30 } },
+    { id: 'a4', name: '社群達人', category: 'silver', badgeId: 'b4', completedAt: '2026/01/15', current: 1, status: 'active', condition: { timeRange: 'none', action: 'bind_line_notify', filter: 'all', threshold: 1 } },
+    { id: 'a1', name: '初心者', category: 'bronze', badgeId: 'b1', completedAt: '2025/09/10', current: 1, status: 'active', condition: { timeRange: 'none', action: 'register_event', filter: 'all', threshold: 1 } },
   ],
 
   badges: [
