@@ -165,7 +165,6 @@
             <select id="msg-category">
               <option value="system">系統</option>
               <option value="activity">活動</option>
-              <option value="trade">交易</option>
               <option value="private">私訊</option>
             </select>
           </div>
@@ -174,6 +173,9 @@
             <label>發送方式</label>
             <select id="msg-target" onchange="App.onMsgTargetChange()">
               <option value="all">全體用戶</option>
+              <option value="coach">全體教練</option>
+              <option value="captain">全體領隊</option>
+              <option value="venue_owner">全體場主</option>
               <option value="coach_up">教練以上</option>
               <option value="admin">管理員</option>
               <option value="team">指定球隊</option>
@@ -182,8 +184,19 @@
           </div>
           <div class="form-row" id="msg-individual-row" style="display:none">
             <label>對象 UID 或暱稱</label>
-            <input type="text" id="msg-individual-target" placeholder="輸入 UID 或暱稱搜尋" oninput="App.searchMsgTarget()">
+            <div style="position:relative">
+              <input type="text" id="msg-individual-target" placeholder="輸入 UID 或暱稱搜尋" oninput="App.searchMsgTarget()" autocomplete="off">
+              <div id="msg-user-dropdown" class="ce-delegate-dropdown"></div>
+            </div>
             <div id="msg-target-result" style="font-size:.75rem;margin-top:.2rem;color:var(--text-muted)"></div>
+          </div>
+          <div class="form-row" id="msg-team-row" style="display:none">
+            <label>指定球隊</label>
+            <div style="position:relative">
+              <input type="text" id="msg-team-target" placeholder="輸入球隊名稱搜尋" oninput="App.searchMsgTeam()" autocomplete="off">
+              <div id="msg-team-dropdown" class="ce-delegate-dropdown"></div>
+            </div>
+            <div id="msg-team-result" style="font-size:.75rem;margin-top:.2rem;color:var(--text-muted)"></div>
           </div>
           <div class="form-row"><label>內容（上限 300 字） <span class="required">*必填</span></label><textarea id="msg-body" rows="4" placeholder="信件內容..." maxlength="300"></textarea></div>
           <div class="form-row">

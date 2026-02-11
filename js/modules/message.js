@@ -10,13 +10,23 @@ Object.assign(App, {
 
   _msgInboxFilter: 'all',
 
+  _filterMyMessages(messages) {
+    const curUser = ApiService.getCurrentUser();
+    const myUid = curUser?.uid || null;
+    const myRole = curUser?.role || 'user';
+    const myTeamId = curUser?.teamId || null;
+    return messages.filter(m => {
+      if (m.targetUid) return myUid && m.targetUid === myUid;
+      if (m.targetTeamId) return myTeamId && m.targetTeamId === myTeamId;
+      if (m.targetRoles && m.targetRoles.length) return m.targetRoles.includes(myRole);
+      return true; // broadcast to all
+    });
+  },
+
   renderMessageList(filter) {
     const f = filter || this._msgInboxFilter || 'all';
     this._msgInboxFilter = f;
-    const myUid = ApiService.getCurrentUser()?.uid || null;
-    const allMessages = ApiService.getMessages().filter(m =>
-      !m.targetUid || !myUid || m.targetUid === myUid
-    );
+    const allMessages = this._filterMyMessages(ApiService.getMessages());
     const messages = f === 'all' ? allMessages : allMessages.filter(m => m.type === f);
     const container = document.getElementById('message-list');
     if (!container) return;
@@ -49,10 +59,7 @@ Object.assign(App, {
   },
 
   updateNotifBadge() {
-    const myUid = ApiService.getCurrentUser()?.uid || null;
-    const messages = ApiService.getMessages().filter(m =>
-      !m.targetUid || !myUid || m.targetUid === myUid
-    );
+    const messages = this._filterMyMessages(ApiService.getMessages());
     const unreadCount = messages.filter(m => m.unread).length;
     const badge = document.getElementById('notif-badge');
     if (!badge) return;
@@ -64,10 +71,7 @@ Object.assign(App, {
     const bar = document.getElementById('storage-bar');
     if (!bar) return;
     const total = 50;
-    const myUid = ApiService.getCurrentUser()?.uid || null;
-    const used = ApiService.getMessages().filter(m =>
-      !m.targetUid || !myUid || m.targetUid === myUid
-    ).length;
+    const used = this._filterMyMessages(ApiService.getMessages()).length;
     const remaining = Math.max(0, total - used);
     bar.innerHTML = `剩餘容量：<strong style="color:#111">${remaining}</strong>/${total}`;
   },
@@ -241,19 +245,22 @@ Object.assign(App, {
     this._queueLinePush(targetUid, category || 'system', title, body);
   },
 
-  _queueLinePushByTarget(targetType, targetUid, category, title, body) {
+  _queueLinePushByTarget(targetType, targetUid, category, title, body, teamId) {
     if (targetType === 'individual') {
       if (targetUid) this._queueLinePush(targetUid, category, title, body);
       return;
     }
-    // 全體 / 教練以上 / 管理員 → 遍歷符合條件的用戶
-    const coachUp = ['coach', 'captain', 'venue_owner', 'admin', 'super_admin'];
-    const adminOnly = ['admin', 'super_admin'];
+    const roleFilter = {
+      coach_up: ['coach', 'captain', 'venue_owner', 'admin', 'super_admin'],
+      admin: ['admin', 'super_admin'],
+      coach: ['coach'],
+      captain: ['captain'],
+      venue_owner: ['venue_owner'],
+    };
     const users = ApiService.getAdminUsers() || [];
     users.forEach(u => {
-      if (targetType === 'coach_up' && !coachUp.includes(u.role)) return;
-      if (targetType === 'admin' && !adminOnly.includes(u.role)) return;
-      if (targetType === 'team' && u.teamId !== ApiService.getCurrentUser()?.teamId) return;
+      if (roleFilter[targetType] && !roleFilter[targetType].includes(u.role)) return;
+      if (targetType === 'team' && u.teamId !== teamId) return;
       this._queueLinePush(u.uid, category, title, body);
     });
   },
@@ -475,12 +482,34 @@ Object.assign(App, {
     modal.style.display = 'flex';
   },
 
-  // ── 回收信件 ──
+  // ── 回收信件（同時從用戶收件箱移除） ──
   async recallMsg(id) {
-    if (!(await this.appConfirm('確定要回收此信件？'))) return;
+    if (!(await this.appConfirm('確定要回收此信件？收件人信箱中的信件將被移除。'))) return;
+    // 1. 更新 adminMessage status
     ApiService.updateAdminMessage(id, { status: 'recalled' });
+    // 2. 從用戶收件箱移除對應訊息
+    const source = ModeManager.isDemo() ? DemoData.messages : FirebaseService._cache.messages;
+    const toRemove = [];
+    for (let i = source.length - 1; i >= 0; i--) {
+      if (source[i].adminMsgId === id) {
+        toRemove.push(source[i]);
+        source.splice(i, 1);
+      }
+    }
+    // 3. 同步刪除 Firestore 文件
+    if (!ModeManager.isDemo()) {
+      toRemove.forEach(m => {
+        if (m._docId) {
+          db.collection('messages').doc(m._docId).delete().catch(err =>
+            console.error('[recallMsg] 刪除收件箱訊息失敗:', err)
+          );
+        }
+      });
+    }
+    this.renderMessageList();
+    this.updateNotifBadge();
     this.renderMsgManage('sent');
-    this.showToast('已回收信件');
+    this.showToast('已回收信件' + (toRemove.length ? `（移除 ${toRemove.length} 封收件箱訊息）` : ''));
   },
 
   // ── 刪除信件（軟刪除，保留紀錄） ──
@@ -518,6 +547,18 @@ Object.assign(App, {
     document.getElementById('msg-individual-row').style.display = 'none';
     document.getElementById('msg-individual-target').value = '';
     document.getElementById('msg-target-result').textContent = '';
+    const userDd = document.getElementById('msg-user-dropdown');
+    if (userDd) userDd.classList.remove('open');
+    const teamRow = document.getElementById('msg-team-row');
+    if (teamRow) teamRow.style.display = 'none';
+    const teamInput = document.getElementById('msg-team-target');
+    if (teamInput) teamInput.value = '';
+    const teamResult = document.getElementById('msg-team-result');
+    if (teamResult) teamResult.textContent = '';
+    const teamDd = document.getElementById('msg-team-dropdown');
+    if (teamDd) teamDd.classList.remove('open');
+    this._msgMatchedUser = null;
+    this._msgMatchedTeam = null;
     el.style.display = 'flex';
   },
 
@@ -529,27 +570,127 @@ Object.assign(App, {
   // ── 發送對象切換 ──
   onMsgTargetChange() {
     const val = document.getElementById('msg-target').value;
-    const row = document.getElementById('msg-individual-row');
-    if (row) row.style.display = val === 'individual' ? '' : 'none';
+    const indRow = document.getElementById('msg-individual-row');
+    const teamRow = document.getElementById('msg-team-row');
+    if (indRow) indRow.style.display = val === 'individual' ? '' : 'none';
+    if (teamRow) teamRow.style.display = val === 'team' ? '' : 'none';
   },
 
-  // ── 搜尋用戶 (UID/暱稱) ──
+  // ── 搜尋用戶 (UID/暱稱) ── 模糊搜尋 + 下拉選單
   _msgMatchedUser: null,
+  _msgMatchedTeam: null,
 
   searchMsgTarget() {
     const input = document.getElementById('msg-individual-target').value.trim();
+    const dropdown = document.getElementById('msg-user-dropdown');
     const result = document.getElementById('msg-target-result');
     if (!result) return;
-    if (!input) { result.textContent = ''; this._msgMatchedUser = null; return; }
-    const users = ApiService.getAdminUsers();
-    const match = users.find(u => u.uid === input || u.name === input);
-    if (match) {
-      result.innerHTML = `<span style="color:var(--success)">&#10003; 找到：${escapeHTML(match.name)}（${escapeHTML(match.uid)}）・ ${escapeHTML(match.role)}</span>`;
-      this._msgMatchedUser = match;
-    } else {
-      result.innerHTML = `<span style="color:var(--danger)">&#10007; 找不到此用戶</span>`;
+    if (!input) {
+      result.textContent = '';
       this._msgMatchedUser = null;
+      if (dropdown) dropdown.classList.remove('open');
+      return;
     }
+    const q = input.toLowerCase();
+    const users = ApiService.getAdminUsers();
+    const matches = users.filter(u =>
+      (u.name && u.name.toLowerCase().includes(q)) || (u.uid && u.uid.toLowerCase().includes(q))
+    ).slice(0, 8);
+
+    if (dropdown) {
+      if (matches.length) {
+        const roleLabels = typeof ROLES !== 'undefined' ? ROLES : {};
+        dropdown.innerHTML = matches.map(u => {
+          const roleLabel = roleLabels[u.role]?.label || u.role || '';
+          return `<div class="ce-delegate-item" data-uid="${u.uid}" data-name="${escapeHTML(u.name)}">
+            <span class="ce-delegate-item-name">${escapeHTML(u.name)}</span>
+            <span class="ce-delegate-item-meta">${u.uid} · ${roleLabel}</span>
+          </div>`;
+        }).join('');
+        dropdown.querySelectorAll('.ce-delegate-item').forEach(item => {
+          item.addEventListener('mousedown', (ev) => {
+            ev.preventDefault();
+            this._selectMsgUser(item.dataset.uid);
+          });
+        });
+        dropdown.classList.add('open');
+      } else {
+        dropdown.innerHTML = '<div style="padding:.4rem .6rem;font-size:.78rem;color:var(--text-muted)">找不到符合的用戶</div>';
+        dropdown.classList.add('open');
+      }
+    }
+    // 即時精準匹配提示
+    const exact = users.find(u => u.uid === input || u.name === input);
+    if (exact) {
+      this._msgMatchedUser = exact;
+      result.innerHTML = `<span style="color:var(--success)">&#10003; 找到：${escapeHTML(exact.name)}（${escapeHTML(exact.uid)}）・ ${escapeHTML(exact.role)}</span>`;
+    } else {
+      this._msgMatchedUser = null;
+      result.textContent = '';
+    }
+  },
+
+  _selectMsgUser(uid) {
+    const users = ApiService.getAdminUsers();
+    const match = users.find(u => u.uid === uid);
+    if (!match) return;
+    this._msgMatchedUser = match;
+    const input = document.getElementById('msg-individual-target');
+    if (input) input.value = match.name;
+    const dropdown = document.getElementById('msg-user-dropdown');
+    if (dropdown) dropdown.classList.remove('open');
+    const result = document.getElementById('msg-target-result');
+    if (result) result.innerHTML = `<span style="color:var(--success)">&#10003; 已選取：${escapeHTML(match.name)}（${escapeHTML(match.uid)}）・ ${escapeHTML(match.role)}</span>`;
+  },
+
+  // ── 搜尋球隊（模糊搜尋 + 下拉選單）──
+  searchMsgTeam() {
+    const input = document.getElementById('msg-team-target').value.trim();
+    const dropdown = document.getElementById('msg-team-dropdown');
+    const result = document.getElementById('msg-team-result');
+    if (!result) return;
+    if (!input) {
+      result.textContent = '';
+      this._msgMatchedTeam = null;
+      if (dropdown) dropdown.classList.remove('open');
+      return;
+    }
+    const q = input.toLowerCase();
+    const teams = ApiService.getTeams?.() || [];
+    const matches = teams.filter(t =>
+      t.active !== false && t.name && t.name.toLowerCase().includes(q)
+    ).slice(0, 8);
+
+    if (dropdown) {
+      if (matches.length) {
+        dropdown.innerHTML = matches.map(t =>
+          `<div class="ce-delegate-item" data-tid="${t.id}" data-tname="${escapeHTML(t.name)}">
+            <span class="ce-delegate-item-name">${escapeHTML(t.name)}</span>
+            <span class="ce-delegate-item-meta">${t.members || 0}人 · ${t.region || ''}</span>
+          </div>`
+        ).join('');
+        dropdown.querySelectorAll('.ce-delegate-item').forEach(item => {
+          item.addEventListener('mousedown', (ev) => {
+            ev.preventDefault();
+            this._selectMsgTeam(item.dataset.tid, item.dataset.tname);
+          });
+        });
+        dropdown.classList.add('open');
+      } else {
+        dropdown.innerHTML = '<div style="padding:.4rem .6rem;font-size:.78rem;color:var(--text-muted)">找不到符合的球隊</div>';
+        dropdown.classList.add('open');
+      }
+    }
+  },
+
+  _selectMsgTeam(teamId, teamName) {
+    this._msgMatchedTeam = { id: teamId, name: teamName };
+    const input = document.getElementById('msg-team-target');
+    if (input) input.value = teamName;
+    const dropdown = document.getElementById('msg-team-dropdown');
+    if (dropdown) dropdown.classList.remove('open');
+    const result = document.getElementById('msg-team-result');
+    if (result) result.innerHTML = `<span style="color:var(--success)">&#10003; 已選取：${escapeHTML(teamName)}</span>`;
   },
 
   // ── 發送信件（實裝） ──
@@ -561,18 +702,39 @@ Object.assign(App, {
     if (!body) { this.showToast('請輸入信件內容'); return; }
     if (body.length > 300) { this.showToast('內容不可超過 300 字'); return; }
     const category = document.getElementById('msg-category')?.value || 'system';
-    const catNames = { system: '系統', activity: '活動', trade: '交易', private: '私訊' };
+    const catNames = { system: '系統', activity: '活動', private: '私訊' };
     const targetType = document.getElementById('msg-target')?.value || 'all';
     const schedule = document.getElementById('msg-schedule')?.value;
 
+    // targetType → label / role 映射
+    const targetLabelMap = {
+      all: '全體用戶', coach_up: '教練以上', admin: '管理員',
+      coach: '全體教練', captain: '全體領隊', venue_owner: '全體場主',
+    };
+    // targetType → targetRoles（前台過濾用）
+    const roleTargetMap = {
+      coach: ['coach', 'admin', 'super_admin'],
+      captain: ['captain', 'admin', 'super_admin'],
+      venue_owner: ['venue_owner', 'admin', 'super_admin'],
+      coach_up: ['coach', 'captain', 'venue_owner', 'admin', 'super_admin'],
+      admin: ['admin', 'super_admin'],
+    };
+
     // 解析對象
-    let targetLabel = '全體用戶';
+    let targetLabel = targetLabelMap[targetType] || '全體用戶';
     let targetUid = null;
     let targetName = null;
-    if (targetType === 'coach_up') targetLabel = '教練以上';
-    else if (targetType === 'admin') targetLabel = '管理員';
-    else if (targetType === 'team') targetLabel = '指定球隊';
-    else if (targetType === 'individual') {
+    let targetTeamId = null;
+    let targetRoles = roleTargetMap[targetType] || null;
+
+    if (targetType === 'team') {
+      if (!this._msgMatchedTeam) {
+        this.showToast('請先搜尋並選取目標球隊');
+        return;
+      }
+      targetLabel = this._msgMatchedTeam.name;
+      targetTeamId = this._msgMatchedTeam.id;
+    } else if (targetType === 'individual') {
       if (!this._msgMatchedUser) {
         this.showToast('請先搜尋並確認目標用戶');
         return;
@@ -598,6 +760,9 @@ Object.assign(App, {
       target: targetLabel,
       targetUid: targetUid || null,
       targetName: targetName || null,
+      targetTeamId: targetTeamId || null,
+      targetRoles: targetRoles || null,
+      targetType,
       senderName,
       readRate: '-',
       time: timeStr,
@@ -607,16 +772,20 @@ Object.assign(App, {
     };
     ApiService.createAdminMessage(adminMsg);
 
-    // 立即發送 → 同時投遞到用戶收件箱（只投一封）
+    // 立即發送 → 同時投遞到用戶收件箱
     if (!isScheduled) {
-      this._deliverMessageToInbox(title, body, category, catNames[category], targetUid, senderName);
+      const extra = { adminMsgId: adminMsg.id };
+      if (targetTeamId) extra.targetTeamId = targetTeamId;
+      if (targetRoles) extra.targetRoles = targetRoles;
+      this._deliverMessageToInbox(title, body, category, catNames[category], targetUid, senderName, extra);
       // LINE 推播：依對象類型篩選目標用戶
-      this._queueLinePushByTarget(targetType, targetUid, category, title, body);
+      this._queueLinePushByTarget(targetType, targetUid, category, title, body, targetTeamId);
     }
 
     // 重置表單
     this.hideMsgCompose();
     this._msgMatchedUser = null;
+    this._msgMatchedTeam = null;
     this.renderMsgManage(isScheduled ? 'scheduled' : 'sent');
     // 切換 tab
     const tabs = document.getElementById('msg-manage-tabs');
@@ -625,6 +794,29 @@ Object.assign(App, {
       tabs.querySelector(`[data-mfilter="${isScheduled ? 'scheduled' : 'sent'}"]`)?.classList.add('active');
     }
     this.showToast(isScheduled ? '信件已排程' : '信件已發送');
+  },
+
+  // ── 排程信件自動處理 ──
+  _processScheduledMessages() {
+    const now = Date.now();
+    const allItems = ApiService.getAdminMessages();
+    const due = allItems.filter(m => m.status === 'scheduled' && m.scheduledAt && new Date(m.scheduledAt).getTime() <= now);
+    if (!due.length) return;
+
+    const catNames = { system: '系統', activity: '活動', private: '私訊' };
+    due.forEach(m => {
+      // 投遞到收件箱
+      const extra = { adminMsgId: m.id };
+      if (m.targetTeamId) extra.targetTeamId = m.targetTeamId;
+      if (m.targetRoles) extra.targetRoles = m.targetRoles;
+      this._deliverMessageToInbox(m.title, m.body, m.category, catNames[m.category] || m.categoryName || '系統', m.targetUid, m.senderName, extra);
+      // LINE 推播
+      this._queueLinePushByTarget(m.targetType || 'all', m.targetUid, m.category, m.title, m.body, m.targetTeamId);
+      // 更新狀態為已發送
+      ApiService.updateAdminMessage(m.id, { status: 'sent' });
+      console.log('[Schedule] 已自動發送排程信件:', m.title);
+    });
+    this.renderMsgManage();
   },
 
   // ── 投遞到用戶收件箱（只建立一封） ──
