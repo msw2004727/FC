@@ -22,5 +22,7 @@ Thumbs.db
 # Local settings
 settings.local.json
 
-# Node (future)
+# Node
 node_modules/
+functions/node_modules/
+functions/.env

@@ -17,6 +17,16 @@ service cloud.firestore {
       allow create: if request.auth != null;
       allow update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
     }
+    // LINE 推播佇列：前端僅可新增 pending，後端 Admin SDK 處理其餘操作
+    match /linePushQueue/{docId} {
+      allow read: if false;
+      allow create: if request.auth != null
+        && request.resource.data.status == 'pending'
+        && request.resource.data.uid is string
+        && request.resource.data.title is string
+        && request.resource.data.body is string;
+      allow update, delete: if false;
+    }
     // 其他集合：公開可讀，登入可寫
     match /{collection}/{docId} {
       allow read: if true;
