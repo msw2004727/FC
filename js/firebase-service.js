@@ -67,6 +67,18 @@ const FirebaseService = {
   //  初始化：載入所有集合到快取
   // ════════════════════════════════
 
+  // 需要即時監聽的集合（核心互動功能）
+  _liveCollections: ['events', 'messages', 'registrations', 'teams'],
+
+  // 一次性載入的集合（低頻變動，不需即時同步）
+  _staticCollections: [
+    'tournaments', 'shopItems', 'leaderboard', 'standings', 'matches',
+    'trades', 'banners', 'floatingAds', 'popupAds', 'sponsors',
+    'announcements', 'attendanceRecords', 'achievements', 'badges',
+    'expLogs', 'operationLogs', 'activityRecords', 'siteThemes',
+    'adminMessages', 'notifTemplates', 'permissions',
+  ],
+
   async init() {
     if (this._initialized) return;
 
@@ -79,45 +91,63 @@ const FirebaseService = {
       this._authError = err;
     }
 
-    // adminUsers 不是獨立集合，改從 users 集合映射
-    const collectionNames = Object.keys(this._cache).filter(k => k !== 'currentUser' && k !== 'adminUsers');
-
-    // 平行載入所有集合 + users 集合（映射為 adminUsers）
-    const [usersSnapshot, ...snapshots] = await Promise.all([
-      db.collection('users').get().catch(err => {
-        console.warn('Collection "users" 載入失敗:', err);
+    // ── 靜態集合：一次性 .get() 載入（不開 onSnapshot）──
+    const staticPromises = this._staticCollections.map(name =>
+      db.collection(name).get().catch(err => {
+        console.warn(`Collection "${name}" 載入失敗:`, err);
         return { docs: [] };
-      }),
-      ...collectionNames.map(name =>
-        db.collection(name).get().catch(err => {
-          console.warn(`Collection "${name}" 載入失敗:`, err);
-          return { docs: [] };
-        })
-      ),
-    ]);
+      })
+    );
 
-    // 填入快取
-    collectionNames.forEach((name, i) => {
-      this._cache[name] = snapshots[i].docs.map(doc => ({
-        ...doc.data(),
-        _docId: doc.id,
-      }));
+    // ── 即時集合 + users：用 onSnapshot 載入（首次快照即為初始資料，無需額外 .get()）──
+    const livePromise = new Promise(resolve => {
+      let pending = this._liveCollections.length + 1; // +1 for users
+      const checkDone = () => { if (--pending === 0) resolve(); };
+
+      // 即時集合監聽
+      this._liveCollections.forEach(name => {
+        let firstSnapshot = true;
+        const unsub = db.collection(name).onSnapshot(
+          snapshot => {
+            this._cache[name] = snapshot.docs.map(doc => ({ ...doc.data(), _docId: doc.id }));
+            if (firstSnapshot) { firstSnapshot = false; checkDone(); }
+          },
+          err => { console.warn(`[onSnapshot] ${name} 監聽錯誤:`, err); checkDone(); }
+        );
+        this._listeners.push(unsub);
+      });
+
+      // users → adminUsers 即時監聽
+      let firstUserSnapshot = true;
+      const unsubUsers = db.collection('users').onSnapshot(
+        snapshot => {
+          this._cache.adminUsers = snapshot.docs.map(doc => this._mapUserDoc(doc.data(), doc.id));
+          if (firstUserSnapshot) { firstUserSnapshot = false; checkDone(); }
+        },
+        err => { console.warn('[onSnapshot] users 監聽錯誤:', err); checkDone(); }
+      );
+      this._listeners.push(unsubUsers);
     });
 
-    // users → adminUsers 映射
-    this._cache.adminUsers = usersSnapshot.docs.map(doc =>
-      this._mapUserDoc(doc.data(), doc.id)
-    );
+    // 平行等待：靜態集合 .get() + 即時集合首次快照
+    const [staticSnapshots] = await Promise.all([
+      Promise.all(staticPromises),
+      livePromise,
+    ]);
+
+    // 填入靜態集合快取
+    this._staticCollections.forEach((name, i) => {
+      this._cache[name] = staticSnapshots[i].docs.map(doc => ({ ...doc.data(), _docId: doc.id }));
+    });
 
     // 自動建立空白廣告欄位（若 Firestore 尚無資料）
     await this._seedAdSlots();
     // 自動建立通知模板（若 Firestore 尚無資料）
     await this._seedNotifTemplates();
 
-    // 啟動即時監聽
-    this._setupListeners();
     this._initialized = true;
-    console.log('[FirebaseService] 快取載入完成，共', collectionNames.length, '個集合');
+    const totalCollections = this._liveCollections.length + this._staticCollections.length + 1;
+    console.log('[FirebaseService] 快取載入完成，共', totalCollections, '個集合（即時:', this._liveCollections.length + 1, '/ 靜態:', this._staticCollections.length, '）');
   },
 
   // ════════════════════════════════
@@ -219,44 +249,7 @@ const FirebaseService = {
     return doc;
   },
 
-  // ════════════════════════════════
-  //  即時監聽（可變集合）
-  // ════════════════════════════════
-
-  _setupListeners() {
-    const liveCollections = [
-      'events', 'tournaments', 'teams', 'shopItems',
-      'messages', 'registrations', 'leaderboard',
-      'standings', 'matches', 'trades',
-      'banners', 'floatingAds', 'popupAds', 'sponsors', 'announcements', 'attendanceRecords',
-      'achievements', 'badges',
-      'expLogs', 'operationLogs', 'adminMessages', 'notifTemplates',
-    ];
-
-    liveCollections.forEach(name => {
-      const unsub = db.collection(name).onSnapshot(
-        snapshot => {
-          this._cache[name] = snapshot.docs.map(doc => ({
-            ...doc.data(),
-            _docId: doc.id,
-          }));
-        },
-        err => console.warn(`[onSnapshot] ${name} 監聽錯誤:`, err)
-      );
-      this._listeners.push(unsub);
-    });
-
-    // users 集合 → adminUsers 快取（即時同步）
-    const unsubUsers = db.collection('users').onSnapshot(
-      snapshot => {
-        this._cache.adminUsers = snapshot.docs.map(doc =>
-          this._mapUserDoc(doc.data(), doc.id)
-        );
-      },
-      err => console.warn('[onSnapshot] users→adminUsers 監聽錯誤:', err)
-    );
-    this._listeners.push(unsubUsers);
-  },
+  // （即時監聽已整合至 init()，僅保留 _liveCollections + users）
 
   // ════════════════════════════════
   //  Events CRUD

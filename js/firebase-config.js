@@ -22,3 +22,13 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 const storage = firebase.storage();
 const auth = firebase.auth();
+
+// 啟用 Firestore 離線持久化（減少重複讀取計費）
+db.enablePersistence({ synchronizeTabs: true })
+  .catch(err => {
+    if (err.code === 'failed-precondition') {
+      console.warn('[Firestore] 多個分頁開啟，僅一個可啟用離線快取');
+    } else if (err.code === 'unimplemented') {
+      console.warn('[Firestore] 此瀏覽器不支援離線持久化');
+    }
+  });
