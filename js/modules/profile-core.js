@@ -169,7 +169,12 @@ Object.assign(App, {
 
   async bindLineLogin() {
     if (!ModeManager.isDemo() && typeof LineAuth !== 'undefined') {
-      // LIFF 已在 DOMContentLoaded 平行初始化，若尚未完成則等待
+      // LIFF SDK 尚未載入（CDN 背景載入中）→ 跳過，等背景載入完成後再呼叫
+      if (typeof liff === 'undefined') {
+        console.log('[App] bindLineLogin: LIFF SDK 尚未載入，稍後再試');
+        return;
+      }
+      // LIFF SDK 已載入但尚未初始化 → 初始化
       if (!LineAuth._ready) {
         await LineAuth.init();
       }

@@ -164,13 +164,18 @@ document.addEventListener('DOMContentLoaded', async () => {
       try {
         await _loadCDNScripts();
         initFirebaseApp();
+        // 重置 LIFF 狀態（Phase 3 可能因 SDK 未載入而標記為 ready + error）
+        if (typeof liff !== 'undefined') {
+          LineAuth._ready = false;
+          LineAuth._initError = null;
+        }
         const liffReady = (typeof liff !== 'undefined') ? LineAuth.init() : Promise.resolve();
         await Promise.all([FirebaseService.init(), liffReady]);
         console.log('[App] Firebase + LIFF 背景初始化完成');
         // 用即時資料重新渲染頁面
         try { App.renderAll(); } catch (e) {}
-        // 更新 LINE 登入狀態
-        try { if (typeof App.bindLineLogin === 'function') App.bindLineLogin(); } catch (e) {}
+        // 更新 LINE 登入狀態（LIFF SDK 已載入，可正常運作）
+        try { if (typeof App.bindLineLogin === 'function') await App.bindLineLogin(); } catch (e) {}
       } catch (err) {
         console.error('[App] 背景初始化失敗:', err.message || err);
         try { App.showToast('網路連線異常，部分資料可能未更新'); } catch (e) {}
