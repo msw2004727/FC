@@ -53,13 +53,23 @@ Object.assign(App, {
   async _onModeChanged() {
     const isDemo = ModeManager.isDemo();
 
-    // 切換到 Demo 模式：清理 Firebase 監聽器和快取
-    if (isDemo && typeof FirebaseService !== 'undefined') {
-      FirebaseService.destroy();
+    // 切換到 Demo 模式：清理 Firebase 監聽器和快取，重設為一般用戶
+    if (isDemo) {
+      if (typeof FirebaseService !== 'undefined') {
+        FirebaseService.destroy();
+      }
+      this.applyRole('user', true);
     }
 
-    // 切換到正式版：嘗試初始化 Firebase
-    if (!isDemo && typeof FirebaseService !== 'undefined') {
+    // 切換到正式版：嘗試初始化 Firebase，並套用正確角色
+    if (!isDemo) {
+      if (typeof FirebaseService === 'undefined' || typeof firebase === 'undefined') {
+        console.warn('[App] Firebase SDK 尚未載入，無法切換至正式版');
+        this.showToast('Firebase 尚未載入，請稍後再試');
+        ModeManager.setMode('demo');
+        this._updateModeBadge();
+        return;
+      }
       const overlay = document.getElementById('loading-overlay');
       if (overlay) overlay.style.display = '';
       try {
@@ -70,16 +80,23 @@ Object.assign(App, {
         console.log('[App] Firebase 已初始化');
       } catch (err) {
         console.error('[App] Firebase 初始化失敗:', err);
-        // 不自動退回 Demo，維持 production 模式使用快取
         this.showToast('Firebase 連線失敗，使用快取資料');
       } finally {
         if (overlay) overlay.style.display = 'none';
+      }
+      // 根據正式版用戶角色設定 currentRole
+      const prodUser = ApiService.getCurrentUser();
+      if (prodUser && prodUser.role) {
+        this.applyRole(prodUser.role, true);
       }
     }
 
     this._updateModeBadge();
     this.renderLoginUI();
     this.renderAll();
+    if (typeof this.renderProfileData === 'function') {
+      this.renderProfileData();
+    }
     const modeLabel = ModeManager.isDemo() ? '演示版' : '正式版';
     this.showToast(`已切換至「${modeLabel}」模式`);
   },

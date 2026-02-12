@@ -49,7 +49,7 @@ Object.assign(App, {
     const level = ROLE_LEVEL_MAP[role];
 
     // Demo 模式同步 currentUser.role，讓個人資料頁膠囊正確顯示
-    if (ModeManager.isDemo()) {
+    if (ModeManager.isDemo() && typeof DemoData !== 'undefined' && DemoData.currentUser) {
       DemoData.currentUser.role = role;
     }
 
