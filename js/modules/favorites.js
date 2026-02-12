@@ -8,6 +8,8 @@ Object.assign(App, {
   //  Favorites
   // ══════════════════════════════════
 
+  _favSortMode: 'time',
+
   _getFavorites() {
     const user = ApiService.getCurrentUser();
     return (user && user.favorites) || { events: [], tournaments: [] };
@@ -23,6 +25,12 @@ Object.assign(App, {
     return { css: map[status] || 'open', label: status || '報名中' };
   },
 
+  /** 狀態排序權重（open 最前，ended 最後） */
+  _statusSortWeight(css) {
+    const w = { open: 1, upcoming: 2, full: 3, ended: 4, cancelled: 5 };
+    return w[css] || 9;
+  },
+
   toggleFavoriteEvent(eventId) {
     const favs = this._getFavorites();
     const idx = favs.events.indexOf(eventId);
@@ -31,7 +39,7 @@ Object.assign(App, {
     ApiService.updateCurrentUser({ favorites: favs });
     this._syncFavHearts('Event', eventId, added);
     this.renderProfileFavorites();
-    this.showToast(added ? '已加入收藏' : '已取消收藏');
+    this.showToast(added ? t('toast.favoriteAdded') : t('toast.favoriteRemoved'));
   },
 
   toggleFavoriteTournament(tournId) {
@@ -42,7 +50,7 @@ Object.assign(App, {
     ApiService.updateCurrentUser({ favorites: favs });
     this._syncFavHearts('Tournament', tournId, added);
     this.renderProfileFavorites();
-    this.showToast(added ? '已加入收藏' : '已取消收藏');
+    this.showToast(added ? t('toast.favoriteAdded') : t('toast.favoriteRemoved'));
   },
 
   /** 立即切換頁面上所有匹配的心形按鈕外觀 */
@@ -89,31 +97,60 @@ Object.assign(App, {
     card.style.display = '';
     const badge = document.getElementById('fav-count-badge');
     if (badge) badge.textContent = total;
-    let html = '';
-    // 活動收藏
+
+    // 收集所有收藏項目
+    const items = [];
     favs.events.forEach(eid => {
       const ev = ApiService.getEvents().find(e => e.id === eid);
       if (!ev) return;
       const sc = STATUS_CONFIG[ev.status] || STATUS_CONFIG.open;
-      html += `<div class="fav-item">
-        <span class="fav-item-name" onclick="App.showEventDetail('${eid}')">${escapeHTML(ev.title)}</span>
-        <span class="fav-item-date">${ev.date ? ev.date.split(' ')[0] : ''}</span>
-        <span class="tl-event-status ${sc.css}" style="font-size:.62rem">${sc.label}</span>
-        <button class="fav-remove-btn" onclick="event.stopPropagation();App.toggleFavoriteEvent('${eid}')" title="取消收藏">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-        </button>
-      </div>`;
+      const dateStr = ev.date ? ev.date.split(' ')[0] : '';
+      items.push({ type: 'event', id: eid, name: ev.title, date: dateStr, statusCss: sc.css, statusLabel: sc.label, sortDate: dateStr });
     });
-    // 賽事收藏
     favs.tournaments.forEach(tid => {
-      const t = ApiService.getTournaments().find(x => x.id === tid);
-      if (!t) return;
-      const ts = this._tournStatusCss(t);
+      const tm = ApiService.getTournaments().find(x => x.id === tid);
+      if (!tm) return;
+      const ts = this._tournStatusCss(tm);
+      items.push({ type: 'tournament', id: tid, name: tm.name, date: tm.type || '賽事', statusCss: ts.css, statusLabel: ts.label, sortDate: (tm.matchDates || [])[0] || '' });
+    });
+
+    // 排序
+    const mode = this._favSortMode || 'time';
+    if (mode === 'status') {
+      items.sort((a, b) => this._statusSortWeight(a.statusCss) - this._statusSortWeight(b.statusCss));
+    } else if (mode === 'name') {
+      items.sort((a, b) => a.name.localeCompare(b.name, 'zh-Hant'));
+    } else {
+      // time: 按日期倒序
+      items.sort((a, b) => (b.sortDate || '').localeCompare(a.sortDate || ''));
+    }
+
+    // 排序控件
+    const sortOpts = [
+      { val: 'time', label: t('fav.sortTime') },
+      { val: 'status', label: t('fav.sortStatus') },
+      { val: 'name', label: t('fav.sortName') },
+    ];
+    const sortHtml = `<div style="display:flex;justify-content:flex-end;margin-bottom:.25rem">
+      <select id="fav-sort" onchange="App._favSortMode=this.value;App.renderProfileFavorites()" style="font-size:.7rem;padding:.15rem .35rem;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-card);color:var(--text-primary);cursor:pointer">
+        ${sortOpts.map(o => `<option value="${o.val}"${mode === o.val ? ' selected' : ''}>${o.label}</option>`).join('')}
+      </select>
+    </div>`;
+
+    // 渲染列表
+    let html = sortHtml;
+    items.forEach(it => {
+      const onclick = it.type === 'event'
+        ? `App.showEventDetail('${it.id}')`
+        : `App.showTournamentDetail('${it.id}')`;
+      const toggleFn = it.type === 'event'
+        ? `App.toggleFavoriteEvent('${it.id}')`
+        : `App.toggleFavoriteTournament('${it.id}')`;
       html += `<div class="fav-item">
-        <span class="fav-item-name" onclick="App.showTournamentDetail('${tid}')">${escapeHTML(t.name)}</span>
-        <span class="fav-item-date">${t.type || '賽事'}</span>
-        <span class="tl-event-status ${ts.css}" style="font-size:.62rem">${ts.label}</span>
-        <button class="fav-remove-btn" onclick="event.stopPropagation();App.toggleFavoriteTournament('${tid}')" title="取消收藏">
+        <span class="fav-item-name" onclick="${onclick}">${escapeHTML(it.name)}</span>
+        <span class="fav-item-date">${it.date}</span>
+        <span class="tl-event-status ${it.statusCss}" style="font-size:.62rem">${it.statusLabel}</span>
+        <button class="fav-remove-btn" onclick="event.stopPropagation();${toggleFn}" title="${t('toast.favoriteRemoved')}">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </button>
       </div>`;

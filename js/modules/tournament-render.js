@@ -9,7 +9,7 @@ Object.assign(App, {
     if (!container) return;
     const ongoing = ApiService.getTournaments().filter(t => !this.isTournamentEnded(t));
     if (ongoing.length === 0) {
-      container.innerHTML = '<div style="text-align:center;padding:1.5rem;color:var(--text-muted);font-size:.85rem">目前沒有進行中的賽事</div>';
+      container.innerHTML = `<div style="text-align:center;padding:1.5rem;color:var(--text-muted);font-size:.85rem">${t('tournament.noActive')}</div>`;
       return;
     }
     container.innerHTML = ongoing.map(t => `
@@ -21,7 +21,7 @@ Object.assign(App, {
           <div class="h-card-title">${escapeHTML(t.name)}</div>
           <div class="h-card-meta">
             <span>${escapeHTML(t.type)}</span>
-            <span>${t.teams} 隊</span>
+            <span>${t.teams} ${I18N.t('tournament.teamUnit')}</span>
           </div>
         </div>
       </div>
@@ -73,7 +73,7 @@ Object.assign(App, {
     }
 
     if (tournaments.length === 0) {
-      container.innerHTML = `<div style="text-align:center;padding:2rem;color:var(--text-muted);font-size:.85rem">${tab === 'ended' ? '沒有已結束的賽事' : '沒有進行中的賽事'}</div>`;
+      container.innerHTML = `<div style="text-align:center;padding:2rem;color:var(--text-muted);font-size:.85rem">${tab === 'ended' ? t('tournament.noEnded') : t('tournament.noActive')}</div>`;
       return;
     }
 
@@ -122,7 +122,7 @@ Object.assign(App, {
             <span class="tl-event-arrow">›</span>
           </div>
           <div style="width:100%;font-size:.62rem;color:var(--text-muted);margin-top:.2rem;line-height:1.5">
-            ${region ? region + ' · ' : ''}比賽日 ${matchDatesText} · 報名 ${regPeriod} · 已報 ${registered.length}/${maxTeams} 隊
+            ${region ? region + ' · ' : ''}${I18N.t('tournament.matchDay')} ${matchDatesText} · ${I18N.t('tournament.regPeriod')} ${regPeriod} · ${I18N.t('tournament.registered')} ${registered.length}/${maxTeams} ${I18N.t('tournament.teamUnit')}
           </div>
         </div>`;
     }).join('');

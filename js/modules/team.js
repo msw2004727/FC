@@ -53,8 +53,8 @@ Object.assign(App, {
           : `<div class="tc-img-placeholder" style="position:relative">球隊圖片<span class="tc-rank-badge" style="color:${rank.color}"><span class="tc-rank-score">${(t.teamExp || 0).toLocaleString()}</span>${rank.rank}</span></div>`}
         <div class="tc-body">
           <div class="tc-name">${escapeHTML(t.name)}</div>
-          <div class="tc-info-row"><span class="tc-label">隊員</span><span>${t.members} 人</span></div>
-          <div class="tc-info-row"><span class="tc-label">地區</span><span>${escapeHTML(t.region || '')}</span></div>
+          <div class="tc-info-row"><span class="tc-label">${I18N.t('team.memberLabel')}</span><span>${t.members} ${I18N.t('team.personUnit')}</span></div>
+          <div class="tc-info-row"><span class="tc-label">${I18N.t('team.regionLabel')}</span><span>${escapeHTML(t.region || '')}</span></div>
         </div>
       </div>`;
   },
@@ -86,7 +86,7 @@ Object.assign(App, {
     const sorted = this._sortTeams(filtered);
     container.innerHTML = sorted.length > 0
       ? sorted.map(t => this._teamCardHTML(t)).join('')
-      : '<div style="grid-column:1/-1;text-align:center;padding:2rem;color:var(--text-muted);font-size:.85rem">找不到符合的球隊</div>';
+      : `<div style="grid-column:1/-1;text-align:center;padding:2rem;color:var(--text-muted);font-size:.85rem">${t('team.noMatch')}</div>`;
   },
 
   showTeamDetail(id) {
@@ -313,6 +313,8 @@ Object.assign(App, {
     this.showTeamDetail(teamId);
     this.renderTeamList();
     this.renderProfileData();
+    this.renderHotEvents();
+    this.renderActivityList();
   },
 
   goMyTeam() {
@@ -816,6 +818,8 @@ Object.assign(App, {
     });
 
     ApiService.deleteTeam(id);
+    // Demo 模式：同步清除 _userTeam
+    if (ModeManager.isDemo() && this._userTeam === id) this._userTeam = null;
     ApiService._writeOpLog('team_delete', '刪除球隊', `刪除「${tName}」`);
 
     // 刪隊後逐一重新計算角色
@@ -829,6 +833,8 @@ Object.assign(App, {
     this.renderAdminTeams();
     this.renderTeamManage();
     this.renderProfileData();
+    this.renderHotEvents();
+    this.renderActivityList();
   },
 
   // ══════════════════════════════════

@@ -37,6 +37,8 @@ Object.assign(App, {
       target.classList.add('active');
       this.currentPage = pageId;
       window.scrollTo({ top: 0, behavior: 'smooth' });
+      if (pageId === 'page-home') { this.renderHotEvents(); this.renderOngoingTournaments(); }
+      if (pageId === 'page-activities') this.renderActivityList();
       if (pageId === 'page-titles') this.renderTitlePage();
       if (pageId === 'page-my-activities') this.renderMyActivities();
       if (pageId === 'page-team-manage') this.renderTeamManage();

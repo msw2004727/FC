@@ -219,15 +219,15 @@ Object.assign(App, {
             ? `<div class="h-card-img"><img src="${e.image}" alt="${escapeHTML(e.title)}"></div>`
             : `<div class="h-card-img h-card-placeholder">220 × 90</div>`}
           <div class="h-card-body">
-            <div class="h-card-title">${escapeHTML(e.title)}${e.teamOnly ? '<span class="tl-teamonly-badge">限定</span>' : ''}</div>
+            <div class="h-card-title">${escapeHTML(e.title)}${e.teamOnly ? '<span class="tl-teamonly-badge">限定</span>' : ''} ${this._favHeartHtml(this.isEventFavorited(e.id), 'Event', e.id)}</div>
             <div class="h-card-meta">
               <span>${escapeHTML(e.location.split('市')[0])}市</span>
-              <span>${e.current}/${e.max} 人</span>
+              <span>${e.current}/${e.max} ${t('activity.participants')}</span>
             </div>
           </div>
         </div>
       `).join('')
-      : '<div style="padding:1rem;font-size:.82rem;color:var(--text-muted)">目前沒有進行中的活動</div>';
+      : `<div style="padding:1rem;font-size:.82rem;color:var(--text-muted)">${t('activity.noActive')}</div>`;
   },
 
   // ══════════════════════════════════
@@ -319,6 +319,7 @@ Object.assign(App, {
                 <div class="tl-event-meta">${typeConf.label} · ${time} · ${escapeHTML(e.location.split('市')[1] || e.location)} · ${e.current}/${e.max}人${waitlistTag}</div>
               </div>
               <span class="tl-event-status ${statusConf.css}">${statusConf.label}</span>
+              ${this._favHeartHtml(this.isEventFavorited(e.id), 'Event', e.id)}
               <span class="tl-event-arrow">›</span>
             </div>`;
         });
@@ -329,7 +330,7 @@ Object.assign(App, {
       html += `</div>`;
     });
 
-    container.innerHTML = html || '<div style="padding:1.5rem;font-size:.82rem;color:var(--text-muted);text-align:center">沒有符合條件的活動</div>';
+    container.innerHTML = html || `<div style="padding:1.5rem;font-size:.82rem;color:var(--text-muted);text-align:center">${t('activity.noMatch')}</div>`;
   },
 
   // ══════════════════════════════════
