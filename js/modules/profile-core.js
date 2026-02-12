@@ -215,6 +215,7 @@ Object.assign(App, {
         // 註冊即時回調：當資料庫用戶資料變更時自動更新 UI
         FirebaseService._onUserChanged = () => {
           this.renderProfileData();
+          this.renderProfileFavorites();
           this.renderLoginUI();
           this.renderHotEvents();
           this.renderActivityList();
@@ -228,6 +229,7 @@ Object.assign(App, {
     }
     this.renderLoginUI();
     this.renderProfileData();
+    this.renderProfileFavorites();
     if (this._pendingFirstLogin) {
       this.showModal('first-login-modal');
     }

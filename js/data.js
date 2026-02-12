@@ -417,13 +417,18 @@ const DemoData = {
 
 // ── Pre-populate Auto EXP demo data（mode-aware keys）──
 (function() {
-  if (!ModeManager.isDemo()) return;
-  const mode = ModeManager.getMode();
-  const rulesKey = 'sporthub_auto_exp_rules_' + mode;
-  const logsKey  = 'sporthub_auto_exp_logs_' + mode;
   // 清除舊版無前綴 key（避免幽靈紀錄）
   localStorage.removeItem('sporthub_auto_exp_rules');
   localStorage.removeItem('sporthub_auto_exp_logs');
+  // 正式版：清除先前被 bug 寫入的假資料
+  if (!ModeManager.isDemo()) {
+    localStorage.removeItem('sporthub_auto_exp_rules_production');
+    localStorage.removeItem('sporthub_auto_exp_logs_production');
+    return;
+  }
+  const mode = ModeManager.getMode();
+  const rulesKey = 'sporthub_auto_exp_rules_' + mode;
+  const logsKey  = 'sporthub_auto_exp_logs_' + mode;
   if (localStorage.getItem(rulesKey)) return; // 已有設定則不覆蓋
   const rules = {
     complete_activity: 100,
