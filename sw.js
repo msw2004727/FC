@@ -40,16 +40,23 @@ self.addEventListener('install', (event) => {
   self.skipWaiting();
 });
 
-// Activate: clean old caches
+// Activate: clean old caches + force reload all open pages
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) => {
       return Promise.all(
         keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))
       );
-    })
+    }).then(() => self.clients.claim())
+      .then(() => {
+        // 強制所有開啟中的頁面重載（解決舊 HTML 參照已刪除檔案的問題）
+        return self.clients.matchAll({ type: 'window' }).then((clients) => {
+          clients.forEach((client) => {
+            try { client.navigate(client.url); } catch (e) { /* ignore */ }
+          });
+        });
+      })
   );
-  self.clients.claim();
 });
 
 // Fetch strategy

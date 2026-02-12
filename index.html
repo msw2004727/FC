@@ -294,13 +294,38 @@
   <script defer src="js/modules/user-admin-roles.js?v=20260212zg"></script>
   <script defer src="js/modules/scan.js?v=20260212zg"></script>
 
-  <!-- Service Worker Registration -->
+  <!-- Service Worker Registration + 強制更新 -->
   <script>
     if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js').catch(() => {});
+      // 偵測 SW 更新 → 自動重載頁面（解決舊快取卡住問題）
+      navigator.serviceWorker.addEventListener('controllerchange', function() {
+        if (!window._swReloading) { window._swReloading = true; location.reload(); }
+      });
+      window.addEventListener('load', function() {
+        navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' }).catch(function(){});
       });
     }
+  </script>
+  <!-- 腳本載入失敗兜底：顯示清快取按鈕 -->
+  <script>
+    window.addEventListener('error', function(e) {
+      if (e.target && e.target.tagName === 'SCRIPT' && e.target.src) {
+        console.error('[Boot] Script failed:', e.target.src);
+        var b = document.getElementById('_recovery_btn');
+        if (!b) {
+          b = document.createElement('button');
+          b.id = '_recovery_btn';
+          b.textContent = '載入失敗，點此清除快取重試';
+          b.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:99999;padding:1rem 2rem;font-size:1rem;background:#dc2626;color:#fff;border:none;border-radius:8px;cursor:pointer';
+          b.onclick = function() {
+            if ('caches' in window) caches.keys().then(function(k){k.forEach(function(n){caches.delete(n)})});
+            if ('serviceWorker' in navigator) navigator.serviceWorker.getRegistrations().then(function(r){r.forEach(function(w){w.unregister()})});
+            setTimeout(function(){ location.reload(true); }, 300);
+          };
+          document.body.appendChild(b);
+        }
+      }
+    }, true);
   </script>
 </body>
 </html>
