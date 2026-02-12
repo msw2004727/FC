@@ -172,14 +172,24 @@ Object.assign(App, {
           ${t.members > 8 ? `<span class="td-member-more">... 共 ${t.members} 人</span>` : ''}
         </div>
       </div>
-      ${this._renderTeamFeed(t.id)}
+      <div id="team-feed-section">${this._renderTeamFeed(t.id)}</div>
       <div class="td-actions">
         ${this._isTeamMember(t.id)
           ? `<button style="background:var(--danger);color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;font-weight:600;cursor:pointer" onclick="App.handleLeaveTeam('${t.id}')">退出球隊</button>`
           : `<button class="primary-btn" onclick="App.handleJoinTeam('${t.id}')">申請加入</button>`
         }
         ${t.captain ? `<button class="outline-btn" onclick="App.showUserProfile('${escapeHTML(t.captain)}')">聯繫領隊</button>` : ''}
-        ${(() => { const u = ApiService.getCurrentUser?.(); const n = u?.displayName || ''; return (t.captain === n || (t.coaches || []).includes(n)); })() ? `<button class="outline-btn" onclick="App.showTeamInviteQR('${t.id}')">邀請 QR Code</button>` : ''}
+        ${(() => {
+          const u = ApiService.getCurrentUser?.();
+          const n = u?.displayName || '';
+          const isCaptainCoach = (t.captain === n || (t.coaches || []).includes(n));
+          const memberCanInvite = t.allowMemberInvite !== false;
+          const canInvite = isCaptainCoach || (this._isTeamMember(t.id) && memberCanInvite);
+          let html = '';
+          if (canInvite) html += `<button class="outline-btn" onclick="App.showTeamInviteQR('${t.id}')">邀請 QR Code</button>`;
+          if (isCaptainCoach) html += `<label style="display:inline-flex;align-items:center;gap:.3rem;font-size:.72rem;color:var(--text-muted);cursor:pointer;margin-left:.2rem"><input type="checkbox" ${memberCanInvite ? 'checked' : ''} onchange="App.toggleMemberInvite('${t.id}',this.checked)"> 隊員可邀請</label>`;
+          return html;
+        })()}
       </div>
     `;
     this.showPage('page-team-detail');
@@ -426,6 +436,16 @@ Object.assign(App, {
       </div>`;
   },
 
+  /** Re-render only the feed section without scrolling to top */
+  _refreshTeamDetailFeed(teamId) {
+    const section = document.getElementById('team-feed-section');
+    if (section) {
+      section.innerHTML = this._renderTeamFeed(teamId);
+    } else {
+      this.showTeamDetail(teamId);
+    }
+  },
+
   goTeamFeedPage(teamId, page) {
     this._teamFeedPage[teamId] = Math.max(1, page);
     this.showTeamDetail(teamId);
@@ -511,7 +531,7 @@ Object.assign(App, {
     const idx = arr.indexOf(uid);
     if (idx >= 0) arr.splice(idx, 1); else arr.push(uid);
     post.reactions[key] = arr;
-    this.showTeamDetail(teamId);
+    this._refreshTeamDetailFeed(teamId);
   },
 
   _renderFeedComments(teamId, post, myUid, isMember) {
@@ -554,7 +574,7 @@ Object.assign(App, {
     const now = new Date();
     const timeStr = `${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
     post.comments.push({ id: 'c_' + Date.now(), uid, name, text, time: timeStr });
-    this.showTeamDetail(teamId);
+    this._refreshTeamDetailFeed(teamId);
   },
 
   deleteFeedComment(teamId, postId, commentId) {
@@ -563,7 +583,15 @@ Object.assign(App, {
     const post = t.feed.find(p => p.id === postId);
     if (!post || !post.comments) return;
     post.comments = post.comments.filter(c => c.id !== commentId);
-    this.showTeamDetail(teamId);
+    this._refreshTeamDetailFeed(teamId);
+  },
+
+  toggleMemberInvite(teamId, allowed) {
+    const t = ApiService.getTeam(teamId);
+    if (!t) return;
+    t.allowMemberInvite = allowed;
+    ApiService.updateTeam(teamId, { allowMemberInvite: allowed });
+    this.showToast(allowed ? '已開放隊員邀請' : '已關閉隊員邀請');
   },
 
   // ══════════════════════════════════
@@ -574,22 +602,49 @@ Object.assign(App, {
     const t = ApiService.getTeam(teamId);
     if (!t) return;
     const url = `${location.origin}${location.pathname}?team=${teamId}`;
+    // Remove existing overlay if any
+    const existing = document.getElementById('qr-invite-overlay');
+    if (existing) existing.remove();
     // Create overlay
     const overlay = document.createElement('div');
     overlay.id = 'qr-invite-overlay';
     overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.55);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center';
     overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
     const card = document.createElement('div');
-    card.style.cssText = 'background:var(--bg-card);border-radius:var(--radius);padding:1.2rem;text-align:center;max-width:320px;width:88%';
-    card.innerHTML = `<div style="font-size:.95rem;font-weight:700;margin-bottom:.5rem">${escapeHTML(t.name)} — 邀請加入</div><canvas id="qr-invite-canvas" style="margin:0 auto;display:block"></canvas><div style="font-size:.72rem;color:var(--text-muted);margin-top:.5rem;word-break:break-all">${escapeHTML(url)}</div><button style="margin-top:.6rem;padding:.4rem 1rem;border:none;border-radius:var(--radius-sm);background:var(--primary);color:#fff;font-size:.82rem;cursor:pointer" onclick="document.getElementById('qr-invite-overlay').remove()">關閉</button>`;
+    card.style.cssText = 'background:var(--bg-card,#fff);border-radius:14px;padding:1.2rem;text-align:center;max-width:320px;width:88%';
+    card.innerHTML = `
+      <div style="font-size:.95rem;font-weight:700;margin-bottom:.5rem">${escapeHTML(t.name)} — 邀請加入</div>
+      <div id="qr-invite-target" style="display:flex;justify-content:center;margin:.5rem 0"></div>
+      <div style="font-size:.72rem;color:var(--text-muted,#6b7280);margin-top:.5rem;word-break:break-all;user-select:all">${escapeHTML(url)}</div>
+      <div style="display:flex;gap:.5rem;justify-content:center;margin-top:.6rem">
+        <button id="qr-copy-btn" style="padding:.4rem 1rem;border:1px solid var(--primary,#3b82f6);border-radius:8px;background:transparent;color:var(--primary,#3b82f6);font-size:.82rem;cursor:pointer">複製連結</button>
+        <button style="padding:.4rem 1rem;border:none;border-radius:8px;background:var(--primary,#3b82f6);color:#fff;font-size:.82rem;cursor:pointer" onclick="document.getElementById('qr-invite-overlay').remove()">關閉</button>
+      </div>`;
     overlay.appendChild(card);
     document.body.appendChild(overlay);
-    // Generate QR code
-    if (typeof QRCode !== 'undefined' && QRCode.toCanvas) {
-      requestAnimationFrame(() => {
-        const canvas = document.getElementById('qr-invite-canvas');
-        if (canvas) QRCode.toCanvas(canvas, url, { width: 200, margin: 2 }, () => {});
-      });
+    // Copy button
+    document.getElementById('qr-copy-btn').addEventListener('click', () => {
+      navigator.clipboard.writeText(url).then(() => { App.showToast('邀請連結已複製'); }).catch(() => { App.showToast('複製失敗'); });
+    });
+    // Generate QR code using qrcode library
+    const target = document.getElementById('qr-invite-target');
+    if (target && typeof QRCode !== 'undefined') {
+      try {
+        if (QRCode.toCanvas) {
+          // qrcode npm package: QRCode.toCanvas(canvasEl, text, opts, cb)
+          const canvas = document.createElement('canvas');
+          target.appendChild(canvas);
+          QRCode.toCanvas(canvas, url, { width: 200, margin: 2 }, (err) => {
+            if (err) { target.innerHTML = '<div style="font-size:.78rem;color:var(--danger)">QR Code 產生失敗</div>'; }
+          });
+        } else if (QRCode.toDataURL) {
+          QRCode.toDataURL(url, { width: 200, margin: 2 }, (err, dataUrl) => {
+            if (!err && dataUrl) { target.innerHTML = `<img src="${dataUrl}" style="width:200px;height:200px">`; }
+          });
+        }
+      } catch (e) {
+        target.innerHTML = '<div style="font-size:.78rem;color:var(--danger)">QR Code 產生失敗</div>';
+      }
     }
   },
 

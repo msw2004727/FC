@@ -15,20 +15,26 @@ Object.assign(App, {
       return;
     }
 
+    try { return this._renderPersonalDashboardInner(container, user); }
+    catch (err) { console.error('[personalDashboard]', err); container.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--text-muted)">資料載入失敗，請稍後再試</div>'; }
+  },
+
+  _renderPersonalDashboardInner(container, user) {
     const uid = user.uid || '';
-    const records = ApiService.getActivityRecords().filter(r => r.uid === uid);
+    const records = (ApiService.getActivityRecords?.() || []).filter(r => r.uid === uid);
     const totalGames = user.totalGames || records.length;
     const completedGames = user.completedGames || records.filter(r => r.status === 'completed').length;
     const attendanceRate = user.attendanceRate || (totalGames > 0 ? Math.round(completedGames / totalGames * 100) : 0);
-    const badges = ApiService.getBadges();
-    const achievements = ApiService.getAchievements().filter(a => a.status !== 'archived');
+    const badges = ApiService.getBadges?.() || [];
+    const achievements = (ApiService.getAchievements?.() || []).filter(a => a.status !== 'archived');
     const earnedBadges = badges.filter(b => {
       const ach = achievements.find(a => a.id === b.achId);
       const threshold = ach?.condition?.threshold ?? ach?.target ?? 1;
       return ach && ach.current >= threshold;
     });
     const totalExp = user.exp || 0;
-    const { level } = App._calcLevelFromExp(totalExp);
+    const calcLevel = App._calcLevelFromExp ? App._calcLevelFromExp(totalExp) : { level: 0 };
+    const level = calcLevel.level || 0;
 
     // Summary cards
     const summaryHtml = `
@@ -58,7 +64,7 @@ Object.assign(App, {
 
     // Activity type data (from all events the user participated in)
     const typeCounts = { friendly: 0, camp: 0, play: 0, watch: 0 };
-    const allEvents = ApiService.getEvents();
+    const allEvents = ApiService.getEvents?.() || [];
     records.filter(r => r.status === 'completed' || r.status === 'registered').forEach(r => {
       const evt = allEvents.find(e => e.id === r.eventId);
       if (evt && typeCounts.hasOwnProperty(evt.type)) {

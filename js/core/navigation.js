@@ -37,12 +37,17 @@ Object.assign(App, {
       target.classList.add('active');
       this.currentPage = pageId;
       window.scrollTo({ top: 0, behavior: 'smooth' });
+      // 重設浮動廣告位置，避免跨頁 scrollTo 觸發 scroll listener 造成跳位
+      this._floatAdOffset = 0;
+      this._floatAdTarget = 0;
+      requestAnimationFrame(() => { if (this._positionFloatingAds) this._positionFloatingAds(); });
       if (pageId === 'page-home') { this.renderHotEvents(); this.renderOngoingTournaments(); }
       if (pageId === 'page-activities') this.renderActivityList();
       if (pageId === 'page-titles') this.renderTitlePage();
       if (pageId === 'page-my-activities') this.renderMyActivities();
       if (pageId === 'page-team-manage') this.renderTeamManage();
       if (pageId === 'page-admin-dashboard') this.renderDashboard();
+      if (pageId === 'page-personal-dashboard') this.renderPersonalDashboard();
       if (pageId === 'page-scan') this.renderScanPage();
       if (pageId === 'page-qrcode') this.renderQrCodePage();
       if (pageId !== 'page-scan' && this._stopCamera) this._stopCamera();
@@ -125,7 +130,7 @@ Object.assign(App, {
       if (span && tabKeys[i]) span.textContent = t(tabKeys[i]);
     });
     // Drawer footer labels
-    const dmLabel = document.querySelector('#theme-toggle span:nth-child(2)');
+    const dmLabel = document.querySelector('#theme-toggle span:first-child');
     if (dmLabel) dmLabel.textContent = t('drawer.darkMode');
     const langLabel = document.querySelector('.lang-label');
     if (langLabel) langLabel.textContent = t('drawer.language');

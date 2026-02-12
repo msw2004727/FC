@@ -3,7 +3,7 @@
    Strategy: cache-first for static assets, network-first for API
    ================================================ */
 
-const CACHE_NAME = 'sporthub-20260212t';
+const CACHE_NAME = 'sporthub-20260212u';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
