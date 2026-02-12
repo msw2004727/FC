@@ -22,6 +22,7 @@ const PageLoader = {
     'admin-content',
     'admin-system',
     'admin-dashboard',
+    'personal-dashboard',
   ],
 
   /** 全域彈窗片段 */

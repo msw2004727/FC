@@ -117,6 +117,116 @@ Object.assign(App, {
   },
 
   // ══════════════════════════════════
+  //  Event Templates (localStorage)
+  // ══════════════════════════════════
+
+  _TEMPLATE_KEY: 'sporthub_event_templates',
+  _MAX_TEMPLATES: 10,
+
+  _getEventTemplates() {
+    try {
+      const data = JSON.parse(localStorage.getItem(this._TEMPLATE_KEY) || '[]');
+      return Array.isArray(data) ? data : [];
+    } catch { return []; }
+  },
+
+  _saveEventTemplate() {
+    const nameInput = document.getElementById('ce-template-name');
+    const name = (nameInput?.value || '').trim();
+    if (!name) { this.showToast('請輸入範本名稱'); return; }
+
+    // 取得圖片（從預覽區的 img 或 base64）
+    const cePreviewEl = document.getElementById('ce-upload-preview');
+    const ceImg = cePreviewEl?.querySelector('img');
+    const image = ceImg ? ceImg.src : null;
+
+    const tpl = {
+      id: 'tpl_' + Date.now(),
+      name,
+      title: document.getElementById('ce-title')?.value?.trim() || '',
+      type: document.getElementById('ce-type')?.value || 'friendly',
+      location: document.getElementById('ce-location')?.value?.trim() || '',
+      date: document.getElementById('ce-date')?.value || '',
+      timeStart: document.getElementById('ce-time-start')?.value || '14:00',
+      timeEnd: document.getElementById('ce-time-end')?.value || '16:00',
+      fee: parseInt(document.getElementById('ce-fee')?.value) || 0,
+      max: parseInt(document.getElementById('ce-max')?.value) || 20,
+      minAge: parseInt(document.getElementById('ce-min-age')?.value) || 0,
+      notes: document.getElementById('ce-notes')?.value?.trim() || '',
+      image,
+    };
+
+    const templates = this._getEventTemplates();
+    if (templates.length >= this._MAX_TEMPLATES) {
+      this.showToast(`範本數量已達上限 ${this._MAX_TEMPLATES} 組`);
+      return;
+    }
+    templates.unshift(tpl);
+    try {
+      localStorage.setItem(this._TEMPLATE_KEY, JSON.stringify(templates));
+    } catch (e) {
+      // 圖片 base64 可能太大，嘗試不含圖片存
+      tpl.image = null;
+      localStorage.setItem(this._TEMPLATE_KEY, JSON.stringify(templates));
+      this.showToast('圖片太大無法儲存到範本，其他欄位已保存');
+      nameInput.value = '';
+      this._renderTemplateSelector();
+      return;
+    }
+    nameInput.value = '';
+    this._renderTemplateSelector();
+    this.showToast(`範本「${name}」已儲存`);
+  },
+
+  _loadEventTemplate(id) {
+    const tpl = this._getEventTemplates().find(t => t.id === id);
+    if (!tpl) return;
+    const setVal = (elId, val) => { const el = document.getElementById(elId); if (el && val !== undefined && val !== null && val !== '') el.value = val; };
+    setVal('ce-title', tpl.title);
+    setVal('ce-type', tpl.type);
+    setVal('ce-location', tpl.location);
+    setVal('ce-date', tpl.date);
+    setVal('ce-time-start', tpl.timeStart);
+    setVal('ce-time-end', tpl.timeEnd);
+    setVal('ce-fee', tpl.fee);
+    setVal('ce-max', tpl.max);
+    setVal('ce-min-age', tpl.minAge);
+    setVal('ce-notes', tpl.notes);
+    // 恢復圖片
+    if (tpl.image) {
+      const preview = document.getElementById('ce-upload-preview');
+      if (preview) {
+        preview.innerHTML = `<img src="${tpl.image}" style="width:100%;height:100%;object-fit:cover;border-radius:var(--radius)">`;
+        preview.classList.add('has-image');
+      }
+    }
+    this.showToast(`已載入範本「${tpl.name}」`);
+  },
+
+  _deleteEventTemplate(id) {
+    let templates = this._getEventTemplates().filter(t => t.id !== id);
+    localStorage.setItem(this._TEMPLATE_KEY, JSON.stringify(templates));
+    this._renderTemplateSelector();
+    this.showToast('範本已刪除');
+  },
+
+  _renderTemplateSelector() {
+    const container = document.getElementById('ce-template-selector');
+    if (!container) return;
+    const templates = this._getEventTemplates();
+    if (!templates.length) {
+      container.innerHTML = '<span style="font-size:.75rem;color:var(--text-muted)">尚無範本</span>';
+      return;
+    }
+    container.innerHTML = templates.map(t => `
+      <span style="display:inline-flex;align-items:center;gap:.2rem;padding:.2rem .5rem;border-radius:var(--radius-full);background:var(--accent-bg);border:1px solid var(--accent);font-size:.72rem;cursor:pointer;color:var(--accent);font-weight:600" onclick="App._loadEventTemplate('${t.id}')">
+        ${escapeHTML(t.name)}
+        <span onclick="event.stopPropagation();App._deleteEventTemplate('${t.id}')" style="cursor:pointer;color:var(--text-muted);font-weight:400;margin-left:.1rem" title="刪除範本">✕</span>
+      </span>
+    `).join('');
+  },
+
+  // ══════════════════════════════════
   //  Create Event
   // ══════════════════════════════════
 
@@ -132,6 +242,7 @@ Object.assign(App, {
     this._renderHistoryChips('ce-max', 'ce-max');
     this._renderHistoryChips('ce-min-age', 'ce-min-age');
     this._renderRecentDelegateChips('ce-delegate-tags', 'ce');
+    this._renderTemplateSelector();
   },
 
   // ── 委託人搜尋 ──

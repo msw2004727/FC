@@ -16,10 +16,10 @@
     <button class="tab" data-msgtype="private">私訊</button>
   </div>
   <!-- 搜尋/篩選列 -->
-  <div style="display:flex;gap:.3rem;padding:.3rem .5rem;flex-wrap:wrap;align-items:center">
-    <input type="text" id="msg-search-keyword" placeholder="搜尋關鍵字..." oninput="App.filterInboxMessages()" style="flex:1;min-width:100px;font-size:.78rem;padding:.3rem .5rem;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-card);color:var(--text-primary)">
-    <input type="date" id="msg-filter-date" onchange="App.filterInboxMessages()" style="font-size:.78rem;padding:.3rem .4rem;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-card);color:var(--text-primary)">
-    <button class="outline-btn" style="font-size:.72rem;padding:.28rem .5rem" onclick="document.getElementById('msg-search-keyword').value='';document.getElementById('msg-filter-date').value='';App.filterInboxMessages()">清除</button>
+  <div style="display:flex;gap:.3rem;padding:.3rem .5rem;flex-wrap:nowrap;align-items:center">
+    <input type="text" id="msg-search-keyword" placeholder="搜尋..." oninput="App.filterInboxMessages()" style="flex:1;min-width:0;font-size:.78rem;padding:.3rem .5rem;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-card);color:var(--text-primary)">
+    <input type="date" id="msg-filter-date" onchange="App.filterInboxMessages()" style="max-width:130px;font-size:.78rem;padding:.3rem .4rem;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-card);color:var(--text-primary)">
+    <button class="outline-btn" style="font-size:.72rem;padding:.28rem .5rem;flex-shrink:0" onclick="document.getElementById('msg-search-keyword').value='';document.getElementById('msg-filter-date').value='';App.filterInboxMessages()">清除</button>
   </div>
   <div class="card-list" id="message-list"></div>
   <!-- 收件箱信件詳情彈窗 -->

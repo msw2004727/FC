@@ -248,6 +248,11 @@
 [data-theme="dark"] .tl-event-status.upcoming { background: rgba(96,165,250,.20); }
 [data-theme="dark"] .tl-event-status.cancelled { background: rgba(248,113,113,.20); }
 
+/* ─── Review Stars ─── */
+.review-star { display: inline-block; transition: color .15s, transform .15s; user-select: none; }
+.review-star:hover { transform: scale(1.2); }
+.review-star.active { color: #f59e0b !important; }
+
 /* Dark mode: mini-activity tags */
 [data-theme="dark"] .mini-activity-tag.completed { background: rgba(52,211,153,.18); }
 [data-theme="dark"] .mini-activity-tag.cancelled { background: rgba(251,191,36,.18); }
