@@ -4,7 +4,7 @@
 
 // ─── Cache Version（更新此值以清除瀏覽器快取）───
 // 20260212: 模組化拆分（user-admin/message/tournament/firebase-service）
-const CACHE_VERSION = '20260212zh';
+const CACHE_VERSION = '20260212zi';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {
@@ -52,6 +52,11 @@ const ModeManager = {
 
   init() {
     this._mode = localStorage.getItem(this._STORAGE_KEY) || this._DEFAULT;
+    // 正式版 hostname 安全檢查：防止被舊版 bug 殘留的 demo 模式影響
+    if (location.hostname === 'msw2004727.github.io' && this._mode === 'demo') {
+      this._mode = 'production';
+      localStorage.setItem(this._STORAGE_KEY, 'production');
+    }
     console.log(
       `%c[SportHub] 模式: ${this._mode.toUpperCase()} (${location.hostname})`,
       'color:#0d9488;font-weight:bold;font-size:14px'
