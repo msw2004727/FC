@@ -123,61 +123,24 @@ async function _loadCDNScripts() {
 
 // ── Init on DOM Ready ──
 document.addEventListener('DOMContentLoaded', async () => {
-  // 標記初始化進行中（防止 SW controllerchange 中途重載頁面）
   window._appInitializing = true;
 
-  // 載入所有頁面片段（pages/*.html → #main-content / #modal-container）
-  // 加 10 秒超時保護：避免在極慢網路下永遠卡住
+  // ── Phase 1: 載入頁面 HTML 片段（10 秒超時保護）──
   await Promise.race([
     PageLoader.loadAll(),
     new Promise(resolve => setTimeout(resolve, 10000)),
   ]);
 
-  // 正式版模式：動態載入 CDN SDK → Firebase + LIFF 初始化
-  let _firebaseReady = false;
+  // ── Phase 2: 正式版先從 localStorage 恢復快取資料 ──
   if (!ModeManager.isDemo()) {
-    const overlay = document.getElementById('loading-overlay');
-    if (overlay) overlay.style.display = '';
-    let _tid;
-    try {
-      // 總預算 20 秒：CDN 下載 + Firebase 連線 + LIFF 認證
-      // （CDN 已透過 <link rel="preload"> 提前下載，應很快完成）
-      const timeout = new Promise((_, reject) => {
-        _tid = setTimeout(() => reject(new Error('載入逾時')), 20000);
-      });
-
-      // Step 1: 動態載入 CDN SDK（Firebase + LIFF）
-      await Promise.race([_loadCDNScripts(), timeout]);
-
-      // Step 2: 初始化 Firebase App（CDN 載入後才能呼叫）
-      initFirebaseApp();
-
-      // Step 3: Firebase Service + LIFF 平行初始化
-      const liffReady = (typeof liff !== 'undefined') ? LineAuth.init() : Promise.resolve();
-      await Promise.race([
-        Promise.all([FirebaseService.init(), liffReady]),
-        timeout,
-      ]);
-      _firebaseReady = true;
-      console.log('[App] Firebase + LIFF 初始化完成');
-    } catch (err) {
-      console.error('[App] 初始化失敗:', err.message || err);
-      // 不退回 Demo！維持 production 模式，使用 FirebaseService._cache（可能有 localStorage 快取）
-      console.warn('[App] 維持正式版模式，使用快取資料');
-    } finally {
-      clearTimeout(_tid);
-      if (overlay) overlay.style.display = 'none';
-    }
+    try { FirebaseService._restoreCache(); } catch (e) {}
   }
+
+  // ── Phase 3: 立即顯示頁面（不等 CDN / Firebase）──
   try {
     App.init();
-    // Firebase 失敗時提示用戶（不阻塞畫面）
-    if (!ModeManager.isDemo() && !_firebaseReady) {
-      App.showToast('網路連線異常，部分資料可能未更新');
-    }
   } catch (initErr) {
     console.error('[App] init() 失敗:', initErr);
-    // 顯示重試按鈕
     var rb = document.getElementById('_recovery_btn');
     if (!rb) {
       rb = document.createElement('button');
@@ -188,6 +151,33 @@ document.addEventListener('DOMContentLoaded', async () => {
       document.body.appendChild(rb);
     }
   }
+
+  // 立即隱藏載入畫面 + 清除安全計時器
+  var _ov = document.getElementById('loading-overlay');
+  if (_ov) _ov.style.display = 'none';
+  document.documentElement.classList.remove('prod-early');
+  if (window._loadingSafety) clearTimeout(window._loadingSafety);
+
+  // ── Phase 4: 背景載入 CDN SDK → Firebase + LIFF（不阻塞頁面）──
+  if (!ModeManager.isDemo()) {
+    (async () => {
+      try {
+        await _loadCDNScripts();
+        initFirebaseApp();
+        const liffReady = (typeof liff !== 'undefined') ? LineAuth.init() : Promise.resolve();
+        await Promise.all([FirebaseService.init(), liffReady]);
+        console.log('[App] Firebase + LIFF 背景初始化完成');
+        // 用即時資料重新渲染頁面
+        try { App.renderAll(); } catch (e) {}
+        // 更新 LINE 登入狀態
+        try { if (typeof App.bindLineLogin === 'function') App.bindLineLogin(); } catch (e) {}
+      } catch (err) {
+        console.error('[App] 背景初始化失敗:', err.message || err);
+        try { App.showToast('網路連線異常，部分資料可能未更新'); } catch (e) {}
+      }
+    })();
+  }
+
   // Deep link handling: ?event=xxx or ?team=xxx
   const urlParams = new URLSearchParams(location.search);
   const deepEvent = urlParams.get('event');
@@ -203,11 +193,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   // 活動提醒通知（啟動時 + 每 5 分鐘檢查）
   App._processEventReminders();
   setInterval(() => App._processEventReminders(), 300000);
-  // 彈跳廣告（延遲 500ms 確保資料已載入）
-  setTimeout(() => App.showPopupAdsOnLoad(), 500);
-  // 移除早期模式偵測的 CSS class，讓 JS 接手控制
-  document.documentElement.classList.remove('prod-early');
-  // 清除安全兜底計時器 + 初始化旗標
-  if (window._loadingSafety) clearTimeout(window._loadingSafety);
+  // 彈跳廣告（延遲 2 秒，等背景資料載入）
+  setTimeout(() => App.showPopupAdsOnLoad(), 2000);
+
   window._appInitializing = false;
 });
