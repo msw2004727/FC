@@ -3,7 +3,7 @@
    Strategy: network-first for HTML, cache-first for versioned assets
    ================================================ */
 
-const CACHE_NAME = 'sporthub-20260212zg';
+const CACHE_NAME = 'sporthub-20260212zh';
 const STATIC_ASSETS = [
   './',
   './index.html',
@@ -40,7 +40,7 @@ self.addEventListener('install', (event) => {
   self.skipWaiting();
 });
 
-// Activate: clean old caches + force reload all open pages
+// Activate: clean old caches（不再 force-reload，由 controllerchange 事件處理）
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) => {
@@ -48,14 +48,6 @@ self.addEventListener('activate', (event) => {
         keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))
       );
     }).then(() => self.clients.claim())
-      .then(() => {
-        // 強制所有開啟中的頁面重載（解決舊 HTML 參照已刪除檔案的問題）
-        return self.clients.matchAll({ type: 'window' }).then((clients) => {
-          clients.forEach((client) => {
-            try { client.navigate(client.url); } catch (e) { /* ignore */ }
-          });
-        });
-      })
   );
 });
 

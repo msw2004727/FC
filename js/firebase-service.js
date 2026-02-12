@@ -615,6 +615,9 @@ const FirebaseService = {
   // ════════════════════════════════
 
   async _seedRoleData() {
+    // DemoData 未載入時跳過 seed（正式版不需要 Demo 資料）
+    if (typeof DemoData === 'undefined') return;
+
     // 1. Seed permissions（權限分類定義）
     if (this._cache.permissions.length === 0) {
       console.log('[FirebaseService] 建立預設權限定義...');

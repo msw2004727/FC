@@ -15,20 +15,25 @@ const firebaseConfig = {
   measurementId: "G-2673ME04J7"
 };
 
-// Initialize Firebase
-firebase.initializeApp(firebaseConfig);
+// Initialize Firebase（安全包裝：SDK 未載入時不會崩潰）
+let db, storage, auth;
+try {
+  if (typeof firebase === 'undefined') throw new Error('Firebase SDK 未載入');
+  firebase.initializeApp(firebaseConfig);
+  db = firebase.firestore();
+  storage = firebase.storage();
+  auth = firebase.auth();
 
-// Global references
-const db = firebase.firestore();
-const storage = firebase.storage();
-const auth = firebase.auth();
-
-// 啟用 Firestore 離線持久化（減少重複讀取計費）
-db.enablePersistence({ synchronizeTabs: true })
-  .catch(err => {
-    if (err.code === 'failed-precondition') {
-      console.warn('[Firestore] 多個分頁開啟，僅一個可啟用離線快取');
-    } else if (err.code === 'unimplemented') {
-      console.warn('[Firestore] 此瀏覽器不支援離線持久化');
-    }
-  });
+  // 啟用 Firestore 離線持久化（減少重複讀取計費）
+  db.enablePersistence({ synchronizeTabs: true })
+    .catch(err => {
+      if (err.code === 'failed-precondition') {
+        console.warn('[Firestore] 多個分頁開啟，僅一個可啟用離線快取');
+      } else if (err.code === 'unimplemented') {
+        console.warn('[Firestore] 此瀏覽器不支援離線持久化');
+      }
+    });
+} catch (e) {
+  console.error('[Firebase] 初始化失敗:', e.message);
+  // db/storage/auth 維持 undefined，後續 FirebaseService.init() 會 catch 並走降級流程
+}

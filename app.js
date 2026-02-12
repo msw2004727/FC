@@ -103,13 +103,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   await PageLoader.loadAll();
 
   // 正式版模式：Firebase + LIFF 平行初始化（避免 LIFF auth code 過期）
+  let _firebaseReady = false;
   if (!ModeManager.isDemo()) {
     const overlay = document.getElementById('loading-overlay');
     if (overlay) overlay.style.display = '';
     try {
-      // 設定 10 秒超時，避免 Firebase 連線問題導致永久載入
+      // 手機網路較慢，超時設為 20 秒；絕不自動退回 Demo
       const timeout = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Firebase init timeout')), 10000)
+        setTimeout(() => reject(new Error('Firebase init timeout')), 20000)
       );
       // LIFF 與 Firebase 平行初始化：LIFF 需盡早處理 URL 中的 auth code
       const liffReady = (typeof LineAuth !== 'undefined') ? LineAuth.init() : Promise.resolve();
@@ -117,15 +118,35 @@ document.addEventListener('DOMContentLoaded', async () => {
         Promise.all([FirebaseService.init(), liffReady]),
         timeout,
       ]);
+      _firebaseReady = true;
       console.log('[App] Firebase + LIFF 初始化完成');
     } catch (err) {
-      console.error('[App] 初始化失敗，退回 Demo 模式:', err.message || err);
-      ModeManager.setMode('demo');
+      console.error('[App] Firebase 初始化失敗:', err.message || err);
+      // 不退回 Demo！維持 production 模式，使用 FirebaseService._cache（可能有 localStorage 快取）
+      console.warn('[App] 維持正式版模式，使用快取資料');
     } finally {
       if (overlay) overlay.style.display = 'none';
     }
   }
-  App.init();
+  try {
+    App.init();
+    // Firebase 失敗時提示用戶（不阻塞畫面）
+    if (!ModeManager.isDemo() && !_firebaseReady) {
+      App.showToast('網路連線異常，部分資料可能未更新');
+    }
+  } catch (initErr) {
+    console.error('[App] init() 失敗:', initErr);
+    // 顯示重試按鈕
+    var rb = document.getElementById('_recovery_btn');
+    if (!rb) {
+      rb = document.createElement('button');
+      rb.id = '_recovery_btn';
+      rb.textContent = '載入失敗，點此重新整理';
+      rb.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:99999;padding:1rem 2rem;font-size:1rem;background:#dc2626;color:#fff;border:none;border-radius:8px;cursor:pointer';
+      rb.onclick = function() { location.reload(); };
+      document.body.appendChild(rb);
+    }
+  }
   // Deep link handling: ?event=xxx or ?team=xxx
   const urlParams = new URLSearchParams(location.search);
   const deepEvent = urlParams.get('event');

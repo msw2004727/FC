@@ -64,13 +64,14 @@ Object.assign(App, {
       if (overlay) overlay.style.display = '';
       try {
         const timeout = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Firebase init timeout')), 10000)
+          setTimeout(() => reject(new Error('Firebase init timeout')), 20000)
         );
         await Promise.race([FirebaseService.init(), timeout]);
         console.log('[App] Firebase 已初始化');
       } catch (err) {
-        console.error('[App] Firebase 初始化失敗，退回 Demo:', err);
-        ModeManager.setMode('demo');
+        console.error('[App] Firebase 初始化失敗:', err);
+        // 不自動退回 Demo，維持 production 模式使用快取
+        this.showToast('Firebase 連線失敗，使用快取資料');
       } finally {
         if (overlay) overlay.style.display = 'none';
       }

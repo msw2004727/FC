@@ -14,7 +14,8 @@ Object.assign(App, {
   },
 
   _getCustomRoles() {
-    return (ModeManager.isDemo() ? DemoData.customRoles : (FirebaseService._cache.customRoles || [])) || [];
+    if (ModeManager.isDemo()) return (typeof DemoData !== 'undefined' && DemoData.customRoles) ? DemoData.customRoles : [];
+    return FirebaseService._cache.customRoles || [];
   },
 
   _getAllRoleKeys() {
@@ -88,12 +89,13 @@ Object.assign(App, {
   resetRolePermissions() {
     if (!this._permSelectedRole) return;
     const role = this._permSelectedRole;
-    const defaults = DemoData.rolePermissions[role];
+    const _rp = (typeof DemoData !== 'undefined' && DemoData.rolePermissions) ? DemoData.rolePermissions : {};
+    const defaults = _rp[role];
     if (!defaults) {
       this.showToast('此層級無預設權限可復原');
       return;
     }
-    const source = ModeManager.isDemo() ? DemoData.rolePermissions : (FirebaseService._cache.rolePermissions || DemoData.rolePermissions);
+    const source = ModeManager.isDemo() ? _rp : (FirebaseService._cache.rolePermissions || {});
     source[role] = [...defaults];
     if (!ModeManager.isDemo()) {
       FirebaseService.saveRolePermissions(role, source[role]);
@@ -134,7 +136,7 @@ Object.assign(App, {
   },
 
   togglePermission(code) {
-    const source = ModeManager.isDemo() ? DemoData.rolePermissions : (FirebaseService._cache.rolePermissions || DemoData.rolePermissions);
+    const source = ModeManager.isDemo() ? ((typeof DemoData !== 'undefined' && DemoData.rolePermissions) || {}) : (FirebaseService._cache.rolePermissions || {});
     if (!source[this._permSelectedRole]) source[this._permSelectedRole] = [];
     const idx = source[this._permSelectedRole].indexOf(code);
     if (idx >= 0) {
@@ -193,7 +195,7 @@ Object.assign(App, {
     customRoles.push(newRole);
 
     // 初始化權限（複製 afterRole 的權限作為基底）
-    const source = ModeManager.isDemo() ? DemoData.rolePermissions : (FirebaseService._cache.rolePermissions || DemoData.rolePermissions);
+    const source = ModeManager.isDemo() ? ((typeof DemoData !== 'undefined' && DemoData.rolePermissions) || {}) : (FirebaseService._cache.rolePermissions || {});
     source[key] = [...(source[afterRole] || [])];
 
     // 正式版：寫入 Firestore
@@ -247,7 +249,7 @@ Object.assign(App, {
     customRoles.splice(idx, 1);
 
     // 移除權限
-    const source = ModeManager.isDemo() ? DemoData.rolePermissions : (FirebaseService._cache.rolePermissions || DemoData.rolePermissions);
+    const source = ModeManager.isDemo() ? ((typeof DemoData !== 'undefined' && DemoData.rolePermissions) || {}) : (FirebaseService._cache.rolePermissions || {});
     delete source[key];
 
     // 正式版：刪除 Firestore 資料

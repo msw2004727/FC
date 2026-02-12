@@ -16,9 +16,12 @@ const ApiService = {
   //  通用工具方法（消除重複的 demo/production 分支）
   // ════════════════════════════════
 
-  /** 取得資料來源陣列 */
+  /** 取得資料來源陣列（安全：DemoData 未載入時降級為空陣列） */
   _src(key) {
-    return this._demoMode ? DemoData[key] : FirebaseService._cache[key];
+    if (this._demoMode) {
+      return (typeof DemoData !== 'undefined' && DemoData[key]) ? DemoData[key] : [];
+    }
+    return FirebaseService._cache[key] || [];
   },
 
   /** 根據 id 查找單筆資料 */
@@ -180,8 +183,11 @@ const ApiService = {
   getUserRole(name) {
     if (this._demoMode) {
       if (DEMO_USERS[name]) return DEMO_USERS[name];
-      const u = DemoData.adminUsers.find(u => u.name === name);
-      return u ? u.role : 'user';
+      if (typeof DemoData !== 'undefined') {
+        const u = DemoData.adminUsers.find(u => u.name === name);
+        return u ? u.role : 'user';
+      }
+      return 'user';
     }
     const user = FirebaseService._cache.adminUsers.find(u => u.name === name);
     return user ? user.role : 'user';
@@ -198,8 +204,10 @@ const ApiService = {
   },
 
   getRolePermissions(role) {
-    if (this._demoMode) return DemoData.rolePermissions[role] || [];
-    return (FirebaseService._cache.rolePermissions || DemoData.rolePermissions || {})[role] || [];
+    if (this._demoMode) {
+      return (typeof DemoData !== 'undefined' && DemoData.rolePermissions) ? (DemoData.rolePermissions[role] || []) : [];
+    }
+    return (FirebaseService._cache.rolePermissions || {})[role] || [];
   },
 
   // ════════════════════════════════
@@ -409,7 +417,7 @@ const ApiService = {
   // ════════════════════════════════
 
   getSponsors() {
-    if (this._demoMode) return DemoData.sponsors;
+    if (this._demoMode) return (typeof DemoData !== 'undefined' && DemoData.sponsors) ? DemoData.sponsors : [];
     return (FirebaseService._cache.sponsors || []).filter(s => s.slot != null && s.slot <= 6);
   },
 
@@ -418,7 +426,7 @@ const ApiService = {
   },
 
   updateSponsor(id, updates) {
-    const source = this._demoMode ? DemoData.sponsors : (FirebaseService._cache.sponsors || []);
+    const source = this._demoMode ? ((typeof DemoData !== 'undefined' && DemoData.sponsors) ? DemoData.sponsors : []) : (FirebaseService._cache.sponsors || []);
     const item = source.find(s => s.id === id);
     if (item) Object.assign(item, updates);
     if (!this._demoMode) {
@@ -529,19 +537,22 @@ const ApiService = {
   // ════════════════════════════════
 
   getCurrentUser() {
-    if (this._demoMode) return DemoData.currentUser;
+    if (this._demoMode) return (typeof DemoData !== 'undefined') ? DemoData.currentUser : null;
     return FirebaseService._cache.currentUser || null;
   },
 
   async loginUser(lineProfile) {
-    if (this._demoMode) return DemoData.currentUser;
+    if (this._demoMode) return (typeof DemoData !== 'undefined') ? DemoData.currentUser : null;
     return await FirebaseService.createOrUpdateUser(lineProfile);
   },
 
   updateCurrentUser(updates) {
     if (this._demoMode) {
-      Object.assign(DemoData.currentUser, updates);
-      return DemoData.currentUser;
+      if (typeof DemoData !== 'undefined' && DemoData.currentUser) {
+        Object.assign(DemoData.currentUser, updates);
+        return DemoData.currentUser;
+      }
+      return null;
     }
     const user = FirebaseService._cache.currentUser;
     if (user) {
