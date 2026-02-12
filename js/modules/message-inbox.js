@@ -31,11 +31,40 @@ Object.assign(App, {
     });
   },
 
+  _msgSearchKeyword: '',
+  _msgFilterDate: '',
+
+  filterInboxMessages() {
+    this._msgSearchKeyword = (document.getElementById('msg-search-keyword')?.value || '').trim().toLowerCase();
+    this._msgFilterDate = document.getElementById('msg-filter-date')?.value || '';
+    this.renderMessageList();
+  },
+
   renderMessageList(filter) {
     const f = filter || this._msgInboxFilter || 'all';
     this._msgInboxFilter = f;
     const allMessages = this._filterMyMessages(ApiService.getMessages());
-    const messages = f === 'all' ? allMessages : allMessages.filter(m => m.type === f);
+    let messages = f === 'all' ? allMessages : allMessages.filter(m => m.type === f);
+
+    // 關鍵字搜尋
+    const keyword = this._msgSearchKeyword || '';
+    if (keyword) {
+      messages = messages.filter(m =>
+        (m.title || '').toLowerCase().includes(keyword) ||
+        (m.preview || '').toLowerCase().includes(keyword) ||
+        (m.body || '').toLowerCase().includes(keyword) ||
+        (m.senderName || '').toLowerCase().includes(keyword)
+      );
+    }
+
+    // 日期篩選（支援年/月/日，比對 time 欄位格式 YYYY/MM/DD HH:MM）
+    const dateFilter = this._msgFilterDate || '';
+    if (dateFilter) {
+      const parts = dateFilter.split('-');
+      const filterStr = `${parts[0]}/${parts[1]}/${parts[2]}`;
+      messages = messages.filter(m => (m.time || '').startsWith(filterStr));
+    }
+
     const container = document.getElementById('message-list');
     if (!container) return;
     container.innerHTML = messages.length ? messages.map(m => {
@@ -298,22 +327,20 @@ Object.assign(App, {
     const msg = messages.find(m => m.id === msgId);
     if (!msg || !msg.meta) return;
 
-    const { tournamentId, tournamentName, teamId, teamName, applicantUid, applicantName } = msg.meta;
+    const { tournamentId, tournamentName, teamId, teamName, applicantUid, applicantName, groupId } = msg.meta;
     const t = ApiService.getTournament(tournamentId);
+    const curUser = ApiService.getCurrentUser();
+    const reviewerName = curUser?.displayName || '審核人';
+    const actionLabels = { approve: '同意', reject: '拒絕', ignore: '忽略' };
 
     if (action === 'approve') {
-      if (!t) {
-        this.showToast('找不到此賽事');
-        return;
-      }
+      if (!t) { this.showToast('找不到此賽事'); return; }
       if (!t.registeredTeams) t.registeredTeams = [];
       if (t.registeredTeams.length >= (t.maxTeams || 999)) {
         this.showToast('報名已滿，無法同意');
         return;
       }
-      if (t.registeredTeams.includes(teamId)) {
-        this.showToast('該球隊已在報名名單中');
-      } else {
+      if (!t.registeredTeams.includes(teamId)) {
         t.registeredTeams.push(teamId);
         ApiService.updateTournament(tournamentId, { registeredTeams: [...t.registeredTeams] });
       }
@@ -324,9 +351,6 @@ Object.assign(App, {
         `恭喜！「${teamName}」已成功報名賽事「${tournamentName}」！`,
         'tournament', '賽事', applicantUid, '系統'
       );
-
-      ApiService.updateMessage(msgId, { actionStatus: 'approved' });
-      msg.actionStatus = 'approved';
       this.showToast('已同意報名申請');
 
     } else if (action === 'reject') {
@@ -335,20 +359,54 @@ Object.assign(App, {
         `很抱歉，「${teamName}」申請報名賽事「${tournamentName}」未獲通過。如有疑問，請聯繫主辦方。`,
         'tournament', '賽事', applicantUid, '系統'
       );
-
-      ApiService.updateMessage(msgId, { actionStatus: 'rejected' });
-      msg.actionStatus = 'rejected';
       this.showToast('已拒絕報名申請');
 
     } else if (action === 'ignore') {
-      ApiService.updateMessage(msgId, { actionStatus: 'ignored' });
-      msg.actionStatus = 'ignored';
       this.showToast('已忽略此申請');
+    }
+
+    const statusMap = { approve: 'approved', reject: 'rejected', ignore: 'ignored' };
+    const newStatus = statusMap[action];
+
+    // 更新本則及同 groupId 的所有相關訊息狀態（讓其他人的按鈕反灰）
+    ApiService.updateMessage(msgId, { actionStatus: newStatus });
+    msg.actionStatus = newStatus;
+    if (groupId) {
+      messages.forEach(m => {
+        if (m.id !== msgId && m.meta && m.meta.groupId === groupId && m.actionStatus === 'pending') {
+          m.actionStatus = newStatus;
+          ApiService.updateMessage(m.id, { actionStatus: newStatus });
+        }
+      });
+    }
+
+    // 通知同組的主辦人與委託人（不包含自己）審核結果
+    if (groupId && t) {
+      const myUid = curUser?.uid;
+      const notifyUids = new Set();
+      if (t.creatorUid && t.creatorUid !== myUid) notifyUids.add(t.creatorUid);
+      (t.delegates || []).forEach(d => { if (d.uid && d.uid !== myUid) notifyUids.add(d.uid); });
+      // 也通知主辦人（用名字查 UID）
+      if (t.organizer && !t.creatorUid) {
+        const orgUser = (ApiService.getAdminUsers() || []).find(u => u.name === t.organizer);
+        if (orgUser && orgUser.uid !== myUid) notifyUids.add(orgUser.uid);
+      }
+      notifyUids.forEach(uid => {
+        this._deliverMessageToInbox(
+          '報名審核結果通知',
+          `${reviewerName} 已「${actionLabels[action]}」球隊「${teamName}」報名賽事「${tournamentName}」的申請。`,
+          'tournament', '賽事', uid, '系統'
+        );
+      });
     }
 
     document.getElementById('msg-inbox-detail-modal').style.display = 'none';
     this.renderMessageList();
     if (this.renderTournamentManage) this.renderTournamentManage();
+    // 刷新賽事詳情頁（若正在查看）
+    if (this.currentTournament === tournamentId && t) {
+      this.renderRegisterButton(t);
+    }
   },
 
   // ══════════════════════════════════

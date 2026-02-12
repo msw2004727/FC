@@ -90,6 +90,7 @@ Object.assign(App, {
           <div style="display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.5rem">
             ${isEnded ? `
               <button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem;background:#10b981;color:#fff;border-color:#10b981" onclick="App.handleReopenTournament('${t.id}')">重新開放</button>
+              ${ROLE_LEVEL_MAP[App.currentRole] >= ROLE_LEVEL_MAP['admin'] ? `<button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem;color:var(--danger)" onclick="App.handleDeleteTournament('${t.id}')">刪除賽事</button>` : ''}
             ` : `
               <button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem;background:#10b981;color:#fff;border-color:#10b981" onclick="App.showEditTournament('${t.id}')">編輯賽事</button>
               <button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem">賽程管理</button>
@@ -525,6 +526,21 @@ Object.assign(App, {
     this.renderOngoingTournaments();
     this.renderTournamentManage();
     this.showToast(`賽事「${t.name}」已重新開放`);
+  },
+
+  async handleDeleteTournament(id) {
+    const t = ApiService.getTournament(id);
+    if (!t) return;
+    if (ROLE_LEVEL_MAP[this.currentRole] < ROLE_LEVEL_MAP['admin']) {
+      this.showToast('僅管理員可刪除賽事');
+      return;
+    }
+    if (!(await this.appConfirm(`確定要永久刪除賽事「${t.name}」？此操作無法復原。`))) return;
+    ApiService.deleteTournament(id);
+    this.renderTournamentTimeline();
+    this.renderOngoingTournaments();
+    this.renderTournamentManage();
+    this.showToast(`已刪除賽事「${t.name}」`);
   },
 
 });

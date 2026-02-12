@@ -144,12 +144,14 @@ Object.assign(App, {
             (t.coaches || []).forEach(c => {
               tags.push(`<span class="user-capsule uc-coach" onclick="App.showUserProfile('${escapeHTML(c)}')" title="教練">教練 ${escapeHTML(c)}</span>`);
             });
-            const coachCount = (t.coaches || []).length;
-            const playerCount = Math.min(t.members - (t.captain ? 1 : 0) - coachCount, 8 - (t.captain ? 1 : 0) - coachCount);
-            for (let i = 0; i < Math.max(playerCount, 0); i++) {
-              const name = '球員' + String.fromCharCode(65 + i);
-              tags.push(`<span class="user-capsule uc-user" onclick="App.showUserProfile('${escapeHTML(name)}')" title="隊員">隊員 ${escapeHTML(name)}</span>`);
-            }
+            // 查詢 teamId 匹配的真實用戶（排除領隊與教練）
+            const allUsers = ApiService.getAdminUsers() || [];
+            const teamMembers = allUsers.filter(u => u.teamId === t.id);
+            const captainCoachNames = new Set([t.captain, ...(t.coaches || [])].filter(Boolean));
+            const regularMembers = teamMembers.filter(u => !captainCoachNames.has(u.name));
+            regularMembers.slice(0, 20).forEach(u => {
+              tags.push(`<span class="user-capsule uc-user" onclick="App.showUserProfile('${escapeHTML(u.name)}')" title="隊員">隊員 ${escapeHTML(u.name)}</span>`);
+            });
             return tags.join('');
           })()}
           ${t.members > 8 ? `<span class="td-member-more">... 共 ${t.members} 人</span>` : ''}

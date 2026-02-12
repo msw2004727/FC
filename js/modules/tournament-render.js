@@ -174,24 +174,31 @@ Object.assign(App, {
     const registered = t.registeredTeams || [];
     const maxTeams = t.maxTeams || 999;
     const isFull = registered.length >= maxTeams;
-    const userTeam = this._userTeam;
-    const alreadyRegistered = userTeam && registered.includes(userTeam);
-    // 檢查用戶是否為任一球隊的領隊或教練
-    const canRegister = (() => {
-      const curUser = ApiService.getCurrentUser();
-      if (!curUser) return false;
-      const allTeams = ApiService.getTeams();
-      return allTeams.some(tm =>
-        (tm.captainUid && tm.captainUid === curUser.uid) ||
-        (tm.captain && tm.captain === curUser.displayName) ||
-        (tm.coaches || []).includes(curUser.displayName)
-      );
-    })();
+
+    // 找出當前用戶管理的球隊
+    const curUser = ApiService.getCurrentUser();
+    const allTeams = ApiService.getTeams();
+    const myManagedTeams = curUser ? allTeams.filter(tm =>
+      (tm.captainUid && tm.captainUid === curUser.uid) ||
+      (tm.captain && tm.captain === curUser.displayName) ||
+      (tm.coaches || []).includes(curUser.displayName)
+    ) : [];
+    const canRegister = myManagedTeams.length > 0;
+    const alreadyRegistered = myManagedTeams.some(mt => registered.includes(mt.id));
+
+    // 檢查是否有待審核的報名申請
+    const hasPendingRequest = curUser ? ApiService.getMessages().some(m =>
+      m.actionType === 'tournament_register_request' &&
+      m.actionStatus === 'pending' &&
+      m.meta && m.meta.tournamentId === t.id &&
+      myManagedTeams.some(mt => mt.id === m.meta.teamId)
+    ) : false;
 
     let btnHTML = '';
     if (alreadyRegistered) {
-      // 已報名 → 聯繫主辦
       btnHTML = `<button class="primary-btn" style="width:100%" onclick="App.showUserProfile('${escapeHTML(t.organizer || '管理員')}')">聯繫主辦</button>`;
+    } else if (hasPendingRequest) {
+      btnHTML = `<button class="primary-btn" style="width:100%;opacity:.6;cursor:not-allowed" disabled>等待審核中</button>`;
     } else if (status === '截止報名' && isFull) {
       btnHTML = `<button class="primary-btn" style="width:100%;opacity:.5;cursor:not-allowed" disabled>報名已滿</button>`;
     } else if (status === '截止報名') {
@@ -265,17 +272,29 @@ Object.assign(App, {
       return;
     }
 
-    // 發送報名申請站內信給主辦方
+    // 產生 groupId 關聯同一筆報名申請的所有通知
+    const groupId = 'trg_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+    const msgBody = `「${myTeam.name}」申請報名賽事「${t.name}」，請審核此申請。\n\n申請人：${curUser.displayName}\n球隊：${myTeam.name}`;
+    const metaData = { tournamentId: id, tournamentName: t.name, teamId: myTeam.id, teamName: myTeam.name, applicantUid: curUser.uid, applicantName: curUser.displayName, groupId };
+
+    // 發送給主辦人
     this._deliverMessageToInbox(
-      '賽事報名申請',
-      `「${myTeam.name}」申請報名賽事「${t.name}」，請審核此申請。\n\n申請人：${curUser.displayName}\n球隊：${myTeam.name}`,
+      '賽事報名申請', msgBody,
       'tournament', '賽事', organizerUid, curUser.displayName,
-      {
-        actionType: 'tournament_register_request',
-        actionStatus: 'pending',
-        meta: { tournamentId: id, tournamentName: t.name, teamId: myTeam.id, teamName: myTeam.name, applicantUid: curUser.uid, applicantName: curUser.displayName },
-      }
+      { actionType: 'tournament_register_request', actionStatus: 'pending', meta: metaData }
     );
+
+    // 發送給所有委託人
+    const delegates = t.delegates || [];
+    delegates.forEach(d => {
+      if (d.uid && d.uid !== organizerUid) {
+        this._deliverMessageToInbox(
+          '賽事報名申請', msgBody,
+          'tournament', '賽事', d.uid, curUser.displayName,
+          { actionType: 'tournament_register_request', actionStatus: 'pending', meta: metaData }
+        );
+      }
+    });
 
     this.showToast('已送出報名申請，等待主辦方審核！');
   },
