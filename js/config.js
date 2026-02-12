@@ -3,7 +3,8 @@
    ================================================ */
 
 // ─── Cache Version（更新此值以清除瀏覽器快取）───
-const CACHE_VERSION = '20260211s';
+// 20260212: 模組化拆分（user-admin/message/tournament/firebase-service）
+const CACHE_VERSION = '20260212b';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {

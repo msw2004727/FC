@@ -95,6 +95,7 @@ const ApiService = {
   getTrades()         { return this._src('trades'); },
 
   createTournament(data) { return this._create('tournaments', data, FirebaseService.addTournament, 'createTournament'); },
+  updateTournament(id, updates) { return this._update('tournaments', id, updates, FirebaseService.updateTournament, 'updateTournament'); },
 
   deleteTournament(id) {
     const source = this._src('tournaments');

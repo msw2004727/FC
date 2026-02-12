@@ -406,16 +406,14 @@ Object.assign(App, {
         preview.classList.remove('has-image');
       }
     } else {
-      // 新增模式：自動帶入當前用戶為領隊
+      // 新增模式：領隊由搜尋選取，不自動帶入
       titleEl.textContent = '新增球隊';
       saveBtn.textContent = '建立球隊';
       this._resetTeamForm();
 
-      const myName = this._getCurrentUserName();
-      const myUid = this._getCurrentUserUid();
-      captainDisplay.innerHTML = `領隊：<span style="color:var(--accent)">${escapeHTML(myName || '（目前用戶）')}</span>`;
-      captainTransfer.style.display = 'none';
-      this._teamCaptainUid = myUid || '__self__';
+      captainDisplay.innerHTML = `領隊：<span style="color:var(--text-muted)">（未指定，可稍後於編輯時設定）</span>`;
+      captainTransfer.style.display = '';
+      this._teamCaptainUid = null;
     }
     this.showModal('create-team-modal');
   },
@@ -435,9 +433,7 @@ Object.assign(App, {
     const users = ApiService.getAdminUsers();
     let captain = '';
     if (this._teamCaptainUid) {
-      if (this._teamCaptainUid === '__self__') {
-        captain = this._getCurrentUserName();
-      } else if (this._teamCaptainUid === '__legacy__') {
+      if (this._teamCaptainUid === '__legacy__') {
         // 編輯模式下保留原領隊名稱
         const t = this._teamEditId ? ApiService.getTeam(this._teamEditId) : null;
         captain = t ? t.captain : '';
@@ -454,7 +450,9 @@ Object.assign(App, {
       return u ? u.name : '';
     }).filter(Boolean);
 
-    const members = 1 + coaches.length;
+    const members = this._teamEditId
+      ? (captain ? 1 : 0) + coaches.length
+      : 0;
 
     const preview = document.getElementById('ct-team-preview');
     let image = null;
@@ -533,8 +531,9 @@ Object.assign(App, {
     document.getElementById('ct-captain-search').value = '';
     document.getElementById('ct-captain-suggest').innerHTML = '';
     document.getElementById('ct-captain-suggest').classList.remove('show');
+    const prefix = this._teamEditId ? '轉移至：' : '領隊：';
     document.getElementById('ct-captain-selected').innerHTML =
-      `<span class="team-tag">轉移至：${user.name}<span class="team-tag-x" onclick="App.clearTeamCaptain()">×</span></span>`;
+      `<span class="team-tag">${prefix}${user.name}<span class="team-tag-x" onclick="App.clearTeamCaptain()">×</span></span>`;
   },
 
   clearTeamCaptain() {
@@ -549,8 +548,8 @@ Object.assign(App, {
         this._teamCaptainUid = null;
       }
     } else {
-      // 新增模式不應能清除（自動帶入）
-      this._teamCaptainUid = this._getCurrentUserUid() || '__self__';
+      // 新增模式：清除至空
+      this._teamCaptainUid = null;
     }
     document.getElementById('ct-captain-selected').innerHTML = '';
   },
