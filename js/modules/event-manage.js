@@ -135,23 +135,92 @@ Object.assign(App, {
     const content = document.getElementById('my-activity-detail-content');
     if (!modal || !content) return;
     const statusConf = STATUS_CONFIG[e.status] || STATUS_CONFIG.open;
-    const participants = (e.participants || []).map((p, i) =>
-      `<div style="display:flex;align-items:center;gap:.4rem;padding:.3rem 0;border-bottom:1px solid var(--border)">
+
+    // ── 取得簽到/簽退/未報名紀錄 ──
+    const records = ApiService.getAttendanceRecords(id);
+    const checkinUsers = new Map();
+    const checkoutUsers = new Map();
+    const unregUsers = new Map();
+    records.forEach(r => {
+      if (r.type === 'checkin' && !checkinUsers.has(r.uid))
+        checkinUsers.set(r.uid, { name: r.userName, time: r.time });
+      if (r.type === 'checkout' && !checkoutUsers.has(r.uid))
+        checkoutUsers.set(r.uid, { name: r.userName, time: r.time });
+      if (r.type === 'unreg' && !unregUsers.has(r.uid))
+        unregUsers.set(r.uid, { name: r.userName, time: r.time });
+    });
+
+    // 以姓名反查狀態（報名名單用）
+    const nameCheckedOut = new Set();
+    const nameCheckedIn = new Set();
+    checkoutUsers.forEach(v => nameCheckedOut.add(v.name));
+    checkinUsers.forEach(v => nameCheckedIn.add(v.name));
+
+    // ── 報名名單（含狀態標記）──
+    const tagStyle = 'font-size:.62rem;padding:.1rem .3rem;border-radius:3px;white-space:nowrap';
+    const participants = (e.participants || []).map((p, i) => {
+      let tag = '';
+      if (nameCheckedOut.has(p))
+        tag = `<span style="${tagStyle};background:var(--success);color:#fff">✅ 已簽退</span>`;
+      else if (nameCheckedIn.has(p))
+        tag = `<span style="${tagStyle};background:var(--primary);color:#fff">📍 已簽到</span>`;
+      return `<div style="display:flex;align-items:center;gap:.4rem;padding:.3rem 0;border-bottom:1px solid var(--border)">
         <span style="font-size:.72rem;color:var(--text-muted);min-width:1.5rem">${i + 1}.</span>
-        <span style="font-size:.82rem">${escapeHTML(p)}</span>
-      </div>`
-    ).join('');
+        <span style="font-size:.82rem;flex:1">${escapeHTML(p)}</span>
+        ${tag}
+      </div>`;
+    }).join('');
+
+    // ── 候補名單 ──
     const waitlist = (e.waitlistNames || []).map((p, i) =>
       `<div style="display:flex;align-items:center;gap:.4rem;padding:.3rem 0;border-bottom:1px solid var(--border)">
         <span style="font-size:.72rem;color:var(--text-muted);min-width:1.5rem">${i + 1}.</span>
         <span style="font-size:.82rem">${escapeHTML(p)}</span>
       </div>`
     ).join('');
+
+    // ── 簽到/簽退/未報名紀錄 helper ──
+    const recRow = (v) =>
+      `<div style="display:flex;align-items:center;gap:.4rem;padding:.25rem 0;border-bottom:1px solid var(--border)">
+        <span style="font-size:.82rem;flex:1">${escapeHTML(v.name)}</span>
+        <span style="font-size:.68rem;color:var(--text-muted)">${escapeHTML(v.time || '')}</span>
+      </div>`;
+
+    const checkinList = [];
+    checkinUsers.forEach(v => checkinList.push(v));
+    const checkoutList = [];
+    checkoutUsers.forEach(v => checkoutList.push(v));
+    const unregList = [];
+    unregUsers.forEach(v => unregList.push(v));
+
+    const checkinSection = checkinList.length
+      ? `<div style="font-size:.85rem;font-weight:700;margin:.6rem 0 .3rem">📍 簽到紀錄（${checkinList.length}）</div>${checkinList.map(recRow).join('')}`
+      : '';
+    const checkoutSection = checkoutList.length
+      ? `<div style="font-size:.85rem;font-weight:700;margin:.6rem 0 .3rem">✅ 簽退紀錄（${checkoutList.length}）</div>${checkoutList.map(recRow).join('')}`
+      : '';
+    const unregSection = unregList.length
+      ? `<div style="font-size:.85rem;font-weight:700;margin:.6rem 0 .3rem;color:var(--danger)">⚠️ 未報名掃碼（${unregList.length}）</div>${unregList.map(recRow).join('')}`
+      : '';
+
+    // ── 費用摘要 ──
+    const fee = e.fee || 0;
+    const feeExpected = fee * (e.current || 0);
+    const feeActual = fee * checkoutUsers.size;
+    const feeShort = feeExpected - feeActual;
+    const feeSection = fee > 0
+      ? `<div style="margin:.6rem 0 .2rem;padding:.4rem .6rem;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-elevated);font-size:.78rem;display:flex;gap:.8rem;flex-wrap:wrap">
+          <span>應收 <b style="color:var(--text-primary)">$${feeExpected}</b></span>
+          <span>實收 <b style="color:var(--success)">$${feeActual}</b></span>
+          <span>短收 <b style="color:${feeShort > 0 ? 'var(--danger)' : 'var(--success)'}">$${feeShort}</b></span>
+        </div>`
+      : '';
+
     content.innerHTML = `
       <h3 style="margin:0 0 .4rem;font-size:1rem">${escapeHTML(e.title)}</h3>
       <div style="font-size:.78rem;color:var(--text-muted);margin-bottom:.6rem">
         <div>${escapeHTML(e.location)} ・ ${escapeHTML(e.date)}</div>
-        <div>費用：${e.fee > 0 ? 'NT$' + e.fee : '免費'} ・ 狀態：${statusConf.label} ・ 主辦：${escapeHTML(e.creator)}</div>
+        <div>費用：${fee > 0 ? 'NT$' + fee : '免費'} ・ 狀態：${statusConf.label} ・ 主辦：${escapeHTML(e.creator)}</div>
       </div>
       <div style="font-size:.85rem;font-weight:700;margin-bottom:.3rem">報名名單（${e.current}/${e.max}）</div>
       ${participants || '<div style="font-size:.8rem;color:var(--text-muted);padding:.3rem 0">尚無報名</div>'}
@@ -159,6 +228,10 @@ Object.assign(App, {
         <div style="font-size:.85rem;font-weight:700;margin:.6rem 0 .3rem">候補名單（${e.waitlist}）</div>
         ${waitlist}
       ` : ''}
+      ${checkinSection}
+      ${checkoutSection}
+      ${unregSection}
+      ${feeSection}
     `;
     modal.style.display = 'flex';
   },

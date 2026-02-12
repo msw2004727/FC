@@ -3,7 +3,7 @@
    Strategy: network-first for HTML, cache-first for versioned assets
    ================================================ */
 
-const CACHE_NAME = 'sporthub-20260212zr';
+const CACHE_NAME = 'sporthub-20260212zs';
 const STATIC_ASSETS = [
   './',
   './index.html',

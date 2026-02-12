@@ -417,6 +417,7 @@ const DemoData = {
 
 // ── Pre-populate Auto EXP demo data（mode-aware keys）──
 (function() {
+  if (!ModeManager.isDemo()) return;
   const mode = ModeManager.getMode();
   const rulesKey = 'sporthub_auto_exp_rules_' + mode;
   const logsKey  = 'sporthub_auto_exp_logs_' + mode;
