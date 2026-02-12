@@ -158,7 +158,7 @@ Object.assign(App, {
     if (input) input.click();
   },
 
-  _handleSponsorFileChange(e) {
+  async _handleSponsorFileChange(e) {
     const input = e.target;
     const file = input.files[0];
     if (!file) return;
@@ -167,23 +167,20 @@ Object.assign(App, {
       input.value = '';
       return;
     }
-    if (file.size > 2 * 1024 * 1024) {
-      this.showToast('檔案大小不可超過 2MB');
+    if (file.size > 5 * 1024 * 1024) {
+      this.showToast('檔案大小不可超過 5MB');
       input.value = '';
       return;
     }
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const thumb = input.closest('.sp-manage-row').querySelector('.sp-row-thumb');
-      if (thumb) {
-        thumb.innerHTML = `<img src="${ev.target.result}" style="width:100%;height:100%;object-fit:cover;border-radius:4px">${input.outerHTML}`;
-        thumb.classList.add('has-img');
-        // 重新綁定新 input
-        const newInput = thumb.querySelector('.sp-row-file');
-        if (newInput) newInput.addEventListener('change', (e2) => this._handleSponsorFileChange(e2));
-      }
-    };
-    reader.readAsDataURL(file);
+    const dataURL = await this._compressImage(file);
+    const thumb = input.closest('.sp-manage-row').querySelector('.sp-row-thumb');
+    if (thumb) {
+      thumb.innerHTML = `<img src="${dataURL}" style="width:100%;height:100%;object-fit:cover;border-radius:4px">${input.outerHTML}`;
+      thumb.classList.add('has-img');
+      // 重新綁定新 input
+      const newInput = thumb.querySelector('.sp-row-file');
+      if (newInput) newInput.addEventListener('change', (e2) => this._handleSponsorFileChange(e2));
+    }
   },
 
   async saveSponsorRow(id) {

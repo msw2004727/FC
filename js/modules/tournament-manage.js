@@ -314,10 +314,6 @@ Object.assign(App, {
     this._renderMatchDateTags('ct');
     this._renderTournamentDelegateTags('ct');
     this._updateTournamentDelegateInput('ct');
-    this._renderHistoryChips('ct-region', 'ct-region');
-    this._renderHistoryChips('ct-fee', 'ct-fee');
-    this._renderHistoryChips('ct-venue', 'ct-venue-input');
-    this._renderRecentDelegateChips('ct-delegate-tags', 'ct');
   },
 
   handleCreateTournament() {
@@ -334,6 +330,7 @@ Object.assign(App, {
     const delegates = [...this._ctDelegates];
 
     if (!name) { this.showToast('請輸入賽事名稱'); return; }
+    if (!regStart || !regEnd) { this.showToast('請選擇報名開始與截止時間'); return; }
 
     const ctPreviewEl = document.getElementById('ct-upload-preview');
     const ctImg = ctPreviewEl?.querySelector('img');
@@ -360,11 +357,6 @@ Object.assign(App, {
     data.status = this.getTournamentStatus(data);
 
     ApiService.createTournament(data);
-
-    this._saveInputHistory('ct-region', region);
-    if (fee > 0) this._saveInputHistory('ct-fee', fee);
-    venues.forEach(v => this._saveInputHistory('ct-venue', v));
-    this._saveRecentDelegates(this._ctDelegates);
 
     ApiService._writeOpLog('tourn_create', '建立賽事', `建立「${name}」`);
     this.renderTournamentTimeline();
@@ -471,6 +463,7 @@ Object.assign(App, {
     const region = document.getElementById('et-region').value.trim();
     const regStart = document.getElementById('et-reg-start').value || null;
     const regEnd = document.getElementById('et-reg-end').value || null;
+    if (!regStart || !regEnd) { this.showToast('請選擇報名開始與截止時間'); return; }
     const description = document.getElementById('et-desc').value.trim();
     const venues = [...this._etVenues];
     const delegates = [...this._etDelegates];

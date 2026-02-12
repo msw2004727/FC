@@ -295,12 +295,12 @@ Object.assign(App, {
         input.value = '';
         return;
       }
-      if (file.size > 2 * 1024 * 1024) {
-        this.showToast('檔案大小不可超過 2MB');
+      if (file.size > 5 * 1024 * 1024) {
+        this.showToast('檔案大小不可超過 5MB');
         input.value = '';
         return;
       }
-      const dataURL = await this._readFileAsDataURL(file);
+      const dataURL = await this._compressImage(file, 400, 0.80);
       this._achBadgeDataURL = dataURL;
       const preview = document.getElementById('ach-badge-preview');
       if (preview) {

@@ -135,8 +135,31 @@ Object.assign(App, {
     if (dmLabel) dmLabel.textContent = t('drawer.darkMode');
     const langLabel = document.querySelector('.lang-label');
     if (langLabel) langLabel.textContent = t('drawer.language');
+
+    // Page headers
+    const teamPageHeader = document.querySelector('#page-teams .page-header-title');
+    if (teamPageHeader) teamPageHeader.textContent = t('nav.teams');
+    const actPageHeader = document.querySelector('#page-activities .page-header-title');
+    if (actPageHeader) actPageHeader.textContent = t('nav.activities');
+    const profilePageHeader = document.querySelector('#page-profile .page-header-title');
+    if (profilePageHeader) profilePageHeader.textContent = t('nav.profile');
+
+    // Search placeholders
+    const teamSearch = document.getElementById('team-search');
+    if (teamSearch) teamSearch.placeholder = t('teamPage.searchPlaceholder');
+    const actSearch = document.getElementById('activity-search');
+    if (actSearch) actSearch.placeholder = t('activityPage.searchPlaceholder');
+
+    // Team region filter first option
+    const teamRegion = document.getElementById('team-region-filter');
+    if (teamRegion && teamRegion.options.length > 0) {
+      teamRegion.options[0].textContent = t('teamPage.allRegions');
+    }
+
     // Re-render drawer menu & dashboard if visible
     this.renderDrawerMenu();
+    // Re-render current page for i18n updates
+    if (this.currentPage === 'page-teams') this.renderTeamList();
   },
 
   bindNotifBtn() {

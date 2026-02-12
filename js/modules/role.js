@@ -96,7 +96,7 @@ Object.assign(App, {
       if (item.divider) {
         html += '<div class="drawer-divider"></div>';
       } else if (item.sectionLabel) {
-        html += `<div class="drawer-section-label">${item.sectionLabel}</div>`;
+        html += `<div class="drawer-section-label">${item.i18nKey ? t(item.i18nKey) : item.sectionLabel}</div>`;
       } else {
         const onClick = item.action === 'share'
           ? `App.showToast('已複製分享連結！')`
@@ -111,8 +111,9 @@ Object.assign(App, {
           if (lastMinRole && ROLE_LEVEL_MAP[lastMinRole] >= 4) html += '<div class="drawer-divider"></div>';
           lastMinRole = role;
         }
+        const displayLabel = item.i18nKey ? t(item.i18nKey) : item.label;
         html += `<div class="drawer-item ${bgClass}" onclick="${onClick}">
-          ${item.label}
+          ${displayLabel}
         </div>`;
       }
     });

@@ -331,6 +331,15 @@ Object.assign(App, {
       rows.push(`<div class="td-info-row"><span class="td-info-label">比賽日期</span><div class="td-info-value" style="display:flex;flex-wrap:wrap;gap:.25rem">${dateTags}</div></div>`);
     }
 
+    // 報名時間
+    if (t.regStart && t.regEnd) {
+      const fmtRegDT = d => {
+        const dt = new Date(d);
+        return `${dt.getFullYear()}/${(dt.getMonth()+1).toString().padStart(2,'0')}/${dt.getDate().toString().padStart(2,'0')} ${dt.getHours().toString().padStart(2,'0')}:${dt.getMinutes().toString().padStart(2,'0')}`;
+      };
+      rows.push(`<div class="td-info-row"><span class="td-info-label">報名時間</span><div class="td-info-value">${fmtRegDT(t.regStart)} ~ ${fmtRegDT(t.regEnd)}</div></div>`);
+    }
+
     // 報名費
     const fee = t.fee || 0;
     rows.push(`<div class="td-info-row"><span class="td-info-label">報名費</span><div class="td-info-value" style="font-weight:600">${fee > 0 ? 'NT$' + fee.toLocaleString() + ' / 隊' : '免費'}</div></div>`);
@@ -371,13 +380,21 @@ Object.assign(App, {
       const registered = teamIds.map(id => allTeams.find(tm => tm.id === id)).filter(Boolean);
       container.innerHTML = `<div class="team-grid" style="padding:.5rem .4rem">${registered.map(tm => this._teamCardHTML({...tm, pinned: false})).join('')}</div>`;
     } else if (tab === 'schedule') {
-      const isCup = t && !t.type.includes('聯賽');
-      container.innerHTML = isCup ? this.renderBracket() : this.renderLeagueSchedule();
+      if (!ModeManager.isDemo()) {
+        container.innerHTML = '<div style="padding:3rem 1rem;text-align:center;color:var(--text-muted);font-size:.92rem">功能開發中</div>';
+      } else {
+        const isCup = t && !t.type.includes('聯賽');
+        container.innerHTML = isCup ? this.renderBracket() : this.renderLeagueSchedule();
+      }
     } else if (tab === 'stats') {
-      container.innerHTML = `<table class="standings-table">
-        <tr><th>#</th><th>隊名</th><th>勝</th><th>平</th><th>負</th><th>積分</th></tr>
-        ${ApiService.getStandings().map(s => `<tr><td>${s.rank}</td><td>${s.name}</td><td>${s.w}</td><td>${s.d}</td><td>${s.l}</td><td><strong>${s.pts}</strong></td></tr>`).join('')}
-      </table>`;
+      if (!ModeManager.isDemo()) {
+        container.innerHTML = '<div style="padding:3rem 1rem;text-align:center;color:var(--text-muted);font-size:.92rem">功能開發中</div>';
+      } else {
+        container.innerHTML = `<table class="standings-table">
+          <tr><th>#</th><th>隊名</th><th>勝</th><th>平</th><th>負</th><th>積分</th></tr>
+          ${ApiService.getStandings().map(s => `<tr><td>${s.rank}</td><td>${s.name}</td><td>${s.w}</td><td>${s.d}</td><td>${s.l}</td><td><strong>${s.pts}</strong></td></tr>`).join('')}
+        </table>`;
+      }
     }
   },
 

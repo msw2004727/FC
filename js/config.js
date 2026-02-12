@@ -4,7 +4,7 @@
 
 // ─── Cache Version（更新此值以清除瀏覽器快取）───
 // 20260212: 模組化拆分（user-admin/message/tournament/firebase-service）
-const CACHE_VERSION = '20260212zb';
+const CACHE_VERSION = '20260212zd';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {
@@ -177,29 +177,29 @@ const TEAM_RANK_CONFIG = [
 
 // ─── Drawer Menu Config ───
 const DRAWER_MENUS = [
-  { icon: '', label: '個人數據', page: 'page-personal-dashboard', minRole: 'user' },
-  { icon: '', label: '二手商品區', page: 'page-shop', minRole: 'user' },
-  { icon: '', label: '排行榜', action: 'coming-soon', minRole: 'user' },
-  { icon: '', label: '分享網頁', action: 'share', minRole: 'user' },
+  { icon: '', label: '個人數據', i18nKey: 'drawer.personalData', page: 'page-personal-dashboard', minRole: 'user' },
+  { icon: '', label: '二手商品區', i18nKey: 'drawer.shop', page: 'page-shop', minRole: 'user' },
+  { icon: '', label: '排行榜', i18nKey: 'drawer.leaderboard', action: 'coming-soon', minRole: 'user' },
+  { icon: '', label: '分享網頁', i18nKey: 'drawer.share', action: 'share', minRole: 'user' },
   { divider: true },
-  { icon: '', label: '活動管理', page: 'page-my-activities', minRole: 'coach' },
-  { icon: '', label: '賽事管理', page: 'page-admin-tournaments', minRole: 'coach' },
+  { icon: '', label: '活動管理', i18nKey: 'drawer.activityManage', page: 'page-my-activities', minRole: 'coach' },
+  { icon: '', label: '賽事管理', i18nKey: 'drawer.tournamentManage', page: 'page-admin-tournaments', minRole: 'coach' },
   { divider: true, minRole: 'coach' },
-  { icon: '', label: '掃碼簽到/簽退', page: 'page-scan', minRole: 'coach', highlight: 'yellow' },
+  { icon: '', label: '掃碼簽到/簽退', i18nKey: 'drawer.scan', page: 'page-scan', minRole: 'coach', highlight: 'yellow' },
   { divider: true, minRole: 'admin' },
-  { sectionLabel: '後台管理', minRole: 'admin' },
-  { icon: '', label: '數據儀表板', page: 'page-admin-dashboard', minRole: 'admin' },
-  { icon: '', label: '用戶管理', page: 'page-admin-users', minRole: 'admin' },
-  { icon: '', label: '廣告管理', page: 'page-admin-banners', minRole: 'admin' },
-  { icon: '', label: '二手商品管理', page: 'page-admin-shop', minRole: 'admin' },
-  { icon: '', label: '站內信管理', page: 'page-admin-messages', minRole: 'admin' },
-  { icon: '', label: '球隊管理', page: 'page-admin-teams', minRole: 'admin' },
-  { icon: '', label: '佈景主題', page: 'page-admin-themes', minRole: 'super_admin' },
-  { icon: '', label: '手動 EXP 管理', page: 'page-admin-exp', minRole: 'super_admin' },
-  { icon: '', label: '自動 EXP 管理', page: 'page-admin-auto-exp', minRole: 'super_admin' },
-  { icon: '', label: '系統公告管理', page: 'page-admin-announcements', minRole: 'super_admin' },
-  { icon: '', label: '成就/徽章管理', page: 'page-admin-achievements', minRole: 'super_admin' },
-  { icon: '', label: '自訂層級管理', page: 'page-admin-roles', minRole: 'super_admin' },
-  { icon: '', label: '無效資料查詢', page: 'page-admin-inactive', minRole: 'super_admin' },
-  { icon: '', label: '操作日誌', page: 'page-admin-logs', minRole: 'super_admin' },
+  { sectionLabel: '後台管理', i18nKey: 'drawer.backendManage', minRole: 'admin' },
+  { icon: '', label: '數據儀表板', i18nKey: 'admin.dashboard', page: 'page-admin-dashboard', minRole: 'admin' },
+  { icon: '', label: '用戶管理', i18nKey: 'admin.userManage', page: 'page-admin-users', minRole: 'admin' },
+  { icon: '', label: '廣告管理', i18nKey: 'admin.adManage', page: 'page-admin-banners', minRole: 'admin' },
+  { icon: '', label: '二手商品管理', i18nKey: 'admin.shopManage', page: 'page-admin-shop', minRole: 'admin' },
+  { icon: '', label: '站內信管理', i18nKey: 'admin.messageManage', page: 'page-admin-messages', minRole: 'admin' },
+  { icon: '', label: '球隊管理', i18nKey: 'admin.teamManage', page: 'page-admin-teams', minRole: 'admin' },
+  { icon: '', label: '佈景主題', i18nKey: 'admin.themes', page: 'page-admin-themes', minRole: 'super_admin' },
+  { icon: '', label: '手動 EXP 管理', i18nKey: 'admin.expManage', page: 'page-admin-exp', minRole: 'super_admin' },
+  { icon: '', label: '自動 EXP 管理', i18nKey: 'drawer.autoExpManage', page: 'page-admin-auto-exp', minRole: 'super_admin' },
+  { icon: '', label: '系統公告管理', i18nKey: 'admin.announcements', page: 'page-admin-announcements', minRole: 'super_admin' },
+  { icon: '', label: '成就/徽章管理', i18nKey: 'admin.achievements', page: 'page-admin-achievements', minRole: 'super_admin' },
+  { icon: '', label: '自訂層級管理', i18nKey: 'admin.roles', page: 'page-admin-roles', minRole: 'super_admin' },
+  { icon: '', label: '無效資料查詢', i18nKey: 'admin.inactive', page: 'page-admin-inactive', minRole: 'super_admin' },
+  { icon: '', label: '操作日誌', i18nKey: 'admin.logs', page: 'page-admin-logs', minRole: 'super_admin' },
 ];

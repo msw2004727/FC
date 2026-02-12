@@ -47,7 +47,7 @@ Object.assign(App, {
     const rank = this._getTeamRank(t.teamExp);
     return `
       <div class="tc-card${pinnedClass}" onclick="App.showTeamDetail('${t.id}')">
-        ${t.pinned ? '<div class="tc-pin-badge">至頂</div>' : ''}
+        ${t.pinned ? '<div class="tc-pin-badge">置頂</div>' : ''}
         ${t.image
           ? `<div style="position:relative;width:100%;aspect-ratio:1;overflow:hidden;border-radius:var(--radius) var(--radius) 0 0"><img src="${t.image}" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block"><span class="tc-rank-badge" style="color:${rank.color}"><span class="tc-rank-score">${(t.teamExp || 0).toLocaleString()}</span>${rank.rank}</span></div>`
           : `<div class="tc-img-placeholder" style="position:relative">球隊圖片<span class="tc-rank-badge" style="color:${rank.color}"><span class="tc-rank-score">${(t.teamExp || 0).toLocaleString()}</span>${rank.rank}</span></div>`}
@@ -109,55 +109,55 @@ Object.assign(App, {
 
     document.getElementById('team-detail-body').innerHTML = `
       <div class="td-card">
-        <div class="td-card-title">球隊資訊</div>
+        <div class="td-card-title">${I18N.t('teamDetail.info')}</div>
         <div class="td-card-grid">
-          <div class="td-card-item"><span class="td-card-label">領隊</span><span class="td-card-value">${t.captain ? this._userTag(t.captain, 'captain') : '未設定'}</span></div>
-          <div class="td-card-item"><span class="td-card-label">教練</span><span class="td-card-value">${(t.coaches || []).length > 0 ? t.coaches.map(c => this._userTag(c, 'coach')).join(' ') : '無'}</span></div>
-          <div class="td-card-item"><span class="td-card-label">隊員數</span><span class="td-card-value">${t.members} 人</span></div>
-          <div class="td-card-item"><span class="td-card-label">地區</span><span class="td-card-value">${escapeHTML(t.region)}</span></div>
-          ${t.nationality ? `<div class="td-card-item"><span class="td-card-label">國籍</span><span class="td-card-value">${escapeHTML(t.nationality)}</span></div>` : ''}
-          ${t.founded ? `<div class="td-card-item"><span class="td-card-label">創立時間</span><span class="td-card-value">${escapeHTML(t.founded)}</span></div>` : ''}
-          ${t.contact ? `<div class="td-card-item"><span class="td-card-label">聯繫方式</span><span class="td-card-value">${escapeHTML(t.contact)}</span></div>` : ''}
+          <div class="td-card-item"><span class="td-card-label">${I18N.t('teamDetail.captain')}</span><span class="td-card-value">${t.captain ? this._userTag(t.captain, 'captain') : I18N.t('teamDetail.notSet')}</span></div>
+          <div class="td-card-item"><span class="td-card-label">${I18N.t('teamDetail.coach')}</span><span class="td-card-value">${(t.coaches || []).length > 0 ? t.coaches.map(c => this._userTag(c, 'coach')).join(' ') : I18N.t('teamDetail.none')}</span></div>
+          <div class="td-card-item"><span class="td-card-label">${I18N.t('teamDetail.memberCount')}</span><span class="td-card-value">${t.members} ${I18N.t('teamDetail.personUnit')}</span></div>
+          <div class="td-card-item"><span class="td-card-label">${I18N.t('teamDetail.region')}</span><span class="td-card-value">${escapeHTML(t.region)}</span></div>
+          ${t.nationality ? `<div class="td-card-item"><span class="td-card-label">${I18N.t('teamDetail.nationality')}</span><span class="td-card-value">${escapeHTML(t.nationality)}</span></div>` : ''}
+          ${t.founded ? `<div class="td-card-item"><span class="td-card-label">${I18N.t('teamDetail.founded')}</span><span class="td-card-value">${escapeHTML(t.founded)}</span></div>` : ''}
+          ${t.contact ? `<div class="td-card-item"><span class="td-card-label">${I18N.t('teamDetail.contact')}</span><span class="td-card-value">${escapeHTML(t.contact)}</span></div>` : ''}
         </div>
       </div>
       ${t.bio ? `<div class="td-card">
-        <div class="td-card-title" style="text-align:center">簡介</div>
+        <div class="td-card-title" style="text-align:center">${I18N.t('teamDetail.bio')}</div>
         <div style="font-size:.82rem;color:var(--text-secondary);line-height:1.6;white-space:pre-wrap;word-break:break-word">${escapeHTML(t.bio)}</div>
       </div>` : ''}
       <div class="td-card">
-        <div class="td-card-title">球隊戰績</div>
+        <div class="td-card-title">${I18N.t('teamDetail.record')}</div>
         <div class="td-stats-row">
-          <div class="td-stat"><span class="td-stat-num" style="color:var(--success)">${t.wins || 0}</span><span class="td-stat-label">勝</span></div>
-          <div class="td-stat"><span class="td-stat-num" style="color:var(--warning)">${t.draws || 0}</span><span class="td-stat-label">平</span></div>
-          <div class="td-stat"><span class="td-stat-num" style="color:var(--danger)">${t.losses || 0}</span><span class="td-stat-label">負</span></div>
-          <div class="td-stat"><span class="td-stat-num">${winRate}%</span><span class="td-stat-label">勝率</span></div>
+          <div class="td-stat"><span class="td-stat-num" style="color:var(--success)">${t.wins || 0}</span><span class="td-stat-label">${I18N.t('teamDetail.wins')}</span></div>
+          <div class="td-stat"><span class="td-stat-num" style="color:var(--warning)">${t.draws || 0}</span><span class="td-stat-label">${I18N.t('teamDetail.draws')}</span></div>
+          <div class="td-stat"><span class="td-stat-num" style="color:var(--danger)">${t.losses || 0}</span><span class="td-stat-label">${I18N.t('teamDetail.losses')}</span></div>
+          <div class="td-stat"><span class="td-stat-num">${winRate}%</span><span class="td-stat-label">${I18N.t('teamDetail.winRate')}</span></div>
         </div>
         <div class="td-card-grid" style="margin-top:.5rem">
-          <div class="td-card-item"><span class="td-card-label">進球</span><span class="td-card-value">${t.gf || 0}</span></div>
-          <div class="td-card-item"><span class="td-card-label">失球</span><span class="td-card-value">${t.ga || 0}</span></div>
-          <div class="td-card-item"><span class="td-card-label">淨勝球</span><span class="td-card-value">${(t.gf || 0) - (t.ga || 0) > 0 ? '+' : ''}${(t.gf || 0) - (t.ga || 0)}</span></div>
-          <div class="td-card-item"><span class="td-card-label">總場次</span><span class="td-card-value">${totalGames}</span></div>
+          <div class="td-card-item"><span class="td-card-label">${I18N.t('teamDetail.goalsFor')}</span><span class="td-card-value">${t.gf || 0}</span></div>
+          <div class="td-card-item"><span class="td-card-label">${I18N.t('teamDetail.goalsAgainst')}</span><span class="td-card-value">${t.ga || 0}</span></div>
+          <div class="td-card-item"><span class="td-card-label">${I18N.t('teamDetail.goalDiff')}</span><span class="td-card-value">${(t.gf || 0) - (t.ga || 0) > 0 ? '+' : ''}${(t.gf || 0) - (t.ga || 0)}</span></div>
+          <div class="td-card-item"><span class="td-card-label">${I18N.t('teamDetail.totalGames')}</span><span class="td-card-value">${totalGames}</span></div>
         </div>
       </div>
       <div class="td-card">
-        <div class="td-card-title">賽事紀錄</div>
+        <div class="td-card-title">${I18N.t('teamDetail.matchHistory')}</div>
         ${(t.history || []).map(h => `
           <div class="td-history-row">
             <span class="td-history-name">${escapeHTML(h.name)}</span>
             <span class="td-history-result">${escapeHTML(h.result)}</span>
           </div>
-        `).join('') || '<div style="font-size:.82rem;color:var(--text-muted);padding:.3rem">尚無賽事紀錄</div>'}
+        `).join('') || '<div style="font-size:.82rem;color:var(--text-muted);padding:.3rem">' + I18N.t('teamDetail.noHistory') + '</div>'}
       </div>
       <div class="td-card">
-        <div class="td-card-title">成員列表</div>
+        <div class="td-card-title">${I18N.t('teamDetail.memberList')}</div>
         <div class="td-member-tags">
           ${(() => {
             const tags = [];
             if (t.captain) {
-              tags.push(`<span class="user-capsule uc-captain" onclick="App.showUserProfile('${escapeHTML(t.captain)}')" title="領隊">領隊 ${escapeHTML(t.captain)}</span>`);
+              tags.push(`<span class="user-capsule uc-captain" onclick="App.showUserProfile('${escapeHTML(t.captain)}')" title="${I18N.t('teamDetail.captain')}">${I18N.t('teamDetail.captain')} ${escapeHTML(t.captain)}</span>`);
             }
             (t.coaches || []).forEach(c => {
-              tags.push(`<span class="user-capsule uc-coach" onclick="App.showUserProfile('${escapeHTML(c)}')" title="教練">教練 ${escapeHTML(c)}</span>`);
+              tags.push(`<span class="user-capsule uc-coach" onclick="App.showUserProfile('${escapeHTML(c)}')" title="${I18N.t('teamDetail.coach')}">${I18N.t('teamDetail.coach')} ${escapeHTML(c)}</span>`);
             });
             // 查詢 teamId 匹配的真實用戶（排除領隊與教練）
             const allUsers = ApiService.getAdminUsers() || [];
@@ -165,11 +165,11 @@ Object.assign(App, {
             const captainCoachNames = new Set([t.captain, ...(t.coaches || [])].filter(Boolean));
             const regularMembers = teamMembers.filter(u => !captainCoachNames.has(u.name));
             regularMembers.slice(0, 20).forEach(u => {
-              tags.push(`<span class="user-capsule uc-user" onclick="App.showUserProfile('${escapeHTML(u.name)}')" title="隊員">隊員 ${escapeHTML(u.name)}</span>`);
+              tags.push(`<span class="user-capsule uc-user" onclick="App.showUserProfile('${escapeHTML(u.name)}')" title="${I18N.t('team.memberLabel')}">${I18N.t('team.memberLabel')} ${escapeHTML(u.name)}</span>`);
             });
             return tags.join('');
           })()}
-          ${t.members > 8 ? `<span class="td-member-more">... 共 ${t.members} 人</span>` : ''}
+          ${t.members > 8 ? `<span class="td-member-more">... ${t.members} ${I18N.t('teamDetail.personUnit')}</span>` : ''}
         </div>
       </div>
       <div id="team-feed-section">${this._renderTeamFeed(t.id)}</div>
@@ -185,19 +185,19 @@ Object.assign(App, {
         if (canInvite || isCaptainCoach) {
           html += `<div class="td-card" style="padding:.6rem .8rem">
             <div style="display:flex;align-items:center;flex-wrap:wrap;gap:.5rem">`;
-          if (canInvite) html += `<button class="outline-btn" onclick="App.showTeamInviteQR('${t.id}')">邀請 QR Code</button>`;
-          if (isCaptainCoach) html += `<div style="display:inline-flex;align-items:center;gap:.35rem"><span style="font-size:.72rem;color:var(--text-muted)">隊員可邀請</span><label class="toggle-switch" style="margin:0;transform:scale(.8)"><input type="checkbox" ${memberCanInvite ? 'checked' : ''} onchange="App.toggleMemberInvite('${t.id}',this.checked)"><span class="toggle-slider"></span></label></div>`;
+          if (canInvite) html += `<button class="outline-btn" onclick="App.showTeamInviteQR('${t.id}')">${I18N.t('teamDetail.inviteQR')}</button>`;
+          if (isCaptainCoach) html += `<div style="display:inline-flex;align-items:center;gap:.35rem"><span style="font-size:.72rem;color:var(--text-muted)">${I18N.t('teamDetail.memberCanInvite')}</span><label class="toggle-switch" style="margin:0;transform:scale(.8)"><input type="checkbox" ${memberCanInvite ? 'checked' : ''} onchange="App.toggleMemberInvite('${t.id}',this.checked)"><span class="toggle-slider"></span></label></div>`;
           html += `</div></div>`;
         }
         // 下方區塊：退出球隊 / 聯繫領隊（或申請加入）
         html += `<div class="td-card" style="padding:.6rem .8rem">
           <div style="display:flex;align-items:center;flex-wrap:wrap;gap:.5rem">`;
         if (isMember) {
-          html += `<button style="background:var(--danger);color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;font-weight:600;cursor:pointer" onclick="App.handleLeaveTeam('${t.id}')">退出球隊</button>`;
+          html += `<button style="background:var(--danger);color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;font-weight:600;cursor:pointer" onclick="App.handleLeaveTeam('${t.id}')">${I18N.t('teamDetail.leaveTeam')}</button>`;
         } else {
-          html += `<button class="primary-btn" onclick="App.handleJoinTeam('${t.id}')">申請加入</button>`;
+          html += `<button class="primary-btn" onclick="App.handleJoinTeam('${t.id}')">${I18N.t('teamDetail.applyJoin')}</button>`;
         }
-        if (t.captain) html += `<button class="outline-btn" onclick="App.showUserProfile('${escapeHTML(t.captain)}')">聯繫領隊</button>`;
+        if (t.captain) html += `<button class="outline-btn" onclick="App.showUserProfile('${escapeHTML(t.captain)}')">${I18N.t('teamDetail.contactCaptain')}</button>`;
         html += `</div></div>`;
         return html;
       })()}
@@ -387,11 +387,11 @@ Object.assign(App, {
     // Post form: textarea on top, button row below with public toggle on right
     const postFormHtml = isMember ? `
       <div style="margin-bottom:.5rem">
-        <textarea id="team-feed-input" rows="2" maxlength="200" placeholder="分享動態給隊友...（最多 200 字）" style="width:100%;font-size:.82rem;padding:.4rem .5rem;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-card);color:var(--text-primary);resize:none;box-sizing:border-box"></textarea>
+        <textarea id="team-feed-input" rows="2" maxlength="200" placeholder="${I18N.t('teamDetail.postPlaceholder')}" style="width:100%;font-size:.82rem;padding:.4rem .5rem;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-card);color:var(--text-primary);resize:none;box-sizing:border-box"></textarea>
         <div style="display:flex;align-items:center;justify-content:space-between;margin-top:.3rem">
-          <button class="primary-btn small" onclick="App.submitTeamPost('${teamId}')">發佈</button>
+          <button class="primary-btn small" onclick="App.submitTeamPost('${teamId}')">${I18N.t('teamDetail.publish')}</button>
           <div style="display:flex;align-items:center;gap:.3rem">
-            <span id="team-feed-public-label" style="font-size:.72rem;color:var(--text-muted)">公開</span>
+            <span id="team-feed-public-label" style="font-size:.72rem;color:var(--text-muted)">${I18N.t('teamDetail.public')}</span>
             <label class="toggle-switch" style="margin:0;transform:scale(.8)">
               <input type="checkbox" id="team-feed-public" checked>
               <span class="toggle-slider"></span>
@@ -405,13 +405,13 @@ Object.assign(App, {
       const canDelete = isAuthor || isCaptainOrCoach;
       const canPin = isCaptainOrCoach;
       const publicTag = post.isPublic === false
-        ? '<span style="font-size:.58rem;padding:.08rem .25rem;border-radius:3px;background:var(--bg-elevated);color:var(--text-muted);font-weight:600">僅隊內</span>'
+        ? `<span style="font-size:.58rem;padding:.08rem .25rem;border-radius:3px;background:var(--bg-elevated);color:var(--text-muted);font-weight:600">${I18N.t('teamDetail.privateOnly')}</span>`
         : '';
       return `
         <div style="padding:.5rem 0;border-bottom:1px solid var(--border)${post.pinned ? ';background:var(--accent-bg);margin:0 -.5rem;padding-left:.5rem;padding-right:.5rem;border-radius:var(--radius-sm)' : ''}">
           <div style="display:flex;align-items:center;gap:.3rem;margin-bottom:.2rem">
             ${this._userTag(post.name)}
-            ${post.pinned ? '<span style="font-size:.6rem;padding:.1rem .3rem;border-radius:3px;background:#f59e0b;color:#fff;font-weight:700">置頂</span>' : ''}
+            ${post.pinned ? '<span style="font-size:.6rem;padding:.1rem .3rem;border-radius:3px;background:#f59e0b;color:#fff;font-weight:700">' + I18N.t('teamDetail.pinned') + '</span>' : ''}
             ${publicTag}
             <span style="margin-left:auto;font-size:.68rem;color:var(--text-muted)">${escapeHTML(post.time)}</span>
           </div>
@@ -419,11 +419,11 @@ Object.assign(App, {
           ${this._renderFeedReactions(teamId, post, myUid)}
           ${this._renderFeedComments(teamId, post, myUid, isMember)}
           <div style="display:flex;gap:.3rem;margin-top:.25rem">
-            ${canPin ? `<button style="font-size:.65rem;padding:.15rem .35rem;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-card);color:var(--text-muted);cursor:pointer" onclick="App.pinTeamPost('${teamId}','${post.id}')">${post.pinned ? '取消置頂' : '置頂'}</button>` : ''}
-            ${canDelete ? `<button style="font-size:.65rem;padding:.15rem .35rem;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-card);color:var(--danger);cursor:pointer" onclick="App.deleteTeamPost('${teamId}','${post.id}')">刪除</button>` : ''}
+            ${canPin ? `<button style="font-size:.65rem;padding:.15rem .35rem;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-card);color:var(--text-muted);cursor:pointer" onclick="App.pinTeamPost('${teamId}','${post.id}')">${post.pinned ? I18N.t('teamDetail.unpinPost') : I18N.t('teamDetail.pinPost')}</button>` : ''}
+            ${canDelete ? `<button style="font-size:.65rem;padding:.15rem .35rem;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-card);color:var(--danger);cursor:pointer" onclick="App.deleteTeamPost('${teamId}','${post.id}')">${I18N.t('teamDetail.delete')}</button>` : ''}
           </div>
         </div>`;
-    }).join('') : '<div style="font-size:.82rem;color:var(--text-muted);padding:.5rem 0">尚無動態</div>';
+    }).join('') : '<div style="font-size:.82rem;color:var(--text-muted);padding:.5rem 0">' + I18N.t('teamDetail.noFeed') + '</div>';
 
     // Pagination controls
     let paginationHtml = '';
@@ -432,15 +432,15 @@ Object.assign(App, {
       const nextDisabled = currentPage >= totalPages ? 'opacity:.4;pointer-events:none' : 'cursor:pointer';
       paginationHtml = `
         <div style="display:flex;justify-content:center;align-items:center;gap:.5rem;padding:.5rem 0;font-size:.75rem">
-          <button style="padding:.2rem .5rem;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-card);color:var(--text-secondary);${prevDisabled}" onclick="App.goTeamFeedPage('${teamId}',${currentPage - 1})">上一頁</button>
+          <button style="padding:.2rem .5rem;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-card);color:var(--text-secondary);${prevDisabled}" onclick="App.goTeamFeedPage('${teamId}',${currentPage - 1})">${I18N.t('teamDetail.prevPage')}</button>
           <span style="color:var(--text-muted)">${currentPage} / ${totalPages}</span>
-          <button style="padding:.2rem .5rem;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-card);color:var(--text-secondary);${nextDisabled}" onclick="App.goTeamFeedPage('${teamId}',${currentPage + 1})">下一頁</button>
+          <button style="padding:.2rem .5rem;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-card);color:var(--text-secondary);${nextDisabled}" onclick="App.goTeamFeedPage('${teamId}',${currentPage + 1})">${I18N.t('teamDetail.nextPage')}</button>
         </div>`;
     }
 
     return `
       <div class="td-card">
-        <div class="td-card-title">球隊動態 <span style="font-size:.72rem;color:var(--text-muted);font-weight:400">(${feed.length})</span></div>
+        <div class="td-card-title">${I18N.t('teamDetail.feed')} <span style="font-size:.72rem;color:var(--text-muted);font-weight:400">(${feed.length})</span></div>
         ${postFormHtml}
         ${postsHtml}
         ${paginationHtml}
@@ -563,8 +563,8 @@ Object.assign(App, {
     }
     if (isMember) {
       html += `<div style="display:flex;gap:.3rem;margin-top:.25rem">
-        <input type="text" id="fc-${post.id}" maxlength="100" placeholder="留言..." style="flex:1;font-size:.75rem;padding:.2rem .4rem;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-card);color:var(--text-primary);min-width:0">
-        <button style="font-size:.68rem;padding:.2rem .45rem;border:1px solid var(--primary);border-radius:var(--radius-sm);background:var(--primary);color:#fff;cursor:pointer;flex-shrink:0" onclick="event.stopPropagation();App.submitFeedComment('${teamId}','${post.id}')">送出</button>
+        <input type="text" id="fc-${post.id}" maxlength="100" placeholder="${I18N.t('teamDetail.commentPlaceholder')}" style="flex:1;font-size:.75rem;padding:.2rem .4rem;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-card);color:var(--text-primary);min-width:0">
+        <button style="font-size:.68rem;padding:.2rem .45rem;border:1px solid var(--primary);border-radius:var(--radius-sm);background:var(--primary);color:#fff;cursor:pointer;flex-shrink:0" onclick="event.stopPropagation();App.submitFeedComment('${teamId}','${post.id}')">${I18N.t('teamDetail.commentSubmit')}</button>
       </div>`;
     }
     return html;
@@ -1259,7 +1259,7 @@ Object.assign(App, {
         <div class="event-card-body">
           <div style="display:flex;justify-content:space-between;align-items:center">
             <div class="event-card-title">${escapeHTML(t.name)} <span style="font-size:.72rem;color:var(--text-muted)">${escapeHTML(t.nameEn || '')}</span></div>
-            ${t.pinned ? '<span style="font-size:.72rem;color:var(--warning);font-weight:600">至頂</span>' : ''}
+            ${t.pinned ? '<span style="font-size:.72rem;color:var(--warning);font-weight:600">置頂</span>' : ''}
           </div>
           <div class="event-meta">
             <span class="event-meta-item">領隊 ${escapeHTML(t.captain)}</span>
@@ -1269,7 +1269,7 @@ Object.assign(App, {
           </div>
           <div style="display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.5rem">
             <button class="primary-btn small" onclick="App.showTeamForm('${t.id}')">編輯</button>
-            <button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem" onclick="App.toggleTeamPin('${t.id}')">${t.pinned ? '取消至頂' : '至頂'}</button>
+            <button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem" onclick="App.toggleTeamPin('${t.id}')">${t.pinned ? '取消置頂' : '置頂'}</button>
             <button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem" onclick="App.toggleTeamActive('${t.id}')">${t.active ? '下架' : '上架'}</button>
             <button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem" onclick="App.showTeamDetail('${t.id}')">查看</button>
             <button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem;color:var(--danger)" onclick="App.removeTeam('${t.id}')">刪除</button>
@@ -1298,7 +1298,7 @@ Object.assign(App, {
     ApiService.updateTeam(id, { pinned: t.pinned, pinOrder: t.pinOrder });
     this.renderAdminTeams();
     this.renderTeamList();
-    this.showToast(t.pinned ? `已至頂「${t.name}」` : `已取消至頂「${t.name}」`);
+    this.showToast(t.pinned ? `已置頂「${t.name}」` : `已取消置頂「${t.name}」`);
   },
 
   toggleTeamActive(id) {
