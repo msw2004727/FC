@@ -82,7 +82,8 @@ const PageLoader = {
     console.log(`[PageLoader] 啟動載入 ${this._bootPages.length} 頁 + ${this._modals.length} 彈窗，延遲 ${this._deferredPages.length} 頁`);
 
     // 背景預載入延遲頁面（不阻塞啟動）
-    requestIdleCallback ? requestIdleCallback(() => this._loadDeferred()) : setTimeout(() => this._loadDeferred(), 2000);
+    // 注意：iOS Safari 不支援 requestIdleCallback，必須用 window. 存取避免 ReferenceError
+    (window.requestIdleCallback || function(cb) { setTimeout(cb, 2000); })(() => this._loadDeferred());
   },
 
   /** 背景載入延遲頁面 */
