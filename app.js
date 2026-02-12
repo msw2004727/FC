@@ -123,8 +123,15 @@ async function _loadCDNScripts() {
 
 // ── Init on DOM Ready ──
 document.addEventListener('DOMContentLoaded', async () => {
+  // 標記初始化進行中（防止 SW controllerchange 中途重載頁面）
+  window._appInitializing = true;
+
   // 載入所有頁面片段（pages/*.html → #main-content / #modal-container）
-  await PageLoader.loadAll();
+  // 加 10 秒超時保護：避免在極慢網路下永遠卡住
+  await Promise.race([
+    PageLoader.loadAll(),
+    new Promise(resolve => setTimeout(resolve, 10000)),
+  ]);
 
   // 正式版模式：動態載入 CDN SDK → Firebase + LIFF 初始化
   let _firebaseReady = false;
@@ -133,9 +140,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (overlay) overlay.style.display = '';
     let _tid;
     try {
-      // 總預算 30 秒：CDN 下載 + Firebase 連線 + LIFF 認證
+      // 總預算 20 秒：CDN 下載 + Firebase 連線 + LIFF 認證
+      // （CDN 已透過 <link rel="preload"> 提前下載，應很快完成）
       const timeout = new Promise((_, reject) => {
-        _tid = setTimeout(() => reject(new Error('載入逾時（30s）')), 30000);
+        _tid = setTimeout(() => reject(new Error('載入逾時')), 20000);
       });
 
       // Step 1: 動態載入 CDN SDK（Firebase + LIFF）
@@ -199,4 +207,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   setTimeout(() => App.showPopupAdsOnLoad(), 500);
   // 移除早期模式偵測的 CSS class，讓 JS 接手控制
   document.documentElement.classList.remove('prod-early');
+  // 清除安全兜底計時器 + 初始化旗標
+  if (window._loadingSafety) clearTimeout(window._loadingSafety);
+  window._appInitializing = false;
 });
