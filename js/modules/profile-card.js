@@ -113,6 +113,15 @@ Object.assign(App, {
       return;
     }
     container.innerHTML = '';
+    // 動態載入 QR Code 產生器（延遲載入，不阻塞啟動）
+    if (typeof QRCode === 'undefined') {
+      const s = document.createElement('script');
+      s.src = 'https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js';
+      s.onload = () => this._generateQrCode(container, data, size);
+      s.onerror = () => this._qrFallbackImg(container, data, size);
+      document.head.appendChild(s);
+      return;
+    }
     // 方案 A：本地 qrcode 庫（canvas）
     if (typeof QRCode !== 'undefined' && QRCode.toCanvas) {
       const canvas = document.createElement('canvas');

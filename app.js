@@ -53,43 +53,17 @@ const App = {
     this.applyRole('user', true);
   },
 
+  /** 啟動時只渲染首頁必要元件，其餘由 showPage → _renderPageContent 按需渲染 */
   renderAll() {
+    // ── 首頁必要 ──
     this.renderHotEvents();
     this.renderOngoingTournaments();
-    this.renderActivityList();
-    this.renderTeamList();
-    this.renderMessageList();
-    this.renderAchievements();
-    this.renderShop();
-    this.renderLeaderboard();
-    this.renderTournamentTimeline();
-    this.renderActivityRecords();
-    this.renderAdminUsers();
-    this.renderExpLogs();
-    this.renderOperationLogs();
-    this.renderAnnouncement();
-    this.renderFloatingAds();
     this.renderBannerCarousel();
-    this.renderBannerManage();
-    this.renderFloatingAdManage();
-    this.renderPopupAdManage();
-    this.renderSponsorManage();
+    this.renderFloatingAds();
     this.renderSponsors();
-    this.renderThemeManage();
-    this.applySiteThemes();
-    this.renderAnnouncementManage();
-    this.renderShopManage();
-    this.renderMsgManage();
-    this.renderTournamentManage();
-    this.renderAdminTeams();
-    this.renderTeamManage();
-    this.renderAdminAchievements();
-    this.renderRoleHierarchy();
-    this.renderInactiveData();
-    this.renderMyActivities();
-    this.renderUserCard();
-    this.renderProfileData();
-    this.renderProfileFavorites();
+    this.renderAnnouncement();
+    this.renderAchievements();
+    // ── 全域 UI 狀態 ──
     this.updateNotifBadge();
     this.updatePointsDisplay();
     this.updateStorageBar();

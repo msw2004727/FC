@@ -28,6 +28,12 @@ Object.assign(App, {
     // 正式版未登入：擋住球隊、賽事、我的、訊息頁
     const guardedPages = ['page-profile', 'page-teams', 'page-tournaments', 'page-messages'];
     if (guardedPages.includes(pageId) && this._requireLogin()) return;
+
+    // 懶載入頁面 HTML 片段（如果尚未載入）
+    if (typeof PageLoader !== 'undefined' && PageLoader.ensurePage) {
+      PageLoader.ensurePage(pageId);
+    }
+
     if (this.currentPage !== pageId) {
       this.pageHistory.push(this.currentPage);
     }
@@ -41,18 +47,51 @@ Object.assign(App, {
       this._floatAdOffset = 0;
       this._floatAdTarget = 0;
       requestAnimationFrame(() => { if (this._positionFloatingAds) this._positionFloatingAds(); });
-      if (pageId === 'page-home') { this.renderHotEvents(); this.renderOngoingTournaments(); }
-      if (pageId === 'page-activities') this.renderActivityList();
-      if (pageId === 'page-titles') this.renderTitlePage();
-      if (pageId === 'page-my-activities') this.renderMyActivities();
-      if (pageId === 'page-team-manage') this.renderTeamManage();
-      if (pageId === 'page-admin-dashboard') this.renderDashboard();
-      if (pageId === 'page-personal-dashboard') this.renderPersonalDashboard();
-      if (pageId === 'page-admin-auto-exp') this.renderAutoExpRules();
-      if (pageId === 'page-scan') this.renderScanPage();
-      if (pageId === 'page-qrcode') this.renderQrCodePage();
+
+      // 懶載入 Firestore 集合（按頁面需求）
+      if (!ModeManager.isDemo() && typeof FirebaseService !== 'undefined' && FirebaseService.ensureCollectionsForPage) {
+        FirebaseService.ensureCollectionsForPage(pageId).then(() => {
+          this._renderPageContent(pageId);
+        });
+      } else {
+        this._renderPageContent(pageId);
+      }
+
       if (pageId !== 'page-scan' && this._stopCamera) this._stopCamera();
     }
+  },
+
+  /** 根據頁面 ID 渲染對應內容 */
+  _renderPageContent(pageId) {
+    if (pageId === 'page-home') { this.renderHotEvents(); this.renderOngoingTournaments(); }
+    if (pageId === 'page-activities') this.renderActivityList();
+    if (pageId === 'page-titles') this.renderTitlePage();
+    if (pageId === 'page-my-activities') this.renderMyActivities();
+    if (pageId === 'page-team-manage') this.renderTeamManage();
+    if (pageId === 'page-admin-dashboard') this.renderDashboard();
+    if (pageId === 'page-personal-dashboard') this.renderPersonalDashboard();
+    if (pageId === 'page-admin-auto-exp') this.renderAutoExpRules();
+    if (pageId === 'page-scan') this.renderScanPage();
+    if (pageId === 'page-qrcode') this.renderQrCodePage();
+    // 按需渲染：進入頁面時才渲染，減少啟動負擔
+    if (pageId === 'page-teams') this.renderTeamList();
+    if (pageId === 'page-messages') this.renderMessageList();
+    if (pageId === 'page-tournaments') { this.renderTournamentTimeline(); }
+    if (pageId === 'page-profile') { this.renderUserCard(); this.renderProfileData(); this.renderProfileFavorites(); }
+    if (pageId === 'page-shop') this.renderShop();
+    if (pageId === 'page-admin-users') this.renderAdminUsers();
+    if (pageId === 'page-admin-banners') { this.renderBannerManage(); this.renderFloatingAdManage(); this.renderPopupAdManage(); this.renderSponsorManage(); }
+    if (pageId === 'page-admin-shop') this.renderShopManage();
+    if (pageId === 'page-admin-messages') this.renderMsgManage();
+    if (pageId === 'page-admin-tournaments') this.renderTournamentManage();
+    if (pageId === 'page-admin-teams') this.renderAdminTeams();
+    if (pageId === 'page-admin-achievements') this.renderAdminAchievements();
+    if (pageId === 'page-admin-roles') this.renderRoleHierarchy();
+    if (pageId === 'page-admin-inactive') this.renderInactiveData();
+    if (pageId === 'page-admin-exp') { this.renderExpLogs(); }
+    if (pageId === 'page-admin-announcements') this.renderAnnouncementManage();
+    if (pageId === 'page-admin-themes') this.renderThemeManage();
+    if (pageId === 'page-admin-logs') this.renderOperationLogs();
   },
 
   goBack() {

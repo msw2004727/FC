@@ -649,7 +649,18 @@ Object.assign(App, {
           .then(dataUrl => { target.innerHTML = `<img src="${dataUrl}" style="width:200px;height:200px;display:block" alt="QR Code">`; })
           .catch(() => apiFallback());
       } else {
-        apiFallback();
+        // 動態載入 QR Code 產生器
+        const s = document.createElement('script');
+        s.src = 'https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js';
+        s.onload = () => {
+          if (typeof QRCode !== 'undefined' && QRCode.toDataURL) {
+            QRCode.toDataURL(url, { width: 200, margin: 2, errorCorrectionLevel: 'M' })
+              .then(dataUrl => { target.innerHTML = `<img src="${dataUrl}" style="width:200px;height:200px;display:block" alt="QR Code">`; })
+              .catch(() => apiFallback());
+          } else { apiFallback(); }
+        };
+        s.onerror = () => apiFallback();
+        document.head.appendChild(s);
       }
     }
   },

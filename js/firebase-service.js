@@ -2,10 +2,12 @@
    SportHub — Firebase Service (Cache-First Pattern)
    ================================================
    策略：
-   1. init() 平行載入所有 Firestore 集合到 _cache
+   1. init() 按需載入 Firestore 集合到 _cache
    2. _cache 結構與 DemoData 完全相同 → render 方法零修改
    3. 寫入操作：先更新 cache（同步），再寫 Firestore（背景）
    4. onSnapshot 監聽器即時同步遠端更新
+   5. localStorage 持久化快取：returning user 秒開
+   6. 懶載入：非首頁集合按需載入
    ================================================
    CRUD 操作已拆分至 firebase-crud.js（Object.assign 擴充）
    ================================================ */
@@ -56,6 +58,12 @@ const FirebaseService = {
   _userListener: null,
   _onUserChanged: null,
   _initialized: false,
+  _lazyLoaded: {},  // 記錄已懶載入的集合
+
+  // ─── localStorage 快取設定 ───
+  _LS_PREFIX: 'shub_c_',
+  _LS_TS_KEY: 'shub_cache_ts',
+  _LS_TTL: 5 * 60 * 1000, // 5 分鐘快取有效期
 
   /** 將 users 集合文件映射為 adminUsers 格式（補齊 name / uid / lastActive） */
   _mapUserDoc(data, docId) {
@@ -69,23 +77,156 @@ const FirebaseService = {
   },
 
   // ════════════════════════════════
-  //  初始化：載入所有集合到快取
+  //  localStorage 快取層
   // ════════════════════════════════
 
-  // 需要即時監聽的集合（核心互動功能）
+  /** 儲存集合到 localStorage */
+  _saveToLS(name, data) {
+    try {
+      const json = JSON.stringify(data);
+      // 單一集合超過 500KB 就不存（避免 localStorage 爆掉）
+      if (json.length > 512000) return;
+      localStorage.setItem(this._LS_PREFIX + name, json);
+    } catch (e) { /* quota exceeded — 忽略 */ }
+  },
+
+  /** 從 localStorage 讀取集合 */
+  _loadFromLS(name) {
+    try {
+      const raw = localStorage.getItem(this._LS_PREFIX + name);
+      return raw ? JSON.parse(raw) : null;
+    } catch (e) { return null; }
+  },
+
+  /** 儲存全部快取到 localStorage */
+  _persistCache() {
+    const toSave = [
+      ...this._bootCollections, ...this._liveCollections, 'adminUsers',
+      ...this._deferredCollections,
+    ];
+    toSave.forEach(name => {
+      const key = name === 'adminUsers' ? 'adminUsers' : name;
+      if (this._cache[key] && this._cache[key].length > 0) {
+        this._saveToLS(key, this._cache[key]);
+      }
+    });
+    // rolePermissions 特殊處理
+    if (Object.keys(this._cache.rolePermissions).length > 0) {
+      this._saveToLS('rolePermissions', this._cache.rolePermissions);
+    }
+    localStorage.setItem(this._LS_TS_KEY, Date.now().toString());
+  },
+
+  /** 從 localStorage 恢復快取（回傳是否成功） */
+  _restoreCache() {
+    const ts = parseInt(localStorage.getItem(this._LS_TS_KEY) || '0', 10);
+    if (Date.now() - ts > this._LS_TTL) return false;
+
+    let restored = 0;
+    const allCollections = [
+      ...this._bootCollections, ...this._liveCollections,
+      ...this._deferredCollections, 'adminUsers',
+    ];
+    allCollections.forEach(name => {
+      const data = this._loadFromLS(name);
+      if (data && data.length > 0) {
+        this._cache[name] = data;
+        restored++;
+      }
+    });
+    const rp = this._loadFromLS('rolePermissions');
+    if (rp && Object.keys(rp).length > 0) {
+      this._cache.rolePermissions = rp;
+      restored++;
+    }
+    console.log(`[FirebaseService] localStorage 快取恢復: ${restored} 個集合 (${Math.round((Date.now() - ts) / 1000)}s ago)`);
+    return restored > 3; // 至少恢復 3 個集合才算有效
+  },
+
+  // ════════════════════════════════
+  //  初始化：分層載入集合到快取
+  // ════════════════════════════════
+
+  // 需要即時監聽的集合（核心互動功能）— 加 query 過濾
   _liveCollections: ['events', 'messages', 'registrations', 'teams'],
 
-  // 一次性載入的集合（低頻變動，不需即時同步）
-  _staticCollections: [
+  // 啟動時必要的靜態集合（首頁 + 全域 UI 需要）
+  _bootCollections: [
+    'banners', 'floatingAds', 'popupAds', 'sponsors',
+    'announcements', 'siteThemes', 'achievements', 'badges',
+  ],
+
+  // 延遲載入的靜態集合（進入對應頁面時才載入）
+  _deferredCollections: [
     'tournaments', 'shopItems', 'leaderboard', 'standings', 'matches',
-    'trades', 'banners', 'floatingAds', 'popupAds', 'sponsors',
-    'announcements', 'attendanceRecords', 'achievements', 'badges',
-    'expLogs', 'teamExpLogs', 'operationLogs', 'activityRecords', 'siteThemes',
+    'trades', 'attendanceRecords', 'activityRecords',
+    'expLogs', 'teamExpLogs', 'operationLogs',
     'adminMessages', 'notifTemplates', 'permissions', 'customRoles',
   ],
 
+  // 集合 → 頁面映射（用於懶載入觸發）
+  _collectionPageMap: {
+    'page-tournaments':       ['tournaments', 'standings', 'matches'],
+    'page-shop':              ['shopItems', 'trades'],
+    'page-activities':        ['attendanceRecords', 'activityRecords'],
+    'page-my-activities':     ['attendanceRecords', 'activityRecords', 'registrations'],
+    'page-admin-dashboard':   ['expLogs', 'teamExpLogs', 'operationLogs', 'attendanceRecords', 'activityRecords'],
+    'page-admin-users':       ['permissions', 'customRoles'],
+    'page-admin-messages':    ['adminMessages', 'notifTemplates'],
+    'page-admin-exp':         ['expLogs', 'teamExpLogs'],
+    'page-admin-auto-exp':    ['expLogs'],
+    'page-admin-achievements': ['achievements', 'badges'],
+    'page-admin-roles':       ['permissions', 'customRoles'],
+    'page-admin-logs':        ['operationLogs'],
+    'page-admin-inactive':    ['attendanceRecords', 'activityRecords', 'operationLogs'],
+    'page-admin-teams':       ['tournaments', 'standings', 'matches'],
+    'page-personal-dashboard': ['attendanceRecords', 'activityRecords'],
+    'page-leaderboard':       ['leaderboard'],
+  },
+
+  /** 根據頁面 ID 懶載入對應的集合 */
+  async ensureCollectionsForPage(pageId) {
+    if (ModeManager.isDemo()) return;
+    if (!this._initialized) return;
+    const needed = this._collectionPageMap[pageId];
+    if (!needed) return;
+
+    const toLoad = needed.filter(name => !this._lazyLoaded[name]);
+    if (toLoad.length === 0) return;
+
+    console.log(`[FirebaseService] 懶載入 ${pageId} 需要的集合:`, toLoad.join(', '));
+    await this._loadStaticCollections(toLoad);
+    toLoad.forEach(name => { this._lazyLoaded[name] = true; });
+    // 持久化新載入的集合
+    this._persistCache();
+  },
+
+  /** 載入指定的靜態集合 */
+  async _loadStaticCollections(names) {
+    const promises = names.map(name =>
+      db.collection(name).orderBy(firebase.firestore.FieldPath.documentId()).limit(500).get().catch(err => {
+        console.warn(`Collection "${name}" 載入失敗:`, err);
+        return { docs: [] };
+      })
+    );
+    const snapshots = await Promise.all(promises);
+    names.forEach((name, i) => {
+      const docs = snapshots[i].docs.map(doc => ({ ...doc.data(), _docId: doc.id }));
+      const seen = new Set();
+      this._cache[name] = docs.filter(d => {
+        if (!d.id) return true;
+        if (seen.has(d.id)) return false;
+        seen.add(d.id);
+        return true;
+      });
+    });
+  },
+
   async init() {
     if (this._initialized) return;
+
+    // ── Step 1: 嘗試從 localStorage 恢復快取 ──
+    const hasLocalCache = this._restoreCache();
 
     // 匿名登入 Firebase Auth（讓 Firestore 安全規則 request.auth != null 通過）
     try {
@@ -96,53 +237,117 @@ const FirebaseService = {
       this._authError = err;
     }
 
-    // ── 靜態集合：一次性 .get() 載入（不開 onSnapshot）──
-    const staticPromises = this._staticCollections.map(name =>
-      db.collection(name).get().catch(err => {
+    // ── Step 2: 啟動集合（首頁需要的靜態集合）──
+    const bootPromises = this._bootCollections.map(name =>
+      db.collection(name).orderBy(firebase.firestore.FieldPath.documentId()).limit(200).get().catch(err => {
         console.warn(`Collection "${name}" 載入失敗:`, err);
         return { docs: [] };
       })
     );
 
-    // ── 即時集合 + users：用 onSnapshot 載入（首次快照即為初始資料，無需額外 .get()）──
+    // ── Step 3: 即時集合 + users — onSnapshot 加 query 過濾 ──
     const livePromise = new Promise(resolve => {
       let pending = this._liveCollections.length + 1; // +1 for users
       const checkDone = () => { if (--pending === 0) resolve(); };
 
-      // 即時集合監聽
-      this._liveCollections.forEach(name => {
+      // events: 只監聽非結束/取消的活動（limit 200）
+      {
         let firstSnapshot = true;
-        const unsub = db.collection(name).onSnapshot(
-          snapshot => {
-            this._cache[name] = snapshot.docs.map(doc => ({ ...doc.data(), _docId: doc.id }));
-            if (firstSnapshot) { firstSnapshot = false; checkDone(); }
-          },
-          err => { console.warn(`[onSnapshot] ${name} 監聽錯誤:`, err); checkDone(); }
-        );
+        const unsub = db.collection('events')
+          .where('status', 'in', ['open', 'full', 'upcoming'])
+          .limit(200)
+          .onSnapshot(
+            snapshot => {
+              // 合併：快取中的 ended/cancelled + 遠端的 active
+              const activeIds = new Set(snapshot.docs.map(d => d.id));
+              const kept = this._cache.events.filter(e =>
+                (e.status === 'ended' || e.status === 'cancelled') && !activeIds.has(e._docId)
+              );
+              const active = snapshot.docs.map(doc => ({ ...doc.data(), _docId: doc.id }));
+              this._cache.events = [...active, ...kept];
+              this._saveToLS('events', this._cache.events);
+              if (firstSnapshot) { firstSnapshot = false; checkDone(); }
+            },
+            err => { console.warn('[onSnapshot] events 監聽錯誤:', err); checkDone(); }
+          );
         this._listeners.push(unsub);
-      });
+      }
 
-      // users → adminUsers 即時監聽
-      let firstUserSnapshot = true;
-      const unsubUsers = db.collection('users').onSnapshot(
-        snapshot => {
-          this._cache.adminUsers = snapshot.docs.map(doc => this._mapUserDoc(doc.data(), doc.id));
-          if (firstUserSnapshot) { firstUserSnapshot = false; checkDone(); }
-        },
-        err => { console.warn('[onSnapshot] users 監聽錯誤:', err); checkDone(); }
-      );
-      this._listeners.push(unsubUsers);
+      // messages: 最新 200 筆
+      {
+        let firstSnapshot = true;
+        const unsub = db.collection('messages')
+          .orderBy('timestamp', 'desc')
+          .limit(200)
+          .onSnapshot(
+            snapshot => {
+              this._cache.messages = snapshot.docs.map(doc => ({ ...doc.data(), _docId: doc.id }));
+              this._saveToLS('messages', this._cache.messages);
+              if (firstSnapshot) { firstSnapshot = false; checkDone(); }
+            },
+            err => { console.warn('[onSnapshot] messages 監聽錯誤:', err); checkDone(); }
+          );
+        this._listeners.push(unsub);
+      }
+
+      // registrations: limit 500（報名資料量較大）
+      {
+        let firstSnapshot = true;
+        const unsub = db.collection('registrations')
+          .limit(500)
+          .onSnapshot(
+            snapshot => {
+              this._cache.registrations = snapshot.docs.map(doc => ({ ...doc.data(), _docId: doc.id }));
+              this._saveToLS('registrations', this._cache.registrations);
+              if (firstSnapshot) { firstSnapshot = false; checkDone(); }
+            },
+            err => { console.warn('[onSnapshot] registrations 監聽錯誤:', err); checkDone(); }
+          );
+        this._listeners.push(unsub);
+      }
+
+      // teams: limit 100
+      {
+        let firstSnapshot = true;
+        const unsub = db.collection('teams')
+          .limit(100)
+          .onSnapshot(
+            snapshot => {
+              this._cache.teams = snapshot.docs.map(doc => ({ ...doc.data(), _docId: doc.id }));
+              this._saveToLS('teams', this._cache.teams);
+              if (firstSnapshot) { firstSnapshot = false; checkDone(); }
+            },
+            err => { console.warn('[onSnapshot] teams 監聯錯誤:', err); checkDone(); }
+          );
+        this._listeners.push(unsub);
+      }
+
+      // users → adminUsers: limit 300
+      {
+        let firstUserSnapshot = true;
+        const unsubUsers = db.collection('users')
+          .limit(300)
+          .onSnapshot(
+            snapshot => {
+              this._cache.adminUsers = snapshot.docs.map(doc => this._mapUserDoc(doc.data(), doc.id));
+              this._saveToLS('adminUsers', this._cache.adminUsers);
+              if (firstUserSnapshot) { firstUserSnapshot = false; checkDone(); }
+            },
+            err => { console.warn('[onSnapshot] users 監聽錯誤:', err); checkDone(); }
+          );
+        this._listeners.push(unsubUsers);
+      }
     });
 
-    // 平行等待：靜態集合 .get() + 即時集合首次快照
-    const [staticSnapshots] = await Promise.all([
-      Promise.all(staticPromises),
+    // ── Step 4: 平行等待 boot + live ──
+    const [bootSnapshots] = await Promise.all([
+      Promise.all(bootPromises),
       livePromise,
     ]);
 
-    // 填入靜態集合快取（以 id 欄位去重，防止 Firestore 有重複文件）
-    this._staticCollections.forEach((name, i) => {
-      const docs = staticSnapshots[i].docs.map(doc => ({ ...doc.data(), _docId: doc.id }));
+    // 填入 boot 集合快取
+    this._bootCollections.forEach((name, i) => {
+      const docs = bootSnapshots[i].docs.map(doc => ({ ...doc.data(), _docId: doc.id }));
       const seen = new Set();
       this._cache[name] = docs.filter(d => {
         if (!d.id) return true;
@@ -151,8 +356,9 @@ const FirebaseService = {
         return true;
       });
     });
+    this._bootCollections.forEach(name => { this._lazyLoaded[name] = true; });
 
-    // ── rolePermissions：特殊載入（map 結構，非 flat array）──
+    // ── Step 5: rolePermissions ──
     try {
       const rpSnap = await db.collection('rolePermissions').get();
       if (!rpSnap.empty) {
@@ -161,20 +367,46 @@ const FirebaseService = {
       }
     } catch (err) { console.warn('[FirebaseService] rolePermissions 載入失敗:', err); }
 
-    // 清除 Firestore 中的重複文件（一次性修復）
+    // ── Step 6: Seed 操作（僅首次需要）──
     await this._cleanupDuplicateDocs();
-    // 自動建立空白廣告欄位（若 Firestore 尚無資料）
     await this._seedAdSlots();
-    // 自動建立通知模板（若 Firestore 尚無資料）
     await this._seedNotifTemplates();
-    // 自動建立預設成就與徽章（若 Firestore 尚無資料）
     await this._seedAchievements();
-    // 自動建立權限定義與角色權限（若 Firestore 尚無資料）
     await this._seedRoleData();
 
     this._initialized = true;
-    const totalCollections = this._liveCollections.length + this._staticCollections.length + 1;
-    console.log('[FirebaseService] 快取載入完成，共', totalCollections, '個集合（即時:', this._liveCollections.length + 1, '/ 靜態:', this._staticCollections.length, '）');
+
+    // ── Step 7: 持久化快取到 localStorage ──
+    this._persistCache();
+
+    const bootCount = this._bootCollections.length;
+    const liveCount = this._liveCollections.length + 1;
+    console.log(`[FirebaseService] 初始化完成 — boot: ${bootCount}, live: ${liveCount}, deferred: ${this._deferredCollections.length} 個集合待懶載入`);
+
+    // ── Step 8: 背景載入已結束的活動（補齊完整列表）──
+    this._loadEndedEvents();
+  },
+
+  /** 背景載入已結束/取消的活動（不阻塞啟動） */
+  async _loadEndedEvents() {
+    try {
+      const snap = await db.collection('events')
+        .where('status', 'in', ['ended', 'cancelled'])
+        .orderBy('date', 'desc')
+        .limit(200)
+        .get();
+      const endedDocs = snap.docs.map(doc => ({ ...doc.data(), _docId: doc.id }));
+      // 合併，避免重複
+      const existingIds = new Set(this._cache.events.map(e => e._docId));
+      const newDocs = endedDocs.filter(d => !existingIds.has(d._docId));
+      if (newDocs.length > 0) {
+        this._cache.events.push(...newDocs);
+        this._saveToLS('events', this._cache.events);
+        console.log(`[FirebaseService] 背景載入 ${newDocs.length} 筆已結束活動`);
+      }
+    } catch (err) {
+      console.warn('[FirebaseService] 背景載入已結束活動失敗:', err);
+    }
   },
 
   // ════════════════════════════════
@@ -427,6 +659,7 @@ const FirebaseService = {
     }
     this._onUserChanged = null;
     this._initialized = false;
+    this._lazyLoaded = {};
     // 重置快取到初始空白狀態
     Object.keys(this._cache).forEach(k => {
       if (k === 'currentUser') { this._cache[k] = null; }

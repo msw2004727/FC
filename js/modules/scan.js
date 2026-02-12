@@ -121,7 +121,7 @@ Object.assign(App, {
   //  Camera scanning
   // ══════════════════════════════════
 
-  _toggleCamera() {
+  async _toggleCamera() {
     if (!this._scanSelectedEventId) {
       this.showToast('請先選擇活動');
       return;
@@ -140,9 +140,21 @@ Object.assign(App, {
       return;
     }
 
+    // 動態載入 QR 掃碼庫（延遲載入，不阻塞啟動）
     if (typeof Html5Qrcode === 'undefined') {
-      this.showToast('QR 掃碼元件未載入');
-      return;
+      try {
+        this.showToast('載入掃碼元件...');
+        await new Promise((resolve, reject) => {
+          const s = document.createElement('script');
+          s.src = 'https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js';
+          s.onload = resolve;
+          s.onerror = reject;
+          document.head.appendChild(s);
+        });
+      } catch (e) {
+        this.showToast('QR 掃碼元件載入失敗');
+        return;
+      }
     }
 
     const readerId = 'scan-qr-reader';
