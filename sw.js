@@ -1,31 +1,31 @@
 /* ================================================
    SportHub — Service Worker
-   Strategy: cache-first for static assets, network-first for API
+   Strategy: network-first for HTML, cache-first for versioned assets
    ================================================ */
 
-const CACHE_NAME = 'sporthub-20260212u';
+const CACHE_NAME = 'sporthub-20260212zg';
 const STATIC_ASSETS = [
-  '/',
-  '/index.html',
-  '/css/base.css',
-  '/css/layout.css',
-  '/css/home.css',
-  '/css/activity.css',
-  '/css/team.css',
-  '/css/profile.css',
-  '/css/message.css',
-  '/css/tournament.css',
-  '/css/shop.css',
-  '/css/scan.css',
-  '/css/admin.css',
-  '/js/config.js',
-  '/js/data.js',
-  '/js/i18n.js',
-  '/app.js',
-  '/js/core/page-loader.js',
-  '/js/core/navigation.js',
-  '/js/core/theme.js',
-  '/js/core/mode.js',
+  './',
+  './index.html',
+  './css/base.css',
+  './css/layout.css',
+  './css/home.css',
+  './css/activity.css',
+  './css/team.css',
+  './css/profile.css',
+  './css/message.css',
+  './css/tournament.css',
+  './css/shop.css',
+  './css/scan.css',
+  './css/admin.css',
+  './js/config.js',
+  './js/i18n.js',
+  './app.js',
+  './js/core/page-loader.js',
+  './js/core/navigation.js',
+  './js/core/theme.js',
+  './js/core/mode.js',
+  './js/core/script-loader.js',
 ];
 
 // Install: pre-cache static assets
@@ -52,7 +52,7 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-// Fetch: cache-first for static, network-first for API/external
+// Fetch strategy
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
 
@@ -74,7 +74,21 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Cache-first for same-origin static assets
+  // Network-first for HTML (確保 index.html 不會卡舊版)
+  if (event.request.mode === 'navigate' || url.pathname.endsWith('.html')) {
+    event.respondWith(
+      fetch(event.request).then((response) => {
+        if (response && response.status === 200) {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+        }
+        return response;
+      }).catch(() => caches.match(event.request))
+    );
+    return;
+  }
+
+  // Cache-first for same-origin versioned assets (?v= 已帶版號)
   if (url.origin === location.origin) {
     event.respondWith(
       caches.match(event.request).then((cached) => {

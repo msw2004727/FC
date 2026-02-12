@@ -6,6 +6,29 @@
   <title>圖斯特Hub — 運動報名系統</title>
   <meta property="og:description" content="此系統由小麥開發，有興趣請接洽圖斯特。">
   <link rel="icon" href="data:,">
+  <!-- 一鍵清快取：網址加 ?clear=1 即可（LINE 內建瀏覽器適用） -->
+  <script>
+  (function(){
+    var V='20260212zg';
+    // ?clear=1 強制清快取
+    if(location.search.indexOf('clear=1')!==-1){
+      if('caches' in window) caches.keys().then(function(k){k.forEach(function(n){caches.delete(n)})});
+      if('serviceWorker' in navigator) navigator.serviceWorker.getRegistrations().then(function(r){r.forEach(function(w){w.unregister()})});
+      var old=['sporthub_auto_exp_rules','sporthub_auto_exp_logs'];
+      old.forEach(function(k){try{localStorage.removeItem(k)}catch(e){}});
+      localStorage.setItem('sporthub_cache_ver',V);
+      location.replace(location.pathname);
+      return;
+    }
+    // 自動偵測版本變化 → 清 SW cache
+    var prev=localStorage.getItem('sporthub_cache_ver');
+    if(prev&&prev!==V){
+      if('caches' in window) caches.keys().then(function(k){k.forEach(function(n){caches.delete(n)})});
+      if('serviceWorker' in navigator) navigator.serviceWorker.getRegistrations().then(function(r){r.forEach(function(w){w.unregister()})});
+    }
+    localStorage.setItem('sporthub_cache_ver',V);
+  })();
+  </script>
   <!-- CSS 模組化載入（base → layout → 功能模組） -->
   <link rel="stylesheet" href="css/base.css?v=20260212zg">
   <link rel="stylesheet" href="css/layout.css?v=20260212zg">
