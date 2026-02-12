@@ -343,7 +343,7 @@ img { max-width: 100%; display: block; }
   font-size: .82rem; font-weight: 500;
   box-shadow: var(--shadow-lg);
   border: 1px solid var(--border);
-  z-index: 2000;
+  z-index: 10001;
   opacity: 0; pointer-events: none;
   transition: all .4s cubic-bezier(.4,0,.2,1);
 }

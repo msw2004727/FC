@@ -99,13 +99,14 @@ Object.assign(App, {
     // Weekly activity data (last 12 weeks)
     const weeklyData = this._calcWeeklyActivity(records);
 
-    // Coach / Venue Owner role-specific panel
+    // Role-specific panel (活動數據儀表板)
     const role = this.currentRole;
     let rolePanelHtml = '';
     if (role === 'coach' || role === 'captain') {
       const myEvents = allEvents.filter(e => e.creator === (user.displayName || ''));
       const hostedCount = myEvents.length;
       const endedMyEvents = myEvents.filter(e => e.status === 'ended');
+      const openMyEvents = myEvents.filter(e => e.status === 'open');
       const reviewsAll = endedMyEvents.flatMap(e => e.reviews || []);
       const avgRating = reviewsAll.length > 0 ? (reviewsAll.reduce((s, r) => s + r.rating, 0) / reviewsAll.length).toFixed(1) : '—';
       const uniqueParticipants = new Set();
@@ -117,27 +118,53 @@ Object.assign(App, {
         });
       });
       const returnRate = uniqueParticipants.size > 0 ? Math.round(returnParticipants.size / uniqueParticipants.size * 100) : 0;
+      const totalParticipants = myEvents.reduce((s, e) => s + (e.current || 0), 0);
+      const avgPerEvent = hostedCount > 0 ? (totalParticipants / hostedCount).toFixed(1) : '0';
+      const completionRate = hostedCount > 0 ? Math.round(endedMyEvents.length / hostedCount * 100) : 0;
       rolePanelHtml = `
         <div class="info-card">
-          <div class="info-title">教練數據</div>
-          <div class="profile-stats" style="grid-template-columns:repeat(3,1fr)">
+          <div class="info-title">活動數據儀表板（教練）</div>
+          <div class="profile-stats" style="grid-template-columns:repeat(3,1fr);margin-bottom:.4rem">
             <div class="stat-item"><span class="stat-num">${hostedCount}</span><span class="stat-label">主辦活動</span></div>
+            <div class="stat-item"><span class="stat-num">${openMyEvents.length}</span><span class="stat-label">進行中</span></div>
+            <div class="stat-item"><span class="stat-num">${endedMyEvents.length}</span><span class="stat-label">已結束</span></div>
+          </div>
+          <div class="profile-stats" style="grid-template-columns:repeat(3,1fr);margin-bottom:.4rem">
             <div class="stat-item"><span class="stat-num">${avgRating}</span><span class="stat-label">平均評分</span></div>
             <div class="stat-item"><span class="stat-num">${returnRate}%</span><span class="stat-label">回頭率</span></div>
+            <div class="stat-item"><span class="stat-num">${avgPerEvent}</span><span class="stat-label">場均人數</span></div>
+          </div>
+          <div class="profile-stats" style="grid-template-columns:repeat(2,1fr)">
+            <div class="stat-item"><span class="stat-num">${totalParticipants}</span><span class="stat-label">累計人次</span></div>
+            <div class="stat-item"><span class="stat-num">${completionRate}%</span><span class="stat-label">完成率</span></div>
           </div>
         </div>`;
     } else if (role === 'venue_owner') {
       const myEvents = allEvents.filter(e => e.creator === (user.displayName || ''));
       const hostedCount = myEvents.length;
+      const endedMyEvents = myEvents.filter(e => e.status === 'ended');
+      const openMyEvents = myEvents.filter(e => e.status === 'open');
       const totalCapacity = myEvents.reduce((s, e) => s + (e.max || 0), 0);
       const totalFilled = myEvents.reduce((s, e) => s + (e.current || 0), 0);
       const utilization = totalCapacity > 0 ? Math.round(totalFilled / totalCapacity * 100) : 0;
+      const avgPerEvent = hostedCount > 0 ? (totalFilled / hostedCount).toFixed(1) : '0';
+      const totalRevenue = myEvents.reduce((s, e) => s + ((e.fee || 0) * (e.current || 0)), 0);
+      const completionRate = hostedCount > 0 ? Math.round(endedMyEvents.length / hostedCount * 100) : 0;
       rolePanelHtml = `
         <div class="info-card">
-          <div class="info-title">場主數據</div>
-          <div class="profile-stats" style="grid-template-columns:repeat(2,1fr)">
+          <div class="info-title">活動數據儀表板（場主）</div>
+          <div class="profile-stats" style="grid-template-columns:repeat(3,1fr);margin-bottom:.4rem">
             <div class="stat-item"><span class="stat-num">${hostedCount}</span><span class="stat-label">舉辦活動</span></div>
+            <div class="stat-item"><span class="stat-num">${openMyEvents.length}</span><span class="stat-label">進行中</span></div>
             <div class="stat-item"><span class="stat-num">${utilization}%</span><span class="stat-label">場地利用率</span></div>
+          </div>
+          <div class="profile-stats" style="grid-template-columns:repeat(3,1fr);margin-bottom:.4rem">
+            <div class="stat-item"><span class="stat-num">${totalFilled}</span><span class="stat-label">累計人次</span></div>
+            <div class="stat-item"><span class="stat-num">${avgPerEvent}</span><span class="stat-label">場均人數</span></div>
+            <div class="stat-item"><span class="stat-num">${completionRate}%</span><span class="stat-label">完成率</span></div>
+          </div>
+          <div class="profile-stats" style="grid-template-columns:repeat(1,1fr)">
+            <div class="stat-item"><span class="stat-num">$${totalRevenue.toLocaleString()}</span><span class="stat-label">預估營收</span></div>
           </div>
         </div>`;
     }

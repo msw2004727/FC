@@ -118,7 +118,7 @@ Object.assign(App, {
         <span class="mini-activity-tag ${ds}">${escapeHTML(statusLabel[ds] || ds)}</span>
         <span class="mini-activity-date">${r.date}</span>
       </div>`;
-    }).join('') : '<div style="font-size:.82rem;color:var(--text-muted);padding:.5rem 0">無紀錄</div>';
+    }).join('') : '<div style="font-size:.82rem;color:var(--text-muted);padding:.5rem 0">點擊頁籤查看紀錄</div>';
 
     if (totalPages > 1) {
       html += `<div style="display:flex;justify-content:center;align-items:center;gap:.5rem;padding:.5rem 0;font-size:.75rem">

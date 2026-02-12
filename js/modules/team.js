@@ -187,7 +187,7 @@ Object.assign(App, {
           const canInvite = isCaptainCoach || (this._isTeamMember(t.id) && memberCanInvite);
           let html = '';
           if (canInvite) html += `<button class="outline-btn" onclick="App.showTeamInviteQR('${t.id}')">邀請 QR Code</button>`;
-          if (isCaptainCoach) html += `<label style="display:inline-flex;align-items:center;gap:.3rem;font-size:.72rem;color:var(--text-muted);cursor:pointer;margin-left:.2rem"><input type="checkbox" ${memberCanInvite ? 'checked' : ''} onchange="App.toggleMemberInvite('${t.id}',this.checked)"> 隊員可邀請</label>`;
+          if (isCaptainCoach) html += `<div style="display:inline-flex;align-items:center;gap:.35rem;margin-left:.3rem"><span style="font-size:.72rem;color:var(--text-muted)">隊員可邀請</span><label class="toggle-switch" style="margin:0;transform:scale(.8)"><input type="checkbox" ${memberCanInvite ? 'checked' : ''} onchange="App.toggleMemberInvite('${t.id}',this.checked)"><span class="toggle-slider"></span></label></div>`;
           return html;
         })()}
       </div>
@@ -626,24 +626,18 @@ Object.assign(App, {
     document.getElementById('qr-copy-btn').addEventListener('click', () => {
       navigator.clipboard.writeText(url).then(() => { App.showToast('邀請連結已複製'); }).catch(() => { App.showToast('複製失敗'); });
     });
-    // Generate QR code using qrcode library
+    // Generate QR code (client-side → API fallback)
     const target = document.getElementById('qr-invite-target');
-    if (target && typeof QRCode !== 'undefined') {
-      try {
-        if (QRCode.toCanvas) {
-          // qrcode npm package: QRCode.toCanvas(canvasEl, text, opts, cb)
-          const canvas = document.createElement('canvas');
-          target.appendChild(canvas);
-          QRCode.toCanvas(canvas, url, { width: 200, margin: 2 }, (err) => {
-            if (err) { target.innerHTML = '<div style="font-size:.78rem;color:var(--danger)">QR Code 產生失敗</div>'; }
-          });
-        } else if (QRCode.toDataURL) {
-          QRCode.toDataURL(url, { width: 200, margin: 2 }, (err, dataUrl) => {
-            if (!err && dataUrl) { target.innerHTML = `<img src="${dataUrl}" style="width:200px;height:200px">`; }
-          });
-        }
-      } catch (e) {
-        target.innerHTML = '<div style="font-size:.78rem;color:var(--danger)">QR Code 產生失敗</div>';
+    if (target) {
+      const apiFallback = () => {
+        target.innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&ecc=M&data=${encodeURIComponent(url)}" style="width:200px;height:200px;display:block" alt="QR Code" onerror="this.parentElement.innerHTML='<div style=\\'font-size:.78rem;color:var(--danger)\\'>QR Code 產生失敗</div>'">`;
+      };
+      if (typeof QRCode !== 'undefined' && QRCode.toDataURL) {
+        QRCode.toDataURL(url, { width: 200, margin: 2, errorCorrectionLevel: 'M' })
+          .then(dataUrl => { target.innerHTML = `<img src="${dataUrl}" style="width:200px;height:200px;display:block" alt="QR Code">`; })
+          .catch(() => apiFallback());
+      } else {
+        apiFallback();
       }
     }
   },
