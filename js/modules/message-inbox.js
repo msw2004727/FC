@@ -180,7 +180,24 @@ Object.assign(App, {
     if (!modal || !content) return;
 
     let actionHtml = '';
-    if (msg.actionType === 'team_join_request') {
+    if (msg.actionType === 'tournament_register_request') {
+      if (msg.actionStatus === 'pending') {
+        actionHtml = `
+          <div class="msg-action-btns">
+            <button class="msg-action-approve" onclick="App.handleTournamentRegAction('${msg.id}','approve')">同意</button>
+            <button class="msg-action-reject" onclick="App.handleTournamentRegAction('${msg.id}','reject')">拒絕</button>
+            <button class="msg-action-ignore" onclick="App.handleTournamentRegAction('${msg.id}','ignore')">忽略</button>
+          </div>`;
+      } else {
+        const statusLabels = {
+          approved: ['background:var(--success);color:#fff', '已同意'],
+          rejected: ['background:var(--danger);color:#fff', '已拒絕'],
+          ignored: ['background:var(--border);color:var(--text-secondary)', '已忽略'],
+        };
+        const [style, label] = statusLabels[msg.actionStatus] || ['', msg.actionStatus];
+        actionHtml = `<div class="msg-action-status" style="${style}">${label}</div>`;
+      }
+    } else if (msg.actionType === 'team_join_request') {
       if (msg.actionStatus === 'pending') {
         actionHtml = `
           <div class="msg-action-btns">
@@ -274,6 +291,64 @@ Object.assign(App, {
     // Close modal and refresh
     document.getElementById('msg-inbox-detail-modal').style.display = 'none';
     this.renderMessageList();
+  },
+
+  async handleTournamentRegAction(msgId, action) {
+    const messages = ApiService.getMessages();
+    const msg = messages.find(m => m.id === msgId);
+    if (!msg || !msg.meta) return;
+
+    const { tournamentId, tournamentName, teamId, teamName, applicantUid, applicantName } = msg.meta;
+    const t = ApiService.getTournament(tournamentId);
+
+    if (action === 'approve') {
+      if (!t) {
+        this.showToast('找不到此賽事');
+        return;
+      }
+      if (!t.registeredTeams) t.registeredTeams = [];
+      if (t.registeredTeams.length >= (t.maxTeams || 999)) {
+        this.showToast('報名已滿，無法同意');
+        return;
+      }
+      if (t.registeredTeams.includes(teamId)) {
+        this.showToast('該球隊已在報名名單中');
+      } else {
+        t.registeredTeams.push(teamId);
+        ApiService.updateTournament(tournamentId, { registeredTeams: [...t.registeredTeams] });
+      }
+
+      // 通知申請人
+      this._deliverMessageToInbox(
+        '賽事報名通過',
+        `恭喜！「${teamName}」已成功報名賽事「${tournamentName}」！`,
+        'tournament', '賽事', applicantUid, '系統'
+      );
+
+      ApiService.updateMessage(msgId, { actionStatus: 'approved' });
+      msg.actionStatus = 'approved';
+      this.showToast('已同意報名申請');
+
+    } else if (action === 'reject') {
+      this._deliverMessageToInbox(
+        '賽事報名結果',
+        `很抱歉，「${teamName}」申請報名賽事「${tournamentName}」未獲通過。如有疑問，請聯繫主辦方。`,
+        'tournament', '賽事', applicantUid, '系統'
+      );
+
+      ApiService.updateMessage(msgId, { actionStatus: 'rejected' });
+      msg.actionStatus = 'rejected';
+      this.showToast('已拒絕報名申請');
+
+    } else if (action === 'ignore') {
+      ApiService.updateMessage(msgId, { actionStatus: 'ignored' });
+      msg.actionStatus = 'ignored';
+      this.showToast('已忽略此申請');
+    }
+
+    document.getElementById('msg-inbox-detail-modal').style.display = 'none';
+    this.renderMessageList();
+    if (this.renderTournamentManage) this.renderTournamentManage();
   },
 
   // ══════════════════════════════════

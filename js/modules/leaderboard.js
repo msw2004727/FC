@@ -52,7 +52,7 @@ Object.assign(App, {
         <span class="mini-activity-tag ${r.status}">${escapeHTML(statusLabel[r.status] || r.status)}</span>
         <span class="mini-activity-date">${r.date}</span>
       </div>
-    `).join('') : '<div style="text-align:center;padding:1rem;font-size:.8rem;color:var(--text-muted)">無紀錄</div>';
+    `).join('') : '';
 
     // 更新統計
     const totalRecords = ApiService.getActivityRecords(uid);

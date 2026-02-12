@@ -7,7 +7,12 @@ Object.assign(App, {
   renderOngoingTournaments() {
     const container = document.getElementById('ongoing-tournaments');
     if (!container) return;
-    container.innerHTML = ApiService.getTournaments().map(t => `
+    const ongoing = ApiService.getTournaments().filter(t => !this.isTournamentEnded(t));
+    if (ongoing.length === 0) {
+      container.innerHTML = '<div style="text-align:center;padding:1.5rem;color:var(--text-muted);font-size:.85rem">目前沒有進行中的賽事</div>';
+      return;
+    }
+    container.innerHTML = ongoing.map(t => `
       <div class="h-card" onclick="App.showTournamentDetail('${t.id}')">
         ${t.image
           ? `<div class="h-card-img"><img src="${t.image}" alt="${escapeHTML(t.name)}"></div>`
@@ -171,8 +176,17 @@ Object.assign(App, {
     const isFull = registered.length >= maxTeams;
     const userTeam = this._userTeam;
     const alreadyRegistered = userTeam && registered.includes(userTeam);
-    const role = this.currentRole;
-    const canRegister = ['captain', 'coach', 'venue_owner'].includes(role);
+    // 檢查用戶是否為任一球隊的領隊或教練
+    const canRegister = (() => {
+      const curUser = ApiService.getCurrentUser();
+      if (!curUser) return false;
+      const allTeams = ApiService.getTeams();
+      return allTeams.some(tm =>
+        (tm.captainUid && tm.captainUid === curUser.uid) ||
+        (tm.captain && tm.captain === curUser.displayName) ||
+        (tm.coaches || []).includes(curUser.displayName)
+      );
+    })();
 
     let btnHTML = '';
     if (alreadyRegistered) {
@@ -201,13 +215,23 @@ Object.assign(App, {
   registerTournament(id) {
     const t = ApiService.getTournament(id);
     if (!t) return;
-    const userTeam = this._userTeam;
-    if (!userTeam) {
-      this.showToast('您尚未加入任何球隊');
+
+    // 找出當前用戶所屬球隊（作為領隊或教練的）
+    const curUser = ApiService.getCurrentUser();
+    if (!curUser) { this.showToast('請先登入'); return; }
+    const allTeams = ApiService.getTeams();
+    const myTeam = allTeams.find(tm =>
+      (tm.captainUid && tm.captainUid === curUser.uid) ||
+      (tm.captain && tm.captain === curUser.displayName) ||
+      (tm.coaches || []).includes(curUser.displayName)
+    );
+    if (!myTeam) {
+      this.showToast('您尚未管理任何球隊');
       return;
     }
+
     if (!t.registeredTeams) t.registeredTeams = [];
-    if (t.registeredTeams.includes(userTeam)) {
+    if (t.registeredTeams.includes(myTeam.id)) {
       this.showToast('您的球隊已報名此賽事');
       return;
     }
@@ -215,10 +239,45 @@ Object.assign(App, {
       this.showToast('報名已滿');
       return;
     }
-    t.registeredTeams.push(userTeam);
-    ApiService.updateTournament(id, { registeredTeams: [...t.registeredTeams] });
-    this.renderRegisterButton(t);
-    this.showToast('報名成功！');
+
+    // 檢查是否已有待審核的報名申請
+    const allMessages = ApiService.getMessages();
+    const hasPending = allMessages.find(m =>
+      m.actionType === 'tournament_register_request' &&
+      m.actionStatus === 'pending' &&
+      m.meta && m.meta.tournamentId === id &&
+      m.meta.teamId === myTeam.id
+    );
+    if (hasPending) {
+      this.showToast('已提交報名申請，審核中請耐心等候');
+      return;
+    }
+
+    // 找到主辦人 UID
+    const users = ApiService.getAdminUsers();
+    let organizerUid = t.creatorUid || null;
+    if (!organizerUid && t.organizer) {
+      const orgUser = users.find(u => u.name === t.organizer);
+      organizerUid = orgUser ? orgUser.uid : null;
+    }
+    if (!organizerUid) {
+      this.showToast('無法找到主辦人，請聯繫管理員');
+      return;
+    }
+
+    // 發送報名申請站內信給主辦方
+    this._deliverMessageToInbox(
+      '賽事報名申請',
+      `「${myTeam.name}」申請報名賽事「${t.name}」，請審核此申請。\n\n申請人：${curUser.displayName}\n球隊：${myTeam.name}`,
+      'tournament', '賽事', organizerUid, curUser.displayName,
+      {
+        actionType: 'tournament_register_request',
+        actionStatus: 'pending',
+        meta: { tournamentId: id, tournamentName: t.name, teamId: myTeam.id, teamName: myTeam.name, applicantUid: curUser.uid, applicantName: curUser.displayName },
+      }
+    );
+
+    this.showToast('已送出報名申請，等待主辦方審核！');
   },
 
   renderTournamentInfo(t) {

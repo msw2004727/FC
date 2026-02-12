@@ -55,7 +55,7 @@ Object.assign(App, {
       preview.classList.add('has-image');
     } else {
       preview.classList.remove('has-image');
-      preview.innerHTML = '<span class="ce-upload-icon">+</span><span class="ce-upload-text">點擊上傳圖片</span><span class="ce-upload-hint">建議尺寸 200 × 200 px｜JPG / PNG｜最大 2MB</span>';
+      preview.innerHTML = '<span class="ce-upload-icon">+</span><span class="ce-upload-text">點擊上傳圖片</span><span class="ce-upload-hint">建議尺寸 200 × 200 px｜JPG / PNG｜最大 5MB</span>';
     }
     document.getElementById('floatad-image').value = '';
     const isScheduled = editData.status === 'scheduled';

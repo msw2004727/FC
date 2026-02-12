@@ -295,8 +295,8 @@ Object.assign(App, {
         input.value = '';
         return;
       }
-      if (file.size > 2 * 1024 * 1024) {
-        this.showToast('檔案大小不可超過 2MB');
+      if (file.size > 5 * 1024 * 1024) {
+        this.showToast('檔案大小不可超過 5MB');
         input.value = '';
         return;
       }

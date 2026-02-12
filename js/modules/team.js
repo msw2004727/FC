@@ -96,7 +96,7 @@ Object.assign(App, {
       <div class="td-card">
         <div class="td-card-title">球隊資訊</div>
         <div class="td-card-grid">
-          <div class="td-card-item"><span class="td-card-label">領隊</span><span class="td-card-value">${this._userTag(t.captain, 'captain')}</span></div>
+          <div class="td-card-item"><span class="td-card-label">領隊</span><span class="td-card-value">${t.captain ? this._userTag(t.captain, 'captain') : '未設定'}</span></div>
           <div class="td-card-item"><span class="td-card-label">教練</span><span class="td-card-value">${(t.coaches || []).length > 0 ? t.coaches.map(c => this._userTag(c, 'coach')).join(' ') : '無'}</span></div>
           <div class="td-card-item"><span class="td-card-label">隊員數</span><span class="td-card-value">${t.members} 人</span></div>
           <div class="td-card-item"><span class="td-card-label">地區</span><span class="td-card-value">${escapeHTML(t.region)}</span></div>
@@ -138,12 +138,14 @@ Object.assign(App, {
         <div class="td-member-tags">
           ${(() => {
             const tags = [];
-            tags.push(`<span class="user-capsule uc-captain" onclick="App.showUserProfile('${escapeHTML(t.captain)}')" title="領隊">領隊 ${escapeHTML(t.captain)}</span>`);
+            if (t.captain) {
+              tags.push(`<span class="user-capsule uc-captain" onclick="App.showUserProfile('${escapeHTML(t.captain)}')" title="領隊">領隊 ${escapeHTML(t.captain)}</span>`);
+            }
             (t.coaches || []).forEach(c => {
               tags.push(`<span class="user-capsule uc-coach" onclick="App.showUserProfile('${escapeHTML(c)}')" title="教練">教練 ${escapeHTML(c)}</span>`);
             });
             const coachCount = (t.coaches || []).length;
-            const playerCount = Math.min(t.members - 1 - coachCount, 8 - 1 - coachCount);
+            const playerCount = Math.min(t.members - (t.captain ? 1 : 0) - coachCount, 8 - (t.captain ? 1 : 0) - coachCount);
             for (let i = 0; i < Math.max(playerCount, 0); i++) {
               const name = '球員' + String.fromCharCode(65 + i);
               tags.push(`<span class="user-capsule uc-user" onclick="App.showUserProfile('${escapeHTML(name)}')" title="隊員">隊員 ${escapeHTML(name)}</span>`);
@@ -158,7 +160,7 @@ Object.assign(App, {
           ? `<button style="background:var(--danger);color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;font-weight:600;cursor:pointer" onclick="App.handleLeaveTeam('${t.id}')">退出球隊</button>`
           : `<button class="primary-btn" onclick="App.handleJoinTeam('${t.id}')">申請加入</button>`
         }
-        <button class="outline-btn" onclick="App.showUserProfile('${escapeHTML(t.captain)}')">聯繫領隊</button>
+        ${t.captain ? `<button class="outline-btn" onclick="App.showUserProfile('${escapeHTML(t.captain)}')">聯繫領隊</button>` : ''}
       </div>
     `;
     this.showPage('page-team-detail');
@@ -231,7 +233,14 @@ Object.assign(App, {
   _isTeamMember(teamId) {
     if (ModeManager.isDemo()) return this._userTeam === teamId;
     const user = ApiService.getCurrentUser();
-    return user && user.teamId === teamId;
+    if (user && user.teamId === teamId) return true;
+    // 也檢查是否為該隊領隊或教練
+    const team = ApiService.getTeam(teamId);
+    if (!team || !user) return false;
+    if (team.captainUid && team.captainUid === user.uid) return true;
+    if (team.captain && team.captain === user.displayName) return true;
+    if ((team.coaches || []).includes(user.displayName)) return true;
+    return false;
   },
 
   async handleLeaveTeam(teamId) {
@@ -323,7 +332,7 @@ Object.assign(App, {
     this._teamCaptainUid = null;
     this._teamCoachUids = [];
     const preview = document.getElementById('ct-team-preview');
-    preview.innerHTML = '<span class="ce-upload-icon">+</span><span class="ce-upload-text">點擊上傳封面圖片</span><span class="ce-upload-hint">建議尺寸 800 × 300 px｜JPG / PNG｜最大 2MB</span>';
+    preview.innerHTML = '<span class="ce-upload-icon">+</span><span class="ce-upload-text">點擊上傳封面圖片</span><span class="ce-upload-hint">建議尺寸 800 × 300 px｜JPG / PNG｜最大 5MB</span>';
     preview.style.backgroundImage = '';
     preview.classList.remove('has-image');
     const fileInput = document.getElementById('ct-team-image');
@@ -404,7 +413,7 @@ Object.assign(App, {
         preview.style.backgroundPosition = 'center';
         preview.classList.add('has-image');
       } else {
-        preview.innerHTML = '<span class="ce-upload-icon">+</span><span class="ce-upload-text">點擊上傳封面圖片</span><span class="ce-upload-hint">建議尺寸 800 × 300 px｜JPG / PNG｜最大 2MB</span>';
+        preview.innerHTML = '<span class="ce-upload-icon">+</span><span class="ce-upload-text">點擊上傳封面圖片</span><span class="ce-upload-hint">建議尺寸 800 × 300 px｜JPG / PNG｜最大 5MB</span>';
         preview.style.backgroundImage = '';
         preview.classList.remove('has-image');
       }
@@ -488,6 +497,22 @@ Object.assign(App, {
       ApiService.createTeam(data);
       this.showToast('球隊建立成功！');
     }
+
+    // 自動升級領隊/教練權限
+    const allUsers = ApiService.getAdminUsers();
+    if (this._teamCaptainUid && this._teamCaptainUid !== '__legacy__') {
+      const capUser = allUsers.find(u => u.uid === this._teamCaptainUid);
+      if (capUser && (ROLE_LEVEL_MAP[capUser.role] || 0) < ROLE_LEVEL_MAP['captain']) {
+        ApiService.promoteUser(capUser.name, 'captain');
+      }
+    }
+    this._teamCoachUids.forEach(uid => {
+      if (uid.startsWith('__legacy_')) return;
+      const coachUser = allUsers.find(u => u.uid === uid);
+      if (coachUser && (ROLE_LEVEL_MAP[coachUser.role] || 0) < ROLE_LEVEL_MAP['coach']) {
+        ApiService.promoteUser(coachUser.name, 'coach');
+      }
+    });
 
     this.closeModal();
     this._teamEditId = null;

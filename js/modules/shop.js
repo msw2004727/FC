@@ -188,7 +188,7 @@ Object.assign(App, {
           el.innerHTML = `<img src="${imgs[i]}" style="width:100%;height:100%;object-fit:cover;border-radius:var(--radius-sm)">`;
         } else {
           el.classList.remove('has-image');
-          el.innerHTML = '<span class="ce-upload-icon">+</span><span class="ce-upload-hint">JPG/PNG 2MB</span>';
+          el.innerHTML = '<span class="ce-upload-icon">+</span><span class="ce-upload-hint">JPG/PNG 5MB</span>';
         }
       });
     } else {
@@ -356,7 +356,7 @@ Object.assign(App, {
     });
     ['cs-preview1', 'cs-preview2', 'cs-preview3'].forEach(id => {
       const el = document.getElementById(id);
-      if (el) { el.classList.remove('has-image'); el.innerHTML = '<span class="ce-upload-icon">+</span><span class="ce-upload-hint">JPG/PNG 2MB</span>'; }
+      if (el) { el.classList.remove('has-image'); el.innerHTML = '<span class="ce-upload-icon">+</span><span class="ce-upload-hint">JPG/PNG 5MB</span>'; }
     });
   },
 

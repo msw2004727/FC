@@ -60,7 +60,7 @@ Object.assign(App, {
       preview.classList.add('has-image');
     } else {
       preview.classList.remove('has-image');
-      preview.innerHTML = '<span class="ce-upload-icon">+</span><span class="ce-upload-text">點擊上傳圖片</span><span class="ce-upload-hint">建議尺寸 600 × 800 px｜JPG / PNG｜最大 2MB</span>';
+      preview.innerHTML = '<span class="ce-upload-icon">+</span><span class="ce-upload-text">點擊上傳圖片</span><span class="ce-upload-hint">建議尺寸 600 × 800 px｜JPG / PNG｜最大 5MB</span>';
     }
     document.getElementById('popupad-image').value = '';
     const isScheduled = editData.status === 'scheduled';
@@ -167,8 +167,8 @@ Object.assign(App, {
       input.value = '';
       return;
     }
-    if (file.size > 2 * 1024 * 1024) {
-      this.showToast('檔案大小不可超過 2MB');
+    if (file.size > 5 * 1024 * 1024) {
+      this.showToast('檔案大小不可超過 5MB');
       input.value = '';
       return;
     }

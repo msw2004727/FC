@@ -92,7 +92,7 @@ Object.assign(App, {
               <button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem;background:#10b981;color:#fff;border-color:#10b981" onclick="App.handleReopenTournament('${t.id}')">重新開放</button>
             ` : `
               <button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem;background:#10b981;color:#fff;border-color:#10b981" onclick="App.showEditTournament('${t.id}')">編輯賽事</button>
-              <button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem">管理賽程</button>
+              <button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem">賽程管理</button>
               <button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem">賽事統計</button>
               <button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem">參賽管理</button>
               <button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem;color:var(--danger)" onclick="App.handleEndTournament('${t.id}')">結束</button>
@@ -390,12 +390,12 @@ Object.assign(App, {
     const preview = document.getElementById('ct-upload-preview');
     if (preview) {
       preview.classList.remove('has-image');
-      preview.innerHTML = '<span class="ce-upload-icon">+</span><span class="ce-upload-text">點擊上傳圖片</span><span class="ce-upload-hint">建議尺寸 800 × 300 px｜JPG / PNG｜最大 2MB</span>';
+      preview.innerHTML = '<span class="ce-upload-icon">+</span><span class="ce-upload-text">點擊上傳圖片</span><span class="ce-upload-hint">建議尺寸 800 × 300 px｜JPG / PNG｜最大 5MB</span>';
     }
     const contentPreview = document.getElementById('ct-content-upload-preview');
     if (contentPreview) {
       contentPreview.classList.remove('has-image');
-      contentPreview.innerHTML = '<span class="ce-upload-icon">+</span><span class="ce-upload-text">點擊上傳圖片</span><span class="ce-upload-hint">建議尺寸 800 × 600 px｜JPG / PNG｜最大 2MB</span>';
+      contentPreview.innerHTML = '<span class="ce-upload-icon">+</span><span class="ce-upload-text">點擊上傳圖片</span><span class="ce-upload-hint">建議尺寸 800 × 600 px｜JPG / PNG｜最大 5MB</span>';
     }
   },
 
@@ -441,7 +441,7 @@ Object.assign(App, {
       preview.classList.add('has-image');
     } else if (preview) {
       preview.classList.remove('has-image');
-      preview.innerHTML = '<span class="ce-upload-icon">+</span><span class="ce-upload-text">點擊上傳圖片</span><span class="ce-upload-hint">建議尺寸 800 × 300 px｜JPG / PNG｜最大 2MB</span>';
+      preview.innerHTML = '<span class="ce-upload-icon">+</span><span class="ce-upload-text">點擊上傳圖片</span><span class="ce-upload-hint">建議尺寸 800 × 300 px｜JPG / PNG｜最大 5MB</span>';
     }
 
     // Content image
@@ -451,7 +451,7 @@ Object.assign(App, {
       contentPreview.classList.add('has-image');
     } else if (contentPreview) {
       contentPreview.classList.remove('has-image');
-      contentPreview.innerHTML = '<span class="ce-upload-icon">+</span><span class="ce-upload-text">點擊上傳圖片</span><span class="ce-upload-hint">建議尺寸 800 × 600 px｜JPG / PNG｜最大 2MB</span>';
+      contentPreview.innerHTML = '<span class="ce-upload-icon">+</span><span class="ce-upload-text">點擊上傳圖片</span><span class="ce-upload-hint">建議尺寸 800 × 600 px｜JPG / PNG｜最大 5MB</span>';
     }
 
     this.toggleModal('edit-tournament-modal');
