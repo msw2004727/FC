@@ -97,23 +97,55 @@ const App = {
   },
 };
 
+// ── CDN SDK 動態載入器（不阻塞 DOMContentLoaded）──
+function _loadScript(src) {
+  return new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = src;
+    s.onload = resolve;
+    s.onerror = () => reject(new Error('Script load failed: ' + src));
+    document.head.appendChild(s);
+  });
+}
+
+async function _loadCDNScripts() {
+  // firebase-app 必須先載入（提供 firebase 全域物件）
+  await _loadScript('https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js');
+  // 其餘 Firebase 模組 + LIFF SDK 可平行載入
+  await Promise.all([
+    _loadScript('https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js'),
+    _loadScript('https://www.gstatic.com/firebasejs/10.14.1/firebase-storage-compat.js'),
+    _loadScript('https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js'),
+    _loadScript('https://static.line-scdn.net/liff/edge/2/sdk.js'),
+  ]);
+  console.log('[CDN] Firebase + LIFF SDK 載入完成');
+}
+
 // ── Init on DOM Ready ──
 document.addEventListener('DOMContentLoaded', async () => {
   // 載入所有頁面片段（pages/*.html → #main-content / #modal-container）
   await PageLoader.loadAll();
 
-  // 正式版模式：Firebase + LIFF 平行初始化（避免 LIFF auth code 過期）
+  // 正式版模式：動態載入 CDN SDK → Firebase + LIFF 初始化
   let _firebaseReady = false;
   if (!ModeManager.isDemo()) {
     const overlay = document.getElementById('loading-overlay');
     if (overlay) overlay.style.display = '';
+    let _tid;
     try {
-      // 手機網路較慢，超時設為 20 秒；絕不自動退回 Demo
-      const timeout = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Firebase init timeout')), 20000)
-      );
-      // LIFF 與 Firebase 平行初始化：LIFF 需盡早處理 URL 中的 auth code
-      const liffReady = (typeof LineAuth !== 'undefined') ? LineAuth.init() : Promise.resolve();
+      // 總預算 30 秒：CDN 下載 + Firebase 連線 + LIFF 認證
+      const timeout = new Promise((_, reject) => {
+        _tid = setTimeout(() => reject(new Error('載入逾時（30s）')), 30000);
+      });
+
+      // Step 1: 動態載入 CDN SDK（Firebase + LIFF）
+      await Promise.race([_loadCDNScripts(), timeout]);
+
+      // Step 2: 初始化 Firebase App（CDN 載入後才能呼叫）
+      initFirebaseApp();
+
+      // Step 3: Firebase Service + LIFF 平行初始化
+      const liffReady = (typeof liff !== 'undefined') ? LineAuth.init() : Promise.resolve();
       await Promise.race([
         Promise.all([FirebaseService.init(), liffReady]),
         timeout,
@@ -121,10 +153,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       _firebaseReady = true;
       console.log('[App] Firebase + LIFF 初始化完成');
     } catch (err) {
-      console.error('[App] Firebase 初始化失敗:', err.message || err);
+      console.error('[App] 初始化失敗:', err.message || err);
       // 不退回 Demo！維持 production 模式，使用 FirebaseService._cache（可能有 localStorage 快取）
       console.warn('[App] 維持正式版模式，使用快取資料');
     } finally {
+      clearTimeout(_tid);
       if (overlay) overlay.style.display = 'none';
     }
   }

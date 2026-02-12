@@ -316,6 +316,9 @@ img { max-width: 100%; display: block; }
 [data-theme="dark"] .status-cancelled { background: rgba(248,113,113,.20); }
 [data-theme="dark"] .status-upcoming { background: rgba(96,165,250,.20); }
 
+/* 正式版：初始隱藏 DEMO badge + 顯示載入中（JS 載入後接手控制） */
+.prod-early .mode-badge { display: none; }
+
 /* ─── Mode Badge ─── */
 .mode-badge {
   position: fixed;

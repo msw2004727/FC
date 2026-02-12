@@ -15,25 +15,32 @@ const firebaseConfig = {
   measurementId: "G-2673ME04J7"
 };
 
-// Initialize Firebase（安全包裝：SDK 未載入時不會崩潰）
+// Initialize Firebase（支援 CDN 動態載入：SDK 可能在此腳本之後才載入）
 let db, storage, auth;
-try {
-  if (typeof firebase === 'undefined') throw new Error('Firebase SDK 未載入');
-  firebase.initializeApp(firebaseConfig);
-  db = firebase.firestore();
-  storage = firebase.storage();
-  auth = firebase.auth();
 
-  // 啟用 Firestore 離線持久化（減少重複讀取計費）
-  db.enablePersistence({ synchronizeTabs: true })
-    .catch(err => {
+/** 初始化 Firebase App — CDN SDK 載入後呼叫 */
+function initFirebaseApp() {
+  if (db) return true; // 已初始化
+  if (typeof firebase === 'undefined') return false;
+  try {
+    firebase.initializeApp(firebaseConfig);
+    db = firebase.firestore();
+    storage = firebase.storage();
+    auth = firebase.auth();
+    db.enablePersistence({ synchronizeTabs: true }).catch(err => {
       if (err.code === 'failed-precondition') {
         console.warn('[Firestore] 多個分頁開啟，僅一個可啟用離線快取');
       } else if (err.code === 'unimplemented') {
         console.warn('[Firestore] 此瀏覽器不支援離線持久化');
       }
     });
-} catch (e) {
-  console.error('[Firebase] 初始化失敗:', e.message);
-  // db/storage/auth 維持 undefined，後續 FirebaseService.init() 會 catch 並走降級流程
+    console.log('[Firebase] App 初始化成功');
+    return true;
+  } catch (e) {
+    console.error('[Firebase] 初始化失敗:', e.message);
+    return false;
+  }
 }
+
+// 嘗試立即初始化（CDN 若已被瀏覽器快取則可能已可用）
+initFirebaseApp();
