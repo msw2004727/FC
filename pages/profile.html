@@ -134,15 +134,18 @@
         </div>
         <!-- 我的收藏 -->
         <div class="info-card" id="profile-favorites-card" style="display:none">
-          <div class="info-title" style="display:flex;justify-content:space-between;align-items:center">
-            <span>我的收藏</span>
-            <span class="fav-count-badge" id="fav-count-badge">0</span>
+          <div class="info-title profile-collapse-toggle" onclick="App.toggleProfileSection(this,'favorites')">
+            <span>我的收藏 <span class="fav-count-badge" id="fav-count-badge">0</span></span>
+            <span class="profile-collapse-arrow">▶</span>
           </div>
-          <div id="profile-favorites-list"></div>
+          <div class="profile-collapse-content" id="profile-favorites-list" style="display:none"></div>
         </div>
         <div class="info-card" id="profile-applications-card" style="display:none">
-          <div class="info-title">我的球隊申請</div>
-          <div id="profile-applications-list"></div>
+          <div class="info-title profile-collapse-toggle" onclick="App.toggleProfileSection(this,'applications')">
+            <span>我的球隊申請 <span class="fav-count-badge" id="app-count-badge">0</span></span>
+            <span class="profile-collapse-arrow">▶</span>
+          </div>
+          <div class="profile-collapse-content" id="profile-applications-list" style="display:none"></div>
         </div>
         <div class="info-card">
           <div class="info-title">報名紀錄</div>

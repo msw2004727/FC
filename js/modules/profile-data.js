@@ -121,8 +121,8 @@ Object.assign(App, {
     if (el('profile-sports-display')) el('profile-sports-display').textContent = v(user.sports);
     if (el('profile-team-display')) el('profile-team-display').innerHTML = this._getUserTeamHtml(user);
 
-    // 我的球隊申請
-    this._renderMyApplications();
+    // 我的球隊申請（輕量判斷，展開時才完整渲染）
+    this._showApplicationsCard();
 
     // 新徽章稱號自動推薦（每次會話只檢查一次）
     if (!this._titleSuggestionChecked) {
@@ -152,6 +152,40 @@ Object.assign(App, {
         <span style="font-size:.72rem;font-weight:600;color:${s.color}">${s.label}</span>
       </div>`;
     }).join('');
+  },
+
+  /** 收折切換：展開時 lazy load 對應區塊 */
+  toggleProfileSection(labelEl, section) {
+    const isOpen = labelEl.classList.toggle('open');
+    const content = labelEl.nextElementSibling;
+    if (!content) return;
+    content.style.display = isOpen ? '' : 'none';
+    if (isOpen) {
+      if (section === 'favorites') this.renderProfileFavorites();
+      if (section === 'applications') this._renderMyApplications();
+    }
+  },
+
+  /** 輕量判斷：有無球隊申請 → 控制卡片顯示 + badge */
+  _showApplicationsCard() {
+    const card = document.getElementById('profile-applications-card');
+    if (!card) return;
+    const user = ApiService.getCurrentUser();
+    const uid = user?.uid || user?.lineUserId || (ModeManager.isDemo() ? 'demo-user' : null);
+    if (!uid) { card.style.display = 'none'; return; }
+    const allMsgs = ApiService.getMessages();
+    const count = allMsgs.filter(m =>
+      m.actionType === 'team_join_request' && m.meta && m.meta.applicantUid === uid
+    ).length;
+    if (!count) { card.style.display = 'none'; return; }
+    card.style.display = '';
+    const badge = document.getElementById('app-count-badge');
+    if (badge) badge.textContent = count;
+    // 重置收折狀態
+    const toggle = card.querySelector('.profile-collapse-toggle');
+    const content = document.getElementById('profile-applications-list');
+    if (toggle) toggle.classList.remove('open');
+    if (content) content.style.display = 'none';
   },
 
   toggleProfileEdit() {

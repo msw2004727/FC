@@ -87,6 +87,23 @@ Object.assign(App, {
     </button>`;
   },
 
+  /** 輕量判斷：計算收藏數量 → 更新 badge → 控制卡片 display（不渲染列表） */
+  _showFavoritesCard() {
+    const card = document.getElementById('profile-favorites-card');
+    if (!card) return;
+    const favs = this._getFavorites();
+    const total = favs.events.length + favs.tournaments.length;
+    if (!total) { card.style.display = 'none'; return; }
+    card.style.display = '';
+    const badge = document.getElementById('fav-count-badge');
+    if (badge) badge.textContent = total;
+    // 重置收折狀態
+    const toggle = card.querySelector('.profile-collapse-toggle');
+    const content = document.getElementById('profile-favorites-list');
+    if (toggle) toggle.classList.remove('open');
+    if (content) content.style.display = 'none';
+  },
+
   renderProfileFavorites() {
     const card = document.getElementById('profile-favorites-card');
     const list = document.getElementById('profile-favorites-list');
