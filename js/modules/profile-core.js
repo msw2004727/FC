@@ -86,15 +86,15 @@ Object.assign(App, {
       : name.charAt(0);
     const teamHtml = user ? this._getUserTeamHtml(user) : '無';
 
+    // 稱號顯示（HTML 版：金色/銀色標籤）
+    const titleHtml = user ? this._buildTitleDisplayHtml(user, name) : escapeHTML(name);
+
     const cardHeader = document.querySelector('#page-user-card .page-header h2');
     if (cardHeader) cardHeader.textContent = '用戶資料卡片';
     document.getElementById('user-card-full').innerHTML = `
       <div class="uc-header">
-        <div class="uc-visual-row">
-          <div class="uc-avatar-circle">${avatarHtml}</div>
-          <div class="uc-doll-frame">紙娃娃預留</div>
-        </div>
-        <div class="profile-title">${escapeHTML(name)}</div>
+        <div class="uc-avatar-circle" style="margin:0 auto .6rem">${avatarHtml}</div>
+        <div class="profile-title">${titleHtml}</div>
         <div style="margin-top:.3rem"><span class="uc-role-tag" style="background:${roleInfo.color}22;color:${roleInfo.color}">${roleInfo.label}</span></div>
         <div class="profile-level">
           <span>Lv.${level}</span>
@@ -123,8 +123,48 @@ Object.assign(App, {
           </div>`;
         }).join('')}</div>` : '<div style="font-size:.82rem;color:var(--text-muted)">尚未獲得徽章</div>'}
       </div>
+      <div class="info-card">
+        <div class="info-title">活動紀錄</div>
+        <div class="profile-stats" style="margin:-.2rem 0 .5rem" id="uc-record-stats">
+          <div class="stat-item"><span class="stat-num" id="uc-stat-total">-</span><span class="stat-label">參加場次</span></div>
+          <div class="stat-item"><span class="stat-num" id="uc-stat-done">-</span><span class="stat-label">完成</span></div>
+          <div class="stat-item"><span class="stat-num" id="uc-stat-rate">-</span><span class="stat-label">出席率</span></div>
+          <div class="stat-item"><span class="stat-num" id="uc-stat-badges">-</span><span class="stat-label">徽章</span></div>
+        </div>
+        <div class="tab-bar compact" id="uc-record-tabs">
+          <button class="tab" data-filter="all">全部</button>
+          <button class="tab" data-filter="completed">完成</button>
+          <button class="tab" data-filter="cancelled">取消</button>
+        </div>
+        <div class="mini-activity-list" id="uc-activity-records"></div>
+      </div>
+      <div style="text-align:center;padding:.5rem 0 1rem">
+        <button class="outline-btn" style="font-size:.78rem;padding:.4rem 1rem;display:inline-flex;align-items:center;gap:.3rem" onclick="App._shareUserCard('${escapeHTML(name)}')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+          分享名片
+        </button>
+      </div>
     `;
+    // 渲染用戶活動紀錄
+    const targetUid = user ? (user.uid || user.lineUserId) : null;
+    if (targetUid) {
+      this._ucRecordUid = targetUid;
+      this.renderUserCardRecords('all', 1);
+    }
     this.showPage('page-user-card');
+  },
+
+  _shareUserCard(name) {
+    const shareText = `SportHub 用戶名片：${name}\n${location.origin}${location.pathname}`;
+    if (navigator.share) {
+      navigator.share({ title: `${name} 的 SportHub 名片`, text: shareText }).catch(() => {});
+    } else if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(shareText).then(() => {
+        this.showToast('名片連結已複製到剪貼簿');
+      }).catch(() => this.showToast('複製失敗'));
+    } else {
+      this.showToast('您的瀏覽器不支援分享功能');
+    }
   },
 
   async bindLineLogin() {

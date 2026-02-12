@@ -128,21 +128,31 @@ Object.assign(App, {
     return `剩餘 ${mins}分`;
   },
 
-  /** 自動將過期的 open/full 活動改為 ended；報名時間到達的 upcoming 改為 open */
+  /** 自動將過期的 open/full 活動改為 ended；報名時間到達的 upcoming 改為 open；人數達上限的 open 改為 full */
+  _autoEndLastCheck: 0,
   _autoEndExpiredEvents() {
-    const now = new Date();
+    const now = Date.now();
+    if (now - this._autoEndLastCheck < 30000) return; // 30 秒內不重複檢查
+    this._autoEndLastCheck = now;
+    const nowDate = new Date();
     ApiService.getEvents().forEach(e => {
+      // 已結束/已取消 → 跳過
+      if (e.status === 'ended' || e.status === 'cancelled') return;
       // upcoming → open（報名時間已到）
       if (e.status === 'upcoming' && e.regOpenTime) {
         const regOpen = new Date(e.regOpenTime);
-        if (regOpen <= now) {
+        if (regOpen <= nowDate) {
           ApiService.updateEvent(e.id, { status: 'open' });
         }
         return;
       }
+      // open → full（人數已達上限）
+      if (e.status === 'open' && e.current >= e.max) {
+        ApiService.updateEvent(e.id, { status: 'full' });
+      }
       if (e.status !== 'open' && e.status !== 'full') return;
       const start = this._parseEventStartDate(e.date);
-      if (start && start <= now) {
+      if (start && start <= nowDate) {
         ApiService.updateEvent(e.id, { status: 'ended' });
       }
     });
@@ -225,6 +235,7 @@ Object.assign(App, {
   // ══════════════════════════════════
 
   renderActivityList() {
+    this._autoEndExpiredEvents();
     const container = document.getElementById('activity-list');
     if (!container) return;
 
@@ -339,7 +350,7 @@ Object.assign(App, {
         detailImg.style.border = '';
       }
     }
-    document.getElementById('detail-title').textContent = e.title;
+    document.getElementById('detail-title').innerHTML = escapeHTML(e.title) + ' ' + this._favHeartHtml(this.isEventFavorited(id), 'Event', id);
 
     const countdown = this._calcCountdown(e);
     const mapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(e.location)}`;
@@ -418,6 +429,20 @@ Object.assign(App, {
     this.showPage('page-activity-detail');
   },
 
+  /** 恢復報名時移除該活動的取消紀錄（恢復報名則不列為取消） */
+  _removeCancelRecordOnResignup(eventId, uid) {
+    const source = ApiService._src('activityRecords');
+    for (let i = source.length - 1; i >= 0; i--) {
+      if (source[i].eventId === eventId && source[i].uid === uid && source[i].status === 'cancelled') {
+        if (!ModeManager.isDemo() && source[i]._docId) {
+          db.collection('activityRecords').doc(source[i]._docId).delete()
+            .catch(err => console.error('[removeCancelRecord]', err));
+        }
+        source.splice(i, 1);
+      }
+    }
+  },
+
   handleSignup(id) {
     const e = ApiService.getEvent(id);
     if (!e) return;
@@ -425,6 +450,9 @@ Object.assign(App, {
     const user = ApiService.getCurrentUser();
     const userName = user?.displayName || user?.name || '用戶';
     const userId = user?.uid || 'unknown';
+
+    // 恢復報名 → 移除之前的取消紀錄
+    this._removeCancelRecordOnResignup(id, userId);
 
     if (ApiService._demoMode) {
       // 檢查是否已報名
@@ -543,11 +571,20 @@ Object.assign(App, {
             e.waitlist = Math.max(0, e.waitlist - 1);
           }
         }
-        // 更新報名紀錄狀態為取消
+        // 更新報名紀錄：移除 registered/waitlisted 紀錄，確保只留一筆取消紀錄
         const records = ApiService.getActivityRecords();
-        const rec = records.find(r => r.eventId === id && r.uid === userId);
-        if (rec) {
-          rec.status = 'cancelled';
+        const hasCancelRecord = records.some(r => r.eventId === id && r.uid === userId && r.status === 'cancelled');
+        // 移除現有的非取消紀錄
+        for (let i = records.length - 1; i >= 0; i--) {
+          if (records[i].eventId === id && records[i].uid === userId && records[i].status !== 'cancelled') {
+            records.splice(i, 1);
+          }
+        }
+        // 若尚無取消紀錄，新增一筆
+        if (!hasCancelRecord) {
+          const dateParts = e.date.split(' ')[0].split('/');
+          const dateStr = `${dateParts[1]}/${dateParts[2]}`;
+          ApiService.addActivityRecord({ eventId: id, name: e.title, date: dateStr, status: 'cancelled', uid: userId });
         }
       }
       this.showToast(isWaitlist ? '已取消候補' : '已取消報名');
@@ -571,14 +608,31 @@ Object.assign(App, {
               }, cancelledReg._promotedUserId, 'activity', '活動');
             }
           }
-          // 更新 activityRecords 狀態
+          // 更新 activityRecords：移除 registered/waitlisted，確保只留一筆取消紀錄
           const records = ApiService.getActivityRecords();
-          const rec = records.find(r => r.eventId === id && r.uid === userId && r.status !== 'cancelled');
-          if (rec) {
-            rec.status = 'cancelled';
-            if (rec._docId) {
-              db.collection('activityRecords').doc(rec._docId).update({ status: 'cancelled' })
-                .catch(err => console.error('[activityRecord cancel]', err));
+          const hasCancelRec = records.some(r => r.eventId === id && r.uid === userId && r.status === 'cancelled');
+          for (let i = records.length - 1; i >= 0; i--) {
+            if (records[i].eventId === id && records[i].uid === userId && records[i].status !== 'cancelled') {
+              if (records[i]._docId) {
+                db.collection('activityRecords').doc(records[i]._docId).update({ status: 'cancelled' })
+                  .catch(err => console.error('[activityRecord cancel]', err));
+              }
+              if (hasCancelRec) {
+                // 已有取消紀錄，直接移除此筆
+                if (records[i]._docId) {
+                  db.collection('activityRecords').doc(records[i]._docId).delete().catch(err => console.error('[activityRecord dedup]', err));
+                }
+                records.splice(i, 1);
+              } else {
+                records[i].status = 'cancelled';
+              }
+            }
+          }
+          if (!hasCancelRec && !records.some(r => r.eventId === id && r.uid === userId && r.status === 'cancelled')) {
+            const ev = ApiService.getEvent(id);
+            if (ev) {
+              const dp = ev.date.split(' ')[0].split('/');
+              ApiService.addActivityRecord({ eventId: id, name: ev.title, date: `${dp[1]}/${dp[2]}`, status: 'cancelled', uid: userId });
             }
           }
           this.showToast(isWaitlist ? '已取消候補' : '已取消報名');

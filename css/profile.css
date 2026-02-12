@@ -45,7 +45,14 @@
 .profile-header { text-align: center; padding: 1.5rem 1rem .5rem; }
 .profile-avatar { width: 72px; height: 72px; border-radius: 50%; background: linear-gradient(135deg, var(--accent), #0d9488); display: flex; align-items: center; justify-content: center; color: #fff; font-size: 1.5rem; font-weight: 800; margin: 0 auto .6rem; border: 3px solid var(--bg-card); box-shadow: 0 0 0 3px var(--accent); }
 .profile-avatar.small { width: 40px; height: 40px; font-size: .9rem; margin: 0; box-shadow: none; border: none; }
-.profile-title { font-weight: 700; font-size: 1rem; margin-bottom: .4rem; }
+.profile-title { font-weight: 700; font-size: 1rem; margin-bottom: .4rem; line-height: 1.5; }
+/* Title Tags (稱號樣式) */
+.title-tag { display: inline-block; font-size: .72em; font-weight: 700; padding: .12em .4em; border-radius: .3rem; vertical-align: baseline; letter-spacing: .3px; }
+.title-gold { background: linear-gradient(135deg, #fbbf24, #d4a017); color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,.15); }
+.title-normal { background: linear-gradient(135deg, #a8a29e, #78716c); color: #fff; }
+.title-dot { color: var(--text-muted); margin: 0 .15em; font-weight: 400; font-size: .85em; }
+[data-theme="dark"] .title-gold { background: linear-gradient(135deg, #f59e0b, #b45309); }
+[data-theme="dark"] .title-normal { background: linear-gradient(135deg, #78716c, #57534e); }
 .profile-level { display: flex; align-items: center; gap: .5rem; justify-content: center; font-size: .78rem; color: var(--text-secondary); }
 .exp-bar { flex: 1; max-width: 140px; height: 8px; background: var(--bg-elevated); border-radius: 4px; overflow: hidden; }
 .exp-fill { height: 100%; background: linear-gradient(90deg, var(--accent), #6ee7b7); border-radius: 4px; transition: width .5s ease; }
@@ -87,6 +94,13 @@ a.social-btn { text-decoration: none; }
 .social-btn.active[data-platform="twitter"] { color: #000000; background: rgba(0,0,0,.06); }
 [data-theme="dark"] .social-btn.active[data-platform="threads"] { color: #ffffff; background: rgba(255,255,255,.1); }
 [data-theme="dark"] .social-btn.active[data-platform="twitter"] { color: #ffffff; background: rgba(255,255,255,.1); }
+.social-copy-btn {
+  width: 22px; height: 22px; border: none; border-radius: 50%;
+  background: transparent; color: var(--text-muted); cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  padding: 0; transition: all .15s;
+}
+.social-copy-btn:hover { color: var(--accent); background: var(--bg-elevated); }
 
 /* Social Link Modal URL prefix */
 .social-url-row { display: flex; align-items: center; gap: 0; }
@@ -113,17 +127,7 @@ a.social-btn { text-decoration: none; }
 .uid-text { font-family: monospace; color: var(--text-secondary); font-size: .85rem; margin-bottom: .3rem; }
 .qr-hint { font-size: .78rem; color: var(--text-muted); }
 
-/* ─── Paper Doll ─── */
-.paperdoll-preview { display: flex; justify-content: center; padding: 1rem; }
-.doll-canvas { width: 160px; height: 200px; background: var(--bg-elevated); border-radius: var(--radius); border: 2px dashed var(--border); display: grid; place-items: center; position: relative; }
-.doll-layer { position: absolute; font-size: 2rem; transition: all .3s ease; }
-.doll-layer.bg { font-size: 3rem; opacity: .3; }
-.doll-layer.silhouette { font-size: 4rem; opacity: .15; }
-.doll-items { display: flex; gap: .5rem; padding: .5rem; flex-wrap: wrap; justify-content: center; }
-.doll-item { width: 50px; height: 50px; background: var(--bg-card); border: 2px solid var(--border); border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; font-size: 1.5rem; cursor: pointer; transition: all var(--transition); }
-.doll-item.selected { border-color: var(--accent); background: var(--accent-bg); }
-.doll-item.locked { opacity: .4; cursor: not-allowed; }
-.doll-actions { display: flex; gap: .5rem; padding: .5rem; justify-content: center; }
+/* ─── (Paper Doll removed) ─── */
 
 /* ─── Achievement Card Grid (合併成就+徽章) ─── */
 .ach-section-title { font-size: .78rem; font-weight: 700; color: var(--text-secondary); padding: .5rem .5rem .25rem; }
@@ -182,17 +186,13 @@ a.social-btn { text-decoration: none; }
 /* ─── User Card Full ─── */
 .user-card-full { padding: .5rem; }
 .uc-header { text-align: center; padding: 1.5rem 0 1rem; }
-.uc-doll-frame { width: 90px; height: 90px; margin: 0; background: var(--bg-elevated); border-radius: var(--radius); display: flex; align-items: center; justify-content: center; font-size: .7rem; color: var(--text-muted); border: 2px dashed var(--border); flex-shrink: 0; }
+/* .uc-doll-frame removed */
 .uc-badge-list { display: flex; gap: .6rem; flex-wrap: wrap; }
 .uc-badge-item { display: flex; flex-direction: column; align-items: center; gap: .25rem; width: 60px; }
 .uc-badge-item .badge-img-placeholder { width: 44px; height: 44px; margin: 0; border: none; background: none; }
 .uc-badge-name { font-size: .65rem; font-weight: 600; text-align: center; color: var(--text-secondary); line-height: 1.2; }
 
-/* ─── User Card: Avatar + Paper Doll side by side ─── */
-.uc-visual-row {
-  display: flex; align-items: center; justify-content: center; gap: .6rem;
-  margin-bottom: .6rem;
-}
+/* ─── User Card: Avatar centered ─── */
 .uc-avatar-circle {
   width: 90px; height: 90px; border-radius: 50%;
   background: linear-gradient(135deg, var(--accent), #0d9488);
@@ -232,3 +232,31 @@ a.social-btn { text-decoration: none; }
 [data-theme="dark"] .line-notify-status.bound { background:rgba(6,199,85,.2); color:#4ade80; }
 [data-theme="dark"] .line-notify-status.unbound { background:rgba(255,255,255,.08); color:var(--text-muted); }
 [data-theme="dark"] .ach-card-completed-date { color: #4ade80; }
+
+/* ─── Favorite Heart Button ─── */
+.fav-heart {
+  display: inline-flex; align-items: center; justify-content: center;
+  background: none; border: none; cursor: pointer; padding: .15rem;
+  vertical-align: middle; transition: transform .2s;
+}
+.fav-heart:hover { transform: scale(1.2); }
+.fav-heart.active svg { filter: drop-shadow(0 1px 3px rgba(239,68,68,.3)); }
+/* ─── Favorites List Items (compact one-row) ─── */
+.fav-item {
+  display: flex; align-items: center; gap: .4rem;
+  padding: .4rem .2rem; border-bottom: 1px solid var(--border);
+  transition: background .15s;
+}
+.fav-item:last-child { border-bottom: none; }
+.fav-item:hover { background: var(--accent-bg); }
+.fav-item-name { flex: 1; min-width: 0; font-size: .82rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; color: var(--text-primary); }
+.fav-item-name:hover { color: var(--accent); }
+.fav-item-date { font-size: .7rem; color: var(--text-muted); white-space: nowrap; flex-shrink: 0; }
+.fav-remove-btn {
+  display: flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; border: none; border-radius: 50%;
+  background: transparent; color: var(--text-muted); cursor: pointer;
+  flex-shrink: 0; transition: all .15s; padding: 0;
+}
+.fav-remove-btn:hover { background: rgba(239,68,68,.12); color: var(--danger); }
+.fav-count-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 20px; padding: 0 .35rem; border-radius: 10px; background: var(--accent-bg); color: var(--accent); font-size: .7rem; font-weight: 700; }

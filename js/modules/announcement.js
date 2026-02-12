@@ -171,6 +171,7 @@ Object.assign(App, {
 
     if (this._annEditId) {
       ApiService.updateAnnouncement(this._annEditId, { title, content, status, publishAt, unpublishAt, operatorName });
+      ApiService._writeOpLog('ann_edit', '編輯公告', `編輯「${title}」`);
       this.showToast(`公告「${title}」已更新`);
     } else {
       // Assign sortOrder
@@ -184,6 +185,7 @@ Object.assign(App, {
         createdBy: ROLES[this.currentRole]?.label || '總管',
         operatorName
       });
+      ApiService._writeOpLog('ann_create', '建立公告', `發布「${title}」`);
       this.showToast(status === 'scheduled' ? `公告「${title}」已排程` : `公告「${title}」已發布`);
     }
     this.hideAnnouncementForm();
@@ -202,6 +204,7 @@ Object.assign(App, {
     if (!item) return;
     if (!(await this.appConfirm(`確定要刪除公告「${item.title}」？`))) return;
     ApiService.deleteAnnouncement(id);
+    ApiService._writeOpLog('ann_delete', '刪除公告', `刪除「${item.title}」`);
     this.renderAnnouncementManage();
     this.renderAnnouncement();
     this.showToast(`公告「${item.title}」已刪除`);
@@ -212,6 +215,7 @@ Object.assign(App, {
     if (!item) return;
     const newStatus = item.status === 'active' ? 'expired' : 'active';
     ApiService.updateAnnouncement(id, { status: newStatus });
+    ApiService._writeOpLog('ann_toggle', '公告上下架', `${newStatus === 'active' ? '上架' : '下架'}「${item.title}」`);
     this.renderAnnouncementManage();
     this.renderAnnouncement();
     this.showToast(newStatus === 'active' ? `公告「${item.title}」已上架` : `公告「${item.title}」已下架`);

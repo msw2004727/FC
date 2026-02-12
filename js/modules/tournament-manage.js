@@ -366,6 +366,7 @@ Object.assign(App, {
     venues.forEach(v => this._saveInputHistory('ct-venue', v));
     this._saveRecentDelegates(this._ctDelegates);
 
+    ApiService._writeOpLog('tourn_create', '建立賽事', `建立「${name}」`);
     this.renderTournamentTimeline();
     this.renderOngoingTournaments();
     this.renderTournamentManage();
@@ -391,12 +392,12 @@ Object.assign(App, {
     const preview = document.getElementById('ct-upload-preview');
     if (preview) {
       preview.classList.remove('has-image');
-      preview.innerHTML = '<span class="ce-upload-icon">+</span><span class="ce-upload-text">點擊上傳圖片</span><span class="ce-upload-hint">建議尺寸 800 × 300 px｜JPG / PNG｜最大 5MB</span>';
+      preview.innerHTML = '<span class="ce-upload-icon">+</span><span class="ce-upload-text">點擊上傳圖片</span><span class="ce-upload-hint">建議尺寸 800 × 300 px｜JPG / PNG｜最大 2MB</span>';
     }
     const contentPreview = document.getElementById('ct-content-upload-preview');
     if (contentPreview) {
       contentPreview.classList.remove('has-image');
-      contentPreview.innerHTML = '<span class="ce-upload-icon">+</span><span class="ce-upload-text">點擊上傳圖片</span><span class="ce-upload-hint">建議尺寸 800 × 600 px｜JPG / PNG｜最大 5MB</span>';
+      contentPreview.innerHTML = '<span class="ce-upload-icon">+</span><span class="ce-upload-text">點擊上傳圖片</span><span class="ce-upload-hint">建議尺寸 800 × 600 px｜JPG / PNG｜最大 2MB</span>';
     }
   },
 
@@ -442,7 +443,7 @@ Object.assign(App, {
       preview.classList.add('has-image');
     } else if (preview) {
       preview.classList.remove('has-image');
-      preview.innerHTML = '<span class="ce-upload-icon">+</span><span class="ce-upload-text">點擊上傳圖片</span><span class="ce-upload-hint">建議尺寸 800 × 300 px｜JPG / PNG｜最大 5MB</span>';
+      preview.innerHTML = '<span class="ce-upload-icon">+</span><span class="ce-upload-text">點擊上傳圖片</span><span class="ce-upload-hint">建議尺寸 800 × 300 px｜JPG / PNG｜最大 2MB</span>';
     }
 
     // Content image
@@ -452,7 +453,7 @@ Object.assign(App, {
       contentPreview.classList.add('has-image');
     } else if (contentPreview) {
       contentPreview.classList.remove('has-image');
-      contentPreview.innerHTML = '<span class="ce-upload-icon">+</span><span class="ce-upload-text">點擊上傳圖片</span><span class="ce-upload-hint">建議尺寸 800 × 600 px｜JPG / PNG｜最大 5MB</span>';
+      contentPreview.innerHTML = '<span class="ce-upload-icon">+</span><span class="ce-upload-text">點擊上傳圖片</span><span class="ce-upload-hint">建議尺寸 800 × 600 px｜JPG / PNG｜最大 2MB</span>';
     }
 
     this.toggleModal('edit-tournament-modal');
@@ -494,6 +495,7 @@ Object.assign(App, {
 
     ApiService.updateTournament(id, updates);
 
+    ApiService._writeOpLog('tourn_edit', '編輯賽事', `編輯「${name}」`);
     this._editTournamentId = null;
     this.renderTournamentTimeline();
     this.renderOngoingTournaments();
@@ -511,6 +513,7 @@ Object.assign(App, {
     if (!t) return;
     if (!(await this.appConfirm(`確定要結束賽事「${t.name}」？`))) return;
     ApiService.updateTournament(id, { ended: true });
+    ApiService._writeOpLog('tourn_end', '結束賽事', `結束「${t.name}」`);
     this.renderTournamentTimeline();
     this.renderOngoingTournaments();
     this.renderTournamentManage();
@@ -522,6 +525,7 @@ Object.assign(App, {
     if (!t) return;
     if (!(await this.appConfirm(`確定要重新開放賽事「${t.name}」？`))) return;
     ApiService.updateTournament(id, { ended: false });
+    ApiService._writeOpLog('tourn_reopen', '重開賽事', `重開「${t.name}」`);
     this.renderTournamentTimeline();
     this.renderOngoingTournaments();
     this.renderTournamentManage();
@@ -536,11 +540,13 @@ Object.assign(App, {
       return;
     }
     if (!(await this.appConfirm(`確定要永久刪除賽事「${t.name}」？此操作無法復原。`))) return;
+    const tName = t.name;
     ApiService.deleteTournament(id);
+    ApiService._writeOpLog('tourn_delete', '刪除賽事', `刪除「${tName}」`);
     this.renderTournamentTimeline();
     this.renderOngoingTournaments();
     this.renderTournamentManage();
-    this.showToast(`已刪除賽事「${t.name}」`);
+    this.showToast(`已刪除賽事「${tName}」`);
   },
 
 });

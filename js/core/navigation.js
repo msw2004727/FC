@@ -40,6 +40,7 @@ Object.assign(App, {
       if (pageId === 'page-titles') this.renderTitlePage();
       if (pageId === 'page-my-activities') this.renderMyActivities();
       if (pageId === 'page-team-manage') this.renderTeamManage();
+      if (pageId === 'page-admin-dashboard') this.renderDashboard();
       if (pageId === 'page-scan') this.renderScanPage();
       if (pageId === 'page-qrcode') this.renderQrCodePage();
       if (pageId !== 'page-scan' && this._stopCamera) this._stopCamera();
@@ -97,6 +98,37 @@ Object.assign(App, {
   closeModal() {
     document.querySelectorAll('.modal.open').forEach(m => m.classList.remove('open'));
     document.getElementById('modal-overlay').classList.remove('open');
+  },
+
+  // ── Language Switcher ──
+  initLangSwitcher() {
+    const sel = document.getElementById('lang-select');
+    if (!sel) return;
+    const locales = I18N.getAvailableLocales();
+    sel.innerHTML = locales.map(l => `<option value="${l.code}"${l.code === I18N.getLocale() ? ' selected' : ''}>${l.label}</option>`).join('');
+  },
+
+  switchLanguage(locale) {
+    I18N.setLocale(locale);
+    this._applyI18nToUI();
+    this.showToast(t('toast.langChanged'));
+  },
+
+  /** 將 t() 套用到底部頁籤與 drawer 等靜態 UI */
+  _applyI18nToUI() {
+    // Bottom tabs
+    const tabKeys = ['nav.home', 'nav.activities', 'nav.teams', 'nav.tournaments', 'nav.profile'];
+    document.querySelectorAll('.bot-tab').forEach((tab, i) => {
+      const span = tab.querySelector('span');
+      if (span && tabKeys[i]) span.textContent = t(tabKeys[i]);
+    });
+    // Drawer footer labels
+    const dmLabel = document.querySelector('#theme-toggle span:nth-child(2)');
+    if (dmLabel) dmLabel.textContent = t('drawer.darkMode');
+    const langLabel = document.querySelector('.lang-label');
+    if (langLabel) langLabel.textContent = t('drawer.language');
+    // Re-render drawer menu & dashboard if visible
+    this.renderDrawerMenu();
   },
 
   bindNotifBtn() {

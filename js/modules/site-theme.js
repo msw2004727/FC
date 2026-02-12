@@ -82,7 +82,7 @@ Object.assign(App, {
     const input = document.getElementById('theme-image');
 
     document.getElementById('theme-form-title').textContent = item.label;
-    hint.textContent = `建議尺寸：${item.spec}（JPG / PNG，5MB 以內）`;
+    hint.textContent = `建議尺寸：${item.spec}（JPG / PNG，2MB 以內）`;
 
     if (item.image) {
       preview.innerHTML = `<img src="${item.image}" style="width:100%;height:100%;object-fit:cover;border-radius:var(--radius-sm)">`;

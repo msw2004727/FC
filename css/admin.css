@@ -237,12 +237,32 @@
 .log-item.log-team-plus  { background: rgba(168,85,247,.10); border-radius: 6px; }
 .log-item.log-team-minus { background: rgba(234,179,8,.10); border-radius: 6px; }
 .log-type.team_exp { background: rgba(168,85,247,.15); color: #a855f7; }
+.log-type.event_create, .log-type.event_edit, .log-type.event_end,
+.log-type.event_cancel, .log-type.event_reopen, .log-type.event_delete { background: rgba(52,211,153,.15); color: var(--success); }
+.log-type.tourn_create, .log-type.tourn_edit, .log-type.tourn_end,
+.log-type.tourn_reopen, .log-type.tourn_delete, .log-type.tourn_approve { background: rgba(124,58,237,.15); color: #7c3aed; }
+.log-type.team_create, .log-type.team_edit, .log-type.team_delete, .log-type.team_position, .log-type.team_approve { background: rgba(249,115,22,.15); color: #f97316; }
+.log-type.ach_create, .log-type.ach_edit, .log-type.ach_toggle, .log-type.ach_delete { background: rgba(236,72,153,.15); color: #ec4899; }
+.log-type.ann_create, .log-type.ann_edit, .log-type.ann_toggle, .log-type.ann_delete { background: rgba(14,165,233,.15); color: #0ea5e9; }
 
 /* ─── Dark Theme Log Types ─── */
 [data-theme="dark"] .log-type.exp { background: rgba(96,165,250,.20); }
 [data-theme="dark"] .log-type.role { background: rgba(167,139,250,.20); }
 [data-theme="dark"] .log-type.event { background: rgba(52,211,153,.20); }
 [data-theme="dark"] .log-type.team_exp { background: rgba(168,85,247,.25); }
+[data-theme="dark"] .log-type.event_create, [data-theme="dark"] .log-type.event_edit,
+[data-theme="dark"] .log-type.event_end, [data-theme="dark"] .log-type.event_cancel,
+[data-theme="dark"] .log-type.event_reopen, [data-theme="dark"] .log-type.event_delete { background: rgba(52,211,153,.20); }
+[data-theme="dark"] .log-type.tourn_create, [data-theme="dark"] .log-type.tourn_edit,
+[data-theme="dark"] .log-type.tourn_end, [data-theme="dark"] .log-type.tourn_reopen,
+[data-theme="dark"] .log-type.tourn_delete, [data-theme="dark"] .log-type.tourn_approve { background: rgba(124,58,237,.20); }
+[data-theme="dark"] .log-type.team_create, [data-theme="dark"] .log-type.team_edit,
+[data-theme="dark"] .log-type.team_delete, [data-theme="dark"] .log-type.team_position,
+[data-theme="dark"] .log-type.team_approve { background: rgba(249,115,22,.20); }
+[data-theme="dark"] .log-type.ach_create, [data-theme="dark"] .log-type.ach_edit,
+[data-theme="dark"] .log-type.ach_toggle, [data-theme="dark"] .log-type.ach_delete { background: rgba(236,72,153,.20); }
+[data-theme="dark"] .log-type.ann_create, [data-theme="dark"] .log-type.ann_edit,
+[data-theme="dark"] .log-type.ann_toggle, [data-theme="dark"] .log-type.ann_delete { background: rgba(14,165,233,.20); }
 
 /* ─── Achievement Condition Form ─── */
 .ach-cond-section { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: .6rem; margin-bottom: .5rem; background: var(--bg-elevated); }
@@ -251,3 +271,19 @@
 .ach-badge-upload-box { width: 50px; height: 50px; border: 2px dashed var(--border); border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; cursor: pointer; background: var(--bg-main); overflow: hidden; flex-shrink: 0; transition: border-color .2s; }
 .ach-badge-upload-box:hover { border-color: var(--accent); }
 .ach-badge-upload-box img { width: 100%; height: 100%; object-fit: cover; border-radius: 4px; }
+
+/* ─── Dashboard ─── */
+.dash-summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: .5rem; padding: .5rem; }
+.dash-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: .6rem .4rem; text-align: center; }
+.dash-num { font-family: var(--font-display); font-size: 1.15rem; font-weight: 800; color: var(--accent); }
+.dash-label { font-size: .65rem; color: var(--text-muted); margin-top: .1rem; }
+.dash-bar-list { display: flex; flex-direction: column; gap: .45rem; }
+.dash-bar-row { display: flex; align-items: center; gap: .5rem; }
+.dash-bar-label { font-size: .78rem; font-weight: 600; min-width: 3rem; flex-shrink: 0; }
+.dash-bar-track { flex: 1; height: 10px; background: var(--bg-elevated); border-radius: 5px; overflow: hidden; }
+.dash-bar-fill { height: 100%; border-radius: 5px; transition: width .4s ease; }
+.dash-bar-fill.type-friendly { background: #0d9488; }
+.dash-bar-fill.type-camp { background: #ec4899; }
+.dash-bar-fill.type-play { background: #7c3aed; }
+.dash-bar-fill.type-watch { background: #f59e0b; }
+.dash-bar-val { font-size: .72rem; color: var(--text-secondary); font-weight: 600; min-width: 3.5rem; text-align: right; flex-shrink: 0; }

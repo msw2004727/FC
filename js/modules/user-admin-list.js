@@ -75,6 +75,9 @@ Object.assign(App, {
     if (!roleKey) return;
     const user = ApiService.getAdminUsers().find(u => u.name === name);
     ApiService.promoteUser(name, roleKey);
+    // 後台手動晉升 → 同步設定 manualRole 底線
+    ApiService.updateAdminUser(name, { manualRole: roleKey });
+    ApiService._writeOpLog('role', '角色變更', `${name} → ${select.value}`);
     // Trigger 5：身份變更通知
     if (user) {
       this._sendNotifFromTemplate('role_upgrade', {
@@ -132,6 +135,11 @@ Object.assign(App, {
       updates.birthday = bdVal.replace(/-/g, '/');
     }
 
+    // 後台編輯角色 → 同步設定 manualRole 底線
+    if (oldRole !== updates.role) {
+      updates.manualRole = updates.role;
+    }
+
     const result = ApiService.updateAdminUser(name, updates);
 
     // Trigger 5：身份變更通知
@@ -147,17 +155,7 @@ Object.assign(App, {
       this.showToast(`已更新「${name}」的資料`);
 
       // 寫入操作紀錄
-      const now = new Date();
-      const timeStr = `${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
-      const opLog = {
-        time: timeStr,
-        operator: ROLES[this.currentRole]?.label || '管理員',
-        type: 'role',
-        typeName: '用戶編輯',
-        content: `編輯「${name}」資料（角色：${ROLES[updates.role]?.label || updates.role}、地區：${updates.region}）`
-      };
-      const opSource = ApiService._demoMode ? DemoData.operationLogs : FirebaseService._cache.operationLogs;
-      opSource.unshift(opLog);
+      ApiService._writeOpLog('role', '角色變更', `編輯「${name}」資料（角色：${ROLES[updates.role]?.label || updates.role}、地區：${updates.region}）`);
     }
   },
 

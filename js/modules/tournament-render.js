@@ -144,7 +144,7 @@ Object.assign(App, {
         tdImg.style.border = '';
       }
     }
-    document.getElementById('td-title').textContent = t.name;
+    document.getElementById('td-title').innerHTML = escapeHTML(t.name) + ' ' + this._favHeartHtml(this.isTournamentFavorited(id), 'Tournament', id);
 
     // 報名按鈕
     this.renderRegisterButton(t);

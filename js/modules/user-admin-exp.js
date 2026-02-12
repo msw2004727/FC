@@ -372,8 +372,11 @@ Object.assign(App, {
     this.renderExpLogs(logs);
   },
 
-  // ─── 操作紀錄渲染 + 篩選 ───
-  filterOperationLogs() {
+  // ─── 操作紀錄渲染 + 篩選 + 分頁 ───
+  _opLogPage: 1,
+  _opLogFiltered: null,
+
+  filterOperationLogs(page) {
     const keyword = (document.getElementById('oplog-search')?.value || '').trim().toLowerCase();
     const typeFilter = document.getElementById('oplog-type-filter')?.value || '';
 
@@ -389,21 +392,33 @@ Object.assign(App, {
       logs = logs.filter(l => l.type === typeFilter);
     }
 
-    this.renderOperationLogs(logs);
+    this._opLogFiltered = logs;
+    this._opLogPage = page || 1;
+    this.renderOperationLogs(logs, this._opLogPage);
   },
 
-  renderOperationLogs(logs) {
+  _opLogGoPage(page) {
+    this._opLogPage = page;
+    this.renderOperationLogs(this._opLogFiltered || ApiService.getOperationLogs(), page);
+  },
+
+  renderOperationLogs(logs, page) {
     const container = document.getElementById('operation-log-list');
     if (!container) return;
 
     if (!logs) logs = ApiService.getOperationLogs();
+    const PAGE_SIZE = 20;
+    const p = Math.max(1, page || 1);
+    const totalPages = Math.max(1, Math.ceil(logs.length / PAGE_SIZE));
+    const safePage = Math.min(p, totalPages);
+    const pageItems = logs.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
     if (logs.length === 0) {
       container.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--text-muted)">沒有符合條件的紀錄</div>';
       return;
     }
 
-    container.innerHTML = logs.map(l => `
+    let html = pageItems.map(l => `
       <div class="log-item">
         <span class="log-time">${escapeHTML(l.time)}</span>
         <span class="log-content">
@@ -412,6 +427,16 @@ Object.assign(App, {
         </span>
       </div>
     `).join('');
+
+    if (totalPages > 1) {
+      html += `<div style="display:flex;justify-content:center;align-items:center;gap:.5rem;padding:.8rem 0;font-size:.78rem">
+        <button class="outline-btn" style="font-size:.72rem;padding:.25rem .6rem" onclick="App._opLogGoPage(${safePage - 1})" ${safePage <= 1 ? 'disabled' : ''}>‹ 上一頁</button>
+        <span style="color:var(--text-muted)">${safePage} / ${totalPages}（共 ${logs.length} 筆）</span>
+        <button class="outline-btn" style="font-size:.72rem;padding:.25rem .6rem" onclick="App._opLogGoPage(${safePage + 1})" ${safePage >= totalPages ? 'disabled' : ''}>下一頁 ›</button>
+      </div>`;
+    }
+
+    container.innerHTML = html;
   },
 
 });

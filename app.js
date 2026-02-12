@@ -47,6 +47,8 @@ const App = {
     this.renderBannerCarousel();
     this.startBannerCarousel();
     this.applySiteThemes();
+    this.initLangSwitcher();
+    this._applyI18nToUI();
     this.renderAll();
     this.applyRole('user', true);
   },
@@ -87,6 +89,7 @@ const App = {
     this.renderMyActivities();
     this.renderUserCard();
     this.renderProfileData();
+    this.renderProfileFavorites();
     this.updateNotifBadge();
     this.updatePointsDisplay();
     this.updateStorageBar();
@@ -155,6 +158,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   // 排程站內信自動發送（啟動時 + 每 60 秒檢查）
   App._processScheduledMessages();
   setInterval(() => App._processScheduledMessages(), 60000);
+  // 活動提醒通知（啟動時 + 每 5 分鐘檢查）
+  App._processEventReminders();
+  setInterval(() => App._processEventReminders(), 300000);
   // 彈跳廣告（延遲 500ms 確保資料已載入）
   setTimeout(() => App.showPopupAdsOnLoad(), 500);
   // 移除早期模式偵測的 CSS class，讓 JS 接手控制

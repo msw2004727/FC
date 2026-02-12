@@ -11,7 +11,7 @@ Object.assign(App, {
     const lineProfile = (!ModeManager.isDemo() && typeof LineAuth !== 'undefined' && LineAuth.isLoggedIn()) ? LineAuth.getProfile() : null;
 
     const displayName = (lineProfile && lineProfile.displayName) ? lineProfile.displayName : (user ? user.displayName : '-');
-    const titleDisplay = user ? this._buildTitleDisplay(user, lineProfile ? lineProfile.displayName : null) : displayName;
+    const titleHtml = user ? this._buildTitleDisplayHtml(user, lineProfile ? lineProfile.displayName : null) : escapeHTML(displayName);
     const pic = (lineProfile && lineProfile.pictureUrl) || (user && user.pictureUrl) || null;
     const role = (user && user.role) || 'user';
     const roleInfo = ROLES[role] || ROLES.user;
@@ -43,11 +43,8 @@ Object.assign(App, {
 
     container.innerHTML = `
       <div class="uc-header">
-        <div class="uc-visual-row">
-          <div class="uc-avatar-circle">${avatarHtml}</div>
-          <div class="uc-doll-frame">紙娃娃預留</div>
-        </div>
-        <div class="profile-title">${escapeHTML(titleDisplay)}</div>
+        <div class="uc-avatar-circle" style="margin:0 auto .6rem">${avatarHtml}</div>
+        <div class="profile-title">${titleHtml}</div>
         <div style="margin-top:.3rem"><span class="uc-role-tag" style="background:${roleInfo.color}22;color:${roleInfo.color}">${roleInfo.label}</span></div>
         <div class="profile-level">
           <span>Lv.${level}</span>
@@ -77,10 +74,31 @@ Object.assign(App, {
         }).join('')}</div>` : '<div style="font-size:.82rem;color:var(--text-muted)">尚未獲得徽章</div>'}
       </div>
       <div class="info-card">
+        <div class="info-title">活動紀錄</div>
+        <div class="profile-stats" style="margin:-.2rem 0 .5rem" id="uc-record-stats">
+          <div class="stat-item"><span class="stat-num" id="uc-stat-total">-</span><span class="stat-label">參加場次</span></div>
+          <div class="stat-item"><span class="stat-num" id="uc-stat-done">-</span><span class="stat-label">完成</span></div>
+          <div class="stat-item"><span class="stat-num" id="uc-stat-rate">-</span><span class="stat-label">出席率</span></div>
+          <div class="stat-item"><span class="stat-num" id="uc-stat-badges">-</span><span class="stat-label">徽章</span></div>
+        </div>
+        <div class="tab-bar compact" id="uc-record-tabs">
+          <button class="tab" data-filter="all">全部</button>
+          <button class="tab" data-filter="completed">完成</button>
+          <button class="tab" data-filter="cancelled">取消</button>
+        </div>
+        <div class="mini-activity-list" id="uc-activity-records"></div>
+      </div>
+      <div class="info-card">
         <div class="info-title">交易價值紀錄</div>
         <div style="font-size:.82rem;color:var(--text-muted)">目前無交易紀錄</div>
       </div>
     `;
+    // 渲染活動紀錄
+    const targetUid = user ? (user.uid || user.lineUserId) : null;
+    if (targetUid) {
+      this._ucRecordUid = targetUid;
+      this.renderUserCardRecords('all', 1);
+    }
   },
 
   /**
@@ -167,7 +185,12 @@ Object.assign(App, {
     if (!active.length) return '';
     const btns = active.map(k => {
       const url = platforms[k].prefix + encodeURIComponent(links[k]);
-      return `<a class="social-btn active" data-platform="${k}" href="${url}" target="_blank" rel="noopener" title="${platforms[k].name}: @${escapeHTML(links[k])}">${svgs[k]}</a>`;
+      return `<div style="display:inline-flex;align-items:center;gap:2px">
+        <a class="social-btn active" data-platform="${k}" href="${url}" target="_blank" rel="noopener" title="${platforms[k].name}: @${escapeHTML(links[k])}">${svgs[k]}</a>
+        <button class="social-copy-btn" onclick="event.stopPropagation();App._copySocialLink('${k}','${escapeHTML(links[k])}')" title="複製帳號">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+        </button>
+      </div>`;
     }).join('');
     return `<div class="social-grid" style="margin-bottom:.65rem">${btns}</div>`;
   },
@@ -237,8 +260,57 @@ Object.assign(App, {
       <div style="font-size:.85rem;font-weight:700;margin-bottom:.8rem">我的 UID QR Code</div>
       <div id="uid-qr-canvas" style="background:#fff;display:inline-block;padding:12px;border-radius:var(--radius)"></div>
       <div style="margin-top:.7rem;font-size:.75rem;color:var(--text-muted);word-break:break-all">${escapeHTML(uid)}</div>
+      <button onclick="App._copyUidToClipboard('${escapeHTML(uid)}')" style="margin-top:.6rem;padding:.45rem 1.2rem;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg-elevated);color:var(--text-primary);font-size:.8rem;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:.3rem">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+        複製 UID
+      </button>
     `;
     this._generateQrCode(document.getElementById('uid-qr-canvas'), uid, 180);
     modal.style.display = 'flex';
+  },
+
+  /** 複製 UID 到剪貼簿 */
+  _copyUidToClipboard(uid) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(uid).then(() => {
+        this.showToast('UID 已複製到剪貼簿');
+      }).catch(() => {
+        this._fallbackCopyText(uid);
+      });
+    } else {
+      this._fallbackCopyText(uid);
+    }
+  },
+
+  /** 複製社群帳號到剪貼簿 */
+  _copySocialLink(platform, accountId) {
+    const platformNames = { fb: 'Facebook', ig: 'Instagram', threads: 'Threads', yt: 'YouTube', twitter: 'X' };
+    const name = platformNames[platform] || platform;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(accountId).then(() => {
+        this.showToast(`${name} 帳號已複製`);
+      }).catch(() => {
+        this._fallbackCopyText(accountId);
+        this.showToast(`${name} 帳號已複製`);
+      });
+    } else {
+      this._fallbackCopyText(accountId);
+      this.showToast(`${name} 帳號已複製`);
+    }
+  },
+
+  _fallbackCopyText(text) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.cssText = 'position:fixed;left:-9999px';
+    document.body.appendChild(ta);
+    ta.select();
+    try {
+      document.execCommand('copy');
+      this.showToast('UID 已複製到剪貼簿');
+    } catch (e) {
+      this.showToast('複製失敗，請手動複製');
+    }
+    document.body.removeChild(ta);
   },
 });

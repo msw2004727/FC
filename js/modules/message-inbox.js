@@ -297,6 +297,7 @@ Object.assign(App, {
       // 4. Update message status
       ApiService.updateMessage(msgId, { actionStatus: 'approved' });
       msg.actionStatus = 'approved';
+      ApiService._writeOpLog('team_approve', '球隊審批', `同意「${applicantName}」加入「${teamName}」`);
       this.showToast('已同意加入申請');
 
     } else if (action === 'reject') {
@@ -309,6 +310,7 @@ Object.assign(App, {
 
       ApiService.updateMessage(msgId, { actionStatus: 'rejected' });
       msg.actionStatus = 'rejected';
+      ApiService._writeOpLog('team_approve', '球隊審批', `拒絕「${applicantName}」加入「${teamName}」`);
       this.showToast('已拒絕加入申請');
 
     } else if (action === 'ignore') {
@@ -364,6 +366,8 @@ Object.assign(App, {
     } else if (action === 'ignore') {
       this.showToast('已忽略此申請');
     }
+
+    ApiService._writeOpLog('tourn_approve', '賽事審批', `${actionLabels[action]}「${teamName}」報名「${tournamentName}」`);
 
     const statusMap = { approve: 'approved', reject: 'rejected', ignore: 'ignored' };
     const newStatus = statusMap[action];

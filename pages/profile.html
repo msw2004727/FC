@@ -34,7 +34,7 @@
         <div class="quick-grid">
           <button class="quick-item" onclick="App.showPage('page-achievements')"><span>🏅</span>成就/徽章</button>
           <button class="quick-item" onclick="App.showPage('page-titles')"><span>🎖️</span>稱號</button>
-          <button class="quick-item disabled" disabled><span>👤</span>紙娃娃</button>
+          <button class="quick-item disabled" disabled style="opacity:.35;filter:grayscale(1)"><span>🎒</span>道具欄</button>
         </div>
         <!-- 社群連結按鈕列 -->
         <div class="social-grid" id="social-grid">
@@ -132,13 +132,25 @@
             </div>
           </div>
         </div>
+        <!-- 我的收藏 -->
+        <div class="info-card" id="profile-favorites-card" style="display:none">
+          <div class="info-title" style="display:flex;justify-content:space-between;align-items:center">
+            <span>我的收藏</span>
+            <span class="fav-count-badge" id="fav-count-badge">0</span>
+          </div>
+          <div id="profile-favorites-list"></div>
+        </div>
+        <div class="info-card" id="profile-applications-card" style="display:none">
+          <div class="info-title">我的球隊申請</div>
+          <div id="profile-applications-list"></div>
+        </div>
         <div class="info-card">
           <div class="info-title">報名紀錄</div>
           <div class="tab-bar compact" id="record-tabs">
-            <button class="tab active" data-filter="all">全部</button>
+            <button class="tab" data-filter="all">全部</button>
+            <button class="tab" data-filter="registered">報名</button>
             <button class="tab" data-filter="completed">完成</button>
             <button class="tab" data-filter="cancelled">取消</button>
-            <button class="tab" data-filter="early-left">早退</button>
           </div>
           <div class="mini-activity-list" id="my-activity-records"></div>
         </div>
@@ -160,46 +172,7 @@
       </div>
     </section>
 
-    <!-- PAGE: Paper Doll -->
-    <section class="page" id="page-paperdoll">
-      <div class="page-header">
-        <button class="back-btn" onclick="App.goBack()">←</button>
-        <h2>紙娃娃編輯</h2>
-        <button class="text-btn">儲存</button>
-      </div>
-      <div class="paperdoll-preview">
-        <div class="doll-canvas" id="doll-canvas">
-          <div class="doll-layer bg">背景</div>
-          <div class="doll-layer silhouette">人形</div>
-          <div class="doll-layer shoes">鞋</div>
-          <div class="doll-layer pants">褲</div>
-          <div class="doll-layer body">衣</div>
-          <div class="doll-layer head">頭</div>
-          <div class="doll-layer pet">寵物</div>
-          <div class="doll-layer accessory">配件</div>
-        </div>
-      </div>
-      <div class="tab-bar compact">
-        <button class="tab active">頭部</button>
-        <button class="tab">球衣</button>
-        <button class="tab">球褲</button>
-        <button class="tab">鞋子</button>
-        <button class="tab">寵物</button>
-        <button class="tab">背景</button>
-        <button class="tab">配件</button>
-      </div>
-      <div class="doll-items">
-        <div class="doll-item selected">球</div>
-        <div class="doll-item">帽</div>
-        <div class="doll-item">冠</div>
-        <div class="doll-item locked">鎖</div>
-        <div class="doll-item locked">鎖</div>
-      </div>
-      <div class="doll-actions">
-        <button class="outline-btn">移除此部位</button>
-        <button class="primary-btn">穿戴選中</button>
-      </div>
-    </section>
+    <!-- PAGE: 道具欄（功能未開放） -->
 
     <!-- PAGE: Achievements & Badges (合併) -->
     <section class="page" id="page-achievements">

@@ -4,7 +4,7 @@
 
 // ─── Cache Version（更新此值以清除瀏覽器快取）───
 // 20260212: 模組化拆分（user-admin/message/tournament/firebase-service）
-const CACHE_VERSION = '20260212e';
+const CACHE_VERSION = '20260212o';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {
@@ -187,6 +187,7 @@ const DRAWER_MENUS = [
   { icon: '', label: '掃碼簽到/簽退', page: 'page-scan', minRole: 'coach', highlight: 'yellow' },
   { divider: true, minRole: 'admin' },
   { sectionLabel: '後台管理', minRole: 'admin' },
+  { icon: '', label: '數據儀表板', page: 'page-admin-dashboard', minRole: 'admin' },
   { icon: '', label: '用戶管理', page: 'page-admin-users', minRole: 'admin' },
   { icon: '', label: '廣告管理', page: 'page-admin-banners', minRole: 'admin' },
   { icon: '', label: '二手商品管理', page: 'page-admin-shop', minRole: 'admin' },

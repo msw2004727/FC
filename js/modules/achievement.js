@@ -295,8 +295,8 @@ Object.assign(App, {
         input.value = '';
         return;
       }
-      if (file.size > 5 * 1024 * 1024) {
-        this.showToast('檔案大小不可超過 5MB');
+      if (file.size > 2 * 1024 * 1024) {
+        this.showToast('檔案大小不可超過 2MB');
         input.value = '';
         return;
       }
@@ -342,6 +342,7 @@ Object.assign(App, {
           if (this._achBadgeDataURL) updates.image = this._achBadgeDataURL;
           ApiService.updateBadge(item.badgeId, updates);
         }
+        ApiService._writeOpLog('ach_edit', '編輯成就', `編輯「${name}」`);
         this.showToast(`成就「${name}」已更新`);
       }
     } else {
@@ -349,6 +350,7 @@ Object.assign(App, {
       const newBadgeId = generateId('b');
       ApiService.createAchievement({ id: newId, name, category, badgeId: newBadgeId, completedAt: null, current: 0, status: 'active', condition });
       ApiService.createBadge({ id: newBadgeId, name: name + '徽章', achId: newId, category, image: this._achBadgeDataURL || null });
+      ApiService._writeOpLog('ach_create', '建立成就', `建立「${name}」`);
       this.showToast(`成就「${name}」已建立，已自動建立關聯徽章`);
     }
 
@@ -367,6 +369,7 @@ Object.assign(App, {
     if (!item) return;
     const newStatus = item.status === 'archived' ? 'active' : 'archived';
     ApiService.updateAchievement(id, { status: newStatus });
+    ApiService._writeOpLog('ach_toggle', '成就上下架', `${newStatus === 'archived' ? '下架' : '上架'}「${item.name}」`);
     this.renderAdminAchievements();
     this.renderAchievements();
     this.showToast(`成就「${item.name}」已${newStatus === 'archived' ? '下架' : '上架'}`);
@@ -382,6 +385,7 @@ Object.assign(App, {
       ApiService.deleteBadge(item.badgeId);
     }
     ApiService.deleteAchievement(id);
+    ApiService._writeOpLog('ach_delete', '刪除成就', `刪除「${item.name}」`);
     this.renderAdminAchievements();
     this.renderAchievements();
     this.showToast(`成就「${item.name}」已刪除`);

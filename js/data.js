@@ -25,6 +25,7 @@ const DemoData = {
     completedGames: 38,
     attendanceRate: 90,
     badgeCount: 4,
+    favorites: { events: ['eh3', 'eh5'], tournaments: ['t2'] },
     socialLinks: { fb: 'xiaomai.football', ig: 'xiaomai_fc', threads: '', yt: '', twitter: '' },
     joinDate: '2025/09/01',
     lineNotify: {
@@ -115,9 +116,14 @@ const DemoData = {
     // ── 球隊申請（含互動按鈕） ──
     { id: 'm9', type: 'system', typeName: '系統', title: '球隊加入申請', preview: '用戶「陳大明」申請加入「雷霆隊」...', body: '收到一筆新的球隊加入申請：\n\n申請人：陳大明（UID: user_chen）\n申請球隊：雷霆隊\n申請時間：2026/03/01 08:45\n\n申請留言：「我有 3 年踢球經驗，主要踢中場，希望能加入貴隊一起訓練！」\n\n請審核此申請。', time: '2026/03/01 08:45', unread: true, senderName: '系統', actionType: 'team_join_request', actionStatus: 'pending', meta: { teamId: 'tm1', teamName: '雷霆隊', applicantUid: 'user_chen', applicantName: '陳大明' } },
     { id: 'm12', type: 'system', typeName: '系統', title: '球隊申請通過', preview: '恭喜！您已成功加入「雷霆隊」...', body: '恭喜！您的球隊加入申請已通過。\n\n球隊名稱：雷霆隊\n審核結果：已同意\n\n歡迎成為團隊的一員！請聯繫隊長了解練球時間與注意事項。', time: '2026/02/12 17:20', unread: false, senderName: '系統' },
+    // ── 用戶自己的球隊申請紀錄（用於「我的球隊申請」追蹤） ──
+    { id: 'm18', type: 'system', typeName: '系統', title: '球隊加入申請', preview: '您申請加入「閃電隊」...', body: '您的球隊加入申請已送出。\n\n申請球隊：閃電隊\n申請時間：2026/02/08 10:30\n\n請等待隊長審核。', time: '2026/02/08 10:30', unread: false, senderName: '系統', actionType: 'team_join_request', actionStatus: 'approved', meta: { teamId: 'tm2', teamName: '閃電隊', applicantUid: 'demo-user', applicantName: '小麥' } },
+    { id: 'm19', type: 'system', typeName: '系統', title: '球隊加入申請', preview: '您申請加入「火焰隊」...', body: '您的球隊加入申請已送出。\n\n申請球隊：火焰隊\n申請時間：2026/02/10 14:00\n\n請等待隊長審核。', time: '2026/02/10 14:00', unread: false, senderName: '系統', actionType: 'team_join_request', actionStatus: 'pending', meta: { teamId: 'tm4', teamName: '火焰隊', applicantUid: 'demo-user', applicantName: '小麥' } },
+    { id: 'm20', type: 'system', typeName: '系統', title: '球隊加入申請', preview: '您申請加入「旋風隊」...', body: '您的球隊加入申請已送出。\n\n申請球隊：旋風隊\n申請時間：2026/01/20 09:00\n\n請等待隊長審核。', time: '2026/01/20 09:00', unread: false, senderName: '系統', actionType: 'team_join_request', actionStatus: 'rejected', meta: { teamId: 'tm3', teamName: '旋風隊', applicantUid: 'demo-user', applicantName: '小麥' } },
   ],
 
   achievements: [
+    { id: 'a8', name: '冠軍', category: 'gold', badgeId: 'b8', completedAt: '2025/10/04', current: 1, status: 'active', condition: { timeRange: 'none', action: 'complete_event', filter: 'all', threshold: 1 } },
     { id: 'a7', name: '百場達人', category: 'gold', badgeId: 'b7', completedAt: null, current: 42, status: 'active', condition: { timeRange: 'none', action: 'complete_event', filter: 'all', threshold: 100 } },
     { id: 'a6', name: '活動策劃師', category: 'gold', badgeId: 'b6', completedAt: null, current: 2, status: 'active', condition: { timeRange: 'none', action: 'organize_event', filter: 'all', threshold: 10 } },
     { id: 'a5', name: '月活躍玩家', category: 'gold', badgeId: 'b5', completedAt: null, current: 3, status: 'active', condition: { timeRange: 'none', action: 'complete_event', filter: 'all', threshold: 5 } },
@@ -128,6 +134,7 @@ const DemoData = {
   ],
 
   badges: [
+    { id: 'b8', name: '冠軍徽章', achId: 'a8', category: 'gold', image: null },
     { id: 'b7', name: '百場徽章', achId: 'a7', category: 'gold', image: null },
     { id: 'b6', name: '策劃師徽章', achId: 'a6', category: 'gold', image: null },
     { id: 'b5', name: '月活躍徽章', achId: 'a5', category: 'gold', image: null },
@@ -191,10 +198,33 @@ const DemoData = {
 
   operationLogs: [
     { time: '03/15 14:32', operator: '總管', type: 'exp', typeName: '手動EXP', content: '暱稱A +500「活動獎勵」' },
-    { time: '03/15 10:15', operator: '管理員B', type: 'role', typeName: '晉升用戶', content: '暱稱C → 教練' },
-    { time: '03/14 18:00', operator: '管理員B', type: 'event', typeName: '活動管理', content: '建立「週六足球友誼賽」' },
-    { time: '03/13 09:30', operator: '總管', type: 'role', typeName: '晉升用戶', content: '暱稱B → 管理員' },
+    { time: '03/15 10:15', operator: '管理員B', type: 'role', typeName: '角色變更', content: '暱稱C → 教練' },
+    { time: '03/14 18:00', operator: '教練小陳', type: 'event_create', typeName: '建立活動', content: '建立「週六足球友誼賽」' },
+    { time: '03/14 16:30', operator: '教練小陳', type: 'event_edit', typeName: '編輯活動', content: '編輯「週三足球基礎練習」' },
+    { time: '03/14 12:00', operator: '總管', type: 'tourn_create', typeName: '建立賽事', content: '建立「春季盃」' },
+    { time: '03/13 20:00', operator: '總管', type: 'tourn_approve', typeName: '賽事審批', content: '同意「雷霆隊」報名「春季盃」' },
+    { time: '03/13 17:30', operator: '總管', type: 'team_position', typeName: '球隊職位變更', content: '「黑熊隊」領隊由「暱稱A」轉移至「隊長K」' },
+    { time: '03/13 17:00', operator: '總管', type: 'team_position', typeName: '球隊職位變更', content: '新增「教練L」為「黑熊隊」教練' },
+    { time: '03/13 15:00', operator: '總管', type: 'team_create', typeName: '建立球隊', content: '建立「黑熊隊」' },
+    { time: '03/13 15:00', operator: '總管', type: 'team_position', typeName: '球隊職位變更', content: '設定「暱稱A」為「黑熊隊」領隊' },
+    { time: '03/13 09:30', operator: '總管', type: 'role', typeName: '角色變更', content: '暱稱B → 管理員' },
     { time: '03/12 14:00', operator: '總管', type: 'exp', typeName: '手動EXP', content: '暱稱D +1000「賽事冠軍」' },
+    { time: '03/12 11:00', operator: '總管', type: 'team_exp', typeName: '球隊積分', content: '雷霆隊 +200「聯賽獎勵」' },
+    { time: '03/12 09:00', operator: '總管', type: 'team_position', typeName: '球隊職位變更', content: '移除「教練M」的「閃電隊」教練職位' },
+    { time: '03/11 16:45', operator: '場主老王', type: 'event_end', typeName: '結束活動', content: '結束「五人制室內足球」' },
+    { time: '03/11 10:00', operator: '總管', type: 'ach_create', typeName: '建立成就', content: '建立「全勤獎」' },
+    { time: '03/10 14:30', operator: '總管', type: 'ann_create', typeName: '建立公告', content: '發布「系統維護通知」' },
+    { time: '03/10 09:00', operator: '總管', type: 'team_edit', typeName: '編輯球隊', content: '編輯「閃電隊」' },
+    { time: '03/09 17:00', operator: '教練小陳', type: 'event_cancel', typeName: '取消活動', content: '取消「雨天備案練習」' },
+    { time: '03/09 11:30', operator: '總管', type: 'tourn_edit', typeName: '編輯賽事', content: '編輯「春季盃」' },
+    { time: '03/08 15:00', operator: '總管', type: 'ann_toggle', typeName: '公告上下架', content: '下架「舊公告」' },
+    { time: '03/08 10:00', operator: '總管', type: 'ach_toggle', typeName: '成就上下架', content: '下架「測試成就」' },
+    { time: '03/07 14:00', operator: '隊長A', type: 'team_position', typeName: '球隊職位變更', content: '新增「教練B」為「雷霆隊」教練' },
+    { time: '03/07 14:00', operator: '隊長A', type: 'team_position', typeName: '球隊職位變更', content: '新增「教練C」為「雷霆隊」教練' },
+    { time: '03/06 09:00', operator: '總管', type: 'event_create', typeName: '建立活動', content: '建立「冬季足球體能活動」' },
+    { time: '03/05 16:00', operator: '總管', type: 'team_exp', typeName: '球隊積分', content: '火焰隊 -200「違規處罰」' },
+    { time: '03/04 10:00', operator: '總管', type: 'role', typeName: '角色變更', content: '李大華 自動晉升為「教練」（原：一般用戶）' },
+    { time: '03/03 09:00', operator: '總管', type: 'ach_edit', typeName: '編輯成就', content: '編輯「百場達人」門檻改為100場' },
   ],
 
   adminUsers: [
@@ -324,12 +354,43 @@ const DemoData = {
   ],
 
   activityRecords: [
+    // 報名中（未結束活動）
+    { eventId: 'e4', name: '週六足球友誼賽', date: '03/15', status: 'registered', uid: 'demo-user' },
+    { eventId: 'e6', name: '足球體能PLAY', date: '03/20', status: 'registered', uid: 'demo-user' },
+    { eventId: 'e7', name: '週六11人制友誼賽', date: '03/22', status: 'registered', uid: 'demo-user' },
+    { eventId: 'eh1', name: '週三足球基礎練習', date: '02/11', status: 'registered', uid: 'demo-user' },
+    { eventId: 'eh3', name: '週六足球友誼賽', date: '02/14', status: 'registered', uid: 'demo-user' },
+    // 已完成
     { eventId: 'e3', name: '五人制室內足球', date: '03/08', status: 'completed', uid: 'demo-user' },
     { eventId: 'e2', name: '守門員專項教學', date: '03/05', status: 'completed', uid: 'demo-user' },
     { eventId: 'e1', name: '春季PLAY第三輪', date: '03/01', status: 'completed', uid: 'demo-user' },
     { eventId: 'e0b', name: '週六足球友誼賽', date: '02/22', status: 'completed', uid: 'demo-user' },
-    { eventId: 'e0a', name: '冬季足球體能活動', date: '02/22', status: 'early-left', uid: 'demo-user' },
+    { eventId: 'e0a', name: '冬季足球體能活動', date: '02/22', status: 'completed', uid: 'demo-user' },
+    // 更早的完成紀錄（用於分頁展示）
+    { eventId: 'hist01', name: '年度足球嘉年華', date: '01/28', status: 'completed', uid: 'demo-user' },
+    { eventId: 'hist02', name: '五人制室內足球', date: '01/18', status: 'completed', uid: 'demo-user' },
+    { eventId: 'hist03', name: '守門員基礎訓練', date: '01/12', status: 'completed', uid: 'demo-user' },
+    { eventId: 'hist04', name: '週六足球友誼賽', date: '01/04', status: 'completed', uid: 'demo-user' },
+    { eventId: 'hist05', name: '秋季PLAY決賽', date: '12/21', status: 'completed', uid: 'demo-user' },
+    { eventId: 'hist06', name: '足球戰術研習', date: '12/14', status: 'completed', uid: 'demo-user' },
+    { eventId: 'hist07', name: '守門員撲救教學', date: '12/07', status: 'completed', uid: 'demo-user' },
+    { eventId: 'hist08', name: '週六足球友誼賽', date: '11/30', status: 'completed', uid: 'demo-user' },
+    { eventId: 'hist09', name: '秋季PLAY第六輪', date: '11/22', status: 'completed', uid: 'demo-user' },
+    { eventId: 'hist10', name: '五人制足球聯誼', date: '11/15', status: 'completed', uid: 'demo-user' },
+    { eventId: 'hist11', name: '新手足球教學', date: '11/08', status: 'completed', uid: 'demo-user' },
+    { eventId: 'hist12', name: '秋季PLAY第五輪', date: '11/01', status: 'completed', uid: 'demo-user' },
+    { eventId: 'hist13', name: '週六足球友誼賽', date: '10/25', status: 'completed', uid: 'demo-user' },
+    { eventId: 'hist14', name: '足球體能訓練', date: '10/18', status: 'completed', uid: 'demo-user' },
+    { eventId: 'hist15', name: '秋季PLAY第四輪', date: '10/11', status: 'completed', uid: 'demo-user' },
+    { eventId: 'hist16', name: '守門員專項教學', date: '10/04', status: 'completed', uid: 'demo-user' },
+    { eventId: 'hist17', name: '秋季PLAY第三輪', date: '09/27', status: 'completed', uid: 'demo-user' },
+    { eventId: 'hist18', name: '週六足球友誼賽', date: '09/20', status: 'completed', uid: 'demo-user' },
+    { eventId: 'hist19', name: '秋季PLAY第二輪', date: '09/13', status: 'completed', uid: 'demo-user' },
+    { eventId: 'hist20', name: '秋季PLAY第一輪', date: '09/06', status: 'completed', uid: 'demo-user' },
+    // 取消紀錄
     { eventId: 'e0c', name: '足球新手教學', date: '02/25', status: 'cancelled', uid: 'demo-user' },
+    { eventId: 'e16', name: '五人制足球友誼賽', date: '04/20', status: 'cancelled', uid: 'demo-user' },
+    { eventId: 'histc1', name: '歲末足球派對', date: '12/28', status: 'cancelled', uid: 'demo-user' },
   ],
 };
 

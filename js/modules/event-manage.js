@@ -13,6 +13,7 @@ Object.assign(App, {
   _myActivityCreatorFilter: '',
 
   renderMyActivities(filter) {
+    this._autoEndExpiredEvents();
     const container = document.getElementById('my-activity-list');
     if (!container) return;
     const f = filter || this._myActivityFilter || 'all';
@@ -70,12 +71,11 @@ Object.assign(App, {
                  + `<button class="outline-btn" style="${s};color:var(--danger)" onclick="App.cancelMyActivity('${e.id}')">取消</button>`;
           } else if (e.status === 'ended') {
             btns = `<button class="primary-btn small" style="${s}" onclick="App.showMyActivityDetail('${e.id}')">查看名單</button>`
-                 + `<button class="outline-btn" style="${s};color:var(--success)" onclick="App.reopenMyActivity('${e.id}')">重新開放</button>`
-                 + `<button class="outline-btn" style="${s};color:var(--danger)" onclick="App.deleteMyActivity('${e.id}')">刪除</button>`;
+                 + (isAdmin ? `<button class="outline-btn" style="${s};color:var(--danger)" onclick="App.deleteMyActivity('${e.id}')">刪除</button>` : '');
           } else if (e.status === 'cancelled') {
             btns = `<button class="primary-btn small" style="${s}" onclick="App.showMyActivityDetail('${e.id}')">查看名單</button>`
                  + `<button class="outline-btn" style="${s};color:var(--success)" onclick="App.reopenMyActivity('${e.id}')">重新開放</button>`
-                 + `<button class="outline-btn" style="${s};color:var(--danger)" onclick="App.deleteMyActivity('${e.id}')">刪除</button>`;
+                 + (isAdmin ? `<button class="outline-btn" style="${s};color:var(--danger)" onclick="App.deleteMyActivity('${e.id}')">刪除</button>` : '');
           }
         } else {
           btns = `<button class="primary-btn small" style="${s}" onclick="App.showMyActivityDetail('${e.id}')">查看名單</button>`;
@@ -216,6 +216,7 @@ Object.assign(App, {
     if (e && !this._canManageEvent(e)) { this.showToast('您只能管理自己的活動'); return; }
     if (!await this.appConfirm('確定要結束此活動？')) return;
     ApiService.updateEvent(id, { status: 'ended' });
+    ApiService._writeOpLog('event_end', '結束活動', `結束「${e.title}」`);
     this.renderMyActivities();
     this.renderActivityList();
     this.renderHotEvents();
@@ -257,6 +258,9 @@ Object.assign(App, {
     }
 
     ApiService.updateEvent(id, { status: 'cancelled' });
+    // 活動被取消 → 刪除所有個人取消紀錄
+    this._cleanupCancelledRecords(id);
+    ApiService._writeOpLog('event_cancel', '取消活動', `取消「${e.title}」`);
     this.renderMyActivities();
     this.renderActivityList();
     this.renderHotEvents();
@@ -270,6 +274,7 @@ Object.assign(App, {
     if (!this._canManageEvent(e)) { this.showToast('您只能管理自己的活動'); return; }
     const newStatus = this._isEventTrulyFull(e) ? 'full' : 'open';
     ApiService.updateEvent(id, { status: newStatus });
+    ApiService._writeOpLog('event_reopen', '重開活動', `重開「${e.title}」`);
     this.renderMyActivities();
     this.renderActivityList();
     this.renderHotEvents();
@@ -318,12 +323,30 @@ Object.assign(App, {
     this.renderMyActivities();
   },
 
+  /** 清理某活動的所有個人取消紀錄（活動被刪除或取消時呼叫） */
+  _cleanupCancelledRecords(eventId) {
+    const source = ApiService._src('activityRecords');
+    for (let i = source.length - 1; i >= 0; i--) {
+      if (source[i].eventId === eventId && source[i].status === 'cancelled') {
+        if (!ModeManager.isDemo() && source[i]._docId) {
+          db.collection('activityRecords').doc(source[i]._docId).delete()
+            .catch(err => console.error('[cleanupCancelledRecords]', err));
+        }
+        source.splice(i, 1);
+      }
+    }
+  },
+
   // ── 刪除活動 ──
   async deleteMyActivity(id) {
     const e = ApiService.getEvent(id);
     if (e && !this._canManageEvent(e)) { this.showToast('您只能管理自己的活動'); return; }
     if (!(await this.appConfirm('確定要刪除此活動？刪除後無法恢復。'))) return;
+    const title = e.title;
+    // 活動被刪除 → 刪除所有個人取消紀錄
+    this._cleanupCancelledRecords(id);
     ApiService.deleteEvent(id);
+    ApiService._writeOpLog('event_delete', '刪除活動', `刪除「${title}」`);
     this.renderMyActivities();
     this.renderActivityList();
     this.renderHotEvents();

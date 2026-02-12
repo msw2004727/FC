@@ -381,6 +381,7 @@ Object.assign(App, {
         }
       }
 
+      ApiService._writeOpLog('event_edit', '編輯活動', `編輯「${title}」`);
       this.closeModal();
       this._editEventId = null;
       this.renderActivityList();
@@ -415,6 +416,7 @@ Object.assign(App, {
       this._saveInputHistory('ce-max', max);
       if (minAge > 0) this._saveInputHistory('ce-min-age', minAge);
       this._saveRecentDelegates(this._delegates);
+      ApiService._writeOpLog('event_create', '建立活動', `建立「${title}」`);
       this.closeModal();
       this.renderActivityList();
       this.renderHotEvents();
@@ -443,7 +445,7 @@ Object.assign(App, {
     const cePreview = document.getElementById('ce-upload-preview');
     if (cePreview) {
       cePreview.classList.remove('has-image');
-      cePreview.innerHTML = '<span class="ce-upload-icon">+</span><span class="ce-upload-text">點擊上傳圖片</span><span class="ce-upload-hint">建議尺寸 800 × 300 px｜JPG / PNG｜最大 5MB</span>';
+      cePreview.innerHTML = '<span class="ce-upload-icon">+</span><span class="ce-upload-text">點擊上傳圖片</span><span class="ce-upload-hint">建議尺寸 800 × 300 px｜JPG / PNG｜最大 2MB</span>';
     }
   },
 

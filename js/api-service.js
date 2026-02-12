@@ -300,6 +300,22 @@ const ApiService = {
   deleteBadge(id)          { return this._delete('badges', id, FirebaseService.deleteBadge, 'deleteBadge'); },
 
   // ════════════════════════════════
+  //  Operation Log（統一日誌工具）
+  // ════════════════════════════════
+
+  _writeOpLog(type, typeName, content) {
+    const now = new Date();
+    const timeStr = `${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+    const curUser = this.getCurrentUser();
+    const operator = curUser?.displayName || ROLES[App.currentRole]?.label || '系統';
+    const opLog = { time: timeStr, operator, type, typeName, content };
+    this._src('operationLogs').unshift(opLog);
+    if (!this._demoMode) {
+      FirebaseService.addOperationLog(opLog).catch(err => console.error('[opLog]', err));
+    }
+  },
+
+  // ════════════════════════════════
   //  Admin：Logs, Banners, Permissions
   // ════════════════════════════════
 
@@ -426,6 +442,48 @@ const ApiService = {
     return user;
   },
 
+  /**
+   * 重新計算用戶角色：掃描所有球隊職位 + manualRole 底線，取最高。
+   * @param {string} uid
+   * @returns {{ uid, oldRole, newRole, userName }|null} 有變化回傳結果，無變化回傳 null
+   */
+  _recalcUserRole(uid) {
+    const user = this._src('adminUsers').find(u => u.uid === uid);
+    if (!user) return null;
+    const oldRole = user.role;
+    // venue_owner 以上由管理員手動管理，不做自動降級
+    if ((ROLE_LEVEL_MAP[oldRole] || 0) >= ROLE_LEVEL_MAP['venue_owner']) return null;
+
+    // 掃描所有球隊，找出此用戶擔任的最高職位
+    let highestTeamLevel = 0;
+    const teams = this._src('teams');
+    teams.forEach(t => {
+      if (t.captainUid === uid || t.captain === user.name) {
+        highestTeamLevel = Math.max(highestTeamLevel, ROLE_LEVEL_MAP['captain']);
+      }
+      if ((t.coaches || []).includes(user.name)) {
+        highestTeamLevel = Math.max(highestTeamLevel, ROLE_LEVEL_MAP['coach']);
+      }
+    });
+
+    // manualRole 底線（未設定等同 user）
+    const manualLevel = ROLE_LEVEL_MAP[user.manualRole] || 0;
+    const targetLevel = Math.max(highestTeamLevel, manualLevel);
+
+    // 反查角色名稱
+    const levelToRole = Object.entries(ROLE_LEVEL_MAP).reduce((m, [k, v]) => { m[v] = k; return m; }, {});
+    const newRole = levelToRole[targetLevel] || 'user';
+
+    if (newRole === oldRole) return null;
+
+    // 更新角色
+    user.role = newRole;
+    if (!this._demoMode && user._docId) {
+      FirebaseService.updateUserRole(user._docId, newRole).catch(err => console.error('[_recalcUserRole]', err));
+    }
+    return { uid, oldRole, newRole, userName: user.name };
+  },
+
   // ════════════════════════════════
   //  EXP Adjustment（手動 EXP）
   // ════════════════════════════════
@@ -438,14 +496,12 @@ const ApiService = {
     const timeStr = `${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
     const log = { time: timeStr, target: user.name, amount: (amount > 0 ? '+' : '') + amount, reason, operator: operatorLabel || '管理員' };
     this._src('expLogs').unshift(log);
-    const opLog = { time: timeStr, operator: operatorLabel || '管理員', type: 'exp', typeName: '手動EXP', content: `${user.name} ${log.amount}「${reason}」` };
-    this._src('operationLogs').unshift(opLog);
+    this._writeOpLog('exp', '手動EXP', `${user.name} ${log.amount}「${reason}」`);
     if (!this._demoMode) {
       if (user._docId) {
         db.collection('users').doc(user._docId).update({ exp: user.exp }).catch(err => console.error('[adjustUserExp]', err));
       }
       db.collection('expLogs').add({ ...log, createdAt: firebase.firestore.FieldValue.serverTimestamp() }).catch(err => console.error('[adjustUserExp log]', err));
-      FirebaseService.addOperationLog(opLog).catch(err => console.error('[adjustUserExp opLog]', err));
     }
     return user;
   },
@@ -458,14 +514,12 @@ const ApiService = {
     const timeStr = `${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
     const log = { time: timeStr, target: team.name, targetId: teamId, amount: (amount > 0 ? '+' : '') + amount, reason, operator: operatorLabel || '管理員' };
     this._src('teamExpLogs').unshift(log);
-    const opLog = { time: timeStr, operator: operatorLabel || '管理員', type: 'team_exp', typeName: '球隊積分', content: `${team.name} ${log.amount}「${reason}」` };
-    this._src('operationLogs').unshift(opLog);
+    this._writeOpLog('team_exp', '球隊積分', `${team.name} ${log.amount}「${reason}」`);
     if (!this._demoMode) {
       if (team._docId) {
         db.collection('teams').doc(team._docId).update({ teamExp: team.teamExp }).catch(err => console.error('[adjustTeamExp]', err));
       }
       db.collection('teamExpLogs').add({ ...log, createdAt: firebase.firestore.FieldValue.serverTimestamp() }).catch(err => console.error('[adjustTeamExp log]', err));
-      FirebaseService.addOperationLog(opLog).catch(err => console.error('[adjustTeamExp opLog]', err));
     }
     return team;
   },

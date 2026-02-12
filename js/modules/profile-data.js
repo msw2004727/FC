@@ -45,9 +45,9 @@ Object.assign(App, {
       }
     }
 
-    // 稱號
-    const titleDisplay = this._buildTitleDisplay(user, lineProfile ? lineProfile.displayName : null);
-    if (el('profile-title')) el('profile-title').textContent = titleDisplay;
+    // 稱號（HTML 版：金色/銀色標籤）
+    const titleHtml = this._buildTitleDisplayHtml(user, lineProfile ? lineProfile.displayName : null);
+    if (el('profile-title')) el('profile-title').innerHTML = titleHtml;
 
     // UID 顯示 + 迷你 QR 按鈕
     const uidWrap = el('profile-uid-wrap');
@@ -74,10 +74,19 @@ Object.assign(App, {
     if (el('profile-exp-text')) el('profile-exp-text').textContent = `${progress.toLocaleString()} / ${needed.toLocaleString()}`;
     if (el('profile-exp-fill')) el('profile-exp-fill').style.width = `${Math.min(100, Math.round((progress / needed) * 100))}%`;
 
-    // 統計數據
-    if (el('profile-stat-total')) el('profile-stat-total').textContent = user.totalGames || 0;
-    if (el('profile-stat-done')) el('profile-stat-done').textContent = user.completedGames || 0;
-    if (el('profile-stat-rate')) el('profile-stat-rate').textContent = user.attendanceRate ? `${user.attendanceRate}%` : '0%';
+    // 統計數據（即時從活動紀錄計算）
+    if (this._categorizeRecords) {
+      const _uid = user.uid || user.lineUserId || 'demo-user';
+      const { completed: _comp, cancelled: _canc } = this._categorizeRecords(_uid, false);
+      const _all = ApiService.getActivityRecords(_uid);
+      const _total = _all.length;
+      const _compN = _comp.length;
+      const _cancN = _canc.length;
+      const _rate = _total > 0 ? Math.round(((_total - _cancN) / _total) * 100) : 0;
+      if (el('profile-stat-total')) el('profile-stat-total').textContent = _total;
+      if (el('profile-stat-done')) el('profile-stat-done').textContent = _compN;
+      if (el('profile-stat-rate')) el('profile-stat-rate').textContent = `${_rate}%`;
+    }
     // 徽章數量：從成就資料動態計算
     if (el('profile-stat-badges')) {
       const _achs = ApiService.getAchievements().filter(a => a.status !== 'archived');
@@ -111,6 +120,38 @@ Object.assign(App, {
     if (el('profile-gender-display')) el('profile-gender-display').textContent = v(user.gender);
     if (el('profile-sports-display')) el('profile-sports-display').textContent = v(user.sports);
     if (el('profile-team-display')) el('profile-team-display').innerHTML = this._getUserTeamHtml(user);
+
+    // 我的球隊申請
+    this._renderMyApplications();
+
+    // 新徽章稱號自動推薦（每次會話只檢查一次）
+    if (!this._titleSuggestionChecked) {
+      this._titleSuggestionChecked = true;
+      setTimeout(() => this._checkTitleSuggestion(), 800);
+    }
+  },
+
+  _renderMyApplications() {
+    const card = document.getElementById('profile-applications-card');
+    const list = document.getElementById('profile-applications-list');
+    if (!card || !list) return;
+    const user = ApiService.getCurrentUser();
+    const uid = user?.uid || user?.lineUserId || (ModeManager.isDemo() ? 'demo-user' : null);
+    if (!uid) { card.style.display = 'none'; return; }
+    const allMsgs = ApiService.getMessages();
+    const apps = allMsgs.filter(m =>
+      m.actionType === 'team_join_request' && m.meta && m.meta.applicantUid === uid
+    );
+    if (!apps.length) { card.style.display = 'none'; return; }
+    card.style.display = '';
+    const statusMap = { pending: { label: '審核中', color: 'var(--warning)' }, approved: { label: '已通過', color: 'var(--success)' }, rejected: { label: '已拒絕', color: 'var(--danger)' } };
+    list.innerHTML = apps.map(m => {
+      const s = statusMap[m.actionStatus] || statusMap.pending;
+      return `<div style="display:flex;justify-content:space-between;align-items:center;padding:.4rem 0;border-bottom:1px solid var(--border)">
+        <span style="font-size:.82rem">${escapeHTML(m.meta.teamName || '-')}</span>
+        <span style="font-size:.72rem;font-weight:600;color:${s.color}">${s.label}</span>
+      </div>`;
+    }).join('');
   },
 
   toggleProfileEdit() {
@@ -159,7 +200,7 @@ Object.assign(App, {
     this.showToast('個人資料已更新');
   },
 
-  // 組合稱號顯示：大成就.普通.暱稱
+  // 組合稱號顯示：大成就.普通.暱稱（純文字）
   _buildTitleDisplay(user, overrideName) {
     const parts = [];
     if (user.titleBig) parts.push(user.titleBig);
@@ -167,6 +208,43 @@ Object.assign(App, {
     const name = overrideName || user.displayName || '-';
     parts.push(name);
     return parts.join('.');
+  },
+
+  // 組合稱號顯示 HTML 版（金色/銀色標籤）
+  _buildTitleDisplayHtml(user, overrideName) {
+    const parts = [];
+    if (user.titleBig) {
+      parts.push(`<span class="title-tag title-gold">${escapeHTML(user.titleBig)}</span>`);
+    }
+    if (user.titleNormal) {
+      parts.push(`<span class="title-tag title-normal">${escapeHTML(user.titleNormal)}</span>`);
+    }
+    const name = overrideName || user.displayName || '-';
+    parts.push(escapeHTML(name));
+    return parts.join('<span class="title-dot">.</span>');
+  },
+
+  // 新徽章稱號自動推薦
+  _titleSuggestionChecked: false,
+  async _checkTitleSuggestion() {
+    const user = ApiService.getCurrentUser();
+    if (!user) return;
+    const achs = ApiService.getAchievements().filter(a => a.status !== 'archived');
+    const getT = a => (a.condition && a.condition.threshold != null) ? a.condition.threshold : (a.target != null ? a.target : 1);
+    const earned = achs.filter(a => a.current >= getT(a));
+    if (earned.length === 0) return;
+    const lastCount = parseInt(localStorage.getItem('sporthub_title_prompted') || '0');
+    if (earned.length <= lastCount) return;
+    localStorage.setItem('sporthub_title_prompted', String(earned.length));
+    // 檢查是否有空的稱號欄位可以裝備
+    const hasGoldSlot = !user.titleBig && earned.some(a => a.category === 'gold');
+    const hasNormalSlot = !user.titleNormal && earned.some(a => a.category !== 'gold');
+    if (hasGoldSlot || hasNormalSlot) {
+      const yes = await this.appConfirm('您獲得了新的稱號，是否前往裝備？');
+      if (yes) this.showPage('page-titles');
+    } else {
+      this.showToast('恭喜獲得新徽章！可至「稱號設定」更換');
+    }
   },
 
   // 渲染稱號設定頁
@@ -216,12 +294,10 @@ Object.assign(App, {
     const big = document.getElementById('title-big')?.value || '';
     const normal = document.getElementById('title-normal')?.value || '';
     const name = document.getElementById('title-line-name')?.value || '-';
-    const parts = [];
-    if (big) parts.push(big);
-    if (normal) parts.push(normal);
-    parts.push(name);
     const preview = document.getElementById('title-preview');
-    if (preview) preview.textContent = parts.join('.');
+    if (!preview) return;
+    const fakeUser = { titleBig: big || null, titleNormal: normal || null, displayName: name };
+    preview.innerHTML = this._buildTitleDisplayHtml(fakeUser);
   },
 
   saveTitles() {

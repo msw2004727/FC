@@ -196,7 +196,49 @@
       <div class="admin-search">
         <input type="text" id="oplog-search" placeholder="搜尋操作者 / 目標..." oninput="App.filterOperationLogs()">
         <div class="admin-filters">
-          <select id="oplog-type-filter" onchange="App.filterOperationLogs()"><option value="">全部類型</option><option value="exp">手動EXP</option><option value="role">晉升用戶</option><option value="event">活動管理</option></select>
+          <select id="oplog-type-filter" onchange="App.filterOperationLogs()">
+            <option value="">全部類型</option>
+            <optgroup label="用戶">
+              <option value="exp">手動EXP</option>
+              <option value="team_exp">球隊積分</option>
+              <option value="role">角色變更</option>
+            </optgroup>
+            <optgroup label="活動">
+              <option value="event_create">建立活動</option>
+              <option value="event_edit">編輯活動</option>
+              <option value="event_end">結束活動</option>
+              <option value="event_cancel">取消活動</option>
+              <option value="event_reopen">重開活動</option>
+              <option value="event_delete">刪除活動</option>
+            </optgroup>
+            <optgroup label="賽事">
+              <option value="tourn_create">建立賽事</option>
+              <option value="tourn_edit">編輯賽事</option>
+              <option value="tourn_end">結束賽事</option>
+              <option value="tourn_reopen">重開賽事</option>
+              <option value="tourn_delete">刪除賽事</option>
+              <option value="tourn_approve">賽事審批</option>
+            </optgroup>
+            <optgroup label="球隊">
+              <option value="team_create">建立球隊</option>
+              <option value="team_edit">編輯球隊</option>
+              <option value="team_delete">刪除球隊</option>
+              <option value="team_position">職位變更</option>
+              <option value="team_approve">入隊審批</option>
+            </optgroup>
+            <optgroup label="成就">
+              <option value="ach_create">建立成就</option>
+              <option value="ach_edit">編輯成就</option>
+              <option value="ach_toggle">成就上下架</option>
+              <option value="ach_delete">刪除成就</option>
+            </optgroup>
+            <optgroup label="公告">
+              <option value="ann_create">建立公告</option>
+              <option value="ann_edit">編輯公告</option>
+              <option value="ann_toggle">公告上下架</option>
+              <option value="ann_delete">刪除公告</option>
+            </optgroup>
+          </select>
         </div>
       </div>
       <div class="log-list" id="operation-log-list"></div>
