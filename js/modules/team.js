@@ -363,8 +363,11 @@ Object.assign(App, {
       document.getElementById('ct-team-bio').value = t.bio || '';
 
       // 編輯模式：顯示目前領隊 + 轉移搜尋
+      captainDisplay.style.display = '';
       captainDisplay.innerHTML = `目前領隊：<span style="color:var(--accent)">${escapeHTML(t.captain || '（未設定）')}</span>`;
       captainTransfer.style.display = '';
+      const captainHint = captainTransfer.querySelector('.ct-captain-hint');
+      if (captainHint) captainHint.style.display = '';
 
       // 預設保留原領隊
       this._teamCaptainUid = null;
@@ -406,13 +409,15 @@ Object.assign(App, {
         preview.classList.remove('has-image');
       }
     } else {
-      // 新增模式：領隊由搜尋選取，不自動帶入
+      // 新增模式：領隊由搜尋選取，呈現方式與教練相同
       titleEl.textContent = '新增球隊';
       saveBtn.textContent = '建立球隊';
       this._resetTeamForm();
 
-      captainDisplay.innerHTML = `領隊：<span style="color:var(--text-muted)">（未指定，可稍後於編輯時設定）</span>`;
+      captainDisplay.style.display = 'none';
       captainTransfer.style.display = '';
+      const captainHint = captainTransfer.querySelector('.ct-captain-hint');
+      if (captainHint) captainHint.style.display = 'none';
       this._teamCaptainUid = null;
     }
     this.showModal('create-team-modal');
@@ -517,7 +522,7 @@ Object.assign(App, {
   searchTeamCaptain() {
     const q = document.getElementById('ct-captain-search').value.trim();
     if (!q) { document.getElementById('ct-captain-suggest').classList.remove('show'); return; }
-    const exclude = [...this._teamCoachUids];
+    const exclude = [];
     if (this._teamCaptainUid && this._teamCaptainUid !== '__legacy__') exclude.push(this._teamCaptainUid);
     const results = this._teamSearchUsers(q, exclude);
     this._renderSuggestList('ct-captain-suggest', results, 'selectTeamCaptain');
@@ -531,7 +536,7 @@ Object.assign(App, {
     document.getElementById('ct-captain-search').value = '';
     document.getElementById('ct-captain-suggest').innerHTML = '';
     document.getElementById('ct-captain-suggest').classList.remove('show');
-    const prefix = this._teamEditId ? '轉移至：' : '領隊：';
+    const prefix = this._teamEditId ? '轉移至：' : '';
     document.getElementById('ct-captain-selected').innerHTML =
       `<span class="team-tag">${prefix}${user.name}<span class="team-tag-x" onclick="App.clearTeamCaptain()">×</span></span>`;
   },
@@ -558,7 +563,6 @@ Object.assign(App, {
     const q = document.getElementById('ct-coach-search').value.trim();
     if (!q) { document.getElementById('ct-coach-suggest').classList.remove('show'); return; }
     const exclude = [...this._teamCoachUids];
-    if (this._teamCaptainUid && this._teamCaptainUid !== '__legacy__') exclude.push(this._teamCaptainUid);
     const results = this._teamSearchUsers(q, exclude);
     this._renderSuggestList('ct-coach-suggest', results, 'selectTeamCoach');
   },
