@@ -5,8 +5,11 @@
 
 Object.assign(App, {
 
-  _AUTO_EXP_KEY: 'sporthub_auto_exp_rules',
-  _AUTO_EXP_LOG_KEY: 'sporthub_auto_exp_logs',
+  _AUTO_EXP_KEY_BASE: 'sporthub_auto_exp_rules',
+  _AUTO_EXP_LOG_KEY_BASE: 'sporthub_auto_exp_logs',
+
+  _autoExpKey()    { return this._AUTO_EXP_KEY_BASE + '_' + ModeManager.getMode(); },
+  _autoExpLogKey() { return this._AUTO_EXP_LOG_KEY_BASE + '_' + ModeManager.getMode(); },
 
   _AUTO_EXP_DEFAULTS: [
     { key: 'complete_activity',    label: '完成活動',     desc: '簽到＋簽退完成一場活動' },
@@ -22,7 +25,7 @@ Object.assign(App, {
 
   _getAutoExpRules() {
     try {
-      const saved = JSON.parse(localStorage.getItem(this._AUTO_EXP_KEY));
+      const saved = JSON.parse(localStorage.getItem(this._autoExpKey()));
       if (saved && typeof saved === 'object') {
         return this._AUTO_EXP_DEFAULTS.map(d => ({
           ...d,
@@ -55,12 +58,12 @@ Object.assign(App, {
     const timeStr = `${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
     logs.unshift({ time: timeStr, target: user.name, key, amount, context: context || '' });
     if (logs.length > 200) logs.length = 200;
-    localStorage.setItem(this._AUTO_EXP_LOG_KEY, JSON.stringify(logs));
+    localStorage.setItem(this._autoExpLogKey(), JSON.stringify(logs));
   },
 
   _getAutoExpLogs() {
     try {
-      const data = JSON.parse(localStorage.getItem(this._AUTO_EXP_LOG_KEY) || '[]');
+      const data = JSON.parse(localStorage.getItem(this._autoExpLogKey()) || '[]');
       return Array.isArray(data) ? data : [];
     } catch { return []; }
   },
@@ -90,7 +93,7 @@ Object.assign(App, {
       const input = document.getElementById('auto-exp-' + d.key);
       data[d.key] = parseInt(input?.value) || 0;
     });
-    localStorage.setItem(this._AUTO_EXP_KEY, JSON.stringify(data));
+    localStorage.setItem(this._autoExpKey(), JSON.stringify(data));
     this.showToast('自動 EXP 規則已儲存');
   },
 

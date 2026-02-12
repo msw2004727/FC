@@ -9,11 +9,11 @@ Object.assign(App, {
   //  Input History (localStorage)
   // ══════════════════════════════════
 
-  _INPUT_HISTORY_KEY: 'sporthub_input_history',
+  _inputHistoryKey() { return 'sporthub_input_history_' + ModeManager.getMode(); },
 
   _getInputHistory(key) {
     try {
-      const all = JSON.parse(localStorage.getItem(this._INPUT_HISTORY_KEY) || '{}');
+      const all = JSON.parse(localStorage.getItem(this._inputHistoryKey()) || '{}');
       return Array.isArray(all[key]) ? all[key] : [];
     } catch { return []; }
   },
@@ -23,13 +23,13 @@ Object.assign(App, {
     const strVal = String(value).trim();
     if (!strVal) return;
     try {
-      const all = JSON.parse(localStorage.getItem(this._INPUT_HISTORY_KEY) || '{}');
+      const all = JSON.parse(localStorage.getItem(this._inputHistoryKey()) || '{}');
       let arr = Array.isArray(all[key]) ? all[key] : [];
       arr = arr.filter(v => v !== strVal);
       arr.unshift(strVal);
       if (arr.length > 5) arr = arr.slice(0, 5);
       all[key] = arr;
-      localStorage.setItem(this._INPUT_HISTORY_KEY, JSON.stringify(all));
+      localStorage.setItem(this._inputHistoryKey(), JSON.stringify(all));
     } catch {}
   },
 
@@ -59,7 +59,7 @@ Object.assign(App, {
   _saveRecentDelegates(delegates) {
     if (!Array.isArray(delegates) || delegates.length === 0) return;
     try {
-      const all = JSON.parse(localStorage.getItem(this._INPUT_HISTORY_KEY) || '{}');
+      const all = JSON.parse(localStorage.getItem(this._inputHistoryKey()) || '{}');
       let arr = Array.isArray(all['recent-delegates']) ? all['recent-delegates'] : [];
       delegates.forEach(d => {
         arr = arr.filter(e => e.uid !== d.uid);
@@ -67,13 +67,13 @@ Object.assign(App, {
       });
       if (arr.length > 10) arr = arr.slice(0, 10);
       all['recent-delegates'] = arr;
-      localStorage.setItem(this._INPUT_HISTORY_KEY, JSON.stringify(all));
+      localStorage.setItem(this._inputHistoryKey(), JSON.stringify(all));
     } catch {}
   },
 
   _getRecentDelegates() {
     try {
-      const all = JSON.parse(localStorage.getItem(this._INPUT_HISTORY_KEY) || '{}');
+      const all = JSON.parse(localStorage.getItem(this._inputHistoryKey()) || '{}');
       return Array.isArray(all['recent-delegates']) ? all['recent-delegates'] : [];
     } catch { return []; }
   },
@@ -120,12 +120,12 @@ Object.assign(App, {
   //  Event Templates (localStorage)
   // ══════════════════════════════════
 
-  _TEMPLATE_KEY: 'sporthub_event_templates',
+  _templateKey() { return 'sporthub_event_templates_' + ModeManager.getMode(); },
   _MAX_TEMPLATES: 10,
 
   _getEventTemplates() {
     try {
-      const data = JSON.parse(localStorage.getItem(this._TEMPLATE_KEY) || '[]');
+      const data = JSON.parse(localStorage.getItem(this._templateKey()) || '[]');
       return Array.isArray(data) ? data : [];
     } catch { return []; }
   },
@@ -163,11 +163,11 @@ Object.assign(App, {
     }
     templates.unshift(tpl);
     try {
-      localStorage.setItem(this._TEMPLATE_KEY, JSON.stringify(templates));
+      localStorage.setItem(this._templateKey(), JSON.stringify(templates));
     } catch (e) {
       // 圖片 base64 可能太大，嘗試不含圖片存
       tpl.image = null;
-      localStorage.setItem(this._TEMPLATE_KEY, JSON.stringify(templates));
+      localStorage.setItem(this._templateKey(), JSON.stringify(templates));
       this.showToast('圖片太大無法儲存到範本，其他欄位已保存');
       nameInput.value = '';
       this._renderTemplateSelector();
@@ -205,7 +205,7 @@ Object.assign(App, {
 
   _deleteEventTemplate(id) {
     let templates = this._getEventTemplates().filter(t => t.id !== id);
-    localStorage.setItem(this._TEMPLATE_KEY, JSON.stringify(templates));
+    localStorage.setItem(this._templateKey(), JSON.stringify(templates));
     this._renderTemplateSelector();
     this.showToast('範本已刪除');
   },

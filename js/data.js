@@ -415,9 +415,15 @@ const DemoData = {
   });
 })();
 
-// ── Pre-populate Auto EXP demo data ──
+// ── Pre-populate Auto EXP demo data（mode-aware keys）──
 (function() {
-  if (localStorage.getItem('sporthub_auto_exp_rules')) return; // 已有設定則不覆蓋
+  const mode = ModeManager.getMode();
+  const rulesKey = 'sporthub_auto_exp_rules_' + mode;
+  const logsKey  = 'sporthub_auto_exp_logs_' + mode;
+  // 清除舊版無前綴 key（避免幽靈紀錄）
+  localStorage.removeItem('sporthub_auto_exp_rules');
+  localStorage.removeItem('sporthub_auto_exp_logs');
+  if (localStorage.getItem(rulesKey)) return; // 已有設定則不覆蓋
   const rules = {
     complete_activity: 100,
     register_activity: 20,
@@ -427,7 +433,7 @@ const DemoData = {
     join_team: 30,
     post_team_feed: 5,
   };
-  localStorage.setItem('sporthub_auto_exp_rules', JSON.stringify(rules));
+  localStorage.setItem(rulesKey, JSON.stringify(rules));
   const logs = [
     { time:'2026/02/12 09:30', target:'小麥', key:'post_team_feed', amount:5, context:'昨天的友誼賽打得' },
     { time:'2026/02/11 20:15', target:'王小明', key:'submit_review', amount:15, context:'冬季足球體能活動' },
@@ -440,5 +446,5 @@ const DemoData = {
     { time:'2026/02/08 15:00', target:'小麥', key:'join_team', amount:30, context:'雷霆隊' },
     { time:'2026/02/07 11:20', target:'鄭家豪', key:'cancel_registration', amount:-10, context:'守門員專項教學' },
   ];
-  localStorage.setItem('sporthub_auto_exp_logs', JSON.stringify(logs));
+  localStorage.setItem(logsKey, JSON.stringify(logs));
 })();

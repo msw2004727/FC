@@ -233,9 +233,10 @@ Object.assign(App, {
     const getT = a => (a.condition && a.condition.threshold != null) ? a.condition.threshold : (a.target != null ? a.target : 1);
     const earned = achs.filter(a => a.current >= getT(a));
     if (earned.length === 0) return;
-    const lastCount = parseInt(localStorage.getItem('sporthub_title_prompted') || '0');
+    const tpKey = 'sporthub_title_prompted_' + ModeManager.getMode();
+    const lastCount = parseInt(localStorage.getItem(tpKey) || '0');
     if (earned.length <= lastCount) return;
-    localStorage.setItem('sporthub_title_prompted', String(earned.length));
+    localStorage.setItem(tpKey, String(earned.length));
     // 檢查是否有空的稱號欄位可以裝備
     const hasGoldSlot = !user.titleBig && earned.some(a => a.category === 'gold');
     const hasNormalSlot = !user.titleNormal && earned.some(a => a.category !== 'gold');

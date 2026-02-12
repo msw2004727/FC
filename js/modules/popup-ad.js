@@ -13,7 +13,7 @@ Object.assign(App, {
     if (!activeAds || activeAds.length === 0) return;
     // 產生當前活躍廣告的 ID 指紋（排序後合併）
     const activeKey = activeAds.map(a => a.id).sort().join(',');
-    const dismissKey = 'sporthub_popup_dismiss';
+    const dismissKey = 'sporthub_popup_dismiss_' + ModeManager.getMode();
     try {
       const stored = JSON.parse(localStorage.getItem(dismissKey));
       if (stored && stored.adKey === activeKey) {
@@ -73,7 +73,7 @@ Object.assign(App, {
 
   closePopupAd() {
     if (this._popupDismissToday) {
-      localStorage.setItem('sporthub_popup_dismiss', JSON.stringify({
+      localStorage.setItem('sporthub_popup_dismiss_' + ModeManager.getMode(), JSON.stringify({
         date: new Date().toISOString(),
         adKey: this._popupAdActiveKey || '',
       }));

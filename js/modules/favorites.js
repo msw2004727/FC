@@ -170,7 +170,7 @@ Object.assign(App, {
     const records = ApiService.getActivityRecords(uid).filter(r => r.status === 'registered');
     const events = ApiService.getEvents();
     const now = new Date();
-    const sent = JSON.parse(localStorage.getItem('sporthub_reminders') || '{}');
+    const sent = JSON.parse(localStorage.getItem('sporthub_reminders_' + ModeManager.getMode()) || '{}');
 
     records.forEach(r => {
       const ev = events.find(e => e.id === r.eventId);
@@ -199,7 +199,7 @@ Object.assign(App, {
         this._queueLinePush(uid, 'activity', title, body);
       }
     });
-    localStorage.setItem('sporthub_reminders', JSON.stringify(sent));
+    localStorage.setItem('sporthub_reminders_' + ModeManager.getMode(), JSON.stringify(sent));
   },
 
 });
