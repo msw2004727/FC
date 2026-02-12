@@ -121,8 +121,8 @@ Object.assign(App, {
     if (el('profile-sports-display')) el('profile-sports-display').textContent = v(user.sports);
     if (el('profile-team-display')) el('profile-team-display').innerHTML = this._getUserTeamHtml(user);
 
-    // 我的球隊申請（輕量判斷，展開時才完整渲染）
-    this._showApplicationsCard();
+    // 我的球隊申請
+    this._renderMyApplications();
 
     // 新徽章稱號自動推薦（每次會話只檢查一次）
     if (!this._titleSuggestionChecked) {
@@ -144,6 +144,8 @@ Object.assign(App, {
     );
     if (!apps.length) { card.style.display = 'none'; return; }
     card.style.display = '';
+    const badge = document.getElementById('app-count-badge');
+    if (badge) badge.textContent = apps.length;
     const statusMap = { pending: { label: '審核中', color: 'var(--warning)' }, approved: { label: '已通過', color: 'var(--success)' }, rejected: { label: '已拒絕', color: 'var(--danger)' } };
     list.innerHTML = apps.map(m => {
       const s = statusMap[m.actionStatus] || statusMap.pending;
@@ -152,6 +154,10 @@ Object.assign(App, {
         <span style="font-size:.72rem;font-weight:600;color:${s.color}">${s.label}</span>
       </div>`;
     }).join('');
+    // 設定為展開狀態
+    const toggle = card.querySelector('.profile-collapse-toggle');
+    if (toggle) toggle.classList.add('open');
+    list.style.display = '';
   },
 
   /** 收折切換：展開時 lazy load 對應區塊 */
