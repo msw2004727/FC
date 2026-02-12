@@ -4,7 +4,7 @@
 
 // ─── Cache Version（更新此值以清除瀏覽器快取）───
 // 20260212: 模組化拆分（user-admin/message/tournament/firebase-service）
-const CACHE_VERSION = '20260212w';
+const CACHE_VERSION = '20260212zb';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {
@@ -196,6 +196,7 @@ const DRAWER_MENUS = [
   { icon: '', label: '球隊管理', page: 'page-admin-teams', minRole: 'admin' },
   { icon: '', label: '佈景主題', page: 'page-admin-themes', minRole: 'super_admin' },
   { icon: '', label: '手動 EXP 管理', page: 'page-admin-exp', minRole: 'super_admin' },
+  { icon: '', label: '自動 EXP 管理', page: 'page-admin-auto-exp', minRole: 'super_admin' },
   { icon: '', label: '系統公告管理', page: 'page-admin-announcements', minRole: 'super_admin' },
   { icon: '', label: '成就/徽章管理', page: 'page-admin-achievements', minRole: 'super_admin' },
   { icon: '', label: '自訂層級管理', page: 'page-admin-roles', minRole: 'super_admin' },

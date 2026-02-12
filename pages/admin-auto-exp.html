@@ -1,0 +1,19 @@
+<!-- PAGE: Auto EXP Management -->
+<section class="page" id="page-admin-auto-exp" data-min-role="super_admin">
+  <div class="page-header">
+    <button class="back-btn" onclick="App.goBack()">←</button>
+    <h2>自動 EXP 管理</h2>
+  </div>
+  <div style="padding:.5rem">
+    <div class="info-card">
+      <div class="info-title">自動積分規則</div>
+      <div style="font-size:.78rem;color:var(--text-muted);margin-bottom:.5rem">設定各項動作的自動積分值，0 表示不發放。可輸入負數扣分。</div>
+      <div id="auto-exp-rules-list"></div>
+      <button class="primary-btn full-width" style="margin-top:.6rem" onclick="App.saveAutoExpRules()">儲存設定</button>
+    </div>
+    <div class="info-card">
+      <div class="info-title">自動發放紀錄</div>
+      <div id="auto-exp-log-list" style="max-height:400px;overflow-y:auto"></div>
+    </div>
+  </div>
+</section>

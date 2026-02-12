@@ -235,6 +235,32 @@ Object.assign(App, {
   openCreateEventModal() {
     this._editEventId = null;
     this._delegates = [];
+    // 重置表單欄位，防止編輯後殘留資料
+    document.getElementById('ce-title').value = '';
+    document.getElementById('ce-type').value = 'friendly';
+    document.getElementById('ce-location').value = '';
+    document.getElementById('ce-date').value = '';
+    const ceTS = document.getElementById('ce-time-start');
+    const ceTE = document.getElementById('ce-time-end');
+    if (ceTS) ceTS.value = '14:00';
+    if (ceTE) ceTE.value = '16:00';
+    document.getElementById('ce-fee').value = '300';
+    document.getElementById('ce-max').value = '20';
+    document.getElementById('ce-waitlist').value = '0';
+    document.getElementById('ce-min-age').value = '0';
+    document.getElementById('ce-notes').value = '';
+    const regOpen = document.getElementById('ce-reg-open-time');
+    if (regOpen) regOpen.value = '';
+    document.getElementById('ce-image').value = '';
+    const ceTeamOnly = document.getElementById('ce-team-only');
+    if (ceTeamOnly) { ceTeamOnly.checked = false; this._updateTeamOnlyLabel(); }
+    const cePreview = document.getElementById('ce-upload-preview');
+    if (cePreview) {
+      cePreview.classList.remove('has-image');
+      cePreview.innerHTML = '<span class="ce-upload-icon">+</span><span class="ce-upload-text">點擊上傳圖片</span><span class="ce-upload-hint">建議尺寸 800 × 300 px｜JPG / PNG｜最大 2MB</span>';
+    }
+    const submitBtn = document.getElementById('ce-submit-btn');
+    if (submitBtn) submitBtn.textContent = '建立活動';
     this.showModal('create-event-modal');
     this._initDelegateSearch();
     this._renderHistoryChips('ce-location', 'ce-location');
@@ -528,6 +554,9 @@ Object.assign(App, {
       if (minAge > 0) this._saveInputHistory('ce-min-age', minAge);
       this._saveRecentDelegates(this._delegates);
       ApiService._writeOpLog('event_create', '建立活動', `建立「${title}」`);
+      // Auto EXP: host activity
+      const _creatorUser = ApiService.getCurrentUser?.();
+      if (_creatorUser?.uid) this._grantAutoExp(_creatorUser.uid, 'host_activity', title);
       this.closeModal();
       this.renderActivityList();
       this.renderHotEvents();

@@ -132,6 +132,8 @@
 .tl-type-teamonly { border-left: 3px solid #e11d48; background: linear-gradient(90deg, rgba(225,29,72,.08), rgba(251,146,60,.06)); }
 [data-theme="dark"] .tl-type-teamonly { background: linear-gradient(90deg, rgba(225,29,72,.20), rgba(251,146,60,.14)); }
 .tl-teamonly-badge { display:inline-block;font-size:.6rem;padding:.1rem .35rem;border-radius:3px;background:#e11d48;color:#fff;margin-left:.3rem;vertical-align:middle;font-weight:700 }
+.tl-almost-full-badge { display:inline-block;font-size:.6rem;padding:.1rem .35rem;border-radius:3px;background:#f59e0b;color:#fff;margin-left:.3rem;vertical-align:middle;font-weight:700;animation:almostFullPulse 1.5s ease-in-out infinite }
+@keyframes almostFullPulse { 0%,100%{opacity:1} 50%{opacity:.7} }
 .tl-type-icon {
   width: 32px;
   height: 32px;

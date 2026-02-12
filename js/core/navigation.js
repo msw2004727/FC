@@ -48,6 +48,7 @@ Object.assign(App, {
       if (pageId === 'page-team-manage') this.renderTeamManage();
       if (pageId === 'page-admin-dashboard') this.renderDashboard();
       if (pageId === 'page-personal-dashboard') this.renderPersonalDashboard();
+      if (pageId === 'page-admin-auto-exp') this.renderAutoExpRules();
       if (pageId === 'page-scan') this.renderScanPage();
       if (pageId === 'page-qrcode') this.renderQrCodePage();
       if (pageId !== 'page-scan' && this._stopCamera) this._stopCamera();

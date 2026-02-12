@@ -22,6 +22,7 @@ const PageLoader = {
     'admin-content',
     'admin-system',
     'admin-dashboard',
+    'admin-auto-exp',
     'personal-dashboard',
   ],
 

@@ -173,24 +173,34 @@ Object.assign(App, {
         </div>
       </div>
       <div id="team-feed-section">${this._renderTeamFeed(t.id)}</div>
-      <div class="td-actions">
-        ${this._isTeamMember(t.id)
-          ? `<button style="background:var(--danger);color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;font-weight:600;cursor:pointer" onclick="App.handleLeaveTeam('${t.id}')">退出球隊</button>`
-          : `<button class="primary-btn" onclick="App.handleJoinTeam('${t.id}')">申請加入</button>`
-        }
-        ${t.captain ? `<button class="outline-btn" onclick="App.showUserProfile('${escapeHTML(t.captain)}')">聯繫領隊</button>` : ''}
-        ${(() => {
-          const u = ApiService.getCurrentUser?.();
-          const n = u?.displayName || '';
-          const isCaptainCoach = (t.captain === n || (t.coaches || []).includes(n));
-          const memberCanInvite = t.allowMemberInvite !== false;
-          const canInvite = isCaptainCoach || (this._isTeamMember(t.id) && memberCanInvite);
-          let html = '';
+      ${(() => {
+        const u = ApiService.getCurrentUser?.();
+        const n = u?.displayName || '';
+        const isCaptainCoach = (t.captain === n || (t.coaches || []).includes(n));
+        const memberCanInvite = t.allowMemberInvite !== false;
+        const canInvite = isCaptainCoach || (this._isTeamMember(t.id) && memberCanInvite);
+        const isMember = this._isTeamMember(t.id);
+        let html = '';
+        // 上方區塊：邀請 QR Code + 隊員可邀請
+        if (canInvite || isCaptainCoach) {
+          html += `<div class="td-card" style="padding:.6rem .8rem">
+            <div style="display:flex;align-items:center;flex-wrap:wrap;gap:.5rem">`;
           if (canInvite) html += `<button class="outline-btn" onclick="App.showTeamInviteQR('${t.id}')">邀請 QR Code</button>`;
-          if (isCaptainCoach) html += `<div style="display:inline-flex;align-items:center;gap:.35rem;margin-left:.3rem"><span style="font-size:.72rem;color:var(--text-muted)">隊員可邀請</span><label class="toggle-switch" style="margin:0;transform:scale(.8)"><input type="checkbox" ${memberCanInvite ? 'checked' : ''} onchange="App.toggleMemberInvite('${t.id}',this.checked)"><span class="toggle-slider"></span></label></div>`;
-          return html;
-        })()}
-      </div>
+          if (isCaptainCoach) html += `<div style="display:inline-flex;align-items:center;gap:.35rem"><span style="font-size:.72rem;color:var(--text-muted)">隊員可邀請</span><label class="toggle-switch" style="margin:0;transform:scale(.8)"><input type="checkbox" ${memberCanInvite ? 'checked' : ''} onchange="App.toggleMemberInvite('${t.id}',this.checked)"><span class="toggle-slider"></span></label></div>`;
+          html += `</div></div>`;
+        }
+        // 下方區塊：退出球隊 / 聯繫領隊（或申請加入）
+        html += `<div class="td-card" style="padding:.6rem .8rem">
+          <div style="display:flex;align-items:center;flex-wrap:wrap;gap:.5rem">`;
+        if (isMember) {
+          html += `<button style="background:var(--danger);color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;font-weight:600;cursor:pointer" onclick="App.handleLeaveTeam('${t.id}')">退出球隊</button>`;
+        } else {
+          html += `<button class="primary-btn" onclick="App.handleJoinTeam('${t.id}')">申請加入</button>`;
+        }
+        if (t.captain) html += `<button class="outline-btn" onclick="App.showUserProfile('${escapeHTML(t.captain)}')">聯繫領隊</button>`;
+        html += `</div></div>`;
+        return html;
+      })()}
     `;
     this.showPage('page-team-detail');
   },
@@ -256,6 +266,7 @@ Object.assign(App, {
       }
     );
 
+    this._grantAutoExp(applicantUid, 'join_team', t.name);
     this.showToast('已送出加入申請！');
   },
 
@@ -467,8 +478,9 @@ Object.assign(App, {
     const timeStr = `${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
     t.feed.push({ id: 'f_' + Date.now(), uid, name, content, time: timeStr, pinned: false, isPublic });
     this._teamFeedPage[teamId] = 1; // 發佈後跳回第一頁
+    if (uid) this._grantAutoExp(uid, 'post_team_feed', content.slice(0, 20));
     this.showToast('動態已發佈');
-    this.showTeamDetail(teamId);
+    this._refreshTeamDetailFeed(teamId);
   },
 
   deleteTeamPost(teamId, postId) {

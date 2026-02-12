@@ -324,6 +324,9 @@ Object.assign(App, {
         });
         resultClass = 'success';
         resultMsg = `${userName} 簽退成功`;
+        // Auto EXP: complete activity
+        const _evt = ApiService.getEvent(this._scanSelectedEventId);
+        this._grantAutoExp(uid, 'complete_activity', _evt?.title || '');
       }
     }
 

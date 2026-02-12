@@ -170,6 +170,8 @@ Object.assign(App, {
     if (!this._canManageEvent(e)) { this.showToast('您只能編輯自己的活動'); return; }
     this._editEventId = id;
     this.showModal('create-event-modal');
+    const submitBtn = document.getElementById('ce-submit-btn');
+    if (submitBtn) submitBtn.textContent = '儲存變更';
     document.getElementById('ce-title').value = e.title || '';
     document.getElementById('ce-type').value = e.type || 'friendly';
     document.getElementById('ce-location').value = e.location || '';
