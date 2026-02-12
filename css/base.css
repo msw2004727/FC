@@ -374,3 +374,36 @@ img { max-width: 100%; display: block; }
   .shop-grid { grid-template-columns: repeat(4, 1fr); }
   #main-content { max-width: 640px; }
 }
+
+/* ─── Skeleton Screen ─── */
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: var(--bg-elevated, #f0f0f0);
+  border-radius: var(--radius, 14px);
+}
+.skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,.15) 50%, transparent 100%);
+  animation: skeleton-pulse 1.5s ease-in-out infinite;
+}
+@keyframes skeleton-pulse {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+.skeleton-card {
+  height: 130px;
+  min-width: 180px;
+  flex-shrink: 0;
+}
+.skeleton-line {
+  height: 56px;
+  margin-bottom: .5rem;
+  border-radius: var(--radius-sm, 8px);
+}
+.skeleton-team-card {
+  height: 200px;
+  border-radius: var(--radius, 14px);
+}

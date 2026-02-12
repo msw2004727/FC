@@ -216,7 +216,7 @@ Object.assign(App, {
       ? visible.map(e => `
         <div class="h-card" onclick="App.showEventDetail('${e.id}')">
           ${e.image
-            ? `<div class="h-card-img"><img src="${e.image}" alt="${escapeHTML(e.title)}"></div>`
+            ? `<div class="h-card-img"><img src="${e.image}" alt="${escapeHTML(e.title)}" loading="lazy"></div>`
             : `<div class="h-card-img h-card-placeholder">220 × 90</div>`}
           <div class="h-card-body">
             <div class="h-card-title">${escapeHTML(e.title)}${e.teamOnly ? '<span class="tl-teamonly-badge">限定</span>' : ''} ${this._favHeartHtml(this.isEventFavorited(e.id), 'Event', e.id)}</div>
@@ -313,7 +313,7 @@ Object.assign(App, {
 
           html += `
             <div class="tl-event-row ${rowClass}${isEnded ? ' tl-past' : ''}" onclick="App.showEventDetail('${e.id}')">
-              ${e.image ? `<div class="tl-event-thumb"><img src="${e.image}"></div>` : ''}
+              ${e.image ? `<div class="tl-event-thumb"><img src="${e.image}" loading="lazy"></div>` : ''}
               <div class="tl-event-info">
                 <div class="tl-event-title">${escapeHTML(e.title)}${teamBadge}</div>
                 <div class="tl-event-meta">${typeConf.label} · ${time} · ${escapeHTML(e.location.split('市')[1] || e.location)} · ${e.current}/${e.max}人${waitlistTag}</div>
@@ -344,7 +344,7 @@ Object.assign(App, {
     const detailImg = document.getElementById('detail-img-placeholder');
     if (detailImg) {
       if (e.image) {
-        detailImg.innerHTML = `<img src="${e.image}" alt="${escapeHTML(e.title)}" style="width:100%;height:100%;object-fit:cover;display:block;border-radius:var(--radius)">`;
+        detailImg.innerHTML = `<img src="${e.image}" alt="${escapeHTML(e.title)}" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block;border-radius:var(--radius)">`;
         detailImg.style.border = 'none';
       } else {
         detailImg.textContent = '活動圖片 800 × 300';
@@ -408,14 +408,16 @@ Object.assign(App, {
       ${e.contact ? `<div class="detail-row"><span class="detail-label">聯繫</span>${escapeHTML(e.contact)}</div>` : ''}
       ${teamTag}
       <div class="detail-row"><span class="detail-label">倒數</span><span style="color:${isEnded ? 'var(--text-muted)' : 'var(--primary)' };font-weight:600">${countdown}</span></div>
+      ${this._renderHeatPrediction(e)}
       ${e.notes ? `
       <div class="detail-section">
         <div class="detail-section-title">注意事項</div>
         <p style="font-size:.85rem;color:var(--text-secondary);line-height:1.7;white-space:pre-wrap">${escapeHTML(e.notes)}</p>
       </div>` : ''}
-      <div style="display:flex;gap:.5rem;margin:1rem 0">
+      <div style="display:flex;gap:.5rem;margin:1rem 0;flex-wrap:wrap">
         ${signupBtn}
         <button class="outline-btn" onclick="App.showUserProfile('${escapeHTML(e.creator)}')">聯繫主辦人</button>
+        <button class="outline-btn" onclick="App.shareEvent('${e.id}')">分享活動</button>
       </div>
       <div class="detail-section">
         <div class="detail-section-title">報名名單 (${e.current})</div>
@@ -426,8 +428,107 @@ Object.assign(App, {
         <div class="detail-section-title">候補名單 (${e.waitlist})</div>
         <div class="participant-list">${e.waitlistNames.map((p, i) => `<span class="wl-pos">${i + 1}</span>${this._userTag(p)}`).join('')}</div>
       </div>` : ''}
+      ${this._renderReviews(e)}
     `;
     this.showPage('page-activity-detail');
+  },
+
+  // ══════════════════════════════════
+  //  Event Reviews
+  // ══════════════════════════════════
+
+  _reviewRating: 0,
+
+  _renderStars(rating, interactive) {
+    let html = '';
+    for (let i = 1; i <= 5; i++) {
+      const filled = i <= rating;
+      if (interactive) {
+        html += `<span class="review-star${filled ? ' active' : ''}" onclick="App._setReviewRating(${i})" style="cursor:pointer;font-size:1.3rem;color:${filled ? '#f59e0b' : 'var(--border)'};transition:color .15s">★</span>`;
+      } else {
+        html += `<span style="color:${filled ? '#f59e0b' : 'var(--border)'};font-size:.85rem">★</span>`;
+      }
+    }
+    return html;
+  },
+
+  _setReviewRating(n) {
+    this._reviewRating = n;
+    const container = document.getElementById('review-stars-input');
+    if (container) container.innerHTML = this._renderStars(n, true);
+  },
+
+  _renderReviews(e) {
+    const reviews = e.reviews || [];
+    const isEnded = e.status === 'ended';
+    const user = ApiService.getCurrentUser?.();
+    const uid = user?.uid || '';
+    const name = user?.displayName || user?.name || '';
+    const isParticipant = (e.participants || []).some(p => p === name || p === uid);
+    const hasReviewed = reviews.some(r => r.uid === uid);
+
+    // Calculate average
+    let avgHtml = '';
+    if (reviews.length > 0) {
+      const avg = reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length;
+      avgHtml = `<div style="display:flex;align-items:center;gap:.4rem;margin-bottom:.5rem">
+        <span style="font-size:1.3rem;font-weight:800;color:#f59e0b">${avg.toFixed(1)}</span>
+        ${this._renderStars(Math.round(avg), false)}
+        <span style="font-size:.75rem;color:var(--text-muted)">(${reviews.length} 則評價)</span>
+      </div>`;
+    }
+
+    // Review list
+    const listHtml = reviews.map(r => `
+      <div style="padding:.5rem 0;border-bottom:1px solid var(--border)">
+        <div style="display:flex;align-items:center;gap:.4rem;margin-bottom:.2rem">
+          ${this._userTag(r.name)}
+          <span style="margin-left:auto">${this._renderStars(r.rating, false)}</span>
+        </div>
+        ${r.text ? `<div style="font-size:.82rem;color:var(--text-secondary);line-height:1.5;margin-top:.2rem">${escapeHTML(r.text)}</div>` : ''}
+        <div style="font-size:.68rem;color:var(--text-muted);margin-top:.15rem">${escapeHTML(r.time)}</div>
+      </div>
+    `).join('');
+
+    // Review form (only for ended events, participants who haven't reviewed)
+    let formHtml = '';
+    if (isEnded && isParticipant && !hasReviewed) {
+      this._reviewRating = 0;
+      formHtml = `
+        <div style="border:1px solid var(--border);border-radius:var(--radius);padding:.6rem;margin-top:.5rem;background:var(--bg-elevated)">
+          <div style="font-size:.82rem;font-weight:600;margin-bottom:.3rem">撰寫評價</div>
+          <div id="review-stars-input" style="margin-bottom:.3rem">${this._renderStars(0, true)}</div>
+          <textarea id="review-text" rows="2" maxlength="50" placeholder="分享您的心得（最多 50 字）" style="width:100%;font-size:.82rem;padding:.3rem .5rem;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-card);color:var(--text-primary);resize:none;box-sizing:border-box"></textarea>
+          <button class="primary-btn small" style="margin-top:.3rem" onclick="App.submitReview('${e.id}')">送出評價</button>
+        </div>`;
+    }
+
+    return `
+      <div class="detail-section">
+        <div class="detail-section-title">活動評價</div>
+        ${avgHtml}
+        ${listHtml || '<div style="font-size:.82rem;color:var(--text-muted)">尚無評價</div>'}
+        ${formHtml}
+      </div>`;
+  },
+
+  submitReview(eventId) {
+    const e = ApiService.getEvent(eventId);
+    if (!e) return;
+    if (this._reviewRating < 1) { this.showToast('請選擇星數'); return; }
+    const text = (document.getElementById('review-text')?.value || '').trim();
+    if (text.length > 50) { this.showToast('評語不可超過 50 字'); return; }
+    const user = ApiService.getCurrentUser?.();
+    const uid = user?.uid || '';
+    const name = user?.displayName || user?.name || '';
+    if (!e.reviews) e.reviews = [];
+    if (e.reviews.some(r => r.uid === uid)) { this.showToast('您已評價過此活動'); return; }
+    const now = new Date();
+    const timeStr = `${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+    e.reviews.push({ uid, name, rating: this._reviewRating, text, time: timeStr });
+    this._reviewRating = 0;
+    this.showToast('評價已送出！');
+    this.showEventDetail(eventId);
   },
 
   /** 恢復報名時移除該活動的取消紀錄（恢復報名則不列為取消） */
@@ -529,6 +630,47 @@ Object.assign(App, {
         console.error('[handleSignup]', err);
         this.showToast(err.message || '報名失敗，請稍後再試');
       });
+  },
+
+  _renderHeatPrediction(e) {
+    if (e.status === 'ended' || e.status === 'cancelled') return '';
+    const pred = this._calcHeatPrediction(e);
+    if (!pred) return '';
+    const colors = { hot: '#dc2626', warm: '#f59e0b', normal: '#3b82f6', cold: '#6b7280' };
+    const labels = { hot: '極熱門 — 預計快速額滿', warm: '熱門 — 報名踴躍', normal: '一般 — 正常報名中', cold: '冷門 — 名額充裕' };
+    return `<div class="detail-row"><span class="detail-label">熱度</span><span style="color:${colors[pred]};font-weight:600">${labels[pred]}</span></div>`;
+  },
+
+  _calcHeatPrediction(e) {
+    if (!e.max || e.max === 0) return null;
+    const fillRate = e.current / e.max;
+    const start = this._parseEventStartDate(e.date);
+    if (!start) return fillRate >= 0.8 ? 'hot' : fillRate >= 0.5 ? 'warm' : 'normal';
+    const now = new Date();
+    const daysLeft = Math.max(0, (start - now) / 86400000);
+    // High fill rate + lots of time left = very hot
+    if (fillRate >= 0.9) return 'hot';
+    if (fillRate >= 0.7 && daysLeft > 3) return 'hot';
+    if (fillRate >= 0.5) return 'warm';
+    if (fillRate >= 0.3 && daysLeft > 7) return 'warm';
+    if (fillRate < 0.15 && daysLeft < 3) return 'cold';
+    return 'normal';
+  },
+
+  shareEvent(eventId) {
+    const e = ApiService.getEvent(eventId);
+    if (!e) return;
+    const url = `${location.origin}${location.pathname}?event=${eventId}`;
+    const shareData = { title: e.title, text: `${e.title} — ${e.date} @ ${e.location}`, url };
+    if (navigator.share) {
+      navigator.share(shareData).catch(() => {});
+    } else {
+      navigator.clipboard.writeText(url).then(() => {
+        this.showToast('分享連結已複製到剪貼簿');
+      }).catch(() => {
+        this.showToast('無法複製連結');
+      });
+    }
   },
 
   async handleCancelSignup(id) {

@@ -152,6 +152,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
   App.init();
+  // Deep link handling: ?event=xxx or ?team=xxx
+  const urlParams = new URLSearchParams(location.search);
+  const deepEvent = urlParams.get('event');
+  const deepTeam = urlParams.get('team');
+  if (deepEvent) { setTimeout(() => App.showEventDetail(deepEvent), 300); }
+  else if (deepTeam) { setTimeout(() => App.showTeamDetail(deepTeam), 300); }
   // 自動下架過期廣告（啟動時 + 每 60 秒檢查）
   App._autoExpireAds();
   setInterval(() => App._autoExpireAds(), 60000);

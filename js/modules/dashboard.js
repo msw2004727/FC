@@ -244,4 +244,86 @@ Object.assign(App, {
     });
   },
 
+  /** 繪製折線圖（活躍度趨勢） */
+  _drawLineChart(canvasId, weeklyData) {
+    const el = document.getElementById(canvasId);
+    if (!el || !el.parentElement) return;
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    const dpr = window.devicePixelRatio || 1;
+    const w = el.parentElement.offsetWidth - 32 || 280;
+    const h = 180;
+    el.width = w * dpr; el.height = h * dpr;
+    el.style.height = h + 'px';
+    const ctx = el.getContext('2d');
+    ctx.scale(dpr, dpr);
+
+    const labels = weeklyData.map(d => d.label);
+    const values = weeklyData.map(d => d.value);
+    if (values.length === 0) {
+      ctx.fillStyle = isDark ? '#6b7280' : '#9ca3af';
+      ctx.font = '13px sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('尚無資料', w / 2, h / 2);
+      return;
+    }
+
+    const pad = { top: 20, right: 15, bottom: 30, left: 35 };
+    const chartW = w - pad.left - pad.right;
+    const chartH = h - pad.top - pad.bottom;
+    const maxVal = Math.max(...values, 1);
+
+    // Grid lines
+    ctx.strokeStyle = isDark ? '#374151' : '#e5e7eb';
+    ctx.lineWidth = 0.5;
+    for (let i = 0; i <= 4; i++) {
+      const y = pad.top + chartH * (1 - i / 4);
+      ctx.beginPath();
+      ctx.moveTo(pad.left, y);
+      ctx.lineTo(w - pad.right, y);
+      ctx.stroke();
+      ctx.fillStyle = isDark ? '#9ca3af' : '#9ca3af';
+      ctx.font = '10px sans-serif';
+      ctx.textAlign = 'right';
+      ctx.fillText(Math.round(maxVal * i / 4), pad.left - 5, y + 3);
+    }
+
+    // Compute points
+    const step = values.length > 1 ? chartW / (values.length - 1) : 0;
+    const points = values.map((v, i) => ({
+      x: pad.left + i * step,
+      y: pad.top + chartH * (1 - v / maxVal),
+    }));
+
+    // Fill area
+    ctx.beginPath();
+    ctx.moveTo(points[0].x, pad.top + chartH);
+    points.forEach(p => ctx.lineTo(p.x, p.y));
+    ctx.lineTo(points[points.length - 1].x, pad.top + chartH);
+    ctx.closePath();
+    const grad = ctx.createLinearGradient(0, pad.top, 0, pad.top + chartH);
+    grad.addColorStop(0, isDark ? 'rgba(59,130,246,.3)' : 'rgba(59,130,246,.15)');
+    grad.addColorStop(1, 'transparent');
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    // Line
+    ctx.beginPath();
+    points.forEach((p, i) => i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y));
+    ctx.strokeStyle = '#3b82f6';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Dots + labels
+    points.forEach((p, i) => {
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
+      ctx.fillStyle = '#3b82f6';
+      ctx.fill();
+      ctx.fillStyle = isDark ? '#9ca3af' : '#6b7280';
+      ctx.font = '9px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(labels[i], p.x, h - 8);
+    });
+  },
+
 });

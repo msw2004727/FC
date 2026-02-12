@@ -26,7 +26,10 @@
         <button class="tab" data-atab="ended" onclick="App.switchActivityTab('ended')">已結束</button>
       </div>
       <div class="timeline-calendar" id="activity-list">
-        <!-- Populated by JS -->
+        <div class="skeleton skeleton-line"></div>
+        <div class="skeleton skeleton-line"></div>
+        <div class="skeleton skeleton-line"></div>
+        <div class="skeleton skeleton-line"></div>
       </div>
     </section>
 
@@ -80,6 +83,11 @@
     </div>
     <div class="modal-body">
       <div class="ce-form">
+        <!-- 範本選擇器 -->
+        <div class="ce-row" id="ce-template-area">
+          <label>從範本建立</label>
+          <div id="ce-template-selector" style="display:flex;gap:.3rem;flex-wrap:wrap;align-items:center"></div>
+        </div>
         <div class="ce-row">
           <label>活動封面圖片</label>
           <div class="ce-upload" id="ce-upload-area">
@@ -203,6 +211,13 @@
         <div class="ce-row">
           <label>注意事項（上限 500 字）</label>
           <textarea id="ce-notes" rows="3" maxlength="500" placeholder="例如：請自備球鞋、飲用水，遲到15分鐘以上視為缺席..."></textarea>
+        </div>
+        <div class="ce-row" style="border-top:1px solid var(--border);padding-top:.6rem;margin-top:.3rem">
+          <label>儲存為範本</label>
+          <div style="display:flex;gap:.3rem;align-items:center">
+            <input type="text" id="ce-template-name" placeholder="範本名稱（例：週六友誼賽）" maxlength="20" style="flex:1;min-width:0;font-size:.78rem;padding:.3rem .5rem;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-card);color:var(--text-primary)">
+            <button class="outline-btn" style="font-size:.72rem;padding:.28rem .5rem;flex-shrink:0" onclick="App._saveEventTemplate()">儲存</button>
+          </div>
         </div>
       </div>
     </div>

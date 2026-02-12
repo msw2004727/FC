@@ -49,7 +49,7 @@ Object.assign(App, {
       <div class="tc-card${pinnedClass}" onclick="App.showTeamDetail('${t.id}')">
         ${t.pinned ? '<div class="tc-pin-badge">至頂</div>' : ''}
         ${t.image
-          ? `<div style="position:relative;width:100%;aspect-ratio:1;overflow:hidden;border-radius:var(--radius) var(--radius) 0 0"><img src="${t.image}" style="width:100%;height:100%;object-fit:cover;display:block"><span class="tc-rank-badge" style="color:${rank.color}"><span class="tc-rank-score">${(t.teamExp || 0).toLocaleString()}</span>${rank.rank}</span></div>`
+          ? `<div style="position:relative;width:100%;aspect-ratio:1;overflow:hidden;border-radius:var(--radius) var(--radius) 0 0"><img src="${t.image}" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block"><span class="tc-rank-badge" style="color:${rank.color}"><span class="tc-rank-score">${(t.teamExp || 0).toLocaleString()}</span>${rank.rank}</span></div>`
           : `<div class="tc-img-placeholder" style="position:relative">球隊圖片<span class="tc-rank-badge" style="color:${rank.color}"><span class="tc-rank-score">${(t.teamExp || 0).toLocaleString()}</span>${rank.rank}</span></div>`}
         <div class="tc-body">
           <div class="tc-name">${escapeHTML(t.name)}</div>
@@ -99,7 +99,7 @@ Object.assign(App, {
     const detailRank = this._getTeamRank(t.teamExp);
     imgEl.style.position = 'relative';
     if (t.image) {
-      imgEl.innerHTML = `<img src="${t.image}" style="width:100%;height:100%;object-fit:cover"><span class="tc-rank-badge tc-rank-badge-lg" style="color:${detailRank.color}"><span class="tc-rank-score">${(t.teamExp || 0).toLocaleString()}</span>${detailRank.rank}</span>`;
+      imgEl.innerHTML = `<img src="${t.image}" loading="lazy" style="width:100%;height:100%;object-fit:cover"><span class="tc-rank-badge tc-rank-badge-lg" style="color:${detailRank.color}"><span class="tc-rank-score">${(t.teamExp || 0).toLocaleString()}</span>${detailRank.rank}</span>`;
     } else {
       imgEl.innerHTML = `球隊封面 800 × 300<span class="tc-rank-badge tc-rank-badge-lg" style="color:${detailRank.color}"><span class="tc-rank-score">${(t.teamExp || 0).toLocaleString()}</span>${detailRank.rank}</span>`;
     }
@@ -172,12 +172,14 @@ Object.assign(App, {
           ${t.members > 8 ? `<span class="td-member-more">... 共 ${t.members} 人</span>` : ''}
         </div>
       </div>
+      ${this._renderTeamFeed(t.id)}
       <div class="td-actions">
         ${this._isTeamMember(t.id)
           ? `<button style="background:var(--danger);color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;font-weight:600;cursor:pointer" onclick="App.handleLeaveTeam('${t.id}')">退出球隊</button>`
           : `<button class="primary-btn" onclick="App.handleJoinTeam('${t.id}')">申請加入</button>`
         }
         ${t.captain ? `<button class="outline-btn" onclick="App.showUserProfile('${escapeHTML(t.captain)}')">聯繫領隊</button>` : ''}
+        ${(() => { const u = ApiService.getCurrentUser?.(); const n = u?.displayName || ''; return (t.captain === n || (t.coaches || []).includes(n)); })() ? `<button class="outline-btn" onclick="App.showTeamInviteQR('${t.id}')">邀請 QR Code</button>` : ''}
       </div>
     `;
     this.showPage('page-team-detail');
@@ -327,6 +329,267 @@ Object.assign(App, {
       this.showTeamDetail(teamId);
     } else {
       this.showToast('您目前沒有加入任何球隊');
+    }
+  },
+
+  // ══════════════════════════════════
+  //  Team Feed (動態牆)
+  // ══════════════════════════════════
+
+  _teamFeedPage: {},
+  _FEED_PAGE_SIZE: 20,
+  _MAX_PINNED: 5,
+
+  _renderTeamFeed(teamId) {
+    const t = ApiService.getTeam(teamId);
+    if (!t) return '';
+    const feed = t.feed || [];
+    const isMember = this._isTeamMember(teamId);
+    const user = ApiService.getCurrentUser?.();
+    const myUid = user?.uid || '';
+    const myName = user?.displayName || '';
+    const isCaptainOrCoach = (t.captain === myName) || (t.coaches || []).includes(myName);
+
+    // Sort: pinned first, then by time descending
+    const sorted = [...feed].sort((a, b) => {
+      if (a.pinned && !b.pinned) return -1;
+      if (!a.pinned && b.pinned) return 1;
+      return (b.time || '').localeCompare(a.time || '');
+    });
+
+    // Pagination
+    const currentPage = this._teamFeedPage[teamId] || 1;
+    const totalPages = Math.max(1, Math.ceil(sorted.length / this._FEED_PAGE_SIZE));
+    const startIdx = (currentPage - 1) * this._FEED_PAGE_SIZE;
+    const pageItems = sorted.slice(startIdx, startIdx + this._FEED_PAGE_SIZE);
+
+    // Post form: textarea on top, button row below with public toggle on right
+    const postFormHtml = isMember ? `
+      <div style="margin-bottom:.5rem">
+        <textarea id="team-feed-input" rows="2" maxlength="200" placeholder="分享動態給隊友...（最多 200 字）" style="width:100%;font-size:.82rem;padding:.4rem .5rem;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-card);color:var(--text-primary);resize:none;box-sizing:border-box"></textarea>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-top:.3rem">
+          <button class="primary-btn small" onclick="App.submitTeamPost('${teamId}')">發佈</button>
+          <div style="display:flex;align-items:center;gap:.3rem">
+            <span id="team-feed-public-label" style="font-size:.72rem;color:var(--text-muted)">公開</span>
+            <label class="toggle-switch" style="margin:0;transform:scale(.8)">
+              <input type="checkbox" id="team-feed-public" checked>
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+        </div>
+      </div>` : '';
+
+    const postsHtml = pageItems.length > 0 ? pageItems.map(post => {
+      const isAuthor = post.uid === myUid;
+      const canDelete = isAuthor || isCaptainOrCoach;
+      const canPin = isCaptainOrCoach;
+      const publicTag = post.isPublic === false
+        ? '<span style="font-size:.58rem;padding:.08rem .25rem;border-radius:3px;background:var(--bg-elevated);color:var(--text-muted);font-weight:600">僅隊內</span>'
+        : '';
+      return `
+        <div style="padding:.5rem 0;border-bottom:1px solid var(--border)${post.pinned ? ';background:var(--accent-bg);margin:0 -.5rem;padding-left:.5rem;padding-right:.5rem;border-radius:var(--radius-sm)' : ''}">
+          <div style="display:flex;align-items:center;gap:.3rem;margin-bottom:.2rem">
+            ${this._userTag(post.name)}
+            ${post.pinned ? '<span style="font-size:.6rem;padding:.1rem .3rem;border-radius:3px;background:#f59e0b;color:#fff;font-weight:700">置頂</span>' : ''}
+            ${publicTag}
+            <span style="margin-left:auto;font-size:.68rem;color:var(--text-muted)">${escapeHTML(post.time)}</span>
+          </div>
+          <div style="font-size:.82rem;color:var(--text-secondary);line-height:1.6;white-space:pre-wrap;word-break:break-word">${escapeHTML(post.content)}</div>
+          ${this._renderFeedReactions(teamId, post, myUid)}
+          ${this._renderFeedComments(teamId, post, myUid, isMember)}
+          <div style="display:flex;gap:.3rem;margin-top:.25rem">
+            ${canPin ? `<button style="font-size:.65rem;padding:.15rem .35rem;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-card);color:var(--text-muted);cursor:pointer" onclick="App.pinTeamPost('${teamId}','${post.id}')">${post.pinned ? '取消置頂' : '置頂'}</button>` : ''}
+            ${canDelete ? `<button style="font-size:.65rem;padding:.15rem .35rem;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-card);color:var(--danger);cursor:pointer" onclick="App.deleteTeamPost('${teamId}','${post.id}')">刪除</button>` : ''}
+          </div>
+        </div>`;
+    }).join('') : '<div style="font-size:.82rem;color:var(--text-muted);padding:.5rem 0">尚無動態</div>';
+
+    // Pagination controls
+    let paginationHtml = '';
+    if (totalPages > 1) {
+      const prevDisabled = currentPage <= 1 ? 'opacity:.4;pointer-events:none' : 'cursor:pointer';
+      const nextDisabled = currentPage >= totalPages ? 'opacity:.4;pointer-events:none' : 'cursor:pointer';
+      paginationHtml = `
+        <div style="display:flex;justify-content:center;align-items:center;gap:.5rem;padding:.5rem 0;font-size:.75rem">
+          <button style="padding:.2rem .5rem;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-card);color:var(--text-secondary);${prevDisabled}" onclick="App.goTeamFeedPage('${teamId}',${currentPage - 1})">上一頁</button>
+          <span style="color:var(--text-muted)">${currentPage} / ${totalPages}</span>
+          <button style="padding:.2rem .5rem;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-card);color:var(--text-secondary);${nextDisabled}" onclick="App.goTeamFeedPage('${teamId}',${currentPage + 1})">下一頁</button>
+        </div>`;
+    }
+
+    return `
+      <div class="td-card">
+        <div class="td-card-title">球隊動態 <span style="font-size:.72rem;color:var(--text-muted);font-weight:400">(${feed.length})</span></div>
+        ${postFormHtml}
+        ${postsHtml}
+        ${paginationHtml}
+      </div>`;
+  },
+
+  goTeamFeedPage(teamId, page) {
+    this._teamFeedPage[teamId] = Math.max(1, page);
+    this.showTeamDetail(teamId);
+  },
+
+  submitTeamPost(teamId) {
+    const input = document.getElementById('team-feed-input');
+    const content = (input?.value || '').trim();
+    if (!content) { this.showToast('請輸入內容'); return; }
+    if (content.length > 200) { this.showToast('內容不可超過 200 字'); return; }
+    const t = ApiService.getTeam(teamId);
+    if (!t) return;
+    if (!t.feed) t.feed = [];
+    const user = ApiService.getCurrentUser?.();
+    const uid = user?.uid || '';
+    const name = user?.displayName || user?.name || '';
+    const isPublic = document.getElementById('team-feed-public')?.checked !== false;
+    const now = new Date();
+    const timeStr = `${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+    t.feed.push({ id: 'f_' + Date.now(), uid, name, content, time: timeStr, pinned: false, isPublic });
+    this._teamFeedPage[teamId] = 1; // 發佈後跳回第一頁
+    this.showToast('動態已發佈');
+    this.showTeamDetail(teamId);
+  },
+
+  deleteTeamPost(teamId, postId) {
+    const t = ApiService.getTeam(teamId);
+    if (!t || !t.feed) return;
+    t.feed = t.feed.filter(p => p.id !== postId);
+    this.showToast('動態已刪除');
+    this.showTeamDetail(teamId);
+  },
+
+  pinTeamPost(teamId, postId) {
+    const t = ApiService.getTeam(teamId);
+    if (!t || !t.feed) return;
+    const post = t.feed.find(p => p.id === postId);
+    if (!post) return;
+    if (!post.pinned) {
+      // 檢查已置頂數量上限
+      const pinnedCount = t.feed.filter(p => p.pinned).length;
+      if (pinnedCount >= this._MAX_PINNED) {
+        this.showToast(`最多只能置頂 ${this._MAX_PINNED} 則`);
+        return;
+      }
+    }
+    post.pinned = !post.pinned;
+    this.showToast(post.pinned ? '已置頂' : '已取消置頂');
+    this.showTeamDetail(teamId);
+  },
+
+  // ══════════════════════════════════
+  //  Feed Reactions & Comments
+  // ══════════════════════════════════
+
+  _renderFeedReactions(teamId, post, myUid) {
+    if (!post.reactions) post.reactions = { like: [], heart: [], cheer: [] };
+    const r = post.reactions;
+    const keys = [
+      { key: 'like', emoji: '\u{1F44D}' },
+      { key: 'heart', emoji: '\u2764\uFE0F' },
+      { key: 'cheer', emoji: '\u{1F4AA}' },
+    ];
+    return `<div style="display:flex;gap:.4rem;margin-top:.3rem">${keys.map(k => {
+      const arr = r[k.key] || [];
+      const active = arr.includes(myUid);
+      const bg = active ? 'var(--accent-bg, #ede9fe)' : 'var(--bg-elevated)';
+      const border = active ? 'var(--primary)' : 'var(--border)';
+      return `<button style="display:flex;align-items:center;gap:.2rem;padding:.15rem .4rem;border:1px solid ${border};border-radius:var(--radius-full);background:${bg};font-size:.72rem;cursor:pointer;line-height:1" onclick="event.stopPropagation();App.toggleFeedReaction('${teamId}','${post.id}','${k.key}')">${k.emoji}<span style="font-size:.68rem;color:var(--text-secondary)">${arr.length || ''}</span></button>`;
+    }).join('')}</div>`;
+  },
+
+  toggleFeedReaction(teamId, postId, key) {
+    const t = ApiService.getTeam(teamId);
+    if (!t || !t.feed) return;
+    const post = t.feed.find(p => p.id === postId);
+    if (!post) return;
+    if (!post.reactions) post.reactions = { like: [], heart: [], cheer: [] };
+    const arr = post.reactions[key] || [];
+    const user = ApiService.getCurrentUser?.();
+    const uid = user?.uid || '';
+    if (!uid) return;
+    const idx = arr.indexOf(uid);
+    if (idx >= 0) arr.splice(idx, 1); else arr.push(uid);
+    post.reactions[key] = arr;
+    this.showTeamDetail(teamId);
+  },
+
+  _renderFeedComments(teamId, post, myUid, isMember) {
+    const comments = post.comments || [];
+    let html = '';
+    if (comments.length > 0) {
+      html += `<div style="margin-top:.3rem;padding-left:.5rem;border-left:2px solid var(--border)">`;
+      comments.forEach(c => {
+        const canDel = c.uid === myUid;
+        html += `<div style="font-size:.75rem;margin-bottom:.25rem;display:flex;align-items:baseline;gap:.3rem;flex-wrap:wrap">
+          <span style="font-weight:600;color:var(--text-primary)">${escapeHTML(c.name)}</span>
+          <span style="color:var(--text-secondary);word-break:break-word">${escapeHTML(c.text)}</span>
+          <span style="font-size:.62rem;color:var(--text-muted);margin-left:auto;flex-shrink:0">${escapeHTML(c.time)}${canDel ? ` <span style="color:var(--danger);cursor:pointer" onclick="event.stopPropagation();App.deleteFeedComment('${teamId}','${post.id}','${c.id}')">✕</span>` : ''}</span>
+        </div>`;
+      });
+      html += `</div>`;
+    }
+    if (isMember) {
+      html += `<div style="display:flex;gap:.3rem;margin-top:.25rem">
+        <input type="text" id="fc-${post.id}" maxlength="100" placeholder="留言..." style="flex:1;font-size:.75rem;padding:.2rem .4rem;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-card);color:var(--text-primary);min-width:0">
+        <button style="font-size:.68rem;padding:.2rem .45rem;border:1px solid var(--primary);border-radius:var(--radius-sm);background:var(--primary);color:#fff;cursor:pointer;flex-shrink:0" onclick="event.stopPropagation();App.submitFeedComment('${teamId}','${post.id}')">送出</button>
+      </div>`;
+    }
+    return html;
+  },
+
+  submitFeedComment(teamId, postId) {
+    const input = document.getElementById('fc-' + postId);
+    const text = (input?.value || '').trim();
+    if (!text) return;
+    if (text.length > 100) { this.showToast('留言不可超過 100 字'); return; }
+    const t = ApiService.getTeam(teamId);
+    if (!t || !t.feed) return;
+    const post = t.feed.find(p => p.id === postId);
+    if (!post) return;
+    if (!post.comments) post.comments = [];
+    const user = ApiService.getCurrentUser?.();
+    const uid = user?.uid || '';
+    const name = user?.displayName || user?.name || '';
+    const now = new Date();
+    const timeStr = `${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+    post.comments.push({ id: 'c_' + Date.now(), uid, name, text, time: timeStr });
+    this.showTeamDetail(teamId);
+  },
+
+  deleteFeedComment(teamId, postId, commentId) {
+    const t = ApiService.getTeam(teamId);
+    if (!t || !t.feed) return;
+    const post = t.feed.find(p => p.id === postId);
+    if (!post || !post.comments) return;
+    post.comments = post.comments.filter(c => c.id !== commentId);
+    this.showTeamDetail(teamId);
+  },
+
+  // ══════════════════════════════════
+  //  Team Invite QR Code
+  // ══════════════════════════════════
+
+  showTeamInviteQR(teamId) {
+    const t = ApiService.getTeam(teamId);
+    if (!t) return;
+    const url = `${location.origin}${location.pathname}?team=${teamId}`;
+    // Create overlay
+    const overlay = document.createElement('div');
+    overlay.id = 'qr-invite-overlay';
+    overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.55);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center';
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+    const card = document.createElement('div');
+    card.style.cssText = 'background:var(--bg-card);border-radius:var(--radius);padding:1.2rem;text-align:center;max-width:320px;width:88%';
+    card.innerHTML = `<div style="font-size:.95rem;font-weight:700;margin-bottom:.5rem">${escapeHTML(t.name)} — 邀請加入</div><canvas id="qr-invite-canvas" style="margin:0 auto;display:block"></canvas><div style="font-size:.72rem;color:var(--text-muted);margin-top:.5rem;word-break:break-all">${escapeHTML(url)}</div><button style="margin-top:.6rem;padding:.4rem 1rem;border:none;border-radius:var(--radius-sm);background:var(--primary);color:#fff;font-size:.82rem;cursor:pointer" onclick="document.getElementById('qr-invite-overlay').remove()">關閉</button>`;
+    overlay.appendChild(card);
+    document.body.appendChild(overlay);
+    // Generate QR code
+    if (typeof QRCode !== 'undefined' && QRCode.toCanvas) {
+      requestAnimationFrame(() => {
+        const canvas = document.getElementById('qr-invite-canvas');
+        if (canvas) QRCode.toCanvas(canvas, url, { width: 200, margin: 2 }, () => {});
+      });
     }
   },
 

@@ -5,18 +5,11 @@
 Object.assign(App, {
 
   bindTheme() {
-    // 還原已儲存的主題
     const saved = localStorage.getItem('sporthub_theme');
     if (saved) {
       document.documentElement.dataset.theme = saved;
-      const toggle = document.querySelector('.toggle-switch');
-      const icon = document.querySelector('.theme-icon');
-      const label = document.querySelector('#theme-toggle span:nth-child(2)');
-      if (saved === 'dark') {
-        if (toggle) toggle.classList.add('active');
-        if (icon) icon.textContent = '';
-        if (label) label.textContent = '深色模式';
-      }
+      const toggle = document.querySelector('#theme-toggle .toggle-switch');
+      if (saved === 'dark' && toggle) toggle.classList.add('active');
     }
 
     document.getElementById('theme-toggle').addEventListener('click', () => {
@@ -24,18 +17,8 @@ Object.assign(App, {
       const isDark = html.dataset.theme === 'dark';
       html.dataset.theme = isDark ? 'light' : 'dark';
       localStorage.setItem('sporthub_theme', html.dataset.theme);
-      const toggle = document.querySelector('.toggle-switch');
-      const icon = document.querySelector('.theme-icon');
-      const label = document.querySelector('#theme-toggle span:nth-child(2)');
-      if (isDark) {
-        toggle.classList.remove('active');
-        icon.textContent = '';
-        label.textContent = '淺色模式';
-      } else {
-        toggle.classList.add('active');
-        icon.textContent = '';
-        label.textContent = '深色模式';
-      }
+      const toggle = document.querySelector('#theme-toggle .toggle-switch');
+      if (toggle) toggle.classList.toggle('active', !isDark);
     });
   },
 
