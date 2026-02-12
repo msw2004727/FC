@@ -124,46 +124,73 @@ async function _loadCDNScripts() {
 // ── Init on DOM Ready ──
 document.addEventListener('DOMContentLoaded', async () => {
   window._appInitializing = true;
+  console.log('[Boot] DOMContentLoaded fired');
 
   // ── Phase 1: 載入頁面 HTML 片段（10 秒超時保護）──
-  await Promise.race([
-    PageLoader.loadAll(),
-    new Promise(resolve => setTimeout(resolve, 10000)),
-  ]);
+  try {
+    console.log('[Boot] Phase 1: PageLoader.loadAll() 開始');
+    await Promise.race([
+      PageLoader.loadAll().catch(function(e) {
+        console.warn('[Boot] PageLoader.loadAll() 失敗:', e && e.message || e);
+      }),
+      new Promise(resolve => setTimeout(resolve, 10000)),
+    ]);
+    console.log('[Boot] Phase 1: 完成');
+  } catch (e) {
+    console.error('[Boot] Phase 1 異常:', e && e.message || e);
+  }
 
   // ── Phase 2: 正式版先從 localStorage 恢復快取資料 ──
-  if (!ModeManager.isDemo()) {
-    try { FirebaseService._restoreCache(); } catch (e) {}
+  try {
+    if (!ModeManager.isDemo()) {
+      console.log('[Boot] Phase 2: 恢復快取');
+      FirebaseService._restoreCache();
+      console.log('[Boot] Phase 2: 完成');
+    }
+  } catch (e) {
+    console.warn('[Boot] Phase 2 快取恢復失敗:', e && e.message || e);
   }
 
   // ── Phase 3: 立即顯示頁面（不等 CDN / Firebase）──
   try {
+    console.log('[Boot] Phase 3: App.init() 開始');
     App.init();
+    console.log('[Boot] Phase 3: App.init() 完成');
   } catch (initErr) {
-    console.error('[App] init() 失敗:', initErr);
-    var rb = document.getElementById('_recovery_btn');
-    if (!rb) {
-      rb = document.createElement('button');
-      rb.id = '_recovery_btn';
-      rb.textContent = '載入失敗，點此重新整理';
-      rb.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:99999;padding:1rem 2rem;font-size:1rem;background:#dc2626;color:#fff;border:none;border-radius:8px;cursor:pointer';
-      rb.onclick = function() { location.reload(); };
-      document.body.appendChild(rb);
-    }
+    console.error('[Boot] Phase 3 App.init() 失敗:', initErr && initErr.message || initErr, initErr && initErr.stack || '');
+    try {
+      var rb = document.getElementById('_recovery_btn');
+      if (!rb) {
+        rb = document.createElement('button');
+        rb.id = '_recovery_btn';
+        rb.textContent = '載入失敗，點此重新整理';
+        rb.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:99999;padding:1rem 2rem;font-size:1rem;background:#dc2626;color:#fff;border:none;border-radius:8px;cursor:pointer';
+        rb.onclick = function() { location.reload(); };
+        document.body.appendChild(rb);
+      }
+    } catch (e2) {}
   }
 
   // 立即隱藏載入畫面 + 清除安全計時器
-  var _ov = document.getElementById('loading-overlay');
-  if (_ov) _ov.style.display = 'none';
-  document.documentElement.classList.remove('prod-early');
-  if (window._loadingSafety) clearTimeout(window._loadingSafety);
+  try {
+    var _ov = document.getElementById('loading-overlay');
+    if (_ov) _ov.style.display = 'none';
+    document.documentElement.classList.remove('prod-early');
+    if (window._loadingSafety) clearTimeout(window._loadingSafety);
+    console.log('[Boot] 載入畫面已隱藏');
+  } catch (e) {
+    console.warn('[Boot] 隱藏載入畫面失敗:', e && e.message || e);
+  }
 
   // ── Phase 4: 背景載入 CDN SDK → Firebase + LIFF（不阻塞頁面）──
   if (!ModeManager.isDemo()) {
+    console.log('[Boot] Phase 4: 開始背景載入 CDN');
     (async () => {
       try {
         await _loadCDNScripts();
+        console.log('[Boot] Phase 4: CDN 載入完成');
         initFirebaseApp();
+        console.log('[Boot] Phase 4: Firebase App 初始化完成');
         // 重置 LIFF 狀態（Phase 3 可能因 SDK 未載入而標記為 ready + error）
         if (typeof liff !== 'undefined') {
           LineAuth._ready = false;
@@ -171,35 +198,34 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         const liffReady = (typeof liff !== 'undefined') ? LineAuth.init() : Promise.resolve();
         await Promise.all([FirebaseService.init(), liffReady]);
-        console.log('[App] Firebase + LIFF 背景初始化完成');
+        console.log('[Boot] Phase 4: Firebase + LIFF 初始化完成');
         // 用即時資料重新渲染頁面
         try { App.renderAll(); } catch (e) {}
         // 更新 LINE 登入狀態（LIFF SDK 已載入，可正常運作）
         try { if (typeof App.bindLineLogin === 'function') await App.bindLineLogin(); } catch (e) {}
       } catch (err) {
-        console.error('[App] 背景初始化失敗:', err.message || err);
+        console.error('[Boot] Phase 4 背景初始化失敗:', err && err.message || err, err && err.stack || '');
         try { App.showToast('網路連線異常，部分資料可能未更新'); } catch (e) {}
       }
     })();
   }
 
-  // Deep link handling: ?event=xxx or ?team=xxx
-  const urlParams = new URLSearchParams(location.search);
-  const deepEvent = urlParams.get('event');
-  const deepTeam = urlParams.get('team');
-  if (deepEvent) { setTimeout(() => App.showEventDetail(deepEvent), 300); }
-  else if (deepTeam) { setTimeout(() => App.showTeamDetail(deepTeam), 300); }
-  // 自動下架過期廣告（啟動時 + 每 60 秒檢查）
-  App._autoExpireAds();
-  setInterval(() => App._autoExpireAds(), 60000);
-  // 排程站內信自動發送（啟動時 + 每 60 秒檢查）
-  App._processScheduledMessages();
-  setInterval(() => App._processScheduledMessages(), 60000);
-  // 活動提醒通知（啟動時 + 每 5 分鐘檢查）
-  App._processEventReminders();
-  setInterval(() => App._processEventReminders(), 300000);
-  // 彈跳廣告（延遲 2 秒，等背景資料載入）
-  setTimeout(() => App.showPopupAdsOnLoad(), 2000);
+  // Deep link handling & 定時任務（全部 try-catch 保護）
+  try {
+    const urlParams = new URLSearchParams(location.search);
+    const deepEvent = urlParams.get('event');
+    const deepTeam = urlParams.get('team');
+    if (deepEvent) { setTimeout(() => App.showEventDetail(deepEvent), 300); }
+    else if (deepTeam) { setTimeout(() => App.showTeamDetail(deepTeam), 300); }
+  } catch (e) {}
+  try { App._autoExpireAds(); } catch (e) {}
+  setInterval(() => { try { App._autoExpireAds(); } catch (e) {} }, 60000);
+  try { App._processScheduledMessages(); } catch (e) {}
+  setInterval(() => { try { App._processScheduledMessages(); } catch (e) {} }, 60000);
+  try { App._processEventReminders(); } catch (e) {}
+  setInterval(() => { try { App._processEventReminders(); } catch (e) {} }, 300000);
+  setTimeout(() => { try { App.showPopupAdsOnLoad(); } catch (e) {} }, 2000);
 
   window._appInitializing = false;
+  console.log('[Boot] 初始化流程結束');
 });
