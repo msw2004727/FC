@@ -11,3 +11,7 @@
 範例：`20260211` → `20260211a` → `20260211b` → `20260212`
 
 > `page-loader.js` 的 fetch 會自動讀取 `CACHE_VERSION`，不需額外改。
+
+## 架構文件
+
+模組依賴關係圖與各層說明：[docs/architecture.md](docs/architecture.md)
