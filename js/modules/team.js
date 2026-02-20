@@ -140,17 +140,25 @@ Object.assign(App, {
         </div>
       </div>
       <div class="td-card">
-        <div class="td-card-title">${I18N.t('teamDetail.matchHistory')}</div>
-        ${(t.history || []).map(h => `
-          <div class="td-history-row">
-            <span class="td-history-name">${escapeHTML(h.name)}</span>
-            <span class="td-history-result">${escapeHTML(h.result)}</span>
-          </div>
-        `).join('') || '<div style="font-size:.82rem;color:var(--text-muted);padding:.3rem">' + I18N.t('teamDetail.noHistory') + '</div>'}
+        <div class="td-card-title profile-collapse-toggle" onclick="App.toggleProfileSection(this,'teamMatch')">
+          <span>${I18N.t('teamDetail.matchHistory')}</span>
+          <span class="profile-collapse-arrow">▶</span>
+        </div>
+        <div class="profile-collapse-content" style="display:none">
+          ${(t.history || []).map(h => `
+            <div class="td-history-row">
+              <span class="td-history-name">${escapeHTML(h.name)}</span>
+              <span class="td-history-result">${escapeHTML(h.result)}</span>
+            </div>
+          `).join('') || '<div style="font-size:.82rem;color:var(--text-muted);padding:.3rem">' + I18N.t('teamDetail.noHistory') + '</div>'}
+        </div>
       </div>
       <div class="td-card">
-        <div class="td-card-title">${I18N.t('teamDetail.memberList')}</div>
-        <div class="td-member-tags">
+        <div class="td-card-title profile-collapse-toggle" onclick="App.toggleProfileSection(this,'teamMembers')">
+          <span>${I18N.t('teamDetail.memberList')}</span>
+          <span class="profile-collapse-arrow">▶</span>
+        </div>
+        <div class="profile-collapse-content td-member-tags" style="display:none">
           ${(() => {
             const tags = [];
             if (t.captain) {

@@ -57,10 +57,7 @@
         <div class="info-card" id="profile-info-card">
           <div class="info-title profile-collapse-toggle" onclick="App.toggleProfileSection(this,'profileInfo')">
             <span>我的資料</span>
-            <div style="display:flex;align-items:center;gap:.4rem">
-              <button class="outline-btn" style="font-size:.7rem;padding:.2rem .5rem" id="profile-edit-btn" onclick="event.stopPropagation();App.toggleProfileEdit()">編輯</button>
-              <span class="profile-collapse-arrow">▶</span>
-            </div>
+            <span class="profile-collapse-arrow">▶</span>
           </div>
           <div class="profile-collapse-content" style="display:none">
           <!-- 顯示模式 -->
@@ -72,6 +69,9 @@
             <div class="info-row"><span>所屬球隊</span><span id="profile-team">-</span></div>
             <div class="info-row"><span>聯繫方式</span><span id="profile-phone">-</span></div>
             <div class="info-row"><span>加入時間</span><span id="profile-join-date">-</span></div>
+            <div style="display:flex;justify-content:flex-end;margin-top:.4rem">
+              <button class="outline-btn" style="font-size:.7rem;padding:.2rem .6rem" id="profile-edit-btn" onclick="App.toggleProfileEdit()">編輯</button>
+            </div>
           </div>
           <!-- 編輯模式 -->
           <div id="profile-info-edit" style="display:none">

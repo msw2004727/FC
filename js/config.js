@@ -3,8 +3,8 @@
    ================================================ */
 
 // ─── Cache Version（更新此值以清除瀏覽器快取）───
-// 20260220c: 推播通知/我的資料收折 + 刪除社群複製按鈕
-const CACHE_VERSION = '20260220c';
+// 20260220d: 我的資料編輯按鈕移入收折 + 球隊賽事記錄/成員列表收折
+const CACHE_VERSION = '20260220d';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {
