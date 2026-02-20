@@ -194,12 +194,7 @@ Object.assign(App, {
     if (!active.length) return '';
     const btns = active.map(k => {
       const url = platforms[k].prefix + encodeURIComponent(links[k]);
-      return `<div style="display:inline-flex;align-items:center;gap:2px">
-        <a class="social-btn active" data-platform="${k}" href="${url}" target="_blank" rel="noopener" title="${platforms[k].name}: @${escapeHTML(links[k])}">${svgs[k]}</a>
-        <button class="social-copy-btn" onclick="event.stopPropagation();App._copySocialLink('${k}','${escapeHTML(links[k])}')" title="複製帳號">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
-        </button>
-      </div>`;
+      return `<a class="social-btn active" data-platform="${k}" href="${url}" target="_blank" rel="noopener" title="${platforms[k].name}: @${escapeHTML(links[k])}">${svgs[k]}</a>`;
     }).join('');
     return `<div class="social-grid" style="margin-bottom:.65rem">${btns}</div>`;
   },
@@ -288,23 +283,6 @@ Object.assign(App, {
       });
     } else {
       this._fallbackCopyText(uid);
-    }
-  },
-
-  /** 複製社群帳號到剪貼簿 */
-  _copySocialLink(platform, accountId) {
-    const platformNames = { fb: 'Facebook', ig: 'Instagram', threads: 'Threads', yt: 'YouTube', twitter: 'X' };
-    const name = platformNames[platform] || platform;
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(accountId).then(() => {
-        this.showToast(`${name} 帳號已複製`);
-      }).catch(() => {
-        this._fallbackCopyText(accountId);
-        this.showToast(`${name} 帳號已複製`);
-      });
-    } else {
-      this._fallbackCopyText(accountId);
-      this.showToast(`${name} 帳號已複製`);
     }
   },
 

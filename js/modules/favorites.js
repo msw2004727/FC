@@ -173,10 +173,6 @@ Object.assign(App, {
       </div>`;
     });
     list.innerHTML = html || '<div style="font-size:.82rem;color:var(--text-muted);padding:.3rem 0">暫無收藏</div>';
-    // 設定為展開狀態
-    const toggle = card.querySelector('.profile-collapse-toggle');
-    if (toggle) toggle.classList.add('open');
-    list.style.display = '';
   },
 
   // ══════════════════════════════════

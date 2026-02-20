@@ -158,10 +158,6 @@ Object.assign(App, {
         <span style="font-size:.72rem;font-weight:600;color:${s.color}">${s.label}</span>
       </div>`;
     }).join('');
-    // 設定為展開狀態
-    const toggle = card.querySelector('.profile-collapse-toggle');
-    if (toggle) toggle.classList.add('open');
-    list.style.display = '';
   },
 
   /** 收折切換：展開時 lazy load 對應區塊 */
@@ -173,6 +169,8 @@ Object.assign(App, {
     if (isOpen) {
       if (section === 'favorites') this.renderProfileFavorites();
       if (section === 'applications') this._renderMyApplications();
+      if (section === 'companions') this.renderCompanions();
+      if (section === 'records') this.renderActivityRecords('all');
     }
   },
 
@@ -506,11 +504,7 @@ Object.assign(App, {
   },
 
   toggleCompanionsSection(labelEl) {
-    const isOpen = labelEl.classList.toggle('open');
-    const content = labelEl.nextElementSibling;
-    if (!content) return;
-    content.style.display = isOpen ? '' : 'none';
-    if (isOpen) this.renderCompanions();
+    this.toggleProfileSection(labelEl, 'companions');
   },
 
   openCompanionModal(companionId) {

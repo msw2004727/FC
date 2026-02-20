@@ -3,8 +3,8 @@
    ================================================ */
 
 // ─── Cache Version（更新此值以清除瀏覽器快取）───
-// 20260220: 同行者報名功能（companion registration）
-const CACHE_VERSION = '20260220';
+// 20260220c: 推播通知/我的資料收折 + 刪除社群複製按鈕
+const CACHE_VERSION = '20260220c';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {

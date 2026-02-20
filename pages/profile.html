@@ -55,10 +55,14 @@
           </button>
         </div>
         <div class="info-card" id="profile-info-card">
-          <div class="info-title" style="display:flex;justify-content:space-between;align-items:center">
+          <div class="info-title profile-collapse-toggle" onclick="App.toggleProfileSection(this,'profileInfo')">
             <span>我的資料</span>
-            <button class="outline-btn" style="font-size:.7rem;padding:.2rem .5rem" id="profile-edit-btn" onclick="App.toggleProfileEdit()">編輯</button>
+            <div style="display:flex;align-items:center;gap:.4rem">
+              <button class="outline-btn" style="font-size:.7rem;padding:.2rem .5rem" id="profile-edit-btn" onclick="event.stopPropagation();App.toggleProfileEdit()">編輯</button>
+              <span class="profile-collapse-arrow">▶</span>
+            </div>
           </div>
+          <div class="profile-collapse-content" style="display:none">
           <!-- 顯示模式 -->
           <div id="profile-info-display">
             <div class="info-row"><span>性別</span><span id="profile-gender">-</span></div>
@@ -83,13 +87,15 @@
               <button class="primary-btn small" onclick="App.saveProfileInfo()">儲存</button>
             </div>
           </div>
+          </div><!-- /profile-collapse-content -->
         </div>
         <!-- LINE 推播通知綁定 -->
         <div class="info-card" id="profile-line-notify">
-          <div class="info-title" style="display:flex;justify-content:space-between;align-items:center">
-            <span>LINE 推播通知</span>
-            <span class="line-notify-status" id="line-notify-badge"></span>
+          <div class="info-title profile-collapse-toggle" onclick="App.toggleProfileSection(this,'lineNotify')">
+            <span>LINE 推播通知 <span class="line-notify-status" id="line-notify-badge"></span></span>
+            <span class="profile-collapse-arrow">▶</span>
           </div>
+          <div class="profile-collapse-content" style="display:none">
           <!-- 已綁定 -->
           <div id="line-notify-bound" style="display:none">
             <div class="line-notify-row">
@@ -131,6 +137,7 @@
               </button>
             </div>
           </div>
+          </div><!-- /profile-collapse-content -->
         </div>
         <!-- 我的收藏 -->
         <div class="info-card" id="profile-favorites-card" style="display:none">
@@ -159,14 +166,19 @@
           </div>
         </div>
         <div class="info-card">
-          <div class="info-title">報名紀錄</div>
-          <div class="tab-bar compact" id="record-tabs">
-            <button class="tab" data-filter="all">全部</button>
-            <button class="tab" data-filter="registered">報名</button>
-            <button class="tab" data-filter="completed">完成</button>
-            <button class="tab" data-filter="cancelled">取消</button>
+          <div class="info-title profile-collapse-toggle" onclick="App.toggleProfileSection(this,'records')">
+            <span>報名紀錄</span>
+            <span class="profile-collapse-arrow">▶</span>
           </div>
-          <div class="mini-activity-list" id="my-activity-records"></div>
+          <div class="profile-collapse-content" style="display:none">
+            <div class="tab-bar compact" id="record-tabs">
+              <button class="tab" data-filter="all">全部</button>
+              <button class="tab" data-filter="registered">報名</button>
+              <button class="tab" data-filter="completed">完成</button>
+              <button class="tab" data-filter="cancelled">取消</button>
+            </div>
+            <div class="mini-activity-list" id="my-activity-records"></div>
+          </div>
         </div>
       </div>
     </section>
