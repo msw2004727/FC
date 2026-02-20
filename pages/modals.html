@@ -48,8 +48,79 @@
   </div>
 </div>
 
+<!-- ============ 同行者新增/編輯 Modal ============ -->
+<div class="modal-overlay" id="companion-modal-overlay" style="display:none;align-items:center;justify-content:center" onclick="if(event.target===this){App.closeCompanionModal()}">
+  <div class="modal" style="max-width:340px;position:static;border-radius:var(--radius);transform:none">
+    <div class="modal-header">
+      <h3 id="companion-modal-title">新增同行者</h3>
+      <button class="modal-close" onclick="App.closeCompanionModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="companion-modal-id">
+      <div style="margin-bottom:.6rem">
+        <label style="font-size:.8rem;font-weight:600;display:block;margin-bottom:.3rem">姓名 <span style="color:var(--danger)">*</span></label>
+        <input type="text" id="companion-modal-name" maxlength="20" placeholder="輸入姓名" style="width:100%;padding:.5rem .7rem;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-card);color:var(--text-primary);font-size:.85rem;box-sizing:border-box">
+      </div>
+      <div style="margin-bottom:.6rem">
+        <label style="font-size:.8rem;font-weight:600;display:block;margin-bottom:.3rem">性別</label>
+        <select id="companion-modal-gender" style="width:100%;padding:.5rem .7rem;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-card);color:var(--text-primary);font-size:.85rem">
+          <option value="">不填</option>
+          <option value="男">男</option>
+          <option value="女">女</option>
+        </select>
+      </div>
+      <div>
+        <label style="font-size:.8rem;font-weight:600;display:block;margin-bottom:.3rem">備註</label>
+        <textarea id="companion-modal-notes" rows="2" maxlength="50" placeholder="例：家人、朋友（最多50字）" style="width:100%;padding:.5rem .7rem;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-card);color:var(--text-primary);font-size:.85rem;resize:none;box-sizing:border-box"></textarea>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="outline-btn" onclick="App.closeCompanionModal()">取消</button>
+      <button class="primary-btn" onclick="App.saveCompanion()">儲存</button>
+    </div>
+  </div>
+</div>
+
 <!-- ============ MODAL OVERLAY ============ -->
 <div class="modal-overlay" id="modal-overlay"></div>
+
+<!-- ============ 同行者選擇報名 Modal ============ -->
+<div class="modal-overlay" id="companion-select-overlay" style="display:none;align-items:center;justify-content:center" onclick="if(event.target===this){App._closeCompanionSelectModal()}">
+  <div class="modal" style="max-width:360px;position:static;border-radius:var(--radius);transform:none">
+    <div class="modal-header">
+      <h3>選擇參與者</h3>
+      <button class="modal-close" onclick="App._closeCompanionSelectModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="companion-select-event-info" style="font-size:.8rem;color:var(--text-muted);margin-bottom:.7rem"></div>
+      <div id="companion-select-list"></div>
+      <div id="companion-select-summary" style="margin-top:.6rem;padding:.4rem .6rem;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:.78rem;background:var(--bg-elevated);display:flex;gap:.8rem;flex-wrap:wrap"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="outline-btn" onclick="App._closeCompanionSelectModal()">取消</button>
+      <button class="primary-btn" id="companion-select-confirm-btn" onclick="App._confirmCompanionRegister()">確認報名</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 同行者取消報名 Modal ============ -->
+<div class="modal-overlay" id="companion-cancel-overlay" style="display:none;align-items:center;justify-content:center" onclick="if(event.target===this){App._closeCompanionCancelModal()}">
+  <div class="modal" style="max-width:360px;position:static;border-radius:var(--radius);transform:none">
+    <div class="modal-header">
+      <h3 id="companion-cancel-title">取消報名</h3>
+      <button class="modal-close" onclick="App._closeCompanionCancelModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div style="font-size:.8rem;color:var(--text-muted);margin-bottom:.5rem">請選擇要取消的報名：</div>
+      <div style="margin-bottom:.4rem"><button class="outline-btn" style="font-size:.75rem;padding:.2rem .6rem" onclick="App._selectAllCancelRegs()">全選</button></div>
+      <div id="companion-cancel-list"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="outline-btn" onclick="App._closeCompanionCancelModal()">返回</button>
+      <button class="primary-btn" style="background:var(--danger)" onclick="App._confirmCompanionCancel()">確認取消</button>
+    </div>
+  </div>
+</div>
 
 <!-- Confirm Modal -->
 <div class="modal" id="confirm-modal">

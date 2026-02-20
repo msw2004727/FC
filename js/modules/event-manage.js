@@ -85,8 +85,10 @@ Object.assign(App, {
         const teamBadge = e.teamOnly ? '<span class="tl-teamonly-badge" style="margin-left:.3rem">限定</span>' : '';
         // Fee summary
         const fee = e.fee || 0;
-        const checkoutCount = fee > 0 ? new Set(ApiService.getAttendanceRecords(e.id).filter(r => r.type === 'checkout').map(r => r.uid)).size : 0;
-        const feeExpected = fee * e.current;
+        const confirmedRegs = fee > 0 ? ApiService.getRegistrationsByEvent(e.id) : [];
+        const confirmedCount = confirmedRegs.length > 0 ? confirmedRegs.length : (e.current || 0);
+        const checkoutCount = fee > 0 ? ApiService.getAttendanceRecords(e.id).filter(r => r.type === 'checkout').length : 0;
+        const feeExpected = fee * confirmedCount;
         const feeActual = fee * checkoutCount;
         const feeShort = feeExpected - feeActual;
         const feeBox = fee > 0 ? `<div style="margin-left:auto;padding:.2rem .45rem;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:.68rem;color:var(--text-secondary);display:inline-flex;gap:.5rem;background:var(--bg-elevated);white-space:nowrap">
@@ -203,10 +205,12 @@ Object.assign(App, {
       ? `<div style="font-size:.85rem;font-weight:700;margin:.6rem 0 .3rem;color:var(--danger)">⚠️ 未報名掃碼（${unregList.length}）</div>${unregList.map(recRow).join('')}`
       : '';
 
-    // ── 費用摘要 ──
+    // ── 費用摘要（計費來源：報名記錄）──
     const fee = e.fee || 0;
-    const feeExpected = fee * (e.current || 0);
-    const feeActual = fee * checkoutUsers.size;
+    const confirmedRegsDetail = fee > 0 ? ApiService.getRegistrationsByEvent(e.id) : [];
+    const confirmedCountDetail = confirmedRegsDetail.length > 0 ? confirmedRegsDetail.length : (e.current || 0);
+    const feeExpected = fee * confirmedCountDetail;
+    const feeActual = fee * (fee > 0 ? ApiService.getAttendanceRecords(e.id).filter(r => r.type === 'checkout').length : 0);
     const feeShort = feeExpected - feeActual;
     const feeSection = fee > 0
       ? `<div style="margin:.6rem 0 .2rem;padding:.4rem .6rem;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-elevated);font-size:.78rem;display:flex;gap:.8rem;flex-wrap:wrap">

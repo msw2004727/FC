@@ -185,12 +185,13 @@ Object.assign(FirebaseService, {
     // 更新活動計數
     const event = this._cache.events.find(e => e.id === reg.eventId);
     if (event) {
-      const pIdx = (event.participants || []).indexOf(reg.userName);
+      const participantName = reg.companionName || reg.userName;
+      const pIdx = (event.participants || []).indexOf(participantName);
       if (pIdx >= 0) {
         event.participants.splice(pIdx, 1);
         event.current = Math.max(0, event.current - 1);
       }
-      const wIdx = (event.waitlistNames || []).indexOf(reg.userName);
+      const wIdx = (event.waitlistNames || []).indexOf(participantName);
       if (wIdx >= 0) {
         event.waitlistNames.splice(wIdx, 1);
         event.waitlist = Math.max(0, event.waitlist - 1);
@@ -805,6 +806,153 @@ Object.assign(FirebaseService, {
       ..._stripDocId(data),
       createdAt: firebase.firestore.FieldValue.serverTimestamp(),
     });
+  },
+
+  // ════════════════════════════════
+  //  Companions（同行者）
+  // ════════════════════════════════
+
+  async updateUserCompanions(docId, companions) {
+    await db.collection('users').doc(docId).update({
+      companions,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    });
+  },
+
+  // ════════════════════════════════
+  //  Batch Registration（批次報名）
+  // ════════════════════════════════
+
+  async batchRegisterForEvent(eventId, entries) {
+    const event = this._cache.events.find(e => e.id === eventId);
+    if (!event) throw new Error('活動不存在');
+    const batch = db.batch();
+    const registrations = [];
+    let confirmed = 0;
+    let waitlisted = 0;
+
+    for (const entry of entries) {
+      const dupKey = entry.companionId ? `${entry.userId}_${entry.companionId}` : entry.userId;
+      const existing = this._cache.registrations.find(r => {
+        if (r.eventId !== eventId || r.status === 'cancelled') return false;
+        const rKey = r.companionId ? `${r.userId}_${r.companionId}` : r.userId;
+        return rKey === dupKey;
+      });
+      if (existing) continue;
+
+      const isWaitlist = event.current + confirmed >= event.max;
+      const status = isWaitlist ? 'waitlisted' : 'confirmed';
+      const displayName = entry.companionName || entry.userName;
+
+      const reg = {
+        id: 'reg_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5),
+        eventId,
+        userId: entry.userId,
+        userName: entry.userName,
+        participantType: entry.participantType || 'self',
+        companionId: entry.companionId || null,
+        companionName: entry.companionName || null,
+        status,
+        registeredAt: new Date().toISOString(),
+      };
+
+      const docRef = db.collection('registrations').doc();
+      batch.set(docRef, { ..._stripDocId(reg), registeredAt: firebase.firestore.FieldValue.serverTimestamp() });
+      reg._docId = docRef.id;
+      registrations.push(reg);
+
+      if (status === 'confirmed') {
+        confirmed++;
+        if (!event.participants) event.participants = [];
+        if (!event.participants.includes(displayName)) event.participants.push(displayName);
+        if (event.waitlistNames) {
+          const wi = event.waitlistNames.indexOf(displayName);
+          if (wi >= 0) { event.waitlistNames.splice(wi, 1); event.waitlist = Math.max(0, (event.waitlist || 0) - 1); }
+        }
+      } else {
+        waitlisted++;
+        if (!event.waitlistNames) event.waitlistNames = [];
+        if (!event.waitlistNames.includes(displayName)) event.waitlistNames.push(displayName);
+      }
+    }
+
+    event.current += confirmed;
+    event.waitlist = (event.waitlist || 0) + waitlisted;
+    if (event.current >= event.max) event.status = 'full';
+
+    if (event._docId) {
+      const eventRef = db.collection('events').doc(event._docId);
+      batch.update(eventRef, {
+        current: event.current,
+        waitlist: event.waitlist,
+        participants: event.participants,
+        waitlistNames: event.waitlistNames,
+        status: event.status,
+      });
+    }
+
+    await batch.commit();
+    registrations.forEach(r => this._cache.registrations.push(r));
+    return { registrations, confirmed, waitlisted };
+  },
+
+  async cancelCompanionRegistrations(regIds) {
+    const batch = db.batch();
+    const cancelled = [];
+
+    for (const regId of regIds) {
+      const reg = this._cache.registrations.find(r => r.id === regId);
+      if (!reg || reg.status === 'cancelled') continue;
+
+      reg.status = 'cancelled';
+      reg.cancelledAt = new Date().toISOString();
+      if (reg._docId) {
+        batch.update(db.collection('registrations').doc(reg._docId), {
+          status: 'cancelled',
+          cancelledAt: firebase.firestore.FieldValue.serverTimestamp(),
+        });
+      }
+
+      const event = this._cache.events.find(e => e.id === reg.eventId);
+      if (event) {
+        const participantName = reg.companionName || reg.userName;
+        const pIdx = (event.participants || []).indexOf(participantName);
+        if (pIdx >= 0) { event.participants.splice(pIdx, 1); event.current = Math.max(0, event.current - 1); }
+        const wIdx = (event.waitlistNames || []).indexOf(participantName);
+        if (wIdx >= 0) { event.waitlistNames.splice(wIdx, 1); event.waitlist = Math.max(0, event.waitlist - 1); }
+      }
+      cancelled.push(reg);
+    }
+
+    if (cancelled.length === 0) return cancelled;
+
+    for (const reg of cancelled) {
+      const event = this._cache.events.find(e => e.id === reg.eventId);
+      if (event && event.waitlistNames && event.waitlistNames.length > 0 && event.current < event.max) {
+        const promoted = event.waitlistNames.shift();
+        event.waitlist = Math.max(0, event.waitlist - 1);
+        if (!event.participants.includes(promoted)) { event.participants.push(promoted); event.current++; }
+        const promotedReg = this._cache.registrations.find(
+          r => r.eventId === event.id && (r.companionName || r.userName) === promoted && r.status === 'waitlisted'
+        );
+        if (promotedReg) {
+          promotedReg.status = 'confirmed';
+          if (promotedReg._docId) batch.update(db.collection('registrations').doc(promotedReg._docId), { status: 'confirmed' });
+        }
+      }
+      if (event) {
+        event.status = event.current >= event.max ? 'full' : 'open';
+        if (event._docId) {
+          batch.update(db.collection('events').doc(event._docId), {
+            current: event.current, waitlist: event.waitlist,
+            participants: event.participants, waitlistNames: event.waitlistNames, status: event.status,
+          });
+        }
+      }
+    }
+
+    await batch.commit();
+    return cancelled;
   },
 
 });

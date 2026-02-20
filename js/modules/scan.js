@@ -269,6 +269,16 @@ Object.assign(App, {
 
     const userInfo = this._findUserByUid(uid);
     const userName = userInfo ? userInfo.name : uid;
+
+    // 取得此用戶在此活動的 confirmed 報名（含同行者）
+    const userRegs = ApiService._src('registrations').filter(
+      r => r.userId === uid && r.eventId === this._scanSelectedEventId && r.status === 'confirmed'
+    );
+    if (userRegs.length > 1 || (userRegs.length === 1 && userRegs[0].companionId)) {
+      this._showFamilyCheckinMenu(uid, userName, userRegs, mode);
+      return;
+    }
+
     const participants = event.participants || [];
     const isRegistered = participants.includes(userName);
 
@@ -465,6 +475,86 @@ Object.assign(App, {
       <span>未報名：<strong>${unregList.length}</strong></span>
       <span>出席率：<strong>${completionRate}%</strong></span>
     `;
+  },
+
+  // ── 家庭簽到選單 ──
+
+  _showFamilyCheckinMenu(uid, userName, regs, mode) {
+    const eventId = this._scanSelectedEventId;
+    const records = ApiService.getAttendanceRecords(eventId);
+    const resultContainer = document.getElementById('scan-results');
+    if (!resultContainer) return;
+    const modeLabel = mode === 'checkin' ? '簽到' : '簽退';
+
+    const rows = regs.map(r => {
+      const displayName = r.companionName || r.userName;
+      const cId = r.companionId || null;
+      const hasCheckin = records.some(a => a.uid === uid && a.type === 'checkin' && (a.companionId || null) === cId);
+      const hasCheckout = records.some(a => a.uid === uid && a.type === 'checkout' && (a.companionId || null) === cId);
+      const statusLabel = hasCheckout ? '✅ 已簽退' : hasCheckin ? '📍 已簽到' : '—';
+      const disabled = (mode === 'checkin' && hasCheckin) || (mode === 'checkout' && (hasCheckout || !hasCheckin));
+      return `<label style="display:flex;align-items:center;gap:.5rem;padding:.3rem 0;border-bottom:1px solid var(--border);cursor:pointer">
+        <input type="checkbox" name="family-scan" data-companion-id="${escapeHTML(cId || '')}" data-name="${escapeHTML(displayName)}" ${!disabled ? 'checked' : 'disabled'} style="width:15px;height:15px">
+        <span style="flex:1;font-size:.82rem">${escapeHTML(displayName)}${!cId ? '（本人）' : ''}</span>
+        <span style="font-size:.68rem;color:var(--text-muted)">${statusLabel}</span>
+      </label>`;
+    }).join('');
+
+    resultContainer.innerHTML = `
+      <div style="background:var(--bg-elevated);border-radius:var(--radius-sm);padding:.6rem;margin-bottom:.5rem">
+        <div style="font-size:.82rem;font-weight:700;margin-bottom:.4rem">👨‍👩‍👧 家庭${modeLabel}（${escapeHTML(userName)}）</div>
+        ${rows}
+        <div style="display:flex;gap:.4rem;margin-top:.5rem">
+          <button class="outline-btn" style="flex:1;font-size:.78rem;padding:.35rem" onclick="App._renderScanResults()">取消</button>
+          <button class="primary-btn" style="flex:1;font-size:.78rem;padding:.35rem" onclick="App._confirmFamilyCheckin('${escapeHTML(uid)}','${escapeHTML(userName)}','${mode}')">確認${modeLabel}</button>
+        </div>
+      </div>`;
+  },
+
+  _confirmFamilyCheckin(uid, userName, mode) {
+    const checked = [...document.querySelectorAll('#scan-results input[name="family-scan"]:not([disabled]):checked')];
+    if (checked.length === 0) { this.showToast('請選擇要處理的成員'); return; }
+    const eventId = this._scanSelectedEventId;
+    const records = ApiService.getAttendanceRecords(eventId);
+    const now = new Date();
+    const timeStr = `${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+
+    checked.forEach(cb => {
+      const cId = cb.dataset.companionId || null;
+      const displayName = cb.dataset.name;
+      const hasCheckin = records.some(r => r.uid === uid && r.type === 'checkin' && (r.companionId || null) === cId);
+      const hasCheckout = records.some(r => r.uid === uid && r.type === 'checkout' && (r.companionId || null) === cId);
+      if (mode === 'checkin' && !hasCheckin) {
+        ApiService.addAttendanceRecord({
+          id: 'att_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5),
+          eventId, uid, userName,
+          participantType: cId ? 'companion' : 'self',
+          companionId: cId || null,
+          companionName: cId ? displayName : null,
+          type: 'checkin', time: timeStr,
+        });
+      } else if (mode === 'checkout' && hasCheckin && !hasCheckout) {
+        ApiService.addAttendanceRecord({
+          id: 'att_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5),
+          eventId, uid, userName,
+          participantType: cId ? 'companion' : 'self',
+          companionId: cId || null,
+          companionName: cId ? displayName : null,
+          type: 'checkout', time: timeStr,
+        });
+        if (!cId) {
+          const _evt = ApiService.getEvent(eventId);
+          this._grantAutoExp(uid, 'complete_activity', _evt?.title || '');
+        }
+      }
+    });
+
+    const modeLabel = mode === 'checkin' ? '簽到' : '簽退';
+    this._scanResultsLog.unshift({ cls: 'success', msg: `${userName} 等 ${checked.length} 人${modeLabel}成功` });
+    if (this._scanResultsLog.length > 20) this._scanResultsLog.length = 20;
+    this._renderScanResults();
+    this._renderAttendanceSections();
+    this._showScanResultPopup('success', `${userName} 等 ${checked.length} 人${modeLabel}成功`, userName);
   },
 
 });

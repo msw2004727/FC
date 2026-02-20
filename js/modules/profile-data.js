@@ -124,6 +124,10 @@ Object.assign(App, {
     // 我的球隊申請
     this._renderMyApplications();
 
+    // 同行者數量標記
+    const compBadge = document.getElementById('companions-count');
+    if (compBadge) compBadge.textContent = ApiService.getCompanions().length;
+
     // 新徽章稱號自動推薦（每次會話只檢查一次）
     if (!this._titleSuggestionChecked) {
       this._titleSuggestionChecked = true;
@@ -473,6 +477,96 @@ Object.assign(App, {
     const labels = { activity: '活動提醒', system: '系統通知', tournament: '賽事通知' };
     const label = labels[key] || key;
     this.showToast(newSettings[key] ? '已開啟' + label : '已關閉' + label);
+  },
+
+  // ── 同行者管理 ──
+
+  renderCompanions() {
+    const companions = ApiService.getCompanions();
+    const countEl = document.getElementById('companions-count');
+    if (countEl) countEl.textContent = companions.length;
+    const list = document.getElementById('companions-inner-list');
+    if (!list) return;
+    if (!companions.length) {
+      list.innerHTML = '<div style="font-size:.8rem;color:var(--text-muted);padding:.3rem 0">尚無同行者</div>';
+      return;
+    }
+    const genderIcon = { '男': '♂', '女': '♀' };
+    list.innerHTML = companions.map(c => `
+      <div style="display:flex;align-items:center;gap:.5rem;padding:.35rem 0;border-bottom:1px solid var(--border)">
+        <div style="flex:1">
+          <span style="font-size:.85rem;font-weight:600">${escapeHTML(c.name)}</span>
+          ${c.gender ? `<span style="font-size:.72rem;color:var(--text-muted);margin-left:.3rem">${genderIcon[c.gender] || ''}${escapeHTML(c.gender)}</span>` : ''}
+          ${c.notes ? `<div style="font-size:.72rem;color:var(--text-muted)">${escapeHTML(c.notes)}</div>` : ''}
+        </div>
+        <button class="outline-btn" style="font-size:.7rem;padding:.15rem .45rem" onclick="App.openCompanionModal('${escapeHTML(c.id)}')">編輯</button>
+        <button class="outline-btn" style="font-size:.7rem;padding:.15rem .45rem;color:var(--danger);border-color:var(--danger)" onclick="App.deleteCompanion('${escapeHTML(c.id)}')">刪除</button>
+      </div>
+    `).join('');
+  },
+
+  toggleCompanionsSection(labelEl) {
+    const isOpen = labelEl.classList.toggle('open');
+    const content = labelEl.nextElementSibling;
+    if (!content) return;
+    content.style.display = isOpen ? '' : 'none';
+    if (isOpen) this.renderCompanions();
+  },
+
+  openCompanionModal(companionId) {
+    const overlay = document.getElementById('companion-modal-overlay');
+    const titleEl = document.getElementById('companion-modal-title');
+    const idInput = document.getElementById('companion-modal-id');
+    const nameInput = document.getElementById('companion-modal-name');
+    const genderSelect = document.getElementById('companion-modal-gender');
+    const notesInput = document.getElementById('companion-modal-notes');
+    if (!overlay) return;
+    if (companionId) {
+      const comp = ApiService.getCompanions().find(c => c.id === companionId);
+      if (!comp) return;
+      if (titleEl) titleEl.textContent = '編輯同行者';
+      if (idInput) idInput.value = comp.id;
+      if (nameInput) nameInput.value = comp.name || '';
+      if (genderSelect) genderSelect.value = comp.gender || '';
+      if (notesInput) notesInput.value = comp.notes || '';
+    } else {
+      if (titleEl) titleEl.textContent = '新增同行者';
+      if (idInput) idInput.value = '';
+      if (nameInput) nameInput.value = '';
+      if (genderSelect) genderSelect.value = '';
+      if (notesInput) notesInput.value = '';
+    }
+    overlay.style.display = 'flex';
+  },
+
+  closeCompanionModal() {
+    const overlay = document.getElementById('companion-modal-overlay');
+    if (overlay) overlay.style.display = 'none';
+  },
+
+  saveCompanion() {
+    const id = document.getElementById('companion-modal-id')?.value || '';
+    const name = (document.getElementById('companion-modal-name')?.value || '').trim();
+    const gender = document.getElementById('companion-modal-gender')?.value || '';
+    const notes = (document.getElementById('companion-modal-notes')?.value || '').trim();
+    if (!name) { this.showToast('請填寫姓名'); return; }
+    if (id) {
+      ApiService.updateCompanion(id, { name, gender, notes });
+      this.showToast('同行者已更新');
+    } else {
+      const newId = 'comp_' + Date.now();
+      ApiService.addCompanion({ id: newId, name, gender, notes });
+      this.showToast('同行者已新增');
+    }
+    this.closeCompanionModal();
+    this.renderCompanions();
+  },
+
+  async deleteCompanion(companionId) {
+    if (!await this.appConfirm('確定要刪除此同行者？')) return;
+    ApiService.deleteCompanion(companionId);
+    this.renderCompanions();
+    this.showToast('同行者已刪除');
   },
 
   saveFirstLoginProfile() {

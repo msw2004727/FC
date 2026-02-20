@@ -3,8 +3,8 @@
    ================================================ */
 
 // ─── Cache Version（更新此值以清除瀏覽器快取）───
-// 20260212: 模組化拆分（user-admin/message/tournament/firebase-service）
-const CACHE_VERSION = '20260212zt';
+// 20260220: 同行者報名功能（companion registration）
+const CACHE_VERSION = '20260220';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {

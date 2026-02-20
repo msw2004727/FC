@@ -33,6 +33,10 @@ const DemoData = {
       boundAt: '2025/09/15',
       settings: { activity: true, system: true, tournament: false }
     },
+    companions: [
+      { id: 'comp1', name: '小麥伴侶', gender: '女', notes: '家人' },
+      { id: 'comp2', name: '小麥友人', gender: '男', notes: '' },
+    ],
   },
 
   events: [
@@ -392,6 +396,8 @@ const DemoData = {
     { eventId: 'e16', name: '五人制足球友誼賽', date: '04/20', status: 'cancelled', uid: 'demo-user' },
     { eventId: 'histc1', name: '歲末足球派對', date: '12/28', status: 'cancelled', uid: 'demo-user' },
   ],
+
+  registrations: [],
 };
 
 // ── Enhance Events with Age Restriction & Notes ──

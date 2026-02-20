@@ -215,13 +215,15 @@ const ApiService = {
   // ════════════════════════════════
 
   getRegistrationsByUser(userId) {
-    if (this._demoMode) return [];
-    return FirebaseService.getRegistrationsByUser(userId);
+    return this._src('registrations').filter(
+      r => r.userId === userId && r.status !== 'cancelled'
+    );
   },
 
   getRegistrationsByEvent(eventId) {
-    if (this._demoMode) return [];
-    return FirebaseService.getRegistrationsByEvent(eventId);
+    return this._src('registrations').filter(
+      r => r.eventId === eventId && r.status !== 'cancelled'
+    );
   },
 
   // ════════════════════════════════
@@ -530,6 +532,111 @@ const ApiService = {
       db.collection('teamExpLogs').add({ ...log, createdAt: firebase.firestore.FieldValue.serverTimestamp() }).catch(err => console.error('[adjustTeamExp log]', err));
     }
     return team;
+  },
+
+  // ════════════════════════════════
+  //  Companions（同行者）
+  // ════════════════════════════════
+
+  getCompanions() {
+    const user = this.getCurrentUser();
+    return user?.companions || [];
+  },
+
+  addCompanion(data) {
+    const user = this.getCurrentUser();
+    if (!user) return null;
+    if (!user.companions) user.companions = [];
+    user.companions.push(data);
+    if (!this._demoMode && user._docId) {
+      FirebaseService.updateUserCompanions(user._docId, user.companions)
+        .catch(err => console.error('[addCompanion]', err));
+    }
+    return data;
+  },
+
+  updateCompanion(companionId, updates) {
+    const user = this.getCurrentUser();
+    if (!user || !user.companions) return null;
+    const comp = user.companions.find(c => c.id === companionId);
+    if (!comp) return null;
+    Object.assign(comp, updates);
+    if (!this._demoMode && user._docId) {
+      FirebaseService.updateUserCompanions(user._docId, user.companions)
+        .catch(err => console.error('[updateCompanion]', err));
+    }
+    return comp;
+  },
+
+  deleteCompanion(companionId) {
+    const user = this.getCurrentUser();
+    if (!user || !user.companions) return false;
+    const idx = user.companions.findIndex(c => c.id === companionId);
+    if (idx < 0) return false;
+    user.companions.splice(idx, 1);
+    if (!this._demoMode && user._docId) {
+      FirebaseService.updateUserCompanions(user._docId, user.companions)
+        .catch(err => console.error('[deleteCompanion]', err));
+    }
+    return true;
+  },
+
+  getMyRegistrationsByEvent(eventId) {
+    const uid = this.getCurrentUser()?.uid;
+    if (!uid) return [];
+    return this._src('registrations').filter(
+      r => r.eventId === eventId && r.userId === uid && r.status !== 'cancelled'
+    );
+  },
+
+  async registerEventWithCompanions(eventId, participantList) {
+    const e = ApiService.getEvent(eventId);
+    if (!e) throw new Error('活動不存在');
+    const user = this.getCurrentUser();
+    const userId = user?.uid || 'unknown';
+    const userName = user?.displayName || user?.name || '用戶';
+
+    if (this._demoMode) {
+      const results = { registered: [], waitlisted: [] };
+      for (const p of participantList) {
+        const displayName = p.type === 'companion' ? p.companionName : userName;
+        const isWaitlist = e.current >= e.max;
+        if (isWaitlist) {
+          if (!e.waitlistNames) e.waitlistNames = [];
+          if (!e.waitlistNames.includes(displayName)) e.waitlistNames.push(displayName);
+          e.waitlist = (e.waitlist || 0) + 1;
+        } else {
+          if (!e.participants) e.participants = [];
+          if (!e.participants.includes(displayName)) e.participants.push(displayName);
+          e.current++;
+        }
+        const reg = {
+          id: 'reg_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5),
+          eventId,
+          userId,
+          userName,
+          participantType: p.type,
+          companionId: p.companionId || null,
+          companionName: p.companionName || null,
+          status: isWaitlist ? 'waitlisted' : 'confirmed',
+          registeredAt: new Date().toISOString(),
+        };
+        this._src('registrations').push(reg);
+        if (isWaitlist) { results.waitlisted.push(displayName); }
+        else { results.registered.push(displayName); }
+        if (e.current >= e.max) e.status = 'full';
+      }
+      return results;
+    }
+
+    const entries = participantList.map(p => ({
+      userId,
+      userName,
+      participantType: p.type,
+      companionId: p.type === 'companion' ? p.companionId : null,
+      companionName: p.type === 'companion' ? p.companionName : null,
+    }));
+    return await FirebaseService.batchRegisterForEvent(eventId, entries);
   },
 
   // ════════════════════════════════

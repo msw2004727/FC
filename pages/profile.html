@@ -147,6 +147,17 @@
           </div>
           <div class="profile-collapse-content" id="profile-applications-list" style="display:none"></div>
         </div>
+        <!-- 我的同行者 -->
+        <div class="info-card" id="my-companions-card">
+          <div class="info-title profile-collapse-toggle" onclick="App.toggleCompanionsSection(this)">
+            <span>我的同行者 <span class="fav-count-badge" id="companions-count">0</span></span>
+            <span class="profile-collapse-arrow">▶</span>
+          </div>
+          <div class="profile-collapse-content" id="companions-list" style="display:none">
+            <div id="companions-inner-list"></div>
+            <button class="outline-btn" style="width:100%;margin-top:.5rem;font-size:.8rem" onclick="App.openCompanionModal()">+ 新增同行者</button>
+          </div>
+        </div>
         <div class="info-card">
           <div class="info-title">報名紀錄</div>
           <div class="tab-bar compact" id="record-tabs">
