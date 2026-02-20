@@ -352,9 +352,17 @@ const DemoData = {
   ],
 
   attendanceRecords: [
-    { id:'att_d1', eventId:'e0b', uid:'U1a2b3c', userName:'王小明', type:'checkin', time:'2026/02/22 13:55' },
-    { id:'att_d2', eventId:'e0b', uid:'U1a2b3c', userName:'王小明', type:'checkout', time:'2026/02/22 16:05' },
-    { id:'att_d3', eventId:'e0b', uid:'U4d5e6f', userName:'李大華', type:'checkin', time:'2026/02/22 14:02' },
+    { id:'att_d1',  eventId:'e0b',  uid:'U1a2b3c',   userName:'王小明',   type:'checkin',  time:'2026/02/22 13:55' },
+    { id:'att_d2',  eventId:'e0b',  uid:'U1a2b3c',   userName:'王小明',   type:'checkout', time:'2026/02/22 16:05' },
+    { id:'att_d3',  eventId:'e0b',  uid:'U4d5e6f',   userName:'李大華',   type:'checkin',  time:'2026/02/22 14:02' },
+    // demo-user 測試資料（供方向B統計展示）
+    { id:'att_dm1', eventId:'e0b',  uid:'demo-user', userName:'小麥',     type:'checkin',  time:'2026/02/22 14:00' },
+    { id:'att_dm2', eventId:'e0b',  uid:'demo-user', userName:'小麥',     type:'checkout', time:'2026/02/22 16:00' },
+    { id:'att_dm3', eventId:'e1',   uid:'demo-user', userName:'小麥',     type:'checkin',  time:'2026/03/01 14:05' },
+    { id:'att_dm4', eventId:'e1',   uid:'demo-user', userName:'小麥',     type:'checkout', time:'2026/03/01 17:55' },
+    { id:'att_dm5', eventId:'e2',   uid:'demo-user', userName:'小麥',     type:'checkin',  time:'2026/03/05 09:10' },
+    { id:'att_dm6', eventId:'e2',   uid:'demo-user', userName:'小麥',     type:'checkout', time:'2026/03/05 10:58' },
+    { id:'att_dm7', eventId:'e3',   uid:'demo-user', userName:'小麥',     type:'checkin',  time:'2026/03/08 18:05' },
   ],
 
   activityRecords: [

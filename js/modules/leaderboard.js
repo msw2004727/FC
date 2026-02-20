@@ -49,10 +49,10 @@ Object.assign(App, {
         }
         return;
       }
-      // 完成判定：status=completed 或有 checkin+checkout
-      const hasCheckin = attRecords.some(a => a.eventId === r.eventId && a.uid === uid && a.type === 'checkin');
+      // 完成判定（方向 B）：唯一依據為有 checkin + checkout 掃碼紀錄
+      const hasCheckin  = attRecords.some(a => a.eventId === r.eventId && a.uid === uid && a.type === 'checkin');
       const hasCheckout = attRecords.some(a => a.eventId === r.eventId && a.uid === uid && a.type === 'checkout');
-      if (r.status === 'completed' || (hasCheckin && hasCheckout)) {
+      if (hasCheckin && hasCheckout) {
         if (!seenComplete.has(r.eventId)) {
           seenComplete.add(r.eventId);
           completed.push({ ...r, _displayStatus: 'completed' });
@@ -69,6 +69,38 @@ Object.assign(App, {
       }
     });
     return { registered, completed, cancelled };
+  },
+
+  /**
+   * 方向 B 統計：以掃碼紀錄為唯一依據
+   * 參加場次 = 有 checkin 的不重複場次
+   * 完成     = 有 checkout 的不重複場次
+   * 出席率   = checkin場次 ÷ 已結束有效報名場次 × 100%
+   */
+  _calcScanStats(uid) {
+    const attRecords = ApiService.getAttendanceRecords();
+    const actRecords = ApiService.getActivityRecords(uid);
+
+    const checkinEventIds = new Set(
+      attRecords.filter(a => a.uid === uid && a.type === 'checkin').map(a => a.eventId)
+    );
+    const checkoutEventIds = new Set(
+      attRecords.filter(a => a.uid === uid && a.type === 'checkout').map(a => a.eventId)
+    );
+    // 已結束有效報名（非取消）的不重複場次 → 出席率分母
+    const endedValidEventIds = new Set(
+      actRecords
+        .filter(r => r.status !== 'cancelled')
+        .map(r => r.eventId)
+        .filter(eid => { const ev = ApiService.getEvent(eid); return ev && ev.status === 'ended'; })
+    );
+
+    const totalCount    = checkinEventIds.size;
+    const completedCount = checkoutEventIds.size;
+    const attendRate    = endedValidEventIds.size > 0
+      ? Math.round((checkinEventIds.size / endedValidEventIds.size) * 100)
+      : 0;
+    return { totalCount, completedCount, attendRate };
   },
 
   /**
@@ -142,14 +174,8 @@ Object.assign(App, {
     const filtered = this._getFilteredRecords(uid, f, false);
     container.innerHTML = this._renderRecordListHtml(filtered, p, 'renderActivityRecords', f);
 
-    // 更新統計
-    const { completed, cancelled } = this._categorizeRecords(uid, false);
-    const allRecords = ApiService.getActivityRecords(uid);
-    const totalCount = allRecords.length;
-    const completedCount = completed.length;
-    const cancelledCount = cancelled.length;
-    const attendRate = totalCount > 0 ? Math.round(((totalCount - cancelledCount) / totalCount) * 100) : 0;
-
+    // 更新統計（方向 B：以掃碼紀錄為依據）
+    const { totalCount, completedCount, attendRate } = this._calcScanStats(uid);
     const el = (id) => document.getElementById(id);
     if (el('profile-stat-total')) el('profile-stat-total').textContent = totalCount;
     if (el('profile-stat-done')) el('profile-stat-done').textContent = completedCount;
@@ -157,15 +183,19 @@ Object.assign(App, {
 
     // 綁定頁籤
     const tabs = document.getElementById('record-tabs');
-    if (tabs && !tabs.dataset.bound) {
-      tabs.dataset.bound = '1';
-      tabs.querySelectorAll('.tab').forEach(tab => {
-        tab.addEventListener('click', () => {
-          tabs.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-          tab.classList.add('active');
-          this.renderActivityRecords(tab.dataset.filter, 1);
+    if (tabs) {
+      // 每次渲染都更新 active 狀態（與目前 filter 對應）
+      tabs.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.filter === f));
+      if (!tabs.dataset.bound) {
+        tabs.dataset.bound = '1';
+        tabs.querySelectorAll('.tab').forEach(tab => {
+          tab.addEventListener('click', () => {
+            tabs.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+            this.renderActivityRecords(tab.dataset.filter, 1);
+          });
         });
-      });
+      }
     }
   },
 
@@ -181,13 +211,8 @@ Object.assign(App, {
     const filtered = this._getFilteredRecords(uid, f, true);
     container.innerHTML = this._renderRecordListHtml(filtered, page || 1, 'renderUserCardRecords', f);
 
-    // 更新統計
-    const { completed, cancelled } = this._categorizeRecords(uid, true);
-    const allRecords = ApiService.getActivityRecords(uid);
-    const totalCount = allRecords.length;
-    const completedCount = completed.length;
-    const cancelledCount = cancelled.length;
-    const attendRate = totalCount > 0 ? Math.round(((totalCount - cancelledCount) / totalCount) * 100) : 0;
+    // 更新統計（方向 B：以掃碼紀錄為依據）
+    const { totalCount, completedCount, attendRate } = this._calcScanStats(uid);
     const _achs = ApiService.getAchievements().filter(a => a.status !== 'archived');
     const badgeCount = _achs.filter(a => {
       const t = a.condition && a.condition.threshold != null ? a.condition.threshold : (a.target != null ? a.target : 1);

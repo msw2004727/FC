@@ -3,8 +3,8 @@
    ================================================ */
 
 // ─── Cache Version（更新此值以清除瀏覽器快取）───
-// 20260220e: 成就頁已獲得徽章移除外框
-const CACHE_VERSION = '20260220e';
+// 20260220h: 移除 tab hover 黏著黑字問題
+const CACHE_VERSION = '20260220h';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {

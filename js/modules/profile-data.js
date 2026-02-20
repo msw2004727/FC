@@ -74,18 +74,13 @@ Object.assign(App, {
     if (el('profile-exp-text')) el('profile-exp-text').textContent = `${progress.toLocaleString()} / ${needed.toLocaleString()}`;
     if (el('profile-exp-fill')) el('profile-exp-fill').style.width = `${Math.min(100, Math.round((progress / needed) * 100))}%`;
 
-    // 統計數據（即時從活動紀錄計算）
-    if (this._categorizeRecords) {
+    // 統計數據（方向 B：以掃碼紀錄為依據）
+    if (this._calcScanStats) {
       const _uid = user.uid || user.lineUserId || 'demo-user';
-      const { completed: _comp, cancelled: _canc } = this._categorizeRecords(_uid, false);
-      const _all = ApiService.getActivityRecords(_uid);
-      const _total = _all.length;
-      const _compN = _comp.length;
-      const _cancN = _canc.length;
-      const _rate = _total > 0 ? Math.round(((_total - _cancN) / _total) * 100) : 0;
-      if (el('profile-stat-total')) el('profile-stat-total').textContent = _total;
-      if (el('profile-stat-done')) el('profile-stat-done').textContent = _compN;
-      if (el('profile-stat-rate')) el('profile-stat-rate').textContent = `${_rate}%`;
+      const { totalCount, completedCount, attendRate } = this._calcScanStats(_uid);
+      if (el('profile-stat-total')) el('profile-stat-total').textContent = totalCount;
+      if (el('profile-stat-done')) el('profile-stat-done').textContent = completedCount;
+      if (el('profile-stat-rate')) el('profile-stat-rate').textContent = `${attendRate}%`;
     }
     // 徽章數量：從成就資料動態計算
     if (el('profile-stat-badges')) {

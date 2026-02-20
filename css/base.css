@@ -131,7 +131,6 @@ img { max-width: 100%; display: block; }
 .tab-bar.compact { padding: .2rem; }
 .tab { padding: .45rem .7rem; border-radius: var(--radius-sm); font-size: .78rem; font-weight: 600; color: var(--text-muted); transition: all var(--transition); white-space: nowrap; flex-shrink: 0; }
 .tab.active { background: var(--bg-card); color: var(--accent); box-shadow: 0 1px 4px rgba(0,0,0,.08); }
-.tab:hover:not(.active) { color: var(--text-primary); }
 
 /* ─── Info Card ─── */
 .info-card { background: var(--bg-card); border-radius: var(--radius); border: 1px solid var(--border); padding: .85rem; margin-bottom: .65rem; }
