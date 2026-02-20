@@ -150,7 +150,7 @@ a.social-btn { text-decoration: none; }
 /* ─── Badge Showcase (top of achievements page) ─── */
 .ach-badge-showcase { display: flex; gap: .6rem; padding: 0 .5rem .3rem; flex-wrap: wrap; justify-content: center; }
 .ach-showcase-item { display: flex; flex-direction: column; align-items: center; gap: .25rem; width: 60px; }
-.ach-showcase-img { width: 50px; height: 50px; border-radius: var(--radius-sm); border: 2px solid var(--border); display: flex; align-items: center; justify-content: center; background: var(--bg-elevated); overflow: hidden; }
+.ach-showcase-img { width: 50px; height: 50px; border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; overflow: hidden; }
 .ach-showcase-img img { width: 100%; height: 100%; object-fit: cover; }
 .ach-showcase-img span { font-size: 1.3rem; }
 .ach-showcase-name { font-size: .62rem; font-weight: 600; text-align: center; color: var(--text-secondary); line-height: 1.2; word-break: break-all; }

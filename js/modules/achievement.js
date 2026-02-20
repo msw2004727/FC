@@ -113,7 +113,7 @@ Object.assign(App, {
       html += '<div class="ach-section-title">已獲得徽章</div>';
       html += '<div class="ach-badge-showcase">' + earnedBadges.map(({ badge, color, achName }) => `
         <div class="ach-showcase-item">
-          <div class="ach-showcase-img" style="border-color:${color}">${badge.image ? `<img src="${badge.image}">` : '<span>🏅</span>'}</div>
+          <div class="ach-showcase-img">${badge.image ? `<img src="${badge.image}">` : '<span>🏅</span>'}</div>
           <span class="ach-showcase-name">${escapeHTML(badge.name)}</span>
         </div>
       `).join('') + '</div>';

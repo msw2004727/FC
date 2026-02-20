@@ -3,8 +3,8 @@
    ================================================ */
 
 // ─── Cache Version（更新此值以清除瀏覽器快取）───
-// 20260220d: 我的資料編輯按鈕移入收折 + 球隊賽事記錄/成員列表收折
-const CACHE_VERSION = '20260220d';
+// 20260220e: 成就頁已獲得徽章移除外框
+const CACHE_VERSION = '20260220e';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {
