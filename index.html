@@ -9,6 +9,10 @@
   <!-- CDN 預連線 + 預載入（讓瀏覽器在 HTML 解析階段就開始下載 SDK） -->
   <link rel="preconnect" href="https://www.gstatic.com">
   <link rel="preconnect" href="https://static.line-scdn.net">
+  <link rel="preconnect" href="https://firestore.googleapis.com">
+  <link rel="preconnect" href="https://firebasestorage.googleapis.com">
+  <link rel="preconnect" href="https://identitytoolkit.googleapis.com">
+  <link rel="preconnect" href="https://line-scdn.net" crossorigin>
   <link rel="preload" href="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js" as="script">
   <link rel="preload" href="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js" as="script">
   <link rel="preload" href="https://www.gstatic.com/firebasejs/10.14.1/firebase-storage-compat.js" as="script">
@@ -17,7 +21,7 @@
   <!-- 一鍵清快取：網址加 ?clear=1 即可（LINE 內建瀏覽器適用） -->
   <script>
   (function(){
-    var V='20260212zt';
+    var V='20260221a';
     var isProd = location.hostname === 'msw2004727.github.io';
     // ?clear=1 強制清快取
     if(location.search.indexOf('clear=1')!==-1){
@@ -45,17 +49,17 @@
   })();
   </script>
   <!-- CSS 模組化載入（base → layout → 功能模組） -->
-  <link rel="stylesheet" href="css/base.css?v=20260220i">
-  <link rel="stylesheet" href="css/layout.css?v=20260220i">
-  <link rel="stylesheet" href="css/home.css?v=20260220i">
-  <link rel="stylesheet" href="css/activity.css?v=20260220i">
-  <link rel="stylesheet" href="css/team.css?v=20260220i">
-  <link rel="stylesheet" href="css/profile.css?v=20260220i">
-  <link rel="stylesheet" href="css/message.css?v=20260220i">
-  <link rel="stylesheet" href="css/tournament.css?v=20260220i">
-  <link rel="stylesheet" href="css/shop.css?v=20260220i">
-  <link rel="stylesheet" href="css/scan.css?v=20260220i">
-  <link rel="stylesheet" href="css/admin.css?v=20260220i">
+  <link rel="stylesheet" href="css/base.css?v=20260221a">
+  <link rel="stylesheet" href="css/layout.css?v=20260221a">
+  <link rel="stylesheet" href="css/home.css?v=20260221a">
+  <link rel="stylesheet" href="css/activity.css?v=20260221a">
+  <link rel="stylesheet" href="css/team.css?v=20260221a">
+  <link rel="stylesheet" href="css/profile.css?v=20260221a">
+  <link rel="stylesheet" href="css/message.css?v=20260221a">
+  <link rel="stylesheet" href="css/tournament.css?v=20260221a">
+  <link rel="stylesheet" href="css/shop.css?v=20260221a">
+  <link rel="stylesheet" href="css/scan.css?v=20260221a">
+  <link rel="stylesheet" href="css/admin.css?v=20260221a">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 </head>
@@ -268,65 +272,65 @@
   <!-- 由 scan.js 動態載入，不再阻塞啟動 -->
 
   <!-- 多語言基礎 -->
-  <script defer src="js/i18n.js?v=20260220i"></script>
+  <script defer src="js/i18n.js?v=20260221a"></script>
 
   <!-- 基礎層 -->
-  <script defer src="js/config.js?v=20260220i"></script>
-  <script defer src="js/data.js?v=20260220i"></script>
-  <script defer src="js/firebase-config.js?v=20260220i"></script>
-  <script defer src="js/firebase-service.js?v=20260220i"></script>
-  <script defer src="js/firebase-crud.js?v=20260220i"></script>
-  <script defer src="js/api-service.js?v=20260220i"></script>
-  <script defer src="js/line-auth.js?v=20260220i"></script>
+  <script defer src="js/config.js?v=20260221a"></script>
+  <script defer src="js/data.js?v=20260221a"></script>
+  <script defer src="js/firebase-config.js?v=20260221a"></script>
+  <script defer src="js/firebase-service.js?v=20260221a"></script>
+  <script defer src="js/firebase-crud.js?v=20260221a"></script>
+  <script defer src="js/api-service.js?v=20260221a"></script>
+  <script defer src="js/line-auth.js?v=20260221a"></script>
 
   <!-- 頁面載入器 + 動態腳本載入器（必須在 App 之前） -->
-  <script defer src="js/core/page-loader.js?v=20260220i"></script>
-  <script defer src="js/core/script-loader.js?v=20260220i"></script>
+  <script defer src="js/core/page-loader.js?v=20260221a"></script>
+  <script defer src="js/core/script-loader.js?v=20260221a"></script>
 
   <!-- 核心（定義 App 物件 + init/renderAll/showToast） -->
-  <script defer src="app.js?v=20260220i"></script>
+  <script defer src="app.js?v=20260221a"></script>
 
   <!-- 核心擴充 -->
-  <script defer src="js/core/navigation.js?v=20260220i"></script>
-  <script defer src="js/core/theme.js?v=20260220i"></script>
-  <script defer src="js/core/mode.js?v=20260220i"></script>
+  <script defer src="js/core/navigation.js?v=20260221a"></script>
+  <script defer src="js/core/theme.js?v=20260221a"></script>
+  <script defer src="js/core/mode.js?v=20260221a"></script>
 
   <!-- 功能模組 -->
-  <script defer src="js/modules/image-upload.js?v=20260220i"></script>
-  <script defer src="js/modules/role.js?v=20260220i"></script>
-  <script defer src="js/modules/profile-core.js?v=20260220i"></script>
-  <script defer src="js/modules/profile-data.js?v=20260220i"></script>
-  <script defer src="js/modules/profile-card.js?v=20260220i"></script>
-  <script defer src="js/modules/banner.js?v=20260220i"></script>
-  <script defer src="js/modules/ad-manage-core.js?v=20260220i"></script>
-  <script defer src="js/modules/ad-manage-banner.js?v=20260220i"></script>
-  <script defer src="js/modules/ad-manage-float.js?v=20260220i"></script>
-  <script defer src="js/modules/ad-manage-popup-sponsor.js?v=20260220i"></script>
-  <script defer src="js/modules/popup-ad.js?v=20260220i"></script>
-  <script defer src="js/modules/announcement.js?v=20260220i"></script>
-  <script defer src="js/modules/site-theme.js?v=20260220i"></script>
-  <script defer src="js/modules/event-list.js?v=20260220i"></script>
-  <script defer src="js/modules/event-detail.js?v=20260220i"></script>
-  <script defer src="js/modules/event-manage.js?v=20260220i"></script>
-  <script defer src="js/modules/event-create.js?v=20260220i"></script>
-  <script defer src="js/modules/tournament-render.js?v=20260220i"></script>
-  <script defer src="js/modules/tournament-manage.js?v=20260220i"></script>
-  <script defer src="js/modules/team-list.js?v=20260220i"></script>
-  <script defer src="js/modules/team-detail.js?v=20260220i"></script>
-  <script defer src="js/modules/team-form.js?v=20260220i"></script>
-  <script defer src="js/modules/message-inbox.js?v=20260220i"></script>
-  <script defer src="js/modules/message-admin.js?v=20260220i"></script>
-  <script defer src="js/modules/achievement.js?v=20260220i"></script>
-  <script defer src="js/modules/favorites.js?v=20260220i"></script>
-  <script defer src="js/modules/dashboard.js?v=20260220i"></script>
-  <script defer src="js/modules/personal-dashboard.js?v=20260220i"></script>
-  <script defer src="js/modules/shop.js?v=20260220i"></script>
-  <script defer src="js/modules/leaderboard.js?v=20260220i"></script>
-  <script defer src="js/modules/user-admin-list.js?v=20260220i"></script>
-  <script defer src="js/modules/user-admin-exp.js?v=20260220i"></script>
-  <script defer src="js/modules/auto-exp.js?v=20260220i"></script>
-  <script defer src="js/modules/user-admin-roles.js?v=20260220i"></script>
-  <script defer src="js/modules/scan.js?v=20260220i"></script>
+  <script defer src="js/modules/image-upload.js?v=20260221a"></script>
+  <script defer src="js/modules/role.js?v=20260221a"></script>
+  <script defer src="js/modules/profile-core.js?v=20260221a"></script>
+  <script defer src="js/modules/profile-data.js?v=20260221a"></script>
+  <script defer src="js/modules/profile-card.js?v=20260221a"></script>
+  <script defer src="js/modules/banner.js?v=20260221a"></script>
+  <script defer src="js/modules/ad-manage-core.js?v=20260221a"></script>
+  <script defer src="js/modules/ad-manage-banner.js?v=20260221a"></script>
+  <script defer src="js/modules/ad-manage-float.js?v=20260221a"></script>
+  <script defer src="js/modules/ad-manage-popup-sponsor.js?v=20260221a"></script>
+  <script defer src="js/modules/popup-ad.js?v=20260221a"></script>
+  <script defer src="js/modules/announcement.js?v=20260221a"></script>
+  <script defer src="js/modules/site-theme.js?v=20260221a"></script>
+  <script defer src="js/modules/event-list.js?v=20260221a"></script>
+  <script defer src="js/modules/event-detail.js?v=20260221a"></script>
+  <script defer src="js/modules/event-manage.js?v=20260221a"></script>
+  <script defer src="js/modules/event-create.js?v=20260221a"></script>
+  <script defer src="js/modules/tournament-render.js?v=20260221a"></script>
+  <script defer src="js/modules/tournament-manage.js?v=20260221a"></script>
+  <script defer src="js/modules/team-list.js?v=20260221a"></script>
+  <script defer src="js/modules/team-detail.js?v=20260221a"></script>
+  <script defer src="js/modules/team-form.js?v=20260221a"></script>
+  <script defer src="js/modules/message-inbox.js?v=20260221a"></script>
+  <script defer src="js/modules/message-admin.js?v=20260221a"></script>
+  <script defer src="js/modules/achievement.js?v=20260221a"></script>
+  <script defer src="js/modules/favorites.js?v=20260221a"></script>
+  <script defer src="js/modules/dashboard.js?v=20260221a"></script>
+  <script defer src="js/modules/personal-dashboard.js?v=20260221a"></script>
+  <script defer src="js/modules/shop.js?v=20260221a"></script>
+  <script defer src="js/modules/leaderboard.js?v=20260221a"></script>
+  <script defer src="js/modules/user-admin-list.js?v=20260221a"></script>
+  <script defer src="js/modules/user-admin-exp.js?v=20260221a"></script>
+  <script defer src="js/modules/auto-exp.js?v=20260221a"></script>
+  <script defer src="js/modules/user-admin-roles.js?v=20260221a"></script>
+  <script defer src="js/modules/scan.js?v=20260221a"></script>
 
   <!-- Service Worker Registration + 強制更新 -->
   <script>

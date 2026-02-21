@@ -530,7 +530,10 @@ Object.assign(FirebaseService, {
     try {
       if (!storage) { console.error('[Storage] storage 未初始化'); return null; }
       const ref = storage.ref().child(`images/${path}_${Date.now()}`);
-      const snapshot = await ref.putString(base64DataUrl, 'data_url');
+      const metadata = {
+        cacheControl: 'public, max-age=31536000',
+      };
+      const snapshot = await ref.putString(base64DataUrl, 'data_url', metadata);
       const url = await snapshot.ref.getDownloadURL();
       console.log('[Storage] 圖片上傳成功:', path);
       return url;

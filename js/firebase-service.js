@@ -63,7 +63,7 @@ const FirebaseService = {
   // ─── localStorage 快取設定 ───
   _LS_PREFIX: 'shub_c_',
   _LS_TS_KEY: 'shub_cache_ts',
-  _LS_TTL: 5 * 60 * 1000, // 5 分鐘快取有效期
+  _LS_TTL: 30 * 60 * 1000, // 30 分鐘快取有效期
 
   /** 將 users 集合文件映射為 adminUsers 格式（補齊 name / uid / lastActive） */
   _mapUserDoc(data, docId) {
