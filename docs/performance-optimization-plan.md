@@ -1,7 +1,7 @@
 # SportHub 效能優化計劃
 
 > 文件建立日期：2026/02/20
-> 最後更新：2026/02/20（v3，補充量測框架、角色分流、不建議快取來源說明）
+> 最後更新：2026/02/20（v4，補充圖片來源盤點表、量測執行節奏、方案五 Fallback 機制）
 > 狀態：規劃中（部分已實作，見各方案說明）
 > 目標：改善用戶開啟網頁後的資料加載體驗
 
@@ -399,6 +399,57 @@ config.js
 - 低階裝置上啟動速度約提升 20～30%
 - 後台管理頁面對一般用戶完全不增加啟動負擔
 
+#### Fallback 機制（載入失敗時的回退策略）
+
+延遲載入腳本存在失敗風險（網路不穩、404、CDN 問題），若不處理，用戶點進某頁會看到空白或靜默錯誤，不知道要怎麼辦。必須設計 Fallback 策略。
+
+**Fallback 分兩層：**
+
+**第一層：單頁腳本載入失敗 → 嘗試重新載入**
+
+```javascript
+// script-loader.js
+async ensureForPage(pageId) {
+  try {
+    await this._loadGroup(pageId);
+  } catch (err) {
+    console.warn(`[ScriptLoader] ${pageId} 腳本載入失敗，嘗試重試...`, err);
+    try {
+      // 等待 1 秒後重試一次
+      await new Promise(r => setTimeout(r, 1000));
+      await this._loadGroup(pageId);
+    } catch (retryErr) {
+      // 重試仍失敗 → 進入第二層
+      this._handleLoadFailure(pageId, retryErr);
+    }
+  }
+}
+```
+
+**第二層：重試失敗 → 顯示提示並提供重新整理**
+
+```javascript
+_handleLoadFailure(pageId) {
+  const container = document.getElementById('page-' + pageId);
+  if (container) {
+    container.innerHTML = `
+      <div style="text-align:center;padding:2rem;color:var(--text-muted)">
+        <div style="font-size:2rem;margin-bottom:.5rem">⚠️</div>
+        <div>頁面載入失敗，請檢查網路後重試</div>
+        <button onclick="location.reload()"
+          style="margin-top:1rem;padding:.5rem 1.2rem;border-radius:8px;
+                 background:var(--accent);color:#fff;border:none;cursor:pointer">
+          重新整理
+        </button>
+      </div>`;
+  }
+}
+```
+
+**第三層（可選）：整頁載入全量 modules 作為終極保底**
+
+若要確保任何情況下都有功能，可在第二層失敗後改用 `index.html` 原本的全量載入方式（動態插入所有 `<script>` 標籤），代價是恢復成原本較慢的啟動速度，但至少功能完整。
+
 ---
 
 ### 方案六：圖片載入優化
@@ -417,6 +468,22 @@ config.js
 Firebase Storage 圖片的 URL 形如 `https://firebasestorage.googleapis.com/...?alt=media&token=...`，原本被 Service Worker 以 Network-first 策略處理，代表**每次開啟頁面都會重新從 Firebase Storage 下載圖片**，即使圖片根本沒有變過。
 
 此外，Firebase Storage 上傳圖片時若未明確設定 Cache-Control，預設為極短的 TTL（通常 1 小時甚至更短），導致即使瀏覽器有 HTTP 快取機制，也很快就失效。
+
+#### 圖片來源盤點表
+
+本專案所有圖片來源的快取可行性一覽：
+
+| 來源 | 域名 | 可 SW 快取？ | 原因 |
+|------|------|-----------|------|
+| **Firebase Storage** | `firebasestorage.googleapis.com` | ✅ 可，已實作 | URL 含 token，換圖時 URL 同步更換，長期快取安全 |
+| **LINE 頭像** | `line-scdn.net` | ❌ 不建議 | URL 固定不變，用戶換大頭照後 SW 快取會顯示舊圖 |
+| **QR Code** | 無（client-side 生成） | ❌ 不適用 | canvas/SVG 本地生成，無網路請求可攔截 |
+| **外部廣告素材** | 各廣告主域名 | ❌ 不建議 | 對方未必提供 CORS header，快取可能直接失敗 |
+| **贊助商 Logo** | 外部域名 | ❌ 不建議 | 同上，CORS 限制 |
+
+**結論：SW 圖片快取只針對 `firebasestorage.googleapis.com`，其餘來源各有限制，不納入。**
+
+---
 
 #### 已完成的部分（2026/02/20）
 
@@ -641,6 +708,34 @@ async init() {
 - 實作各方案前記錄一次（基準）
 - 每個階段完成後記錄一次（比對）
 - 建議在「清除快取後的首次造訪」與「重複造訪」兩種情境下分別量測
+
+---
+
+### 量測執行節奏
+
+每個實施階段完成後，應依以下節奏進行量測並更新記錄表：
+
+**每次量測前置條件（必須統一，否則數據無法比較）：**
+
+| 條件 | 說明 |
+|------|------|
+| 裝置 | 固定使用同一台手機或 DevTools 的同一模擬機型 |
+| 網路環境 | 每次量測時標記：行動網路（4G/5G）或 WiFi |
+| 快取狀態 | 分兩種情境：① 清除快取（首次訪問模擬）② 保留快取（重複訪問模擬）|
+| 時段 | 避免在網路尖峰時段量測，結果會受伺服器負載影響 |
+
+**各階段量測節奏：**
+
+```
+實作前      → 量測基準值，填入「基準記錄表（實作前）」
+階段一完成  → 量測，填入「階段一後」欄位，與基準比對
+階段二完成  → 量測，填入「階段二後」欄位，與階段一比對
+階段三完成  → 量測，填入「階段三後」欄位
+```
+
+**量測結果記錄格式建議：**
+
+每次量測記錄：日期、網路環境、LCP、TTI、圖片命中率、備註（例如「WiFi、iPhone 14 模擬、清除快取後首次」）。
 
 ---
 
