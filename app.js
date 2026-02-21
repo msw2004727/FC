@@ -127,18 +127,17 @@ document.addEventListener('DOMContentLoaded', async () => {
   console.log('[Boot] DOMContentLoaded fired');
 
   // ── Phase 1: 載入頁面 HTML 片段（10 秒超時保護）──
-  try {
-    console.log('[Boot] Phase 1: PageLoader.loadAll() 開始');
-    await Promise.race([
-      PageLoader.loadAll().catch(function(e) {
-        console.warn('[Boot] PageLoader.loadAll() 失敗:', e && e.message || e);
-      }),
-      new Promise(resolve => setTimeout(resolve, 10000)),
-    ]);
+  console.log('[Boot] Phase 1: PageLoader.loadAll() 開始（背景執行）');
+  const htmlReady = Promise.race([
+    PageLoader.loadAll().catch(function(e) {
+      console.warn('[Boot] PageLoader.loadAll() 失敗:', e && e.message || e);
+    }),
+    new Promise(resolve => setTimeout(resolve, 10000)),
+  ]).then(() => {
     console.log('[Boot] Phase 1: 完成');
-  } catch (e) {
+  }).catch((e) => {
     console.error('[Boot] Phase 1 異常:', e && e.message || e);
-  }
+  });
 
   // ── Phase 2: 正式版先從 localStorage 恢復快取資料 ──
   try {
@@ -151,7 +150,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     console.warn('[Boot] Phase 2 快取恢復失敗:', e && e.message || e);
   }
 
-  // ── Phase 3: 立即顯示頁面（不等 CDN / Firebase）──
+  // ── Phase 3: 立即顯示頁面（不等 HTML / CDN / Firebase）──
   try {
     console.log('[Boot] Phase 3: App.init() 開始');
     App.init();
@@ -171,7 +170,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     } catch (e2) {}
   }
 
-  // 立即隱藏載入畫面 + 清除安全計時器
+  // 立即隱藏載入畫面 + 清除安全計時器（Phase 3 完成後立即執行，不等 Phase 1）
   try {
     var _ov = document.getElementById('loading-overlay');
     if (_ov) _ov.style.display = 'none';
@@ -181,6 +180,16 @@ document.addEventListener('DOMContentLoaded', async () => {
   } catch (e) {
     console.warn('[Boot] 隱藏載入畫面失敗:', e && e.message || e);
   }
+
+  // ── Phase 1 完成後補跑一次 renderAll（非阻塞，補齊需要 HTML 的區塊）──
+  htmlReady.then(function() {
+    try {
+      App.renderAll();
+      console.log('[Boot] Phase 1 後補跑 renderAll 完成');
+    } catch (e) {
+      console.warn('[Boot] Phase 1 完成後 renderAll 失敗:', e && e.message || e);
+    }
+  });
 
   // ── Phase 4: 背景載入 CDN SDK → Firebase + LIFF（不阻塞頁面）──
   if (!ModeManager.isDemo()) {
