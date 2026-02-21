@@ -143,6 +143,7 @@ Object.assign(App, {
   },
 
   showTournamentDetail(id) {
+    if (this._requireLogin()) return;
     this.currentTournament = id;
     const t = ApiService.getTournament(id);
     if (!t) return;
