@@ -26,7 +26,7 @@ Object.assign(App, {
 
   showPage(pageId) {
     // 正式版未登入：擋住球隊、賽事、我的、訊息頁
-    const guardedPages = ['page-profile', 'page-teams', 'page-tournaments', 'page-messages'];
+    const guardedPages = ['page-profile', 'page-teams', 'page-tournaments', 'page-messages', 'page-activities'];
     if (guardedPages.includes(pageId) && this._requireLogin()) return;
 
     // 懶載入頁面 HTML 片段（如果尚未載入）
