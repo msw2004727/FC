@@ -8,6 +8,10 @@ Object.assign(App, {
     const container = document.getElementById('ongoing-tournaments');
     if (!container) return;
     const ongoing = ApiService.getTournaments().filter(t => !this.isTournamentEnded(t));
+
+    // ── 已渲染且數量相同 → 跳過，避免封面圖重載 ──
+    const existingCards = container.querySelectorAll('.h-card:not(.skeleton)');
+    if (existingCards.length > 0 && existingCards.length === ongoing.length) return;
     if (ongoing.length === 0) {
       container.innerHTML = (!App._firebaseConnected && !ModeManager.isDemo())
         ? [1, 2, 3].map(() => `

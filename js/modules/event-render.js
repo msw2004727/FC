@@ -212,6 +212,10 @@ Object.assign(App, {
       })
       .slice(0, 10);
 
+    // ── 已渲染且數量相同 → 跳過，避免封面圖重載 ──
+    const existingCards = container.querySelectorAll('.h-card:not(.skeleton)');
+    if (existingCards.length > 0 && existingCards.length === visible.length) return;
+
     container.innerHTML = visible.length > 0
       ? visible.map(e => `
         <div class="h-card" onclick="App.showEventDetail('${e.id}')">
