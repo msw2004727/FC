@@ -1,7 +1,7 @@
 # SportHub 效能優化計劃
 
 > 文件建立日期：2026/02/20
-> 最後更新：2026/02/20（v2，納入外部審查建議）
+> 最後更新：2026/02/20（v3，補充量測框架、角色分流、不建議快取來源說明）
 > 狀態：規劃中（部分已實作，見各方案說明）
 > 目標：改善用戶開啟網頁後的資料加載體驗
 
@@ -486,6 +486,26 @@ LINE 頭像 URL 的 Cache-Control 由 LINE 伺服器決定，應用層無法設�
 
 ---
 
+#### ❌ 不建議納入 SW 圖片快取的來源
+
+以下三類圖片來源**不適合**加入 Service Worker 的圖片快取策略，原因如下：
+
+**LINE 頭像（`line-scdn.net`）— 有過期資料風險**
+
+LINE 頭像 URL 是固定的，即使用戶更新大頭照，URL 也不會改變。Firebase Storage 可以安全設定長期快取，是因為圖片更換時 URL 也同步更換，舊 URL 永遠對應舊圖，不會出錯。但 LINE 頭像若被 SW 快取 7 天，這 7 天內用戶換了大頭照，其他人仍會看到舊照片，存在顯示錯誤的風險。
+
+**QR Code — 本專案不適用**
+
+若 QR Code 是在瀏覽器端以 canvas 或 SVG 生成（client-side rendering），不會產生網路請求，Service Worker 無從攔截，此建議對本專案不適用。
+
+**外部圖片 URL（贊助商、廣告素材）— CORS 限制**
+
+Service Worker 快取跨域資源需要對方伺服器的回應包含 `Access-Control-Allow-Origin` header。外部廣告素材或贊助商圖片來源不一定提供 CORS header，強行快取可能直接失敗，增加實作複雜度卻得不到效益。
+
+**結論：SW 圖片快取策略應只針對 `firebasestorage.googleapis.com`（本專案的主要圖片儲存來源），其餘來源各有限制，不建議納入。**
+
+---
+
 ### 方案七：onSnapshot 資料量縮減（長期架構優化）
 
 **優先度：★★★☆☆（長期）**
@@ -543,6 +563,42 @@ db.collection('messages')
   .onSnapshot(...)
 ```
 
+#### 角色分流規劃（必要前提）
+
+**資料縮減策略不能對所有角色一視同仁。** 不同角色對資料的需求範圍根本不同，必須分流設計，否則縮減後管理功能會直接壞掉。
+
+| 角色 | events 範圍 | registrations 範圍 | activityRecords 範圍 | messages 範圍 |
+|------|-----------|-------------------|---------------------|-------------|
+| **user** | 近期公開活動 | 僅自己的 | 僅自己的 | 僅自己收到的 |
+| **coach** | 近期公開活動 + 自己創建的所有活動 | 自己活動的所有報名 | 僅自己的 | 僅自己收到的 |
+| **admin / super_admin** | 所有活動（不可縮減） | 所有報名（不可縮減） | 所有記錄（不可縮減） | 所有站內信（不可縮減） |
+
+**實作意義：**
+
+- 對 `user` 角色，策略一～三的縮減都可套用，效益最明顯
+- 對 `coach` 角色，需要「自己的資料 + 自己活動的資料」兩段查詢合併
+- 對 `admin` 角色，資料不可縮減，此方案對其無意義（但也不會使其更慢）
+
+**分流初始化流程（示意）：**
+
+```javascript
+// firebase-service.js 初始化時
+async init() {
+  const role = currentUser?.role || 'user';
+
+  if (role === 'admin' || role === 'super_admin') {
+    // 後台角色：全量同步，維持現有邏輯
+    await this._setupFullListeners();
+  } else if (role === 'coach') {
+    // 教練：近期活動 + 自己創建的活動報名
+    await this._setupCoachListeners(currentUser.uid);
+  } else {
+    // 一般用戶：近期活動 + 自己的報名與歷史
+    await this._setupUserListeners(currentUser.uid);
+  }
+}
+```
+
 #### ⚠️ 風險說明
 
 現有 `ApiService` 的查詢邏輯（如 `getEvents()`、`getRegistrationsByUser()`）都假設整份 collection 已在 `_cache` 中，改成局部查詢後，**所有依賴這些資料的功能都需要同步確認**：
@@ -551,7 +607,82 @@ db.collection('messages')
 - 後台管理（admins 看到所有用戶的報名）→ 需要後台專用查詢
 - 統計計算（出席率、EXP）→ 依賴完整資料，局部查詢可能導致數字錯誤
 
+此方案的實際複雜度遠高於「改幾個 Firestore query」，本質上是**重新設計資料初始化架構**，需要獨立的規劃週期。
+
 **建議：此方案需先評估各功能的資料依賴範圍，逐步拆分，不可一次性改動。**
+
+---
+
+## 成效量測框架
+
+優化實作前後都應量測以下指標，才能客觀驗證改善幅度。**建議在實作任何方案之前先量好基準數字。**
+
+---
+
+### 量測指標
+
+| 指標 | 說明 | 量測方式 | 目標 |
+|------|------|---------|------|
+| **LCP**（最大內容繪製） | 用戶看到主要內容（橫幅或活動列表）要等多久 | Chrome DevTools → Lighthouse → 手機模擬模式 | < 2.5 秒 |
+| **TTI**（可互動時間） | 頁面何時可以正常點擊操作 | Chrome DevTools → Lighthouse | < 3.8 秒 |
+| **SW Cache Hit Rate** | Service Worker 快取命中率（減少幾次網路請求） | sw.js 加入 console 計數（見下方） | > 80% 重複造訪 |
+| **圖片快取命中率** | 圖片專屬快取命中次數 ÷ 圖片總請求次數 | sw.js IMAGE_CACHE 攔截計數 | > 70% 第二次造訪 |
+
+---
+
+### LCP / TTI 量測方法
+
+1. Chrome DevTools → Lighthouse → 選「Mobile」模式
+2. 勾選 Performance
+3. 點 Analyze page load
+4. 記錄 LCP、TTI 數值
+
+**量測時機：**
+- 實作各方案前記錄一次（基準）
+- 每個階段完成後記錄一次（比對）
+- 建議在「清除快取後的首次造訪」與「重複造訪」兩種情境下分別量測
+
+---
+
+### SW 快取命中率量測方法
+
+在 `sw.js` 的 fetch handler 加入輕量計數，開發期間可開啟，正式上線前移除：
+
+```javascript
+// sw.js — 統計區塊（開發期間使用）
+let _stats = { imageHit: 0, imageMiss: 0, staticHit: 0, staticMiss: 0 };
+
+// 圖片命中時
+if (isValid) {
+  _stats.imageHit++;
+  console.log(`[SW Stats] 圖片快取 HIT（共 ${_stats.imageHit} 次）`);
+  event.waitUntil(networkFetch);
+  return cached;
+}
+
+// 圖片未命中時
+_stats.imageMiss++;
+console.log(`[SW Stats] 圖片快取 MISS（共 ${_stats.imageMiss} 次）`);
+
+// 靜態資源命中時（同樣位置加）
+// ...
+
+// 每 10 次請求輸出一次整體統計
+if ((_stats.imageHit + _stats.imageMiss) % 10 === 0) {
+  const hitRate = Math.round(_stats.imageHit / (_stats.imageHit + _stats.imageMiss) * 100);
+  console.log(`[SW Stats] 圖片命中率：${hitRate}%`);
+}
+```
+
+---
+
+### 基準記錄表（實作前填寫）
+
+| 量測情境 | LCP | TTI | 圖片快取命中率 | 量測日期 |
+|---------|-----|-----|-------------|---------|
+| 首次造訪（清除快取） | — | — | — | — |
+| 重複造訪（5 分鐘內） | — | — | — | — |
+| 重複造訪（10 分鐘後） | — | — | — | — |
 
 ---
 
