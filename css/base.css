@@ -37,6 +37,8 @@
   --success: #34d399;
   --overlay: rgba(0,0,0,.65);
   --banner-shadow: 0 4px 24px rgba(0,0,0,.5);
+  --skeleton-base: var(--bg-elevated);
+  --skeleton-glow: var(--bg-card);
 }
 
 [data-theme="light"] {
@@ -58,6 +60,8 @@
   --success: #059669;
   --overlay: rgba(0,0,0,.35);
   --banner-shadow: 0 4px 24px rgba(0,0,0,.12);
+  --skeleton-base: var(--bg-elevated);
+  --skeleton-glow: var(--bg-card);
 }
 
 /* ─── Reset ─── */
@@ -382,14 +386,14 @@ img { max-width: 100%; display: block; }
 .skeleton {
   position: relative;
   overflow: hidden;
-  background: var(--bg-elevated, #f0f0f0);
+  background: var(--skeleton-base);
   border-radius: var(--radius, 14px);
 }
 .skeleton::after {
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,.15) 50%, transparent 100%);
+  background: linear-gradient(90deg, transparent 0%, var(--skeleton-glow) 50%, transparent 100%);
   animation: skeleton-pulse 1.5s ease-in-out infinite;
 }
 @keyframes skeleton-pulse {
@@ -401,11 +405,7 @@ img { max-width: 100%; display: block; }
   min-width: 180px;
   flex-shrink: 0;
 }
-.skeleton-line {
-  height: 56px;
-  margin-bottom: .5rem;
-  border-radius: var(--radius-sm, 8px);
-}
+.skeleton-line { height: 12px; margin-bottom: .5rem; border-radius: var(--radius-sm, 8px); }
 .skeleton-team-card {
   height: 200px;
   border-radius: var(--radius, 14px);

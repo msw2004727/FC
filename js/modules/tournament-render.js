@@ -9,7 +9,17 @@ Object.assign(App, {
     if (!container) return;
     const ongoing = ApiService.getTournaments().filter(t => !this.isTournamentEnded(t));
     if (ongoing.length === 0) {
-      container.innerHTML = `<div style="text-align:center;padding:1.5rem;color:var(--text-muted);font-size:.85rem">${t('tournament.noActive')}</div>`;
+      container.innerHTML = (!App._firebaseConnected && !ModeManager.isDemo())
+        ? [1, 2, 3].map(() => `
+          <div class="h-card">
+            <div class="h-card-img skeleton"></div>
+            <div class="h-card-body">
+              <div class="skeleton skeleton-line" style="width:60%"></div>
+              <div class="skeleton skeleton-line" style="width:85%"></div>
+            </div>
+          </div>
+        `).join('')
+        : `<div style="text-align:center;padding:1.5rem;color:var(--text-muted);font-size:.85rem">${t('tournament.noActive')}</div>`;
       return;
     }
     container.innerHTML = ongoing.map(t => `

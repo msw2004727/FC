@@ -227,7 +227,17 @@ Object.assign(App, {
           </div>
         </div>
       `).join('')
-      : `<div style="padding:1rem;font-size:.82rem;color:var(--text-muted)">${t('activity.noActive')}</div>`;
+      : (!App._firebaseConnected && !ModeManager.isDemo())
+        ? [1, 2, 3].map(() => `
+          <div class="h-card">
+            <div class="h-card-img skeleton"></div>
+            <div class="h-card-body">
+              <div class="skeleton skeleton-line" style="width:70%"></div>
+              <div class="skeleton skeleton-line" style="width:90%"></div>
+            </div>
+          </div>
+        `).join('')
+        : `<div style="padding:1rem;font-size:.82rem;color:var(--text-muted)">${t('activity.noActive')}</div>`;
   },
 
   // ══════════════════════════════════

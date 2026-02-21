@@ -207,6 +207,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         const liffReady = (typeof liff !== 'undefined') ? LineAuth.init() : Promise.resolve();
         await Promise.all([FirebaseService.init(), liffReady]);
+        App._firebaseConnected = true;
         console.log('[Boot] Phase 4: Firebase + LIFF 初始化完成');
         // 用即時資料重新渲染頁面
         try { App.renderAll(); } catch (e) {}

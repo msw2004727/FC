@@ -9,9 +9,8 @@ Object.assign(App, {
     if (!track) return;
     const banners = ApiService.getBanners().filter(b => b.status === 'active');
     if (banners.length === 0) {
-      track.innerHTML = `<div class="banner-slide banner-placeholder">
-        <div class="banner-img-placeholder">1200 × 400</div>
-        <div class="banner-content"><div class="banner-tag">廣告</div><h2>暫無廣告</h2><p>敬請期待</p></div>
+      track.innerHTML = `<div class="banner-slide skeleton-slide">
+        <div class="banner-skeleton skeleton"></div>
       </div>`;
     } else {
       track.innerHTML = banners.map(b => {

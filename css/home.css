@@ -8,6 +8,9 @@
 .banner-track { display: flex; transition: transform .5s cubic-bezier(.4,0,.2,1); }
 .banner-slide { min-width: 100%; aspect-ratio: 2.2/1; display: flex; align-items: flex-end; padding: 1.2rem; position: relative; }
 .banner-slide.banner-placeholder { background: var(--bg-elevated) !important; border: 2px dashed var(--border); }
+.banner-slide.skeleton-slide { padding: 0; }
+.banner-slide.skeleton-slide::after { display: none; }
+.banner-skeleton { position: absolute; inset: 0; border-radius: var(--radius); }
 .banner-img-placeholder { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: .75rem; font-weight: 600; color: var(--text-muted); font-family: monospace; z-index: 0; }
 .banner-slide::after { content:''; position: absolute; inset: 0; background: linear-gradient(to top, rgba(0,0,0,.35), transparent 60%); }
 .banner-arrow { position: absolute; top: 50%; transform: translateY(-50%); z-index: 3; width: 32px; height: 32px; border-radius: 50%; background: rgba(0,0,0,.25); color: #fff; font-size: 1.2rem; display: flex; align-items: center; justify-content: center; border: none; cursor: pointer; backdrop-filter: blur(4px); transition: background var(--transition); }
