@@ -154,6 +154,7 @@ const FirebaseService = {
   _bootCollections: [
     'banners', 'floatingAds', 'popupAds', 'sponsors',
     'announcements', 'siteThemes', 'achievements', 'badges',
+    'tournaments',
   ],
 
   // 延遲載入的靜態集合（進入對應頁面時才載入）

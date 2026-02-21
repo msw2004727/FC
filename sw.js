@@ -1,15 +1,14 @@
 /* ================================================
-   SportHub — Service Worker
+   SportHub ??Service Worker
    Strategy:
-     - HTML          → network-first
-     - versioned JS/CSS → cache-first
-     - Firebase Storage 圖片 → stale-while-revalidate（獨立快取）
+     - HTML          ??network-first
+     - versioned JS/CSS ??cache-first
+     - Firebase Storage ?��? ??stale-while-revalidate（獨立快?��?
    ================================================ */
 
-const CACHE_NAME       = 'sporthub-20260221d';
+const CACHE_NAME       = 'sporthub-20260221e';
 const IMAGE_CACHE_NAME = 'sporthub-images-v1';
-const MAX_IMAGE_CACHE  = 150;                         // 最多快取 150 張圖片
-const MAX_IMAGE_AGE_MS = 7 * 24 * 60 * 60 * 1000;    // 7 天過期
+const MAX_IMAGE_CACHE  = 150;                         // ?�多快??150 張�???const MAX_IMAGE_AGE_MS = 7 * 24 * 60 * 60 * 1000;    // 7 天�???
 
 const STATIC_ASSETS = [
   './',
@@ -35,10 +34,10 @@ const STATIC_ASSETS = [
   './js/core/script-loader.js',
 ];
 
-// ─── 圖片快取工具函式 ───
+// ?�?�?� ?��?快�?工具?��? ?�?�?�
 
 /**
- * 將圖片存入 IMAGE_CACHE，附上時間戳記，並清除超量舊項目
+ * 將�??��???IMAGE_CACHE，�?上�??�戳記�?並�??��??��??�目
  */
 async function storeImageInCache(cache, request, response) {
   try {
@@ -52,19 +51,19 @@ async function storeImageInCache(cache, request, response) {
     });
     await cache.put(request, cachedResponse);
 
-    // 超過上限時刪除最舊的
+    // 超�?上�??�刪?��??��?
     const keys = await cache.keys();
     if (keys.length > MAX_IMAGE_CACHE) {
       const toDelete = keys.slice(0, keys.length - MAX_IMAGE_CACHE);
       await Promise.all(toDelete.map(k => cache.delete(k)));
     }
   } catch (e) {
-    // 儲存失敗不影響主流程
+    // ?��?失�?不影?�主流�?
   }
 }
 
 /**
- * 判斷快取的圖片是否已超過有效期
+ * ?�斷快�??��??�是?�已超�??��???
  */
 function isImageExpired(cachedResponse) {
   const cachedAt = cachedResponse.headers.get('sw-cached-at');
@@ -72,7 +71,7 @@ function isImageExpired(cachedResponse) {
   return Date.now() - parseInt(cachedAt) > MAX_IMAGE_AGE_MS;
 }
 
-// ─── Install ───
+// ?�?�?� Install ?�?�?�
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
@@ -82,7 +81,7 @@ self.addEventListener('install', (event) => {
   self.skipWaiting();
 });
 
-// ─── Activate：清除舊快取（保留 IMAGE_CACHE_NAME）───
+// ?�?�?� Activate：�??��?快�?（�???IMAGE_CACHE_NAME）�??�?�
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) => {
@@ -95,21 +94,21 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// ─── Fetch 攔截 ───
+// ?�?�?� Fetch ?�截 ?�?�?�
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
 
-  // 只處理 GET
+  // ?��???GET
   if (event.request.method !== 'GET') return;
 
-  // ── 1. Firebase Storage 圖片：Stale-While-Revalidate ──
+  // ?�?� 1. Firebase Storage ?��?：Stale-While-Revalidate ?�?�
   if (url.hostname === 'firebasestorage.googleapis.com') {
     event.respondWith(
       caches.open(IMAGE_CACHE_NAME).then(async (cache) => {
         const cached = await cache.match(event.request);
         const isValid = cached && !isImageExpired(cached);
 
-        // 背景 fetch：更新快取用（不等待）
+        // ?�景 fetch：更?�快?�用（�?等�?�?
         const networkFetch = fetch(event.request)
           .then(async (response) => {
             if (response && response.status === 200) {
@@ -120,12 +119,12 @@ self.addEventListener('fetch', (event) => {
           .catch(() => null);
 
         if (isValid) {
-          // 快取有效：立即回傳，背景悄悄更新
+          // 快�??��?：�??��??��??�景?��??�新
           event.waitUntil(networkFetch);
           return cached;
         }
 
-        // 無快取或已過期：等網路，失敗時回退舊快取
+        // ?�快?��?已�??��?等網路�?失�??��??�?�快??
         const networkResponse = await networkFetch;
         return networkResponse || cached;
       })
@@ -133,7 +132,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // ── 2. 其他 Firebase / CDN：Network-first（不快取）──
+  // ?�?� 2. ?��? Firebase / CDN：Network-first（�?快�?）�??�
   if (
     url.hostname.includes('firebaseio.com') ||
     url.hostname.includes('googleapis.com') ||
@@ -148,7 +147,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // ── 3. HTML：Network-first（確保 index.html 不卡舊版）──
+  // ?�?� 3. HTML：Network-first（確�?index.html 不卡?��?）�??�
   if (event.request.mode === 'navigate' || url.pathname.endsWith('.html')) {
     event.respondWith(
       fetch(event.request).then((response) => {
@@ -162,7 +161,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // ── 4. 同源有版號資源（?v=）：Cache-first ──
+  // ?�?� 4. ?��??��??��?源�??v=）�?Cache-first ?�?�
   if (url.origin === location.origin) {
     event.respondWith(
       caches.match(event.request).then((cached) => {
