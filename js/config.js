@@ -3,8 +3,8 @@
    ================================================ */
 
 // ─── Cache Version（更新此值以清除瀏覽器快取）───
-// 20260220h: 移除 tab hover 黏著黑字問題
-const CACHE_VERSION = '20260220h';
+// 20260220i: SW 圖片 stale-while-revalidate + lazy loading 補全
+const CACHE_VERSION = '20260220i';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {

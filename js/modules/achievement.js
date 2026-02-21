@@ -78,7 +78,7 @@ Object.assign(App, {
       const pct = threshold > 0 ? Math.min(100, Math.round(a.current / threshold * 100)) : 0;
       const badge = badges.find(b => b.id === a.badgeId);
       const badgeImg = badge && badge.image
-        ? `<img src="${badge.image}" alt="${escapeHTML(badge.name)}">`
+        ? `<img src="${badge.image}" alt="${escapeHTML(badge.name)}" loading="lazy">`
         : `<span style="font-size:1.2rem;color:var(--text-muted)">🏅</span>`;
       const desc = this._generateConditionDesc(a.condition, a.desc);
       const catColor = this._catColors[a.category] || this._catColors.bronze;
@@ -113,7 +113,7 @@ Object.assign(App, {
       html += '<div class="ach-section-title">已獲得徽章</div>';
       html += '<div class="ach-badge-showcase">' + earnedBadges.map(({ badge, color, achName }) => `
         <div class="ach-showcase-item">
-          <div class="ach-showcase-img">${badge.image ? `<img src="${badge.image}">` : '<span>🏅</span>'}</div>
+          <div class="ach-showcase-img">${badge.image ? `<img src="${badge.image}" loading="lazy">` : '<span>🏅</span>'}</div>
           <span class="ach-showcase-name">${escapeHTML(badge.name)}</span>
         </div>
       `).join('') + '</div>';
@@ -180,7 +180,7 @@ Object.assign(App, {
       const completed = a.current >= threshold;
       const badge = badges.find(b => b.id === a.badgeId);
       const badgeImg = badge && badge.image
-        ? `<img src="${badge.image}" style="width:100%;height:100%;object-fit:cover;border-radius:4px">`
+        ? `<img src="${badge.image}" style="width:100%;height:100%;object-fit:cover;border-radius:4px" loading="lazy">`
         : '<span style="font-size:.9rem">🏅</span>';
       const desc = this._generateConditionDesc(a.condition, a.desc);
       return `

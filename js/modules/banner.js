@@ -135,7 +135,7 @@ Object.assign(App, {
           : '';
         if (isActive) {
           html.push(`<div class="sponsor-slot${hasLink ? ' has-link' : ''}" title="${escapeHTML(sp.title || '贊助商')}" ${clickHandler}>
-            <img src="${sp.image}" alt="${escapeHTML(sp.title || '')}">
+            <img src="${sp.image}" alt="${escapeHTML(sp.title || '')}" loading="lazy">
           </div>`);
           continue;
         }
