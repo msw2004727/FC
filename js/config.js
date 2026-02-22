@@ -4,7 +4,7 @@
 
 // ─── Cache Version（更新此值以清除瀏覽器快取）───
 // 20260220i: SW 圖片 stale-while-revalidate + lazy loading 補全
-const CACHE_VERSION = '20260222g';
+const CACHE_VERSION = '20260222h';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {
@@ -182,15 +182,13 @@ const TEAM_RANK_CONFIG = [
 
 // ─── Drawer Menu Config ───
 const DRAWER_MENUS = [
-  { icon: '', label: '個人數據', i18nKey: 'drawer.personalData', page: 'page-personal-dashboard', minRole: 'user' },
-  { icon: '', label: '二手商品區', i18nKey: 'drawer.shop', page: 'page-shop', minRole: 'user' },
-  { icon: '', label: '排行榜', i18nKey: 'drawer.leaderboard', action: 'coming-soon', minRole: 'user' },
+  { icon: '', label: '個人數據', i18nKey: 'drawer.personalData', page: 'page-personal-dashboard', minRole: 'user', locked: true },
+  { icon: '', label: '二手商品區', i18nKey: 'drawer.shop', page: 'page-shop', minRole: 'user', locked: true },
+  { icon: '', label: '排行榜', i18nKey: 'drawer.leaderboard', action: 'coming-soon', minRole: 'user', locked: true },
   { icon: '', label: '分享網頁', i18nKey: 'drawer.share', action: 'share', minRole: 'user' },
   { divider: true },
   { icon: '', label: '活動管理', i18nKey: 'drawer.activityManage', page: 'page-my-activities', minRole: 'coach' },
   { icon: '', label: '賽事管理', i18nKey: 'drawer.tournamentManage', page: 'page-admin-tournaments', minRole: 'coach' },
-  { divider: true, minRole: 'coach' },
-  { icon: '', label: '掃碼簽到/簽退', i18nKey: 'drawer.scan', page: 'page-scan', minRole: 'coach', highlight: 'yellow' },
   { divider: true, minRole: 'admin' },
   { sectionLabel: '後台管理', i18nKey: 'drawer.backendManage', minRole: 'admin' },
   { icon: '', label: '數據儀表板', i18nKey: 'admin.dashboard', page: 'page-admin-dashboard', minRole: 'admin' },

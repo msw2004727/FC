@@ -112,8 +112,10 @@ Object.assign(App, {
   _buildGroupedParticipants(e) {
     const confirmedRegs = ApiService.getRegistrationsByEvent(e.id).filter(r => r.status === 'confirmed');
     if (confirmedRegs.length === 0) {
-      // fallback: 舊資料，扁平顯示
-      return (e.participants || []).map(p => this._userTag(p)).join('');
+      // fallback: 舊資料，逐行顯示
+      return (e.participants || []).map(p =>
+        `<div style="padding:.45rem .2rem;border-bottom:1px solid var(--border)">👤 ${this._userTag(p)}</div>`
+      ).join('');
     }
     const groups = new Map();
     confirmedRegs.forEach(r => {
@@ -125,12 +127,11 @@ Object.assign(App, {
       const selfReg = regs.find(r => r.participantType === 'self');
       const companions = regs.filter(r => r.participantType === 'companion');
       const mainName = selfReg ? selfReg.userName : regs[0].userName;
-      html += `<div style="display:flex;align-items:center;gap:.3rem;flex-wrap:wrap">${this._userTag(mainName)}`;
+      html += `<div style="padding:.45rem .2rem;border-bottom:1px solid var(--border)">👤 ${this._userTag(mainName)}</div>`;
       companions.forEach(c => {
         const cName = c.companionName || c.userName;
-        html += `<span style="font-size:.72rem;color:var(--text-muted)">↳</span><span class="user-capsule uc-user" style="opacity:.8;font-size:.78rem">${escapeHTML(cName)}</span>`;
+        html += `<div style="padding:.35rem .2rem .35rem 1.5rem;border-bottom:1px solid var(--border)"><span style="font-size:.78rem;color:var(--text-muted)">↳</span> <span class="user-capsule uc-user" style="opacity:.8;font-size:.78rem">${escapeHTML(cName)}</span></div>`;
       });
-      html += '</div>';
     });
     return html;
   },
@@ -152,9 +153,9 @@ Object.assign(App, {
         const companions = regs.filter(r => r.participantType === 'companion');
         const mainName = selfReg ? selfReg.userName : regs[0].userName;
         idx++;
-        html += `<span class="wl-pos">${idx}</span>${this._userTag(mainName)}`;
+        html += `<div style="padding:.45rem .2rem;border-bottom:1px solid var(--border)"><span class="wl-pos">${idx}</span> ${this._userTag(mainName)}</div>`;
         companions.forEach(c => {
-          html += `<span style="font-size:.72rem;color:var(--text-muted)">↳</span><span class="user-capsule uc-user" style="opacity:.8;font-size:.78rem">${escapeHTML(c.companionName || c.userName)}</span>`;
+          html += `<div style="padding:.35rem .2rem .35rem 1.5rem;border-bottom:1px solid var(--border)"><span style="font-size:.78rem;color:var(--text-muted)">↳</span> <span class="user-capsule uc-user" style="opacity:.8;font-size:.78rem">${escapeHTML(c.companionName || c.userName)}</span></div>`;
         });
       });
       html += '</div></div>';
@@ -164,7 +165,9 @@ Object.assign(App, {
     if ((e.waitlistNames || []).length > 0) {
       return `<div class="detail-section">
         <div class="detail-section-title">候補名單 (${e.waitlist})</div>
-        <div class="participant-list">${e.waitlistNames.map((p, i) => `<span class="wl-pos">${i + 1}</span>${this._userTag(p)}`).join('')}</div>
+        <div class="participant-list">${e.waitlistNames.map((p, i) =>
+          `<div style="padding:.45rem .2rem;border-bottom:1px solid var(--border)"><span class="wl-pos">${i + 1}</span> ${this._userTag(p)}</div>`
+        ).join('')}</div>
       </div>`;
     }
     return '';

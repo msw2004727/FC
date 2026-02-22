@@ -24,7 +24,7 @@ Object.assign(App, {
     }
   },
 
-  handleSignup(id) {
+  async handleSignup(id) {
     const e = ApiService.getEvent(id);
     if (!e) return;
     if (e.status === 'upcoming') { this.showToast('報名尚未開放，請稍後再試'); return; }
@@ -48,23 +48,9 @@ Object.assign(App, {
         this.showToast('您已報名此活動');
         return;
       }
-      const isWaitlist = e.current >= e.max;
-      if (isWaitlist) {
-        if (!e.waitlistNames) e.waitlistNames = [];
-        if (!e.waitlistNames.includes(userName)) e.waitlistNames.push(userName);
-        e.waitlist = (e.waitlist || 0) + 1;
-        const pi = (e.participants || []).indexOf(userName);
-        if (pi >= 0) { e.participants.splice(pi, 1); e.current = Math.max(0, e.current - 1); }
-      } else {
-        if (!e.participants) e.participants = [];
-        if (!e.participants.includes(userName)) e.participants.push(userName);
-        e.current++;
-        const wi = (e.waitlistNames || []).indexOf(userName);
-        if (wi >= 0) { e.waitlistNames.splice(wi, 1); e.waitlist = Math.max(0, (e.waitlist || 0) - 1); }
-      }
-      if (e.current >= e.max) e.status = 'full';
-      // 建立 registration record
-      ApiService.registerEventWithCompanions(id, [{ type: 'self' }]).catch(() => {});
+      // registerEventWithCompanions 統一處理 participants/current/waitlist 變更
+      const result = await ApiService.registerEventWithCompanions(id, [{ type: 'self' }]);
+      const isWaitlist = (result.waitlisted || []).length > 0;
       const dateParts = e.date.split(' ')[0].split('/');
       const dateStr = `${dateParts[1]}/${dateParts[2]}`;
       ApiService.addActivityRecord({

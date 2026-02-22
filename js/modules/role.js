@@ -98,7 +98,10 @@ Object.assign(App, {
       } else if (item.sectionLabel) {
         html += `<div class="drawer-section-label">${item.i18nKey ? t(item.i18nKey) : item.sectionLabel}</div>`;
       } else {
-        const onClick = item.action === 'share'
+        const isLocked = !!item.locked;
+        const onClick = isLocked
+          ? `App.showToast('功能尚未開放'); App.closeDrawer()`
+          : item.action === 'share'
           ? `App.showToast('已複製分享連結！')`
           : item.action === 'coming-soon'
           ? `App.showToast('功能尚未開放'); App.closeDrawer()`
@@ -112,8 +115,10 @@ Object.assign(App, {
           lastMinRole = role;
         }
         const displayLabel = item.i18nKey ? t(item.i18nKey) : item.label;
-        html += `<div class="drawer-item ${bgClass}" onclick="${onClick}">
-          ${displayLabel}
+        const lockIcon = isLocked ? '<span style="margin-left:auto;font-size:.7rem;opacity:.5">🔒</span>' : '';
+        const lockedStyle = isLocked ? ' style="opacity:.55;display:flex;align-items:center"' : '';
+        html += `<div class="drawer-item ${bgClass}"${lockedStyle} onclick="${onClick}">
+          ${displayLabel}${lockIcon}
         </div>`;
       }
     });
