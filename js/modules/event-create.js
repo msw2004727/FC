@@ -517,8 +517,17 @@ Object.assign(App, {
       }
       ApiService.updateEvent(this._editEventId, updates);
 
-      // 發送活動變更通知給所有報名者
-      if (notifyNames.length > 0) {
+      // 發送活動變更通知：優先用 registrations 按 userId 去重（避免同行者重複通知）
+      const eventRegs = ApiService.getRegistrationsByEvent(this._editEventId);
+      if (eventRegs.length > 0) {
+        const notifyUids = [...new Set(eventRegs.map(r => r.userId))];
+        notifyUids.forEach(uid => {
+          this._sendNotifFromTemplate('event_changed', {
+            eventName: title, date: fullDate, location,
+          }, uid, 'activity', '活動');
+        });
+      } else if (notifyNames.length > 0) {
+        // fallback: 舊資料沒有 registrations，用名字查找
         const adminUsers = ApiService.getAdminUsers();
         notifyNames.forEach(name => {
           const u = adminUsers.find(au => au.name === name);
@@ -528,20 +537,6 @@ Object.assign(App, {
             }, u.uid, 'activity', '活動');
           }
         });
-        // Firebase 模式：補查 registrations 確保不遺漏
-        if (!ModeManager.isDemo()) {
-          const regs = (FirebaseService._cache.registrations || []).filter(
-            r => r.eventId === this._editEventId && r.status !== 'cancelled'
-          );
-          const notifiedNames = new Set(notifyNames);
-          regs.forEach(r => {
-            if (r.userId && !notifiedNames.has(r.userName)) {
-              this._sendNotifFromTemplate('event_changed', {
-                eventName: title, date: fullDate, location,
-              }, r.userId, 'activity', '活動');
-            }
-          });
-        }
       }
 
       ApiService._writeOpLog('event_edit', '編輯活動', `編輯「${title}」`);

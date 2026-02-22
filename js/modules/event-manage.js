@@ -158,28 +158,91 @@ Object.assign(App, {
     checkoutUsers.forEach(v => nameCheckedOut.add(v.name));
     checkinUsers.forEach(v => nameCheckedIn.add(v.name));
 
-    // ── 報名名單（含狀態標記）──
+    // ── 報名名單（含狀態標記）── 優先使用 registrations 分組顯示
     const tagStyle = 'font-size:.62rem;padding:.1rem .3rem;border-radius:3px;white-space:nowrap';
-    const participants = (e.participants || []).map((p, i) => {
-      let tag = '';
-      if (nameCheckedOut.has(p))
-        tag = `<span style="${tagStyle};background:var(--success);color:#fff">✅ 已簽退</span>`;
-      else if (nameCheckedIn.has(p))
-        tag = `<span style="${tagStyle};background:var(--primary);color:#fff">📍 已簽到</span>`;
-      return `<div style="display:flex;align-items:center;gap:.4rem;padding:.3rem 0;border-bottom:1px solid var(--border)">
-        <span style="font-size:.72rem;color:var(--text-muted);min-width:1.5rem">${i + 1}.</span>
-        <span style="font-size:.82rem;flex:1">${escapeHTML(p)}</span>
-        ${tag}
-      </div>`;
-    }).join('');
+    const _statusTag = (name) => {
+      if (nameCheckedOut.has(name))
+        return `<span style="${tagStyle};background:var(--success);color:#fff">✅ 已簽退</span>`;
+      if (nameCheckedIn.has(name))
+        return `<span style="${tagStyle};background:var(--primary);color:#fff">📍 已簽到</span>`;
+      return '';
+    };
+    const allActiveRegs = ApiService.getRegistrationsByEvent(e.id);
+    const confirmedRegs = allActiveRegs.filter(r => r.status === 'confirmed');
+    let participants = '';
+    if (confirmedRegs.length > 0) {
+      // 按 userId 分組
+      const groups = new Map();
+      confirmedRegs.forEach(r => {
+        if (!groups.has(r.userId)) groups.set(r.userId, []);
+        groups.get(r.userId).push(r);
+      });
+      let idx = 0;
+      groups.forEach(regs => {
+        const selfReg = regs.find(r => r.participantType === 'self');
+        const companions = regs.filter(r => r.participantType === 'companion');
+        const mainName = selfReg ? selfReg.userName : regs[0].userName;
+        idx++;
+        participants += `<div style="display:flex;align-items:center;gap:.4rem;padding:.3rem 0;border-bottom:1px solid var(--border)">
+          <span style="font-size:.72rem;color:var(--text-muted);min-width:1.5rem">${idx}.</span>
+          <span style="font-size:.82rem;flex:1">👤 ${escapeHTML(mainName)}</span>
+          ${_statusTag(mainName)}
+        </div>`;
+        companions.forEach(c => {
+          const cName = c.companionName || c.userName;
+          participants += `<div style="display:flex;align-items:center;gap:.4rem;padding:.3rem 0 .3rem 2rem;border-bottom:1px solid var(--border)">
+            <span style="font-size:.78rem;color:var(--text-muted)">↳</span>
+            <span style="font-size:.8rem;flex:1">${escapeHTML(cName)}</span>
+            ${_statusTag(cName)}
+          </div>`;
+        });
+      });
+    } else {
+      // fallback: 舊資料沒有 registrations，扁平顯示
+      participants = (e.participants || []).map((p, i) => {
+        return `<div style="display:flex;align-items:center;gap:.4rem;padding:.3rem 0;border-bottom:1px solid var(--border)">
+          <span style="font-size:.72rem;color:var(--text-muted);min-width:1.5rem">${i + 1}.</span>
+          <span style="font-size:.82rem;flex:1">${escapeHTML(p)}</span>
+          ${_statusTag(p)}
+        </div>`;
+      }).join('');
+    }
 
-    // ── 候補名單 ──
-    const waitlist = (e.waitlistNames || []).map((p, i) =>
-      `<div style="display:flex;align-items:center;gap:.4rem;padding:.3rem 0;border-bottom:1px solid var(--border)">
-        <span style="font-size:.72rem;color:var(--text-muted);min-width:1.5rem">${i + 1}.</span>
-        <span style="font-size:.82rem">${escapeHTML(p)}</span>
-      </div>`
-    ).join('');
+    // ── 候補名單 ── 優先使用 waitlisted registrations 分組
+    const waitlistedRegs = allActiveRegs.filter(r => r.status === 'waitlisted');
+    let waitlist = '';
+    if (waitlistedRegs.length > 0) {
+      const wlGroups = new Map();
+      waitlistedRegs.forEach(r => {
+        if (!wlGroups.has(r.userId)) wlGroups.set(r.userId, []);
+        wlGroups.get(r.userId).push(r);
+      });
+      let wIdx = 0;
+      wlGroups.forEach(regs => {
+        const selfReg = regs.find(r => r.participantType === 'self');
+        const companions = regs.filter(r => r.participantType === 'companion');
+        const mainName = selfReg ? selfReg.userName : regs[0].userName;
+        wIdx++;
+        waitlist += `<div style="display:flex;align-items:center;gap:.4rem;padding:.3rem 0;border-bottom:1px solid var(--border)">
+          <span style="font-size:.72rem;color:var(--text-muted);min-width:1.5rem">${wIdx}.</span>
+          <span style="font-size:.82rem">👤 ${escapeHTML(mainName)}</span>
+        </div>`;
+        companions.forEach(c => {
+          waitlist += `<div style="display:flex;align-items:center;gap:.4rem;padding:.3rem 0 .3rem 2rem;border-bottom:1px solid var(--border)">
+            <span style="font-size:.78rem;color:var(--text-muted)">↳</span>
+            <span style="font-size:.8rem">${escapeHTML(c.companionName || c.userName)}</span>
+          </div>`;
+        });
+      });
+    } else {
+      // fallback: 扁平顯示
+      waitlist = (e.waitlistNames || []).map((p, i) =>
+        `<div style="display:flex;align-items:center;gap:.4rem;padding:.3rem 0;border-bottom:1px solid var(--border)">
+          <span style="font-size:.72rem;color:var(--text-muted);min-width:1.5rem">${i + 1}.</span>
+          <span style="font-size:.82rem">${escapeHTML(p)}</span>
+        </div>`
+      ).join('');
+    }
 
     // ── 簽到/簽退/未報名紀錄 helper ──
     const recRow = (v) =>

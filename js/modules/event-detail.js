@@ -93,16 +93,74 @@ Object.assign(App, {
       </div>
       <div class="detail-section">
         <div class="detail-section-title">報名名單 (${e.current})</div>
-        <div class="participant-list">${(e.participants || []).map(p => this._userTag(p)).join('')}</div>
+        <div class="participant-list">${this._buildGroupedParticipants(e)}</div>
       </div>
-      ${(e.waitlistNames || []).length > 0 ? `
-      <div class="detail-section">
-        <div class="detail-section-title">候補名單 (${e.waitlist})</div>
-        <div class="participant-list">${e.waitlistNames.map((p, i) => `<span class="wl-pos">${i + 1}</span>${this._userTag(p)}`).join('')}</div>
-      </div>` : ''}
+      ${this._buildGroupedWaitlist(e)}
       ${this._renderReviews(e)}
     `;
     this.showPage('page-activity-detail');
+  },
+
+  // ── 報名名單：按 userId 分組（有 registrations 時）──
+  _buildGroupedParticipants(e) {
+    const confirmedRegs = ApiService.getRegistrationsByEvent(e.id).filter(r => r.status === 'confirmed');
+    if (confirmedRegs.length === 0) {
+      // fallback: 舊資料，扁平顯示
+      return (e.participants || []).map(p => this._userTag(p)).join('');
+    }
+    const groups = new Map();
+    confirmedRegs.forEach(r => {
+      if (!groups.has(r.userId)) groups.set(r.userId, []);
+      groups.get(r.userId).push(r);
+    });
+    let html = '';
+    groups.forEach(regs => {
+      const selfReg = regs.find(r => r.participantType === 'self');
+      const companions = regs.filter(r => r.participantType === 'companion');
+      const mainName = selfReg ? selfReg.userName : regs[0].userName;
+      html += `<div style="display:flex;align-items:center;gap:.3rem;flex-wrap:wrap">${this._userTag(mainName)}`;
+      companions.forEach(c => {
+        const cName = c.companionName || c.userName;
+        html += `<span style="font-size:.72rem;color:var(--text-muted)">↳</span><span class="user-capsule uc-user" style="opacity:.8;font-size:.78rem">${escapeHTML(cName)}</span>`;
+      });
+      html += '</div>';
+    });
+    return html;
+  },
+
+  // ── 候補名單：按 userId 分組（有 registrations 時）──
+  _buildGroupedWaitlist(e) {
+    const allRegs = ApiService.getRegistrationsByEvent(e.id);
+    const waitlistedRegs = allRegs.filter(r => r.status === 'waitlisted');
+    if (waitlistedRegs.length > 0) {
+      const groups = new Map();
+      waitlistedRegs.forEach(r => {
+        if (!groups.has(r.userId)) groups.set(r.userId, []);
+        groups.get(r.userId).push(r);
+      });
+      let html = '<div class="detail-section"><div class="detail-section-title">候補名單 (' + waitlistedRegs.length + ')</div><div class="participant-list">';
+      let idx = 0;
+      groups.forEach(regs => {
+        const selfReg = regs.find(r => r.participantType === 'self');
+        const companions = regs.filter(r => r.participantType === 'companion');
+        const mainName = selfReg ? selfReg.userName : regs[0].userName;
+        idx++;
+        html += `<span class="wl-pos">${idx}</span>${this._userTag(mainName)}`;
+        companions.forEach(c => {
+          html += `<span style="font-size:.72rem;color:var(--text-muted)">↳</span><span class="user-capsule uc-user" style="opacity:.8;font-size:.78rem">${escapeHTML(c.companionName || c.userName)}</span>`;
+        });
+      });
+      html += '</div></div>';
+      return html;
+    }
+    // fallback: 舊資料
+    if ((e.waitlistNames || []).length > 0) {
+      return `<div class="detail-section">
+        <div class="detail-section-title">候補名單 (${e.waitlist})</div>
+        <div class="participant-list">${e.waitlistNames.map((p, i) => `<span class="wl-pos">${i + 1}</span>${this._userTag(p)}`).join('')}</div>
+      </div>`;
+    }
+    return '';
   },
 
   // ══════════════════════════════════
