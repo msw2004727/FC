@@ -50,7 +50,7 @@ Object.assign(App, {
       }
       // registerEventWithCompanions 統一處理 participants/current/waitlist 變更
       const result = await ApiService.registerEventWithCompanions(id, [{ type: 'self' }]);
-      const isWaitlist = (result.waitlisted || []).length > 0;
+      const isWaitlist = (result.waitlisted || 0) > 0;
       const dateParts = e.date.split(' ')[0].split('/');
       const dateStr = `${dateParts[1]}/${dateParts[2]}`;
       ApiService.addActivityRecord({

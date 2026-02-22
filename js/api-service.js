@@ -601,14 +601,25 @@ const ApiService = {
     const userName = user?.displayName || user?.name || '用戶';
 
     if (this._demoMode) {
-      const results = { registered: [], waitlisted: [] };
+      const registrations = [];
+      let confirmed = 0, waitlisted = 0;
       for (const p of participantList) {
-        const displayName = p.type === 'companion' ? p.companionName : userName;
+        // 重複檢查：跳過已報名的相同人員
+        const dupKey = p.companionId ? `${userId}_${p.companionId}` : userId;
+        const existing = this._src('registrations').find(r => {
+          if (r.eventId !== eventId || r.status === 'cancelled') return false;
+          const rKey = r.companionId ? `${r.userId}_${r.companionId}` : r.userId;
+          return rKey === dupKey;
+        });
+        if (existing) continue;
+
         const isWaitlist = e.current >= e.max;
         if (isWaitlist) {
           e.waitlist = (e.waitlist || 0) + 1;
+          waitlisted++;
         } else {
           e.current++;
+          confirmed++;
         }
         const reg = {
           id: 'reg_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5),
@@ -622,11 +633,10 @@ const ApiService = {
           registeredAt: new Date().toISOString(),
         };
         this._src('registrations').push(reg);
-        if (isWaitlist) { results.waitlisted.push(displayName); }
-        else { results.registered.push(displayName); }
+        registrations.push(reg);
         if (e.current >= e.max) e.status = 'full';
       }
-      return results;
+      return { registrations, confirmed, waitlisted };
     }
 
     const entries = participantList.map(p => ({

@@ -262,6 +262,14 @@ Object.assign(App, {
     modal.style.display = 'flex';
   },
 
+  // ── 出勤紀錄匹配：正確區分本人與同行者 ──
+  _matchAttendanceRecord(record, person) {
+    if (person.isCompanion) {
+      return record.companionId && (record.companionId === person.uid || record.companionName === person.name);
+    }
+    return ((record.uid === person.uid || record.userName === person.name) && !record.companionId);
+  },
+
   // ── 報名名單表格（活動管理 + 活動詳細頁共用）──
   _renderAttendanceTable(eventId, containerId) {
     const cId = containerId || 'attendance-table-container';
@@ -318,9 +326,9 @@ Object.assign(App, {
     const isEditing = (uid) => this._manualEditingEventId === eventId && editingUid === uid;
 
     let rows = people.map(p => {
-      const hasCheckin = records.some(r => (r.uid === p.uid || r.userName === p.name) && r.type === 'checkin');
-      const hasCheckout = records.some(r => (r.uid === p.uid || r.userName === p.name) && r.type === 'checkout');
-      const noteRec = records.filter(r => (r.uid === p.uid || r.userName === p.name) && r.type === 'note').pop();
+      const hasCheckin = records.some(r => this._matchAttendanceRecord(r, p) && r.type === 'checkin');
+      const hasCheckout = records.some(r => this._matchAttendanceRecord(r, p) && r.type === 'checkout');
+      const noteRec = records.filter(r => this._matchAttendanceRecord(r, p) && r.type === 'note').pop();
       const noteText = noteRec?.note || '';
       // 備註：僅代報自動標注，手動備註附加在後面
       const autoNote = p.proxyOnly ? '僅代報' : '';
@@ -353,7 +361,7 @@ Object.assign(App, {
         <td style="padding:.35rem .3rem;text-align:left">${nameHtml}</td>
         <td style="padding:.35rem .2rem;text-align:center">${hasCheckin ? '<span style="color:var(--success)">✓</span>' : ''}</td>
         <td style="padding:.35rem .2rem;text-align:center">${hasCheckout ? '<span style="color:var(--success)">✓</span>' : ''}</td>
-        ${canManage ? `<td style="padding:.35rem .2rem;text-align:center"><button class="outline-btn" style="font-size:.65rem;padding:.1rem .3rem" onclick="App._startManualAttendance('${escapeHTML(eventId)}','${safeUid}','${safeName}')">編輯</button></td>` : ''}
+        ${canManage ? `<td style="padding:.35rem .2rem;text-align:center"><button class="outline-btn" style="font-size:.65rem;padding:.1rem .3rem" onclick="App._startManualAttendance('${escapeHTML(eventId)}','${safeUid}','${safeName}',${p.isCompanion})">編輯</button></td>` : ''}
         <td style="padding:.35rem .3rem;font-size:.72rem;color:var(--text-muted)">${escapeHTML(combinedNote)}</td>
       </tr>`;
     }).join('');
@@ -372,9 +380,10 @@ Object.assign(App, {
     </div>`;
   },
 
-  _startManualAttendance(eventId, uid, name) {
+  _startManualAttendance(eventId, uid, name, isCompanion) {
     this._manualEditingUid = uid;
     this._manualEditingEventId = eventId;
+    this._manualEditingIsCompanion = !!isCompanion;
     this._renderAttendanceTable(eventId, this._manualEditingContainerId);
   },
 
@@ -386,16 +395,34 @@ Object.assign(App, {
     const wantCheckout = checkoutBox?.checked || false;
     const note = (noteInput?.value || '').trim().slice(0, 10);
 
+    const isCompanion = this._manualEditingIsCompanion;
+    const person = { uid, name, isCompanion };
     const records = ApiService.getAttendanceRecords(eventId);
-    const hasCheckin = records.some(r => (r.uid === uid || r.userName === name) && r.type === 'checkin');
-    const hasCheckout = records.some(r => (r.uid === uid || r.userName === name) && r.type === 'checkout');
+    const hasCheckin = records.some(r => this._matchAttendanceRecord(r, person) && r.type === 'checkin');
+    const hasCheckout = records.some(r => this._matchAttendanceRecord(r, person) && r.type === 'checkout');
     const now = new Date();
     const timeStr = `${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+
+    // 同行者：找到主用戶資訊以寫入正確格式的紀錄
+    let recordUid = uid, recordUserName = name, companionId = null, companionName = null, participantType = 'self';
+    if (isCompanion) {
+      const allRegs = ApiService.getRegistrationsByEvent(eventId);
+      const cReg = allRegs.find(r => r.companionId === uid);
+      if (cReg) {
+        recordUid = cReg.userId;
+        recordUserName = cReg.userName;
+        companionId = uid;
+        companionName = name;
+        participantType = 'companion';
+      }
+    }
 
     if (wantCheckin && !hasCheckin) {
       ApiService.addAttendanceRecord({
         id: 'att_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5),
-        eventId, uid, userName: name, type: 'checkin', time: timeStr,
+        eventId, uid: recordUid, userName: recordUserName,
+        participantType, companionId, companionName,
+        type: 'checkin', time: timeStr,
       });
     }
     if (wantCheckout && !hasCheckout) {
@@ -405,20 +432,25 @@ Object.assign(App, {
       }
       ApiService.addAttendanceRecord({
         id: 'att_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5),
-        eventId, uid, userName: name, type: 'checkout', time: timeStr,
+        eventId, uid: recordUid, userName: recordUserName,
+        participantType, companionId, companionName,
+        type: 'checkout', time: timeStr,
       });
     }
     if (note) {
-      const existingNote = records.filter(r => (r.uid === uid || r.userName === name) && r.type === 'note').pop();
+      const existingNote = records.filter(r => this._matchAttendanceRecord(r, person) && r.type === 'note').pop();
       if (!existingNote || existingNote.note !== note) {
         ApiService.addAttendanceRecord({
-          id: 'att_note_' + Date.now(), eventId, uid, userName: name, type: 'note', time: timeStr, note,
+          id: 'att_note_' + Date.now(), eventId, uid: recordUid, userName: recordUserName,
+          participantType, companionId, companionName,
+          type: 'note', time: timeStr, note,
         });
       }
     }
 
     this._manualEditingUid = null;
     this._manualEditingEventId = null;
+    this._manualEditingIsCompanion = false;
     this._renderAttendanceTable(eventId, this._manualEditingContainerId);
     this.showToast('已更新');
   },

@@ -833,75 +833,89 @@ Object.assign(FirebaseService, {
 
   async batchRegisterForEvent(eventId, entries) {
     const event = this._cache.events.find(e => e.id === eventId);
-    if (!event) throw new Error('活動不存在');
-    const batch = db.batch();
-    const registrations = [];
-    let confirmed = 0;
-    let waitlisted = 0;
+    if (!event || !event._docId) throw new Error('活動不存在');
 
-    for (const entry of entries) {
-      const dupKey = entry.companionId ? `${entry.userId}_${entry.companionId}` : entry.userId;
-      const existing = this._cache.registrations.find(r => {
-        if (r.eventId !== eventId || r.status === 'cancelled') return false;
-        const rKey = r.companionId ? `${r.userId}_${r.companionId}` : r.userId;
-        return rKey === dupKey;
-      });
-      if (existing) continue;
+    const eventRef = db.collection('events').doc(event._docId);
+    const regDocRefs = entries.map(() => db.collection('registrations').doc());
 
-      const isWaitlist = event.current + confirmed >= event.max;
-      const status = isWaitlist ? 'waitlisted' : 'confirmed';
-      const displayName = entry.companionName || entry.userName;
+    const result = await db.runTransaction(async (transaction) => {
+      // 原子讀取活動最新狀態
+      const eventDoc = await transaction.get(eventRef);
+      if (!eventDoc.exists) throw new Error('活動不存在');
+      const ed = eventDoc.data();
+      let currentCount = ed.current || 0;
+      let waitlistCount = ed.waitlist || 0;
+      const maxCount = ed.max || 0;
+      const participants = ed.participants || [];
+      const waitlistNames = ed.waitlistNames || [];
 
-      const reg = {
-        id: 'reg_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5),
-        eventId,
-        userId: entry.userId,
-        userName: entry.userName,
-        participantType: entry.participantType || 'self',
-        companionId: entry.companionId || null,
-        companionName: entry.companionName || null,
-        status,
-        registeredAt: new Date().toISOString(),
-      };
+      const registrations = [];
+      let confirmed = 0, waitlisted = 0;
+      let refIdx = 0;
 
-      const docRef = db.collection('registrations').doc();
-      batch.set(docRef, { ..._stripDocId(reg), registeredAt: firebase.firestore.FieldValue.serverTimestamp() });
-      reg._docId = docRef.id;
-      registrations.push(reg);
+      for (const entry of entries) {
+        const dupKey = entry.companionId ? `${entry.userId}_${entry.companionId}` : entry.userId;
+        const existing = this._cache.registrations.find(r => {
+          if (r.eventId !== eventId || r.status === 'cancelled') return false;
+          const rKey = r.companionId ? `${r.userId}_${r.companionId}` : r.userId;
+          return rKey === dupKey;
+        });
+        if (existing) { refIdx++; continue; }
 
-      if (status === 'confirmed') {
-        confirmed++;
-        if (!event.participants) event.participants = [];
-        if (!event.participants.includes(displayName)) event.participants.push(displayName);
-        if (event.waitlistNames) {
-          const wi = event.waitlistNames.indexOf(displayName);
-          if (wi >= 0) { event.waitlistNames.splice(wi, 1); event.waitlist = Math.max(0, (event.waitlist || 0) - 1); }
+        const isWaitlist = currentCount + confirmed >= maxCount;
+        const status = isWaitlist ? 'waitlisted' : 'confirmed';
+        const displayName = entry.companionName || entry.userName;
+
+        const reg = {
+          id: 'reg_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5),
+          eventId,
+          userId: entry.userId,
+          userName: entry.userName,
+          participantType: entry.participantType || 'self',
+          companionId: entry.companionId || null,
+          companionName: entry.companionName || null,
+          status,
+          registeredAt: new Date().toISOString(),
+        };
+
+        const docRef = regDocRefs[refIdx];
+        transaction.set(docRef, { ..._stripDocId(reg), registeredAt: firebase.firestore.FieldValue.serverTimestamp() });
+        reg._docId = docRef.id;
+        registrations.push(reg);
+
+        if (status === 'confirmed') {
+          confirmed++;
+          if (!participants.includes(displayName)) participants.push(displayName);
+          const wi = waitlistNames.indexOf(displayName);
+          if (wi >= 0) { waitlistNames.splice(wi, 1); waitlistCount = Math.max(0, waitlistCount - 1); }
+        } else {
+          waitlisted++;
+          if (!waitlistNames.includes(displayName)) waitlistNames.push(displayName);
         }
-      } else {
-        waitlisted++;
-        if (!event.waitlistNames) event.waitlistNames = [];
-        if (!event.waitlistNames.includes(displayName)) event.waitlistNames.push(displayName);
+        refIdx++;
       }
-    }
 
-    event.current += confirmed;
-    event.waitlist = (event.waitlist || 0) + waitlisted;
-    if (event.current >= event.max) event.status = 'full';
+      const newCurrent = currentCount + confirmed;
+      const newWaitlist = waitlistCount + waitlisted;
+      const newStatus = newCurrent >= maxCount ? 'full' : (ed.status || 'open');
 
-    if (event._docId) {
-      const eventRef = db.collection('events').doc(event._docId);
-      batch.update(eventRef, {
-        current: event.current,
-        waitlist: event.waitlist,
-        participants: event.participants,
-        waitlistNames: event.waitlistNames,
-        status: event.status,
+      transaction.update(eventRef, {
+        current: newCurrent, waitlist: newWaitlist,
+        participants, waitlistNames, status: newStatus,
       });
-    }
 
-    await batch.commit();
-    registrations.forEach(r => this._cache.registrations.push(r));
-    return { registrations, confirmed, waitlisted };
+      return { registrations, confirmed, waitlisted, newCurrent, newWaitlist, newStatus, participants, waitlistNames };
+    });
+
+    // Transaction 成功後同步本地快取
+    event.current = result.newCurrent;
+    event.waitlist = result.newWaitlist;
+    event.status = result.newStatus;
+    event.participants = result.participants;
+    event.waitlistNames = result.waitlistNames;
+    result.registrations.forEach(r => this._cache.registrations.push(r));
+
+    return { registrations: result.registrations, confirmed: result.confirmed, waitlisted: result.waitlisted };
   },
 
   async cancelCompanionRegistrations(regIds) {

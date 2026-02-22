@@ -66,7 +66,9 @@ Object.assign(App, {
     const remaining = Math.max(0, (e?.max || 0) - (e?.current || 0));
     const summaryEl = document.getElementById('companion-select-summary');
     if (summaryEl) {
-      summaryEl.innerHTML = `<span>已選 <b>${selected}</b> 人</span>${fee > 0 ? `<span>預計費用 <b>NT$${fee * selected}</b></span>` : ''}<span>剩餘名額 <b>${remaining}</b></span>`;
+      const willWaitlist = Math.max(0, selected - remaining);
+      const wlWarning = willWaitlist > 0 ? `<span style="color:var(--warning);font-weight:600">⚠ 其中 ${willWaitlist} 人將列入候補</span>` : '';
+      summaryEl.innerHTML = `<span>已選 <b>${selected}</b> 人</span>${fee > 0 ? `<span>預計費用 <b>NT$${fee * selected}</b></span>` : ''}<span>剩餘名額 <b>${remaining}</b></span>${wlWarning}`;
     }
     const confirmBtn = document.getElementById('companion-select-confirm-btn');
     if (confirmBtn) confirmBtn.disabled = selected === 0;
@@ -104,16 +106,17 @@ Object.assign(App, {
 
     try {
       const result = await ApiService.registerEventWithCompanions(eventId, participantList);
-      const regCount = (result.registered || []).length + (result.confirmed || 0);
-      const wlCount = (result.waitlisted || []).length + (result.waitlisted || 0);
-      const total = participantList.length;
+      const regCount = result.confirmed || 0;
+      const wlCount = result.waitlisted || 0;
+      const total = regCount + wlCount;
 
       // 寫入 activityRecords（只紀錄本人）
       const selfSelected = participantList.find(p => p.type === 'self');
       if (selfSelected) {
         const dateParts = e.date.split(' ')[0].split('/');
         const dateStr = `${dateParts[1]}/${dateParts[2]}`;
-        const isWl = e.current > e.max;
+        const selfReg = (result.registrations || []).find(r => r.participantType === 'self');
+        const isWl = selfReg?.status === 'waitlisted';
         ApiService.addActivityRecord({
           eventId: e.id, name: e.title, date: dateStr,
           status: isWl ? 'waitlisted' : 'registered', uid: userId,

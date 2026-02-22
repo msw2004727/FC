@@ -109,3 +109,11 @@ FC-github/
 - 資料操作統一透過 `ApiService`，不直接操作 `FirebaseService._cache` 或 `DemoData`
 - 新模組以 `Object.assign(App, { ... })` 掛載，不建立全域變數
 - Demo / Prod 分支邏輯統一在 `ApiService` 內處理，模組層不做 `ModeManager.isDemo()` 判斷
+
+---
+
+## Demo / Production 優先順序
+
+- **正式版（Production）永遠優先**：除非用戶主動要求更新或修正 Demo 版本，否則一律以正式版為優先開發與修復目標
+- 若修改的程式碼同時涵蓋 Demo 與 Production（例如共用函式），則兩者一起更新即可，無先後之分
+- 當需要有先後順序時（例如時間有限或分批實作），**一律先完成正式版，再處理 Demo 版**
