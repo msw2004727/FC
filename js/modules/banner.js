@@ -42,17 +42,25 @@ Object.assign(App, {
       }
     }
     track.style.transform = 'translateX(0)';
+    this.startBannerCarousel(); // DOM 就緒後才綁定 prev/next（有 dataset.bound 防重複）
   },
 
   startBannerCarousel() {
-    document.getElementById('banner-prev')?.addEventListener('click', () => {
+    const prev = document.getElementById('banner-prev');
+    const next = document.getElementById('banner-next');
+    if (!prev || !next) return;           // DOM 尚未就緒，跳過
+    if (prev.dataset.bound) return;       // 防止重複綁定
+    prev.dataset.bound = '1';
+    next.dataset.bound = '1';
+    prev.addEventListener('click', () => {
       const cnt = this.bannerCount || 1;
       this.goToBanner((this.bannerIndex - 1 + cnt) % cnt);
     });
-    document.getElementById('banner-next')?.addEventListener('click', () => {
+    next.addEventListener('click', () => {
       const cnt = this.bannerCount || 1;
       this.goToBanner((this.bannerIndex + 1) % cnt);
     });
+    if (this.bannerTimer) clearInterval(this.bannerTimer);
     this.bannerTimer = setInterval(() => {
       const cnt = this.bannerCount || 1;
       this.bannerIndex = (this.bannerIndex + 1) % cnt;
@@ -114,6 +122,7 @@ Object.assign(App, {
     const el = document.getElementById('floating-ads');
     if (el) el.classList.remove('dragging');
     this._positionFloatingAds();
+    this.bindFloatingAds(); // DOM 就緒後才綁定拖曳（有 dataset.bound 防重複）
   },
 
   renderSponsors() {
@@ -181,6 +190,8 @@ Object.assign(App, {
   bindFloatingAds() {
     const floatingAds = document.getElementById('floating-ads');
     if (!floatingAds) return;
+    if (floatingAds.dataset.bound) return; // 防止重複綁定
+    floatingAds.dataset.bound = '1';
 
     this._floatAdOffset = 0;
     this._floatAdTarget = 0;
