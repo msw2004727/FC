@@ -15,6 +15,38 @@ Object.assign(App, {
     return (user && user.favorites) || { events: [], tournaments: [] };
   },
 
+  _getSanitizedFavorites() {
+    const user = ApiService.getCurrentUser();
+    const favs = (user && user.favorites) || { events: [], tournaments: [] };
+    const events = Array.isArray(favs.events) ? favs.events : [];
+    const tournaments = Array.isArray(favs.tournaments) ? favs.tournaments : [];
+
+    if (!ModeManager.isDemo() && typeof FirebaseService !== 'undefined' && !FirebaseService._initialized) {
+      return { events, tournaments };
+    }
+
+    const eventIds = new Set(ApiService.getEvents().map(e => e.id));
+    const tournIds = new Set(ApiService.getTournaments().map(t => t.id));
+    const cleanEvents = [...new Set(events.filter(id => eventIds.has(id)))];
+    const cleanTournaments = [...new Set(tournaments.filter(id => tournIds.has(id)))];
+
+    const changed =
+      !Array.isArray(favs.events) ||
+      !Array.isArray(favs.tournaments) ||
+      cleanEvents.length !== events.length ||
+      cleanTournaments.length !== tournaments.length ||
+      cleanEvents.some((id, i) => id !== events[i]) ||
+      cleanTournaments.some((id, i) => id !== tournaments[i]);
+
+    if (changed && user) {
+      const cleaned = { events: cleanEvents, tournaments: cleanTournaments };
+      ApiService.updateCurrentUser({ favorites: cleaned });
+      return cleaned;
+    }
+
+    return { events, tournaments };
+  },
+
   /** 賽事狀態文字 → CSS class 對照 */
   _tournStatusCss(t) {
     if (!t) return { css: 'ended', label: '已結束' };
@@ -91,9 +123,10 @@ Object.assign(App, {
   _showFavoritesCard() {
     const card = document.getElementById('profile-favorites-card');
     if (!card) return;
-    const favs = this._getFavorites();
-    const total = favs.events.length + favs.tournaments.length;
-    if (!total) { card.style.display = 'none'; return; }
+    const favs = this._getSanitizedFavorites();
+    const rawTotal = favs.events.length + favs.tournaments.length;
+    if (!rawTotal) { card.style.display = 'none'; return; }
+    const total = rawTotal;
     card.style.display = '';
     const badge = document.getElementById('fav-count-badge');
     if (badge) badge.textContent = total;
@@ -108,12 +141,10 @@ Object.assign(App, {
     const card = document.getElementById('profile-favorites-card');
     const list = document.getElementById('profile-favorites-list');
     if (!card || !list) return;
-    const favs = this._getFavorites();
-    const total = favs.events.length + favs.tournaments.length;
-    if (!total) { card.style.display = 'none'; return; }
+    const favs = this._getSanitizedFavorites();
+    const rawTotal = favs.events.length + favs.tournaments.length;
+    if (!rawTotal) { card.style.display = 'none'; return; }
     card.style.display = '';
-    const badge = document.getElementById('fav-count-badge');
-    if (badge) badge.textContent = total;
 
     // 收集所有收藏項目
     const items = [];
@@ -130,6 +161,13 @@ Object.assign(App, {
       const ts = this._tournStatusCss(tm);
       items.push({ type: 'tournament', id: tid, name: tm.name, date: tm.type || '賽事', statusCss: ts.css, statusLabel: ts.label, sortDate: (tm.matchDates || [])[0] || '' });
     });
+    const total = items.length;
+    const badge = document.getElementById('fav-count-badge');
+    if (badge) badge.textContent = total;
+    if (total === 0) {
+      list.innerHTML = '<div style="font-size:.82rem;color:var(--text-muted);padding:.3rem 0">暫無收藏</div>';
+      return;
+    }
 
     // 排序
     const mode = this._favSortMode || 'time';
@@ -172,7 +210,7 @@ Object.assign(App, {
         </button>
       </div>`;
     });
-    list.innerHTML = html || '<div style="font-size:.82rem;color:var(--text-muted);padding:.3rem 0">暫無收藏</div>';
+    list.innerHTML = html;
   },
 
   // ══════════════════════════════════
