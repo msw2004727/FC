@@ -304,7 +304,10 @@ Object.assign(App, {
     }
 
     const participants = event.participants || [];
-    const isRegistered = participants.includes(userName);
+    // 優先查 registrations（含 demo + production）
+    const userRegsForCheck = ApiService.getRegistrationsByEvent(this._scanSelectedEventId)
+      .filter(r => r.userId === uid || r.userName === userName);
+    const isRegistered = userRegsForCheck.length > 0 || participants.includes(userName);
 
     // Get existing attendance records for this event
     const records = ApiService.getAttendanceRecords(this._scanSelectedEventId);
@@ -384,6 +387,11 @@ Object.assign(App, {
 
     // 彈跳結果視窗（相機掃碼 + 手動輸入皆觸發）
     this._showScanResultPopup(resultClass, resultMsg, userName);
+
+    // Demo 模式：模擬被掃方收到通知
+    if (resultClass === 'success' && typeof this._simulateAttendanceNotify === 'function') {
+      this._simulateAttendanceNotify(this._scanSelectedEventId, mode);
+    }
   },
 
   _showScanResultPopup(cls, msg, userName) {
@@ -501,14 +509,28 @@ Object.assign(App, {
     `;
   },
 
-  // ── 家庭簽到選單 ──
+  // ── 家庭簽到 Modal ──
+
+  _familyScanUid: null,
+  _familyScanUserName: null,
+  _familyScanMode: null,
 
   _showFamilyCheckinMenu(uid, userName, regs, mode) {
     const eventId = this._scanSelectedEventId;
     const records = ApiService.getAttendanceRecords(eventId);
-    const resultContainer = document.getElementById('scan-results');
-    if (!resultContainer) return;
     const modeLabel = mode === 'checkin' ? '簽到' : '簽退';
+
+    this._familyScanUid = uid;
+    this._familyScanUserName = userName;
+    this._familyScanMode = mode;
+
+    const titleEl = document.getElementById('scan-family-title');
+    const listEl = document.getElementById('scan-family-list');
+    const confirmBtn = document.getElementById('scan-family-confirm-btn');
+    if (!titleEl || !listEl) return;
+
+    titleEl.textContent = `👨‍👩‍👧 家庭${modeLabel}（${userName}）`;
+    if (confirmBtn) confirmBtn.textContent = `確認${modeLabel}`;
 
     const rows = regs.map(r => {
       const displayName = r.companionName || r.userName;
@@ -523,20 +545,26 @@ Object.assign(App, {
         <span style="font-size:.68rem;color:var(--text-muted)">${statusLabel}</span>
       </label>`;
     }).join('');
+    listEl.innerHTML = rows;
 
-    resultContainer.innerHTML = `
-      <div style="background:var(--bg-elevated);border-radius:var(--radius-sm);padding:.6rem;margin-bottom:.5rem">
-        <div style="font-size:.82rem;font-weight:700;margin-bottom:.4rem">👨‍👩‍👧 家庭${modeLabel}（${escapeHTML(userName)}）</div>
-        ${rows}
-        <div style="display:flex;gap:.4rem;margin-top:.5rem">
-          <button class="outline-btn" style="flex:1;font-size:.78rem;padding:.35rem" onclick="App._renderScanResults()">取消</button>
-          <button class="primary-btn" style="flex:1;font-size:.78rem;padding:.35rem" onclick="App._confirmFamilyCheckin('${escapeHTML(uid)}','${escapeHTML(userName)}','${mode}')">確認${modeLabel}</button>
-        </div>
-      </div>`;
+    document.getElementById('scan-family-modal').classList.add('open');
   },
 
-  _confirmFamilyCheckin(uid, userName, mode) {
-    const checked = [...document.querySelectorAll('#scan-results input[name="family-scan"]:not([disabled]):checked')];
+  _closeFamilyModal() {
+    const modal = document.getElementById('scan-family-modal');
+    if (modal) modal.classList.remove('open');
+    this._familyScanUid = null;
+    this._familyScanUserName = null;
+    this._familyScanMode = null;
+  },
+
+  _confirmFamilyCheckin() {
+    const uid = this._familyScanUid;
+    const userName = this._familyScanUserName;
+    const mode = this._familyScanMode;
+    if (!uid || !mode) return;
+
+    const checked = [...document.querySelectorAll('#scan-family-list input[name="family-scan"]:not([disabled]):checked')];
     if (checked.length === 0) { this.showToast('請選擇要處理的成員'); return; }
     const eventId = this._scanSelectedEventId;
     const records = ApiService.getAttendanceRecords(eventId);
@@ -573,12 +601,20 @@ Object.assign(App, {
       }
     });
 
+    // 關閉 family modal
+    this._closeFamilyModal();
+
     const modeLabel = mode === 'checkin' ? '簽到' : '簽退';
     this._scanResultsLog.unshift({ cls: 'success', msg: `${userName} 等 ${checked.length} 人${modeLabel}成功` });
     if (this._scanResultsLog.length > 20) this._scanResultsLog.length = 20;
     this._renderScanResults();
     this._renderAttendanceSections();
     this._showScanResultPopup('success', `${userName} 等 ${checked.length} 人${modeLabel}成功`, userName);
+
+    // Demo 模式：模擬被掃方收到通知
+    if (typeof this._simulateAttendanceNotify === 'function') {
+      this._simulateAttendanceNotify(eventId, mode);
+    }
   },
 
 });

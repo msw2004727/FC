@@ -107,6 +107,7 @@ flowchart TD
 | `modules/user-admin-*.js` | 用戶後台管理群（列表、EXP 管理、角色權限） |
 | `modules/ad-manage-*.js` | 廣告管理群（Banner 輪播、浮動廣告、贊助彈窗） |
 | `modules/scan.js` | QR Code 掃描簽到 / 簽退，讀取帳號持有人 UID 後顯示報名清單 |
+| `modules/attendance-notify.js` | 被掃方即時通知（Production: Firestore onSnapshot / Demo: 直接觸發） |
 | `modules/shop.js` | 二手運動商品市集（刊登、購買、管理） |
 | `modules/leaderboard.js` | 用戶 EXP 排行榜 |
 | `modules/achievement.js` | 成就 / 徽章系統管理（條件設定、手動頒發） |

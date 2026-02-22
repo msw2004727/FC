@@ -100,77 +100,55 @@ Object.assign(App, {
       </div>
       <div class="detail-section">
         <div class="detail-section-title">報名名單 (${e.current})</div>
-        <div class="participant-list">${this._buildGroupedParticipants(e)}</div>
+        <div id="detail-attendance-table"></div>
       </div>
       ${this._buildGroupedWaitlist(e)}
       ${this._renderReviews(e)}
     `;
     this.showPage('page-activity-detail');
+    this._renderAttendanceTable(id, 'detail-attendance-table');
   },
 
-  // ── 報名名單：按 userId 分組（有 registrations 時）──
-  _buildGroupedParticipants(e) {
-    const confirmedRegs = ApiService.getRegistrationsByEvent(e.id).filter(r => r.status === 'confirmed');
-    if (confirmedRegs.length === 0) {
-      // fallback: 舊資料，逐行顯示
-      return (e.participants || []).map(p =>
-        `<div style="padding:.45rem .2rem;border-bottom:1px solid var(--border)">👤 ${this._userTag(p)}</div>`
-      ).join('');
-    }
-    const groups = new Map();
-    confirmedRegs.forEach(r => {
-      if (!groups.has(r.userId)) groups.set(r.userId, []);
-      groups.get(r.userId).push(r);
-    });
-    let html = '';
-    groups.forEach(regs => {
-      const selfReg = regs.find(r => r.participantType === 'self');
-      const companions = regs.filter(r => r.participantType === 'companion');
-      const mainName = selfReg ? selfReg.userName : regs[0].userName;
-      html += `<div style="padding:.45rem .2rem;border-bottom:1px solid var(--border)">👤 ${this._userTag(mainName)}</div>`;
-      companions.forEach(c => {
-        const cName = c.companionName || c.userName;
-        html += `<div style="padding:.35rem .2rem .35rem 1.5rem;border-bottom:1px solid var(--border)"><span style="font-size:.78rem;color:var(--text-muted)">↳</span> <span class="user-capsule uc-user" style="opacity:.8;font-size:.78rem">${escapeHTML(cName)}</span></div>`;
-      });
-    });
-    return html;
-  },
-
-  // ── 候補名單：按 userId 分組（有 registrations 時）──
+  // ── 候補名單：按 userId 分組 + 混合資料支援 ──
   _buildGroupedWaitlist(e) {
     const allRegs = ApiService.getRegistrationsByEvent(e.id);
     const waitlistedRegs = allRegs.filter(r => r.status === 'waitlisted');
+    const addedNames = new Set();
+    let items = [];
+
     if (waitlistedRegs.length > 0) {
       const groups = new Map();
       waitlistedRegs.forEach(r => {
         if (!groups.has(r.userId)) groups.set(r.userId, []);
         groups.get(r.userId).push(r);
       });
-      let html = '<div class="detail-section"><div class="detail-section-title">候補名單 (' + waitlistedRegs.length + ')</div><div class="participant-list">';
-      let idx = 0;
       groups.forEach(regs => {
         const selfReg = regs.find(r => r.participantType === 'self');
         const companions = regs.filter(r => r.participantType === 'companion');
         const mainName = selfReg ? selfReg.userName : regs[0].userName;
-        idx++;
-        html += `<div style="padding:.45rem .2rem;border-bottom:1px solid var(--border)"><span class="wl-pos">${idx}</span> ${this._userTag(mainName)}</div>`;
-        companions.forEach(c => {
-          html += `<div style="padding:.35rem .2rem .35rem 1.5rem;border-bottom:1px solid var(--border)"><span style="font-size:.78rem;color:var(--text-muted)">↳</span> <span class="user-capsule uc-user" style="opacity:.8;font-size:.78rem">${escapeHTML(c.companionName || c.userName)}</span></div>`;
-        });
+        items.push({ name: mainName, companions: companions.map(c => c.companionName || c.userName) });
+        addedNames.add(mainName);
+        companions.forEach(c => addedNames.add(c.companionName || c.userName));
       });
-      html += '</div></div>';
-      return html;
     }
-    // fallback: 舊資料
-    if ((e.waitlistNames || []).length > 0) {
-      return `<div class="detail-section">
-        <div class="detail-section-title">候補名單 (${e.waitlist})</div>
-        <div class="participant-list">${e.waitlistNames.map((p, i) =>
-          `<div style="padding:.45rem .2rem;border-bottom:1px solid var(--border)"><span class="wl-pos">${i + 1}</span> ${this._userTag(p)}</div>`
-        ).join('')}</div>
-      </div>`;
-    }
-    return '';
+    // 混合資料：補上只在 e.waitlistNames 但沒有 registration 的舊成員
+    (e.waitlistNames || []).forEach(p => {
+      if (!addedNames.has(p)) {
+        items.push({ name: p, companions: [] });
+        addedNames.add(p);
+      }
+    });
+
+    if (items.length === 0) return '';
+    let html = '<div class="detail-section"><div class="detail-section-title">候補名單 (' + items.length + ')</div><div class="participant-list">';
+    items.forEach((item, idx) => {
+      html += `<div style="padding:.45rem .2rem;border-bottom:1px solid var(--border)"><span class="wl-pos">${idx + 1}</span> ${this._userTag(item.name)}</div>`;
+      item.companions.forEach(cName => {
+        html += `<div style="padding:.35rem .2rem .35rem 1.5rem;border-bottom:1px solid var(--border)"><span style="font-size:.78rem;color:var(--text-muted)">↳</span> <span class="user-capsule uc-user" style="opacity:.8;font-size:.78rem">${escapeHTML(cName)}</span></div>`;
+      });
+    });
+    html += '</div></div>';
+    return html;
   },
 
   // ══════════════════════════════════

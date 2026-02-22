@@ -165,13 +165,11 @@ Object.assign(App, {
     const uid = user.uid || '';
     const name = user.displayName || user.name || '';
 
-    // Production 模式：用 registrations 的 userId 比對（最可靠）
-    if (!ModeManager.isDemo() && uid) {
-      const regs = FirebaseService._cache.registrations || [];
-      return regs.some(r => r.eventId === e.id && r.userId === uid && r.status !== 'cancelled');
-    }
+    // 優先查 registrations（demo + production 通用）
+    const regs = ApiService.getRegistrationsByEvent?.(e.id) || [];
+    if (regs.some(r => r.userId === uid && r.status !== 'cancelled')) return true;
 
-    // Demo 模式：名單比對
+    // Fallback: 舊資料用 participants/waitlistNames
     const inParticipants = (e.participants || []).some(p => p === name || p === uid);
     const inWaitlist = (e.waitlistNames || []).some(p => p === name || p === uid);
     return inParticipants || inWaitlist;
@@ -184,13 +182,11 @@ Object.assign(App, {
     const uid = user.uid || '';
     const name = user.displayName || user.name || '';
 
-    // Production 模式
-    if (!ModeManager.isDemo() && uid) {
-      const regs = FirebaseService._cache.registrations || [];
-      return regs.some(r => r.eventId === e.id && r.userId === uid && r.status === 'waitlisted');
-    }
+    // 優先查 registrations（demo + production 通用）
+    const regs = ApiService.getRegistrationsByEvent?.(e.id) || [];
+    if (regs.some(r => r.userId === uid && r.status === 'waitlisted')) return true;
 
-    // Demo 模式
+    // Fallback: 舊資料
     return (e.waitlistNames || []).some(p => p === name || p === uid);
   },
 

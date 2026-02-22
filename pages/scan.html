@@ -43,6 +43,18 @@
   </div>
 </div>
 
+<!-- Family checkin modal -->
+<div class="scan-result-overlay" id="scan-family-modal">
+  <div class="scan-result-box" style="max-width:360px;text-align:left">
+    <div id="scan-family-title" style="font-weight:700;margin-bottom:.5rem"></div>
+    <div id="scan-family-list"></div>
+    <div style="display:flex;gap:.5rem;margin-top:.6rem">
+      <button class="scan-result-close" style="flex:1;background:var(--border);color:var(--text-primary)" onclick="App._closeFamilyModal()">取消</button>
+      <button class="scan-result-close" style="flex:1" id="scan-family-confirm-btn" onclick="App._confirmFamilyCheckin()">確認</button>
+    </div>
+  </div>
+</div>
+
 <!-- Scan choice modal -->
 <div class="scan-choice-overlay" id="scan-choice-modal">
   <div class="scan-choice-box">

@@ -112,39 +112,37 @@ Object.assign(App, {
     if (ApiService._demoMode) {
       const e = ApiService.getEvent(id);
       if (e) {
-        const pi = (e.participants || []).indexOf(userName);
-        if (pi !== -1) {
-          e.participants.splice(pi, 1);
-          e.current = Math.max(0, e.current - 1);
-          if (e.waitlistNames && e.waitlistNames.length > 0) {
-            const promoted = e.waitlistNames.shift();
-            e.waitlist = Math.max(0, e.waitlist - 1);
-            if (!e.participants.includes(promoted)) {
-              e.participants.push(promoted);
-              e.current++;
-            }
-            const adminUsers = ApiService.getAdminUsers();
-            const promotedUser = adminUsers.find(u => u.name === promoted);
-            if (promotedUser) {
-              this._sendNotifFromTemplate('waitlist_promoted', {
-                eventName: e.title, date: e.date, location: e.location,
-              }, promotedUser.uid, 'activity', '活動');
-            }
-          }
-          e.status = e.current >= e.max ? 'full' : 'open';
-        } else {
-          const wi = (e.waitlistNames || []).indexOf(userName);
-          if (wi !== -1) {
-            e.waitlistNames.splice(wi, 1);
-            e.waitlist = Math.max(0, e.waitlist - 1);
-          }
-        }
-        // 更新 demo registrations 狀態
+        // 優先用 registrations 取消
         const demoRegs = ApiService._src('registrations');
-        for (let i = demoRegs.length - 1; i >= 0; i--) {
-          if (demoRegs[i].eventId === id && demoRegs[i].userId === userId && demoRegs[i].status !== 'cancelled') {
-            demoRegs[i].status = 'cancelled';
-            demoRegs[i].cancelledAt = new Date().toISOString();
+        const myReg = demoRegs.find(r => r.eventId === id && r.userId === userId && r.status !== 'cancelled');
+        if (myReg) {
+          const wasWaitlisted = myReg.status === 'waitlisted';
+          // 取消所有此用戶此活動的 registrations
+          for (let i = demoRegs.length - 1; i >= 0; i--) {
+            if (demoRegs[i].eventId === id && demoRegs[i].userId === userId && demoRegs[i].status !== 'cancelled') {
+              demoRegs[i].status = 'cancelled';
+              demoRegs[i].cancelledAt = new Date().toISOString();
+            }
+          }
+          if (wasWaitlisted) {
+            e.waitlist = Math.max(0, e.waitlist - 1);
+          } else {
+            e.current = Math.max(0, e.current - 1);
+            e.status = e.current >= e.max ? 'full' : 'open';
+          }
+        } else {
+          // Fallback: 舊資料用 participants
+          const pi = (e.participants || []).indexOf(userName);
+          if (pi !== -1) {
+            e.participants.splice(pi, 1);
+            e.current = Math.max(0, e.current - 1);
+            e.status = e.current >= e.max ? 'full' : 'open';
+          } else {
+            const wi = (e.waitlistNames || []).indexOf(userName);
+            if (wi !== -1) {
+              e.waitlistNames.splice(wi, 1);
+              e.waitlist = Math.max(0, e.waitlist - 1);
+            }
           }
         }
         const records = ApiService.getActivityRecords();
@@ -161,7 +159,7 @@ Object.assign(App, {
         }
       }
       this.showToast(isWaitlist ? '已取消候補' : '已取消報名');
-      if (!isWaitlist) this._grantAutoExp(userId, 'cancel_registration', e.title);
+      if (!isWaitlist) this._grantAutoExp(userId, 'cancel_registration', e0.title);
       this.showEventDetail(id);
       return;
     }

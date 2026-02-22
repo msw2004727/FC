@@ -421,6 +421,21 @@ const DemoData = {
     { id:'reg_d4', eventId:'e4', userId:'U1a2b3c', userName:'王小明',
       participantType:'self', companionId:null, companionName:null,
       status:'confirmed', registeredAt:'2026-02-19T15:00:00' },
+    // demo-user 本人 + comp1 報名 eh3t（雷霆隊內練習，掃碼 demo 用）
+    { id:'reg_d5', eventId:'eh3t', userId:'demo-user', userName:'小麥',
+      participantType:'self', companionId:null, companionName:null,
+      status:'confirmed', registeredAt:'2026-02-14T10:00:00' },
+    { id:'reg_d6', eventId:'eh3t', userId:'demo-user', userName:'小麥',
+      participantType:'companion', companionId:'comp1', companionName:'小麥伴侶',
+      status:'confirmed', registeredAt:'2026-02-14T10:00:00' },
+    // 王小明報名 eh3t
+    { id:'reg_d7', eventId:'eh3t', userId:'U1a2b3c', userName:'王小明',
+      participantType:'self', companionId:null, companionName:null,
+      status:'confirmed', registeredAt:'2026-02-13T09:00:00' },
+    // 李大華報名 eh3t
+    { id:'reg_d8', eventId:'eh3t', userId:'U4d5e6f', userName:'李大華',
+      participantType:'self', companionId:null, companionName:null,
+      status:'confirmed', registeredAt:'2026-02-13T10:00:00' },
   ],
 };
 

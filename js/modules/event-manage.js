@@ -44,6 +44,14 @@ Object.assign(App, {
 
     const filtered = f === 'all' ? allEvents : allEvents.filter(e => e.status === f);
 
+    // 同步 tab active 狀態
+    const tabsEl = document.getElementById('my-activity-tabs');
+    if (tabsEl) {
+      tabsEl.querySelectorAll('.tab').forEach(t => {
+        t.classList.toggle('active', t.dataset.afilter === f);
+      });
+    }
+
     // 統計
     const statsEl = document.getElementById('my-activity-stats');
     if (statsEl) {
@@ -255,8 +263,8 @@ Object.assign(App, {
   },
 
   // ── 編輯活動 ──
-  _renderAttendanceTable(eventId) {
-    const container = document.getElementById('attendance-table-container');
+  _renderAttendanceTable(eventId, containerId) {
+    const container = document.getElementById(containerId || 'attendance-table-container');
     if (!container) return;
     const e = ApiService.getEvent(eventId);
     if (!e) return;
@@ -266,6 +274,7 @@ Object.assign(App, {
     const confirmedRegs = allActiveRegs.filter(r => r.status === 'confirmed');
 
     let people = [];
+    const addedNames = new Set();
     if (confirmedRegs.length > 0) {
       const groups = new Map();
       confirmedRegs.forEach(r => {
@@ -278,17 +287,22 @@ Object.assign(App, {
         const mainName = selfReg ? selfReg.userName : regs[0].userName;
         const mainUid = regs[0].userId;
         people.push({ name: mainName, uid: mainUid, isCompanion: false, displayName: mainName });
+        addedNames.add(mainName);
         companions.forEach(c => {
           const cName = c.companionName || c.userName;
           const cUid = c.companionId || (mainUid + '_' + c.companionName);
           people.push({ name: cName, uid: cUid, isCompanion: true, displayName: cName });
+          addedNames.add(cName);
         });
       });
-    } else {
-      (e.participants || []).forEach(p => {
-        people.push({ name: p, uid: p, isCompanion: false, displayName: p });
-      });
     }
+    // 混合資料：補上只在 e.participants 但沒有 registration 的舊成員
+    (e.participants || []).forEach(p => {
+      if (!addedNames.has(p)) {
+        people.push({ name: p, uid: p, isCompanion: false, displayName: p });
+        addedNames.add(p);
+      }
+    });
 
     if (people.length === 0) {
       container.innerHTML = '<div style="font-size:.8rem;color:var(--text-muted);padding:.3rem 0">尚無報名</div>';

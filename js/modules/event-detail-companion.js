@@ -190,14 +190,25 @@ Object.assign(App, {
       if (e) {
         const regsToCancel = this._companionCancelRegs.filter(r => checked.includes(r.id));
         regsToCancel.forEach(r => {
-          const displayName = r.companionName || r.userName;
-          const pi = (e.participants || []).indexOf(displayName);
-          if (pi >= 0) { e.participants.splice(pi, 1); e.current = Math.max(0, e.current - 1); }
-          const wi = (e.waitlistNames || []).indexOf(displayName);
-          if (wi >= 0) { e.waitlistNames.splice(wi, 1); e.waitlist = Math.max(0, e.waitlist - 1); }
-          // 更新 demo registrations 狀態
+          // 更新 demo registrations 狀態（以 registration 為計數主源）
           const reg = ApiService._src('registrations').find(reg => reg.id === r.id);
-          if (reg) { reg.status = 'cancelled'; reg.cancelledAt = new Date().toISOString(); }
+          if (reg && reg.status !== 'cancelled') {
+            const wasWaitlisted = reg.status === 'waitlisted';
+            reg.status = 'cancelled';
+            reg.cancelledAt = new Date().toISOString();
+            if (wasWaitlisted) {
+              e.waitlist = Math.max(0, e.waitlist - 1);
+            } else {
+              e.current = Math.max(0, e.current - 1);
+            }
+          } else {
+            // Fallback: 舊資料用 participants/waitlistNames
+            const displayName = r.companionName || r.userName;
+            const pi = (e.participants || []).indexOf(displayName);
+            if (pi >= 0) { e.participants.splice(pi, 1); e.current = Math.max(0, e.current - 1); }
+            const wi = (e.waitlistNames || []).indexOf(displayName);
+            if (wi >= 0) { e.waitlistNames.splice(wi, 1); e.waitlist = Math.max(0, e.waitlist - 1); }
+          }
         });
         e.status = e.current >= e.max ? 'full' : 'open';
         const hasSelfCancel = regsToCancel.some(r => !r.companionId);

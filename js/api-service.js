@@ -606,12 +606,8 @@ const ApiService = {
         const displayName = p.type === 'companion' ? p.companionName : userName;
         const isWaitlist = e.current >= e.max;
         if (isWaitlist) {
-          if (!e.waitlistNames) e.waitlistNames = [];
-          if (!e.waitlistNames.includes(displayName)) e.waitlistNames.push(displayName);
           e.waitlist = (e.waitlist || 0) + 1;
         } else {
-          if (!e.participants) e.participants = [];
-          if (!e.participants.includes(displayName)) e.participants.push(displayName);
           e.current++;
         }
         const reg = {

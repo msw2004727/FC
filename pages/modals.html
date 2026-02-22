@@ -1,3 +1,13 @@
+<!-- ============ ATTENDANCE NOTIFY MODAL ============ -->
+<div class="scan-result-overlay" id="attendance-notify-modal">
+  <div class="scan-result-box success">
+    <div class="scan-result-icon" id="att-notify-icon"></div>
+    <div class="scan-result-title" id="att-notify-title"></div>
+    <div class="scan-result-name" id="att-notify-event"></div>
+    <button class="scan-result-close" onclick="App.closeAttendanceNotify()">確定</button>
+  </div>
+</div>
+
 <!-- ============ POPUP AD OVERLAY ============ -->
 <div id="popup-ad-overlay" class="popup-ad-overlay" style="display:none" onclick="App.closePopupAd()">
   <div class="popup-ad-container" id="popup-ad-container" onclick="event.stopPropagation()">
