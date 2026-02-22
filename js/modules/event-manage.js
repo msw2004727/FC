@@ -272,6 +272,7 @@ Object.assign(App, {
     const e = ApiService.getEvent(eventId);
     if (!e) return;
 
+    const canManage = this._canManageEvent(e);
     const records = ApiService.getAttendanceRecords(eventId);
     const allActiveRegs = ApiService.getRegistrationsByEvent(eventId);
     const confirmedRegs = allActiveRegs.filter(r => r.status === 'confirmed');
@@ -339,7 +340,7 @@ Object.assign(App, {
       const safeUid = escapeHTML(p.uid);
       const safeName = escapeHTML(p.name);
 
-      if (isEditing(p.uid)) {
+      if (canManage && isEditing(p.uid)) {
         return `<tr style="border-bottom:1px solid var(--border)">
           <td style="padding:.35rem .3rem;text-align:left">${nameHtml}</td>
           <td style="padding:.35rem .2rem;text-align:center"><input type="checkbox" id="manual-checkin-${safeUid}" ${hasCheckin ? 'checked' : ''} style="width:1rem;height:1rem"></td>
@@ -352,7 +353,7 @@ Object.assign(App, {
         <td style="padding:.35rem .3rem;text-align:left">${nameHtml}</td>
         <td style="padding:.35rem .2rem;text-align:center">${hasCheckin ? '<span style="color:var(--success)">✓</span>' : ''}</td>
         <td style="padding:.35rem .2rem;text-align:center">${hasCheckout ? '<span style="color:var(--success)">✓</span>' : ''}</td>
-        <td style="padding:.35rem .2rem;text-align:center"><button class="outline-btn" style="font-size:.65rem;padding:.1rem .3rem" onclick="App._startManualAttendance('${escapeHTML(eventId)}','${safeUid}','${safeName}')">編輯</button></td>
+        ${canManage ? `<td style="padding:.35rem .2rem;text-align:center"><button class="outline-btn" style="font-size:.65rem;padding:.1rem .3rem" onclick="App._startManualAttendance('${escapeHTML(eventId)}','${safeUid}','${safeName}')">編輯</button></td>` : ''}
         <td style="padding:.35rem .3rem;font-size:.72rem;color:var(--text-muted)">${escapeHTML(combinedNote)}</td>
       </tr>`;
     }).join('');
@@ -363,7 +364,7 @@ Object.assign(App, {
           <th style="text-align:left;padding:.4rem .3rem;font-weight:600">姓名</th>
           <th style="text-align:center;padding:.4rem .2rem;font-weight:600;width:2.5rem">簽到</th>
           <th style="text-align:center;padding:.4rem .2rem;font-weight:600;width:2.5rem">簽退</th>
-          <th style="text-align:center;padding:.4rem .2rem;font-weight:600;width:2.5rem">編輯</th>
+          ${canManage ? '<th style="text-align:center;padding:.4rem .2rem;font-weight:600;width:2.5rem">編輯</th>' : ''}
           <th style="text-align:left;padding:.4rem .3rem;font-weight:600;width:5rem">備註</th>
         </tr></thead>
         <tbody>${rows}</tbody>

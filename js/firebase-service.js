@@ -268,6 +268,10 @@ const FirebaseService = {
               this._cache.events = [...active, ...kept];
               this._saveToLS('events', this._cache.events);
               if (firstSnapshot) { firstSnapshot = false; checkDone(); }
+              else if (typeof App !== 'undefined') {
+                if (App.currentPage === 'page-my-activities') App.renderMyActivities();
+                if (App.currentPage === 'page-activities') App.renderActivityList();
+              }
             },
             err => { console.warn('[onSnapshot] events 監聽錯誤:', err); checkDone(); }
           );
