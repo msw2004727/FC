@@ -69,6 +69,29 @@ const App = {
     this.updateStorageBar();
   },
 
+  /** Phase 1 完成後才執行：綁定 pages/*.html 內的動態元素事件 */
+  _bindPageElements() {
+    this.bindFilterToggle();
+    this.bindTabBars();
+    this.bindShopSearch();
+    this.bindTeamOnlyToggle();
+    this._bindAchBadgeUpload();
+    this._populateAchConditionSelects();
+    this.bindImageUpload('ce-image',         'ce-upload-preview');
+    this.bindImageUpload('ct-image',         'ct-upload-preview');
+    this.bindImageUpload('ct-content-image', 'ct-content-upload-preview');
+    this.bindImageUpload('et-image',         'et-upload-preview');
+    this.bindImageUpload('et-content-image', 'et-content-upload-preview');
+    this.bindImageUpload('cs-img1',          'cs-preview1');
+    this.bindImageUpload('cs-img2',          'cs-preview2');
+    this.bindImageUpload('cs-img3',          'cs-preview3');
+    this.bindImageUpload('banner-image',     'banner-preview');
+    this.bindImageUpload('floatad-image',    'floatad-preview');
+    this.bindImageUpload('popupad-image',    'popupad-preview');
+    this.bindImageUpload('ct-team-image',    'ct-team-preview');
+    this.bindImageUpload('theme-image',      'theme-preview');
+  },
+
   showToast(msg) {
     const toast = document.getElementById('toast');
     toast.textContent = msg;
@@ -181,13 +204,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     console.warn('[Boot] 隱藏載入畫面失敗:', e && e.message || e);
   }
 
-  // ── Phase 1 完成後補跑一次 renderAll（非阻塞，補齊需要 HTML 的區塊）──
+  // ── Phase 1 完成後補跑一次 renderAll + 動態頁面事件綁定（非阻塞）──
   htmlReady.then(function() {
     try {
       App.renderAll();
       console.log('[Boot] Phase 1 後補跑 renderAll 完成');
     } catch (e) {
       console.warn('[Boot] Phase 1 完成後 renderAll 失敗:', e && e.message || e);
+    }
+    try {
+      App._bindPageElements();
+      console.log('[Boot] Phase 1 後補跑 _bindPageElements 完成');
+    } catch (e) {
+      console.warn('[Boot] _bindPageElements 失敗:', e && e.message || e);
     }
   });
 

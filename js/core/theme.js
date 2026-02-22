@@ -23,14 +23,15 @@ Object.assign(App, {
   },
 
   bindFilterToggle() {
-    document.getElementById('filter-toggle')?.addEventListener('click', () => {
+    const toggle = document.getElementById('filter-toggle');
+    if (!toggle || toggle.dataset.bound) return;
+    toggle.dataset.bound = '1';
+    toggle.addEventListener('click', () => {
       document.getElementById('filter-bar').classList.toggle('visible');
     });
-    // 類別下拉篩選
     document.getElementById('activity-filter-type')?.addEventListener('change', () => {
       this.renderActivityList();
     });
-    // 關鍵字搜尋：按鈕 + Enter
     document.getElementById('activity-filter-search-btn')?.addEventListener('click', () => {
       this.renderActivityList();
     });
@@ -41,6 +42,8 @@ Object.assign(App, {
 
   bindTabBars() {
     document.querySelectorAll('.tab-bar').forEach(bar => {
+      if (bar.dataset.bound) return;
+      bar.dataset.bound = '1';
       bar.querySelectorAll('.tab').forEach(tab => {
         tab.addEventListener('click', () => {
           bar.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));

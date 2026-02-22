@@ -408,7 +408,9 @@ Object.assign(App, {
   /** 綁定球隊限定開關事件 */
   bindTeamOnlyToggle() {
     const cb = document.getElementById('ce-team-only');
-    if (cb) cb.addEventListener('change', () => this._updateTeamOnlyLabel());
+    if (!cb || cb.dataset.bound) return;
+    cb.dataset.bound = '1';
+    cb.addEventListener('change', () => this._updateTeamOnlyLabel());
   },
 
   handleCreateEvent() {
