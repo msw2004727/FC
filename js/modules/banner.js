@@ -60,6 +60,22 @@ Object.assign(App, {
       const cnt = this.bannerCount || 1;
       this.goToBanner((this.bannerIndex + 1) % cnt);
     });
+
+    // ── Touch Swipe ──
+    const track = document.getElementById('banner-track');
+    if (track) {
+      let _swipeStartX = 0;
+      track.addEventListener('touchstart', (e) => {
+        _swipeStartX = e.touches[0].clientX;
+      }, { passive: true });
+      track.addEventListener('touchend', (e) => {
+        const dx = e.changedTouches[0].clientX - _swipeStartX;
+        const cnt = this.bannerCount || 1;
+        if (dx < -50) this.goToBanner((this.bannerIndex + 1) % cnt);
+        if (dx > 50) this.goToBanner((this.bannerIndex - 1 + cnt) % cnt);
+      }, { passive: true });
+    }
+
     if (this.bannerTimer) clearInterval(this.bannerTimer);
     this.bannerTimer = setInterval(() => {
       const cnt = this.bannerCount || 1;
