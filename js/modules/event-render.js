@@ -881,6 +881,7 @@ Object.assign(App, {
 
     this._updateCompanionSelectSummary(eventId);
     overlay.style.display = 'flex';
+    overlay.classList.add('open');
   },
 
   _updateCompanionSelectSummary(eventId) {
@@ -900,7 +901,9 @@ Object.assign(App, {
 
   _closeCompanionSelectModal() {
     const overlay = document.getElementById('companion-select-overlay');
-    if (overlay) overlay.style.display = 'none';
+    if (!overlay) return;
+    overlay.style.display = 'none';
+    overlay.classList.remove('open');
     this._companionSelectEventId = null;
   },
 
@@ -981,6 +984,7 @@ Object.assign(App, {
       </label>`;
     }).join('');
     overlay.style.display = 'flex';
+    overlay.classList.add('open');
   },
 
   _selectAllCancelRegs() {
@@ -989,7 +993,9 @@ Object.assign(App, {
 
   _closeCompanionCancelModal() {
     const overlay = document.getElementById('companion-cancel-overlay');
-    if (overlay) overlay.style.display = 'none';
+    if (!overlay) return;
+    overlay.style.display = 'none';
+    overlay.classList.remove('open');
     this._companionCancelEventId = null;
     this._companionCancelRegs = [];
   },

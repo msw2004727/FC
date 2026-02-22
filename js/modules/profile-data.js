@@ -526,11 +526,14 @@ Object.assign(App, {
       if (notesInput) notesInput.value = '';
     }
     overlay.style.display = 'flex';
+    overlay.classList.add('open');
   },
 
   closeCompanionModal() {
     const overlay = document.getElementById('companion-modal-overlay');
-    if (overlay) overlay.style.display = 'none';
+    if (!overlay) return;
+    overlay.style.display = 'none';
+    overlay.classList.remove('open');
   },
 
   saveCompanion() {
