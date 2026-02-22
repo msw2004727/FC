@@ -253,6 +253,8 @@ Object.assign(App, {
     if (regOpen) regOpen.value = '';
     document.getElementById('ce-image').value = '';
     const ceTeamOnly = document.getElementById('ce-team-only');
+    const ceTeamSelect = document.getElementById('ce-team-select');
+    if (ceTeamSelect) ceTeamSelect.value = '';
     if (ceTeamOnly) { ceTeamOnly.checked = false; this._updateTeamOnlyLabel(); }
     const cePreview = document.getElementById('ce-upload-preview');
     if (cePreview) {
@@ -376,6 +378,14 @@ Object.assign(App, {
     input.placeholder = this._delegates.length >= 3 ? '已達上限 3 人' : '搜尋 UID 或暱稱...';
   },
 
+  /** 球隊限定：填充下拉選單（僅在切換開啟時呼叫，避免重複重建） */
+  _populateTeamSelect(select) {
+    const teams = ApiService.getTeams?.() || [];
+    const activeTeams = teams.filter(t => t.active !== false);
+    select.innerHTML = '<option value="">請選擇球隊</option>' +
+      activeTeams.map(t => `<option value="${t.id}" data-name="${escapeHTML(t.name)}">${escapeHTML(t.name)}</option>`).join('');
+  },
+
   /** 球隊限定開關 label 更新 */
   _updateTeamOnlyLabel() {
     const cb = document.getElementById('ce-team-only');
@@ -391,14 +401,17 @@ Object.assign(App, {
         if (select) select.style.display = 'none';
       } else {
         // 用戶無球隊，顯示下拉選擇
-        label.textContent = '開啟 — 選擇球隊：';
         label.style.color = '#e11d48';
         if (select) {
-          const teams = ApiService.getTeams?.() || [];
-          const activeTeams = teams.filter(t => t.active !== false);
-          select.innerHTML = '<option value="">請選擇球隊</option>' +
-            activeTeams.map(t => `<option value="${t.id}" data-name="${t.name}">${t.name}</option>`).join('');
           select.style.display = '';
+          // 依據下拉選單當前值更新提示文字
+          const selectedOption = select.options[select.selectedIndex];
+          if (select.value && selectedOption) {
+            const teamName = selectedOption.dataset?.name || selectedOption.textContent || select.value;
+            label.textContent = `開啟 — 僅 ${teamName} 可見`;
+          } else {
+            label.textContent = '開啟 — 請選擇球隊';
+          }
         }
       }
     } else {
@@ -411,9 +424,20 @@ Object.assign(App, {
   /** 綁定球隊限定開關事件 */
   bindTeamOnlyToggle() {
     const cb = document.getElementById('ce-team-only');
-    if (!cb || cb.dataset.bound) return;
-    cb.dataset.bound = '1';
-    cb.addEventListener('change', () => this._updateTeamOnlyLabel());
+    const select = document.getElementById('ce-team-select');
+    if (cb && !cb.dataset.bound) {
+      cb.dataset.bound = '1';
+      cb.addEventListener('change', () => {
+        // 僅在切換為 ON 時填充下拉選單
+        if (cb.checked && select) this._populateTeamSelect(select);
+        this._updateTeamOnlyLabel();
+      });
+    }
+    if (select && !select.dataset.bound) {
+      select.dataset.bound = '1';
+      // 下拉選單變更只更新提示文字，不重建選項
+      select.addEventListener('change', () => this._updateTeamOnlyLabel());
+    }
   },
 
   handleCreateEvent() {
@@ -586,6 +610,8 @@ Object.assign(App, {
     this._renderDelegateTags();
     this._updateDelegateInput();
     const ceTeamOnly = document.getElementById('ce-team-only');
+    const ceTeamSelect = document.getElementById('ce-team-select');
+    if (ceTeamSelect) ceTeamSelect.value = '';
     if (ceTeamOnly) { ceTeamOnly.checked = false; this._updateTeamOnlyLabel(); }
     const cePreview = document.getElementById('ce-upload-preview');
     if (cePreview) {

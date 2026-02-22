@@ -280,6 +280,17 @@ Object.assign(App, {
     const ceTeamOnly = document.getElementById('ce-team-only');
     if (ceTeamOnly) {
       ceTeamOnly.checked = !!e.teamOnly;
+      // 編輯模式：若為球隊限定且建立者無球隊，需先填充下拉再還原選擇
+      if (e.teamOnly) {
+        const team = this._getEventCreatorTeam();
+        if (!team.teamId) {
+          const ceTeamSelect = document.getElementById('ce-team-select');
+          if (ceTeamSelect) {
+            this._populateTeamSelect(ceTeamSelect);
+            if (e.creatorTeamId) ceTeamSelect.value = e.creatorTeamId;
+          }
+        }
+      }
       this._updateTeamOnlyLabel();
     }
     const preview = document.getElementById('ce-upload-preview');

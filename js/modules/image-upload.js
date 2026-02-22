@@ -38,6 +38,15 @@ Object.assign(App, {
     });
   },
 
+  /** 根據檔名副檔名判斷是否為允許的圖片格式 */
+  _isAllowedImageFile(file) {
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/heic', 'image/heif'];
+    if (file.type && allowedTypes.includes(file.type.toLowerCase())) return true;
+    // file.type 在部分行動瀏覽器/WebView 可能為空，以副檔名作為備援判斷
+    const ext = (file.name || '').split('.').pop().toLowerCase();
+    return ['jpg', 'jpeg', 'png', 'heic', 'heif'].includes(ext);
+  },
+
   bindImageUpload(inputId, previewId) {
     const input = document.getElementById(inputId);
     if (!input || input.dataset.bound) return;
@@ -45,8 +54,7 @@ Object.assign(App, {
     input.addEventListener('change', async () => {
       const file = input.files[0];
       if (!file) return;
-      const validTypes = ['image/jpeg', 'image/png'];
-      if (!validTypes.includes(file.type)) {
+      if (!this._isAllowedImageFile(file)) {
         this.showToast('僅支援 JPG / PNG 格式');
         input.value = '';
         return;
@@ -56,11 +64,17 @@ Object.assign(App, {
         input.value = '';
         return;
       }
-      const dataURL = await this._compressImage(file);
-      const preview = document.getElementById(previewId);
-      if (preview) {
-        preview.innerHTML = `<img src="${dataURL}" style="width:100%;height:100%;object-fit:cover;border-radius:var(--radius-sm)">`;
-        preview.classList.add('has-image');
+      try {
+        const dataURL = await this._compressImage(file);
+        const preview = document.getElementById(previewId);
+        if (preview) {
+          preview.innerHTML = `<img src="${dataURL}" style="width:100%;height:100%;object-fit:cover;border-radius:var(--radius-sm)">`;
+          preview.classList.add('has-image');
+        }
+      } catch (err) {
+        console.error('[ImageUpload] 圖片壓縮失敗:', err);
+        this.showToast('圖片處理失敗，請換一張圖片');
+        input.value = '';
       }
     });
   },
