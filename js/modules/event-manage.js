@@ -262,10 +262,13 @@ Object.assign(App, {
     modal.style.display = 'flex';
   },
 
-  // ── 編輯活動 ──
+  // ── 報名名單表格（活動管理 + 活動詳細頁共用）──
   _renderAttendanceTable(eventId, containerId) {
-    const container = document.getElementById(containerId || 'attendance-table-container');
+    const cId = containerId || 'attendance-table-container';
+    const container = document.getElementById(cId);
     if (!container) return;
+    // 記住 containerId，供編輯流程重新渲染用
+    this._manualEditingContainerId = cId;
     const e = ApiService.getEvent(eventId);
     if (!e) return;
 
@@ -286,12 +289,13 @@ Object.assign(App, {
         const companions = regs.filter(r => r.participantType === 'companion');
         const mainName = selfReg ? selfReg.userName : regs[0].userName;
         const mainUid = regs[0].userId;
-        people.push({ name: mainName, uid: mainUid, isCompanion: false, displayName: mainName });
+        const proxyOnly = !selfReg; // 僅代報：沒有 self registration
+        people.push({ name: mainName, uid: mainUid, isCompanion: false, displayName: mainName, hasSelfReg: !proxyOnly, proxyOnly });
         addedNames.add(mainName);
         companions.forEach(c => {
           const cName = c.companionName || c.userName;
           const cUid = c.companionId || (mainUid + '_' + c.companionName);
-          people.push({ name: cName, uid: cUid, isCompanion: true, displayName: cName });
+          people.push({ name: cName, uid: cUid, isCompanion: true, displayName: cName, hasSelfReg: false, proxyOnly: false });
           addedNames.add(cName);
         });
       });
@@ -299,7 +303,7 @@ Object.assign(App, {
     // 混合資料：補上只在 e.participants 但沒有 registration 的舊成員
     (e.participants || []).forEach(p => {
       if (!addedNames.has(p)) {
-        people.push({ name: p, uid: p, isCompanion: false, displayName: p });
+        people.push({ name: p, uid: p, isCompanion: false, displayName: p, hasSelfReg: true, proxyOnly: false });
         addedNames.add(p);
       }
     });
@@ -317,9 +321,21 @@ Object.assign(App, {
       const hasCheckout = records.some(r => (r.uid === p.uid || r.userName === p.name) && r.type === 'checkout');
       const noteRec = records.filter(r => (r.uid === p.uid || r.userName === p.name) && r.type === 'note').pop();
       const noteText = noteRec?.note || '';
-      const nameHtml = p.isCompanion
-        ? `<span style="padding-left:1.2rem;color:var(--text-secondary)">↳ ${escapeHTML(p.displayName)}</span>`
-        : ` ${escapeHTML(p.displayName)}`;
+      // 備註：僅代報自動標注，手動備註附加在後面
+      const autoNote = p.proxyOnly ? '僅代報' : '';
+      const combinedNote = [autoNote, noteText].filter(Boolean).join('・');
+
+      let nameHtml;
+      if (p.isCompanion) {
+        nameHtml = `<span style="padding-left:1.2rem;color:var(--text-secondary)">↳ ${escapeHTML(p.displayName)}</span>`;
+      } else if (p.hasSelfReg) {
+        // 有報名：用有色膠囊名牌
+        nameHtml = this._userTag(p.displayName);
+      } else {
+        // 僅代報：純文字，無膠囊
+        nameHtml = ` ${escapeHTML(p.displayName)}`;
+      }
+
       const safeUid = escapeHTML(p.uid);
       const safeName = escapeHTML(p.name);
 
@@ -337,7 +353,7 @@ Object.assign(App, {
         <td style="padding:.35rem .2rem;text-align:center">${hasCheckin ? '<span style="color:var(--success)">✓</span>' : ''}</td>
         <td style="padding:.35rem .2rem;text-align:center">${hasCheckout ? '<span style="color:var(--success)">✓</span>' : ''}</td>
         <td style="padding:.35rem .2rem;text-align:center"><button class="outline-btn" style="font-size:.65rem;padding:.1rem .3rem" onclick="App._startManualAttendance('${escapeHTML(eventId)}','${safeUid}','${safeName}')">編輯</button></td>
-        <td style="padding:.35rem .3rem;font-size:.72rem;color:var(--text-muted)">${escapeHTML(noteText)}</td>
+        <td style="padding:.35rem .3rem;font-size:.72rem;color:var(--text-muted)">${escapeHTML(combinedNote)}</td>
       </tr>`;
     }).join('');
 
@@ -358,7 +374,7 @@ Object.assign(App, {
   _startManualAttendance(eventId, uid, name) {
     this._manualEditingUid = uid;
     this._manualEditingEventId = eventId;
-    this._renderAttendanceTable(eventId);
+    this._renderAttendanceTable(eventId, this._manualEditingContainerId);
   },
 
   _confirmManualAttendance(eventId, uid, name) {
@@ -402,7 +418,7 @@ Object.assign(App, {
 
     this._manualEditingUid = null;
     this._manualEditingEventId = null;
-    this._renderAttendanceTable(eventId);
+    this._renderAttendanceTable(eventId, this._manualEditingContainerId);
     this.showToast('已更新');
   },
 
