@@ -124,9 +124,7 @@ Object.assign(App, {
     const card = document.getElementById('profile-favorites-card');
     if (!card) return;
     const favs = this._getSanitizedFavorites();
-    const rawTotal = favs.events.length + favs.tournaments.length;
-    if (!rawTotal) { card.style.display = 'none'; return; }
-    const total = rawTotal;
+    const total = favs.events.length + favs.tournaments.length;
     card.style.display = '';
     const badge = document.getElementById('fav-count-badge');
     if (badge) badge.textContent = total;
@@ -142,8 +140,6 @@ Object.assign(App, {
     const list = document.getElementById('profile-favorites-list');
     if (!card || !list) return;
     const favs = this._getSanitizedFavorites();
-    const rawTotal = favs.events.length + favs.tournaments.length;
-    if (!rawTotal) { card.style.display = 'none'; return; }
     card.style.display = '';
 
     // 收集所有收藏項目
