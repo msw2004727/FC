@@ -75,6 +75,11 @@ Object.assign(FirebaseService, {
   async updateEvent(id, updates) {
     const doc = this._cache.events.find(e => e.id === id);
     if (!doc || !doc._docId) return null;
+    if (updates.image && typeof updates.image === 'string' && updates.image.startsWith('data:')) {
+      const uploadedUrl = await this._uploadImage(updates.image, `events/${id}`);
+      if (uploadedUrl) updates.image = uploadedUrl;
+      else delete updates.image;
+    }
     updates.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
     await db.collection('events').doc(doc._docId).update(updates);
     return doc;
