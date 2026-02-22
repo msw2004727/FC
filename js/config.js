@@ -4,7 +4,7 @@
 
 // ─── Cache Version（更新此值以清除瀏覽器快取）───
 // 20260220i: SW 圖片 stale-while-revalidate + lazy loading 補全
-const CACHE_VERSION = '20260222f';
+const CACHE_VERSION = '20260222g';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {

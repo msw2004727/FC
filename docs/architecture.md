@@ -99,7 +99,7 @@ flowchart TD
 | `core/navigation.js` | `showPage()` 頁面路由、Modal 管理、Drawer 開關，透過 `Object.assign` 擴充 App |
 | `core/theme.js` | 深色 / 淺色主題切換，偏好儲存於 localStorage |
 | `core/mode.js` | Demo ↔ Production 切換（Logo 連按 5 次 / Shift+Alt+D / console 指令），切換時重建 Firebase 監聽器並重繪 UI |
-| `modules/event-*.js` | 活動功能群（列表、詳情、建立表單、管理、渲染輔助），透過 `Object.assign(App, {...})` 掛載 |
+| `modules/event-*.js` | 活動功能群（列表、詳情、報名/取消、同行者 Modal、建立表單、管理、渲染輔助），透過 `Object.assign(App, {...})` 掛載 |
 | `modules/team*.js` | 球隊功能群（列表、詳情、表單、成員申請管理） |
 | `modules/tournament-*.js` | 錦標賽功能群（渲染、賽程管理） |
 | `modules/profile-*.js` | 個人資料功能群（核心 UI、資料編輯、名片彈窗） |
