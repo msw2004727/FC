@@ -40,7 +40,8 @@ Object.assign(App, {
 
   bindImageUpload(inputId, previewId) {
     const input = document.getElementById(inputId);
-    if (!input) return;
+    if (!input || input.dataset.bound) return;
+    input.dataset.bound = '1';
     input.addEventListener('change', async () => {
       const file = input.files[0];
       if (!file) return;

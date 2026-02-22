@@ -246,6 +246,9 @@ Object.assign(App, {
     if (!e) return;
     if (!this._canManageEvent(e)) { this.showToast('您只能編輯自己的活動'); return; }
     this._editEventId = id;
+    // 確保事件已綁定（防止 Phase 1 非同步時機導致未綁定）
+    this.bindImageUpload('ce-image', 'ce-upload-preview');
+    this.bindTeamOnlyToggle();
     this.showModal('create-event-modal');
     const submitBtn = document.getElementById('ce-submit-btn');
     if (submitBtn) submitBtn.textContent = '儲存變更';

@@ -261,6 +261,9 @@ Object.assign(App, {
     }
     const submitBtn = document.getElementById('ce-submit-btn');
     if (submitBtn) submitBtn.textContent = '建立活動';
+    // 確保事件已綁定（防止 Phase 1 非同步時機導致未綁定）
+    this.bindImageUpload('ce-image', 'ce-upload-preview');
+    this.bindTeamOnlyToggle();
     this.showModal('create-event-modal');
     this._initDelegateSearch();
     this._renderHistoryChips('ce-location', 'ce-location');
