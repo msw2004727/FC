@@ -192,6 +192,7 @@
       <div class="page-header">
         <button class="back-btn" onclick="App.goBack()">←</button>
         <h2>操作日誌</h2>
+        <button class="header-action-btn" onclick="App.clearAllData()" style="margin-left:auto;font-size:.72rem;padding:.3rem .7rem;background:#dc2626;color:#fff;border:none;border-radius:var(--radius);cursor:pointer;font-weight:600">一鍵清除</button>
       </div>
       <div class="admin-search">
         <input type="text" id="oplog-search" placeholder="搜尋操作者 / 目標..." oninput="App.filterOperationLogs()">
@@ -237,6 +238,9 @@
               <option value="ann_edit">編輯公告</option>
               <option value="ann_toggle">公告上下架</option>
               <option value="ann_delete">刪除公告</option>
+            </optgroup>
+            <optgroup label="系統">
+              <option value="system_clear">系統清除</option>
             </optgroup>
           </select>
         </div>

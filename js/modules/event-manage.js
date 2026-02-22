@@ -261,12 +261,12 @@ Object.assign(App, {
     const timeStr = dateTime[1] || '';
     const timeParts = timeStr.split('~');
     if (dateParts.length === 3) {
-      const isoDate = `${dateParts[0]}-${dateParts[1].padStart(2,'0')}-${dateParts[2].padStart(2,'0')}`;
-      const dtStart = document.getElementById('ce-datetime-start');
-      const dtEnd = document.getElementById('ce-datetime-end');
-      if (dtStart) dtStart.value = `${isoDate}T${timeParts[0] || '14:00'}`;
-      if (dtEnd) dtEnd.value = `${isoDate}T${timeParts[1] || '16:00'}`;
+      document.getElementById('ce-date').value = `${dateParts[0]}-${dateParts[1].padStart(2,'0')}-${dateParts[2].padStart(2,'0')}`;
     }
+    const ceTS = document.getElementById('ce-time-start');
+    const ceTE = document.getElementById('ce-time-end');
+    if (ceTS) ceTS.value = timeParts[0] || '14:00';
+    if (ceTE) ceTE.value = timeParts[1] || '16:00';
     document.getElementById('ce-fee').value = e.fee || 0;
     document.getElementById('ce-max').value = e.max || 20;
     document.getElementById('ce-waitlist').value = 0;

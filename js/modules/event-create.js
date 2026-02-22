@@ -146,8 +146,9 @@ Object.assign(App, {
       title: document.getElementById('ce-title')?.value?.trim() || '',
       type: document.getElementById('ce-type')?.value || 'friendly',
       location: document.getElementById('ce-location')?.value?.trim() || '',
-      datetimeStart: document.getElementById('ce-datetime-start')?.value || '',
-      datetimeEnd: document.getElementById('ce-datetime-end')?.value || '',
+      date: document.getElementById('ce-date')?.value || '',
+      timeStart: document.getElementById('ce-time-start')?.value || '14:00',
+      timeEnd: document.getElementById('ce-time-end')?.value || '16:00',
       fee: parseInt(document.getElementById('ce-fee')?.value) || 0,
       max: parseInt(document.getElementById('ce-max')?.value) || 20,
       minAge: parseInt(document.getElementById('ce-min-age')?.value) || 0,
@@ -184,8 +185,9 @@ Object.assign(App, {
     setVal('ce-title', tpl.title);
     setVal('ce-type', tpl.type);
     setVal('ce-location', tpl.location);
-    setVal('ce-datetime-start', tpl.datetimeStart);
-    setVal('ce-datetime-end', tpl.datetimeEnd);
+    setVal('ce-date', tpl.date);
+    setVal('ce-time-start', tpl.timeStart);
+    setVal('ce-time-end', tpl.timeEnd);
     setVal('ce-fee', tpl.fee);
     setVal('ce-max', tpl.max);
     setVal('ce-min-age', tpl.minAge);
@@ -237,8 +239,9 @@ Object.assign(App, {
     document.getElementById('ce-title').value = '';
     document.getElementById('ce-type').value = 'friendly';
     document.getElementById('ce-location').value = '';
-    document.getElementById('ce-datetime-start').value = '';
-    document.getElementById('ce-datetime-end').value = '';
+    document.getElementById('ce-date').value = '';
+    document.getElementById('ce-time-start').value = '14:00';
+    document.getElementById('ce-time-end').value = '16:00';
     document.getElementById('ce-fee').value = '300';
     document.getElementById('ce-max').value = '20';
     document.getElementById('ce-waitlist').value = '0';
@@ -439,10 +442,10 @@ Object.assign(App, {
     const title = document.getElementById('ce-title').value.trim();
     const type = document.getElementById('ce-type').value;
     const location = document.getElementById('ce-location').value.trim();
-    const dtStartVal = document.getElementById('ce-datetime-start').value;
-    const dtEndVal = document.getElementById('ce-datetime-end').value;
-    const dateVal = dtStartVal ? dtStartVal.split('T')[0] : '';
-    const timeVal = (dtStartVal && dtEndVal) ? `${dtStartVal.split('T')[1]}~${dtEndVal.split('T')[1]}` : '';
+    const dateVal = document.getElementById('ce-date').value;
+    const tStart = document.getElementById('ce-time-start').value;
+    const tEnd = document.getElementById('ce-time-end').value;
+    const timeVal = (tStart && tEnd) ? `${tStart}~${tEnd}` : '';
     const fee = parseInt(document.getElementById('ce-fee').value) || 0;
     const max = parseInt(document.getElementById('ce-max').value) || 20;
     const waitlistMax = 0; // 候補無限
@@ -454,12 +457,14 @@ Object.assign(App, {
     if (!title) { this.showToast('請輸入活動名稱'); return; }
     if (title.length > 12) { this.showToast('活動名稱不可超過 12 字'); return; }
     if (!location) { this.showToast('請輸入地點'); return; }
-    if (!dtStartVal || !dtEndVal) { this.showToast('請選擇活動開始與結束時間'); return; }
+    if (!dateVal) { this.showToast('請選擇活動日期'); return; }
+    if (!tStart || !tEnd) { this.showToast('請選擇開始與結束時間'); return; }
     // 新增模式：不允許選擇過去的日期時間
     if (!this._editEventId) {
-      if (new Date(dtStartVal) < new Date()) { this.showToast('活動開始時間不可早於現在'); return; }
+      const startDt = new Date(`${dateVal}T${tStart}`);
+      if (startDt < new Date()) { this.showToast('活動開始時間不可早於現在'); return; }
     }
-    if (new Date(dtEndVal) <= new Date(dtStartVal)) { this.showToast('結束時間必須晚於開始時間'); return; }
+    if (tEnd <= tStart) { this.showToast('結束時間必須晚於開始時間'); return; }
     if (notes.length > 500) { this.showToast('注意事項不可超過 500 字'); return; }
     // 球隊限定：決定 teamId / teamName
     let resolvedTeamId = null, resolvedTeamName = null;
@@ -596,8 +601,9 @@ Object.assign(App, {
     document.getElementById('ce-notes').value = '';
     document.getElementById('ce-reg-open-time').value = '';
     document.getElementById('ce-image').value = '';
-    document.getElementById('ce-datetime-start').value = '';
-    document.getElementById('ce-datetime-end').value = '';
+    document.getElementById('ce-date').value = '';
+    document.getElementById('ce-time-start').value = '14:00';
+    document.getElementById('ce-time-end').value = '16:00';
     this._delegates = [];
     this._renderDelegateTags();
     this._updateDelegateInput();

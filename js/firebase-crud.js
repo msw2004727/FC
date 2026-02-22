@@ -963,4 +963,22 @@ Object.assign(FirebaseService, {
     return cancelled;
   },
 
+  /**
+   * Clear all documents in a Firestore collection.
+   * Uses batch writes (max 450 per batch to stay under Firestore's 500 limit).
+   */
+  async clearCollection(collectionName) {
+    const snapshot = await db.collection(collectionName).get();
+    if (snapshot.empty) return 0;
+    const docs = snapshot.docs;
+    // Process in chunks of 450
+    for (let i = 0; i < docs.length; i += 450) {
+      const batch = db.batch();
+      const chunk = docs.slice(i, i + 450);
+      chunk.forEach(doc => batch.delete(doc.ref));
+      await batch.commit();
+    }
+    return docs.length;
+  },
+
 });

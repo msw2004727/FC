@@ -326,4 +326,62 @@ Object.assign(App, {
     });
   },
 
+  async clearAllData() {
+    // Step 1: Password prompt
+    const pwd = prompt('請輸入清除全部資料密碼（4位數）');
+    if (pwd !== '1121') {
+      this.showToast('密碼錯誤');
+      return;
+    }
+
+    // Step 2: Confirmation
+    if (!(await this.appConfirm('確定要清除全部資料嗎？這會刪除所有集合（保留 users），且無法復原。'))) return;
+
+    // Step 3: Show loading
+    const overlay = document.getElementById('loading-overlay');
+    if (overlay) overlay.style.display = '';
+
+    try {
+      if (ModeManager.isDemo()) {
+        // Demo mode: clear in-memory arrays
+        const keys = Object.keys(DemoData).filter(k => k !== 'users' && Array.isArray(DemoData[k]));
+        keys.forEach(k => { DemoData[k].length = 0; });
+      } else {
+        // Production: clear Firestore collections (except users)
+        const collections = [
+          'events', 'tournaments', 'teams', 'registrations',
+          'attendanceRecords', 'activityRecords', 'matches', 'standings',
+          'operationLogs', 'expLogs', 'teamExpLogs',
+          'announcements', 'banners', 'floatingAds', 'popupAds', 'sponsors',
+          'siteThemes', 'shopItems', 'achievements', 'badges', 'leaderboard',
+          'messages', 'adminMessages', 'notifTemplates',
+          'permissions', 'customRoles', 'rolePermissions', 'trades',
+        ];
+        for (const name of collections) {
+          await FirebaseService.clearCollection(name);
+        }
+        // Clear corresponding cache arrays
+        collections.forEach(name => {
+          const cacheKey = name === 'users' ? 'adminUsers' : name;
+          if (Array.isArray(FirebaseService._cache[cacheKey])) {
+            FirebaseService._cache[cacheKey].length = 0;
+            FirebaseService._saveToLS(cacheKey, []);
+          }
+        });
+      }
+
+      // Step 4: Log the action (write to opLog AFTER clearing, so this is the first entry)
+      ApiService._writeOpLog('system_clear', '系統清除', '一鍵清除全部資料（保留 users）');
+
+      // Step 5: Re-render
+      this.renderAll?.();
+      this.showToast('已清除全部資料，請重新整理頁面');
+    } catch (err) {
+      console.error('[clearAllData]', err);
+      this.showToast('清除失敗：' + err.message);
+    } finally {
+      if (overlay) overlay.style.display = 'none';
+    }
+  },
+
 });

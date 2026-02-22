@@ -58,6 +58,10 @@ const ApiService = {
     }
     const idx = source.findIndex(item => item.id === id);
     if (idx >= 0) source.splice(idx, 1);
+    // Persist updated cache to localStorage so deleted items don't reappear on refresh
+    if (!this._demoMode) {
+      FirebaseService._saveToLS(key, source);
+    }
     return true;
   },
 

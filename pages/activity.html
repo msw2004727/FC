@@ -119,9 +119,10 @@
         <div class="ce-row">
           <label>活動時間 <span class="required">*必填</span></label>
           <div style="display:flex;gap:.3rem;align-items:center">
-            <input type="datetime-local" id="ce-datetime-start" style="flex:1">
+            <input type="date" id="ce-date" style="flex:1.2">
+            <input type="time" id="ce-time-start" style="flex:1" step="1800">
             <span style="font-size:.82rem;color:var(--text-muted)">~</span>
-            <input type="datetime-local" id="ce-datetime-end" style="flex:1">
+            <input type="time" id="ce-time-end" style="flex:1" step="1800">
           </div>
         </div>
         <div class="ce-row">
