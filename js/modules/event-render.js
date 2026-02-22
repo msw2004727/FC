@@ -393,6 +393,11 @@ Object.assign(App, {
 
     const teamTag = e.teamOnly ? `<div class="detail-row"><span class="detail-label">限定</span><span style="color:#e11d48;font-weight:600">${escapeHTML(e.creatorTeamName || '球隊')} 專屬活動</span></div>` : '';
 
+    const canScan = this._canManageEvent(e);
+    const scanBtn = canScan
+      ? `<button class="outline-btn" onclick="App.goToScanForEvent('${e.id}')">現場簽到</button>`
+      : '';
+
     // 開放報名時間顯示
     let regOpenHtml = '';
     if (e.regOpenTime) {
@@ -432,6 +437,7 @@ Object.assign(App, {
         ${signupBtn}
         <button class="outline-btn" onclick="App.showUserProfile('${escapeHTML(e.creator)}')">聯繫主辦人</button>
         <button class="outline-btn" onclick="App.shareEvent('${e.id}')">分享活動</button>
+        ${scanBtn}
       </div>
       <div class="detail-section">
         <div class="detail-section-title">報名名單 (${e.current})</div>

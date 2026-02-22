@@ -11,6 +11,8 @@ Object.assign(App, {
 
   _myActivityFilter: 'all',
   _myActivityCreatorFilter: '',
+  _manualEditingUid: null,
+  _manualEditingEventId: null,
 
   renderMyActivities(filter) {
     this._autoEndExpiredEvents();
@@ -85,13 +87,14 @@ Object.assign(App, {
         const teamBadge = e.teamOnly ? '<span class="tl-teamonly-badge" style="margin-left:.3rem">限定</span>' : '';
         // Fee summary
         const fee = e.fee || 0;
+        const isSuperAdmin = (ROLE_LEVEL_MAP[this.currentRole] || 0) >= ROLE_LEVEL_MAP.super_admin;
         const confirmedRegs = fee > 0 ? ApiService.getRegistrationsByEvent(e.id) : [];
         const confirmedCount = confirmedRegs.length > 0 ? confirmedRegs.length : (e.current || 0);
         const checkoutCount = fee > 0 ? ApiService.getAttendanceRecords(e.id).filter(r => r.type === 'checkout').length : 0;
         const feeExpected = fee * confirmedCount;
         const feeActual = fee * checkoutCount;
         const feeShort = feeExpected - feeActual;
-        const feeBox = fee > 0 ? `<div style="margin-left:auto;padding:.2rem .45rem;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:.68rem;color:var(--text-secondary);display:inline-flex;gap:.5rem;background:var(--bg-elevated);white-space:nowrap">
+        const feeBox = (fee > 0 && isSuperAdmin) ? `<div style="margin-left:auto;padding:.2rem .45rem;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:.68rem;color:var(--text-secondary);display:inline-flex;gap:.5rem;background:var(--bg-elevated);white-space:nowrap">
           <span>應收<b style="color:var(--text-primary)">$${feeExpected}</b></span>
           <span>實收<b style="color:var(--success)">$${feeActual}</b></span>
           <span>短收<b style="color:${feeShort > 0 ? 'var(--danger)' : 'var(--success)'}">$${feeShort}</b></span>
@@ -153,62 +156,8 @@ Object.assign(App, {
     });
 
     // 以姓名反查狀態（報名名單用）
-    const nameCheckedOut = new Set();
-    const nameCheckedIn = new Set();
-    checkoutUsers.forEach(v => nameCheckedOut.add(v.name));
-    checkinUsers.forEach(v => nameCheckedIn.add(v.name));
 
-    // ── 報名名單（含狀態標記）── 優先使用 registrations 分組顯示
-    const tagStyle = 'font-size:.62rem;padding:.1rem .3rem;border-radius:3px;white-space:nowrap';
-    const _statusTag = (name) => {
-      if (nameCheckedOut.has(name))
-        return `<span style="${tagStyle};background:var(--success);color:#fff">✅ 已簽退</span>`;
-      if (nameCheckedIn.has(name))
-        return `<span style="${tagStyle};background:var(--primary);color:#fff">📍 已簽到</span>`;
-      return '';
-    };
     const allActiveRegs = ApiService.getRegistrationsByEvent(e.id);
-    const confirmedRegs = allActiveRegs.filter(r => r.status === 'confirmed');
-    let participants = '';
-    if (confirmedRegs.length > 0) {
-      // 按 userId 分組
-      const groups = new Map();
-      confirmedRegs.forEach(r => {
-        if (!groups.has(r.userId)) groups.set(r.userId, []);
-        groups.get(r.userId).push(r);
-      });
-      let idx = 0;
-      groups.forEach(regs => {
-        const selfReg = regs.find(r => r.participantType === 'self');
-        const companions = regs.filter(r => r.participantType === 'companion');
-        const mainName = selfReg ? selfReg.userName : regs[0].userName;
-        idx++;
-        participants += `<div style="display:flex;align-items:center;gap:.4rem;padding:.3rem 0;border-bottom:1px solid var(--border)">
-          <span style="font-size:.72rem;color:var(--text-muted);min-width:1.5rem">${idx}.</span>
-          <span style="font-size:.82rem;flex:1">👤 ${escapeHTML(mainName)}</span>
-          ${_statusTag(mainName)}
-        </div>`;
-        companions.forEach(c => {
-          const cName = c.companionName || c.userName;
-          participants += `<div style="display:flex;align-items:center;gap:.4rem;padding:.3rem 0 .3rem 2rem;border-bottom:1px solid var(--border)">
-            <span style="font-size:.78rem;color:var(--text-muted)">↳</span>
-            <span style="font-size:.8rem;flex:1">${escapeHTML(cName)}</span>
-            ${_statusTag(cName)}
-          </div>`;
-        });
-      });
-    } else {
-      // fallback: 舊資料沒有 registrations，扁平顯示
-      participants = (e.participants || []).map((p, i) => {
-        return `<div style="display:flex;align-items:center;gap:.4rem;padding:.3rem 0;border-bottom:1px solid var(--border)">
-          <span style="font-size:.72rem;color:var(--text-muted);min-width:1.5rem">${i + 1}.</span>
-          <span style="font-size:.82rem;flex:1">${escapeHTML(p)}</span>
-          ${_statusTag(p)}
-        </div>`;
-      }).join('');
-    }
-
-    // ── 候補名單 ── 優先使用 waitlisted registrations 分組
     const waitlistedRegs = allActiveRegs.filter(r => r.status === 'waitlisted');
     let waitlist = '';
     if (waitlistedRegs.length > 0) {
@@ -275,7 +224,8 @@ Object.assign(App, {
     const feeExpected = fee * confirmedCountDetail;
     const feeActual = fee * (fee > 0 ? ApiService.getAttendanceRecords(e.id).filter(r => r.type === 'checkout').length : 0);
     const feeShort = feeExpected - feeActual;
-    const feeSection = fee > 0
+    const isSuperAdmin = (ROLE_LEVEL_MAP[this.currentRole] || 0) >= ROLE_LEVEL_MAP.super_admin;
+    const feeSection = (fee > 0 && isSuperAdmin)
       ? `<div style="margin:.6rem 0 .2rem;padding:.4rem .6rem;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-elevated);font-size:.78rem;display:flex;gap:.8rem;flex-wrap:wrap">
           <span>應收 <b style="color:var(--text-primary)">$${feeExpected}</b></span>
           <span>實收 <b style="color:var(--success)">$${feeActual}</b></span>
@@ -290,7 +240,7 @@ Object.assign(App, {
         <div>費用：${fee > 0 ? 'NT$' + fee : '免費'} ・ 狀態：${statusConf.label} ・ 主辦：${escapeHTML(e.creator)}</div>
       </div>
       <div style="font-size:.85rem;font-weight:700;margin-bottom:.3rem">報名名單（${e.current}/${e.max}）</div>
-      ${participants || '<div style="font-size:.8rem;color:var(--text-muted);padding:.3rem 0">尚無報名</div>'}
+      <div id="attendance-table-container"></div>
       ${e.waitlist > 0 ? `
         <div style="font-size:.85rem;font-weight:700;margin:.6rem 0 .3rem">候補名單（${e.waitlist}）</div>
         ${waitlist}
@@ -300,10 +250,148 @@ Object.assign(App, {
       ${unregSection}
       ${feeSection}
     `;
+    this._renderAttendanceTable(e.id);
     modal.style.display = 'flex';
   },
 
   // ── 編輯活動 ──
+  _renderAttendanceTable(eventId) {
+    const container = document.getElementById('attendance-table-container');
+    if (!container) return;
+    const e = ApiService.getEvent(eventId);
+    if (!e) return;
+
+    const records = ApiService.getAttendanceRecords(eventId);
+    const allActiveRegs = ApiService.getRegistrationsByEvent(eventId);
+    const confirmedRegs = allActiveRegs.filter(r => r.status === 'confirmed');
+
+    let people = [];
+    if (confirmedRegs.length > 0) {
+      const groups = new Map();
+      confirmedRegs.forEach(r => {
+        if (!groups.has(r.userId)) groups.set(r.userId, []);
+        groups.get(r.userId).push(r);
+      });
+      groups.forEach(regs => {
+        const selfReg = regs.find(r => r.participantType === 'self');
+        const companions = regs.filter(r => r.participantType === 'companion');
+        const mainName = selfReg ? selfReg.userName : regs[0].userName;
+        const mainUid = regs[0].userId;
+        people.push({ name: mainName, uid: mainUid, isCompanion: false, displayName: mainName });
+        companions.forEach(c => {
+          const cName = c.companionName || c.userName;
+          const cUid = c.companionId || (mainUid + '_' + c.companionName);
+          people.push({ name: cName, uid: cUid, isCompanion: true, displayName: cName });
+        });
+      });
+    } else {
+      (e.participants || []).forEach(p => {
+        people.push({ name: p, uid: p, isCompanion: false, displayName: p });
+      });
+    }
+
+    if (people.length === 0) {
+      container.innerHTML = '<div style="font-size:.8rem;color:var(--text-muted);padding:.3rem 0">尚無報名</div>';
+      return;
+    }
+
+    const editingUid = this._manualEditingUid;
+    const isEditing = (uid) => this._manualEditingEventId === eventId && editingUid === uid;
+
+    let rows = people.map(p => {
+      const hasCheckin = records.some(r => (r.uid === p.uid || r.userName === p.name) && r.type === 'checkin');
+      const hasCheckout = records.some(r => (r.uid === p.uid || r.userName === p.name) && r.type === 'checkout');
+      const noteRec = records.filter(r => (r.uid === p.uid || r.userName === p.name) && r.type === 'note').pop();
+      const noteText = noteRec?.note || '';
+      const nameHtml = p.isCompanion
+        ? `<span style="padding-left:1.2rem;color:var(--text-secondary)">↳ ${escapeHTML(p.displayName)}</span>`
+        : ` ${escapeHTML(p.displayName)}`;
+      const safeUid = escapeHTML(p.uid);
+      const safeName = escapeHTML(p.name);
+
+      if (isEditing(p.uid)) {
+        return `<tr style="border-bottom:1px solid var(--border)">
+          <td style="padding:.35rem .3rem;text-align:left">${nameHtml}</td>
+          <td style="padding:.35rem .2rem;text-align:center"><input type="checkbox" id="manual-checkin-${safeUid}" ${hasCheckin ? 'checked' : ''} style="width:1rem;height:1rem"></td>
+          <td style="padding:.35rem .2rem;text-align:center"><input type="checkbox" id="manual-checkout-${safeUid}" ${hasCheckout ? 'checked' : ''} style="width:1rem;height:1rem"></td>
+          <td style="padding:.35rem .2rem;text-align:center"><button class="primary-btn" style="font-size:.65rem;padding:.1rem .3rem" onclick="App._confirmManualAttendance('${escapeHTML(eventId)}','${safeUid}','${safeName}')">確認</button></td>
+          <td style="padding:.35rem .3rem"><input type="text" maxlength="10" value="${escapeHTML(noteText)}" id="manual-note-${safeUid}" placeholder="備註" style="width:100%;font-size:.72rem;padding:.15rem .3rem;border:1px solid var(--border);border-radius:3px;box-sizing:border-box"></td>
+        </tr>`;
+      }
+      return `<tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:.35rem .3rem;text-align:left">${nameHtml}</td>
+        <td style="padding:.35rem .2rem;text-align:center">${hasCheckin ? '<span style="color:var(--success)">✓</span>' : ''}</td>
+        <td style="padding:.35rem .2rem;text-align:center">${hasCheckout ? '<span style="color:var(--success)">✓</span>' : ''}</td>
+        <td style="padding:.35rem .2rem;text-align:center"><button class="outline-btn" style="font-size:.65rem;padding:.1rem .3rem" onclick="App._startManualAttendance('${escapeHTML(eventId)}','${safeUid}','${safeName}')">編輯</button></td>
+        <td style="padding:.35rem .3rem;font-size:.72rem;color:var(--text-muted)">${escapeHTML(noteText)}</td>
+      </tr>`;
+    }).join('');
+
+    container.innerHTML = `<div style="overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse;font-size:.8rem">
+        <thead><tr style="border-bottom:2px solid var(--border)">
+          <th style="text-align:left;padding:.4rem .3rem;font-weight:600">姓名</th>
+          <th style="text-align:center;padding:.4rem .2rem;font-weight:600;width:2.5rem">簽到</th>
+          <th style="text-align:center;padding:.4rem .2rem;font-weight:600;width:2.5rem">簽退</th>
+          <th style="text-align:center;padding:.4rem .2rem;font-weight:600;width:2.5rem">編輯</th>
+          <th style="text-align:left;padding:.4rem .3rem;font-weight:600;width:5rem">備註</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+  },
+
+  _startManualAttendance(eventId, uid, name) {
+    this._manualEditingUid = uid;
+    this._manualEditingEventId = eventId;
+    this._renderAttendanceTable(eventId);
+  },
+
+  _confirmManualAttendance(eventId, uid, name) {
+    const checkinBox = document.getElementById('manual-checkin-' + uid);
+    const checkoutBox = document.getElementById('manual-checkout-' + uid);
+    const noteInput = document.getElementById('manual-note-' + uid);
+    const wantCheckin = checkinBox?.checked || false;
+    const wantCheckout = checkoutBox?.checked || false;
+    const note = (noteInput?.value || '').trim().slice(0, 10);
+
+    const records = ApiService.getAttendanceRecords(eventId);
+    const hasCheckin = records.some(r => (r.uid === uid || r.userName === name) && r.type === 'checkin');
+    const hasCheckout = records.some(r => (r.uid === uid || r.userName === name) && r.type === 'checkout');
+    const now = new Date();
+    const timeStr = `${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+
+    if (wantCheckin && !hasCheckin) {
+      ApiService.addAttendanceRecord({
+        id: 'att_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5),
+        eventId, uid, userName: name, type: 'checkin', time: timeStr,
+      });
+    }
+    if (wantCheckout && !hasCheckout) {
+      if (!wantCheckin && !hasCheckin) {
+        this.showToast('需先簽到才能簽退');
+        return;
+      }
+      ApiService.addAttendanceRecord({
+        id: 'att_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5),
+        eventId, uid, userName: name, type: 'checkout', time: timeStr,
+      });
+    }
+    if (note) {
+      const existingNote = records.filter(r => (r.uid === uid || r.userName === name) && r.type === 'note').pop();
+      if (!existingNote || existingNote.note !== note) {
+        ApiService.addAttendanceRecord({
+          id: 'att_note_' + Date.now(), eventId, uid, userName: name, type: 'note', time: timeStr, note,
+        });
+      }
+    }
+
+    this._manualEditingUid = null;
+    this._manualEditingEventId = null;
+    this._renderAttendanceTable(eventId);
+    this.showToast('已更新');
+  },
+
   editMyActivity(id) {
     const e = ApiService.getEvent(id);
     if (!e) return;

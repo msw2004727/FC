@@ -5,11 +5,17 @@
 Object.assign(App, {
 
   _scanSelectedEventId: null,
+  _scanPresetEventId: null,
   _scanMode: 'checkin',
   _scannerInstance: null,
   _lastScannedUid: null,
   _lastScanTime: 0,
   _scanResultsLog: [],
+
+  goToScanForEvent(eventId) {
+    this._scanPresetEventId = eventId;
+    this.showPage('page-scan');
+  },
 
   // ══════════════════════════════════
   //  Render scan page
@@ -50,9 +56,27 @@ Object.assign(App, {
       select.appendChild(opt);
     });
 
-    // Restore previous selection if still valid
-    if (this._scanSelectedEventId) {
-      select.value = this._scanSelectedEventId;
+    // ── 預設活動模式：從活動詳情頁帶入 ──
+    if (this._scanPresetEventId) {
+      const presetId = this._scanPresetEventId;
+      this._scanPresetEventId = null;
+      const presetEvent = ApiService.getEvent(presetId);
+      if (presetEvent) {
+        if (!select.querySelector(`option[value="${presetId}"]`)) {
+          const opt = document.createElement('option');
+          opt.value = presetId;
+          opt.textContent = `${presetEvent.title}（${presetEvent.date}）`;
+          select.appendChild(opt);
+        }
+        select.value = presetId;
+        this._scanSelectedEventId = presetId;
+        select.disabled = true;
+      }
+    } else {
+      select.disabled = false;
+      if (this._scanSelectedEventId) {
+        select.value = this._scanSelectedEventId;
+      }
     }
 
     this._updateScanControls();
