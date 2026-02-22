@@ -146,9 +146,8 @@ Object.assign(App, {
       title: document.getElementById('ce-title')?.value?.trim() || '',
       type: document.getElementById('ce-type')?.value || 'friendly',
       location: document.getElementById('ce-location')?.value?.trim() || '',
-      date: document.getElementById('ce-date')?.value || '',
-      timeStart: document.getElementById('ce-time-start')?.value || '14:00',
-      timeEnd: document.getElementById('ce-time-end')?.value || '16:00',
+      datetimeStart: document.getElementById('ce-datetime-start')?.value || '',
+      datetimeEnd: document.getElementById('ce-datetime-end')?.value || '',
       fee: parseInt(document.getElementById('ce-fee')?.value) || 0,
       max: parseInt(document.getElementById('ce-max')?.value) || 20,
       minAge: parseInt(document.getElementById('ce-min-age')?.value) || 0,
@@ -185,9 +184,8 @@ Object.assign(App, {
     setVal('ce-title', tpl.title);
     setVal('ce-type', tpl.type);
     setVal('ce-location', tpl.location);
-    setVal('ce-date', tpl.date);
-    setVal('ce-time-start', tpl.timeStart);
-    setVal('ce-time-end', tpl.timeEnd);
+    setVal('ce-datetime-start', tpl.datetimeStart);
+    setVal('ce-datetime-end', tpl.datetimeEnd);
     setVal('ce-fee', tpl.fee);
     setVal('ce-max', tpl.max);
     setVal('ce-min-age', tpl.minAge);
@@ -239,11 +237,8 @@ Object.assign(App, {
     document.getElementById('ce-title').value = '';
     document.getElementById('ce-type').value = 'friendly';
     document.getElementById('ce-location').value = '';
-    document.getElementById('ce-date').value = '';
-    const ceTS = document.getElementById('ce-time-start');
-    const ceTE = document.getElementById('ce-time-end');
-    if (ceTS) ceTS.value = '14:00';
-    if (ceTE) ceTE.value = '16:00';
+    document.getElementById('ce-datetime-start').value = '';
+    document.getElementById('ce-datetime-end').value = '';
     document.getElementById('ce-fee').value = '300';
     document.getElementById('ce-max').value = '20';
     document.getElementById('ce-waitlist').value = '0';
@@ -444,10 +439,10 @@ Object.assign(App, {
     const title = document.getElementById('ce-title').value.trim();
     const type = document.getElementById('ce-type').value;
     const location = document.getElementById('ce-location').value.trim();
-    const dateVal = document.getElementById('ce-date').value;
-    const ceTimeStart = document.getElementById('ce-time-start');
-    const ceTimeEnd = document.getElementById('ce-time-end');
-    const timeVal = (ceTimeStart && ceTimeEnd) ? `${ceTimeStart.value}~${ceTimeEnd.value}` : '';
+    const dtStartVal = document.getElementById('ce-datetime-start').value;
+    const dtEndVal = document.getElementById('ce-datetime-end').value;
+    const dateVal = dtStartVal ? dtStartVal.split('T')[0] : '';
+    const timeVal = (dtStartVal && dtEndVal) ? `${dtStartVal.split('T')[1]}~${dtEndVal.split('T')[1]}` : '';
     const fee = parseInt(document.getElementById('ce-fee').value) || 0;
     const max = parseInt(document.getElementById('ce-max').value) || 20;
     const waitlistMax = 0; // 候補無限
@@ -459,14 +454,12 @@ Object.assign(App, {
     if (!title) { this.showToast('請輸入活動名稱'); return; }
     if (title.length > 12) { this.showToast('活動名稱不可超過 12 字'); return; }
     if (!location) { this.showToast('請輸入地點'); return; }
-    if (!dateVal) { this.showToast('請選擇日期'); return; }
-    // 新增模式：不允許選擇過去的日期
+    if (!dtStartVal || !dtEndVal) { this.showToast('請選擇活動開始與結束時間'); return; }
+    // 新增模式：不允許選擇過去的日期時間
     if (!this._editEventId) {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const selected = new Date(dateVal + 'T00:00:00');
-      if (selected < today) { this.showToast('活動日期不可早於今天'); return; }
+      if (new Date(dtStartVal) < new Date()) { this.showToast('活動開始時間不可早於現在'); return; }
     }
+    if (new Date(dtEndVal) <= new Date(dtStartVal)) { this.showToast('結束時間必須晚於開始時間'); return; }
     if (notes.length > 500) { this.showToast('注意事項不可超過 500 字'); return; }
     // 球隊限定：決定 teamId / teamName
     let resolvedTeamId = null, resolvedTeamName = null;
@@ -489,8 +482,7 @@ Object.assign(App, {
     const ceImg = cePreviewEl?.querySelector('img');
     const image = ceImg ? ceImg.src : null;
 
-    const dateParts = dateVal.split('-');
-    const fullDate = timeVal ? `${dateParts[0]}/${parseInt(dateParts[1]).toString().padStart(2,'0')}/${parseInt(dateParts[2]).toString().padStart(2,'0')} ${timeVal}` : `${dateParts[0]}/${parseInt(dateParts[1])}/${parseInt(dateParts[2])}`;
+    const fullDate = `${dateVal.replace(/-/g, '/')} ${timeVal}`;
 
     if (this._editEventId) {
       // Trigger 6：活動變更通知 — 先取得現有報名者
@@ -604,8 +596,8 @@ Object.assign(App, {
     document.getElementById('ce-notes').value = '';
     document.getElementById('ce-reg-open-time').value = '';
     document.getElementById('ce-image').value = '';
-    if (ceTimeStart) ceTimeStart.value = '14:00';
-    if (ceTimeEnd) ceTimeEnd.value = '16:00';
+    document.getElementById('ce-datetime-start').value = '';
+    document.getElementById('ce-datetime-end').value = '';
     this._delegates = [];
     this._renderDelegateTags();
     this._updateDelegateInput();
