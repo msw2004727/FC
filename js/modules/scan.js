@@ -304,9 +304,9 @@ Object.assign(App, {
     }
 
     const participants = event.participants || [];
-    // 優先查 registrations（含 demo + production）
+    // 優先查 confirmed registrations（候補視同未報名）
     const userRegsForCheck = ApiService.getRegistrationsByEvent(this._scanSelectedEventId)
-      .filter(r => r.userId === uid || r.userName === userName);
+      .filter(r => (r.userId === uid || r.userName === userName) && r.status === 'confirmed');
     const isRegistered = userRegsForCheck.length > 0 || participants.includes(userName);
 
     // Get existing attendance records for this event
@@ -444,60 +444,69 @@ Object.assign(App, {
 
     const records = ApiService.getAttendanceRecords(eventId);
 
-    // 以 registrations 計算每個 uid 的報名人數（自己+同行者）
+    // 只計算正取（confirmed）registrations
     const allRegs = ApiService.getRegistrationsByEvent(eventId);
-    const regCountByUid = new Map();
-    allRegs.forEach(r => {
-      regCountByUid.set(r.userId, (regCountByUid.get(r.userId) || 0) + 1);
+    const confirmedRegs = allRegs.filter(r => r.status === 'confirmed');
+    const confirmedCountByUid = new Map();
+    confirmedRegs.forEach(r => {
+      confirmedCountByUid.set(r.userId, (confirmedCountByUid.get(r.userId) || 0) + 1);
     });
 
-    // Build user sets (以 uid 為 key，去重)
-    const checkinUsers = new Map(); // uid -> {name, time}
-    const checkoutUsers = new Map();
-    const unregUsers = new Map();
+    // Build user sets：用 uid+companionId 去重，正確計入同行者
+    const checkinMap = new Map();  // key -> {name, time}
+    const checkoutMap = new Map();
+    const unregMap = new Map();
 
     records.forEach(r => {
-      if (r.type === 'checkin' && !checkinUsers.has(r.uid)) {
-        checkinUsers.set(r.uid, { name: r.userName, time: r.time });
+      const key = r.companionId ? `${r.uid}_${r.companionId}` : r.uid;
+      const displayName = r.companionId ? (r.companionName || r.userName) : r.userName;
+      if (r.type === 'checkin' && !checkinMap.has(key)) {
+        checkinMap.set(key, { name: displayName, time: r.time, uid: r.uid, companionId: r.companionId });
       }
-      if (r.type === 'checkout' && !checkoutUsers.has(r.uid)) {
-        checkoutUsers.set(r.uid, { name: r.userName, time: r.time });
+      if (r.type === 'checkout' && !checkoutMap.has(key)) {
+        checkoutMap.set(key, { name: displayName, time: r.time, uid: r.uid, companionId: r.companionId });
       }
-      if (r.type === 'unreg' && !unregUsers.has(r.uid)) {
-        unregUsers.set(r.uid, { name: r.userName, time: r.time });
+      if (r.type === 'unreg' && !unregMap.has(key)) {
+        unregMap.set(key, { name: displayName, time: r.time });
       }
     });
 
-    // 產生帶 *N 的標籤
+    // 產生帶 *N 的標籤（只計正取人數）
     const tagWithCount = (name, uid) => {
-      const count = regCountByUid.get(uid) || 1;
+      const count = confirmedCountByUid.get(uid) || 1;
       const suffix = count > 1 ? ` *${count}` : '';
       return `<span class="scan-user-tag">${escapeHTML(name)}${suffix}</span>`;
     };
 
-    // checkedIn = 所有有簽到紀錄的人（不因簽退而消失）
+    // 已簽到：按主用戶分組顯示（含同行者人數）
+    const checkinByUid = new Map();
+    checkinMap.forEach((val) => {
+      if (!checkinByUid.has(val.uid)) checkinByUid.set(val.uid, val);
+    });
     const checkedInTags = [];
-    checkinUsers.forEach((val, uid) => {
-      checkedInTags.push(tagWithCount(val.name, uid));
-    });
+    checkinByUid.forEach((val, uid) => checkedInTags.push(tagWithCount(val.name, uid)));
 
-    // checkedOut = has both checkin + checkout
+    // 已簽退：按主用戶分組顯示
+    const checkoutByUid = new Map();
+    checkoutMap.forEach((val) => {
+      if (checkinMap.has(val.companionId ? `${val.uid}_${val.companionId}` : val.uid)) {
+        if (!checkoutByUid.has(val.uid)) checkoutByUid.set(val.uid, val);
+      }
+    });
     const checkedOutTags = [];
-    checkoutUsers.forEach((val, uid) => {
-      if (checkinUsers.has(uid)) checkedOutTags.push(tagWithCount(val.name, uid));
-    });
+    checkoutByUid.forEach((val, uid) => checkedOutTags.push(tagWithCount(val.name, uid)));
 
-    // unregistered
+    // 未報名
     const unregTags = [];
-    unregUsers.forEach((val) => unregTags.push(`<span class="scan-user-tag">${escapeHTML(val.name)}</span>`));
+    unregMap.forEach((val) => unregTags.push(`<span class="scan-user-tag">${escapeHTML(val.name)}</span>`));
 
     checkinDiv.innerHTML = `<div class="scan-section scan-section-checkin">
-      <h4>已簽到（${checkedInTags.length}）</h4>
+      <h4>已簽到（${checkinMap.size}）</h4>
       <div class="scan-user-tags">${checkedInTags.length ? checkedInTags.join('') : '<span style="font-size:.78rem;color:var(--text-muted)">尚無</span>'}</div>
     </div>`;
 
     checkoutDiv.innerHTML = `<div class="scan-section scan-section-checkout">
-      <h4>已簽退（${checkedOutTags.length}）</h4>
+      <h4>已簽退（${checkoutMap.size}）</h4>
       <div class="scan-user-tags">${checkedOutTags.length ? checkedOutTags.join('') : '<span style="font-size:.78rem;color:var(--text-muted)">尚無</span>'}</div>
     </div>`;
 
@@ -506,15 +515,16 @@ Object.assign(App, {
       <div class="scan-user-tags">${unregTags.join('')}</div>
     </div>` : '';
 
-    // Stats：報名人數以 registrations 或 participants 為準
-    const totalParticipants = allRegs.length > 0 ? allRegs.length : (event.participants || []).length;
-    const totalCheckedIn = checkedInTags.length;
-    const completionRate = totalParticipants > 0 ? Math.round(totalCheckedIn / totalParticipants * 100) : 0;
+    // Stats：報名 = 正取人數，出席率 = 已簽到人頭 / 正取人數
+    const totalConfirmed = confirmedRegs.length > 0 ? confirmedRegs.length : (event.participants || []).length;
+    const totalCheckedIn = checkinMap.size;
+    const totalCheckedOut = checkoutMap.size;
+    const completionRate = totalConfirmed > 0 ? Math.round(totalCheckedIn / totalConfirmed * 100) : 0;
 
     statsDiv.innerHTML = `
-      <span>報名：<strong>${totalParticipants}</strong></span>
+      <span>報名：<strong>${totalConfirmed}</strong></span>
       <span>已簽到：<strong>${totalCheckedIn}</strong></span>
-      <span>已簽退：<strong>${checkedOutTags.length}</strong></span>
+      <span>已簽退：<strong>${totalCheckedOut}</strong></span>
       <span>未報名：<strong>${unregTags.length}</strong></span>
       <span>出席率：<strong>${completionRate}%</strong></span>
     `;

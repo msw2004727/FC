@@ -169,30 +169,16 @@ Object.assign(App, {
     const waitlistedRegs = allActiveRegs.filter(r => r.status === 'waitlisted');
     let waitlist = '';
     if (waitlistedRegs.length > 0) {
-      const wlGroups = new Map();
-      waitlistedRegs.forEach(r => {
-        if (!wlGroups.has(r.userId)) wlGroups.set(r.userId, []);
-        wlGroups.get(r.userId).push(r);
-      });
-      let wIdx = 0;
-      wlGroups.forEach(regs => {
-        const selfReg = regs.find(r => r.participantType === 'self');
-        const companions = regs.filter(r => r.participantType === 'companion');
-        const mainName = selfReg ? selfReg.userName : regs[0].userName;
-        wIdx++;
-        waitlist += `<div style="display:flex;align-items:center;gap:.4rem;padding:.3rem 0;border-bottom:1px solid var(--border)">
-          <span style="font-size:.72rem;color:var(--text-muted);min-width:1.5rem">${wIdx}.</span>
-          <span style="font-size:.82rem">👤 ${escapeHTML(mainName)}</span>
+      // 扁平顯示每個候補者的實際名字（不按主用戶分組）
+      waitlist = waitlistedRegs.map((r, i) => {
+        const displayName = r.participantType === 'companion' ? (r.companionName || r.userName) : r.userName;
+        return `<div style="display:flex;align-items:center;gap:.4rem;padding:.3rem 0;border-bottom:1px solid var(--border)">
+          <span style="font-size:.72rem;color:var(--text-muted);min-width:1.5rem">${i + 1}.</span>
+          <span style="font-size:.82rem">${escapeHTML(displayName)}</span>
         </div>`;
-        companions.forEach(c => {
-          waitlist += `<div style="display:flex;align-items:center;gap:.4rem;padding:.3rem 0 .3rem 2rem;border-bottom:1px solid var(--border)">
-            <span style="font-size:.78rem;color:var(--text-muted)">↳</span>
-            <span style="font-size:.8rem">${escapeHTML(c.companionName || c.userName)}</span>
-          </div>`;
-        });
-      });
+      }).join('');
     } else {
-      // fallback: 扁平顯示
+      // fallback: 舊資料用 waitlistNames
       waitlist = (e.waitlistNames || []).map((p, i) =>
         `<div style="display:flex;align-items:center;gap:.4rem;padding:.3rem 0;border-bottom:1px solid var(--border)">
           <span style="font-size:.72rem;color:var(--text-muted);min-width:1.5rem">${i + 1}.</span>
