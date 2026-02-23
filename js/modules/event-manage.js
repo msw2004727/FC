@@ -1,6 +1,6 @@
 /* ================================================
    SportHub — Event: My Activity Management (Coach+)
-   依賴：event-render.js (helpers)
+   依賴：event-list.js (helpers)
    ================================================ */
 
 Object.assign(App, {

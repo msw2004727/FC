@@ -69,7 +69,7 @@
 **六、目前 Demo 的限制與缺口**
 
 - ~~Registrations 在 Demo 模式直接回空陣列~~ → **已修復**（2026-02-21：同行者報名系統實裝，Demo 模式已可透過 `registerEventWithCompanions` 寫入 registrations）
-- `event-render.js` 中仍存在舊版同步 handleSignup/handleCancelSignup，與 `event-detail-signup.js` 的正確 async 版本衝突（待清理）
+- ~~`event-render.js` 中仍存在舊版同步 handleSignup/handleCancelSignup~~ → **已修復**（2026-02-23：孤立檔案已刪除，函式已正確拆分至 event-list / event-detail / event-detail-signup / event-detail-companion）
 - 部分跨頁面資料依賴 Firestore 動態同步，Demo 缺少模擬更新機制。
 - Demo 不包含真實 LIFF 流程，部分登入後功能僅能模擬。
 - demo 資料較大，當前維護方式集中於 `data.js`，擴充成本高。

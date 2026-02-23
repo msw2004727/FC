@@ -20,16 +20,9 @@
 
 ## 二、最高優先修復項目（嚴重等級）
 
-### 2.1 event-render.js 重複定義問題（嚴重 A1+A2）
+### 2.1 ~~event-render.js 重複定義問題（嚴重 A1+A2）~~ ✅ 已修復
 
-**現狀**：`event-render.js` 包含 `handleSignup`、`handleCancelSignup`、`_openCompanionSelectModal` 等函式的**舊版同步複本**，與 `event-detail-signup.js` / `event-detail-companion.js` 的正確 async 版本衝突。
-
-**風險**：依載入順序決定行為 — 若舊版覆蓋新版，報名按鈕無防重複、無候補警告、無 Firestore 寫入。
-
-**建議**：
-- 從 `event-render.js` 移除所有重複函式（handleSignup、handleCancelSignup、_openCompanionSelectModal、_updateCompanionSelectSummary、_confirmCompanionRegister、_confirmCompanionCancel 等）
-- 這些功能已正確實作在 `event-detail-signup.js` 和 `event-detail-companion.js`
-- 確認 index.html 的 script 載入順序讓新版在後（覆蓋舊版）
+**修復方式**：確認 `event-render.js` 為孤立檔案（未被 index.html 或 script-loader.js 載入），所有函式已正確拆分至 `event-list.js`、`event-detail.js`、`event-detail-signup.js`、`event-detail-companion.js`。已刪除孤立檔案並更新依賴註解。
 
 ### 2.2 Firestore Security Rules 全面重寫（嚴重 S1+S2+S3）
 
