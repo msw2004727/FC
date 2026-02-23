@@ -995,4 +995,25 @@ Object.assign(FirebaseService, {
     return docs.length;
   },
 
+  /**
+   * Clear all files under images/ in Firebase Storage.
+   * Recursively lists all prefixes (subdirectories) and deletes every file.
+   */
+  async clearAllStorageImages() {
+    if (!storage) return 0;
+    let deleted = 0;
+    async function deleteFolder(ref) {
+      const result = await ref.listAll();
+      for (const item of result.items) {
+        await item.delete();
+        deleted++;
+      }
+      for (const prefix of result.prefixes) {
+        await deleteFolder(prefix);
+      }
+    }
+    await deleteFolder(storage.ref('images'));
+    return deleted;
+  },
+
 });

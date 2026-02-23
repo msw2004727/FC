@@ -335,7 +335,7 @@ Object.assign(App, {
     }
 
     // Step 2: Confirmation
-    if (!(await this.appConfirm('確定要清除全部資料嗎？這會刪除所有集合（保留 users），且無法復原。'))) return;
+    if (!(await this.appConfirm('確定要清除全部資料嗎？這會刪除所有集合、站內信及 Storage 圖片（保留 users），且無法復原。'))) return;
 
     // Step 3: Show loading
     const overlay = document.getElementById('loading-overlay');
@@ -378,10 +378,18 @@ Object.assign(App, {
         });
         // Clear localStorage timestamp so stale cache won't be restored
         localStorage.removeItem(FirebaseService._LS_TS_KEY);
+
+        // Clear all images in Firebase Storage
+        try {
+          const imgCount = await FirebaseService.clearAllStorageImages();
+          console.log(`[clearAllData] Storage 已刪除 ${imgCount} 張圖片`);
+        } catch (storageErr) {
+          console.warn('[clearAllData] Storage 清除部分失敗:', storageErr);
+        }
       }
 
       // Step 4: Log the action (write to opLog AFTER clearing, so this is the first entry)
-      ApiService._writeOpLog('system_clear', '系統清除', '一鍵清除全部資料（保留 users）');
+      ApiService._writeOpLog('system_clear', '系統清除', '一鍵清除全部資料與圖片（保留 users）');
 
       // Step 5: Re-render
       this.renderAll?.();
