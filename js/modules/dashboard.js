@@ -343,9 +343,14 @@ Object.assign(App, {
 
     try {
       if (ModeManager.isDemo()) {
-        // Demo mode: clear in-memory arrays
-        const keys = Object.keys(DemoData).filter(k => k !== 'users' && Array.isArray(DemoData[k]));
-        keys.forEach(k => { DemoData[k].length = 0; });
+        // Demo mode: clear in-memory arrays and objects
+        const keys = Object.keys(DemoData).filter(k => k !== 'users' && k !== 'currentUser');
+        keys.forEach(k => {
+          if (Array.isArray(DemoData[k])) { DemoData[k].length = 0; }
+          else if (typeof DemoData[k] === 'object' && DemoData[k] !== null) {
+            Object.keys(DemoData[k]).forEach(sub => delete DemoData[k][sub]);
+          }
+        });
       } else {
         // Production: clear Firestore collections (except users)
         const collections = [
@@ -360,14 +365,19 @@ Object.assign(App, {
         for (const name of collections) {
           await FirebaseService.clearCollection(name);
         }
-        // Clear corresponding cache arrays
+        // Clear corresponding cache arrays + objects
         collections.forEach(name => {
           const cacheKey = name === 'users' ? 'adminUsers' : name;
           if (Array.isArray(FirebaseService._cache[cacheKey])) {
             FirebaseService._cache[cacheKey].length = 0;
             FirebaseService._saveToLS(cacheKey, []);
+          } else if (typeof FirebaseService._cache[cacheKey] === 'object' && FirebaseService._cache[cacheKey] !== null) {
+            Object.keys(FirebaseService._cache[cacheKey]).forEach(k => delete FirebaseService._cache[cacheKey][k]);
+            FirebaseService._saveToLS(cacheKey, {});
           }
         });
+        // Clear localStorage timestamp so stale cache won't be restored
+        localStorage.removeItem(FirebaseService._LS_TS_KEY);
       }
 
       // Step 4: Log the action (write to opLog AFTER clearing, so this is the first entry)

@@ -109,9 +109,12 @@ const ApiService = {
     const idx = source.findIndex(t => t.id === id);
     if (idx === -1) return;
     const removed = source.splice(idx, 1)[0];
-    if (!this._demoMode && removed._docId) {
-      db.collection('tournaments').doc(removed._docId).delete()
-        .catch(err => console.error('[deleteTournament]', err));
+    if (!this._demoMode) {
+      if (removed._docId) {
+        db.collection('tournaments').doc(removed._docId).delete()
+          .catch(err => console.error('[deleteTournament]', err));
+      }
+      FirebaseService._saveToLS('tournaments', source);
     }
   },
 

@@ -9,9 +9,13 @@ Object.assign(App, {
     if (!container) return;
     const ongoing = ApiService.getTournaments().filter(t => !this.isTournamentEnded(t));
 
-    // ── 已渲染且數量相同 → 跳過，避免封面圖重載 ──
+    // ── 已渲染且 ID 完全相同 → 跳過，避免封面圖重載 ──
     const existingCards = container.querySelectorAll('.h-card:not(.skeleton)');
-    if (existingCards.length > 0 && existingCards.length === ongoing.length) return;
+    if (existingCards.length > 0 && existingCards.length === ongoing.length) {
+      const renderedIds = [...existingCards].map(c => (c.getAttribute('onclick') || '').match(/'([^']+)'/)?.[1]).filter(Boolean);
+      const currentIds = ongoing.map(t => t.id);
+      if (renderedIds.length === currentIds.length && renderedIds.every((id, i) => id === currentIds[i])) return;
+    }
     if (ongoing.length === 0) {
       container.innerHTML = (!App._firebaseConnected && !ModeManager.isDemo())
         ? [1, 2, 3].map(() => `

@@ -138,7 +138,7 @@ I18N.register('zh-TW', {
   'tournament.matchDay': '比賽日',
   'tournament.regPeriod': '報名',
   'tournament.registered': '已報',
-  'tournament.noActive': '目前沒有進行中的賽事',
+  'tournament.noActive': '目前沒有近期賽事',
   'tournament.noEnded': '沒有已結束的賽事',
   // Favorites
   'fav.sortTime': '按時間',
@@ -350,7 +350,7 @@ I18N.register('en', {
   'tournament.matchDay': 'Match Day',
   'tournament.regPeriod': 'Registration',
   'tournament.registered': 'Registered',
-  'tournament.noActive': 'No active tournaments',
+  'tournament.noActive': 'No recent tournaments',
   'tournament.noEnded': 'No ended tournaments',
   // Favorites
   'fav.sortTime': 'By Time',
@@ -562,7 +562,7 @@ I18N.register('ja', {
   'tournament.matchDay': '試合日',
   'tournament.regPeriod': '受付期間',
   'tournament.registered': '参加済',
-  'tournament.noActive': '開催中の大会はありません',
+  'tournament.noActive': '最近の大会はありません',
   'tournament.noEnded': '終了した大会はありません',
   // Favorites
   'fav.sortTime': '日時順',
