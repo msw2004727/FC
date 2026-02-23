@@ -295,6 +295,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (deepEvent) sessionStorage.setItem('_pendingDeepEvent', deepEvent);
       else if (deepTeam) sessionStorage.setItem('_pendingDeepTeam', deepTeam);
     }
+    // 讀取完 deep link 後立即清除 query parameter，避免殘留在後續 hash 路由的 URL 中
+    if (deepEvent || deepTeam) history.replaceState(null, '', location.pathname);
   } catch (e) {}
   // Hash 路由：瀏覽器返回/前進鍵同步頁面
   // pageId !== App.currentPage 條件防止 showPage() 設 hash 後再次觸發無窮迴圈
