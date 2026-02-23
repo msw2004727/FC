@@ -33,7 +33,7 @@ flowchart TD
         THEME["core/theme.js\n深色 / 淺色主題"]
         MODE["core/mode.js\nDemo ↔ Prod 切換"]
 
-        subgraph MODS["modules/*.js（37 個功能模組）"]
+        subgraph MODS["modules/*.js（39 個功能模組）"]
             EVT["event-*.js\n活動（列表/詳情/建立/管理）"]
             TEAM["team*.js\n球隊（列表/詳情/表單）"]
             TOUR["tournament-*.js\n錦標賽"]
@@ -41,7 +41,7 @@ flowchart TD
             MSG["message-*.js\n訊息"]
             ADM["user-admin-*.js\n用戶後台"]
             AD["ad-manage-*.js\n廣告管理"]
-            UTIL["scan / shop / leaderboard\nachievement / announcement\nfavorites / auto-exp / banner\nrole / site-theme / image-upload\npopup-ad / personal-dashboard"]
+            UTIL["scan / shop / leaderboard\nachievement / announcement\nfavorites / auto-exp / banner\nrole / site-theme / image-upload\npopup-ad / personal-dashboard\nattendance-notify / dashboard"]
         end
     end
 
@@ -93,7 +93,7 @@ flowchart TD
 | `firebase-crud.js` | 透過 `Object.assign` 擴充 `FirebaseService`，提供各集合的新增 / 更新 / 刪除 / 圖片上傳操作 |
 | `api-service.js` | **抽象層**；根據 `ModeManager.isDemo()` 決定從 `DemoData` 或 `FirebaseService._cache` 取資料，隔離所有 UI 模組與 Demo / Prod 切換邏輯 |
 | `line-auth.js` | LINE LIFF SDK 封裝；在 Demo 模式或 localhost 時停用，提供登入 / 登出 / 取得個人資料 |
-| `page-loader.js` | 按需非同步載入 `pages/*.html` 片段，快取版本由 `CACHE_VERSION` 控制 |
+| `page-loader.js` | 按需非同步載入 `pages/*.html` 片段，快取版本由 `CACHE_VERSION` 控制。延遲載入（`_loadDeferred`）與按需載入（`ensurePage`）完成後自動呼叫 `App._bindPageElements()` 重新綁定事件 |
 | `script-loader.js` | 按頁面群組動態載入 JS 模組，減少首次載入體積 |
 | `app.js` | `App` 主物件；定義 4 階段初始化流程、`renderAll()`、`showToast()`、`appConfirm()` |
 | `core/navigation.js` | `showPage()` 頁面路由、Modal 管理、Drawer 開關，透過 `Object.assign` 擴充 App |
@@ -122,15 +122,21 @@ flowchart TD
 | `modules/personal-dashboard.js` | 個人數據儀表板（參加場次、出席率、EXP 統計） |
 | `modules/dashboard.js` | 管理員後台數據儀表板 |
 
-## 初始化流程（4 階段）
+## 初始化流程（4 階段 + 延遲載入回呼）
 
 ```
 DOMContentLoaded
   │
-  ├─ Phase 1 ── PageLoader.loadAll()              → 載入 Boot HTML 片段（home / activity / team / profile / message）
+  ├─ Phase 1（非阻塞）── PageLoader.loadAll()     → 載入 Boot HTML 片段（home / activity / team / profile / message）
+  │                        └─ 排程 _loadDeferred() → 背景載入 9 個延遲頁面（scan / tournament / shop / admin-* / personal-dashboard）
+  │
   ├─ Phase 2 ── FirebaseService._restoreCache()   → 從 localStorage 還原快取（Prod 模式）
   ├─ Phase 3 ── App.init() → renderAll()          → 立即顯示 UI（使用快取或 Demo 資料）
   │                └─ 隱藏 Loading 遮罩
+  │
+  ├─ Phase 1 完成 → App.renderAll() + App._bindPageElements()  → 補跑一次渲染與事件綁定
+  │
+  ├─ _loadDeferred() 完成 → App._bindPageElements()  → 延遲頁面元素事件綁定（如廣告圖片上傳）
   │
   └─ Phase 4（背景 async）
        ├─ 載入 Firebase + LIFF CDN SDK
@@ -138,7 +144,8 @@ DOMContentLoaded
        └─ LineAuth.init()                          → LINE 登入狀態初始化
 ```
 
-> Phase 3 在 Phase 4 之前完成渲染，確保弱網路環境下不出現白畫面。
+> Phase 3 在 Phase 1/4 之前完成渲染，確保弱網路環境下不出現白畫面。
+> 延遲載入的頁面（admin-content 等）在 DOM 注入後會觸發 `_bindPageElements()` 重新綁定事件。
 
 ## Script 載入順序（index.html defer 順序）
 
