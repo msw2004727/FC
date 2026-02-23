@@ -53,7 +53,7 @@ const ModeManager = {
   init() {
     this._mode = localStorage.getItem(this._STORAGE_KEY) || this._DEFAULT;
     // 正式版 hostname 安全檢查：防止被舊版 bug 殘留的 demo 模式影響
-    if (location.hostname === 'msw2004727.github.io' && this._mode === 'demo') {
+    if (['msw2004727.github.io','fc-3g8.pages.dev'].includes(location.hostname) && this._mode === 'demo') {
       this._mode = 'production';
       localStorage.setItem(this._STORAGE_KEY, 'production');
     }

@@ -22,7 +22,7 @@
   <script>
   (function(){
     var V='20260223g';
-    var isProd = location.hostname === 'msw2004727.github.io';
+    var isProd = location.hostname === 'msw2004727.github.io' || location.hostname === 'fc-3g8.pages.dev';
     // ?clear=1 強制清快取
     if(location.search.indexOf('clear=1')!==-1){
       if('caches' in window) caches.keys().then(function(k){k.forEach(function(n){caches.delete(n)})});
@@ -85,7 +85,7 @@
     // 早期模式偵測：防止正式版重整時閃現 Demo 畫面
     (function(){
       var mode = localStorage.getItem('sporthub_mode') ||
-        (location.hostname === 'msw2004727.github.io' ? 'production' : 'demo');
+        (['msw2004727.github.io','fc-3g8.pages.dev'].includes(location.hostname) ? 'production' : 'demo');
       if (mode !== 'demo') {
         document.documentElement.classList.add('prod-early');
       }
