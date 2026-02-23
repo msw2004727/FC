@@ -655,6 +655,19 @@ Object.assign(App, {
     event.current = (event.current || 0) + 1;
     event.waitlist = Math.max(0, (event.waitlist || 0) - 1);
 
+    // 更新 activityRecord：waitlisted → registered（同行者不動）
+    if (reg.participantType !== 'companion') {
+      const arSource = ApiService._src('activityRecords');
+      const ar = arSource.find(a => a.eventId === event.id && a.uid === reg.userId && a.status === 'waitlisted');
+      if (ar) {
+        ar.status = 'registered';
+        if (!ModeManager.isDemo() && ar._docId) {
+          db.collection('activityRecords').doc(ar._docId).update({ status: 'registered' })
+            .catch(err => console.error('[promoteAR]', err));
+        }
+      }
+    }
+
     // 發送遞補通知
     this._sendNotifFromTemplate('waitlist_promoted', {
       eventName: event.title, date: event.date, location: event.location,

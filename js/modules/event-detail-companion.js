@@ -118,10 +118,17 @@ Object.assign(App, {
         const dateStr = `${dateParts[1]}/${dateParts[2]}`;
         const selfReg = (result.registrations || []).find(r => r.participantType === 'self');
         const isWl = selfReg?.status === 'waitlisted';
-        ApiService.addActivityRecord({
+        const arRecord = {
           eventId: e.id, name: e.title, date: dateStr,
           status: isWl ? 'waitlisted' : 'registered', uid: userId,
-        });
+        };
+        ApiService.addActivityRecord(arRecord);
+        if (!ModeManager.isDemo()) {
+          db.collection('activityRecords').add({
+            ...arRecord, createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+          }).then(ref => { arRecord._docId = ref.id; })
+            .catch(err => console.error('[companionRegAR]', err));
+        }
         if (!isWl) this._grantAutoExp(userId, 'register_activity', e.title);
       }
 

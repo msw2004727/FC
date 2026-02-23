@@ -59,12 +59,15 @@ Object.assign(App, {
         }
         return;
       }
-      // 報名中：status=registered/waitlisted + 活動尚未結束
+      // 報名中 / 未出席：status=registered/waitlisted
       if (r.status === 'registered' || r.status === 'waitlisted') {
         if (isPublic) return; // 公開卡片不顯示報名中
         const event = ApiService.getEvent(r.eventId);
         if (event && event.status !== 'ended' && event.status !== 'cancelled') {
           registered.push(r);
+        } else if (event && (event.status === 'ended')) {
+          // 活動已結束但未簽到簽退 → 歸類為 registered 並標記 missed
+          registered.push({ ...r, _displayStatus: 'missed' });
         }
       }
     });
@@ -140,7 +143,7 @@ Object.assign(App, {
     const totalPages = Math.max(1, Math.ceil(items.length / PAGE_SIZE));
     const p = Math.max(1, Math.min(page, totalPages));
     const pageItems = items.slice((p - 1) * PAGE_SIZE, p * PAGE_SIZE);
-    const statusLabel = { completed: '完成', cancelled: '取消', registered: '已報名', waitlisted: '候補中' };
+    const statusLabel = { completed: '完成', cancelled: '取消', registered: '已報名', waitlisted: '候補中', missed: '未出席' };
 
     let html = pageItems.length ? pageItems.map(r => {
       const ds = r._displayStatus || r.status;
