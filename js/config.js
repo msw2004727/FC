@@ -4,7 +4,7 @@
 
 // ─── Cache Version（更新此值以清除瀏覽器快取）───
 // 20260223u: Firestore 強制長輪詢模式，修復 WebChannel 400 錯誤
-const CACHE_VERSION = '20260224m';
+const CACHE_VERSION = '20260224n';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {

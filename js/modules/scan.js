@@ -166,8 +166,8 @@ Object.assign(App, {
     document.getElementById('scan-camera-btn').textContent = '關閉相機';
 
     scanner.start(
-      { facingMode: 'environment' },
-      { fps: 10, qrbox: { width: 280, height: 280 } },
+      { facingMode: 'environment', advanced: [{ width: { ideal: 1280 }, height: { ideal: 720 } }] },
+      { fps: 15, qrbox: { width: 200, height: 200 } },
       (decodedText) => {
         // 3-second dedup
         const now = Date.now();
