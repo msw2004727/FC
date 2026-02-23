@@ -296,6 +296,16 @@ document.addEventListener('DOMContentLoaded', async () => {
       else if (deepTeam) sessionStorage.setItem('_pendingDeepTeam', deepTeam);
     }
   } catch (e) {}
+  // Hash 路由：瀏覽器返回/前進鍵同步頁面
+  // pageId !== App.currentPage 條件防止 showPage() 設 hash 後再次觸發無窮迴圈
+  try {
+    window.addEventListener('hashchange', () => {
+      const pageId = location.hash.replace(/^#/, '');
+      if (pageId && pageId !== App.currentPage && document.getElementById(pageId)) {
+        App.showPage(pageId);
+      }
+    });
+  } catch (e) {}
   try { App._autoExpireAds(); } catch (e) {}
   setInterval(() => { try { App._autoExpireAds(); } catch (e) {} }, 60000);
   try { App._processScheduledMessages(); } catch (e) {}

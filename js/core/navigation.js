@@ -42,6 +42,8 @@ Object.assign(App, {
     if (target) {
       target.classList.add('active');
       this.currentPage = pageId;
+      // 同步 URL hash，讓瀏覽器返回鍵可用（hash 相同時跳過，避免觸發 hashchange）
+      if (location.hash !== '#' + pageId) location.hash = pageId;
       window.scrollTo({ top: 0, behavior: 'smooth' });
       // 重設浮動廣告位置，避免跨頁 scrollTo 觸發 scroll listener 造成跳位
       this._floatAdOffset = 0;
@@ -100,6 +102,8 @@ Object.assign(App, {
       document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
       document.getElementById(prev).classList.add('active');
       this.currentPage = prev;
+      // 同步 URL hash
+      if (location.hash !== '#' + prev) location.hash = prev;
       const mainPages = ['page-home','page-activities','page-teams','page-messages','page-profile'];
       document.querySelectorAll('.bot-tab').forEach(t => {
         t.classList.toggle('active', t.dataset.page === prev && mainPages.includes(prev));
