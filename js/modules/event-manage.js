@@ -89,6 +89,8 @@ Object.assign(App, {
                  + `<button class="outline-btn" style="${s};color:var(--danger)" onclick="App.cancelMyActivity('${e.id}')">取消</button>`;
           } else if (e.status === 'ended') {
             btns = `<button class="primary-btn small" style="${s}" onclick="App.showMyActivityDetail('${e.id}')">查看名單</button>`
+                 + `<button class="outline-btn" style="${s}" onclick="App.editMyActivity('${e.id}')">編輯</button>`
+                 + `<button class="outline-btn" style="${s};color:var(--success)" onclick="App.relistMyActivity('${e.id}')">上架</button>`
                  + (isAdmin ? `<button class="outline-btn" style="${s};color:var(--danger)" onclick="App.deleteMyActivity('${e.id}')">刪除</button>` : '');
           } else if (e.status === 'cancelled') {
             btns = `<button class="primary-btn small" style="${s}" onclick="App.showMyActivityDetail('${e.id}')">查看名單</button>`
@@ -591,11 +593,21 @@ Object.assign(App, {
     this.showToast('活動已取消');
   },
 
-  // ── 重新開放 ──
-  reopenMyActivity(id) {
+  // ── 重新開放（已取消 → open/full） ──
+  async reopenMyActivity(id) {
     const e = ApiService.getEvent(id);
     if (!e) return;
     if (!this._canManageEvent(e)) { this.showToast('您只能管理自己的活動'); return; }
+
+    // 檢查活動時間是否在未來
+    const startDate = this._parseEventStartDate(e.date);
+    if (startDate && startDate <= new Date()) {
+      await this.appConfirm('活動時間已過，請先編輯活動並更新時間後再重新開放。');
+      return;
+    }
+
+    if (!await this.appConfirm('確定要重新開放此活動？')) return;
+
     const newStatus = this._isEventTrulyFull(e) ? 'full' : 'open';
     ApiService.updateEvent(id, { status: newStatus });
     ApiService._writeOpLog('event_reopen', '重開活動', `重開「${e.title}」`);
@@ -603,6 +615,56 @@ Object.assign(App, {
     this.renderActivityList();
     this.renderHotEvents();
     this.showToast('活動已重新開放');
+  },
+
+  // ── 重新上架（已結束 → open/full） ──
+  async relistMyActivity(id) {
+    const e = ApiService.getEvent(id);
+    if (!e) return;
+    if (!this._canManageEvent(e)) { this.showToast('您只能管理自己的活動'); return; }
+
+    // 檢查活動時間是否在未來
+    const startDate = this._parseEventStartDate(e.date);
+    if (startDate && startDate <= new Date()) {
+      await this.appConfirm('活動時間已過，請先編輯活動並更新時間後再上架。');
+      return;
+    }
+
+    if (!await this.appConfirm('確定要重新上架此活動？\n報名名單與候補名單將會保留。')) return;
+
+    const newStatus = this._isEventTrulyFull(e) ? 'full' : 'open';
+    ApiService.updateEvent(id, { status: newStatus });
+    ApiService._writeOpLog('event_relist', '重新上架', `重新上架「${e.title}」`);
+
+    // 通知已報名的用戶
+    const eventRegs = ApiService.getRegistrationsByEvent(id);
+    if (eventRegs.length > 0) {
+      const notifyUids = [...new Set(eventRegs.map(r => r.userId))];
+      notifyUids.forEach(uid => {
+        this._sendNotifFromTemplate('event_relisted', {
+          eventName: e.title, date: e.date, location: e.location,
+        }, uid, 'activity', '活動');
+      });
+    } else {
+      // fallback: 舊資料沒有 registrations，用名字查找
+      const allNames = [...(e.participants || []), ...(e.waitlistNames || [])];
+      if (allNames.length > 0) {
+        const adminUsers = ApiService.getAdminUsers();
+        allNames.forEach(name => {
+          const u = adminUsers.find(au => au.name === name);
+          if (u) {
+            this._sendNotifFromTemplate('event_relisted', {
+              eventName: e.title, date: e.date, location: e.location,
+            }, u.uid, 'activity', '活動');
+          }
+        });
+      }
+    }
+
+    this.renderMyActivities();
+    this.renderActivityList();
+    this.renderHotEvents();
+    this.showToast('活動已重新上架');
   },
 
   // ── 主辦人模糊搜尋篩選（管理員+） ──

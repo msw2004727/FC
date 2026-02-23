@@ -505,15 +505,15 @@ Object.assign(App, {
         creatorTeamName: teamOnly ? resolvedTeamName : null,
         delegates: [...this._delegates],
       };
-      // 若有設定報名時間且尚未到達，更新狀態為 upcoming
-      if (regOpenTime && new Date(regOpenTime) > new Date()) {
+      // 已結束/已取消的活動編輯時不改變狀態
+      if (existingEvent && (existingEvent.status === 'ended' || existingEvent.status === 'cancelled')) {
+        // 保持原狀態，不做任何改變
+      } else if (regOpenTime && new Date(regOpenTime) > new Date()) {
+        // 若有設定報名時間且尚未到達，更新狀態為 upcoming
         updates.status = 'upcoming';
-      } else if (updates.status !== 'ended' && updates.status !== 'cancelled') {
+      } else if (existingEvent && existingEvent.status === 'upcoming') {
         // 報名時間已到或未設定，確保不是 upcoming
-        const existingEvent = ApiService.getEvent(this._editEventId);
-        if (existingEvent && existingEvent.status === 'upcoming') {
-          updates.status = this._isEventTrulyFull(existingEvent) ? 'full' : 'open';
-        }
+        updates.status = this._isEventTrulyFull(existingEvent) ? 'full' : 'open';
       }
       const oldMax = existingEvent ? existingEvent.max : max;
       ApiService.updateEvent(this._editEventId, updates);

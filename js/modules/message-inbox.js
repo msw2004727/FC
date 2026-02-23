@@ -500,6 +500,7 @@ Object.assign(App, {
       event_cancelled: '{eventName} {date} {location}',
       role_upgrade: '{userName} {roleName}',
       event_changed: '{eventName} {date} {location}',
+      event_relisted: '{eventName} {date} {location}',
     };
     list.innerHTML = templates.map(t => `
       <div class="form-card" style="margin-bottom:.6rem">
