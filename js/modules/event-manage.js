@@ -258,7 +258,7 @@ Object.assign(App, {
     let rows = '';
     items.forEach((item, idx) => {
       rows += `<tr style="border-bottom:1px solid var(--border)">
-        <td style="padding:.35rem .3rem;text-align:center;font-size:.72rem;color:var(--text-muted);width:2rem">${idx + 1}</td>
+        <td style="padding:.35rem .3rem;text-align:center;width:2rem"><span class="wl-pos">${idx + 1}</span></td>
         <td style="padding:.35rem .3rem;text-align:left">${this._userTag(item.name)}</td>
       </tr>`;
       item.companions.forEach(cName => {

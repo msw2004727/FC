@@ -305,6 +305,12 @@ const FirebaseService = {
               this._cache.registrations = snapshot.docs.map(doc => ({ ...doc.data(), _docId: doc.id }));
               this._saveToLS('registrations', this._cache.registrations);
               if (firstSnapshot) { firstSnapshot = false; checkDone(); }
+              else if (typeof App !== 'undefined') {
+                // 報名資料更新 → 刷新按鈕狀態（取消候補 / 報名候補）
+                if (App.currentPage === 'page-activity-detail') App.showEventDetail?.(App._currentDetailEventId);
+                if (App.currentPage === 'page-activities') App.renderActivityList?.();
+                if (App.currentPage === 'page-my-activities') App.renderMyActivities?.();
+              }
             },
             err => { console.warn('[onSnapshot] registrations 監聽錯誤:', err); checkDone(); }
           );

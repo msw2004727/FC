@@ -40,36 +40,37 @@ const DemoData = {
   },
 
   events: [
-    // ── 2月（近期熱門 — 本週~兩週內） ──
-    { id: 'eh1', title: '週三足球基礎練習', type: 'play', status: 'open', location: '台北市大安運動中心', date: '2026/02/11 19:00~21:00', fee: 200, max: 20, current: 14, waitlist: 0, waitlistMax: 5, creator: '教練小陳', contact: '0912-345-678', gradient: 'linear-gradient(135deg,#7c3aed,#4338ca)', icon: '', countdown: '2天 10時', participants: ['王小明','李大華','張三','陳美玲','林志偉','周杰倫','黃小琳','吳宗翰','鄭家豪','許志安','蔡依林','劉德華','A','B'], waitlistNames: [] },
-    { id: 'eh2', title: '歐冠觀賽之夜', type: 'watch', status: 'open', location: '台北市Goal Sports Bar', date: '2026/02/12 20:30~23:00', fee: 350, max: 40, current: 37, waitlist: 0, waitlistMax: 10, creator: '場主老王', contact: '02-2771-5566', gradient: 'linear-gradient(135deg,#f59e0b,#d97706)', icon: '', countdown: '3天 11時', participants: [], waitlistNames: [] },
-    { id: 'eh3', title: '週六足球友誼賽', type: 'friendly', status: 'open', location: '台北市信義運動中心', date: '2026/02/14 14:00~16:00', fee: 300, max: 22, current: 16, waitlist: 0, waitlistMax: 5, creator: '教練小陳', contact: '0912-345-678', gradient: 'linear-gradient(135deg,#0d9488,#065f46)', icon: '', countdown: '5天 5時', participants: [], waitlistNames: [], regOpenTime: '2026-02-01T08:00' },
-    { id: 'eh3t', title: '雷霆隊內練習', type: 'play', status: 'open', location: '台北市大安運動中心', date: '2026/02/15 18:00~20:00', fee: 0, max: 18, current: 10, waitlist: 0, waitlistMax: 3, creator: '小麥', creatorUid: 'demo-user', contact: '', gradient: 'linear-gradient(135deg,#7c3aed,#4338ca)', icon: '', countdown: '6天 9時', participants: ['王小明','李大華','張三','陳美玲','林志偉','周杰倫','黃小琳','吳宗翰','鄭家豪','許志安'], waitlistNames: [], teamOnly: true, creatorTeamId: 'tm1', creatorTeamName: '雷霆隊', delegates: [{uid:'U4d5e6f', name:'李大華'}] },
-    { id: 'eh4', title: '五人制室內足球', type: 'friendly', status: 'open', location: '高雄市三民體育館', date: '2026/02/18 18:00~20:00', fee: 200, max: 12, current: 11, waitlist: 0, waitlistMax: 5, creator: '場主老王', contact: '', gradient: 'linear-gradient(135deg,#0d9488,#065f46)', icon: '', countdown: '9天 9時', participants: ['王小明','李大華','張三','陳美玲','林志偉','周杰倫','黃小琳','吳宗翰','鄭家豪','許志安','蔡依林'], waitlistNames: [] },
-    { id: 'eh5', title: '英超直播派對', type: 'watch', status: 'open', location: '台中市Kick-Off 運動餐廳', date: '2026/02/21 22:00~00:30', fee: 280, max: 50, current: 18, waitlist: 0, waitlistMax: 0, creator: '場主大衛', contact: '04-2225-8888', gradient: 'linear-gradient(135deg,#f59e0b,#d97706)', icon: '', countdown: '12天 13時', participants: [], waitlistNames: [] },
-    // ── 2月（已結束） ──
-    { id: 'e0a', title: '冬季足球體能活動', type: 'play', status: 'ended', location: '台北市大安運動中心', date: '2026/02/22 08:00~12:00', fee: 0, max: 30, current: 28, waitlist: 0, waitlistMax: 0, creator: '教練阿豪', contact: '0922-111-222', gradient: 'linear-gradient(135deg,#7c3aed,#4338ca)', icon: '', countdown: '已結束', participants: ['王小明','李大華','張三','陳美玲','林志偉','黃小琳','吳宗翰','鄭家豪'], waitlistNames: [], reviews: [{uid:'U1a2b3c',name:'王小明',rating:5,text:'很棒的體能訓練，教練很專業！',time:'2026/02/22 13:00'},{uid:'U4d5e6f',name:'李大華',rating:4,text:'場地不錯，下次還會再參加。',time:'2026/02/22 14:30'},{uid:'Us1t2u3',name:'黃小琳',rating:5,text:'強度適中，適合各程度球員，推薦！',time:'2026/02/22 15:10'},{uid:'Uv4w5x6',name:'吳宗翰',rating:3,text:'希望可以多一些拉伸環節。',time:'2026/02/22 16:00'}] },
-    { id: 'e0b', title: '週六足球友誼賽', type: 'friendly', status: 'ended', location: '台北市大安運動中心', date: '2026/02/22 14:00~16:00', fee: 300, max: 20, current: 20, waitlist: 2, waitlistMax: 5, creator: '教練小陳', contact: '0912-345-678', gradient: 'linear-gradient(135deg,#0d9488,#065f46)', icon: '', countdown: '已結束', participants: ['王小明','李大華','張三','陳美玲','林志偉','周杰倫','黃小琳','吳宗翰','鄭家豪','許志安','蔡依林','劉德華','A','B','C','D','E','F','G','H'], waitlistNames: ['候補A','候補B'], reviews: [{uid:'U7g8h9i',name:'張美玲',rating:5,text:'比賽很精彩，氣氛超好！',time:'2026/02/22 17:00'},{uid:'Up7q8r9',name:'林志偉',rating:3,text:'人數太多有點擁擠。',time:'2026/02/22 18:00'},{uid:'Us1t2u3',name:'黃小琳',rating:4,text:'整體不錯，希望下次可以早點開始。',time:'2026/02/22 19:00'},{uid:'U1a2b3c',name:'王小明',rating:5,text:'對手實力很強，打得很過癮！',time:'2026/02/22 19:30'},{uid:'Ub2c3d4',name:'許志安',rating:4,text:'場地設施很好，裁判也很公正。',time:'2026/02/22 20:00'}] },
-    { id: 'e0c', title: '足球新手教學（第一梯）', type: 'camp', status: 'ended', location: '台中市豐原體育場', date: '2026/02/25 09:00~12:00', fee: 500, max: 20, current: 20, waitlist: 8, waitlistMax: 5, creator: '教練阿豪', contact: '0922-111-222', gradient: 'linear-gradient(135deg,#7c3aed,#4338ca)', icon: '', countdown: '已結束', participants: [], waitlistNames: [] },
-    // ── 3月 ──
-    { id: 'e1', title: '春季PLAY第三輪', type: 'play', status: 'ended', location: '台北市大安運動中心', date: '2026/03/01 14:00~18:00', fee: 0, max: 22, current: 22, waitlist: 0, waitlistMax: 0, creator: '管理員', contact: '', gradient: 'linear-gradient(135deg,#7c3aed,#4338ca)', icon: '', countdown: '已結束', participants: [], waitlistNames: [] },
-    { id: 'e2', title: '守門員專項教學', type: 'camp', status: 'ended', location: '台北市信義運動中心', date: '2026/03/05 09:00~11:00', fee: 250, max: 10, current: 10, waitlist: 3, waitlistMax: 3, creator: '教練小陳', contact: '0912-345-678', gradient: 'linear-gradient(135deg,#ec4899,#be185d)', icon: '', countdown: '已結束', participants: [], waitlistNames: [] },
-    { id: 'e3', title: '五人制室內足球', type: 'friendly', status: 'ended', location: '高雄市三民體育館', date: '2026/03/08 18:00~20:00', fee: 200, max: 12, current: 12, waitlist: 0, waitlistMax: 3, creator: '場主老王', contact: '', gradient: 'linear-gradient(135deg,#0d9488,#065f46)', icon: '', countdown: '已結束', participants: ['P1','P2','P3','P4','P5','P6','P7','P8','P9','P10','P11','P12'], waitlistNames: [] },
-    { id: 'e4', title: '週六足球友誼賽', type: 'friendly', status: 'open', location: '台北市大安運動中心', date: '2026/03/15 14:00~16:00', fee: 300, max: 20, current: 14, waitlist: 3, waitlistMax: 5, creator: '教練小陳', contact: '0912-345-678', gradient: 'linear-gradient(135deg,#0d9488,#065f46)', icon: '', countdown: '2天 5時', participants: ['小麥','小麥伴侶','王小明','李大華','張三','陳美玲','林志偉','周杰倫','黃小琳','吳宗翰','鄭家豪','許志安','蔡依林','劉德華'], waitlistNames: ['候補A','候補B','候補C'], regOpenTime: '2026-02-10T10:00' },
-    { id: 'e5', title: '足球戰術教學班', type: 'camp', status: 'full', location: '台中市豐原體育場', date: '2026/03/18 09:00~12:00', fee: 400, max: 15, current: 15, waitlist: 5, waitlistMax: 5, creator: '教練阿豪', contact: '0922-111-222', gradient: 'linear-gradient(135deg,#7c3aed,#4338ca)', icon: '', countdown: '5天 2時', participants: ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O'], waitlistNames: ['W1','W2','W3','W4','W5'] },
-    { id: 'e6', title: '足球體能PLAY', type: 'play', status: 'open', location: '高雄市三民體育館', date: '2026/03/20 07:00~09:00', fee: 150, max: 25, current: 9, waitlist: 0, waitlistMax: 3, creator: '教練阿豪', contact: '0922-111-222', gradient: 'linear-gradient(135deg,#7c3aed,#4338ca)', icon: '', countdown: '7天 14時', participants: ['小麥友人','P1','P2','P3','P4','P5','P6','P7','P8'], waitlistNames: [] },
-    { id: 'e7', title: '週六11人制友誼賽', type: 'friendly', status: 'open', location: '台北市信義運動中心', date: '2026/03/22 14:00~16:30', fee: 350, max: 24, current: 18, waitlist: 0, waitlistMax: 5, creator: '教練小陳', contact: '0912-345-678', gradient: 'linear-gradient(135deg,#0d9488,#065f46)', icon: '', countdown: '9天 6時', participants: [], waitlistNames: [] },
-    { id: 'e8', title: '春季PLAY第四輪', type: 'play', status: 'open', location: '台北市大安運動中心', date: '2026/03/29 14:00~18:00', fee: 0, max: 22, current: 22, waitlist: 0, waitlistMax: 0, creator: '管理員', contact: '', gradient: 'linear-gradient(135deg,#7c3aed,#4338ca)', icon: '', countdown: '16天 5時', participants: [], waitlistNames: [] },
-    { id: 'e9', title: '足球裁判教學班', type: 'camp', status: 'open', location: '台北市大安運動中心', date: '2026/03/29 09:00~12:00', fee: 600, max: 12, current: 5, waitlist: 0, waitlistMax: 0, creator: '管理員', contact: '', gradient: 'linear-gradient(135deg,#7c3aed,#4338ca)', icon: '', countdown: '16天 0時', participants: [], waitlistNames: [] },
-    // ── 4月 ──
-    { id: 'e10', title: '守門員撲救教學', type: 'camp', status: 'open', location: '台北市信義運動中心', date: '2026/04/02 09:00~11:00', fee: 250, max: 10, current: 4, waitlist: 0, waitlistMax: 3, creator: '教練小陳', contact: '0912-345-678', gradient: 'linear-gradient(135deg,#ec4899,#be185d)', icon: '', countdown: '20天 0時', participants: [], waitlistNames: [] },
-    { id: 'e11', title: '新春PLAY淘汰賽', type: 'play', status: 'full', location: '台中市豐原體育場', date: '2026/04/05 13:00~17:00', fee: 0, max: 32, current: 32, waitlist: 0, waitlistMax: 0, creator: '管理員', contact: '', gradient: 'linear-gradient(135deg,#7c3aed,#4338ca)', icon: '', countdown: '23天 4時', participants: [], waitlistNames: [] },
-    { id: 'e12', title: '足球新手教學（第二梯）', type: 'camp', status: 'open', location: '台中市豐原體育場', date: '2026/04/06 09:00~12:00', fee: 500, max: 20, current: 7, waitlist: 0, waitlistMax: 5, creator: '教練阿豪', contact: '0922-111-222', gradient: 'linear-gradient(135deg,#7c3aed,#4338ca)', icon: '', countdown: '24天 0時', participants: [], waitlistNames: [] },
-    { id: 'e13', title: '週六足球友誼賽', type: 'friendly', status: 'upcoming', location: '台北市大安運動中心', date: '2026/04/12 14:00~16:00', fee: 300, max: 20, current: 0, waitlist: 0, waitlistMax: 5, creator: '教練小陳', contact: '0912-345-678', gradient: 'linear-gradient(135deg,#0d9488,#065f46)', icon: '', countdown: '30天 5時', participants: [], waitlistNames: [], regOpenTime: '2026-03-15T08:00' },
-    { id: 'e14', title: '春季足球體能活動', type: 'play', status: 'upcoming', location: '高雄市三民體育館', date: '2026/04/15 08:00~12:00', fee: 200, max: 30, current: 0, waitlist: 0, waitlistMax: 0, creator: '教練阿豪', contact: '0922-111-222', gradient: 'linear-gradient(135deg,#7c3aed,#4338ca)', icon: '', countdown: '33天 0時', participants: [], waitlistNames: [], regOpenTime: '2026-03-20T08:00' },
-    { id: 'e15', title: '新春PLAY八強賽', type: 'play', status: 'upcoming', location: '台中市豐原體育場', date: '2026/04/19 13:00~17:00', fee: 150, max: 16, current: 0, waitlist: 0, waitlistMax: 0, creator: '管理員', contact: '', gradient: 'linear-gradient(135deg,#7c3aed,#4338ca)', icon: '', countdown: '37天 4時', participants: [], waitlistNames: [], regOpenTime: '2026-03-25T08:00' },
-    { id: 'e16', title: '五人制足球友誼賽', type: 'friendly', status: 'cancelled', location: '高雄市三民體育館', date: '2026/04/20 18:00~20:00', fee: 200, max: 12, current: 4, waitlist: 0, waitlistMax: 3, creator: '場主老王', contact: '', gradient: 'linear-gradient(135deg,#0d9488,#065f46)', icon: '', countdown: '已取消', participants: [], waitlistNames: [] },
-    { id: 'e17', title: '春季PLAY第五輪', type: 'play', status: 'upcoming', location: '台北市大安運動中心', date: '2026/04/26 14:00~18:00', fee: 250, max: 22, current: 0, waitlist: 0, waitlistMax: 0, creator: '管理員', contact: '', gradient: 'linear-gradient(135deg,#7c3aed,#4338ca)', icon: '', countdown: '44天 5時', participants: [], waitlistNames: [], regOpenTime: '2026-04-01T08:00' },
+    // ── 已結束（日期在 2026-02-23 之前） ──
+    { id: 'e1', title: '春季PLAY第三輪', type: 'play', status: 'ended', location: '台北市大安運動中心', date: '2026/02/01 14:00~18:00', fee: 0, max: 22, current: 22, waitlist: 0, waitlistMax: 0, creator: '管理員', contact: '', gradient: 'linear-gradient(135deg,#7c3aed,#4338ca)', icon: '', countdown: '已結束', participants: [], waitlistNames: [] },
+    { id: 'e0a', title: '冬季足球體能活動', type: 'play', status: 'ended', location: '台北市大安運動中心', date: '2026/02/08 08:00~12:00', fee: 0, max: 30, current: 28, waitlist: 0, waitlistMax: 0, creator: '教練阿豪', contact: '0922-111-222', gradient: 'linear-gradient(135deg,#7c3aed,#4338ca)', icon: '', countdown: '已結束', participants: ['王小明','李大華','張三','陳美玲','林志偉','黃小琳','吳宗翰','鄭家豪'], waitlistNames: [], reviews: [{uid:'U1a2b3c',name:'王小明',rating:5,text:'很棒的體能訓練，教練很專業！',time:'2026/02/08 13:00'},{uid:'U4d5e6f',name:'李大華',rating:4,text:'場地不錯，下次還會再參加。',time:'2026/02/08 14:30'},{uid:'Us1t2u3',name:'黃小琳',rating:5,text:'強度適中，適合各程度球員，推薦！',time:'2026/02/08 15:10'},{uid:'Uv4w5x6',name:'吳宗翰',rating:3,text:'希望可以多一些拉伸環節。',time:'2026/02/08 16:00'}] },
+    { id: 'e2', title: '守門員專項教學', type: 'camp', status: 'ended', location: '台北市信義運動中心', date: '2026/02/09 09:00~11:00', fee: 250, max: 10, current: 10, waitlist: 3, waitlistMax: 3, creator: '教練小陳', contact: '0912-345-678', gradient: 'linear-gradient(135deg,#ec4899,#be185d)', icon: '', countdown: '已結束', participants: ['P1','P2','P3','P4','P5','P6','P7','P8','P9','P10'], waitlistNames: ['候補甲','候補乙','候補丙'] },
+    { id: 'e0b', title: '週六足球友誼賽', type: 'friendly', status: 'ended', location: '台北市大安運動中心', date: '2026/02/15 14:00~16:00', fee: 300, max: 20, current: 20, waitlist: 2, waitlistMax: 5, creator: '教練小陳', contact: '0912-345-678', gradient: 'linear-gradient(135deg,#0d9488,#065f46)', icon: '', countdown: '已結束', participants: ['王小明','李大華','張三','陳美玲','林志偉','周杰倫','黃小琳','吳宗翰','鄭家豪','許志安','蔡依林','劉德華','A','B','C','D','E','F','G','H'], waitlistNames: ['候補A','候補B'], reviews: [{uid:'U7g8h9i',name:'張美玲',rating:5,text:'比賽很精彩，氣氛超好！',time:'2026/02/15 17:00'},{uid:'Up7q8r9',name:'林志偉',rating:3,text:'人數太多有點擁擠。',time:'2026/02/15 18:00'},{uid:'Us1t2u3',name:'黃小琳',rating:4,text:'整體不錯，希望下次可以早點開始。',time:'2026/02/15 19:00'},{uid:'U1a2b3c',name:'王小明',rating:5,text:'對手實力很強，打得很過癮！',time:'2026/02/15 19:30'},{uid:'Ub2c3d4',name:'許志安',rating:4,text:'場地設施很好，裁判也很公正。',time:'2026/02/15 20:00'}] },
+    { id: 'e0c', title: '足球新手教學（第一梯）', type: 'camp', status: 'ended', location: '台中市豐原體育場', date: '2026/02/16 09:00~12:00', fee: 500, max: 20, current: 20, waitlist: 4, waitlistMax: 5, creator: '教練阿豪', contact: '0922-111-222', gradient: 'linear-gradient(135deg,#7c3aed,#4338ca)', icon: '', countdown: '已結束', participants: ['P1','P2','P3','P4','P5','P6','P7','P8','P9','P10','P11','P12','P13','P14','P15','P16','P17','P18','P19','P20'], waitlistNames: ['候補D','候補E','候補F','候補G'] },
+    { id: 'e3', title: '五人制室內足球', type: 'friendly', status: 'ended', location: '高雄市三民體育館', date: '2026/02/22 18:00~20:00', fee: 200, max: 12, current: 12, waitlist: 0, waitlistMax: 3, creator: '場主老王', contact: '', gradient: 'linear-gradient(135deg,#0d9488,#065f46)', icon: '', countdown: '已結束', participants: ['P1','P2','P3','P4','P5','P6','P7','P8','P9','P10','P11','P12'], waitlistNames: [] },
+    // ── 報名中（日期在 2026-02-23 之後） ──
+    { id: 'eh1', title: '週三足球基礎練習', type: 'play', status: 'open', location: '台北市大安運動中心', date: '2026/02/26 19:00~21:00', fee: 200, max: 20, current: 14, waitlist: 0, waitlistMax: 5, creator: '教練小陳', contact: '0912-345-678', gradient: 'linear-gradient(135deg,#7c3aed,#4338ca)', icon: '', countdown: '3天 10時', participants: ['王小明','李大華','張三','陳美玲','林志偉','周杰倫','黃小琳','吳宗翰','鄭家豪','許志安','蔡依林','劉德華','A','B'], waitlistNames: [] },
+    { id: 'eh2', title: '歐冠觀賽之夜', type: 'watch', status: 'open', location: '台北市Goal Sports Bar', date: '2026/03/01 20:30~23:00', fee: 350, max: 40, current: 37, waitlist: 0, waitlistMax: 10, creator: '場主老王', contact: '02-2771-5566', gradient: 'linear-gradient(135deg,#f59e0b,#d97706)', icon: '', countdown: '6天 11時', participants: [], waitlistNames: [] },
+    { id: 'eh3', title: '週六足球友誼賽', type: 'friendly', status: 'open', location: '台北市信義運動中心', date: '2026/03/01 14:00~16:00', fee: 300, max: 22, current: 16, waitlist: 0, waitlistMax: 5, creator: '教練小陳', contact: '0912-345-678', gradient: 'linear-gradient(135deg,#0d9488,#065f46)', icon: '', countdown: '6天 5時', participants: [], waitlistNames: [], regOpenTime: '2026-02-15T08:00' },
+    { id: 'eh3t', title: '雷霆隊內練習', type: 'play', status: 'open', location: '台北市大安運動中心', date: '2026/03/02 18:00~20:00', fee: 0, max: 18, current: 10, waitlist: 0, waitlistMax: 3, creator: '小麥', creatorUid: 'demo-user', contact: '', gradient: 'linear-gradient(135deg,#7c3aed,#4338ca)', icon: '', countdown: '7天 9時', participants: ['王小明','李大華','張三','陳美玲','林志偉','周杰倫','黃小琳','吳宗翰','鄭家豪','許志安'], waitlistNames: [], teamOnly: true, creatorTeamId: 'tm1', creatorTeamName: '雷霆隊', delegates: [{uid:'U4d5e6f', name:'李大華'}] },
+    { id: 'eh4', title: '五人制室內足球', type: 'friendly', status: 'open', location: '高雄市三民體育館', date: '2026/03/08 18:00~20:00', fee: 200, max: 12, current: 11, waitlist: 0, waitlistMax: 5, creator: '場主老王', contact: '', gradient: 'linear-gradient(135deg,#0d9488,#065f46)', icon: '', countdown: '13天 9時', participants: ['王小明','李大華','張三','陳美玲','林志偉','周杰倫','黃小琳','吳宗翰','鄭家豪','許志安','蔡依林'], waitlistNames: [] },
+    { id: 'eh5', title: '英超直播派對', type: 'watch', status: 'open', location: '台中市Kick-Off 運動餐廳', date: '2026/03/07 22:00~00:30', fee: 280, max: 50, current: 18, waitlist: 0, waitlistMax: 0, creator: '場主大衛', contact: '04-2225-8888', gradient: 'linear-gradient(135deg,#f59e0b,#d97706)', icon: '', countdown: '12天 13時', participants: [], waitlistNames: [] },
+    { id: 'e4', title: '週六足球友誼賽', type: 'friendly', status: 'open', location: '台北市大安運動中心', date: '2026/03/15 14:00~16:00', fee: 300, max: 20, current: 14, waitlist: 4, waitlistMax: 5, creator: '教練小陳', contact: '0912-345-678', gradient: 'linear-gradient(135deg,#0d9488,#065f46)', icon: '', countdown: '20天 5時', participants: ['小麥','小麥伴侶','王小明','李大華','張三','陳美玲','林志偉','周杰倫','黃小琳','吳宗翰','鄭家豪','許志安','蔡依林','劉德華'], waitlistNames: ['候補A','候補A友人','候補B','候補C'], regOpenTime: '2026-02-10T10:00' },
+    { id: 'e6', title: '足球體能PLAY', type: 'play', status: 'open', location: '高雄市三民體育館', date: '2026/03/20 07:00~09:00', fee: 150, max: 25, current: 9, waitlist: 0, waitlistMax: 3, creator: '教練阿豪', contact: '0922-111-222', gradient: 'linear-gradient(135deg,#7c3aed,#4338ca)', icon: '', countdown: '25天 14時', participants: ['小麥友人','P1','P2','P3','P4','P5','P6','P7','P8'], waitlistNames: [] },
+    { id: 'e7', title: '週六11人制友誼賽', type: 'friendly', status: 'open', location: '台北市信義運動中心', date: '2026/03/22 14:00~16:30', fee: 350, max: 24, current: 18, waitlist: 0, waitlistMax: 5, creator: '教練小陳', contact: '0912-345-678', gradient: 'linear-gradient(135deg,#0d9488,#065f46)', icon: '', countdown: '27天 6時', participants: [], waitlistNames: [] },
+    { id: 'e9', title: '足球裁判教學班', type: 'camp', status: 'open', location: '台北市大安運動中心', date: '2026/03/29 09:00~12:00', fee: 600, max: 12, current: 5, waitlist: 0, waitlistMax: 0, creator: '管理員', contact: '', gradient: 'linear-gradient(135deg,#7c3aed,#4338ca)', icon: '', countdown: '34天 0時', participants: [], waitlistNames: [] },
+    { id: 'e10', title: '守門員撲救教學', type: 'camp', status: 'open', location: '台北市信義運動中心', date: '2026/04/02 09:00~11:00', fee: 250, max: 10, current: 4, waitlist: 0, waitlistMax: 3, creator: '教練小陳', contact: '0912-345-678', gradient: 'linear-gradient(135deg,#ec4899,#be185d)', icon: '', countdown: '38天 0時', participants: [], waitlistNames: [] },
+    { id: 'e12', title: '足球新手教學（第二梯）', type: 'camp', status: 'open', location: '台中市豐原體育場', date: '2026/04/06 09:00~12:00', fee: 500, max: 20, current: 7, waitlist: 0, waitlistMax: 5, creator: '教練阿豪', contact: '0922-111-222', gradient: 'linear-gradient(135deg,#7c3aed,#4338ca)', icon: '', countdown: '42天 0時', participants: [], waitlistNames: [] },
+    // ── 已額滿 ──
+    { id: 'e5', title: '足球戰術教學班', type: 'camp', status: 'full', location: '台中市豐原體育場', date: '2026/03/18 09:00~12:00', fee: 400, max: 15, current: 15, waitlist: 6, waitlistMax: 5, creator: '教練阿豪', contact: '0922-111-222', gradient: 'linear-gradient(135deg,#7c3aed,#4338ca)', icon: '', countdown: '23天 2時', participants: ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O'], waitlistNames: ['W1','W1同行','W2','W3','W4','W5'] },
+    { id: 'e8', title: '春季PLAY第四輪', type: 'play', status: 'full', location: '台北市大安運動中心', date: '2026/03/29 14:00~18:00', fee: 0, max: 22, current: 22, waitlist: 0, waitlistMax: 0, creator: '管理員', contact: '', gradient: 'linear-gradient(135deg,#7c3aed,#4338ca)', icon: '', countdown: '34天 5時', participants: [], waitlistNames: [] },
+    { id: 'e11', title: '新春PLAY淘汰賽', type: 'play', status: 'full', location: '台中市豐原體育場', date: '2026/04/05 13:00~17:00', fee: 0, max: 32, current: 32, waitlist: 0, waitlistMax: 0, creator: '管理員', contact: '', gradient: 'linear-gradient(135deg,#7c3aed,#4338ca)', icon: '', countdown: '41天 4時', participants: [], waitlistNames: [] },
+    // ── 即將開放 ──
+    { id: 'e13', title: '週六足球友誼賽', type: 'friendly', status: 'upcoming', location: '台北市大安運動中心', date: '2026/04/12 14:00~16:00', fee: 300, max: 20, current: 0, waitlist: 0, waitlistMax: 5, creator: '教練小陳', contact: '0912-345-678', gradient: 'linear-gradient(135deg,#0d9488,#065f46)', icon: '', countdown: '48天 5時', participants: [], waitlistNames: [], regOpenTime: '2026-03-15T08:00' },
+    { id: 'e14', title: '春季足球體能活動', type: 'play', status: 'upcoming', location: '高雄市三民體育館', date: '2026/04/15 08:00~12:00', fee: 200, max: 30, current: 0, waitlist: 0, waitlistMax: 0, creator: '教練阿豪', contact: '0922-111-222', gradient: 'linear-gradient(135deg,#7c3aed,#4338ca)', icon: '', countdown: '51天 0時', participants: [], waitlistNames: [], regOpenTime: '2026-03-20T08:00' },
+    { id: 'e15', title: '新春PLAY八強賽', type: 'play', status: 'upcoming', location: '台中市豐原體育場', date: '2026/04/19 13:00~17:00', fee: 150, max: 16, current: 0, waitlist: 0, waitlistMax: 0, creator: '管理員', contact: '', gradient: 'linear-gradient(135deg,#7c3aed,#4338ca)', icon: '', countdown: '55天 4時', participants: [], waitlistNames: [], regOpenTime: '2026-03-25T08:00' },
+    { id: 'e17', title: '春季PLAY第五輪', type: 'play', status: 'upcoming', location: '台北市大安運動中心', date: '2026/04/26 14:00~18:00', fee: 250, max: 22, current: 0, waitlist: 0, waitlistMax: 0, creator: '管理員', contact: '', gradient: 'linear-gradient(135deg,#7c3aed,#4338ca)', icon: '', countdown: '62天 5時', participants: [], waitlistNames: [], regOpenTime: '2026-04-01T08:00' },
+    // ── 已取消 ──
+    { id: 'e16', title: '五人制足球友誼賽', type: 'friendly', status: 'cancelled', location: '高雄市三民體育館', date: '2026/03/16 18:00~20:00', fee: 200, max: 12, current: 4, waitlist: 0, waitlistMax: 3, creator: '場主老王', contact: '', gradient: 'linear-gradient(135deg,#0d9488,#065f46)', icon: '', countdown: '已取消', participants: [], waitlistNames: [] },
   ],
 
   tournaments: [
@@ -353,32 +354,36 @@ const DemoData = {
   ],
 
   attendanceRecords: [
-    { id:'att_d1',  eventId:'e0b',  uid:'U1a2b3c',   userName:'王小明',   type:'checkin',  time:'2026/02/22 13:55' },
-    { id:'att_d2',  eventId:'e0b',  uid:'U1a2b3c',   userName:'王小明',   type:'checkout', time:'2026/02/22 16:05' },
-    { id:'att_d3',  eventId:'e0b',  uid:'U4d5e6f',   userName:'李大華',   type:'checkin',  time:'2026/02/22 14:02' },
+    // e0b: 2026/02/15 14:00~16:00
+    { id:'att_d1',  eventId:'e0b',  uid:'U1a2b3c',   userName:'王小明',   type:'checkin',  time:'2026/02/15 13:55' },
+    { id:'att_d2',  eventId:'e0b',  uid:'U1a2b3c',   userName:'王小明',   type:'checkout', time:'2026/02/15 16:05' },
+    { id:'att_d3',  eventId:'e0b',  uid:'U4d5e6f',   userName:'李大華',   type:'checkin',  time:'2026/02/15 14:02' },
     // demo-user 測試資料（供方向B統計展示）
-    { id:'att_dm1', eventId:'e0b',  uid:'demo-user', userName:'小麥',     type:'checkin',  time:'2026/02/22 14:00' },
-    { id:'att_dm2', eventId:'e0b',  uid:'demo-user', userName:'小麥',     type:'checkout', time:'2026/02/22 16:00' },
-    { id:'att_dm3', eventId:'e1',   uid:'demo-user', userName:'小麥',     type:'checkin',  time:'2026/03/01 14:05' },
-    { id:'att_dm4', eventId:'e1',   uid:'demo-user', userName:'小麥',     type:'checkout', time:'2026/03/01 17:55' },
-    { id:'att_dm5', eventId:'e2',   uid:'demo-user', userName:'小麥',     type:'checkin',  time:'2026/03/05 09:10' },
-    { id:'att_dm6', eventId:'e2',   uid:'demo-user', userName:'小麥',     type:'checkout', time:'2026/03/05 10:58' },
-    { id:'att_dm7', eventId:'e3',   uid:'demo-user', userName:'小麥',     type:'checkin',  time:'2026/03/08 18:05' },
+    { id:'att_dm1', eventId:'e0b',  uid:'demo-user', userName:'小麥',     type:'checkin',  time:'2026/02/15 14:00' },
+    { id:'att_dm2', eventId:'e0b',  uid:'demo-user', userName:'小麥',     type:'checkout', time:'2026/02/15 16:00' },
+    // e1: 2026/02/01 14:00~18:00
+    { id:'att_dm3', eventId:'e1',   uid:'demo-user', userName:'小麥',     type:'checkin',  time:'2026/02/01 14:05' },
+    { id:'att_dm4', eventId:'e1',   uid:'demo-user', userName:'小麥',     type:'checkout', time:'2026/02/01 17:55' },
+    // e2: 2026/02/09 09:00~11:00
+    { id:'att_dm5', eventId:'e2',   uid:'demo-user', userName:'小麥',     type:'checkin',  time:'2026/02/09 09:10' },
+    { id:'att_dm6', eventId:'e2',   uid:'demo-user', userName:'小麥',     type:'checkout', time:'2026/02/09 10:58' },
+    // e3: 2026/02/22 18:00~20:00
+    { id:'att_dm7', eventId:'e3',   uid:'demo-user', userName:'小麥',     type:'checkin',  time:'2026/02/22 18:05' },
   ],
 
   activityRecords: [
-    // 報名中（未結束活動）
+    // 報名中（未結束活動，日期對應 events）
     { eventId: 'e4', name: '週六足球友誼賽', date: '03/15', status: 'registered', uid: 'demo-user' },
     { eventId: 'e6', name: '足球體能PLAY', date: '03/20', status: 'registered', uid: 'demo-user' },
     { eventId: 'e7', name: '週六11人制友誼賽', date: '03/22', status: 'registered', uid: 'demo-user' },
-    { eventId: 'eh1', name: '週三足球基礎練習', date: '02/11', status: 'registered', uid: 'demo-user' },
-    { eventId: 'eh3', name: '週六足球友誼賽', date: '02/14', status: 'registered', uid: 'demo-user' },
-    // 已完成
-    { eventId: 'e3', name: '五人制室內足球', date: '03/08', status: 'completed', uid: 'demo-user' },
-    { eventId: 'e2', name: '守門員專項教學', date: '03/05', status: 'completed', uid: 'demo-user' },
-    { eventId: 'e1', name: '春季PLAY第三輪', date: '03/01', status: 'completed', uid: 'demo-user' },
-    { eventId: 'e0b', name: '週六足球友誼賽', date: '02/22', status: 'completed', uid: 'demo-user' },
-    { eventId: 'e0a', name: '冬季足球體能活動', date: '02/22', status: 'completed', uid: 'demo-user' },
+    { eventId: 'eh1', name: '週三足球基礎練習', date: '02/26', status: 'registered', uid: 'demo-user' },
+    { eventId: 'eh3', name: '週六足球友誼賽', date: '03/01', status: 'registered', uid: 'demo-user' },
+    // 已完成（日期對應 events）
+    { eventId: 'e3', name: '五人制室內足球', date: '02/22', status: 'completed', uid: 'demo-user' },
+    { eventId: 'e2', name: '守門員專項教學', date: '02/09', status: 'completed', uid: 'demo-user' },
+    { eventId: 'e1', name: '春季PLAY第三輪', date: '02/01', status: 'completed', uid: 'demo-user' },
+    { eventId: 'e0b', name: '週六足球友誼賽', date: '02/15', status: 'completed', uid: 'demo-user' },
+    { eventId: 'e0a', name: '冬季足球體能活動', date: '02/08', status: 'completed', uid: 'demo-user' },
     // 更早的完成紀錄（用於分頁展示）
     { eventId: 'hist01', name: '年度足球嘉年華', date: '01/28', status: 'completed', uid: 'demo-user' },
     { eventId: 'hist02', name: '五人制室內足球', date: '01/18', status: 'completed', uid: 'demo-user' },
@@ -400,13 +405,14 @@ const DemoData = {
     { eventId: 'hist18', name: '週六足球友誼賽', date: '09/20', status: 'completed', uid: 'demo-user' },
     { eventId: 'hist19', name: '秋季PLAY第二輪', date: '09/13', status: 'completed', uid: 'demo-user' },
     { eventId: 'hist20', name: '秋季PLAY第一輪', date: '09/06', status: 'completed', uid: 'demo-user' },
-    // 取消紀錄
-    { eventId: 'e0c', name: '足球新手教學', date: '02/25', status: 'cancelled', uid: 'demo-user' },
-    { eventId: 'e16', name: '五人制足球友誼賽', date: '04/20', status: 'cancelled', uid: 'demo-user' },
+    // 取消紀錄（日期對應 events）
+    { eventId: 'e0c', name: '足球新手教學', date: '02/16', status: 'cancelled', uid: 'demo-user' },
+    { eventId: 'e16', name: '五人制足球友誼賽', date: '03/16', status: 'cancelled', uid: 'demo-user' },
     { eventId: 'histc1', name: '歲末足球派對', date: '12/28', status: 'cancelled', uid: 'demo-user' },
   ],
 
   registrations: [
+    // ── e4: 週六足球友誼賽（正取 + 候補） ──
     // demo-user 本人 + comp1 報名 e4（正取）
     { id:'reg_d1', eventId:'e4', userId:'demo-user', userName:'小麥',
       participantType:'self', companionId:null, companionName:null,
@@ -414,29 +420,63 @@ const DemoData = {
     { id:'reg_d2', eventId:'e4', userId:'demo-user', userName:'小麥',
       participantType:'companion', companionId:'comp1', companionName:'小麥伴侶',
       status:'confirmed', registeredAt:'2026-02-20T10:00:00' },
+    // 王小明報名 e4（正取）
+    { id:'reg_d4', eventId:'e4', userId:'U1a2b3c', userName:'王小明',
+      participantType:'self', companionId:null, companionName:null,
+      status:'confirmed', registeredAt:'2026-02-19T15:00:00' },
+    // e4 候補：候補A（本人+友人） + 候補B + 候補C
+    { id:'reg_w1', eventId:'e4', userId:'Uw1user', userName:'候補A',
+      participantType:'self', companionId:null, companionName:null,
+      status:'waitlisted', registeredAt:'2026-02-21T14:00:00' },
+    { id:'reg_w2', eventId:'e4', userId:'Uw1user', userName:'候補A',
+      participantType:'companion', companionId:'w1comp', companionName:'候補A友人',
+      status:'waitlisted', registeredAt:'2026-02-21T14:00:00' },
+    { id:'reg_w3', eventId:'e4', userId:'Uw2user', userName:'候補B',
+      participantType:'self', companionId:null, companionName:null,
+      status:'waitlisted', registeredAt:'2026-02-21T15:00:00' },
+    { id:'reg_w4', eventId:'e4', userId:'Uw3user', userName:'候補C',
+      participantType:'self', companionId:null, companionName:null,
+      status:'waitlisted', registeredAt:'2026-02-21T16:00:00' },
+
+    // ── e5: 足球戰術教學班（候補，展示較多候補 + 同行者的 grid 效果） ──
+    { id:'reg_w5', eventId:'e5', userId:'Uw4user', userName:'W1',
+      participantType:'self', companionId:null, companionName:null,
+      status:'waitlisted', registeredAt:'2026-02-22T09:00:00' },
+    { id:'reg_w6', eventId:'e5', userId:'Uw4user', userName:'W1',
+      participantType:'companion', companionId:'w4comp', companionName:'W1同行',
+      status:'waitlisted', registeredAt:'2026-02-22T09:00:00' },
+    { id:'reg_w7', eventId:'e5', userId:'Uw5user', userName:'W2',
+      participantType:'self', companionId:null, companionName:null,
+      status:'waitlisted', registeredAt:'2026-02-22T10:00:00' },
+    { id:'reg_w8', eventId:'e5', userId:'Uw6user', userName:'W3',
+      participantType:'self', companionId:null, companionName:null,
+      status:'waitlisted', registeredAt:'2026-02-22T11:00:00' },
+    { id:'reg_w9', eventId:'e5', userId:'Uw7user', userName:'W4',
+      participantType:'self', companionId:null, companionName:null,
+      status:'waitlisted', registeredAt:'2026-02-22T12:00:00' },
+    { id:'reg_w10', eventId:'e5', userId:'Uw8user', userName:'W5',
+      participantType:'self', companionId:null, companionName:null,
+      status:'waitlisted', registeredAt:'2026-02-22T13:00:00' },
+
+    // ── e6: 足球體能PLAY ──
     // demo-user 替 comp2 報名 e6（正取，自己未報名）
     { id:'reg_d3', eventId:'e6', userId:'demo-user', userName:'小麥',
       participantType:'companion', companionId:'comp2', companionName:'小麥友人',
       status:'confirmed', registeredAt:'2026-02-21T09:00:00' },
-    // 另一用戶報名 e4
-    { id:'reg_d4', eventId:'e4', userId:'U1a2b3c', userName:'王小明',
-      participantType:'self', companionId:null, companionName:null,
-      status:'confirmed', registeredAt:'2026-02-19T15:00:00' },
-    // demo-user 本人 + comp1 報名 eh3t（雷霆隊內練習，掃碼 demo 用）
+
+    // ── eh3t: 雷霆隊內練習（掃碼 demo 用） ──
     { id:'reg_d5', eventId:'eh3t', userId:'demo-user', userName:'小麥',
       participantType:'self', companionId:null, companionName:null,
-      status:'confirmed', registeredAt:'2026-02-14T10:00:00' },
+      status:'confirmed', registeredAt:'2026-02-20T10:00:00' },
     { id:'reg_d6', eventId:'eh3t', userId:'demo-user', userName:'小麥',
       participantType:'companion', companionId:'comp1', companionName:'小麥伴侶',
-      status:'confirmed', registeredAt:'2026-02-14T10:00:00' },
-    // 王小明報名 eh3t
+      status:'confirmed', registeredAt:'2026-02-20T10:00:00' },
     { id:'reg_d7', eventId:'eh3t', userId:'U1a2b3c', userName:'王小明',
       participantType:'self', companionId:null, companionName:null,
-      status:'confirmed', registeredAt:'2026-02-13T09:00:00' },
-    // 李大華報名 eh3t
+      status:'confirmed', registeredAt:'2026-02-19T09:00:00' },
     { id:'reg_d8', eventId:'eh3t', userId:'U4d5e6f', userName:'李大華',
       participantType:'self', companionId:null, companionName:null,
-      status:'confirmed', registeredAt:'2026-02-13T10:00:00' },
+      status:'confirmed', registeredAt:'2026-02-19T10:00:00' },
   ],
 };
 
@@ -487,14 +527,15 @@ const DemoData = {
   };
   localStorage.setItem(rulesKey, JSON.stringify(rules));
   const logs = [
-    { time:'2026/02/12 09:30', target:'小麥', key:'post_team_feed', amount:5, context:'昨天的友誼賽打得' },
-    { time:'2026/02/11 20:15', target:'王小明', key:'submit_review', amount:15, context:'冬季足球體能活動' },
-    { time:'2026/02/11 19:45', target:'黃小琳', key:'submit_review', amount:15, context:'冬季足球體能活動' },
-    { time:'2026/02/11 14:02', target:'李大華', key:'complete_activity', amount:100, context:'週六足球友誼賽' },
-    { time:'2026/02/11 14:00', target:'王小明', key:'complete_activity', amount:100, context:'週六足球友誼賽' },
-    { time:'2026/02/10 10:30', target:'小麥', key:'register_activity', amount:20, context:'週三足球基礎練習' },
-    { time:'2026/02/10 10:15', target:'張美玲', key:'register_activity', amount:20, context:'週六足球友誼賽' },
-    { time:'2026/02/09 09:00', target:'教練小陳', key:'host_activity', amount:50, context:'週六足球友誼賽' },
+    { time:'2026/02/22 20:30', target:'小麥', key:'complete_activity', amount:100, context:'五人制室內足球' },
+    { time:'2026/02/22 09:30', target:'小麥', key:'post_team_feed', amount:5, context:'昨天的友誼賽打得' },
+    { time:'2026/02/21 20:15', target:'王小明', key:'submit_review', amount:15, context:'週六足球友誼賽' },
+    { time:'2026/02/21 19:45', target:'黃小琳', key:'submit_review', amount:15, context:'週六足球友誼賽' },
+    { time:'2026/02/15 16:02', target:'李大華', key:'complete_activity', amount:100, context:'週六足球友誼賽' },
+    { time:'2026/02/15 16:00', target:'王小明', key:'complete_activity', amount:100, context:'週六足球友誼賽' },
+    { time:'2026/02/20 10:30', target:'小麥', key:'register_activity', amount:20, context:'週三足球基礎練習' },
+    { time:'2026/02/19 10:15', target:'張美玲', key:'register_activity', amount:20, context:'週六足球友誼賽' },
+    { time:'2026/02/14 09:00', target:'教練小陳', key:'host_activity', amount:50, context:'週六足球友誼賽' },
     { time:'2026/02/08 15:00', target:'小麥', key:'join_team', amount:30, context:'雷霆隊' },
     { time:'2026/02/07 11:20', target:'鄭家豪', key:'cancel_registration', amount:-10, context:'守門員專項教學' },
   ];

@@ -14,6 +14,7 @@ Object.assign(App, {
     if (this._requireLogin()) return;
     const e = ApiService.getEvent(id);
     if (!e) return;
+    this._currentDetailEventId = id;
     const detailImg = document.getElementById('detail-img-placeholder');
     if (detailImg) {
       if (e.image) {
@@ -148,7 +149,7 @@ Object.assign(App, {
     const renderItem = (item, idx) => {
       let h = `<div style="padding:.35rem 0">
         <div style="display:flex;align-items:center;gap:.3rem">
-          <span style="font-size:.7rem;color:var(--text-muted);min-width:1.4rem;text-align:right">#${idx + 1}</span>
+          <span class="wl-pos">${idx + 1}</span>
           ${this._userTag(item.name)}
         </div>`;
       item.companions.forEach(cName => {
