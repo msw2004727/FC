@@ -9,15 +9,15 @@
 .scan-mode { flex: 1; padding: .45rem; border-radius: var(--radius-sm); font-weight: 600; font-size: .85rem; text-align: center; color: var(--text-muted); transition: all var(--transition); cursor: pointer; border: none; background: none; }
 .scan-mode.active { background: var(--bg-card); color: var(--accent); box-shadow: 0 1px 4px rgba(0,0,0,.08); }
 .scan-camera { margin-bottom: .75rem; }
-.scan-qr-reader { min-height: 200px; background: var(--bg-elevated); border: 2px dashed var(--border); border-radius: var(--radius); display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative; }
-.scan-qr-reader video { width: 100%; border-radius: var(--radius); }
+.scan-qr-reader { width: 300px; height: 300px; margin: 0 auto; background: var(--bg-elevated); border: 2px dashed var(--border); border-radius: var(--radius); display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative; }
+.scan-qr-reader video { width: 100%; height: 100%; object-fit: cover; border-radius: var(--radius); }
 .scan-camera-btn { width: 100%; padding: .5rem; border-radius: var(--radius-sm); border: none; background: var(--accent); color: #fff; font-weight: 600; font-size: .85rem; cursor: pointer; margin-top: .4rem; }
 .scan-camera-btn:disabled { opacity: .5; cursor: not-allowed; }
 .scan-manual { margin-bottom: .75rem; font-size: .85rem; color: var(--text-secondary); }
 .scan-input-row { display: flex; gap: .4rem; margin-top: .3rem; }
 .scan-input-row input { flex: 1; }
 .scan-input-row .primary-btn:disabled { opacity: .5; cursor: not-allowed; }
-.scan-results { display: flex; flex-direction: column; gap: .3rem; margin-bottom: .75rem; max-height: 150px; overflow-y: auto; }
+.scan-results { display: flex; flex-direction: column; gap: .3rem; margin-bottom: .75rem; max-height: 120px; overflow-y: auto; }
 .scan-result { padding: .5rem .75rem; border-radius: var(--radius-sm); font-size: .82rem; font-weight: 500; }
 .scan-result.success { background: rgba(52,211,153,.12); color: var(--success); }
 .scan-result.warning { background: rgba(251,191,36,.12); color: var(--warning); }

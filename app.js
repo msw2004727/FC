@@ -149,6 +149,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   window._appInitializing = true;
   console.log('[Boot] DOMContentLoaded fired');
 
+  // 正式版：進度條從 Phase 1 就顯示（初始化完成前一直可見）
+  const _liffBarEarly = (!ModeManager.isDemo()) ? document.getElementById('liff-init-bar') : null;
+  if (_liffBarEarly) _liffBarEarly.style.display = 'block';
+
   // ── Phase 1: 載入頁面 HTML 片段（10 秒超時保護）──
   console.log('[Boot] Phase 1: PageLoader.loadAll() 開始（背景執行）');
   const htmlReady = Promise.race([
@@ -223,10 +227,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ── Phase 4: 背景載入 CDN SDK → Firebase + LIFF（不阻塞頁面）──
   if (!ModeManager.isDemo()) {
     console.log('[Boot] Phase 4: 開始背景載入 CDN');
-    // LIFF 初始化進度條 + deep link 等待卡片
+    // LIFF 初始化進度條（已於 Phase 1 顯示）+ deep link 等待卡片
     const _liffBar  = document.getElementById('liff-init-bar');
     const _liffCard = document.getElementById('liff-deeplink-card');
-    if (_liffBar) _liffBar.style.display = 'block';
     if (_liffCard && (sessionStorage.getItem('_pendingDeepEvent') || sessionStorage.getItem('_pendingDeepTeam'))) {
       _liffCard.style.display = 'flex';
     }

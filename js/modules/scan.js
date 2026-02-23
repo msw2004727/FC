@@ -10,7 +10,6 @@ Object.assign(App, {
   _scannerInstance: null,
   _lastScannedUid: null,
   _lastScanTime: 0,
-  _scanResultsLog: [],
 
   goToScanForEvent(eventId) {
     this._scanPresetEventId = eventId;
@@ -80,6 +79,7 @@ Object.assign(App, {
     }
 
     this._updateScanControls();
+    this._renderScanResults();
     this._renderAttendanceSections();
     this._bindScanEvents();
   },
@@ -97,9 +97,8 @@ Object.assign(App, {
 
     select.addEventListener('change', () => {
       this._scanSelectedEventId = select.value || null;
-      this._scanResultsLog = [];
-      document.getElementById('scan-results').innerHTML = '';
       this._updateScanControls();
+      this._renderScanResults();
       this._renderAttendanceSections();
     });
 
@@ -191,7 +190,7 @@ Object.assign(App, {
 
     scanner.start(
       { facingMode: 'environment' },
-      { fps: 10, qrbox: { width: 200, height: 200 } },
+      { fps: 10, qrbox: { width: 280, height: 280 } },
       (decodedText) => {
         // 3-second dedup
         const now = Date.now();
@@ -379,9 +378,6 @@ Object.assign(App, {
       }
     }
 
-    // Add result to log
-    this._scanResultsLog.unshift({ cls: resultClass, msg: resultMsg });
-    if (this._scanResultsLog.length > 20) this._scanResultsLog.length = 20;
     this._renderScanResults();
     this._renderAttendanceSections();
 
@@ -417,9 +413,17 @@ Object.assign(App, {
   _renderScanResults() {
     const container = document.getElementById('scan-results');
     if (!container) return;
-    container.innerHTML = this._scanResultsLog.map(r =>
-      `<div class="scan-result ${r.cls}">${r.msg}</div>`
-    ).join('');
+    if (!this._scanSelectedEventId) { container.innerHTML = ''; return; }
+    const records = ApiService.getAttendanceRecords(this._scanSelectedEventId);
+    const sorted = [...records].sort((a, b) => (b.time || '').localeCompare(a.time || ''));
+    container.innerHTML = sorted.map(r => {
+      const name = r.companionName || r.userName || r.uid;
+      let cls, msg;
+      if (r.type === 'checkin')  { cls = 'success'; msg = `${name} 簽到成功`; }
+      else if (r.type === 'checkout') { cls = 'success'; msg = `${name} 簽退成功`; }
+      else { cls = 'error'; msg = `${name} 未報名此活動`; }
+      return `<div class="scan-result ${cls}">${escapeHTML(msg)}</div>`;
+    }).join('');
   },
 
   _renderAttendanceSections() {
@@ -625,9 +629,6 @@ Object.assign(App, {
     // 關閉 family modal
     this._closeFamilyModal();
 
-    const modeLabel = mode === 'checkin' ? '簽到' : '簽退';
-    this._scanResultsLog.unshift({ cls: 'success', msg: `${userName} 等 ${checked.length} 人${modeLabel}成功` });
-    if (this._scanResultsLog.length > 20) this._scanResultsLog.length = 20;
     this._renderScanResults();
     this._renderAttendanceSections();
     this._showScanResultPopup('success', `${userName} 等 ${checked.length} 人${modeLabel}成功`, userName);
