@@ -25,6 +25,11 @@ function initFirebaseApp() {
   try {
     firebase.initializeApp(firebaseConfig);
     db = firebase.firestore();
+    // 強制使用長輪詢模式，避免 WebChannel 被廣告阻擋器/防火牆攔截導致 onSnapshot 失效
+    db.settings({
+      experimentalForceLongPolling: true,
+      useFetchStreams: false,
+    });
     storage = firebase.storage();
     auth = firebase.auth();
     db.enablePersistence({ synchronizeTabs: true }).catch(err => {
