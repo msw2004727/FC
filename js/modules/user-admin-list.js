@@ -69,6 +69,9 @@ Object.assign(App, {
   },
 
   handlePromote(select, name) {
+    if ((ROLE_LEVEL_MAP[this.currentRole] || 0) < ROLE_LEVEL_MAP.super_admin) {
+      this.showToast('權限不足'); return;
+    }
     if (!select.value) return;
     const roleMap = { '管理員': 'admin', '教練': 'coach', '領隊': 'captain', '場主': 'venue_owner' };
     const roleKey = roleMap[select.value];
@@ -115,6 +118,9 @@ Object.assign(App, {
   },
 
   saveUserEdit() {
+    if ((ROLE_LEVEL_MAP[this.currentRole] || 0) < ROLE_LEVEL_MAP.super_admin) {
+      this.showToast('權限不足'); return;
+    }
     const name = this._userEditTarget;
     if (!name) return;
 

@@ -327,6 +327,10 @@ Object.assign(App, {
   },
 
   async clearAllData() {
+    // Step 0: Permission guard
+    if ((ROLE_LEVEL_MAP[this.currentRole] || 0) < ROLE_LEVEL_MAP.super_admin) {
+      this.showToast('權限不足'); return;
+    }
     // Step 1: Password prompt
     const pwd = prompt('請輸入清除全部資料密碼（4位數）');
     if (pwd !== '1121') {

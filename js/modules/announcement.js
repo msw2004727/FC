@@ -138,6 +138,9 @@ Object.assign(App, {
   },
 
   saveAnnouncementItem() {
+    if ((ROLE_LEVEL_MAP[this.currentRole] || 0) < ROLE_LEVEL_MAP.admin) {
+      this.showToast('權限不足'); return;
+    }
     const title = document.getElementById('ann-input-title').value.trim();
     const content = document.getElementById('ann-input-content').value.trim();
     const publishType = document.getElementById('ann-input-publish-type').value;
@@ -194,11 +197,17 @@ Object.assign(App, {
   },
 
   editAnnouncementItem(id) {
+    if ((ROLE_LEVEL_MAP[this.currentRole] || 0) < ROLE_LEVEL_MAP.admin) {
+      this.showToast('權限不足'); return;
+    }
     const item = ApiService.getAnnouncements().find(a => a.id === id);
     if (item) this.showAnnouncementForm(item);
   },
 
   async deleteAnnouncementItem(id) {
+    if ((ROLE_LEVEL_MAP[this.currentRole] || 0) < ROLE_LEVEL_MAP.admin) {
+      this.showToast('權限不足'); return;
+    }
     const items = ApiService.getAnnouncements();
     const item = items.find(a => a.id === id);
     if (!item) return;
@@ -211,6 +220,9 @@ Object.assign(App, {
   },
 
   toggleAnnouncementStatus(id) {
+    if ((ROLE_LEVEL_MAP[this.currentRole] || 0) < ROLE_LEVEL_MAP.admin) {
+      this.showToast('權限不足'); return;
+    }
     const item = ApiService.getAnnouncements().find(a => a.id === id);
     if (!item) return;
     const newStatus = item.status === 'active' ? 'expired' : 'active';
@@ -222,6 +234,9 @@ Object.assign(App, {
   },
 
   moveAnnouncement(id, dir) {
+    if ((ROLE_LEVEL_MAP[this.currentRole] || 0) < ROLE_LEVEL_MAP.admin) {
+      this.showToast('權限不足'); return;
+    }
     const items = ApiService.getAnnouncements().slice().sort((a, b) => (a.sortOrder || 99) - (b.sortOrder || 99));
     const idx = items.findIndex(a => a.id === id);
     if (idx < 0) return;

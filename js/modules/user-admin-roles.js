@@ -87,6 +87,9 @@ Object.assign(App, {
   },
 
   resetRolePermissions() {
+    if ((ROLE_LEVEL_MAP[this.currentRole] || 0) < ROLE_LEVEL_MAP.super_admin) {
+      this.showToast('權限不足'); return;
+    }
     if (!this._permSelectedRole) return;
     const role = this._permSelectedRole;
     const _rp = (typeof DemoData !== 'undefined' && DemoData.rolePermissions) ? DemoData.rolePermissions : {};
@@ -154,6 +157,9 @@ Object.assign(App, {
   // ─── Role Editor (新增自訂層級) ───
 
   openRoleEditor() {
+    if ((ROLE_LEVEL_MAP[this.currentRole] || 0) < ROLE_LEVEL_MAP.super_admin) {
+      this.showToast('權限不足'); return;
+    }
     const editor = document.getElementById('role-editor-card');
     editor.style.display = '';
     document.getElementById('role-editor-title').textContent = '新增自訂層級';
@@ -183,6 +189,9 @@ Object.assign(App, {
   },
 
   saveCustomRole() {
+    if ((ROLE_LEVEL_MAP[this.currentRole] || 0) < ROLE_LEVEL_MAP.super_admin) {
+      this.showToast('權限不足'); return;
+    }
     const label = document.getElementById('role-name-input').value.trim();
     if (!label) { this.showToast('請輸入層級名稱'); return; }
     const color = document.getElementById('role-color-input').value || '#6366f1';
@@ -227,6 +236,9 @@ Object.assign(App, {
   },
 
   executeDeleteCustomRole() {
+    if ((ROLE_LEVEL_MAP[this.currentRole] || 0) < ROLE_LEVEL_MAP.super_admin) {
+      this.showToast('權限不足'); return;
+    }
     const key = this._pendingDeleteRoleKey;
     if (!key) return;
     const customRoles = this._getCustomRoles();

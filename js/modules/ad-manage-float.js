@@ -113,6 +113,9 @@ Object.assign(App, {
   },
 
   editFloatingAd(id) {
+    if ((ROLE_LEVEL_MAP[this.currentRole] || 0) < ROLE_LEVEL_MAP.admin) {
+      this.showToast('權限不足'); return;
+    }
     const item = ApiService.getFloatingAds().find(a => a.id === id);
     if (item) this.showFloatingAdForm(item);
   },

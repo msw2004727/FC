@@ -70,6 +70,9 @@ Object.assign(App, {
 
   // ── 個別送出 ──
   handleExpSubmit() {
+    if ((ROLE_LEVEL_MAP[this.currentRole] || 0) < ROLE_LEVEL_MAP.super_admin) {
+      this.showToast('權限不足'); return;
+    }
     const card = document.getElementById('exp-target-card');
     const targetName = card?.dataset.targetName;
     if (!targetName) { this.showToast('請先搜尋並選擇用戶'); return; }
@@ -139,6 +142,9 @@ Object.assign(App, {
 
   // ── 批次送出 ──
   handleBatchExpSubmit() {
+    if ((ROLE_LEVEL_MAP[this.currentRole] || 0) < ROLE_LEVEL_MAP.super_admin) {
+      this.showToast('權限不足'); return;
+    }
     if (this._expBatchSelected.length === 0) { this.showToast('請先選擇用戶'); return; }
     const amount = parseInt(document.getElementById('exp-batch-amount')?.value) || 0;
     const reason = (document.getElementById('exp-batch-reason')?.value || '').trim();
@@ -188,6 +194,9 @@ Object.assign(App, {
 
   // ── 球隊送出 ──
   handleTeamExpSubmit() {
+    if ((ROLE_LEVEL_MAP[this.currentRole] || 0) < ROLE_LEVEL_MAP.super_admin) {
+      this.showToast('權限不足'); return;
+    }
     if (this._expTeamMembers.length === 0) { this.showToast('請先選擇球隊'); return; }
     const amount = parseInt(document.getElementById('exp-team-amount')?.value) || 0;
     const reason = (document.getElementById('exp-team-reason')?.value || '').trim();
@@ -265,6 +274,9 @@ Object.assign(App, {
   },
 
   handleTeamExpSubmit2() {
+    if ((ROLE_LEVEL_MAP[this.currentRole] || 0) < ROLE_LEVEL_MAP.super_admin) {
+      this.showToast('權限不足'); return;
+    }
     if (!this._expTeamExpSelectedId) { this.showToast('請先搜尋並選擇球隊'); return; }
     const amount = parseInt(document.getElementById('exp-team-exp-amount')?.value) || 0;
     const reason = (document.getElementById('exp-team-exp-reason')?.value || '').trim();

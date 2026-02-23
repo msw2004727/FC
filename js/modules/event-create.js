@@ -439,6 +439,9 @@ Object.assign(App, {
   },
 
   handleCreateEvent() {
+    if ((ROLE_LEVEL_MAP[this.currentRole] || 0) < ROLE_LEVEL_MAP.coach) {
+      this.showToast('權限不足'); return;
+    }
     const title = document.getElementById('ce-title').value.trim();
     const type = document.getElementById('ce-type').value;
     const location = document.getElementById('ce-location').value.trim();

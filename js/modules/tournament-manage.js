@@ -317,6 +317,9 @@ Object.assign(App, {
   },
 
   handleCreateTournament() {
+    if ((ROLE_LEVEL_MAP[this.currentRole] || 0) < ROLE_LEVEL_MAP.coach) {
+      this.showToast('權限不足'); return;
+    }
     const name = document.getElementById('ct-name').value.trim();
     const type = document.getElementById('ct-type').value;
     const teams = parseInt(document.getElementById('ct-teams').value) || 8;
@@ -452,6 +455,9 @@ Object.assign(App, {
   },
 
   handleSaveEditTournament() {
+    if ((ROLE_LEVEL_MAP[this.currentRole] || 0) < ROLE_LEVEL_MAP.coach) {
+      this.showToast('權限不足'); return;
+    }
     const id = this._editTournamentId;
     const t = ApiService.getTournament(id);
     if (!t) return;
@@ -502,6 +508,9 @@ Object.assign(App, {
   // ══════════════════════════════════
 
   async handleEndTournament(id) {
+    if ((ROLE_LEVEL_MAP[this.currentRole] || 0) < ROLE_LEVEL_MAP.admin) {
+      this.showToast('權限不足'); return;
+    }
     const t = ApiService.getTournament(id);
     if (!t) return;
     if (!(await this.appConfirm(`確定要結束賽事「${t.name}」？`))) return;
@@ -514,6 +523,9 @@ Object.assign(App, {
   },
 
   async handleReopenTournament(id) {
+    if ((ROLE_LEVEL_MAP[this.currentRole] || 0) < ROLE_LEVEL_MAP.admin) {
+      this.showToast('權限不足'); return;
+    }
     const t = ApiService.getTournament(id);
     if (!t) return;
     if (!(await this.appConfirm(`確定要重新開放賽事「${t.name}」？`))) return;

@@ -36,16 +36,16 @@
 
 **仍有限制**：因使用 Anonymous Auth，`request.auth.uid` ≠ LINE userId，無法做 owner 和 role 驗證。長期需改用 Custom Claims。
 
-### 2.3 後台管理權限缺口（嚴重 B1+B2+B3）
+### 2.3 後台管理權限缺口（嚴重 B1+B2+B3）— ✅ 已修復
 
-**現狀**：
-- `handleEndTournament()` / `handleReopenTournament()` 無權限檢查
-- `handleCreateEvent()` 無二次權限驗證（save 時不驗）
-- `openRoleEditor()` / `saveCustomRole()` 無 admin 檢查
+**修復內容**（20260223s）：
+已在約 30 個後台管理函式開頭加入統一權限 guard，依最低角色分級：
+- **coach**：`handleCreateTournament`、`handleSaveEditTournament`、`handleCreateEvent`
+- **admin**：`handleEndTournament`、`handleReopenTournament`、公告 CRUD（5 函式）、廣告管理（`delistAd`、`clearAdSlot`、`editBannerItem`、`saveBanner`、`editFloatingAd`、`editPopupAd`、`saveSponsorRow`、`editSponsorItem`）
+- **super_admin**：角色管理（4 函式）、EXP 管理（4 函式）、用戶編輯（2 函式）、`clearThemeSlot`、`saveAutoExpRules`、`clearAllData`
 
-**建議**：所有管理操作函式開頭加入統一權限 guard：
 ```javascript
-if ((ROLE_LEVEL_MAP[this.currentRole] || 0) < ROLE_LEVEL_MAP.admin) {
+if ((ROLE_LEVEL_MAP[this.currentRole] || 0) < ROLE_LEVEL_MAP.{minRole}) {
   this.showToast('權限不足'); return;
 }
 ```

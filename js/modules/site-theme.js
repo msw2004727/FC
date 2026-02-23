@@ -153,6 +153,9 @@ Object.assign(App, {
   },
 
   async clearThemeSlot(id) {
+    if ((ROLE_LEVEL_MAP[this.currentRole] || 0) < ROLE_LEVEL_MAP.super_admin) {
+      this.showToast('權限不足'); return;
+    }
     const ok = await this.appConfirm('確定清除此佈景圖片？將恢復預設風格。');
     if (!ok) return;
 
