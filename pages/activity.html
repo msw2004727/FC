@@ -56,12 +56,12 @@
       </div>
       <div id="my-activity-stats" style="font-size:.75rem;color:var(--text-muted);padding:0 .5rem .3rem;text-align:right"></div>
       <div class="tab-bar" id="my-activity-tabs">
-        <button class="tab active" data-afilter="all">全部</button>
-        <button class="tab" data-afilter="upcoming">即將開放</button>
-        <button class="tab" data-afilter="open">報名中</button>
-        <button class="tab" data-afilter="full">已額滿</button>
-        <button class="tab" data-afilter="ended">已結束</button>
-        <button class="tab" data-afilter="cancelled">已取消</button>
+        <button class="tab active" data-afilter="all" onclick="App.switchMyActivityTab('all')">全部</button>
+        <button class="tab" data-afilter="upcoming" onclick="App.switchMyActivityTab('upcoming')">即將開放</button>
+        <button class="tab" data-afilter="open" onclick="App.switchMyActivityTab('open')">報名中</button>
+        <button class="tab" data-afilter="full" onclick="App.switchMyActivityTab('full')">已額滿</button>
+        <button class="tab" data-afilter="ended" onclick="App.switchMyActivityTab('ended')">已結束</button>
+        <button class="tab" data-afilter="cancelled" onclick="App.switchMyActivityTab('cancelled')">已取消</button>
       </div>
       <div class="card-list" id="my-activity-list"></div>
       <!-- 查看名單彈窗 -->

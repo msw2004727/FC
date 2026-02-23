@@ -14,6 +14,14 @@ Object.assign(App, {
   _manualEditingUid: null,
   _manualEditingEventId: null,
 
+  switchMyActivityTab(filter) {
+    this._myActivityFilter = filter || 'all';
+    document.querySelectorAll('#my-activity-tabs .tab').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.afilter === this._myActivityFilter);
+    });
+    this.renderMyActivities(this._myActivityFilter);
+  },
+
   renderMyActivities(filter) {
     this._autoEndExpiredEvents();
     const container = document.getElementById('my-activity-list');
@@ -126,18 +134,6 @@ Object.assign(App, {
       }).join('')
       : '<div style="padding:1rem;font-size:.82rem;color:var(--text-muted);text-align:center">此分類沒有活動</div>';
 
-    // 綁定 tabs
-    const tabs = document.getElementById('my-activity-tabs');
-    if (tabs && !tabs.dataset.bound) {
-      tabs.dataset.bound = '1';
-      tabs.querySelectorAll('.tab').forEach(tab => {
-        tab.addEventListener('click', () => {
-          tabs.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-          tab.classList.add('active');
-          this.renderMyActivities(tab.dataset.afilter);
-        });
-      });
-    }
   },
 
   // ── 查看活動名單 ──
