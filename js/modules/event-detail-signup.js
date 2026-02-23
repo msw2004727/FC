@@ -37,8 +37,9 @@ Object.assign(App, {
     }
 
     const user = ApiService.getCurrentUser();
-    const userName = user?.displayName || user?.name || '用戶';
-    const userId = user?.uid || 'unknown';
+    if (!user?.uid) { this.showToast('用戶資料載入中，請稍候再試'); return; }
+    const userName = user.displayName || user.name || '用戶';
+    const userId = user.uid;
 
     // 恢復報名 → 移除之前的取消紀錄
     this._removeCancelRecordOnResignup(id, userId);

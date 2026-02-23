@@ -763,13 +763,13 @@ Object.assign(App, {
     const event = ApiService.getEvent(eventId);
     if (!event) return;
 
-    // 找到對應的 registration
+    // 找到對應的 registration（相容沒有 participantType 的舊資料與幽靈用戶）
     const allRegs = ApiService._src('registrations');
     let reg;
     if (isCompanion) {
       reg = allRegs.find(r => r.eventId === eventId && r.companionId === uid && r.status !== 'cancelled' && r.status !== 'removed');
     } else {
-      reg = allRegs.find(r => r.eventId === eventId && r.userId === uid && r.participantType === 'self' && r.status !== 'cancelled' && r.status !== 'removed');
+      reg = allRegs.find(r => r.eventId === eventId && r.userId === uid && r.participantType !== 'companion' && r.status !== 'cancelled' && r.status !== 'removed');
     }
 
     if (reg) {

@@ -139,6 +139,12 @@ const FirebaseService = {
       this._cache.rolePermissions = rp;
       restored++;
     }
+    // 恢復 currentUser（防止刷新後 currentUser 為 null 導致幽靈用戶）
+    const savedUser = this._loadFromLS('currentUser');
+    if (savedUser && savedUser.uid) {
+      this._cache.currentUser = savedUser;
+      console.log('[FirebaseService] currentUser 從 localStorage 恢復:', savedUser.displayName);
+    }
     console.log(`[FirebaseService] localStorage 快取恢復: ${restored} 個集合 (${Math.round((Date.now() - ts) / 1000)}s ago)`);
     return restored > 3; // 至少恢復 3 個集合才算有效
   },

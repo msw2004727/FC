@@ -92,7 +92,8 @@ Object.assign(App, {
     if (checkboxes.length === 0) { this.showToast('請至少選擇一位參與者'); return; }
 
     const user = ApiService.getCurrentUser();
-    const userId = user?.uid || 'unknown';
+    if (!user?.uid) { this.showToast('用戶資料載入中，請稍候再試'); return; }
+    const userId = user.uid;
     const participantList = [];
     checkboxes.forEach(cb => {
       if (cb.value === 'self') {

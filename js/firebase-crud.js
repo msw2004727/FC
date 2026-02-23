@@ -110,6 +110,7 @@ Object.assign(FirebaseService, {
   // ════════════════════════════════
 
   async registerForEvent(eventId, userId, userName) {
+    if (!userId || userId === 'unknown') throw new Error('用戶資料載入中，請稍候再試');
     const event = this._cache.events.find(e => e.id === eventId);
     if (!event) throw new Error('活動不存在');
 
@@ -138,6 +139,7 @@ Object.assign(FirebaseService, {
       eventId,
       userId,
       userName,
+      participantType: 'self',
       status,
       promotionOrder: 0,
       registeredAt: new Date().toISOString(),
@@ -500,6 +502,7 @@ Object.assign(FirebaseService, {
       userData._docId = docId;
       userData._isNewUser = true;
       this._cache.currentUser = userData;
+      this._saveToLS('currentUser', userData);
       this._setupUserListener(docId);
       console.log('[FirebaseService] 新用戶建立:', displayName, 'docId:', docId);
       return userData;
@@ -516,6 +519,7 @@ Object.assign(FirebaseService, {
       });
       Object.assign(existing, updates);
       this._cache.currentUser = existing;
+      this._saveToLS('currentUser', existing);
       this._setupUserListener(doc.id);
       console.log('[FirebaseService] 用戶登入更新:', displayName);
       return existing;
@@ -535,6 +539,7 @@ Object.assign(FirebaseService, {
       doc => {
         if (doc.exists) {
           this._cache.currentUser = { ...doc.data(), _docId: doc.id };
+          this._saveToLS('currentUser', this._cache.currentUser);
           if (this._onUserChanged) this._onUserChanged();
         }
       },
@@ -862,23 +867,22 @@ Object.assign(FirebaseService, {
   // ════════════════════════════════
 
   async batchRegisterForEvent(eventId, entries) {
+    const mainUserId = entries[0]?.userId;
+    if (!mainUserId || mainUserId === 'unknown') throw new Error('用戶資料載入中，請稍候再試');
     const event = this._cache.events.find(e => e.id === eventId);
     if (!event || !event._docId) throw new Error('活動不存在');
 
     // 防幽靈：在 transaction 前先查 Firestore 確認主報名者是否已報名
     // 只用 eventId + userId 兩欄位查詢，避免需要複合索引
-    const mainUserId = entries[0]?.userId;
-    if (mainUserId) {
-      const fsCheck = await db.collection('registrations')
-        .where('eventId', '==', eventId)
-        .where('userId', '==', mainUserId)
-        .get();
-      const hasActive = fsCheck.docs.some(d => {
-        const s = d.data().status;
-        return s === 'confirmed' || s === 'waitlisted';
-      });
-      if (hasActive) throw new Error('已報名此活動');
-    }
+    const fsCheck = await db.collection('registrations')
+      .where('eventId', '==', eventId)
+      .where('userId', '==', mainUserId)
+      .get();
+    const hasActive = fsCheck.docs.some(d => {
+      const s = d.data().status;
+      return s === 'confirmed' || s === 'waitlisted';
+    });
+    if (hasActive) throw new Error('已報名此活動');
 
     const eventRef = db.collection('events').doc(event._docId);
     const regDocRefs = entries.map(() => db.collection('registrations').doc());
