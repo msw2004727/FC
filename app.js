@@ -242,6 +242,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         try { App.renderAll(); } catch (e) {}
         // 更新 LINE 登入狀態（LIFF SDK 已載入，可正常運作）
         try { if (typeof App.bindLineLogin === 'function') await App.bindLineLogin(); } catch (e) {}
+        // LIFF 已 ready，執行暫存的 deep link（分享連結進入的情境）
+        try {
+          const pendingEvent = sessionStorage.getItem('_pendingDeepEvent');
+          const pendingTeam  = sessionStorage.getItem('_pendingDeepTeam');
+          if (pendingEvent) {
+            sessionStorage.removeItem('_pendingDeepEvent');
+            setTimeout(() => App.showEventDetail(pendingEvent), 300);
+          } else if (pendingTeam) {
+            sessionStorage.removeItem('_pendingDeepTeam');
+            setTimeout(() => App.showTeamDetail(pendingTeam), 300);
+          }
+        } catch (e) {}
       } catch (err) {
         console.error('[Boot] Phase 4 背景初始化失敗:', err && err.message || err, err && err.stack || '');
         try { App.showToast('網路連線異常，部分資料可能未更新'); } catch (e) {}
@@ -254,8 +266,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     const urlParams = new URLSearchParams(location.search);
     const deepEvent = urlParams.get('event');
     const deepTeam = urlParams.get('team');
-    if (deepEvent) { setTimeout(() => App.showEventDetail(deepEvent), 300); }
-    else if (deepTeam) { setTimeout(() => App.showTeamDetail(deepTeam), 300); }
+    if (ModeManager.isDemo()) {
+      // Demo 模式無需登入，直接執行
+      if (deepEvent) { setTimeout(() => App.showEventDetail(deepEvent), 300); }
+      else if (deepTeam) { setTimeout(() => App.showTeamDetail(deepTeam), 300); }
+    } else {
+      // 正式版：暫存 deep link，等 LIFF 初始化完成後再執行
+      // 使用 sessionStorage 可安全度過 LIFF OAuth redirect（redirect 後 URL 參數會消失）
+      if (deepEvent) sessionStorage.setItem('_pendingDeepEvent', deepEvent);
+      else if (deepTeam) sessionStorage.setItem('_pendingDeepTeam', deepTeam);
+    }
   } catch (e) {}
   try { App._autoExpireAds(); } catch (e) {}
   setInterval(() => { try { App._autoExpireAds(); } catch (e) {} }, 60000);
