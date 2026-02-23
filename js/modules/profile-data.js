@@ -485,17 +485,19 @@ Object.assign(App, {
       return;
     }
     const genderIcon = { '男': '♂', '女': '♀' };
-    list.innerHTML = companions.map(c => `
+    const circledNums = ['①','②','③','④','⑤','⑥','⑦','⑧','⑨','⑩'];
+    list.innerHTML = companions.map((c, idx) => `
       <div style="display:flex;align-items:center;gap:.5rem;padding:.35rem 0;border-bottom:1px solid var(--border)">
         <div style="flex:1">
-          <span style="font-size:.85rem;font-weight:600">${escapeHTML(c.name)}</span>
+          <span style="font-size:.85rem;font-weight:600"><span style="color:var(--text-muted);margin-right:.2rem">${circledNums[idx] || (idx + 1)}</span>${escapeHTML(c.name)}</span>
           ${c.gender ? `<span style="font-size:.72rem;color:var(--text-muted);margin-left:.3rem">${genderIcon[c.gender] || ''}${escapeHTML(c.gender)}</span>` : ''}
           ${c.notes ? `<div style="font-size:.72rem;color:var(--text-muted)">${escapeHTML(c.notes)}</div>` : ''}
         </div>
         <button class="outline-btn" style="font-size:.7rem;padding:.15rem .45rem" onclick="App.openCompanionModal('${escapeHTML(c.id)}')">編輯</button>
         <button class="outline-btn" style="font-size:.7rem;padding:.15rem .45rem;color:var(--danger);border-color:var(--danger)" onclick="App.deleteCompanion('${escapeHTML(c.id)}')">刪除</button>
       </div>
-    `).join('');
+    `).join('') +
+    (companions.length > 0 ? '<div style="font-size:.7rem;color:var(--text-muted);margin-top:.3rem">※ 序號為同行報名時的候補遞補順序</div>' : '');
   },
 
   toggleCompanionsSection(labelEl) {

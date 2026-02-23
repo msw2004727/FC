@@ -223,13 +223,13 @@ const ApiService = {
 
   getRegistrationsByUser(userId) {
     return this._src('registrations').filter(
-      r => r.userId === userId && r.status !== 'cancelled'
+      r => r.userId === userId && r.status !== 'cancelled' && r.status !== 'removed'
     );
   },
 
   getRegistrationsByEvent(eventId) {
     return this._src('registrations').filter(
-      r => r.eventId === eventId && r.status !== 'cancelled'
+      r => r.eventId === eventId && r.status !== 'cancelled' && r.status !== 'removed'
     );
   },
 
@@ -592,7 +592,7 @@ const ApiService = {
     const uid = this.getCurrentUser()?.uid;
     if (!uid) return [];
     return this._src('registrations').filter(
-      r => r.eventId === eventId && r.userId === uid && r.status !== 'cancelled'
+      r => r.eventId === eventId && r.userId === uid && r.status !== 'cancelled' && r.status !== 'removed'
     );
   },
 
@@ -606,15 +606,16 @@ const ApiService = {
     if (this._demoMode) {
       const registrations = [];
       let confirmed = 0, waitlisted = 0;
+      let promotionIdx = 0;
       for (const p of participantList) {
         // 重複檢查：跳過已報名的相同人員
         const dupKey = p.companionId ? `${userId}_${p.companionId}` : userId;
         const existing = this._src('registrations').find(r => {
-          if (r.eventId !== eventId || r.status === 'cancelled') return false;
+          if (r.eventId !== eventId || r.status === 'cancelled' || r.status === 'removed') return false;
           const rKey = r.companionId ? `${r.userId}_${r.companionId}` : r.userId;
           return rKey === dupKey;
         });
-        if (existing) continue;
+        if (existing) { promotionIdx++; continue; }
 
         const isWaitlist = e.current >= e.max;
         if (isWaitlist) {
@@ -633,8 +634,10 @@ const ApiService = {
           companionId: p.companionId || null,
           companionName: p.companionName || null,
           status: isWaitlist ? 'waitlisted' : 'confirmed',
+          promotionOrder: promotionIdx,
           registeredAt: new Date().toISOString(),
         };
+        promotionIdx++;
         this._src('registrations').push(reg);
         registrations.push(reg);
         if (e.current >= e.max) e.status = 'full';

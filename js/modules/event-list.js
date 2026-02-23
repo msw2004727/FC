@@ -167,7 +167,7 @@ Object.assign(App, {
 
     // 優先查 registrations（demo + production 通用）
     const regs = ApiService.getRegistrationsByEvent?.(e.id) || [];
-    if (regs.some(r => r.userId === uid && r.status !== 'cancelled')) return true;
+    if (regs.some(r => r.userId === uid && r.status !== 'cancelled' && r.status !== 'removed')) return true;
 
     // Fallback: 舊資料用 participants/waitlistNames
     const inParticipants = (e.participants || []).some(p => p === name || p === uid);

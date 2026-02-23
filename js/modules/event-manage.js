@@ -225,8 +225,9 @@ Object.assign(App, {
     modal.style.display = 'flex';
   },
 
-  // ── 候補名單表格（分組顯示同行者）──
+  // ── 候補名單表格（分組顯示同行者 + 孤立同行者關聯）──
   _buildWaitlistTable(e, waitlistedRegs) {
+    const allRegs = ApiService.getRegistrationsByEvent(e.id);
     const addedNames = new Set();
     let items = [];
 
@@ -236,19 +237,40 @@ Object.assign(App, {
         if (!groups.has(r.userId)) groups.set(r.userId, []);
         groups.get(r.userId).push(r);
       });
-      groups.forEach(regs => {
+      groups.forEach((regs, userId) => {
         const selfReg = regs.find(r => r.participantType === 'self');
         const companions = regs.filter(r => r.participantType === 'companion');
         const mainName = selfReg ? selfReg.userName : regs[0].userName;
-        items.push({ name: mainName, companions: companions.map(c => c.companionName || c.userName) });
+
+        const companionItems = companions.map(c => {
+          const cName = c.companionName || c.userName;
+          let orphanInfo = null;
+          if (c.participantType === 'companion') {
+            const selfConfirmed = allRegs.find(
+              r => r.userId === userId && r.participantType === 'self' && r.status === 'confirmed'
+            );
+            if (selfConfirmed) orphanInfo = selfConfirmed.userName;
+          }
+          return { name: cName, orphanInfo };
+        });
+
+        let selfOrphanInfo = null;
+        if (!selfReg) {
+          const selfConfirmed = allRegs.find(
+            r => r.userId === userId && r.participantType === 'self' && r.status === 'confirmed'
+          );
+          if (selfConfirmed) selfOrphanInfo = selfConfirmed.userName;
+        }
+
+        items.push({ name: mainName, companions: companionItems, selfOrphanInfo });
         addedNames.add(mainName);
-        companions.forEach(c => addedNames.add(c.companionName || c.userName));
+        companionItems.forEach(c => addedNames.add(c.name));
       });
     }
     // 混合資料：補上只在 waitlistNames 但沒有 registration 的舊成員
     (e.waitlistNames || []).forEach(p => {
       if (!addedNames.has(p)) {
-        items.push({ name: p, companions: [] });
+        items.push({ name: p, companions: [], selfOrphanInfo: null });
         addedNames.add(p);
       }
     });
@@ -261,11 +283,19 @@ Object.assign(App, {
         <td style="padding:.35rem .3rem;text-align:center;width:2rem"><span class="wl-pos">${idx + 1}</span></td>
         <td style="padding:.35rem .3rem;text-align:left">${this._userTag(item.name)}</td>
       </tr>`;
-      item.companions.forEach(cName => {
+      if (item.selfOrphanInfo) {
+        rows += `<tr><td></td><td style="padding:.1rem .3rem;padding-left:1.2rem;font-size:.72rem;color:var(--text-muted)">↳ 報名人：${escapeHTML(item.selfOrphanInfo)}（<span style="color:var(--success)">已正取</span>）</td></tr>`;
+      }
+      item.companions.forEach(c => {
+        const cName = typeof c === 'string' ? c : c.name;
+        const orphan = typeof c === 'object' ? c.orphanInfo : null;
         rows += `<tr style="border-bottom:1px solid var(--border)">
           <td style="padding:.3rem .3rem"></td>
           <td style="padding:.3rem .3rem;text-align:left;padding-left:1.2rem"><span style="color:var(--text-secondary)">↳ ${escapeHTML(cName)}</span></td>
         </tr>`;
+        if (orphan) {
+          rows += `<tr><td></td><td style="padding:.1rem .3rem;padding-left:1.8rem;font-size:.72rem;color:var(--text-muted)">↳ 報名人：${escapeHTML(orphan)}（<span style="color:var(--success)">已正取</span>）</td></tr>`;
+        }
       });
     });
 
@@ -373,7 +403,10 @@ Object.assign(App, {
           <td style="padding:.35rem .3rem;text-align:left">${nameHtml}</td>
           <td style="padding:.35rem .2rem;text-align:center"><input type="checkbox" id="manual-checkin-${safeUid}" ${hasCheckin ? 'checked' : ''} style="width:1rem;height:1rem"></td>
           <td style="padding:.35rem .2rem;text-align:center"><input type="checkbox" id="manual-checkout-${safeUid}" ${hasCheckout ? 'checked' : ''} style="width:1rem;height:1rem"></td>
-          <td style="padding:.35rem .2rem;text-align:center"><button class="primary-btn" style="font-size:.65rem;padding:.1rem .3rem" onclick="App._confirmManualAttendance('${escapeHTML(eventId)}','${safeUid}','${safeName}')">確認</button></td>
+          <td style="padding:.35rem .2rem;text-align:center;white-space:nowrap">
+            <button class="primary-btn" style="font-size:.65rem;padding:.1rem .3rem" onclick="App._confirmManualAttendance('${escapeHTML(eventId)}','${safeUid}','${safeName}')">確認</button>
+            <button style="font-size:.65rem;padding:.1rem .3rem;border:1px solid var(--danger);color:var(--danger);background:transparent;border-radius:var(--radius-sm);cursor:pointer" onclick="App._removeParticipant('${escapeHTML(eventId)}','${safeUid}','${safeName}',${p.isCompanion})">移除</button>
+          </td>
           <td style="padding:.35rem .3rem"><input type="text" maxlength="10" value="${escapeHTML(noteText)}" id="manual-note-${safeUid}" placeholder="備註" style="width:100%;font-size:.72rem;padding:.15rem .3rem;border:1px solid var(--border);border-radius:3px;box-sizing:border-box"></td>
         </tr>`;
       }
@@ -721,6 +754,67 @@ Object.assign(App, {
         source.splice(i, 1);
       }
     }
+  },
+
+  // ── 管理者移除參加者 ──
+  async _removeParticipant(eventId, uid, name, isCompanion) {
+    if (!await this.appConfirm(`確定要將 ${name} 從報名名單中移除嗎？`)) return;
+
+    const event = ApiService.getEvent(eventId);
+    if (!event) return;
+
+    // 找到對應的 registration
+    const allRegs = ApiService._src('registrations');
+    let reg;
+    if (isCompanion) {
+      reg = allRegs.find(r => r.eventId === eventId && r.companionId === uid && r.status !== 'cancelled' && r.status !== 'removed');
+    } else {
+      reg = allRegs.find(r => r.eventId === eventId && r.userId === uid && r.participantType === 'self' && r.status !== 'cancelled' && r.status !== 'removed');
+    }
+
+    if (reg) {
+      reg.status = 'removed';
+      reg.removedAt = new Date().toISOString();
+      if (!ModeManager.isDemo() && reg._docId) {
+        db.collection('registrations').doc(reg._docId).update({
+          status: 'removed',
+          removedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        }).catch(err => console.error('[removeParticipant]', err));
+      }
+    }
+
+    // 從活動名單移除
+    const pIdx = (event.participants || []).indexOf(name);
+    const wasConfirmed = pIdx >= 0;
+    if (pIdx >= 0) {
+      event.participants.splice(pIdx, 1);
+      event.current = Math.max(0, event.current - 1);
+    }
+    const wIdx = (event.waitlistNames || []).indexOf(name);
+    if (wIdx >= 0) {
+      event.waitlistNames.splice(wIdx, 1);
+      event.waitlist = Math.max(0, event.waitlist - 1);
+    }
+
+    // 正取被移除 → 觸發候補遞補
+    if (wasConfirmed && event.current < event.max) {
+      const candidate = this._getNextWaitlistCandidate(eventId);
+      if (candidate) {
+        this._promoteSingleCandidate(event, candidate);
+      }
+    }
+
+    event.status = event.current >= event.max ? 'full' : 'open';
+    this._syncEventToFirebase(event);
+
+    // 寫操作日誌
+    ApiService._writeOpLog('participant_removed', '移除參加者', `從「${event.title}」移除 ${name}`);
+
+    // 關閉編輯狀態並重新渲染
+    this._manualEditingUid = null;
+    this._manualEditingEventId = null;
+    this._renderAttendanceTable(eventId, this._manualEditingContainerId);
+    this.showToast(`已將 ${name} 從報名名單中移除`);
   },
 
   // ── 刪除活動 ──

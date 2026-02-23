@@ -110,7 +110,7 @@ Object.assign(App, {
     this._renderAttendanceTable(id, 'detail-attendance-table');
   },
 
-  // ── 候補名單：按 userId 分組 + 混合資料支援 ──
+  // ── 候補名單：按 userId 分組 + 混合資料支援 + 孤立同行者顯示 ──
   _buildGroupedWaitlist(e) {
     const allRegs = ApiService.getRegistrationsByEvent(e.id);
     const waitlistedRegs = allRegs.filter(r => r.status === 'waitlisted');
@@ -123,19 +123,44 @@ Object.assign(App, {
         if (!groups.has(r.userId)) groups.set(r.userId, []);
         groups.get(r.userId).push(r);
       });
-      groups.forEach(regs => {
+      groups.forEach((regs, userId) => {
         const selfReg = regs.find(r => r.participantType === 'self');
         const companions = regs.filter(r => r.participantType === 'companion');
         const mainName = selfReg ? selfReg.userName : regs[0].userName;
-        items.push({ name: mainName, companions: companions.map(c => c.companionName || c.userName) });
+
+        // 檢查孤立同行者：同行者在候補但報名人已正取
+        const companionItems = companions.map(c => {
+          const cName = c.companionName || c.userName;
+          let orphanInfo = null;
+          if (c.participantType === 'companion') {
+            const selfConfirmed = allRegs.find(
+              r => r.userId === userId && r.participantType === 'self' && r.status === 'confirmed'
+            );
+            if (selfConfirmed) {
+              orphanInfo = selfConfirmed.userName;
+            }
+          }
+          return { name: cName, orphanInfo };
+        });
+
+        // 如果沒有 selfReg（全是 companion），也檢查 self 是否已正取
+        let selfOrphanInfo = null;
+        if (!selfReg) {
+          const selfConfirmed = allRegs.find(
+            r => r.userId === userId && r.participantType === 'self' && r.status === 'confirmed'
+          );
+          if (selfConfirmed) selfOrphanInfo = selfConfirmed.userName;
+        }
+
+        items.push({ name: mainName, companions: companionItems, selfOrphanInfo });
         addedNames.add(mainName);
-        companions.forEach(c => addedNames.add(c.companionName || c.userName));
+        companionItems.forEach(c => addedNames.add(c.name));
       });
     }
     // 混合資料：補上只在 e.waitlistNames 但沒有 registration 的舊成員
     (e.waitlistNames || []).forEach(p => {
       if (!addedNames.has(p)) {
-        items.push({ name: p, companions: [] });
+        items.push({ name: p, companions: [], selfOrphanInfo: null });
         addedNames.add(p);
       }
     });
@@ -152,8 +177,16 @@ Object.assign(App, {
           <span class="wl-pos">${idx + 1}</span>
           ${this._userTag(item.name)}
         </div>`;
-      item.companions.forEach(cName => {
+      if (item.selfOrphanInfo) {
+        h += `<div style="padding:.1rem 0 0 1.8rem;font-size:.72rem;color:var(--text-muted)">↳ 報名人：${escapeHTML(item.selfOrphanInfo)}（<span style="color:var(--success)">已正取</span>）</div>`;
+      }
+      item.companions.forEach(c => {
+        const cName = typeof c === 'string' ? c : c.name;
+        const orphan = typeof c === 'object' ? c.orphanInfo : null;
         h += `<div style="padding:.15rem 0 0 1.8rem;font-size:.78rem;color:var(--text-secondary)">↳ ${escapeHTML(cName)}</div>`;
+        if (orphan) {
+          h += `<div style="padding:.1rem 0 0 2.4rem;font-size:.72rem;color:var(--text-muted)">↳ 報名人：${escapeHTML(orphan)}（<span style="color:var(--success)">已正取</span>）</div>`;
+        }
       });
       h += '</div>';
       return h;

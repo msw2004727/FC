@@ -448,7 +448,6 @@ Object.assign(App, {
     const timeVal = (tStart && tEnd) ? `${tStart}~${tEnd}` : '';
     const fee = parseInt(document.getElementById('ce-fee').value) || 0;
     const max = parseInt(document.getElementById('ce-max').value) || 20;
-    const waitlistMax = 0; // 候補無限
     const minAge = parseInt(document.getElementById('ce-min-age').value) || 0;
     const notes = document.getElementById('ce-notes').value.trim();
     const regOpenTime = document.getElementById('ce-reg-open-time')?.value || '';
@@ -497,7 +496,7 @@ Object.assign(App, {
         : [];
 
       const updates = {
-        title, type, location, date: fullDate, fee, max, waitlistMax, minAge, notes, image,
+        title, type, location, date: fullDate, fee, max, minAge, notes, image,
         regOpenTime: regOpenTime || null,
         gradient: GRADIENT_MAP[type] || GRADIENT_MAP.friendly,
         teamOnly,
@@ -518,8 +517,8 @@ Object.assign(App, {
       const oldMax = existingEvent ? existingEvent.max : max;
       ApiService.updateEvent(this._editEventId, updates);
 
-      // ── 容量變更 → 自動遞補候補 ──
-      this._promoteWaitlistOnCapacityChange(this._editEventId, oldMax, max);
+      // ── 容量變更 → 自動遞補 / 降級候補 ──
+      this._adjustWaitlistOnCapacityChange(this._editEventId, oldMax, max);
 
       // 發送活動變更通知：優先用 registrations 按 userId 去重（避免同行者重複通知）
       const eventRegs = ApiService.getRegistrationsByEvent(this._editEventId);
@@ -557,7 +556,7 @@ Object.assign(App, {
       const newEvent = {
         id: 'ce_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
         title, type, status: initStatus, location, date: fullDate,
-        fee, max, current: 0, waitlist: 0, waitlistMax, minAge, notes, image,
+        fee, max, current: 0, waitlist: 0, minAge, notes, image,
         regOpenTime: regOpenTime || null,
         creator: creatorName,
         creatorUid,
@@ -618,52 +617,136 @@ Object.assign(App, {
   },
 
   // ══════════════════════════════════
-  //  候補自動遞補（容量變更時）
+  //  候補排序 helper
   // ══════════════════════════════════
 
-  _promoteWaitlistOnCapacityChange(eventId, oldMax, newMax) {
-    if (newMax <= oldMax) return;
+  /** 取得下一位應遞補的候補者（按報名時間排序，同 userId 內按 promotionOrder 排） */
+  _getNextWaitlistCandidate(eventId) {
+    const regs = ApiService.getRegistrationsByEvent(eventId);
+    return regs
+      .filter(r => r.status === 'waitlisted')
+      .sort((a, b) => {
+        const ta = new Date(a.registeredAt).getTime();
+        const tb = new Date(b.registeredAt).getTime();
+        if (ta !== tb) return ta - tb;
+        return (a.promotionOrder || 0) - (b.promotionOrder || 0);
+      })[0] || null;
+  },
+
+  /** 執行單人遞補：將候補 registration 轉為 confirmed，更新活動名單 */
+  _promoteSingleCandidate(event, reg) {
+    if (!reg) return false;
+    const pName = reg.participantType === 'companion'
+      ? (reg.companionName || reg.userName)
+      : reg.userName;
+
+    reg.status = 'confirmed';
+    if (!ModeManager.isDemo() && reg._docId) {
+      db.collection('registrations').doc(reg._docId).update({ status: 'confirmed' })
+        .catch(err => console.error('[promoteSingle]', err));
+    }
+
+    const wIdx = (event.waitlistNames || []).indexOf(pName);
+    if (wIdx >= 0) event.waitlistNames.splice(wIdx, 1);
+    if (!(event.participants || []).includes(pName)) {
+      event.participants = event.participants || [];
+      event.participants.push(pName);
+    }
+    event.current = (event.current || 0) + 1;
+    event.waitlist = Math.max(0, (event.waitlist || 0) - 1);
+
+    // 發送遞補通知
+    this._sendNotifFromTemplate('waitlist_promoted', {
+      eventName: event.title, date: event.date, location: event.location,
+    }, reg.userId, 'activity', '活動');
+
+    return true;
+  },
+
+  // ══════════════════════════════════
+  //  候補自動遞補 / 降級（容量變更時）
+  // ══════════════════════════════════
+
+  _adjustWaitlistOnCapacityChange(eventId, oldMax, newMax) {
     const event = ApiService.getEvent(eventId);
     if (!event) return;
 
-    let slotsAvailable = newMax - event.current;
-    if (slotsAvailable <= 0) return;
+    if (newMax > oldMax) {
+      // ── 容量增加 → 遞補候補 ──
+      let slotsAvailable = newMax - event.current;
+      if (slotsAvailable <= 0) return;
 
-    const regs = ApiService.getRegistrationsByEvent(eventId);
-    const waitlisted = regs.filter(r => r.status === 'waitlisted');
-    if (waitlisted.length === 0) return;
-
-    let promoted = 0;
-    for (const reg of waitlisted) {
-      if (slotsAvailable <= 0) break;
-      const pName = reg.participantType === 'companion'
-        ? (reg.companionName || reg.userName)
-        : reg.userName;
-
-      // 更新 registration 狀態
-      reg.status = 'confirmed';
-      if (!ModeManager.isDemo() && reg._docId) {
-        db.collection('registrations').doc(reg._docId).update({ status: 'confirmed' })
-          .catch(err => console.error('[promoteWaitlist]', err));
+      let promoted = 0;
+      while (slotsAvailable > 0) {
+        const candidate = this._getNextWaitlistCandidate(eventId);
+        if (!candidate) break;
+        this._promoteSingleCandidate(event, candidate);
+        slotsAvailable--;
+        promoted++;
       }
 
-      // 從 waitlistNames 移到 participants
-      const wIdx = (event.waitlistNames || []).indexOf(pName);
-      if (wIdx >= 0) event.waitlistNames.splice(wIdx, 1);
-      if (!(event.participants || []).includes(pName)) {
-        event.participants = event.participants || [];
-        event.participants.push(pName);
+      event.status = event.current >= newMax ? 'full' : 'open';
+      this._syncEventToFirebase(event);
+
+      if (promoted > 0) {
+        console.log(`[adjustWaitlist] 容量增加，已遞補 ${promoted} 位候補者`);
       }
-      event.current = (event.current || 0) + 1;
-      event.waitlist = Math.max(0, (event.waitlist || 0) - 1);
-      slotsAvailable--;
-      promoted++;
+    } else if (newMax < oldMax && event.current > newMax) {
+      // ── 容量減少 → 降級多餘正取者到候補 ──
+      const excess = event.current - newMax;
+      const regs = ApiService.getRegistrationsByEvent(eventId);
+      const confirmed = regs
+        .filter(r => r.status === 'confirmed')
+        .sort((a, b) => {
+          // 最晚報名者先降
+          const ta = new Date(a.registeredAt).getTime();
+          const tb = new Date(b.registeredAt).getTime();
+          if (ta !== tb) return tb - ta;
+          // 同 userId 中 promotionOrder 最大的先降（同行者先降、本人最後）
+          return (b.promotionOrder || 0) - (a.promotionOrder || 0);
+        });
+
+      let demoted = 0;
+      for (const reg of confirmed) {
+        if (demoted >= excess) break;
+        const pName = reg.participantType === 'companion'
+          ? (reg.companionName || reg.userName)
+          : reg.userName;
+
+        reg.status = 'waitlisted';
+        if (!ModeManager.isDemo() && reg._docId) {
+          db.collection('registrations').doc(reg._docId).update({ status: 'waitlisted' })
+            .catch(err => console.error('[demoteToWaitlist]', err));
+        }
+
+        // 從 participants 移到 waitlistNames
+        const pIdx = (event.participants || []).indexOf(pName);
+        if (pIdx >= 0) event.participants.splice(pIdx, 1);
+        if (!(event.waitlistNames || []).includes(pName)) {
+          event.waitlistNames = event.waitlistNames || [];
+          event.waitlistNames.push(pName);
+        }
+        event.current = Math.max(0, event.current - 1);
+        event.waitlist = (event.waitlist || 0) + 1;
+        demoted++;
+
+        // 發送降級通知
+        this._sendNotifFromTemplate('waitlist_demoted', {
+          eventName: event.title, date: event.date, location: event.location,
+        }, reg.userId, 'activity', '活動');
+      }
+
+      event.status = event.current >= newMax ? 'full' : 'open';
+      this._syncEventToFirebase(event);
+
+      if (demoted > 0) {
+        console.log(`[adjustWaitlist] 容量減少，已降級 ${demoted} 位正取者到候補`);
+      }
     }
+  },
 
-    // 更新活動狀態
-    event.status = event.current >= newMax ? 'full' : 'open';
-
-    // 寫回 Firebase
+  /** 同步活動計數至 Firebase */
+  _syncEventToFirebase(event) {
     if (!ModeManager.isDemo() && event._docId) {
       db.collection('events').doc(event._docId).update({
         current: event.current,
@@ -671,11 +754,7 @@ Object.assign(App, {
         participants: event.participants,
         waitlistNames: event.waitlistNames,
         status: event.status,
-      }).catch(err => console.error('[promoteWaitlist] event update', err));
-    }
-
-    if (promoted > 0) {
-      console.log(`[promoteWaitlist] 已遞補 ${promoted} 位候補者`);
+      }).catch(err => console.error('[syncEvent]', err));
     }
   },
 

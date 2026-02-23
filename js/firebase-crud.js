@@ -113,11 +113,19 @@ Object.assign(FirebaseService, {
     const event = this._cache.events.find(e => e.id === eventId);
     if (!event) throw new Error('活動不存在');
 
-    // 檢查重複報名
+    // 檢查重複報名（快取）
     const existing = this._cache.registrations.find(
-      r => r.eventId === eventId && r.userId === userId && r.status !== 'cancelled'
+      r => r.eventId === eventId && r.userId === userId && r.status !== 'cancelled' && r.status !== 'removed'
     );
     if (existing) throw new Error('已報名此活動');
+
+    // 防幽靈：清快取後快取可能為空，直接查 Firestore 做二次確認
+    const fsCheck = await db.collection('registrations')
+      .where('eventId', '==', eventId)
+      .where('userId', '==', userId)
+      .where('status', 'in', ['confirmed', 'waitlisted'])
+      .limit(1).get();
+    if (!fsCheck.empty) throw new Error('已報名此活動');
 
     const isWaitlist = event.current >= event.max;
     const status = isWaitlist ? 'waitlisted' : 'confirmed';
@@ -127,6 +135,7 @@ Object.assign(FirebaseService, {
       userId,
       userName,
       status,
+      promotionOrder: 0,
       registeredAt: new Date().toISOString(),
     };
 
@@ -202,25 +211,34 @@ Object.assign(FirebaseService, {
         event.waitlist = Math.max(0, event.waitlist - 1);
       }
 
-      // 候補遞補：將第一位候補轉為正式
-      if (event.waitlistNames && event.waitlistNames.length > 0 && event.current < event.max) {
-        const promoted = event.waitlistNames.shift();
-        event.waitlist = Math.max(0, event.waitlist - 1);
-        // 確保遞補者不會重複出現在正取名單
-        if (!event.participants.includes(promoted)) {
-          event.participants.push(promoted);
-          event.current++;
-        }
+      // 候補遞補：取排序最前的候補者逐人遞補
+      if (event.current < event.max) {
+        const candidate = this._cache.registrations
+          .filter(r => r.eventId === event.id && r.status === 'waitlisted')
+          .sort((a, b) => {
+            const ta = new Date(a.registeredAt).getTime();
+            const tb = new Date(b.registeredAt).getTime();
+            if (ta !== tb) return ta - tb;
+            return (a.promotionOrder || 0) - (b.promotionOrder || 0);
+          })[0];
 
-        // 更新被遞補者的 registration 狀態
-        const promotedReg = this._cache.registrations.find(
-          r => r.eventId === event.id && r.userName === promoted && r.status === 'waitlisted'
-        );
-        if (promotedReg) {
-          promotedReg.status = 'confirmed';
-          reg._promotedUserId = promotedReg.userId;
-          if (promotedReg._docId) {
-            await db.collection('registrations').doc(promotedReg._docId).update({ status: 'confirmed' });
+        if (candidate) {
+          const pName = candidate.participantType === 'companion'
+            ? (candidate.companionName || candidate.userName)
+            : candidate.userName;
+
+          candidate.status = 'confirmed';
+          reg._promotedUserId = candidate.userId;
+          if (candidate._docId) {
+            await db.collection('registrations').doc(candidate._docId).update({ status: 'confirmed' });
+          }
+
+          const wIdx = (event.waitlistNames || []).indexOf(pName);
+          if (wIdx >= 0) event.waitlistNames.splice(wIdx, 1);
+          event.waitlist = Math.max(0, event.waitlist - 1);
+          if (!event.participants.includes(pName)) {
+            event.participants.push(pName);
+            event.current++;
           }
         }
       }
@@ -244,13 +262,13 @@ Object.assign(FirebaseService, {
 
   getRegistrationsByUser(userId) {
     return this._cache.registrations.filter(
-      r => r.userId === userId && r.status !== 'cancelled'
+      r => r.userId === userId && r.status !== 'cancelled' && r.status !== 'removed'
     );
   },
 
   getRegistrationsByEvent(eventId) {
     return this._cache.registrations.filter(
-      r => r.eventId === eventId && r.status !== 'cancelled'
+      r => r.eventId === eventId && r.status !== 'cancelled' && r.status !== 'removed'
     );
   },
 
@@ -835,6 +853,17 @@ Object.assign(FirebaseService, {
     const event = this._cache.events.find(e => e.id === eventId);
     if (!event || !event._docId) throw new Error('活動不存在');
 
+    // 防幽靈：在 transaction 前先查 Firestore 確認主報名者是否已報名
+    const mainUserId = entries[0]?.userId;
+    if (mainUserId) {
+      const fsCheck = await db.collection('registrations')
+        .where('eventId', '==', eventId)
+        .where('userId', '==', mainUserId)
+        .where('status', 'in', ['confirmed', 'waitlisted'])
+        .limit(1).get();
+      if (!fsCheck.empty) throw new Error('已報名此活動');
+    }
+
     const eventRef = db.collection('events').doc(event._docId);
     const regDocRefs = entries.map(() => db.collection('registrations').doc());
 
@@ -852,15 +881,16 @@ Object.assign(FirebaseService, {
       const registrations = [];
       let confirmed = 0, waitlisted = 0;
       let refIdx = 0;
+      let promotionIdx = 0;
 
       for (const entry of entries) {
         const dupKey = entry.companionId ? `${entry.userId}_${entry.companionId}` : entry.userId;
         const existing = this._cache.registrations.find(r => {
-          if (r.eventId !== eventId || r.status === 'cancelled') return false;
+          if (r.eventId !== eventId || r.status === 'cancelled' || r.status === 'removed') return false;
           const rKey = r.companionId ? `${r.userId}_${r.companionId}` : r.userId;
           return rKey === dupKey;
         });
-        if (existing) { refIdx++; continue; }
+        if (existing) { refIdx++; promotionIdx++; continue; }
 
         const isWaitlist = currentCount + confirmed >= maxCount;
         const status = isWaitlist ? 'waitlisted' : 'confirmed';
@@ -875,8 +905,10 @@ Object.assign(FirebaseService, {
           companionId: entry.companionId || null,
           companionName: entry.companionName || null,
           status,
+          promotionOrder: promotionIdx,
           registeredAt: new Date().toISOString(),
         };
+        promotionIdx++;
 
         const docRef = regDocRefs[refIdx];
         transaction.set(docRef, { ..._stripDocId(reg), registeredAt: firebase.firestore.FieldValue.serverTimestamp() });
@@ -924,7 +956,7 @@ Object.assign(FirebaseService, {
 
     for (const regId of regIds) {
       const reg = this._cache.registrations.find(r => r.id === regId);
-      if (!reg || reg.status === 'cancelled') continue;
+      if (!reg || reg.status === 'cancelled' || reg.status === 'removed') continue;
 
       reg.status = 'cancelled';
       reg.cancelledAt = new Date().toISOString();
@@ -948,28 +980,44 @@ Object.assign(FirebaseService, {
 
     if (cancelled.length === 0) return cancelled;
 
-    for (const reg of cancelled) {
-      const event = this._cache.events.find(e => e.id === reg.eventId);
-      if (event && event.waitlistNames && event.waitlistNames.length > 0 && event.current < event.max) {
-        const promoted = event.waitlistNames.shift();
+    // 按活動分組處理遞補（避免重複更新同一活動）
+    const affectedEvents = new Set(cancelled.map(r => r.eventId));
+    for (const eventId of affectedEvents) {
+      const event = this._cache.events.find(e => e.id === eventId);
+      if (!event) continue;
+
+      // 逐人遞補：每個空位取排序最前的候補
+      while (event.current < event.max) {
+        const candidate = this._cache.registrations
+          .filter(r => r.eventId === eventId && r.status === 'waitlisted')
+          .sort((a, b) => {
+            const ta = new Date(a.registeredAt).getTime();
+            const tb = new Date(b.registeredAt).getTime();
+            if (ta !== tb) return ta - tb;
+            return (a.promotionOrder || 0) - (b.promotionOrder || 0);
+          })[0];
+
+        if (!candidate) break;
+
+        const pName = candidate.participantType === 'companion'
+          ? (candidate.companionName || candidate.userName)
+          : candidate.userName;
+
+        candidate.status = 'confirmed';
+        if (candidate._docId) batch.update(db.collection('registrations').doc(candidate._docId), { status: 'confirmed' });
+
+        const wIdx = (event.waitlistNames || []).indexOf(pName);
+        if (wIdx >= 0) event.waitlistNames.splice(wIdx, 1);
         event.waitlist = Math.max(0, event.waitlist - 1);
-        if (!event.participants.includes(promoted)) { event.participants.push(promoted); event.current++; }
-        const promotedReg = this._cache.registrations.find(
-          r => r.eventId === event.id && (r.companionName || r.userName) === promoted && r.status === 'waitlisted'
-        );
-        if (promotedReg) {
-          promotedReg.status = 'confirmed';
-          if (promotedReg._docId) batch.update(db.collection('registrations').doc(promotedReg._docId), { status: 'confirmed' });
-        }
+        if (!event.participants.includes(pName)) { event.participants.push(pName); event.current++; }
       }
-      if (event) {
-        event.status = event.current >= event.max ? 'full' : 'open';
-        if (event._docId) {
-          batch.update(db.collection('events').doc(event._docId), {
-            current: event.current, waitlist: event.waitlist,
-            participants: event.participants, waitlistNames: event.waitlistNames, status: event.status,
-          });
-        }
+
+      event.status = event.current >= event.max ? 'full' : 'open';
+      if (event._docId) {
+        batch.update(db.collection('events').doc(event._docId), {
+          current: event.current, waitlist: event.waitlist,
+          participants: event.participants, waitlistNames: event.waitlistNames, status: event.status,
+        });
       }
     }
 
