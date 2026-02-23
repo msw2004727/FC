@@ -224,15 +224,25 @@ Object.assign(App, {
             }).catch(err => console.error('[cancelSignup fallback]', err));
           }
         }
-        // 補寫取消 activityRecord（快取 + Firestore）
-        const dp = e.date.split(' ')[0].split('/');
-        const dateStr = `${dp[1]}/${dp[2]}`;
-        const arCancel = { eventId: id, name: e.title, date: dateStr, status: 'cancelled', uid: userId };
-        ApiService.addActivityRecord(arCancel);
-        db.collection('activityRecords').add({
-          ...arCancel, createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-        }).then(ref => { arCancel._docId = ref.id; })
-          .catch(err => console.error('[cancelFallbackAR]', err));
+        // 取消 activityRecord：優先更新現有紀錄，無則新增
+        const arSource = ApiService._src('activityRecords');
+        const existingAR = arSource.find(a => a.eventId === id && a.uid === userId && a.status !== 'cancelled');
+        if (existingAR) {
+          existingAR.status = 'cancelled';
+          if (existingAR._docId) {
+            db.collection('activityRecords').doc(existingAR._docId).update({ status: 'cancelled' })
+              .catch(err => console.error('[cancelFallbackAR]', err));
+          }
+        } else if (!arSource.some(a => a.eventId === id && a.uid === userId && a.status === 'cancelled')) {
+          const dp = e.date.split(' ')[0].split('/');
+          const dateStr = `${dp[1]}/${dp[2]}`;
+          const arCancel = { eventId: id, name: e.title, date: dateStr, status: 'cancelled', uid: userId };
+          ApiService.addActivityRecord(arCancel);
+          db.collection('activityRecords').add({
+            ...arCancel, createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+          }).then(ref => { arCancel._docId = ref.id; })
+            .catch(err => console.error('[cancelFallbackAR]', err));
+        }
       }
       this.showToast(isWaitlist ? '已取消候補' : '已取消報名');
       this.showEventDetail(id);

@@ -241,8 +241,35 @@ Object.assign(App, {
       return;
     }
 
+    // 判斷本人是否被取消（同行者不動母用戶紀錄）
+    const hasSelfCancel = this._companionCancelRegs.filter(r => checked.includes(r.id)).some(r => !r.companionId);
+
     FirebaseService.cancelCompanionRegistrations(checked)
       .then(() => {
+        if (hasSelfCancel) {
+          const e = ApiService.getEvent(eventId);
+          if (e) {
+            // 優先更新現有 registered 紀錄為 cancelled
+            const arSource = ApiService._src('activityRecords');
+            const existingAR = arSource.find(a => a.eventId === eventId && a.uid === userId && a.status !== 'cancelled');
+            if (existingAR) {
+              existingAR.status = 'cancelled';
+              if (existingAR._docId) {
+                db.collection('activityRecords').doc(existingAR._docId).update({ status: 'cancelled' })
+                  .catch(err => console.error('[companionCancelAR]', err));
+              }
+            } else if (!arSource.some(a => a.eventId === eventId && a.uid === userId && a.status === 'cancelled')) {
+              const dp = e.date.split(' ')[0].split('/');
+              const dateStr = `${dp[1]}/${dp[2]}`;
+              const arCancel = { eventId, name: e.title, date: dateStr, status: 'cancelled', uid: userId };
+              ApiService.addActivityRecord(arCancel);
+              db.collection('activityRecords').add({
+                ...arCancel, createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+              }).then(ref => { arCancel._docId = ref.id; })
+                .catch(err => console.error('[companionCancelAR]', err));
+            }
+          }
+        }
         this.showToast(`已取消 ${checked.length} 筆報名`);
         this.showEventDetail(eventId);
       })

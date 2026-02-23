@@ -61,6 +61,8 @@ Object.assign(App, {
       }
       // 報名中 / 未出席：status=registered/waitlisted
       if (r.status === 'registered' || r.status === 'waitlisted') {
+        // 跨類別去重：若該活動已有取消或完成紀錄，跳過殭屍 registered
+        if (seenCancel.has(r.eventId) || seenComplete.has(r.eventId)) return;
         if (isPublic) return; // 公開卡片不顯示報名中
         const event = ApiService.getEvent(r.eventId);
         if (event && event.status !== 'ended' && event.status !== 'cancelled') {
