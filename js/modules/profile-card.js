@@ -119,7 +119,7 @@ Object.assign(App, {
     // 動態載入 QR Code 產生器（延遲載入，不阻塞啟動）
     if (typeof QRCode === 'undefined') {
       const s = document.createElement('script');
-      s.src = 'https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js';
+      s.src = 'https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js';
       s.onload = () => this._generateQrCode(container, data, size);
       s.onerror = () => this._qrFallbackImg(container, data, size);
       document.head.appendChild(s);
