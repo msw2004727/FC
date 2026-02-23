@@ -188,6 +188,7 @@ const FirebaseService = {
     'page-admin-inactive':    ['attendanceRecords', 'activityRecords', 'operationLogs'],
     'page-admin-teams':       ['tournaments', 'standings', 'matches'],
     'page-personal-dashboard': ['attendanceRecords', 'activityRecords'],
+    'page-profile':            ['attendanceRecords', 'activityRecords'],
     'page-leaderboard':       ['leaderboard'],
   },
 

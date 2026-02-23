@@ -63,7 +63,8 @@ Object.assign(App, {
         return;
       }
       // 完成判定（方向 B）：唯一依據為有 checkin + checkout 掃碼紀錄
-      if (seenComplete.has(r.eventId)) {
+      // 取消記錄優先：同一活動若有取消記錄，不進入完成（即使有出勤紀錄）
+      if (seenComplete.has(r.eventId) && !seenCancel.has(r.eventId)) {
         if (!completed.some(c => c.eventId === r.eventId)) {
           completed.push({ ...r, _displayStatus: 'completed' });
         }
