@@ -140,15 +140,51 @@ Object.assign(App, {
     });
 
     if (items.length === 0) return '';
-    let html = '<div class="detail-section"><div class="detail-section-title">候補名單 (' + items.length + ')</div><div class="participant-list">';
-    items.forEach((item, idx) => {
-      html += `<div style="padding:.45rem .2rem;border-bottom:1px solid var(--border)"><span class="wl-pos">${idx + 1}</span> ${this._userTag(item.name)}</div>`;
+    const totalCount = items.reduce((sum, it) => sum + 1 + it.companions.length, 0);
+    const COLLAPSE_LIMIT = 10;
+    const needCollapse = items.length > COLLAPSE_LIMIT;
+    const gridId = 'wl-grid-' + e.id;
+
+    const renderItem = (item, idx) => {
+      let h = `<div style="padding:.35rem 0">
+        <div style="display:flex;align-items:center;gap:.3rem">
+          <span style="font-size:.7rem;color:var(--text-muted);min-width:1.4rem;text-align:right">#${idx + 1}</span>
+          ${this._userTag(item.name)}
+        </div>`;
       item.companions.forEach(cName => {
-        html += `<div style="padding:.35rem .2rem .35rem 1.5rem;border-bottom:1px solid var(--border)"><span style="font-size:.78rem;color:var(--text-muted)">↳</span> <span class="user-capsule uc-user" style="opacity:.8;font-size:.78rem">${escapeHTML(cName)}</span></div>`;
+        h += `<div style="padding:.15rem 0 0 1.8rem;font-size:.78rem;color:var(--text-secondary)">↳ ${escapeHTML(cName)}</div>`;
       });
+      h += '</div>';
+      return h;
+    };
+
+    let gridItems = '';
+    items.forEach((item, idx) => {
+      const hidden = needCollapse && idx >= COLLAPSE_LIMIT ? ' style="display:none"' : '';
+      gridItems += `<div class="wl-grid-item"${hidden}>${renderItem(item, idx)}</div>`;
     });
-    html += '</div></div>';
-    return html;
+
+    const expandBtn = needCollapse
+      ? `<div id="${gridId}-expand" style="text-align:center;margin-top:.4rem">
+          <button class="outline-btn" style="font-size:.75rem;padding:.25rem .8rem" onclick="App._expandWaitlistGrid('${gridId}',${items.length})">展開全部候補 (${items.length})</button>
+        </div>`
+      : '';
+
+    return `<div class="detail-section">
+      <div class="detail-section-title">候補名單 (${totalCount})</div>
+      <div id="${gridId}" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:0 .8rem">
+        ${gridItems}
+      </div>
+      ${expandBtn}
+    </div>`;
+  },
+
+  _expandWaitlistGrid(gridId, total) {
+    const grid = document.getElementById(gridId);
+    if (!grid) return;
+    grid.querySelectorAll('.wl-grid-item').forEach(el => el.style.display = '');
+    const btn = document.getElementById(gridId + '-expand');
+    if (btn) btn.remove();
   },
 
   // ══════════════════════════════════
