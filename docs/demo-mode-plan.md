@@ -20,7 +20,7 @@
 - Console 指令 `switchMode('fc2026')`
 
 限制：
-- 在 GitHub Pages（`msw2004727.github.io`）網域會強制關閉 demo 模式。
+- 在正式域名（`toosterx.com`、`www.toosterx.com`、`msw2004727.github.io`、`fc-3g8.pages.dev`）會強制關閉 demo 模式。
 
 ---
 

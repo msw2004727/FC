@@ -4,7 +4,7 @@
 
 // ─── Cache Version（更新此值以清除瀏覽器快取）───
 // 20260220i: SW 圖片 stale-while-revalidate + lazy loading 補全
-const CACHE_VERSION = '20260223s';
+const CACHE_VERSION = '20260223t';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {
@@ -53,7 +53,7 @@ const ModeManager = {
   init() {
     this._mode = localStorage.getItem(this._STORAGE_KEY) || this._DEFAULT;
     // 正式版 hostname 安全檢查：防止被舊版 bug 殘留的 demo 模式影響
-    if (['msw2004727.github.io','fc-3g8.pages.dev'].includes(location.hostname) && this._mode === 'demo') {
+    if (['toosterx.com','www.toosterx.com','msw2004727.github.io','fc-3g8.pages.dev'].includes(location.hostname) && this._mode === 'demo') {
       this._mode = 'production';
       localStorage.setItem(this._STORAGE_KEY, 'production');
     }

@@ -4,7 +4,7 @@
 
 **SportHub** 是一套運動活動報名與管理系統，提供用戶報名活動（PLAY / 友誼 / 教學 / 觀賽）、組建球隊、參加錦標賽、QR Code 簽到簽退及個人數據統計等功能。管理端提供活動管理、用戶管理、EXP 系統、成就徽章、廣告投放等後台能力。
 
-- **部署平台**：GitHub Pages（`msw2004727.github.io`）
+- **部署平台**：自有域名 `toosterx.com`（Cloudflare Pages）、GitHub Pages（`msw2004727.github.io`）
 - **使用者驗證**：LINE LIFF 登入
 - **Demo 模式**：無需登入，使用靜態假資料瀏覽全功能
 
