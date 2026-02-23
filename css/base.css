@@ -410,3 +410,52 @@ img { max-width: 100%; display: block; }
   height: 200px;
   border-radius: var(--radius, 14px);
 }
+
+/* ─── LIFF 初始化進度條（Phase 4 期間顯示） ─── */
+#liff-init-bar {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 3px;
+  z-index: 9990;
+  background: linear-gradient(90deg, var(--primary) 0%, #818cf8 50%, var(--primary) 100%);
+  background-size: 200% 100%;
+  animation: liff-bar-slide 1.6s linear infinite;
+  opacity: 1;
+  transition: opacity .4s ease;
+}
+#liff-init-bar.liff-hide { opacity: 0; }
+@keyframes liff-bar-slide {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* ─── Deep link 等待卡片（分享連結進入時顯示） ─── */
+#liff-deeplink-card {
+  position: fixed;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 9990;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem 1.5rem;
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  align-items: center;
+  gap: .7rem;
+  font-size: .875rem;
+  color: var(--text-secondary);
+  opacity: 1;
+  transition: opacity .4s ease;
+  pointer-events: none;
+}
+#liff-deeplink-card.liff-hide { opacity: 0; }
+.liff-card-spinner {
+  width: 18px; height: 18px;
+  border: 2px solid var(--border);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: liff-spin .8s linear infinite;
+  flex-shrink: 0;
+}
+@keyframes liff-spin { to { transform: rotate(360deg); } }

@@ -223,6 +223,23 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ── Phase 4: 背景載入 CDN SDK → Firebase + LIFF（不阻塞頁面）──
   if (!ModeManager.isDemo()) {
     console.log('[Boot] Phase 4: 開始背景載入 CDN');
+    // LIFF 初始化進度條 + deep link 等待卡片
+    const _liffBar  = document.getElementById('liff-init-bar');
+    const _liffCard = document.getElementById('liff-deeplink-card');
+    if (_liffBar) _liffBar.style.display = 'block';
+    if (_liffCard && (sessionStorage.getItem('_pendingDeepEvent') || sessionStorage.getItem('_pendingDeepTeam'))) {
+      _liffCard.style.display = 'flex';
+    }
+    const _hideLiffInitUI = () => {
+      if (_liffBar && _liffBar.style.display !== 'none') {
+        _liffBar.classList.add('liff-hide');
+        setTimeout(() => { _liffBar.style.display = 'none'; _liffBar.classList.remove('liff-hide'); }, 450);
+      }
+      if (_liffCard && _liffCard.style.display !== 'none') {
+        _liffCard.classList.add('liff-hide');
+        setTimeout(() => { _liffCard.style.display = 'none'; _liffCard.classList.remove('liff-hide'); }, 450);
+      }
+    };
     (async () => {
       try {
         await _loadCDNScripts();
@@ -254,7 +271,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             setTimeout(() => App.showTeamDetail(pendingTeam), 300);
           }
         } catch (e) {}
+        _hideLiffInitUI();
       } catch (err) {
+        _hideLiffInitUI();
         console.error('[Boot] Phase 4 背景初始化失敗:', err && err.message || err, err && err.stack || '');
         try { App.showToast('網路連線異常，部分資料可能未更新'); } catch (e) {}
       }
