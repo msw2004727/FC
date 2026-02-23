@@ -106,6 +106,13 @@ const PageLoader = {
 
     toLoad.forEach(name => { this._loaded[name] = true; });
     console.log(`[PageLoader] 背景載入完成: ${toLoad.join(', ')}`);
+
+    // 延遲頁面載入後重新綁定動態元素事件（如圖片上傳）
+    if (typeof App !== 'undefined' && App._bindPageElements) {
+      try { App._bindPageElements(); } catch (e) {
+        console.warn('[PageLoader] _bindPageElements:', e);
+      }
+    }
   },
 
   /** 確保指定頁面 ID 的 HTML 片段已載入 */
@@ -122,6 +129,12 @@ const PageLoader = {
       while (temp.firstChild) mainEl.appendChild(temp.firstChild);
       this._loaded[fileName] = true;
       console.log(`[PageLoader] 按需載入: ${fileName}`);
+      // 按需載入後重新綁定動態元素事件
+      if (typeof App !== 'undefined' && App._bindPageElements) {
+        try { App._bindPageElements(); } catch (e) {
+          console.warn('[PageLoader] _bindPageElements:', e);
+        }
+      }
     } catch (err) {
       console.warn(`[PageLoader] ${fileName} 載入失敗:`, err);
     }
