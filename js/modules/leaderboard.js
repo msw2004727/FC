@@ -197,13 +197,12 @@ Object.assign(App, {
     if (el('profile-stat-done')) el('profile-stat-done').textContent = completedCount;
     if (el('profile-stat-rate')) el('profile-stat-rate').textContent = `${attendRate}%`;
 
-    // 綁定頁籤
+    // 綁定頁籤（使用 recordBound 避免被 bindTabBars 的通用 bound flag 搶先佔位）
     const tabs = document.getElementById('record-tabs');
     if (tabs) {
-      // 每次渲染都更新 active 狀態（與目前 filter 對應）
       tabs.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.filter === f));
-      if (!tabs.dataset.bound) {
-        tabs.dataset.bound = '1';
+      if (!tabs.dataset.recordBound) {
+        tabs.dataset.recordBound = '1';
         tabs.querySelectorAll('.tab').forEach(tab => {
           tab.addEventListener('click', () => {
             tabs.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
