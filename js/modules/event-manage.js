@@ -796,14 +796,14 @@ Object.assign(App, {
       }
     }
 
-    // 更新 activityRecord → cancelled（同行者不動母用戶紀錄）
+    // 更新 activityRecord → removed（不留取消記錄，管理員移除不算用戶自行取消）
     if (!isCompanion) {
       const arSource = ApiService._src('activityRecords');
-      const ar = arSource.find(a => a.eventId === eventId && a.uid === uid && a.status !== 'cancelled');
+      const ar = arSource.find(a => a.eventId === eventId && a.uid === uid && a.status !== 'cancelled' && a.status !== 'removed');
       if (ar) {
-        ar.status = 'cancelled';
+        ar.status = 'removed';
         if (!ModeManager.isDemo() && ar._docId) {
-          db.collection('activityRecords').doc(ar._docId).update({ status: 'cancelled' })
+          db.collection('activityRecords').doc(ar._docId).update({ status: 'removed' })
             .catch(err => console.error('[removeParticipantAR]', err));
         }
       }

@@ -37,24 +37,34 @@ Object.assign(App, {
     const registered = [];
     const completed = [];
     const cancelled = [];
+
+    // 第一遍：先建立取消和完成的 eventId 集合，確保跨類別去重不受順序影響
     const seenCancel = new Set();
     const seenComplete = new Set();
-
     all.forEach(r => {
+      if (r.status === 'cancelled') seenCancel.add(r.eventId);
+    });
+    all.forEach(r => {
+      if (r.status === 'cancelled' || r.status === 'removed') return;
+      const hasCheckin  = attRecords.some(a => a.eventId === r.eventId && a.uid === uid && a.type === 'checkin');
+      const hasCheckout = attRecords.some(a => a.eventId === r.eventId && a.uid === uid && a.type === 'checkout');
+      if (hasCheckin && hasCheckout) seenComplete.add(r.eventId);
+    });
+
+    // 第二遍：正式分類
+    all.forEach(r => {
+      // 移除記錄不出現在任何 tab
+      if (r.status === 'removed') return;
       // 取消紀錄（同一場活動只保留一筆）
       if (r.status === 'cancelled') {
-        if (!seenCancel.has(r.eventId)) {
-          seenCancel.add(r.eventId);
+        if (!cancelled.some(c => c.eventId === r.eventId)) {
           cancelled.push(r);
         }
         return;
       }
       // 完成判定（方向 B）：唯一依據為有 checkin + checkout 掃碼紀錄
-      const hasCheckin  = attRecords.some(a => a.eventId === r.eventId && a.uid === uid && a.type === 'checkin');
-      const hasCheckout = attRecords.some(a => a.eventId === r.eventId && a.uid === uid && a.type === 'checkout');
-      if (hasCheckin && hasCheckout) {
-        if (!seenComplete.has(r.eventId)) {
-          seenComplete.add(r.eventId);
+      if (seenComplete.has(r.eventId)) {
+        if (!completed.some(c => c.eventId === r.eventId)) {
           completed.push({ ...r, _displayStatus: 'completed' });
         }
         return;
@@ -67,7 +77,7 @@ Object.assign(App, {
         const event = ApiService.getEvent(r.eventId);
         if (event && event.status !== 'ended' && event.status !== 'cancelled') {
           registered.push(r);
-        } else if (event && (event.status === 'ended')) {
+        } else if (event && event.status === 'ended') {
           // 活動已結束但未簽到簽退 → 歸類為 registered 並標記 missed
           registered.push({ ...r, _displayStatus: 'missed' });
         }
