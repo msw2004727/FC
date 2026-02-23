@@ -98,8 +98,9 @@ Object.assign(App, {
     if (el('profile-region')) el('profile-region').textContent = v(user.region);
     if (el('profile-sports')) el('profile-sports').textContent = v(user.sports);
     if (el('profile-phone')) el('profile-phone').textContent = v(user.phone);
-    if (el('profile-join-date')) el('profile-join-date').textContent = v(user.joinDate);
-    if (el('profile-join-date-edit')) el('profile-join-date-edit').textContent = v(user.joinDate);
+    const _fmtCreatedAt = (ca) => { if (!ca) return '-'; const d = ca.toDate ? ca.toDate() : (ca.seconds ? new Date(ca.seconds * 1000) : new Date(ca)); return isNaN(d) ? '-' : `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}`; };
+    if (el('profile-join-date')) el('profile-join-date').textContent = _fmtCreatedAt(user.createdAt);
+    if (el('profile-join-date-edit')) el('profile-join-date-edit').textContent = _fmtCreatedAt(user.createdAt);
 
     // 所屬球隊（含領隊球隊，可點擊）
     const teamEl = el('profile-team');

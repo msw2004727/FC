@@ -75,7 +75,10 @@ Object.assign(App, {
     const region = (user && user.region) || '-';
     const sports = (user && user.sports) || '-';
     const phone = (user && user.phone) || '-';
-    const joinDate = (user && user.joinDate) || '-';
+    const _ca = user && user.createdAt;
+    const joinDate = _ca
+      ? (() => { const d = (_ca.toDate ? _ca.toDate() : (_ca.seconds ? new Date(_ca.seconds * 1000) : new Date(_ca))); return isNaN(d) ? '-' : `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}`; })()
+      : '-';
     // 頭像：自己用 LINE 頭像，他人用資料庫 pictureUrl
     const pic = isSelf
       ? ((lineProfile && lineProfile.pictureUrl) || (user && user.pictureUrl))
