@@ -19,16 +19,8 @@
       <button class="scan-camera-btn" id="scan-camera-btn" disabled>開啟相機掃碼</button>
     </div>
     <div class="scan-results" id="scan-results"></div>
-    <div class="scan-manual">
-      <span>或手動輸入 UID：</span>
-      <div class="scan-input-row">
-        <input type="text" id="scan-uid-input" placeholder="U1a2b3c..." disabled>
-        <button class="primary-btn" id="scan-manual-btn" disabled>確認</button>
-      </div>
-    </div>
     <div class="scan-stats" id="scan-stats"></div>
-    <div id="scan-checkin-section"></div>
-    <div id="scan-checkout-section"></div>
+    <div id="scan-registered-section"></div>
     <div id="scan-unreg-section"></div>
   </div>
 </section>
@@ -55,15 +47,3 @@
   </div>
 </div>
 
-<!-- Scan choice modal -->
-<div class="scan-choice-overlay" id="scan-choice-modal">
-  <div class="scan-choice-box">
-    <h3 id="scan-choice-name"></h3>
-    <p id="scan-choice-uid"></p>
-    <div class="scan-choice-btns">
-      <button class="scan-choice-checkin-btn" id="scan-choice-checkin">簽到</button>
-      <button class="scan-choice-checkout-btn" id="scan-choice-checkout">簽退</button>
-      <button class="scan-choice-cancel-btn" id="scan-choice-cancel">取消</button>
-    </div>
-  </div>
-</div>

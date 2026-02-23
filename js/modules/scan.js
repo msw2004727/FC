@@ -87,8 +87,6 @@ Object.assign(App, {
   _bindScanEvents() {
     const select = document.getElementById('scan-event-select');
     const cameraBtn = document.getElementById('scan-camera-btn');
-    const manualBtn = document.getElementById('scan-manual-btn');
-    const uidInput = document.getElementById('scan-uid-input');
     const modeToggles = document.querySelectorAll('#page-scan .scan-mode');
 
     // Prevent duplicate binding
@@ -111,33 +109,12 @@ Object.assign(App, {
     });
 
     cameraBtn.addEventListener('click', () => this._toggleCamera());
-
-    manualBtn.addEventListener('click', () => this._handleManualInput());
-
-    uidInput.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') this._handleManualInput();
-    });
-
-    // Choice modal buttons
-    document.getElementById('scan-choice-checkin').addEventListener('click', () => {
-      this._processScanChoice('checkin');
-    });
-    document.getElementById('scan-choice-checkout').addEventListener('click', () => {
-      this._processScanChoice('checkout');
-    });
-    document.getElementById('scan-choice-cancel').addEventListener('click', () => {
-      document.getElementById('scan-choice-modal').classList.remove('open');
-    });
   },
 
   _updateScanControls() {
     const hasEvent = !!this._scanSelectedEventId;
     const cameraBtn = document.getElementById('scan-camera-btn');
-    const manualBtn = document.getElementById('scan-manual-btn');
-    const uidInput = document.getElementById('scan-uid-input');
     if (cameraBtn) cameraBtn.disabled = !hasEvent;
-    if (manualBtn) manualBtn.disabled = !hasEvent;
-    if (uidInput) uidInput.disabled = !hasEvent;
   },
 
   // ══════════════════════════════════
@@ -225,43 +202,6 @@ Object.assign(App, {
   },
 
   // ══════════════════════════════════
-  //  Manual input
-  // ══════════════════════════════════
-
-  _handleManualInput() {
-    const input = document.getElementById('scan-uid-input');
-    const uid = (input.value || '').trim();
-    if (!uid) {
-      this.showToast('請輸入 UID');
-      return;
-    }
-    if (!this._scanSelectedEventId) {
-      this.showToast('請先選擇活動');
-      return;
-    }
-
-    // Look up user info to show in choice modal
-    const userInfo = this._findUserByUid(uid);
-    const modal = document.getElementById('scan-choice-modal');
-    document.getElementById('scan-choice-name').textContent = userInfo ? userInfo.name : '未知用戶';
-    document.getElementById('scan-choice-uid').textContent = uid;
-    modal.dataset.uid = uid;
-    modal.classList.add('open');
-    input.value = '';
-  },
-
-  _pendingChoiceUid: null,
-
-  _processScanChoice(mode) {
-    const modal = document.getElementById('scan-choice-modal');
-    const uid = modal.dataset.uid;
-    modal.classList.remove('open');
-    if (uid) {
-      this._processAttendance(uid, mode);
-    }
-  },
-
-  // ══════════════════════════════════
   //  Core attendance processing
   // ══════════════════════════════════
 
@@ -317,21 +257,50 @@ Object.assign(App, {
     let resultMsg = '';
 
     if (!isRegistered) {
-      // Unregistered — record in red
-      resultClass = 'error';
-      resultMsg = `${userName} 未報名此活動`;
-      // Add unregistered record if not already present
+      // 未報名 — 先寫 unreg 標記
       if (!records.find(r => r.uid === uid && r.type === 'unreg')) {
         const now = new Date();
         const timeStr = `${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
         await ApiService.addAttendanceRecord({
           id: 'att_' + Date.now() + '_' + Math.random().toString(36).slice(2,5),
           eventId: this._scanSelectedEventId,
-          uid,
-          userName,
-          type: 'unreg',
-          time: timeStr,
+          uid, userName, type: 'unreg', time: timeStr,
         });
+      }
+      // 同時處理簽到/簽退（同報名者邏輯，但 resultClass 為 warning、不給 EXP）
+      if (mode === 'checkin') {
+        if (userCheckin) {
+          resultClass = 'warning';
+          resultMsg = `${userName} 未報名，已完成簽到`;
+        } else {
+          const now = new Date();
+          const timeStr = `${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+          await ApiService.addAttendanceRecord({
+            id: 'att_' + Date.now() + '_' + Math.random().toString(36).slice(2,5),
+            eventId: this._scanSelectedEventId,
+            uid, userName, type: 'checkin', time: timeStr,
+          });
+          resultClass = 'warning';
+          resultMsg = `${userName} 未報名，簽到成功`;
+        }
+      } else {
+        if (!userCheckin) {
+          resultClass = 'warning';
+          resultMsg = `${userName} 未報名，尚未簽到`;
+        } else if (userCheckout) {
+          resultClass = 'warning';
+          resultMsg = `${userName} 未報名，已完成簽退`;
+        } else {
+          const now = new Date();
+          const timeStr = `${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+          await ApiService.addAttendanceRecord({
+            id: 'att_' + Date.now() + '_' + Math.random().toString(36).slice(2,5),
+            eventId: this._scanSelectedEventId,
+            uid, userName, type: 'checkout', time: timeStr,
+          });
+          resultClass = 'warning';
+          resultMsg = `${userName} 未報名，簽退成功`;
+        }
       }
     } else if (mode === 'checkin') {
       if (userCheckin) {
@@ -429,16 +398,14 @@ Object.assign(App, {
 
   _renderAttendanceSections() {
     const eventId = this._scanSelectedEventId;
-    const checkinDiv = document.getElementById('scan-checkin-section');
-    const checkoutDiv = document.getElementById('scan-checkout-section');
+    const regDiv = document.getElementById('scan-registered-section');
     const unregDiv = document.getElementById('scan-unreg-section');
     const statsDiv = document.getElementById('scan-stats');
 
-    if (!checkinDiv) return;
+    if (!regDiv) return;
 
     if (!eventId) {
-      checkinDiv.innerHTML = '';
-      checkoutDiv.innerHTML = '';
+      regDiv.innerHTML = '';
       unregDiv.innerHTML = '';
       statsDiv.innerHTML = '';
       return;
@@ -457,80 +424,86 @@ Object.assign(App, {
       confirmedCountByUid.set(r.userId, (confirmedCountByUid.get(r.userId) || 0) + 1);
     });
 
-    // Build user sets：用 uid+companionId 去重，正確計入同行者
-    const checkinMap = new Map();  // key -> {name, time}
-    const checkoutMap = new Map();
-    const unregMap = new Map();
-
+    // Build per-person state：按 uid+companionId 分組
+    const personMap = new Map();
     records.forEach(r => {
       const key = r.companionId ? `${r.uid}_${r.companionId}` : r.uid;
-      const displayName = r.companionId ? (r.companionName || r.userName) : r.userName;
-      if (r.type === 'checkin' && !checkinMap.has(key)) {
-        checkinMap.set(key, { name: displayName, time: r.time, uid: r.uid, companionId: r.companionId });
+      if (!personMap.has(key)) {
+        personMap.set(key, {
+          name: r.companionId ? (r.companionName || r.userName) : r.userName,
+          uid: r.uid, companionId: r.companionId || null,
+          checkin: false, checkout: false, unreg: false,
+        });
       }
-      if (r.type === 'checkout' && !checkoutMap.has(key)) {
-        checkoutMap.set(key, { name: displayName, time: r.time, uid: r.uid, companionId: r.companionId });
-      }
-      if (r.type === 'unreg' && !unregMap.has(key)) {
-        unregMap.set(key, { name: displayName, time: r.time });
-      }
+      const p = personMap.get(key);
+      if (r.type === 'checkin') p.checkin = true;
+      if (r.type === 'checkout') p.checkout = true;
+      if (r.type === 'unreg') p.unreg = true;
     });
 
-    // 產生帶 *N 的標籤（只計正取人數）
-    const tagWithCount = (name, uid) => {
-      const count = confirmedCountByUid.get(uid) || 1;
-      const suffix = count > 1 ? ` *${count}` : '';
-      return `<span class="scan-user-tag">${escapeHTML(name)}${suffix}</span>`;
+    // 分流：已報名 vs 未報名
+    const regPersons = [];
+    const unregPersons = [];
+    personMap.forEach(p => {
+      if (p.unreg) unregPersons.push(p);
+      else regPersons.push(p);
+    });
+
+    // 產生帶 *N 計數與勾勾的膠囊標籤
+    const buildTag = (person, isUnreg) => {
+      const count = confirmedCountByUid.get(person.uid) || 1;
+      const suffix = !isUnreg && count > 1 ? ` *${count}` : '';
+      let checks = '';
+      if (person.checkin) checks += '<span class="scan-check scan-check-in">\u2713</span>';
+      if (person.checkout) {
+        const cls = isUnreg ? 'scan-check-out-unreg' : 'scan-check-out-ok';
+        checks += `<span class="scan-check ${cls}">\u2713</span>`;
+      }
+      const checksHtml = checks ? `<span class="scan-tag-checks">${checks}</span>` : '';
+      const tagCls = checks ? 'scan-user-tag has-checks' : 'scan-user-tag';
+      return `<span class="${tagCls}">${escapeHTML(person.name)}${suffix}${checksHtml}</span>`;
     };
 
-    // 已簽到：按主用戶分組顯示（含同行者人數）
-    const checkinByUid = new Map();
-    checkinMap.forEach((val) => {
-      if (!checkinByUid.has(val.uid)) checkinByUid.set(val.uid, val);
-    });
-    const checkedInTags = [];
-    checkinByUid.forEach((val, uid) => checkedInTags.push(tagWithCount(val.name, uid)));
-
-    // 已簽退：按主用戶分組顯示
-    const checkoutByUid = new Map();
-    checkoutMap.forEach((val) => {
-      if (checkinMap.has(val.companionId ? `${val.uid}_${val.companionId}` : val.uid)) {
-        if (!checkoutByUid.has(val.uid)) checkoutByUid.set(val.uid, val);
+    // 已報名：按主 uid 分組顯示，合併勾勾狀態
+    const regByUid = new Map();
+    regPersons.forEach(p => {
+      if (!regByUid.has(p.uid)) {
+        regByUid.set(p.uid, { ...p });
+      } else {
+        const ex = regByUid.get(p.uid);
+        if (p.checkin) ex.checkin = true;
+        if (p.checkout) ex.checkout = true;
       }
     });
-    const checkedOutTags = [];
-    checkoutByUid.forEach((val, uid) => checkedOutTags.push(tagWithCount(val.name, uid)));
+    const regTags = [];
+    regByUid.forEach(p => regTags.push(buildTag(p, false)));
 
     // 未報名
-    const unregTags = [];
-    unregMap.forEach((val) => unregTags.push(`<span class="scan-user-tag">${escapeHTML(val.name)}</span>`));
+    const unregTags = unregPersons.map(p => buildTag(p, true));
 
-    checkinDiv.innerHTML = `<div class="scan-section scan-section-checkin">
-      <h4>已簽到（${checkinMap.size}）</h4>
-      <div class="scan-user-tags">${checkedInTags.length ? checkedInTags.join('') : '<span style="font-size:.78rem;color:var(--text-muted)">尚無</span>'}</div>
-    </div>`;
+    // 統計（僅計已報名者）
+    const regCheckinCount = [...personMap.values()].filter(p => p.checkin && !p.unreg).length;
+    const regCheckoutCount = [...personMap.values()].filter(p => p.checkout && !p.unreg).length;
 
-    checkoutDiv.innerHTML = `<div class="scan-section scan-section-checkout">
-      <h4>已簽退（${checkoutMap.size}）</h4>
-      <div class="scan-user-tags">${checkedOutTags.length ? checkedOutTags.join('') : '<span style="font-size:.78rem;color:var(--text-muted)">尚無</span>'}</div>
+    regDiv.innerHTML = `<div class="scan-section scan-section-registered">
+      <h4>已報名（${regByUid.size}）</h4>
+      <div class="scan-user-tags">${regTags.length ? regTags.join('') : '<span style="font-size:.78rem;color:var(--text-muted)">尚無</span>'}</div>
     </div>`;
 
     unregDiv.innerHTML = unregTags.length ? `<div class="scan-section scan-section-unreg">
-      <h4>未報名（${unregTags.length}）</h4>
+      <h4>未報名（${unregPersons.length}）</h4>
       <div class="scan-user-tags">${unregTags.join('')}</div>
     </div>` : '';
 
-    // Stats：報名 = 正取人數，出席率 = 已簽到人頭 / 正取人數
+    // Stats
     const totalConfirmed = confirmedRegs.length > 0 ? confirmedRegs.length : (event.participants || []).length;
-    const totalCheckedIn = checkinMap.size;
-    const totalCheckedOut = checkoutMap.size;
-    const completionRate = totalConfirmed > 0 ? Math.round(totalCheckedIn / totalConfirmed * 100) : 0;
+    const completionRate = totalConfirmed > 0 ? Math.round(regCheckinCount / totalConfirmed * 100) : 0;
 
     statsDiv.innerHTML = `
       <span>報名：<strong>${totalConfirmed}</strong></span>
-      <span>已簽到：<strong>${totalCheckedIn}</strong></span>
-      <span>已簽退：<strong>${totalCheckedOut}</strong></span>
-      <span>未報名：<strong>${unregTags.length}</strong></span>
+      <span>已簽到：<strong>${regCheckinCount}</strong></span>
+      <span>已簽退：<strong>${regCheckoutCount}</strong></span>
+      <span>未報名：<strong>${unregPersons.length}</strong></span>
       <span>出席率：<strong>${completionRate}%</strong></span>
     `;
   },
