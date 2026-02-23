@@ -515,7 +515,11 @@ Object.assign(App, {
           updates.status = this._isEventTrulyFull(existingEvent) ? 'full' : 'open';
         }
       }
+      const oldMax = existingEvent ? existingEvent.max : max;
       ApiService.updateEvent(this._editEventId, updates);
+
+      // ── 容量變更 → 自動遞補候補 ──
+      this._promoteWaitlistOnCapacityChange(this._editEventId, oldMax, max);
 
       // 發送活動變更通知：優先用 registrations 按 userId 去重（避免同行者重複通知）
       const eventRegs = ApiService.getRegistrationsByEvent(this._editEventId);
@@ -610,6 +614,68 @@ Object.assign(App, {
     if (cePreview) {
       cePreview.classList.remove('has-image');
       cePreview.innerHTML = '<span class="ce-upload-icon">+</span><span class="ce-upload-text">點擊上傳圖片</span><span class="ce-upload-hint">建議尺寸 800 × 300 px｜JPG / PNG｜最大 2MB</span>';
+    }
+  },
+
+  // ══════════════════════════════════
+  //  候補自動遞補（容量變更時）
+  // ══════════════════════════════════
+
+  _promoteWaitlistOnCapacityChange(eventId, oldMax, newMax) {
+    if (newMax <= oldMax) return;
+    const event = ApiService.getEvent(eventId);
+    if (!event) return;
+
+    let slotsAvailable = newMax - event.current;
+    if (slotsAvailable <= 0) return;
+
+    const regs = ApiService.getRegistrationsByEvent(eventId);
+    const waitlisted = regs.filter(r => r.status === 'waitlisted');
+    if (waitlisted.length === 0) return;
+
+    let promoted = 0;
+    for (const reg of waitlisted) {
+      if (slotsAvailable <= 0) break;
+      const pName = reg.participantType === 'companion'
+        ? (reg.companionName || reg.userName)
+        : reg.userName;
+
+      // 更新 registration 狀態
+      reg.status = 'confirmed';
+      if (!ModeManager.isDemo() && reg._docId) {
+        db.collection('registrations').doc(reg._docId).update({ status: 'confirmed' })
+          .catch(err => console.error('[promoteWaitlist]', err));
+      }
+
+      // 從 waitlistNames 移到 participants
+      const wIdx = (event.waitlistNames || []).indexOf(pName);
+      if (wIdx >= 0) event.waitlistNames.splice(wIdx, 1);
+      if (!(event.participants || []).includes(pName)) {
+        event.participants = event.participants || [];
+        event.participants.push(pName);
+      }
+      event.current = (event.current || 0) + 1;
+      event.waitlist = Math.max(0, (event.waitlist || 0) - 1);
+      slotsAvailable--;
+      promoted++;
+    }
+
+    // 更新活動狀態
+    event.status = event.current >= newMax ? 'full' : 'open';
+
+    // 寫回 Firebase
+    if (!ModeManager.isDemo() && event._docId) {
+      db.collection('events').doc(event._docId).update({
+        current: event.current,
+        waitlist: event.waitlist,
+        participants: event.participants,
+        waitlistNames: event.waitlistNames,
+        status: event.status,
+      }).catch(err => console.error('[promoteWaitlist] event update', err));
+    }
+
+    if (promoted > 0) {
+      console.log(`[promoteWaitlist] 已遞補 ${promoted} 位候補者`);
     }
   },
 

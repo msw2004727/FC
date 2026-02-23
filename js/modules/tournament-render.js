@@ -17,17 +17,7 @@ Object.assign(App, {
       if (renderedIds.length === currentIds.length && renderedIds.every((id, i) => id === currentIds[i])) return;
     }
     if (ongoing.length === 0) {
-      container.innerHTML = (!App._firebaseConnected && !ModeManager.isDemo())
-        ? [1, 2, 3].map(() => `
-          <div class="h-card">
-            <div class="h-card-img skeleton"></div>
-            <div class="h-card-body">
-              <div class="skeleton skeleton-line" style="width:60%"></div>
-              <div class="skeleton skeleton-line" style="width:85%"></div>
-            </div>
-          </div>
-        `).join('')
-        : `<div style="text-align:center;padding:1.5rem;color:var(--text-muted);font-size:.85rem">${t('tournament.noActive')}</div>`;
+      container.innerHTML = `<div style="text-align:center;padding:1.5rem;color:var(--text-muted);font-size:.85rem">${t('tournament.noActive')}</div>`;
       return;
     }
     container.innerHTML = ongoing.map(t => `

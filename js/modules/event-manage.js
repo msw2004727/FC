@@ -163,25 +163,7 @@ Object.assign(App, {
 
     const allActiveRegs = ApiService.getRegistrationsByEvent(e.id);
     const waitlistedRegs = allActiveRegs.filter(r => r.status === 'waitlisted');
-    let waitlist = '';
-    if (waitlistedRegs.length > 0) {
-      // 扁平顯示每個候補者的實際名字（不按主用戶分組）
-      waitlist = waitlistedRegs.map((r, i) => {
-        const displayName = r.participantType === 'companion' ? (r.companionName || r.userName) : r.userName;
-        return `<div style="display:flex;align-items:center;gap:.4rem;padding:.3rem 0;border-bottom:1px solid var(--border)">
-          <span style="font-size:.72rem;color:var(--text-muted);min-width:1.5rem">${i + 1}.</span>
-          <span style="font-size:.82rem">${escapeHTML(displayName)}</span>
-        </div>`;
-      }).join('');
-    } else {
-      // fallback: 舊資料用 waitlistNames
-      waitlist = (e.waitlistNames || []).map((p, i) =>
-        `<div style="display:flex;align-items:center;gap:.4rem;padding:.3rem 0;border-bottom:1px solid var(--border)">
-          <span style="font-size:.72rem;color:var(--text-muted);min-width:1.5rem">${i + 1}.</span>
-          <span style="font-size:.82rem">${escapeHTML(p)}</span>
-        </div>`
-      ).join('');
-    }
+    const waitlistHtml = this._buildWaitlistTable(e, waitlistedRegs);
 
     // ── 簽到/簽退/未報名紀錄 helper ──
     const recRow = (v) =>
@@ -231,10 +213,7 @@ Object.assign(App, {
       </div>
       <div style="font-size:.85rem;font-weight:700;margin-bottom:.3rem">報名名單（${e.current}/${e.max}）</div>
       <div id="attendance-table-container"></div>
-      ${e.waitlist > 0 ? `
-        <div style="font-size:.85rem;font-weight:700;margin:.6rem 0 .3rem">候補名單（${e.waitlist}）</div>
-        ${waitlist}
-      ` : ''}
+      ${waitlistHtml}
       ${checkinSection}
       ${checkoutSection}
       ${unregSection}
@@ -242,6 +221,63 @@ Object.assign(App, {
     `;
     this._renderAttendanceTable(e.id);
     modal.style.display = 'flex';
+  },
+
+  // ── 候補名單表格（分組顯示同行者）──
+  _buildWaitlistTable(e, waitlistedRegs) {
+    const addedNames = new Set();
+    let items = [];
+
+    if (waitlistedRegs.length > 0) {
+      const groups = new Map();
+      waitlistedRegs.forEach(r => {
+        if (!groups.has(r.userId)) groups.set(r.userId, []);
+        groups.get(r.userId).push(r);
+      });
+      groups.forEach(regs => {
+        const selfReg = regs.find(r => r.participantType === 'self');
+        const companions = regs.filter(r => r.participantType === 'companion');
+        const mainName = selfReg ? selfReg.userName : regs[0].userName;
+        items.push({ name: mainName, companions: companions.map(c => c.companionName || c.userName) });
+        addedNames.add(mainName);
+        companions.forEach(c => addedNames.add(c.companionName || c.userName));
+      });
+    }
+    // 混合資料：補上只在 waitlistNames 但沒有 registration 的舊成員
+    (e.waitlistNames || []).forEach(p => {
+      if (!addedNames.has(p)) {
+        items.push({ name: p, companions: [] });
+        addedNames.add(p);
+      }
+    });
+
+    if (items.length === 0) return '';
+
+    let rows = '';
+    items.forEach((item, idx) => {
+      rows += `<tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:.35rem .3rem;text-align:center;font-size:.72rem;color:var(--text-muted);width:2rem">${idx + 1}</td>
+        <td style="padding:.35rem .3rem;text-align:left">${this._userTag(item.name)}</td>
+      </tr>`;
+      item.companions.forEach(cName => {
+        rows += `<tr style="border-bottom:1px solid var(--border)">
+          <td style="padding:.3rem .3rem"></td>
+          <td style="padding:.3rem .3rem;text-align:left;padding-left:1.2rem"><span style="color:var(--text-secondary)">↳ ${escapeHTML(cName)}</span></td>
+        </tr>`;
+      });
+    });
+
+    const totalCount = items.reduce((sum, it) => sum + 1 + it.companions.length, 0);
+    return `<div style="font-size:.85rem;font-weight:700;margin:.6rem 0 .3rem">候補名單（${totalCount}）</div>
+      <div style="overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse;font-size:.8rem">
+          <thead><tr style="border-bottom:2px solid var(--border)">
+            <th style="text-align:center;padding:.4rem .3rem;font-weight:600;width:2rem">#</th>
+            <th style="text-align:left;padding:.4rem .3rem;font-weight:600">姓名</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`;
   },
 
   // ── 出勤紀錄匹配：正確區分本人與同行者 ──
