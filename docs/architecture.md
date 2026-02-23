@@ -94,7 +94,7 @@ flowchart TD
 | `api-service.js` | **抽象層**；根據 `ModeManager.isDemo()` 決定從 `DemoData` 或 `FirebaseService._cache` 取資料，隔離所有 UI 模組與 Demo / Prod 切換邏輯 |
 | `line-auth.js` | LINE LIFF SDK 封裝；在 Demo 模式或 localhost 時停用，提供登入 / 登出 / 取得個人資料 |
 | `page-loader.js` | 按需非同步載入 `pages/*.html` 片段，快取版本由 `CACHE_VERSION` 控制。延遲載入（`_loadDeferred`）與按需載入（`ensurePage`）完成後自動呼叫 `App._bindPageElements()` 重新綁定事件 |
-| `script-loader.js` | 按頁面群組動態載入 JS 模組，減少首次載入體積 |
+| `script-loader.js` | 定義頁面群組與模組映射；目前所有模組已在 `index.html` 以 `<script defer>` 靜態載入，ScriptLoader 作為保底機制確保頁面切換時模組可用 |
 | `app.js` | `App` 主物件；定義 4 階段初始化流程、`renderAll()`、`showToast()`、`appConfirm()` |
 | `core/navigation.js` | `showPage()` 頁面路由、Modal 管理、Drawer 開關，透過 `Object.assign` 擴充 App |
 | `core/theme.js` | 深色 / 淺色主題切換，偏好儲存於 localStorage |
@@ -154,5 +154,5 @@ i18n.js → config.js → data.js → firebase-config.js
   → firebase-service.js → firebase-crud.js → api-service.js → line-auth.js
   → page-loader.js → script-loader.js → app.js
   → core/navigation.js → core/theme.js → core/mode.js
-  → [modules 依頁面群組按需載入]
+  → [39 個 modules 全部以 <script defer> 靜態載入]
 ```
