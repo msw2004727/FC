@@ -385,7 +385,7 @@ Object.assign(App, {
     this._showScanResultPopup(resultClass, resultMsg, userName);
 
     // Demo 模式：模擬被掃方收到通知
-    if (resultClass === 'success' && typeof this._simulateAttendanceNotify === 'function') {
+    if (resultClass === 'success' && ModeManager.isDemo() && typeof this._simulateAttendanceNotify === 'function') {
       this._simulateAttendanceNotify(this._scanSelectedEventId, mode);
     }
   },
@@ -396,7 +396,8 @@ Object.assign(App, {
     const box = document.getElementById('scan-result-box');
     document.getElementById('scan-result-icon').textContent = icons[cls] || '';
     document.getElementById('scan-result-title').textContent = msg;
-    document.getElementById('scan-result-name').textContent = '';
+    const event = this._scanSelectedEventId ? ApiService.getEvent(this._scanSelectedEventId) : null;
+    document.getElementById('scan-result-name').textContent = event ? event.title : '';
     box.className = 'scan-result-box ' + cls;
     modal.classList.add('open');
   },
@@ -634,7 +635,7 @@ Object.assign(App, {
     this._showScanResultPopup('success', `${userName} 等 ${checked.length} 人${modeLabel}成功`, userName);
 
     // Demo 模式：模擬被掃方收到通知
-    if (typeof this._simulateAttendanceNotify === 'function') {
+    if (ModeManager.isDemo() && typeof this._simulateAttendanceNotify === 'function') {
       this._simulateAttendanceNotify(eventId, mode);
     }
   },

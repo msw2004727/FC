@@ -154,7 +154,7 @@ const FirebaseService = {
   // ════════════════════════════════
 
   // 需要即時監聽的集合（核心互動功能）— 加 query 過濾
-  _liveCollections: ['events', 'messages', 'registrations', 'teams'],
+  _liveCollections: ['events', 'messages', 'registrations', 'teams', 'attendanceRecords'],
 
   // 啟動時必要的靜態集合（首頁 + 全域 UI 需要）
   _bootCollections: [
@@ -335,6 +335,33 @@ const FirebaseService = {
               if (firstSnapshot) { firstSnapshot = false; checkDone(); }
             },
             err => { console.warn('[onSnapshot] teams 監聯錯誤:', err); checkDone(); }
+          );
+        this._listeners.push(unsub);
+      }
+
+      // attendanceRecords: limit 500
+      {
+        let firstSnapshot = true;
+        const unsub = db.collection('attendanceRecords')
+          .orderBy('createdAt', 'desc')
+          .limit(500)
+          .onSnapshot(
+            snapshot => {
+              this._cache.attendanceRecords = snapshot.docs.map(doc => ({ ...doc.data(), _docId: doc.id }));
+              this._saveToLS('attendanceRecords', this._cache.attendanceRecords);
+              this._lazyLoaded.attendanceRecords = true;
+              if (firstSnapshot) { firstSnapshot = false; checkDone(); }
+              else if (typeof App !== 'undefined') {
+                if (App.currentPage === 'page-activity-detail') {
+                  App._renderAttendanceTable?.(App._currentDetailEventId, 'detail-attendance-table');
+                }
+                if (App.currentPage === 'page-scan') {
+                  App._renderScanResults?.();
+                  App._renderAttendanceSections?.();
+                }
+              }
+            },
+            err => { console.warn('[onSnapshot] attendanceRecords 監聽錯誤:', err); checkDone(); }
           );
         this._listeners.push(unsub);
       }

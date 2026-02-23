@@ -293,10 +293,15 @@ const ApiService = {
     return source;
   },
 
-  addAttendanceRecord(record) {
+  async addAttendanceRecord(record) {
     this._src('attendanceRecords').push(record);
     if (!this._demoMode) {
-      FirebaseService.addAttendanceRecord(record).catch(err => console.error('[addAttendanceRecord]', err));
+      try {
+        await FirebaseService.addAttendanceRecord(record);
+        FirebaseService._saveToLS('attendanceRecords', FirebaseService._cache.attendanceRecords);
+      } catch (err) {
+        console.error('[addAttendanceRecord]', err);
+      }
     }
     return record;
   },

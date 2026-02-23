@@ -149,10 +149,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   window._appInitializing = true;
   console.log('[Boot] DOMContentLoaded fired');
 
-  // 正式版：進度條從 Phase 1 就顯示（初始化完成前一直可見）
-  const _liffBarEarly = (!ModeManager.isDemo()) ? document.getElementById('liff-init-bar') : null;
-  if (_liffBarEarly) _liffBarEarly.style.display = 'block';
-
   // ── Phase 1: 載入頁面 HTML 片段（10 秒超時保護）──
   console.log('[Boot] Phase 1: PageLoader.loadAll() 開始（背景執行）');
   const htmlReady = Promise.race([
@@ -227,17 +223,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ── Phase 4: 背景載入 CDN SDK → Firebase + LIFF（不阻塞頁面）──
   if (!ModeManager.isDemo()) {
     console.log('[Boot] Phase 4: 開始背景載入 CDN');
-    // LIFF 初始化進度條（已於 Phase 1 顯示）+ deep link 等待卡片
-    const _liffBar  = document.getElementById('liff-init-bar');
+    // Deep link 等待卡片（進度條已嵌入 loading-overlay，隨 overlay 自動顯示/隱藏）
     const _liffCard = document.getElementById('liff-deeplink-card');
     if (_liffCard && (sessionStorage.getItem('_pendingDeepEvent') || sessionStorage.getItem('_pendingDeepTeam'))) {
       _liffCard.style.display = 'flex';
     }
     const _hideLiffInitUI = () => {
-      if (_liffBar && _liffBar.style.display !== 'none') {
-        _liffBar.classList.add('liff-hide');
-        setTimeout(() => { _liffBar.style.display = 'none'; _liffBar.classList.remove('liff-hide'); }, 450);
-      }
       if (_liffCard && _liffCard.style.display !== 'none') {
         _liffCard.classList.add('liff-hide');
         setTimeout(() => { _liffCard.style.display = 'none'; _liffCard.classList.remove('liff-hide'); }, 450);
