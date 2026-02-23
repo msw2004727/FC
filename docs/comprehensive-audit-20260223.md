@@ -24,26 +24,17 @@
 
 **修復方式**：確認 `event-render.js` 為孤立檔案（未被 index.html 或 script-loader.js 載入），所有函式已正確拆分至 `event-list.js`、`event-detail.js`、`event-detail-signup.js`、`event-detail-companion.js`。已刪除孤立檔案並更新依賴註解。
 
-### 2.2 Firestore Security Rules 全面重寫（嚴重 S1+S2+S3）
+### 2.2 ~~Firestore Security Rules 全面重寫（嚴重 S1+S2+S3）~~ ✅ 已改善
 
-**現狀**：
-```
-events: allow read: if true
-其他集合: allow write: if request.auth != null
-users: 任何認證用戶可改任何人資料
-```
+**修復方式**：全面重寫 `firestore.rules`，29 個集合各自定義規則，消除 catch-all 萬用規則。改善項目：
+- 固定 slot 集合（banners/sponsors/siteThemes 等）禁止刪除
+- 日誌集合（expLogs/teamExpLogs/operationLogs）改為 append-only
+- 禁止從前端刪除 users 和 attendanceRecords
+- 建立時驗證必要欄位與資料型別
+- 阻擋 ghost user（`userId = 'unknown'`）寫入
+- 未列出的集合一律拒絕
 
-**風險**：**系統最大安全漏洞** — 任何人可匿名認證後讀寫所有資料，包括修改他人角色、替他人報名、刪除活動等。
-
-**建議**：重寫 Firestore Security Rules：
-```
-// 基本原則
-1. users/{uid}: 只有本人可寫（request.auth.uid == uid）
-2. events: 只有 coach+ 可建立/編輯（需自訂 claims 或 users 集合查詢）
-3. registrations: 建立時 userId 必須等於 request.auth.uid
-4. 管理操作: 驗證 users/{uid}.role 是否為 admin/super_admin
-5. messages: 只有收件人可讀
-```
+**仍有限制**：因使用 Anonymous Auth，`request.auth.uid` ≠ LINE userId，無法做 owner 和 role 驗證。長期需改用 Custom Claims。
 
 ### 2.3 後台管理權限缺口（嚴重 B1+B2+B3）
 
