@@ -306,6 +306,19 @@ const ApiService = {
     return record;
   },
 
+  async removeAttendanceRecord(record) {
+    const source = this._src('attendanceRecords');
+    const idx = source.findIndex(r => r.id === record.id);
+    if (idx !== -1) source.splice(idx, 1);
+    if (!this._demoMode) {
+      try {
+        await FirebaseService.removeAttendanceRecord(record);
+      } catch (err) {
+        console.error('[removeAttendanceRecord]', err);
+      }
+    }
+  },
+
   // ════════════════════════════════
   //  Achievements & Badges
   // ════════════════════════════════

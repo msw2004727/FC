@@ -193,15 +193,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     } catch (e2) {}
   }
 
-  // 立即隱藏載入畫面 + 清除安全計時器（Phase 3 完成後立即執行，不等 Phase 1）
+  // Phase 3 完成：移除 prod-early class（恢復角色切換器等 UI）
+  // loading overlay 保留到 Phase 4 bindLineLogin 完成後才隱藏（正式版），Demo 版立即隱藏
   try {
-    var _ov = document.getElementById('loading-overlay');
-    if (_ov) _ov.style.display = 'none';
     document.documentElement.classList.remove('prod-early');
-    if (window._loadingSafety) clearTimeout(window._loadingSafety);
-    console.log('[Boot] 載入畫面已隱藏');
+    if (ModeManager.isDemo()) {
+      var _ov = document.getElementById('loading-overlay');
+      if (_ov) _ov.style.display = 'none';
+      if (window._loadingSafety) clearTimeout(window._loadingSafety);
+    }
+    console.log('[Boot] Phase 3 完成');
   } catch (e) {
-    console.warn('[Boot] 隱藏載入畫面失敗:', e && e.message || e);
+    console.warn('[Boot] Phase 3 完成處理失敗:', e && e.message || e);
   }
 
   // ── Phase 1 完成後補跑一次 renderAll + 動態頁面事件綁定（非阻塞）──
@@ -233,6 +236,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         _liffCard.classList.add('liff-hide');
         setTimeout(() => { _liffCard.style.display = 'none'; _liffCard.classList.remove('liff-hide'); }, 450);
       }
+    };
+    const _hideLoadingOverlay = () => {
+      setTimeout(() => {
+        const ov = document.getElementById('loading-overlay');
+        if (ov && ov.style.display !== 'none') ov.style.display = 'none';
+        if (window._loadingSafety) clearTimeout(window._loadingSafety);
+        console.log('[Boot] 載入畫面已隱藏（Phase 4 完成 + 0.5s）');
+      }, 500);
     };
     (async () => {
       try {
@@ -266,8 +277,10 @@ document.addEventListener('DOMContentLoaded', async () => {
           }
         } catch (e) {}
         _hideLiffInitUI();
+        _hideLoadingOverlay();
       } catch (err) {
         _hideLiffInitUI();
+        _hideLoadingOverlay();
         console.error('[Boot] Phase 4 背景初始化失敗:', err && err.message || err, err && err.stack || '');
         try { App.showToast('網路連線異常，部分資料可能未更新'); } catch (e) {}
       }

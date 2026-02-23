@@ -105,6 +105,15 @@ Object.assign(FirebaseService, {
     return data;
   },
 
+  async removeAttendanceRecord(record) {
+    if (record._docId) {
+      await db.collection('attendanceRecords').doc(record._docId).delete();
+    }
+    const idx = this._cache.attendanceRecords.findIndex(r => r.id === record.id);
+    if (idx !== -1) this._cache.attendanceRecords.splice(idx, 1);
+    this._saveToLS('attendanceRecords', this._cache.attendanceRecords);
+  },
+
   // ════════════════════════════════
   //  Registrations（報名系統）
   // ════════════════════════════════

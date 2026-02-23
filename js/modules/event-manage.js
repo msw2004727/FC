@@ -440,7 +440,7 @@ Object.assign(App, {
     this._renderAttendanceTable(eventId, this._manualEditingContainerId);
   },
 
-  _confirmManualAttendance(eventId, uid, name) {
+  async _confirmManualAttendance(eventId, uid, name) {
     const checkinBox = document.getElementById('manual-checkin-' + uid);
     const checkoutBox = document.getElementById('manual-checkout-' + uid);
     const noteInput = document.getElementById('manual-note-' + uid);
@@ -470,8 +470,21 @@ Object.assign(App, {
       }
     }
 
+    // 取消簽退（先取消簽退再處理簽到，避免依賴順序問題）
+    if (!wantCheckout && hasCheckout) {
+      const rec = records.find(r => this._matchAttendanceRecord(r, person) && r.type === 'checkout');
+      if (rec) await ApiService.removeAttendanceRecord(rec);
+    }
+    // 取消簽到（同時移除簽退）
+    if (!wantCheckin && hasCheckin) {
+      const recOut = records.find(r => this._matchAttendanceRecord(r, person) && r.type === 'checkout');
+      if (recOut) await ApiService.removeAttendanceRecord(recOut);
+      const recIn = records.find(r => this._matchAttendanceRecord(r, person) && r.type === 'checkin');
+      if (recIn) await ApiService.removeAttendanceRecord(recIn);
+    }
+
     if (wantCheckin && !hasCheckin) {
-      ApiService.addAttendanceRecord({
+      await ApiService.addAttendanceRecord({
         id: 'att_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5),
         eventId, uid: recordUid, userName: recordUserName,
         participantType, companionId, companionName,
@@ -483,7 +496,7 @@ Object.assign(App, {
         this.showToast('需先簽到才能簽退');
         return;
       }
-      ApiService.addAttendanceRecord({
+      await ApiService.addAttendanceRecord({
         id: 'att_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5),
         eventId, uid: recordUid, userName: recordUserName,
         participantType, companionId, companionName,
@@ -493,7 +506,7 @@ Object.assign(App, {
     if (note) {
       const existingNote = records.filter(r => this._matchAttendanceRecord(r, person) && r.type === 'note').pop();
       if (!existingNote || existingNote.note !== note) {
-        ApiService.addAttendanceRecord({
+        await ApiService.addAttendanceRecord({
           id: 'att_note_' + Date.now(), eventId, uid: recordUid, userName: recordUserName,
           participantType, companionId, companionName,
           type: 'note', time: timeStr, note,

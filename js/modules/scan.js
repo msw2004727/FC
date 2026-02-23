@@ -278,7 +278,7 @@ Object.assign(App, {
     return null;
   },
 
-  _processAttendance(uid, mode) {
+  async _processAttendance(uid, mode) {
     if (!this._scanSelectedEventId) {
       this.showToast('請先選擇活動');
       return;
@@ -324,7 +324,7 @@ Object.assign(App, {
       if (!records.find(r => r.uid === uid && r.type === 'unreg')) {
         const now = new Date();
         const timeStr = `${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
-        ApiService.addAttendanceRecord({
+        await ApiService.addAttendanceRecord({
           id: 'att_' + Date.now() + '_' + Math.random().toString(36).slice(2,5),
           eventId: this._scanSelectedEventId,
           uid,
@@ -340,7 +340,7 @@ Object.assign(App, {
       } else {
         const now = new Date();
         const timeStr = `${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
-        ApiService.addAttendanceRecord({
+        await ApiService.addAttendanceRecord({
           id: 'att_' + Date.now() + '_' + Math.random().toString(36).slice(2,5),
           eventId: this._scanSelectedEventId,
           uid,
@@ -362,7 +362,7 @@ Object.assign(App, {
       } else {
         const now = new Date();
         const timeStr = `${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
-        ApiService.addAttendanceRecord({
+        await ApiService.addAttendanceRecord({
           id: 'att_' + Date.now() + '_' + Math.random().toString(36).slice(2,5),
           eventId: this._scanSelectedEventId,
           uid,
@@ -584,7 +584,7 @@ Object.assign(App, {
     this._familyScanMode = null;
   },
 
-  _confirmFamilyCheckin() {
+  async _confirmFamilyCheckin() {
     const uid = this._familyScanUid;
     const userName = this._familyScanUserName;
     const mode = this._familyScanMode;
@@ -597,13 +597,13 @@ Object.assign(App, {
     const now = new Date();
     const timeStr = `${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
 
-    checked.forEach(cb => {
+    for (const cb of checked) {
       const cId = cb.dataset.companionId || null;
       const displayName = cb.dataset.name;
       const hasCheckin = records.some(r => r.uid === uid && r.type === 'checkin' && (r.companionId || null) === cId);
       const hasCheckout = records.some(r => r.uid === uid && r.type === 'checkout' && (r.companionId || null) === cId);
       if (mode === 'checkin' && !hasCheckin) {
-        ApiService.addAttendanceRecord({
+        await ApiService.addAttendanceRecord({
           id: 'att_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5),
           eventId, uid, userName,
           participantType: cId ? 'companion' : 'self',
@@ -612,7 +612,7 @@ Object.assign(App, {
           type: 'checkin', time: timeStr,
         });
       } else if (mode === 'checkout' && hasCheckin && !hasCheckout) {
-        ApiService.addAttendanceRecord({
+        await ApiService.addAttendanceRecord({
           id: 'att_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5),
           eventId, uid, userName,
           participantType: cId ? 'companion' : 'self',
@@ -625,7 +625,7 @@ Object.assign(App, {
           this._grantAutoExp(uid, 'complete_activity', _evt?.title || '');
         }
       }
-    });
+    }
 
     // 關閉 family modal
     this._closeFamilyModal();

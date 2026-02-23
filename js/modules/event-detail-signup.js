@@ -27,6 +27,14 @@ Object.assign(App, {
   async handleSignup(id) {
     const e = ApiService.getEvent(id);
     if (!e) return;
+    // 活動開始時間已過 → 自動結束並阻止操作
+    const _startGuard = App._parseEventStartDate?.(e.date);
+    if (_startGuard && _startGuard <= new Date() && e.status !== 'ended' && e.status !== 'cancelled') {
+      ApiService.updateEvent(id, { status: 'ended' });
+      this.showToast('活動已於開始時間結束，無法報名');
+      this.showEventDetail(id);
+      return;
+    }
     if (e.status === 'upcoming') { this.showToast('報名尚未開放，請稍後再試'); return; }
 
     // 有同行者 → 顯示選人 Modal
@@ -106,6 +114,14 @@ Object.assign(App, {
     }
 
     const e0 = ApiService.getEvent(id);
+    // 活動開始時間已過 → 自動結束並阻止操作
+    const _startGuard = App._parseEventStartDate?.(e0?.date);
+    if (_startGuard && _startGuard <= new Date() && e0?.status !== 'ended' && e0?.status !== 'cancelled') {
+      ApiService.updateEvent(id, { status: 'ended' });
+      this.showToast('活動已於開始時間結束，無法取消報名');
+      this.showEventDetail(id);
+      return;
+    }
     const isWaitlist = e0 && this._isUserOnWaitlist(e0);
     const confirmMsg = isWaitlist ? '確定要取消候補？' : '確定要取消報名？';
     if (!await this.appConfirm(confirmMsg)) return;
