@@ -34,10 +34,14 @@ Object.assign(App, {
     const isEnded = e.status === 'ended' || e.status === 'cancelled';
     const isUpcoming = e.status === 'upcoming';
     const isMainFull = e.current >= e.max;
-    const isSignedUp = this._isUserSignedUp(e);
+    // 防幽靈 UI 層：正式版 registrations 快取為空時視為「載入中」，不顯示報名按鈕
+    const regsLoading = !ModeManager.isDemo() && FirebaseService._cache.registrations.length === 0 && !FirebaseService._initialized;
+    const isSignedUp = regsLoading ? false : this._isUserSignedUp(e);
     const isOnWaitlist = isSignedUp && this._isUserOnWaitlist(e);
     let signupBtn = '';
-    if (isUpcoming) {
+    if (regsLoading) {
+      signupBtn = `<button style="background:#64748b;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:not-allowed;opacity:.7" disabled>載入中…</button>`;
+    } else if (isUpcoming) {
       signupBtn = `<button style="background:#64748b;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:not-allowed" disabled>報名尚未開放</button>`;
     } else if (isEnded) {
       signupBtn = `<button style="background:#333;color:#999;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:not-allowed" disabled>已結束</button>`;

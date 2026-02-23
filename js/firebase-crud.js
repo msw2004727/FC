@@ -120,12 +120,16 @@ Object.assign(FirebaseService, {
     if (existing) throw new Error('已報名此活動');
 
     // 防幽靈：清快取後快取可能為空，直接查 Firestore 做二次確認
+    // 只用 eventId + userId 兩欄位查詢，避免需要複合索引
     const fsCheck = await db.collection('registrations')
       .where('eventId', '==', eventId)
       .where('userId', '==', userId)
-      .where('status', 'in', ['confirmed', 'waitlisted'])
-      .limit(1).get();
-    if (!fsCheck.empty) throw new Error('已報名此活動');
+      .get();
+    const hasActive = fsCheck.docs.some(d => {
+      const s = d.data().status;
+      return s === 'confirmed' || s === 'waitlisted';
+    });
+    if (hasActive) throw new Error('已報名此活動');
 
     const isWaitlist = event.current >= event.max;
     const status = isWaitlist ? 'waitlisted' : 'confirmed';
@@ -180,6 +184,10 @@ Object.assign(FirebaseService, {
     };
 
     await db.collection('events').doc(event._docId).update(eventUpdate);
+
+    // 立即寫入 localStorage，避免刷新後資料遺失
+    this._saveToLS('registrations', this._cache.registrations);
+    this._saveToLS('events', this._cache.events);
 
     return { registration, status };
   },
@@ -256,6 +264,10 @@ Object.assign(FirebaseService, {
         });
       }
     }
+
+    // 立即寫入 localStorage
+    this._saveToLS('registrations', this._cache.registrations);
+    this._saveToLS('events', this._cache.events);
 
     return reg;
   },
@@ -854,14 +866,18 @@ Object.assign(FirebaseService, {
     if (!event || !event._docId) throw new Error('活動不存在');
 
     // 防幽靈：在 transaction 前先查 Firestore 確認主報名者是否已報名
+    // 只用 eventId + userId 兩欄位查詢，避免需要複合索引
     const mainUserId = entries[0]?.userId;
     if (mainUserId) {
       const fsCheck = await db.collection('registrations')
         .where('eventId', '==', eventId)
         .where('userId', '==', mainUserId)
-        .where('status', 'in', ['confirmed', 'waitlisted'])
-        .limit(1).get();
-      if (!fsCheck.empty) throw new Error('已報名此活動');
+        .get();
+      const hasActive = fsCheck.docs.some(d => {
+        const s = d.data().status;
+        return s === 'confirmed' || s === 'waitlisted';
+      });
+      if (hasActive) throw new Error('已報名此活動');
     }
 
     const eventRef = db.collection('events').doc(event._docId);
@@ -947,6 +963,10 @@ Object.assign(FirebaseService, {
     event.waitlistNames = result.waitlistNames;
     result.registrations.forEach(r => this._cache.registrations.push(r));
 
+    // 立即寫入 localStorage，避免刷新後資料遺失
+    this._saveToLS('registrations', this._cache.registrations);
+    this._saveToLS('events', this._cache.events);
+
     return { registrations: result.registrations, confirmed: result.confirmed, waitlisted: result.waitlisted };
   },
 
@@ -1022,6 +1042,11 @@ Object.assign(FirebaseService, {
     }
 
     await batch.commit();
+
+    // 立即寫入 localStorage
+    this._saveToLS('registrations', this._cache.registrations);
+    this._saveToLS('events', this._cache.events);
+
     return cancelled;
   },
 

@@ -67,30 +67,33 @@ Object.assign(App, {
       return;
     }
 
-    FirebaseService.registerForEvent(id, userId, userName)
-      .then(result => {
-        const dateParts = e.date.split(' ')[0].split('/');
-        const dateStr = `${dateParts[1]}/${dateParts[2]}`;
-        ApiService.addActivityRecord({
-          eventId: e.id, name: e.title, date: dateStr,
-          status: result.status === 'waitlisted' ? 'waitlisted' : 'registered', uid: userId,
-        });
-        db.collection('activityRecords').add({
-          eventId: e.id, name: e.title, date: dateStr,
-          status: result.status === 'waitlisted' ? 'waitlisted' : 'registered',
-          uid: userId, createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-        }).catch(err => console.error('[activityRecord]', err));
-        this._sendNotifFromTemplate('signup_success', {
-          eventName: e.title, date: e.date, location: e.location,
-          status: result.status === 'waitlisted' ? '候補' : '正取',
-        }, userId, 'activity', '活動');
-        this.showToast(result.status === 'waitlisted' ? '已加入候補名單' : '報名成功！');
-        this.showEventDetail(id);
-      })
-      .catch(err => {
-        console.error('[handleSignup]', err);
-        this.showToast(err.message || '報名失敗，請稍後再試');
+    // 防幽靈 UI 層：報名期間禁用按鈕，防止重複點擊
+    const signupBtns = document.querySelectorAll('#detail-body button');
+    signupBtns.forEach(b => { b.disabled = true; b.style.opacity = '0.6'; });
+    try {
+      const result = await FirebaseService.registerForEvent(id, userId, userName);
+      const dateParts = e.date.split(' ')[0].split('/');
+      const dateStr = `${dateParts[1]}/${dateParts[2]}`;
+      ApiService.addActivityRecord({
+        eventId: e.id, name: e.title, date: dateStr,
+        status: result.status === 'waitlisted' ? 'waitlisted' : 'registered', uid: userId,
       });
+      db.collection('activityRecords').add({
+        eventId: e.id, name: e.title, date: dateStr,
+        status: result.status === 'waitlisted' ? 'waitlisted' : 'registered',
+        uid: userId, createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      }).catch(err => console.error('[activityRecord]', err));
+      this._sendNotifFromTemplate('signup_success', {
+        eventName: e.title, date: e.date, location: e.location,
+        status: result.status === 'waitlisted' ? '候補' : '正取',
+      }, userId, 'activity', '活動');
+      this.showToast(result.status === 'waitlisted' ? '已加入候補名單' : '報名成功！');
+      this.showEventDetail(id);
+    } catch (err) {
+      console.error('[handleSignup]', err);
+      this.showToast(err.message || '報名失敗，請稍後再試');
+      signupBtns.forEach(b => { b.disabled = false; b.style.opacity = ''; });
+    }
   },
 
   async handleCancelSignup(id) {
