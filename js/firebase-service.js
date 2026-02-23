@@ -553,15 +553,15 @@ const FirebaseService = {
   //  自動建立預設成就與徽章
   // ════════════════════════════════
 
-  // 預設成就與徽章資料（與 DemoData 一致）
+  // 預設成就資料（正式版 seed 用，current/completedAt 一律為 0/null，進度由系統計算）
   _defaultAchievements: [
-    { id: 'a1', name: '初心者', category: 'bronze', badgeId: 'b1', completedAt: '2025/09/10', current: 1, status: 'active', condition: { timeRange: 'none', action: 'register_event', filter: 'all', threshold: 1 } },
-    { id: 'a2', name: '全勤之星', category: 'silver', badgeId: 'b2', completedAt: '2026/01/20', current: 90, status: 'active', condition: { timeRange: 'none', action: 'attendance_rate', filter: 'all', threshold: 90 } },
-    { id: 'a3', name: '鐵人精神', category: 'silver', badgeId: 'b3', completedAt: '2026/02/05', current: 30, status: 'active', condition: { timeRange: 'none', action: 'complete_event', filter: 'all', threshold: 30 } },
-    { id: 'a4', name: '社群達人', category: 'silver', badgeId: 'b4', completedAt: '2026/01/15', current: 1, status: 'active', condition: { timeRange: 'none', action: 'bind_line_notify', filter: 'all', threshold: 1 } },
-    { id: 'a5', name: '月活躍玩家', category: 'gold', badgeId: 'b5', completedAt: null, current: 3, status: 'active', condition: { timeRange: '30d', action: 'complete_event', filter: 'all', threshold: 5 } },
-    { id: 'a6', name: '活動策劃師', category: 'gold', badgeId: 'b6', completedAt: null, current: 2, status: 'active', condition: { timeRange: 'none', action: 'organize_event', filter: 'all', threshold: 10 } },
-    { id: 'a7', name: '百場達人', category: 'gold', badgeId: 'b7', completedAt: null, current: 42, status: 'active', condition: { timeRange: 'none', action: 'complete_event', filter: 'all', threshold: 100 } },
+    { id: 'a1', name: '初心者', category: 'bronze', badgeId: 'b1', completedAt: null, current: 0, status: 'active', condition: { timeRange: 'none', action: 'register_event', filter: 'all', threshold: 1 } },
+    { id: 'a2', name: '全勤之星', category: 'silver', badgeId: 'b2', completedAt: null, current: 0, status: 'active', condition: { timeRange: 'none', action: 'attendance_rate', filter: 'all', threshold: 90 } },
+    { id: 'a3', name: '鐵人精神', category: 'silver', badgeId: 'b3', completedAt: null, current: 0, status: 'active', condition: { timeRange: 'none', action: 'complete_event', filter: 'all', threshold: 30 } },
+    { id: 'a4', name: '社群達人', category: 'silver', badgeId: 'b4', completedAt: null, current: 0, status: 'active', condition: { timeRange: 'none', action: 'bind_line_notify', filter: 'all', threshold: 1 } },
+    { id: 'a5', name: '月活躍玩家', category: 'gold', badgeId: 'b5', completedAt: null, current: 0, status: 'active', condition: { timeRange: '30d', action: 'complete_event', filter: 'all', threshold: 5 } },
+    { id: 'a6', name: '活動策劃師', category: 'gold', badgeId: 'b6', completedAt: null, current: 0, status: 'active', condition: { timeRange: 'none', action: 'organize_event', filter: 'all', threshold: 10 } },
+    { id: 'a7', name: '百場達人', category: 'gold', badgeId: 'b7', completedAt: null, current: 0, status: 'active', condition: { timeRange: 'none', action: 'complete_event', filter: 'all', threshold: 100 } },
   ],
   _defaultBadges: [
     { id: 'b1', name: '新手徽章', achId: 'a1', category: 'bronze', image: null },
@@ -574,35 +574,37 @@ const FirebaseService = {
   ],
 
   async _seedAchievements() {
-    // 使用 localStorage 標記（比 Firestore _meta 更可靠，不受權限影響）
+    // ── 一次性清除汙染：舊版 seed 把 Demo 進度寫入 Firestore ──
+    if (!localStorage.getItem('sporthub_ach_clean_v1')) {
+      const existing = this._cache.achievements;
+      const polluted = existing.some(a => a.current || a.completedAt);
+      if (polluted) {
+        console.log('[FirebaseService] 清除成就汙染資料（重設 current/completedAt）...');
+        try {
+          const batch = db.batch();
+          existing.forEach(doc => {
+            if (doc._docId) {
+              batch.update(db.collection('achievements').doc(doc._docId), { current: 0, completedAt: null });
+              doc.current = 0;
+              doc.completedAt = null;
+            }
+          });
+          await batch.commit();
+          console.log('[FirebaseService] 成就汙染資料清除完成');
+        } catch (err) { console.warn('[FirebaseService] 成就清除失敗:', err); }
+      }
+      localStorage.setItem('sporthub_ach_clean_v1', '1');
+    }
+
+    // ── Seed：首次建立預設成就與徽章 ──
     if (localStorage.getItem('sporthub_ach_seeded')) return;
 
     const existing = this._cache.achievements;
-
-    // 已有資料 → 標記已初始化並檢查遷移
     if (existing.length > 0) {
       localStorage.setItem('sporthub_ach_seeded', '1');
-      // 檢查是否需要遷移（舊版 seed 全部 current:0）
-      const needsMigration = existing.every(a => !a.current && !a.completedAt);
-      if (!needsMigration) return;
-      console.log('[FirebaseService] 遷移成就資料（補上初始進度）...');
-      try {
-        const batch = db.batch();
-        this._defaultAchievements.forEach(def => {
-          const doc = existing.find(a => a.id === def.id);
-          if (doc && doc._docId) {
-            batch.update(db.collection('achievements').doc(doc._docId), { current: def.current, completedAt: def.completedAt });
-            doc.current = def.current;
-            doc.completedAt = def.completedAt;
-          }
-        });
-        await batch.commit();
-        console.log('[FirebaseService] 成就資料遷移完成');
-      } catch (err) { console.warn('[FirebaseService] 成就遷移失敗:', err); }
       return;
     }
 
-    // 全新建立
     console.log('[FirebaseService] 建立預設成就與徽章...');
     try {
       const batch = db.batch();
