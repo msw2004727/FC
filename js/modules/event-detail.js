@@ -99,7 +99,7 @@ Object.assign(App, {
       </div>` : ''}
       <div style="display:flex;gap:.5rem;margin:1rem 0;flex-wrap:wrap">
         ${signupBtn}
-        <button class="outline-btn" onclick="App.showUserProfile('${escapeHTML(e.creator)}')">聯繫主辦人</button>
+        <button class="outline-btn" onclick="App.contactEventOrganizer('${escapeHTML(e.creator)}')">聯繫主辦人</button>
         <button class="outline-btn" onclick="App.shareEvent('${e.id}')">分享活動</button>
         ${scanBtn}
       </div>

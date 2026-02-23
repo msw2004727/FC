@@ -26,7 +26,7 @@ const DemoData = {
     attendanceRate: 90,
     badgeCount: 4,
     favorites: { events: ['eh3', 'eh5'], tournaments: ['t2'] },
-    socialLinks: { fb: 'xiaomai.football', ig: 'xiaomai_fc', threads: '', yt: '', twitter: '' },
+    socialLinks: { fb: 'xiaomai.football', ig: 'xiaomai_fc', threads: '', yt: '', twitter: '', line: '' },
     joinDate: '2025/09/01',
     lineNotify: {
       bound: true,
