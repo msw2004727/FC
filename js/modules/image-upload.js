@@ -9,9 +9,10 @@ Object.assign(App, {
    * @param {File} file
    * @param {number} maxWidth
    * @param {number} quality - JPEG quality 0-1
+   * @param {string} [outputType] - 'image/jpeg'(預設) 或 'image/png'（保留透明度）
    * @returns {Promise<string>} base64 data URL
    */
-  _compressImage(file, maxWidth = 1200, quality = 0.78) {
+  _compressImage(file, maxWidth = 1200, quality = 0.78, outputType = 'image/jpeg') {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onerror = reject;
@@ -30,7 +31,7 @@ Object.assign(App, {
           canvas.height = h;
           const ctx = canvas.getContext('2d');
           ctx.drawImage(img, 0, 0, w, h);
-          resolve(canvas.toDataURL('image/jpeg', quality));
+          resolve(canvas.toDataURL(outputType, quality));
         };
         img.src = e.target.result;
       };

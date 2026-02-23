@@ -300,7 +300,7 @@ Object.assign(App, {
         input.value = '';
         return;
       }
-      const dataURL = await this._compressImage(file, 400, 0.80);
+      const dataURL = await this._compressImage(file, 400, 0.80, 'image/png');
       this._achBadgeDataURL = dataURL;
       const preview = document.getElementById('ach-badge-preview');
       if (preview) {
