@@ -12,7 +12,8 @@
 // 20260224za: 頁籤順序調整（賽事→球隊→首頁→活動→我的）+ 首頁卡片地點去除自動加「市」
 // 20260224zb: Tab bar 中央半圓凸起 + QR Code 快捷按鈕
 // 20260224zi: Firestore WebSocket fallback（預設 WS，被擋自動降級長輪詢）
-const CACHE_VERSION = '20260224zi';
+// 20260224zj: loading overlay 在框架就緒（Phase 3）即隱藏，不等 Phase 4
+const CACHE_VERSION = '20260224zj';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {

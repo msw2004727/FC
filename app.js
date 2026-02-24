@@ -202,15 +202,25 @@ document.addEventListener('DOMContentLoaded', async () => {
     } catch (e2) {}
   }
 
-  // Phase 3 完成：移除 prod-early class（恢復角色切換器等 UI）
-  // loading overlay 保留到 Phase 4 bindLineLogin 完成後才隱藏（正式版），Demo 版立即隱藏
+  // Phase 3 完成：移除 prod-early class + 隱藏載入畫面（框架已就緒，Phase 4 背景執行）
   try {
     document.documentElement.classList.remove('prod-early');
-    if (ModeManager.isDemo()) {
-      var _ov = document.getElementById('loading-overlay');
-      if (_ov) _ov.style.display = 'none';
-      if (window._loadingSafety) clearTimeout(window._loadingSafety);
+    // 進度條跳到 100% 後淡出
+    var _ov = document.getElementById('loading-overlay');
+    if (_ov && _ov.style.display !== 'none') {
+      if (window._bootLoadingAnim) window._bootLoadingAnim.stop();
+      var _pct = _ov.querySelector('.boot-loading__pct');
+      var _fill = _ov.querySelector('.boot-loading__fill');
+      var _bar = _ov.querySelector('.boot-loading__bar');
+      if (_pct) _pct.textContent = '100%';
+      if (_fill) _fill.style.width = '100%';
+      if (_bar) _bar.setAttribute('aria-valuenow', '100');
+      setTimeout(function() {
+        _ov.style.display = 'none';
+        console.log('[Boot] 載入畫面已隱藏（Phase 3 框架就緒）');
+      }, 400);
     }
+    if (window._loadingSafety) clearTimeout(window._loadingSafety);
     console.log('[Boot] Phase 3 完成');
   } catch (e) {
     console.warn('[Boot] Phase 3 完成處理失敗:', e && e.message || e);
@@ -245,14 +255,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         _liffCard.classList.add('liff-hide');
         setTimeout(() => { _liffCard.style.display = 'none'; _liffCard.classList.remove('liff-hide'); }, 450);
       }
-    };
-    const _hideLoadingOverlay = () => {
-      setTimeout(() => {
-        const ov = document.getElementById('loading-overlay');
-        if (ov && ov.style.display !== 'none') ov.style.display = 'none';
-        if (window._loadingSafety) clearTimeout(window._loadingSafety);
-        console.log('[Boot] 載入畫面已隱藏（Phase 4 完成 + 0.5s）');
-      }, 500);
     };
     (async () => {
       try {
@@ -289,10 +291,8 @@ document.addEventListener('DOMContentLoaded', async () => {
           }
         } catch (e) {}
         _hideLiffInitUI();
-        _hideLoadingOverlay();
       } catch (err) {
         _hideLiffInitUI();
-        _hideLoadingOverlay();
         console.error('[Boot] Phase 4 背景初始化失敗:', err && err.message || err, err && err.stack || '');
         try { App.showToast('網路連線異常，部分資料可能未更新'); } catch (e) {}
       }
