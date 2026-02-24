@@ -69,7 +69,7 @@
   if(location.search.indexOf('debug=1')!==-1){
     var _dbg=document.createElement('div');
     _dbg.id='_debug';
-    _dbg.style.cssText='position:fixed;bottom:70px;left:0;right:0;max-height:40vh;overflow:auto;background:rgba(0,0,0,.92);color:#0f0;font:11px/1.5 monospace;padding:8px 10px;z-index:99999;word-break:break-all;-webkit-overflow-scrolling:touch';
+    _dbg.style.cssText='position:fixed;bottom:84px;right:8px;left:8px;max-width:420px;max-height:24vh;overflow:auto;background:rgba(0,0,0,.92);color:#0f0;font:11px/1.5 monospace;padding:8px 10px;z-index:99999;word-break:break-all;-webkit-overflow-scrolling:touch;border:1px solid #333;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.35)';
     _dbg.innerHTML='<div style="color:#888;border-bottom:1px solid #333;padding-bottom:4px;margin-bottom:4px">== Debug Console ==</div>';
     document.documentElement.appendChild(_dbg);
     function _addDbg(t,a){var d=document.createElement('div');d.style.color=t==='error'?'#f55':t==='warn'?'#fa0':'#0f0';d.textContent='['+t+'] '+Array.from(a).map(function(x){try{return typeof x==='object'?JSON.stringify(x):String(x)}catch(e){return String(x)}}).join(' ');_dbg.appendChild(d);_dbg.scrollTop=_dbg.scrollHeight}
