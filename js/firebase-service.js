@@ -405,11 +405,45 @@ const FirebaseService = {
       }
     });
 
-    // ── Step 4: 平行等待 boot + live ──
-    const [bootSnapshots] = await Promise.all([
-      Promise.all(bootPromises),
-      livePromise,
-    ]);
+    // ── Step 4: 平行等待 boot + live（含 WebSocket 超時偵測）──
+    const _INIT_TIMEOUT = 10000; // 10 秒
+    let bootSnapshots = null;
+    let timedOut = false;
+
+    try {
+      const dataPromise = Promise.all([
+        Promise.all(bootPromises),
+        livePromise,
+      ]);
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('INIT_TIMEOUT')), _INIT_TIMEOUT)
+      );
+      const [bs] = await Promise.race([dataPromise, timeoutPromise]);
+      bootSnapshots = bs;
+    } catch (err) {
+      if (err.message === 'INIT_TIMEOUT') {
+        timedOut = true;
+        // 僅在 WebSocket 模式下才標記降級（長輪詢超時屬於網路問題，不需標記）
+        if (!window._firestoreUsingLongPolling) {
+          _markWsBlocked();
+          console.warn('[FirebaseService] WebSocket 連線超時，已標記下次使用長輪詢');
+          if (typeof App !== 'undefined' && App.showToast) {
+            App.showToast('連線較慢，重新整理頁面可改善速度');
+          }
+        } else {
+          console.warn('[FirebaseService] 長輪詢連線超時（網路問題）');
+        }
+      } else {
+        throw err; // 非超時錯誤，正常拋出
+      }
+    }
+
+    // 超時 → 用 localStorage 快取兜底，跳過 Steps 5-8
+    if (timedOut) {
+      this._initialized = true;
+      console.log('[FirebaseService] 超時降級：使用 localStorage 快取，背景 listeners 仍在運行');
+      return;
+    }
 
     // 填入 boot 集合快取
     this._bootCollections.forEach((name, i) => {

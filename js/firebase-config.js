@@ -18,6 +18,28 @@ const firebaseConfig = {
 // Initialize Firebase（支援 CDN 動態載入：SDK 可能在此腳本之後才載入）
 let db, storage, auth;
 
+// ─── WebSocket 降級偵測 ───
+const _WS_BLOCKED_KEY = 'shub_ws_blocked';
+const _WS_BLOCKED_TTL = 24 * 60 * 60 * 1000; // 24 小時後重新偵測
+
+/** 檢查 localStorage 標記：WebSocket 是否曾被擋 */
+function _isWsBlocked() {
+  try {
+    const ts = parseInt(localStorage.getItem(_WS_BLOCKED_KEY) || '0', 10);
+    if (!ts) return false;
+    if (Date.now() - ts > _WS_BLOCKED_TTL) {
+      localStorage.removeItem(_WS_BLOCKED_KEY);
+      return false; // 標記已過期，重新偵測
+    }
+    return true;
+  } catch (e) { return false; }
+}
+
+/** 標記 WebSocket 被擋（寫入時間戳） */
+function _markWsBlocked() {
+  try { localStorage.setItem(_WS_BLOCKED_KEY, Date.now().toString()); } catch (e) { /* ignore */ }
+}
+
 /** 初始化 Firebase App — CDN SDK 載入後呼叫 */
 function initFirebaseApp() {
   if (db) return true; // 已初始化
@@ -25,11 +47,20 @@ function initFirebaseApp() {
   try {
     firebase.initializeApp(firebaseConfig);
     db = firebase.firestore();
-    // 強制使用長輪詢模式，避免 WebChannel 被廣告阻擋器/防火牆攔截導致 onSnapshot 失效
-    db.settings({
-      experimentalForceLongPolling: true,
-      useFetchStreams: false,
-    });
+
+    // WebSocket 降級策略：預設用 WebSocket，被擋過則自動切回長輪詢
+    const useLongPolling = _isWsBlocked();
+    if (useLongPolling) {
+      db.settings({
+        experimentalForceLongPolling: true,
+        useFetchStreams: false,
+      });
+      console.log('[Firebase] WebSocket 曾被擋，使用長輪詢模式');
+    } else {
+      console.log('[Firebase] 使用 WebSocket 模式');
+    }
+    window._firestoreUsingLongPolling = useLongPolling;
+
     storage = firebase.storage();
     auth = firebase.auth();
     db.enablePersistence({ synchronizeTabs: true }).catch(err => {
