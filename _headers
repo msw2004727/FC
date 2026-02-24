@@ -1,0 +1,23 @@
+# Static assets — 有 ?v= 版本控制，可安全長快取
+/css/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/js/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/pages/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/images/*
+  Cache-Control: public, max-age=86400
+
+# HTML entry — 不快取，確保每次拿最新版
+/index.html
+  Cache-Control: public, max-age=0, must-revalidate
+
+/
+  Cache-Control: public, max-age=0, must-revalidate
+
+# Service Worker — 不快取
+/sw.js
+  Cache-Control: public, max-age=0, must-revalidate
