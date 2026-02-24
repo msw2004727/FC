@@ -166,8 +166,14 @@ Object.assign(App, {
     document.getElementById('scan-camera-btn').textContent = '關閉相機';
 
     scanner.start(
-      { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
-      { fps: 15, qrbox: { width: 200, height: 200 }, experimentalFeatures: { useBarCodeDetectorIfSupported: true } },
+      { facingMode: 'environment' },
+      {
+        fps: 15,
+        qrbox: { width: 200, height: 200 },
+        experimentalFeatures: { useBarCodeDetectorIfSupported: true },
+        // html5-qrcode 的 cameraIdOrConfig 只接受 facingMode/deviceId，解析度需放在 videoConstraints。
+        videoConstraints: { width: { ideal: 1280 }, height: { ideal: 720 } }
+      },
       (decodedText) => {
         // 3-second dedup
         const now = Date.now();
