@@ -78,12 +78,19 @@ Object.assign(App, {
     // 預計算簽退次數 Map（避免每筆活動重新 filter 全部出席紀錄）
     const isSuperAdmin = (ROLE_LEVEL_MAP[this.currentRole] || 0) >= ROLE_LEVEL_MAP.super_admin;
     const checkoutCountMap = new Map();
+    const unregCountMap = new Map();
     if (isSuperAdmin) {
+      const unregSets = new Map();
       ApiService._src('attendanceRecords').forEach(r => {
         if (r.type === 'checkout') {
           checkoutCountMap.set(r.eventId, (checkoutCountMap.get(r.eventId) || 0) + 1);
         }
+        if (r.type === 'unreg') {
+          if (!unregSets.has(r.eventId)) unregSets.set(r.eventId, new Set());
+          unregSets.get(r.eventId).add(r.uid);
+        }
       });
+      unregSets.forEach((s, eid) => unregCountMap.set(eid, s.size));
     }
 
     const s = 'font-size:.72rem;padding:.2rem .5rem';
@@ -122,8 +129,9 @@ Object.assign(App, {
         const fee = e.fee || 0;
         const confirmedRegs = fee > 0 ? ApiService.getRegistrationsByEvent(e.id) : [];
         const confirmedCount = confirmedRegs.length > 0 ? confirmedRegs.length : (e.current || 0);
+        const unregCount = fee > 0 ? (unregCountMap.get(e.id) || 0) : 0;
         const checkoutCount = fee > 0 ? (checkoutCountMap.get(e.id) || 0) : 0;
-        const feeExpected = fee * confirmedCount;
+        const feeExpected = fee * (confirmedCount + unregCount);
         const feeActual = fee * checkoutCount;
         const feeShort = feeExpected - feeActual;
         const feeBox = (fee > 0 && isSuperAdmin) ? `<div style="margin-left:auto;padding:.2rem .45rem;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:.68rem;color:var(--text-secondary);display:inline-flex;gap:.5rem;background:var(--bg-elevated);white-space:nowrap">
@@ -205,11 +213,12 @@ Object.assign(App, {
       ? `<div style="font-size:.85rem;font-weight:700;margin:.6rem 0 .3rem;color:var(--danger)">⚠️ 未報名掃碼（${unregList.length}）</div>${unregList.map(recRow).join('')}`
       : '';
 
-    // ── 費用摘要（計費來源：報名記錄）──
+    // ── 費用摘要（計費來源：報名記錄 + 未報名簽到）──
     const fee = e.fee || 0;
     const confirmedRegsDetail = fee > 0 ? ApiService.getRegistrationsByEvent(e.id) : [];
     const confirmedCountDetail = confirmedRegsDetail.length > 0 ? confirmedRegsDetail.length : (e.current || 0);
-    const feeExpected = fee * confirmedCountDetail;
+    const unregCountDetail = fee > 0 ? new Set(records.filter(r => r.type === 'unreg').map(r => r.uid)).size : 0;
+    const feeExpected = fee * (confirmedCountDetail + unregCountDetail);
     const feeActual = fee * (fee > 0 ? ApiService.getAttendanceRecords(e.id).filter(r => r.type === 'checkout').length : 0);
     const feeShort = feeExpected - feeActual;
     const isSuperAdmin = (ROLE_LEVEL_MAP[this.currentRole] || 0) >= ROLE_LEVEL_MAP.super_admin;
@@ -387,7 +396,7 @@ Object.assign(App, {
     }
 
     const editingUid = this._manualEditingUid;
-    const isEditing = (uid) => this._manualEditingEventId === eventId && editingUid === uid;
+    const isEditing = (uid) => this._manualEditingEventId === eventId && !this._manualEditingIsUnreg && editingUid === uid;
 
     let rows = people.map(p => {
       const hasCheckin = records.some(r => this._matchAttendanceRecord(r, p) && r.type === 'checkin');
@@ -447,11 +456,99 @@ Object.assign(App, {
     </div>`;
   },
 
-  _startManualAttendance(eventId, uid, name, isCompanion) {
+  // ── 未報名單表格（活動詳情頁用）──
+  _renderUnregTable(eventId, containerId) {
+    const cId = containerId || 'detail-unreg-table';
+    const container = document.getElementById(cId);
+    if (!container) return;
+    const e = ApiService.getEvent(eventId);
+    if (!e) return;
+
+    const canManage = this._canManageEvent(e);
+    const records = ApiService.getAttendanceRecords(eventId);
+
+    // 收集不重複的未報名用戶
+    const unregMap = new Map();
+    records.forEach(r => {
+      if (r.type === 'unreg' && !unregMap.has(r.uid))
+        unregMap.set(r.uid, { name: r.userName, uid: r.uid });
+    });
+
+    const section = document.getElementById('detail-unreg-section');
+    const countEl = document.getElementById('detail-unreg-count');
+
+    if (unregMap.size === 0) {
+      if (section) section.style.display = 'none';
+      container.innerHTML = '';
+      return;
+    }
+
+    if (section) section.style.display = '';
+    if (countEl) countEl.textContent = unregMap.size;
+
+    const editingUid = this._manualEditingUid;
+    const isEditing = (uid) => this._manualEditingEventId === eventId && this._manualEditingIsUnreg && editingUid === uid;
+
+    const people = [];
+    unregMap.forEach(u => people.push(u));
+
+    let rows = people.map(p => {
+      const person = { uid: p.uid, name: p.name, isCompanion: false };
+      const hasCheckin = records.some(r => this._matchAttendanceRecord(r, person) && r.type === 'checkin');
+      const hasCheckout = records.some(r => this._matchAttendanceRecord(r, person) && r.type === 'checkout');
+      const noteRec = records.filter(r => this._matchAttendanceRecord(r, person) && r.type === 'note').pop();
+      const noteText = noteRec?.note || '';
+      const autoNote = '未報名';
+      const combinedNote = [autoNote, noteText].filter(Boolean).join('・');
+
+      const nameHtml = escapeHTML(p.name);
+      const safeUid = escapeHTML(p.uid);
+      const safeName = escapeHTML(p.name);
+
+      if (canManage && isEditing(p.uid)) {
+        return `<tr style="border-bottom:1px solid var(--border)">
+          <td style="padding:.35rem .3rem;text-align:left">${nameHtml}</td>
+          <td style="padding:.35rem .2rem;text-align:center"><input type="checkbox" id="manual-checkin-${safeUid}" ${hasCheckin ? 'checked' : ''} style="width:1rem;height:1rem"></td>
+          <td style="padding:.35rem .2rem;text-align:center"><input type="checkbox" id="manual-checkout-${safeUid}" ${hasCheckout ? 'checked' : ''} style="width:1rem;height:1rem"></td>
+          <td style="padding:.35rem .2rem;text-align:center;white-space:nowrap">
+            <button class="primary-btn" style="font-size:.65rem;padding:.1rem .3rem" onclick="App._confirmManualAttendance('${escapeHTML(eventId)}','${safeUid}','${safeName}')">確認</button>
+          </td>
+          <td style="padding:.35rem .3rem"><input type="text" maxlength="10" value="${escapeHTML(noteText)}" id="manual-note-${safeUid}" placeholder="備註" style="width:100%;font-size:.72rem;padding:.15rem .3rem;border:1px solid var(--border);border-radius:3px;box-sizing:border-box"></td>
+        </tr>`;
+      }
+      return `<tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:.35rem .3rem;text-align:left">${nameHtml}</td>
+        <td style="padding:.35rem .2rem;text-align:center">${hasCheckin ? '<span style="color:var(--success)">✓</span>' : ''}</td>
+        <td style="padding:.35rem .2rem;text-align:center">${hasCheckout ? '<span style="color:var(--success)">✓</span>' : ''}</td>
+        ${canManage ? `<td style="padding:.35rem .2rem;text-align:center"><button class="outline-btn" style="font-size:.65rem;padding:.1rem .3rem" onclick="App._startManualAttendance('${escapeHTML(eventId)}','${safeUid}','${safeName}',false,true)">編輯</button></td>` : ''}
+        <td style="padding:.35rem .3rem;font-size:.72rem;color:var(--text-muted)">${escapeHTML(combinedNote)}</td>
+      </tr>`;
+    }).join('');
+
+    container.innerHTML = `<div style="overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse;font-size:.8rem">
+        <thead><tr style="border-bottom:2px solid var(--border)">
+          <th style="text-align:left;padding:.4rem .3rem;font-weight:600">姓名</th>
+          <th style="text-align:center;padding:.4rem .2rem;font-weight:600;width:2.5rem">簽到</th>
+          <th style="text-align:center;padding:.4rem .2rem;font-weight:600;width:2.5rem">簽退</th>
+          ${canManage ? '<th style="text-align:center;padding:.4rem .2rem;font-weight:600;width:2.5rem">編輯</th>' : ''}
+          <th style="text-align:left;padding:.4rem .3rem;font-weight:600;width:5rem">備註</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+  },
+
+  _startManualAttendance(eventId, uid, name, isCompanion, isUnreg) {
     this._manualEditingUid = uid;
     this._manualEditingEventId = eventId;
     this._manualEditingIsCompanion = !!isCompanion;
-    this._renderAttendanceTable(eventId, this._manualEditingContainerId);
+    this._manualEditingIsUnreg = !!isUnreg;
+    if (isUnreg) {
+      this._renderUnregTable(eventId, 'detail-unreg-table');
+    } else {
+      this._renderAttendanceTable(eventId, this._manualEditingContainerId);
+    }
   },
 
   async _confirmManualAttendance(eventId, uid, name) {
@@ -534,10 +631,16 @@ Object.assign(App, {
       return;
     }
 
+    const wasUnreg = this._manualEditingIsUnreg;
     this._manualEditingUid = null;
     this._manualEditingEventId = null;
     this._manualEditingIsCompanion = false;
-    this._renderAttendanceTable(eventId, this._manualEditingContainerId);
+    this._manualEditingIsUnreg = false;
+    if (wasUnreg) {
+      this._renderUnregTable(eventId, 'detail-unreg-table');
+    } else {
+      this._renderAttendanceTable(eventId, this._manualEditingContainerId);
+    }
     this.showToast('已更新');
   },
 

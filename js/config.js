@@ -14,7 +14,8 @@
 // 20260224zi: Firestore WebSocket fallback（預設 WS，被擋自動降級長輪詢）
 // 20260224zj: loading overlay 在框架就緒（Phase 3）即隱藏，不等 Phase 4
 // 20260224zk: loading 動畫延長 1 秒再跳 100%
-const CACHE_VERSION = '20260224zk';
+// 20260224zl: 未報名單欄位 + 已結束活動反向排序 + 收費公式含未報名人數
+const CACHE_VERSION = '20260224zl';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {

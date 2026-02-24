@@ -107,11 +107,16 @@ Object.assign(App, {
         <div class="detail-section-title">報名名單 (${e.current})</div>
         <div id="detail-attendance-table"></div>
       </div>
+      <div class="detail-section" id="detail-unreg-section" style="display:none">
+        <div class="detail-section-title">未報名單 (<span id="detail-unreg-count">0</span>)</div>
+        <div id="detail-unreg-table"></div>
+      </div>
       ${this._buildGroupedWaitlist(e)}
       ${this._renderReviews(e)}
     `;
     this.showPage('page-activity-detail');
     this._renderAttendanceTable(id, 'detail-attendance-table');
+    this._renderUnregTable(id, 'detail-unreg-table');
   },
 
   // ── 候補名單：按 userId 分組 + 混合資料支援 + 孤立同行者顯示 ──

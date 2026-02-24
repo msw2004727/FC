@@ -273,14 +273,15 @@ Object.assign(App, {
     const today = new Date();
     const todayStr = `${today.getFullYear()}/${today.getMonth()+1}/${today.getDate()}`;
 
+    const isEndedTab = activeTab === 'ended';
     let html = '';
-    Object.keys(monthGroups).sort().forEach(monthKey => {
+    Object.keys(monthGroups).sort((a, b) => isEndedTab ? b.localeCompare(a) : a.localeCompare(b)).forEach(monthKey => {
       const [y, m] = monthKey.split('/');
       const monthLabel = `${y} 年 ${parseInt(m)} 月`;
       html += `<div class="tl-month-group">`;
       html += `<div class="tl-month-header">${monthLabel}</div>`;
 
-      const days = Object.values(monthGroups[monthKey]).sort((a, b) => a.day - b.day);
+      const days = Object.values(monthGroups[monthKey]).sort((a, b) => isEndedTab ? b.day - a.day : a.day - b.day);
       days.forEach(dayInfo => {
         const isToday = todayStr === `${y}/${parseInt(m)}/${dayInfo.day}`;
         html += `<div class="tl-day-group">`;
@@ -294,7 +295,7 @@ Object.assign(App, {
         dayInfo.events.sort((a, b) => {
           const ta = (a.date || '').split(' ')[1] || '';
           const tb = (b.date || '').split(' ')[1] || '';
-          return ta.localeCompare(tb);
+          return isEndedTab ? tb.localeCompare(ta) : ta.localeCompare(tb);
         });
 
         dayInfo.events.forEach(e => {
