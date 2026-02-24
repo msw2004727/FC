@@ -169,7 +169,7 @@ Object.assign(App, {
     container.style.display = 'flex';
     container.style.alignItems = 'center';
     container.style.justifyContent = 'center';
-    this._generateQrCode(container, uid, 264);
+    this._generateQrCode(container, uid, 400);
   },
 
   // ── 社群連結相關 ──
