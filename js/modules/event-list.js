@@ -217,7 +217,7 @@ Object.assign(App, {
           <div class="h-card-body">
             <div class="h-card-title">${escapeHTML(e.title)}${e.teamOnly ? '<span class="tl-teamonly-badge">限定</span>' : ''}${(e.status === 'open' && e.max > 0 && (e.max - e.current) / e.max < 0.1 && e.current < e.max) ? '<span class="tl-almost-full-badge">即將額滿</span>' : ''} ${this._favHeartHtml(this.isEventFavorited(e.id), 'Event', e.id)}</div>
             <div class="h-card-meta">
-              <span>${escapeHTML(e.location.split('市')[0])}市</span>
+              <span>${escapeHTML(e.location)}</span>
               <span>${e.current}/${e.max} ${t('activity.participants')}</span>
             </div>
           </div>

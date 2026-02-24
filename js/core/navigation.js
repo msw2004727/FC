@@ -172,7 +172,7 @@ Object.assign(App, {
   /** 將 t() 套用到底部頁籤與 drawer 等靜態 UI */
   _applyI18nToUI() {
     // Bottom tabs
-    const tabKeys = ['nav.home', 'nav.activities', 'nav.teams', 'nav.tournaments', 'nav.profile'];
+    const tabKeys = ['nav.tournaments', 'nav.teams', 'nav.home', 'nav.activities', 'nav.profile'];
     document.querySelectorAll('.bot-tab').forEach((tab, i) => {
       const span = tab.querySelector('span');
       if (span && tabKeys[i]) span.textContent = t(tabKeys[i]);
