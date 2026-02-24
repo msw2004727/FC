@@ -262,7 +262,7 @@
         <span class="boot-loading__scan" aria-hidden="true"></span>
         <div class="boot-loading__fill"></div>
       </div>
-      <div class="boot-loading__sub">Initializing TooSterx Hub...</div>
+      <div class="boot-loading__sub">網路(未知)正在努力加載中...</div>
     </div>
   </div>
   <!-- Deep link 等待卡片（分享連結進入、LIFF 尚未 ready 時顯示） -->
@@ -333,8 +333,14 @@
         syncImageState();
       }
 
-      if (subEl && navigator.connection && typeof navigator.connection.effectiveType === 'string') {
-        subEl.textContent = 'Initializing TooSterx Hub (' + navigator.connection.effectiveType + ')...';
+      if (subEl) {
+        var networkLabel = '未知';
+        if (navigator.connection && typeof navigator.connection.effectiveType === 'string' && navigator.connection.effectiveType) {
+          networkLabel = navigator.connection.effectiveType;
+        } else if (navigator.onLine === false) {
+          networkLabel = '離線';
+        }
+        subEl.textContent = '網路(' + networkLabel + ')正在努力加載中...';
       }
 
       render();

@@ -366,8 +366,8 @@ img { max-width: 100%; display: block; }
   align-items: center;
   justify-content: center;
   background:
-    radial-gradient(circle at 50% 18%, rgba(242, 213, 126, .10), transparent 58%),
-    linear-gradient(180deg, #0b0f1a 0%, #090d16 100%);
+    radial-gradient(circle at 50% 18%, rgba(242, 213, 126, .08), transparent 58%),
+    var(--bg-root);
 }
 .loading-spinner { width: 36px; height: 36px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
@@ -395,10 +395,10 @@ img { max-width: 100%; display: block; }
   max-width: 260px;
   height: 130px;
   border-radius: 12px;
-  border: 2px dashed rgba(242, 213, 126, .38);
+  border: 1px solid var(--border);
   display: grid;
   place-items: center;
-  background: rgba(0, 0, 0, .18);
+  background: var(--bg-card);
   overflow: hidden;
 }
 
@@ -413,7 +413,7 @@ img { max-width: 100%; display: block; }
   font-size: 13px;
   font-weight: 700;
   letter-spacing: .08em;
-  color: rgba(242, 213, 126, .92);
+  color: var(--text-secondary);
   text-transform: uppercase;
 }
 
