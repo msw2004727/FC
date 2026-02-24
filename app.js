@@ -208,17 +208,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 進度條跳到 100% 後淡出
     var _ov = document.getElementById('loading-overlay');
     if (_ov && _ov.style.display !== 'none') {
-      if (window._bootLoadingAnim) window._bootLoadingAnim.stop();
-      var _pct = _ov.querySelector('.boot-loading__pct');
-      var _fill = _ov.querySelector('.boot-loading__fill');
-      var _bar = _ov.querySelector('.boot-loading__bar');
-      if (_pct) _pct.textContent = '100%';
-      if (_fill) _fill.style.width = '100%';
-      if (_bar) _bar.setAttribute('aria-valuenow', '100');
+      // 讓進度條繼續跑滿 1 秒再跳 100%
       setTimeout(function() {
-        _ov.style.display = 'none';
-        console.log('[Boot] 載入畫面已隱藏（Phase 3 框架就緒）');
-      }, 400);
+        if (window._bootLoadingAnim) window._bootLoadingAnim.stop();
+        var _pct = _ov.querySelector('.boot-loading__pct');
+        var _fill = _ov.querySelector('.boot-loading__fill');
+        var _bar = _ov.querySelector('.boot-loading__bar');
+        if (_pct) _pct.textContent = '100%';
+        if (_fill) _fill.style.width = '100%';
+        if (_bar) _bar.setAttribute('aria-valuenow', '100');
+        setTimeout(function() {
+          _ov.style.display = 'none';
+          console.log('[Boot] 載入畫面已隱藏（Phase 3 框架就緒）');
+        }, 400);
+      }, 1000);
     }
     if (window._loadingSafety) clearTimeout(window._loadingSafety);
     console.log('[Boot] Phase 3 完成');
