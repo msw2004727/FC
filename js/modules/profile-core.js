@@ -193,6 +193,12 @@ Object.assign(App, {
         this.showToast('LINE 登入異常：' + (LineAuth._initError.message || '請重新嘗試'));
       }
 
+      // LIFF 已登入但 getProfile 失敗（網路問題等）：提示用戶重新整理
+      if (LineAuth._profileError && !LineAuth.isLoggedIn()) {
+        console.error('[App] LINE 用戶資料取得失敗:', LineAuth._profileError);
+        this.showToast('LINE 登入成功但無法取得用戶資料，請重新整理頁面');
+      }
+
       if (LineAuth.isLoggedIn()) {
         const profile = LineAuth.getProfile();
         console.log('[App] LINE 已登入, userId:', profile.userId, 'name:', profile.displayName);

@@ -16,10 +16,11 @@ Object.assign(App, {
       const isActive = ad.status === 'active';
       const isScheduled = ad.status === 'scheduled';
       const remain = ad.unpublishAt ? this._remainDays(ad.unpublishAt) : 0;
+      const isPermanent = !isEmpty && !ad.unpublishAt;
       const statusLabel = isEmpty ? '空白' : isActive ? '啟用中' : isScheduled ? '已排程' : '已下架';
       const statusClass = isEmpty ? 'empty' : isActive ? 'active' : isScheduled ? 'scheduled' : 'expired';
-      const timeInfo = isEmpty ? '尚未設定廣告' : (ad.publishAt && ad.unpublishAt ? `${ad.publishAt} ~ ${ad.unpublishAt}` : '尚未設定時間');
-      const remainText = isActive ? `剩餘 ${remain} 天` : '';
+      const timeInfo = isEmpty ? '尚未設定廣告' : (ad.publishAt && ad.unpublishAt ? `${ad.publishAt} ~ ${ad.unpublishAt}` : (ad.publishAt ? `${ad.publishAt} ~ 永久` : '尚未設定時間'));
+      const remainText = isActive ? (isPermanent ? '永久' : `剩餘 ${remain} 天`) : '';
       const thumb = ad.image
         ? `<div class="banner-thumb banner-thumb-circle" style="overflow:hidden"><img src="${ad.image}" style="width:100%;height:100%;object-fit:cover;border-radius:50%"></div>`
         : `<div class="banner-thumb banner-thumb-circle banner-thumb-empty"><span>200<br>×<br>200</span></div>`;
@@ -81,12 +82,11 @@ Object.assign(App, {
 
   async saveFloatingAd() {
     const unpublishVal = document.getElementById('floatad-input-unpublish').value;
-    if (!unpublishVal) { this.showToast('請選擇結束時間'); return; }
     const title = document.getElementById('floatad-input-title').value.trim();
     if (title.length > 12) { this.showToast('標題不可超過 12 字'); return; }
     const linkUrl = document.getElementById('floatad-input-link').value.trim();
     const mode = document.getElementById('floatad-input-mode').value;
-    const unpublishAt = this._formatDT(unpublishVal);
+    const unpublishAt = unpublishVal ? this._formatDT(unpublishVal) : null;
     let publishAt, status;
     if (mode === 'scheduled') {
       const publishVal = document.getElementById('floatad-input-publish').value;

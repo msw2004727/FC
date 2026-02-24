@@ -59,6 +59,7 @@ const FirebaseService = {
   _onUserChanged: null,
   _initialized: false,
   _lazyLoaded: {},  // 記錄已懶載入的集合
+  _bootCollectionLoadFailed: {},
   _persistDebounceTimer: null,
 
   // ─── localStorage 快取設定 ───
@@ -210,8 +211,8 @@ const FirebaseService = {
     if (toLoad.length === 0) return;
 
     console.log(`[FirebaseService] 懶載入 ${pageId} 需要的集合:`, toLoad.join(', '));
-    await this._loadStaticCollections(toLoad);
-    toLoad.forEach(name => { this._lazyLoaded[name] = true; });
+    const loadedNames = await this._loadStaticCollections(toLoad);
+    loadedNames.forEach(name => { this._lazyLoaded[name] = true; delete this._bootCollectionLoadFailed[name]; });
     // 持久化新載入的集合
     this._persistCache();
   },
@@ -219,14 +220,22 @@ const FirebaseService = {
   /** 載入指定的靜態集合 */
   async _loadStaticCollections(names) {
     const promises = names.map(name =>
-      db.collection(name).orderBy(firebase.firestore.FieldPath.documentId()).limit(500).get().catch(err => {
-        console.warn(`Collection "${name}" 載入失敗:`, err);
-        return { docs: [] };
-      })
+      db.collection(name).orderBy(firebase.firestore.FieldPath.documentId()).limit(500).get()
+        .then(snapshot => ({ ok: true, docs: snapshot.docs }))
+        .catch(err => {
+          console.warn(`Collection "${name}" load failed:`, err);
+          return { ok: false, docs: null };
+        })
     );
     const snapshots = await Promise.all(promises);
+    const loadedNames = [];
     names.forEach((name, i) => {
-      const docs = snapshots[i].docs.map(doc => ({ ...doc.data(), _docId: doc.id }));
+      const result = snapshots[i];
+      if (!result || !result.ok) {
+        console.warn(`[FirebaseService] Skip cache overwrite for "${name}" due to load failure.`);
+        return;
+      }
+      const docs = result.docs.map(doc => ({ ...doc.data(), _docId: doc.id }));
       const seen = new Set();
       this._cache[name] = docs.filter(d => {
         if (!d.id) return true;
@@ -234,11 +243,14 @@ const FirebaseService = {
         seen.add(d.id);
         return true;
       });
+      loadedNames.push(name);
     });
+    return loadedNames;
   },
 
   async init() {
     if (this._initialized) return;
+    this._bootCollectionLoadFailed = {};
 
     // ── Step 1: 嘗試從 localStorage 恢復快取 ──
     const hasLocalCache = this._restoreCache();
@@ -254,10 +266,12 @@ const FirebaseService = {
 
     // ── Step 2: 啟動集合（首頁需要的靜態集合）──
     const bootPromises = this._bootCollections.map(name =>
-      db.collection(name).orderBy(firebase.firestore.FieldPath.documentId()).limit(200).get().catch(err => {
-        console.warn(`Collection "${name}" 載入失敗:`, err);
-        return { docs: [] };
-      })
+      db.collection(name).orderBy(firebase.firestore.FieldPath.documentId()).limit(200).get()
+        .then(snapshot => ({ ok: true, docs: snapshot.docs }))
+        .catch(err => {
+          console.warn(`Collection "${name}" load failed:`, err);
+          return { ok: false, docs: null };
+        })
     );
 
     // ── Step 3: 即時集合 + users — onSnapshot 加 query 過濾 ──
@@ -399,7 +413,14 @@ const FirebaseService = {
 
     // 填入 boot 集合快取
     this._bootCollections.forEach((name, i) => {
-      const docs = bootSnapshots[i].docs.map(doc => ({ ...doc.data(), _docId: doc.id }));
+      const result = bootSnapshots[i];
+      if (!result || !result.ok) {
+        this._bootCollectionLoadFailed[name] = true;
+        console.warn(`[FirebaseService] Boot collection "${name}" failed; keep existing cache.`);
+        return;
+      }
+      this._bootCollectionLoadFailed[name] = false;
+      const docs = result.docs.map(doc => ({ ...doc.data(), _docId: doc.id }));
       const seen = new Set();
       this._cache[name] = docs.filter(d => {
         if (!d.id) return true;
@@ -408,7 +429,9 @@ const FirebaseService = {
         return true;
       });
     });
-    this._bootCollections.forEach(name => { this._lazyLoaded[name] = true; });
+    this._bootCollections.forEach(name => {
+      if (!this._bootCollectionLoadFailed[name]) this._lazyLoaded[name] = true;
+    });
 
     // ── Step 5: rolePermissions ──
     try {
@@ -507,6 +530,10 @@ const FirebaseService = {
   async _seedAdSlots() {
     // 使用固定 doc ID + set(merge) 確保冪等性，避免重複建立
     const seedCollection = async (collectionName, slots) => {
+      if (this._bootCollectionLoadFailed[collectionName]) {
+        console.warn(`[FirebaseService] Skip seeding "${collectionName}" because initial load failed.`);
+        return;
+      }
       if (this._cache[collectionName].length > 0) return;
       console.log(`[FirebaseService] 建立空白 ${collectionName} 欄位...`);
       const batch = db.batch();
@@ -720,6 +747,7 @@ const FirebaseService = {
     this._onUserChanged = null;
     this._initialized = false;
     this._lazyLoaded = {};
+    this._bootCollectionLoadFailed = {};
     // 重置快取到初始空白狀態
     Object.keys(this._cache).forEach(k => {
       if (k === 'currentUser') { this._cache[k] = null; }

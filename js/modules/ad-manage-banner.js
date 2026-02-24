@@ -16,10 +16,11 @@ Object.assign(App, {
       const isActive = b.status === 'active';
       const isScheduled = b.status === 'scheduled';
       const remain = b.unpublishAt ? this._remainDays(b.unpublishAt) : 0;
+      const isPermanent = !isEmpty && !b.unpublishAt;
       const statusLabel = isEmpty ? '空白' : isActive ? '啟用中' : isScheduled ? '已排程' : '已下架';
       const statusClass = isEmpty ? 'empty' : isActive ? 'active' : isScheduled ? 'scheduled' : 'expired';
-      const timeInfo = isEmpty ? '尚未設定廣告' : (b.publishAt && b.unpublishAt ? `${b.publishAt} ~ ${b.unpublishAt}` : '尚未設定時間');
-      const remainText = isActive ? `剩餘 ${remain} 天` : '';
+      const timeInfo = isEmpty ? '尚未設定廣告' : (b.publishAt && b.unpublishAt ? `${b.publishAt} ~ ${b.unpublishAt}` : (b.publishAt ? `${b.publishAt} ~ 永久` : '尚未設定時間'));
+      const remainText = isActive ? (isPermanent ? '永久' : `剩餘 ${remain} 天`) : '';
       const thumb = b.image
         ? `<div class="banner-thumb" style="overflow:hidden"><img src="${b.image}" style="width:100%;height:100%;object-fit:cover"></div>`
         : `<div class="banner-thumb banner-thumb-empty"><span>1200<br>×<br>400</span></div>`;
@@ -86,7 +87,6 @@ Object.assign(App, {
       this.showToast('權限不足'); return;
     }
     const unpublishVal = document.getElementById('banner-input-unpublish').value;
-    if (!unpublishVal) { this.showToast('請選擇結束時間'); return; }
     const title = document.getElementById('banner-input-title').value.trim();
     if (title.length > 12) { this.showToast('標題不可超過 12 字'); return; }
     const slotName = document.getElementById('banner-slot-display').value.trim();
@@ -94,7 +94,7 @@ Object.assign(App, {
     if (slotName.length > 12) { this.showToast('廣告位名稱不可超過 12 字'); return; }
     const linkUrl = document.getElementById('banner-input-link').value.trim();
     const mode = document.getElementById('banner-input-mode').value;
-    const unpublishAt = this._formatDT(unpublishVal);
+    const unpublishAt = unpublishVal ? this._formatDT(unpublishVal) : null;
     let publishAt, status;
     if (mode === 'scheduled') {
       const publishVal = document.getElementById('banner-input-publish').value;

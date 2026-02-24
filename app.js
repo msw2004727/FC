@@ -272,7 +272,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         // 用即時資料重新渲染頁面
         try { App.renderAll(); } catch (e) {}
         // 更新 LINE 登入狀態（LIFF SDK 已載入，可正常運作）
-        try { if (typeof App.bindLineLogin === 'function') await App.bindLineLogin(); } catch (e) {}
+        try { if (typeof App.bindLineLogin === 'function') await App.bindLineLogin(); } catch (e) {
+          console.error('[Boot] bindLineLogin 執行失敗:', e?.message || e, e?.stack || '');
+          try { App.showToast('LINE 登入流程異常，請重新整理頁面'); } catch (_) {}
+        }
         // LIFF 已 ready，執行暫存的 deep link（分享連結進入的情境）
         try {
           const pendingEvent = sessionStorage.getItem('_pendingDeepEvent');

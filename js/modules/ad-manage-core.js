@@ -52,7 +52,7 @@ Object.assign(App, {
       btns.push(`<button class="outline-btn" style="${s};color:var(--danger)" onclick="App.clearAdSlot('${type}','${id}')">刪除</button>`);
     } else {
       // expired / delisted
-      const canRelist = unpublishAt && this._remainDays(unpublishAt) > 0;
+      const canRelist = !unpublishAt || this._remainDays(unpublishAt) > 0;
       btns.push(`<button class="primary-btn small" style="${s}" onclick="App.editAd('${type}','${id}')">編輯</button>`);
       if (canRelist) {
         btns.push(`<button class="outline-btn" style="${s};color:var(--success)" onclick="App.relistAd('${type}','${id}')">重新上架</button>`);

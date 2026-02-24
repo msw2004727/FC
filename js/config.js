@@ -9,7 +9,7 @@
 // 20260224s: 修復 Android 開前鏡頭（exact:environment）+ videoConstraints 衝突移除 + overconstrained 自動降級
 // 20260224w: opening loading overlay redesign (pixel bar + brand image)
 // 20260224x: bottom tabs (teams/tournaments) show "功能準備中" during testing
-const CACHE_VERSION = '20260224x';
+const CACHE_VERSION = '20260224y';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {

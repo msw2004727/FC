@@ -31,14 +31,23 @@ const LineAuth = {
   },
 
   async init() {
+    // Phase A: LIFF SDK 初始化
     try {
       await liff.init({ liffId: LINE_CONFIG.LIFF_ID });
       console.log('[LineAuth] LIFF 初始化成功');
+    } catch (err) {
+      console.error('[LineAuth] LIFF 初始化失敗:', err);
+      this._initError = err;
+      this._cleanUrl();
+      this._ready = true;
+      return;
+    }
 
-      if (liff.isLoggedIn()) {
+    // Phase B: 取得用戶 profile（與 LIFF init 分離，避免 getProfile 失敗連帶標記 init 失敗）
+    if (liff.isLoggedIn()) {
+      try {
         const profile = await liff.getProfile();
 
-        // getDecodedIDToken 可能在某些情境下拋錯，安全取值
         let email = null;
         try {
           email = liff.getDecodedIDToken()?.email || null;
@@ -51,18 +60,13 @@ const LineAuth = {
           email,
         };
         console.log('[LineAuth] 已登入:', this._profile.displayName);
+      } catch (err) {
+        console.error('[LineAuth] liff.getProfile() 失敗（LIFF 已登入但無法取得用戶資料）:', err);
+        this._profileError = err;
       }
-
-      // 初始化成功後清除 URL 中的 auth 參數
-      this._cleanUrl();
-
-    } catch (err) {
-      console.error('[LineAuth] LIFF 初始化失敗:', err);
-      this._initError = err;
-
-      // 清除 URL 中殘留的 auth code，避免重新整理時再次觸發 400
-      this._cleanUrl();
     }
+
+    this._cleanUrl();
     this._ready = true;
   },
 
