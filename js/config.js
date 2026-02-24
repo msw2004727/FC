@@ -6,7 +6,8 @@
 // 20260223u: Firestore 強制長輪詢模式，修復 WebChannel 400 錯誤
 // 20260224q: 效能優化（seed 並行、localStorage debounce、O(n²) 修正）+ UX 改善
 // 20260224r: 修正掃碼相機錯誤偵測（html5-qrcode reject 純字串處理）
-const CACHE_VERSION = '20260224r';
+// 20260224s: 修復 Android 開前鏡頭（exact:environment）+ videoConstraints 衝突移除 + overconstrained 自動降級
+const CACHE_VERSION = '20260224s';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {

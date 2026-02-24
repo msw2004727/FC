@@ -227,23 +227,25 @@ Object.assign(App, {
     this._scannerInstance = scanner;
     document.getElementById('scan-camera-btn').textContent = '關閉相機';
 
+    const scanConfig = {
+      fps: 15,
+      qrbox: { width: 200, height: 200 },
+      experimentalFeatures: { useBarCodeDetectorIfSupported: true },
+    };
+
+    const successCb = (decodedText) => {
+      // 3-second dedup
+      const now = Date.now();
+      if (decodedText === this._lastScannedUid && now - this._lastScanTime < 3000) return;
+      this._lastScannedUid = decodedText;
+      this._lastScanTime = now;
+      this._processAttendance(decodedText.trim(), this._scanMode);
+    };
+
     scanner.start(
-      { facingMode: 'environment' },
-      {
-        fps: 15,
-        qrbox: { width: 200, height: 200 },
-        experimentalFeatures: { useBarCodeDetectorIfSupported: true },
-        // html5-qrcode 的 cameraIdOrConfig 只接受 facingMode/deviceId，解析度需放在 videoConstraints。
-        videoConstraints: { width: { ideal: 1280 }, height: { ideal: 720 } }
-      },
-      (decodedText) => {
-        // 3-second dedup
-        const now = Date.now();
-        if (decodedText === this._lastScannedUid && now - this._lastScanTime < 3000) return;
-        this._lastScannedUid = decodedText;
-        this._lastScanTime = now;
-        this._processAttendance(decodedText.trim(), this._scanMode);
-      },
+      { facingMode: { exact: 'environment' } },
+      scanConfig,
+      successCb,
       () => {} // ignore scan error frames
     ).then(() => {
       // 成功啟動後輸出實際 track 設定，協助判斷是否誤開前鏡頭。
@@ -255,12 +257,37 @@ Object.assign(App, {
       } catch (e) {
         console.warn('[Scan] Unable to read track settings:', e);
       }
-    }).catch(err => {
-      console.warn('[Scan] Camera error:', err);
+    }).catch(async (err) => {
       // html5-qrcode 庫 reject 的是純字串（非 Error 物件），用 String() 統一處理
       const errName = (err && err.name) ? String(err.name) : '';
       const errMsgRaw = (err && err.message) ? String(err.message) : '';
       const errStr = `${errName} ${errMsgRaw} ${String(err)}`.toLowerCase();
+
+      // exact facingMode 失敗 → 降級為軟約束重試（單鏡頭/前鏡頭裝置）
+      if (errStr.includes('overconstrained') || errStr.includes('constraint')) {
+        console.warn('[Scan] exact:environment failed, retrying with soft facingMode:', err);
+        try {
+          try { await scanner.stop(); } catch (_) {}
+          scanner.clear();
+          const scanner2 = new Html5Qrcode(readerId);
+          this._scannerInstance = scanner2;
+          await scanner2.start(
+            { facingMode: 'environment' },
+            scanConfig,
+            successCb,
+            () => {}
+          );
+          console.log('[Scan] Soft facingMode retry succeeded.');
+          return; // 重試成功，不進入錯誤顯示
+        } catch (retryErr) {
+          console.warn('[Scan] Soft facingMode retry also failed:', retryErr);
+          this._scannerInstance = null;
+        }
+      } else {
+        this._scannerInstance = null;
+      }
+
+      console.warn('[Scan] Camera error:', err);
       console.warn('[Scan] Camera error diagnostics:', {
         errName,
         errMsgRaw,
@@ -274,10 +301,10 @@ Object.assign(App, {
         errMsg = '相機權限被拒絕，請在瀏覽器設定中允許相機存取';
       } else if (errStr.includes('notfound') || errStr.includes('device') || errStr.includes('nosource')) {
         errMsg = '找不到相機裝置，請確認此設備有相機';
-      } else if (errStr.includes('notreadable') || errStr.includes('could not start')) {
-        errMsg = '相機被其他應用程式佔用，請關閉後再試';
       } else if (errStr.includes('overconstrained') || errStr.includes('constraint')) {
         errMsg = '相機不支援所需規格，請嘗試其他裝置';
+      } else if (errStr.includes('notreadable') || errStr.includes('could not start')) {
+        errMsg = '相機被其他應用程式佔用，請關閉後再試';
       } else if (errStr.includes('not supported') || errStr.includes('streaming')) {
         errMsg = '此瀏覽器不支援相機掃碼，請改用 Chrome 或 Safari';
       } else if (scanDiag.isLineInApp && scanDiag.isAndroid) {
@@ -286,7 +313,6 @@ Object.assign(App, {
         errMsg = '無法開啟相機，請確認權限或改用手動輸入';
       }
       this.showToast(errMsg);
-      this._scannerInstance = null;
       document.getElementById('scan-camera-btn').textContent = '開啟相機掃碼';
       const diagText = [
         `perm=${scanDiag.permissionState}`,
