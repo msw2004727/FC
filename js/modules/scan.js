@@ -383,7 +383,11 @@ Object.assign(App, {
     }
 
     const userInfo = this._findUserByUid(uid);
-    const userName = userInfo ? userInfo.name : uid;
+    if (!userInfo) {
+      this._showScanResultPopup('error', '查無此用戶', uid);
+      return;
+    }
+    const userName = userInfo.name;
 
     // 取得此用戶在此活動的 confirmed 報名（含同行者）
     const userRegs = ApiService._src('registrations').filter(
