@@ -533,6 +533,15 @@ img { max-width: 100%; display: block; }
   min-height: 1em;
 }
 
+[data-theme="light"] .boot-loading {
+  --boot-gold: #3f3f46;
+  --boot-text: #111827;
+}
+
+[data-theme="light"] .boot-loading__sub {
+  color: #4b5563;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .boot-loading__scan,
   .boot-loading__fill {
