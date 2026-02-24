@@ -128,7 +128,7 @@ Object.assign(App, {
     // 方案 A：本地 qrcode 庫（canvas）
     if (typeof QRCode !== 'undefined' && QRCode.toCanvas) {
       const canvas = document.createElement('canvas');
-      QRCode.toCanvas(canvas, data, { width: size, margin: 0, errorCorrectionLevel: 'M' }, (err) => {
+      QRCode.toCanvas(canvas, data, { width: size, margin: 3, errorCorrectionLevel: 'M' }, (err) => {
         if (!err) {
           canvas.style.display = 'block';
           container.appendChild(canvas);
@@ -147,7 +147,7 @@ Object.assign(App, {
   /** QR Code API 備援（純 img 標籤，不依賴任何 JS 庫） */
   _qrFallbackImg(container, data, size) {
     const img = document.createElement('img');
-    img.src = `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&ecc=M&margin=0&data=${encodeURIComponent(data)}`;
+    img.src = `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&ecc=M&margin=10&data=${encodeURIComponent(data)}`;
     img.width = size;
     img.height = size;
     img.alt = 'QR Code';
@@ -169,7 +169,7 @@ Object.assign(App, {
     container.style.display = 'flex';
     container.style.alignItems = 'center';
     container.style.justifyContent = 'center';
-    this._generateQrCode(container, uid, 176);
+    this._generateQrCode(container, uid, 264);
   },
 
   // ── 社群連結相關 ──
@@ -279,14 +279,14 @@ Object.assign(App, {
     if (!modal || !content) return;
     content.innerHTML = `
       <div style="font-size:.85rem;font-weight:700;margin-bottom:.8rem">我的 UID QR Code</div>
-      <div id="uid-qr-canvas" style="background:#fff;display:inline-block;padding:4px;border-radius:var(--radius)"></div>
+      <div id="uid-qr-canvas" style="background:#fff;display:inline-block;padding:6px;border-radius:var(--radius)"></div>
       <div style="margin-top:.7rem;font-size:.75rem;color:var(--text-muted);word-break:break-all">${escapeHTML(uid)}</div>
       <button onclick="App._copyUidToClipboard('${escapeHTML(uid)}')" style="margin-top:.6rem;padding:.45rem 1.2rem;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg-elevated);color:var(--text-primary);font-size:.8rem;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:.3rem">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
         複製 UID
       </button>
     `;
-    this._generateQrCode(document.getElementById('uid-qr-canvas'), uid, 180);
+    this._generateQrCode(document.getElementById('uid-qr-canvas'), uid, 270);
     modal.style.display = 'flex';
   },
 
