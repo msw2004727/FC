@@ -338,6 +338,18 @@
   padding-bottom: env(safe-area-inset-bottom, 0);
   transition: background var(--transition);
 }
+/* 半圓凸起背景 */
+#bottom-tabs::before {
+  content: '';
+  position: absolute;
+  top: -61px; left: 50%; transform: translateX(-50%);
+  width: 128px; height: 65px;
+  background: var(--bg-card);
+  border-radius: 65px 65px 0 0;
+  border: 1px solid var(--border);
+  border-bottom: none;
+  z-index: -1;
+}
 .bot-tab {
   display: flex; flex-direction: column; align-items: center; gap: 2px;
   padding: .4rem .5rem;
@@ -351,6 +363,28 @@
 .bot-tab.active { color: var(--accent); }
 .bot-tab.active svg { stroke: var(--accent); }
 .tab-badge { position: absolute; top: 0; right: 4px; min-width: 16px; height: 16px; border-radius: 8px; background: var(--danger); color: #fff; font-size: .6rem; font-weight: 700; display: flex; align-items: center; justify-content: center; padding: 0 4px; }
+
+/* ─── Center Tab Bump (QR Button) ─── */
+.bot-tab-center-wrap {
+  position: relative;
+  display: flex; flex-direction: column; align-items: center;
+}
+.bot-tab-qr {
+  position: absolute;
+  top: -55px;
+  width: 44px; height: 44px;
+  border-radius: 50%;
+  background: var(--bg-card);
+  color: var(--accent);
+  border: none;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: none;
+  cursor: pointer;
+  z-index: 2;
+  transition: background var(--transition), transform .15s ease;
+}
+.bot-tab-qr:active { transform: scale(.92); }
+.bot-tab-qr svg { stroke: var(--accent); }
 
 /* ─── Page Header ─── */
 .page-header { display: flex; align-items: center; justify-content: space-between; padding: .6rem .2rem; gap: .5rem; }

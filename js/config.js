@@ -10,7 +10,8 @@
 // 20260224w: opening loading overlay redesign (pixel bar + brand image)
 // 20260224x: bottom tabs (teams/tournaments) show "功能準備中" during testing
 // 20260224za: 頁籤順序調整（賽事→球隊→首頁→活動→我的）+ 首頁卡片地點去除自動加「市」
-const CACHE_VERSION = '20260224za';
+// 20260224zb: Tab bar 中央半圓凸起 + QR Code 快捷按鈕
+const CACHE_VERSION = '20260224zh';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {
