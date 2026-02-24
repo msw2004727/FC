@@ -92,6 +92,15 @@ const App = {
     this.bindImageUpload('theme-image',      'theme-preview');
   },
 
+  /** 將 Date 格式化為 YYYY/MM/DD HH:MM 字串（省略時間時傳 false） */
+  _formatDateTime(d, includeTime = true) {
+    d = d || new Date();
+    const base = `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}`;
+    return includeTime
+      ? `${base} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`
+      : base;
+  },
+
   showToast(msg) {
     const toast = document.getElementById('toast');
     toast.textContent = msg;

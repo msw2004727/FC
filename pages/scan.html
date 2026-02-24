@@ -18,6 +18,14 @@
       </div>
       <button class="scan-camera-btn" id="scan-camera-btn" disabled>開啟相機掃碼</button>
     </div>
+    <!-- 手動輸入 UID 備援（相機失敗時顯示） -->
+    <div id="scan-manual-section" style="display:none;margin-top:.8rem;padding:.6rem .8rem;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-elevated)">
+      <div style="font-size:.78rem;color:var(--text-muted);margin-bottom:.4rem">相機無法使用？可手動輸入用戶 UID：</div>
+      <div style="display:flex;gap:.4rem">
+        <input type="text" id="scan-manual-uid" placeholder="輸入用戶 UID" style="flex:1;padding:.35rem .5rem;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:.85rem;background:var(--bg);color:var(--text-primary)">
+        <button class="primary-btn" style="padding:.35rem .7rem;font-size:.82rem" onclick="App._processManualUid()">確認</button>
+      </div>
+    </div>
     <div class="scan-results" id="scan-results"></div>
     <div class="scan-stats" id="scan-stats"></div>
     <div id="scan-registered-section"></div>

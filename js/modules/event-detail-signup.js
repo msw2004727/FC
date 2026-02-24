@@ -76,9 +76,17 @@ Object.assign(App, {
       return;
     }
 
-    // 防幽靈 UI 層：報名期間禁用按鈕，防止重複點擊
+    // 防幽靈 UI 層：報名期間禁用按鈕，防止重複點擊，並在主報名鈕顯示 spinner
     const signupBtns = document.querySelectorAll('#detail-body button');
-    signupBtns.forEach(b => { b.disabled = true; b.style.opacity = '0.6'; });
+    let activeBtn = null;
+    signupBtns.forEach(b => {
+      b.disabled = true; b.style.opacity = '0.6';
+      if ((b.getAttribute('onclick') || '').includes('handleSignup')) {
+        activeBtn = b;
+        b._origText = b.textContent;
+        b.innerHTML = '<span style="display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle;margin-right:.3rem"></span>報名中...';
+      }
+    });
     try {
       const result = await FirebaseService.registerForEvent(id, userId, userName);
       const dateParts = e.date.split(' ')[0].split('/');
@@ -101,7 +109,10 @@ Object.assign(App, {
     } catch (err) {
       console.error('[handleSignup]', err);
       this.showToast(err.message || '報名失敗，請稍後再試');
-      signupBtns.forEach(b => { b.disabled = false; b.style.opacity = ''; });
+      signupBtns.forEach(b => {
+        b.disabled = false; b.style.opacity = '';
+        if (b === activeBtn && b._origText) { b.textContent = b._origText; }
+      });
     }
   },
 

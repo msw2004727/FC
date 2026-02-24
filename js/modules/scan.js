@@ -179,11 +179,41 @@ Object.assign(App, {
       () => {} // ignore scan error frames
     ).catch(err => {
       console.warn('[Scan] Camera error:', err);
-      this.showToast('無法開啟相機，請確認權限');
+      // html5-qrcode 庫 reject 的是純字串（非 Error 物件），用 String() 統一處理
+      const errStr = String(err).toLowerCase();
+      let errMsg;
+      if (errStr.includes('notallowed') || errStr.includes('permission') || errStr.includes('denied')) {
+        errMsg = '相機權限被拒絕，請在瀏覽器設定中允許相機存取';
+      } else if (errStr.includes('notfound') || errStr.includes('device') || errStr.includes('nosource')) {
+        errMsg = '找不到相機裝置，請確認此設備有相機';
+      } else if (errStr.includes('notreadable') || errStr.includes('could not start')) {
+        errMsg = '相機被其他應用程式佔用，請關閉後再試';
+      } else if (errStr.includes('overconstrained')) {
+        errMsg = '相機不支援所需規格，請嘗試其他裝置';
+      } else if (errStr.includes('not supported') || errStr.includes('streaming')) {
+        errMsg = '此瀏覽器不支援相機掃碼，請改用 Chrome 或 Safari';
+      } else {
+        errMsg = '無法開啟相機，請確認權限或改用手動輸入';
+      }
+      this.showToast(errMsg);
       this._scannerInstance = null;
       document.getElementById('scan-camera-btn').textContent = '開啟相機掃碼';
-      readerEl.innerHTML = '<span style="color:var(--text-muted);font-size:.85rem;">點擊下方按鈕開啟相機</span>';
+      readerEl.innerHTML = `<span style="color:var(--danger);font-size:.82rem;">${errMsg}</span>`;
+      // 顯示手動輸入備援
+      const manualSection = document.getElementById('scan-manual-section');
+      if (manualSection) manualSection.style.display = '';
     });
+  },
+
+  /** 手動輸入 UID 後觸發簽到/簽退（相機失敗備援） */
+  _processManualUid() {
+    const input = document.getElementById('scan-manual-uid');
+    if (!input) return;
+    const uid = (input.value || '').trim();
+    if (!uid) { this.showToast('請輸入 UID'); return; }
+    if (!this._scanSelectedEventId) { this.showToast('請先選擇活動'); return; }
+    input.value = '';
+    this._processAttendance(uid, this._scanMode);
   },
 
   _stopCamera() {
@@ -260,7 +290,7 @@ Object.assign(App, {
       // 未報名 — 先寫 unreg 標記
       if (!records.find(r => r.uid === uid && r.type === 'unreg')) {
         const now = new Date();
-        const timeStr = `${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+        const timeStr = App._formatDateTime(now);
         await ApiService.addAttendanceRecord({
           id: 'att_' + Date.now() + '_' + Math.random().toString(36).slice(2,5),
           eventId: this._scanSelectedEventId,
@@ -274,7 +304,7 @@ Object.assign(App, {
           resultMsg = `${userName} 未報名，已完成簽到`;
         } else {
           const now = new Date();
-          const timeStr = `${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+          const timeStr = App._formatDateTime(now);
           await ApiService.addAttendanceRecord({
             id: 'att_' + Date.now() + '_' + Math.random().toString(36).slice(2,5),
             eventId: this._scanSelectedEventId,
@@ -292,7 +322,7 @@ Object.assign(App, {
           resultMsg = `${userName} 未報名，已完成簽退`;
         } else {
           const now = new Date();
-          const timeStr = `${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+          const timeStr = App._formatDateTime(now);
           await ApiService.addAttendanceRecord({
             id: 'att_' + Date.now() + '_' + Math.random().toString(36).slice(2,5),
             eventId: this._scanSelectedEventId,
@@ -308,7 +338,7 @@ Object.assign(App, {
         resultMsg = `${userName} 已完成簽到`;
       } else {
         const now = new Date();
-        const timeStr = `${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+        const timeStr = App._formatDateTime(now);
         await ApiService.addAttendanceRecord({
           id: 'att_' + Date.now() + '_' + Math.random().toString(36).slice(2,5),
           eventId: this._scanSelectedEventId,
@@ -330,7 +360,7 @@ Object.assign(App, {
         resultMsg = `${userName} 已完成簽退`;
       } else {
         const now = new Date();
-        const timeStr = `${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+        const timeStr = App._formatDateTime(now);
         await ApiService.addAttendanceRecord({
           id: 'att_' + Date.now() + '_' + Math.random().toString(36).slice(2,5),
           eventId: this._scanSelectedEventId,
@@ -568,7 +598,7 @@ Object.assign(App, {
     const eventId = this._scanSelectedEventId;
     const records = ApiService.getAttendanceRecords(eventId);
     const now = new Date();
-    const timeStr = `${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+    const timeStr = App._formatDateTime(now);
 
     for (const cb of checked) {
       const cId = cb.dataset.companionId || null;

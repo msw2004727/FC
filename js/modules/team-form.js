@@ -405,51 +405,57 @@ Object.assign(App, {
       }
     }
 
-    if (this._teamEditId) {
-      const updates = { name, nameEn, nationality, region, founded, contact, bio, captain, captainUid: this._teamCaptainUid || null, coaches, members };
-      if (image) updates.image = image;
-      ApiService.updateTeam(this._teamEditId, updates);
-      ApiService._writeOpLog('team_edit', '編輯球隊', `編輯「${name}」`);
-      // ── 球隊職位變更日誌 ──
-      const newCapUid = (this._teamCaptainUid && this._teamCaptainUid !== '__legacy__') ? this._teamCaptainUid : null;
-      if (oldCaptainUid && newCapUid && oldCaptainUid !== newCapUid) {
-        const oldCapName = users.find(u => u.uid === oldCaptainUid)?.name || '?';
-        ApiService._writeOpLog('team_position', '球隊職位變更', `「${name}」領隊由「${oldCapName}」轉移至「${captain}」`);
-      } else if (!oldCaptainUid && newCapUid) {
-        ApiService._writeOpLog('team_position', '球隊職位變更', `設定「${captain}」為「${name}」領隊`);
-      }
-      newCoachUids.forEach(uid => {
-        if (!oldCoachUids.includes(uid)) {
-          const cName = users.find(u => u.uid === uid)?.name || '?';
-          ApiService._writeOpLog('team_position', '球隊職位變更', `新增「${cName}」為「${name}」教練`);
+    try {
+      if (this._teamEditId) {
+        const updates = { name, nameEn, nationality, region, founded, contact, bio, captain, captainUid: this._teamCaptainUid || null, coaches, members };
+        if (image) updates.image = image;
+        ApiService.updateTeam(this._teamEditId, updates);
+        ApiService._writeOpLog('team_edit', '編輯球隊', `編輯「${name}」`);
+        // ── 球隊職位變更日誌 ──
+        const newCapUid = (this._teamCaptainUid && this._teamCaptainUid !== '__legacy__') ? this._teamCaptainUid : null;
+        if (oldCaptainUid && newCapUid && oldCaptainUid !== newCapUid) {
+          const oldCapName = users.find(u => u.uid === oldCaptainUid)?.name || '?';
+          ApiService._writeOpLog('team_position', '球隊職位變更', `「${name}」領隊由「${oldCapName}」轉移至「${captain}」`);
+        } else if (!oldCaptainUid && newCapUid) {
+          ApiService._writeOpLog('team_position', '球隊職位變更', `設定「${captain}」為「${name}」領隊`);
         }
-      });
-      oldCoachUids.forEach(uid => {
-        if (!newCoachUids.includes(uid)) {
-          const cName = users.find(u => u.uid === uid)?.name || '?';
-          ApiService._writeOpLog('team_position', '球隊職位變更', `移除「${cName}」的「${name}」教練職位`);
+        newCoachUids.forEach(uid => {
+          if (!oldCoachUids.includes(uid)) {
+            const cName = users.find(u => u.uid === uid)?.name || '?';
+            ApiService._writeOpLog('team_position', '球隊職位變更', `新增「${cName}」為「${name}」教練`);
+          }
+        });
+        oldCoachUids.forEach(uid => {
+          if (!newCoachUids.includes(uid)) {
+            const cName = users.find(u => u.uid === uid)?.name || '?';
+            ApiService._writeOpLog('team_position', '球隊職位變更', `移除「${cName}」的「${name}」教練職位`);
+          }
+        });
+        this.showToast('球隊資料已更新');
+      } else {
+        const data = {
+          id: generateId('tm_'),
+          name, nameEn, nationality, captain, captainUid: this._teamCaptainUid || null, coaches, members,
+          region, founded, contact, bio, image,
+          active: true, pinned: false, pinOrder: 0,
+          wins: 0, draws: 0, losses: 0, gf: 0, ga: 0,
+          history: [],
+        };
+        ApiService.createTeam(data);
+        ApiService._writeOpLog('team_create', '建立球隊', `建立「${name}」`);
+        // ── 新建球隊職位日誌 ──
+        if (captain) {
+          ApiService._writeOpLog('team_position', '球隊職位變更', `設定「${captain}」為「${name}」領隊`);
         }
-      });
-      this.showToast('球隊資料已更新');
-    } else {
-      const data = {
-        id: generateId('tm_'),
-        name, nameEn, nationality, captain, captainUid: this._teamCaptainUid || null, coaches, members,
-        region, founded, contact, bio, image,
-        active: true, pinned: false, pinOrder: 0,
-        wins: 0, draws: 0, losses: 0, gf: 0, ga: 0,
-        history: [],
-      };
-      ApiService.createTeam(data);
-      ApiService._writeOpLog('team_create', '建立球隊', `建立「${name}」`);
-      // ── 新建球隊職位日誌 ──
-      if (captain) {
-        ApiService._writeOpLog('team_position', '球隊職位變更', `設定「${captain}」為「${name}」領隊`);
+        coaches.forEach(c => {
+          ApiService._writeOpLog('team_position', '球隊職位變更', `新增「${c}」為「${name}」教練`);
+        });
+        this.showToast('球隊建立成功！');
       }
-      coaches.forEach(c => {
-        ApiService._writeOpLog('team_position', '球隊職位變更', `新增「${c}」為「${name}」教練`);
-      });
-      this.showToast('球隊建立成功！');
+    } catch (err) {
+      console.error('[handleSaveTeam]', err);
+      this.showToast('儲存失敗：' + (err.message || '請稍後再試'));
+      return;
     }
 
     // ── 自動升級領隊/教練權限 + 發送通知 ──

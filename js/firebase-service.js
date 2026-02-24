@@ -59,6 +59,7 @@ const FirebaseService = {
   _onUserChanged: null,
   _initialized: false,
   _lazyLoaded: {},  // 記錄已懶載入的集合
+  _persistDebounceTimer: null,
 
   // ─── localStorage 快取設定 ───
   _LS_PREFIX: 'shub_c_',
@@ -96,6 +97,12 @@ const FirebaseService = {
       const raw = localStorage.getItem(this._LS_PREFIX + name);
       return raw ? JSON.parse(raw) : null;
     } catch (e) { return null; }
+  },
+
+  /** 延遲 30s 批次寫入（onSnapshot 高頻觸發時避免重複 I/O） */
+  _debouncedPersistCache() {
+    clearTimeout(this._persistDebounceTimer);
+    this._persistDebounceTimer = setTimeout(() => this._persistCache(), 30000);
   },
 
   /** 儲存全部快取到 localStorage */
@@ -273,7 +280,7 @@ const FirebaseService = {
               );
               const active = snapshot.docs.map(doc => ({ ...doc.data(), _docId: doc.id }));
               this._cache.events = [...active, ...kept];
-              this._saveToLS('events', this._cache.events);
+              this._debouncedPersistCache();
               if (firstSnapshot) { firstSnapshot = false; checkDone(); }
               else if (typeof App !== 'undefined') {
                 if (App.currentPage === 'page-my-activities') App.renderMyActivities();
@@ -294,7 +301,7 @@ const FirebaseService = {
           .onSnapshot(
             snapshot => {
               this._cache.messages = snapshot.docs.map(doc => ({ ...doc.data(), _docId: doc.id }));
-              this._saveToLS('messages', this._cache.messages);
+              this._debouncedPersistCache();
               if (firstSnapshot) { firstSnapshot = false; checkDone(); }
             },
             err => { console.warn('[onSnapshot] messages 監聽錯誤:', err); checkDone(); }
@@ -310,7 +317,7 @@ const FirebaseService = {
           .onSnapshot(
             snapshot => {
               this._cache.registrations = snapshot.docs.map(doc => ({ ...doc.data(), _docId: doc.id }));
-              this._saveToLS('registrations', this._cache.registrations);
+              this._debouncedPersistCache();
               if (firstSnapshot) { firstSnapshot = false; checkDone(); }
               else if (typeof App !== 'undefined') {
                 // 報名資料更新 → 刷新按鈕狀態（取消候補 / 報名候補）
@@ -332,7 +339,7 @@ const FirebaseService = {
           .onSnapshot(
             snapshot => {
               this._cache.teams = snapshot.docs.map(doc => ({ ...doc.data(), _docId: doc.id }));
-              this._saveToLS('teams', this._cache.teams);
+              this._debouncedPersistCache();
               if (firstSnapshot) { firstSnapshot = false; checkDone(); }
             },
             err => { console.warn('[onSnapshot] teams 監聯錯誤:', err); checkDone(); }
@@ -349,7 +356,7 @@ const FirebaseService = {
           .onSnapshot(
             snapshot => {
               this._cache.attendanceRecords = snapshot.docs.map(doc => ({ ...doc.data(), _docId: doc.id }));
-              this._saveToLS('attendanceRecords', this._cache.attendanceRecords);
+              this._debouncedPersistCache();
               this._lazyLoaded.attendanceRecords = true;
               if (firstSnapshot) { firstSnapshot = false; checkDone(); }
               else if (typeof App !== 'undefined') {
@@ -375,7 +382,7 @@ const FirebaseService = {
           .onSnapshot(
             snapshot => {
               this._cache.adminUsers = snapshot.docs.map(doc => this._mapUserDoc(doc.data(), doc.id));
-              this._saveToLS('adminUsers', this._cache.adminUsers);
+              this._debouncedPersistCache();
               if (firstUserSnapshot) { firstUserSnapshot = false; checkDone(); }
             },
             err => { console.warn('[onSnapshot] users 監聽錯誤:', err); checkDone(); }
@@ -412,12 +419,14 @@ const FirebaseService = {
       }
     } catch (err) { console.warn('[FirebaseService] rolePermissions 載入失敗:', err); }
 
-    // ── Step 6: Seed 操作（僅首次需要）──
-    await this._cleanupDuplicateDocs();
-    await this._seedAdSlots();
-    await this._seedNotifTemplates();
-    await this._seedAchievements();
-    await this._seedRoleData();
+    // ── Step 6: Seed 操作（僅首次需要，並行執行節省啟動時間）──
+    await Promise.all([
+      this._cleanupDuplicateDocs(),
+      this._seedAdSlots(),
+      this._seedNotifTemplates(),
+      this._seedAchievements(),
+      this._seedRoleData(),
+    ]);
 
     this._initialized = true;
 

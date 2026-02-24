@@ -158,6 +158,15 @@ Object.assign(App, {
     if (titleEl && e) titleEl.textContent = `取消報名 — ${e.title}`;
     const listEl = document.getElementById('companion-cancel-list');
     if (!listEl) return;
+    // 顯示同行者數量警告
+    const companionCount = myRegs.filter(r => r.companionId).length;
+    const warnEl = document.getElementById('companion-cancel-warn');
+    if (warnEl) {
+      warnEl.textContent = companionCount > 0
+        ? `注意：取消本人報名將同時取消 ${companionCount} 位同行者`
+        : '';
+      warnEl.style.display = companionCount > 0 ? '' : 'none';
+    }
     const statusLabel = { confirmed: '正取', waitlisted: '候補' };
     listEl.innerHTML = myRegs.map(r => {
       const displayName = r.companionName || r.userName;

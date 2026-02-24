@@ -60,15 +60,30 @@ Object.assign(App, {
       });
     }
 
-    // 統計
+    // 統計（單次 reduce 取代 5 次 filter）
     const statsEl = document.getElementById('my-activity-stats');
     if (statsEl) {
-      const upcomingCount = allEvents.filter(e => e.status === 'upcoming').length;
-      const openCount = allEvents.filter(e => e.status === 'open').length;
-      const fullCount = allEvents.filter(e => e.status === 'full').length;
-      const endedCount = allEvents.filter(e => e.status === 'ended').length;
-      const cancelledCount = allEvents.filter(e => e.status === 'cancelled').length;
+      const counts = allEvents.reduce((acc, e) => {
+        acc[e.status] = (acc[e.status] || 0) + 1;
+        return acc;
+      }, {});
+      const upcomingCount = counts.upcoming || 0;
+      const openCount = counts.open || 0;
+      const fullCount = counts.full || 0;
+      const endedCount = counts.ended || 0;
+      const cancelledCount = counts.cancelled || 0;
       statsEl.textContent = `共 ${allEvents.length} 場${upcomingCount ? ' ・ 即將開放 ' + upcomingCount : ''} ・ 報名中 ${openCount} ・ 已額滿 ${fullCount} ・ 已結束 ${endedCount} ・ 已取消 ${cancelledCount}`;
+    }
+
+    // 預計算簽退次數 Map（避免每筆活動重新 filter 全部出席紀錄）
+    const isSuperAdmin = (ROLE_LEVEL_MAP[this.currentRole] || 0) >= ROLE_LEVEL_MAP.super_admin;
+    const checkoutCountMap = new Map();
+    if (isSuperAdmin) {
+      ApiService._src('attendanceRecords').forEach(r => {
+        if (r.type === 'checkout') {
+          checkoutCountMap.set(r.eventId, (checkoutCountMap.get(r.eventId) || 0) + 1);
+        }
+      });
     }
 
     const s = 'font-size:.72rem;padding:.2rem .5rem';
@@ -105,10 +120,9 @@ Object.assign(App, {
         const teamBadge = e.teamOnly ? '<span class="tl-teamonly-badge" style="margin-left:.3rem">限定</span>' : '';
         // Fee summary
         const fee = e.fee || 0;
-        const isSuperAdmin = (ROLE_LEVEL_MAP[this.currentRole] || 0) >= ROLE_LEVEL_MAP.super_admin;
         const confirmedRegs = fee > 0 ? ApiService.getRegistrationsByEvent(e.id) : [];
         const confirmedCount = confirmedRegs.length > 0 ? confirmedRegs.length : (e.current || 0);
-        const checkoutCount = fee > 0 ? ApiService.getAttendanceRecords(e.id).filter(r => r.type === 'checkout').length : 0;
+        const checkoutCount = fee > 0 ? (checkoutCountMap.get(e.id) || 0) : 0;
         const feeExpected = fee * confirmedCount;
         const feeActual = fee * checkoutCount;
         const feeShort = feeExpected - feeActual;
@@ -454,7 +468,7 @@ Object.assign(App, {
     const hasCheckin = records.some(r => this._matchAttendanceRecord(r, person) && r.type === 'checkin');
     const hasCheckout = records.some(r => this._matchAttendanceRecord(r, person) && r.type === 'checkout');
     const now = new Date();
-    const timeStr = `${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+    const timeStr = App._formatDateTime(now);
 
     // 同行者：找到主用戶資訊以寫入正確格式的紀錄
     let recordUid = uid, recordUserName = name, companionId = null, companionName = null, participantType = 'self';
@@ -470,48 +484,54 @@ Object.assign(App, {
       }
     }
 
-    // 取消簽退（先取消簽退再處理簽到，避免依賴順序問題）
-    if (!wantCheckout && hasCheckout) {
-      const rec = records.find(r => this._matchAttendanceRecord(r, person) && r.type === 'checkout');
-      if (rec) await ApiService.removeAttendanceRecord(rec);
-    }
-    // 取消簽到（同時移除簽退）
-    if (!wantCheckin && hasCheckin) {
-      const recOut = records.find(r => this._matchAttendanceRecord(r, person) && r.type === 'checkout');
-      if (recOut) await ApiService.removeAttendanceRecord(recOut);
-      const recIn = records.find(r => this._matchAttendanceRecord(r, person) && r.type === 'checkin');
-      if (recIn) await ApiService.removeAttendanceRecord(recIn);
-    }
-
-    if (wantCheckin && !hasCheckin) {
-      await ApiService.addAttendanceRecord({
-        id: 'att_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5),
-        eventId, uid: recordUid, userName: recordUserName,
-        participantType, companionId, companionName,
-        type: 'checkin', time: timeStr,
-      });
-    }
-    if (wantCheckout && !hasCheckout) {
-      if (!wantCheckin && !hasCheckin) {
-        this.showToast('需先簽到才能簽退');
-        return;
+    try {
+      // 取消簽退（先取消簽退再處理簽到，避免依賴順序問題）
+      if (!wantCheckout && hasCheckout) {
+        const rec = records.find(r => this._matchAttendanceRecord(r, person) && r.type === 'checkout');
+        if (rec) await ApiService.removeAttendanceRecord(rec);
       }
-      await ApiService.addAttendanceRecord({
-        id: 'att_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5),
-        eventId, uid: recordUid, userName: recordUserName,
-        participantType, companionId, companionName,
-        type: 'checkout', time: timeStr,
-      });
-    }
-    if (note) {
-      const existingNote = records.filter(r => this._matchAttendanceRecord(r, person) && r.type === 'note').pop();
-      if (!existingNote || existingNote.note !== note) {
+      // 取消簽到（同時移除簽退）
+      if (!wantCheckin && hasCheckin) {
+        const recOut = records.find(r => this._matchAttendanceRecord(r, person) && r.type === 'checkout');
+        if (recOut) await ApiService.removeAttendanceRecord(recOut);
+        const recIn = records.find(r => this._matchAttendanceRecord(r, person) && r.type === 'checkin');
+        if (recIn) await ApiService.removeAttendanceRecord(recIn);
+      }
+
+      if (wantCheckin && !hasCheckin) {
         await ApiService.addAttendanceRecord({
-          id: 'att_note_' + Date.now(), eventId, uid: recordUid, userName: recordUserName,
+          id: 'att_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5),
+          eventId, uid: recordUid, userName: recordUserName,
           participantType, companionId, companionName,
-          type: 'note', time: timeStr, note,
+          type: 'checkin', time: timeStr,
         });
       }
+      if (wantCheckout && !hasCheckout) {
+        if (!wantCheckin && !hasCheckin) {
+          this.showToast('需先簽到才能簽退');
+          return;
+        }
+        await ApiService.addAttendanceRecord({
+          id: 'att_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5),
+          eventId, uid: recordUid, userName: recordUserName,
+          participantType, companionId, companionName,
+          type: 'checkout', time: timeStr,
+        });
+      }
+      if (note) {
+        const existingNote = records.filter(r => this._matchAttendanceRecord(r, person) && r.type === 'note').pop();
+        if (!existingNote || existingNote.note !== note) {
+          await ApiService.addAttendanceRecord({
+            id: 'att_note_' + Date.now(), eventId, uid: recordUid, userName: recordUserName,
+            participantType, companionId, companionName,
+            type: 'note', time: timeStr, note,
+          });
+        }
+      }
+    } catch (err) {
+      console.error('[_confirmManualAttendance]', err);
+      this.showToast('更新失敗：' + (err.message || '請稍後再試'));
+      return;
     }
 
     this._manualEditingUid = null;

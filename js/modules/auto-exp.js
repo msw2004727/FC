@@ -55,7 +55,7 @@ Object.assign(App, {
     // Write to auto exp log
     const logs = this._getAutoExpLogs();
     const now = new Date();
-    const timeStr = `${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+    const timeStr = App._formatDateTime(now);
     logs.unshift({ time: timeStr, target: user.name, key, amount, context: context || '' });
     if (logs.length > 200) logs.length = 200;
     localStorage.setItem(this._autoExpLogKey(), JSON.stringify(logs));

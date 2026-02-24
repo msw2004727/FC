@@ -483,7 +483,7 @@ Object.assign(App, {
     const name = user?.displayName || user?.name || '';
     const isPublic = document.getElementById('team-feed-public')?.checked !== false;
     const now = new Date();
-    const timeStr = `${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+    const timeStr = App._formatDateTime(now);
     t.feed.push({ id: 'f_' + Date.now(), uid, name, content, time: timeStr, pinned: false, isPublic });
     this._teamFeedPage[teamId] = 1; // 發佈後跳回第一頁
     if (uid) this._grantAutoExp(uid, 'post_team_feed', content.slice(0, 20));
@@ -592,7 +592,7 @@ Object.assign(App, {
     const uid = user?.uid || '';
     const name = user?.displayName || user?.name || '';
     const now = new Date();
-    const timeStr = `${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+    const timeStr = App._formatDateTime(now);
     post.comments.push({ id: 'c_' + Date.now(), uid, name, text, time: timeStr });
     this._refreshTeamDetailFeed(teamId);
   },

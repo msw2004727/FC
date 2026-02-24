@@ -568,11 +568,23 @@ Object.assign(App, {
     const gender = document.getElementById('fl-gender').value;
     const birthday = document.getElementById('fl-birthday').value;
     const region = document.getElementById('fl-region').value;
+    const errEl = document.getElementById('fl-error-msg');
+    const showFlError = (msg) => {
+      if (errEl) { errEl.textContent = msg; errEl.style.display = ''; }
+      else this.showToast(msg);
+    };
+    if (errEl) errEl.style.display = 'none';
     if (!gender || !birthday || !region) {
-      this.showToast('請填寫所有必填欄位');
+      showFlError('請填寫所有必填欄位（性別、生日、地區）');
       return;
     }
-    ApiService.updateCurrentUser({ gender, birthday, region });
+    try {
+      ApiService.updateCurrentUser({ gender, birthday, region });
+    } catch (err) {
+      console.error('[saveFirstLoginProfile]', err);
+      showFlError('儲存失敗：' + (err.message || '請稍後再試'));
+      return;
+    }
     this._pendingFirstLogin = false;
     this.closeModal();
     this.renderProfileData();
