@@ -16,6 +16,10 @@ Object.assign(App, {
     document.querySelectorAll('.bot-tab').forEach(tab => {
       tab.addEventListener('click', () => {
         const page = tab.dataset.page;
+        if (page === 'page-teams' || page === 'page-tournaments') {
+          this.showToast('功能準備中');
+          return;
+        }
         this.pageHistory = [];
         this.showPage(page);
         document.querySelectorAll('.bot-tab').forEach(t => t.classList.remove('active'));

@@ -8,7 +8,8 @@
 // 20260224r: 修正掃碼相機錯誤偵測（html5-qrcode reject 純字串處理）
 // 20260224s: 修復 Android 開前鏡頭（exact:environment）+ videoConstraints 衝突移除 + overconstrained 自動降級
 // 20260224w: opening loading overlay redesign (pixel bar + brand image)
-const CACHE_VERSION = '20260224w';
+// 20260224x: bottom tabs (teams/tournaments) show "功能準備中" during testing
+const CACHE_VERSION = '20260224x';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {
