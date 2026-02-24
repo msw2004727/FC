@@ -365,9 +365,12 @@ img { max-width: 100%; display: block; }
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  background-color: rgba(8, 11, 18, .52);
   background:
-    radial-gradient(circle at 50% 18%, rgba(242, 213, 126, .08), transparent 58%),
-    var(--bg-root);
+    radial-gradient(circle at 50% 18%, rgba(242, 213, 126, .10), transparent 58%),
+    linear-gradient(180deg, rgba(8, 11, 18, .58), rgba(8, 11, 18, .46));
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  backdrop-filter: blur(14px) saturate(140%);
 }
 .loading-spinner { width: 36px; height: 36px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
@@ -538,8 +541,23 @@ img { max-width: 100%; display: block; }
   --boot-text: #111827;
 }
 
+[data-theme="light"] .loading-overlay {
+  background-color: rgba(255, 255, 255, .42);
+  background:
+    radial-gradient(circle at 50% 18%, rgba(242, 213, 126, .12), transparent 58%),
+    linear-gradient(180deg, rgba(255, 255, 255, .52), rgba(248, 250, 252, .40));
+}
+
 [data-theme="light"] .boot-loading__sub {
   color: #4b5563;
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .loading-overlay {
+    background:
+      radial-gradient(circle at 50% 18%, rgba(242, 213, 126, .08), transparent 58%),
+      var(--bg-root);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
