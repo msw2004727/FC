@@ -140,6 +140,68 @@ Object.assign(App, {
       return;
     }
 
+    // 啟動前診斷：先確認執行環境，避免所有錯誤都落入通用提示。
+    const scanDiag = {
+      protocol: location.protocol,
+      host: location.host,
+      isSecureContext: !!window.isSecureContext,
+      hasMediaDevices: !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia),
+      hasPermissionsApi: !!(navigator.permissions && navigator.permissions.query),
+      permissionState: 'unknown',
+      isLineInApp: /Line\//i.test(navigator.userAgent),
+      isAndroid: /Android/i.test(navigator.userAgent),
+      isIOS: /iPhone|iPad|iPod/i.test(navigator.userAgent),
+      videoInputCount: null,
+      videoInputLabels: [],
+      inIframe: false,
+    };
+    try { scanDiag.inIframe = window.self !== window.top; } catch (_) { scanDiag.inIframe = true; }
+
+    if (!scanDiag.isSecureContext) {
+      console.warn('[Scan] Preflight failed: insecure context', scanDiag);
+      this.showToast('相機需在 HTTPS 安全連線下使用');
+      const readerEl = document.getElementById('scan-qr-reader');
+      if (readerEl) {
+        readerEl.innerHTML = '<span style="color:var(--danger);font-size:.82rem;">相機需在 HTTPS 安全連線下使用</span>';
+      }
+      const manualSection = document.getElementById('scan-manual-section');
+      if (manualSection) manualSection.style.display = '';
+      return;
+    }
+
+    if (!scanDiag.hasMediaDevices) {
+      console.warn('[Scan] Preflight failed: mediaDevices unavailable', scanDiag);
+      this.showToast('此瀏覽器環境不支援相機存取');
+      const readerEl = document.getElementById('scan-qr-reader');
+      if (readerEl) {
+        readerEl.innerHTML = '<span style="color:var(--danger);font-size:.82rem;">此瀏覽器環境不支援相機存取</span>';
+      }
+      const manualSection = document.getElementById('scan-manual-section');
+      if (manualSection) manualSection.style.display = '';
+      return;
+    }
+
+    if (scanDiag.hasPermissionsApi) {
+      try {
+        const p = await navigator.permissions.query({ name: 'camera' });
+        if (p && p.state) scanDiag.permissionState = p.state;
+      } catch (e) {
+        scanDiag.permissionState = 'unsupported';
+        console.warn('[Scan] permissions.query(camera) unavailable:', e);
+      }
+    }
+
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const videoInputs = devices.filter(d => d.kind === 'videoinput');
+      scanDiag.videoInputCount = videoInputs.length;
+      scanDiag.videoInputLabels = videoInputs.map(d => d.label || '(hidden until permission granted)');
+    } catch (e) {
+      scanDiag.videoInputCount = -1;
+      console.warn('[Scan] enumerateDevices failed:', e);
+    }
+    console.log('[Scan] Preflight diagnostics:', scanDiag);
+
     // 動態載入 QR 掃碼庫（延遲載入，不阻塞啟動）
     if (typeof Html5Qrcode === 'undefined') {
       try {
@@ -183,28 +245,56 @@ Object.assign(App, {
         this._processAttendance(decodedText.trim(), this._scanMode);
       },
       () => {} // ignore scan error frames
-    ).catch(err => {
+    ).then(() => {
+      // 成功啟動後輸出實際 track 設定，協助判斷是否誤開前鏡頭。
+      try {
+        const settings = (typeof scanner.getRunningTrackSettings === 'function')
+          ? scanner.getRunningTrackSettings()
+          : null;
+        console.log('[Scan] Camera started. Track settings:', settings);
+      } catch (e) {
+        console.warn('[Scan] Unable to read track settings:', e);
+      }
+    }).catch(err => {
       console.warn('[Scan] Camera error:', err);
       // html5-qrcode 庫 reject 的是純字串（非 Error 物件），用 String() 統一處理
-      const errStr = String(err).toLowerCase();
+      const errName = (err && err.name) ? String(err.name) : '';
+      const errMsgRaw = (err && err.message) ? String(err.message) : '';
+      const errStr = `${errName} ${errMsgRaw} ${String(err)}`.toLowerCase();
+      console.warn('[Scan] Camera error diagnostics:', {
+        errName,
+        errMsgRaw,
+        errString: String(err),
+        preflight: scanDiag,
+      });
       let errMsg;
-      if (errStr.includes('notallowed') || errStr.includes('permission') || errStr.includes('denied')) {
+      if (!scanDiag.isSecureContext || errStr.includes('secure context') || errStr.includes('secure origin') || errStr.includes('https')) {
+        errMsg = '相機需在 HTTPS 安全連線下使用';
+      } else if (errStr.includes('notallowed') || errStr.includes('permission') || errStr.includes('denied') || scanDiag.permissionState === 'denied') {
         errMsg = '相機權限被拒絕，請在瀏覽器設定中允許相機存取';
       } else if (errStr.includes('notfound') || errStr.includes('device') || errStr.includes('nosource')) {
         errMsg = '找不到相機裝置，請確認此設備有相機';
       } else if (errStr.includes('notreadable') || errStr.includes('could not start')) {
         errMsg = '相機被其他應用程式佔用，請關閉後再試';
-      } else if (errStr.includes('overconstrained')) {
+      } else if (errStr.includes('overconstrained') || errStr.includes('constraint')) {
         errMsg = '相機不支援所需規格，請嘗試其他裝置';
       } else if (errStr.includes('not supported') || errStr.includes('streaming')) {
         errMsg = '此瀏覽器不支援相機掃碼，請改用 Chrome 或 Safari';
+      } else if (scanDiag.isLineInApp && scanDiag.isAndroid) {
+        errMsg = 'LINE 內建瀏覽器相機受限，請改用手機 Chrome 開啟';
       } else {
         errMsg = '無法開啟相機，請確認權限或改用手動輸入';
       }
       this.showToast(errMsg);
       this._scannerInstance = null;
       document.getElementById('scan-camera-btn').textContent = '開啟相機掃碼';
-      readerEl.innerHTML = `<span style="color:var(--danger);font-size:.82rem;">${errMsg}</span>`;
+      const diagText = [
+        `perm=${scanDiag.permissionState}`,
+        `secure=${scanDiag.isSecureContext ? 'yes' : 'no'}`,
+        `cams=${scanDiag.videoInputCount == null ? '?' : scanDiag.videoInputCount}`,
+        scanDiag.isLineInApp ? 'line-inapp' : 'browser',
+      ].join(' | ');
+      readerEl.innerHTML = `<span style="color:var(--danger);font-size:.82rem;">${errMsg}</span><div style="margin-top:.35rem;color:var(--text-muted);font-size:.72rem;">診斷：${escapeHTML(diagText)}</div>`;
       // 顯示手動輸入備援
       const manualSection = document.getElementById('scan-manual-section');
       if (manualSection) manualSection.style.display = '';
