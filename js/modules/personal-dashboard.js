@@ -52,14 +52,10 @@ Object.assign(App, {
     // Monthly participation data (from activity records)
     const monthCounts = {};
     records.filter(r => r.status === 'completed' || r.status === 'registered').forEach(r => {
-      const dateParts = (r.date || '').split('/');
-      let monthKey;
-      if (dateParts.length === 2) {
-        monthKey = `2026/${dateParts[0].padStart(2, '0')}`;
-      } else if (dateParts.length === 3) {
-        monthKey = `${dateParts[0]}/${dateParts[1].padStart(2, '0')}`;
-      }
-      if (monthKey) monthCounts[monthKey] = (monthCounts[monthKey] || 0) + 1;
+      const d = this._parseMmDdToDate(r.date);
+      if (!d) return;
+      const key = `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}`;
+      monthCounts[key] = (monthCounts[key] || 0) + 1;
     });
 
     // Activity type data (from all events the user participated in)
@@ -211,14 +207,7 @@ Object.assign(App, {
     }
     const activeRecords = records.filter(r => r.status === 'completed' || r.status === 'registered');
     activeRecords.forEach(r => {
-      // Try to parse record date
-      const dp = (r.date || '').split('/');
-      let recDate;
-      if (dp.length === 2) {
-        recDate = new Date(2026, parseInt(dp[0]) - 1, parseInt(dp[1]));
-      } else if (dp.length === 3) {
-        recDate = new Date(parseInt(dp[0]), parseInt(dp[1]) - 1, parseInt(dp[2]));
-      }
+      const recDate = this._parseMmDdToDate(r.date);
       if (!recDate || isNaN(recDate)) return;
       for (const w of weeks) {
         if (recDate >= w.start && recDate <= w.end) { w.value++; break; }

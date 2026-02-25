@@ -38,8 +38,11 @@ Object.assign(App, {
     // ── 近期活動趨勢（按月） ──
     const monthCounts = {};
     records.forEach(r => {
-      const m = r.date ? r.date.substring(0, 2) : '??';
-      monthCounts[m] = (monthCounts[m] || 0) + 1;
+      if (!r.date) return;
+      const d = this._parseMmDdToDate(r.date);
+      if (!d) return;
+      const key = `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}`;
+      monthCounts[key] = (monthCounts[key] || 0) + 1;
     });
 
     // ── 球隊排名 Top 5 ──
@@ -240,7 +243,8 @@ Object.assign(App, {
       ctx.fillStyle = isDark ? '#9ca3af' : '#6b7280';
       ctx.font = '10px sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText(month + '月', x + barW / 2, h - 8);
+      const displayM = month.includes('/') ? String(parseInt(month.split('/')[1])) : String(parseInt(month));
+      ctx.fillText(displayM + '月', x + barW / 2, h - 8);
     });
   },
 
@@ -324,6 +328,23 @@ Object.assign(App, {
       ctx.textAlign = 'center';
       ctx.fillText(labels[i], p.x, h - 8);
     });
+  },
+
+  /** 將 MM/DD 或 YYYY/MM/DD 字串轉為 Date；MM/DD 格式以距今超過 180 天推算為去年 */
+  _parseMmDdToDate(mmdd) {
+    const parts = (mmdd || '').split('/');
+    if (parts.length === 3) {
+      return new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+    }
+    if (parts.length === 2) {
+      const mm = parseInt(parts[0]), dd = parseInt(parts[1]);
+      if (!mm || !dd) return null;
+      const now = new Date();
+      const cy = now.getFullYear();
+      const d = new Date(cy, mm - 1, dd);
+      return (d - now > 180 * 86400000) ? new Date(cy - 1, mm - 1, dd) : d;
+    }
+    return null;
   },
 
   async clearAllData() {

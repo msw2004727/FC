@@ -46,7 +46,7 @@ Object.assign(App, {
     document.getElementById('ann-detail-title').textContent = ann.title;
     document.getElementById('ann-detail-body').textContent = ann.content;
     const footer = document.getElementById('ann-detail-footer');
-    footer.innerHTML = `${this._userTag(ann.operatorName || ann.createdBy)}<span style="margin-left:auto">${escapeHTML(ann.publishAt)}</span>`;
+    footer.innerHTML = `<span>${escapeHTML(ann.publishAt)}</span>`;
     modal.classList.add('open');
     modal.querySelector('.modal').classList.add('open');
   },
