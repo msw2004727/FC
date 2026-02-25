@@ -363,14 +363,23 @@ Object.assign(App, {
     const e = ApiService.getEvent(eventId);
     if (!e) return;
     const url = `${location.origin}${location.pathname}?event=${eventId}`;
-    const shareData = { title: e.title, text: `${e.title} — ${e.date} @ ${e.location}`, url };
+    const feeText = e.fee > 0 ? '$' + e.fee : '免費';
+    const ageText = e.minAge > 0 ? `${e.minAge} 歲以上` : '無限制';
+    const shareText = [
+      `＜${e.title}＞`,
+      `日期：${e.date || ''}`,
+      `地點：${e.location || ''}`,
+      `費用：${feeText}`,
+      `年齡：${ageText}`,
+      url
+    ].join('\n');
     if (navigator.share) {
-      navigator.share(shareData).catch(() => {});
+      navigator.share({ text: shareText }).catch(() => {});
     } else {
-      navigator.clipboard.writeText(url).then(() => {
-        this.showToast('分享連結已複製到剪貼簿');
+      navigator.clipboard.writeText(shareText).then(() => {
+        this.showToast('分享內容已複製到剪貼簿');
       }).catch(() => {
-        this.showToast('無法複製連結');
+        this.showToast('複製失敗');
       });
     }
   },
