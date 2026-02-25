@@ -31,8 +31,8 @@ Object.assign(App, {
     // ── 地區分布 ──
     const regionCounts = {};
     events.forEach(e => {
-      const region = (e.location || '').split('市')[0] + '市';
-      if (region.length > 1) regionCounts[region] = (regionCounts[region] || 0) + 1;
+      const region = e.location || '';
+      if (region) regionCounts[region] = (regionCounts[region] || 0) + 1;
     });
 
     // ── 近期活動趨勢（按月） ──

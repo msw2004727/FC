@@ -74,7 +74,7 @@ Object.assign(App, {
     records.filter(r => r.status === 'completed' || r.status === 'registered').forEach(r => {
       const evt = allEvents.find(e => e.id === r.eventId);
       if (evt && evt.location) {
-        const region = evt.location.split('市')[0] + '市';
+        const region = evt.location;
         regionCounts[region] = (regionCounts[region] || 0) + 1;
       }
     });

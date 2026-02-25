@@ -17,8 +17,8 @@
 // 20260224zl: 未報名單欄位 + 已結束活動反向排序 + 收費公式含未報名人數
 // 20260224zm: QR Code 圖片放大 50% + 白邊加寬
 // 20260224zn: QR Code 頁面響應式 90vw 寬度
-// 20260225b: QR Code 白邊減少 25%
-const CACHE_VERSION = '20260225b';
+// 20260225c: QR Code 白邊減少 25%
+const CACHE_VERSION = '20260225c';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {
