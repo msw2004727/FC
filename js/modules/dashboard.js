@@ -11,7 +11,7 @@ Object.assign(App, {
     const events = ApiService.getEvents();
     const teams = ApiService.getTeams();
     const tournaments = ApiService.getTournaments();
-    const records = ApiService.getAllActivityRecords ? ApiService.getAllActivityRecords() : (typeof DemoData !== 'undefined' ? DemoData.activityRecords : []);
+    const records = ApiService.getActivityRecords();
 
     // ── 統計摘要 ──
     const totalUsers = users.length;
