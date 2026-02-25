@@ -375,7 +375,7 @@
   width: 44px; height: 44px;
   border-radius: 50%;
   background: var(--bg-card);
-  color: var(--accent);
+  color: #111;
   border: none;
   display: flex; align-items: center; justify-content: center;
   box-shadow: none;
@@ -384,7 +384,7 @@
   transition: background var(--transition), transform .15s ease;
 }
 .bot-tab-qr:active { transform: scale(.92); }
-.bot-tab-qr svg { stroke: var(--accent); }
+.bot-tab-qr svg { stroke: #111; }
 
 /* ─── Page Header ─── */
 .page-header { display: flex; align-items: center; justify-content: space-between; padding: .6rem .2rem; gap: .5rem; }
