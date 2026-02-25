@@ -225,11 +225,10 @@ const FirebaseService = {
       return;
     }
 
-    // Prod 模式：等待 LIFF 就緒，嘗試 Custom Token 登入
-    const ready = await this._waitForLiffReady(5000);
-    if (!ready || typeof liff === 'undefined' || !liff.isLoggedIn()) {
+    // Prod 模式：LIFF 已在 app.js 中先行初始化完成，直接檢查狀態
+    if (typeof liff === 'undefined' || !liff.isLoggedIn()) {
       const cred = await auth.signInAnonymously();
-      console.log('[FirebaseService] LIFF 未就緒，降級匿名登入, uid:', cred.user?.uid);
+      console.log('[FirebaseService] LIFF 未登入，降級匿名登入, uid:', cred.user?.uid);
       return;
     }
 
@@ -254,16 +253,6 @@ const FirebaseService = {
       const cred = await auth.signInAnonymously();
       console.log('[FirebaseService] 降級匿名登入, uid:', cred.user?.uid);
     }
-  },
-
-  /** 輪詢等待 LIFF SDK 就緒，超時回傳 false */
-  async _waitForLiffReady(timeoutMs) {
-    const start = Date.now();
-    while (Date.now() - start < timeoutMs) {
-      if (typeof liff !== 'undefined' && typeof LineAuth !== 'undefined' && LineAuth._ready) return true;
-      await new Promise(r => setTimeout(r, 100));
-    }
-    return false;
   },
 
   /** 載入指定的靜態集合 */

@@ -271,8 +271,12 @@ document.addEventListener('DOMContentLoaded', async () => {
           LineAuth._ready = false;
           LineAuth._initError = null;
         }
-        const liffReady = (typeof liff !== 'undefined') ? LineAuth.init() : Promise.resolve();
-        await Promise.all([FirebaseService.init(), liffReady]);
+        // LIFF 必須先完成（FirebaseService 需要 Access Token 做 Custom Token 登入）
+        if (typeof liff !== 'undefined') {
+          await LineAuth.init();
+          console.log('[Boot] Phase 4: LIFF 初始化完成');
+        }
+        await FirebaseService.init();
         App._firebaseConnected = true;
         console.log('[Boot] Phase 4: Firebase + LIFF 初始化完成');
         // 用即時資料重新渲染頁面

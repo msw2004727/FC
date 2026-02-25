@@ -21,7 +21,8 @@
 // 20260225d: LINE Custom Token Auth（Firebase UID = LINE userId）
 // 20260225e: 補載 firebase-functions-compat SDK
 // 20260225f: 改用 Access Token 驗證（ID Token 過期問題）
-const CACHE_VERSION = '20260225f';
+// 20260225g: 修復 LIFF/Firebase 初始化競態條件（LIFF 先完成再啟動 Firebase Auth）
+const CACHE_VERSION = '20260225g';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {
