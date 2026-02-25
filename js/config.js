@@ -19,7 +19,8 @@
 // 20260224zn: QR Code 頁面響應式 90vw 寬度
 // 20260225c: QR Code 白邊減少 25%
 // 20260225d: LINE Custom Token Auth（Firebase UID = LINE userId）
-const CACHE_VERSION = '20260225d';
+// 20260225e: 補載 firebase-functions-compat SDK
+const CACHE_VERSION = '20260225e';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {

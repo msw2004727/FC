@@ -148,6 +148,7 @@ async function _loadCDNScripts() {
     _loadScript('https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js'),
     _loadScript('https://www.gstatic.com/firebasejs/10.14.1/firebase-storage-compat.js'),
     _loadScript('https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js'),
+    _loadScript('https://www.gstatic.com/firebasejs/10.14.1/firebase-functions-compat.js'),
     _loadScript('https://static.line-scdn.net/liff/edge/2/sdk.js'),
   ]);
   console.log('[CDN] Firebase + LIFF SDK 載入完成');
