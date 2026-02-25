@@ -516,16 +516,18 @@ Object.assign(FirebaseService, {
       console.log('[FirebaseService] 新用戶建立:', displayName, 'docId:', docId);
       return userData;
     } else {
-      // 既有用戶：更新 displayName, pictureUrl, lastLogin（並補齊 uid 欄位）
+      // 既有用戶：更新 displayName, pictureUrl（lastLogin 僅在距上次超過 10 分鐘時才寫入）
       const doc = snapshot.docs[0];
       const existing = { ...doc.data(), _docId: doc.id };
-      const updates = { displayName, pictureUrl: pictureUrl || null, lastLogin: now };
+      const updates = { displayName, pictureUrl: pictureUrl || null };
       // 補齊早期缺少的 uid 欄位
       if (!existing.uid) updates.uid = lineUserId;
-      await db.collection('users').doc(doc.id).update({
-        ...updates,
-        lastLogin: firebase.firestore.FieldValue.serverTimestamp(),
-      });
+      // lastLogin 節流：避免每次刷新都觸發 onSnapshot，造成其他裝置畫面閃爍
+      const lastLoginMs = existing.lastLogin?.toMillis?.() ?? 0;
+      const tenMinutes = 10 * 60 * 1000;
+      const needsLoginUpdate = Date.now() - lastLoginMs > tenMinutes;
+      if (needsLoginUpdate) updates.lastLogin = firebase.firestore.FieldValue.serverTimestamp();
+      await db.collection('users').doc(doc.id).update(updates);
       Object.assign(existing, updates);
       this._cache.currentUser = existing;
       this._saveToLS('currentUser', existing);
