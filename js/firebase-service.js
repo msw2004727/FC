@@ -225,17 +225,15 @@ const FirebaseService = {
       return;
     }
 
-    // Prod 模式：LIFF 已在 app.js 中先行初始化完成，直接檢查狀態
+    // Prod 模式：只做 Custom Token 登入，不產生匿名用戶
     if (typeof liff === 'undefined' || !liff.isLoggedIn()) {
-      const cred = await auth.signInAnonymously();
-      console.log('[FirebaseService] LIFF 未登入，降級匿名登入, uid:', cred.user?.uid);
+      console.log('[FirebaseService] LIFF 未登入，跳過 Firebase Auth（使用快取瀏覽）');
       return;
     }
 
     const accessToken = typeof LineAuth !== 'undefined' ? LineAuth.getAccessToken?.() : null;
     if (!accessToken) {
-      const cred = await auth.signInAnonymously();
-      console.log('[FirebaseService] 無 LINE Access Token，降級匿名登入, uid:', cred.user?.uid);
+      console.log('[FirebaseService] 無 LINE Access Token，跳過 Firebase Auth');
       return;
     }
 
@@ -246,12 +244,10 @@ const FirebaseService = {
       const cred = await auth.signInWithCustomToken(customToken);
       console.log('[FirebaseService] Custom Token 登入成功, uid:', cred.user?.uid);
     } catch (err) {
-      console.warn('[FirebaseService] Custom Token 登入失敗，降級匿名登入:', err);
+      console.warn('[FirebaseService] Custom Token 登入失敗:', err);
       if (typeof App !== 'undefined' && App.showToast) {
-        App.showToast('LINE 驗證失敗，以訪客模式載入');
+        App.showToast('LINE 驗證失敗，部分功能可能受限');
       }
-      const cred = await auth.signInAnonymously();
-      console.log('[FirebaseService] 降級匿名登入, uid:', cred.user?.uid);
     }
   },
 
