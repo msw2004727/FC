@@ -109,3 +109,19 @@ FC-github/
 - 資料操作統一透過 `ApiService`，不直接操作 `FirebaseService._cache` 或 `DemoData`
 - 新模組以 `Object.assign(App, { ... })` 掛載，不建立全域變數
 - Demo / Prod 分支邏輯統一在 `ApiService` 內處理，模組層不做 `ModeManager.isDemo()` 判斷
+
+---
+
+## 修復日誌規則（每次解決問題後必做）
+
+每次解決一個 bug 或完成一項功能後，**必須**在 `docs/claude-memory.md` 新增一筆記錄：
+
+```markdown
+### YYYY-MM-DD — 標題（簡短描述）
+- **問題**：描述症狀
+- **原因**：根本原因
+- **修復**：修改了哪些檔案、做了什麼
+- **教訓**：未來要注意的事項
+```
+
+> 這個檔案隨 git 走，換設備或跨會話都能參考歷史修復經驗。

@@ -24,7 +24,7 @@
 // 20260225g: 修復 LIFF/Firebase 初始化競態條件（LIFF 先完成再啟動 Firebase Auth）
 // 20260225h: Prod 模式移除匿名登入 fallback，避免產生無用匿名用戶
 // 20260225i: lastLogin 節流（10 分鐘內不重寫），避免觸發跨裝置 onSnapshot 閃爍
-const CACHE_VERSION = '20260225m';
+const CACHE_VERSION = '20260225n';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {

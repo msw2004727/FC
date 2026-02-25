@@ -123,6 +123,11 @@ Object.assign(App, {
       this._openCompanionCancelModal(id, myRegs);
       return;
     }
+    this._cancelSignupBusyMap = this._cancelSignupBusyMap || {};
+    if (this._cancelSignupBusyMap[id]) {
+      this.showToast('取消處理中，請稍後');
+      return;
+    }
 
     const e0 = ApiService.getEvent(id);
     // 活動開始時間已過 → 自動結束並阻止操作
@@ -140,6 +145,32 @@ Object.assign(App, {
     const user = ApiService.getCurrentUser();
     const userName = user?.displayName || user?.name || '用戶';
     const userId = user?.uid || 'unknown';
+    const cancelBtns = Array.from(document.querySelectorAll('#detail-body button'))
+      .filter(b => ((b.getAttribute('onclick') || '').includes('handleCancelSignup')));
+    const activeCancelBtn = cancelBtns[0] || null;
+    let cancelUiRestored = false;
+    this._cancelSignupBusyMap[id] = true;
+    cancelBtns.forEach(b => {
+      b.disabled = true;
+      b.style.opacity = '0.6';
+      b._origCancelHtml = b.innerHTML;
+    });
+    if (activeCancelBtn) {
+      activeCancelBtn.innerHTML = '<span style="display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle;margin-right:.3rem"></span>處理中...';
+    }
+    const _restoreCancelUI = () => {
+      if (cancelUiRestored) return;
+      cancelUiRestored = true;
+      delete this._cancelSignupBusyMap[id];
+      cancelBtns.forEach(b => {
+        b.disabled = false;
+        b.style.opacity = '';
+        if (typeof b._origCancelHtml === 'string') {
+          b.innerHTML = b._origCancelHtml;
+          delete b._origCancelHtml;
+        }
+      });
+    };
 
     if (ApiService._demoMode) {
       const e = ApiService.getEvent(id);
@@ -190,6 +221,7 @@ Object.assign(App, {
           ApiService.addActivityRecord({ eventId: id, name: e.title, date: dateStr, status: 'cancelled', uid: userId });
         }
       }
+      _restoreCancelUI();
       this.showToast(isWaitlist ? '已取消候補' : '已取消報名');
       if (!isWaitlist) this._grantAutoExp(userId, 'cancel_registration', e0.title);
       this.showEventDetail(id);
@@ -237,7 +269,8 @@ Object.assign(App, {
           this.showToast(isWaitlist ? '已取消候補' : '已取消報名');
           this.showEventDetail(id);
         })
-        .catch(err => { console.error('[cancelSignup]', err); this.showToast('取消失敗：' + (err.message || '')); });
+        .catch(err => { console.error('[cancelSignup]', err); this.showToast('取消失敗：' + (err.message || '')); })
+        .finally(() => { _restoreCancelUI(); });
     } else {
       console.warn('[cancelSignup] active registration not found', {
         eventId: id,
@@ -246,6 +279,7 @@ Object.assign(App, {
         activeRegCount: myRegs.length,
         activeRegStatuses: myRegs.map(r => r.status)
       });
+      _restoreCancelUI();
       this.showToast('資料尚未同步，請稍後再試');
       this.showEventDetail(id);
     }

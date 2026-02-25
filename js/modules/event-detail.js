@@ -122,7 +122,36 @@ Object.assign(App, {
   // ── 候補名單：按 userId 分組 + 混合資料支援 + 孤立同行者顯示 ──
   _buildGroupedWaitlist(e) {
     const allRegs = ApiService.getRegistrationsByEvent(e.id);
-    const waitlistedRegs = allRegs.filter(r => r.status === 'waitlisted');
+    const getWaitlistRegTime = (r) => {
+      const v = r && r.registeredAt;
+      if (!v) return Number.POSITIVE_INFINITY;
+      if (typeof v.toMillis === 'function') {
+        try { return v.toMillis(); } catch (e) {}
+      }
+      if (typeof v === 'object' && typeof v.seconds === 'number') {
+        return (v.seconds * 1000) + Math.floor((v.nanoseconds || 0) / 1000000);
+      }
+      const t = new Date(v).getTime();
+      return Number.isFinite(t) ? t : Number.POSITIVE_INFINITY;
+    };
+    const getWaitlistPromotionOrder = (r) => {
+      const n = Number(r && r.promotionOrder);
+      return Number.isFinite(n) ? n : Number.MAX_SAFE_INTEGER;
+    };
+    const waitlistedRegs = allRegs
+      .filter(r => r.status === 'waitlisted')
+      .sort((a, b) => {
+        const ta = getWaitlistRegTime(a);
+        const tb = getWaitlistRegTime(b);
+        if (ta !== tb) return ta - tb;
+        const pa = getWaitlistPromotionOrder(a);
+        const pb = getWaitlistPromotionOrder(b);
+        if (pa !== pb) return pa - pb;
+        const ida = String(a._docId || a.id || '');
+        const idb = String(b._docId || b.id || '');
+        if (ida !== idb) return ida.localeCompare(idb);
+        return String(a.userName || '').localeCompare(String(b.userName || ''));
+      });
     const addedNames = new Set();
     let items = [];
 
