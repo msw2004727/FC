@@ -215,7 +215,7 @@ Object.assign(App, {
             ? `<div class="h-card-img"><img src="${e.image}" alt="${escapeHTML(e.title)}" loading="lazy"></div>`
             : `<div class="h-card-img h-card-placeholder">220 × 90</div>`}
           <div class="h-card-body">
-            <div class="h-card-title">${escapeHTML(e.title)}${e.teamOnly ? '<span class="tl-teamonly-badge">限定</span>' : ''}${(e.status === 'open' && e.max > 0 && (e.max - e.current) / e.max < 0.1 && e.current < e.max) ? '<span class="tl-almost-full-badge">即將額滿</span>' : ''} ${this._favHeartHtml(this.isEventFavorited(e.id), 'Event', e.id)}</div>
+            <div class="h-card-title">${escapeHTML(e.title)}${e.teamOnly ? '<span class="tl-teamonly-badge">限定</span>' : ''}${(e.max > 0 && e.current >= e.max && e.status !== 'ended' && e.status !== 'cancelled') ? '<span class="tl-almost-full-badge">已額滿</span>' : ((e.status === 'open' && e.max > 0 && (e.max - e.current) / e.max < 0.2 && e.current < e.max) ? '<span class="tl-almost-full-badge">即將額滿</span>' : '')} ${this._favHeartHtml(this.isEventFavorited(e.id), 'Event', e.id)}</div>
             <div class="h-card-meta">
               <span>${escapeHTML(e.location)}</span>
               <span>${e.current}/${e.max} ${t('activity.participants')}</span>
@@ -312,7 +312,7 @@ Object.assign(App, {
             <div class="tl-event-row ${rowClass}${isEnded ? ' tl-past' : ''}" onclick="App.showEventDetail('${e.id}')">
               ${e.image ? `<div class="tl-event-thumb"><img src="${e.image}" loading="lazy"></div>` : ''}
               <div class="tl-event-info">
-                <div class="tl-event-title">${escapeHTML(e.title)}${teamBadge}${(e.status === 'open' && e.max > 0 && (e.max - e.current) / e.max < 0.1 && e.current < e.max) ? '<span class="tl-almost-full-badge">即將額滿</span>' : ''}</div>
+                <div class="tl-event-title">${escapeHTML(e.title)}${teamBadge}${(e.max > 0 && e.current >= e.max && e.status !== 'ended' && e.status !== 'cancelled') ? '<span class="tl-almost-full-badge">已額滿</span>' : ((e.status === 'open' && e.max > 0 && (e.max - e.current) / e.max < 0.2 && e.current < e.max) ? '<span class="tl-almost-full-badge">即將額滿</span>' : '')}</div>
                 <div class="tl-event-meta">${typeConf.label} · ${time} · ${escapeHTML(e.location.split('市')[1] || e.location)} · ${e.current}/${e.max}人${waitlistTag}</div>
               </div>
               <span class="tl-event-status ${statusConf.css}">${statusConf.label}</span>
