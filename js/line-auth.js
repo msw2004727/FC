@@ -110,4 +110,14 @@ const LineAuth = {
   getProfile() {
     return this._profile;
   },
+
+  getIDToken() {
+    if (!this._ready || !liff.isLoggedIn()) return null;
+    try {
+      return liff.getIDToken();
+    } catch (e) {
+      console.warn('[LineAuth] liff.getIDToken() 失敗:', e);
+      return null;
+    }
+  },
 };

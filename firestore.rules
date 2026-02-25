@@ -4,16 +4,12 @@ service cloud.firestore {
 
     // ═══════════════════════════════════════════════════════════════
     //  SportHub Firestore Security Rules
-    //  更新：2026-02-23
+    //  更新：2026-02-25
     //
-    //  架構限制說明：
-    //  目前使用 Firebase Anonymous Auth，request.auth.uid 為隨機匿名 UID，
-    //  與 LINE userId（作為 users doc ID）不一致，因此無法在規則層做
-    //  「只能寫自己的資料」的 owner 檢查。
-    //
-    //  長期建議：改用 Custom Claims（Cloud Functions 驗證 LINE ID Token
-    //  後簽發 Firebase Custom Token，將 role 寫入 auth token），
-    //  屆時可用 request.auth.token.role 做角色驗證。
+    //  架構說明：
+    //  Firebase Auth UID = LINE userId（Cloud Function createCustomToken 驗證
+    //  LINE ID Token 後簽發 Custom Token），因此規則層可做 owner 檢查。
+    //  users/{userId} 的 doc ID 即為 LINE userId = Firebase Auth UID。
     //
     //  當前策略：
     //  1. 每個集合獨立定義規則（消除 catch-all 萬用規則）
@@ -22,12 +18,17 @@ service cloud.firestore {
     //  4. 建立時驗證必要欄位與資料型別
     //  5. 阻擋 ghost user（userId = 'unknown'）寫入
     //  6. 禁止從前端刪除 users 和 attendanceRecords
+    //  7. owner-only 寫入：users 寫自己、registrations/attendanceRecords 帶自己 userId
     // ═══════════════════════════════════════════════════════════════
 
     // ── 共用函式 ──
 
     function isAuth() {
       return request.auth != null;
+    }
+
+    function isOwner(docId) {
+      return request.auth != null && request.auth.uid == docId;
     }
 
     function hasString(field) {
@@ -65,8 +66,9 @@ service cloud.firestore {
     // ═══════════════════════════════════════════
     match /users/{userId} {
       allow read: if isAuth();
-      allow create: if isAuth()
+      allow create: if isOwner(userId)
         && hasString('uid')
+        && request.resource.data.uid == userId
         && hasString('displayName');
       allow update: if isAuth();
       allow delete: if false;
@@ -82,6 +84,7 @@ service cloud.firestore {
         && hasString('eventId')
         && hasString('userId')
         && request.resource.data.userId != 'unknown'
+        && request.auth.uid == request.resource.data.userId
         && hasString('status');
       allow update: if isAuth();
       allow delete: if isAuth();

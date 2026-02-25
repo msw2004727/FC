@@ -1,13 +1,80 @@
 const { onDocumentCreated } = require("firebase-functions/v2/firestore");
+const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { defineSecret } = require("firebase-functions/params");
 const { initializeApp } = require("firebase-admin/app");
 const { getFirestore, FieldValue } = require("firebase-admin/firestore");
+const { getAuth } = require("firebase-admin/auth");
 const { messagingApi } = require("@line/bot-sdk");
+const https = require("https");
 
 initializeApp();
 const db = getFirestore();
 
 const LINE_CHANNEL_ACCESS_TOKEN = defineSecret("LINE_CHANNEL_ACCESS_TOKEN");
+
+/**
+ * verifyLineIdToken
+ * 呼叫 LINE /oauth2/v2.1/verify 驗證 ID Token，回傳 lineUserId（sub）
+ */
+function verifyLineIdToken(idToken, channelId) {
+  return new Promise((resolve, reject) => {
+    const body = `id_token=${encodeURIComponent(idToken)}&client_id=${encodeURIComponent(channelId)}`;
+    const options = {
+      hostname: "api.line.me",
+      path: "/oauth2/v2.1/verify",
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Content-Length": Buffer.byteLength(body),
+      },
+    };
+    const req = https.request(options, (res) => {
+      let data = "";
+      res.on("data", (chunk) => { data += chunk; });
+      res.on("end", () => {
+        try {
+          const json = JSON.parse(data);
+          if (json.error) {
+            reject(new Error(`LINE verify error: ${json.error} - ${json.error_description}`));
+          } else {
+            resolve(json.sub); // sub = LINE userId
+          }
+        } catch (e) {
+          reject(new Error("LINE verify response parse error"));
+        }
+      });
+    });
+    req.on("error", reject);
+    req.write(body);
+    req.end();
+  });
+}
+
+/**
+ * createCustomToken
+ * 接收 LINE ID Token，驗證後簽發 Firebase Custom Token（UID = LINE userId）
+ */
+exports.createCustomToken = onCall(
+  { region: "asia-east1", timeoutSeconds: 15 },
+  async (request) => {
+    const { idToken } = request.data;
+    if (!idToken || typeof idToken !== "string") {
+      throw new HttpsError("invalid-argument", "idToken is required");
+    }
+
+    let lineUserId;
+    try {
+      lineUserId = await verifyLineIdToken(idToken, "2009084941");
+    } catch (err) {
+      console.error("[createCustomToken] LINE ID Token 驗證失敗:", err.message);
+      throw new HttpsError("unauthenticated", "LINE ID Token 驗證失敗");
+    }
+
+    const customToken = await getAuth().createCustomToken(lineUserId);
+    console.log("[createCustomToken] 成功為 LINE 用戶簽發 Custom Token:", lineUserId);
+    return { customToken };
+  }
+);
 
 /**
  * processLinePushQueue

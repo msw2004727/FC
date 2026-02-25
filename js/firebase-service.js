@@ -217,6 +217,55 @@ const FirebaseService = {
     this._persistCache();
   },
 
+  /** 根據 Demo / Prod 模式選擇適當的 Firebase Auth 登入方式 */
+  async _signInWithAppropriateMethod() {
+    if (ModeManager.isDemo()) {
+      const cred = await auth.signInAnonymously();
+      console.log('[FirebaseService] 匿名登入（Demo 模式）, uid:', cred.user?.uid);
+      return;
+    }
+
+    // Prod 模式：等待 LIFF 就緒，嘗試 Custom Token 登入
+    const ready = await this._waitForLiffReady(5000);
+    if (!ready || typeof liff === 'undefined' || !liff.isLoggedIn()) {
+      const cred = await auth.signInAnonymously();
+      console.log('[FirebaseService] LIFF 未就緒，降級匿名登入, uid:', cred.user?.uid);
+      return;
+    }
+
+    const idToken = typeof LineAuth !== 'undefined' ? LineAuth.getIDToken?.() : null;
+    if (!idToken) {
+      const cred = await auth.signInAnonymously();
+      console.log('[FirebaseService] 無 LINE ID Token，降級匿名登入, uid:', cred.user?.uid);
+      return;
+    }
+
+    try {
+      const fn = firebase.app().functions('asia-east1').httpsCallable('createCustomToken');
+      const result = await fn({ idToken });
+      const { customToken } = result.data;
+      const cred = await auth.signInWithCustomToken(customToken);
+      console.log('[FirebaseService] Custom Token 登入成功, uid:', cred.user?.uid);
+    } catch (err) {
+      console.warn('[FirebaseService] Custom Token 登入失敗，降級匿名登入:', err);
+      if (typeof App !== 'undefined' && App.showToast) {
+        App.showToast('LINE 驗證失敗，以訪客模式載入');
+      }
+      const cred = await auth.signInAnonymously();
+      console.log('[FirebaseService] 降級匿名登入, uid:', cred.user?.uid);
+    }
+  },
+
+  /** 輪詢等待 LIFF SDK 就緒，超時回傳 false */
+  async _waitForLiffReady(timeoutMs) {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+      if (typeof liff !== 'undefined' && typeof LineAuth !== 'undefined' && LineAuth._ready) return true;
+      await new Promise(r => setTimeout(r, 100));
+    }
+    return false;
+  },
+
   /** 載入指定的靜態集合 */
   async _loadStaticCollections(names) {
     const promises = names.map(name =>
@@ -255,12 +304,11 @@ const FirebaseService = {
     // ── Step 1: 嘗試從 localStorage 恢復快取 ──
     const hasLocalCache = this._restoreCache();
 
-    // 匿名登入 Firebase Auth（讓 Firestore 安全規則 request.auth != null 通過）
+    // Firebase Auth 登入（Demo → 匿名；Prod → LINE Custom Token，失敗降級匿名）
     try {
-      const cred = await auth.signInAnonymously();
-      console.log('[FirebaseService] Firebase Auth 匿名登入成功, uid:', cred.user?.uid);
+      await this._signInWithAppropriateMethod();
     } catch (err) {
-      console.error('[FirebaseService] Firebase Auth 匿名登入失敗:', err.code, err.message);
+      console.error('[FirebaseService] Firebase Auth 登入失敗:', err.code, err.message);
       this._authError = err;
     }
 
