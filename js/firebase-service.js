@@ -233,16 +233,16 @@ const FirebaseService = {
       return;
     }
 
-    const idToken = typeof LineAuth !== 'undefined' ? LineAuth.getIDToken?.() : null;
-    if (!idToken) {
+    const accessToken = typeof LineAuth !== 'undefined' ? LineAuth.getAccessToken?.() : null;
+    if (!accessToken) {
       const cred = await auth.signInAnonymously();
-      console.log('[FirebaseService] 無 LINE ID Token，降級匿名登入, uid:', cred.user?.uid);
+      console.log('[FirebaseService] 無 LINE Access Token，降級匿名登入, uid:', cred.user?.uid);
       return;
     }
 
     try {
       const fn = firebase.app().functions('asia-east1').httpsCallable('createCustomToken');
-      const result = await fn({ idToken });
+      const result = await fn({ accessToken });
       const { customToken } = result.data;
       const cred = await auth.signInWithCustomToken(customToken);
       console.log('[FirebaseService] Custom Token 登入成功, uid:', cred.user?.uid);

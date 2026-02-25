@@ -13,61 +13,62 @@ const db = getFirestore();
 const LINE_CHANNEL_ACCESS_TOKEN = defineSecret("LINE_CHANNEL_ACCESS_TOKEN");
 
 /**
- * verifyLineIdToken
- * 呼叫 LINE /oauth2/v2.1/verify 驗證 ID Token，回傳 lineUserId（sub）
+ * getLineUserIdByAccessToken
+ * 用 LINE Access Token 呼叫 /v2/profile 取得 lineUserId（有效期 30 天，不會過期）
  */
-function verifyLineIdToken(idToken, channelId) {
+function getLineUserIdByAccessToken(accessToken) {
   return new Promise((resolve, reject) => {
-    const body = `id_token=${encodeURIComponent(idToken)}&client_id=${encodeURIComponent(channelId)}`;
     const options = {
       hostname: "api.line.me",
-      path: "/oauth2/v2.1/verify",
-      method: "POST",
+      path: "/v2/profile",
+      method: "GET",
       headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-        "Content-Length": Buffer.byteLength(body),
+        "Authorization": `Bearer ${accessToken}`,
       },
     };
     const req = https.request(options, (res) => {
       let data = "";
       res.on("data", (chunk) => { data += chunk; });
       res.on("end", () => {
+        if (res.statusCode !== 200) {
+          reject(new Error(`LINE profile API error: ${res.statusCode} - ${data}`));
+          return;
+        }
         try {
           const json = JSON.parse(data);
-          if (json.error) {
-            reject(new Error(`LINE verify error: ${json.error} - ${json.error_description}`));
+          if (!json.userId) {
+            reject(new Error("LINE profile response missing userId"));
           } else {
-            resolve(json.sub); // sub = LINE userId
+            resolve(json.userId);
           }
         } catch (e) {
-          reject(new Error("LINE verify response parse error"));
+          reject(new Error("LINE profile response parse error"));
         }
       });
     });
     req.on("error", reject);
-    req.write(body);
     req.end();
   });
 }
 
 /**
  * createCustomToken
- * 接收 LINE ID Token，驗證後簽發 Firebase Custom Token（UID = LINE userId）
+ * 接收 LINE Access Token，驗證身份後簽發 Firebase Custom Token（UID = LINE userId）
  */
 exports.createCustomToken = onCall(
   { region: "asia-east1", timeoutSeconds: 15 },
   async (request) => {
-    const { idToken } = request.data;
-    if (!idToken || typeof idToken !== "string") {
-      throw new HttpsError("invalid-argument", "idToken is required");
+    const { accessToken } = request.data;
+    if (!accessToken || typeof accessToken !== "string") {
+      throw new HttpsError("invalid-argument", "accessToken is required");
     }
 
     let lineUserId;
     try {
-      lineUserId = await verifyLineIdToken(idToken, "2009084941");
+      lineUserId = await getLineUserIdByAccessToken(accessToken);
     } catch (err) {
-      console.error("[createCustomToken] LINE ID Token 驗證失敗:", err.message);
-      throw new HttpsError("unauthenticated", "LINE ID Token 驗證失敗");
+      console.error("[createCustomToken] LINE Access Token 驗證失敗:", err.message);
+      throw new HttpsError("unauthenticated", "LINE 驗證失敗");
     }
 
     const customToken = await getAuth().createCustomToken(lineUserId);
