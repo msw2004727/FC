@@ -133,7 +133,8 @@ Object.assign(App, {
       this.showEventDetail(id);
       return;
     }
-    const isWaitlist = e0 && this._isUserOnWaitlist(e0);
+    const singleReg = myRegs.length === 1 ? myRegs[0] : null;
+    const isWaitlist = singleReg ? singleReg.status === 'waitlisted' : (e0 && this._isUserOnWaitlist(e0));
     const confirmMsg = isWaitlist ? '確定要取消候補？' : '確定要取消報名？';
     if (!await this.appConfirm(confirmMsg)) return;
     const user = ApiService.getCurrentUser();
@@ -195,10 +196,9 @@ Object.assign(App, {
       return;
     }
 
-    const reg = FirebaseService._cache.registrations.find(
-      r => r.eventId === id && r.userId === userId && r.status !== 'cancelled'
-    );
-    if (reg) {
+    const targetStatus = isWaitlist ? 'waitlisted' : 'confirmed';
+    const reg = myRegs.find(r => r.status === targetStatus) || null;
+    if (reg && reg._docId) {
       FirebaseService.cancelRegistration(reg.id)
         .then((cancelledReg) => {
           if (cancelledReg && cancelledReg._promotedUserId) {
@@ -239,39 +239,14 @@ Object.assign(App, {
         })
         .catch(err => { console.error('[cancelSignup]', err); this.showToast('取消失敗：' + (err.message || '')); });
     } else {
-      const e = ApiService.getEvent(id);
-      if (e) {
-        const pi = (e.participants || []).indexOf(userName);
-        if (pi !== -1) {
-          e.participants.splice(pi, 1);
-          e.current = Math.max(0, e.current - 1);
-          if (e._docId) {
-            db.collection('events').doc(e._docId).update({
-              current: e.current, participants: e.participants,
-            }).catch(err => console.error('[cancelSignup fallback]', err));
-          }
-        }
-        // 取消 activityRecord：優先更新現有紀錄，無則新增
-        const arSource = ApiService._src('activityRecords');
-        const existingAR = arSource.find(a => a.eventId === id && a.uid === userId && a.status !== 'cancelled');
-        if (existingAR) {
-          existingAR.status = 'cancelled';
-          if (existingAR._docId) {
-            db.collection('activityRecords').doc(existingAR._docId).update({ status: 'cancelled' })
-              .catch(err => console.error('[cancelFallbackAR]', err));
-          }
-        } else if (!arSource.some(a => a.eventId === id && a.uid === userId && a.status === 'cancelled')) {
-          const dp = e.date.split(' ')[0].split('/');
-          const dateStr = `${dp[1]}/${dp[2]}`;
-          const arCancel = { eventId: id, name: e.title, date: dateStr, status: 'cancelled', uid: userId };
-          ApiService.addActivityRecord(arCancel);
-          db.collection('activityRecords').add({
-            ...arCancel, createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-          }).then(ref => { arCancel._docId = ref.id; })
-            .catch(err => console.error('[cancelFallbackAR]', err));
-        }
-      }
-      this.showToast(isWaitlist ? '已取消候補' : '已取消報名');
+      console.warn('[cancelSignup] active registration not found', {
+        eventId: id,
+        userId,
+        targetStatus,
+        activeRegCount: myRegs.length,
+        activeRegStatuses: myRegs.map(r => r.status)
+      });
+      this.showToast('資料尚未同步，請稍後再試');
       this.showEventDetail(id);
     }
   },
