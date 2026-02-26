@@ -115,9 +115,15 @@ Object.assign(App, {
           return true;
         }).length;
       } else if (action === 'join_team') {
-        // 只看目前登入用戶是否已加入球隊（teamId 存在）
-        const curUser = ApiService.getCurrentUser();
-        current = (curUser && curUser.teamId) ? 1 : 0;
+        // 計算當前用戶擁有的球隊數：擔任隊長的球隊 + 作為成員加入的球隊（用 Set 去重）
+        const jUser = ApiService.getCurrentUser();
+        const jUid = jUser?.uid;
+        if (jUid) {
+          const teamSet = new Set();
+          ApiService.getTeams().forEach(t => { if (t.captainUid === jUid) teamSet.add(t.id); });
+          if (jUser.teamId) teamSet.add(jUser.teamId);
+          current = teamSet.size;
+        }
       }
       // reach_level / reach_exp / attendance_rate 等需不同資料來源，暫不自動評估
 
