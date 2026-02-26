@@ -121,13 +121,19 @@ Object.assign(App, {
           return true;
         }).length;
       } else if (action === 'join_team') {
-        // 計算當前用戶擁有的球隊數：擔任隊長的球隊 + 作為成員加入的球隊（用 Set 去重）
+        // 計算當前用戶關聯的球隊數：隊長 + 領隊 + 教練 + 一般成員（用 Set 去重）
         const jUser = ApiService.getCurrentUser();
-        const jUid = jUser?.uid;
-        if (jUid) {
+        const jUid = jUser?.uid || jUser?._docId || '';
+        const jName = jUser?.displayName || jUser?.name || '';
+        if (jUid || jName) {
           const teamSet = new Set();
-          ApiService.getTeams().forEach(t => { if (t.captainUid === jUid) teamSet.add(t.id); });
-          if (jUser.teamId) teamSet.add(jUser.teamId);
+          ApiService.getTeams().forEach(t => {
+            const isCaptain = jUid && t.captainUid === jUid;
+            const isLeader  = jUid && t.leaderUid  === jUid;
+            const isCoach   = jName && (t.coaches || []).includes(jName);
+            if (isCaptain || isLeader || isCoach) teamSet.add(t.id);
+          });
+          if (jUser?.teamId) teamSet.add(jUser.teamId);
           current = teamSet.size;
         }
       }

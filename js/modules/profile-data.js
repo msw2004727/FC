@@ -7,16 +7,19 @@ Object.assign(App, {
   _getUserTeamHtml(user) {
     const teams = ApiService.getTeams();
     const userName = user.displayName || user.name;
+    const myUid = user.uid || user._docId || '';
     const teamSet = new Map();
-    // 用戶自身的 teamId
+    // 用戶自身的 teamId（一般成員）
     if (user.teamId) {
       teamSet.set(user.teamId, user.teamName || '球隊');
     }
-    // 檢查是否為任何球隊的領隊
+    // 檢查是否為任何球隊的隊長、領隊或教練
     teams.forEach(t => {
-      if (t.captain === userName && !teamSet.has(t.id)) {
-        teamSet.set(t.id, t.name);
-      }
+      if (teamSet.has(t.id)) return;
+      const isCaptain = (myUid && t.captainUid === myUid) || (userName && t.captain === userName);
+      const isLeader  = (myUid && t.leaderUid  === myUid) || (userName && t.leader  === userName);
+      const isCoach   = userName && (t.coaches || []).includes(userName);
+      if (isCaptain || isLeader || isCoach) teamSet.set(t.id, t.name);
     });
     if (teamSet.size === 0) return '無';
     return Array.from(teamSet.entries()).map(([id, name]) =>
