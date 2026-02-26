@@ -172,7 +172,6 @@ Object.assign(App, {
         ${scanBtn}
       </div>
       <div class="detail-section">
-        <div class="detail-section-title">報名名單 (${e.current})</div>
         <div id="detail-attendance-table"></div>
       </div>
       <div class="detail-section" id="detail-unreg-section" style="display:none">

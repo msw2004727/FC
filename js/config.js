@@ -45,7 +45,8 @@
 // 20260226zj: 登入/報名/取消報名前強制確認 Auth 已登入，避免未認證寫入
 // 20260226zk: 修復站內信頁籤分類失效（bindTabBars 搶先綁定導致過濾邏輯未掛載）
 // 20260227e: 移除重複「報名名單」標題（改為顯示在表頭含人數）+ 修復手動簽到閃爍（containerId race + setTimeout settle）
-const CACHE_VERSION = '20260227e';
+// 20260227f: 移除活動詳情頁「報名名單」section title 與分隔線
+const CACHE_VERSION = '20260227f';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {
