@@ -153,7 +153,8 @@ Object.assign(App, {
       filtered = filtered.filter(t =>
         t.name.toLowerCase().includes(query) ||
         (t.nameEn || '').toLowerCase().includes(query) ||
-        t.captain.toLowerCase().includes(query)
+        (t.captain || '').toLowerCase().includes(query) ||
+        (t.leader || '').toLowerCase().includes(query)
       );
     }
     if (region) {
@@ -215,7 +216,8 @@ Object.assign(App, {
             <span style="font-size:.72rem;color:${t.active ? 'var(--success)' : 'var(--danger)'}">${t.active ? '上架中' : '已下架'}</span>
           </div>
           <div class="event-meta">
-            <span class="event-meta-item">領隊 ${escapeHTML(t.captain)}</span>
+            <span class="event-meta-item">領隊 ${escapeHTML(t.leader || '未設定')}</span>
+            <span class="event-meta-item">球隊經理 ${escapeHTML(t.captain || '未設定')}</span>
             <span class="event-meta-item">${t.members}人</span>
             <span class="event-meta-item">${escapeHTML(t.region)}</span>
           </div>
@@ -251,7 +253,13 @@ Object.assign(App, {
     if (!container) return;
     const q = searchQuery || '';
     let teams = ApiService.getTeams();
-    if (q) teams = teams.filter(t => t.name.toLowerCase().includes(q) || (t.nameEn || '').toLowerCase().includes(q) || t.captain.includes(q) || t.region.includes(q));
+    if (q) teams = teams.filter(t =>
+      t.name.toLowerCase().includes(q) ||
+      (t.nameEn || '').toLowerCase().includes(q) ||
+      (t.captain || '').toLowerCase().includes(q) ||
+      (t.leader || '').toLowerCase().includes(q) ||
+      (t.region || '').toLowerCase().includes(q)
+    );
     if (!teams.length) {
       container.innerHTML = '<div style="padding:1rem;font-size:.82rem;color:var(--text-muted);text-align:center">未找到符合條件的球隊</div>';
       return;
@@ -268,7 +276,8 @@ Object.assign(App, {
             ${t.pinned ? '<span style="font-size:.72rem;color:var(--warning);font-weight:600">置頂</span>' : ''}
           </div>
           <div class="event-meta">
-            <span class="event-meta-item">領隊 ${escapeHTML(t.captain)}</span>
+            <span class="event-meta-item">領隊 ${escapeHTML(t.leader || '未設定')}</span>
+            <span class="event-meta-item">球隊經理 ${escapeHTML(t.captain || '未設定')}</span>
             <span class="event-meta-item">${t.members}人</span>
             <span class="event-meta-item">${escapeHTML(t.region)}</span>
             <span class="event-meta-item" style="color:${t.active ? 'var(--success)' : 'var(--danger)'}">${t.active ? '上架中' : '已下架'}</span>

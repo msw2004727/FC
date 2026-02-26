@@ -6,6 +6,7 @@
 Object.assign(App, {
 
   _teamEditId: null,
+  _teamLeaderUid: null,
   _teamCaptainUid: null,
   _teamCoachUids: [],
 
@@ -167,6 +168,12 @@ Object.assign(App, {
     document.getElementById('ct-team-nationality').value = '台灣';
     document.getElementById('ct-team-region').value = '';
     document.getElementById('ct-team-founded').value = '';
+    document.getElementById('ct-leader-search').value = '';
+    document.getElementById('ct-leader-selected').innerHTML = '';
+    document.getElementById('ct-leader-suggest').innerHTML = '';
+    document.getElementById('ct-leader-suggest').classList.remove('show');
+    document.getElementById('ct-leader-display').innerHTML = '';
+    document.getElementById('ct-leader-transfer').style.display = 'none';
     document.getElementById('ct-captain-search').value = '';
     document.getElementById('ct-captain-selected').innerHTML = '';
     document.getElementById('ct-captain-suggest').innerHTML = '';
@@ -179,6 +186,7 @@ Object.assign(App, {
     document.getElementById('ct-coach-suggest').innerHTML = '';
     document.getElementById('ct-coach-suggest').classList.remove('show');
     document.getElementById('ct-team-bio').value = '';
+    this._teamLeaderUid = null;
     this._teamCaptainUid = null;
     this._teamCoachUids = [];
     const preview = document.getElementById('ct-team-preview');
@@ -217,6 +225,8 @@ Object.assign(App, {
     this._teamEditId = id || null;
     const titleEl = document.getElementById('ct-team-modal-title');
     const saveBtn = document.getElementById('ct-team-save-btn');
+    const leaderDisplay = document.getElementById('ct-leader-display');
+    const leaderTransfer = document.getElementById('ct-leader-transfer');
     const captainDisplay = document.getElementById('ct-captain-display');
     const captainTransfer = document.getElementById('ct-captain-transfer');
 
@@ -233,9 +243,30 @@ Object.assign(App, {
       document.getElementById('ct-team-contact').value = t.contact || '';
       document.getElementById('ct-team-bio').value = t.bio || '';
 
+      // 編輯模式：顯示目前球隊領隊 + 可搜尋替換
+      leaderDisplay.style.display = '';
+      leaderDisplay.innerHTML = `目前球隊領隊：<span style="color:var(--accent)">${escapeHTML(t.leader || '（未設定）')}</span>`;
+      leaderTransfer.style.display = '';
+      const leaderHint = leaderTransfer.querySelector('.ct-leader-hint');
+      if (leaderHint) leaderHint.style.display = '';
+
+      // 預設保留原球隊領隊
+      this._teamLeaderUid = null;
+      document.getElementById('ct-leader-search').value = '';
+      document.getElementById('ct-leader-selected').innerHTML = '';
+      if (t.leaderUid) {
+        const users = ApiService.getAdminUsers();
+        const foundById = users.find(u => u.uid === t.leaderUid || u._docId === t.leaderUid);
+        this._teamLeaderUid = foundById ? foundById.uid : '__legacy__';
+      } else if (t.leader) {
+        const users = ApiService.getAdminUsers();
+        const found = users.find(u => u.name === t.leader || u.displayName === t.leader);
+        this._teamLeaderUid = found ? found.uid : '__legacy__';
+      }
+
       // 編輯模式：顯示目前領隊 + 轉移搜尋
       captainDisplay.style.display = '';
-      captainDisplay.innerHTML = `目前領隊：<span style="color:var(--accent)">${escapeHTML(t.captain || '（未設定）')}</span>`;
+      captainDisplay.innerHTML = `目前球隊經理：<span style="color:var(--accent)">${escapeHTML(t.captain || '（未設定）')}</span>`;
       captainTransfer.style.display = '';
       const captainHint = captainTransfer.querySelector('.ct-captain-hint');
       if (captainHint) captainHint.style.display = '';
@@ -285,6 +316,12 @@ Object.assign(App, {
       saveBtn.textContent = '建立球隊';
       this._resetTeamForm();
 
+      leaderDisplay.style.display = 'none';
+      leaderTransfer.style.display = '';
+      const leaderHint = leaderTransfer.querySelector('.ct-leader-hint');
+      if (leaderHint) leaderHint.style.display = 'none';
+      this._teamLeaderUid = null;
+
       captainDisplay.style.display = 'none';
       captainTransfer.style.display = '';
       const captainHint = captainTransfer.querySelector('.ct-captain-hint');
@@ -325,8 +362,34 @@ Object.assign(App, {
       }
     }
 
-    // Resolve captain name
     const users = ApiService.getAdminUsers();
+    let leader = '';
+    let selectedLeaderUser = null;
+    if (this._teamLeaderUid) {
+      if (this._teamLeaderUid === '__legacy__') {
+        const t = this._teamEditId ? ApiService.getTeam(this._teamEditId) : null;
+        leader = t ? (t.leader || '') : '';
+      } else {
+        selectedLeaderUser = users.find(u => u.uid === this._teamLeaderUid);
+        leader = selectedLeaderUser ? selectedLeaderUser.name : '';
+      }
+    }
+
+    if (!this._teamEditId) {
+      if (!this._teamLeaderUid) {
+        this.showToast('請設定球隊領隊（必填）');
+        return;
+      }
+      if (this._teamLeaderUid === '__legacy__' || !selectedLeaderUser) {
+        this.showToast('球隊領隊必須為有效用戶，請重新選擇');
+        return;
+      }
+    } else if (this._teamLeaderUid && this._teamLeaderUid !== '__legacy__' && !selectedLeaderUser) {
+      this.showToast('球隊領隊資料無效，請重新選擇球隊領隊');
+      return;
+    }
+
+    // Resolve team manager (captain) name
     let captain = '';
     let selectedCaptainUser = null;
     if (this._teamCaptainUid) {
@@ -342,15 +405,15 @@ Object.assign(App, {
 
     if (!this._teamEditId) {
       if (!this._teamCaptainUid) {
-        this.showToast('請設定領隊（必填）');
+        this.showToast('請設定球隊經理（必填）');
         return;
       }
       if (this._teamCaptainUid === '__legacy__' || !selectedCaptainUser) {
-        this.showToast('領隊必須為有效用戶，請重新選擇');
+        this.showToast('球隊經理必須為有效用戶，請重新選擇');
         return;
       }
     } else if (this._teamCaptainUid && this._teamCaptainUid !== '__legacy__' && !selectedCaptainUser) {
-      this.showToast('領隊資料無效，請重新選擇領隊');
+      this.showToast('球隊經理資料無效，請重新選擇球隊經理');
       return;
     }
 
@@ -431,8 +494,14 @@ Object.assign(App, {
     }
 
     try {
+      const leaderUidToSave = (this._teamLeaderUid && this._teamLeaderUid !== '__legacy__') ? this._teamLeaderUid : null;
       if (this._teamEditId) {
-        const updates = { name, nameEn, nationality, region, founded, contact, bio, captain, captainUid: this._teamCaptainUid || null, coaches, members };
+        const updates = {
+          name, nameEn, nationality, region, founded, contact, bio,
+          leader, leaderUid: leaderUidToSave,
+          captain, captainUid: this._teamCaptainUid || null,
+          coaches, members,
+        };
         if (image) updates.image = image;
         ApiService.updateTeam(this._teamEditId, updates);
         ApiService._writeOpLog('team_edit', '編輯球隊', `編輯「${name}」`);
@@ -460,7 +529,10 @@ Object.assign(App, {
       } else {
         const data = {
           id: generateId('tm_'),
-          name, nameEn, nationality, captain, captainUid: this._teamCaptainUid || null, coaches, members,
+          name, nameEn, nationality,
+          leader, leaderUid: leaderUidToSave,
+          captain, captainUid: this._teamCaptainUid || null,
+          coaches, members,
           region, founded, contact, bio, image,
           active: true, pinned: false, pinOrder: 0,
           wins: 0, draws: 0, losses: 0, gf: 0, ga: 0,
@@ -573,6 +645,44 @@ Object.assign(App, {
       </div>`
     ).join('');
     el.classList.add('show');
+  },
+
+  searchTeamLeader() {
+    const q = document.getElementById('ct-leader-search').value.trim();
+    if (!q) { document.getElementById('ct-leader-suggest').classList.remove('show'); return; }
+    const exclude = [];
+    if (this._teamLeaderUid && this._teamLeaderUid !== '__legacy__') exclude.push(this._teamLeaderUid);
+    const results = this._teamSearchUsers(q, exclude);
+    this._renderSuggestList('ct-leader-suggest', results, 'selectTeamLeader');
+  },
+
+  selectTeamLeader(uid) {
+    const users = ApiService.getAdminUsers();
+    const user = users.find(u => u.uid === uid);
+    if (!user) return;
+    this._teamLeaderUid = uid;
+    document.getElementById('ct-leader-search').value = '';
+    document.getElementById('ct-leader-suggest').innerHTML = '';
+    document.getElementById('ct-leader-suggest').classList.remove('show');
+    const prefix = this._teamEditId ? '預計轉移給 ' : '';
+    document.getElementById('ct-leader-selected').innerHTML =
+      `<span class="team-tag">${prefix}${user.name}<span class="team-tag-x" onclick="App.clearTeamLeader()">×</span></span>`;
+  },
+
+  clearTeamLeader() {
+    if (this._teamEditId) {
+      const t = ApiService.getTeam(this._teamEditId);
+      if (t && t.leader) {
+        const users = ApiService.getAdminUsers();
+        const found = users.find(u => u.uid === t.leaderUid || u._docId === t.leaderUid || u.name === t.leader || u.displayName === t.leader);
+        this._teamLeaderUid = found ? found.uid : '__legacy__';
+      } else {
+        this._teamLeaderUid = null;
+      }
+    } else {
+      this._teamLeaderUid = null;
+    }
+    document.getElementById('ct-leader-selected').innerHTML = '';
   },
 
   searchTeamCaptain() {
