@@ -116,6 +116,8 @@ Object.assign(App, {
 
   _canToggleEventPublic(e) {
     if (!e || !e.teamOnly) return false;
+    const myLevel = ROLE_LEVEL_MAP[this.currentRole] || 0;
+    if (myLevel >= ROLE_LEVEL_MAP.admin) return true;
     return this._isEventOwner(e) || this._isCurrentUserTeamStaff(e.creatorTeamId);
   },
 

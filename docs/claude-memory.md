@@ -257,3 +257,8 @@
 - **Cause**: Event detail signup button logic did not distinguish team-only non-members, and event visibility/public toggle controls existed only indirectly in create/edit data without a detail-page control or shared staff visibility helpers.
 - **Fix**: Added team-staff/team-membership helpers in event-list.js, allowed public team-only events to be viewable while keeping signup restricted to the event team, rendered a disabled red「球隊限定」button for non-team viewers, added signup guard in event-detail-signup.js, and added an activity-detail title-side「活動公開」toggle (host + team leader/manager/coach) that updates `isPublic` on the event and refreshes views; updated cache version and index version params.
 - **Lesson**: Team-only visibility and signup eligibility are different concerns; treat them separately so public viewing does not accidentally imply public signup.
+### 2026-02-26 - Allow admin public-toggle and swap team manager/leader order in team info
+- **Problem**: Admin/super_admin could view team-only events but could not use the event-detail public toggle unless they were the host or team staff; team detail info card also needed 球隊經理 shown before 領隊.
+- **Cause**: `_canToggleEventPublic()` only checked host/team staff, and team detail info grid rendered 領隊 first.
+- **Fix**: Updated `_canToggleEventPublic()` to allow `admin+`, and swapped the first-row order in team detail info to `球隊經理` then `領隊`; updated cache version and index version params.
+- **Lesson**: Operational controls often need an explicit admin override even when business ownership checks already exist.
