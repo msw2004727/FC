@@ -400,7 +400,7 @@ Object.assign(App, {
         ApiService.updateAchievement(this._achEditId, { name, category, condition, completedAt });
         // 更新關聯徽章
         if (item.badgeId) {
-          const updates = { name: name + '徽章', category };
+          const updates = { name, category };
           if (this._achBadgeDataURL) updates.image = this._achBadgeDataURL;
           ApiService.updateBadge(item.badgeId, updates);
         }
@@ -411,7 +411,7 @@ Object.assign(App, {
       const newId = generateId('a');
       const newBadgeId = generateId('b');
       ApiService.createAchievement({ id: newId, name, category, badgeId: newBadgeId, completedAt: null, current: 0, status: 'active', condition });
-      ApiService.createBadge({ id: newBadgeId, name: name + '徽章', achId: newId, category, image: this._achBadgeDataURL || null });
+      ApiService.createBadge({ id: newBadgeId, name, achId: newId, category, image: this._achBadgeDataURL || null });
       ApiService._writeOpLog('ach_create', '建立成就', `建立「${name}」`);
       this.showToast(`成就「${name}」已建立，已自動建立關聯徽章`);
     }
