@@ -9,8 +9,85 @@ const https = require("https");
 
 initializeApp();
 const db = getFirestore();
+const authAdmin = getAuth();
 
 const LINE_CHANNEL_ACCESS_TOKEN = defineSecret("LINE_CHANNEL_ACCESS_TOKEN");
+const VALID_ROLES = new Set([
+  "user",
+  "coach",
+  "captain",
+  "venue_owner",
+  "admin",
+  "super_admin",
+]);
+
+function normalizeRole(role) {
+  if (typeof role !== "string") return "user";
+  return VALID_ROLES.has(role) ? role : "user";
+}
+
+function getAuthErrorCode(err) {
+  return err?.errorInfo?.code || err?.code || "";
+}
+
+async function ensureAuthUser(uid) {
+  try {
+    return await authAdmin.getUser(uid);
+  } catch (err) {
+    if (getAuthErrorCode(err) !== "auth/user-not-found") throw err;
+  }
+
+  try {
+    return await authAdmin.createUser({ uid });
+  } catch (err) {
+    if (getAuthErrorCode(err) !== "auth/uid-already-exists") throw err;
+    // Race condition: another request created the user first.
+    return await authAdmin.getUser(uid);
+  }
+}
+
+async function findUserDocByUidOrLineUserId(uidOrDocId) {
+  const directSnap = await db.collection("users").doc(uidOrDocId).get();
+  if (directSnap.exists) {
+    return { docId: directSnap.id, data: directSnap.data() || {} };
+  }
+
+  const qSnap = await db.collection("users")
+    .where("lineUserId", "==", uidOrDocId)
+    .limit(1)
+    .get();
+  if (!qSnap.empty) {
+    const doc = qSnap.docs[0];
+    return { docId: doc.id, data: doc.data() || {} };
+  }
+
+  return null;
+}
+
+function getAuthUidFromUserDoc(found, fallbackUid) {
+  const data = found?.data || {};
+  if (typeof data.uid === "string" && data.uid) return data.uid;
+  if (typeof data.lineUserId === "string" && data.lineUserId) return data.lineUserId;
+  if (typeof found?.docId === "string" && found.docId) return found.docId;
+  return fallbackUid;
+}
+
+async function getUserRoleFromFirestore(uidOrDocId) {
+  const found = await findUserDocByUidOrLineUserId(uidOrDocId);
+  if (!found) return "user";
+  return normalizeRole(found.data?.role);
+}
+
+async function setRoleClaimMerged(uid, role) {
+  const userRecord = await authAdmin.getUser(uid);
+  const currentClaims = (userRecord.customClaims && typeof userRecord.customClaims === "object")
+    ? userRecord.customClaims
+    : {};
+  await authAdmin.setCustomUserClaims(uid, {
+    ...currentClaims,
+    role: normalizeRole(role),
+  });
+}
 
 /**
  * getLineUserIdByAccessToken
@@ -71,9 +148,60 @@ exports.createCustomToken = onCall(
       throw new HttpsError("unauthenticated", "LINE 驗證失敗");
     }
 
-    const customToken = await getAuth().createCustomToken(lineUserId);
-    console.log("[createCustomToken] 成功為 LINE 用戶簽發 Custom Token:", lineUserId);
-    return { customToken };
+    await ensureAuthUser(lineUserId);
+    const role = await getUserRoleFromFirestore(lineUserId);
+    await setRoleClaimMerged(lineUserId, role);
+
+    const customToken = await authAdmin.createCustomToken(lineUserId);
+    console.log("[createCustomToken] 成功為 LINE 用戶簽發 Custom Token:", lineUserId, "role=", role);
+    return { customToken, role };
+  }
+);
+
+exports.syncUserRole = onCall(
+  { region: "asia-east1", timeoutSeconds: 15 },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Authentication required");
+    }
+
+    let callerRole = normalizeRole(request.auth.token?.role);
+    if (!["admin", "super_admin"].includes(callerRole)) {
+      callerRole = await getUserRoleFromFirestore(request.auth.uid);
+    }
+    if (!["admin", "super_admin"].includes(callerRole)) {
+      throw new HttpsError("permission-denied", "Admin only");
+    }
+
+    const { targetUid } = request.data || {};
+    if (!targetUid || typeof targetUid !== "string") {
+      throw new HttpsError("invalid-argument", "targetUid is required");
+    }
+
+    const targetUser = await findUserDocByUidOrLineUserId(targetUid);
+    if (!targetUser) {
+      throw new HttpsError("not-found", "Target user not found");
+    }
+    const resolvedTargetUid = getAuthUidFromUserDoc(targetUser, targetUid);
+    const targetRole = normalizeRole(targetUser.data?.role);
+
+    await ensureAuthUser(resolvedTargetUid);
+    await setRoleClaimMerged(resolvedTargetUid, targetRole);
+
+    console.log("[syncUserRole] synced claims", {
+      callerUid: request.auth.uid,
+      callerRole,
+      targetUid: resolvedTargetUid,
+      targetDocId: targetUser.docId,
+      targetRole,
+    });
+
+    return {
+      success: true,
+      targetUid: resolvedTargetUid,
+      targetDocId: targetUser.docId,
+      role: targetRole,
+    };
   }
 );
 
