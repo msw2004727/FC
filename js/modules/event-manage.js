@@ -518,12 +518,10 @@ Object.assign(App, {
       return;
     }
 
-    const editingUid = this._manualEditingUid;
-    const isEditing = (uid) => this._manualEditingEventId === eventId && !this._manualEditingIsUnreg && editingUid === uid;
+    // 整表編輯模式（手動簽到）
+    const tableEditing = canManage && this._attendanceEditingEventId === eventId;
 
     const kickStyle = 'font-size:.7rem;padding:.2rem .4rem;border:1px solid var(--danger);color:var(--danger);background:transparent;border-radius:var(--radius-sm);cursor:pointer;white-space:nowrap';
-    const manualStyle = 'font-size:.7rem;padding:.2rem .45rem;background:#1565c0;color:#fff;border:none;border-radius:var(--radius-sm);cursor:pointer;white-space:nowrap';
-    const doneStyle = 'font-size:.7rem;padding:.2rem .45rem;background:#2e7d32;color:#fff;border:none;border-radius:var(--radius-sm);cursor:pointer;white-space:nowrap';
     const cbStyle = 'width:1.4rem;height:1.4rem;cursor:pointer;vertical-align:middle';
 
     let rows = people.map(p => {
@@ -531,7 +529,6 @@ Object.assign(App, {
       const hasCheckout = records.some(r => this._matchAttendanceRecord(r, p) && r.type === 'checkout');
       const noteRec = this._getLatestAttendanceRecord(records, p, 'note');
       const noteText = noteRec?.note || '';
-      // 備註：僅代報自動標注，手動備註附加在後面
       const autoNote = p.proxyOnly ? '僅代報' : '';
       const combinedNote = [autoNote, noteText].filter(Boolean).join('・');
 
@@ -547,44 +544,54 @@ Object.assign(App, {
       const safeUid = escapeHTML(p.uid);
       const safeName = escapeHTML(p.name);
 
-      // 踢掉按鈕（左欄，始終顯示給管理員）
-      const kickTd = canManage
-        ? `<td style="padding:.35rem .2rem;text-align:center"><button style="${kickStyle}" onclick="App._removeParticipant('${escapeHTML(eventId)}','${safeUid}','${safeName}',${p.isCompanion})">踢掉</button></td>`
-        : '';
-
-      if (canManage && isEditing(p.uid)) {
+      if (tableEditing) {
+        const kickTd = `<td style="padding:.35rem .2rem;text-align:center"><button style="${kickStyle}" onclick="App._removeParticipant('${escapeHTML(eventId)}','${safeUid}','${safeName}',${p.isCompanion})">踢掉</button></td>`;
         return `<tr style="border-bottom:1px solid var(--border)">
           ${kickTd}
           <td style="padding:.35rem .3rem;text-align:left">${nameHtml}</td>
           <td style="padding:.35rem .2rem;text-align:center"><input type="checkbox" id="manual-checkin-${safeUid}" ${hasCheckin ? 'checked' : ''} style="${cbStyle}"></td>
           <td style="padding:.35rem .2rem;text-align:center"><input type="checkbox" id="manual-checkout-${safeUid}" ${hasCheckout ? 'checked' : ''} style="${cbStyle}"></td>
           <td style="padding:.35rem .3rem"><input type="text" maxlength="20" value="${escapeHTML(noteText)}" id="manual-note-${safeUid}" placeholder="備註" style="width:100%;font-size:.72rem;padding:.15rem .3rem;border:1px solid var(--border);border-radius:3px;box-sizing:border-box"></td>
-          <td style="padding:.35rem .2rem;text-align:center"><button style="${doneStyle}" onclick="App._confirmManualAttendance('${escapeHTML(eventId)}','${safeUid}','${safeName}')">完成簽到</button></td>
         </tr>`;
       }
       return `<tr style="border-bottom:1px solid var(--border)">
-        ${kickTd}
         <td style="padding:.35rem .3rem;text-align:left">${nameHtml}</td>
         <td style="padding:.35rem .2rem;text-align:center">${hasCheckin ? '<span style="color:var(--success);font-size:1rem">✓</span>' : ''}</td>
         <td style="padding:.35rem .2rem;text-align:center">${hasCheckout ? '<span style="color:var(--success);font-size:1rem">✓</span>' : ''}</td>
         <td style="padding:.35rem .3rem;font-size:.72rem;color:var(--text-muted)">${escapeHTML(combinedNote)}</td>
-        ${canManage ? `<td style="padding:.35rem .2rem;text-align:center"><button style="${manualStyle}" onclick="App._startManualAttendance('${escapeHTML(eventId)}','${safeUid}','${safeName}',${p.isCompanion})">手動簽到</button></td>` : ''}
       </tr>`;
     }).join('');
 
-    container.innerHTML = `<div style="overflow-x:auto">
-      <table style="width:100%;border-collapse:collapse;font-size:.8rem">
-        <thead><tr style="border-bottom:2px solid var(--border)">
-          ${canManage ? '<th style="text-align:center;padding:.4rem .2rem;font-weight:600;width:3rem">踢掉</th>' : ''}
+    // 手動簽到 / 完成簽到 按鈕（右上角，僅管理員）
+    const topBtn = canManage ? (tableEditing
+      ? `<button style="font-size:.75rem;padding:.25rem .6rem;background:#2e7d32;color:#fff;border:none;border-radius:var(--radius-sm);cursor:pointer" onclick="App._confirmAllAttendance('${escapeHTML(eventId)}')">完成簽到</button>`
+      : `<button style="font-size:.75rem;padding:.25rem .6rem;background:#1565c0;color:#fff;border:none;border-radius:var(--radius-sm);cursor:pointer" onclick="App._startTableEdit('${escapeHTML(eventId)}')">手動簽到</button>`
+    ) : '';
+
+    // 表頭：編輯模式多「踢掉」欄
+    const thead = tableEditing
+      ? `<tr style="border-bottom:2px solid var(--border)">
+          <th style="text-align:center;padding:.4rem .2rem;font-weight:600;width:3rem">踢掉</th>
           <th style="text-align:left;padding:.4rem .3rem;font-weight:600">姓名</th>
           <th style="text-align:center;padding:.4rem .2rem;font-weight:600;width:2.5rem">簽到</th>
           <th style="text-align:center;padding:.4rem .2rem;font-weight:600;width:2.5rem">簽退</th>
           <th style="text-align:left;padding:.4rem .3rem;font-weight:600">備註</th>
-          ${canManage ? '<th style="text-align:center;padding:.4rem .2rem;font-weight:600;width:4.5rem">操作</th>' : ''}
-        </tr></thead>
-        <tbody>${rows}</tbody>
-      </table>
-    </div>`;
+        </tr>`
+      : `<tr style="border-bottom:2px solid var(--border)">
+          <th style="text-align:left;padding:.4rem .3rem;font-weight:600">姓名</th>
+          <th style="text-align:center;padding:.4rem .2rem;font-weight:600;width:2.5rem">簽到</th>
+          <th style="text-align:center;padding:.4rem .2rem;font-weight:600;width:2.5rem">簽退</th>
+          <th style="text-align:left;padding:.4rem .3rem;font-weight:600">備註</th>
+        </tr>`;
+
+    container.innerHTML = `
+      ${topBtn ? `<div style="display:flex;justify-content:flex-end;margin-bottom:.4rem">${topBtn}</div>` : ''}
+      <div style="overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse;font-size:.8rem">
+          <thead>${thead}</thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`;
   },
 
   // ── 未報名單表格（活動詳情頁用）──
@@ -671,6 +678,131 @@ Object.assign(App, {
       </table>
     </div>`;
   },
+
+  // ── 整表手動簽到模式（報名名單用）──
+
+  _startTableEdit(eventId) {
+    this._attendanceEditingEventId = eventId;
+    this._renderAttendanceTable(eventId, this._manualEditingContainerId);
+  },
+
+  async _confirmAllAttendance(eventId) {
+    const e = ApiService.getEvent(eventId);
+    if (!e) return;
+    // 重建 people 列表（與 _renderAttendanceTable 相同邏輯）
+    const allActiveRegs = ApiService.getRegistrationsByEvent(eventId);
+    const confirmedRegs = allActiveRegs.filter(r => r.status === 'confirmed');
+    let people = [];
+    const addedNames = new Set();
+    if (confirmedRegs.length > 0) {
+      const groups = new Map();
+      confirmedRegs.forEach(r => {
+        if (!groups.has(r.userId)) groups.set(r.userId, []);
+        groups.get(r.userId).push(r);
+      });
+      groups.forEach(regs => {
+        const selfReg = regs.find(r => r.participantType === 'self');
+        const companions = regs.filter(r => r.participantType === 'companion');
+        const mainName = selfReg ? selfReg.userName : regs[0].userName;
+        const mainUid = regs[0].userId;
+        people.push({ name: mainName, uid: mainUid, isCompanion: false });
+        addedNames.add(mainName);
+        companions.forEach(c => {
+          const cName = c.companionName || c.userName;
+          const cUid = c.companionId || (mainUid + '_' + c.companionName);
+          people.push({ name: cName, uid: cUid, isCompanion: true });
+          addedNames.add(cName);
+        });
+      });
+    }
+    (e.participants || []).forEach(p => {
+      if (!addedNames.has(p)) {
+        people.push({ name: p, uid: p, isCompanion: false });
+        addedNames.add(p);
+      }
+    });
+
+    const records = ApiService.getAttendanceRecords(eventId);
+    const now = new Date();
+    const timeStr = App._formatDateTime(now);
+    let errCount = 0;
+
+    for (const p of people) {
+      const checkinBox = document.getElementById('manual-checkin-' + p.uid);
+      if (!checkinBox) continue; // DOM 元素不存在則跳過
+
+      const checkoutBox = document.getElementById('manual-checkout-' + p.uid);
+      const noteInput = document.getElementById('manual-note-' + p.uid);
+      const wantCheckin = checkinBox.checked;
+      const wantCheckout = checkoutBox?.checked || false;
+      const note = (noteInput?.value || '').trim().slice(0, 20);
+
+      const person = { uid: p.uid, name: p.name, isCompanion: p.isCompanion };
+      const hasCheckin = records.some(r => this._matchAttendanceRecord(r, person) && r.type === 'checkin');
+      const hasCheckout = records.some(r => this._matchAttendanceRecord(r, person) && r.type === 'checkout');
+      const existingNote = this._getLatestAttendanceRecord(records, person, 'note');
+      const existingNoteText = (existingNote?.note || '').trim();
+
+      // 沒有任何變更則跳過
+      if (wantCheckin === hasCheckin && wantCheckout === hasCheckout && note === existingNoteText) continue;
+
+      // 找同行者對應的主用戶資訊
+      let recordUid = p.uid, recordUserName = p.name, companionId = null, companionName = null, participantType = 'self';
+      if (p.isCompanion) {
+        const cReg = allActiveRegs.find(r => r.companionId === p.uid);
+        if (cReg) {
+          recordUid = cReg.userId; recordUserName = cReg.userName;
+          companionId = p.uid; companionName = p.name; participantType = 'companion';
+        }
+      }
+
+      try {
+        if (!wantCheckout && hasCheckout) {
+          const rec = this._getLatestAttendanceRecord(records, person, 'checkout');
+          if (rec) await ApiService.removeAttendanceRecord(rec);
+        }
+        if (!wantCheckin && hasCheckin) {
+          const recOut = this._getLatestAttendanceRecord(records, person, 'checkout');
+          if (recOut) await ApiService.removeAttendanceRecord(recOut);
+          const recIn = this._getLatestAttendanceRecord(records, person, 'checkin');
+          if (recIn) await ApiService.removeAttendanceRecord(recIn);
+        }
+        if (wantCheckin && !hasCheckin) {
+          await ApiService.addAttendanceRecord({
+            id: 'att_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5),
+            eventId, uid: recordUid, userName: recordUserName,
+            participantType, companionId, companionName,
+            type: 'checkin', time: timeStr,
+          });
+        }
+        if (wantCheckout && !hasCheckout) {
+          if (!wantCheckin && !hasCheckin) { this.showToast(`${p.name}：需先簽到才能簽退`); continue; }
+          await ApiService.addAttendanceRecord({
+            id: 'att_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5),
+            eventId, uid: recordUid, userName: recordUserName,
+            participantType, companionId, companionName,
+            type: 'checkout', time: timeStr,
+          });
+        }
+        if (note !== existingNoteText) {
+          await ApiService.addAttendanceRecord({
+            id: 'att_note_' + Date.now(), eventId, uid: recordUid, userName: recordUserName,
+            participantType, companionId, companionName,
+            type: 'note', time: timeStr, note,
+          });
+        }
+      } catch (err) {
+        console.error('[_confirmAllAttendance]', p.name, err);
+        errCount++;
+      }
+    }
+
+    this._attendanceEditingEventId = null;
+    this._renderAttendanceTable(eventId, this._manualEditingContainerId);
+    this.showToast(errCount > 0 ? `已更新（${errCount} 筆失敗）` : '已更新');
+  },
+
+  // ── 未報名表單個別編輯（維持舊版 per-row 操作）──
 
   _startManualAttendance(eventId, uid, name, isCompanion, isUnreg) {
     this._manualEditingUid = uid;
