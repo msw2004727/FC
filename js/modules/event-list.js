@@ -74,7 +74,8 @@ Object.assign(App, {
       const isLeader =
         !!(t.leaderUid && [myUid, myDocId].filter(Boolean).includes(t.leaderUid)) ||
         !!(t.leader && myNames.has(t.leader));
-      if (isManager || isLeader) ids.add(t.id);
+      const isCoach = (t.coaches || []).some(name => myNames.has(name));
+      if (isManager || isLeader || isCoach) ids.add(t.id);
     });
 
     return ids;
