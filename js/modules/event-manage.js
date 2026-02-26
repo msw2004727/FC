@@ -14,6 +14,31 @@ Object.assign(App, {
   _manualEditingUid: null,
   _manualEditingEventId: null,
 
+  _sortMyActivitiesByNearestTime(events) {
+    const nowMs = Date.now();
+    const getStartMs = (e) => {
+      const d = this._parseEventStartDate ? this._parseEventStartDate(e?.date) : null;
+      const ms = d instanceof Date ? d.getTime() : NaN;
+      return Number.isFinite(ms) ? ms : Number.MAX_SAFE_INTEGER;
+    };
+    const isTerminal = (e) => e?.status === 'ended' || e?.status === 'cancelled';
+
+    return [...events].sort((a, b) => {
+      const ta = isTerminal(a) ? 1 : 0;
+      const tb = isTerminal(b) ? 1 : 0;
+      if (ta !== tb) return ta - tb; // 已結束/取消排最後
+
+      const aMs = getStartMs(a);
+      const bMs = getStartMs(b);
+      const aDist = Math.abs(aMs - nowMs);
+      const bDist = Math.abs(bMs - nowMs);
+      if (aDist !== bDist) return aDist - bDist; // 距離現在越近越前面
+
+      if (aMs !== bMs) return aMs - bMs;
+      return String(a?.id || '').localeCompare(String(b?.id || ''));
+    });
+  },
+
   switchMyActivityTab(filter) {
     this._myActivityFilter = filter || 'all';
     document.querySelectorAll('#my-activity-tabs .tab').forEach(btn => {
@@ -50,7 +75,8 @@ Object.assign(App, {
       allEvents = allEvents.filter(e => e.creator === creatorFilter);
     }
 
-    const filtered = f === 'all' ? allEvents : allEvents.filter(e => e.status === f);
+    const rawFiltered = f === 'all' ? allEvents : allEvents.filter(e => e.status === f);
+    const filtered = this._sortMyActivitiesByNearestTime(rawFiltered);
 
     // 同步 tab active 狀態
     const tabsEl = document.getElementById('my-activity-tabs');
