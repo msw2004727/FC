@@ -327,13 +327,17 @@ const ApiService = {
 
   async addAttendanceRecord(record) {
     if (this._handleRestrictedAction()) return null;
-    this._src('attendanceRecords').push(record);
+    const source = this._src('attendanceRecords');
+    source.push(record);
     if (!this._demoMode) {
       try {
         await FirebaseService.addAttendanceRecord(record);
         FirebaseService._saveToLS('attendanceRecords', FirebaseService._cache.attendanceRecords);
       } catch (err) {
+        const idx = source.findIndex(r => r.id === record.id);
+        if (idx !== -1) source.splice(idx, 1);
         console.error('[addAttendanceRecord]', err);
+        throw err;
       }
     }
     return record;
@@ -343,12 +347,17 @@ const ApiService = {
     if (this._handleRestrictedAction()) return;
     const source = this._src('attendanceRecords');
     const idx = source.findIndex(r => r.id === record.id);
-    if (idx !== -1) source.splice(idx, 1);
+    const removed = idx !== -1 ? source.splice(idx, 1)[0] : null;
     if (!this._demoMode) {
       try {
         await FirebaseService.removeAttendanceRecord(record);
       } catch (err) {
+        if (removed) {
+          const safeIdx = idx >= 0 ? Math.min(idx, source.length) : source.length;
+          source.splice(safeIdx, 0, removed);
+        }
         console.error('[removeAttendanceRecord]', err);
+        throw err;
       }
     }
   },

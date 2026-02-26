@@ -35,7 +35,8 @@
 // 20260226y: 活動頁熱區卡片球隊限定標籤與行事曆統一為「球隊限定」
 // 20260226z: 修復活動開始即 ended 與 ended/cancelled 活動狀態切換後前端短暫消失
 // 20260226za: 活動行事曆卡片球隊限定標籤文案改為「限定」
-const CACHE_VERSION = '20260226za';
+// 20260226zb: 修復手動/掃碼簽到寫入錯誤被吞、備註讀取抓到舊紀錄問題
+const CACHE_VERSION = '20260226zb';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {

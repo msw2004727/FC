@@ -412,95 +412,102 @@ Object.assign(App, {
     let resultClass = '';
     let resultMsg = '';
 
-    if (!isRegistered) {
-      // 未報名 — 先寫 unreg 標記
-      if (!records.find(r => r.uid === uid && r.type === 'unreg')) {
-        const now = new Date();
-        const timeStr = App._formatDateTime(now);
-        await ApiService.addAttendanceRecord({
-          id: 'att_' + Date.now() + '_' + Math.random().toString(36).slice(2,5),
-          eventId: this._scanSelectedEventId,
-          uid, userName, type: 'unreg', time: timeStr,
-        });
-      }
-      // 同時處理簽到/簽退（同報名者邏輯，但 resultClass 為 warning、不給 EXP）
-      if (mode === 'checkin') {
+    try {
+      if (!isRegistered) {
+        // 未報名 — 先寫 unreg 標記
+        if (!records.find(r => r.uid === uid && r.type === 'unreg')) {
+          const now = new Date();
+          const timeStr = App._formatDateTime(now);
+          await ApiService.addAttendanceRecord({
+            id: 'att_' + Date.now() + '_' + Math.random().toString(36).slice(2,5),
+            eventId: this._scanSelectedEventId,
+            uid, userName, type: 'unreg', time: timeStr,
+          });
+        }
+        // 同時處理簽到/簽退（同報名者邏輯，但 resultClass 為 warning、不給 EXP）
+        if (mode === 'checkin') {
+          if (userCheckin) {
+            resultClass = 'warning';
+            resultMsg = `${userName} 未報名，已完成簽到`;
+          } else {
+            const now = new Date();
+            const timeStr = App._formatDateTime(now);
+            await ApiService.addAttendanceRecord({
+              id: 'att_' + Date.now() + '_' + Math.random().toString(36).slice(2,5),
+              eventId: this._scanSelectedEventId,
+              uid, userName, type: 'checkin', time: timeStr,
+            });
+            resultClass = 'warning';
+            resultMsg = `${userName} 未報名，簽到成功`;
+          }
+        } else {
+          if (!userCheckin) {
+            resultClass = 'warning';
+            resultMsg = `${userName} 未報名，尚未簽到`;
+          } else if (userCheckout) {
+            resultClass = 'warning';
+            resultMsg = `${userName} 未報名，已完成簽退`;
+          } else {
+            const now = new Date();
+            const timeStr = App._formatDateTime(now);
+            await ApiService.addAttendanceRecord({
+              id: 'att_' + Date.now() + '_' + Math.random().toString(36).slice(2,5),
+              eventId: this._scanSelectedEventId,
+              uid, userName, type: 'checkout', time: timeStr,
+            });
+            resultClass = 'warning';
+            resultMsg = `${userName} 未報名，簽退成功`;
+          }
+        }
+      } else if (mode === 'checkin') {
         if (userCheckin) {
           resultClass = 'warning';
-          resultMsg = `${userName} 未報名，已完成簽到`;
+          resultMsg = `${userName} 已完成簽到`;
         } else {
           const now = new Date();
           const timeStr = App._formatDateTime(now);
           await ApiService.addAttendanceRecord({
             id: 'att_' + Date.now() + '_' + Math.random().toString(36).slice(2,5),
             eventId: this._scanSelectedEventId,
-            uid, userName, type: 'checkin', time: timeStr,
+            uid,
+            userName,
+            type: 'checkin',
+            time: timeStr,
           });
-          resultClass = 'warning';
-          resultMsg = `${userName} 未報名，簽到成功`;
+          resultClass = 'success';
+          resultMsg = `${userName} 簽到成功`;
         }
       } else {
+        // checkout
         if (!userCheckin) {
           resultClass = 'warning';
-          resultMsg = `${userName} 未報名，尚未簽到`;
+          resultMsg = `${userName} 尚未簽到，無法簽退`;
         } else if (userCheckout) {
           resultClass = 'warning';
-          resultMsg = `${userName} 未報名，已完成簽退`;
+          resultMsg = `${userName} 已完成簽退`;
         } else {
           const now = new Date();
           const timeStr = App._formatDateTime(now);
           await ApiService.addAttendanceRecord({
             id: 'att_' + Date.now() + '_' + Math.random().toString(36).slice(2,5),
             eventId: this._scanSelectedEventId,
-            uid, userName, type: 'checkout', time: timeStr,
+            uid,
+            userName,
+            type: 'checkout',
+            time: timeStr,
           });
-          resultClass = 'warning';
-          resultMsg = `${userName} 未報名，簽退成功`;
+          resultClass = 'success';
+          resultMsg = `${userName} 簽退成功`;
+          // Auto EXP: complete activity
+          const _evt = ApiService.getEvent(this._scanSelectedEventId);
+          this._grantAutoExp(uid, 'complete_activity', _evt?.title || '');
         }
       }
-    } else if (mode === 'checkin') {
-      if (userCheckin) {
-        resultClass = 'warning';
-        resultMsg = `${userName} 已完成簽到`;
-      } else {
-        const now = new Date();
-        const timeStr = App._formatDateTime(now);
-        await ApiService.addAttendanceRecord({
-          id: 'att_' + Date.now() + '_' + Math.random().toString(36).slice(2,5),
-          eventId: this._scanSelectedEventId,
-          uid,
-          userName,
-          type: 'checkin',
-          time: timeStr,
-        });
-        resultClass = 'success';
-        resultMsg = `${userName} 簽到成功`;
-      }
-    } else {
-      // checkout
-      if (!userCheckin) {
-        resultClass = 'warning';
-        resultMsg = `${userName} 尚未簽到，無法簽退`;
-      } else if (userCheckout) {
-        resultClass = 'warning';
-        resultMsg = `${userName} 已完成簽退`;
-      } else {
-        const now = new Date();
-        const timeStr = App._formatDateTime(now);
-        await ApiService.addAttendanceRecord({
-          id: 'att_' + Date.now() + '_' + Math.random().toString(36).slice(2,5),
-          eventId: this._scanSelectedEventId,
-          uid,
-          userName,
-          type: 'checkout',
-          time: timeStr,
-        });
-        resultClass = 'success';
-        resultMsg = `${userName} 簽退成功`;
-        // Auto EXP: complete activity
-        const _evt = ApiService.getEvent(this._scanSelectedEventId);
-        this._grantAutoExp(uid, 'complete_activity', _evt?.title || '');
-      }
+    } catch (err) {
+      console.error('[Scan] attendance write failed:', err);
+      const msg = err?.message || '請確認登入狀態與網路';
+      this._showScanResultPopup('error', `寫入失敗：${msg}`, userName);
+      return;
     }
 
     this._renderScanResults();
@@ -725,35 +732,43 @@ Object.assign(App, {
     const records = ApiService.getAttendanceRecords(eventId);
     const now = new Date();
     const timeStr = App._formatDateTime(now);
+    const modeLabel = mode === 'checkin' ? '簽到' : '簽退';
 
-    for (const cb of checked) {
-      const cId = cb.dataset.companionId || null;
-      const displayName = cb.dataset.name;
-      const hasCheckin = records.some(r => r.uid === uid && r.type === 'checkin' && (r.companionId || null) === cId);
-      const hasCheckout = records.some(r => r.uid === uid && r.type === 'checkout' && (r.companionId || null) === cId);
-      if (mode === 'checkin' && !hasCheckin) {
-        await ApiService.addAttendanceRecord({
-          id: 'att_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5),
-          eventId, uid, userName,
-          participantType: cId ? 'companion' : 'self',
-          companionId: cId || null,
-          companionName: cId ? displayName : null,
-          type: 'checkin', time: timeStr,
-        });
-      } else if (mode === 'checkout' && hasCheckin && !hasCheckout) {
-        await ApiService.addAttendanceRecord({
-          id: 'att_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5),
-          eventId, uid, userName,
-          participantType: cId ? 'companion' : 'self',
-          companionId: cId || null,
-          companionName: cId ? displayName : null,
-          type: 'checkout', time: timeStr,
-        });
-        if (!cId) {
-          const _evt = ApiService.getEvent(eventId);
-          this._grantAutoExp(uid, 'complete_activity', _evt?.title || '');
+    try {
+      for (const cb of checked) {
+        const cId = cb.dataset.companionId || null;
+        const displayName = cb.dataset.name;
+        const hasCheckin = records.some(r => r.uid === uid && r.type === 'checkin' && (r.companionId || null) === cId);
+        const hasCheckout = records.some(r => r.uid === uid && r.type === 'checkout' && (r.companionId || null) === cId);
+        if (mode === 'checkin' && !hasCheckin) {
+          await ApiService.addAttendanceRecord({
+            id: 'att_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5),
+            eventId, uid, userName,
+            participantType: cId ? 'companion' : 'self',
+            companionId: cId || null,
+            companionName: cId ? displayName : null,
+            type: 'checkin', time: timeStr,
+          });
+        } else if (mode === 'checkout' && hasCheckin && !hasCheckout) {
+          await ApiService.addAttendanceRecord({
+            id: 'att_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5),
+            eventId, uid, userName,
+            participantType: cId ? 'companion' : 'self',
+            companionId: cId || null,
+            companionName: cId ? displayName : null,
+            type: 'checkout', time: timeStr,
+          });
+          if (!cId) {
+            const _evt = ApiService.getEvent(eventId);
+            this._grantAutoExp(uid, 'complete_activity', _evt?.title || '');
+          }
         }
       }
+    } catch (err) {
+      console.error('[Scan] family attendance write failed:', err);
+      const msg = err?.message || '請確認登入狀態與網路';
+      this.showToast(`寫入失敗：${msg}`);
+      return;
     }
 
     // 關閉 family modal

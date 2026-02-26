@@ -426,6 +426,46 @@ Object.assign(App, {
     return ((record.uid === person.uid || record.userName === person.name) && !record.companionId);
   },
 
+  _attendanceRecordMs(record, fallbackOrder = 0) {
+    if (!record) return fallbackOrder;
+
+    const createdAt = record.createdAt;
+    if (createdAt && typeof createdAt.toDate === 'function') {
+      const ms = createdAt.toDate().getTime();
+      if (Number.isFinite(ms)) return ms;
+    }
+    if (createdAt && typeof createdAt.seconds === 'number') {
+      return createdAt.seconds * 1000 + Math.floor((createdAt.nanoseconds || 0) / 1e6);
+    }
+    if (typeof createdAt === 'string') {
+      const ms = Date.parse(createdAt);
+      if (Number.isFinite(ms)) return ms;
+    }
+    if (record.time) {
+      const ms = Date.parse(String(record.time).replace(/\//g, '-'));
+      if (Number.isFinite(ms)) return ms;
+    }
+    const id = String(record.id || '');
+    const m = id.match(/(\d{10,13})/);
+    if (m && Number.isFinite(Number(m[1]))) return Number(m[1]);
+    return fallbackOrder;
+  },
+
+  _getLatestAttendanceRecord(records, person, type) {
+    let latest = null;
+    let latestMs = -Infinity;
+    (records || []).forEach((r, idx) => {
+      if (r?.type !== type) return;
+      if (!this._matchAttendanceRecord(r, person)) return;
+      const ms = this._attendanceRecordMs(r, idx);
+      if (ms >= latestMs) {
+        latestMs = ms;
+        latest = r;
+      }
+    });
+    return latest;
+  },
+
   // ── 報名名單表格（活動管理 + 活動詳細頁共用）──
   _renderAttendanceTable(eventId, containerId) {
     const cId = containerId || 'attendance-table-container';
@@ -484,7 +524,7 @@ Object.assign(App, {
     let rows = people.map(p => {
       const hasCheckin = records.some(r => this._matchAttendanceRecord(r, p) && r.type === 'checkin');
       const hasCheckout = records.some(r => this._matchAttendanceRecord(r, p) && r.type === 'checkout');
-      const noteRec = records.filter(r => this._matchAttendanceRecord(r, p) && r.type === 'note').pop();
+      const noteRec = this._getLatestAttendanceRecord(records, p, 'note');
       const noteText = noteRec?.note || '';
       // 備註：僅代報自動標注，手動備註附加在後面
       const autoNote = p.proxyOnly ? '僅代報' : '';
@@ -579,7 +619,7 @@ Object.assign(App, {
       const person = { uid: p.uid, name: p.name, isCompanion: false };
       const hasCheckin = records.some(r => this._matchAttendanceRecord(r, person) && r.type === 'checkin');
       const hasCheckout = records.some(r => this._matchAttendanceRecord(r, person) && r.type === 'checkout');
-      const noteRec = records.filter(r => this._matchAttendanceRecord(r, person) && r.type === 'note').pop();
+      const noteRec = this._getLatestAttendanceRecord(records, person, 'note');
       const noteText = noteRec?.note || '';
       const autoNote = '未報名';
       const combinedNote = [autoNote, noteText].filter(Boolean).join('・');
@@ -667,14 +707,14 @@ Object.assign(App, {
     try {
       // 取消簽退（先取消簽退再處理簽到，避免依賴順序問題）
       if (!wantCheckout && hasCheckout) {
-        const rec = records.find(r => this._matchAttendanceRecord(r, person) && r.type === 'checkout');
+        const rec = this._getLatestAttendanceRecord(records, person, 'checkout');
         if (rec) await ApiService.removeAttendanceRecord(rec);
       }
       // 取消簽到（同時移除簽退）
       if (!wantCheckin && hasCheckin) {
-        const recOut = records.find(r => this._matchAttendanceRecord(r, person) && r.type === 'checkout');
+        const recOut = this._getLatestAttendanceRecord(records, person, 'checkout');
         if (recOut) await ApiService.removeAttendanceRecord(recOut);
-        const recIn = records.find(r => this._matchAttendanceRecord(r, person) && r.type === 'checkin');
+        const recIn = this._getLatestAttendanceRecord(records, person, 'checkin');
         if (recIn) await ApiService.removeAttendanceRecord(recIn);
       }
 
@@ -698,19 +738,21 @@ Object.assign(App, {
           type: 'checkout', time: timeStr,
         });
       }
-      if (note) {
-        const existingNote = records.filter(r => this._matchAttendanceRecord(r, person) && r.type === 'note').pop();
-        if (!existingNote || existingNote.note !== note) {
-          await ApiService.addAttendanceRecord({
-            id: 'att_note_' + Date.now(), eventId, uid: recordUid, userName: recordUserName,
-            participantType, companionId, companionName,
-            type: 'note', time: timeStr, note,
-          });
-        }
+      const existingNote = this._getLatestAttendanceRecord(records, person, 'note');
+      const existingNoteText = (existingNote?.note || '').trim();
+      if (note !== existingNoteText) {
+        await ApiService.addAttendanceRecord({
+          id: 'att_note_' + Date.now(), eventId, uid: recordUid, userName: recordUserName,
+          participantType, companionId, companionName,
+          type: 'note', time: timeStr, note,
+        });
       }
     } catch (err) {
       console.error('[_confirmManualAttendance]', err);
-      this.showToast('更新失敗：' + (err.message || '請稍後再試'));
+      const rawMsg = String(err?.message || '');
+      const denied = /permission|insufficient|missing/i.test(rawMsg);
+      const msg = denied ? '資料庫權限拒絕（目前規則不允許刪除既有簽到紀錄）' : (rawMsg || '請稍後再試');
+      this.showToast('更新失敗：' + msg);
       return;
     }
 

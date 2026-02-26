@@ -294,3 +294,8 @@
 - **Cause**: Timeline card badge text had been standardized to `球隊限定` in earlier change.
 - **Fix**: Updated timeline card badge text in `js/modules/event-list.js` to `限定`; bumped cache version to `20260226za` and updated all `index.html` version query params.
 - **Lesson**: Keep UI label wording aligned with exact product wording for each surface, even when the underlying rule is the same.
+### 2026-02-26 - Fix attendance write visibility and error handling in manual/scan flows
+- **Problem**: Manual attendance confirm could appear "updated" but not persist in Firestore, and notes could look unchanged after refresh; scan flow also lacked explicit write-failure feedback.
+- **Cause**: `ApiService.addAttendanceRecord/removeAttendanceRecord` swallowed Firebase errors; note rendering used `.pop()` on mixed-order records and could read older note entries.
+- **Fix**: Made attendance add/remove propagate errors with cache rollback in `js/api-service.js`; added latest-record helper in `js/modules/event-manage.js` and switched note/checkout/checkin lookups to latest-by-time; improved `js/modules/scan.js` with write failure `try/catch` handling and fixed missing `modeLabel` variable in family confirm flow; bumped cache version and index params.
+- **Lesson**: For audit-like event logs, UI must resolve "latest state" explicitly and must never report success when persistence failed.
