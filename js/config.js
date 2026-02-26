@@ -26,8 +26,8 @@
 // 20260225i: lastLogin 節流（10 分鐘內不重寫），避免觸發跨裝置 onSnapshot 閃爍
 // 20260226f: 修復新用戶卡在「登入確認中」—liff.init()/Auth timeout + isPendingLogin 自動降級
 // 20260226g: LINE 首次登入速度優化（ensureProfile + Firebase 並行化 + profile 快取）
-// 20260226i: 首次登入地區改為全台 22 縣市 + 其他，新增模糊搜尋
-const CACHE_VERSION = '20260226i';
+// 20260226j: users 帳號限制（限制/解除限制按鈕 + 首頁限制導流 + Rules 寫入阻擋）
+const CACHE_VERSION = '20260226j';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {

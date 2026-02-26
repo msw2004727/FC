@@ -193,3 +193,9 @@
 - **原因**：`pages/profile.html` 的 `#fl-region` 下拉選單是早期寫死的精簡版本，沒有搜尋輔助。
 - **修復**：在首次登入 modal 新增 `#fl-region-search` 搜尋框；前端固定寫死全台 22 縣市 + `其他`；在 `profile-data.js` 新增模糊搜尋（`includes`，含 `台/臺` 正規化）與開啟 modal 時的選單重置初始化；更新 `CACHE_VERSION` 與 `index.html` 版本參數。
 - **教訓**：靜態下拉清單一旦超過十幾項，應同時提供搜尋或分組，避免首次登入流程卡在找選項。
+
+### 2026-02-26 — users 帳號限制（限制/解除限制）MVP
+- **問題**：需要在用戶管理對一般 `user` 帳號做限制/解除限制，並讓被限制者登入後僅能停留首頁，操作功能時提示「帳號限制中」。
+- **原因**：現有系統只有角色權限與頁面登入檢查，缺少帳號狀態層（例如限制/封鎖）與全域導頁攔截。
+- **修復**：`user-admin-list.js` 新增 `限制/解除限制` 按鈕（僅 `role === 'user'` 顯示）與 `toggleUserRestriction()`；`navigation.js` 新增限制狀態判斷與 `showPage()`/底部 tab/goBack 攔截，限制者自動導回首頁；`profile-core.js` 在 currentUser 即時更新回呼中觸發限制導流；`api-service.js` 新增限制帳號寫入防呆（含報名、訊息已讀、個資/同行者等）；`firestore.rules` 新增 `isRestrictedAccount()`，保護 `users.isRestricted*` 欄位僅 super_admin 可改，並阻擋被限制帳號的主要使用者寫入路徑。
+- **教訓**：帳號限制若只做前端 UI 會被 console 繞過，至少要同步補 Rules 的欄位保護與常見寫入限制；導航攔截應集中在 `showPage()` 這種單一入口降低漏網率。

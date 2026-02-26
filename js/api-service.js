@@ -12,6 +12,23 @@ const ApiService = {
 
   get _demoMode() { return ModeManager.isDemo(); },
 
+  _isCurrentUserRestricted() {
+    if (this._demoMode) return false;
+    const user = this.getCurrentUser ? this.getCurrentUser() : null;
+    return !!(user && user.isRestricted === true);
+  },
+
+  _handleRestrictedAction() {
+    if (!this._isCurrentUserRestricted()) return false;
+    try {
+      if (typeof App !== 'undefined') {
+        App.showToast?.('帳號限制中');
+        App._handleRestrictedStateChange?.();
+      }
+    } catch (_) {}
+    return true;
+  },
+
   // ════════════════════════════════
   //  通用工具方法（消除重複的 demo/production 分支）
   // ════════════════════════════════
@@ -31,6 +48,7 @@ const ApiService = {
 
   /** 通用新增：寫入快取 + 非同步寫入 Firebase */
   _create(key, data, firebaseMethod, label, prepend) {
+    if (this._handleRestrictedAction()) return null;
     const source = this._src(key);
     if (prepend !== false) { source.unshift(data); } else { source.push(data); }
     if (!this._demoMode && firebaseMethod) {
@@ -41,6 +59,7 @@ const ApiService = {
 
   /** 通用更新：快取 Object.assign + 非同步寫入 Firebase */
   _update(key, id, updates, firebaseMethod, label) {
+    if (this._handleRestrictedAction()) return null;
     const item = this._findById(key, id);
     if (item) Object.assign(item, updates);
     if (!this._demoMode && firebaseMethod) {
@@ -51,6 +70,7 @@ const ApiService = {
 
   /** 通用刪除：先呼叫 Firebase（需要讀取 _docId），再從快取 splice */
   _delete(key, id, firebaseMethod, label) {
+    if (this._handleRestrictedAction()) return false;
     const source = this._src(key);
     // 必須先呼叫 Firebase 刪除（需要從 cache 中找到 _docId），再 splice
     if (!this._demoMode && firebaseMethod) {
@@ -249,6 +269,7 @@ const ApiService = {
   updateMessage(msgId, updates) { return this._update('messages', msgId, updates, FirebaseService.updateMessage, 'updateMessage'); },
 
   markMessageRead(msgId) {
+    if (this._handleRestrictedAction()) return;
     const msg = this._findById('messages', msgId);
     if (msg) msg.unread = false;
     if (!this._demoMode) {
@@ -257,6 +278,7 @@ const ApiService = {
   },
 
   markAllMessagesRead() {
+    if (this._handleRestrictedAction()) return;
     this._src('messages').forEach(m => { m.unread = false; });
     if (!this._demoMode) {
       FirebaseService.markAllMessagesRead().catch(err => console.error('[markAllMessagesRead]', err));
@@ -301,6 +323,7 @@ const ApiService = {
   },
 
   async addAttendanceRecord(record) {
+    if (this._handleRestrictedAction()) return null;
     this._src('attendanceRecords').push(record);
     if (!this._demoMode) {
       try {
@@ -314,6 +337,7 @@ const ApiService = {
   },
 
   async removeAttendanceRecord(record) {
+    if (this._handleRestrictedAction()) return;
     const source = this._src('attendanceRecords');
     const idx = source.findIndex(r => r.id === record.id);
     if (idx !== -1) source.splice(idx, 1);
@@ -576,6 +600,7 @@ const ApiService = {
   },
 
   addCompanion(data) {
+    if (this._handleRestrictedAction()) return null;
     const user = this.getCurrentUser();
     if (!user) return null;
     if (!user.companions) user.companions = [];
@@ -588,6 +613,7 @@ const ApiService = {
   },
 
   updateCompanion(companionId, updates) {
+    if (this._handleRestrictedAction()) return null;
     const user = this.getCurrentUser();
     if (!user || !user.companions) return null;
     const comp = user.companions.find(c => c.id === companionId);
@@ -601,6 +627,7 @@ const ApiService = {
   },
 
   deleteCompanion(companionId) {
+    if (this._handleRestrictedAction()) return false;
     const user = this.getCurrentUser();
     if (!user || !user.companions) return false;
     const idx = user.companions.findIndex(c => c.id === companionId);
@@ -622,6 +649,9 @@ const ApiService = {
   },
 
   async registerEventWithCompanions(eventId, participantList) {
+    if (this._handleRestrictedAction()) {
+      throw new Error('ACCOUNT_RESTRICTED');
+    }
     const e = ApiService.getEvent(eventId);
     if (!e) throw new Error('活動不存在');
     const user = this.getCurrentUser();
@@ -695,6 +725,7 @@ const ApiService = {
   },
 
   updateCurrentUser(updates) {
+    if (this._handleRestrictedAction()) return null;
     if (this._demoMode) {
       if (typeof DemoData !== 'undefined' && DemoData.currentUser) {
         Object.assign(DemoData.currentUser, updates);

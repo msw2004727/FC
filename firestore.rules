@@ -31,6 +31,160 @@ service cloud.firestore {
       return request.auth != null && request.auth.uid == docId;
     }
 
+    function roleFromUserDoc(uid) {
+      let userPath = /databases/$(database)/documents/users/$(uid);
+      let userDoc = exists(userPath) ? get(userPath) : null;
+      return (userDoc != null && userDoc.data.role is string)
+        ? userDoc.data.role
+        : 'user';
+    }
+
+    function authRole() {
+      return request.auth == null
+        ? 'user'
+        : ((request.auth.token.role is string)
+          ? request.auth.token.role
+          : roleFromUserDoc(request.auth.uid));
+    }
+
+    function isCoachPlus() {
+      return request.auth != null
+        && authRole() in ['coach', 'captain', 'venue_owner', 'admin', 'super_admin'];
+    }
+
+    function isAdmin() {
+      return request.auth != null
+        && authRole() in ['admin', 'super_admin'];
+    }
+
+    function isSuperAdmin() {
+      return request.auth != null
+        && authRole() == 'super_admin';
+    }
+
+    function isRestrictedAccount() {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isRestricted == true);
+    }
+
+    function sameFieldValue(field) {
+      return (!(field in resource.data) && !(field in request.resource.data))
+        || ((field in resource.data) && (field in request.resource.data)
+          && request.resource.data[field] == resource.data[field]);
+    }
+
+    function ownerUserCreateSafe(userId) {
+      return (!('lineUserId' in request.resource.data) || request.resource.data.lineUserId == userId)
+        && (!('role' in request.resource.data) || request.resource.data.role == 'user')
+        && !('manualRole' in request.resource.data)
+        && !('isRestricted' in request.resource.data)
+        && !('restrictedAt' in request.resource.data)
+        && !('restrictedByUid' in request.resource.data)
+        && !('restrictedByName' in request.resource.data)
+        && !('restrictedReason' in request.resource.data);
+    }
+
+    function ownerUserUpdateSafe(userId) {
+      return request.resource.data.uid == userId
+        && (!('lineUserId' in request.resource.data) || request.resource.data.lineUserId == userId)
+        && !isRestrictedAccount()
+        && sameFieldValue('role')
+        && sameFieldValue('manualRole')
+        && sameFieldValue('isRestricted')
+        && sameFieldValue('restrictedAt')
+        && sameFieldValue('restrictedByUid')
+        && sameFieldValue('restrictedByName')
+        && sameFieldValue('restrictedReason')
+        && sameFieldValue('exp')
+        && sameFieldValue('level')
+        && sameFieldValue('badgeCount')
+        && sameFieldValue('totalGames')
+        && sameFieldValue('completedGames')
+        && sameFieldValue('attendanceRate')
+        && sameFieldValue('createdAt');
+    }
+
+    function adminUserUpdateSafe() {
+      return sameFieldValue('uid')
+        && sameFieldValue('lineUserId')
+        && sameFieldValue('role')
+        && sameFieldValue('manualRole')
+        && sameFieldValue('isRestricted')
+        && sameFieldValue('restrictedAt')
+        && sameFieldValue('restrictedByUid')
+        && sameFieldValue('restrictedByName')
+        && sameFieldValue('restrictedReason')
+        && sameFieldValue('exp')
+        && sameFieldValue('level')
+        && sameFieldValue('badgeCount')
+        && sameFieldValue('totalGames')
+        && sameFieldValue('completedGames')
+        && sameFieldValue('attendanceRate')
+        && sameFieldValue('createdAt');
+    }
+
+    function isResourceOwnerByField(field) {
+      return isAuth()
+        && (field in resource.data)
+        && resource.data[field] is string
+        && resource.data[field] == request.auth.uid
+        && !isRestrictedAccount();
+    }
+
+    function isTeamOwner() {
+      return isResourceOwnerByField('captainUid')
+        || isResourceOwnerByField('creatorUid')
+        || isResourceOwnerByField('ownerUid');
+    }
+
+    function isShopItemOwner() {
+      return isResourceOwnerByField('sellerUid')
+        || isResourceOwnerByField('ownerUid')
+        || isResourceOwnerByField('creatorUid')
+        || isResourceOwnerByField('uid')
+        || isResourceOwnerByField('userId');
+    }
+
+    function isTradeOwner() {
+      return isResourceOwnerByField('fromUid')
+        || isResourceOwnerByField('toUid')
+        || isResourceOwnerByField('buyerUid')
+        || isResourceOwnerByField('sellerUid')
+        || isResourceOwnerByField('ownerUid')
+        || isResourceOwnerByField('creatorUid')
+        || isResourceOwnerByField('uid')
+        || isResourceOwnerByField('userId');
+    }
+
+    function isMessageTargetOwner() {
+      return isResourceOwnerByField('targetUid')
+        || isResourceOwnerByField('uid')
+        || isResourceOwnerByField('userId');
+    }
+
+    function isMessageReadReceiptUpdate() {
+      let callerUid = request.auth != null ? request.auth.uid : '__no_auth__';
+      let changedKeys = request.resource.data.diff(resource.data).affectedKeys();
+      let oldReadBy = ('readBy' in resource.data && resource.data.readBy is list)
+        ? resource.data.readBy
+        : [];
+      let newReadBy = ('readBy' in request.resource.data && request.resource.data.readBy is list)
+        ? request.resource.data.readBy
+        : [];
+      let maxSize = (callerUid in oldReadBy)
+        ? oldReadBy.size()
+        : oldReadBy.size() + 1;
+      return isAuth()
+        && !isRestrictedAccount()
+        && changedKeys.hasOnly(['readBy', 'unread'])
+        && ('unread' in request.resource.data)
+        && request.resource.data.unread == false
+        && (callerUid in newReadBy)
+        && newReadBy.hasAll(oldReadBy)
+        && newReadBy.size() <= maxSize;
+    }
+
     function hasString(field) {
       return field in request.resource.data
         && request.resource.data[field] is string
@@ -48,15 +202,15 @@ service cloud.firestore {
     // ═══════════════════════════════════════════
     match /events/{eventId} {
       allow read: if true;
-      allow create: if isAuth()
+      allow create: if isCoachPlus()
         && hasString('title')
         && hasString('date')
         && hasString('location')
         && hasNumber('max')
         && request.resource.data.max > 0
         && hasNumber('current');
-      allow update: if isAuth();
-      allow delete: if isAuth();
+      allow update: if isCoachPlus();
+      allow delete: if isCoachPlus();
     }
 
     // ═══════════════════════════════════════════
@@ -69,8 +223,11 @@ service cloud.firestore {
       allow create: if isOwner(userId)
         && hasString('uid')
         && request.resource.data.uid == userId
-        && hasString('displayName');
-      allow update: if isAuth();
+        && hasString('displayName')
+        && ownerUserCreateSafe(userId);
+      allow update: if (isOwner(userId) && ownerUserUpdateSafe(userId))
+        || isSuperAdmin()
+        || (isAdmin() && adminUserUpdateSafe());
       allow delete: if false;
     }
 
@@ -81,13 +238,14 @@ service cloud.firestore {
     match /registrations/{regId} {
       allow read: if isAuth();
       allow create: if isAuth()
+        && !isRestrictedAccount()
         && hasString('eventId')
         && hasString('userId')
         && request.resource.data.userId != 'unknown'
         && request.auth.uid == request.resource.data.userId
         && hasString('status');
-      allow update: if isAuth();
-      allow delete: if isAuth();
+      allow update: if isAdmin() || isResourceOwnerByField('userId');
+      allow delete: if isAdmin() || isResourceOwnerByField('userId');
     }
 
     // ═══════════════════════════════════════════
@@ -97,9 +255,10 @@ service cloud.firestore {
     match /teams/{teamId} {
       allow read: if true;
       allow create: if isAuth()
+        && !isRestrictedAccount()
         && hasString('name');
-      allow update: if isAuth();
-      allow delete: if isAuth();
+      allow update: if isAdmin() || isTeamOwner();
+      allow delete: if isAdmin() || isTeamOwner();
     }
 
     // ═══════════════════════════════════════════
@@ -108,10 +267,10 @@ service cloud.firestore {
     // ═══════════════════════════════════════════
     match /tournaments/{tournamentId} {
       allow read: if true;
-      allow create: if isAuth()
+      allow create: if isAdmin()
         && hasString('name');
-      allow update: if isAuth();
-      allow delete: if isAuth();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
     }
 
     // ═══════════════════════════════════════════
@@ -121,9 +280,13 @@ service cloud.firestore {
     match /messages/{msgId} {
       allow read: if isAuth();
       allow create: if isAuth()
+        && !isRestrictedAccount()
         && hasString('title');
-      allow update: if isAuth();
-      allow delete: if isAuth();
+      allow update: if isAdmin()
+        || isMessageReadReceiptUpdate()
+        || (isMessageTargetOwner()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['actionStatus']));
+      allow delete: if isAdmin() || isMessageTargetOwner();
     }
 
     // ═══════════════════════════════════════════
@@ -133,12 +296,13 @@ service cloud.firestore {
     match /activityRecords/{recordId} {
       allow read: if isAuth();
       allow create: if isAuth()
+        && !isRestrictedAccount()
         && hasString('eventId')
         && hasString('uid')
         && request.resource.data.uid != 'unknown'
         && hasString('status');
-      allow update: if isAuth();
-      allow delete: if isAuth();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
     }
 
     // ═══════════════════════════════════════════
@@ -148,9 +312,10 @@ service cloud.firestore {
     match /attendanceRecords/{recordId} {
       allow read: if isAuth();
       allow create: if isAuth()
+        && !isRestrictedAccount()
         && hasString('eventId')
-        && hasString('userId');
-      allow update: if isAuth();
+        && hasString('uid');
+      allow update: if isAdmin();
       allow delete: if false;
     }
 
@@ -161,11 +326,12 @@ service cloud.firestore {
     match /shopItems/{itemId} {
       allow read: if true;
       allow create: if isAuth()
+        && !isRestrictedAccount()
         && hasString('title')
         && hasNumber('price')
         && request.resource.data.price >= 0;
-      allow update: if isAuth();
-      allow delete: if isAuth();
+      allow update: if isAdmin() || isShopItemOwner();
+      allow delete: if isAdmin() || isShopItemOwner();
     }
 
     // ═══════════════════════════════════════════
@@ -174,11 +340,11 @@ service cloud.firestore {
     // ═══════════════════════════════════════════
     match /announcements/{annId} {
       allow read: if true;
-      allow create: if isAuth()
+      allow create: if isAdmin()
         && hasString('title')
         && hasString('content');
-      allow update: if isAuth();
-      allow delete: if isAuth();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
     }
 
     // ═══════════════════════════════════════════
@@ -187,11 +353,11 @@ service cloud.firestore {
     // ═══════════════════════════════════════════
     match /achievements/{achId} {
       allow read: if true;
-      allow write: if isAuth();
+      allow write: if isAdmin();
     }
     match /badges/{badgeId} {
       allow read: if true;
-      allow write: if isAuth();
+      allow write: if isAdmin();
     }
 
     // ═══════════════════════════════════════════
@@ -201,17 +367,17 @@ service cloud.firestore {
     // ═══════════════════════════════════════════
     match /banners/{bannerId} {
       allow read: if true;
-      allow create, update: if isAuth();
+      allow create, update: if isAdmin();
       allow delete: if false;
     }
     match /floatingAds/{adId} {
       allow read: if true;
-      allow create, update: if isAuth();
+      allow create, update: if isAdmin();
       allow delete: if false;
     }
     match /sponsors/{sponsorId} {
       allow read: if true;
-      allow create, update: if isAuth();
+      allow create, update: if isAdmin();
       allow delete: if false;
     }
 
@@ -221,7 +387,7 @@ service cloud.firestore {
     // ═══════════════════════════════════════════
     match /popupAds/{adId} {
       allow read: if true;
-      allow write: if isAuth();
+      allow write: if isAdmin();
     }
 
     // ═══════════════════════════════════════════
@@ -230,7 +396,7 @@ service cloud.firestore {
     // ═══════════════════════════════════════════
     match /siteThemes/{themeId} {
       allow read: if true;
-      allow create, update: if isAuth();
+      allow create, update: if isAdmin();
       allow delete: if false;
     }
 
@@ -240,8 +406,8 @@ service cloud.firestore {
     // ═══════════════════════════════════════════
     match /notifTemplates/{templateId} {
       allow read: if isAuth();
-      allow update: if isAuth();
-      allow create: if isAuth();
+      allow update: if isAdmin();
+      allow create: if isAdmin();
       allow delete: if false;
     }
 
@@ -251,17 +417,17 @@ service cloud.firestore {
     // ═══════════════════════════════════════════
     match /expLogs/{logId} {
       allow read: if isAuth();
-      allow create: if isAuth();
+      allow create: if isAdmin();
       allow update, delete: if false;
     }
     match /teamExpLogs/{logId} {
       allow read: if isAuth();
-      allow create: if isAuth();
+      allow create: if isAdmin();
       allow update, delete: if false;
     }
     match /operationLogs/{logId} {
       allow read: if isAuth();
-      allow create: if isAuth();
+      allow create: if isAdmin();
       allow update, delete: if false;
     }
 
@@ -271,15 +437,15 @@ service cloud.firestore {
     // ═══════════════════════════════════════════
     match /customRoles/{roleId} {
       allow read: if isAuth();
-      allow write: if isAuth();
+      allow write: if isSuperAdmin();
     }
     match /rolePermissions/{roleId} {
       allow read: if isAuth();
-      allow write: if isAuth();
+      allow write: if isSuperAdmin();
     }
     match /permissions/{permId} {
       allow read: if isAuth();
-      allow write: if isAuth();
+      allow write: if isSuperAdmin();
     }
 
     // ═══════════════════════════════════════════
@@ -288,7 +454,7 @@ service cloud.firestore {
     // ═══════════════════════════════════════════
     match /adminMessages/{msgId} {
       allow read: if isAuth();
-      allow write: if isAuth();
+      allow write: if isAdmin();
     }
 
     // ═══════════════════════════════════════════
@@ -297,11 +463,11 @@ service cloud.firestore {
     // ═══════════════════════════════════════════
     match /matches/{matchId} {
       allow read: if true;
-      allow write: if isAuth();
+      allow write: if isAdmin();
     }
     match /standings/{standingId} {
       allow read: if true;
-      allow write: if isAuth();
+      allow write: if isAdmin();
     }
 
     // ═══════════════════════════════════════════
@@ -310,7 +476,7 @@ service cloud.firestore {
     // ═══════════════════════════════════════════
     match /trades/{tradeId} {
       allow read: if isAuth();
-      allow write: if isAuth();
+      allow write: if isAdmin() || isTradeOwner();
     }
 
     // ═══════════════════════════════════════════
@@ -319,11 +485,7 @@ service cloud.firestore {
     // ═══════════════════════════════════════════
     match /linePushQueue/{docId} {
       allow read: if false;
-      allow create: if isAuth()
-        && request.resource.data.status == 'pending'
-        && request.resource.data.uid is string
-        && request.resource.data.title is string
-        && request.resource.data.body is string;
+      allow create: if false;
       allow update, delete: if false;
     }
 

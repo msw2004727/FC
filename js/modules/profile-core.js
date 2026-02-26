@@ -209,6 +209,7 @@ Object.assign(App, {
         const profile = LineAuth.getProfile();
         console.log('[App] LINE 已登入, userId:', profile.userId, 'name:', profile.displayName);
         const refreshAfterUserReady = () => {
+          this._handleRestrictedStateChange?.();
           this.renderProfileData();
           this.renderProfileFavorites();
           this.renderLoginUI();
@@ -246,9 +247,10 @@ Object.assign(App, {
       }
     }
     this.renderLoginUI();
+    this._handleRestrictedStateChange?.();
     this.renderProfileData();
     this.renderProfileFavorites();
-    if (this._pendingFirstLogin) {
+    if (this._pendingFirstLogin && !this._isCurrentUserRestricted?.()) {
       this.initFirstLoginRegionPicker?.();
       this.showModal('first-login-modal');
     }

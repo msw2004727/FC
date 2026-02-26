@@ -31,12 +31,11 @@ Object.assign(App, {
   renderAdminUsers(users) {
     const container = document.getElementById('admin-user-list');
     if (!container) return;
-    const myLevel = ROLE_LEVEL_MAP[this.currentRole];
 
     if (!users) users = ApiService.getAdminUsers();
 
     if (users.length === 0) {
-      container.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--text-muted)">沒有符合條件的用戶</div>';
+      container.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--text-muted)">找不到符合條件的使用者</div>';
       return;
     }
 
@@ -45,9 +44,14 @@ Object.assign(App, {
         ? `<img src="${u.pictureUrl}" class="au-avatar" style="object-fit:cover">`
         : `<div class="au-avatar au-avatar-fallback">${(u.name || '?')[0]}</div>`;
 
-      const teamInfo = u.teamName ? ` ・ ${escapeHTML(u.teamName)}` : '';
+      const teamInfo = u.teamName ? ` ・${escapeHTML(u.teamName)}` : '';
       const genderIcon = u.gender === '男' ? '♂' : u.gender === '女' ? '♀' : '';
       const safeName = escapeHTML(u.name || '').replace(/'/g, "\\'");
+      const canRestrictThisUser = u.role === 'user';
+      const isRestricted = !!u.isRestricted;
+      const restrictBtnHtml = canRestrictThisUser
+        ? `<button class="au-btn ${isRestricted ? 'au-btn-view' : 'au-btn-edit'}" onclick="App.toggleUserRestriction('${safeName}')">${isRestricted ? '解除限制' : '限制'}</button>`
+        : '';
 
       return `
         <div class="admin-user-card">
@@ -55,17 +59,78 @@ Object.assign(App, {
           <div class="admin-user-body">
             <div class="admin-user-info">
               <div class="admin-user-name">${this._userTag(u.name, u.role)}</div>
-              <div class="admin-user-meta">${escapeHTML(u.uid)} ・ ${ROLES[u.role]?.label || u.role} ・ Lv.${App._calcLevelFromExp(u.exp || 0).level} ・ ${escapeHTML(u.region || '—')}${genderIcon ? ' ' + genderIcon : ''}${teamInfo}</div>
-              <div class="admin-user-meta">${escapeHTML(u.sports || '—')} ・ EXP ${(u.exp || 0).toLocaleString()}</div>
+              <div class="admin-user-meta">${escapeHTML(u.uid)} ・${ROLES[u.role]?.label || u.role} ・Lv.${App._calcLevelFromExp(u.exp || 0).level} ・${escapeHTML(u.region || '—')}${genderIcon ? ' ' + genderIcon : ''}${teamInfo}</div>
+              <div class="admin-user-meta">${escapeHTML(u.sports || '—')} ・EXP ${(u.exp || 0).toLocaleString()}</div>
+              <div class="admin-user-meta">限制狀態：${isRestricted ? '限制中' : '正常'}</div>
             </div>
             <div class="admin-user-actions">
               ${u.role !== 'super_admin' ? `<button class="au-btn au-btn-edit" onclick="App.showUserEditModal('${safeName}')">編輯</button>` : ''}
               <button class="au-btn au-btn-view" onclick="App.showUserProfile('${safeName}')">查看</button>
+              ${restrictBtnHtml}
             </div>
           </div>
         </div>
       `;
     }).join('');
+  },
+  async toggleUserRestriction(name) {
+    if ((ROLE_LEVEL_MAP[this.currentRole] || 0) < ROLE_LEVEL_MAP.super_admin) {
+      this.showToast('只有 super_admin 可操作');
+      return;
+    }
+
+    const user = ApiService.getAdminUsers().find(u => u.name === name);
+    if (!user) {
+      this.showToast('找不到使用者');
+      return;
+    }
+    if (user.role !== 'user') {
+      this.showToast('目前僅支援限制一般 user');
+      return;
+    }
+
+    const me = ApiService.getCurrentUser?.();
+    if (me && user.uid && me.uid === user.uid) {
+      this.showToast('不可限制自己');
+      return;
+    }
+
+    const nextRestricted = !user.isRestricted;
+    const actionLabel = nextRestricted ? '限制' : '解除限制';
+    const ok = await this.appConfirm(`確定要${actionLabel}「${name}」嗎？`);
+    if (!ok) return;
+
+    const updates = nextRestricted
+      ? {
+          isRestricted: true,
+          restrictedAt: new Date().toISOString(),
+          restrictedByUid: me?.uid || null,
+          restrictedByName: me?.displayName || me?.name || null,
+        }
+      : {
+          isRestricted: false,
+          restrictedAt: null,
+          restrictedByUid: null,
+          restrictedByName: null,
+        };
+
+    try {
+      await ApiService.updateAdminUser(name, updates);
+    } catch (err) {
+      console.error('[toggleUserRestriction]', err);
+      this.filterAdminUsers();
+      this.showToast(`${actionLabel}失敗，請稍後再試`);
+      return;
+    }
+
+    ApiService._writeOpLog(
+      'user_restriction',
+      nextRestricted ? '帳號限制' : '解除限制',
+      `${actionLabel}「${name}」`
+    );
+
+    this.filterAdminUsers();
+    this.showToast(nextRestricted ? '已限制使用者' : '已解除限制');
   },
 
   async handlePromote(select, name) {

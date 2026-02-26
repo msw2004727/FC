@@ -4,6 +4,31 @@
 
 Object.assign(App, {
 
+  _isCurrentUserRestricted() {
+    if (ModeManager.isDemo()) return false;
+    if (typeof ApiService === 'undefined' || typeof ApiService.getCurrentUser !== 'function') return false;
+    const user = ApiService.getCurrentUser();
+    return !!(user && user.isRestricted === true);
+  },
+
+  _showRestrictedToast() {
+    this.showToast('帳號限制中');
+  },
+
+  _handleRestrictedStateChange() {
+    if (this._restrictRedirecting) return;
+    if (!this._isCurrentUserRestricted()) return;
+    if (this.currentPage === 'page-home') return;
+
+    this._restrictRedirecting = true;
+    try {
+      this._showRestrictedToast();
+      this.showPage('page-home', { bypassRestrictionGuard: true, resetHistory: true });
+    } finally {
+      this._restrictRedirecting = false;
+    }
+  },
+
   /** 正式版未登入時擋住並提示，回傳 true 代表被擋 */
   _requireLogin() {
     if (ModeManager.isDemo()) return false;
@@ -22,6 +47,10 @@ Object.assign(App, {
     document.querySelectorAll('.bot-tab').forEach(tab => {
       tab.addEventListener('click', () => {
         const page = tab.dataset.page;
+        if (this._isCurrentUserRestricted() && page !== 'page-home') {
+          this._showRestrictedToast();
+          return;
+        }
         if (page === 'page-teams' || page === 'page-tournaments') {
           this.showToast('功能準備中');
           return;
@@ -34,7 +63,11 @@ Object.assign(App, {
     });
   },
 
-  showPage(pageId) {
+  showPage(pageId, options = {}) {
+    if (!options.bypassRestrictionGuard && this._isCurrentUserRestricted() && pageId !== 'page-home') {
+      this._showRestrictedToast();
+      return;
+    }
     // 正式版未登入：擋住球隊、賽事、我的、訊息頁
     const guardedPages = ['page-profile', 'page-teams', 'page-tournaments', 'page-messages', 'page-activities'];
     if (guardedPages.includes(pageId) && this._requireLogin()) return;
@@ -44,7 +77,9 @@ Object.assign(App, {
       PageLoader.ensurePage(pageId);
     }
 
-    if (this.currentPage !== pageId) {
+    if (options.resetHistory) {
+      this.pageHistory = [];
+    } else if (this.currentPage !== pageId) {
       this.pageHistory.push(this.currentPage);
     }
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
@@ -107,6 +142,10 @@ Object.assign(App, {
   },
 
   goBack() {
+    if (this._isCurrentUserRestricted()) {
+      this._handleRestrictedStateChange();
+      return;
+    }
     if (this.pageHistory.length > 0) {
       const prev = this.pageHistory.pop();
       document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
