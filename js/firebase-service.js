@@ -217,6 +217,68 @@ const FirebaseService = {
     this._persistCache();
   },
 
+  _onRolePermissionsUpdated() {
+    if (typeof App === 'undefined') return;
+    try {
+      if (App.currentPage === 'page-teams') {
+        App.renderTeamList?.();
+      } else if (App.currentPage === 'page-team-manage') {
+        App.renderTeamManage?.();
+      } else if (App.currentPage === 'page-team-detail' && App._teamDetailId) {
+        App.showTeamDetail?.(App._teamDetailId);
+      } else if (App.currentPage === 'page-admin-roles') {
+        App.renderRoleHierarchy?.();
+        if (App._permSelectedRole) App.renderPermissions?.(App._permSelectedRole);
+      }
+    } catch (err) {
+      console.warn('[FirebaseService] rolePermissions UI refresh failed:', err);
+    }
+  },
+
+  _watchRolePermissionsRealtime(waitForFirstSnapshot = false) {
+    return new Promise(resolve => {
+      let firstSnapshot = true;
+      let settled = false;
+      const done = () => {
+        if (!settled) {
+          settled = true;
+          resolve();
+        }
+      };
+
+      const unsub = db.collection('rolePermissions').onSnapshot(
+        snapshot => {
+          const nextRolePermissions = {};
+          snapshot.docs.forEach(doc => {
+            nextRolePermissions[doc.id] = doc.data().permissions || [];
+          });
+
+          const prev = JSON.stringify(this._cache.rolePermissions || {});
+          const next = JSON.stringify(nextRolePermissions);
+          this._cache.rolePermissions = nextRolePermissions;
+          this._saveToLS('rolePermissions', this._cache.rolePermissions);
+
+          if (firstSnapshot) {
+            firstSnapshot = false;
+            done();
+            return;
+          }
+
+          if (prev !== next) {
+            this._onRolePermissionsUpdated();
+          }
+        },
+        err => {
+          console.warn('[FirebaseService] rolePermissions 即時同步失敗:', err);
+          done();
+        }
+      );
+
+      this._listeners.push(unsub);
+      if (!waitForFirstSnapshot) done();
+    });
+  },
+
   /** 根據 Demo / Prod 模式選擇適當的 Firebase Auth 登入方式 */
   async _signInWithAppropriateMethod() {
     if (ModeManager.isDemo()) {
@@ -544,13 +606,9 @@ const FirebaseService = {
       if (!this._bootCollectionLoadFailed[name]) this._lazyLoaded[name] = true;
     });
 
-    // ── Step 5: rolePermissions ──
+    // ── Step 5: rolePermissions（即時同步）──
     try {
-      const rpSnap = await db.collection('rolePermissions').get();
-      if (!rpSnap.empty) {
-        this._cache.rolePermissions = {};
-        rpSnap.docs.forEach(doc => { this._cache.rolePermissions[doc.id] = doc.data().permissions || []; });
-      }
+      await this._watchRolePermissionsRealtime(true);
     } catch (err) { console.warn('[FirebaseService] rolePermissions 載入失敗:', err); }
 
     // ── Step 6: Seed 操作（僅首次需要，並行執行節省啟動時間）──
@@ -586,7 +644,7 @@ const FirebaseService = {
     this._persistCache();
 
     const bootCount = this._bootCollections.length;
-    const liveCount = this._liveCollections.length + 1;
+    const liveCount = this._liveCollections.length + 2; // + users + rolePermissions
     console.log(`[FirebaseService] 初始化完成 — boot: ${bootCount}, live: ${liveCount}, deferred: ${this._deferredCollections.length} 個集合待懶載入`);
 
     // ── Step 8: 背景載入已結束的活動（補齊完整列表）──

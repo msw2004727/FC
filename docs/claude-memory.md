@@ -220,3 +220,8 @@
 - **原因**：`messages` 監聽使用 `orderBy('timestamp', 'desc')`，但 `FirebaseService.addMessage()` 寫入僅有 `createdAt`，缺少 `timestamp`，導致新文件被查詢排除。
 - **修復**：`js/firebase-crud.js` 的 `addMessage()` 補上 `timestamp: serverTimestamp()`（保留 `createdAt`）。
 - **教訓**：查詢使用 `orderBy()` 的集合，所有寫入路徑都必須保證該欄位存在，否則會出現寫入成功但訂閱查不到的假象。
+### 2026-02-26 — rolePermissions 改為 onSnapshot 即時同步
+- **問題**：後台調整角色權限（例如 `team.create`）後，其他用戶端不會立即反映新功能，需要重整頁面才生效。
+- **原因**：`rolePermissions` 原本僅在 `FirebaseService.init()` 時 `get()` 一次，之後不在 `_liveCollections` 即時監聽範圍內；前端功能判斷讀的是本地 `FirebaseService._cache.rolePermissions`。
+- **修復**：將 `rolePermissions` 改為 `onSnapshot` 即時同步（初始化等待首個 snapshot），更新快取與 localStorage；權限更新時自動刷新受影響頁面（球隊頁、球隊管理、球隊詳情、自訂層級管理）；更新 `CACHE_VERSION` 與 `index.html` 版本參數。
+- **教訓**：凡是用於前端功能 gating 的設定資料（feature permission matrix），若要求管理端變更後立即生效，就不能只做啟動時 `get()`，需使用即時同步或明確的重新載入機制。
