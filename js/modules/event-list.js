@@ -74,13 +74,49 @@ Object.assign(App, {
     return ids;
   },
 
+  _isCurrentUserTeamStaff(teamId) {
+    if (!teamId) return false;
+    const user = ApiService.getCurrentUser?.() || null;
+    if (!user) return false;
+    const team = ApiService.getTeam?.(teamId);
+    if (!team) return false;
+
+    const myUid = user.uid || '';
+    const myDocId = user._docId || '';
+    const myNames = new Set([user.name, user.displayName].filter(Boolean));
+
+    const isLeader =
+      !!(team.leaderUid && [myUid, myDocId].filter(Boolean).includes(team.leaderUid)) ||
+      !!(team.leader && myNames.has(team.leader));
+    const isManager =
+      !!(team.captainUid && [myUid, myDocId].filter(Boolean).includes(team.captainUid)) ||
+      !!(team.captain && myNames.has(team.captain));
+    const isCoach = (team.coaches || []).some(name => myNames.has(name));
+
+    return isLeader || isManager || isCoach;
+  },
+
+  _canSignupTeamOnlyEvent(e) {
+    if (!e || !e.teamOnly) return true;
+    if (!e.creatorTeamId) return false;
+    const teamIds = this._getVisibleTeamIdsForLimitedEvents();
+    return teamIds.has(e.creatorTeamId);
+  },
+
   _canViewEventByTeamScope(e) {
     if (!e) return false;
     if (!e.teamOnly) return true;
+    if (this._isEventOwner(e)) return true;
     const myLevel = ROLE_LEVEL_MAP[this.currentRole] || 0;
     if (myLevel >= ROLE_LEVEL_MAP.admin) return true;
     const teamIds = this._getVisibleTeamIdsForLimitedEvents();
-    return !!(e.creatorTeamId && teamIds.has(e.creatorTeamId));
+    if (e.creatorTeamId && teamIds.has(e.creatorTeamId)) return true;
+    return !!e.isPublic;
+  },
+
+  _canToggleEventPublic(e) {
+    if (!e || !e.teamOnly) return false;
+    return this._isEventOwner(e) || this._isCurrentUserTeamStaff(e.creatorTeamId);
   },
 
   /** 判斷當前用戶是否為該活動建立者 */

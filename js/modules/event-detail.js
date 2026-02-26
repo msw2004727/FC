@@ -6,6 +6,63 @@
 
 Object.assign(App, {
 
+  _renderEventPublicToggle(e) {
+    const wrap = document.getElementById('detail-public-toggle-wrap');
+    if (!wrap) return;
+    if (!e || typeof this._canToggleEventPublic !== 'function' || !this._canToggleEventPublic(e)) {
+      wrap.style.display = 'none';
+      wrap.innerHTML = '';
+      return;
+    }
+    const checked = !!e.isPublic;
+    wrap.style.display = '';
+    wrap.innerHTML = `
+      <span style="display:inline-flex;align-items:center;gap:.35rem;user-select:none">
+        <span style="font-size:.72rem;color:var(--text-muted);font-weight:600">活動公開</span>
+        <label class="toggle-switch ${checked ? 'active' : ''}" style="transform:scale(.9);transform-origin:right center">
+          <input type="checkbox" id="detail-event-public-toggle" ${checked ? 'checked' : ''} onchange="App.toggleEventPublicFromDetail()">
+          <span class="toggle-slider"></span>
+        </label>
+      </span>`;
+  },
+
+  async toggleEventPublicFromDetail() {
+    const eventId = this._currentDetailEventId;
+    const e = eventId ? ApiService.getEvent(eventId) : null;
+    if (!e) return;
+    if (typeof this._canToggleEventPublic !== 'function' || !this._canToggleEventPublic(e)) {
+      this.showToast('您沒有修改公開狀態的權限');
+      return;
+    }
+    const input = document.getElementById('detail-event-public-toggle');
+    if (!input) return;
+    const nextVal = !!input.checked;
+    const prevVal = !!e.isPublic;
+    input.disabled = true;
+    try {
+      e.isPublic = nextVal;
+      if (ModeManager.isDemo()) {
+        // demo: local cache update only
+      } else {
+        await FirebaseService.updateEvent(e.id, { isPublic: nextVal });
+      }
+      this.showToast(nextVal ? '已開啟活動公開' : '已關閉活動公開');
+      this.showEventDetail(e.id);
+      this.renderActivityList?.();
+      this.renderHotEvents?.();
+      this.renderMyActivities?.();
+    } catch (err) {
+      console.error('[toggleEventPublicFromDetail]', err);
+      e.isPublic = prevVal;
+      input.checked = !nextVal;
+      this.showToast(err?.message || '更新公開狀態失敗');
+    } finally {
+      if (document.getElementById('detail-event-public-toggle')) {
+        document.getElementById('detail-event-public-toggle').disabled = false;
+      }
+    }
+  },
+
   // ══════════════════════════════════
   //  Show Event Detail
   // ══════════════════════════════════
@@ -19,6 +76,7 @@ Object.assign(App, {
       return;
     }
     this._currentDetailEventId = id;
+    this._renderEventPublicToggle(e);
     const detailImg = document.getElementById('detail-img-placeholder');
     if (detailImg) {
       if (e.image) {
@@ -42,6 +100,7 @@ Object.assign(App, {
     const regsLoading = !ModeManager.isDemo() && FirebaseService._cache.registrations.length === 0 && !FirebaseService._initialized;
     const isSignedUp = regsLoading ? false : this._isUserSignedUp(e);
     const isOnWaitlist = isSignedUp && this._isUserOnWaitlist(e);
+    const canTeamOnlySignup = (typeof this._canSignupTeamOnlyEvent === 'function') ? this._canSignupTeamOnlyEvent(e) : true;
     let signupBtn = '';
     if (regsLoading) {
       signupBtn = `<button style="background:#64748b;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:not-allowed;opacity:.7" disabled>載入中…</button>`;
@@ -53,6 +112,8 @@ Object.assign(App, {
       signupBtn = `<button style="background:#7c3aed;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:pointer" onclick="App.handleCancelSignup('${e.id}')">取消候補</button>`;
     } else if (isSignedUp) {
       signupBtn = `<button style="background:#dc2626;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:pointer" onclick="App.handleCancelSignup('${e.id}')">取消報名</button>`;
+    } else if (e.teamOnly && !canTeamOnlySignup) {
+      signupBtn = `<button style="background:#dc2626;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:not-allowed;opacity:.95" disabled>球隊限定</button>`;
     } else if (isMainFull) {
       signupBtn = `<button style="background:#7c3aed;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:pointer" onclick="App.handleSignup('${e.id}')">報名候補</button>`;
     } else {

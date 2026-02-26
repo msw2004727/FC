@@ -27,6 +27,10 @@ Object.assign(App, {
   async handleSignup(id) {
     const e = ApiService.getEvent(id);
     if (!e) return;
+    if (e.teamOnly && typeof this._canSignupTeamOnlyEvent === 'function' && !this._canSignupTeamOnlyEvent(e)) {
+      this.showToast('球隊限定活動，僅限該隊成員報名');
+      return;
+    }
     // 活動開始時間已過 → 自動結束並阻止操作
     const _startGuard = App._parseEventStartDate?.(e.date);
     if (_startGuard && _startGuard <= new Date() && e.status !== 'ended' && e.status !== 'cancelled') {

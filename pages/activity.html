@@ -35,7 +35,10 @@
     <section class="page" id="page-activity-detail">
       <div class="page-header">
         <button class="back-btn" onclick="App.goBack()">←</button>
-        <h2 id="detail-title">活動名稱</h2>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:.5rem;flex:1;min-width:0">
+          <h2 id="detail-title" style="margin:0;min-width:0;flex:1">活動名稱</h2>
+          <div id="detail-public-toggle-wrap" style="display:none;flex-shrink:0"></div>
+        </div>
       </div>
       <div class="td-img-placeholder" id="detail-img-placeholder">活動圖片 800 × 300</div>
       <div class="detail-body" id="detail-body">
