@@ -319,7 +319,6 @@ Object.assign(App, {
         <div>${escapeHTML(e.location)} ・ ${escapeHTML(e.date)}</div>
         <div>費用：${fee > 0 ? 'NT$' + fee : '免費'} ・ 狀態：${statusConf.label} ・ 主辦：${escapeHTML(e.creator)}</div>
       </div>
-      <div style="font-size:.85rem;font-weight:700;margin-bottom:.3rem">報名名單（${e.current}/${e.max}）</div>
       <div id="attendance-table-container"></div>
       ${waitlistHtml}
       ${checkinSection}
@@ -568,10 +567,11 @@ Object.assign(App, {
       : `<button style="font-size:.75rem;padding:.25rem .6rem;background:#1565c0;color:#fff;border:none;border-radius:var(--radius-sm);cursor:pointer" onclick="App._startTableEdit('${escapeHTML(eventId)}')">手動簽到</button>`
     ) : '';
 
-    // 表頭：「報名名單」欄含操作按鈕；編輯模式多「踢掉」欄
+    // 表頭：「報名名單（人數/上限）」欄含操作按鈕；編輯模式多「踢掉」欄
+    const regCount = `報名名單（${people.length}/${e.max}）`;
     const nameThContent = topBtn
-      ? `<div style="display:flex;align-items:center;gap:.4rem;white-space:nowrap">報名名單${topBtn}</div>`
-      : '報名名單';
+      ? `<div style="display:flex;align-items:center;gap:.4rem;white-space:nowrap">${regCount}${topBtn}</div>`
+      : regCount;
     const thead = tableEditing
       ? `<tr style="border-bottom:2px solid var(--border)">
           <th style="text-align:center;padding:.4rem .2rem;font-weight:600;width:3rem">踢掉</th>
@@ -690,6 +690,8 @@ Object.assign(App, {
   async _confirmAllAttendance(eventId) {
     const e = ApiService.getEvent(eventId);
     if (!e) return;
+    // 先擷取 containerId，避免 await 期間 onSnapshot 觸發 _renderAttendanceTable 覆寫 _manualEditingContainerId
+    const containerId = this._manualEditingContainerId;
     // 重建 people 列表（與 _renderAttendanceTable 相同邏輯）
     const allActiveRegs = ApiService.getRegistrationsByEvent(eventId);
     const confirmedRegs = allActiveRegs.filter(r => r.status === 'confirmed');
@@ -799,7 +801,9 @@ Object.assign(App, {
     }
 
     this._attendanceEditingEventId = null;
-    this._renderAttendanceTable(eventId, this._manualEditingContainerId);
+    // 讓 pending onSnapshot 先 settle，再 render（避免最後一筆記錄短暫消失的閃爍）
+    await new Promise(r => setTimeout(r, 0));
+    this._renderAttendanceTable(eventId, containerId);
     this.showToast(errCount > 0 ? `已更新（${errCount} 筆失敗）` : '已更新');
   },
 

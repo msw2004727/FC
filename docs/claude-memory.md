@@ -4,6 +4,21 @@
 
 ---
 
+### 2026-02-27 — 手動簽到閃爍 + 重複標題修復
+
+- **問題 1**：按「完成簽到」後，最後一個勾選位置短暫消失再出現（閃爍）
+- **問題 2**：報名名單標題重複出現（獨立 div 一個 + 表頭 th 一個）
+- **原因 1**：`_confirmAllAttendance` 有多個 `await` 呼叫，期間 Firestore onSnapshot 可能觸發 `_renderAttendanceTable(eventId, 'detail-attendance-table')`，該呼叫會覆寫 `this._manualEditingContainerId`，導致最後 render 到錯誤的 container（detail page 而非 modal），同時 pending onSnapshot 尚未 settle 導致 cache 狀態不穩定
+- **原因 2**：`showMyActivityDetail` 有獨立的 `<div>報名名單（x/y）</div>`，而 `_renderAttendanceTable` 的 `<th>` 也顯示「報名名單」
+- **修復**：
+  - `_confirmAllAttendance`：在 loop 前擷取 `containerId = this._manualEditingContainerId`，最後用 captured value render（不再用 `this._manualEditingContainerId`）
+  - `_confirmAllAttendance`：最後 render 前加 `await new Promise(r => setTimeout(r, 0))` 讓所有 pending onSnapshot/microtask 先 settle
+  - `showMyActivityDetail`：移除獨立的「報名名單（x/y）」div
+  - `_renderAttendanceTable`：`nameThContent` 改為 `報名名單（${people.length}/${e.max}）` 含動態人數
+- **教訓**：async 函式中若有多個 await，任何 this.xxxId 的 mutable state 都可能被 side effects 覆寫，需在函式開頭 capture snapshot
+
+---
+
 ### 2026-02-25 — LINE + Firebase Custom Token 認證升級
 
 - **問題**：Firebase Auth 使用 `signInAnonymously()`，UID 與 LINE userId 無關，Firestore rules 無法做 owner-only 驗證，Firebase Console 全是匿名用戶
