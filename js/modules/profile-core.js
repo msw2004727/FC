@@ -208,6 +208,16 @@ Object.assign(App, {
       if (LineAuth.isLoggedIn()) {
         const profile = LineAuth.getProfile();
         console.log('[App] LINE 已登入, userId:', profile.userId, 'name:', profile.displayName);
+        const refreshAfterUserReady = () => {
+          this.renderProfileData();
+          this.renderProfileFavorites();
+          this.renderLoginUI();
+          this.renderHotEvents();
+          this.renderActivityList();
+          this.renderMyActivities();
+        };
+        FirebaseService._onUserChanged = refreshAfterUserReady;
+        this.renderLoginUI();
         try {
           const user = await ApiService.loginUser(profile);
           console.log('[App] createOrUpdateUser 成功:', user?.displayName, 'docId:', user?._docId);
@@ -218,6 +228,7 @@ Object.assign(App, {
           if (user && (!user.gender || !user.birthday || !user.region)) {
             this._pendingFirstLogin = true;
           }
+          refreshAfterUserReady();
         } catch (err) {
           console.error('[App] 用戶資料同步失敗:', err.code, err.message, err);
           const code = err?.code || '';
@@ -228,14 +239,6 @@ Object.assign(App, {
           }
         }
         // 註冊即時回調：當資料庫用戶資料變更時自動更新 UI
-        FirebaseService._onUserChanged = () => {
-          this.renderProfileData();
-          this.renderProfileFavorites();
-          this.renderLoginUI();
-          this.renderHotEvents();
-          this.renderActivityList();
-          this.renderMyActivities();
-        };
         // LINE 登入完成後重新渲染活動列表（修正 currentUser 尚未載入的時序問題）
         this.renderHotEvents();
         this.renderActivityList();

@@ -33,6 +33,27 @@ const LineAuth = {
     return new Promise(resolve => setTimeout(resolve, ms));
   },
 
+  _withTimeout(promise, ms, label) {
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        const err = new Error(`${label || 'operation'} timeout after ${ms}ms`);
+        err.code = 'timeout';
+        reject(err);
+      }, ms);
+
+      Promise.resolve(promise).then(
+        value => {
+          clearTimeout(timer);
+          resolve(value);
+        },
+        err => {
+          clearTimeout(timer);
+          reject(err);
+        }
+      );
+    });
+  },
+
   hasLiffSession() {
     if (typeof liff === 'undefined') return false;
     try {
@@ -57,12 +78,17 @@ const LineAuth = {
       this._profileError = null;
 
       const retryDelays = [0, 250, 800];
+      const profileTimeoutMs = 5000;
       let lastErr = null;
 
       for (let i = 0; i < retryDelays.length; i++) {
         if (retryDelays[i] > 0) await this._sleep(retryDelays[i]);
         try {
-          const profile = await liff.getProfile();
+          const profile = await this._withTimeout(
+            liff.getProfile(),
+            profileTimeoutMs,
+            'liff.getProfile()'
+          );
 
           let email = null;
           try {
@@ -170,4 +196,3 @@ const LineAuth = {
     }
   },
 };
-
