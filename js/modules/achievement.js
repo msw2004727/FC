@@ -52,12 +52,73 @@ Object.assign(App, {
   },
 
   // ══════════════════════════════════
+  //  Achievement Evaluation Engine
+  //  讀取 activityRecords + events，更新 achievement.current
+  // ══════════════════════════════════
+
+  _evaluateAchievements() {
+    const achievements = ApiService.getAchievements().filter(a => a.status !== 'archived' && a.condition);
+    if (!achievements.length) return;
+    const allRecords = ApiService.getActivityRecords();
+    const events = ApiService.getEvents();
+    const evMap = {};
+    events.forEach(e => { evMap[e.id] = e; });
+    // 只計算已確認報名（非候補、非取消）的紀錄
+    const activeRecords = allRecords.filter(r => r.status === 'registered');
+
+    for (const ach of achievements) {
+      const { action, threshold, filter } = ach.condition;
+      const t = threshold != null ? threshold : 1;
+      let current = 0;
+
+      if (action === 'attend_play' || action === 'attend_friendly' ||
+          action === 'attend_camp' || action === 'attend_watch') {
+        const typeMap = { attend_play: 'play', attend_friendly: 'friendly', attend_camp: 'camp', attend_watch: 'watch' };
+        const targetType = typeMap[action];
+        current = activeRecords.filter(r => {
+          const ev = evMap[r.eventId];
+          return ev && ev.type === targetType;
+        }).length;
+      } else if (action === 'register_event') {
+        current = activeRecords.filter(r => {
+          if (filter && filter !== 'all') {
+            const ev = evMap[r.eventId];
+            return ev && ev.type === filter;
+          }
+          return true;
+        }).length;
+      } else if (action === 'complete_event') {
+        // 活動已結束 + 有正取報名紀錄
+        current = activeRecords.filter(r => {
+          const ev = evMap[r.eventId];
+          if (!ev || ev.status !== 'ended') return false;
+          if (filter && filter !== 'all') return ev.type === filter;
+          return true;
+        }).length;
+      }
+      // reach_level / reach_exp / attendance_rate 等需不同資料來源，暫不自動評估
+
+      if (current !== ach.current) {
+        const updates = { current };
+        if (current >= t && !ach.completedAt) {
+          const d = new Date();
+          updates.completedAt = `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}`;
+        } else if (current < t) {
+          updates.completedAt = null;
+        }
+        ApiService.updateAchievement(ach.id, updates);
+      }
+    }
+  },
+
+  // ══════════════════════════════════
   //  User-facing: 合併成就+徽章頁面
   // ══════════════════════════════════
 
   renderAchievements() {
     const container = document.getElementById('achievement-grid');
     if (!container) return;
+    this._evaluateAchievements();
     const achievements = ApiService.getAchievements().filter(a => a.status !== 'archived');
     const badges = ApiService.getBadges();
     const sorted = this._sortByCat(achievements);
@@ -169,6 +230,7 @@ Object.assign(App, {
   renderAdminAchievements() {
     const container = document.getElementById('admin-ach-list');
     if (!container) return;
+    this._evaluateAchievements();
     const items = this._sortByCat(ApiService.getAchievements());
     const badges = ApiService.getBadges();
 

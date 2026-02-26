@@ -76,6 +76,7 @@ Object.assign(App, {
         eventName: e.title, date: e.date, location: e.location,
         status: isWaitlist ? '候補' : '正取',
       }, userId, 'activity', '活動');
+      this._evaluateAchievements();
       this.showEventDetail(id);
       return;
     }
@@ -109,6 +110,7 @@ Object.assign(App, {
         status: result.status === 'waitlisted' ? '候補' : '正取',
       }, userId, 'activity', '活動');
       this.showToast(result.status === 'waitlisted' ? '已加入候補名單' : '報名成功！');
+      this._evaluateAchievements();
       this.showEventDetail(id);
     } catch (err) {
       console.error('[handleSignup]', err);
@@ -230,6 +232,7 @@ Object.assign(App, {
       _restoreCancelUI();
       this.showToast(isWaitlist ? '已取消候補' : '已取消報名');
       if (!isWaitlist) this._grantAutoExp(userId, 'cancel_registration', e0.title);
+      this._evaluateAchievements();
       this.showEventDetail(id);
       return;
     }
@@ -283,6 +286,7 @@ Object.assign(App, {
             }
           }
           this.showToast(isWaitlist ? '已取消候補' : '已取消報名');
+          this._evaluateAchievements();
           this.showEventDetail(id);
         })
         .catch(err => { console.error('[cancelSignup]', err); this.showToast('取消失敗：' + (err.message || '')); })

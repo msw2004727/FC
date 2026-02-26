@@ -4,6 +4,18 @@
 
 ---
 
+### 2026-02-27 — 成就評估引擎缺失導致成就永不觸發
+
+- **問題**：在成就/徽章後台設定條件（如「參與教學活動 1 場」），即使已完成對應活動，成就 `current` 永遠維持 0 不觸發
+- **原因**：`achievement.current` 是 Firestore 靜態欄位，條件選單（action/filter/threshold）僅用於 UI 描述生成（`_generateConditionDesc`），從未有任何程式碼讀取 `activityRecords` 來計算並更新 `current`——評估引擎根本不存在
+- **修復**：在 `js/modules/achievement.js` 新增 `_evaluateAchievements()` 方法，遍歷所有 active achievement，根據 `condition.action` 計算：
+  - `attend_play/friendly/camp/watch`：計算 activityRecords 中 status='registered' 且對應事件 type 符合的筆數
+  - `register_event`：計算指定類型的報名紀錄數
+  - `complete_event`：計算對應活動已 ended 的報名紀錄數
+  - 若 `current` 變動則呼叫 `ApiService.updateAchievement()`，達到 threshold 自動設 `completedAt`
+  - 從 `renderAchievements()`、`renderAdminAchievements()`、`handleSignup` 成功後、`handleCancelSignup` 成功後呼叫
+- **教訓**：條件配置 UI 與評估引擎必須同步實作；`activityRecords` 不儲存事件類型，須 JOIN `events` 集合取得 `type` 欄位
+
 ### 2026-02-27 — 候補名單正取功能（繞過人數上限）
 
 - **功能**：候補名單 header 右側新增「編輯」按鈕（canManage 權限），進入編輯模式後每列顯示紫色「正取」按鈕，按下即強制將該用戶（含同行者）從候補移入報名名單，即使超過活動人數上限（顯示為 12/11）
