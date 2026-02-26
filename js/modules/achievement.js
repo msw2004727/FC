@@ -56,9 +56,26 @@ Object.assign(App, {
   //  讀取 activityRecords + events，更新 achievement.current
   // ══════════════════════════════════
 
-  _evaluateAchievements() {
-    const achievements = ApiService.getAchievements().filter(a => a.status !== 'archived' && a.condition);
+  // eventType: 'play'|'camp'|'friendly'|'watch' 時只評估對應條件，
+  //            undefined/null 時全量評估（用於頁面渲染）
+  _evaluateAchievements(eventType) {
+    const _typeToAction = { play: 'attend_play', friendly: 'attend_friendly', camp: 'attend_camp', watch: 'attend_watch' };
+    let achievements = ApiService.getAchievements().filter(a => a.status !== 'archived' && a.condition);
     if (!achievements.length) return;
+
+    // 有 eventType 時，只評估與該類型相關的成就
+    if (eventType) {
+      const directAction = _typeToAction[eventType];
+      achievements = achievements.filter(a => {
+        const { action, filter } = a.condition;
+        if (directAction && action === directAction) return true;
+        if ((action === 'register_event' || action === 'complete_event') &&
+            (!filter || filter === 'all' || filter === eventType)) return true;
+        return false;
+      });
+    }
+    if (!achievements.length) return;
+
     const allRecords = ApiService.getActivityRecords();
     const events = ApiService.getEvents();
     const evMap = {};
