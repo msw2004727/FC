@@ -161,7 +161,9 @@ const ApiService = {
   async _runAttendanceWriteWithAuthRetry(writeFn, label) {
     if (this._demoMode) return await writeFn();
 
-    const authed = await this._ensureFirebaseWriteAuth({ forceRefreshToken: true });
+    // forceRefreshToken:false = 讀取本地快取 token（毫秒級），Firebase SDK 自動在背景維持 token 有效性
+    // 只有 retry 路徑才強制刷新，避免每筆寫入都多一次 HTTP round-trip
+    const authed = await this._ensureFirebaseWriteAuth({ forceRefreshToken: false });
     if (!authed) {
       this._logAttendanceAuthState(label + ':precheck_failed');
       throw new Error('unauthenticated');

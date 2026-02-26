@@ -319,7 +319,10 @@ Object.assign(App, {
         <div>${escapeHTML(e.location)} ・ ${escapeHTML(e.date)}</div>
         <div>費用：${fee > 0 ? 'NT$' + fee : '免費'} ・ 狀態：${statusConf.label} ・ 主辦：${escapeHTML(e.creator)}</div>
       </div>
-      <div style="font-size:.85rem;font-weight:700;margin-bottom:.3rem">報名名單（${e.current}/${e.max}）</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.3rem">
+        <span style="font-size:.85rem;font-weight:700">報名名單（${e.current}/${e.max}）</span>
+        <div id="attendance-table-btn"></div>
+      </div>
       <div id="attendance-table-container"></div>
       ${waitlistHtml}
       ${checkinSection}
@@ -584,14 +587,18 @@ Object.assign(App, {
           <th style="text-align:left;padding:.4rem .3rem;font-weight:600">備註</th>
         </tr>`;
 
-    container.innerHTML = `
-      ${topBtn ? `<div style="display:flex;justify-content:flex-end;margin-bottom:.4rem">${topBtn}</div>` : ''}
-      <div style="overflow-x:auto">
-        <table style="width:100%;border-collapse:collapse;font-size:.8rem">
-          <thead>${thead}</thead>
-          <tbody>${rows}</tbody>
-        </table>
-      </div>`;
+    // 按鈕渲染到標題旁的獨立插槽（attendance-table-btn），找不到則 fallback 到 container 上方
+    const btnSlot = document.getElementById('attendance-table-btn');
+    if (btnSlot) {
+      btnSlot.innerHTML = topBtn;
+    }
+
+    container.innerHTML = `<div style="overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse;font-size:.8rem">
+        <thead>${thead}</thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
   },
 
   // ── 未報名單表格（活動詳情頁用）──
