@@ -149,20 +149,23 @@ const ApiService = {
   createTeam(data)        { return this._create('teams', data, FirebaseService.addTeam, 'createTeam'); },
   updateTeam(id, updates) { return this._update('teams', id, updates, FirebaseService.updateTeam, 'updateTeam'); },
 
-  deleteTeam(id) {
+  async deleteTeam(id) {
     const source = this._src('teams');
 
     // 正式版：先取得 _docId 再刪 Firestore，最後才從快取移除
     if (!this._demoMode) {
       const doc = source.find(t => t.id === id);
       if (doc && doc._docId) {
-        FirebaseService.deleteTeam(id).catch(err => console.error('[deleteTeam]', err));
+        await FirebaseService.deleteTeam(id);
+      } else {
+        throw new Error('TEAM_DOC_NOT_FOUND');
       }
     }
 
     // 從快取移除
     const idx = source.findIndex(t => t.id === id);
     if (idx >= 0) source.splice(idx, 1);
+    if (!this._demoMode) FirebaseService._saveToLS('teams', source);
 
     // 清除所有引用此球隊的用戶
     const users = this._src('adminUsers');

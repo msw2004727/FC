@@ -235,6 +235,23 @@ const FirebaseService = {
     }
   },
 
+  _onTeamsUpdated() {
+    if (typeof App === 'undefined') return;
+    try {
+      if (App.currentPage === 'page-teams') {
+        App.renderTeamList?.();
+      } else if (App.currentPage === 'page-team-manage') {
+        App.renderTeamManage?.();
+      } else if (App.currentPage === 'page-admin-teams') {
+        App.renderAdminTeams?.();
+      } else if (App.currentPage === 'page-team-detail' && App._teamDetailId) {
+        App.showTeamDetail?.(App._teamDetailId);
+      }
+    } catch (err) {
+      console.warn('[FirebaseService] teams UI refresh failed:', err);
+    }
+  },
+
   _watchRolePermissionsRealtime(waitForFirstSnapshot = false) {
     return new Promise(resolve => {
       let firstSnapshot = true;
@@ -493,6 +510,7 @@ const FirebaseService = {
             snapshot => {
               this._cache.teams = snapshot.docs.map(doc => ({ ...doc.data(), _docId: doc.id }));
               this._debouncedPersistCache();
+              this._onTeamsUpdated();
               if (firstSnapshot) { firstSnapshot = false; checkDone(); }
             },
             err => { console.warn('[onSnapshot] teams 監聯錯誤:', err); checkDone(); }

@@ -669,7 +669,13 @@ Object.assign(App, {
       if (cUser && !affectedUids.includes(cUser.uid)) affectedUids.push(cUser.uid);
     });
 
-    ApiService.deleteTeam(id);
+    try {
+      await ApiService.deleteTeam(id);
+    } catch (err) {
+      console.error('[removeTeam] delete failed:', err);
+      this.showToast('刪除球隊失敗，請稍後再試');
+      return;
+    }
     // Demo 模式：同步清除 _userTeam
     if (ModeManager.isDemo() && this._userTeam === id) this._userTeam = null;
     ApiService._writeOpLog('team_delete', '刪除球隊', `刪除「${tName}」`);

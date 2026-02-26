@@ -231,3 +231,8 @@
 - **原因**：活動管理渲染僅依既有過濾結果直接輸出，未做時間排序；球隊表單標籤未標示必填；shareEvent() 文案仍保留舊版費用欄位。
 - **修復**：event-manage.js 新增活動管理預設排序（未結束活動依距今時間最近優先，已結束/取消排後）；pages/team.html 領隊欄位標籤加入紅字 *必填；event-list.js 分享活動文案移除費用行；同步更新 CACHE_VERSION 與 index.html 版本參數。
 - **教訓**：列表排序規則應集中在渲染入口明確定義，避免依賴資料原始順序；對必填欄位需在 UI 明示，減少使用者誤填。
+### 2026-02-26 - Fix ghost team card after team deletion
+- **Problem**: After deleting a team from team management, some users could still see a deleted team card on the teams page after refresh until they navigated away and back.
+- **Cause**: Teams onSnapshot updated cache only but did not re-render team pages immediately; team deletion also used fire-and-forget behavior and could show local success before backend deletion completed.
+- **Fix**: Added teams realtime UI refresh hooks in firebase-service.js; changed ApiService.deleteTeam() to async/await and only remove local cache after backend delete succeeds; made team-form delete flow await delete and show error toast on failure; updated cache version and index.html version params.
+- **Lesson**: Realtime cache updates need matching UI refresh paths, and destructive operations should not be fire-and-forget.
