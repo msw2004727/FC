@@ -121,9 +121,11 @@ Object.assign(App, {
   },
 
   async handleCancelSignup(id) {
-    // 有多筆報名（含同行者）→ 顯示取消選擇 Modal
     const myRegs = ApiService.getMyRegistrationsByEvent(id);
-    if (myRegs.length > 1) {
+    // 有真正的同行者報名（companionId 存在）→ 顯示多選取消 Modal
+    // 若只是本人報名出現重複（資料競態窗口），不誤觸同行者 modal
+    const hasRealCompanions = myRegs.some(r => r.participantType === 'companion' || r.companionId);
+    if (myRegs.length > 1 && hasRealCompanions) {
       this._openCompanionCancelModal(id, myRegs);
       return;
     }
@@ -233,7 +235,17 @@ Object.assign(App, {
     }
 
     const targetStatus = isWaitlist ? 'waitlisted' : 'confirmed';
-    const reg = myRegs.find(r => r.status === targetStatus) || null;
+    const reg = myRegs.find(r => r.status === targetStatus) || myRegs[0] || null;
+    // 若有重複的本人報名（資料不一致），直接清掉額外的（不觸發候補遞補）
+    const extraRegs = myRegs.filter(r => r !== reg && r._docId);
+    for (const extra of extraRegs) {
+      extra.status = 'cancelled';
+      extra.cancelledAt = new Date().toISOString();
+      db.collection('registrations').doc(extra._docId).update({
+        status: 'cancelled',
+        cancelledAt: firebase.firestore.FieldValue.serverTimestamp(),
+      }).catch(err => console.error('[cancelSignup dedup]', err));
+    }
     if (reg && reg._docId) {
       FirebaseService.cancelRegistration(reg.id)
         .then((cancelledReg) => {

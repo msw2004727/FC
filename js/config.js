@@ -52,7 +52,8 @@
 // 20260227j: 候補名單編輯按鈕改為紫底白字
 // 20260227k: 正取後重整仍出現候補名單問題修正（await registration 寫入）
 // 20260227l: 正取 activityRecords 更新也改為 await
-const CACHE_VERSION = '20260227l';
+// 20260227m: 取消報名誤觸同行者 modal 修正（重複本人報名不跳 companion modal）
+const CACHE_VERSION = '20260227m';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {
