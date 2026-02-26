@@ -267,3 +267,9 @@
 - **Cause**: The team-only button was rendered as disabled, and the team-only label text used plain text for the creator team name.
 - **Fix**: Changed the red `球隊限定` button to a non-signup toast trigger (`App.showToast('球隊限定')`) and rendered the team name in the team-only label as a clickable link to `App.showTeamDetail(creatorTeamId)` when team id exists; updated cache version and index version params.
 - **Lesson**: A blocked action should still provide a clickable feedback path when the UI visually looks like a button.
+
+### 2026-02-26 - Fix team-only events hidden from team members in activity calendar
+- **Problem**: Team members could not see their own team-only events in the activity calendar/list in some production sessions.
+- **Cause**: `_getVisibleTeamIdsForLimitedEvents()` relied on `currentUser.teamId` plus staff-role scans, but some sessions had no `teamId` on `currentUser` while membership existed in `adminUsers`.
+- **Fix**: Added `adminUsers` fallback lookup (by `uid`/name) in `js/modules/event-list.js` when building visible team IDs for team-limited events; updated cache version and `index.html` version params.
+- **Lesson**: Create/view permission paths should share the same membership fallback sources to avoid inconsistent visibility checks.

@@ -54,6 +54,12 @@ Object.assign(App, {
     if (!user) return ids;
 
     if (user.teamId) ids.add(user.teamId);
+    // currentUser 可能尚未同步 teamId，補用 adminUsers 對照（與建立活動相同策略）
+    const uid = user.uid || '';
+    const name = user.displayName || user.name || '';
+    const adminUsers = ApiService.getAdminUsers?.() || [];
+    const match = adminUsers.find(u => (uid && u.uid === uid) || (name && u.name === name));
+    if (match && match.teamId) ids.add(match.teamId);
 
     const myUid = user.uid || '';
     const myDocId = user._docId || '';
