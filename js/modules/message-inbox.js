@@ -83,10 +83,10 @@ Object.assign(App, {
     this.updateNotifBadge();
     this.updateStorageBar();
 
-    // 綁定分類 tabs
+    // 綁定分類 tabs（使用 msgBound 避免被通用 bindTabBars 搶先佔位）
     const tabs = document.getElementById('msg-inbox-tabs');
-    if (tabs && !tabs.dataset.bound) {
-      tabs.dataset.bound = '1';
+    if (tabs && !tabs.dataset.msgBound) {
+      tabs.dataset.msgBound = '1';
       tabs.querySelectorAll('.tab').forEach(tab => {
         tab.addEventListener('click', () => {
           tabs.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));

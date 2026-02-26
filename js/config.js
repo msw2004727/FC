@@ -43,7 +43,8 @@
 // 20260226zh: 圖片上傳改為 WebP 格式（不支援時自動降級 JPEG）
 // 20260226zi: 修復 Auth 狀態恢復競態：等待 onAuthStateChanged + persistence 恢復後再檢查登入
 // 20260226zj: 登入/報名/取消報名前強制確認 Auth 已登入，避免未認證寫入
-const CACHE_VERSION = '20260226zj';
+// 20260226zk: 修復站內信頁籤分類失效（bindTabBars 搶先綁定導致過濾邏輯未掛載）
+const CACHE_VERSION = '20260226zk';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {
