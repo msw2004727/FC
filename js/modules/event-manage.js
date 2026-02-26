@@ -319,10 +319,7 @@ Object.assign(App, {
         <div>${escapeHTML(e.location)} ・ ${escapeHTML(e.date)}</div>
         <div>費用：${fee > 0 ? 'NT$' + fee : '免費'} ・ 狀態：${statusConf.label} ・ 主辦：${escapeHTML(e.creator)}</div>
       </div>
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.3rem">
-        <span style="font-size:.85rem;font-weight:700">報名名單（${e.current}/${e.max}）</span>
-        <div id="attendance-table-btn"></div>
-      </div>
+      <div style="font-size:.85rem;font-weight:700;margin-bottom:.3rem">報名名單（${e.current}/${e.max}）</div>
       <div id="attendance-table-container"></div>
       ${waitlistHtml}
       ${checkinSection}
@@ -571,27 +568,24 @@ Object.assign(App, {
       : `<button style="font-size:.75rem;padding:.25rem .6rem;background:#1565c0;color:#fff;border:none;border-radius:var(--radius-sm);cursor:pointer" onclick="App._startTableEdit('${escapeHTML(eventId)}')">手動簽到</button>`
     ) : '';
 
-    // 表頭：編輯模式多「踢掉」欄
+    // 表頭：「報名名單」欄含操作按鈕；編輯模式多「踢掉」欄
+    const nameThContent = topBtn
+      ? `<div style="display:flex;align-items:center;gap:.4rem;white-space:nowrap">報名名單${topBtn}</div>`
+      : '報名名單';
     const thead = tableEditing
       ? `<tr style="border-bottom:2px solid var(--border)">
           <th style="text-align:center;padding:.4rem .2rem;font-weight:600;width:3rem">踢掉</th>
-          <th style="text-align:left;padding:.4rem .3rem;font-weight:600">姓名</th>
+          <th style="text-align:left;padding:.4rem .3rem;font-weight:600">${nameThContent}</th>
           <th style="text-align:center;padding:.4rem .2rem;font-weight:600;width:2.5rem">簽到</th>
           <th style="text-align:center;padding:.4rem .2rem;font-weight:600;width:2.5rem">簽退</th>
           <th style="text-align:left;padding:.4rem .3rem;font-weight:600">備註</th>
         </tr>`
       : `<tr style="border-bottom:2px solid var(--border)">
-          <th style="text-align:left;padding:.4rem .3rem;font-weight:600">姓名</th>
+          <th style="text-align:left;padding:.4rem .3rem;font-weight:600">${nameThContent}</th>
           <th style="text-align:center;padding:.4rem .2rem;font-weight:600;width:2.5rem">簽到</th>
           <th style="text-align:center;padding:.4rem .2rem;font-weight:600;width:2.5rem">簽退</th>
           <th style="text-align:left;padding:.4rem .3rem;font-weight:600">備註</th>
         </tr>`;
-
-    // 按鈕渲染到標題旁的獨立插槽（attendance-table-btn），找不到則 fallback 到 container 上方
-    const btnSlot = document.getElementById('attendance-table-btn');
-    if (btnSlot) {
-      btnSlot.innerHTML = topBtn;
-    }
 
     container.innerHTML = `<div style="overflow-x:auto">
       <table style="width:100%;border-collapse:collapse;font-size:.8rem">
