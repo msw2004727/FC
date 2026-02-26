@@ -25,7 +25,8 @@
 // 20260225h: Prod 模式移除匿名登入 fallback，避免產生無用匿名用戶
 // 20260225i: lastLogin 節流（10 分鐘內不重寫），避免觸發跨裝置 onSnapshot 閃爍
 // 20260226f: 修復新用戶卡在「登入確認中」—liff.init()/Auth timeout + isPendingLogin 自動降級
-const CACHE_VERSION = '20260226f';
+// 20260226g: LINE 首次登入速度優化（ensureProfile + Firebase 並行化 + profile 快取）
+const CACHE_VERSION = '20260226g';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {

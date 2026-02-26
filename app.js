@@ -271,14 +271,30 @@ document.addEventListener('DOMContentLoaded', async () => {
           LineAuth._ready = false;
           LineAuth._initError = null;
         }
-        // LIFF 必須先完成（FirebaseService 需要 Access Token 做 Custom Token 登入）
+
+        // Step 1: LIFF SDK 初始化（Access Token 就緒，不含 ensureProfile）
         if (typeof liff !== 'undefined') {
-          await LineAuth.init();
-          console.log('[Boot] Phase 4: LIFF 初始化完成');
+          await LineAuth.initSDK();
+          console.log('[Boot] Phase 4: LIFF SDK 初始化完成');
         }
-        await FirebaseService.init();
+
+        // Step 2: 返回用戶快取 → 立即顯示頭像（不等網路）
+        if (LineAuth.hasLiffSession()) {
+          LineAuth.restoreCachedProfile();
+          if (LineAuth._profile) {
+            try { App.renderLoginUI(); } catch (e) {}
+          }
+        }
+
+        // Step 3: 並行 — profile 網路更新 + Firebase 完整初始化
+        // force: true 確保即使有快取也從 LINE 伺服器取得最新 profile
+        const profilePromise = LineAuth.hasLiffSession()
+          ? LineAuth.ensureProfile({ force: true }).catch(e => console.warn('[Boot] ensureProfile failed:', e))
+          : Promise.resolve();
+
+        await Promise.all([profilePromise, FirebaseService.init()]);
         App._firebaseConnected = true;
-        console.log('[Boot] Phase 4: Firebase + LIFF 初始化完成');
+        console.log('[Boot] Phase 4: Firebase + LIFF 初始化完成（並行）');
         // 用即時資料重新渲染頁面
         try { App.renderAll(); } catch (e) {}
         // 更新 LINE 登入狀態（LIFF SDK 已載入，可正常運作）

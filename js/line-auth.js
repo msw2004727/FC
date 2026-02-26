@@ -106,6 +106,7 @@ const LineAuth = {
             pictureUrl: profile.pictureUrl || null,
             email,
           };
+          try { localStorage.setItem('liff_profile_cache', JSON.stringify(this._profile)); } catch (e) {}
           console.log('[LineAuth] 已登入:', this._profile.displayName);
           return this._profile;
         } catch (err) {
@@ -125,6 +126,36 @@ const LineAuth = {
       this._profileLoading = false;
       this._profilePromise = null;
     }
+  },
+
+  async initSDK() {
+    this._initError = null;
+    this._pendingStartTime = Date.now();
+    try {
+      await this._withTimeout(
+        liff.init({ liffId: LINE_CONFIG.LIFF_ID }),
+        8000,
+        'liff.init()'
+      );
+      console.log('[LineAuth] LIFF SDK 初始化完成');
+    } catch (err) {
+      console.error('[LineAuth] LIFF SDK 初始化失敗:', err);
+      this._initError = err;
+    }
+    this._cleanUrl();
+    this._ready = true;  // Access Token 此刻已可用
+  },
+
+  restoreCachedProfile() {
+    if (this._profile) return this._profile;
+    try {
+      const cached = localStorage.getItem('liff_profile_cache');
+      if (cached) {
+        this._profile = JSON.parse(cached);
+        return this._profile;
+      }
+    } catch (e) {}
+    return null;
   },
 
   async init() {
@@ -185,6 +216,7 @@ const LineAuth = {
     this._profileError = null;
     this._profileLoading = false;
     this._profilePromise = null;
+    try { localStorage.removeItem('liff_profile_cache'); } catch (e) {}
     location.reload();
   },
 
