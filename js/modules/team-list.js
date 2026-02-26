@@ -38,6 +38,64 @@ Object.assign(App, {
     return perms.includes(code);
   },
 
+  _findUserByUidOrDocId(uidOrDocId) {
+    if (!uidOrDocId) return null;
+    const users = ApiService.getAdminUsers() || [];
+    return users.find(u => u.uid === uidOrDocId || u._docId === uidOrDocId) || null;
+  },
+
+  _resolveTeamCaptainUser(team) {
+    if (!team) return null;
+    const users = ApiService.getAdminUsers() || [];
+
+    if (team.captainUid) {
+      const byUid = this._findUserByUidOrDocId(team.captainUid);
+      if (byUid) return byUid;
+    }
+
+    if (team.captain) {
+      const byName = users.find(u =>
+        u.name === team.captain || u.displayName === team.captain
+      );
+      if (byName) return byName;
+    }
+
+    if (team.id) {
+      const teamUsers = users.filter(u => u.teamId === team.id);
+      const captainUser = teamUsers.find(u => u.role === 'captain' || u.manualRole === 'captain');
+      if (captainUser) return captainUser;
+    }
+
+    return null;
+  },
+
+  _isTeamCaptainUser(team) {
+    if (!team) return false;
+    if (ModeManager.isDemo()) {
+      const cap = this._resolveTeamCaptainUser(team);
+      if (!cap) return false;
+      return cap.uid === DemoData.currentUser?.uid;
+    }
+
+    const currentUser = ApiService.getCurrentUser?.();
+    if (!currentUser) return false;
+
+    if (team.captainUid && (team.captainUid === currentUser.uid || team.captainUid === currentUser._docId)) {
+      return true;
+    }
+
+    const currentNames = new Set([currentUser.name, currentUser.displayName].filter(Boolean));
+    if (team.captain && currentNames.has(team.captain)) return true;
+
+    const captainUser = this._resolveTeamCaptainUser(team);
+    return !!(captainUser && currentUser.uid && captainUser.uid === currentUser.uid);
+  },
+
+  _canEditTeamByRoleOrCaptain(team) {
+    if (!team) return false;
+    return this._isTeamCaptainUser(team) || this._hasRolePermission('team.manage_all');
+  },
+
   _canCreateTeamByPermission() {
     return this._hasRolePermission('team.create');
   },

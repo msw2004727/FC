@@ -28,7 +28,8 @@
 // 20260226g: LINE 首次登入速度優化（ensureProfile + Firebase 並行化 + profile 快取）
 // 20260226k: 解除首頁底部隊伍按鈕「功能準備中」擋板（保留賽事按鈕）
 // 20260226l: 球隊頁右上角新增球隊按鈕（依後台 rolePermissions 的 team.create 顯示）
-const CACHE_VERSION = '20260226l';
+// 20260226m: 球隊建立領隊必填 + 詳情頁編輯入口 + 修復入隊申請站內信收件人解析
+const CACHE_VERSION = '20260226m';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {

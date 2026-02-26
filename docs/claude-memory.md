@@ -210,3 +210,13 @@
 - **原因**：`pages/team.html` 的球隊頁 header 只有標題，建立球隊入口僅存在於球隊管理頁，且 `showTeamForm()` 建立模式沒有權限防呆。
 - **修復**：在球隊頁 header 新增 `新增球隊` 按鈕；於 `team-list.js` 新增 `team.create` 權限判斷與按鈕顯示更新（同步作用於球隊管理頁既有新增按鈕）；在 `team-form.js` 的 `showTeamForm()` 建立模式加入權限檢查與提示；更新 `CACHE_VERSION` 與 `index.html` 版本參數。
 - **教訓**：新增功能入口若受角色權限控制，除了 UI 顯示條件外，入口函式本身也要補一層防呆，避免被 console 或舊 DOM 狀態繞過。
+### 2026-02-26 — 球隊建立領隊必填、詳情頁編輯入口、入隊申請站內信修復
+- **問題**：建立球隊可不設定領隊；球隊詳情頁缺少直接編輯入口；部分球隊送出入隊申請後領隊收不到站內信。
+- **原因**：`handleSaveTeam()` 未驗證新增模式領隊；球隊詳情頁 header 無編輯按鈕與權限判斷；入隊申請收件人僅依 `team.captainUid` / 名稱單一路徑解析，遇到 legacy `captainUid`（docId）或名稱不一致時會投遞失敗。
+- **修復**：建立球隊新增領隊必填且需為有效用戶驗證；在球隊詳情頁 header 新增 `編輯球隊` 按鈕，僅球隊領隊或具有 `team.manage_all` 權限者顯示並可進入編輯；新增領隊解析 helper（支援 `uid/_docId/name/displayName/teamId+captain role` fallback），入隊申請改用解析後的有效 `uid` 投遞站內信；更新 `CACHE_VERSION` 與 `index.html` 版本參數。
+- **教訓**：涉及收件人身分的資料（如 `captainUid`）要容忍 legacy 欄位格式與名稱不一致，應集中成單一解析 helper，避免每個功能各自猜測欄位。
+### 2026-02-26 — 補充：站內信即時監聽排序欄位缺失（timestamp）
+- **問題**：部分站內信（包含入隊申請）寫入後收件人看不到。
+- **原因**：`messages` 監聽使用 `orderBy('timestamp', 'desc')`，但 `FirebaseService.addMessage()` 寫入僅有 `createdAt`，缺少 `timestamp`，導致新文件被查詢排除。
+- **修復**：`js/firebase-crud.js` 的 `addMessage()` 補上 `timestamp: serverTimestamp()`（保留 `createdAt`）。
+- **教訓**：查詢使用 `orderBy()` 的集合，所有寫入路徑都必須保證該欄位存在，否則會出現寫入成功但訂閱查不到的假象。

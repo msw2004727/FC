@@ -799,6 +799,7 @@ Object.assign(FirebaseService, {
   async addMessage(data) {
     const docRef = await db.collection('messages').add({
       ..._stripDocId(data),
+      timestamp: firebase.firestore.FieldValue.serverTimestamp(),
       createdAt: firebase.firestore.FieldValue.serverTimestamp(),
     });
     data._docId = docRef.id;

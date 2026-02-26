@@ -61,13 +61,11 @@ Object.assign(App, {
       return;
     }
 
-    // 5. Find captain UID
-    const users = ApiService.getAdminUsers();
-    let captainUid = t.captainUid || null;
-    if (!captainUid && t.captain) {
-      const capUser = users.find(u => u.name === t.captain);
-      captainUid = capUser ? capUser.uid : null;
-    }
+    // 5. Resolve captain recipient UID (supports legacy captainUid/docId/name mismatch)
+    const captainUser = typeof this._resolveTeamCaptainUser === 'function'
+      ? this._resolveTeamCaptainUser(t)
+      : null;
+    const captainUid = captainUser?.uid || null;
     if (!captainUid) {
       this.showToast('無法找到領隊，請聯繫管理員');
       return;
@@ -208,6 +206,14 @@ Object.assign(App, {
       this.showToast('目前未開啟建立球隊權限');
       return;
     }
+    if (id) {
+      const targetTeam = ApiService.getTeam(id);
+      if (!targetTeam) return;
+      if (typeof this._canEditTeamByRoleOrCaptain === 'function' && !this._canEditTeamByRoleOrCaptain(targetTeam)) {
+        this.showToast('您沒有編輯此球隊的權限');
+        return;
+      }
+    }
     this._teamEditId = id || null;
     const titleEl = document.getElementById('ct-team-modal-title');
     const saveBtn = document.getElementById('ct-team-save-btn');
@@ -322,15 +328,30 @@ Object.assign(App, {
     // Resolve captain name
     const users = ApiService.getAdminUsers();
     let captain = '';
+    let selectedCaptainUser = null;
     if (this._teamCaptainUid) {
       if (this._teamCaptainUid === '__legacy__') {
         // 編輯模式下保留原領隊名稱
         const t = this._teamEditId ? ApiService.getTeam(this._teamEditId) : null;
         captain = t ? t.captain : '';
       } else {
-        const capUser = users.find(u => u.uid === this._teamCaptainUid);
-        captain = capUser ? capUser.name : '';
+        selectedCaptainUser = users.find(u => u.uid === this._teamCaptainUid);
+        captain = selectedCaptainUser ? selectedCaptainUser.name : '';
       }
+    }
+
+    if (!this._teamEditId) {
+      if (!this._teamCaptainUid) {
+        this.showToast('請設定領隊（必填）');
+        return;
+      }
+      if (this._teamCaptainUid === '__legacy__' || !selectedCaptainUser) {
+        this.showToast('領隊必須為有效用戶，請重新選擇');
+        return;
+      }
+    } else if (this._teamCaptainUid && this._teamCaptainUid !== '__legacy__' && !selectedCaptainUser) {
+      this.showToast('領隊資料無效，請重新選擇領隊');
+      return;
     }
 
     // Resolve coach names

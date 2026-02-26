@@ -35,6 +35,12 @@
         <button class="back-btn" onclick="App.goBack()">←</button>
         <h2 id="team-detail-title">球隊名稱</h2>
         <span class="team-detail-name-en" id="team-detail-name-en"></span>
+        <button
+          class="primary-btn small"
+          id="team-detail-edit-btn"
+          onclick="App.openTeamDetailEdit()"
+          style="display:none"
+        >編輯球隊</button>
       </div>
       <div class="td-img-placeholder" id="team-detail-img">球隊封面 800 × 300</div>
       <div class="detail-body" id="team-detail-body"></div>

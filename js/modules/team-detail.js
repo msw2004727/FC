@@ -5,6 +5,7 @@
 
 Object.assign(App, {
 
+  _teamDetailId: null,
   _teamFeedPage: {},
   _FEED_PAGE_SIZE: 20,
   _MAX_PINNED: 5,
@@ -22,9 +23,28 @@ Object.assign(App, {
     return false;
   },
 
+  _refreshTeamDetailEditButton(team) {
+    const btn = document.getElementById('team-detail-edit-btn');
+    if (!btn) return;
+    btn.style.display = this._canEditTeamByRoleOrCaptain?.(team) ? '' : 'none';
+  },
+
+  openTeamDetailEdit() {
+    const teamId = this._teamDetailId;
+    const team = teamId ? ApiService.getTeam(teamId) : null;
+    if (!team) return;
+    if (!this._canEditTeamByRoleOrCaptain?.(team)) {
+      this.showToast('您沒有編輯此球隊的權限');
+      return;
+    }
+    this.showTeamForm(team.id);
+  },
+
   showTeamDetail(id) {
     const t = ApiService.getTeam(id);
     if (!t) return;
+    this._teamDetailId = id;
+    this._refreshTeamDetailEditButton(t);
     document.getElementById('team-detail-title').textContent = t.name;
     document.getElementById('team-detail-name-en').textContent = t.nameEn || '';
 
