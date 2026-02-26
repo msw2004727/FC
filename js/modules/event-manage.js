@@ -456,6 +456,17 @@ Object.assign(App, {
     const userWaitlisted = allRegs.filter(r => r.userId === userId && r.status === 'waitlisted');
     if (userWaitlisted.length === 0) { this.showToast('找不到候補紀錄'); return; }
 
+    // 在 _promoteSingleCandidate 修改本地快取前，先蒐集 activityRecord 的 _docId
+    // （_promoteSingleCandidate 會把 ar.status 改成 'registered'，之後就找不到 waitlisted 的了）
+    const arSource = ApiService._src('activityRecords');
+    const arDocIds = [];
+    for (const reg of userWaitlisted) {
+      if (reg.participantType !== 'companion') {
+        const ar = arSource.find(a => a.eventId === eventId && a.uid === reg.userId && a.status === 'waitlisted');
+        if (ar && ar._docId) arDocIds.push(ar._docId);
+      }
+    }
+
     for (const reg of userWaitlisted) {
       this._promoteSingleCandidate(e, reg);
     }
@@ -465,12 +476,13 @@ Object.assign(App, {
 
     if (!ModeManager.isDemo()) {
       try {
-        // 先 await 每筆 registration 狀態更新，確保 Firestore 確實寫入後再更新 event
-        // （_promoteSingleCandidate 的 registration 更新是 fire-and-forget，重整後會殘留 waitlisted）
         for (const reg of userWaitlisted) {
           if (reg._docId) {
             await db.collection('registrations').doc(reg._docId).update({ status: 'confirmed' });
           }
+        }
+        for (const docId of arDocIds) {
+          await db.collection('activityRecords').doc(docId).update({ status: 'registered' });
         }
         await db.collection('events').doc(e.id).update({
           current: e.current,
