@@ -113,9 +113,9 @@ Object.assign(App, {
           return true;
         }).length;
       } else if (action === 'join_team') {
-        // 計算已加入球隊的用戶總數（teamId 已設定）
-        const users = ApiService.getAdminUsers();
-        current = users.filter(u => u.teamId).length;
+        // 只看目前登入用戶是否已加入球隊（teamId 存在）
+        const curUser = ApiService.getCurrentUser();
+        current = (curUser && curUser.teamId) ? 1 : 0;
       }
       // reach_level / reach_exp / attendance_rate 等需不同資料來源，暫不自動評估
 
