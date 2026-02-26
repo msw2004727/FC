@@ -46,7 +46,8 @@
 // 20260226zk: 修復站內信頁籤分類失效（bindTabBars 搶先綁定導致過濾邏輯未掛載）
 // 20260227e: 移除重複「報名名單」標題（改為顯示在表頭含人數）+ 修復手動簽到閃爍（containerId race + setTimeout settle）
 // 20260227f: 移除活動詳情頁「報名名單」section title 與分隔線
-const CACHE_VERSION = '20260227f';
+// 20260227g: 未報名單改為整表手動簽到模式，按鈕移至表頭右側
+const CACHE_VERSION = '20260227g';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {

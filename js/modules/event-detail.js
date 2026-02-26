@@ -175,7 +175,6 @@ Object.assign(App, {
         <div id="detail-attendance-table"></div>
       </div>
       <div class="detail-section" id="detail-unreg-section" style="display:none">
-        <div class="detail-section-title">未報名單 (<span id="detail-unreg-count">0</span>)</div>
         <div id="detail-unreg-table"></div>
       </div>
       ${this._buildGroupedWaitlist(e)}
