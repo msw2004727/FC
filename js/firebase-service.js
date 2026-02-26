@@ -252,6 +252,47 @@ const FirebaseService = {
   },
 
   /** 載入指定的靜態集合 */
+  _roleLevel(role) {
+    if (typeof ROLE_LEVEL_MAP === 'undefined') return 0;
+    return ROLE_LEVEL_MAP[role] || 0;
+  },
+
+  async _resolveCurrentAuthRole() {
+    const fallbackRole =
+      (this._cache.currentUser && typeof this._cache.currentUser.role === 'string')
+        ? this._cache.currentUser.role
+        : 'user';
+
+    try {
+      const authUser = (typeof auth !== 'undefined' && auth && auth.currentUser) ? auth.currentUser : null;
+      if (!authUser) return fallbackRole;
+
+      // Prefer Custom Claims first (source of truth after createCustomToken).
+      const tokenResult = await authUser.getIdTokenResult();
+      const claimRole = (tokenResult && tokenResult.claims && typeof tokenResult.claims.role === 'string')
+        ? tokenResult.claims.role
+        : null;
+      if (claimRole) return claimRole;
+
+      // Fallback to users cache from onSnapshot.
+      const uid = authUser.uid;
+      const userDoc = this._cache.adminUsers.find(u =>
+        u.uid === uid || u.lineUserId === uid || u._docId === uid
+      );
+      if (userDoc && typeof userDoc.role === 'string') return userDoc.role;
+
+      // Last fallback to currentUser cache.
+      if (this._cache.currentUser && this._cache.currentUser.uid === uid && typeof this._cache.currentUser.role === 'string') {
+        return this._cache.currentUser.role;
+      }
+
+      return 'user';
+    } catch (err) {
+      console.warn('[FirebaseService] Resolve auth role failed, fallback to cache:', err);
+      return fallbackRole;
+    }
+  },
+
   async _loadStaticCollections(names) {
     const promises = names.map(name =>
       db.collection(name).orderBy(firebase.firestore.FieldPath.documentId()).limit(500).get()
@@ -510,13 +551,31 @@ const FirebaseService = {
     } catch (err) { console.warn('[FirebaseService] rolePermissions 載入失敗:', err); }
 
     // ── Step 6: Seed 操作（僅首次需要，並行執行節省啟動時間）──
-    await Promise.all([
-      this._cleanupDuplicateDocs(),
-      this._seedAdSlots(),
-      this._seedNotifTemplates(),
-      this._seedAchievements(),
-      this._seedRoleData(),
-    ]);
+    const authRole = await this._resolveCurrentAuthRole();
+    const canAdminSeed = this._roleLevel(authRole) >= this._roleLevel('admin');
+    const canSuperAdminSeed = this._roleLevel(authRole) >= this._roleLevel('super_admin');
+    const seedTasks = [];
+
+    if (canAdminSeed) {
+      seedTasks.push(
+        this._cleanupDuplicateDocs(),
+        this._seedAdSlots(),
+        this._seedNotifTemplates(),
+        this._seedAchievements(),
+      );
+    } else {
+      console.log(`[FirebaseService] Skip admin seed for role "${authRole}"`);
+    }
+
+    if (canSuperAdminSeed) {
+      seedTasks.push(this._seedRoleData());
+    } else {
+      console.log(`[FirebaseService] Skip super_admin seed for role "${authRole}"`);
+    }
+
+    if (seedTasks.length > 0) {
+      await Promise.all(seedTasks);
+    }
 
     this._initialized = true;
 
