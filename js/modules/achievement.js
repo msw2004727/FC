@@ -95,6 +95,10 @@ Object.assign(App, {
           if (filter && filter !== 'all') return ev.type === filter;
           return true;
         }).length;
+      } else if (action === 'join_team') {
+        // 計算已加入球隊的用戶總數（teamId 已設定）
+        const users = ApiService.getAdminUsers();
+        current = users.filter(u => u.teamId).length;
       }
       // reach_level / reach_exp / attendance_rate 等需不同資料來源，暫不自動評估
 

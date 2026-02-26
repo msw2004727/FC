@@ -298,6 +298,7 @@ Object.assign(App, {
       ApiService.updateMessage(msgId, { actionStatus: 'approved' });
       msg.actionStatus = 'approved';
       ApiService._writeOpLog('team_approve', '球隊審批', `同意「${applicantName}」加入「${teamName}」`);
+      this._evaluateAchievements();
       this.showToast('已同意加入申請');
 
     } else if (action === 'reject') {
