@@ -49,7 +49,8 @@
 // 20260227g: 未報名單改為整表手動簽到模式，按鈕移至表頭右側
 // 20260227h: 未報名單編輯模式補回踢掉功能 + _removeUnregUser
 // 20260227i: 候補名單新增正取功能（編輯按鈕 + 紫色正取按鈕 + _forcePromoteWaitlist）
-const CACHE_VERSION = '20260227i';
+// 20260227j: 候補名單編輯按鈕改為紫底白字
+const CACHE_VERSION = '20260227j';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {

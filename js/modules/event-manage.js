@@ -381,10 +381,11 @@ Object.assign(App, {
     const safeEId = escapeHTML(eventId);
     const safeCId = escapeHTML(containerId);
     const colCount = tableEditing ? 3 : 2;
-    const editBtnStyle = 'font-size:.72rem;padding:.2rem .5rem;background:transparent;border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;color:var(--text-primary)';
+    const doneBtnStyle = 'font-size:.72rem;padding:.2rem .5rem;background:transparent;border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;color:var(--text-primary)';
+    const editBtnStyle = 'font-size:.72rem;padding:.2rem .5rem;background:#8b5cf6;color:#fff;border:none;border-radius:var(--radius-sm);cursor:pointer';
     const editBtnHtml = canManage
       ? (tableEditing
-          ? `<button style="${editBtnStyle}" onclick="App._stopWaitlistEdit('${safeEId}','${safeCId}')">完成</button>`
+          ? `<button style="${doneBtnStyle}" onclick="App._stopWaitlistEdit('${safeEId}','${safeCId}')">完成</button>`
           : `<button style="${editBtnStyle}" onclick="App._startWaitlistEdit('${safeEId}','${safeCId}')">編輯</button>`)
       : '';
     const promoteStyle = 'font-size:.72rem;padding:.2rem .45rem;background:#8b5cf6;color:#fff;border:none;border-radius:var(--radius-sm);cursor:pointer';
