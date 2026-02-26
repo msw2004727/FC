@@ -64,7 +64,12 @@ const LineAuth = {
   },
 
   isPendingLogin() {
-    return this.hasLiffSession() && (this._profileLoading || (!this._profile && !this._ready));
+    if (!this.hasLiffSession()) return false;
+    // 超過 20 秒自動降級，避免永久卡住
+    if (this._pendingStartTime && Date.now() - this._pendingStartTime > 20000) {
+      return false;
+    }
+    return this._profileLoading || (!this._profile && !this._ready);
   },
 
   async ensureProfile(options = {}) {
@@ -124,9 +129,14 @@ const LineAuth = {
 
   async init() {
     this._initError = null;
+    this._pendingStartTime = Date.now();
 
     try {
-      await liff.init({ liffId: LINE_CONFIG.LIFF_ID });
+      await this._withTimeout(
+        liff.init({ liffId: LINE_CONFIG.LIFF_ID }),
+        8000,
+        'liff.init()'
+      );
       console.log('[LineAuth] LIFF 初始化成功');
     } catch (err) {
       console.error('[LineAuth] LIFF 初始化失敗:', err);

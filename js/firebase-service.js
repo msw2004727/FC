@@ -330,11 +330,14 @@ const FirebaseService = {
     // ── Step 1: 嘗試從 localStorage 恢復快取 ──
     const hasLocalCache = this._restoreCache();
 
-    // Firebase Auth 登入（Demo → 匿名；Prod → LINE Custom Token，失敗降級匿名）
+    // Firebase Auth 登入（Demo → 匿名；Prod → LINE Custom Token，失敗降級快取）
     try {
-      await this._signInWithAppropriateMethod();
+      await Promise.race([
+        this._signInWithAppropriateMethod(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('AUTH_TIMEOUT')), 15000))
+      ]);
     } catch (err) {
-      console.error('[FirebaseService] Firebase Auth 登入失敗:', err.code, err.message);
+      console.error('[FirebaseService] Firebase Auth 登入失敗:', err?.code || err?.message);
       this._authError = err;
     }
 

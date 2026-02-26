@@ -301,8 +301,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         _hideLiffInitUI();
       } catch (err) {
         _hideLiffInitUI();
-        console.error('[Boot] Phase 4 背景初始化失敗:', err && err.message || err, err && err.stack || '');
+        console.error('[Boot] Phase 4 背景初始化失敗:', err?.message || err);
         try { App.showToast('網路連線異常，部分資料可能未更新'); } catch (e) {}
+        // 即使失敗也更新登入 UI，避免卡在 pending 狀態
+        try { if (typeof App.bindLineLogin === 'function') await App.bindLineLogin(); } catch (e) {}
       }
     })();
   }
