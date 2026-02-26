@@ -86,7 +86,7 @@ Object.assign(App, {
     if (arrow) arrow.textContent = collapsed ? '▲' : '▼';
   },
 
-  resetRolePermissions() {
+  async resetRolePermissions() {
     if ((ROLE_LEVEL_MAP[this.currentRole] || 0) < ROLE_LEVEL_MAP.super_admin) {
       this.showToast('權限不足'); return;
     }
@@ -99,9 +99,19 @@ Object.assign(App, {
       return;
     }
     const source = ModeManager.isDemo() ? _rp : (FirebaseService._cache.rolePermissions || {});
+    const prevPerms = Array.isArray(source[role]) ? [...source[role]] : null;
     source[role] = [...defaults];
     if (!ModeManager.isDemo()) {
-      FirebaseService.saveRolePermissions(role, source[role]);
+      try {
+        await FirebaseService.saveRolePermissions(role, source[role]);
+      } catch (err) {
+        if (prevPerms) source[role] = prevPerms;
+        else delete source[role];
+        console.error('[resetRolePermissions]', err);
+        this.renderPermissions(role);
+        this.showToast('甈?更新失敗');
+        return;
+      }
     }
     this.renderPermissions(role);
     const info = this._getRoleInfo(role);
@@ -138,9 +148,11 @@ Object.assign(App, {
     `).join('');
   },
 
-  togglePermission(code) {
+  async togglePermission(code) {
     const source = ModeManager.isDemo() ? ((typeof DemoData !== 'undefined' && DemoData.rolePermissions) || {}) : (FirebaseService._cache.rolePermissions || {});
+    if (!this._permSelectedRole) return;
     if (!source[this._permSelectedRole]) source[this._permSelectedRole] = [];
+    const prevPerms = [...source[this._permSelectedRole]];
     const idx = source[this._permSelectedRole].indexOf(code);
     if (idx >= 0) {
       source[this._permSelectedRole] = source[this._permSelectedRole].filter(c => c !== code);
@@ -149,7 +161,15 @@ Object.assign(App, {
     }
     // 正式版：寫入 Firestore
     if (!ModeManager.isDemo()) {
-      FirebaseService.saveRolePermissions(this._permSelectedRole, source[this._permSelectedRole]);
+      try {
+        await FirebaseService.saveRolePermissions(this._permSelectedRole, source[this._permSelectedRole]);
+      } catch (err) {
+        source[this._permSelectedRole] = prevPerms;
+        console.error('[togglePermission]', err);
+        this.renderPermissions(this._permSelectedRole);
+        this.showToast('甈?更新失敗');
+        return;
+      }
     }
     this.renderPermissions(this._permSelectedRole);
   },
@@ -188,7 +208,7 @@ Object.assign(App, {
     if (editor) editor.style.display = 'none';
   },
 
-  saveCustomRole() {
+  async saveCustomRole() {
     if ((ROLE_LEVEL_MAP[this.currentRole] || 0) < ROLE_LEVEL_MAP.super_admin) {
       this.showToast('權限不足'); return;
     }
@@ -209,8 +229,18 @@ Object.assign(App, {
 
     // 正式版：寫入 Firestore
     if (!ModeManager.isDemo()) {
-      FirebaseService.addCustomRole(newRole);
-      FirebaseService.saveRolePermissions(key, source[key]);
+      try {
+        await FirebaseService.addCustomRole(newRole);
+        await FirebaseService.saveRolePermissions(key, source[key]);
+      } catch (err) {
+        console.error('[saveCustomRole]', err);
+        const rollbackIdx = customRoles.findIndex(c => c.key === key);
+        if (rollbackIdx >= 0) customRoles.splice(rollbackIdx, 1);
+        delete source[key];
+        this.renderRoleHierarchy();
+        this.showToast('新增角色失敗');
+        return;
+      }
     }
 
     this.hideRoleEditor();
@@ -235,7 +265,7 @@ Object.assign(App, {
     overlay.classList.add('open');
   },
 
-  executeDeleteCustomRole() {
+  async executeDeleteCustomRole() {
     if ((ROLE_LEVEL_MAP[this.currentRole] || 0) < ROLE_LEVEL_MAP.super_admin) {
       this.showToast('權限不足'); return;
     }
@@ -245,6 +275,7 @@ Object.assign(App, {
     const idx = customRoles.findIndex(c => c.key === key);
     if (idx < 0) return;
     const info = this._getRoleInfo(key);
+    const removedRole = customRoles[idx];
 
     // 降級該層級的用戶（一律降為一般用戶）
     const users = ApiService.getAdminUsers ? ApiService.getAdminUsers() : [];
@@ -262,12 +293,22 @@ Object.assign(App, {
 
     // 移除權限
     const source = ModeManager.isDemo() ? ((typeof DemoData !== 'undefined' && DemoData.rolePermissions) || {}) : (FirebaseService._cache.rolePermissions || {});
+    const prevPerms = Array.isArray(source[key]) ? [...source[key]] : null;
     delete source[key];
 
     // 正式版：刪除 Firestore 資料
     if (!ModeManager.isDemo()) {
-      FirebaseService.deleteCustomRole(key);
-      FirebaseService.deleteRolePermissions(key);
+      try {
+        await FirebaseService.deleteCustomRole(key);
+        await FirebaseService.deleteRolePermissions(key);
+      } catch (err) {
+        console.error('[executeDeleteCustomRole]', err);
+        customRoles.splice(idx, 0, removedRole);
+        if (prevPerms) source[key] = prevPerms;
+        this.renderRoleHierarchy();
+        this.showToast('刪除角色失敗');
+        return;
+      }
     }
 
     // 清除選中狀態

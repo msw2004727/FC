@@ -11,15 +11,11 @@ Object.assign(FirebaseService, {
   // ════════════════════════════════
 
   async saveRolePermissions(roleKey, permissions) {
-    try {
-      await db.collection('rolePermissions').doc(roleKey).set({ permissions }, { merge: true });
-    } catch (err) { console.error('[saveRolePermissions]', err); }
+    await db.collection('rolePermissions').doc(roleKey).set({ permissions }, { merge: true });
   },
 
   async deleteRolePermissions(roleKey) {
-    try {
-      await db.collection('rolePermissions').doc(roleKey).delete();
-    } catch (err) { console.error('[deleteRolePermissions]', err); }
+    await db.collection('rolePermissions').doc(roleKey).delete();
   },
 
   // ════════════════════════════════
@@ -27,17 +23,13 @@ Object.assign(FirebaseService, {
   // ════════════════════════════════
 
   async addCustomRole(data) {
-    try {
-      await db.collection('customRoles').doc(data.key).set(data, { merge: true });
-      data._docId = data.key;
-    } catch (err) { console.error('[addCustomRole]', err); }
+    await db.collection('customRoles').doc(data.key).set(data, { merge: true });
+    data._docId = data.key;
     return data;
   },
 
   async deleteCustomRole(key) {
-    try {
-      await db.collection('customRoles').doc(key).delete();
-    } catch (err) { console.error('[deleteCustomRole]', err); }
+    await db.collection('customRoles').doc(key).delete();
   },
 
   async updateNotifTemplate(key, updates) {
@@ -566,11 +558,25 @@ Object.assign(FirebaseService, {
     return { ...doc.data(), _docId: doc.id };
   },
 
+  async _syncUserRoleClaims(uid) {
+    if (!uid || typeof firebase === 'undefined' || !firebase.app) return;
+    const fn = firebase.app().functions('asia-east1').httpsCallable('syncUserRole');
+    await fn({ targetUid: uid });
+
+    // Refresh current user's token immediately if their own role changed.
+    if (typeof auth !== 'undefined' && auth?.currentUser?.uid === uid) {
+      await auth.currentUser.getIdToken(true);
+    }
+  },
+
   async updateUser(docId, updates) {
     await db.collection('users').doc(docId).update({
       ...updates,
       updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
     });
+    if (updates && typeof updates.role === 'string') {
+      await this._syncUserRoleClaims(docId);
+    }
   },
 
   // ════════════════════════════════
@@ -828,6 +834,7 @@ Object.assign(FirebaseService, {
       role: newRole,
       updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
     });
+    await this._syncUserRoleClaims(docId);
   },
 
   // ════════════════════════════════

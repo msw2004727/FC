@@ -26,7 +26,8 @@
 // 20260225i: lastLogin 節流（10 分鐘內不重寫），避免觸發跨裝置 onSnapshot 閃爍
 // 20260226f: 修復新用戶卡在「登入確認中」—liff.init()/Auth timeout + isPendingLogin 自動降級
 // 20260226g: LINE 首次登入速度優化（ensureProfile + Firebase 並行化 + profile 快取）
-const CACHE_VERSION = '20260226g';
+// 20260226h: F-01 follow-up (claims backfill callable + admin role/permission UI await/rollback)
+const CACHE_VERSION = '20260226h';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {

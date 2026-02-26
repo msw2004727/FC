@@ -194,3 +194,35 @@
 2. 驗收新用戶首次登入與既有管理員重新登入 claims
 3. 告知操作人員：過渡期 admin 角色變更需由 super_admin 執行
 4. 驗收通過後再進入 Phase B（`adminChangeRole` callable + 前端收斂）
+---
+
+## 2026-02-26 Follow-up 實作日誌（Round 2）
+
+> 本段為後續補強，目標是降低「未完成或未證實」項目的營運風險，不改動 `comprehensive-audit-20260226.md` 的勾選狀態。
+
+### 本次實作範圍
+1. `functions/index.js`：新增 `backfillRoleClaims` Callable（`super_admin` only）
+2. `js/api-service.js`：`updateAdminUser()` 改為 `async`，失敗時回滾本地快取
+3. `js/firebase-crud.js`：`rolePermissions/customRoles` 的 CRUD 不再吞錯（改為拋錯）
+4. `js/modules/user-admin-list.js`：角色編輯/升級改為 `await` 後端成功才顯示成功
+5. `js/modules/user-admin-roles.js`：權限切換/重設/自訂角色新增刪除加上 `await + rollback`
+6. `docs/smoke-test.md`：新增 F-01 後續 smoke test 手動清單
+
+### 實作重點
+- `backfillRoleClaims` 支援分批與分頁：
+- 參數：`limit`（1-200）、`dryRun`、`startAfterDocId`
+- 回傳：`processed / updated / failed / legacyResolved / nextCursor / hasMore`
+- `backfillRoleClaims` 沿用既有 legacy resolve 邏輯（`docId / uid / lineUserId`）回填 claims。
+- 前端角色/權限管理改為「寫入失敗就回滾 UI 狀態」，避免畫面先顯示成功但 Firestore 實際失敗。
+
+### 風險與限制（本次仍保留）
+- `admin` vs `super_admin` 的權限策略仍維持「最小權限」：`customRoles/rolePermissions/permissions` 仍為 `super_admin` only（未放寬 rules）。
+- `backfillRoleClaims` 目前提供 callable 工具，但尚未接前端 UI 按鈕（可由 console / functions callable 手動執行）。
+- 「正常流程不受影響」仍需實機手動 smoke test；本次已先補清單與關鍵管理流程的錯誤回滾。
+
+### 本次驗證
+- `node --check functions/index.js`
+- `node --check js/api-service.js`
+- `node --check js/firebase-crud.js`
+- `node --check js/modules/user-admin-list.js`
+- `node --check js/modules/user-admin-roles.js`

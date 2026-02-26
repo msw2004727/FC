@@ -68,7 +68,7 @@ Object.assign(App, {
     }).join('');
   },
 
-  handlePromote(select, name) {
+  async handlePromote(select, name) {
     if ((ROLE_LEVEL_MAP[this.currentRole] || 0) < ROLE_LEVEL_MAP.super_admin) {
       this.showToast('權限不足'); return;
     }
@@ -77,9 +77,16 @@ Object.assign(App, {
     const roleKey = roleMap[select.value];
     if (!roleKey) return;
     const user = ApiService.getAdminUsers().find(u => u.name === name);
-    ApiService.promoteUser(name, roleKey);
+    try {
     // 後台手動晉升 → 同步設定 manualRole 底線
-    ApiService.updateAdminUser(name, { manualRole: roleKey });
+      await ApiService.updateAdminUser(name, { role: roleKey, manualRole: roleKey });
+    } catch (err) {
+      console.error('[handlePromote]', err);
+      this.filterAdminUsers();
+      this.showToast('閫霈失敗，請稍後再試');
+      select.value = '';
+      return;
+    }
     ApiService._writeOpLog('role', '角色變更', `${name} → ${select.value}`);
     // Trigger 5：身份變更通知
     if (user) {
@@ -117,7 +124,7 @@ Object.assign(App, {
     this.showModal('user-edit-modal');
   },
 
-  saveUserEdit() {
+  async saveUserEdit() {
     if ((ROLE_LEVEL_MAP[this.currentRole] || 0) < ROLE_LEVEL_MAP.super_admin) {
       this.showToast('權限不足'); return;
     }
@@ -146,7 +153,15 @@ Object.assign(App, {
       updates.manualRole = updates.role;
     }
 
-    const result = ApiService.updateAdminUser(name, updates);
+    let result = null;
+    try {
+      result = await ApiService.updateAdminUser(name, updates);
+    } catch (err) {
+      console.error('[saveUserEdit]', err);
+      this.filterAdminUsers();
+      this.showToast('儲存失敗，資料未更新');
+      return;
+    }
 
     // Trigger 5：身份變更通知
     if (result && oldRole && oldRole !== updates.role) {

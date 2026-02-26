@@ -2,7 +2,7 @@ const { onDocumentCreated } = require("firebase-functions/v2/firestore");
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { defineSecret } = require("firebase-functions/params");
 const { initializeApp } = require("firebase-admin/app");
-const { getFirestore, FieldValue } = require("firebase-admin/firestore");
+const { getFirestore, FieldValue, FieldPath } = require("firebase-admin/firestore");
 const { getAuth } = require("firebase-admin/auth");
 const { messagingApi } = require("@line/bot-sdk");
 const https = require("https");
@@ -76,6 +76,14 @@ async function getUserRoleFromFirestore(uidOrDocId) {
   const found = await findUserDocByUidOrLineUserId(uidOrDocId);
   if (!found) return "user";
   return normalizeRole(found.data?.role);
+}
+
+async function getCallerRoleWithFallback(request) {
+  let callerRole = normalizeRole(request.auth?.token?.role);
+  if (!["admin", "super_admin"].includes(callerRole) && request.auth?.uid) {
+    callerRole = await getUserRoleFromFirestore(request.auth.uid);
+  }
+  return callerRole;
 }
 
 async function setRoleClaimMerged(uid, role) {
@@ -165,10 +173,7 @@ exports.syncUserRole = onCall(
       throw new HttpsError("unauthenticated", "Authentication required");
     }
 
-    let callerRole = normalizeRole(request.auth.token?.role);
-    if (!["admin", "super_admin"].includes(callerRole)) {
-      callerRole = await getUserRoleFromFirestore(request.auth.uid);
-    }
+    const callerRole = await getCallerRoleWithFallback(request);
     if (!["admin", "super_admin"].includes(callerRole)) {
       throw new HttpsError("permission-denied", "Admin only");
     }
@@ -202,6 +207,89 @@ exports.syncUserRole = onCall(
       targetDocId: targetUser.docId,
       role: targetRole,
     };
+  }
+);
+
+exports.backfillRoleClaims = onCall(
+  { region: "asia-east1", timeoutSeconds: 120 },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Authentication required");
+    }
+
+    const callerRole = await getCallerRoleWithFallback(request);
+    if (callerRole !== "super_admin") {
+      throw new HttpsError("permission-denied", "Super admin only");
+    }
+
+    const rawLimit = Number(request.data?.limit);
+    const limit = Number.isFinite(rawLimit)
+      ? Math.max(1, Math.min(200, Math.floor(rawLimit)))
+      : 100;
+    const dryRun = request.data?.dryRun === true;
+    const startAfterDocId = (typeof request.data?.startAfterDocId === "string" && request.data.startAfterDocId)
+      ? request.data.startAfterDocId
+      : null;
+
+    let query = db.collection("users")
+      .orderBy(FieldPath.documentId())
+      .limit(limit);
+    if (startAfterDocId) {
+      query = query.startAfter(startAfterDocId);
+    }
+
+    const snap = await query.get();
+    const failures = [];
+    let updated = 0;
+    let legacyResolved = 0;
+
+    for (const doc of snap.docs) {
+      const data = doc.data() || {};
+      const targetUid = getAuthUidFromUserDoc({ docId: doc.id, data }, doc.id);
+      const role = normalizeRole(data.role);
+      const isLegacyResolved = targetUid !== doc.id;
+      if (isLegacyResolved) legacyResolved += 1;
+
+      try {
+        if (!dryRun) {
+          await ensureAuthUser(targetUid);
+          await setRoleClaimMerged(targetUid, role);
+        }
+        updated += 1;
+      } catch (err) {
+        failures.push({
+          docId: doc.id,
+          targetUid,
+          role,
+          code: getAuthErrorCode(err),
+          message: err?.message || String(err),
+        });
+      }
+    }
+
+    const nextCursor = snap.size === limit ? snap.docs[snap.docs.length - 1].id : null;
+    const result = {
+      success: failures.length === 0,
+      dryRun,
+      limit,
+      processed: snap.size,
+      updated,
+      failed: failures.length,
+      legacyResolved,
+      nextCursor,
+      hasMore: !!nextCursor,
+      failures: failures.slice(0, 20),
+    };
+
+    console.log("[backfillRoleClaims] batch result", {
+      callerUid: request.auth.uid,
+      callerRole,
+      dryRun,
+      startAfterDocId,
+      ...result,
+    });
+
+    return result;
   }
 );
 

@@ -200,12 +200,19 @@ const ApiService = {
     return user ? user.role : 'user';
   },
 
-  updateAdminUser(name, updates) {
+  async updateAdminUser(name, updates) {
     const user = this._src('adminUsers').find(u => u.name === name);
     if (!user) return null;
+    const rollback = { ...user };
     Object.assign(user, updates);
     if (!this._demoMode && user._docId) {
-      FirebaseService.updateUser(user._docId, updates).catch(err => console.error('[updateAdminUser]', err));
+      try {
+        await FirebaseService.updateUser(user._docId, updates);
+      } catch (err) {
+        Object.assign(user, rollback);
+        console.error('[updateAdminUser]', err);
+        throw err;
+      }
     }
     return user;
   },
