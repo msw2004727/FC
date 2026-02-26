@@ -91,6 +91,7 @@ Object.assign(FirebaseService, {
   async addAttendanceRecord(data) {
     const docRef = await db.collection('attendanceRecords').add({
       ..._stripDocId(data),
+      status: data.status || 'active',
       createdAt: firebase.firestore.FieldValue.serverTimestamp(),
     });
     data._docId = docRef.id;
@@ -98,11 +99,29 @@ Object.assign(FirebaseService, {
   },
 
   async removeAttendanceRecord(record) {
-    if (record._docId) {
-      await db.collection('attendanceRecords').doc(record._docId).delete();
+    const inCache = this._cache.attendanceRecords.find(r => r.id === record.id);
+    const target = record._docId ? record : inCache;
+    if (target && target._docId) {
+      const updates = {
+        status: 'removed',
+        removedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      };
+      if (typeof auth !== 'undefined' && auth?.currentUser?.uid) {
+        updates.removedByUid = auth.currentUser.uid;
+      }
+      await db.collection('attendanceRecords').doc(target._docId).update(updates);
     }
-    const idx = this._cache.attendanceRecords.findIndex(r => r.id === record.id);
-    if (idx !== -1) this._cache.attendanceRecords.splice(idx, 1);
+
+    if (inCache) {
+      inCache.status = 'removed';
+      inCache.removedAt = new Date().toISOString();
+    } else {
+      const idx = this._cache.attendanceRecords.findIndex(r => r.id === record.id);
+      if (idx !== -1) {
+        this._cache.attendanceRecords[idx].status = 'removed';
+        this._cache.attendanceRecords[idx].removedAt = new Date().toISOString();
+      }
+    }
     this._saveToLS('attendanceRecords', this._cache.attendanceRecords);
   },
 

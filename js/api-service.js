@@ -29,6 +29,33 @@ const ApiService = {
     return true;
   },
 
+  async _ensureFirebaseWriteAuth() {
+    if (this._demoMode) return true;
+    if (typeof auth !== 'undefined' && auth?.currentUser) return true;
+    if (typeof FirebaseService !== 'undefined' && typeof FirebaseService._signInWithAppropriateMethod === 'function') {
+      try {
+        await FirebaseService._signInWithAppropriateMethod();
+      } catch (err) {
+        console.warn('[ApiService] Firebase write auth retry failed:', err);
+      }
+    }
+    return (typeof auth !== 'undefined' && !!auth?.currentUser);
+  },
+
+  _mapAttendanceWriteError(err) {
+    const raw = String(err?.message || err || '').trim();
+    const normalized = raw.toLowerCase().replace(/\s+/g, '');
+    if (
+      normalized.includes('missingorinsufficientpermissions')
+      || normalized.includes('permission-denied')
+      || normalized.includes('insufficientpermissions')
+      || normalized.includes('unauthenticated')
+    ) {
+      return 'Firebase 登入已失效或權限不足，請重新登入 LINE 後再試';
+    }
+    return raw || '寫入失敗';
+  },
+
   // ════════════════════════════════
   //  通用工具方法（消除重複的 demo/production 分支）
   // ════════════════════════════════
@@ -321,45 +348,58 @@ const ApiService = {
 
   getAttendanceRecords(eventId) {
     const source = this._src('attendanceRecords');
-    if (eventId) return source.filter(r => r.eventId === eventId);
-    return source;
+    const active = source.filter(r => r.status !== 'removed' && r.status !== 'cancelled');
+    if (eventId) return active.filter(r => r.eventId === eventId);
+    return active;
   },
 
   async addAttendanceRecord(record) {
     if (this._handleRestrictedAction()) return null;
+    if (!this._demoMode) {
+      const authed = await this._ensureFirebaseWriteAuth();
+      if (!authed) throw new Error('Firebase 登入未完成，請重新登入 LINE 後再試');
+    }
+    const normalized = { ...record, status: record.status || 'active' };
     const source = this._src('attendanceRecords');
-    source.push(record);
+    source.push(normalized);
     if (!this._demoMode) {
       try {
-        await FirebaseService.addAttendanceRecord(record);
+        await FirebaseService.addAttendanceRecord(normalized);
         FirebaseService._saveToLS('attendanceRecords', FirebaseService._cache.attendanceRecords);
       } catch (err) {
-        const idx = source.findIndex(r => r.id === record.id);
+        const idx = source.findIndex(r => r.id === normalized.id);
         if (idx !== -1) source.splice(idx, 1);
         console.error('[addAttendanceRecord]', err);
-        throw err;
+        throw new Error(this._mapAttendanceWriteError(err));
       }
     }
-    return record;
+    return normalized;
   },
 
   async removeAttendanceRecord(record) {
     if (this._handleRestrictedAction()) return;
+    if (!this._demoMode) {
+      const authed = await this._ensureFirebaseWriteAuth();
+      if (!authed) throw new Error('Firebase 登入未完成，請重新登入 LINE 後再試');
+    }
     const source = this._src('attendanceRecords');
     const idx = source.findIndex(r => r.id === record.id);
-    const removed = idx !== -1 ? source.splice(idx, 1)[0] : null;
+    const target = idx !== -1 ? source[idx] : null;
+    const prev = target ? { ...target } : null;
+    if (target) {
+      target.status = 'removed';
+      target.removedAt = new Date().toISOString();
+    }
     if (!this._demoMode) {
       try {
-        await FirebaseService.removeAttendanceRecord(record);
+        await FirebaseService.removeAttendanceRecord(target || record);
       } catch (err) {
-        if (removed) {
-          const safeIdx = idx >= 0 ? Math.min(idx, source.length) : source.length;
-          source.splice(safeIdx, 0, removed);
-        }
+        if (target && prev) Object.assign(target, prev);
         console.error('[removeAttendanceRecord]', err);
-        throw err;
+        throw new Error(this._mapAttendanceWriteError(err));
       }
     }
+    return target;
   },
 
   // ════════════════════════════════

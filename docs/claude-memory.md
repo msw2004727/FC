@@ -299,3 +299,13 @@
 - **Cause**: `ApiService.addAttendanceRecord/removeAttendanceRecord` swallowed Firebase errors; note rendering used `.pop()` on mixed-order records and could read older note entries.
 - **Fix**: Made attendance add/remove propagate errors with cache rollback in `js/api-service.js`; added latest-record helper in `js/modules/event-manage.js` and switched note/checkout/checkin lookups to latest-by-time; improved `js/modules/scan.js` with write failure `try/catch` handling and fixed missing `modeLabel` variable in family confirm flow; bumped cache version and index params.
 - **Lesson**: For audit-like event logs, UI must resolve "latest state" explicitly and must never report success when persistence failed.
+### 2026-02-26 - Switch attendance edit delete to soft delete (status=removed)
+- **Problem**: Super admin editing attendance could fail with permission denied because canceling checkin/checkout attempted hard delete on `attendanceRecords`, while rules deny delete.
+- **Cause**: `removeAttendanceRecord()` used Firestore document delete and cache splice, conflicting with `attendanceRecords` rule `allow delete: if false`.
+- **Fix**: Changed attendance removal to soft delete (`status: removed`, `removedAt`, optional `removedByUid`) in `js/firebase-crud.js` and `js/api-service.js`; attendance reads now filter out removed/cancelled records; updated event-manage summary to use filtered attendance source; bumped cache version and index params.
+- **Lesson**: For audit collections, deletion should be represented as state transition, and read APIs must consistently hide removed rows.
+### 2026-02-26 - Improve attendance write auth retry and permission error messaging
+- **Problem**: Scan/manual attendance writes could fail with raw `Missing or insufficient permissions`, giving unclear guidance and no pre-write auth recovery attempt.
+- **Cause**: Attendance writes executed even when Firebase Auth session was missing/stale, and raw Firestore errors were surfaced directly.
+- **Fix**: Added `ApiService._ensureFirebaseWriteAuth()` to retry Firebase sign-in before attendance writes; mapped Firestore permission/auth errors to clear Chinese guidance via `_mapAttendanceWriteError()`; bumped cache/version params.
+- **Lesson**: For production writes, always gate by active auth state and normalize backend errors into actionable user-facing messages.

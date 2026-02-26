@@ -127,7 +127,7 @@ Object.assign(App, {
     const unregCountMap = new Map();
     if (isSuperAdmin) {
       const unregSets = new Map();
-      ApiService._src('attendanceRecords').forEach(r => {
+      ApiService.getAttendanceRecords().forEach(r => {
         if (r.type === 'checkout') {
           checkoutCountMap.set(r.eventId, (checkoutCountMap.get(r.eventId) || 0) + 1);
         }
@@ -751,7 +751,7 @@ Object.assign(App, {
       console.error('[_confirmManualAttendance]', err);
       const rawMsg = String(err?.message || '');
       const denied = /permission|insufficient|missing/i.test(rawMsg);
-      const msg = denied ? '資料庫權限拒絕（目前規則不允許刪除既有簽到紀錄）' : (rawMsg || '請稍後再試');
+      const msg = denied ? '資料庫權限拒絕（目前帳號不可修改既有簽到紀錄）' : (rawMsg || '請稍後再試');
       this.showToast('更新失敗：' + msg);
       return;
     }
