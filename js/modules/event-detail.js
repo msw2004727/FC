@@ -177,44 +177,42 @@ Object.assign(App, {
       <div class="detail-section" id="detail-unreg-section" style="display:none">
         <div id="detail-unreg-table"></div>
       </div>
-      ${this._buildGroupedWaitlist(e)}
+      <div id="detail-waitlist-container"></div>
       ${this._renderReviews(e)}
     `;
     this.showPage('page-activity-detail');
     this._renderAttendanceTable(id, 'detail-attendance-table');
     this._renderUnregTable(id, 'detail-unreg-table');
+    this._renderGroupedWaitlistSection(id, 'detail-waitlist-container');
   },
 
-  // ── 候補名單：按 userId 分組 + 混合資料支援 + 孤立同行者顯示 ──
-  _buildGroupedWaitlist(e) {
-    const allRegs = ApiService.getRegistrationsByEvent(e.id);
-    const getWaitlistRegTime = (r) => {
+  // ── 候補名單：分組網格顯示 + 正取編輯模式 ──
+  _renderGroupedWaitlistSection(eventId, containerId) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    const e = ApiService.getEvent(eventId);
+    if (!e) { container.innerHTML = ''; return; }
+
+    const canManage = this._canManageEvent(e);
+    const tableEditing = this._waitlistEditingEventId === eventId;
+    const allRegs = ApiService.getRegistrationsByEvent(eventId);
+    const getRegTime = (r) => {
       const v = r && r.registeredAt;
       if (!v) return Number.POSITIVE_INFINITY;
-      if (typeof v.toMillis === 'function') {
-        try { return v.toMillis(); } catch (e) {}
-      }
-      if (typeof v === 'object' && typeof v.seconds === 'number') {
+      if (typeof v.toMillis === 'function') { try { return v.toMillis(); } catch (err) {} }
+      if (typeof v === 'object' && typeof v.seconds === 'number')
         return (v.seconds * 1000) + Math.floor((v.nanoseconds || 0) / 1000000);
-      }
       const t = new Date(v).getTime();
       return Number.isFinite(t) ? t : Number.POSITIVE_INFINITY;
-    };
-    const getWaitlistPromotionOrder = (r) => {
-      const n = Number(r && r.promotionOrder);
-      return Number.isFinite(n) ? n : Number.MAX_SAFE_INTEGER;
     };
     const waitlistedRegs = allRegs
       .filter(r => r.status === 'waitlisted')
       .sort((a, b) => {
-        const ta = getWaitlistRegTime(a);
-        const tb = getWaitlistRegTime(b);
+        const ta = getRegTime(a), tb = getRegTime(b);
         if (ta !== tb) return ta - tb;
-        const pa = getWaitlistPromotionOrder(a);
-        const pb = getWaitlistPromotionOrder(b);
+        const pa = Number(a.promotionOrder || 0), pb = Number(b.promotionOrder || 0);
         if (pa !== pb) return pa - pb;
-        const ida = String(a._docId || a.id || '');
-        const idb = String(b._docId || b.id || '');
+        const ida = String(a._docId || a.id || ''), idb = String(b._docId || b.id || '');
         if (ida !== idb) return ida.localeCompare(idb);
         return String(a.userName || '').localeCompare(String(b.userName || ''));
       });
@@ -231,23 +229,13 @@ Object.assign(App, {
         const selfReg = regs.find(r => r.participantType === 'self');
         const companions = regs.filter(r => r.participantType === 'companion');
         const mainName = selfReg ? selfReg.userName : regs[0].userName;
-
-        // 檢查孤立同行者：同行者在候補但報名人已正取
         const companionItems = companions.map(c => {
           const cName = c.companionName || c.userName;
-          let orphanInfo = null;
-          if (c.participantType === 'companion') {
-            const selfConfirmed = allRegs.find(
-              r => r.userId === userId && r.participantType === 'self' && r.status === 'confirmed'
-            );
-            if (selfConfirmed) {
-              orphanInfo = selfConfirmed.userName;
-            }
-          }
-          return { name: cName, orphanInfo };
+          const selfConfirmed = allRegs.find(
+            r => r.userId === userId && r.participantType === 'self' && r.status === 'confirmed'
+          );
+          return { name: cName, orphanInfo: selfConfirmed ? selfConfirmed.userName : null };
         });
-
-        // 如果沒有 selfReg（全是 companion），也檢查 self 是否已正取
         let selfOrphanInfo = null;
         if (!selfReg) {
           const selfConfirmed = allRegs.find(
@@ -255,32 +243,77 @@ Object.assign(App, {
           );
           if (selfConfirmed) selfOrphanInfo = selfConfirmed.userName;
         }
-
-        items.push({ name: mainName, companions: companionItems, selfOrphanInfo });
+        items.push({ name: mainName, userId, companions: companionItems, selfOrphanInfo });
         addedNames.add(mainName);
         companionItems.forEach(c => addedNames.add(c.name));
       });
     }
-    // 混合資料：補上只在 e.waitlistNames 但沒有 registration 的舊成員
     (e.waitlistNames || []).forEach(p => {
       if (!addedNames.has(p)) {
-        items.push({ name: p, companions: [], selfOrphanInfo: null });
+        items.push({ name: p, userId: null, companions: [], selfOrphanInfo: null });
         addedNames.add(p);
       }
     });
 
-    if (items.length === 0) return '';
+    if (items.length === 0) { container.innerHTML = ''; return; }
+
     const totalCount = items.reduce((sum, it) => sum + 1 + it.companions.length, 0);
+    const safeEId = escapeHTML(eventId);
+    const safeCId = escapeHTML(containerId);
+    const editBtnStyle = 'font-size:.72rem;padding:.2rem .5rem;background:transparent;border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;color:var(--text-primary)';
+    const editBtnHtml = canManage
+      ? (tableEditing
+          ? `<button style="${editBtnStyle}" onclick="App._stopWaitlistDetailEdit('${safeEId}','${safeCId}')">完成</button>`
+          : `<button style="${editBtnStyle}" onclick="App._startWaitlistDetailEdit('${safeEId}','${safeCId}')">編輯</button>`)
+      : '';
+    const titleHtml = `<div class="detail-section-title" style="display:flex;align-items:center;gap:.5rem"><span>候補名單 (${totalCount})</span>${editBtnHtml}</div>`;
+
+    if (tableEditing) {
+      // 編輯模式：簡易表格 + 正取按鈕
+      const promoteStyle = 'font-size:.72rem;padding:.2rem .45rem;background:#8b5cf6;color:#fff;border:none;border-radius:var(--radius-sm);cursor:pointer';
+      let rows = '';
+      items.forEach((item, idx) => {
+        const safeUid = item.userId ? escapeHTML(item.userId) : '';
+        const promoteBtn = item.userId
+          ? `<button style="${promoteStyle}" onclick="App._forcePromoteWaitlist('${safeEId}','${safeUid}')">正取</button>`
+          : '';
+        rows += `<tr style="border-bottom:1px solid var(--border)">
+          <td style="padding:.35rem .3rem;text-align:center;width:2rem"><span class="wl-pos">${idx + 1}</span></td>
+          <td style="padding:.35rem .3rem;text-align:left">${this._userTag(item.name)}</td>
+          <td style="padding:.35rem .3rem;text-align:center;width:3rem">${promoteBtn}</td>
+        </tr>`;
+        item.companions.forEach(c => {
+          const cName = typeof c === 'string' ? c : c.name;
+          rows += `<tr style="border-bottom:1px solid var(--border)">
+            <td></td>
+            <td style="padding:.3rem .3rem;text-align:left;padding-left:1.2rem"><span style="color:var(--text-secondary)">↳ ${escapeHTML(cName)}</span></td>
+            <td></td>
+          </tr>`;
+        });
+      });
+      container.innerHTML = `<div class="detail-section">
+        ${titleHtml}
+        <div style="overflow-x:auto">
+          <table style="width:100%;border-collapse:collapse;font-size:.8rem">
+            <thead><tr style="border-bottom:2px solid var(--border)">
+              <th style="text-align:center;padding:.4rem .3rem;font-weight:600;width:2rem">#</th>
+              <th style="text-align:left;padding:.4rem .3rem;font-weight:600">姓名</th>
+              <th style="text-align:center;padding:.4rem .3rem;font-weight:600;width:3rem">正取</th>
+            </tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      </div>`;
+      return;
+    }
+
+    // 一般模式：網格顯示
     const COLLAPSE_LIMIT = 10;
     const needCollapse = items.length > COLLAPSE_LIMIT;
-    const gridId = 'wl-grid-' + e.id;
-
+    const gridId = 'wl-grid-' + eventId;
     const renderItem = (item, idx) => {
-      let h = `<div style="padding:.35rem 0">
-        <div style="display:flex;align-items:center;gap:.3rem">
-          <span class="wl-pos">${idx + 1}</span>
-          ${this._userTag(item.name)}
-        </div>`;
+      let h = `<div style="padding:.35rem 0"><div style="display:flex;align-items:center;gap:.3rem">
+        <span class="wl-pos">${idx + 1}</span>${this._userTag(item.name)}</div>`;
       if (item.selfOrphanInfo) {
         h += `<div style="padding:.1rem 0 0 1.8rem;font-size:.72rem;color:var(--text-muted)">↳ 報名人：${escapeHTML(item.selfOrphanInfo)}（<span style="color:var(--success)">已正取</span>）</div>`;
       }
@@ -295,21 +328,18 @@ Object.assign(App, {
       h += '</div>';
       return h;
     };
-
     let gridItems = '';
     items.forEach((item, idx) => {
       const hidden = needCollapse && idx >= COLLAPSE_LIMIT ? ' style="display:none"' : '';
       gridItems += `<div class="wl-grid-item"${hidden}>${renderItem(item, idx)}</div>`;
     });
-
     const expandBtn = needCollapse
       ? `<div id="${gridId}-expand" style="text-align:center;margin-top:.4rem">
-          <button class="outline-btn" style="font-size:.75rem;padding:.25rem .8rem" onclick="App._expandWaitlistGrid('${gridId}',${items.length})">展開全部候補 (${items.length})</button>
+          <button class="outline-btn" style="font-size:.75rem;padding:.25rem .8rem" onclick="App._expandWaitlistGrid('${gridId}')">展開全部候補 (${items.length})</button>
         </div>`
       : '';
-
-    return `<div class="detail-section">
-      <div class="detail-section-title">候補名單 (${totalCount})</div>
+    container.innerHTML = `<div class="detail-section">
+      ${titleHtml}
       <div id="${gridId}" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:0 .8rem">
         ${gridItems}
       </div>
@@ -317,12 +347,22 @@ Object.assign(App, {
     </div>`;
   },
 
-  _expandWaitlistGrid(gridId, total) {
+  _expandWaitlistGrid(gridId) {
     const grid = document.getElementById(gridId);
     if (!grid) return;
     grid.querySelectorAll('.wl-grid-item').forEach(el => el.style.display = '');
     const btn = document.getElementById(gridId + '-expand');
     if (btn) btn.remove();
+  },
+
+  _startWaitlistDetailEdit(eventId, containerId) {
+    this._waitlistEditingEventId = eventId;
+    this._renderGroupedWaitlistSection(eventId, containerId);
+  },
+
+  _stopWaitlistDetailEdit(eventId, containerId) {
+    this._waitlistEditingEventId = null;
+    this._renderGroupedWaitlistSection(eventId, containerId);
   },
 
   // ══════════════════════════════════

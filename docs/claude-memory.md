@@ -4,6 +4,19 @@
 
 ---
 
+### 2026-02-27 — 候補名單正取功能（繞過人數上限）
+
+- **功能**：候補名單 header 右側新增「編輯」按鈕（canManage 權限），進入編輯模式後每列顯示紫色「正取」按鈕，按下即強制將該用戶（含同行者）從候補移入報名名單，即使超過活動人數上限（顯示為 12/11）
+- **實作**：
+  - `event-manage.js`：`_buildWaitlistTable` 改為 `_renderWaitlistSection(eventId, containerId)`（re-renderable），支援 `_waitlistEditingEventId` 狀態；新增 `_startWaitlistEdit`、`_stopWaitlistEdit`、`async _forcePromoteWaitlist`
+  - `event-detail.js`：`_buildGroupedWaitlist` + `_expandWaitlistGrid` 改為 `_renderGroupedWaitlistSection(eventId, containerId)`（網格正常模式 + 表格編輯模式），另有 `_startWaitlistDetailEdit`、`_stopWaitlistDetailEdit`
+  - `showMyActivityDetail`：`${waitlistHtml}` → `<div id="waitlist-table-container"></div>` + `_renderWaitlistSection` call
+  - detail page：`${_buildGroupedWaitlist(e)}` → `<div id="detail-waitlist-container"></div>` + `_renderGroupedWaitlistSection` call
+- **`_forcePromoteWaitlist`**：調用現有 `_promoteSingleCandidate(e, reg)`（每次 `event.current++`，無容量檢查），對 userId 的所有候補報名一次性處理，再更新 Firebase，最後 re-render 所有相關容器
+- **超量顯示**：現有 `_renderAttendanceTable` 中 `nameThContent` 用 `${people.length}/${e.max}` 呈現，超量自動顯示如 12/11
+
+---
+
 ### 2026-02-27 — 手動簽到閃爍 + 重複標題修復
 
 - **問題 1**：按「完成簽到」後，最後一個勾選位置短暫消失再出現（閃爍）
