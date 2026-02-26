@@ -309,3 +309,9 @@
 - **Cause**: Attendance writes executed even when Firebase Auth session was missing/stale, and raw Firestore errors were surfaced directly.
 - **Fix**: Added `ApiService._ensureFirebaseWriteAuth()` to retry Firebase sign-in before attendance writes; mapped Firestore permission/auth errors to clear Chinese guidance via `_mapAttendanceWriteError()`; bumped cache/version params.
 - **Lesson**: For production writes, always gate by active auth state and normalize backend errors into actionable user-facing messages.
+
+### 2026-02-26 - Strengthen attendance write auth retry
+- **Problem**: Production attendance writes in manual edit and QR scan could fail with auth/permission errors and no self-recovery path.
+- **Cause**: The write path only checked whether `auth.currentUser` existed, without token freshness validation or forced re-auth retry on permission-denied/unauthenticated errors.
+- **Fix**: Updated `js/api-service.js` to validate token freshness before attendance writes, add one forced re-auth + retry path for permission/auth errors, add lightweight auth-state diagnostics logging, and validate required payload fields (`eventId`/`uid`) before write.
+- **Lesson**: For critical production writes, auth existence checks are not enough; validate usable tokens and provide a controlled retry strategy for transient auth drift.

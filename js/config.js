@@ -37,8 +37,8 @@
 // 20260226za: 活動行事曆卡片球隊限定標籤文案改為「限定」
 // 20260226zb: 修復手動/掃碼簽到寫入錯誤被吞、備註讀取抓到舊紀錄問題
 // 20260226zc: 簽到編輯改為軟刪除（status=removed），保留審計軌跡並避開 attendanceRecords delete 規則
-// 20260226zd: 簽到寫入前補 Firebase Auth 自動重試，權限錯誤改為明確中文提示
-const CACHE_VERSION = '20260226zd';
+// 20260226ze: 簽到寫入前補 Firebase Auth 自動重試，權限錯誤改為明確中文提示
+const CACHE_VERSION = '20260226ze';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {

@@ -29,9 +29,66 @@ const ApiService = {
     return true;
   },
 
-  async _ensureFirebaseWriteAuth() {
+  async _hasFreshFirebaseUser(forceRefreshToken = false) {
+    if (typeof auth === 'undefined' || !auth?.currentUser) return false;
+    try {
+      await auth.currentUser.getIdToken(!!forceRefreshToken);
+      return true;
+    } catch (err) {
+      console.warn('[ApiService] Firebase token check failed:', err);
+      return false;
+    }
+  },
+
+  _hasLiffSession() {
+    try {
+      return typeof LineAuth !== 'undefined'
+        && typeof LineAuth.hasLiffSession === 'function'
+        && LineAuth.hasLiffSession();
+    } catch (_) {
+      return false;
+    }
+  },
+
+  _hasLineAccessToken() {
+    try {
+      return typeof LineAuth !== 'undefined'
+        && typeof LineAuth.getAccessToken === 'function'
+        && !!LineAuth.getAccessToken();
+    } catch (_) {
+      return false;
+    }
+  },
+
+  _logAttendanceAuthState(stage, err) {
+    try {
+      console.warn('[ApiService][AttendanceAuth]', {
+        stage,
+        authUid: (typeof auth !== 'undefined' && auth?.currentUser) ? auth.currentUser.uid : null,
+        hasLiffSession: this._hasLiffSession(),
+        hasLineAccessToken: this._hasLineAccessToken(),
+        errorCode: err?.code || null,
+        errorMessage: err?.message || String(err || ''),
+      });
+    } catch (_) {}
+  },
+
+  async _ensureFirebaseWriteAuth(options = {}) {
+    const { forceRefreshToken = false, forceReauth = false } = options;
     if (this._demoMode) return true;
-    if (typeof auth !== 'undefined' && auth?.currentUser) return true;
+
+    if (!forceReauth && await this._hasFreshFirebaseUser(forceRefreshToken)) {
+      return true;
+    }
+
+    if (forceReauth && typeof auth !== 'undefined' && auth?.currentUser) {
+      try {
+        await auth.signOut();
+      } catch (err) {
+        console.warn('[ApiService] Firebase signOut before reauth failed:', err);
+      }
+    }
+
     if (typeof FirebaseService !== 'undefined' && typeof FirebaseService._signInWithAppropriateMethod === 'function') {
       try {
         await FirebaseService._signInWithAppropriateMethod();
@@ -39,21 +96,73 @@ const ApiService = {
         console.warn('[ApiService] Firebase write auth retry failed:', err);
       }
     }
-    return (typeof auth !== 'undefined' && !!auth?.currentUser);
+
+    return await this._hasFreshFirebaseUser(true);
+  },
+
+  _isAttendancePermissionError(err) {
+    const raw = String(err?.message || err || '').trim();
+    const normalized = raw.toLowerCase().replace(/\s+/g, '');
+    const code = String(err?.code || '').toLowerCase();
+    return (
+      normalized.includes('missingorinsufficientpermissions')
+      || normalized.includes('permission-denied')
+      || normalized.includes('insufficientpermissions')
+      || normalized.includes('unauthenticated')
+      || code.includes('permission-denied')
+      || code.includes('unauthenticated')
+    );
   },
 
   _mapAttendanceWriteError(err) {
     const raw = String(err?.message || err || '').trim();
     const normalized = raw.toLowerCase().replace(/\s+/g, '');
-    if (
-      normalized.includes('missingorinsufficientpermissions')
-      || normalized.includes('permission-denied')
-      || normalized.includes('insufficientpermissions')
-      || normalized.includes('unauthenticated')
-    ) {
-      return 'Firebase 登入已失效或權限不足，請重新登入 LINE 後再試';
+    if (this._isAttendancePermissionError(err)) {
+      if (!this._hasLiffSession()) {
+        return 'LINE session not detected. Please re-login in LINE and try again.';
+      }
+      if (!this._hasLineAccessToken()) {
+        return 'LINE token expired. Please re-login in LINE and try again.';
+      }
+      return 'Firebase auth expired or insufficient permission. Please re-login LINE and try again.';
     }
-    return raw || '寫入失敗';
+    if (normalized.includes('missingrequiredfields')) {
+      return 'Invalid attendance payload: missing required fields.';
+    }
+    return raw || 'Attendance write failed';
+  },
+
+  async _runAttendanceWriteWithAuthRetry(writeFn, label) {
+    if (this._demoMode) return await writeFn();
+
+    const authed = await this._ensureFirebaseWriteAuth({ forceRefreshToken: true });
+    if (!authed) {
+      this._logAttendanceAuthState(label + ':precheck_failed');
+      throw new Error('unauthenticated');
+    }
+
+    try {
+      return await writeFn();
+    } catch (err) {
+      if (!this._isAttendancePermissionError(err)) throw err;
+      this._logAttendanceAuthState(label + ':first_attempt_denied', err);
+
+      const reauthed = await this._ensureFirebaseWriteAuth({
+        forceRefreshToken: true,
+        forceReauth: true,
+      });
+      if (!reauthed) {
+        this._logAttendanceAuthState(label + ':reauth_failed', err);
+        throw err;
+      }
+
+      try {
+        return await writeFn();
+      } catch (retryErr) {
+        this._logAttendanceAuthState(label + ':retry_denied', retryErr);
+        throw retryErr;
+      }
+    }
   },
 
   // ════════════════════════════════
@@ -355,17 +464,21 @@ const ApiService = {
 
   async addAttendanceRecord(record) {
     if (this._handleRestrictedAction()) return null;
-    if (!this._demoMode) {
-      const authed = await this._ensureFirebaseWriteAuth();
-      if (!authed) throw new Error('Firebase 登入未完成，請重新登入 LINE 後再試');
-    }
     const normalized = { ...record, status: record.status || 'active' };
+    if (
+      !this._demoMode
+      && (typeof normalized.eventId !== 'string' || !normalized.eventId || typeof normalized.uid !== 'string' || !normalized.uid)
+    ) {
+      throw new Error('missing required fields: eventId/uid');
+    }
     const source = this._src('attendanceRecords');
     source.push(normalized);
     if (!this._demoMode) {
       try {
-        await FirebaseService.addAttendanceRecord(normalized);
-        FirebaseService._saveToLS('attendanceRecords', FirebaseService._cache.attendanceRecords);
+        await this._runAttendanceWriteWithAuthRetry(async () => {
+          await FirebaseService.addAttendanceRecord(normalized);
+          FirebaseService._saveToLS('attendanceRecords', FirebaseService._cache.attendanceRecords);
+        }, 'addAttendanceRecord');
       } catch (err) {
         const idx = source.findIndex(r => r.id === normalized.id);
         if (idx !== -1) source.splice(idx, 1);
@@ -378,10 +491,6 @@ const ApiService = {
 
   async removeAttendanceRecord(record) {
     if (this._handleRestrictedAction()) return;
-    if (!this._demoMode) {
-      const authed = await this._ensureFirebaseWriteAuth();
-      if (!authed) throw new Error('Firebase 登入未完成，請重新登入 LINE 後再試');
-    }
     const source = this._src('attendanceRecords');
     const idx = source.findIndex(r => r.id === record.id);
     const target = idx !== -1 ? source[idx] : null;
@@ -392,7 +501,9 @@ const ApiService = {
     }
     if (!this._demoMode) {
       try {
-        await FirebaseService.removeAttendanceRecord(target || record);
+        await this._runAttendanceWriteWithAuthRetry(async () => {
+          await FirebaseService.removeAttendanceRecord(target || record);
+        }, 'removeAttendanceRecord');
       } catch (err) {
         if (target && prev) Object.assign(target, prev);
         console.error('[removeAttendanceRecord]', err);
