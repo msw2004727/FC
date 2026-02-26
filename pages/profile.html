@@ -261,7 +261,15 @@
         </div>
         <div class="ce-row">
           <label>地區 <span class="required">*必填</span></label>
-          <select id="fl-region"><option value="">請選擇</option><option>台北市</option><option>新北市</option><option>桃園市</option><option>台中市</option><option>台南市</option><option>高雄市</option><option>其他</option></select>
+          <input
+            type="text"
+            id="fl-region-search"
+            class="profile-edit-input"
+            placeholder="搜尋縣市（模糊搜尋）"
+            autocomplete="off"
+            style="margin-bottom:.45rem"
+            oninput="App.filterFirstLoginRegionOptions(this.value)">
+          <select id="fl-region"><option value="">請選擇</option></select>
         </div>
       </div>
     </div>

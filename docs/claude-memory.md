@@ -187,3 +187,9 @@
 - **åŸå› **ï¼š`syncUserRole/createCustomToken` åªèƒ½è¦†è“‹ç™»å…¥æˆ–å–®äººè®Šæ›´å ´æ™¯ï¼›`FirebaseService` çš„è§’è‰²æ¬Šé™ CRUD æœƒåéŒ¯ï¼Œå‘¼å«ç«¯åˆå¤šç‚º fire-and-forgetï¼›å°ˆæ¡ˆå°šæœªå»ºç«‹å›ºå®š smoke test æ–‡ä»¶ã€‚
 - **ä¿®å¾©**ï¼šæ–°å¢ `functions/index.js` çš„ `backfillRoleClaims` callableï¼ˆ`super_admin` onlyï¼Œæ”¯æ´ `limit/dryRun/startAfterDocId`ï¼‰ï¼›èª¿æ•´ `js/firebase-crud.js` çš„ `saveRolePermissions/deleteRolePermissions/addCustomRole/deleteCustomRole` æ”¹ç‚ºæ‹‹éŒ¯ï¼›èª¿æ•´ `js/api-service.js` çš„ `updateAdminUser()` æ”¹ç‚º `async` ä¸¦åœ¨å¤±æ•—æ™‚å›æ»¾ï¼›èª¿æ•´ `js/modules/user-admin-list.js` èˆ‡ `js/modules/user-admin-roles.js` è®“é—œéµç®¡ç†æ“ä½œæ”¹ç‚º `await + rollback`ï¼›æ–°å¢ `docs/smoke-test.md`ã€‚
 - **æ•™è¨“**ï¼šå®‰å…¨ä¿®å¾©ä¸åªçœ‹ Rules/Functionsï¼Œç®¡ç†ç«¯ UI ä¹Ÿè¦é¿å… optimistic successï¼›å°é—œéµå¯«å…¥ API ä¸æ‡‰åéŒ¯ï¼Œå¦å‰‡å‰ç«¯ç„¡æ³•æ­£ç¢ºå›æ»¾ã€‚
+
+### 2026-02-26 ¡X ­º¦¸µn¤J¦a°Ï§ï¬°¥ş¥x 22 ¿¤¥«¨Ã¥[¤J¼Ò½k·j´M
+- **°İÃD**¡G­º¦¸µn¤J¥²¶ñ¦a°Ï¿ï¶µ¹L¤Ö¡]¶È¤Ö¼Æ¿¤¥« + ¨ä¥L¡^¡AµLªkÂĞ»\¥ş¥x¨Ï¥ÎªÌ¡A¥B¿ï³æ¶µ¥Ø¼W¥[«á·|Ãø§ä¡C
+- **­ì¦]**¡G`pages/profile.html` ªº `#fl-region` ¤U©Ô¿ï³æ¬O¦­´Á¼g¦ºªººëÂ²ª©¥»¡A¨S¦³·j´M»²§U¡C
+- **­×´_**¡G¦b­º¦¸µn¤J modal ·s¼W `#fl-region-search` ·j´M®Ø¡F«eºİ©T©w¼g¦º¥ş¥x 22 ¿¤¥« + `¨ä¥L`¡F¦b `profile-data.js` ·s¼W¼Ò½k·j´M¡]`includes`¡A§t `¥x/»O` ¥¿³W¤Æ¡^»P¶}±Ò modal ®Éªº¿ï³æ­«¸mªì©l¤Æ¡F§ó·s `CACHE_VERSION` »P `index.html` ª©¥»°Ñ¼Æ¡C
+- **±Ğ°V**¡GÀRºA¤U©Ô²M³æ¤@¥¹¶W¹L¤Q´X¶µ¡AÀ³¦P®É´£¨Ñ·j´M©Î¤À²Õ¡AÁ×§K­º¦¸µn¤J¬yµ{¥d¦b§ä¿ï¶µ¡C

@@ -249,6 +249,7 @@ Object.assign(App, {
     this.renderProfileData();
     this.renderProfileFavorites();
     if (this._pendingFirstLogin) {
+      this.initFirstLoginRegionPicker?.();
       this.showModal('first-login-modal');
     }
   },
