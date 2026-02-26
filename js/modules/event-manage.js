@@ -624,6 +624,7 @@ Object.assign(App, {
     if (section) section.style.display = '';
 
     const tableEditing = canManage && this._unregEditingEventId === eventId;
+    const kickStyle = 'font-size:.7rem;padding:.2rem .4rem;border:1px solid var(--danger);color:var(--danger);background:transparent;border-radius:var(--radius-sm);cursor:pointer;white-space:nowrap';
     const cbStyle = 'width:1.4rem;height:1.4rem;cursor:pointer;vertical-align:middle';
 
     const people = [];
@@ -638,9 +639,11 @@ Object.assign(App, {
       const combinedNote = ['未報名', noteText].filter(Boolean).join('・');
       const nameHtml = escapeHTML(p.name);
       const safeUid = escapeHTML(p.uid);
+      const safeName = escapeHTML(p.name);
 
       if (tableEditing) {
         return `<tr style="border-bottom:1px solid var(--border)">
+          <td style="padding:.35rem .2rem;text-align:center"><button style="${kickStyle}" onclick="App._removeUnregUser('${escapeHTML(eventId)}','${safeUid}','${safeName}')">踢掉</button></td>
           <td style="padding:.35rem .3rem;text-align:left">${nameHtml}</td>
           <td style="padding:.35rem .2rem;text-align:center"><input type="checkbox" id="unreg-checkin-${safeUid}" ${hasCheckin ? 'checked' : ''} style="${cbStyle}"></td>
           <td style="padding:.35rem .2rem;text-align:center"><input type="checkbox" id="unreg-checkout-${safeUid}" ${hasCheckout ? 'checked' : ''} style="${cbStyle}"></td>
@@ -665,14 +668,24 @@ Object.assign(App, {
       ? `<div style="display:flex;align-items:center;gap:.4rem;white-space:nowrap">未報名單（${people.length}）${topBtn}</div>`
       : `未報名單（${people.length}）`;
 
-    container.innerHTML = `<div style="overflow-x:auto">
-      <table style="width:100%;border-collapse:collapse;font-size:.8rem">
-        <thead><tr style="border-bottom:2px solid var(--border)">
+    const thead = tableEditing
+      ? `<tr style="border-bottom:2px solid var(--border)">
+          <th style="text-align:center;padding:.4rem .2rem;font-weight:600;width:3rem">踢掉</th>
           <th style="text-align:left;padding:.4rem .3rem;font-weight:600">${nameThContent}</th>
           <th style="text-align:center;padding:.4rem .2rem;font-weight:600;width:2.5rem">簽到</th>
           <th style="text-align:center;padding:.4rem .2rem;font-weight:600;width:2.5rem">簽退</th>
           <th style="text-align:left;padding:.4rem .3rem;font-weight:600">備註</th>
-        </tr></thead>
+        </tr>`
+      : `<tr style="border-bottom:2px solid var(--border)">
+          <th style="text-align:left;padding:.4rem .3rem;font-weight:600">${nameThContent}</th>
+          <th style="text-align:center;padding:.4rem .2rem;font-weight:600;width:2.5rem">簽到</th>
+          <th style="text-align:center;padding:.4rem .2rem;font-weight:600;width:2.5rem">簽退</th>
+          <th style="text-align:left;padding:.4rem .3rem;font-weight:600">備註</th>
+        </tr>`;
+
+    container.innerHTML = `<div style="overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse;font-size:.8rem">
+        <thead>${thead}</thead>
         <tbody>${rows}</tbody>
       </table>
     </div>`;
@@ -810,6 +823,20 @@ Object.assign(App, {
   _startUnregTableEdit(eventId) {
     this._unregEditingEventId = eventId;
     this._renderUnregTable(eventId, 'detail-unreg-table');
+  },
+
+  async _removeUnregUser(eventId, uid, name) {
+    if (!await this.appConfirm(`確定要將 ${name} 從未報名單中移除嗎？`)) return;
+    const records = ApiService.getAttendanceRecords(eventId);
+    const person = { uid, name, isCompanion: false };
+    // 軟刪除該用戶在此活動的所有出席記錄（unreg / checkin / checkout / note）
+    const targets = records.filter(r => r.uid === uid || this._matchAttendanceRecord(r, person));
+    for (const rec of targets) {
+      await ApiService.removeAttendanceRecord(rec).catch(err => console.error('[removeUnregUser]', err));
+    }
+    ApiService._writeOpLog('unreg_removed', '移除未報名掃碼', `從「${ApiService.getEvent(eventId)?.title}」移除 ${name}`);
+    this._renderUnregTable(eventId, 'detail-unreg-table');
+    this.showToast(`已將 ${name} 從未報名單中移除`);
   },
 
   async _confirmAllUnregAttendance(eventId) {

@@ -47,7 +47,8 @@
 // 20260227e: 移除重複「報名名單」標題（改為顯示在表頭含人數）+ 修復手動簽到閃爍（containerId race + setTimeout settle）
 // 20260227f: 移除活動詳情頁「報名名單」section title 與分隔線
 // 20260227g: 未報名單改為整表手動簽到模式，按鈕移至表頭右側
-const CACHE_VERSION = '20260227g';
+// 20260227h: 未報名單編輯模式補回踢掉功能 + _removeUnregUser
+const CACHE_VERSION = '20260227h';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {
