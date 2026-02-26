@@ -6,6 +6,26 @@
 
 Object.assign(FirebaseService, {
 
+  /**
+   * 確保 Firebase Auth 已登入，否則嘗試重新簽入。
+   * 在所有需要 Firestore 寫入的關鍵流程（登入、報名等）前呼叫。
+   */
+  async _ensureAuth() {
+    if (auth?.currentUser) {
+      try { await auth.currentUser.getIdToken(true); return true; } catch (_) {}
+    }
+    // 等待 persistence 恢復
+    if (typeof _firebaseAuthReadyPromise !== 'undefined' && !_firebaseAuthReady) {
+      try {
+        await Promise.race([_firebaseAuthReadyPromise, new Promise(r => setTimeout(r, 5000))]);
+      } catch (_) {}
+    }
+    if (auth?.currentUser) return true;
+    // 嘗試重新登入
+    try { await this._signInWithAppropriateMethod(); } catch (_) {}
+    return !!auth?.currentUser;
+  },
+
   // ════════════════════════════════
   //  Role Permissions CRUD
   // ════════════════════════════════
@@ -131,6 +151,12 @@ Object.assign(FirebaseService, {
 
   async registerForEvent(eventId, userId, userName) {
     if (!userId || userId === 'unknown') throw new Error('用戶資料載入中，請稍候再試');
+
+    // 確保 Firebase Auth 已登入
+    const authed = await this._ensureAuth();
+    if (!authed) {
+      throw new Error('Firebase 登入失敗，請關閉此頁面後重新從 LINE 開啟');
+    }
     const event = this._cache.events.find(e => e.id === eventId);
     if (!event) throw new Error('活動不存在');
 
@@ -215,6 +241,7 @@ Object.assign(FirebaseService, {
   },
 
   async cancelRegistration(registrationId) {
+    await this._ensureAuth();
     const reg = this._cache.registrations.find(r => r.id === registrationId);
     if (!reg) throw new Error('報名記錄不存在');
 
@@ -479,6 +506,14 @@ Object.assign(FirebaseService, {
 
   async createOrUpdateUser(lineProfile) {
     const { userId: lineUserId, displayName, pictureUrl, email } = lineProfile;
+
+    // 確保 Firebase Auth 已登入（Firestore 讀寫都需要 isAuth）
+    const authed = await this._ensureAuth();
+    if (!authed) {
+      console.error('[createOrUpdateUser] Firebase Auth 未登入, auth.currentUser:', auth?.currentUser?.uid);
+      throw { code: 'permission-denied', message: 'Firebase 登入失敗，請關閉此頁面後重新從 LINE 開啟' };
+    }
+
     const snapshot = await db.collection('users')
       .where('lineUserId', '==', lineUserId).limit(1).get();
 

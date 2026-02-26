@@ -42,7 +42,8 @@
 // 20260226zg: 簽到簽退 update 規則放寬為 isAuth()，確保活動主辦/委託人（含非教練）皆可操作
 // 20260226zh: 圖片上傳改為 WebP 格式（不支援時自動降級 JPEG）
 // 20260226zi: 修復 Auth 狀態恢復競態：等待 onAuthStateChanged + persistence 恢復後再檢查登入
-const CACHE_VERSION = '20260226zi';
+// 20260226zj: 登入/報名/取消報名前強制確認 Auth 已登入，避免未認證寫入
+const CACHE_VERSION = '20260226zj';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {
