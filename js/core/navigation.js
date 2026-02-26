@@ -8,6 +8,12 @@ Object.assign(App, {
   _requireLogin() {
     if (ModeManager.isDemo()) return false;
     if (typeof LineAuth !== 'undefined' && LineAuth.isLoggedIn()) return false;
+    if (typeof LineAuth !== 'undefined'
+      && typeof LineAuth.isPendingLogin === 'function'
+      && LineAuth.isPendingLogin()) {
+      this.showToast('LINE 登入確認中，請稍候...');
+      return true;
+    }
     this.showToast('請先登入LINE帳號');
     return true;
   },

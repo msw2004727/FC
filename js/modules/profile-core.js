@@ -181,6 +181,12 @@ Object.assign(App, {
       if (!LineAuth._ready) {
         await LineAuth.init();
       }
+      if (typeof liff !== 'undefined'
+        && liff.isLoggedIn()
+        && !LineAuth.isLoggedIn()
+        && typeof LineAuth.ensureProfile === 'function') {
+        await LineAuth.ensureProfile();
+      }
 
       console.log('[App] bindLineLogin: LIFF ready=', LineAuth._ready,
         'loggedIn=', LineAuth.isLoggedIn(),
@@ -194,7 +200,7 @@ Object.assign(App, {
       }
 
       // LIFF 已登入但 getProfile 失敗（網路問題等）：提示用戶重新整理
-      if (LineAuth._profileError && !LineAuth.isLoggedIn()) {
+      if (LineAuth._profileError && !LineAuth.isLoggedIn() && !(LineAuth.isPendingLogin && LineAuth.isPendingLogin())) {
         console.error('[App] LINE 用戶資料取得失敗:', LineAuth._profileError);
         this.showToast('LINE 登入成功但無法取得用戶資料，請重新整理頁面');
       }
@@ -289,23 +295,35 @@ Object.assign(App, {
     lineWrapper.style.display = '';
 
     const isLoggedIn = typeof LineAuth !== 'undefined' && LineAuth.isLoggedIn();
+    const isLoginPending = typeof LineAuth !== 'undefined'
+      && typeof LineAuth.isPendingLogin === 'function'
+      && LineAuth.isPendingLogin();
     const loginBtn = document.getElementById('line-login-btn');
     const userTopbar = document.getElementById('line-user-topbar');
     const avatarImg = document.getElementById('line-avatar-topbar');
 
+    const promptTitle = loginPrompt ? loginPrompt.querySelector('h3') : null;
+    const promptText = loginPrompt ? loginPrompt.querySelector('p') : null;
+    if (promptTitle && !promptTitle.dataset.defaultText) promptTitle.dataset.defaultText = promptTitle.textContent || '';
+    if (promptText && !promptText.dataset.defaultText) promptText.dataset.defaultText = promptText.textContent || '';
+
     if (!isLoggedIn) {
       // 未登入
-      if (loginBtn) loginBtn.style.display = '';
+      if (loginBtn) loginBtn.style.display = isLoginPending ? 'none' : '';
       if (userTopbar) userTopbar.style.display = 'none';
       if (profileContent) profileContent.style.display = 'none';
       if (loginPrompt) loginPrompt.style.display = '';
+      if (promptTitle) promptTitle.textContent = isLoginPending ? '登入確認中' : (promptTitle.dataset.defaultText || promptTitle.textContent);
+      if (promptText) promptText.textContent = isLoginPending
+        ? 'LINE 登入已完成，正在同步帳號資料，請稍候...'
+        : (promptText.dataset.defaultText || promptText.textContent);
       if (drawerAvatar) { drawerAvatar.className = 'drawer-avatar'; drawerAvatar.innerHTML = '?'; }
-      if (drawerName) drawerName.textContent = '未登入';
+      if (drawerName) drawerName.textContent = isLoginPending ? '登入確認中...' : '未登入';
       // 未登入也套用一般用戶抽屜選單
       this.currentRole = 'user';
       const roleTag = document.getElementById('drawer-role-tag');
       if (roleTag) {
-        roleTag.textContent = '未登入';
+        roleTag.textContent = isLoginPending ? '確認中' : '未登入';
         roleTag.style.background = '#6b728022';
         roleTag.style.color = '#6b7280';
       }
