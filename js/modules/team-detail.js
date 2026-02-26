@@ -10,6 +10,10 @@ Object.assign(App, {
   _FEED_PAGE_SIZE: 20,
   _MAX_PINNED: 5,
 
+  _teamLeaderTag(name) {
+    return `<span class="user-capsule uc-team-leader" onclick="App.showUserProfile('${escapeHTML(name)}')" title="球隊領隊">${escapeHTML(name)}</span>`;
+  },
+
   _isTeamMember(teamId) {
     if (ModeManager.isDemo()) return this._userTeam === teamId;
     const user = ApiService.getCurrentUser();
@@ -64,7 +68,7 @@ Object.assign(App, {
       <div class="td-card">
         <div class="td-card-title">${I18N.t('teamDetail.info')}</div>
         <div class="td-card-grid">
-          <div class="td-card-item"><span class="td-card-label">領隊</span><span class="td-card-value">${t.leader ? this._userTag(t.leader, 'captain') : I18N.t('teamDetail.notSet')}</span></div>
+          <div class="td-card-item"><span class="td-card-label">領隊</span><span class="td-card-value">${t.leader ? this._teamLeaderTag(t.leader) : I18N.t('teamDetail.notSet')}</span></div>
           <div class="td-card-item"><span class="td-card-label">球隊經理</span><span class="td-card-value">${t.captain ? this._userTag(t.captain, 'captain') : I18N.t('teamDetail.notSet')}</span></div>
           <div class="td-card-item"><span class="td-card-label">${I18N.t('teamDetail.coach')}</span><span class="td-card-value">${(t.coaches || []).length > 0 ? t.coaches.map(c => this._userTag(c, 'coach')).join(' ') : I18N.t('teamDetail.none')}</span></div>
           <div class="td-card-item"><span class="td-card-label">${I18N.t('teamDetail.memberCount')}</span><span class="td-card-value">${t.members} ${I18N.t('teamDetail.personUnit')}</span></div>

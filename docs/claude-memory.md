@@ -247,3 +247,8 @@
 - **Cause**: Team schema/UI used only `captain/captainUid`, so the same field handled both display meaning and permission-bearing manager role.
 - **Fix**: Added `leader/leaderUid` selection UI and validation in team form (required valid user on create), relabeled existing captain field to 球隊經理, reordered team detail info grid to show 領隊 and 球隊經理 on the first row, and updated team management/admin team cards/search to show and match the new leader field; updated cache version and index version params.
 - **Lesson**: When introducing a second business role, keep existing permission-bearing fields stable and add a new field for display/business semantics to avoid breaking authorization logic.
+### 2026-02-26 - Align leader/manager wording and limited-event visibility
+- **Problem**: Team leader (leader field) and team manager (captain field) had unclear role wording in the custom-role page, team leaders could not see their own team-only events, and leader capsules looked the same as manager/captain capsules.
+- **Cause**: Custom role UI displayed only the built-in `captain` label, limited-event visibility checked only `currentUser.teamId`, and team-detail leader tag reused the captain capsule style.
+- **Fix**: Updated user-admin-roles UI to show `captain` as「領隊 / 經理」for custom-role hierarchy/permission panel, expanded team-only event visibility to include teams where the current user is `captain` or `leader`, added a direct event-detail visibility guard, and added a distinct `uc-team-leader` capsule style for the team leader tag in team detail.
+- **Lesson**: When one stored role is reused for multiple business titles, keep data model stable but make UI wording and visibility checks explicit to avoid behavior mismatches.

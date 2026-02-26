@@ -48,6 +48,41 @@ Object.assign(App, {
     return { teamId: null, teamName: null };
   },
 
+  _getVisibleTeamIdsForLimitedEvents() {
+    const ids = new Set();
+    const user = ApiService.getCurrentUser?.() || null;
+    if (!user) return ids;
+
+    if (user.teamId) ids.add(user.teamId);
+
+    const myUid = user.uid || '';
+    const myDocId = user._docId || '';
+    const myNames = new Set([user.name, user.displayName].filter(Boolean));
+    const teams = ApiService.getTeams?.() || [];
+
+    teams.forEach(t => {
+      if (!t || !t.id) return;
+      const isManager =
+        !!(t.captainUid && [myUid, myDocId].filter(Boolean).includes(t.captainUid)) ||
+        !!(t.captain && myNames.has(t.captain));
+      const isLeader =
+        !!(t.leaderUid && [myUid, myDocId].filter(Boolean).includes(t.leaderUid)) ||
+        !!(t.leader && myNames.has(t.leader));
+      if (isManager || isLeader) ids.add(t.id);
+    });
+
+    return ids;
+  },
+
+  _canViewEventByTeamScope(e) {
+    if (!e) return false;
+    if (!e.teamOnly) return true;
+    const myLevel = ROLE_LEVEL_MAP[this.currentRole] || 0;
+    if (myLevel >= ROLE_LEVEL_MAP.admin) return true;
+    const teamIds = this._getVisibleTeamIdsForLimitedEvents();
+    return !!(e.creatorTeamId && teamIds.has(e.creatorTeamId));
+  },
+
   /** 判斷當前用戶是否為該活動建立者 */
   _isEventOwner(e) {
     if (!e.creatorUid) {
@@ -80,16 +115,7 @@ Object.assign(App, {
   /** 取得當前用戶可見的活動列表（過濾球隊限定） */
   _getVisibleEvents() {
     const all = ApiService.getEvents();
-    const user = ApiService.getCurrentUser?.() || null;
-    const myTeamId = user?.teamId || null;
-    const myLevel = ROLE_LEVEL_MAP[this.currentRole] || 0;
-    return all.filter(e => {
-      if (!e.teamOnly) return true;
-      // admin+ 可看全部
-      if (myLevel >= ROLE_LEVEL_MAP.admin) return true;
-      // 球隊限定：只有同隊可見
-      return e.creatorTeamId && e.creatorTeamId === myTeamId;
-    });
+    return all.filter(e => this._canViewEventByTeamScope(e));
   },
 
   /** 解析活動日期字串，回傳開始時間的 Date 物件 */

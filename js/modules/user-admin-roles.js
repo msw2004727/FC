@@ -31,7 +31,12 @@ Object.assign(App, {
   },
 
   _getRoleInfo(key) {
-    if (ROLES[key]) return ROLES[key];
+    if (ROLES[key]) {
+      if (key === 'captain') {
+        return { ...ROLES[key], label: '領隊 / 經理' };
+      }
+      return ROLES[key];
+    }
     const custom = this._getCustomRoles().find(c => c.key === key);
     if (custom) return { level: -1, label: custom.label, color: custom.color, custom: true };
     return { level: -1, label: key, color: '#6b7280', custom: false };

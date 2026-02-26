@@ -14,6 +14,10 @@ Object.assign(App, {
     if (this._requireLogin()) return;
     const e = ApiService.getEvent(id);
     if (!e) return;
+    if (typeof this._canViewEventByTeamScope === 'function' && !this._canViewEventByTeamScope(e)) {
+      this.showToast('您沒有查看此活動的權限');
+      return;
+    }
     this._currentDetailEventId = id;
     const detailImg = document.getElementById('detail-img-placeholder');
     if (detailImg) {

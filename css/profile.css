@@ -25,6 +25,7 @@
 .uc-user { background: var(--bg-elevated); color: var(--text-secondary); border-color: var(--border); }
 .uc-coach { background: #fef3c7; color: #92400e; border-color: #fde68a; }
 .uc-captain { background: #ede9fe; color: #5b21b6; border-color: #ddd6fe; }
+.uc-team-leader { background: #dbeafe; color: #1d4ed8; border-color: #bfdbfe; }
 .uc-venue_owner { background: #ffedd5; color: #9a3412; border-color: #fed7aa; }
 .uc-admin { background: #dbeafe; color: #1e40af; border-color: #bfdbfe; }
 .uc-super_admin { background: #fee2e2; color: #991b1b; border-color: #fecaca; }
@@ -32,6 +33,7 @@
 [data-theme="dark"] .uc-user { background: var(--bg-elevated); color: var(--text-secondary); border-color: var(--border); }
 [data-theme="dark"] .uc-coach { background: rgba(251,191,36,.20); color: #fcd34d; border-color: rgba(251,191,36,.4); }
 [data-theme="dark"] .uc-captain { background: rgba(139,92,246,.20); color: #c4b5fd; border-color: rgba(139,92,246,.4); }
+[data-theme="dark"] .uc-team-leader { background: rgba(59,130,246,.18); color: #93c5fd; border-color: rgba(59,130,246,.35); }
 [data-theme="dark"] .uc-venue_owner { background: rgba(217,119,6,.20); color: #fbbf24; border-color: rgba(217,119,6,.4); }
 [data-theme="dark"] .uc-admin { background: rgba(59,130,246,.20); color: #93bbfc; border-color: rgba(59,130,246,.4); }
 [data-theme="dark"] .uc-super_admin { background: rgba(239,68,68,.20); color: #fca5a5; border-color: rgba(239,68,68,.4); }
