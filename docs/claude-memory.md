@@ -236,3 +236,9 @@
 - **Cause**: Teams onSnapshot updated cache only but did not re-render team pages immediately; team deletion also used fire-and-forget behavior and could show local success before backend deletion completed.
 - **Fix**: Added teams realtime UI refresh hooks in firebase-service.js; changed ApiService.deleteTeam() to async/await and only remove local cache after backend delete succeeds; made team-form delete flow await delete and show error toast on failure; updated cache version and index.html version params.
 - **Lesson**: Realtime cache updates need matching UI refresh paths, and destructive operations should not be fire-and-forget.
+
+### 2026-02-26 - Add event pinning in activity management and home hot events
+- **Problem**: Activity management lacked pin/unpin controls; pinned events were not visually highlighted in activity cards; home hot-events section did not reflect event pinning.
+- **Cause**: Event cards had no `pinned/pinOrder` UI handling in `event-manage.js` and `event-list.js`, and home/activity sorting ignored pin metadata.
+- **Fix**: Added pin/unpin button to activity management (inserted after roster button and before edit in the action flow), added `toggleMyActivityPin()` with `pinned/pinOrder` updates, prioritized pinned events in activity management sorting and home hot-events sorting, and added pinned border/badge styling to activity management cards, activity timeline cards, and home hot-event cards; updated cache version and index version params.
+- **Lesson**: Pinning needs both ordering logic and visual affordance; otherwise users cannot confirm whether pin state is applied.

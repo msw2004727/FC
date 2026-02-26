@@ -13,6 +13,16 @@ Object.assign(App, {
   _myActivityCreatorFilter: '',
   _manualEditingUid: null,
   _manualEditingEventId: null,
+  _eventPinCounter: 100,
+
+  _nextEventPinOrder() {
+    const maxExisting = (ApiService.getEvents?.() || []).reduce((max, e) => {
+      const n = Number(e?.pinOrder) || 0;
+      return n > max ? n : max;
+    }, 0);
+    this._eventPinCounter = Math.max(this._eventPinCounter || 0, maxExisting) + 1;
+    return this._eventPinCounter;
+  },
 
   _sortMyActivitiesByNearestTime(events) {
     const nowMs = Date.now();
@@ -76,7 +86,17 @@ Object.assign(App, {
     }
 
     const rawFiltered = f === 'all' ? allEvents : allEvents.filter(e => e.status === f);
-    const filtered = this._sortMyActivitiesByNearestTime(rawFiltered);
+    const filtered = this._sortMyActivitiesByNearestTime(rawFiltered).sort((a, b) => {
+      const ap = a?.pinned ? 1 : 0;
+      const bp = b?.pinned ? 1 : 0;
+      if (ap !== bp) return bp - ap;
+      if (ap && bp) {
+        const ao = Number(a?.pinOrder) || 0;
+        const bo = Number(b?.pinOrder) || 0;
+        if (ao !== bo) return ao - bo;
+      }
+      return 0;
+    });
 
     // 同步 tab active 狀態
     const tabsEl = document.getElementById('my-activity-tabs');
@@ -125,6 +145,9 @@ Object.assign(App, {
         const statusConf = STATUS_CONFIG[e.status] || STATUS_CONFIG.open;
         const canManage = this._canManageEvent(e);
         let btns = '';
+        const pinBtn = canManage
+          ? `<button class="outline-btn" style="${s}" onclick="App.toggleMyActivityPin('${e.id}')">${e.pinned ? '取消置頂' : '置頂'}</button>`
+          : '';
         if (canManage) {
           if (e.status === 'upcoming') {
             btns = `<button class="primary-btn small" style="${s}" onclick="App.showMyActivityDetail('${e.id}')">查看名單</button>`
@@ -148,6 +171,12 @@ Object.assign(App, {
         } else {
           btns = `<button class="primary-btn small" style="${s}" onclick="App.showMyActivityDetail('${e.id}')">查看名單</button>`;
         }
+        if (canManage && pinBtn && btns) {
+          const firstBtnEnd = btns.indexOf('</button>');
+          if (firstBtnEnd >= 0) {
+            btns = btns.slice(0, firstBtnEnd + 9) + pinBtn + btns.slice(firstBtnEnd + 9);
+          }
+        }
         const progressPct = e.max > 0 ? Math.min(100, Math.round(e.current / e.max * 100)) : 0;
         const progressColor = progressPct >= 100 ? 'var(--danger)' : progressPct >= 70 ? 'var(--warning)' : 'var(--success)';
         const teamBadge = e.teamOnly ? '<span class="tl-teamonly-badge" style="margin-left:.3rem">限定</span>' : '';
@@ -165,10 +194,17 @@ Object.assign(App, {
           <span>實收<b style="color:var(--success)">$${feeActual}</b></span>
           <span>短收<b style="color:${feeShort > 0 ? 'var(--danger)' : 'var(--success)'}">$${feeShort}</b></span>
         </div>` : '';
+        const pinCardStyle = e.pinned
+          ? ';border:1px solid var(--warning);box-shadow:0 0 0 1px rgba(245,158,11,.15)'
+          : '';
+        const pinBadge = e.pinned
+          ? '<span style="font-size:.68rem;color:var(--warning);font-weight:700;border:1px solid var(--warning);border-radius:999px;padding:.05rem .35rem">置頂</span>'
+          : '';
         return `
-      <div class="msg-manage-card" style="margin-bottom:.5rem;cursor:pointer" onclick="if(!event.target.closest('button')&&!event.target.closest('.user-capsule'))App.showEventDetail('${e.id}')">
+      <div class="msg-manage-card" style="margin-bottom:.5rem;cursor:pointer${pinCardStyle}" onclick="if(!event.target.closest('button')&&!event.target.closest('.user-capsule'))App.showEventDetail('${e.id}')">
         <div style="display:flex;align-items:center;gap:.4rem;margin-bottom:.2rem">
           <span class="msg-manage-title" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHTML(e.title)}${teamBadge}</span>
+          ${pinBadge}
           ${this._userTag(e.creator, ApiService.getUserRole(e.creator))}
           <span class="banner-manage-status status-${statusConf.css}">${statusConf.label}</span>
         </div>
@@ -184,6 +220,27 @@ Object.assign(App, {
       }).join('')
       : '<div style="padding:1rem;font-size:.82rem;color:var(--text-muted);text-align:center">此分類沒有活動</div>';
 
+  },
+
+  // ── 活動置頂 ──
+  toggleMyActivityPin(id) {
+    const e = ApiService.getEvent(id);
+    if (!e) return;
+    if (!this._canManageEvent(e)) { this.showToast('您只能管理自己的活動'); return; }
+
+    const nextPinned = !e.pinned;
+    const updates = nextPinned
+      ? { pinned: true, pinOrder: this._nextEventPinOrder() }
+      : { pinned: false, pinOrder: 0 };
+
+    e.pinned = updates.pinned;
+    e.pinOrder = updates.pinOrder;
+    ApiService.updateEvent(id, updates);
+
+    this.renderMyActivities();
+    this.renderActivityList();
+    this.renderHotEvents();
+    this.showToast(nextPinned ? `已置頂「${e.title}」` : `已取消置頂「${e.title}」`);
   },
 
   // ── 查看活動名單 ──

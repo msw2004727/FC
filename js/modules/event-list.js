@@ -202,6 +202,14 @@ Object.assign(App, {
     const visible = this._getVisibleEvents()
       .filter(e => e.status !== 'ended' && e.status !== 'cancelled')
       .sort((a, b) => {
+        const ap = a?.pinned ? 1 : 0;
+        const bp = b?.pinned ? 1 : 0;
+        if (ap !== bp) return bp - ap;
+        if (ap && bp) {
+          const ao = Number(a?.pinOrder) || 0;
+          const bo = Number(b?.pinOrder) || 0;
+          if (ao !== bo) return ao - bo;
+        }
         const da = this._parseEventStartDate(a.date);
         const db = this._parseEventStartDate(b.date);
         return (da || 0) - (db || 0);
@@ -210,12 +218,12 @@ Object.assign(App, {
 
     container.innerHTML = visible.length > 0
       ? visible.map(e => `
-        <div class="h-card" onclick="App.showEventDetail('${e.id}')">
+        <div class="h-card" style="${e.pinned ? 'border:1px solid var(--warning);box-shadow:0 0 0 1px rgba(245,158,11,.15)' : ''}" onclick="App.showEventDetail('${e.id}')">
           ${e.image
             ? `<div class="h-card-img"><img src="${e.image}" alt="${escapeHTML(e.title)}" loading="lazy"></div>`
             : `<div class="h-card-img h-card-placeholder">220 × 90</div>`}
           <div class="h-card-body">
-            <div class="h-card-title">${escapeHTML(e.title)}${e.teamOnly ? '<span class="tl-teamonly-badge">限定</span>' : ''}${(e.max > 0 && e.current >= e.max && e.status !== 'ended' && e.status !== 'cancelled') ? '<span class="tl-almost-full-badge">已額滿</span>' : ((e.status === 'open' && e.max > 0 && (e.max - e.current) / e.max < 0.2 && e.current < e.max) ? '<span class="tl-almost-full-badge">即將額滿</span>' : '')} ${this._favHeartHtml(this.isEventFavorited(e.id), 'Event', e.id)}</div>
+            <div class="h-card-title">${e.pinned ? '<span style="font-size:.62rem;padding:.08rem .35rem;border-radius:999px;border:1px solid var(--warning);color:var(--warning);font-weight:700;margin-right:.3rem">置頂</span>' : ''}${escapeHTML(e.title)}${e.teamOnly ? '<span class="tl-teamonly-badge">限定</span>' : ''}${(e.max > 0 && e.current >= e.max && e.status !== 'ended' && e.status !== 'cancelled') ? '<span class="tl-almost-full-badge">已額滿</span>' : ((e.status === 'open' && e.max > 0 && (e.max - e.current) / e.max < 0.2 && e.current < e.max) ? '<span class="tl-almost-full-badge">即將額滿</span>' : '')} ${this._favHeartHtml(this.isEventFavorited(e.id), 'Event', e.id)}</div>
             <div class="h-card-meta">
               <span>${escapeHTML(e.location)}</span>
               <span>${e.current}/${e.max}${t('activity.participants')}${(Number(e.waitlist) || 0) > 0 ? ' 候補' + (Number(e.waitlist) || 0) : ''}</span>
@@ -293,6 +301,14 @@ Object.assign(App, {
 
         // 同一天內依開始時間排序（越早越上面）
         dayInfo.events.sort((a, b) => {
+          const ap = a?.pinned ? 1 : 0;
+          const bp = b?.pinned ? 1 : 0;
+          if (ap !== bp) return bp - ap;
+          if (ap && bp) {
+            const ao = Number(a?.pinOrder) || 0;
+            const bo = Number(b?.pinOrder) || 0;
+            if (ao !== bo) return ao - bo;
+          }
           const ta = (a.date || '').split(' ')[1] || '';
           const tb = (b.date || '').split(' ')[1] || '';
           return isEndedTab ? tb.localeCompare(ta) : ta.localeCompare(tb);
@@ -309,10 +325,10 @@ Object.assign(App, {
           const teamBadge = e.teamOnly ? `<span class="tl-teamonly-badge">${escapeHTML(e.creatorTeamName || '限定')}</span>` : '';
 
           html += `
-            <div class="tl-event-row ${rowClass}${isEnded ? ' tl-past' : ''}" onclick="App.showEventDetail('${e.id}')">
+            <div class="tl-event-row ${rowClass}${isEnded ? ' tl-past' : ''}" style="${e.pinned ? 'border:1px solid var(--warning);box-shadow:0 0 0 1px rgba(245,158,11,.12)' : ''}" onclick="App.showEventDetail('${e.id}')">
               ${e.image ? `<div class="tl-event-thumb"><img src="${e.image}" loading="lazy"></div>` : ''}
               <div class="tl-event-info">
-                <div class="tl-event-title">${escapeHTML(e.title)}${teamBadge}${(e.max > 0 && e.current >= e.max && e.status !== 'ended' && e.status !== 'cancelled') ? '<span class="tl-almost-full-badge">已額滿</span>' : ((e.status === 'open' && e.max > 0 && (e.max - e.current) / e.max < 0.2 && e.current < e.max) ? '<span class="tl-almost-full-badge">即將額滿</span>' : '')}</div>
+                <div class="tl-event-title">${e.pinned ? '<span style="font-size:.62rem;padding:.08rem .35rem;border-radius:999px;border:1px solid var(--warning);color:var(--warning);font-weight:700;margin-right:.3rem">置頂</span>' : ''}${escapeHTML(e.title)}${teamBadge}${(e.max > 0 && e.current >= e.max && e.status !== 'ended' && e.status !== 'cancelled') ? '<span class="tl-almost-full-badge">已額滿</span>' : ((e.status === 'open' && e.max > 0 && (e.max - e.current) / e.max < 0.2 && e.current < e.max) ? '<span class="tl-almost-full-badge">即將額滿</span>' : '')}</div>
                 <div class="tl-event-meta">${typeConf.label} · ${time} · ${escapeHTML(e.location.split('市')[1] || e.location)} · ${e.current}/${e.max}人${waitlistTag}</div>
               </div>
               <span class="tl-event-status ${statusConf.css}">${statusConf.label}</span>
