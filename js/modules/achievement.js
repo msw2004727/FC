@@ -76,12 +76,14 @@ Object.assign(App, {
     }
     if (!achievements.length) return;
 
+    const curUser = ApiService.getCurrentUser();
+    const curUid = curUser?.uid;
     const allRecords = ApiService.getActivityRecords();
     const events = ApiService.getEvents();
     const evMap = {};
     events.forEach(e => { evMap[e.id] = e; });
-    // 只計算已確認報名（非候補、非取消）的紀錄
-    const activeRecords = allRecords.filter(r => r.status === 'registered');
+    // 只計算當前用戶已確認報名（非候補、非取消）的紀錄
+    const activeRecords = allRecords.filter(r => r.status === 'registered' && r.uid === curUid);
 
     for (const ach of achievements) {
       const { action, threshold, filter } = ach.condition;
