@@ -51,7 +51,7 @@ Object.assign(App, {
           this._showRestrictedToast();
           return;
         }
-        if (page === 'page-teams' || page === 'page-tournaments') {
+        if (page === 'page-tournaments') {
           this.showToast('功能準備中');
           return;
         }

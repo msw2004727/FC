@@ -199,3 +199,9 @@
 - **原因**：現有系統只有角色權限與頁面登入檢查，缺少帳號狀態層（例如限制/封鎖）與全域導頁攔截。
 - **修復**：`user-admin-list.js` 新增 `限制/解除限制` 按鈕（僅 `role === 'user'` 顯示）與 `toggleUserRestriction()`；`navigation.js` 新增限制狀態判斷與 `showPage()`/底部 tab/goBack 攔截，限制者自動導回首頁；`profile-core.js` 在 currentUser 即時更新回呼中觸發限制導流；`api-service.js` 新增限制帳號寫入防呆（含報名、訊息已讀、個資/同行者等）；`firestore.rules` 新增 `isRestrictedAccount()`，保護 `users.isRestricted*` 欄位僅 super_admin 可改，並阻擋被限制帳號的主要使用者寫入路徑。
 - **教訓**：帳號限制若只做前端 UI 會被 console 繞過，至少要同步補 Rules 的欄位保護與常見寫入限制；導航攔截應集中在 `showPage()` 這種單一入口降低漏網率。
+
+### 2026-02-26 — 解除首頁底部隊伍按鈕「功能準備中」擋板
+- **問題**：首頁底部導覽的隊伍按鈕點擊後被 `功能準備中` 提示攔截，無法進入隊伍頁。
+- **原因**：`bindNavigation()` 將 `page-teams` 與 `page-tournaments` 一起放在同一個未開放擋板條件內。
+- **修復**：只保留 `page-tournaments` 顯示 `功能準備中`，移除 `page-teams` 的攔截；更新 `CACHE_VERSION` 與 `index.html` 版本參數。
+- **教訓**：底部導覽的暫停功能應逐頁控制，不要把多個頁面綁在同一條件，避免開放一頁時誤擋另一頁。
