@@ -273,3 +273,24 @@
 - **Cause**: `_getVisibleTeamIdsForLimitedEvents()` relied on `currentUser.teamId` plus staff-role scans, but some sessions had no `teamId` on `currentUser` while membership existed in `adminUsers`.
 - **Fix**: Added `adminUsers` fallback lookup (by `uid`/name) in `js/modules/event-list.js` when building visible team IDs for team-limited events; updated cache version and `index.html` version params.
 - **Lesson**: Create/view permission paths should share the same membership fallback sources to avoid inconsistent visibility checks.
+
+### 2026-02-26 - Activity calendar team-only badge label (clean)
+- **Problem**: Team-only cards in the activity calendar did not show a fixed label text.
+- **Cause**: The team badge label in activity timeline rendering used dynamic team-name data.
+- **Fix**: Changed the activity calendar team-only badge text to fixed red label "球隊限定"; updated cache version to 20260226x and all index.html version query params.
+- **Lesson**: Use fixed wording for fixed-status badges.
+### 2026-02-26 - Unify team-only badge text across activity cards
+- **Problem**: Team-only events showed mixed badge text (`限定` vs `球隊限定`) between hot-event cards and activity timeline cards.
+- **Cause**: Hot-event card renderer in `event-list.js` still used the old short label.
+- **Fix**: Updated hot-event card badge text to `球隊限定` to match the timeline card badge; bumped `CACHE_VERSION` to `20260226y` and updated all `index.html` version query params.
+- **Lesson**: Keep fixed-rule status labels consistent across all list surfaces to avoid user confusion.
+### 2026-02-26 - Fix delayed/missing event visibility after status transition
+- **Problem**: An event could disappear from activity calendar/management for minutes after status changed, and some events were marked ended right at start time.
+- **Cause**: Realtime events listener only watched `open/full/upcoming`, so events changing to `ended/cancelled` could drop from cache until a later full reload path; auto-end logic used start time instead of end time.
+- **Fix**: Added dual realtime event slices (`active` + `terminal`) and merged cache updates in `js/firebase-service.js`; changed auto-end check to parse and compare event end time in `js/modules/event-list.js`; bumped cache version and index version params.
+- **Lesson**: If UI state depends on status transitions, realtime listeners must cover both source and target statuses, and terminal-state timing must use end-time semantics.
+### 2026-02-26 - Adjust activity calendar team-only badge text to 限定
+- **Problem**: Requirement clarified that activity calendar cards should show the short badge text `限定` (not `球隊限定`) outside the card.
+- **Cause**: Timeline card badge text had been standardized to `球隊限定` in earlier change.
+- **Fix**: Updated timeline card badge text in `js/modules/event-list.js` to `限定`; bumped cache version to `20260226za` and updated all `index.html` version query params.
+- **Lesson**: Keep UI label wording aligned with exact product wording for each surface, even when the underlying rule is the same.

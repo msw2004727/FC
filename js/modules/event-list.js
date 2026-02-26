@@ -179,6 +179,24 @@ Object.assign(App, {
     return new Date(y, m, d);
   },
 
+  /** 解析活動日期字串，回傳結束時間的 Date 物件（若無結束時間則回傳開始時間） */
+  _parseEventEndDate(dateStr) {
+    if (!dateStr) return null;
+    const parts = dateStr.split(' ');
+    const dateParts = parts[0].split('/');
+    if (dateParts.length < 3) return null;
+    const y = parseInt(dateParts[0], 10);
+    const m = parseInt(dateParts[1], 10) - 1;
+    const d = parseInt(dateParts[2], 10);
+
+    if (!parts[1]) return new Date(y, m, d, 23, 59, 59);
+    const timePart = parts[1];
+    const endRaw = timePart.includes('~') ? timePart.split('~')[1] : timePart.split('~')[0];
+    const [hh, mm] = (endRaw || '').split(':').map(Number);
+    if (!Number.isFinite(hh) || !Number.isFinite(mm)) return this._parseEventStartDate(dateStr);
+    return new Date(y, m, d, hh, mm);
+  },
+
   /** 計算倒數文字 */
   _calcCountdown(e) {
     if (e.status === 'ended') return '已結束';
@@ -221,8 +239,8 @@ Object.assign(App, {
         ApiService.updateEvent(e.id, { status: 'full' });
       }
       if (e.status !== 'open' && e.status !== 'full') return;
-      const start = this._parseEventStartDate(e.date);
-      if (start && start <= nowDate) {
+      const end = this._parseEventEndDate(e.date) || this._parseEventStartDate(e.date);
+      if (end && end <= nowDate) {
         ApiService.updateEvent(e.id, { status: 'ended' });
       }
     });
@@ -293,7 +311,7 @@ Object.assign(App, {
             ? `<div class="h-card-img"><img src="${e.image}" alt="${escapeHTML(e.title)}" loading="lazy"></div>`
             : `<div class="h-card-img h-card-placeholder">220 × 90</div>`}
           <div class="h-card-body">
-            <div class="h-card-title">${e.pinned ? '<span style="font-size:.62rem;padding:.08rem .35rem;border-radius:999px;border:1px solid var(--warning);color:var(--warning);font-weight:700;margin-right:.3rem">置頂</span>' : ''}${escapeHTML(e.title)}${e.teamOnly ? '<span class="tl-teamonly-badge">限定</span>' : ''}${(e.max > 0 && e.current >= e.max && e.status !== 'ended' && e.status !== 'cancelled') ? '<span class="tl-almost-full-badge">已額滿</span>' : ((e.status === 'open' && e.max > 0 && (e.max - e.current) / e.max < 0.2 && e.current < e.max) ? '<span class="tl-almost-full-badge">即將額滿</span>' : '')} ${this._favHeartHtml(this.isEventFavorited(e.id), 'Event', e.id)}</div>
+            <div class="h-card-title">${e.pinned ? '<span style="font-size:.62rem;padding:.08rem .35rem;border-radius:999px;border:1px solid var(--warning);color:var(--warning);font-weight:700;margin-right:.3rem">置頂</span>' : ''}${escapeHTML(e.title)}${e.teamOnly ? '<span class="tl-teamonly-badge">球隊限定</span>' : ''}${(e.max > 0 && e.current >= e.max && e.status !== 'ended' && e.status !== 'cancelled') ? '<span class="tl-almost-full-badge">已額滿</span>' : ((e.status === 'open' && e.max > 0 && (e.max - e.current) / e.max < 0.2 && e.current < e.max) ? '<span class="tl-almost-full-badge">即將額滿</span>' : '')} ${this._favHeartHtml(this.isEventFavorited(e.id), 'Event', e.id)}</div>
             <div class="h-card-meta">
               <span>${escapeHTML(e.location)}</span>
               <span>${e.current}/${e.max}${t('activity.participants')}${(Number(e.waitlist) || 0) > 0 ? ' 候補' + (Number(e.waitlist) || 0) : ''}</span>
@@ -392,7 +410,7 @@ Object.assign(App, {
           const waitlistTag = (e.waitlist || 0) > 0 ? ` · 候補(${e.waitlist})` : '';
           // 球隊限定用特殊色
           const rowClass = e.teamOnly ? 'tl-type-teamonly' : `tl-type-${e.type}`;
-          const teamBadge = e.teamOnly ? `<span class="tl-teamonly-badge">${escapeHTML(e.creatorTeamName || '限定')}</span>` : '';
+          const teamBadge = e.teamOnly ? '<span class="tl-teamonly-badge">限定</span>' : '';
 
           html += `
             <div class="tl-event-row ${rowClass}${isEnded ? ' tl-past' : ''}" style="${e.pinned ? 'border:1px solid var(--warning);box-shadow:0 0 0 1px rgba(245,158,11,.12)' : ''}" onclick="App.showEventDetail('${e.id}')">

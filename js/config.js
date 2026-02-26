@@ -31,7 +31,11 @@
 // 20260226m: 球隊建立領隊必填 + 詳情頁編輯入口 + 修復入隊申請站內信收件人解析
 // 20260226n: rolePermissions 改為 onSnapshot 即時同步（權限變更可即時反映前台功能）
 // 20260226w: 修復球隊隊員在活動行事曆看不到球隊限定活動（補 adminUsers teamId fallback）
-const CACHE_VERSION = '20260226w';
+// 20260226x: 活動行事曆球隊限定標籤改為固定「球隊限定」
+// 20260226y: 活動頁熱區卡片球隊限定標籤與行事曆統一為「球隊限定」
+// 20260226z: 修復活動開始即 ended 與 ended/cancelled 活動狀態切換後前端短暫消失
+// 20260226za: 活動行事曆卡片球隊限定標籤文案改為「限定」
+const CACHE_VERSION = '20260226za';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {

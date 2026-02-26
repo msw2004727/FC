@@ -61,6 +61,7 @@ const FirebaseService = {
   _lazyLoaded: {},  // 記錄已懶載入的集合
   _bootCollectionLoadFailed: {},
   _persistDebounceTimer: null,
+  _eventSlices: { active: [], terminal: [] },
 
   // ─── localStorage 快取設定 ───
   _LS_PREFIX: 'shub_c_',
@@ -252,6 +253,27 @@ const FirebaseService = {
     }
   },
 
+  _mergeRealtimeEventSlices(shouldRefreshUI = false) {
+    const merged = [];
+    const seen = new Set();
+    const pushUnique = (docs) => {
+      (docs || []).forEach(doc => {
+        if (!doc || !doc._docId || seen.has(doc._docId)) return;
+        seen.add(doc._docId);
+        merged.push(doc);
+      });
+    };
+    // 先放 active，避免同 ID 被 terminal 舊快取覆蓋
+    pushUnique(this._eventSlices.active);
+    pushUnique(this._eventSlices.terminal);
+    this._cache.events = merged;
+    this._debouncedPersistCache();
+
+    if (!shouldRefreshUI || typeof App === 'undefined') return;
+    if (App.currentPage === 'page-my-activities') App.renderMyActivities?.();
+    if (App.currentPage === 'page-activities') App.renderActivityList?.();
+  },
+
   _watchRolePermissionsRealtime(waitForFirstSnapshot = false) {
     return new Promise(resolve => {
       let firstSnapshot = true;
@@ -431,8 +453,10 @@ const FirebaseService = {
     );
 
     // ── Step 3: 即時集合 + users — onSnapshot 加 query 過濾 ──
+    this._eventSlices = { active: [], terminal: [] };
+
     const livePromise = new Promise(resolve => {
-      let pending = this._liveCollections.length + 1; // +1 for users
+      let pending = this._liveCollections.length + 2; // +1 for users, +1 for terminal events listener
       const checkDone = () => { if (--pending === 0) resolve(); };
 
       // events: 只監聽非結束/取消的活動（limit 200）
@@ -443,21 +467,28 @@ const FirebaseService = {
           .limit(200)
           .onSnapshot(
             snapshot => {
-              // 合併：快取中的 ended/cancelled + 遠端的 active
-              const activeIds = new Set(snapshot.docs.map(d => d.id));
-              const kept = this._cache.events.filter(e =>
-                (e.status === 'ended' || e.status === 'cancelled') && !activeIds.has(e._docId)
-              );
-              const active = snapshot.docs.map(doc => ({ ...doc.data(), _docId: doc.id }));
-              this._cache.events = [...active, ...kept];
-              this._debouncedPersistCache();
+              this._eventSlices.active = snapshot.docs.map(doc => ({ ...doc.data(), _docId: doc.id }));
+              this._mergeRealtimeEventSlices(!firstSnapshot);
               if (firstSnapshot) { firstSnapshot = false; checkDone(); }
-              else if (typeof App !== 'undefined') {
-                if (App.currentPage === 'page-my-activities') App.renderMyActivities();
-                if (App.currentPage === 'page-activities') App.renderActivityList();
-              }
             },
             err => { console.warn('[onSnapshot] events 監聽錯誤:', err); checkDone(); }
+          );
+        this._listeners.push(unsub);
+      }
+
+      // events (terminal): ended/cancelled 即時同步（避免狀態切換後短暫消失）
+      {
+        let firstTerminalSnapshot = true;
+        const unsub = db.collection('events')
+          .where('status', 'in', ['ended', 'cancelled'])
+          .limit(200)
+          .onSnapshot(
+            snapshot => {
+              this._eventSlices.terminal = snapshot.docs.map(doc => ({ ...doc.data(), _docId: doc.id }));
+              this._mergeRealtimeEventSlices(!firstTerminalSnapshot);
+              if (firstTerminalSnapshot) { firstTerminalSnapshot = false; checkDone(); }
+            },
+            err => { console.warn('[onSnapshot] events-terminal 監聽錯誤:', err); checkDone(); }
           );
         this._listeners.push(unsub);
       }
@@ -662,7 +693,7 @@ const FirebaseService = {
     this._persistCache();
 
     const bootCount = this._bootCollections.length;
-    const liveCount = this._liveCollections.length + 2; // + users + rolePermissions
+    const liveCount = this._liveCollections.length + 3; // + users + terminal events + rolePermissions
     console.log(`[FirebaseService] 初始化完成 — boot: ${bootCount}, live: ${liveCount}, deferred: ${this._deferredCollections.length} 個集合待懶載入`);
 
     // ── Step 8: 背景載入已結束的活動（補齊完整列表）──
