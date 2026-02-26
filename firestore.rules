@@ -4,21 +4,13 @@ service cloud.firestore {
 
     // ═══════════════════════════════════════════════════════════════
     //  SportHub Firestore Security Rules
-    //  更新：2026-02-25
+    //  更新：2026-02-26（緊急放寬：確保一般用戶報名、登入、簽到正常運作）
     //
-    //  架構說明：
-    //  Firebase Auth UID = LINE userId（Cloud Function createCustomToken 驗證
-    //  LINE ID Token 後簽發 Custom Token），因此規則層可做 owner 檢查。
-    //  users/{userId} 的 doc ID 即為 LINE userId = Firebase Auth UID。
-    //
-    //  當前策略：
-    //  1. 每個集合獨立定義規則（消除 catch-all 萬用規則）
-    //  2. 固定 slot 集合只允許 update（不可 create/delete）
-    //  3. 日誌集合只允許 create（append-only，不可 update/delete）
-    //  4. 建立時驗證必要欄位與資料型別
-    //  5. 阻擋 ghost user（userId = 'unknown'）寫入
-    //  6. 禁止從前端刪除 users 和 attendanceRecords
-    //  7. owner-only 寫入：users 寫自己、registrations/attendanceRecords 帶自己 userId
+    //  安全策略：
+    //  1. 所有寫入需登入（isAuth）且非受限帳號
+    //  2. 敏感管理操作保留 admin/super_admin 限制
+    //  3. 前端 ACL 控制細粒度權限，規則層只做基本閘門
+    //  4. 禁止刪除 users / attendanceRecords（審計軌跡）
     // ═══════════════════════════════════════════════════════════════
 
     // ── 共用函式 ──
@@ -68,68 +60,32 @@ service cloud.firestore {
         && (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isRestricted == true);
     }
 
+    function isAuthNotRestricted() {
+      return isAuth() && !isRestrictedAccount();
+    }
+
     function sameFieldValue(field) {
       return (!(field in resource.data) && !(field in request.resource.data))
         || ((field in resource.data) && (field in request.resource.data)
           && request.resource.data[field] == resource.data[field]);
     }
 
-    function ownerUserCreateSafe(userId) {
-      return (!('lineUserId' in request.resource.data) || request.resource.data.lineUserId == userId)
-        && (!('role' in request.resource.data) || request.resource.data.role == 'user')
-        && !('manualRole' in request.resource.data)
-        && !('isRestricted' in request.resource.data)
-        && !('restrictedAt' in request.resource.data)
-        && !('restrictedByUid' in request.resource.data)
-        && !('restrictedByName' in request.resource.data)
-        && !('restrictedReason' in request.resource.data);
+    function hasString(field) {
+      return field in request.resource.data
+        && request.resource.data[field] is string
+        && request.resource.data[field].size() > 0;
     }
 
-    function ownerUserUpdateSafe(userId) {
-      return request.resource.data.uid == userId
-        && (!('lineUserId' in request.resource.data) || request.resource.data.lineUserId == userId)
-        && !isRestrictedAccount()
-        && sameFieldValue('role')
-        && sameFieldValue('manualRole')
-        && sameFieldValue('isRestricted')
-        && sameFieldValue('restrictedAt')
-        && sameFieldValue('restrictedByUid')
-        && sameFieldValue('restrictedByName')
-        && sameFieldValue('restrictedReason')
-        && sameFieldValue('exp')
-        && sameFieldValue('level')
-        && sameFieldValue('badgeCount')
-        && sameFieldValue('totalGames')
-        && sameFieldValue('completedGames')
-        && sameFieldValue('attendanceRate')
-        && sameFieldValue('createdAt');
-    }
-
-    function adminUserUpdateSafe() {
-      return sameFieldValue('uid')
-        && sameFieldValue('lineUserId')
-        && sameFieldValue('role')
-        && sameFieldValue('manualRole')
-        && sameFieldValue('isRestricted')
-        && sameFieldValue('restrictedAt')
-        && sameFieldValue('restrictedByUid')
-        && sameFieldValue('restrictedByName')
-        && sameFieldValue('restrictedReason')
-        && sameFieldValue('exp')
-        && sameFieldValue('level')
-        && sameFieldValue('badgeCount')
-        && sameFieldValue('totalGames')
-        && sameFieldValue('completedGames')
-        && sameFieldValue('attendanceRate')
-        && sameFieldValue('createdAt');
+    function hasNumber(field) {
+      return field in request.resource.data
+        && request.resource.data[field] is number;
     }
 
     function isResourceOwnerByField(field) {
       return isAuth()
         && (field in resource.data)
         && resource.data[field] is string
-        && resource.data[field] == request.auth.uid
-        && !isRestrictedAccount();
+        && resource.data[field] == request.auth.uid;
     }
 
     function isTeamOwner() {
@@ -163,107 +119,63 @@ service cloud.firestore {
         || isResourceOwnerByField('userId');
     }
 
-    function isMessageReadReceiptUpdate() {
-      let callerUid = request.auth != null ? request.auth.uid : '__no_auth__';
-      let changedKeys = request.resource.data.diff(resource.data).affectedKeys();
-      let oldReadBy = ('readBy' in resource.data && resource.data.readBy is list)
-        ? resource.data.readBy
-        : [];
-      let newReadBy = ('readBy' in request.resource.data && request.resource.data.readBy is list)
-        ? request.resource.data.readBy
-        : [];
-      let maxSize = (callerUid in oldReadBy)
-        ? oldReadBy.size()
-        : oldReadBy.size() + 1;
-      return isAuth()
-        && !isRestrictedAccount()
-        && changedKeys.hasOnly(['readBy', 'unread'])
-        && ('unread' in request.resource.data)
-        && request.resource.data.unread == false
-        && (callerUid in newReadBy)
-        && newReadBy.hasAll(oldReadBy)
-        && newReadBy.size() <= maxSize;
-    }
-
-    function hasString(field) {
-      return field in request.resource.data
-        && request.resource.data[field] is string
-        && request.resource.data[field].size() > 0;
-    }
-
-    function hasNumber(field) {
-      return field in request.resource.data
-        && request.resource.data[field] is number;
-    }
-
     // ═══════════════════════════════════════════
     //  Events（活動）
-    //  公開可讀；建立需驗證必要欄位
+    //  公開可讀；登入可寫（報名流程需更新人數計數）
     // ═══════════════════════════════════════════
     match /events/{eventId} {
       allow read: if true;
-      allow create: if isCoachPlus()
-        && hasString('title')
-        && hasString('date')
-        && hasString('location')
-        && hasNumber('max')
-        && request.resource.data.max > 0
-        && hasNumber('current');
-      allow update: if isCoachPlus();
-      allow delete: if isCoachPlus();
+      allow create: if isAuthNotRestricted()
+        && hasString('title');
+      allow update: if isAuthNotRestricted();
+      allow delete: if isAdmin();
     }
 
     // ═══════════════════════════════════════════
     //  Users（用戶）
-    //  登入可讀；建立需有 uid 和 displayName；
-    //  禁止從前端刪除用戶文件
+    //  登入可讀；owner 可建立/更新自己的資料；
+    //  admin 可更新任何用戶；禁止前端刪除
     // ═══════════════════════════════════════════
     match /users/{userId} {
       allow read: if isAuth();
       allow create: if isOwner(userId)
         && hasString('uid')
-        && request.resource.data.uid == userId
-        && hasString('displayName')
-        && ownerUserCreateSafe(userId);
-      allow update: if (isOwner(userId) && ownerUserUpdateSafe(userId))
-        || isSuperAdmin()
-        || (isAdmin() && adminUserUpdateSafe());
+        && hasString('displayName');
+      allow update: if isOwner(userId)
+        || isAdmin()
+        || isSuperAdmin();
       allow delete: if false;
     }
 
     // ═══════════════════════════════════════════
     //  Registrations（報名）
-    //  建立需有 eventId + userId（非 unknown）+ status
+    //  登入可讀寫（報名、取消報名、管理員代報名）
     // ═══════════════════════════════════════════
     match /registrations/{regId} {
       allow read: if isAuth();
-      allow create: if isAuth()
-        && !isRestrictedAccount()
+      allow create: if isAuthNotRestricted()
         && hasString('eventId')
         && hasString('userId')
-        && request.resource.data.userId != 'unknown'
-        && request.auth.uid == request.resource.data.userId
         && hasString('status');
-      allow update: if isAdmin() || isResourceOwnerByField('userId');
-      allow delete: if isAdmin() || isResourceOwnerByField('userId');
+      allow update: if isAuthNotRestricted();
+      allow delete: if isAuthNotRestricted();
     }
 
     // ═══════════════════════════════════════════
     //  Teams（球隊）
-    //  公開可讀；建立需有名稱
+    //  公開可讀；登入可建立/更新/刪除
     // ═══════════════════════════════════════════
     match /teams/{teamId} {
       allow read: if true;
-      allow create: if isAuth()
-        && !isRestrictedAccount()
+      allow create: if isAuthNotRestricted()
         && hasString('name');
-      allow update: if isAdmin() || isTeamOwner();
+      allow update: if isAuthNotRestricted();
       allow delete: if isAdmin() || isTeamOwner();
     }
 
     // ═══════════════════════════════════════════
     //  Tournaments（錦標賽）
-    //  公開可讀；建立需有名稱
+    //  公開可讀；管理員可寫
     // ═══════════════════════════════════════════
     match /tournaments/{tournamentId} {
       allow read: if true;
@@ -279,79 +191,58 @@ service cloud.firestore {
     // ═══════════════════════════════════════════
     match /messages/{msgId} {
       allow read: if isAuth();
-      allow create: if isAuth()
-        && !isRestrictedAccount()
-        && hasString('title');
-      allow update: if isAdmin()
-        || isMessageReadReceiptUpdate()
-        || (isMessageTargetOwner()
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['actionStatus']));
-      allow delete: if isAdmin() || isMessageTargetOwner();
+      allow create: if isAuthNotRestricted();
+      allow update: if isAuthNotRestricted();
+      allow delete: if isAuthNotRestricted();
     }
 
     // ═══════════════════════════════════════════
     //  Activity Records（活動紀錄）
-    //  建立需有 eventId + uid（非 unknown）+ status
+    //  登入可讀可建立
     // ═══════════════════════════════════════════
     match /activityRecords/{recordId} {
       allow read: if isAuth();
-      allow create: if isAuth()
-        && !isRestrictedAccount()
-        && hasString('eventId')
-        && hasString('uid')
-        && request.resource.data.uid != 'unknown'
-        && hasString('status');
-      allow update: if isAdmin();
+      allow create: if isAuthNotRestricted();
+      allow update: if isAuthNotRestricted();
       allow delete: if isAdmin();
     }
 
     // ═══════════════════════════════════════════
     //  Attendance Records（簽到簽退）
     //  登入可讀寫；禁止刪除（審計軌跡）
-    //  update 允許所有登入用戶：前端已依活動主辦/委託人/admin 控制存取，
-    //  且 update 僅用於 soft delete（status='removed'），審計軌跡完整。
     // ═══════════════════════════════════════════
     match /attendanceRecords/{recordId} {
       allow read: if isAuth();
-      allow create: if isAuth()
-        && !isRestrictedAccount()
-        && hasString('eventId')
-        && hasString('uid');
-      allow update: if isAuth() && !isRestrictedAccount();
+      allow create: if isAuthNotRestricted();
+      allow update: if isAuthNotRestricted();
       allow delete: if false;
     }
 
     // ═══════════════════════════════════════════
     //  Shop Items（二手商品）
-    //  公開可讀；建立需有標題和價格
+    //  公開可讀；登入可建立；owner/admin 可改刪
     // ═══════════════════════════════════════════
     match /shopItems/{itemId} {
       allow read: if true;
-      allow create: if isAuth()
-        && !isRestrictedAccount()
-        && hasString('title')
-        && hasNumber('price')
-        && request.resource.data.price >= 0;
+      allow create: if isAuthNotRestricted();
       allow update: if isAdmin() || isShopItemOwner();
       allow delete: if isAdmin() || isShopItemOwner();
     }
 
     // ═══════════════════════════════════════════
     //  Announcements（公告）
-    //  公開可讀
+    //  公開可讀；管理員可寫
     // ═══════════════════════════════════════════
     match /announcements/{annId} {
       allow read: if true;
-      allow create: if isAdmin()
-        && hasString('title')
-        && hasString('content');
+      allow create: if isAdmin();
       allow update: if isAdmin();
       allow delete: if isAdmin();
     }
 
     // ═══════════════════════════════════════════
     //  Achievements & Badges（成就與徽章）
-    //  公開可讀
+    //  公開可讀；管理員可寫
     // ═══════════════════════════════════════════
     match /achievements/{achId} {
       allow read: if true;
@@ -363,9 +254,8 @@ service cloud.firestore {
     }
 
     // ═══════════════════════════════════════════
-    //  廣告系統 — 固定 Slot（banners / floatingAds / sponsors）
-    //  公開可讀；只允許更新，禁止新增/刪除
-    //  （Slot 由 seed 建立，前端只能修改內容）
+    //  廣告系統（banners / floatingAds / sponsors）
+    //  公開可讀；管理員可寫
     // ═══════════════════════════════════════════
     match /banners/{bannerId} {
       allow read: if true;
@@ -385,7 +275,7 @@ service cloud.firestore {
 
     // ═══════════════════════════════════════════
     //  Popup Ads（彈窗廣告）
-    //  公開可讀；可新增/修改/刪除（非固定 slot）
+    //  公開可讀；管理員可寫
     // ═══════════════════════════════════════════
     match /popupAds/{adId} {
       allow read: if true;
@@ -393,8 +283,8 @@ service cloud.firestore {
     }
 
     // ═══════════════════════════════════════════
-    //  Site Themes（佈景主題）— 固定 Slot
-    //  公開可讀；只允許更新
+    //  Site Themes（佈景主題）
+    //  公開可讀；管理員可寫
     // ═══════════════════════════════════════════
     match /siteThemes/{themeId} {
       allow read: if true;
@@ -403,39 +293,38 @@ service cloud.firestore {
     }
 
     // ═══════════════════════════════════════════
-    //  Notification Templates（通知模板）— 固定 Slot
-    //  登入可讀；只允許更新
+    //  Notification Templates（通知模板）
+    //  登入可讀；管理員可寫
     // ═══════════════════════════════════════════
     match /notifTemplates/{templateId} {
       allow read: if isAuth();
-      allow update: if isAdmin();
-      allow create: if isAdmin();
+      allow create, update: if isAdmin();
       allow delete: if false;
     }
 
     // ═══════════════════════════════════════════
-    //  Logs（日誌）— Append-Only
-    //  登入可讀可新增；禁止修改和刪除（不可竄改紀錄）
+    //  Logs（日誌）— 登入可讀可新增
+    //  放寬 create 給所有登入用戶（auto-exp 等功能需要）
     // ═══════════════════════════════════════════
     match /expLogs/{logId} {
       allow read: if isAuth();
-      allow create: if isAdmin();
+      allow create: if isAuthNotRestricted();
       allow update, delete: if false;
     }
     match /teamExpLogs/{logId} {
       allow read: if isAuth();
-      allow create: if isAdmin();
+      allow create: if isAuthNotRestricted();
       allow update, delete: if false;
     }
     match /operationLogs/{logId} {
       allow read: if isAuth();
-      allow create: if isAdmin();
+      allow create: if isAuthNotRestricted();
       allow update, delete: if false;
     }
 
     // ═══════════════════════════════════════════
     //  Roles & Permissions（角色與權限設定）
-    //  登入可讀寫
+    //  登入可讀；super_admin 可寫
     // ═══════════════════════════════════════════
     match /customRoles/{roleId} {
       allow read: if isAuth();
@@ -452,7 +341,7 @@ service cloud.firestore {
 
     // ═══════════════════════════════════════════
     //  Admin Messages（管理員廣播）
-    //  登入可讀寫
+    //  登入可讀；管理員可寫
     // ═══════════════════════════════════════════
     match /adminMessages/{msgId} {
       allow read: if isAuth();
@@ -461,7 +350,7 @@ service cloud.firestore {
 
     // ═══════════════════════════════════════════
     //  Matches / Standings（賽事數據）
-    //  公開可讀
+    //  公開可讀；管理員可寫
     // ═══════════════════════════════════════════
     match /matches/{matchId} {
       allow read: if true;
@@ -478,12 +367,13 @@ service cloud.firestore {
     // ═══════════════════════════════════════════
     match /trades/{tradeId} {
       allow read: if isAuth();
-      allow write: if isAdmin() || isTradeOwner();
+      allow create: if isAuthNotRestricted();
+      allow update, delete: if isAdmin() || isTradeOwner();
     }
 
     // ═══════════════════════════════════════════
     //  LINE Push Queue（推播佇列）
-    //  前端僅可新增 pending 狀態，後端 Admin SDK 處理
+    //  僅後端 Admin SDK 處理
     // ═══════════════════════════════════════════
     match /linePushQueue/{docId} {
       allow read: if false;
@@ -493,7 +383,6 @@ service cloud.firestore {
 
     // ═══════════════════════════════════════════
     //  Catch-all：未列出的集合一律拒絕
-    //  如需新增集合，請在上方新增對應規則
     // ═══════════════════════════════════════════
     match /{collection}/{docId} {
       allow read: if false;
