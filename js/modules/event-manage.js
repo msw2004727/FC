@@ -521,6 +521,11 @@ Object.assign(App, {
     const editingUid = this._manualEditingUid;
     const isEditing = (uid) => this._manualEditingEventId === eventId && !this._manualEditingIsUnreg && editingUid === uid;
 
+    const kickStyle = 'font-size:.7rem;padding:.2rem .4rem;border:1px solid var(--danger);color:var(--danger);background:transparent;border-radius:var(--radius-sm);cursor:pointer;white-space:nowrap';
+    const manualStyle = 'font-size:.7rem;padding:.2rem .45rem;background:#1565c0;color:#fff;border:none;border-radius:var(--radius-sm);cursor:pointer;white-space:nowrap';
+    const doneStyle = 'font-size:.7rem;padding:.2rem .45rem;background:#2e7d32;color:#fff;border:none;border-radius:var(--radius-sm);cursor:pointer;white-space:nowrap';
+    const cbStyle = 'width:1.4rem;height:1.4rem;cursor:pointer;vertical-align:middle';
+
     let rows = people.map(p => {
       const hasCheckin = records.some(r => this._matchAttendanceRecord(r, p) && r.type === 'checkin');
       const hasCheckout = records.some(r => this._matchAttendanceRecord(r, p) && r.type === 'checkout');
@@ -534,45 +539,48 @@ Object.assign(App, {
       if (p.isCompanion) {
         nameHtml = `<span style="padding-left:1.2rem;color:var(--text-secondary)">↳ ${escapeHTML(p.displayName)}</span>`;
       } else if (p.hasSelfReg) {
-        // 有報名：用有色膠囊名牌
         nameHtml = this._userTag(p.displayName);
       } else {
-        // 僅代報：純文字，無膠囊
         nameHtml = ` ${escapeHTML(p.displayName)}`;
       }
 
       const safeUid = escapeHTML(p.uid);
       const safeName = escapeHTML(p.name);
 
+      // 踢掉按鈕（左欄，始終顯示給管理員）
+      const kickTd = canManage
+        ? `<td style="padding:.35rem .2rem;text-align:center"><button style="${kickStyle}" onclick="App._removeParticipant('${escapeHTML(eventId)}','${safeUid}','${safeName}',${p.isCompanion})">踢掉</button></td>`
+        : '';
+
       if (canManage && isEditing(p.uid)) {
         return `<tr style="border-bottom:1px solid var(--border)">
+          ${kickTd}
           <td style="padding:.35rem .3rem;text-align:left">${nameHtml}</td>
-          <td style="padding:.35rem .2rem;text-align:center"><input type="checkbox" id="manual-checkin-${safeUid}" ${hasCheckin ? 'checked' : ''} style="width:1rem;height:1rem"></td>
-          <td style="padding:.35rem .2rem;text-align:center"><input type="checkbox" id="manual-checkout-${safeUid}" ${hasCheckout ? 'checked' : ''} style="width:1rem;height:1rem"></td>
-          <td style="padding:.35rem .2rem;text-align:center;white-space:nowrap">
-            <button class="primary-btn" style="font-size:.65rem;padding:.1rem .3rem" onclick="App._confirmManualAttendance('${escapeHTML(eventId)}','${safeUid}','${safeName}')">確認</button>
-            <button style="font-size:.65rem;padding:.1rem .3rem;border:1px solid var(--danger);color:var(--danger);background:transparent;border-radius:var(--radius-sm);cursor:pointer" onclick="App._removeParticipant('${escapeHTML(eventId)}','${safeUid}','${safeName}',${p.isCompanion})">移除</button>
-          </td>
-          <td style="padding:.35rem .3rem"><input type="text" maxlength="10" value="${escapeHTML(noteText)}" id="manual-note-${safeUid}" placeholder="備註" style="width:100%;font-size:.72rem;padding:.15rem .3rem;border:1px solid var(--border);border-radius:3px;box-sizing:border-box"></td>
+          <td style="padding:.35rem .2rem;text-align:center"><input type="checkbox" id="manual-checkin-${safeUid}" ${hasCheckin ? 'checked' : ''} style="${cbStyle}"></td>
+          <td style="padding:.35rem .2rem;text-align:center"><input type="checkbox" id="manual-checkout-${safeUid}" ${hasCheckout ? 'checked' : ''} style="${cbStyle}"></td>
+          <td style="padding:.35rem .3rem"><input type="text" maxlength="20" value="${escapeHTML(noteText)}" id="manual-note-${safeUid}" placeholder="備註" style="width:100%;font-size:.72rem;padding:.15rem .3rem;border:1px solid var(--border);border-radius:3px;box-sizing:border-box"></td>
+          <td style="padding:.35rem .2rem;text-align:center"><button style="${doneStyle}" onclick="App._confirmManualAttendance('${escapeHTML(eventId)}','${safeUid}','${safeName}')">完成簽到</button></td>
         </tr>`;
       }
       return `<tr style="border-bottom:1px solid var(--border)">
+        ${kickTd}
         <td style="padding:.35rem .3rem;text-align:left">${nameHtml}</td>
-        <td style="padding:.35rem .2rem;text-align:center">${hasCheckin ? '<span style="color:var(--success)">✓</span>' : ''}</td>
-        <td style="padding:.35rem .2rem;text-align:center">${hasCheckout ? '<span style="color:var(--success)">✓</span>' : ''}</td>
-        ${canManage ? `<td style="padding:.35rem .2rem;text-align:center"><button class="outline-btn" style="font-size:.65rem;padding:.1rem .3rem" onclick="App._startManualAttendance('${escapeHTML(eventId)}','${safeUid}','${safeName}',${p.isCompanion})">編輯</button></td>` : ''}
+        <td style="padding:.35rem .2rem;text-align:center">${hasCheckin ? '<span style="color:var(--success);font-size:1rem">✓</span>' : ''}</td>
+        <td style="padding:.35rem .2rem;text-align:center">${hasCheckout ? '<span style="color:var(--success);font-size:1rem">✓</span>' : ''}</td>
         <td style="padding:.35rem .3rem;font-size:.72rem;color:var(--text-muted)">${escapeHTML(combinedNote)}</td>
+        ${canManage ? `<td style="padding:.35rem .2rem;text-align:center"><button style="${manualStyle}" onclick="App._startManualAttendance('${escapeHTML(eventId)}','${safeUid}','${safeName}',${p.isCompanion})">手動簽到</button></td>` : ''}
       </tr>`;
     }).join('');
 
     container.innerHTML = `<div style="overflow-x:auto">
       <table style="width:100%;border-collapse:collapse;font-size:.8rem">
         <thead><tr style="border-bottom:2px solid var(--border)">
+          ${canManage ? '<th style="text-align:center;padding:.4rem .2rem;font-weight:600;width:3rem">踢掉</th>' : ''}
           <th style="text-align:left;padding:.4rem .3rem;font-weight:600">姓名</th>
           <th style="text-align:center;padding:.4rem .2rem;font-weight:600;width:2.5rem">簽到</th>
           <th style="text-align:center;padding:.4rem .2rem;font-weight:600;width:2.5rem">簽退</th>
-          ${canManage ? '<th style="text-align:center;padding:.4rem .2rem;font-weight:600;width:2.5rem">編輯</th>' : ''}
-          <th style="text-align:left;padding:.4rem .3rem;font-weight:600;width:5rem">備註</th>
+          <th style="text-align:left;padding:.4rem .3rem;font-weight:600">備註</th>
+          ${canManage ? '<th style="text-align:center;padding:.4rem .2rem;font-weight:600;width:4.5rem">操作</th>' : ''}
         </tr></thead>
         <tbody>${rows}</tbody>
       </table>
@@ -612,6 +620,10 @@ Object.assign(App, {
     const editingUid = this._manualEditingUid;
     const isEditing = (uid) => this._manualEditingEventId === eventId && this._manualEditingIsUnreg && editingUid === uid;
 
+    const manualStyle = 'font-size:.7rem;padding:.2rem .45rem;background:#1565c0;color:#fff;border:none;border-radius:var(--radius-sm);cursor:pointer;white-space:nowrap';
+    const doneStyle = 'font-size:.7rem;padding:.2rem .45rem;background:#2e7d32;color:#fff;border:none;border-radius:var(--radius-sm);cursor:pointer;white-space:nowrap';
+    const cbStyle = 'width:1.4rem;height:1.4rem;cursor:pointer;vertical-align:middle';
+
     const people = [];
     unregMap.forEach(u => people.push(u));
 
@@ -631,20 +643,18 @@ Object.assign(App, {
       if (canManage && isEditing(p.uid)) {
         return `<tr style="border-bottom:1px solid var(--border)">
           <td style="padding:.35rem .3rem;text-align:left">${nameHtml}</td>
-          <td style="padding:.35rem .2rem;text-align:center"><input type="checkbox" id="manual-checkin-${safeUid}" ${hasCheckin ? 'checked' : ''} style="width:1rem;height:1rem"></td>
-          <td style="padding:.35rem .2rem;text-align:center"><input type="checkbox" id="manual-checkout-${safeUid}" ${hasCheckout ? 'checked' : ''} style="width:1rem;height:1rem"></td>
-          <td style="padding:.35rem .2rem;text-align:center;white-space:nowrap">
-            <button class="primary-btn" style="font-size:.65rem;padding:.1rem .3rem" onclick="App._confirmManualAttendance('${escapeHTML(eventId)}','${safeUid}','${safeName}')">確認</button>
-          </td>
-          <td style="padding:.35rem .3rem"><input type="text" maxlength="10" value="${escapeHTML(noteText)}" id="manual-note-${safeUid}" placeholder="備註" style="width:100%;font-size:.72rem;padding:.15rem .3rem;border:1px solid var(--border);border-radius:3px;box-sizing:border-box"></td>
+          <td style="padding:.35rem .2rem;text-align:center"><input type="checkbox" id="manual-checkin-${safeUid}" ${hasCheckin ? 'checked' : ''} style="${cbStyle}"></td>
+          <td style="padding:.35rem .2rem;text-align:center"><input type="checkbox" id="manual-checkout-${safeUid}" ${hasCheckout ? 'checked' : ''} style="${cbStyle}"></td>
+          <td style="padding:.35rem .3rem"><input type="text" maxlength="20" value="${escapeHTML(noteText)}" id="manual-note-${safeUid}" placeholder="備註" style="width:100%;font-size:.72rem;padding:.15rem .3rem;border:1px solid var(--border);border-radius:3px;box-sizing:border-box"></td>
+          <td style="padding:.35rem .2rem;text-align:center"><button style="${doneStyle}" onclick="App._confirmManualAttendance('${escapeHTML(eventId)}','${safeUid}','${safeName}')">完成簽到</button></td>
         </tr>`;
       }
       return `<tr style="border-bottom:1px solid var(--border)">
         <td style="padding:.35rem .3rem;text-align:left">${nameHtml}</td>
-        <td style="padding:.35rem .2rem;text-align:center">${hasCheckin ? '<span style="color:var(--success)">✓</span>' : ''}</td>
-        <td style="padding:.35rem .2rem;text-align:center">${hasCheckout ? '<span style="color:var(--success)">✓</span>' : ''}</td>
-        ${canManage ? `<td style="padding:.35rem .2rem;text-align:center"><button class="outline-btn" style="font-size:.65rem;padding:.1rem .3rem" onclick="App._startManualAttendance('${escapeHTML(eventId)}','${safeUid}','${safeName}',false,true)">編輯</button></td>` : ''}
+        <td style="padding:.35rem .2rem;text-align:center">${hasCheckin ? '<span style="color:var(--success);font-size:1rem">✓</span>' : ''}</td>
+        <td style="padding:.35rem .2rem;text-align:center">${hasCheckout ? '<span style="color:var(--success);font-size:1rem">✓</span>' : ''}</td>
         <td style="padding:.35rem .3rem;font-size:.72rem;color:var(--text-muted)">${escapeHTML(combinedNote)}</td>
+        ${canManage ? `<td style="padding:.35rem .2rem;text-align:center"><button style="${manualStyle}" onclick="App._startManualAttendance('${escapeHTML(eventId)}','${safeUid}','${safeName}',false,true)">手動簽到</button></td>` : ''}
       </tr>`;
     }).join('');
 
@@ -654,8 +664,8 @@ Object.assign(App, {
           <th style="text-align:left;padding:.4rem .3rem;font-weight:600">姓名</th>
           <th style="text-align:center;padding:.4rem .2rem;font-weight:600;width:2.5rem">簽到</th>
           <th style="text-align:center;padding:.4rem .2rem;font-weight:600;width:2.5rem">簽退</th>
-          ${canManage ? '<th style="text-align:center;padding:.4rem .2rem;font-weight:600;width:2.5rem">編輯</th>' : ''}
-          <th style="text-align:left;padding:.4rem .3rem;font-weight:600;width:5rem">備註</th>
+          <th style="text-align:left;padding:.4rem .3rem;font-weight:600">備註</th>
+          ${canManage ? '<th style="text-align:center;padding:.4rem .2rem;font-weight:600;width:4.5rem">操作</th>' : ''}
         </tr></thead>
         <tbody>${rows}</tbody>
       </table>
@@ -680,7 +690,7 @@ Object.assign(App, {
     const noteInput = document.getElementById('manual-note-' + uid);
     const wantCheckin = checkinBox?.checked || false;
     const wantCheckout = checkoutBox?.checked || false;
-    const note = (noteInput?.value || '').trim().slice(0, 10);
+    const note = (noteInput?.value || '').trim().slice(0, 20);
 
     const isCompanion = this._manualEditingIsCompanion;
     const person = { uid, name, isCompanion };

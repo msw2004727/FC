@@ -11,19 +11,34 @@ Object.assign(FirebaseService, {
    * 在所有需要 Firestore 寫入的關鍵流程（登入、報名等）前呼叫。
    */
   async _ensureAuth() {
+    console.log('[_ensureAuth] 開始, currentUser:', auth?.currentUser?.uid || 'null');
+
     if (auth?.currentUser) {
-      try { await auth.currentUser.getIdToken(true); return true; } catch (_) {}
+      try {
+        await auth.currentUser.getIdToken(true);
+        console.log('[_ensureAuth] token 刷新成功, uid:', auth.currentUser.uid);
+        return true;
+      } catch (e) {
+        console.warn('[_ensureAuth] token 刷新失敗:', e.code, e.message);
+      }
     }
     // 等待 persistence 恢復
     if (typeof _firebaseAuthReadyPromise !== 'undefined' && !_firebaseAuthReady) {
+      console.log('[_ensureAuth] 等待 Auth persistence 恢復...');
       try {
         await Promise.race([_firebaseAuthReadyPromise, new Promise(r => setTimeout(r, 5000))]);
       } catch (_) {}
+      console.log('[_ensureAuth] persistence 恢復後 currentUser:', auth?.currentUser?.uid || 'null');
     }
     if (auth?.currentUser) return true;
     // 嘗試重新登入
-    try { await this._signInWithAppropriateMethod(); } catch (_) {}
-    return !!auth?.currentUser;
+    console.log('[_ensureAuth] 嘗試重新登入...');
+    try { await this._signInWithAppropriateMethod(); } catch (e) {
+      console.error('[_ensureAuth] 重新登入失敗:', e.code || '', e.message);
+    }
+    const ok = !!auth?.currentUser;
+    console.log('[_ensureAuth] 最終結果:', ok, 'uid:', auth?.currentUser?.uid || 'null');
+    return ok;
   },
 
   // ════════════════════════════════
@@ -157,6 +172,8 @@ Object.assign(FirebaseService, {
     if (!authed) {
       throw new Error('Firebase 登入失敗，請關閉此頁面後重新從 LINE 開啟');
     }
+    console.log('[registerForEvent] auth OK, uid:', auth.currentUser?.uid, 'userId:', userId);
+
     const event = this._cache.events.find(e => e.id === eventId);
     if (!event) throw new Error('活動不存在');
 
@@ -167,11 +184,16 @@ Object.assign(FirebaseService, {
     if (existing) throw new Error('已報名此活動');
 
     // 防幽靈：清快取後快取可能為空，直接查 Firestore 做二次確認
-    // 只用 eventId + userId 兩欄位查詢，避免需要複合索引
-    const fsCheck = await db.collection('registrations')
-      .where('eventId', '==', eventId)
-      .where('userId', '==', userId)
-      .get();
+    let fsCheck;
+    try {
+      fsCheck = await db.collection('registrations')
+        .where('eventId', '==', eventId)
+        .where('userId', '==', userId)
+        .get();
+    } catch (queryErr) {
+      console.error('[registerForEvent] 查詢 registrations 失敗:', queryErr.code, queryErr.message);
+      throw queryErr;
+    }
     const hasActive = fsCheck.docs.some(d => {
       const s = d.data().status;
       return s === 'confirmed' || s === 'waitlisted';
@@ -191,11 +213,18 @@ Object.assign(FirebaseService, {
       registeredAt: new Date().toISOString(),
     };
 
-    // 寫入 Firestore
-    const docRef = await db.collection('registrations').add({
-      ...registration,
-      registeredAt: firebase.firestore.FieldValue.serverTimestamp(),
-    });
+    // 寫入 registrations
+    let docRef;
+    try {
+      docRef = await db.collection('registrations').add({
+        ...registration,
+        registeredAt: firebase.firestore.FieldValue.serverTimestamp(),
+      });
+      console.log('[registerForEvent] registrations.add OK, docId:', docRef.id);
+    } catch (addErr) {
+      console.error('[registerForEvent] registrations.add 失敗:', addErr.code, addErr.message);
+      throw addErr;
+    }
     registration._docId = docRef.id;
     this._cache.registrations.push(registration);
 
@@ -204,7 +233,6 @@ Object.assign(FirebaseService, {
       event.current++;
       if (!event.participants) event.participants = [];
       if (!event.participants.includes(userName)) event.participants.push(userName);
-      // 安全移除：確保不在候補名單
       if (event.waitlistNames) {
         const wi = event.waitlistNames.indexOf(userName);
         if (wi >= 0) { event.waitlistNames.splice(wi, 1); event.waitlist = Math.max(0, (event.waitlist || 0) - 1); }
@@ -213,14 +241,12 @@ Object.assign(FirebaseService, {
       event.waitlist = (event.waitlist || 0) + 1;
       if (!event.waitlistNames) event.waitlistNames = [];
       if (!event.waitlistNames.includes(userName)) event.waitlistNames.push(userName);
-      // 安全移除：確保不在正取名單
       if (event.participants) {
         const pi = event.participants.indexOf(userName);
         if (pi >= 0) { event.participants.splice(pi, 1); event.current = Math.max(0, event.current - 1); }
       }
     }
 
-    // 正取滿即標記為 full（候補無限）
     if (event.current >= event.max) event.status = 'full';
 
     const eventUpdate = {
@@ -231,9 +257,14 @@ Object.assign(FirebaseService, {
       status: event.status,
     };
 
-    await db.collection('events').doc(event._docId).update(eventUpdate);
+    try {
+      await db.collection('events').doc(event._docId).update(eventUpdate);
+      console.log('[registerForEvent] events.update OK, docId:', event._docId);
+    } catch (updateErr) {
+      console.error('[registerForEvent] events.update 失敗:', updateErr.code, updateErr.message);
+      throw updateErr;
+    }
 
-    // 立即寫入 localStorage，避免刷新後資料遺失
     this._saveToLS('registrations', this._cache.registrations);
     this._saveToLS('events', this._cache.events);
 

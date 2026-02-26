@@ -4,13 +4,14 @@ service cloud.firestore {
 
     // ═══════════════════════════════════════════════════════════════
     //  SportHub Firestore Security Rules
-    //  更新：2026-02-26（緊急放寬：確保一般用戶報名、登入、簽到正常運作）
+    //  更新：2026-02-26（緊急修復：手機 LINE 瀏覽器報名失敗）
     //
     //  安全策略：
-    //  1. 所有寫入需登入（isAuth）且非受限帳號
+    //  1. 用戶面集合：只要登入（isAuth）即可讀寫
     //  2. 敏感管理操作保留 admin/super_admin 限制
     //  3. 前端 ACL 控制細粒度權限，規則層只做基本閘門
     //  4. 禁止刪除 users / attendanceRecords（審計軌跡）
+    //  5. isRestricted 帳號限制移至前端層面處理
     // ═══════════════════════════════════════════════════════════════
 
     // ── 共用函式 ──
@@ -125,9 +126,9 @@ service cloud.firestore {
     // ═══════════════════════════════════════════
     match /events/{eventId} {
       allow read: if true;
-      allow create: if isAuthNotRestricted()
+      allow create: if isAuth()
         && hasString('title');
-      allow update: if isAuthNotRestricted();
+      allow update: if isAuth();
       allow delete: if isAdmin();
     }
 
@@ -153,12 +154,9 @@ service cloud.firestore {
     // ═══════════════════════════════════════════
     match /registrations/{regId} {
       allow read: if isAuth();
-      allow create: if isAuthNotRestricted()
-        && hasString('eventId')
-        && hasString('userId')
-        && hasString('status');
-      allow update: if isAuthNotRestricted();
-      allow delete: if isAuthNotRestricted();
+      allow create: if isAuth();
+      allow update: if isAuth();
+      allow delete: if isAuth();
     }
 
     // ═══════════════════════════════════════════
@@ -167,9 +165,9 @@ service cloud.firestore {
     // ═══════════════════════════════════════════
     match /teams/{teamId} {
       allow read: if true;
-      allow create: if isAuthNotRestricted()
+      allow create: if isAuth()
         && hasString('name');
-      allow update: if isAuthNotRestricted();
+      allow update: if isAuth();
       allow delete: if isAdmin() || isTeamOwner();
     }
 
@@ -191,9 +189,9 @@ service cloud.firestore {
     // ═══════════════════════════════════════════
     match /messages/{msgId} {
       allow read: if isAuth();
-      allow create: if isAuthNotRestricted();
-      allow update: if isAuthNotRestricted();
-      allow delete: if isAuthNotRestricted();
+      allow create: if isAuth();
+      allow update: if isAuth();
+      allow delete: if isAuth();
     }
 
     // ═══════════════════════════════════════════
@@ -202,8 +200,8 @@ service cloud.firestore {
     // ═══════════════════════════════════════════
     match /activityRecords/{recordId} {
       allow read: if isAuth();
-      allow create: if isAuthNotRestricted();
-      allow update: if isAuthNotRestricted();
+      allow create: if isAuth();
+      allow update: if isAuth();
       allow delete: if isAdmin();
     }
 
@@ -213,8 +211,8 @@ service cloud.firestore {
     // ═══════════════════════════════════════════
     match /attendanceRecords/{recordId} {
       allow read: if isAuth();
-      allow create: if isAuthNotRestricted();
-      allow update: if isAuthNotRestricted();
+      allow create: if isAuth();
+      allow update: if isAuth();
       allow delete: if false;
     }
 
@@ -224,8 +222,8 @@ service cloud.firestore {
     // ═══════════════════════════════════════════
     match /shopItems/{itemId} {
       allow read: if true;
-      allow create: if isAuthNotRestricted();
-      allow update: if isAdmin() || isShopItemOwner();
+      allow create: if isAuth();
+      allow update: if isAuth();
       allow delete: if isAdmin() || isShopItemOwner();
     }
 
@@ -308,17 +306,17 @@ service cloud.firestore {
     // ═══════════════════════════════════════════
     match /expLogs/{logId} {
       allow read: if isAuth();
-      allow create: if isAuthNotRestricted();
+      allow create: if isAuth();
       allow update, delete: if false;
     }
     match /teamExpLogs/{logId} {
       allow read: if isAuth();
-      allow create: if isAuthNotRestricted();
+      allow create: if isAuth();
       allow update, delete: if false;
     }
     match /operationLogs/{logId} {
       allow read: if isAuth();
-      allow create: if isAuthNotRestricted();
+      allow create: if isAuth();
       allow update, delete: if false;
     }
 
@@ -367,7 +365,7 @@ service cloud.firestore {
     // ═══════════════════════════════════════════
     match /trades/{tradeId} {
       allow read: if isAuth();
-      allow create: if isAuthNotRestricted();
+      allow create: if isAuth();
       allow update, delete: if isAdmin() || isTradeOwner();
     }
 
