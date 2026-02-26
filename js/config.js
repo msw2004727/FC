@@ -50,7 +50,8 @@
 // 20260227h: 未報名單編輯模式補回踢掉功能 + _removeUnregUser
 // 20260227i: 候補名單新增正取功能（編輯按鈕 + 紫色正取按鈕 + _forcePromoteWaitlist）
 // 20260227j: 候補名單編輯按鈕改為紫底白字
-const CACHE_VERSION = '20260227j';
+// 20260227k: 正取後重整仍出現候補名單問題修正（await registration 寫入）
+const CACHE_VERSION = '20260227k';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {

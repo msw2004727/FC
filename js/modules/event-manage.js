@@ -465,6 +465,13 @@ Object.assign(App, {
 
     if (!ModeManager.isDemo()) {
       try {
+        // 先 await 每筆 registration 狀態更新，確保 Firestore 確實寫入後再更新 event
+        // （_promoteSingleCandidate 的 registration 更新是 fire-and-forget，重整後會殘留 waitlisted）
+        for (const reg of userWaitlisted) {
+          if (reg._docId) {
+            await db.collection('registrations').doc(reg._docId).update({ status: 'confirmed' });
+          }
+        }
         await db.collection('events').doc(e.id).update({
           current: e.current,
           waitlist: e.waitlist,
