@@ -18,6 +18,15 @@ const firebaseConfig = {
 // Initialize Firebase（支援 CDN 動態載入：SDK 可能在此腳本之後才載入）
 let db, storage, auth;
 
+// ─── Firebase Auth 狀態恢復追蹤 ───
+// Firebase Auth 從 indexedDB/localStorage 恢復登入狀態是非同步的，
+// 必須等 onAuthStateChanged 首次觸發後才能信賴 auth.currentUser。
+let _firebaseAuthReady = false;
+let _firebaseAuthReadyResolve;
+const _firebaseAuthReadyPromise = new Promise(resolve => {
+  _firebaseAuthReadyResolve = resolve;
+});
+
 // ─── WebSocket 降級偵測 ───
 const _WS_BLOCKED_KEY = 'shub_ws_blocked';
 const _WS_BLOCKED_TTL = 24 * 60 * 60 * 1000; // 24 小時後重新偵測
@@ -63,6 +72,16 @@ function initFirebaseApp() {
 
     storage = firebase.storage();
     auth = firebase.auth();
+
+    // 監聽 Auth 狀態恢復（首次觸發代表 persistence 已讀取完成）
+    auth.onAuthStateChanged(user => {
+      if (!_firebaseAuthReady) {
+        _firebaseAuthReady = true;
+        _firebaseAuthReadyResolve(user);
+        console.log('[Firebase] Auth 狀態已恢復:', user ? ('uid=' + user.uid) : '未登入');
+      }
+    });
+
     db.enablePersistence({ synchronizeTabs: true }).catch(err => {
       if (err.code === 'failed-precondition') {
         console.warn('[Firestore] 多個分頁開啟，僅一個可啟用離線快取');

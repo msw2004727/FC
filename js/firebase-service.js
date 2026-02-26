@@ -326,26 +326,39 @@ const FirebaseService = {
       return;
     }
 
+    // 先等待 Auth 狀態恢復——若先前已登入成功且有 persistence，不需重新走 LINE 驗證
+    if (typeof _firebaseAuthReadyPromise !== 'undefined' && !_firebaseAuthReady) {
+      try {
+        await Promise.race([_firebaseAuthReadyPromise, new Promise(r => setTimeout(r, 3000))]);
+      } catch (_) {}
+    }
+    if (auth?.currentUser) {
+      console.log('[FirebaseService] Auth 已從 persistence 恢復, uid:', auth.currentUser.uid);
+      return;
+    }
+
     // Prod 模式：只做 Custom Token 登入，不產生匿名用戶
     if (typeof liff === 'undefined' || !liff.isLoggedIn()) {
-      console.log('[FirebaseService] LIFF 未登入，跳過 Firebase Auth（使用快取瀏覽）');
+      console.warn('[FirebaseService] LIFF 未登入，跳過 Firebase Auth（使用快取瀏覽）');
       return;
     }
 
     const accessToken = typeof LineAuth !== 'undefined' ? LineAuth.getAccessToken?.() : null;
     if (!accessToken) {
-      console.log('[FirebaseService] 無 LINE Access Token，跳過 Firebase Auth');
+      console.warn('[FirebaseService] 無 LINE Access Token，跳過 Firebase Auth');
       return;
     }
 
     try {
+      console.log('[FirebaseService] 呼叫 createCustomToken Cloud Function...');
       const fn = firebase.app().functions('asia-east1').httpsCallable('createCustomToken');
       const result = await fn({ accessToken });
       const { customToken } = result.data;
+      console.log('[FirebaseService] 收到 Custom Token, 執行 signInWithCustomToken...');
       const cred = await auth.signInWithCustomToken(customToken);
       console.log('[FirebaseService] Custom Token 登入成功, uid:', cred.user?.uid);
     } catch (err) {
-      console.warn('[FirebaseService] Custom Token 登入失敗:', err);
+      console.error('[FirebaseService] Custom Token 登入失敗:', err?.code, err?.message);
       if (typeof App !== 'undefined' && App.showToast) {
         App.showToast('LINE 驗證失敗，部分功能可能受限');
       }

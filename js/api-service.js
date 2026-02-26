@@ -30,7 +30,17 @@ const ApiService = {
   },
 
   async _hasFreshFirebaseUser(forceRefreshToken = false) {
-    if (typeof auth === 'undefined' || !auth?.currentUser) return false;
+    if (typeof auth === 'undefined' || !auth) return false;
+    // 等待 Firebase Auth 從持久化儲存恢復登入狀態（最多 5 秒）
+    if (typeof _firebaseAuthReadyPromise !== 'undefined' && !_firebaseAuthReady) {
+      try {
+        await Promise.race([
+          _firebaseAuthReadyPromise,
+          new Promise(r => setTimeout(r, 5000)),
+        ]);
+      } catch (_) {}
+    }
+    if (!auth.currentUser) return false;
     try {
       await auth.currentUser.getIdToken(!!forceRefreshToken);
       return true;
@@ -81,6 +91,12 @@ const ApiService = {
       return true;
     }
 
+    console.warn('[ApiService] auth.currentUser 為空或 token 無效，嘗試重新登入...',
+      { hasAuth: typeof auth !== 'undefined' && !!auth,
+        currentUser: auth?.currentUser?.uid || null,
+        liffLoggedIn: this._hasLiffSession(),
+        hasAccessToken: this._hasLineAccessToken() });
+
     if (forceReauth && typeof auth !== 'undefined' && auth?.currentUser) {
       try {
         await auth.signOut();
@@ -97,7 +113,12 @@ const ApiService = {
       }
     }
 
-    return await this._hasFreshFirebaseUser(true);
+    const result = await this._hasFreshFirebaseUser(true);
+    if (!result) {
+      console.error('[ApiService] 重新登入後 auth.currentUser 仍為空',
+        { currentUser: auth?.currentUser?.uid || null });
+    }
+    return result;
   },
 
   _isAttendancePermissionError(err) {
@@ -119,12 +140,17 @@ const ApiService = {
     const normalized = raw.toLowerCase().replace(/\s+/g, '');
     if (this._isAttendancePermissionError(err)) {
       if (!this._hasLiffSession()) {
-        return '未偵測到 LINE 登入，請重新開啟 LINE 再試';
+        return '未偵測到 LINE 登入，請關閉後重新從 LINE 開啟';
       }
       if (!this._hasLineAccessToken()) {
-        return 'LINE 登入已過期，請重新開啟 LINE 再試';
+        return 'LINE 登入已過期，請關閉後重新從 LINE 開啟';
       }
-      return 'Firebase 登入已失效或權限不足，請重新登入 LINE 後再試';
+      // auth.currentUser 存在但 Firestore 拒絕 vs 根本未登入
+      const hasUser = typeof auth !== 'undefined' && !!auth?.currentUser;
+      if (!hasUser) {
+        return 'Firebase 登入失敗，請關閉此頁面後重新從 LINE 開啟';
+      }
+      return 'Firebase 權限不足，請聯繫管理員確認帳號權限';
     }
     if (normalized.includes('missingrequiredfields')) {
       return '簽到資料格式錯誤，缺少必要欄位';

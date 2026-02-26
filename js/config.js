@@ -41,7 +41,8 @@
 // 20260226zf: 修復簽到簽退權限：Firestore rules 改 isCoachPlus()、錯誤訊息全中文化
 // 20260226zg: 簽到簽退 update 規則放寬為 isAuth()，確保活動主辦/委託人（含非教練）皆可操作
 // 20260226zh: 圖片上傳改為 WebP 格式（不支援時自動降級 JPEG）
-const CACHE_VERSION = '20260226zh';
+// 20260226zi: 修復 Auth 狀態恢復競態：等待 onAuthStateChanged + persistence 恢復後再檢查登入
+const CACHE_VERSION = '20260226zi';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {

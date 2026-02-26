@@ -327,3 +327,9 @@
 - **原因**：Firestore 規則無法用 `eventId`（邏輯 ID）反查 events 文件的 `creatorUid`/`delegates`（因 events 使用自動產生的 document ID），無法在規則層做活動歸屬檢查。
 - **修復**：將 attendanceRecords update 規則從 `isCoachPlus()` 放寬為 `isAuth() && !isRestrictedAccount()`；安全性由前端存取控制（`_canManageEvent`：admin / owner / delegate）+ 審計軌跡（`removedByUid`）+ `delete: false` 共同保障。
 - **教訓**：當 Firestore 規則無法做跨集合歸屬驗證時，採用「寬鬆規則 + 前端存取控制 + 審計軌跡」的分層安全策略。
+
+### 2026-02-26 — 修復 Firebase Auth 狀態恢復競態導致簽到寫入失敗
+- **問題**：Firestore rules 和用戶資料都正確，但簽到寫入仍顯示「更新失敗：Firebase 登入已失效或權限不足」。
+- **原因**：Firebase Auth 從 persistence（indexedDB/localStorage）恢復登入狀態是非同步的，但 `_hasFreshFirebaseUser()` 直接同步檢查 `auth.currentUser`，在恢復完成前會得到 null；`_signInWithAppropriateMethod()` 也沒有先等 persistence 恢復，即使先前已成功登入也會嘗試重新走 LINE Token → Cloud Function 流程。
+- **修復**：(1) `js/firebase-config.js` 新增 `onAuthStateChanged` 監聽器與 `_firebaseAuthReadyPromise`，首次觸發即代表 persistence 恢復完成；(2) `js/api-service.js` 的 `_hasFreshFirebaseUser()` 先等待 `_firebaseAuthReadyPromise`（最多 5 秒）再檢查 `auth.currentUser`；(3) `js/firebase-service.js` 的 `_signInWithAppropriateMethod()` 先等 persistence 恢復，若已有有效 currentUser 則直接返回，避免不必要的 Cloud Function 呼叫；(4) 強化錯誤訊息：區分「Firebase 未登入」與「權限不足」兩種情境。
+- **教訓**：Firebase Auth 的 `auth.currentUser` 在頁面載入後是非同步填入的，必須透過 `onAuthStateChanged` 或 `authStateReady()` 等待首次回呼後才可信賴；直接同步讀取會造成競態條件。
