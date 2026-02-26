@@ -27,7 +27,8 @@
 // 20260226f: 修復新用戶卡在「登入確認中」—liff.init()/Auth timeout + isPendingLogin 自動降級
 // 20260226g: LINE 首次登入速度優化（ensureProfile + Firebase 並行化 + profile 快取）
 // 20260226k: 解除首頁底部隊伍按鈕「功能準備中」擋板（保留賽事按鈕）
-const CACHE_VERSION = '20260226k';
+// 20260226l: 球隊頁右上角新增球隊按鈕（依後台 rolePermissions 的 team.create 顯示）
+const CACHE_VERSION = '20260226l';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {

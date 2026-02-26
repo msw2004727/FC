@@ -31,6 +31,34 @@ Object.assign(App, {
     });
   },
 
+  _hasRolePermission(code) {
+    if (!code) return false;
+    const role = (this.currentRole || ApiService.getCurrentUser?.()?.role || 'user');
+    const perms = ApiService.getRolePermissions(role) || [];
+    return perms.includes(code);
+  },
+
+  _canCreateTeamByPermission() {
+    return this._hasRolePermission('team.create');
+  },
+
+  _refreshTeamCreateButtons() {
+    const canCreate = this._canCreateTeamByPermission();
+    const pageBtn = document.getElementById('team-page-create-btn');
+    if (pageBtn) pageBtn.style.display = canCreate ? '' : 'none';
+
+    const manageBtn = document.getElementById('team-manage-create-btn');
+    if (manageBtn) manageBtn.style.display = canCreate ? '' : 'none';
+  },
+
+  openTeamCreateFromTeamsPage() {
+    if (!this._canCreateTeamByPermission()) {
+      this.showToast('目前未開啟建立球隊權限');
+      return;
+    }
+    this.showTeamForm();
+  },
+
   _teamCardHTML(t) {
     const pinnedClass = t.pinned ? ' tc-pinned' : '';
     const color = t.color || '#6b7280';
@@ -52,6 +80,7 @@ Object.assign(App, {
   renderTeamList() {
     const container = document.getElementById('team-list');
     if (!container) return;
+    this._refreshTeamCreateButtons();
     const sorted = this._sortTeams(ApiService.getActiveTeams());
     container.innerHTML = sorted.map(t => this._teamCardHTML(t)).join('');
   },
@@ -86,6 +115,7 @@ Object.assign(App, {
   renderTeamManage(filter) {
     const container = document.getElementById('team-manage-list');
     if (!container) return;
+    this._refreshTeamCreateButtons();
 
     const tabs = document.getElementById('team-manage-tabs');
     if (tabs && !tabs.dataset.bound) {

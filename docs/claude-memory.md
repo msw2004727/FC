@@ -205,3 +205,8 @@
 - **��]**�G`bindNavigation()` �N `page-teams` �P `page-tournaments` �@�_��b�P�@�ӥ��}��תO���󤺡C
 - **�״_**�G�u�O�d `page-tournaments` ��� `�\��ǳƤ�`�A���� `page-teams` ���d�I�F��s `CACHE_VERSION` �P `index.html` �����ѼơC
 - **�аV**�G�����������Ȱ��\�����v������A���n��h�ӭ����j�b�P�@����A�קK�}��@���ɻ~�ץt�@���C
+### 2026-02-26 — 球隊頁新增球隊按鈕（依 rolePermissions 顯示）
+- **問題**：球隊頁沒有直接的新增球隊入口，用戶需先進入球隊管理頁；且新增入口未依後台角色權限 `team.create` 動態控制顯示。
+- **原因**：`pages/team.html` 的球隊頁 header 只有標題，建立球隊入口僅存在於球隊管理頁，且 `showTeamForm()` 建立模式沒有權限防呆。
+- **修復**：在球隊頁 header 新增 `新增球隊` 按鈕；於 `team-list.js` 新增 `team.create` 權限判斷與按鈕顯示更新（同步作用於球隊管理頁既有新增按鈕）；在 `team-form.js` 的 `showTeamForm()` 建立模式加入權限檢查與提示；更新 `CACHE_VERSION` 與 `index.html` 版本參數。
+- **教訓**：新增功能入口若受角色權限控制，除了 UI 顯示條件外，入口函式本身也要補一層防呆，避免被 console 或舊 DOM 狀態繞過。

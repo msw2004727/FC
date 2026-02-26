@@ -204,6 +204,10 @@ Object.assign(App, {
   },
 
   showTeamForm(id) {
+    if (!id && typeof this._canCreateTeamByPermission === 'function' && !this._canCreateTeamByPermission()) {
+      this.showToast('目前未開啟建立球隊權限');
+      return;
+    }
     this._teamEditId = id || null;
     const titleEl = document.getElementById('ct-team-modal-title');
     const saveBtn = document.getElementById('ct-team-save-btn');

@@ -2,6 +2,12 @@
     <section class="page" id="page-teams">
       <div class="page-header">
         <h2>球隊</h2>
+        <button
+          class="primary-btn small"
+          id="team-page-create-btn"
+          onclick="App.openTeamCreateFromTeamsPage()"
+          style="display:none"
+        >新增球隊</button>
       </div>
       <div class="team-search-bar">
         <input type="text" id="team-search" placeholder="搜尋球隊名稱..." oninput="App.filterTeams()">
@@ -39,7 +45,7 @@
       <div class="page-header">
         <button class="back-btn" onclick="App.goBack()">←</button>
         <h2>球隊管理</h2>
-        <button class="primary-btn small" onclick="App.showTeamForm()">＋ 新增球隊</button>
+        <button class="primary-btn small" id="team-manage-create-btn" onclick="App.showTeamForm()">＋ 新增球隊</button>
       </div>
       <div class="tab-bar" id="team-manage-tabs">
         <button class="tab active" data-tab="my-teams">我的球隊</button>
