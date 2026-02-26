@@ -119,17 +119,17 @@ const ApiService = {
     const normalized = raw.toLowerCase().replace(/\s+/g, '');
     if (this._isAttendancePermissionError(err)) {
       if (!this._hasLiffSession()) {
-        return 'LINE session not detected. Please re-login in LINE and try again.';
+        return '未偵測到 LINE 登入，請重新開啟 LINE 再試';
       }
       if (!this._hasLineAccessToken()) {
-        return 'LINE token expired. Please re-login in LINE and try again.';
+        return 'LINE 登入已過期，請重新開啟 LINE 再試';
       }
-      return 'Firebase auth expired or insufficient permission. Please re-login LINE and try again.';
+      return 'Firebase 登入已失效或權限不足，請重新登入 LINE 後再試';
     }
     if (normalized.includes('missingrequiredfields')) {
-      return 'Invalid attendance payload: missing required fields.';
+      return '簽到資料格式錯誤，缺少必要欄位';
     }
-    return raw || 'Attendance write failed';
+    return raw || '簽到寫入失敗，請稍後再試';
   },
 
   async _runAttendanceWriteWithAuthRetry(writeFn, label) {

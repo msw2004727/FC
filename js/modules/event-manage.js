@@ -750,9 +750,7 @@ Object.assign(App, {
     } catch (err) {
       console.error('[_confirmManualAttendance]', err);
       const rawMsg = String(err?.message || '');
-      const denied = /permission|insufficient|missing/i.test(rawMsg);
-      const msg = denied ? '資料庫權限拒絕（目前帳號不可修改既有簽到紀錄）' : (rawMsg || '請稍後再試');
-      this.showToast('更新失敗：' + msg);
+      this.showToast('更新失敗：' + (rawMsg || '請確認登入狀態後再試'));
       return;
     }
 

@@ -308,6 +308,8 @@ service cloud.firestore {
     // ═══════════════════════════════════════════
     //  Attendance Records（簽到簽退）
     //  登入可讀寫；禁止刪除（審計軌跡）
+    //  update 允許所有登入用戶：前端已依活動主辦/委託人/admin 控制存取，
+    //  且 update 僅用於 soft delete（status='removed'），審計軌跡完整。
     // ═══════════════════════════════════════════
     match /attendanceRecords/{recordId} {
       allow read: if isAuth();
@@ -315,7 +317,7 @@ service cloud.firestore {
         && !isRestrictedAccount()
         && hasString('eventId')
         && hasString('uid');
-      allow update: if isAdmin();
+      allow update: if isAuth() && !isRestrictedAccount();
       allow delete: if false;
     }
 

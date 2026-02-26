@@ -188,23 +188,23 @@
 - **ä¿®å¾©**ï¼šæ–°å¢ `functions/index.js` çš„ `backfillRoleClaims` callableï¼ˆ`super_admin` onlyï¼Œæ”¯æ´ `limit/dryRun/startAfterDocId`ï¼‰ï¼›èª¿æ•´ `js/firebase-crud.js` çš„ `saveRolePermissions/deleteRolePermissions/addCustomRole/deleteCustomRole` æ”¹ç‚ºæ‹‹éŒ¯ï¼›èª¿æ•´ `js/api-service.js` çš„ `updateAdminUser()` æ”¹ç‚º `async` ä¸¦åœ¨å¤±æ•—æ™‚å›æ»¾ï¼›èª¿æ•´ `js/modules/user-admin-list.js` èˆ‡ `js/modules/user-admin-roles.js` è®“é—œéµç®¡ç†æ“ä½œæ”¹ç‚º `await + rollback`ï¼›æ–°å¢ `docs/smoke-test.md`ã€‚
 - **æ•™è¨“**ï¼šå®‰å…¨ä¿®å¾©ä¸åªçœ‹ Rules/Functionsï¼Œç®¡ç†ç«¯ UI ä¹Ÿè¦é¿å… optimistic successï¼›å°é—œéµå¯«å…¥ API ä¸æ‡‰åéŒ¯ï¼Œå¦å‰‡å‰ç«¯ç„¡æ³•æ­£ç¢ºå›æ»¾ã€‚
 
-### 2026-02-26 ¡X ­º¦¸µn¤J¦a°Ï§ï¬°¥ş¥x 22 ¿¤¥«¨Ã¥[¤J¼Ò½k·j´M
-- **°İÃD**¡G­º¦¸µn¤J¥²¶ñ¦a°Ï¿ï¶µ¹L¤Ö¡]¶È¤Ö¼Æ¿¤¥« + ¨ä¥L¡^¡AµLªkÂĞ»\¥ş¥x¨Ï¥ÎªÌ¡A¥B¿ï³æ¶µ¥Ø¼W¥[«á·|Ãø§ä¡C
-- **­ì¦]**¡G`pages/profile.html` ªº `#fl-region` ¤U©Ô¿ï³æ¬O¦­´Á¼g¦ºªººëÂ²ª©¥»¡A¨S¦³·j´M»²§U¡C
-- **­×´_**¡G¦b­º¦¸µn¤J modal ·s¼W `#fl-region-search` ·j´M®Ø¡F«eºİ©T©w¼g¦º¥ş¥x 22 ¿¤¥« + `¨ä¥L`¡F¦b `profile-data.js` ·s¼W¼Ò½k·j´M¡]`includes`¡A§t `¥x/»O` ¥¿³W¤Æ¡^»P¶}±Ò modal ®Éªº¿ï³æ­«¸mªì©l¤Æ¡F§ó·s `CACHE_VERSION` »P `index.html` ª©¥»°Ñ¼Æ¡C
-- **±Ğ°V**¡GÀRºA¤U©Ô²M³æ¤@¥¹¶W¹L¤Q´X¶µ¡AÀ³¦P®É´£¨Ñ·j´M©Î¤À²Õ¡AÁ×§K­º¦¸µn¤J¬yµ{¥d¦b§ä¿ï¶µ¡C
+### 2026-02-26 ï¿½X ï¿½ï¿½ï¿½ï¿½ï¿½nï¿½Jï¿½aï¿½Ï§ï¬°ï¿½ï¿½ï¿½x 22 ï¿½ï¿½ï¿½ï¿½ï¿½Ã¥[ï¿½Jï¿½Ò½kï¿½jï¿½M
+- **ï¿½ï¿½ï¿½D**ï¿½Gï¿½ï¿½ï¿½ï¿½ï¿½nï¿½Jï¿½ï¿½ï¿½ï¿½aï¿½Ï¿ï¶µï¿½Lï¿½Ö¡]ï¿½È¤Ö¼Æ¿ï¿½ï¿½ï¿½ + ï¿½ï¿½Lï¿½^ï¿½Aï¿½Lï¿½kï¿½Ğ»\ï¿½ï¿½ï¿½xï¿½Ï¥ÎªÌ¡Aï¿½Bï¿½ï¿½æ¶µï¿½Ø¼Wï¿½[ï¿½ï¿½|ï¿½ï¿½ï¿½ï¿½C
+- **ï¿½ï¿½]**ï¿½G`pages/profile.html` ï¿½ï¿½ `#fl-region` ï¿½Uï¿½Ô¿ï¿½ï¿½Oï¿½ï¿½ï¿½ï¿½ï¿½gï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Â²ï¿½ï¿½ï¿½ï¿½ï¿½Aï¿½Sï¿½ï¿½ï¿½jï¿½Mï¿½ï¿½ï¿½Uï¿½C
+- **ï¿½×´_**ï¿½Gï¿½bï¿½ï¿½ï¿½ï¿½ï¿½nï¿½J modal ï¿½sï¿½W `#fl-region-search` ï¿½jï¿½Mï¿½Ø¡Fï¿½eï¿½İ©Tï¿½wï¿½gï¿½ï¿½ï¿½ï¿½ï¿½x 22 ï¿½ï¿½ï¿½ï¿½ + `ï¿½ï¿½L`ï¿½Fï¿½b `profile-data.js` ï¿½sï¿½Wï¿½Ò½kï¿½jï¿½Mï¿½]`includes`ï¿½Aï¿½t `ï¿½x/ï¿½O` ï¿½ï¿½ï¿½Wï¿½Æ¡^ï¿½Pï¿½}ï¿½ï¿½ modal ï¿½Éªï¿½ï¿½ï¿½æ­«ï¿½mï¿½ï¿½lï¿½Æ¡Fï¿½ï¿½s `CACHE_VERSION` ï¿½P `index.html` ï¿½ï¿½ï¿½ï¿½ï¿½Ñ¼Æ¡C
+- **ï¿½Ğ°V**ï¿½Gï¿½Rï¿½Aï¿½Uï¿½Ô²Mï¿½ï¿½@ï¿½ï¿½ï¿½Wï¿½Lï¿½Qï¿½Xï¿½ï¿½ï¿½Aï¿½ï¿½ï¿½Pï¿½É´ï¿½ï¿½Ñ·jï¿½Mï¿½Î¤ï¿½ï¿½Õ¡Aï¿½×§Kï¿½ï¿½ï¿½ï¿½ï¿½nï¿½Jï¿½yï¿½{ï¿½dï¿½bï¿½ï¿½ï¶µï¿½C
 
-### 2026-02-26 ¡X users ±b¸¹­­¨î¡]­­¨î/¸Ñ°£­­¨î¡^MVP
-- **°İÃD**¡G»İ­n¦b¥Î¤áºŞ²z¹ï¤@¯ë `user` ±b¸¹°µ­­¨î/¸Ñ°£­­¨î¡A¨ÃÅı³Q­­¨îªÌµn¤J«á¶È¯à°±¯d­º­¶¡A¾Ş§@¥\¯à®É´£¥Ü¡u±b¸¹­­¨î¤¤¡v¡C
-- **­ì¦]**¡G²{¦³¨t²Î¥u¦³¨¤¦âÅv­­»P­¶­±µn¤JÀË¬d¡A¯Ê¤Ö±b¸¹ª¬ºA¼h¡]¨Ò¦p­­¨î/«ÊÂê¡^»P¥ş°ì¾É­¶ÄdºI¡C
-- **­×´_**¡G`user-admin-list.js` ·s¼W `­­¨î/¸Ñ°£­­¨î` «ö¶s¡]¶È `role === 'user'` Åã¥Ü¡^»P `toggleUserRestriction()`¡F`navigation.js` ·s¼W­­¨îª¬ºA§PÂ_»P `showPage()`/©³³¡ tab/goBack ÄdºI¡A­­¨îªÌ¦Û°Ê¾É¦^­º­¶¡F`profile-core.js` ¦b currentUser §Y®É§ó·s¦^©I¤¤Ä²µo­­¨î¾É¬y¡F`api-service.js` ·s¼W­­¨î±b¸¹¼g¤J¨¾§b¡]§t³ø¦W¡B°T®§¤wÅª¡B­Ó¸ê/¦P¦æªÌµ¥¡^¡F`firestore.rules` ·s¼W `isRestrictedAccount()`¡A«OÅ@ `users.isRestricted*` Äæ¦ì¶È super_admin ¥i§ï¡A¨Ãªı¾×³Q­­¨î±b¸¹ªº¥D­n¨Ï¥ÎªÌ¼g¤J¸ô®|¡C
-- **±Ğ°V**¡G±b¸¹­­¨î­Y¥u°µ«eºİ UI ·|³Q console Â¶¹L¡A¦Ü¤Ö­n¦P¨B¸É Rules ªºÄæ¦ì«OÅ@»P±`¨£¼g¤J­­¨î¡F¾É¯èÄdºIÀ³¶°¤¤¦b `showPage()` ³oºØ³æ¤@¤J¤f­°§Cº|ºô²v¡C
+### 2026-02-26 ï¿½X users ï¿½bï¿½ï¿½ï¿½ï¿½ï¿½ï¿½]ï¿½ï¿½ï¿½ï¿½/ï¿½Ñ°ï¿½ï¿½ï¿½ï¿½ï¿½^MVP
+- **ï¿½ï¿½ï¿½D**ï¿½Gï¿½İ­nï¿½bï¿½Î¤ï¿½Ş²zï¿½ï¿½@ï¿½ï¿½ `user` ï¿½bï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½/ï¿½Ñ°ï¿½ï¿½ï¿½ï¿½ï¿½Aï¿½ï¿½ï¿½ï¿½ï¿½Qï¿½ï¿½ï¿½ï¿½Ìµnï¿½Jï¿½ï¿½È¯à°±ï¿½dï¿½ï¿½ï¿½ï¿½ï¿½Aï¿½Ş§@ï¿½\ï¿½ï¿½É´ï¿½ï¿½Ü¡uï¿½bï¿½ï¿½ï¿½ï¿½ï¿½î¤¤ï¿½vï¿½C
+- **ï¿½ï¿½]**ï¿½Gï¿½{ï¿½ï¿½ï¿½tï¿½Î¥uï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½vï¿½ï¿½ï¿½Pï¿½ï¿½ï¿½ï¿½ï¿½nï¿½Jï¿½Ë¬dï¿½Aï¿½Ê¤Ö±bï¿½ï¿½ï¿½ï¿½ï¿½Aï¿½hï¿½]ï¿½Ò¦pï¿½ï¿½ï¿½ï¿½/ï¿½ï¿½ï¿½ï¿½^ï¿½Pï¿½ï¿½ï¿½ï¿½É­ï¿½ï¿½dï¿½Iï¿½C
+- **ï¿½×´_**ï¿½G`user-admin-list.js` ï¿½sï¿½W `ï¿½ï¿½ï¿½ï¿½/ï¿½Ñ°ï¿½ï¿½ï¿½ï¿½ï¿½` ï¿½ï¿½ï¿½sï¿½]ï¿½ï¿½ `role === 'user'` ï¿½ï¿½Ü¡^ï¿½P `toggleUserRestriction()`ï¿½F`navigation.js` ï¿½sï¿½Wï¿½ï¿½ï¿½îª¬ï¿½Aï¿½Pï¿½_ï¿½P `showPage()`/ï¿½ï¿½ï¿½ï¿½ tab/goBack ï¿½dï¿½Iï¿½Aï¿½ï¿½ï¿½ï¿½Ì¦Û°Ê¾É¦^ï¿½ï¿½ï¿½ï¿½ï¿½F`profile-core.js` ï¿½b currentUser ï¿½Yï¿½É§ï¿½sï¿½^ï¿½Iï¿½ï¿½Ä²ï¿½oï¿½ï¿½ï¿½ï¿½É¬yï¿½F`api-service.js` ï¿½sï¿½Wï¿½ï¿½ï¿½ï¿½bï¿½ï¿½ï¿½gï¿½Jï¿½ï¿½ï¿½bï¿½]ï¿½tï¿½ï¿½ï¿½Wï¿½Bï¿½Tï¿½ï¿½ï¿½wÅªï¿½Bï¿½Ó¸ï¿½/ï¿½Pï¿½ï¿½Ìµï¿½ï¿½^ï¿½F`firestore.rules` ï¿½sï¿½W `isRestrictedAccount()`ï¿½Aï¿½Oï¿½@ `users.isRestricted*` ï¿½ï¿½ï¿½ï¿½ super_admin ï¿½iï¿½ï¿½Aï¿½Ãªï¿½ï¿½×³Qï¿½ï¿½ï¿½ï¿½bï¿½ï¿½ï¿½ï¿½ï¿½Dï¿½nï¿½Ï¥ÎªÌ¼gï¿½Jï¿½ï¿½ï¿½|ï¿½C
+- **ï¿½Ğ°V**ï¿½Gï¿½bï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Yï¿½uï¿½ï¿½ï¿½eï¿½ï¿½ UI ï¿½|ï¿½Q console Â¶ï¿½Lï¿½Aï¿½Ü¤Ö­nï¿½Pï¿½Bï¿½ï¿½ Rules ï¿½ï¿½ï¿½ï¿½ï¿½Oï¿½@ï¿½Pï¿½`ï¿½ï¿½ï¿½gï¿½Jï¿½ï¿½ï¿½ï¿½Fï¿½É¯ï¿½ï¿½dï¿½Iï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½b `showPage()` ï¿½oï¿½Ø³ï¿½@ï¿½Jï¿½fï¿½ï¿½ï¿½Cï¿½|ï¿½ï¿½ï¿½vï¿½C
 
-### 2026-02-26 ¡X ¸Ñ°£­º­¶©³³¡¶¤¥î«ö¶s¡u¥\¯à·Ç³Æ¤¤¡v¾×ªO
-- **°İÃD**¡G­º­¶©³³¡¾ÉÄıªº¶¤¥î«ö¶sÂIÀ»«á³Q `¥\¯à·Ç³Æ¤¤` ´£¥ÜÄdºI¡AµLªk¶i¤J¶¤¥î­¶¡C
-- **­ì¦]**¡G`bindNavigation()` ±N `page-teams` »P `page-tournaments` ¤@°_©ñ¦b¦P¤@­Ó¥¼¶}©ñ¾×ªO±ø¥ó¤º¡C
-- **­×´_**¡G¥u«O¯d `page-tournaments` Åã¥Ü `¥\¯à·Ç³Æ¤¤`¡A²¾°£ `page-teams` ªºÄdºI¡F§ó·s `CACHE_VERSION` »P `index.html` ª©¥»°Ñ¼Æ¡C
-- **±Ğ°V**¡G©³³¡¾ÉÄıªº¼È°±¥\¯àÀ³³v­¶±±¨î¡A¤£­n§â¦h­Ó­¶­±¸j¦b¦P¤@±ø¥ó¡AÁ×§K¶}©ñ¤@­¶®É»~¾×¥t¤@­¶¡C
+### 2026-02-26 ï¿½X ï¿½Ñ°ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½sï¿½uï¿½\ï¿½ï¿½Ç³Æ¤ï¿½ï¿½vï¿½×ªO
+- **ï¿½ï¿½ï¿½D**ï¿½Gï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½sï¿½Iï¿½ï¿½ï¿½ï¿½Q `ï¿½\ï¿½ï¿½Ç³Æ¤ï¿½` ï¿½ï¿½ï¿½ï¿½ï¿½dï¿½Iï¿½Aï¿½Lï¿½kï¿½iï¿½Jï¿½ï¿½ï¿½î­¶ï¿½C
+- **ï¿½ï¿½]**ï¿½G`bindNavigation()` ï¿½N `page-teams` ï¿½P `page-tournaments` ï¿½@ï¿½_ï¿½ï¿½bï¿½Pï¿½@ï¿½Ó¥ï¿½ï¿½}ï¿½ï¿½×ªOï¿½ï¿½ï¿½ó¤º¡C
+- **ï¿½×´_**ï¿½Gï¿½uï¿½Oï¿½d `page-tournaments` ï¿½ï¿½ï¿½ `ï¿½\ï¿½ï¿½Ç³Æ¤ï¿½`ï¿½Aï¿½ï¿½ï¿½ï¿½ `page-teams` ï¿½ï¿½ï¿½dï¿½Iï¿½Fï¿½ï¿½s `CACHE_VERSION` ï¿½P `index.html` ï¿½ï¿½ï¿½ï¿½ï¿½Ñ¼Æ¡C
+- **ï¿½Ğ°V**ï¿½Gï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½È°ï¿½ï¿½\ï¿½ï¿½ï¿½ï¿½ï¿½vï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Aï¿½ï¿½ï¿½nï¿½ï¿½hï¿½Ó­ï¿½ï¿½ï¿½ï¿½jï¿½bï¿½Pï¿½@ï¿½ï¿½ï¿½ï¿½Aï¿½×§Kï¿½}ï¿½ï¿½@ï¿½ï¿½ï¿½É»~ï¿½×¥tï¿½@ï¿½ï¿½ï¿½C
 ### 2026-02-26 â€” çƒéšŠé æ–°å¢çƒéšŠæŒ‰éˆ•ï¼ˆä¾ rolePermissions é¡¯ç¤ºï¼‰
 - **å•é¡Œ**ï¼šçƒéšŠé æ²’æœ‰ç›´æ¥çš„æ–°å¢çƒéšŠå…¥å£ï¼Œç”¨æˆ¶éœ€å…ˆé€²å…¥çƒéšŠç®¡ç†é ï¼›ä¸”æ–°å¢å…¥å£æœªä¾å¾Œå°è§’è‰²æ¬Šé™ `team.create` å‹•æ…‹æ§åˆ¶é¡¯ç¤ºã€‚
 - **åŸå› **ï¼š`pages/team.html` çš„çƒéšŠé  header åªæœ‰æ¨™é¡Œï¼Œå»ºç«‹çƒéšŠå…¥å£åƒ…å­˜åœ¨æ–¼çƒéšŠç®¡ç†é ï¼Œä¸” `showTeamForm()` å»ºç«‹æ¨¡å¼æ²’æœ‰æ¬Šé™é˜²å‘†ã€‚
@@ -315,3 +315,15 @@
 - **Cause**: The write path only checked whether `auth.currentUser` existed, without token freshness validation or forced re-auth retry on permission-denied/unauthenticated errors.
 - **Fix**: Updated `js/api-service.js` to validate token freshness before attendance writes, add one forced re-auth + retry path for permission/auth errors, add lightweight auth-state diagnostics logging, and validate required payload fields (`eventId`/`uid`) before write.
 - **Lesson**: For critical production writes, auth existence checks are not enough; validate usable tokens and provide a controlled retry strategy for transient auth drift.
+
+### 2026-02-26 â€” ä¿®å¾©ç°½åˆ°ç°½é€€æ¬Šé™èˆ‡éŒ¯èª¤è¨Šæ¯ä¸­æ–‡åŒ–
+- **å•é¡Œ**ï¼šæ´»å‹•é é¢ç”¨ç·¨è¼¯æŒ‰éˆ•æˆ–æƒç¢¼æ–¹å¼ç°½åˆ°ç°½é€€æ™‚é¡¯ç¤ºã€Œæ›´æ–°å¤±æ•—ï¼šFirebase ç™»å…¥å·²å¤±æ•ˆæˆ–æ¬Šé™ä¸è¶³ï¼Œè«‹é‡æ–°ç™»å…¥ LINE å¾Œå†è©¦ã€ã€‚
+- **åŸå› **ï¼š(1) Firestore rules ä¸­ `attendanceRecords` çš„ `allow update` è¨­ç‚º `isAdmin()`ï¼Œæ•™ç·´(coach+)åœ¨å–æ¶ˆå‹¾é¸ç°½åˆ°/ç°½é€€æ™‚è§¸ç™¼çš„ soft deleteï¼ˆupdate æ“ä½œï¼‰è¢«è¦å‰‡æ‹’çµ•ï¼›(2) `_mapAttendanceWriteError()` è¿”å›è‹±æ–‡éŒ¯èª¤è¨Šæ¯ï¼Œä¸­æ–‡ app é¡¯ç¤ºä¸ç•¶ï¼›(3) event-manage.js çš„ catch å€å¡Šæœ‰é¡å¤–çš„æ­£è¦è¡¨é”å¼è¦†è“‹é‚è¼¯ï¼Œå°è‡´éŒ¯èª¤è¨Šæ¯ä¸ä¸€è‡´ã€‚
+- **ä¿®å¾©**ï¼š(1) `firestore.rules` ä¸­ attendanceRecords update è¦å‰‡å¾ `isAdmin()` æ”¹ç‚º `isCoachPlus()`ï¼›(2) `js/api-service.js` ä¸­ `_mapAttendanceWriteError` æ‰€æœ‰éŒ¯èª¤è¨Šæ¯æ”¹ç‚ºä¸­æ–‡ï¼›(3) ç°¡åŒ– `js/modules/event-manage.js` çš„ catch å€å¡Šï¼Œç›´æ¥ä½¿ç”¨ `_mapAttendanceWriteError` è¿”å›çš„ä¸­æ–‡è¨Šæ¯ï¼›(4) æ›´æ–°å¿«å–ç‰ˆæœ¬è‡³ `20260226zf`ã€‚
+- **æ•™è¨“**ï¼šFirestore rules å¿…é ˆèˆ‡ UI å±¤å…è¨±çš„æ“ä½œè§’è‰²å°é½Šï¼›é¢å‘ç”¨æˆ¶çš„éŒ¯èª¤è¨Šæ¯éœ€èˆ‡ app èªè¨€ä¸€è‡´ï¼Œé¿å…åœ¨ error mapper å’Œ catch å€å¡Šä¸­åšé›™é‡è½‰è­¯ã€‚
+
+### 2026-02-26 â€” ç°½åˆ°ç°½é€€ update è¦å‰‡æ”¾å¯¬ï¼Œç¢ºä¿æ´»å‹•ä¸»è¾¦/å§”è¨—äººçš†å¯æ“ä½œ
+- **å•é¡Œ**ï¼šattendanceRecords çš„ update è¦å‰‡ç‚º `isCoachPlus()`ï¼Œä½†æ´»å‹•å§”è¨—äººå¯èƒ½ä¸æ˜¯ coach+ è§’è‰²ï¼ˆå¦‚ä¸€èˆ¬ç”¨æˆ¶è¢«æŒ‡æ´¾ç‚ºå§”è¨—äººï¼‰ï¼Œå°è‡´ç„¡æ³•å–æ¶ˆå‹¾é¸ï¼ˆsoft delete = updateï¼‰ã€‚
+- **åŸå› **ï¼šFirestore è¦å‰‡ç„¡æ³•ç”¨ `eventId`ï¼ˆé‚è¼¯ IDï¼‰åæŸ¥ events æ–‡ä»¶çš„ `creatorUid`/`delegates`ï¼ˆå›  events ä½¿ç”¨è‡ªå‹•ç”¢ç”Ÿçš„ document IDï¼‰ï¼Œç„¡æ³•åœ¨è¦å‰‡å±¤åšæ´»å‹•æ­¸å±¬æª¢æŸ¥ã€‚
+- **ä¿®å¾©**ï¼šå°‡ attendanceRecords update è¦å‰‡å¾ `isCoachPlus()` æ”¾å¯¬ç‚º `isAuth() && !isRestrictedAccount()`ï¼›å®‰å…¨æ€§ç”±å‰ç«¯å­˜å–æ§åˆ¶ï¼ˆ`_canManageEvent`ï¼šadmin / owner / delegateï¼‰+ å¯©è¨ˆè»Œè·¡ï¼ˆ`removedByUid`ï¼‰+ `delete: false` å…±åŒä¿éšœã€‚
+- **æ•™è¨“**ï¼šç•¶ Firestore è¦å‰‡ç„¡æ³•åšè·¨é›†åˆæ­¸å±¬é©—è­‰æ™‚ï¼Œæ¡ç”¨ã€Œå¯¬é¬†è¦å‰‡ + å‰ç«¯å­˜å–æ§åˆ¶ + å¯©è¨ˆè»Œè·¡ã€çš„åˆ†å±¤å®‰å…¨ç­–ç•¥ã€‚

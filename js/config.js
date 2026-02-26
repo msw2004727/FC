@@ -38,7 +38,10 @@
 // 20260226zb: 修復手動/掃碼簽到寫入錯誤被吞、備註讀取抓到舊紀錄問題
 // 20260226zc: 簽到編輯改為軟刪除（status=removed），保留審計軌跡並避開 attendanceRecords delete 規則
 // 20260226ze: 簽到寫入前補 Firebase Auth 自動重試，權限錯誤改為明確中文提示
-const CACHE_VERSION = '20260226ze';
+// 20260226zf: 修復簽到簽退權限：Firestore rules 改 isCoachPlus()、錯誤訊息全中文化
+// 20260226zg: 簽到簽退 update 規則放寬為 isAuth()，確保活動主辦/委託人（含非教練）皆可操作
+// 20260226zh: 圖片上傳改為 WebP 格式（不支援時自動降級 JPEG）
+const CACHE_VERSION = '20260226zh';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {

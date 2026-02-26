@@ -5,14 +5,14 @@
 Object.assign(App, {
 
   /**
-   * Compress image via canvas
+   * Compress image via canvas (優先輸出 WebP，不支援則降級 JPEG)
    * @param {File} file
    * @param {number} maxWidth
-   * @param {number} quality - JPEG quality 0-1
-   * @param {string} [outputType] - 'image/jpeg'(預設) 或 'image/png'（保留透明度）
+   * @param {number} quality - 壓縮品質 0-1
+   * @param {string} [outputType] - 'image/webp'(預設) 或 'image/jpeg' / 'image/png'
    * @returns {Promise<string>} base64 data URL
    */
-  _compressImage(file, maxWidth = 1200, quality = 0.78, outputType = 'image/jpeg') {
+  _compressImage(file, maxWidth = 1200, quality = 0.78, outputType = 'image/webp') {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onerror = reject;
@@ -31,7 +31,12 @@ Object.assign(App, {
           canvas.height = h;
           const ctx = canvas.getContext('2d');
           ctx.drawImage(img, 0, 0, w, h);
-          resolve(canvas.toDataURL(outputType, quality));
+          let result = canvas.toDataURL(outputType, quality);
+          // 瀏覽器不支援 WebP 時 toDataURL 會回傳 image/png，降級為 JPEG
+          if (outputType === 'image/webp' && !result.startsWith('data:image/webp')) {
+            result = canvas.toDataURL('image/jpeg', quality);
+          }
+          resolve(result);
         };
         img.src = e.target.result;
       };
@@ -41,11 +46,11 @@ Object.assign(App, {
 
   /** 根據檔名副檔名判斷是否為允許的圖片格式 */
   _isAllowedImageFile(file) {
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/heic', 'image/heif'];
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'];
     if (file.type && allowedTypes.includes(file.type.toLowerCase())) return true;
     // file.type 在部分行動瀏覽器/WebView 可能為空，以副檔名作為備援判斷
     const ext = (file.name || '').split('.').pop().toLowerCase();
-    return ['jpg', 'jpeg', 'png', 'heic', 'heif'].includes(ext);
+    return ['jpg', 'jpeg', 'png', 'webp', 'heic', 'heif'].includes(ext);
   },
 
   bindImageUpload(inputId, previewId) {
@@ -56,7 +61,7 @@ Object.assign(App, {
       const file = input.files[0];
       if (!file) return;
       if (!this._isAllowedImageFile(file)) {
-        this.showToast('僅支援 JPG / PNG 格式');
+        this.showToast('僅支援 JPG / PNG / WebP 格式');
         input.value = '';
         return;
       }
