@@ -262,3 +262,8 @@
 - **Cause**: `_canToggleEventPublic()` only checked host/team staff, and team detail info grid rendered 領隊 first.
 - **Fix**: Updated `_canToggleEventPublic()` to allow `admin+`, and swapped the first-row order in team detail info to `球隊經理` then `領隊`; updated cache version and index version params.
 - **Lesson**: Operational controls often need an explicit admin override even when business ownership checks already exist.
+### 2026-02-26 - Add team-only button toast and team link in event detail
+- **Problem**: The red team-only signup button in event detail could not be clicked to show feedback, and the team name in the「限定 <球隊> 專屬活動」text was not clickable.
+- **Cause**: The team-only button was rendered as disabled, and the team-only label text used plain text for the creator team name.
+- **Fix**: Changed the red `球隊限定` button to a non-signup toast trigger (`App.showToast('球隊限定')`) and rendered the team name in the team-only label as a clickable link to `App.showTeamDetail(creatorTeamId)` when team id exists; updated cache version and index version params.
+- **Lesson**: A blocked action should still provide a clickable feedback path when the UI visually looks like a button.
