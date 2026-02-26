@@ -120,7 +120,7 @@ Object.assign(App, {
         const isWl = selfReg?.status === 'waitlisted';
         const arRecord = {
           eventId: e.id, name: e.title, date: dateStr,
-          status: isWl ? 'waitlisted' : 'registered', uid: userId,
+          status: isWl ? 'waitlisted' : 'registered', uid: userId, eventType: e.type,
         };
         ApiService.addActivityRecord(arRecord);
         if (!ModeManager.isDemo()) {

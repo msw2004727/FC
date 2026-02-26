@@ -78,6 +78,8 @@ Object.assign(App, {
 
     const curUser = ApiService.getCurrentUser();
     const curUid = curUser?.uid;
+    // 用戶尚未載入時不評估，避免 uid 為 undefined 導致誤匹配
+    if (!curUid) return;
     const allRecords = ApiService.getActivityRecords();
     const events = ApiService.getEvents();
     const evMap = {};
@@ -94,15 +96,16 @@ Object.assign(App, {
           action === 'attend_camp' || action === 'attend_watch') {
         const typeMap = { attend_play: 'play', attend_friendly: 'friendly', attend_camp: 'camp', attend_watch: 'watch' };
         const targetType = typeMap[action];
+        // 優先用記錄自帶的 eventType（新格式），fallback 查 evMap（舊記錄）
         current = activeRecords.filter(r => {
-          const ev = evMap[r.eventId];
-          return ev && ev.type === targetType;
+          const rType = r.eventType || evMap[r.eventId]?.type;
+          return rType === targetType;
         }).length;
       } else if (action === 'register_event') {
         current = activeRecords.filter(r => {
           if (filter && filter !== 'all') {
-            const ev = evMap[r.eventId];
-            return ev && ev.type === filter;
+            const rType = r.eventType || evMap[r.eventId]?.type;
+            return rType === filter;
           }
           return true;
         }).length;
@@ -111,7 +114,10 @@ Object.assign(App, {
         current = activeRecords.filter(r => {
           const ev = evMap[r.eventId];
           if (!ev || ev.status !== 'ended') return false;
-          if (filter && filter !== 'all') return ev.type === filter;
+          if (filter && filter !== 'all') {
+            const rType = r.eventType || ev.type;
+            return rType === filter;
+          }
           return true;
         }).length;
       } else if (action === 'join_team') {

@@ -68,7 +68,7 @@ Object.assign(App, {
       const dateStr = `${dateParts[1]}/${dateParts[2]}`;
       ApiService.addActivityRecord({
         eventId: e.id, name: e.title, date: dateStr,
-        status: isWaitlist ? 'waitlisted' : 'registered', uid: userId,
+        status: isWaitlist ? 'waitlisted' : 'registered', uid: userId, eventType: e.type,
       });
       this.showToast(isWaitlist ? '已加入候補名單' : '報名成功！');
       if (!isWaitlist) this._grantAutoExp(userId, 'register_activity', e.title);
@@ -98,7 +98,7 @@ Object.assign(App, {
       const dateStr = `${dateParts[1]}/${dateParts[2]}`;
       const arRecord = {
         eventId: e.id, name: e.title, date: dateStr,
-        status: result.status === 'waitlisted' ? 'waitlisted' : 'registered', uid: userId,
+        status: result.status === 'waitlisted' ? 'waitlisted' : 'registered', uid: userId, eventType: e.type,
       };
       ApiService.addActivityRecord(arRecord);
       db.collection('activityRecords').add({
