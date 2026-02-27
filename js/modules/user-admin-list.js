@@ -253,7 +253,7 @@ Object.assign(App, {
   // ── 歷史入隊審批修復（一次性資料修補）──
   async repairApprovedTeamJoins() {
     const curUser = ApiService.getCurrentUser();
-    if (!['admin', 'super_admin'].includes(curUser?.role)) { this.showToast('權限不足'); return; }
+    if (curUser?.role !== 'super_admin') { this.showToast('權限不足'); return; }
 
     const btn = document.getElementById('repair-team-joins-btn');
     const log = document.getElementById('repair-team-joins-log');
