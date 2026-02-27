@@ -24,30 +24,25 @@ showToast(message, duration) { ... }
 
 **修改後**：
 ```javascript
-showToast(message, typeOrDuration, duration) {
-  // 向下相容：若第二參數是數字，視為舊版 duration 用法
-  let type = 'info';
-  let _duration = 2000;
-  if (typeof typeOrDuration === 'number') {
-    _duration = typeOrDuration;
-  } else if (typeof typeOrDuration === 'string') {
-    type = typeOrDuration; // 'info' | 'error' | 'success'
-    if (typeof duration === 'number') _duration = duration;
-  }
+showToast(message, type, context) {
+  // 向下相容：若 type 是數字，視為舊版 duration 用法（type 降級為 'info'）
+  const _type = (typeof type === 'string') ? type : 'info';
+  // 'info'（預設，不記錄）| 'error'（記錄）| 'success'（不記錄）
 
   // 顯示 toast（現有邏輯不變）
   // ...
 
-  // 若為錯誤類型，寫入 errorLog
-  if (type === 'error') {
-    ApiService._writeErrorLog(message);
+  // 若為錯誤類型，寫入 errorLog（含呼叫位置 context）
+  if (_type === 'error') {
+    ApiService._writeErrorLog(message, context || '');
   }
 }
 ```
 
 > 呼叫方式：
-> - `this.showToast('已儲存')` → 同舊版，type 預設 'info'，不記錄
-> - `this.showToast('寫入失敗（permission-denied）', 'error')` → 記錄
+> - `this.showToast('已儲存')` → 同舊版，不記錄
+> - `this.showToast('寫入失敗（permission-denied）', 'error', 'handleTeamJoinAction')` → 記錄，含位置資訊
+> - `this.showToast('寫入失敗', 'error')` → 記錄，context 留空（仍能知道訊息與用戶，但無法定位函式）
 
 ---
 
@@ -92,36 +87,73 @@ match /errorLogs/{docId} {
 
 ---
 
-## 修改 4：現有 catch 區塊逐一加上 `'error'` 型別
+## 修改 4：現有 catch 區塊逐一加上 `'error'` 型別與 `context`
 
-以下位置的 `showToast` 呼叫需改為 `showToast('...', 'error')`：
+### 關於 `context` 欄位的重要說明
+
+`context` 需在每個呼叫處**手動傳入函式名稱字串**，例如：
+
+```javascript
+// showToast 只知道訊息文字，不知道從哪裡觸發
+// 若不傳 context，管理員看到錯誤訊息但無法判斷是哪支函式引起的
+this.showToast('寫入失敗（permission-denied）', 'error');
+// ↑ 只能知道「有人看到寫入失敗」
+
+// 傳入 context 後，管理員可立即定位問題位置
+this.showToast('寫入失敗（permission-denied）', 'error', 'handleTeamJoinAction');
+// ↑ 知道「誰、在哪個頁面、哪支函式、看到什麼錯誤、用什麼裝置、哪個版本」
+```
+
+因此 `showToast` 簽名需再調整為：
+
+```javascript
+showToast(message, type, context)
+// type: 'info'（預設）| 'error' | 'success'
+// context: 選填，呼叫位置識別字串，建議與函式名稱一致
+```
+
+> 實際案例對照（舊系統遇到的入隊審批失敗）：
+> ```
+> time:     "2026-02-27 14:32:05"
+> userName: "王小明"
+> message:  "寫入失敗（permission-denied）"
+> context:  "handleTeamJoinAction"     ← 立即知道問題出在審批流程
+> page:     "message"
+> version:  "20260227zr"
+> device:   "iPhone / Safari"
+> ```
+> 管理員看到這筆記錄，不需詢問用戶，即可直接定位到 `message-inbox.js` 的 `handleTeamJoinAction`。
+
+---
+
+以下位置的 `showToast` 呼叫需改為 `showToast('...', 'error', '函式名稱')`：
 
 ### `js/modules/message-inbox.js`
-- `handleTeamJoinAction` approve：`寫入失敗（...）`
+- `handleTeamJoinAction` approve：`寫入失敗（...）` → context: `'handleTeamJoinAction'`
 
 ### `js/modules/team-form.js`
-- `_saveTeam` catch：`儲存失敗`
-- `handleLeaveTeam` catch：（若有）
+- `_saveTeam` catch：`儲存失敗` → context: `'_saveTeam'`
+- `handleLeaveTeam` catch：（若有）→ context: `'handleLeaveTeam'`
 
 ### `js/modules/event-detail-signup.js`
-- `handleSignup` catch：`報名失敗`
-- `handleCancelSignup` catch：`取消失敗：...`
+- `handleSignup` catch：`報名失敗` → context: `'handleSignup'`
+- `handleCancelSignup` catch：`取消失敗：...` → context: `'handleCancelSignup'`
 
 ### `js/modules/event-manage.js`
-- `_confirmAllAttendance` errCount 提示：`已更新（N 筆失敗）`
-- `_forcePromoteWaitlist` catch：（若有）
+- `_confirmAllAttendance` errCount 提示：`已更新（N 筆失敗）` → context: `'_confirmAllAttendance'`
+- `_forcePromoteWaitlist` catch：（若有）→ context: `'_forcePromoteWaitlist'`
 
 ### `js/modules/shop.js`
-- `handleSaveShopItem` catch：`商品更新失敗`、`商品建立失敗`
-- `delistShopItem` catch：`下架失敗`
-- `relistShopItem` catch：`上架失敗`
-- `removeShopItem` catch：`刪除失敗`
+- `handleSaveShopItem` catch：`商品更新失敗`、`商品建立失敗` → context: `'handleSaveShopItem'`
+- `delistShopItem` catch：`下架失敗` → context: `'delistShopItem'`
+- `relistShopItem` catch：`上架失敗` → context: `'relistShopItem'`
+- `removeShopItem` catch：`刪除失敗` → context: `'removeShopItem'`
 
 ### `js/modules/scan.js`
-- 掃碼寫入失敗的 toast
+- 掃碼寫入失敗的 toast → context: `'scan'`
 
 ### `js/api-service.js`
-- `addAttendanceRecord`、`removeAttendanceRecord` 的 `_mapAttendanceWriteError` 路徑
+- `addAttendanceRecord`、`removeAttendanceRecord` 的 `_mapAttendanceWriteError` 路徑 → context: `'addAttendanceRecord'` / `'removeAttendanceRecord'`
 
 > **規則**：只改 `.catch()` 或明確異常路徑裡的 toast，業務驗證（如「請填寫必填欄位」）**不改**。
 
