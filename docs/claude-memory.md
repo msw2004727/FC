@@ -4,6 +4,22 @@
 
 ---
 
+### 2026-02-27 — 審批入隊 ensureAuth + isTeamStaff leaderUids + linePushQueue
+
+- **問題**：球隊隊長/領隊按「同意」入隊申請時持續出現「寫入失敗」
+- **原因**（複數）：
+  1. `updateUser` 在跨用戶寫入前未呼叫 `_ensureAuth()`，若 Firebase Auth token 過期則 permission-denied
+  2. `isTeamStaff` 只檢查舊版 `leaderUid` 欄位，未包含新版 `leaderUids[]` 陣列，導致新版領隊被擋在外
+  3. `Object.assign(applicant, ...)` 在寫入前就修改 in-memory 快取，若寫入失敗快取狀態會損壞
+  4. `linePushQueue` Firestore 規則為 `allow create: if false`，推播佇列寫入一律靜默失敗
+- **修復**：
+  - `handleTeamJoinAction`：寫入前加 `await FirebaseService._ensureAuth()`；`Object.assign` 移至成功後；isTeamStaff 加 `teamLeaderUids.includes(curUid)`；錯誤 toast 顯示實際 error code
+  - `firestore.rules`：`linePushQueue` allow create 改為 `if isAuth()`
+- **版本**: `20260227zo`
+- **Files**: `js/modules/message-inbox.js`, `firestore.rules`
+
+---
+
 ### 2026-02-27 — 球隊領隊複數化 + 角色升降 + 經理轉移限制
 
 - **功能**：

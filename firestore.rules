@@ -375,11 +375,11 @@ service cloud.firestore {
 
     // ═══════════════════════════════════════════
     //  LINE Push Queue（推播佇列）
-    //  僅後端 Admin SDK 處理
+    //  登入用戶可新增；後端 Admin SDK 消費（讀取/更新/刪除）
     // ═══════════════════════════════════════════
     match /linePushQueue/{docId} {
       allow read: if false;
-      allow create: if false;
+      allow create: if isAuth();
       allow update, delete: if false;
     }
 

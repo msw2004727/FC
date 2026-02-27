@@ -272,11 +272,12 @@ Object.assign(App, {
     const curUser = ApiService.getCurrentUser();
     const curUid = curUser?.uid || (ModeManager.isDemo() ? DemoData.currentUser?.uid : null);
     const myNames = new Set([curUser?.name, curUser?.displayName].filter(Boolean));
+    const teamLeaderUids = team.leaderUids || (team.leaderUid ? [team.leaderUid] : []);
     const isTeamStaff =
       (team.captainUid && team.captainUid === curUid) ||
       (!team.captainUid && team.captain && myNames.has(team.captain)) ||
-      (team.leaderUid && team.leaderUid === curUid) ||
-      (!team.leaderUid && team.leader && myNames.has(team.leader)) ||
+      teamLeaderUids.includes(curUid) ||
+      (!team.leaderUids && !team.leaderUid && team.leader && myNames.has(team.leader)) ||
       (team.coaches || []).some(c => myNames.has(c)) ||
       ['admin', 'super_admin'].includes(curUser?.role);
     if (!isTeamStaff) { this.showToast('您沒有審核此申請的權限'); return; }
@@ -313,16 +314,19 @@ Object.assign(App, {
         this.showToast('找不到申請人資料，無法完成審批');
         return;
       }
-      Object.assign(applicant, { teamId, teamName });
       if (!ModeManager.isDemo() && applicant._docId) {
         try {
+          // Ensure auth token is fresh before cross-user write
+          await FirebaseService._ensureAuth();
           await FirebaseService.updateUser(applicant._docId, { teamId, teamName });
         } catch (err) {
-          console.error('[approve] updateUser:', err);
-          this.showToast('寫入失敗，請確認權限後重試');
+          console.error('[approve] updateUser failed — code:', err?.code, 'msg:', err?.message, err);
+          this.showToast(`寫入失敗（${err?.code || err?.message || '權限錯誤'}），請重試`);
           return;
         }
       }
+      // Update in-memory AFTER successful write (prevent stale cache on failure)
+      Object.assign(applicant, { teamId, teamName });
       const curUserObj = ApiService.getCurrentUser();
       if (curUserObj && curUserObj.uid === applicantUid) {
         ApiService.updateCurrentUser({ teamId, teamName });
