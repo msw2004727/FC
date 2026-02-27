@@ -59,7 +59,7 @@
 // 20260227za: 入隊申請 pending 逾 24h 自動解鎖可重新申請
 // 20260227zb: 個人頁面球隊申請記錄依 groupId 去重，修正廣播後顯示重複筆數
 // 20260227zc: banner 初始 skeleton + V 版本號同步修正 SW 快取清除失效
-const CACHE_VERSION = '20260227zi';
+const CACHE_VERSION = '20260227zj';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {
@@ -260,5 +260,5 @@ const DRAWER_MENUS = [
   { icon: '', label: '自訂層級管理', i18nKey: 'admin.roles', page: 'page-admin-roles', minRole: 'super_admin' },
   { icon: '', label: '無效資料查詢', i18nKey: 'admin.inactive', page: 'page-admin-inactive', minRole: 'super_admin' },
   { icon: '', label: '操作日誌', i18nKey: 'admin.logs', page: 'page-admin-logs', minRole: 'super_admin' },
-  { icon: '', label: '資料修復工具', i18nKey: 'admin.repair', page: 'page-admin-repair', minRole: 'super_admin' },
+  { icon: '', label: '歷史入隊補正', i18nKey: 'admin.repair', page: 'page-admin-repair', minRole: 'super_admin' },
 ];
