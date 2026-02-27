@@ -174,6 +174,23 @@
 
     </section>
 
+    <!-- PAGE: Backend - Data Repair Tools (Admin+) -->
+    <section class="page" id="page-admin-repair" data-min-role="admin">
+      <div class="page-header">
+        <button class="back-btn" onclick="App.goBack()">←</button>
+        <h2>資料修復工具</h2>
+      </div>
+      <div class="form-card">
+        <div style="font-weight:600;font-size:.9rem;margin-bottom:.3rem">歷史入隊審批修復</div>
+        <div style="font-size:.78rem;color:var(--text-muted);margin-bottom:.8rem;line-height:1.6">
+          掃描所有已批准（approved）的入隊申請，將其中 <code>teamId</code> 尚未寫入的用戶補寫至球隊。<br>
+          此操作為冪等（重複執行安全），已正確的用戶會自動跳過。
+        </div>
+        <button id="repair-team-joins-btn" class="primary-btn full-width" onclick="App.repairApprovedTeamJoins()">執行修復</button>
+        <div id="repair-team-joins-log" style="margin-top:.6rem;font-size:.78rem;color:var(--text-secondary);min-height:1.2rem"></div>
+      </div>
+    </section>
+
     <!-- PAGE: Backend - Inactive Data (Super Admin) -->
     <section class="page" id="page-admin-inactive" data-min-role="super_admin">
       <div class="page-header">

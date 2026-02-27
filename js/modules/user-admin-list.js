@@ -250,4 +250,60 @@ Object.assign(App, {
     this.closeModal();
   },
 
+  // ── 歷史入隊審批修復（一次性資料修補）──
+  async repairApprovedTeamJoins() {
+    const curUser = ApiService.getCurrentUser();
+    if (!['admin', 'super_admin'].includes(curUser?.role)) { this.showToast('權限不足'); return; }
+
+    const btn = document.getElementById('repair-team-joins-btn');
+    const log = document.getElementById('repair-team-joins-log');
+    if (btn) btn.disabled = true;
+    if (log) log.textContent = '查詢中...';
+
+    try {
+      const snap = await db.collection('messages')
+        .where('actionType', '==', 'team_join_request')
+        .where('actionStatus', '==', 'approved')
+        .get();
+
+      if (snap.empty) { if (log) log.textContent = '沒有已批准的入隊記錄。'; return; }
+
+      // 去重：同 applicantUid + teamId 只處理一次
+      const seen = new Set();
+      const toFix = [];
+      snap.docs.forEach(doc => {
+        const { applicantUid, teamId, teamName } = doc.data().meta || {};
+        if (!applicantUid || !teamId) return;
+        const key = `${applicantUid}__${teamId}`;
+        if (!seen.has(key)) { seen.add(key); toFix.push({ applicantUid, teamId, teamName: teamName || '' }); }
+      });
+
+      let fixed = 0, skipped = 0, errors = 0;
+      for (const { applicantUid, teamId, teamName } of toFix) {
+        try {
+          const userDoc = await db.collection('users').doc(applicantUid).get();
+          if (!userDoc.exists || userDoc.data().teamId === teamId) { skipped++; continue; }
+          await db.collection('users').doc(applicantUid).update({
+            teamId, teamName,
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+          });
+          const cached = (ApiService.getAdminUsers() || []).find(u => u.uid === applicantUid || u._docId === applicantUid);
+          if (cached) Object.assign(cached, { teamId, teamName });
+          fixed++;
+        } catch (err) { console.error('[repairTeamJoins]', applicantUid, err); errors++; }
+      }
+
+      const summary = `完成！修復 ${fixed} 人，已正確跳過 ${skipped} 人，失敗 ${errors} 人`;
+      if (log) log.textContent = summary;
+      ApiService._writeOpLog('team_approve', '歷史入隊修復', summary);
+      this.showToast(summary);
+    } catch (err) {
+      const msg = '查詢失敗：' + (err.message || err);
+      if (log) log.textContent = msg;
+      this.showToast(msg);
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  },
+
 });

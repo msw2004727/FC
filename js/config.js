@@ -59,7 +59,7 @@
 // 20260227za: 入隊申請 pending 逾 24h 自動解鎖可重新申請
 // 20260227zb: 個人頁面球隊申請記錄依 groupId 去重，修正廣播後顯示重複筆數
 // 20260227zc: banner 初始 skeleton + V 版本號同步修正 SW 快取清除失效
-const CACHE_VERSION = '20260227zf';
+const CACHE_VERSION = '20260227zg';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {
@@ -252,6 +252,7 @@ const DRAWER_MENUS = [
   { icon: '', label: '二手商品管理', i18nKey: 'admin.shopManage', page: 'page-admin-shop', minRole: 'admin' },
   { icon: '', label: '站內信管理', i18nKey: 'admin.messageManage', page: 'page-admin-messages', minRole: 'admin' },
   { icon: '', label: '球隊管理', i18nKey: 'admin.teamManage', page: 'page-admin-teams', minRole: 'admin' },
+  { icon: '', label: '資料修復工具', i18nKey: 'admin.repair', page: 'page-admin-repair', minRole: 'admin' },
   { icon: '', label: '佈景主題', i18nKey: 'admin.themes', page: 'page-admin-themes', minRole: 'super_admin' },
   { icon: '', label: '手動 EXP 管理', i18nKey: 'admin.expManage', page: 'page-admin-exp', minRole: 'super_admin' },
   { icon: '', label: '自動 EXP 管理', i18nKey: 'drawer.autoExpManage', page: 'page-admin-auto-exp', minRole: 'super_admin' },
