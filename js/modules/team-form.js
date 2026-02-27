@@ -50,21 +50,40 @@ Object.assign(App, {
     if (!applicantUid) { this.showToast('請先登入'); return; }
 
     const allMessages = ApiService.getMessages();
+    const COOLDOWN_MS = 24 * 60 * 60 * 1000;
 
-    // 4. Check for existing pending application
-    const hasPending = allMessages.find(m =>
+    // helper: parse message time string "YYYY/MM/DD HH:MM" → ms timestamp
+    const _parseTimeStr = (str) => {
+      if (!str) return 0;
+      const [dp, tp] = str.split(' ');
+      const [y, mo, d] = (dp || '').split('/').map(Number);
+      const [h, mi] = (tp || '0:0').split(':').map(Number);
+      return isNaN(y) ? 0 : new Date(y, mo - 1, d, h || 0, mi || 0).getTime();
+    };
+
+    // 4. Check for existing pending application (with 24h timeout)
+    const pendingMsgs = allMessages.filter(m =>
       m.actionType === 'team_join_request' &&
       m.actionStatus === 'pending' &&
       m.meta && m.meta.teamId === teamId &&
       m.meta.applicantUid === applicantUid
     );
-    if (hasPending) {
-      this.showToast('您已申請此球隊，審核中請耐心等候');
-      return;
+    if (pendingMsgs.length > 0) {
+      const mostRecentSentAt = Math.max(...pendingMsgs.map(m => _parseTimeStr(m.time)));
+      const elapsed = Date.now() - mostRecentSentAt;
+      if (elapsed < COOLDOWN_MS) {
+        const hoursLeft = Math.ceil((COOLDOWN_MS - elapsed) / 3600000);
+        this.showToast(`您已申請此球隊，請等候審核（可於 ${hoursLeft} 小時後再次申請）`);
+        return;
+      }
+      // Pending > 24h: mark as ignored (superseded) so staff won't see stale requests
+      pendingMsgs.forEach(m => {
+        ApiService.updateMessage(m.id, { actionStatus: 'ignored' });
+        m.actionStatus = 'ignored';
+      });
     }
 
     // 5. Check cooldown (24h after rejection)
-    const COOLDOWN_MS = 24 * 60 * 60 * 1000;
     const recentRejected = allMessages.find(m =>
       m.actionType === 'team_join_request' &&
       m.actionStatus === 'rejected' &&

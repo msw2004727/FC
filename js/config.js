@@ -56,7 +56,8 @@
 // 20260227x: 首頁活動卡左上角自動加上黃底粗體月/日標籤
 // 20260227y: 修正 event-list.js map block body 缺少 } 的語法錯誤
 // 20260227z: 入隊申請升級：廣播全體職員、冷卻機制、第一操作勝出、教練可審核
-const CACHE_VERSION = '20260227z';
+// 20260227za: 入隊申請 pending 逾 24h 自動解鎖可重新申請
+const CACHE_VERSION = '20260227za';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {
