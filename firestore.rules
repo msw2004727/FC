@@ -136,7 +136,7 @@ service cloud.firestore {
     //  Users（用戶）
     //  登入可讀；owner 可建立/更新自己的資料；
     //  admin 可更新任何用戶；禁止前端刪除；
-    //  coach+ 可設定其他人的 teamId / teamName（球隊加入審批）
+    //  任何登入非受限用戶可設定他人的 teamId / teamName（球隊加入審批，含領隊）
     // ═══════════════════════════════════════════
     match /users/{userId} {
       allow read: if isAuth();
@@ -146,7 +146,7 @@ service cloud.firestore {
       allow update: if isOwner(userId)
         || isAdmin()
         || isSuperAdmin()
-        || (isCoachPlus() && !isRestrictedAccount()
+        || (isAuthNotRestricted()
             && request.resource.data.diff(resource.data).affectedKeys()
                .hasOnly(['teamId', 'teamName', 'updatedAt']));
       allow delete: if false;

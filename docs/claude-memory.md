@@ -4,6 +4,13 @@
 
 ---
 
+### 2026-02-27 — 球隊入隊審批 Firestore 規則再修（領隊角色）
+
+- **問題**：領隊（team.leader）同意入隊後仍顯示「寫入失敗」
+- **原因**：原規則用 `isCoachPlus()` 檢查角色，但領隊的 Firebase role 是 `'user'`，不在 coach+ 清單 → permission-denied。Coach/captain 若 token 未更新也可能同樣失敗
+- **修復**：`firestore.rules` users.update 條件改為 `isAuthNotRestricted()`（任何登入非受限用戶），`hasOnly(['teamId','teamName','updatedAt'])` 欄位限制確保安全性不降低
+- **已部署**：`firebase deploy --only firestore:rules`
+
 ### 2026-02-27 — 球隊加入審批同意後申請人未入隊修復
 
 - **問題**：隊長/教練按「同意」後申請人沒有成功加入球隊
