@@ -57,7 +57,8 @@
 // 20260227y: 修正 event-list.js map block body 缺少 } 的語法錯誤
 // 20260227z: 入隊申請升級：廣播全體職員、冷卻機制、第一操作勝出、教練可審核
 // 20260227za: 入隊申請 pending 逾 24h 自動解鎖可重新申請
-const CACHE_VERSION = '20260227za';
+// 20260227zb: 個人頁面球隊申請記錄依 groupId 去重，修正廣播後顯示重複筆數
+const CACHE_VERSION = '20260227zb';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {

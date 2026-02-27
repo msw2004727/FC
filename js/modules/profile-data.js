@@ -142,14 +142,25 @@ Object.assign(App, {
     const uid = user?.uid || user?.lineUserId || (ModeManager.isDemo() ? 'demo-user' : null);
     if (!uid) { card.style.display = 'none'; return; }
     const allMsgs = ApiService.getMessages();
-    const apps = allMsgs.filter(m =>
-      m.actionType === 'team_join_request' && m.meta && m.meta.applicantUid === uid
-    );
+    // Deduplicate: same groupId = same application broadcast to multiple staff → show one entry only
+    const seen = new Set();
+    const apps = allMsgs.filter(m => {
+      if (m.actionType !== 'team_join_request' || !m.meta || m.meta.applicantUid !== uid) return false;
+      const key = m.meta.groupId || m.id;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
     if (!apps.length) { card.style.display = 'none'; return; }
     card.style.display = '';
     const badge = document.getElementById('app-count-badge');
     if (badge) badge.textContent = apps.length;
-    const statusMap = { pending: { label: '審核中', color: 'var(--warning)' }, approved: { label: '已通過', color: 'var(--success)' }, rejected: { label: '已拒絕', color: 'var(--danger)' } };
+    const statusMap = {
+      pending:  { label: '審核中', color: 'var(--warning)' },
+      approved: { label: '已通過', color: 'var(--success)' },
+      rejected: { label: '已拒絕', color: 'var(--danger)' },
+      ignored:  { label: '已逾期', color: 'var(--text-muted)' },
+    };
     list.innerHTML = apps.map(m => {
       const s = statusMap[m.actionStatus] || statusMap.pending;
       return `<div style="display:flex;justify-content:space-between;align-items:center;padding:.4rem 0;border-bottom:1px solid var(--border)">
