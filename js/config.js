@@ -60,7 +60,8 @@
 // 20260227zb: 個人頁面球隊申請記錄依 groupId 去重，修正廣播後顯示重複筆數
 // 20260227zc: banner 初始 skeleton + V 版本號同步修正 SW 快取清除失效
 // 20260227zo: 站內信審批 — ensureAuth + 修正 in-memory rollback + leaderUids isTeamStaff
-const CACHE_VERSION = '20260227zo';
+// 20260227zp: 歷史入隊補正 — 去重改為每人取最新一筆 + 目標球隊存在性驗證
+const CACHE_VERSION = '20260227zp';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {

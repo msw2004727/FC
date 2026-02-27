@@ -276,16 +276,20 @@ Object.assign(App, {
       if (snap.empty) { addLog('沒有已批准的入隊記錄。'); return; }
       addLog(`共找到 ${snap.docs.length} 筆 approved 訊息，開始去重...`);
 
-      // 去重：同 applicantUid + teamId 只處理一次
-      const seen = new Set();
-      const toFix = [];
+      // 去重：同一申請人只保留最新一筆（依 timestamp 排序），防止跨球隊重複修復
+      const latestByUid = new Map();
       snap.docs.forEach(doc => {
-        const { applicantUid, applicantName, teamId, teamName } = doc.data().meta || {};
+        const data = doc.data();
+        const { applicantUid, applicantName, teamId, teamName } = data.meta || {};
         if (!applicantUid || !teamId) return;
-        const key = `${applicantUid}__${teamId}`;
-        if (!seen.has(key)) { seen.add(key); toFix.push({ applicantUid, applicantName: applicantName || applicantUid, teamId, teamName: teamName || '' }); }
+        const ts = (data.timestamp?.toMillis?.() || data.timestamp || 0);
+        const prev = latestByUid.get(applicantUid);
+        if (!prev || ts > prev.ts) {
+          latestByUid.set(applicantUid, { applicantUid, applicantName: applicantName || applicantUid, teamId, teamName: teamName || '', ts });
+        }
       });
-      addLog(`去重後需處理 ${toFix.length} 筆，逐一驗證...`);
+      const toFix = [...latestByUid.values()];
+      addLog(`去重後需處理 ${toFix.length} 筆（每人取最新一筆），逐一驗證...`);
 
       let fixed = 0, skipped = 0, errors = 0;
       for (const { applicantUid, applicantName, teamId, teamName } of toFix) {
@@ -324,6 +328,18 @@ Object.assign(App, {
             addLog(`  [跳過] ${applicantName}（uid:${applicantUid}）→ 找不到用戶文件`);
             skipped++; continue;
           }
+
+          // 驗證目標球隊是否仍存在
+          const teamSnap = await db.collection('teams').doc(teamId).get({ source: 'server' });
+          if (!teamSnap.exists) {
+            // 嘗試用 id 欄位查詢
+            const teamQ = await db.collection('teams').where('id', '==', teamId).limit(1).get({ source: 'server' });
+            if (teamQ.empty) {
+              addLog(`  [跳過] ${displayName} → 目標球隊 ${teamId}（${teamName}）已不存在，略過`);
+              skipped++; continue;
+            }
+          }
+
           if (currentTeamId === teamId) {
             addLog(`  [跳過] ${displayName} → 已在正確球隊（${teamId}）`);
             skipped++; continue;
