@@ -66,7 +66,8 @@
 // 20260227zs: 前端錯誤日誌系統 — 自動記錄系統異常到 Firestore errorLogs，總管可查閱/清除
 // 20260227zt: 補上 admin.errorLogs i18n 翻譯（錯誤日誌按鈕顯示正確）
 // 20260227zu: 修復 _writeErrorLog 靜默失敗（FirebaseService._db → db）+ 入隊審批 permission-denied（rules 改用 sameFieldValue）
-const CACHE_VERSION = '20260227zu';
+// 20260227zv: 入隊審批 permission-denied 終極修復 — users.update 改 isAuth() + _ensureAuth 檢查回傳值
+const CACHE_VERSION = '20260227zv';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {

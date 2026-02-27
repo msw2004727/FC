@@ -134,22 +134,16 @@ service cloud.firestore {
 
     // ═══════════════════════════════════════════
     //  Users（用戶）
-    //  登入可讀；owner 可建立/更新自己的資料；
-    //  admin 可更新任何用戶；禁止前端刪除；
-    //  任何登入非受限用戶可設定他人的 teamId / teamName（球隊加入審批，含領隊）
+    //  登入可讀寫（與 events / teams / attendanceRecords 同級）
+    //  敏感操作（角色變更等）由前端 ACL 控制
+    //  禁止前端刪除（審計軌跡）
     // ═══════════════════════════════════════════
     match /users/{userId} {
       allow read: if isAuth();
       allow create: if isOwner(userId)
         && hasString('uid')
         && hasString('displayName');
-      allow update: if isOwner(userId)
-        || isAdmin()
-        || isSuperAdmin()
-        || (isAuthNotRestricted()
-            && sameFieldValue('role')
-            && sameFieldValue('isRestricted')
-            && sameFieldValue('uid'));
+      allow update: if isAuth();
       allow delete: if false;
     }
 

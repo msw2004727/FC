@@ -317,12 +317,18 @@ Object.assign(App, {
       if (!ModeManager.isDemo() && applicant._docId) {
         try {
           // Ensure auth token is fresh before cross-user write
-          await FirebaseService._ensureAuth();
+          const authed = await FirebaseService._ensureAuth();
+          if (!authed) {
+            this.showToast('登入已過期，請重新整理頁面後再試');
+            ApiService._writeErrorLog({ fn: 'handleTeamJoinAction', teamId, applicantUid, reason: 'auth_expired' }, new Error('_ensureAuth returned false'));
+            return;
+          }
+          console.log('[approve] writing updateUser:', applicant._docId, { teamId, teamName }, 'auth.uid:', auth?.currentUser?.uid);
           await FirebaseService.updateUser(applicant._docId, { teamId, teamName });
         } catch (err) {
-          console.error('[approve] updateUser failed — code:', err?.code, 'msg:', err?.message, err);
+          console.error('[approve] updateUser failed — code:', err?.code, 'msg:', err?.message, 'docId:', applicant._docId, 'auth.uid:', auth?.currentUser?.uid, err);
           this.showToast(`寫入失敗（${err?.code || err?.message || '權限錯誤'}），請重試`);
-          ApiService._writeErrorLog({ fn: 'handleTeamJoinAction', teamId, applicantUid }, err);
+          ApiService._writeErrorLog({ fn: 'handleTeamJoinAction', teamId, applicantUid, docId: applicant._docId, authUid: auth?.currentUser?.uid || 'null' }, err);
           return;
         }
       }
