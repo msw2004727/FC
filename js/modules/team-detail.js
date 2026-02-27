@@ -118,22 +118,14 @@ Object.assign(App, {
         </div>
         <div class="profile-collapse-content td-member-tags" style="display:none">
           ${(() => {
-            const tags = [];
-            if (t.captain) {
-              tags.push(`<span class="user-capsule uc-captain" onclick="App.showUserProfile('${escapeHTML(t.captain)}')" title="${I18N.t('teamDetail.captain')}">${I18N.t('teamDetail.captain')} ${escapeHTML(t.captain)}</span>`);
-            }
-            (t.coaches || []).forEach(c => {
-              tags.push(`<span class="user-capsule uc-coach" onclick="App.showUserProfile('${escapeHTML(c)}')" title="${I18N.t('teamDetail.coach')}">${I18N.t('teamDetail.coach')} ${escapeHTML(c)}</span>`);
-            });
-            // 查詢 teamId 匹配的真實用戶（排除領隊與教練）
             const allUsers = ApiService.getAdminUsers() || [];
             const teamMembers = allUsers.filter(u => u.teamId === t.id);
-            const captainCoachNames = new Set([t.captain, ...(t.coaches || [])].filter(Boolean));
-            const regularMembers = teamMembers.filter(u => !captainCoachNames.has(u.name));
-            regularMembers.slice(0, 20).forEach(u => {
-              tags.push(`<span class="user-capsule uc-user" onclick="App.showUserProfile('${escapeHTML(u.name)}')" title="${I18N.t('team.memberLabel')}">${I18N.t('team.memberLabel')} ${escapeHTML(u.name)}</span>`);
-            });
-            return tags.join('');
+            const staffNames = new Set([t.captain, t.leader, ...(t.coaches || [])].filter(Boolean));
+            const regularMembers = teamMembers.filter(u => !staffNames.has(u.name));
+            if (!regularMembers.length) return `<div style="font-size:.82rem;color:var(--text-muted);padding:.3rem">${I18N.t('teamDetail.none')}</div>`;
+            return regularMembers.slice(0, 20).map(u =>
+              `<span class="user-capsule uc-user" onclick="App.showUserProfile('${escapeHTML(u.name)}')">${escapeHTML(u.name)}</span>`
+            ).join('');
           })()}
           ${t.members > 8 ? `<span class="td-member-more">... ${t.members} ${I18N.t('teamDetail.personUnit')}</span>` : ''}
         </div>
