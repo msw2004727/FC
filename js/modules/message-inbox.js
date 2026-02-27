@@ -241,7 +241,8 @@ Object.assign(App, {
           ignored: ['background:var(--border);color:var(--text-secondary)', '已忽略'],
         };
         const [style, label] = statusLabels[msg.actionStatus] || ['', msg.actionStatus];
-        actionHtml = `<div class="msg-action-status" style="${style}">${label}</div>`;
+        const reviewerSuffix = msg.reviewerName ? `（${escapeHTML(msg.reviewerName)}）` : '';
+        actionHtml = `<div class="msg-action-status" style="${style}">${label}${reviewerSuffix}</div>`;
       }
     }
 
@@ -263,10 +264,49 @@ Object.assign(App, {
     const msg = messages.find(m => m.id === msgId);
     if (!msg || !msg.meta) return;
 
-    const { teamId, teamName, applicantUid, applicantName } = msg.meta;
+    const { teamId, teamName, applicantUid, applicantName, groupId } = msg.meta;
+
+    // 1. Permission check: current user must be team staff (captain/leader/coach) or admin
+    const team = ApiService.getTeam(teamId);
+    if (!team) { this.showToast('找不到此球隊'); return; }
+    const curUser = ApiService.getCurrentUser();
+    const curUid = curUser?.uid || (ModeManager.isDemo() ? DemoData.currentUser?.uid : null);
+    const myNames = new Set([curUser?.name, curUser?.displayName].filter(Boolean));
+    const isTeamStaff =
+      (team.captainUid && team.captainUid === curUid) ||
+      (!team.captainUid && team.captain && myNames.has(team.captain)) ||
+      (team.leaderUid && team.leaderUid === curUid) ||
+      (!team.leaderUid && team.leader && myNames.has(team.leader)) ||
+      (team.coaches || []).some(c => myNames.has(c)) ||
+      ['admin', 'super_admin'].includes(curUser?.role);
+    if (!isTeamStaff) { this.showToast('您沒有審核此申請的權限'); return; }
+
+    // 2. First-action-wins: check if another staff already acted on this group
+    if (groupId) {
+      const alreadyActed = messages.find(m =>
+        m.id !== msgId &&
+        m.actionType === 'team_join_request' &&
+        m.meta?.groupId === groupId &&
+        m.actionStatus !== 'pending'
+      );
+      if (alreadyActed) {
+        const statusLabel = { approved: '同意', rejected: '拒絕', ignored: '忽略' }[alreadyActed.actionStatus] || alreadyActed.actionStatus;
+        const actorName = alreadyActed.reviewerName || '其他職員';
+        this.showToast(`此申請已由「${actorName}」${statusLabel}`);
+        // Sync this message's display status
+        msg.actionStatus = alreadyActed.actionStatus;
+        msg.reviewerName = alreadyActed.reviewerName;
+        ApiService.updateMessage(msgId, { actionStatus: alreadyActed.actionStatus, reviewerName: alreadyActed.reviewerName || '' });
+        document.getElementById('msg-inbox-detail-modal').style.display = 'none';
+        this.renderMessageList();
+        return;
+      }
+    }
+
+    const reviewerName = curUser?.displayName || (ModeManager.isDemo() ? DemoData.currentUser?.displayName : '審核人');
 
     if (action === 'approve') {
-      // 1. Update applicant's teamId + teamName
+      // Update applicant's teamId + teamName
       const users = ApiService.getAdminUsers();
       const applicant = users.find(u => u.uid === applicantUid);
       if (applicant) {
@@ -275,52 +315,71 @@ Object.assign(App, {
           FirebaseService.updateUser(applicant._docId, { teamId, teamName }).catch(err => console.error('[approve] updateUser:', err));
         }
       }
-      // Also update currentUser if it's the applicant
-      const curUser = ApiService.getCurrentUser();
-      if (curUser && curUser.uid === applicantUid) {
+      const curUserObj = ApiService.getCurrentUser();
+      if (curUserObj && curUserObj.uid === applicantUid) {
         ApiService.updateCurrentUser({ teamId, teamName });
       }
-
-      // 2. Update team members +1
-      const team = ApiService.getTeam(teamId);
-      if (team) {
-        ApiService.updateTeam(teamId, { members: (team.members || 0) + 1 });
-      }
-
-      // 3. Send approval notification to applicant
+      // Update team members +1
+      const teamObj = ApiService.getTeam(teamId);
+      if (teamObj) ApiService.updateTeam(teamId, { members: (teamObj.members || 0) + 1 });
+      // Notify applicant
       this._deliverMessageToInbox(
         '球隊申請通過',
-        `恭喜！您已成功加入「${teamName}」球隊，歡迎成為團隊的一員！`,
+        `恭喜！您已成功加入「${teamName}」球隊，審核人：${reviewerName}。`,
         'system', '系統', applicantUid, '系統'
       );
-
-      // 4. Update message status
-      ApiService.updateMessage(msgId, { actionStatus: 'approved' });
-      msg.actionStatus = 'approved';
-      ApiService._writeOpLog('team_approve', '球隊審批', `同意「${applicantName}」加入「${teamName}」`);
+      ApiService._writeOpLog('team_approve', '球隊審批', `${reviewerName} 同意「${applicantName}」加入「${teamName}」`);
       this._evaluateAchievements();
       this.showToast('已同意加入申請');
 
     } else if (action === 'reject') {
-      // Send rejection notification to applicant
       this._deliverMessageToInbox(
         '球隊申請結果',
-        `很抱歉，您申請加入「${teamName}」球隊未獲通過。如有疑問，請聯繫球隊領隊。`,
+        `很抱歉，您申請加入「${teamName}」球隊未獲通過。如有疑問，請聯繫球隊職員。`,
         'system', '系統', applicantUid, '系統'
       );
-
-      ApiService.updateMessage(msgId, { actionStatus: 'rejected' });
-      msg.actionStatus = 'rejected';
-      ApiService._writeOpLog('team_approve', '球隊審批', `拒絕「${applicantName}」加入「${teamName}」`);
+      ApiService._writeOpLog('team_approve', '球隊審批', `${reviewerName} 拒絕「${applicantName}」加入「${teamName}」`);
       this.showToast('已拒絕加入申請');
 
     } else if (action === 'ignore') {
-      ApiService.updateMessage(msgId, { actionStatus: 'ignored' });
-      msg.actionStatus = 'ignored';
       this.showToast('已忽略此申請');
     }
 
-    // Close modal and refresh
+    // 3. Build update payload (top-level fields for Object.assign compatibility)
+    const statusMap = { approve: 'approved', reject: 'rejected', ignore: 'ignored' };
+    const newStatus = statusMap[action];
+    const updatePayload = { actionStatus: newStatus, reviewerName };
+    if (action === 'reject') updatePayload.rejectedAt = Date.now();
+
+    // Update acted message
+    ApiService.updateMessage(msgId, updatePayload);
+    Object.assign(msg, updatePayload);
+
+    // 4. Sync all messages in this group (first-action-wins propagation)
+    if (groupId) {
+      const otherStaffUids = new Set();
+      messages.forEach(m => {
+        if (m.id !== msgId && m.meta?.groupId === groupId) {
+          if (m.actionStatus === 'pending') {
+            ApiService.updateMessage(m.id, updatePayload);
+            Object.assign(m, updatePayload);
+          }
+          if (m.targetUid && m.targetUid !== curUid) otherStaffUids.add(m.targetUid);
+        }
+      });
+      // Notify other staff of the result (approve/reject only, not ignore)
+      if (action !== 'ignore') {
+        const actionLabel = action === 'approve' ? '同意' : '拒絕';
+        otherStaffUids.forEach(uid => {
+          this._deliverMessageToInbox(
+            '入隊申請審核通知',
+            `「${reviewerName}」已${actionLabel}「${applicantName}」加入「${teamName}」的申請。`,
+            'system', '系統', uid, '系統'
+          );
+        });
+      }
+    }
+
     document.getElementById('msg-inbox-detail-modal').style.display = 'none';
     this.renderMessageList();
   },

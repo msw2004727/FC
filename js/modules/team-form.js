@@ -49,8 +49,9 @@ Object.assign(App, {
     const applicantName = curUser?.displayName || (ModeManager.isDemo() ? DemoData.currentUser.displayName : '未知');
     if (!applicantUid) { this.showToast('請先登入'); return; }
 
-    // 4. Check for existing pending application
     const allMessages = ApiService.getMessages();
+
+    // 4. Check for existing pending application
     const hasPending = allMessages.find(m =>
       m.actionType === 'team_join_request' &&
       m.actionStatus === 'pending' &&
@@ -62,27 +63,59 @@ Object.assign(App, {
       return;
     }
 
-    // 5. Resolve captain recipient UID (supports legacy captainUid/docId/name mismatch)
-    const captainUser = typeof this._resolveTeamCaptainUser === 'function'
-      ? this._resolveTeamCaptainUser(t)
-      : null;
-    const captainUid = captainUser?.uid || null;
-    if (!captainUid) {
-      this.showToast('無法找到領隊，請聯繫管理員');
+    // 5. Check cooldown (24h after rejection)
+    const COOLDOWN_MS = 24 * 60 * 60 * 1000;
+    const recentRejected = allMessages.find(m =>
+      m.actionType === 'team_join_request' &&
+      m.actionStatus === 'rejected' &&
+      m.meta && m.meta.teamId === teamId &&
+      m.meta.applicantUid === applicantUid &&
+      m.rejectedAt && (Date.now() - m.rejectedAt) < COOLDOWN_MS
+    );
+    if (recentRejected) {
+      const hoursLeft = Math.ceil((COOLDOWN_MS - (Date.now() - recentRejected.rejectedAt)) / 3600000);
+      this.showToast(`您的申請已被拒絕，請於 ${hoursLeft} 小時後再次申請`);
       return;
     }
 
-    // 6. Send join request message to captain
-    this._deliverMessageToInbox(
-      '球隊加入申請',
-      `${applicantName} 申請加入「${t.name}」球隊，請審核此申請。`,
-      'system', '系統', captainUid, applicantName,
-      {
-        actionType: 'team_join_request',
-        actionStatus: 'pending',
-        meta: { teamId, teamName: t.name, applicantUid, applicantName },
-      }
-    );
+    // 6. Collect all staff UIDs (captainUid + leaderUid + coaches)
+    const allUsers = ApiService.getAdminUsers();
+    const staffUids = new Set();
+    if (t.captainUid) staffUids.add(t.captainUid);
+    if (t.leaderUid) staffUids.add(t.leaderUid);
+    if (!t.captainUid && t.captain) {
+      const u = allUsers.find(u => u.name === t.captain || u.displayName === t.captain);
+      if (u && u.uid) staffUids.add(u.uid);
+    }
+    if (!t.leaderUid && t.leader) {
+      const u = allUsers.find(u => u.name === t.leader || u.displayName === t.leader);
+      if (u && u.uid) staffUids.add(u.uid);
+    }
+    (t.coaches || []).forEach(cName => {
+      const u = allUsers.find(u => u.name === cName || u.displayName === cName);
+      if (u && u.uid) staffUids.add(u.uid);
+    });
+    if (staffUids.size === 0) {
+      this.showToast('此球隊暫無可審核的職員，請聯繫管理員');
+      return;
+    }
+
+    // 7. Generate groupId linking all staff messages for this request
+    const groupId = 'tjr_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+
+    // 8. Broadcast join request to ALL staff
+    staffUids.forEach(staffUid => {
+      this._deliverMessageToInbox(
+        '球隊加入申請',
+        `${applicantName} 申請加入「${t.name}」球隊，請審核此申請。`,
+        'system', '系統', staffUid, applicantName,
+        {
+          actionType: 'team_join_request',
+          actionStatus: 'pending',
+          meta: { teamId, teamName: t.name, applicantUid, applicantName, groupId },
+        }
+      );
+    });
 
     this._grantAutoExp(applicantUid, 'join_team', t.name);
     this.showToast('已送出加入申請！');

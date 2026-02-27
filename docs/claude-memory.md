@@ -4,6 +4,16 @@
 
 ---
 
+### 2026-02-27 — 入隊申請系統升級（廣播、冷卻、衝突保護）
+
+- **問題**：入隊申請只通知隊長、無多職員衝突處理、無冷卻機制、拒絕後可立即重送
+- **修復**：
+  - `team-form.js` `handleJoinTeam()`：收集 captainUid + leaderUid + coaches 所有 UID，一次廣播給全員，並生成 `groupId` 串聯同一申請的所有訊息
+  - 加入 24h 冷卻：被拒絕後訊息帶 `rejectedAt` (top-level)，再次申請時計算剩餘小時數提示
+  - `message-inbox.js` `handleTeamJoinAction()`：加入職員身份驗證（captain/leader/coach/admin）、first-action-wins（先查 groupId 是否已有非 pending 訊息）、groupId 群組同步（同組全部更新 + 通知其他職員）
+  - 狀態顯示加上審核者姓名 `reviewerName` (top-level)
+- **教訓**：新欄位需存 top-level（非 meta 內），因 `_update()` 用 `Object.assign` 無法處理 dot notation nested 更新；groupId 串聯是 tournament 現成模式，可直接重用
+
 ### 2026-02-27 — 首頁活動卡左上角自動加上日期標籤
 
 - **需求**：首頁近期活動卡左上角自動顯示月/日，黃底粗體標籤樣式
