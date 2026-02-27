@@ -4,6 +4,22 @@
 
 ---
 
+### 2026-02-27 — 補齊操作日誌（zr）
+
+- **功能**：補上 6 類先前未記錄的操作項目，確保操作日誌完整
+- **新增記錄**：
+  1. `handleJoinTeam`（team-form.js）— 申請入隊：`申請入隊` / `${applicantName} 申請加入「${t.name}」`
+  2. `handleLeaveTeam`（team-form.js）— 退出球隊：`退出球隊` / `${userName} 退出「${t.name}」`
+  3. `handleTeamJoinAction` ignore 分支（message-inbox.js）— 忽略審批：`球隊審批` / `${reviewerName} 忽略...`
+  4. `handleSaveShopItem`（shop.js）— 商品編輯/上架：`商品編輯` / `商品上架`
+  5. `delistShopItem` / `relistShopItem` / `removeShopItem`（shop.js）— 下架/重新上架/刪除
+  6. `handleCancelSignup`（event-detail-signup.js，Demo 與 Prod 兩個路徑）— 取消報名/候補
+  7. `_confirmAllAttendance`（event-manage.js）— 手動簽到批次更新
+- **版本**: `20260227zr`
+- **Files**: `team-form.js`, `message-inbox.js`, `shop.js`, `event-detail-signup.js`, `event-manage.js`
+
+---
+
 ### 2026-02-27 — 審批入隊 ensureAuth + isTeamStaff leaderUids + linePushQueue
 
 - **問題**：球隊隊長/領隊按「同意」入隊申請時持續出現「寫入失敗」

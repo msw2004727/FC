@@ -354,6 +354,7 @@ Object.assign(App, {
       this.showToast('已拒絕加入申請');
 
     } else if (action === 'ignore') {
+      ApiService._writeOpLog('team_approve', '球隊審批', `${reviewerName} 忽略「${applicantName}」加入「${teamName}」的申請`);
       this.showToast('已忽略此申請');
     }
 

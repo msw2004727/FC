@@ -230,6 +230,7 @@ Object.assign(App, {
         }
       }
       _restoreCancelUI();
+      ApiService._writeOpLog('cancel_signup', '取消報名', `${userName} 取消${isWaitlist ? '候補' : '報名'}「${e0.title}」`);
       this.showToast(isWaitlist ? '已取消候補' : '已取消報名');
       if (!isWaitlist) this._grantAutoExp(userId, 'cancel_registration', e0.title);
       this._evaluateAchievements(e0?.type);
@@ -285,6 +286,7 @@ Object.assign(App, {
               ApiService.addActivityRecord({ eventId: id, name: ev.title, date: `${dp[1]}/${dp[2]}`, status: 'cancelled', uid: userId });
             }
           }
+          ApiService._writeOpLog('cancel_signup', '取消報名', `${userName} 取消${isWaitlist ? '候補' : '報名'}「${e0.title}」`);
           this.showToast(isWaitlist ? '已取消候補' : '已取消報名');
           this._evaluateAchievements(e0?.type);
           this.showEventDetail(id);

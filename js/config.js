@@ -62,7 +62,8 @@
 // 20260227zo: 站內信審批 — ensureAuth + 修正 in-memory rollback + leaderUids isTeamStaff
 // 20260227zp: 歷史入隊補正 — 去重改為每人取最新一筆 + 目標球隊存在性驗證
 // 20260227zq: 操作日誌排序修正 — 最新在最上面（依 time 字串降序）
-const CACHE_VERSION = '20260227zq';
+// 20260227zr: 補齊操作日誌 — 申請入隊、退出球隊、忽略審批、商品 CRUD、取消報名、手動簽到
+const CACHE_VERSION = '20260227zr';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {

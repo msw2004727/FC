@@ -261,6 +261,7 @@ Object.assign(App, {
         const item = DemoData.shopItems.find(s => s.id === this._shopEditId);
         if (item) Object.assign(item, updates);
       }
+      ApiService._writeOpLog('shop_edit', '商品編輯', `編輯商品「${name}」`);
       this.showToast(`商品「${name}」已更新！`);
     } else {
       // 新增商品
@@ -282,6 +283,7 @@ Object.assign(App, {
       } else {
         DemoData.shopItems.unshift(newItem);
       }
+      ApiService._writeOpLog('shop_create', '商品上架', `上架商品「${name}」`);
       this.showToast(`商品「${name}」已上架！`);
     }
 
@@ -304,6 +306,7 @@ Object.assign(App, {
     } else {
       s.status = 'delisted';
     }
+    ApiService._writeOpLog('shop_delist', '商品下架', `下架商品「${s.name}」`);
     this.renderShop();
     this.renderShopManage();
     this.showToast(`「${s.name}」已下架`);
@@ -318,6 +321,7 @@ Object.assign(App, {
     } else {
       s.status = 'on_sale';
     }
+    ApiService._writeOpLog('shop_relist', '商品重新上架', `重新上架商品「${s.name}」`);
     this.renderShop();
     this.renderShopManage();
     this.showToast(`「${s.name}」已重新上架`);
@@ -334,6 +338,7 @@ Object.assign(App, {
       const idx = DemoData.shopItems.findIndex(si => si.id === id);
       if (idx >= 0) DemoData.shopItems.splice(idx, 1);
     }
+    ApiService._writeOpLog('shop_delete', '商品刪除', `刪除商品「${s.name}」`);
     this.renderShop();
     this.renderShopManage();
     this.showToast(`「${s.name}」已刪除`);

@@ -139,6 +139,7 @@ Object.assign(App, {
       );
     });
 
+    ApiService._writeOpLog('team_join_request', '申請入隊', `${applicantName} 申請加入「${t.name}」`);
     this._grantAutoExp(applicantUid, 'join_team', t.name);
     this.showToast('已送出加入申請！');
   },
@@ -192,6 +193,7 @@ Object.assign(App, {
       this._applyRoleChange(ApiService._recalcUserRole(uid));
     }
 
+    ApiService._writeOpLog('team_leave', '退出球隊', `${userName} 退出「${t.name}」`);
     this.showToast(`已退出「${t.name}」`);
     this.showTeamDetail(teamId);
     this.renderTeamList();
