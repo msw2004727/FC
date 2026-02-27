@@ -54,7 +54,8 @@
 // 20260227l: 正取 activityRecords 更新也改為 await
 // 20260227m: 取消報名誤觸同行者 modal 修正（重複本人報名不跳 companion modal）
 // 20260227x: 首頁活動卡左上角自動加上黃底粗體月/日標籤
-const CACHE_VERSION = '20260227x';
+// 20260227y: 修正 event-list.js map block body 缺少 } 的語法錯誤
+const CACHE_VERSION = '20260227y';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {

@@ -324,7 +324,7 @@ Object.assign(App, {
             </div>
           </div>
         </div>
-      `).join('')
+      `; }).join('')
       : `<div style="padding:1rem;font-size:.82rem;color:var(--text-muted)">${t('activity.noActive')}</div>`;
   },
 
