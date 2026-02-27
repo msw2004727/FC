@@ -281,13 +281,38 @@ Object.assign(App, {
       let fixed = 0, skipped = 0, errors = 0;
       for (const { applicantUid, teamId, teamName } of toFix) {
         try {
-          const userDoc = await db.collection('users').doc(applicantUid).get();
-          if (!userDoc.exists || userDoc.data().teamId === teamId) { skipped++; continue; }
-          await db.collection('users').doc(applicantUid).update({
+          // 1. 先嘗試直接以 applicantUid 作為文件 ID 查詢
+          let docId = null;
+          let currentTeamId = null;
+          const directSnap = await db.collection('users').doc(applicantUid).get();
+          if (directSnap.exists) {
+            docId = directSnap.id;
+            currentTeamId = directSnap.data().teamId || null;
+          } else {
+            // 2. Fallback：legacy 用戶的 lineUserId 或 uid 欄位可能與文件 ID 不同
+            const qSnap = await db.collection('users')
+              .where('lineUserId', '==', applicantUid)
+              .limit(1).get();
+            if (!qSnap.empty) {
+              docId = qSnap.docs[0].id;
+              currentTeamId = qSnap.docs[0].data().teamId || null;
+            } else {
+              const qSnap2 = await db.collection('users')
+                .where('uid', '==', applicantUid)
+                .limit(1).get();
+              if (!qSnap2.empty) {
+                docId = qSnap2.docs[0].id;
+                currentTeamId = qSnap2.docs[0].data().teamId || null;
+              }
+            }
+          }
+          if (!docId) { skipped++; continue; } // 找不到用戶
+          if (currentTeamId === teamId) { skipped++; continue; } // 已正確
+          await db.collection('users').doc(docId).update({
             teamId, teamName,
             updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
           });
-          const cached = (ApiService.getAdminUsers() || []).find(u => u.uid === applicantUid || u._docId === applicantUid);
+          const cached = (ApiService.getAdminUsers() || []).find(u => u.uid === applicantUid || u._docId === docId);
           if (cached) Object.assign(cached, { teamId, teamName });
           fixed++;
         } catch (err) { console.error('[repairTeamJoins]', applicantUid, err); errors++; }
