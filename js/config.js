@@ -68,7 +68,8 @@
 // 20260227zu: 修復 _writeErrorLog 靜默失敗（FirebaseService._db → db）+ 入隊審批 permission-denied（rules 改用 sameFieldValue）
 // 20260227zv: 入隊審批 permission-denied 終極修復 — users.update 改 isAuth() + _ensureAuth 檢查回傳值
 // 20260227zw: 修復錯誤日誌寫入/讀取 — .catch 改為 console.warn 可見 + rules 改 token.role 直接判斷避免 roleFromUserDoc null 問題
-const CACHE_VERSION = '20260227zw';
+// 20260227zx: 球隊介紹頁 — 成員膠囊全部顯示（移除 slice/...xx人）+ 新增球隊限定活動欄位
+const CACHE_VERSION = '20260227zx';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {

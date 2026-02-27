@@ -126,13 +126,13 @@ Object.assign(App, {
             const staffNames = new Set([t.captain, ...leaderNames, ...(t.coaches || [])].filter(Boolean));
             const regularMembers = teamMembers.filter(u => !staffNames.has(u.name));
             if (!regularMembers.length) return `<div style="font-size:.82rem;color:var(--text-muted);padding:.3rem">${I18N.t('teamDetail.none')}</div>`;
-            return regularMembers.slice(0, 20).map(u =>
+            return regularMembers.map(u =>
               `<span class="user-capsule uc-user" onclick="App.showUserProfile('${escapeHTML(u.name)}')">${escapeHTML(u.name)}</span>`
             ).join('');
           })()}
-          ${t.members > 8 ? `<span class="td-member-more">... ${t.members} ${I18N.t('teamDetail.personUnit')}</span>` : ''}
         </div>
       </div>
+      ${this._renderTeamEvents(t.id)}
       <div id="team-feed-section">${this._renderTeamFeed(t.id)}</div>
       ${(() => {
         const u = ApiService.getCurrentUser?.();
@@ -164,6 +164,49 @@ Object.assign(App, {
       })()}
     `;
     this.showPage('page-team-detail');
+  },
+
+  // ══════════════════════════════════
+  //  Team Events（球隊限定活動）
+  // ══════════════════════════════════
+
+  _renderTeamEvents(teamId) {
+    const allEvents = ApiService.getEvents() || [];
+    const teamEvents = allEvents.filter(e =>
+      e.teamOnly && e.creatorTeamId === teamId &&
+      e.status !== 'ended' && e.status !== 'cancelled'
+    ).sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+
+    if (!teamEvents.length) return '';
+
+    const TYPE_COLOR = { play: '#3b82f6', friendly: '#10b981', coaching: '#f59e0b', watch: '#8b5cf6' };
+    const STATUS_LABEL = { open: '報名中', full: '已額滿', upcoming: '即將開始' };
+
+    const rows = teamEvents.map(e => {
+      const datePart = (e.date || '').split(' ')[0];
+      const timePart = (e.date || '').split(' ')[1] || '';
+      const color = TYPE_COLOR[e.type] || '#6b7280';
+      const statusLabel = STATUS_LABEL[e.status] || e.status;
+      const spotsHtml = e.max > 0
+        ? `<span style="font-size:.62rem;color:${e.current >= e.max ? 'var(--danger)' : 'var(--text-muted)'}">${e.current}/${e.max}</span>`
+        : '';
+      return `<div style="display:flex;align-items:center;gap:.4rem;padding:.35rem 0;border-bottom:1px solid var(--border);cursor:pointer" onclick="App.showEventDetail('${e.id}')">
+        <div style="width:3px;align-self:stretch;border-radius:2px;background:${color};flex-shrink:0"></div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:.82rem;font-weight:600;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHTML(e.title)}</div>
+          <div style="font-size:.68rem;color:var(--text-muted)">${escapeHTML(datePart)}${timePart ? ' ' + escapeHTML(timePart) : ''}${e.location ? ' · ' + escapeHTML(e.location) : ''}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:.25rem;flex-shrink:0">
+          ${spotsHtml}
+          <span style="font-size:.6rem;padding:.08rem .3rem;border-radius:999px;background:${color}22;color:${color};font-weight:600">${escapeHTML(statusLabel)}</span>
+        </div>
+      </div>`;
+    }).join('');
+
+    return `<div class="td-card">
+      <div class="td-card-title">球隊活動 <span style="font-size:.72rem;color:var(--text-muted);font-weight:400">(${teamEvents.length})</span></div>
+      ${rows}
+    </div>`;
   },
 
   // ══════════════════════════════════
