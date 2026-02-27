@@ -306,11 +306,16 @@ Object.assign(App, {
       .slice(0, 10);
 
     container.innerHTML = visible.length > 0
-      ? visible.map(e => `
+      ? visible.map(e => {
+        const _dp = (e.date || '').split(' ')[0].split('/');
+        const _dateTag = _dp.length >= 3
+          ? `<span style="position:absolute;top:.4rem;left:.4rem;background:#fbbf24;color:#78350f;font-weight:700;font-size:.72rem;padding:.15rem .45rem;border-radius:4px;line-height:1.4;z-index:1;pointer-events:none">${parseInt(_dp[1])}/${parseInt(_dp[2])}</span>`
+          : '';
+        return `
         <div class="h-card" style="${e.pinned ? 'border:1px solid var(--warning);box-shadow:0 0 0 1px rgba(245,158,11,.15)' : ''}" onclick="App.showEventDetail('${e.id}')">
           ${e.image
-            ? `<div class="h-card-img"><img src="${e.image}" alt="${escapeHTML(e.title)}" loading="lazy"></div>`
-            : `<div class="h-card-img h-card-placeholder">220 × 90</div>`}
+            ? `<div class="h-card-img" style="position:relative">${_dateTag}<img src="${e.image}" alt="${escapeHTML(e.title)}" loading="lazy"></div>`
+            : `<div class="h-card-img h-card-placeholder" style="position:relative">${_dateTag}220 × 90</div>`}
           <div class="h-card-body">
             <div class="h-card-title">${e.pinned ? '<span style="font-size:.62rem;padding:.08rem .35rem;border-radius:999px;border:1px solid var(--warning);color:var(--warning);font-weight:700;margin-right:.3rem">置頂</span>' : ''}${escapeHTML(e.title)}${e.teamOnly ? '<span class="tl-teamonly-badge">球隊限定</span>' : ''}${(e.max > 0 && e.current >= e.max && e.status !== 'ended' && e.status !== 'cancelled') ? '<span class="tl-almost-full-badge">已額滿</span>' : ((e.status === 'open' && e.max > 0 && (e.max - e.current) / e.max < 0.2 && e.current < e.max) ? '<span class="tl-almost-full-badge">即將額滿</span>' : '')} ${this._favHeartHtml(this.isEventFavorited(e.id), 'Event', e.id)}</div>
             <div class="h-card-meta">
