@@ -258,73 +258,109 @@ Object.assign(App, {
     const btn = document.getElementById('repair-team-joins-btn');
     const log = document.getElementById('repair-team-joins-log');
     if (btn) btn.disabled = true;
-    if (log) log.textContent = '查詢中...';
+    if (log) { log.innerHTML = '查詢中...'; log.style.display = 'block'; }
+
+    const logLines = [];
+    const addLog = (line) => {
+      logLines.push(line);
+      if (log) log.innerHTML = logLines.map(l => escapeHTML(l)).join('<br>');
+    };
 
     try {
+      addLog(`[${new Date().toLocaleTimeString()}] 開始查詢 approved 入隊記錄（強制讀 Server）...`);
       const snap = await db.collection('messages')
         .where('actionType', '==', 'team_join_request')
         .where('actionStatus', '==', 'approved')
-        .get();
+        .get({ source: 'server' });
 
-      if (snap.empty) { if (log) log.textContent = '沒有已批准的入隊記錄。'; return; }
+      if (snap.empty) { addLog('沒有已批准的入隊記錄。'); return; }
+      addLog(`共找到 ${snap.docs.length} 筆 approved 訊息，開始去重...`);
 
       // 去重：同 applicantUid + teamId 只處理一次
       const seen = new Set();
       const toFix = [];
       snap.docs.forEach(doc => {
-        const { applicantUid, teamId, teamName } = doc.data().meta || {};
+        const { applicantUid, applicantName, teamId, teamName } = doc.data().meta || {};
         if (!applicantUid || !teamId) return;
         const key = `${applicantUid}__${teamId}`;
-        if (!seen.has(key)) { seen.add(key); toFix.push({ applicantUid, teamId, teamName: teamName || '' }); }
+        if (!seen.has(key)) { seen.add(key); toFix.push({ applicantUid, applicantName: applicantName || applicantUid, teamId, teamName: teamName || '' }); }
       });
+      addLog(`去重後需處理 ${toFix.length} 筆，逐一驗證...`);
 
       let fixed = 0, skipped = 0, errors = 0;
-      for (const { applicantUid, teamId, teamName } of toFix) {
+      for (const { applicantUid, applicantName, teamId, teamName } of toFix) {
         try {
-          // 1. 先嘗試直接以 applicantUid 作為文件 ID 查詢
+          // 1. 強制從 Server 讀取用戶文件（bypasslocal cache）
           let docId = null;
           let currentTeamId = null;
-          const directSnap = await db.collection('users').doc(applicantUid).get();
+          let displayName = applicantName;
+          const directSnap = await db.collection('users').doc(applicantUid).get({ source: 'server' });
           if (directSnap.exists) {
             docId = directSnap.id;
             currentTeamId = directSnap.data().teamId || null;
+            displayName = directSnap.data().displayName || directSnap.data().name || applicantName;
           } else {
-            // 2. Fallback：legacy 用戶的 lineUserId 或 uid 欄位可能與文件 ID 不同
+            // 2. Fallback：legacy 用戶
             const qSnap = await db.collection('users')
               .where('lineUserId', '==', applicantUid)
-              .limit(1).get();
+              .limit(1).get({ source: 'server' });
             if (!qSnap.empty) {
               docId = qSnap.docs[0].id;
               currentTeamId = qSnap.docs[0].data().teamId || null;
+              displayName = qSnap.docs[0].data().displayName || qSnap.docs[0].data().name || applicantName;
             } else {
               const qSnap2 = await db.collection('users')
                 .where('uid', '==', applicantUid)
-                .limit(1).get();
+                .limit(1).get({ source: 'server' });
               if (!qSnap2.empty) {
                 docId = qSnap2.docs[0].id;
                 currentTeamId = qSnap2.docs[0].data().teamId || null;
+                displayName = qSnap2.docs[0].data().displayName || qSnap2.docs[0].data().name || applicantName;
               }
             }
           }
-          if (!docId) { skipped++; continue; } // 找不到用戶
-          if (currentTeamId === teamId) { skipped++; continue; } // 已正確
+
+          if (!docId) {
+            addLog(`  [跳過] ${applicantName}（uid:${applicantUid}）→ 找不到用戶文件`);
+            skipped++; continue;
+          }
+          if (currentTeamId === teamId) {
+            addLog(`  [跳過] ${displayName} → 已在正確球隊（${teamId}）`);
+            skipped++; continue;
+          }
+
+          addLog(`  [修復] ${displayName}（${applicantUid}）：teamId ${currentTeamId || 'null'} → ${teamId}（${teamName}）`);
           await db.collection('users').doc(docId).update({
             teamId, teamName,
             updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
           });
-          const cached = (ApiService.getAdminUsers() || []).find(u => u.uid === applicantUid || u._docId === docId);
-          if (cached) Object.assign(cached, { teamId, teamName });
-          fixed++;
-        } catch (err) { console.error('[repairTeamJoins]', applicantUid, err); errors++; }
+
+          // 寫入後立即 server-read 驗證
+          const verifySnap = await db.collection('users').doc(docId).get({ source: 'server' });
+          const verifiedTeamId = verifySnap.exists ? verifySnap.data().teamId : null;
+          if (verifiedTeamId === teamId) {
+            addLog(`    ✓ 驗證成功：Firestore teamId 已確認為 ${teamId}`);
+            const cached = (ApiService.getAdminUsers() || []).find(u => u.uid === applicantUid || u._docId === docId);
+            if (cached) Object.assign(cached, { teamId, teamName });
+            fixed++;
+          } else {
+            addLog(`    ✗ 驗證失敗：寫入後讀回 teamId=${verifiedTeamId}，預期 ${teamId}（可能是 rules 拒絕）`);
+            errors++;
+          }
+        } catch (err) {
+          addLog(`  [錯誤] ${applicantName}（${applicantUid}）：${err.message || err}`);
+          console.error('[repairTeamJoins]', applicantUid, err);
+          errors++;
+        }
       }
 
-      const summary = `完成！修復 ${fixed} 人，已正確跳過 ${skipped} 人，失敗 ${errors} 人`;
-      if (log) log.textContent = summary;
+      const summary = `完成！修復 ${fixed} 人，跳過 ${skipped} 人，失敗 ${errors} 人`;
+      addLog(`\n${summary}`);
       ApiService._writeOpLog('team_approve', '歷史入隊修復', summary);
       this.showToast(summary);
     } catch (err) {
       const msg = '查詢失敗：' + (err.message || err);
-      if (log) log.textContent = msg;
+      addLog(msg);
       this.showToast(msg);
     } finally {
       if (btn) btn.disabled = false;
