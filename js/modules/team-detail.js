@@ -18,12 +18,14 @@ Object.assign(App, {
     if (ModeManager.isDemo()) return this._userTeam === teamId;
     const user = ApiService.getCurrentUser();
     if (user && user.teamId === teamId) return true;
-    // 也檢查是否為該隊領隊或教練
+    // 也檢查是否為該隊球隊經理、領隊或教練
     const team = ApiService.getTeam(teamId);
     if (!team || !user) return false;
     if (team.captainUid && team.captainUid === user.uid) return true;
     if (team.captain && team.captain === user.displayName) return true;
     if ((team.coaches || []).includes(user.displayName)) return true;
+    const leaderUids = team.leaderUids || (team.leaderUid ? [team.leaderUid] : []);
+    if (leaderUids.includes(user.uid)) return true;
     return false;
   },
 
@@ -69,7 +71,7 @@ Object.assign(App, {
         <div class="td-card-title">${I18N.t('teamDetail.info')}</div>
         <div class="td-card-grid">
           <div class="td-card-item"><span class="td-card-label">球隊經理</span><span class="td-card-value">${t.captain ? this._userTag(t.captain, 'captain') : I18N.t('teamDetail.notSet')}</span></div>
-          <div class="td-card-item"><span class="td-card-label">領隊</span><span class="td-card-value">${t.leader ? this._teamLeaderTag(t.leader) : I18N.t('teamDetail.notSet')}</span></div>
+          <div class="td-card-item"><span class="td-card-label">領隊</span><span class="td-card-value">${(() => { const lNames = t.leaders || (t.leader ? [t.leader] : []); return lNames.length ? lNames.map(n => this._teamLeaderTag(n)).join(' ') : I18N.t('teamDetail.notSet'); })()}</span></div>
           <div class="td-card-item"><span class="td-card-label">${I18N.t('teamDetail.coach')}</span><span class="td-card-value">${(t.coaches || []).length > 0 ? t.coaches.map(c => this._userTag(c, 'coach')).join(' ') : I18N.t('teamDetail.none')}</span></div>
           <div class="td-card-item"><span class="td-card-label">${I18N.t('teamDetail.memberCount')}</span><span class="td-card-value">${t.members} ${I18N.t('teamDetail.personUnit')}</span></div>
           <div class="td-card-item"><span class="td-card-label">${I18N.t('teamDetail.region')}</span><span class="td-card-value">${escapeHTML(t.region)}</span></div>
@@ -120,7 +122,8 @@ Object.assign(App, {
           ${(() => {
             const allUsers = ApiService.getAdminUsers() || [];
             const teamMembers = allUsers.filter(u => u.teamId === t.id);
-            const staffNames = new Set([t.captain, t.leader, ...(t.coaches || [])].filter(Boolean));
+            const leaderNames = t.leaders || (t.leader ? [t.leader] : []);
+            const staffNames = new Set([t.captain, ...leaderNames, ...(t.coaches || [])].filter(Boolean));
             const regularMembers = teamMembers.filter(u => !staffNames.has(u.name));
             if (!regularMembers.length) return `<div style="font-size:.82rem;color:var(--text-muted);padding:.3rem">${I18N.t('teamDetail.none')}</div>`;
             return regularMembers.slice(0, 20).map(u =>

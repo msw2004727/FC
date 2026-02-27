@@ -721,6 +721,11 @@ const ApiService = {
       if ((t.coaches || []).includes(user.name)) {
         highestTeamLevel = Math.max(highestTeamLevel, ROLE_LEVEL_MAP['coach']);
       }
+      // 領隊 → coach 等級
+      const leaderUids = t.leaderUids || (t.leaderUid ? [t.leaderUid] : []);
+      if (leaderUids.includes(uid)) {
+        highestTeamLevel = Math.max(highestTeamLevel, ROLE_LEVEL_MAP['coach']);
+      }
     });
 
     // manualRole 底線（未設定等同 user）

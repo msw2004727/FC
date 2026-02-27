@@ -6,7 +6,7 @@
 Object.assign(App, {
 
   _teamEditId: null,
-  _teamLeaderUid: null,
+  _teamLeaderUids: [],
   _teamCaptainUid: null,
   _teamCoachUids: [],
 
@@ -97,16 +97,19 @@ Object.assign(App, {
       return;
     }
 
-    // 6. Collect all staff UIDs (captainUid + leaderUid + coaches)
+    // 6. Collect all staff UIDs (captainUid + leaderUids + coaches)
     const allUsers = ApiService.getAdminUsers();
     const staffUids = new Set();
     if (t.captainUid) staffUids.add(t.captainUid);
-    if (t.leaderUid) staffUids.add(t.leaderUid);
     if (!t.captainUid && t.captain) {
       const u = allUsers.find(u => u.name === t.captain || u.displayName === t.captain);
       if (u && u.uid) staffUids.add(u.uid);
     }
-    if (!t.leaderUid && t.leader) {
+    // 複數領隊
+    (t.leaderUids || (t.leaderUid ? [t.leaderUid] : [])).forEach(lUid => {
+      if (lUid) staffUids.add(lUid);
+    });
+    if (!t.leaderUids && !t.leaderUid && t.leader) {
       const u = allUsers.find(u => u.name === t.leader || u.displayName === t.leader);
       if (u && u.uid) staffUids.add(u.uid);
     }
@@ -221,24 +224,23 @@ Object.assign(App, {
     document.getElementById('ct-team-region').value = '';
     document.getElementById('ct-team-founded').value = '';
     document.getElementById('ct-leader-search').value = '';
-    document.getElementById('ct-leader-selected').innerHTML = '';
+    document.getElementById('ct-leaders-tags').innerHTML = '';
     document.getElementById('ct-leader-suggest').innerHTML = '';
     document.getElementById('ct-leader-suggest').classList.remove('show');
-    document.getElementById('ct-leader-display').innerHTML = '';
-    document.getElementById('ct-leader-transfer').style.display = 'none';
     document.getElementById('ct-captain-search').value = '';
     document.getElementById('ct-captain-selected').innerHTML = '';
     document.getElementById('ct-captain-suggest').innerHTML = '';
     document.getElementById('ct-captain-suggest').classList.remove('show');
     document.getElementById('ct-captain-display').innerHTML = '';
     document.getElementById('ct-captain-transfer').style.display = 'none';
+    document.getElementById('ct-captain-locked').style.display = 'none';
     document.getElementById('ct-team-contact').value = '';
     document.getElementById('ct-coach-search').value = '';
     document.getElementById('ct-coach-tags').innerHTML = '';
     document.getElementById('ct-coach-suggest').innerHTML = '';
     document.getElementById('ct-coach-suggest').classList.remove('show');
     document.getElementById('ct-team-bio').value = '';
-    this._teamLeaderUid = null;
+    this._teamLeaderUids = [];
     this._teamCaptainUid = null;
     this._teamCoachUids = [];
     const preview = document.getElementById('ct-team-preview');
@@ -277,8 +279,6 @@ Object.assign(App, {
     this._teamEditId = id || null;
     const titleEl = document.getElementById('ct-team-modal-title');
     const saveBtn = document.getElementById('ct-team-save-btn');
-    const leaderDisplay = document.getElementById('ct-leader-display');
-    const leaderTransfer = document.getElementById('ct-leader-transfer');
     const captainDisplay = document.getElementById('ct-captain-display');
     const captainTransfer = document.getElementById('ct-captain-transfer');
 
@@ -295,40 +295,44 @@ Object.assign(App, {
       document.getElementById('ct-team-contact').value = t.contact || '';
       document.getElementById('ct-team-bio').value = t.bio || '';
 
-      // 編輯模式：顯示目前球隊領隊 + 可搜尋替換
-      leaderDisplay.style.display = '';
-      leaderDisplay.innerHTML = `目前球隊領隊：<span style="color:var(--accent)">${escapeHTML(t.leader || '（未設定）')}</span>`;
-      leaderTransfer.style.display = '';
-      const leaderHint = leaderTransfer.querySelector('.ct-leader-hint');
-      if (leaderHint) leaderHint.style.display = '';
-
-      // 預設保留原球隊領隊
-      this._teamLeaderUid = null;
+      // 編輯模式：載入已有領隊（複數）
+      const users = ApiService.getAdminUsers();
+      this._teamLeaderUids = [];
       document.getElementById('ct-leader-search').value = '';
-      document.getElementById('ct-leader-selected').innerHTML = '';
-      if (t.leaderUid) {
-        const users = ApiService.getAdminUsers();
-        const foundById = users.find(u => u.uid === t.leaderUid || u._docId === t.leaderUid);
-        this._teamLeaderUid = foundById ? foundById.uid : '__legacy__';
-      } else if (t.leader) {
-        const users = ApiService.getAdminUsers();
+      document.getElementById('ct-leader-suggest').innerHTML = '';
+      document.getElementById('ct-leader-suggest').classList.remove('show');
+      const existingLeaderUids = t.leaderUids || (t.leaderUid ? [t.leaderUid] : []);
+      existingLeaderUids.forEach(lUid => {
+        const found = users.find(u => u.uid === lUid || u._docId === lUid);
+        if (found) {
+          this._teamLeaderUids.push(found.uid);
+        } else if (lUid) {
+          this._teamLeaderUids.push('__legacy__' + lUid);
+        }
+      });
+      // 若只有 leader 名稱無 uid，嘗試反查
+      if (this._teamLeaderUids.length === 0 && t.leader) {
         const found = users.find(u => u.name === t.leader || u.displayName === t.leader);
-        this._teamLeaderUid = found ? found.uid : '__legacy__';
+        this._teamLeaderUids.push(found ? found.uid : '__legacy__' + t.leader);
       }
+      this._renderLeaderTags();
 
-      // 編輯模式：顯示目前領隊 + 轉移搜尋
+      // 編輯模式：球隊經理欄位，僅經理本人或 admin 可轉移
+      const me = ApiService.getCurrentUser();
+      const isAdmin = me && (ROLE_LEVEL_MAP[me.role] || 0) >= ROLE_LEVEL_MAP['admin'];
+      const canTransferCaptain = isAdmin || (me && me.uid === t.captainUid);
       captainDisplay.style.display = '';
       captainDisplay.innerHTML = `目前球隊經理：<span style="color:var(--accent)">${escapeHTML(t.captain || '（未設定）')}</span>`;
-      captainTransfer.style.display = '';
+      captainTransfer.style.display = canTransferCaptain ? '' : 'none';
+      document.getElementById('ct-captain-locked').style.display = canTransferCaptain ? 'none' : '';
       const captainHint = captainTransfer.querySelector('.ct-captain-hint');
       if (captainHint) captainHint.style.display = '';
 
-      // 預設保留原領隊
+      // 預設保留原經理
       this._teamCaptainUid = null;
       document.getElementById('ct-captain-search').value = '';
       document.getElementById('ct-captain-selected').innerHTML = '';
       if (t.captain) {
-        const users = ApiService.getAdminUsers();
         const found = users.find(u => u.name === t.captain);
         this._teamCaptainUid = found ? found.uid : '__legacy__';
       }
@@ -338,7 +342,6 @@ Object.assign(App, {
       document.getElementById('ct-coach-search').value = '';
       document.getElementById('ct-coach-tags').innerHTML = '';
       if (t.coaches && t.coaches.length) {
-        const users = ApiService.getAdminUsers();
         t.coaches.forEach(cName => {
           const found = users.find(u => u.name === cName);
           if (found) {
@@ -363,22 +366,26 @@ Object.assign(App, {
         preview.classList.remove('has-image');
       }
     } else {
-      // 新增模式：領隊由搜尋選取，呈現方式與教練相同
+      // 新增模式：自動填入當前用戶為球隊經理，鎖定不可更改
       titleEl.textContent = '新增球隊';
       saveBtn.textContent = '建立球隊';
       this._resetTeamForm();
 
-      leaderDisplay.style.display = 'none';
-      leaderTransfer.style.display = '';
-      const leaderHint = leaderTransfer.querySelector('.ct-leader-hint');
-      if (leaderHint) leaderHint.style.display = 'none';
-      this._teamLeaderUid = null;
-
-      captainDisplay.style.display = 'none';
-      captainTransfer.style.display = '';
-      const captainHint = captainTransfer.querySelector('.ct-captain-hint');
-      if (captainHint) captainHint.style.display = 'none';
-      this._teamCaptainUid = null;
+      // 自動設定創立者為球隊經理
+      const me = ApiService.getCurrentUser();
+      if (me) {
+        this._teamCaptainUid = me.uid;
+        captainDisplay.style.display = '';
+        captainDisplay.innerHTML = `球隊經理（創立者）：<span style="color:var(--accent)">${escapeHTML(me.displayName || me.name || '')}</span>`;
+        captainTransfer.style.display = 'none';
+        document.getElementById('ct-captain-locked').style.display = '';
+        document.getElementById('ct-captain-locked').textContent = '（創立者自動成為球隊經理）';
+      } else {
+        captainDisplay.style.display = 'none';
+        captainTransfer.style.display = '';
+        document.getElementById('ct-captain-locked').style.display = 'none';
+        this._teamCaptainUid = null;
+      }
     }
     this.showModal('create-team-modal');
   },
@@ -397,56 +404,49 @@ Object.assign(App, {
     // ── 記錄舊職位（編輯模式用於降級檢查）──
     let oldCaptainUid = null;
     let oldCoachUids = [];
+    let oldLeaderUids = [];
     if (this._teamEditId) {
       const oldTeam = ApiService.getTeam(this._teamEditId);
       if (oldTeam) {
         oldCaptainUid = oldTeam.captainUid || null;
-        // 如果沒有 captainUid 但有 captain name，嘗試反查 uid
         if (!oldCaptainUid && oldTeam.captain) {
           const capUser = ApiService.getAdminUsers().find(u => u.name === oldTeam.captain);
           oldCaptainUid = capUser ? capUser.uid : null;
         }
-        // 收集舊教練 uid
         (oldTeam.coaches || []).forEach(cName => {
           const cUser = ApiService.getAdminUsers().find(u => u.name === cName);
           if (cUser) oldCoachUids.push(cUser.uid);
         });
+        // 舊領隊 uid 陣列
+        oldLeaderUids = (oldTeam.leaderUids || (oldTeam.leaderUid ? [oldTeam.leaderUid] : [])).filter(Boolean);
       }
     }
 
     const users = ApiService.getAdminUsers();
-    let leader = '';
-    let selectedLeaderUser = null;
-    if (this._teamLeaderUid) {
-      if (this._teamLeaderUid === '__legacy__') {
-        const t = this._teamEditId ? ApiService.getTeam(this._teamEditId) : null;
-        leader = t ? (t.leader || '') : '';
-      } else {
-        selectedLeaderUser = users.find(u => u.uid === this._teamLeaderUid);
-        leader = selectedLeaderUser ? selectedLeaderUser.name : '';
-      }
-    }
 
-    if (!this._teamEditId) {
-      if (!this._teamLeaderUid) {
-        this.showToast('請設定球隊領隊（必填）');
-        return;
-      }
-      if (this._teamLeaderUid === '__legacy__' || !selectedLeaderUser) {
-        this.showToast('球隊領隊必須為有效用戶，請重新選擇');
-        return;
-      }
-    } else if (this._teamLeaderUid && this._teamLeaderUid !== '__legacy__' && !selectedLeaderUser) {
-      this.showToast('球隊領隊資料無效，請重新選擇球隊領隊');
+    // 驗證領隊（新建：至少一位且非 legacy；編輯：允許保留）
+    if (!this._teamEditId && this._teamLeaderUids.length === 0) {
+      this.showToast('請選擇至少一位球隊領隊');
       return;
     }
+    const realLeaderUids = this._teamLeaderUids.filter(uid => !uid.startsWith('__legacy__'));
+    if (!this._teamEditId && realLeaderUids.length === 0) {
+      this.showToast('球隊領隊必須為有效用戶，請重新選擇');
+      return;
+    }
+
+    // 解析領隊名稱
+    const leaderNames = this._teamLeaderUids.map(uid => {
+      if (uid.startsWith('__legacy__')) return uid.replace('__legacy__', '');
+      const u = users.find(u => u.uid === uid);
+      return u ? u.name : '';
+    }).filter(Boolean);
 
     // Resolve team manager (captain) name
     let captain = '';
     let selectedCaptainUser = null;
     if (this._teamCaptainUid) {
       if (this._teamCaptainUid === '__legacy__') {
-        // 編輯模式下保留原領隊名稱
         const t = this._teamEditId ? ApiService.getTeam(this._teamEditId) : null;
         captain = t ? t.captain : '';
       } else {
@@ -496,6 +496,10 @@ Object.assign(App, {
           if ((t.coaches || []).includes(u.name)) {
             highestTeamLevel = Math.max(highestTeamLevel, ROLE_LEVEL_MAP['coach']);
           }
+          const tLeaderUids = t.leaderUids || (t.leaderUid ? [t.leaderUid] : []);
+          if (tLeaderUids.includes(uid)) {
+            highestTeamLevel = Math.max(highestTeamLevel, ROLE_LEVEL_MAP['coach']);
+          }
         });
         const manualLevel = ROLE_LEVEL_MAP[u.manualRole] || 0;
         const targetLevel = Math.max(highestTeamLevel, manualLevel);
@@ -523,18 +527,30 @@ Object.assign(App, {
           }
         }
       });
+      // 被移除的領隊
+      oldLeaderUids.forEach(uid => {
+        if (!realLeaderUids.includes(uid)) {
+          const u = users.find(u => u.uid === uid);
+          if (u) {
+            const newRole = previewNewRole(uid);
+            if (newRole && newRole !== u.role) {
+              demotionInfo.push({ name: u.name, oldLabel: ROLES[u.role]?.label || u.role, newLabel: ROLES[newRole]?.label || newRole });
+            }
+          }
+        }
+      });
       if (demotionInfo.length > 0) {
         const table = demotionInfo.map(d => `  ${d.name}：${d.oldLabel} → ${d.newLabel}`).join('\n');
         if (!(await this.appConfirm(`以下成員將被移除職位，角色將自動調整：\n\n${table}\n\n確定要儲存？`))) return;
       }
     }
 
-    const captainCoachNames = new Set([captain, ...coaches].filter(Boolean));
+    const staffNames = new Set([captain, ...leaderNames, ...coaches].filter(Boolean));
     const regularMembersCount = this._teamEditId
-      ? users.filter(u => u.teamId === this._teamEditId && !captainCoachNames.has(u.name)).length
+      ? users.filter(u => u.teamId === this._teamEditId && !staffNames.has(u.name)).length
       : 0;
     const members = this._teamEditId
-      ? (captain ? 1 : 0) + coaches.length + regularMembersCount
+      ? (captain ? 1 : 0) + leaderNames.length + coaches.length + regularMembersCount
       : 0;
 
     const preview = document.getElementById('ct-team-preview');
@@ -550,11 +566,14 @@ Object.assign(App, {
     }
 
     try {
-      const leaderUidToSave = (this._teamLeaderUid && this._teamLeaderUid !== '__legacy__') ? this._teamLeaderUid : null;
+      // leader/leaderUid 相容欄位（舊格式）
+      const leaderUidCompat = realLeaderUids[0] || null;
+      const leaderCompat = leaderNames[0] || '';
       if (this._teamEditId) {
         const updates = {
           name, nameEn, nationality, region, founded, contact, bio,
-          leader, leaderUid: leaderUidToSave,
+          leader: leaderCompat, leaderUid: leaderUidCompat,
+          leaders: leaderNames, leaderUids: realLeaderUids,
           captain, captainUid: this._teamCaptainUid || null,
           coaches, members,
         };
@@ -565,10 +584,23 @@ Object.assign(App, {
         const newCapUid = (this._teamCaptainUid && this._teamCaptainUid !== '__legacy__') ? this._teamCaptainUid : null;
         if (oldCaptainUid && newCapUid && oldCaptainUid !== newCapUid) {
           const oldCapName = users.find(u => u.uid === oldCaptainUid)?.name || '?';
-          ApiService._writeOpLog('team_position', '球隊職位變更', `「${name}」領隊由「${oldCapName}」轉移至「${captain}」`);
+          ApiService._writeOpLog('team_position', '球隊職位變更', `「${name}」球隊經理由「${oldCapName}」轉移至「${captain}」`);
         } else if (!oldCaptainUid && newCapUid) {
-          ApiService._writeOpLog('team_position', '球隊職位變更', `設定「${captain}」為「${name}」領隊`);
+          ApiService._writeOpLog('team_position', '球隊職位變更', `設定「${captain}」為「${name}」球隊經理`);
         }
+        // 領隊異動日誌
+        realLeaderUids.forEach(uid => {
+          if (!oldLeaderUids.includes(uid)) {
+            const lName = users.find(u => u.uid === uid)?.name || '?';
+            ApiService._writeOpLog('team_position', '球隊職位變更', `新增「${lName}」為「${name}」領隊`);
+          }
+        });
+        oldLeaderUids.forEach(uid => {
+          if (!realLeaderUids.includes(uid)) {
+            const lName = users.find(u => u.uid === uid)?.name || '?';
+            ApiService._writeOpLog('team_position', '球隊職位變更', `移除「${lName}」的「${name}」領隊職位`);
+          }
+        });
         newCoachUids.forEach(uid => {
           if (!oldCoachUids.includes(uid)) {
             const cName = users.find(u => u.uid === uid)?.name || '?';
@@ -586,7 +618,8 @@ Object.assign(App, {
         const data = {
           id: generateId('tm_'),
           name, nameEn, nationality,
-          leader, leaderUid: leaderUidToSave,
+          leader: leaderCompat, leaderUid: leaderUidCompat,
+          leaders: leaderNames, leaderUids: realLeaderUids,
           captain, captainUid: this._teamCaptainUid || null,
           coaches, members,
           region, founded, contact, bio, image,
@@ -598,8 +631,11 @@ Object.assign(App, {
         ApiService._writeOpLog('team_create', '建立球隊', `建立「${name}」`);
         // ── 新建球隊職位日誌 ──
         if (captain) {
-          ApiService._writeOpLog('team_position', '球隊職位變更', `設定「${captain}」為「${name}」領隊`);
+          ApiService._writeOpLog('team_position', '球隊職位變更', `設定「${captain}」為「${name}」球隊經理`);
         }
+        leaderNames.forEach(l => {
+          ApiService._writeOpLog('team_position', '球隊職位變更', `新增「${l}」為「${name}」領隊`);
+        });
         coaches.forEach(c => {
           ApiService._writeOpLog('team_position', '球隊職位變更', `新增「${c}」為「${name}」教練`);
         });
@@ -611,7 +647,7 @@ Object.assign(App, {
       return;
     }
 
-    // ── 自動升級領隊/教練權限 + 發送通知 ──
+    // ── 自動升級球隊經理/領隊/教練權限 + 發送通知 ──
     const allUsers = ApiService.getAdminUsers();
     if (this._teamCaptainUid && this._teamCaptainUid !== '__legacy__') {
       const capUser = allUsers.find(u => u.uid === this._teamCaptainUid);
@@ -624,6 +660,20 @@ Object.assign(App, {
         ApiService._writeOpLog('role', '角色變更', `${capUser.name} 自動晉升為「${ROLES['captain'].label}」（原：${ROLES[oldRole]?.label || oldRole}）`);
       }
     }
+    // 新領隊自動升至 coach 等級
+    realLeaderUids.forEach(uid => {
+      if (!oldLeaderUids.includes(uid)) {
+        const leaderUser = allUsers.find(u => u.uid === uid);
+        if (leaderUser && (ROLE_LEVEL_MAP[leaderUser.role] || 0) < ROLE_LEVEL_MAP['coach']) {
+          const oldRole = leaderUser.role;
+          ApiService.promoteUser(leaderUser.name, 'coach');
+          this._sendNotifFromTemplate('role_upgrade', {
+            userName: leaderUser.name, roleName: ROLES['coach'].label,
+          }, leaderUser.uid, 'private', '私訊');
+          ApiService._writeOpLog('role', '角色變更', `${leaderUser.name} 自動晉升為「${ROLES['coach'].label}」（原：${ROLES[oldRole]?.label || oldRole}）`);
+        }
+      }
+    });
     this._teamCoachUids.forEach(uid => {
       if (uid.startsWith('__legacy_')) return;
       const coachUser = allUsers.find(u => u.uid === uid);
@@ -643,11 +693,20 @@ Object.assign(App, {
       if (isNewCaptain) {
         this._deliverMessageToInbox(
           '球隊職位指派',
-          `您已被設為「${name}」的領隊。`,
+          `您已被設為「${name}」的球隊經理。`,
           'system', '系統', this._teamCaptainUid, '系統'
         );
       }
     }
+    realLeaderUids.forEach(uid => {
+      if (!oldLeaderUids.includes(uid)) {
+        this._deliverMessageToInbox(
+          '球隊職位指派',
+          `您已被設為「${name}」的領隊。`,
+          'system', '系統', uid, '系統'
+        );
+      }
+    });
     newCoachUids.forEach(uid => {
       if (!oldCoachUids.includes(uid)) {
         this._deliverMessageToInbox(
@@ -658,16 +717,22 @@ Object.assign(App, {
       }
     });
 
-    // ── 自動降級：被移除的領隊/教練 ──
+    // ── 自動降級：被移除的球隊經理/領隊/教練 ──
     if (this._teamEditId) {
       const newCaptainUid = (this._teamCaptainUid && this._teamCaptainUid !== '__legacy__') ? this._teamCaptainUid : oldCaptainUid;
-      // 舊領隊不再是新領隊 → recalc
+      // 舊球隊經理不再是新球隊經理 → recalc
       if (oldCaptainUid && oldCaptainUid !== newCaptainUid) {
         this._applyRoleChange(ApiService._recalcUserRole(oldCaptainUid));
       }
       // 被移除的教練 → recalc
       oldCoachUids.forEach(uid => {
         if (!newCoachUids.includes(uid)) {
+          this._applyRoleChange(ApiService._recalcUserRole(uid));
+        }
+      });
+      // 被移除的領隊 → recalc
+      oldLeaderUids.forEach(uid => {
+        if (!realLeaderUids.includes(uid)) {
           this._applyRoleChange(ApiService._recalcUserRole(uid));
         }
       });
@@ -706,39 +771,35 @@ Object.assign(App, {
   searchTeamLeader() {
     const q = document.getElementById('ct-leader-search').value.trim();
     if (!q) { document.getElementById('ct-leader-suggest').classList.remove('show'); return; }
-    const exclude = [];
-    if (this._teamLeaderUid && this._teamLeaderUid !== '__legacy__') exclude.push(this._teamLeaderUid);
+    const exclude = this._teamLeaderUids.filter(uid => !uid.startsWith('__legacy__'));
     const results = this._teamSearchUsers(q, exclude);
     this._renderSuggestList('ct-leader-suggest', results, 'selectTeamLeader');
   },
 
   selectTeamLeader(uid) {
-    const users = ApiService.getAdminUsers();
-    const user = users.find(u => u.uid === uid);
-    if (!user) return;
-    this._teamLeaderUid = uid;
+    if (this._teamLeaderUids.includes(uid)) return;
+    this._teamLeaderUids.push(uid);
     document.getElementById('ct-leader-search').value = '';
     document.getElementById('ct-leader-suggest').innerHTML = '';
     document.getElementById('ct-leader-suggest').classList.remove('show');
-    const prefix = this._teamEditId ? '預計轉移給 ' : '';
-    document.getElementById('ct-leader-selected').innerHTML =
-      `<span class="team-tag">${prefix}${user.name}<span class="team-tag-x" onclick="App.clearTeamLeader()">×</span></span>`;
+    this._renderLeaderTags();
   },
 
-  clearTeamLeader() {
-    if (this._teamEditId) {
-      const t = ApiService.getTeam(this._teamEditId);
-      if (t && t.leader) {
-        const users = ApiService.getAdminUsers();
-        const found = users.find(u => u.uid === t.leaderUid || u._docId === t.leaderUid || u.name === t.leader || u.displayName === t.leader);
-        this._teamLeaderUid = found ? found.uid : '__legacy__';
-      } else {
-        this._teamLeaderUid = null;
+  _removeLeader(uid) {
+    this._teamLeaderUids = this._teamLeaderUids.filter(u => u !== uid);
+    this._renderLeaderTags();
+  },
+
+  _renderLeaderTags() {
+    const users = ApiService.getAdminUsers();
+    document.getElementById('ct-leaders-tags').innerHTML = this._teamLeaderUids.map(uid => {
+      if (uid.startsWith('__legacy__')) {
+        const legacyName = uid.replace('__legacy__', '');
+        return `<span class="team-tag">${escapeHTML(legacyName)}<span class="team-tag-x" onclick="App._removeLeader('${escapeHTML(uid)}')">×</span></span>`;
       }
-    } else {
-      this._teamLeaderUid = null;
-    }
-    document.getElementById('ct-leader-selected').innerHTML = '';
+      const u = users.find(u => u.uid === uid);
+      return u ? `<span class="team-tag">${escapeHTML(u.name)}<span class="team-tag-x" onclick="App._removeLeader('${escapeHTML(uid)}')">×</span></span>` : '';
+    }).join('');
   },
 
   searchTeamCaptain() {
@@ -821,7 +882,7 @@ Object.assign(App, {
     if (!(await this.appConfirm(`確定要刪除「${t.name}」？此操作無法復原。`))) return;
     const tName = t.name;
 
-    // 刪隊前收集領隊 + 教練 uid，用於刪隊後降級檢查
+    // 刪隊前收集球隊經理 + 領隊 + 教練 uid，用於刪隊後降級檢查
     const affectedUids = [];
     const allUsers = ApiService.getAdminUsers();
     if (t.captainUid) {
@@ -830,6 +891,9 @@ Object.assign(App, {
       const capUser = allUsers.find(u => u.name === t.captain);
       if (capUser) affectedUids.push(capUser.uid);
     }
+    (t.leaderUids || (t.leaderUid ? [t.leaderUid] : [])).forEach(lUid => {
+      if (lUid && !affectedUids.includes(lUid)) affectedUids.push(lUid);
+    });
     (t.coaches || []).forEach(cName => {
       const cUser = allUsers.find(u => u.name === cName);
       if (cUser && !affectedUids.includes(cUser.uid)) affectedUids.push(cUser.uid);

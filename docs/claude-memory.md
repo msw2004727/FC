@@ -4,6 +4,20 @@
 
 ---
 
+### 2026-02-27 — 球隊領隊複數化 + 角色升降 + 經理轉移限制
+
+- **功能**：
+  1. 領隊改為複數（`leaderUids[]` + `leaders[]`），表單支援多選 Tags UI
+  2. 指派領隊自動升至 coach 等級；移除領隊後自動降級（`_recalcUserRole` + `_applyRoleChange`）
+  3. 建立球隊時創立者自動成為球隊經理（鎖定，不可更改）
+  4. 編輯球隊時只有當前球隊經理或 admin 可以轉移經理職位，其他人看到鎖定提示
+  5. 欄位順序對調：球隊經理在上、球隊領隊在下
+- **相容**：舊資料 `leader`/`leaderUid` 單一欄位仍可讀取；新存同時寫 `leaders`/`leaderUids` + 舊欄位
+- **Files**: `js/modules/team-form.js`, `js/modules/team-detail.js`, `js/api-service.js`, `pages/team.html`
+- **版本**: `20260227zm`
+
+---
+
 ### 2026-02-27 — 球隊入隊審批 Firestore 規則再修（領隊角色）
 
 - **問題**：領隊（team.leader）同意入隊後仍顯示「寫入失敗」

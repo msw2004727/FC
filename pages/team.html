@@ -101,16 +101,6 @@
           <label>創立年份</label>
           <input type="number" id="ct-team-founded" min="1900" max="2099" placeholder="例：2024">
         </div>
-        <div class="ce-row" id="ct-leader-row" style="position:relative">
-          <label>球隊領隊 <span class="required">*必填</span></label>
-          <div id="ct-leader-display" style="font-size:.85rem;font-weight:600;color:var(--text-primary);padding:.3rem 0"></div>
-          <div id="ct-leader-transfer" style="display:none">
-            <div class="ct-leader-hint" style="font-size:.75rem;color:var(--text-muted);margin-bottom:.3rem">搜尋球隊領隊：輸入暱稱或 UID 後點選</div>
-            <input type="text" id="ct-leader-search" placeholder="搜尋 UID 或暱稱..." oninput="App.searchTeamLeader()" autocomplete="off">
-            <div class="team-user-suggest" id="ct-leader-suggest"></div>
-            <div id="ct-leader-selected"></div>
-          </div>
-        </div>
         <div class="ce-row" id="ct-captain-row" style="position:relative">
           <label>球隊經理 <span class="required">*必填</span></label>
           <div id="ct-captain-display" style="font-size:.85rem;font-weight:600;color:var(--text-primary);padding:.3rem 0"></div>
@@ -119,6 +109,16 @@
             <input type="text" id="ct-captain-search" placeholder="搜尋 UID 或暱稱..." oninput="App.searchTeamCaptain()" autocomplete="off">
             <div class="team-user-suggest" id="ct-captain-suggest"></div>
             <div id="ct-captain-selected"></div>
+          </div>
+          <div id="ct-captain-locked" style="display:none;font-size:.8rem;color:var(--text-muted);padding:.3rem 0">（僅球隊經理或管理員可轉移經理職位）</div>
+        </div>
+        <div class="ce-row" id="ct-leader-row" style="position:relative">
+          <label>球隊領隊 <span class="required">*必填</span></label>
+          <div id="ct-leaders-tags" style="display:flex;flex-wrap:wrap;gap:.3rem;margin-bottom:.4rem"></div>
+          <div id="ct-leader-add-section">
+            <div class="ct-leader-hint" style="font-size:.75rem;color:var(--text-muted);margin-bottom:.3rem">搜尋球隊領隊：輸入暱稱後點選加入（可複數）</div>
+            <input type="text" id="ct-leader-search" placeholder="搜尋 UID 或暱稱..." oninput="App.searchTeamLeader()" autocomplete="off">
+            <div class="team-user-suggest" id="ct-leader-suggest"></div>
           </div>
         </div>
         <div class="ce-row">
