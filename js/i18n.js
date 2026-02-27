@@ -173,6 +173,7 @@ I18N.register('zh-TW', {
   'admin.roles': '自訂層級管理',
   'admin.inactive': '無效資料查詢',
   'admin.logs': '操作日誌',
+  'admin.repair': '歷史入隊補正',
   // Dashboard
   'dash.totalUsers': '註冊用戶',
   'dash.totalEvents': '活動總數',
@@ -385,6 +386,7 @@ I18N.register('en', {
   'admin.roles': 'Role Mgmt',
   'admin.inactive': 'Inactive Data',
   'admin.logs': 'Logs',
+  'admin.repair': 'History Join Repair',
   // Dashboard
   'dash.totalUsers': 'Users',
   'dash.totalEvents': 'Events',
@@ -597,6 +599,7 @@ I18N.register('ja', {
   'admin.roles': '権限管理',
   'admin.inactive': '無効データ',
   'admin.logs': '操作ログ',
+  'admin.repair': '参加履歴補正',
   // Dashboard
   'dash.totalUsers': 'ユーザー数',
   'dash.totalEvents': 'イベント数',
