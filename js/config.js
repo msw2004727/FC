@@ -58,7 +58,8 @@
 // 20260227z: 入隊申請升級：廣播全體職員、冷卻機制、第一操作勝出、教練可審核
 // 20260227za: 入隊申請 pending 逾 24h 自動解鎖可重新申請
 // 20260227zb: 個人頁面球隊申請記錄依 groupId 去重，修正廣播後顯示重複筆數
-const CACHE_VERSION = '20260227zb';
+// 20260227zc: banner 初始 skeleton + V 版本號同步修正 SW 快取清除失效
+const CACHE_VERSION = '20260227zc';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {
