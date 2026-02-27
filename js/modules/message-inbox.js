@@ -309,10 +309,18 @@ Object.assign(App, {
       // Update applicant's teamId + teamName
       const users = ApiService.getAdminUsers();
       const applicant = users.find(u => u.uid === applicantUid);
-      if (applicant) {
-        Object.assign(applicant, { teamId, teamName });
-        if (!ModeManager.isDemo() && applicant._docId) {
-          FirebaseService.updateUser(applicant._docId, { teamId, teamName }).catch(err => console.error('[approve] updateUser:', err));
+      if (!applicant) {
+        this.showToast('找不到申請人資料，無法完成審批');
+        return;
+      }
+      Object.assign(applicant, { teamId, teamName });
+      if (!ModeManager.isDemo() && applicant._docId) {
+        try {
+          await FirebaseService.updateUser(applicant._docId, { teamId, teamName });
+        } catch (err) {
+          console.error('[approve] updateUser:', err);
+          this.showToast('寫入失敗，請確認權限後重試');
+          return;
         }
       }
       const curUserObj = ApiService.getCurrentUser();

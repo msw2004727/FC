@@ -529,8 +529,12 @@ Object.assign(App, {
       }
     }
 
+    const captainCoachNames = new Set([captain, ...coaches].filter(Boolean));
+    const regularMembersCount = this._teamEditId
+      ? users.filter(u => u.teamId === this._teamEditId && !captainCoachNames.has(u.name)).length
+      : 0;
     const members = this._teamEditId
-      ? (captain ? 1 : 0) + coaches.length
+      ? (captain ? 1 : 0) + coaches.length + regularMembersCount
       : 0;
 
     const preview = document.getElementById('ct-team-preview');

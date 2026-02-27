@@ -4,6 +4,23 @@
 
 ---
 
+### 2026-02-27 — 球隊加入審批同意後申請人未入隊修復
+
+- **問題**：隊長/教練按「同意」後申請人沒有成功加入球隊
+- **原因**：`message-inbox.js` `handleTeamJoinAction` approve 時呼叫 `FirebaseService.updateUser(applicant._docId, { teamId, teamName })`，但 Firestore rules `users.update` 只允許 `isOwner || isAdmin`，隊長/教練不是 admin → permission-denied，錯誤僅 `console.error` 不顯示 toast，UI 假裝成功
+- **修復**：
+  1. `firestore.rules`：`users.update` 新增條件：`isCoachPlus() && !isRestrictedAccount()` 且 `affectedKeys().hasOnly(['teamId','teamName','updatedAt'])`（限制只能改這三個欄位）
+  2. `message-inbox.js`：approve 區塊改為 `await updateUser()`，失敗時立即 toast 並 return，找不到申請人也提示
+- **版本**：`20260227zd` → `20260227ze`
+- **教訓**：非 owner 的跨用戶寫入必須在 Firestore 規則層開放，`.catch(console.error)` 會吞掉錯誤使 UI 假裝成功
+
+### 2026-02-27 — 球隊人數統計未含一般隊員修復
+
+- **問題**：球隊詳情頁「人數」數字偏低，和實際成員列表不符
+- **原因**：`team-form.js` 儲存時 `members` 只算 `(captain ? 1 : 0) + coaches.length`，完全漏計所有 `user.teamId === team.id` 的一般隊員
+- **修復**：`team-form.js` line 532 改為額外計算 `regularMembersCount`（在已有的 `users` 中過濾 `teamId` 符合且不在 captainCoachNames 中的用戶），加入總計
+- **版本**：`20260227zc` → `20260227zd`
+
 ### 2026-02-27 — 入隊申請系統升級（廣播、冷卻、衝突保護）
 
 - **問題**：入隊申請只通知隊長、無多職員衝突處理、無冷卻機制、拒絕後可立即重送
