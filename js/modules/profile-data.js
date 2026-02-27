@@ -152,16 +152,17 @@ Object.assign(App, {
       return true;
     });
     if (!apps.length) { card.style.display = 'none'; return; }
+    const latest = apps.slice(0, 1); // 只顯示最新一筆
     card.style.display = '';
     const badge = document.getElementById('app-count-badge');
-    if (badge) badge.textContent = apps.length;
+    if (badge) badge.textContent = latest.length;
     const statusMap = {
       pending:  { label: '審核中', color: 'var(--warning)' },
       approved: { label: '已通過', color: 'var(--success)' },
       rejected: { label: '已拒絕', color: 'var(--danger)' },
       ignored:  { label: '已逾期', color: 'var(--text-muted)' },
     };
-    list.innerHTML = apps.map(m => {
+    list.innerHTML = latest.map(m => {
       const s = statusMap[m.actionStatus] || statusMap.pending;
       return `<div style="display:flex;justify-content:space-between;align-items:center;padding:.4rem 0;border-bottom:1px solid var(--border)">
         <span style="font-size:.82rem">${escapeHTML(m.meta.teamName || '-')}</span>

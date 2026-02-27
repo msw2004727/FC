@@ -70,7 +70,8 @@
 // 20260227zw: 修復錯誤日誌寫入/讀取 — .catch 改為 console.warn 可見 + rules 改 token.role 直接判斷避免 roleFromUserDoc null 問題
 // 20260227zx: 球隊介紹頁 — 成員膠囊全部顯示（移除 slice/...xx人）+ 新增球隊限定活動欄位
 // 20260227zy: 隊員數改為即時從 users.teamId 動態計算（team-detail + team-list 共 4 處）
-const CACHE_VERSION = '20260227zy';
+// 20260227zz: 個人資料頁球隊申請欄位只顯示最新一筆
+const CACHE_VERSION = '20260227zz';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {
