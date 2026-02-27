@@ -64,7 +64,8 @@
 // 20260227zq: 操作日誌排序修正 — 最新在最上面（依 time 字串降序）
 // 20260227zr: 補齊操作日誌 — 申請入隊、退出球隊、忽略審批、商品 CRUD、取消報名、手動簽到
 // 20260227zs: 前端錯誤日誌系統 — 自動記錄系統異常到 Firestore errorLogs，總管可查閱/清除
-const CACHE_VERSION = '20260227zs';
+// 20260227zt: 補上 admin.errorLogs i18n 翻譯（錯誤日誌按鈕顯示正確）
+const CACHE_VERSION = '20260227zt';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {
