@@ -65,7 +65,8 @@
 // 20260227zr: 補齊操作日誌 — 申請入隊、退出球隊、忽略審批、商品 CRUD、取消報名、手動簽到
 // 20260227zs: 前端錯誤日誌系統 — 自動記錄系統異常到 Firestore errorLogs，總管可查閱/清除
 // 20260227zt: 補上 admin.errorLogs i18n 翻譯（錯誤日誌按鈕顯示正確）
-const CACHE_VERSION = '20260227zt';
+// 20260227zu: 修復 _writeErrorLog 靜默失敗（FirebaseService._db → db）+ 入隊審批 permission-denied（rules 改用 sameFieldValue）
+const CACHE_VERSION = '20260227zu';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {

@@ -592,7 +592,7 @@ const ApiService = {
         userAgent: navigator.userAgent,
       };
 
-      FirebaseService._db?.collection('errorLogs').add(entry).catch(() => {});
+      db?.collection('errorLogs').add(entry).catch(() => {});
     } catch (_) {
       // _writeErrorLog 自身絕不能拋錯
     }

@@ -147,8 +147,9 @@ service cloud.firestore {
         || isAdmin()
         || isSuperAdmin()
         || (isAuthNotRestricted()
-            && request.resource.data.diff(resource.data).affectedKeys()
-               .hasOnly(['teamId', 'teamName', 'updatedAt']));
+            && sameFieldValue('role')
+            && sameFieldValue('isRestricted')
+            && sameFieldValue('uid'));
       allow delete: if false;
     }
 
