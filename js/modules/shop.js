@@ -255,6 +255,7 @@ Object.assign(App, {
         } catch (err) {
           console.error('[updateShopItem]', err);
           this.showToast('商品更新失敗，請重試');
+          ApiService._writeErrorLog({ fn: 'handleSaveShopItem', itemId: this._shopEditId }, err);
           return;
         }
       } else {
@@ -278,6 +279,7 @@ Object.assign(App, {
         } catch (err) {
           console.error('[addShopItem]', err);
           this.showToast('商品建立失敗，請重試');
+          ApiService._writeErrorLog({ fn: 'handleSaveShopItem' }, err);
           return;
         }
       } else {
@@ -302,7 +304,7 @@ Object.assign(App, {
     if (!s) return;
     if (!ModeManager.isDemo()) {
       try { await FirebaseService.updateShopItem(id, { status: 'delisted' }); }
-      catch (err) { console.error('[delistShopItem]', err); this.showToast('下架失敗'); return; }
+      catch (err) { console.error('[delistShopItem]', err); this.showToast('下架失敗'); ApiService._writeErrorLog({ fn: 'delistShopItem', itemId: id }, err); return; }
     } else {
       s.status = 'delisted';
     }
@@ -317,7 +319,7 @@ Object.assign(App, {
     if (!s) return;
     if (!ModeManager.isDemo()) {
       try { await FirebaseService.updateShopItem(id, { status: 'on_sale' }); }
-      catch (err) { console.error('[relistShopItem]', err); this.showToast('上架失敗'); return; }
+      catch (err) { console.error('[relistShopItem]', err); this.showToast('上架失敗'); ApiService._writeErrorLog({ fn: 'relistShopItem', itemId: id }, err); return; }
     } else {
       s.status = 'on_sale';
     }
@@ -333,7 +335,7 @@ Object.assign(App, {
     if (!(await this.appConfirm(`確定要刪除「${s.name}」？此操作無法復原。`))) return;
     if (!ModeManager.isDemo()) {
       try { await FirebaseService.deleteShopItem(id); }
-      catch (err) { console.error('[removeShopItem]', err); this.showToast('刪除失敗'); return; }
+      catch (err) { console.error('[removeShopItem]', err); this.showToast('刪除失敗'); ApiService._writeErrorLog({ fn: 'removeShopItem', itemId: id }, err); return; }
     } else {
       const idx = DemoData.shopItems.findIndex(si => si.id === id);
       if (idx >= 0) DemoData.shopItems.splice(idx, 1);

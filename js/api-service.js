@@ -557,6 +557,48 @@ const ApiService = {
   deleteBadge(id)          { return this._delete('badges', id, FirebaseService.deleteBadge, 'deleteBadge'); },
 
   // ════════════════════════════════
+  //  Error Log（錯誤日誌工具）
+  // ════════════════════════════════
+
+  _errorLogCache: new Set(),
+
+  _writeErrorLog(context, err) {
+    try {
+      if (ModeManager.isDemo()) return;
+      const curUser = this.getCurrentUser();
+      if (!curUser?.uid) return;
+
+      let contextStr;
+      try { contextStr = typeof context === 'string' ? context : JSON.stringify(context); }
+      catch (_) { contextStr = String(context); }
+      const dedupKey = contextStr + '|' + (err?.code || 'no-code');
+      if (this._errorLogCache.has(dedupKey)) return;
+      this._errorLogCache.add(dedupKey);
+
+      const page = App._currentPage
+        || document.querySelector('.page.active')?.id
+        || 'unknown';
+
+      const entry = {
+        time: App._formatDateTime ? App._formatDateTime(new Date()) : new Date().toISOString(),
+        uid: curUser.uid,
+        userName: curUser.displayName || curUser.name || curUser.uid,
+        context: contextStr,
+        errorCode: err?.code || '',
+        errorMessage: err?.message || (err != null ? String(err) : ''),
+        errorStack: err?.stack ? err.stack.slice(0, 1500) : '',
+        page,
+        appVersion: CACHE_VERSION,
+        userAgent: navigator.userAgent,
+      };
+
+      FirebaseService._db?.collection('errorLogs').add(entry).catch(() => {});
+    } catch (_) {
+      // _writeErrorLog 自身絕不能拋錯
+    }
+  },
+
+  // ════════════════════════════════
   //  Operation Log（統一日誌工具）
   // ════════════════════════════════
 
@@ -579,6 +621,7 @@ const ApiService = {
   getExpLogs()       { return this._src('expLogs'); },
   getTeamExpLogs()   { return this._src('teamExpLogs'); },
   getOperationLogs() { return this._src('operationLogs'); },
+  getErrorLogs()     { return this._src('errorLogs'); },
   getBanners()       { return this._src('banners'); },
   getPermissions()   { return this._src('permissions'); },
 

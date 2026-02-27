@@ -291,7 +291,7 @@ Object.assign(App, {
           this._evaluateAchievements(e0?.type);
           this.showEventDetail(id);
         })
-        .catch(err => { console.error('[cancelSignup]', err); this.showToast('取消失敗：' + (err.message || '')); })
+        .catch(err => { console.error('[cancelSignup]', err); this.showToast('取消失敗：' + (err.message || '')); ApiService._writeErrorLog({ fn: 'handleCancelSignup', eventId: id }, err); })
         .finally(() => { _restoreCancelUI(); });
     } else {
       console.warn('[cancelSignup] active registration not found', {

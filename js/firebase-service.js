@@ -178,6 +178,7 @@ const FirebaseService = {
     'trades', 'attendanceRecords', 'activityRecords',
     'expLogs', 'teamExpLogs', 'operationLogs',
     'adminMessages', 'notifTemplates', 'permissions', 'customRoles',
+    'errorLogs',
   ],
 
   // 集合 → 頁面映射（用於懶載入觸發）
@@ -194,6 +195,7 @@ const FirebaseService = {
     'page-admin-achievements': ['achievements', 'badges'],
     'page-admin-roles':       ['permissions', 'customRoles'],
     'page-admin-logs':        ['operationLogs'],
+    'page-admin-error-logs':  ['errorLogs'],
     'page-admin-inactive':    ['attendanceRecords', 'activityRecords', 'operationLogs'],
     'page-admin-teams':       ['tournaments', 'standings', 'matches'],
     'page-personal-dashboard': ['attendanceRecords', 'activityRecords'],

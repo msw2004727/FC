@@ -4,6 +4,22 @@
 
 ---
 
+### 2026-02-27 — 前端錯誤日誌系統（zs）
+
+- **功能**：當 catch 區塊捕獲系統異常時，自動寫入 Firestore `errorLogs` 集合，總管可在後台查閱
+- **架構**：
+  - `ApiService._writeErrorLog(context, err)` — 防禦性設計，session-level dedup（err.code），整體 try/catch 不拋錯
+  - `FirebaseService.addErrorLog/deleteErrorLog` — CRUD
+  - `errorLogs` 集合：read/delete=`isSuperAdmin()`，create=`isAuth() && !isRestrictedAccount()`
+  - `js/modules/error-log.js` — 渲染/過濾/分頁/清除（複製操作日誌模式）
+  - `pages/admin-system.html` — `page-admin-error-logs` section（`data-min-role="super_admin"`）
+  - `app.js` — `_errorLogReady` flag + `unhandledrejection` handler（過濾 LIFF/Firebase/Firestore 雜訊）
+- **catch 區塊**：10 處加入 `_writeErrorLog`（message-inbox, team-form, event-detail-signup, event-manage, shop）
+- **版本**: `20260227zs`
+- **Files**: `api-service.js`, `firebase-crud.js`, `firebase-service.js`, `data.js`, `firestore.rules`, `error-log.js`(new), `admin-system.html`, `navigation.js`, `config.js`, `index.html`, `admin.css`, `message-inbox.js`, `team-form.js`, `event-detail-signup.js`, `event-manage.js`, `shop.js`, `app.js`
+
+---
+
 ### 2026-02-27 — 補齊操作日誌（zr）
 
 - **功能**：補上 6 類先前未記錄的操作項目，確保操作日誌完整

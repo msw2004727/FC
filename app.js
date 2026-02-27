@@ -294,6 +294,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         await Promise.all([profilePromise, FirebaseService.init()]);
         App._firebaseConnected = true;
+        ApiService._errorLogReady = true;
         console.log('[Boot] Phase 4: Firebase + LIFF 初始化完成（並行）');
         // 用即時資料重新渲染頁面
         try { App.renderAll(); } catch (e) {}
@@ -324,6 +325,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     })();
   }
+
+  // Global unhandled rejection → errorLog（過濾第三方 SDK 雜訊）
+  window.addEventListener('unhandledrejection', (event) => {
+    if (!ApiService._errorLogReady) return;
+    const msg = (event.reason?.message || '').toLowerCase();
+    if (msg.includes('liff') || msg.includes('firebase') || msg.includes('firestore') || msg.includes('chunkloaderror')) return;
+    ApiService._writeErrorLog('unhandledrejection', event.reason);
+  });
 
   // Deep link handling & 定時任務（全部 try-catch 保護）
   try {

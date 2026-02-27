@@ -181,7 +181,7 @@ Object.assign(App, {
       adminUser.teamId = null;
       adminUser.teamName = null;
       if (!ModeManager.isDemo() && adminUser._docId) {
-        FirebaseService.updateUser(adminUser._docId, { teamId: null, teamName: null }).catch(err => console.error('[leaveTeam]', err));
+        FirebaseService.updateUser(adminUser._docId, { teamId: null, teamName: null }).catch(err => { console.error('[leaveTeam]', err); ApiService._writeErrorLog({ fn: 'handleLeaveTeam', teamId }, err); });
       }
     }
 
@@ -646,6 +646,7 @@ Object.assign(App, {
     } catch (err) {
       console.error('[handleSaveTeam]', err);
       this.showToast('儲存失敗：' + (err.message || '請稍後再試'));
+      ApiService._writeErrorLog({ fn: '_saveTeam', teamId: this._editingTeamId }, err);
       return;
     }
 

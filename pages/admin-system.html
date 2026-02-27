@@ -248,6 +248,24 @@
       <div class="log-list" id="operation-log-list"></div>
     </section>
 
+    <!-- PAGE: Backend - Error Logs (Super Admin) -->
+    <section class="page" id="page-admin-error-logs" data-min-role="super_admin">
+      <div class="page-header">
+        <button class="back-btn" onclick="App.goBack()">←</button>
+        <h2>錯誤日誌</h2>
+        <button class="outline-btn" style="font-size:.7rem;padding:.25rem .55rem;color:#dc2626;border-color:#dc2626;margin-left:auto" onclick="App.clearOldErrorLogs()">清除 30 天前</button>
+      </div>
+      <div class="admin-search">
+        <input type="text" id="errlog-search" placeholder="搜尋用戶/錯誤訊息/context..." oninput="App.filterErrorLogs(1)">
+        <div class="admin-filters">
+          <select id="errlog-code-filter" onchange="App.filterErrorLogs(1)">
+            <option value="">全部錯誤碼</option>
+          </select>
+        </div>
+      </div>
+      <div class="log-list" id="error-log-list"></div>
+    </section>
+
     <!-- PAGE: Backend - Data Repair Tools (Super Admin) -->
     <section class="page" id="page-admin-repair" data-min-role="super_admin">
       <div class="page-header">

@@ -90,6 +90,8 @@
 .log-type.exp { background: rgba(96,165,250,.15); color: var(--info); }
 .log-type.role { background: rgba(167,139,250,.15); color: #a78bfa; }
 .log-type.event { background: rgba(52,211,153,.15); color: var(--success); }
+.log-type.error_log { background: rgba(220,38,38,.15); color: #dc2626; }
+.log-detail { font-size: .65rem; color: var(--text-muted); margin-top: .2rem; word-break: break-all; }
 
 /* ─── Inactive Card ─── */
 .inactive-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: .75rem .85rem; opacity: .65; position: relative; margin-bottom: .5rem; }

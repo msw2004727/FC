@@ -323,6 +323,12 @@ service cloud.firestore {
       allow create: if isAuth();
       allow update, delete: if false;
     }
+    match /errorLogs/{docId} {
+      allow read: if isSuperAdmin();
+      allow create: if isAuth() && !isRestrictedAccount();
+      allow update: if false;
+      allow delete: if isSuperAdmin();
+    }
 
     // ═══════════════════════════════════════════
     //  Roles & Permissions（角色與權限設定）

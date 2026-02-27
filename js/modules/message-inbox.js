@@ -322,6 +322,7 @@ Object.assign(App, {
         } catch (err) {
           console.error('[approve] updateUser failed — code:', err?.code, 'msg:', err?.message, err);
           this.showToast(`寫入失敗（${err?.code || err?.message || '權限錯誤'}），請重試`);
+          ApiService._writeErrorLog({ fn: 'handleTeamJoinAction', teamId, applicantUid }, err);
           return;
         }
       }

@@ -956,6 +956,21 @@ Object.assign(FirebaseService, {
   },
 
   // ════════════════════════════════
+  //  Error Log（錯誤日誌）
+  // ════════════════════════════════
+
+  async addErrorLog(data) {
+    await db.collection('errorLogs').add({
+      ..._stripDocId(data),
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+    });
+  },
+
+  async deleteErrorLog(docId) {
+    await db.collection('errorLogs').doc(docId).delete();
+  },
+
+  // ════════════════════════════════
   //  Companions（同行者）
   // ════════════════════════════════
 

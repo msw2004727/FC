@@ -63,7 +63,8 @@
 // 20260227zp: 歷史入隊補正 — 去重改為每人取最新一筆 + 目標球隊存在性驗證
 // 20260227zq: 操作日誌排序修正 — 最新在最上面（依 time 字串降序）
 // 20260227zr: 補齊操作日誌 — 申請入隊、退出球隊、忽略審批、商品 CRUD、取消報名、手動簽到
-const CACHE_VERSION = '20260227zr';
+// 20260227zs: 前端錯誤日誌系統 — 自動記錄系統異常到 Firestore errorLogs，總管可查閱/清除
+const CACHE_VERSION = '20260227zs';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {
@@ -264,5 +265,6 @@ const DRAWER_MENUS = [
   { icon: '', label: '自訂層級管理', i18nKey: 'admin.roles', page: 'page-admin-roles', minRole: 'super_admin' },
   { icon: '', label: '無效資料查詢', i18nKey: 'admin.inactive', page: 'page-admin-inactive', minRole: 'super_admin' },
   { icon: '', label: '操作日誌', i18nKey: 'admin.logs', page: 'page-admin-logs', minRole: 'super_admin' },
+  { icon: '', label: '錯誤日誌', i18nKey: 'admin.errorLogs', page: 'page-admin-error-logs', minRole: 'super_admin' },
   { icon: '', label: '歷史入隊補正', i18nKey: 'admin.repair', page: 'page-admin-repair', minRole: 'super_admin' },
 ];

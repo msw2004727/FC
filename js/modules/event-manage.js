@@ -905,6 +905,9 @@ Object.assign(App, {
     // 讓 pending onSnapshot 先 settle，再 render（避免最後一筆記錄短暫消失的閃爍）
     await new Promise(r => setTimeout(r, 0));
     this._renderAttendanceTable(eventId, containerId);
+    if (errCount > 0) {
+      ApiService._writeErrorLog({ fn: '_confirmAllAttendance', eventId, errCount }, new Error(`${errCount} 筆寫入失敗`));
+    }
     ApiService._writeOpLog('manual_attendance', '手動簽到', `更新「${e.title}」出席記錄（共 ${people.length} 人${errCount > 0 ? `，${errCount} 筆失敗` : ''}）`);
     this.showToast(errCount > 0 ? `已更新（${errCount} 筆失敗）` : '已更新');
   },

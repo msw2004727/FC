@@ -201,6 +201,8 @@ const DemoData = {
     { time: '02/20 09:45', target: '火焰隊', targetId: 'tm4', amount: '-200', reason: '違規處罰', operator: '管理員B' },
   ],
 
+  errorLogs: [],
+
   operationLogs: [
     { time: '03/15 14:32', operator: '總管', type: 'exp', typeName: '手動EXP', content: '暱稱A +500「活動獎勵」' },
     { time: '03/15 10:15', operator: '管理員B', type: 'role', typeName: '角色變更', content: '暱稱C → 教練' },
