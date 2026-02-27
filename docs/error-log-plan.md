@@ -46,40 +46,54 @@ this.showToast('寫入失敗', 'error', 'handleTeamJoinAction');   // 職責混�
 _errorLogCache: new Set(), // session-level dedup，防止同一錯誤重複爆量
 
 _writeErrorLog(context, err) {
-  if (ModeManager.isDemo()) return;
-  const curUser = this.getCurrentUser();
-  if (!curUser?.uid) return; // 未登入不記錄
+  try {
+    if (ModeManager.isDemo()) return;
+    const curUser = this.getCurrentUser();
+    if (!curUser?.uid) return; // 未登入不記錄
 
-  // session-level dedup：同一 context + errorCode 組合只記錄一次
-  const dedupKey = (typeof context === 'string' ? context : JSON.stringify(context))
-    + '|' + (err?.code || err?.message || 'unknown');
-  if (this._errorLogCache.has(dedupKey)) return;
-  this._errorLogCache.add(dedupKey);
+    // session-level dedup：同一 context + errorCode 組合只記錄一次
+    // 注意：只用 err.code 做 dedup key，不用 err.message
+    //（message 可能含動態內容如 docId，導致同類錯誤 dedup 失效）
+    let contextStr;
+    try { contextStr = typeof context === 'string' ? context : JSON.stringify(context); }
+    catch (_) { contextStr = String(context); }
+    const dedupKey = contextStr + '|' + (err?.code || 'no-code');
+    if (this._errorLogCache.has(dedupKey)) return;
+    this._errorLogCache.add(dedupKey);
 
-  // 取得當前頁面
-  const page = App._currentPage
-    || document.querySelector('.page.active')?.id
-    || 'unknown';
+    // 取得當前頁面
+    const page = App._currentPage
+      || document.querySelector('.page.active')?.id
+      || 'unknown';
 
-  const entry = {
-    time: App._formatDateTime ? App._formatDateTime(new Date()) : new Date().toISOString(),
-    uid: curUser.uid,
-    userName: curUser.displayName || curUser.name || curUser.uid,
-    // context：字串（函式名）或物件（含 entity ID），見修改 4 說明
-    context: typeof context === 'object' ? JSON.stringify(context) : (context || ''),
-    // 原始錯誤資訊（三個獨立欄位，方便 admin 介面過濾）
-    errorCode: err?.code || '',
-    errorMessage: err?.message || String(err) || '',
-    errorStack: err?.stack ? err.stack.slice(0, 500) : '', // 截斷避免過長
-    page,
-    appVersion: CACHE_VERSION,
-    userAgent: navigator.userAgent,
-  };
+    const entry = {
+      time: App._formatDateTime ? App._formatDateTime(new Date()) : new Date().toISOString(),
+      uid: curUser.uid,
+      userName: curUser.displayName || curUser.name || curUser.uid,
+      // context：字串（函式名）或物件（含 entity ID），見修改 3 說明
+      context: contextStr,
+      // 原始錯誤資訊（三個獨立欄位，方便 admin 介面過濾）
+      errorCode: err?.code || '',
+      errorMessage: err?.message || (err != null ? String(err) : ''),
+      errorStack: err?.stack ? err.stack.slice(0, 1500) : '', // 截斷避免過長（1500 字元足夠涵蓋業務層 call stack）
+      page,
+      appVersion: CACHE_VERSION,
+      userAgent: navigator.userAgent,
+    };
 
-  // 非同步寫入，不阻塞 UI，失敗靜默（避免記錄錯誤的錯誤無窮迴圈）
-  FirebaseService._db?.collection('errorLogs').add(entry).catch(() => {});
+    // 非同步寫入，不阻塞 UI，失敗靜默（避免記錄錯誤的錯誤無窮迴圈）
+    FirebaseService._db?.collection('errorLogs').add(entry).catch(() => {});
+  } catch (_) {
+    // _writeErrorLog 自身絕不能拋錯（避免無窮迴圈或干擾業務流程）
+  }
 },
 ```
+
+> **防禦性設計說明**：
+> - 整個函式體包在 `try/catch` 中——即使 `JSON.stringify` 遇到循環引用等意外情況，也不會影響原本的業務流程
+> - dedup key 只用 `err.code`，不 fallback 到 `err.message`——因為 message 可能含動態內容（如 `"No document to update: users/U123"`），同類錯誤會因 ID 不同而 dedup 失效
+> - `errorMessage` 使用 `err != null ? String(err) : ''` 而非 `String(err)`——避免 `err` 為 `undefined` 時產生字串 `'undefined'`
+> - `errorStack` 截斷長度從 500 改為 1500 字元——500 太短，Firebase SDK 的 stack trace 常超過 500 字元，真正有用的業務層 caller 會被切掉
 
 > **為何記錄三個 error 欄位而非只記 toast 文字？**
 >
@@ -211,21 +225,33 @@ ApiService._writeErrorLog({ fn: 'removeAttendanceRecord', eventId }, err);
 
 ## 修改 4：全局 `unhandledrejection`（選配，加過濾）
 
-在 `app.js` Phase 4 初始化完成後加入（非 Phase 1，確保 ApiService 已就緒）：
+### 前置作業：在 `app.js` Phase 4 設定 ready 旗標
+
+在 Phase 4 初始化完成後加入：
+```javascript
+ApiService._errorLogReady = true;
+```
+
+> ⚠️ 必須明確設定此旗標。若使用不存在的屬性（如 `ApiService._ready`），
+> 值永遠為 `undefined` → handler 永遠 return → 功能完全失效。
+
+### Handler 本體
+
+在 `app.js` Phase 4 之後註冊：
 
 ```javascript
 window.addEventListener('unhandledrejection', (event) => {
   // 初始化階段的錯誤不記（ApiService 未就緒時無法寫入）
-  if (!ApiService._ready) return;
+  if (!ApiService._errorLogReady) return;
 
-  const msg = event.reason?.message || '';
+  const msg = (event.reason?.message || '').toLowerCase();
 
-  // 排除已知第三方 SDK 的雜訊
+  // 排除已知第三方 SDK 的雜訊（統一轉小寫比對，避免大小寫不一致漏匹配）
   if (
-    msg.includes('liff') ||
-    msg.includes('Firebase') ||
-    msg.includes('firestore') ||
-    msg.includes('ChunkLoadError') // 網路問題造成的 JS chunk 載入失敗
+    msg.includes('liff') ||       // LINE LIFF SDK（錯誤訊息中常為大寫 'LIFF'）
+    msg.includes('firebase') ||    // Firebase SDK
+    msg.includes('firestore') ||   // Firestore SDK
+    msg.includes('chunkloaderror') // 網路問題造成的 JS chunk 載入失敗
   ) return;
 
   ApiService._writeErrorLog('unhandledrejection', event.reason);
@@ -281,6 +307,16 @@ Object.assign(App, {
 
 > **注意**：`clearOldErrorLogs` 的批次刪除需分批處理（每批最多 500 筆），
 > 若舊記錄超過 500 筆需多輪迴圈，否則 Firestore 批次寫入會拋出錯誤。
+
+### `index.html` 載入新模組
+
+在 `index.html` 的 `<script>` 區塊中新增（放在其他 modules 之後）：
+
+```html
+<script src="js/modules/error-log.js?v=版本號"></script>
+```
+
+> ⚠️ 漏掉這步的話 `error-log.js` 不會被載入，Admin 錯誤日誌分頁的所有功能都不會掛載到 App 上。
 
 ---
 
