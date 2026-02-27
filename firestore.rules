@@ -319,10 +319,12 @@ service cloud.firestore {
       allow update, delete: if false;
     }
     match /errorLogs/{docId} {
-      allow read: if isSuperAdmin();
-      allow create: if isAuth() && !isRestrictedAccount();
+      allow read: if isAuth()
+        && request.auth.token.role == 'super_admin';
+      allow create: if isAuth();
       allow update: if false;
-      allow delete: if isSuperAdmin();
+      allow delete: if isAuth()
+        && request.auth.token.role == 'super_admin';
     }
 
     // ═══════════════════════════════════════════

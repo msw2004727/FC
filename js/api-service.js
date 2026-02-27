@@ -592,7 +592,9 @@ const ApiService = {
         userAgent: navigator.userAgent,
       };
 
-      db?.collection('errorLogs').add(entry).catch(() => {});
+      db?.collection('errorLogs').add(entry)
+        .then(() => console.log('[errorLog] written:', dedupKey))
+        .catch(e => console.warn('[errorLog] write failed:', e?.code, e?.message));
     } catch (_) {
       // _writeErrorLog 自身絕不能拋錯
     }

@@ -4,6 +4,23 @@
 
 ---
 
+### 2026-02-27 — 修復錯誤日誌寫入/讀取失敗（zw）
+
+- **問題**：錯誤日誌頁面始終無資料，用戶觸發的錯誤未被記錄
+- **原因**：
+  1. `_writeErrorLog` 的 `.catch(() => {})` 靜默吞掉所有 Firestore 寫入失敗，無法看到是否成功
+  2. `errorLogs` 讀取規則使用 `isSuperAdmin()` → `authRole()` → `roleFromUserDoc()` 路徑，而 `roleFromUserDoc` 的 null ternary 有編譯警告 `[W] 29:56 - Invalid type. Received one of [null]`，可能導致 super_admin 也無法讀取
+  3. 寫入規則使用 `isRestrictedAccount()` 額外 get() 呼叫，增加不必要的複雜性
+- **修復**：
+  1. `.catch(() => {})` → `.then(() => console.log(...)).catch(e => console.warn(...))`：寫入成敗均有 console 輸出
+  2. Firestore rules 改用 `request.auth.token.role == 'super_admin'` 直接檢查 custom claims，繞過 `roleFromUserDoc()` null 問題
+  3. 寫入規則簡化為 `isAuth()`（移除 `isRestrictedAccount()` 依賴）
+- **教訓**：Firestore rules 中 `get()` 返回 null 的 ternary 可能導致規則評估失敗；對非關鍵寫入，也不應完全吞掉錯誤
+- **版本**: `20260227zw`
+- **Files**: `api-service.js`, `firestore.rules`, `config.js`, `index.html`
+
+---
+
 ### 2026-02-27 — 前端錯誤日誌系統（zs）
 
 - **功能**：當 catch 區塊捕獲系統異常時，自動寫入 Firestore `errorLogs` 集合，總管可在後台查閱
