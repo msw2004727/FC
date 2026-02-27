@@ -129,7 +129,7 @@ Object.assign(App, {
           : `<div class="tc-img-placeholder" style="position:relative">球隊圖片<span class="tc-rank-badge" style="color:${rank.color}"><span class="tc-rank-score">${(t.teamExp || 0).toLocaleString()}</span>${rank.rank}</span></div>`}
         <div class="tc-body">
           <div class="tc-name">${escapeHTML(t.name)}</div>
-          <div class="tc-info-row"><span class="tc-label">${I18N.t('team.memberLabel')}</span><span>${t.members} ${I18N.t('team.personUnit')}</span></div>
+          <div class="tc-info-row"><span class="tc-label">${I18N.t('team.memberLabel')}</span><span>${(ApiService.getAdminUsers() || []).filter(u => u.teamId === t.id).length} ${I18N.t('team.personUnit')}</span></div>
           <div class="tc-info-row"><span class="tc-label">${I18N.t('team.regionLabel')}</span><span>${escapeHTML(t.region || '')}</span></div>
         </div>
       </div>`;
@@ -218,7 +218,7 @@ Object.assign(App, {
           <div class="event-meta">
             <span class="event-meta-item">領隊 ${escapeHTML(t.leader || '未設定')}</span>
             <span class="event-meta-item">球隊經理 ${escapeHTML(t.captain || '未設定')}</span>
-            <span class="event-meta-item">${t.members}人</span>
+            <span class="event-meta-item">${(ApiService.getAdminUsers() || []).filter(u => u.teamId === t.id).length}人</span>
             <span class="event-meta-item">${escapeHTML(t.region)}</span>
           </div>
           <div style="display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.5rem">
@@ -278,7 +278,7 @@ Object.assign(App, {
           <div class="event-meta">
             <span class="event-meta-item">領隊 ${escapeHTML(t.leader || '未設定')}</span>
             <span class="event-meta-item">球隊經理 ${escapeHTML(t.captain || '未設定')}</span>
-            <span class="event-meta-item">${t.members}人</span>
+            <span class="event-meta-item">${(ApiService.getAdminUsers() || []).filter(u => u.teamId === t.id).length}人</span>
             <span class="event-meta-item">${escapeHTML(t.region)}</span>
             <span class="event-meta-item" style="color:${t.active ? 'var(--success)' : 'var(--danger)'}">${t.active ? '上架中' : '已下架'}</span>
           </div>
