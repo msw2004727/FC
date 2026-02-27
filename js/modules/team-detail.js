@@ -330,6 +330,7 @@ Object.assign(App, {
     const timeStr = App._formatDateTime(now);
     t.feed.push({ id: 'f_' + Date.now(), uid, name, content, time: timeStr, pinned: false, isPublic });
     this._teamFeedPage[teamId] = 1; // 發佈後跳回第一頁
+    ApiService.updateTeam(teamId, { feed: t.feed });
     if (uid) this._grantAutoExp(uid, 'post_team_feed', content.slice(0, 20));
     this.showToast('動態已發佈');
     this._refreshTeamDetailFeed(teamId);
@@ -339,6 +340,7 @@ Object.assign(App, {
     const t = ApiService.getTeam(teamId);
     if (!t || !t.feed) return;
     t.feed = t.feed.filter(p => p.id !== postId);
+    ApiService.updateTeam(teamId, { feed: t.feed });
     this.showToast('動態已刪除');
     this.showTeamDetail(teamId);
   },
@@ -357,6 +359,7 @@ Object.assign(App, {
       }
     }
     post.pinned = !post.pinned;
+    ApiService.updateTeam(teamId, { feed: t.feed });
     this.showToast(post.pinned ? '已置頂' : '已取消置頂');
     this.showTeamDetail(teamId);
   },
@@ -395,6 +398,7 @@ Object.assign(App, {
     const idx = arr.indexOf(uid);
     if (idx >= 0) arr.splice(idx, 1); else arr.push(uid);
     post.reactions[key] = arr;
+    ApiService.updateTeam(teamId, { feed: t.feed });
     this._refreshTeamDetailFeed(teamId);
   },
 
@@ -438,6 +442,7 @@ Object.assign(App, {
     const now = new Date();
     const timeStr = App._formatDateTime(now);
     post.comments.push({ id: 'c_' + Date.now(), uid, name, text, time: timeStr });
+    ApiService.updateTeam(teamId, { feed: t.feed });
     this._refreshTeamDetailFeed(teamId);
   },
 
@@ -447,6 +452,7 @@ Object.assign(App, {
     const post = t.feed.find(p => p.id === postId);
     if (!post || !post.comments) return;
     post.comments = post.comments.filter(c => c.id !== commentId);
+    ApiService.updateTeam(teamId, { feed: t.feed });
     this._refreshTeamDetailFeed(teamId);
   },
 
