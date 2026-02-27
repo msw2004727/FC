@@ -419,11 +419,13 @@ Object.assign(App, {
     if (!container) return;
 
     if (!logs) logs = ApiService.getOperationLogs();
+    // 最新在最上面（time 格式 YYYY/MM/DD HH:MM 字串比較即等於時間比較）
+    const sorted = [...logs].sort((a, b) => (b.time || '').localeCompare(a.time || ''));
     const PAGE_SIZE = 20;
     const p = Math.max(1, page || 1);
-    const totalPages = Math.max(1, Math.ceil(logs.length / PAGE_SIZE));
+    const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
     const safePage = Math.min(p, totalPages);
-    const pageItems = logs.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+    const pageItems = sorted.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
     if (logs.length === 0) {
       container.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--text-muted)">沒有符合條件的紀錄</div>';
@@ -443,7 +445,7 @@ Object.assign(App, {
     if (totalPages > 1) {
       html += `<div style="display:flex;justify-content:center;align-items:center;gap:.5rem;padding:.8rem 0;font-size:.78rem">
         <button class="outline-btn" style="font-size:.72rem;padding:.25rem .6rem" onclick="App._opLogGoPage(${safePage - 1})" ${safePage <= 1 ? 'disabled' : ''}>‹ 上一頁</button>
-        <span style="color:var(--text-muted)">${safePage} / ${totalPages}（共 ${logs.length} 筆）</span>
+        <span style="color:var(--text-muted)">${safePage} / ${totalPages}（共 ${sorted.length} 筆）</span>
         <button class="outline-btn" style="font-size:.72rem;padding:.25rem .6rem" onclick="App._opLogGoPage(${safePage + 1})" ${safePage >= totalPages ? 'disabled' : ''}>下一頁 ›</button>
       </div>`;
     }

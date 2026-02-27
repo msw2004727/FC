@@ -61,7 +61,8 @@
 // 20260227zc: banner 初始 skeleton + V 版本號同步修正 SW 快取清除失效
 // 20260227zo: 站內信審批 — ensureAuth + 修正 in-memory rollback + leaderUids isTeamStaff
 // 20260227zp: 歷史入隊補正 — 去重改為每人取最新一筆 + 目標球隊存在性驗證
-const CACHE_VERSION = '20260227zp';
+// 20260227zq: 操作日誌排序修正 — 最新在最上面（依 time 字串降序）
+const CACHE_VERSION = '20260227zq';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {
