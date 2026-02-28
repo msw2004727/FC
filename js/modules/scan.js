@@ -441,12 +441,24 @@ Object.assign(App, {
             resultMsg = `${userName} 未報名，簽到成功`;
           }
         } else {
-          if (!userCheckin) {
-            resultClass = 'warning';
-            resultMsg = `${userName} 未報名，尚未簽到`;
-          } else if (userCheckout) {
+          if (userCheckout) {
             resultClass = 'warning';
             resultMsg = `${userName} 未報名，已完成簽退`;
+          } else if (!userCheckin) {
+            const now = new Date();
+            const timeStr = App._formatDateTime(now);
+            await ApiService.addAttendanceRecord({
+              id: 'att_' + Date.now() + '_' + Math.random().toString(36).slice(2,5),
+              eventId: this._scanSelectedEventId,
+              uid, userName, type: 'checkin', time: timeStr,
+            });
+            await ApiService.addAttendanceRecord({
+              id: 'att_' + Date.now() + '_' + Math.random().toString(36).slice(2,5),
+              eventId: this._scanSelectedEventId,
+              uid, userName, type: 'checkout', time: timeStr,
+            });
+            resultClass = 'warning';
+            resultMsg = `${userName} 未報名，已自動完成簽到與簽退`;
           } else {
             const now = new Date();
             const timeStr = App._formatDateTime(now);
@@ -479,12 +491,33 @@ Object.assign(App, {
         }
       } else {
         // checkout
-        if (!userCheckin) {
-          resultClass = 'warning';
-          resultMsg = `${userName} 尚未簽到，無法簽退`;
-        } else if (userCheckout) {
+        if (userCheckout) {
           resultClass = 'warning';
           resultMsg = `${userName} 已完成簽退`;
+        } else if (!userCheckin) {
+          const now = new Date();
+          const timeStr = App._formatDateTime(now);
+          await ApiService.addAttendanceRecord({
+            id: 'att_' + Date.now() + '_' + Math.random().toString(36).slice(2,5),
+            eventId: this._scanSelectedEventId,
+            uid,
+            userName,
+            type: 'checkin',
+            time: timeStr,
+          });
+          await ApiService.addAttendanceRecord({
+            id: 'att_' + Date.now() + '_' + Math.random().toString(36).slice(2,5),
+            eventId: this._scanSelectedEventId,
+            uid,
+            userName,
+            type: 'checkout',
+            time: timeStr,
+          });
+          resultClass = 'success';
+          resultMsg = `${userName} 未簽到，已自動完成簽到與簽退`;
+          // Auto EXP: complete activity
+          const _evt = ApiService.getEvent(this._scanSelectedEventId);
+          this._grantAutoExp(uid, 'complete_activity', _evt?.title || '');
         } else {
           const now = new Date();
           const timeStr = App._formatDateTime(now);
@@ -700,7 +733,7 @@ Object.assign(App, {
       const hasCheckin = records.some(a => a.uid === uid && a.type === 'checkin' && (a.companionId || null) === cId);
       const hasCheckout = records.some(a => a.uid === uid && a.type === 'checkout' && (a.companionId || null) === cId);
       const statusLabel = hasCheckout ? '✅ 已簽退' : hasCheckin ? '📍 已簽到' : '—';
-      const disabled = (mode === 'checkin' && hasCheckin) || (mode === 'checkout' && (hasCheckout || !hasCheckin));
+      const disabled = (mode === 'checkin' && hasCheckin) || (mode === 'checkout' && hasCheckout);
       return `<label style="display:flex;align-items:center;gap:.5rem;padding:.3rem 0;border-bottom:1px solid var(--border);cursor:pointer">
         <input type="checkbox" name="family-scan" data-companion-id="${escapeHTML(cId || '')}" data-name="${escapeHTML(displayName)}" ${!disabled ? 'checked' : 'disabled'} style="width:15px;height:15px">
         <span style="flex:1;font-size:.82rem">${escapeHTML(displayName)}${!cId ? '（本人）' : ''}</span>
@@ -749,7 +782,17 @@ Object.assign(App, {
             companionName: cId ? displayName : null,
             type: 'checkin', time: timeStr,
           });
-        } else if (mode === 'checkout' && hasCheckin && !hasCheckout) {
+        } else if (mode === 'checkout' && !hasCheckout) {
+          if (!hasCheckin) {
+            await ApiService.addAttendanceRecord({
+              id: 'att_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5),
+              eventId, uid, userName,
+              participantType: cId ? 'companion' : 'self',
+              companionId: cId || null,
+              companionName: cId ? displayName : null,
+              type: 'checkin', time: timeStr,
+            });
+          }
           await ApiService.addAttendanceRecord({
             id: 'att_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5),
             eventId, uid, userName,
