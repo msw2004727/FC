@@ -10,34 +10,43 @@ Object.assign(FirebaseService, {
    * 確保 Firebase Auth 已登入，否則嘗試重新簽入。
    * 在所有需要 Firestore 寫入的關鍵流程（登入、報名等）前呼叫。
    */
-  async _ensureAuth() {
-    console.log('[_ensureAuth] 開始, currentUser:', auth?.currentUser?.uid || 'null');
+  async _ensureAuth(expectedUid = null) {
+    const hasExpectedUid = uid => !expectedUid || uid === expectedUid;
+    console.log('[_ensureAuth] start, currentUser=', auth?.currentUser?.uid || 'null', 'expectedUid=', expectedUid || 'none');
 
     if (auth?.currentUser) {
       try {
         await auth.currentUser.getIdToken(true);
-        console.log('[_ensureAuth] token 刷新成功, uid:', auth.currentUser.uid);
-        return true;
+        if (hasExpectedUid(auth.currentUser.uid)) {
+          console.log('[_ensureAuth] token refresh ok, uid=', auth.currentUser.uid);
+          return true;
+        }
+        console.warn('[_ensureAuth] uid mismatch after token refresh, current=', auth.currentUser.uid, 'expected=', expectedUid);
       } catch (e) {
-        console.warn('[_ensureAuth] token 刷新失敗:', e.code, e.message);
+        console.warn('[_ensureAuth] token refresh failed:', e.code, e.message);
       }
     }
-    // 等待 persistence 恢復
+
     if (typeof _firebaseAuthReadyPromise !== 'undefined' && !_firebaseAuthReady) {
-      console.log('[_ensureAuth] 等待 Auth persistence 恢復...');
+      console.log('[_ensureAuth] waiting Auth persistence restore...');
       try {
         await Promise.race([_firebaseAuthReadyPromise, new Promise(r => setTimeout(r, 5000))]);
       } catch (_) {}
-      console.log('[_ensureAuth] persistence 恢復後 currentUser:', auth?.currentUser?.uid || 'null');
+      console.log('[_ensureAuth] after persistence, currentUser=', auth?.currentUser?.uid || 'null');
     }
-    if (auth?.currentUser) return true;
-    // 嘗試重新登入
-    console.log('[_ensureAuth] 嘗試重新登入...');
-    try { await this._signInWithAppropriateMethod(); } catch (e) {
-      console.error('[_ensureAuth] 重新登入失敗:', e.code || '', e.message);
+
+    if (auth?.currentUser && hasExpectedUid(auth.currentUser.uid)) return true;
+
+    console.log('[_ensureAuth] trying re-auth via appropriate sign-in method...');
+    try {
+      await this._signInWithAppropriateMethod(expectedUid);
+    } catch (e) {
+      console.error('[_ensureAuth] re-auth failed:', e.code || '', e.message);
     }
-    const ok = !!auth?.currentUser;
-    console.log('[_ensureAuth] 最終結果:', ok, 'uid:', auth?.currentUser?.uid || 'null');
+
+    const finalUid = auth?.currentUser?.uid || null;
+    const ok = !!finalUid && hasExpectedUid(finalUid);
+    console.log('[_ensureAuth] result=', ok, 'finalUid=', finalUid, 'expectedUid=', expectedUid || 'none');
     return ok;
   },
 
@@ -584,82 +593,142 @@ Object.assign(FirebaseService, {
   // ════════════════════════════════
 
   async createOrUpdateUser(lineProfile) {
-    const { userId: lineUserId, displayName, pictureUrl, email } = lineProfile;
-
-    // 確保 Firebase Auth 已登入（Firestore 讀寫都需要 isAuth）
-    const authed = await this._ensureAuth();
-    if (!authed) {
-      console.error('[createOrUpdateUser] Firebase Auth 未登入, auth.currentUser:', auth?.currentUser?.uid);
-      throw { code: 'permission-denied', message: 'Firebase 登入失敗，請關閉此頁面後重新從 LINE 開啟' };
+    const { userId: lineUserId, displayName, pictureUrl, email } = lineProfile || {};
+    if (!lineUserId || typeof lineUserId !== 'string') {
+      throw { code: 'invalid-argument', message: 'LINE userId is required' };
     }
 
-    const snapshot = await db.collection('users')
-      .where('lineUserId', '==', lineUserId).limit(1).get();
+    // Ensure Firebase Auth uid is aligned with current LINE userId.
+    const authed = await this._ensureAuth(lineUserId);
+    const authUid = auth?.currentUser?.uid || null;
+    if (!authed || !authUid || authUid !== lineUserId) {
+      console.error('[createOrUpdateUser] auth uid mismatch:', {
+        expectedLineUserId: lineUserId,
+        authUid,
+      });
+      throw {
+        code: 'permission-denied',
+        message: 'Firebase auth uid mismatch with LINE userId. Please re-login.',
+      };
+    }
 
+    const normalizedDisplayName =
+      (typeof displayName === 'string' && displayName.trim())
+        ? displayName.trim()
+        : lineUserId;
+    const normalizedPictureUrl = pictureUrl || null;
+    const normalizedEmail = email || null;
+
+    const usersRef = db.collection('users');
+    const canonicalRef = usersRef.doc(authUid);
+    const canonicalSnap = await canonicalRef.get();
     const now = new Date().toISOString();
 
-    console.log('[FirebaseService] createOrUpdateUser 查詢結果: empty=', snapshot.empty, 'auth.uid=', auth.currentUser?.uid);
+    console.log('[FirebaseService] createOrUpdateUser canonicalExists=', canonicalSnap.exists, 'auth.uid=', authUid);
 
-    if (snapshot.empty) {
-      // 新用戶：建立完整欄位（以 lineUserId 作為 doc ID，確保可預測且符合安全規則）
-      const userData = {
-        uid: lineUserId,
+    if (!canonicalSnap.exists) {
+      const legacySnapshot = await usersRef
+        .where('lineUserId', '==', lineUserId)
+        .limit(1)
+        .get();
+
+      if (legacySnapshot.empty) {
+        const userData = {
+          uid: authUid,
+          lineUserId,
+          displayName: normalizedDisplayName,
+          pictureUrl: normalizedPictureUrl,
+          email: normalizedEmail,
+          role: 'user',
+          exp: 0,
+          level: 1,
+          gender: null,
+          birthday: null,
+          region: null,
+          sports: null,
+          teamId: null,
+          teamName: null,
+          phone: null,
+          titleBig: null,
+          titleNormal: null,
+          totalGames: 0,
+          completedGames: 0,
+          attendanceRate: 0,
+          badgeCount: 0,
+          createdAt: now,
+          lastLogin: now,
+        };
+
+        await canonicalRef.set({
+          ..._stripDocId(userData),
+          createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+          lastLogin: firebase.firestore.FieldValue.serverTimestamp(),
+        });
+
+        userData._docId = authUid;
+        userData._isNewUser = true;
+        this._cache.currentUser = userData;
+        this._saveToLS('currentUser', userData);
+        this._setupUserListener(authUid);
+        console.log('[FirebaseService] created user profile:', normalizedDisplayName, 'docId:', authUid);
+        return userData;
+      }
+
+      const legacyDoc = legacySnapshot.docs[0];
+      const legacyData = legacyDoc.data() || {};
+      const migratedPayload = {
+        ...legacyData,
+        uid: authUid,
         lineUserId,
-        displayName,
-        pictureUrl: pictureUrl || null,
-        email: email || null,
-        role: 'user',
-        exp: 0,
-        level: 1,
-        gender: null,
-        birthday: null,
-        region: null,
-        sports: null,
-        teamId: null,
-        teamName: null,
-        phone: null,
-        titleBig: null,
-        titleNormal: null,
-        totalGames: 0,
-        completedGames: 0,
-        attendanceRate: 0,
-        badgeCount: 0,
-        createdAt: now,
-        lastLogin: now,
-      };
-      const docId = lineUserId;
-      await db.collection('users').doc(docId).set({
-        ..._stripDocId(userData),
-        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+        displayName: normalizedDisplayName || legacyData.displayName || authUid,
+        pictureUrl: normalizedPictureUrl,
+        email: normalizedEmail,
         lastLogin: firebase.firestore.FieldValue.serverTimestamp(),
+      };
+      if (!legacyData.createdAt) {
+        migratedPayload.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+      }
+
+      await canonicalRef.set(migratedPayload, { merge: true });
+      const migratedSnap = await canonicalRef.get();
+      const migratedUser = {
+        ...migratedSnap.data(),
+        _docId: migratedSnap.id,
+        _migratedFromDocId: legacyDoc.id,
+      };
+
+      // NOTE: Legacy document cannot be deleted by client because /users delete is disallowed.
+      this._cache.currentUser = migratedUser;
+      this._saveToLS('currentUser', migratedUser);
+      this._setupUserListener(authUid);
+      console.log('[FirebaseService] migrated legacy user doc to canonical uid doc:', {
+        from: legacyDoc.id,
+        to: authUid,
       });
-      userData._docId = docId;
-      userData._isNewUser = true;
-      this._cache.currentUser = userData;
-      this._saveToLS('currentUser', userData);
-      this._setupUserListener(docId);
-      console.log('[FirebaseService] 新用戶建立:', displayName, 'docId:', docId);
-      return userData;
-    } else {
-      // 既有用戶：更新 displayName, pictureUrl（lastLogin 僅在距上次超過 10 分鐘時才寫入）
-      const doc = snapshot.docs[0];
-      const existing = { ...doc.data(), _docId: doc.id };
-      const updates = { displayName, pictureUrl: pictureUrl || null };
-      // 補齊早期缺少的 uid 欄位
-      if (!existing.uid) updates.uid = lineUserId;
-      // lastLogin 節流：避免每次刷新都觸發 onSnapshot，造成其他裝置畫面閃爍
-      const lastLoginMs = existing.lastLogin?.toMillis?.() ?? 0;
-      const tenMinutes = 10 * 60 * 1000;
-      const needsLoginUpdate = Date.now() - lastLoginMs > tenMinutes;
-      if (needsLoginUpdate) updates.lastLogin = firebase.firestore.FieldValue.serverTimestamp();
-      await db.collection('users').doc(doc.id).update(updates);
-      Object.assign(existing, updates);
-      this._cache.currentUser = existing;
-      this._saveToLS('currentUser', existing);
-      this._setupUserListener(doc.id);
-      console.log('[FirebaseService] 用戶登入更新:', displayName);
-      return existing;
+      return migratedUser;
     }
+
+    const existing = { ...canonicalSnap.data(), _docId: canonicalSnap.id };
+    const updates = {
+      displayName: normalizedDisplayName,
+      pictureUrl: normalizedPictureUrl,
+    };
+
+    const lastLoginMs = existing.lastLogin?.toMillis?.() ?? 0;
+    const tenMinutes = 10 * 60 * 1000;
+    if (Date.now() - lastLoginMs > tenMinutes) {
+      updates.lastLogin = firebase.firestore.FieldValue.serverTimestamp();
+    }
+
+    // Do not update uid from client side. rules block uid changes by design.
+    await canonicalRef.update(updates);
+
+    Object.assign(existing, updates);
+    this._cache.currentUser = existing;
+    this._saveToLS('currentUser', existing);
+    this._setupUserListener(authUid);
+    console.log('[FirebaseService] updated user profile:', normalizedDisplayName);
+    return existing;
   },
 
   // ════════════════════════════════
@@ -684,6 +753,11 @@ Object.assign(FirebaseService, {
   },
 
   async getUser(lineUserId) {
+    const direct = await db.collection('users').doc(lineUserId).get();
+    if (direct.exists) {
+      return { ...direct.data(), _docId: direct.id };
+    }
+
     const snapshot = await db.collection('users')
       .where('lineUserId', '==', lineUserId).limit(1).get();
     if (snapshot.empty) return null;

@@ -322,7 +322,7 @@ const FirebaseService = {
   },
 
   /** 根據 Demo / Prod 模式選擇適當的 Firebase Auth 登入方式 */
-  async _signInWithAppropriateMethod() {
+  async _signInWithAppropriateMethod(expectedUid = null) {
     if (ModeManager.isDemo()) {
       const cred = await auth.signInAnonymously();
       console.log('[FirebaseService] 匿名登入（Demo 模式）, uid:', cred.user?.uid);
@@ -336,8 +336,14 @@ const FirebaseService = {
       } catch (_) {}
     }
     if (auth?.currentUser) {
-      console.log('[FirebaseService] Auth 已從 persistence 恢復, uid:', auth.currentUser.uid);
-      return;
+      if (!expectedUid || auth.currentUser.uid === expectedUid) {
+        console.log('[FirebaseService] Auth 已從 persistence 恢復, uid:', auth.currentUser.uid);
+        return;
+      }
+      console.warn('[FirebaseService] Auth uid 與 LINE userId 不一致，將強制重走 Custom Token 登入', {
+        currentUid: auth.currentUser.uid,
+        expectedUid,
+      });
     }
 
     // Prod 模式：只做 Custom Token 登入，不產生匿名用戶
@@ -359,7 +365,11 @@ const FirebaseService = {
       const { customToken } = result.data;
       console.log('[FirebaseService] 收到 Custom Token, 執行 signInWithCustomToken...');
       const cred = await auth.signInWithCustomToken(customToken);
-      console.log('[FirebaseService] Custom Token 登入成功, uid:', cred.user?.uid);
+      const signedUid = cred?.user?.uid || null;
+      if (expectedUid && signedUid && signedUid !== expectedUid) {
+        console.error('[FirebaseService] Custom Token 登入後 uid 仍不一致', { expectedUid, signedUid });
+      }
+      console.log('[FirebaseService] Custom Token 登入成功, uid:', signedUid);
     } catch (err) {
       console.error('[FirebaseService] Custom Token 登入失敗:', err?.code, err?.message);
       if (typeof App !== 'undefined' && App.showToast) {
