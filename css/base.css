@@ -873,33 +873,65 @@ img { max-width: 100%; display: block; }
   100% { background-position: -200% 0; }
 }
 
-/* ─── Deep link 等待卡片（分享連結進入時顯示） ─── */
-#liff-deeplink-card {
+/* ─── Deep link 過場遮罩 ─── */
+.deep-link-overlay {
   position: fixed;
-  top: 50%; left: 50%;
-  transform: translate(-50%, -50%);
-  z-index: 9990;
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 1rem 1.5rem;
-  box-shadow: var(--shadow-lg);
+  inset: 0;
+  z-index: 10000;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: rgba(8, 11, 18, .58);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  opacity: 1;
+  transition: opacity .2s ease;
+}
+
+.deep-link-overlay.is-hiding {
+  opacity: 0;
+}
+
+.deep-link-card {
+  width: min(340px, calc(100vw - 28px));
   display: flex;
   align-items: center;
-  gap: .7rem;
-  font-size: .875rem;
-  color: var(--text-secondary);
-  opacity: 1;
-  transition: opacity .4s ease;
-  pointer-events: none;
+  gap: .8rem;
+  padding: .95rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--bg-card);
+  box-shadow: var(--shadow-lg);
 }
-#liff-deeplink-card.liff-hide { opacity: 0; }
-.liff-card-spinner {
-  width: 18px; height: 18px;
+
+.deep-link-spinner {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
   border: 2px solid var(--border);
   border-top-color: var(--primary);
-  border-radius: 50%;
-  animation: liff-spin .8s linear infinite;
+  animation: deep-link-spin .8s linear infinite;
   flex-shrink: 0;
 }
-@keyframes liff-spin { to { transform: rotate(360deg); } }
+
+.deep-link-copy {
+  min-width: 0;
+}
+
+.deep-link-title {
+  font-size: .88rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.35;
+}
+
+.deep-link-sub {
+  margin-top: .18rem;
+  font-size: .78rem;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+@keyframes deep-link-spin {
+  to { transform: rotate(360deg); }
+}

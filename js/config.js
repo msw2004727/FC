@@ -81,7 +81,8 @@
 // 20260228i: event sport-tag single-select + required validation + SVG sport icons
 // 20260228j: switch sport category icons from SVG to Emoji
 // 20260228k: team-only selector display fallback (avoid raw tm_* IDs in UI)
-const CACHE_VERSION = '20260228k';
+// 20260228l: deep-link boot guard + full-screen transition overlay (avoid home flash before target page)
+const CACHE_VERSION = '20260228l';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {

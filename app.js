@@ -12,6 +12,10 @@ const App = {
   pageHistory: [],
   bannerIndex: 0,
   bannerTimer: null,
+  _bootDeepLink: null,
+  _bootDeepLinkTimer: null,
+  _bootDeepLinkPoller: null,
+  _deepLinkBootTimeoutMs: 12000,
 
   init() {
     this.bindRoleSwitcher();
@@ -127,6 +131,142 @@ const App = {
       cancel.addEventListener('click', () => cleanup(false), { once: true });
     });
   },
+
+  _getPendingDeepLink() {
+    try {
+      const pendingEvent = String(sessionStorage.getItem('_pendingDeepEvent') || '').trim();
+      if (pendingEvent) return { type: 'event', id: pendingEvent };
+      const pendingTeam = String(sessionStorage.getItem('_pendingDeepTeam') || '').trim();
+      if (pendingTeam) return { type: 'team', id: pendingTeam };
+    } catch (_) {}
+    return null;
+  },
+
+  _clearPendingDeepLink() {
+    try {
+      sessionStorage.removeItem('_pendingDeepEvent');
+      sessionStorage.removeItem('_pendingDeepTeam');
+    } catch (_) {}
+  },
+
+  _clearDeepLinkQueryParams() {
+    try {
+      const url = new URL(window.location.href);
+      let changed = false;
+      ['event', 'team'].forEach((key) => {
+        if (!url.searchParams.has(key)) return;
+        url.searchParams.delete(key);
+        changed = true;
+      });
+      if (changed) {
+        history.replaceState(null, '', url.pathname + (url.search || '') + (url.hash || ''));
+      }
+    } catch (_) {}
+  },
+
+  _showDeepLinkOverlay(type) {
+    const overlay = document.getElementById('deep-link-overlay');
+    if (!overlay) return;
+    const title = overlay.querySelector('[data-deep-link-title]');
+    const sub = overlay.querySelector('[data-deep-link-sub]');
+    if (title) title.textContent = type === 'team' ? '正在前往球隊頁面' : '正在前往活動頁面';
+    if (sub) sub.textContent = '正在確認登入與資料，請稍候...';
+    overlay.classList.remove('is-hiding');
+    overlay.style.display = 'flex';
+  },
+
+  _hideDeepLinkOverlay() {
+    const overlay = document.getElementById('deep-link-overlay');
+    if (!overlay || overlay.style.display === 'none') return;
+    overlay.classList.add('is-hiding');
+    setTimeout(() => {
+      overlay.style.display = 'none';
+      overlay.classList.remove('is-hiding');
+    }, 220);
+  },
+
+  _stopDeepLinkGuard() {
+    if (this._bootDeepLinkTimer) {
+      clearTimeout(this._bootDeepLinkTimer);
+      this._bootDeepLinkTimer = null;
+    }
+    if (this._bootDeepLinkPoller) {
+      clearInterval(this._bootDeepLinkPoller);
+      this._bootDeepLinkPoller = null;
+    }
+  },
+
+  _completeDeepLinkSuccess() {
+    this._stopDeepLinkGuard();
+    this._clearPendingDeepLink();
+    this._clearDeepLinkQueryParams();
+    this._hideDeepLinkOverlay();
+    this._bootDeepLink = null;
+  },
+
+  _completeDeepLinkFallback(message, targetPage = 'page-activities') {
+    this._stopDeepLinkGuard();
+    this._clearPendingDeepLink();
+    this._clearDeepLinkQueryParams();
+    this._hideDeepLinkOverlay();
+    this._bootDeepLink = null;
+    const canOpenProtected = ModeManager.isDemo() || (typeof LineAuth !== 'undefined' && LineAuth.isLoggedIn());
+    const fallbackPage = (!canOpenProtected && targetPage !== 'page-home') ? 'page-home' : targetPage;
+    if (fallbackPage && this.currentPage !== fallbackPage) this.showPage(fallbackPage);
+    if (message) this.showToast(message);
+  },
+
+  _startDeepLinkGuard() {
+    const pending = this._getPendingDeepLink();
+    if (!pending) return;
+    this._bootDeepLink = pending;
+    this._showDeepLinkOverlay(pending.type);
+    this._stopDeepLinkGuard();
+
+    this._bootDeepLinkTimer = setTimeout(() => {
+      if (!this._getPendingDeepLink()) return;
+      const targetPage = pending.type === 'team' ? 'page-teams' : 'page-activities';
+      this._completeDeepLinkFallback('頁面載入逾時，已切換到列表。', targetPage);
+    }, this._deepLinkBootTimeoutMs);
+
+    this._bootDeepLinkPoller = setInterval(() => {
+      try {
+        this._tryOpenPendingDeepLink();
+      } catch (_) {}
+    }, 280);
+  },
+
+  _tryOpenPendingDeepLink() {
+    const pending = this._getPendingDeepLink();
+    if (!pending) return true;
+
+    const isAuthed = ModeManager.isDemo() || (typeof LineAuth !== 'undefined' && LineAuth.isLoggedIn());
+    if (!isAuthed) return false;
+
+    if (pending.type === 'event') {
+      const event = ApiService.getEvent?.(pending.id);
+      if (!event) return false;
+      this.showEventDetail(pending.id);
+      if (this.currentPage === 'page-activity-detail' && this._currentDetailEventId === pending.id) {
+        this._completeDeepLinkSuccess();
+        return true;
+      }
+      return false;
+    }
+
+    if (pending.type === 'team') {
+      const team = ApiService.getTeam?.(pending.id);
+      if (!team) return false;
+      this.showTeamDetail(pending.id);
+      if (this.currentPage === 'page-team-detail') {
+        this._completeDeepLinkSuccess();
+        return true;
+      }
+      return false;
+    }
+
+    return false;
+  },
 };
 
 // ── CDN SDK 動態載入器（不阻塞 DOMContentLoaded）──
@@ -158,6 +298,16 @@ async function _loadCDNScripts() {
 document.addEventListener('DOMContentLoaded', async () => {
   window._appInitializing = true;
   console.log('[Boot] DOMContentLoaded fired');
+
+  // 先解析 deep link，避免先看到首頁再跳轉
+  try {
+    const urlParams = new URLSearchParams(location.search);
+    const deepEvent = String(urlParams.get('event') || '').trim();
+    const deepTeam = String(urlParams.get('team') || '').trim();
+    if (deepEvent) sessionStorage.setItem('_pendingDeepEvent', deepEvent);
+    if (deepTeam) sessionStorage.setItem('_pendingDeepTeam', deepTeam);
+  } catch (_) {}
+  App._startDeepLinkGuard();
 
   // ── Phase 1: 載入頁面 HTML 片段（10 秒超時保護）──
   console.log('[Boot] Phase 1: PageLoader.loadAll() 開始（背景執行）');
@@ -249,17 +399,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ── Phase 4: 背景載入 CDN SDK → Firebase + LIFF（不阻塞頁面）──
   if (!ModeManager.isDemo()) {
     console.log('[Boot] Phase 4: 開始背景載入 CDN');
-    // Deep link 等待卡片（進度條已嵌入 loading-overlay，隨 overlay 自動顯示/隱藏）
-    const _liffCard = document.getElementById('liff-deeplink-card');
-    if (_liffCard && (sessionStorage.getItem('_pendingDeepEvent') || sessionStorage.getItem('_pendingDeepTeam'))) {
-      _liffCard.style.display = 'flex';
-    }
-    const _hideLiffInitUI = () => {
-      if (_liffCard && _liffCard.style.display !== 'none') {
-        _liffCard.classList.add('liff-hide');
-        setTimeout(() => { _liffCard.style.display = 'none'; _liffCard.classList.remove('liff-hide'); }, 450);
-      }
-    };
     (async () => {
       try {
         await _loadCDNScripts();
@@ -303,25 +442,14 @@ document.addEventListener('DOMContentLoaded', async () => {
           console.error('[Boot] bindLineLogin 執行失敗:', e?.message || e, e?.stack || '');
           try { App.showToast('LINE 登入流程異常，請重新整理頁面'); } catch (_) {}
         }
-        // LIFF 已 ready，執行暫存的 deep link（分享連結進入的情境）
-        try {
-          const pendingEvent = sessionStorage.getItem('_pendingDeepEvent');
-          const pendingTeam  = sessionStorage.getItem('_pendingDeepTeam');
-          if (pendingEvent) {
-            sessionStorage.removeItem('_pendingDeepEvent');
-            setTimeout(() => App.showEventDetail(pendingEvent), 300);
-          } else if (pendingTeam) {
-            sessionStorage.removeItem('_pendingDeepTeam');
-            setTimeout(() => App.showTeamDetail(pendingTeam), 300);
-          }
-        } catch (e) {}
-        _hideLiffInitUI();
+        // LIFF ready 後再嘗試開 deep link，成功才會清除 query 參數
+        try { App._tryOpenPendingDeepLink(); } catch (_) {}
       } catch (err) {
-        _hideLiffInitUI();
         console.error('[Boot] Phase 4 背景初始化失敗:', err?.message || err);
         try { App.showToast('網路連線異常，部分資料可能未更新'); } catch (e) {}
         // 即使失敗也更新登入 UI，避免卡在 pending 狀態
         try { if (typeof App.bindLineLogin === 'function') await App.bindLineLogin(); } catch (e) {}
+        try { App._tryOpenPendingDeepLink(); } catch (_) {}
       }
     })();
   }
@@ -334,24 +462,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     ApiService._writeErrorLog('unhandledrejection', event.reason);
   });
 
-  // Deep link handling & 定時任務（全部 try-catch 保護）
-  try {
-    const urlParams = new URLSearchParams(location.search);
-    const deepEvent = urlParams.get('event');
-    const deepTeam = urlParams.get('team');
-    if (ModeManager.isDemo()) {
-      // Demo 模式無需登入，直接執行
-      if (deepEvent) { setTimeout(() => App.showEventDetail(deepEvent), 300); }
-      else if (deepTeam) { setTimeout(() => App.showTeamDetail(deepTeam), 300); }
-    } else {
-      // 正式版：暫存 deep link，等 LIFF 初始化完成後再執行
-      // 使用 sessionStorage 可安全度過 LIFF OAuth redirect（redirect 後 URL 參數會消失）
-      if (deepEvent) sessionStorage.setItem('_pendingDeepEvent', deepEvent);
-      else if (deepTeam) sessionStorage.setItem('_pendingDeepTeam', deepTeam);
-    }
-    // 讀取完 deep link 後立即清除 query parameter，避免殘留在後續 hash 路由的 URL 中
-    if (deepEvent || deepTeam) history.replaceState(null, '', location.pathname);
-  } catch (e) {}
+  // 嘗試立即開啟 deep link（其餘會由 guard 持續輪詢）
+  try { App._tryOpenPendingDeepLink(); } catch (_) {}
+
+  // 定時任務（全部 try-catch 保護）
   // Hash 路由：瀏覽器返回/前進鍵同步頁面
   // pageId !== App.currentPage 條件防止 showPage() 設 hash 後再次觸發無窮迴圈
   try {
