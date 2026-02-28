@@ -26,9 +26,8 @@ service cloud.firestore {
 
     function roleFromUserDoc(uid) {
       let userPath = /databases/$(database)/documents/users/$(uid);
-      let userDoc = exists(userPath) ? get(userPath) : null;
-      return (userDoc != null && userDoc.data.role is string)
-        ? userDoc.data.role
+      return (exists(userPath) && get(userPath).data.role is string)
+        ? get(userPath).data.role
         : 'user';
     }
 
@@ -38,11 +37,6 @@ service cloud.firestore {
         : ((request.auth.token.role is string)
           ? request.auth.token.role
           : roleFromUserDoc(request.auth.uid));
-    }
-
-    function isCoachPlus() {
-      return request.auth != null
-        && authRole() in ['coach', 'captain', 'venue_owner', 'admin', 'super_admin'];
     }
 
     function isAdmin() {
@@ -55,31 +49,10 @@ service cloud.firestore {
         && authRole() == 'super_admin';
     }
 
-    function isRestrictedAccount() {
-      return request.auth != null
-        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
-        && (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isRestricted == true);
-    }
-
-    function isAuthNotRestricted() {
-      return isAuth() && !isRestrictedAccount();
-    }
-
-    function sameFieldValue(field) {
-      return (!(field in resource.data) && !(field in request.resource.data))
-        || ((field in resource.data) && (field in request.resource.data)
-          && request.resource.data[field] == resource.data[field]);
-    }
-
     function hasString(field) {
       return field in request.resource.data
         && request.resource.data[field] is string
         && request.resource.data[field].size() > 0;
-    }
-
-    function hasNumber(field) {
-      return field in request.resource.data
-        && request.resource.data[field] is number;
     }
 
     function isResourceOwnerByField(field) {
@@ -110,12 +83,6 @@ service cloud.firestore {
         || isResourceOwnerByField('sellerUid')
         || isResourceOwnerByField('ownerUid')
         || isResourceOwnerByField('creatorUid')
-        || isResourceOwnerByField('uid')
-        || isResourceOwnerByField('userId');
-    }
-
-    function isMessageTargetOwner() {
-      return isResourceOwnerByField('targetUid')
         || isResourceOwnerByField('uid')
         || isResourceOwnerByField('userId');
     }
