@@ -364,8 +364,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   } catch (e) {}
   try { App._autoExpireAds(); } catch (e) {}
   setInterval(() => { try { App._autoExpireAds(); } catch (e) {} }, 60000);
-  try { App._processScheduledMessages(); } catch (e) {}
-  setInterval(() => { try { App._processScheduledMessages(); } catch (e) {} }, 60000);
+  try { Promise.resolve(App._processScheduledMessages()).catch(() => {}); } catch (e) {}
+  setInterval(() => { try { Promise.resolve(App._processScheduledMessages()).catch(() => {}); } catch (e) {} }, 60000);
   try { App._processEventReminders(); } catch (e) {}
   setInterval(() => { try { App._processEventReminders(); } catch (e) {} }, 300000);
   setTimeout(() => { try { App.showPopupAdsOnLoad(); } catch (e) {} }, 2000);

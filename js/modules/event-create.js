@@ -756,9 +756,23 @@ Object.assign(App, {
     if (this._editEventId) {
       // Trigger 6：活動變更通知 — 先取得現有報名者
       const existingEvent = ApiService.getEvent(this._editEventId);
-      const notifyNames = existingEvent
-        ? [...(existingEvent.participants || []), ...(existingEvent.waitlistNames || [])]
-        : [];
+      const notifyUids = this._collectEventNotifyRecipientUids
+        ? this._collectEventNotifyRecipientUids(existingEvent, this._editEventId)
+        : (() => {
+          const set = new Set((ApiService.getRegistrationsByEvent(this._editEventId) || []).map(r => r.userId).filter(Boolean));
+          if (set.size || !existingEvent) return set;
+          const nameToUid = new Map();
+          (ApiService.getAdminUsers() || []).forEach(u => {
+            if (!u?.name || !u?.uid) return;
+            if (!nameToUid.has(u.name)) nameToUid.set(u.name, u.uid);
+          });
+          const allNames = [...(existingEvent.participants || []), ...(existingEvent.waitlistNames || [])];
+          allNames.forEach(name => {
+            const uid = nameToUid.get(name);
+            if (uid) set.add(uid);
+          });
+          return set;
+        })();
 
       const updates = {
         title, type, location, date: fullDate, fee, max, minAge, notes, image,
@@ -786,26 +800,11 @@ Object.assign(App, {
       this._adjustWaitlistOnCapacityChange(this._editEventId, oldMax, max);
 
       // 發送活動變更通知：優先用 registrations 按 userId 去重（避免同行者重複通知）
-      const eventRegs = ApiService.getRegistrationsByEvent(this._editEventId);
-      if (eventRegs.length > 0) {
-        const notifyUids = [...new Set(eventRegs.map(r => r.userId))];
-        notifyUids.forEach(uid => {
-          this._sendNotifFromTemplate('event_changed', {
-            eventName: title, date: fullDate, location,
-          }, uid, 'activity', '活動');
-        });
-      } else if (notifyNames.length > 0) {
-        // fallback: 舊資料沒有 registrations，用名字查找
-        const adminUsers = ApiService.getAdminUsers();
-        notifyNames.forEach(name => {
-          const u = adminUsers.find(au => au.name === name);
-          if (u) {
-            this._sendNotifFromTemplate('event_changed', {
-              eventName: title, date: fullDate, location,
-            }, u.uid, 'activity', '活動');
-          }
-        });
-      }
+      notifyUids.forEach(uid => {
+        this._sendNotifFromTemplate('event_changed', {
+          eventName: title, date: fullDate, location,
+        }, uid, 'activity', '活動');
+      });
 
       ApiService._writeOpLog('event_edit', '編輯活動', `編輯「${title}」`);
       this.closeModal();

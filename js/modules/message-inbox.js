@@ -503,7 +503,13 @@ Object.assign(App, {
   },
 
   _sendNotifFromTemplate(key, vars, targetUid, category, categoryName) {
-    const tpl = ApiService.getNotifTemplate(key);
+    const fallbackTemplates = {
+      waitlist_demoted: {
+        title: '候補調整通知',
+        body: '很抱歉通知您，因活動名額調整，您的報名狀態已改為候補。\n\n活動名稱：{eventName}\n活動時間：{date}\n活動地點：{location}\n\n若有名額釋出，系統將依候補順序自動遞補。',
+      },
+    };
+    const tpl = ApiService.getNotifTemplate(key) || fallbackTemplates[key];
     if (!tpl) { console.warn('[Notif] 找不到模板:', key); return; }
     const title = this._renderTemplate(tpl.title, vars);
     const body = this._renderTemplate(tpl.body, vars);
@@ -577,6 +583,7 @@ Object.assign(App, {
       welcome: '{userName}',
       signup_success: '{eventName} {date} {location} {status}',
       waitlist_promoted: '{eventName} {date} {location}',
+      waitlist_demoted: '{eventName} {date} {location}',
       event_cancelled: '{eventName} {date} {location}',
       role_upgrade: '{userName} {roleName}',
       event_changed: '{eventName} {date} {location}',

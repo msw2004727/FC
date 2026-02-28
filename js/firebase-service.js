@@ -844,30 +844,36 @@ const FirebaseService = {
   // ════════════════════════════════
 
   async _seedNotifTemplates() {
-    if (this._cache.notifTemplates.length > 0) return;
-    console.log('[FirebaseService] 建立預設通知模板...');
+    const existing = new Set((this._cache.notifTemplates || []).map(t => t.key));
     const defaults = [
       { key: 'welcome', title: '歡迎加入 SportHub！', body: '嗨 {userName}，歡迎加入 SportHub 平台！\n\n您可以在這裡瀏覽並報名各類足球活動、加入球隊、參與聯賽。\n祝您使用愉快！' },
       { key: 'signup_success', title: '報名成功通知', body: '您已成功報名以下活動：\n\n活動名稱：{eventName}\n活動時間：{date}\n活動地點：{location}\n報名狀態：{status}\n\n請準時出席，如需取消請提前至活動頁面操作。' },
       { key: 'waitlist_promoted', title: '候補遞補通知', body: '恭喜！由於有人取消報名，您已從候補名單自動遞補為正式參加者。\n\n活動名稱：{eventName}\n活動時間：{date}\n活動地點：{location}\n\n請準時出席！' },
+      { key: 'waitlist_demoted', title: '候補調整通知', body: '很抱歉通知您，因活動名額調整，您的報名狀態已改為候補。\n\n活動名稱：{eventName}\n活動時間：{date}\n活動地點：{location}\n\n若有名額釋出，系統將依候補順序自動遞補。' },
       { key: 'event_cancelled', title: '活動取消通知', body: '很抱歉通知您，以下活動因故取消：\n\n活動名稱：{eventName}\n原定時間：{date}\n原定地點：{location}\n\n如您已繳費，費用將於 3 個工作天內退還。造成不便深感抱歉。' },
       { key: 'role_upgrade', title: '身份變更通知', body: '恭喜 {userName}！您的身份已變更為「{roleName}」。\n\n新身份可能帶來新的權限與功能，請至個人資料頁面查看詳情。\n感謝您對社群的貢獻！' },
       { key: 'event_changed', title: '活動變更通知', body: '您報名的活動資訊有所變更，請留意：\n\n活動名稱：{eventName}\n活動時間：{date}\n活動地點：{location}\n\n如因變更需要取消報名，請至活動頁面操作。' },
       { key: 'event_relisted', title: '活動重新上架通知', body: '您先前報名的活動已重新上架：\n\n活動名稱：{eventName}\n活動時間：{date}\n活動地點：{location}\n\n您的報名資格仍然保留，請留意活動時間。' },
     ];
+    const missing = defaults.filter(t => !existing.has(t.key));
+    if (!missing.length) return;
+    console.log('[FirebaseService] 補齊通知模板:', missing.map(t => t.key).join(', '));
     try {
       const batch = db.batch();
-      defaults.forEach(t => {
+      missing.forEach(t => {
         const ref = db.collection('notifTemplates').doc(t.key);
-        batch.set(ref, { ...t, createdAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true });
+        batch.set(ref, {
+          ...t,
+          createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+        }, { merge: true });
       });
       await batch.commit();
-      defaults.forEach(t => {
-        t._docId = t.key;
-        this._cache.notifTemplates.push(t);
+      missing.forEach(t => {
+        this._cache.notifTemplates.push({ ...t, _docId: t.key });
       });
+      this._saveToLS('notifTemplates', this._cache.notifTemplates);
     } catch (err) {
-      console.warn('[FirebaseService] 通知模板建立失敗:', err);
+      console.warn('[FirebaseService] 通知模板補齊失敗:', err);
     }
   },
 

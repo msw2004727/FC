@@ -9,6 +9,7 @@ Object.assign(App, {
   // ══════════════════════════════════
 
   _msgCurrentFilter: 'sent',
+  _scheduledMessageProcessing: false,
 
   renderMsgManage(filter) {
     const container = document.getElementById('msg-manage-list');
@@ -16,16 +17,16 @@ Object.assign(App, {
     const f = filter || this._msgCurrentFilter || 'sent';
     this._msgCurrentFilter = f;
     const allItems = ApiService.getAdminMessages();
-    // 排程 tab 同時顯示 scheduled + cancelled
+    // 排程 tab 同時顯示 scheduled + processing + cancelled
     const items = f === 'scheduled'
-      ? allItems.filter(m => m.status === 'scheduled' || m.status === 'cancelled')
+      ? allItems.filter(m => m.status === 'scheduled' || m.status === 'processing' || m.status === 'cancelled')
       : allItems.filter(m => m.status === f);
 
     // 統計數量
     const countEl = document.getElementById('msg-sent-count');
     if (countEl) {
       const sentCount = allItems.filter(m => m.status === 'sent').length;
-      const scheduledCount = allItems.filter(m => m.status === 'scheduled').length;
+      const scheduledCount = allItems.filter(m => m.status === 'scheduled' || m.status === 'processing').length;
       const recalledCount = allItems.filter(m => m.status === 'recalled').length;
       const deletedCount = allItems.filter(m => m.status === 'deleted').length;
       countEl.textContent = `已發送 ${sentCount} 封 ・ 排程 ${scheduledCount} 封 ・ 已回收 ${recalledCount} 封 ・ 已刪除 ${deletedCount} 封`;
@@ -54,6 +55,13 @@ Object.assign(App, {
         btns = `<button class="primary-btn small" style="${s}" onclick="App.viewMsgDetail('${m.id}')">查看</button>`
              + `<button class="outline-btn" style="${s};color:var(--warning)" onclick="App.cancelScheduleMsg('${m.id}')">取消排程</button>`
              + `<button class="outline-btn" style="${s};color:var(--danger)" onclick="App.deleteMsg('${m.id}')">刪除</button>`;
+      } else if (m.status === 'processing') {
+        if (m.scheduledAt) {
+          const schedDate = new Date(m.scheduledAt);
+          const schedStr = `${schedDate.getFullYear()}/${String(schedDate.getMonth()+1).padStart(2,'0')}/${String(schedDate.getDate()).padStart(2,'0')} ${String(schedDate.getHours()).padStart(2,'0')}:${String(schedDate.getMinutes()).padStart(2,'0')}`;
+          scheduleInfo = `<div style="font-size:.72rem;margin-top:.2rem;padding:.2rem .5rem;background:rgba(245,158,11,.12);color:#b45309;border-radius:4px;display:inline-block">&#128337; 處理中：${schedStr}</div>`;
+        }
+        btns = `<button class="primary-btn small" style="${s}" onclick="App.viewMsgDetail('${m.id}')">查看</button>`;
       } else if (m.status === 'recalled') {
         btns = `<button class="primary-btn small" style="${s}" onclick="App.viewMsgDetail('${m.id}')">查看</button>`
              + `<button class="outline-btn" style="${s};color:var(--danger)" onclick="App.deleteMsg('${m.id}')">刪除</button>`;
@@ -72,7 +80,7 @@ Object.assign(App, {
       }
 
       // 狀態標籤
-      const statusMap = { sent: ['active', '已發送'], scheduled: ['scheduled', '排程中'], recalled: ['expired', '已回收'], cancelled: ['empty', '已取消'], deleted: ['expired', '已刪除'] };
+      const statusMap = { sent: ['active', '已發送'], scheduled: ['scheduled', '排程中'], processing: ['scheduled', '處理中'], recalled: ['expired', '已回收'], cancelled: ['empty', '已取消'], deleted: ['expired', '已刪除'] };
       const [statusClass, statusText] = statusMap[m.status] || ['empty', m.status];
 
       return `
@@ -111,7 +119,7 @@ Object.assign(App, {
     const targetLabel = m.targetUid
       ? `${m.targetName || m.targetUid}（${m.targetUid}）`
       : m.target;
-    const statusMap = { sent: '已發送', scheduled: '排程中', recalled: '已回收', cancelled: '已取消排程', deleted: '已刪除' };
+    const statusMap = { sent: '已發送', scheduled: '排程中', processing: '處理中', recalled: '已回收', cancelled: '已取消排程', deleted: '已刪除' };
     let schedHtml = '';
     if (m.scheduledAt) {
       const d = new Date(m.scheduledAt);
@@ -453,26 +461,150 @@ Object.assign(App, {
   },
 
   // ── 排程信件自動處理 ──
-  _processScheduledMessages() {
+  async _processScheduledMessages() {
+    if (this._scheduledMessageProcessing) return;
+    this._scheduledMessageProcessing = true;
+
     const now = Date.now();
     const allItems = ApiService.getAdminMessages();
     const due = allItems.filter(m => m.status === 'scheduled' && m.scheduledAt && new Date(m.scheduledAt).getTime() <= now);
-    if (!due.length) return;
+    if (!due.length) {
+      this._scheduledMessageProcessing = false;
+      return;
+    }
 
-    const catNames = { system: '系統', activity: '活動', private: '私訊' };
-    due.forEach(m => {
-      // 投遞到收件箱
-      const extra = { adminMsgId: m.id };
-      if (m.targetTeamId) extra.targetTeamId = m.targetTeamId;
-      if (m.targetRoles) extra.targetRoles = m.targetRoles;
-      this._deliverMessageToInbox(m.title, m.body, m.category, catNames[m.category] || m.categoryName || '系統', m.targetUid, m.senderName, extra);
-      // LINE 推播
-      this._queueLinePushByTarget(m.targetType || 'all', m.targetUid, m.category, m.title, m.body, m.targetTeamId);
-      // 更新狀態為已發送
-      ApiService.updateAdminMessage(m.id, { status: 'sent' });
-      console.log('[Schedule] 已自動發送排程信件:', m.title);
+    try {
+      const catNames = { system: '系統', activity: '活動', private: '私訊' };
+      for (const m of due) {
+        let claimed = false;
+        try {
+          claimed = await this._claimScheduledMessageForSend(m, now);
+        } catch (claimErr) {
+          console.error('[Schedule] claim failed:', m?.id, claimErr);
+        }
+        if (!claimed) continue;
+
+        try {
+          // 投遞到收件箱
+          const extra = { adminMsgId: m.id };
+          if (m.targetTeamId) extra.targetTeamId = m.targetTeamId;
+          if (m.targetRoles) extra.targetRoles = m.targetRoles;
+          this._deliverMessageToInbox(
+            m.title,
+            m.body,
+            m.category,
+            catNames[m.category] || m.categoryName || '系統',
+            m.targetUid,
+            m.senderName,
+            extra
+          );
+          // LINE 推播
+          this._queueLinePushByTarget(m.targetType || 'all', m.targetUid, m.category, m.title, m.body, m.targetTeamId);
+          await this._markScheduledMessageSent(m);
+          console.log('[Schedule] 已自動發送排程信件:', m.title);
+        } catch (sendErr) {
+          console.error('[Schedule] send failed:', m?.id, sendErr);
+          try {
+            await this._releaseScheduledMessageClaim(m, sendErr);
+          } catch (releaseErr) {
+            console.error('[Schedule] release failed:', m?.id, releaseErr);
+          }
+        }
+      }
+      this.renderMsgManage();
+    } finally {
+      this._scheduledMessageProcessing = false;
+    }
+  },
+
+  _getScheduledMessageProcessorId() {
+    const user = ApiService.getCurrentUser?.();
+    return user?.uid || user?.name || 'system';
+  },
+
+  async _claimScheduledMessageForSend(msg, nowMs) {
+    if (!msg || msg.status !== 'scheduled') return false;
+
+    const processorId = this._getScheduledMessageProcessorId();
+    const markLocalProcessing = () => {
+      const live = ApiService.getAdminMessages().find(m => m.id === msg.id);
+      if (!live || live.status !== 'scheduled') return false;
+      live.status = 'processing';
+      live.processingBy = processorId;
+      live.processingAt = new Date().toISOString();
+      return true;
+    };
+
+    if (ModeManager.isDemo() || !msg._docId) {
+      return markLocalProcessing();
+    }
+
+    let claimed = false;
+    const docRef = db.collection('adminMessages').doc(msg._docId);
+    await db.runTransaction(async tx => {
+      const snap = await tx.get(docRef);
+      if (!snap.exists) return;
+      const data = snap.data() || {};
+      const dueMs = new Date(data.scheduledAt || msg.scheduledAt || 0).getTime();
+      if (data.status !== 'scheduled' || !Number.isFinite(dueMs) || dueMs > nowMs) return;
+      tx.update(docRef, {
+        status: 'processing',
+        processingBy: processorId,
+        processingAt: firebase.firestore.FieldValue.serverTimestamp(),
+      });
+      claimed = true;
     });
-    this.renderMsgManage();
+
+    if (claimed) markLocalProcessing();
+    return claimed;
+  },
+
+  async _markScheduledMessageSent(msg) {
+    if (!msg) return;
+    if (!ModeManager.isDemo() && msg._docId) {
+      const fv = firebase.firestore.FieldValue;
+      await db.collection('adminMessages').doc(msg._docId).update({
+        status: 'sent',
+        sentAt: fv.serverTimestamp(),
+        processingAt: fv.delete(),
+        processingBy: fv.delete(),
+        lastError: fv.delete(),
+      });
+    }
+    const live = ApiService.getAdminMessages().find(m => m.id === msg.id);
+    if (!live) return;
+    live.status = 'sent';
+    live.sentAt = new Date().toISOString();
+    delete live.processingAt;
+    delete live.processingBy;
+    delete live.lastError;
+  },
+
+  async _releaseScheduledMessageClaim(msg, err) {
+    if (!msg) return;
+    const errorText = err?.message ? String(err.message).slice(0, 300) : 'schedule_send_failed';
+    let writeErr = null;
+    if (!ModeManager.isDemo() && msg._docId) {
+      const fv = firebase.firestore.FieldValue;
+      try {
+        await db.collection('adminMessages').doc(msg._docId).update({
+          status: 'scheduled',
+          lastError: errorText,
+          processingAt: fv.delete(),
+          processingBy: fv.delete(),
+        });
+      } catch (e) {
+        writeErr = e;
+      }
+    }
+    const live = ApiService.getAdminMessages().find(m => m.id === msg.id);
+    if (live) {
+      live.status = 'scheduled';
+      live.lastError = errorText;
+      delete live.processingAt;
+      delete live.processingBy;
+    }
+    if (writeErr) throw writeErr;
   },
 
   // ── 投遞到用戶收件箱（只建立一封） ──

@@ -14,6 +14,7 @@ Object.assign(App, {
   _manualEditingUid: null,
   _manualEditingEventId: null,
   _eventPinCounter: 100,
+  _cancelActivityBusyMap: Object.create(null),
 
   _nextEventPinOrder() {
     const maxExisting = (ApiService.getEvents?.() || []).reduce((max, e) => {
@@ -47,6 +48,30 @@ Object.assign(App, {
       if (aMs !== bMs) return aMs - bMs;
       return String(a?.id || '').localeCompare(String(b?.id || ''));
     });
+  },
+
+  _collectEventNotifyRecipientUids(event, eventId) {
+    const notifyUids = new Set();
+    if (!eventId) return notifyUids;
+
+    const regs = ApiService.getRegistrationsByEvent(eventId) || [];
+    regs.forEach(r => {
+      if (r?.userId) notifyUids.add(r.userId);
+    });
+
+    const allNames = [...(event?.participants || []), ...(event?.waitlistNames || [])];
+    if (!allNames.length) return notifyUids;
+
+    const nameToUid = new Map();
+    (ApiService.getAdminUsers() || []).forEach(u => {
+      if (!u?.name || !u?.uid) return;
+      if (!nameToUid.has(u.name)) nameToUid.set(u.name, u.uid);
+    });
+    allNames.forEach(name => {
+      const uid = nameToUid.get(name);
+      if (uid) notifyUids.add(uid);
+    });
+    return notifyUids;
   },
 
   switchMyActivityTab(filter) {
@@ -1092,46 +1117,34 @@ Object.assign(App, {
 
   // ── 取消活動 ──
   async cancelMyActivity(id) {
+    if (this._cancelActivityBusyMap[id]) return;
+
     const e = ApiService.getEvent(id);
+    if (!e) return;
     if (e && !this._canManageEvent(e)) { this.showToast('您只能管理自己的活動'); return; }
-    if (!await this.appConfirm('確定要取消此活動？')) return;
+    this._cancelActivityBusyMap[id] = true;
+    try {
+      if (!await this.appConfirm('確定要取消此活動？')) return;
 
-    // Trigger 4：活動取消通知 — 通知所有報名者與候補者
-    if (e) {
-      const adminUsers = ApiService.getAdminUsers();
-      const allNames = [...(e.participants || []), ...(e.waitlistNames || [])];
-      allNames.forEach(name => {
-        const u = adminUsers.find(au => au.name === name);
-        if (u) {
-          this._sendNotifFromTemplate('event_cancelled', {
-            eventName: e.title, date: e.date, location: e.location,
-          }, u.uid, 'activity', '活動');
-        }
+      // Trigger 4：活動取消通知 — 通知所有報名者與候補者
+      const notifyUids = this._collectEventNotifyRecipientUids(e, id);
+      notifyUids.forEach(uid => {
+        this._sendNotifFromTemplate('event_cancelled', {
+          eventName: e.title, date: e.date, location: e.location,
+        }, uid, 'activity', '活動');
       });
-      // Firebase 模式：補查 registrations 確保不遺漏
-      if (!ModeManager.isDemo()) {
-        const regs = (FirebaseService._cache.registrations || []).filter(
-          r => r.eventId === id && r.status !== 'cancelled'
-        );
-        const notifiedNames = new Set(allNames);
-        regs.forEach(r => {
-          if (r.userId && !notifiedNames.has(r.userName)) {
-            this._sendNotifFromTemplate('event_cancelled', {
-              eventName: e.title, date: e.date, location: e.location,
-            }, r.userId, 'activity', '活動');
-          }
-        });
-      }
-    }
 
-    ApiService.updateEvent(id, { status: 'cancelled' });
-    // 活動被取消 → 刪除所有個人取消紀錄
-    this._cleanupCancelledRecords(id);
-    ApiService._writeOpLog('event_cancel', '取消活動', `取消「${e.title}」`);
-    this.renderMyActivities();
-    this.renderActivityList();
-    this.renderHotEvents();
-    this.showToast('活動已取消');
+      ApiService.updateEvent(id, { status: 'cancelled' });
+      // 活動被取消 → 刪除所有個人取消紀錄
+      this._cleanupCancelledRecords(id);
+      ApiService._writeOpLog('event_cancel', '取消活動', `取消「${e.title}」`);
+      this.renderMyActivities();
+      this.renderActivityList();
+      this.renderHotEvents();
+      this.showToast('活動已取消');
+    } finally {
+      delete this._cancelActivityBusyMap[id];
+    }
   },
 
   // ── 重新開放（已取消 → open/full） ──
@@ -1178,29 +1191,12 @@ Object.assign(App, {
     ApiService._writeOpLog('event_relist', '重新上架', `重新上架「${e.title}」`);
 
     // 通知已報名的用戶
-    const eventRegs = ApiService.getRegistrationsByEvent(id);
-    if (eventRegs.length > 0) {
-      const notifyUids = [...new Set(eventRegs.map(r => r.userId))];
-      notifyUids.forEach(uid => {
-        this._sendNotifFromTemplate('event_relisted', {
-          eventName: e.title, date: e.date, location: e.location,
-        }, uid, 'activity', '活動');
-      });
-    } else {
-      // fallback: 舊資料沒有 registrations，用名字查找
-      const allNames = [...(e.participants || []), ...(e.waitlistNames || [])];
-      if (allNames.length > 0) {
-        const adminUsers = ApiService.getAdminUsers();
-        allNames.forEach(name => {
-          const u = adminUsers.find(au => au.name === name);
-          if (u) {
-            this._sendNotifFromTemplate('event_relisted', {
-              eventName: e.title, date: e.date, location: e.location,
-            }, u.uid, 'activity', '活動');
-          }
-        });
-      }
-    }
+    const notifyUids = this._collectEventNotifyRecipientUids(e, id);
+    notifyUids.forEach(uid => {
+      this._sendNotifFromTemplate('event_relisted', {
+        eventName: e.title, date: e.date, location: e.location,
+      }, uid, 'activity', '活動');
+    });
 
     this.renderMyActivities();
     this.renderActivityList();
