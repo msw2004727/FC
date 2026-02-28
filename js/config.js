@@ -75,7 +75,8 @@
 // 20260228a: force global cache refresh for i18n locale rollout
 // 20260228b: team invite share text + dynamic team OG + team-share redirects
 // 20260228c: Cloudflare Worker route for team-share dynamic OG (main domain)
-const CACHE_VERSION = '20260228c';
+// 20260228d: team detail member list edit mode + staff-only member removal with full sync
+const CACHE_VERSION = '20260228d';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {

@@ -7,6 +7,7 @@ Object.assign(App, {
 
   _teamDetailId: null,
   _teamFeedPage: {},
+  _teamMemberEditModeByTeam: {},
   _FEED_PAGE_SIZE: 20,
   _MAX_PINNED: 5,
 
@@ -35,6 +36,52 @@ Object.assign(App, {
     btn.style.display = this._canEditTeamByRoleOrCaptain?.(team) ? '' : 'none';
   },
 
+  _canManageTeamMembers(team) {
+    const curUser = ApiService.getCurrentUser?.();
+    if (!team || !curUser) return false;
+    const myUid = curUser.uid || null;
+    const myNames = new Set([curUser.name, curUser.displayName].filter(Boolean));
+    if (team.captainUid && myUid && team.captainUid === myUid) return true;
+    if (!team.captainUid && team.captain && myNames.has(team.captain)) return true;
+    const leaderUids = team.leaderUids || (team.leaderUid ? [team.leaderUid] : []);
+    if (myUid && leaderUids.includes(myUid)) return true;
+    const leaderNames = team.leaders || (team.leader ? [team.leader] : []);
+    if (leaderNames.some(name => myNames.has(name))) return true;
+    if ((team.coaches || []).some(name => myNames.has(name))) return true;
+    return false;
+  },
+
+  _getTeamStaffIdentity(team) {
+    const names = new Set();
+    const uids = new Set();
+    if (!team) return { names, uids };
+    if (team.captain) names.add(team.captain);
+    if (team.captainUid) uids.add(team.captainUid);
+    const leaderNames = team.leaders || (team.leader ? [team.leader] : []);
+    leaderNames.filter(Boolean).forEach(name => names.add(name));
+    const leaderUids = team.leaderUids || (team.leaderUid ? [team.leaderUid] : []);
+    leaderUids.filter(Boolean).forEach(uid => uids.add(uid));
+    (team.coaches || []).filter(Boolean).forEach(name => names.add(name));
+    return { names, uids };
+  },
+
+  _isRegularTeamMember(user, staffIdentity) {
+    if (!user) return false;
+    if (staffIdentity?.uids?.has(user.uid)) return false;
+    const names = [user.name, user.displayName].filter(Boolean);
+    if (names.some(name => staffIdentity?.names?.has(name))) return false;
+    return true;
+  },
+
+  _keepTeamMembersSectionOpen() {
+    const toggle = document.getElementById('team-members-toggle');
+    if (!toggle) return;
+    const content = toggle.nextElementSibling;
+    if (content && content.style.display === 'none') {
+      this.toggleProfileSection(toggle, 'teamMembers');
+    }
+  },
+
   openTeamDetailEdit() {
     const teamId = this._teamDetailId;
     const team = teamId ? ApiService.getTeam(teamId) : null;
@@ -51,6 +98,9 @@ Object.assign(App, {
     if (!t) return;
     this._teamDetailId = id;
     this._refreshTeamDetailEditButton(t);
+    const canManageMembers = this._canManageTeamMembers(t);
+    const memberEditMode = !!this._teamMemberEditModeByTeam[t.id];
+    const staffIdentity = this._getTeamStaffIdentity(t);
     document.getElementById('team-detail-title').textContent = t.name;
     document.getElementById('team-detail-name-en').textContent = t.nameEn || '';
 
@@ -114,21 +164,26 @@ Object.assign(App, {
         </div>
       </div>
       <div class="td-card">
-        <div class="td-card-title profile-collapse-toggle" onclick="App.toggleProfileSection(this,'teamMembers')">
+        <div id="team-members-toggle" class="td-card-title td-card-title-row profile-collapse-toggle" onclick="App.toggleProfileSection(this,'teamMembers')">
           <span>${I18N.t('teamDetail.memberList')}</span>
-          <span class="profile-collapse-arrow">▶</span>
+          <span class="td-card-title-right">
+            ${canManageMembers ? `<button class="outline-btn td-member-edit-btn" onclick="event.stopPropagation();App.toggleTeamMemberEditMode('${t.id}')">${memberEditMode ? '完成' : '編輯'}</button>` : ''}
+            <span class="profile-collapse-arrow">▶</span>
+          </span>
         </div>
         <div class="profile-collapse-content td-member-tags" style="display:none">
           ${(() => {
             const allUsers = ApiService.getAdminUsers() || [];
             const teamMembers = allUsers.filter(u => u.teamId === t.id);
-            const leaderNames = t.leaders || (t.leader ? [t.leader] : []);
-            const staffNames = new Set([t.captain, ...leaderNames, ...(t.coaches || [])].filter(Boolean));
-            const regularMembers = teamMembers.filter(u => !staffNames.has(u.name));
+            const regularMembers = teamMembers.filter(u => this._isRegularTeamMember(u, staffIdentity));
             if (!regularMembers.length) return `<div style="font-size:.82rem;color:var(--text-muted);padding:.3rem">${I18N.t('teamDetail.none')}</div>`;
-            return regularMembers.map(u =>
-              `<span class="user-capsule uc-user" onclick="App.showUserProfile('${escapeHTML(u.name)}')">${escapeHTML(u.name)}</span>`
-            ).join('');
+            return regularMembers.map(u => {
+              const memberName = u.name || u.displayName || u.uid || '未知';
+              const removeBtn = (canManageMembers && memberEditMode && u.uid)
+                ? `<button class="td-member-remove-btn" title="移除隊員" onclick="event.stopPropagation();App.removeTeamMember('${t.id}','${u.uid}')">×</button>`
+                : '';
+              return `<span class="td-member-item-wrap"><span class="user-capsule uc-user" onclick="App.showUserProfile('${escapeHTML(memberName)}')">${escapeHTML(memberName)}</span>${removeBtn}</span>`;
+            }).join('');
           })()}
         </div>
       </div>
@@ -164,6 +219,88 @@ Object.assign(App, {
       })()}
     `;
     this.showPage('page-team-detail');
+  },
+
+  toggleTeamMemberEditMode(teamId) {
+    const t = ApiService.getTeam(teamId);
+    if (!t) return;
+    if (!this._canManageTeamMembers(t)) {
+      this.showToast('您沒有編輯隊員的權限');
+      return;
+    }
+    this._teamMemberEditModeByTeam[teamId] = !this._teamMemberEditModeByTeam[teamId];
+    this.showTeamDetail(teamId);
+    this._keepTeamMembersSectionOpen();
+  },
+
+  async removeTeamMember(teamId, memberUid) {
+    const t = ApiService.getTeam(teamId);
+    if (!t || !memberUid) return;
+    if (!this._canManageTeamMembers(t)) {
+      this.showToast('您沒有移除隊員的權限');
+      return;
+    }
+    const users = ApiService.getAdminUsers() || [];
+    const member = users.find(u => u.uid === memberUid);
+    if (!member || member.teamId !== teamId) {
+      this.showToast('隊員資料不存在或已不在球隊中');
+      this.showTeamDetail(teamId);
+      this._keepTeamMembersSectionOpen();
+      return;
+    }
+    const staffIdentity = this._getTeamStaffIdentity(t);
+    if (!this._isRegularTeamMember(member, staffIdentity)) {
+      this.showToast('僅可移除一般隊員');
+      return;
+    }
+
+    const memberName = member.name || member.displayName || member.uid;
+    if (!(await this.appConfirm(`確定要移除隊員「${memberName}」？`))) return;
+
+    if (!ModeManager.isDemo() && member._docId) {
+      try {
+        if (typeof FirebaseService._ensureAuth === 'function') {
+          const authed = await FirebaseService._ensureAuth();
+          if (!authed) {
+            this.showToast('登入已過期，請重新整理頁面後再試');
+            return;
+          }
+        }
+        await FirebaseService.updateUser(member._docId, { teamId: null, teamName: null });
+      } catch (err) {
+        console.error('[removeTeamMember]', err);
+        if (typeof ApiService._writeErrorLog === 'function') {
+          ApiService._writeErrorLog(
+            {
+              fn: 'removeTeamMember',
+              teamId,
+              memberUid,
+              docId: member._docId,
+              authUid: (typeof auth !== 'undefined' && auth?.currentUser?.uid) ? auth.currentUser.uid : 'null',
+            },
+            err
+          );
+        }
+        this.showToast('移除失敗，請稍後再試');
+        return;
+      }
+    }
+
+    member.teamId = null;
+    member.teamName = null;
+    const currentUser = ApiService.getCurrentUser?.();
+    if (currentUser && currentUser.uid === memberUid) {
+      ApiService.updateCurrentUser({ teamId: null, teamName: null });
+    }
+
+    const memberCount = (ApiService.getAdminUsers() || []).filter(u => u.teamId === teamId).length;
+    ApiService.updateTeam(teamId, { members: memberCount });
+
+    const actorName = currentUser?.displayName || currentUser?.name || '職員';
+    ApiService._writeOpLog('team_member_remove', '移除隊員', `${actorName} 將「${memberName}」移出「${t.name}」`);
+    this.showToast(`已移除隊員「${memberName}」`);
+    this.showTeamDetail(teamId);
+    this._keepTeamMembersSectionOpen();
   },
 
   // ══════════════════════════════════

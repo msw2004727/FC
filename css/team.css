@@ -81,11 +81,33 @@
   margin-bottom: .65rem;
 }
 .td-card-title { font-weight: 700; font-size: .88rem; margin-bottom: .6rem; padding-bottom: .4rem; border-bottom: 1px solid var(--border); }
+.td-card-title-row { display: flex; align-items: center; justify-content: space-between; gap: .45rem; }
+.td-card-title-right { display: inline-flex; align-items: center; gap: .4rem; }
+.td-member-edit-btn { padding: .16rem .58rem; font-size: .72rem; line-height: 1.2; min-height: 24px; }
 .td-card-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; }
 .td-card-item { display: flex; flex-direction: column; gap: .15rem; padding: .4rem; background: var(--bg-elevated); border-radius: var(--radius-sm); }
 .td-card-label { font-size: .7rem; color: var(--text-muted); }
 .td-card-value { font-size: .85rem; font-weight: 600; }
 .td-member-tags { display: flex; flex-wrap: wrap; gap: .4rem; }
+.td-member-item-wrap { display: inline-flex; align-items: center; gap: .25rem; }
+.td-member-remove-btn {
+  width: 18px;
+  height: 18px;
+  border: none;
+  border-radius: 999px;
+  background: #dc2626;
+  color: #fff;
+  font-size: .78rem;
+  font-weight: 700;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  transition: transform .12s ease, opacity .12s ease;
+}
+.td-member-remove-btn:hover { opacity: .92; transform: scale(1.05); }
 .td-member-list { display: grid; grid-template-columns: 1fr 1fr; gap: .4rem; }
 .td-member-card {
   display: flex; align-items: center; gap: .5rem;
