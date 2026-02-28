@@ -1,0 +1,19 @@
+{
+  "name": "fc-github-rules-tests",
+  "private": true,
+  "scripts": {
+    "test:rules:unit": "jest --runInBand --runTestsByPath .\\tests\\firestore.rules.test.js",
+    "test:rules": "cross-env CI=true NO_UPDATE_NOTIFIER=1 FIREBASE_SKIP_UPDATE_CHECK=true XDG_CONFIG_HOME=.firebase-config firebase emulators:exec --only firestore --project demo-rules-test \"npm run test:rules:unit\"",
+    "test:rules:watch": "cross-env CI=true NO_UPDATE_NOTIFIER=1 FIREBASE_SKIP_UPDATE_CHECK=true XDG_CONFIG_HOME=.firebase-config firebase emulators:exec --only firestore --project demo-rules-test \"jest --watch tests/firestore.rules.test.js\""
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^3.0.3",
+    "cross-env": "^7.0.3",
+    "firebase": "^10.14.1",
+    "firebase-tools": "^14.8.0",
+    "jest": "^29.7.0"
+  },
+  "jest": {
+    "testEnvironment": "node"
+  }
+}
