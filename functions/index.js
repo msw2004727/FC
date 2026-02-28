@@ -1,5 +1,5 @@
 const { onDocumentCreated } = require("firebase-functions/v2/firestore");
-const { onCall, HttpsError } = require("firebase-functions/v2/https");
+const { onCall, onRequest, HttpsError } = require("firebase-functions/v2/https");
 const { defineSecret } = require("firebase-functions/params");
 const { initializeApp } = require("firebase-admin/app");
 const { getFirestore, FieldValue, FieldPath } = require("firebase-admin/firestore");
@@ -20,6 +20,8 @@ const VALID_ROLES = new Set([
   "admin",
   "super_admin",
 ]);
+const SHARE_SITE_ORIGIN = "https://toosterx.com";
+const DEFAULT_TEAM_SHARE_OG_IMAGE = "https://firebasestorage.googleapis.com/v0/b/fc-football-6c8dc.firebasestorage.app/o/images%2Ftest%2FS__174522375.jpg?alt=media&token=73eb0e3f-a94a-4368-a6df-d4afafaa4ea0";
 
 function normalizeRole(role) {
   if (typeof role !== "string") return "user";
@@ -28,6 +30,97 @@ function normalizeRole(role) {
 
 function getAuthErrorCode(err) {
   return err?.errorInfo?.code || err?.code || "";
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function sanitizeImageUrl(rawUrl) {
+  if (typeof rawUrl !== "string") return DEFAULT_TEAM_SHARE_OG_IMAGE;
+  const trimmed = rawUrl.trim();
+  if (!trimmed) return DEFAULT_TEAM_SHARE_OG_IMAGE;
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  return DEFAULT_TEAM_SHARE_OG_IMAGE;
+}
+
+function parseTeamShareId(req) {
+  const rawQueryValue = req.query?.teamId;
+  const queryValue = Array.isArray(rawQueryValue) ? rawQueryValue[0] : rawQueryValue;
+  if (typeof queryValue === "string" && queryValue.trim()) {
+    return queryValue.trim();
+  }
+
+  const parts = String(req.path || "")
+    .split("/")
+    .filter(Boolean);
+  if (!parts.length) return "";
+
+  const lastSegment = parts[parts.length - 1];
+  try {
+    return decodeURIComponent(lastSegment).trim();
+  } catch (_) {
+    return String(lastSegment || "").trim();
+  }
+}
+
+function buildTeamShareHtml({
+  ogTitle,
+  ogDescription,
+  ogImage,
+  ogUrl,
+  redirectUrl,
+}) {
+  const escapedTitle = escapeHtml(ogTitle);
+  const escapedDescription = escapeHtml(ogDescription);
+  const escapedImage = escapeHtml(ogImage);
+  const escapedOgUrl = escapeHtml(ogUrl);
+  const escapedRedirectUrl = escapeHtml(redirectUrl);
+  const scriptRedirectUrl = JSON.stringify(redirectUrl);
+
+  return `<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>${escapedTitle}</title>
+  <meta property="og:title" content="${escapedTitle}">
+  <meta property="og:description" content="${escapedDescription}">
+  <meta property="og:image" content="${escapedImage}">
+  <meta property="og:url" content="${escapedOgUrl}">
+  <meta property="og:type" content="website">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="${escapedTitle}">
+  <meta name="twitter:description" content="${escapedDescription}">
+  <meta name="twitter:image" content="${escapedImage}">
+  <meta name="robots" content="noindex,nofollow">
+  <meta http-equiv="refresh" content="0;url=${escapedRedirectUrl}">
+</head>
+<body>
+  <script>
+    location.replace(${scriptRedirectUrl});
+  </script>
+</body>
+</html>`;
+}
+
+async function getTeamByShareId(teamId) {
+  if (!teamId) return null;
+
+  const directSnap = await db.collection("teams").doc(teamId).get();
+  if (directSnap.exists) return directSnap.data() || {};
+
+  const querySnap = await db.collection("teams")
+    .where("id", "==", teamId)
+    .limit(1)
+    .get();
+  if (querySnap.empty) return null;
+  return querySnap.docs[0].data() || {};
 }
 
 async function ensureAuthUser(uid) {
@@ -369,5 +462,56 @@ exports.processLinePushQueue = onDocumentCreated(
         console.error(`[LinePush] 自動解綁失敗: ${uid}`, unbindErr);
       }
     }
+  }
+);
+
+exports.teamShareOg = onRequest(
+  { region: "asia-east1", timeoutSeconds: 15 },
+  async (req, res) => {
+    if (!["GET", "HEAD"].includes(req.method)) {
+      res.set("Allow", "GET, HEAD");
+      res.status(405).send("Method Not Allowed");
+      return;
+    }
+
+    const teamId = parseTeamShareId(req);
+    const encodedTeamId = encodeURIComponent(teamId || "");
+    const teamShareUrl = teamId
+      ? `${SHARE_SITE_ORIGIN}/team-share/${encodedTeamId}`
+      : `${SHARE_SITE_ORIGIN}/team-share`;
+
+    let team = null;
+    if (teamId) {
+      try {
+        team = await getTeamByShareId(teamId);
+      } catch (err) {
+        console.error("[teamShareOg] failed to read team data:", teamId, err);
+      }
+    }
+
+    const teamName = String(team?.name || "").trim();
+    const hasTeam = !!teamName;
+    const teamLabel = hasTeam ? `「${teamName}」球隊` : "球隊";
+    const ogTitle = hasTeam
+      ? `加入「${teamName}」球隊｜TooSterx Hub`
+      : "TooSterx Hub 球隊邀請";
+    const ogDescription = `這是在TooSterx Hub上創立的${teamLabel}，誠摯邀請您加入球隊，跟我們一起享受活動~`;
+    const ogImage = sanitizeImageUrl(
+      team?.image || team?.coverImage || team?.cover || team?.banner || team?.logo
+    );
+    const redirectUrl = (teamId && team)
+      ? `${SHARE_SITE_ORIGIN}/?team=${encodedTeamId}`
+      : `${SHARE_SITE_ORIGIN}/`;
+    const html = buildTeamShareHtml({
+      ogTitle,
+      ogDescription,
+      ogImage,
+      ogUrl: teamShareUrl,
+      redirectUrl,
+    });
+
+    res.set("Content-Type", "text/html; charset=utf-8");
+    res.set("Cache-Control", "public, max-age=60, s-maxage=300");
+    res.status(200).send(html);
   }
 );

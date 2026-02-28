@@ -1,0 +1,2 @@
+/team-share https://asia-east1-fc-football-6c8dc.cloudfunctions.net/teamShareOg 200
+/team-share/* https://asia-east1-fc-football-6c8dc.cloudfunctions.net/teamShareOg/:splat 200

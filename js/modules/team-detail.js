@@ -465,49 +465,107 @@ Object.assign(App, {
   },
 
   // ══════════════════════════════════
+  _getTeamInviteShareUrl(teamId) {
+    const encodedTeamId = encodeURIComponent(String(teamId || '').trim());
+    if (!encodedTeamId) return `${location.origin}${location.pathname}`;
+    const prodHosts = ['toosterx.com', 'www.toosterx.com', 'msw2004727.github.io', 'fc-3g8.pages.dev'];
+    if (prodHosts.includes(location.hostname)) {
+      return `https://toosterx.com/team-share/${encodedTeamId}`;
+    }
+    return `${location.origin}${location.pathname}?team=${encodedTeamId}`;
+  },
+
+  _buildTeamInviteShareText(teamName, shareUrl) {
+    const cleanName = String(teamName || '').trim();
+    const teamLabel = cleanName ? `「${cleanName}」球隊` : '球隊';
+    return `這是在TooSterx Hub上創立的${teamLabel}，誠摯邀請您加入球隊，跟我們一起享受活動~\n${shareUrl}`;
+  },
+
+  _copyTextFallback(text) {
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.setAttribute('readonly', '');
+    textarea.style.cssText = 'position:fixed;left:-9999px;top:0;opacity:0';
+    document.body.appendChild(textarea);
+    textarea.select();
+    let copied = false;
+    try { copied = document.execCommand('copy'); } catch (_) {}
+    document.body.removeChild(textarea);
+    if (copied) {
+      this.showToast('邀請內容已複製');
+    } else {
+      this.showToast('複製失敗');
+    }
+  },
+
+  async _shareOrCopyTeamInvite(shareText) {
+    if (!shareText) return;
+    if (navigator.share) {
+      try {
+        await navigator.share({ text: shareText });
+        return;
+      } catch (err) {
+        if (err && err.name === 'AbortError') return;
+      }
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(shareText).then(() => {
+        this.showToast('邀請內容已複製');
+      }).catch(() => {
+        this._copyTextFallback(shareText);
+      });
+      return;
+    }
+    this._copyTextFallback(shareText);
+  },
   //  Team Invite QR Code
   // ══════════════════════════════════
 
   showTeamInviteQR(teamId) {
     const t = ApiService.getTeam(teamId);
     if (!t) return;
-    const url = `${location.origin}${location.pathname}?team=${teamId}`;
-    // Remove existing overlay if any
+
+    const url = this._getTeamInviteShareUrl(teamId);
+    const shareText = this._buildTeamInviteShareText(t.name, url);
+    const sharePreview = escapeHTML(shareText).replace(/\n/g, '<br>');
+
     const existing = document.getElementById('qr-invite-overlay');
     if (existing) existing.remove();
-    // Create overlay
+
     const overlay = document.createElement('div');
     overlay.id = 'qr-invite-overlay';
     overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.55);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center';
     overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+
     const card = document.createElement('div');
-    card.style.cssText = 'background:var(--bg-card,#fff);border-radius:14px;padding:1.2rem;text-align:center;max-width:320px;width:88%';
+    card.style.cssText = 'background:var(--bg-card,#fff);border-radius:14px;padding:1.2rem;text-align:center;max-width:340px;width:90%';
     card.innerHTML = `
-      <div style="font-size:.95rem;font-weight:700;margin-bottom:.5rem">${escapeHTML(t.name)} — 邀請加入</div>
+      <div style="font-size:.95rem;font-weight:700;margin-bottom:.5rem">${escapeHTML(t.name)} 邀請加入</div>
       <div id="qr-invite-target" style="display:flex;justify-content:center;margin:.5rem 0"></div>
+      <div style="font-size:.72rem;color:var(--text-muted,#6b7280);line-height:1.6;white-space:normal;word-break:break-word">${sharePreview}</div>
       <div style="font-size:.72rem;color:var(--text-muted,#6b7280);margin-top:.5rem;word-break:break-all;user-select:all">${escapeHTML(url)}</div>
       <div style="display:flex;gap:.5rem;justify-content:center;margin-top:.6rem">
-        <button id="qr-copy-btn" style="padding:.4rem 1rem;border:1px solid var(--primary,#3b82f6);border-radius:8px;background:transparent;color:var(--primary,#3b82f6);font-size:.82rem;cursor:pointer">複製連結</button>
+        <button id="qr-copy-btn" style="padding:.4rem 1rem;border:1px solid var(--primary,#3b82f6);border-radius:8px;background:transparent;color:var(--primary,#3b82f6);font-size:.82rem;cursor:pointer">${navigator.share ? '分享邀請' : '複製邀請'}</button>
         <button style="padding:.4rem 1rem;border:none;border-radius:8px;background:var(--primary,#3b82f6);color:#fff;font-size:.82rem;cursor:pointer" onclick="document.getElementById('qr-invite-overlay').remove()">關閉</button>
       </div>`;
+
     overlay.appendChild(card);
     document.body.appendChild(overlay);
-    // Copy button
+
     document.getElementById('qr-copy-btn').addEventListener('click', () => {
-      navigator.clipboard.writeText(url).then(() => { App.showToast('邀請連結已複製'); }).catch(() => { App.showToast('複製失敗'); });
+      this._shareOrCopyTeamInvite(shareText);
     });
-    // Generate QR code (client-side → API fallback)
+
     const target = document.getElementById('qr-invite-target');
     if (target) {
       const apiFallback = () => {
-        target.innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&ecc=M&data=${encodeURIComponent(url)}" style="width:200px;height:200px;display:block" alt="QR Code" onerror="this.parentElement.innerHTML='<div style=\\'font-size:.78rem;color:var(--danger)\\'>QR Code 產生失敗</div>'">`;
+        target.innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&ecc=M&data=${encodeURIComponent(url)}" style="width:200px;height:200px;display:block" alt="QR Code" onerror="this.parentElement.innerHTML='<div style=\\'font-size:.78rem;color:var(--danger)\\'>QR Code 載入失敗</div>'">`;
       };
       if (typeof QRCode !== 'undefined' && QRCode.toDataURL) {
         QRCode.toDataURL(url, { width: 200, margin: 2, errorCorrectionLevel: 'M' })
           .then(dataUrl => { target.innerHTML = `<img src="${dataUrl}" style="width:200px;height:200px;display:block" alt="QR Code">`; })
           .catch(() => apiFallback());
       } else {
-        // 動態載入 QR Code 產生器
         const s = document.createElement('script');
         s.src = 'https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js';
         s.onload = () => {
@@ -515,7 +573,9 @@ Object.assign(App, {
             QRCode.toDataURL(url, { width: 200, margin: 2, errorCorrectionLevel: 'M' })
               .then(dataUrl => { target.innerHTML = `<img src="${dataUrl}" style="width:200px;height:200px;display:block" alt="QR Code">`; })
               .catch(() => apiFallback());
-          } else { apiFallback(); }
+          } else {
+            apiFallback();
+          }
         };
         s.onerror = () => apiFallback();
         document.head.appendChild(s);
@@ -524,3 +584,4 @@ Object.assign(App, {
   },
 
 });
+
