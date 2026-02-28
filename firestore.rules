@@ -55,6 +55,19 @@ service cloud.firestore {
         && request.resource.data[field].size() > 0;
     }
 
+    function isRequestOwnerByField(field) {
+      return isAuth()
+        && (field in request.resource.data)
+        && request.resource.data[field] is string
+        && request.resource.data[field] == request.auth.uid;
+    }
+
+    function requestFieldEqualsAuthOrAbsent(field) {
+      return !(field in request.resource.data)
+        || (request.resource.data[field] is string
+          && request.resource.data[field] == request.auth.uid);
+    }
+
     function isResourceOwnerByField(field) {
       return isAuth()
         && (field in resource.data)
@@ -63,6 +76,12 @@ service cloud.firestore {
     }
 
     function isTeamOwner() {
+      return isResourceOwnerByField('captainUid')
+        || isResourceOwnerByField('creatorUid')
+        || isResourceOwnerByField('ownerUid');
+    }
+
+    function isEventOwner() {
       return isResourceOwnerByField('captainUid')
         || isResourceOwnerByField('creatorUid')
         || isResourceOwnerByField('ownerUid');
@@ -85,6 +104,78 @@ service cloud.firestore {
         || isResourceOwnerByField('creatorUid')
         || isResourceOwnerByField('uid')
         || isResourceOwnerByField('userId');
+    }
+
+    function isTradeRequestOwner() {
+      return isRequestOwnerByField('fromUid')
+        || isRequestOwnerByField('sellerUid')
+        || isRequestOwnerByField('ownerUid')
+        || isRequestOwnerByField('creatorUid')
+        || isRequestOwnerByField('uid')
+        || isRequestOwnerByField('userId');
+    }
+
+    function isTradeRequestOwnerConsistent() {
+      return requestFieldEqualsAuthOrAbsent('fromUid')
+        && requestFieldEqualsAuthOrAbsent('sellerUid')
+        && requestFieldEqualsAuthOrAbsent('ownerUid')
+        && requestFieldEqualsAuthOrAbsent('creatorUid')
+        && requestFieldEqualsAuthOrAbsent('uid')
+        && requestFieldEqualsAuthOrAbsent('userId');
+    }
+
+    function isRegistrationOwnerResource() {
+      return isResourceOwnerByField('userId')
+        || isResourceOwnerByField('uid');
+    }
+
+    function isRegistrationOwnerRequest() {
+      return isRequestOwnerByField('userId')
+        || isRequestOwnerByField('uid');
+    }
+
+    function isMessageParticipantResource() {
+      return isResourceOwnerByField('fromUid')
+        || isResourceOwnerByField('toUid');
+    }
+
+    function isMessageRecipientResource() {
+      return isResourceOwnerByField('toUid');
+    }
+
+    function isMessageSenderRequest() {
+      return isRequestOwnerByField('fromUid');
+    }
+
+    function canRecipientUpdateMessage() {
+      let changed = request.resource.data.diff(resource.data).affectedKeys();
+      return isMessageRecipientResource()
+        && changed.hasOnly(['unread', 'readAt', 'updatedAt'])
+        && (!changed.hasAny(['unread']) || request.resource.data.unread is bool)
+        && (!changed.hasAny(['readAt']) || request.resource.data.readAt == null || request.resource.data.readAt is timestamp)
+        && (!changed.hasAny(['updatedAt']) || request.resource.data.updatedAt is timestamp);
+    }
+
+    function isUserFieldOwnerResource() {
+      return isResourceOwnerByField('uid')
+        || isResourceOwnerByField('userId');
+    }
+
+    function isUserFieldOwnerRequest() {
+      return isRequestOwnerByField('uid')
+        || isRequestOwnerByField('userId');
+    }
+
+    function isOpLogOwnerResource() {
+      return isResourceOwnerByField('actorUid')
+        || isResourceOwnerByField('uid')
+        || isResourceOwnerByField('userId');
+    }
+
+    function isOpLogOwnerRequest() {
+      return isRequestOwnerByField('actorUid')
+        || isRequestOwnerByField('uid')
+        || isRequestOwnerByField('userId');
     }
 
     // ═══════════════════════════════════════════
@@ -169,10 +260,10 @@ service cloud.firestore {
     //  登入可讀寫（報名、取消報名、管理員代報名）
     // ═══════════════════════════════════════════
     match /registrations/{regId} {
-      allow read: if isAuth();
-      allow create: if isAuth();
-      allow update: if isAuth();
-      allow delete: if isAuth();
+      allow read: if isAdmin() || isRegistrationOwnerResource();
+      allow create: if isAdmin() || isRegistrationOwnerRequest();
+      allow update: if isAdmin() || (isRegistrationOwnerResource() && isRegistrationOwnerRequest());
+      allow delete: if isAdmin() || isRegistrationOwnerResource();
     }
 
     // ═══════════════════════════════════════════
@@ -204,12 +295,20 @@ service cloud.firestore {
     //  登入可讀寫
     // ═══════════════════════════════════════════
     match /messages/{msgId} {
-      allow read: if isAuth();
-      allow create: if isAuth();
-      allow update: if isAuth();
-      allow delete: if isAuth();
+      allow read: if isAdmin() || isResourceOwnerByField('fromUid');
+      allow create: if isAuth()
+        && isMessageSenderRequest()
+        && hasString('toUid')
+        && hasString('body');
+      // NOTE: Per-user soft delete or dual-sided hide is not fully enforceable by rules alone
+      // without changing data model (for example, per-user visibility flags).
+      allow update: if isAdmin()
+        || (
+          isResourceOwnerByField('fromUid')
+          && isRequestOwnerByField('fromUid')
+        );
+      allow delete: if isAdmin() || isResourceOwnerByField('fromUid');
     }
-
     // ═══════════════════════════════════════════
     //  Activity Records（活動紀錄）
     //  登入可讀可建立
@@ -336,12 +435,10 @@ service cloud.firestore {
       allow update, delete: if false;
     }
     match /errorLogs/{docId} {
-      allow read: if isAuth()
-        && request.auth.token.role == 'super_admin';
+      allow read: if isSuperAdmin();
       allow create: if isAuth();
       allow update: if false;
-      allow delete: if isAuth()
-        && request.auth.token.role == 'super_admin';
+      allow delete: if isSuperAdmin();
     }
 
     // ═══════════════════════════════════════════
@@ -399,7 +496,7 @@ service cloud.firestore {
     // ═══════════════════════════════════════════
     match /linePushQueue/{docId} {
       allow read: if false;
-      allow create: if isAuth();
+      allow create: if isAdmin();
       allow update, delete: if false;
     }
 
