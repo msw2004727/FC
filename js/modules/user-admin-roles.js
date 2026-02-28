@@ -114,7 +114,7 @@ Object.assign(App, {
         else delete source[role];
         console.error('[resetRolePermissions]', err);
         this.renderPermissions(role);
-        this.showToast('甈?更新失敗');
+        this.showToast('權限更新失敗');
         return;
       }
     }
@@ -172,7 +172,7 @@ Object.assign(App, {
         source[this._permSelectedRole] = prevPerms;
         console.error('[togglePermission]', err);
         this.renderPermissions(this._permSelectedRole);
-        this.showToast('甈?更新失敗');
+        this.showToast('權限更新失敗');
         return;
       }
     }

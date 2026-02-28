@@ -148,7 +148,7 @@ Object.assign(App, {
     } catch (err) {
       console.error('[handlePromote]', err);
       this.filterAdminUsers();
-      this.showToast('閫霈失敗，請稍後再試');
+      this.showToast('角色變更失敗，請稍後再試');
       select.value = '';
       return;
     }

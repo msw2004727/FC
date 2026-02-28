@@ -3,14 +3,14 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>TooSterxHub ?????勗?蝟餌絞</title>
-  <meta property="og:title" content="TooSterxHub ?????勗?蝟餌絞">
-  <meta property="og:description" content="TooSterxHub??蝷曄黎撟喳嚗???隢蝜怨銝剖?頞喟???澆??????瑕?蝬剖">
+  <title>TooSterxHub — 運動報名系統</title>
+  <meta property="og:title" content="TooSterxHub — 運動報名系統">
+  <meta property="og:description" content="TooSterxHub運動社群平台，有問題請聯繫臺中市足球教育發展協會理事長呂維哲">
   <meta property="og:image" content="https://firebasestorage.googleapis.com/v0/b/fc-football-6c8dc.firebasestorage.app/o/images%2Ftest%2FS__174522375.jpg?alt=media&token=73eb0e3f-a94a-4368-a6df-d4afafaa4ea0">
   <meta property="og:url" content="https://toosterx.com">
   <meta property="og:type" content="website">
   <link rel="icon" href="data:,">
-  <!-- CDN ??? + ???伐?霈汗?典 HTML 閫???挾撠梢?憪?頛?SDK嚗?-->
+  <!-- CDN 預連線 + 預載入（讓瀏覽器在 HTML 解析階段就開始下載 SDK） -->
   <link rel="preconnect" href="https://www.gstatic.com">
   <link rel="preconnect" href="https://static.line-scdn.net">
   <link rel="preconnect" href="https://firestore.googleapis.com">
@@ -23,29 +23,29 @@
   <link rel="preload" href="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js" as="script">
   <link rel="preload" href="https://www.gstatic.com/firebasejs/10.14.1/firebase-functions-compat.js" as="script">
   <link rel="preload" href="https://static.line-scdn.net/liff/edge/2/sdk.js" as="script">
-  <!-- 銝?菜?敹怠?嚗雯????clear=1 ?喳嚗INE ?批遣?汗?券?剁? -->
+  <!-- 一鍵清快取：網址加 ?clear=1 即可（LINE 內建瀏覽器適用） -->
   <script>
   (function(){
     var V='20260228j';
     var isProd = location.hostname === 'toosterx.com' || location.hostname === 'www.toosterx.com' || location.hostname === 'msw2004727.github.io' || location.hostname === 'fc-3g8.pages.dev';
-    // ?clear=1 撘瑕皜翰??
+    // ?clear=1 強制清快取
     if(location.search.indexOf('clear=1')!==-1){
       if('caches' in window) caches.keys().then(function(k){k.forEach(function(n){caches.delete(n)})});
       if('serviceWorker' in navigator) navigator.serviceWorker.getRegistrations().then(function(r){r.forEach(function(w){w.unregister()})});
       var old=['sporthub_auto_exp_rules','sporthub_auto_exp_logs'];
       old.forEach(function(k){try{localStorage.removeItem(k)}catch(e){}});
-      // 甇????hostname嚗?敹怠???雿菟?蝵桃 production 璅∪?
+      // 正式版 hostname：清快取時一併重置為 production 模式
       if(isProd) localStorage.setItem('sporthub_mode','production');
       localStorage.setItem('sporthub_cache_ver',V);
       location.replace(location.pathname);
       return;
     }
-    // ?芸??菜葫?霈? ??皜?SW cache + 靽格迤鋡怨? bug ?航身??demo ?芋撘?
+    // 自動偵測版本變化 → 清 SW cache + 修正被舊 bug 錯設為 demo 的模式
     var prev=localStorage.getItem('sporthub_cache_ver');
     if(prev&&prev!==V){
       if('caches' in window) caches.keys().then(function(k){k.forEach(function(n){caches.delete(n)})});
       if('serviceWorker' in navigator) navigator.serviceWorker.getRegistrations().then(function(r){r.forEach(function(w){w.unregister()})});
-      // 甇????hostname嚗??祆?唳??蔭??production嚗耨敺抵?????demo ????
+      // 正式版 hostname：版本更新時重置為 production（修復舊版自動退回 demo 的殘留）
       if(isProd && localStorage.getItem('sporthub_mode')==='demo'){
         localStorage.setItem('sporthub_mode','production');
       }
@@ -53,7 +53,7 @@
     localStorage.setItem('sporthub_cache_ver',V);
   })();
   </script>
-  <!-- CSS 璅∠????伐?base ??layout ???璅∠? -->
+  <!-- CSS 模組化載入：base → layout → 功能模組 -->
   <link rel="stylesheet" href="css/base.css?v=20260228j">
   <link rel="stylesheet" href="css/layout.css?v=20260228j">
   <link rel="stylesheet" href="css/home.css?v=20260228j">
@@ -69,7 +69,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 </head>
 <body>
-  <!-- ?日?Ｘ嚗雯????debug=1 ? -->
+  <!-- 除錯面板：網址加 ?debug=1 啟用 -->
   <script>
   if(location.search.indexOf('debug=1')!==-1){
     var _dbg=document.createElement('div');
@@ -87,7 +87,7 @@
   }
   </script>
   <script>
-    // ?拇?璅∪??菜葫嚗甇Ｘ迤撘??????Demo ?恍
+    // 早期模式偵測：防止正式版重整時閃現 Demo 畫面
     (function(){
       var mode = localStorage.getItem('sporthub_mode') ||
         (['toosterx.com','www.toosterx.com','msw2004727.github.io','fc-3g8.pages.dev'].includes(location.hostname) ? 'production' : 'demo');
@@ -99,7 +99,7 @@
 
   <!-- ============ TOP BAR ============ -->
   <header id="top-bar">
-    <button id="menu-toggle" aria-label="?詨">
+    <button id="menu-toggle" aria-label="選單">
       <span></span><span></span><span></span>
     </button>
     <div class="logo">
@@ -107,68 +107,68 @@
     </div>
     <div class="top-bar-right">
       <div class="sport-picker-wrapper" id="sport-picker-wrapper">
-        <button class="sport-picker-btn" id="sport-picker-btn" aria-label="?豢???憿">
-          <span class="sport-picker-icon"><span class="sport-emoji" aria-hidden="true">??/span></span>
+        <button class="sport-picker-btn" id="sport-picker-btn" aria-label="選擇運動類別">
+          <span class="sport-picker-icon"><span class="sport-emoji" aria-hidden="true">⚽</span></span>
         </button>
         <div class="sport-picker-dropdown" id="sport-picker-dropdown">
-          <div class="sport-picker-header">?豢???憿</div>
+          <div class="sport-picker-header">選擇運動類別</div>
           <div id="sport-picker-list"></div>
         </div>
       </div>
-      <div id="points-display" class="points-display" title="蝝航?蝛?">
+      <div id="points-display" class="points-display" title="累計積分">
         <span class="points-icon">P</span>
         <span class="points-value" id="points-value">0</span>
       </div>
-      <button id="notif-btn" aria-label="?">
+      <button id="notif-btn" aria-label="通知">
         <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
         <span class="notif-badge" id="notif-badge" style="display:none"></span>
       </button>
       <div class="role-switcher-wrapper" id="role-switcher-wrapper" style="display:none">
-        <button id="role-avatar-btn" class="role-avatar-btn" aria-label="??頨思遢">
-          <div class="role-avatar">暻?/div>
-          <span class="role-current-label">銝?祉??/span>
-          <span class="role-arrow">??/span>
+        <button id="role-avatar-btn" class="role-avatar-btn" aria-label="切換身份">
+          <div class="role-avatar">麥</div>
+          <span class="role-current-label">一般用戶</span>
+          <span class="role-arrow">▼</span>
         </button>
         <div id="role-dropdown" class="role-dropdown">
-          <div class="role-dropdown-header">?? Demo 頨思遢</div>
+          <div class="role-dropdown-header">切換 Demo 身份</div>
           <button class="role-dropdown-item active" data-role="user">
             <span class="role-icon">U</span>
-            <span>銝?祉??/span>
+            <span>一般用戶</span>
           </button>
           <button class="role-dropdown-item" data-role="coach">
             <span class="role-icon">C</span>
-            <span>?毀</span>
+            <span>教練</span>
           </button>
           <button class="role-dropdown-item" data-role="captain">
             <span class="role-icon">L</span>
-            <span>??</span>
+            <span>領隊</span>
           </button>
           <button class="role-dropdown-item" data-role="venue_owner">
             <span class="role-icon">V</span>
-            <span>?港蜓</span>
+            <span>場主</span>
           </button>
           <button class="role-dropdown-item" data-role="admin">
             <span class="role-icon">A</span>
-            <span>蝞∠???/span>
+            <span>管理員</span>
           </button>
           <button class="role-dropdown-item" data-role="super_admin">
             <span class="role-icon">S</span>
-            <span>蝮賜恣</span>
+            <span>總管</span>
           </button>
         </div>
       </div>
       <div id="line-login-wrapper" class="line-login-wrapper" style="display:none">
         <button id="line-login-btn" class="line-login-btn" onclick="LineAuth.login()">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="#fff"><path d="M12 2C6.48 2 2 5.83 2 10.5c0 4.18 3.66 7.68 8.58 8.38.33.07.78.22.9.5.1.26.07.66.03.92l-.15.86c-.04.26-.2 1.01.88.55s5.88-3.47 8.03-5.93C22.08 13.79 22 12.18 22 10.5 22 5.83 17.52 2 12 2z"/></svg>
-          LINE ?餃
+          LINE 登入
         </button>
         <div id="line-user-topbar" class="line-user-topbar" style="display:none">
           <img id="line-avatar-topbar" class="line-avatar-topbar" src="" alt="" onclick="App.toggleUserMenu()">
           <div id="user-menu-dropdown" class="user-menu-dropdown" style="display:none">
             <div class="user-menu-name" id="user-menu-name"></div>
             <div class="user-menu-divider"></div>
-            <button class="user-menu-item" onclick="App.showPage('page-profile'); App.toggleUserMenu()">??鞈?</button>
-            <button class="user-menu-item user-menu-logout" onclick="App.logoutLine()">?餃</button>
+            <button class="user-menu-item" onclick="App.showPage('page-profile'); App.toggleUserMenu()">我的資料</button>
+            <button class="user-menu-item user-menu-logout" onclick="App.logoutLine()">登出</button>
           </div>
         </div>
       </div>
@@ -190,49 +190,49 @@
     <div class="drawer-menu" id="drawer-menu"></div>
     <div class="drawer-footer">
       <button id="theme-toggle">
-        <span>瘛梯璅∪?</span>
+        <span>深色模式</span>
         <div class="toggle-switch"><div class="toggle-knob"></div></div>
       </button>
       <div id="lang-switcher" class="lang-switcher">
-        <span class="lang-label">隤?</span>
+        <span class="lang-label">語言</span>
         <select id="lang-select" onchange="App.switchLanguage(this.value)"></select>
       </div>
     </div>
   </nav>
 
-  <!-- ============ MAIN CONTENT嚗 PageLoader 頛 pages/*.html嚗?============ -->
+  <!-- ============ MAIN CONTENT（由 PageLoader 載入 pages/*.html） ============ -->
   <main id="main-content"></main>
 
   <!-- ============ BOTTOM TAB BAR ============ -->
   <nav id="bottom-tabs">
     <button class="bot-tab" data-page="page-tournaments">
       <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9H4.5a2.5 2.5 0 010-5C7 4 7 7 7 7"/><path d="M18 9h1.5a2.5 2.5 0 000-5C17 4 17 7 17 7"/><path d="M4 22h16"/><path d="M10 14.66V22"/><path d="M14 14.66V22"/><path d="M8 6v4a4 4 0 008 0V6H8z"/></svg>
-      <span>鞈賭?</span>
+      <span>賽事</span>
     </button>
     <button class="bot-tab" data-page="page-teams">
       <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
-      <span>??</span>
+      <span>球隊</span>
     </button>
     <div class="bot-tab-center-wrap">
-      <button class="bot-tab-qr" onclick="App.showUidQrCode()" aria-label="?? QR Code">
+      <button class="bot-tab-qr" onclick="App.showUidQrCode()" aria-label="我的 QR Code">
         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="8" height="8" rx="1"/><rect x="14" y="2" width="8" height="8" rx="1"/><rect x="2" y="14" width="8" height="8" rx="1"/><rect x="14" y="14" width="4" height="4"/><line x1="22" y1="14" x2="22" y2="18"/><line x1="18" y1="22" x2="22" y2="22"/></svg>
       </button>
       <button class="bot-tab active" data-page="page-home">
         <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
-        <span>擐?</span>
+        <span>首頁</span>
       </button>
     </div>
     <button class="bot-tab" data-page="page-activities">
       <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-      <span>瘣餃?</span>
+      <span>活動</span>
     </button>
     <button class="bot-tab" data-page="page-profile">
       <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-      <span>??</span>
+      <span>我的</span>
     </button>
   </nav>
 
-  <!-- ============ ?典?敶?摰孵嚗 PageLoader 頛 pages/modals.html嚗?============ -->
+  <!-- ============ 全域彈窗容器（由 PageLoader 載入 pages/modals.html） ============ -->
   <div id="modal-container"></div>
 
   <!-- Mode Badge -->
@@ -258,15 +258,15 @@
         <span class="boot-loading__scan" aria-hidden="true"></span>
         <div class="boot-loading__fill"></div>
       </div>
-      <div class="boot-loading__sub">蝬脰楝(?芰)甇??芸???銝?..</div>
+      <div class="boot-loading__sub">網路(未知)正在努力加載中...</div>
     </div>
   </div>
-  <!-- Deep link 蝑??∠?嚗?鈭恍???脣?IFF 撠 ready ?＊蝷綽? -->
+  <!-- Deep link 等待卡片（分享連結進入、LIFF 尚未 ready 時顯示） -->
   <div id="liff-deeplink-card" style="display:none">
     <div class="liff-card-spinner"></div>
-    <span>甇????嚗撠歲頧?/span>
+    <span>正在連線，即將跳轉…</span>
   </div>
-  <!-- 甇?????喲＊蝷箄??交?蝷?+ 摰??閮???-->
+  <!-- 正式版立即顯示載入提示 + 安全兜底計時器 -->
   <script>
     (function () {
       var overlay = document.getElementById('loading-overlay');
@@ -330,13 +330,13 @@
       }
 
       if (subEl) {
-        var networkLabel = '?芰';
+        var networkLabel = '未知';
         if (navigator.connection && typeof navigator.connection.effectiveType === 'string' && navigator.connection.effectiveType) {
           networkLabel = navigator.connection.effectiveType;
         } else if (navigator.onLine === false) {
-          networkLabel = '?Ｙ?';
+          networkLabel = '離線';
         }
-        subEl.textContent = '蝬脰楝(' + networkLabel + ')甇??芸???銝?..';
+        subEl.textContent = '網路(' + networkLabel + ')正在努力加載中...';
       }
 
       render();
@@ -349,7 +349,7 @@
       if (window._bootLoadingAnim && typeof window._bootLoadingAnim.start === 'function') {
         window._bootLoadingAnim.start();
       }
-      // 摰??嚗?憭＊蝷?20 蝘??亦?ｇ??踹?瘞賊??∩?
+      // 安全兜底：最多顯示 20 秒載入畫面，避免永遠卡住
       window._loadingSafety = setTimeout(function() {
         var ov = document.getElementById('loading-overlay');
         if (ov && ov.style.display !== 'none') {
@@ -358,21 +358,21 @@
             window._bootLoadingAnim.stop();
           }
           document.documentElement.classList.remove('prod-early');
-          console.warn('[Boot] 頛?暹?嚗撥?園???亦??);
+          console.warn('[Boot] 載入逾時，強制隱藏載入畫面');
         }
       }, 20000);
     }
   </script>
 
-  <!-- Firebase SDK + LIFF SDK ??app.js ??頛嚗?敺?DOMContentLoaded -->
+  <!-- Firebase SDK + LIFF SDK 由 app.js 動態載入，等待 DOMContentLoaded -->
 
-  <!-- QR Code 撱園頛嚗?蝣潭???閬? -->
-  <!-- ??scan.js ??頛嚗??憛???-->
+  <!-- QR Code 延遲載入（掃碼時才需要） -->
+  <!-- 由 scan.js 動態載入，不會阻塞首頁 -->
 
-  <!-- 憭?閮?箇? -->
+  <!-- 多語言基礎 -->
   <script defer src="js/i18n.js?v=20260228j"></script>
 
-  <!-- ?詨?撅?-->
+  <!-- 核心層 -->
   <script defer src="js/config.js?v=20260228j"></script>
   <script defer src="js/data.js?v=20260228j"></script>
   <script defer src="js/firebase-config.js?v=20260228j"></script>
@@ -381,19 +381,19 @@
   <script defer src="js/api-service.js?v=20260228j"></script>
   <script defer src="js/line-auth.js?v=20260228j"></script>
 
-  <!-- ?頛??+ ???單頛?剁?敹???App 銋?嚗?-->
+  <!-- 頁面載入器 + 動態腳本載入器（必須在 App 之前） -->
   <script defer src="js/core/page-loader.js?v=20260228j"></script>
   <script defer src="js/core/script-loader.js?v=20260228j"></script>
 
-  <!-- ?詨?嚗?蝢?App ?拐辣 + init/renderAll/showToast嚗?-->
+  <!-- 核心（定義 App 物件 + init/renderAll/showToast） -->
   <script defer src="app.js?v=20260228j"></script>
 
-  <!-- 撠鈭? -->
+  <!-- 導航互動 -->
   <script defer src="js/core/navigation.js?v=20260228j"></script>
   <script defer src="js/core/theme.js?v=20260228j"></script>
   <script defer src="js/core/mode.js?v=20260228j"></script>
 
-  <!-- ?璅∠? -->
+  <!-- 功能模組 -->
   <script defer src="js/modules/image-upload.js?v=20260228j"></script>
   <script defer src="js/modules/role.js?v=20260228j"></script>
   <script defer src="js/modules/profile-core.js?v=20260228j"></script>
@@ -434,10 +434,10 @@
   <script defer src="js/modules/scan.js?v=20260228j"></script>
   <script defer src="js/modules/attendance-notify.js?v=20260228j"></script>
 
-  <!-- Service Worker Registration + 撘瑕?湔 -->
+  <!-- Service Worker Registration + 強制更新 -->
   <script>
     if ('serviceWorker' in navigator) {
-      // ?菜葫 SW ?湔 ???芸????嚗?銝????蝔葉??嚗?葉??CDN 頛嚗?
+      // 偵測 SW 更新 → 自動重載頁面（但不在初始化過程中重載，避免中斷 CDN 載入）
       navigator.serviceWorker.addEventListener('controllerchange', function() {
         if (!window._swReloading && !window._appInitializing) {
           window._swReloading = true; location.reload();
@@ -448,17 +448,17 @@
       });
     }
   </script>
-  <!-- ?單頛憭望???嚗＊蝷箸?敹怠??? -->
+  <!-- 腳本載入失敗兜底：顯示清快取按鈕 -->
   <script>
     window.addEventListener('error', function(e) {
-      // ?芣??芸?皞?祈??亙仃??CDN ??頛??script ?勗???onerror ??嚗?憿舐內?典???嚗?
+      // 只攔截同源腳本載入失敗（CDN 動態載入的 script 由各自 onerror 處理，不顯示全域按鈕）
       if (e.target && e.target.tagName === 'SCRIPT' && e.target.src && e.target.src.indexOf(location.origin) === 0) {
         console.error('[Boot] Script failed:', e.target.src);
         var b = document.getElementById('_recovery_btn');
         if (!b) {
           b = document.createElement('button');
           b.id = '_recovery_btn';
-          b.textContent = '頛憭望?嚗?甇斗??文翰??閰?;
+          b.textContent = '載入失敗，點此清除快取重試';
           b.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:99999;padding:1rem 2rem;font-size:1rem;background:#dc2626;color:#fff;border:none;border-radius:8px;cursor:pointer';
           b.onclick = function() {
             if ('caches' in window) caches.keys().then(function(k){k.forEach(function(n){caches.delete(n)})});
@@ -472,4 +472,3 @@
   </script>
 </body>
 </html>
-
