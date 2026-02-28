@@ -314,42 +314,81 @@ Object.assign(App, {
         this.showToast('找不到申請人資料，無法完成審批');
         return;
       }
+
+      let currentTeamId = applicant.teamId || null;
+      let currentTeamName = applicant.teamName || null;
+      if (currentTeamId && currentTeamId !== teamId) {
+        this.showToast(`申請者已加入「${currentTeamName || currentTeamId}」，不可重複入隊「${teamName}」`);
+        return;
+      }
+
+      let shouldWriteMembership = currentTeamId !== teamId;
       if (!ModeManager.isDemo() && applicant._docId) {
         try {
-          // Ensure auth token is fresh before cross-user write
+          // Ensure auth token is fresh before cross-user checks/writes
           const authed = await FirebaseService._ensureAuth();
           if (!authed) {
             this.showToast('登入已過期，請重新整理頁面後再試');
             ApiService._writeErrorLog({ fn: 'handleTeamJoinAction', teamId, applicantUid, reason: 'auth_expired' }, new Error('_ensureAuth returned false'));
             return;
           }
-          console.log('[approve] writing updateUser:', applicant._docId, { teamId, teamName }, 'auth.uid:', auth?.currentUser?.uid);
-          await FirebaseService.updateUser(applicant._docId, { teamId, teamName });
+
+          // Re-check latest membership from server to reduce stale cache race
+          try {
+            const liveSnap = await db.collection('users').doc(applicant._docId).get({ source: 'server' });
+            if (liveSnap.exists) {
+              const liveData = liveSnap.data() || {};
+              currentTeamId = liveData.teamId || null;
+              currentTeamName = liveData.teamName || null;
+            }
+          } catch (readErr) {
+            console.warn('[approve] live user read failed, fallback to cache:', readErr?.code || readErr?.message || readErr);
+          }
+
+          if (currentTeamId && currentTeamId !== teamId) {
+            this.showToast(`申請者已加入「${currentTeamName || currentTeamId}」，不可重複入隊「${teamName}」`);
+            return;
+          }
+
+          shouldWriteMembership = currentTeamId !== teamId;
+          if (shouldWriteMembership) {
+            console.log('[approve] writing updateUser:', applicant._docId, { teamId, teamName }, 'auth.uid:', auth?.currentUser?.uid);
+            await FirebaseService.updateUser(applicant._docId, { teamId, teamName });
+          } else {
+            console.log('[approve] skip updateUser: applicant already in target team', { applicantUid, teamId });
+          }
         } catch (err) {
-          console.error('[approve] updateUser failed — code:', err?.code, 'msg:', err?.message, 'docId:', applicant._docId, 'auth.uid:', auth?.currentUser?.uid, err);
+          console.error('[approve] updateUser failed - code:', err?.code, 'msg:', err?.message, 'docId:', applicant._docId, 'auth.uid:', auth?.currentUser?.uid, err);
           this.showToast(`寫入失敗（${err?.code || err?.message || '權限錯誤'}），請重試`);
           ApiService._writeErrorLog({ fn: 'handleTeamJoinAction', teamId, applicantUid, docId: applicant._docId, authUid: auth?.currentUser?.uid || 'null' }, err);
           return;
         }
       }
-      // Update in-memory AFTER successful write (prevent stale cache on failure)
-      Object.assign(applicant, { teamId, teamName });
+
+      const finalTeamName = teamName || currentTeamName || applicant.teamName || '';
+      Object.assign(applicant, { teamId, teamName: finalTeamName });
       const curUserObj = ApiService.getCurrentUser();
       if (curUserObj && curUserObj.uid === applicantUid) {
-        ApiService.updateCurrentUser({ teamId, teamName });
+        ApiService.updateCurrentUser({ teamId, teamName: finalTeamName });
       }
-      // Update team members +1
-      const teamObj = ApiService.getTeam(teamId);
-      if (teamObj) ApiService.updateTeam(teamId, { members: (teamObj.members || 0) + 1 });
-      // Notify applicant
-      this._deliverMessageToInbox(
-        '球隊申請通過',
-        `恭喜！您已成功加入「${teamName}」球隊，審核人：${reviewerName}。`,
-        'system', '系統', applicantUid, '系統'
-      );
-      ApiService._writeOpLog('team_approve', '球隊審批', `${reviewerName} 同意「${applicantName}」加入「${teamName}」`);
-      this._evaluateAchievements();
-      this.showToast('已同意加入申請');
+
+      if (shouldWriteMembership) {
+        // Update team members +1 only on first successful join.
+        const teamObj = ApiService.getTeam(teamId);
+        if (teamObj) ApiService.updateTeam(teamId, { members: (teamObj.members || 0) + 1 });
+
+        // Notify applicant
+        this._deliverMessageToInbox(
+          '球隊申請通過',
+          `恭喜！您已成功加入「${finalTeamName}」球隊，審核人：${reviewerName}。`,
+          'system', '系統', applicantUid, '系統'
+        );
+        ApiService._writeOpLog('team_approve', '球隊審批', `${reviewerName} 同意「${applicantName}」加入「${finalTeamName}」`);
+        this._evaluateAchievements();
+        this.showToast('已同意加入申請');
+      } else {
+        this.showToast('申請者已在此球隊，僅更新審核狀態');
+      }
 
     } else if (action === 'reject') {
       this._deliverMessageToInbox(

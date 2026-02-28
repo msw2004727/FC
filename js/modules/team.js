@@ -237,20 +237,55 @@ Object.assign(App, {
     const applicantName = curUser?.displayName || (ModeManager.isDemo() ? DemoData.currentUser.displayName : '未知');
     if (!applicantUid) { this.showToast('請先登入'); return; }
 
-    // 4. Check for existing pending application
     const allMessages = ApiService.getMessages();
-    const hasPending = allMessages.find(m =>
+    const COOLDOWN_MS = 24 * 60 * 60 * 1000;
+
+    // helper: parse message time string "YYYY/MM/DD HH:MM" -> ms timestamp
+    const _parseTimeStr = (str) => {
+      if (!str) return 0;
+      const [dp, tp] = str.split(' ');
+      const [y, mo, d] = (dp || '').split('/').map(Number);
+      const [h, mi] = (tp || '0:0').split(':').map(Number);
+      return isNaN(y) ? 0 : new Date(y, mo - 1, d, h || 0, mi || 0).getTime();
+    };
+
+    // 4. Check for existing pending application (same team, 24h cooldown)
+    const pendingMsgs = allMessages.filter(m =>
       m.actionType === 'team_join_request' &&
       m.actionStatus === 'pending' &&
       m.meta && m.meta.teamId === teamId &&
       m.meta.applicantUid === applicantUid
     );
-    if (hasPending) {
-      this.showToast('您已申請此球隊，審核中請耐心等候');
+    if (pendingMsgs.length > 0) {
+      const mostRecentSentAt = Math.max(...pendingMsgs.map(m => _parseTimeStr(m.time)));
+      const elapsed = Date.now() - mostRecentSentAt;
+      if (elapsed < COOLDOWN_MS) {
+        const hoursLeft = Math.ceil((COOLDOWN_MS - elapsed) / 3600000);
+        this.showToast(`您已申請此球隊，請等候審核（可於 ${hoursLeft} 小時後再次申請）`);
+        return;
+      }
+      // Pending > 24h: mark as ignored (superseded)
+      pendingMsgs.forEach(m => {
+        ApiService.updateMessage(m.id, { actionStatus: 'ignored' });
+        m.actionStatus = 'ignored';
+      });
+    }
+
+    // 5. Check cooldown (24h after rejection)
+    const recentRejected = allMessages.find(m =>
+      m.actionType === 'team_join_request' &&
+      m.actionStatus === 'rejected' &&
+      m.meta && m.meta.teamId === teamId &&
+      m.meta.applicantUid === applicantUid &&
+      m.rejectedAt && (Date.now() - m.rejectedAt) < COOLDOWN_MS
+    );
+    if (recentRejected) {
+      const hoursLeft = Math.ceil((COOLDOWN_MS - (Date.now() - recentRejected.rejectedAt)) / 3600000);
+      this.showToast(`您的申請已被拒絕，請於 ${hoursLeft} 小時後再次申請`);
       return;
     }
 
-    // 5. Find captain UID
+    // 6. Find captain UID
     const users = ApiService.getAdminUsers();
     let captainUid = t.captainUid || null;
     if (!captainUid && t.captain) {
@@ -262,7 +297,7 @@ Object.assign(App, {
       return;
     }
 
-    // 6. Send join request message to captain
+    // 7. Send join request message to captain
     this._deliverMessageToInbox(
       '球隊加入申請',
       `${applicantName} 申請加入「${t.name}」球隊，請審核此申請。`,

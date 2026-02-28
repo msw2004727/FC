@@ -48,11 +48,10 @@ Object.assign(App, {
     const applicantUid = curUser?.uid || (ModeManager.isDemo() ? DemoData.currentUser.uid : null);
     const applicantName = curUser?.displayName || (ModeManager.isDemo() ? DemoData.currentUser.displayName : '未知');
     if (!applicantUid) { this.showToast('請先登入'); return; }
-
     const allMessages = ApiService.getMessages();
     const COOLDOWN_MS = 24 * 60 * 60 * 1000;
 
-    // helper: parse message time string "YYYY/MM/DD HH:MM" → ms timestamp
+    // helper: parse message time string "YYYY/MM/DD HH:MM" -> ms timestamp
     const _parseTimeStr = (str) => {
       if (!str) return 0;
       const [dp, tp] = str.split(' ');
@@ -61,7 +60,7 @@ Object.assign(App, {
       return isNaN(y) ? 0 : new Date(y, mo - 1, d, h || 0, mi || 0).getTime();
     };
 
-    // 4. Check for existing pending application (with 24h timeout)
+    // Same-team pending request cooldown
     const pendingMsgs = allMessages.filter(m =>
       m.actionType === 'team_join_request' &&
       m.actionStatus === 'pending' &&
@@ -83,7 +82,7 @@ Object.assign(App, {
       });
     }
 
-    // 5. Check cooldown (24h after rejection)
+    // Rejected request cooldown (24h)
     const recentRejected = allMessages.find(m =>
       m.actionType === 'team_join_request' &&
       m.actionStatus === 'rejected' &&
@@ -97,7 +96,7 @@ Object.assign(App, {
       return;
     }
 
-    // 6. Collect all staff UIDs (captainUid + leaderUids + coaches)
+    // 4. Collect all staff UIDs (captainUid + leaderUids + coaches)
     const allUsers = ApiService.getAdminUsers();
     const staffUids = new Set();
     if (t.captainUid) staffUids.add(t.captainUid);
@@ -122,10 +121,10 @@ Object.assign(App, {
       return;
     }
 
-    // 7. Generate groupId linking all staff messages for this request
+    // 5. Generate groupId linking all staff messages for this request
     const groupId = 'tjr_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
 
-    // 8. Broadcast join request to ALL staff
+    // 6. Broadcast join request to ALL staff
     staffUids.forEach(staffUid => {
       this._deliverMessageToInbox(
         '球隊加入申請',
