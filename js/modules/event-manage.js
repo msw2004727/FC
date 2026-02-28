@@ -13,6 +13,10 @@ Object.assign(App, {
   _myActivityCreatorFilter: '',
   _manualEditingUid: null,
   _manualEditingEventId: null,
+  _attendanceSubmittingEventId: null,
+  _attendancePendingStateByUid: null,
+  _unregSubmittingEventId: null,
+  _unregPendingStateByUid: null,
   _eventPinCounter: 100,
   _cancelActivityBusyMap: Object.create(null),
 
@@ -634,15 +638,27 @@ Object.assign(App, {
 
     // 整表編輯模式（手動簽到）
     const tableEditing = canManage && this._attendanceEditingEventId === eventId;
+    const isSubmitting = canManage && this._attendanceSubmittingEventId === eventId;
+    const pendingStateByUid = isSubmitting ? (this._attendancePendingStateByUid || Object.create(null)) : null;
 
-    const kickStyle = 'font-size:.7rem;padding:.2rem .4rem;border:1px solid var(--danger);color:var(--danger);background:transparent;border-radius:var(--radius-sm);cursor:pointer;white-space:nowrap';
-    const cbStyle = 'width:1.4rem;height:1.4rem;cursor:pointer;vertical-align:middle';
+    const kickStyle = 'font-size:.7rem;padding:.2rem .4rem;border:1px solid var(--danger);color:var(--danger);background:transparent;border-radius:var(--radius-sm);cursor:pointer;white-space:nowrap'
+      + (isSubmitting ? ';opacity:.65;cursor:not-allowed' : '');
+    const cbStyle = 'width:1.4rem;height:1.4rem;cursor:pointer;vertical-align:middle'
+      + (isSubmitting ? ';opacity:.7;cursor:not-allowed' : '');
+    const noteInputStyle = 'width:100%;font-size:.72rem;padding:.15rem .3rem;border:1px solid var(--border);border-radius:3px;box-sizing:border-box'
+      + (isSubmitting ? ';opacity:.7;cursor:not-allowed' : '');
+    const disabledAttr = isSubmitting ? 'disabled' : '';
 
     let rows = people.map(p => {
-      const hasCheckin = records.some(r => this._matchAttendanceRecord(r, p) && r.type === 'checkin');
-      const hasCheckout = records.some(r => this._matchAttendanceRecord(r, p) && r.type === 'checkout');
+      const pendingState = pendingStateByUid ? pendingStateByUid[String(p.uid)] : null;
+      const hasCheckin = pendingState
+        ? !!pendingState.checkin
+        : records.some(r => this._matchAttendanceRecord(r, p) && r.type === 'checkin');
+      const hasCheckout = pendingState
+        ? !!pendingState.checkout
+        : records.some(r => this._matchAttendanceRecord(r, p) && r.type === 'checkout');
       const noteRec = this._getLatestAttendanceRecord(records, p, 'note');
-      const noteText = noteRec?.note || '';
+      const noteText = pendingState ? (pendingState.note || '') : (noteRec?.note || '');
       const autoNote = p.proxyOnly ? '僅代報' : '';
       const combinedNote = [autoNote, noteText].filter(Boolean).join('・');
 
@@ -659,13 +675,13 @@ Object.assign(App, {
       const safeName = escapeHTML(p.name);
 
       if (tableEditing) {
-        const kickTd = `<td style="padding:.35rem .2rem;text-align:center"><button style="${kickStyle}" onclick="App._removeParticipant('${escapeHTML(eventId)}','${safeUid}','${safeName}',${p.isCompanion})">踢掉</button></td>`;
+        const kickTd = `<td style="padding:.35rem .2rem;text-align:center"><button style="${kickStyle}" ${disabledAttr} onclick="App._removeParticipant('${escapeHTML(eventId)}','${safeUid}','${safeName}',${p.isCompanion})">踢掉</button></td>`;
         return `<tr style="border-bottom:1px solid var(--border)">
           ${kickTd}
           <td style="padding:.35rem .3rem;text-align:left">${nameHtml}</td>
-          <td style="padding:.35rem .2rem;text-align:center"><input type="checkbox" id="manual-checkin-${safeUid}" ${hasCheckin ? 'checked' : ''} style="${cbStyle}"></td>
-          <td style="padding:.35rem .2rem;text-align:center"><input type="checkbox" id="manual-checkout-${safeUid}" ${hasCheckout ? 'checked' : ''} style="${cbStyle}"></td>
-          <td style="padding:.35rem .3rem"><input type="text" maxlength="20" value="${escapeHTML(noteText)}" id="manual-note-${safeUid}" placeholder="備註" style="width:100%;font-size:.72rem;padding:.15rem .3rem;border:1px solid var(--border);border-radius:3px;box-sizing:border-box"></td>
+          <td style="padding:.35rem .2rem;text-align:center"><input type="checkbox" id="manual-checkin-${safeUid}" ${hasCheckin ? 'checked' : ''} ${disabledAttr} style="${cbStyle}"></td>
+          <td style="padding:.35rem .2rem;text-align:center"><input type="checkbox" id="manual-checkout-${safeUid}" ${hasCheckout ? 'checked' : ''} ${disabledAttr} style="${cbStyle}"></td>
+          <td style="padding:.35rem .3rem"><input type="text" maxlength="20" value="${escapeHTML(noteText)}" id="manual-note-${safeUid}" placeholder="備註" ${disabledAttr} style="${noteInputStyle}"></td>
         </tr>`;
       }
       return `<tr style="border-bottom:1px solid var(--border)">
@@ -678,7 +694,7 @@ Object.assign(App, {
 
     // 手動簽到 / 完成簽到 按鈕（右上角，僅管理員）
     const topBtn = canManage ? (tableEditing
-      ? `<button style="font-size:.75rem;padding:.25rem .6rem;background:#2e7d32;color:#fff;border:none;border-radius:var(--radius-sm);cursor:pointer" onclick="App._confirmAllAttendance('${escapeHTML(eventId)}')">完成簽到</button>`
+      ? `<button style="font-size:.75rem;padding:.25rem .6rem;background:#2e7d32;color:#fff;border:none;border-radius:var(--radius-sm);${isSubmitting ? 'cursor:not-allowed;opacity:.72' : 'cursor:pointer'}" ${isSubmitting ? 'disabled' : ''} onclick="App._confirmAllAttendance('${escapeHTML(eventId)}')">${isSubmitting ? '儲存中...' : '完成簽到'}</button>`
       : `<button style="font-size:.75rem;padding:.25rem .6rem;background:#1565c0;color:#fff;border:none;border-radius:var(--radius-sm);cursor:pointer" onclick="App._startTableEdit('${escapeHTML(eventId)}')">手動簽到</button>`
     ) : '';
 
@@ -739,18 +755,30 @@ Object.assign(App, {
     if (section) section.style.display = '';
 
     const tableEditing = canManage && this._unregEditingEventId === eventId;
-    const kickStyle = 'font-size:.7rem;padding:.2rem .4rem;border:1px solid var(--danger);color:var(--danger);background:transparent;border-radius:var(--radius-sm);cursor:pointer;white-space:nowrap';
-    const cbStyle = 'width:1.4rem;height:1.4rem;cursor:pointer;vertical-align:middle';
+    const isSubmitting = canManage && this._unregSubmittingEventId === eventId;
+    const pendingStateByUid = isSubmitting ? (this._unregPendingStateByUid || Object.create(null)) : null;
+    const kickStyle = 'font-size:.7rem;padding:.2rem .4rem;border:1px solid var(--danger);color:var(--danger);background:transparent;border-radius:var(--radius-sm);cursor:pointer;white-space:nowrap'
+      + (isSubmitting ? ';opacity:.65;cursor:not-allowed' : '');
+    const cbStyle = 'width:1.4rem;height:1.4rem;cursor:pointer;vertical-align:middle'
+      + (isSubmitting ? ';opacity:.7;cursor:not-allowed' : '');
+    const noteInputStyle = 'width:100%;font-size:.72rem;padding:.15rem .3rem;border:1px solid var(--border);border-radius:3px;box-sizing:border-box'
+      + (isSubmitting ? ';opacity:.7;cursor:not-allowed' : '');
+    const disabledAttr = isSubmitting ? 'disabled' : '';
 
     const people = [];
     unregMap.forEach(u => people.push(u));
 
     let rows = people.map(p => {
       const person = { uid: p.uid, name: p.name, isCompanion: false };
-      const hasCheckin = records.some(r => this._matchAttendanceRecord(r, person) && r.type === 'checkin');
-      const hasCheckout = records.some(r => this._matchAttendanceRecord(r, person) && r.type === 'checkout');
+      const pendingState = pendingStateByUid ? pendingStateByUid[String(p.uid)] : null;
+      const hasCheckin = pendingState
+        ? !!pendingState.checkin
+        : records.some(r => this._matchAttendanceRecord(r, person) && r.type === 'checkin');
+      const hasCheckout = pendingState
+        ? !!pendingState.checkout
+        : records.some(r => this._matchAttendanceRecord(r, person) && r.type === 'checkout');
       const noteRec = this._getLatestAttendanceRecord(records, person, 'note');
-      const noteText = noteRec?.note || '';
+      const noteText = pendingState ? (pendingState.note || '') : (noteRec?.note || '');
       const combinedNote = ['未報名', noteText].filter(Boolean).join('・');
       const nameHtml = escapeHTML(p.name);
       const safeUid = escapeHTML(p.uid);
@@ -758,11 +786,11 @@ Object.assign(App, {
 
       if (tableEditing) {
         return `<tr style="border-bottom:1px solid var(--border)">
-          <td style="padding:.35rem .2rem;text-align:center"><button style="${kickStyle}" onclick="App._removeUnregUser('${escapeHTML(eventId)}','${safeUid}','${safeName}')">踢掉</button></td>
+          <td style="padding:.35rem .2rem;text-align:center"><button style="${kickStyle}" ${disabledAttr} onclick="App._removeUnregUser('${escapeHTML(eventId)}','${safeUid}','${safeName}')">踢掉</button></td>
           <td style="padding:.35rem .3rem;text-align:left">${nameHtml}</td>
-          <td style="padding:.35rem .2rem;text-align:center"><input type="checkbox" id="unreg-checkin-${safeUid}" ${hasCheckin ? 'checked' : ''} style="${cbStyle}"></td>
-          <td style="padding:.35rem .2rem;text-align:center"><input type="checkbox" id="unreg-checkout-${safeUid}" ${hasCheckout ? 'checked' : ''} style="${cbStyle}"></td>
-          <td style="padding:.35rem .3rem"><input type="text" maxlength="20" value="${escapeHTML(noteText)}" id="unreg-note-${safeUid}" placeholder="備註" style="width:100%;font-size:.72rem;padding:.15rem .3rem;border:1px solid var(--border);border-radius:3px;box-sizing:border-box"></td>
+          <td style="padding:.35rem .2rem;text-align:center"><input type="checkbox" id="unreg-checkin-${safeUid}" ${hasCheckin ? 'checked' : ''} ${disabledAttr} style="${cbStyle}"></td>
+          <td style="padding:.35rem .2rem;text-align:center"><input type="checkbox" id="unreg-checkout-${safeUid}" ${hasCheckout ? 'checked' : ''} ${disabledAttr} style="${cbStyle}"></td>
+          <td style="padding:.35rem .3rem"><input type="text" maxlength="20" value="${escapeHTML(noteText)}" id="unreg-note-${safeUid}" placeholder="備註" ${disabledAttr} style="${noteInputStyle}"></td>
         </tr>`;
       }
       return `<tr style="border-bottom:1px solid var(--border)">
@@ -775,7 +803,7 @@ Object.assign(App, {
 
     // 手動簽到 / 完成簽到 按鈕（放在表頭「未報名單」右側）
     const topBtn = canManage ? (tableEditing
-      ? `<button style="font-size:.75rem;padding:.25rem .6rem;background:#2e7d32;color:#fff;border:none;border-radius:var(--radius-sm);cursor:pointer" onclick="App._confirmAllUnregAttendance('${escapeHTML(eventId)}')">完成簽到</button>`
+      ? `<button style="font-size:.75rem;padding:.25rem .6rem;background:#2e7d32;color:#fff;border:none;border-radius:var(--radius-sm);${isSubmitting ? 'cursor:not-allowed;opacity:.72' : 'cursor:pointer'}" ${isSubmitting ? 'disabled' : ''} onclick="App._confirmAllUnregAttendance('${escapeHTML(eventId)}')">${isSubmitting ? '儲存中...' : '完成簽到'}</button>`
       : `<button style="font-size:.75rem;padding:.25rem .6rem;background:#1565c0;color:#fff;border:none;border-radius:var(--radius-sm);cursor:pointer" onclick="App._startUnregTableEdit('${escapeHTML(eventId)}')">手動簽到</button>`
     ) : '';
 
@@ -814,11 +842,11 @@ Object.assign(App, {
   },
 
   async _confirmAllAttendance(eventId) {
+    if (this._attendanceSubmittingEventId) return;
     const e = ApiService.getEvent(eventId);
     if (!e) return;
-    // 先擷取 containerId，避免 await 期間 onSnapshot 觸發 _renderAttendanceTable 覆寫 _manualEditingContainerId
-    const containerId = this._manualEditingContainerId;
-    // 重建 people 列表（與 _renderAttendanceTable 相同邏輯）
+    const containerId = this._manualEditingContainerId || 'attendance-table-container';
+
     const allActiveRegs = ApiService.getRegistrationsByEvent(eventId);
     const confirmedRegs = allActiveRegs.filter(r => r.status === 'confirmed');
     let people = [];
@@ -851,94 +879,107 @@ Object.assign(App, {
       }
     });
 
-    const records = ApiService.getAttendanceRecords(eventId);
+    const desiredStateByUid = Object.create(null);
+    for (const p of people) {
+      const checkinBox = document.getElementById('manual-checkin-' + p.uid);
+      if (!checkinBox) continue;
+      const checkoutBox = document.getElementById('manual-checkout-' + p.uid);
+      const noteInput = document.getElementById('manual-note-' + p.uid);
+      desiredStateByUid[String(p.uid)] = {
+        checkin: !!checkinBox.checked,
+        checkout: !!checkoutBox?.checked,
+        note: (noteInput?.value || '').trim().slice(0, 20),
+      };
+    }
+
+    this._attendanceSubmittingEventId = eventId;
+    this._attendancePendingStateByUid = desiredStateByUid;
+    this._renderAttendanceTable(eventId, containerId);
+
     const now = new Date();
     const timeStr = App._formatDateTime(now);
     let errCount = 0;
 
-    for (const p of people) {
-      const checkinBox = document.getElementById('manual-checkin-' + p.uid);
-      if (!checkinBox) continue; // DOM 元素不存在則跳過
+    try {
+      for (const p of people) {
+        const wanted = desiredStateByUid[String(p.uid)];
+        if (!wanted) continue;
 
-      const checkoutBox = document.getElementById('manual-checkout-' + p.uid);
-      const noteInput = document.getElementById('manual-note-' + p.uid);
-      const wantCheckin = checkinBox.checked;
-      const wantCheckout = checkoutBox?.checked || false;
-      const note = (noteInput?.value || '').trim().slice(0, 20);
+        const wantCheckin = wanted.checkin;
+        const wantCheckout = wanted.checkout;
+        const note = wanted.note;
 
-      const person = { uid: p.uid, name: p.name, isCompanion: p.isCompanion };
-      const hasCheckin = records.some(r => this._matchAttendanceRecord(r, person) && r.type === 'checkin');
-      const hasCheckout = records.some(r => this._matchAttendanceRecord(r, person) && r.type === 'checkout');
-      const existingNote = this._getLatestAttendanceRecord(records, person, 'note');
-      const existingNoteText = (existingNote?.note || '').trim();
+        const person = { uid: p.uid, name: p.name, isCompanion: p.isCompanion };
+        const currentRecords = ApiService.getAttendanceRecords(eventId);
+        const hasCheckin = currentRecords.some(r => this._matchAttendanceRecord(r, person) && r.type === 'checkin');
+        const hasCheckout = currentRecords.some(r => this._matchAttendanceRecord(r, person) && r.type === 'checkout');
+        const existingNote = this._getLatestAttendanceRecord(currentRecords, person, 'note');
+        const existingNoteText = (existingNote?.note || '').trim();
 
-      // 沒有任何變更則跳過
-      if (wantCheckin === hasCheckin && wantCheckout === hasCheckout && note === existingNoteText) continue;
+        if (wantCheckin === hasCheckin && wantCheckout === hasCheckout && note === existingNoteText) continue;
 
-      // 找同行者對應的主用戶資訊
-      let recordUid = p.uid, recordUserName = p.name, companionId = null, companionName = null, participantType = 'self';
-      if (p.isCompanion) {
-        const cReg = allActiveRegs.find(r => r.companionId === p.uid);
-        if (cReg) {
-          recordUid = cReg.userId; recordUserName = cReg.userName;
-          companionId = p.uid; companionName = p.name; participantType = 'companion';
+        let recordUid = p.uid, recordUserName = p.name, companionId = null, companionName = null, participantType = 'self';
+        if (p.isCompanion) {
+          const cReg = allActiveRegs.find(r => r.companionId === p.uid);
+          if (cReg) {
+            recordUid = cReg.userId; recordUserName = cReg.userName;
+            companionId = p.uid; companionName = p.name; participantType = 'companion';
+          }
+        }
+
+        try {
+          if (!wantCheckout && hasCheckout) {
+            const rec = this._getLatestAttendanceRecord(currentRecords, person, 'checkout');
+            if (rec) await ApiService.removeAttendanceRecord(rec);
+          }
+          if (!wantCheckin && hasCheckin) {
+            const recOut = this._getLatestAttendanceRecord(currentRecords, person, 'checkout');
+            if (recOut) await ApiService.removeAttendanceRecord(recOut);
+            const recIn = this._getLatestAttendanceRecord(currentRecords, person, 'checkin');
+            if (recIn) await ApiService.removeAttendanceRecord(recIn);
+          }
+          if (wantCheckin && !hasCheckin) {
+            await ApiService.addAttendanceRecord({
+              id: 'att_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5),
+              eventId, uid: recordUid, userName: recordUserName,
+              participantType, companionId, companionName,
+              type: 'checkin', time: timeStr,
+            });
+          }
+          if (wantCheckout && !hasCheckout) {
+            if (!wantCheckin && !hasCheckin) { this.showToast(`${p.name}：請先簽到再簽退`); continue; }
+            await ApiService.addAttendanceRecord({
+              id: 'att_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5),
+              eventId, uid: recordUid, userName: recordUserName,
+              participantType, companionId, companionName,
+              type: 'checkout', time: timeStr,
+            });
+          }
+          if (note !== existingNoteText) {
+            await ApiService.addAttendanceRecord({
+              id: 'att_note_' + Date.now(), eventId, uid: recordUid, userName: recordUserName,
+              participantType, companionId, companionName,
+              type: 'note', time: timeStr, note,
+            });
+          }
+        } catch (err) {
+          console.error('[_confirmAllAttendance]', p.name, err);
+          errCount++;
         }
       }
-
-      try {
-        if (!wantCheckout && hasCheckout) {
-          const rec = this._getLatestAttendanceRecord(records, person, 'checkout');
-          if (rec) await ApiService.removeAttendanceRecord(rec);
-        }
-        if (!wantCheckin && hasCheckin) {
-          const recOut = this._getLatestAttendanceRecord(records, person, 'checkout');
-          if (recOut) await ApiService.removeAttendanceRecord(recOut);
-          const recIn = this._getLatestAttendanceRecord(records, person, 'checkin');
-          if (recIn) await ApiService.removeAttendanceRecord(recIn);
-        }
-        if (wantCheckin && !hasCheckin) {
-          await ApiService.addAttendanceRecord({
-            id: 'att_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5),
-            eventId, uid: recordUid, userName: recordUserName,
-            participantType, companionId, companionName,
-            type: 'checkin', time: timeStr,
-          });
-        }
-        if (wantCheckout && !hasCheckout) {
-          if (!wantCheckin && !hasCheckin) { this.showToast(`${p.name}：需先簽到才能簽退`); continue; }
-          await ApiService.addAttendanceRecord({
-            id: 'att_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5),
-            eventId, uid: recordUid, userName: recordUserName,
-            participantType, companionId, companionName,
-            type: 'checkout', time: timeStr,
-          });
-        }
-        if (note !== existingNoteText) {
-          await ApiService.addAttendanceRecord({
-            id: 'att_note_' + Date.now(), eventId, uid: recordUid, userName: recordUserName,
-            participantType, companionId, companionName,
-            type: 'note', time: timeStr, note,
-          });
-        }
-      } catch (err) {
-        console.error('[_confirmAllAttendance]', p.name, err);
-        errCount++;
-      }
+    } finally {
+      this._attendanceSubmittingEventId = null;
+      this._attendancePendingStateByUid = null;
+      this._attendanceEditingEventId = null;
+      this._renderAttendanceTable(eventId, containerId);
     }
 
-    this._attendanceEditingEventId = null;
-    // 讓 pending onSnapshot 先 settle，再 render（避免最後一筆記錄短暫消失的閃爍）
-    await new Promise(r => setTimeout(r, 0));
-    this._renderAttendanceTable(eventId, containerId);
     if (errCount > 0) {
       ApiService._writeErrorLog({ fn: '_confirmAllAttendance', eventId, errCount }, new Error(`${errCount} 筆寫入失敗`));
     }
-    ApiService._writeOpLog('manual_attendance', '手動簽到', `更新「${e.title}」出席記錄（共 ${people.length} 人${errCount > 0 ? `，${errCount} 筆失敗` : ''}）`);
-    this.showToast(errCount > 0 ? `已更新（${errCount} 筆失敗）` : '已更新');
+    ApiService._writeOpLog('manual_attendance', '手動簽到', `活動 ${e.title} 已套用手動簽到（共 ${people.length} 筆）${errCount > 0 ? `，${errCount} 筆失敗` : ''}`);
+    this.showToast(errCount > 0 ? `儲存完成，但有 ${errCount} 筆失敗` : '儲存完成');
   },
-
-  // ── 整表手動簽到模式（未報名單用）──
-
   _startUnregTableEdit(eventId) {
     this._unregEditingEventId = eventId;
     this._renderUnregTable(eventId, 'detail-unreg-table');
@@ -959,6 +1000,7 @@ Object.assign(App, {
   },
 
   async _confirmAllUnregAttendance(eventId) {
+    if (this._unregSubmittingEventId) return;
     const e = ApiService.getEvent(eventId);
     if (!e) return;
 
@@ -972,75 +1014,94 @@ Object.assign(App, {
     const people = [];
     unregMap.forEach(u => people.push(u));
 
+    const desiredStateByUid = Object.create(null);
+    for (const p of people) {
+      const checkinBox = document.getElementById('unreg-checkin-' + p.uid);
+      if (!checkinBox) continue;
+      const checkoutBox = document.getElementById('unreg-checkout-' + p.uid);
+      const noteInput = document.getElementById('unreg-note-' + p.uid);
+      desiredStateByUid[String(p.uid)] = {
+        checkin: !!checkinBox.checked,
+        checkout: !!checkoutBox?.checked,
+        note: (noteInput?.value || '').trim().slice(0, 20),
+      };
+    }
+
+    this._unregSubmittingEventId = eventId;
+    this._unregPendingStateByUid = desiredStateByUid;
+    this._renderUnregTable(eventId, 'detail-unreg-table');
+
     const now = new Date();
     const timeStr = App._formatDateTime(now);
     let errCount = 0;
 
-    for (const p of people) {
-      const checkinBox = document.getElementById('unreg-checkin-' + p.uid);
-      if (!checkinBox) continue;
+    try {
+      for (const p of people) {
+        const wanted = desiredStateByUid[String(p.uid)];
+        if (!wanted) continue;
 
-      const checkoutBox = document.getElementById('unreg-checkout-' + p.uid);
-      const noteInput = document.getElementById('unreg-note-' + p.uid);
-      const wantCheckin = checkinBox.checked;
-      const wantCheckout = checkoutBox?.checked || false;
-      const note = (noteInput?.value || '').trim().slice(0, 20);
+        const wantCheckin = wanted.checkin;
+        const wantCheckout = wanted.checkout;
+        const note = wanted.note;
 
-      const person = { uid: p.uid, name: p.name, isCompanion: false };
-      const hasCheckin = records.some(r => this._matchAttendanceRecord(r, person) && r.type === 'checkin');
-      const hasCheckout = records.some(r => this._matchAttendanceRecord(r, person) && r.type === 'checkout');
-      const existingNote = this._getLatestAttendanceRecord(records, person, 'note');
-      const existingNoteText = (existingNote?.note || '').trim();
+        const person = { uid: p.uid, name: p.name, isCompanion: false };
+        const currentRecords = ApiService.getAttendanceRecords(eventId);
+        const hasCheckin = currentRecords.some(r => this._matchAttendanceRecord(r, person) && r.type === 'checkin');
+        const hasCheckout = currentRecords.some(r => this._matchAttendanceRecord(r, person) && r.type === 'checkout');
+        const existingNote = this._getLatestAttendanceRecord(currentRecords, person, 'note');
+        const existingNoteText = (existingNote?.note || '').trim();
 
-      if (wantCheckin === hasCheckin && wantCheckout === hasCheckout && note === existingNoteText) continue;
+        if (wantCheckin === hasCheckin && wantCheckout === hasCheckout && note === existingNoteText) continue;
 
-      try {
-        if (!wantCheckout && hasCheckout) {
-          const rec = this._getLatestAttendanceRecord(records, person, 'checkout');
-          if (rec) await ApiService.removeAttendanceRecord(rec);
+        try {
+          if (!wantCheckout && hasCheckout) {
+            const rec = this._getLatestAttendanceRecord(currentRecords, person, 'checkout');
+            if (rec) await ApiService.removeAttendanceRecord(rec);
+          }
+          if (!wantCheckin && hasCheckin) {
+            const recOut = this._getLatestAttendanceRecord(currentRecords, person, 'checkout');
+            if (recOut) await ApiService.removeAttendanceRecord(recOut);
+            const recIn = this._getLatestAttendanceRecord(currentRecords, person, 'checkin');
+            if (recIn) await ApiService.removeAttendanceRecord(recIn);
+          }
+          if (wantCheckin && !hasCheckin) {
+            await ApiService.addAttendanceRecord({
+              id: 'att_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5),
+              eventId, uid: p.uid, userName: p.name,
+              participantType: 'self', companionId: null, companionName: null,
+              type: 'checkin', time: timeStr,
+            });
+          }
+          if (wantCheckout && !hasCheckout) {
+            if (!wantCheckin && !hasCheckin) { this.showToast(`${p.name}：請先簽到再簽退`); continue; }
+            await ApiService.addAttendanceRecord({
+              id: 'att_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5),
+              eventId, uid: p.uid, userName: p.name,
+              participantType: 'self', companionId: null, companionName: null,
+              type: 'checkout', time: timeStr,
+            });
+          }
+          if (note !== existingNoteText) {
+            await ApiService.addAttendanceRecord({
+              id: 'att_note_' + Date.now(), eventId, uid: p.uid, userName: p.name,
+              participantType: 'self', companionId: null, companionName: null,
+              type: 'note', time: timeStr, note,
+            });
+          }
+        } catch (err) {
+          console.error('[_confirmAllUnregAttendance]', p.name, err);
+          errCount++;
         }
-        if (!wantCheckin && hasCheckin) {
-          const recOut = this._getLatestAttendanceRecord(records, person, 'checkout');
-          if (recOut) await ApiService.removeAttendanceRecord(recOut);
-          const recIn = this._getLatestAttendanceRecord(records, person, 'checkin');
-          if (recIn) await ApiService.removeAttendanceRecord(recIn);
-        }
-        if (wantCheckin && !hasCheckin) {
-          await ApiService.addAttendanceRecord({
-            id: 'att_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5),
-            eventId, uid: p.uid, userName: p.name,
-            participantType: 'self', companionId: null, companionName: null,
-            type: 'checkin', time: timeStr,
-          });
-        }
-        if (wantCheckout && !hasCheckout) {
-          if (!wantCheckin && !hasCheckin) { this.showToast(`${p.name}：需先簽到才能簽退`); continue; }
-          await ApiService.addAttendanceRecord({
-            id: 'att_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5),
-            eventId, uid: p.uid, userName: p.name,
-            participantType: 'self', companionId: null, companionName: null,
-            type: 'checkout', time: timeStr,
-          });
-        }
-        if (note !== existingNoteText) {
-          await ApiService.addAttendanceRecord({
-            id: 'att_note_' + Date.now(), eventId, uid: p.uid, userName: p.name,
-            participantType: 'self', companionId: null, companionName: null,
-            type: 'note', time: timeStr, note,
-          });
-        }
-      } catch (err) {
-        console.error('[_confirmAllUnregAttendance]', p.name, err);
-        errCount++;
       }
+    } finally {
+      this._unregSubmittingEventId = null;
+      this._unregPendingStateByUid = null;
+      this._unregEditingEventId = null;
+      this._renderUnregTable(eventId, 'detail-unreg-table');
     }
 
-    this._unregEditingEventId = null;
-    await new Promise(r => setTimeout(r, 0));
-    this._renderUnregTable(eventId, 'detail-unreg-table');
-    this.showToast(errCount > 0 ? `已更新（${errCount} 筆失敗）` : '已更新');
+    this.showToast(errCount > 0 ? `儲存完成，但有 ${errCount} 筆失敗` : '儲存完成');
   },
-
   editMyActivity(id) {
     const e = ApiService.getEvent(id);
     if (!e) return;
