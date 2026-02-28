@@ -104,6 +104,41 @@
 .h-card-body { padding: .65rem .75rem; }
 .h-card-title { font-weight: 700; font-size: .85rem; margin-bottom: .2rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .h-card-meta { font-size: .72rem; color: var(--text-secondary); display: flex; flex-wrap: wrap; gap: .3rem .8rem; }
+.h-card-corner-badges {
+  position: absolute;
+  top: .4rem;
+  left: .4rem;
+  display: inline-flex;
+  align-items: center;
+  gap: .3rem;
+  z-index: 1;
+  pointer-events: none;
+}
+.h-card-date-chip {
+  background: #fbbf24;
+  color: #78350f;
+  font-weight: 700;
+  font-size: .72rem;
+  padding: .15rem .45rem;
+  border-radius: 4px;
+  line-height: 1.4;
+}
+.h-card-sport-chip {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, .92);
+  color: #1f2937;
+  border: 1px solid rgba(17, 24, 39, .08);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .18);
+}
+.h-card-sport-chip svg {
+  width: 14px;
+  height: 14px;
+}
 
 /* ─── Floating Ads ─── */
 .floating-ads {

@@ -1,5 +1,5 @@
 /* ================================================
-   SportHub — Theme, Filters, Tabs, Scan, SportPicker
+   SportHub - Theme, Filters, Tabs, Scan, SportPicker
    ================================================ */
 
 Object.assign(App, {
@@ -56,15 +56,49 @@ Object.assign(App, {
   bindTournamentTabs() {},
 
   bindScanModes() {
-    // 已移至 js/modules/scan.js
+    // moved to js/modules/scan.js
   },
 
   bindSportPicker() {
     const wrapper = document.getElementById('sport-picker-wrapper');
-    if (!wrapper) return;
+    if (!wrapper || wrapper.dataset.bound === '1') return;
+    wrapper.dataset.bound = '1';
+
     const btn = wrapper.querySelector('.sport-picker-btn');
     const dropdown = wrapper.querySelector('.sport-picker-dropdown');
-    const items = wrapper.querySelectorAll('.sport-picker-item');
+    const iconEl = btn?.querySelector('.sport-picker-icon');
+    const listHost = dropdown?.querySelector('#sport-picker-list');
+    if (!btn || !dropdown || !iconEl || !listHost) return;
+
+    const sportOptions = Array.isArray(EVENT_SPORT_OPTIONS) && EVENT_SPORT_OPTIONS.length > 0
+      ? EVENT_SPORT_OPTIONS
+      : [{ key: 'football', label: '足球' }];
+
+    const isUnlocked = (sportKey) => sportKey === 'football';
+    listHost.innerHTML = sportOptions.map(item => {
+      const locked = !isUnlocked(item.key);
+      const lockPart = locked ? `<span class="sp-lock">${getLockIconSvg()}</span>` : '';
+      return `<button class="sport-picker-item${item.key === 'football' ? ' active' : ''}${locked ? ' locked' : ''}" data-sport="${escapeHTML(item.key)}"${locked ? ' disabled' : ''}>
+        <span class="sp-icon">${getSportIconSvg(item.key)}</span>
+        <span>${escapeHTML(item.label)}</span>
+        ${lockPart}
+      </button>`;
+    }).join('');
+
+    const setActiveSport = (sportKey) => {
+      const safeKey = getSportKeySafe(sportKey) || 'football';
+      listHost.querySelectorAll('.sport-picker-item').forEach(item => {
+        item.classList.toggle('active', item.dataset.sport === safeKey);
+      });
+      iconEl.innerHTML = getSportIconSvg(safeKey);
+
+      // Keep category pills in sync if those modules are enabled in future pages.
+      document.querySelectorAll('.cat-item[data-sport]').forEach(item => {
+        item.classList.toggle('active', item.dataset.sport === safeKey);
+      });
+    };
+
+    setActiveSport('football');
 
     btn.addEventListener('click', (e) => {
       e.preventDefault();
@@ -76,23 +110,22 @@ Object.assign(App, {
       dropdown.classList.toggle('open', !isOpen);
     });
 
-    items.forEach(item => {
-      item.addEventListener('click', (e) => {
-        e.stopPropagation();
-        if (item.classList.contains('locked')) return;
-        const icon = item.querySelector('.sp-icon').textContent;
-        items.forEach(i => i.classList.remove('active'));
-        item.classList.add('active');
-        btn.querySelector('.sport-picker-icon').textContent = icon;
-        const catItems = document.querySelectorAll('.cat-item:not(.add-cat)');
-        catItems.forEach(c => {
-          const catIcon = c.querySelector('span')?.textContent;
-          c.classList.toggle('active', catIcon === icon);
-        });
-        btn.classList.remove('open');
-        dropdown.classList.remove('open');
-        this.showToast(`已選擇「${item.querySelector('span:nth-child(2)').textContent}」`);
-      });
+    listHost.addEventListener('click', (e) => {
+      const item = e.target.closest('.sport-picker-item[data-sport]');
+      if (!item) return;
+      e.stopPropagation();
+
+      if (item.classList.contains('locked')) {
+        this.showToast('目前僅開放足球');
+        return;
+      }
+
+      const sportKey = item.dataset.sport;
+      setActiveSport(sportKey);
+      btn.classList.remove('open');
+      dropdown.classList.remove('open');
+      const label = item.querySelector('span:nth-child(2)')?.textContent || '足球';
+      this.showToast(`已切換為 ${label}`);
     });
 
     document.addEventListener('click', (e) => {

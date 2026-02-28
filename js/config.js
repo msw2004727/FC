@@ -78,7 +78,8 @@
 // 20260228d: team detail member list edit mode + staff-only member removal with full sync
 // 20260228e: multi-team membership compatibility (teamIds/teamNames) + join flow unblock
 // 20260228h: firestore rules security hardening + team-only multi-select redesign + memory sync
-const CACHE_VERSION = '20260228h';
+// 20260228i: event sport-tag single-select + required validation + SVG sport icons
+const CACHE_VERSION = '20260228i';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {
@@ -203,6 +204,73 @@ const TYPE_CONFIG = {
   play:     { icon: '', label: 'PLAY', color: 'play' },
   watch:    { icon: '', label: '觀賽', color: 'watch' },
 };
+
+const EVENT_SPORT_OPTIONS = [
+  { key: 'football', label: '足球' },
+  { key: 'basketball', label: '籃球' },
+  { key: 'baseball_softball', label: '棒壘球' },
+  { key: 'volleyball', label: '排球' },
+  { key: 'table_tennis', label: '桌球' },
+  { key: 'tennis', label: '網球' },
+  { key: 'badminton', label: '羽球' },
+  { key: 'hiking', label: '登山' },
+  { key: 'running', label: '慢跑' },
+  { key: 'cycling', label: '單車' },
+  { key: 'motorcycle', label: '重機' },
+  { key: 'skateboard', label: '滑板' },
+  { key: 'dance', label: '舞蹈' },
+  { key: 'yoga', label: '瑜伽' },
+  { key: 'martial_arts', label: '武術' },
+  { key: 'restaurant', label: '餐廳' },
+  { key: 'pickleball', label: '匹克球' },
+];
+
+const SPORT_ICON_PATHS = {
+  football: '<circle cx="12" cy="12" r="8"></circle><path d="M12 6.8l2.2 1.2-.4 2.4h-3.6L9.8 8z"></path><path d="M8.1 11l2.1-1.5"></path><path d="M15.9 11l-2.1-1.5"></path><path d="M8.8 13.7l1.8 2.5h2.8l1.8-2.5"></path>',
+  basketball: '<circle cx="12" cy="12" r="8"></circle><path d="M4 12h16"></path><path d="M12 4a8 8 0 0 1 0 16"></path><path d="M12 4a8 8 0 0 0 0 16"></path>',
+  baseball_softball: '<circle cx="12" cy="12" r="8"></circle><path d="M9 7.5c1.2 1.3 1.2 2.7 0 4"></path><path d="M15 12.5c-1.2 1.3-1.2 2.7 0 4"></path>',
+  volleyball: '<circle cx="12" cy="12" r="8"></circle><path d="M9.2 6.8c2 .7 3 2 3.2 4.1"></path><path d="M15.8 9.2c-1.8.7-3.1 2.2-3.4 4.2"></path><path d="M8.4 15.2c1.7-.5 3.3-.1 4.6 1.3"></path>',
+  table_tennis: '<circle cx="10" cy="10" r="5"></circle><path d="M13.5 13.5l5.2 5.2"></path><circle cx="19" cy="7" r="1.5"></circle>',
+  tennis: '<circle cx="12" cy="12" r="8"></circle><path d="M7 8c2.6 1.5 4 3.5 4.2 6"></path><path d="M17 16c-2.6-1.5-4-3.5-4.2-6"></path>',
+  badminton: '<path d="M8 6l10 10"></path><path d="M6.5 7.5l3-3"></path><path d="M17 18.5l3-3"></path><path d="M11 5l2 2"></path><path d="M9.5 3.5l4 4"></path>',
+  hiking: '<path d="M4 19h16"></path><path d="M6 19l5-8 3 4 4-6"></path><circle cx="11" cy="6.2" r="1.6"></circle>',
+  running: '<circle cx="14.5" cy="5.5" r="1.8"></circle><path d="M8 13l3-2 2.5 1.5"></path><path d="M11 11l-1.5 4"></path><path d="M13.5 12.5l3 2"></path><path d="M9 19l2-3"></path><path d="M15 19l-1.5-3"></path>',
+  cycling: '<circle cx="7" cy="17" r="3"></circle><circle cx="17" cy="17" r="3"></circle><path d="M10 17l3-6h2.5"></path><path d="M9.5 11h3.5l2.2 6"></path><path d="M12.2 8.2h1.8"></path>',
+  motorcycle: '<circle cx="7" cy="17" r="3"></circle><circle cx="17" cy="17" r="3"></circle><path d="M8.5 14.5h5l2 2.5"></path><path d="M12 11h3l1.5 3"></path><path d="M10.5 11l-2 3.5"></path>',
+  skateboard: '<path d="M5 16h14"></path><circle cx="8" cy="18" r="1.8"></circle><circle cx="16" cy="18" r="1.8"></circle><path d="M6 13h12"></path>',
+  dance: '<circle cx="12" cy="6" r="1.8"></circle><path d="M12 8.3l1.8 2.2 2.7.8"></path><path d="M12 8.3l-2 2.6-2.6 1"></path><path d="M11.2 12.2l.8 3.8"></path><path d="M12.4 12.2l3 3.2"></path>',
+  yoga: '<path d="M4 18c2-2.5 4.6-3.8 8-3.8s6 1.3 8 3.8"></path><circle cx="12" cy="7" r="2"></circle><path d="M9 11.5c1 .8 2 .8 3 0"></path><path d="M7 15h10"></path>',
+  martial_arts: '<path d="M5 15h4l2-2 2 1 3-3 3 3"></path><path d="M7 15l1 4"></path><path d="M11 13l-1 6"></path><path d="M17 14l1 5"></path>',
+  restaurant: '<path d="M6 4v7"></path><path d="M4 4v4"></path><path d="M8 4v4"></path><path d="M15 4v15"></path><path d="M15 4c2 2 2 5 0 7"></path>',
+  pickleball: '<path d="M7 5h5l5 5-5 5H7z"></path><circle cx="10.2" cy="10" r=".7"></circle><circle cx="12.4" cy="10" r=".7"></circle><circle cx="11.3" cy="11.8" r=".7"></circle><circle cx="18" cy="7" r="1.8"></circle>',
+};
+
+const EVENT_SPORT_MAP = EVENT_SPORT_OPTIONS.reduce((acc, item) => {
+  acc[item.key] = item;
+  return acc;
+}, Object.create(null));
+
+function getSportKeySafe(key) {
+  const raw = String(key || '').trim();
+  return EVENT_SPORT_MAP[raw] ? raw : '';
+}
+
+function getSportLabelByKey(key) {
+  const safeKey = getSportKeySafe(key) || 'football';
+  return EVENT_SPORT_MAP[safeKey]?.label || '足球';
+}
+
+function getSportIconSvg(key, className = '') {
+  const safeKey = getSportKeySafe(key) || 'football';
+  const body = SPORT_ICON_PATHS[safeKey] || SPORT_ICON_PATHS.football;
+  const klass = className ? ` class="${className}"` : '';
+  return `<svg${klass} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
+}
+
+function getLockIconSvg(className = '') {
+  const klass = className ? ` class="${className}"` : '';
+  return `<svg${klass} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"></rect><path d="M8 11V8a4 4 0 0 1 8 0v3"></path></svg>`;
+}
 
 const STATUS_CONFIG = {
   open:      { label: '報名中', css: 'open' },

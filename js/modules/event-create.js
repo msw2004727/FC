@@ -357,6 +357,7 @@ Object.assign(App, {
       max: parseInt(document.getElementById('ce-max')?.value) || 20,
       minAge: parseInt(document.getElementById('ce-min-age')?.value) || 0,
       notes: document.getElementById('ce-notes')?.value?.trim() || '',
+      sportTag: getSportKeySafe(document.getElementById('ce-sport-tag')?.value || '') || '',
       image: image || null,
       updatedAt: new Date().toISOString(),
     };
@@ -435,6 +436,7 @@ Object.assign(App, {
     setVal('ce-max', tpl.max);
     setVal('ce-min-age', tpl.minAge);
     setVal('ce-notes', tpl.notes);
+    this._initSportTagPicker(tpl.sportTag || '');
     if (tpl.image) {
       const preview = document.getElementById('ce-upload-preview');
       if (preview) {
@@ -508,6 +510,7 @@ Object.assign(App, {
     document.getElementById('ce-waitlist').value = '0';
     document.getElementById('ce-min-age').value = '0';
     document.getElementById('ce-notes').value = '';
+    document.getElementById('ce-sport-tag').value = '';
     const regOpen = document.getElementById('ce-reg-open-time');
     if (regOpen) regOpen.value = '';
     document.getElementById('ce-image').value = '';
@@ -525,6 +528,7 @@ Object.assign(App, {
     // 確保事件已綁定（防止 Phase 1 非同步時機導致未綁定）
     this.bindImageUpload('ce-image', 'ce-upload-preview');
     this.bindTeamOnlyToggle();
+    this._initSportTagPicker('');
     this.showModal('create-event-modal');
     this._initDelegateSearch();
     this._renderHistoryChips('ce-location', 'ce-location');
@@ -960,6 +964,119 @@ Object.assign(App, {
     this._updateTeamOnlyLabel();
   },
 
+  _selectedSportTag: '',
+  _sportPickerGlobalBound: false,
+
+  _getSportPickerElements() {
+    return {
+      picker: document.getElementById('ce-sport-picker'),
+      selected: document.getElementById('ce-sport-selected'),
+      selectedInner: document.getElementById('ce-sport-selected-inner'),
+      dropdown: document.getElementById('ce-sport-dropdown'),
+      search: document.getElementById('ce-sport-search'),
+      list: document.getElementById('ce-sport-list'),
+      hidden: document.getElementById('ce-sport-tag'),
+    };
+  },
+
+  _setSportTagValue(sportTag) {
+    const els = this._getSportPickerElements();
+    if (!els.selectedInner || !els.hidden) return;
+
+    const safeKey = getSportKeySafe(sportTag);
+    this._selectedSportTag = safeKey || '';
+    els.hidden.value = this._selectedSportTag;
+
+    if (!this._selectedSportTag) {
+      els.selectedInner.innerHTML = '<span class="ce-sport-placeholder">請選擇運動標籤</span>';
+      return;
+    }
+
+    const label = getSportLabelByKey(this._selectedSportTag);
+    els.selectedInner.innerHTML = `<span class="ce-sport-value">${getSportIconSvg(this._selectedSportTag)}<span>${escapeHTML(label)}</span></span>`;
+  },
+
+  _toggleSportPicker(open) {
+    const els = this._getSportPickerElements();
+    if (!els.selected || !els.dropdown) return;
+    const shouldOpen = !!open;
+    els.selected.classList.toggle('open', shouldOpen);
+    els.selected.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
+    els.dropdown.classList.toggle('open', shouldOpen);
+    if (shouldOpen) els.search?.focus();
+  },
+
+  _renderSportPickerOptions(keyword = '') {
+    const els = this._getSportPickerElements();
+    if (!els.list) return;
+
+    const q = String(keyword || '').trim().toLowerCase();
+    const options = (Array.isArray(EVENT_SPORT_OPTIONS) ? EVENT_SPORT_OPTIONS : [])
+      .filter(item => !q || String(item.label || '').toLowerCase().includes(q));
+
+    if (!options.length) {
+      els.list.innerHTML = '<div class="ce-sport-empty">找不到符合的運動</div>';
+      return;
+    }
+
+    els.list.innerHTML = options.map(item => {
+      const active = item.key === this._selectedSportTag;
+      return `<button type="button" class="ce-sport-option${active ? ' active' : ''}" data-sport="${escapeHTML(item.key)}" role="option" aria-selected="${active ? 'true' : 'false'}">
+        ${getSportIconSvg(item.key)}
+        <span>${escapeHTML(item.label)}</span>
+      </button>`;
+    }).join('');
+  },
+
+  _initSportTagPicker(initialSportTag = '') {
+    const els = this._getSportPickerElements();
+    if (!els.picker || !els.selected || !els.dropdown || !els.search || !els.list || !els.hidden) return;
+
+    this._setSportTagValue(initialSportTag);
+    this._renderSportPickerOptions('');
+    els.search.value = '';
+    this._toggleSportPicker(false);
+
+    if (!els.selected.dataset.bound) {
+      els.selected.dataset.bound = '1';
+      els.selected.addEventListener('click', () => {
+        const isOpen = els.dropdown.classList.contains('open');
+        this._toggleSportPicker(!isOpen);
+      });
+    }
+
+    if (!els.search.dataset.bound) {
+      els.search.dataset.bound = '1';
+      els.search.addEventListener('input', () => {
+        this._renderSportPickerOptions(els.search.value);
+      });
+      els.search.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Escape') this._toggleSportPicker(false);
+      });
+    }
+
+    if (!els.list.dataset.bound) {
+      els.list.dataset.bound = '1';
+      els.list.addEventListener('click', (ev) => {
+        const btn = ev.target.closest('.ce-sport-option[data-sport]');
+        if (!btn) return;
+        this._setSportTagValue(btn.dataset.sport || '');
+        this._renderSportPickerOptions(els.search.value);
+        this._toggleSportPicker(false);
+      });
+    }
+
+    if (!this._sportPickerGlobalBound) {
+      this._sportPickerGlobalBound = true;
+      document.addEventListener('click', (ev) => {
+        const currentEls = this._getSportPickerElements();
+        if (!currentEls.picker?.contains(ev.target)) {
+          this._toggleSportPicker(false);
+        }
+      });
+    }
+  },
+
   handleCreateEvent() {
     if ((ROLE_LEVEL_MAP[this.currentRole] || 0) < ROLE_LEVEL_MAP.coach) {
       this.showToast('權限不足'); return;
@@ -975,6 +1092,7 @@ Object.assign(App, {
     const max = parseInt(document.getElementById('ce-max').value) || 20;
     const minAge = parseInt(document.getElementById('ce-min-age').value) || 0;
     const notes = document.getElementById('ce-notes').value.trim();
+    const sportTag = getSportKeySafe(document.getElementById('ce-sport-tag')?.value || this._selectedSportTag || '');
     const regOpenTime = document.getElementById('ce-reg-open-time')?.value || '';
     const teamOnly = !!document.getElementById('ce-team-only')?.checked;
 
@@ -990,6 +1108,7 @@ Object.assign(App, {
     }
     if (tEnd <= tStart) { this.showToast('結束時間必須晚於開始時間'); return; }
     if (notes.length > 500) { this.showToast('注意事項不可超過 500 字'); return; }
+    if (!sportTag) { this.showToast('請先選擇運動標籤（必選）'); return; }
     // 球隊限定：決定 teamId / teamName
     let resolvedTeamId = null, resolvedTeamName = null;
     if (teamOnly) {
@@ -1045,7 +1164,7 @@ Object.assign(App, {
         })();
 
       const updates = {
-        title, type, location, date: fullDate, fee, max, minAge, notes, image,
+        title, type, location, date: fullDate, fee, max, minAge, notes, image, sportTag,
         regOpenTime: regOpenTime || null,
         gradient: GRADIENT_MAP[type] || GRADIENT_MAP.friendly,
         teamOnly,
@@ -1092,7 +1211,7 @@ Object.assign(App, {
       const newEvent = {
         id: 'ce_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
         title, type, status: initStatus, location, date: fullDate,
-        fee, max, current: 0, waitlist: 0, minAge, notes, image,
+        fee, max, current: 0, waitlist: 0, minAge, notes, image, sportTag,
         regOpenTime: regOpenTime || null,
         creator: creatorName,
         creatorUid,
@@ -1135,6 +1254,7 @@ Object.assign(App, {
     document.getElementById('ce-waitlist').value = '0';
     document.getElementById('ce-min-age').value = '0';
     document.getElementById('ce-notes').value = '';
+    document.getElementById('ce-sport-tag').value = '';
     document.getElementById('ce-reg-open-time').value = '';
     document.getElementById('ce-image').value = '';
     document.getElementById('ce-date').value = '';
@@ -1152,6 +1272,7 @@ Object.assign(App, {
       cePreview.classList.remove('has-image');
       cePreview.innerHTML = '<span class="ce-upload-icon">+</span><span class="ce-upload-text">點擊上傳圖片</span><span class="ce-upload-hint">建議尺寸 800 × 300 px｜JPG / PNG｜最大 2MB</span>';
     }
+    this._initSportTagPicker('');
   },
 
   // ══════════════════════════════════

@@ -156,6 +156,47 @@
   flex: 1;
   min-width: 0;
 }
+.tl-event-title-row {
+  display: flex;
+  align-items: flex-start;
+  gap: .35rem;
+}
+.tl-event-title-row .tl-event-title {
+  flex: 1;
+  min-width: 0;
+}
+.tl-event-sport-corner {
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.tl-event-sport-corner svg {
+  width: 13px;
+  height: 13px;
+}
+.my-event-sport-icon {
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.my-event-sport-icon svg {
+  width: 14px;
+  height: 14px;
+}
 .tl-event-title {
   font-weight: 600;
   font-size: .82rem;

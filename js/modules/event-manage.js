@@ -209,6 +209,7 @@ Object.assign(App, {
         const progressPct = e.max > 0 ? Math.min(100, Math.round(e.current / e.max * 100)) : 0;
         const progressColor = progressPct >= 100 ? 'var(--danger)' : progressPct >= 70 ? 'var(--warning)' : 'var(--success)';
         const teamBadge = e.teamOnly ? '<span class="tl-teamonly-badge" style="margin-left:.3rem">限定</span>' : '';
+        const sportIcon = this._renderEventSportIcon(e, 'my-event-sport-icon');
         // Fee summary
         const fee = e.fee || 0;
         const confirmedRegs = fee > 0 ? ApiService.getRegistrationsByEvent(e.id) : [];
@@ -244,7 +245,7 @@ Object.assign(App, {
           </div>
           <span style="font-size:.72rem;color:var(--text-muted);white-space:nowrap">${e.current}/${e.max} 人${e.waitlist > 0 ? ' ・ 候補 ' + e.waitlist : ''}</span>
         </div>
-        <div style="display:flex;gap:.3rem;margin-top:.4rem;flex-wrap:wrap;align-items:center">${btns}${feeBox}</div>
+        <div style="display:flex;gap:.3rem;margin-top:.4rem;flex-wrap:wrap;align-items:center">${sportIcon}${btns}${feeBox}</div>
       </div>`;
       }).join('')
       : '<div style="padding:1rem;font-size:.82rem;color:var(--text-muted);text-align:center">此分類沒有活動</div>';
@@ -1133,6 +1134,7 @@ Object.assign(App, {
     document.getElementById('ce-waitlist').value = 0;
     document.getElementById('ce-min-age').value = e.minAge || 0;
     document.getElementById('ce-notes').value = e.notes || '';
+    this._initSportTagPicker(e.sportTag || 'football');
     // 開放報名時間
     const regOpenInput = document.getElementById('ce-reg-open-time');
     if (regOpenInput) regOpenInput.value = e.regOpenTime || '';

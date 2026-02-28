@@ -172,6 +172,27 @@
           <label>注意事項（上限 500 字）</label>
           <textarea id="ce-notes" rows="3" maxlength="500" placeholder="例如：請自備球鞋、飲用水，遲到15分鐘以上視為缺席..."></textarea>
         </div>
+        <div class="ce-row">
+          <label>運動標籤 <span class="required">*必選</span></label>
+          <div class="ce-sport-picker" id="ce-sport-picker">
+            <button type="button" class="ce-sport-selected" id="ce-sport-selected" aria-haspopup="listbox" aria-expanded="false">
+              <span class="ce-sport-selected-inner" id="ce-sport-selected-inner">
+                <span class="ce-sport-placeholder">請選擇運動標籤</span>
+              </span>
+              <span class="ce-sport-arrow" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M6 9l6 6 6-6"></path>
+                </svg>
+              </span>
+            </button>
+            <div class="ce-sport-dropdown" id="ce-sport-dropdown">
+              <input type="text" id="ce-sport-search" class="ce-sport-search" placeholder="搜尋運動標籤">
+              <div id="ce-sport-list" class="ce-sport-list" role="listbox"></div>
+            </div>
+            <input type="hidden" id="ce-sport-tag" value="">
+          </div>
+          <div class="ce-sport-required-tip">* 必選，未選擇將無法儲存活動</div>
+        </div>
         <div class="ce-row" style="border-top:1px solid var(--border);padding-top:.6rem;margin-top:.3rem">
           <label>儲存為範本</label>
           <div style="display:flex;gap:.3rem;align-items:center">

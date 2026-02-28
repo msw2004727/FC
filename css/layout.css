@@ -190,9 +190,19 @@
   border-radius: var(--radius-sm);
   background: transparent;
   border: 1.5px solid var(--border);
-  font-size: 1.15rem;
   transition: all var(--transition);
   cursor: pointer;
+}
+.sport-picker-icon {
+  width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.sport-picker-icon svg {
+  width: 18px;
+  height: 18px;
 }
 .sport-picker-btn:hover {
   background: var(--accent-bg);
@@ -206,7 +216,7 @@
   position: absolute;
   top: calc(100% + .5rem);
   right: 0;
-  min-width: 170px;
+  min-width: 190px;
   background: var(--bg-card);
   border-radius: var(--radius);
   border: 1px solid var(--border);
@@ -217,6 +227,8 @@
   transition: all .25s cubic-bezier(.4,0,.2,1);
   overflow: hidden;
   z-index: 1002;
+  max-height: 360px;
+  overflow-y: auto;
 }
 .sport-picker-dropdown.open {
   opacity: 1;
@@ -259,13 +271,28 @@
   filter: grayscale(60%);
 }
 .sport-picker-item .sp-icon {
-  font-size: 1.1rem;
-  width: 24px;
-  text-align: center;
+  width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.sport-picker-item .sp-icon svg {
+  width: 18px;
+  height: 18px;
 }
 .sport-picker-item .sp-lock {
   margin-left: auto;
-  font-size: .7rem;
+  width: 14px;
+  height: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.sport-picker-item .sp-lock svg {
+  width: 12px;
+  height: 12px;
 }
 
 /* ─── Side Drawer ─── */
