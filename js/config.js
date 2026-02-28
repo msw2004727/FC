@@ -74,7 +74,8 @@
 // 20260227zza: 球隊動態實裝 DB 寫入（發文/刪文/置頂/表情/留言/刪留言 共 6 處）
 // 20260228a: force global cache refresh for i18n locale rollout
 // 20260228b: team invite share text + dynamic team OG + team-share redirects
-const CACHE_VERSION = '20260228b';
+// 20260228c: Cloudflare Worker route for team-share dynamic OG (main domain)
+const CACHE_VERSION = '20260228c';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {
