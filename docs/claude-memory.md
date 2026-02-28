@@ -492,3 +492,66 @@
 - **原因**：Firebase Auth 從 persistence（indexedDB/localStorage）恢復登入狀態是非同步的，但 `_hasFreshFirebaseUser()` 直接同步檢查 `auth.currentUser`，在恢復完成前會得到 null；`_signInWithAppropriateMethod()` 也沒有先等 persistence 恢復，即使先前已成功登入也會嘗試重新走 LINE Token → Cloud Function 流程。
 - **修復**：(1) `js/firebase-config.js` 新增 `onAuthStateChanged` 監聽器與 `_firebaseAuthReadyPromise`，首次觸發即代表 persistence 恢復完成；(2) `js/api-service.js` 的 `_hasFreshFirebaseUser()` 先等待 `_firebaseAuthReadyPromise`（最多 5 秒）再檢查 `auth.currentUser`；(3) `js/firebase-service.js` 的 `_signInWithAppropriateMethod()` 先等 persistence 恢復，若已有有效 currentUser 則直接返回，避免不必要的 Cloud Function 呼叫；(4) 強化錯誤訊息：區分「Firebase 未登入」與「權限不足」兩種情境。
 - **教訓**：Firebase Auth 的 `auth.currentUser` 在頁面載入後是非同步填入的，必須透過 `onAuthStateChanged` 或 `authStateReady()` 等待首次回呼後才可信賴；直接同步讀取會造成競態條件。
+
+---
+
+### 2026-02-28 - Firestore rules盤點與高風險修補（重點補記）
+- **Problem**: Firestore rules 與前端/後端存取路徑長期累積，存在「登入即可跨人讀寫/刪除」與 queue 濫用風險，且缺少可持續回歸測試。
+- **Scope**:
+  - 先盤點 `firestore.rules` + code usage（collections/path + CRUD + 角色假設）
+  - 建立 rules 自動化測試框架（Emulator + `@firebase/rules-unit-testing`）
+  - 先修最低風險且不破壞既有流程的漏洞（cross-user damage、queue abuse）
+- **Key Fixes (Rules)**:
+  - `/registrations/{regId}`: 僅 owner 或 admin/superAdmin 可讀寫刪；禁止 member 操作他人 registration。
+  - `/messages/{msgId}`: 僅 sender（`fromUid`）或 admin/superAdmin 可 update/delete/read（依現規則）；禁止跨人破壞。
+  - `/linePushQueue/{docId}`: create 從 member 可寫改為至少 admin/superAdmin 才可寫；guest 明確拒絕。
+  - 保留 admin/superAdmin 管理能力，不擴大破壞既有功能範圍。
+- **Key Fixes (Tests)**:
+  - 將原本標記 `[SECURITY_GAP]` 的重點案例（registrations/messages/linePushQueue）改為修補後預期，並用 `[SECURITY_GAP_FIXED]` 保留追蹤語意。
+  - 強化 A/B 使用者互斥測試：memberA 不能讀/改/刪 memberB；member 不可批量刪他人資料。
+- **Lesson**: rules 修補要以「最小破壞」為優先，先封鎖跨人破壞與濫用入口，再逐步收斂其他灰區權限。
+- **Files**: `firestore.rules`, `tests/firestore.rules.test.js`
+
+### 2026-02-28 - Firestore Security Rules 測試框架落地（repo root）
+- **Requirement**: rules 測試依賴不得綁在 `functions/`；需在 repo root 建立可持續執行流程。
+- **Implementation**:
+  - root 安裝並使用：`@firebase/rules-unit-testing`、`firebase-tools`、`jest`、`cross-env`。
+  - `firebase.json` 補齊 Firestore emulator 設定，並確保載入當前 `firestore.rules`。
+  - `package.json` scripts:
+    - `test:rules:unit`
+    - `test:rules`（`firebase emulators:exec --only firestore`）
+    - `test:rules:watch`
+  - 測試 helper contexts 固定化：`guest/memberA/memberB/admin/superAdmin`，並集中 seed 入口（`withSecurityRulesDisabled`）。
+- **Outcome**: rules regression 可在本機 emulator 內穩定重現與驗證。
+- **Files**: `package.json`, `firebase.json`, `tests/firestore.rules.test.js`
+
+### 2026-02-28 - Role usability smoke tests（角色可用性冒煙）
+- **Goal**: 不追求全覆蓋，先驗證各角色核心操作是否可用。
+- **Added contexts**:
+  - `user(uidUser)`, `coach(uidCoach)`, `captain(uidCaptain)`, `manager(uidManager)`, `leader(uidLeader)`, `venue_owner(uidVenue)`, `admin`, `superAdmin`
+  - 同步 seed `claims/token.role` 與 `/users/{uid}.role`，對齊目前 fallback 邏輯。
+- **Coverage focus**:
+  - user 對 own registration/message 的 CRUD 可用性。
+  - coach+ 對 event、manager/leader 對 teams 的可用性驗證。
+  - admin/superAdmin 可 create `linePushQueue`；一般 user 必須 fail。
+  - 用 `[USABILITY_BLOCKED]` / `[SECURITY_GAP_USABILITY]` 標註「規格應允許但被擋」或「不該允許卻放行」。
+- **Files**: `tests/firestore.rules.test.js`
+
+### 2026-02-28 - UID 不一致登入修補與舊 users 文件相容
+- **Problem**: LINE/Firebase UID 與 users docId 不一致時，前端容易出現 permission-denied 與 WebChannel 400/404 後續錯誤。
+- **Fix Direction**:
+  - 偵測 UID mismatch 時強制重新登入/刷新 token（避免 stale auth session）。
+  - 避免前端去改寫 uid 主鍵型欄位。
+  - 相容舊資料：允許 legacy users docId 轉移到 canonical uid doc（migrate once）。
+- **Result**: 登入後 profile 同步流程更穩定，跨舊資料時不再直接卡死在 permission-denied。
+- **Files**: `js/firebase-crud.js`, `js/modules/profile-core.js`, `js/firebase-service.js`（相關流程）
+
+### 2026-02-28 - 活動建立「球隊限定」多選體驗重設計
+- **Problem**: 原 team-only UI 不易讀、不好選，且無法自然支援 10+ 球隊多選。
+- **UX Redesign**:
+  - 改為「已選標籤 + 搜尋欄 + 勾選清單」的多選器。
+  - `ce-team-select` 改為隱藏狀態源，新的 picker 負責互動與同步。
+  - 文案改為全中文，移除英文狀態文字。
+  - 列表可滾動、可搜尋、可快速取消單一已選球隊。
+- **Files**: `pages/activity.html`, `css/base.css`, `js/modules/event-create.js`
+

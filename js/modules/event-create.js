@@ -734,7 +734,7 @@ Object.assign(App, {
       result.push(team || { id, name: id });
     });
 
-    result.sort((a, b) => String(a.name || a.id).localeCompare(String(b.name || b.id), 'en'));
+    result.sort((a, b) => String(a.name || a.id).localeCompare(String(b.name || b.id), 'zh-Hant'));
     return result;
   },
 
@@ -776,7 +776,113 @@ Object.assign(App, {
     }
     select.size = Math.min(Math.max(renderTeams.length || 0, 2), 6);
     select.disabled = renderTeams.length === 0;
+    select.style.display = 'none';
+    this._renderTeamOnlyPicker();
     return renderTeams;
+  },
+
+  _setTeamOptionSelected(teamId, selected) {
+    const select = document.getElementById('ce-team-select');
+    if (!select) return;
+    const targetId = String(teamId || '').trim();
+    if (!targetId) return;
+    const option = Array.from(select.options || []).find(opt => String(opt.value || '').trim() === targetId);
+    if (!option) return;
+    const nextValue = !!selected;
+    if (option.selected === nextValue) return;
+    option.selected = nextValue;
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+  },
+
+  _renderTeamOnlyPicker() {
+    const cb = document.getElementById('ce-team-only');
+    const select = document.getElementById('ce-team-select');
+    const picker = document.getElementById('ce-team-picker');
+    const chips = document.getElementById('ce-team-chips');
+    const search = document.getElementById('ce-team-search');
+    const list = document.getElementById('ce-team-list');
+    if (!select || !picker || !chips || !search || !list) return;
+
+    if (!cb?.checked) {
+      picker.style.display = 'none';
+      chips.innerHTML = '';
+      list.innerHTML = '';
+      search.value = '';
+      return;
+    }
+
+    const options = Array.from(select.options || []);
+    if (options.length === 0) {
+      picker.style.display = 'none';
+      chips.innerHTML = '';
+      list.innerHTML = '';
+      return;
+    }
+
+    picker.style.display = '';
+    const selected = this._getSelectedTeamValues(select);
+    chips.innerHTML = selected.length > 0
+      ? selected.map(team => `
+          <button type="button" class="ce-team-chip" data-team-id="${escapeHTML(team.id)}" title="取消選擇 ${escapeHTML(team.name)}">
+            <span>${escapeHTML(team.name)}</span>
+            <span class="ce-team-chip-remove">×</span>
+          </button>
+        `).join('')
+      : '<span class="ce-team-placeholder">尚未選擇球隊</span>';
+
+    const keyword = String(search.value || '').trim().toLowerCase();
+    const filtered = options.filter(opt => {
+      if (!keyword) return true;
+      const name = String(opt.dataset?.name || opt.textContent || opt.value || '').toLowerCase();
+      return name.includes(keyword);
+    });
+
+    if (filtered.length === 0) {
+      list.innerHTML = '<div class="ce-team-empty">找不到符合的球隊</div>';
+      return;
+    }
+
+    list.innerHTML = filtered.map(opt => {
+      const teamId = String(opt.value || '').trim();
+      const teamName = String(opt.dataset?.name || opt.textContent || teamId);
+      const checkedAttr = opt.selected ? ' checked' : '';
+      return `
+        <label class="ce-team-item">
+          <input type="checkbox" data-team-id="${escapeHTML(teamId)}"${checkedAttr}>
+          <span>${escapeHTML(teamName)}</span>
+        </label>
+      `;
+    }).join('');
+  },
+
+  _bindTeamOnlyPickerEvents() {
+    const search = document.getElementById('ce-team-search');
+    const list = document.getElementById('ce-team-list');
+    const chips = document.getElementById('ce-team-chips');
+
+    if (search && !search.dataset.bound) {
+      search.dataset.bound = '1';
+      search.addEventListener('input', () => this._renderTeamOnlyPicker());
+    }
+
+    if (list && !list.dataset.bound) {
+      list.dataset.bound = '1';
+      list.addEventListener('change', (ev) => {
+        const input = ev.target instanceof HTMLInputElement ? ev.target : null;
+        if (!input || input.type !== 'checkbox') return;
+        this._setTeamOptionSelected(input.dataset.teamId, input.checked);
+      });
+    }
+
+    if (chips && !chips.dataset.bound) {
+      chips.dataset.bound = '1';
+      chips.addEventListener('click', (ev) => {
+        const target = ev.target instanceof Element ? ev.target : null;
+        const chip = target ? target.closest('.ce-team-chip[data-team-id]') : null;
+        if (!chip) return;
+        this._setTeamOptionSelected(chip.dataset.teamId, false);
+      });
+    }
   },
 
   _resolveTeamOnlySelection() {
@@ -798,42 +904,44 @@ Object.assign(App, {
     if (!cb || !label) return;
 
     if (!cb.checked) {
-      label.textContent = 'OFF - visible to everyone';
+      label.textContent = '未啟用：所有人都可見';
       label.style.color = 'var(--text-muted)';
       if (select) select.style.display = 'none';
+      this._renderTeamOnlyPicker();
       return;
     }
 
     label.style.color = '#e11d48';
     const teams = this._getTeamOnlyCandidateTeams();
-    const pickerOptionCount = select ? select.options.length : teams.length;
-    const shouldShowPicker = pickerOptionCount > 1;
-    if (select) select.style.display = shouldShowPicker ? '' : 'none';
+    if (select) select.style.display = 'none';
 
     if (teams.length === 0) {
-      label.textContent = 'ON - no team available';
+      label.textContent = '已啟用：目前沒有可選球隊';
+      this._renderTeamOnlyPicker();
       return;
     }
 
     const selected = this._resolveTeamOnlySelection();
     if (selected.length === 0) {
-      label.textContent = 'ON - select at least one team';
+      label.textContent = '已啟用：請至少選擇 1 支球隊';
+      this._renderTeamOnlyPicker();
       return;
     }
 
     if (selected.length === 1) {
-      label.textContent = `ON - ${selected[0].name}`;
+      label.textContent = `已啟用：僅限「${selected[0].name}」`;
+      this._renderTeamOnlyPicker();
       return;
     }
 
-    const preview = selected.slice(0, 2).map(t => t.name).join(', ');
-    const suffix = selected.length > 2 ? '...' : '';
-    label.textContent = `ON - ${selected.length} teams (${preview}${suffix})`;
+    label.textContent = `已啟用：已選 ${selected.length} 支球隊`;
+    this._renderTeamOnlyPicker();
   },
 
   bindTeamOnlyToggle() {
     const cb = document.getElementById('ce-team-only');
     const select = document.getElementById('ce-team-select');
+    this._bindTeamOnlyPickerEvents();
     if (cb && !cb.dataset.bound) {
       cb.dataset.bound = '1';
       cb.addEventListener('change', () => {
@@ -849,6 +957,7 @@ Object.assign(App, {
       select.dataset.bound = '1';
       select.addEventListener('change', () => this._updateTeamOnlyLabel());
     }
+    this._updateTeamOnlyLabel();
   },
 
   handleCreateEvent() {
@@ -901,7 +1010,7 @@ Object.assign(App, {
     let resolvedTeamIds = [], resolvedTeamNames = [];
     if (teamOnly) {
       const selectedTeams = this._resolveTeamOnlySelection();
-      if (selectedTeams.length === 0) { this.showToast('Please select at least one team'); return; }
+      if (selectedTeams.length === 0) { this.showToast('請至少選擇 1 支球隊'); return; }
       resolvedTeamIds = selectedTeams.map(t => t.id);
       resolvedTeamNames = selectedTeams.map(t => t.name || t.id);
       resolvedTeamId = resolvedTeamIds[0] || null;

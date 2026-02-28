@@ -77,7 +77,8 @@
 // 20260228c: Cloudflare Worker route for team-share dynamic OG (main domain)
 // 20260228d: team detail member list edit mode + staff-only member removal with full sync
 // 20260228e: multi-team membership compatibility (teamIds/teamNames) + join flow unblock
-const CACHE_VERSION = '20260228g';
+// 20260228h: firestore rules security hardening + team-only multi-select redesign + memory sync
+const CACHE_VERSION = '20260228h';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {

@@ -238,6 +238,105 @@ img { max-width: 100%; display: block; }
 .ce-row-half input[type="date"] { width: 100%; min-width: 0; box-sizing: border-box; padding: .45rem .35rem; font-size: .82rem; }
 .ce-row-half select { padding: .45rem .35rem; font-size: .82rem; padding-right: 1.4rem; background-position: right .3rem center; }
 
+/* Team-only Multi Select */
+.ce-team-picker {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  padding: .45rem;
+  display: flex;
+  flex-direction: column;
+  gap: .45rem;
+}
+.ce-team-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .35rem;
+  min-height: 1.5rem;
+}
+.ce-team-placeholder {
+  font-size: .72rem;
+  color: var(--text-muted);
+}
+.ce-team-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: .2rem;
+  border: 1px solid rgba(225, 29, 72, .24);
+  background: rgba(225, 29, 72, .08);
+  color: #be123c;
+  border-radius: 999px;
+  font-size: .72rem;
+  line-height: 1;
+  padding: .24rem .52rem;
+  cursor: pointer;
+}
+.ce-team-chip:hover {
+  background: rgba(225, 29, 72, .15);
+}
+.ce-team-chip-remove {
+  font-size: .78rem;
+  opacity: .7;
+}
+.ce-team-search {
+  margin: 0;
+  width: 100%;
+  font-size: .8rem;
+  padding: .42rem .5rem;
+}
+.ce-team-list {
+  max-height: 220px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-card);
+}
+.ce-team-item {
+  display: flex;
+  align-items: center;
+  gap: .45rem;
+  font-size: .8rem;
+  padding: .45rem .55rem;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+}
+.ce-team-item:last-child {
+  border-bottom: none;
+}
+.ce-team-item:hover {
+  background: var(--accent-bg);
+}
+.ce-team-item input[type="checkbox"] {
+  margin: 0;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  accent-color: var(--accent);
+}
+.ce-team-item span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ce-team-item input[type="checkbox"]:checked + span {
+  color: var(--accent);
+  font-weight: 600;
+}
+.ce-team-empty {
+  font-size: .75rem;
+  color: var(--text-muted);
+  padding: .65rem;
+  text-align: center;
+}
+[data-theme="dark"] .ce-team-chip {
+  background: rgba(251, 113, 133, .15);
+  border-color: rgba(251, 113, 133, .35);
+  color: #fecdd3;
+}
+
 /* Delegate Search */
 .ce-delegate-wrap { position: relative; line-height: 1.2; }
 .ce-delegate-wrap input { margin: 0; padding: .4rem .5rem; font-size: .82rem; }

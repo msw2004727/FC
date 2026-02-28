@@ -46,6 +46,34 @@ function superAdmin() {
     .firestore();
 }
 
+function roleContext(uid, role, extraToken = {}) {
+  return testEnv.authenticatedContext(uid, { role, ...extraToken }).firestore();
+}
+
+function user(uid = "uidUser") {
+  return roleContext(uid, "user");
+}
+
+function coach(uid = "uidCoach") {
+  return roleContext(uid, "coach");
+}
+
+function captain(uid = "uidCaptain") {
+  return roleContext(uid, "captain");
+}
+
+function manager(uid = "uidManager") {
+  return roleContext(uid, "manager");
+}
+
+function leader(uid = "uidLeader") {
+  return roleContext(uid, "leader");
+}
+
+function venueOwner(uid = "uidVenue") {
+  return roleContext(uid, "venue_owner");
+}
+
 const roleDb = {
   guest,
   memberA,
@@ -145,6 +173,36 @@ async function seedBaseDocs() {
       displayName: "Super Admin User",
       role: "super_admin",
     });
+    await setDoc(doc(db, "users", "uidUser"), {
+      uid: "uidUser",
+      displayName: "General User",
+      role: "user",
+    });
+    await setDoc(doc(db, "users", "uidCoach"), {
+      uid: "uidCoach",
+      displayName: "Coach User",
+      role: "coach",
+    });
+    await setDoc(doc(db, "users", "uidCaptain"), {
+      uid: "uidCaptain",
+      displayName: "Captain User",
+      role: "captain",
+    });
+    await setDoc(doc(db, "users", "uidManager"), {
+      uid: "uidManager",
+      displayName: "Manager User",
+      role: "manager",
+    });
+    await setDoc(doc(db, "users", "uidLeader"), {
+      uid: "uidLeader",
+      displayName: "Leader User",
+      role: "leader",
+    });
+    await setDoc(doc(db, "users", "uidVenue"), {
+      uid: "uidVenue",
+      displayName: "Venue Owner User",
+      role: "venue_owner",
+    });
 
     await setDoc(doc(db, "events", "eventA"), {
       id: "eventA",
@@ -162,6 +220,22 @@ async function seedBaseDocs() {
       captainUid: "uidB",
       status: "open",
     });
+    await setDoc(doc(db, "events", "eventCoachOwn"), {
+      id: "eventCoachOwn",
+      title: "Coach Event",
+      creatorUid: "uidCoach",
+      ownerUid: "uidCoach",
+      captainUid: "uidCoach",
+      status: "open",
+    });
+    await setDoc(doc(db, "events", "eventUserOwn"), {
+      id: "eventUserOwn",
+      title: "User Event",
+      creatorUid: "uidUser",
+      ownerUid: "uidUser",
+      captainUid: "uidUser",
+      status: "open",
+    });
 
     await setDoc(doc(db, "registrations", "regA"), {
       id: "regA",
@@ -173,6 +247,18 @@ async function seedBaseDocs() {
       id: "regB",
       eventId: "eventB",
       userId: "uidB",
+      status: "confirmed",
+    });
+    await setDoc(doc(db, "registrations", "regUser"), {
+      id: "regUser",
+      eventId: "eventA",
+      userId: "uidUser",
+      status: "confirmed",
+    });
+    await setDoc(doc(db, "registrations", "regCoach"), {
+      id: "regCoach",
+      eventId: "eventA",
+      userId: "uidCoach",
       status: "confirmed",
     });
 
@@ -187,6 +273,18 @@ async function seedBaseDocs() {
       fromUid: "uidB",
       toUid: "uidA",
       body: "hello from B",
+    });
+    await setDoc(doc(db, "messages", "msgUserSent"), {
+      id: "msgUserSent",
+      fromUid: "uidUser",
+      toUid: "uidCoach",
+      body: "hello from user",
+    });
+    await setDoc(doc(db, "messages", "msgCoachToUser"), {
+      id: "msgCoachToUser",
+      fromUid: "uidCoach",
+      toUid: "uidUser",
+      body: "hello to user inbox",
     });
 
     await setDoc(doc(db, "linePushQueue", "queueA"), {
@@ -243,6 +341,27 @@ async function seedBaseDocs() {
       captainUid: "uidB",
       creatorUid: "uidB",
       ownerUid: "uidB",
+    });
+    await setDoc(doc(db, "teams", "teamManagerOwn"), {
+      id: "teamManagerOwn",
+      name: "Manager Team",
+      captainUid: "uidManager",
+      creatorUid: "uidManager",
+      ownerUid: "uidManager",
+    });
+    await setDoc(doc(db, "teams", "teamLeaderOwn"), {
+      id: "teamLeaderOwn",
+      name: "Leader Team",
+      captainUid: "uidLeader",
+      creatorUid: "uidLeader",
+      ownerUid: "uidLeader",
+    });
+    await setDoc(doc(db, "teams", "teamUserOwn"), {
+      id: "teamUserOwn",
+      name: "User Team",
+      captainUid: "uidUser",
+      creatorUid: "uidUser",
+      ownerUid: "uidUser",
     });
 
     await setDoc(doc(db, "shopItems", "itemA"), {
@@ -770,5 +889,133 @@ describe("/trades/{tradeId}", () => {
     await assertSucceeds(deleteDoc(doc(admin(), "trades", "trade_admin_del")));
     await seedDoc("trades", "trade_sa_del", { ownerUid: "uidB", fromUid: "uidB" });
     await assertSucceeds(deleteDoc(doc(superAdmin(), "trades", "trade_sa_del")));
+  });
+});
+
+describe("Role usability smoke tests", () => {
+  test("user can create own registration", async () => {
+    await assertSucceeds(
+      setDoc(doc(user(), "registrations", "reg_user_smoke_create"), {
+        eventId: "eventA",
+        userId: "uidUser",
+        status: "confirmed",
+      })
+    );
+  });
+
+  test("user can update own registration", async () => {
+    await assertSucceeds(
+      updateDoc(doc(user(), "registrations", "regUser"), {
+        status: "cancelled",
+      })
+    );
+  });
+
+  test("user can delete own registration", async () => {
+    await assertSucceeds(deleteDoc(doc(user(), "registrations", "regUser")));
+  });
+
+  test("user cannot update another user's registration", async () => {
+    await assertFails(
+      updateDoc(doc(user(), "registrations", "regCoach"), {
+        status: "cancelled-by-user",
+      })
+    );
+  });
+
+  test("user cannot delete another user's registration", async () => {
+    await assertFails(deleteDoc(doc(user(), "registrations", "regCoach")));
+  });
+
+  test("user can create message with fromUid=self", async () => {
+    await assertSucceeds(
+      setDoc(doc(user(), "messages", "msg_user_smoke_create"), {
+        fromUid: "uidUser",
+        toUid: "uidCoach",
+        body: "hello coach",
+      })
+    );
+  });
+
+  test("user can delete own sent message", async () => {
+    await assertSucceeds(deleteDoc(doc(user(), "messages", "msgUserSent")));
+  });
+
+  test("user cannot delete another user's message", async () => {
+    await assertFails(deleteDoc(doc(user(), "messages", "msgCoachToUser")));
+  });
+
+  test("[USABILITY_BLOCKED] user cannot read received inbox message (toUid=self)", async () => {
+    // Blocked by rule: /messages read only checks fromUid ownership.
+    await assertFails(getDoc(doc(user(), "messages", "msgCoachToUser")));
+  });
+
+  test("coach can update own created event", async () => {
+    await assertSucceeds(
+      updateDoc(doc(coach(), "events", "eventCoachOwn"), {
+        status: "closed",
+      })
+    );
+  });
+
+  test("[SECURITY_GAP_USABILITY] non-coach user can update event", async () => {
+    // SECURITY GAP: /events update currently allows any authenticated user (isAuth()).
+    await assertSucceeds(
+      updateDoc(doc(user(), "events", "eventCoachOwn"), {
+        status: "user-updated",
+      })
+    );
+  });
+
+  test("manager/leader can update teams", async () => {
+    await assertSucceeds(
+      updateDoc(doc(manager(), "teams", "teamManagerOwn"), {
+        name: "Manager Team Updated",
+      })
+    );
+    await assertSucceeds(
+      updateDoc(doc(leader(), "teams", "teamLeaderOwn"), {
+        name: "Leader Team Updated",
+      })
+    );
+  });
+
+  test("[SECURITY_GAP_USABILITY] user can update teams without manager/leader role", async () => {
+    // SECURITY GAP: /teams update currently allows any authenticated user (isAuth()).
+    await assertSucceeds(
+      updateDoc(doc(user(), "teams", "teamManagerOwn"), {
+        name: "User Updated Manager Team",
+      })
+    );
+  });
+
+  test("user cannot create line push queue job", async () => {
+    await assertFails(
+      setDoc(doc(user(), "linePushQueue", "queue_user_smoke"), {
+        uid: "uidUser",
+        title: "push",
+        body: "payload",
+        status: "pending",
+      })
+    );
+  });
+
+  test("admin/superAdmin can create line push queue job", async () => {
+    await assertSucceeds(
+      setDoc(doc(admin(), "linePushQueue", "queue_admin_smoke"), {
+        uid: "uidUser",
+        title: "admin push",
+        body: "payload",
+        status: "pending",
+      })
+    );
+    await assertSucceeds(
+      setDoc(doc(superAdmin(), "linePushQueue", "queue_sa_smoke"), {
+        uid: "uidUser",
+        title: "super admin push",
+        body: "payload",
+        status: "pending",
+      })
+    );
   });
 });
