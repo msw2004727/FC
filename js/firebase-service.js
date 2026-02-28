@@ -277,6 +277,46 @@ const FirebaseService = {
     if (App.currentPage === 'page-activities') App.renderActivityList?.();
   },
 
+  _syncCurrentUserFromUsersSnapshot() {
+    if (ModeManager.isDemo()) return;
+
+    const authUid = (typeof auth !== 'undefined' && auth?.currentUser?.uid)
+      ? auth.currentUser.uid
+      : (this._cache.currentUser?.uid || null);
+    if (!authUid) return;
+
+    const candidates = (this._cache.adminUsers || []).filter(u =>
+      u && (u._docId === authUid || u.uid === authUid || u.lineUserId === authUid)
+    );
+    if (!candidates.length) return;
+
+    const preferred =
+      candidates.find(u => u._docId === authUid)
+      || candidates.find(u => u.uid === authUid)
+      || candidates.find(u => u.lineUserId === authUid)
+      || candidates[0];
+
+    const prev = this._cache.currentUser || null;
+    const next = {
+      ...(prev || {}),
+      ...preferred,
+      uid: preferred.uid || authUid,
+      lineUserId: preferred.lineUserId || authUid,
+    };
+
+    const changed = !prev
+      || prev._docId !== next._docId
+      || prev.role !== next.role
+      || prev.isRestricted !== next.isRestricted
+      || prev.displayName !== next.displayName
+      || prev.pictureUrl !== next.pictureUrl;
+    if (!changed) return;
+
+    this._cache.currentUser = next;
+    this._saveToLS('currentUser', next);
+    if (this._onUserChanged) this._onUserChanged();
+  },
+
   _watchRolePermissionsRealtime(waitForFirstSnapshot = false) {
     return new Promise(resolve => {
       let firstSnapshot = true;
@@ -610,6 +650,7 @@ const FirebaseService = {
           .onSnapshot(
             snapshot => {
               this._cache.adminUsers = snapshot.docs.map(doc => this._mapUserDoc(doc.data(), doc.id));
+              this._syncCurrentUserFromUsersSnapshot();
               this._debouncedPersistCache();
               if (firstUserSnapshot) { firstUserSnapshot = false; checkDone(); }
             },

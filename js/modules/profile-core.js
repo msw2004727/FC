@@ -209,6 +209,11 @@ Object.assign(App, {
         const profile = LineAuth.getProfile();
         console.log('[App] LINE 已登入, userId:', profile.userId, 'name:', profile.displayName);
         const refreshAfterUserReady = () => {
+          const latestRole = ApiService.getCurrentUser?.()?.role || 'user';
+          if (this.currentRole !== latestRole && typeof this.applyRole === 'function') {
+            this.applyRole(latestRole, true);
+            this.showToast(`權限已更新為「${ROLES[latestRole]?.label || latestRole}」`);
+          }
           this._handleRestrictedStateChange?.();
           this.renderProfileData();
           this.renderProfileFavorites();

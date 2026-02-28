@@ -743,9 +743,37 @@ Object.assign(FirebaseService, {
     this._userListener = db.collection('users').doc(docId).onSnapshot(
       doc => {
         if (doc.exists) {
-          this._cache.currentUser = { ...doc.data(), _docId: doc.id };
-          this._saveToLS('currentUser', this._cache.currentUser);
-          if (this._onUserChanged) this._onUserChanged();
+          const prev = this._cache.currentUser || null;
+          const next = { ...doc.data(), _docId: doc.id };
+          this._cache.currentUser = next;
+          this._saveToLS('currentUser', next);
+
+          const roleChanged = prev?.role !== next.role;
+          if (
+            roleChanged
+            && typeof auth !== 'undefined'
+            && auth?.currentUser
+          ) {
+            const uid = next.uid || next.lineUserId || next._docId;
+            if (uid && auth.currentUser.uid === uid) {
+              auth.currentUser.getIdToken(true).catch(err => {
+                console.warn('[FirebaseService] token refresh after role change failed:', err?.code || err?.message || err);
+              });
+            }
+          }
+
+          if (this._onUserChanged) {
+            this._onUserChanged();
+          } else if (typeof App !== 'undefined' && !ModeManager.isDemo()) {
+            try {
+              if (roleChanged && typeof App.applyRole === 'function') {
+                App.applyRole(next.role || 'user', true);
+              }
+              App.renderLoginUI?.();
+            } catch (uiErr) {
+              console.warn('[FirebaseService] currentUser listener fallback UI refresh failed:', uiErr);
+            }
+          }
         }
       },
       err => console.warn('[onSnapshot] currentUser 監聽錯誤:', err)
