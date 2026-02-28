@@ -79,7 +79,8 @@
 // 20260228e: multi-team membership compatibility (teamIds/teamNames) + join flow unblock
 // 20260228h: firestore rules security hardening + team-only multi-select redesign + memory sync
 // 20260228i: event sport-tag single-select + required validation + SVG sport icons
-const CACHE_VERSION = '20260228i';
+// 20260228j: switch sport category icons from SVG to Emoji
+const CACHE_VERSION = '20260228j';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {
