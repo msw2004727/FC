@@ -73,7 +73,8 @@
 // 20260227zz: 個人資料頁球隊申請欄位只顯示最新一筆
 // 20260227zza: 球隊動態實裝 DB 寫入（發文/刪文/置頂/表情/留言/刪留言 共 6 處）
 // 20260228a: force global cache refresh for i18n locale rollout
-const CACHE_VERSION = '20260228a';
+// 20260228b: team invite share text + dynamic team OG + team-share redirects
+const CACHE_VERSION = '20260228b';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {
