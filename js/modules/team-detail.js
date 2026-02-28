@@ -53,23 +53,25 @@ Object.assign(App, {
   },
 
   _getTeamStaffIdentity(team) {
-    const names = new Set();
-    const uids = new Set();
-    if (!team) return { names, uids };
-    if (team.captain) names.add(team.captain);
-    if (team.captainUid) uids.add(team.captainUid);
-    const leaderNames = team.leaders || (team.leader ? [team.leader] : []);
-    leaderNames.filter(Boolean).forEach(name => names.add(name));
-    const leaderUids = team.leaderUids || (team.leaderUid ? [team.leaderUid] : []);
-    leaderUids.filter(Boolean).forEach(uid => uids.add(uid));
-    (team.coaches || []).filter(Boolean).forEach(name => names.add(name));
-    return { names, uids };
+    const users = ApiService.getAdminUsers() || [];
+    const built = (typeof this._buildTeamStaffIdentity === 'function')
+      ? this._buildTeamStaffIdentity(team, users)
+      : { keys: new Set(), names: new Set() };
+    return {
+      keys: built.keys || new Set(),
+      names: built.names || new Set(),
+    };
   },
 
   _isRegularTeamMember(user, staffIdentity) {
     if (!user) return false;
-    if (staffIdentity?.uids?.has(user.uid)) return false;
-    const names = [user.name, user.displayName].filter(Boolean);
+    const key = (typeof this._getUserIdentityKey === 'function')
+      ? this._getUserIdentityKey(user)
+      : null;
+    if (key && staffIdentity?.keys?.has(key)) return false;
+    const names = [user.name, user.displayName]
+      .map(name => String(name || '').trim().toLowerCase())
+      .filter(Boolean);
     if (names.some(name => staffIdentity?.names?.has(name))) return false;
     return true;
   },

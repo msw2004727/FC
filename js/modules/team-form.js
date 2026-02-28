@@ -462,7 +462,9 @@ Object.assign(App, {
     if (this._teamEditId) {
       const oldTeam = ApiService.getTeam(this._teamEditId);
       if (oldTeam) {
-        oldCaptainUid = oldTeam.captainUid || null;
+        oldCaptainUid = (oldTeam.captainUid && !String(oldTeam.captainUid).startsWith('__legacy__'))
+          ? oldTeam.captainUid
+          : null;
         if (!oldCaptainUid && oldTeam.captain) {
           const capUser = ApiService.getAdminUsers().find(u => u.name === oldTeam.captain);
           oldCaptainUid = capUser ? capUser.uid : null;
@@ -523,6 +525,10 @@ Object.assign(App, {
       return;
     }
 
+    const captainUidForSave = (this._teamCaptainUid && this._teamCaptainUid !== '__legacy__')
+      ? this._teamCaptainUid
+      : null;
+
     // Resolve coach names
     const coaches = this._teamCoachUids.map(uid => {
       if (uid.startsWith('__legacy_')) return uid.replace('__legacy_', '');
@@ -535,7 +541,7 @@ Object.assign(App, {
 
     // ── 降級確認（編輯模式：預覽被移除成員的角色變更）──
     if (this._teamEditId) {
-      const newCaptainUidCheck = (this._teamCaptainUid && this._teamCaptainUid !== '__legacy__') ? this._teamCaptainUid : oldCaptainUid;
+      const newCaptainUidCheck = captainUidForSave || oldCaptainUid;
       // 預覽移除職位後的新角色（不實際修改）
       const previewNewRole = (uid) => {
         const u = users.find(u => u.uid === uid);
@@ -599,17 +605,22 @@ Object.assign(App, {
       }
     }
 
-    const staffNames = new Set([captain, ...leaderNames, ...coaches].filter(Boolean));
-    const regularMembersCount = this._teamEditId
-      ? users.filter(u => {
-        const inTeam = (typeof this._isUserInTeam === 'function')
-          ? this._isUserInTeam(u, this._teamEditId)
-          : (u.teamId === this._teamEditId);
-        return inTeam && !staffNames.has(u.name);
-      }).length
-      : 0;
-    const members = this._teamEditId
-      ? (captain ? 1 : 0) + leaderNames.length + coaches.length + regularMembersCount
+    const leaderUidCompat = realLeaderUids[0] || null;
+    const leaderCompat = leaderNames[0] || '';
+    const nextTeamId = this._teamEditId || generateId('tm_');
+    const teamForMemberCount = {
+      ...(this._teamEditId ? (ApiService.getTeam(this._teamEditId) || {}) : {}),
+      id: nextTeamId,
+      captain,
+      captainUid: captainUidForSave,
+      leader: leaderCompat,
+      leaderUid: leaderUidCompat,
+      leaders: leaderNames,
+      leaderUids: realLeaderUids,
+      coaches,
+    };
+    const members = (typeof this._calcTeamMemberCountByTeam === 'function')
+      ? this._calcTeamMemberCountByTeam(teamForMemberCount, users)
       : 0;
 
     const preview = document.getElementById('ct-team-preview');
@@ -626,21 +637,19 @@ Object.assign(App, {
 
     try {
       // leader/leaderUid 相容欄位（舊格式）
-      const leaderUidCompat = realLeaderUids[0] || null;
-      const leaderCompat = leaderNames[0] || '';
       if (this._teamEditId) {
         const updates = {
           name, nameEn, nationality, region, founded, contact, bio,
           leader: leaderCompat, leaderUid: leaderUidCompat,
           leaders: leaderNames, leaderUids: realLeaderUids,
-          captain, captainUid: this._teamCaptainUid || null,
+          captain, captainUid: captainUidForSave,
           coaches, members,
         };
         if (image) updates.image = image;
         ApiService.updateTeam(this._teamEditId, updates);
         ApiService._writeOpLog('team_edit', '編輯球隊', `編輯「${name}」`);
         // ── 球隊職位變更日誌 ──
-        const newCapUid = (this._teamCaptainUid && this._teamCaptainUid !== '__legacy__') ? this._teamCaptainUid : null;
+        const newCapUid = captainUidForSave;
         if (oldCaptainUid && newCapUid && oldCaptainUid !== newCapUid) {
           const oldCapName = users.find(u => u.uid === oldCaptainUid)?.name || '?';
           ApiService._writeOpLog('team_position', '球隊職位變更', `「${name}」球隊經理由「${oldCapName}」轉移至「${captain}」`);
@@ -675,11 +684,11 @@ Object.assign(App, {
         this.showToast('球隊資料已更新');
       } else {
         const data = {
-          id: generateId('tm_'),
+          id: nextTeamId,
           name, nameEn, nationality,
           leader: leaderCompat, leaderUid: leaderUidCompat,
           leaders: leaderNames, leaderUids: realLeaderUids,
-          captain, captainUid: this._teamCaptainUid || null,
+          captain, captainUid: captainUidForSave,
           coaches, members,
           region, founded, contact, bio, image,
           active: true, pinned: false, pinOrder: 0,

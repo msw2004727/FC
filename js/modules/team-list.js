@@ -25,9 +25,94 @@ Object.assign(App, {
     return this._getUserTeamIds(user).includes(String(teamId));
   },
 
+  _normalizeIdentityValue(value) {
+    return String(value || '').trim();
+  },
+
+  _toNameIdentityKey(name) {
+    const normalized = this._normalizeIdentityValue(name).toLowerCase();
+    return normalized ? `name:${normalized}` : null;
+  },
+
+  _getUserIdentityKey(user) {
+    if (!user) return null;
+    const uid = this._normalizeIdentityValue(user.uid);
+    if (uid) return `uid:${uid}`;
+    const docId = this._normalizeIdentityValue(user._docId);
+    if (docId) return `doc:${docId}`;
+    return this._toNameIdentityKey(user.name || user.displayName);
+  },
+
+  _resolveUserIdentityKeyByName(name, users = ApiService.getAdminUsers() || []) {
+    const target = this._normalizeIdentityValue(name);
+    if (!target) return null;
+    const found = users.find(u => {
+      const userName = this._normalizeIdentityValue(u.name);
+      const displayName = this._normalizeIdentityValue(u.displayName);
+      return userName === target || displayName === target;
+    });
+    return this._getUserIdentityKey(found);
+  },
+
+  _buildTeamStaffIdentity(team, users = ApiService.getAdminUsers() || []) {
+    const keys = new Set();
+    const names = new Set();
+    if (!team) return { keys, names };
+
+    const addKey = (key) => {
+      if (key) keys.add(key);
+    };
+    const addByUidLike = (uidLike) => {
+      const raw = this._normalizeIdentityValue(uidLike);
+      if (!raw || raw.startsWith('__legacy__')) return;
+      const found = users.find(u =>
+        this._normalizeIdentityValue(u.uid) === raw ||
+        this._normalizeIdentityValue(u._docId) === raw
+      );
+      addKey(found ? this._getUserIdentityKey(found) : `uid:${raw}`);
+    };
+    const addByName = (name) => {
+      const rawName = this._normalizeIdentityValue(name);
+      if (!rawName) return;
+      names.add(rawName.toLowerCase());
+      const resolvedKey = this._resolveUserIdentityKeyByName(rawName, users);
+      addKey(resolvedKey || this._toNameIdentityKey(rawName));
+    };
+
+    addByUidLike(team.captainUid);
+    addByName(team.captain);
+
+    const leaderUids = team.leaderUids || (team.leaderUid ? [team.leaderUid] : []);
+    leaderUids.forEach(addByUidLike);
+
+    const leaderNames = team.leaders || (team.leader ? [team.leader] : []);
+    leaderNames.forEach(addByName);
+
+    (team.coaches || []).forEach(addByName);
+
+    return { keys, names };
+  },
+
+  _calcTeamMemberCountByTeam(team, users = ApiService.getAdminUsers() || []) {
+    if (!team || !team.id) return 0;
+    const uniqueIdentities = new Set();
+    const staffIdentity = this._buildTeamStaffIdentity(team, users);
+    staffIdentity.keys.forEach(key => uniqueIdentities.add(key));
+
+    users.forEach(user => {
+      if (!this._isUserInTeam(user, team.id)) return;
+      const key = this._getUserIdentityKey(user);
+      if (key) uniqueIdentities.add(key);
+    });
+
+    return uniqueIdentities.size;
+  },
+
   _calcTeamMemberCount(teamId) {
+    const team = ApiService.getTeam(teamId);
+    if (!team) return 0;
     const users = ApiService.getAdminUsers() || [];
-    return users.filter(u => this._isUserInTeam(u, teamId)).length;
+    return this._calcTeamMemberCountByTeam(team, users);
   },
 
   _isTeamOwner(t) {
