@@ -82,7 +82,8 @@
 // 20260228j: switch sport category icons from SVG to Emoji
 // 20260228k: team-only selector display fallback (avoid raw tm_* IDs in UI)
 // 20260228l: deep-link boot guard + full-screen transition overlay (avoid home flash before target page)
-const CACHE_VERSION = '20260228l';
+// 20260228m: deep-link unauth flow auto-redirects to LINE login instead of timing out on overlay
+const CACHE_VERSION = '20260228m';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {

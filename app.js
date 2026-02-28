@@ -16,6 +16,7 @@ const App = {
   _bootDeepLinkTimer: null,
   _bootDeepLinkPoller: null,
   _deepLinkBootTimeoutMs: 12000,
+  _deepLinkAuthRedirecting: false,
 
   init() {
     this.bindRoleSwitcher();
@@ -202,6 +203,7 @@ const App = {
     this._clearDeepLinkQueryParams();
     this._hideDeepLinkOverlay();
     this._bootDeepLink = null;
+    this._deepLinkAuthRedirecting = false;
   },
 
   _completeDeepLinkFallback(message, targetPage = 'page-activities') {
@@ -210,23 +212,68 @@ const App = {
     this._clearDeepLinkQueryParams();
     this._hideDeepLinkOverlay();
     this._bootDeepLink = null;
+    this._deepLinkAuthRedirecting = false;
     const canOpenProtected = ModeManager.isDemo() || (typeof LineAuth !== 'undefined' && LineAuth.isLoggedIn());
     const fallbackPage = (!canOpenProtected && targetPage !== 'page-home') ? 'page-home' : targetPage;
     if (fallbackPage && this.currentPage !== fallbackPage) this.showPage(fallbackPage);
     if (message) this.showToast(message);
   },
 
+  _tryStartDeepLinkLogin() {
+    if (ModeManager.isDemo()) return false;
+    if (this._deepLinkAuthRedirecting) return true;
+    if (typeof LineAuth === 'undefined') return false;
+    if (typeof LineAuth.isLoggedIn === 'function' && LineAuth.isLoggedIn()) return false;
+
+    // LIFF session exists but profile is still loading.
+    if (typeof LineAuth.isPendingLogin === 'function' && LineAuth.isPendingLogin()) {
+      this._deepLinkAuthRedirecting = true;
+      return true;
+    }
+
+    // Wait until SDK is ready (Phase 4) before triggering login.
+    if (typeof liff === 'undefined' || !LineAuth._ready) return false;
+
+    try {
+      this._deepLinkAuthRedirecting = true;
+      console.log('[DeepLink] unauthenticated, redirecting to LINE login');
+      LineAuth.login();
+      return true;
+    } catch (err) {
+      this._deepLinkAuthRedirecting = false;
+      console.warn('[DeepLink] login redirect failed:', err);
+      return false;
+    }
+  },
+
   _startDeepLinkGuard() {
     const pending = this._getPendingDeepLink();
     if (!pending) return;
     this._bootDeepLink = pending;
+    this._deepLinkAuthRedirecting = false;
     this._showDeepLinkOverlay(pending.type);
     this._stopDeepLinkGuard();
 
     this._bootDeepLinkTimer = setTimeout(() => {
       if (!this._getPendingDeepLink()) return;
+      const isAuthedNow = ModeManager.isDemo() || (typeof LineAuth !== 'undefined' && LineAuth.isLoggedIn());
+      if (!isAuthedNow) {
+        // For unauthenticated deep links, prioritize LINE login redirect.
+        this._tryStartDeepLinkLogin();
+        this._bootDeepLinkTimer = setTimeout(() => {
+          if (!this._getPendingDeepLink()) return;
+          const isAuthedRetry = ModeManager.isDemo() || (typeof LineAuth !== 'undefined' && LineAuth.isLoggedIn());
+          if (!isAuthedRetry) {
+            this._completeDeepLinkFallback('\u8acb\u5148\u5b8c\u6210 LINE \u767b\u5165\u5f8c\u518d\u958b\u555f\u9023\u7d50\u3002', 'page-home');
+            return;
+          }
+          const retryTarget = pending.type === 'team' ? 'page-teams' : 'page-activities';
+          this._completeDeepLinkFallback('\u9801\u9762\u8f09\u5165\u5df2\u903e\u6642\uff0c\u5df2\u5207\u63db\u5230\u5217\u8868\u3002', retryTarget);
+        }, this._deepLinkBootTimeoutMs);
+        return;
+      }
       const targetPage = pending.type === 'team' ? 'page-teams' : 'page-activities';
-      this._completeDeepLinkFallback('頁面載入逾時，已切換到列表。', targetPage);
+      this._completeDeepLinkFallback('\u9801\u9762\u8f09\u5165\u5df2\u903e\u6642\uff0c\u5df2\u5207\u63db\u5230\u5217\u8868\u3002', targetPage);
     }, this._deepLinkBootTimeoutMs);
 
     this._bootDeepLinkPoller = setInterval(() => {
@@ -241,7 +288,10 @@ const App = {
     if (!pending) return true;
 
     const isAuthed = ModeManager.isDemo() || (typeof LineAuth !== 'undefined' && LineAuth.isLoggedIn());
-    if (!isAuthed) return false;
+    if (!isAuthed) {
+      this._tryStartDeepLinkLogin();
+      return false;
+    }
 
     if (pending.type === 'event') {
       const event = ApiService.getEvent?.(pending.id);
