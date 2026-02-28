@@ -573,12 +573,21 @@ Object.assign(App, {
   //  Notification Template Editor
   // ══════════════════════════════════
 
-  showTemplateEditor() {
+  async showTemplateEditor() {
     const modal = document.getElementById('notif-template-editor');
     if (!modal) return;
     const list = document.getElementById('notif-template-list');
     if (!list) return;
-    const templates = ApiService.getNotifTemplates();
+
+    // 確保模板編輯器能顯示完整模板（舊資料會自動補齊缺漏 key）
+    if (!ModeManager.isDemo() && FirebaseService._seedNotifTemplates) {
+      try {
+        await FirebaseService._seedNotifTemplates();
+      } catch (err) {
+        console.warn('[TemplateEditor] 補齊模板失敗:', err);
+      }
+    }
+
     const placeholderHints = {
       welcome: '{userName}',
       signup_success: '{eventName} {date} {location} {status}',
@@ -589,6 +598,15 @@ Object.assign(App, {
       event_changed: '{eventName} {date} {location}',
       event_relisted: '{eventName} {date} {location}',
     };
+    const order = Object.keys(placeholderHints);
+    const templates = [...ApiService.getNotifTemplates()].sort((a, b) => {
+      const ia = order.indexOf(a.key);
+      const ib = order.indexOf(b.key);
+      if (ia === -1 && ib === -1) return String(a.key || '').localeCompare(String(b.key || ''));
+      if (ia === -1) return 1;
+      if (ib === -1) return -1;
+      return ia - ib;
+    });
     list.innerHTML = templates.map(t => `
       <div class="form-card" style="margin-bottom:.6rem">
         <div style="font-size:.82rem;font-weight:700;margin-bottom:.3rem">${escapeHTML(t.key)}</div>
