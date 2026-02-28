@@ -126,11 +126,41 @@ service cloud.firestore {
     //  禁止前端刪除（審計軌跡）
     // ═══════════════════════════════════════════
     match /users/{userId} {
+      function isSafeSelfProfileUpdate() {
+        let changed = request.resource.data.diff(resource.data).affectedKeys();
+        return changed.hasOnly([
+            'displayName', 'photoURL', 'pictureUrl', 'phone', 'updatedAt', 'lastLogin'
+          ])
+          && !changed.hasAny(['uid', 'role', 'claims', 'isAdmin'])
+          && (!changed.hasAny(['displayName']) || (
+              request.resource.data.displayName is string
+              && request.resource.data.displayName.size() > 0
+          ))
+          && (!changed.hasAny(['photoURL']) || (
+              request.resource.data.photoURL == null
+              || request.resource.data.photoURL is string
+          ))
+          && (!changed.hasAny(['pictureUrl']) || (
+              request.resource.data.pictureUrl == null
+              || request.resource.data.pictureUrl is string
+          ))
+          && (!changed.hasAny(['phone']) || (
+              request.resource.data.phone == null
+              || request.resource.data.phone is string
+          ))
+          && (!changed.hasAny(['updatedAt']) || (
+              request.resource.data.updatedAt is timestamp
+          ))
+          && (!changed.hasAny(['lastLogin']) || (
+              request.resource.data.lastLogin is timestamp
+          ));
+      }
+
       allow read: if isAuth();
       allow create: if isOwner(userId)
         && hasString('uid')
         && hasString('displayName');
-      allow update: if isAuth();
+      allow update: if isOwner(userId) && isSafeSelfProfileUpdate();
       allow delete: if false;
     }
 
