@@ -119,6 +119,54 @@ Object.assign(FirebaseService, {
     return true;
   },
 
+  async loadMyEventTemplates(ownerUid) {
+    if (!ownerUid) return [];
+    const snap = await db.collection('eventTemplates')
+      .where('ownerUid', '==', ownerUid)
+      .limit(100)
+      .get();
+    const toMillis = (v) => {
+      if (!v) return 0;
+      if (typeof v.toMillis === 'function') return v.toMillis();
+      const n = new Date(v).getTime();
+      return Number.isFinite(n) ? n : 0;
+    };
+    const docs = snap.docs
+      .map(doc => ({ ...doc.data(), _docId: doc.id }))
+      .sort((a, b) => {
+        const bt = toMillis(b.updatedAt) || toMillis(b.createdAt);
+        const at = toMillis(a.updatedAt) || toMillis(a.createdAt);
+        return bt - at;
+      });
+    this._cache.eventTemplates = docs;
+    this._saveToLS('eventTemplates', docs);
+    return docs;
+  },
+
+  async addEventTemplate(templateData) {
+    const writeData = { ..._stripDocId(templateData) };
+    if (writeData.image && typeof writeData.image === 'string' && writeData.image.startsWith('data:')) {
+      const uploaded = await this._uploadImage(writeData.image, `eventTemplates/${writeData.ownerUid || writeData.id}`);
+      if (uploaded) writeData.image = uploaded;
+      else delete writeData.image;
+    }
+    const docRef = await db.collection('eventTemplates').add({
+      ...writeData,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    });
+    templateData._docId = docRef.id;
+    if (writeData.image !== undefined) templateData.image = writeData.image;
+    return templateData;
+  },
+
+  async deleteEventTemplate(id) {
+    const doc = this._cache.eventTemplates.find(t => t.id === id);
+    if (!doc || !doc._docId) return false;
+    await db.collection('eventTemplates').doc(doc._docId).delete();
+    return true;
+  },
+
   // ════════════════════════════════
   //  Attendance Records（簽到/簽退）
   // ════════════════════════════════

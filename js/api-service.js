@@ -275,6 +275,50 @@ const ApiService = {
   updateEvent(id, updates)  { return this._update('events', id, updates, FirebaseService.updateEvent, 'updateEvent'); },
   deleteEvent(id)           { return this._delete('events', id, FirebaseService.deleteEvent, 'deleteEvent'); },
 
+  async loadMyEventTemplates(ownerUid) {
+    if (this._demoMode) return this._src('eventTemplates');
+    const data = await FirebaseService.loadMyEventTemplates(ownerUid);
+    return Array.isArray(data) ? data : [];
+  },
+
+  getEventTemplates() { return this._src('eventTemplates'); },
+
+  async createEventTemplate(data) {
+    if (this._handleRestrictedAction()) return null;
+    const source = this._src('eventTemplates');
+    source.unshift(data);
+    if (!this._demoMode) {
+      try {
+        await FirebaseService.addEventTemplate(data);
+      } catch (err) {
+        console.error('[createEventTemplate]', err);
+        const idx = source.indexOf(data);
+        if (idx >= 0) source.splice(idx, 1);
+        FirebaseService._saveToLS('eventTemplates', source);
+        throw err;
+      }
+      FirebaseService._saveToLS('eventTemplates', source);
+    }
+    return data;
+  },
+
+  async deleteEventTemplate(id) {
+    if (this._handleRestrictedAction()) return false;
+    const source = this._src('eventTemplates');
+    if (!this._demoMode) {
+      try {
+        await FirebaseService.deleteEventTemplate(id);
+      } catch (err) {
+        console.error('[deleteEventTemplate]', err);
+        throw err;
+      }
+    }
+    const idx = source.findIndex(item => item.id === id);
+    if (idx >= 0) source.splice(idx, 1);
+    if (!this._demoMode) FirebaseService._saveToLS('eventTemplates', source);
+    return true;
+  },
+
   // ════════════════════════════════
   //  Tournaments（賽事）
   // ════════════════════════════════

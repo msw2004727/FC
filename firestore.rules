@@ -132,6 +132,26 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    match /eventTemplates/{templateId} {
+      allow read: if isAuth()
+        && ((resource.data.ownerUid is string && resource.data.ownerUid == request.auth.uid) || isAdmin());
+      allow create: if isAuth()
+        && hasString('name')
+        && hasString('ownerUid')
+        && request.resource.data.ownerUid == request.auth.uid;
+      allow update: if isAuth()
+        && (
+          isAdmin()
+          || (
+            resource.data.ownerUid is string
+            && resource.data.ownerUid == request.auth.uid
+            && request.resource.data.ownerUid == resource.data.ownerUid
+          )
+        );
+      allow delete: if isAuth()
+        && (isAdmin() || (resource.data.ownerUid is string && resource.data.ownerUid == request.auth.uid));
+    }
+
     // ═══════════════════════════════════════════
     //  Users（用戶）
     //  登入可讀寫（與 events / teams / attendanceRecords 同級）

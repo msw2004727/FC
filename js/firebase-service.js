@@ -23,6 +23,7 @@ const FirebaseService = {
   // ─── 記憶體快取（與 DemoData 結構一致）───
   _cache: {
     events: [],
+    eventTemplates: [],
     tournaments: [],
     teams: [],
     shopItems: [],
@@ -177,7 +178,7 @@ const FirebaseService = {
     'tournaments', 'shopItems', 'leaderboard', 'standings', 'matches',
     'trades', 'attendanceRecords', 'activityRecords',
     'expLogs', 'teamExpLogs', 'operationLogs',
-    'adminMessages', 'notifTemplates', 'permissions', 'customRoles',
+    'adminMessages', 'notifTemplates', 'eventTemplates', 'permissions', 'customRoles',
     'errorLogs',
   ],
 
