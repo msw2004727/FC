@@ -9,10 +9,27 @@ Object.assign(App, {
     const userName = user.displayName || user.name;
     const myUid = user.uid || user._docId || '';
     const teamSet = new Map();
-    // 用戶自身的 teamId（一般成員）
-    if (user.teamId) {
-      teamSet.set(user.teamId, user.teamName || '球隊');
-    }
+    // 用戶自身的 teamId / teamIds（一般成員）
+    const ownTeamIds = (typeof App._getUserTeamIds === 'function')
+      ? App._getUserTeamIds(user)
+      : (() => {
+        const ids = [];
+        const seen = new Set();
+        const pushId = (id) => {
+          const v = String(id || '').trim();
+          if (!v || seen.has(v)) return;
+          seen.add(v);
+          ids.push(v);
+        };
+        if (Array.isArray(user.teamIds)) user.teamIds.forEach(pushId);
+        pushId(user.teamId);
+        return ids;
+      })();
+    ownTeamIds.forEach((tid, idx) => {
+      const teamObj = teams.find(t => t.id === tid);
+      const fallbackName = Array.isArray(user.teamNames) ? user.teamNames[idx] : null;
+      teamSet.set(tid, (teamObj && teamObj.name) || fallbackName || user.teamName || '球隊');
+    });
     // 檢查是否為任何球隊的隊長、領隊或教練
     teams.forEach(t => {
       if (teamSet.has(t.id)) return;

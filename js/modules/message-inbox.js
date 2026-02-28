@@ -22,10 +22,16 @@ Object.assign(App, {
     const curUser = ApiService.getCurrentUser();
     const myUid = curUser?.uid || null;
     const myRole = curUser?.role || 'user';
-    const myTeamId = curUser?.teamId || null;
+    const myTeamIds = (typeof this._getUserTeamIds === 'function')
+      ? this._getUserTeamIds(curUser)
+      : (() => {
+        const ids = [];
+        if (curUser?.teamId) ids.push(curUser.teamId);
+        return ids;
+      })();
     return messages.filter(m => {
       if (m.targetUid) return myUid && m.targetUid === myUid;
-      if (m.targetTeamId) return myTeamId && m.targetTeamId === myTeamId;
+      if (m.targetTeamId) return myTeamIds.includes(String(m.targetTeamId));
       if (m.targetRoles && m.targetRoles.length) return m.targetRoles.includes(myRole);
       return true; // broadcast to all
     });
@@ -315,14 +321,35 @@ Object.assign(App, {
         return;
       }
 
-      let currentTeamId = applicant.teamId || null;
-      let currentTeamName = applicant.teamName || null;
-      if (currentTeamId && currentTeamId !== teamId) {
-        this.showToast(`申請者已加入「${currentTeamName || currentTeamId}」，不可重複入隊「${teamName}」`);
-        return;
-      }
+      const normalizeMembership = (data) => {
+        const ids = [];
+        const names = [];
+        const seen = new Set();
+        const pushMember = (id, name) => {
+          const tid = String(id || '').trim();
+          if (!tid || seen.has(tid)) return;
+          seen.add(tid);
+          ids.push(tid);
+          names.push(String(name || '').trim());
+        };
+        if (Array.isArray(data?.teamIds)) {
+          data.teamIds.forEach((id, idx) => {
+            const name = Array.isArray(data?.teamNames) ? data.teamNames[idx] : '';
+            pushMember(id, name);
+          });
+        }
+        pushMember(data?.teamId, data?.teamName);
+        return { ids, names };
+      };
 
-      let shouldWriteMembership = currentTeamId !== teamId;
+      const targetTeamId = String(teamId);
+      const targetTeamName = String(teamName || ApiService.getTeam(teamId)?.name || '').trim();
+      let membership = normalizeMembership(applicant);
+      let shouldWriteMembership = !membership.ids.includes(targetTeamId);
+      if (shouldWriteMembership) {
+        membership.ids.push(targetTeamId);
+        membership.names.push(targetTeamName || targetTeamId);
+      }
       if (!ModeManager.isDemo() && applicant._docId) {
         try {
           // Ensure auth token is fresh before cross-user checks/writes
@@ -334,26 +361,34 @@ Object.assign(App, {
           }
 
           // Re-check latest membership from server to reduce stale cache race
+          let liveData = null;
           try {
             const liveSnap = await db.collection('users').doc(applicant._docId).get({ source: 'server' });
             if (liveSnap.exists) {
-              const liveData = liveSnap.data() || {};
-              currentTeamId = liveData.teamId || null;
-              currentTeamName = liveData.teamName || null;
+              liveData = liveSnap.data() || {};
             }
           } catch (readErr) {
             console.warn('[approve] live user read failed, fallback to cache:', readErr?.code || readErr?.message || readErr);
           }
 
-          if (currentTeamId && currentTeamId !== teamId) {
-            this.showToast(`申請者已加入「${currentTeamName || currentTeamId}」，不可重複入隊「${teamName}」`);
-            return;
+          if (liveData) {
+            membership = normalizeMembership(liveData);
+            shouldWriteMembership = !membership.ids.includes(targetTeamId);
+            if (shouldWriteMembership) {
+              membership.ids.push(targetTeamId);
+              membership.names.push(targetTeamName || targetTeamId);
+            }
           }
 
-          shouldWriteMembership = currentTeamId !== teamId;
           if (shouldWriteMembership) {
-            console.log('[approve] writing updateUser:', applicant._docId, { teamId, teamName }, 'auth.uid:', auth?.currentUser?.uid);
-            await FirebaseService.updateUser(applicant._docId, { teamId, teamName });
+            const membershipUpdate = {
+              teamId: membership.ids[0] || null,
+              teamName: membership.names[0] || '',
+              teamIds: membership.ids,
+              teamNames: membership.names,
+            };
+            console.log('[approve] writing updateUser membership:', applicant._docId, membershipUpdate, 'auth.uid:', auth?.currentUser?.uid);
+            await FirebaseService.updateUser(applicant._docId, membershipUpdate);
           } else {
             console.log('[approve] skip updateUser: applicant already in target team', { applicantUid, teamId });
           }
@@ -365,17 +400,29 @@ Object.assign(App, {
         }
       }
 
-      const finalTeamName = teamName || currentTeamName || applicant.teamName || '';
-      Object.assign(applicant, { teamId, teamName: finalTeamName });
+      const finalTeamName = targetTeamName || (membership.names[membership.ids.indexOf(targetTeamId)] || teamName || '');
+      Object.assign(applicant, {
+        teamId: membership.ids[0] || null,
+        teamName: membership.names[0] || '',
+        teamIds: membership.ids,
+        teamNames: membership.names,
+      });
       const curUserObj = ApiService.getCurrentUser();
       if (curUserObj && curUserObj.uid === applicantUid) {
-        ApiService.updateCurrentUser({ teamId, teamName: finalTeamName });
+        ApiService.updateCurrentUser({
+          teamId: membership.ids[0] || null,
+          teamName: membership.names[0] || '',
+          teamIds: membership.ids,
+          teamNames: membership.names,
+        });
       }
 
       if (shouldWriteMembership) {
-        // Update team members +1 only on first successful join.
-        const teamObj = ApiService.getTeam(teamId);
-        if (teamObj) ApiService.updateTeam(teamId, { members: (teamObj.members || 0) + 1 });
+        // Update team members only when first successful join.
+        const memberCount = (typeof this._calcTeamMemberCount === 'function')
+          ? this._calcTeamMemberCount(teamId)
+          : (ApiService.getAdminUsers() || []).filter(u => u.teamId === teamId).length;
+        ApiService.updateTeam(teamId, { members: memberCount });
 
         // Notify applicant
         this._deliverMessageToInbox(
@@ -573,7 +620,12 @@ Object.assign(App, {
     const users = ApiService.getAdminUsers() || [];
     users.forEach(u => {
       if (roleFilter[targetType] && !roleFilter[targetType].includes(u.role)) return;
-      if (targetType === 'team' && u.teamId !== teamId) return;
+      if (targetType === 'team') {
+        const inTeam = (typeof this._isUserInTeam === 'function')
+          ? this._isUserInTeam(u, teamId)
+          : (u.teamId === teamId);
+        if (!inTeam) return;
+      }
       this._queueLinePush(u.uid, category, title, body);
     });
   },

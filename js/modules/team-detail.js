@@ -18,7 +18,8 @@ Object.assign(App, {
   _isTeamMember(teamId) {
     if (ModeManager.isDemo()) return this._userTeam === teamId;
     const user = ApiService.getCurrentUser();
-    if (user && user.teamId === teamId) return true;
+    if (user && typeof this._isUserInTeam === 'function' && this._isUserInTeam(user, teamId)) return true;
+    if (user && user.teamId === teamId) return true; // legacy fallback
     // 也檢查是否為該隊球隊經理、領隊或教練
     const team = ApiService.getTeam(teamId);
     if (!team || !user) return false;
@@ -123,7 +124,7 @@ Object.assign(App, {
           <div class="td-card-item"><span class="td-card-label">球隊經理</span><span class="td-card-value">${t.captain ? this._userTag(t.captain, 'captain') : I18N.t('teamDetail.notSet')}</span></div>
           <div class="td-card-item"><span class="td-card-label">領隊</span><span class="td-card-value">${(() => { const lNames = t.leaders || (t.leader ? [t.leader] : []); return lNames.length ? lNames.map(n => this._teamLeaderTag(n)).join(' ') : I18N.t('teamDetail.notSet'); })()}</span></div>
           <div class="td-card-item"><span class="td-card-label">${I18N.t('teamDetail.coach')}</span><span class="td-card-value">${(t.coaches || []).length > 0 ? t.coaches.map(c => this._userTag(c, 'coach')).join(' ') : I18N.t('teamDetail.none')}</span></div>
-          <div class="td-card-item"><span class="td-card-label">${I18N.t('teamDetail.memberCount')}</span><span class="td-card-value">${(ApiService.getAdminUsers() || []).filter(u => u.teamId === t.id).length} ${I18N.t('teamDetail.personUnit')}</span></div>
+          <div class="td-card-item"><span class="td-card-label">${I18N.t('teamDetail.memberCount')}</span><span class="td-card-value">${(typeof this._calcTeamMemberCount === 'function' ? this._calcTeamMemberCount(t.id) : (ApiService.getAdminUsers() || []).filter(u => u.teamId === t.id).length)} ${I18N.t('teamDetail.personUnit')}</span></div>
           <div class="td-card-item"><span class="td-card-label">${I18N.t('teamDetail.region')}</span><span class="td-card-value">${escapeHTML(t.region)}</span></div>
           ${t.nationality ? `<div class="td-card-item"><span class="td-card-label">${I18N.t('teamDetail.nationality')}</span><span class="td-card-value">${escapeHTML(t.nationality)}</span></div>` : ''}
           ${t.founded ? `<div class="td-card-item"><span class="td-card-label">${I18N.t('teamDetail.founded')}</span><span class="td-card-value">${escapeHTML(t.founded)}</span></div>` : ''}
@@ -174,7 +175,11 @@ Object.assign(App, {
         <div class="profile-collapse-content td-member-tags" style="display:none">
           ${(() => {
             const allUsers = ApiService.getAdminUsers() || [];
-            const teamMembers = allUsers.filter(u => u.teamId === t.id);
+            const teamMembers = allUsers.filter(u =>
+              (typeof this._isUserInTeam === 'function')
+                ? this._isUserInTeam(u, t.id)
+                : u.teamId === t.id
+            );
             const regularMembers = teamMembers.filter(u => this._isRegularTeamMember(u, staffIdentity));
             if (!regularMembers.length) return `<div style="font-size:.82rem;color:var(--text-muted);padding:.3rem">${I18N.t('teamDetail.none')}</div>`;
             return regularMembers.map(u => {
@@ -242,7 +247,10 @@ Object.assign(App, {
     }
     const users = ApiService.getAdminUsers() || [];
     const member = users.find(u => u.uid === memberUid);
-    if (!member || member.teamId !== teamId) {
+    const isInTeam = member && (
+      (typeof this._isUserInTeam === 'function' ? this._isUserInTeam(member, teamId) : member.teamId === teamId)
+    );
+    if (!member || !isInTeam) {
       this.showToast('隊員資料不存在或已不在球隊中');
       this.showTeamDetail(teamId);
       this._keepTeamMembersSectionOpen();
@@ -257,6 +265,23 @@ Object.assign(App, {
     const memberName = member.name || member.displayName || member.uid;
     if (!(await this.appConfirm(`確定要移除隊員「${memberName}」？`))) return;
 
+    const teamIds = (typeof this._getUserTeamIds === 'function')
+      ? this._getUserTeamIds(member)
+      : (() => {
+        const ids = [];
+        if (Array.isArray(member.teamIds)) ids.push(...member.teamIds.map(v => String(v || '').trim()).filter(Boolean));
+        if (member.teamId) ids.push(String(member.teamId));
+        return Array.from(new Set(ids));
+      })();
+    const nextTeamIds = teamIds.filter(id => id !== String(teamId));
+    const nextTeamNames = nextTeamIds.map(id => {
+      const tm = ApiService.getTeam(id);
+      return tm ? tm.name : id;
+    });
+    const updates = nextTeamIds.length > 0
+      ? { teamId: nextTeamIds[0], teamName: nextTeamNames[0] || '', teamIds: nextTeamIds, teamNames: nextTeamNames }
+      : { teamId: null, teamName: null, teamIds: [], teamNames: [] };
+
     if (!ModeManager.isDemo() && member._docId) {
       try {
         if (typeof FirebaseService._ensureAuth === 'function') {
@@ -266,7 +291,7 @@ Object.assign(App, {
             return;
           }
         }
-        await FirebaseService.updateUser(member._docId, { teamId: null, teamName: null });
+        await FirebaseService.updateUser(member._docId, updates);
       } catch (err) {
         console.error('[removeTeamMember]', err);
         if (typeof ApiService._writeErrorLog === 'function') {
@@ -286,14 +311,15 @@ Object.assign(App, {
       }
     }
 
-    member.teamId = null;
-    member.teamName = null;
+    Object.assign(member, updates);
     const currentUser = ApiService.getCurrentUser?.();
     if (currentUser && currentUser.uid === memberUid) {
-      ApiService.updateCurrentUser({ teamId: null, teamName: null });
+      ApiService.updateCurrentUser(updates);
     }
 
-    const memberCount = (ApiService.getAdminUsers() || []).filter(u => u.teamId === teamId).length;
+    const memberCount = (typeof this._calcTeamMemberCount === 'function')
+      ? this._calcTeamMemberCount(teamId)
+      : (ApiService.getAdminUsers() || []).filter(u => u.teamId === teamId).length;
     ApiService.updateTeam(teamId, { members: memberCount });
 
     const actorName = currentUser?.displayName || currentUser?.name || '職員';

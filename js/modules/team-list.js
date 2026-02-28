@@ -5,12 +5,37 @@
 
 Object.assign(App, {
 
+  _getUserTeamIds(user) {
+    if (!user) return [];
+    const ids = [];
+    const seen = new Set();
+    const pushId = (id) => {
+      const v = String(id || '').trim();
+      if (!v || seen.has(v)) return;
+      seen.add(v);
+      ids.push(v);
+    };
+    if (Array.isArray(user.teamIds)) user.teamIds.forEach(pushId);
+    pushId(user.teamId);
+    return ids;
+  },
+
+  _isUserInTeam(user, teamId) {
+    if (!user || !teamId) return false;
+    return this._getUserTeamIds(user).includes(String(teamId));
+  },
+
+  _calcTeamMemberCount(teamId) {
+    const users = ApiService.getAdminUsers() || [];
+    return users.filter(u => this._isUserInTeam(u, teamId)).length;
+  },
+
   _isTeamOwner(t) {
     if (ModeManager.isDemo()) {
       return t.id === this._userTeam;
     }
     const user = ApiService.getCurrentUser();
-    return user && user.teamId === t.id;
+    return !!(user && this._isUserInTeam(user, t.id));
   },
 
   _getTeamRank(teamExp) {
@@ -61,7 +86,7 @@ Object.assign(App, {
     }
 
     if (team.id) {
-      const teamUsers = users.filter(u => u.teamId === team.id);
+      const teamUsers = users.filter(u => this._isUserInTeam(u, team.id));
       const captainUser = teamUsers.find(u => u.role === 'captain' || u.manualRole === 'captain');
       if (captainUser) return captainUser;
     }
@@ -129,7 +154,7 @@ Object.assign(App, {
           : `<div class="tc-img-placeholder" style="position:relative">球隊圖片<span class="tc-rank-badge" style="color:${rank.color}"><span class="tc-rank-score">${(t.teamExp || 0).toLocaleString()}</span>${rank.rank}</span></div>`}
         <div class="tc-body">
           <div class="tc-name">${escapeHTML(t.name)}</div>
-          <div class="tc-info-row"><span class="tc-label">${I18N.t('team.memberLabel')}</span><span>${(ApiService.getAdminUsers() || []).filter(u => u.teamId === t.id).length} ${I18N.t('team.personUnit')}</span></div>
+          <div class="tc-info-row"><span class="tc-label">${I18N.t('team.memberLabel')}</span><span>${this._calcTeamMemberCount(t.id)} ${I18N.t('team.personUnit')}</span></div>
           <div class="tc-info-row"><span class="tc-label">${I18N.t('team.regionLabel')}</span><span>${escapeHTML(t.region || '')}</span></div>
         </div>
       </div>`;
@@ -218,7 +243,7 @@ Object.assign(App, {
           <div class="event-meta">
             <span class="event-meta-item">領隊 ${escapeHTML(t.leader || '未設定')}</span>
             <span class="event-meta-item">球隊經理 ${escapeHTML(t.captain || '未設定')}</span>
-            <span class="event-meta-item">${(ApiService.getAdminUsers() || []).filter(u => u.teamId === t.id).length}人</span>
+            <span class="event-meta-item">${this._calcTeamMemberCount(t.id)}人</span>
             <span class="event-meta-item">${escapeHTML(t.region)}</span>
           </div>
           <div style="display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.5rem">
@@ -278,7 +303,7 @@ Object.assign(App, {
           <div class="event-meta">
             <span class="event-meta-item">領隊 ${escapeHTML(t.leader || '未設定')}</span>
             <span class="event-meta-item">球隊經理 ${escapeHTML(t.captain || '未設定')}</span>
-            <span class="event-meta-item">${(ApiService.getAdminUsers() || []).filter(u => u.teamId === t.id).length}人</span>
+            <span class="event-meta-item">${this._calcTeamMemberCount(t.id)}人</span>
             <span class="event-meta-item">${escapeHTML(t.region)}</span>
             <span class="event-meta-item" style="color:${t.active ? 'var(--success)' : 'var(--danger)'}">${t.active ? '上架中' : '已下架'}</span>
           </div>

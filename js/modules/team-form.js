@@ -26,17 +26,24 @@ Object.assign(App, {
   },
 
   handleJoinTeam(teamId) {
-    // 1. Check if user already has a team
-    let currentTeamId = this._userTeam;
-    if (!ModeManager.isDemo()) {
+    // 1. Already in this team -> no need to re-apply.
+    if (ModeManager.isDemo()) {
+      if (this._userTeam === teamId) {
+        const sameTeam = ApiService.getTeam(teamId);
+        this.showToast(`您已是「${sameTeam ? sameTeam.name : '球隊'}」隊員，無需重複申請`);
+        return;
+      }
+    } else {
       const user = ApiService.getCurrentUser();
-      currentTeamId = user && user.teamId ? user.teamId : null;
-    }
-    if (currentTeamId) {
-      const currentTeam = ApiService.getTeam(currentTeamId);
-      const teamName = currentTeam ? currentTeam.name : '球隊';
-      this.showToast(`您已加入「${teamName}」，無法重複加入其他球隊`);
-      return;
+      const alreadyInTeam = user && (
+        (typeof this._isUserInTeam === 'function' ? this._isUserInTeam(user, teamId) : false) ||
+        user.teamId === teamId
+      );
+      if (alreadyInTeam) {
+        const sameTeam = ApiService.getTeam(teamId);
+        this.showToast(`您已是「${sameTeam ? sameTeam.name : '球隊'}」隊員，無需重複申請`);
+        return;
+      }
     }
 
     // 2. Get target team
@@ -48,6 +55,19 @@ Object.assign(App, {
     const applicantUid = curUser?.uid || (ModeManager.isDemo() ? DemoData.currentUser.uid : null);
     const applicantName = curUser?.displayName || (ModeManager.isDemo() ? DemoData.currentUser.displayName : '未知');
     if (!applicantUid) { this.showToast('請先登入'); return; }
+
+    // Extra safety: avoid duplicate requests from members already in this team.
+    const allUsersCache = ApiService.getAdminUsers() || [];
+    const applicantUser = allUsersCache.find(u => u.uid === applicantUid);
+    const alreadyInTarget = applicantUser && (
+      (typeof this._isUserInTeam === 'function' ? this._isUserInTeam(applicantUser, teamId) : false) ||
+      applicantUser.teamId === teamId
+    );
+    if (alreadyInTarget) {
+      this.showToast(`您已是「${t.name}」隊員，無需重複申請`);
+      return;
+    }
+
     const allMessages = ApiService.getMessages();
     const COOLDOWN_MS = 24 * 60 * 60 * 1000;
 
@@ -166,26 +186,54 @@ Object.assign(App, {
     }
 
     // 清除用戶球隊資料
+    const baseUser = ModeManager.isDemo()
+      ? (DemoData.currentUser || null)
+      : (ApiService.getCurrentUser() || null);
+    const teamIds = (typeof this._getUserTeamIds === 'function')
+      ? this._getUserTeamIds(baseUser)
+      : (() => {
+        const ids = [];
+        const seen = new Set();
+        const pushId = (id) => {
+          const v = String(id || '').trim();
+          if (!v || seen.has(v)) return;
+          seen.add(v);
+          ids.push(v);
+        };
+        if (Array.isArray(baseUser?.teamIds)) baseUser.teamIds.forEach(pushId);
+        pushId(baseUser?.teamId);
+        return ids;
+      })();
+    const nextTeamIds = teamIds.filter(id => id !== String(teamId));
+    const nextTeamNames = nextTeamIds.map(id => {
+      const teamObj = ApiService.getTeam(id);
+      return teamObj ? teamObj.name : id;
+    });
+    const userTeamUpdates = nextTeamIds.length > 0
+      ? { teamId: nextTeamIds[0], teamName: nextTeamNames[0] || '', teamIds: nextTeamIds, teamNames: nextTeamNames }
+      : { teamId: null, teamName: null, teamIds: [], teamNames: [] };
+
     if (ModeManager.isDemo()) {
-      DemoData.currentUser.teamId = null;
-      DemoData.currentUser.teamName = null;
-      this._userTeam = null;
+      Object.assign(DemoData.currentUser, userTeamUpdates);
+      this._userTeam = userTeamUpdates.teamId || null;
     } else {
-      ApiService.updateCurrentUser({ teamId: null, teamName: null });
+      ApiService.updateCurrentUser(userTeamUpdates);
     }
     // 同步 adminUsers
     const users = ApiService.getAdminUsers();
     const adminUser = users.find(u => u.uid === uid);
     if (adminUser) {
-      adminUser.teamId = null;
-      adminUser.teamName = null;
+      Object.assign(adminUser, userTeamUpdates);
       if (!ModeManager.isDemo() && adminUser._docId) {
-        FirebaseService.updateUser(adminUser._docId, { teamId: null, teamName: null }).catch(err => { console.error('[leaveTeam]', err); ApiService._writeErrorLog({ fn: 'handleLeaveTeam', teamId }, err); });
+        FirebaseService.updateUser(adminUser._docId, userTeamUpdates).catch(err => { console.error('[leaveTeam]', err); ApiService._writeErrorLog({ fn: 'handleLeaveTeam', teamId }, err); });
       }
     }
 
     // 球隊人數 -1
-    ApiService.updateTeam(teamId, { members: Math.max(0, (t.members || 1) - 1) });
+    const memberCount = (typeof this._calcTeamMemberCount === 'function')
+      ? this._calcTeamMemberCount(teamId)
+      : Math.max(0, (t.members || 1) - 1);
+    ApiService.updateTeam(teamId, { members: memberCount });
 
     // 退隊後重新計算角色（教練退隊可能需降級）
     if (wasCoach && uid) {
@@ -205,7 +253,12 @@ Object.assign(App, {
     let teamId = this._userTeam;
     if (!ModeManager.isDemo()) {
       const user = ApiService.getCurrentUser();
-      teamId = user && user.teamId ? user.teamId : null;
+      if (user) {
+        const teamIds = (typeof this._getUserTeamIds === 'function') ? this._getUserTeamIds(user) : (user.teamId ? [user.teamId] : []);
+        teamId = teamIds[0] || null;
+      } else {
+        teamId = null;
+      }
     }
     if (teamId) {
       this.showTeamDetail(teamId);
@@ -548,7 +601,12 @@ Object.assign(App, {
 
     const staffNames = new Set([captain, ...leaderNames, ...coaches].filter(Boolean));
     const regularMembersCount = this._teamEditId
-      ? users.filter(u => u.teamId === this._teamEditId && !staffNames.has(u.name)).length
+      ? users.filter(u => {
+        const inTeam = (typeof this._isUserInTeam === 'function')
+          ? this._isUserInTeam(u, this._teamEditId)
+          : (u.teamId === this._teamEditId);
+        return inTeam && !staffNames.has(u.name);
+      }).length
       : 0;
     const members = this._teamEditId
       ? (captain ? 1 : 0) + leaderNames.length + coaches.length + regularMembersCount
