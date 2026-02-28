@@ -704,6 +704,51 @@ Object.assign(App, {
     }
   },
 
+  _buildTeamNameHints(teamIds = [], teamNames = []) {
+    const ids = Array.isArray(teamIds) ? teamIds : [teamIds];
+    const names = Array.isArray(teamNames) ? teamNames : [teamNames];
+    const hints = new Map();
+    ids.forEach((id, idx) => {
+      const key = String(id || '').trim();
+      if (!key) return;
+      const hintedName = String(names[idx] || '').trim();
+      if (hintedName) hints.set(key, hintedName);
+    });
+    return hints;
+  },
+
+  _resolveTeamDisplayName(teamId, hintedName = '') {
+    const id = String(teamId || '').trim();
+    if (!id) return '未知球隊';
+
+    const hint = String(hintedName || '').trim();
+    if (hint) return hint;
+
+    const currentTeam = ApiService.getTeam?.(id);
+    const currentTeamName = String(currentTeam?.name || '').trim();
+    if (currentTeamName) return currentTeamName;
+
+    const events = ApiService.getEvents?.() || [];
+    for (const e of events) {
+      if (!e) continue;
+
+      if (Array.isArray(e.creatorTeamIds) && Array.isArray(e.creatorTeamNames)) {
+        const idx = e.creatorTeamIds.findIndex(v => String(v || '').trim() === id);
+        if (idx >= 0) {
+          const historicName = String(e.creatorTeamNames[idx] || '').trim();
+          if (historicName) return historicName;
+        }
+      }
+
+      if (String(e.creatorTeamId || '').trim() === id) {
+        const legacyName = String(e.creatorTeamName || '').trim();
+        if (legacyName) return legacyName;
+      }
+    }
+
+    return '未知球隊';
+  },
+
   _getTeamOnlyCandidateTeams() {
     const teams = ApiService.getTeams?.() || [];
     const activeTeamMap = new Map();
@@ -735,7 +780,14 @@ Object.assign(App, {
     const result = [];
     ids.forEach(id => {
       const team = activeTeamMap.get(id);
-      result.push(team || { id, name: id });
+      if (team) {
+        result.push({
+          id: String(team.id || id),
+          name: this._resolveTeamDisplayName(team.id || id, team.name || ''),
+        });
+        return;
+      }
+      result.push({ id, name: this._resolveTeamDisplayName(id) });
     });
 
     result.sort((a, b) => String(a.name || a.id).localeCompare(String(b.name || b.id), 'zh-Hant'));
@@ -760,21 +812,48 @@ Object.assign(App, {
     });
   },
 
-  _populateTeamSelect(select, presetTeamIds = []) {
+  _populateTeamSelect(select, presetTeamIds = [], presetTeamNames = []) {
     if (!select) return [];
     const teams = this._getTeamOnlyCandidateTeams();
     const teamMap = new Map(teams.map(t => [String(t.id), t]));
-    (Array.isArray(presetTeamIds) ? presetTeamIds : [presetTeamIds]).forEach(id => {
+    const normalizedPresetTeamIds = (Array.isArray(presetTeamIds) ? presetTeamIds : [presetTeamIds])
+      .map(id => String(id || '').trim())
+      .filter(Boolean);
+    const presetNameHints = this._buildTeamNameHints(normalizedPresetTeamIds, presetTeamNames);
+
+    normalizedPresetTeamIds.forEach(id => {
       const v = String(id || '').trim();
-      if (!v || teamMap.has(v)) return;
-      teamMap.set(v, { id: v, name: v });
+      if (!v) return;
+
+      const hintedName = presetNameHints.get(v) || '';
+      const existing = teamMap.get(v);
+      if (existing) {
+        teamMap.set(v, {
+          ...existing,
+          id: String(existing.id || v),
+          name: this._resolveTeamDisplayName(existing.id || v, existing.name || hintedName),
+        });
+        return;
+      }
+
+      teamMap.set(v, { id: v, name: this._resolveTeamDisplayName(v, hintedName) });
     });
-    const renderTeams = Array.from(teamMap.values());
+
+    const renderTeams = Array.from(teamMap.values()).map(team => {
+      const teamId = String(team?.id || '').trim();
+      const hintedName = presetNameHints.get(teamId) || '';
+      return {
+        ...team,
+        id: teamId,
+        name: this._resolveTeamDisplayName(teamId, team?.name || hintedName),
+      };
+    }).filter(team => team.id);
+
     select.multiple = true;
     select.innerHTML = renderTeams.map(t =>
       `<option value="${t.id}" data-name="${escapeHTML(t.name || t.id)}">${escapeHTML(t.name || t.id)}</option>`
     ).join('');
-    this._setTeamSelectValues(select, presetTeamIds);
+    this._setTeamSelectValues(select, normalizedPresetTeamIds);
     if (this._getSelectedTeamValues(select).length === 0 && renderTeams.length === 1) {
       select.options[0].selected = true;
     }

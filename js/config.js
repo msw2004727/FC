@@ -80,7 +80,8 @@
 // 20260228h: firestore rules security hardening + team-only multi-select redesign + memory sync
 // 20260228i: event sport-tag single-select + required validation + SVG sport icons
 // 20260228j: switch sport category icons from SVG to Emoji
-const CACHE_VERSION = '20260228j';
+// 20260228k: team-only selector display fallback (avoid raw tm_* IDs in UI)
+const CACHE_VERSION = '20260228k';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {

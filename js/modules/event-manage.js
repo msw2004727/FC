@@ -1149,7 +1149,10 @@ Object.assign(App, {
           const presetTeamIds = (Array.isArray(e.creatorTeamIds) && e.creatorTeamIds.length > 0)
             ? e.creatorTeamIds
             : (e.creatorTeamId ? [e.creatorTeamId] : []);
-          this._populateTeamSelect(ceTeamSelect, presetTeamIds);
+          const presetTeamNames = (Array.isArray(e.creatorTeamNames) && e.creatorTeamNames.length > 0)
+            ? e.creatorTeamNames
+            : (e.creatorTeamName ? [e.creatorTeamName] : []);
+          this._populateTeamSelect(ceTeamSelect, presetTeamIds, presetTeamNames);
         }
       }
       this._updateTeamOnlyLabel();
