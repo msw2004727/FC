@@ -135,9 +135,10 @@
   justify-content: center;
   box-shadow: 0 1px 3px rgba(0, 0, 0, .18);
 }
-.h-card-sport-chip svg {
-  width: 14px;
-  height: 14px;
+.h-card-sport-chip .sport-emoji {
+  font-size: 14px;
+  line-height: 1;
+  display: inline-block;
 }
 
 /* ─── Floating Ads ─── */

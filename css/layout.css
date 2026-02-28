@@ -200,9 +200,10 @@
   align-items: center;
   justify-content: center;
 }
-.sport-picker-icon svg {
-  width: 18px;
-  height: 18px;
+.sport-picker-icon .sport-emoji {
+  font-size: 18px;
+  line-height: 1;
+  display: inline-block;
 }
 .sport-picker-btn:hover {
   background: var(--accent-bg);
@@ -278,9 +279,10 @@
   justify-content: center;
   flex-shrink: 0;
 }
-.sport-picker-item .sp-icon svg {
-  width: 18px;
-  height: 18px;
+.sport-picker-item .sp-icon .sport-emoji {
+  font-size: 16px;
+  line-height: 1;
+  display: inline-block;
 }
 .sport-picker-item .sp-lock {
   margin-left: auto;

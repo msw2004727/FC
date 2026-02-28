@@ -381,9 +381,10 @@ img { max-width: 100%; display: block; }
   color: var(--text-primary);
   font-weight: 600;
 }
-.ce-sport-value svg {
-  width: 16px;
-  height: 16px;
+.ce-sport-value .sport-emoji {
+  font-size: 16px;
+  line-height: 1;
+  display: inline-block;
   flex-shrink: 0;
 }
 .ce-sport-arrow {
@@ -458,9 +459,10 @@ img { max-width: 100%; display: block; }
   color: var(--accent);
   font-weight: 700;
 }
-.ce-sport-option svg {
-  width: 16px;
-  height: 16px;
+.ce-sport-option .sport-emoji {
+  font-size: 16px;
+  line-height: 1;
+  display: inline-block;
   flex-shrink: 0;
 }
 .ce-sport-empty {

@@ -177,9 +177,10 @@
   justify-content: center;
   flex-shrink: 0;
 }
-.tl-event-sport-corner svg {
-  width: 13px;
-  height: 13px;
+.tl-event-sport-corner .sport-emoji {
+  font-size: 13px;
+  line-height: 1;
+  display: inline-block;
 }
 .my-event-sport-icon {
   width: 22px;
@@ -193,9 +194,10 @@
   justify-content: center;
   flex-shrink: 0;
 }
-.my-event-sport-icon svg {
-  width: 14px;
-  height: 14px;
+.my-event-sport-icon .sport-emoji {
+  font-size: 14px;
+  line-height: 1;
+  display: inline-block;
 }
 .tl-event-title {
   font-weight: 600;
