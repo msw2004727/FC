@@ -1142,13 +1142,12 @@ Object.assign(App, {
       ceTeamOnly.checked = !!e.teamOnly;
       // 編輯模式：若為球隊限定且建立者無球隊，需先填充下拉再還原選擇
       if (e.teamOnly) {
-        const team = this._getEventCreatorTeam();
-        if (!team.teamId) {
-          const ceTeamSelect = document.getElementById('ce-team-select');
-          if (ceTeamSelect) {
-            this._populateTeamSelect(ceTeamSelect);
-            if (e.creatorTeamId) ceTeamSelect.value = e.creatorTeamId;
-          }
+        const ceTeamSelect = document.getElementById('ce-team-select');
+        if (ceTeamSelect) {
+          const presetTeamIds = (Array.isArray(e.creatorTeamIds) && e.creatorTeamIds.length > 0)
+            ? e.creatorTeamIds
+            : (e.creatorTeamId ? [e.creatorTeamId] : []);
+          this._populateTeamSelect(ceTeamSelect, presetTeamIds);
         }
       }
       this._updateTeamOnlyLabel();

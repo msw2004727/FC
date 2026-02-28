@@ -513,7 +513,7 @@ Object.assign(App, {
     document.getElementById('ce-image').value = '';
     const ceTeamOnly = document.getElementById('ce-team-only');
     const ceTeamSelect = document.getElementById('ce-team-select');
-    if (ceTeamSelect) ceTeamSelect.value = '';
+    if (ceTeamSelect) Array.from(ceTeamSelect.options || []).forEach(opt => { opt.selected = false; });
     if (ceTeamOnly) { ceTeamOnly.checked = false; this._updateTeamOnlyLabel(); }
     const cePreview = document.getElementById('ce-upload-preview');
     if (cePreview) {
@@ -700,6 +700,157 @@ Object.assign(App, {
     }
   },
 
+  _getTeamOnlyCandidateTeams() {
+    const teams = ApiService.getTeams?.() || [];
+    const activeTeamMap = new Map();
+    teams.forEach(t => {
+      if (!t?.id || t.active === false) return;
+      activeTeamMap.set(String(t.id), t);
+    });
+
+    const ids = new Set();
+    const pushId = (id) => {
+      const v = String(id || '').trim();
+      if (v) ids.add(v);
+    };
+
+    const currentUser = ApiService.getCurrentUser?.() || null;
+    if (currentUser) {
+      if (typeof this._getUserTeamIds === 'function') {
+        this._getUserTeamIds(currentUser).forEach(pushId);
+      } else {
+        if (Array.isArray(currentUser.teamIds)) currentUser.teamIds.forEach(pushId);
+        pushId(currentUser.teamId);
+      }
+    }
+
+    if (typeof this._getVisibleTeamIdsForLimitedEvents === 'function') {
+      this._getVisibleTeamIdsForLimitedEvents().forEach(pushId);
+    }
+
+    const result = [];
+    ids.forEach(id => {
+      const team = activeTeamMap.get(id);
+      result.push(team || { id, name: id });
+    });
+
+    result.sort((a, b) => String(a.name || a.id).localeCompare(String(b.name || b.id), 'en'));
+    return result;
+  },
+
+  _getSelectedTeamValues(select) {
+    if (!select) return [];
+    return Array.from(select.selectedOptions || [])
+      .map(opt => ({
+        id: String(opt.value || '').trim(),
+        name: opt.dataset?.name || opt.textContent || String(opt.value || '').trim(),
+      }))
+      .filter(t => t.id);
+  },
+
+  _setTeamSelectValues(select, teamIds = []) {
+    if (!select) return;
+    const selected = new Set((Array.isArray(teamIds) ? teamIds : [teamIds]).map(v => String(v || '').trim()).filter(Boolean));
+    Array.from(select.options).forEach(opt => {
+      opt.selected = selected.has(String(opt.value || '').trim());
+    });
+  },
+
+  _populateTeamSelect(select, presetTeamIds = []) {
+    if (!select) return [];
+    const teams = this._getTeamOnlyCandidateTeams();
+    const teamMap = new Map(teams.map(t => [String(t.id), t]));
+    (Array.isArray(presetTeamIds) ? presetTeamIds : [presetTeamIds]).forEach(id => {
+      const v = String(id || '').trim();
+      if (!v || teamMap.has(v)) return;
+      teamMap.set(v, { id: v, name: v });
+    });
+    const renderTeams = Array.from(teamMap.values());
+    select.multiple = true;
+    select.innerHTML = renderTeams.map(t =>
+      `<option value="${t.id}" data-name="${escapeHTML(t.name || t.id)}">${escapeHTML(t.name || t.id)}</option>`
+    ).join('');
+    this._setTeamSelectValues(select, presetTeamIds);
+    if (this._getSelectedTeamValues(select).length === 0 && renderTeams.length === 1) {
+      select.options[0].selected = true;
+    }
+    select.size = Math.min(Math.max(renderTeams.length || 0, 2), 6);
+    select.disabled = renderTeams.length === 0;
+    return renderTeams;
+  },
+
+  _resolveTeamOnlySelection() {
+    const select = document.getElementById('ce-team-select');
+    const selected = this._getSelectedTeamValues(select);
+    if (selected.length > 0) return selected;
+    if (select && (select.options?.length || 0) > 0) return [];
+    const team = this._getEventCreatorTeam();
+    if (team?.teamId) {
+      return [{ id: String(team.teamId), name: team.teamName || String(team.teamId) }];
+    }
+    return [];
+  },
+
+  _updateTeamOnlyLabel() {
+    const cb = document.getElementById('ce-team-only');
+    const label = document.getElementById('ce-team-only-label');
+    const select = document.getElementById('ce-team-select');
+    if (!cb || !label) return;
+
+    if (!cb.checked) {
+      label.textContent = 'OFF - visible to everyone';
+      label.style.color = 'var(--text-muted)';
+      if (select) select.style.display = 'none';
+      return;
+    }
+
+    label.style.color = '#e11d48';
+    const teams = this._getTeamOnlyCandidateTeams();
+    const pickerOptionCount = select ? select.options.length : teams.length;
+    const shouldShowPicker = pickerOptionCount > 1;
+    if (select) select.style.display = shouldShowPicker ? '' : 'none';
+
+    if (teams.length === 0) {
+      label.textContent = 'ON - no team available';
+      return;
+    }
+
+    const selected = this._resolveTeamOnlySelection();
+    if (selected.length === 0) {
+      label.textContent = 'ON - select at least one team';
+      return;
+    }
+
+    if (selected.length === 1) {
+      label.textContent = `ON - ${selected[0].name}`;
+      return;
+    }
+
+    const preview = selected.slice(0, 2).map(t => t.name).join(', ');
+    const suffix = selected.length > 2 ? '...' : '';
+    label.textContent = `ON - ${selected.length} teams (${preview}${suffix})`;
+  },
+
+  bindTeamOnlyToggle() {
+    const cb = document.getElementById('ce-team-only');
+    const select = document.getElementById('ce-team-select');
+    if (cb && !cb.dataset.bound) {
+      cb.dataset.bound = '1';
+      cb.addEventListener('change', () => {
+        if (cb.checked && select) {
+          this._populateTeamSelect(select);
+        } else if (select) {
+          Array.from(select.options || []).forEach(opt => { opt.selected = false; });
+        }
+        this._updateTeamOnlyLabel();
+      });
+    }
+    if (select && !select.dataset.bound) {
+      select.dataset.bound = '1';
+      select.addEventListener('change', () => this._updateTeamOnlyLabel());
+    }
+  },
+
   handleCreateEvent() {
     if ((ROLE_LEVEL_MAP[this.currentRole] || 0) < ROLE_LEVEL_MAP.coach) {
       this.showToast('權限不足'); return;
@@ -747,6 +898,16 @@ Object.assign(App, {
       }
     }
 
+    let resolvedTeamIds = [], resolvedTeamNames = [];
+    if (teamOnly) {
+      const selectedTeams = this._resolveTeamOnlySelection();
+      if (selectedTeams.length === 0) { this.showToast('Please select at least one team'); return; }
+      resolvedTeamIds = selectedTeams.map(t => t.id);
+      resolvedTeamNames = selectedTeams.map(t => t.name || t.id);
+      resolvedTeamId = resolvedTeamIds[0] || null;
+      resolvedTeamName = resolvedTeamNames[0] || null;
+    }
+
     const cePreviewEl = document.getElementById('ce-upload-preview');
     const ceImg = cePreviewEl?.querySelector('img');
     const image = ceImg ? ceImg.src : null;
@@ -781,6 +942,8 @@ Object.assign(App, {
         teamOnly,
         creatorTeamId: teamOnly ? resolvedTeamId : null,
         creatorTeamName: teamOnly ? resolvedTeamName : null,
+        creatorTeamIds: teamOnly ? [...resolvedTeamIds] : [],
+        creatorTeamNames: teamOnly ? [...resolvedTeamNames] : [],
         delegates: [...this._delegates],
       };
       // 已結束/已取消的活動編輯時不改變狀態
@@ -833,6 +996,8 @@ Object.assign(App, {
         teamOnly,
         creatorTeamId: teamOnly ? resolvedTeamId : null,
         creatorTeamName: teamOnly ? resolvedTeamName : null,
+        creatorTeamIds: teamOnly ? [...resolvedTeamIds] : [],
+        creatorTeamNames: teamOnly ? [...resolvedTeamNames] : [],
         delegates: [...this._delegates],
       };
       ApiService.createEvent(newEvent);
@@ -871,7 +1036,7 @@ Object.assign(App, {
     this._updateDelegateInput();
     const ceTeamOnly = document.getElementById('ce-team-only');
     const ceTeamSelect = document.getElementById('ce-team-select');
-    if (ceTeamSelect) ceTeamSelect.value = '';
+    if (ceTeamSelect) Array.from(ceTeamSelect.options || []).forEach(opt => { opt.selected = false; });
     if (ceTeamOnly) { ceTeamOnly.checked = false; this._updateTeamOnlyLabel(); }
     const cePreview = document.getElementById('ce-upload-preview');
     if (cePreview) {

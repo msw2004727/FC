@@ -53,13 +53,21 @@ Object.assign(App, {
     const user = ApiService.getCurrentUser?.() || null;
     if (!user) return ids;
 
-    if (user.teamId) ids.add(user.teamId);
+    if (typeof this._getUserTeamIds === 'function') {
+      this._getUserTeamIds(user).forEach(id => ids.add(id));
+    } else {
+      if (Array.isArray(user.teamIds)) user.teamIds.forEach(id => { if (id) ids.add(String(id)); });
+      if (user.teamId) ids.add(user.teamId);
+    }
     // currentUser 可能尚未同步 teamId，補用 adminUsers 對照（與建立活動相同策略）
     const uid = user.uid || '';
     const name = user.displayName || user.name || '';
     const adminUsers = ApiService.getAdminUsers?.() || [];
     const match = adminUsers.find(u => (uid && u.uid === uid) || (name && u.name === name));
-    if (match && match.teamId) ids.add(match.teamId);
+    if (match) {
+      if (Array.isArray(match.teamIds)) match.teamIds.forEach(id => { if (id) ids.add(String(id)); });
+      if (match.teamId) ids.add(match.teamId);
+    }
 
     const myUid = user.uid || '';
     const myDocId = user._docId || '';
@@ -103,11 +111,27 @@ Object.assign(App, {
     return isLeader || isManager || isCoach;
   },
 
+  _getEventLimitedTeamIds(e) {
+    if (!e) return [];
+    const ids = [];
+    const seen = new Set();
+    const pushId = (id) => {
+      const v = String(id || '').trim();
+      if (!v || seen.has(v)) return;
+      seen.add(v);
+      ids.push(v);
+    };
+    if (Array.isArray(e.creatorTeamIds)) e.creatorTeamIds.forEach(pushId);
+    pushId(e.creatorTeamId);
+    return ids;
+  },
+
   _canSignupTeamOnlyEvent(e) {
     if (!e || !e.teamOnly) return true;
-    if (!e.creatorTeamId) return false;
-    const teamIds = this._getVisibleTeamIdsForLimitedEvents();
-    return teamIds.has(e.creatorTeamId);
+    const eventTeamIds = this._getEventLimitedTeamIds(e);
+    if (eventTeamIds.length === 0) return false;
+    const myTeamIds = this._getVisibleTeamIdsForLimitedEvents();
+    return eventTeamIds.some(id => myTeamIds.has(id));
   },
 
   _canViewEventByTeamScope(e) {
@@ -116,8 +140,9 @@ Object.assign(App, {
     if (this._isEventOwner(e)) return true;
     const myLevel = ROLE_LEVEL_MAP[this.currentRole] || 0;
     if (myLevel >= ROLE_LEVEL_MAP.admin) return true;
-    const teamIds = this._getVisibleTeamIdsForLimitedEvents();
-    if (e.creatorTeamId && teamIds.has(e.creatorTeamId)) return true;
+    const eventTeamIds = this._getEventLimitedTeamIds(e);
+    const myTeamIds = this._getVisibleTeamIdsForLimitedEvents();
+    if (eventTeamIds.some(id => myTeamIds.has(id))) return true;
     return !!e.isPublic;
   },
 
@@ -125,7 +150,9 @@ Object.assign(App, {
     if (!e || !e.teamOnly) return false;
     const myLevel = ROLE_LEVEL_MAP[this.currentRole] || 0;
     if (myLevel >= ROLE_LEVEL_MAP.admin) return true;
-    return this._isEventOwner(e) || this._isCurrentUserTeamStaff(e.creatorTeamId);
+    const eventTeamIds = this._getEventLimitedTeamIds(e);
+    if (eventTeamIds.length === 0) return this._isEventOwner(e);
+    return this._isEventOwner(e) || eventTeamIds.some(teamId => this._isCurrentUserTeamStaff(teamId));
   },
 
   /** 判斷當前用戶是否為該活動建立者 */

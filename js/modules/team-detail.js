@@ -335,8 +335,9 @@ Object.assign(App, {
 
   _renderTeamEvents(teamId) {
     const allEvents = ApiService.getEvents() || [];
+    const teamIdStr = String(teamId || '');
     const teamEvents = allEvents.filter(e =>
-      e.teamOnly && e.creatorTeamId === teamId &&
+      e.teamOnly && ((Array.isArray(e.creatorTeamIds) && e.creatorTeamIds.map(v => String(v)).includes(teamIdStr)) || String(e.creatorTeamId || '') === teamIdStr) &&
       e.status !== 'ended' && e.status !== 'cancelled'
     ).sort((a, b) => (a.date || '').localeCompare(b.date || ''));
 
