@@ -216,7 +216,9 @@ const ApiService = {
     const source = this._src(key);
     if (prepend !== false) { source.unshift(data); } else { source.push(data); }
     if (!this._demoMode && firebaseMethod) {
-      firebaseMethod.call(FirebaseService, data).catch(err => console.error(`[${label}]`, err));
+      FirebaseService.ensureAuthReadyForWrite()
+        .then(() => firebaseMethod.call(FirebaseService, data))
+        .catch(err => console.error(`[${label}]`, err));
     }
     return data;
   },
@@ -227,7 +229,9 @@ const ApiService = {
     const item = this._findById(key, id);
     if (item) Object.assign(item, updates);
     if (!this._demoMode && firebaseMethod) {
-      firebaseMethod.call(FirebaseService, id, updates).catch(err => console.error(`[${label}]`, err));
+      FirebaseService.ensureAuthReadyForWrite()
+        .then(() => firebaseMethod.call(FirebaseService, id, updates))
+        .catch(err => console.error(`[${label}]`, err));
     }
     return item;
   },
@@ -238,7 +242,9 @@ const ApiService = {
     const source = this._src(key);
     // 必須先呼叫 Firebase 刪除（需要從 cache 中找到 _docId），再 splice
     if (!this._demoMode && firebaseMethod) {
-      firebaseMethod.call(FirebaseService, id).catch(err => console.error(`[${label}]`, err));
+      FirebaseService.ensureAuthReadyForWrite()
+        .then(() => firebaseMethod.call(FirebaseService, id))
+        .catch(err => console.error(`[${label}]`, err));
     }
     const idx = source.findIndex(item => item.id === id);
     if (idx >= 0) source.splice(idx, 1);
@@ -339,7 +345,8 @@ const ApiService = {
     const removed = source.splice(idx, 1)[0];
     if (!this._demoMode) {
       if (removed._docId) {
-        db.collection('tournaments').doc(removed._docId).delete()
+        FirebaseService.ensureAuthReadyForWrite()
+          .then(() => db.collection('tournaments').doc(removed._docId).delete())
           .catch(err => console.error('[deleteTournament]', err));
       }
       FirebaseService._saveToLS('tournaments', source);
@@ -849,10 +856,12 @@ const ApiService = {
     this._src('expLogs').unshift(log);
     this._writeOpLog('exp', '手動EXP', `${user.name} ${log.amount}「${reason}」`);
     if (!this._demoMode) {
-      if (user._docId) {
-        db.collection('users').doc(user._docId).update({ exp: user.exp }).catch(err => console.error('[adjustUserExp]', err));
-      }
-      db.collection('expLogs').add({ ...log, createdAt: firebase.firestore.FieldValue.serverTimestamp() }).catch(err => console.error('[adjustUserExp log]', err));
+      FirebaseService.ensureAuthReadyForWrite().then(() => {
+        if (user._docId) {
+          db.collection('users').doc(user._docId).update({ exp: user.exp }).catch(err => console.error('[adjustUserExp]', err));
+        }
+        db.collection('expLogs').add({ ...log, createdAt: firebase.firestore.FieldValue.serverTimestamp() }).catch(err => console.error('[adjustUserExp log]', err));
+      });
     }
     return user;
   },
@@ -867,10 +876,12 @@ const ApiService = {
     this._src('teamExpLogs').unshift(log);
     this._writeOpLog('team_exp', '球隊積分', `${team.name} ${log.amount}「${reason}」`);
     if (!this._demoMode) {
-      if (team._docId) {
-        db.collection('teams').doc(team._docId).update({ teamExp: team.teamExp }).catch(err => console.error('[adjustTeamExp]', err));
-      }
-      db.collection('teamExpLogs').add({ ...log, createdAt: firebase.firestore.FieldValue.serverTimestamp() }).catch(err => console.error('[adjustTeamExp log]', err));
+      FirebaseService.ensureAuthReadyForWrite().then(() => {
+        if (team._docId) {
+          db.collection('teams').doc(team._docId).update({ teamExp: team.teamExp }).catch(err => console.error('[adjustTeamExp]', err));
+        }
+        db.collection('teamExpLogs').add({ ...log, createdAt: firebase.firestore.FieldValue.serverTimestamp() }).catch(err => console.error('[adjustTeamExp log]', err));
+      });
     }
     return team;
   },

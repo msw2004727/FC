@@ -63,11 +63,14 @@ const FirebaseService = {
   _bootCollectionLoadFailed: {},
   _persistDebounceTimer: null,
   _eventSlices: { active: [], terminal: [] },
+  _realtimeListenerStarted: {},  // 追蹤已啟動的延遲即時監聽器
+  _authPromise: null,            // Auth 並行 Promise
 
   // ─── localStorage 快取設定 ───
   _LS_PREFIX: 'shub_c_',
   _LS_TS_KEY: 'shub_cache_ts',
-  _LS_TTL: 30 * 60 * 1000, // 30 分鐘快取有效期
+  _LS_TTL: 30 * 60 * 1000, // 預設 30 分鐘（admin/super_admin）
+  _LS_TTL_LONG: 120 * 60 * 1000, // 一般用戶 120 分鐘
 
   /** 將 users 集合文件映射為 adminUsers 格式（補齊 name / uid / lastActive） */
   _mapUserDoc(data, docId) {
@@ -127,10 +130,21 @@ const FirebaseService = {
     localStorage.setItem(this._LS_TS_KEY, Date.now().toString());
   },
 
+  /** 根據快取中的用戶角色決定 TTL */
+  _getEffectiveTTL() {
+    try {
+      const saved = this._loadFromLS('currentUser');
+      const role = saved?.role || 'user';
+      if (role === 'admin' || role === 'super_admin') return this._LS_TTL;
+    } catch (_) {}
+    return this._LS_TTL_LONG;
+  },
+
   /** 從 localStorage 恢復快取（回傳是否成功） */
   _restoreCache() {
     const ts = parseInt(localStorage.getItem(this._LS_TS_KEY) || '0', 10);
-    if (Date.now() - ts > this._LS_TTL) return false;
+    const ttl = this._getEffectiveTTL();
+    if (Date.now() - ts > ttl) return false;
 
     let restored = 0;
     const allCollections = [
@@ -163,31 +177,37 @@ const FirebaseService = {
   //  初始化：分層載入集合到快取
   // ════════════════════════════════
 
-  // 需要即時監聽的集合（核心互動功能）— 加 query 過濾
-  _liveCollections: ['events', 'messages', 'registrations', 'teams', 'attendanceRecords'],
+  // 啟動時立即監聽的公開集合（不需 Auth，首頁核心）
+  _liveCollections: ['events', 'teams'],
 
-  // 啟動時必要的靜態集合（首頁 + 全域 UI 需要）
+  // 啟動時必要的靜態集合（首頁 + 全域 UI 需要，全部公開讀取）
   _bootCollections: [
     'banners', 'floatingAds', 'popupAds', 'sponsors',
     'announcements', 'siteThemes', 'achievements', 'badges',
     'tournaments',
   ],
 
-  // 延遲載入的靜態集合（進入對應頁面時才載入）
+  // 延遲載入的集合（進入對應頁面時才載入，含原 live 中需 Auth 的集合）
   _deferredCollections: [
     'tournaments', 'shopItems', 'leaderboard', 'standings', 'matches',
     'trades', 'attendanceRecords', 'activityRecords',
     'expLogs', 'teamExpLogs', 'operationLogs',
     'adminMessages', 'notifTemplates', 'eventTemplates', 'permissions', 'customRoles',
     'errorLogs',
+    'registrations', 'messages',
   ],
+
+  // 由即時監聽器管理的集合（ensureCollectionsForPage 不走 static .get()）
+  _realtimeManagedCollections: ['registrations', 'attendanceRecords'],
 
   // 集合 → 頁面映射（用於懶載入觸發）
   _collectionPageMap: {
     'page-tournaments':       ['tournaments', 'standings', 'matches'],
     'page-shop':              ['shopItems', 'trades'],
-    'page-activities':        ['attendanceRecords', 'activityRecords'],
+    'page-activities':        ['attendanceRecords', 'activityRecords', 'registrations'],
+    'page-activity-detail':   ['registrations', 'attendanceRecords'],
     'page-my-activities':     ['attendanceRecords', 'activityRecords', 'registrations'],
+    'page-scan':              ['attendanceRecords'],
     'page-admin-dashboard':   ['expLogs', 'teamExpLogs', 'operationLogs', 'attendanceRecords', 'activityRecords'],
     'page-admin-users':       ['permissions', 'customRoles'],
     'page-admin-messages':    ['adminMessages', 'notifTemplates'],
@@ -211,7 +231,14 @@ const FirebaseService = {
     const needed = this._collectionPageMap[pageId];
     if (!needed) return;
 
-    const toLoad = needed.filter(name => !this._lazyLoaded[name]);
+    // 啟動延遲即時監聽器（registrations / attendanceRecords 需 Auth）
+    if (needed.includes('registrations')) this._startRegistrationsListener();
+    if (needed.includes('attendanceRecords')) this._startAttendanceRecordsListener();
+
+    // 靜態集合載入（排除即時監聽器管理的集合）
+    const toLoad = needed.filter(name =>
+      !this._lazyLoaded[name] && !this._realtimeManagedCollections.includes(name)
+    );
     if (toLoad.length === 0) return;
 
     console.log(`[FirebaseService] 懶載入 ${pageId} 需要的集合:`, toLoad.join(', '));
@@ -490,244 +517,166 @@ const FirebaseService = {
     return loadedNames;
   },
 
-  async init() {
-    if (this._initialized) return;
-    this._bootCollectionLoadFailed = {};
+  // ════════════════════════════════
+  //  Auth 寫入守衛
+  // ════════════════════════════════
 
-    // ── Step 1: 嘗試從 localStorage 恢復快取 ──
-    const hasLocalCache = this._restoreCache();
+  /** 等待 Auth 完成（供寫入操作使用，避免 permission-denied） */
+  async ensureAuthReadyForWrite() {
+    if (auth?.currentUser) return true;
+    if (this._authPromise) {
+      try {
+        await Promise.race([
+          this._authPromise,
+          new Promise(r => setTimeout(r, 10000))
+        ]);
+      } catch (_) {}
+    }
+    return !!auth?.currentUser;
+  },
 
-    // Firebase Auth 登入（Demo → 匿名；Prod → LINE Custom Token，失敗降級快取）
+  // ════════════════════════════════
+  //  延遲即時監聯器（Auth 完成後 / 進入頁面時啟動）
+  // ════════════════════════════════
+
+  /** 啟動 messages 監聽器（需 Auth） */
+  _startMessagesListener() {
+    if (this._realtimeListenerStarted.messages) return;
+    this._realtimeListenerStarted.messages = true;
+    const unsub = db.collection('messages')
+      .orderBy('timestamp', 'desc')
+      .limit(200)
+      .onSnapshot(
+        snapshot => {
+          this._cache.messages = snapshot.docs.map(doc => ({ ...doc.data(), _docId: doc.id }));
+          this._debouncedPersistCache();
+        },
+        err => { console.warn('[onSnapshot] messages 監聽錯誤:', err); }
+      );
+    this._listeners.push(unsub);
+  },
+
+  /** 啟動 users 監聽器（需 Auth） */
+  _startUsersListener() {
+    if (this._realtimeListenerStarted.users) return;
+    this._realtimeListenerStarted.users = true;
+    const unsub = db.collection('users')
+      .limit(300)
+      .onSnapshot(
+        snapshot => {
+          this._cache.adminUsers = snapshot.docs.map(doc => this._mapUserDoc(doc.data(), doc.id));
+          this._syncCurrentUserFromUsersSnapshot();
+          this._debouncedPersistCache();
+        },
+        err => { console.warn('[onSnapshot] users 監聽錯誤:', err); }
+      );
+    this._listeners.push(unsub);
+  },
+
+  /** 啟動 registrations 監聽器（需 Auth，進入活動頁面時觸發） */
+  _startRegistrationsListener() {
+    if (this._realtimeListenerStarted.registrations) return;
+    if (!auth?.currentUser) {
+      if (this._authPromise && !this._realtimeListenerStarted._pendingRegistrations) {
+        this._realtimeListenerStarted._pendingRegistrations = true;
+        this._authPromise.then(() => {
+          if (auth?.currentUser) this._startRegistrationsListener();
+        });
+      }
+      return;
+    }
+    this._realtimeListenerStarted.registrations = true;
+    this._lazyLoaded.registrations = true;
+    const unsub = db.collection('registrations')
+      .limit(500)
+      .onSnapshot(
+        snapshot => {
+          this._cache.registrations = snapshot.docs.map(doc => ({ ...doc.data(), _docId: doc.id }));
+          this._debouncedPersistCache();
+          if (typeof App !== 'undefined') {
+            if (App.currentPage === 'page-activity-detail') App.showEventDetail?.(App._currentDetailEventId);
+            if (App.currentPage === 'page-activities') App.renderActivityList?.();
+            if (App.currentPage === 'page-my-activities') App.renderMyActivities?.();
+          }
+        },
+        err => { console.warn('[onSnapshot] registrations 監聽錯誤:', err); }
+      );
+    this._listeners.push(unsub);
+  },
+
+  /** 啟動 attendanceRecords 監聽器（需 Auth，進入掃描/管理頁時觸發） */
+  _startAttendanceRecordsListener() {
+    if (this._realtimeListenerStarted.attendanceRecords) return;
+    if (!auth?.currentUser) {
+      if (this._authPromise && !this._realtimeListenerStarted._pendingAttendance) {
+        this._realtimeListenerStarted._pendingAttendance = true;
+        this._authPromise.then(() => {
+          if (auth?.currentUser) this._startAttendanceRecordsListener();
+        });
+      }
+      return;
+    }
+    this._realtimeListenerStarted.attendanceRecords = true;
+    this._lazyLoaded.attendanceRecords = true;
+    const unsub = db.collection('attendanceRecords')
+      .orderBy('createdAt', 'desc')
+      .limit(500)
+      .onSnapshot(
+        snapshot => {
+          this._cache.attendanceRecords = snapshot.docs.map(doc => ({ ...doc.data(), _docId: doc.id }));
+          this._debouncedPersistCache();
+          if (typeof App !== 'undefined') {
+            if (App.currentPage === 'page-activity-detail') {
+              App._renderAttendanceTable?.(App._currentDetailEventId, 'detail-attendance-table');
+            }
+            if (App.currentPage === 'page-scan') {
+              App._renderScanResults?.();
+              App._renderAttendanceSections?.();
+            }
+          }
+        },
+        err => { console.warn('[onSnapshot] attendanceRecords 監聽錯誤:', err); }
+      );
+    this._listeners.push(unsub);
+  },
+
+  /** 啟動 terminal events 監聽器（公開讀取，背景啟動不阻塞首頁） */
+  _startTerminalEventsListener() {
+    if (this._realtimeListenerStarted.terminalEvents) return;
+    this._realtimeListenerStarted.terminalEvents = true;
+    const unsub = db.collection('events')
+      .where('status', 'in', ['ended', 'cancelled'])
+      .limit(200)
+      .onSnapshot(
+        snapshot => {
+          this._eventSlices.terminal = snapshot.docs.map(doc => ({ ...doc.data(), _docId: doc.id }));
+          this._mergeRealtimeEventSlices(true);
+        },
+        err => { console.warn('[onSnapshot] events-terminal 監聽錯誤:', err); }
+      );
+    this._listeners.push(unsub);
+  },
+
+  /** Auth 完成後啟動需驗證的監聽器 + seed（背景執行，不阻塞首頁） */
+  async _startAuthDependentWork() {
     try {
       await Promise.race([
-        this._signInWithAppropriateMethod(),
+        this._authPromise,
         new Promise((_, reject) => setTimeout(() => reject(new Error('AUTH_TIMEOUT')), 15000))
       ]);
     } catch (err) {
       console.error('[FirebaseService] Firebase Auth 登入失敗:', err?.code || err?.message);
       this._authError = err;
-    }
-
-    // ── Step 2: 啟動集合（首頁需要的靜態集合）──
-    const bootPromises = this._bootCollections.map(name =>
-      db.collection(name).orderBy(firebase.firestore.FieldPath.documentId()).limit(200).get()
-        .then(snapshot => ({ ok: true, docs: snapshot.docs }))
-        .catch(err => {
-          console.warn(`Collection "${name}" load failed:`, err);
-          return { ok: false, docs: null };
-        })
-    );
-
-    // ── Step 3: 即時集合 + users — onSnapshot 加 query 過濾 ──
-    this._eventSlices = { active: [], terminal: [] };
-
-    const livePromise = new Promise(resolve => {
-      let pending = this._liveCollections.length + 2; // +1 for users, +1 for terminal events listener
-      const checkDone = () => { if (--pending === 0) resolve(); };
-
-      // events: 只監聽非結束/取消的活動（limit 200）
-      {
-        let firstSnapshot = true;
-        const unsub = db.collection('events')
-          .where('status', 'in', ['open', 'full', 'upcoming'])
-          .limit(200)
-          .onSnapshot(
-            snapshot => {
-              this._eventSlices.active = snapshot.docs.map(doc => ({ ...doc.data(), _docId: doc.id }));
-              this._mergeRealtimeEventSlices(!firstSnapshot);
-              if (firstSnapshot) { firstSnapshot = false; checkDone(); }
-            },
-            err => { console.warn('[onSnapshot] events 監聽錯誤:', err); checkDone(); }
-          );
-        this._listeners.push(unsub);
-      }
-
-      // events (terminal): ended/cancelled 即時同步（避免狀態切換後短暫消失）
-      {
-        let firstTerminalSnapshot = true;
-        const unsub = db.collection('events')
-          .where('status', 'in', ['ended', 'cancelled'])
-          .limit(200)
-          .onSnapshot(
-            snapshot => {
-              this._eventSlices.terminal = snapshot.docs.map(doc => ({ ...doc.data(), _docId: doc.id }));
-              this._mergeRealtimeEventSlices(!firstTerminalSnapshot);
-              if (firstTerminalSnapshot) { firstTerminalSnapshot = false; checkDone(); }
-            },
-            err => { console.warn('[onSnapshot] events-terminal 監聽錯誤:', err); checkDone(); }
-          );
-        this._listeners.push(unsub);
-      }
-
-      // messages: 最新 200 筆
-      {
-        let firstSnapshot = true;
-        const unsub = db.collection('messages')
-          .orderBy('timestamp', 'desc')
-          .limit(200)
-          .onSnapshot(
-            snapshot => {
-              this._cache.messages = snapshot.docs.map(doc => ({ ...doc.data(), _docId: doc.id }));
-              this._debouncedPersistCache();
-              if (firstSnapshot) { firstSnapshot = false; checkDone(); }
-            },
-            err => { console.warn('[onSnapshot] messages 監聽錯誤:', err); checkDone(); }
-          );
-        this._listeners.push(unsub);
-      }
-
-      // registrations: limit 500（報名資料量較大）
-      {
-        let firstSnapshot = true;
-        const unsub = db.collection('registrations')
-          .limit(500)
-          .onSnapshot(
-            snapshot => {
-              this._cache.registrations = snapshot.docs.map(doc => ({ ...doc.data(), _docId: doc.id }));
-              this._debouncedPersistCache();
-              if (firstSnapshot) { firstSnapshot = false; checkDone(); }
-              else if (typeof App !== 'undefined') {
-                // 報名資料更新 → 刷新按鈕狀態（取消候補 / 報名候補）
-                if (App.currentPage === 'page-activity-detail') App.showEventDetail?.(App._currentDetailEventId);
-                if (App.currentPage === 'page-activities') App.renderActivityList?.();
-                if (App.currentPage === 'page-my-activities') App.renderMyActivities?.();
-              }
-            },
-            err => { console.warn('[onSnapshot] registrations 監聽錯誤:', err); checkDone(); }
-          );
-        this._listeners.push(unsub);
-      }
-
-      // teams: limit 100
-      {
-        let firstSnapshot = true;
-        const unsub = db.collection('teams')
-          .limit(100)
-          .onSnapshot(
-            snapshot => {
-              this._cache.teams = snapshot.docs.map(doc => ({ ...doc.data(), _docId: doc.id }));
-              this._debouncedPersistCache();
-              this._onTeamsUpdated();
-              if (firstSnapshot) { firstSnapshot = false; checkDone(); }
-            },
-            err => { console.warn('[onSnapshot] teams 監聯錯誤:', err); checkDone(); }
-          );
-        this._listeners.push(unsub);
-      }
-
-      // attendanceRecords: limit 500
-      {
-        let firstSnapshot = true;
-        const unsub = db.collection('attendanceRecords')
-          .orderBy('createdAt', 'desc')
-          .limit(500)
-          .onSnapshot(
-            snapshot => {
-              this._cache.attendanceRecords = snapshot.docs.map(doc => ({ ...doc.data(), _docId: doc.id }));
-              this._debouncedPersistCache();
-              this._lazyLoaded.attendanceRecords = true;
-              if (firstSnapshot) { firstSnapshot = false; checkDone(); }
-              else if (typeof App !== 'undefined') {
-                if (App.currentPage === 'page-activity-detail') {
-                  App._renderAttendanceTable?.(App._currentDetailEventId, 'detail-attendance-table');
-                }
-                if (App.currentPage === 'page-scan') {
-                  App._renderScanResults?.();
-                  App._renderAttendanceSections?.();
-                }
-              }
-            },
-            err => { console.warn('[onSnapshot] attendanceRecords 監聽錯誤:', err); checkDone(); }
-          );
-        this._listeners.push(unsub);
-      }
-
-      // users → adminUsers: limit 300
-      {
-        let firstUserSnapshot = true;
-        const unsubUsers = db.collection('users')
-          .limit(300)
-          .onSnapshot(
-            snapshot => {
-              this._cache.adminUsers = snapshot.docs.map(doc => this._mapUserDoc(doc.data(), doc.id));
-              this._syncCurrentUserFromUsersSnapshot();
-              this._debouncedPersistCache();
-              if (firstUserSnapshot) { firstUserSnapshot = false; checkDone(); }
-            },
-            err => { console.warn('[onSnapshot] users 監聽錯誤:', err); checkDone(); }
-          );
-        this._listeners.push(unsubUsers);
-      }
-    });
-
-    // ── Step 4: 平行等待 boot + live（含 WebSocket 超時偵測）──
-    const _INIT_TIMEOUT = 10000; // 10 秒
-    let bootSnapshots = null;
-    let timedOut = false;
-
-    try {
-      const dataPromise = Promise.all([
-        Promise.all(bootPromises),
-        livePromise,
-      ]);
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('INIT_TIMEOUT')), _INIT_TIMEOUT)
-      );
-      const [bs] = await Promise.race([dataPromise, timeoutPromise]);
-      bootSnapshots = bs;
-    } catch (err) {
-      if (err.message === 'INIT_TIMEOUT') {
-        timedOut = true;
-        // 僅在 WebSocket 模式下才標記降級（長輪詢超時屬於網路問題，不需標記）
-        if (!window._firestoreUsingLongPolling) {
-          _markWsBlocked();
-          console.warn('[FirebaseService] WebSocket 連線超時，已標記下次使用長輪詢');
-          if (typeof App !== 'undefined' && App.showToast) {
-            App.showToast('連線較慢，重新整理頁面可改善速度');
-          }
-        } else {
-          console.warn('[FirebaseService] 長輪詢連線超時（網路問題）');
-        }
-      } else {
-        throw err; // 非超時錯誤，正常拋出
-      }
-    }
-
-    // 超時 → 用 localStorage 快取兜底，跳過 Steps 5-8
-    if (timedOut) {
-      this._initialized = true;
-      console.log('[FirebaseService] 超時降級：使用 localStorage 快取，背景 listeners 仍在運行');
       return;
     }
 
-    // 填入 boot 集合快取
-    this._bootCollections.forEach((name, i) => {
-      const result = bootSnapshots[i];
-      if (!result || !result.ok) {
-        this._bootCollectionLoadFailed[name] = true;
-        console.warn(`[FirebaseService] Boot collection "${name}" failed; keep existing cache.`);
-        return;
-      }
-      this._bootCollectionLoadFailed[name] = false;
-      const docs = result.docs.map(doc => ({ ...doc.data(), _docId: doc.id }));
-      const seen = new Set();
-      this._cache[name] = docs.filter(d => {
-        if (!d.id) return true;
-        if (seen.has(d.id)) return false;
-        seen.add(d.id);
-        return true;
-      });
-    });
-    this._bootCollections.forEach(name => {
-      if (!this._bootCollectionLoadFailed[name]) this._lazyLoaded[name] = true;
-    });
+    this._startMessagesListener();
+    this._startUsersListener();
 
-    // ── Step 5: rolePermissions（即時同步）──
     try {
       await this._watchRolePermissionsRealtime(true);
     } catch (err) { console.warn('[FirebaseService] rolePermissions 載入失敗:', err); }
 
-    // ── Step 6: Seed 操作（僅首次需要，並行執行節省啟動時間）──
     const authRole = await this._resolveCurrentAuthRole();
     const canAdminSeed = this._roleLevel(authRole) >= this._roleLevel('admin');
     const canSuperAdminSeed = this._roleLevel(authRole) >= this._roleLevel('super_admin');
@@ -754,17 +703,156 @@ const FirebaseService = {
       await Promise.all(seedTasks);
     }
 
-    this._initialized = true;
+    this._persistCache();
+    console.log('[FirebaseService] Auth-dependent 初始化完成');
+  },
 
-    // ── Step 7: 持久化快取到 localStorage ──
+  // ════════════════════════════════
+  //  主初始化：分層啟動（公開資料先行，Auth 並行）
+  // ════════════════════════════════
+
+  async init() {
+    if (this._initialized) return;
+    this._bootCollectionLoadFailed = {};
+    this._realtimeListenerStarted = {};
+
+    // ── Step 1: 嘗試從 localStorage 恢復快取 ──
+    const hasLocalCache = this._restoreCache();
+
+    // ── Step 2: 並行啟動 — 公開資料 + Auth ──
+    this._eventSlices = { active: [], terminal: [] };
+
+    // 2a. Boot collections（全部公開讀取，不需 Auth）
+    const bootPromises = this._bootCollections.map(name =>
+      db.collection(name).orderBy(firebase.firestore.FieldPath.documentId()).limit(200).get()
+        .then(snapshot => ({ ok: true, docs: snapshot.docs }))
+        .catch(err => {
+          console.warn(`Collection "${name}" load failed:`, err);
+          return { ok: false, docs: null };
+        })
+    );
+
+    // 2b. 公開即時監聽器（events active + teams，不需 Auth）
+    const publicListenerPromise = new Promise(resolve => {
+      let pending = 2; // active events + teams
+      const checkDone = () => { if (--pending === 0) resolve(); };
+
+      // events: 只監聽進行中的活動（open/full/upcoming）
+      {
+        let firstSnapshot = true;
+        const unsub = db.collection('events')
+          .where('status', 'in', ['open', 'full', 'upcoming'])
+          .limit(200)
+          .onSnapshot(
+            snapshot => {
+              this._eventSlices.active = snapshot.docs.map(doc => ({ ...doc.data(), _docId: doc.id }));
+              this._mergeRealtimeEventSlices(!firstSnapshot);
+              if (firstSnapshot) { firstSnapshot = false; checkDone(); }
+            },
+            err => { console.warn('[onSnapshot] events 監聽錯誤:', err); checkDone(); }
+          );
+        this._listeners.push(unsub);
+      }
+
+      // teams: limit 100
+      {
+        let firstSnapshot = true;
+        const unsub = db.collection('teams')
+          .limit(100)
+          .onSnapshot(
+            snapshot => {
+              this._cache.teams = snapshot.docs.map(doc => ({ ...doc.data(), _docId: doc.id }));
+              this._debouncedPersistCache();
+              this._onTeamsUpdated();
+              if (firstSnapshot) { firstSnapshot = false; checkDone(); }
+            },
+            err => { console.warn('[onSnapshot] teams 監聽錯誤:', err); checkDone(); }
+          );
+        this._listeners.push(unsub);
+      }
+    });
+
+    // 2c. Auth 並行啟動（不阻塞公開資料載入）
+    this._authPromise = this._signInWithAppropriateMethod().catch(err => {
+      console.error('[FirebaseService] Firebase Auth failed:', err?.code || err?.message);
+      this._authError = err;
+    });
+
+    // ── Step 3: 等待公開資料就緒（boot + public listeners，含超時偵測）──
+    const _INIT_TIMEOUT = 10000;
+    let bootSnapshots = null;
+    let timedOut = false;
+
+    try {
+      const dataPromise = Promise.all([
+        Promise.all(bootPromises),
+        publicListenerPromise,
+      ]);
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('INIT_TIMEOUT')), _INIT_TIMEOUT)
+      );
+      const [bs] = await Promise.race([dataPromise, timeoutPromise]);
+      bootSnapshots = bs;
+    } catch (err) {
+      if (err.message === 'INIT_TIMEOUT') {
+        timedOut = true;
+        if (!window._firestoreUsingLongPolling) {
+          _markWsBlocked();
+          console.warn('[FirebaseService] WebSocket 連線超時，已標記下次使用長輪詢');
+          if (typeof App !== 'undefined' && App.showToast) {
+            App.showToast('連線較慢，重新整理頁面可改善速度');
+          }
+        } else {
+          console.warn('[FirebaseService] 長輪詢連線超時（網路問題）');
+        }
+      } else {
+        throw err;
+      }
+    }
+
+    // 超時 → 用 localStorage 快取兜底
+    if (timedOut) {
+      this._initialized = true;
+      console.log('[FirebaseService] 超時降級：使用 localStorage 快取，背景 listeners 仍在運行');
+      this._startTerminalEventsListener();
+      this._startAuthDependentWork();
+      return;
+    }
+
+    // ── Step 4: 填入 boot 集合快取 ──
+    this._bootCollections.forEach((name, i) => {
+      const result = bootSnapshots[i];
+      if (!result || !result.ok) {
+        this._bootCollectionLoadFailed[name] = true;
+        console.warn(`[FirebaseService] Boot collection "${name}" failed; keep existing cache.`);
+        return;
+      }
+      this._bootCollectionLoadFailed[name] = false;
+      const docs = result.docs.map(doc => ({ ...doc.data(), _docId: doc.id }));
+      const seen = new Set();
+      this._cache[name] = docs.filter(d => {
+        if (!d.id) return true;
+        if (seen.has(d.id)) return false;
+        seen.add(d.id);
+        return true;
+      });
+    });
+    this._bootCollections.forEach(name => {
+      if (!this._bootCollectionLoadFailed[name]) this._lazyLoaded[name] = true;
+    });
+
+    // ── 標記初始化完成（首頁可渲染）──
+    this._initialized = true;
     this._persistCache();
 
     const bootCount = this._bootCollections.length;
-    const liveCount = this._liveCollections.length + 3; // + users + terminal events + rolePermissions
-    console.log(`[FirebaseService] 初始化完成 — boot: ${bootCount}, live: ${liveCount}, deferred: ${this._deferredCollections.length} 個集合待懶載入`);
+    console.log(`[FirebaseService] 公開資料初始化完成 — boot: ${bootCount}, public listeners: events+teams, deferred: ${this._deferredCollections.length}`);
 
-    // ── Step 8: 背景載入已結束的活動（補齊完整列表）──
-    this._loadEndedEvents();
+    // ── Step 5: 背景啟動 terminal events（公開但非首頁必需）──
+    this._startTerminalEventsListener();
+
+    // ── Step 6: 背景啟動 Auth 依賴的監聽器 + seed ──
+    this._startAuthDependentWork();
   },
 
   /** 背景載入已結束/取消的活動（不阻塞啟動） */
@@ -1057,6 +1145,8 @@ const FirebaseService = {
     this._initialized = false;
     this._lazyLoaded = {};
     this._bootCollectionLoadFailed = {};
+    this._realtimeListenerStarted = {};
+    this._authPromise = null;
     // 重置快取到初始空白狀態
     Object.keys(this._cache).forEach(k => {
       if (k === 'currentUser') { this._cache[k] = null; }

@@ -1136,6 +1136,7 @@ Object.assign(FirebaseService, {
   // ════════════════════════════════
 
   async batchRegisterForEvent(eventId, entries) {
+    await this.ensureAuthReadyForWrite();
     const mainUserId = entries[0]?.userId;
     if (!mainUserId || mainUserId === 'unknown') throw new Error('用戶資料載入中，請稍候再試');
     const event = this._cache.events.find(e => e.id === eventId);
@@ -1244,6 +1245,7 @@ Object.assign(FirebaseService, {
   },
 
   async cancelCompanionRegistrations(regIds) {
+    await this.ensureAuthReadyForWrite();
     const batch = db.batch();
     const cancelled = [];
 

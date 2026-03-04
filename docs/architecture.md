@@ -138,13 +138,20 @@ DOMContentLoaded
   │
   ├─ _loadDeferred() 完成 → App._bindPageElements()  → 延遲頁面元素事件綁定（如廣告圖片上傳）
   │
-  └─ Phase 4（背景 async）
+  └─ Phase 4（背景 async — 分層啟動）
        ├─ 載入 Firebase + LIFF CDN SDK
-       ├─ FirebaseService.init()                   → Firestore onSnapshot 即時同步
-       └─ LineAuth.init()                          → LINE 登入狀態初始化
+       ├─ FirebaseService.init()（分層啟動）
+       │    ├─ 立即：boot collections (.get()) + events/teams listeners（公開讀取，不等 Auth）
+       │    ├─ 並行：Auth（LINE Custom Token / 匿名）
+       │    ├─ init 完成 → 首頁可渲染
+       │    ├─ 背景：terminal events listener（公開，非首頁必需）
+       │    └─ Auth 完成後：messages + users + rolePermissions listeners → seed
+       ├─ LineAuth.init()                          → LINE 登入狀態初始化
+       └─ 延遲 listener（進入頁面時）：registrations / attendanceRecords
 ```
 
 > Phase 3 在 Phase 1/4 之前完成渲染，確保弱網路環境下不出現白畫面。
+> Phase 4 的分層啟動讓公開資料（boot + events + teams）不等 Auth 直接載入，大幅減少冷啟動時間。
 > 延遲載入的頁面（admin-content 等）在 DOM 注入後會觸發 `_bindPageElements()` 重新綁定事件。
 
 ## Script 載入順序（index.html defer 順序）

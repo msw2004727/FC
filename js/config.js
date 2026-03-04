@@ -83,7 +83,8 @@
 // 20260228k: team-only selector display fallback (avoid raw tm_* IDs in UI)
 // 20260228l: deep-link boot guard + full-screen transition overlay (avoid home flash before target page)
 // 20260228m: deep-link unauth flow auto-redirects to LINE login instead of timing out on overlay
-const CACHE_VERSION = '20260228m';
+// 20260304a: cold-start acceleration — tiered startup (public data first, Auth parallel), listener deferral, TTL by role, Worker edge cache
+const CACHE_VERSION = '20260304a';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {

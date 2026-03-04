@@ -1,6 +1,7 @@
 const TEAM_SHARE_PATH = "/team-share";
 const TEAM_SHARE_OG_ORIGIN = "https://asia-east1-fc-football-6c8dc.cloudfunctions.net";
 const TEAM_SHARE_OG_PATH = "/teamShareOg";
+const EDGE_CACHE_TTL = 300; // 5 minutes
 
 function isTeamSharePath(pathname) {
   return pathname === TEAM_SHARE_PATH || pathname.startsWith(`${TEAM_SHARE_PATH}/`);
@@ -25,12 +26,29 @@ async function handleTeamShare(request) {
     });
   }
 
+  // Edge Cache: check cache first
+  const cache = caches.default;
+  const cacheKey = new Request(request.url, { method: "GET" });
+  const cached = await cache.match(cacheKey);
+  if (cached) return cached;
+
+  // Fetch from upstream Cloud Function
   const targetUrl = buildTeamShareOgUrl(request.url);
   const upstream = await fetch(targetUrl.toString(), {
     method: request.method,
     headers: request.headers,
     redirect: "follow",
   });
+
+  // Only cache successful responses
+  if (upstream.ok) {
+    const response = new Response(upstream.body, upstream);
+    response.headers.set("Cache-Control", `public, max-age=${EDGE_CACHE_TTL}, s-maxage=${EDGE_CACHE_TTL}`);
+    // Store in edge cache (non-blocking)
+    request.method === "GET" && cache.put(cacheKey, response.clone());
+    return response;
+  }
+
   return new Response(upstream.body, upstream);
 }
 
