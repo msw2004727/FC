@@ -205,6 +205,17 @@ Object.assign(App, {
         this.showToast('LINE 登入成功但無法取得用戶資料，請重新整理頁面');
       }
 
+      // 未登入 + 無 LIFF 錯誤 + 非 localhost + 無 deep-link + 在首頁 → 自動跳轉 LINE 登入
+      if (!LineAuth.isLoggedIn() && !LineAuth._initError && !LineAuth.isLocalhost() && !this._bootDeepLink && this.currentPage === 'page-home') {
+        console.log('[App] 未登入，自動跳轉 LINE 登入');
+        try {
+          liff.login();
+          return;
+        } catch (err) {
+          console.warn('[App] 自動跳轉 LINE 登入失敗:', err);
+        }
+      }
+
       if (LineAuth.isLoggedIn()) {
         const profile = LineAuth.getProfile();
         console.log('[App] LINE 已登入, userId:', profile.userId, 'name:', profile.displayName);

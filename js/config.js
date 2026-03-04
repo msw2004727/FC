@@ -84,7 +84,8 @@
 // 20260228l: deep-link boot guard + full-screen transition overlay (avoid home flash before target page)
 // 20260228m: deep-link unauth flow auto-redirects to LINE login instead of timing out on overlay
 // 20260304a: cold-start acceleration — tiered startup (public data first, Auth parallel), listener deferral, TTL by role, Worker edge cache
-const CACHE_VERSION = '20260304a';
+// 20260304b: auto-redirect to LINE login when unauthenticated on homepage
+const CACHE_VERSION = '20260304b';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {
