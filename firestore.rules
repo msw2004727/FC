@@ -49,6 +49,11 @@ service cloud.firestore {
         && authRole() == 'super_admin';
     }
 
+    function isCoachPlus() {
+      return request.auth != null
+        && authRole() in ['coach', 'captain', 'venue_owner', 'admin', 'super_admin'];
+    }
+
     function hasString(field) {
       return field in request.resource.data
         && request.resource.data[field] is string
@@ -134,26 +139,144 @@ service cloud.firestore {
         || isRequestOwnerByField('uid');
     }
 
-    function isMessageParticipantResource() {
-      return isResourceOwnerByField('fromUid')
-        || isResourceOwnerByField('toUid');
+    function hasNonEmptyStringInMap(data, field) {
+      return (field in data)
+        && data[field] is string
+        && data[field].size() > 0;
+    }
+
+    function stringOrNullInMap(data, field) {
+      return !(field in data)
+        || data[field] == null
+        || data[field] is string;
+    }
+
+    function listOrNullInMap(data, field) {
+      return !(field in data)
+        || data[field] == null
+        || data[field] is list;
+    }
+
+    function isCurrentUserInTeam(teamId) {
+      let userPath = /databases/$(database)/documents/users/$(request.auth.uid);
+      return isAuth()
+        && teamId is string
+        && exists(userPath)
+        && (
+          ((get(userPath).data.teamId is string) && get(userPath).data.teamId == teamId)
+          || ((get(userPath).data.teamIds is list) && teamId in get(userPath).data.teamIds)
+        );
+    }
+
+    function isMessageSenderResource() {
+      return isAuth()
+        && (
+          (hasNonEmptyStringInMap(resource.data, 'fromUid') && resource.data.fromUid == request.auth.uid)
+          || (hasNonEmptyStringInMap(resource.data, 'senderUid') && resource.data.senderUid == request.auth.uid)
+        );
+    }
+
+    function isMessageDirectRecipientResource() {
+      return isAuth()
+        && (
+          (hasNonEmptyStringInMap(resource.data, 'toUid') && resource.data.toUid == request.auth.uid)
+          || (hasNonEmptyStringInMap(resource.data, 'targetUid') && resource.data.targetUid == request.auth.uid)
+        );
+    }
+
+    function isMessageRoleRecipientResource() {
+      return isAuth()
+        && (resource.data.targetRoles is list)
+        && (authRole() in resource.data.targetRoles);
+    }
+
+    function isMessageTeamRecipientResource() {
+      return isAuth()
+        && hasNonEmptyStringInMap(resource.data, 'targetTeamId')
+        && isCurrentUserInTeam(resource.data.targetTeamId);
+    }
+
+    function isMessageBroadcastResource() {
+      return !hasNonEmptyStringInMap(resource.data, 'toUid')
+        && !hasNonEmptyStringInMap(resource.data, 'targetUid')
+        && !hasNonEmptyStringInMap(resource.data, 'targetTeamId')
+        && !(resource.data.targetRoles is list && resource.data.targetRoles.size() > 0);
     }
 
     function isMessageRecipientResource() {
-      return isResourceOwnerByField('toUid');
+      return isMessageDirectRecipientResource()
+        || isMessageRoleRecipientResource()
+        || isMessageTeamRecipientResource()
+        || isMessageBroadcastResource();
     }
 
     function isMessageSenderRequest() {
-      return isRequestOwnerByField('fromUid');
+      return !(('fromUid' in request.resource.data))
+        || request.resource.data.fromUid == null
+        || (
+          request.resource.data.fromUid is string
+          && request.resource.data.fromUid == request.auth.uid
+        )
+        || isAdmin();
     }
 
-    function canRecipientUpdateMessage() {
+    function isMessageActionStatusValid() {
+      return request.resource.data.actionStatus is string
+        && request.resource.data.actionStatus in ['pending', 'approved', 'rejected', 'ignored'];
+    }
+
+    function hasValidMessageShapeRequest() {
+      return stringOrNullInMap(request.resource.data, 'fromUid')
+        && stringOrNullInMap(request.resource.data, 'senderUid')
+        && stringOrNullInMap(request.resource.data, 'toUid')
+        && stringOrNullInMap(request.resource.data, 'targetUid')
+        && stringOrNullInMap(request.resource.data, 'targetTeamId')
+        && stringOrNullInMap(request.resource.data, 'title')
+        && stringOrNullInMap(request.resource.data, 'preview')
+        && stringOrNullInMap(request.resource.data, 'type')
+        && stringOrNullInMap(request.resource.data, 'typeName')
+        && stringOrNullInMap(request.resource.data, 'senderName')
+        && stringOrNullInMap(request.resource.data, 'reviewerName')
+        && listOrNullInMap(request.resource.data, 'readBy')
+        && listOrNullInMap(request.resource.data, 'hiddenBy')
+        && listOrNullInMap(request.resource.data, 'targetRoles')
+        && (
+          !('unread' in request.resource.data)
+          || request.resource.data.unread is bool
+        )
+        && (
+          !('actionStatus' in request.resource.data)
+          || request.resource.data.actionStatus == null
+          || isMessageActionStatusValid()
+        );
+    }
+
+    function canMessageParticipantUpdate() {
       let changed = request.resource.data.diff(resource.data).affectedKeys();
-      return isMessageRecipientResource()
-        && changed.hasOnly(['unread', 'readAt', 'updatedAt'])
+      return (isMessageSenderResource() || isMessageRecipientResource())
+        && changed.hasOnly([
+          'unread', 'readAt', 'updatedAt',
+          'readBy', 'actionStatus', 'reviewerName', 'rejectedAt', 'hiddenBy'
+        ])
         && (!changed.hasAny(['unread']) || request.resource.data.unread is bool)
         && (!changed.hasAny(['readAt']) || request.resource.data.readAt == null || request.resource.data.readAt is timestamp)
-        && (!changed.hasAny(['updatedAt']) || request.resource.data.updatedAt is timestamp);
+        && (!changed.hasAny(['updatedAt']) || request.resource.data.updatedAt is timestamp)
+        && (!changed.hasAny(['readBy']) || (
+            request.resource.data.readBy is list
+            && request.auth.uid in request.resource.data.readBy
+        ))
+        && (!changed.hasAny(['actionStatus']) || isMessageActionStatusValid())
+        && (!changed.hasAny(['reviewerName']) || request.resource.data.reviewerName == null || request.resource.data.reviewerName is string)
+        && (!changed.hasAny(['rejectedAt']) || (
+            request.resource.data.rejectedAt == null
+            || request.resource.data.rejectedAt is int
+            || request.resource.data.rejectedAt is float
+            || request.resource.data.rejectedAt is timestamp
+        ))
+        && (!changed.hasAny(['hiddenBy']) || (
+            request.resource.data.hiddenBy is list
+            && request.auth.uid in request.resource.data.hiddenBy
+        ));
     }
 
     function isUserFieldOwnerResource() {
@@ -220,9 +343,15 @@ service cloud.firestore {
       function isSafeSelfProfileUpdate() {
         let changed = request.resource.data.diff(resource.data).affectedKeys();
         return changed.hasOnly([
-            'displayName', 'photoURL', 'pictureUrl', 'phone', 'updatedAt', 'lastLogin'
+            'displayName', 'photoURL', 'pictureUrl', 'phone', 'updatedAt', 'lastLogin',
+            'gender', 'birthday', 'region', 'sports',
+            'favorites', 'socialLinks',
+            'titleBig', 'titleNormal',
+            'lineNotify',
+            'teamId', 'teamName', 'teamIds', 'teamNames',
+            'companions'
           ])
-          && !changed.hasAny(['uid', 'role', 'claims', 'isAdmin'])
+          && !changed.hasAny(['uid', 'lineUserId', 'role', 'claims', 'isAdmin', 'exp', 'level', 'createdAt', 'manualRole'])
           && (!changed.hasAny(['displayName']) || (
               request.resource.data.displayName is string
               && request.resource.data.displayName.size() > 0
@@ -239,6 +368,63 @@ service cloud.firestore {
               request.resource.data.phone == null
               || request.resource.data.phone is string
           ))
+          && (!changed.hasAny(['gender']) || (
+              request.resource.data.gender == null
+              || request.resource.data.gender is string
+          ))
+          && (!changed.hasAny(['birthday']) || (
+              request.resource.data.birthday == null
+              || request.resource.data.birthday is string
+          ))
+          && (!changed.hasAny(['region']) || (
+              request.resource.data.region == null
+              || request.resource.data.region is string
+          ))
+          && (!changed.hasAny(['sports']) || (
+              request.resource.data.sports == null
+              || request.resource.data.sports is string
+          ))
+          && (!changed.hasAny(['favorites']) || (
+              request.resource.data.favorites == null
+              || request.resource.data.favorites is map
+              || request.resource.data.favorites is list
+          ))
+          && (!changed.hasAny(['socialLinks']) || (
+              request.resource.data.socialLinks == null
+              || request.resource.data.socialLinks is map
+          ))
+          && (!changed.hasAny(['titleBig']) || (
+              request.resource.data.titleBig == null
+              || request.resource.data.titleBig is string
+          ))
+          && (!changed.hasAny(['titleNormal']) || (
+              request.resource.data.titleNormal == null
+              || request.resource.data.titleNormal is string
+          ))
+          && (!changed.hasAny(['lineNotify']) || (
+              request.resource.data.lineNotify == null
+              || request.resource.data.lineNotify is map
+          ))
+          && (!changed.hasAny(['teamId']) || (
+              request.resource.data.teamId == null
+              || request.resource.data.teamId is string
+          ))
+          && (!changed.hasAny(['teamName']) || (
+              request.resource.data.teamName == null
+              || request.resource.data.teamName is string
+          ))
+          && (!changed.hasAny(['teamIds']) || (
+              request.resource.data.teamIds == null
+              || request.resource.data.teamIds is list
+          ))
+          && (!changed.hasAny(['teamNames']) || (
+              request.resource.data.teamNames == null
+              || request.resource.data.teamNames is list
+          ))
+          && (!changed.hasAny(['companions']) || (
+              request.resource.data.companions == null
+              || request.resource.data.companions is list
+          ))
           && (!changed.hasAny(['updatedAt']) || (
               request.resource.data.updatedAt is timestamp
           ))
@@ -247,11 +433,28 @@ service cloud.firestore {
           ));
       }
 
+      function isSafeAdminUserUpdate() {
+        let changed = request.resource.data.diff(resource.data).affectedKeys();
+        return !changed.hasAny(['uid', 'lineUserId', 'createdAt']);
+      }
+
+      function isSafeTeamMembershipUpdateByStaff() {
+        let changed = request.resource.data.diff(resource.data).affectedKeys();
+        return changed.hasOnly(['teamId', 'teamName', 'teamIds', 'teamNames', 'updatedAt'])
+          && (!changed.hasAny(['teamId']) || request.resource.data.teamId == null || request.resource.data.teamId is string)
+          && (!changed.hasAny(['teamName']) || request.resource.data.teamName == null || request.resource.data.teamName is string)
+          && (!changed.hasAny(['teamIds']) || request.resource.data.teamIds == null || request.resource.data.teamIds is list)
+          && (!changed.hasAny(['teamNames']) || request.resource.data.teamNames == null || request.resource.data.teamNames is list)
+          && (!changed.hasAny(['updatedAt']) || request.resource.data.updatedAt is timestamp);
+      }
+
       allow read: if isAuth();
       allow create: if isOwner(userId)
         && hasString('uid')
         && hasString('displayName');
-      allow update: if isOwner(userId) && isSafeSelfProfileUpdate();
+      allow update: if (isOwner(userId) && isSafeSelfProfileUpdate())
+        || (isAdmin() && isSafeAdminUserUpdate())
+        || (isCoachPlus() && !isOwner(userId) && isSafeTeamMembershipUpdateByStaff());
       allow delete: if false;
     }
 
@@ -295,19 +498,14 @@ service cloud.firestore {
     //  登入可讀寫
     // ═══════════════════════════════════════════
     match /messages/{msgId} {
-      allow read: if isAdmin() || isResourceOwnerByField('fromUid');
+      allow read: if isAuth();
       allow create: if isAuth()
+        && hasString('body')
         && isMessageSenderRequest()
-        && hasString('toUid')
-        && hasString('body');
-      // NOTE: Per-user soft delete or dual-sided hide is not fully enforceable by rules alone
-      // without changing data model (for example, per-user visibility flags).
+        && hasValidMessageShapeRequest();
       allow update: if isAdmin()
-        || (
-          isResourceOwnerByField('fromUid')
-          && isRequestOwnerByField('fromUid')
-        );
-      allow delete: if isAdmin() || isResourceOwnerByField('fromUid');
+        || canMessageParticipantUpdate();
+      allow delete: if isAdmin();
     }
     // ═══════════════════════════════════════════
     //  Activity Records（活動紀錄）

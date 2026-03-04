@@ -612,3 +612,9 @@
 - **��]**�G�L���Q�פ����A�N�ҰʻP��l�ƭt�����ߵ�����������@�i�l�����C
 - **�״_**�G�s�W `docs/low-cost-acceleration-plan.md`�A���}�Y����z�N�Ұʸ��C��]�A�A�w�q Phase A/Phase B�B��@�W��B�禬�P���I�ﵦ�C
 - **�аV**�G�į��u�Ƥ�������O���ڦ]�A�A�C��סF����M�u�N�Ұʡv�P�u��l�ƭt���v�i�קK����~�P�u���ǡC
+
+### 2026-03-04 - Fix Firestore users/messages permission mismatch
+- **問題**：[deliverMsg] 和 [updateCurrentUser] 觸發 Firestore Missing or insufficient permissions，且一般用戶清空訊息會走全域 delete。
+- **原因**：irestore.rules 與前端資料模型不一致；messages 仍偏舊欄位權限邏輯，users self-update 白名單不足。
+- **修復**：更新 irestore.rules 的 users/messages 規則；message-admin.js 寫入補上 romUid/toUid/hiddenBy；message-inbox.js 清空改為 hiddenBy 個人隱藏。
+- **教訓**：規則變更要與前端資料結構同步，訊息刪除需優先使用 per-user soft hide。

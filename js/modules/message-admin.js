@@ -612,6 +612,9 @@ Object.assign(App, {
     const preview = body.length > 40 ? body.slice(0, 40) + '...' : body;
     const now = new Date();
     const timeStr = `${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+    const currentUser = ApiService.getCurrentUser?.() || null;
+    const senderUid = currentUser?.uid || auth?.currentUser?.uid || null;
+    const directTargetUid = targetUid || null;
     const newMsg = {
       id: 'msg_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
       type: category,
@@ -622,8 +625,11 @@ Object.assign(App, {
       time: timeStr,
       unread: true,
       readBy: [],
+      hiddenBy: [],
       senderName,
-      targetUid: targetUid || null,
+      fromUid: senderUid,
+      toUid: directTargetUid,
+      targetUid: directTargetUid,
       ...(extra || {}),
     };
     // 加入用戶收件箱

@@ -30,7 +30,8 @@ Object.assign(App, {
         return ids;
       })();
     return messages.filter(m => {
-      if (m.targetUid) return myUid && m.targetUid === myUid;
+      if (myUid && Array.isArray(m.hiddenBy) && m.hiddenBy.includes(myUid)) return false;
+      if (m.targetUid || m.toUid) return myUid && (m.targetUid || m.toUid) === myUid;
       if (m.targetTeamId) return myTeamIds.includes(String(m.targetTeamId));
       if (m.targetRoles && m.targetRoles.length) return m.targetRoles.includes(myRole);
       return true; // broadcast to all
@@ -151,6 +152,7 @@ Object.assign(App, {
 
   async clearAllMessages() {
     const myMessages = this._filterMyMessages(ApiService.getMessages());
+    const myUid = ApiService.getCurrentUser()?.uid || null;
     if (!myMessages.length) { this.showToast('沒有訊息可清空'); return; }
     if (!(await this.appConfirm(`確定要清空全部 ${myMessages.length} 則訊息？此操作無法恢復。`))) return;
     if (ModeManager.isDemo()) {
@@ -159,17 +161,31 @@ Object.assign(App, {
         if (idx >= 0) DemoData.messages.splice(idx, 1);
       });
     } else {
+      if (!myUid) {
+        this.showToast('Please login first');
+        return;
+      }
       try {
-        const toDelete = myMessages.filter(m => m._docId);
-        for (let i = 0; i < toDelete.length; i += 450) {
-          const chunk = toDelete.slice(i, i + 450);
+        const toHide = myMessages.filter(m => m._docId);
+        const fv = firebase.firestore.FieldValue;
+        for (let i = 0; i < toHide.length; i += 450) {
+          const chunk = toHide.slice(i, i + 450);
           const batch = db.batch();
-          chunk.forEach(m => batch.delete(db.collection('messages').doc(m._docId)));
+          chunk.forEach(m => {
+            batch.update(db.collection('messages').doc(m._docId), {
+              hiddenBy: fv.arrayUnion(myUid),
+              readBy: fv.arrayUnion(myUid),
+              unread: false,
+            });
+          });
           await batch.commit();
         }
-        toDelete.forEach(m => {
-          const idx = FirebaseService._cache.messages.indexOf(m);
-          if (idx >= 0) FirebaseService._cache.messages.splice(idx, 1);
+        myMessages.forEach(m => {
+          if (!Array.isArray(m.hiddenBy)) m.hiddenBy = [];
+          if (!m.hiddenBy.includes(myUid)) m.hiddenBy.push(myUid);
+          if (!Array.isArray(m.readBy)) m.readBy = [];
+          if (!m.readBy.includes(myUid)) m.readBy.push(myUid);
+          m.unread = false;
         });
       } catch (err) {
         console.error('[clearAllMessages]', err);
