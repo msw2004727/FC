@@ -63,6 +63,28 @@ Object.assign(App, {
     return w[css] || 9;
   },
 
+  _getFavoriteEventBadge(eventId, eventStatus) {
+    const fallback = STATUS_CONFIG[eventStatus] || STATUS_CONFIG.open;
+    const user = ApiService.getCurrentUser?.();
+    const uid = user?.uid || user?.lineUserId || (ModeManager.isDemo() ? 'demo-user' : null);
+    if (!uid) return { css: fallback.css, label: fallback.label };
+
+    const regs = (typeof ApiService._src === 'function' ? ApiService._src('registrations') : [])
+      .filter(r => r && r.eventId === eventId && r.userId === uid);
+    if (!regs.length) return { css: fallback.css, label: fallback.label };
+
+    if (regs.some(r => r.status === 'confirmed' || r.status === 'registered')) {
+      return { css: 'open', label: '已報名' };
+    }
+    if (regs.some(r => r.status === 'waitlisted')) {
+      return { css: 'full', label: '候補中' };
+    }
+    if (regs.some(r => r.status === 'cancelled' || r.status === 'removed')) {
+      return { css: 'cancelled', label: '已取消報名' };
+    }
+    return { css: fallback.css, label: fallback.label };
+  },
+
   toggleFavoriteEvent(eventId) {
     const favs = this._getFavorites();
     const idx = favs.events.indexOf(eventId);
@@ -147,7 +169,7 @@ Object.assign(App, {
     favs.events.forEach(eid => {
       const ev = ApiService.getEvents().find(e => e.id === eid);
       if (!ev) return;
-      const sc = STATUS_CONFIG[ev.status] || STATUS_CONFIG.open;
+      const sc = this._getFavoriteEventBadge(eid, ev.status);
       const dateStr = ev.date ? ev.date.split(' ')[0] : '';
       items.push({ type: 'event', id: eid, name: ev.title, date: dateStr, statusCss: sc.css, statusLabel: sc.label, sortDate: dateStr });
     });
