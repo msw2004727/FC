@@ -163,3 +163,20 @@ i18n.js → config.js → data.js → firebase-config.js
   → core/navigation.js → core/theme.js → core/mode.js
   → [39 個 modules 全部以 <script defer> 靜態載入]
 ```
+
+## 3D Charged Shot Lab (Phase 0, private route)
+
+- Entry page: `game-lab.html` (not linked in main navigation; token-gated).
+- Runtime modules:
+  - `js/modules/shot-game-engine.js`
+  - `js/modules/shot-game-lab-page.js`
+- External dependency:
+  - `three.js r128` via CDN in `game-lab.html`.
+- Data flow (Phase 0):
+  1. `ShotGameLabPage` validates query token (`?t=`) against SHA-256 hash.
+  2. On success, `ShotGameEngine` initializes and runs in `#shot-game-container`.
+  3. On game over, local metrics are written to localStorage key `sporthub_shot_game_lab_metrics_v1`.
+  4. Test panel renders summary and supports JSON export/reset.
+- Separation boundary:
+  - No Firestore write/read in Phase 0.
+  - No `Object.assign(App, ...)` hook yet; formal App modal integration is planned for Phase 1.

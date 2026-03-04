@@ -630,3 +630,8 @@
 - **原因**：收藏清單狀態來源使用 event.status（活動整體狀態），未優先採用當前用戶在該活動的報名狀態。
 - **修復**：在 js/modules/favorites.js 新增 _getFavoriteEventBadge()，優先依當前用戶 registrations 顯示「已報名/候補中/已取消報名」；無個人報名資料時才回退活動狀態。
 - **教訓**：個人頁面中的狀態標籤必須以「用戶關聯狀態」為優先，避免與活動全域狀態混用。
+### 2026-03-04 — 3D Charged Shot Phase 0 private lab launch
+- **問題**：需要先驗證射門小遊戲耐玩度，但不能直接暴露給一般用戶，也不能污染正式排行榜資料。
+- **原因**：正式站內 modal 與雲端排行榜尚未完成，若直接接入會提高風險（資料污染、權限與防作弊策略未就緒）。
+- **修復**：新增 `docs/Phase 0~2 完成.md` 完整規格；新增私測頁 `game-lab.html`（Token gate）；新增 `js/modules/shot-game-engine.js` 與 `js/modules/shot-game-lab-page.js`；本地統計寫入 `sporthub_shot_game_lab_metrics_v1`，提供 JSON 匯出/重置；更新 `_headers` 對私測頁加上 `X-Robots-Tag: noindex`。
+- **教訓**：遊戲功能應先做隔離式私測與本地指標驗證，再接正式雲端榜單；避免在驗證階段引入難回滾的資料與權限風險。

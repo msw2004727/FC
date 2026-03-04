@@ -1,4 +1,4 @@
-# Static assets — 有 ?v= 版本控制，可安全長快取
+# Static assets (versioned with ?v=)
 /css/*
   Cache-Control: public, max-age=31536000, immutable
 
@@ -11,13 +11,17 @@
 /images/*
   Cache-Control: public, max-age=86400
 
-# HTML entry — 不快取，確保每次拿最新版
+# HTML entry points
 /index.html
   Cache-Control: public, max-age=0, must-revalidate
 
 /
   Cache-Control: public, max-age=0, must-revalidate
 
-# Service Worker — 不快取
+/game-lab.html
+  Cache-Control: public, max-age=0, must-revalidate
+  X-Robots-Tag: noindex, nofollow, noarchive
+
+# Service Worker
 /sw.js
   Cache-Control: public, max-age=0, must-revalidate
