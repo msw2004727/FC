@@ -787,3 +787,8 @@
 - **Cause**: Light theme bg-pattern pointed to a cloud SVG, and game-lab did not include the loading-overlay / boot-loading UI and progress animation flow.
 - **Fix**: Updated game-lab light theme bg-pattern to none (keep gradient only), added main-site style loading overlay (brand image, pixel progress bar, scan animation, percentage), and completed/hid overlay in bootShotGameLab() after initialization.
 - **Lesson**: Standalone entry pages must explicitly include boot UX and completion timing when they bypass the main App init pipeline.
+### 2026-03-05 - shot leaderboard name prefer LINE nickname
+- **Issue**: Some leaderboard rows still showed placeholder names like player_xxxx instead of full LINE nicknames.
+- **Cause**: Client-side submit name selection prioritized Firebase Auth displayName; when that value was placeholder-like, it was written into rankings.
+- **Fix**: Updated js/modules/shot-game-lab-page.js and js/modules/shot-game-page.js to prefer LineAuth.getProfile().displayName first, and only fallback when unavailable; updated functions/index.js to avoid persisting placeholder-like names when better auth token name exists.
+- **Lesson**: For social-login identity fields, establish a strict source priority and filter placeholder values before persistence.

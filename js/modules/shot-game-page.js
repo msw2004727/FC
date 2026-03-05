@@ -43,15 +43,19 @@
     }
   }
   function getPreferredPlayerDisplayName(user) {
-    const authName = String(user && user.displayName ? user.displayName : '').trim();
-    if (authName) return authName;
+    function isPlaceholderName(name) {
+      return /^玩家[\w-]{2,}$/u.test(String(name || '').trim());
+    }
     try {
       if (typeof LineAuth !== 'undefined' && LineAuth && typeof LineAuth.getProfile === 'function') {
         const profile = LineAuth.getProfile();
         const lineName = String(profile && profile.displayName ? profile.displayName : '').trim();
-        if (lineName) return lineName;
+        if (lineName && !isPlaceholderName(lineName)) return lineName;
       }
     } catch (_) {}
+    const authName = String(user && user.displayName ? user.displayName : '').trim();
+    if (authName && !isPlaceholderName(authName)) return authName;
+    if (authName) return authName;
     return '';
   }
   function getLeaderboardIdentity(row) {

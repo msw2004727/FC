@@ -97,7 +97,8 @@
 // 20260305q: PK 射門 UI 修正（淺色訊息深色化 + HUD 字級提升 + 主題切換月亮遮擋）
 // 20260305r: 修復射手榜即時「快取幽靈玩家」重複列（提交中暫存列 + uid 去重）
 // 20260305s: game-lab 淺色背景去雲朵 + 套用主站同款 opening loading overlay
-const CACHE_VERSION = '20260305s';
+// 20260305t: 射手榜名稱優先使用 LINE 暱稱，避免顯示玩家xxxx
+const CACHE_VERSION = '20260305t';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {

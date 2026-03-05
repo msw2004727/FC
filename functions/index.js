@@ -519,10 +519,16 @@ exports.submitShotGameScore = onCall(
     if (!Number.isFinite(durationMs) || durationMs < 5000) {
       throw new HttpsError("invalid-argument", "durationMs 必須 >= 5000");
     }
-    const safeDisplayName =
-      typeof displayName === "string" && displayName.trim()
-        ? displayName.trim().slice(0, 50)
-        : `玩家${String(uid).slice(-4)}`;
+    const rawDisplayName =
+      typeof displayName === "string" ? displayName.trim() : "";
+    const tokenDisplayName =
+      typeof request.auth?.token?.name === "string" ? request.auth.token.name.trim() : "";
+    const isPlaceholderDisplayName = (name) => /^玩家[\w-]{2,}$/u.test(String(name || "").trim());
+    const safeDisplayNameCandidate = [rawDisplayName, tokenDisplayName]
+      .find((name) => name && !isPlaceholderDisplayName(name))
+      || [rawDisplayName, tokenDisplayName].find((name) => !!name)
+      || `玩家${String(uid).slice(-4)}`;
+    const safeDisplayName = safeDisplayNameCandidate.slice(0, 50);
     const safeStreak =
       Number.isInteger(streak) && streak >= 0 ? streak : 0;
     const safeDurationMs = Math.round(durationMs);
