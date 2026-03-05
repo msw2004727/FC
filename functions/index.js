@@ -503,6 +503,10 @@ exports.submitShotGameScore = onCall(
       throw new HttpsError("unauthenticated", "必須登入才能提交分數");
     }
     const uid = request.auth.uid;
+    const authProvider = String(request.auth?.token?.firebase?.sign_in_provider || "");
+    if (authProvider === "anonymous") {
+      throw new HttpsError("permission-denied", "匿名登入不可提交射門排行榜");
+    }
     const { score, shots, streak, durationMs, displayName } = request.data || {};
 
     // 2. Payload 驗證
@@ -512,15 +516,17 @@ exports.submitShotGameScore = onCall(
     if (!Number.isInteger(shots) || shots < 1) {
       throw new HttpsError("invalid-argument", "shots 必須 >= 1");
     }
-    if (typeof durationMs !== "number" || durationMs < 5000) {
+    if (!Number.isFinite(durationMs) || durationMs < 5000) {
       throw new HttpsError("invalid-argument", "durationMs 必須 >= 5000");
     }
     const safeDisplayName =
       typeof displayName === "string" && displayName.trim()
         ? displayName.trim().slice(0, 50)
-        : "匿名玩家";
+        : `玩家${String(uid).slice(-4)}`;
     const safeStreak =
       Number.isInteger(streak) && streak >= 0 ? streak : 0;
+    const safeDurationMs = Math.round(durationMs);
+    const safeDurationSec = Math.max(5, Math.round(safeDurationMs / 1000));
 
     // 3. 計算 period buckets（Asia/Taipei）
     const now = new Date();
@@ -544,11 +550,11 @@ exports.submitShotGameScore = onCall(
     // 5. 稽核 flags（純記錄，不阻擋正常玩家）
     const flags = [];
     if (score > 7000) flags.push("near_max_score");
-    if (durationMs < 8000) flags.push("fast_game");
+    if (safeDurationMs < 8000) flags.push("fast_game");
     if (shots > 0 && score / shots > 150) flags.push("high_score_per_shot");
     if (safeStreak > 20) flags.push("high_streak");
     if (flags.length > 0) {
-      console.warn("[submitShotGameScore] flags detected", { uid, score, shots, durationMs, safeStreak, flags });
+      console.warn("[submitShotGameScore] flags detected", { uid, score, shots, durationMs: safeDurationMs, safeStreak, flags });
     }
 
     // 6. 寫入原始成績（稽核用）
@@ -563,29 +569,57 @@ exports.submitShotGameScore = onCall(
       score,
       shots,
       streak: safeStreak,
-      durationMs,
+      durationMs: safeDurationMs,
+      durationSec: safeDurationSec,
       createdAt: FieldValue.serverTimestamp(),
       source: "function",
+      authProvider,
       flags,
     });
 
-    // 6. 更新日榜（僅在新分數更高時覆蓋 best 欄位）
-    const existingScore = rankingSnap.exists ? (rankingSnap.data().bestScore ?? -1) : -1;
-    const isNewBest = score > existingScore;
+    // 6. 更新日榜（同分時以連進數、再以遊戲時間排序）
+    const rankingData = rankingSnap.exists ? (rankingSnap.data() || {}) : {};
+    const existingScore = Number.isFinite(rankingData.bestScore) ? rankingData.bestScore : -1;
+    const existingStreak = Number.isFinite(rankingData.bestStreak) ? rankingData.bestStreak : -1;
+    const existingDurationSec =
+      Number.isFinite(rankingData.bestDurationSec) && rankingData.bestDurationSec > 0
+        ? rankingData.bestDurationSec
+        : (
+          Number.isFinite(rankingData.bestDurationMs) && rankingData.bestDurationMs > 0
+            ? Math.round(rankingData.bestDurationMs / 1000)
+            : Number.MAX_SAFE_INTEGER
+        );
+    const isNewBest = (
+      score > existingScore
+      || (score === existingScore && safeStreak > existingStreak)
+      || (score === existingScore && safeStreak === existingStreak && safeDurationSec < existingDurationSec)
+    );
     const rankingUpdate = {
       uid,
       displayName: safeDisplayName,
+      authProvider,
       lastSubmitAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     };
     if (isNewBest) {
       rankingUpdate.bestScore = score;
       rankingUpdate.bestStreak = safeStreak;
+      rankingUpdate.bestDurationMs = safeDurationMs;
+      rankingUpdate.bestDurationSec = safeDurationSec;
       rankingUpdate.bestAt = FieldValue.serverTimestamp();
     }
     await rankingRef.set(rankingUpdate, { merge: true });
 
-    console.log("[submitShotGameScore]", { uid, score, durationMs, dailyBucket, isNewBest });
+    console.log("[submitShotGameScore]", {
+      uid,
+      score,
+      streak: safeStreak,
+      durationMs: safeDurationMs,
+      durationSec: safeDurationSec,
+      dailyBucket,
+      isNewBest,
+      authProvider,
+    });
     return { success: true, isNewBest, bucket: dailyBucket };
   }
 );

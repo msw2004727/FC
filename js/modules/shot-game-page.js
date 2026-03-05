@@ -29,6 +29,38 @@
     return b.score - a.score || b.streak - a.streak || a.durationSec - b.durationSec || a.nick.localeCompare(b.nick, 'zh-Hant');
   }
 
+  function normalizeLeaderboardRow(id, data) {
+    const row = data || {};
+    const rawName = typeof row.displayName === 'string' ? row.displayName.trim() : '';
+    const rawDurationSec = Number(row.bestDurationSec);
+    const rawDurationMs = Number(row.bestDurationMs);
+    const durationSec = Number.isFinite(rawDurationSec) && rawDurationSec > 0
+      ? Math.round(rawDurationSec)
+      : (
+        Number.isFinite(rawDurationMs) && rawDurationMs > 0
+          ? Math.round(rawDurationMs / 1000)
+          : 0
+      );
+
+    return {
+      id,
+      nick: rawName || `玩家${String(id).slice(-4)}`,
+      score: Number.isFinite(row.bestScore) ? row.bestScore : 0,
+      streak: Number.isFinite(row.bestStreak) ? row.bestStreak : 0,
+      durationSec,
+      authProvider: typeof row.authProvider === 'string' ? row.authProvider : '',
+    };
+  }
+
+  function isAnonymousLeaderboardRow(row) {
+    if (!row) return true;
+    const provider = String(row.authProvider || '').toLowerCase();
+    const nick = String(row.nick || '').trim();
+    if (provider === 'anonymous') return true;
+    if (nick === '匿名玩家' || nick.toLowerCase() === 'anonymous') return true;
+    return false;
+  }
+
   function buildRankIcon(rank) {
     if (rank === 1) return '<svg class="sg-lb-rank-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="#f6c94c"/><path d="M12 5l2.1 4.2 4.6.7-3.3 3.2.8 4.6L12 15.5 7.8 17.7l.8-4.6-3.3-3.2 4.6-.7z" fill="#fff3c4"/></svg>';
     if (rank === 2) return '<svg class="sg-lb-rank-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="#adb7c4"/><path d="M12 6l5 4v8H7v-8z" fill="#e9eef5"/></svg>';
@@ -130,10 +162,9 @@
         .collection('shotGameRankings').doc(bucket)
         .collection('entries')
         .orderBy('bestScore', 'desc').limit(50).get();
-      rows = snap.docs.map(d => {
-        const e = d.data();
-        return { id: d.id, nick: e.displayName || '匿名玩家', score: e.bestScore || 0, streak: e.bestStreak || 0, durationSec: 0 };
-      });
+      rows = snap.docs
+        .map(d => normalizeLeaderboardRow(d.id, d.data()))
+        .filter(row => !isAnonymousLeaderboardRow(row));
     } catch (_) {
       bodyEl.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:1.5rem;opacity:0.6">讀取失敗，請稍後再試</td></tr>';
       return;
@@ -274,7 +305,7 @@
             shots: normalized.shots,
             streak: normalized.streak,
             durationMs: normalized.durationMs,
-            displayName: user.displayName || '匿名玩家',
+            displayName: user.displayName || '',
           }).then(() => { if (_lbOpen) _renderLeaderboard(_lbPeriod); }).catch(() => {});
         }
         if (_lbOpen) _renderLeaderboard(_lbPeriod);
