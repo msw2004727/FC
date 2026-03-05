@@ -1,48 +1,87 @@
 (function () {
-  const DEFAULT_STORAGE_KEY = 'sporthub_shot_game_lab_metrics_v1';
-  const MAX_SESSIONS = 300;
+  const LEADERBOARD_SIZE = 30;
+  const LEADERBOARD_PERIOD_LABELS = {
+    daily: '每日',
+    weekly: '每周',
+    monthly: '每月',
+  };
+  const PERIOD_CONFIG = {
+    daily: { baseScore: 1980, scoreStep: 39, streakBase: 22, timeBase: 62 },
+    weekly: { baseScore: 2580, scoreStep: 43, streakBase: 27, timeBase: 74 },
+    monthly: { baseScore: 3220, scoreStep: 47, streakBase: 32, timeBase: 86 },
+  };
+  const MOCK_NAME_PREFIX = [
+    '小翼', '阿哲', '米可', 'Leo', 'Kiki', '晨安', '布丁', 'Mina', '浩子', '小豪',
+    '阿杰', 'Yuki', 'Tina', '栗子', '安安', 'Kevin', '熊貓', '喵喵', 'Nina', '小白',
+    '阿布', 'Tom', '橘子', '阿翔', '小祐', 'Rita', 'Hank', 'Jay', 'Momo', 'Rex',
+  ];
 
-  function parseJson(text, fallback) {
-    try { return JSON.parse(text); } catch (_) { return fallback; }
+  function formatDuration(seconds) {
+    const sec = Math.max(0, Number(seconds) || 0);
+    const minutes = Math.floor(sec / 60);
+    const remain = sec % 60;
+    return `${String(minutes).padStart(2, '0')}:${String(remain).padStart(2, '0')}`;
   }
-  function isoTime(value) {
-    try { return new Date(value).toISOString(); } catch (_) { return new Date().toISOString(); }
+  function hashSeed(text) {
+    let h = 2166136261;
+    for (let i = 0; i < text.length; i += 1) {
+      h ^= text.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    return h >>> 0;
   }
-  function normalizeStore(input) {
-    const base = (input && typeof input === 'object') ? input : {};
-    const sessions = Array.isArray(base.sessions) ? base.sessions.filter((row) => row && typeof row === 'object') : [];
-    return { version: 1, sessions: sessions.slice(-MAX_SESSIONS) };
-  }
-  function readStore(storageKey) {
-    const raw = localStorage.getItem(storageKey);
-    return normalizeStore(parseJson(raw, { version: 1, sessions: [] }));
-  }
-  function writeStore(storageKey, store) {
-    localStorage.setItem(storageKey, JSON.stringify(normalizeStore(store)));
-  }
-  function recordSession(storageKey, payload) {
-    const store = readStore(storageKey);
-    const session = {
-      score: Number(payload.score || 0),
-      streak: Number(payload.streak || 0),
-      shots: Number(payload.shots || 0),
-      durationMs: Number(payload.durationMs || 0),
-      endedAt: isoTime(payload.endedAt || Date.now()),
+  function createRng(seed) {
+    let s = seed >>> 0;
+    return function next() {
+      s += 0x6d2b79f5;
+      let t = Math.imul(s ^ (s >>> 15), 1 | s);
+      t ^= t + Math.imul(t ^ (t >>> 7), 61 | t);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
     };
-    store.sessions.push(session);
-    if (store.sessions.length > MAX_SESSIONS) store.sessions.splice(0, store.sessions.length - MAX_SESSIONS);
-    writeStore(storageKey, store);
-    return store;
   }
-  function summarize(store) {
-    const sessions = store.sessions || [];
-    const plays = sessions.length;
-    const bestScore = sessions.reduce((max, row) => Math.max(max, Number(row.score || 0)), 0);
-    const avgDurationMs = plays ? Math.round(sessions.reduce((sum, row) => sum + Number(row.durationMs || 0), 0) / plays) : 0;
-    const avgScore = plays ? Math.round((sessions.reduce((sum, row) => sum + Number(row.score || 0), 0) / plays) * 10) / 10 : 0;
-    const totalShots = sessions.reduce((sum, row) => sum + Number(row.shots || 0), 0);
-    const lastPlayedAt = plays ? sessions[plays - 1].endedAt : null;
-    return { plays, bestScore, avgDurationMs, avgScore, totalShots, lastPlayedAt };
+  function escapeHtml(text) {
+    return String(text)
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#39;');
+  }
+  function buildMockLeaderboard(period) {
+    const key = period in PERIOD_CONFIG ? period : 'daily';
+    const cfg = PERIOD_CONFIG[key];
+    const rng = createRng(hashSeed(`shot-game-leaderboard:${key}`));
+    const rows = [];
+
+    for (let i = 0; i < LEADERBOARD_SIZE; i += 1) {
+      const namePrefix = MOCK_NAME_PREFIX[i % MOCK_NAME_PREFIX.length];
+      const nickSuffix = String(100 + Math.floor(rng() * 900));
+      const scoreDrop = i * (cfg.scoreStep + Math.floor(rng() * 8));
+      const score = Math.max(100, cfg.baseScore - scoreDrop - Math.floor(rng() * 28));
+      const streak = Math.max(1, cfg.streakBase - Math.floor(i * 0.7) + Math.floor(rng() * 5));
+      const durationSec = cfg.timeBase + i * 4 + Math.floor(rng() * 42);
+      rows.push({
+        nick: `${namePrefix}${nickSuffix}`,
+        score,
+        streak,
+        durationSec,
+      });
+    }
+
+    rows.sort((a, b) => (
+      b.score - a.score
+      || b.streak - a.streak
+      || a.durationSec - b.durationSec
+      || a.nick.localeCompare(b.nick, 'zh-Hant')
+    ));
+
+    return rows.slice(0, LEADERBOARD_SIZE).map((row, index) => ({
+      rank: index + 1,
+      nick: row.nick,
+      score: row.score,
+      streak: row.streak,
+      durationSec: row.durationSec,
+    }));
   }
   async function sha256Hex(input) {
     const bytes = new TextEncoder().encode(input);
@@ -54,47 +93,40 @@
     init(options) {
       const requiredTokenHash = String(options && options.requiredTokenHash ? options.requiredTokenHash : '').toLowerCase();
       const tokenQueryKey = String(options && options.tokenQueryKey ? options.tokenQueryKey : 't');
-      const storageKey = String(options && options.storageKey ? options.storageKey : DEFAULT_STORAGE_KEY);
       const gate = document.getElementById('token-gate');
       const gameSection = document.getElementById('game-section');
       const gameContainer = document.getElementById('shot-game-container');
       const tokenInput = document.getElementById('token-input');
       const tokenSubmit = document.getElementById('token-submit');
       const tokenFeedback = document.getElementById('token-feedback');
-      const summaryEl = document.getElementById('metrics-summary');
-      const exportBtn = document.getElementById('metrics-export');
-      const resetBtn = document.getElementById('metrics-reset');
-      const exportOutput = document.getElementById('metrics-export-output');
       const sessionBadge = document.getElementById('session-badge');
+      const leaderboardBtn = document.getElementById('sg-leaderboard-btn');
+      const leaderboardModal = document.getElementById('sg-leaderboard-modal');
+      const leaderboardClose = document.getElementById('sg-leaderboard-close');
+      const leaderboardRange = document.getElementById('sg-leaderboard-range');
+      const leaderboardBody = document.getElementById('sg-leaderboard-body');
+      const leaderboardTabs = Array.from(document.querySelectorAll('.lb-tab'));
       const lowFx = new URLSearchParams(location.search).get('low') === '1';
       let engine = null;
       let bestSessionSinceOpen = null;
+      let leaderboardPeriod = 'daily';
+      let leaderboardOpen = false;
+
+      const leaderboardData = {
+        daily: buildMockLeaderboard('daily'),
+        weekly: buildMockLeaderboard('weekly'),
+        monthly: buildMockLeaderboard('monthly'),
+      };
 
       if (!gate || !gameSection || !gameContainer) {
         throw new Error('Missing required game lab elements');
       }
-
-      const renderSummary = () => {
-        const store = readStore(storageKey);
-        const summary = summarize(store);
-        if (summaryEl) {
-          summaryEl.textContent = JSON.stringify({
-            plays: summary.plays,
-            bestScore: summary.bestScore,
-            avgDurationMs: summary.avgDurationMs,
-            avgScore: summary.avgScore,
-            totalShots: summary.totalShots,
-            lastPlayedAt: summary.lastPlayedAt,
-          }, null, 2);
-        }
-      };
 
       const showGate = (message) => {
         gate.style.display = '';
         gameSection.style.display = 'none';
         if (tokenFeedback) tokenFeedback.textContent = message || 'Enter test token to continue';
       };
-
       const showGame = () => {
         gate.style.display = 'none';
         gameSection.style.display = 'block';
@@ -106,7 +138,6 @@
         if (incoming.shots !== currentBest.shots) return incoming.shots < currentBest.shots;
         return incoming.durationMs < currentBest.durationMs;
       };
-
       const setSessionBadge = () => {
         if (!sessionBadge) return;
         if (!bestSessionSinceOpen) {
@@ -116,28 +147,41 @@
         sessionBadge.textContent = `當前最佳：${bestSessionSinceOpen.score} 分｜${bestSessionSinceOpen.shots} 射門｜${Math.round(bestSessionSinceOpen.durationMs / 1000)} 秒`;
       };
 
-      const exportStore = async () => {
-        const store = readStore(storageKey);
-        const payload = { exportedAt: new Date().toISOString(), summary: summarize(store), sessions: store.sessions };
-        const text = JSON.stringify(payload, null, 2);
-        if (exportOutput) exportOutput.value = text;
-        try {
-          if (navigator.clipboard && navigator.clipboard.writeText) {
-            await navigator.clipboard.writeText(text);
-            if (tokenFeedback) tokenFeedback.textContent = '已匯出並複製至剪貼簿';
-          } else if (tokenFeedback) tokenFeedback.textContent = '已匯出至下方文字框';
-        } catch (_) {
-          if (tokenFeedback) tokenFeedback.textContent = '已匯出至下方文字框';
-        }
-      };
+      const renderLeaderboard = (period) => {
+        if (!leaderboardBody) return;
+        const key = period in LEADERBOARD_PERIOD_LABELS ? period : 'daily';
+        leaderboardPeriod = key;
 
-      const resetStore = () => {
-        localStorage.removeItem(storageKey);
-        renderSummary();
-        bestSessionSinceOpen = null;
-        setSessionBadge();
-        if (exportOutput) exportOutput.value = '';
-        if (tokenFeedback) tokenFeedback.textContent = '本地數據已清除';
+        if (leaderboardRange) leaderboardRange.textContent = `${LEADERBOARD_PERIOD_LABELS[key]}排行前 ${LEADERBOARD_SIZE} 名`;
+        leaderboardTabs.forEach((tab) => {
+          const active = tab.getAttribute('data-lb-period') === key;
+          tab.classList.toggle('is-active', active);
+          tab.setAttribute('aria-selected', active ? 'true' : 'false');
+        });
+
+        const rows = leaderboardData[key] || [];
+        leaderboardBody.innerHTML = rows.map((row) => `
+          <tr>
+            <td class="lb-rank">#${row.rank}</td>
+            <td><span class="lb-name-pill">${escapeHtml(row.nick)}</span></td>
+            <td class="lb-score">${row.score}</td>
+            <td>${row.streak}</td>
+            <td>${formatDuration(row.durationSec)}</td>
+          </tr>
+        `).join('');
+      };
+      const openLeaderboard = (period) => {
+        if (!leaderboardModal) return;
+        renderLeaderboard(period || leaderboardPeriod);
+        leaderboardModal.classList.add('is-open');
+        leaderboardModal.setAttribute('aria-hidden', 'false');
+        leaderboardOpen = true;
+      };
+      const closeLeaderboard = () => {
+        if (!leaderboardModal) return;
+        leaderboardModal.classList.remove('is-open');
+        leaderboardModal.setAttribute('aria-hidden', 'true');
+        leaderboardOpen = false;
       };
 
       const startGame = () => {
@@ -155,8 +199,6 @@
             restartBtn: document.getElementById('sg-restart'),
           },
           onGameOver: (payload) => {
-            const store = recordSession(storageKey, payload);
-            renderSummary(store);
             const normalized = {
               score: Number(payload && payload.score ? payload.score : 0),
               shots: Number(payload && payload.shots ? payload.shots : 0),
@@ -166,8 +208,8 @@
             setSessionBadge();
           },
         });
-        renderSummary();
         setSessionBadge();
+        openLeaderboard(leaderboardPeriod);
       };
 
       const validateToken = async (rawToken) => {
@@ -211,15 +253,32 @@
           if (event.key === 'Enter') unlockWithToken(tokenInput.value, true);
         });
       }
-      if (exportBtn) exportBtn.addEventListener('click', exportStore);
-      if (resetBtn) {
-        resetBtn.addEventListener('click', () => {
-          if (window.confirm('確定清除本地測試數據？')) resetStore();
+      if (leaderboardBtn) {
+        leaderboardBtn.addEventListener('pointerdown', (event) => event.stopPropagation());
+        leaderboardBtn.addEventListener('click', (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          openLeaderboard(leaderboardPeriod);
         });
       }
+      if (leaderboardClose) leaderboardClose.addEventListener('click', closeLeaderboard);
+      if (leaderboardModal) {
+        leaderboardModal.addEventListener('click', (event) => {
+          if (event.target === leaderboardModal) closeLeaderboard();
+        });
+      }
+      leaderboardTabs.forEach((tab) => {
+        tab.addEventListener('click', () => {
+          renderLeaderboard(tab.getAttribute('data-lb-period') || 'daily');
+        });
+      });
+      window.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && leaderboardOpen) closeLeaderboard();
+      });
       window.addEventListener('beforeunload', () => { if (engine) engine.destroy(); });
 
-      renderSummary();
+      renderLeaderboard(leaderboardPeriod);
+      setSessionBadge();
       const tokenFromUrl = new URLSearchParams(location.search).get(tokenQueryKey) || '';
       if (tokenFromUrl) unlockWithToken(tokenFromUrl, false);
       else showGate('請輸入測試 Token 繼續');

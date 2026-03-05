@@ -113,7 +113,7 @@
       padding: 10px 12px;
       font-size: 15px;
     }
-    .gate-row button, .panel-actions button {
+    .gate-row button {
       border: 0;
       border-radius: 10px;
       padding: 10px 14px;
@@ -180,6 +180,23 @@
       color: #0d1e2b;
     }
     .hud .sub { color: #8a5200; margin-top: 4px; }
+    .hud-leaderboard-btn {
+      margin-top: 8px;
+      width: 78px;
+      height: 78px;
+      border-radius: 16px;
+      border: 1px solid rgba(255, 255, 255, 0.62);
+      background: linear-gradient(160deg, rgba(255, 255, 255, 0.42), rgba(255, 255, 255, 0.2));
+      box-shadow: 0 6px 18px rgba(20, 40, 58, 0.18);
+      backdrop-filter: blur(7px);
+      color: #0d1e2b;
+      font-size: 14px;
+      font-weight: 900;
+      letter-spacing: 0.6px;
+      cursor: pointer;
+    }
+    .hud-leaderboard-btn:hover { transform: translateY(-1px); }
+    .hud-leaderboard-btn:active { transform: translateY(0); }
     #sg-message {
       position: absolute;
       left: 50%;
@@ -300,35 +317,164 @@
       font-size: 11px;
     }
     .panel { padding: 14px; }
-    .panel h2 { margin: 0 0 8px; font-size: 17px; }
-    .panel pre {
-      margin: 0;
-      background: rgba(0, 0, 0, 0.32);
-      border: 1px solid var(--line);
-      border-radius: 10px;
-      padding: 10px;
-      min-height: 120px;
-      overflow: auto;
-      color: #d9f2ff;
+    .panel h2 { margin: 0 0 10px; font-size: 17px; }
+    .ad-slot {
+      min-height: 220px;
+      border: 1px dashed var(--line);
+      border-radius: 12px;
+      padding: 14px;
+      background: linear-gradient(135deg, rgba(22, 141, 201, 0.14), rgba(255, 255, 255, 0.5));
+      display: grid;
+      gap: 10px;
+      align-content: center;
+      text-align: center;
+      color: var(--text);
     }
-    .panel-actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
-    #metrics-export-output {
-      margin-top: 10px;
-      width: 100%;
-      min-height: 120px;
+    .ad-slot strong {
+      font-size: 16px;
+      letter-spacing: 0.6px;
+    }
+    .ad-slot small {
+      color: var(--muted);
+      line-height: 1.5;
+    }
+    .ad-slot-icon {
+      font-size: 28px;
+      opacity: 0.8;
+    }
+    .lb-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 60;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 18px;
+      background: rgba(0, 20, 36, 0.3);
+      backdrop-filter: blur(4px);
+    }
+    .lb-modal.is-open { display: flex; }
+    .lb-dialog {
+      width: min(860px, 100%);
+      max-height: min(88vh, 820px);
+      overflow: hidden;
+      display: grid;
+      grid-template-rows: auto auto 1fr;
+    }
+    .lb-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 14px 16px 10px;
+      border-bottom: 1px solid var(--line);
+    }
+    .lb-title-wrap h3 {
+      margin: 0;
+      font-size: 22px;
+      letter-spacing: 0.5px;
+    }
+    .lb-title-wrap p {
+      margin: 4px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .lb-close {
+      width: 36px;
+      height: 36px;
       border: 1px solid var(--line);
-      background: rgba(0, 0, 0, 0.28);
-      color: #d9f2ff;
       border-radius: 10px;
-      padding: 10px;
-      resize: vertical;
-      font-family: Consolas, "Courier New", monospace;
+      background: rgba(255, 255, 255, 0.56);
+      color: var(--text);
+      font-size: 18px;
+      cursor: pointer;
+    }
+    .lb-tabs {
+      display: flex;
+      gap: 8px;
+      padding: 10px 16px 12px;
+      border-bottom: 1px solid var(--line);
+    }
+    .lb-tab {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 7px 16px;
+      background: rgba(255, 255, 255, 0.58);
+      color: var(--text);
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .lb-tab.is-active {
+      background: linear-gradient(90deg, #8de4ff 0%, #7af0a8 100%);
+      color: #062037;
+      border-color: rgba(11, 75, 111, 0.2);
+    }
+    .lb-table-wrap {
+      overflow: auto;
+      padding: 0 16px 14px;
+    }
+    .lb-table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 620px;
+    }
+    .lb-table thead th {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      text-align: left;
       font-size: 12px;
+      letter-spacing: 0.35px;
+      color: var(--muted);
+      background: var(--card);
+      border-bottom: 1px solid var(--line);
+      padding: 10px 8px;
+    }
+    .lb-table tbody td {
+      border-bottom: 1px solid var(--line);
+      padding: 9px 8px;
+      font-size: 13px;
+      color: var(--text);
+      white-space: nowrap;
+    }
+    .lb-rank {
+      font-weight: 900;
+      width: 56px;
+    }
+    .lb-score {
+      font-weight: 800;
+      color: var(--ok);
+    }
+    .lb-name-pill {
+      display: inline-flex;
+      align-items: center;
+      padding: 4px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.68);
+      font-weight: 700;
     }
     .badge { background: rgba(255,255,255,0.5); }
-    .panel pre, #metrics-export-output { background: rgba(0,0,0,0.05); color: var(--text); }
     #sg-power { border-color: rgba(0,0,0,0.45); }
     @media (min-width: 900px) { .layout { grid-template-columns: 1fr 340px; } }
+    @media (max-width: 760px) {
+      .hud-leaderboard-btn {
+        width: 64px;
+        height: 64px;
+        font-size: 12px;
+      }
+      .lb-head {
+        padding: 12px 12px 8px;
+      }
+      .lb-tabs, .lb-table-wrap {
+        padding-left: 12px;
+        padding-right: 12px;
+      }
+      .lb-table {
+        min-width: 540px;
+      }
+    }
     html[data-shot-theme="dark"] {
       color-scheme: dark;
       --bg: #0b1726;
@@ -360,9 +506,24 @@
       color: #d8f6ff;
     }
     html[data-shot-theme="dark"] .badge { background: rgba(0, 0, 0, 0.35); }
+    html[data-shot-theme="dark"] .hud-leaderboard-btn {
+      border-color: rgba(255, 255, 255, 0.25);
+      background: linear-gradient(160deg, rgba(255, 255, 255, 0.17), rgba(6, 24, 41, 0.38));
+      color: #e9f7ff;
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.36);
+    }
     html[data-shot-theme="dark"] .gate-row input { background: rgba(0, 0, 0, 0.3); color: var(--text); }
-    html[data-shot-theme="dark"] .panel pre { background: rgba(0, 0, 0, 0.32); color: #d9f2ff; }
-    html[data-shot-theme="dark"] #metrics-export-output { background: rgba(0, 0, 0, 0.28); color: #d9f2ff; }
+    html[data-shot-theme="dark"] .ad-slot {
+      background: linear-gradient(145deg, rgba(13, 38, 61, 0.6), rgba(5, 18, 30, 0.72));
+    }
+    html[data-shot-theme="dark"] .lb-modal { background: rgba(0, 8, 16, 0.58); }
+    html[data-shot-theme="dark"] .lb-close {
+      background: rgba(0, 0, 0, 0.35);
+      color: #eaf6ff;
+    }
+    html[data-shot-theme="dark"] .lb-tab { background: rgba(0, 0, 0, 0.34); }
+    html[data-shot-theme="dark"] .lb-table thead th { background: rgba(9, 24, 42, 0.96); }
+    html[data-shot-theme="dark"] .lb-name-pill { background: rgba(0, 0, 0, 0.34); }
     html[data-shot-theme="dark"] #sg-power { border-color: rgba(255, 255, 255, 0.7); }
   </style>
 </head>
@@ -402,6 +563,7 @@
             <div class="hud">
               <div id="sg-score">分數：0</div>
               <div id="sg-streak" class="sub">連進：0</div>
+              <button id="sg-leaderboard-btn" class="hud-leaderboard-btn" type="button">射手榜</button>
             </div>
             <div id="sg-message"></div>
             <div id="sg-crosshair"></div>
@@ -411,27 +573,56 @@
           </div>
         </section>
         <aside class="card panel">
-          <h2>本地測試數據</h2>
-          <pre id="metrics-summary"></pre>
-          <div class="panel-actions">
-            <button id="metrics-export" type="button">匯出 JSON</button>
-            <button id="metrics-reset" type="button">重置數據</button>
+          <h2>宣傳廣告位（預留）</h2>
+          <div class="ad-slot" aria-label="廣告預留區塊">
+            <div class="ad-slot-icon">🖼️</div>
+            <strong>廣告素材將放置於此</strong>
+            <small>目前為預留版位，未來可替換成活動海報、合作品牌圖卡或投放 Banner。</small>
           </div>
-          <textarea id="metrics-export-output" readonly placeholder="匯出的數據將顯示於此"></textarea>
         </aside>
       </div>
     </section>
   </main>
 
+  <div id="sg-leaderboard-modal" class="lb-modal" aria-hidden="true">
+    <section class="lb-dialog card" role="dialog" aria-modal="true" aria-labelledby="sg-leaderboard-title">
+      <div class="lb-head">
+        <div class="lb-title-wrap">
+          <h3 id="sg-leaderboard-title">射手榜</h3>
+          <p id="sg-leaderboard-range">每日排行前 30 名</p>
+        </div>
+        <button id="sg-leaderboard-close" class="lb-close" type="button" aria-label="關閉射手榜">×</button>
+      </div>
+      <div class="lb-tabs" role="tablist" aria-label="排行榜時間範圍">
+        <button type="button" class="lb-tab is-active" data-lb-period="daily" role="tab" aria-selected="true">每日</button>
+        <button type="button" class="lb-tab" data-lb-period="weekly" role="tab" aria-selected="false">每周</button>
+        <button type="button" class="lb-tab" data-lb-period="monthly" role="tab" aria-selected="false">每月</button>
+      </div>
+      <div class="lb-table-wrap">
+        <table class="lb-table" aria-label="射手排行榜">
+          <thead>
+            <tr>
+              <th>排名</th>
+              <th>Line 暱稱</th>
+              <th>分數</th>
+              <th>連進</th>
+              <th>時間</th>
+            </tr>
+          </thead>
+          <tbody id="sg-leaderboard-body"></tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script defer src="js/modules/shot-game-engine.js?v=20260305h"></script>
-  <script defer src="js/modules/shot-game-lab-page.js?v=20260305f"></script>
+  <script defer src="js/modules/shot-game-lab-page.js?v=20260305g"></script>
   <script>
     window.addEventListener('DOMContentLoaded', function () {
       ShotGameLabPage.init({
         requiredTokenHash: '467cda4619401ac67849a871a0af1a32bde219759a3062907866aeaf0e3584e3',
         tokenQueryKey: 't',
-        storageKey: 'sporthub_shot_game_lab_metrics_v1',
       });
     });
   </script>
