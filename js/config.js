@@ -111,7 +111,8 @@
 // 20260305ae: 移除右上九宮格說明面板，得分改為球門九宮格內嵌顯示，並置中本局記錄欄位
 // 20260305af: 修復射門遊戲廣告看板讀圖來源（slot/type fallback）並放大球門後方廣告空間
 // 20260305ag: 九宮格分數新增半透明底色，並隨主題切換色彩以提升可讀性
-const CACHE_VERSION = '20260305ag';
+// 20260305ah: 移除球門後方 3D 廣告看板（停用看板渲染與貼圖流程）
+const CACHE_VERSION = '20260305ah';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {

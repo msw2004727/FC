@@ -873,3 +873,11 @@
   - Added `syncZoneLabelTheme()` so label backdrop/text colors update immediately when theme changes.
   - Updated cache version to `20260305ag` in `js/config.js`, `index.html`, and `game-lab.html`.
 - **Lesson**: Dynamic in-scene text should include an explicit contrast layer (panel/badge), not rely on background scene colors alone.
+### 2026-03-05 - remove behind-goal 3D billboard ad board
+- **Issue**: The behind-goal billboard ad still had intermittent image display problems and affected release stability.
+- **Cause**: Billboard path depended on async texture mapping and multiple ad-source conditions, making runtime behavior harder to guarantee.
+- **Fix**:
+  - `js/modules/shot-game-engine.js`: disabled behind-goal billboard rendering with `ENABLE_GOAL_BILLBOARD = false`.
+  - Kept `setBillboardAdImage()` API as a safe no-op to preserve page/lab compatibility.
+  - Updated cache version to `20260305ah` in `js/config.js`, `index.html`, and `game-lab.html`.
+- **Lesson**: If a non-core visual feature is unstable in production, disable it cleanly first, then reintroduce with observability.

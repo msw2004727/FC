@@ -21,6 +21,7 @@
   const GOAL_BURST_MAX_STEPS = 12;
   const GOAL_BURST_MIN_MULT = 2.1;
   const GOAL_BURST_MAX_MULT = 3.5;
+  const ENABLE_GOAL_BILLBOARD = false;
   const BILLBOARD_DEPTH_OFFSET = 10;
   const BILLBOARD_SPACE_SCALE = Math.sqrt(8);
   const BILLBOARD_WIDTH = 16.5 * BILLBOARD_SPACE_SCALE;
@@ -360,49 +361,7 @@
     const zones = goalVisual.zones;
     const zoneLabels = goalVisual.zoneLabels;
 
-    const billboardGroup = new THREE.Group();
-    billboardGroup.position.set(0, 4.2 * BILLBOARD_SPACE_SCALE, GOAL_Z - BILLBOARD_DEPTH_OFFSET);
-    scene.add(billboardGroup);
-
-    const billboardFrame = new THREE.Mesh(
-      new THREE.PlaneGeometry(BILLBOARD_WIDTH, BILLBOARD_HEIGHT),
-      new THREE.MeshStandardMaterial({ color: 0x31485c, roughness: 0.78, metalness: 0.12 })
-    );
-    billboardGroup.add(billboardFrame);
-
-    const billboardArtInsetX = 0.72 * BILLBOARD_SPACE_SCALE;
-    const billboardArtInsetY = 0.66 * BILLBOARD_SPACE_SCALE;
-    const billboardArtMaterial = new THREE.MeshBasicMaterial({ color: 0xe7f1ff });
-    const billboardArt = new THREE.Mesh(
-      new THREE.PlaneGeometry(BILLBOARD_WIDTH - billboardArtInsetX, BILLBOARD_HEIGHT - billboardArtInsetY),
-      billboardArtMaterial
-    );
-    billboardArt.position.z = 0.03;
-    billboardGroup.add(billboardArt);
-
-    const billboardPostRadius = 0.14 * BILLBOARD_SPACE_SCALE;
-    const billboardPostHeight = 3.8 * BILLBOARD_SPACE_SCALE;
-    const billboardPostInsetX = 0.6 * BILLBOARD_SPACE_SCALE;
-    const billboardPostOffsetZ = -0.1 * BILLBOARD_SPACE_SCALE;
-    const billboardPostMaterial = new THREE.MeshStandardMaterial({ color: 0x253748, roughness: 0.7, metalness: 0.22 });
-    const billboardPostGeo = new THREE.CylinderGeometry(billboardPostRadius, billboardPostRadius, billboardPostHeight, 16);
-    const billboardPostOffsetY = -(BILLBOARD_HEIGHT / 2 + 1.7 * BILLBOARD_SPACE_SCALE);
-    const billboardPostLeft = new THREE.Mesh(billboardPostGeo, billboardPostMaterial);
-    const billboardPostRight = new THREE.Mesh(billboardPostGeo, billboardPostMaterial);
-    billboardPostLeft.position.set(-(BILLBOARD_WIDTH / 2 - billboardPostInsetX), billboardPostOffsetY, billboardPostOffsetZ);
-    billboardPostRight.position.set(BILLBOARD_WIDTH / 2 - billboardPostInsetX, billboardPostOffsetY, billboardPostOffsetZ);
-    billboardGroup.add(billboardPostLeft, billboardPostRight);
-
-    const billboardCrossbarRadius = 0.11 * BILLBOARD_SPACE_SCALE;
-    const billboardCrossbarInsetX = 1.2 * BILLBOARD_SPACE_SCALE;
-    const billboardCrossbar = new THREE.Mesh(
-      new THREE.CylinderGeometry(billboardCrossbarRadius, billboardCrossbarRadius, BILLBOARD_WIDTH - billboardCrossbarInsetX, 12),
-      billboardPostMaterial
-    );
-    billboardCrossbar.rotation.z = Math.PI / 2;
-    billboardCrossbar.position.set(0, billboardPostOffsetY + 0.08 * BILLBOARD_SPACE_SCALE, billboardPostOffsetZ);
-    billboardGroup.add(billboardCrossbar);
-
+    let billboardArtMaterial = null;
     let billboardTexture = null;
     let billboardTextureRequestId = 0;
     let billboardAdImageUrl = '';
@@ -412,6 +371,7 @@
       billboardTexture = null;
     }
     function applyBillboardPlaceholderTheme() {
+      if (!billboardArtMaterial) return;
       const isDark = currentThemeDark == null ? readThemeIsDark() : currentThemeDark;
       billboardArtMaterial.map = null;
       billboardArtMaterial.color.setHex(isDark ? 0x152638 : 0xe7f1ff);
@@ -420,6 +380,7 @@
     function setBillboardAdImage(url) {
       const nextUrl = typeof url === 'string' ? url.trim() : '';
       billboardAdImageUrl = nextUrl;
+      if (!ENABLE_GOAL_BILLBOARD) return;
       const requestId = ++billboardTextureRequestId;
       if (!nextUrl) {
         disposeBillboardTexture();
@@ -462,6 +423,50 @@
         disposeBillboardTexture();
         applyBillboardPlaceholderTheme();
       }
+    }
+    if (ENABLE_GOAL_BILLBOARD) {
+      const billboardGroup = new THREE.Group();
+      billboardGroup.position.set(0, 4.2 * BILLBOARD_SPACE_SCALE, GOAL_Z - BILLBOARD_DEPTH_OFFSET);
+      scene.add(billboardGroup);
+
+      const billboardFrame = new THREE.Mesh(
+        new THREE.PlaneGeometry(BILLBOARD_WIDTH, BILLBOARD_HEIGHT),
+        new THREE.MeshStandardMaterial({ color: 0x31485c, roughness: 0.78, metalness: 0.12 })
+      );
+      billboardGroup.add(billboardFrame);
+
+      const billboardArtInsetX = 0.72 * BILLBOARD_SPACE_SCALE;
+      const billboardArtInsetY = 0.66 * BILLBOARD_SPACE_SCALE;
+      billboardArtMaterial = new THREE.MeshBasicMaterial({ color: 0xe7f1ff });
+      const billboardArt = new THREE.Mesh(
+        new THREE.PlaneGeometry(BILLBOARD_WIDTH - billboardArtInsetX, BILLBOARD_HEIGHT - billboardArtInsetY),
+        billboardArtMaterial
+      );
+      billboardArt.position.z = 0.03;
+      billboardGroup.add(billboardArt);
+
+      const billboardPostRadius = 0.14 * BILLBOARD_SPACE_SCALE;
+      const billboardPostHeight = 3.8 * BILLBOARD_SPACE_SCALE;
+      const billboardPostInsetX = 0.6 * BILLBOARD_SPACE_SCALE;
+      const billboardPostOffsetZ = -0.1 * BILLBOARD_SPACE_SCALE;
+      const billboardPostMaterial = new THREE.MeshStandardMaterial({ color: 0x253748, roughness: 0.7, metalness: 0.22 });
+      const billboardPostGeo = new THREE.CylinderGeometry(billboardPostRadius, billboardPostRadius, billboardPostHeight, 16);
+      const billboardPostOffsetY = -(BILLBOARD_HEIGHT / 2 + 1.7 * BILLBOARD_SPACE_SCALE);
+      const billboardPostLeft = new THREE.Mesh(billboardPostGeo, billboardPostMaterial);
+      const billboardPostRight = new THREE.Mesh(billboardPostGeo, billboardPostMaterial);
+      billboardPostLeft.position.set(-(BILLBOARD_WIDTH / 2 - billboardPostInsetX), billboardPostOffsetY, billboardPostOffsetZ);
+      billboardPostRight.position.set(BILLBOARD_WIDTH / 2 - billboardPostInsetX, billboardPostOffsetY, billboardPostOffsetZ);
+      billboardGroup.add(billboardPostLeft, billboardPostRight);
+
+      const billboardCrossbarRadius = 0.11 * BILLBOARD_SPACE_SCALE;
+      const billboardCrossbarInsetX = 1.2 * BILLBOARD_SPACE_SCALE;
+      const billboardCrossbar = new THREE.Mesh(
+        new THREE.CylinderGeometry(billboardCrossbarRadius, billboardCrossbarRadius, BILLBOARD_WIDTH - billboardCrossbarInsetX, 12),
+        billboardPostMaterial
+      );
+      billboardCrossbar.rotation.z = Math.PI / 2;
+      billboardCrossbar.position.set(0, billboardPostOffsetY + 0.08 * BILLBOARD_SPACE_SCALE, billboardPostOffsetZ);
+      billboardGroup.add(billboardCrossbar);
     }
 
     const velocity = new THREE.Vector3();
@@ -561,7 +566,7 @@
         ? '0 2px 9px rgba(0, 0, 0, 0.68)'
         : '0 2px 10px rgba(255, 255, 255, 0.58)';
       syncMessageBandTheme(isDark);
-      if (!billboardArtMaterial.map) applyBillboardPlaceholderTheme();
+      if (billboardArtMaterial && !billboardArtMaterial.map) applyBillboardPlaceholderTheme();
     }
     function onMqChange() { syncTheme(); }
     if (mq && typeof mq.addEventListener === 'function') mq.addEventListener('change', onMqChange);
