@@ -14,73 +14,6 @@
   const THEME_LIGHT = { sky: 0x88cff4, ground: 0x2f7d32, trail: 0x1d6fa8 };
 
   function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
-  function drawRegularPolygon(ctx, cx, cy, radius, sides, rotation) {
-    ctx.beginPath();
-    for (let i = 0; i < sides; i += 1) {
-      const a = rotation + (Math.PI * 2 * i) / sides;
-      const x = cx + Math.cos(a) * radius;
-      const y = cy + Math.sin(a) * radius;
-      if (i === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    }
-    ctx.closePath();
-  }
-  function createSoccerBallTexture(renderer, size) {
-    const canvas = document.createElement('canvas');
-    canvas.width = size;
-    canvas.height = size;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return null;
-
-    const center = size / 2;
-    const whiteGradient = ctx.createRadialGradient(center * 0.85, center * 0.75, size * 0.1, center, center, size * 0.7);
-    whiteGradient.addColorStop(0, '#ffffff');
-    whiteGradient.addColorStop(1, '#d7dde6');
-    ctx.fillStyle = whiteGradient;
-    ctx.fillRect(0, 0, size, size);
-
-    const centerRadius = size * 0.13;
-    const outerRadius = size * 0.1;
-    const outerDistance = size * 0.26;
-    ctx.fillStyle = '#16181c';
-    ctx.strokeStyle = '#0f1115';
-    ctx.lineWidth = Math.max(2, size * 0.008);
-
-    drawRegularPolygon(ctx, center, center, centerRadius, 5, -Math.PI / 2);
-    ctx.fill();
-    ctx.stroke();
-
-    for (let i = 0; i < 5; i += 1) {
-      const angle = -Math.PI / 2 + (Math.PI * 2 * i) / 5;
-      const px = center + Math.cos(angle) * outerDistance;
-      const py = center + Math.sin(angle) * outerDistance;
-      ctx.strokeStyle = '#0f1115';
-      ctx.lineWidth = Math.max(2, size * 0.008);
-      drawRegularPolygon(ctx, px, py, outerRadius, 5, angle + Math.PI / 5);
-      ctx.fill();
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(center + Math.cos(angle) * centerRadius * 0.88, center + Math.sin(angle) * centerRadius * 0.88);
-      ctx.lineTo(px - Math.cos(angle) * outerRadius * 0.88, py - Math.sin(angle) * outerRadius * 0.88);
-      ctx.strokeStyle = 'rgba(24, 26, 31, 0.55)';
-      ctx.lineWidth = Math.max(1.5, size * 0.005);
-      ctx.stroke();
-    }
-
-    const gloss = ctx.createRadialGradient(size * 0.32, size * 0.28, size * 0.03, size * 0.3, size * 0.3, size * 0.35);
-    gloss.addColorStop(0, 'rgba(255,255,255,0.45)');
-    gloss.addColorStop(1, 'rgba(255,255,255,0)');
-    ctx.fillStyle = gloss;
-    ctx.fillRect(0, 0, size, size);
-
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.encoding = THREE.sRGBEncoding;
-    if (renderer && renderer.capabilities && typeof renderer.capabilities.getMaxAnisotropy === 'function') {
-      texture.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
-    }
-    texture.needsUpdate = true;
-    return texture;
-  }
   function disposeMaterial(material) {
     if (!material) return;
     Object.keys(material).forEach((k) => { const v = material[k]; if (v && typeof v.dispose === 'function') v.dispose(); });
@@ -207,10 +140,9 @@
 
     drawFieldLines(scene);
 
-    const soccerBallTexture = createSoccerBallTexture(renderer, 512);
     const ball = new THREE.Mesh(
       new THREE.SphereGeometry(BALL_RADIUS, 48, 48),
-      new THREE.MeshStandardMaterial({ color: 0xf8f8f8, roughness: 0.69, metalness: 0.05, map: soccerBallTexture || null })
+      new THREE.MeshStandardMaterial({ color: 0xf8f8f8, roughness: 0.64, metalness: 0.08 })
     );
     ball.castShadow = !options.lowFx;
     scene.add(ball);

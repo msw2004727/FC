@@ -68,6 +68,7 @@
       const sessionBadge = document.getElementById('session-badge');
       const lowFx = new URLSearchParams(location.search).get('low') === '1';
       let engine = null;
+      let bestSessionSinceOpen = null;
 
       if (!gate || !gameSection || !gameContainer) {
         throw new Error('Missing required game lab elements');
@@ -99,13 +100,20 @@
         gameSection.style.display = 'block';
       };
 
-      const setSessionBadge = (payload) => {
+      const isBetterSession = (incoming, currentBest) => {
+        if (!currentBest) return true;
+        if (incoming.score !== currentBest.score) return incoming.score > currentBest.score;
+        if (incoming.shots !== currentBest.shots) return incoming.shots < currentBest.shots;
+        return incoming.durationMs < currentBest.durationMs;
+      };
+
+      const setSessionBadge = () => {
         if (!sessionBadge) return;
-        if (!payload) {
-          sessionBadge.textContent = '本局：待機中';
+        if (!bestSessionSinceOpen) {
+          sessionBadge.textContent = '開啟後最佳：尚無紀錄';
           return;
         }
-        sessionBadge.textContent = `本局：分數 ${payload.score}，射門 ${payload.shots} 次，${Math.round(payload.durationMs / 1000)} 秒`;
+        sessionBadge.textContent = `開啟後最佳：${bestSessionSinceOpen.score} 分｜${bestSessionSinceOpen.shots} 射門｜${Math.round(bestSessionSinceOpen.durationMs / 1000)} 秒`;
       };
 
       const exportStore = async () => {
@@ -126,7 +134,8 @@
       const resetStore = () => {
         localStorage.removeItem(storageKey);
         renderSummary();
-        setSessionBadge(null);
+        bestSessionSinceOpen = null;
+        setSessionBadge();
         if (exportOutput) exportOutput.value = '';
         if (tokenFeedback) tokenFeedback.textContent = '本地數據已清除';
       };
@@ -148,11 +157,17 @@
           onGameOver: (payload) => {
             const store = recordSession(storageKey, payload);
             renderSummary(store);
-            setSessionBadge(payload);
+            const normalized = {
+              score: Number(payload && payload.score ? payload.score : 0),
+              shots: Number(payload && payload.shots ? payload.shots : 0),
+              durationMs: Number(payload && payload.durationMs ? payload.durationMs : 0),
+            };
+            if (isBetterSession(normalized, bestSessionSinceOpen)) bestSessionSinceOpen = normalized;
+            setSessionBadge();
           },
         });
         renderSummary();
-        setSessionBadge(null);
+        setSessionBadge();
       };
 
       const validateToken = async (rawToken) => {

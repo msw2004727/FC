@@ -85,11 +85,17 @@
     .topbar {
       display: flex;
       gap: 8px;
-      justify-content: space-between;
+      justify-content: center;
       align-items: center;
       padding: 12px 14px;
     }
-    .title { font-size: clamp(17px, 2.8vw, 22px); font-weight: 800; }
+    .title {
+      width: 100%;
+      text-align: center;
+      font-size: clamp(17px, 2.8vw, 22px);
+      font-weight: 800;
+      letter-spacing: 0.4px;
+    }
     .badge {
       display: inline-block;
       padding: 4px 8px;
@@ -181,21 +187,63 @@
       font-weight: 800;
       cursor: pointer;
     }
-    .hint {
+    .goal-guide {
       position: absolute;
       right: 12px;
       top: 12px;
       margin: 0;
       z-index: 4;
       color: #e3f3ff;
-      font-size: clamp(12px, 3.1vw, 14px);
+      font-size: 12px;
       background: rgba(7, 20, 33, 0.55);
       border: 1px solid rgba(255, 255, 255, 0.2);
       border-radius: 10px;
-      padding: 8px 12px;
-      max-width: 200px;
+      padding: 8px 10px;
+      width: 156px;
       text-align: left;
-      line-height: 1.5;
+      line-height: 1.4;
+    }
+    .goal-guide-title {
+      font-size: 11px;
+      margin-bottom: 6px;
+      opacity: 0.9;
+      letter-spacing: 0.4px;
+    }
+    .goal-guide-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 4px;
+    }
+    .goal-guide-cell {
+      text-align: center;
+      border-radius: 6px;
+      border: 1px solid rgba(255, 255, 255, 0.22);
+      padding: 3px 0;
+      font-size: 11px;
+      font-weight: 800;
+      background: rgba(0, 0, 0, 0.28);
+    }
+    .goal-guide-cell.high { background: rgba(255, 91, 91, 0.28); }
+    .goal-guide-cell.mid { background: rgba(255, 183, 77, 0.24); }
+    .goal-guide-cell.low { background: rgba(255, 238, 88, 0.2); }
+    #session-badge.history-badge {
+      position: absolute;
+      left: 50%;
+      bottom: 8px;
+      transform: translateX(-50%);
+      z-index: 6;
+      font-size: 12px;
+      font-weight: 800;
+      color: #d8f6ff;
+      border: 1px solid rgba(255, 255, 255, 0.28);
+      border-radius: 999px;
+      background: rgba(0, 0, 0, 0.42);
+      padding: 6px 12px;
+      white-space: nowrap;
+      text-align: center;
+      max-width: calc(100% - 20px);
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
     .hud .badge {
       display: block;
@@ -246,7 +294,16 @@
       #shot-game-container { background: #8bc5e0; }
       .hud { color: #0d1e2b; }
       .hud .sub { color: #8a5200; }
-      .hint { background: rgba(255,255,255,0.65); color: var(--text); border-color: rgba(0,0,0,0.15); }
+      .goal-guide { background: rgba(255,255,255,0.72); color: var(--text); border-color: rgba(0,0,0,0.15); }
+      .goal-guide-cell { border-color: rgba(0, 0, 0, 0.18); background: rgba(255, 255, 255, 0.68); color: #0d1e2b; }
+      .goal-guide-cell.high { background: rgba(255, 91, 91, 0.23); }
+      .goal-guide-cell.mid { background: rgba(255, 183, 77, 0.23); }
+      .goal-guide-cell.low { background: rgba(255, 238, 88, 0.23); }
+      #session-badge.history-badge {
+        background: rgba(255, 255, 255, 0.74);
+        border-color: rgba(0, 0, 0, 0.2);
+        color: #15384c;
+      }
       .badge { background: rgba(255,255,255,0.5); }
       .gate-row input { background: rgba(255,255,255,0.7); color: var(--text); }
       .panel pre, #metrics-export-output { background: rgba(0,0,0,0.05); color: var(--text); }
@@ -268,14 +325,26 @@
 
     <section id="game-section">
       <div class="card topbar">
-        <div class="title">3D 蓄力射門 實驗室</div>
+        <div class="title">TooSterxHub PK大賽</div>
       </div>
       <div class="layout">
         <section class="card game-wrap">
           <div id="shot-game-container">
-            <p class="hint">拖曳瞄準，按住蓄力，放開射門。</p>
+            <div class="goal-guide" aria-label="九宮格得分說明">
+              <div class="goal-guide-title">九宮格得分</div>
+              <div class="goal-guide-grid">
+                <div class="goal-guide-cell high">100</div>
+                <div class="goal-guide-cell mid">50</div>
+                <div class="goal-guide-cell high">100</div>
+                <div class="goal-guide-cell mid">50</div>
+                <div class="goal-guide-cell low">20</div>
+                <div class="goal-guide-cell mid">50</div>
+                <div class="goal-guide-cell low">40</div>
+                <div class="goal-guide-cell low">10</div>
+                <div class="goal-guide-cell low">40</div>
+              </div>
+            </div>
             <div class="hud">
-              <div id="session-badge" class="badge">本局：待機中</div>
               <div id="sg-score">分數：0</div>
               <div id="sg-streak" class="sub">連進：0</div>
             </div>
@@ -283,6 +352,7 @@
             <div id="sg-crosshair"></div>
             <div id="sg-power"><div id="sg-power-fill"></div></div>
             <button id="sg-restart" type="button">重新挑戰</button>
+            <div id="session-badge" class="history-badge">開啟後最佳：尚無紀錄</div>
           </div>
         </section>
         <aside class="card panel">
@@ -299,8 +369,8 @@
   </main>
 
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-  <script defer src="js/modules/shot-game-engine.js?v=20260305e"></script>
-  <script defer src="js/modules/shot-game-lab-page.js?v=20260305c"></script>
+  <script defer src="js/modules/shot-game-engine.js?v=20260305f"></script>
+  <script defer src="js/modules/shot-game-lab-page.js?v=20260305d"></script>
   <script>
     window.addEventListener('DOMContentLoaded', function () {
       ShotGameLabPage.init({
