@@ -34,9 +34,24 @@
       </div>
       <!-- HUD -->
       <div class="sg-hud">
-        <div id="session-badge">當前最佳：尚無紀錄</div>
-        <div id="sg-score" class="sg-hud-chip">分數：0</div>
-        <div id="sg-streak" class="sg-hud-chip sg-streak-chip">連進：0</div>
+        <div id="session-badge" aria-live="polite">
+          <div class="sg-session-title">當前最佳記錄</div>
+          <div class="sg-session-best">
+            <span class="sg-session-best-score">--</span>分
+            <span class="sg-session-sep">|</span>
+            <span class="sg-session-best-shots">--</span>射門
+            <span class="sg-session-sep">|</span>
+            <span class="sg-session-best-time">--</span>秒
+          </div>
+          <div class="sg-session-divider" aria-hidden="true"></div>
+          <div class="sg-session-live">
+            分數:<span class="sg-session-live-score">0</span>
+            <span class="sg-session-sep">|</span>
+            連進:<span class="sg-session-live-streak">0</span>
+          </div>
+        </div>
+        <div id="sg-score" class="sg-hud-chip" aria-hidden="true">分數：0</div>
+        <div id="sg-streak" class="sg-hud-chip sg-streak-chip" aria-hidden="true">連進：0</div>
       </div>
       <div id="sg-message"></div>
       <div id="sg-crosshair"></div>

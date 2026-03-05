@@ -802,3 +802,8 @@
 - **原因**：`session-badge` 放在底部列；抽屜後台只有佈景主題入口，沒有遊戲配置頁與對應資料模型。
 - **修復**：將 `session-badge` 移到左上 HUD（分數/連進上方，主站與 game-lab 同步）；新增 `gameConfigs` 資料流（DemoData / FirebaseService / ApiService / firebase-crud upsert）；新增 `js/modules/game-manage.js` 與 `page-admin-games`，並在抽屜加入「小遊戲管理」入口；首頁小遊戲顯示改為讀取 `gameConfigs.homeVisible`（預留 `HOME_GAME_PRESETS` 多遊戲結構）。
 - **教訓**：首頁入口是否顯示屬於全站配置，應獨立成可擴充的設定集合，不應綁死在單一頁面固定文案或硬編碼顯示邏輯。
+### 2026-03-05 — 射門 HUD 改為整合資訊卡（當前最佳 + 即時分數）
+- **問題**：玩家希望左上角資訊改為單一欄位，顯示「當前最佳記錄」與「分數/連進」，並與右側九宮格得分說明卡等高。
+- **原因**：原本 UI 將 `session-badge` 與 `分數/連進` 拆成三個 chip，資訊分散且高度與右側說明卡不一致。
+- **修復**：`pages/game.html` 與 `game-lab.html` 改成單一卡片版型（標題/最佳紀錄/分隔線/即時分數列）；`css/game.css` 與 `game-lab.html` 內嵌樣式改為固定資訊卡高度、與九宮格說明卡同高；`js/modules/shot-game-page.js`、`js/modules/shot-game-lab-page.js` 新增 `onScoreChange` 即時同步與 session badge 模板更新邏輯。
+- **教訓**：HUD 需以「資訊聚合與掃讀效率」為優先，並在視覺層建立一致對齊基準（同高卡片）來降低玩家辨識成本。

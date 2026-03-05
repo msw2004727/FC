@@ -100,7 +100,8 @@
 // 20260305t: 射手榜名稱優先使用 LINE 暱稱，避免顯示玩家xxxx
 // 20260305u: 首頁空資料區塊隱藏 + 小遊戲卡文案更新 + 金色漸層反光卡片
 // 20260305v: 小遊戲 HUD 位置調整 + 抽屜新增小遊戲管理與首頁顯示開關
-const CACHE_VERSION = '20260305v';
+// 20260305w: 當前最佳改為整合資訊卡（最佳紀錄 + 分數/連進）並與九宮格得分卡等高
+const CACHE_VERSION = '20260305w';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {

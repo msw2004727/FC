@@ -267,6 +267,8 @@
       const lowFx = new URLSearchParams(location.search).get('low') === '1';
       let engine = null;
       let bestSessionSinceOpen = null;
+      let currentScore = 0;
+      let currentStreak = 0;
       let leaderboardPeriod = 'daily';
       let leaderboardOpen = false;
       let leaderboardSubmitPending = false;
@@ -313,13 +315,46 @@
         if (incoming.shots !== currentBest.shots) return incoming.shots < currentBest.shots;
         return incoming.durationMs < currentBest.durationMs;
       };
+      const ensureSessionBadgeTemplate = () => {
+        if (!sessionBadge || sessionBadge.querySelector('.sg-session-title')) return;
+        sessionBadge.innerHTML = `
+          <div class="sg-session-title">當前最佳記錄</div>
+          <div class="sg-session-best">
+            <span class="sg-session-best-score">--</span>分
+            <span class="sg-session-sep">|</span>
+            <span class="sg-session-best-shots">--</span>射門
+            <span class="sg-session-sep">|</span>
+            <span class="sg-session-best-time">--</span>秒
+          </div>
+          <div class="sg-session-divider" aria-hidden="true"></div>
+          <div class="sg-session-live">
+            分數:<span class="sg-session-live-score">0</span>
+            <span class="sg-session-sep">|</span>
+            連進:<span class="sg-session-live-streak">0</span>
+          </div>
+        `;
+      };
       const setSessionBadge = () => {
         if (!sessionBadge) return;
-        if (!bestSessionSinceOpen) {
-          sessionBadge.textContent = '當前最佳：尚無紀錄';
-          return;
-        }
-        sessionBadge.textContent = `當前最佳：${bestSessionSinceOpen.score} 分｜${bestSessionSinceOpen.shots} 射門｜${Math.round(bestSessionSinceOpen.durationMs / 1000)} 秒`;
+        ensureSessionBadgeTemplate();
+        const bestScoreEl = sessionBadge.querySelector('.sg-session-best-score');
+        const bestShotsEl = sessionBadge.querySelector('.sg-session-best-shots');
+        const bestTimeEl = sessionBadge.querySelector('.sg-session-best-time');
+        const liveScoreEl = sessionBadge.querySelector('.sg-session-live-score');
+        const liveStreakEl = sessionBadge.querySelector('.sg-session-live-streak');
+
+        const hasBest = !!bestSessionSinceOpen;
+        const bestScore = hasBest ? Math.max(0, Math.round(Number(bestSessionSinceOpen.score) || 0)) : '--';
+        const bestShots = hasBest ? Math.max(0, Math.round(Number(bestSessionSinceOpen.shots) || 0)) : '--';
+        const bestTime = hasBest ? Math.max(0, Math.round(Number(bestSessionSinceOpen.durationMs || 0) / 1000)) : '--';
+        const liveScore = Math.max(0, Math.round(Number(currentScore) || 0));
+        const liveStreak = Math.max(0, Math.round(Number(currentStreak) || 0));
+
+        if (bestScoreEl) bestScoreEl.textContent = String(bestScore);
+        if (bestShotsEl) bestShotsEl.textContent = String(bestShots);
+        if (bestTimeEl) bestTimeEl.textContent = String(bestTime);
+        if (liveScoreEl) liveScoreEl.textContent = String(liveScore);
+        if (liveStreakEl) liveStreakEl.textContent = String(liveStreak);
       };
       const buildLeaderboardView = (period) => {
         const rows = dedupeLeaderboardRows((leaderboardData[period] || []).map((row) => ({ ...row })));
@@ -503,6 +538,9 @@
 
       const startGame = () => {
         if (engine) engine.destroy();
+        currentScore = 0;
+        currentStreak = 0;
+        setSessionBadge();
         engine = window.ShotGameEngine.create({
           container: gameContainer,
           lowFx,
@@ -514,6 +552,11 @@
             crosshairEl: document.getElementById('sg-crosshair'),
             messageEl: document.getElementById('sg-message'),
             restartBtn: document.getElementById('sg-restart'),
+          },
+          onScoreChange: (payload) => {
+            currentScore = Number(payload && payload.score != null ? payload.score : 0);
+            currentStreak = Number(payload && payload.streak != null ? payload.streak : 0);
+            setSessionBadge();
           },
           onGameOver: (payload) => {
             const payloadStreak = payload && payload.bestStreak != null ? payload.bestStreak : (payload ? payload.streak : 0);

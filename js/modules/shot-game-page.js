@@ -198,6 +198,8 @@
   /* ── Module State ── */
   let _engine = null;
   let _bestSession = null;
+  let _liveScore = 0;
+  let _liveStreak = 0;
   let _lbPeriod = 'daily';
   let _lbOpen = false;
   let _lbSubmitPending = false;
@@ -363,9 +365,42 @@
   function _updateSessionBadge() {
     const badge = document.getElementById('session-badge');
     if (!badge) return;
-    badge.textContent = _bestSession
-      ? `當前最佳：${_bestSession.score} 分｜${_bestSession.shots} 射門｜${Math.round(_bestSession.durationMs / 1000)} 秒`
-      : '當前最佳：尚無紀錄';
+    if (!badge.querySelector('.sg-session-title')) {
+      badge.innerHTML = `
+        <div class="sg-session-title">當前最佳記錄</div>
+        <div class="sg-session-best">
+          <span class="sg-session-best-score">--</span>分
+          <span class="sg-session-sep">|</span>
+          <span class="sg-session-best-shots">--</span>射門
+          <span class="sg-session-sep">|</span>
+          <span class="sg-session-best-time">--</span>秒
+        </div>
+        <div class="sg-session-divider" aria-hidden="true"></div>
+        <div class="sg-session-live">
+          分數:<span class="sg-session-live-score">0</span>
+          <span class="sg-session-sep">|</span>
+          連進:<span class="sg-session-live-streak">0</span>
+        </div>
+      `;
+    }
+    const bestScoreEl = badge.querySelector('.sg-session-best-score');
+    const bestShotsEl = badge.querySelector('.sg-session-best-shots');
+    const bestTimeEl = badge.querySelector('.sg-session-best-time');
+    const liveScoreEl = badge.querySelector('.sg-session-live-score');
+    const liveStreakEl = badge.querySelector('.sg-session-live-streak');
+
+    const hasBest = !!_bestSession;
+    const bestScore = hasBest ? Math.max(0, Math.round(Number(_bestSession.score) || 0)) : '--';
+    const bestShots = hasBest ? Math.max(0, Math.round(Number(_bestSession.shots) || 0)) : '--';
+    const bestTime = hasBest ? Math.max(0, Math.round(Number(_bestSession.durationMs || 0) / 1000)) : '--';
+    const liveScore = Math.max(0, Math.round(Number(_liveScore) || 0));
+    const liveStreak = Math.max(0, Math.round(Number(_liveStreak) || 0));
+
+    if (bestScoreEl) bestScoreEl.textContent = String(bestScore);
+    if (bestShotsEl) bestShotsEl.textContent = String(bestShots);
+    if (bestTimeEl) bestTimeEl.textContent = String(bestTime);
+    if (liveScoreEl) liveScoreEl.textContent = String(liveScore);
+    if (liveStreakEl) liveStreakEl.textContent = String(liveStreak);
   }
 
   function _isBetter(incoming, best) {
@@ -399,6 +434,9 @@
     if (_engine) { _engine.destroy(); _engine = null; }
     const container = document.getElementById('shot-game-container');
     if (!container || !window.ShotGameEngine) return;
+    _liveScore = 0;
+    _liveStreak = 0;
+    _updateSessionBadge();
 
     const lowFx = new URLSearchParams(location.search).get('low') === '1';
 
@@ -413,6 +451,11 @@
         crosshairEl: document.getElementById('sg-crosshair'),
         messageEl: document.getElementById('sg-message'),
         restartBtn: document.getElementById('sg-restart'),
+      },
+      onScoreChange(payload) {
+        _liveScore = Number(payload && payload.score != null ? payload.score : 0);
+        _liveStreak = Number(payload && payload.streak != null ? payload.streak : 0);
+        _updateSessionBadge();
       },
       onGameOver(payload) {
         const normalized = {
