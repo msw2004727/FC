@@ -797,3 +797,8 @@
 - **原因**：`renderHotEvents()` 與 `renderOngoingTournaments()` 在空資料時只顯示提示文案，沒有隱藏整個區塊；小遊戲卡沿用一般卡片樣式與舊標題副標。
 - **修復**：`js/modules/event-list.js` 新增首頁區塊顯示控制與小遊戲捷徑渲染；`js/modules/tournament-render.js` 在無賽事時隱藏區塊；`pages/home.html` 更新小遊戲卡標題/副標；`css/home.css` 改為金色漸層底並加入規律反光動畫。
 - **教訓**：首頁摘要區塊應採「有資料才顯示」策略，避免空區塊噪音；重點入口卡片要用專屬視覺語言凸顯優先級。
+### 2026-03-05 — 小遊戲 HUD 位置調整與首頁顯示開關管理
+- **問題**：射門遊戲「當前最佳」顯示在左下角不易對齊 HUD；後台缺少首頁小遊戲顯示開關，無法控管首頁是否顯示小遊戲卡。
+- **原因**：`session-badge` 放在底部列；抽屜後台只有佈景主題入口，沒有遊戲配置頁與對應資料模型。
+- **修復**：將 `session-badge` 移到左上 HUD（分數/連進上方，主站與 game-lab 同步）；新增 `gameConfigs` 資料流（DemoData / FirebaseService / ApiService / firebase-crud upsert）；新增 `js/modules/game-manage.js` 與 `page-admin-games`，並在抽屜加入「小遊戲管理」入口；首頁小遊戲顯示改為讀取 `gameConfigs.homeVisible`（預留 `HOME_GAME_PRESETS` 多遊戲結構）。
+- **教訓**：首頁入口是否顯示屬於全站配置，應獨立成可擴充的設定集合，不應綁死在單一頁面固定文案或硬編碼顯示邏輯。

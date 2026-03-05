@@ -99,7 +99,8 @@
 // 20260305s: game-lab 淺色背景去雲朵 + 套用主站同款 opening loading overlay
 // 20260305t: 射手榜名稱優先使用 LINE 暱稱，避免顯示玩家xxxx
 // 20260305u: 首頁空資料區塊隱藏 + 小遊戲卡文案更新 + 金色漸層反光卡片
-const CACHE_VERSION = '20260305u';
+// 20260305v: 小遊戲 HUD 位置調整 + 抽屜新增小遊戲管理與首頁顯示開關
+const CACHE_VERSION = '20260305v';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {
@@ -329,6 +330,19 @@ const TOURNAMENT_GRADIENT_MAP = {
   '盃賽': 'linear-gradient(135deg,#7c3aed,#4338ca)',
 };
 
+// ─── Home Game Settings（可擴充多款小遊戲） ───
+const HOME_GAME_PRESETS = [
+  {
+    id: 'home_game_shot',
+    gameKey: 'shot-game',
+    name: '蓄力射門 誰與爭鋒',
+    page: 'page-game',
+    sortOrder: 10,
+    enabled: true,
+    homeVisible: true,
+  },
+];
+
 const TEAM_RANK_CONFIG = [
   { min: 0,    max: 999,   rank: 'E',   color: '#6b7280' },
   { min: 1000, max: 1999,  rank: 'D',   color: '#22c55e' },
@@ -360,6 +374,7 @@ const DRAWER_MENUS = [
   { icon: '', label: '二手商品管理', i18nKey: 'admin.shopManage', page: 'page-admin-shop', minRole: 'admin' },
   { icon: '', label: '站內信管理', i18nKey: 'admin.messageManage', page: 'page-admin-messages', minRole: 'admin' },
   { icon: '', label: '球隊管理', i18nKey: 'admin.teamManage', page: 'page-admin-teams', minRole: 'admin' },
+  { icon: '', label: '小遊戲管理', page: 'page-admin-games', minRole: 'super_admin' },
   { icon: '', label: '佈景主題', i18nKey: 'admin.themes', page: 'page-admin-themes', minRole: 'super_admin' },
   { icon: '', label: '手動 EXP 管理', i18nKey: 'admin.expManage', page: 'page-admin-exp', minRole: 'super_admin' },
   { icon: '', label: '自動 EXP 管理', i18nKey: 'drawer.autoExpManage', page: 'page-admin-auto-exp', minRole: 'super_admin' },

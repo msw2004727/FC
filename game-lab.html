@@ -557,6 +557,10 @@
       left: 14px;
       top: 14px;
       z-index: 5;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 6px;
       font-weight: 700;
       color: #0d1e2b;
     }
@@ -576,18 +580,17 @@
       line-height: 1;
     }
     #sg-streak.hud-chip {
-      margin-top: 6px;
+      margin-top: 0;
       color: #8a5200;
     }
     .sg-bottom-row {
       position: absolute;
-      left: 10px;
       right: 10px;
       bottom: 8px;
       z-index: 7;
       display: flex;
       align-items: center;
-      justify-content: space-between;
+      justify-content: flex-end;
       gap: 8px;
     }
     .hud-leaderboard-btn {
@@ -724,7 +727,7 @@
       align-items: center;
       white-space: nowrap;
       text-align: center;
-      max-width: calc(100% - 130px);
+      max-width: min(62vw, 360px);
       overflow: hidden;
       text-overflow: ellipsis;
     }
@@ -994,7 +997,7 @@
         font-size: 12px;
       }
       #session-badge.history-badge {
-        max-width: calc(100% - 116px);
+        max-width: min(66vw, 260px);
         font-size: 11px;
       }
       .lb-head {
@@ -1180,6 +1183,7 @@
               </div>
             </div>
             <div class="hud">
+              <div id="session-badge" class="history-badge">當前最佳：尚無紀錄</div>
               <div id="sg-score" class="hud-chip">分數：0</div>
               <div id="sg-streak" class="hud-chip">連進：0</div>
             </div>
@@ -1188,7 +1192,6 @@
             <div id="sg-power"><div id="sg-power-fill"></div></div>
             <button id="sg-restart" type="button">重新挑戰</button>
             <div class="sg-bottom-row">
-              <div id="session-badge" class="history-badge">當前最佳：尚無紀錄</div>
               <button id="sg-leaderboard-btn" class="hud-leaderboard-btn" type="button">射手榜</button>
             </div>
           </div>

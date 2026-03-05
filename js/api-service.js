@@ -741,6 +741,48 @@ const ApiService = {
   updateSiteTheme(id, updates) { return this._update('siteThemes', id, updates, FirebaseService.updateSiteTheme, 'updateSiteTheme'); },
 
   // ════════════════════════════════
+  //  Home Game Config（首頁小遊戲設定）
+  // ════════════════════════════════
+
+  getGameConfigs() { return this._src('gameConfigs'); },
+
+  getGameConfigByKey(gameKey) {
+    const key = String(gameKey || '').trim();
+    if (!key) return null;
+    return this.getGameConfigs().find(cfg => cfg.gameKey === key) || null;
+  },
+
+  isHomeGameVisible(gameKey) {
+    const cfg = this.getGameConfigByKey(gameKey);
+    if (!cfg) return true;
+    if (cfg.enabled === false) return false;
+    return cfg.homeVisible !== false;
+  },
+
+  upsertGameConfig(id, updates) {
+    if (this._handleRestrictedAction()) return null;
+    const configId = String(id || '').trim();
+    if (!configId) return null;
+
+    const source = this._src('gameConfigs');
+    let item = source.find(cfg => cfg.id === configId || cfg._docId === configId) || null;
+    if (!item) {
+      item = { id: configId, ...updates };
+      source.push(item);
+    } else {
+      Object.assign(item, updates);
+      if (!item.id) item.id = configId;
+    }
+
+    if (!this._demoMode && FirebaseService.upsertGameConfig) {
+      FirebaseService.ensureAuthReadyForWrite()
+        .then(() => FirebaseService.upsertGameConfig.call(FirebaseService, configId, updates))
+        .catch(err => console.error('[upsertGameConfig]', err));
+    }
+    return item;
+  },
+
+  // ════════════════════════════════
   //  Announcements（系統公告）
   // ════════════════════════════════
 

@@ -954,6 +954,40 @@ Object.assign(FirebaseService, {
   },
 
   // ════════════════════════════════
+  //  Home Game Config（首頁小遊戲設定）
+  // ════════════════════════════════
+
+  async upsertGameConfig(id, updates) {
+    const configId = String(id || '').trim();
+    if (!configId) return null;
+
+    const existing = this._cache.gameConfigs.find(c =>
+      c.id === configId || c._docId === configId
+    ) || null;
+
+    const ref = db.collection('gameConfigs').doc(existing?._docId || configId);
+    const payload = {
+      ...updates,
+      id: configId,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    };
+    if (!existing) {
+      payload.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+    }
+
+    await ref.set(payload, { merge: true });
+
+    if (existing) {
+      Object.assign(existing, updates, { id: configId });
+      return existing;
+    }
+
+    const created = { id: configId, _docId: ref.id, ...updates };
+    this._cache.gameConfigs.push(created);
+    return created;
+  },
+
+  // ════════════════════════════════
   //  Achievements
   // ════════════════════════════════
 

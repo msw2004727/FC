@@ -69,6 +69,21 @@
       </div>
     </section>
 
+    <!-- PAGE: Backend - Game Management (Super Admin) -->
+    <section class="page" id="page-admin-games" data-min-role="super_admin">
+      <div class="page-header">
+        <button class="back-btn" onclick="App.goBack()">←</button>
+        <h2>小遊戲管理</h2>
+      </div>
+      <div style="font-size:.78rem;color:var(--text-muted);padding:0 .3rem .1rem">
+        管理首頁小遊戲入口顯示狀態。可預留多款遊戲設定，逐項控制首頁顯示/隱藏。
+      </div>
+      <div style="font-size:.72rem;color:var(--text-muted);padding:0 .3rem .6rem">
+        目前啟用項目：蓄力射門 誰與爭鋒
+      </div>
+      <div class="card-list" id="game-manage-list" style="display:flex;flex-direction:column;gap:.6rem"></div>
+    </section>
+
     <!-- PAGE: Backend - Site Theme Management (Super Admin) -->
     <section class="page" id="page-admin-themes" data-min-role="super_admin">
       <div class="page-header">

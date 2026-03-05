@@ -604,6 +604,16 @@ service cloud.firestore {
     }
 
     // ═══════════════════════════════════════════
+    //  Home Game Config（首頁小遊戲設定）
+    //  公開可讀；管理員可寫
+    // ═══════════════════════════════════════════
+    match /gameConfigs/{configId} {
+      allow read: if true;
+      allow create, update: if isAdmin();
+      allow delete: if false;
+    }
+
+    // ═══════════════════════════════════════════
     //  Notification Templates（通知模板）
     //  登入可讀；管理員可寫
     // ═══════════════════════════════════════════

@@ -33,7 +33,7 @@ flowchart TD
         THEME["core/theme.js\n深色 / 淺色主題"]
         MODE["core/mode.js\nDemo ↔ Prod 切換"]
 
-        subgraph MODS["modules/*.js（39 個功能模組）"]
+        subgraph MODS["modules/*.js（40 個功能模組）"]
             EVT["event-*.js\n活動（列表/詳情/建立/管理）"]
             TEAM["team*.js\n球隊（列表/詳情/表單）"]
             TOUR["tournament-*.js\n錦標賽"]
@@ -41,7 +41,7 @@ flowchart TD
             MSG["message-*.js\n訊息"]
             ADM["user-admin-*.js\n用戶後台"]
             AD["ad-manage-*.js\n廣告管理"]
-            UTIL["scan / shop / leaderboard\nachievement / announcement\nfavorites / auto-exp / banner\nrole / site-theme / image-upload\npopup-ad / personal-dashboard\nattendance-notify / dashboard"]
+            UTIL["scan / shop / leaderboard\nachievement / announcement\nfavorites / auto-exp / banner\nrole / site-theme / game-manage / image-upload\npopup-ad / personal-dashboard\nattendance-notify / dashboard"]
         end
     end
 
@@ -117,6 +117,7 @@ flowchart TD
 | `modules/banner.js` | 首頁輪播 Banner 渲染 |
 | `modules/role.js` | 自訂用戶層級標籤管理 |
 | `modules/site-theme.js` | 站點佈景主題設定（管理端） |
+| `modules/game-manage.js` | 小遊戲管理（首頁顯示開關，預留多款遊戲設定） |
 | `modules/image-upload.js` | 圖片上傳共用功能（Firebase Storage） |
 | `modules/popup-ad.js` | 首頁彈窗廣告顯示邏輯 |
 | `modules/personal-dashboard.js` | 個人數據儀表板（參加場次、出席率、EXP 統計） |
@@ -161,7 +162,7 @@ i18n.js → config.js → data.js → firebase-config.js
   → firebase-service.js → firebase-crud.js → api-service.js → line-auth.js
   → page-loader.js → script-loader.js → app.js
   → core/navigation.js → core/theme.js → core/mode.js
-  → [39 個 modules 全部以 <script defer> 靜態載入]
+  → [40 個 modules 全部以 <script defer> 靜態載入]
 ```
 
 ## 3D Charged Shot Lab (Phase 0, private route)

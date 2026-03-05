@@ -214,7 +214,11 @@ Object.assign(App, {
     const minRole = gameMenu.minRole || 'user';
     const minLevel = ROLE_LEVEL_MAP[minRole] || 0;
     const currentLevel = ROLE_LEVEL_MAP[this.currentRole] || 0;
-    return currentLevel >= minLevel;
+    if (currentLevel < minLevel) return false;
+    if (typeof ApiService !== 'undefined' && typeof ApiService.isHomeGameVisible === 'function') {
+      return ApiService.isHomeGameVisible('shot-game');
+    }
+    return true;
   },
   renderHomeGameShortcut() {
     const card = document.querySelector('#page-home .home-game-card');

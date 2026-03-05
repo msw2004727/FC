@@ -48,6 +48,7 @@ const FirebaseService = {
     popupAds: [],
     sponsors: [],
     siteThemes: [],
+    gameConfigs: [],
     adminMessages: [],
     notifTemplates: [],
     rolePermissions: {},
@@ -185,7 +186,7 @@ const FirebaseService = {
   // 啟動時必要的靜態集合（首頁 + 全域 UI 需要，全部公開讀取）
   _bootCollections: [
     'banners', 'floatingAds', 'popupAds', 'sponsors',
-    'announcements', 'siteThemes', 'achievements', 'badges',
+    'announcements', 'siteThemes', 'gameConfigs', 'achievements', 'badges',
     'tournaments',
   ],
 
@@ -216,6 +217,7 @@ const FirebaseService = {
     'page-admin-exp':         ['expLogs', 'teamExpLogs'],
     'page-admin-auto-exp':    ['expLogs'],
     'page-admin-achievements': ['achievements', 'badges'],
+    'page-admin-games':       ['gameConfigs'],
     'page-admin-roles':       ['permissions', 'customRoles'],
     'page-admin-logs':        ['operationLogs'],
     'page-admin-error-logs':  ['errorLogs'],
@@ -1037,6 +1039,10 @@ const FirebaseService = {
         { id: 'sth2', slot: 'theme_bottombar', label: '下方橫條背景', spec: '750 × 64 px', image: null, status: 'empty' },
         { id: 'sth3', slot: 'theme_bg', label: '網站背景', spec: '750 × 1334 px', image: null, status: 'empty' },
       ]],
+      ['gameConfigs', (Array.isArray(HOME_GAME_PRESETS) && HOME_GAME_PRESETS.length > 0
+        ? HOME_GAME_PRESETS
+        : [{ id: 'home_game_shot', gameKey: 'shot-game', name: '蓄力射門 誰與爭鋒', page: 'page-game', sortOrder: 10, enabled: true, homeVisible: true }]
+      ).map(item => ({ ...item }))],
     ];
     for (const [name, slots] of seeds) {
       try {
