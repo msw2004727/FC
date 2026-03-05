@@ -268,7 +268,9 @@
       if (raycaster.intersectObject(ball).length === 0) return;
       charging = true; power = 0; startPointer = { x: event.clientX, y: event.clientY }; aim = { x: 0, y: 3 };
       setChargeUiVisible(true); updateCrosshair();
-      if (container.setPointerCapture) container.setPointerCapture(event.pointerId);
+      window.addEventListener('pointermove', onPointerMove);
+      window.addEventListener('pointerup', onPointerUp);
+      window.addEventListener('pointercancel', onPointerCancel);
     }
     function onPointerMove(event) {
       if (!charging) return;
@@ -277,7 +279,13 @@
       aim.y = clamp(3 - ((event.clientY - startPointer.y) / rect.height) * 14, -3, 12);
       updateCrosshair();
     }
-    function onPointerUp() { if (charging) kick(); }
+    function cleanupWindowListeners() {
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+      window.removeEventListener('pointercancel', onPointerCancel);
+    }
+    function onPointerUp() { cleanupWindowListeners(); if (charging) kick(); }
+    function onPointerCancel() { cleanupWindowListeners(); charging = false; power = 0; setChargeUiVisible(false); }
     function restartGame() {
       if (resultTimer) clearTimeout(resultTimer);
       score = 0; streak = 0; shots = 0; state = 'aiming';
@@ -331,10 +339,7 @@
       renderer.render(scene, camera);
     }
 
-    container.addEventListener('pointerdown',  onPointerDown);
-    container.addEventListener('pointermove',  onPointerMove);
-    container.addEventListener('pointerup',    onPointerUp);
-    container.addEventListener('pointercancel', onPointerUp);
+    container.addEventListener('pointerdown', onPointerDown);
     window.addEventListener('resize', resize);
     if (ui.restartBtn) ui.restartBtn.addEventListener('click', restartGame);
     resize(); restartGame(); animate();
@@ -344,10 +349,8 @@
         if (resultTimer) clearTimeout(resultTimer);
         cancelAnimationFrame(rafId);
         mq.removeEventListener('change', onMqChange);
-        container.removeEventListener('pointerdown',  onPointerDown);
-        container.removeEventListener('pointermove',  onPointerMove);
-        container.removeEventListener('pointerup',    onPointerUp);
-        container.removeEventListener('pointercancel', onPointerUp);
+        container.removeEventListener('pointerdown', onPointerDown);
+        cleanupWindowListeners();
         window.removeEventListener('resize', resize);
         if (ui.restartBtn) ui.restartBtn.removeEventListener('click', restartGame);
         disposeScene(scene); renderer.dispose();

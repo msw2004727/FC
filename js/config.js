@@ -88,7 +88,7 @@
 // 20260305: fix game-lab showGame() display:none bug (game section never showed)
 // 20260305a: game-lab full Chinese UI, light/dark theme, field line markings
 // 20260305b: free aim, hint top-right, goal randomness, streak ramp, 10x shake
-const CACHE_VERSION = '20260305b';
+const CACHE_VERSION = '20260305c';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {

@@ -641,3 +641,17 @@
 - **原因**：`shot-game-lab-page.js` 的 `showGame()` 使用 `gameSection.style.display = ''`（清空 inline style），導致元素退回 CSS 規則 `#game-section { display: none; }`，遊戲區塊永遠隱藏；gate 也因 `gate.style.display = 'none'` 被隱藏，頁面只剩 body 深藍漸層背景，即「一片藍」現象。
 - **修復**：`showGame()` 改為 `gameSection.style.display = 'block'` 以確實覆蓋 CSS 規則；更新 `game-lab.html` 及 `js/config.js` 快取版本號至 `20260305`；index.html 全部 64 處 `?v=` 一併更新。
 - **教訓**：用 `element.style.display = ''` 只會移除 inline style，若 stylesheet 仍有 `display: none` 則元素不會顯示。需顯示元素時必須設定具體值（如 `'block'`），不可依賴清空 inline style。
+
+### 2026-03-05 — 蓄力時游標離開球體範圍導致蓄力斷開
+
+- **問題**：按住蓄力後移動游標，一旦游標離開球體（或容器範圍），蓄力立即中斷。
+- **原因**：
+  1. `pointermove` / `pointerup` listeners 掛在 `container` 上，依賴 `setPointerCapture` 將事件路由到容器；在某些瀏覽器或觸控裝置上 `setPointerCapture` 表現不一致。
+  2. `#shot-game-container` 缺少 `touch-action: none`，在行動端瀏覽器偵測到拖曳後觸發滾動意圖，發送 `pointercancel` 事件。
+  3. `pointercancel` 被掛到 `onPointerUp`，會呼叫 `kick()` 意外踢球而非靜默中止蓄力。
+- **修復**：
+  1. `shot-game-engine.js`：改用 **window-level listeners 策略**：`pointerdown` 命中球後動態向 `window` 加掛 `pointermove`、`pointerup`、`pointercancel` 三個監聽；放開或取消後透過 `cleanupWindowListeners()` 一次移除。移除原本 `container.setPointerCapture` 呼叫。
+  2. 新增獨立 `onPointerCancel`：靜默中止（`charging = false`、清除 UI）而不踢球。
+  3. `game-lab.html`：`#shot-game-container` CSS 加入 `touch-action: none`。
+  4. 快取版本號 `20260305b` → `20260305c`，同步更新 `index.html`（64 處）及 `game-lab.html`（2 處）。
+- **教訓**：跨元素邊界的拖曳行為應改用 window-level listeners（動態掛載/卸載），比 `setPointerCapture` 更可靠且不受容器邊界限制；行動端務必加 `touch-action: none` 防止滾動劫持 pointer 事件。

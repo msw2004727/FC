@@ -106,7 +106,7 @@
       grid-template-columns: 1fr;
     }
     .game-wrap { position: relative; overflow: hidden; min-height: 64vh; }
-    #shot-game-container { position: relative; height: 64vh; min-height: 460px; background: #0b2137; }
+    #shot-game-container { position: relative; height: 64vh; min-height: 460px; background: #0b2137; touch-action: none; }
     #shot-game-container canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
     .hud {
       position: absolute;
@@ -290,8 +290,8 @@
   </main>
 
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-  <script defer src="js/modules/shot-game-engine.js?v=20260305b"></script>
-  <script defer src="js/modules/shot-game-lab-page.js?v=20260305b"></script>
+  <script defer src="js/modules/shot-game-engine.js?v=20260305c"></script>
+  <script defer src="js/modules/shot-game-lab-page.js?v=20260305c"></script>
   <script>
     window.addEventListener('DOMContentLoaded', function () {
       ShotGameLabPage.init({
