@@ -117,6 +117,24 @@
       durationSec: row.durationSec,
     }));
   }
+  function getTaipeiDateBucket(period) {
+    const offsetMs = 8 * 60 * 60 * 1000;
+    const t = new Date(Date.now() + offsetMs);
+    const year = t.getUTCFullYear();
+    const month = String(t.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(t.getUTCDate()).padStart(2, '0');
+    if (period === 'monthly') return `monthly_${year}-${month}`;
+    if (period === 'weekly') {
+      const d = new Date(Date.UTC(year, t.getUTCMonth(), t.getUTCDate()));
+      const dow = d.getUTCDay() || 7;
+      d.setUTCDate(d.getUTCDate() + 4 - dow);
+      const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+      const week = String(Math.ceil(((d - yearStart) / 86400000 + 1) / 7)).padStart(2, '0');
+      return `weekly_${d.getUTCFullYear()}-W${week}`;
+    }
+    return `daily_${year}-${month}-${day}`;
+  }
+
   async function sha256Hex(input) {
     const bytes = new TextEncoder().encode(input);
     const hash = await crypto.subtle.digest('SHA-256', bytes);
@@ -200,7 +218,7 @@
         return { topRows, extraPlayerRow };
       };
 
-      const renderLeaderboard = (period) => {
+      const renderLeaderboard = async (period) => {
         if (!leaderboardBody) return;
         const key = period in LEADERBOARD_PERIOD_LABELS ? period : 'daily';
         leaderboardPeriod = key;
@@ -211,6 +229,31 @@
           tab.classList.toggle('is-active', active);
           tab.setAttribute('aria-selected', active ? 'true' : 'false');
         });
+
+        // 顯示載入中
+        leaderboardBody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:1.5rem;opacity:0.6">載入中…</td></tr>';
+        if (leaderboardPlayerRow) { leaderboardPlayerRow.classList.add('is-hidden'); leaderboardPlayerRow.innerHTML = ''; }
+
+        // 從 Firestore 取真實資料（ApiService 有 5 分鐘 cache）
+        try {
+          const bucket = getTaipeiDateBucket(key);
+          const entries = await ApiService.getShotGameLeaderboard({ period: key, bucket });
+          leaderboardData[key] = entries.map(e => ({
+            id: e.uid,
+            nick: e.displayName || '匿名玩家',
+            score: e.bestScore || 0,
+            streak: e.bestStreak || 0,
+            durationSec: 0,
+          }));
+        } catch (_) {
+          leaderboardBody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:1.5rem;opacity:0.6">讀取失敗，請稍後再試</td></tr>';
+          return;
+        }
+
+        if ((leaderboardData[key] || []).length === 0 && !bestSessionSinceOpen) {
+          leaderboardBody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:1.5rem;opacity:0.6">尚無排行資料</td></tr>';
+          return;
+        }
 
         const view = buildLeaderboardView(key);
         const rows = view.topRows;
@@ -298,6 +341,28 @@
             };
             if (isBetterSession(normalized, bestSessionSinceOpen)) bestSessionSinceOpen = normalized;
             setSessionBadge();
+
+            // 非同步提交分數至 Cloud Function（失敗靜默，不阻塞遊戲流程）
+            if (normalized.score > 0 && typeof ApiService !== 'undefined' && ApiService.getCurrentUser?.()) {
+              const user = ApiService.getCurrentUser();
+              ApiService.submitShotGameScore({
+                score: normalized.score,
+                shots: normalized.shots,
+                streak: normalized.streak,
+                durationMs: normalized.durationMs,
+                displayName: user.displayName || user.name || '匿名玩家',
+              }).then(res => {
+                if (res && leaderboardOpen) {
+                  // 提交成功後清除 cache 並重新整理榜單
+                  if (ApiService._shotGameLeaderboardCache) {
+                    const bucket = getTaipeiDateBucket(leaderboardPeriod);
+                    delete ApiService._shotGameLeaderboardCache[bucket];
+                  }
+                  renderLeaderboard(leaderboardPeriod);
+                }
+              }).catch(() => {});
+            }
+
             if (leaderboardOpen) renderLeaderboard(leaderboardPeriod);
           },
         });

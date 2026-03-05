@@ -699,6 +699,22 @@ service cloud.firestore {
     }
 
     // ═══════════════════════════════════════════
+    //  Shot Game — 射門小遊戲
+    //  shotGameScores：本人可讀自己紀錄；前端不可寫（Cloud Function Admin SDK 寫入）
+    //  shotGameRankings：登入可讀榜單；前端不可寫（Cloud Function Admin SDK 寫入）
+    //  更新：2026-03-05（Phase 1 新增）
+    // ═══════════════════════════════════════════
+    match /shotGameScores/{uid}/attempts/{attemptId} {
+      allow read: if isOwner(uid) || isAdmin();
+      allow write: if false;
+    }
+
+    match /shotGameRankings/{periodBucket}/entries/{entryUid} {
+      allow read: if isAuth();
+      allow write: if false;
+    }
+
+    // ═══════════════════════════════════════════
     //  Catch-all：未列出的集合一律拒絕
     // ═══════════════════════════════════════════
     match /{collection}/{docId} {

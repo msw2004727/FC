@@ -465,6 +465,131 @@ exports.processLinePushQueue = onDocumentCreated(
   }
 );
 
+// ─────────────────────────────────────────────────────────────
+//  Shot Game — 射門小遊戲分數提交
+//  Phase 1：驗證 payload → 寫入 shotGameScores → 更新日榜
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * 將 Date 物件轉為 Asia/Taipei 時區的日期資訊，計算 period bucket。
+ * 直接用 UTC+8 偏移，不依賴 Intl（Cloud Functions 環境更穩定）。
+ */
+function getTaipeiDateInfo(now) {
+  const offsetMs = 8 * 60 * 60 * 1000;
+  const t = new Date(now.getTime() + offsetMs);
+  const year = t.getUTCFullYear();
+  const month = String(t.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(t.getUTCDate()).padStart(2, "0");
+
+  // ISO week number（週一為週起點）
+  const d = new Date(Date.UTC(year, t.getUTCMonth(), t.getUTCDate()));
+  const dow = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - dow);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  const week = String(Math.ceil(((d - yearStart) / 86400000 + 1) / 7)).padStart(2, "0");
+
+  return {
+    daily: `daily_${year}-${month}-${day}`,
+    weekly: `weekly_${year}-W${week}`,
+    monthly: `monthly_${year}-${month}`,
+  };
+}
+
+exports.submitShotGameScore = onCall(
+  { region: "asia-east1", timeoutSeconds: 30 },
+  async (request) => {
+    // 1. 登入驗證
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "必須登入才能提交分數");
+    }
+    const uid = request.auth.uid;
+    const { score, shots, streak, durationMs, displayName } = request.data || {};
+
+    // 2. Payload 驗證
+    if (!Number.isInteger(score) || score < 0 || score > 9999) {
+      throw new HttpsError("invalid-argument", "score 必須為 0~9999 的整數");
+    }
+    if (!Number.isInteger(shots) || shots < 1) {
+      throw new HttpsError("invalid-argument", "shots 必須 >= 1");
+    }
+    if (typeof durationMs !== "number" || durationMs < 5000) {
+      throw new HttpsError("invalid-argument", "durationMs 必須 >= 5000");
+    }
+    const safeDisplayName =
+      typeof displayName === "string" && displayName.trim()
+        ? displayName.trim().slice(0, 50)
+        : "匿名玩家";
+    const safeStreak =
+      Number.isInteger(streak) && streak >= 0 ? streak : 0;
+
+    // 3. 計算 period buckets（Asia/Taipei）
+    const now = new Date();
+    const { daily: dailyBucket } = getTaipeiDateInfo(now);
+
+    // 4. 節流：同 uid 同 bucket 10 秒最多 1 次
+    const rankingRef = db
+      .collection("shotGameRankings")
+      .doc(dailyBucket)
+      .collection("entries")
+      .doc(uid);
+
+    const rankingSnap = await rankingRef.get();
+    if (rankingSnap.exists) {
+      const lastSubmitAt = rankingSnap.data().lastSubmitAt;
+      if (lastSubmitAt && now.getTime() - lastSubmitAt.toMillis() < 10000) {
+        throw new HttpsError("resource-exhausted", "提交過於頻繁，請稍後再試");
+      }
+    }
+
+    // 5. 稽核 flags（純記錄，不阻擋正常玩家）
+    const flags = [];
+    if (score > 7000) flags.push("near_max_score");
+    if (durationMs < 8000) flags.push("fast_game");
+    if (shots > 0 && score / shots > 150) flags.push("high_score_per_shot");
+    if (safeStreak > 20) flags.push("high_streak");
+    if (flags.length > 0) {
+      console.warn("[submitShotGameScore] flags detected", { uid, score, shots, durationMs, safeStreak, flags });
+    }
+
+    // 6. 寫入原始成績（稽核用）
+    const attemptRef = db
+      .collection("shotGameScores")
+      .doc(uid)
+      .collection("attempts")
+      .doc();
+    await attemptRef.set({
+      uid,
+      displayName: safeDisplayName,
+      score,
+      shots,
+      streak: safeStreak,
+      durationMs,
+      createdAt: FieldValue.serverTimestamp(),
+      source: "function",
+      flags,
+    });
+
+    // 6. 更新日榜（僅在新分數更高時覆蓋 best 欄位）
+    const existingScore = rankingSnap.exists ? (rankingSnap.data().bestScore ?? -1) : -1;
+    const isNewBest = score > existingScore;
+    const rankingUpdate = {
+      uid,
+      displayName: safeDisplayName,
+      lastSubmitAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    };
+    if (isNewBest) {
+      rankingUpdate.bestScore = score;
+      rankingUpdate.bestStreak = safeStreak;
+      rankingUpdate.bestAt = FieldValue.serverTimestamp();
+    }
+    await rankingRef.set(rankingUpdate, { merge: true });
+
+    console.log("[submitShotGameScore]", { uid, score, durationMs, dailyBucket, isNewBest });
+    return { success: true, isNewBest, bucket: dailyBucket };
+  }
+);
+
 exports.teamShareOg = onRequest(
   { region: "asia-east1", timeoutSeconds: 15 },
   async (req, res) => {

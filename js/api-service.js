@@ -1007,6 +1007,69 @@ const ApiService = {
   },
 
   // ════════════════════════════════
+  //  Shot Game — 射門遊戲（Phase 1）
+  // ════════════════════════════════
+
+  /**
+   * 呼叫 Cloud Function 提交射門分數。
+   * Demo 模式下靜默成功（不實際寫入）。
+   * @param {{ score, shots, streak, durationMs, displayName }} payload
+   * @returns {Promise<{ success, isNewBest, bucket }|null>}
+   */
+  async submitShotGameScore(payload) {
+    if (this._demoMode) return { success: true, isNewBest: false, bucket: 'demo' };
+    if (!auth?.currentUser) return null;
+    try {
+      const fn = firebase.app().functions('asia-east1').httpsCallable('submitShotGameScore');
+      const result = await fn(payload);
+      return result.data;
+    } catch (err) {
+      console.warn('[ApiService] submitShotGameScore failed:', err?.code, err?.message);
+      return null;
+    }
+  },
+
+  /**
+   * 讀取射門排行榜（5 分鐘 client-side cache）。
+   * @param {{ period: 'daily'|'weekly'|'monthly', bucket: string }} options
+   *   bucket 格式：daily_2026-03-05 / weekly_2026-W10 / monthly_2026-03
+   * @returns {Promise<Array<{ uid, displayName, bestScore, bestStreak, bestAt, updatedAt }>>}
+   */
+  _shotGameLeaderboardCache: {},
+
+  async getShotGameLeaderboard({ period = 'daily', bucket } = {}) {
+    if (!bucket) return [];
+    const cacheKey = bucket;
+    const cached = this._shotGameLeaderboardCache[cacheKey];
+    if (cached && Date.now() - cached.ts < 5 * 60 * 1000) return cached.data;
+
+    if (this._demoMode) {
+      const demo = [
+        { uid: 'demo1', displayName: '示範玩家 A', bestScore: 850, bestStreak: 5, bestAt: null },
+        { uid: 'demo2', displayName: '示範玩家 B', bestScore: 720, bestStreak: 3, bestAt: null },
+      ];
+      this._shotGameLeaderboardCache[cacheKey] = { ts: Date.now(), data: demo };
+      return demo;
+    }
+
+    try {
+      const snap = await db
+        .collection('shotGameRankings')
+        .doc(bucket)
+        .collection('entries')
+        .orderBy('bestScore', 'desc')
+        .limit(50)
+        .get();
+      const data = snap.docs.map(d => ({ uid: d.id, ...d.data() }));
+      this._shotGameLeaderboardCache[cacheKey] = { ts: Date.now(), data };
+      return data;
+    } catch (err) {
+      console.warn('[ApiService] getShotGameLeaderboard failed:', err?.code, err?.message);
+      return [];
+    }
+  },
+
+  // ════════════════════════════════
   //  Current User（登入用戶）
   // ════════════════════════════════
 

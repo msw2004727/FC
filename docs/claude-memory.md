@@ -4,6 +4,23 @@
 
 ---
 
+### 2026-03-05 — Shot Game Phase 1 雲端排行榜接入
+
+- **問題**：Phase 0 射門遊戲排行榜為假資料（mock），需接入正式 Firestore + Cloud Function
+- **原因**：Phase 0 設計為純本地 localStorage，故意不接 Firebase
+- **修復**：
+  1. `firestore.rules`：新增 `shotGameScores`（owner 可讀）與 `shotGameRankings`（登入可讀）規則；前端不可寫
+  2. `functions/index.js`：新增 `submitShotGameScore` onCall（驗證 score/shots/durationMs/節流；寫入稽核紀錄 + 更新日榜最高分）
+  3. `js/api-service.js`：新增 `submitShotGameScore()`（呼叫 Cloud Function）與 `getShotGameLeaderboard()`（讀 Firestore，5 分鐘 cache）
+  4. `js/modules/shot-game-lab-page.js`：新增 `getTaipeiDateBucket()`；`renderLeaderboard` 改 async 讀 Firestore；`onGameOver` 加非同步提交
+- **教訓**：
+  - `firebase-functions-compat.js` 雖在 index.html `<link preload>`，實際是 `app.js _loadCDNScripts()` 載入，可用 `firebase.app().functions('asia-east1')`
+  - Cloud Function Admin SDK 寫入直接繞過 Firestore rules；rules 只需控制前端讀取權限
+  - `renderLeaderboard` 改為 async 不需要 caller await（fire-and-forget 對 UI 更新安全）
+  - 節流用 `lastSubmitAt` Firestore field（伺服器端），避免 client bypass
+
+---
+
 ### 2026-03-04 — 冷啟動加速：分層啟動 + Edge Cache + TTL 分層（Phase A）
 
 - **問題**：冷啟動 5-15 秒，因 Auth 阻塞公開資料載入 + 7 個 listeners 全部等待首次 snapshot
