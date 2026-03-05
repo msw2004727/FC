@@ -114,7 +114,8 @@
 // 20260305ah: 移除球門後方 3D 廣告看板（停用看板渲染與貼圖流程）
 // 20260305ai: 九宮格分數底圖放大，接近單格滿版以提升辨識度
 // 20260306a: 主題切換改為遮罩滑動樣式（露月亮=深色、露太陽=淺色）
-const CACHE_VERSION = '20260306a';
+// 20260306b: 蓄力準星抖動降 50%，放手按準星當下位置出球，並修正球面貼圖完整覆蓋
+const CACHE_VERSION = '20260306b';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {

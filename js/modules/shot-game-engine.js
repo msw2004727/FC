@@ -28,6 +28,7 @@
   const BILLBOARD_HEIGHT = 4.8 * BILLBOARD_SPACE_SCALE;
   const BALL_TEXTURE_SLOTS = ['map', 'normalMap', 'roughnessMap', 'metalnessMap'];
   const FULL_CHARGE_SHAKE_MULTIPLIER = 5;
+  const CROSSHAIR_SHAKE_SCALE = 0.5;
   const OVERCHARGE_CURVE_MULTIPLIER = 5;
 
   const THEME_DARK  = { sky: 0x0d1b2a, ground: 0x1b4520, trail: 0x9ed8ff };
@@ -277,6 +278,11 @@
             texture.flipY = false;
             texture.anisotropy = maxAnisotropy;
             if (isColor) texture.encoding = THREE.sRGBEncoding;
+            texture.wrapS = THREE.RepeatWrapping;
+            texture.wrapT = THREE.RepeatWrapping;
+            texture.repeat.set(1, 1);
+            texture.offset.set(0, 0);
+            texture.needsUpdate = true;
             if (typeof onLoaded === 'function') onLoaded(texture);
           },
           undefined,
@@ -482,6 +488,7 @@
     const AIM_START_Y = GOAL_HEIGHT / 2;
     let state = 'aiming'; let charging = false; let power = 0;
     let aim = { x: AIM_START_X, y: AIM_START_Y }; let startPointer = { x: 0, y: 0 };
+    let crosshairShakePx = { x: 0, y: 0 };
     let sessionStartedAt = Date.now(); let resultTimer = null; let flashTimer = null; let rafId = 0;
     let accumulator = 0; let flightTime = 0; let apex = BALL_RADIUS; let lastBallZ = PENALTY_SPOT_Z;
     let goalSpeed = 2.9; let goalDir = 1; let goalSpeedMult = 1.0;
@@ -744,6 +751,30 @@
       ui.crosshairEl.style.left = `${(marker.x * 0.5 + 0.5) * container.clientWidth}px`;
       ui.crosshairEl.style.top  = `${(-marker.y * 0.5 + 0.5) * container.clientHeight}px`;
     }
+    function resolveShotAimAtRelease() {
+      if (!ui.crosshairEl) return { x: aim.x, y: aim.y };
+      const w = Math.max(1, container.clientWidth);
+      const h = Math.max(1, container.clientHeight);
+      const marker = new THREE.Vector3(aim.x, aim.y, GOAL_Z);
+      marker.project(camera);
+      const baseX = (marker.x * 0.5 + 0.5) * w;
+      const baseY = (-marker.y * 0.5 + 0.5) * h;
+      const screenX = baseX + crosshairShakePx.x;
+      const screenY = baseY + crosshairShakePx.y;
+      const ndcX = (screenX / w) * 2 - 1;
+      const ndcY = -((screenY / h) * 2 - 1);
+      const worldPoint = new THREE.Vector3(ndcX, ndcY, 0.5).unproject(camera);
+      const rayDir = worldPoint.sub(camera.position).normalize();
+      if (Math.abs(rayDir.z) < 1e-6) return { x: aim.x, y: aim.y };
+      const t = (GOAL_Z - camera.position.z) / rayDir.z;
+      if (!Number.isFinite(t) || t <= 0) return { x: aim.x, y: aim.y };
+      const hitX = camera.position.x + rayDir.x * t;
+      const hitY = camera.position.y + rayDir.y * t;
+      return {
+        x: clamp(hitX, -18, 18),
+        y: clamp(hitY, -3, 12),
+      };
+    }
     function resize() {
       const w = Math.max(1, container.clientWidth);
       const h = Math.max(1, container.clientHeight);
@@ -756,6 +787,7 @@
     function resetShot() {
       if (resultTimer) clearTimeout(resultTimer);
       state = 'aiming'; charging = false; power = 0;
+      crosshairShakePx = { x: 0, y: 0 };
       velocity.set(0, 0, 0); spin.set(0, 0, 0);
       curveBoost = 1;
       ball.position.set(0, BALL_RADIUS, PENALTY_SPOT_Z);
@@ -808,13 +840,14 @@
       const p = clamp(power / 100, 0, 1.3);
       const isOvercharge = power > 100;
       const overchargeCurveMult = isOvercharge ? OVERCHARGE_CURVE_MULTIPLIER : 1;
-      const target = new THREE.Vector3(aim.x, aim.y, GOAL_Z);
+      const shotAim = resolveShotAimAtRelease();
+      const target = new THREE.Vector3(shotAim.x, shotAim.y, GOAL_Z);
       const dir = target.clone().sub(ball.position).normalize();
       const speed = 22 + p * 24;
       velocity.copy(dir.multiplyScalar(speed));
       velocity.y += 3 + p * 10;
-      const sideSign = Math.abs(aim.x) > 0.05 ? Math.sign(-aim.x) : (Math.random() < 0.5 ? -1 : 1);
-      const sideSpinBase = -aim.x * (0.24 + p * 0.26) + sideSign * Math.max(0, p - 0.95) * 0.16;
+      const sideSign = Math.abs(shotAim.x) > 0.05 ? Math.sign(-shotAim.x) : (Math.random() < 0.5 ? -1 : 1);
+      const sideSpinBase = -shotAim.x * (0.24 + p * 0.26) + sideSign * Math.max(0, p - 0.95) * 0.16;
       const sideSpin = sideSpinBase * overchargeCurveMult;
       const verticalSpin = 0.22 + p * 0.34 + Math.max(0, p - 0.9) * 0.42;
       curveBoost = 1 + p * 1.05 + Math.max(0, p - 0.9) * 1.8;
@@ -841,6 +874,7 @@
       if (raycaster.intersectObject(ball).length === 0) return;
       charging = true;
       power = 0;
+      crosshairShakePx = { x: 0, y: 0 };
       startPointer = { x: event.clientX, y: event.clientY };
       // Start every shot from screen-center crosshair so aiming is not "attached" to moving goal frame.
       aim = { x: AIM_START_X, y: AIM_START_Y };
@@ -864,7 +898,13 @@
       window.removeEventListener('pointercancel', onPointerCancel);
     }
     function onPointerUp() { cleanupWindowListeners(); if (charging) kick(); }
-    function onPointerCancel() { cleanupWindowListeners(); charging = false; power = 0; setChargeUiVisible(false); }
+    function onPointerCancel() {
+      cleanupWindowListeners();
+      charging = false;
+      power = 0;
+      crosshairShakePx = { x: 0, y: 0 };
+      setChargeUiVisible(false);
+    }
     function restartGame() {
       if (resultTimer) clearTimeout(resultTimer);
       score = 0; streak = 0; shots = 0; state = 'aiming';
@@ -943,10 +983,15 @@
         }
         if (ui.crosshairEl) {
           const baseShake = power < 100 ? power * 0.4 : 40 + (power - 100) * 1.8;
-          const shake = power >= 100 ? baseShake * FULL_CHARGE_SHAKE_MULTIPLIER : baseShake;
-          ui.crosshairEl.style.transform = `translate(-50%, -50%) translate(${(Math.random() - 0.5) * shake}px, ${(Math.random() - 0.5) * shake}px)`;
+          const amplified = power >= 100 ? baseShake * FULL_CHARGE_SHAKE_MULTIPLIER : baseShake;
+          const shake = amplified * CROSSHAIR_SHAKE_SCALE;
+          crosshairShakePx = { x: (Math.random() - 0.5) * shake, y: (Math.random() - 0.5) * shake };
+          ui.crosshairEl.style.transform = `translate(-50%, -50%) translate(${crosshairShakePx.x}px, ${crosshairShakePx.y}px)`;
         }
-      } else if (ui.crosshairEl) ui.crosshairEl.style.transform = 'translate(-50%, -50%)';
+      } else if (ui.crosshairEl) {
+        crosshairShakePx = { x: 0, y: 0 };
+        ui.crosshairEl.style.transform = 'translate(-50%, -50%)';
+      }
       accumulator = Math.min(accumulator + frameDt, 0.25);
       while (accumulator >= FIXED_DT) { step(FIXED_DT); accumulator -= FIXED_DT; }
       syncTheme();

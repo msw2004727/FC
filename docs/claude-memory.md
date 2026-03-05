@@ -914,3 +914,13 @@
   - `js/modules/shot-game-engine.js`: in `kick()`, applied 5x multiplier to overcharge side spin and overcharge curveBoost bonus when `power>100`.
   - `js/config.js`, `index.html`, `game-lab.html`: bumped cache version to `20260306a`.
 - **Lesson**: For gameplay feel tuning, isolate multiplier to overcharge window so normal-charge control remains stable.
+### 2026-03-06 - crosshair drift tuned and release-shot aim aligned with reticle
+- **Issue**: Crosshair drift felt too strong, and shot direction did not always match the reticle position at release.
+- **Cause**: Drift only affected DOM transform, while shot target still used non-drift `aim` coordinates; drift amplitude was also too aggressive.
+- **Fix**:
+  - `js/modules/shot-game-engine.js`: added `CROSSHAIR_SHAKE_SCALE = 0.5` to reduce drift by 50%.
+  - `js/modules/shot-game-engine.js`: tracked per-frame crosshair shake pixels and used release-time reticle position to solve world-space shot target on `GOAL_Z` plane.
+  - `js/modules/shot-game-engine.js`: reset shake offsets on shot reset/cancel/new charge to avoid stale offsets.
+  - `js/modules/shot-game-engine.js`: updated ball texture setup to force full UV coverage (`wrapS/T = RepeatWrapping`, `repeat(1,1)`, zero offset).
+  - `js/config.js`, `index.html`, `game-lab.html`: bumped cache version to `20260306b`.
+- **Lesson**: If UI jitter is part of gameplay, release-time physics must consume the same jittered coordinates; visual-only jitter causes perceived input mismatch.
