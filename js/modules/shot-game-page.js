@@ -114,13 +114,23 @@
     return _threeLoadPromise;
   }
 
+  function _getShotGameAssetVersion() {
+    try {
+      if (typeof CACHE_VERSION === 'string' && CACHE_VERSION) return CACHE_VERSION;
+    } catch (_) {}
+    return '';
+  }
+
   function _loadEngine() {
     if (window.ShotGameEngine) return Promise.resolve();
     return (typeof ScriptLoader !== 'undefined')
       ? ScriptLoader._load('js/modules/shot-game-engine.js')
       : new Promise((resolve, reject) => {
           const s = document.createElement('script');
-          s.src = 'js/modules/shot-game-engine.js';
+          const v = _getShotGameAssetVersion();
+          s.src = v
+            ? `js/modules/shot-game-engine.js?v=${encodeURIComponent(v)}`
+            : 'js/modules/shot-game-engine.js';
           s.onload = resolve;
           s.onerror = reject;
           document.head.appendChild(s);
