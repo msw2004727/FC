@@ -733,3 +733,16 @@
   1. `node --check js/firebase-service.js` 通過。
   2. `node --check js/firebase-crud.js` 通過。
   3. 程式路徑確認：未登入不啟動受保護監聽，登入後會自動補啟動。
+
+### 2026-03-05 — PK 射手榜刷新後紀錄消失（落庫與登入態修正）
+- **問題**：PK 大賽頁面當下可看到「你」的成績，但刷新後常消失，懷疑未正確寫入資料庫。
+- **原因**：
+  1. `game-lab` 只檢查「有 Firebase user」就放行，匿名登入也可進入遊戲；但 `submitShotGameScore` 會拒絕 anonymous，造成提交失敗。
+  2. 前端提交失敗被靜默吞掉（`catch(() => {})`），玩家看不到失敗原因。
+  3. 後端僅更新 daily bucket，週榜/月榜不會落庫，切到週/月榜時刷新後更容易誤判為資料遺失。
+- **修復**：
+  1. `js/modules/shot-game-lab-page.js`：新增匿名登入擋板（需非匿名登入才可進入遊戲與寫榜）。
+  2. `js/modules/shot-game-lab-page.js`：提交流程改為 `async/await`，失敗寫入 `console.warn`，遇 `permission-denied` 直接顯示「請回主站重新登入 LINE」。
+  3. `functions/index.js`：`submitShotGameScore` 改為同步更新 `daily/weekly/monthly` 三個 bucket，回傳 `isNewBestByPeriod` 供除錯。
+  4. 依快取規則更新版本：`js/config.js` `CACHE_VERSION` → `20260305n`，`index.html` 與 `game-lab.html` 全部 `?v=` 同步升版。
+- **教訓**：排行榜功能必須把「可遊玩資格」與「可寫榜資格」對齊，且提交失敗不可靜默；UI 有多周期榜單時，後端 bucket 寫入也必須同步覆蓋，避免出現「當下看得到、刷新就消失」的假象。

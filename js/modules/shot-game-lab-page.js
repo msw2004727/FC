@@ -231,6 +231,22 @@
         gate.style.display = 'none';
         gameSection.style.display = 'block';
       };
+      const showLoginRequiredCard = (message) => {
+        const tokenForm = document.getElementById('token-form');
+        const loginCard = document.getElementById('login-required-card');
+        if (tokenForm) tokenForm.style.display = 'none';
+        if (loginCard) loginCard.style.display = '';
+        gate.style.display = 'block';
+        gameSection.style.display = 'none';
+        if (tokenFeedback) tokenFeedback.textContent = message || '請先登入才能遊玩';
+      };
+      const isAnonymousAuthUser = (user) => {
+        if (!user) return false;
+        if (user.isAnonymous) return true;
+        const providers = Array.isArray(user.providerData) ? user.providerData : [];
+        return providers.some((provider) => String(provider && provider.providerId ? provider.providerId : '').toLowerCase() === 'anonymous');
+      };
+      const isRankingEligibleUser = (user) => !!user && !isAnonymousAuthUser(user);
 
       const isBetterSession = (incoming, currentBest) => {
         if (!currentBest) return true;
@@ -372,6 +388,25 @@
         leaderboardModal.setAttribute('aria-hidden', 'true');
         leaderboardOpen = false;
       };
+      const submitScoreToRanking = async (scorePayload) => {
+        const gameUser = (typeof auth !== 'undefined') ? auth.currentUser : null;
+        if (!scorePayload || scorePayload.score <= 0 || !isRankingEligibleUser(gameUser)) return;
+        try {
+          await firebase.app().functions('asia-east1').httpsCallable('submitShotGameScore')({
+            score: scorePayload.score,
+            shots: scorePayload.shots,
+            streak: scorePayload.streak,
+            durationMs: scorePayload.durationMs,
+            displayName: gameUser.displayName || '',
+          });
+          if (leaderboardOpen) await renderLeaderboard(leaderboardPeriod);
+        } catch (err) {
+          console.warn('[ShotGameLab] submitShotGameScore failed:', err && err.code ? err.code : '', err && err.message ? err.message : err);
+          if (err && err.code === 'functions/permission-denied') {
+            showLoginRequiredCard('目前登入狀態無法寫入射手榜，請先回主站重新登入 LINE');
+          }
+        }
+      };
 
       const startGame = () => {
         if (engine) engine.destroy();
@@ -398,19 +433,7 @@
             if (isBetterSession(normalized, bestSessionSinceOpen)) bestSessionSinceOpen = normalized;
             setSessionBadge();
 
-            // 非同步提交分數至 Cloud Function（失敗靜默，不阻塞遊戲流程）
-            const gameUser = (typeof auth !== 'undefined') ? auth.currentUser : null;
-            if (normalized.score > 0 && gameUser) {
-              firebase.app().functions('asia-east1').httpsCallable('submitShotGameScore')({
-                score: normalized.score,
-                shots: normalized.shots,
-                streak: normalized.streak,
-                durationMs: normalized.durationMs,
-                displayName: gameUser.displayName || '',
-              }).then(() => {
-                if (leaderboardOpen) renderLeaderboard(leaderboardPeriod);
-              }).catch(() => {});
-            }
+            submitScoreToRanking(normalized);
 
             if (leaderboardOpen) renderLeaderboard(leaderboardPeriod);
           },
@@ -446,13 +469,12 @@
           }
           // 確認已登入
           const currentUser = (typeof auth !== 'undefined') ? auth.currentUser : null;
-          if (!currentUser) {
-            const tokenForm = document.getElementById('token-form');
-            const loginCard = document.getElementById('login-required-card');
-            if (tokenForm) tokenForm.style.display = 'none';
-            if (loginCard) loginCard.style.display = '';
-            gate.style.display = 'block';
-            gameSection.style.display = 'none';
+          if (!isRankingEligibleUser(currentUser)) {
+            showLoginRequiredCard(
+              currentUser
+                ? '請先以 LINE 帳號登入（非匿名）才能寫入射手榜'
+                : '請先登入才能遊玩'
+            );
             return false;
           }
           showGame();

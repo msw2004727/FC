@@ -530,20 +530,37 @@ exports.submitShotGameScore = onCall(
 
     // 3. 計算 period buckets（Asia/Taipei）
     const now = new Date();
-    const { daily: dailyBucket } = getTaipeiDateInfo(now);
+    const {
+      daily: dailyBucket,
+      weekly: weeklyBucket,
+      monthly: monthlyBucket,
+    } = getTaipeiDateInfo(now);
+    const bucketMap = {
+      daily: dailyBucket,
+      weekly: weeklyBucket,
+      monthly: monthlyBucket,
+    };
 
-    // 4. 節流：同 uid 同 bucket 10 秒最多 1 次
-    const rankingRef = db
-      .collection("shotGameRankings")
-      .doc(dailyBucket)
-      .collection("entries")
-      .doc(uid);
-
-    const rankingSnap = await rankingRef.get();
-    if (rankingSnap.exists) {
-      const lastSubmitAt = rankingSnap.data().lastSubmitAt;
-      if (lastSubmitAt && now.getTime() - lastSubmitAt.toMillis() < 10000) {
-        throw new HttpsError("resource-exhausted", "提交過於頻繁，請稍後再試");
+    // 4. 節流：同 uid（任一榜）10 秒最多 1 次
+    const rankingRefs = Object.entries(bucketMap).reduce((acc, [period, bucket]) => {
+      acc[period] = db
+        .collection("shotGameRankings")
+        .doc(bucket)
+        .collection("entries")
+        .doc(uid);
+      return acc;
+    }, {});
+    const rankingSnaps = Object.fromEntries(
+      await Promise.all(
+        Object.entries(rankingRefs).map(async ([period, ref]) => [period, await ref.get()])
+      )
+    );
+    for (const snap of Object.values(rankingSnaps)) {
+      if (snap.exists) {
+        const lastSubmitAt = snap.data().lastSubmitAt;
+        if (lastSubmitAt && now.getTime() - lastSubmitAt.toMillis() < 10000) {
+          throw new HttpsError("resource-exhausted", "提交過於頻繁，請稍後再試");
+        }
       }
     }
 
@@ -577,38 +594,50 @@ exports.submitShotGameScore = onCall(
       flags,
     });
 
-    // 6. 更新日榜（同分時以連進數、再以遊戲時間排序）
-    const rankingData = rankingSnap.exists ? (rankingSnap.data() || {}) : {};
-    const existingScore = Number.isFinite(rankingData.bestScore) ? rankingData.bestScore : -1;
-    const existingStreak = Number.isFinite(rankingData.bestStreak) ? rankingData.bestStreak : -1;
-    const existingDurationSec =
-      Number.isFinite(rankingData.bestDurationSec) && rankingData.bestDurationSec > 0
-        ? rankingData.bestDurationSec
-        : (
-          Number.isFinite(rankingData.bestDurationMs) && rankingData.bestDurationMs > 0
-            ? Math.round(rankingData.bestDurationMs / 1000)
-            : Number.MAX_SAFE_INTEGER
+    // 7. 更新日/周/月榜（同分時以連進數、再以遊戲時間排序）
+    const rankingUpdateResults = await Promise.all(
+      Object.keys(rankingRefs).map(async (period) => {
+        const rankingData = rankingSnaps[period] && rankingSnaps[period].exists
+          ? (rankingSnaps[period].data() || {})
+          : {};
+        const existingScore = Number.isFinite(rankingData.bestScore) ? rankingData.bestScore : -1;
+        const existingStreak = Number.isFinite(rankingData.bestStreak) ? rankingData.bestStreak : -1;
+        const existingDurationSec =
+          Number.isFinite(rankingData.bestDurationSec) && rankingData.bestDurationSec > 0
+            ? rankingData.bestDurationSec
+            : (
+              Number.isFinite(rankingData.bestDurationMs) && rankingData.bestDurationMs > 0
+                ? Math.round(rankingData.bestDurationMs / 1000)
+                : Number.MAX_SAFE_INTEGER
+            );
+        const isNewBest = (
+          score > existingScore
+          || (score === existingScore && safeStreak > existingStreak)
+          || (score === existingScore && safeStreak === existingStreak && safeDurationSec < existingDurationSec)
         );
-    const isNewBest = (
-      score > existingScore
-      || (score === existingScore && safeStreak > existingStreak)
-      || (score === existingScore && safeStreak === existingStreak && safeDurationSec < existingDurationSec)
+        const rankingUpdate = {
+          uid,
+          displayName: safeDisplayName,
+          authProvider,
+          lastSubmitAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        };
+        if (isNewBest) {
+          rankingUpdate.bestScore = score;
+          rankingUpdate.bestStreak = safeStreak;
+          rankingUpdate.bestDurationMs = safeDurationMs;
+          rankingUpdate.bestDurationSec = safeDurationSec;
+          rankingUpdate.bestAt = FieldValue.serverTimestamp();
+        }
+        await rankingRefs[period].set(rankingUpdate, { merge: true });
+        return { period, isNewBest };
+      })
     );
-    const rankingUpdate = {
-      uid,
-      displayName: safeDisplayName,
-      authProvider,
-      lastSubmitAt: FieldValue.serverTimestamp(),
-      updatedAt: FieldValue.serverTimestamp(),
-    };
-    if (isNewBest) {
-      rankingUpdate.bestScore = score;
-      rankingUpdate.bestStreak = safeStreak;
-      rankingUpdate.bestDurationMs = safeDurationMs;
-      rankingUpdate.bestDurationSec = safeDurationSec;
-      rankingUpdate.bestAt = FieldValue.serverTimestamp();
-    }
-    await rankingRef.set(rankingUpdate, { merge: true });
+    const isNewBestByPeriod = rankingUpdateResults.reduce((acc, item) => {
+      acc[item.period] = item.isNewBest;
+      return acc;
+    }, {});
+    const isNewBest = !!isNewBestByPeriod.daily;
 
     console.log("[submitShotGameScore]", {
       uid,
@@ -616,11 +645,17 @@ exports.submitShotGameScore = onCall(
       streak: safeStreak,
       durationMs: safeDurationMs,
       durationSec: safeDurationSec,
-      dailyBucket,
-      isNewBest,
+      buckets: bucketMap,
+      isNewBestByPeriod,
       authProvider,
     });
-    return { success: true, isNewBest, bucket: dailyBucket };
+    return {
+      success: true,
+      isNewBest,
+      bucket: dailyBucket,
+      buckets: bucketMap,
+      isNewBestByPeriod,
+    };
   }
 );
 
