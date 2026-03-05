@@ -4,7 +4,11 @@
   const GOAL_Z = -20;
   const GOAL_WIDTH = 14;
   const GOAL_HEIGHT = 7.2;
+  const PENALTY_SPOT_Z = 12;
   const SCORE_MAP = [[100, 50, 100], [50, 20, 50], [40, 10, 40]];
+
+  const THEME_DARK  = { sky: 0x0d1b2a, ground: 0x1b4520 };
+  const THEME_LIGHT = { sky: 0x88cff4, ground: 0x2f7d32 };
 
   function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
   function disposeMaterial(material) {
@@ -19,15 +23,61 @@
       else disposeMaterial(node.material);
     });
   }
+
+  function drawFieldLines(scene) {
+    const mat = new THREE.MeshLambertMaterial({ color: 0xffffff, side: THREE.DoubleSide });
+    const thick = 0.3;
+    const y = 0.02;
+    function addLine(w, d, x, z) {
+      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(w, d), mat);
+      mesh.rotation.x = -Math.PI / 2;
+      mesh.position.set(x, y, z);
+      scene.add(mesh);
+    }
+    // 底線（Goal line）
+    addLine(80, thick, 0, GOAL_Z);
+
+    // 大禁區（Penalty area / 18-yard box）
+    const bW = 40, bD = 36;
+    addLine(thick, bD, -bW / 2, GOAL_Z + bD / 2);
+    addLine(thick, bD,  bW / 2, GOAL_Z + bD / 2);
+    addLine(bW + thick, thick, 0, GOAL_Z + bD);
+
+    // 小禁區（Goal area / 6-yard box）
+    const gW = 20, gD = 11;
+    addLine(thick, gD, -gW / 2, GOAL_Z + gD / 2);
+    addLine(thick, gD,  gW / 2, GOAL_Z + gD / 2);
+    addLine(gW + thick, thick, 0, GOAL_Z + gD);
+
+    // 12 碼點（Penalty spot）
+    const spot = new THREE.Mesh(new THREE.CircleGeometry(0.45, 32), mat);
+    spot.rotation.x = -Math.PI / 2;
+    spot.position.set(0, y, PENALTY_SPOT_Z);
+    scene.add(spot);
+
+    // 禁區弧（Penalty arc / D）
+    const arcR = 12;
+    const edgeZ = GOAL_Z + bD;                  // = 16
+    const dist  = edgeZ - PENALTY_SPOT_Z;        // = 4
+    if (dist < arcR) {
+      const alpha  = Math.acos(dist / arcR);
+      const arcGeo = new THREE.RingGeometry(arcR - thick / 2, arcR + thick / 2, 64, 1, -Math.PI / 2 - alpha, alpha * 2);
+      const arcMesh = new THREE.Mesh(arcGeo, mat);
+      arcMesh.rotation.x = -Math.PI / 2;
+      arcMesh.position.set(0, y, PENALTY_SPOT_Z);
+      scene.add(arcMesh);
+    }
+  }
+
   function buildGoal(goalGroup) {
     const zones = [];
     const postRadius = 0.18;
     const postMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.25 });
-    const postGeo = new THREE.CylinderGeometry(postRadius, postRadius, GOAL_HEIGHT, 24);
+    const postGeo  = new THREE.CylinderGeometry(postRadius, postRadius, GOAL_HEIGHT, 24);
     const crossGeo = new THREE.CylinderGeometry(postRadius, postRadius, GOAL_WIDTH + postRadius * 2, 24);
-    const leftPost = new THREE.Mesh(postGeo, postMat);
-    const rightPost = new THREE.Mesh(postGeo, postMat);
-    const crossbar = new THREE.Mesh(crossGeo, postMat);
+    const leftPost  = new THREE.Mesh(postGeo,  postMat);
+    const rightPost = new THREE.Mesh(postGeo,  postMat);
+    const crossbar  = new THREE.Mesh(crossGeo, postMat);
     leftPost.position.set(-GOAL_WIDTH / 2, GOAL_HEIGHT / 2, 0);
     rightPost.position.set(GOAL_WIDTH / 2, GOAL_HEIGHT / 2, 0);
     crossbar.rotation.z = Math.PI / 2;
@@ -58,13 +108,12 @@
   function create(options) {
     if (!window.THREE) throw new Error('THREE is required');
     if (!options || !options.container) throw new Error('ShotGameEngine requires container');
-    const container = options.container;
-    const ui = options.ui || {};
+    const container  = options.container;
+    const ui         = options.ui || {};
     const onScoreChange = typeof options.onScoreChange === 'function' ? options.onScoreChange : null;
-    const onGameOver = typeof options.onGameOver === 'function' ? options.onGameOver : null;
+    const onGameOver    = typeof options.onGameOver    === 'function' ? options.onGameOver    : null;
 
-    const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x88cff4);
+    const scene  = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(62, 1, 0.1, 1000);
     camera.position.set(0, 6.8, 25.5);
     camera.lookAt(0, 3, GOAL_Z);
@@ -74,37 +123,54 @@
     container.prepend(renderer.domElement);
 
     const ambient = new THREE.AmbientLight(0xffffff, 0.52);
-    const sun = new THREE.DirectionalLight(0xffffff, 0.85);
+    const sun     = new THREE.DirectionalLight(0xffffff, 0.85);
     sun.position.set(18, 26, 14);
     sun.castShadow = !options.lowFx;
     sun.shadow.mapSize.set(1024, 1024);
     scene.add(ambient, sun);
 
-    const ground = new THREE.Mesh(new THREE.PlaneGeometry(280, 280), new THREE.MeshLambertMaterial({ color: 0x2f7d32 }));
+    const groundMat = new THREE.MeshLambertMaterial({ color: 0x2f7d32 });
+    const ground    = new THREE.Mesh(new THREE.PlaneGeometry(280, 280), groundMat);
     ground.rotation.x = -Math.PI / 2;
     ground.receiveShadow = true;
     scene.add(ground);
 
-    const ball = new THREE.Mesh(new THREE.SphereGeometry(BALL_RADIUS, 48, 48), new THREE.MeshStandardMaterial({ color: 0xf8f8f8, roughness: 0.64, metalness: 0.08 }));
+    drawFieldLines(scene);
+
+    const ball = new THREE.Mesh(
+      new THREE.SphereGeometry(BALL_RADIUS, 48, 48),
+      new THREE.MeshStandardMaterial({ color: 0xf8f8f8, roughness: 0.64, metalness: 0.08 })
+    );
     ball.castShadow = !options.lowFx;
     scene.add(ball);
 
     const goalGroup = new THREE.Group();
     goalGroup.position.set(0, 0, GOAL_Z);
     scene.add(goalGroup);
-    const zones = buildGoal(goalGroup);
+    const zones    = buildGoal(goalGroup);
     const velocity = new THREE.Vector3();
-    const spin = new THREE.Vector3();
+    const spin     = new THREE.Vector3();
     const raycaster = new THREE.Raycaster();
-    const pointer = new THREE.Vector2();
-    const clock = new THREE.Clock();
+    const pointer   = new THREE.Vector2();
+    const clock     = new THREE.Clock();
 
     let score = 0; let streak = 0; let shots = 0;
     let state = 'aiming'; let charging = false; let power = 0;
     let aim = { x: 0, y: 3 }; let startPointer = { x: 0, y: 0 };
     let sessionStartedAt = Date.now(); let resultTimer = null; let rafId = 0;
-    let accumulator = 0; let flightTime = 0; let apex = BALL_RADIUS; let lastBallZ = 12;
+    let accumulator = 0; let flightTime = 0; let apex = BALL_RADIUS; let lastBallZ = PENALTY_SPOT_Z;
     let goalSpeed = 2.9; let goalDir = 1; let goalRange = 5.8;
+
+    // ── 主題切換 ──
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    function applyTheme(isDark) {
+      const t = isDark ? THEME_DARK : THEME_LIGHT;
+      scene.background = new THREE.Color(t.sky);
+      groundMat.color.setHex(t.ground);
+    }
+    function onMqChange(e) { applyTheme(e.matches); }
+    mq.addEventListener('change', onMqChange);
+    applyTheme(mq.matches);
 
     function setMessage(text, color) {
       if (!ui.messageEl) return;
@@ -113,8 +179,8 @@
       ui.messageEl.style.opacity = text ? '1' : '0';
     }
     function refreshHud() {
-      if (ui.scoreEl) ui.scoreEl.textContent = `Score: ${score}`;
-      if (ui.streakEl) ui.streakEl.textContent = `Streak: ${streak}`;
+      if (ui.scoreEl)  ui.scoreEl.textContent  = `分數：${score}`;
+      if (ui.streakEl) ui.streakEl.textContent = `連進：${streak}`;
       if (onScoreChange) onScoreChange({ score, streak, shots, state });
     }
     function setChargeUiVisible(visible) {
@@ -126,7 +192,7 @@
       const marker = new THREE.Vector3(goalGroup.position.x + aim.x, aim.y, GOAL_Z);
       marker.project(camera);
       ui.crosshairEl.style.left = `${(marker.x * 0.5 + 0.5) * container.clientWidth}px`;
-      ui.crosshairEl.style.top = `${(-marker.y * 0.5 + 0.5) * container.clientHeight}px`;
+      ui.crosshairEl.style.top  = `${(-marker.y * 0.5 + 0.5) * container.clientHeight}px`;
     }
     function resize() {
       const w = Math.max(1, container.clientWidth);
@@ -141,7 +207,7 @@
       if (resultTimer) clearTimeout(resultTimer);
       state = 'aiming'; charging = false; power = 0;
       velocity.set(0, 0, 0); spin.set(0, 0, 0);
-      ball.position.set(0, BALL_RADIUS, 12);
+      ball.position.set(0, BALL_RADIUS, PENALTY_SPOT_Z);
       lastBallZ = ball.position.z;
       if (ui.powerFillEl) ui.powerFillEl.style.width = '0%';
       setChargeUiVisible(false);
@@ -151,7 +217,7 @@
       state = 'gameover'; charging = false;
       setChargeUiVisible(false);
       if (ui.restartBtn) ui.restartBtn.style.display = 'block';
-      setMessage(`Game Over  Score ${score}`, '#ffd54f');
+      setMessage(`遊戲結束  分數 ${score}`, '#ffd54f');
       if (onGameOver) onGameOver({ score, streak, shots, durationMs: Date.now() - sessionStartedAt, endedAt: new Date().toISOString() });
     }
     function processGoalHit() {
@@ -170,7 +236,7 @@
       goalSpeed = 2.9 + Math.min(streak, 25) * 0.32;
       zoneHit.mesh.material.opacity = 0.75;
       setTimeout(() => { zoneHit.mesh.material.opacity = 0.14; }, 180);
-      setMessage(`+${gained} (${zoneHit.points}+${styleBoost})`, '#80ff80');
+      setMessage(`+${gained}（${zoneHit.points}+${styleBoost} 華麗）`, '#80ff80');
       refreshHud();
       resultTimer = setTimeout(resetShot, 1200);
       return true;
@@ -187,7 +253,7 @@
         const over = clamp((power - 100) / 30, 0, 1);
         velocity.x += (Math.random() - 0.5) * 12 * over;
         velocity.y += (Math.random() - 0.5) * 8 * over;
-        setMessage('Overcharge drift', '#ff8a80');
+        setMessage('超量爆發！', '#ff8a80');
       }
       spin.set(0.22 + p * 0.24, -aim.x * 0.24, 0);
       setChargeUiVisible(false);
@@ -217,7 +283,7 @@
       score = 0; streak = 0; shots = 0; state = 'aiming';
       sessionStartedAt = Date.now(); goalSpeed = 2.9; goalDir = 1; goalRange = 5.8; goalGroup.position.x = 0;
       if (ui.restartBtn) ui.restartBtn.style.display = 'none';
-      refreshHud(); resetShot(); setMessage('Start', '#ffffff');
+      refreshHud(); resetShot(); setMessage('開始！', '#ffffff');
     }
     function step(dt) {
       if (state !== 'gameover') {
@@ -237,7 +303,7 @@
       if (state === 'flying') {
         const stopped = velocity.length() < 1 && ball.position.y <= BALL_RADIUS + 0.04;
         const out = ball.position.z < -110 || Math.abs(ball.position.x) > 64 || flightTime > 6.5;
-        if (stopped || out) { streak = 0; refreshHud(); state = 'result'; setMessage('Miss', '#ff8a80'); resultTimer = setTimeout(endGame, 1300); }
+        if (stopped || out) { streak = 0; refreshHud(); state = 'result'; setMessage('未進球…', '#ff8a80'); resultTimer = setTimeout(endGame, 1300); }
       }
     }
     function animate() {
@@ -260,9 +326,9 @@
       renderer.render(scene, camera);
     }
 
-    container.addEventListener('pointerdown', onPointerDown);
-    container.addEventListener('pointermove', onPointerMove);
-    container.addEventListener('pointerup', onPointerUp);
+    container.addEventListener('pointerdown',  onPointerDown);
+    container.addEventListener('pointermove',  onPointerMove);
+    container.addEventListener('pointerup',    onPointerUp);
     container.addEventListener('pointercancel', onPointerUp);
     container.addEventListener('pointerleave', onPointerUp);
     window.addEventListener('resize', resize);
@@ -273,9 +339,10 @@
       destroy() {
         if (resultTimer) clearTimeout(resultTimer);
         cancelAnimationFrame(rafId);
-        container.removeEventListener('pointerdown', onPointerDown);
-        container.removeEventListener('pointermove', onPointerMove);
-        container.removeEventListener('pointerup', onPointerUp);
+        mq.removeEventListener('change', onMqChange);
+        container.removeEventListener('pointerdown',  onPointerDown);
+        container.removeEventListener('pointermove',  onPointerMove);
+        container.removeEventListener('pointerup',    onPointerUp);
         container.removeEventListener('pointercancel', onPointerUp);
         container.removeEventListener('pointerleave', onPointerUp);
         window.removeEventListener('resize', resize);

@@ -3,10 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>SportHub 3D Charged Shot Lab</title>
+  <title>SportHub 3D 蓄力射門 私測</title>
   <style>
     :root {
-      color-scheme: light;
+      color-scheme: light dark;
       --bg: #0b1726;
       --card: rgba(9, 24, 42, 0.86);
       --line: rgba(255, 255, 255, 0.18);
@@ -213,55 +213,78 @@
       font-size: 12px;
     }
     @media (min-width: 900px) { .layout { grid-template-columns: 1fr 340px; } }
+    @media (prefers-color-scheme: light) {
+      :root {
+        --card: rgba(255, 255, 255, 0.92);
+        --line: rgba(0, 0, 0, 0.12);
+        --text: #0d1e2b;
+        --muted: #3d6070;
+        --ok: #0e6b35;
+        --warn: #8a5200;
+        --danger: #c02030;
+      }
+      body {
+        background: radial-gradient(1200px 700px at 20% -10%, #9ec9e0 0%, transparent 60%),
+                    linear-gradient(140deg, #c8e8f5 0%, #b5d8ee 55%, #cde8f7 100%);
+      }
+      #shot-game-container { background: #8bc5e0; }
+      .hud { color: #0d1e2b; }
+      .hud .sub { color: #8a5200; }
+      .hint { background: rgba(255,255,255,0.65); color: var(--text); border-color: rgba(0,0,0,0.15); }
+      .badge { background: rgba(255,255,255,0.5); }
+      .gate-row input { background: rgba(255,255,255,0.7); color: var(--text); }
+      .panel pre, #metrics-export-output { background: rgba(0,0,0,0.05); color: var(--text); }
+      #sg-power { border-color: rgba(0,0,0,0.45); }
+    }
   </style>
 </head>
 <body>
   <main class="shell">
     <section id="token-gate" class="card gate">
-      <h1>3D Charged Shot Private Lab</h1>
-      <p>This route is private and only for gameplay testing. Enter the test token to unlock the game. If your device is slow, add <code>&amp;low=1</code> in the URL to enable low effects.</p>
+      <h1>3D 蓄力射門 私測實驗室</h1>
+      <p>此頁面為不公開私測入口，限指定測試者使用。請輸入測試 Token 解鎖遊戲。若裝置效能較低，可在網址後加上 <code>&amp;low=1</code> 開啟低效能模式。</p>
       <div class="gate-row">
-        <input id="token-input" type="password" autocomplete="off" placeholder="Enter test token">
-        <button id="token-submit" type="button">Unlock</button>
+        <input id="token-input" type="password" autocomplete="off" placeholder="輸入測試 Token">
+        <button id="token-submit" type="button">解鎖</button>
       </div>
       <div id="token-feedback"></div>
     </section>
 
     <section id="game-section">
       <div class="card topbar">
-        <div class="title">3D Charged Shot Lab</div>
-        <div id="session-badge" class="badge">Session: waiting</div>
+        <div class="title">3D 蓄力射門 實驗室</div>
+        <div id="session-badge" class="badge">本局：待機中</div>
       </div>
       <div class="layout">
         <section class="card game-wrap">
           <div id="shot-game-container">
-            <p class="hint">Drag to aim, hold to charge, release to shoot. Over 100% introduces drift.</p>
+            <p class="hint">拖曳瞄準，按住蓄力，放開射門。超過 100% 蓄力會產生偏移。</p>
             <div class="hud">
-              <div id="sg-score">Score: 0</div>
-              <div id="sg-streak" class="sub">Streak: 0</div>
+              <div id="sg-score">分數：0</div>
+              <div id="sg-streak" class="sub">連進：0</div>
             </div>
             <div id="sg-message"></div>
             <div id="sg-crosshair"></div>
             <div id="sg-power"><div id="sg-power-fill"></div></div>
-            <button id="sg-restart" type="button">Restart</button>
+            <button id="sg-restart" type="button">重新挑戰</button>
           </div>
         </section>
         <aside class="card panel">
-          <h2>Local Playtest Metrics</h2>
+          <h2>本地測試數據</h2>
           <pre id="metrics-summary"></pre>
           <div class="panel-actions">
-            <button id="metrics-export" type="button">Export JSON</button>
-            <button id="metrics-reset" type="button">Reset Metrics</button>
+            <button id="metrics-export" type="button">匯出 JSON</button>
+            <button id="metrics-reset" type="button">重置數據</button>
           </div>
-          <textarea id="metrics-export-output" readonly placeholder="Exported data will appear here"></textarea>
+          <textarea id="metrics-export-output" readonly placeholder="匯出的數據將顯示於此"></textarea>
         </aside>
       </div>
     </section>
   </main>
 
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-  <script defer src="js/modules/shot-game-engine.js?v=20260305"></script>
-  <script defer src="js/modules/shot-game-lab-page.js?v=20260305"></script>
+  <script defer src="js/modules/shot-game-engine.js?v=20260305a"></script>
+  <script defer src="js/modules/shot-game-lab-page.js?v=20260305a"></script>
   <script>
     window.addEventListener('DOMContentLoaded', function () {
       ShotGameLabPage.init({

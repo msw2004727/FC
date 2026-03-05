@@ -102,10 +102,10 @@
       const setSessionBadge = (payload) => {
         if (!sessionBadge) return;
         if (!payload) {
-          sessionBadge.textContent = 'Session: waiting';
+          sessionBadge.textContent = '本局：待機中';
           return;
         }
-        sessionBadge.textContent = `Session: score ${payload.score}, shots ${payload.shots}, ${Math.round(payload.durationMs / 1000)}s`;
+        sessionBadge.textContent = `本局：分數 ${payload.score}，射門 ${payload.shots} 次，${Math.round(payload.durationMs / 1000)} 秒`;
       };
 
       const exportStore = async () => {
@@ -116,10 +116,10 @@
         try {
           if (navigator.clipboard && navigator.clipboard.writeText) {
             await navigator.clipboard.writeText(text);
-            if (tokenFeedback) tokenFeedback.textContent = 'Exported and copied to clipboard';
-          } else if (tokenFeedback) tokenFeedback.textContent = 'Exported to text area below';
+            if (tokenFeedback) tokenFeedback.textContent = '已匯出並複製至剪貼簿';
+          } else if (tokenFeedback) tokenFeedback.textContent = '已匯出至下方文字框';
         } catch (_) {
-          if (tokenFeedback) tokenFeedback.textContent = 'Exported to text area below';
+          if (tokenFeedback) tokenFeedback.textContent = '已匯出至下方文字框';
         }
       };
 
@@ -128,7 +128,7 @@
         renderSummary();
         setSessionBadge(null);
         if (exportOutput) exportOutput.value = '';
-        if (tokenFeedback) tokenFeedback.textContent = 'Local metrics cleared';
+        if (tokenFeedback) tokenFeedback.textContent = '本地數據已清除';
       };
 
       const startGame = () => {
@@ -166,7 +166,7 @@
         try {
           const ok = await validateToken(rawToken);
           if (!ok) {
-            showGate('Invalid token');
+            showGate('Token 無效，請確認後再試');
             return false;
           }
           if (updateUrl) {
@@ -176,10 +176,10 @@
           }
           showGame();
           startGame();
-          if (tokenFeedback) tokenFeedback.textContent = 'Token verified';
+          if (tokenFeedback) tokenFeedback.textContent = 'Token 驗證成功';
           return true;
         } catch (_) {
-          showGate('Token verification failed');
+          showGate('Token 驗證失敗，請重試');
           return false;
         } finally {
           if (tokenSubmit) tokenSubmit.disabled = false;
@@ -199,7 +199,7 @@
       if (exportBtn) exportBtn.addEventListener('click', exportStore);
       if (resetBtn) {
         resetBtn.addEventListener('click', () => {
-          if (window.confirm('Clear local playtest metrics?')) resetStore();
+          if (window.confirm('確定清除本地測試數據？')) resetStore();
         });
       }
       window.addEventListener('beforeunload', () => { if (engine) engine.destroy(); });
@@ -207,7 +207,7 @@
       renderSummary();
       const tokenFromUrl = new URLSearchParams(location.search).get(tokenQueryKey) || '';
       if (tokenFromUrl) unlockWithToken(tokenFromUrl, false);
-      else showGate('Enter test token to continue');
+      else showGate('請輸入測試 Token 繼續');
     },
   };
 

@@ -86,7 +86,8 @@
 // 20260304a: cold-start acceleration — tiered startup (public data first, Auth parallel), listener deferral, TTL by role, Worker edge cache
 // 20260304b: auto-redirect to LINE login when unauthenticated on homepage
 // 20260305: fix game-lab showGame() display:none bug (game section never showed)
-const CACHE_VERSION = '20260305';
+// 20260305a: game-lab full Chinese UI, light/dark theme, field line markings
+const CACHE_VERSION = '20260305a';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {
