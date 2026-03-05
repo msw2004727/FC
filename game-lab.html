@@ -1402,10 +1402,10 @@
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-storage-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-functions-compat.js"></script>
-  <script src="js/firebase-config.js?v=20260305ae"></script>
+  <script src="js/firebase-config.js?v=20260305af"></script>
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-  <script defer src="js/modules/shot-game-engine.js?v=20260305ae"></script>
-  <script defer src="js/modules/shot-game-lab-page.js?v=20260305ae"></script>
+  <script defer src="js/modules/shot-game-engine.js?v=20260305af"></script>
+  <script defer src="js/modules/shot-game-lab-page.js?v=20260305af"></script>
   <script>
     (function () {
       var overlay = document.getElementById('loading-overlay');
@@ -1655,23 +1655,69 @@
           window.__shotGameAdLinkUrl = '';
           try {
             if (window.firebase && typeof firebase.firestore === 'function') {
-              const snap = await firebase.firestore().collection('banners').doc('sga1').get();
               const container = document.getElementById('sg-ad-container');
-              if (snap.exists) {
-                const f = snap.data() || {};
-                const imageUrl = typeof f.image === 'string' ? f.image.trim() : '';
-                if (f.status === 'active' && imageUrl) {
-                  window.__shotGameAdImageUrl = imageUrl;
-                  window.__shotGameAdLinkUrl = String(f.linkUrl || '');
-                  const safeImg = imageUrl.replace(/"/g, '&quot;');
-                  const safeLnk = window.__shotGameAdLinkUrl.replace(/"/g, '&quot;');
-                  if (container) {
-                    container.innerHTML = safeLnk
-                      ? `<a href="${safeLnk}" target="_blank" rel="noopener noreferrer"><img src="${safeImg}" alt="Ad"></a>`
-                      : `<img src="${safeImg}" alt="Ad">`;
-                  }
-                } else if (container) {
-                  container.innerHTML = '';
+              const db = firebase.firestore();
+              const normalizeImageUrl = function (ad) {
+                return ad && typeof ad.image === 'string' ? ad.image.trim() : '';
+              };
+              const toMillis = function (value) {
+                if (!value) return 0;
+                if (typeof value === 'number' && isFinite(value)) return value;
+                if (value && typeof value.toMillis === 'function') return Number(value.toMillis()) || 0;
+                if (value && typeof value.toDate === 'function') {
+                  const d = value.toDate();
+                  const t = d instanceof Date ? d.getTime() : NaN;
+                  return isFinite(t) ? t : 0;
+                }
+                const parsed = Number(new Date(value).getTime());
+                return isFinite(parsed) ? parsed : 0;
+              };
+              const isActiveShotAd = function (ad) {
+                return !!(ad && ad.status === 'active' && normalizeImageUrl(ad));
+              };
+              const pickBestShotAd = function (ads) {
+                if (!Array.isArray(ads) || ads.length === 0) return null;
+                const rows = ads
+                  .filter(isActiveShotAd)
+                  .map(function (ad) {
+                    return {
+                      ad: ad,
+                      ts: Math.max(
+                        toMillis(ad && ad.updatedAt),
+                        toMillis(ad && ad.publishAt),
+                        toMillis(ad && ad.createdAt)
+                      ),
+                    };
+                  })
+                  .sort(function (a, b) { return b.ts - a.ts; });
+                return rows.length ? rows[0].ad : null;
+              };
+
+              let ad = null;
+              const direct = await db.collection('banners').doc('sga1').get();
+              if (direct.exists) {
+                const directData = direct.data() || {};
+                if (isActiveShotAd(directData)) ad = directData;
+              }
+              if (!ad) {
+                const slotSnap = await db.collection('banners').where('slot', '==', 'sga1').limit(12).get();
+                ad = pickBestShotAd(slotSnap.docs.map(function (doc) { return doc.data() || {}; }));
+              }
+              if (!ad) {
+                const typeSnap = await db.collection('banners').where('type', '==', 'shotgame').limit(12).get();
+                ad = pickBestShotAd(typeSnap.docs.map(function (doc) { return doc.data() || {}; }));
+              }
+
+              if (ad && isActiveShotAd(ad)) {
+                const imageUrl = normalizeImageUrl(ad);
+                window.__shotGameAdImageUrl = imageUrl;
+                window.__shotGameAdLinkUrl = typeof ad.linkUrl === 'string' ? ad.linkUrl.trim() : '';
+                const safeImg = imageUrl.replace(/"/g, '&quot;');
+                const safeLnk = window.__shotGameAdLinkUrl.replace(/"/g, '&quot;');
+                if (container) {
+                  container.innerHTML = safeLnk
+                    ? `<a href="${safeLnk}" target="_blank" rel="noopener noreferrer"><img src="${safeImg}" alt="Ad"></a>`
+                    : `<img src="${safeImg}" alt="Ad">`;
                 }
               } else if (container) {
                 container.innerHTML = '';

@@ -531,35 +531,79 @@
   /* ── Ad Loading ── */
   async function _loadAd() {
     const container = document.getElementById('sg-ad-container');
+    const normalizeImageUrl = (ad) => (ad && typeof ad.image === 'string' ? ad.image.trim() : '');
+    const toMillis = (value) => {
+      if (!value) return 0;
+      if (typeof value === 'number' && Number.isFinite(value)) return value;
+      if (typeof value.toMillis === 'function') return Number(value.toMillis()) || 0;
+      if (typeof value.toDate === 'function') {
+        const date = value.toDate();
+        const ts = date instanceof Date ? date.getTime() : Number.NaN;
+        return Number.isFinite(ts) ? ts : 0;
+      }
+      const parsed = Number(new Date(value).getTime());
+      return Number.isFinite(parsed) ? parsed : 0;
+    };
+    const isActiveShotAd = (ad) => !!(ad && ad.status === 'active' && normalizeImageUrl(ad));
+    const pickBestShotAd = (ads) => {
+      if (!Array.isArray(ads) || ads.length === 0) return null;
+      const normalized = ads
+        .filter(isActiveShotAd)
+        .map((ad) => ({
+          ...ad,
+          _ts: Math.max(
+            toMillis(ad.updatedAt),
+            toMillis(ad.publishAt),
+            toMillis(ad.createdAt)
+          ),
+        }))
+        .sort((a, b) => b._ts - a._ts);
+      return normalized[0] || null;
+    };
+    const resolveShotGameAd = async () => {
+      try {
+        if (typeof ApiService !== 'undefined' && ApiService && typeof ApiService.getShotGameAd === 'function') {
+          const cached = ApiService.getShotGameAd();
+          if (isActiveShotAd(cached)) return cached;
+        }
+      } catch (_) {}
+      if (!window.firebase || typeof firebase.firestore !== 'function') return null;
+      const db = firebase.firestore();
+      const direct = await db.collection('banners').doc('sga1').get();
+      if (direct.exists) {
+        const directData = direct.data() || {};
+        if (isActiveShotAd(directData)) return directData;
+      }
+      const slotSnap = await db.collection('banners').where('slot', '==', 'sga1').limit(12).get();
+      const slotBest = pickBestShotAd(slotSnap.docs.map((doc) => doc.data() || {}));
+      if (slotBest) return slotBest;
+      const typeSnap = await db.collection('banners').where('type', '==', 'shotgame').limit(12).get();
+      return pickBestShotAd(typeSnap.docs.map((doc) => doc.data() || {}));
+    };
+    const clearAd = () => {
+      _billboardAdImageUrl = '';
+      if (_engine && typeof _engine.setBillboardAdImage === 'function') _engine.setBillboardAdImage('');
+      if (container) container.innerHTML = '';
+    };
+
     try {
-      if (!window.firebase || typeof firebase.firestore !== 'function') return;
-      const snap = await firebase.firestore().collection('banners').doc('sga1').get();
-      if (!snap.exists) {
-        _billboardAdImageUrl = '';
-        if (_engine && typeof _engine.setBillboardAdImage === 'function') _engine.setBillboardAdImage('');
-        if (container) container.innerHTML = '';
+      const ad = await resolveShotGameAd();
+      if (!isActiveShotAd(ad)) {
+        clearAd();
         return;
       }
-      const f = snap.data() || {};
-      const imageUrl = typeof f.image === 'string' ? f.image.trim() : '';
-      if (f.status !== 'active' || !imageUrl) {
-        _billboardAdImageUrl = '';
-        if (_engine && typeof _engine.setBillboardAdImage === 'function') _engine.setBillboardAdImage('');
-        if (container) container.innerHTML = '';
-        return;
-      }
+      const imageUrl = normalizeImageUrl(ad);
+      const linkUrl = typeof ad.linkUrl === 'string' ? ad.linkUrl.trim() : '';
       _billboardAdImageUrl = imageUrl;
       if (_engine && typeof _engine.setBillboardAdImage === 'function') _engine.setBillboardAdImage(imageUrl);
-
-      const safeImg = imageUrl.replace(/"/g, '&quot;');
-      const safeLnk = (f.linkUrl || '').replace(/"/g, '&quot;');
       if (!container) return;
+      const safeImg = imageUrl.replace(/"/g, '&quot;');
+      const safeLnk = linkUrl.replace(/"/g, '&quot;');
       container.innerHTML = safeLnk
         ? `<a href="${safeLnk}" target="_blank" rel="noopener noreferrer"><img src="${safeImg}" alt="廣告"></a>`
         : `<img src="${safeImg}" alt="廣告">`;
     } catch (_) {
-      _billboardAdImageUrl = '';
-      if (_engine && typeof _engine.setBillboardAdImage === 'function') _engine.setBillboardAdImage('');
+      clearAd();
     }
   }
 

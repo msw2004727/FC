@@ -22,8 +22,9 @@
   const GOAL_BURST_MIN_MULT = 2.1;
   const GOAL_BURST_MAX_MULT = 3.5;
   const BILLBOARD_DEPTH_OFFSET = 10;
-  const BILLBOARD_WIDTH = 16.5;
-  const BILLBOARD_HEIGHT = 4.8;
+  const BILLBOARD_SPACE_SCALE = Math.sqrt(8);
+  const BILLBOARD_WIDTH = 16.5 * BILLBOARD_SPACE_SCALE;
+  const BILLBOARD_HEIGHT = 4.8 * BILLBOARD_SPACE_SCALE;
   const BALL_TEXTURE_SLOTS = ['map', 'normalMap', 'roughnessMap', 'metalnessMap'];
 
   const THEME_DARK  = { sky: 0x0d1b2a, ground: 0x1b4520, trail: 0x9ed8ff };
@@ -298,7 +299,7 @@
     const zones    = buildGoal(goalGroup);
 
     const billboardGroup = new THREE.Group();
-    billboardGroup.position.set(0, 4.2, GOAL_Z - BILLBOARD_DEPTH_OFFSET);
+    billboardGroup.position.set(0, 4.2 * BILLBOARD_SPACE_SCALE, GOAL_Z - BILLBOARD_DEPTH_OFFSET);
     scene.add(billboardGroup);
 
     const billboardFrame = new THREE.Mesh(
@@ -307,29 +308,37 @@
     );
     billboardGroup.add(billboardFrame);
 
+    const billboardArtInsetX = 0.72 * BILLBOARD_SPACE_SCALE;
+    const billboardArtInsetY = 0.66 * BILLBOARD_SPACE_SCALE;
     const billboardArtMaterial = new THREE.MeshBasicMaterial({ color: 0xe7f1ff });
     const billboardArt = new THREE.Mesh(
-      new THREE.PlaneGeometry(BILLBOARD_WIDTH - 0.72, BILLBOARD_HEIGHT - 0.66),
+      new THREE.PlaneGeometry(BILLBOARD_WIDTH - billboardArtInsetX, BILLBOARD_HEIGHT - billboardArtInsetY),
       billboardArtMaterial
     );
     billboardArt.position.z = 0.03;
     billboardGroup.add(billboardArt);
 
+    const billboardPostRadius = 0.14 * BILLBOARD_SPACE_SCALE;
+    const billboardPostHeight = 3.8 * BILLBOARD_SPACE_SCALE;
+    const billboardPostInsetX = 0.6 * BILLBOARD_SPACE_SCALE;
+    const billboardPostOffsetZ = -0.1 * BILLBOARD_SPACE_SCALE;
     const billboardPostMaterial = new THREE.MeshStandardMaterial({ color: 0x253748, roughness: 0.7, metalness: 0.22 });
-    const billboardPostGeo = new THREE.CylinderGeometry(0.14, 0.14, 3.8, 16);
-    const billboardPostOffsetY = -(BILLBOARD_HEIGHT / 2 + 1.7);
+    const billboardPostGeo = new THREE.CylinderGeometry(billboardPostRadius, billboardPostRadius, billboardPostHeight, 16);
+    const billboardPostOffsetY = -(BILLBOARD_HEIGHT / 2 + 1.7 * BILLBOARD_SPACE_SCALE);
     const billboardPostLeft = new THREE.Mesh(billboardPostGeo, billboardPostMaterial);
     const billboardPostRight = new THREE.Mesh(billboardPostGeo, billboardPostMaterial);
-    billboardPostLeft.position.set(-(BILLBOARD_WIDTH / 2 - 0.6), billboardPostOffsetY, -0.1);
-    billboardPostRight.position.set(BILLBOARD_WIDTH / 2 - 0.6, billboardPostOffsetY, -0.1);
+    billboardPostLeft.position.set(-(BILLBOARD_WIDTH / 2 - billboardPostInsetX), billboardPostOffsetY, billboardPostOffsetZ);
+    billboardPostRight.position.set(BILLBOARD_WIDTH / 2 - billboardPostInsetX, billboardPostOffsetY, billboardPostOffsetZ);
     billboardGroup.add(billboardPostLeft, billboardPostRight);
 
+    const billboardCrossbarRadius = 0.11 * BILLBOARD_SPACE_SCALE;
+    const billboardCrossbarInsetX = 1.2 * BILLBOARD_SPACE_SCALE;
     const billboardCrossbar = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.11, 0.11, BILLBOARD_WIDTH - 1.2, 12),
+      new THREE.CylinderGeometry(billboardCrossbarRadius, billboardCrossbarRadius, BILLBOARD_WIDTH - billboardCrossbarInsetX, 12),
       billboardPostMaterial
     );
     billboardCrossbar.rotation.z = Math.PI / 2;
-    billboardCrossbar.position.set(0, billboardPostOffsetY + 0.08, -0.1);
+    billboardCrossbar.position.set(0, billboardPostOffsetY + 0.08 * BILLBOARD_SPACE_SCALE, billboardPostOffsetZ);
     billboardGroup.add(billboardCrossbar);
 
     let billboardTexture = null;
