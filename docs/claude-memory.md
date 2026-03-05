@@ -935,3 +935,11 @@
   - `game-lab.html`: included `GLTFLoader.js` before shot-game engine script.
   - `js/config.js`, `index.html`, `game-lab.html`: bumped cache version to `20260306c`.
 - **Lesson**: Atlas textures must match the mesh UV layout; if not, always render with the asset's native mesh or re-bake textures for the target UVs.
+### 2026-03-06 - shot game theme now follows site theme in page mode
+- **Issue**: Entering the shot mini-game page often showed dark theme even when the main site was in light theme.
+- **Cause**: `shot-game-engine` only read `data-shot-theme` (lab mode) and otherwise fell back to `prefers-color-scheme`, skipping main-site `data-theme` / `sporthub_theme`.
+- **Fix**:
+  - `js/modules/shot-game-engine.js`: theme snapshot now resolves in this order: `data-shot-theme` -> `data-theme` -> `localStorage('sporthub_theme')` -> system prefers-color-scheme.
+  - `js/modules/shot-game-engine.js`: removed extra matchMedia override path so page mode respects site theme consistently.
+  - `js/config.js`, `index.html`, `game-lab.html`: bumped cache version to `20260306d`.
+- **Lesson**: Shared components used by page and lab modes must support both theme sources, and should not bypass site-level theme state.

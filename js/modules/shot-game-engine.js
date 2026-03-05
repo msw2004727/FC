@@ -33,11 +33,18 @@
 
   function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
   function readThemeSnapshotIsDark() {
-    const docTheme = document && document.documentElement && document.documentElement.dataset
-      ? document.documentElement.dataset.shotTheme
-      : '';
-    if (docTheme === 'dark') return true;
-    if (docTheme === 'light') return false;
+    const docEl = document && document.documentElement ? document.documentElement : null;
+    const shotTheme = docEl && docEl.dataset ? docEl.dataset.shotTheme : '';
+    if (shotTheme === 'dark') return true;
+    if (shotTheme === 'light') return false;
+    const siteThemeAttr = docEl && docEl.dataset ? docEl.dataset.theme : '';
+    if (siteThemeAttr === 'dark') return true;
+    if (siteThemeAttr === 'light') return false;
+    try {
+      const siteThemeStored = String(localStorage.getItem('sporthub_theme') || '').toLowerCase();
+      if (siteThemeStored === 'dark') return true;
+      if (siteThemeStored === 'light') return false;
+    } catch (_) {}
     return typeof window.matchMedia === 'function'
       ? !!window.matchMedia('(prefers-color-scheme: dark)').matches
       : false;
@@ -565,11 +572,7 @@
       trailMaterial.uniforms.uColor.value.setHex(t.trail);
     }
     function readThemeIsDark() {
-      const snapshot = readThemeSnapshotIsDark();
-      if (mq && typeof mq.matches === 'boolean' && !(document && document.documentElement && document.documentElement.dataset && document.documentElement.dataset.shotTheme)) {
-        return !!mq.matches;
-      }
-      return snapshot;
+      return readThemeSnapshotIsDark();
     }
     function resolveMessageBandBackground(isDark) {
       if (isDark) {
