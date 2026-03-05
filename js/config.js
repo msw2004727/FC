@@ -110,7 +110,8 @@
 // 20260305ad: 射門遊戲新增球門後方廣告看板，並加入訊息可讀性底帶（同步 sga1 廣告圖）
 // 20260305ae: 移除右上九宮格說明面板，得分改為球門九宮格內嵌顯示，並置中本局記錄欄位
 // 20260305af: 修復射門遊戲廣告看板讀圖來源（slot/type fallback）並放大球門後方廣告空間
-const CACHE_VERSION = '20260305af';
+// 20260305ag: 九宮格分數新增半透明底色，並隨主題切換色彩以提升可讀性
+const CACHE_VERSION = '20260305ag';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {

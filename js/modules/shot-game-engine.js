@@ -31,6 +31,16 @@
   const THEME_LIGHT = { sky: 0x88cff4, ground: 0x2f7d32, trail: 0x1d6fa8 };
 
   function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+  function readThemeSnapshotIsDark() {
+    const docTheme = document && document.documentElement && document.documentElement.dataset
+      ? document.documentElement.dataset.shotTheme
+      : '';
+    if (docTheme === 'dark') return true;
+    if (docTheme === 'light') return false;
+    return typeof window.matchMedia === 'function'
+      ? !!window.matchMedia('(prefers-color-scheme: dark)').matches
+      : false;
+  }
   function hasRenderableTextureImage(texture) {
     if (!texture || !texture.image) return false;
     const image = texture.image;
@@ -96,25 +106,42 @@
     }
   }
 
-  function buildGoal(goalGroup) {
+  function buildGoal(goalGroup, options) {
+    const initialThemeDark = !!(options && options.isDark);
+    function drawRoundedRect(ctx, x, y, width, height, radius) {
+      const r = Math.max(0, Math.min(radius, Math.min(width, height) / 2));
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.lineTo(x + width - r, y);
+      ctx.quadraticCurveTo(x + width, y, x + width, y + r);
+      ctx.lineTo(x + width, y + height - r);
+      ctx.quadraticCurveTo(x + width, y + height, x + width - r, y + height);
+      ctx.lineTo(x + r, y + height);
+      ctx.quadraticCurveTo(x, y + height, x, y + height - r);
+      ctx.lineTo(x, y + r);
+      ctx.quadraticCurveTo(x, y, x + r, y);
+      ctx.closePath();
+    }
+    function getScoreLabelTheme(isDark) {
+      if (isDark) {
+        return {
+          panelFill: 'rgba(7, 18, 30, 0.64)',
+          panelStroke: 'rgba(173, 216, 255, 0.42)',
+          textFill: '#f8fbff',
+          textStroke: 'rgba(0, 0, 0, 0.84)',
+        };
+      }
+      return {
+        panelFill: 'rgba(255, 255, 255, 0.66)',
+        panelStroke: 'rgba(12, 30, 45, 0.28)',
+        textFill: '#12263a',
+        textStroke: 'rgba(255, 255, 255, 0.84)',
+      };
+    }
     function buildZoneLabelSprite(points) {
       const canvas = document.createElement('canvas');
       canvas.width = 256;
       canvas.height = 128;
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        const text = String(points);
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.font = '900 78px "Outfit", "Noto Sans TC", sans-serif';
-        ctx.lineJoin = 'round';
-        ctx.lineWidth = 14;
-        ctx.strokeStyle = 'rgba(5, 16, 28, 0.78)';
-        ctx.strokeText(text, canvas.width / 2, canvas.height / 2 + 3);
-        ctx.fillStyle = '#f8fbff';
-        ctx.fillText(text, canvas.width / 2, canvas.height / 2 + 3);
-      }
       const texture = new THREE.CanvasTexture(canvas);
       texture.needsUpdate = true;
       const material = new THREE.SpriteMaterial({
@@ -123,10 +150,42 @@
         depthTest: true,
         depthWrite: false,
       });
-      return new THREE.Sprite(material);
+      const sprite = new THREE.Sprite(material);
+      const ctx = canvas.getContext('2d');
+      const repaint = (isDark) => {
+        if (!ctx) return;
+        const theme = getScoreLabelTheme(isDark);
+        const text = String(points);
+        const panelWidth = canvas.width * 0.88;
+        const panelHeight = canvas.height * 0.72;
+        const panelX = (canvas.width - panelWidth) / 2;
+        const panelY = (canvas.height - panelHeight) / 2;
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        drawRoundedRect(ctx, panelX, panelY, panelWidth, panelHeight, 28);
+        ctx.fillStyle = theme.panelFill;
+        ctx.fill();
+        ctx.lineWidth = 5;
+        ctx.strokeStyle = theme.panelStroke;
+        ctx.stroke();
+
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.font = '900 78px "Outfit", "Noto Sans TC", sans-serif';
+        ctx.lineJoin = 'round';
+        ctx.lineWidth = 14;
+        ctx.strokeStyle = theme.textStroke;
+        ctx.strokeText(text, canvas.width / 2, canvas.height / 2 + 3);
+        ctx.fillStyle = theme.textFill;
+        ctx.fillText(text, canvas.width / 2, canvas.height / 2 + 3);
+        texture.needsUpdate = true;
+      };
+      repaint(initialThemeDark);
+      return { sprite, setTheme: repaint };
     }
 
     const zones = [];
+    const zoneLabels = [];
     const postRadius = GOAL_POST_RADIUS;
     const postMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.25 });
     const postGeo  = new THREE.CylinderGeometry(postRadius, postRadius, GOAL_HEIGHT, 24);
@@ -155,14 +214,15 @@
         const edgeMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.45 });
         zone.add(new THREE.LineSegments(edgeGeo, edgeMat));
         const labelSprite = buildZoneLabelSprite(SCORE_MAP[r][c]);
-        labelSprite.position.set(0, 0, 0.04);
-        labelSprite.scale.set(zoneW * 0.72, zoneH * 0.48, 1);
-        zone.add(labelSprite);
+        labelSprite.sprite.position.set(0, 0, 0.04);
+        labelSprite.sprite.scale.set(zoneW * 0.72, zoneH * 0.48, 1);
+        zone.add(labelSprite.sprite);
+        zoneLabels.push(labelSprite);
         goalGroup.add(zone);
         zones.push({ mesh: zone, points: SCORE_MAP[r][c], minX: relX - zoneW / 2, maxX: relX + zoneW / 2, minY: relY - zoneH / 2, maxY: relY + zoneH / 2 });
       }
     }
-    return zones;
+    return { zones, zoneLabels };
   }
 
   function create(options) {
@@ -296,7 +356,9 @@
     const goalGroup = new THREE.Group();
     goalGroup.position.set(0, 0, GOAL_Z);
     scene.add(goalGroup);
-    const zones    = buildGoal(goalGroup);
+    const goalVisual = buildGoal(goalGroup, { isDark: readThemeSnapshotIsDark() });
+    const zones = goalVisual.zones;
+    const zoneLabels = goalVisual.zoneLabels;
 
     const billboardGroup = new THREE.Group();
     billboardGroup.position.set(0, 4.2 * BILLBOARD_SPACE_SCALE, GOAL_Z - BILLBOARD_DEPTH_OFFSET);
@@ -466,12 +528,11 @@
       trailMaterial.uniforms.uColor.value.setHex(t.trail);
     }
     function readThemeIsDark() {
-      const docTheme = document && document.documentElement && document.documentElement.dataset
-        ? document.documentElement.dataset.shotTheme
-        : '';
-      if (docTheme === 'dark') return true;
-      if (docTheme === 'light') return false;
-      return mq ? !!mq.matches : false;
+      const snapshot = readThemeSnapshotIsDark();
+      if (mq && typeof mq.matches === 'boolean' && !(document && document.documentElement && document.documentElement.dataset && document.documentElement.dataset.shotTheme)) {
+        return !!mq.matches;
+      }
+      return snapshot;
     }
     function resolveMessageBandBackground(isDark) {
       if (isDark) {
@@ -483,11 +544,19 @@
       if (!messageBandEl) return;
       messageBandEl.style.background = resolveMessageBandBackground(isDark);
     }
+    function syncZoneLabelTheme(isDark) {
+      if (!Array.isArray(zoneLabels)) return;
+      for (let i = 0; i < zoneLabels.length; i += 1) {
+        const label = zoneLabels[i];
+        if (label && typeof label.setTheme === 'function') label.setTheme(isDark);
+      }
+    }
     function syncTheme() {
       const isDark = readThemeIsDark();
       if (isDark === currentThemeDark) return;
       currentThemeDark = isDark;
       applyTheme(isDark);
+      syncZoneLabelTheme(isDark);
       if (ui.messageEl) ui.messageEl.style.textShadow = isDark
         ? '0 2px 9px rgba(0, 0, 0, 0.68)'
         : '0 2px 10px rgba(255, 255, 255, 0.58)';

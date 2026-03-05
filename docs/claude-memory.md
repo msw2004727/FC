@@ -864,3 +864,12 @@
   - `js/modules/shot-game-engine.js`: Added `BILLBOARD_SPACE_SCALE = sqrt(8)` and scaled billboard/frame/posts proportionally.
   - `js/config.js`, `index.html`, `game-lab.html`: bumped cache version to `20260305af`.
 - **Lesson**: Do not hard-depend on one ad doc id; always provide slot/type fallback for rendering paths.
+### 2026-03-05 - goal 3x3 score labels add translucent theme-aware backdrop
+- **Issue**: Score numbers on the goal 3x3 grid were not clear enough in some scenes/themes.
+- **Cause**: Label sprites only rendered text (stroke/fill) without a dedicated translucent backdrop behind the score.
+- **Fix**:
+  - `js/modules/shot-game-engine.js`: upgraded zone score sprite drawing to include rounded translucent backdrop panel.
+  - Added dark/light theme palettes for score badge panel + text colors.
+  - Added `syncZoneLabelTheme()` so label backdrop/text colors update immediately when theme changes.
+  - Updated cache version to `20260305ag` in `js/config.js`, `index.html`, and `game-lab.html`.
+- **Lesson**: Dynamic in-scene text should include an explicit contrast layer (panel/badge), not rely on background scene colors alone.
