@@ -1023,6 +1023,10 @@ const FirebaseService = {
       } else {
         if (this._cache.banners) this._cache.banners.push({ _docId: snap.id, ...snap.data() });
       }
+      // 若廣告管理頁面正開著，通知重繪
+      if (typeof App !== 'undefined' && typeof App.renderShotGameAdManage === 'function') {
+        App.renderShotGameAdManage();
+      }
     } catch (err) {
       console.warn('[FirebaseService] _ensureSga1Slot 失敗:', err);
     }
