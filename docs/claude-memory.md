@@ -655,3 +655,18 @@
   3. `game-lab.html`：`#shot-game-container` CSS 加入 `touch-action: none`。
   4. 快取版本號 `20260305b` → `20260305c`，同步更新 `index.html`（64 處）及 `game-lab.html`（2 處）。
 - **教訓**：跨元素邊界的拖曳行為應改用 window-level listeners（動態掛載/卸載），比 `setPointerCapture` 更可靠且不受容器邊界限制；行動端務必加 `touch-action: none` 防止滾動劫持 pointer 事件。
+
+### 2026-03-05 — 射門遊戲強化：門框反彈、連進特效、足球貼圖
+
+- **問題**：私測版射門遊戲缺少「打中門框的物理回饋」、連進里程碑的情緒反饋，以及足球本體視覺辨識度。
+- **原因**：
+  1. 既有物理僅處理地面反彈與門線判定，沒有門柱/橫樑碰撞解算。
+  2. `#sg-message` 只有一般得分文案，沒有連進里程碑視覺事件。
+  3. 球材質為純色 `MeshStandardMaterial`，缺少足球紋理語意。
+- **修復**：
+  1. `js/modules/shot-game-engine.js`：新增門框碰撞解算（左右門柱垂直 capsule + 橫樑水平 capsule），在 `step()` 先處理碰撞再做門線進球判定，並加入反射、切向阻尼、旋轉衰減。
+  2. `js/modules/shot-game-engine.js`：新增連進 `5/10/20/30` 里程碑判定，命中時顯示 `🔥 ×N 連進！`。
+  3. `game-lab.html` + `js/modules/shot-game-engine.js`：新增 `flash-hit` 亮度閃白（`brightness(2)`）與 JS 觸發/清理機制。
+  4. `js/modules/shot-game-engine.js`：用 `CanvasTexture` 動態生成經典黑白五邊形足球貼圖並套用到球材質。
+  5. `game-lab.html`：`shot-game-engine.js` 快取版號 `20260305d` → `20260305e`。
+- **教訓**：射門遊戲的手感與可理解性需要「物理回饋 + 視覺回饋」同時存在；碰撞、訊息、材質三者一起升級，才能讓玩家即時理解球路與成就節點。

@@ -4,14 +4,83 @@
   const GOAL_Z = -20;
   const GOAL_WIDTH = 14;
   const GOAL_HEIGHT = 7.2;
+  const GOAL_POST_RADIUS = 0.18;
   const PENALTY_SPOT_Z = 12;
   const SCORE_MAP = [[100, 50, 100], [50, 20, 50], [40, 10, 40]];
   const TRAIL_FRAMES = 20;
+  const STREAK_MILESTONES = new Set([5, 10, 20, 30]);
 
   const THEME_DARK  = { sky: 0x0d1b2a, ground: 0x1b4520, trail: 0x9ed8ff };
   const THEME_LIGHT = { sky: 0x88cff4, ground: 0x2f7d32, trail: 0x1d6fa8 };
 
   function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+  function drawRegularPolygon(ctx, cx, cy, radius, sides, rotation) {
+    ctx.beginPath();
+    for (let i = 0; i < sides; i += 1) {
+      const a = rotation + (Math.PI * 2 * i) / sides;
+      const x = cx + Math.cos(a) * radius;
+      const y = cy + Math.sin(a) * radius;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+  }
+  function createSoccerBallTexture(renderer, size) {
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+
+    const center = size / 2;
+    const whiteGradient = ctx.createRadialGradient(center * 0.85, center * 0.75, size * 0.1, center, center, size * 0.7);
+    whiteGradient.addColorStop(0, '#ffffff');
+    whiteGradient.addColorStop(1, '#d7dde6');
+    ctx.fillStyle = whiteGradient;
+    ctx.fillRect(0, 0, size, size);
+
+    const centerRadius = size * 0.13;
+    const outerRadius = size * 0.1;
+    const outerDistance = size * 0.26;
+    ctx.fillStyle = '#16181c';
+    ctx.strokeStyle = '#0f1115';
+    ctx.lineWidth = Math.max(2, size * 0.008);
+
+    drawRegularPolygon(ctx, center, center, centerRadius, 5, -Math.PI / 2);
+    ctx.fill();
+    ctx.stroke();
+
+    for (let i = 0; i < 5; i += 1) {
+      const angle = -Math.PI / 2 + (Math.PI * 2 * i) / 5;
+      const px = center + Math.cos(angle) * outerDistance;
+      const py = center + Math.sin(angle) * outerDistance;
+      ctx.strokeStyle = '#0f1115';
+      ctx.lineWidth = Math.max(2, size * 0.008);
+      drawRegularPolygon(ctx, px, py, outerRadius, 5, angle + Math.PI / 5);
+      ctx.fill();
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(center + Math.cos(angle) * centerRadius * 0.88, center + Math.sin(angle) * centerRadius * 0.88);
+      ctx.lineTo(px - Math.cos(angle) * outerRadius * 0.88, py - Math.sin(angle) * outerRadius * 0.88);
+      ctx.strokeStyle = 'rgba(24, 26, 31, 0.55)';
+      ctx.lineWidth = Math.max(1.5, size * 0.005);
+      ctx.stroke();
+    }
+
+    const gloss = ctx.createRadialGradient(size * 0.32, size * 0.28, size * 0.03, size * 0.3, size * 0.3, size * 0.35);
+    gloss.addColorStop(0, 'rgba(255,255,255,0.45)');
+    gloss.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = gloss;
+    ctx.fillRect(0, 0, size, size);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.encoding = THREE.sRGBEncoding;
+    if (renderer && renderer.capabilities && typeof renderer.capabilities.getMaxAnisotropy === 'function') {
+      texture.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+    }
+    texture.needsUpdate = true;
+    return texture;
+  }
   function disposeMaterial(material) {
     if (!material) return;
     Object.keys(material).forEach((k) => { const v = material[k]; if (v && typeof v.dispose === 'function') v.dispose(); });
@@ -72,7 +141,7 @@
 
   function buildGoal(goalGroup) {
     const zones = [];
-    const postRadius = 0.18;
+    const postRadius = GOAL_POST_RADIUS;
     const postMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.25 });
     const postGeo  = new THREE.CylinderGeometry(postRadius, postRadius, GOAL_HEIGHT, 24);
     const crossGeo = new THREE.CylinderGeometry(postRadius, postRadius, GOAL_WIDTH + postRadius * 2, 24);
@@ -138,9 +207,10 @@
 
     drawFieldLines(scene);
 
+    const soccerBallTexture = createSoccerBallTexture(renderer, 512);
     const ball = new THREE.Mesh(
       new THREE.SphereGeometry(BALL_RADIUS, 48, 48),
-      new THREE.MeshStandardMaterial({ color: 0xf8f8f8, roughness: 0.64, metalness: 0.08 })
+      new THREE.MeshStandardMaterial({ color: 0xf8f8f8, roughness: 0.69, metalness: 0.05, map: soccerBallTexture || null })
     );
     ball.castShadow = !options.lowFx;
     scene.add(ball);
@@ -190,10 +260,19 @@
     let score = 0; let streak = 0; let shots = 0;
     let state = 'aiming'; let charging = false; let power = 0;
     let aim = { x: 0, y: 3 }; let startPointer = { x: 0, y: 0 };
-    let sessionStartedAt = Date.now(); let resultTimer = null; let rafId = 0;
+    let sessionStartedAt = Date.now(); let resultTimer = null; let flashTimer = null; let rafId = 0;
     let accumulator = 0; let flightTime = 0; let apex = BALL_RADIUS; let lastBallZ = PENALTY_SPOT_Z;
     let goalSpeed = 2.9; let goalDir = 1; let goalRange = 5.8; let goalSpeedMult = 1.0;
     let trailCount = 0;
+    const postOffset = new THREE.Vector3();
+    const collisionNormal = new THREE.Vector3();
+    const bestNormal = new THREE.Vector3();
+    const crossbarStart = new THREE.Vector3();
+    const crossbarEnd = new THREE.Vector3();
+    const segmentDir = new THREE.Vector3();
+    const nearestPoint = new THREE.Vector3();
+    const normalComponent = new THREE.Vector3();
+    const tangentComponent = new THREE.Vector3();
 
     // ── 主題切換 ──
     const mq = window.matchMedia('(prefers-color-scheme: dark)');
@@ -207,6 +286,105 @@
     mq.addEventListener('change', onMqChange);
     applyTheme(mq.matches);
 
+    function triggerScreenFlash() {
+      container.classList.remove('flash-hit');
+      // Force style flush so repeated milestones can retrigger the flash transition.
+      void container.offsetWidth;
+      container.classList.add('flash-hit');
+      if (flashTimer) clearTimeout(flashTimer);
+      flashTimer = setTimeout(() => {
+        container.classList.remove('flash-hit');
+        flashTimer = null;
+      }, 180);
+    }
+    function tryShowMilestoneMessage() {
+      if (!STREAK_MILESTONES.has(streak)) return false;
+      setMessage(`🔥 ×${streak} 連進！`, '#ffd166');
+      triggerScreenFlash();
+      return true;
+    }
+    function closestPointOnSegment(point, segStart, segEnd, target) {
+      segmentDir.subVectors(segEnd, segStart);
+      const lenSq = segmentDir.lengthSq();
+      if (lenSq <= 1e-6) return target.copy(segStart);
+      postOffset.subVectors(point, segStart);
+      const t = clamp(postOffset.dot(segmentDir) / lenSq, 0, 1);
+      return target.copy(segStart).addScaledVector(segmentDir, t);
+    }
+    function resolveGoalFrameCollision() {
+      const frameX = goalGroup.position.x;
+      const leftPostX = frameX - GOAL_WIDTH / 2;
+      const rightPostX = frameX + GOAL_WIDTH / 2;
+      const frameZ = GOAL_Z;
+      const targetDist = BALL_RADIUS + GOAL_POST_RADIUS;
+      const restitution = 0.58;
+      const tangentDamping = 0.94;
+      let collided = false;
+
+      for (let iter = 0; iter < 2; iter += 1) {
+        let bestPenetration = 0;
+        bestNormal.set(0, 0, 0);
+
+        // Left post as capsule (vertical segment + radius)
+        crossbarStart.set(leftPostX, GOAL_POST_RADIUS, frameZ);
+        crossbarEnd.set(leftPostX, GOAL_HEIGHT - GOAL_POST_RADIUS, frameZ);
+        closestPointOnSegment(ball.position, crossbarStart, crossbarEnd, nearestPoint);
+        postOffset.subVectors(ball.position, nearestPoint);
+        let dist = postOffset.length();
+        let penetration = targetDist - dist;
+        if (penetration > bestPenetration) {
+          if (dist > 1e-6) collisionNormal.copy(postOffset).multiplyScalar(1 / dist);
+          else if (velocity.lengthSq() > 1e-6) collisionNormal.copy(velocity).normalize().multiplyScalar(-1);
+          else collisionNormal.set(-1, 0, 0);
+          bestPenetration = penetration;
+          bestNormal.copy(collisionNormal);
+        }
+
+        // Right post as capsule (vertical segment + radius)
+        crossbarStart.set(rightPostX, GOAL_POST_RADIUS, frameZ);
+        crossbarEnd.set(rightPostX, GOAL_HEIGHT - GOAL_POST_RADIUS, frameZ);
+        closestPointOnSegment(ball.position, crossbarStart, crossbarEnd, nearestPoint);
+        postOffset.subVectors(ball.position, nearestPoint);
+        dist = postOffset.length();
+        penetration = targetDist - dist;
+        if (penetration > bestPenetration) {
+          if (dist > 1e-6) collisionNormal.copy(postOffset).multiplyScalar(1 / dist);
+          else if (velocity.lengthSq() > 1e-6) collisionNormal.copy(velocity).normalize().multiplyScalar(-1);
+          else collisionNormal.set(1, 0, 0);
+          bestPenetration = penetration;
+          bestNormal.copy(collisionNormal);
+        }
+
+        // Crossbar as capsule (horizontal segment + radius)
+        crossbarStart.set(leftPostX, GOAL_HEIGHT, frameZ);
+        crossbarEnd.set(rightPostX, GOAL_HEIGHT, frameZ);
+        closestPointOnSegment(ball.position, crossbarStart, crossbarEnd, nearestPoint);
+        postOffset.subVectors(ball.position, nearestPoint);
+        dist = postOffset.length();
+        penetration = targetDist - dist;
+        if (penetration > bestPenetration) {
+          if (dist > 1e-6) collisionNormal.copy(postOffset).multiplyScalar(1 / dist);
+          else if (velocity.lengthSq() > 1e-6) collisionNormal.copy(velocity).normalize().multiplyScalar(-1);
+          else collisionNormal.set(0, -1, 0);
+          bestPenetration = penetration;
+          bestNormal.copy(collisionNormal);
+        }
+
+        if (bestPenetration <= 0) break;
+        collided = true;
+        ball.position.addScaledVector(bestNormal, bestPenetration + 0.001);
+        const normalSpeed = velocity.dot(bestNormal);
+        if (normalSpeed < 0) {
+          velocity.addScaledVector(bestNormal, -(1 + restitution) * normalSpeed);
+          normalComponent.copy(bestNormal).multiplyScalar(velocity.dot(bestNormal));
+          tangentComponent.subVectors(velocity, normalComponent).multiplyScalar(tangentDamping);
+          velocity.copy(normalComponent).add(tangentComponent);
+          spin.multiplyScalar(0.92);
+        }
+      }
+
+      return collided;
+    }
     function clearTrail() {
       trailCount = 0;
       trailGeometry.setDrawRange(0, 0);
@@ -274,6 +452,8 @@
       ball.position.set(0, BALL_RADIUS, PENALTY_SPOT_Z);
       lastBallZ = ball.position.z;
       clearTrail();
+      if (flashTimer) { clearTimeout(flashTimer); flashTimer = null; }
+      container.classList.remove('flash-hit');
       if (ui.powerFillEl) ui.powerFillEl.style.width = '0%';
       setChargeUiVisible(false);
       if (!ui.restartBtn || ui.restartBtn.style.display !== 'block') setMessage('', '#ffffff');
@@ -301,7 +481,7 @@
       goalSpeed = 2.9 + Math.min(streak, 30) * 0.4;
       zoneHit.mesh.material.opacity = 0.75;
       setTimeout(() => { zoneHit.mesh.material.opacity = 0.14; }, 180);
-      setMessage(`+${gained}（${zoneHit.points}+${styleBoost} 華麗）`, '#80ff80');
+      if (!tryShowMilestoneMessage()) setMessage(`+${gained}（${zoneHit.points}+${styleBoost} 華麗）`, '#80ff80');
       refreshHud();
       resultTimer = setTimeout(resetShot, 1200);
       return true;
@@ -376,11 +556,12 @@
       velocity.add(magnus); velocity.y -= 25.8 * dt; velocity.multiplyScalar(0.997);
       ball.position.addScaledVector(velocity, dt);
       ball.rotation.x += (velocity.z * dt) / BALL_RADIUS; ball.rotation.y += spin.y * dt; ball.rotation.z -= (velocity.x * dt) / BALL_RADIUS;
-      pushTrailPoint(ball.position);
       apex = Math.max(apex, ball.position.y);
       if (ball.position.y <= BALL_RADIUS) { ball.position.y = BALL_RADIUS; velocity.y *= -0.58; velocity.x *= 0.985; velocity.z *= 0.985; spin.multiplyScalar(0.9); }
-      if (state === 'flying' && lastBallZ > GOAL_Z && ball.position.z <= GOAL_Z && processGoalHit()) { velocity.multiplyScalar(0.28); velocity.z = Math.abs(velocity.z); }
+      const hitGoalFrame = state === 'flying' ? resolveGoalFrameCollision() : false;
+      if (state === 'flying' && !hitGoalFrame && lastBallZ > GOAL_Z && ball.position.z <= GOAL_Z && processGoalHit()) { velocity.multiplyScalar(0.28); velocity.z = Math.abs(velocity.z); }
       lastBallZ = ball.position.z;
+      pushTrailPoint(ball.position);
       if (state === 'flying') {
         const stopped = velocity.length() < 1 && ball.position.y <= BALL_RADIUS + 0.04;
         const out = ball.position.z < -110 || Math.abs(ball.position.x) > 64 || flightTime > 6.5;
@@ -415,6 +596,8 @@
     return {
       destroy() {
         if (resultTimer) clearTimeout(resultTimer);
+        if (flashTimer) clearTimeout(flashTimer);
+        container.classList.remove('flash-hit');
         cancelAnimationFrame(rafId);
         mq.removeEventListener('change', onMqChange);
         container.removeEventListener('pointerdown', onPointerDown);
