@@ -1,5 +1,6 @@
 (function () {
-  const LEADERBOARD_SIZE = 30;
+  const LEADERBOARD_TOP_SIZE = 10;
+  const LEADERBOARD_POOL_SIZE = 60;
   const LEADERBOARD_PERIOD_LABELS = {
     daily: '每日',
     weekly: '每周',
@@ -10,10 +11,27 @@
     weekly: { baseScore: 2580, scoreStep: 43, streakBase: 27, timeBase: 74 },
     monthly: { baseScore: 3220, scoreStep: 47, streakBase: 32, timeBase: 86 },
   };
-  const MOCK_NAME_PREFIX = [
-    '小翼', '阿哲', '米可', 'Leo', 'Kiki', '晨安', '布丁', 'Mina', '浩子', '小豪',
-    '阿杰', 'Yuki', 'Tina', '栗子', '安安', 'Kevin', '熊貓', '喵喵', 'Nina', '小白',
-    '阿布', 'Tom', '橘子', '阿翔', '小祐', 'Rita', 'Hank', 'Jay', 'Momo', 'Rex',
+  const MOCK_NAME_POOL = [
+    '超級射門王AlphaWolf',
+    '今晚一定進球的阿哲隊長',
+    'TooSterxHub挑戰者_小旋風',
+    'MinaTheLegendaryShooter',
+    '左上死角專打選手_布丁',
+    '晨安今天也要踢進去',
+    '守門員看到就頭痛',
+    'KikiPowerKickUnlimited',
+    '宇宙最強門前終結者',
+    '快狠準射手Rex',
+    'Jay今天狀態超級好',
+    '連進傳說保持者',
+    '阿杰本季大爆發',
+    '喵喵喵喵連進模式',
+    'Kevin超遠距離破門',
+    'TomLongNameForEllipsisTest',
+    '神級勁射二號機',
+    'Momo_IncredibleFinisher',
+    'Nina火力全開測試用名稱',
+    '小白第一腳就破網',
   ];
 
   function formatDuration(seconds) {
@@ -47,36 +65,52 @@
       .replaceAll('"', '&quot;')
       .replaceAll("'", '&#39;');
   }
+  function compareLeaderboardRows(a, b) {
+    return (
+      b.score - a.score
+      || b.streak - a.streak
+      || a.durationSec - b.durationSec
+      || a.nick.localeCompare(b.nick, 'zh-Hant')
+    );
+  }
+  function buildRankIcon(rank) {
+    if (rank === 1) {
+      return '<svg class="lb-rank-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="#f6c94c"/><path d="M12 5l2.1 4.2 4.6.7-3.3 3.2.8 4.6L12 15.5 7.8 17.7l.8-4.6-3.3-3.2 4.6-.7z" fill="#fff3c4"/></svg>';
+    }
+    if (rank === 2) {
+      return '<svg class="lb-rank-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="#adb7c4"/><path d="M12 6l5 4v8H7v-8z" fill="#e9eef5"/></svg>';
+    }
+    if (rank === 3) {
+      return '<svg class="lb-rank-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="#b98252"/><path d="M7 16l2.2-8h5.6l2.2 8z" fill="#f7d5b5"/></svg>';
+    }
+    return '';
+  }
   function buildMockLeaderboard(period) {
     const key = period in PERIOD_CONFIG ? period : 'daily';
     const cfg = PERIOD_CONFIG[key];
     const rng = createRng(hashSeed(`shot-game-leaderboard:${key}`));
     const rows = [];
 
-    for (let i = 0; i < LEADERBOARD_SIZE; i += 1) {
-      const namePrefix = MOCK_NAME_PREFIX[i % MOCK_NAME_PREFIX.length];
-      const nickSuffix = String(100 + Math.floor(rng() * 900));
+    for (let i = 0; i < LEADERBOARD_POOL_SIZE; i += 1) {
+      const baseName = MOCK_NAME_POOL[i % MOCK_NAME_POOL.length];
+      const nickSuffix = String(1000 + Math.floor(rng() * 9000));
       const scoreDrop = i * (cfg.scoreStep + Math.floor(rng() * 8));
       const score = Math.max(100, cfg.baseScore - scoreDrop - Math.floor(rng() * 28));
       const streak = Math.max(1, cfg.streakBase - Math.floor(i * 0.7) + Math.floor(rng() * 5));
       const durationSec = cfg.timeBase + i * 4 + Math.floor(rng() * 42);
+      const nick = rng() < 0.7 ? `${baseName}_${nickSuffix}` : `${baseName}${nickSuffix}`;
       rows.push({
-        nick: `${namePrefix}${nickSuffix}`,
+        id: `mock-${key}-${i}`,
+        nick,
         score,
         streak,
         durationSec,
       });
     }
 
-    rows.sort((a, b) => (
-      b.score - a.score
-      || b.streak - a.streak
-      || a.durationSec - b.durationSec
-      || a.nick.localeCompare(b.nick, 'zh-Hant')
-    ));
-
-    return rows.slice(0, LEADERBOARD_SIZE).map((row, index) => ({
-      rank: index + 1,
+    rows.sort(compareLeaderboardRows);
+    return rows.map((row) => ({
+      id: row.id,
       nick: row.nick,
       score: row.score,
       streak: row.streak,
@@ -105,6 +139,7 @@
       const leaderboardClose = document.getElementById('sg-leaderboard-close');
       const leaderboardRange = document.getElementById('sg-leaderboard-range');
       const leaderboardBody = document.getElementById('sg-leaderboard-body');
+      const leaderboardPlayerRow = document.getElementById('sg-leaderboard-player-row');
       const leaderboardTabs = Array.from(document.querySelectorAll('.lb-tab'));
       const lowFx = new URLSearchParams(location.search).get('low') === '1';
       let engine = null;
@@ -146,29 +181,84 @@
         }
         sessionBadge.textContent = `當前最佳：${bestSessionSinceOpen.score} 分｜${bestSessionSinceOpen.shots} 射門｜${Math.round(bestSessionSinceOpen.durationMs / 1000)} 秒`;
       };
+      const buildLeaderboardView = (period) => {
+        const rows = (leaderboardData[period] || []).map((row) => ({ ...row }));
+        if (bestSessionSinceOpen && bestSessionSinceOpen.score > 0) {
+          rows.push({
+            id: 'player-self',
+            nick: '你',
+            score: bestSessionSinceOpen.score,
+            streak: Math.max(0, Number(bestSessionSinceOpen.streak || 0)),
+            durationSec: Math.max(0, Math.round(Number(bestSessionSinceOpen.durationMs || 0) / 1000)),
+          });
+        }
+        rows.sort(compareLeaderboardRows);
+        const ranked = rows.map((row, index) => ({ ...row, rank: index + 1 }));
+        const topRows = ranked.slice(0, LEADERBOARD_TOP_SIZE);
+        const playerRow = ranked.find((row) => row.id === 'player-self') || null;
+        const extraPlayerRow = playerRow && playerRow.rank > LEADERBOARD_TOP_SIZE ? playerRow : null;
+        return { topRows, extraPlayerRow };
+      };
 
       const renderLeaderboard = (period) => {
         if (!leaderboardBody) return;
         const key = period in LEADERBOARD_PERIOD_LABELS ? period : 'daily';
         leaderboardPeriod = key;
 
-        if (leaderboardRange) leaderboardRange.textContent = `${LEADERBOARD_PERIOD_LABELS[key]}排行前 ${LEADERBOARD_SIZE} 名`;
+        if (leaderboardRange) leaderboardRange.textContent = `${LEADERBOARD_PERIOD_LABELS[key]}排行前 ${LEADERBOARD_TOP_SIZE} 名`;
         leaderboardTabs.forEach((tab) => {
           const active = tab.getAttribute('data-lb-period') === key;
           tab.classList.toggle('is-active', active);
           tab.setAttribute('aria-selected', active ? 'true' : 'false');
         });
 
-        const rows = leaderboardData[key] || [];
-        leaderboardBody.innerHTML = rows.map((row) => `
-          <tr>
-            <td class="lb-rank">#${row.rank}</td>
-            <td><span class="lb-name-pill">${escapeHtml(row.nick)}</span></td>
+        const view = buildLeaderboardView(key);
+        const rows = view.topRows;
+        leaderboardBody.innerHTML = rows.map((row) => {
+          const rowClass = row.rank <= 3 ? ` class="lb-row-top${row.rank}"` : '';
+          const rankLabel = row.rank <= 3
+            ? `<span class="lb-rank-badge">${buildRankIcon(row.rank)}<span>${row.rank}</span></span>`
+            : `#${row.rank}`;
+          return `
+          <tr${rowClass}>
+            <td class="lb-rank">${rankLabel}</td>
+            <td class="lb-nick"><span class="lb-name-pill" title="${escapeHtml(row.nick)}">${escapeHtml(row.nick)}</span></td>
             <td class="lb-score">${row.score}</td>
             <td>${row.streak}</td>
             <td>${formatDuration(row.durationSec)}</td>
           </tr>
-        `).join('');
+        `;
+        }).join('');
+
+        if (!leaderboardPlayerRow) return;
+        if (view.extraPlayerRow) {
+          const row = view.extraPlayerRow;
+          leaderboardPlayerRow.classList.remove('is-hidden');
+          leaderboardPlayerRow.innerHTML = `
+            <h4>你的名次</h4>
+            <table aria-label="玩家名次">
+              <colgroup>
+                <col class="lb-col-rank">
+                <col class="lb-col-nick">
+                <col class="lb-col-score">
+                <col class="lb-col-streak">
+                <col class="lb-col-time">
+              </colgroup>
+              <tbody>
+                <tr>
+                  <td class="lb-rank">#${row.rank}</td>
+                  <td class="lb-nick"><span class="lb-name-pill" title="${escapeHtml(row.nick)}">${escapeHtml(row.nick)}</span></td>
+                  <td class="lb-score">${row.score}</td>
+                  <td>${row.streak}</td>
+                  <td>${formatDuration(row.durationSec)}</td>
+                </tr>
+              </tbody>
+            </table>
+          `;
+        } else {
+          leaderboardPlayerRow.classList.add('is-hidden');
+          leaderboardPlayerRow.innerHTML = '';
+        }
       };
       const openLeaderboard = (period) => {
         if (!leaderboardModal) return;
@@ -202,10 +292,12 @@
             const normalized = {
               score: Number(payload && payload.score ? payload.score : 0),
               shots: Number(payload && payload.shots ? payload.shots : 0),
+              streak: Number(payload && payload.streak ? payload.streak : 0),
               durationMs: Number(payload && payload.durationMs ? payload.durationMs : 0),
             };
             if (isBetterSession(normalized, bestSessionSinceOpen)) bestSessionSinceOpen = normalized;
             setSessionBadge();
+            if (leaderboardOpen) renderLeaderboard(leaderboardPeriod);
           },
         });
         setSessionBadge();

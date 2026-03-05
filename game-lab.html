@@ -182,15 +182,15 @@
     .hud .sub { color: #8a5200; margin-top: 4px; }
     .hud-leaderboard-btn {
       margin-top: 8px;
-      width: 78px;
-      height: 78px;
-      border-radius: 16px;
+      width: 128px;
+      height: 42px;
+      border-radius: 12px;
       border: 1px solid rgba(255, 255, 255, 0.62);
       background: linear-gradient(160deg, rgba(255, 255, 255, 0.42), rgba(255, 255, 255, 0.2));
       box-shadow: 0 6px 18px rgba(20, 40, 58, 0.18);
       backdrop-filter: blur(7px);
       color: #0d1e2b;
-      font-size: 14px;
+      font-size: 13px;
       font-weight: 900;
       letter-spacing: 0.6px;
       cursor: pointer;
@@ -225,7 +225,7 @@
     #sg-power {
       position: absolute;
       left: 50%;
-      bottom: 28px;
+      bottom: 62px;
       transform: translateX(-50%);
       width: min(78%, 520px);
       height: 20px;
@@ -417,51 +417,118 @@
     .lb-table {
       width: 100%;
       border-collapse: collapse;
-      min-width: 620px;
+      table-layout: fixed;
+      min-width: 0;
     }
     .lb-table thead th {
       position: sticky;
       top: 0;
       z-index: 2;
-      text-align: left;
+      text-align: center;
       font-size: 12px;
       letter-spacing: 0.35px;
       color: var(--muted);
       background: var(--card);
       border-bottom: 1px solid var(--line);
-      padding: 10px 8px;
+      padding: 8px 4px;
     }
     .lb-table tbody td {
       border-bottom: 1px solid var(--line);
-      padding: 9px 8px;
-      font-size: 13px;
+      padding: 8px 4px;
+      font-size: 12px;
       color: var(--text);
       white-space: nowrap;
+      text-align: center;
     }
     .lb-rank {
       font-weight: 900;
-      width: 56px;
+      width: 58px;
     }
+    .lb-rank-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 3px;
+      min-width: 54px;
+      font-weight: 900;
+    }
+    .lb-rank-icon {
+      width: 14px;
+      height: 14px;
+      display: inline-block;
+      vertical-align: middle;
+    }
+    .lb-row-top1 td { background: rgba(255, 215, 0, 0.2); }
+    .lb-row-top2 td { background: rgba(192, 192, 192, 0.2); }
+    .lb-row-top3 td { background: rgba(205, 127, 50, 0.18); }
     .lb-score {
       font-weight: 800;
       color: var(--ok);
     }
     .lb-name-pill {
-      display: inline-flex;
+      display: inline-block;
       align-items: center;
-      padding: 4px 10px;
+      padding: 3px 8px;
       border-radius: 999px;
       border: 1px solid var(--line);
       background: rgba(255, 255, 255, 0.68);
       font-weight: 700;
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      vertical-align: middle;
+      text-align: left;
+    }
+    .lb-col-rank { width: 15%; }
+    .lb-col-nick { width: 35%; }
+    .lb-col-score { width: 16%; }
+    .lb-col-streak { width: 16%; }
+    .lb-col-time { width: 18%; }
+    .lb-nick {
+      text-align: left;
+      padding-left: 6px;
+      overflow: hidden;
+    }
+    .lb-player-row {
+      margin-top: 10px;
+      border: 1px dashed var(--line);
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.42);
+      padding: 8px;
+    }
+    .lb-player-row h4 {
+      margin: 0 0 6px;
+      font-size: 12px;
+      color: var(--muted);
+      letter-spacing: 0.3px;
+      font-weight: 700;
+      text-align: left;
+    }
+    .lb-player-row table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+    }
+    .lb-player-row td {
+      font-size: 12px;
+      padding: 4px 3px;
+      text-align: center;
+      white-space: nowrap;
+    }
+    .lb-player-row .lb-nick {
+      padding-left: 4px;
+    }
+    .lb-player-row.is-hidden {
+      display: none;
     }
     .badge { background: rgba(255,255,255,0.5); }
     #sg-power { border-color: rgba(0,0,0,0.45); }
     @media (min-width: 900px) { .layout { grid-template-columns: 1fr 340px; } }
     @media (max-width: 760px) {
       .hud-leaderboard-btn {
-        width: 64px;
-        height: 64px;
+        width: 104px;
+        height: 36px;
         font-size: 12px;
       }
       .lb-head {
@@ -472,7 +539,25 @@
         padding-right: 12px;
       }
       .lb-table {
-        min-width: 540px;
+        min-width: 0;
+      }
+      #sg-power {
+        bottom: 72px;
+      }
+      .lb-table thead th {
+        font-size: 11px;
+        padding: 7px 2px;
+      }
+      .lb-table tbody td {
+        font-size: 11px;
+        padding: 7px 2px;
+      }
+      .lb-rank-badge {
+        min-width: 40px;
+      }
+      .lb-rank-icon {
+        width: 12px;
+        height: 12px;
       }
     }
     html[data-shot-theme="dark"] {
@@ -524,6 +609,10 @@
     html[data-shot-theme="dark"] .lb-tab { background: rgba(0, 0, 0, 0.34); }
     html[data-shot-theme="dark"] .lb-table thead th { background: rgba(9, 24, 42, 0.96); }
     html[data-shot-theme="dark"] .lb-name-pill { background: rgba(0, 0, 0, 0.34); }
+    html[data-shot-theme="dark"] .lb-player-row { background: rgba(0, 0, 0, 0.22); }
+    html[data-shot-theme="dark"] .lb-row-top1 td { background: rgba(255, 215, 0, 0.16); }
+    html[data-shot-theme="dark"] .lb-row-top2 td { background: rgba(192, 192, 192, 0.14); }
+    html[data-shot-theme="dark"] .lb-row-top3 td { background: rgba(205, 127, 50, 0.14); }
     html[data-shot-theme="dark"] #sg-power { border-color: rgba(255, 255, 255, 0.7); }
   </style>
 </head>
@@ -589,7 +678,7 @@
       <div class="lb-head">
         <div class="lb-title-wrap">
           <h3 id="sg-leaderboard-title">射手榜</h3>
-          <p id="sg-leaderboard-range">每日排行前 30 名</p>
+          <p id="sg-leaderboard-range">每日排行前 10 名</p>
         </div>
         <button id="sg-leaderboard-close" class="lb-close" type="button" aria-label="關閉射手榜">×</button>
       </div>
@@ -600,10 +689,17 @@
       </div>
       <div class="lb-table-wrap">
         <table class="lb-table" aria-label="射手排行榜">
+          <colgroup>
+            <col class="lb-col-rank">
+            <col class="lb-col-nick">
+            <col class="lb-col-score">
+            <col class="lb-col-streak">
+            <col class="lb-col-time">
+          </colgroup>
           <thead>
             <tr>
               <th>排名</th>
-              <th>Line 暱稱</th>
+              <th>暱稱</th>
               <th>分數</th>
               <th>連進</th>
               <th>時間</th>
@@ -611,13 +707,14 @@
           </thead>
           <tbody id="sg-leaderboard-body"></tbody>
         </table>
+        <div id="sg-leaderboard-player-row" class="lb-player-row is-hidden" aria-live="polite"></div>
       </div>
     </section>
   </div>
 
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script defer src="js/modules/shot-game-engine.js?v=20260305h"></script>
-  <script defer src="js/modules/shot-game-lab-page.js?v=20260305g"></script>
+  <script defer src="js/modules/shot-game-lab-page.js?v=20260305h"></script>
   <script>
     window.addEventListener('DOMContentLoaded', function () {
       ShotGameLabPage.init({
