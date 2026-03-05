@@ -159,7 +159,7 @@
     let aim = { x: 0, y: 3 }; let startPointer = { x: 0, y: 0 };
     let sessionStartedAt = Date.now(); let resultTimer = null; let rafId = 0;
     let accumulator = 0; let flightTime = 0; let apex = BALL_RADIUS; let lastBallZ = PENALTY_SPOT_Z;
-    let goalSpeed = 2.9; let goalDir = 1; let goalRange = 5.8;
+    let goalSpeed = 2.9; let goalDir = 1; let goalRange = 5.8; let goalSpeedMult = 1.0;
 
     // ── 主題切換 ──
     const mq = window.matchMedia('(prefers-color-scheme: dark)');
@@ -233,7 +233,7 @@
       const styleBoost = clamp(Math.round((apex - 2.4) * 2 + power / 16), 0, 20);
       const gained = zoneHit.points + styleBoost;
       streak += 1; score += gained; state = 'result';
-      goalSpeed = 2.9 + Math.min(streak, 25) * 0.32;
+      goalSpeed = 2.9 + Math.min(streak, 30) * 0.4;
       zoneHit.mesh.material.opacity = 0.75;
       setTimeout(() => { zoneHit.mesh.material.opacity = 0.14; }, 180);
       setMessage(`+${gained}（${zoneHit.points}+${styleBoost} 華麗）`, '#80ff80');
@@ -273,22 +273,27 @@
     function onPointerMove(event) {
       if (!charging) return;
       const rect = container.getBoundingClientRect();
-      aim.x = clamp(((event.clientX - startPointer.x) / rect.width) * 18, -GOAL_WIDTH / 2 + 0.4, GOAL_WIDTH / 2 - 0.4);
-      aim.y = clamp(3 - ((event.clientY - startPointer.y) / rect.height) * 12, 0.8, GOAL_HEIGHT - 0.3);
+      aim.x = ((event.clientX - startPointer.x) / rect.width) * 30;
+      aim.y = clamp(3 - ((event.clientY - startPointer.y) / rect.height) * 14, -3, 12);
       updateCrosshair();
     }
     function onPointerUp() { if (charging) kick(); }
     function restartGame() {
       if (resultTimer) clearTimeout(resultTimer);
       score = 0; streak = 0; shots = 0; state = 'aiming';
-      sessionStartedAt = Date.now(); goalSpeed = 2.9; goalDir = 1; goalRange = 5.8; goalGroup.position.x = 0;
+      sessionStartedAt = Date.now(); goalSpeed = 2.9; goalDir = 1; goalRange = 5.8; goalSpeedMult = 1.0; goalGroup.position.x = 0;
       if (ui.restartBtn) ui.restartBtn.style.display = 'none';
       refreshHud(); resetShot(); setMessage('開始！', '#ffffff');
     }
     function step(dt) {
       if (state !== 'gameover') {
-        goalGroup.position.x += goalDir * goalSpeed * dt;
-        if (Math.abs(goalGroup.position.x) >= goalRange) { goalDir *= -1; goalRange = 4.2 + Math.random() * 3.5; }
+        // 速度倍率做 Ornstein–Uhlenbeck 漂移（在 1.0 附近隨機震盪）
+        goalSpeedMult += (1 - goalSpeedMult) * 0.08 + (Math.random() - 0.5) * 0.25;
+        goalSpeedMult = clamp(goalSpeedMult, 0.35, 1.65);
+        // 每秒約 4% 機率隨機改變方向（非邊界觸發）
+        if (Math.random() < 0.04 * dt * 60) { goalDir = Math.random() < 0.5 ? 1 : -1; goalRange = 4 + Math.random() * 7; }
+        goalGroup.position.x += goalDir * goalSpeed * goalSpeedMult * dt;
+        if (Math.abs(goalGroup.position.x) >= goalRange) { goalDir *= -1; goalRange = 4 + Math.random() * 7; }
       }
       if (state !== 'flying' && state !== 'result') return;
       flightTime += dt;
@@ -317,7 +322,7 @@
           ui.powerFillEl.style.background = power > 100 ? '#ef4444' : 'linear-gradient(90deg,#22c55e,#facc15)';
         }
         if (ui.crosshairEl) {
-          const shake = power <= 100 ? power * 0.04 : 4 + (power - 100) * 0.18;
+          const shake = power <= 100 ? power * 0.4 : 40 + (power - 100) * 1.8;
           ui.crosshairEl.style.transform = `translate(-50%, -50%) translate(${(Math.random() - 0.5) * shake}px, ${(Math.random() - 0.5) * shake}px)`;
         }
       } else if (ui.crosshairEl) ui.crosshairEl.style.transform = 'translate(-50%, -50%)';
@@ -330,7 +335,6 @@
     container.addEventListener('pointermove',  onPointerMove);
     container.addEventListener('pointerup',    onPointerUp);
     container.addEventListener('pointercancel', onPointerUp);
-    container.addEventListener('pointerleave', onPointerUp);
     window.addEventListener('resize', resize);
     if (ui.restartBtn) ui.restartBtn.addEventListener('click', restartGame);
     resize(); restartGame(); animate();
@@ -344,7 +348,6 @@
         container.removeEventListener('pointermove',  onPointerMove);
         container.removeEventListener('pointerup',    onPointerUp);
         container.removeEventListener('pointercancel', onPointerUp);
-        container.removeEventListener('pointerleave', onPointerUp);
         window.removeEventListener('resize', resize);
         if (ui.restartBtn) ui.restartBtn.removeEventListener('click', restartGame);
         disposeScene(scene); renderer.dispose();
