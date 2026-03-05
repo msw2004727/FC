@@ -967,3 +967,9 @@
   - `game-lab.html`: added secondary GLTFLoader CDN script include.
   - `js/config.js`, `index.html`, `game-lab.html`: bumped cache version to `20260306g`.
 - **Lesson**: Fallback visuals should preserve key art identity, and external loader dependencies should have multi-source redundancy.
+### 2026-03-06 ¡X add homepage slimming implementation spec document
+- **Issue**: Needed a decision-complete implementation spec for homepage slimming priorities.
+- **Cause**: Team needed a handoff-ready document before coding P0/P1/P2 optimization tasks.
+- **Fix**:
+  - Added `docs/home-performance-slimming-spec.md` with prioritized plan, implementation steps, risks, tests, and delivery checklist.
+- **Lesson**: For multi-step performance refactors, finalize executable spec first to reduce implementation ambiguity and rework.
