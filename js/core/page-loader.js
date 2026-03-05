@@ -15,6 +15,7 @@ const PageLoader = {
     'scan', 'tournament', 'shop',
     'admin-users', 'admin-content', 'admin-system',
     'admin-dashboard', 'admin-auto-exp', 'personal-dashboard',
+    'game',
   ],
 
   /** 全域彈窗片段 */
@@ -45,6 +46,7 @@ const PageLoader = {
     'page-personal-dashboard': 'personal-dashboard',
     'page-admin-teams':        'admin-content',
     'page-qrcode':             'scan',
+    'page-game':               'game',
   },
 
   /**

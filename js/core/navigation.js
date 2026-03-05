@@ -77,6 +77,11 @@ Object.assign(App, {
       PageLoader.ensurePage(pageId);
     }
 
+    // 離開遊戲頁時銷毀引擎，釋放 WebGL context
+    if (this.currentPage === 'page-game' && pageId !== 'page-game' && this.destroyShotGamePage) {
+      this.destroyShotGamePage();
+    }
+
     if (options.resetHistory) {
       this.pageHistory = [];
     } else if (this.currentPage !== pageId) {
@@ -120,6 +125,7 @@ Object.assign(App, {
     if (pageId === 'page-admin-auto-exp') this.renderAutoExpRules();
     if (pageId === 'page-scan') this.renderScanPage();
     if (pageId === 'page-qrcode') this.renderQrCodePage();
+    if (pageId === 'page-game' && this.initShotGamePage) this.initShotGamePage();
     // 按需渲染：進入頁面時才渲染，減少啟動負擔
     if (pageId === 'page-teams') this.renderTeamList();
     if (pageId === 'page-messages') this.renderMessageList();

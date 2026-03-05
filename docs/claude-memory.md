@@ -4,6 +4,23 @@
 
 ---
 
+### 2026-03-05 — 射門遊戲嵌入主站（Phase 2）
+- **問題**：射門遊戲只存在於獨立的 `game-lab.html`（需要 token + 私測），無法讓一般登入用戶玩。
+- **原因**：架構設計為私測入口，未整合至主站 SPA。
+- **修復**：新增以下檔案：
+  - `pages/game.html` — 主站頁面片段（無 token gate，直接使用主站 auth）
+  - `js/modules/shot-game-page.js` — 遊戲 App 模組（Object.assign 模式），含 Three.js 懶載入、引擎 lifecycle 管理、排行榜、intro modal
+  - `css/game.css` — 遊戲頁樣式（所有 selector 以 `#page-game` 為前綴防衝突）
+  - 修改 `js/config.js` — 新增 DRAWER_MENUS 射門遊戲入口 + CACHE_VERSION 20260305j
+  - 修改 `js/core/page-loader.js` — 加入 `page-game: 'game'` 映射
+  - 修改 `js/core/navigation.js` — `_renderPageContent` 加入 page-game；showPage 離開時呼叫 destroyShotGamePage
+  - 修改 `pages/home.html` — 新增「小遊戲」區塊含 home-game-card 快捷按鈕
+  - 修改 `css/home.css` — 新增 `.home-game-card` 樣式
+- **關鍵設計**：Three.js (CDN, ~580KB) 在用戶首次進入 `page-game` 時才懶載入；shot-game-engine.js 透過 ScriptLoader 懶載；離開頁面時 engine.destroy() 釋放 WebGL context。
+- **教訓**：`pages/*.html` 片段中的 `position:fixed` modal 在父元素 `display:none` 時不會渲染，無需額外關閉邏輯（但仍在 destroyShotGamePage 中主動關閉以避免狀態殘留）。
+
+---
+
 ### 2026-03-05 — Shot Game Phase 1 雲端排行榜接入
 
 - **問題**：Phase 0 射門遊戲排行榜為假資料（mock），需接入正式 Firestore + Cloud Function

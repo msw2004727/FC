@@ -1,0 +1,381 @@
+/* ================================================
+   SportHub — Shot Game Page Module
+   主站嵌入版射門遊戲，直接使用主站 auth / firebase
+   ================================================ */
+
+(function () {
+  const LEADERBOARD_TOP_SIZE = 10;
+  const INTRO_DISMISS_KEY = 'sporthub_shot_game_intro_dismissed';
+  const LEADERBOARD_PERIOD_LABELS = { daily: '每日', weekly: '每周', monthly: '每月' };
+
+  /* ── Utility Functions ── */
+  function formatDuration(seconds) {
+    const sec = Math.max(0, Number(seconds) || 0);
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  }
+
+  function escapeHtml(text) {
+    return String(text)
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#39;');
+  }
+
+  function compareRows(a, b) {
+    return b.score - a.score || b.streak - a.streak || a.durationSec - b.durationSec || a.nick.localeCompare(b.nick, 'zh-Hant');
+  }
+
+  function buildRankIcon(rank) {
+    if (rank === 1) return '<svg class="sg-lb-rank-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="#f6c94c"/><path d="M12 5l2.1 4.2 4.6.7-3.3 3.2.8 4.6L12 15.5 7.8 17.7l.8-4.6-3.3-3.2 4.6-.7z" fill="#fff3c4"/></svg>';
+    if (rank === 2) return '<svg class="sg-lb-rank-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="#adb7c4"/><path d="M12 6l5 4v8H7v-8z" fill="#e9eef5"/></svg>';
+    if (rank === 3) return '<svg class="sg-lb-rank-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="#b98252"/><path d="M7 16l2.2-8h5.6l2.2 8z" fill="#f7d5b5"/></svg>';
+    return '';
+  }
+
+  function getTaipeiDateStr() {
+    const t = new Date(Date.now() + 8 * 3600000);
+    return `${t.getUTCFullYear()}-${String(t.getUTCMonth() + 1).padStart(2, '0')}-${String(t.getUTCDate()).padStart(2, '0')}`;
+  }
+
+  function isIntroSuppressed() {
+    try { return localStorage.getItem(INTRO_DISMISS_KEY) === getTaipeiDateStr(); } catch (_) { return false; }
+  }
+
+  function suppressIntroToday() {
+    try { localStorage.setItem(INTRO_DISMISS_KEY, getTaipeiDateStr()); } catch (_) {}
+  }
+
+  function getTaipeiDateBucket(period) {
+    const t = new Date(Date.now() + 8 * 3600 * 1000);
+    const year = t.getUTCFullYear();
+    const month = String(t.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(t.getUTCDate()).padStart(2, '0');
+    if (period === 'monthly') return `monthly_${year}-${month}`;
+    if (period === 'weekly') {
+      const d = new Date(Date.UTC(year, t.getUTCMonth(), t.getUTCDate()));
+      const dow = d.getUTCDay() || 7;
+      d.setUTCDate(d.getUTCDate() + 4 - dow);
+      const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+      const week = String(Math.ceil(((d - yearStart) / 86400000 + 1) / 7)).padStart(2, '0');
+      return `weekly_${d.getUTCFullYear()}-W${week}`;
+    }
+    return `daily_${year}-${month}-${day}`;
+  }
+
+  /* ── Script Loading ── */
+  let _threeLoadPromise = null;
+
+  function _loadThreeJs() {
+    if (window.THREE) return Promise.resolve();
+    if (_threeLoadPromise) return _threeLoadPromise;
+    _threeLoadPromise = new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js';
+      s.onload = resolve;
+      s.onerror = () => { _threeLoadPromise = null; reject(new Error('Three.js load failed')); };
+      document.head.appendChild(s);
+    });
+    return _threeLoadPromise;
+  }
+
+  function _loadEngine() {
+    if (window.ShotGameEngine) return Promise.resolve();
+    return (typeof ScriptLoader !== 'undefined')
+      ? ScriptLoader._load('js/modules/shot-game-engine.js')
+      : new Promise((resolve, reject) => {
+          const s = document.createElement('script');
+          s.src = 'js/modules/shot-game-engine.js';
+          s.onload = resolve;
+          s.onerror = reject;
+          document.head.appendChild(s);
+        });
+  }
+
+  /* ── Module State ── */
+  let _engine = null;
+  let _bestSession = null;
+  let _lbPeriod = 'daily';
+  let _lbOpen = false;
+  let _eventsBound = false;
+
+  /* ── Leaderboard ── */
+  async function _renderLeaderboard(period) {
+    const key = period in LEADERBOARD_PERIOD_LABELS ? period : 'daily';
+    _lbPeriod = key;
+
+    const rangeEl = document.getElementById('sg-leaderboard-range');
+    const bodyEl = document.getElementById('sg-leaderboard-body');
+    const playerRowEl = document.getElementById('sg-leaderboard-player-row');
+    const tabs = document.querySelectorAll('#sg-leaderboard-modal .sg-lb-tab');
+
+    if (rangeEl) rangeEl.textContent = `${LEADERBOARD_PERIOD_LABELS[key]}排行前 ${LEADERBOARD_TOP_SIZE} 名`;
+    tabs.forEach(tab => {
+      const active = tab.getAttribute('data-lb-period') === key;
+      tab.classList.toggle('is-active', active);
+      tab.setAttribute('aria-selected', active ? 'true' : 'false');
+    });
+
+    if (!bodyEl) return;
+    bodyEl.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:1.5rem;opacity:0.6">載入中…</td></tr>';
+    if (playerRowEl) { playerRowEl.classList.add('is-hidden'); playerRowEl.innerHTML = ''; }
+
+    let rows = [];
+    try {
+      const bucket = getTaipeiDateBucket(key);
+      const snap = await firebase.firestore()
+        .collection('shotGameRankings').doc(bucket)
+        .collection('entries')
+        .orderBy('bestScore', 'desc').limit(50).get();
+      rows = snap.docs.map(d => {
+        const e = d.data();
+        return { id: d.id, nick: e.displayName || '匿名玩家', score: e.bestScore || 0, streak: e.bestStreak || 0, durationSec: 0 };
+      });
+    } catch (_) {
+      bodyEl.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:1.5rem;opacity:0.6">讀取失敗，請稍後再試</td></tr>';
+      return;
+    }
+
+    if (_bestSession && _bestSession.score > 0) {
+      rows.push({ id: 'player-self', nick: '你', score: _bestSession.score, streak: _bestSession.streak || 0, durationSec: Math.round((_bestSession.durationMs || 0) / 1000) });
+    }
+    rows.sort(compareRows);
+    const ranked = rows.map((r, i) => ({ ...r, rank: i + 1 }));
+    const topRows = ranked.slice(0, LEADERBOARD_TOP_SIZE);
+    const playerRow = ranked.find(r => r.id === 'player-self') || null;
+    const extraPlayerRow = playerRow && playerRow.rank > LEADERBOARD_TOP_SIZE ? playerRow : null;
+
+    if (topRows.length === 0) {
+      bodyEl.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:1.5rem;opacity:0.6">尚無排行資料</td></tr>';
+      return;
+    }
+
+    bodyEl.innerHTML = topRows.map(row => {
+      const rowClass = row.rank <= 3 ? ` class="sg-lb-row-top${row.rank}"` : '';
+      const rankLabel = row.rank <= 3
+        ? `<span class="sg-lb-rank-badge">${buildRankIcon(row.rank)}<span>${row.rank}</span></span>`
+        : `#${row.rank}`;
+      return `<tr${rowClass}>
+        <td class="sg-lb-rank">${rankLabel}</td>
+        <td class="sg-lb-nick"><span class="sg-lb-name-pill" title="${escapeHtml(row.nick)}">${escapeHtml(row.nick)}</span></td>
+        <td class="sg-lb-score">${row.score}</td>
+        <td>${row.streak}</td>
+        <td>${formatDuration(row.durationSec)}</td>
+      </tr>`;
+    }).join('');
+
+    if (!playerRowEl) return;
+    if (extraPlayerRow) {
+      const row = extraPlayerRow;
+      playerRowEl.classList.remove('is-hidden');
+      playerRowEl.innerHTML = `<h4>你的名次</h4>
+        <table style="width:100%;border-collapse:collapse;table-layout:fixed">
+          <colgroup>
+            <col class="sg-lb-col-rank"><col class="sg-lb-col-nick">
+            <col class="sg-lb-col-score"><col class="sg-lb-col-streak"><col class="sg-lb-col-time">
+          </colgroup>
+          <tbody><tr>
+            <td class="sg-lb-rank">#${row.rank}</td>
+            <td class="sg-lb-nick"><span class="sg-lb-name-pill" title="${escapeHtml(row.nick)}">${escapeHtml(row.nick)}</span></td>
+            <td class="sg-lb-score">${row.score}</td>
+            <td>${row.streak}</td>
+            <td>${formatDuration(row.durationSec)}</td>
+          </tr></tbody>
+        </table>`;
+    } else {
+      playerRowEl.classList.add('is-hidden');
+      playerRowEl.innerHTML = '';
+    }
+  }
+
+  function _openLeaderboard(period) {
+    const modal = document.getElementById('sg-leaderboard-modal');
+    if (!modal) return;
+    _renderLeaderboard(period || _lbPeriod);
+    modal.classList.add('is-open');
+    modal.setAttribute('aria-hidden', 'false');
+    _lbOpen = true;
+  }
+
+  function _closeLeaderboard() {
+    const modal = document.getElementById('sg-leaderboard-modal');
+    if (!modal) return;
+    modal.classList.remove('is-open');
+    modal.setAttribute('aria-hidden', 'true');
+    _lbOpen = false;
+  }
+
+  function _openIntro() {
+    if (isIntroSuppressed()) return;
+    const modal = document.getElementById('sg-intro-modal');
+    if (modal) modal.setAttribute('aria-hidden', 'false');
+  }
+
+  function _closeIntro() {
+    const modal = document.getElementById('sg-intro-modal');
+    const check = document.getElementById('sg-intro-dismiss');
+    if (!modal) return;
+    if (check && check.checked) suppressIntroToday();
+    modal.setAttribute('aria-hidden', 'true');
+  }
+
+  function _updateSessionBadge() {
+    const badge = document.getElementById('session-badge');
+    if (!badge) return;
+    badge.textContent = _bestSession
+      ? `當前最佳：${_bestSession.score} 分｜${_bestSession.shots} 射門｜${Math.round(_bestSession.durationMs / 1000)} 秒`
+      : '當前最佳：尚無紀錄';
+  }
+
+  function _isBetter(incoming, best) {
+    if (!best) return true;
+    if (incoming.score !== best.score) return incoming.score > best.score;
+    if (incoming.shots !== best.shots) return incoming.shots < best.shots;
+    return incoming.durationMs < best.durationMs;
+  }
+
+  /* ── Game Start ── */
+  function _startGame() {
+    if (_engine) { _engine.destroy(); _engine = null; }
+    const container = document.getElementById('shot-game-container');
+    if (!container || !window.ShotGameEngine) return;
+
+    const lowFx = new URLSearchParams(location.search).get('low') === '1';
+
+    _engine = window.ShotGameEngine.create({
+      container,
+      lowFx,
+      ui: {
+        scoreEl: document.getElementById('sg-score'),
+        streakEl: document.getElementById('sg-streak'),
+        powerBarEl: document.getElementById('sg-power'),
+        powerFillEl: document.getElementById('sg-power-fill'),
+        crosshairEl: document.getElementById('sg-crosshair'),
+        messageEl: document.getElementById('sg-message'),
+        restartBtn: document.getElementById('sg-restart'),
+      },
+      onGameOver(payload) {
+        const normalized = {
+          score: Number(payload && payload.score ? payload.score : 0),
+          shots: Number(payload && payload.shots ? payload.shots : 0),
+          streak: Number(payload && payload.bestStreak != null ? payload.bestStreak : (payload ? payload.streak : 0)),
+          durationMs: Number(payload && payload.durationMs ? payload.durationMs : 0),
+        };
+        if (_isBetter(normalized, _bestSession)) _bestSession = normalized;
+        _updateSessionBadge();
+
+        const user = typeof auth !== 'undefined' ? auth.currentUser : null;
+        if (normalized.score > 0 && user) {
+          firebase.app().functions('asia-east1').httpsCallable('submitShotGameScore')({
+            score: normalized.score,
+            shots: normalized.shots,
+            streak: normalized.streak,
+            durationMs: normalized.durationMs,
+            displayName: user.displayName || '匿名玩家',
+          }).then(() => { if (_lbOpen) _renderLeaderboard(_lbPeriod); }).catch(() => {});
+        }
+        if (_lbOpen) _renderLeaderboard(_lbPeriod);
+      },
+    });
+
+    _updateSessionBadge();
+    _openIntro();
+  }
+
+  /* ── Event Binding (once per session) ── */
+  function _bindEvents() {
+    if (_eventsBound) return;
+    _eventsBound = true;
+
+    const lbBtn = document.getElementById('sg-leaderboard-btn');
+    if (lbBtn) {
+      lbBtn.addEventListener('pointerdown', e => e.stopPropagation());
+      lbBtn.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); _openLeaderboard(_lbPeriod); });
+    }
+
+    const lbClose = document.getElementById('sg-leaderboard-close');
+    if (lbClose) lbClose.addEventListener('click', _closeLeaderboard);
+
+    const lbModal = document.getElementById('sg-leaderboard-modal');
+    if (lbModal) lbModal.addEventListener('click', e => { if (e.target === lbModal) _closeLeaderboard(); });
+
+    document.querySelectorAll('#sg-leaderboard-modal .sg-lb-tab').forEach(tab => {
+      tab.addEventListener('click', () => _renderLeaderboard(tab.getAttribute('data-lb-period') || 'daily'));
+    });
+
+    const introStart = document.getElementById('sg-intro-start');
+    if (introStart) introStart.addEventListener('click', _closeIntro);
+
+    window.addEventListener('keydown', e => {
+      if (e.key === 'Escape' && _lbOpen) _closeLeaderboard();
+    });
+
+    window.addEventListener('beforeunload', () => { if (_engine) _engine.destroy(); });
+  }
+
+  /* ── Ad Loading ── */
+  async function _loadAd() {
+    try {
+      if (!window.firebase || typeof firebase.firestore !== 'function') return;
+      const snap = await firebase.firestore().collection('banners').doc('sga1').get();
+      if (!snap.exists) return;
+      const f = snap.data() || {};
+      if (f.status !== 'active' || !f.image) return;
+      const safeImg = f.image.replace(/"/g, '&quot;');
+      const safeLnk = (f.linkUrl || '').replace(/"/g, '&quot;');
+      const container = document.getElementById('sg-ad-container');
+      if (!container) return;
+      container.innerHTML = safeLnk
+        ? `<a href="${safeLnk}" target="_blank" rel="noopener noreferrer"><img src="${safeImg}" alt="廣告"></a>`
+        : `<img src="${safeImg}" alt="廣告">`;
+    } catch (_) {}
+  }
+
+  /* ── App Module Methods ── */
+  Object.assign(App, {
+    async initShotGamePage() {
+      const currentUser = typeof auth !== 'undefined' ? auth.currentUser : null;
+      const loginCard = document.getElementById('sg-login-required');
+      const gameSection = document.getElementById('game-section');
+      const loadingEl = document.getElementById('sg-main-loading');
+
+      // Production: require login
+      if (!ModeManager.isDemo() && !currentUser) {
+        if (loginCard) loginCard.style.display = '';
+        if (gameSection) gameSection.style.display = 'none';
+        if (loadingEl) loadingEl.style.display = 'none';
+        return;
+      }
+
+      if (loginCard) loginCard.style.display = 'none';
+      if (loadingEl) loadingEl.style.display = '';
+      if (gameSection) gameSection.style.display = 'none';
+
+      // Lazy-load Three.js + engine
+      try {
+        await _loadThreeJs();
+        await _loadEngine();
+      } catch (e) {
+        if (loadingEl) loadingEl.textContent = '遊戲載入失敗，請重新整理頁面再試';
+        return;
+      }
+
+      if (loadingEl) loadingEl.style.display = 'none';
+      if (gameSection) gameSection.style.display = '';
+
+      _bindEvents();
+      _startGame();
+      _loadAd();
+    },
+
+    destroyShotGamePage() {
+      if (_engine) { _engine.destroy(); _engine = null; }
+      _closeLeaderboard();
+      const introModal = document.getElementById('sg-intro-modal');
+      if (introModal) introModal.setAttribute('aria-hidden', 'true');
+    },
+  });
+})();

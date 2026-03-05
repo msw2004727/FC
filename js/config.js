@@ -90,7 +90,8 @@
 // 20260305b: free aim, hint top-right, goal randomness, streak ramp, 10x shake
 // 20260305e: Phase 1 shot game — Cloud Function submit + Firestore leaderboard
 // 20260305f: game adjustments — intro modal, shot game ad slot, flash fix
-const CACHE_VERSION = '20260305i';
+// 20260305j: 射門遊戲嵌入主站（pages/game.html + shot-game-page.js + game.css）
+const CACHE_VERSION = '20260305j';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {
@@ -336,6 +337,7 @@ const TEAM_RANK_CONFIG = [
 // ─── Drawer Menu Config ───
 const DRAWER_MENUS = [
   { icon: '', label: '個人數據', i18nKey: 'drawer.personalData', page: 'page-personal-dashboard', minRole: 'user', locked: true },
+  { icon: '', label: '射門遊戲', page: 'page-game', minRole: 'user' },
   { icon: '', label: '二手商品區', i18nKey: 'drawer.shop', page: 'page-shop', minRole: 'user', locked: true },
   { icon: '', label: '排行榜', i18nKey: 'drawer.leaderboard', action: 'coming-soon', minRole: 'user', locked: true },
   { icon: '', label: '分享網頁', i18nKey: 'drawer.share', action: 'share', minRole: 'user' },

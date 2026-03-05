@@ -1,0 +1,123 @@
+<!-- PAGE: Game (3D 蓄力射門) -->
+<section class="page" id="page-game">
+
+  <!-- Login Required Card (Production only) -->
+  <div id="sg-login-required" class="sg-login-card" style="display:none">
+    <div class="sg-login-icon">⚽</div>
+    <h3>請先登入才能遊玩</h3>
+    <p>請先使用 LINE 帳號登入，<br>即可開始 3D 蓄力射門挑戰！</p>
+  </div>
+
+  <!-- Loading State -->
+  <div id="sg-main-loading" class="sg-loading-state" style="display:none">遊戲載入中…</div>
+
+  <!-- Game Section -->
+  <div id="game-section" style="display:none">
+    <div class="sg-page-title-row">TooSterxHub PK大賽</div>
+
+    <!-- Game Container -->
+    <div id="shot-game-container">
+      <!-- Goal Guide -->
+      <div class="sg-goal-guide" aria-label="九宮格得分說明">
+        <div class="sg-goal-guide-title">九宮格得分</div>
+        <div class="sg-goal-guide-grid">
+          <div class="sg-gg-cell sg-gg-high">100</div>
+          <div class="sg-gg-cell sg-gg-mid">50</div>
+          <div class="sg-gg-cell sg-gg-high">100</div>
+          <div class="sg-gg-cell sg-gg-mid">50</div>
+          <div class="sg-gg-cell sg-gg-low">20</div>
+          <div class="sg-gg-cell sg-gg-mid">50</div>
+          <div class="sg-gg-cell sg-gg-low">40</div>
+          <div class="sg-gg-cell sg-gg-low">10</div>
+          <div class="sg-gg-cell sg-gg-low">40</div>
+        </div>
+      </div>
+      <!-- HUD -->
+      <div class="sg-hud">
+        <div id="sg-score" class="sg-hud-chip">分數：0</div>
+        <div id="sg-streak" class="sg-hud-chip sg-streak-chip">連進：0</div>
+      </div>
+      <div id="sg-message"></div>
+      <div id="sg-crosshair"></div>
+      <div id="sg-power"><div id="sg-power-fill"></div></div>
+      <button id="sg-restart" type="button">重新挑戰</button>
+      <!-- Bottom HUD Row -->
+      <div class="sg-bottom-row">
+        <div id="session-badge">當前最佳：尚無紀錄</div>
+        <button id="sg-leaderboard-btn" class="sg-lb-btn" type="button">射手榜</button>
+      </div>
+    </div>
+
+    <!-- Ad Slot -->
+    <div id="sg-ad-container" class="sg-ad-slot">
+      <div class="sg-ad-placeholder">
+        <span class="sg-ad-icon">🖼️</span>
+        <strong>廣告版位</strong>
+      </div>
+    </div>
+  </div>
+
+  <!-- Intro Modal -->
+  <div id="sg-intro-modal" class="sg-intro-overlay" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="sg-intro-title">
+    <div class="sg-intro-dialog">
+      <h3 id="sg-intro-title">遊戲操作說明</h3>
+      <ol class="sg-intro-steps">
+        <li class="sg-intro-step"><span class="sg-step-num">1</span><span>按住滑鼠左鍵或長按螢幕開始蓄力，蓄力條越滿射速越快</span></li>
+        <li class="sg-intro-step"><span class="sg-step-num">2</span><span>拖曳瞄準球門格子，角落格子最高 100 分，中間格 10 分</span></li>
+        <li class="sg-intro-step"><span class="sg-step-num">3</span><span>放開即可射門，連續進球獲得連進倍率加成</span></li>
+        <li class="sg-intro-step"><span class="sg-step-num">4</span><span>時間到遊戲結束，成績自動上傳射手榜</span></li>
+      </ol>
+      <label class="sg-intro-dismiss-row" for="sg-intro-dismiss">
+        <input type="checkbox" id="sg-intro-dismiss"> 我已知道怎麼玩，今日不再提醒
+      </label>
+      <button id="sg-intro-start" class="sg-intro-start-btn" type="button">開始遊戲！</button>
+    </div>
+  </div>
+
+  <!-- Leaderboard Modal -->
+  <div id="sg-leaderboard-modal" class="sg-lb-overlay" aria-hidden="true">
+    <section class="sg-lb-dialog" role="dialog" aria-modal="true" aria-labelledby="sg-leaderboard-title">
+      <div class="sg-lb-head">
+        <div>
+          <h3 id="sg-leaderboard-title">射手榜</h3>
+          <p id="sg-leaderboard-range">每日排行前 10 名</p>
+        </div>
+        <button id="sg-leaderboard-close" class="sg-lb-close-btn" type="button" aria-label="關閉射手榜">
+          <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true">
+            <circle cx="12" cy="12" r="10" fill="rgba(32,106,158,0.22)"></circle>
+            <path d="M8 8l8 8M16 8l-8 8" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+          </svg>
+          <span>關閉</span>
+        </button>
+      </div>
+      <div class="sg-lb-tabs" role="tablist" aria-label="排行榜時間範圍">
+        <button type="button" class="sg-lb-tab is-active" data-lb-period="daily" role="tab" aria-selected="true">每日</button>
+        <button type="button" class="sg-lb-tab" data-lb-period="weekly" role="tab" aria-selected="false">每周</button>
+        <button type="button" class="sg-lb-tab" data-lb-period="monthly" role="tab" aria-selected="false">每月</button>
+      </div>
+      <div class="sg-lb-table-wrap">
+        <table class="sg-lb-table" aria-label="射手排行榜">
+          <colgroup>
+            <col class="sg-lb-col-rank">
+            <col class="sg-lb-col-nick">
+            <col class="sg-lb-col-score">
+            <col class="sg-lb-col-streak">
+            <col class="sg-lb-col-time">
+          </colgroup>
+          <thead>
+            <tr>
+              <th>排名</th>
+              <th>暱稱</th>
+              <th>分數</th>
+              <th>連進</th>
+              <th>時間</th>
+            </tr>
+          </thead>
+          <tbody id="sg-leaderboard-body"></tbody>
+        </table>
+        <div id="sg-leaderboard-player-row" class="sg-lb-player-row is-hidden" aria-live="polite"></div>
+      </div>
+    </section>
+  </div>
+
+</section>
