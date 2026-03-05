@@ -12,6 +12,11 @@
   const BALL_TEX_BASECOLOR = 'assets/ball/club-world-cup-2025/textures/Al_Rihla_baseColor.png';
   const BALL_TEX_NORMAL = 'assets/ball/club-world-cup-2025/textures/Al_Rihla_normal.png';
   const BALL_TEX_METAL_ROUGH = 'assets/ball/club-world-cup-2025/textures/Al_Rihla_metallicRoughness.png';
+  const GOAL_BURST_CHANCE_PER_SEC = 0.2;
+  const GOAL_BURST_MIN_STEPS = 6;
+  const GOAL_BURST_MAX_STEPS = 12;
+  const GOAL_BURST_MIN_MULT = 2.1;
+  const GOAL_BURST_MAX_MULT = 3.5;
 
   const THEME_DARK  = { sky: 0x0d1b2a, ground: 0x1b4520, trail: 0x9ed8ff };
   const THEME_LIGHT = { sky: 0x88cff4, ground: 0x2f7d32, trail: 0x1d6fa8 };
@@ -150,11 +155,10 @@
     function loadBallTexture(path, isColor) {
       let texture = null;
       try {
-        texture = textureLoader.load(path, undefined, undefined, () => {});
+        texture = textureLoader.load(path, undefined, undefined, () => { console.warn(`[ShotGame] texture load failed: ${path}`); });
         texture.flipY = false;
         texture.anisotropy = maxAnisotropy;
         if (isColor) texture.encoding = THREE.sRGBEncoding;
-        texture.needsUpdate = true;
       } catch (_) {
         texture = null;
       }
@@ -228,6 +232,7 @@
     let sessionStartedAt = Date.now(); let resultTimer = null; let flashTimer = null; let rafId = 0;
     let accumulator = 0; let flightTime = 0; let apex = BALL_RADIUS; let lastBallZ = PENALTY_SPOT_Z;
     let goalSpeed = 2.9; let goalDir = 1; let goalRange = 5.8; let goalSpeedMult = 1.0;
+    let goalBurstSteps = 0; let goalBurstMult = 1.0; let goalBurstDir = 1;
     let trailCount = 0;
     const postOffset = new THREE.Vector3();
     const collisionNormal = new THREE.Vector3();
@@ -501,7 +506,10 @@
     function restartGame() {
       if (resultTimer) clearTimeout(resultTimer);
       score = 0; streak = 0; shots = 0; state = 'aiming';
-      sessionStartedAt = Date.now(); goalSpeed = 2.9; goalDir = 1; goalRange = 5.8; goalSpeedMult = 1.0; goalGroup.position.x = 0;
+      sessionStartedAt = Date.now();
+      goalSpeed = 2.9; goalDir = 1; goalRange = 5.8; goalSpeedMult = 1.0;
+      goalBurstSteps = 0; goalBurstMult = 1.0; goalBurstDir = 1;
+      goalGroup.position.x = 0;
       if (ui.restartBtn) ui.restartBtn.style.display = 'none';
       refreshHud(); resetShot(); setMessage('開始！', '#ffffff');
     }
@@ -510,10 +518,30 @@
         // 速度倍率做 Ornstein–Uhlenbeck 漂移（在 1.0 附近隨機震盪）
         goalSpeedMult += (1 - goalSpeedMult) * 0.08 + (Math.random() - 0.5) * 0.25;
         goalSpeedMult = clamp(goalSpeedMult, 0.35, 1.65);
+        if (goalBurstSteps <= 0 && Math.random() < GOAL_BURST_CHANCE_PER_SEC * dt) {
+          goalBurstSteps = GOAL_BURST_MIN_STEPS + Math.floor(Math.random() * (GOAL_BURST_MAX_STEPS - GOAL_BURST_MIN_STEPS + 1));
+          goalBurstMult = GOAL_BURST_MIN_MULT + Math.random() * (GOAL_BURST_MAX_MULT - GOAL_BURST_MIN_MULT);
+          goalBurstDir = Math.random() < 0.5 ? -1 : 1;
+        }
         // 每秒約 4% 機率隨機改變方向（非邊界觸發）
-        if (Math.random() < 0.04 * dt * 60) { goalDir = Math.random() < 0.5 ? 1 : -1; goalRange = 4 + Math.random() * 7; }
-        goalGroup.position.x += goalDir * goalSpeed * goalSpeedMult * dt;
-        if (Math.abs(goalGroup.position.x) >= goalRange) { goalDir *= -1; goalRange = 4 + Math.random() * 7; }
+        if (Math.random() < 0.04 * dt * 60) {
+          goalDir = Math.random() < 0.5 ? 1 : -1;
+          goalRange = Math.max(4 + Math.random() * 7, Math.abs(goalGroup.position.x) + 0.45);
+        }
+        let moveMult = goalSpeedMult;
+        if (goalBurstSteps > 0) {
+          goalDir = goalBurstDir;
+          moveMult *= goalBurstMult;
+          goalBurstSteps -= 1;
+          if (goalBurstSteps <= 0) goalBurstMult = 1.0;
+        }
+        goalGroup.position.x += goalDir * goalSpeed * moveMult * dt;
+        if (Math.abs(goalGroup.position.x) >= goalRange) {
+          goalGroup.position.x = Math.sign(goalGroup.position.x || goalDir) * goalRange;
+          goalDir *= -1;
+          goalRange = Math.max(4 + Math.random() * 7, Math.abs(goalGroup.position.x) + 0.45);
+          if (goalBurstSteps > 0 && Math.random() < 0.45) goalBurstDir = goalDir;
+        }
       }
       if (state !== 'flying' && state !== 'result') return;
       flightTime += dt;
