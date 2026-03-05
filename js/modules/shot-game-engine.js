@@ -439,10 +439,25 @@
       trailGeometry.attributes.aAlpha.needsUpdate = true;
     }
 
+    const LIGHT_THEME_MESSAGE_COLORS = Object.freeze({
+      '#ffffff': '#13283b',
+      '#ffd166': '#6b4b00',
+      '#ffd54f': '#755300',
+      '#80ff80': '#1e6a33',
+      '#ff8a80': '#7a1f2c',
+    });
+    function resolveMessageColor(inputColor) {
+      const fallback = '#ffffff';
+      const rawColor = (typeof inputColor === 'string' && inputColor.trim())
+        ? inputColor.trim().toLowerCase()
+        : fallback;
+      if (readThemeIsDark()) return rawColor;
+      return LIGHT_THEME_MESSAGE_COLORS[rawColor] || '#13283b';
+    }
     function setMessage(text, color) {
       if (!ui.messageEl) return;
       ui.messageEl.textContent = text;
-      ui.messageEl.style.color = color || '#ffffff';
+      ui.messageEl.style.color = resolveMessageColor(color);
       ui.messageEl.style.opacity = text ? '1' : '0';
     }
     function refreshHud() {

@@ -772,3 +772,8 @@
   3. 兩個模組提交分數時，`displayName` 改為優先採用 `LineAuth.getProfile().displayName`（auth displayName 為空時避免落成 `玩家XXXX`）。
   4. 依快取規則更新版本：`js/config.js` `CACHE_VERSION` → `20260305p`，`index.html` 與 `game-lab.html` 全部 `?v=` 同步升版。
 - **教訓**：榜單渲染若同時混用「本地暫存分數」與「遠端排名」，必須先做 uid 去重與合併；否則即使資料庫無重複，UI 仍會誤導成重複寫入。
+### 2026-03-05 — PK 射門 UI 可讀性與主題切換修正
+- **問題**：淺色模式中央訊息過亮、左上 HUD 字太小、深色模式主題切換月亮圖示會被滑塊或邊界遮擋。
+- **原因**：setMessage() 固定使用亮色字，HUD 字級偏小，主題切換按鈕的滑塊位移與圖示留白配置不足。
+- **修復**：js/modules/shot-game-engine.js 新增淺色模式訊息顏色映射；game-lab.html 調整 HUD 字級（含手機版）並修正主題切換的 track overflow、icon z-index、moon 位置與 thumb 位移；快取版號更新為 20260305q（js/config.js、index.html、game-lab.html）。
+- **教訓**：UI 在雙主題下都要檢查對比與可視範圍，切換元件要同時驗證層級、位移與邊界裁切。
