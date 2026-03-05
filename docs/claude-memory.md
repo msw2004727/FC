@@ -906,3 +906,11 @@
   - `js/modules/shot-game-engine.js`: kept `power<100` shake unchanged, and applied 5x multiplier when `power>=100`.
   - `js/config.js`, `index.html`, `game-lab.html`: bumped cache version to `20260306`.
 - **Lesson**: Lock the trigger window first (`power>=100`) before scaling intensity, so lower-charge handling remains stable.
+### 2026-03-06 - overcharge shot curve boosted 5x (power>100)
+- **Issue**: User wanted stronger ball flight curve when charge exceeds 100.
+- **Cause**: Overcharge path only had moderate curve increase from side spin and curve boost.
+- **Fix**:
+  - `js/modules/shot-game-engine.js`: added `OVERCHARGE_CURVE_MULTIPLIER = 5`.
+  - `js/modules/shot-game-engine.js`: in `kick()`, applied 5x multiplier to overcharge side spin and overcharge curveBoost bonus when `power>100`.
+  - `js/config.js`, `index.html`, `game-lab.html`: bumped cache version to `20260306a`.
+- **Lesson**: For gameplay feel tuning, isolate multiplier to overcharge window so normal-charge control remains stable.

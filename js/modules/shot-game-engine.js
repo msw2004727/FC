@@ -28,6 +28,7 @@
   const BILLBOARD_HEIGHT = 4.8 * BILLBOARD_SPACE_SCALE;
   const BALL_TEXTURE_SLOTS = ['map', 'normalMap', 'roughnessMap', 'metalnessMap'];
   const FULL_CHARGE_SHAKE_MULTIPLIER = 5;
+  const OVERCHARGE_CURVE_MULTIPLIER = 5;
 
   const THEME_DARK  = { sky: 0x0d1b2a, ground: 0x1b4520, trail: 0x9ed8ff };
   const THEME_LIGHT = { sky: 0x88cff4, ground: 0x2f7d32, trail: 0x1d6fa8 };
@@ -805,20 +806,23 @@
     function kick() {
       state = 'flying'; charging = false; shots += 1; flightTime = 0; apex = ball.position.y;
       const p = clamp(power / 100, 0, 1.3);
+      const isOvercharge = power > 100;
+      const overchargeCurveMult = isOvercharge ? OVERCHARGE_CURVE_MULTIPLIER : 1;
       const target = new THREE.Vector3(aim.x, aim.y, GOAL_Z);
       const dir = target.clone().sub(ball.position).normalize();
       const speed = 22 + p * 24;
       velocity.copy(dir.multiplyScalar(speed));
       velocity.y += 3 + p * 10;
       const sideSign = Math.abs(aim.x) > 0.05 ? Math.sign(-aim.x) : (Math.random() < 0.5 ? -1 : 1);
-      const sideSpin = -aim.x * (0.24 + p * 0.26) + sideSign * Math.max(0, p - 0.95) * 0.16;
+      const sideSpinBase = -aim.x * (0.24 + p * 0.26) + sideSign * Math.max(0, p - 0.95) * 0.16;
+      const sideSpin = sideSpinBase * overchargeCurveMult;
       const verticalSpin = 0.22 + p * 0.34 + Math.max(0, p - 0.9) * 0.42;
       curveBoost = 1 + p * 1.05 + Math.max(0, p - 0.9) * 1.8;
-      if (power > 100) {
+      if (isOvercharge) {
         const over = clamp((power - 100) / 30, 0, 1);
         velocity.x += (Math.random() - 0.5) * 12 * over;
         velocity.y += (Math.random() - 0.5) * 8 * over;
-        curveBoost += 0.7 + over * 0.9;
+        curveBoost += (0.7 + over * 0.9) * overchargeCurveMult;
         setMessage('超量爆發！', '#ff8a80');
       }
       spin.set(verticalSpin, sideSpin, 0);
