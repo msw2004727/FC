@@ -924,3 +924,14 @@
   - `js/modules/shot-game-engine.js`: updated ball texture setup to force full UV coverage (`wrapS/T = RepeatWrapping`, `repeat(1,1)`, zero offset).
   - `js/config.js`, `index.html`, `game-lab.html`: bumped cache version to `20260306b`.
 - **Lesson**: If UI jitter is part of gameplay, release-time physics must consume the same jittered coordinates; visual-only jitter causes perceived input mismatch.
+### 2026-03-06 - switch shot ball to glTF source mesh for full texture coverage
+- **Issue**: Ball texture looked like it was not fully covered on the gameplay ball.
+- **Cause**: The game used `SphereGeometry` with atlas textures authored for the original glTF mesh UV layout, causing visible unmapped/dark regions.
+- **Fix**:
+  - `js/modules/shot-game-engine.js`: replaced runtime ball visual from procedural sphere to `assets/ball/club-world-cup-2025/scene.gltf` mesh.
+  - `js/modules/shot-game-engine.js`: preserved a fallback sphere if `GLTFLoader` or glTF loading fails.
+  - `js/modules/shot-game-engine.js`: centered/scaled loaded ball model to `BALL_RADIUS`, and applied shadow/material texture settings.
+  - `js/modules/shot-game-page.js`: updated Three.js loader flow to also load `GLTFLoader` from r128 examples CDN.
+  - `game-lab.html`: included `GLTFLoader.js` before shot-game engine script.
+  - `js/config.js`, `index.html`, `game-lab.html`: bumped cache version to `20260306c`.
+- **Lesson**: Atlas textures must match the mesh UV layout; if not, always render with the asset's native mesh or re-bake textures for the target UVs.

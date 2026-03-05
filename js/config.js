@@ -115,7 +115,8 @@
 // 20260305ai: 九宮格分數底圖放大，接近單格滿版以提升辨識度
 // 20260306a: 主題切換改為遮罩滑動樣式（露月亮=深色、露太陽=淺色）
 // 20260306b: 蓄力準星抖動降 50%，放手按準星當下位置出球，並修正球面貼圖完整覆蓋
-const CACHE_VERSION = '20260306b';
+// 20260306c: 球改用 glTF 原始模型 UV 與材質，修正球面貼圖未貼滿
+const CACHE_VERSION = '20260306c';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {

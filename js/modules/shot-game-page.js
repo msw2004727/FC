@@ -158,17 +158,33 @@
 
   /* ── Script Loading ── */
   let _threeLoadPromise = null;
+  const THREE_CDN_URL = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js';
+  const GLTF_LOADER_CDN_URL = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/examples/js/loaders/GLTFLoader.js';
 
-  function _loadThreeJs() {
-    if (window.THREE) return Promise.resolve();
-    if (_threeLoadPromise) return _threeLoadPromise;
-    _threeLoadPromise = new Promise((resolve, reject) => {
+  function _appendScript(src, failMessage) {
+    return new Promise((resolve, reject) => {
       const s = document.createElement('script');
-      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js';
+      s.src = src;
       s.onload = resolve;
-      s.onerror = () => { _threeLoadPromise = null; reject(new Error('Three.js load failed')); };
+      s.onerror = () => reject(new Error(failMessage));
       document.head.appendChild(s);
     });
+  }
+
+  function _loadThreeJs() {
+    if (window.THREE && window.THREE.GLTFLoader) return Promise.resolve();
+    if (_threeLoadPromise) return _threeLoadPromise;
+    _threeLoadPromise = (window.THREE
+      ? Promise.resolve()
+      : _appendScript(THREE_CDN_URL, 'Three.js load failed'))
+      .then(() => {
+        if (window.THREE && window.THREE.GLTFLoader) return;
+        return _appendScript(GLTF_LOADER_CDN_URL, 'GLTFLoader load failed');
+      })
+      .catch((err) => {
+        _threeLoadPromise = null;
+        throw err;
+      });
     return _threeLoadPromise;
   }
 

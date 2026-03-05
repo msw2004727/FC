@@ -9,9 +9,7 @@
   const SCORE_MAP = [[100, 50, 100], [50, 20, 50], [40, 10, 40]];
   const TRAIL_FRAMES = 20;
   const STREAK_MILESTONES = new Set([5, 10, 20, 30]);
-  const BALL_TEX_BASECOLOR = 'assets/ball/club-world-cup-2025/textures/Al_Rihla_baseColor.png';
-  const BALL_TEX_NORMAL = 'assets/ball/club-world-cup-2025/textures/Al_Rihla_normal.png';
-  const BALL_TEX_METAL_ROUGH = 'assets/ball/club-world-cup-2025/textures/Al_Rihla_metallicRoughness.png';
+  const BALL_GLTF_ASSET = 'assets/ball/club-world-cup-2025/scene.gltf';
   const GOAL_BASE_SWING_BOUNDARY = 6.6;
   const GOAL_SWING_RANGE_SCALE = 1.2;
   const GOAL_MIN_X = -GOAL_BASE_SWING_BOUNDARY * GOAL_SWING_RANGE_SCALE;
@@ -26,7 +24,6 @@
   const BILLBOARD_SPACE_SCALE = Math.sqrt(8);
   const BILLBOARD_WIDTH = 16.5 * BILLBOARD_SPACE_SCALE;
   const BILLBOARD_HEIGHT = 4.8 * BILLBOARD_SPACE_SCALE;
-  const BALL_TEXTURE_SLOTS = ['map', 'normalMap', 'roughnessMap', 'metalnessMap'];
   const FULL_CHARGE_SHAKE_MULTIPLIER = 5;
   const CROSSHAIR_SHAKE_SCALE = 0.5;
   const OVERCHARGE_CURVE_MULTIPLIER = 5;
@@ -266,69 +263,95 @@
     const maxAnisotropy = renderer.capabilities && typeof renderer.capabilities.getMaxAnisotropy === 'function'
       ? Math.min(8, renderer.capabilities.getMaxAnisotropy())
       : 1;
-    function loadBallTexture(path, isColor, onLoaded) {
+    let isEngineDestroyed = false;
+    function configureBallTexture(texture, isColor) {
+      if (!texture) return;
+      texture.anisotropy = maxAnisotropy;
+      texture.flipY = false;
+      if (isColor) texture.encoding = THREE.sRGBEncoding;
+      texture.needsUpdate = true;
+    }
+    function applyBallMaterialSettings(root) {
+      root.traverse((node) => {
+        if (!node || !node.isMesh || !node.material) return;
+        const materials = Array.isArray(node.material) ? node.material : [node.material];
+        for (let i = 0; i < materials.length; i += 1) {
+          const material = materials[i];
+          if (!material) continue;
+          configureBallTexture(material.map, true);
+          configureBallTexture(material.emissiveMap, true);
+          configureBallTexture(material.normalMap, false);
+          configureBallTexture(material.roughnessMap, false);
+          configureBallTexture(material.metalnessMap, false);
+          material.needsUpdate = true;
+        }
+      });
+    }
+    function applyBallShadowSettings(root) {
+      root.traverse((node) => {
+        if (!node || !node.isMesh) return;
+        node.castShadow = !options.lowFx;
+        node.receiveShadow = false;
+      });
+    }
+    function centerAndScaleBallModel(root) {
+      const box = new THREE.Box3().setFromObject(root);
+      const size = new THREE.Vector3();
+      box.getSize(size);
+      const maxDim = Math.max(size.x, size.y, size.z);
+      if (maxDim <= 0) return;
+      const scale = (BALL_RADIUS * 2) / maxDim;
+      root.scale.setScalar(scale);
+      const scaledBox = new THREE.Box3().setFromObject(root);
+      const scaledCenter = new THREE.Vector3();
+      scaledBox.getCenter(scaledCenter);
+      root.position.sub(scaledCenter);
+    }
+    const ball = new THREE.Object3D();
+    ball.position.set(0, BALL_RADIUS, PENALTY_SPOT_Z);
+    scene.add(ball);
+    const fallbackBall = new THREE.Mesh(
+      new THREE.SphereGeometry(BALL_RADIUS, 48, 48),
+      new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.9, metalness: 0.05 })
+    );
+    fallbackBall.castShadow = !options.lowFx;
+    fallbackBall.receiveShadow = false;
+    ball.add(fallbackBall);
+    let ballVisualRoot = fallbackBall;
+    function loadBallModel() {
+      if (!THREE.GLTFLoader) {
+        console.warn('[ShotGame] GLTFLoader unavailable, using fallback sphere ball');
+        return;
+      }
       try {
-        textureLoader.load(
-          path,
-          (texture) => {
-            if (!hasRenderableTextureImage(texture)) {
-              console.warn(`[ShotGame] texture image missing: ${path}`);
+        const gltfLoader = new THREE.GLTFLoader();
+        gltfLoader.load(
+          BALL_GLTF_ASSET,
+          (gltf) => {
+            const modelRoot = gltf && gltf.scene ? gltf.scene : null;
+            if (!modelRoot) return;
+            centerAndScaleBallModel(modelRoot);
+            applyBallShadowSettings(modelRoot);
+            applyBallMaterialSettings(modelRoot);
+            if (isEngineDestroyed) {
+              disposeScene(modelRoot);
               return;
             }
-            texture.flipY = false;
-            texture.anisotropy = maxAnisotropy;
-            if (isColor) texture.encoding = THREE.sRGBEncoding;
-            texture.wrapS = THREE.RepeatWrapping;
-            texture.wrapT = THREE.RepeatWrapping;
-            texture.repeat.set(1, 1);
-            texture.offset.set(0, 0);
-            texture.needsUpdate = true;
-            if (typeof onLoaded === 'function') onLoaded(texture);
+            if (ballVisualRoot && ballVisualRoot.parent === ball) {
+              ball.remove(ballVisualRoot);
+              if (ballVisualRoot !== modelRoot) disposeScene(ballVisualRoot);
+            }
+            ball.add(modelRoot);
+            ballVisualRoot = modelRoot;
           },
           undefined,
-          () => { console.warn(`[ShotGame] texture load failed: ${path}`); },
+          () => { console.warn(`[ShotGame] glTF load failed: ${BALL_GLTF_ASSET}`); }
         );
       } catch (_) {
-        console.warn(`[ShotGame] texture load exception: ${path}`);
+        console.warn(`[ShotGame] glTF load exception: ${BALL_GLTF_ASSET}`);
       }
     }
-    function sanitizeBallMaterialTextures(material) {
-      let changed = false;
-      for (let i = 0; i < BALL_TEXTURE_SLOTS.length; i += 1) {
-        const slot = BALL_TEXTURE_SLOTS[i];
-        const texture = material[slot];
-        if (texture && !hasRenderableTextureImage(texture)) {
-          material[slot] = null;
-          changed = true;
-        }
-      }
-      if (changed) material.needsUpdate = true;
-      return changed;
-    }
-    const ballMaterial = new THREE.MeshStandardMaterial({
-      color: 0xffffff,
-      roughness: 1,
-      metalness: 1,
-    });
-    loadBallTexture(BALL_TEX_BASECOLOR, true, (texture) => {
-      ballMaterial.map = texture;
-      ballMaterial.needsUpdate = true;
-    });
-    loadBallTexture(BALL_TEX_NORMAL, false, (texture) => {
-      ballMaterial.normalMap = texture;
-      ballMaterial.needsUpdate = true;
-    });
-    loadBallTexture(BALL_TEX_METAL_ROUGH, false, (texture) => {
-      ballMaterial.roughnessMap = texture;
-      ballMaterial.metalnessMap = texture;
-      ballMaterial.needsUpdate = true;
-    });
-    const ball = new THREE.Mesh(
-      new THREE.SphereGeometry(BALL_RADIUS, 48, 48),
-      ballMaterial
-    );
-    ball.castShadow = !options.lowFx;
-    scene.add(ball);
+    loadBallModel();
 
     const trailPositions = new Float32Array(TRAIL_FRAMES * 3);
     const trailAlphas = new Float32Array(TRAIL_FRAMES);
@@ -995,7 +1018,6 @@
       accumulator = Math.min(accumulator + frameDt, 0.25);
       while (accumulator >= FIXED_DT) { step(FIXED_DT); accumulator -= FIXED_DT; }
       syncTheme();
-      sanitizeBallMaterialTextures(ballMaterial);
       renderer.render(scene, camera);
     }
 
@@ -1012,6 +1034,7 @@
         setBillboardAdImage(nextUrl);
       },
       destroy() {
+        isEngineDestroyed = true;
         if (resultTimer) clearTimeout(resultTimer);
         if (flashTimer) clearTimeout(flashTimer);
         container.classList.remove('flash-hit');
