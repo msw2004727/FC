@@ -55,6 +55,10 @@
 /* ─── Game Container ─── */
 #page-game #shot-game-container {
   position: relative;
+  --sg-hud-left: 8px;
+  --sg-guide-right: 8px;
+  --sg-guide-width: 168px;
+  --sg-hud-gap: 10px;
   height: calc(100dvh - var(--topbar-h) - var(--bottombar-h) - 52px);
   min-height: 380px;
   background: #8bc5e0;
@@ -82,7 +86,7 @@
 /* ─── HUD ─── */
 #page-game .sg-hud {
   position: absolute;
-  left: 14px;
+  left: var(--sg-hud-left);
   top: 14px;
   z-index: 5;
   display: flex;
@@ -114,7 +118,7 @@
 /* ─── Goal Guide ─── */
 #page-game .sg-goal-guide {
   position: absolute;
-  right: 12px;
+  right: var(--sg-guide-right);
   top: 12px;
   margin: 0;
   z-index: 4;
@@ -124,7 +128,7 @@
   border: 1px solid rgba(0, 0, 0, 0.15);
   border-radius: 10px;
   padding: 10px 11px;
-  width: 168px;
+  width: var(--sg-guide-width);
   box-sizing: border-box;
   text-align: center;
   line-height: 1.4;
@@ -242,6 +246,7 @@
   align-content: start;
   gap: 4px;
   width: min(76vw, 270px);
+  max-width: calc(100% - (var(--sg-guide-width) + var(--sg-hud-left) + var(--sg-guide-right) + var(--sg-hud-gap)));
   min-height: 102px;
   padding: 8px 10px;
   border-radius: 12px;
@@ -659,9 +664,13 @@
 
 /* ─── Mobile Adjustments ─── */
 @media (max-width: 480px) {
+  #page-game #shot-game-container {
+    --sg-hud-left: 6px;
+    --sg-guide-right: 6px;
+    --sg-guide-width: 144px;
+    --sg-hud-gap: 8px;
+  }
   #page-game .sg-goal-guide {
-    right: 8px;
-    width: 144px;
     padding: 8px 8px;
   }
   #page-game .sg-goal-guide-title { font-size: 11px; margin-bottom: 5px; }
@@ -691,5 +700,8 @@
   #page-game #session-badge .sg-session-sep { margin: 0 2px; }
 }
 @media (max-width: 390px) {
+  #page-game #shot-game-container {
+    --sg-guide-width: 136px;
+  }
   #page-game .sg-goal-guide { top: 122px; }
 }
