@@ -670,3 +670,14 @@
   4. `js/modules/shot-game-engine.js`：用 `CanvasTexture` 動態生成經典黑白五邊形足球貼圖並套用到球材質。
   5. `game-lab.html`：`shot-game-engine.js` 快取版號 `20260305d` → `20260305e`。
 - **教訓**：射門遊戲的手感與可理解性需要「物理回饋 + 視覺回饋」同時存在；碰撞、訊息、材質三者一起升級，才能讓玩家即時理解球路與成就節點。
+
+### 2026-03-05 — 改用現成球貼圖素材並統一「當前最佳」文案
+
+- **問題**：先前自繪球面貼圖方案在球體上出現變形與半球覆蓋感；底部歷史文案需由「開啟後最佳」改名為「當前最佳」。
+- **原因**：自繪圖樣與球體 UV 映射不一致；UI 文案仍沿用舊字串。
+- **修復**：
+  1. `js/modules/shot-game-engine.js`：改用 `THREE.TextureLoader` 載入 `assets/ball/club-world-cup-2025/textures` 的 `Al_Rihla_baseColor / normal / metallicRoughness`，直接套到既有 `SphereGeometry` 材質。
+  2. 同步設定貼圖 `flipY=false`、色彩貼圖 `sRGBEncoding`、`anisotropy`（上限 8）以改善方向與清晰度。
+  3. `js/modules/shot-game-lab-page.js` 與 `game-lab.html`：將「開啟後最佳」全面改為「當前最佳」。
+  4. `game-lab.html`：更新版本參數為 `shot-game-engine.js?v=20260305g`、`shot-game-lab-page.js?v=20260305e`。
+- **教訓**：球體外觀優先採完整 PBR 貼圖流程（BaseColor/Normal/MetalRough）比臨時平面圖樣更穩定；文案命名需與產品語彙一致，避免同義詞造成認知落差。

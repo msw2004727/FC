@@ -110,10 +110,10 @@
       const setSessionBadge = () => {
         if (!sessionBadge) return;
         if (!bestSessionSinceOpen) {
-          sessionBadge.textContent = '開啟後最佳：尚無紀錄';
+          sessionBadge.textContent = '當前最佳：尚無紀錄';
           return;
         }
-        sessionBadge.textContent = `開啟後最佳：${bestSessionSinceOpen.score} 分｜${bestSessionSinceOpen.shots} 射門｜${Math.round(bestSessionSinceOpen.durationMs / 1000)} 秒`;
+        sessionBadge.textContent = `當前最佳：${bestSessionSinceOpen.score} 分｜${bestSessionSinceOpen.shots} 射門｜${Math.round(bestSessionSinceOpen.durationMs / 1000)} 秒`;
       };
 
       const exportStore = async () => {

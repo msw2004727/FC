@@ -9,6 +9,9 @@
   const SCORE_MAP = [[100, 50, 100], [50, 20, 50], [40, 10, 40]];
   const TRAIL_FRAMES = 20;
   const STREAK_MILESTONES = new Set([5, 10, 20, 30]);
+  const BALL_TEX_BASECOLOR = 'assets/ball/club-world-cup-2025/textures/Al_Rihla_baseColor.png';
+  const BALL_TEX_NORMAL = 'assets/ball/club-world-cup-2025/textures/Al_Rihla_normal.png';
+  const BALL_TEX_METAL_ROUGH = 'assets/ball/club-world-cup-2025/textures/Al_Rihla_metallicRoughness.png';
 
   const THEME_DARK  = { sky: 0x0d1b2a, ground: 0x1b4520, trail: 0x9ed8ff };
   const THEME_LIGHT = { sky: 0x88cff4, ground: 0x2f7d32, trail: 0x1d6fa8 };
@@ -140,9 +143,39 @@
 
     drawFieldLines(scene);
 
+    const textureLoader = new THREE.TextureLoader();
+    const maxAnisotropy = renderer.capabilities && typeof renderer.capabilities.getMaxAnisotropy === 'function'
+      ? Math.min(8, renderer.capabilities.getMaxAnisotropy())
+      : 1;
+    function loadBallTexture(path, isColor) {
+      let texture = null;
+      try {
+        texture = textureLoader.load(path, undefined, undefined, () => {});
+        texture.flipY = false;
+        texture.anisotropy = maxAnisotropy;
+        if (isColor) texture.encoding = THREE.sRGBEncoding;
+        texture.needsUpdate = true;
+      } catch (_) {
+        texture = null;
+      }
+      return texture;
+    }
+    const ballBaseColorMap = loadBallTexture(BALL_TEX_BASECOLOR, true);
+    const ballNormalMap = loadBallTexture(BALL_TEX_NORMAL, false);
+    const ballMetalRoughMap = loadBallTexture(BALL_TEX_METAL_ROUGH, false);
+    const ballMaterial = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      roughness: 1,
+      metalness: 1,
+      map: ballBaseColorMap || null,
+      normalMap: ballNormalMap || null,
+      roughnessMap: ballMetalRoughMap || null,
+      metalnessMap: ballMetalRoughMap || null,
+    });
+    ballMaterial.needsUpdate = true;
     const ball = new THREE.Mesh(
       new THREE.SphereGeometry(BALL_RADIUS, 48, 48),
-      new THREE.MeshStandardMaterial({ color: 0xf8f8f8, roughness: 0.64, metalness: 0.08 })
+      ballMaterial
     );
     ball.castShadow = !options.lowFx;
     scene.add(ball);

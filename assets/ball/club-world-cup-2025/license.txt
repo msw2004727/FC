@@ -1,0 +1,11 @@
+Model Information:
+* title:	Al Rihla - FIFA World Cup Qatar 2022
+* source:	https://sketchfab.com/3d-models/al-rihla-fifa-world-cup-qatar-2022-26f148946cd04c778f3d413adcd3cff8
+* author:	Jesus Osco (https://sketchfab.com/gsus.vfx)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Al Rihla - FIFA World Cup Qatar 2022" (https://sketchfab.com/3d-models/al-rihla-fifa-world-cup-qatar-2022-26f148946cd04c778f3d413adcd3cff8) by Jesus Osco (https://sketchfab.com/gsus.vfx) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
