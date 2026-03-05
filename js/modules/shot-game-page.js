@@ -377,7 +377,7 @@
     if (!badge) return;
     if (!badge.querySelector('.sg-session-title')) {
       badge.innerHTML = `
-        <div class="sg-session-title">當前最佳記錄</div>
+        <div class="sg-session-top-title">本局記錄</div>
         <div class="sg-session-focus-row">
           <div class="sg-session-focus-box sg-session-focus-box-score">
             <div class="sg-session-focus-label">分數</div>
@@ -388,18 +388,13 @@
             <div class="sg-session-focus-value sg-session-focus-streak">0</div>
           </div>
         </div>
+        <div class="sg-session-title">當前最佳記錄</div>
         <div class="sg-session-best">
           <span class="sg-session-best-score">--</span>分
           <span class="sg-session-sep">|</span>
           <span class="sg-session-best-shots">--</span>射門
           <span class="sg-session-sep">|</span>
           <span class="sg-session-best-time">--</span>秒
-        </div>
-        <div class="sg-session-divider" aria-hidden="true"></div>
-        <div class="sg-session-live">
-          分數:<span class="sg-session-live-score">0</span>
-          <span class="sg-session-sep">|</span>
-          連進:<span class="sg-session-live-streak">0</span>
         </div>
       `;
     }
@@ -408,8 +403,6 @@
     const bestTimeEl = badge.querySelector('.sg-session-best-time');
     const focusScoreEl = badge.querySelector('.sg-session-focus-score');
     const focusStreakEl = badge.querySelector('.sg-session-focus-streak');
-    const liveScoreEl = badge.querySelector('.sg-session-live-score');
-    const liveStreakEl = badge.querySelector('.sg-session-live-streak');
 
     const hasBest = !!_bestSession;
     const bestScore = hasBest ? Math.max(0, Math.round(Number(_bestSession.score) || 0)) : '--';
@@ -423,8 +416,6 @@
     if (bestTimeEl) bestTimeEl.textContent = String(bestTime);
     if (focusScoreEl) focusScoreEl.textContent = String(liveScore);
     if (focusStreakEl) focusStreakEl.textContent = String(liveStreak);
-    if (liveScoreEl) liveScoreEl.textContent = String(liveScore);
-    if (liveStreakEl) liveStreakEl.textContent = String(liveStreak);
     _syncHudPanelHeight();
   }
 

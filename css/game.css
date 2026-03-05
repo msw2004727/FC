@@ -238,12 +238,12 @@
 }
 #page-game #session-badge {
   display: grid;
-  grid-template-rows: auto auto auto 1px auto;
+  grid-template-rows: auto auto auto auto;
   align-content: start;
-  gap: 6px;
+  gap: 4px;
   width: min(76vw, 270px);
-  min-height: 110px;
-  padding: 10px 12px;
+  min-height: 102px;
+  padding: 8px 10px;
   border-radius: 12px;
   border: 1px solid rgba(0, 0, 0, 0.22);
   background: linear-gradient(165deg, rgba(255, 255, 255, 0.86), rgba(233, 247, 255, 0.72));
@@ -252,19 +252,30 @@
   box-sizing: border-box;
   overflow: hidden;
 }
+#page-game #session-badge .sg-session-top-title {
+  text-align: center;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.55px;
+  line-height: 1.1;
+}
 #page-game #session-badge .sg-session-title {
   text-align: center;
-  font-size: 14px;
-  font-weight: 900;
-  letter-spacing: 0.4px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.35px;
   line-height: 1.1;
 }
 #page-game #session-badge .sg-session-focus-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 6px;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  gap: 8px;
 }
 #page-game #session-badge .sg-session-focus-box {
+  width: 37.5%;
+  min-width: 82px;
+  max-width: 102px;
   border: 1px solid rgba(40, 89, 125, 0.55);
   border-radius: 8px;
   background: linear-gradient(180deg, #153753, #102b42);
@@ -292,25 +303,22 @@
 #page-game #session-badge .sg-session-focus-box-score .sg-session-focus-value { color: #ffe16b; }
 #page-game #session-badge .sg-session-focus-box-streak .sg-session-focus-value { color: #84ecff; }
 #page-game #session-badge .sg-session-best,
-#page-game #session-badge .sg-session-live {
+#page-game #session-badge .sg-session-title {
   text-align: center;
-  font-size: 15px;
+  white-space: nowrap;
+}
+#page-game #session-badge .sg-session-best {
+  font-size: 13px;
   font-weight: 800;
   line-height: 1.2;
-  white-space: nowrap;
+  font-family: "Outfit", "Noto Sans TC", sans-serif;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.12px;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-#page-game #session-badge .sg-session-best {
-  font-size: 14px;
-}
-#page-game #session-badge .sg-session-divider {
-  width: 100%;
-  height: 1px;
-  background: rgba(21, 56, 76, 0.25);
-}
 #page-game #session-badge .sg-session-sep {
-  margin: 0 5px;
+  margin: 0 4px;
   opacity: 0.72;
 }
 #page-game #sg-score.sg-hud-chip,
@@ -635,9 +643,6 @@
 [data-theme="dark"] #page-game #session-badge .sg-session-focus-label { color: #bbdefb; }
 [data-theme="dark"] #page-game #session-badge .sg-session-focus-box-score .sg-session-focus-value { color: #ffd166; }
 [data-theme="dark"] #page-game #session-badge .sg-session-focus-box-streak .sg-session-focus-value { color: #89f1ff; }
-[data-theme="dark"] #page-game #session-badge .sg-session-divider {
-  background: rgba(216, 246, 255, 0.36);
-}
 [data-theme="dark"] #page-game .sg-lb-btn {
   border-color: rgba(255, 255, 255, 0.25);
   background: linear-gradient(160deg, rgba(255,255,255,0.17), rgba(6,24,41,0.38));
@@ -657,15 +662,20 @@
   #page-game #sg-power { bottom: 82px; }
   #page-game .sg-lb-btn { min-width: 76px; font-size: 11px; }
   #page-game #session-badge {
-    width: min(74vw, 236px);
-    padding: 8px 9px;
-    gap: 5px;
+    width: min(74vw, 230px);
+    padding: 7px 8px;
+    gap: 4px;
   }
+  #page-game #session-badge .sg-session-top-title { font-size: 11px; }
   #page-game #session-badge .sg-session-title { font-size: 12px; }
-  #page-game #session-badge .sg-session-focus-row { gap: 4px; }
+  #page-game #session-badge .sg-session-focus-row { gap: 6px; }
+  #page-game #session-badge .sg-session-focus-box {
+    width: 38%;
+    min-width: 76px;
+    max-width: 92px;
+  }
   #page-game #session-badge .sg-session-focus-label { font-size: 10px; }
   #page-game #session-badge .sg-session-focus-value { font-size: 18px; }
-  #page-game #session-badge .sg-session-best { font-size: 11px; }
-  #page-game #session-badge .sg-session-live { font-size: 12px; }
+  #page-game #session-badge .sg-session-best { font-size: 12px; }
   #page-game #session-badge .sg-session-sep { margin: 0 2px; }
 }

@@ -325,7 +325,7 @@
       const ensureSessionBadgeTemplate = () => {
         if (!sessionBadge || sessionBadge.querySelector('.sg-session-title')) return;
         sessionBadge.innerHTML = `
-          <div class="sg-session-title">當前最佳記錄</div>
+          <div class="sg-session-top-title">本局記錄</div>
           <div class="sg-session-focus-row">
             <div class="sg-session-focus-box sg-session-focus-box-score">
               <div class="sg-session-focus-label">分數</div>
@@ -336,18 +336,13 @@
               <div class="sg-session-focus-value sg-session-focus-streak">0</div>
             </div>
           </div>
+          <div class="sg-session-title">當前最佳記錄</div>
           <div class="sg-session-best">
             <span class="sg-session-best-score">--</span>分
             <span class="sg-session-sep">|</span>
             <span class="sg-session-best-shots">--</span>射門
             <span class="sg-session-sep">|</span>
             <span class="sg-session-best-time">--</span>秒
-          </div>
-          <div class="sg-session-divider" aria-hidden="true"></div>
-          <div class="sg-session-live">
-            分數:<span class="sg-session-live-score">0</span>
-            <span class="sg-session-sep">|</span>
-            連進:<span class="sg-session-live-streak">0</span>
           </div>
         `;
       };
@@ -359,8 +354,6 @@
         const bestTimeEl = sessionBadge.querySelector('.sg-session-best-time');
         const focusScoreEl = sessionBadge.querySelector('.sg-session-focus-score');
         const focusStreakEl = sessionBadge.querySelector('.sg-session-focus-streak');
-        const liveScoreEl = sessionBadge.querySelector('.sg-session-live-score');
-        const liveStreakEl = sessionBadge.querySelector('.sg-session-live-streak');
 
         const hasBest = !!bestSessionSinceOpen;
         const bestScore = hasBest ? Math.max(0, Math.round(Number(bestSessionSinceOpen.score) || 0)) : '--';
@@ -374,8 +367,6 @@
         if (bestTimeEl) bestTimeEl.textContent = String(bestTime);
         if (focusScoreEl) focusScoreEl.textContent = String(liveScore);
         if (focusStreakEl) focusStreakEl.textContent = String(liveStreak);
-        if (liveScoreEl) liveScoreEl.textContent = String(liveScore);
-        if (liveStreakEl) liveStreakEl.textContent = String(liveStreak);
         syncHudPanelHeight();
       };
       const buildLeaderboardView = (period) => {
