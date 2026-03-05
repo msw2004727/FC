@@ -951,3 +951,10 @@
   - `js/modules/shot-game-page.js`: if `GLTFLoader` fails, log warning and continue so engine fallback sphere can run.
   - `js/config.js`, `index.html`, `game-lab.html`: bumped cache version to `20260306e`.
 - **Lesson**: Optional visual enhancements (model loaders) should never block game boot path when a functional fallback exists.
+### 2026-03-06 - fix shot click not starting charge after glTF ball migration
+- **Issue**: Clicking/tapping the ball no longer started charging, so users could not shoot.
+- **Cause**: Ball became an `Object3D` wrapper with child meshes; click detection still used non-recursive raycast (`intersectObject(ball)`), which misses child geometry.
+- **Fix**:
+  - `js/modules/shot-game-engine.js`: changed hit test to recursive raycast (`raycaster.intersectObject(ball, true)`).
+  - `js/config.js`, `index.html`, `game-lab.html`: bumped cache version to `20260306f`.
+- **Lesson**: When converting visuals from direct `Mesh` to grouped/nested objects, all raycast paths must use recursive intersection.

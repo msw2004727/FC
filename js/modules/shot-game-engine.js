@@ -897,7 +897,7 @@
       pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
       pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
       raycaster.setFromCamera(pointer, camera);
-      if (raycaster.intersectObject(ball).length === 0) return;
+      if (raycaster.intersectObject(ball, true).length === 0) return;
       charging = true;
       power = 0;
       crosshairShakePx = { x: 0, y: 0 };
