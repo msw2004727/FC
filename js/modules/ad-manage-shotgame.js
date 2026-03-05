@@ -6,12 +6,33 @@
 Object.assign(App, {
 
   _sgAdEditId: null,
+  _sgAdEnsuringSlot: false,
+
+  async _ensureShotGameAdSlot() {
+    if (ModeManager.isDemo()) return;
+    if (this._sgAdEnsuringSlot) return;
+    if (typeof FirebaseService === 'undefined' || typeof FirebaseService._ensureSga1Slot !== 'function') return;
+    this._sgAdEnsuringSlot = true;
+    try {
+      await FirebaseService._ensureSga1Slot();
+    } catch (err) {
+      console.warn('[ShotGameAd] ensure sga1 slot failed:', err);
+    } finally {
+      this._sgAdEnsuringSlot = false;
+    }
+  },
 
   renderShotGameAdManage() {
     const container = document.getElementById('shotgame-ad-manage-list');
     if (!container) return;
     const b = ApiService.getShotGameAd();
-    if (!b) { container.innerHTML = '<p style="color:var(--text-muted);padding:.5rem">廣告位資料載入中...</p>'; return; }
+    if (!b) {
+      container.innerHTML = '<p style="color:var(--text-muted);padding:.5rem">廣告位資料載入中...</p>';
+      this._ensureShotGameAdSlot().then(() => {
+        if (ApiService.getShotGameAd()) this.renderShotGameAdManage();
+      });
+      return;
+    }
     const isEmpty = b.status === 'empty';
     const isActive = b.status === 'active';
     const isScheduled = b.status === 'scheduled';

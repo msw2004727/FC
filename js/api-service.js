@@ -676,11 +676,61 @@ const ApiService = {
   getOperationLogs() { return this._src('operationLogs'); },
   getErrorLogs()     { return this._src('errorLogs'); },
   getBanners()       { return this._src('banners').filter(b => b.type !== 'shotgame'); },
-  getShotGameAd()    { return this._src('banners').find(b => b.slot === 'sga1') || null; },
+  getShotGameAd()    {
+    return this._src('banners').find(b =>
+      b.slot === 'sga1'
+      || b.id === 'sga1'
+      || b._docId === 'sga1'
+      || b.type === 'shotgame'
+    ) || null;
+  },
   getPermissions()   { return this._src('permissions'); },
 
   updateBanner(id, updates)      { return this._update('banners', id, updates, FirebaseService.updateBanner, 'updateBanner'); },
-  updateShotGameAd(id, updates)  { return this._update('banners', id, updates, FirebaseService.updateBanner, 'updateBanner'); },
+  updateShotGameAd(id, updates)  {
+    if (this._handleRestrictedAction()) return null;
+
+    const source = this._src('banners');
+    const shotAd = this.getShotGameAd();
+    const keys = [id, shotAd?.id, shotAd?._docId, 'sga1'].filter(Boolean);
+    const item = source.find(b =>
+      keys.includes(b.id)
+      || keys.includes(b._docId)
+      || b.slot === 'sga1'
+      || b.type === 'shotgame'
+    ) || null;
+
+    if (item) {
+      Object.assign(item, updates);
+      // Normalize id so subsequent generic _update paths can resolve this record.
+      if (!item.id && item._docId) item.id = item._docId;
+      if (!this._demoMode && typeof FirebaseService !== 'undefined' && FirebaseService.updateBanner) {
+        const writeId = item.id || item._docId || 'sga1';
+        FirebaseService.ensureAuthReadyForWrite()
+          .then(() => FirebaseService.updateBanner.call(FirebaseService, writeId, updates))
+          .catch(err => console.error('[updateShotGameAd]', err));
+      }
+      return item;
+    }
+
+    // If sga1 slot is missing in cache, try creating it once and retry update.
+    if (!this._demoMode && typeof FirebaseService !== 'undefined' && typeof FirebaseService._ensureSga1Slot === 'function') {
+      Promise.resolve(FirebaseService._ensureSga1Slot())
+        .then(() => {
+          const created = this.getShotGameAd();
+          if (!created) return;
+          if (!created.id && created._docId) created.id = created._docId;
+          const retryId = created.id || created._docId || 'sga1';
+          if (FirebaseService.updateBanner) {
+            return FirebaseService.ensureAuthReadyForWrite()
+              .then(() => FirebaseService.updateBanner.call(FirebaseService, retryId, updates));
+          }
+          return null;
+        })
+        .catch(err => console.warn('[updateShotGameAd] ensure sga1 failed:', err));
+    }
+    return null;
+  },
 
   // ════════════════════════════════
   //  Site Themes（佈景主題）

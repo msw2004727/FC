@@ -852,7 +852,12 @@ Object.assign(FirebaseService, {
   // ════════════════════════════════
 
   async updateBanner(id, updates) {
-    const doc = this._cache.banners.find(b => b.id === id);
+    const doc = this._cache.banners.find(b =>
+      b.id === id
+      || b._docId === id
+      || (id === 'sga1' && b.slot === 'sga1')
+      || (id === 'sga1' && b.type === 'shotgame')
+    );
     if (!doc || !doc._docId) return null;
     // 避免 base64 寫入 Firestore（超過 1MB 限制）
     if (updates.image && updates.image.startsWith('data:')) delete updates.image;
