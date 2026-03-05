@@ -85,7 +85,8 @@
 // 20260228m: deep-link unauth flow auto-redirects to LINE login instead of timing out on overlay
 // 20260304a: cold-start acceleration — tiered startup (public data first, Auth parallel), listener deferral, TTL by role, Worker edge cache
 // 20260304b: auto-redirect to LINE login when unauthenticated on homepage
-const CACHE_VERSION = '20260304e';
+// 20260305: fix game-lab showGame() display:none bug (game section never showed)
+const CACHE_VERSION = '20260305';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {

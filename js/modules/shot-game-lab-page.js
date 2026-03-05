@@ -96,7 +96,7 @@
 
       const showGame = () => {
         gate.style.display = 'none';
-        gameSection.style.display = '';
+        gameSection.style.display = 'block';
       };
 
       const setSessionBadge = (payload) => {

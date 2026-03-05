@@ -635,3 +635,9 @@
 - **原因**：正式站內 modal 與雲端排行榜尚未完成，若直接接入會提高風險（資料污染、權限與防作弊策略未就緒）。
 - **修復**：新增 `docs/Phase 0~2 完成.md` 完整規格；新增私測頁 `game-lab.html`（Token gate）；新增 `js/modules/shot-game-engine.js` 與 `js/modules/shot-game-lab-page.js`；本地統計寫入 `sporthub_shot_game_lab_metrics_v1`，提供 JSON 匯出/重置；更新 `_headers` 對私測頁加上 `X-Robots-Tag: noindex`。
 - **教訓**：遊戲功能應先做隔離式私測與本地指標驗證，再接正式雲端榜單；避免在驗證階段引入難回滾的資料與權限風險。
+
+### 2026-03-05 — game-lab.html 一片藍（showGame 未實際顯示遊戲區塊）
+- **問題**：開啟 `/game-lab.html?t=<token>` 後畫面一片藍，遊戲完全沒出現。
+- **原因**：`shot-game-lab-page.js` 的 `showGame()` 使用 `gameSection.style.display = ''`（清空 inline style），導致元素退回 CSS 規則 `#game-section { display: none; }`，遊戲區塊永遠隱藏；gate 也因 `gate.style.display = 'none'` 被隱藏，頁面只剩 body 深藍漸層背景，即「一片藍」現象。
+- **修復**：`showGame()` 改為 `gameSection.style.display = 'block'` 以確實覆蓋 CSS 規則；更新 `game-lab.html` 及 `js/config.js` 快取版本號至 `20260305`；index.html 全部 64 處 `?v=` 一併更新。
+- **教訓**：用 `element.style.display = ''` 只會移除 inline style，若 stylesheet 仍有 `display: none` 則元素不會顯示。需顯示元素時必須設定具體值（如 `'block'`），不可依賴清空 inline style。
