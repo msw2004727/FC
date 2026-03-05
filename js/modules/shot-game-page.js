@@ -54,9 +54,36 @@
     } catch (_) {}
     return '';
   }
+  function getLeaderboardIdentity(row) {
+    if (!row) return '';
+    const uid = typeof row.uid === 'string' ? row.uid.trim() : '';
+    if (uid) return uid;
+    const id = typeof row.id === 'string' ? row.id.trim() : '';
+    return id;
+  }
+  function pickPreferredLeaderboardRow(incoming, current) {
+    if (!current) return incoming;
+    if (isLocalSessionBetter(incoming, current)) return incoming;
+    if (isLocalSessionBetter(current, incoming)) return current;
+    const incomingCanonical = incoming.uid && incoming.id === incoming.uid;
+    const currentCanonical = current.uid && current.id === current.uid;
+    if (incomingCanonical && !currentCanonical) return incoming;
+    return current;
+  }
+  function dedupeLeaderboardRows(rows) {
+    const rowMap = new Map();
+    (Array.isArray(rows) ? rows : []).forEach((row) => {
+      const identity = getLeaderboardIdentity(row);
+      if (!identity) return;
+      const existing = rowMap.get(identity);
+      rowMap.set(identity, pickPreferredLeaderboardRow(row, existing));
+    });
+    return Array.from(rowMap.values());
+  }
 
   function normalizeLeaderboardRow(id, data) {
     const row = data || {};
+    const rawUid = typeof row.uid === 'string' ? row.uid.trim() : '';
     const rawName = typeof row.displayName === 'string' ? row.displayName.trim() : '';
     const rawDurationSec = Number(row.bestDurationSec);
     const rawDurationMs = Number(row.bestDurationMs);
@@ -69,7 +96,8 @@
       );
 
     return {
-      id,
+      id: String(id),
+      uid: rawUid,
       nick: rawName || `玩家${String(id).slice(-4)}`,
       score: Number.isFinite(row.bestScore) ? row.bestScore : 0,
       streak: Number.isFinite(row.bestStreak) ? row.bestStreak : 0,
@@ -168,6 +196,7 @@
   let _bestSession = null;
   let _lbPeriod = 'daily';
   let _lbOpen = false;
+  let _lbSubmitPending = false;
   let _eventsBound = false;
 
   /* ── Leaderboard ── */
@@ -206,6 +235,7 @@
       return;
     }
 
+    rows = dedupeLeaderboardRows(rows);
     const currentUid = getCurrentAuthUid();
     const localBestRow = _bestSession && _bestSession.score > 0
       ? {
@@ -217,17 +247,19 @@
     const selfIds = new Set();
     if (currentUid) {
       selfIds.add(currentUid);
-      const selfPersistedRow = rows.find((row) => row.id === currentUid);
+      const selfPersistedRow = rows.find((row) => row.id === currentUid || row.uid === currentUid);
       if (selfPersistedRow) {
+        selfIds.add(selfPersistedRow.id);
         selfPersistedRow.nick = '你';
         if (localBestRow && isLocalSessionBetter(localBestRow, selfPersistedRow)) {
           selfPersistedRow.score = localBestRow.score;
           selfPersistedRow.streak = localBestRow.streak;
           selfPersistedRow.durationSec = localBestRow.durationSec;
         }
-      } else if (localBestRow) {
+      } else if (localBestRow && _lbSubmitPending) {
         rows.push({
           id: currentUid,
+          uid: currentUid,
           nick: '你',
           score: localBestRow.score,
           streak: localBestRow.streak,
@@ -340,6 +372,25 @@
   }
 
   /* ── Game Start ── */
+  async function _submitScoreToRanking(scorePayload) {
+    const user = typeof auth !== 'undefined' ? auth.currentUser : null;
+    if (!scorePayload || scorePayload.score <= 0 || !user) return;
+    _lbSubmitPending = true;
+    try {
+      await firebase.app().functions('asia-east1').httpsCallable('submitShotGameScore')({
+        score: scorePayload.score,
+        shots: scorePayload.shots,
+        streak: scorePayload.streak,
+        durationMs: scorePayload.durationMs,
+        displayName: getPreferredPlayerDisplayName(user),
+      });
+    } catch (_) {
+      // Ignore ranking write errors in page module and keep gameplay uninterrupted.
+    } finally {
+      _lbSubmitPending = false;
+      if (_lbOpen) _renderLeaderboard(_lbPeriod);
+    }
+  }
   function _startGame() {
     if (_engine) { _engine.destroy(); _engine = null; }
     const container = document.getElementById('shot-game-container');
@@ -369,16 +420,7 @@
         if (_isBetter(normalized, _bestSession)) _bestSession = normalized;
         _updateSessionBadge();
 
-        const user = typeof auth !== 'undefined' ? auth.currentUser : null;
-        if (normalized.score > 0 && user) {
-          firebase.app().functions('asia-east1').httpsCallable('submitShotGameScore')({
-            score: normalized.score,
-            shots: normalized.shots,
-            streak: normalized.streak,
-            durationMs: normalized.durationMs,
-            displayName: getPreferredPlayerDisplayName(user),
-          }).then(() => { if (_lbOpen) _renderLeaderboard(_lbPeriod); }).catch(() => {});
-        }
+        _submitScoreToRanking(normalized);
         if (_lbOpen) _renderLeaderboard(_lbPeriod);
       },
     });

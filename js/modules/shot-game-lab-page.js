@@ -99,9 +99,36 @@
     } catch (_) {}
     return '';
   }
+  function getLeaderboardIdentity(row) {
+    if (!row) return '';
+    const uid = typeof row.uid === 'string' ? row.uid.trim() : '';
+    if (uid) return uid;
+    const id = typeof row.id === 'string' ? row.id.trim() : '';
+    return id;
+  }
+  function pickPreferredLeaderboardRow(incoming, current) {
+    if (!current) return incoming;
+    if (isLocalSessionBetter(incoming, current)) return incoming;
+    if (isLocalSessionBetter(current, incoming)) return current;
+    const incomingCanonical = incoming.uid && incoming.id === incoming.uid;
+    const currentCanonical = current.uid && current.id === current.uid;
+    if (incomingCanonical && !currentCanonical) return incoming;
+    return current;
+  }
+  function dedupeLeaderboardRows(rows) {
+    const rowMap = new Map();
+    (Array.isArray(rows) ? rows : []).forEach((row) => {
+      const identity = getLeaderboardIdentity(row);
+      if (!identity) return;
+      const existing = rowMap.get(identity);
+      rowMap.set(identity, pickPreferredLeaderboardRow(row, existing));
+    });
+    return Array.from(rowMap.values());
+  }
 
   function normalizeLeaderboardRow(id, data) {
     const row = data || {};
+    const rawUid = typeof row.uid === 'string' ? row.uid.trim() : '';
     const rawName = typeof row.displayName === 'string' ? row.displayName.trim() : '';
     const rawDurationSec = Number(row.bestDurationSec);
     const rawDurationMs = Number(row.bestDurationMs);
@@ -114,7 +141,8 @@
       );
 
     return {
-      id,
+      id: String(id),
+      uid: rawUid,
       nick: rawName || `玩家${String(id).slice(-4)}`,
       score: Number.isFinite(row.bestScore) ? row.bestScore : 0,
       streak: Number.isFinite(row.bestStreak) ? row.bestStreak : 0,
@@ -237,6 +265,7 @@
       let bestSessionSinceOpen = null;
       let leaderboardPeriod = 'daily';
       let leaderboardOpen = false;
+      let leaderboardSubmitPending = false;
 
       const leaderboardData = {
         daily: buildMockLeaderboard('daily'),
@@ -289,7 +318,7 @@
         sessionBadge.textContent = `當前最佳：${bestSessionSinceOpen.score} 分｜${bestSessionSinceOpen.shots} 射門｜${Math.round(bestSessionSinceOpen.durationMs / 1000)} 秒`;
       };
       const buildLeaderboardView = (period) => {
-        const rows = (leaderboardData[period] || []).map((row) => ({ ...row }));
+        const rows = dedupeLeaderboardRows((leaderboardData[period] || []).map((row) => ({ ...row })));
         const currentUid = getCurrentAuthUid();
         const localBestRow = bestSessionSinceOpen && bestSessionSinceOpen.score > 0
           ? {
@@ -301,17 +330,19 @@
         const selfIds = new Set();
         if (currentUid) {
           selfIds.add(currentUid);
-          const selfPersistedRow = rows.find((row) => row.id === currentUid);
+          const selfPersistedRow = rows.find((row) => row.id === currentUid || row.uid === currentUid);
           if (selfPersistedRow) {
+            selfIds.add(selfPersistedRow.id);
             selfPersistedRow.nick = '你';
             if (localBestRow && isLocalSessionBetter(localBestRow, selfPersistedRow)) {
               selfPersistedRow.score = localBestRow.score;
               selfPersistedRow.streak = localBestRow.streak;
               selfPersistedRow.durationSec = localBestRow.durationSec;
             }
-          } else if (localBestRow) {
+          } else if (localBestRow && leaderboardSubmitPending) {
             rows.push({
               id: currentUid,
+              uid: currentUid,
               nick: '你',
               score: localBestRow.score,
               streak: localBestRow.streak,
@@ -446,6 +477,7 @@
       const submitScoreToRanking = async (scorePayload) => {
         const gameUser = (typeof auth !== 'undefined') ? auth.currentUser : null;
         if (!scorePayload || scorePayload.score <= 0 || !isRankingEligibleUser(gameUser)) return;
+        leaderboardSubmitPending = true;
         try {
           await firebase.app().functions('asia-east1').httpsCallable('submitShotGameScore')({
             score: scorePayload.score,
@@ -454,12 +486,14 @@
             durationMs: scorePayload.durationMs,
             displayName: getPreferredPlayerDisplayName(gameUser),
           });
-          if (leaderboardOpen) await renderLeaderboard(leaderboardPeriod);
         } catch (err) {
           console.warn('[ShotGameLab] submitShotGameScore failed:', err && err.code ? err.code : '', err && err.message ? err.message : err);
           if (err && err.code === 'functions/permission-denied') {
             showLoginRequiredCard('目前登入狀態無法寫入射手榜，請先回主站重新登入 LINE');
           }
+        } finally {
+          leaderboardSubmitPending = false;
+          if (leaderboardOpen) await renderLeaderboard(leaderboardPeriod);
         }
       };
 

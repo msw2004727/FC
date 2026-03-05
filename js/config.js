@@ -95,7 +95,8 @@
 // 20260305o: 修復廣告欄位偶發被清空（seed 僅補缺、不覆蓋）+ 防初始化競態重複 seed
 // 20260305p: 修復射手榜同一玩家重複列（本地暫存與 Firestore 排名合併）
 // 20260305q: PK 射門 UI 修正（淺色訊息深色化 + HUD 字級提升 + 主題切換月亮遮擋）
-const CACHE_VERSION = '20260305q';
+// 20260305r: 修復射手榜即時「快取幽靈玩家」重複列（提交中暫存列 + uid 去重）
+const CACHE_VERSION = '20260305r';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {
