@@ -91,7 +91,7 @@
 // 20260305e: Phase 1 shot game — Cloud Function submit + Firestore leaderboard
 // 20260305f: game adjustments — intro modal, shot game ad slot, flash fix
 // 20260305j: 射門遊戲嵌入主站（pages/game.html + shot-game-page.js + game.css）
-const CACHE_VERSION = '20260305l';
+const CACHE_VERSION = '20260305m';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {

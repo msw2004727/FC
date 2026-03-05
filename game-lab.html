@@ -3,7 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>SportHub 3D 蓄力射門 私測</title>
+  <title>TooSterxHub PK大賽</title>
+  <meta property="og:title" content="TooSterxHub PK大賽">
+  <meta property="og:description" content="誰才是真正的PK大賽王者">
+  <meta property="og:type" content="website">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="TooSterxHub PK大賽">
+  <meta name="twitter:description" content="誰才是真正的PK大賽王者">
   <script>
     (function () {
       const storageKey = 'sporthub_shot_game_theme_mode';
@@ -366,15 +372,15 @@
     .hud-chip {
       display: inline-flex;
       align-items: center;
-      height: 30px;
-      padding: 0 12px;
+      height: 34px;
+      padding: 0 14px;
       border-radius: 999px;
       border: 1px solid rgba(255, 255, 255, 0.62);
       background: linear-gradient(160deg, rgba(255, 255, 255, 0.56), rgba(255, 255, 255, 0.26));
       backdrop-filter: blur(6px);
       box-shadow: 0 5px 12px rgba(18, 39, 58, 0.16);
       color: #0d1e2b;
-      font-size: 12px;
+      font-size: 14px;
       font-weight: 800;
       line-height: 1;
     }
@@ -787,9 +793,9 @@
         height: 32px;
       }
       .hud-chip {
-        height: 28px;
-        padding: 0 10px;
-        font-size: 11px;
+        height: 32px;
+        padding: 0 12px;
+        font-size: 13px;
       }
       .hud-leaderboard-btn {
         min-width: 102px;
@@ -991,10 +997,10 @@
     <div class="intro-dialog">
       <h3 id="sg-intro-title">遊戲操作說明</h3>
       <ol class="intro-steps">
-        <li class="intro-step"><span class="intro-step-num">1</span><span>按住滑鼠左鍵或長按螢幕開始蓄力，蓄力條越滿射速越快</span></li>
-        <li class="intro-step"><span class="intro-step-num">2</span><span>拖曳瞄準球門格子，角落格子最高 100 分，中間格 10 分</span></li>
-        <li class="intro-step"><span class="intro-step-num">3</span><span>放開即可射門，連續進球獲得連進倍率加成</span></li>
-        <li class="intro-step"><span class="intro-step-num">4</span><span>時間到遊戲結束，成績自動上傳射手榜</span></li>
+        <li class="intro-step"><span class="intro-step-num">1</span><span>拖曳瞄準，鬆開射門。</span></li>
+        <li class="intro-step"><span class="intro-step-num">2</span><span>角落高分，中間低分。</span></li>
+        <li class="intro-step"><span class="intro-step-num">3</span><span>連進有加成，失手重置。</span></li>
+        <li class="intro-step"><span class="intro-step-num">4</span><span>回合結束後自動上榜。</span></li>
       </ol>
       <label class="intro-dismiss-row" for="sg-intro-dismiss">
         <input type="checkbox" id="sg-intro-dismiss"> 我已知道怎麼玩，今日不再提醒
@@ -1053,10 +1059,10 @@
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-storage-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-functions-compat.js"></script>
-  <script src="js/firebase-config.js?v=20260305l"></script>
+  <script src="js/firebase-config.js?v=20260305m"></script>
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-  <script defer src="js/modules/shot-game-engine.js?v=20260305l"></script>
-  <script defer src="js/modules/shot-game-lab-page.js?v=20260305l"></script>
+  <script defer src="js/modules/shot-game-engine.js?v=20260305m"></script>
+  <script defer src="js/modules/shot-game-lab-page.js?v=20260305m"></script>
   <script>
     window.addEventListener('DOMContentLoaded', function () {
       var themeBtn = document.getElementById('sg-theme-toggle');

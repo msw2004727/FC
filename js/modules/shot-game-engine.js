@@ -264,8 +264,10 @@
     const clock     = new THREE.Clock();
 
     let score = 0; let streak = 0; let maxStreak = 0; let shots = 0;
+    const AIM_START_X = 0;
+    const AIM_START_Y = GOAL_HEIGHT / 2;
     let state = 'aiming'; let charging = false; let power = 0;
-    let aim = { x: 0, y: 3 }; let startPointer = { x: 0, y: 0 };
+    let aim = { x: AIM_START_X, y: AIM_START_Y }; let startPointer = { x: 0, y: 0 };
     let sessionStartedAt = Date.now(); let resultTimer = null; let flashTimer = null; let rafId = 0;
     let accumulator = 0; let flightTime = 0; let apex = BALL_RADIUS; let lastBallZ = PENALTY_SPOT_Z;
     let goalSpeed = 2.9; let goalDir = 1; let goalSpeedMult = 1.0;
@@ -454,7 +456,7 @@
     }
     function updateCrosshair() {
       if (!ui.crosshairEl) return;
-      const marker = new THREE.Vector3(goalGroup.position.x + aim.x, aim.y, GOAL_Z);
+      const marker = new THREE.Vector3(aim.x, aim.y, GOAL_Z);
       marker.project(camera);
       ui.crosshairEl.style.left = `${(marker.x * 0.5 + 0.5) * container.clientWidth}px`;
       ui.crosshairEl.style.top  = `${(-marker.y * 0.5 + 0.5) * container.clientHeight}px`;
@@ -521,7 +523,7 @@
     function kick() {
       state = 'flying'; charging = false; shots += 1; flightTime = 0; apex = ball.position.y;
       const p = clamp(power / 100, 0, 1.3);
-      const target = new THREE.Vector3(goalGroup.position.x + aim.x, aim.y, GOAL_Z);
+      const target = new THREE.Vector3(aim.x, aim.y, GOAL_Z);
       const dir = target.clone().sub(ball.position).normalize();
       const speed = 22 + p * 24;
       velocity.copy(dir.multiplyScalar(speed));
@@ -551,7 +553,11 @@
       pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
       raycaster.setFromCamera(pointer, camera);
       if (raycaster.intersectObject(ball).length === 0) return;
-      charging = true; power = 0; startPointer = { x: event.clientX, y: event.clientY }; aim = { x: 0, y: 3 };
+      charging = true;
+      power = 0;
+      startPointer = { x: event.clientX, y: event.clientY };
+      // Start every shot from screen-center crosshair so aiming is not "attached" to moving goal frame.
+      aim = { x: AIM_START_X, y: AIM_START_Y };
       setChargeUiVisible(true); updateCrosshair();
       window.addEventListener('pointermove', onPointerMove);
       window.addEventListener('pointerup', onPointerUp);
@@ -561,8 +567,8 @@
       if (!charging) return;
       event.preventDefault();
       const rect = container.getBoundingClientRect();
-      aim.x = ((event.clientX - startPointer.x) / rect.width) * 30;
-      aim.y = clamp(3 - ((event.clientY - startPointer.y) / rect.height) * 14, -3, 12);
+      aim.x = clamp(((event.clientX - startPointer.x) / rect.width) * 30, -18, 18);
+      aim.y = clamp(AIM_START_Y - ((event.clientY - startPointer.y) / rect.height) * 14, -3, 12);
       updateCrosshair();
     }
     function onContextMenu(event) { event.preventDefault(); }

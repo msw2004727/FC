@@ -90,15 +90,15 @@
 #page-game .sg-hud-chip {
   display: inline-flex;
   align-items: center;
-  height: 30px;
-  padding: 0 12px;
+  height: 34px;
+  padding: 0 14px;
   border-radius: 999px;
   border: 1px solid rgba(255, 255, 255, 0.62);
   background: linear-gradient(160deg, rgba(255, 255, 255, 0.56), rgba(255, 255, 255, 0.26));
   backdrop-filter: blur(6px);
   box-shadow: 0 5px 12px rgba(18, 39, 58, 0.16);
   color: #0d1e2b;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 800;
   line-height: 1;
 }
@@ -575,7 +575,7 @@
 /* ─── Mobile Adjustments ─── */
 @media (max-width: 480px) {
   #page-game #sg-power { bottom: 82px; }
-  #page-game .sg-hud-chip { height: 28px; padding: 0 10px; font-size: 11px; }
+  #page-game .sg-hud-chip { height: 32px; padding: 0 12px; font-size: 13px; }
   #page-game .sg-lb-btn { min-width: 76px; font-size: 11px; }
   #page-game #session-badge { max-width: calc(100% - 96px); font-size: 11px; }
 }
