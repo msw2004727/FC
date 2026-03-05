@@ -19,11 +19,19 @@
   const GOAL_BURST_MAX_STEPS = 12;
   const GOAL_BURST_MIN_MULT = 2.1;
   const GOAL_BURST_MAX_MULT = 3.5;
+  const BALL_TEXTURE_SLOTS = ['map', 'normalMap', 'roughnessMap', 'metalnessMap'];
 
   const THEME_DARK  = { sky: 0x0d1b2a, ground: 0x1b4520, trail: 0x9ed8ff };
   const THEME_LIGHT = { sky: 0x88cff4, ground: 0x2f7d32, trail: 0x1d6fa8 };
 
   function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+  function hasRenderableTextureImage(texture) {
+    if (!texture || !texture.image) return false;
+    const image = texture.image;
+    if (typeof image.width === 'number' && typeof image.height === 'number') return image.width > 0 && image.height > 0;
+    if (typeof image.videoWidth === 'number' && typeof image.videoHeight === 'number') return image.videoWidth > 0 && image.videoHeight > 0;
+    return true;
+  }
   function disposeMaterial(material) {
     if (!material) return;
     Object.keys(material).forEach((k) => { const v = material[k]; if (v && typeof v.dispose === 'function') v.dispose(); });
@@ -159,6 +167,10 @@
         textureLoader.load(
           path,
           (texture) => {
+            if (!hasRenderableTextureImage(texture)) {
+              console.warn(`[ShotGame] texture image missing: ${path}`);
+              return;
+            }
             texture.flipY = false;
             texture.anisotropy = maxAnisotropy;
             if (isColor) texture.encoding = THREE.sRGBEncoding;
@@ -171,12 +183,24 @@
         console.warn(`[ShotGame] texture load exception: ${path}`);
       }
     }
+    function sanitizeBallMaterialTextures(material) {
+      let changed = false;
+      for (let i = 0; i < BALL_TEXTURE_SLOTS.length; i += 1) {
+        const slot = BALL_TEXTURE_SLOTS[i];
+        const texture = material[slot];
+        if (texture && !hasRenderableTextureImage(texture)) {
+          material[slot] = null;
+          changed = true;
+        }
+      }
+      if (changed) material.needsUpdate = true;
+      return changed;
+    }
     const ballMaterial = new THREE.MeshStandardMaterial({
       color: 0xffffff,
       roughness: 1,
       metalness: 1,
     });
-    ballMaterial.needsUpdate = true;
     loadBallTexture(BALL_TEX_BASECOLOR, true, (texture) => {
       ballMaterial.map = texture;
       ballMaterial.needsUpdate = true;
@@ -258,16 +282,31 @@
     const tangentComponent = new THREE.Vector3();
 
     // ── 主題切換 ──
-    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    const mq = typeof window.matchMedia === 'function' ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+    let currentThemeDark = null;
     function applyTheme(isDark) {
       const t = isDark ? THEME_DARK : THEME_LIGHT;
       scene.background = new THREE.Color(t.sky);
       groundMat.color.setHex(t.ground);
       trailMaterial.uniforms.uColor.value.setHex(t.trail);
     }
-    function onMqChange(e) { applyTheme(e.matches); }
-    mq.addEventListener('change', onMqChange);
-    applyTheme(mq.matches);
+    function readThemeIsDark() {
+      const docTheme = document && document.documentElement && document.documentElement.dataset
+        ? document.documentElement.dataset.shotTheme
+        : '';
+      if (docTheme === 'dark') return true;
+      if (docTheme === 'light') return false;
+      return mq ? !!mq.matches : false;
+    }
+    function syncTheme() {
+      const isDark = readThemeIsDark();
+      if (isDark === currentThemeDark) return;
+      currentThemeDark = isDark;
+      applyTheme(isDark);
+    }
+    function onMqChange() { syncTheme(); }
+    if (mq && typeof mq.addEventListener === 'function') mq.addEventListener('change', onMqChange);
+    syncTheme();
 
     function triggerScreenFlash() {
       container.classList.remove('flash-hit');
@@ -595,6 +634,8 @@
       } else if (ui.crosshairEl) ui.crosshairEl.style.transform = 'translate(-50%, -50%)';
       accumulator = Math.min(accumulator + frameDt, 0.25);
       while (accumulator >= FIXED_DT) { step(FIXED_DT); accumulator -= FIXED_DT; }
+      syncTheme();
+      sanitizeBallMaterialTextures(ballMaterial);
       renderer.render(scene, camera);
     }
 
@@ -609,7 +650,7 @@
         if (flashTimer) clearTimeout(flashTimer);
         container.classList.remove('flash-hit');
         cancelAnimationFrame(rafId);
-        mq.removeEventListener('change', onMqChange);
+        if (mq && typeof mq.removeEventListener === 'function') mq.removeEventListener('change', onMqChange);
         container.removeEventListener('pointerdown', onPointerDown);
         cleanupWindowListeners();
         window.removeEventListener('resize', resize);
