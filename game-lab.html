@@ -919,8 +919,9 @@
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-storage-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-functions-compat.js"></script>
-  <script src="js/firebase-config.js?v=20260305g"></script>
+  <script src="js/firebase-config.js?v=20260305h"></script>
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script defer src="js/modules/shot-game-engine.js?v=20260305g"></script>
   <script defer src="js/modules/shot-game-lab-page.js?v=20260305g"></script>
@@ -945,14 +946,14 @@
       // 載入射門遊戲廣告（Firestore REST API，無需 SDK）
       (async function loadShotGameAd() {
         try {
-          const res = await fetch('https://firestore.googleapis.com/v1/projects/fc-football-6c8dc/databases/(default)/documents/banners/sga1');
-          if (!res.ok) return;
-          const doc = await res.json();
-          const f = doc.fields || {};
-          if (f.status?.stringValue !== 'active') return;
-          const image = f.image?.stringValue;
+          if (!window.firebase || typeof firebase.firestore !== 'function') return;
+          const snap = await firebase.firestore().collection('banners').doc('sga1').get();
+          if (!snap.exists) return;
+          const f = snap.data() || {};
+          if (f.status !== 'active') return;
+          const image = f.image;
           if (!image) return;
-          const linkUrl = f.linkUrl?.stringValue || '';
+          const linkUrl = f.linkUrl || '';
           const safeImg = image.replace(/"/g, '&quot;');
           const safeLnk = linkUrl.replace(/"/g, '&quot;');
           const container = document.getElementById('sg-ad-container');

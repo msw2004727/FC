@@ -54,7 +54,9 @@ function initFirebaseApp() {
   if (db) return true; // 已初始化
   if (typeof firebase === 'undefined') return false;
   try {
-    firebase.initializeApp(firebaseConfig);
+    if (!firebase.apps || firebase.apps.length === 0) {
+      firebase.initializeApp(firebaseConfig);
+    }
     db = firebase.firestore();
 
     // WebSocket 降級策略：預設用 WebSocket，被擋過則自動切回長輪詢
@@ -70,7 +72,10 @@ function initFirebaseApp() {
     }
     window._firestoreUsingLongPolling = useLongPolling;
 
-    storage = firebase.storage();
+    storage = (typeof firebase.storage === 'function') ? firebase.storage() : null;
+    if (!storage) {
+      console.warn('[Firebase] Storage SDK not loaded; storage features disabled.');
+    }
     auth = firebase.auth();
 
     // 監聽 Auth 狀態恢復（首次觸發代表 persistence 已讀取完成）
