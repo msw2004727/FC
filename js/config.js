@@ -119,7 +119,8 @@
 // 20260306d: 小遊戲主題優先跟隨主站 data-theme / sporthub_theme，再回退系統主題
 // 20260306e: page-game 將 GLTFLoader 改為最佳努力載入，避免 loader 失敗阻斷遊戲啟動
 // 20260306f: 修正點球命中檢測為遞迴 raycast，恢復可射門
-const CACHE_VERSION = '20260306f';
+// 20260306g: 白球保險修復（fallback 球也載貼圖 + GLTFLoader 第二 CDN 備援）
+const CACHE_VERSION = '20260306g';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {

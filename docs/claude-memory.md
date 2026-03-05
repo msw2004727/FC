@@ -958,3 +958,12 @@
   - `js/modules/shot-game-engine.js`: changed hit test to recursive raycast (`raycaster.intersectObject(ball, true)`).
   - `js/config.js`, `index.html`, `game-lab.html`: bumped cache version to `20260306f`.
 - **Lesson**: When converting visuals from direct `Mesh` to grouped/nested objects, all raycast paths must use recursive intersection.
+### 2026-03-06 - fix white fallback ball when glTF loader/model is unavailable
+- **Issue**: The ball sometimes rendered as plain white with no visible pattern.
+- **Cause**: When GLTFLoader/model load failed, engine fell back to a plain white sphere material.
+- **Fix**:
+  - `js/modules/shot-game-engine.js`: fallback sphere now loads baseColor/normal/metallicRoughness textures.
+  - `js/modules/shot-game-page.js`: GLTFLoader best-effort now tries two CDNs (cdnjs, jsDelivr) before fallback.
+  - `game-lab.html`: added secondary GLTFLoader CDN script include.
+  - `js/config.js`, `index.html`, `game-lab.html`: bumped cache version to `20260306g`.
+- **Lesson**: Fallback visuals should preserve key art identity, and external loader dependencies should have multi-source redundancy.

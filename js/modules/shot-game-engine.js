@@ -10,6 +10,9 @@
   const TRAIL_FRAMES = 20;
   const STREAK_MILESTONES = new Set([5, 10, 20, 30]);
   const BALL_GLTF_ASSET = 'assets/ball/club-world-cup-2025/scene.gltf';
+  const BALL_FALLBACK_BASECOLOR = 'assets/ball/club-world-cup-2025/textures/Al_Rihla_baseColor.png';
+  const BALL_FALLBACK_NORMAL = 'assets/ball/club-world-cup-2025/textures/Al_Rihla_normal.png';
+  const BALL_FALLBACK_METAL_ROUGH = 'assets/ball/club-world-cup-2025/textures/Al_Rihla_metallicRoughness.png';
   const GOAL_BASE_SWING_BOUNDARY = 6.6;
   const GOAL_SWING_RANGE_SCALE = 1.2;
   const GOAL_MIN_X = -GOAL_BASE_SWING_BOUNDARY * GOAL_SWING_RANGE_SCALE;
@@ -278,6 +281,30 @@
       if (isColor) texture.encoding = THREE.sRGBEncoding;
       texture.needsUpdate = true;
     }
+    function loadFallbackBallTexture(path, isColor, onLoaded) {
+      try {
+        textureLoader.load(
+          path,
+          (texture) => {
+            if (!hasRenderableTextureImage(texture)) {
+              console.warn(`[ShotGame] fallback texture image missing: ${path}`);
+              return;
+            }
+            configureBallTexture(texture, isColor);
+            texture.wrapS = THREE.RepeatWrapping;
+            texture.wrapT = THREE.RepeatWrapping;
+            texture.repeat.set(1, 1);
+            texture.offset.set(0, 0);
+            texture.needsUpdate = true;
+            if (typeof onLoaded === 'function') onLoaded(texture);
+          },
+          undefined,
+          () => { console.warn(`[ShotGame] fallback texture load failed: ${path}`); }
+        );
+      } catch (_) {
+        console.warn(`[ShotGame] fallback texture load exception: ${path}`);
+      }
+    }
     function applyBallMaterialSettings(root) {
       root.traverse((node) => {
         if (!node || !node.isMesh || !node.material) return;
@@ -317,9 +344,27 @@
     const ball = new THREE.Object3D();
     ball.position.set(0, BALL_RADIUS, PENALTY_SPOT_Z);
     scene.add(ball);
+    const fallbackBallMaterial = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      roughness: 1,
+      metalness: 1,
+    });
+    loadFallbackBallTexture(BALL_FALLBACK_BASECOLOR, true, (texture) => {
+      fallbackBallMaterial.map = texture;
+      fallbackBallMaterial.needsUpdate = true;
+    });
+    loadFallbackBallTexture(BALL_FALLBACK_NORMAL, false, (texture) => {
+      fallbackBallMaterial.normalMap = texture;
+      fallbackBallMaterial.needsUpdate = true;
+    });
+    loadFallbackBallTexture(BALL_FALLBACK_METAL_ROUGH, false, (texture) => {
+      fallbackBallMaterial.roughnessMap = texture;
+      fallbackBallMaterial.metalnessMap = texture;
+      fallbackBallMaterial.needsUpdate = true;
+    });
     const fallbackBall = new THREE.Mesh(
       new THREE.SphereGeometry(BALL_RADIUS, 48, 48),
-      new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.9, metalness: 0.05 })
+      fallbackBallMaterial
     );
     fallbackBall.castShadow = !options.lowFx;
     fallbackBall.receiveShadow = false;

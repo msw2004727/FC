@@ -161,6 +161,7 @@
   let _gltfLoaderPromise = null;
   const THREE_CDN_URL = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js';
   const GLTF_LOADER_CDN_URL = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/examples/js/loaders/GLTFLoader.js';
+  const GLTF_LOADER_FALLBACK_URL = 'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js';
 
   function _appendScript(src, failMessage) {
     return new Promise((resolve, reject) => {
@@ -175,10 +176,18 @@
   function _ensureGltfLoaderBestEffort() {
     if (window.THREE && window.THREE.GLTFLoader) return Promise.resolve();
     if (_gltfLoaderPromise) return _gltfLoaderPromise;
-    _gltfLoaderPromise = _appendScript(GLTF_LOADER_CDN_URL, 'GLTFLoader load failed')
-      .catch((err) => {
-        console.warn('[ShotGame] GLTFLoader unavailable in page mode, fallback sphere ball will be used.', err);
-      });
+    _gltfLoaderPromise = (async () => {
+      const candidates = [GLTF_LOADER_CDN_URL, GLTF_LOADER_FALLBACK_URL];
+      for (let i = 0; i < candidates.length; i += 1) {
+        if (window.THREE && window.THREE.GLTFLoader) return;
+        const src = candidates[i];
+        try {
+          await _appendScript(src, `GLTFLoader load failed: ${src}`);
+          if (window.THREE && window.THREE.GLTFLoader) return;
+        } catch (_) {}
+      }
+      console.warn('[ShotGame] GLTFLoader unavailable in page mode, fallback sphere ball will be used.');
+    })();
     return _gltfLoaderPromise;
   }
 
