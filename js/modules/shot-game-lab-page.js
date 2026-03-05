@@ -315,10 +315,27 @@
         if (incoming.shots !== currentBest.shots) return incoming.shots < currentBest.shots;
         return incoming.durationMs < currentBest.durationMs;
       };
+      const syncHudPanelHeight = () => {
+        if (!gameContainer || !sessionBadge) return;
+        const guide = gameContainer.querySelector('.goal-guide');
+        if (!guide) return;
+        const guideHeight = Math.ceil(guide.getBoundingClientRect().height);
+        if (guideHeight > 0) sessionBadge.style.height = `${guideHeight}px`;
+      };
       const ensureSessionBadgeTemplate = () => {
         if (!sessionBadge || sessionBadge.querySelector('.sg-session-title')) return;
         sessionBadge.innerHTML = `
           <div class="sg-session-title">當前最佳記錄</div>
+          <div class="sg-session-focus-row">
+            <div class="sg-session-focus-box sg-session-focus-box-score">
+              <div class="sg-session-focus-label">分數</div>
+              <div class="sg-session-focus-value sg-session-focus-score">0</div>
+            </div>
+            <div class="sg-session-focus-box sg-session-focus-box-streak">
+              <div class="sg-session-focus-label">連進</div>
+              <div class="sg-session-focus-value sg-session-focus-streak">0</div>
+            </div>
+          </div>
           <div class="sg-session-best">
             <span class="sg-session-best-score">--</span>分
             <span class="sg-session-sep">|</span>
@@ -340,6 +357,8 @@
         const bestScoreEl = sessionBadge.querySelector('.sg-session-best-score');
         const bestShotsEl = sessionBadge.querySelector('.sg-session-best-shots');
         const bestTimeEl = sessionBadge.querySelector('.sg-session-best-time');
+        const focusScoreEl = sessionBadge.querySelector('.sg-session-focus-score');
+        const focusStreakEl = sessionBadge.querySelector('.sg-session-focus-streak');
         const liveScoreEl = sessionBadge.querySelector('.sg-session-live-score');
         const liveStreakEl = sessionBadge.querySelector('.sg-session-live-streak');
 
@@ -353,8 +372,11 @@
         if (bestScoreEl) bestScoreEl.textContent = String(bestScore);
         if (bestShotsEl) bestShotsEl.textContent = String(bestShots);
         if (bestTimeEl) bestTimeEl.textContent = String(bestTime);
+        if (focusScoreEl) focusScoreEl.textContent = String(liveScore);
+        if (focusStreakEl) focusStreakEl.textContent = String(liveStreak);
         if (liveScoreEl) liveScoreEl.textContent = String(liveScore);
         if (liveStreakEl) liveStreakEl.textContent = String(liveStreak);
+        syncHudPanelHeight();
       };
       const buildLeaderboardView = (period) => {
         const rows = dedupeLeaderboardRows((leaderboardData[period] || []).map((row) => ({ ...row })));
@@ -541,6 +563,11 @@
         currentScore = 0;
         currentStreak = 0;
         setSessionBadge();
+        if (document.fonts && document.fonts.ready) {
+          document.fonts.ready.then(syncHudPanelHeight).catch(() => {});
+        } else {
+          syncHudPanelHeight();
+        }
         engine = window.ShotGameEngine.create({
           container: gameContainer,
           lowFx,
@@ -658,6 +685,7 @@
       window.addEventListener('keydown', (event) => {
         if (event.key === 'Escape' && leaderboardOpen) closeLeaderboard();
       });
+      window.addEventListener('resize', syncHudPanelHeight);
       window.addEventListener('beforeunload', () => { if (engine) engine.destroy(); });
 
       renderLeaderboard(leaderboardPeriod);

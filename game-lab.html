@@ -531,7 +531,6 @@
     .game-wrap { position: relative; overflow: hidden; min-height: 64vh; }
     #shot-game-container {
       position: relative;
-      --sg-info-panel-height: 96px;
       height: 64vh;
       min-height: 460px;
       background: #8bc5e0;
@@ -681,9 +680,8 @@
       background: rgba(255,255,255,0.72);
       border: 1px solid rgba(0,0,0,0.15);
       border-radius: 10px;
-      padding: 8px 10px;
-      height: var(--sg-info-panel-height);
-      width: 156px;
+      padding: 10px 11px;
+      width: 168px;
       box-sizing: border-box;
       text-align: center;
       line-height: 1.4;
@@ -691,22 +689,22 @@
       box-shadow: 0 5px 12px rgba(14, 38, 56, 0.16);
     }
     .goal-guide-title {
-      font-size: 11px;
-      margin-bottom: 6px;
+      font-size: 12px;
+      margin-bottom: 7px;
       opacity: 0.9;
       letter-spacing: 0.4px;
     }
     .goal-guide-grid {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
-      gap: 4px;
+      gap: 5px;
     }
     .goal-guide-cell {
       text-align: center;
       border-radius: 6px;
       border: 1px solid rgba(0, 0, 0, 0.18);
-      padding: 3px 0;
-      font-size: 11px;
+      padding: 4px 0;
+      font-size: 12px;
       font-weight: 800;
       background: linear-gradient(160deg, rgba(255, 255, 255, 0.54), rgba(255, 255, 255, 0.22));
       backdrop-filter: blur(6px);
@@ -719,38 +717,71 @@
       position: static;
       z-index: 7;
       display: grid;
-      grid-template-rows: auto auto 1px auto;
-      align-content: center;
-      gap: 4px;
-      width: min(64vw, 228px);
-      height: var(--sg-info-panel-height);
-      padding: 8px 10px;
-      border-radius: 11px;
+      grid-template-rows: auto auto auto 1px auto;
+      align-content: start;
+      gap: 6px;
+      width: min(76vw, 270px);
+      min-height: 110px;
+      padding: 10px 12px;
+      border-radius: 12px;
       color: #15384c;
       border: 1px solid rgba(0, 0, 0, 0.22);
-      background: rgba(255, 255, 255, 0.78);
+      background: linear-gradient(165deg, rgba(255, 255, 255, 0.86), rgba(233, 247, 255, 0.72));
       box-shadow: 0 6px 14px rgba(15, 34, 52, 0.16);
       box-sizing: border-box;
+      overflow: hidden;
     }
     #session-badge.history-badge .sg-session-title {
       text-align: center;
-      font-size: 12px;
+      font-size: 14px;
       font-weight: 900;
-      letter-spacing: 0.2px;
+      letter-spacing: 0.4px;
       line-height: 1.1;
     }
+    #session-badge.history-badge .sg-session-focus-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+    }
+    #session-badge.history-badge .sg-session-focus-box {
+      border: 1px solid rgba(40, 89, 125, 0.55);
+      border-radius: 8px;
+      background: linear-gradient(180deg, #153753, #102b42);
+      padding: 4px 6px 5px;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 3px 9px rgba(10, 23, 35, 0.3);
+    }
+    #session-badge.history-badge .sg-session-focus-label {
+      color: #bddfff;
+      font-size: 11px;
+      line-height: 1;
+      font-weight: 800;
+      letter-spacing: 0.6px;
+      text-align: center;
+    }
+    #session-badge.history-badge .sg-session-focus-value {
+      margin-top: 3px;
+      text-align: center;
+      font-family: "Outfit", "Noto Sans TC", sans-serif;
+      font-size: 22px;
+      line-height: 1;
+      font-weight: 900;
+      letter-spacing: 0.8px;
+      text-shadow: 0 1px 0 rgba(0, 0, 0, 0.32);
+    }
+    #session-badge.history-badge .sg-session-focus-box-score .sg-session-focus-value { color: #ffe16b; }
+    #session-badge.history-badge .sg-session-focus-box-streak .sg-session-focus-value { color: #84ecff; }
     #session-badge.history-badge .sg-session-best,
     #session-badge.history-badge .sg-session-live {
       text-align: center;
-      font-size: 13px;
+      font-size: 15px;
       font-weight: 800;
-      line-height: 1.15;
+      line-height: 1.2;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
     #session-badge.history-badge .sg-session-best {
-      font-size: 12px;
+      font-size: 14px;
     }
     #session-badge.history-badge .sg-session-divider {
       width: 100%;
@@ -758,7 +789,7 @@
       background: rgba(21, 56, 76, 0.25);
     }
     #session-badge.history-badge .sg-session-sep {
-      margin: 0 4px;
+      margin: 0 5px;
       opacity: 0.72;
     }
     #sg-score.hud-chip,
@@ -991,9 +1022,6 @@
     #sg-power { border-color: rgba(0,0,0,0.45); }
     @media (min-width: 900px) { .layout { grid-template-columns: 1fr 340px; } }
     @media (max-width: 760px) {
-      #shot-game-container {
-        --sg-info-panel-height: 90px;
-      }
       .topbar {
         grid-template-columns: 0fr auto 1fr;
         gap: 8px;
@@ -1032,15 +1060,18 @@
         font-size: 12px;
       }
       #session-badge.history-badge {
-        width: min(68vw, 206px);
-        padding: 7px 8px;
-        gap: 3px;
+        width: min(74vw, 236px);
+        padding: 8px 9px;
+        gap: 5px;
       }
       #session-badge.history-badge .sg-session-title {
-        font-size: 11px;
+        font-size: 12px;
       }
+      #session-badge.history-badge .sg-session-focus-row { gap: 4px; }
+      #session-badge.history-badge .sg-session-focus-label { font-size: 10px; }
+      #session-badge.history-badge .sg-session-focus-value { font-size: 18px; }
       #session-badge.history-badge .sg-session-best {
-        font-size: 10px;
+        font-size: 11px;
       }
       #session-badge.history-badge .sg-session-live {
         font-size: 12px;
@@ -1113,6 +1144,14 @@
       border-color: rgba(255, 255, 255, 0.28);
       color: #d8f6ff;
     }
+    html[data-shot-theme="dark"] #session-badge.history-badge .sg-session-focus-box {
+      border-color: rgba(144, 201, 241, 0.48);
+      background: linear-gradient(180deg, rgba(10, 33, 52, 0.95), rgba(7, 24, 38, 0.98));
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 4px 11px rgba(0, 0, 0, 0.38);
+    }
+    html[data-shot-theme="dark"] #session-badge.history-badge .sg-session-focus-label { color: #bbdefb; }
+    html[data-shot-theme="dark"] #session-badge.history-badge .sg-session-focus-box-score .sg-session-focus-value { color: #ffd166; }
+    html[data-shot-theme="dark"] #session-badge.history-badge .sg-session-focus-box-streak .sg-session-focus-value { color: #89f1ff; }
     html[data-shot-theme="dark"] #session-badge.history-badge .sg-session-divider {
       background: rgba(216, 246, 255, 0.36);
     }
@@ -1236,6 +1275,16 @@
             <div class="hud">
               <div id="session-badge" class="history-badge" aria-live="polite">
                 <div class="sg-session-title">當前最佳記錄</div>
+                <div class="sg-session-focus-row">
+                  <div class="sg-session-focus-box sg-session-focus-box-score">
+                    <div class="sg-session-focus-label">分數</div>
+                    <div class="sg-session-focus-value sg-session-focus-score">0</div>
+                  </div>
+                  <div class="sg-session-focus-box sg-session-focus-box-streak">
+                    <div class="sg-session-focus-label">連進</div>
+                    <div class="sg-session-focus-value sg-session-focus-streak">0</div>
+                  </div>
+                </div>
                 <div class="sg-session-best">
                   <span class="sg-session-best-score">--</span>分
                   <span class="sg-session-sep">|</span>
@@ -1336,10 +1385,10 @@
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-storage-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-functions-compat.js"></script>
-  <script src="js/firebase-config.js?v=20260305w"></script>
+  <script src="js/firebase-config.js?v=20260305y"></script>
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-  <script defer src="js/modules/shot-game-engine.js?v=20260305w"></script>
-  <script defer src="js/modules/shot-game-lab-page.js?v=20260305w"></script>
+  <script defer src="js/modules/shot-game-engine.js?v=20260305y"></script>
+  <script defer src="js/modules/shot-game-lab-page.js?v=20260305y"></script>
   <script>
     (function () {
       var overlay = document.getElementById('loading-overlay');

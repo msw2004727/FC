@@ -807,3 +807,13 @@
 - **原因**：原本 UI 將 `session-badge` 與 `分數/連進` 拆成三個 chip，資訊分散且高度與右側說明卡不一致。
 - **修復**：`pages/game.html` 與 `game-lab.html` 改成單一卡片版型（標題/最佳紀錄/分隔線/即時分數列）；`css/game.css` 與 `game-lab.html` 內嵌樣式改為固定資訊卡高度、與九宮格說明卡同高；`js/modules/shot-game-page.js`、`js/modules/shot-game-lab-page.js` 新增 `onScoreChange` 即時同步與 session badge 模板更新邏輯。
 - **教訓**：HUD 需以「資訊聚合與掃讀效率」為優先，並在視覺層建立一致對齊基準（同高卡片）來降低玩家辨識成本。
+### 2026-03-05 — 球門左右移動範圍擴大 20%
+- **問題**：球門左右移動範圍偏窄，希望邊界再往外增加 20%。
+- **原因**：射門引擎內 `GOAL_MIN_X / GOAL_MAX_X` 為固定 ±6.6，導致可移動水平區間受限。
+- **修復**：`js/modules/shot-game-engine.js` 改為 `GOAL_BASE_SWING_BOUNDARY * GOAL_SWING_RANGE_SCALE`，並將 `GOAL_SWING_RANGE_SCALE` 設為 `1.2`，使邊界由 ±6.6 擴至 ±7.92；同步更新快取版本 `20260305x`（`js/config.js`、`index.html`、`game-lab.html`）。
+- **教訓**：遊戲可調參數應避免硬編碼，抽成「基準值 + 倍率」可降低後續平衡調校成本。
+### 2026-03-05 — HUD 記分板重構與九宮格等高對齊
+- **問題**：九宮格得分欄位需完整包覆分數格內容，當前最佳欄位需與九宮格等高，且分數/連進需要更醒目的多層記分板風格。
+- **原因**：前版 HUD 為單層文字卡，字級偏小且視覺層級不足；高度使用固定值，無法保證以九宮格卡片實際高度為基準對齊。
+- **修復**：`pages/game.html`、`game-lab.html` 改為「標題 + 分數/連進雙獨立框 + 最佳紀錄 + 底部即時列」堆疊結構；`css/game.css` 與 `game-lab.html` 內嵌樣式放大字級兩級並加入記分板視覺；`js/modules/shot-game-page.js`、`js/modules/shot-game-lab-page.js` 新增動態高度同步（以九宮格卡片高度套用至當前最佳卡）與焦點數值即時更新。
+- **教訓**：HUD 需要同時處理資訊層級與版面對齊；當兩個卡片要求等高時，應由主卡實測高度驅動，不要依賴固定常數。

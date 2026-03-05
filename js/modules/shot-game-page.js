@@ -362,12 +362,32 @@
     modal.setAttribute('aria-hidden', 'true');
   }
 
+  function _syncHudPanelHeight() {
+    const container = document.getElementById('shot-game-container');
+    const badge = document.getElementById('session-badge');
+    if (!container || !badge) return;
+    const guide = container.querySelector('.sg-goal-guide');
+    if (!guide) return;
+    const guideHeight = Math.ceil(guide.getBoundingClientRect().height);
+    if (guideHeight > 0) badge.style.height = `${guideHeight}px`;
+  }
+
   function _updateSessionBadge() {
     const badge = document.getElementById('session-badge');
     if (!badge) return;
     if (!badge.querySelector('.sg-session-title')) {
       badge.innerHTML = `
         <div class="sg-session-title">當前最佳記錄</div>
+        <div class="sg-session-focus-row">
+          <div class="sg-session-focus-box sg-session-focus-box-score">
+            <div class="sg-session-focus-label">分數</div>
+            <div class="sg-session-focus-value sg-session-focus-score">0</div>
+          </div>
+          <div class="sg-session-focus-box sg-session-focus-box-streak">
+            <div class="sg-session-focus-label">連進</div>
+            <div class="sg-session-focus-value sg-session-focus-streak">0</div>
+          </div>
+        </div>
         <div class="sg-session-best">
           <span class="sg-session-best-score">--</span>分
           <span class="sg-session-sep">|</span>
@@ -386,6 +406,8 @@
     const bestScoreEl = badge.querySelector('.sg-session-best-score');
     const bestShotsEl = badge.querySelector('.sg-session-best-shots');
     const bestTimeEl = badge.querySelector('.sg-session-best-time');
+    const focusScoreEl = badge.querySelector('.sg-session-focus-score');
+    const focusStreakEl = badge.querySelector('.sg-session-focus-streak');
     const liveScoreEl = badge.querySelector('.sg-session-live-score');
     const liveStreakEl = badge.querySelector('.sg-session-live-streak');
 
@@ -399,8 +421,11 @@
     if (bestScoreEl) bestScoreEl.textContent = String(bestScore);
     if (bestShotsEl) bestShotsEl.textContent = String(bestShots);
     if (bestTimeEl) bestTimeEl.textContent = String(bestTime);
+    if (focusScoreEl) focusScoreEl.textContent = String(liveScore);
+    if (focusStreakEl) focusStreakEl.textContent = String(liveStreak);
     if (liveScoreEl) liveScoreEl.textContent = String(liveScore);
     if (liveStreakEl) liveStreakEl.textContent = String(liveStreak);
+    _syncHudPanelHeight();
   }
 
   function _isBetter(incoming, best) {
@@ -437,6 +462,11 @@
     _liveScore = 0;
     _liveStreak = 0;
     _updateSessionBadge();
+    if (document.fonts && document.fonts.ready) {
+      document.fonts.ready.then(_syncHudPanelHeight).catch(() => {});
+    } else {
+      _syncHudPanelHeight();
+    }
 
     const lowFx = new URLSearchParams(location.search).get('low') === '1';
 
@@ -503,6 +533,7 @@
     window.addEventListener('keydown', e => {
       if (e.key === 'Escape' && _lbOpen) _closeLeaderboard();
     });
+    window.addEventListener('resize', _syncHudPanelHeight);
 
     window.addEventListener('beforeunload', () => { if (_engine) _engine.destroy(); });
   }

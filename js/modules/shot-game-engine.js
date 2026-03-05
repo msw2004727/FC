@@ -12,8 +12,10 @@
   const BALL_TEX_BASECOLOR = 'assets/ball/club-world-cup-2025/textures/Al_Rihla_baseColor.png';
   const BALL_TEX_NORMAL = 'assets/ball/club-world-cup-2025/textures/Al_Rihla_normal.png';
   const BALL_TEX_METAL_ROUGH = 'assets/ball/club-world-cup-2025/textures/Al_Rihla_metallicRoughness.png';
-  const GOAL_MIN_X = -6.6;
-  const GOAL_MAX_X = 6.6;
+  const GOAL_BASE_SWING_BOUNDARY = 6.6;
+  const GOAL_SWING_RANGE_SCALE = 1.2;
+  const GOAL_MIN_X = -GOAL_BASE_SWING_BOUNDARY * GOAL_SWING_RANGE_SCALE;
+  const GOAL_MAX_X = GOAL_BASE_SWING_BOUNDARY * GOAL_SWING_RANGE_SCALE;
   const GOAL_BURST_CHANCE_PER_SEC = 0.2;
   const GOAL_BURST_MIN_STEPS = 6;
   const GOAL_BURST_MAX_STEPS = 12;
