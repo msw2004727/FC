@@ -12,6 +12,8 @@
   const BALL_TEX_BASECOLOR = 'assets/ball/club-world-cup-2025/textures/Al_Rihla_baseColor.png';
   const BALL_TEX_NORMAL = 'assets/ball/club-world-cup-2025/textures/Al_Rihla_normal.png';
   const BALL_TEX_METAL_ROUGH = 'assets/ball/club-world-cup-2025/textures/Al_Rihla_metallicRoughness.png';
+  const GOAL_MIN_X = -6.6;
+  const GOAL_MAX_X = 6.6;
   const GOAL_BURST_CHANCE_PER_SEC = 0.2;
   const GOAL_BURST_MIN_STEPS = 6;
   const GOAL_BURST_MAX_STEPS = 12;
@@ -152,31 +154,42 @@
     const maxAnisotropy = renderer.capabilities && typeof renderer.capabilities.getMaxAnisotropy === 'function'
       ? Math.min(8, renderer.capabilities.getMaxAnisotropy())
       : 1;
-    function loadBallTexture(path, isColor) {
-      let texture = null;
+    function loadBallTexture(path, isColor, onLoaded) {
       try {
-        texture = textureLoader.load(path, undefined, undefined, () => { console.warn(`[ShotGame] texture load failed: ${path}`); });
-        texture.flipY = false;
-        texture.anisotropy = maxAnisotropy;
-        if (isColor) texture.encoding = THREE.sRGBEncoding;
+        textureLoader.load(
+          path,
+          (texture) => {
+            texture.flipY = false;
+            texture.anisotropy = maxAnisotropy;
+            if (isColor) texture.encoding = THREE.sRGBEncoding;
+            if (typeof onLoaded === 'function') onLoaded(texture);
+          },
+          undefined,
+          () => { console.warn(`[ShotGame] texture load failed: ${path}`); },
+        );
       } catch (_) {
-        texture = null;
+        console.warn(`[ShotGame] texture load exception: ${path}`);
       }
-      return texture;
     }
-    const ballBaseColorMap = loadBallTexture(BALL_TEX_BASECOLOR, true);
-    const ballNormalMap = loadBallTexture(BALL_TEX_NORMAL, false);
-    const ballMetalRoughMap = loadBallTexture(BALL_TEX_METAL_ROUGH, false);
     const ballMaterial = new THREE.MeshStandardMaterial({
       color: 0xffffff,
       roughness: 1,
       metalness: 1,
-      map: ballBaseColorMap || null,
-      normalMap: ballNormalMap || null,
-      roughnessMap: ballMetalRoughMap || null,
-      metalnessMap: ballMetalRoughMap || null,
     });
     ballMaterial.needsUpdate = true;
+    loadBallTexture(BALL_TEX_BASECOLOR, true, (texture) => {
+      ballMaterial.map = texture;
+      ballMaterial.needsUpdate = true;
+    });
+    loadBallTexture(BALL_TEX_NORMAL, false, (texture) => {
+      ballMaterial.normalMap = texture;
+      ballMaterial.needsUpdate = true;
+    });
+    loadBallTexture(BALL_TEX_METAL_ROUGH, false, (texture) => {
+      ballMaterial.roughnessMap = texture;
+      ballMaterial.metalnessMap = texture;
+      ballMaterial.needsUpdate = true;
+    });
     const ball = new THREE.Mesh(
       new THREE.SphereGeometry(BALL_RADIUS, 48, 48),
       ballMaterial
@@ -231,7 +244,7 @@
     let aim = { x: 0, y: 3 }; let startPointer = { x: 0, y: 0 };
     let sessionStartedAt = Date.now(); let resultTimer = null; let flashTimer = null; let rafId = 0;
     let accumulator = 0; let flightTime = 0; let apex = BALL_RADIUS; let lastBallZ = PENALTY_SPOT_Z;
-    let goalSpeed = 2.9; let goalDir = 1; let goalRange = 5.8; let goalSpeedMult = 1.0;
+    let goalSpeed = 2.9; let goalDir = 1; let goalSpeedMult = 1.0;
     let goalBurstSteps = 0; let goalBurstMult = 1.0; let goalBurstDir = 1;
     let trailCount = 0;
     const postOffset = new THREE.Vector3();
@@ -507,7 +520,7 @@
       if (resultTimer) clearTimeout(resultTimer);
       score = 0; streak = 0; shots = 0; state = 'aiming';
       sessionStartedAt = Date.now();
-      goalSpeed = 2.9; goalDir = 1; goalRange = 5.8; goalSpeedMult = 1.0;
+      goalSpeed = 2.9; goalDir = 1; goalSpeedMult = 1.0;
       goalBurstSteps = 0; goalBurstMult = 1.0; goalBurstDir = 1;
       goalGroup.position.x = 0;
       if (ui.restartBtn) ui.restartBtn.style.display = 'none';
@@ -524,10 +537,11 @@
           goalBurstDir = Math.random() < 0.5 ? -1 : 1;
         }
         // 每秒約 4% 機率隨機改變方向（非邊界觸發）
-        if (Math.random() < 0.04 * dt * 60) {
-          goalDir = Math.random() < 0.5 ? 1 : -1;
-          goalRange = Math.max(4 + Math.random() * 7, Math.abs(goalGroup.position.x) + 0.45);
-        }
+        if (Math.random() < 0.04 * dt * 60) goalDir = Math.random() < 0.5 ? 1 : -1;
+
+        // 邊界保護：若已在邊緣且方向仍往外，先拉回正確方向，避免卡邊抖動。
+        if (goalGroup.position.x <= GOAL_MIN_X + 0.01 && goalDir < 0) goalDir = 1;
+        if (goalGroup.position.x >= GOAL_MAX_X - 0.01 && goalDir > 0) goalDir = -1;
         let moveMult = goalSpeedMult;
         if (goalBurstSteps > 0) {
           goalDir = goalBurstDir;
@@ -536,11 +550,14 @@
           if (goalBurstSteps <= 0) goalBurstMult = 1.0;
         }
         goalGroup.position.x += goalDir * goalSpeed * moveMult * dt;
-        if (Math.abs(goalGroup.position.x) >= goalRange) {
-          goalGroup.position.x = Math.sign(goalGroup.position.x || goalDir) * goalRange;
-          goalDir *= -1;
-          goalRange = Math.max(4 + Math.random() * 7, Math.abs(goalGroup.position.x) + 0.45);
-          if (goalBurstSteps > 0 && Math.random() < 0.45) goalBurstDir = goalDir;
+        if (goalGroup.position.x <= GOAL_MIN_X) {
+          goalGroup.position.x = GOAL_MIN_X;
+          goalDir = 1;
+          if (goalBurstSteps > 0) goalBurstDir = 1;
+        } else if (goalGroup.position.x >= GOAL_MAX_X) {
+          goalGroup.position.x = GOAL_MAX_X;
+          goalDir = -1;
+          if (goalBurstSteps > 0) goalBurstDir = -1;
         }
       }
       if (state !== 'flying' && state !== 'result') return;
