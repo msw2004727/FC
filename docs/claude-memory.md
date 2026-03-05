@@ -649,8 +649,8 @@
 
 ### 2026-03-04 - Fix Firestore users/messages permission mismatch
 - **問題**：[deliverMsg] 和 [updateCurrentUser] 觸發 Firestore Missing or insufficient permissions，且一般用戶清空訊息會走全域 delete。
-- **原因**：irestore.rules 與前端資料模型不一致；messages 仍偏舊欄位權限邏輯，users self-update 白名單不足。
-- **修復**：更新 irestore.rules 的 users/messages 規則；message-admin.js 寫入補上 romUid/toUid/hiddenBy；message-inbox.js 清空改為 hiddenBy 個人隱藏。
+- **原因**：Firestore.rules 與前端資料模型不一致；messages 仍偏舊欄位權限邏輯，users self-update 白名單不足。
+- **修復**：更新 Firestore.rules 的 users/messages 規則；message-admin.js 寫入補上 fromUid/toUid/hiddenBy；message-inbox.js 清空改為 hiddenBy 個人隱藏。
 - **教訓**：規則變更要與前端資料結構同步，訊息刪除需優先使用 per-user soft hide。
 
 ### 2026-03-04 — 新增亂碼檢查與即時修復規則
@@ -782,3 +782,8 @@
 - **原因**：前端會先插入本地最佳成績列，雲端資料回來後若以 doc.id 比對不到自己（例如歷史資料鍵值不一致），就會在當下畫面形成雙列。
 - **修復**：shot-game-lab-page.js 與 shot-game-page.js 新增排行榜 uid/id 身分去重、提交中暫存列機制（僅提交中才顯示本地列），並改為優先以 row.uid 對齊當前使用者；提交完成後強制重刷榜單以移除暫存列。
 - **教訓**：排行榜合併本地暫存與遠端資料時，必須有穩定 identity key（uid）與「暫存列生命週期」控制，否則容易出現短暫幽靈重複列。
+### 2026-03-05 - game-lab remove light cloud pattern and add opening loader
+- **Issue**: Light theme background still had cloud icons, and game-lab lacked the same opening loading transition used on the main site.
+- **Cause**: Light theme bg-pattern pointed to a cloud SVG, and game-lab did not include the loading-overlay / boot-loading UI and progress animation flow.
+- **Fix**: Updated game-lab light theme bg-pattern to none (keep gradient only), added main-site style loading overlay (brand image, pixel progress bar, scan animation, percentage), and completed/hid overlay in bootShotGameLab() after initialization.
+- **Lesson**: Standalone entry pages must explicitly include boot UX and completion timing when they bypass the main App init pipeline.
