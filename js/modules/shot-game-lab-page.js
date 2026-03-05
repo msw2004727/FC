@@ -73,6 +73,32 @@
       || a.nick.localeCompare(b.nick, 'zh-Hant')
     );
   }
+  function isLocalSessionBetter(localRow, remoteRow) {
+    if (!localRow || !remoteRow) return false;
+    if (localRow.score !== remoteRow.score) return localRow.score > remoteRow.score;
+    if (localRow.streak !== remoteRow.streak) return localRow.streak > remoteRow.streak;
+    return localRow.durationSec < remoteRow.durationSec;
+  }
+  function getCurrentAuthUid() {
+    try {
+      if (typeof auth === 'undefined' || !auth || !auth.currentUser || !auth.currentUser.uid) return '';
+      return String(auth.currentUser.uid);
+    } catch (_) {
+      return '';
+    }
+  }
+  function getPreferredPlayerDisplayName(user) {
+    const authName = String(user && user.displayName ? user.displayName : '').trim();
+    if (authName) return authName;
+    try {
+      if (typeof LineAuth !== 'undefined' && LineAuth && typeof LineAuth.getProfile === 'function') {
+        const profile = LineAuth.getProfile();
+        const lineName = String(profile && profile.displayName ? profile.displayName : '').trim();
+        if (lineName) return lineName;
+      }
+    } catch (_) {}
+    return '';
+  }
 
   function normalizeLeaderboardRow(id, data) {
     const row = data || {};
@@ -264,19 +290,48 @@
       };
       const buildLeaderboardView = (period) => {
         const rows = (leaderboardData[period] || []).map((row) => ({ ...row }));
-        if (bestSessionSinceOpen && bestSessionSinceOpen.score > 0) {
-          rows.push({
-            id: 'player-self',
-            nick: '你',
+        const currentUid = getCurrentAuthUid();
+        const localBestRow = bestSessionSinceOpen && bestSessionSinceOpen.score > 0
+          ? {
             score: bestSessionSinceOpen.score,
             streak: Math.max(0, Number(bestSessionSinceOpen.streak || 0)),
             durationSec: Math.max(0, Math.round(Number(bestSessionSinceOpen.durationMs || 0) / 1000)),
+          }
+          : null;
+        const selfIds = new Set();
+        if (currentUid) {
+          selfIds.add(currentUid);
+          const selfPersistedRow = rows.find((row) => row.id === currentUid);
+          if (selfPersistedRow) {
+            selfPersistedRow.nick = '你';
+            if (localBestRow && isLocalSessionBetter(localBestRow, selfPersistedRow)) {
+              selfPersistedRow.score = localBestRow.score;
+              selfPersistedRow.streak = localBestRow.streak;
+              selfPersistedRow.durationSec = localBestRow.durationSec;
+            }
+          } else if (localBestRow) {
+            rows.push({
+              id: currentUid,
+              nick: '你',
+              score: localBestRow.score,
+              streak: localBestRow.streak,
+              durationSec: localBestRow.durationSec,
+            });
+          }
+        } else if (localBestRow) {
+          selfIds.add('player-self');
+          rows.push({
+            id: 'player-self',
+            nick: '你',
+            score: localBestRow.score,
+            streak: localBestRow.streak,
+            durationSec: localBestRow.durationSec,
           });
         }
         rows.sort(compareLeaderboardRows);
         const ranked = rows.map((row, index) => ({ ...row, rank: index + 1 }));
         const topRows = ranked.slice(0, LEADERBOARD_TOP_SIZE);
-        const playerRow = ranked.find((row) => row.id === 'player-self') || null;
+        const playerRow = ranked.find((row) => selfIds.has(row.id)) || null;
         const extraPlayerRow = playerRow && playerRow.rank > LEADERBOARD_TOP_SIZE ? playerRow : null;
         return { topRows, extraPlayerRow };
       };
@@ -397,7 +452,7 @@
             shots: scorePayload.shots,
             streak: scorePayload.streak,
             durationMs: scorePayload.durationMs,
-            displayName: gameUser.displayName || '',
+            displayName: getPreferredPlayerDisplayName(gameUser),
           });
           if (leaderboardOpen) await renderLeaderboard(leaderboardPeriod);
         } catch (err) {

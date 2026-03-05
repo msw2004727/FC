@@ -759,3 +759,16 @@
   3. `js/modules/ad-manage-core.js`：`_autoExpireAds()` 僅允許 admin+ 會話執行（Production），移除一般用戶端的無效自動寫入流程。
   4. 依快取規則更新版本：`js/config.js` `CACHE_VERSION` → `20260305o`，`index.html` 全部 `?v=` 同步升版。
 - **教訓**：seed 類初始化必須是「只補缺」而非「覆蓋預設」，且需避開啟動競態；排程型寫入（如自動下架）應限制在可寫角色或後端任務，避免前端多端競態改寫正式資料。
+
+### 2026-03-05 — 射手榜同玩家重複列（「你」+「玩家XXXX」）修復
+- **問題**：射手榜會出現同一個玩家兩列，分數完全相同，一列是本地「你」，另一列是 `玩家XXXX`，看起來像重複寫入。
+- **原因**：
+  1. 後端排行榜以 `shotGameRankings/{bucket}/entries/{uid}` 寫入，實際上同 bucket 不會有同 uid 的重複文件。
+  2. 前端渲染時先讀 Firestore 排名，再無條件把本地最佳分數（`player-self`）再 push 一列，造成同一人雙列。
+  3. 當 Firebase Auth displayName 為空時，Firestore 那列會顯示 fallback 名稱 `玩家${uid尾碼}`，更像「另一個玩家」。
+- **修復**：
+  1. `js/modules/shot-game-lab-page.js`：榜單組裝改為以當前 `auth.currentUser.uid` 合併本地與遠端資料；若遠端已有本人列只更新更佳成績，不再新增第二列。
+  2. `js/modules/shot-game-page.js`：主站嵌入版套用同一合併邏輯，避免雙列。
+  3. 兩個模組提交分數時，`displayName` 改為優先採用 `LineAuth.getProfile().displayName`（auth displayName 為空時避免落成 `玩家XXXX`）。
+  4. 依快取規則更新版本：`js/config.js` `CACHE_VERSION` → `20260305p`，`index.html` 與 `game-lab.html` 全部 `?v=` 同步升版。
+- **教訓**：榜單渲染若同時混用「本地暫存分數」與「遠端排名」，必須先做 uid 去重與合併；否則即使資料庫無重複，UI 仍會誤導成重複寫入。
