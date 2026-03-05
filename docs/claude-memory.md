@@ -943,3 +943,11 @@
   - `js/modules/shot-game-engine.js`: removed extra matchMedia override path so page mode respects site theme consistently.
   - `js/config.js`, `index.html`, `game-lab.html`: bumped cache version to `20260306d`.
 - **Lesson**: Shared components used by page and lab modes must support both theme sources, and should not bypass site-level theme state.
+### 2026-03-06 - prevent page-game hard fail when GLTFLoader CDN is unavailable
+- **Issue**: Entering the mini-game from main page could show "game load failed" even though engine fallback was available.
+- **Cause**: `shot-game-page` treated `GLTFLoader` as required in `_loadThreeJs()`, so loader CDN failure rejected initialization before engine start.
+- **Fix**:
+  - `js/modules/shot-game-page.js`: added best-effort loader path (`_ensureGltfLoaderBestEffort`), and only keep Three.js core as hard requirement.
+  - `js/modules/shot-game-page.js`: if `GLTFLoader` fails, log warning and continue so engine fallback sphere can run.
+  - `js/config.js`, `index.html`, `game-lab.html`: bumped cache version to `20260306e`.
+- **Lesson**: Optional visual enhancements (model loaders) should never block game boot path when a functional fallback exists.
