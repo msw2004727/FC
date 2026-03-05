@@ -201,6 +201,13 @@
       grid-column: 2;
       justify-self: center;
     }
+    .topbar-actions {
+      grid-column: 3;
+      justify-self: end;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
     .theme-toggle-btn {
       grid-column: 3;
       justify-self: end;
@@ -221,6 +228,39 @@
       align-items: center;
       justify-content: center;
       line-height: 1;
+    }
+    .sg-avatar-btn {
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      border: 1px solid rgba(255, 255, 255, 0.58);
+      background: linear-gradient(155deg, rgba(255, 255, 255, 0.46), rgba(255, 255, 255, 0.2));
+      box-shadow: 0 5px 14px rgba(16, 35, 52, 0.18);
+      backdrop-filter: blur(6px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+      cursor: pointer;
+      overflow: hidden;
+      flex: 0 0 auto;
+      color: var(--text);
+      font-size: 12px;
+      font-weight: 800;
+      line-height: 1;
+    }
+    .sg-avatar-btn img {
+      width: 100%;
+      height: 100%;
+      display: block;
+      object-fit: cover;
+    }
+    .sg-avatar-fallback {
+      width: 100%;
+      height: 100%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
     }
     .badge {
       display: inline-block;
@@ -676,6 +716,13 @@
         font-size: 11px;
         padding: 0 10px;
       }
+      .topbar-actions {
+        gap: 6px;
+      }
+      .sg-avatar-btn {
+        width: 32px;
+        height: 32px;
+      }
       .hud-chip {
         height: 28px;
         padding: 0 10px;
@@ -763,6 +810,12 @@
       box-shadow: 0 8px 20px rgba(0, 0, 0, 0.36);
     }
     html[data-shot-theme="dark"] .theme-toggle-btn {
+      border-color: rgba(255, 255, 255, 0.24);
+      background: linear-gradient(155deg, rgba(255, 255, 255, 0.13), rgba(8, 28, 45, 0.4));
+      color: #e9f7ff;
+      box-shadow: 0 8px 18px rgba(0, 0, 0, 0.34);
+    }
+    html[data-shot-theme="dark"] .sg-avatar-btn {
       border-color: rgba(255, 255, 255, 0.24);
       background: linear-gradient(155deg, rgba(255, 255, 255, 0.13), rgba(8, 28, 45, 0.4));
       color: #e9f7ff;
@@ -917,16 +970,105 @@
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-storage-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-functions-compat.js"></script>
-  <script src="js/firebase-config.js?v=20260305j"></script>
+  <script src="js/firebase-config.js?v=20260305k"></script>
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-  <script defer src="js/modules/shot-game-engine.js?v=20260305j"></script>
-  <script defer src="js/modules/shot-game-lab-page.js?v=20260305j"></script>
+  <script defer src="js/modules/shot-game-engine.js?v=20260305k"></script>
+  <script defer src="js/modules/shot-game-lab-page.js?v=20260305k"></script>
   <script>
     window.addEventListener('DOMContentLoaded', function () {
       var themeBtn = document.getElementById('sg-theme-toggle');
+      var topbar = themeBtn ? themeBtn.closest('.topbar') : null;
+      var topbarActions = document.getElementById('sg-topbar-actions');
+      if (!topbarActions && topbar && themeBtn) {
+        topbarActions = document.createElement('div');
+        topbarActions.id = 'sg-topbar-actions';
+        topbarActions.className = 'topbar-actions';
+        themeBtn.parentNode.insertBefore(topbarActions, themeBtn);
+        topbarActions.appendChild(themeBtn);
+      }
+      var avatarBtn = document.getElementById('sg-avatar-btn');
+      if (!avatarBtn && topbarActions) {
+        avatarBtn = document.createElement('button');
+        avatarBtn.id = 'sg-avatar-btn';
+        avatarBtn.className = 'sg-avatar-btn';
+        avatarBtn.type = 'button';
+        avatarBtn.setAttribute('aria-label', 'LINE Avatar');
+        avatarBtn.innerHTML = '<img id="sg-avatar-img" alt="" style="display:none"><span id="sg-avatar-fallback" class="sg-avatar-fallback">U</span>';
+        topbarActions.appendChild(avatarBtn);
+      }
+      var avatarImg = document.getElementById('sg-avatar-img');
+      var avatarFallback = document.getElementById('sg-avatar-fallback');
+      function buildHomeRedirectUrl() {
+        var next = encodeURIComponent(location.href);
+        return 'https://toosterx.com/?from=game-lab&next=' + next;
+      }
+      function getCurrentUser() {
+        return (typeof auth !== 'undefined' && auth) ? auth.currentUser : null;
+      }
+      function getLineProfile() {
+        if (typeof LineAuth === 'undefined' || !LineAuth) return null;
+        if (typeof LineAuth.isLoggedIn !== 'function' || !LineAuth.isLoggedIn()) return null;
+        if (typeof LineAuth.getProfile !== 'function') return null;
+        return LineAuth.getProfile() || null;
+      }
+      async function resolveAvatarInfo(user) {
+        var lineProfile = getLineProfile();
+        if (lineProfile && lineProfile.pictureUrl) {
+          return {
+            photo: String(lineProfile.pictureUrl).trim(),
+            name: String(lineProfile.displayName || '').trim(),
+          };
+        }
+        var photo = String((user && user.photoURL) || '').trim();
+        var name = String((user && (user.displayName || user.email || user.uid)) || 'U').trim();
+        if (photo) return { photo: photo, name: name };
+        if (!user || !window.firebase || typeof firebase.firestore !== 'function') {
+          return { photo: '', name: name || 'U' };
+        }
+        try {
+          var users = firebase.firestore().collection('users');
+          var doc = await users.doc(user.uid).get();
+          if (doc && doc.exists) {
+            var data = doc.data() || {};
+            var docPhoto = String(data.pictureUrl || '').trim();
+            var docName = String(data.displayName || data.name || name || 'U').trim();
+            if (docPhoto) return { photo: docPhoto, name: docName };
+            name = docName || name;
+          }
+        } catch (_) {}
+        return { photo: '', name: name || 'U' };
+      }
+      async function renderAvatar(user) {
+        if (!avatarBtn || !avatarImg || !avatarFallback) return;
+        if (!user) {
+          avatarBtn.style.display = 'none';
+          avatarImg.style.display = 'none';
+          avatarImg.removeAttribute('src');
+          avatarFallback.style.display = 'inline-flex';
+          avatarFallback.textContent = 'U';
+          return;
+        }
+        var info = await resolveAvatarInfo(user);
+        avatarBtn.style.display = 'inline-flex';
+        if (info.photo) {
+          avatarImg.src = info.photo;
+          avatarImg.style.display = 'block';
+          avatarFallback.style.display = 'none';
+        } else {
+          avatarImg.style.display = 'none';
+          avatarImg.removeAttribute('src');
+          avatarFallback.style.display = 'inline-flex';
+          avatarFallback.textContent = (String(info.name || 'U').charAt(0) || 'U').toUpperCase();
+        }
+      }
+      if (avatarBtn) {
+        avatarBtn.addEventListener('click', function () {
+          location.href = 'https://toosterx.com#page-profile';
+        });
+      }
       function renderThemeBtn() {
         if (!themeBtn || !window.ShotGameTheme) return;
-        themeBtn.textContent = window.ShotGameTheme.getCurrentTheme() === 'dark' ? '主題：深色' : '主題：淺色';
+        themeBtn.textContent = window.ShotGameTheme.getCurrentTheme() === 'dark' ? 'Theme: Dark' : 'Theme: Light';
       }
       if (window.ShotGameTheme) {
         window.ShotGameTheme.clearManualTheme();
@@ -938,32 +1080,53 @@
           renderThemeBtn();
         });
       }
-
-      // 載入射門遊戲廣告（Firestore REST API，無需 SDK）
-      (async function loadShotGameAd() {
+      async function ensureLoggedInOrRedirect() {
+        if (typeof _firebaseAuthReadyPromise !== 'undefined') {
+          try {
+            await Promise.race([_firebaseAuthReadyPromise, new Promise(function (resolve) { setTimeout(resolve, 5000); })]);
+          } catch (_) {}
+        }
+        var user = getCurrentUser();
+        if (user) return user;
+        location.replace(buildHomeRedirectUrl());
+        return null;
+      }
+      if (typeof auth !== 'undefined' && auth && typeof auth.onAuthStateChanged === 'function') {
+        auth.onAuthStateChanged(function (user) {
+          if (!user) {
+            location.replace(buildHomeRedirectUrl());
+            return;
+          }
+          renderAvatar(user);
+        });
+      }
+      (async function bootShotGameLab() {
+        var user = await ensureLoggedInOrRedirect();
+        if (!user) return;
+        await renderAvatar(user);
         try {
-          if (!window.firebase || typeof firebase.firestore !== 'function') return;
-          const snap = await firebase.firestore().collection('banners').doc('sga1').get();
-          if (!snap.exists) return;
-          const f = snap.data() || {};
-          if (f.status !== 'active') return;
-          const image = f.image;
-          if (!image) return;
-          const linkUrl = f.linkUrl || '';
-          const safeImg = image.replace(/"/g, '&quot;');
-          const safeLnk = linkUrl.replace(/"/g, '&quot;');
-          const container = document.getElementById('sg-ad-container');
-          if (!container) return;
-          container.innerHTML = safeLnk
-            ? `<a href="${safeLnk}" target="_blank" rel="noopener noreferrer"><img src="${safeImg}" alt="廣告"></a>`
-            : `<img src="${safeImg}" alt="廣告">`;
+          if (window.firebase && typeof firebase.firestore === 'function') {
+            const snap = await firebase.firestore().collection('banners').doc('sga1').get();
+            if (snap.exists) {
+              const f = snap.data() || {};
+              if (f.status === 'active' && f.image) {
+                const safeImg = f.image.replace(/\"/g, '&quot;');
+                const safeLnk = String(f.linkUrl || '').replace(/\"/g, '&quot;');
+                const container = document.getElementById('sg-ad-container');
+                if (container) {
+                  container.innerHTML = safeLnk
+                    ? `<a href="${safeLnk}" target="_blank" rel="noopener noreferrer"><img src="${safeImg}" alt="廣告"></a>`
+                    : `<img src="${safeImg}" alt="廣告">`;
+                }
+              }
+            }
+          }
         } catch (_) {}
+        ShotGameLabPage.init({
+          requiredTokenHash: '467cda4619401ac67849a871a0af1a32bde219759a3062907866aeaf0e3584e3',
+          tokenQueryKey: 't',
+        });
       })();
-
-      ShotGameLabPage.init({
-        requiredTokenHash: '467cda4619401ac67849a871a0af1a32bde219759a3062907866aeaf0e3584e3',
-        tokenQueryKey: 't',
-      });
     });
   </script>
 </body>

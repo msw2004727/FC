@@ -344,9 +344,11 @@
 
       // Production: require login
       if (!ModeManager.isDemo() && !currentUser) {
-        if (loginCard) loginCard.style.display = '';
+        if (loginCard) loginCard.style.display = 'none';
         if (gameSection) gameSection.style.display = 'none';
         if (loadingEl) loadingEl.style.display = 'none';
+        this.showToast('請先回主頁完成 LINE 登入，再進入射門遊戲');
+        this.showPage('page-home', { resetHistory: true });
         return;
       }
 
