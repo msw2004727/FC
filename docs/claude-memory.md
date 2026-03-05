@@ -881,3 +881,20 @@
   - Kept `setBillboardAdImage()` API as a safe no-op to preserve page/lab compatibility.
   - Updated cache version to `20260305ah` in `js/config.js`, `index.html`, and `game-lab.html`.
 - **Lesson**: If a non-core visual feature is unstable in production, disable it cleanly first, then reintroduce with observability.
+### 2026-03-05 - enlarge goal 3x3 score badge backdrop to near-cell size
+- **Issue**: The score badge backdrop on each goal grid cell was still visually too small.
+- **Cause**: Both sprite scale and inner rounded panel size were conservative.
+- **Fix**:
+  - `js/modules/shot-game-engine.js`: increased score badge sprite scale from `0.72x0.48` to `0.94x0.88` of each cell.
+  - Expanded inner rounded panel to `96% x 90%` of label canvas and reduced radius to keep corners natural.
+  - Updated cache version to `20260305ai` in `js/config.js`, `index.html`, and `game-lab.html`.
+- **Lesson**: For in-scene readability, adjust both texture content and world-space sprite scale together.
+### 2026-03-05 - theme toggle switched to mask-slider reveal style
+- **Issue**: The top-right theme switch still showed icons above the knob; desired behavior was reveal-by-occlusion.
+- **Cause**: Previous design used icon+thumb overlap with active icon emphasis, not true cover/reveal interaction.
+- **Fix**:
+  - `game-lab.html`: refactored `.theme-toggle-*` styles so thumb acts as an opaque cover panel.
+  - Dark mode (`.is-dark`): thumb moves left to cover sun and reveal moon.
+  - Light mode: thumb moves right to cover moon and reveal sun.
+  - Updated cache version to `20260305aj` in `js/config.js`, `index.html`, and `game-lab.html`.
+- **Lesson**: For toggle semantics based on reveal, use layer order + overflow clipping, not icon opacity alone.

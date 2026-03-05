@@ -422,6 +422,7 @@
       justify-content: center;
       line-height: 1;
       flex: 0 0 auto;
+      overflow: hidden;
     }
     .theme-toggle-btn:focus-visible {
       outline: 2px solid rgba(34, 120, 186, 0.5);
@@ -429,32 +430,31 @@
     }
     .theme-toggle-track {
       position: relative;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
       width: 100%;
       height: 100%;
       border-radius: 999px;
-      padding: 0 10px;
       background: linear-gradient(180deg, rgba(255, 255, 255, 0.52), rgba(255, 255, 255, 0.18));
-      overflow: visible;
+      overflow: hidden;
     }
     .theme-toggle-icon {
-      position: relative;
-      z-index: 3;
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      z-index: 1;
       font-size: 13px;
       line-height: 1;
       user-select: none;
-      opacity: 0.55;
-      transition: opacity 180ms ease, transform 180ms ease;
+      opacity: 0.5;
+      transition: opacity 180ms ease;
     }
     .theme-toggle-icon-sun {
+      left: 11px;
       color: #f59e0b;
       opacity: 1;
     }
     .theme-toggle-icon-moon {
+      right: 11px;
       color: #1f3a8a;
-      transform: translateX(-1px);
     }
     .theme-toggle-thumb {
       position: absolute;
@@ -462,23 +462,22 @@
       left: 2px;
       width: 28px;
       height: 28px;
-      border-radius: 50%;
+      border-radius: 999px;
       background: linear-gradient(160deg, #ffffff, #eaf3ff);
       box-shadow: 0 3px 8px rgba(8, 20, 34, 0.24);
       transition: transform 220ms ease;
       z-index: 2;
+      transform: translateX(34px);
     }
     .theme-toggle-btn.is-dark .theme-toggle-thumb {
-      transform: translateX(34px);
+      transform: translateX(0);
       background: linear-gradient(160deg, #f1f5ff, #d9e7ff);
     }
     .theme-toggle-btn.is-dark .theme-toggle-icon-sun {
-      opacity: 0.45;
-      transform: scale(0.95);
+      opacity: 0.42;
     }
     .theme-toggle-btn.is-dark .theme-toggle-icon-moon {
       opacity: 1;
-      transform: translateX(-1px) scale(1.04);
     }
     .sg-avatar-btn {
       width: 34px;
@@ -1056,14 +1055,15 @@
         padding: 2px;
       }
       .theme-toggle-track {
-        padding: 0 9px;
+        overflow: hidden;
       }
       .theme-toggle-thumb {
         width: 26px;
         height: 26px;
+        transform: translateX(32px);
       }
       .theme-toggle-btn.is-dark .theme-toggle-thumb {
-        transform: translateX(32px);
+        transform: translateX(0);
       }
       .topbar-actions {
         gap: 6px;
@@ -1402,10 +1402,10 @@
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-storage-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-functions-compat.js"></script>
-  <script src="js/firebase-config.js?v=20260305ah"></script>
+  <script src="js/firebase-config.js?v=20260305aj"></script>
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-  <script defer src="js/modules/shot-game-engine.js?v=20260305ah"></script>
-  <script defer src="js/modules/shot-game-lab-page.js?v=20260305ah"></script>
+  <script defer src="js/modules/shot-game-engine.js?v=20260305aj"></script>
+  <script defer src="js/modules/shot-game-lab-page.js?v=20260305aj"></script>
   <script>
     (function () {
       var overlay = document.getElementById('loading-overlay');

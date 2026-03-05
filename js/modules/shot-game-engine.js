@@ -157,13 +157,13 @@
         if (!ctx) return;
         const theme = getScoreLabelTheme(isDark);
         const text = String(points);
-        const panelWidth = canvas.width * 0.88;
-        const panelHeight = canvas.height * 0.72;
+        const panelWidth = canvas.width * 0.96;
+        const panelHeight = canvas.height * 0.90;
         const panelX = (canvas.width - panelWidth) / 2;
         const panelY = (canvas.height - panelHeight) / 2;
 
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        drawRoundedRect(ctx, panelX, panelY, panelWidth, panelHeight, 28);
+        drawRoundedRect(ctx, panelX, panelY, panelWidth, panelHeight, 22);
         ctx.fillStyle = theme.panelFill;
         ctx.fill();
         ctx.lineWidth = 5;
@@ -216,7 +216,7 @@
         zone.add(new THREE.LineSegments(edgeGeo, edgeMat));
         const labelSprite = buildZoneLabelSprite(SCORE_MAP[r][c]);
         labelSprite.sprite.position.set(0, 0, 0.04);
-        labelSprite.sprite.scale.set(zoneW * 0.72, zoneH * 0.48, 1);
+        labelSprite.sprite.scale.set(zoneW * 0.94, zoneH * 0.88, 1);
         zone.add(labelSprite.sprite);
         zoneLabels.push(labelSprite);
         goalGroup.add(zone);
