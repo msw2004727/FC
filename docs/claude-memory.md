@@ -681,3 +681,21 @@
   3. `js/modules/shot-game-lab-page.js` 與 `game-lab.html`：將「開啟後最佳」全面改為「當前最佳」。
   4. `game-lab.html`：更新版本參數為 `shot-game-engine.js?v=20260305g`、`shot-game-lab-page.js?v=20260305e`。
 - **教訓**：球體外觀優先採完整 PBR 貼圖流程（BaseColor/Normal/MetalRough）比臨時平面圖樣更穩定；文案命名需與產品語彙一致，避免同義詞造成認知落差。
+### 2026-03-05 — 首頁 Firestore Listen/channel 400/404 連續報錯修復
+
+- **起因**：
+  1. `FirebaseService.init()` 在未完成登入時仍會啟動 auth-dependent 監聽（`messages/users/rolePermissions`）。
+  2. 受保護監聽在未登入或登入切換中觸發 WebChannel 重試，首頁持續出現 `Listen/channel` 400/404。
+  3. 登入完成後缺少穩定補啟動時機，初始化與 Auth 狀態容易失步。
+- **修復**：
+  1. `js/firebase-service.js`
+     - `_watchRolePermissionsRealtime`、`_startMessagesListener`、`_startUsersListener` 加上 `auth.currentUser` 守門。
+     - `_startAuthDependentWork()` 在未登入時直接 return，不再啟動受保護監聽。
+     - `init()` 新增 `auth.onAuthStateChanged`，Auth 就緒後自動補啟動 auth-dependent 流程。
+     - `destroy()` 補齊 `_authDependentWorkPromise`、`_authDependentWorkUid` 清理。
+  2. `js/firebase-crud.js`
+     - `createOrUpdateUser()` 三條成功路徑（新建/遷移/更新）都補呼叫 `_startAuthDependentWork()`。
+- **驗收**：
+  1. `node --check js/firebase-service.js` 通過。
+  2. `node --check js/firebase-crud.js` 通過。
+  3. 程式路徑確認：未登入不啟動受保護監聽，登入後會自動補啟動。

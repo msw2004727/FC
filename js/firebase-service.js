@@ -63,6 +63,8 @@ const FirebaseService = {
   _bootCollectionLoadFailed: {},
   _persistDebounceTimer: null,
   _eventSlices: { active: [], terminal: [] },
+  _authDependentWorkPromise: null,
+  _authDependentWorkUid: null,
   _realtimeListenerStarted: {},  // 追蹤已啟動的延遲即時監聽器
   _authPromise: null,            // Auth 並行 Promise
 
@@ -346,6 +348,10 @@ const FirebaseService = {
 
   _watchRolePermissionsRealtime(waitForFirstSnapshot = false) {
     return new Promise(resolve => {
+      if (!auth?.currentUser) {
+        resolve();
+        return;
+      }
       let firstSnapshot = true;
       let settled = false;
       const done = () => {
@@ -541,6 +547,7 @@ const FirebaseService = {
 
   /** 啟動 messages 監聽器（需 Auth） */
   _startMessagesListener() {
+    if (!auth?.currentUser) return;
     if (this._realtimeListenerStarted.messages) return;
     this._realtimeListenerStarted.messages = true;
     const unsub = db.collection('messages')
@@ -558,6 +565,7 @@ const FirebaseService = {
 
   /** 啟動 users 監聽器（需 Auth） */
   _startUsersListener() {
+    if (!auth?.currentUser) return;
     if (this._realtimeListenerStarted.users) return;
     this._realtimeListenerStarted.users = true;
     const unsub = db.collection('users')
@@ -670,6 +678,12 @@ const FirebaseService = {
       return;
     }
 
+    const authUid = auth?.currentUser?.uid || null;
+    if (!authUid) {
+      console.log('[FirebaseService] Skip auth-dependent listeners: auth user not ready yet.');
+      return;
+    }
+
     this._startMessagesListener();
     this._startUsersListener();
 
@@ -704,7 +718,7 @@ const FirebaseService = {
     }
 
     this._persistCache();
-    console.log('[FirebaseService] Auth-dependent 初始化完成');
+    console.log('[FirebaseService] Auth-dependent init complete.');
   },
 
   // ════════════════════════════════
@@ -715,6 +729,8 @@ const FirebaseService = {
     if (this._initialized) return;
     this._bootCollectionLoadFailed = {};
     this._realtimeListenerStarted = {};
+    this._authDependentWorkPromise = null;
+    this._authDependentWorkUid = null;
 
     // ── Step 1: 嘗試從 localStorage 恢復快取 ──
     const hasLocalCache = this._restoreCache();
@@ -777,6 +793,16 @@ const FirebaseService = {
       console.error('[FirebaseService] Firebase Auth failed:', err?.code || err?.message);
       this._authError = err;
     });
+    if (!this._realtimeListenerStarted._authStateObserver && auth?.onAuthStateChanged) {
+      this._realtimeListenerStarted._authStateObserver = true;
+      const unsubAuthObserver = auth.onAuthStateChanged(user => {
+        if (!user) return;
+        Promise.resolve(this._startAuthDependentWork()).catch(err => {
+          console.warn('[FirebaseService] start auth-dependent work after auth state changed failed:', err);
+        });
+      });
+      this._listeners.push(unsubAuthObserver);
+    }
 
     // ── Step 3: 等待公開資料就緒（boot + public listeners，含超時偵測）──
     const _INIT_TIMEOUT = 10000;
@@ -798,7 +824,7 @@ const FirebaseService = {
         timedOut = true;
         if (!window._firestoreUsingLongPolling) {
           _markWsBlocked();
-          console.warn('[FirebaseService] WebSocket 連線超時，已標記下次使用長輪詢');
+          console.warn('[FirebaseService] WebSocket init timeout; switch to long polling next time.');
           if (typeof App !== 'undefined' && App.showToast) {
             App.showToast('連線較慢，重新整理頁面可改善速度');
           }
@@ -1147,6 +1173,8 @@ const FirebaseService = {
     this._bootCollectionLoadFailed = {};
     this._realtimeListenerStarted = {};
     this._authPromise = null;
+    this._authDependentWorkPromise = null;
+    this._authDependentWorkUid = null;
     // 重置快取到初始空白狀態
     Object.keys(this._cache).forEach(k => {
       if (k === 'currentUser') { this._cache[k] = null; }

@@ -670,6 +670,9 @@ Object.assign(FirebaseService, {
         this._cache.currentUser = userData;
         this._saveToLS('currentUser', userData);
         this._setupUserListener(authUid);
+        Promise.resolve(this._startAuthDependentWork()).catch(err =>
+          console.warn('[FirebaseService] start auth-dependent work after new user login failed:', err)
+        );
         console.log('[FirebaseService] created user profile:', normalizedDisplayName, 'docId:', authUid);
         return userData;
       }
@@ -701,6 +704,9 @@ Object.assign(FirebaseService, {
       this._cache.currentUser = migratedUser;
       this._saveToLS('currentUser', migratedUser);
       this._setupUserListener(authUid);
+      Promise.resolve(this._startAuthDependentWork()).catch(err =>
+        console.warn('[FirebaseService] start auth-dependent work after migrated user login failed:', err)
+      );
       console.log('[FirebaseService] migrated legacy user doc to canonical uid doc:', {
         from: legacyDoc.id,
         to: authUid,
@@ -727,6 +733,9 @@ Object.assign(FirebaseService, {
     this._cache.currentUser = existing;
     this._saveToLS('currentUser', existing);
     this._setupUserListener(authUid);
+    Promise.resolve(this._startAuthDependentWork()).catch(err =>
+      console.warn('[FirebaseService] start auth-dependent work after login update failed:', err)
+    );
     console.log('[FirebaseService] updated user profile:', normalizedDisplayName);
     return existing;
   },
