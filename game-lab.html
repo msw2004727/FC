@@ -792,11 +792,18 @@
     <section id="token-gate" class="card gate">
       <h1>3D 蓄力射門 私測實驗室</h1>
       <p>此頁面為不公開私測入口，限指定測試者使用。請輸入測試 Token 解鎖遊戲。若裝置效能較低，可在網址後加上 <code>&amp;low=1</code> 開啟低效能模式。</p>
-      <div class="gate-row">
-        <input id="token-input" type="password" autocomplete="off" placeholder="輸入測試 Token">
-        <button id="token-submit" type="button">解鎖</button>
+      <div id="token-form">
+        <div class="gate-row">
+          <input id="token-input" type="password" autocomplete="off" placeholder="輸入測試 Token">
+          <button id="token-submit" type="button">解鎖</button>
+        </div>
       </div>
       <div id="token-feedback"></div>
+      <div id="login-required-card" style="display:none; margin-top:12px;">
+        <p style="font-size:16px; font-weight:700; margin:0 0 8px;">請先登入才能遊玩</p>
+        <p style="color:var(--muted); margin:0 0 16px;">請先至主站登入後，<br>再回來開啟遊戲連結</p>
+        <a href="https://toosterx.com" style="display:inline-block; padding:11px 24px; border-radius:10px; background:linear-gradient(90deg,#8de4ff 0%,#7af0a8 100%); color:#061420; font-weight:700; text-decoration:none;">前往主站登入</a>
+      </div>
     </section>
 
     <section id="game-section">
@@ -909,9 +916,14 @@
     </section>
   </div>
 
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-functions-compat.js"></script>
+  <script src="js/firebase-config.js?v=20260305g"></script>
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-  <script defer src="js/modules/shot-game-engine.js?v=20260305j"></script>
-  <script defer src="js/modules/shot-game-lab-page.js?v=20260305e"></script>
+  <script defer src="js/modules/shot-game-engine.js?v=20260305g"></script>
+  <script defer src="js/modules/shot-game-lab-page.js?v=20260305g"></script>
   <script>
     window.addEventListener('DOMContentLoaded', function () {
       var themeBtn = document.getElementById('sg-theme-toggle');

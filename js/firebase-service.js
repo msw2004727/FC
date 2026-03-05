@@ -699,7 +699,7 @@ const FirebaseService = {
     if (canAdminSeed) {
       seedTasks.push(
         this._cleanupDuplicateDocs(),
-        this._seedAdSlots(),
+        this._seedAdSlots().then(() => this._ensureSga1Slot()),
         this._seedNotifTemplates(),
         this._seedAchievements(),
       );
@@ -1002,6 +1002,29 @@ const FirebaseService = {
       } catch (err) {
         console.warn(`[FirebaseService] ${name} 欄位建立失敗:`, err);
       }
+    }
+  },
+
+  // ════════════════════════════════
+  //  確保射門遊戲廣告位存在
+  // ════════════════════════════════
+
+  async _ensureSga1Slot() {
+    if (this._cache.banners && this._cache.banners.find(b => b.id === 'sga1' || b._docId === 'sga1')) return;
+    try {
+      const ref = db.collection('banners').doc('sga1');
+      const snap = await ref.get();
+      if (!snap.exists) {
+        const data = { id: 'sga1', slot: 'sga1', type: 'shotgame', slotName: '射門遊戲廣告位',
+          title: '', image: null, status: 'empty', publishAt: null, unpublishAt: null, clicks: 0, linkUrl: '' };
+        await ref.set({ ...data, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+        if (this._cache.banners) this._cache.banners.push({ ...data, _docId: 'sga1' });
+        console.log('[FirebaseService] 射門遊戲廣告位 sga1 已建立');
+      } else {
+        if (this._cache.banners) this._cache.banners.push({ _docId: snap.id, ...snap.data() });
+      }
+    } catch (err) {
+      console.warn('[FirebaseService] _ensureSga1Slot 失敗:', err);
     }
   },
 

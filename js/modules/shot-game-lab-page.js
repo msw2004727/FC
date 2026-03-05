@@ -249,17 +249,23 @@
         leaderboardBody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:1.5rem;opacity:0.6">載入中…</td></tr>';
         if (leaderboardPlayerRow) { leaderboardPlayerRow.classList.add('is-hidden'); leaderboardPlayerRow.innerHTML = ''; }
 
-        // 從 Firestore 取真實資料（ApiService 有 5 分鐘 cache）
+        // 從 Firestore 直接讀取排行榜資料
         try {
           const bucket = getTaipeiDateBucket(key);
-          const entries = await ApiService.getShotGameLeaderboard({ period: key, bucket });
-          leaderboardData[key] = entries.map(e => ({
-            id: e.uid,
-            nick: e.displayName || '匿名玩家',
-            score: e.bestScore || 0,
-            streak: e.bestStreak || 0,
-            durationSec: 0,
-          }));
+          const snap = await firebase.firestore()
+            .collection('shotGameRankings').doc(bucket)
+            .collection('entries')
+            .orderBy('bestScore', 'desc').limit(50).get();
+          leaderboardData[key] = snap.docs.map(d => {
+            const e = d.data();
+            return {
+              id: d.id,
+              nick: e.displayName || '匿名玩家',
+              score: e.bestScore || 0,
+              streak: e.bestStreak || 0,
+              durationSec: 0,
+            };
+          });
         } catch (_) {
           leaderboardBody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:1.5rem;opacity:0.6">讀取失敗，請稍後再試</td></tr>';
           return;
@@ -368,23 +374,16 @@
             setSessionBadge();
 
             // 非同步提交分數至 Cloud Function（失敗靜默，不阻塞遊戲流程）
-            if (normalized.score > 0 && typeof ApiService !== 'undefined' && ApiService.getCurrentUser?.()) {
-              const user = ApiService.getCurrentUser();
-              ApiService.submitShotGameScore({
+            const gameUser = (typeof auth !== 'undefined') ? auth.currentUser : null;
+            if (normalized.score > 0 && gameUser) {
+              firebase.app().functions('asia-east1').httpsCallable('submitShotGameScore')({
                 score: normalized.score,
                 shots: normalized.shots,
                 streak: normalized.streak,
                 durationMs: normalized.durationMs,
-                displayName: user.displayName || user.name || '匿名玩家',
-              }).then(res => {
-                if (res && leaderboardOpen) {
-                  // 提交成功後清除 cache 並重新整理榜單
-                  if (ApiService._shotGameLeaderboardCache) {
-                    const bucket = getTaipeiDateBucket(leaderboardPeriod);
-                    delete ApiService._shotGameLeaderboardCache[bucket];
-                  }
-                  renderLeaderboard(leaderboardPeriod);
-                }
+                displayName: gameUser.displayName || '匿名玩家',
+              }).then(() => {
+                if (leaderboardOpen) renderLeaderboard(leaderboardPeriod);
               }).catch(() => {});
             }
 
@@ -413,6 +412,23 @@
             const url = new URL(location.href);
             url.searchParams.set(tokenQueryKey, rawToken.trim());
             history.replaceState(null, '', url.pathname + url.search + url.hash);
+          }
+          // 等待 Firebase auth 狀態恢復（最多 5 秒）
+          if (typeof _firebaseAuthReadyPromise !== 'undefined') {
+            try {
+              await Promise.race([_firebaseAuthReadyPromise, new Promise(r => setTimeout(r, 5000))]);
+            } catch(_) {}
+          }
+          // 確認已登入
+          const currentUser = (typeof auth !== 'undefined') ? auth.currentUser : null;
+          if (!currentUser) {
+            const tokenForm = document.getElementById('token-form');
+            const loginCard = document.getElementById('login-required-card');
+            if (tokenForm) tokenForm.style.display = 'none';
+            if (loginCard) loginCard.style.display = '';
+            gate.style.display = 'block';
+            gameSection.style.display = 'none';
+            return false;
           }
           showGame();
           startGame();
