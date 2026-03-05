@@ -558,12 +558,13 @@
     }
     .hud {
       position: absolute;
-      left: var(--sg-hud-left);
+      left: 50%;
       top: 14px;
+      transform: translateX(-50%);
       z-index: 5;
       display: flex;
       flex-direction: column;
-      align-items: flex-start;
+      align-items: center;
       gap: 0;
       font-weight: 700;
       color: #0d1e2b;
@@ -736,6 +737,10 @@
       overflow: hidden;
     }
     #session-badge.history-badge .sg-session-top-title {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      width: 100%;
       text-align: center;
       font-size: 12px;
       font-weight: 900;
@@ -1289,20 +1294,6 @@
       <div class="layout">
         <section class="card game-wrap">
           <div id="shot-game-container">
-            <div class="goal-guide" aria-label="九宮格得分說明">
-              <div class="goal-guide-title">九宮格得分</div>
-              <div class="goal-guide-grid">
-                <div class="goal-guide-cell high">100</div>
-                <div class="goal-guide-cell mid">50</div>
-                <div class="goal-guide-cell high">100</div>
-                <div class="goal-guide-cell mid">50</div>
-                <div class="goal-guide-cell low">20</div>
-                <div class="goal-guide-cell mid">50</div>
-                <div class="goal-guide-cell low">40</div>
-                <div class="goal-guide-cell low">10</div>
-                <div class="goal-guide-cell low">40</div>
-              </div>
-            </div>
             <div class="hud">
               <div id="session-badge" class="history-badge" aria-live="polite">
                 <div class="sg-session-top-title">本局記錄</div>
@@ -1411,10 +1402,10 @@
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-storage-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-functions-compat.js"></script>
-  <script src="js/firebase-config.js?v=20260305ad"></script>
+  <script src="js/firebase-config.js?v=20260305ae"></script>
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-  <script defer src="js/modules/shot-game-engine.js?v=20260305ad"></script>
-  <script defer src="js/modules/shot-game-lab-page.js?v=20260305ad"></script>
+  <script defer src="js/modules/shot-game-engine.js?v=20260305ae"></script>
+  <script defer src="js/modules/shot-game-lab-page.js?v=20260305ae"></script>
   <script>
     (function () {
       var overlay = document.getElementById('loading-overlay');

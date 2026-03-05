@@ -96,6 +96,35 @@
   }
 
   function buildGoal(goalGroup) {
+    function buildZoneLabelSprite(points) {
+      const canvas = document.createElement('canvas');
+      canvas.width = 256;
+      canvas.height = 128;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        const text = String(points);
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.font = '900 78px "Outfit", "Noto Sans TC", sans-serif';
+        ctx.lineJoin = 'round';
+        ctx.lineWidth = 14;
+        ctx.strokeStyle = 'rgba(5, 16, 28, 0.78)';
+        ctx.strokeText(text, canvas.width / 2, canvas.height / 2 + 3);
+        ctx.fillStyle = '#f8fbff';
+        ctx.fillText(text, canvas.width / 2, canvas.height / 2 + 3);
+      }
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.needsUpdate = true;
+      const material = new THREE.SpriteMaterial({
+        map: texture,
+        transparent: true,
+        depthTest: true,
+        depthWrite: false,
+      });
+      return new THREE.Sprite(material);
+    }
+
     const zones = [];
     const postRadius = GOAL_POST_RADIUS;
     const postMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.25 });
@@ -124,6 +153,10 @@
         const edgeGeo = new THREE.EdgesGeometry(planeGeo);
         const edgeMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.45 });
         zone.add(new THREE.LineSegments(edgeGeo, edgeMat));
+        const labelSprite = buildZoneLabelSprite(SCORE_MAP[r][c]);
+        labelSprite.position.set(0, 0, 0.04);
+        labelSprite.scale.set(zoneW * 0.72, zoneH * 0.48, 1);
+        zone.add(labelSprite);
         goalGroup.add(zone);
         zones.push({ mesh: zone, points: SCORE_MAP[r][c], minX: relX - zoneW / 2, maxX: relX + zoneW / 2, minY: relY - zoneH / 2, maxY: relY + zoneH / 2 });
       }

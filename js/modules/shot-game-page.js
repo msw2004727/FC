@@ -367,14 +367,7 @@
     const container = document.getElementById('shot-game-container');
     const badge = document.getElementById('session-badge');
     if (!container || !badge) return;
-    const guide = container.querySelector('.sg-goal-guide');
-    if (!guide) return;
-    const guideHeight = Math.ceil(guide.getBoundingClientRect().height);
-    // Reset to auto first so scrollHeight reflects full content.
     badge.style.height = 'auto';
-    const contentHeight = Math.ceil(badge.scrollHeight);
-    const targetHeight = Math.max(guideHeight, contentHeight);
-    if (targetHeight > 0) badge.style.height = `${targetHeight}px`;
   }
 
   function _updateSessionBadge() {

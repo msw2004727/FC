@@ -108,7 +108,8 @@
 // 20260305ab: HUD 左右欄位定位修正（本局記錄靠左、九宮格靠右，避免邊線重疊）
 // 20260305ac: 修復記分板下層母版容器裁切（高度同步改為不小於內容高度）
 // 20260305ad: 射門遊戲新增球門後方廣告看板，並加入訊息可讀性底帶（同步 sga1 廣告圖）
-const CACHE_VERSION = '20260305ad';
+// 20260305ae: 移除右上九宮格說明面板，得分改為球門九宮格內嵌顯示，並置中本局記錄欄位
+const CACHE_VERSION = '20260305ae';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {
