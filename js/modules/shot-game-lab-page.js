@@ -320,7 +320,11 @@
         const guide = gameContainer.querySelector('.goal-guide');
         if (!guide) return;
         const guideHeight = Math.ceil(guide.getBoundingClientRect().height);
-        if (guideHeight > 0) sessionBadge.style.height = `${guideHeight}px`;
+        // Reset to auto first so scrollHeight reflects full content.
+        sessionBadge.style.height = 'auto';
+        const contentHeight = Math.ceil(sessionBadge.scrollHeight);
+        const targetHeight = Math.max(guideHeight, contentHeight);
+        if (targetHeight > 0) sessionBadge.style.height = `${targetHeight}px`;
       };
       const ensureSessionBadgeTemplate = () => {
         if (!sessionBadge || sessionBadge.querySelector('.sg-session-title')) return;

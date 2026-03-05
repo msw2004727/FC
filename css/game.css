@@ -246,7 +246,6 @@
   align-content: start;
   gap: 4px;
   width: min(76vw, 270px);
-  max-width: calc(100% - (var(--sg-guide-width) + var(--sg-hud-left) + var(--sg-guide-right) + var(--sg-hud-gap)));
   min-height: 102px;
   padding: 8px 10px;
   border-radius: 12px;
@@ -255,7 +254,6 @@
   box-shadow: 0 6px 14px rgba(15, 34, 52, 0.16);
   color: #15384c;
   box-sizing: border-box;
-  overflow: hidden;
 }
 #page-game #session-badge .sg-session-top-title {
   text-align: center;
@@ -699,9 +697,11 @@
   }
   #page-game #session-badge .sg-session-sep { margin: 0 2px; }
 }
+@media (max-width: 560px) {
+  #page-game .sg-goal-guide { top: 122px; }
+}
 @media (max-width: 390px) {
   #page-game #shot-game-container {
     --sg-guide-width: 136px;
   }
-  #page-game .sg-goal-guide { top: 122px; }
 }
