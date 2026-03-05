@@ -167,9 +167,21 @@
       touch-action: none;
       filter: brightness(1);
       transition: filter 180ms ease-out;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
     }
     #shot-game-container.flash-hit { filter: brightness(2); }
-    #shot-game-container canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+    #shot-game-container canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
+    }
     .hud {
       position: absolute;
       left: 14px;
@@ -180,20 +192,36 @@
       color: #0d1e2b;
     }
     .hud .sub { color: #8a5200; margin-top: 4px; }
+    .sg-bottom-row {
+      position: absolute;
+      left: 10px;
+      right: 10px;
+      bottom: 8px;
+      z-index: 7;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
     .hud-leaderboard-btn {
-      margin-top: 8px;
-      width: 128px;
-      height: 42px;
-      border-radius: 12px;
+      height: 34px;
+      min-width: 112px;
+      border-radius: 999px;
       border: 1px solid rgba(255, 255, 255, 0.62);
       background: linear-gradient(160deg, rgba(255, 255, 255, 0.42), rgba(255, 255, 255, 0.2));
       box-shadow: 0 6px 18px rgba(20, 40, 58, 0.18);
       backdrop-filter: blur(7px);
       color: #0d1e2b;
-      font-size: 13px;
+      font-size: 12px;
       font-weight: 900;
       letter-spacing: 0.6px;
       cursor: pointer;
+      padding: 0 14px;
+      line-height: 1;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      white-space: nowrap;
     }
     .hud-leaderboard-btn:hover { transform: translateY(-1px); }
     .hud-leaderboard-btn:active { transform: translateY(0); }
@@ -225,7 +253,7 @@
     #sg-power {
       position: absolute;
       left: 50%;
-      bottom: 62px;
+      bottom: 74px;
       transform: translateX(-50%);
       width: min(78%, 520px);
       height: 20px;
@@ -293,21 +321,21 @@
     .goal-guide-cell.mid { background: rgba(255, 183, 77, 0.23); }
     .goal-guide-cell.low { background: rgba(255, 238, 88, 0.23); }
     #session-badge.history-badge {
-      position: absolute;
-      left: 50%;
-      bottom: 8px;
-      transform: translateX(-50%);
-      z-index: 6;
+      position: static;
+      z-index: 7;
       font-size: 12px;
       font-weight: 800;
       color: #15384c;
       border: 1px solid rgba(0, 0, 0, 0.2);
       border-radius: 999px;
       background: rgba(255, 255, 255, 0.74);
-      padding: 6px 12px;
+      padding: 0 12px;
+      height: 34px;
+      display: inline-flex;
+      align-items: center;
       white-space: nowrap;
       text-align: center;
-      max-width: calc(100% - 20px);
+      max-width: calc(100% - 130px);
       overflow: hidden;
       text-overflow: ellipsis;
     }
@@ -319,7 +347,7 @@
     .panel { padding: 14px; }
     .panel h2 { margin: 0 0 10px; font-size: 17px; }
     .ad-slot {
-      min-height: 220px;
+      min-height: 188px;
       border: 1px dashed var(--line);
       border-radius: 12px;
       padding: 14px;
@@ -380,14 +408,27 @@
       font-size: 13px;
     }
     .lb-close {
-      width: 36px;
       height: 36px;
+      min-width: 92px;
+      padding: 0 12px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
       border: 1px solid var(--line);
-      border-radius: 10px;
-      background: rgba(255, 255, 255, 0.56);
+      border-radius: 999px;
+      background: linear-gradient(130deg, rgba(255, 255, 255, 0.78), rgba(219, 239, 255, 0.62));
       color: var(--text);
-      font-size: 18px;
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.4px;
       cursor: pointer;
+    }
+    .lb-close-icon {
+      width: 16px;
+      height: 16px;
+      display: inline-block;
+      flex: 0 0 auto;
     }
     .lb-tabs {
       display: flex;
@@ -527,9 +568,13 @@
     @media (min-width: 900px) { .layout { grid-template-columns: 1fr 340px; } }
     @media (max-width: 760px) {
       .hud-leaderboard-btn {
-        width: 104px;
-        height: 36px;
+        min-width: 102px;
+        height: 34px;
         font-size: 12px;
+      }
+      #session-badge.history-badge {
+        max-width: calc(100% - 116px);
+        font-size: 11px;
       }
       .lb-head {
         padding: 12px 12px 8px;
@@ -542,7 +587,7 @@
         min-width: 0;
       }
       #sg-power {
-        bottom: 72px;
+        bottom: 82px;
       }
       .lb-table thead th {
         font-size: 11px;
@@ -603,7 +648,7 @@
     }
     html[data-shot-theme="dark"] .lb-modal { background: rgba(0, 8, 16, 0.58); }
     html[data-shot-theme="dark"] .lb-close {
-      background: rgba(0, 0, 0, 0.35);
+      background: linear-gradient(130deg, rgba(9, 29, 47, 0.94), rgba(24, 61, 89, 0.76));
       color: #eaf6ff;
     }
     html[data-shot-theme="dark"] .lb-tab { background: rgba(0, 0, 0, 0.34); }
@@ -652,17 +697,18 @@
             <div class="hud">
               <div id="sg-score">分數：0</div>
               <div id="sg-streak" class="sub">連進：0</div>
-              <button id="sg-leaderboard-btn" class="hud-leaderboard-btn" type="button">射手榜</button>
             </div>
             <div id="sg-message"></div>
             <div id="sg-crosshair"></div>
             <div id="sg-power"><div id="sg-power-fill"></div></div>
             <button id="sg-restart" type="button">重新挑戰</button>
-            <div id="session-badge" class="history-badge">當前最佳：尚無紀錄</div>
+            <div class="sg-bottom-row">
+              <div id="session-badge" class="history-badge">當前最佳：尚無紀錄</div>
+              <button id="sg-leaderboard-btn" class="hud-leaderboard-btn" type="button">射手榜</button>
+            </div>
           </div>
         </section>
         <aside class="card panel">
-          <h2>宣傳廣告位（預留）</h2>
           <div class="ad-slot" aria-label="廣告預留區塊">
             <div class="ad-slot-icon">🖼️</div>
             <strong>廣告素材將放置於此</strong>
@@ -680,7 +726,13 @@
           <h3 id="sg-leaderboard-title">射手榜</h3>
           <p id="sg-leaderboard-range">每日排行前 10 名</p>
         </div>
-        <button id="sg-leaderboard-close" class="lb-close" type="button" aria-label="關閉射手榜">×</button>
+        <button id="sg-leaderboard-close" class="lb-close" type="button" aria-label="關閉射手榜">
+          <svg class="lb-close-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="12" cy="12" r="10" fill="rgba(32,106,158,0.22)"></circle>
+            <path d="M8 8l8 8M16 8l-8 8" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+          </svg>
+          <span>關閉</span>
+        </button>
       </div>
       <div class="lb-tabs" role="tablist" aria-label="排行榜時間範圍">
         <button type="button" class="lb-tab is-active" data-lb-period="daily" role="tab" aria-selected="true">每日</button>
@@ -713,7 +765,7 @@
   </div>
 
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-  <script defer src="js/modules/shot-game-engine.js?v=20260305h"></script>
+  <script defer src="js/modules/shot-game-engine.js?v=20260305i"></script>
   <script defer src="js/modules/shot-game-lab-page.js?v=20260305h"></script>
   <script>
     window.addEventListener('DOMContentLoaded', function () {

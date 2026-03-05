@@ -530,6 +530,7 @@
     }
     function onPointerDown(event) {
       if (state !== 'aiming' || event.button !== 0) return;
+      event.preventDefault();
       const rect = container.getBoundingClientRect();
       pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
       pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
@@ -543,11 +544,13 @@
     }
     function onPointerMove(event) {
       if (!charging) return;
+      event.preventDefault();
       const rect = container.getBoundingClientRect();
       aim.x = ((event.clientX - startPointer.x) / rect.width) * 30;
       aim.y = clamp(3 - ((event.clientY - startPointer.y) / rect.height) * 14, -3, 12);
       updateCrosshair();
     }
+    function onContextMenu(event) { event.preventDefault(); }
     function cleanupWindowListeners() {
       window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerup', onPointerUp);
@@ -639,6 +642,7 @@
       renderer.render(scene, camera);
     }
 
+    container.addEventListener('contextmenu', onContextMenu);
     container.addEventListener('pointerdown', onPointerDown);
     window.addEventListener('resize', resize);
     if (ui.restartBtn) ui.restartBtn.addEventListener('click', restartGame);
@@ -651,6 +655,7 @@
         container.classList.remove('flash-hit');
         cancelAnimationFrame(rafId);
         if (mq && typeof mq.removeEventListener === 'function') mq.removeEventListener('change', onMqChange);
+        container.removeEventListener('contextmenu', onContextMenu);
         container.removeEventListener('pointerdown', onPointerDown);
         cleanupWindowListeners();
         window.removeEventListener('resize', resize);
