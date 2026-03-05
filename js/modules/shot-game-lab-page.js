@@ -552,6 +552,17 @@
           if (leaderboardOpen) await renderLeaderboard(leaderboardPeriod);
         }
       };
+      const getBillboardAdImageUrl = () => {
+        try {
+          return typeof window.__shotGameAdImageUrl === 'string' ? window.__shotGameAdImageUrl.trim() : '';
+        } catch (_) {
+          return '';
+        }
+      };
+      const syncBillboardAdImage = () => {
+        if (!engine || typeof engine.setBillboardAdImage !== 'function') return;
+        engine.setBillboardAdImage(getBillboardAdImageUrl());
+      };
 
       const startGame = () => {
         if (engine) engine.destroy();
@@ -566,6 +577,7 @@
         engine = window.ShotGameEngine.create({
           container: gameContainer,
           lowFx,
+          billboardImageUrl: getBillboardAdImageUrl(),
           ui: {
             scoreEl: document.getElementById('sg-score'),
             streakEl: document.getElementById('sg-streak'),
@@ -596,6 +608,7 @@
             if (leaderboardOpen) renderLeaderboard(leaderboardPeriod);
           },
         });
+        syncBillboardAdImage();
         setSessionBadge();
         openIntro();
       };
@@ -680,8 +693,12 @@
       window.addEventListener('keydown', (event) => {
         if (event.key === 'Escape' && leaderboardOpen) closeLeaderboard();
       });
+      window.addEventListener('shotgame-ad-updated', syncBillboardAdImage);
       window.addEventListener('resize', syncHudPanelHeight);
-      window.addEventListener('beforeunload', () => { if (engine) engine.destroy(); });
+      window.addEventListener('beforeunload', () => {
+        window.removeEventListener('shotgame-ad-updated', syncBillboardAdImage);
+        if (engine) engine.destroy();
+      });
 
       renderLeaderboard(leaderboardPeriod);
       setSessionBadge();

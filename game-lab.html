@@ -1411,10 +1411,10 @@
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-storage-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-functions-compat.js"></script>
-  <script src="js/firebase-config.js?v=20260305ac"></script>
+  <script src="js/firebase-config.js?v=20260305ad"></script>
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-  <script defer src="js/modules/shot-game-engine.js?v=20260305ac"></script>
-  <script defer src="js/modules/shot-game-lab-page.js?v=20260305ac"></script>
+  <script defer src="js/modules/shot-game-engine.js?v=20260305ad"></script>
+  <script defer src="js/modules/shot-game-lab-page.js?v=20260305ad"></script>
   <script>
     (function () {
       var overlay = document.getElementById('loading-overlay');
@@ -1660,21 +1660,33 @@
           if (window.ShotGameLoading && typeof window.ShotGameLoading.setStatus === 'function') {
             window.ShotGameLoading.setStatus('Loading game assets...');
           }
+          window.__shotGameAdImageUrl = '';
+          window.__shotGameAdLinkUrl = '';
           try {
             if (window.firebase && typeof firebase.firestore === 'function') {
               const snap = await firebase.firestore().collection('banners').doc('sga1').get();
+              const container = document.getElementById('sg-ad-container');
               if (snap.exists) {
                 const f = snap.data() || {};
-                if (f.status === 'active' && f.image) {
-                  const safeImg = f.image.replace(/"/g, '&quot;');
-                  const safeLnk = String(f.linkUrl || '').replace(/"/g, '&quot;');
-                  const container = document.getElementById('sg-ad-container');
+                const imageUrl = typeof f.image === 'string' ? f.image.trim() : '';
+                if (f.status === 'active' && imageUrl) {
+                  window.__shotGameAdImageUrl = imageUrl;
+                  window.__shotGameAdLinkUrl = String(f.linkUrl || '');
+                  const safeImg = imageUrl.replace(/"/g, '&quot;');
+                  const safeLnk = window.__shotGameAdLinkUrl.replace(/"/g, '&quot;');
                   if (container) {
                     container.innerHTML = safeLnk
                       ? `<a href="${safeLnk}" target="_blank" rel="noopener noreferrer"><img src="${safeImg}" alt="Ad"></a>`
                       : `<img src="${safeImg}" alt="Ad">`;
                   }
+                } else if (container) {
+                  container.innerHTML = '';
                 }
+              } else if (container) {
+                container.innerHTML = '';
+              }
+              if (typeof window.dispatchEvent === 'function' && typeof window.CustomEvent === 'function') {
+                window.dispatchEvent(new CustomEvent('shotgame-ad-updated', { detail: { image: window.__shotGameAdImageUrl } }));
               }
             }
           } catch (_) {}

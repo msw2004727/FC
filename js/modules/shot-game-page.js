@@ -204,6 +204,7 @@
   let _lbOpen = false;
   let _lbSubmitPending = false;
   let _eventsBound = false;
+  let _billboardAdImageUrl = '';
 
   /* ── Leaderboard ── */
   async function _renderLeaderboard(period) {
@@ -468,6 +469,7 @@
     _engine = window.ShotGameEngine.create({
       container,
       lowFx,
+      billboardImageUrl: _billboardAdImageUrl,
       ui: {
         scoreEl: document.getElementById('sg-score'),
         streakEl: document.getElementById('sg-streak'),
@@ -535,20 +537,37 @@
 
   /* ── Ad Loading ── */
   async function _loadAd() {
+    const container = document.getElementById('sg-ad-container');
     try {
       if (!window.firebase || typeof firebase.firestore !== 'function') return;
       const snap = await firebase.firestore().collection('banners').doc('sga1').get();
-      if (!snap.exists) return;
+      if (!snap.exists) {
+        _billboardAdImageUrl = '';
+        if (_engine && typeof _engine.setBillboardAdImage === 'function') _engine.setBillboardAdImage('');
+        if (container) container.innerHTML = '';
+        return;
+      }
       const f = snap.data() || {};
-      if (f.status !== 'active' || !f.image) return;
-      const safeImg = f.image.replace(/"/g, '&quot;');
+      const imageUrl = typeof f.image === 'string' ? f.image.trim() : '';
+      if (f.status !== 'active' || !imageUrl) {
+        _billboardAdImageUrl = '';
+        if (_engine && typeof _engine.setBillboardAdImage === 'function') _engine.setBillboardAdImage('');
+        if (container) container.innerHTML = '';
+        return;
+      }
+      _billboardAdImageUrl = imageUrl;
+      if (_engine && typeof _engine.setBillboardAdImage === 'function') _engine.setBillboardAdImage(imageUrl);
+
+      const safeImg = imageUrl.replace(/"/g, '&quot;');
       const safeLnk = (f.linkUrl || '').replace(/"/g, '&quot;');
-      const container = document.getElementById('sg-ad-container');
       if (!container) return;
       container.innerHTML = safeLnk
         ? `<a href="${safeLnk}" target="_blank" rel="noopener noreferrer"><img src="${safeImg}" alt="廣告"></a>`
         : `<img src="${safeImg}" alt="廣告">`;
-    } catch (_) {}
+    } catch (_) {
+      _billboardAdImageUrl = '';
+      if (_engine && typeof _engine.setBillboardAdImage === 'function') _engine.setBillboardAdImage('');
+    }
   }
 
   /* ── App Module Methods ── */

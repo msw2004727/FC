@@ -21,6 +21,9 @@
   const GOAL_BURST_MAX_STEPS = 12;
   const GOAL_BURST_MIN_MULT = 2.1;
   const GOAL_BURST_MAX_MULT = 3.5;
+  const BILLBOARD_DEPTH_OFFSET = 10;
+  const BILLBOARD_WIDTH = 16.5;
+  const BILLBOARD_HEIGHT = 4.8;
   const BALL_TEXTURE_SLOTS = ['map', 'normalMap', 'roughnessMap', 'metalnessMap'];
 
   const THEME_DARK  = { sky: 0x0d1b2a, ground: 0x1b4520, trail: 0x9ed8ff };
@@ -161,6 +164,7 @@
     drawFieldLines(scene);
 
     const textureLoader = new THREE.TextureLoader();
+    if (typeof textureLoader.setCrossOrigin === 'function') textureLoader.setCrossOrigin('anonymous');
     const maxAnisotropy = renderer.capabilities && typeof renderer.capabilities.getMaxAnisotropy === 'function'
       ? Math.min(8, renderer.capabilities.getMaxAnisotropy())
       : 1;
@@ -259,6 +263,103 @@
     goalGroup.position.set(0, 0, GOAL_Z);
     scene.add(goalGroup);
     const zones    = buildGoal(goalGroup);
+
+    const billboardGroup = new THREE.Group();
+    billboardGroup.position.set(0, 4.2, GOAL_Z - BILLBOARD_DEPTH_OFFSET);
+    scene.add(billboardGroup);
+
+    const billboardFrame = new THREE.Mesh(
+      new THREE.PlaneGeometry(BILLBOARD_WIDTH, BILLBOARD_HEIGHT),
+      new THREE.MeshStandardMaterial({ color: 0x31485c, roughness: 0.78, metalness: 0.12 })
+    );
+    billboardGroup.add(billboardFrame);
+
+    const billboardArtMaterial = new THREE.MeshBasicMaterial({ color: 0xe7f1ff });
+    const billboardArt = new THREE.Mesh(
+      new THREE.PlaneGeometry(BILLBOARD_WIDTH - 0.72, BILLBOARD_HEIGHT - 0.66),
+      billboardArtMaterial
+    );
+    billboardArt.position.z = 0.03;
+    billboardGroup.add(billboardArt);
+
+    const billboardPostMaterial = new THREE.MeshStandardMaterial({ color: 0x253748, roughness: 0.7, metalness: 0.22 });
+    const billboardPostGeo = new THREE.CylinderGeometry(0.14, 0.14, 3.8, 16);
+    const billboardPostOffsetY = -(BILLBOARD_HEIGHT / 2 + 1.7);
+    const billboardPostLeft = new THREE.Mesh(billboardPostGeo, billboardPostMaterial);
+    const billboardPostRight = new THREE.Mesh(billboardPostGeo, billboardPostMaterial);
+    billboardPostLeft.position.set(-(BILLBOARD_WIDTH / 2 - 0.6), billboardPostOffsetY, -0.1);
+    billboardPostRight.position.set(BILLBOARD_WIDTH / 2 - 0.6, billboardPostOffsetY, -0.1);
+    billboardGroup.add(billboardPostLeft, billboardPostRight);
+
+    const billboardCrossbar = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.11, 0.11, BILLBOARD_WIDTH - 1.2, 12),
+      billboardPostMaterial
+    );
+    billboardCrossbar.rotation.z = Math.PI / 2;
+    billboardCrossbar.position.set(0, billboardPostOffsetY + 0.08, -0.1);
+    billboardGroup.add(billboardCrossbar);
+
+    let billboardTexture = null;
+    let billboardTextureRequestId = 0;
+    let billboardAdImageUrl = '';
+    function disposeBillboardTexture() {
+      if (!billboardTexture) return;
+      billboardTexture.dispose();
+      billboardTexture = null;
+    }
+    function applyBillboardPlaceholderTheme() {
+      const isDark = currentThemeDark == null ? readThemeIsDark() : currentThemeDark;
+      billboardArtMaterial.map = null;
+      billboardArtMaterial.color.setHex(isDark ? 0x152638 : 0xe7f1ff);
+      billboardArtMaterial.needsUpdate = true;
+    }
+    function setBillboardAdImage(url) {
+      const nextUrl = typeof url === 'string' ? url.trim() : '';
+      billboardAdImageUrl = nextUrl;
+      const requestId = ++billboardTextureRequestId;
+      if (!nextUrl) {
+        disposeBillboardTexture();
+        applyBillboardPlaceholderTheme();
+        return;
+      }
+      try {
+        textureLoader.load(
+          nextUrl,
+          (texture) => {
+            if (requestId !== billboardTextureRequestId) {
+              texture.dispose();
+              return;
+            }
+            if (!hasRenderableTextureImage(texture)) {
+              texture.dispose();
+              disposeBillboardTexture();
+              applyBillboardPlaceholderTheme();
+              return;
+            }
+            disposeBillboardTexture();
+            texture.anisotropy = maxAnisotropy;
+            texture.encoding = THREE.sRGBEncoding;
+            texture.wrapS = THREE.ClampToEdgeWrapping;
+            texture.wrapT = THREE.ClampToEdgeWrapping;
+            billboardTexture = texture;
+            billboardArtMaterial.color.setHex(0xffffff);
+            billboardArtMaterial.map = texture;
+            billboardArtMaterial.needsUpdate = true;
+          },
+          undefined,
+          () => {
+            if (requestId !== billboardTextureRequestId) return;
+            disposeBillboardTexture();
+            applyBillboardPlaceholderTheme();
+          },
+        );
+      } catch (_) {
+        if (requestId !== billboardTextureRequestId) return;
+        disposeBillboardTexture();
+        applyBillboardPlaceholderTheme();
+      }
+    }
+
     const velocity = new THREE.Vector3();
     const spin     = new THREE.Vector3();
     const raycaster = new THREE.Raycaster();
@@ -285,6 +386,33 @@
     const nearestPoint = new THREE.Vector3();
     const normalComponent = new THREE.Vector3();
     const tangentComponent = new THREE.Vector3();
+    let createdMessageBand = false;
+    let messageBandEl = null;
+    if (container && typeof container.querySelector === 'function') {
+      messageBandEl = container.querySelector('.sg-message-band');
+      if (!messageBandEl) {
+        messageBandEl = document.createElement('div');
+        messageBandEl.className = 'sg-message-band';
+        messageBandEl.style.position = 'absolute';
+        messageBandEl.style.left = '50%';
+        messageBandEl.style.top = '36%';
+        messageBandEl.style.transform = 'translateX(-50%)';
+        messageBandEl.style.width = 'min(76vw, 560px)';
+        messageBandEl.style.height = 'clamp(36px, 6.4vw, 58px)';
+        messageBandEl.style.borderRadius = '999px';
+        messageBandEl.style.zIndex = '4';
+        messageBandEl.style.opacity = '0';
+        messageBandEl.style.pointerEvents = 'none';
+        messageBandEl.style.transition = 'opacity 0.2s ease, background 0.2s ease';
+        messageBandEl.style.backdropFilter = 'blur(2px)';
+        if (ui.messageEl && ui.messageEl.parentNode === container) {
+          container.insertBefore(messageBandEl, ui.messageEl);
+        } else {
+          container.appendChild(messageBandEl);
+        }
+        createdMessageBand = true;
+      }
+    }
 
     // ── 主題切換 ──
     const mq = typeof window.matchMedia === 'function' ? window.matchMedia('(prefers-color-scheme: dark)') : null;
@@ -303,15 +431,31 @@
       if (docTheme === 'light') return false;
       return mq ? !!mq.matches : false;
     }
+    function resolveMessageBandBackground(isDark) {
+      if (isDark) {
+        return 'linear-gradient(90deg, rgba(0,0,0,0) 0%, rgba(6,16,29,0.64) 23%, rgba(6,16,29,0.64) 77%, rgba(0,0,0,0) 100%)';
+      }
+      return 'linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(13,30,45,0.22) 23%, rgba(13,30,45,0.22) 77%, rgba(255,255,255,0) 100%)';
+    }
+    function syncMessageBandTheme(isDark) {
+      if (!messageBandEl) return;
+      messageBandEl.style.background = resolveMessageBandBackground(isDark);
+    }
     function syncTheme() {
       const isDark = readThemeIsDark();
       if (isDark === currentThemeDark) return;
       currentThemeDark = isDark;
       applyTheme(isDark);
+      if (ui.messageEl) ui.messageEl.style.textShadow = isDark
+        ? '0 2px 9px rgba(0, 0, 0, 0.68)'
+        : '0 2px 10px rgba(255, 255, 255, 0.58)';
+      syncMessageBandTheme(isDark);
+      if (!billboardArtMaterial.map) applyBillboardPlaceholderTheme();
     }
     function onMqChange() { syncTheme(); }
     if (mq && typeof mq.addEventListener === 'function') mq.addEventListener('change', onMqChange);
     syncTheme();
+    setBillboardAdImage(options && options.billboardImageUrl ? options.billboardImageUrl : '');
 
     function triggerScreenFlash() {
       container.classList.remove('flash-hit');
@@ -461,6 +605,10 @@
       ui.messageEl.textContent = text;
       ui.messageEl.style.color = resolveMessageColor(color);
       ui.messageEl.style.opacity = text ? '1' : '0';
+      if (messageBandEl) {
+        messageBandEl.style.opacity = text ? '1' : '0';
+        messageBandEl.style.background = resolveMessageBandBackground(readThemeIsDark());
+      }
     }
     function refreshHud() {
       if (ui.scoreEl)  ui.scoreEl.textContent  = `分數：${score}`;
@@ -691,6 +839,11 @@
     resize(); restartGame(); animate();
 
     return {
+      setBillboardAdImage(url) {
+        const nextUrl = typeof url === 'string' ? url.trim() : '';
+        if (nextUrl === billboardAdImageUrl) return;
+        setBillboardAdImage(nextUrl);
+      },
       destroy() {
         if (resultTimer) clearTimeout(resultTimer);
         if (flashTimer) clearTimeout(flashTimer);
@@ -702,6 +855,11 @@
         cleanupWindowListeners();
         window.removeEventListener('resize', resize);
         if (ui.restartBtn) ui.restartBtn.removeEventListener('click', restartGame);
+        if (createdMessageBand && messageBandEl && messageBandEl.parentNode === container) {
+          container.removeChild(messageBandEl);
+        }
+        messageBandEl = null;
+        disposeBillboardTexture();
         disposeScene(scene); renderer.dispose();
         if (renderer.forceContextLoss) renderer.forceContextLoss();
         if (renderer.domElement && renderer.domElement.parentNode === container) container.removeChild(renderer.domElement);
