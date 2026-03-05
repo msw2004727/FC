@@ -11,7 +11,15 @@ Object.assign(App, {
   _getShotGameAdPlaceholder() {
     const existing = ApiService.getShotGameAd();
     if (existing) return existing;
-    if (typeof FirebaseService === 'undefined' || !FirebaseService._cache || !Array.isArray(FirebaseService._cache.banners)) return null;
+
+    // Use ApiService source first so demo/production read paths stay consistent.
+    let source = null;
+    if (typeof ApiService !== 'undefined' && typeof ApiService._src === 'function') {
+      source = ApiService._src('banners');
+    } else if (typeof FirebaseService !== 'undefined' && FirebaseService._cache) {
+      source = FirebaseService._cache.banners;
+    }
+    if (!Array.isArray(source)) return null;
 
     const placeholder = {
       id: 'sga1',
@@ -27,7 +35,7 @@ Object.assign(App, {
       clicks: 0,
       linkUrl: '',
     };
-    FirebaseService._cache.banners.push(placeholder);
+    source.push(placeholder);
     return placeholder;
   },
 
@@ -51,7 +59,8 @@ Object.assign(App, {
   renderShotGameAdManage() {
     const container = document.getElementById('shotgame-ad-manage-list');
     if (!container) return;
-    let b = ApiService.getShotGameAd();
+    // Render immediately with a local placeholder so the UI never gets stuck in loading state.
+    let b = ApiService.getShotGameAd() || this._getShotGameAdPlaceholder();
     if (!b) {
       container.innerHTML = '<p style="color:var(--text-muted);padding:.5rem">廣告位資料載入中...</p>';
       this._ensureShotGameAdSlot().then(() => {
@@ -61,6 +70,8 @@ Object.assign(App, {
       });
       return;
     }
+    if (!ModeManager.isDemo()) this._ensureShotGameAdSlot();
+
     const isEmpty = b.status === 'empty';
     const isActive = b.status === 'active';
     const isScheduled = b.status === 'scheduled';
