@@ -27,6 +27,7 @@
   const BILLBOARD_WIDTH = 16.5 * BILLBOARD_SPACE_SCALE;
   const BILLBOARD_HEIGHT = 4.8 * BILLBOARD_SPACE_SCALE;
   const BALL_TEXTURE_SLOTS = ['map', 'normalMap', 'roughnessMap', 'metalnessMap'];
+  const FULL_CHARGE_SHAKE_MULTIPLIER = 5;
 
   const THEME_DARK  = { sky: 0x0d1b2a, ground: 0x1b4520, trail: 0x9ed8ff };
   const THEME_LIGHT = { sky: 0x88cff4, ground: 0x2f7d32, trail: 0x1d6fa8 };
@@ -937,7 +938,8 @@
           ui.powerFillEl.style.background = power > 100 ? '#ef4444' : 'linear-gradient(90deg,#22c55e,#facc15)';
         }
         if (ui.crosshairEl) {
-          const shake = power <= 100 ? power * 0.4 : 40 + (power - 100) * 1.8;
+          const baseShake = power < 100 ? power * 0.4 : 40 + (power - 100) * 1.8;
+          const shake = power >= 100 ? baseShake * FULL_CHARGE_SHAKE_MULTIPLIER : baseShake;
           ui.crosshairEl.style.transform = `translate(-50%, -50%) translate(${(Math.random() - 0.5) * shake}px, ${(Math.random() - 0.5) * shake}px)`;
         }
       } else if (ui.crosshairEl) ui.crosshairEl.style.transform = 'translate(-50%, -50%)';

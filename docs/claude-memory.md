@@ -898,3 +898,11 @@
   - Light mode: thumb moves right to cover moon and reveal sun.
   - Updated cache version to `20260305aj` in `js/config.js`, `index.html`, and `game-lab.html`.
 - **Lesson**: For toggle semantics based on reveal, use layer order + overflow clipping, not icon opacity alone.
+### 2026-03-06 - shot-game full-charge crosshair shake x5 (power>=100)
+- **Issue**: At full charge, crosshair shake was not strong enough to create the intended high-risk feel.
+- **Cause**: Existing shake formula only increased linearly in overcharge (`40 + (power-100)*1.8`), so full-charge impact was limited.
+- **Fix**:
+  - `js/modules/shot-game-engine.js`: added `FULL_CHARGE_SHAKE_MULTIPLIER = 5`.
+  - `js/modules/shot-game-engine.js`: kept `power<100` shake unchanged, and applied 5x multiplier when `power>=100`.
+  - `js/config.js`, `index.html`, `game-lab.html`: bumped cache version to `20260306`.
+- **Lesson**: Lock the trigger window first (`power>=100`) before scaling intensity, so lower-charge handling remains stable.
