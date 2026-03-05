@@ -862,7 +862,21 @@ Object.assign(FirebaseService, {
     // 避免 base64 寫入 Firestore（超過 1MB 限制）
     if (updates.image && updates.image.startsWith('data:')) delete updates.image;
     updates.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
-    await db.collection('banners').doc(doc._docId).update(updates);
+    const ref = db.collection('banners').doc(doc._docId);
+    try {
+      await ref.update(updates);
+    } catch (err) {
+      const isShotGame = id === 'sga1' || doc.id === 'sga1' || doc.slot === 'sga1' || doc.type === 'shotgame';
+      const isNotFound = err && (err.code === 'not-found' || String(err.message || '').toLowerCase().includes('no document to update'));
+      if (!(isShotGame && isNotFound)) throw err;
+      await ref.set({
+        id: 'sga1',
+        slot: 'sga1',
+        type: 'shotgame',
+        ...updates,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      }, { merge: true });
+    }
     return doc;
   },
 

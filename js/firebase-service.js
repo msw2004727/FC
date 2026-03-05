@@ -1010,8 +1010,12 @@ const FirebaseService = {
   // ════════════════════════════════
 
   async _ensureSga1Slot() {
+    if (!db) return;
     if (this._cache.banners && this._cache.banners.find(b => b.id === 'sga1' || b._docId === 'sga1')) return;
     try {
+      if (typeof _firebaseAuthReadyPromise !== 'undefined' && !_firebaseAuthReady) {
+        await Promise.race([_firebaseAuthReadyPromise, new Promise(r => setTimeout(r, 5000))]);
+      }
       const ref = db.collection('banners').doc('sga1');
       const snap = await ref.get();
       if (!snap.exists) {

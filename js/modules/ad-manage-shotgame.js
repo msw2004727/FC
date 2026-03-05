@@ -8,12 +8,38 @@ Object.assign(App, {
   _sgAdEditId: null,
   _sgAdEnsuringSlot: false,
 
+  _getShotGameAdPlaceholder() {
+    const existing = ApiService.getShotGameAd();
+    if (existing) return existing;
+    if (typeof FirebaseService === 'undefined' || !FirebaseService._cache || !Array.isArray(FirebaseService._cache.banners)) return null;
+
+    const placeholder = {
+      id: 'sga1',
+      _docId: 'sga1',
+      slot: 'sga1',
+      type: 'shotgame',
+      slotName: '射門遊戲廣告位',
+      title: '',
+      image: null,
+      status: 'empty',
+      publishAt: null,
+      unpublishAt: null,
+      clicks: 0,
+      linkUrl: '',
+    };
+    FirebaseService._cache.banners.push(placeholder);
+    return placeholder;
+  },
+
   async _ensureShotGameAdSlot() {
     if (ModeManager.isDemo()) return;
     if (this._sgAdEnsuringSlot) return;
     if (typeof FirebaseService === 'undefined' || typeof FirebaseService._ensureSga1Slot !== 'function') return;
     this._sgAdEnsuringSlot = true;
     try {
+      if (typeof _firebaseAuthReadyPromise !== 'undefined' && !_firebaseAuthReady) {
+        await Promise.race([_firebaseAuthReadyPromise, new Promise(r => setTimeout(r, 5000))]);
+      }
       await FirebaseService._ensureSga1Slot();
     } catch (err) {
       console.warn('[ShotGameAd] ensure sga1 slot failed:', err);
@@ -25,11 +51,13 @@ Object.assign(App, {
   renderShotGameAdManage() {
     const container = document.getElementById('shotgame-ad-manage-list');
     if (!container) return;
-    const b = ApiService.getShotGameAd();
+    let b = ApiService.getShotGameAd();
     if (!b) {
       container.innerHTML = '<p style="color:var(--text-muted);padding:.5rem">廣告位資料載入中...</p>';
       this._ensureShotGameAdSlot().then(() => {
-        if (ApiService.getShotGameAd()) this.renderShotGameAdManage();
+        const ensured = ApiService.getShotGameAd() || this._getShotGameAdPlaceholder();
+        if (ensured) this.renderShotGameAdManage();
+        else container.innerHTML = '<p style="color:var(--text-muted);padding:.5rem">廣告位初始化失敗，請重新整理後再試</p>';
       });
       return;
     }
