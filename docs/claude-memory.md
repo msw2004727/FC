@@ -792,3 +792,8 @@
 - **Cause**: Client-side submit name selection prioritized Firebase Auth displayName; when that value was placeholder-like, it was written into rankings.
 - **Fix**: Updated js/modules/shot-game-lab-page.js and js/modules/shot-game-page.js to prefer LineAuth.getProfile().displayName first, and only fallback when unavailable; updated functions/index.js to avoid persisting placeholder-like names when better auth token name exists.
 - **Lesson**: For social-login identity fields, establish a strict source priority and filter placeholder values before persistence.
+### 2026-03-05 — 首頁空資料區塊隱藏與小遊戲卡片視覺升級
+- **問題**：首頁在沒有近期活動/賽事時仍顯示空區塊，小遊戲卡文案與視覺不符合需求。
+- **原因**：`renderHotEvents()` 與 `renderOngoingTournaments()` 在空資料時只顯示提示文案，沒有隱藏整個區塊；小遊戲卡沿用一般卡片樣式與舊標題副標。
+- **修復**：`js/modules/event-list.js` 新增首頁區塊顯示控制與小遊戲捷徑渲染；`js/modules/tournament-render.js` 在無賽事時隱藏區塊；`pages/home.html` 更新小遊戲卡標題/副標；`css/home.css` 改為金色漸層底並加入規律反光動畫。
+- **教訓**：首頁摘要區塊應採「有資料才顯示」策略，避免空區塊噪音；重點入口卡片要用專屬視覺語言凸顯優先級。

@@ -193,6 +193,42 @@ Object.assign(App, {
     const key = getSportKeySafe(event?.sportTag);
     return key || 'football';
   },
+  _setHomeSectionVisibility(sectionContent, isVisible) {
+    const contentEl = typeof sectionContent === 'string'
+      ? document.getElementById(sectionContent)
+      : sectionContent;
+    if (!contentEl) return;
+
+    const titleEl = contentEl.previousElementSibling && contentEl.previousElementSibling.classList?.contains('section-title')
+      ? contentEl.previousElementSibling
+      : null;
+
+    contentEl.style.display = isVisible ? '' : 'none';
+    if (titleEl) titleEl.style.display = isVisible ? '' : 'none';
+  },
+  _isHomeGameShortcutAvailable() {
+    const gameMenu = Array.isArray(DRAWER_MENUS)
+      ? DRAWER_MENUS.find(item => item && item.page === 'page-game')
+      : null;
+    if (!gameMenu || gameMenu.locked) return false;
+    const minRole = gameMenu.minRole || 'user';
+    const minLevel = ROLE_LEVEL_MAP[minRole] || 0;
+    const currentLevel = ROLE_LEVEL_MAP[this.currentRole] || 0;
+    return currentLevel >= minLevel;
+  },
+  renderHomeGameShortcut() {
+    const card = document.querySelector('#page-home .home-game-card');
+    if (!card) return;
+    const available = this._isHomeGameShortcutAvailable();
+    this._setHomeSectionVisibility(card, available);
+    if (!available) return;
+
+    const titleEl = card.querySelector('.home-game-card-title');
+    const subEl = card.querySelector('.home-game-card-sub');
+    if (titleEl) titleEl.textContent = '蓄力射門 誰與爭鋒';
+    if (subEl) subEl.textContent = '挑戰移動九宮格、登上榮耀射手榜!!';
+    card.setAttribute('aria-label', '蓄力射門 誰與爭鋒');
+  },
   _renderEventSportIcon(event, className = '') {
     const sportKey = this._getEventSportTag(event);
     const label = getSportLabelByKey(sportKey);
@@ -322,6 +358,7 @@ Object.assign(App, {
 
   renderHotEvents() {
     this._autoEndExpiredEvents();
+    this.renderHomeGameShortcut();
     const container = document.getElementById('hot-events');
     if (!container) return;
     // 顯示最近 10 場未結束活動（依日期排序）
@@ -341,9 +378,13 @@ Object.assign(App, {
         return (da || 0) - (db || 0);
       })
       .slice(0, 10);
+    this._setHomeSectionVisibility(container, visible.length > 0);
+    if (visible.length === 0) {
+      container.innerHTML = '';
+      return;
+    }
 
-    container.innerHTML = visible.length > 0
-      ? visible.map(e => {
+    container.innerHTML = visible.map(e => {
         const _dp = (e.date || '').split(' ')[0].split('/');
         const _sportIcon = this._renderEventSportIcon(e, 'h-card-sport-chip');
         const _dateTag = _dp.length >= 3
@@ -363,8 +404,7 @@ Object.assign(App, {
             </div>
           </div>
         </div>
-      `; }).join('')
-      : `<div style="padding:1rem;font-size:.82rem;color:var(--text-muted)">${t('activity.noActive')}</div>`;
+      `; }).join('');
   },
 
   // ══════════════════════════════════

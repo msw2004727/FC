@@ -98,7 +98,8 @@
 // 20260305r: 修復射手榜即時「快取幽靈玩家」重複列（提交中暫存列 + uid 去重）
 // 20260305s: game-lab 淺色背景去雲朵 + 套用主站同款 opening loading overlay
 // 20260305t: 射手榜名稱優先使用 LINE 暱稱，避免顯示玩家xxxx
-const CACHE_VERSION = '20260305t';
+// 20260305u: 首頁空資料區塊隱藏 + 小遊戲卡文案更新 + 金色漸層反光卡片
+const CACHE_VERSION = '20260305u';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {

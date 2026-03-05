@@ -16,8 +16,9 @@ Object.assign(App, {
       const currentIds = ongoing.map(t => t.id);
       if (renderedIds.length === currentIds.length && renderedIds.every((id, i) => id === currentIds[i])) return;
     }
+    this._setHomeSectionVisibility?.(container, ongoing.length > 0);
     if (ongoing.length === 0) {
-      container.innerHTML = `<div style="text-align:center;padding:1.5rem;color:var(--text-muted);font-size:.85rem">${t('tournament.noActive')}</div>`;
+      container.innerHTML = '';
       return;
     }
     container.innerHTML = ongoing.map(t => `
