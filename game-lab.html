@@ -11,27 +11,44 @@
       const validUrlTheme = urlTheme === 'light' || urlTheme === 'dark' || urlTheme === 'auto';
       let mode = validUrlTheme ? urlTheme : localStorage.getItem(storageKey);
       if (validUrlTheme) localStorage.setItem(storageKey, mode);
-      if (mode !== 'light' && mode !== 'dark' && mode !== 'auto') mode = 'light';
+      if (mode !== 'light' && mode !== 'dark' && mode !== 'auto') mode = 'auto';
 
       const root = document.documentElement;
       const mq = typeof window.matchMedia === 'function' ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+      let manualTheme = null;
       function resolveAutoDark() {
         const siteTheme = (localStorage.getItem('sporthub_theme') || '').toLowerCase();
         if (siteTheme === 'dark') return true;
         if (siteTheme === 'light') return false;
         return mq ? !!mq.matches : false;
       }
+      function isDarkResolved() {
+        if (manualTheme === 'dark') return true;
+        if (manualTheme === 'light') return false;
+        return mode === 'dark' || (mode === 'auto' && resolveAutoDark());
+      }
       function applyThemeAttr() {
-        const isDark = mode === 'dark' || (mode === 'auto' && resolveAutoDark());
+        const isDark = isDarkResolved();
         root.dataset.shotTheme = isDark ? 'dark' : 'light';
+        return root.dataset.shotTheme;
       }
       applyThemeAttr();
-      if (mode === 'auto') {
-        if (mq && typeof mq.addEventListener === 'function') mq.addEventListener('change', applyThemeAttr);
-        window.addEventListener('storage', function (event) {
-          if (event.key === 'sporthub_theme') applyThemeAttr();
-        });
-      }
+      if (mq && typeof mq.addEventListener === 'function') mq.addEventListener('change', applyThemeAttr);
+      window.addEventListener('storage', function (event) {
+        if (event.key === 'sporthub_theme') applyThemeAttr();
+      });
+
+      window.ShotGameTheme = {
+        getCurrentTheme: function () { return root.dataset.shotTheme === 'dark' ? 'dark' : 'light'; },
+        toggleManualTheme: function () {
+          manualTheme = root.dataset.shotTheme === 'dark' ? 'light' : 'dark';
+          return applyThemeAttr();
+        },
+        clearManualTheme: function () {
+          manualTheme = null;
+          return applyThemeAttr();
+        },
+      };
     })();
   </script>
   <style>
@@ -130,18 +147,46 @@
     }
     #game-section { display: none; }
     .topbar {
-      display: flex;
-      gap: 8px;
-      justify-content: center;
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      gap: 10px;
       align-items: center;
       padding: 12px 14px;
     }
+    .topbar-spacer {
+      width: 1px;
+      height: 1px;
+      justify-self: start;
+    }
     .title {
-      width: 100%;
+      width: auto;
       text-align: center;
       font-size: clamp(17px, 2.8vw, 22px);
       font-weight: 800;
       letter-spacing: 0.4px;
+      grid-column: 2;
+      justify-self: center;
+    }
+    .theme-toggle-btn {
+      grid-column: 3;
+      justify-self: end;
+      height: 34px;
+      min-width: 118px;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.58);
+      background: linear-gradient(155deg, rgba(255, 255, 255, 0.46), rgba(255, 255, 255, 0.2));
+      box-shadow: 0 5px 14px rgba(16, 35, 52, 0.18);
+      backdrop-filter: blur(6px);
+      color: var(--text);
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.3px;
+      padding: 0 12px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      line-height: 1;
     }
     .badge {
       display: inline-block;
@@ -187,11 +232,28 @@
       left: 14px;
       top: 14px;
       z-index: 5;
-      text-shadow: 0 2px 10px rgba(0, 0, 0, 0.65);
       font-weight: 700;
       color: #0d1e2b;
     }
-    .hud .sub { color: #8a5200; margin-top: 4px; }
+    .hud-chip {
+      display: inline-flex;
+      align-items: center;
+      height: 30px;
+      padding: 0 12px;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.62);
+      background: linear-gradient(160deg, rgba(255, 255, 255, 0.56), rgba(255, 255, 255, 0.26));
+      backdrop-filter: blur(6px);
+      box-shadow: 0 5px 12px rgba(18, 39, 58, 0.16);
+      color: #0d1e2b;
+      font-size: 12px;
+      font-weight: 800;
+      line-height: 1;
+    }
+    #sg-streak.hud-chip {
+      margin-top: 6px;
+      color: #8a5200;
+    }
     .sg-bottom-row {
       position: absolute;
       left: 10px;
@@ -233,7 +295,6 @@
       z-index: 5;
       font-size: clamp(20px, 5vw, 34px);
       font-weight: 800;
-      text-shadow: 0 3px 14px rgba(0, 0, 0, 0.8);
       opacity: 0;
       transition: opacity 0.2s ease;
       white-space: nowrap;
@@ -293,8 +354,10 @@
       border-radius: 10px;
       padding: 8px 10px;
       width: 156px;
-      text-align: left;
+      text-align: center;
       line-height: 1.4;
+      backdrop-filter: blur(7px);
+      box-shadow: 0 5px 12px rgba(14, 38, 56, 0.16);
     }
     .goal-guide-title {
       font-size: 11px;
@@ -314,7 +377,8 @@
       padding: 3px 0;
       font-size: 11px;
       font-weight: 800;
-      background: rgba(255, 255, 255, 0.68);
+      background: linear-gradient(160deg, rgba(255, 255, 255, 0.54), rgba(255, 255, 255, 0.22));
+      backdrop-filter: blur(6px);
       color: #0d1e2b;
     }
     .goal-guide-cell.high { background: rgba(255, 91, 91, 0.23); }
@@ -567,6 +631,22 @@
     #sg-power { border-color: rgba(0,0,0,0.45); }
     @media (min-width: 900px) { .layout { grid-template-columns: 1fr 340px; } }
     @media (max-width: 760px) {
+      .topbar {
+        grid-template-columns: 0fr auto 1fr;
+        gap: 8px;
+        padding: 10px 10px;
+      }
+      .theme-toggle-btn {
+        min-width: 98px;
+        height: 32px;
+        font-size: 11px;
+        padding: 0 10px;
+      }
+      .hud-chip {
+        height: 28px;
+        padding: 0 10px;
+        font-size: 11px;
+      }
       .hud-leaderboard-btn {
         min-width: 102px;
         height: 34px;
@@ -624,9 +704,15 @@
     }
     html[data-shot-theme="dark"] #shot-game-container { background: #0b2137; }
     html[data-shot-theme="dark"] .hud { color: var(--text); }
-    html[data-shot-theme="dark"] .hud .sub { color: #ffe082; }
+    html[data-shot-theme="dark"] .hud-chip {
+      border-color: rgba(255, 255, 255, 0.28);
+      background: linear-gradient(160deg, rgba(255, 255, 255, 0.12), rgba(10, 31, 49, 0.38));
+      color: #ecf8ff;
+      box-shadow: 0 6px 14px rgba(0, 0, 0, 0.34);
+    }
+    html[data-shot-theme="dark"] #sg-streak.hud-chip { color: #ffe082; }
     html[data-shot-theme="dark"] .goal-guide { background: rgba(7, 20, 33, 0.55); color: #e3f3ff; border-color: rgba(255, 255, 255, 0.2); }
-    html[data-shot-theme="dark"] .goal-guide-cell { border-color: rgba(255, 255, 255, 0.22); background: rgba(0, 0, 0, 0.28); color: #e3f3ff; }
+    html[data-shot-theme="dark"] .goal-guide-cell { border-color: rgba(255, 255, 255, 0.22); background: linear-gradient(165deg, rgba(255,255,255,0.12), rgba(0, 0, 0, 0.32)); color: #e3f3ff; }
     html[data-shot-theme="dark"] .goal-guide-cell.high { background: rgba(255, 91, 91, 0.28); }
     html[data-shot-theme="dark"] .goal-guide-cell.mid { background: rgba(255, 183, 77, 0.24); }
     html[data-shot-theme="dark"] .goal-guide-cell.low { background: rgba(255, 238, 88, 0.2); }
@@ -641,6 +727,12 @@
       background: linear-gradient(160deg, rgba(255, 255, 255, 0.17), rgba(6, 24, 41, 0.38));
       color: #e9f7ff;
       box-shadow: 0 8px 20px rgba(0, 0, 0, 0.36);
+    }
+    html[data-shot-theme="dark"] .theme-toggle-btn {
+      border-color: rgba(255, 255, 255, 0.24);
+      background: linear-gradient(155deg, rgba(255, 255, 255, 0.13), rgba(8, 28, 45, 0.4));
+      color: #e9f7ff;
+      box-shadow: 0 8px 18px rgba(0, 0, 0, 0.34);
     }
     html[data-shot-theme="dark"] .gate-row input { background: rgba(0, 0, 0, 0.3); color: var(--text); }
     html[data-shot-theme="dark"] .ad-slot {
@@ -675,7 +767,9 @@
 
     <section id="game-section">
       <div class="card topbar">
+        <div class="topbar-spacer" aria-hidden="true"></div>
         <div class="title">TooSterxHub PK大賽</div>
+        <button id="sg-theme-toggle" class="theme-toggle-btn" type="button">主題：跟隨</button>
       </div>
       <div class="layout">
         <section class="card game-wrap">
@@ -695,8 +789,8 @@
               </div>
             </div>
             <div class="hud">
-              <div id="sg-score">分數：0</div>
-              <div id="sg-streak" class="sub">連進：0</div>
+              <div id="sg-score" class="hud-chip">分數：0</div>
+              <div id="sg-streak" class="hud-chip">連進：0</div>
             </div>
             <div id="sg-message"></div>
             <div id="sg-crosshair"></div>
@@ -765,10 +859,26 @@
   </div>
 
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-  <script defer src="js/modules/shot-game-engine.js?v=20260305i"></script>
-  <script defer src="js/modules/shot-game-lab-page.js?v=20260305h"></script>
+  <script defer src="js/modules/shot-game-engine.js?v=20260305j"></script>
+  <script defer src="js/modules/shot-game-lab-page.js?v=20260305i"></script>
   <script>
     window.addEventListener('DOMContentLoaded', function () {
+      var themeBtn = document.getElementById('sg-theme-toggle');
+      function renderThemeBtn() {
+        if (!themeBtn || !window.ShotGameTheme) return;
+        themeBtn.textContent = window.ShotGameTheme.getCurrentTheme() === 'dark' ? '主題：深色' : '主題：淺色';
+      }
+      if (window.ShotGameTheme) {
+        window.ShotGameTheme.clearManualTheme();
+        renderThemeBtn();
+      }
+      if (themeBtn && window.ShotGameTheme) {
+        themeBtn.addEventListener('click', function () {
+          window.ShotGameTheme.toggleManualTheme();
+          renderThemeBtn();
+        });
+      }
+
       ShotGameLabPage.init({
         requiredTokenHash: '467cda4619401ac67849a871a0af1a32bde219759a3062907866aeaf0e3584e3',
         tokenQueryKey: 't',

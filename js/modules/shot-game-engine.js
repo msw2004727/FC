@@ -263,12 +263,13 @@
     const pointer   = new THREE.Vector2();
     const clock     = new THREE.Clock();
 
-    let score = 0; let streak = 0; let shots = 0;
+    let score = 0; let streak = 0; let maxStreak = 0; let shots = 0;
     let state = 'aiming'; let charging = false; let power = 0;
     let aim = { x: 0, y: 3 }; let startPointer = { x: 0, y: 0 };
     let sessionStartedAt = Date.now(); let resultTimer = null; let flashTimer = null; let rafId = 0;
     let accumulator = 0; let flightTime = 0; let apex = BALL_RADIUS; let lastBallZ = PENALTY_SPOT_Z;
     let goalSpeed = 2.9; let goalDir = 1; let goalSpeedMult = 1.0;
+    let curveBoost = 1;
     let goalBurstSteps = 0; let goalBurstMult = 1.0; let goalBurstDir = 1;
     let trailCount = 0;
     const postOffset = new THREE.Vector3();
@@ -471,6 +472,7 @@
       if (resultTimer) clearTimeout(resultTimer);
       state = 'aiming'; charging = false; power = 0;
       velocity.set(0, 0, 0); spin.set(0, 0, 0);
+      curveBoost = 1;
       ball.position.set(0, BALL_RADIUS, PENALTY_SPOT_Z);
       lastBallZ = ball.position.z;
       clearTrail();
@@ -485,7 +487,14 @@
       setChargeUiVisible(false);
       if (ui.restartBtn) ui.restartBtn.style.display = 'block';
       setMessage(`遊戲結束  分數 ${score}`, '#ffd54f');
-      if (onGameOver) onGameOver({ score, streak, shots, durationMs: Date.now() - sessionStartedAt, endedAt: new Date().toISOString() });
+      if (onGameOver) onGameOver({
+        score,
+        streak: maxStreak,
+        bestStreak: maxStreak,
+        shots,
+        durationMs: Date.now() - sessionStartedAt,
+        endedAt: new Date().toISOString(),
+      });
     }
     function processGoalHit() {
       const x = ball.position.x - goalGroup.position.x;
@@ -500,6 +509,7 @@
       const styleBoost = clamp(Math.round((apex - 2.4) * 2 + power / 16), 0, 20);
       const gained = zoneHit.points + styleBoost;
       streak += 1; score += gained; state = 'result';
+      maxStreak = Math.max(maxStreak, streak);
       goalSpeed = 2.9 + Math.min(streak, 30) * 0.4;
       zoneHit.mesh.material.opacity = 0.75;
       setTimeout(() => { zoneHit.mesh.material.opacity = 0.14; }, 180);
@@ -516,13 +526,18 @@
       const speed = 22 + p * 24;
       velocity.copy(dir.multiplyScalar(speed));
       velocity.y += 3 + p * 10;
+      const sideSign = Math.abs(aim.x) > 0.05 ? Math.sign(-aim.x) : (Math.random() < 0.5 ? -1 : 1);
+      const sideSpin = -aim.x * (0.24 + p * 0.26) + sideSign * Math.max(0, p - 0.95) * 0.16;
+      const verticalSpin = 0.22 + p * 0.34 + Math.max(0, p - 0.9) * 0.42;
+      curveBoost = 1 + p * 1.05 + Math.max(0, p - 0.9) * 1.8;
       if (power > 100) {
         const over = clamp((power - 100) / 30, 0, 1);
         velocity.x += (Math.random() - 0.5) * 12 * over;
         velocity.y += (Math.random() - 0.5) * 8 * over;
+        curveBoost += 0.7 + over * 0.9;
         setMessage('超量爆發！', '#ff8a80');
       }
-      spin.set(0.22 + p * 0.24, -aim.x * 0.24, 0);
+      spin.set(verticalSpin, sideSpin, 0);
       setChargeUiVisible(false);
       clearTrail();
       pushTrailPoint(ball.position);
@@ -561,8 +576,10 @@
     function restartGame() {
       if (resultTimer) clearTimeout(resultTimer);
       score = 0; streak = 0; shots = 0; state = 'aiming';
+      maxStreak = 0;
       sessionStartedAt = Date.now();
       goalSpeed = 2.9; goalDir = 1; goalSpeedMult = 1.0;
+      curveBoost = 1;
       goalBurstSteps = 0; goalBurstMult = 1.0; goalBurstDir = 1;
       goalGroup.position.x = 0;
       if (ui.restartBtn) ui.restartBtn.style.display = 'none';
@@ -604,8 +621,10 @@
       }
       if (state !== 'flying' && state !== 'result') return;
       flightTime += dt;
-      const magnus = new THREE.Vector3().crossVectors(velocity, spin).multiplyScalar(0.015 * dt);
+      const magnusFactor = 0.015 * clamp(curveBoost, 1, 3.8);
+      const magnus = new THREE.Vector3().crossVectors(velocity, spin).multiplyScalar(magnusFactor * dt);
       velocity.add(magnus); velocity.y -= 25.8 * dt; velocity.multiplyScalar(0.997);
+      curveBoost += (1 - curveBoost) * 0.028;
       ball.position.addScaledVector(velocity, dt);
       ball.rotation.x += (velocity.z * dt) / BALL_RADIUS; ball.rotation.y += spin.y * dt; ball.rotation.z -= (velocity.x * dt) / BALL_RADIUS;
       apex = Math.max(apex, ball.position.y);

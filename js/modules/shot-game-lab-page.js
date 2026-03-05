@@ -289,10 +289,11 @@
             restartBtn: document.getElementById('sg-restart'),
           },
           onGameOver: (payload) => {
+            const payloadStreak = payload && payload.bestStreak != null ? payload.bestStreak : (payload ? payload.streak : 0);
             const normalized = {
               score: Number(payload && payload.score ? payload.score : 0),
               shots: Number(payload && payload.shots ? payload.shots : 0),
-              streak: Number(payload && payload.streak ? payload.streak : 0),
+              streak: Number(payloadStreak || 0),
               durationMs: Number(payload && payload.durationMs ? payload.durationMs : 0),
             };
             if (isBetterSession(normalized, bestSessionSinceOpen)) bestSessionSinceOpen = normalized;
