@@ -104,7 +104,8 @@
 // 20260305x: 球門左右移動邊界擴大 20%，提升移動範圍
 // 20260305y: 射門 HUD 改為多層記分板樣式，當前最佳卡高度與九宮格得分卡動態對齊
 // 20260305z: HUD 記分板重排（本局記錄置頂、上層欄位縮窄、移除重複列）
-const CACHE_VERSION = '20260305z';
+// 20260305aa: 手機版 HUD 防換行優化（主流螢幕寬度下維持單行與可讀性）
+const CACHE_VERSION = '20260305aa';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {

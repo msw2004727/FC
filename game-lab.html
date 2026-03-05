@@ -1067,25 +1067,34 @@
         height: 34px;
         font-size: 12px;
       }
+      .goal-guide {
+        right: 8px;
+        width: 144px;
+        padding: 8px 8px;
+      }
+      .goal-guide-title { font-size: 11px; margin-bottom: 5px; }
+      .goal-guide-grid { gap: 4px; }
+      .goal-guide-cell { font-size: 11px; padding: 3px 0; }
       #session-badge.history-badge {
-        width: min(74vw, 230px);
+        width: min(80vw, 252px);
         padding: 7px 8px;
         gap: 4px;
       }
       #session-badge.history-badge .sg-session-top-title { font-size: 11px; }
       #session-badge.history-badge .sg-session-title {
-        font-size: 12px;
+        font-size: 11px;
       }
       #session-badge.history-badge .sg-session-focus-row { gap: 6px; }
       #session-badge.history-badge .sg-session-focus-box {
         width: 38%;
-        min-width: 76px;
-        max-width: 92px;
+        min-width: 78px;
+        max-width: 96px;
       }
       #session-badge.history-badge .sg-session-focus-label { font-size: 10px; }
-      #session-badge.history-badge .sg-session-focus-value { font-size: 18px; }
+      #session-badge.history-badge .sg-session-focus-value { font-size: clamp(16px, 5.2vw, 20px); }
       #session-badge.history-badge .sg-session-best {
-        font-size: 12px;
+        font-size: clamp(11px, 3.1vw, 13px);
+        letter-spacing: 0;
       }
       #session-badge.history-badge .sg-session-sep {
         margin: 0 2px;
@@ -1118,6 +1127,9 @@
         width: 12px;
         height: 12px;
       }
+    }
+    @media (max-width: 390px) {
+      .goal-guide { top: 122px; }
     }
     html[data-shot-theme="dark"] {
       color-scheme: dark;
@@ -1388,10 +1400,10 @@
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-storage-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-functions-compat.js"></script>
-  <script src="js/firebase-config.js?v=20260305z"></script>
+  <script src="js/firebase-config.js?v=20260305aa"></script>
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-  <script defer src="js/modules/shot-game-engine.js?v=20260305z"></script>
-  <script defer src="js/modules/shot-game-lab-page.js?v=20260305z"></script>
+  <script defer src="js/modules/shot-game-engine.js?v=20260305aa"></script>
+  <script defer src="js/modules/shot-game-lab-page.js?v=20260305aa"></script>
   <script>
     (function () {
       var overlay = document.getElementById('loading-overlay');
