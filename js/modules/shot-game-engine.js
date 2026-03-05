@@ -6,9 +6,10 @@
   const GOAL_HEIGHT = 7.2;
   const PENALTY_SPOT_Z = 12;
   const SCORE_MAP = [[100, 50, 100], [50, 20, 50], [40, 10, 40]];
+  const TRAIL_FRAMES = 20;
 
-  const THEME_DARK  = { sky: 0x0d1b2a, ground: 0x1b4520 };
-  const THEME_LIGHT = { sky: 0x88cff4, ground: 0x2f7d32 };
+  const THEME_DARK  = { sky: 0x0d1b2a, ground: 0x1b4520, trail: 0x9ed8ff };
+  const THEME_LIGHT = { sky: 0x88cff4, ground: 0x2f7d32, trail: 0x1d6fa8 };
 
   function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
   function disposeMaterial(material) {
@@ -144,6 +145,38 @@
     ball.castShadow = !options.lowFx;
     scene.add(ball);
 
+    const trailPositions = new Float32Array(TRAIL_FRAMES * 3);
+    const trailAlphas = new Float32Array(TRAIL_FRAMES);
+    const trailGeometry = new THREE.BufferGeometry();
+    trailGeometry.setAttribute('position', new THREE.BufferAttribute(trailPositions, 3));
+    trailGeometry.setAttribute('aAlpha', new THREE.BufferAttribute(trailAlphas, 1));
+    trailGeometry.setDrawRange(0, 0);
+    const trailMaterial = new THREE.ShaderMaterial({
+      transparent: true,
+      depthWrite: false,
+      depthTest: false,
+      uniforms: { uColor: { value: new THREE.Color(0x9ed8ff) } },
+      vertexShader: `
+        attribute float aAlpha;
+        varying float vAlpha;
+        void main() {
+          vAlpha = aAlpha;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform vec3 uColor;
+        varying float vAlpha;
+        void main() {
+          if (vAlpha <= 0.0) discard;
+          gl_FragColor = vec4(uColor, vAlpha);
+        }
+      `,
+    });
+    const trailLine = new THREE.Line(trailGeometry, trailMaterial);
+    trailLine.frustumCulled = false;
+    scene.add(trailLine);
+
     const goalGroup = new THREE.Group();
     goalGroup.position.set(0, 0, GOAL_Z);
     scene.add(goalGroup);
@@ -160,6 +193,7 @@
     let sessionStartedAt = Date.now(); let resultTimer = null; let rafId = 0;
     let accumulator = 0; let flightTime = 0; let apex = BALL_RADIUS; let lastBallZ = PENALTY_SPOT_Z;
     let goalSpeed = 2.9; let goalDir = 1; let goalRange = 5.8; let goalSpeedMult = 1.0;
+    let trailCount = 0;
 
     // ── 主題切換 ──
     const mq = window.matchMedia('(prefers-color-scheme: dark)');
@@ -167,10 +201,40 @@
       const t = isDark ? THEME_DARK : THEME_LIGHT;
       scene.background = new THREE.Color(t.sky);
       groundMat.color.setHex(t.ground);
+      trailMaterial.uniforms.uColor.value.setHex(t.trail);
     }
     function onMqChange(e) { applyTheme(e.matches); }
     mq.addEventListener('change', onMqChange);
     applyTheme(mq.matches);
+
+    function clearTrail() {
+      trailCount = 0;
+      trailGeometry.setDrawRange(0, 0);
+      trailGeometry.attributes.position.needsUpdate = true;
+      trailGeometry.attributes.aAlpha.needsUpdate = true;
+    }
+    function pushTrailPoint(position) {
+      const posArr = trailGeometry.attributes.position.array;
+      const alphaArr = trailGeometry.attributes.aAlpha.array;
+      if (trailCount < TRAIL_FRAMES) {
+        const base = trailCount * 3;
+        posArr[base] = position.x;
+        posArr[base + 1] = position.y;
+        posArr[base + 2] = position.z;
+        trailCount += 1;
+      } else {
+        for (let i = 0; i < (TRAIL_FRAMES - 1) * 3; i += 1) posArr[i] = posArr[i + 3];
+        const base = (TRAIL_FRAMES - 1) * 3;
+        posArr[base] = position.x;
+        posArr[base + 1] = position.y;
+        posArr[base + 2] = position.z;
+      }
+      const denom = Math.max(1, trailCount - 1);
+      for (let i = 0; i < trailCount; i += 1) alphaArr[i] = trailCount === 1 ? 1 : (i / denom);
+      trailGeometry.setDrawRange(0, trailCount);
+      trailGeometry.attributes.position.needsUpdate = true;
+      trailGeometry.attributes.aAlpha.needsUpdate = true;
+    }
 
     function setMessage(text, color) {
       if (!ui.messageEl) return;
@@ -209,6 +273,7 @@
       velocity.set(0, 0, 0); spin.set(0, 0, 0);
       ball.position.set(0, BALL_RADIUS, PENALTY_SPOT_Z);
       lastBallZ = ball.position.z;
+      clearTrail();
       if (ui.powerFillEl) ui.powerFillEl.style.width = '0%';
       setChargeUiVisible(false);
       if (!ui.restartBtn || ui.restartBtn.style.display !== 'block') setMessage('', '#ffffff');
@@ -257,6 +322,8 @@
       }
       spin.set(0.22 + p * 0.24, -aim.x * 0.24, 0);
       setChargeUiVisible(false);
+      clearTrail();
+      pushTrailPoint(ball.position);
       refreshHud();
     }
     function onPointerDown(event) {
@@ -309,6 +376,7 @@
       velocity.add(magnus); velocity.y -= 25.8 * dt; velocity.multiplyScalar(0.997);
       ball.position.addScaledVector(velocity, dt);
       ball.rotation.x += (velocity.z * dt) / BALL_RADIUS; ball.rotation.y += spin.y * dt; ball.rotation.z -= (velocity.x * dt) / BALL_RADIUS;
+      pushTrailPoint(ball.position);
       apex = Math.max(apex, ball.position.y);
       if (ball.position.y <= BALL_RADIUS) { ball.position.y = BALL_RADIUS; velocity.y *= -0.58; velocity.x *= 0.985; velocity.z *= 0.985; spin.multiplyScalar(0.9); }
       if (state === 'flying' && lastBallZ > GOAL_Z && ball.position.z <= GOAL_Z && processGoalHit()) { velocity.multiplyScalar(0.28); velocity.z = Math.abs(velocity.z); }
