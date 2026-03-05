@@ -32,6 +32,8 @@ Object.assign(App, {
       });
     };
     check(ApiService.getBanners(), (id, u) => ApiService.updateBanner(id, u));
+    const sgAd = ApiService.getShotGameAd();
+    if (sgAd) check([sgAd], (id, u) => ApiService.updateShotGameAd(id, u));
     check(ApiService.getFloatingAds(), (id, u) => ApiService.updateFloatingAd(id, u));
     check(ApiService.getPopupAds(), (id, u) => ApiService.updatePopupAd(id, u));
     check(ApiService.getSponsors(), (id, u) => ApiService.updateSponsor(id, u));
@@ -68,6 +70,7 @@ Object.assign(App, {
     else if (type === 'float') this.editFloatingAd(id);
     else if (type === 'popup') this.editPopupAd(id);
     else if (type === 'sponsor') this.editSponsorItem(id);
+    else if (type === 'shotgame') this.editShotGameAd(id);
   },
 
   // ── 通用：下架 ──
@@ -90,6 +93,9 @@ Object.assign(App, {
       ApiService.updateSponsor(id, { status: 'expired' });
       this.renderSponsorManage();
       this.renderSponsors();
+    } else if (type === 'shotgame') {
+      ApiService.updateShotGameAd(id, { status: 'expired' });
+      this.renderShotGameAdManage();
     }
     this.showToast('廣告已下架');
   },
@@ -111,6 +117,9 @@ Object.assign(App, {
       ApiService.updateSponsor(id, { status: 'active' });
       this.renderSponsorManage();
       this.renderSponsors();
+    } else if (type === 'shotgame') {
+      ApiService.updateShotGameAd(id, { status: 'active' });
+      this.renderShotGameAdManage();
     }
     this.showToast('廣告已重新上架');
   },
@@ -137,6 +146,9 @@ Object.assign(App, {
       ApiService.updateSponsor(id, emptyData);
       this.renderSponsorManage();
       this.renderSponsors();
+    } else if (type === 'shotgame') {
+      ApiService.updateShotGameAd(id, emptyData);
+      this.renderShotGameAdManage();
     }
     this.showToast('廣告已刪除');
   },

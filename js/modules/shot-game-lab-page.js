@@ -117,6 +117,18 @@
       durationSec: row.durationSec,
     }));
   }
+  const INTRO_DISMISS_KEY = 'sporthub_shot_game_intro_dismissed';
+  function getTaipeiDateStr() {
+    const t = new Date(Date.now() + 8 * 3600000);
+    return `${t.getUTCFullYear()}-${String(t.getUTCMonth()+1).padStart(2,'0')}-${String(t.getUTCDate()).padStart(2,'0')}`;
+  }
+  function isIntroSuppressed() {
+    try { return localStorage.getItem(INTRO_DISMISS_KEY) === getTaipeiDateStr(); } catch(_) { return false; }
+  }
+  function suppressIntroToday() {
+    try { localStorage.setItem(INTRO_DISMISS_KEY, getTaipeiDateStr()); } catch(_) {}
+  }
+
   function getTaipeiDateBucket(period) {
     const offsetMs = 8 * 60 * 60 * 1000;
     const t = new Date(Date.now() + offsetMs);
@@ -159,6 +171,9 @@
       const leaderboardBody = document.getElementById('sg-leaderboard-body');
       const leaderboardPlayerRow = document.getElementById('sg-leaderboard-player-row');
       const leaderboardTabs = Array.from(document.querySelectorAll('.lb-tab'));
+      const introModal = document.getElementById('sg-intro-modal');
+      const introDismissCheck = document.getElementById('sg-intro-dismiss');
+      const introStartBtn = document.getElementById('sg-intro-start');
       const lowFx = new URLSearchParams(location.search).get('low') === '1';
       let engine = null;
       let bestSessionSinceOpen = null;
@@ -176,7 +191,7 @@
       }
 
       const showGate = (message) => {
-        gate.style.display = '';
+        gate.style.display = 'block';
         gameSection.style.display = 'none';
         if (tokenFeedback) tokenFeedback.textContent = message || 'Enter test token to continue';
       };
@@ -303,6 +318,16 @@
           leaderboardPlayerRow.innerHTML = '';
         }
       };
+      const openIntro = () => {
+        if (isIntroSuppressed() || !introModal) return;
+        introModal.setAttribute('aria-hidden', 'false');
+      };
+      const closeIntro = () => {
+        if (!introModal) return;
+        if (introDismissCheck && introDismissCheck.checked) suppressIntroToday();
+        introModal.setAttribute('aria-hidden', 'true');
+      };
+
       const openLeaderboard = (period) => {
         if (!leaderboardModal) return;
         renderLeaderboard(period || leaderboardPeriod);
@@ -367,7 +392,7 @@
           },
         });
         setSessionBadge();
-        openLeaderboard(leaderboardPeriod);
+        openIntro();
       };
 
       const validateToken = async (rawToken) => {
@@ -419,6 +444,7 @@
           openLeaderboard(leaderboardPeriod);
         });
       }
+      if (introStartBtn) introStartBtn.addEventListener('click', closeIntro);
       if (leaderboardClose) leaderboardClose.addEventListener('click', closeLeaderboard);
       if (leaderboardModal) {
         leaderboardModal.addEventListener('click', (event) => {

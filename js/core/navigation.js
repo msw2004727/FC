@@ -127,7 +127,7 @@ Object.assign(App, {
     if (pageId === 'page-profile') { this.renderUserCard(); this.renderProfileData(); this.renderProfileFavorites(); if (this.renderActivityRecords) this.renderActivityRecords('all', 1); }
     if (pageId === 'page-shop') this.renderShop();
     if (pageId === 'page-admin-users') this.renderAdminUsers();
-    if (pageId === 'page-admin-banners') { this.renderBannerManage(); this.renderFloatingAdManage(); this.renderPopupAdManage(); this.renderSponsorManage(); }
+    if (pageId === 'page-admin-banners') { this.renderBannerManage(); this.renderFloatingAdManage(); this.renderPopupAdManage(); this.renderSponsorManage(); this.renderShotGameAdManage(); }
     if (pageId === 'page-admin-shop') this.renderShopManage();
     if (pageId === 'page-admin-messages') this.renderMsgManage();
     if (pageId === 'page-admin-tournaments') this.renderTournamentManage();

@@ -89,7 +89,8 @@
 // 20260305a: game-lab full Chinese UI, light/dark theme, field line markings
 // 20260305b: free aim, hint top-right, goal randomness, streak ramp, 10x shake
 // 20260305e: Phase 1 shot game — Cloud Function submit + Firestore leaderboard
-const CACHE_VERSION = '20260305e';
+// 20260305f: game adjustments — intro modal, shot game ad slot, flash fix
+const CACHE_VERSION = '20260305f';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {

@@ -675,10 +675,12 @@ const ApiService = {
   getTeamExpLogs()   { return this._src('teamExpLogs'); },
   getOperationLogs() { return this._src('operationLogs'); },
   getErrorLogs()     { return this._src('errorLogs'); },
-  getBanners()       { return this._src('banners'); },
+  getBanners()       { return this._src('banners').filter(b => b.type !== 'shotgame'); },
+  getShotGameAd()    { return this._src('banners').find(b => b.slot === 'sga1') || null; },
   getPermissions()   { return this._src('permissions'); },
 
-  updateBanner(id, updates) { return this._update('banners', id, updates, FirebaseService.updateBanner, 'updateBanner'); },
+  updateBanner(id, updates)      { return this._update('banners', id, updates, FirebaseService.updateBanner, 'updateBanner'); },
+  updateShotGameAd(id, updates)  { return this._update('banners', id, updates, FirebaseService.updateBanner, 'updateBanner'); },
 
   // ════════════════════════════════
   //  Site Themes（佈景主題）

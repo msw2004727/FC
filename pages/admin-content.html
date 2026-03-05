@@ -105,6 +105,36 @@
           <div id="sponsor-manage-list"></div>
         </div>
       </div>
+
+      <!-- 射門遊戲廣告 -->
+      <div class="ad-collapse-section">
+        <div class="admin-section-label ad-collapse-toggle" onclick="App.toggleAdSection(this)">
+          <span>射門遊戲廣告（1 個廣告位）</span><span class="ad-collapse-arrow">▶</span>
+        </div>
+        <div class="ad-collapse-content" style="display:none">
+          <div class="card-list" id="shotgame-ad-manage-list"></div>
+          <div class="form-card" id="sgad-form-card" style="display:none">
+            <div class="role-editor-header"><span id="sgad-form-title">編輯射門遊戲廣告位</span><button class="text-btn" onclick="App.hideShotGameAdForm()">取消</button></div>
+            <div class="form-row">
+              <label>廣告圖片</label>
+              <div class="ce-upload">
+                <input type="file" id="sgad-image" accept=".jpg,.jpeg,.png" hidden>
+                <div class="ce-upload-placeholder" id="sgad-preview" onclick="document.getElementById('sgad-image').click()">
+                  <span class="ce-upload-icon">+</span>
+                  <span class="ce-upload-text">點擊上傳圖片</span>
+                  <span class="ce-upload-hint">建議尺寸 1200 × 400 px｜JPG / PNG｜最大 2MB</span>
+                </div>
+              </div>
+            </div>
+            <div class="form-row"><label>標題（選填）</label><input type="text" id="sgad-input-title" placeholder="例：春季特賣" maxlength="12"></div>
+            <div class="form-row"><label>跳轉連結（選填）</label><input type="text" id="sgad-input-link" placeholder="https://..."></div>
+            <div class="form-row"><label>啟用方式</label><select id="sgad-input-mode" onchange="App.toggleSgAdSchedule()"><option value="now">立即啟用</option><option value="scheduled">預約啟用</option></select></div>
+            <div class="form-row" id="sgad-publish-row" style="display:none"><label>啟用時間</label><input type="datetime-local" id="sgad-input-publish"></div>
+            <div class="form-row"><label>結束時間（選填）</label><input type="datetime-local" id="sgad-input-unpublish"></div>
+            <button class="primary-btn full-width" onclick="App.saveShotGameAd()">儲存</button>
+          </div>
+        </div>
+      </div>
     </section>
 
     <!-- PAGE: Backend - Shop Management (Admin+) -->
