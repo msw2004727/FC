@@ -746,3 +746,16 @@
   3. `functions/index.js`：`submitShotGameScore` 改為同步更新 `daily/weekly/monthly` 三個 bucket，回傳 `isNewBestByPeriod` 供除錯。
   4. 依快取規則更新版本：`js/config.js` `CACHE_VERSION` → `20260305n`，`index.html` 與 `game-lab.html` 全部 `?v=` 同步升版。
 - **教訓**：排行榜功能必須把「可遊玩資格」與「可寫榜資格」對齊，且提交失敗不可靜默；UI 有多周期榜單時，後端 bucket 寫入也必須同步覆蓋，避免出現「當下看得到、刷新就消失」的假象。
+
+### 2026-03-05 — 射門遊戲廣告偶發「被刪除」根因修復（seed 覆蓋）
+- **問題**：射門遊戲廣告（`banners/sga1`）偶發突然變空白，表現像被隨機刪除；首頁 Banner 曾有類似偶發清空體感。
+- **原因**：
+  1. `FirebaseService._seedAdSlots()` 在 `cache` 為空時，使用 `set(..., { merge: true })` 直接把預設空值（`status: 'empty'`, `image: null`）寫回既有廣告文件，會覆蓋真實廣告資料。
+  2. `_startAuthDependentWork()` 可能在公開 boot collections 尚未完成前就觸發，形成 seed 初始化競態，放大第 1 點發生機率。
+  3. `_autoExpireAds()` 全站每分鐘執行，非管理員會話也會進入自動下架流程（雖多數會被 rules 擋寫），增加狀態抖動與誤判。
+- **修復**：
+  1. `js/firebase-service.js`：`_seedAdSlots()` 改為「先讀 doc，僅建立不存在的欄位」，不再覆蓋既有廣告內容。
+  2. `js/firebase-service.js`：`_startAuthDependentWork()` 新增 `_initialized` 守門與 promise 去重，避免初始化競態導致重複 seed。
+  3. `js/modules/ad-manage-core.js`：`_autoExpireAds()` 僅允許 admin+ 會話執行（Production），移除一般用戶端的無效自動寫入流程。
+  4. 依快取規則更新版本：`js/config.js` `CACHE_VERSION` → `20260305o`，`index.html` 全部 `?v=` 同步升版。
+- **教訓**：seed 類初始化必須是「只補缺」而非「覆蓋預設」，且需避開啟動競態；排程型寫入（如自動下架）應限制在可寫角色或後端任務，避免前端多端競態改寫正式資料。

@@ -667,58 +667,81 @@ const FirebaseService = {
 
   /** Auth 完成後啟動需驗證的監聽器 + seed（背景執行，不阻塞首頁） */
   async _startAuthDependentWork() {
-    try {
-      await Promise.race([
-        this._authPromise,
-        new Promise((_, reject) => setTimeout(() => reject(new Error('AUTH_TIMEOUT')), 15000))
-      ]);
-    } catch (err) {
-      console.error('[FirebaseService] Firebase Auth 登入失敗:', err?.code || err?.message);
-      this._authError = err;
+    if (!this._initialized) {
+      console.log('[FirebaseService] Defer auth-dependent init until public init is ready.');
       return;
     }
 
-    const authUid = auth?.currentUser?.uid || null;
-    if (!authUid) {
-      console.log('[FirebaseService] Skip auth-dependent listeners: auth user not ready yet.');
-      return;
+    const currentUid = auth?.currentUser?.uid || '__pending__';
+    if (this._authDependentWorkPromise && this._authDependentWorkUid === currentUid) {
+      return this._authDependentWorkPromise;
     }
 
-    this._startMessagesListener();
-    this._startUsersListener();
+    const workPromise = (async () => {
+      try {
+        await Promise.race([
+          this._authPromise,
+          new Promise((_, reject) => setTimeout(() => reject(new Error('AUTH_TIMEOUT')), 15000))
+        ]);
+      } catch (err) {
+        console.error('[FirebaseService] Firebase Auth 登入失敗:', err?.code || err?.message);
+        this._authError = err;
+        return;
+      }
 
+      const authUid = auth?.currentUser?.uid || null;
+      if (!authUid) {
+        console.log('[FirebaseService] Skip auth-dependent listeners: auth user not ready yet.');
+        return;
+      }
+
+      this._startMessagesListener();
+      this._startUsersListener();
+
+      try {
+        await this._watchRolePermissionsRealtime(true);
+      } catch (err) { console.warn('[FirebaseService] rolePermissions 載入失敗:', err); }
+
+      const authRole = await this._resolveCurrentAuthRole();
+      const canAdminSeed = this._roleLevel(authRole) >= this._roleLevel('admin');
+      const canSuperAdminSeed = this._roleLevel(authRole) >= this._roleLevel('super_admin');
+      const seedTasks = [];
+
+      if (canAdminSeed) {
+        seedTasks.push(
+          this._cleanupDuplicateDocs(),
+          this._seedAdSlots().then(() => this._ensureSga1Slot()),
+          this._seedNotifTemplates(),
+          this._seedAchievements(),
+        );
+      } else {
+        console.log(`[FirebaseService] Skip admin seed for role "${authRole}"`);
+      }
+
+      if (canSuperAdminSeed) {
+        seedTasks.push(this._seedRoleData());
+      } else {
+        console.log(`[FirebaseService] Skip super_admin seed for role "${authRole}"`);
+      }
+
+      if (seedTasks.length > 0) {
+        await Promise.all(seedTasks);
+      }
+
+      this._persistCache();
+      console.log('[FirebaseService] Auth-dependent init complete.');
+    })();
+
+    this._authDependentWorkUid = currentUid;
+    this._authDependentWorkPromise = workPromise;
     try {
-      await this._watchRolePermissionsRealtime(true);
-    } catch (err) { console.warn('[FirebaseService] rolePermissions 載入失敗:', err); }
-
-    const authRole = await this._resolveCurrentAuthRole();
-    const canAdminSeed = this._roleLevel(authRole) >= this._roleLevel('admin');
-    const canSuperAdminSeed = this._roleLevel(authRole) >= this._roleLevel('super_admin');
-    const seedTasks = [];
-
-    if (canAdminSeed) {
-      seedTasks.push(
-        this._cleanupDuplicateDocs(),
-        this._seedAdSlots().then(() => this._ensureSga1Slot()),
-        this._seedNotifTemplates(),
-        this._seedAchievements(),
-      );
-    } else {
-      console.log(`[FirebaseService] Skip admin seed for role "${authRole}"`);
+      await workPromise;
+    } finally {
+      if (this._authDependentWorkPromise === workPromise) {
+        this._authDependentWorkPromise = null;
+        this._authDependentWorkUid = null;
+      }
     }
-
-    if (canSuperAdminSeed) {
-      seedTasks.push(this._seedRoleData());
-    } else {
-      console.log(`[FirebaseService] Skip super_admin seed for role "${authRole}"`);
-    }
-
-    if (seedTasks.length > 0) {
-      await Promise.all(seedTasks);
-    }
-
-    this._persistCache();
-    console.log('[FirebaseService] Auth-dependent init complete.');
   },
 
   // ════════════════════════════════
@@ -952,17 +975,36 @@ const FirebaseService = {
         return;
       }
       if (this._cache[collectionName].length > 0) return;
-      console.log(`[FirebaseService] 建立空白 ${collectionName} 欄位...`);
+      const refs = slots.map(slot => db.collection(collectionName).doc(slot.id));
+      const snaps = await Promise.all(refs.map(ref => ref.get()));
       const batch = db.batch();
-      slots.forEach(slot => {
-        const ref = db.collection(collectionName).doc(slot.id);
-        batch.set(ref, { ...slot, createdAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true });
+      const cacheDocs = [];
+      let createdCount = 0;
+
+      slots.forEach((slot, idx) => {
+        const snap = snaps[idx];
+        if (snap.exists) {
+          cacheDocs.push({ _docId: snap.id, ...snap.data() });
+          return;
+        }
+        createdCount += 1;
+        batch.set(refs[idx], {
+          ...slot,
+          createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+        });
+        cacheDocs.push({ ...slot, _docId: slot.id });
       });
-      await batch.commit();
-      slots.forEach(slot => {
-        slot._docId = slot.id;
-        this._cache[collectionName].push(slot);
-      });
+
+      if (createdCount > 0) {
+        console.log(`[FirebaseService] 補齊 ${collectionName} 缺漏欄位: ${createdCount} 筆`);
+        await batch.commit();
+      } else {
+        console.log(`[FirebaseService] ${collectionName} 欄位已齊全，略過補建`);
+      }
+
+      if (this._cache[collectionName].length === 0 && cacheDocs.length > 0) {
+        this._cache[collectionName].push(...cacheDocs);
+      }
     };
 
     // 每個集合獨立 try-catch，避免單一失敗導致後續全部跳過

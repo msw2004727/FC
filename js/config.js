@@ -92,7 +92,8 @@
 // 20260305f: game adjustments — intro modal, shot game ad slot, flash fix
 // 20260305j: 射門遊戲嵌入主站（pages/game.html + shot-game-page.js + game.css）
 // 20260305n: game-lab 排行榜落庫修正（匿名登入擋板 + 日/週/月榜同步寫入）
-const CACHE_VERSION = '20260305n';
+// 20260305o: 修復廣告欄位偶發被清空（seed 僅補缺、不覆蓋）+ 防初始化競態重複 seed
+const CACHE_VERSION = '20260305o';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {
