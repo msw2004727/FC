@@ -1009,3 +1009,12 @@
   - `app.js`: added in-flight deep link open guard so one pending deep link only opens once at a time, and _tryOpenPendingDeepLink() now awaits detail open completion before deciding success/fallback.
   - js/config.js, index.html: bumped cache version to 20260306i.
 - **Lesson**: In this no-build Object.assign(App, ...) architecture, detail pages must follow the same load shell -> ensure script -> render detail contract as route pages, or cold-start deep links will fail intermittently.
+### 2026-03-06 - homepage slimming V2 Step 4 remove non-home eager route modules
+- **Issue**: `index.html` still eagerly loaded many page-owned modules that are not required for homepage boot, so Step 2/3's loaders were not yet reducing homepage parse cost.
+- **Cause**: Several route modules were still left in the eager block, and direct homepage/profile entry points (`App.showEventDetail()` / `App.showTeamDetail()`) would have broken if those modules were simply removed without a gateway fallback.
+- **Fix**:
+  - `js/core/navigation.js`: added lazy route gateways for `showEventDetail()` and `showTeamDetail()` so direct card clicks can first ensure the target page/script/data pipeline, then hand off to the real module implementation after it is loaded.
+  - `index.html`: removed eager loading for non-home route modules now covered by `ScriptLoader`, including event detail, team detail/form/list, tournament manage, message admin, dashboard/personal dashboard, admin user/system pages, scan, shot game page, and ad-manage leaf pages.
+  - `index.html`: deliberately kept `shop.js`, `event-create.js`, `ad-manage-core.js`, `profile-card.js`, and `leaderboard.js` eager because they still have cross-module bootstrap/runtime dependencies outside pure route entry.
+  - `js/config.js`, `index.html`: bumped cache version to `20260306j`.
+- **Lesson**: In this architecture, script slimming must be gated by actual call-entry analysis, not page ownership alone. If an eager module directly calls a function defined in another module, that callee cannot be removed from eager load until a gateway or dependency split exists.

@@ -121,7 +121,8 @@
 // 20260306f: 修正點球命中檢測為遞迴 raycast，恢復可射門
 // 20260306h: 首頁性能瘦身 V2 Step 2，建立可等待的 page/script/data gateway 契約
 // 20260306i: 首頁性能瘦身 V2 Step 3，補上 detail gateway 與 deep link 安全流程
-const CACHE_VERSION = '20260306i';
+// 20260306j: 首頁性能瘦身 V2 Step 4，移出非首頁 eager route modules 並保留安全 gateway
+const CACHE_VERSION = '20260306j';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {

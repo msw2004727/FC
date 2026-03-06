@@ -85,6 +85,32 @@ Object.assign(App, {
     }
   },
 
+  async _invokeLazyRouteMethod(pageId, methodName, args = []) {
+    const gateway = this._lazyRouteGateways && this._lazyRouteGateways[methodName];
+    const currentMethod = this[methodName];
+
+    if (typeof currentMethod === 'function' && (!gateway || currentMethod !== gateway)) {
+      return await currentMethod.apply(this, args);
+    }
+
+    await this._ensurePageEntryReady(pageId);
+
+    const loadedMethod = this[methodName];
+    if (typeof loadedMethod !== 'function' || (gateway && loadedMethod === gateway)) {
+      throw new Error(`Route method unavailable: ${methodName}`);
+    }
+
+    return await loadedMethod.apply(this, args);
+  },
+
+  async showEventDetail(id) {
+    return await this._invokeLazyRouteMethod('page-activity-detail', 'showEventDetail', [id]);
+  },
+
+  async showTeamDetail(id) {
+    return await this._invokeLazyRouteMethod('page-team-detail', 'showTeamDetail', [id]);
+  },
+
   async showPage(pageId, options = {}) {
     if (!options.bypassRestrictionGuard && this._isCurrentUserRestricted() && pageId !== 'page-home') {
       this._showRestrictedToast();
@@ -296,4 +322,9 @@ Object.assign(App, {
     });
   },
 
+});
+
+App._lazyRouteGateways = Object.assign({}, App._lazyRouteGateways, {
+  showEventDetail: App.showEventDetail,
+  showTeamDetail: App.showTeamDetail,
 });
