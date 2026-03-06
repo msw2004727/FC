@@ -123,6 +123,12 @@ Object.assign(App, {
     return await this._invokeLazyRouteMethod('page-team-detail', 'showTeamDetail', [id]);
   },
 
+  goToScanForEvent(eventId) {
+    // Keep the entrypoint in core so event detail can route to the lazy scan module safely.
+    this._scanPresetEventId = eventId || null;
+    void this.showPage('page-scan');
+  },
+
   async showPage(pageId, options = {}) {
     if (!options.bypassRestrictionGuard && this._isCurrentUserRestricted() && pageId !== 'page-home') {
       this._showRestrictedToast();

@@ -11,11 +11,6 @@ Object.assign(App, {
   _lastScannedUid: null,
   _lastScanTime: 0,
 
-  goToScanForEvent(eventId) {
-    this._scanPresetEventId = eventId;
-    this.showPage('page-scan');
-  },
-
   // ══════════════════════════════════
   //  Render scan page
   // ══════════════════════════════════
