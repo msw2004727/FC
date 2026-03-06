@@ -206,7 +206,9 @@ const FirebaseService = {
   // 集合 → 頁面映射（用於懶載入觸發）
   _collectionPageMap: {
     'page-tournaments':       ['tournaments', 'standings', 'matches'],
+    'page-tournament-detail': ['tournaments', 'standings', 'matches'],
     'page-shop':              ['shopItems', 'trades'],
+    'page-shop-detail':       ['shopItems', 'trades'],
     'page-activities':        ['attendanceRecords', 'activityRecords', 'registrations'],
     'page-activity-detail':   ['registrations', 'attendanceRecords'],
     'page-my-activities':     ['attendanceRecords', 'activityRecords', 'registrations'],

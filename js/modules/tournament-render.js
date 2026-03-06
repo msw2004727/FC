@@ -137,11 +137,13 @@ Object.assign(App, {
     }).join('');
   },
 
-  showTournamentDetail(id) {
+  async showTournamentDetail(id) {
     if (this._requireLogin()) return;
     this.currentTournament = id;
     const t = ApiService.getTournament(id);
     if (!t) return;
+    await this.showPage('page-tournament-detail');
+    if (!document.getElementById('td-title')) return;
 
     // 圖片渲染
     const tdImg = document.getElementById('td-img-placeholder');
@@ -160,8 +162,6 @@ Object.assign(App, {
     this.renderRegisterButton(t);
     // 賽事資訊（場地、日期、費用、主辦、委託）
     this.renderTournamentInfo(t);
-
-    this.showPage('page-tournament-detail');
 
     // 頁簽綁定
     document.querySelectorAll('#td-tabs .tab').forEach(tab => {

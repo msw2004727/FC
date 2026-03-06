@@ -35,9 +35,11 @@ Object.assign(App, {
   //  Show Shop Detail
   // ══════════════════════════════════
 
-  showShopDetail(id) {
+  async showShopDetail(id) {
     const s = ApiService.getShopItem(id);
     if (!s) return;
+    await this.showPage('page-shop-detail');
+    if (!document.getElementById('shop-detail-title')) return;
     document.getElementById('shop-detail-title').textContent = s.name;
     const imgs = s.images && s.images.length > 0 ? s.images : [];
     const imgSlots = [0, 1, 2].map(i => {
@@ -65,7 +67,6 @@ Object.assign(App, {
         <button class="primary-btn" disabled style="opacity:.45;cursor:not-allowed">聯繫賣家</button>
       </div>
     `;
-    this.showPage('page-shop-detail');
   },
 
   openLightbox(el) {

@@ -1080,3 +1080,15 @@
   - `css/base.css`: changed `.status-hint` bottom offset to match `.toast` at `calc(var(--bottombar-h) + 16px)`.
   - `js/config.js`, `index.html`: bumped cache version to `20260306q`.
 - **Lesson**: When introducing a new feedback component intended to match an existing interaction pattern, align anchor position as well as shape and motion; otherwise the UI still feels inconsistent.
+
+### 2026-03-06 - Step 6 validation fixed cold-first-visit gaps for shop/tournament detail
+- **Issue**: Step 6 structural validation found that `page-shop-detail` and `page-tournament-detail` were top-level pages but not fully covered by the lazy page/data contract, so cold first visits depended on their parent fragment already being loaded.
+- **Cause**: `PageLoader` had no fragment mapping for those detail pages, `FirebaseService.ensureCollectionsForPage()` had no detail-page collection map, and both `showShopDetail()` / `showTournamentDetail()` wrote DOM before ensuring the target page fragment existed.
+- **Fix**:
+  - `js/core/page-loader.js`: mapped `page-shop-detail` to `shop` and `page-tournament-detail` to `tournament`.
+  - `js/firebase-service.js`: added `page-shop-detail` and `page-tournament-detail` collection mappings.
+  - `js/modules/shop.js`: `showShopDetail()` now awaits `showPage('page-shop-detail')` before writing detail DOM.
+  - `js/modules/tournament-render.js`: `showTournamentDetail()` now awaits `showPage('page-tournament-detail')` before writing detail DOM.
+  - `docs/home-performance-step6-validation.md`: added the final Step 6 validation report.
+  - `js/config.js`, `index.html`: bumped cache version to `20260306r`.
+- **Lesson**: Any page that can be entered directly from homepage cards must satisfy the full `page -> data -> DOM write` contract. Parent-fragment assumptions are not acceptable once route loading is intentionally made lazy.
