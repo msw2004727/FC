@@ -130,7 +130,8 @@
 // 20260306p: 將 route loading 改為 toast 下方非阻擋小提示，並收斂 LINE 文案只在 auth pending 顯示
 // 20260306q: status hint 底部高度對齊既有 toast（如「功能準備中」）
 // 20260306r: Step 6 驗收補齊 shop/tournament detail 冷首訪 fragment/data 契約缺口
-const CACHE_VERSION = '20260306r';
+// 20260306s: PK 大賽蓄力條改為跟隨球的螢幕座標顯示在球上方，避免手機手指遮擋
+const CACHE_VERSION = '20260306s';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {

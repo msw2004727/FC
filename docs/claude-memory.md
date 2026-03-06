@@ -1100,3 +1100,11 @@
   - Added `docs/home-performance-v2-final-summary.md` as the final outcome summary for the full V2 effort.
   - Removed `docs/home-performance-slimming-step1-baseline.md` as a temporary construction artifact.
 - **Lesson**: Once a multi-step upgrade is complete, keep the long-term document set small: final spec, final validation, and final summary are enough; transient execution scaffolding should be removed.
+
+### 2026-03-06 - move PK game power bar above the ball on mobile
+- **Issue**: In the PK mini-game, charging on mobile could hide the power bar behind the user's finger because the bar was anchored below the ball.
+- **Cause**: `#sg-power` used a fixed bottom offset in CSS, so the bar stayed near the bottom HUD instead of following the ball's on-screen position.
+- **Fix**:
+  - `js/modules/shot-game-engine.js`: projected the ball's top/bottom world coordinates into screen space, preserved the current visual gap, and moved the power bar to the ball's upper side while charging.
+  - `js/config.js`, `index.html`: bumped cache version to `20260306s`.
+- **Lesson**: HUD that is part of a direct touch gesture should anchor to the interacted object, not to a fixed screen edge, or mobile touch occlusion will eventually appear.

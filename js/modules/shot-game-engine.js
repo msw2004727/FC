@@ -579,8 +579,12 @@
     const nearestPoint = new THREE.Vector3();
     const normalComponent = new THREE.Vector3();
     const tangentComponent = new THREE.Vector3();
+    const powerBarTopWorldPoint = new THREE.Vector3();
+    const powerBarBottomWorldPoint = new THREE.Vector3();
     let createdMessageBand = false;
     let messageBandEl = null;
+    let powerBarLegacyBottomPx = 74;
+    let powerBarHeightPx = 20;
     if (container && typeof container.querySelector === 'function') {
       messageBandEl = container.querySelector('.sg-message-band');
       if (!messageBandEl) {
@@ -811,8 +815,52 @@
       if (ui.streakEl) ui.streakEl.textContent = `連進：${streak}`;
       if (onScoreChange) onScoreChange({ score, streak, shots, state });
     }
+    function parseCssPixel(value, fallback) {
+      const parsed = parseFloat(value);
+      return Number.isFinite(parsed) ? parsed : fallback;
+    }
+    function refreshPowerBarMetrics() {
+      if (!ui.powerBarEl || typeof window.getComputedStyle !== 'function') return;
+      const prevTop = ui.powerBarEl.style.top;
+      const prevBottom = ui.powerBarEl.style.bottom;
+      ui.powerBarEl.style.top = '';
+      ui.powerBarEl.style.bottom = '';
+      const computed = window.getComputedStyle(ui.powerBarEl);
+      powerBarLegacyBottomPx = parseCssPixel(computed.bottom, powerBarLegacyBottomPx);
+      powerBarHeightPx = parseCssPixel(computed.height, powerBarHeightPx);
+      ui.powerBarEl.style.top = prevTop;
+      ui.powerBarEl.style.bottom = prevBottom;
+    }
+    function projectWorldY(worldPoint) {
+      const projected = worldPoint.project(camera);
+      return (-projected.y * 0.5 + 0.5) * container.clientHeight;
+    }
+    function updatePowerBarPosition() {
+      if (!ui.powerBarEl || container.clientHeight <= 0) return;
+      powerBarTopWorldPoint.copy(ball.position);
+      powerBarTopWorldPoint.y += BALL_RADIUS;
+      powerBarBottomWorldPoint.copy(ball.position);
+      powerBarBottomWorldPoint.y -= BALL_RADIUS;
+      const ballTopY = projectWorldY(powerBarTopWorldPoint);
+      const ballBottomY = projectWorldY(powerBarBottomWorldPoint);
+      const legacyBarTopY = container.clientHeight - powerBarLegacyBottomPx - powerBarHeightPx;
+      const legacyGapPx = Math.max(0, legacyBarTopY - ballBottomY);
+      const maxTopPx = Math.max(8, container.clientHeight - powerBarHeightPx - 8);
+      const nextTopPx = clamp(ballTopY - legacyGapPx - powerBarHeightPx, 8, maxTopPx);
+      ui.powerBarEl.style.top = `${nextTopPx}px`;
+      ui.powerBarEl.style.bottom = 'auto';
+    }
     function setChargeUiVisible(visible) {
-      if (ui.powerBarEl) ui.powerBarEl.style.display = visible ? 'block' : 'none';
+      if (ui.powerBarEl) {
+        ui.powerBarEl.style.display = visible ? 'block' : 'none';
+        if (visible) {
+          refreshPowerBarMetrics();
+          updatePowerBarPosition();
+        } else {
+          ui.powerBarEl.style.top = '';
+          ui.powerBarEl.style.bottom = '';
+        }
+      }
       if (ui.crosshairEl) ui.crosshairEl.style.display = visible ? 'block' : 'none';
     }
     function updateCrosshair() {
@@ -854,6 +902,8 @@
       camera.updateProjectionMatrix();
       renderer.setSize(w, h);
       updateCrosshair();
+      refreshPowerBarMetrics();
+      if (ui.powerBarEl && ui.powerBarEl.style.display === 'block') updatePowerBarPosition();
     }
     function resetShot() {
       if (resultTimer) clearTimeout(resultTimer);
@@ -1052,6 +1102,7 @@
           ui.powerFillEl.style.width = `${displayPower}%`;
           ui.powerFillEl.style.background = power > 100 ? '#ef4444' : 'linear-gradient(90deg,#22c55e,#facc15)';
         }
+        updatePowerBarPosition();
         if (ui.crosshairEl) {
           const baseShake = power < 100 ? power * 0.4 : 40 + (power - 100) * 1.8;
           const amplified = power >= 100 ? baseShake * FULL_CHARGE_SHAKE_MULTIPLIER : baseShake;
