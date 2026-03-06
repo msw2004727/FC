@@ -17,6 +17,8 @@ const App = {
   _bootDeepLinkPoller: null,
   _deepLinkBootTimeoutMs: 12000,
   _deepLinkAuthRedirecting: false,
+  _pendingDeepLinkOpenKey: '',
+  _pendingDeepLinkOpenPromise: null,
 
   init() {
     this.bindRoleSwitcher();
@@ -204,6 +206,8 @@ const App = {
     this._hideDeepLinkOverlay();
     this._bootDeepLink = null;
     this._deepLinkAuthRedirecting = false;
+    this._pendingDeepLinkOpenKey = '';
+    this._pendingDeepLinkOpenPromise = null;
   },
 
   _completeDeepLinkFallback(message, targetPage = 'page-activities') {
@@ -213,6 +217,8 @@ const App = {
     this._hideDeepLinkOverlay();
     this._bootDeepLink = null;
     this._deepLinkAuthRedirecting = false;
+    this._pendingDeepLinkOpenKey = '';
+    this._pendingDeepLinkOpenPromise = null;
     const canOpenProtected = ModeManager.isDemo() || (typeof LineAuth !== 'undefined' && LineAuth.isLoggedIn());
     const fallbackPage = (!canOpenProtected && targetPage !== 'page-home') ? 'page-home' : targetPage;
     if (fallbackPage && this.currentPage !== fallbackPage) this.showPage(fallbackPage);
@@ -277,45 +283,71 @@ const App = {
     }, this._deepLinkBootTimeoutMs);
 
     this._bootDeepLinkPoller = setInterval(() => {
-      try {
-        this._tryOpenPendingDeepLink();
-      } catch (_) {}
+      void this._tryOpenPendingDeepLink();
     }, 280);
   },
 
-  _tryOpenPendingDeepLink() {
-    const pending = this._getPendingDeepLink();
-    if (!pending) return true;
+  async _tryOpenPendingDeepLink() {
+    try {
+      const pending = this._getPendingDeepLink();
+      if (!pending) return true;
 
-    const isAuthed = ModeManager.isDemo() || (typeof LineAuth !== 'undefined' && LineAuth.isLoggedIn());
-    if (!isAuthed) {
-      this._tryStartDeepLinkLogin();
-      return false;
-    }
-
-    if (pending.type === 'event') {
-      const event = ApiService.getEvent?.(pending.id);
-      if (!event) return false;
-      this.showEventDetail(pending.id);
-      if (this.currentPage === 'page-activity-detail' && this._currentDetailEventId === pending.id) {
-        this._completeDeepLinkSuccess();
-        return true;
+      const key = `${pending.type}:${pending.id}`;
+      if (this._pendingDeepLinkOpenPromise && this._pendingDeepLinkOpenKey === key) {
+        return await this._pendingDeepLinkOpenPromise;
       }
-      return false;
-    }
 
-    if (pending.type === 'team') {
-      const team = ApiService.getTeam?.(pending.id);
-      if (!team) return false;
-      this.showTeamDetail(pending.id);
-      if (this.currentPage === 'page-team-detail') {
-        this._completeDeepLinkSuccess();
-        return true;
+      const isAuthed = ModeManager.isDemo() || (typeof LineAuth !== 'undefined' && LineAuth.isLoggedIn());
+      if (!isAuthed) {
+        this._tryStartDeepLinkLogin();
+        return false;
       }
+
+      const openPromise = (async () => {
+        if (pending.type === 'event') {
+          const event = ApiService.getEvent?.(pending.id);
+          if (!event) return false;
+
+          const result = await this.showEventDetail(pending.id);
+          if (result?.ok && this.currentPage === 'page-activity-detail' && this._currentDetailEventId === pending.id) {
+            this._completeDeepLinkSuccess();
+            return true;
+          }
+          if (result?.reason === 'forbidden') {
+            this._completeDeepLinkFallback('\u7121\u6cd5\u958b\u555f\u6d3b\u52d5\u8a73\u60c5\uff0c\u5df2\u5207\u56de\u5217\u8868\u3002', 'page-activities');
+            return true;
+          }
+          return false;
+        }
+
+        if (pending.type === 'team') {
+          const team = ApiService.getTeam?.(pending.id);
+          if (!team) return false;
+
+          const result = await this.showTeamDetail(pending.id);
+          if (result?.ok && this.currentPage === 'page-team-detail' && this._teamDetailId === pending.id) {
+            this._completeDeepLinkSuccess();
+            return true;
+          }
+          return false;
+        }
+
+        return false;
+      })();
+
+      this._pendingDeepLinkOpenKey = key;
+      this._pendingDeepLinkOpenPromise = openPromise.finally(() => {
+        if (this._pendingDeepLinkOpenKey === key) {
+          this._pendingDeepLinkOpenKey = '';
+          this._pendingDeepLinkOpenPromise = null;
+        }
+      });
+
+      return await this._pendingDeepLinkOpenPromise;
+    } catch (err) {
+      console.warn('[DeepLink] pending open failed:', err);
       return false;
     }
-
-    return false;
   },
 };
 
@@ -493,13 +525,13 @@ document.addEventListener('DOMContentLoaded', async () => {
           try { App.showToast('LINE 登入流程異常，請重新整理頁面'); } catch (_) {}
         }
         // LIFF ready 後再嘗試開 deep link，成功才會清除 query 參數
-        try { App._tryOpenPendingDeepLink(); } catch (_) {}
+        void App._tryOpenPendingDeepLink();
       } catch (err) {
         console.error('[Boot] Phase 4 背景初始化失敗:', err?.message || err);
         try { App.showToast('網路連線異常，部分資料可能未更新'); } catch (e) {}
         // 即使失敗也更新登入 UI，避免卡在 pending 狀態
         try { if (typeof App.bindLineLogin === 'function') await App.bindLineLogin(); } catch (e) {}
-        try { App._tryOpenPendingDeepLink(); } catch (_) {}
+        void App._tryOpenPendingDeepLink();
       }
     })();
   }
@@ -513,7 +545,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   // 嘗試立即開啟 deep link（其餘會由 guard 持續輪詢）
-  try { App._tryOpenPendingDeepLink(); } catch (_) {}
+  void App._tryOpenPendingDeepLink();
 
   // 定時任務（全部 try-catch 保護）
   // Hash 路由：瀏覽器返回/前進鍵同步頁面

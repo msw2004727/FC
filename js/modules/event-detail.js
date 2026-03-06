@@ -6,6 +6,18 @@
 
 Object.assign(App, {
 
+  _eventDetailRequestSeq: 0,
+
+  _getEventDetailNodes() {
+    const nodes = {
+      title: document.getElementById('detail-title'),
+      publicToggleWrap: document.getElementById('detail-public-toggle-wrap'),
+      image: document.getElementById('detail-img-placeholder'),
+      body: document.getElementById('detail-body'),
+    };
+    return Object.values(nodes).every(Boolean) ? nodes : null;
+  },
+
   _renderEventPublicToggle(e) {
     const wrap = document.getElementById('detail-public-toggle-wrap');
     if (!wrap) return;
@@ -67,17 +79,39 @@ Object.assign(App, {
   //  Show Event Detail
   // ══════════════════════════════════
 
-  showEventDetail(id) {
-    if (this._requireLogin()) return;
-    const e = ApiService.getEvent(id);
-    if (!e) return;
-    if (typeof this._canViewEventByTeamScope === 'function' && !this._canViewEventByTeamScope(e)) {
-      this.showToast('您沒有查看此活動的權限');
-      return;
-    }
-    this._currentDetailEventId = id;
+  async showEventDetail(id) {
+    try {
+      if (this._requireLogin()) return { ok: false, reason: 'auth' };
+      let e = ApiService.getEvent(id);
+      if (!e) return { ok: false, reason: 'missing' };
+      if (typeof this._canViewEventByTeamScope === 'function' && !this._canViewEventByTeamScope(e)) {
+        this.showToast('\u60a8\u6c92\u6709\u67e5\u770b\u6b64\u6d3b\u52d5\u7684\u6b0a\u9650');
+        return { ok: false, reason: 'forbidden' };
+      }
+
+      const requestSeq = ++this._eventDetailRequestSeq;
+      await this.showPage('page-activity-detail');
+      if (requestSeq !== this._eventDetailRequestSeq || this.currentPage !== 'page-activity-detail') {
+        return { ok: false, reason: 'stale' };
+      }
+
+      e = ApiService.getEvent(id);
+      if (!e) return { ok: false, reason: 'missing' };
+      if (typeof this._canViewEventByTeamScope === 'function' && !this._canViewEventByTeamScope(e)) {
+        this.showToast('\u60a8\u6c92\u6709\u67e5\u770b\u6b64\u6d3b\u52d5\u7684\u6b0a\u9650');
+        return { ok: false, reason: 'forbidden' };
+      }
+
+      const nodes = this._getEventDetailNodes();
+      if (!nodes) {
+        console.warn('[EventDetail] detail shell missing after navigation');
+        this.showToast('\u6d3b\u52d5\u8a73\u60c5\u9801\u9762\u8f09\u5165\u5931\u6557');
+        return { ok: false, reason: 'page-not-ready' };
+      }
+
+      this._currentDetailEventId = id;
     this._renderEventPublicToggle(e);
-    const detailImg = document.getElementById('detail-img-placeholder');
+      const detailImg = nodes.image;
     if (detailImg) {
       if (e.image) {
         detailImg.innerHTML = `<img src="${e.image}" alt="${escapeHTML(e.title)}" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block;border-radius:var(--radius)">`;
@@ -87,7 +121,7 @@ Object.assign(App, {
         detailImg.style.border = '';
       }
     }
-    document.getElementById('detail-title').innerHTML = escapeHTML(e.title) + ' ' + this._favHeartHtml(this.isEventFavorited(id), 'Event', id);
+      nodes.title.innerHTML = escapeHTML(e.title) + ' ' + this._favHeartHtml(this.isEventFavorited(id), 'Event', id);
 
     const countdown = this._calcCountdown(e);
     const mapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(e.location)}`;
@@ -147,7 +181,7 @@ Object.assign(App, {
       }
     }
 
-    document.getElementById('detail-body').innerHTML = `
+      nodes.body.innerHTML = `
       <div class="detail-row"><span class="detail-label">地點</span>${locationHtml}</div>
       <div class="detail-row"><span class="detail-label">時間</span>${escapeHTML(e.date)}</div>
       ${regOpenHtml}
@@ -180,10 +214,15 @@ Object.assign(App, {
       <div id="detail-waitlist-container"></div>
       ${this._renderReviews(e)}
     `;
-    this.showPage('page-activity-detail');
     this._renderAttendanceTable(id, 'detail-attendance-table');
     this._renderUnregTable(id, 'detail-unreg-table');
-    this._renderGroupedWaitlistSection(id, 'detail-waitlist-container');
+      this._renderGroupedWaitlistSection(id, 'detail-waitlist-container');
+      return { ok: true, reason: 'ok' };
+    } catch (err) {
+      console.error('[EventDetail] showEventDetail failed:', err);
+      this.showToast('\u7121\u6cd5\u958b\u555f\u6d3b\u52d5\u8a73\u60c5');
+      return { ok: false, reason: 'error' };
+    }
   },
 
   // ── 候補名單：分組網格顯示 + 正取編輯模式 ──

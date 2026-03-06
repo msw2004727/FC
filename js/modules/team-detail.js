@@ -6,6 +6,7 @@
 Object.assign(App, {
 
   _teamDetailId: null,
+  _teamDetailRequestSeq: 0,
   _teamFeedPage: {},
   _teamMemberEditModeByTeam: {},
   _FEED_PAGE_SIZE: 20,
@@ -85,6 +86,23 @@ Object.assign(App, {
     }
   },
 
+  _getTeamDetailNodes() {
+    const nodes = {
+      title: document.getElementById('team-detail-title'),
+      nameEn: document.getElementById('team-detail-name-en'),
+      image: document.getElementById('team-detail-img'),
+      body: document.getElementById('team-detail-body'),
+      editButton: document.getElementById('team-detail-edit-btn'),
+    };
+    return Object.values(nodes).every(Boolean) ? nodes : null;
+  },
+
+  async _refreshTeamDetailMembers(teamId) {
+    const result = await this.showTeamDetail(teamId);
+    if (result?.ok) this._keepTeamMembersSectionOpen();
+    return result;
+  },
+
   openTeamDetailEdit() {
     const teamId = this._teamDetailId;
     const team = teamId ? ApiService.getTeam(teamId) : null;
@@ -96,18 +114,35 @@ Object.assign(App, {
     this.showTeamForm(team.id);
   },
 
-  showTeamDetail(id) {
-    const t = ApiService.getTeam(id);
-    if (!t) return;
-    this._teamDetailId = id;
+  async showTeamDetail(id) {
+    try {
+      let t = ApiService.getTeam(id);
+      if (!t) return { ok: false, reason: 'missing' };
+      const requestSeq = ++this._teamDetailRequestSeq;
+      await this.showPage('page-team-detail');
+      if (requestSeq !== this._teamDetailRequestSeq || this.currentPage !== 'page-team-detail') {
+        return { ok: false, reason: 'stale' };
+      }
+
+      t = ApiService.getTeam(id);
+      if (!t) return { ok: false, reason: 'missing' };
+
+      const nodes = this._getTeamDetailNodes();
+      if (!nodes) {
+        console.warn('[TeamDetail] detail shell missing after navigation');
+        this.showToast('\u7403\u968a\u8a73\u60c5\u9801\u9762\u8f09\u5165\u5931\u6557');
+        return { ok: false, reason: 'page-not-ready' };
+      }
+
+      this._teamDetailId = id;
     this._refreshTeamDetailEditButton(t);
     const canManageMembers = this._canManageTeamMembers(t);
     const memberEditMode = !!this._teamMemberEditModeByTeam[t.id];
     const staffIdentity = this._getTeamStaffIdentity(t);
-    document.getElementById('team-detail-title').textContent = t.name;
-    document.getElementById('team-detail-name-en').textContent = t.nameEn || '';
+      nodes.title.textContent = t.name;
+      nodes.nameEn.textContent = t.nameEn || '';
 
-    const imgEl = document.getElementById('team-detail-img');
+      const imgEl = nodes.image;
     const detailRank = this._getTeamRank(t.teamExp);
     imgEl.style.position = 'relative';
     if (t.image) {
@@ -119,7 +154,7 @@ Object.assign(App, {
     const totalGames = (t.wins || 0) + (t.draws || 0) + (t.losses || 0);
     const winRate = totalGames > 0 ? Math.round((t.wins || 0) / totalGames * 100) : 0;
 
-    document.getElementById('team-detail-body').innerHTML = `
+      nodes.body.innerHTML = `
       <div class="td-card">
         <div class="td-card-title">${I18N.t('teamDetail.info')}</div>
         <div class="td-card-grid">
@@ -225,10 +260,15 @@ Object.assign(App, {
         return html;
       })()}
     `;
-    this.showPage('page-team-detail');
+      return { ok: true, reason: 'ok' };
+    } catch (err) {
+      console.error('[TeamDetail] showTeamDetail failed:', err);
+      this.showToast('\u7121\u6cd5\u958b\u555f\u7403\u968a\u8a73\u60c5');
+      return { ok: false, reason: 'error' };
+    }
   },
 
-  toggleTeamMemberEditMode(teamId) {
+  async toggleTeamMemberEditMode(teamId) {
     const t = ApiService.getTeam(teamId);
     if (!t) return;
     if (!this._canManageTeamMembers(t)) {
@@ -236,8 +276,7 @@ Object.assign(App, {
       return;
     }
     this._teamMemberEditModeByTeam[teamId] = !this._teamMemberEditModeByTeam[teamId];
-    this.showTeamDetail(teamId);
-    this._keepTeamMembersSectionOpen();
+    await this._refreshTeamDetailMembers(teamId);
   },
 
   async removeTeamMember(teamId, memberUid) {
@@ -327,8 +366,7 @@ Object.assign(App, {
     const actorName = currentUser?.displayName || currentUser?.name || '職員';
     ApiService._writeOpLog('team_member_remove', '移除隊員', `${actorName} 將「${memberName}」移出「${t.name}」`);
     this.showToast(`已移除隊員「${memberName}」`);
-    this.showTeamDetail(teamId);
-    this._keepTeamMembersSectionOpen();
+    await this._refreshTeamDetailMembers(teamId);
   },
 
   // ══════════════════════════════════
@@ -750,4 +788,3 @@ Object.assign(App, {
   },
 
 });
-

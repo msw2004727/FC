@@ -1000,3 +1000,12 @@
   - `js/core/navigation.js`：`showPage()` 改為先 `await` page/script/data ready，再切頁並 render；同時加入頁面切換序號，避免快速連點造成過時 render 覆蓋。
   - `js/config.js`、`index.html`：同步 bump `CACHE_VERSION` 至 `20260306h`。
 - **教訓**：在腳本尚未真正抽離首頁前，必須先讓 loader 具備「識別既有 eager 資產」的能力，否則一接上 await gateway 就會先產生雙載與順序風險。
+### 2026-03-06 - homepage slimming V2 Step 3 detail gateway and deep link guard
+- **Issue**: Event/team detail pages could be rendered before their page shells were ready, and boot deep links (?event= / ?team=) retried by polling without waiting for a real detail-open completion.
+- **Cause**: showEventDetail() and showTeamDetail() still used the old eager pattern of writing detail DOM first and navigating afterward. _tryOpenPendingDeepLink() also fired detail opens fire-and-forget, so cold start had duplicate opens and race conditions.
+- **Fix**:
+  - js/modules/event-detail.js: added event detail request sequencing, page-shell DOM checks, and async showEventDetail() that waits for showPage('page-activity-detail') before rendering.
+  - js/modules/team-detail.js: added team detail request sequencing, page-shell DOM checks, async showTeamDetail(), and updated member-edit refresh paths to await detail rerender before reopening the members section.
+  - `app.js`: added in-flight deep link open guard so one pending deep link only opens once at a time, and _tryOpenPendingDeepLink() now awaits detail open completion before deciding success/fallback.
+  - js/config.js, index.html: bumped cache version to 20260306i.
+- **Lesson**: In this no-build Object.assign(App, ...) architecture, detail pages must follow the same load shell -> ensure script -> render detail contract as route pages, or cold-start deep links will fail intermittently.

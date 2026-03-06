@@ -120,7 +120,8 @@
 // 20260306e: page-game 將 GLTFLoader 改為最佳努力載入，避免 loader 失敗阻斷遊戲啟動
 // 20260306f: 修正點球命中檢測為遞迴 raycast，恢復可射門
 // 20260306h: 首頁性能瘦身 V2 Step 2，建立可等待的 page/script/data gateway 契約
-const CACHE_VERSION = '20260306h';
+// 20260306i: 首頁性能瘦身 V2 Step 3，補上 detail gateway 與 deep link 安全流程
+const CACHE_VERSION = '20260306i';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {
