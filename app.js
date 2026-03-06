@@ -19,6 +19,10 @@ const App = {
   _deepLinkAuthRedirecting: false,
   _pendingDeepLinkOpenKey: '',
   _pendingDeepLinkOpenPromise: null,
+  _cloudReady: false,
+  _cloudBootScheduled: false,
+  _cloudReadyPromise: null,
+  _cloudReadyError: null,
 
   init() {
     this.bindRoleSwitcher();
@@ -238,7 +242,12 @@ const App = {
     }
 
     // Wait until SDK is ready (Phase 4) before triggering login.
-    if (typeof liff === 'undefined' || !LineAuth._ready) return false;
+    if (typeof liff === 'undefined' || !LineAuth._ready) {
+      if (typeof this.ensureCloudReady === 'function') {
+        void this.ensureCloudReady({ reason: 'deep-link-login' }).catch(() => {});
+      }
+      return false;
+    }
 
     try {
       this._deepLinkAuthRedirecting = true;
@@ -349,34 +358,167 @@ const App = {
       return false;
     }
   },
+
+  _scheduleCloudBoot(reason = 'post-boot') {
+    if (ModeManager.isDemo()) return;
+    if (this._cloudReady || this._cloudReadyPromise || this._cloudBootScheduled) return;
+
+    this._cloudBootScheduled = true;
+    const kickoff = () => {
+      this._cloudBootScheduled = false;
+      void this.ensureCloudReady({ reason }).catch(() => {});
+    };
+
+    if (typeof requestAnimationFrame === 'function') {
+      requestAnimationFrame(() => setTimeout(kickoff, 0));
+      return;
+    }
+    setTimeout(kickoff, 0);
+  },
+
+  async ensureCloudReady(options = {}) {
+    const { reason = 'unknown' } = options;
+    if (ModeManager.isDemo()) return false;
+    if (this._cloudReady) return true;
+    if (this._cloudReadyPromise) return await this._cloudReadyPromise;
+
+    console.log(`[Cloud] ensureCloudReady start: ${reason}`);
+    this._cloudReadyError = null;
+
+    const bootPromise = (async () => {
+      await _loadCDNScripts();
+      if (!initFirebaseApp()) {
+        throw new Error('FIREBASE_APP_INIT_FAILED');
+      }
+
+      if (typeof liff !== 'undefined') {
+        LineAuth._ready = false;
+        LineAuth._initError = null;
+      }
+
+      if (typeof liff !== 'undefined') {
+        await LineAuth.initSDK();
+        console.log('[Cloud] LIFF SDK ready');
+      }
+
+      if (LineAuth.hasLiffSession()) {
+        LineAuth.restoreCachedProfile();
+        if (LineAuth._profile) {
+          try { this.renderLoginUI(); } catch (_) {}
+        }
+      }
+
+      const profilePromise = LineAuth.hasLiffSession()
+        ? LineAuth.ensureProfile({ force: true }).catch(err => {
+            console.warn('[Cloud] ensureProfile failed:', err);
+          })
+        : Promise.resolve();
+
+      await Promise.all([profilePromise, FirebaseService.init()]);
+
+      this._firebaseConnected = true;
+      this._cloudReady = true;
+      this._cloudReadyError = null;
+      ApiService._errorLogReady = true;
+      console.log('[Cloud] Firebase + LIFF ready');
+
+      try { this.renderAll(); } catch (_) {}
+      try {
+        if (typeof this.bindLineLogin === 'function') {
+          await this.bindLineLogin();
+        }
+      } catch (err) {
+        console.error('[Cloud] bindLineLogin failed:', err?.message || err, err?.stack || '');
+        try { this.showToast('LINE login init failed.'); } catch (_) {}
+      }
+      void this._tryOpenPendingDeepLink();
+      return true;
+    })();
+
+    this._cloudReadyPromise = bootPromise;
+
+    try {
+      return await bootPromise;
+    } catch (err) {
+      this._cloudReadyError = err;
+      console.error(`[Cloud] ensureCloudReady failed (${reason}):`, err?.message || err);
+      try { this.showToast('Cloud init failed. Please retry.'); } catch (_) {}
+      try {
+        if (typeof this.bindLineLogin === 'function') {
+          await this.bindLineLogin();
+        }
+      } catch (_) {}
+      void this._tryOpenPendingDeepLink();
+      throw err;
+    } finally {
+      if (!this._cloudReady) {
+        this._cloudReadyPromise = null;
+      }
+    }
+  },
 };
 
 // ── CDN SDK 動態載入器（不阻塞 DOMContentLoaded）──
+const _dynamicScriptPromises = {};
+let _cdnScriptsPromise = null;
+
 function _loadScript(src) {
-  return new Promise((resolve, reject) => {
+  if (_dynamicScriptPromises[src]) return _dynamicScriptPromises[src];
+
+  const existing = document.querySelector(`script[src="${src}"]`);
+  if (existing) {
+    if (existing.dataset.loaded === 'true') {
+      return Promise.resolve();
+    }
+    _dynamicScriptPromises[src] = new Promise((resolve, reject) => {
+      existing.addEventListener('load', () => {
+        existing.dataset.loaded = 'true';
+        resolve();
+      }, { once: true });
+      existing.addEventListener('error', () => reject(new Error('Script load failed: ' + src)), { once: true });
+    });
+    return _dynamicScriptPromises[src];
+  }
+
+  _dynamicScriptPromises[src] = new Promise((resolve, reject) => {
     const s = document.createElement('script');
     s.src = src;
-    s.onload = resolve;
+    s.async = true;
+    s.onload = () => {
+      s.dataset.loaded = 'true';
+      resolve();
+    };
     s.onerror = () => reject(new Error('Script load failed: ' + src));
     document.head.appendChild(s);
   });
+  return _dynamicScriptPromises[src];
 }
 
 async function _loadCDNScripts() {
-  // firebase-app 必須先載入（提供 firebase 全域物件）
-  await _loadScript('https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js');
-  // 其餘 Firebase 模組 + LIFF SDK 可平行載入
-  await Promise.all([
-    _loadScript('https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js'),
-    _loadScript('https://www.gstatic.com/firebasejs/10.14.1/firebase-storage-compat.js'),
-    _loadScript('https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js'),
-    _loadScript('https://www.gstatic.com/firebasejs/10.14.1/firebase-functions-compat.js'),
-    _loadScript('https://static.line-scdn.net/liff/edge/2/sdk.js'),
-  ]);
-  console.log('[CDN] Firebase + LIFF SDK 載入完成');
+  if (_cdnScriptsPromise) return await _cdnScriptsPromise;
+
+  _cdnScriptsPromise = (async () => {
+    await _loadScript('https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js');
+    await Promise.all([
+      _loadScript('https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js'),
+      _loadScript('https://www.gstatic.com/firebasejs/10.14.1/firebase-storage-compat.js'),
+      _loadScript('https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js'),
+      _loadScript('https://www.gstatic.com/firebasejs/10.14.1/firebase-functions-compat.js'),
+      _loadScript('https://static.line-scdn.net/liff/edge/2/sdk.js'),
+    ]);
+    console.log('[CDN] Firebase + LIFF SDK loaded');
+    return true;
+  })();
+
+  try {
+    return await _cdnScriptsPromise;
+  } catch (err) {
+    _cdnScriptsPromise = null;
+    throw err;
+  }
 }
 
-// ── Init on DOM Ready ──
+// Init on DOM Ready ──
 document.addEventListener('DOMContentLoaded', async () => {
   window._appInitializing = true;
   console.log('[Boot] DOMContentLoaded fired');
@@ -478,62 +620,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
 
-  // ── Phase 4: 背景載入 CDN SDK → Firebase + LIFF（不阻塞頁面）──
+  // Phase 4: deep link boots cloud immediately; normal home boot defers until first paint.
   if (!ModeManager.isDemo()) {
-    console.log('[Boot] Phase 4: 開始背景載入 CDN');
-    (async () => {
-      try {
-        await _loadCDNScripts();
-        console.log('[Boot] Phase 4: CDN 載入完成');
-        initFirebaseApp();
-        console.log('[Boot] Phase 4: Firebase App 初始化完成');
-        // 重置 LIFF 狀態（Phase 3 可能因 SDK 未載入而標記為 ready + error）
-        if (typeof liff !== 'undefined') {
-          LineAuth._ready = false;
-          LineAuth._initError = null;
-        }
-
-        // Step 1: LIFF SDK 初始化（Access Token 就緒，不含 ensureProfile）
-        if (typeof liff !== 'undefined') {
-          await LineAuth.initSDK();
-          console.log('[Boot] Phase 4: LIFF SDK 初始化完成');
-        }
-
-        // Step 2: 返回用戶快取 → 立即顯示頭像（不等網路）
-        if (LineAuth.hasLiffSession()) {
-          LineAuth.restoreCachedProfile();
-          if (LineAuth._profile) {
-            try { App.renderLoginUI(); } catch (e) {}
-          }
-        }
-
-        // Step 3: 並行 — profile 網路更新 + Firebase 完整初始化
-        // force: true 確保即使有快取也從 LINE 伺服器取得最新 profile
-        const profilePromise = LineAuth.hasLiffSession()
-          ? LineAuth.ensureProfile({ force: true }).catch(e => console.warn('[Boot] ensureProfile failed:', e))
-          : Promise.resolve();
-
-        await Promise.all([profilePromise, FirebaseService.init()]);
-        App._firebaseConnected = true;
-        ApiService._errorLogReady = true;
-        console.log('[Boot] Phase 4: Firebase + LIFF 初始化完成（並行）');
-        // 用即時資料重新渲染頁面
-        try { App.renderAll(); } catch (e) {}
-        // 更新 LINE 登入狀態（LIFF SDK 已載入，可正常運作）
-        try { if (typeof App.bindLineLogin === 'function') await App.bindLineLogin(); } catch (e) {
-          console.error('[Boot] bindLineLogin 執行失敗:', e?.message || e, e?.stack || '');
-          try { App.showToast('LINE 登入流程異常，請重新整理頁面'); } catch (_) {}
-        }
-        // LIFF ready 後再嘗試開 deep link，成功才會清除 query 參數
-        void App._tryOpenPendingDeepLink();
-      } catch (err) {
-        console.error('[Boot] Phase 4 背景初始化失敗:', err?.message || err);
-        try { App.showToast('網路連線異常，部分資料可能未更新'); } catch (e) {}
-        // 即使失敗也更新登入 UI，避免卡在 pending 狀態
-        try { if (typeof App.bindLineLogin === 'function') await App.bindLineLogin(); } catch (e) {}
-        void App._tryOpenPendingDeepLink();
-      }
-    })();
+    const pendingDeepLink = App._getPendingDeepLink();
+    if (pendingDeepLink) {
+      console.log('[Boot] Phase 4: immediate cloud init for deep link');
+      void App.ensureCloudReady({ reason: 'boot-deep-link' }).catch(() => {});
+    } else {
+      console.log('[Boot] Phase 4: schedule deferred cloud init');
+      App._scheduleCloudBoot('boot-idle');
+    }
   }
 
   // Global unhandled rejection → errorLog（過濾第三方 SDK 雜訊）

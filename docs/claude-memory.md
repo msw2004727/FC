@@ -1032,3 +1032,12 @@
   - Restored `js/modules/message-admin.js` and `js/modules/auto-exp.js` to the eager script block in `index.html`.
   - `js/config.js`, `index.html`: bumped cache version to `20260306l`.
 - **Lesson**: Before slimming eager scripts, distinguish true route-only modules from modules that currently hide shared runtime utilities. Shared helpers must either stay eager or be extracted into a dedicated bootstrap/runtime module first.
+### 2026-03-06 - implement Step 5A deferred cloud boot for homepage slimming
+- **Issue**: Production home boot still downloaded Firebase/LIFF eagerly because `DOMContentLoaded` always started Phase 4 immediately and `index.html` preloaded the CDN SDKs, so homepage render still competed with cloud initialization.
+- **Cause**: Cloud startup logic lived inline inside `app.js` boot flow instead of a reusable gateway, and route/deep-link entry points had no shared way to demand cloud readiness only when needed.
+- **Fix**:
+  - `app.js`: extracted cloud startup into `App.ensureCloudReady()`, made script loading idempotent, and deferred normal home boot until after first paint while still forcing immediate init for deep links.
+  - `js/core/navigation.js`: added cloud gating before protected route checks and page entry readiness so first route/detail entry can safely trigger initialization on demand.
+  - `js/core/mode.js`: switched production mode boot to use the same `ensureCloudReady()` path.
+  - `index.html`: removed Firebase/LIFF preload tags and bumped cache version to `20260306m`.
+- **Lesson**: For this no-build script architecture, homepage slimming is only safe when cloud init has exactly one gateway. Deep link, guarded route, and mode-switch flows must all share the same once-only initialization path.

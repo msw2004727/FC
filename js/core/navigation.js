@@ -6,6 +6,10 @@ Object.assign(App, {
 
   _pageTransitionSeq: 0,
 
+  _pageNeedsCloud(pageId) {
+    return !ModeManager.isDemo() && pageId !== 'page-home';
+  },
+
   _isCurrentUserRestricted() {
     if (ModeManager.isDemo()) return false;
     if (typeof ApiService === 'undefined' || typeof ApiService.getCurrentUser !== 'function') return false;
@@ -66,6 +70,14 @@ Object.assign(App, {
   },
 
   async _ensurePageEntryReady(pageId) {
+    if (this._pageNeedsCloud(pageId) && typeof this.ensureCloudReady === 'function') {
+      try {
+        await this.ensureCloudReady({ reason: `page:${pageId}` });
+      } catch (err) {
+        console.warn(`[Navigation] cloud init failed before ${pageId}:`, err);
+      }
+    }
+
     if (typeof PageLoader !== 'undefined' && PageLoader.ensurePage) {
       await PageLoader.ensurePage(pageId);
     }
@@ -118,6 +130,13 @@ Object.assign(App, {
     }
     // 正式版未登入：擋住球隊、賽事、我的、訊息頁
     const guardedPages = ['page-profile', 'page-teams', 'page-tournaments', 'page-messages', 'page-activities'];
+    if (guardedPages.includes(pageId) && this._pageNeedsCloud(pageId) && typeof this.ensureCloudReady === 'function') {
+      try {
+        await this.ensureCloudReady({ reason: `guard:${pageId}` });
+      } catch (err) {
+        console.warn(`[Navigation] guard cloud init failed for ${pageId}:`, err);
+      }
+    }
     if (guardedPages.includes(pageId) && this._requireLogin()) return;
 
     const transitionSeq = ++this._pageTransitionSeq;

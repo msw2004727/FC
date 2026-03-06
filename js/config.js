@@ -124,7 +124,8 @@
 // 20260306j: 首頁性能瘦身 V2 Step 4，移出非首頁 eager route modules 並保留安全 gateway
 // 20260306k: 修正 applyRole() 在登入同步時直接呼叫 lazy admin renderer 導致首頁報錯
 // 20260306l: 將 message-admin / auto-exp 放回 eager，修正申請入隊與前台共享 runtime 回歸
-const CACHE_VERSION = '20260306l';
+// 20260306m: 首頁性能瘦身 V2 Step 5A，將 Firebase/LIFF 改為一次性延後初始化並移除首頁 preload
+const CACHE_VERSION = '20260306m';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {

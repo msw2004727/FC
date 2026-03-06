@@ -76,7 +76,10 @@ Object.assign(App, {
         const timeout = new Promise((_, reject) =>
           setTimeout(() => reject(new Error('Firebase init timeout')), 20000)
         );
-        await Promise.race([FirebaseService.init(), timeout]);
+        const initTask = (typeof this.ensureCloudReady === 'function')
+          ? this.ensureCloudReady({ reason: 'mode-switch' })
+          : FirebaseService.init();
+        await Promise.race([initTask, timeout]);
         console.log('[App] Firebase 已初始化');
       } catch (err) {
         console.error('[App] Firebase 初始化失敗:', err);
