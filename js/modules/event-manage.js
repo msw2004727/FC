@@ -1112,8 +1112,8 @@ Object.assign(App, {
     this.bindImageUpload('ce-image', 'ce-upload-preview');
     this.bindTeamOnlyToggle();
     this.showModal('create-event-modal');
-    const submitBtn = document.getElementById('ce-submit-btn');
-    if (submitBtn) submitBtn.textContent = '儲存變更';
+    this._eventSubmitInFlight = false;
+    this._setCreateEventSubmitIdleLabel('儲存修改');
     document.getElementById('ce-title').value = e.title || '';
     document.getElementById('ce-type').value = e.type || 'friendly';
     document.getElementById('ce-location').value = e.location || '';

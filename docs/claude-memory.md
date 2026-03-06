@@ -1125,3 +1125,12 @@
   - Added docs/activity-data-scaling-assessment.md with architecture analysis, scaling thresholds, likely bottlenecks, and recommended trigger points for historical-activity strategy changes.
   - No JS/HTML/runtime files were changed.
 - **Lesson**: For data-growth decisions, document the actual trigger thresholds before the system becomes slow; otherwise teams wait until performance pain appears and lose the chance to make a controlled change.
+### 2026-03-06 - prevent duplicate event creation submits
+- **Issue**: Repeated taps on the create-event submit button could create multiple near-identical Firestore event documents.
+- **Cause**: App.handleCreateEvent() had no in-flight guard, and ApiService.createEvent() returned before the Firestore write completed, so the UI could be submitted again while the first write was still pending.
+- **Fix**:
+  - js/modules/event-create.js: added an in-flight submit guard plus submit-button disabled/loading state for create mode.
+  - js/modules/event-manage.js: reset the shared create/edit modal submit state when opening edit mode.
+  - js/api-service.js: changed createEvent() to await the Firestore write and roll back the optimistic cache item if the write fails.
+  - js/config.js, index.html: bumped cache version to 20260306u.
+- **Lesson**: For create flows, button locking is not enough unless the lock lasts through the real persistence boundary; otherwise slow writes still allow duplicate submissions.

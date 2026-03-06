@@ -223,6 +223,24 @@ const ApiService = {
     return data;
   },
 
+  async _createAwaitWrite(key, data, firebaseMethod, label, prepend) {
+    if (this._handleRestrictedAction()) return null;
+    const source = this._src(key);
+    if (prepend !== false) { source.unshift(data); } else { source.push(data); }
+    if (!this._demoMode && firebaseMethod) {
+      try {
+        await FirebaseService.ensureAuthReadyForWrite();
+        await firebaseMethod.call(FirebaseService, data);
+      } catch (err) {
+        const idx = source.indexOf(data);
+        if (idx >= 0) source.splice(idx, 1);
+        console.error(`[${label}]`, err);
+        throw err;
+      }
+    }
+    return data;
+  },
+
   /** 通用更新：快取 Object.assign + 非同步寫入 Firebase */
   _update(key, id, updates, firebaseMethod, label) {
     if (this._handleRestrictedAction()) return null;
@@ -277,7 +295,7 @@ const ApiService = {
     });
   },
 
-  createEvent(data)         { return this._create('events', data, FirebaseService.addEvent, 'createEvent'); },
+  createEvent(data)         { return this._createAwaitWrite('events', data, FirebaseService.addEvent, 'createEvent'); },
   updateEvent(id, updates)  { return this._update('events', id, updates, FirebaseService.updateEvent, 'updateEvent'); },
   deleteEvent(id)           { return this._delete('events', id, FirebaseService.deleteEvent, 'deleteEvent'); },
 

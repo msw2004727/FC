@@ -494,6 +494,35 @@ Object.assign(App, {
   // ══════════════════════════════════
 
   _editEventId: null,
+  _eventSubmitInFlight: false,
+
+  _setCreateEventSubmitIdleLabel(label) {
+    const submitBtn = document.getElementById('ce-submit-btn');
+    if (!submitBtn) return;
+    submitBtn.dataset.idleLabel = label;
+    submitBtn.textContent = label;
+    submitBtn.disabled = false;
+    submitBtn.style.opacity = '';
+    submitBtn.style.cursor = '';
+  },
+
+  _setCreateEventSubmitting(isSubmitting) {
+    const submitBtn = document.getElementById('ce-submit-btn');
+    if (!submitBtn) return;
+    const idleLabel = submitBtn.dataset.idleLabel || submitBtn.textContent || '建立活動';
+    if (!submitBtn.dataset.idleLabel) submitBtn.dataset.idleLabel = idleLabel;
+    if (isSubmitting) {
+      submitBtn.disabled = true;
+      submitBtn.style.opacity = '0.72';
+      submitBtn.style.cursor = 'not-allowed';
+      submitBtn.textContent = this._editEventId ? '儲存中...' : '建立中...';
+      return;
+    }
+    submitBtn.disabled = false;
+    submitBtn.style.opacity = '';
+    submitBtn.style.cursor = '';
+    submitBtn.textContent = idleLabel;
+  },
 
   openCreateEventModal() {
     this._editEventId = null;
@@ -523,8 +552,8 @@ Object.assign(App, {
       cePreview.classList.remove('has-image');
       cePreview.innerHTML = '<span class="ce-upload-icon">+</span><span class="ce-upload-text">點擊上傳圖片</span><span class="ce-upload-hint">建議尺寸 800 × 300 px｜JPG / PNG｜最大 2MB</span>';
     }
-    const submitBtn = document.getElementById('ce-submit-btn');
-    if (submitBtn) submitBtn.textContent = '建立活動';
+    this._eventSubmitInFlight = false;
+    this._setCreateEventSubmitIdleLabel('建立活動');
     // 確保事件已綁定（防止 Phase 1 非同步時機導致未綁定）
     this.bindImageUpload('ce-image', 'ce-upload-preview');
     this.bindTeamOnlyToggle();
@@ -1156,7 +1185,11 @@ Object.assign(App, {
     }
   },
 
-  handleCreateEvent() {
+  async handleCreateEvent() {
+    if (this._eventSubmitInFlight) {
+      this.showToast('活動建立中，請勿重複送出');
+      return;
+    }
     if ((ROLE_LEVEL_MAP[this.currentRole] || 0) < ROLE_LEVEL_MAP.coach) {
       this.showToast('權限不足'); return;
     }
@@ -1307,7 +1340,18 @@ Object.assign(App, {
         creatorTeamNames: teamOnly ? [...resolvedTeamNames] : [],
         delegates: [...this._delegates],
       };
-      ApiService.createEvent(newEvent);
+      this._eventSubmitInFlight = true;
+      this._setCreateEventSubmitting(true);
+      try {
+        await ApiService.createEvent(newEvent);
+      } catch (err) {
+        console.error('[handleCreateEvent:createEvent]', err);
+        this.showToast('建立活動失敗，請稍後再試');
+        return;
+      } finally {
+        this._eventSubmitInFlight = false;
+        this._setCreateEventSubmitting(false);
+      }
       this._saveInputHistory('ce-location', location);
       if (fee > 0) this._saveInputHistory('ce-fee', fee);
       this._saveInputHistory('ce-max', max);
