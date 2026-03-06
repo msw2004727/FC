@@ -273,6 +273,27 @@ const ApiService = {
     return true;
   },
 
+  async _deleteAwaitWrite(key, id, firebaseMethod, label) {
+    if (this._handleRestrictedAction()) return false;
+    const source = this._src(key);
+    const idx = source.findIndex(item => item.id === id);
+    if (!this._demoMode && firebaseMethod) {
+      try {
+        await FirebaseService.ensureAuthReadyForWrite();
+        const deleted = await firebaseMethod.call(FirebaseService, id);
+        if (!deleted) return false;
+      } catch (err) {
+        console.error(`[${label}]`, err);
+        throw err;
+      }
+    }
+    if (idx >= 0) source.splice(idx, 1);
+    if (!this._demoMode) {
+      FirebaseService._saveToLS(key, source);
+    }
+    return idx >= 0 || this._demoMode;
+  },
+
   // ════════════════════════════════
   //  Events（活動）
   // ════════════════════════════════
@@ -297,7 +318,7 @@ const ApiService = {
 
   createEvent(data)         { return this._createAwaitWrite('events', data, FirebaseService.addEvent, 'createEvent'); },
   updateEvent(id, updates)  { return this._update('events', id, updates, FirebaseService.updateEvent, 'updateEvent'); },
-  deleteEvent(id)           { return this._delete('events', id, FirebaseService.deleteEvent, 'deleteEvent'); },
+  deleteEvent(id)           { return this._deleteAwaitWrite('events', id, FirebaseService.deleteEvent, 'deleteEvent'); },
 
   async loadMyEventTemplates(ownerUid) {
     if (this._demoMode) return this._src('eventTemplates');

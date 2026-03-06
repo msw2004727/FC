@@ -1405,9 +1405,20 @@ Object.assign(App, {
     if (e && !this._canManageEvent(e)) { this.showToast('您只能管理自己的活動'); return; }
     if (!(await this.appConfirm('確定要刪除此活動？刪除後無法恢復。'))) return;
     const title = e.title;
+    let deleted = false;
+    try {
+      deleted = await ApiService.deleteEvent(id);
+    } catch (err) {
+      console.error('[deleteMyActivity]', err);
+      this.showToast('刪除失敗，請稍後再試');
+      return;
+    }
+    if (!deleted) {
+      this.showToast('刪除失敗，請重新整理後再試');
+      return;
+    }
     // 活動被刪除 → 刪除所有個人取消紀錄
     this._cleanupCancelledRecords(id);
-    ApiService.deleteEvent(id);
     ApiService._writeOpLog('event_delete', '刪除活動', `刪除「${title}」`);
     this.renderMyActivities();
     this.renderActivityList();

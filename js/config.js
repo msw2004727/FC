@@ -131,8 +131,8 @@
 // 20260306q: status hint 底部高度對齊既有 toast（如「功能準備中」）
 // 20260306r: Step 6 驗收補齊 shop/tournament detail 冷首訪 fragment/data 契約缺口
 // 20260306s: PK 大賽蓄力條改為跟隨球的螢幕座標顯示在球上方，避免手機手指遮擋
-// 20260306u: 建立活動提交加上防重複送出鎖，並讓建立流程等待 Firestore 寫入完成
-const CACHE_VERSION = '20260306u';
+// 20260306v: 活動刪除改為等待 Firestore 成功後才更新前端，避免刷新後被刪活動重新出現
+const CACHE_VERSION = '20260306v';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {

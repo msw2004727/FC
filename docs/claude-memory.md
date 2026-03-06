@@ -1134,3 +1134,12 @@
   - js/api-service.js: changed createEvent() to await the Firestore write and roll back the optimistic cache item if the write fails.
   - js/config.js, index.html: bumped cache version to 20260306u.
 - **Lesson**: For create flows, button locking is not enough unless the lock lasts through the real persistence boundary; otherwise slow writes still allow duplicate submissions.
+
+### 2026-03-06 - make event deletion wait for Firestore success
+- **Issue**: Deleting an activity from activity management could appear to succeed locally but the cancelled event would come back after refresh.
+- **Cause**: deleteMyActivity() did not await the Firestore delete, and ApiService.deleteEvent() removed only the local cache immediately while the real backend delete ran in the background.
+- **Fix**:
+  - js/api-service.js: added an awaited delete path so event deletion only updates local cache after Firestore confirms deletion.
+  - js/modules/event-manage.js: changed activity deletion to await backend success and show a failure toast if the Firestore delete does not complete.
+  - js/config.js, index.html: bumped cache version to 20260306v.
+- **Lesson**: Destructive actions must not optimistic-update the UI unless rollback is implemented; otherwise refresh will resurrect data that was never actually deleted.
