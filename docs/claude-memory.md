@@ -1092,3 +1092,11 @@
   - `docs/home-performance-step6-validation.md`: added the final Step 6 validation report.
   - `js/config.js`, `index.html`: bumped cache version to `20260306r`.
 - **Lesson**: Any page that can be entered directly from homepage cards must satisfy the full `page -> data -> DOM write` contract. Parent-fragment assumptions are not acceptable once route loading is intentionally made lazy.
+
+### 2026-03-06 - finalize V2 document set and remove temporary baseline doc
+- **Issue**: After V2 delivery, the document set still contained a Step 1 temporary baseline file that had served its purpose during construction but was no longer the best long-term reference.
+- **Cause**: The Step 1 baseline was useful during implementation sequencing, but its role was superseded by the final V2 spec and Step 6 validation report once rollout completed.
+- **Fix**:
+  - Added `docs/home-performance-v2-final-summary.md` as the final outcome summary for the full V2 effort.
+  - Removed `docs/home-performance-slimming-step1-baseline.md` as a temporary construction artifact.
+- **Lesson**: Once a multi-step upgrade is complete, keep the long-term document set small: final spec, final validation, and final summary are enough; transient execution scaffolding should be removed.
