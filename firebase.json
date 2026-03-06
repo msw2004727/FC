@@ -6,6 +6,16 @@
   "firestore": {
     "rules": "firestore.rules"
   },
+  "storage": [
+    {
+      "target": "defaultStorage",
+      "rules": "storage.rules"
+    },
+    {
+      "target": "asiaUpload",
+      "rules": "storage.rules"
+    }
+  ],
   "emulators": {
     "firestore": {
       "host": "127.0.0.1",

@@ -1,5 +1,18 @@
 {
   "projects": {
     "default": "fc-football-6c8dc"
-  }
+  },
+  "targets": {
+    "fc-football-6c8dc": {
+      "storage": {
+        "defaultStorage": [
+          "fc-football-6c8dc.firebasestorage.app"
+        ],
+        "asiaUpload": [
+          "fc-football-6c8dc-asia-east1"
+        ]
+      }
+    }
+  },
+  "etags": {}
 }
