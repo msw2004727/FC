@@ -23,6 +23,9 @@ const App = {
   _cloudBootScheduled: false,
   _cloudReadyPromise: null,
   _cloudReadyError: null,
+  _homeDeferredIdleId: null,
+  _homeDeferredTimerId: null,
+  _homeDeferredSeq: 0,
 
   init() {
     this.bindRoleSwitcher();
@@ -55,8 +58,6 @@ const App = {
     this._populateAchConditionSelects();
     this.bindShopSearch();
     this.bindTeamOnlyToggle();
-    this.renderBannerCarousel();
-    this.startBannerCarousel();
     this.applySiteThemes();
     this.initLangSwitcher();
     this._applyI18nToUI();
@@ -64,20 +65,73 @@ const App = {
     this.applyRole('user', true);
   },
 
-  /** 啟動時只渲染首頁必要元件，其餘由 showPage → _renderPageContent 按需渲染 */
+  /** 啟動時只更新全域 shell，首頁內容改為 critical / deferred 分段渲染 */
   renderAll() {
-    // ── 首頁必要 ──
-    this.renderHotEvents();
-    this.renderOngoingTournaments();
-    this.renderBannerCarousel();
-    this.renderFloatingAds();
-    this.renderSponsors();
-    this.renderAnnouncement();
-    this.renderAchievements();
-    // ── 全域 UI 狀態 ──
+    this.renderGlobalShell();
+    if (!this._isHomePageActive()) return;
+    this.renderHomeCritical();
+    this._scheduleHomeDeferredRender();
+  },
+
+  renderGlobalShell() {
     this.updateNotifBadge();
     this.updatePointsDisplay();
     this.updateStorageBar();
+  },
+
+  _isHomePageActive() {
+    const homePage = document.getElementById('page-home');
+    if (!homePage) return false;
+    return this.currentPage === 'page-home' || homePage.classList.contains('active');
+  },
+
+  renderHomeCritical() {
+    if (!this._isHomePageActive()) return;
+    this.renderBannerCarousel({ autoplay: false });
+    this.renderAnnouncement();
+    this.renderHotEvents();
+  },
+
+  renderHomeDeferred() {
+    if (!this._isHomePageActive()) return false;
+    this.renderOngoingTournaments();
+    this.renderSponsors();
+    this.renderFloatingAds();
+    this.showPopupAdsOnLoad();
+    this.startBannerCarousel();
+    return true;
+  },
+
+  _cancelHomeDeferredRender() {
+    this._homeDeferredSeq++;
+    if (this._homeDeferredIdleId !== null && typeof cancelIdleCallback === 'function') {
+      cancelIdleCallback(this._homeDeferredIdleId);
+    }
+    if (this._homeDeferredTimerId !== null) {
+      clearTimeout(this._homeDeferredTimerId);
+    }
+    this._homeDeferredIdleId = null;
+    this._homeDeferredTimerId = null;
+  },
+
+  _scheduleHomeDeferredRender(delayMs = 250) {
+    this._cancelHomeDeferredRender();
+    if (!this._isHomePageActive()) return;
+
+    const seq = this._homeDeferredSeq;
+    const run = () => {
+      this._homeDeferredIdleId = null;
+      this._homeDeferredTimerId = null;
+      if (seq !== this._homeDeferredSeq) return;
+      this.renderHomeDeferred();
+    };
+
+    if (typeof requestIdleCallback === 'function') {
+      this._homeDeferredIdleId = requestIdleCallback(run, { timeout: 1200 });
+      return;
+    }
+
+    this._homeDeferredTimerId = setTimeout(run, delayMs);
   },
 
   /** Phase 1 完成後才執行：綁定 pages/*.html 內的動態元素事件 */
@@ -660,8 +714,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   setInterval(() => { try { Promise.resolve(App._processScheduledMessages()).catch(() => {}); } catch (e) {} }, 60000);
   try { App._processEventReminders(); } catch (e) {}
   setInterval(() => { try { App._processEventReminders(); } catch (e) {} }, 300000);
-  setTimeout(() => { try { App.showPopupAdsOnLoad(); } catch (e) {} }, 2000);
-
   window._appInitializing = false;
   console.log('[Boot] 初始化流程結束');
 });

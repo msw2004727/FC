@@ -4,9 +4,10 @@
 
 Object.assign(App, {
 
-  renderBannerCarousel() {
+  renderBannerCarousel(options = {}) {
     const track = document.getElementById('banner-track');
     if (!track) return;
+    const { autoplay = true } = options;
     const banners = ApiService.getBanners().filter(b => b.status === 'active');
     if (banners.length === 0) {
       track.innerHTML = `<div class="banner-slide skeleton-slide">
@@ -42,10 +43,15 @@ Object.assign(App, {
       }
     }
     track.style.transform = 'translateX(0)';
-    this.startBannerCarousel(); // DOM 就緒後才綁定 prev/next（有 dataset.bound 防重複）
+    this._bindBannerCarouselControls();
+    if (autoplay) {
+      this.startBannerCarousel();
+    } else {
+      this.stopBannerCarousel();
+    }
   },
 
-  startBannerCarousel() {
+  _bindBannerCarouselControls() {
     const prev = document.getElementById('banner-prev');
     const next = document.getElementById('banner-next');
     if (!prev || !next) return;           // DOM 尚未就緒，跳過
@@ -75,13 +81,27 @@ Object.assign(App, {
         if (dx > 50) this.goToBanner((this.bannerIndex - 1 + cnt) % cnt);
       }, { passive: true });
     }
+  },
 
-    if (this.bannerTimer) clearInterval(this.bannerTimer);
+  startBannerCarousel() {
+    this._bindBannerCarouselControls();
+    const prev = document.getElementById('banner-prev');
+    const next = document.getElementById('banner-next');
+    if (!prev || !next) return;
+    if (typeof this._isHomePageActive === 'function' && !this._isHomePageActive()) return;
+    this.stopBannerCarousel();
+    if ((this.bannerCount || 0) <= 1) return;
     this.bannerTimer = setInterval(() => {
       const cnt = this.bannerCount || 1;
       this.bannerIndex = (this.bannerIndex + 1) % cnt;
       this.goToBanner(this.bannerIndex);
     }, 8000);
+  },
+
+  stopBannerCarousel() {
+    if (!this.bannerTimer) return;
+    clearInterval(this.bannerTimer);
+    this.bannerTimer = null;
   },
 
   goToBanner(idx) {

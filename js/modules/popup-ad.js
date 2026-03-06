@@ -7,13 +7,19 @@ Object.assign(App, {
   _popupAdQueue: [],
   _popupAdIndex: 0,
   _popupDismissToday: false,
+  _popupSessionShownKey: '',
 
   showPopupAdsOnLoad() {
     const activeAds = ApiService.getActivePopupAds();
-    if (!activeAds || activeAds.length === 0) return;
+    if (!activeAds || activeAds.length === 0) {
+      this._popupSessionShownKey = '';
+      return;
+    }
     // 產生當前活躍廣告的 ID 指紋（排序後合併）
     const activeKey = activeAds.map(a => a.id).sort().join(',');
-    const dismissKey = 'sporthub_popup_dismiss_' + ModeManager.getMode();
+    const modeKey = ModeManager.getMode();
+    const sessionKey = `${modeKey}:${activeKey}`;
+    const dismissKey = 'sporthub_popup_dismiss_' + modeKey;
     try {
       const stored = JSON.parse(localStorage.getItem(dismissKey));
       if (stored && stored.adKey === activeKey) {
@@ -21,6 +27,8 @@ Object.assign(App, {
         if (new Date(stored.date).toDateString() === now.toDateString()) return;
       }
     } catch (_) { /* 舊格式或無效 JSON，忽略 */ }
+    if (this._popupSessionShownKey === sessionKey) return;
+    this._popupSessionShownKey = sessionKey;
     this._popupAdQueue = [...activeAds].sort((a, b) => a.layer - b.layer);
     this._popupAdActiveKey = activeKey;
     this._popupAdIndex = 0;

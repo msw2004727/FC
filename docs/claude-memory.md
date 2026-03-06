@@ -1041,3 +1041,14 @@
   - `js/core/mode.js`: switched production mode boot to use the same `ensureCloudReady()` path.
   - `index.html`: removed Firebase/LIFF preload tags and bumped cache version to `20260306m`.
 - **Lesson**: For this no-build script architecture, homepage slimming is only safe when cloud init has exactly one gateway. Deep link, guarded route, and mode-switch flows must all share the same once-only initialization path.
+
+### 2026-03-06 - implement Step 5B staged home render for homepage slimming
+- **Issue**: Homepage boot still executed banner autoplay, popup-ad startup, sponsors/floating ads/tournament rendering, and other non-critical home work inside the first render pass, so Step 5A alone could not materially lighten first paint.
+- **Cause**: `App.renderAll()` still behaved like a monolithic homepage renderer, `renderBannerCarousel()` always started autoplay immediately, and popup ads were still modeled as a boot-time effect instead of a deferred home-only effect.
+- **Fix**:
+  - `app.js`: split homepage rendering into `renderGlobalShell()`, `renderHomeCritical()`, and `renderHomeDeferred()`, added deferred scheduling/cancelation helpers, and removed the old global popup timeout from boot.
+  - `js/core/navigation.js`: when leaving home, now cancels pending deferred work and stops banner autoplay; returning to home reruns the staged `renderAll()` path instead of a direct home content render.
+  - `js/modules/banner.js`: separated control binding from autoplay startup, added `stopBannerCarousel()`, and let `renderBannerCarousel({ autoplay: false })` render the first frame without starting the timer.
+  - `js/modules/popup-ad.js`: added a per-session active-key guard so moving popup startup into deferred home render does not re-open the same popup stack every time the user revisits home.
+  - `js/config.js`, `index.html`: bumped cache version to `20260306n`.
+- **Lesson**: In this architecture, homepage slimming requires splitting "render DOM" from "start behavior". Anything that creates timers, overlays, or secondary sections must have an explicit deferred entry point and a cleanup path when the user leaves home.

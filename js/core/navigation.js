@@ -157,6 +157,10 @@ Object.assign(App, {
     if (this.currentPage === 'page-game' && pageId !== 'page-game' && this.destroyShotGamePage) {
       this.destroyShotGamePage();
     }
+    if (this.currentPage === 'page-home' && pageId !== 'page-home') {
+      this._cancelHomeDeferredRender?.();
+      this.stopBannerCarousel?.();
+    }
 
     const fromPage = this.currentPage;
     if (options.resetHistory) {
@@ -184,7 +188,7 @@ Object.assign(App, {
 
   /** 根據頁面 ID 渲染對應內容 */
   _renderPageContent(pageId) {
-    if (pageId === 'page-home') { this.renderHotEvents(); this.renderOngoingTournaments(); }
+    if (pageId === 'page-home') { this.renderAll(); }
     if (pageId === 'page-activities') this.renderActivityList();
     if (pageId === 'page-achievements') this.renderAchievements();
     if (pageId === 'page-titles') this.renderTitlePage();
