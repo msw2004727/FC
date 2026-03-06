@@ -1072,3 +1072,11 @@
   - `js/core/navigation.js`: split loading phases into `auth / cloud / page`, and only uses LINE wording when `LineAuth.isPendingLogin()` or LIFF session restoration is actually still pending.
   - `js/config.js`, `index.html`: bumped cache version to `20260306p`.
 - **Lesson**: Route feedback should match the weight of the wait. For short transitional waits, a small anchored status hint is easier to tolerate than a blocking overlay, and auth wording must be reserved for true auth-pending states or it quickly becomes noise.
+
+### 2026-03-06 - align status hint height with existing toast position
+- **Issue**: After switching route feedback to the non-blocking `status-hint`, its vertical position still sat lower than the existing toast used by messages like `功能準備中`.
+- **Cause**: `status-hint` used a different `bottom` offset than `.toast`, so the two patterns looked visually inconsistent.
+- **Fix**:
+  - `css/base.css`: changed `.status-hint` bottom offset to match `.toast` at `calc(var(--bottombar-h) + 16px)`.
+  - `js/config.js`, `index.html`: bumped cache version to `20260306q`.
+- **Lesson**: When introducing a new feedback component intended to match an existing interaction pattern, align anchor position as well as shape and motion; otherwise the UI still feels inconsistent.

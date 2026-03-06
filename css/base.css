@@ -598,7 +598,7 @@ img { max-width: 100%; display: block; }
 .status-hint {
   position: fixed;
   left: 50%;
-  bottom: calc(var(--bottombar-h) + 6px);
+  bottom: calc(var(--bottombar-h) + 16px);
   transform: translateX(-50%) translateY(12px);
   display: none;
   align-items: center;
