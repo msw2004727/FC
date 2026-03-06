@@ -16,7 +16,11 @@ const firebaseConfig = {
 };
 
 // Initialize Firebase（支援 CDN 動態載入：SDK 可能在此腳本之後才載入）
-let db, storage, auth;
+const firebaseStorageConfig = {
+  uploadBucket: "fc-football-6c8dc-asia-east1",
+};
+
+let db, storage, uploadStorage, auth;
 
 // ─── Firebase Auth 狀態恢復追蹤 ───
 // Firebase Auth 從 indexedDB/localStorage 恢復登入狀態是非同步的，
@@ -49,6 +53,13 @@ function _markWsBlocked() {
   try { localStorage.setItem(_WS_BLOCKED_KEY, Date.now().toString()); } catch (e) { /* ignore */ }
 }
 
+function _normalizeStorageBucketUrl(bucket) {
+  if (typeof bucket !== 'string') return '';
+  const trimmed = bucket.trim().replace(/\/+$/, '');
+  if (!trimmed) return '';
+  return trimmed.startsWith('gs://') ? trimmed : `gs://${trimmed}`;
+}
+
 /** 初始化 Firebase App — CDN SDK 載入後呼叫 */
 function initFirebaseApp() {
   if (db) return true; // 已初始化
@@ -75,6 +86,27 @@ function initFirebaseApp() {
     storage = (typeof firebase.storage === 'function') ? firebase.storage() : null;
     if (!storage) {
       console.warn('[Firebase] Storage SDK not loaded; storage features disabled.');
+      uploadStorage = null;
+      window._firebaseDefaultStorageBucket = '';
+      window._firebaseUploadStorageBucket = '';
+    } else {
+      const defaultBucketUrl = _normalizeStorageBucketUrl(firebaseConfig.storageBucket);
+      const uploadBucketUrl = _normalizeStorageBucketUrl(firebaseStorageConfig.uploadBucket);
+      window._firebaseDefaultStorageBucket = defaultBucketUrl;
+      window._firebaseUploadStorageBucket = uploadBucketUrl || defaultBucketUrl;
+
+      if (uploadBucketUrl && uploadBucketUrl !== defaultBucketUrl) {
+        try {
+          uploadStorage = firebase.app().storage(uploadBucketUrl);
+          console.log('[Firebase] Upload bucket ready:', uploadBucketUrl);
+        } catch (err) {
+          uploadStorage = storage;
+          window._firebaseUploadStorageBucket = defaultBucketUrl;
+          console.error('[Firebase] Upload bucket init failed, fallback to default bucket:', err.message);
+        }
+      } else {
+        uploadStorage = storage;
+      }
     }
     auth = firebase.auth();
 

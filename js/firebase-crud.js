@@ -829,13 +829,15 @@ Object.assign(FirebaseService, {
 
   async _uploadImage(base64DataUrl, path) {
     try {
-      if (!storage) { console.error('[Storage] storage 未初始化'); return null; }
-      const ref = storage.ref().child(`images/${path}_${Date.now()}`);
+      if (!storage && !uploadStorage) { console.error('[Storage] storage 未初始化'); return null; }
+      const activeStorage = uploadStorage || storage;
+      const ref = activeStorage.ref().child(`images/${path}_${Date.now()}`);
       const metadata = {
         cacheControl: 'public, max-age=31536000',
       };
       const snapshot = await ref.putString(base64DataUrl, 'data_url', metadata);
       const url = await snapshot.ref.getDownloadURL();
+      console.log('[Storage] upload target bucket:', window._firebaseUploadStorageBucket || window._firebaseDefaultStorageBucket || '(default)');
       console.log('[Storage] 圖片上傳成功:', path);
       return url;
     } catch (err) {
@@ -1410,7 +1412,21 @@ Object.assign(FirebaseService, {
    * Recursively lists all prefixes (subdirectories) and deletes every file.
    */
   async clearAllStorageImages() {
-    if (!storage) return 0;
+    const storageTargets = [];
+    const seenBuckets = new Set();
+
+    function addStorageTarget(target, bucket) {
+      if (!target) return;
+      const key = bucket || `bucket-${storageTargets.length}`;
+      if (seenBuckets.has(key)) return;
+      seenBuckets.add(key);
+      storageTargets.push(target);
+    }
+
+    addStorageTarget(storage, window._firebaseDefaultStorageBucket || '');
+    addStorageTarget(uploadStorage, window._firebaseUploadStorageBucket || '');
+    if (!storageTargets.length) return 0;
+
     let deleted = 0;
     async function deleteFolder(ref) {
       const result = await ref.listAll();
@@ -1422,7 +1438,11 @@ Object.assign(FirebaseService, {
         await deleteFolder(prefix);
       }
     }
-    await deleteFolder(storage.ref('images'));
+
+    for (const target of storageTargets) {
+      await deleteFolder(target.ref('images'));
+    }
+
     return deleted;
   },
 
