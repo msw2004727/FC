@@ -1025,3 +1025,10 @@
   - `js/modules/role.js`: changed `applyRole()` to rerender admin users only when `renderAdminUsers` is already present.
   - `js/config.js`, `index.html`: bumped cache version to `20260306k`.
 - **Lesson**: After moving route modules out of `index.html`, every eager lifecycle hook must be audited for direct method calls into those modules. Route-owned renderers can no longer be treated as globally present at login time.
+### 2026-03-06 - fix Step 4 team join regression from shared runtime helpers moved out of eager load
+- **Issue**: Applying to join a team could silently fail on production/mobile, with no pending record shown in "我的球隊申請".
+- **Cause**: `js/modules/team-form.js` still directly called `_deliverMessageToInbox()` and `_grantAutoExp()`, but those helpers live in `message-admin.js` and `auto-exp.js`. Step 4 moved both modules out of eager load even though they are still shared by user-facing pages, so clicking join could throw before any message record was created.
+- **Fix**:
+  - Restored `js/modules/message-admin.js` and `js/modules/auto-exp.js` to the eager script block in `index.html`.
+  - `js/config.js`, `index.html`: bumped cache version to `20260306l`.
+- **Lesson**: Before slimming eager scripts, distinguish true route-only modules from modules that currently hide shared runtime utilities. Shared helpers must either stay eager or be extracted into a dedicated bootstrap/runtime module first.

@@ -123,7 +123,8 @@
 // 20260306i: 首頁性能瘦身 V2 Step 3，補上 detail gateway 與 deep link 安全流程
 // 20260306j: 首頁性能瘦身 V2 Step 4，移出非首頁 eager route modules 並保留安全 gateway
 // 20260306k: 修正 applyRole() 在登入同步時直接呼叫 lazy admin renderer 導致首頁報錯
-const CACHE_VERSION = '20260306k';
+// 20260306l: 將 message-admin / auto-exp 放回 eager，修正申請入隊與前台共享 runtime 回歸
+const CACHE_VERSION = '20260306l';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {
