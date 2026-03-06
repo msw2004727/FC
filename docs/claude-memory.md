@@ -1018,3 +1018,10 @@
   - `index.html`: deliberately kept `shop.js`, `event-create.js`, `ad-manage-core.js`, `profile-card.js`, and `leaderboard.js` eager because they still have cross-module bootstrap/runtime dependencies outside pure route entry.
   - `js/config.js`, `index.html`: bumped cache version to `20260306j`.
 - **Lesson**: In this architecture, script slimming must be gated by actual call-entry analysis, not page ownership alone. If an eager module directly calls a function defined in another module, that callee cannot be removed from eager load until a gateway or dependency split exists.
+### 2026-03-06 - fix Step 4 login regression from applyRole eager admin rerender
+- **Issue**: Homepage login could throw `this.renderAdminUsers is not a function` immediately after user data synced.
+- **Cause**: `js/modules/role.js` still assumed `renderAdminUsers()` was eagerly loaded and called it inside `applyRole()`. After Step 4, `user-admin-list.js` is lazy-loaded by route, so that eager-time call became invalid.
+- **Fix**:
+  - `js/modules/role.js`: changed `applyRole()` to rerender admin users only when `renderAdminUsers` is already present.
+  - `js/config.js`, `index.html`: bumped cache version to `20260306k`.
+- **Lesson**: After moving route modules out of `index.html`, every eager lifecycle hook must be audited for direct method calls into those modules. Route-owned renderers can no longer be treated as globally present at login time.

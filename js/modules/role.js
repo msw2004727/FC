@@ -73,7 +73,9 @@ Object.assign(App, {
     });
 
     this.renderDrawerMenu();
-    this.renderAdminUsers();
+    if (typeof this.renderAdminUsers === 'function') {
+      this.renderAdminUsers();
+    }
 
     const currentPageEl = document.getElementById(this.currentPage);
     if (currentPageEl && currentPageEl.dataset.minRole) {

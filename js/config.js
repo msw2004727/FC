@@ -122,7 +122,8 @@
 // 20260306h: 首頁性能瘦身 V2 Step 2，建立可等待的 page/script/data gateway 契約
 // 20260306i: 首頁性能瘦身 V2 Step 3，補上 detail gateway 與 deep link 安全流程
 // 20260306j: 首頁性能瘦身 V2 Step 4，移出非首頁 eager route modules 並保留安全 gateway
-const CACHE_VERSION = '20260306j';
+// 20260306k: 修正 applyRole() 在登入同步時直接呼叫 lazy admin renderer 導致首頁報錯
+const CACHE_VERSION = '20260306k';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {
