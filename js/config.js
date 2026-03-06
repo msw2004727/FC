@@ -1,4 +1,4 @@
-/* ================================================
+﻿/* ================================================
    SportHub — Config & Constants
    ================================================ */
 
@@ -119,8 +119,8 @@
 // 20260306d: 小遊戲主題優先跟隨主站 data-theme / sporthub_theme，再回退系統主題
 // 20260306e: page-game 將 GLTFLoader 改為最佳努力載入，避免 loader 失敗阻斷遊戲啟動
 // 20260306f: 修正點球命中檢測為遞迴 raycast，恢復可射門
-// 20260306g: 白球保險修復（fallback 球也載貼圖 + GLTFLoader 第二 CDN 備援）
-const CACHE_VERSION = '20260306g';
+// 20260306h: 首頁性能瘦身 V2 Step 2，建立可等待的 page/script/data gateway 契約
+const CACHE_VERSION = '20260306h';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {
@@ -406,3 +406,4 @@ const DRAWER_MENUS = [
   { icon: '', label: '錯誤日誌', i18nKey: 'admin.errorLogs', page: 'page-admin-error-logs', minRole: 'super_admin' },
   { icon: '', label: '歷史入隊補正', i18nKey: 'admin.repair', page: 'page-admin-repair', minRole: 'super_admin' },
 ];
+

@@ -9,15 +9,38 @@ const ScriptLoader = {
 
   _loaded: {},
   _loading: {},
+  _domPrimed: false,
+
+  _normalizeLocalSrc(src) {
+    try {
+      const url = new URL(src, window.location.href);
+      if (url.origin !== window.location.origin) return null;
+      return decodeURIComponent(url.pathname.replace(/^\//, ''));
+    } catch (_) {
+      return null;
+    }
+  },
+
+  _primeLoadedFromDom() {
+    if (this._domPrimed) return;
+    document.querySelectorAll('script[src]').forEach(script => {
+      const normalized = this._normalizeLocalSrc(script.src);
+      if (!normalized) return;
+      this._loaded[normalized] = true;
+    });
+    this._domPrimed = true;
+  },
 
   /** 載入單一 script（回傳 Promise） */
   _load(src) {
+    this._primeLoadedFromDom();
     if (this._loaded[src]) return Promise.resolve();
     if (this._loading[src]) return this._loading[src];
 
     this._loading[src] = new Promise((resolve, reject) => {
       const s = document.createElement('script');
       s.src = src + '?v=' + CACHE_VERSION;
+      s.async = false;
       s.onload = () => { this._loaded[src] = true; delete this._loading[src]; resolve(); };
       s.onerror = () => { delete this._loading[src]; reject(new Error('Failed: ' + src)); };
       document.head.appendChild(s);
@@ -25,12 +48,13 @@ const ScriptLoader = {
     return this._loading[src];
   },
 
-  /** 載入一組 scripts（平行下載，保持執行順序） */
+  /** 載入一組 scripts（嚴格依序執行，避免 Object.assign 順序競態） */
   async loadGroup(scripts) {
     const toLoad = scripts.filter(s => !this._loaded[s]);
     if (toLoad.length === 0) return;
-    // 平行 fetch，但依序 append 以維持 Object.assign 順序
-    await Promise.all(toLoad.map(s => this._load(s)));
+    for (const src of toLoad) {
+      await this._load(src);
+    }
   },
 
   // ════════════════════════════════
@@ -38,7 +62,6 @@ const ScriptLoader = {
   // ════════════════════════════════
 
   _groups: {
-    // 活動群組
     activity: [
       'js/modules/event-list.js',
       'js/modules/event-detail.js',
@@ -47,107 +70,118 @@ const ScriptLoader = {
       'js/modules/event-create.js',
       'js/modules/event-manage.js',
     ],
-    // 球隊群組
     team: [
       'js/modules/team-list.js',
       'js/modules/team-detail.js',
       'js/modules/team-form.js',
     ],
-    // 賽事群組
-    tournament: [
-      'js/modules/tournament-render.js',
-      'js/modules/tournament-manage.js',
-    ],
-    // 訊息群組
-    message: [
-      'js/modules/message-inbox.js',
-      'js/modules/message-admin.js',
-    ],
-    // 個人資料群組
     profile: [
-      'js/modules/profile-core.js',
-      'js/modules/profile-data.js',
       'js/modules/profile-card.js',
-      'js/modules/favorites.js',
+    ],
+    shop: [
+      'js/modules/shop.js',
       'js/modules/leaderboard.js',
     ],
-    // 商品
-    shop: ['js/modules/shop.js'],
-    // 掃碼
-    scan: ['js/modules/scan.js'],
-    // Admin 後台
-    admin: [
+    scan: [
+      'js/modules/scan.js',
+      'js/modules/attendance-notify.js',
+    ],
+    game: [
+      'js/modules/shot-game-page.js',
+    ],
+    tournamentAdmin: [
+      'js/modules/tournament-manage.js',
+    ],
+    messageAdmin: [
+      'js/modules/message-admin.js',
+    ],
+    adminDashboard: [
       'js/modules/dashboard.js',
+    ],
+    personalDashboard: [
       'js/modules/personal-dashboard.js',
+    ],
+    adminUsers: [
       'js/modules/user-admin-list.js',
       'js/modules/user-admin-exp.js',
       'js/modules/user-admin-roles.js',
-      'js/modules/auto-exp.js',
-      'js/modules/achievement.js',
-      'js/modules/game-manage.js',
+    ],
+    adminContent: [
       'js/modules/ad-manage-core.js',
       'js/modules/ad-manage-banner.js',
       'js/modules/ad-manage-float.js',
       'js/modules/ad-manage-popup-sponsor.js',
-      'js/modules/leaderboard.js',
+      'js/modules/ad-manage-shotgame.js',
+    ],
+    adminSystem: [
+      'js/modules/auto-exp.js',
+      'js/modules/game-manage.js',
+      'js/modules/error-log.js',
     ],
   },
 
   // 頁面 ID → 需要的群組
   _pageGroups: {
-    'page-home':               ['activity'],
     'page-activities':         ['activity'],
-    'page-teams':              ['team'],
-    'page-tournaments':        ['tournament'],
-    'page-messages':           ['message'],
-    'page-profile':            ['profile'],
-    'page-shop':               ['shop'],
-    'page-scan':               ['scan'],
     'page-activity-detail':    ['activity'],
     'page-my-activities':      ['activity'],
+    'page-teams':              ['team'],
     'page-team-detail':        ['team'],
     'page-team-manage':        ['team'],
+    'page-profile':            ['profile'],
+    'page-qrcode':             ['profile'],
     'page-user-card':          ['profile'],
-    'page-titles':             ['profile'],
-    'page-personal-dashboard': ['admin'],
-    'page-admin-dashboard':    ['admin'],
-    'page-admin-users':        ['admin'],
-    'page-admin-banners':      ['admin'],
-    'page-admin-shop':         ['shop', 'admin'],
-    'page-admin-messages':     ['admin', 'message'],
-    'page-admin-teams':        ['team', 'admin'],
-    'page-admin-tournaments':  ['tournament', 'admin'],
-    'page-admin-achievements': ['admin'],
-    'page-admin-roles':        ['admin'],
-    'page-admin-inactive':     ['admin'],
-    'page-admin-exp':          ['admin'],
-    'page-admin-auto-exp':     ['admin'],
-    'page-admin-announcements':['admin'],
-    'page-admin-games':        ['admin'],
-    'page-admin-themes':       ['admin'],
-    'page-admin-logs':         ['admin'],
-    'page-qrcode':             ['scan'],
-    'page-leaderboard':        ['admin'],
+    'page-shop':               ['shop'],
+    'page-leaderboard':        ['shop'],
+    'page-scan':               ['scan'],
+    'page-game':               ['game'],
+    'page-personal-dashboard': ['personalDashboard'],
+    'page-admin-dashboard':    ['adminDashboard'],
+    'page-admin-users':        ['adminUsers'],
+    'page-admin-exp':          ['adminUsers'],
+    'page-admin-roles':        ['adminUsers'],
+    'page-admin-inactive':     ['adminUsers'],
+    'page-admin-logs':         ['adminUsers'],
+    'page-admin-repair':       ['adminUsers'],
+    'page-admin-banners':      ['adminContent'],
+    'page-admin-shop':         ['shop'],
+    'page-admin-messages':     ['messageAdmin'],
+    'page-admin-teams':        ['team'],
+    'page-admin-tournaments':  ['tournamentAdmin'],
+    'page-admin-games':        ['adminSystem'],
+    'page-admin-auto-exp':     ['adminSystem'],
+    'page-admin-error-logs':   ['adminSystem'],
   },
 
   /** 確保頁面需要的群組已載入 */
   async ensureForPage(pageId) {
-    const groups = this._pageGroups[pageId];
-    if (!groups) return;
-    const promises = groups.map(g => {
-      const scripts = this._groups[g];
-      return scripts ? this.loadGroup(scripts) : Promise.resolve();
+    this._primeLoadedFromDom();
+    const groups = this._pageGroups[pageId] || [];
+    if (groups.length === 0) return;
+
+    const orderedScripts = [];
+    const seen = new Set();
+
+    groups.forEach(groupName => {
+      const scripts = this._groups[groupName] || [];
+      scripts.forEach(src => {
+        if (seen.has(src)) return;
+        seen.add(src);
+        orderedScripts.push(src);
+      });
     });
-    await Promise.all(promises);
+
+    await this.loadGroup(orderedScripts);
   },
 
   /** 預載入所有群組（背景，不阻塞） */
   preloadAll() {
+    this._primeLoadedFromDom();
     const allScripts = Object.values(this._groups).flat();
     const toLoad = allScripts.filter(s => !this._loaded[s]);
     if (toLoad.length === 0) return;
     // 用低優先級預載入
-    const load = () => toLoad.forEach(s => this._load(s).catch(() => {}));
+    const load = () => this.loadGroup(toLoad).catch(() => {});
     if (typeof requestIdleCallback !== 'undefined') {
       requestIdleCallback(load);
     } else {

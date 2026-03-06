@@ -4,6 +4,8 @@
 
 Object.assign(App, {
 
+  _pageTransitionSeq: 0,
+
   _isCurrentUserRestricted() {
     if (ModeManager.isDemo()) return false;
     if (typeof ApiService === 'undefined' || typeof ApiService.getCurrentUser !== 'function') return false;
@@ -56,14 +58,34 @@ Object.assign(App, {
           return;
         }
         this.pageHistory = [];
-        this.showPage(page);
+        void this.showPage(page);
         document.querySelectorAll('.bot-tab').forEach(t => t.classList.remove('active'));
         tab.classList.add('active');
       });
     });
   },
 
-  showPage(pageId, options = {}) {
+  async _ensurePageEntryReady(pageId) {
+    if (typeof PageLoader !== 'undefined' && PageLoader.ensurePage) {
+      await PageLoader.ensurePage(pageId);
+    }
+
+    if (!document.getElementById(pageId)) {
+      throw new Error(`Page element missing: ${pageId}`);
+    }
+
+    if (typeof ScriptLoader !== 'undefined' && ScriptLoader.ensureForPage) {
+      await ScriptLoader.ensureForPage(pageId);
+    }
+
+    if (!ModeManager.isDemo()
+      && typeof FirebaseService !== 'undefined'
+      && FirebaseService.ensureCollectionsForPage) {
+      await FirebaseService.ensureCollectionsForPage(pageId);
+    }
+  },
+
+  async showPage(pageId, options = {}) {
     if (!options.bypassRestrictionGuard && this._isCurrentUserRestricted() && pageId !== 'page-home') {
       this._showRestrictedToast();
       return;
@@ -72,20 +94,30 @@ Object.assign(App, {
     const guardedPages = ['page-profile', 'page-teams', 'page-tournaments', 'page-messages', 'page-activities'];
     if (guardedPages.includes(pageId) && this._requireLogin()) return;
 
-    // 懶載入頁面 HTML 片段（如果尚未載入）
-    if (typeof PageLoader !== 'undefined' && PageLoader.ensurePage) {
-      PageLoader.ensurePage(pageId);
+    const transitionSeq = ++this._pageTransitionSeq;
+
+    try {
+      await this._ensurePageEntryReady(pageId);
+    } catch (err) {
+      if (transitionSeq === this._pageTransitionSeq) {
+        console.warn(`[Navigation] 頁面 ${pageId} 載入失敗:`, err);
+        this.showToast('頁面載入失敗，請稍後再試');
+      }
+      return;
     }
+
+    if (transitionSeq !== this._pageTransitionSeq) return;
 
     // 離開遊戲頁時銷毀引擎，釋放 WebGL context
     if (this.currentPage === 'page-game' && pageId !== 'page-game' && this.destroyShotGamePage) {
       this.destroyShotGamePage();
     }
 
+    const fromPage = this.currentPage;
     if (options.resetHistory) {
       this.pageHistory = [];
-    } else if (this.currentPage !== pageId) {
-      this.pageHistory.push(this.currentPage);
+    } else if (fromPage !== pageId) {
+      this.pageHistory.push(fromPage);
     }
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     const target = document.getElementById(pageId);
@@ -99,15 +131,7 @@ Object.assign(App, {
       this._floatAdOffset = 0;
       this._floatAdTarget = 0;
       requestAnimationFrame(() => { if (this._positionFloatingAds) this._positionFloatingAds(); });
-
-      // 懶載入 Firestore 集合（按頁面需求）
-      if (!ModeManager.isDemo() && typeof FirebaseService !== 'undefined' && FirebaseService.ensureCollectionsForPage) {
-        FirebaseService.ensureCollectionsForPage(pageId).then(() => {
-          this._renderPageContent(pageId);
-        });
-      } else {
-        this._renderPageContent(pageId);
-      }
+      this._renderPageContent(pageId);
 
       if (pageId !== 'page-scan' && this._stopCamera) this._stopCamera();
     }
@@ -117,6 +141,7 @@ Object.assign(App, {
   _renderPageContent(pageId) {
     if (pageId === 'page-home') { this.renderHotEvents(); this.renderOngoingTournaments(); }
     if (pageId === 'page-activities') this.renderActivityList();
+    if (pageId === 'page-achievements') this.renderAchievements();
     if (pageId === 'page-titles') this.renderTitlePage();
     if (pageId === 'page-my-activities') this.renderMyActivities();
     if (pageId === 'page-team-manage') this.renderTeamManage();
@@ -132,6 +157,7 @@ Object.assign(App, {
     if (pageId === 'page-tournaments') { this.renderTournamentTimeline(); }
     if (pageId === 'page-profile') { this.renderUserCard(); this.renderProfileData(); this.renderProfileFavorites(); if (this.renderActivityRecords) this.renderActivityRecords('all', 1); }
     if (pageId === 'page-shop') this.renderShop();
+    if (pageId === 'page-leaderboard') this.renderLeaderboard();
     if (pageId === 'page-admin-users') this.renderAdminUsers();
     if (pageId === 'page-admin-banners') { this.renderBannerManage(); this.renderFloatingAdManage(); this.renderPopupAdManage(); this.renderSponsorManage(); this.renderShotGameAdManage(); }
     if (pageId === 'page-admin-shop') this.renderShopManage();

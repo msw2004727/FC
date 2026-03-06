@@ -981,3 +981,22 @@
   - 以前段 UTF-8、尾段 Big5 的方式無損重建全文，重新輸出為純 UTF-8。
   - 更新 `AGENTS.md` 與 `CLAUDE.md`，明定所有修復/功能記錄統一寫入 `docs/claude-memory.md`，不得另建或分散到其他日誌檔。
 - **教訓**：知識庫檔案必須維持單一 UTF-8 規格；一旦發現混合編碼，應先做無損標準化，再繼續追加內容。
+
+### 2026-03-06 — 首頁性能瘦身 V2 Step 1 基線凍結與施工矩陣
+- **問題**：V2 規格已建立方向，但真正施工前仍缺少「目前首頁直接依賴什麼、哪些 page/group/data 映射其實不完整」的基線凍結，直接進 Step 2 會把推測當事實。
+- **原因**：現況是 loader 架構與 eager scripts 並存，許多映射缺口被 `index.html` 全量載入掩蓋；同時 V2 白名單仍漏了部分首頁實際依賴。
+- **修復**：
+  - 新增 `docs/home-performance-slimming-step1-baseline.md`，凍結當前啟動鏈、首頁 bootstrap 依賴、route entry 面、loader/data 映射缺口與 Step 2 前置條件。
+  - 確認 `shop.js` 的 `bindShopSearch()`、`event-create.js` 的 `bindTeamOnlyToggle()`、`ad-manage-core.js` 的 `trackAdClick()` 目前都不能在 Step 2 前直接移出首頁。
+  - 確認 `page-game`、`page-admin-error-logs`、`page-admin-repair`、`page-qrcode`、`page-leaderboard` 是 Step 2 必須先補契約的高風險頁面。
+- **教訓**：在無 build、全域 `Object.assign(App, ...)` 的專案中，先凍結真實依賴與缺口，比先動手移 script 更重要；若沒有基線矩陣，後續每一步都會退化成碰運氣施工。
+
+### 2026-03-06 — 首頁性能瘦身 V2 Step 2 導航 gateway 與 loader 契約
+- **問題**：`showPage()` 目前沒有形成 `page -> script -> data -> render` 的等待鏈；`PageLoader` 也無法對 boot fragments 提供可等待契約，導致頁面首訪行為仍依賴 eager scripts 與載入時機碰運氣。
+- **原因**：現況的 `PageLoader` 只支援部分 deferred page 的即時補載，`ScriptLoader` 也尚未具備「辨識已由 `index.html` eager 載入 script」的能力，因此一旦直接接上 loader 契約就會重複載 script 或首訪缺頁。
+- **修復**：
+  - `js/core/page-loader.js`：新增全頁面 `pageId -> fragment` 映射、boot pages 可等待契約、單檔載入去重與 `loadAll()` Promise 化。
+  - `js/core/script-loader.js`：新增 DOM eager script 掃描、順序穩定載入、補齊 `page-game` / `page-admin-error-logs` / `page-admin-repair` / `page-qrcode` / `page-leaderboard` 等映射。
+  - `js/core/navigation.js`：`showPage()` 改為先 `await` page/script/data ready，再切頁並 render；同時加入頁面切換序號，避免快速連點造成過時 render 覆蓋。
+  - `js/config.js`、`index.html`：同步 bump `CACHE_VERSION` 至 `20260306h`。
+- **教訓**：在腳本尚未真正抽離首頁前，必須先讓 loader 具備「識別既有 eager 資產」的能力，否則一接上 await gateway 就會先產生雙載與順序風險。
