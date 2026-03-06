@@ -1143,3 +1143,9 @@
   - js/modules/event-manage.js: changed activity deletion to await backend success and show a failure toast if the Firestore delete does not complete.
   - js/config.js, index.html: bumped cache version to 20260306v.
 - **Lesson**: Destructive actions must not optimistic-update the UI unless rollback is implemented; otherwise refresh will resurrect data that was never actually deleted.
+
+### 2026-03-06 — 手動簽到勾選簽退自動完成簽到
+- **問題**：活動詳情頁的手動簽到表格中，若只勾選「簽退」，UI 不會同步勾選「簽到」，儲存時也可能被擋下。
+- **原因**：報名名單與未報名單的手動簽到表格沒有建立 checkbox 連動，送出前也沒有把 `checkout => checkin` 這個規則正規化。
+- **修復**：修改 `js/modules/event-manage.js`，新增手動簽到 checkbox 連動 helper；勾選簽退時自動補勾簽到，取消簽到時若仍勾著簽退會一併取消；送出報名名單與未報名名單前都會先正規化狀態，確保勾簽退時會寫入完整的簽到與簽退紀錄。
+- **教訓**：這類有前後依賴的布林欄位不能只靠送出時驗證，UI 互動與資料寫入規則都要同步維持同一套狀態約束。

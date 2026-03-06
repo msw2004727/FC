@@ -20,6 +20,41 @@ Object.assign(App, {
   _eventPinCounter: 100,
   _cancelActivityBusyMap: Object.create(null),
 
+  _normalizeAttendanceSelection(state) {
+    const normalized = {
+      checkin: !!state?.checkin,
+      checkout: !!state?.checkout,
+      note: typeof state?.note === 'string' ? state.note : '',
+    };
+    if (normalized.checkout) normalized.checkin = true;
+    return normalized;
+  },
+
+  _bindAttendanceCheckboxLink(container, checkinPrefix, checkoutPrefix) {
+    if (!container || container.dataset.attendanceLinkBound === '1') return;
+    container.dataset.attendanceLinkBound = '1';
+    container.addEventListener('change', (e) => {
+      const target = e.target;
+      if (!target || target.tagName !== 'INPUT' || target.type !== 'checkbox' || target.disabled) return;
+
+      const targetId = String(target.id || '');
+      const isCheckin = targetId.startsWith(checkinPrefix);
+      const isCheckout = targetId.startsWith(checkoutPrefix);
+      if (!isCheckin && !isCheckout) return;
+
+      const uid = targetId.slice((isCheckin ? checkinPrefix : checkoutPrefix).length);
+      const checkinBox = document.getElementById(checkinPrefix + uid);
+      const checkoutBox = document.getElementById(checkoutPrefix + uid);
+      if (!checkinBox || !checkoutBox) return;
+
+      if (isCheckout && checkoutBox.checked) {
+        checkinBox.checked = true;
+      } else if (isCheckin && !checkinBox.checked && checkoutBox.checked) {
+        checkoutBox.checked = false;
+      }
+    });
+  },
+
   _nextEventPinOrder() {
     const maxExisting = (ApiService.getEvents?.() || []).reduce((max, e) => {
       const n = Number(e?.pinOrder) || 0;
@@ -725,6 +760,7 @@ Object.assign(App, {
         <tbody>${rows}</tbody>
       </table>
     </div>`;
+    this._bindAttendanceCheckboxLink(container, 'manual-checkin-', 'manual-checkout-');
   },
 
   // ── 未報名單表格（活動詳情頁用）──
@@ -833,6 +869,7 @@ Object.assign(App, {
         <tbody>${rows}</tbody>
       </table>
     </div>`;
+    this._bindAttendanceCheckboxLink(container, 'unreg-checkin-', 'unreg-checkout-');
   },
 
   // ── 整表手動簽到模式（報名名單用）──
@@ -886,11 +923,11 @@ Object.assign(App, {
       if (!checkinBox) continue;
       const checkoutBox = document.getElementById('manual-checkout-' + p.uid);
       const noteInput = document.getElementById('manual-note-' + p.uid);
-      desiredStateByUid[String(p.uid)] = {
+      desiredStateByUid[String(p.uid)] = this._normalizeAttendanceSelection({
         checkin: !!checkinBox.checked,
         checkout: !!checkoutBox?.checked,
         note: (noteInput?.value || '').trim().slice(0, 20),
-      };
+      });
     }
 
     this._attendanceSubmittingEventId = eventId;
@@ -903,7 +940,7 @@ Object.assign(App, {
 
     try {
       for (const p of people) {
-        const wanted = desiredStateByUid[String(p.uid)];
+        const wanted = this._normalizeAttendanceSelection(desiredStateByUid[String(p.uid)]);
         if (!wanted) continue;
 
         const wantCheckin = wanted.checkin;
@@ -948,7 +985,6 @@ Object.assign(App, {
             });
           }
           if (wantCheckout && !hasCheckout) {
-            if (!wantCheckin && !hasCheckin) { this.showToast(`${p.name}：請先簽到再簽退`); continue; }
             await ApiService.addAttendanceRecord({
               id: 'att_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5),
               eventId, uid: recordUid, userName: recordUserName,
@@ -1021,11 +1057,11 @@ Object.assign(App, {
       if (!checkinBox) continue;
       const checkoutBox = document.getElementById('unreg-checkout-' + p.uid);
       const noteInput = document.getElementById('unreg-note-' + p.uid);
-      desiredStateByUid[String(p.uid)] = {
+      desiredStateByUid[String(p.uid)] = this._normalizeAttendanceSelection({
         checkin: !!checkinBox.checked,
         checkout: !!checkoutBox?.checked,
         note: (noteInput?.value || '').trim().slice(0, 20),
-      };
+      });
     }
 
     this._unregSubmittingEventId = eventId;
@@ -1038,7 +1074,7 @@ Object.assign(App, {
 
     try {
       for (const p of people) {
-        const wanted = desiredStateByUid[String(p.uid)];
+        const wanted = this._normalizeAttendanceSelection(desiredStateByUid[String(p.uid)]);
         if (!wanted) continue;
 
         const wantCheckin = wanted.checkin;
@@ -1074,7 +1110,6 @@ Object.assign(App, {
             });
           }
           if (wantCheckout && !hasCheckout) {
-            if (!wantCheckin && !hasCheckin) { this.showToast(`${p.name}：請先簽到再簽退`); continue; }
             await ApiService.addAttendanceRecord({
               id: 'att_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5),
               eventId, uid: p.uid, userName: p.name,

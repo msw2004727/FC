@@ -88,6 +88,7 @@
 // 20260305: fix game-lab showGame() display:none bug (game section never showed)
 // 20260305a: game-lab full Chinese UI, light/dark theme, field line markings
 // 20260305b: free aim, hint top-right, goal randomness, streak ramp, 10x shake
+// 20260306w: 手動簽到勾選簽退時自動補勾簽到，儲存時同步寫入 checkin + checkout
 // 20260305e: Phase 1 shot game — Cloud Function submit + Firestore leaderboard
 // 20260305f: game adjustments — intro modal, shot game ad slot, flash fix
 // 20260305j: 射門遊戲嵌入主站（pages/game.html + shot-game-page.js + game.css）
@@ -132,7 +133,7 @@
 // 20260306r: Step 6 驗收補齊 shop/tournament detail 冷首訪 fragment/data 契約缺口
 // 20260306s: PK 大賽蓄力條改為跟隨球的螢幕座標顯示在球上方，避免手機手指遮擋
 // 20260306v: 活動刪除改為等待 Firestore 成功後才更新前端，避免刷新後被刪活動重新出現
-const CACHE_VERSION = '20260306v';
+const CACHE_VERSION = '20260306w';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {
