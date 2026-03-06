@@ -144,7 +144,7 @@ Object.assign(App, {
       id: 'tpl_' + Date.now(),
       name,
       title: document.getElementById('ce-title')?.value?.trim() || '',
-      type: document.getElementById('ce-type')?.value || 'friendly',
+      type: document.getElementById('ce-type')?.value || 'play',
       location: document.getElementById('ce-location')?.value?.trim() || '',
       date: document.getElementById('ce-date')?.value || '',
       timeStart: document.getElementById('ce-time-start')?.value || '14:00',
@@ -348,7 +348,7 @@ Object.assign(App, {
       id: 'tpl_' + Date.now(),
       name,
       title: document.getElementById('ce-title')?.value?.trim() || '',
-      type: document.getElementById('ce-type')?.value || 'friendly',
+      type: document.getElementById('ce-type')?.value || 'play',
       location: document.getElementById('ce-location')?.value?.trim() || '',
       date: document.getElementById('ce-date')?.value || '',
       timeStart: document.getElementById('ce-time-start')?.value || '14:00',
@@ -529,7 +529,7 @@ Object.assign(App, {
     this._delegates = [];
     // 重置表單欄位，防止編輯後殘留資料
     document.getElementById('ce-title').value = '';
-    document.getElementById('ce-type').value = 'friendly';
+    document.getElementById('ce-type').value = 'play';
     document.getElementById('ce-location').value = '';
     document.getElementById('ce-date').value = '';
     document.getElementById('ce-time-start').value = '14:00';
@@ -1096,7 +1096,7 @@ Object.assign(App, {
     els.hidden.value = this._selectedSportTag;
 
     if (!this._selectedSportTag) {
-      els.selectedInner.innerHTML = '<span class="ce-sport-placeholder">請選擇運動標籤</span>';
+      els.selectedInner.innerHTML = '<span class="ce-sport-placeholder">請選擇運動 / 場景標籤</span>';
       return;
     }
 
@@ -1220,7 +1220,7 @@ Object.assign(App, {
     }
     if (tEnd <= tStart) { this.showToast('結束時間必須晚於開始時間'); return; }
     if (notes.length > 500) { this.showToast('注意事項不可超過 500 字'); return; }
-    if (!sportTag) { this.showToast('請先選擇運動標籤（必選）'); return; }
+    if (!sportTag) { this.showToast('請先選擇運動 / 場景標籤（必選）'); return; }
     // 球隊限定：決定 teamId / teamName
     let resolvedTeamId = null, resolvedTeamName = null;
     if (teamOnly) {
