@@ -1108,3 +1108,12 @@
   - `js/modules/shot-game-engine.js`: projected the ball's top/bottom world coordinates into screen space, preserved the current visual gap, and moved the power bar to the ball's upper side while charging.
   - `js/config.js`, `index.html`: bumped cache version to `20260306s`.
 - **Lesson**: HUD that is part of a direct touch gesture should anchor to the interacted object, not to a fixed screen edge, or mobile touch occlusion will eventually appear.
+
+### 2026-03-06 - remove drawer shot-game entry without hiding home game card
+- **Issue**: The user wanted the drawer menu to stop showing the `射門遊戲` entry, but homepage game visibility still depended on the drawer config containing `page-game`.
+- **Cause**: `event-list.js` used `DRAWER_MENUS.find(...page-game...)` as a proxy for whether the homepage shortcut should exist, so deleting the drawer item would also suppress the homepage card.
+- **Fix**:
+  - `js/config.js`: removed the `射門遊戲` item from `DRAWER_MENUS`.
+  - `js/modules/event-list.js`: changed homepage game availability to read `HOME_GAME_PRESETS` plus `ApiService.isHomeGameVisible('shot-game')` instead of relying on drawer menu presence.
+  - `js/config.js`, `index.html`: bumped cache version to `20260306t`.
+- **Lesson**: Navigation configuration and feature availability must not share the same source of truth unless they are intentionally coupled; otherwise deleting one entry causes unrelated UI regressions.

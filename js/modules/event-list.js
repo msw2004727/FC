@@ -207,14 +207,17 @@ Object.assign(App, {
     if (titleEl) titleEl.style.display = isVisible ? '' : 'none';
   },
   _isHomeGameShortcutAvailable() {
-    const gameMenu = Array.isArray(DRAWER_MENUS)
-      ? DRAWER_MENUS.find(item => item && item.page === 'page-game')
+    const gameConfig = Array.isArray(HOME_GAME_PRESETS)
+      ? HOME_GAME_PRESETS.find(item => item && item.gameKey === 'shot-game')
       : null;
-    if (!gameMenu || gameMenu.locked) return false;
-    const minRole = gameMenu.minRole || 'user';
+    if (!gameConfig) return false;
+    if (gameConfig.enabled === false || gameConfig.homeVisible === false) return false;
+
+    const minRole = 'user';
     const minLevel = ROLE_LEVEL_MAP[minRole] || 0;
     const currentLevel = ROLE_LEVEL_MAP[this.currentRole] || 0;
     if (currentLevel < minLevel) return false;
+
     if (typeof ApiService !== 'undefined' && typeof ApiService.isHomeGameVisible === 'function') {
       return ApiService.isHomeGameVisible('shot-game');
     }

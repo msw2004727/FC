@@ -131,7 +131,8 @@
 // 20260306q: status hint 底部高度對齊既有 toast（如「功能準備中」）
 // 20260306r: Step 6 驗收補齊 shop/tournament detail 冷首訪 fragment/data 契約缺口
 // 20260306s: PK 大賽蓄力條改為跟隨球的螢幕座標顯示在球上方，避免手機手指遮擋
-const CACHE_VERSION = '20260306s';
+// 20260306t: 移除抽屜內射門遊戲入口，並讓首頁小遊戲卡片不再依賴抽屜選單存在
+const CACHE_VERSION = '20260306t';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {
@@ -390,7 +391,6 @@ const TEAM_RANK_CONFIG = [
 // ─── Drawer Menu Config ───
 const DRAWER_MENUS = [
   { icon: '', label: '個人數據', i18nKey: 'drawer.personalData', page: 'page-personal-dashboard', minRole: 'user', locked: true },
-  { icon: '', label: '射門遊戲', page: 'page-game', minRole: 'user' },
   { icon: '', label: '二手商品區', i18nKey: 'drawer.shop', page: 'page-shop', minRole: 'user', locked: true },
   { icon: '', label: '排行榜', i18nKey: 'drawer.leaderboard', action: 'coming-soon', minRole: 'user', locked: true },
   { icon: '', label: '分享網頁', i18nKey: 'drawer.share', action: 'share', minRole: 'user' },
