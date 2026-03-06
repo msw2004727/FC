@@ -831,15 +831,36 @@ Object.assign(FirebaseService, {
     try {
       if (!storage && !uploadStorage) { console.error('[Storage] storage 未初始化'); return null; }
       const activeStorage = uploadStorage || storage;
-      const ref = activeStorage.ref().child(`images/${path}_${Date.now()}`);
+      const uploadTargets = [
+        {
+          bucket: window._firebaseUploadStorageBucket || window._firebaseDefaultStorageBucket || '',
+          service: activeStorage,
+        },
+      ];
+      if (storage && storage !== activeStorage) {
+        uploadTargets.push({
+          bucket: window._firebaseDefaultStorageBucket || '',
+          service: storage,
+        });
+      }
       const metadata = {
         cacheControl: 'public, max-age=31536000',
       };
-      const snapshot = await ref.putString(base64DataUrl, 'data_url', metadata);
-      const url = await snapshot.ref.getDownloadURL();
-      console.log('[Storage] upload target bucket:', window._firebaseUploadStorageBucket || window._firebaseDefaultStorageBucket || '(default)');
-      console.log('[Storage] 圖片上傳成功:', path);
-      return url;
+      let lastError = null;
+      for (const target of uploadTargets) {
+        try {
+          const ref = target.service.ref().child(`images/${path}_${Date.now()}`);
+          const snapshot = await ref.putString(base64DataUrl, 'data_url', metadata);
+          const url = await snapshot.ref.getDownloadURL();
+          console.log('[Storage] upload target bucket:', target.bucket || '(default)');
+          console.log('[Storage] 圖片上傳成功:', path);
+          return url;
+        } catch (uploadErr) {
+          lastError = uploadErr;
+          console.warn('[Storage] upload attempt failed:', target.bucket || '(default)', uploadErr.code, uploadErr.message);
+        }
+      }
+      throw lastError || new Error('Storage upload failed');
     } catch (err) {
       console.error('[Storage] 圖片上傳失敗:', path, err.code, err.message, err);
       if (typeof App !== 'undefined' && App.showToast) {
