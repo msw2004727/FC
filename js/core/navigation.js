@@ -134,11 +134,17 @@ Object.assign(App, {
       && typeof this._beginRouteLoading === 'function'
       && typeof this._endRouteLoading === 'function';
     const needsCloudInit = this._pageNeedsCloud(pageId) && (!this._cloudReady || !!this._cloudReadyPromise);
+    const authPending = !ModeManager.isDemo()
+      && typeof LineAuth !== 'undefined'
+      && (
+        (typeof LineAuth.isPendingLogin === 'function' && LineAuth.isPendingLogin())
+        || (typeof LineAuth.hasLiffSession === 'function' && LineAuth.hasLiffSession() && !LineAuth._ready)
+      );
     const routeLoadingSeq = shouldShowRouteLoading
       ? this._beginRouteLoading({
           pageId,
-          phase: needsCloudInit ? 'cloud' : 'page',
-          immediate: needsCloudInit,
+          phase: authPending ? 'auth' : (needsCloudInit ? 'cloud' : 'page'),
+          immediate: authPending,
         })
       : 0;
 

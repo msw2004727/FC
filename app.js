@@ -180,12 +180,8 @@ const App = {
   },
 
   _getRouteLoadingCopy(pageId, phase = 'page') {
-    if (phase === 'cloud') {
-      return {
-        title: '正在確認 LINE 登入',
-        sub: '正在同步帳號與資料，請稍候...',
-      };
-    }
+    if (phase === 'auth') return '正在同步 LINE 登入與資料...';
+    if (phase === 'cloud') return '正在同步資料，請稍候...';
     const pageLabels = {
       'page-activities': '活動',
       'page-activity-detail': '活動詳情',
@@ -200,16 +196,8 @@ const App = {
       'page-personal-dashboard': '個人儀表板',
     };
     const label = pageLabels[pageId];
-    if (!label) {
-      return {
-        title: '資料載入中',
-        sub: '請稍候，系統正在準備頁面內容...',
-      };
-    }
-    return {
-      title: `正在載入${label}`,
-      sub: '請稍候，系統正在準備資料...',
-    };
+    if (!label) return '資料載入中...';
+    return `正在載入${label}...`;
   },
 
   _beginRouteLoading(options = {}) {
@@ -221,7 +209,7 @@ const App = {
       minVisibleMs = 280,
       slowMs = 3200,
     } = options;
-    const overlay = document.getElementById('route-loading-overlay');
+    const overlay = document.getElementById('status-hint');
     const deepLinkOverlay = document.getElementById('deep-link-overlay');
     const bootOverlay = document.getElementById('loading-overlay');
     if (!overlay) return 0;
@@ -236,21 +224,18 @@ const App = {
     this._routeLoadingSlowTimer = null;
     this._routeLoadingHideTimer = null;
 
-    const titleEl = overlay.querySelector('[data-route-loading-title]');
-    const subEl = overlay.querySelector('[data-route-loading-sub]');
+    const textEl = overlay.querySelector('[data-status-hint-text]');
     const copy = this._getRouteLoadingCopy(pageId, phase);
 
     const show = () => {
       if (seq !== this._routeLoadingSeq) return;
-      if (titleEl) titleEl.textContent = copy.title;
-      if (subEl) subEl.textContent = copy.sub;
-      overlay.classList.remove('is-hiding');
-      overlay.style.display = 'flex';
+      if (textEl) textEl.textContent = copy;
+      overlay.style.display = 'inline-flex';
+      overlay.classList.add('show');
       this._routeLoadingShownAt = Date.now();
       this._routeLoadingSlowTimer = setTimeout(() => {
         if (seq !== this._routeLoadingSeq) return;
-        if (titleEl) titleEl.textContent = '網路較慢';
-        if (subEl) subEl.textContent = '資料仍在載入中，請再稍候片刻...';
+        if (textEl) textEl.textContent = '網路較慢，資料仍在載入中...';
       }, slowMs);
     };
 
@@ -267,7 +252,7 @@ const App = {
 
   _endRouteLoading(seq) {
     if (!seq || seq !== this._routeLoadingSeq) return;
-    const overlay = document.getElementById('route-loading-overlay');
+    const overlay = document.getElementById('status-hint');
     clearTimeout(this._routeLoadingShowTimer);
     clearTimeout(this._routeLoadingSlowTimer);
     clearTimeout(this._routeLoadingHideTimer);
@@ -282,11 +267,10 @@ const App = {
     const waitMs = Math.max(0, minVisibleMs - elapsed);
     const hide = () => {
       if (seq !== this._routeLoadingSeq) return;
-      overlay.classList.add('is-hiding');
+      overlay.classList.remove('show');
       this._routeLoadingHideTimer = setTimeout(() => {
         if (seq !== this._routeLoadingSeq) return;
         overlay.style.display = 'none';
-        overlay.classList.remove('is-hiding');
       }, 180);
     };
 

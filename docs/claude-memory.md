@@ -1062,3 +1062,13 @@
   - `index.html`: added a lightweight route-loading overlay that reuses the existing deep-link loading card visual language.
   - `js/config.js`, `index.html`: bumped cache version to `20260306o`.
 - **Lesson**: Once homepage boot is intentionally decoupled from cloud/page readiness, route-level waiting feedback becomes mandatory. Users should see a lightweight loading state whenever the app is waiting on initialization, not just during full boot or deep-link entry.
+
+### 2026-03-06 - refine route loading into non-blocking status hint and reduce auth wording noise
+- **Issue**: The first route-loading implementation was too visually heavy because it still used a centered overlay card, and the `正在確認 LINE 登入` copy appeared too often even when LIFF was already effectively ready.
+- **Cause**: The loading feedback reused an overlay pattern that blocked the screen, while the phase selection treated most cloud-init waits as auth waits instead of distinguishing real auth-pending from generic data sync.
+- **Fix**:
+  - `index.html`, `css/base.css`: replaced the route-loading overlay with a small non-blocking status hint positioned below the toast.
+  - `app.js`: changed route-loading copy to concise single-line hint text and updated the loading helpers to drive the new `#status-hint` element instead of a full-screen overlay.
+  - `js/core/navigation.js`: split loading phases into `auth / cloud / page`, and only uses LINE wording when `LineAuth.isPendingLogin()` or LIFF session restoration is actually still pending.
+  - `js/config.js`, `index.html`: bumped cache version to `20260306p`.
+- **Lesson**: Route feedback should match the weight of the wait. For short transitional waits, a small anchored status hint is easier to tolerate than a blocking overlay, and auth wording must be reserved for true auth-pending states or it quickly becomes noise.
