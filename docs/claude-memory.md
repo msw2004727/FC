@@ -1117,3 +1117,11 @@
   - `js/modules/event-list.js`: changed homepage game availability to read `HOME_GAME_PRESETS` plus `ApiService.isHomeGameVisible('shot-game')` instead of relying on drawer menu presence.
   - `js/config.js`, `index.html`: bumped cache version to `20260306t`.
 - **Lesson**: Navigation configuration and feature availability must not share the same source of truth unless they are intentionally coupled; otherwise deleting one entry causes unrelated UI regressions.
+
+### 2026-03-06 - add activity data scaling assessment document
+- **Issue**: The project needed a written decision aid for when growing historical activities should trigger pagination, split-flow, or archival work.
+- **Cause**: Current event loading keeps homepage startup lean, but historical activity growth still accumulates into the front-end cache and can eventually pressure activity-focused pages first.
+- **Fix**:
+  - Added docs/activity-data-scaling-assessment.md with architecture analysis, scaling thresholds, likely bottlenecks, and recommended trigger points for historical-activity strategy changes.
+  - No JS/HTML/runtime files were changed.
+- **Lesson**: For data-growth decisions, document the actual trigger thresholds before the system becomes slow; otherwise teams wait until performance pain appears and lose the chance to make a controlled change.
