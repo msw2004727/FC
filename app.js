@@ -26,6 +26,11 @@ const App = {
   _homeDeferredIdleId: null,
   _homeDeferredTimerId: null,
   _homeDeferredSeq: 0,
+  _routeLoadingSeq: 0,
+  _routeLoadingShowTimer: null,
+  _routeLoadingSlowTimer: null,
+  _routeLoadingHideTimer: null,
+  _routeLoadingShownAt: 0,
 
   init() {
     this.bindRoleSwitcher();
@@ -172,6 +177,124 @@ const App = {
     toast.classList.add('show');
     clearTimeout(this._toastTimer);
     this._toastTimer = setTimeout(() => toast.classList.remove('show'), 2500);
+  },
+
+  _getRouteLoadingCopy(pageId, phase = 'page') {
+    if (phase === 'cloud') {
+      return {
+        title: '正在確認 LINE 登入',
+        sub: '正在同步帳號與資料，請稍候...',
+      };
+    }
+    const pageLabels = {
+      'page-activities': '活動',
+      'page-activity-detail': '活動詳情',
+      'page-teams': '球隊',
+      'page-team-detail': '球隊詳情',
+      'page-profile': '個人資料',
+      'page-messages': '訊息',
+      'page-game': '小遊戲',
+      'page-scan': '掃碼頁面',
+      'page-shop': '商城',
+      'page-achievements': '成就頁面',
+      'page-personal-dashboard': '個人儀表板',
+    };
+    const label = pageLabels[pageId];
+    if (!label) {
+      return {
+        title: '資料載入中',
+        sub: '請稍候，系統正在準備頁面內容...',
+      };
+    }
+    return {
+      title: `正在載入${label}`,
+      sub: '請稍候，系統正在準備資料...',
+    };
+  },
+
+  _beginRouteLoading(options = {}) {
+    const {
+      pageId = '',
+      phase = 'page',
+      immediate = false,
+      delayMs = 220,
+      minVisibleMs = 280,
+      slowMs = 3200,
+    } = options;
+    const overlay = document.getElementById('route-loading-overlay');
+    const deepLinkOverlay = document.getElementById('deep-link-overlay');
+    const bootOverlay = document.getElementById('loading-overlay');
+    if (!overlay) return 0;
+    if (deepLinkOverlay && deepLinkOverlay.style.display !== 'none') return 0;
+    if (bootOverlay && bootOverlay.style.display !== 'none') return 0;
+
+    const seq = ++this._routeLoadingSeq;
+    clearTimeout(this._routeLoadingShowTimer);
+    clearTimeout(this._routeLoadingSlowTimer);
+    clearTimeout(this._routeLoadingHideTimer);
+    this._routeLoadingShowTimer = null;
+    this._routeLoadingSlowTimer = null;
+    this._routeLoadingHideTimer = null;
+
+    const titleEl = overlay.querySelector('[data-route-loading-title]');
+    const subEl = overlay.querySelector('[data-route-loading-sub]');
+    const copy = this._getRouteLoadingCopy(pageId, phase);
+
+    const show = () => {
+      if (seq !== this._routeLoadingSeq) return;
+      if (titleEl) titleEl.textContent = copy.title;
+      if (subEl) subEl.textContent = copy.sub;
+      overlay.classList.remove('is-hiding');
+      overlay.style.display = 'flex';
+      this._routeLoadingShownAt = Date.now();
+      this._routeLoadingSlowTimer = setTimeout(() => {
+        if (seq !== this._routeLoadingSeq) return;
+        if (titleEl) titleEl.textContent = '網路較慢';
+        if (subEl) subEl.textContent = '資料仍在載入中，請再稍候片刻...';
+      }, slowMs);
+    };
+
+    const shouldShowImmediately = immediate || overlay.style.display !== 'none';
+    if (shouldShowImmediately) {
+      show();
+    } else {
+      this._routeLoadingShowTimer = setTimeout(show, delayMs);
+    }
+
+    overlay.dataset.minVisibleMs = String(minVisibleMs);
+    return seq;
+  },
+
+  _endRouteLoading(seq) {
+    if (!seq || seq !== this._routeLoadingSeq) return;
+    const overlay = document.getElementById('route-loading-overlay');
+    clearTimeout(this._routeLoadingShowTimer);
+    clearTimeout(this._routeLoadingSlowTimer);
+    clearTimeout(this._routeLoadingHideTimer);
+    this._routeLoadingShowTimer = null;
+    this._routeLoadingSlowTimer = null;
+    this._routeLoadingHideTimer = null;
+
+    if (!overlay || overlay.style.display === 'none') return;
+
+    const minVisibleMs = Number(overlay.dataset.minVisibleMs || 280);
+    const elapsed = Date.now() - (this._routeLoadingShownAt || 0);
+    const waitMs = Math.max(0, minVisibleMs - elapsed);
+    const hide = () => {
+      if (seq !== this._routeLoadingSeq) return;
+      overlay.classList.add('is-hiding');
+      this._routeLoadingHideTimer = setTimeout(() => {
+        if (seq !== this._routeLoadingSeq) return;
+        overlay.style.display = 'none';
+        overlay.classList.remove('is-hiding');
+      }, 180);
+    };
+
+    if (waitMs > 0) {
+      this._routeLoadingHideTimer = setTimeout(hide, waitMs);
+      return;
+    }
+    hide();
   },
 
   /** 自訂確認 Modal（取代原生 confirm，不會被瀏覽器封鎖） */

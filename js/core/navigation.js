@@ -130,59 +130,75 @@ Object.assign(App, {
     }
     // 正式版未登入：擋住球隊、賽事、我的、訊息頁
     const guardedPages = ['page-profile', 'page-teams', 'page-tournaments', 'page-messages', 'page-activities'];
-    if (guardedPages.includes(pageId) && this._pageNeedsCloud(pageId) && typeof this.ensureCloudReady === 'function') {
-      try {
-        await this.ensureCloudReady({ reason: `guard:${pageId}` });
-      } catch (err) {
-        console.warn(`[Navigation] guard cloud init failed for ${pageId}:`, err);
-      }
-    }
-    if (guardedPages.includes(pageId) && this._requireLogin()) return;
-
-    const transitionSeq = ++this._pageTransitionSeq;
+    const shouldShowRouteLoading = pageId !== this.currentPage
+      && typeof this._beginRouteLoading === 'function'
+      && typeof this._endRouteLoading === 'function';
+    const needsCloudInit = this._pageNeedsCloud(pageId) && (!this._cloudReady || !!this._cloudReadyPromise);
+    const routeLoadingSeq = shouldShowRouteLoading
+      ? this._beginRouteLoading({
+          pageId,
+          phase: needsCloudInit ? 'cloud' : 'page',
+          immediate: needsCloudInit,
+        })
+      : 0;
 
     try {
-      await this._ensurePageEntryReady(pageId);
-    } catch (err) {
-      if (transitionSeq === this._pageTransitionSeq) {
-        console.warn(`[Navigation] 頁面 ${pageId} 載入失敗:`, err);
-        this.showToast('頁面載入失敗，請稍後再試');
+      if (guardedPages.includes(pageId) && this._pageNeedsCloud(pageId) && typeof this.ensureCloudReady === 'function') {
+        try {
+          await this.ensureCloudReady({ reason: `guard:${pageId}` });
+        } catch (err) {
+          console.warn(`[Navigation] guard cloud init failed for ${pageId}:`, err);
+        }
       }
-      return;
-    }
+      if (guardedPages.includes(pageId) && this._requireLogin()) return;
 
-    if (transitionSeq !== this._pageTransitionSeq) return;
+      const transitionSeq = ++this._pageTransitionSeq;
 
-    // 離開遊戲頁時銷毀引擎，釋放 WebGL context
-    if (this.currentPage === 'page-game' && pageId !== 'page-game' && this.destroyShotGamePage) {
-      this.destroyShotGamePage();
-    }
-    if (this.currentPage === 'page-home' && pageId !== 'page-home') {
-      this._cancelHomeDeferredRender?.();
-      this.stopBannerCarousel?.();
-    }
+      try {
+        await this._ensurePageEntryReady(pageId);
+      } catch (err) {
+        if (transitionSeq === this._pageTransitionSeq) {
+          console.warn(`[Navigation] 頁面 ${pageId} 載入失敗:`, err);
+          this.showToast('頁面載入失敗，請稍後再試');
+        }
+        return;
+      }
 
-    const fromPage = this.currentPage;
-    if (options.resetHistory) {
-      this.pageHistory = [];
-    } else if (fromPage !== pageId) {
-      this.pageHistory.push(fromPage);
-    }
-    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-    const target = document.getElementById(pageId);
-    if (target) {
-      target.classList.add('active');
-      this.currentPage = pageId;
-      // 同步 URL hash，讓瀏覽器返回鍵可用（hash 相同時跳過，避免觸發 hashchange）
-      if (location.hash !== '#' + pageId) location.hash = pageId;
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-      // 重設浮動廣告位置，避免跨頁 scrollTo 觸發 scroll listener 造成跳位
-      this._floatAdOffset = 0;
-      this._floatAdTarget = 0;
-      requestAnimationFrame(() => { if (this._positionFloatingAds) this._positionFloatingAds(); });
-      this._renderPageContent(pageId);
+      if (transitionSeq !== this._pageTransitionSeq) return;
 
-      if (pageId !== 'page-scan' && this._stopCamera) this._stopCamera();
+      // 離開遊戲頁時銷毀引擎，釋放 WebGL context
+      if (this.currentPage === 'page-game' && pageId !== 'page-game' && this.destroyShotGamePage) {
+        this.destroyShotGamePage();
+      }
+      if (this.currentPage === 'page-home' && pageId !== 'page-home') {
+        this._cancelHomeDeferredRender?.();
+        this.stopBannerCarousel?.();
+      }
+
+      const fromPage = this.currentPage;
+      if (options.resetHistory) {
+        this.pageHistory = [];
+      } else if (fromPage !== pageId) {
+        this.pageHistory.push(fromPage);
+      }
+      document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+      const target = document.getElementById(pageId);
+      if (target) {
+        target.classList.add('active');
+        this.currentPage = pageId;
+        // 同步 URL hash，讓瀏覽器返回鍵可用（hash 相同時跳過，避免觸發 hashchange）
+        if (location.hash !== '#' + pageId) location.hash = pageId;
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        // 重設浮動廣告位置，避免跨頁 scrollTo 觸發 scroll listener 造成跳位
+        this._floatAdOffset = 0;
+        this._floatAdTarget = 0;
+        requestAnimationFrame(() => { if (this._positionFloatingAds) this._positionFloatingAds(); });
+        this._renderPageContent(pageId);
+
+        if (pageId !== 'page-scan' && this._stopCamera) this._stopCamera();
+      }
+    } finally {
+      this._endRouteLoading?.(routeLoadingSeq);
     }
   },
 

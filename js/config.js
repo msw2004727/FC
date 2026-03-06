@@ -126,7 +126,8 @@
 // 20260306l: 將 message-admin / auto-exp 放回 eager，修正申請入隊與前台共享 runtime 回歸
 // 20260306m: 首頁性能瘦身 V2 Step 5A，將 Firebase/LIFF 改為一次性延後初始化並移除首頁 preload
 // 20260306n: 首頁性能瘦身 V2 Step 5B，首頁改為 critical/deferred 分段渲染並延後輪播/彈窗
-const CACHE_VERSION = '20260306n';
+// 20260306o: 補 route/cloud loading overlay，讓冷啟動首次切頁與登入同步期間有明確等待提示
+const CACHE_VERSION = '20260306o';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {

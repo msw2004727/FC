@@ -1052,3 +1052,13 @@
   - `js/modules/popup-ad.js`: added a per-session active-key guard so moving popup startup into deferred home render does not re-open the same popup stack every time the user revisits home.
   - `js/config.js`, `index.html`: bumped cache version to `20260306n`.
 - **Lesson**: In this architecture, homepage slimming requires splitting "render DOM" from "start behavior". Anything that creates timers, overlays, or secondary sections must have an explicit deferred entry point and a cleanup path when the user leaves home.
+
+### 2026-03-06 - add route loading overlay for cold page transitions and cloud pending
+- **Issue**: After homepage slimming Step 5A/5B, first navigation from a cold `?clear=1` boot could spend noticeable time waiting for cloud/page/script/data readiness, but the UI often looked unresponsive during that delay.
+- **Cause**: `showPage()` had no explicit loading feedback while awaiting `ensureCloudReady()` and `_ensurePageEntryReady()`. The project only had a heavy boot overlay and a deep-link overlay, so normal first route transitions had no clear waiting state.
+- **Fix**:
+  - `app.js`: added route-loading copy mapping plus delayed show / slow-network escalation / minimum-visible-time helpers for a shared route-loading overlay.
+  - `js/core/navigation.js`: wrapped normal page transitions with `_beginRouteLoading()` / `_endRouteLoading()` and switched to an immediate cloud/login copy when the target page still requires cloud initialization.
+  - `index.html`: added a lightweight route-loading overlay that reuses the existing deep-link loading card visual language.
+  - `js/config.js`, `index.html`: bumped cache version to `20260306o`.
+- **Lesson**: Once homepage boot is intentionally decoupled from cloud/page readiness, route-level waiting feedback becomes mandatory. Users should see a lightweight loading state whenever the app is waiting on initialization, not just during full boot or deep-link entry.
