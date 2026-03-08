@@ -617,12 +617,13 @@ Object.assign(App, {
     const body = this._renderTemplate(tpl.body, vars);
     this._deliverMessageToInbox(title, body, category || 'system', categoryName || '系統', targetUid, '系統');
     // LINE 推播排隊（供 Cloud Functions 消費）
-    this._queueLinePush(targetUid, category || 'system', title, body);
+    this._queueLinePush(targetUid, category || 'system', title, body, { source: `template:${key}` });
   },
 
-  _queueLinePushByTarget(targetType, targetUid, category, title, body, teamId) {
+  _queueLinePushByTarget(targetType, targetUid, category, title, body, teamId, options = {}) {
+    const baseOptions = { ...options, source: options.source || `target:${targetType}` };
     if (targetType === 'individual') {
-      if (targetUid) this._queueLinePush(targetUid, category, title, body);
+      if (targetUid) this._queueLinePush(targetUid, category, title, body, baseOptions);
       return;
     }
     // 與 sendMessage() 的 roleTargetMap 保持一致
@@ -642,7 +643,7 @@ Object.assign(App, {
           : (u.teamId === teamId);
         if (!inTeam) return;
       }
-      this._queueLinePush(u.uid, category, title, body);
+      this._queueLinePush(u.uid, category, title, body, baseOptions);
     });
   },
 
@@ -652,7 +653,34 @@ Object.assign(App, {
     return category; // system, activity, tournament 直接對應
   },
 
-  _queueLinePush(uid, category, title, body) {
+  _canCurrentUserUsePrivilegedLineQueue() {
+    const role = ApiService.getCurrentUser?.()?.role || this.currentRole || 'user';
+    return ['coach', 'captain', 'venue_owner', 'admin', 'super_admin'].includes(role);
+  },
+
+  _enqueuePrivilegedLinePush(uid, category, title, body, options = {}) {
+    const payload = {
+      uid,
+      category,
+      title,
+      body,
+      source: options.source || 'client:line-push',
+    };
+    if (options.dedupeKey) payload.dedupeKey = options.dedupeKey;
+
+    return firebase.app().functions('asia-east1').httpsCallable('enqueuePrivilegedLineNotification')(payload)
+      .then(result => {
+        const data = result?.data || {};
+        if (data.skipped) {
+          console.log('[LINE Push] skipped:', data.reason || 'unknown', payload);
+        } else if (data.queued) {
+          console.log('[LINE Push] queued via callable:', data.queueId || '(no-id)', payload);
+        }
+        return data;
+      });
+  },
+
+  _queueLinePush(uid, category, title, body, options = {}) {
     if (!uid) return;
     // 查找目標用戶的 lineNotify 設定
     const users = ApiService.getAdminUsers();
@@ -665,6 +693,12 @@ Object.assign(App, {
       console.log('[LINE Push]', { uid, category, title, body });
       this.showToast('LINE 推播已排入佇列（Demo）');
     } else {
+      if (this._canCurrentUserUsePrivilegedLineQueue()) {
+        this._enqueuePrivilegedLinePush(uid, category, title, body, options)
+          .catch(err => console.error('[LINE Push] callable enqueue failed:', err));
+        return;
+      }
+
       db.collection('linePushQueue').add({
         uid,
         title,

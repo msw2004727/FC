@@ -20,6 +20,19 @@ const VALID_ROLES = new Set([
   "admin",
   "super_admin",
 ]);
+const PRIVILEGED_LINE_NOTIFICATION_ROLES = new Set([
+  "coach",
+  "captain",
+  "venue_owner",
+  "admin",
+  "super_admin",
+]);
+const ALLOWED_LINE_NOTIFICATION_CATEGORIES = new Set([
+  "system",
+  "activity",
+  "tournament",
+  "private",
+]);
 const SHARE_SITE_ORIGIN = "https://toosterx.com";
 const DEFAULT_TEAM_SHARE_OG_IMAGE = "https://firebasestorage.googleapis.com/v0/b/fc-football-6c8dc.firebasestorage.app/o/images%2Ftest%2FS__174522375.jpg?alt=media&token=73eb0e3f-a94a-4368-a6df-d4afafaa4ea0";
 
@@ -188,6 +201,27 @@ async function setRoleClaimMerged(uid, role) {
     ...currentClaims,
     role: normalizeRole(role),
   });
+}
+
+function canQueuePrivilegedLineNotification(role) {
+  return PRIVILEGED_LINE_NOTIFICATION_ROLES.has(normalizeRole(role));
+}
+
+function normalizeLineNotificationCategory(category) {
+  if (typeof category !== "string") return "";
+  const trimmed = category.trim();
+  return ALLOWED_LINE_NOTIFICATION_CATEGORIES.has(trimmed) ? trimmed : "";
+}
+
+function normalizeLineNotificationText(value, maxLength) {
+  if (typeof value !== "string") return "";
+  const trimmed = value.trim();
+  if (!trimmed || trimmed.length > maxLength) return "";
+  return trimmed;
+}
+
+function getLineNotificationSettingsKey(category) {
+  return category === "private" ? "system" : category;
 }
 
 /**
@@ -386,6 +420,80 @@ exports.backfillRoleClaims = onCall(
   }
 );
 
+exports.enqueuePrivilegedLineNotification = onCall(
+  { region: "asia-east1", timeoutSeconds: 15 },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Authentication required");
+    }
+
+    const callerRole = await getCallerRoleWithFallback(request);
+    if (!canQueuePrivilegedLineNotification(callerRole)) {
+      throw new HttpsError("permission-denied", "Privileged role required");
+    }
+
+    const uid = normalizeLineNotificationText(request.data?.uid, 128);
+    const title = normalizeLineNotificationText(request.data?.title, 200);
+    const body = normalizeLineNotificationText(request.data?.body, 2000);
+    const category = normalizeLineNotificationCategory(request.data?.category);
+    const source = normalizeLineNotificationText(request.data?.source, 120) || "client:unknown";
+    const dedupeKey = normalizeLineNotificationText(request.data?.dedupeKey, 160);
+
+    if (!uid || !title || !body || !category) {
+      throw new HttpsError("invalid-argument", "uid/title/body/category are required");
+    }
+
+    const found = await findUserDocByUidOrLineUserId(uid);
+    if (!found) {
+      throw new HttpsError("not-found", "Target user not found");
+    }
+
+    const lineNotify = (found.data && typeof found.data.lineNotify === "object")
+      ? found.data.lineNotify
+      : {};
+    const settings = (lineNotify.settings && typeof lineNotify.settings === "object")
+      ? lineNotify.settings
+      : {};
+    const settingsKey = getLineNotificationSettingsKey(category);
+    if (!lineNotify.bound) {
+      return { queued: false, skipped: true, reason: "not_bound" };
+    }
+    if (!settings[settingsKey]) {
+      return { queued: false, skipped: true, reason: "category_disabled" };
+    }
+
+    const targetUid = getAuthUidFromUserDoc(found, uid);
+    const queuePayload = {
+      uid: targetUid,
+      title,
+      body,
+      category,
+      status: "pending",
+      createdAt: FieldValue.serverTimestamp(),
+      source,
+      requestedByUid: request.auth.uid,
+      requestedByRole: callerRole,
+    };
+    if (dedupeKey) queuePayload.dedupeKey = dedupeKey;
+
+    const ref = await db.collection("linePushQueue").add(queuePayload);
+    console.log("[enqueuePrivilegedLineNotification] queued", {
+      queueId: ref.id,
+      source,
+      requestedByUid: request.auth.uid,
+      requestedByRole: callerRole,
+      targetUid,
+      category,
+    });
+
+    return {
+      queued: true,
+      skipped: false,
+      queueId: ref.id,
+    };
+  }
+);
+
 /**
  * processLinePushQueue
  * 監聽 linePushQueue 新文件，透過 LINE Messaging API 發送推播
@@ -402,7 +510,15 @@ exports.processLinePushQueue = onDocumentCreated(
 
     const data = snap.data();
     const docRef = snap.ref;
-    const { uid, title, body, status } = data;
+    const {
+      uid,
+      title,
+      body,
+      status,
+      source = "unknown",
+      requestedByUid = "",
+      requestedByRole = "",
+    } = data;
 
     // 冪等性：僅處理 pending 狀態
     if (status !== "pending") {
