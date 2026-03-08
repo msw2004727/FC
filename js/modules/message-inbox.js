@@ -654,8 +654,7 @@ Object.assign(App, {
   },
 
   _canCurrentUserUsePrivilegedLineQueue() {
-    const role = ApiService.getCurrentUser?.()?.role || this.currentRole || 'user';
-    return ['coach', 'captain', 'venue_owner', 'admin', 'super_admin'].includes(role);
+    return true;
   },
 
   _enqueuePrivilegedLinePush(uid, category, title, body, options = {}) {

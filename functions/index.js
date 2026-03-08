@@ -20,13 +20,6 @@ const VALID_ROLES = new Set([
   "admin",
   "super_admin",
 ]);
-const PRIVILEGED_LINE_NOTIFICATION_ROLES = new Set([
-  "coach",
-  "captain",
-  "venue_owner",
-  "admin",
-  "super_admin",
-]);
 const ALLOWED_LINE_NOTIFICATION_CATEGORIES = new Set([
   "system",
   "activity",
@@ -201,10 +194,6 @@ async function setRoleClaimMerged(uid, role) {
     ...currentClaims,
     role: normalizeRole(role),
   });
-}
-
-function canQueuePrivilegedLineNotification(role) {
-  return PRIVILEGED_LINE_NOTIFICATION_ROLES.has(normalizeRole(role));
 }
 
 function normalizeLineNotificationCategory(category) {
@@ -428,9 +417,6 @@ exports.enqueuePrivilegedLineNotification = onCall(
     }
 
     const callerRole = await getCallerRoleWithFallback(request);
-    if (!canQueuePrivilegedLineNotification(callerRole)) {
-      throw new HttpsError("permission-denied", "Privileged role required");
-    }
 
     const uid = normalizeLineNotificationText(request.data?.uid, 128);
     const title = normalizeLineNotificationText(request.data?.title, 200);
