@@ -613,7 +613,8 @@ Object.assign(App, {
     const now = new Date();
     const timeStr = `${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
     const currentUser = ApiService.getCurrentUser?.() || null;
-    const senderUid = currentUser?.uid || auth?.currentUser?.uid || null;
+    // Firestore rules validate fromUid against the authenticated Firebase uid.
+    const senderUid = auth?.currentUser?.uid || currentUser?.uid || null;
     const directTargetUid = targetUid || null;
     const newMsg = {
       id: 'msg_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),

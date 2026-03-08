@@ -1117,6 +1117,13 @@ Object.assign(FirebaseService, {
   },
 
   async addMessage(data) {
+    const authed = await this._ensureAuth();
+    if (!authed || !auth?.currentUser) {
+      throw {
+        code: 'unauthenticated',
+        message: 'Firebase auth required before creating messages.',
+      };
+    }
     const docRef = await db.collection('messages').add({
       ..._stripDocId(data),
       timestamp: firebase.firestore.FieldValue.serverTimestamp(),
