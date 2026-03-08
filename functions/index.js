@@ -171,6 +171,14 @@ function getAuthUidFromUserDoc(found, fallbackUid) {
   return fallbackUid;
 }
 
+function getLineRecipientUidFromUserDoc(found, fallbackUid) {
+  const data = found?.data || {};
+  if (typeof data.lineUserId === "string" && data.lineUserId) return data.lineUserId;
+  if (typeof data.uid === "string" && data.uid) return data.uid;
+  if (typeof found?.docId === "string" && found.docId) return found.docId;
+  return fallbackUid;
+}
+
 async function getUserRoleFromFirestore(uidOrDocId) {
   const found = await findUserDocByUidOrLineUserId(uidOrDocId);
   if (!found) return "user";
@@ -453,9 +461,10 @@ exports.enqueuePrivilegedLineNotification = onCall(
       return { queued: false, skipped: true, reason: "category_disabled" };
     }
 
-    const targetUid = getAuthUidFromUserDoc(found, uid);
+    const targetUid = getLineRecipientUidFromUserDoc(found, uid);
     const queuePayload = {
       uid: targetUid,
+      targetDocId: found.docId,
       title,
       body,
       category,
@@ -509,6 +518,7 @@ exports.processLinePushQueue = onDocumentCreated(
       source = "unknown",
       requestedByUid = "",
       requestedByRole = "",
+      targetDocId = "",
     } = data;
 
     // 冪等性：僅處理 pending 狀態
@@ -559,8 +569,19 @@ exports.processLinePushQueue = onDocumentCreated(
 
       // 推播失敗 → 自動解綁用戶的 LINE 推播
       try {
-        const userDoc = db.collection("users").doc(uid);
-        const userSnap = await userDoc.get();
+        let userDoc = db.collection("users").doc(uid);
+        let userSnap = await userDoc.get();
+        if (!userSnap.exists && typeof targetDocId === "string" && targetDocId) {
+          userDoc = db.collection("users").doc(targetDocId);
+          userSnap = await userDoc.get();
+        }
+        if (!userSnap.exists) {
+          const foundUser = await findUserDocByUidOrLineUserId(uid);
+          if (foundUser?.docId) {
+            userDoc = db.collection("users").doc(foundUser.docId);
+            userSnap = await userDoc.get();
+          }
+        }
         if (userSnap.exists) {
           await userDoc.update({ "lineNotify.bound": false });
           console.log(`[LinePush] 已自動解綁用戶推播: ${uid}`);
