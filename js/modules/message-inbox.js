@@ -606,6 +606,10 @@ Object.assign(App, {
 
   _sendNotifFromTemplate(key, vars, targetUid, category, categoryName) {
     const fallbackTemplates = {
+      cancel_signup: {
+        title: '取消報名通知',
+        body: '{status}：\n\n活動名稱：{eventName}\n活動時間：{date}\n活動地點：{location}\n\n如之後想再次參加，請回到活動頁重新報名。',
+      },
       waitlist_demoted: {
         title: '候補調整通知',
         body: '很抱歉通知您，因活動名額調整，您的報名狀態已改為候補。\n\n活動名稱：{eventName}\n活動時間：{date}\n活動地點：{location}\n\n若有名額釋出，系統將依候補順序自動遞補。',
@@ -752,6 +756,7 @@ Object.assign(App, {
     const placeholderHints = {
       welcome: '{userName}',
       signup_success: '{eventName} {date} {location} {status}',
+      cancel_signup: '{eventName} {date} {location} {status}',
       waitlist_promoted: '{eventName} {date} {location}',
       waitlist_demoted: '{eventName} {date} {location}',
       event_cancelled: '{eventName} {date} {location}',

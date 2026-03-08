@@ -37,6 +37,29 @@ Object.assign(App, {
     this._deliverMessageToInbox(title, body, 'activity', '活動', targetUid, '系統');
   },
 
+  _notifySignupCancelledInboxFromTemplate(eventData, targetUid, isWaitlist) {
+    if (
+      !eventData ||
+      !targetUid ||
+      typeof this._deliverMessageToInbox !== 'function' ||
+      typeof this._renderTemplate !== 'function'
+    ) return;
+    const vars = {
+      eventName: eventData.title || '-',
+      date: eventData.date || '-',
+      location: eventData.location || '-',
+      status: isWaitlist ? '已取消候補' : '已取消報名',
+    };
+    const fallbackTemplate = {
+      title: '取消報名通知',
+      body: '{status}：\n\n活動名稱：{eventName}\n活動時間：{date}\n活動地點：{location}\n\n如之後想再次參加，請回到活動頁重新報名。',
+    };
+    const tpl = ApiService.getNotifTemplate?.('cancel_signup') || fallbackTemplate;
+    const title = this._renderTemplate(tpl.title, vars);
+    const body = this._renderTemplate(tpl.body, vars);
+    this._deliverMessageToInbox(title, body, 'activity', '活動', targetUid, '系統');
+  },
+
   async handleSignup(id) {
     const e = ApiService.getEvent(id);
     if (!e) return;
@@ -243,7 +266,7 @@ Object.assign(App, {
         }
       }
       _restoreCancelUI();
-      this._notifySignupCancelledInbox(e0, userId, isWaitlist);
+      this._notifySignupCancelledInboxFromTemplate(e0, userId, isWaitlist);
       ApiService._writeOpLog('cancel_signup', '取消報名', `${userName} 取消${isWaitlist ? '候補' : '報名'}「${e0.title}」`);
       this.showToast(isWaitlist ? '已取消候補' : '已取消報名');
       if (!isWaitlist) this._grantAutoExp(userId, 'cancel_registration', e0.title);
@@ -300,7 +323,7 @@ Object.assign(App, {
               ApiService.addActivityRecord({ eventId: id, name: ev.title, date: `${dp[1]}/${dp[2]}`, status: 'cancelled', uid: userId });
             }
           }
-          this._notifySignupCancelledInbox(ApiService.getEvent(id) || e0, userId, isWaitlist);
+          this._notifySignupCancelledInboxFromTemplate(ApiService.getEvent(id) || e0, userId, isWaitlist);
           ApiService._writeOpLog('cancel_signup', '取消報名', `${userName} 取消${isWaitlist ? '候補' : '報名'}「${e0.title}」`);
           this.showToast(isWaitlist ? '已取消候補' : '已取消報名');
           this._evaluateAchievements(e0?.type);

@@ -243,7 +243,7 @@ Object.assign(App, {
           }
           ApiService.addActivityRecord({ eventId, name: e.title, date: dateStr, status: 'cancelled', uid: userId });
           this._grantAutoExp(userId, 'cancel_registration', e.title);
-          this._notifySignupCancelledInbox(e, userId, false);
+          this._notifySignupCancelledInboxFromTemplate(e, userId, false);
         }
       }
       this.showToast(`已取消 ${checked.length} 筆報名`);
@@ -278,7 +278,7 @@ Object.assign(App, {
               }).then(ref => { arCancel._docId = ref.id; })
                 .catch(err => console.error('[companionCancelAR]', err));
             }
-            this._notifySignupCancelledInbox(e, userId, false);
+            this._notifySignupCancelledInboxFromTemplate(e, userId, false);
           }
         }
         this.showToast(`已取消 ${checked.length} 筆報名`);
