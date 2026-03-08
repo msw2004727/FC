@@ -221,6 +221,49 @@ function getLineNotificationSettingsKey(category) {
   return category === "private" ? "system" : category;
 }
 
+function getLineHttpStatus(err) {
+  const candidates = [
+    err?.statusCode,
+    err?.status,
+    err?.response?.status,
+    err?.originalError?.response?.status,
+    err?.originalError?.status,
+  ];
+  for (const candidate of candidates) {
+    const parsed = Number(candidate);
+    if (Number.isInteger(parsed) && parsed > 0) return parsed;
+  }
+  return 0;
+}
+
+async function shouldAutoUnbindLineRecipient(client, recipientUid, pushErr) {
+  if (!recipientUid) {
+    return { shouldUnbind: false, reason: "missing_recipient_uid" };
+  }
+
+  const pushStatus = getLineHttpStatus(pushErr);
+  if (pushStatus !== 400) {
+    return {
+      shouldUnbind: false,
+      reason: pushStatus ? `push_status_${pushStatus}` : "push_status_unknown",
+    };
+  }
+
+  try {
+    await client.getProfile(recipientUid);
+    return { shouldUnbind: false, reason: "profile_status_200" };
+  } catch (profileErr) {
+    const profileStatus = getLineHttpStatus(profileErr);
+    if (profileStatus === 400 || profileStatus === 404) {
+      return { shouldUnbind: true, reason: `profile_status_${profileStatus}` };
+    }
+    return {
+      shouldUnbind: false,
+      reason: profileStatus ? `profile_status_${profileStatus}` : "profile_status_unknown",
+    };
+  }
+}
+
 /**
  * getLineUserIdByAccessToken
  * 用 LINE Access Token 呼叫 /v2/profile 取得 lineUserId（有效期 30 天，不會過期）
@@ -547,7 +590,7 @@ exports.processLinePushQueue = onDocumentCreated(
         messages: [
           {
             type: "text",
-            text: `【${title}】\n${body}`,
+            text: `${title}\n${body}`,
           },
         ],
       });
@@ -566,6 +609,18 @@ exports.processLinePushQueue = onDocumentCreated(
         error: err.message || String(err),
         processedAt: FieldValue.serverTimestamp(),
       });
+      const unbindDecision = await shouldAutoUnbindLineRecipient(client, uid, err);
+      if (!unbindDecision.shouldUnbind) {
+        console.log("[LinePush] keep binding after failed push", {
+          uid,
+          queueId: snap.id,
+          reason: unbindDecision.reason,
+          source,
+          requestedByUid,
+          requestedByRole,
+        });
+        return;
+      }
 
       // 推播失敗 → 自動解綁用戶的 LINE 推播
       try {
