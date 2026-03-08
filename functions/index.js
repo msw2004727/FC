@@ -437,9 +437,14 @@ exports.enqueuePrivilegedLineNotification = onCall(
     const lineNotify = (found.data && typeof found.data.lineNotify === "object")
       ? found.data.lineNotify
       : {};
-    const settings = (lineNotify.settings && typeof lineNotify.settings === "object")
-      ? lineNotify.settings
-      : {};
+    const settings = {
+      activity: true,
+      system: true,
+      tournament: false,
+      ...((lineNotify.settings && typeof lineNotify.settings === "object")
+        ? lineNotify.settings
+        : {}),
+    };
     const settingsKey = getLineNotificationSettingsKey(category);
     if (!lineNotify.bound) {
       return { queued: false, skipped: true, reason: "not_bound" };

@@ -657,6 +657,32 @@ Object.assign(App, {
     return true;
   },
 
+  _getLineNotifySettings(lineNotify) {
+    return {
+      activity: true,
+      system: true,
+      tournament: false,
+      ...(lineNotify?.settings || {}),
+    };
+  },
+
+  _getLinePushTargetUser(uid) {
+    const users = ApiService.getAdminUsers() || [];
+    const target = users.find(u =>
+      u.uid === uid || u.lineUserId === uid || u._docId === uid
+    );
+    if (target) return target;
+
+    const currentUser = ApiService.getCurrentUser?.() || null;
+    if (
+      currentUser &&
+      (currentUser.uid === uid || currentUser.lineUserId === uid || currentUser._docId === uid)
+    ) {
+      return currentUser;
+    }
+    return null;
+  },
+
   _enqueuePrivilegedLinePush(uid, category, title, body, options = {}) {
     const payload = {
       uid,
@@ -682,11 +708,11 @@ Object.assign(App, {
   _queueLinePush(uid, category, title, body, options = {}) {
     if (!uid) return;
     // 查找目標用戶的 lineNotify 設定
-    const users = ApiService.getAdminUsers();
-    const target = users.find(u => u.uid === uid);
+    const target = this._getLinePushTargetUser(uid);
     if (!target || !target.lineNotify || !target.lineNotify.bound) return;
     const settingsKey = this._linePushCategoryKey(category);
-    if (!target.lineNotify.settings[settingsKey]) return;
+    const settings = this._getLineNotifySettings(target.lineNotify);
+    if (!settings[settingsKey]) return;
 
     if (ModeManager.isDemo()) {
       console.log('[LINE Push]', { uid, category, title, body });
