@@ -482,7 +482,7 @@ exports.enqueuePrivilegedLineNotification = onCall(
 
     const found = await findUserDocByUidOrLineUserId(uid);
     if (!found) {
-      throw new HttpsError("not-found", "Target user not found");
+      return { queued: false, skipped: true, reason: "target_not_found" };
     }
 
     const lineNotify = (found.data && typeof found.data.lineNotify === "object")

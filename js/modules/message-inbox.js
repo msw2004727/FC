@@ -706,13 +706,8 @@ Object.assign(App, {
   },
 
   _queueLinePush(uid, category, title, body, options = {}) {
-    if (!uid) return;
+    if (!uid || !category || !title || !body) return;
     // 查找目標用戶的 lineNotify 設定
-    const target = this._getLinePushTargetUser(uid);
-    if (!target || !target.lineNotify || !target.lineNotify.bound) return;
-    const settingsKey = this._linePushCategoryKey(category);
-    const settings = this._getLineNotifySettings(target.lineNotify);
-    if (!settings[settingsKey]) return;
 
     if (ModeManager.isDemo()) {
       console.log('[LINE Push]', { uid, category, title, body });
