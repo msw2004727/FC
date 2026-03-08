@@ -24,6 +24,19 @@ Object.assign(App, {
     }
   },
 
+  _notifySignupCancelledInbox(eventData, targetUid, isWaitlist) {
+    if (!eventData || !targetUid || typeof this._deliverMessageToInbox !== 'function') return;
+    const title = isWaitlist ? '取消候補通知' : '取消報名通知';
+    const statusLabel = isWaitlist ? '已取消候補' : '已取消報名';
+    const body =
+      `${statusLabel}：\n\n` +
+      `活動名稱：${eventData.title || '-'}\n` +
+      `活動時間：${eventData.date || '-'}\n` +
+      `活動地點：${eventData.location || '-'}\n\n` +
+      '如需再次參加，可回到活動頁重新報名。';
+    this._deliverMessageToInbox(title, body, 'activity', '活動', targetUid, '系統');
+  },
+
   async handleSignup(id) {
     const e = ApiService.getEvent(id);
     if (!e) return;
@@ -230,6 +243,7 @@ Object.assign(App, {
         }
       }
       _restoreCancelUI();
+      this._notifySignupCancelledInbox(e0, userId, isWaitlist);
       ApiService._writeOpLog('cancel_signup', '取消報名', `${userName} 取消${isWaitlist ? '候補' : '報名'}「${e0.title}」`);
       this.showToast(isWaitlist ? '已取消候補' : '已取消報名');
       if (!isWaitlist) this._grantAutoExp(userId, 'cancel_registration', e0.title);
@@ -286,6 +300,7 @@ Object.assign(App, {
               ApiService.addActivityRecord({ eventId: id, name: ev.title, date: `${dp[1]}/${dp[2]}`, status: 'cancelled', uid: userId });
             }
           }
+          this._notifySignupCancelledInbox(ApiService.getEvent(id) || e0, userId, isWaitlist);
           ApiService._writeOpLog('cancel_signup', '取消報名', `${userName} 取消${isWaitlist ? '候補' : '報名'}「${e0.title}」`);
           this.showToast(isWaitlist ? '已取消候補' : '已取消報名');
           this._evaluateAchievements(e0?.type);
