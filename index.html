@@ -20,7 +20,7 @@
   <!-- ?????????謖?????????????clear=1 ????????INE ???謘??????????????? -->
   <script>
   (function(){
-    var V='20260309j';
+    var V='20260309k';
     var isProd = location.hostname === 'toosterx.com' || location.hostname === 'www.toosterx.com' || location.hostname === 'msw2004727.github.io' || location.hostname === 'fc-3g8.pages.dev';
     // ?clear=1 ?????????????    if(location.search.indexOf('clear=1')!==-1){
       if('caches' in window) caches.keys().then(function(k){k.forEach(function(n){caches.delete(n)})});
@@ -46,19 +46,19 @@
   })();
   </script>
   <!-- CSS ??????????base ??layout ???????????? -->
-  <link rel="stylesheet" href="css/base.css?v=20260309j">
-  <link rel="stylesheet" href="css/layout.css?v=20260309j">
-  <link rel="stylesheet" href="css/home.css?v=20260309j">
-  <link rel="stylesheet" href="css/activity.css?v=20260309j">
-  <link rel="stylesheet" href="css/team.css?v=20260309j">
-  <link rel="stylesheet" href="css/profile.css?v=20260309j">
-  <link rel="stylesheet" href="css/message.css?v=20260309j">
-  <link rel="stylesheet" href="css/tournament.css?v=20260309j">
-  <link rel="stylesheet" href="css/shop.css?v=20260309j">
-  <link rel="stylesheet" href="css/scan.css?v=20260309j">
-  <link rel="stylesheet" href="css/admin.css?v=20260309j">
-  <link rel="stylesheet" href="css/game.css?v=20260309j">
-  <link rel="stylesheet" href="css/image-cropper.css?v=20260309j">
+  <link rel="stylesheet" href="css/base.css?v=20260309k">
+  <link rel="stylesheet" href="css/layout.css?v=20260309k">
+  <link rel="stylesheet" href="css/home.css?v=20260309k">
+  <link rel="stylesheet" href="css/activity.css?v=20260309k">
+  <link rel="stylesheet" href="css/team.css?v=20260309k">
+  <link rel="stylesheet" href="css/profile.css?v=20260309k">
+  <link rel="stylesheet" href="css/message.css?v=20260309k">
+  <link rel="stylesheet" href="css/tournament.css?v=20260309k">
+  <link rel="stylesheet" href="css/shop.css?v=20260309k">
+  <link rel="stylesheet" href="css/scan.css?v=20260309k">
+  <link rel="stylesheet" href="css/admin.css?v=20260309k">
+  <link rel="stylesheet" href="css/game.css?v=20260309k">
+  <link rel="stylesheet" href="css/image-cropper.css?v=20260309k">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 </head>
@@ -100,69 +100,69 @@
       <span class="logo-text">TooSterx Hub</span>
     </div>
     <div class="top-bar-right">
-      <div class="sport-picker-wrapper" id="sport-picker-wrapper">
-        <button class="sport-picker-btn" id="sport-picker-btn" aria-label="?????? / ??鞊???????>
-          <span class="sport-picker-icon"><span class="sport-emoji" aria-hidden="true">??/span></span>
-        </button>
-        <div class="sport-picker-dropdown" id="sport-picker-dropdown">
-          <div class="sport-picker-header">?????? / ??鞊???????/div>
-          <div id="sport-picker-list"></div>
-        </div>
-      </div>
-      <div id="points-display" class="points-display" title="??????????">
+      <div id="points-display" class="points-display" title="目前 EXP">
         <span class="points-icon">P</span>
         <span class="points-value" id="points-value">0</span>
       </div>
-      <button id="notif-btn" aria-label="??????">
+      <div class="sport-picker-wrapper" id="sport-picker-wrapper">
+        <button class="sport-picker-btn" id="sport-picker-btn" aria-label="運動分類 / 場景標籤">
+          <span class="sport-picker-icon"><span class="sport-emoji" aria-hidden="true">⚽</span></span>
+        </button>
+        <div class="sport-picker-dropdown" id="sport-picker-dropdown">
+          <div class="sport-picker-header">運動分類 / 場景標籤</div>
+          <div id="sport-picker-list"></div>
+        </div>
+      </div>
+      <button id="notif-btn" aria-label="通知">
         <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
         <span class="notif-badge" id="notif-badge" style="display:none"></span>
       </button>
       <div class="role-switcher-wrapper" id="role-switcher-wrapper" style="display:none">
-        <button id="role-avatar-btn" class="role-avatar-btn" aria-label="????????????>
-          <div class="role-avatar">??/div>
-          <span class="role-current-label">???????皜????/span>
-          <span class="role-arrow">??/span>
+        <button id="role-avatar-btn" class="role-avatar-btn" aria-label="切換 Demo 身分">
+          <div class="role-avatar">麥</div>
+          <span class="role-current-label">一般使用者</span>
+          <span class="role-arrow">▾</span>
         </button>
         <div id="role-dropdown" class="role-dropdown">
-          <div class="role-dropdown-header">??? Demo ?????????/div>
+          <div class="role-dropdown-header">切換 Demo 身分</div>
           <button class="role-dropdown-item active" data-role="user">
             <span class="role-icon">U</span>
-            <span>???????皜????/span>
+            <span>一般使用者</span>
           </button>
           <button class="role-dropdown-item" data-role="coach">
             <span class="role-icon">C</span>
-            <span>???殉???</span>
+            <span>教練</span>
           </button>
           <button class="role-dropdown-item" data-role="captain">
             <span class="role-icon">L</span>
-            <span>???</span>
+            <span>隊長</span>
           </button>
           <button class="role-dropdown-item" data-role="venue_owner">
             <span class="role-icon">V</span>
-            <span>??雓??</span>
+            <span>場地主</span>
           </button>
           <button class="role-dropdown-item" data-role="admin">
             <span class="role-icon">A</span>
-            <span>??????/span>
+            <span>管理員</span>
           </button>
           <button class="role-dropdown-item" data-role="super_admin">
             <span class="role-icon">S</span>
-            <span>?????/span>
+            <span>超級管理員</span>
           </button>
         </div>
       </div>
       <div id="line-login-wrapper" class="line-login-wrapper" style="display:none">
         <button id="line-login-btn" class="line-login-btn" onclick="LineAuth.login()">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="#fff"><path d="M12 2C6.48 2 2 5.83 2 10.5c0 4.18 3.66 7.68 8.58 8.38.33.07.78.22.9.5.1.26.07.66.03.92l-.15.86c-.04.26-.2 1.01.88.55s5.88-3.47 8.03-5.93C22.08 13.79 22 12.18 22 10.5 22 5.83 17.52 2 12 2z"/></svg>
-          LINE ??雓????
+          LINE 登入
         </button>
         <div id="line-user-topbar" class="line-user-topbar" style="display:none">
           <img id="line-avatar-topbar" class="line-avatar-topbar" src="" alt="" onclick="App.toggleUserMenu()">
           <div id="user-menu-dropdown" class="user-menu-dropdown" style="display:none">
             <div class="user-menu-name" id="user-menu-name"></div>
             <div class="user-menu-divider"></div>
-            <button class="user-menu-item" onclick="App.showPage('page-profile'); App.toggleUserMenu()">??????謢遴郁?</button>
-            <button class="user-menu-item user-menu-logout" onclick="App.logoutLine()">??雓????/button>
+            <button class="user-menu-item" onclick="App.showPage('page-profile'); App.toggleUserMenu()">個人資料</button>
+            <button class="user-menu-item user-menu-logout" onclick="App.logoutLine()">登出</button>
           </div>
         </div>
       </div>
@@ -373,52 +373,52 @@
   <!-- ??scan.js ?????偃銝????????????偃?????-->
 
   <!-- ??鞈????????? -->
-  <script defer src="js/i18n.js?v=20260309j"></script>
+  <script defer src="js/i18n.js?v=20260309k"></script>
 
   <!-- ?????-->
-  <script defer src="js/config.js?v=20260309j"></script>
-  <script defer src="js/data.js?v=20260309j"></script>
-  <script defer src="js/firebase-config.js?v=20260309j"></script>
-  <script defer src="js/firebase-service.js?v=20260309j"></script>
-  <script defer src="js/firebase-crud.js?v=20260309j"></script>
-  <script defer src="js/api-service.js?v=20260309j"></script>
-  <script defer src="js/line-auth.js?v=20260309j"></script>
+  <script defer src="js/config.js?v=20260309k"></script>
+  <script defer src="js/data.js?v=20260309k"></script>
+  <script defer src="js/firebase-config.js?v=20260309k"></script>
+  <script defer src="js/firebase-service.js?v=20260309k"></script>
+  <script defer src="js/firebase-crud.js?v=20260309k"></script>
+  <script defer src="js/api-service.js?v=20260309k"></script>
+  <script defer src="js/line-auth.js?v=20260309k"></script>
 
   <!-- ???玫頩???偃銝????+ ??????璈????偃銝???????蹎制狀????App ??????-->
-  <script defer src="js/core/page-loader.js?v=20260309j"></script>
-  <script defer src="js/core/script-loader.js?v=20260309j"></script>
+  <script defer src="js/core/page-loader.js?v=20260309k"></script>
+  <script defer src="js/core/script-loader.js?v=20260309k"></script>
 
   <!-- ?????????App ????? + init/renderAll/showToast??-->
-  <script defer src="app.js?v=20260309j"></script>
+  <script defer src="app.js?v=20260309k"></script>
 
   <!-- ????????? -->
-  <script defer src="js/core/navigation.js?v=20260309j"></script>
-  <script defer src="js/core/theme.js?v=20260309j"></script>
-  <script defer src="js/core/mode.js?v=20260309j"></script>
+  <script defer src="js/core/navigation.js?v=20260309k"></script>
+  <script defer src="js/core/theme.js?v=20260309k"></script>
+  <script defer src="js/core/mode.js?v=20260309k"></script>
 
   <!-- ?????????? -->
-  <script defer src="js/modules/image-cropper.js?v=20260309j"></script>
-  <script defer src="js/modules/image-upload.js?v=20260309j"></script>
-  <script defer src="js/modules/role.js?v=20260309j"></script>
-  <script defer src="js/modules/profile-core.js?v=20260309j"></script>
-  <script defer src="js/modules/profile-data.js?v=20260309j"></script>
-  <script defer src="js/modules/profile-card.js?v=20260309j"></script>
-  <script defer src="js/modules/banner.js?v=20260309j"></script>
-  <script defer src="js/modules/ad-manage-core.js?v=20260309j"></script>
-  <script defer src="js/modules/popup-ad.js?v=20260309j"></script>
-  <script defer src="js/modules/announcement.js?v=20260309j"></script>
-  <script defer src="js/modules/site-theme.js?v=20260309j"></script>
-  <script defer src="js/modules/event-list.js?v=20260309j"></script>
-  <script defer src="js/modules/event-manage.js?v=20260309j"></script>
-  <script defer src="js/modules/event-create.js?v=20260309j"></script>
-  <script defer src="js/modules/tournament-render.js?v=20260309j"></script>
-  <script defer src="js/modules/message-inbox.js?v=20260309j"></script>
-  <script defer src="js/modules/message-admin.js?v=20260309j"></script>
-  <script defer src="js/modules/achievement.js?v=20260309j"></script>
-  <script defer src="js/modules/auto-exp.js?v=20260309j"></script>
-  <script defer src="js/modules/favorites.js?v=20260309j"></script>
-  <script defer src="js/modules/shop.js?v=20260309j"></script>
-  <script defer src="js/modules/leaderboard.js?v=20260309j"></script>
+  <script defer src="js/modules/image-cropper.js?v=20260309k"></script>
+  <script defer src="js/modules/image-upload.js?v=20260309k"></script>
+  <script defer src="js/modules/role.js?v=20260309k"></script>
+  <script defer src="js/modules/profile-core.js?v=20260309k"></script>
+  <script defer src="js/modules/profile-data.js?v=20260309k"></script>
+  <script defer src="js/modules/profile-card.js?v=20260309k"></script>
+  <script defer src="js/modules/banner.js?v=20260309k"></script>
+  <script defer src="js/modules/ad-manage-core.js?v=20260309k"></script>
+  <script defer src="js/modules/popup-ad.js?v=20260309k"></script>
+  <script defer src="js/modules/announcement.js?v=20260309k"></script>
+  <script defer src="js/modules/site-theme.js?v=20260309k"></script>
+  <script defer src="js/modules/event-list.js?v=20260309k"></script>
+  <script defer src="js/modules/event-manage.js?v=20260309k"></script>
+  <script defer src="js/modules/event-create.js?v=20260309k"></script>
+  <script defer src="js/modules/tournament-render.js?v=20260309k"></script>
+  <script defer src="js/modules/message-inbox.js?v=20260309k"></script>
+  <script defer src="js/modules/message-admin.js?v=20260309k"></script>
+  <script defer src="js/modules/achievement.js?v=20260309k"></script>
+  <script defer src="js/modules/auto-exp.js?v=20260309k"></script>
+  <script defer src="js/modules/favorites.js?v=20260309k"></script>
+  <script defer src="js/modules/shop.js?v=20260309k"></script>
+  <script defer src="js/modules/leaderboard.js?v=20260309k"></script>
 
   <!-- Service Worker Registration + ??????鞊?? -->
   <script>

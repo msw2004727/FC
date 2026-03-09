@@ -133,6 +133,7 @@
   background: var(--bg-card);
   border-bottom: 1px solid var(--border);
   display: flex; align-items: center; justify-content: space-between;
+  gap: .75rem;
   padding: 0 1rem;
   backdrop-filter: blur(12px);
   transition: background var(--transition);
@@ -140,13 +141,18 @@
 .top-bar-right {
   display: flex;
   align-items: center;
-  gap: .75rem;
+  gap: .5rem;
+  margin-left: auto;
+  min-width: 0;
+  flex-wrap: nowrap;
+  flex-shrink: 0;
 }
+.top-bar-right > * { flex-shrink: 0; }
 #menu-toggle { width: 36px; height: 36px; display: flex; flex-direction: column; justify-content: center; gap: 5px; align-items: center; padding: 6px; border-radius: var(--radius-sm); }
 #menu-toggle:hover { background: var(--bg-elevated); }
 #menu-toggle span { display: block; width: 20px; height: 2px; background: var(--text-primary); border-radius: 2px; transition: var(--transition); }
-.logo { display: flex; align-items: center; gap: .4rem; }
-.logo-text { font-family: var(--font-display); font-weight: 800; font-size: 1.2rem; letter-spacing: -.02em; }
+.logo { display: flex; align-items: center; gap: .4rem; flex: 1; min-width: 0; }
+.logo-text { font-family: var(--font-display); font-weight: 800; font-size: 1.2rem; letter-spacing: -.02em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* ─── Points Display ─── */
 .points-display {
   display: flex;
@@ -158,6 +164,7 @@
   padding: 0 .5rem;
   height: 36px;
   cursor: default;
+  flex-shrink: 0;
 }
 .points-icon {
   font-family: var(--font-display);

@@ -864,6 +864,10 @@ img { max-width: 100%; display: block; }
 
 /* ─── Responsive ─── */
 @media (max-width: 480px) {
+  #top-bar { padding: 0 .75rem; }
+  .top-bar-right { gap: .4rem; }
+  .logo-text { font-size: 1.05rem; }
+  .points-display { display: none; }
   .role-current-label { display: none; }
   .role-avatar-btn { padding: .3rem; }
   .role-arrow { display: none; }
