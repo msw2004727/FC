@@ -151,35 +151,107 @@ Object.assign(App, {
     }
   },
 
+  _getTeamApplicationTimeMs(msg) {
+    const parseValue = (value) => {
+      if (!value) return 0;
+      if (typeof value.toMillis === 'function') return value.toMillis();
+      if (typeof value.seconds === 'number') {
+        return (value.seconds * 1000) + Math.floor((value.nanoseconds || 0) / 1000000);
+      }
+      if (typeof value === 'number') return value;
+      const parsed = Date.parse(value);
+      return Number.isFinite(parsed) ? parsed : 0;
+    };
+
+    const direct = parseValue(msg?.timestamp) || parseValue(msg?.createdAt);
+    if (direct) return direct;
+
+    const timeStr = String(msg?.time || '').trim();
+    if (timeStr) {
+      const [datePart, timePart = '0:0'] = timeStr.split(' ');
+      const [y, mo, d] = datePart.split('/').map(Number);
+      const [h, mi] = timePart.split(':').map(Number);
+      const parsed = new Date(y, (mo || 1) - 1, d || 1, h || 0, mi || 0).getTime();
+      if (Number.isFinite(parsed)) return parsed;
+    }
+
+    return parseValue(msg?.rejectedAt);
+  },
+
+  _getMyLatestTeamApplications() {
+    const user = ApiService.getCurrentUser();
+    const uid = user?.uid || user?.lineUserId || (ModeManager.isDemo() ? 'demo-user' : null);
+    if (!uid) return [];
+
+    const allMsgs = ApiService.getMessages() || [];
+    const statusWeight = {
+      approved: 3,
+      rejected: 3,
+      ignored: 3,
+      pending: 2,
+    };
+
+    const groupMap = new Map();
+    allMsgs.forEach(msg => {
+      if (msg.actionType !== 'team_join_request' || !msg.meta || msg.meta.applicantUid !== uid) return;
+
+      const groupKey = String(msg.meta.groupId || msg.id || '').trim();
+      const prev = groupMap.get(groupKey);
+      if (!prev) {
+        groupMap.set(groupKey, msg);
+        return;
+      }
+
+      const prevWeight = statusWeight[prev.actionStatus] || 0;
+      const nextWeight = statusWeight[msg.actionStatus] || 0;
+      const prevTime = this._getTeamApplicationTimeMs(prev);
+      const nextTime = this._getTeamApplicationTimeMs(msg);
+      if (nextWeight > prevWeight || (nextWeight === prevWeight && nextTime > prevTime)) {
+        groupMap.set(groupKey, msg);
+      }
+    });
+
+    const teamMap = new Map();
+    Array.from(groupMap.values()).forEach(msg => {
+      const teamKey = String(msg.meta?.teamId || msg.meta?.teamName || msg.id || '').trim();
+      const prev = teamMap.get(teamKey);
+      if (!prev) {
+        teamMap.set(teamKey, msg);
+        return;
+      }
+
+      const prevTime = this._getTeamApplicationTimeMs(prev);
+      const nextTime = this._getTeamApplicationTimeMs(msg);
+      const prevWeight = statusWeight[prev.actionStatus] || 0;
+      const nextWeight = statusWeight[msg.actionStatus] || 0;
+      if (nextTime > prevTime || (nextTime === prevTime && nextWeight > prevWeight)) {
+        teamMap.set(teamKey, msg);
+      }
+    });
+
+    return Array.from(teamMap.values()).sort((a, b) => {
+      const diff = this._getTeamApplicationTimeMs(b) - this._getTeamApplicationTimeMs(a);
+      if (diff !== 0) return diff;
+      return String(a.meta?.teamName || '').localeCompare(String(b.meta?.teamName || ''));
+    });
+  },
+
   _renderMyApplications() {
     const card = document.getElementById('profile-applications-card');
     const list = document.getElementById('profile-applications-list');
     if (!card || !list) return;
-    const user = ApiService.getCurrentUser();
-    const uid = user?.uid || user?.lineUserId || (ModeManager.isDemo() ? 'demo-user' : null);
-    if (!uid) { card.style.display = 'none'; return; }
-    const allMsgs = ApiService.getMessages();
-    // Deduplicate: same groupId = same application broadcast to multiple staff → show one entry only
-    const seen = new Set();
-    const apps = allMsgs.filter(m => {
-      if (m.actionType !== 'team_join_request' || !m.meta || m.meta.applicantUid !== uid) return false;
-      const key = m.meta.groupId || m.id;
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
-    if (!apps.length) { card.style.display = 'none'; return; }
-    const latest = apps.slice(0, 1); // 只顯示最新一筆
+    const latestByTeam = this._getMyLatestTeamApplications();
+    if (!latestByTeam.length) { card.style.display = 'none'; return; }
     card.style.display = '';
     const badge = document.getElementById('app-count-badge');
-    if (badge) badge.textContent = latest.length;
+    if (badge) badge.textContent = latestByTeam.length;
     const statusMap = {
       pending:  { label: '審核中', color: 'var(--warning)' },
       approved: { label: '已通過', color: 'var(--success)' },
       rejected: { label: '已拒絕', color: 'var(--danger)' },
       ignored:  { label: '已逾期', color: 'var(--text-muted)' },
     };
-    list.innerHTML = latest.map(m => {
+    list.innerHTML = latestByTeam.map(m => {
       const s = statusMap[m.actionStatus] || statusMap.pending;
       return `<div style="display:flex;justify-content:space-between;align-items:center;padding:.4rem 0;border-bottom:1px solid var(--border)">
         <span style="font-size:.82rem">${escapeHTML(m.meta.teamName || '-')}</span>
@@ -206,13 +278,7 @@ Object.assign(App, {
   _showApplicationsCard() {
     const card = document.getElementById('profile-applications-card');
     if (!card) return;
-    const user = ApiService.getCurrentUser();
-    const uid = user?.uid || user?.lineUserId || (ModeManager.isDemo() ? 'demo-user' : null);
-    if (!uid) { card.style.display = 'none'; return; }
-    const allMsgs = ApiService.getMessages();
-    const count = allMsgs.filter(m =>
-      m.actionType === 'team_join_request' && m.meta && m.meta.applicantUid === uid
-    ).length;
+    const count = this._getMyLatestTeamApplications().length;
     if (!count) { card.style.display = 'none'; return; }
     card.style.display = '';
     const badge = document.getElementById('app-count-badge');

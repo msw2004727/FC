@@ -137,7 +137,8 @@
 // 20260306y: 修復活動詳情頁「現場簽到」在 scan.js lazy load 前點擊會報 goToScanForEvent is not a function
 // 20260309l: 修復取消再報名後出席紀錄顯示未出席的 BUG
 // 20260309y: 收緊 users 時間/球隊欄位寫入規則 + deleteTeam 多球隊清理 + 規則測試補強
-const CACHE_VERSION = '20260309y';
+// 20260309z: 個人資訊頁球隊申請改為每支球隊顯示最新一筆狀態
+const CACHE_VERSION = '20260309z';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {
