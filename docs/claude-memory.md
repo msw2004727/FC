@@ -6,6 +6,12 @@
 
 ---
 
+### 2026-03-09 — 日誌頁改手動刷新並抑制重複登入成功紀錄
+- **問題**：稽核日誌與錯誤日誌頁不是即時監聽，切到頁面後若資料有變化只能重進頁面；另外同一輪登入偶爾會寫出兩筆 `login_success`。
+- **原因**：日誌頁原本只有初次載入和分頁查詢，沒有提供手動重抓入口；`login_success` 則可能在短時間內被重複呼叫的 Firebase 登入流程寫入兩次。
+- **修復**：更新 [js/modules/audit-log.js](/C:/Users/kere/Downloads/github/FC/FC-github/js/modules/audit-log.js) 與 [js/modules/error-log.js](/C:/Users/kere/Downloads/github/FC/FC-github/js/modules/error-log.js)，在頁首動態加入圖示型重新整理按鈕；更新 [js/firebase-service.js](/C:/Users/kere/Downloads/github/FC/FC-github/js/firebase-service.js) 新增 `refreshCollectionsForPage()` 供錯誤日誌主動重抓 Firestore，並加入 `login_success` 15 秒內同 UID 去重，避免短時間重複寫入；更新 [css/admin.css](/C:/Users/kere/Downloads/github/FC/FC-github/css/admin.css) 補齊圖示按鈕樣式。
+- **教訓**：非 realtime 的管理頁至少要提供明確的手動刷新入口；對於登入成功這類容易被競態重複觸發的稽核事件，前端或後端要有最低限度的去重保護。
+
 ### 2026-03-09 — 補齊稽核暱稱回填與錯誤日誌中文化
 - **問題**：稽核日誌中部分今天已寫入的資料只顯示 UID，錯誤日誌則直接顯示英文 code / message，管理端閱讀成本高。
 - **原因**：`writeAuditLog` 原本只靠 user doc id / `lineUserId` 找名稱，漏掉 `users.uid` 與 Firebase Auth `displayName`；既有錯誤日誌 UI 也沒有翻譯層與嚴重程度分類。

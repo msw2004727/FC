@@ -66,6 +66,7 @@ const FirebaseService = {
   _eventSlices: { active: [], terminal: [] },
   _authDependentWorkPromise: null,
   _authDependentWorkUid: null,
+  _lastLoginAuditAtByUid: {},
   _pageScopedRealtimeListeners: {
     registrations: null,
     attendanceRecords: null,
@@ -365,6 +366,22 @@ const FirebaseService = {
     this._persistCache();
   },
 
+  async refreshCollectionsForPage(pageId) {
+    if (ModeManager.isDemo()) return [];
+    if (!this._initialized) return [];
+    const needed = this._collectionPageMap[pageId];
+    if (!needed || !needed.length) return [];
+
+    const realtimeNeeded = new Set(this._getPageScopedRealtimeCollections(pageId));
+    const toLoad = needed.filter(name => !realtimeNeeded.has(name));
+    if (!toLoad.length) return [];
+
+    console.log(`[FirebaseService] Manual refresh for ${pageId}:`, toLoad.join(', '));
+    const loaded = await this._loadCollectionsByName(toLoad);
+    this._persistCache();
+    return loaded;
+  },
+
   _onRolePermissionsUpdated() {
     if (typeof App === 'undefined') return;
     try {
@@ -558,7 +575,18 @@ const FirebaseService = {
         console.error('[FirebaseService] Custom Token 登入後 uid 仍不一致', { expectedUid, signedUid });
       }
       console.log('[FirebaseService] Custom Token 登入成功, uid:', signedUid);
-      if (typeof ApiService !== 'undefined' && typeof ApiService.writeAuditLog === 'function' && signedUid) {
+      const nowMs = Date.now();
+      const lastAuditMs = signedUid ? (this._lastLoginAuditAtByUid[signedUid] || 0) : 0;
+      const shouldWriteLoginAudit = !!signedUid && (!lastAuditMs || (nowMs - lastAuditMs > 15000));
+      if (signedUid && shouldWriteLoginAudit) {
+        this._lastLoginAuditAtByUid[signedUid] = nowMs;
+      } else if (signedUid) {
+        console.warn('[FirebaseService] Skip duplicate login_success audit log', {
+          signedUid,
+          deltaMs: nowMs - lastAuditMs,
+        });
+      }
+      if (typeof ApiService !== 'undefined' && typeof ApiService.writeAuditLog === 'function' && shouldWriteLoginAudit) {
         void ApiService.writeAuditLog({
           action: 'login_success',
           targetType: 'system',

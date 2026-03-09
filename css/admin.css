@@ -96,6 +96,8 @@
 .log-type.severity-info { background: rgba(59,130,246,.14); color: #2563eb; }
 .log-detail { font-size: .65rem; color: var(--text-muted); margin-top: .2rem; word-break: break-all; }
 .error-log-message { margin-top: .2rem; line-height: 1.55; color: var(--text-secondary); }
+.admin-icon-btn { display: inline-flex; align-items: center; justify-content: center; width: 2.1rem; height: 2.1rem; padding: 0; }
+.admin-icon-btn svg { pointer-events: none; }
 
 /* ─── Inactive Card ─── */
 .inactive-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: .75rem .85rem; opacity: .65; position: relative; margin-bottom: .5rem; }

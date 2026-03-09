@@ -144,6 +144,30 @@ Object.assign(App, {
     return btn;
   },
 
+  _ensureAuditRefreshButton() {
+    const header = document.querySelector('#page-admin-audit-logs .page-header');
+    if (!header) return null;
+
+    let btn = document.getElementById('auditlog-refresh-btn');
+    if (!btn) {
+      btn = document.createElement('button');
+      btn.id = 'auditlog-refresh-btn';
+      btn.className = 'outline-btn admin-icon-btn';
+      btn.type = 'button';
+      btn.setAttribute('aria-label', '重新整理稽核日誌');
+      btn.title = '重新整理';
+      btn.innerHTML = `
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <path d="M21 12a9 9 0 1 1-2.64-6.36"/>
+          <path d="M21 3v6h-6"/>
+        </svg>
+      `;
+      btn.addEventListener('click', () => { void this.refreshAuditLogs(); });
+      header.appendChild(btn);
+    }
+    return btn;
+  },
+
   _updateAuditBackfillState() {
     const btn = document.getElementById('auditlog-backfill-btn');
     if (!btn) return;
@@ -164,6 +188,7 @@ Object.assign(App, {
     if (!dateInput.value) dateInput.value = this._getTodayAuditDateValue();
     this._ensureAuditActionOptions();
     this._ensureAuditBackfillButton();
+    this._ensureAuditRefreshButton();
 
     const nextDayKey = this._getAuditDayKeyFromInput(dateInput.value);
     if (!nextDayKey) return;
@@ -259,6 +284,8 @@ Object.assign(App, {
     btn.style.display = this._auditLogHasMore ? '' : 'none';
     btn.disabled = this._auditLogLoading;
     btn.textContent = this._auditLogLoading ? '讀取中...' : '載入更多';
+    const refreshBtn = document.getElementById('auditlog-refresh-btn');
+    if (refreshBtn) refreshBtn.disabled = this._auditLogLoading;
   },
 
   _getAuditDisplayText(item) {
@@ -344,5 +371,9 @@ Object.assign(App, {
   async loadMoreAuditLogs() {
     if (!this._auditLogHasMore || this._auditLogLoading) return;
     await this.loadAuditLogs(false);
+  },
+
+  async refreshAuditLogs() {
+    await this.loadAuditLogs(true);
   },
 });

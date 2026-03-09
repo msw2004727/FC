@@ -6,6 +6,7 @@
 Object.assign(App, {
   _errorLogPage: 1,
   _errorLogFiltered: null,
+  _errorLogRefreshing: false,
 
   filterErrorLogs(page) {
     const keyword = (document.getElementById('errlog-search')?.value || '').trim().toLowerCase();
@@ -39,6 +40,51 @@ Object.assign(App, {
   _errorLogGoPage(page) {
     this._errorLogPage = page;
     this.renderErrorLogs(this._errorLogFiltered || ApiService.getErrorLogs(), page);
+  },
+
+  _ensureErrorLogRefreshButton() {
+    const header = document.querySelector('#page-admin-error-logs .page-header');
+    if (!header) return null;
+
+    let btn = document.getElementById('errorlog-refresh-btn');
+    if (!btn) {
+      btn = document.createElement('button');
+      btn.id = 'errorlog-refresh-btn';
+      btn.className = 'outline-btn admin-icon-btn';
+      btn.type = 'button';
+      btn.setAttribute('aria-label', '重新整理錯誤日誌');
+      btn.title = '重新整理';
+      btn.innerHTML = `
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <path d="M21 12a9 9 0 1 1-2.64-6.36"/>
+          <path d="M21 3v6h-6"/>
+        </svg>
+      `;
+      btn.addEventListener('click', () => { void this.refreshErrorLogs(); });
+      header.appendChild(btn);
+    }
+    return btn;
+  },
+
+  async refreshErrorLogs() {
+    if (this._errorLogRefreshing) return;
+    this._errorLogRefreshing = true;
+    const btn = document.getElementById('errorlog-refresh-btn');
+    if (btn) btn.disabled = true;
+
+    try {
+      if (typeof FirebaseService !== 'undefined' && typeof FirebaseService.refreshCollectionsForPage === 'function') {
+        await FirebaseService.refreshCollectionsForPage('page-admin-error-logs');
+      }
+      this.filterErrorLogs(this._errorLogPage || 1);
+      this.showToast('已重新整理錯誤日誌');
+    } catch (err) {
+      console.error('[refreshErrorLogs]', err);
+      this.showToast('重新整理錯誤日誌失敗');
+    } finally {
+      this._errorLogRefreshing = false;
+      if (btn) btn.disabled = false;
+    }
   },
 
   _normalizeErrorCode(value) {
@@ -148,6 +194,7 @@ Object.assign(App, {
   renderErrorLogs(logs, page) {
     const container = document.getElementById('error-log-list');
     if (!container) return;
+    this._ensureErrorLogRefreshButton();
 
     if (!logs) logs = ApiService.getErrorLogs();
     const sorted = [...logs].sort((a, b) => (b.time || '').localeCompare(a.time || ''));
