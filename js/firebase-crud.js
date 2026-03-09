@@ -772,6 +772,9 @@ Object.assign(FirebaseService, {
           }
 
           this._startMessagesListener?.();
+          if (typeof App !== 'undefined' && this._getPageScopedRealtimeCollections?.(App?.currentPage).includes('registrations')) {
+            this._startRegistrationsListener?.();
+          }
 
           if (this._onUserChanged) {
             this._onUserChanged();

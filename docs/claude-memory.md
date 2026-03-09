@@ -6,6 +6,12 @@
 
 ---
 
+### 2026-03-10 — 修正 registrations 即時監聽與規則不相容
+- **問題**：一般使用者進入活動列表、活動詳情或我的活動頁時，瀏覽器偶發 Firestore `Listen/channel 400 (Bad Request)`。
+- **原因**：`js/firebase-service.js` 的報名即時監聽（`registrations onSnapshot`）原本直接監聽整個集合前 500 筆，但 `firestore.rules` 對報名讀取（`registrations read`）只允許管理員（`admin`）或報名本人，導致查詢本身可能包含不可讀文件，listen 在規則層直接被拒絕。
+- **修復**：更新 `js/firebase-service.js`，將報名即時監聽改為依當前身份決定查詢範圍：管理員監聽全量報名，一般使用者只監聽自己的報名（`userId == auth uid`）；並新增 listener key，當目前用戶資料同步後自動重建報名監聽；同步更新 `js/firebase-crud.js` 讓當前用戶 onSnapshot 更新後可刷新相關頁面的報名監聽；更新 `js/config.js` 與 `index.html` 快取版本。
+- **教訓**：只要 Firestore 規則對集合採「owner-only read」，前端就不能偷用整包 collection listener；即時監聽也必須先縮成規則可證明合法的查詢，否則會在 WebChannel listen 階段直接報 400，而不是回傳空結果。
+
 ### 2026-03-09 — 修正訊息監聽查詢與球隊申請顯示殘留項目
 - **問題**：登入後瀏覽器出現 Firestore `Listen/channel 400`，而個人資訊頁的「我的球隊申請」仍會顯示已不存在球隊，或顯示已核准但使用者其實已退出的球隊。
 - **原因**：`js/firebase-service.js` 原本直接對訊息集合（`messages`）做整包即時監聽，但目前規則只允許讀取寄件者、收件者、角色收件者、球隊收件者或全體廣播對應的文件，造成查詢與規則不相容；同時 `js/modules/profile-data.js` 只按球隊聚合最新申請，沒有再比對球隊是否仍存在，以及已核准球隊是否仍在使用者目前球隊清單內。

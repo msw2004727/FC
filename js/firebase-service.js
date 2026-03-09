@@ -70,6 +70,7 @@ const FirebaseService = {
   _authDependentWorkPromise: null,
   _authDependentWorkUid: null,
   _lastLoginAuditAtByUid: {},
+  _registrationListenerKey: '',
   _pageScopedRealtimeListeners: {
     registrations: null,
     attendanceRecords: null,
@@ -481,6 +482,9 @@ const FirebaseService = {
     this._cache.currentUser = next;
     this._saveToLS('currentUser', next);
     this._startMessagesListener();
+    if (typeof App !== 'undefined' && this._getPageScopedRealtimeCollections(App?.currentPage).includes('registrations')) {
+      this._startRegistrationsListener();
+    }
     if (this._onUserChanged) this._onUserChanged();
   },
 
@@ -871,7 +875,6 @@ const FirebaseService = {
 
   /** 啟動 registrations 監聽器（需 Auth，進入活動頁面時觸發） */
   _startRegistrationsListener() {
-    if (this._realtimeListenerStarted.registrations) return;
     if (!auth?.currentUser) {
       if (this._authPromise && !this._realtimeListenerStarted._pendingRegistrations) {
         this._realtimeListenerStarted._pendingRegistrations = true;
@@ -884,10 +887,16 @@ const FirebaseService = {
       }
       return;
     }
+    const ctx = this._getRegistrationsVisibilityContext();
+    if (!ctx.uid && !ctx.canReadAll) return;
+    const nextKey = this._getRegistrationsListenerKey(ctx);
+    if (this._realtimeListenerStarted.registrations && this._registrationListenerKey === nextKey) return;
+
+    this._stopRegistrationsListener();
     this._realtimeListenerStarted.registrations = true;
     this._lazyLoaded.registrations = true;
-    const unsub = db.collection('registrations')
-      .limit(500)
+    this._registrationListenerKey = nextKey;
+    const unsub = this._getRegistrationsListenerQuery(ctx)
       .onSnapshot(
         snapshot => {
           this._cache.registrations = snapshot.docs.map(doc => ({ ...doc.data(), _docId: doc.id }));
@@ -903,11 +912,33 @@ const FirebaseService = {
     this._pageScopedRealtimeListeners.registrations = unsub;
   },
 
+  _getRegistrationsVisibilityContext() {
+    const user = this._cache.currentUser || null;
+    const uid = auth?.currentUser?.uid || user?.uid || user?.lineUserId || null;
+    const role = user?.role || 'user';
+    const canReadAll = role === 'admin' || role === 'super_admin';
+    return { uid, role, canReadAll };
+  },
+
+  _getRegistrationsListenerKey(ctx) {
+    return ctx.canReadAll ? 'all' : `user:${ctx.uid || ''}`;
+  },
+
+  _getRegistrationsListenerQuery(ctx) {
+    if (ctx.canReadAll) {
+      return db.collection('registrations').limit(500);
+    }
+    return db.collection('registrations')
+      .where('userId', '==', ctx.uid)
+      .limit(200);
+  },
+
   _stopRegistrationsListener() {
     if (this._pageScopedRealtimeListeners.registrations) {
       this._pageScopedRealtimeListeners.registrations();
       this._pageScopedRealtimeListeners.registrations = null;
     }
+    this._registrationListenerKey = '';
     this._realtimeListenerStarted.registrations = false;
     this._realtimeListenerStarted._pendingRegistrations = false;
   },
