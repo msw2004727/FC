@@ -6,6 +6,14 @@
 
 ---
 
+### 2026-03-09 — 修復首頁標題亂碼與取消報名 fallback
+- **問題**：`index.html` 的 `<title>` / Open Graph meta 再次出現亂碼；一般用戶取消報名時偶發顯示「資料尚未同步，請稍後再試」。
+- **原因**：首頁標題區塊曾被受損編碼覆寫；取消報名流程過度依賴前端 `registrations` 快取，且只接受 `confirmed` 狀態，遇到快取未到齊或舊資料 `registered` 狀態時就找不到有效報名紀錄。
+- **修復**：將 `index.html` 的標題與分享 meta 改為穩定可解析內容；在 `js/modules/event-detail-signup.js` 新增 Firestore fallback 同步，取消報名前會重新抓一次該用戶該活動的 registrations，並兼容 `confirmed` / `registered` 狀態。
+- **教訓**：前端按鈕若允許用 `participants` / `waitlistNames` 做 fallback 顯示，後續動作不能只信任本地快取；至少要有一次 server-side / Firestore fallback 查證，否則 UI 和實際資料容易脫鉤。
+
+---
+
 ### 2026-03-09 — 修復報名成功通知在模板缺失時整段不送
 - **問題**：一般用戶報名成功後，偶發完全收不到站內信與 LINE 推播。
 - **原因**：`signup_success` 依賴 `notifTemplates`；當模板尚未 seed、快取未載入、或讀取失敗時，`_sendNotifFromTemplate()` 直接 return，導致通知整段跳過。

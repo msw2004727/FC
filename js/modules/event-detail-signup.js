@@ -78,6 +78,31 @@ Object.assign(App, {
     );
   },
 
+  async _syncMyEventRegistrations(eventId, userId) {
+    if (!eventId || !userId || ApiService._demoMode) return [];
+    try {
+      await FirebaseService.ensureAuthReadyForWrite?.();
+      if (!auth?.currentUser) return ApiService.getMyRegistrationsByEvent(eventId);
+
+      const snapshot = await db.collection('registrations')
+        .where('eventId', '==', eventId)
+        .where('userId', '==', userId)
+        .get();
+
+      const allDocs = snapshot.docs.map(doc => ({ ...doc.data(), _docId: doc.id }));
+      const activeDocs = allDocs.filter(r => r.status !== 'cancelled' && r.status !== 'removed');
+      const source = FirebaseService._cache.registrations || [];
+      FirebaseService._cache.registrations = source
+        .filter(r => !(r.eventId === eventId && r.userId === userId))
+        .concat(allDocs);
+      FirebaseService._saveToLS?.('registrations', FirebaseService._cache.registrations);
+      return activeDocs;
+    } catch (err) {
+      console.warn('[cancelSignup] sync registrations fallback failed:', err);
+      return ApiService.getMyRegistrationsByEvent(eventId);
+    }
+  },
+
   async handleSignup(id) {
     const e = ApiService.getEvent(id);
     if (!e) return;
@@ -201,7 +226,13 @@ Object.assign(App, {
   },
 
   async handleCancelSignup(id) {
-    const myRegs = ApiService.getMyRegistrationsByEvent(id);
+    const currentUser = ApiService.getCurrentUser();
+    const currentUserId = currentUser?.uid || 'unknown';
+    let myRegs = ApiService.getMyRegistrationsByEvent(id);
+    if (!ApiService._demoMode && currentUserId !== 'unknown' && (!myRegs.length || myRegs.every(r => !r._docId))) {
+      const syncedRegs = await this._syncMyEventRegistrations(id, currentUserId);
+      if (Array.isArray(syncedRegs) && syncedRegs.length) myRegs = syncedRegs;
+    }
     // 有真正的同行者報名（companionId 存在）→ 顯示多選取消 Modal
     // 若只是本人報名出現重複（資料競態窗口），不誤觸同行者 modal
     const hasRealCompanions = myRegs.some(r => r.participantType === 'companion' || r.companionId);
@@ -330,8 +361,11 @@ Object.assign(App, {
       return;
     }
 
-    const targetStatus = isWaitlist ? 'waitlisted' : 'confirmed';
-    const reg = myRegs.find(r => r.status === targetStatus) || myRegs[0] || null;
+    const targetStatuses = isWaitlist ? ['waitlisted'] : ['confirmed', 'registered'];
+    const reg = myRegs.find(r => targetStatuses.includes(r.status))
+      || myRegs.find(r => r._docId && r.status !== 'cancelled' && r.status !== 'removed')
+      || myRegs[0]
+      || null;
     // 若有重複的本人報名（資料不一致），直接清掉額外的（不觸發候補遞補）
     const extraRegs = myRegs.filter(r => r !== reg && r._docId);
     for (const extra of extraRegs) {
@@ -403,12 +437,12 @@ Object.assign(App, {
       console.warn('[cancelSignup] active registration not found', {
         eventId: id,
         userId,
-        targetStatus,
+        targetStatuses,
         activeRegCount: myRegs.length,
         activeRegStatuses: myRegs.map(r => r.status)
       });
       _restoreCancelUI();
-      this.showToast('資料尚未同步，請稍後再試');
+      this.showToast('找不到有效的報名紀錄，請重新整理後再試');
       this.showEventDetail(id);
     }
   },
