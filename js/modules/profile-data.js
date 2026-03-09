@@ -421,7 +421,7 @@ Object.assign(App, {
       });
     }
     if (typeof LineAuth !== 'undefined') {
-      LineAuth.logout();
+      await LineAuth.logout();
     }
   },
 

@@ -208,7 +208,14 @@ const LineAuth = {
     liff.login();
   },
 
-  logout() {
+  async logout() {
+    if (typeof auth !== 'undefined' && auth?.currentUser) {
+      try {
+        await auth.signOut();
+      } catch (err) {
+        console.warn('[LineAuth] Firebase signOut failed during logout:', err);
+      }
+    }
     if (this.hasLiffSession()) {
       liff.logout();
     }

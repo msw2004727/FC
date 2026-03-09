@@ -6,6 +6,12 @@
 
 ---
 
+### 2026-03-09 — 補齊 Firebase 登出避免重新登入漏記
+- **問題**：使用者手動登出後再重新登入，只看得到 `logout` 稽核，卻沒有新的 `login_success`。
+- **原因**：前端原本只做 LIFF 登出，沒有同步執行 Firebase Auth `signOut()`；因此重新登入時 Firebase 仍沿用舊 session，`_signInWithAppropriateMethod()` 直接早退，不會重新寫登入成功稽核。
+- **修復**：更新 [js/line-auth.js](/C:/Users/kere/Downloads/github/FC/FC-github/js/line-auth.js) 在登出時同步執行 Firebase Auth `signOut()`；更新 [js/modules/profile-data.js](/C:/Users/kere/Downloads/github/FC/FC-github/js/modules/profile-data.js) 以 `await LineAuth.logout()` 完整等待登出流程；同步更新 [js/config.js](/C:/Users/kere/Downloads/github/FC/FC-github/js/config.js) 與 [index.html](/C:/Users/kere/Downloads/github/FC/FC-github/index.html) 快取版本。
+- **教訓**：LIFF session 與 Firebase Auth session 是兩套狀態；只清掉其中一邊，稽核與權限行為都可能出現假登出或漏記。
+
 ### 2026-03-09 — 修正登出後重登入漏記與清除按鈕未載入
 - **問題**：手動登出後立刻重新登入，稽核日誌偶爾沒有新的登入成功紀錄；管理端操作日誌頁的一鍵清除按鈕點擊會報 `App.clearAllData is not a function`。
 - **原因**：前一版為了抑制重複 `login_success`，對同 UID 做了 15 秒去重，但沒有在登出時清空去重狀態，導致正常的重新登入也被跳過；另一方面，`clearAllData()` 定義在 `dashboard.js`，但 `page-admin-logs` 只載入 `adminUsers` 群組，沒有載到該模組。
