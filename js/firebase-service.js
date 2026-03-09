@@ -280,26 +280,18 @@ const FirebaseService = {
   },
 
   async _loadEventsStatic() {
-    const [activeResult, terminalResult] = await Promise.all([
+    const activeResult = await this._fetchQuerySnapshot(
+      'events:active',
       db.collection('events')
         .where('status', 'in', ['open', 'full', 'upcoming'])
         .limit(200)
-        .get()
-        .then(snapshot => ({ ok: true, docs: snapshot.docs }))
-        .catch(err => {
-          console.warn('[FirebaseService] Active events load failed:', err);
-          return { ok: false, docs: [] };
-        }),
+    );
+    const terminalResult = await this._fetchQuerySnapshot(
+      'events:terminal',
       db.collection('events')
         .where('status', 'in', ['ended', 'cancelled'])
         .limit(200)
-        .get()
-        .then(snapshot => ({ ok: true, docs: snapshot.docs }))
-        .catch(err => {
-          console.warn('[FirebaseService] Terminal events load failed:', err);
-          return { ok: false, docs: [] };
-        }),
-    ]);
+    );
 
     if (!activeResult.ok && !terminalResult.ok) {
       console.warn('[FirebaseService] Skip cache overwrite for "events" due to load failure.');
@@ -657,21 +649,12 @@ const FirebaseService = {
   },
 
   async _loadStaticCollections(names) {
-    const promises = names.map(name =>
-      db.collection(name).limit(500).get()
-        .then(snapshot => ({ ok: true, docs: snapshot.docs }))
-        .catch(err => {
-          console.warn(`Collection "${name}" load failed:`, err);
-          return { ok: false, docs: null };
-        })
-    );
-    const snapshots = await Promise.all(promises);
     const loadedNames = [];
-    names.forEach((name, i) => {
-      const result = snapshots[i];
+    for (const name of names) {
+      const result = await this._fetchCollectionSnapshot(name, 500);
       if (!result || !result.ok) {
         console.warn(`[FirebaseService] Skip cache overwrite for "${name}" due to load failure.`);
-        return;
+        continue;
       }
       const docs = result.docs.map(doc => ({ ...doc.data(), _docId: doc.id }));
       const seen = new Set();
@@ -682,8 +665,25 @@ const FirebaseService = {
         return true;
       });
       loadedNames.push(name);
-    });
+    }
     return loadedNames;
+  },
+
+  async _fetchQuerySnapshot(label, query) {
+    try {
+      const snapshot = await query.get();
+      return { ok: true, docs: snapshot.docs };
+    } catch (err) {
+      console.warn(`[FirebaseService] Query "${label}" load failed:`, err);
+      return { ok: false, docs: null };
+    }
+  },
+
+  async _fetchCollectionSnapshot(name, limitCount = 200) {
+    return await this._fetchQuerySnapshot(
+      `collection:${name}`,
+      db.collection(name).limit(limitCount)
+    );
   },
 
   // ════════════════════════════════
@@ -1088,20 +1088,8 @@ const FirebaseService = {
     this._eventSlices = { active: [], terminal: [] };
 
     // 2a. Boot collections（全部公開讀取，不需 Auth）
-    const bootPromises = this._bootCollections.map(name =>
-      db.collection(name).limit(200).get()
-        .then(snapshot => ({ ok: true, docs: snapshot.docs }))
-        .catch(err => {
-          console.warn(`Collection "${name}" load failed:`, err);
-          return { ok: false, docs: null };
-        })
-    );
-
     // 2b. 公開即時監聽器（events active + teams，不需 Auth）
-    const publicLoadPromise = this._loadEventsStatic().catch(err => {
-      console.warn('[FirebaseService] Initial events preload failed:', err);
-      return null;
-    });
+
     // 2c. Auth 並行啟動（不阻塞公開資料載入）
     this._authPromise = this._signInWithAppropriateMethod().catch(err => {
       console.error('[FirebaseService] Firebase Auth failed:', err?.code || err?.message);
@@ -1122,15 +1110,22 @@ const FirebaseService = {
     }
 
     // Step 3: wait for boot collections + public preload with timeout protection.
-    const _INIT_TIMEOUT = 10000;
+    const _INIT_TIMEOUT = 15000;
     let bootSnapshots = null;
     let timedOut = false;
 
     try {
-      const dataPromise = Promise.all([
-        Promise.all(bootPromises),
-        publicLoadPromise,
-      ]);
+      const dataPromise = (async () => {
+        await this._loadEventsStatic().catch(err => {
+          console.warn('[FirebaseService] Initial events preload failed:', err);
+          return [];
+        });
+        const bootSnapshots = [];
+        for (const name of this._bootCollections) {
+          bootSnapshots.push(await this._fetchCollectionSnapshot(name, 200));
+        }
+        return [bootSnapshots];
+      })();
       const timeoutPromise = new Promise((_, reject) =>
         setTimeout(() => reject(new Error('INIT_TIMEOUT')), _INIT_TIMEOUT)
       );

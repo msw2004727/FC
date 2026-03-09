@@ -141,7 +141,9 @@
 // 20260309aa: 修正 messages 監聽查詢與個人頁球隊申請過濾
 // 20260310: 將 registrations 即時監聽改為規則相容的 user-scoped/admin-scoped 查詢
 // 20260310a: 收斂 boot/static collection query，移除 documentId orderBy 啟動查詢
-const CACHE_VERSION = '20260310a';
+// 20260310b: 將 boot/static collection 載入改為序列化，降低 init 期 Firestore targets 壓力
+// 20260310c: 將首頁 events 預載也改為序列化，避免首頁啟動期偶發 Firestore Listen/channel 400
+const CACHE_VERSION = '20260310c';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {

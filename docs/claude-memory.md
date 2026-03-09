@@ -6,6 +6,18 @@
 
 ---
 
+### 2026-03-10 — 序列化首頁 events 預載以降低首頁偶發 Listen/channel 400
+- **問題**：使用者進入首頁時，Firestore 偶發出現 Listen/channel 400 (Bad Request)，而且同一頁有時會報錯、有時不會。
+- **原因**：FirebaseService.init() 在首頁啟動期仍會並行預載公開活動（events）與 boot collections，偶發讓 Firestore WebChannel 在初始化階段同時建立過多 targets。
+- **修復**：更新 js/firebase-service.js，新增 _fetchQuerySnapshot()，把首頁活動預載從 Promise.all() 改為序列化查詢，並讓 init() 先完成 events 預載後再逐一載入 boot collections；同步把 js/config.js 與 index.html 版本升到 20260310c。
+- **教訓**：首頁啟動期的 Firestore 查詢不只要看單條 query 是否合法，還要控制同時建立的 query/listen 數量，否則會出現偶發性的 WebChannel 400。
+
+### 2026-03-10 — 將 boot/static collection 載入改為序列化
+- **問題**：啟動期即使收斂查詢形狀後，Firestore 仍在 `FirebaseService.init()` 期間持續出現 `Listen/channel 400`，堆疊顯示與 boot/static collection 載入同時發生。
+- **原因**：`js/firebase-service.js` 原本以 `Promise.all()` 併發啟動多個 boot collection 與靜態集合查詢，初始化瞬間會同時建立多個 Firestore targets，增加 WebChannel / listen 通道在啟動期的壓力與不穩定性。
+- **修復**：更新 `js/firebase-service.js`，新增 `_fetchCollectionSnapshot()`，把 boot collections 與一般靜態集合載入都改為序列化逐筆查詢，降低啟動期並發 targets 數量；同步更新 `js/config.js` 與 `index.html` 快取版本。
+- **教訓**：首頁啟動若要預載多個集合，應優先控制查詢並發度；就算每條 query 單獨合法，初始化期大量同時發送也可能造成 Firestore 通道不穩，尤其在正式站初次進站或網路品質不佳時更明顯。
+
 ### 2026-03-10 — 收斂 boot/static collection 查詢避免啟動期 400
 - **問題**：即使修正了訊息與報名監聽，正式版啟動階段仍可能在 `FirebaseService.init()` 期間出現 Firestore `Listen/channel 400`，堆疊定位到 `js/firebase-service.js` 的 boot collection `.get()` 查詢。
 - **原因**：啟動期與靜態集合載入原本都對多個公開集合使用 `orderBy(documentId()).limit(...).get()`；雖然理論上可行，但這是目前 `init()` 期最明確對應到堆疊的可疑查詢來源，也讓啟動流量比實際需要更複雜。
