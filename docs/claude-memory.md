@@ -6,6 +6,12 @@
 
 ---
 
+### 2026-03-09 — 停止寫入不可靠的登出稽核
+- **問題**：使用者重登入後有時只看到登入、沒看到登出，容易誤以為登入紀錄覆蓋了登出紀錄。
+- **原因**：後端稽核寫入本身是以 `.add()` 新增文件，登入與登出不會互相覆蓋；真正不穩的是 `logout` 原本採 fire-and-forget 呼叫後立刻登出並 reload，請求可能在頁面切換前被中斷，因此登出紀錄容易漏失。
+- **修復**：更新 [js/modules/profile-data.js](/C:/Users/kere/Downloads/github/FC/FC-github/js/modules/profile-data.js) 停止寫入 `logout` 稽核，只保留較重要且較可靠的 `login_success`；登出時仍保留 Firebase / LIFF session 清理與登入去重狀態重置。
+- **教訓**：對會立即跳頁或 reload 的操作，若沒有可靠的送達機制，就不應與高可信度稽核混用；在只能擇一時，應優先保留登入成功這種關鍵紀錄。
+
 ### 2026-03-09 — 補齊 Firebase 登出避免重新登入漏記
 - **問題**：使用者手動登出後再重新登入，只看得到 `logout` 稽核，卻沒有新的 `login_success`。
 - **原因**：前端原本只做 LIFF 登出，沒有同步執行 Firebase Auth `signOut()`；因此重新登入時 Firebase 仍沿用舊 session，`_signInWithAppropriateMethod()` 直接早退，不會重新寫登入成功稽核。

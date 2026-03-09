@@ -410,16 +410,6 @@ Object.assign(App, {
     if (logoutUid && typeof FirebaseService !== 'undefined' && FirebaseService._lastLoginAuditAtByUid) {
       delete FirebaseService._lastLoginAuditAtByUid[logoutUid];
     }
-    if (typeof ApiService !== 'undefined' && typeof ApiService.writeAuditLog === 'function') {
-      void ApiService.writeAuditLog({
-        action: 'logout',
-        targetType: 'system',
-        targetId: logoutUid,
-        targetLabel: 'LINE logout',
-        result: 'success',
-        source: 'liff',
-      });
-    }
     if (typeof LineAuth !== 'undefined') {
       await LineAuth.logout();
     }
