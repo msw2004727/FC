@@ -634,6 +634,75 @@ Object.assign(App, {
     return str.replace(/\{(\w+)\}/g, (_, key) => (vars && vars[key] != null) ? vars[key] : `{${key}}`);
   },
 
+  _getDefaultNotifTemplates() {
+    return {
+      welcome: {
+        title: '歡迎加入 SportHub！',
+        body: '嗨 {userName}，歡迎加入 SportHub 平台！\n\n您可以在這裡瀏覽並報名各類足球活動、加入球隊、參與聯賽。\n祝您使用愉快！',
+      },
+      signup_success: {
+        title: '報名成功通知',
+        body: '您已成功報名以下活動：\n\n活動名稱：{eventName}\n活動時間：{date}\n活動地點：{location}\n報名狀態：{status}\n\n請準時出席，如需取消請提前至活動頁面操作。',
+      },
+      cancel_signup: {
+        title: '取消報名通知',
+        body: '{status}。\n\n活動名稱：{eventName}\n活動時間：{date}\n活動地點：{location}\n\n如需再次參加，可回到活動頁重新報名。',
+      },
+      waitlist_promoted: {
+        title: '候補遞補通知',
+        body: '恭喜！由於有人取消報名，您已從候補名單自動遞補為正式參加者。\n\n活動名稱：{eventName}\n活動時間：{date}\n活動地點：{location}\n\n請準時出席！',
+      },
+      waitlist_demoted: {
+        title: '候補降級通知',
+        body: '因活動名額調整，您目前已改為候補狀態。\n\n活動名稱：{eventName}\n活動時間：{date}\n活動地點：{location}\n\n若後續有名額釋出，系統會再通知您。',
+      },
+      event_cancelled: {
+        title: '活動取消通知',
+        body: '很抱歉通知您，以下活動因故取消：\n\n活動名稱：{eventName}\n原定時間：{date}\n原定地點：{location}\n\n如您已繳費，費用將於 3 個工作天內退還。造成不便深感抱歉。',
+      },
+      role_upgrade: {
+        title: '身份變更通知',
+        body: '恭喜 {userName}！您的身份已變更為「{roleName}」。\n\n新身份可能帶來新的權限與功能，請至個人資料頁面查看詳情。\n感謝您對社群的貢獻！',
+      },
+      event_changed: {
+        title: '活動變更通知',
+        body: '您報名的活動資訊有所變更，請留意：\n\n活動名稱：{eventName}\n活動時間：{date}\n活動地點：{location}\n\n如因變更需要取消報名，請至活動頁面操作。',
+      },
+      event_relisted: {
+        title: '活動重新上架通知',
+        body: '您先前報名的活動已重新上架：\n\n活動名稱：{eventName}\n活動時間：{date}\n活動地點：{location}\n\n您的報名資格仍然保留，請留意活動時間。',
+      },
+    };
+  },
+
+  _ensureNotifTemplatesBackfilled() {
+    if (ModeManager.isDemo()) return Promise.resolve();
+    if (this._notifTemplateEnsurePromise) return this._notifTemplateEnsurePromise;
+    const callable = firebase.app().functions('asia-east1').httpsCallable('ensureNotificationTemplates');
+    this._notifTemplateEnsurePromise = callable({})
+      .then(result => {
+        const templates = Array.isArray(result?.data?.templates) ? result.data.templates : [];
+        if (!templates.length) return [];
+        const source = FirebaseService._cache.notifTemplates || [];
+        const byKey = new Map(source.map(t => [t.key, t]));
+        templates.forEach(t => {
+          if (!t?.key) return;
+          byKey.set(t.key, { ...(byKey.get(t.key) || {}), ...t, _docId: t.key });
+        });
+        FirebaseService._cache.notifTemplates = Array.from(byKey.values());
+        FirebaseService._saveToLS?.('notifTemplates', FirebaseService._cache.notifTemplates);
+        return templates;
+      })
+      .catch(err => {
+        console.warn('[Notif] ensureNotificationTemplates failed:', err);
+        return [];
+      })
+      .finally(() => {
+        this._notifTemplateEnsurePromise = null;
+      });
+    return this._notifTemplateEnsurePromise;
+  },
+
   _deliverMessageWithLinePush(title, body, category, categoryName, targetUid, senderName, extra, options = {}) {
     if (!targetUid || typeof this._deliverMessageToInbox !== 'function') return;
     this._deliverMessageToInbox(title, body, category, categoryName, targetUid, senderName, extra);
@@ -649,6 +718,7 @@ Object.assign(App, {
 
   _sendNotifFromTemplate(key, vars, targetUid, category, categoryName) {
     const fallbackTemplates = {
+      ...this._getDefaultNotifTemplates(),
       cancel_signup: {
         title: '取消報名通知',
         body: '{status}：\n\n活動名稱：{eventName}\n活動時間：{date}\n活動地點：{location}\n\n如之後想再次參加，請回到活動頁重新報名。',
@@ -658,8 +728,13 @@ Object.assign(App, {
         body: '很抱歉通知您，因活動名額調整，您的報名狀態已改為候補。\n\n活動名稱：{eventName}\n活動時間：{date}\n活動地點：{location}\n\n若有名額釋出，系統將依候補順序自動遞補。',
       },
     };
-    const tpl = ApiService.getNotifTemplate(key) || fallbackTemplates[key];
+    const customTpl = ApiService.getNotifTemplate(key);
+    const tpl = (customTpl && customTpl.title && customTpl.body) ? customTpl : fallbackTemplates[key];
     if (!tpl) { console.warn('[Notif] 找不到模板:', key); return; }
+    if (!customTpl && fallbackTemplates[key]) {
+      void this._ensureNotifTemplatesBackfilled();
+      console.warn('[Notif] 使用內建模板補送:', key);
+    }
     const title = this._renderTemplate(tpl.title, vars);
     const body = this._renderTemplate(tpl.body, vars);
     this._deliverMessageWithLinePush(

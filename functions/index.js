@@ -56,6 +56,53 @@ const ALLOWED_LINE_NOTIFICATION_CATEGORIES = new Set([
   "tournament",
   "private",
 ]);
+const DEFAULT_NOTIFICATION_TEMPLATES = Object.freeze([
+  {
+    key: "welcome",
+    title: "歡迎加入 SportHub！",
+    body: "嗨 {userName}，歡迎加入 SportHub 平台！\n\n您可以在這裡瀏覽並報名各類足球活動、加入球隊、參與聯賽。\n祝您使用愉快！",
+  },
+  {
+    key: "signup_success",
+    title: "報名成功通知",
+    body: "您已成功報名以下活動：\n\n活動名稱：{eventName}\n活動時間：{date}\n活動地點：{location}\n報名狀態：{status}\n\n請準時出席，如需取消請提前至活動頁面操作。",
+  },
+  {
+    key: "cancel_signup",
+    title: "取消報名通知",
+    body: "{status}。\n\n活動名稱：{eventName}\n活動時間：{date}\n活動地點：{location}\n\n如需再次參加，可回到活動頁重新報名。",
+  },
+  {
+    key: "waitlist_promoted",
+    title: "候補遞補通知",
+    body: "恭喜！由於有人取消報名，您已從候補名單自動遞補為正式參加者。\n\n活動名稱：{eventName}\n活動時間：{date}\n活動地點：{location}\n\n請準時出席！",
+  },
+  {
+    key: "waitlist_demoted",
+    title: "候補降級通知",
+    body: "因活動名額調整，您目前已改為候補狀態。\n\n活動名稱：{eventName}\n活動時間：{date}\n活動地點：{location}\n\n若後續有名額釋出，系統會再通知您。",
+  },
+  {
+    key: "event_cancelled",
+    title: "活動取消通知",
+    body: "很抱歉通知您，以下活動因故取消：\n\n活動名稱：{eventName}\n原定時間：{date}\n原定地點：{location}\n\n如您已繳費，費用將於 3 個工作天內退還。造成不便深感抱歉。",
+  },
+  {
+    key: "role_upgrade",
+    title: "身份變更通知",
+    body: "恭喜 {userName}！您的身份已變更為「{roleName}」。\n\n新身份可能帶來新的權限與功能，請至個人資料頁面查看詳情。\n感謝您對社群的貢獻！",
+  },
+  {
+    key: "event_changed",
+    title: "活動變更通知",
+    body: "您報名的活動資訊有所變更，請留意：\n\n活動名稱：{eventName}\n活動時間：{date}\n活動地點：{location}\n\n如因變更需要取消報名，請至活動頁面操作。",
+  },
+  {
+    key: "event_relisted",
+    title: "活動重新上架通知",
+    body: "您先前報名的活動已重新上架：\n\n活動名稱：{eventName}\n活動時間：{date}\n活動地點：{location}\n\n您的報名資格仍然保留，請留意活動時間。",
+  },
+]);
 const SHARE_SITE_ORIGIN = "https://toosterx.com";
 const DEFAULT_TEAM_SHARE_OG_IMAGE = "https://firebasestorage.googleapis.com/v0/b/fc-football-6c8dc.firebasestorage.app/o/images%2Ftest%2FS__174522375.jpg?alt=media&token=73eb0e3f-a94a-4368-a6df-d4afafaa4ea0";
 
@@ -245,6 +292,34 @@ function normalizeLineNotificationText(value, maxLength) {
   const trimmed = value.trim();
   if (!trimmed || trimmed.length > maxLength) return "";
   return trimmed;
+}
+
+function getDefaultNotificationTemplates() {
+  return DEFAULT_NOTIFICATION_TEMPLATES.map((template) => ({...template}));
+}
+
+async function ensureDefaultNotificationTemplates() {
+  const defaults = getDefaultNotificationTemplates();
+  const snapshot = await db.collection("notifTemplates").get();
+  const existing = new Set(snapshot.docs.map((doc) => doc.id));
+  const missing = defaults.filter((template) => !existing.has(template.key));
+
+  if (missing.length) {
+    const batch = db.batch();
+    missing.forEach((template) => {
+      batch.set(
+        db.collection("notifTemplates").doc(template.key),
+        {
+          ...template,
+          createdAt: FieldValue.serverTimestamp(),
+        },
+        {merge: true}
+      );
+    });
+    await batch.commit();
+  }
+
+  return defaults;
 }
 
 function normalizeAuditText(value, maxLength = 120) {
@@ -446,6 +521,18 @@ exports.writeAuditLog = onCall(
       dayKey: entry.dayKey,
       timeKey: entry.timeKey,
     };
+  }
+);
+
+exports.ensureNotificationTemplates = onCall(
+  { region: "asia-east1", timeoutSeconds: 15 },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Authentication required");
+    }
+
+    const templates = await ensureDefaultNotificationTemplates();
+    return { templates };
   }
 );
 

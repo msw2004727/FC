@@ -6,6 +6,14 @@
 
 ---
 
+### 2026-03-09 — 修復報名成功通知在模板缺失時整段不送
+- **問題**：一般用戶報名成功後，偶發完全收不到站內信與 LINE 推播。
+- **原因**：`signup_success` 依賴 `notifTemplates`；當模板尚未 seed、快取未載入、或讀取失敗時，`_sendNotifFromTemplate()` 直接 return，導致通知整段跳過。
+- **修復**：在 `js/modules/message-inbox.js` 補齊所有內建通知模板 fallback，缺模板時先照常送出通知，再背景呼叫 `functions/index.js` 的 `ensureNotificationTemplates` 自動補齊 Firestore 模板資料。
+- **教訓**：通知不能把成功路徑綁死在可選設定資料；像模板、配置、後台 seed 資料都要有 fallback 與自我修復路徑，避免一般用戶第一個踩到的是靜默失敗。
+
+---
+
 ### 2026-03-09 — 補齊站內信與 LINE 推播接線缺口
 - **問題**：多個一般用戶操作雖然會收到站內信，但沒有同步收到 LINE 推播，容易誤以為是一般用戶權限被擋。
 - **原因**：推播權限本身不是主因；真正缺口是多條流程只呼叫 `_deliverMessageToInbox()`，沒有同步排入 LINE 推播，例如取消報名、入隊申請/審核、賽事申請/審核、球隊職位指派。
