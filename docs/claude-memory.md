@@ -6,6 +6,12 @@
 
 ---
 
+### 2026-03-10 — 收斂 boot/static collection 查詢避免啟動期 400
+- **問題**：即使修正了訊息與報名監聽，正式版啟動階段仍可能在 `FirebaseService.init()` 期間出現 Firestore `Listen/channel 400`，堆疊定位到 `js/firebase-service.js` 的 boot collection `.get()` 查詢。
+- **原因**：啟動期與靜態集合載入原本都對多個公開集合使用 `orderBy(documentId()).limit(...).get()`；雖然理論上可行，但這是目前 `init()` 期最明確對應到堆疊的可疑查詢來源，也讓啟動流量比實際需要更複雜。
+- **修復**：更新 `js/firebase-service.js`，將 boot collections 與一般靜態集合載入改為更保守的 `limit(...).get()`，移除 `documentId()` 排序依賴，降低啟動期查詢複雜度；同步更新 `js/config.js` 與 `index.html` 快取版本。
+- **教訓**：首頁啟動期的公開查詢應盡量保持最小必要複雜度；即使某些 query 在理論上合法，只要它正好落在錯誤堆疊上，就應優先收斂成更簡單、可替代的型態再排查。
+
 ### 2026-03-10 — 修正 registrations 即時監聽與規則不相容
 - **問題**：一般使用者進入活動列表、活動詳情或我的活動頁時，瀏覽器偶發 Firestore `Listen/channel 400 (Bad Request)`。
 - **原因**：`js/firebase-service.js` 的報名即時監聽（`registrations onSnapshot`）原本直接監聽整個集合前 500 筆，但 `firestore.rules` 對報名讀取（`registrations read`）只允許管理員（`admin`）或報名本人，導致查詢本身可能包含不可讀文件，listen 在規則層直接被拒絕。

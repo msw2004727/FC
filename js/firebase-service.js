@@ -658,7 +658,7 @@ const FirebaseService = {
 
   async _loadStaticCollections(names) {
     const promises = names.map(name =>
-      db.collection(name).orderBy(firebase.firestore.FieldPath.documentId()).limit(500).get()
+      db.collection(name).limit(500).get()
         .then(snapshot => ({ ok: true, docs: snapshot.docs }))
         .catch(err => {
           console.warn(`Collection "${name}" load failed:`, err);
@@ -1089,7 +1089,7 @@ const FirebaseService = {
 
     // 2a. Boot collections（全部公開讀取，不需 Auth）
     const bootPromises = this._bootCollections.map(name =>
-      db.collection(name).orderBy(firebase.firestore.FieldPath.documentId()).limit(200).get()
+      db.collection(name).limit(200).get()
         .then(snapshot => ({ ok: true, docs: snapshot.docs }))
         .catch(err => {
           console.warn(`Collection "${name}" load failed:`, err);

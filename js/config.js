@@ -140,7 +140,8 @@
 // 20260309z: 個人資訊頁球隊申請改為每支球隊顯示最新一筆狀態
 // 20260309aa: 修正 messages 監聽查詢與個人頁球隊申請過濾
 // 20260310: 將 registrations 即時監聽改為規則相容的 user-scoped/admin-scoped 查詢
-const CACHE_VERSION = '20260310';
+// 20260310a: 收斂 boot/static collection query，移除 documentId orderBy 啟動查詢
+const CACHE_VERSION = '20260310a';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {
