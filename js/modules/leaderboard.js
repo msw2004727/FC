@@ -38,12 +38,16 @@ Object.assign(App, {
     const completed = [];
     const cancelled = [];
 
-    // 第一遍：先建立取消和完成的 eventId 集合，確保跨類別去重不受順序影響
+    // 第一遍：建立取消、活躍報名、完成的 eventId 集合
     const seenCancel = new Set();
+    const seenActive = new Set();
     const seenComplete = new Set();
     all.forEach(r => {
       if (r.status === 'cancelled') seenCancel.add(r.eventId);
+      if (r.status === 'registered' || r.status === 'waitlisted') seenActive.add(r.eventId);
     });
+    // 取消後又重新報名 → 視為活躍，從 seenCancel 移除
+    seenActive.forEach(eid => seenCancel.delete(eid));
     all.forEach(r => {
       if (r.status === 'cancelled' || r.status === 'removed') return;
       const hasCheckin  = attRecords.some(a => a.eventId === r.eventId && a.uid === uid && a.type === 'checkin');
@@ -55,15 +59,15 @@ Object.assign(App, {
     all.forEach(r => {
       // 移除記錄不出現在任何 tab
       if (r.status === 'removed') return;
-      // 取消紀錄（同一場活動只保留一筆）
+      // 取消紀錄：僅當該活動最終狀態為取消時才顯示（同一場只保留一筆）
       if (r.status === 'cancelled') {
+        if (seenActive.has(r.eventId)) return; // 已重新報名，跳過舊取消紀錄
         if (!cancelled.some(c => c.eventId === r.eventId)) {
           cancelled.push(r);
         }
         return;
       }
       // 完成判定（方向 B）：唯一依據為有 checkin + checkout 掃碼紀錄
-      // 取消記錄優先：同一活動若有取消記錄，不進入完成（即使有出勤紀錄）
       if (seenComplete.has(r.eventId) && !seenCancel.has(r.eventId)) {
         if (!completed.some(c => c.eventId === r.eventId)) {
           completed.push({ ...r, _displayStatus: 'completed' });
