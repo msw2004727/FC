@@ -109,7 +109,6 @@ FC-github/
 - 資料操作統一透過 `ApiService`，不直接操作 `FirebaseService._cache` 或 `DemoData`
 - 新模組以 `Object.assign(App, { ... })` 掛載，不建立全域變數
 - Demo / Prod 分支邏輯統一在 `ApiService` 內處理，模組層不做 `ModeManager.isDemo()` 判斷
-- ?????????Bug??????????????????????????????????
 
 ---
 
@@ -127,6 +126,7 @@ FC-github/
 
 > 這個檔案隨 git 走，換設備或跨會話都能參考歷史修復經驗。
 > `docs/claude-memory.md` 是唯一指定的修復 / 功能歷史紀錄檔，禁止另建 `memory.md`、`fix-log.md`、`handoff-log.md` 或其他平行日誌檔分流紀錄。
+> 新紀錄必須寫在檔案前方（標題與說明之後），採新到舊排序；若需補記舊項目，應插入對應日期區段，不得追加到檔尾。
 > 若 `docs/claude-memory.md` 出現亂碼、混合編碼或非 UTF-8 狀態，必須先修復並標準化回 UTF-8，再繼續追加到同一檔案。
 
 ---
