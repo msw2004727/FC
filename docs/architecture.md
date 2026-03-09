@@ -118,7 +118,8 @@ flowchart TD
 | `modules/role.js` | 自訂用戶層級標籤管理 |
 | `modules/site-theme.js` | 站點佈景主題設定（管理端） |
 | `modules/game-manage.js` | 小遊戲管理（首頁顯示開關，預留多款遊戲設定） |
-| `modules/image-upload.js` | 圖片上傳共用功能（Firebase Storage） |
+| `modules/image-cropper.js` | 圖片裁切 Modal（拖拽定位 + 縮放 + Canvas 輸出），供 image-upload 與 achievement 呼叫 |
+| `modules/image-upload.js` | 圖片上傳共用功能（Firebase Storage），整合 image-cropper 裁切 |
 | `modules/popup-ad.js` | 首頁彈窗廣告顯示邏輯 |
 | `modules/personal-dashboard.js` | 個人數據儀表板（參加場次、出席率、EXP 統計） |
 | `modules/dashboard.js` | 管理員後台數據儀表板 |

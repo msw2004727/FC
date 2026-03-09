@@ -53,7 +53,7 @@ Object.assign(App, {
     return ['jpg', 'jpeg', 'png', 'webp', 'heic', 'heif'].includes(ext);
   },
 
-  bindImageUpload(inputId, previewId) {
+  bindImageUpload(inputId, previewId, aspectRatio) {
     const input = document.getElementById(inputId);
     if (!input || input.dataset.bound) return;
     input.dataset.bound = '1';
@@ -72,10 +72,21 @@ Object.assign(App, {
       }
       try {
         const dataURL = await this._compressImage(file);
-        const preview = document.getElementById(previewId);
-        if (preview) {
-          preview.innerHTML = `<img src="${dataURL}" style="width:100%;height:100%;object-fit:cover;border-radius:var(--radius-sm)">`;
-          preview.classList.add('has-image');
+        const setPreview = (finalURL) => {
+          const preview = document.getElementById(previewId);
+          if (preview) {
+            preview.innerHTML = `<img src="${finalURL}" style="width:100%;height:100%;object-fit:cover;border-radius:var(--radius-sm)">`;
+            preview.classList.add('has-image');
+          }
+        };
+        if (aspectRatio && this.showImageCropper) {
+          this.showImageCropper(dataURL, {
+            aspectRatio,
+            onConfirm: setPreview,
+            onCancel: () => { input.value = ''; },
+          });
+        } else {
+          setPreview(dataURL);
         }
       } catch (err) {
         console.error('[ImageUpload] 圖片壓縮失敗:', err);

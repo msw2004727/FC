@@ -404,10 +404,21 @@ Object.assign(App, {
         return;
       }
       const dataURL = await this._compressImage(file, 400, 0.80, 'image/png');
-      this._achBadgeDataURL = dataURL;
-      const preview = document.getElementById('ach-badge-preview');
-      if (preview) {
-        preview.innerHTML = `<img src="${dataURL}" style="width:100%;height:100%;object-fit:cover;border-radius:4px">`;
+      const setPreview = (finalURL) => {
+        this._achBadgeDataURL = finalURL;
+        const preview = document.getElementById('ach-badge-preview');
+        if (preview) {
+          preview.innerHTML = `<img src="${finalURL}" style="width:100%;height:100%;object-fit:cover;border-radius:4px">`;
+        }
+      };
+      if (this.showImageCropper) {
+        this.showImageCropper(dataURL, {
+          aspectRatio: 1,
+          onConfirm: setPreview,
+          onCancel: () => { input.value = ''; },
+        });
+      } else {
+        setPreview(dataURL);
       }
     });
   },
