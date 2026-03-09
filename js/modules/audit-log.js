@@ -179,6 +179,18 @@ Object.assign(App, {
     btn.textContent = this._auditLogLoading ? '載入中...' : '載入更多';
   },
 
+  _getAuditDisplayText(item) {
+    const actionLabel = this._getAuditActionLabel(item.action);
+    const targetLabel = String(item.targetLabel || '').trim();
+    if (item.action === 'event_signup' && targetLabel) {
+      return `${actionLabel}：${targetLabel}`;
+    }
+    if (item.action === 'event_cancel_signup' && targetLabel) {
+      return `${actionLabel}：${targetLabel}`;
+    }
+    return actionLabel;
+  },
+
   renderAuditLogs(items) {
     const list = document.getElementById('audit-log-list');
     const summary = document.getElementById('auditlog-summary');
@@ -195,7 +207,7 @@ Object.assign(App, {
 
     list.innerHTML = items.map(item => {
       const actorName = item.actorName || item.actorUid || '未知用戶';
-      let actionLabel = this._getAuditActionLabel(item.action);
+      let actionLabel = this._getAuditDisplayText(item);
       if (item.result === 'failure' && !actionLabel.includes('失敗')) {
         actionLabel += '（失敗）';
       }
