@@ -360,12 +360,11 @@ service cloud.firestore {
       function isSafeSelfProfileUpdate() {
         let changed = request.resource.data.diff(resource.data).affectedKeys();
         return changed.hasOnly([
-            'displayName', 'photoURL', 'pictureUrl', 'phone', 'updatedAt', 'lastLogin',
+            'displayName', 'photoURL', 'pictureUrl', 'phone', 'updatedAt',
             'gender', 'birthday', 'region', 'sports',
             'favorites', 'socialLinks',
             'titleBig', 'titleNormal',
             'lineNotify',
-            'teamId', 'teamName', 'teamIds', 'teamNames',
             'companions'
           ])
           && !changed.hasAny(['uid', 'lineUserId', 'role', 'claims', 'isAdmin', 'exp', 'level', 'createdAt', 'manualRole'])
@@ -422,32 +421,63 @@ service cloud.firestore {
               request.resource.data.lineNotify == null
               || request.resource.data.lineNotify is map
           ))
-          && (!changed.hasAny(['teamId']) || (
-              request.resource.data.teamId == null
-              || request.resource.data.teamId is string
-          ))
-          && (!changed.hasAny(['teamName']) || (
-              request.resource.data.teamName == null
-              || request.resource.data.teamName is string
-          ))
-          && (!changed.hasAny(['teamIds']) || (
-              request.resource.data.teamIds == null
-              || request.resource.data.teamIds is list
-          ))
-          && (!changed.hasAny(['teamNames']) || (
-              request.resource.data.teamNames == null
-              || request.resource.data.teamNames is list
-          ))
           && (!changed.hasAny(['companions']) || (
               request.resource.data.companions == null
               || request.resource.data.companions is list
           ))
           && (!changed.hasAny(['updatedAt']) || (
-              request.resource.data.updatedAt is timestamp
+              request.resource.data.updatedAt == request.time
+          ));
+      }
+
+      function isSafeLoginUpdate() {
+        let changed = request.resource.data.diff(resource.data).affectedKeys();
+        return changed.hasOnly(['displayName', 'pictureUrl', 'lastLogin'])
+          && (!changed.hasAny(['displayName']) || (
+              request.resource.data.displayName is string
+              && request.resource.data.displayName.size() > 0
+          ))
+          && (!changed.hasAny(['pictureUrl']) || (
+              request.resource.data.pictureUrl == null
+              || request.resource.data.pictureUrl is string
           ))
           && (!changed.hasAny(['lastLogin']) || (
-              request.resource.data.lastLogin is timestamp
+              request.resource.data.lastLogin == request.time
           ));
+      }
+
+      function isTeamFieldShrinkOrClear() {
+        let changed = request.resource.data.diff(resource.data).affectedKeys();
+        let newData = request.resource.data;
+        let oldData = resource.data;
+        let oldTeamIds = (oldData.teamIds is list && oldData.teamIds.size() > 0)
+          ? oldData.teamIds
+          : (oldData.teamId == null ? [] : [oldData.teamId]);
+
+        return changed.hasOnly(['teamId', 'teamName', 'teamIds', 'teamNames', 'updatedAt'])
+          && (
+            (
+              newData.teamId == null
+              && newData.teamName == null
+              && (newData.teamIds == null || (newData.teamIds is list && newData.teamIds.size() == 0))
+              && (newData.teamNames == null || (newData.teamNames is list && newData.teamNames.size() == 0))
+            )
+            ||
+            (
+              oldTeamIds.size() > 0
+              && newData.teamIds is list
+              && newData.teamNames is list
+              && newData.teamIds.size() > 0
+              && newData.teamIds.size() < oldTeamIds.size()
+              && oldTeamIds.hasAll(newData.teamIds)
+              && newData.teamNames.size() == newData.teamIds.size()
+              && newData.teamId is string
+              && newData.teamId == newData.teamIds[0]
+              && newData.teamName is string
+              && newData.teamName == newData.teamNames[0]
+            )
+          )
+          && (!changed.hasAny(['updatedAt']) || newData.updatedAt == request.time);
       }
 
       function isSafeAdminUserUpdate() {
@@ -462,7 +492,7 @@ service cloud.firestore {
           && (!changed.hasAny(['teamName']) || request.resource.data.teamName == null || request.resource.data.teamName is string)
           && (!changed.hasAny(['teamIds']) || request.resource.data.teamIds == null || request.resource.data.teamIds is list)
           && (!changed.hasAny(['teamNames']) || request.resource.data.teamNames == null || request.resource.data.teamNames is list)
-          && (!changed.hasAny(['updatedAt']) || request.resource.data.updatedAt is timestamp);
+          && (!changed.hasAny(['updatedAt']) || request.resource.data.updatedAt == request.time);
       }
 
       allow read: if isAuth();
@@ -470,6 +500,8 @@ service cloud.firestore {
         && hasString('uid')
         && hasString('displayName');
       allow update: if (isOwner(userId) && isSafeSelfProfileUpdate())
+        || (isOwner(userId) && isSafeLoginUpdate())
+        || (isOwner(userId) && isTeamFieldShrinkOrClear())
         || (isAdmin() && isSafeAdminUserUpdate())
         || (isCoachPlus() && !isOwner(userId) && isSafeTeamMembershipUpdateByStaff());
       allow delete: if false;

@@ -6,6 +6,18 @@
 
 ---
 
+### 2026-03-09 — 收緊使用者時間與球隊欄位寫入邊界
+- **問題**：使用者文件（`users`）原本允許一般使用者在自助更新中直接帶最後登入時間（`lastLogin`）、更新時間（`updatedAt`）與球隊欄位（`teamId`、`teamName`、`teamIds`、`teamNames`），而刪除球隊（`deleteTeam`）又只清主球隊欄位，導致資料可信度與球隊歸屬都可被前端 payload 篡改。
+- **原因**：`firestore.rules` 把時間欄位與球隊欄位混在一般個人資料更新規則（`isSafeSelfProfileUpdate`）中，只驗型別不驗伺服器時間或縮減方向；同時 `js/api-service.js` 的刪隊清理只處理 `teamId === id`，漏掉多球隊清單（`teamIds`）中的 secondary team 引用。
+- **修復**：更新 `firestore.rules`，把最後登入時間（`lastLogin`）拆到登入更新格式規則（`isSafeLoginUpdate`），把更新時間（`updatedAt`）與隊職員球隊寫入的時間驗證改為 `request.time`，並新增球隊欄位縮減/清空規則（`isTeamFieldShrinkOrClear`）；更新 `js/api-service.js`，讓刪除球隊（`deleteTeam`）會同時清理主球隊與多球隊清單，正確計算剩餘的 `teamId` / `teamName` / `teamIds` / `teamNames`；補強 `tests/firestore.rules.test.js` 驗證時間欄位與多球隊 shrink 行為，並更新 `docs/architecture.md`、`js/config.js`、`index.html` 與安全性規格書。
+- **教訓**：只要某欄位會影響身分、可見性或審計可信度，就不能與一般個人資料共用寬鬆白名單；而任何對 membership schema 的安全修補，都要同步檢查批次清理與刪除流程是否仍會留下 secondary reference。
+
+### 2026-03-09 — 新增使用者時間與球隊欄位安全性規格書
+- **問題**：使用者文件（`users`）中的時間欄位與球隊欄位存在前端 payload 可篡改風險，但目前 repo 內缺少一份能直接交付實作者的實作前規格書，也尚未把「中文名稱（英文代碼）」列為專案對話規範。
+- **原因**：先前只完成風險盤點與口頭規劃，尚未把修補範圍、解決方式、影響功能、工時與風險收斂成 repo 內正式文件；同時 AGENTS 也沒有明文要求後續說明必須採用「中文名稱（英文代碼）」格式。
+- **修復**：新增 `docs/user-time-and-team-security-plan-20260309.md`，整理時間欄位（`lastLogin`、`updatedAt`）與球隊欄位（`teamId`、`teamName`、`teamIds`、`teamNames`）的起因、解法、風險、工時、影響功能與施工清單；同步更新 `AGENTS.md`，加入「中文名稱（英文代碼）」術語回覆格式規範。
+- **教訓**：安全性修補若會波及多條正式版流程，應先固化成 repo 內規格書再實作；而專案中的中文技術溝通格式也應寫進 AGENTS，避免後續說明再次脫離使用者可讀性需求。
+
 ### 2026-03-09 — 停止寫入不可靠的登出稽核
 - **問題**：使用者重登入後有時只看到登入、沒看到登出，容易誤以為登入紀錄覆蓋了登出紀錄。
 - **原因**：後端稽核寫入本身是以 `.add()` 新增文件，登入與登出不會互相覆蓋；真正不穩的是 `logout` 原本採 fire-and-forget 呼叫後立刻登出並 reload，請求可能在頁面切換前被中斷，因此登出紀錄容易漏失。

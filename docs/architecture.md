@@ -240,3 +240,16 @@ flowchart LR
   - `警告`
   - `一般`
 - The Chinese translation and severity are display-layer derived, so existing historical `errorLogs` entries benefit without Firestore migration.
+
+## Users Self-Update Security Boundary (2026-03-09)
+
+- `users/{userId}` 的自助更新責任已拆成三條規則路徑：
+  - 一般個人資料更新：`isSafeSelfProfileUpdate`
+  - 登入更新格式：`isSafeLoginUpdate`
+  - 球隊欄位退出流程：`isTeamFieldShrinkOrClear`
+- 最後登入時間（`lastLogin`）不再允許夾帶於一般個人資料更新；只接受登入更新格式，且值必須等於 `request.time`。
+- 更新時間（`updatedAt`）在自助更新與隊職員跨使用者球隊調整中，皆改為只接受 `request.time`，避免客戶端偽造任意 Timestamp。
+- 球隊欄位（`teamId`、`teamName`、`teamIds`、`teamNames`）已自一般個人資料白名單移除：
+  - 一般使用者不可自行填入新球隊歸屬
+  - 一般使用者只能全清或把既有 `teamIds` 縮減為嚴格子集
+- 前端的退出球隊（`handleLeaveTeam`）沿用既有多球隊 shrink 邏輯；刪除球隊（`deleteTeam`）則補上 secondary team 清理，避免只清主球隊造成殘留引用。

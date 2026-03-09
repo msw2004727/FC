@@ -12,6 +12,7 @@ const {
   updateDoc,
   deleteDoc,
   setLogLevel,
+  serverTimestamp,
 } = require("firebase/firestore");
 
 const PROJECT_ID = "demo-rules-test";
@@ -152,6 +153,19 @@ async function seedDoc(collection, id, data) {
 async function seedPath(pathSegments, data) {
   await testEnv.withSecurityRulesDisabled(async (ctx) => {
     await setDoc(doc(ctx.firestore(), ...pathSegments), data);
+  });
+}
+
+async function seedUserDoc(id, overrides = {}) {
+  await seedDoc("users", id, {
+    uid: id,
+    displayName: `User ${id}`,
+    role: "user",
+    teamId: null,
+    teamName: null,
+    teamIds: [],
+    teamNames: [],
+    ...overrides,
   });
 }
 
@@ -444,6 +458,144 @@ beforeEach(async () => {
 
 afterAll(async () => {
   await testEnv.cleanup();
+});
+
+describe("/users/{userId}", () => {
+  test("[SECURITY_HARDENED] own profile update requires server timestamp for updatedAt when provided", async () => {
+    await assertSucceeds(
+      updateDoc(doc(user(), "users", "uidUser"), {
+        displayName: "General User Updated",
+        updatedAt: serverTimestamp(),
+      })
+    );
+    await assertFails(
+      updateDoc(doc(user(), "users", "uidUser"), {
+        displayName: "General User Spoofed",
+        updatedAt: new Date("2000-01-01T00:00:00.000Z"),
+      })
+    );
+  });
+
+  test("[SECURITY_HARDENED] lastLogin only allowed in login-shaped update", async () => {
+    await assertSucceeds(
+      updateDoc(doc(user(), "users", "uidUser"), {
+        displayName: "General User Login",
+        pictureUrl: "https://example.com/avatar.png",
+        lastLogin: serverTimestamp(),
+      })
+    );
+    await assertFails(
+      updateDoc(doc(user(), "users", "uidUser"), {
+        phone: "0912345678",
+        updatedAt: serverTimestamp(),
+        lastLogin: serverTimestamp(),
+      })
+    );
+  });
+
+  test("[SECURITY_HARDENED] user cannot self-assign new team membership", async () => {
+    await assertFails(
+      updateDoc(doc(user(), "users", "uidUser"), {
+        teamId: "teamA",
+        teamName: "Team A",
+        teamIds: ["teamA"],
+        teamNames: ["Team A"],
+        updatedAt: serverTimestamp(),
+      })
+    );
+  });
+
+  test("[SECURITY_HARDENED] user can clear all own team fields", async () => {
+    await seedUserDoc("uidUser", {
+      displayName: "General User",
+      teamId: "teamA",
+      teamName: "Team A",
+      teamIds: ["teamA"],
+      teamNames: ["Team A"],
+    });
+
+    await assertSucceeds(
+      updateDoc(doc(user(), "users", "uidUser"), {
+        teamId: null,
+        teamName: null,
+        teamIds: [],
+        teamNames: [],
+        updatedAt: serverTimestamp(),
+      })
+    );
+  });
+
+  test("[SECURITY_HARDENED] user can shrink own multi-team membership to subset", async () => {
+    await seedUserDoc("uidUser", {
+      displayName: "General User",
+      teamId: "teamA",
+      teamName: "Team A",
+      teamIds: ["teamA", "teamB"],
+      teamNames: ["Team A", "Team B"],
+    });
+
+    await assertSucceeds(
+      updateDoc(doc(user(), "users", "uidUser"), {
+        teamId: "teamB",
+        teamName: "Team B",
+        teamIds: ["teamB"],
+        teamNames: ["Team B"],
+        updatedAt: serverTimestamp(),
+      })
+    );
+  });
+
+  test("[SECURITY_HARDENED] user cannot fake shrink to unrelated team or reorder same-size list", async () => {
+    await seedUserDoc("uidUser", {
+      displayName: "General User",
+      teamId: "teamA",
+      teamName: "Team A",
+      teamIds: ["teamA", "teamB"],
+      teamNames: ["Team A", "Team B"],
+    });
+
+    await assertFails(
+      updateDoc(doc(user(), "users", "uidUser"), {
+        teamId: "teamX",
+        teamName: "Team X",
+        teamIds: ["teamX"],
+        teamNames: ["Team X"],
+        updatedAt: serverTimestamp(),
+      })
+    );
+
+    await assertFails(
+      updateDoc(doc(user(), "users", "uidUser"), {
+        teamId: "teamB",
+        teamName: "Team B",
+        teamIds: ["teamB", "teamA"],
+        teamNames: ["Team B", "Team A"],
+        updatedAt: serverTimestamp(),
+      })
+    );
+  });
+
+  test("[SECURITY_HARDENED] coach/staff path still works with server timestamp but rejects spoofed timestamp", async () => {
+    await assertSucceeds(
+      updateDoc(doc(coach(), "users", "uidUser"), {
+        teamId: "teamA",
+        teamName: "Team A",
+        teamIds: ["teamA"],
+        teamNames: ["Team A"],
+        updatedAt: serverTimestamp(),
+      })
+    );
+
+    await assertFails(
+      updateDoc(doc(coach(), "users", "uidUser"), {
+        teamId: "teamB",
+        teamName: "Team B",
+        teamIds: ["teamB"],
+        teamNames: ["Team B"],
+        updatedAt: new Date("2000-01-01T00:00:00.000Z"),
+      })
+    );
+  });
 });
 
 describe("/events/{eventId}", () => {

@@ -421,28 +421,90 @@ const ApiService = {
     if (idx >= 0) source.splice(idx, 1);
     if (!this._demoMode) FirebaseService._saveToLS('teams', source);
 
+    const buildNextMembership = (user) => {
+      const ids = [];
+      const seen = new Set();
+      const pushId = (teamId) => {
+        const value = String(teamId || '').trim();
+        if (!value || seen.has(value)) return;
+        seen.add(value);
+        ids.push(value);
+      };
+
+      if (Array.isArray(user?.teamIds)) user.teamIds.forEach(pushId);
+      pushId(user?.teamId);
+
+      if (!ids.includes(String(id))) return null;
+
+      const namesById = new Map();
+      if (Array.isArray(user?.teamIds)) {
+        ids.forEach((teamId, index) => {
+          const teamName = Array.isArray(user?.teamNames) ? user.teamNames[index] : '';
+          if (typeof teamName === 'string' && teamName.trim()) {
+            namesById.set(teamId, teamName.trim());
+          }
+        });
+      }
+      if (typeof user?.teamId === 'string' && user.teamId.trim() && typeof user?.teamName === 'string' && user.teamName.trim()) {
+        namesById.set(String(user.teamId).trim(), user.teamName.trim());
+      }
+
+      const nextIds = ids.filter(teamId => teamId !== String(id));
+      const nextNames = nextIds.map(teamId => {
+        if (namesById.has(teamId)) return namesById.get(teamId);
+        const team = this.getTeam(teamId);
+        return team?.name || teamId;
+      });
+
+      return nextIds.length > 0
+        ? {
+            teamId: nextIds[0],
+            teamName: nextNames[0] || '',
+            teamIds: nextIds,
+            teamNames: nextNames,
+          }
+        : {
+            teamId: null,
+            teamName: null,
+            teamIds: [],
+            teamNames: [],
+          };
+    };
+
+    const pendingWrites = [];
+    const writtenDocIds = new Set();
+
     // 清除所有引用此球隊的用戶
     const users = this._src('adminUsers');
     users.forEach(u => {
-      if (u.teamId === id) {
-        u.teamId = null;
-        u.teamName = null;
-        if (!this._demoMode && u._docId) {
-          FirebaseService.updateUser(u._docId, { teamId: null, teamName: null })
-            .catch(err => console.error('[deleteTeam] clear user team:', err));
-        }
+      const updates = buildNextMembership(u);
+      if (!updates) return;
+
+      Object.assign(u, updates);
+      if (!this._demoMode && u._docId && !writtenDocIds.has(u._docId)) {
+        writtenDocIds.add(u._docId);
+        pendingWrites.push(
+          FirebaseService.updateUser(u._docId, updates)
+            .catch(err => console.error('[deleteTeam] clear user team:', err))
+        );
       }
     });
+
     // 清除 currentUser 的球隊引用
     const cur = this.getCurrentUser();
-    if (cur && cur.teamId === id) {
-      cur.teamId = null;
-      cur.teamName = null;
-      if (!this._demoMode && cur._docId) {
-        FirebaseService.updateUser(cur._docId, { teamId: null, teamName: null })
-          .catch(err => console.error('[deleteTeam] clear currentUser team:', err));
+    const currentUserUpdates = buildNextMembership(cur);
+    if (cur && currentUserUpdates) {
+      Object.assign(cur, currentUserUpdates);
+      if (!this._demoMode && cur._docId && !writtenDocIds.has(cur._docId)) {
+        writtenDocIds.add(cur._docId);
+        pendingWrites.push(
+          FirebaseService.updateUser(cur._docId, currentUserUpdates)
+            .catch(err => console.error('[deleteTeam] clear currentUser team:', err))
+        );
       }
     }
+
+    if (pendingWrites.length > 0) await Promise.all(pendingWrites);
 
     return true;
   },
