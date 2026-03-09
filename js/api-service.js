@@ -1206,6 +1206,65 @@ const ApiService = {
   //  Current User（登入用戶）
   // ════════════════════════════════
 
+  _auditLogCallable: null,
+
+  async writeAuditLog(payload = {}) {
+    try {
+      if (this._demoMode) return null;
+      const authed = await this._ensureFirebaseWriteAuth({ forceRefreshToken: false });
+      if (!authed) return null;
+
+      if (!this._auditLogCallable) {
+        this._auditLogCallable = firebase.app().functions('asia-east1').httpsCallable('writeAuditLog');
+      }
+
+      const result = await this._auditLogCallable({
+        action: String(payload.action || '').trim(),
+        targetType: String(payload.targetType || 'system').trim(),
+        targetId: String(payload.targetId || '').trim(),
+        targetLabel: String(payload.targetLabel || '').trim(),
+        result: String(payload.result || 'success').trim(),
+        source: String(payload.source || 'web').trim(),
+        meta: payload.meta && typeof payload.meta === 'object' ? payload.meta : {},
+      });
+      return result?.data || null;
+    } catch (err) {
+      console.warn('[writeAuditLog]', err?.code || '', err?.message || err);
+      return null;
+    }
+  },
+
+  async getAuditLogsByDay(dayKey, options = {}) {
+    if (this._demoMode) {
+      return { items: [], lastDoc: null, hasMore: false };
+    }
+
+    const safeDayKey = String(dayKey || '').replace(/\D/g, '').slice(0, 8);
+    if (safeDayKey.length !== 8) {
+      return { items: [], lastDoc: null, hasMore: false };
+    }
+
+    const pageSize = Math.max(1, Math.min(200, Number(options.pageSize) || 100));
+    let query = db.collection('auditLogsByDay')
+      .doc(safeDayKey)
+      .collection('auditEntries')
+      .orderBy('createdAt', 'desc')
+      .limit(pageSize + 1);
+
+    if (options.startAfter) {
+      query = query.startAfter(options.startAfter);
+    }
+
+    const snap = await query.get();
+    const pageDocs = snap.docs.slice(0, pageSize);
+
+    return {
+      items: pageDocs.map(doc => ({ ...doc.data(), _docId: doc.id })),
+      lastDoc: pageDocs.length ? pageDocs[pageDocs.length - 1] : null,
+      hasMore: snap.docs.length > pageSize,
+    };
+  },
+
   getCurrentUser() {
     if (this._demoMode) return (typeof DemoData !== 'undefined') ? DemoData.currentUser : null;
     return FirebaseService._cache.currentUser || null;

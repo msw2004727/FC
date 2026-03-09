@@ -108,6 +108,18 @@ Object.assign(App, {
       });
       this.showToast(isWaitlist ? '已加入候補名單' : '報名成功！');
       if (!isWaitlist) this._grantAutoExp(userId, 'register_activity', e.title);
+      void ApiService.writeAuditLog({
+        action: 'event_signup',
+        targetType: 'event',
+        targetId: e.id,
+        targetLabel: e.title,
+        result: 'success',
+        source: 'web',
+        meta: {
+          eventId: e.id,
+          statusTo: isWaitlist ? 'waitlisted' : 'registered',
+        },
+      });
       this._sendNotifFromTemplate('signup_success', {
         eventName: e.title, date: e.date, location: e.location,
         status: isWaitlist ? '候補' : '正取',
@@ -141,6 +153,18 @@ Object.assign(App, {
         ...arRecord, createdAt: firebase.firestore.FieldValue.serverTimestamp(),
       }).then(ref => { arRecord._docId = ref.id; })
         .catch(err => console.error('[activityRecord]', err));
+      void ApiService.writeAuditLog({
+        action: 'event_signup',
+        targetType: 'event',
+        targetId: e.id,
+        targetLabel: e.title,
+        result: 'success',
+        source: 'web',
+        meta: {
+          eventId: e.id,
+          statusTo: result.status === 'waitlisted' ? 'waitlisted' : 'registered',
+        },
+      });
       this._sendNotifFromTemplate('signup_success', {
         eventName: e.title, date: e.date, location: e.location,
         status: result.status === 'waitlisted' ? '候補' : '正取',
@@ -267,6 +291,19 @@ Object.assign(App, {
       }
       _restoreCancelUI();
       this._notifySignupCancelledInboxFromTemplate(e0, userId, isWaitlist);
+      void ApiService.writeAuditLog({
+        action: 'event_cancel_signup',
+        targetType: 'event',
+        targetId: e0?.id || id,
+        targetLabel: e0?.title || '',
+        result: 'success',
+        source: 'web',
+        meta: {
+          eventId: e0?.id || id,
+          statusFrom: isWaitlist ? 'waitlisted' : 'registered',
+          statusTo: 'cancelled',
+        },
+      });
       ApiService._writeOpLog('cancel_signup', '取消報名', `${userName} 取消${isWaitlist ? '候補' : '報名'}「${e0.title}」`);
       this.showToast(isWaitlist ? '已取消候補' : '已取消報名');
       if (!isWaitlist) this._grantAutoExp(userId, 'cancel_registration', e0.title);
@@ -324,6 +361,19 @@ Object.assign(App, {
             }
           }
           this._notifySignupCancelledInboxFromTemplate(ApiService.getEvent(id) || e0, userId, isWaitlist);
+          void ApiService.writeAuditLog({
+            action: 'event_cancel_signup',
+            targetType: 'event',
+            targetId: e0?.id || id,
+            targetLabel: e0?.title || '',
+            result: 'success',
+            source: 'web',
+            meta: {
+              eventId: e0?.id || id,
+              statusFrom: isWaitlist ? 'waitlisted' : 'registered',
+              statusTo: 'cancelled',
+            },
+          });
           ApiService._writeOpLog('cancel_signup', '取消報名', `${userName} 取消${isWaitlist ? '候補' : '報名'}「${e0.title}」`);
           this.showToast(isWaitlist ? '已取消候補' : '已取消報名');
           this._evaluateAchievements(e0?.type);

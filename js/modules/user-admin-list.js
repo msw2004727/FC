@@ -129,6 +129,18 @@ Object.assign(App, {
       `${actionLabel}「${name}」`
     );
 
+    void ApiService.writeAuditLog({
+      action: 'admin_user_edit',
+      targetType: 'user',
+      targetId: user.uid || '',
+      targetLabel: user.name || name,
+      result: 'success',
+      source: 'web',
+      meta: {
+        statusFrom: nextRestricted ? 'active' : 'restricted',
+        statusTo: nextRestricted ? 'restricted' : 'active',
+      },
+    });
     this.filterAdminUsers();
     this.showToast(nextRestricted ? '已限制使用者' : '已解除限制');
   },
@@ -142,6 +154,7 @@ Object.assign(App, {
     const roleKey = roleMap[select.value];
     if (!roleKey) return;
     const user = ApiService.getAdminUsers().find(u => u.name === name);
+    const oldRole = user?.role || '';
     try {
     // 後台手動晉升 → 同步設定 manualRole 底線
       await ApiService.updateAdminUser(name, { role: roleKey, manualRole: roleKey });
@@ -153,6 +166,18 @@ Object.assign(App, {
       return;
     }
     ApiService._writeOpLog('role', '角色變更', `${name} → ${select.value}`);
+    void ApiService.writeAuditLog({
+      action: 'role_change',
+      targetType: 'user',
+      targetId: user?.uid || '',
+      targetLabel: name,
+      result: 'success',
+      source: 'web',
+      meta: {
+        statusFrom: oldRole,
+        statusTo: roleKey,
+      },
+    });
     // Trigger 5：身份變更通知
     if (user) {
       this._sendNotifFromTemplate('role_upgrade', {
@@ -236,6 +261,32 @@ Object.assign(App, {
       }, result.uid, 'private', '私訊');
     }
     if (result) {
+      void ApiService.writeAuditLog({
+        action: 'admin_user_edit',
+        targetType: 'user',
+        targetId: result.uid || oldUser?.uid || '',
+        targetLabel: name,
+        result: 'success',
+        source: 'web',
+        meta: {
+          statusFrom: oldRole || '',
+          statusTo: updates.role || '',
+        },
+      });
+      if (oldRole !== updates.role) {
+        void ApiService.writeAuditLog({
+          action: 'role_change',
+          targetType: 'user',
+          targetId: result.uid || oldUser?.uid || '',
+          targetLabel: name,
+          result: 'success',
+          source: 'web',
+          meta: {
+            statusFrom: oldRole || '',
+            statusTo: updates.role || '',
+          },
+        });
+      }
       this.closeUserEditModal();
       this.filterAdminUsers();
       this.showToast(`已更新「${name}」的資料`);

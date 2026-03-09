@@ -117,6 +117,7 @@ const ScriptLoader = {
       'js/modules/auto-exp.js',
       'js/modules/game-manage.js',
       'js/modules/error-log.js',
+      'js/modules/audit-log.js',
     ],
   },
 
@@ -142,6 +143,7 @@ const ScriptLoader = {
     'page-admin-roles':        ['adminUsers'],
     'page-admin-inactive':     ['adminUsers'],
     'page-admin-logs':         ['adminUsers'],
+    'page-admin-audit-logs':   ['adminSystem'],
     'page-admin-repair':       ['adminUsers'],
     'page-admin-banners':      ['adminContent'],
     'page-admin-shop':         ['shop'],

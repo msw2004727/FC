@@ -181,3 +181,35 @@ i18n.js → config.js → data.js → firebase-config.js
 - Separation boundary:
   - No Firestore write/read in Phase 0.
   - No `Object.assign(App, ...)` hook yet; formal App modal integration is planned for Phase 1.
+
+## Audit Log Additions (2026-03-09)
+
+- New Cloud Function: `functions/index.js` exports `writeAuditLog`
+  - Trusted write path for audit events
+  - Adds `dayKey`, `timeKey`, `actorUid`, `actorRole`, `createdAt`, `expiresAt`
+  - Writes to `auditLogsByDay/{yyyyMMdd}/auditEntries/{logId}`
+- New frontend module: `js/modules/audit-log.js`
+  - `super_admin` single-day audit log page
+  - Local filters for time range, nickname or UID, and action
+  - No realtime listener and no localStorage persistence
+- New admin route:
+  - `page-admin-audit-logs`
+  - Fragment source: `pages/admin-system.html`
+  - Lazy script group: `adminSystem`
+
+```mermaid
+flowchart LR
+    UI["page-admin-audit-logs\npages/admin-system.html"]
+    MOD["js/modules/audit-log.js"]
+    API["js/api-service.js"]
+    CF["functions/index.js\nwriteAuditLog"]
+    FS["Firestore\nauditLogsByDay/{day}/auditEntries/{id}"]
+    RULES["firestore.rules\nsuper_admin read only"]
+
+    UI --> MOD
+    MOD --> API
+    API --> CF
+    CF --> FS
+    MOD --> FS
+    RULES --> FS
+```

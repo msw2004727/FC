@@ -648,6 +648,10 @@ service cloud.firestore {
       allow update: if false;
       allow delete: if isSuperAdmin();
     }
+    match /auditLogsByDay/{dayKey}/auditEntries/{logId} {
+      allow read: if isSuperAdmin();
+      allow create, update, delete: if false;
+    }
 
     // ═══════════════════════════════════════════
     //  Roles & Permissions（角色與權限設定）

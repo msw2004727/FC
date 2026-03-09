@@ -135,7 +135,7 @@
 // 20260306s: PK 大賽蓄力條改為跟隨球的螢幕座標顯示在球上方，避免手機手指遮擋
 // 20260306v: 活動刪除改為等待 Firestore 成功後才更新前端，避免刷新後被刪活動重新出現
 // 20260306y: 修復活動詳情頁「現場簽到」在 scan.js lazy load 前點擊會報 goToScanForEvent is not a function
-const CACHE_VERSION = '20260308e';
+const CACHE_VERSION = '20260309d';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {
@@ -417,6 +417,7 @@ const DRAWER_MENUS = [
   { icon: '', label: '自訂層級管理', i18nKey: 'admin.roles', page: 'page-admin-roles', minRole: 'super_admin' },
   { icon: '', label: '無效資料查詢', i18nKey: 'admin.inactive', page: 'page-admin-inactive', minRole: 'super_admin' },
   { icon: '', label: '操作日誌', i18nKey: 'admin.logs', page: 'page-admin-logs', minRole: 'super_admin' },
+  { icon: '', label: '稽核日誌', i18nKey: 'admin.auditLogs', page: 'page-admin-audit-logs', minRole: 'super_admin' },
   { icon: '', label: '錯誤日誌', i18nKey: 'admin.errorLogs', page: 'page-admin-error-logs', minRole: 'super_admin' },
   { icon: '', label: '歷史入隊補正', i18nKey: 'admin.repair', page: 'page-admin-repair', minRole: 'super_admin' },
 ];

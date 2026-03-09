@@ -447,6 +447,16 @@ const FirebaseService = {
         console.error('[FirebaseService] Custom Token 登入後 uid 仍不一致', { expectedUid, signedUid });
       }
       console.log('[FirebaseService] Custom Token 登入成功, uid:', signedUid);
+      if (typeof ApiService !== 'undefined' && typeof ApiService.writeAuditLog === 'function' && signedUid) {
+        void ApiService.writeAuditLog({
+          action: 'login_success',
+          targetType: 'system',
+          targetId: signedUid,
+          targetLabel: 'LINE login',
+          result: 'success',
+          source: 'liff',
+        });
+      }
     } catch (err) {
       console.error('[FirebaseService] Custom Token 登入失敗:', err?.code, err?.message);
       if (typeof App !== 'undefined' && App.showToast) {

@@ -173,6 +173,7 @@ I18N.register('zh-TW', {
   'admin.roles': '自訂層級管理',
   'admin.inactive': '無效資料查詢',
   'admin.logs': '操作日誌',
+  'admin.auditLogs': '稽核日誌',
   'admin.errorLogs': '錯誤日誌',
   'admin.repair': '歷史入隊補正',
   // Dashboard
@@ -387,6 +388,7 @@ I18N.register('en', {
   'admin.roles': 'Role Mgmt',
   'admin.inactive': 'Inactive Data',
   'admin.logs': 'Logs',
+  'admin.auditLogs': 'Audit Logs',
   'admin.errorLogs': 'Error Logs',
   'admin.repair': 'History Join Repair',
   // Dashboard
@@ -601,6 +603,7 @@ I18N.register('ja', {
   'admin.roles': '権限管理',
   'admin.inactive': '無効データ',
   'admin.logs': '操作ログ',
+  'admin.auditLogs': '監査ログ',
   'admin.errorLogs': 'エラーログ',
   'admin.repair': '参加履歴補正',
   // Dashboard
@@ -805,6 +808,7 @@ I18N.register('ko', {
   "admin.roles": "역할 관리",
   "admin.inactive": "비활성 데이터",
   "admin.logs": "로그",
+  "admin.auditLogs": "감사 로그",
   "admin.errorLogs": "오류 로그",
   "admin.repair": "기록 조인 수리",
   "dash.totalUsers": "사용자",
@@ -1002,6 +1006,7 @@ I18N.register('th', {
   "admin.roles": "การจัดการบทบาท",
   "admin.inactive": "ข้อมูลที่ไม่ใช้งาน",
   "admin.logs": "บันทึก",
+  "admin.auditLogs": "บันทึกการตรวจสอบ",
   "admin.errorLogs": "บันทึกข้อผิดพลาด",
   "admin.repair": "การเข้าร่วมประวัติ ซ่อมแซม",
   "dash.totalUsers": "ผู้ใช้",
@@ -1199,6 +1204,7 @@ I18N.register('vi', {
   "admin.roles": "Vai trò Mgmt",
   "admin.inactive": "Dữ liệu không hoạt động",
   "admin.logs": "Nhật ký",
+  "admin.auditLogs": "Nhật ký kiểm tra",
   "admin.errorLogs": "Nhật ký lỗi",
   "admin.repair": "Lịch sử tham gia Sửa chữa",
   "dash.totalUsers": "Người dùng",

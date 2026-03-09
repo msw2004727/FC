@@ -149,6 +149,12 @@ async function seedDoc(collection, id, data) {
   });
 }
 
+async function seedPath(pathSegments, data) {
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), ...pathSegments), data);
+  });
+}
+
 async function seedBaseDocs() {
   await testEnv.withSecurityRulesDisabled(async (ctx) => {
     const db = ctx.firestore();
@@ -327,6 +333,17 @@ async function seedBaseDocs() {
 
     await setDoc(doc(db, "errorLogs", "errA"), { message: "errorA" });
     await setDoc(doc(db, "errorLogs", "errB"), { message: "errorB" });
+
+    await setDoc(doc(db, "auditLogsByDay", "20260309", "auditEntries", "auditA"), {
+      actorUid: "uidA",
+      action: "login_success",
+      result: "success",
+    });
+    await setDoc(doc(db, "auditLogsByDay", "20260309", "auditEntries", "auditB"), {
+      actorUid: "uidB",
+      action: "event_signup",
+      result: "success",
+    });
 
     await setDoc(doc(db, "teams", "teamA"), {
       id: "teamA",
@@ -734,6 +751,40 @@ describe("logs/records high-risk matrix", () => {
         return deleteDoc(doc(db, "errorLogs", id));
       },
       allowSuperOnly
+    );
+  });
+
+  test("[LOCKED_DOWN] /auditLogsByDay/{dayKey}/auditEntries: read only superAdmin; client writes denied", async () => {
+    await assertByRole(
+      ({ db }) => getDoc(doc(db, "auditLogsByDay", "20260309", "auditEntries", "auditB")),
+      allowSuperOnly
+    );
+    await assertByRole(
+      ({ db, role }) =>
+        setDoc(doc(db, "auditLogsByDay", "20260309", "auditEntries", `audit_create_${role}`), {
+          actorUid: uidByRole[role] || "uidA",
+          action: "logout",
+          result: "success",
+        }),
+      denyAll
+    );
+    await assertByRole(
+      ({ db }) =>
+        updateDoc(doc(db, "auditLogsByDay", "20260309", "auditEntries", "auditB"), {
+          result: "failure",
+        }),
+      denyAll
+    );
+    await assertByRole(
+      async ({ db, role }) => {
+        const id = `audit_del_${role}`;
+        await seedPath(
+          ["auditLogsByDay", "20260309", "auditEntries", id],
+          { actorUid: "uidA", action: "logout", result: "success" }
+        );
+        return deleteDoc(doc(db, "auditLogsByDay", "20260309", "auditEntries", id));
+      },
+      denyAll
     );
   });
 });

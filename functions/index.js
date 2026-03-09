@@ -20,6 +20,36 @@ const VALID_ROLES = new Set([
   "admin",
   "super_admin",
 ]);
+const ALLOWED_AUDIT_ACTIONS = new Set([
+  "login_success",
+  "login_failure",
+  "logout",
+  "event_signup",
+  "event_cancel_signup",
+  "team_join_request",
+  "team_join_approve",
+  "team_join_reject",
+  "role_change",
+  "admin_user_edit",
+]);
+const ALLOWED_AUDIT_TARGET_TYPES = new Set([
+  "system",
+  "user",
+  "event",
+  "team",
+  "message",
+]);
+const ALLOWED_AUDIT_RESULTS = new Set(["success", "failure"]);
+const ALLOWED_AUDIT_SOURCES = new Set(["web", "liff", "system", "cloud_function"]);
+const ALLOWED_AUDIT_META_KEYS = new Set([
+  "eventId",
+  "teamId",
+  "messageId",
+  "reasonCode",
+  "statusFrom",
+  "statusTo",
+]);
+const AUDIT_RETENTION_DAYS = 180;
 const ALLOWED_LINE_NOTIFICATION_CATEGORIES = new Set([
   "system",
   "activity",
@@ -217,6 +247,39 @@ function normalizeLineNotificationText(value, maxLength) {
   return trimmed;
 }
 
+function normalizeAuditText(value, maxLength = 120) {
+  const text = String(value ?? "").trim();
+  if (!text) return "";
+  return text.slice(0, maxLength);
+}
+
+function normalizeAuditEnum(value, allowedValues, fallback = "") {
+  if (typeof value !== "string") return fallback;
+  const trimmed = value.trim();
+  return allowedValues.has(trimmed) ? trimmed : fallback;
+}
+
+function sanitizeAuditMeta(rawMeta) {
+  if (!rawMeta || typeof rawMeta !== "object" || Array.isArray(rawMeta)) {
+    return {};
+  }
+
+  const next = {};
+  for (const [key, value] of Object.entries(rawMeta)) {
+    if (!ALLOWED_AUDIT_META_KEYS.has(key)) continue;
+    if (value == null) continue;
+    if (typeof value === "string") {
+      const trimmed = value.trim();
+      if (trimmed) next[key] = trimmed.slice(0, 120);
+      continue;
+    }
+    if (typeof value === "number" || typeof value === "boolean") {
+      next[key] = value;
+    }
+  }
+  return next;
+}
+
 function getLineNotificationSettingsKey(category) {
   return category === "private" ? "system" : category;
 }
@@ -320,6 +383,19 @@ exports.createCustomToken = onCall(
       lineUserId = await getLineUserIdByAccessToken(accessToken);
     } catch (err) {
       console.error("[createCustomToken] LINE Access Token 驗證失敗:", err.message);
+      try {
+        await writeAuditEntry({
+          action: "login_failure",
+          actorRole: "user",
+          targetType: "system",
+          targetLabel: "LINE login",
+          result: "failure",
+          source: "cloud_function",
+          meta: { reasonCode: "line_access_token_invalid" },
+        });
+      } catch (auditErr) {
+        console.warn("[createCustomToken] failed to write login_failure audit log:", auditErr);
+      }
       throw new HttpsError("unauthenticated", "LINE 驗證失敗");
     }
 
@@ -330,6 +406,46 @@ exports.createCustomToken = onCall(
     const customToken = await authAdmin.createCustomToken(lineUserId);
     console.log("[createCustomToken] 成功為 LINE 用戶簽發 Custom Token:", lineUserId, "role=", role);
     return { customToken, role };
+  }
+);
+
+exports.writeAuditLog = onCall(
+  { region: "asia-east1", timeoutSeconds: 15 },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Authentication required");
+    }
+
+    const payload = request.data || {};
+    const callerUid = request.auth.uid;
+    const callerRole = await getCallerRoleWithFallback(request);
+    const callerUser = await findUserDocByUidOrLineUserId(callerUid);
+    const actorName = normalizeAuditText(
+      callerUser?.data?.displayName
+        || callerUser?.data?.name
+        || request.auth.token?.name
+        || callerUid,
+      80
+    );
+
+    const entry = await writeAuditEntry({
+      actorUid: callerUid,
+      actorName,
+      actorRole: callerRole,
+      action: payload.action,
+      targetType: payload.targetType,
+      targetId: payload.targetId,
+      targetLabel: payload.targetLabel,
+      result: payload.result,
+      source: payload.source || "web",
+      meta: payload.meta,
+    });
+
+    return {
+      success: true,
+      dayKey: entry.dayKey,
+      timeKey: entry.timeKey,
+    };
   }
 );
 
@@ -676,6 +792,68 @@ function getTaipeiDateInfo(now) {
     weekly: `weekly_${year}-W${week}`,
     monthly: `monthly_${year}-${month}`,
   };
+}
+
+function getTaipeiAuditDateInfo(now) {
+  const offsetMs = 8 * 60 * 60 * 1000;
+  const t = new Date(now.getTime() + offsetMs);
+  const year = t.getUTCFullYear();
+  const month = String(t.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(t.getUTCDate()).padStart(2, "0");
+  const hours = String(t.getUTCHours()).padStart(2, "0");
+  const minutes = String(t.getUTCMinutes()).padStart(2, "0");
+  const seconds = String(t.getUTCSeconds()).padStart(2, "0");
+
+  return {
+    dayKey: `${year}${month}${day}`,
+    timeKey: `${hours}:${minutes}:${seconds}`,
+  };
+}
+
+function buildAuditEntryPayload({
+  actorUid = "",
+  actorName = "",
+  actorRole = "user",
+  action = "",
+  targetType = "system",
+  targetId = "",
+  targetLabel = "",
+  result = "success",
+  source = "web",
+  meta = {},
+  now = new Date(),
+}) {
+  const normalizedAction = normalizeAuditEnum(action, ALLOWED_AUDIT_ACTIONS);
+  if (!normalizedAction) {
+    throw new HttpsError("invalid-argument", "Unsupported audit action");
+  }
+
+  const { dayKey, timeKey } = getTaipeiAuditDateInfo(now);
+  return {
+    dayKey,
+    timeKey,
+    actorUid: normalizeAuditText(actorUid, 128),
+    actorName: normalizeAuditText(actorName, 80),
+    actorRole: normalizeRole(actorRole),
+    action: normalizedAction,
+    targetType: normalizeAuditEnum(targetType, ALLOWED_AUDIT_TARGET_TYPES, "system"),
+    targetId: normalizeAuditText(targetId, 160),
+    targetLabel: normalizeAuditText(targetLabel, 160),
+    result: normalizeAuditEnum(result, ALLOWED_AUDIT_RESULTS, "success"),
+    source: normalizeAuditEnum(source, ALLOWED_AUDIT_SOURCES, "web"),
+    meta: sanitizeAuditMeta(meta),
+    createdAt: FieldValue.serverTimestamp(),
+    expiresAt: new Date(now.getTime() + AUDIT_RETENTION_DAYS * 24 * 60 * 60 * 1000),
+  };
+}
+
+async function writeAuditEntry(payload) {
+  const entry = buildAuditEntryPayload(payload);
+  await db.collection("auditLogsByDay")
+    .doc(entry.dayKey)
+    .collection("auditEntries")
+    .add(entry);
+  return entry;
 }
 
 exports.submitShotGameScore = onCall(

@@ -57,6 +57,7 @@ const PageLoader = {
     'page-admin-exp':          'admin-users',
     'page-admin-roles':        'admin-system',
     'page-admin-logs':         'admin-system',
+    'page-admin-audit-logs':   'admin-system',
     'page-admin-inactive':     'admin-system',
     'page-admin-error-logs':   'admin-system',
     'page-admin-repair':       'admin-system',

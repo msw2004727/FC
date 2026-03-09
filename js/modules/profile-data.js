@@ -402,7 +402,17 @@ Object.assign(App, {
     }
   },
 
-  logoutLine() {
+  async logoutLine() {
+    if (typeof ApiService !== 'undefined' && typeof ApiService.writeAuditLog === 'function') {
+      void ApiService.writeAuditLog({
+        action: 'logout',
+        targetType: 'system',
+        targetId: ApiService.getCurrentUser()?.uid || '',
+        targetLabel: 'LINE logout',
+        result: 'success',
+        source: 'liff',
+      });
+    }
     if (typeof LineAuth !== 'undefined') {
       LineAuth.logout();
     }

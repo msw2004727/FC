@@ -159,6 +159,17 @@ Object.assign(App, {
     });
 
     ApiService._writeOpLog('team_join_request', '申請入隊', `${applicantName} 申請加入「${t.name}」`);
+    void ApiService.writeAuditLog({
+      action: 'team_join_request',
+      targetType: 'team',
+      targetId: teamId,
+      targetLabel: t.name,
+      result: 'success',
+      source: 'web',
+      meta: {
+        teamId,
+      },
+    });
     this._grantAutoExp(applicantUid, 'join_team', t.name);
     this.showToast('已送出加入申請！');
   },

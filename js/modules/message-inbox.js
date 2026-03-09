@@ -447,6 +447,18 @@ Object.assign(App, {
           'system', '系統', applicantUid, '系統'
         );
         ApiService._writeOpLog('team_approve', '球隊審批', `${reviewerName} 同意「${applicantName}」加入「${finalTeamName}」`);
+        void ApiService.writeAuditLog({
+          action: 'team_join_approve',
+          targetType: 'team',
+          targetId: teamId,
+          targetLabel: finalTeamName,
+          result: 'success',
+          source: 'web',
+          meta: {
+            teamId,
+            statusTo: 'approved',
+          },
+        });
         this._evaluateAchievements();
         this.showToast('已同意加入申請');
       } else {
@@ -460,6 +472,18 @@ Object.assign(App, {
         'system', '系統', applicantUid, '系統'
       );
       ApiService._writeOpLog('team_approve', '球隊審批', `${reviewerName} 拒絕「${applicantName}」加入「${teamName}」`);
+      void ApiService.writeAuditLog({
+        action: 'team_join_reject',
+        targetType: 'team',
+        targetId: teamId,
+        targetLabel: teamName,
+        result: 'success',
+        source: 'web',
+        meta: {
+          teamId,
+          statusTo: 'rejected',
+        },
+      });
       this.showToast('已拒絕加入申請');
 
     } else if (action === 'ignore') {

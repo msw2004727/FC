@@ -1149,3 +1149,31 @@
 - **原因**：報名名單與未報名單的手動簽到表格沒有建立 checkbox 連動，送出前也沒有把 `checkout => checkin` 這個規則正規化。
 - **修復**：修改 `js/modules/event-manage.js`，新增手動簽到 checkbox 連動 helper；勾選簽退時自動補勾簽到，取消簽到時若仍勾著簽退會一併取消；送出報名名單與未報名名單前都會先正規化狀態，確保勾簽退時會寫入完整的簽到與簽退紀錄。
 - **教訓**：這類有前後依賴的布林欄位不能只靠送出時驗證，UI 互動與資料寫入規則都要同步維持同一套狀態約束。
+### 2026-03-09 - add trusted audit logs with daily buckets
+- **Issue**: The project had operation logs and error logs, but no locked-down audit log system for high-value user actions such as login, signup, cancel signup, team join review, and admin role changes.
+- **Cause**: Existing `operationLogs` were front-end driven and too broadly readable, which made them unsuitable for super-admin-only auditing and expensive to query at scale.
+- **Fix**:
+  - `functions/index.js`: added `writeAuditLog` callable, audit payload sanitization, daily bucket writes to `auditLogsByDay/{dayKey}/auditEntries`, and `expiresAt` generation for 180-day retention.
+  - `firestore.rules`: added `auditLogsByDay/{dayKey}/auditEntries/{logId}` rules with `super_admin` read-only access and no client writes.
+  - `js/api-service.js`: added `writeAuditLog()` and `getAuditLogsByDay()` helpers.
+  - `pages/admin-system.html`, `js/modules/audit-log.js`, `js/core/navigation.js`, `js/core/page-loader.js`, `js/core/script-loader.js`, `js/config.js`, `js/i18n.js`: added the new super-admin audit log page with single-day query, time range filter, nickname/UID search, action filter, and load-more pagination.
+  - `js/firebase-service.js`, `js/modules/profile-data.js`, `js/modules/event-detail-signup.js`, `js/modules/team-form.js`, `js/modules/message-inbox.js`, `js/modules/user-admin-list.js`: wired login success, login failure, logout, signup, cancel signup, team join request/approve/reject, role change, and admin user edit audit events.
+  - `docs/audit-log-implementation-plan-20260309.md`, `docs/architecture.md`: documented the implementation plan and architecture changes.
+- **Lesson**: Audit logs should be treated as a separate system from general operation logs: write through a trusted backend path, partition by day for predictable reads, and keep them out of global front-end cache and realtime listeners.
+### 2026-03-09 - audit log review follow-up corrections
+- **問題**：第一版 audit log 上線後，計劃文件對 `login_failure` 覆蓋範圍、TTL 部署說明、索引需求與成本估算描述不夠完整，且 `logout` 寫 log 使用 `await` 會拖慢登出。
+- **原因**：第一版優先把可信寫入路徑與事件接線做出來，後續 review 才補出文件精度與主流程非阻塞的一致性問題。
+- **修復**：`js/modules/profile-data.js` 改為 `void ApiService.writeAuditLog(...)`，避免登出被 log 寫入阻塞；`docs/audit-log-implementation-plan-20260309.md` 重寫並補上 `login_failure` 覆蓋限制、TTL collection group 與典型刪除時效、索引策略、成本估算。
+- **教訓**：audit log 這類功能除了資料模型與權限，還要明確區分「可信範圍」與「觀測範圍」，並且所有次要紀錄都不應阻塞主流程。
+
+### 2026-03-09 - rename audit log collection group to avoid TTL collisions
+- **問題**：audit log 子集合原本使用通用名稱 `entries`，未來若其他功能也新增 `*/entries/*`，同一條 Firestore TTL policy 可能誤套用到非 audit 資料。
+- **原因**：Firestore TTL policy 是套用在 collection group 名稱層級，不能限制單一父路徑；使用過於通用的集合名稱會放大跨功能衝突風險。
+- **修復**：`functions/index.js`、`js/api-service.js`、`firestore.rules` 將 audit log 路徑改為 `auditLogsByDay/{dayKey}/auditEntries/{logId}`；`docs/audit-log-implementation-plan-20260309.md` 補上 implemented status、`auditEntries` TTL 說明與 `logout` 成本估算；`docs/architecture.md` 同步更新資料流路徑。
+- **教訓**：會被 TTL、索引或跨功能查詢共用的 collection group 名稱，一開始就要使用專用命名，避免用 `entries` 這類過度通用的名稱。
+
+### 2026-03-09 - add audit log rules coverage
+- **問題**：audit log 已新增 `super_admin` 限讀規則，但原本的 Firestore rules 測試沒有覆蓋 `auditLogsByDay/{dayKey}/auditEntries/{logId}`，上線前缺少自動驗證。
+- **原因**：第一波實作先完成功能與文件，測試矩陣尚未補上新 collection group 的讀寫限制。
+- **修復**：`tests/firestore.rules.test.js` 新增 `auditEntries` seed 與 rules 測試，覆蓋 read 只允許 `super_admin`、client create/update/delete 全拒；本地也補安裝 root 測試依賴。
+- **教訓**：新增受保護 collection 後，要立刻補對應的 rules 測試；否則規則回歸時很難第一時間發現權限鬆動。

@@ -263,6 +263,44 @@
       <div class="log-list" id="operation-log-list"></div>
     </section>
 
+    <section class="page" id="page-admin-audit-logs" data-min-role="super_admin">
+      <div class="page-header">
+        <button class="back-btn" onclick="App.goBack()">返回</button>
+        <h2>稽核日誌</h2>
+      </div>
+      <div class="form-card" style="display:flex;flex-direction:column;gap:.75rem">
+        <div style="font-size:.78rem;color:var(--text-muted);line-height:1.6">
+          僅讀取單日資料，避免掃描全部歷史紀錄。搜尋條件包含時間、暱稱或 UID、行為。
+        </div>
+        <div class="admin-filters" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:.6rem">
+          <label style="display:flex;flex-direction:column;gap:.25rem;font-size:.78rem">
+            <span>日期</span>
+            <input type="date" id="auditlog-date" onchange="App.loadAuditLogs(true)">
+          </label>
+          <label style="display:flex;flex-direction:column;gap:.25rem;font-size:.78rem">
+            <span>開始時間</span>
+            <input type="time" id="auditlog-time-start" step="1" onchange="App.filterAuditLogs()">
+          </label>
+          <label style="display:flex;flex-direction:column;gap:.25rem;font-size:.78rem">
+            <span>結束時間</span>
+            <input type="time" id="auditlog-time-end" step="1" onchange="App.filterAuditLogs()">
+          </label>
+          <label style="display:flex;flex-direction:column;gap:.25rem;font-size:.78rem">
+            <span>行為</span>
+            <select id="auditlog-action-filter" onchange="App.filterAuditLogs()"></select>
+          </label>
+        </div>
+        <div class="admin-search">
+          <input type="text" id="auditlog-search" placeholder="搜尋暱稱、UID、目標名稱或 ID" oninput="App.filterAuditLogs()">
+        </div>
+        <div id="auditlog-summary" style="font-size:.78rem;color:var(--text-muted)"></div>
+      </div>
+      <div class="log-list" id="audit-log-list"></div>
+      <div style="display:flex;justify-content:center;padding:0 0 1rem">
+        <button id="auditlog-load-more" class="outline-btn" style="display:none" onclick="App.loadMoreAuditLogs()">載入更多</button>
+      </div>
+    </section>
+
     <!-- PAGE: Backend - Error Logs (Super Admin) -->
     <section class="page" id="page-admin-error-logs" data-min-role="super_admin">
       <div class="page-header">

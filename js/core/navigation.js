@@ -249,6 +249,7 @@ Object.assign(App, {
     if (pageId === 'page-admin-games') this.renderGameManage();
     if (pageId === 'page-admin-themes') this.renderThemeManage();
     if (pageId === 'page-admin-logs') this.renderOperationLogs();
+    if (pageId === 'page-admin-audit-logs') this.renderAuditLogPage();
     if (pageId === 'page-admin-error-logs') this.renderErrorLogs();
   },
 
