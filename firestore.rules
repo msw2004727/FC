@@ -4,12 +4,12 @@ service cloud.firestore {
 
     // ═══════════════════════════════════════════════════════════════
     //  SportHub Firestore Security Rules
-    //  更新：2026-02-26（緊急修復：手機 LINE 瀏覽器報名失敗）
+    //  更新：2026-03-09（安全加固：動態權限 + 欄位白名單）
     //
     //  安全策略：
-    //  1. 用戶面集合：只要登入（isAuth）即可讀寫
-    //  2. 敏感管理操作保留 admin/super_admin 限制
-    //  3. 前端 ACL 控制細粒度權限，規則層只做基本閘門
+    //  1. hasPerm() 即時讀取 rolePermissions collection，前台改權限自動生效
+    //  2. 非 owner 的寫入受欄位白名單限制（isSignupFieldsOnly 等）
+    //  3. 管理類集合（公告/廣告/徽章等）仍用 isAdmin() 靜態控制
     //  4. 禁止刪除 users / attendanceRecords（審計軌跡）
     //  5. isRestricted 帳號限制移至前端層面處理
     // ═══════════════════════════════════════════════════════════════
@@ -47,6 +47,15 @@ service cloud.firestore {
     function isSuperAdmin() {
       return request.auth != null
         && authRole() == 'super_admin';
+    }
+
+    // ── 動態權限檢查（即時讀取 rolePermissions collection）──
+    function hasPerm(perm) {
+      let role = authRole();
+      let rpPath = /databases/$(database)/documents/rolePermissions/$(role);
+      return exists(rpPath)
+        && get(rpPath).data.permissions is list
+        && perm in get(rpPath).data.permissions;
     }
 
     function isCoachPlus() {
@@ -303,13 +312,21 @@ service cloud.firestore {
 
     // ═══════════════════════════════════════════
     //  Events（活動）
-    //  公開可讀；登入可寫（報名流程需更新人數計數）
+    //  公開可讀；update 依 owner / hasPerm / 報名欄位白名單
     // ═══════════════════════════════════════════
     match /events/{eventId} {
+      function isSignupFieldsOnly() {
+        let changed = request.resource.data.diff(resource.data).affectedKeys();
+        return changed.hasOnly([
+          'current', 'waitlist', 'participants', 'waitlistNames', 'status', 'updatedAt'
+        ]);
+      }
+
       allow read: if true;
       allow create: if isAuth()
         && hasString('title');
-      allow update: if isAuth();
+      allow update: if isAuth()
+        && (isEventOwner() || hasPerm('event.edit_all') || isSignupFieldsOnly());
       allow delete: if isAdmin();
     }
 
@@ -471,13 +488,21 @@ service cloud.firestore {
 
     // ═══════════════════════════════════════════
     //  Teams（球隊）
-    //  公開可讀；登入可建立/更新/刪除
+    //  公開可讀；update 依 owner / hasPerm / 成員欄位白名單
     // ═══════════════════════════════════════════
     match /teams/{teamId} {
+      function isTeamMemberFieldsOnly() {
+        let changed = request.resource.data.diff(resource.data).affectedKeys();
+        return changed.hasOnly([
+          'members', 'feed', 'coaches', 'updatedAt'
+        ]);
+      }
+
       allow read: if true;
       allow create: if isAuth()
         && hasString('name');
-      allow update: if isAuth();
+      allow update: if isAuth()
+        && (isTeamOwner() || hasPerm('team.manage_all') || isTeamMemberFieldsOnly());
       allow delete: if isAdmin() || isTeamOwner();
     }
 
@@ -509,23 +534,37 @@ service cloud.firestore {
     }
     // ═══════════════════════════════════════════
     //  Activity Records（活動紀錄）
-    //  登入可讀可建立
+    //  登入可讀可建立；update 限 status 欄位或 admin
     // ═══════════════════════════════════════════
     match /activityRecords/{recordId} {
+      function isActivityStatusOnly() {
+        let changed = request.resource.data.diff(resource.data).affectedKeys();
+        return changed.hasOnly(['status', 'updatedAt']);
+      }
+
       allow read: if isAuth();
       allow create: if isAuth();
-      allow update: if isAuth();
+      allow update: if isAuth()
+        && (isUserFieldOwnerResource() || isAdmin() || isActivityStatusOnly());
       allow delete: if isAdmin();
     }
 
     // ═══════════════════════════════════════════
     //  Attendance Records（簽到簽退）
-    //  登入可讀寫；禁止刪除（審計軌跡）
+    //  登入可讀可建立；update 限狀態欄位或 admin；禁止刪除（審計軌跡）
     // ═══════════════════════════════════════════
     match /attendanceRecords/{recordId} {
+      function isAttendanceStatusUpdate() {
+        let changed = request.resource.data.diff(resource.data).affectedKeys();
+        return changed.hasOnly([
+          'status', 'checkOutTime', 'removedAt', 'removedByUid', 'updatedAt'
+        ]);
+      }
+
       allow read: if isAuth();
       allow create: if isAuth();
-      allow update: if isAuth();
+      allow update: if isAuth()
+        && (isAdmin() || isAttendanceStatusUpdate());
       allow delete: if false;
     }
 
@@ -536,7 +575,8 @@ service cloud.firestore {
     match /shopItems/{itemId} {
       allow read: if true;
       allow create: if isAuth();
-      allow update: if isAuth();
+      allow update: if isAuth()
+        && (isShopItemOwner() || isAdmin());
       allow delete: if isAdmin() || isShopItemOwner();
     }
 
