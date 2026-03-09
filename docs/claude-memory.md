@@ -6,6 +6,12 @@
 
 ---
 
+### 2026-03-09 — 即時監聽改為活動頁專屬，首頁/球隊退回靜態載入
+- **問題**：`events`、`teams` 之前是全域 `onSnapshot`，即使使用者不在活動或球隊頁也會持續吃 Firestore 監聽；`registrations`、`attendanceRecords` 雖然是進頁才開，但一旦開過就整段 session 常駐，不是真正的 page-scoped realtime。
+- **原因**：`FirebaseService.init()` 直接啟動公開集合 listener，`ensureCollectionsForPage()` 也只負責延遲啟動，沒有在離頁時 unsubscribe。
+- **修復**：`js/firebase-service.js` 改成首頁只做 `events` 靜態預載，移除 `events/teams` 全域 listener；新增 page-scoped realtime 管理，只有 `page-activities`、`page-activity-detail`、`page-my-activities`、`page-scan` 保留 `registrations/attendanceRecords` 即時監聽；首頁、球隊頁、賽事頁改為靜態載入 + TTL 式重新抓取；`js/core/navigation.js` 在成功切頁與返回上一頁時同步關閉不再需要的 realtime listener。
+- **教訓**：真正要省 Firestore 讀取，不能只有「晚一點開 listener」，還要做到「離頁就關 listener」；首頁展示型資料不值得掛全域 snapshot，操作頁才值得即時同步。
+
 ### 2026-03-09 — 修復 index.html 內嵌腳本語法錯誤
 - **問題**：首頁載入時出現多個 `Uncaught SyntaxError`，包含 `Unexpected token 'if'`、`Invalid or unexpected token`、`Unexpected token ')'`，導致前台初始化流程中斷，後續 Firestore 與 Service Worker 行為也被連帶影響。
 - **原因**：`index.html` 內嵌 `<script>` 區塊被歷史亂碼與註解污染，造成 `if` / `var prev` 被註解吃掉、`console.warn` 與 `b.textContent` 字串未閉合、以及 `serviceWorker` / `window.addEventListener('error')` 的條件判斷被壓進註解同一行。

@@ -21,14 +21,11 @@
   <script>
   (function(){
     var V='20260309m';
-    var isProd = location.hostname === 'toosterx.com' || location.hostname === 'www.toosterx.com' || location.hostname === 'msw2004727.github.io' || location.hostname === 'fc-3g8.pages.dev';
     if(location.search.indexOf('clear=1')!==-1){
       if('caches' in window) caches.keys().then(function(k){k.forEach(function(n){caches.delete(n)})});
       if('serviceWorker' in navigator) navigator.serviceWorker.getRegistrations().then(function(r){r.forEach(function(w){w.unregister()})});
       var old=['sporthub_auto_exp_rules','sporthub_auto_exp_logs'];
       old.forEach(function(k){try{localStorage.removeItem(k)}catch(e){}});
-      // 依 hostname 判斷是否為 production 環境
-      if(isProd) localStorage.setItem('sporthub_mode','production');
       localStorage.setItem('sporthub_cache_ver',V);
       location.replace(location.pathname);
       return;
@@ -37,10 +34,6 @@
     if(prev&&prev!==V){
       if('caches' in window) caches.keys().then(function(k){k.forEach(function(n){caches.delete(n)})});
       if('serviceWorker' in navigator) navigator.serviceWorker.getRegistrations().then(function(r){r.forEach(function(w){w.unregister()})});
-      // 依 hostname 判斷，若 production 環境下為 demo 模式則切回 production
-      if(isProd && localStorage.getItem('sporthub_mode')==='demo'){
-        localStorage.setItem('sporthub_mode','production');
-      }
     }
     localStorage.setItem('sporthub_cache_ver',V);
   })();
@@ -81,14 +74,7 @@
   }
   </script>
   <script>
-    // 偵測模式：production 顯示 loading overlay，Demo 不顯示
-    (function(){
-      var mode = localStorage.getItem('sporthub_mode') ||
-        (['toosterx.com','www.toosterx.com','msw2004727.github.io','fc-3g8.pages.dev'].includes(location.hostname) ? 'production' : 'demo');
-      if (mode !== 'demo') {
-        document.documentElement.classList.add('prod-early');
-      }
-    })();
+    document.documentElement.classList.add('prod-early');
   </script>
 
   <!-- ============ TOP BAR ============ -->
@@ -117,40 +103,6 @@
         <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
         <span class="notif-badge" id="notif-badge" style="display:none"></span>
       </button>
-      <div class="role-switcher-wrapper" id="role-switcher-wrapper" style="display:none">
-        <button id="role-avatar-btn" class="role-avatar-btn" aria-label="切換 Demo 角色">
-          <div class="role-avatar">U</div>
-          <span class="role-current-label">一般用戶</span>
-          <span class="role-arrow">▾</span>
-        </button>
-        <div id="role-dropdown" class="role-dropdown">
-          <div class="role-dropdown-header">切換 Demo 角色</div>
-          <button class="role-dropdown-item active" data-role="user">
-            <span class="role-icon">U</span>
-            <span>一般用戶</span>
-          </button>
-          <button class="role-dropdown-item" data-role="coach">
-            <span class="role-icon">C</span>
-            <span>教練</span>
-          </button>
-          <button class="role-dropdown-item" data-role="captain">
-            <span class="role-icon">L</span>
-            <span>隊長</span>
-          </button>
-          <button class="role-dropdown-item" data-role="venue_owner">
-            <span class="role-icon">V</span>
-            <span>場地主</span>
-          </button>
-          <button class="role-dropdown-item" data-role="admin">
-            <span class="role-icon">A</span>
-            <span>管理員</span>
-          </button>
-          <button class="role-dropdown-item" data-role="super_admin">
-            <span class="role-icon">S</span>
-            <span>超級管理員</span>
-          </button>
-        </div>
-      </div>
       <div id="line-login-wrapper" class="line-login-wrapper" style="display:none">
         <button id="line-login-btn" class="line-login-btn" onclick="LineAuth.login()">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="#fff"><path d="M12 2C6.48 2 2 5.83 2 10.5c0 4.18 3.66 7.68 8.58 8.38.33.07.78.22.9.5.1.26.07.66.03.92l-.15.86c-.04.26-.2 1.01.88.55s5.88-3.47 8.03-5.93C22.08 13.79 22 12.18 22 10.5 22 5.83 17.52 2 12 2z"/></svg>
@@ -228,9 +180,6 @@
 
   <!-- ============ 全域 Modal 容器：PageLoader 動態載入 pages/modals.html ============ -->
   <div id="modal-container"></div>
-
-  <!-- Mode Badge -->
-  <div id="mode-badge" class="mode-badge">DEMO</div>
 
   <!-- Toast -->
   <div id="toast" class="toast"></div>
@@ -377,7 +326,6 @@
 
   <!-- 核心 -->
   <script defer src="js/config.js?v=20260309m"></script>
-  <script defer src="js/data.js?v=20260309m"></script>
   <script defer src="js/firebase-config.js?v=20260309m"></script>
   <script defer src="js/firebase-service.js?v=20260309m"></script>
   <script defer src="js/firebase-crud.js?v=20260309m"></script>
@@ -394,7 +342,6 @@
   <!-- 導覽與主題 -->
   <script defer src="js/core/navigation.js?v=20260309m"></script>
   <script defer src="js/core/theme.js?v=20260309m"></script>
-  <script defer src="js/core/mode.js?v=20260309m"></script>
 
   <!-- 功能模組 -->
   <script defer src="js/modules/image-cropper.js?v=20260309m"></script>

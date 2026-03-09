@@ -1,6 +1,6 @@
 /* ================================================
    SportHub — App Controller (Core)
-   依賴：config.js, data.js, api-service.js
+   依賴：config.js, api-service.js
    擴充：js/core/*.js, js/modules/*.js (Object.assign)
    ================================================ */
 
@@ -33,7 +33,6 @@ const App = {
   _routeLoadingShownAt: 0,
 
   init() {
-    this.bindRoleSwitcher();
     this.bindSportPicker();
     this.bindNavigation();
     this.bindDrawer();
@@ -44,7 +43,6 @@ const App = {
     this.bindScanModes();
     this.bindFloatingAds();
     this.bindNotifBtn();
-    this.bindModeSwitch();
     this.bindLineLogin();
     this.bindImageUpload('ce-image', 'ce-upload-preview', 16/9);
     this.bindImageUpload('ct-image', 'ct-upload-preview', 16/9);
@@ -384,14 +382,13 @@ const App = {
     this._deepLinkAuthRedirecting = false;
     this._pendingDeepLinkOpenKey = '';
     this._pendingDeepLinkOpenPromise = null;
-    const canOpenProtected = ModeManager.isDemo() || (typeof LineAuth !== 'undefined' && LineAuth.isLoggedIn());
+    const canOpenProtected = (typeof LineAuth !== 'undefined' && LineAuth.isLoggedIn());
     const fallbackPage = (!canOpenProtected && targetPage !== 'page-home') ? 'page-home' : targetPage;
     if (fallbackPage && this.currentPage !== fallbackPage) this.showPage(fallbackPage);
     if (message) this.showToast(message);
   },
 
   _tryStartDeepLinkLogin() {
-    if (ModeManager.isDemo()) return false;
     if (this._deepLinkAuthRedirecting) return true;
     if (typeof LineAuth === 'undefined') return false;
     if (typeof LineAuth.isLoggedIn === 'function' && LineAuth.isLoggedIn()) return false;
@@ -432,13 +429,13 @@ const App = {
 
     this._bootDeepLinkTimer = setTimeout(() => {
       if (!this._getPendingDeepLink()) return;
-      const isAuthedNow = ModeManager.isDemo() || (typeof LineAuth !== 'undefined' && LineAuth.isLoggedIn());
+      const isAuthedNow = (typeof LineAuth !== 'undefined' && LineAuth.isLoggedIn());
       if (!isAuthedNow) {
         // For unauthenticated deep links, prioritize LINE login redirect.
         this._tryStartDeepLinkLogin();
         this._bootDeepLinkTimer = setTimeout(() => {
           if (!this._getPendingDeepLink()) return;
-          const isAuthedRetry = ModeManager.isDemo() || (typeof LineAuth !== 'undefined' && LineAuth.isLoggedIn());
+          const isAuthedRetry = (typeof LineAuth !== 'undefined' && LineAuth.isLoggedIn());
           if (!isAuthedRetry) {
             this._completeDeepLinkFallback('\u8acb\u5148\u5b8c\u6210 LINE \u767b\u5165\u5f8c\u518d\u958b\u555f\u9023\u7d50\u3002', 'page-home');
             return;
@@ -467,7 +464,7 @@ const App = {
         return await this._pendingDeepLinkOpenPromise;
       }
 
-      const isAuthed = ModeManager.isDemo() || (typeof LineAuth !== 'undefined' && LineAuth.isLoggedIn());
+      const isAuthed = (typeof LineAuth !== 'undefined' && LineAuth.isLoggedIn());
       if (!isAuthed) {
         this._tryStartDeepLinkLogin();
         return false;
@@ -521,7 +518,6 @@ const App = {
   },
 
   _scheduleCloudBoot(reason = 'post-boot') {
-    if (ModeManager.isDemo()) return;
     if (this._cloudReady || this._cloudReadyPromise || this._cloudBootScheduled) return;
 
     this._cloudBootScheduled = true;
@@ -539,7 +535,6 @@ const App = {
 
   async ensureCloudReady(options = {}) {
     const { reason = 'unknown' } = options;
-    if (ModeManager.isDemo()) return false;
     if (this._cloudReady) return true;
     if (this._cloudReadyPromise) return await this._cloudReadyPromise;
 
@@ -707,13 +702,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     console.error('[Boot] Phase 1 異常:', e && e.message || e);
   });
 
-  // ── Phase 2: 正式版先從 localStorage 恢復快取資料 ──
+  // ── Phase 2: 從 localStorage 恢復快取資料 ──
   try {
-    if (!ModeManager.isDemo()) {
-      console.log('[Boot] Phase 2: 恢復快取');
-      FirebaseService._restoreCache();
-      console.log('[Boot] Phase 2: 完成');
-    }
+    console.log('[Boot] Phase 2: 恢復快取');
+    FirebaseService._restoreCache();
+    console.log('[Boot] Phase 2: 完成');
   } catch (e) {
     console.warn('[Boot] Phase 2 快取恢復失敗:', e && e.message || e);
   }
@@ -782,7 +775,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   // Phase 4: deep link boots cloud immediately; normal home boot defers until first paint.
-  if (!ModeManager.isDemo()) {
+  {
     const pendingDeepLink = App._getPendingDeepLink();
     if (pendingDeepLink) {
       console.log('[Boot] Phase 4: immediate cloud init for deep link');

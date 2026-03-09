@@ -175,49 +175,8 @@ const ACHIEVEMENT_CONDITIONS = {
   ],
 };
 
-// ─── Mode Manager（Demo / Production 切換）───
-const ModeManager = {
-  _STORAGE_KEY: 'sporthub_mode',
-  // 預設正式版模式
-  _DEFAULT: 'production',
-  _mode: null,
-
-  init() {
-    this._mode = localStorage.getItem(this._STORAGE_KEY) || this._DEFAULT;
-    // 正式版 hostname 安全檢查：防止被舊版 bug 殘留的 demo 模式影響
-    if (['toosterx.com','www.toosterx.com','msw2004727.github.io','fc-3g8.pages.dev'].includes(location.hostname) && this._mode === 'demo') {
-      this._mode = 'production';
-      localStorage.setItem(this._STORAGE_KEY, 'production');
-    }
-    console.log(
-      `%c[SportHub] 模式: ${this._mode.toUpperCase()} (${location.hostname})`,
-      'color:#0d9488;font-weight:bold;font-size:14px'
-    );
-    console.log('%c[SportHub] 隱藏切換方式:', 'color:#6b7280');
-    console.log('  1. 連續點擊 Logo 5 次（3 秒內）');
-    console.log('  2. 按鍵組合 Shift + Alt + D');
-    console.log("  3. Console 指令: switchMode('<密碼>')");
-  },
-
-  getMode()  { return this._mode; },
-  isDemo()   { return this._mode === 'demo'; },
-
-  setMode(mode) {
-    if (mode !== 'demo' && mode !== 'production') return;
-    this._mode = mode;
-    localStorage.setItem(this._STORAGE_KEY, mode);
-    console.log(
-      `%c[SportHub] 已切換至: ${mode.toUpperCase()}`,
-      'color:#d97706;font-weight:bold;font-size:14px'
-    );
-  },
-
-  toggle() {
-    this.setMode(this._mode === 'demo' ? 'production' : 'demo');
-    return this._mode;
-  },
-};
-ModeManager.init();
+// ─── Mode Manager（stub — Demo 模式已移除，永遠回傳 production）───
+const ModeManager = { isDemo() { return false; }, getMode() { return 'production'; } };
 
 // ─── LINE Login Config ───
 const LINE_CONFIG = {
@@ -238,21 +197,6 @@ const ROLES = {
 
 const ROLE_LEVEL_MAP = { user:0, coach:1, captain:2, venue_owner:3, admin:4, super_admin:5 };
 
-// ─── Demo User → Role Mapping (for capsule tags) ───
-const DEMO_USERS = {
-  '王小明': 'user', '李大華': 'coach', '張三': 'user', '陳美玲': 'user',
-  '林志偉': 'user', '周杰倫': 'user', '黃小琳': 'user', '吳宗翰': 'user',
-  '鄭家豪': 'user', '許志安': 'user', '蔡依林': 'user', '劉德華': 'user',
-  '王大明': 'captain', '李小華': 'coach', '張美玲': 'captain', '陳志偉': 'venue_owner',
-  '小麥': 'user', '林大豪': 'user', '周書翰': 'user',
-  '教練小陳': 'coach', '場主老王': 'venue_owner', '教練阿豪': 'coach',
-  '管理員': 'admin', '場主大衛': 'venue_owner',
-  '隊長A': 'captain', '隊長D': 'captain', '隊長F': 'captain',
-  '隊長G': 'captain', '隊長I': 'captain', '隊長K': 'captain',
-  '教練B': 'coach', '教練C': 'coach', '教練E': 'coach',
-  '教練H': 'coach', '教練J': 'coach', '教練L': 'coach', '教練M': 'coach',
-  '暱稱A': 'user', '暱稱B': 'user', '暱稱C': 'coach', '暱稱D': 'user',
-};
 
 // ─── Type & Status Config ───
 const TYPE_CONFIG = {
