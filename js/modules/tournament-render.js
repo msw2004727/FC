@@ -288,20 +288,22 @@ Object.assign(App, {
     const metaData = { tournamentId: id, tournamentName: t.name, teamId: myTeam.id, teamName: myTeam.name, applicantUid: curUser.uid, applicantName: curUser.displayName, groupId };
 
     // 發送給主辦人
-    this._deliverMessageToInbox(
+    this._deliverMessageWithLinePush(
       '賽事報名申請', msgBody,
       'tournament', '賽事', organizerUid, curUser.displayName,
-      { actionType: 'tournament_register_request', actionStatus: 'pending', meta: metaData }
+      { actionType: 'tournament_register_request', actionStatus: 'pending', meta: metaData },
+      { lineOptions: { source: 'tournament_register_request' } }
     );
 
     // 發送給所有委託人
     const delegates = t.delegates || [];
     delegates.forEach(d => {
       if (d.uid && d.uid !== organizerUid) {
-        this._deliverMessageToInbox(
+        this._deliverMessageWithLinePush(
           '賽事報名申請', msgBody,
           'tournament', '賽事', d.uid, curUser.displayName,
-          { actionType: 'tournament_register_request', actionStatus: 'pending', meta: metaData }
+          { actionType: 'tournament_register_request', actionStatus: 'pending', meta: metaData },
+          { lineOptions: { source: 'tournament_register_request' } }
         );
       }
     });

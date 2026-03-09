@@ -25,7 +25,7 @@ Object.assign(App, {
   },
 
   _notifySignupCancelledInbox(eventData, targetUid, isWaitlist) {
-    if (!eventData || !targetUid || typeof this._deliverMessageToInbox !== 'function') return;
+    if (!eventData || !targetUid || typeof this._deliverMessageWithLinePush !== 'function') return;
     const title = isWaitlist ? '取消候補通知' : '取消報名通知';
     const statusLabel = isWaitlist ? '已取消候補' : '已取消報名';
     const body =
@@ -34,14 +34,23 @@ Object.assign(App, {
       `活動時間：${eventData.date || '-'}\n` +
       `活動地點：${eventData.location || '-'}\n\n` +
       '如需再次參加，可回到活動頁重新報名。';
-    this._deliverMessageToInbox(title, body, 'activity', '活動', targetUid, '系統');
+    this._deliverMessageWithLinePush(
+      title,
+      body,
+      'activity',
+      '活動',
+      targetUid,
+      '系統',
+      null,
+      { lineOptions: { source: 'event_cancel_signup:legacy' } }
+    );
   },
 
   _notifySignupCancelledInboxFromTemplate(eventData, targetUid, isWaitlist) {
     if (
       !eventData ||
       !targetUid ||
-      typeof this._deliverMessageToInbox !== 'function' ||
+      typeof this._deliverMessageWithLinePush !== 'function' ||
       typeof this._renderTemplate !== 'function'
     ) return;
     const vars = {
@@ -57,7 +66,16 @@ Object.assign(App, {
     const tpl = ApiService.getNotifTemplate?.('cancel_signup') || fallbackTemplate;
     const title = this._renderTemplate(tpl.title, vars);
     const body = this._renderTemplate(tpl.body, vars);
-    this._deliverMessageToInbox(title, body, 'activity', '活動', targetUid, '系統');
+    this._deliverMessageWithLinePush(
+      title,
+      body,
+      'activity',
+      '活動',
+      targetUid,
+      '系統',
+      null,
+      { lineOptions: { source: 'template:cancel_signup' } }
+    );
   },
 
   async handleSignup(id) {

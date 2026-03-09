@@ -298,7 +298,7 @@ Object.assign(App, {
     }
 
     // 7. Send join request message to captain
-    this._deliverMessageToInbox(
+    this._deliverMessageWithLinePush(
       '球隊加入申請',
       `${applicantName} 申請加入「${t.name}」球隊，請審核此申請。`,
       'system', '系統', captainUid, applicantName,
@@ -306,7 +306,8 @@ Object.assign(App, {
         actionType: 'team_join_request',
         actionStatus: 'pending',
         meta: { teamId, teamName: t.name, applicantUid, applicantName },
-      }
+      },
+      { lineOptions: { source: 'team_join_request:legacy' } }
     );
 
     this._grantAutoExp(applicantUid, 'join_team', t.name);
@@ -1039,19 +1040,21 @@ Object.assign(App, {
     if (this._teamCaptainUid && this._teamCaptainUid !== '__legacy__') {
       const isNewCaptain = !oldCaptainUid || oldCaptainUid !== this._teamCaptainUid;
       if (isNewCaptain) {
-        this._deliverMessageToInbox(
+        this._deliverMessageWithLinePush(
           '球隊職位指派',
           `您已被設為「${name}」的領隊。`,
-          'system', '系統', this._teamCaptainUid, '系統'
+          'system', '系統', this._teamCaptainUid, '系統', null,
+          { lineOptions: { source: 'team_role_assignment:captain:legacy' } }
         );
       }
     }
     newCoachUids.forEach(uid => {
       if (!oldCoachUids.includes(uid)) {
-        this._deliverMessageToInbox(
+        this._deliverMessageWithLinePush(
           '球隊職位指派',
           `您已被設為「${name}」的教練。`,
-          'system', '系統', uid, '系統'
+          'system', '系統', uid, '系統', null,
+          { lineOptions: { source: 'team_role_assignment:coach:legacy' } }
         );
       }
     });

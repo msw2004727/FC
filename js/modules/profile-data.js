@@ -488,7 +488,7 @@ Object.assign(App, {
       const unboundEl = document.getElementById('line-notify-unbound');
       if (boundEl) boundEl.classList.add('fadeIn');
       this.renderLineNotifyCard();
-      this.showToast('LINE 綁定成功');
+      this.showToast('已啟用 LINE 通知，請確認已加入官方帳號好友');
     }, 600);
   },
 

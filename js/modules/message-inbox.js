@@ -441,10 +441,11 @@ Object.assign(App, {
         ApiService.updateTeam(teamId, { members: memberCount });
 
         // Notify applicant
-        this._deliverMessageToInbox(
+        this._deliverMessageWithLinePush(
           '球隊申請通過',
           `恭喜！您已成功加入「${finalTeamName}」球隊，審核人：${reviewerName}。`,
-          'system', '系統', applicantUid, '系統'
+          'system', '系統', applicantUid, '系統', null,
+          { lineOptions: { source: 'team_join_review:approve' } }
         );
         ApiService._writeOpLog('team_approve', '球隊審批', `${reviewerName} 同意「${applicantName}」加入「${finalTeamName}」`);
         void ApiService.writeAuditLog({
@@ -466,10 +467,11 @@ Object.assign(App, {
       }
 
     } else if (action === 'reject') {
-      this._deliverMessageToInbox(
+      this._deliverMessageWithLinePush(
         '球隊申請結果',
         `很抱歉，您申請加入「${teamName}」球隊未獲通過。如有疑問，請聯繫球隊職員。`,
-        'system', '系統', applicantUid, '系統'
+        'system', '系統', applicantUid, '系統', null,
+        { lineOptions: { source: 'team_join_review:reject' } }
       );
       ApiService._writeOpLog('team_approve', '球隊審批', `${reviewerName} 拒絕「${applicantName}」加入「${teamName}」`);
       void ApiService.writeAuditLog({
@@ -517,10 +519,11 @@ Object.assign(App, {
       if (action !== 'ignore') {
         const actionLabel = action === 'approve' ? '同意' : '拒絕';
         otherStaffUids.forEach(uid => {
-          this._deliverMessageToInbox(
+          this._deliverMessageWithLinePush(
             '入隊申請審核通知',
             `「${reviewerName}」已${actionLabel}「${applicantName}」加入「${teamName}」的申請。`,
-            'system', '系統', uid, '系統'
+            'system', '系統', uid, '系統', null,
+            { lineOptions: { source: `team_join_review:broadcast:${action}` } }
           );
         });
       }
@@ -554,18 +557,20 @@ Object.assign(App, {
       }
 
       // 通知申請人
-      this._deliverMessageToInbox(
+      this._deliverMessageWithLinePush(
         '賽事報名通過',
         `恭喜！「${teamName}」已成功報名賽事「${tournamentName}」！`,
-        'tournament', '賽事', applicantUid, '系統'
+        'tournament', '賽事', applicantUid, '系統', null,
+        { lineOptions: { source: 'tournament_review:approve' } }
       );
       this.showToast('已同意報名申請');
 
     } else if (action === 'reject') {
-      this._deliverMessageToInbox(
+      this._deliverMessageWithLinePush(
         '賽事報名結果',
         `很抱歉，「${teamName}」申請報名賽事「${tournamentName}」未獲通過。如有疑問，請聯繫主辦方。`,
-        'tournament', '賽事', applicantUid, '系統'
+        'tournament', '賽事', applicantUid, '系統', null,
+        { lineOptions: { source: 'tournament_review:reject' } }
       );
       this.showToast('已拒絕報名申請');
 
@@ -602,10 +607,11 @@ Object.assign(App, {
         if (orgUser && orgUser.uid !== myUid) notifyUids.add(orgUser.uid);
       }
       notifyUids.forEach(uid => {
-        this._deliverMessageToInbox(
+        this._deliverMessageWithLinePush(
           '報名審核結果通知',
           `${reviewerName} 已「${actionLabels[action]}」球隊「${teamName}」報名賽事「${tournamentName}」的申請。`,
-          'tournament', '賽事', uid, '系統'
+          'tournament', '賽事', uid, '系統', null,
+          { lineOptions: { source: `tournament_review:broadcast:${action}` } }
         );
       });
     }
@@ -628,6 +634,19 @@ Object.assign(App, {
     return str.replace(/\{(\w+)\}/g, (_, key) => (vars && vars[key] != null) ? vars[key] : `{${key}}`);
   },
 
+  _deliverMessageWithLinePush(title, body, category, categoryName, targetUid, senderName, extra, options = {}) {
+    if (!targetUid || typeof this._deliverMessageToInbox !== 'function') return;
+    this._deliverMessageToInbox(title, body, category, categoryName, targetUid, senderName, extra);
+    if (typeof this._queueLinePush !== 'function') return;
+    this._queueLinePush(
+      targetUid,
+      options.lineCategory || category || 'system',
+      options.lineTitle || title,
+      options.lineBody || body,
+      options.lineOptions || {}
+    );
+  },
+
   _sendNotifFromTemplate(key, vars, targetUid, category, categoryName) {
     const fallbackTemplates = {
       cancel_signup: {
@@ -643,9 +662,16 @@ Object.assign(App, {
     if (!tpl) { console.warn('[Notif] 找不到模板:', key); return; }
     const title = this._renderTemplate(tpl.title, vars);
     const body = this._renderTemplate(tpl.body, vars);
-    this._deliverMessageToInbox(title, body, category || 'system', categoryName || '系統', targetUid, '系統');
-    // LINE 推播排隊（供 Cloud Functions 消費）
-    this._queueLinePush(targetUid, category || 'system', title, body, { source: `template:${key}` });
+    this._deliverMessageWithLinePush(
+      title,
+      body,
+      category || 'system',
+      categoryName || '系統',
+      targetUid,
+      '系統',
+      null,
+      { lineOptions: { source: `template:${key}` } }
+    );
   },
 
   _queueLinePushByTarget(targetType, targetUid, category, title, body, teamId, options = {}) {

@@ -6,6 +6,14 @@
 
 ---
 
+### 2026-03-09 — 補齊站內信與 LINE 推播接線缺口
+- **問題**：多個一般用戶操作雖然會收到站內信，但沒有同步收到 LINE 推播，容易誤以為是一般用戶權限被擋。
+- **原因**：推播權限本身不是主因；真正缺口是多條流程只呼叫 `_deliverMessageToInbox()`，沒有同步排入 LINE 推播，例如取消報名、入隊申請/審核、賽事申請/審核、球隊職位指派。
+- **修復**：在 `js/modules/message-inbox.js` 新增 `_deliverMessageWithLinePush()` 共用 helper，並補上 `event-detail-signup.js`、`team-form.js`、`team.js`、`tournament-render.js`、`message-inbox.js` 的關鍵通知事件，改為「站內信 + LINE 推播」同步送出。
+- **教訓**：通知功能不能只看 Firestore inbox 是否有寫入；若產品要求站內信與 LINE 同步，必須把兩條路徑收斂到同一個 helper，否則很容易局部漏接。
+
+---
+
 ### 2026-03-09 — 修復 claude-memory 歷史亂碼並改為新到舊排序
 - **問題**：`docs/claude-memory.md` 留有歷史亂碼，且部分 2026-03-09 條目被追加在檔案中段，閱讀順序不一致。
 - **原因**：先前混合編碼與後續補記條目沒有統一遵守置頂規則，導致同日期紀錄分散、部分中文失真成 `?`。
