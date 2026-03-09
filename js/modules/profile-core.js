@@ -27,7 +27,7 @@ Object.assign(App, {
   updatePointsDisplay() {
     const el = document.getElementById('points-value');
     if (!el) return;
-    const isLoggedIn = ModeManager.isDemo() || (typeof LineAuth !== 'undefined' && LineAuth.isLoggedIn());
+    const isLoggedIn = (typeof LineAuth !== 'undefined' && LineAuth.isLoggedIn());
     if (!isLoggedIn) {
       el.textContent = '-';
       return;
@@ -273,7 +273,6 @@ Object.assign(App, {
   },
 
   renderLoginUI() {
-    const roleSwitcher = document.getElementById('role-switcher-wrapper');
     const lineWrapper = document.getElementById('line-login-wrapper');
     const profileAvatar = document.getElementById('profile-avatar');
     const profileContent = document.getElementById('profile-content');
@@ -281,39 +280,9 @@ Object.assign(App, {
     const drawerAvatar = document.getElementById('drawer-avatar');
     const drawerName = document.getElementById('drawer-name');
 
-    if (!roleSwitcher || !lineWrapper) return;
+    if (!lineWrapper) return;
 
-    // ── Demo 模式：隱藏舊角色切換器，用 LINE 區域顯示 Demo 頭像 + 角色選單 ──
-    if (ModeManager.isDemo()) {
-      roleSwitcher.style.display = 'none';
-      lineWrapper.style.display = '';
-      const loginBtn = document.getElementById('line-login-btn');
-      const userTopbar = document.getElementById('line-user-topbar');
-      if (loginBtn) loginBtn.style.display = 'none';
-      if (userTopbar) {
-        userTopbar.style.display = '';
-        userTopbar.innerHTML = `
-          <div class="line-avatar-topbar line-avatar-fallback" id="demo-avatar-btn" onclick="App.toggleDemoRoleMenu()">麥</div>
-          <div id="demo-role-dropdown" class="user-menu-dropdown demo-role-menu" style="display:none">
-            <div class="user-menu-name">切換 Demo 身份</div>
-            <div class="user-menu-divider"></div>
-            <button class="user-menu-item demo-role-item active" data-role="user" onclick="App.selectDemoRole('user')">一般用戶</button>
-            <button class="user-menu-item demo-role-item" data-role="coach" onclick="App.selectDemoRole('coach')">教練</button>
-            <button class="user-menu-item demo-role-item" data-role="captain" onclick="App.selectDemoRole('captain')">領隊</button>
-            <button class="user-menu-item demo-role-item" data-role="venue_owner" onclick="App.selectDemoRole('venue_owner')">場主</button>
-            <button class="user-menu-item demo-role-item" data-role="admin" onclick="App.selectDemoRole('admin')">管理員</button>
-            <button class="user-menu-item demo-role-item" data-role="super_admin" onclick="App.selectDemoRole('super_admin')">總管</button>
-          </div>`;
-      }
-      if (drawerAvatar) { drawerAvatar.className = 'drawer-avatar'; drawerAvatar.innerHTML = '麥'; }
-      if (drawerName) drawerName.textContent = '冠軍.全勤.小麥';
-      if (profileContent) profileContent.style.display = '';
-      if (loginPrompt) loginPrompt.style.display = 'none';
-      return;
-    }
-
-    // ── 正式版：隱藏角色切換器，顯示 LINE ──
-    roleSwitcher.style.display = 'none';
+    // ── 顯示 LINE 登入區 ──
     lineWrapper.style.display = '';
 
     const isLoggedIn = typeof LineAuth !== 'undefined' && LineAuth.isLoggedIn();
