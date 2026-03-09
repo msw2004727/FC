@@ -550,9 +550,11 @@ describe("/registrations/{regId}", () => {
 });
 
 describe("/messages/{msgId}", () => {
-  test("[SECURITY_GAP_FIXED] read: memberA cannot read memberB message", async () => {
-    await assertFails(getDoc(doc(memberA(), "messages", "msgB")));
+  test("[SECURITY_GAP_FIXED] read: only sender/recipient/admin can read message", async () => {
+    await assertFails(getDoc(doc(guest(), "messages", "msgB")));
+    await assertSucceeds(getDoc(doc(memberA(), "messages", "msgB")));
     await assertSucceeds(getDoc(doc(memberB(), "messages", "msgB")));
+    await assertFails(getDoc(doc(user(), "messages", "msgB")));
     await assertSucceeds(getDoc(doc(admin(), "messages", "msgB")));
     await assertSucceeds(getDoc(doc(superAdmin(), "messages", "msgB")));
   });
@@ -583,9 +585,23 @@ describe("/messages/{msgId}", () => {
     );
   });
 
-  test("[SECURITY_GAP_FIXED] update: memberA cannot update memberB message", async () => {
+  test("[SECURITY_GAP_FIXED] update: participants can only update message metadata", async () => {
     await assertFails(updateDoc(doc(memberA(), "messages", "msgB"), { body: "updated by A" }));
-    await assertSucceeds(updateDoc(doc(memberB(), "messages", "msgB"), { body: "updated by B" }));
+    await assertFails(updateDoc(doc(memberB(), "messages", "msgB"), { body: "updated by B" }));
+    await assertFails(updateDoc(doc(user(), "messages", "msgB"), { hiddenBy: ["uidUser"] }));
+    await assertSucceeds(
+      updateDoc(doc(memberA(), "messages", "msgB"), {
+        unread: false,
+        updatedAt: new Date(),
+        readBy: ["uidA"],
+      })
+    );
+    await assertSucceeds(
+      updateDoc(doc(memberB(), "messages", "msgB"), {
+        updatedAt: new Date(),
+        hiddenBy: ["uidB"],
+      })
+    );
     await assertSucceeds(updateDoc(doc(admin(), "messages", "msgB"), { body: "updated by admin" }));
     await assertSucceeds(
       updateDoc(doc(superAdmin(), "messages", "msgB"), { body: "updated by super admin" })
@@ -801,11 +817,12 @@ describe("/teams/{teamId}", () => {
     );
   });
 
-  test("[SECURITY_GAP] update (current): any authenticated user can update other team", async () => {
-    await assertByRole(
-      ({ db }) => updateDoc(doc(db, "teams", "teamB"), { name: "updated-by-role" }),
-      allowAuth
-    );
+  test("[SECURITY_GAP_FIXED] update: non-owner cannot update other team", async () => {
+    await assertFails(updateDoc(doc(guest(), "teams", "teamB"), { name: "guest-update" }));
+    await assertFails(updateDoc(doc(memberA(), "teams", "teamB"), { name: "updated-by-a" }));
+    await assertSucceeds(updateDoc(doc(memberB(), "teams", "teamB"), { name: "updated-by-b" }));
+    await assertFails(updateDoc(doc(admin(), "teams", "teamB"), { name: "updated-by-admin" }));
+    await assertFails(updateDoc(doc(superAdmin(), "teams", "teamB"), { name: "updated-by-super-admin" }));
   });
 
   test("delete (current): owner or admin/superAdmin", async () => {
@@ -863,10 +880,13 @@ describe("/shopItems/{itemId}", () => {
     );
   });
 
-  test("[SECURITY_GAP] update (current): any authenticated user can update other item", async () => {
-    await assertByRole(
-      ({ db }) => updateDoc(doc(db, "shopItems", "itemB"), { name: "updated-by-role" }),
-      allowAuth
+  test("[SECURITY_GAP_FIXED] update: only owner or admin can update item", async () => {
+    await assertFails(updateDoc(doc(guest(), "shopItems", "itemB"), { name: "guest-update" }));
+    await assertFails(updateDoc(doc(memberA(), "shopItems", "itemB"), { name: "updated-by-a" }));
+    await assertSucceeds(updateDoc(doc(memberB(), "shopItems", "itemB"), { name: "updated-by-b" }));
+    await assertSucceeds(updateDoc(doc(admin(), "shopItems", "itemB"), { name: "updated-by-admin" }));
+    await assertSucceeds(
+      updateDoc(doc(superAdmin(), "shopItems", "itemB"), { name: "updated-by-super-admin" })
     );
   });
 
@@ -996,9 +1016,8 @@ describe("Role usability smoke tests", () => {
     await assertFails(deleteDoc(doc(user(), "messages", "msgCoachToUser")));
   });
 
-  test("[USABILITY_BLOCKED] user cannot read received inbox message (toUid=self)", async () => {
-    // Blocked by rule: /messages read only checks fromUid ownership.
-    await assertFails(getDoc(doc(user(), "messages", "msgCoachToUser")));
+  test("user can read received inbox message (toUid=self)", async () => {
+    await assertSucceeds(getDoc(doc(user(), "messages", "msgCoachToUser")));
   });
 
   test("coach can update own created event", async () => {
@@ -1031,9 +1050,8 @@ describe("Role usability smoke tests", () => {
     );
   });
 
-  test("[SECURITY_GAP_USABILITY] user can update teams without manager/leader role", async () => {
-    // SECURITY GAP: /teams update currently allows any authenticated user (isAuth()).
-    await assertSucceeds(
+  test("[SECURITY_GAP_FIXED] user cannot update teams without owner/manager context", async () => {
+    await assertFails(
       updateDoc(doc(user(), "teams", "teamManagerOwn"), {
         name: "User Updated Manager Team",
       })

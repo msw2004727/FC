@@ -34,7 +34,7 @@ service cloud.firestore {
     function authRole() {
       return request.auth == null
         ? 'user'
-        : ((request.auth.token.role is string)
+        : ((('role' in request.auth.token) && request.auth.token.role is string)
           ? request.auth.token.role
           : roleFromUserDoc(request.auth.uid));
     }
@@ -523,14 +523,17 @@ service cloud.firestore {
     //  登入可讀寫
     // ═══════════════════════════════════════════
     match /messages/{msgId} {
-      allow read: if isAuth();
+      allow read: if isAdmin()
+        || isMessageSenderResource()
+        || isMessageRecipientResource();
       allow create: if isAuth()
         && hasString('body')
         && isMessageSenderRequest()
         && hasValidMessageShapeRequest();
       allow update: if isAdmin()
         || canMessageParticipantUpdate();
-      allow delete: if isAdmin();
+      allow delete: if isAdmin()
+        || isMessageSenderResource();
     }
     // ═══════════════════════════════════════════
     //  Activity Records（活動紀錄）

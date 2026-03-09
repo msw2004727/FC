@@ -1177,3 +1177,9 @@
 - **原因**：第一波實作先完成功能與文件，測試矩陣尚未補上新 collection group 的讀寫限制。
 - **修復**：`tests/firestore.rules.test.js` 新增 `auditEntries` seed 與 rules 測試，覆蓋 read 只允許 `super_admin`、client create/update/delete 全拒；本地也補安裝 root 測試依賴。
 - **教訓**：新增受保護 collection 後，要立刻補對應的 rules 測試；否則規則回歸時很難第一時間發現權限鬆動。
+
+### 2026-03-09 - unblock local firestore rules verification
+- **問題**：本機無法直接跑 Firestore emulator 規則測試，先後卡在 Java 缺失、Firebase emulator cache 目錄權限，以及既有 rules 對 `request.auth.token.role` 的未定義存取。
+- **原因**：這台 Windows 環境缺少可用 Java，`firebase-tools` 預設 emulator 快取路徑不可寫，且 `authRole()` 對缺少 `role` claim 的測試 token 沒有做存在性檢查。
+- **修復**：改用 per-user Microsoft OpenJDK 21，將 emulator jar 下載到工作區 `.cache/firebase/emulators`，以本機 wrapper 方式跑 emulator 測試；同時修正 `firestore.rules` 的 `authRole()`、收緊 `messages.read`、放寬 `messages.delete` 給發送者，並更新 `tests/firestore.rules.test.js` 讓 `teams`、`shopItems`、`messages` 的期望值與現行規則一致。
+- **教訓**：本機驗證環境也屬於專案可用性的一部分；當規則依賴 auth claim 時，rules 本身必須先對缺少欄位的 token 做防禦式檢查，否則 emulator 與正式環境都會留下難追的權限分歧。
