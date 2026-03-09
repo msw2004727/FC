@@ -60,6 +60,9 @@ const FirebaseService = {
   _userListener: null,
   _onUserChanged: null,
   _initialized: false,
+  _messageListeners: [],
+  _messageListenerResults: {},
+  _messageVisibilityKey: '',
   _lazyLoaded: {},  // 記錄已懶載入的集合
   _bootCollectionLoadFailed: {},
   _persistDebounceTimer: null,
@@ -470,11 +473,14 @@ const FirebaseService = {
       || prev.role !== next.role
       || prev.isRestricted !== next.isRestricted
       || prev.displayName !== next.displayName
-      || prev.pictureUrl !== next.pictureUrl;
+      || prev.pictureUrl !== next.pictureUrl
+      || prev.teamId !== next.teamId
+      || JSON.stringify(prev.teamIds || []) !== JSON.stringify(next.teamIds || []);
     if (!changed) return;
 
     this._cache.currentUser = next;
     this._saveToLS('currentUser', next);
+    this._startMessagesListener();
     if (this._onUserChanged) this._onUserChanged();
   },
 
@@ -701,19 +707,148 @@ const FirebaseService = {
   /** 啟動 messages 監聽器（需 Auth） */
   _startMessagesListener() {
     if (!auth?.currentUser) return;
-    if (this._realtimeListenerStarted.messages) return;
+    const ctx = this._getMessageVisibilityContext();
+    if (!ctx.uid) return;
+    const nextKey = this._getMessageVisibilityKey(ctx);
+    if (this._realtimeListenerStarted.messages && this._messageVisibilityKey === nextKey) return;
+
+    this._stopMessagesListener();
     this._realtimeListenerStarted.messages = true;
-    const unsub = db.collection('messages')
-      .orderBy('timestamp', 'desc')
-      .limit(200)
-      .onSnapshot(
+    this._messageVisibilityKey = nextKey;
+
+    this._getMessageQuerySpecs(ctx).forEach(spec => {
+      const unsub = spec.query.onSnapshot(
         snapshot => {
-          this._cache.messages = snapshot.docs.map(doc => ({ ...doc.data(), _docId: doc.id }));
-          this._debouncedPersistCache();
+          this._messageListenerResults[spec.key] = snapshot.docs.map(doc => ({ ...doc.data(), _docId: doc.id }));
+          this._mergeVisibleMessagesFromListenerResults(ctx);
         },
-        err => { console.warn('[onSnapshot] messages 監聽錯誤:', err); }
+        err => { console.warn(`[onSnapshot] messages/${spec.key} 監聽錯誤:`, err); }
       );
-    this._listeners.push(unsub);
+      this._messageListeners.push(unsub);
+    });
+  },
+
+  _stopMessagesListener() {
+    this._messageListeners.forEach(unsub => {
+      try { unsub(); } catch (_) {}
+    });
+    this._messageListeners = [];
+    this._messageListenerResults = {};
+    this._messageVisibilityKey = '';
+    this._realtimeListenerStarted.messages = false;
+  },
+
+  _getMessageVisibilityContext() {
+    const user = this._cache.currentUser || null;
+    const uid = auth?.currentUser?.uid || user?.uid || user?.lineUserId || null;
+    const role = user?.role || 'user';
+    const teamIds = [];
+    const seen = new Set();
+    const pushId = (id) => {
+      const value = String(id || '').trim();
+      if (!value || seen.has(value)) return;
+      seen.add(value);
+      teamIds.push(value);
+    };
+    if (Array.isArray(user?.teamIds)) user.teamIds.forEach(pushId);
+    pushId(user?.teamId);
+    return { uid, role, teamIds };
+  },
+
+  _getMessageVisibilityKey(ctx) {
+    return `${ctx.uid || ''}__${ctx.role || 'user'}__${(ctx.teamIds || []).join(',')}`;
+  },
+
+  _getMessageQuerySpecs(ctx) {
+    const specs = [];
+    const addSpec = (key, query) => {
+      if (!key || !query) return;
+      specs.push({ key, query });
+    };
+
+    addSpec(`targetUid:${ctx.uid}`, db.collection('messages').where('targetUid', '==', ctx.uid).limit(200));
+    addSpec(`toUid:${ctx.uid}`, db.collection('messages').where('toUid', '==', ctx.uid).limit(200));
+    addSpec(`fromUid:${ctx.uid}`, db.collection('messages').where('fromUid', '==', ctx.uid).limit(200));
+    addSpec(`senderUid:${ctx.uid}`, db.collection('messages').where('senderUid', '==', ctx.uid).limit(200));
+    addSpec('targetType:all', db.collection('messages').where('targetType', '==', 'all').limit(200));
+
+    if (ctx.role) {
+      addSpec(`targetRoles:${ctx.role}`, db.collection('messages').where('targetRoles', 'array-contains', ctx.role).limit(200));
+    }
+
+    (ctx.teamIds || []).forEach(teamId => {
+      addSpec(`targetTeamId:${teamId}`, db.collection('messages').where('targetTeamId', '==', teamId).limit(200));
+    });
+
+    return specs;
+  },
+
+  _getMessageTimeMs(msg) {
+    const parseValue = (value) => {
+      if (!value) return 0;
+      if (typeof value.toMillis === 'function') return value.toMillis();
+      if (typeof value.seconds === 'number') {
+        return (value.seconds * 1000) + Math.floor((value.nanoseconds || 0) / 1000000);
+      }
+      if (typeof value === 'number') return value;
+      const parsed = Date.parse(value);
+      return Number.isFinite(parsed) ? parsed : 0;
+    };
+
+    const direct = parseValue(msg?.timestamp) || parseValue(msg?.createdAt);
+    if (direct) return direct;
+
+    const timeStr = String(msg?.time || '').trim();
+    if (timeStr) {
+      const [datePart, timePart = '0:0'] = timeStr.split(' ');
+      const [y, mo, d] = datePart.split('/').map(Number);
+      const [h, mi] = timePart.split(':').map(Number);
+      const parsed = new Date(y, (mo || 1) - 1, d || 1, h || 0, mi || 0).getTime();
+      if (Number.isFinite(parsed)) return parsed;
+    }
+
+    return 0;
+  },
+
+  _isMessageVisibleForContext(msg, ctx) {
+    if (!msg || !ctx?.uid) return false;
+    if (Array.isArray(msg.hiddenBy) && msg.hiddenBy.includes(ctx.uid)) return false;
+
+    const senderUid = String(msg.fromUid || msg.senderUid || '').trim();
+    if (senderUid && senderUid === ctx.uid) return true;
+
+    const targetUid = String(msg.targetUid || msg.toUid || '').trim();
+    if (targetUid) return targetUid === ctx.uid;
+
+    const targetTeamId = String(msg.targetTeamId || '').trim();
+    if (targetTeamId) return (ctx.teamIds || []).includes(targetTeamId);
+
+    if (Array.isArray(msg.targetRoles) && msg.targetRoles.length) {
+      return msg.targetRoles.includes(ctx.role || 'user');
+    }
+
+    return true;
+  },
+
+  _mergeVisibleMessagesFromListenerResults(ctx = this._getMessageVisibilityContext()) {
+    const merged = new Map();
+
+    Object.values(this._messageListenerResults || {}).forEach(list => {
+      (list || []).forEach(msg => {
+        if (!this._isMessageVisibleForContext(msg, ctx)) return;
+        const key = msg._docId || msg.id;
+        if (!key) return;
+        const prev = merged.get(key);
+        if (!prev || this._getMessageTimeMs(msg) >= this._getMessageTimeMs(prev)) {
+          merged.set(key, msg);
+        }
+      });
+    });
+
+    this._cache.messages = Array.from(merged.values())
+      .sort((a, b) => this._getMessageTimeMs(b) - this._getMessageTimeMs(a))
+      .slice(0, 200);
+    this._debouncedPersistCache();
   },
 
   /** 啟動 users 監聽器（需 Auth） */
@@ -1398,6 +1533,7 @@ const FirebaseService = {
   destroy() {
     this._listeners.forEach(unsub => unsub());
     this._listeners = [];
+    this._stopMessagesListener();
     this._stopRegistrationsListener();
     this._stopAttendanceRecordsListener();
     if (this._userListener) {

@@ -438,7 +438,7 @@ Object.assign(App, {
 
     // 立即發送 → 同時投遞到用戶收件箱
     if (!isScheduled) {
-      const extra = { adminMsgId: adminMsg.id };
+      const extra = { adminMsgId: adminMsg.id, targetType };
       if (targetTeamId) extra.targetTeamId = targetTeamId;
       if (targetRoles) extra.targetRoles = targetRoles;
       this._deliverMessageToInbox(title, body, category, catNames[category], targetUid, senderName, extra);
@@ -486,7 +486,7 @@ Object.assign(App, {
 
         try {
           // 投遞到收件箱
-          const extra = { adminMsgId: m.id };
+          const extra = { adminMsgId: m.id, targetType: m.targetType || 'all' };
           if (m.targetTeamId) extra.targetTeamId = m.targetTeamId;
           if (m.targetRoles) extra.targetRoles = m.targetRoles;
           this._deliverMessageToInbox(
@@ -616,6 +616,10 @@ Object.assign(App, {
     // Firestore rules validate fromUid against the authenticated Firebase uid.
     const senderUid = auth?.currentUser?.uid || currentUser?.uid || null;
     const directTargetUid = targetUid || null;
+    const targetTeamId = extra?.targetTeamId || null;
+    const targetRoles = extra?.targetRoles || null;
+    const targetType = extra?.targetType
+      || (directTargetUid ? 'individual' : (targetTeamId ? 'team' : ((Array.isArray(targetRoles) && targetRoles.length) ? 'role' : 'all')));
     const newMsg = {
       id: 'msg_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
       type: category,
@@ -631,6 +635,9 @@ Object.assign(App, {
       fromUid: senderUid,
       toUid: directTargetUid,
       targetUid: directTargetUid,
+      targetTeamId,
+      targetRoles,
+      targetType,
       ...(extra || {}),
     };
     // 加入用戶收件箱

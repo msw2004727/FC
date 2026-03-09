@@ -182,6 +182,24 @@ Object.assign(App, {
     const user = ApiService.getCurrentUser();
     const uid = user?.uid || user?.lineUserId || (ModeManager.isDemo() ? 'demo-user' : null);
     if (!uid) return [];
+    const currentTeamIds = (typeof this._getUserTeamIds === 'function')
+      ? this._getUserTeamIds(user)
+      : (() => {
+        const ids = [];
+        const seen = new Set();
+        const pushId = (id) => {
+          const value = String(id || '').trim();
+          if (!value || seen.has(value)) return;
+          seen.add(value);
+          ids.push(value);
+        };
+        if (Array.isArray(user?.teamIds)) user.teamIds.forEach(pushId);
+        pushId(user?.teamId);
+        return ids;
+      })();
+    const liveTeams = ApiService.getTeams() || [];
+    const liveTeamIds = new Set(liveTeams.map(team => String(team?.id || '').trim()).filter(Boolean));
+    const liveTeamNames = new Set(liveTeams.map(team => String(team?.name || '').trim()).filter(Boolean));
 
     const allMsgs = ApiService.getMessages() || [];
     const statusWeight = {
@@ -229,7 +247,16 @@ Object.assign(App, {
       }
     });
 
-    return Array.from(teamMap.values()).sort((a, b) => {
+    return Array.from(teamMap.values()).filter(msg => {
+      const teamId = String(msg.meta?.teamId || '').trim();
+      const teamName = String(msg.meta?.teamName || '').trim();
+      const teamExists = teamId ? liveTeamIds.has(teamId) : !!teamName && liveTeamNames.has(teamName);
+      if (!teamExists) return false;
+      if (msg.actionStatus === 'approved' && teamId) {
+        return currentTeamIds.includes(teamId);
+      }
+      return true;
+    }).sort((a, b) => {
       const diff = this._getTeamApplicationTimeMs(b) - this._getTeamApplicationTimeMs(a);
       if (diff !== 0) return diff;
       return String(a.meta?.teamName || '').localeCompare(String(b.meta?.teamName || ''));

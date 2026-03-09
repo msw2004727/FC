@@ -771,6 +771,8 @@ Object.assign(FirebaseService, {
             }
           }
 
+          this._startMessagesListener?.();
+
           if (this._onUserChanged) {
             this._onUserChanged();
           } else if (typeof App !== 'undefined' && !ModeManager.isDemo()) {

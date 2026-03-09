@@ -138,7 +138,8 @@
 // 20260309l: 修復取消再報名後出席紀錄顯示未出席的 BUG
 // 20260309y: 收緊 users 時間/球隊欄位寫入規則 + deleteTeam 多球隊清理 + 規則測試補強
 // 20260309z: 個人資訊頁球隊申請改為每支球隊顯示最新一筆狀態
-const CACHE_VERSION = '20260309z';
+// 20260309aa: 修正 messages 監聽查詢與個人頁球隊申請過濾
+const CACHE_VERSION = '20260309aa';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {
