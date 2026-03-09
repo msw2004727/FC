@@ -6,6 +6,18 @@
 
 ---
 
+### 2026-03-09 — 稽核日誌返回按鍵改回全站一致樣式
+- **問題**：稽核日誌頁的返回按鍵顯示成「返回」，和其他頁面統一使用的 `←` 樣式不一致。
+- **原因**：`page-admin-audit-logs` 建頁時按鈕文案單獨寫成文字版，沒有沿用其他頁面的返回符號。
+- **修復**：將 [pages/admin-system.html](/C:/Users/kere/Downloads/github/FC/FC-github/pages/admin-system.html) 內稽核日誌頁的返回按鍵改回 `←`，與其他頁面保持一致。
+- **教訓**：共用頁首元素應沿用既有樣式與文案，不要在單一頁面自訂不同版本，否則會破壞整體一致性。
+
+### 2026-03-09 — 稽核日誌補 UID 對暱稱回填與球隊名稱顯示
+- **問題**：部分稽核日誌只顯示 UID，雖然同一 UID 在其他功能已能查到暱稱；另外入隊申請相關稽核日誌缺少球隊名稱，閱讀時不夠直覺。
+- **原因**：後端 `writeAuditLog` 查使用者文件時只查 `docId` 與 `lineUserId`，沒查 `users.uid`；前端 audit log 顯示層也沒有再用現有使用者快取做 UID 對暱稱回填。入隊申請則有存 `targetLabel`，但顯示文字沒帶出來。
+- **修復**：在 [functions/index.js](/C:/Users/kere/Downloads/github/FC/FC-github/functions/index.js) 補上 `users.uid` 查詢與 Firebase Auth `displayName` fallback；在 [js/modules/audit-log.js](/C:/Users/kere/Downloads/github/FC/FC-github/js/modules/audit-log.js) 新增 UID 對暱稱回填，並讓 `申請入隊 / 同意入隊 / 拒絕入隊` 顯示成「行為：球隊名稱」。
+- **教訓**：稽核資料寫入時要盡量存好顯示用快照，但後台顯示層也應保留一次 UID 反查名字的保險，避免舊資料或特殊帳號只剩 UID 可看。
+
 ### 2026-03-09 — 稽核日誌補顯示活動名稱
 - **問題**：`event_signup`、`event_cancel_signup` 雖然已把活動名稱寫進 audit log，但後台畫面只顯示行為代碼，看不出報名了哪一場活動。
 - **原因**：稽核日誌介面前一版為了簡化，只保留「時間 / 名字膠囊 / 行為」，把 `targetLabel` 完全隱藏。
