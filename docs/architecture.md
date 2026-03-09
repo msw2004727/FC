@@ -185,7 +185,7 @@ i18n.js → config.js → data.js → firebase-config.js
 
 ## Audit Log Additions (2026-03-09)
 
-- New Cloud Function: `functions/index.js` exports `writeAuditLog`
+- New Cloud Functions: `functions/index.js` exports `writeAuditLog` and `backfillAuditActorNames`
   - Trusted write path for audit events
   - Adds `dayKey`, `timeKey`, `actorUid`, `actorRole`, `createdAt`, `expiresAt`
   - Writes to `auditLogsByDay/{yyyyMMdd}/auditEntries/{logId}`
@@ -203,7 +203,7 @@ flowchart LR
     UI["page-admin-audit-logs\npages/admin-system.html"]
     MOD["js/modules/audit-log.js"]
     API["js/api-service.js"]
-    CF["functions/index.js\nwriteAuditLog"]
+    CF["functions/index.js\nwriteAuditLog + backfillAuditActorNames"]
     FS["Firestore\nauditLogsByDay/{day}/auditEntries/{id}"]
     RULES["firestore.rules\nsuper_admin read only"]
 
@@ -228,3 +228,15 @@ flowchart LR
   - `registrations`
   - `attendanceRecords`
 - `js/core/navigation.js` now finalizes page-scoped listeners on route changes so activity listeners do not stay subscribed after leaving those pages.
+
+## Audit / Error Log Display Update (2026-03-09)
+
+- Audit logs now resolve display names with two layers:
+  - Cloud Function `writeAuditLog` prefers `users.uid`, user profile name, and Firebase Auth `displayName`
+  - Admin audit log UI locally falls back to `adminUsers` cache when old entries only stored `actorUid`
+- Super admin can trigger `backfillAuditActorNames` for a selected audit day to write missing `actorName` values back into `auditLogsByDay/{day}/auditEntries/{id}`.
+- Error log UI now translates common Firebase / network errors into Chinese at render time and derives a severity badge:
+  - `嚴重`
+  - `警告`
+  - `一般`
+- The Chinese translation and severity are display-layer derived, so existing historical `errorLogs` entries benefit without Firestore migration.

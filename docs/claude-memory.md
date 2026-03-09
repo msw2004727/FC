@@ -6,6 +6,12 @@
 
 ---
 
+### 2026-03-09 — 補齊稽核暱稱回填與錯誤日誌中文化
+- **問題**：稽核日誌中部分今天已寫入的資料只顯示 UID，錯誤日誌則直接顯示英文 code / message，管理端閱讀成本高。
+- **原因**：`writeAuditLog` 原本只靠 user doc id / `lineUserId` 找名稱，漏掉 `users.uid` 與 Firebase Auth `displayName`；既有錯誤日誌 UI 也沒有翻譯層與嚴重程度分類。
+- **修復**：更新 [functions/index.js](/C:/Users/kere/Downloads/github/FC/FC-github/functions/index.js) 補上 `users.uid` 與 Auth `displayName` fallback，新增 `backfillAuditActorNames` callable 回填指定日期缺失的 `actorName`；更新 [js/api-service.js](/C:/Users/kere/Downloads/github/FC/FC-github/js/api-service.js) 對接回填 callable；重寫 [js/modules/audit-log.js](/C:/Users/kere/Downloads/github/FC/FC-github/js/modules/audit-log.js) 以本地 fallback 解析名字、顯示活動/球隊名稱並提供今日暱稱補齊按鈕；重寫 [js/modules/error-log.js](/C:/Users/kere/Downloads/github/FC/FC-github/js/modules/error-log.js) 將常見錯誤翻成中文並加上 `嚴重 / 警告 / 一般` 標籤；補樣式於 [css/admin.css](/C:/Users/kere/Downloads/github/FC/FC-github/css/admin.css) 並更新 [docs/architecture.md](/C:/Users/kere/Downloads/github/FC/FC-github/docs/architecture.md)。
+- **教訓**：稽核資料若要穩定顯示暱稱，後端寫入時就要多來源補齊名稱；管理後台的錯誤資訊則不該直接暴露 raw 英文訊息，至少要有翻譯與嚴重程度，否則很難快速判讀。
+
 ### 2026-03-09 — 稽核日誌返回按鍵改回全站一致樣式
 - **問題**：稽核日誌頁的返回按鍵顯示成「返回」，和其他頁面統一使用的 `←` 樣式不一致。
 - **原因**：`page-admin-audit-logs` 建頁時按鈕文案單獨寫成文字版，沒有沿用其他頁面的返回符號。

@@ -228,6 +228,15 @@ async function findUserDocByUidOrLineUserId(uidOrDocId) {
     return { docId: directSnap.id, data: directSnap.data() || {} };
   }
 
+  const uidSnap = await db.collection("users")
+    .where("uid", "==", uidOrDocId)
+    .limit(1)
+    .get();
+  if (!uidSnap.empty) {
+    const doc = uidSnap.docs[0];
+    return { docId: doc.id, data: doc.data() || {} };
+  }
+
   const qSnap = await db.collection("users")
     .where("lineUserId", "==", uidOrDocId)
     .limit(1)
@@ -254,6 +263,39 @@ function getLineRecipientUidFromUserDoc(found, fallbackUid) {
   if (typeof data.uid === "string" && data.uid) return data.uid;
   if (typeof found?.docId === "string" && found.docId) return found.docId;
   return fallbackUid;
+}
+
+function getDisplayNameFromAuthRecord(userRecord, fallbackUid) {
+  if (!userRecord || typeof userRecord !== "object") return fallbackUid;
+  if (typeof userRecord.displayName === "string" && userRecord.displayName.trim()) {
+    return userRecord.displayName.trim();
+  }
+  const providerName = Array.isArray(userRecord.providerData)
+    ? userRecord.providerData.find(item => typeof item?.displayName === "string" && item.displayName.trim())
+    : null;
+  if (providerName?.displayName) {
+    return providerName.displayName.trim();
+  }
+  return fallbackUid;
+}
+
+async function resolveAuditActorName(uidOrDocId, fallbackUid = "") {
+  const safeFallback = String(fallbackUid || uidOrDocId || "").trim();
+  const found = uidOrDocId ? await findUserDocByUidOrLineUserId(uidOrDocId) : null;
+  const authUid = getAuthUidFromUserDoc(found, safeFallback);
+  let authDisplayName = "";
+  try {
+    const authUser = await authAdmin.getUser(authUid);
+    authDisplayName = getDisplayNameFromAuthRecord(authUser, "");
+  } catch (_) {}
+
+  return normalizeAuditText(
+    found?.data?.displayName
+      || found?.data?.name
+      || authDisplayName
+      || safeFallback,
+    80
+  );
 }
 
 async function getUserRoleFromFirestore(uidOrDocId) {
@@ -495,9 +537,15 @@ exports.writeAuditLog = onCall(
     const callerUid = request.auth.uid;
     const callerRole = await getCallerRoleWithFallback(request);
     const callerUser = await findUserDocByUidOrLineUserId(callerUid);
+    let authDisplayName = "";
+    try {
+      const authUser = await authAdmin.getUser(callerUid);
+      authDisplayName = getDisplayNameFromAuthRecord(authUser, "");
+    } catch (_) {}
     const actorName = normalizeAuditText(
       callerUser?.data?.displayName
         || callerUser?.data?.name
+        || authDisplayName
         || request.auth.token?.name
         || callerUid,
       80
@@ -520,6 +568,78 @@ exports.writeAuditLog = onCall(
       success: true,
       dayKey: entry.dayKey,
       timeKey: entry.timeKey,
+    };
+  }
+);
+
+exports.backfillAuditActorNames = onCall(
+  { region: "asia-east1", timeoutSeconds: 60 },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Authentication required");
+    }
+
+    const callerRole = await getCallerRoleWithFallback(request);
+    if (callerRole !== "super_admin") {
+      throw new HttpsError("permission-denied", "Super admin only");
+    }
+
+    const requestedDayKey = String(request.data?.dayKey || "").replace(/\D/g, "").slice(0, 8);
+    const dayKey = requestedDayKey || getTaipeiAuditDateInfo(new Date()).dayKey;
+    if (dayKey.length !== 8) {
+      throw new HttpsError("invalid-argument", "dayKey must be YYYYMMDD");
+    }
+
+    const snapshot = await db.collection("auditLogsByDay")
+      .doc(dayKey)
+      .collection("auditEntries")
+      .get();
+
+    if (snapshot.empty) {
+      return {
+        success: true,
+        dayKey,
+        scanned: 0,
+        updated: 0,
+      };
+    }
+
+    let scanned = 0;
+    let updated = 0;
+    let batch = db.batch();
+    let pendingWrites = 0;
+
+    for (const doc of snapshot.docs) {
+      scanned += 1;
+      const data = doc.data() || {};
+      const actorUid = String(data.actorUid || "").trim();
+      const actorName = String(data.actorName || "").trim();
+      if (!actorUid) continue;
+      if (actorName && actorName !== actorUid) continue;
+
+      const resolvedName = await resolveAuditActorName(actorUid, actorUid);
+      if (!resolvedName || resolvedName === actorUid) continue;
+
+      batch.update(doc.ref, { actorName: resolvedName });
+      updated += 1;
+      pendingWrites += 1;
+
+      if (pendingWrites >= 400) {
+        await batch.commit();
+        batch = db.batch();
+        pendingWrites = 0;
+      }
+    }
+
+    if (pendingWrites > 0) {
+      await batch.commit();
+    }
+
+    return {
+      success: true,
+      dayKey,
+      scanned,
+      updated,
     };
   }
 );

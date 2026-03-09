@@ -9,6 +9,7 @@ Object.assign(App, {
   _auditLogHasMore: false,
   _auditLogDayKey: '',
   _auditLogLoading: false,
+  _auditLogBackfilling: false,
 
   _getAuditActionOptions() {
     return [
@@ -22,13 +23,13 @@ Object.assign(App, {
       ['team_join_approve', '同意入隊'],
       ['team_join_reject', '拒絕入隊'],
       ['role_change', '角色變更'],
-      ['admin_user_edit', '管理員編輯用戶'],
+      ['admin_user_edit', '管理員編輯用戶資料'],
     ];
   },
 
   _getAuditActionLabel(action) {
     const found = this._getAuditActionOptions().find(item => item[0] === action);
-    return found ? found[1] : (action || '未命名行為');
+    return found ? found[1] : (action || '未知行為');
   },
 
   _getTodayAuditDateValue() {
@@ -61,14 +62,44 @@ Object.assign(App, {
 
     return {
       ...item,
-      actorUid: String(item.actorUid || '').trim(),
-      actorName: String(item.actorName || '').trim(),
-      action: String(item.action || '').trim(),
-      result: String(item.result || '').trim(),
+      actorUid: String(item?.actorUid || '').trim(),
+      actorName: String(item?.actorName || '').trim(),
+      action: String(item?.action || '').trim(),
+      result: String(item?.result || '').trim(),
+      targetLabel: String(item?.targetLabel || '').trim(),
       timeKey,
       createdAtDate,
       createdLabel,
     };
+  },
+
+  _resolveAuditActorName(item) {
+    const actorUid = String(item?.actorUid || '').trim();
+    const storedName = String(item?.actorName || '').trim();
+    if (storedName && storedName !== actorUid) return storedName;
+
+    const users = (typeof ApiService !== 'undefined' && typeof ApiService.getAdminUsers === 'function')
+      ? (ApiService.getAdminUsers() || [])
+      : [];
+    const matched = users.find(user =>
+      user?.uid === actorUid
+      || user?._docId === actorUid
+      || user?.lineUserId === actorUid
+    );
+    const resolved = String(matched?.displayName || matched?.name || '').trim();
+    if (resolved) return resolved;
+
+    return storedName || actorUid || '未知用戶';
+  },
+
+  _needsAuditActorBackfill(item) {
+    const actorUid = String(item?.actorUid || '').trim();
+    const actorName = String(item?.actorName || '').trim();
+    return !!actorUid && (!actorName || actorName === actorUid);
+  },
+
+  _isTodayAuditDay(dayKey) {
+    return dayKey === this._getAuditDayKeyFromInput(this._getTodayAuditDateValue());
   },
 
   _ensureAuditActionOptions() {
@@ -81,11 +112,58 @@ Object.assign(App, {
     select.value = current || '';
   },
 
+  _ensureAuditBackfillButton() {
+    const summary = document.getElementById('auditlog-summary');
+    if (!summary) return null;
+
+    let row = document.getElementById('auditlog-summary-row');
+    if (!row) {
+      row = document.createElement('div');
+      row.id = 'auditlog-summary-row';
+      row.style.display = 'flex';
+      row.style.alignItems = 'center';
+      row.style.justifyContent = 'space-between';
+      row.style.gap = '.75rem';
+      row.style.flexWrap = 'wrap';
+      summary.parentNode.insertBefore(row, summary);
+      row.appendChild(summary);
+    }
+
+    let btn = document.getElementById('auditlog-backfill-btn');
+    if (!btn) {
+      btn = document.createElement('button');
+      btn.id = 'auditlog-backfill-btn';
+      btn.className = 'outline-btn';
+      btn.style.display = 'none';
+      btn.style.fontSize = '.72rem';
+      btn.style.padding = '.28rem .6rem';
+      btn.textContent = '補齊暱稱';
+      btn.addEventListener('click', () => { void this.backfillAuditActorNames(); });
+      row.appendChild(btn);
+    }
+    return btn;
+  },
+
+  _updateAuditBackfillState() {
+    const btn = document.getElementById('auditlog-backfill-btn');
+    if (!btn) return;
+
+    const unresolvedCount = this._auditLogItems.filter(item => this._needsAuditActorBackfill(item)).length;
+    const allowBackfill = unresolvedCount > 0 && this._isTodayAuditDay(this._auditLogDayKey);
+
+    btn.style.display = allowBackfill ? '' : 'none';
+    btn.disabled = this._auditLogBackfilling;
+    btn.textContent = this._auditLogBackfilling
+      ? '補齊中...'
+      : `補齊暱稱（${unresolvedCount}）`;
+  },
+
   renderAuditLogPage() {
     const dateInput = document.getElementById('auditlog-date');
     if (!dateInput) return;
     if (!dateInput.value) dateInput.value = this._getTodayAuditDateValue();
     this._ensureAuditActionOptions();
+    this._ensureAuditBackfillButton();
 
     const nextDayKey = this._getAuditDayKeyFromInput(dateInput.value);
     if (!nextDayKey) return;
@@ -94,6 +172,7 @@ Object.assign(App, {
       return;
     }
     this.filterAuditLogs();
+    this._updateAuditBackfillState();
   },
 
   async loadAuditLogs(reset = true) {
@@ -113,10 +192,11 @@ Object.assign(App, {
       this._auditLogItems = [];
       this._auditLogDayKey = dayKey;
       if (list) {
-        list.innerHTML = '<div style="text-align:center;padding:1.5rem;color:var(--text-muted)">載入中...</div>';
+        list.innerHTML = '<div style="text-align:center;padding:1.5rem;color:var(--text-muted)">讀取中...</div>';
       }
     }
     this._updateAuditLoadMoreState();
+    this._updateAuditBackfillState();
 
     try {
       const result = await ApiService.getAuditLogsByDay(dayKey, {
@@ -138,6 +218,7 @@ Object.assign(App, {
     } finally {
       this._auditLogLoading = false;
       this._updateAuditLoadMoreState();
+      this._updateAuditBackfillState();
     }
   },
 
@@ -156,10 +237,10 @@ Object.assign(App, {
 
     let items = [...this._auditLogItems];
     if (keyword) {
-      items = items.filter(item =>
-        (item.actorName || '').toLowerCase().includes(keyword)
-        || (item.actorUid || '').toLowerCase().includes(keyword)
-      );
+      items = items.filter(item => {
+        const actorName = this._resolveAuditActorName(item).toLowerCase();
+        return actorName.includes(keyword) || (item.actorUid || '').toLowerCase().includes(keyword);
+      });
     }
     if (action) {
       items = items.filter(item => item.action === action);
@@ -169,6 +250,7 @@ Object.assign(App, {
     }
 
     this.renderAuditLogs(items);
+    this._updateAuditBackfillState();
   },
 
   _updateAuditLoadMoreState() {
@@ -176,16 +258,17 @@ Object.assign(App, {
     if (!btn) return;
     btn.style.display = this._auditLogHasMore ? '' : 'none';
     btn.disabled = this._auditLogLoading;
-    btn.textContent = this._auditLogLoading ? '載入中...' : '載入更多';
+    btn.textContent = this._auditLogLoading ? '讀取中...' : '載入更多';
   },
 
   _getAuditDisplayText(item) {
     const actionLabel = this._getAuditActionLabel(item.action);
-    const targetLabel = String(item.targetLabel || '').trim();
-    if (item.action === 'event_signup' && targetLabel) {
-      return `${actionLabel}：${targetLabel}`;
-    }
-    if (item.action === 'event_cancel_signup' && targetLabel) {
+    const targetLabel = String(item?.targetLabel || '').trim();
+    if (
+      ['event_signup', 'event_cancel_signup', 'team_join_request', 'team_join_approve', 'team_join_reject']
+        .includes(item.action)
+      && targetLabel
+    ) {
       return `${actionLabel}：${targetLabel}`;
     }
     return actionLabel;
@@ -201,12 +284,12 @@ Object.assign(App, {
     }
 
     if (!items.length) {
-      list.innerHTML = '<div style="text-align:center;padding:1.5rem;color:var(--text-muted)">目前沒有符合條件的稽核日誌</div>';
+      list.innerHTML = '<div style="text-align:center;padding:1.5rem;color:var(--text-muted)">這一天沒有符合條件的稽核日誌</div>';
       return;
     }
 
     list.innerHTML = items.map(item => {
-      const actorName = item.actorName || item.actorUid || '未知用戶';
+      const actorName = this._resolveAuditActorName(item);
       let actionLabel = this._getAuditDisplayText(item);
       if (item.result === 'failure' && !actionLabel.includes('失敗')) {
         actionLabel += '（失敗）';
@@ -221,6 +304,41 @@ Object.assign(App, {
         </div>
       `;
     }).join('');
+  },
+
+  async backfillAuditActorNames() {
+    if (this._auditLogBackfilling) return;
+    const dayKey = this._auditLogDayKey || this._getAuditDayKeyFromInput(document.getElementById('auditlog-date')?.value);
+    if (!dayKey) {
+      this.showToast('請先選擇日期');
+      return;
+    }
+
+    this._auditLogBackfilling = true;
+    this._updateAuditBackfillState();
+
+    try {
+      const result = await ApiService.backfillAuditActorNames(dayKey);
+      if (!result?.success) {
+        this.showToast('補齊暱稱失敗');
+        return;
+      }
+
+      if (result.updated > 0) {
+        this.showToast(`已補齊 ${result.updated} 筆暱稱`);
+        await this.loadAuditLogs(true);
+        return;
+      }
+
+      this.showToast('沒有需要補齊的暱稱');
+      this._updateAuditBackfillState();
+    } catch (err) {
+      console.error('[backfillAuditActorNames]', err);
+      this.showToast('補齊暱稱失敗');
+    } finally {
+      this._auditLogBackfilling = false;
+      this._updateAuditBackfillState();
+    }
   },
 
   async loadMoreAuditLogs() {

@@ -1207,6 +1207,7 @@ const ApiService = {
   // ════════════════════════════════
 
   _auditLogCallable: null,
+  _auditLogBackfillCallable: null,
 
   async writeAuditLog(payload = {}) {
     try {
@@ -1230,6 +1231,29 @@ const ApiService = {
       return result?.data || null;
     } catch (err) {
       console.warn('[writeAuditLog]', err?.code || '', err?.message || err);
+      return null;
+    }
+  },
+
+  async backfillAuditActorNames(dayKey = '') {
+    try {
+      if (this._demoMode) {
+        return { success: true, dayKey: '', scanned: 0, updated: 0 };
+      }
+      const authed = await this._ensureFirebaseWriteAuth({ forceRefreshToken: true });
+      if (!authed) return null;
+
+      if (!this._auditLogBackfillCallable) {
+        this._auditLogBackfillCallable = firebase.app().functions('asia-east1').httpsCallable('backfillAuditActorNames');
+      }
+
+      const safeDayKey = String(dayKey || '').replace(/\D/g, '').slice(0, 8);
+      const result = await this._auditLogBackfillCallable({
+        dayKey: safeDayKey,
+      });
+      return result?.data || null;
+    } catch (err) {
+      console.warn('[backfillAuditActorNames]', err?.code || '', err?.message || err);
       return null;
     }
   },
