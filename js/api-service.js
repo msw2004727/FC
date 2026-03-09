@@ -761,7 +761,14 @@ const ApiService = {
     const timeStr = `${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
     const curUser = this.getCurrentUser();
     const operator = curUser?.displayName || ROLES[App.currentRole]?.label || '系統';
-    const opLog = { time: timeStr, operator, type, typeName, content };
+    const opLog = {
+      _docId: `op_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      time: timeStr,
+      operator,
+      type,
+      typeName,
+      content,
+    };
     this._src('operationLogs').unshift(opLog);
     if (!this._demoMode) {
       FirebaseService.addOperationLog(opLog).catch(err => console.error('[opLog]', err));

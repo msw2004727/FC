@@ -1196,10 +1196,14 @@ Object.assign(FirebaseService, {
   // ════════════════════════════════
 
   async addOperationLog(data) {
-    await db.collection('operationLogs').add({
-      ..._stripDocId(data),
+    const safeData = _stripDocId(data);
+    const docId = (data && typeof data._docId === 'string' && data._docId.trim())
+      ? data._docId.trim()
+      : db.collection('operationLogs').doc().id;
+    await db.collection('operationLogs').doc(docId).set({
+      ...safeData,
       createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-    });
+    }, { merge: true });
   },
 
   // ════════════════════════════════

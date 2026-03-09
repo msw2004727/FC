@@ -6,6 +6,19 @@
 
 ---
 
+### 2026-03-10 — 修正操作紀錄（`operationLogs`）偶發 already-exists
+- **問題**：瀏覽器偶發出現 `[opLog] FirebaseError: Document already exists`，指向操作紀錄（`operationLogs`）寫入。
+- **原因**：操作紀錄原本直接用 `.add()` 寫入，由 Firestore 自動產生文件 ID；在重試、離線恢復或 WebChannel 邊界情況下，同一筆 client write 偶發被視為重複建立，導致後端回 `already-exists`。
+- **修復**：更新 `js/api-service.js`，在建立操作紀錄時先產生固定文件 ID（`_docId`）；更新 `js/firebase-crud.js`，將 `addOperationLog()` 改成 `doc(docId).set(..., { merge: true })`，讓同一筆重試改為可重入寫入，不再因為文件已存在而報錯；同步把 `js/config.js` 與 `index.html` 版本升到 `20260310d`。
+- **教訓**：對使用者無感但會被大量觸發的後台/稽核類 client write，不要依賴「每次都全新 create」的語意；若允許重試，寫入應盡量設計成冪等（idempotent）。
+
+### 2026-03-10 — 綜合修復 Firestore 監聽（`Listen/channel 400`）與首頁啟動競態
+- **問題**：正式版陸續出現多種 Firestore 監聽錯誤，包含登入後的訊息監聽（`messages`）400、活動頁的報名監聽（`registrations`）400，以及首頁偶發但不穩定的 `Listen/channel 400`；同時個人資訊頁的「我的球隊申請」還會顯示已不存在球隊或已退出球隊的舊狀態。
+- **原因**：這不是單一 bug，而是三層問題疊加。第一層是前端查詢範圍大於 Firestore 規則允許範圍，例如整包監聽訊息集合（`messages`）或報名集合（`registrations`）；第二層是啟動期對公開集合使用過多並行查詢，boot collections 與首頁活動（`events`）預載同時建立過多 Firestore targets；第三層是個人頁球隊申請狀態只做訊息聚合，沒有再比對球隊是否仍存在、使用者是否仍在該隊。
+- **修復**：分階段收斂前端資料流。先把訊息監聽（`messages`）改成依目前用戶可見範圍拆成多條合法查詢，並在訊息寫入補上目標類型（`targetType`）；再把報名監聽（`registrations`）改成一般用戶只監聽自己的報名，管理員（`admin` / `super_admin`）才保留全量監聽；接著移除啟動期 boot/static collection 的 `documentId()` 排序，並把 boot/static collection 載入改成序列化；最後把首頁活動（`events`）預載也從並行改成序列化，讓 `FirebaseService.init()` 先完成 `events` 預載再逐一載入 boot collections。個人資訊頁（`profile-data.js`）則同步過濾已不存在球隊與已退出球隊的申請狀態。
+- **成功關鍵**：這次真正讓首頁不再報錯的原因，不是單改某一條 query，而是把整個啟動與監聽流程一起收斂成「規則相容查詢 + 較少並發 targets + 較準確的前端狀態過濾」。前幾次修正先排除了固定的權限不相容查詢，最後一次再把首頁啟動競態壓下來，整體才穩定。
+- **教訓**：Firestore 規則不是查詢後過濾器。前端如果直接整包監聽或在啟動期同時建立過多 targets，就算單條查詢看起來合理，也可能在正式環境引發偶發性的 WebChannel / `Listen/channel` 400。之後新增監聽或首頁預載時，要同時檢查「規則相容性」、「是否真的需要全量監聽」以及「啟動期並發數量」。
+
 ### 2026-03-10 — 序列化首頁 events 預載以降低首頁偶發 Listen/channel 400
 - **問題**：使用者進入首頁時，Firestore 偶發出現 Listen/channel 400 (Bad Request)，而且同一頁有時會報錯、有時不會。
 - **原因**：FirebaseService.init() 在首頁啟動期仍會並行預載公開活動（events）與 boot collections，偶發讓 Firestore WebChannel 在初始化階段同時建立過多 targets。
