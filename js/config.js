@@ -136,7 +136,7 @@
 // 20260306v: 活動刪除改為等待 Firestore 成功後才更新前端，避免刷新後被刪活動重新出現
 // 20260306y: 修復活動詳情頁「現場簽到」在 scan.js lazy load 前點擊會報 goToScanForEvent is not a function
 // 20260309l: 修復取消再報名後出席紀錄顯示未出席的 BUG
-const CACHE_VERSION = '20260309u';
+const CACHE_VERSION = '20260309v';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {

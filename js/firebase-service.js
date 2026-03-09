@@ -944,7 +944,10 @@ const FirebaseService = {
     if (!this._realtimeListenerStarted._authStateObserver && auth?.onAuthStateChanged) {
       this._realtimeListenerStarted._authStateObserver = true;
       const unsubAuthObserver = auth.onAuthStateChanged(user => {
-        if (!user) return;
+        if (!user) {
+          this._lastLoginAuditAtByUid = {};
+          return;
+        }
         Promise.resolve(this._startAuthDependentWork()).catch(err => {
           console.warn('[FirebaseService] start auth-dependent work after auth state changed failed:', err);
         });

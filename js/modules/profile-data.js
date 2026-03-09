@@ -403,11 +403,18 @@ Object.assign(App, {
   },
 
   async logoutLine() {
+    const logoutUid =
+      ApiService.getCurrentUser()?.uid
+      || (typeof auth !== 'undefined' && auth?.currentUser?.uid)
+      || '';
+    if (logoutUid && typeof FirebaseService !== 'undefined' && FirebaseService._lastLoginAuditAtByUid) {
+      delete FirebaseService._lastLoginAuditAtByUid[logoutUid];
+    }
     if (typeof ApiService !== 'undefined' && typeof ApiService.writeAuditLog === 'function') {
       void ApiService.writeAuditLog({
         action: 'logout',
         targetType: 'system',
-        targetId: ApiService.getCurrentUser()?.uid || '',
+        targetId: logoutUid,
         targetLabel: 'LINE logout',
         result: 'success',
         source: 'liff',

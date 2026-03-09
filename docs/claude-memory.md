@@ -6,6 +6,12 @@
 
 ---
 
+### 2026-03-09 — 修正登出後重登入漏記與清除按鈕未載入
+- **問題**：手動登出後立刻重新登入，稽核日誌偶爾沒有新的登入成功紀錄；管理端操作日誌頁的一鍵清除按鈕點擊會報 `App.clearAllData is not a function`。
+- **原因**：前一版為了抑制重複 `login_success`，對同 UID 做了 15 秒去重，但沒有在登出時清空去重狀態，導致正常的重新登入也被跳過；另一方面，`clearAllData()` 定義在 `dashboard.js`，但 `page-admin-logs` 只載入 `adminUsers` 群組，沒有載到該模組。
+- **修復**：更新 [js/modules/profile-data.js](/C:/Users/kere/Downloads/github/FC/FC-github/js/modules/profile-data.js) 在登出前清除該 UID 的登入去重狀態；更新 [js/firebase-service.js](/C:/Users/kere/Downloads/github/FC/FC-github/js/firebase-service.js) 在 Firebase Auth 登出狀態時重置登入去重快取；更新 [js/core/script-loader.js](/C:/Users/kere/Downloads/github/FC/FC-github/js/core/script-loader.js) 讓 `page-admin-logs` 一併載入 `adminDashboard` 群組，確保 `App.clearAllData()` 存在；同步更新 [js/config.js](/C:/Users/kere/Downloads/github/FC/FC-github/js/config.js) 與 [index.html](/C:/Users/kere/Downloads/github/FC/FC-github/index.html) 快取版本。
+- **教訓**：對稽核事件做去重時要有明確的「會話重置」條件，不能把正常的新操作一起吃掉；使用 inline handler 的頁面必須確認對應模組一定會被當前頁面載入。
+
 ### 2026-03-09 — 日誌頁改手動刷新並抑制重複登入成功紀錄
 - **問題**：稽核日誌與錯誤日誌頁不是即時監聽，切到頁面後若資料有變化只能重進頁面；另外同一輪登入偶爾會寫出兩筆 `login_success`。
 - **原因**：日誌頁原本只有初次載入和分頁查詢，沒有提供手動重抓入口；`login_success` 則可能在短時間內被重複呼叫的 Firebase 登入流程寫入兩次。

@@ -142,7 +142,7 @@ const ScriptLoader = {
     'page-admin-exp':          ['adminUsers'],
     'page-admin-roles':        ['adminUsers'],
     'page-admin-inactive':     ['adminUsers'],
-    'page-admin-logs':         ['adminUsers'],
+    'page-admin-logs':         ['adminUsers', 'adminDashboard'],
     'page-admin-audit-logs':   ['adminSystem'],
     'page-admin-repair':       ['adminUsers'],
     'page-admin-banners':      ['adminContent'],
