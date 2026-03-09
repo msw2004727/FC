@@ -797,23 +797,6 @@ const FirebaseService = {
     this._realtimeListenerStarted._pendingAttendance = false;
   },
 
-  /** 啟動 terminal events 監聽器（公開讀取，背景啟動不阻塞首頁） */
-  _startTerminalEventsListener() {
-    if (this._realtimeListenerStarted.terminalEvents) return;
-    this._realtimeListenerStarted.terminalEvents = true;
-    const unsub = db.collection('events')
-      .where('status', 'in', ['ended', 'cancelled'])
-      .limit(200)
-      .onSnapshot(
-        snapshot => {
-          this._eventSlices.terminal = snapshot.docs.map(doc => ({ ...doc.data(), _docId: doc.id }));
-          this._mergeRealtimeEventSlices(true);
-        },
-        err => { console.warn('[onSnapshot] events-terminal 監聽錯誤:', err); }
-      );
-    this._listeners.push(unsub);
-  },
-
   /** Auth 完成後啟動需驗證的監聽器 + seed（背景執行，不阻塞首頁） */
   async _startAuthDependentWork() {
     if (!this._initialized) {
@@ -924,42 +907,7 @@ const FirebaseService = {
     const publicLoadPromise = this._loadEventsStatic().catch(err => {
       console.warn('[FirebaseService] Initial events preload failed:', err);
       return null;
-
-      // events: 只監聽進行中的活動（open/full/upcoming）
-      {
-        let firstSnapshot = true;
-        const unsub = db.collection('events')
-          .where('status', 'in', ['open', 'full', 'upcoming'])
-          .limit(200)
-          .onSnapshot(
-            snapshot => {
-              this._eventSlices.active = snapshot.docs.map(doc => ({ ...doc.data(), _docId: doc.id }));
-              this._mergeRealtimeEventSlices(!firstSnapshot);
-              if (firstSnapshot) { firstSnapshot = false; checkDone(); }
-            },
-            err => { console.warn('[onSnapshot] events 監聽錯誤:', err); checkDone(); }
-          );
-        this._listeners.push(unsub);
-      }
-
-      // teams: limit 100
-      {
-        let firstSnapshot = true;
-        const unsub = db.collection('teams')
-          .limit(100)
-          .onSnapshot(
-            snapshot => {
-              this._cache.teams = snapshot.docs.map(doc => ({ ...doc.data(), _docId: doc.id }));
-              this._debouncedPersistCache();
-              this._onTeamsUpdated();
-              if (firstSnapshot) { firstSnapshot = false; checkDone(); }
-            },
-            err => { console.warn('[onSnapshot] teams 監聽錯誤:', err); checkDone(); }
-          );
-        this._listeners.push(unsub);
-      }
     });
-
     // 2c. Auth 並行啟動（不阻塞公開資料載入）
     this._authPromise = this._signInWithAppropriateMethod().catch(err => {
       console.error('[FirebaseService] Firebase Auth failed:', err?.code || err?.message);
@@ -976,7 +924,7 @@ const FirebaseService = {
       this._listeners.push(unsubAuthObserver);
     }
 
-    // ── Step 3: 等待公開資料就緒（boot + public listeners，含超時偵測）──
+    // Step 3: wait for boot collections + public preload with timeout protection.
     const _INIT_TIMEOUT = 10000;
     let bootSnapshots = null;
     let timedOut = false;
@@ -1011,7 +959,7 @@ const FirebaseService = {
     // 超時 → 用 localStorage 快取兜底
     if (timedOut) {
       this._initialized = true;
-      console.log('[FirebaseService] 超時降級：使用 localStorage 快取，背景 listeners 仍在運行');
+      console.log('[FirebaseService] Init timed out; continue with localStorage cache.');
       this._startAuthDependentWork();
       return;
     }
@@ -1041,10 +989,7 @@ const FirebaseService = {
     this._persistCache();
 
     const bootCount = this._bootCollections.length;
-    console.log(`[FirebaseService] 公開資料初始化完成 — boot: ${bootCount}, static events preload, deferred: ${this._deferredCollections.length}`);
-
-    // ── Step 5: 背景啟動 terminal events（公開但非首頁必需）──
-
+    console.log(`[FirebaseService] Public data init complete - boot: ${bootCount}, static events preload, deferred: ${this._deferredCollections.length}`);
     // ── Step 6: 背景啟動 Auth 依賴的監聽器 + seed ──
     this._startAuthDependentWork();
   },

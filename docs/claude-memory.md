@@ -6,6 +6,12 @@
 
 ---
 
+### 2026-03-09 — 首頁與球隊改回靜態載入，僅保留活動頁即時監聽
+- **問題**：`events`、`teams` 在 `FirebaseService.init()` 內全域常駐 `onSnapshot`，首頁和球隊頁沒有真正需要全站即時同步，卻會持續消耗 Firestore 監聽流量。
+- **原因**：公開資料初始化沿用了舊的全域 listener 模式，活動頁需要的即時資料與首頁展示資料被混在同一層處理。
+- **修復**：調整 [js/firebase-service.js](C:/Users/kere/Downloads/github/FC/FC-github/js/firebase-service.js) 為 `events/teams` 靜態載入，保留 `registrations/attendanceRecords` 作為活動相關頁面的 page-scoped realtime；同步更新 [js/core/navigation.js](C:/Users/kere/Downloads/github/FC/FC-github/js/core/navigation.js) 的離頁收尾，並在 [docs/architecture.md](C:/Users/kere/Downloads/github/FC/FC-github/docs/architecture.md) 補上新版監聽範圍。
+- **教訓**：需要即時的應是「正在操作的頁面資料」，不是整站公開集合；listener 要跟頁面生命週期綁定，不能只做到延遲啟動，沒做到離頁關閉。
+
 ### 2026-03-09 — 即時監聽改為活動頁專屬，首頁/球隊退回靜態載入
 - **問題**：`events`、`teams` 之前是全域 `onSnapshot`，即使使用者不在活動或球隊頁也會持續吃 Firestore 監聽；`registrations`、`attendanceRecords` 雖然是進頁才開，但一旦開過就整段 session 常駐，不是真正的 page-scoped realtime。
 - **原因**：`FirebaseService.init()` 直接啟動公開集合 listener，`ensureCollectionsForPage()` 也只負責延遲啟動，沒有在離頁時 unsubscribe。

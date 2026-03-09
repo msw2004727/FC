@@ -214,3 +214,17 @@ flowchart LR
     MOD --> FS
     RULES --> FS
 ```
+
+## Realtime Scope Update (2026-03-09)
+
+- `events` and `teams` are no longer boot-time global realtime listeners.
+- Homepage, teams, and tournament pages now rely on static `.get()` loads through `FirebaseService.ensureCollectionsForPage()`.
+- True page-scoped realtime is kept only for activity-sensitive pages:
+  - `page-activities`
+  - `page-activity-detail`
+  - `page-my-activities`
+  - `page-scan`
+- The page-scoped realtime collections are:
+  - `registrations`
+  - `attendanceRecords`
+- `js/core/navigation.js` now finalizes page-scoped listeners on route changes so activity listeners do not stay subscribed after leaving those pages.
