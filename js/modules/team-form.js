@@ -159,7 +159,6 @@ Object.assign(App, {
       );
     });
 
-    ApiService._writeOpLog('team_join_request', '申請入隊', `${applicantName} 申請加入「${t.name}」`);
     void ApiService.writeAuditLog({
       action: 'team_join_request',
       targetType: 'team',

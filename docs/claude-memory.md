@@ -6,6 +6,12 @@
 
 ---
 
+### 2026-03-09 — 稽核日誌介面簡化並移除與操作日誌的重複項
+- **問題**：`auditLogs` 後台畫面顯示了 UID、目標、來源等過多欄位，閱讀成本偏高；同時 `operationLogs` 與 `auditLogs` 對同一批用戶行為會重複出現。
+- **原因**：第一版 audit log 介面以除錯導向呈現完整欄位，且舊的 `_writeOpLog()` 尚未從已導入 audit 的流程中移除。
+- **修復**：重寫 [js/modules/audit-log.js](/C:/Users/kere/Downloads/github/FC/FC-github/js/modules/audit-log.js)，將顯示簡化為「時間 / 名字膠囊 / 行為」；並在 [js/modules/team-form.js](/C:/Users/kere/Downloads/github/FC/FC-github/js/modules/team-form.js)、[js/modules/message-inbox.js](/C:/Users/kere/Downloads/github/FC/FC-github/js/modules/message-inbox.js)、[js/modules/user-admin-list.js](/C:/Users/kere/Downloads/github/FC/FC-github/js/modules/user-admin-list.js)、[js/modules/event-detail-signup.js](/C:/Users/kere/Downloads/github/FC/FC-github/js/modules/event-detail-signup.js) 移除重複的操作日誌寫入；另外在 [js/modules/user-admin-exp.js](/C:/Users/kere/Downloads/github/FC/FC-github/js/modules/user-admin-exp.js) 隱藏歷史上已和 audit 重複的操作日誌。
+- **教訓**：`auditLogs` 應聚焦稽核閱讀體驗，`operationLogs` 則保留給系統與管理操作；一旦某類用戶行為升級進 audit，就要同步清理舊操作日誌，避免雙邊各記一份。
+
 ### 2026-03-09 — 首頁與球隊改回靜態載入，僅保留活動頁即時監聽
 - **問題**：`events`、`teams` 在 `FirebaseService.init()` 內全域常駐 `onSnapshot`，首頁和球隊頁沒有真正需要全站即時同步，卻會持續消耗 Firestore 監聽流量。
 - **原因**：公開資料初始化沿用了舊的全域 listener 模式，活動頁需要的即時資料與首頁展示資料被混在同一層處理。

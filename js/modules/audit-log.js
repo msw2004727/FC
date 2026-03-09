@@ -28,7 +28,7 @@ Object.assign(App, {
 
   _getAuditActionLabel(action) {
     const found = this._getAuditActionOptions().find(item => item[0] === action);
-    return found ? found[1] : (action || '未分類');
+    return found ? found[1] : (action || '未命名行為');
   },
 
   _getTodayAuditDateValue() {
@@ -53,25 +53,21 @@ Object.assign(App, {
     const createdAtDate = item?.createdAt?.toDate
       ? item.createdAt.toDate()
       : (item?.createdAt instanceof Date ? item.createdAt : null);
+
+    const timeKey = this._normalizeAuditTime(item?.timeKey);
     const createdLabel = createdAtDate
-      ? (App._formatDateTime ? App._formatDateTime(createdAtDate) : createdAtDate.toISOString())
-      : `${item.dayKey || ''} ${item.timeKey || ''}`.trim();
+      ? createdAtDate.toLocaleTimeString('zh-TW', { hour12: false })
+      : (timeKey || '');
 
     return {
       ...item,
       actorUid: String(item.actorUid || '').trim(),
       actorName: String(item.actorName || '').trim(),
-      actorRole: String(item.actorRole || '').trim(),
       action: String(item.action || '').trim(),
-      targetType: String(item.targetType || '').trim(),
-      targetId: String(item.targetId || '').trim(),
-      targetLabel: String(item.targetLabel || '').trim(),
       result: String(item.result || '').trim(),
-      source: String(item.source || '').trim(),
-      timeKey: this._normalizeAuditTime(item.timeKey),
+      timeKey,
       createdAtDate,
       createdLabel,
-      meta: item.meta && typeof item.meta === 'object' ? item.meta : {},
     };
   },
 
@@ -117,7 +113,7 @@ Object.assign(App, {
       this._auditLogItems = [];
       this._auditLogDayKey = dayKey;
       if (list) {
-        list.innerHTML = '<div style="text-align:center;padding:1.5rem;color:var(--text-muted)">讀取稽核日誌中...</div>';
+        list.innerHTML = '<div style="text-align:center;padding:1.5rem;color:var(--text-muted)">載入中...</div>';
       }
     }
     this._updateAuditLoadMoreState();
@@ -163,8 +159,6 @@ Object.assign(App, {
       items = items.filter(item =>
         (item.actorName || '').toLowerCase().includes(keyword)
         || (item.actorUid || '').toLowerCase().includes(keyword)
-        || (item.targetLabel || '').toLowerCase().includes(keyword)
-        || (item.targetId || '').toLowerCase().includes(keyword)
       );
     }
     if (action) {
@@ -182,7 +176,7 @@ Object.assign(App, {
     if (!btn) return;
     btn.style.display = this._auditLogHasMore ? '' : 'none';
     btn.disabled = this._auditLogLoading;
-    btn.textContent = this._auditLogLoading ? '讀取中...' : '載入更多';
+    btn.textContent = this._auditLogLoading ? '載入中...' : '載入更多';
   },
 
   renderAuditLogs(items) {
@@ -191,39 +185,27 @@ Object.assign(App, {
     if (!list) return;
 
     if (summary) {
-      summary.textContent = `已讀取 ${this._auditLogItems.length} 筆，篩選後 ${items.length} 筆`;
+      summary.textContent = `共 ${this._auditLogItems.length} 筆，顯示 ${items.length} 筆`;
     }
 
     if (!items.length) {
-      list.innerHTML = '<div style="text-align:center;padding:1.5rem;color:var(--text-muted)">此日期沒有符合條件的稽核日誌</div>';
+      list.innerHTML = '<div style="text-align:center;padding:1.5rem;color:var(--text-muted)">目前沒有符合條件的稽核日誌</div>';
       return;
     }
 
     list.innerHTML = items.map(item => {
-      const metaText = Object.entries(item.meta || {})
-        .map(([key, value]) => `${key}=${value}`)
-        .join(' | ');
-      const targetText = [item.targetType || '-', item.targetId || '-'].join(' / ');
-      const resultLabel = item.result === 'failure' ? '失敗' : '成功';
-      const resultClass = item.result === 'failure' ? 'error_log' : 'role';
+      const actorName = item.actorName || item.actorUid || '未知用戶';
+      let actionLabel = this._getAuditActionLabel(item.action);
+      if (item.result === 'failure' && !actionLabel.includes('失敗')) {
+        actionLabel += '（失敗）';
+      }
       return `
-        <div class="log-item" style="flex-direction:column;gap:.35rem">
-          <div style="display:flex;justify-content:space-between;gap:.5rem;align-items:flex-start;width:100%">
-            <span class="log-time">${escapeHTML(item.createdLabel || '')}</span>
-            <span class="log-type ${resultClass}">${escapeHTML(resultLabel)}</span>
-          </div>
-          <div class="log-content" style="line-height:1.6">
-            <strong>${escapeHTML(item.actorName || '(未命名)')}</strong>
-            <span style="color:var(--text-muted);font-size:.72rem">(${escapeHTML(item.actorUid || '-')})</span>
-            <span style="color:var(--text-muted);font-size:.72rem"> · ${escapeHTML(item.actorRole || 'user')}</span>
-            <br>${escapeHTML(this._getAuditActionLabel(item.action))}
-            ${item.targetLabel ? ` · ${escapeHTML(item.targetLabel)}` : ''}
-          </div>
-          <div class="log-detail">
-            目標：${escapeHTML(targetText)}
-            ${metaText ? ` · ${escapeHTML(metaText)}` : ''}
-            ${item.source ? ` · 來源：${escapeHTML(item.source)}` : ''}
-          </div>
+        <div class="log-item">
+          <span class="log-time">${escapeHTML(item.createdLabel || item.timeKey || '')}</span>
+          <span class="log-content">
+            <span class="log-type role">${escapeHTML(actorName)}</span>
+            ${escapeHTML(actionLabel)}
+          </span>
         </div>
       `;
     }).join('');

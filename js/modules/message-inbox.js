@@ -447,7 +447,6 @@ Object.assign(App, {
           'system', '系統', applicantUid, '系統', null,
           { lineOptions: { source: 'team_join_review:approve' } }
         );
-        ApiService._writeOpLog('team_approve', '球隊審批', `${reviewerName} 同意「${applicantName}」加入「${finalTeamName}」`);
         void ApiService.writeAuditLog({
           action: 'team_join_approve',
           targetType: 'team',
@@ -473,7 +472,6 @@ Object.assign(App, {
         'system', '系統', applicantUid, '系統', null,
         { lineOptions: { source: 'team_join_review:reject' } }
       );
-      ApiService._writeOpLog('team_approve', '球隊審批', `${reviewerName} 拒絕「${applicantName}」加入「${teamName}」`);
       void ApiService.writeAuditLog({
         action: 'team_join_reject',
         targetType: 'team',

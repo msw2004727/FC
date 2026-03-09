@@ -388,11 +388,35 @@ Object.assign(App, {
   _opLogPage: 1,
   _opLogFiltered: null,
 
+  _shouldHideDuplicatedOperationLog(log) {
+    const type = String(log?.type || '').trim();
+    const content = String(log?.content || '');
+    if (!type) return false;
+
+    if (type === 'cancel_signup') return true;
+    if (type === 'team_join_request') return true;
+    if (type === 'user_restriction') return true;
+
+    if (type === 'team_approve') {
+      return content.includes('同意') || content.includes('拒絕');
+    }
+
+    if (type === 'role') {
+      return content.includes('→') || content.startsWith('編輯「');
+    }
+
+    return false;
+  },
+
+  _getVisibleOperationLogs(logs) {
+    return (logs || []).filter(log => !this._shouldHideDuplicatedOperationLog(log));
+  },
+
   filterOperationLogs(page) {
     const keyword = (document.getElementById('oplog-search')?.value || '').trim().toLowerCase();
     const typeFilter = document.getElementById('oplog-type-filter')?.value || '';
 
-    let logs = ApiService.getOperationLogs();
+    let logs = this._getVisibleOperationLogs(ApiService.getOperationLogs());
 
     if (keyword) {
       logs = logs.filter(l =>
@@ -411,14 +435,15 @@ Object.assign(App, {
 
   _opLogGoPage(page) {
     this._opLogPage = page;
-    this.renderOperationLogs(this._opLogFiltered || ApiService.getOperationLogs(), page);
+    this.renderOperationLogs(this._opLogFiltered || this._getVisibleOperationLogs(ApiService.getOperationLogs()), page);
   },
 
   renderOperationLogs(logs, page) {
     const container = document.getElementById('operation-log-list');
     if (!container) return;
 
-    if (!logs) logs = ApiService.getOperationLogs();
+    if (!logs) logs = this._getVisibleOperationLogs(ApiService.getOperationLogs());
+    logs = this._getVisibleOperationLogs(logs);
     // 最新在最上面（time 格式 YYYY/MM/DD HH:MM 字串比較即等於時間比較）
     const sorted = [...logs].sort((a, b) => (b.time || '').localeCompare(a.time || ''));
     const PAGE_SIZE = 20;

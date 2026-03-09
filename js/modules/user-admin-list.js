@@ -123,12 +123,6 @@ Object.assign(App, {
       return;
     }
 
-    ApiService._writeOpLog(
-      'user_restriction',
-      nextRestricted ? '帳號限制' : '解除限制',
-      `${actionLabel}「${name}」`
-    );
-
     void ApiService.writeAuditLog({
       action: 'admin_user_edit',
       targetType: 'user',
@@ -165,7 +159,6 @@ Object.assign(App, {
       select.value = '';
       return;
     }
-    ApiService._writeOpLog('role', '角色變更', `${name} → ${select.value}`);
     void ApiService.writeAuditLog({
       action: 'role_change',
       targetType: 'user',
@@ -291,8 +284,6 @@ Object.assign(App, {
       this.filterAdminUsers();
       this.showToast(`已更新「${name}」的資料`);
 
-      // 寫入操作紀錄
-      ApiService._writeOpLog('role', '角色變更', `編輯「${name}」資料（角色：${ROLES[updates.role]?.label || updates.role}、地區：${updates.region}）`);
     }
   },
 
