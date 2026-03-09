@@ -6,6 +6,13 @@
 
 ---
 
+### 2026-03-09 — 修復 index.html 內嵌腳本語法錯誤
+- **問題**：首頁載入時出現多個 `Uncaught SyntaxError`，包含 `Unexpected token 'if'`、`Invalid or unexpected token`、`Unexpected token ')'`，導致前台初始化流程中斷，後續 Firestore 與 Service Worker 行為也被連帶影響。
+- **原因**：`index.html` 內嵌 `<script>` 區塊被歷史亂碼與註解污染，造成 `if` / `var prev` 被註解吃掉、`console.warn` 與 `b.textContent` 字串未閉合、以及 `serviceWorker` / `window.addEventListener('error')` 的條件判斷被壓進註解同一行。
+- **修復**：修正 `index.html` 中 4 段內嵌腳本的壞行，補回 `?clear=1` 清快取判斷、版本變更的 `prev` 讀取、`Loading overlay safety timeout` 警告字串、`serviceWorker.controllerchange` 監聽，以及 script load fail recovery 按鈕文字；並同步將快取版本升到 `20260309l`、更新 `js/config.js` 的 `CACHE_VERSION`。
+- **教訓**：HTML 內嵌腳本一旦被亂碼或註解汙染，會比一般 JS 檔更難局部修補；之後碰到頁面層 `SyntaxError`，要先檢查是否有「註解吃掉程式碼」與「未閉合字串」這兩類低級錯誤。
+---
+
 ### 2026-03-09 — 修正頁首右上角順序與擠壓跑版
 - **問題**：頁首右上角在窄螢幕或資訊較多時容易被 EXP 顯示擠壞，視覺順序也不符合需求，應從右至左呈現頭像、通知鈴鐺、體育分類。
 - **原因**：`top-bar-right` 內的 DOM 順序是 sport picker、EXP、通知、頭像，且 header 缺少最小寬度與縮排保護，手機寬度下容易被文字與數字撐壞。
@@ -1256,4 +1263,3 @@
 | Cloud Functions SA | `468419387978-compute@developer.gserviceaccount.com` |
 | Cloud Functions region | `asia-east1` |
 | Firebase Auth 帳號 | `msw741121@gmail.com` |
-

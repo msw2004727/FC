@@ -10,34 +10,34 @@
   <meta property="og:url" content="https://toosterx.com">
   <meta property="og:type" content="website">
   <link rel="icon" href="data:,">
-  <!-- CDN ??????? + ?????????蝞??????????? HTML ??????頩???拆?皞????????SDK??-->
+  <!-- CDN ????豯叟???? + ?????????????????????? HTML ?????????????????????SDK??-->
   <link rel="preconnect" href="https://www.gstatic.com">
   <link rel="preconnect" href="https://static.line-scdn.net">
   <link rel="preconnect" href="https://firestore.googleapis.com">
   <link rel="preconnect" href="https://firebasestorage.googleapis.com">
   <link rel="preconnect" href="https://identitytoolkit.googleapis.com">
   <link rel="preconnect" href="https://line-scdn.net" crossorigin>
-  <!-- ?????????謖?????????????clear=1 ????????INE ???謘??????????????? -->
+  <!-- ???????????雓??????荔?????????clear=1 ????????INE ???雓???????????????? -->
   <script>
   (function(){
-    var V='20260309k';
+    var V='20260309l';
     var isProd = location.hostname === 'toosterx.com' || location.hostname === 'www.toosterx.com' || location.hostname === 'msw2004727.github.io' || location.hostname === 'fc-3g8.pages.dev';
-    // ?clear=1 ?????????????    if(location.search.indexOf('clear=1')!==-1){
+    if(location.search.indexOf('clear=1')!==-1){
       if('caches' in window) caches.keys().then(function(k){k.forEach(function(n){caches.delete(n)})});
       if('serviceWorker' in navigator) navigator.serviceWorker.getRegistrations().then(function(r){r.forEach(function(w){w.unregister()})});
       var old=['sporthub_auto_exp_rules','sporthub_auto_exp_logs'];
       old.forEach(function(k){try{localStorage.removeItem(k)}catch(e){}});
-      // ?????hostname???亥控???謖???????????????production ?????
+      // ?????hostname???荔??鈭交???雓???????????????production ?????
       if(isProd) localStorage.setItem('sporthub_mode','production');
       localStorage.setItem('sporthub_cache_ver',V);
       location.replace(location.pathname);
       return;
     }
-    // ??????城???????????? ????SW cache + ???????????? bug ???????demo ??????    var prev=localStorage.getItem('sporthub_cache_ver');
+    var prev=localStorage.getItem('sporthub_cache_ver');
     if(prev&&prev!==V){
       if('caches' in window) caches.keys().then(function(k){k.forEach(function(n){caches.delete(n)})});
       if('serviceWorker' in navigator) navigator.serviceWorker.getRegistrations().then(function(r){r.forEach(function(w){w.unregister()})});
-      // ?????hostname????????????????????production??????佇????????????????demo ??????
+      // ?????hostname???荔????????????????殉?????production??????雿????????????????demo ??????
       if(isProd && localStorage.getItem('sporthub_mode')==='demo'){
         localStorage.setItem('sporthub_mode','production');
       }
@@ -46,24 +46,24 @@
   })();
   </script>
   <!-- CSS ??????????base ??layout ???????????? -->
-  <link rel="stylesheet" href="css/base.css?v=20260309k">
-  <link rel="stylesheet" href="css/layout.css?v=20260309k">
-  <link rel="stylesheet" href="css/home.css?v=20260309k">
-  <link rel="stylesheet" href="css/activity.css?v=20260309k">
-  <link rel="stylesheet" href="css/team.css?v=20260309k">
-  <link rel="stylesheet" href="css/profile.css?v=20260309k">
-  <link rel="stylesheet" href="css/message.css?v=20260309k">
-  <link rel="stylesheet" href="css/tournament.css?v=20260309k">
-  <link rel="stylesheet" href="css/shop.css?v=20260309k">
-  <link rel="stylesheet" href="css/scan.css?v=20260309k">
-  <link rel="stylesheet" href="css/admin.css?v=20260309k">
-  <link rel="stylesheet" href="css/game.css?v=20260309k">
-  <link rel="stylesheet" href="css/image-cropper.css?v=20260309k">
+  <link rel="stylesheet" href="css/base.css?v=20260309l">
+  <link rel="stylesheet" href="css/layout.css?v=20260309l">
+  <link rel="stylesheet" href="css/home.css?v=20260309l">
+  <link rel="stylesheet" href="css/activity.css?v=20260309l">
+  <link rel="stylesheet" href="css/team.css?v=20260309l">
+  <link rel="stylesheet" href="css/profile.css?v=20260309l">
+  <link rel="stylesheet" href="css/message.css?v=20260309l">
+  <link rel="stylesheet" href="css/tournament.css?v=20260309l">
+  <link rel="stylesheet" href="css/shop.css?v=20260309l">
+  <link rel="stylesheet" href="css/scan.css?v=20260309l">
+  <link rel="stylesheet" href="css/admin.css?v=20260309l">
+  <link rel="stylesheet" href="css/game.css?v=20260309l">
+  <link rel="stylesheet" href="css/image-cropper.css?v=20260309l">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 </head>
 <body>
-  <!-- ??????雓????????????debug=1 ????頩? -->
+  <!-- ????????????荔?????????debug=1 ?????? -->
   <script>
   if(location.search.indexOf('debug=1')!==-1){
     var _dbg=document.createElement('div');
@@ -81,7 +81,7 @@
   }
   </script>
   <script>
-    // ???????????城?????????頩??雓?????蹓??????蹓??????Demo ????
+    // ????????????桀??????荔????????????????頩???????頩??????Demo ????
     (function(){
       var mode = localStorage.getItem('sporthub_mode') ||
         (['toosterx.com','www.toosterx.com','msw2004727.github.io','fc-3g8.pages.dev'].includes(location.hostname) ? 'production' : 'demo');
@@ -100,69 +100,69 @@
       <span class="logo-text">TooSterx Hub</span>
     </div>
     <div class="top-bar-right">
-      <div id="points-display" class="points-display" title="目前 EXP">
+      <div id="points-display" class="points-display" title="?桀? EXP">
         <span class="points-icon">P</span>
         <span class="points-value" id="points-value">0</span>
       </div>
       <div class="sport-picker-wrapper" id="sport-picker-wrapper">
-        <button class="sport-picker-btn" id="sport-picker-btn" aria-label="運動分類 / 場景標籤">
-          <span class="sport-picker-icon"><span class="sport-emoji" aria-hidden="true">⚽</span></span>
+        <button class="sport-picker-btn" id="sport-picker-btn" aria-label="???? / ?湔璅惜">
+          <span class="sport-picker-icon"><span class="sport-emoji" aria-hidden="true">??/span></span>
         </button>
         <div class="sport-picker-dropdown" id="sport-picker-dropdown">
-          <div class="sport-picker-header">運動分類 / 場景標籤</div>
+          <div class="sport-picker-header">???? / ?湔璅惜</div>
           <div id="sport-picker-list"></div>
         </div>
       </div>
-      <button id="notif-btn" aria-label="通知">
+      <button id="notif-btn" aria-label="?">
         <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
         <span class="notif-badge" id="notif-badge" style="display:none"></span>
       </button>
       <div class="role-switcher-wrapper" id="role-switcher-wrapper" style="display:none">
-        <button id="role-avatar-btn" class="role-avatar-btn" aria-label="切換 Demo 身分">
-          <div class="role-avatar">麥</div>
-          <span class="role-current-label">一般使用者</span>
-          <span class="role-arrow">▾</span>
+        <button id="role-avatar-btn" class="role-avatar-btn" aria-label="?? Demo 頨怠?">
+          <div class="role-avatar">暻?/div>
+          <span class="role-current-label">銝?砌蝙?刻?/span>
+          <span class="role-arrow">??/span>
         </button>
         <div id="role-dropdown" class="role-dropdown">
-          <div class="role-dropdown-header">切換 Demo 身分</div>
+          <div class="role-dropdown-header">?? Demo 頨怠?</div>
           <button class="role-dropdown-item active" data-role="user">
             <span class="role-icon">U</span>
-            <span>一般使用者</span>
+            <span>銝?砌蝙?刻?/span>
           </button>
           <button class="role-dropdown-item" data-role="coach">
             <span class="role-icon">C</span>
-            <span>教練</span>
+            <span>?毀</span>
           </button>
           <button class="role-dropdown-item" data-role="captain">
             <span class="role-icon">L</span>
-            <span>隊長</span>
+            <span>?</span>
           </button>
           <button class="role-dropdown-item" data-role="venue_owner">
             <span class="role-icon">V</span>
-            <span>場地主</span>
+            <span>?游銝?/span>
           </button>
           <button class="role-dropdown-item" data-role="admin">
             <span class="role-icon">A</span>
-            <span>管理員</span>
+            <span>蝞∠???/span>
           </button>
           <button class="role-dropdown-item" data-role="super_admin">
             <span class="role-icon">S</span>
-            <span>超級管理員</span>
+            <span>頞?蝞∠???/span>
           </button>
         </div>
       </div>
       <div id="line-login-wrapper" class="line-login-wrapper" style="display:none">
         <button id="line-login-btn" class="line-login-btn" onclick="LineAuth.login()">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="#fff"><path d="M12 2C6.48 2 2 5.83 2 10.5c0 4.18 3.66 7.68 8.58 8.38.33.07.78.22.9.5.1.26.07.66.03.92l-.15.86c-.04.26-.2 1.01.88.55s5.88-3.47 8.03-5.93C22.08 13.79 22 12.18 22 10.5 22 5.83 17.52 2 12 2z"/></svg>
-          LINE 登入
+          LINE ?餃
         </button>
         <div id="line-user-topbar" class="line-user-topbar" style="display:none">
           <img id="line-avatar-topbar" class="line-avatar-topbar" src="" alt="" onclick="App.toggleUserMenu()">
           <div id="user-menu-dropdown" class="user-menu-dropdown" style="display:none">
             <div class="user-menu-name" id="user-menu-name"></div>
             <div class="user-menu-divider"></div>
-            <button class="user-menu-item" onclick="App.showPage('page-profile'); App.toggleUserMenu()">個人資料</button>
-            <button class="user-menu-item user-menu-logout" onclick="App.logoutLine()">登出</button>
+            <button class="user-menu-item" onclick="App.showPage('page-profile'); App.toggleUserMenu()">?犖鞈?</button>
+            <button class="user-menu-item user-menu-logout" onclick="App.logoutLine()">?餃</button>
           </div>
         </div>
       </div>
@@ -184,17 +184,17 @@
     <div class="drawer-menu" id="drawer-menu"></div>
     <div class="drawer-footer">
       <button id="theme-toggle">
-        <span>??偃???????</span>
+        <span>???桀????????</span>
         <div class="toggle-switch"><div class="toggle-knob"></div></div>
       </button>
       <div id="lang-switcher" class="lang-switcher">
-        <span class="lang-label">???單???</span>
+        <span class="lang-label">???????</span>
         <select id="lang-select" onchange="App.switchLanguage(this.value)"></select>
       </div>
     </div>
   </nav>
 
-  <!-- ============ MAIN CONTENT?????PageLoader ??偃銝???pages/*.html??============ -->
+  <!-- ============ MAIN CONTENT?????PageLoader ???桀?????pages/*.html??============ -->
   <main id="main-content"></main>
 
   <!-- ============ BOTTOM TAB BAR ============ -->
@@ -226,7 +226,7 @@
     </button>
   </nav>
 
-  <!-- ============ ??????????鞎???制???? PageLoader ??偃銝???pages/modals.html??============ -->
+  <!-- ============ ?????????????????塗僚???? PageLoader ???桀?????pages/modals.html??============ -->
   <div id="modal-container"></div>
 
   <!-- Mode Badge -->
@@ -236,7 +236,7 @@
   <div id="toast" class="toast"></div>
   <div id="status-hint" class="status-hint" style="display:none" aria-live="polite" aria-busy="true">
     <span class="status-hint__spinner" aria-hidden="true"></span>
-    <span class="status-hint__text" data-status-hint-text>???謢遴郁???偃銝?????..</span>
+    <span class="status-hint__text" data-status-hint-text>???雓ａ?????桀???????..</span>
   </div>
 
   <!-- Loading Overlay -->
@@ -259,13 +259,13 @@
       <div class="boot-loading__sub">???????????)???????????..</div>
     </div>
   </div>
-  <!-- Deep link ?????????????????????????秋狀?FF ??拆??瑁控???ready ???穿????鞊臬?? -->
+  <!-- Deep link ?????????????????????????蝘??FF ?????????ready ???蝛遴????????? -->
   <div id="deep-link-overlay" class="deep-link-overlay" style="display:none" aria-live="polite" aria-busy="true">
     <div class="deep-link-card">
       <div class="deep-link-spinner" aria-hidden="true"></div>
       <div class="deep-link-copy">
-        <div class="deep-link-title" data-deep-link-title>?????????????玫頩?</div>
-        <div class="deep-link-sub" data-deep-link-sub>????殉狐????????雓???????????????..</div>
+        <div class="deep-link-title" data-deep-link-title>????????????????</div>
+        <div class="deep-link-sub" data-deep-link-sub>????畾??????????????????????????..</div>
       </div>
     </div>
   </div>
@@ -352,7 +352,7 @@
       if (window._bootLoadingAnim && typeof window._bootLoadingAnim.start === 'function') {
         window._bootLoadingAnim.start();
       }
-      // ???????????亥控???鞈??雓???20 ??????????????????????
+      // ???????????荔??鈭交??????????20 ??????????????????????
       window._loadingSafety = setTimeout(function() {
         var ov = document.getElementById('loading-overlay');
         if (ov && ov.style.display !== 'none') {
@@ -361,69 +361,69 @@
             window._bootLoadingAnim.stop();
           }
           document.documentElement.classList.remove('prod-early');
-          console.warn('[Boot] ??偃銝??????????????????????????);
+          console.warn('[Boot] Loading overlay safety timeout triggered.');
         }
       }, 20000);
     }
   </script>
 
-  <!-- Firebase SDK + LIFF SDK ??app.js ?????偃銝????????DOMContentLoaded -->
+  <!-- Firebase SDK + LIFF SDK ??app.js ??????桀??????????DOMContentLoaded -->
 
-  <!-- QR Code ?????的???????????????????? -->
-  <!-- ??scan.js ?????偃銝????????????偃?????-->
+  <!-- QR Code ??????????????????????????? -->
+  <!-- ??scan.js ??????桀???????????????桀??????-->
 
-  <!-- ??鞈????????? -->
-  <script defer src="js/i18n.js?v=20260309k"></script>
+  <!-- ?????????豰刈??? -->
+  <script defer src="js/i18n.js?v=20260309l"></script>
 
   <!-- ?????-->
-  <script defer src="js/config.js?v=20260309k"></script>
-  <script defer src="js/data.js?v=20260309k"></script>
-  <script defer src="js/firebase-config.js?v=20260309k"></script>
-  <script defer src="js/firebase-service.js?v=20260309k"></script>
-  <script defer src="js/firebase-crud.js?v=20260309k"></script>
-  <script defer src="js/api-service.js?v=20260309k"></script>
-  <script defer src="js/line-auth.js?v=20260309k"></script>
+  <script defer src="js/config.js?v=20260309l"></script>
+  <script defer src="js/data.js?v=20260309l"></script>
+  <script defer src="js/firebase-config.js?v=20260309l"></script>
+  <script defer src="js/firebase-service.js?v=20260309l"></script>
+  <script defer src="js/firebase-crud.js?v=20260309l"></script>
+  <script defer src="js/api-service.js?v=20260309l"></script>
+  <script defer src="js/line-auth.js?v=20260309l"></script>
 
-  <!-- ???玫頩???偃銝????+ ??????璈????偃銝???????蹎制狀????App ??????-->
-  <script defer src="js/core/page-loader.js?v=20260309k"></script>
-  <script defer src="js/core/script-loader.js?v=20260309k"></script>
+  <!-- ?????????桀??????+ ???????江?????桀?????????頩?????App ??????-->
+  <script defer src="js/core/page-loader.js?v=20260309l"></script>
+  <script defer src="js/core/script-loader.js?v=20260309l"></script>
 
-  <!-- ?????????App ????? + init/renderAll/showToast??-->
-  <script defer src="app.js?v=20260309k"></script>
+  <!-- ?????????App ??????? + init/renderAll/showToast??-->
+  <script defer src="app.js?v=20260309l"></script>
 
   <!-- ????????? -->
-  <script defer src="js/core/navigation.js?v=20260309k"></script>
-  <script defer src="js/core/theme.js?v=20260309k"></script>
-  <script defer src="js/core/mode.js?v=20260309k"></script>
+  <script defer src="js/core/navigation.js?v=20260309l"></script>
+  <script defer src="js/core/theme.js?v=20260309l"></script>
+  <script defer src="js/core/mode.js?v=20260309l"></script>
 
   <!-- ?????????? -->
-  <script defer src="js/modules/image-cropper.js?v=20260309k"></script>
-  <script defer src="js/modules/image-upload.js?v=20260309k"></script>
-  <script defer src="js/modules/role.js?v=20260309k"></script>
-  <script defer src="js/modules/profile-core.js?v=20260309k"></script>
-  <script defer src="js/modules/profile-data.js?v=20260309k"></script>
-  <script defer src="js/modules/profile-card.js?v=20260309k"></script>
-  <script defer src="js/modules/banner.js?v=20260309k"></script>
-  <script defer src="js/modules/ad-manage-core.js?v=20260309k"></script>
-  <script defer src="js/modules/popup-ad.js?v=20260309k"></script>
-  <script defer src="js/modules/announcement.js?v=20260309k"></script>
-  <script defer src="js/modules/site-theme.js?v=20260309k"></script>
-  <script defer src="js/modules/event-list.js?v=20260309k"></script>
-  <script defer src="js/modules/event-manage.js?v=20260309k"></script>
-  <script defer src="js/modules/event-create.js?v=20260309k"></script>
-  <script defer src="js/modules/tournament-render.js?v=20260309k"></script>
-  <script defer src="js/modules/message-inbox.js?v=20260309k"></script>
-  <script defer src="js/modules/message-admin.js?v=20260309k"></script>
-  <script defer src="js/modules/achievement.js?v=20260309k"></script>
-  <script defer src="js/modules/auto-exp.js?v=20260309k"></script>
-  <script defer src="js/modules/favorites.js?v=20260309k"></script>
-  <script defer src="js/modules/shop.js?v=20260309k"></script>
-  <script defer src="js/modules/leaderboard.js?v=20260309k"></script>
+  <script defer src="js/modules/image-cropper.js?v=20260309l"></script>
+  <script defer src="js/modules/image-upload.js?v=20260309l"></script>
+  <script defer src="js/modules/role.js?v=20260309l"></script>
+  <script defer src="js/modules/profile-core.js?v=20260309l"></script>
+  <script defer src="js/modules/profile-data.js?v=20260309l"></script>
+  <script defer src="js/modules/profile-card.js?v=20260309l"></script>
+  <script defer src="js/modules/banner.js?v=20260309l"></script>
+  <script defer src="js/modules/ad-manage-core.js?v=20260309l"></script>
+  <script defer src="js/modules/popup-ad.js?v=20260309l"></script>
+  <script defer src="js/modules/announcement.js?v=20260309l"></script>
+  <script defer src="js/modules/site-theme.js?v=20260309l"></script>
+  <script defer src="js/modules/event-list.js?v=20260309l"></script>
+  <script defer src="js/modules/event-manage.js?v=20260309l"></script>
+  <script defer src="js/modules/event-create.js?v=20260309l"></script>
+  <script defer src="js/modules/tournament-render.js?v=20260309l"></script>
+  <script defer src="js/modules/message-inbox.js?v=20260309l"></script>
+  <script defer src="js/modules/message-admin.js?v=20260309l"></script>
+  <script defer src="js/modules/achievement.js?v=20260309l"></script>
+  <script defer src="js/modules/auto-exp.js?v=20260309l"></script>
+  <script defer src="js/modules/favorites.js?v=20260309l"></script>
+  <script defer src="js/modules/shop.js?v=20260309l"></script>
+  <script defer src="js/modules/leaderboard.js?v=20260309l"></script>
 
-  <!-- Service Worker Registration + ??????鞊?? -->
+  <!-- Service Worker Registration + ????????? -->
   <script>
     if ('serviceWorker' in navigator) {
-      // ???城???SW ??鞊?? ???????????玫頩??????????????????????????????遴飾??????CDN ??偃銝?????      navigator.serviceWorker.addEventListener('controllerchange', function() {
+      navigator.serviceWorker.addEventListener('controllerchange', function() {
         if (!window._swReloading && !window._appInitializing) {
           window._swReloading = true; location.reload();
         }
@@ -433,16 +433,16 @@
       });
     }
   </script>
-  <!-- ???璈????偃銝???????????????雓????????謖?????? -->
+  <!-- ????江?????桀???????????????荔??????????????雓?????? -->
   <script>
     window.addEventListener('error', function(e) {
-      // ?????????????????????CDN ?????偃銝????script ?????onerror ????????????????????      if (e.target && e.target.tagName === 'SCRIPT' && e.target.src && e.target.src.indexOf(location.origin) === 0) {
+      if (e.target && e.target.tagName === 'SCRIPT' && e.target.src && e.target.src.indexOf(location.origin) === 0) {
         console.error('[Boot] Script failed:', e.target.src);
         var b = document.getElementById('_recovery_btn');
         if (!b) {
           b = document.createElement('button');
           b.id = '_recovery_btn';
-          b.textContent = '??偃銝??????????????????????????????;
+          b.textContent = '腳本載入失敗，點我清快取後重整';
           b.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:99999;padding:1rem 2rem;font-size:1rem;background:#dc2626;color:#fff;border:none;border-radius:8px;cursor:pointer';
           b.onclick = function() {
             if ('caches' in window) caches.keys().then(function(k){k.forEach(function(n){caches.delete(n)})});
