@@ -1,0 +1,722 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>誰才是開球王</title>
+  <style>
+    body { margin: 0; overflow: hidden; background: #87ceeb; font-family: "Microsoft JhengHei", sans-serif; touch-action: none; }
+    #game-container { position: fixed; inset: 0; background: #000; }
+    #loading { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: #000; color: #fff; z-index: 999; font-size: 24px; }
+    #flash-overlay { position: fixed; inset: 0; background: radial-gradient(circle, rgba(255,255,255,0.82) 0%, rgba(255,255,255,0.34) 34%, rgba(255,255,255,0) 74%); opacity: 0; pointer-events: none; z-index: 80; transition: opacity .14s ease-out; }
+    #impact-ring { position: fixed; width: 80px; height: 80px; margin-left: -40px; margin-top: -40px; border: 3px solid rgba(255,255,255,.7); border-radius: 50%; opacity: 0; transform: scale(.35); pointer-events: none; z-index: 45; transition: transform .22s ease-out, opacity .22s ease-out; }
+    #grade-pop, #shot-type-pop { position: fixed; left: 50%; transform: translate(-50%, -50%) scale(.9); color: #fff; font-weight: 900; text-shadow: 0 3px 12px rgba(0,0,0,.72); opacity: 0; pointer-events: none; transition: opacity .16s ease-out, transform .22s ease-out; }
+    #grade-pop { top: 24%; z-index: 85; font-size: clamp(30px, 5.5vw, 52px); }
+    #shot-type-pop { top: 33%; z-index: 70; font-size: clamp(22px, 4.2vw, 36px); }
+    #first-tip { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); color: rgba(255,236,170,0.94); font-size: clamp(18px, 3.5vw, 28px); font-weight: 800; text-shadow: 0 2px 10px rgba(0,0,0,0.75); opacity: 0; pointer-events: none; z-index: 65; transition: opacity .2s ease-out; white-space: nowrap; }
+    #theme-toggle-wrap { position: fixed; top: 16px; right: 16px; z-index: 30; pointer-events: auto; }
+    #theme-toggle { border: 0; border-radius: 999px; padding: 9px 14px; background: rgba(12,20,30,0.45); color: #fff; font-weight: 700; font-size: 14px; cursor: pointer; border: 1px solid rgba(255,255,255,0.18); box-shadow: 0 8px 20px rgba(0,0,0,0.16); backdrop-filter: blur(4px); }
+    body.theme-light #theme-toggle { background: rgba(255,255,255,0.72); color: #24303a; border-color: rgba(36,48,58,0.14); }
+    body.theme-light .top { background: linear-gradient(180deg, rgba(255,255,255,0.74) 0%, rgba(255,255,255,0.56) 100%); border-color: rgba(36,48,58,0.10); color: #24303a; text-shadow: 0 1px 6px rgba(255,255,255,0.25); }
+    body.theme-light #best { color: #9a6b00; }
+    body.theme-light #current { color: #1b2730; }
+    body.theme-light #shots { color: #35586a; }
+    body.theme-light #restart-inline { background: rgba(36,48,58,0.08); color: #24303a; border-color: rgba(36,48,58,0.14); }
+    #ui { position: fixed; inset: 0; pointer-events: none; z-index: 10; }
+    .top { padding: 16px 18px; color: #f7fbff; text-shadow: 0 2px 10px rgba(0,0,0,.45); font-weight: 700; display: inline-block; margin: 14px; border-radius: 16px; background: linear-gradient(180deg, rgba(8,24,38,.20) 0%, rgba(8,24,38,.08) 100%); border: 1px solid rgba(255,255,255,.12); backdrop-filter: blur(4px); box-shadow: 0 10px 28px rgba(0,0,0,.10); }
+    .best-row { display: flex; align-items: center; gap: 10px; }
+    #best { color: #ffe082; font-size: clamp(15px, 3.2vw, 20px); }
+    #current { color: #ffffff; font-size: clamp(24px, 5vw, 34px); margin-top: 6px; font-weight: 900; }
+    #shots { color: #d7f4ff; font-size: clamp(14px, 3vw, 18px); margin-top: 7px; opacity: .92; }
+    #restart-inline { pointer-events: auto; border: 0; border-radius: 999px; padding: 8px 14px; background: rgba(255,255,255,0.16); color: #fff; font-weight: 700; font-size: 14px; cursor: pointer; border: 1px solid rgba(255,255,255,0.18); }
+    #msg { position: fixed; left: 50%; top: 40%; transform: translate(-50%, -50%); color: #fff; font-size: clamp(22px, 5vw, 34px); font-weight: bold; text-shadow: 0 2px 10px rgba(0,0,0,.9); text-align: center; opacity: 0; transition: opacity .22s; white-space: pre-line; }
+    #restart-wrap { position: fixed; bottom: 70px; left: 50%; transform: translateX(-50%); pointer-events: auto; }
+    #restart { display: none; border: 0; border-radius: 10px; padding: 14px 34px; background: #e53935; color: #fff; font-weight: bold; font-size: 19px; cursor: pointer; box-shadow: 0 8px 24px rgba(0,0,0,.25); }
+    #floating-ui { position: fixed; transform: translate(-50%, -100%); display: flex; flex-direction: column; align-items: center; gap: 12px; z-index: 20; pointer-events: none; opacity: 0; transition: opacity .15s; }
+    #aim-radar { position: relative; width: 100px; height: 100px; border-radius: 50%; border: 4px solid rgba(255,255,255,0.25); background: rgba(255,255,255,0.03); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08), 0 0 12px rgba(0,0,0,.35); overflow: hidden; }
+    #aim-radar-image-layer { position: absolute; inset: 0; border-radius: 50%; background-position: center; background-repeat: no-repeat; background-size: cover; opacity: 0.25; pointer-events: none; }
+    #aim-radar.locked { border-color: #00ff88; box-shadow: 0 0 20px rgba(0,255,136,.85); }
+    #aim-dot { position: absolute; width: 20px; height: 20px; border-radius: 50%; left: 50%; top: 50%; transform: translate(-50%, -50%); background: rgba(55,55,55,0.62); border: 3px solid rgba(255,255,255,0.95); box-shadow: 0 0 8px rgba(0,0,0,0.28); }
+    #power-wrap { width: 156px; height: 22px; border-radius: 11px; overflow: hidden; border: 2px solid #fff; background: rgba(0,0,0,.75); display: none; }
+    #power-fill { width: 0%; height: 100%; background: linear-gradient(90deg, #00bfff 0%, #0057a0 78%, #ff7a00 92%, #ff0000 100%); }
+  </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+  <div id="loading">載入 誰才是開球王 中...</div>
+  <div id="flash-overlay"></div>
+  <div id="impact-ring"></div>
+  <div id="game-container"></div>
+  <div id="theme-toggle-wrap"><button id="theme-toggle">淺色主題</button></div>
+  <div id="floating-ui">
+    <div id="aim-radar"><div id="aim-radar-image-layer"></div><div id="aim-dot"></div></div>
+    <div id="power-wrap"><div id="power-fill"></div></div>
+  </div>
+  <div id="ui">
+    <div class="top">
+      <div class="best-row"><div id="best">歷史最佳: 0.00 m</div><button id="restart-inline">重新開始</button></div>
+      <div id="current">當下總距: 0.00 m</div>
+      <div id="shots">球速: 0.00 km/h ｜ 剩餘腳數: 3</div>
+      <div id="wind" style="color:#d7f4ff; font-size:clamp(14px,3vw,18px); margin-top:5px; opacity:.92;"> </div>
+    </div>
+    <div id="msg"></div>
+    <div id="shot-type-pop"></div>
+    <div id="first-tip">點球長按開始</div>
+    <div id="grade-pop"></div>
+    <div id="restart-wrap"><button id="restart">重新挑戰</button></div>
+  </div>
+  <script>
+    var scene, camera, renderer, ball, ground, dirLight;
+    var raycaster, mouse;
+    var gameState = 'aiming';
+    var aimTarget = { x: 0, y: 0 };
+    var aimTime = 0, charging = false, power = 0, powerDir = 1;
+    var shotsLeft = 3, bestDistance = 0, currentDistance = 0, resultTimer = null;
+    var lastKickGrade = 'GOOD', distanceAtShotStart = 0, bonusDistance = 0;
+    var shotCameraHold = 0, cameraModeBlend = 1, landingCameraDamp = 0, timeScale = 1, slowMoTimer = 0, cameraShakeTimer = 0, cameraShakeStrength = 0;
+    var displayedDistance = 0, displayedSpeedKmh = 0, hasTriggeredLandingRing = false, hasKickedOnce = false;
+    var SPEED_DISPLAY_FACTOR = 1.45;
+    var ballRadius = 1.2, realBallDiameterMeters = 0.22, unitsPerMeter = (ballRadius * 2.0) / realBallDiameterMeters;
+    var lastValidStart = new THREE.Vector3(0, ballRadius, 0), velocity = new THREE.Vector3(), spin = new THREE.Vector3();
+    var cameraLookTarget = new THREE.Vector3(), cameraDesiredPosition = new THREE.Vector3();
+    var gravity = 24.0, airDrag = 0.9965, magnusScale = 0.0024, sideSpinAirDecay = 0.996, spinAirDecay = 0.9975, lateralFriction = 0.975;
+    var clock = new THREE.Clock(), FIXED_DT = 1 / 120, accumulator = 0;
+    var terrainBumps = [];
+    var container = document.getElementById('game-container'), msgEl = document.getElementById('msg'), bestEl = document.getElementById('best'), currentEl = document.getElementById('current'), shotsEl = document.getElementById('shots');
+    var restartBtn = document.getElementById('restart'), restartInlineBtn = document.getElementById('restart-inline'), floatingUI = document.getElementById('floating-ui');
+    var aimRadar = document.getElementById('aim-radar'), aimDot = document.getElementById('aim-dot'), powerWrap = document.getElementById('power-wrap'), powerFill = document.getElementById('power-fill');
+    var flashOverlay = document.getElementById('flash-overlay'), impactRing = document.getElementById('impact-ring'), gradePop = document.getElementById('grade-pop'), shotTypePop = document.getElementById('shot-type-pop');
+    var firstTipEl = document.getElementById('first-tip'), themeToggleBtn = document.getElementById('theme-toggle');
+    var isLightTheme = true, daySkyTexture = null, nightSkyTexture = null;
+    var windX = 0, windZ = 0, windStrength = 0, windAngle = 0;
+
+    function assert(cond, msg) { if (!cond) throw new Error(msg); }
+    function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+    function showMessage(text, color, ms) {
+      if (color === undefined) color = '#fff';
+      if (ms === undefined) ms = 2200;
+      msgEl.textContent = text;
+      msgEl.style.color = color;
+      msgEl.style.opacity = '1';
+      setTimeout(function(){ if (gameState !== 'gameover') msgEl.style.opacity = '0'; }, ms);
+    }
+    function showGrade(text, color) {
+      gradePop.textContent = text;
+      gradePop.style.color = color;
+      gradePop.style.opacity = '1';
+      gradePop.style.transform = 'translate(-50%, -50%) scale(1.06)';
+      setTimeout(function(){ gradePop.style.opacity = '0'; gradePop.style.transform = 'translate(-50%, -50%) scale(1.14)'; }, 620);
+    }
+    function showShotType(text) {
+      shotTypePop.textContent = text;
+      shotTypePop.style.opacity = '1';
+      shotTypePop.style.transform = 'translate(-50%, -50%) scale(1)';
+      setTimeout(function(){ shotTypePop.style.opacity = '0'; shotTypePop.style.transform = 'translate(-50%, -50%) scale(1.04)'; }, 2000);
+    }
+    function triggerFlash(strength) {
+      if (strength === undefined) strength = 1;
+      flashOverlay.style.opacity = String(Math.min(1, 0.42 + strength * 0.34));
+      setTimeout(function(){ flashOverlay.style.opacity = '0'; }, 120);
+    }
+    function triggerImpactRing(worldPos) {
+      var p = worldPos.clone().project(camera);
+      impactRing.style.left = ((p.x * 0.5 + 0.5) * window.innerWidth) + 'px';
+      impactRing.style.top = ((-(p.y * 0.5) + 0.5) * window.innerHeight) + 'px';
+      impactRing.style.opacity = '0.9';
+      impactRing.style.transform = 'scale(.35)';
+      requestAnimationFrame(function(){ impactRing.style.opacity = '0'; impactRing.style.transform = 'scale(1.45)'; });
+    }
+    function classifyShotType(contactX, contactY, speed) {
+      var ax = Math.abs(contactX);
+      if (ax >= 0.42) return contactX < 0 ? '右彎球' : '左彎球';
+      if (contactY <= -0.28) return speed >= 95 ? '高吊砲' : '高吊球';
+      if (contactY >= 0.3) return speed >= 90 ? '低平砲' : '低平球';
+      if (speed >= 92) return '重砲直球';
+      return '直線抽射';
+    }
+    function triggerJuice(grade, powerValue) {
+      if (powerValue === undefined) powerValue = 100;
+      var pr = clamp((powerValue - 90) / 10, 0, 1);
+      if (grade === 'PERFECT') {
+        triggerFlash(0.75 + pr * 0.25);
+        showGrade('PERFECT', '#ffd54a');
+        cameraShakeTimer = 0.10 + pr * 0.07;
+        cameraShakeStrength = 0.12 + pr * 0.14;
+        slowMoTimer = 0.05 + pr * 0.04;
+      } else if (grade === 'GREAT') {
+        triggerFlash(0.48 + pr * 0.28);
+        showGrade('GREAT', '#7ee787');
+        cameraShakeTimer = 0.07 + pr * 0.05;
+        cameraShakeStrength = 0.06 + pr * 0.08;
+        slowMoTimer = 0.032 + pr * 0.03;
+      } else if (powerValue >= 90) {
+        triggerFlash(0.28 + pr * 0.24);
+        showGrade('GOOD', '#fff');
+        cameraShakeTimer = 0.05 + pr * 0.04;
+        cameraShakeStrength = 0.035 + pr * 0.045;
+        slowMoTimer = 0.022 + pr * 0.02;
+      }
+    }
+    function createBallTexture() {
+      var c = document.createElement('canvas');
+      c.width = 512; c.height = 512;
+      var ctx = c.getContext('2d');
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(0, 0, 512, 512);
+      ctx.strokeStyle = '#303030';
+      ctx.lineWidth = 10;
+      for (var i = 0; i < 10; i += 1) {
+        ctx.beginPath();
+        ctx.arc(Math.random() * 512, Math.random() * 512, 58, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      return new THREE.CanvasTexture(c);
+    }
+    function createGrassTexture(isDark) {
+      var c = document.createElement('canvas');
+      c.width = 1024; c.height = 2048;
+      var ctx = c.getContext('2d');
+      var bandCount = 36;
+      var bandPx = c.height / bandCount;
+      var lightA = isDark ? '#1b3f24' : '#2f8a36';
+      var lightB = isDark ? '#214a2c' : '#347c3a';
+      var i;
+      for (i = 0; i < bandCount; i += 1) {
+        ctx.fillStyle = (i % 2 === 0) ? lightA : lightB;
+        ctx.fillRect(0, i * bandPx, c.width, Math.ceil(bandPx));
+      }
+      for (i = 0; i < 2200; i += 1) {
+        var x = Math.random() * c.width, y = Math.random() * c.height, a = isDark ? (0.008 + Math.random() * 0.014) : (0.02 + Math.random() * 0.03);
+        ctx.fillStyle = 'rgba(255,255,255,' + a + ')';
+        ctx.fillRect(x, y, 1, 1 + Math.random() * 2);
+      }
+      for (var yy = 0; yy < c.height; yy += 56) {
+        ctx.fillStyle = isDark ? 'rgba(255,255,255,0.006)' : 'rgba(255,255,255,0.012)';
+        ctx.fillRect(0, yy, c.width, 1);
+      }
+      var tex = new THREE.CanvasTexture(c);
+      tex.wrapS = THREE.RepeatWrapping;
+      tex.wrapT = THREE.ClampToEdgeWrapping;
+      tex.repeat.set(8, 1);
+      return tex;
+    }
+    function createSkyTexture() {
+      var c = document.createElement('canvas');
+      c.width = 32; c.height = 512;
+      var ctx = c.getContext('2d');
+      var g = ctx.createLinearGradient(0, 0, 0, c.height);
+      g.addColorStop(0, '#6eaee8');
+      g.addColorStop(0.42, '#90c0ea');
+      g.addColorStop(0.72, '#b6d6e7');
+      g.addColorStop(1, '#d7e4db');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, c.width, c.height);
+      return new THREE.CanvasTexture(c);
+    }
+    function createNightSkyTexture() {
+      var c = document.createElement('canvas');
+      c.width = 32; c.height = 512;
+      var ctx = c.getContext('2d');
+      var g = ctx.createLinearGradient(0, 0, 0, c.height);
+      g.addColorStop(0, '#09111c');
+      g.addColorStop(0.38, '#112033');
+      g.addColorStop(0.72, '#1f3040');
+      g.addColorStop(1, '#2f3a3f');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, c.width, c.height);
+      return new THREE.CanvasTexture(c);
+    }
+    function createAdBillboard() {
+      var c = document.createElement('canvas');
+      c.width = 1024; c.height = 512;
+      var ctx = c.getContext('2d');
+      var x = 20, y = 20, w = 984, h = 472, r = 42;
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.lineTo(x + w - r, y);
+      ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+      ctx.lineTo(x + w, y + h - r);
+      ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+      ctx.lineTo(x + r, y + h);
+      ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+      ctx.lineTo(x, y + r);
+      ctx.quadraticCurveTo(x, y, x + r, y);
+      ctx.closePath();
+      ctx.fillStyle = '#ffffff';
+      ctx.fill();
+      var tex = new THREE.CanvasTexture(c);
+      var mat = new THREE.MeshLambertMaterial({ map: tex, transparent: true });
+      var board = new THREE.Mesh(new THREE.PlaneGeometry(165, 82.5), mat);
+      board.name = 'skyAdBoard';
+      board.position.set(0, 108, -520);
+      scene.add(board);
+    }
+    function getTerrainHeightAt(x, z) {
+      var h = 0;
+      for (var i = 0; i < terrainBumps.length; i += 1) {
+        var bump = terrainBumps[i];
+        var dx = x - bump.x, dz = z - bump.z;
+        var dist = Math.sqrt(dx * dx + dz * dz);
+        if (dist < bump.radius) {
+          h += bump.height * (1 - dist / bump.radius);
+        }
+      }
+      return h;
+    }
+    function getTerrainNormalAt(x, z) {
+      var nx = 0, nz = 0;
+      for (var i = 0; i < terrainBumps.length; i += 1) {
+        var bump = terrainBumps[i];
+        var dx = x - bump.x, dz = z - bump.z;
+        var dist = Math.sqrt(dx * dx + dz * dz);
+        if (dist > 0.01 && dist < bump.radius) {
+          var f = bump.height / (bump.radius * dist);
+          nx += f * dx;
+          nz += f * dz;
+        }
+      }
+      var len = Math.sqrt(nx * nx + 1 + nz * nz);
+      return new THREE.Vector3(nx / len, 1 / len, nz / len);
+    }
+    function buildField() {
+      ground = new THREE.Mesh(new THREE.PlaneGeometry(4000, (10 + 350) * unitsPerMeter, 120, 120), new THREE.MeshLambertMaterial({ map: createGrassTexture(false), polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 }));
+      ground.rotation.x = -Math.PI / 2;
+      ground.position.z = -((350 * unitsPerMeter) / 2) + (10 * unitsPerMeter) / 2;
+      ground.receiveShadow = true;
+      scene.add(ground);
+      var startLine = new THREE.Mesh(new THREE.PlaneGeometry(4000, 1.2), new THREE.MeshBasicMaterial({ color: 0xfff38a, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, depthWrite: false }));
+      startLine.rotation.x = -Math.PI / 2;
+      startLine.position.set(0, 0.04, 0);
+      scene.add(startLine);
+      var centerMark = new THREE.Mesh(new THREE.CircleGeometry(1.3, 32), new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, depthWrite: false }));
+      centerMark.rotation.x = -Math.PI / 2;
+      centerMark.position.set(0, 0.05, 0);
+      scene.add(centerMark);
+      for (var m = 25; m <= 350; m += 25) {
+        var z = -m * unitsPerMeter;
+        var nc = document.createElement('canvas'); nc.width = 2048; nc.height = 512;
+        var nctx = nc.getContext('2d');
+        nctx.fillStyle = 'rgba(255,255,255,0.98)';
+        nctx.font = 'bold 420px Arial';
+        nctx.textAlign = 'center';
+        nctx.textBaseline = 'middle';
+        nctx.fillText(String(m), 1024, 256);
+        var tex = new THREE.CanvasTexture(nc);
+        var mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, depthWrite: false });
+        var markerDepth = 42, markerWidth = 290, markerZ = z - markerDepth * 0.5;
+        for (var xx = -1820; xx <= 1820; xx += 165) {
+          var mesh = new THREE.Mesh(new THREE.PlaneGeometry(markerWidth, markerDepth), mat.clone());
+          mesh.rotation.x = -Math.PI / 2;
+          mesh.rotation.z = 0;
+          mesh.position.set(xx, 0.045, markerZ);
+          scene.add(mesh);
+        }
+      }
+    }
+    function init() {
+      scene = new THREE.Scene();
+      daySkyTexture = createSkyTexture();
+      nightSkyTexture = createNightSkyTexture();
+      scene.background = daySkyTexture;
+      scene.fog = new THREE.FogExp2(0xc9ddd9, 0.00125);
+      camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 5000);
+      camera.position.set(0, 37.5, 216);
+      renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      container.appendChild(renderer.domElement);
+      scene.add(new THREE.AmbientLight(0xffffff, 0.42));
+      dirLight = new THREE.DirectionalLight(0xffffff, 1.4);
+      dirLight.position.set(70, 110, 45);
+      dirLight.castShadow = true;
+      dirLight.shadow.mapSize.set(1024, 1024);
+      dirLight.shadow.camera.left = -180;
+      dirLight.shadow.camera.right = 180;
+      dirLight.shadow.camera.top = 180;
+      dirLight.shadow.camera.bottom = -180;
+      scene.add(dirLight);
+      scene.add(dirLight.target);
+      buildField();
+      createAdBillboard();
+      ball = new THREE.Mesh(new THREE.SphereGeometry(ballRadius, 32, 32), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.82, metalness: 0.05, map: createBallTexture() }));
+      ball.castShadow = true;
+      ball.receiveShadow = false;
+      ball.position.set(0, ballRadius, 0);
+      scene.add(ball);
+      raycaster = new THREE.Raycaster();
+      mouse = new THREE.Vector2();
+      restartBtn.addEventListener('click', resetGame);
+      restartInlineBtn.addEventListener('click', resetGame);
+      themeToggleBtn.addEventListener('click', function(){
+        isLightTheme = !isLightTheme;
+        document.body.classList.toggle('theme-light', isLightTheme);
+        themeToggleBtn.textContent = isLightTheme ? '淺色主題' : '深色主題';
+        if (scene) {
+          if (isLightTheme) {
+            scene.background = daySkyTexture;
+            scene.fog.color.set(0xc9ddd9);
+            if (ground && ground.material && ground.material.map) {
+              ground.material.map.dispose();
+              ground.material.map = createGrassTexture(false);
+              ground.material.needsUpdate = true;
+            }
+          } else {
+            scene.background = nightSkyTexture;
+            scene.fog.color.set(0x22303a);
+            if (ground && ground.material && ground.material.map) {
+              ground.material.map.dispose();
+              ground.material.map = createGrassTexture(true);
+              ground.material.needsUpdate = true;
+            }
+          }
+        }
+      });
+      container.addEventListener('pointerdown', onPointerDown);
+      window.addEventListener('pointerup', onPointerUp);
+      window.addEventListener('resize', onResize);
+      document.body.classList.add('theme-light');
+      document.getElementById('loading').remove();
+      resetGame();
+      animate();
+    }
+    function onResize() {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+    function onPointerDown(e) {
+      var r = container.getBoundingClientRect();
+      mouse.x = ((e.clientX - r.left) / r.width) * 2 - 1;
+      mouse.y = -((e.clientY - r.top) / r.height) * 2 + 1;
+      raycaster.setFromCamera(mouse, camera);
+      var hit = raycaster.intersectObject(ball);
+      if (hit.length && gameState === 'aiming') {
+        gameState = 'charging';
+        charging = true;
+        power = 0;
+        powerDir = 1;
+        aimRadar.classList.add('locked');
+        powerWrap.style.display = 'block';
+      }
+    }
+    function onPointerUp() {
+      if (!charging) return;
+      charging = false;
+      gameState = 'flying';
+      shotCameraHold = 0.45;
+      cameraModeBlend = 1;
+      landingCameraDamp = 0;
+      hasTriggeredLandingRing = false;
+      var powerDiff = Math.abs(power - 100), aimAccuracy = 1 - Math.min(1, Math.hypot(aimTarget.x, aimTarget.y) / 1.2), grade = 'GOOD';
+      if (powerDiff <= 1.2 && aimAccuracy >= 0.74) grade = 'PERFECT';
+      else if (powerDiff <= 4 && aimAccuracy >= 0.48) grade = 'GREAT';
+      if (!hasKickedOnce) {
+        hasKickedOnce = true;
+        if (firstTipEl) firstTipEl.style.opacity = '0';
+      }
+      lastKickGrade = grade;
+      triggerJuice(grade, power);
+      kickBallV3();
+    }
+    function resetBallAndState() {
+      velocity.set(0,0,0);
+      spin.set(0,0,0);
+      ball.position.copy(lastValidStart);
+      ball.position.y = getTerrainHeightAt(ball.position.x, ball.position.z) + ballRadius;
+      ball.rotation.set(0,0,0);
+      camera.position.set(ball.position.x, 37.5, ball.position.z + 216);
+      cameraLookTarget.set(ball.position.x, ball.position.y + 0.3, ball.position.z - 0.6);
+      cameraDesiredPosition.copy(camera.position);
+      gameState = 'aiming';
+      shotCameraHold = 0;
+      cameraModeBlend = 1
+      landingCameraDamp = 0;
+      timeScale = 1;
+      slowMoTimer = 0;
+      cameraShakeTimer = 0;
+      cameraShakeStrength = 0;
+      hasTriggeredLandingRing = false;
+      displayedDistance = Math.max(0, -ball.position.z) / unitsPerMeter;
+      displayedSpeedKmh = 0;
+      aimRadar.classList.remove('locked');
+      powerWrap.style.display = 'none';
+      powerFill.style.width = '0%';
+      if (firstTipEl) firstTipEl.style.opacity = hasKickedOnce ? '0' : '1';
+    }
+    function initWindForGame() {
+      var tiers = [0, 2.5, 5.0, 8.0];
+      windStrength = tiers[Math.floor(Math.random() * 4)];
+      windAngle = Math.random() * Math.PI * 2;
+      windX = Math.sin(windAngle) * windStrength;
+      windZ = -Math.cos(windAngle) * windStrength;
+      var windEl = document.getElementById('wind');
+      if (windStrength === 0) { windEl.textContent = '風況：無風'; return; }
+      var arrows = ['↑','↗','→','↘','↓','↙','←','↖'];
+      var idx = Math.round(windAngle * 4 / Math.PI) & 7;
+      var tLabels = ['無','微','中','強'];
+      var tier = tiers.indexOf(windStrength);
+      windEl.textContent = '風況：' + arrows[idx] + ' ' + tLabels[tier] + '風';
+    }
+    function generateTerrainBumps() {
+      terrainBumps = [];
+      for (var i = 0; i < 8; i++) {
+        terrainBumps.push({
+          x: (Math.random() - 0.5) * 200,
+          z: -(30 + Math.random() * 270) * unitsPerMeter,
+          radius: 8 + Math.random() * 14,
+          height: 0.18 + Math.random() * 0.22
+        });
+      }
+    }
+    function resetGame() {
+      if (resultTimer) clearTimeout(resultTimer);
+      shotsLeft = 3;
+      currentDistance = 0;
+      lastValidStart.set(0, ballRadius, 0);
+      currentEl.textContent = '當下總距: 0.00 m';
+      shotsEl.textContent = '球速: 0.00 km/h ｜ 剩餘腳數: 3';
+      restartBtn.style.display = 'none';
+      msgEl.style.opacity = '0';
+      hasKickedOnce = false;
+      bonusDistance = 0; lastKickGrade = 'GOOD'; distanceAtShotStart = 0;
+      initWindForGame();
+      generateTerrainBumps();
+      resetBallAndState();
+    }
+    function finishShot() {
+      var rawShotDist = (currentDistance + bonusDistance) - distanceAtShotStart;
+      var mult = lastKickGrade === 'PERFECT' ? 1.08 : lastKickGrade === 'GREAT' ? 1.04 : 1.0;
+      bonusDistance += rawShotDist * (mult - 1.0);
+      var totalDist = currentDistance + bonusDistance;
+      shotsLeft -= 1;
+      lastValidStart.set(0, ballRadius, ball.position.z);
+      shotsEl.textContent = '球速: ' + displayedSpeedKmh.toFixed(2) + ' km/h ｜ 剩餘腳數: ' + shotsLeft;
+      if (shotsLeft > 0) {
+        var bonusStr = mult > 1.0 ? '\n+' + (rawShotDist * (mult - 1.0)).toFixed(2) + 'm ' + lastKickGrade + ' 獎勵' : '';
+        showMessage('目前推進至 ' + totalDist.toFixed(2) + ' m\n準備下一腳' + bonusStr, '#00ff88', 1800);
+        resultTimer = setTimeout(resetBallAndState, 1900);
+      } else {
+        gameState = 'gameover';
+        if (totalDist > bestDistance) {
+          bestDistance = totalDist;
+          bestEl.textContent = '歷史最佳: ' + bestDistance.toFixed(2) + ' m';
+          showMessage('🎉 新紀錄！\n總計 ' + totalDist.toFixed(2) + ' m', '#ffd700', 3000);
+        } else {
+          showMessage('挑戰結束\n總計 ' + totalDist.toFixed(2) + ' m', '#ffffff', 3000);
+        }
+        restartBtn.style.display = 'inline-block';
+      }
+    }
+    function kickBallV3() {
+      distanceAtShotStart = currentDistance + bonusDistance;
+      var p = power / 100, contactX = clamp(aimTarget.x, -0.9, 0.9), contactY = clamp(aimTarget.y, -0.9, 0.9), offCenter = Math.min(1, Math.hypot(contactX, contactY)), efficiency = 1 - offCenter * 0.06, upperCenterZone = Math.max(0, contactY) * (1 - Math.min(1, Math.abs(contactX) / 0.42));
+      var forwardSpeed = ((110 + p * 175) * efficiency + upperCenterZone * (18 + p * 26)) * 0.625, verticalBase = 8.5 + p * 10.5, verticalFromContact = (-contactY) * (13 + p * 22), upperCenterLift = upperCenterZone * (4.5 + p * 6.5), lateralStart = contactX * (4 + p * 7);
+      velocity.set(lateralStart, verticalBase + verticalFromContact + upperCenterLift, -forwardSpeed);
+      spin.x = (-contactY) * (34 + p * 76) + upperCenterZone * (-6 - p * 8);
+      spin.y = contactX * (55 + p * 115);
+      spin.z = 0;
+      var launchSpeedKmh = (velocity.length() / unitsPerMeter) * 3.6 * SPEED_DISPLAY_FACTOR;
+      showShotType(classifyShotType(contactX, contactY, launchSpeedKmh));
+      showMessage('出腳！ 力道 ' + Math.round(power) + '%', '#00ff88', 1300);
+    }
+    function applyPhysics(dt) {
+      var magnus = new THREE.Vector3().crossVectors(spin, velocity).multiplyScalar(magnusScale);
+      velocity.addScaledVector(magnus, dt);
+      if (ball.position.y > getTerrainHeightAt(ball.position.x, ball.position.z) + ballRadius + 0.1) {
+        velocity.x += windX * dt;
+        velocity.z += windZ * dt;
+      }
+      velocity.y -= gravity * dt;
+      velocity.multiplyScalar(Math.pow(airDrag, dt * 60));
+      spin.x *= Math.pow(spinAirDecay, dt * 60);
+      spin.y *= Math.pow(sideSpinAirDecay, dt * 60);
+      ball.position.addScaledVector(velocity, dt);
+      ball.rotation.x += (velocity.z / ballRadius) * dt + spin.x * 0.012 * dt;
+      ball.rotation.y += spin.y * 0.014 * dt;
+      ball.rotation.z -= (velocity.x / ballRadius) * dt;
+      var terrainY = getTerrainHeightAt(ball.position.x, ball.position.z) + ballRadius;
+      if (!hasTriggeredLandingRing && ball.position.y <= terrainY + 0.25 && velocity.length() > 4) {
+        hasTriggeredLandingRing = true;
+        triggerImpactRing(ball.position.clone());
+      }
+      if (ball.position.y <= terrainY) {
+        landingCameraDamp = 1;
+        ball.position.y = terrainY;
+        var sn = getTerrainNormalAt(ball.position.x, ball.position.z);
+        var vDotN = velocity.dot(sn);
+        var backspin = Math.max(0, spin.x), topspin = Math.max(0, -spin.x);
+        if (vDotN < 0) {
+          var impactSpeed = Math.abs(vDotN);
+          var restitution = impactSpeed > 1 ? clamp(0.48 + backspin * 0.0028 - topspin * 0.0036, 0.20, 0.60) : 0;
+          velocity.addScaledVector(sn, -(1 + restitution) * vDotN);
+        }
+        var rollBoost = clamp(0.9915 + topspin * 0.001 - backspin * 0.00018, 0.98, 0.9965);
+        velocity.z *= rollBoost;
+        velocity.x *= lateralFriction;
+        spin.x *= 0.91;
+        spin.y *= 0.86;
+        var vDotNAfter = velocity.dot(sn);
+        if (vDotNAfter > 0 && vDotNAfter < 0.42) velocity.addScaledVector(sn, -vDotNAfter);
+        if (vDotNAfter <= 0) { velocity.z *= 0.9945; velocity.x *= 0.975; }
+        var groundSpeed = Math.hypot(velocity.x, velocity.z);
+        if (groundSpeed < 0.30 && Math.abs(velocity.dot(sn)) < 0.30) {
+          velocity.set(0, 0, 0);
+          gameState = 'result';
+          finishShot();
+        }
+      }
+    }
+    function updateAim(dt) {
+      aimTime += dt;
+      var speed = 4;
+      if (shotsLeft === 3) speed *= 0.58;
+      else if (shotsLeft === 1) speed *= 1.9;
+      aimTarget.x = Math.sin(aimTime * 1.35 * speed) * 0.85;
+      aimTarget.y = Math.cos(aimTime * 1.72 * speed) * 0.85;
+      aimDot.style.left = ((aimTarget.x + 1) * 50) + '%';
+      aimDot.style.top = ((-aimTarget.y + 1) * 50) + '%';
+    }
+    function updatePower(dt) {
+      power += powerDir * dt * 115;
+      if (power >= 100) { power = 100; powerDir = -1; }
+      if (power <= 0) { power = 0; powerDir = 1; }
+      powerFill.style.width = power + '%';
+    }
+    function updateCamera() {
+      var nh = Math.min(1, Math.max(0, (ball.position.y - ballRadius) / 30));
+      var terrainBaseY = getTerrainHeightAt(ball.position.x, ball.position.z) + ballRadius;
+
+      if (gameState === 'flying') {
+        cameraModeBlend = Math.max(0, cameraModeBlend - 0.11);
+      } else {
+        cameraModeBlend = 1;
+      }
+
+      if (landingCameraDamp > 0 && gameState !== 'flying') {
+        landingCameraDamp = Math.max(0, landingCameraDamp - 0.045);
+      }
+
+      // 開球前：固定超遠且穩定，不隨球小幅晃動
+      var aimCamX = ball.position.x * 0.015;
+      var aimCamY = 37.5 + nh * 3.6;
+      var aimCamZ = ball.position.z + 216;
+      var aimLookX = ball.position.x * 0.92;
+      var aimLookY = Math.max(ballRadius, ball.position.y + 0.15);
+      var aimLookZ = ball.position.z - 0.35;
+
+      // 出腳後：固定正常追球距離，不讓距離越飛越遠
+      var flyCamX = ball.position.x;
+      var flyCamY = Math.max(25.8, ball.position.y + 21.6 + nh * 8.4);
+      var flyCamZ = ball.position.z + 90;
+      var flyLookX = ball.position.x;
+      var flyLookY = Math.max(ballRadius, ball.position.y + 1.15 + nh * 1.4);
+      var flyLookZ = ball.position.z - 1.8;
+
+      var desiredX = aimCamX * cameraModeBlend + flyCamX * (1 - cameraModeBlend);
+      var desiredY = aimCamY * cameraModeBlend + flyCamY * (1 - cameraModeBlend);
+      var desiredZ = aimCamZ * cameraModeBlend + flyCamZ * (1 - cameraModeBlend);
+      var desiredLookX = aimLookX * cameraModeBlend + flyLookX * (1 - cameraModeBlend);
+      var desiredLookY = aimLookY * cameraModeBlend + flyLookY * (1 - cameraModeBlend);
+      var desiredLookZ = aimLookZ * cameraModeBlend + flyLookZ * (1 - cameraModeBlend);
+
+      // 近地穩定：落地時鏡頭不要跟著球垂直彈跳
+      var nearGroundBlend = clamp(1 - ((ball.position.y - terrainBaseY) / 7.5), 0, 1);
+      nearGroundBlend = Math.max(nearGroundBlend, landingCameraDamp * 0.85);
+      if (nearGroundBlend > 0) {
+        desiredY = desiredY * (1 - nearGroundBlend) + (terrainBaseY + 19.2) * nearGroundBlend;
+        desiredZ = desiredZ * (1 - nearGroundBlend) + (ball.position.z + 37.5) * nearGroundBlend;
+        desiredLookY = desiredLookY * (1 - nearGroundBlend) + (terrainBaseY + 0.22) * nearGroundBlend;
+        desiredLookZ = desiredLookZ * (1 - nearGroundBlend) + (ball.position.z - 0.18) * nearGroundBlend;
+      }
+
+      cameraDesiredPosition.set(desiredX, desiredY, desiredZ);
+      camera.position.lerp(cameraDesiredPosition, gameState === 'aiming' ? 0.12 : 0.085);
+      cameraLookTarget.lerp(new THREE.Vector3(desiredLookX, desiredLookY, desiredLookZ), gameState === 'aiming' ? 0.14 : 0.1);
+      camera.lookAt(cameraLookTarget);
+
+      if (cameraShakeTimer > 0) {
+        camera.position.x += (Math.random() - 0.5) * cameraShakeStrength;
+        camera.position.y += (Math.random() - 0.5) * cameraShakeStrength * 0.45;
+        camera.position.z += (Math.random() - 0.5) * cameraShakeStrength * 0.25;
+      }
+
+      var skyAdBoard = scene.getObjectByName('skyAdBoard');
+      if (skyAdBoard) {
+        skyAdBoard.position.x = 0;
+        skyAdBoard.position.y = 108;
+        skyAdBoard.position.z = camera.position.z - 520;
+      }
+
+      dirLight.position.set(camera.position.x + 40, Math.max(70, camera.position.y + 45), camera.position.z + 35);
+      dirLight.target.position.copy(ball.position);
+      dirLight.target.updateMatrixWorld();
+    }
+    function animate() {
+      requestAnimationFrame(animate);
+      var rawDt = Math.min(clock.getDelta(), 0.05);
+      if (slowMoTimer > 0) slowMoTimer = Math.max(0, slowMoTimer - rawDt);
+      timeScale = slowMoTimer > 0 ? 0.55 : 1;
+      if (cameraShakeTimer > 0) {
+        cameraShakeTimer = Math.max(0, cameraShakeTimer - rawDt);
+        cameraShakeStrength *= 0.9;
+      } else {
+        cameraShakeStrength = 0;
+      }
+      var dt = rawDt * timeScale;
+      var world = new THREE.Vector3(ball.position.x, ball.position.y + 2.5, ball.position.z).project(camera);
+      floatingUI.style.left = ((world.x * 0.5 + 0.5) * window.innerWidth) + 'px';
+      floatingUI.style.top = ((-(world.y * 0.5) + 0.5) * window.innerHeight) + 'px';
+      floatingUI.style.opacity = (gameState === 'flying' || gameState === 'result' || gameState === 'gameover') ? '0' : '1';
+      if (firstTipEl && !hasKickedOnce) {
+        var tipWorld = new THREE.Vector3(ball.position.x, Math.max(-6.2, ball.position.y - 11.6), ball.position.z).project(camera);
+        firstTipEl.style.left = ((tipWorld.x * 0.5 + 0.5) * window.innerWidth) + 'px';
+        firstTipEl.style.top = ((-(tipWorld.y * 0.5) + 0.5) * window.innerHeight) + 'px';
+      }
+      if (gameState === 'aiming') updateAim(dt);
+      if (gameState === 'charging') updatePower(dt);
+      if (gameState === 'flying' && shotCameraHold > 0) shotCameraHold = Math.max(0, shotCameraHold - rawDt);
+      accumulator += dt;
+      while (accumulator >= FIXED_DT) {
+        if (gameState === 'flying') {
+          applyPhysics(FIXED_DT);
+          currentDistance = Math.max(0, -ball.position.z) / unitsPerMeter;
+        }
+        accumulator -= FIXED_DT;
+      }
+      displayedDistance += (currentDistance - displayedDistance) * 0.18;
+      var currentSpeedKmh = (velocity.length() / unitsPerMeter) * 3.6 * SPEED_DISPLAY_FACTOR;
+      displayedSpeedKmh += (currentSpeedKmh - displayedSpeedKmh) * 0.22;
+      currentEl.textContent = '當下總距: ' + (displayedDistance + bonusDistance).toFixed(2) + ' m';
+      shotsEl.textContent = '球速: ' + displayedSpeedKmh.toFixed(2) + ' km/h ｜ 剩餘腳數: ' + shotsLeft;
+      updateCamera();
+      renderer.render(scene, camera);
+    }
+    function runSelfTests() {
+      assert(unitsPerMeter > 0, 'unitsPerMeter');
+      assert(Math.ceil((10 + 350) / 10) === 36, '36 grass bands');
+      assert(Math.abs(SPEED_DISPLAY_FACTOR - 1.45) < 0.001, 'speed factor');
+      assert(typeof classifyShotType === 'function', 'shot classifier');
+      assert(!!document.getElementById('restart-inline'), 'inline restart button exists');
+      assert(!!document.getElementById('first-tip'), 'first tip element exists');
+      assert(!!document.getElementById('theme-toggle'), 'theme toggle exists');
+      assert(typeof createNightSkyTexture === 'function', 'night sky texture should exist');
+      assert('a\\nb'.indexOf('\\n') > -1, 'newline escape should remain escaped in strings');
+      assert(cameraModeBlend === 1, 'camera mode blend initial state');
+      assert(landingCameraDamp === 0, 'landing camera damp initial state');
+      assert(Array.isArray(terrainBumps), 'terrain bumps array exists');
+      assert(typeof getTerrainHeightAt === 'function', 'terrain height sampler exists');
+      assert(!!document.getElementById('wind'), 'wind display element exists');
+      assert(typeof initWindForGame === 'function', 'wind init function exists');
+      assert(typeof generateTerrainBumps === 'function', 'terrain generation function exists');
+    }
+    try {
+      runSelfTests();
+      init();
+    } catch (err) {
+      console.error(err);
+      document.getElementById('loading').textContent = '載入失敗：' + err.message;
+    }
+  </script>
+</body>
+</html>
