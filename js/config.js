@@ -169,7 +169,8 @@
 // 20260310ab: 鎖定一般用戶為零後台權限，前端與 Firestore 規則都不承認 user 權限
 // 20260310ac: 操作日誌改抓最新 500 筆並依實際建立時間排序，修正日誌中心看不到新紀錄
 // 20260310ad: 稽核日誌搜尋條件改為可收折，保留日期欄位常駐
-const CACHE_VERSION = '20260310ad';
+// 20260310ae: 稽核日誌收折範圍擴大為整個搜尋條件區，包含日期欄位
+const CACHE_VERSION = '20260310ae';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {

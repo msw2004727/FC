@@ -26,8 +26,8 @@
 .admin-log-panel-header p { margin: .2rem 0 0; font-size: .75rem; line-height: 1.6; color: var(--text-muted); }
 .admin-log-panel-actions { display: flex; align-items: center; gap: .45rem; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end; }
 .audit-log-filter-card { display: flex; flex-direction: column; gap: .75rem; }
-.audit-log-filter-bar { display: flex; align-items: flex-end; justify-content: space-between; gap: .75rem; flex-wrap: wrap; }
-.audit-log-date-field { display: flex; flex-direction: column; gap: .25rem; font-size: .78rem; min-width: min(100%, 220px); flex: 1; }
+.audit-log-filter-bar { display: flex; justify-content: flex-end; }
+.audit-log-date-field { display: flex; flex-direction: column; gap: .25rem; font-size: .78rem; min-width: 180px; }
 .audit-log-date-field input { width: 100%; }
 .audit-log-filter-body { display: flex; flex-direction: column; gap: .1rem; }
 .audit-log-filter-toggle { display: inline-flex; align-items: center; gap: .35rem; padding: .2rem 0; white-space: nowrap; }
