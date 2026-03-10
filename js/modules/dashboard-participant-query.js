@@ -20,7 +20,7 @@ Object.assign(App, {
       shareError: '',
       shareUrl: '',
       shareExpiresAt: '',
-      collapsed: false,
+      collapsed: true,
     };
   },
 
@@ -31,6 +31,26 @@ Object.assign(App, {
     return this._dashboardParticipantSearchState;
   },
 
+  _getDashboardParticipantSearchPanelSummary(state) {
+    const keyword = String(state?.keyword || '').trim();
+    const startDate = String(state?.startDate || '').trim();
+    const endDate = String(state?.endDate || '').trim();
+    const rangeText = startDate && endDate ? `${startDate} 至 ${endDate}` : '未設定日期區間';
+
+    if (keyword) {
+      return `關鍵字「${keyword}」 · ${rangeText}`;
+    }
+    return `預設查詢區間：${rangeText}`;
+  },
+
+  _getDashboardParticipantSearchPanelMeta(state) {
+    if (state.loading) return '查詢中';
+    if (state.shareLoading) return '產生網址中';
+    if (state.error) return '查詢失敗';
+    if (!state.result) return '未查詢';
+    return `${Number(state.result.matchedEventCount || 0)} 活動 / ${Number(state.result.matchedUserCount || 0)} 用戶 / ${Number(state.result.totalParticipationCount || 0)} 次`;
+  },
+
   _renderDashboardParticipantSearchCard() {
     const state = this._ensureDashboardParticipantSearchState();
     const keyword = escapeHTML(state.keyword || '');
@@ -38,15 +58,20 @@ Object.assign(App, {
     const endDate = escapeHTML(state.endDate || '');
     const searchDisabled = state.loading ? 'disabled' : '';
     const shareDisabled = (!state.result || Number(state.result.matchedEventCount || 0) <= 0 || state.loading || state.shareLoading) ? 'disabled' : '';
-
-    const collapsedClass = state.collapsed ? ' collapsed' : '';
+    const openAttr = state.collapsed ? '' : ' open';
+    const summaryText = escapeHTML(this._getDashboardParticipantSearchPanelSummary(state));
+    const summaryMeta = escapeHTML(this._getDashboardParticipantSearchPanelMeta(state));
 
     return `
-      <div class="info-card dash-query-card${collapsedClass}">
-        <div class="info-title dash-query-title" onclick="var p=this.parentElement;p.classList.toggle('collapsed');try{App._dashboardParticipantSearchState.collapsed=p.classList.contains('collapsed')}catch(e){}">
-          <span>活動參與查詢</span>
-          <span class="dash-query-arrow">▾</span>
-        </div>
+      <details class="info-card dash-query-card dash-query-details"${openAttr} ontoggle="App.syncDashboardParticipantSearchCollapse(this)">
+        <summary class="dash-query-panel-summary">
+          <span class="dash-query-panel-copy">
+            <span class="dash-query-panel-title">活動參與查詢</span>
+            <span class="dash-query-panel-text">${summaryText}</span>
+          </span>
+          <span class="dash-query-panel-meta">${summaryMeta}</span>
+          <span class="dash-query-arrow" aria-hidden="true">▸</span>
+        </summary>
         <div class="dash-query-body">
           <div class="dash-query-help">輸入活動標題模糊關鍵字與活動日期區間，統計有簽到過該批活動的用戶與參與次數。</div>
           <div class="dash-query-form">
@@ -71,7 +96,7 @@ Object.assign(App, {
           ${this._renderDashboardParticipantShareNotice ? this._renderDashboardParticipantShareNotice(state) : ''}
           ${this._renderDashboardParticipantSearchResult(state)}
         </div>
-      </div>
+      </details>
     `;
   },
 
@@ -153,16 +178,24 @@ Object.assign(App, {
   },
 
   clearDashboardParticipantSearch() {
-    this._dashboardParticipantSearchState = this._getDashboardParticipantSearchDefaultState();
+    const state = this._ensureDashboardParticipantSearchState();
+    this._dashboardParticipantSearchState = {
+      ...this._getDashboardParticipantSearchDefaultState(),
+      collapsed: state.collapsed,
+    };
     this.renderDashboard();
   },
 
-  toggleDashboardParticipantSearchCard() {
-    const card = document.querySelector('.dash-query-card');
-    if (!card) return;
-    card.classList.toggle('collapsed');
+  syncDashboardParticipantSearchCollapse(details) {
     const state = this._ensureDashboardParticipantSearchState();
-    state.collapsed = card.classList.contains('collapsed');
+    state.collapsed = !(details && details.open);
+  },
+
+  toggleDashboardParticipantSearchCard() {
+    const details = document.querySelector('.dash-query-details');
+    if (!details) return;
+    details.open = !details.open;
+    this.syncDashboardParticipantSearchCollapse(details);
   },
 
   _copyDashboardParticipantText(text) {

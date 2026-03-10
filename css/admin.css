@@ -338,12 +338,18 @@
 .dash-bar-fill.type-watch { background: #f59e0b; }
 .dash-bar-val { font-size: .72rem; color: var(--text-secondary); font-weight: 600; min-width: 3.5rem; text-align: right; flex-shrink: 0; }
 
-.dash-query-card { overflow: hidden; }
-.dash-query-title { display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
-.dash-query-arrow { font-size: .68rem; color: var(--text-muted); transition: transform .18s ease; }
-.dash-query-card.collapsed .dash-query-body { display: none; }
-.dash-query-card.collapsed .dash-query-title { margin-bottom: 0; padding-bottom: 0; border-bottom: none; }
-.dash-query-card.collapsed .dash-query-arrow { transform: rotate(-90deg); }
+.dash-query-card { overflow: hidden; padding: 0; }
+.dash-query-details { background: var(--bg-card); }
+.dash-query-panel-summary { display: flex; align-items: center; gap: .65rem; padding: .85rem .9rem; cursor: pointer; list-style: none; user-select: none; }
+.dash-query-panel-summary::-webkit-details-marker { display: none; }
+.dash-query-panel-copy { display: flex; flex-direction: column; gap: .14rem; min-width: 0; }
+.dash-query-panel-title { font-size: .85rem; font-weight: 700; color: var(--text-primary); }
+.dash-query-panel-text { font-size: .72rem; line-height: 1.55; color: var(--text-muted); }
+.dash-query-panel-meta { margin-left: auto; font-size: .72rem; color: var(--text-secondary); text-align: right; }
+.dash-query-arrow { font-size: .72rem; color: var(--text-muted); transition: transform .18s ease; }
+.dash-query-details[open] .dash-query-panel-summary { border-bottom: 1px solid var(--border); }
+.dash-query-details[open] .dash-query-arrow { transform: rotate(90deg); }
+.dash-query-body { padding: .8rem .9rem .9rem; }
 .dash-query-help { font-size: .75rem; color: var(--text-muted); line-height: 1.6; margin-bottom: .75rem; }
 .dash-query-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: .6rem; margin-bottom: .75rem; }
 .dash-query-field { display: flex; flex-direction: column; gap: .28rem; font-size: .76rem; color: var(--text-secondary); }
@@ -396,6 +402,15 @@
   }
   .admin-log-panel-actions {
     justify-content: flex-start;
+  }
+  .dash-query-panel-summary {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+  .dash-query-panel-meta {
+    width: calc(100% - 1rem);
+    margin-left: 0;
+    text-align: left;
   }
   .dash-query-form { grid-template-columns: 1fr; }
   .dash-query-actions { flex-direction: column; }
