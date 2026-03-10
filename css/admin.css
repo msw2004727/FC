@@ -136,6 +136,19 @@
 .log-type.severity-critical { background: rgba(220,38,38,.15); color: #dc2626; }
 .log-type.severity-warn { background: rgba(245,158,11,.18); color: #d97706; }
 .log-type.severity-info { background: rgba(59,130,246,.14); color: #2563eb; }
+.log-type.log-tone-blue { background: rgba(59,130,246,.14); color: #2563eb; }
+.log-type.log-tone-violet { background: rgba(168,85,247,.14); color: #9333ea; }
+.log-type.log-tone-purple { background: rgba(139,92,246,.14); color: #7c3aed; }
+.log-type.log-tone-green { background: rgba(34,197,94,.14); color: #15803d; }
+.log-type.log-tone-teal { background: rgba(20,184,166,.14); color: #0f766e; }
+.log-type.log-tone-orange { background: rgba(249,115,22,.14); color: #ea580c; }
+.log-type.log-tone-indigo { background: rgba(99,102,241,.14); color: #4338ca; }
+.log-type.log-tone-sky { background: rgba(14,165,233,.14); color: #0284c7; }
+.log-type.log-tone-pink { background: rgba(236,72,153,.14); color: #db2777; }
+.log-type.log-tone-amber { background: rgba(245,158,11,.16); color: #d97706; }
+.log-type.log-tone-cyan { background: rgba(6,182,212,.14); color: #0e7490; }
+.log-type.log-tone-red { background: rgba(239,68,68,.14); color: #dc2626; }
+.log-type.log-tone-gray { background: rgba(100,116,139,.14); color: #475569; }
 .log-detail { font-size: .65rem; color: var(--text-muted); margin-top: .2rem; word-break: break-all; }
 .error-log-message { margin-top: .2rem; line-height: 1.55; color: var(--text-secondary); }
 .admin-icon-btn { display: inline-flex; align-items: center; justify-content: center; width: 2.1rem; height: 2.1rem; padding: 0; }
@@ -299,6 +312,19 @@
 [data-theme="dark"] .log-type.exp { background: rgba(96,165,250,.20); }
 [data-theme="dark"] .log-type.role { background: rgba(167,139,250,.20); }
 [data-theme="dark"] .log-type.event { background: rgba(52,211,153,.20); }
+[data-theme="dark"] .log-type.log-tone-blue { background: rgba(59,130,246,.22); }
+[data-theme="dark"] .log-type.log-tone-violet { background: rgba(168,85,247,.22); }
+[data-theme="dark"] .log-type.log-tone-purple { background: rgba(139,92,246,.22); }
+[data-theme="dark"] .log-type.log-tone-green { background: rgba(34,197,94,.22); }
+[data-theme="dark"] .log-type.log-tone-teal { background: rgba(20,184,166,.22); }
+[data-theme="dark"] .log-type.log-tone-orange { background: rgba(249,115,22,.22); }
+[data-theme="dark"] .log-type.log-tone-indigo { background: rgba(99,102,241,.22); }
+[data-theme="dark"] .log-type.log-tone-sky { background: rgba(14,165,233,.22); }
+[data-theme="dark"] .log-type.log-tone-pink { background: rgba(236,72,153,.22); }
+[data-theme="dark"] .log-type.log-tone-amber { background: rgba(245,158,11,.24); }
+[data-theme="dark"] .log-type.log-tone-cyan { background: rgba(6,182,212,.22); }
+[data-theme="dark"] .log-type.log-tone-red { background: rgba(239,68,68,.22); }
+[data-theme="dark"] .log-type.log-tone-gray { background: rgba(100,116,139,.24); }
 [data-theme="dark"] .log-type.team_exp { background: rgba(168,85,247,.25); }
 [data-theme="dark"] .log-type.event_create, [data-theme="dark"] .log-type.event_edit,
 [data-theme="dark"] .log-type.event_end, [data-theme="dark"] .log-type.event_cancel,

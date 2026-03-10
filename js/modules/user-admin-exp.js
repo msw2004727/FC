@@ -412,6 +412,27 @@ Object.assign(App, {
     return (logs || []).filter(log => !this._shouldHideDuplicatedOperationLog(log));
   },
 
+  _getOperationLogToneClass(type) {
+    const safeType = String(type || '').trim();
+    if (!safeType) return 'log-tone-gray';
+
+    if (safeType === 'exp') return 'log-tone-blue';
+    if (safeType === 'team_exp') return 'log-tone-violet';
+    if (safeType === 'role') return 'log-tone-purple';
+    if (safeType === 'system_clear') return 'log-tone-red';
+    if (safeType === 'manual_attendance' || safeType === 'participant_removed' || safeType === 'unreg_removed') {
+      return 'log-tone-teal';
+    }
+    if (safeType.startsWith('event_')) return 'log-tone-green';
+    if (safeType.startsWith('team_')) return 'log-tone-orange';
+    if (safeType.startsWith('tourn_')) return 'log-tone-indigo';
+    if (safeType.startsWith('ann_')) return 'log-tone-sky';
+    if (safeType.startsWith('ach_')) return 'log-tone-pink';
+    if (safeType.startsWith('shop_')) return 'log-tone-amber';
+    if (safeType.startsWith('game_')) return 'log-tone-cyan';
+    return 'log-tone-gray';
+  },
+
   _getOperationLogSortMs(log) {
     const docId = String(log?._docId || '');
     const docIdMatch = docId.match(/^op_(\d{13})_/);
@@ -496,7 +517,7 @@ Object.assign(App, {
       <div class="log-item">
         <span class="log-time">${escapeHTML(l.time)}</span>
         <span class="log-content">
-          <span class="log-type ${l.type}">${escapeHTML(l.typeName)}</span>
+          <span class="log-type ${this._getOperationLogToneClass(l.type)}">${escapeHTML(l.typeName)}</span>
           ${escapeHTML(l.operator)}：${escapeHTML(l.content)}
         </span>
       </div>

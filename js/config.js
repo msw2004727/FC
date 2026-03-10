@@ -179,7 +179,8 @@
 // 20260310al: 活動參與查詢收折改為原生 details/summary，並以獨立 class 與狀態同步重做
 // 20260310am: 活動參與查詢收折摘要列改版，對齊稽核日誌的箭頭與提示樣式
 // 20260310an: 活動參與查詢摘要列改為兩層佈局，箭頭與狀態同行，預設起始日固定為 2026-02-01
-const CACHE_VERSION = '20260310an';
+// 20260310ao: 操作日誌類型標籤改為依類型家族分色，提升辨識度
+const CACHE_VERSION = '20260310ao';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {
