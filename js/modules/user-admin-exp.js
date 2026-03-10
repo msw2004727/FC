@@ -416,16 +416,57 @@ Object.assign(App, {
     const safeType = String(type || '').trim();
     if (!safeType) return 'log-tone-gray';
 
-    if (safeType === 'exp') return 'log-tone-blue';
-    if (safeType === 'team_exp') return 'log-tone-violet';
-    if (safeType === 'role') return 'log-tone-purple';
-    if (safeType === 'system_clear') return 'log-tone-red';
-    if (safeType === 'manual_attendance' || safeType === 'participant_removed' || safeType === 'unreg_removed') {
-      return 'log-tone-teal';
-    }
+    const toneMap = {
+      exp: 'log-tone-blue',
+      team_exp: 'log-tone-violet',
+      role: 'log-tone-purple',
+      system_clear: 'log-tone-red',
+      audit_backfill: 'log-tone-rose',
+      manual_attendance: 'log-tone-cyan',
+      participant_removed: 'log-tone-orange',
+      unreg_removed: 'log-tone-amber',
+      event_create: 'log-tone-green',
+      event_edit: 'log-tone-sky',
+      event_end: 'log-tone-amber',
+      event_cancel: 'log-tone-red',
+      event_reopen: 'log-tone-teal',
+      event_relist: 'log-tone-indigo',
+      event_delete: 'log-tone-red',
+      team_create: 'log-tone-orange',
+      team_edit: 'log-tone-amber',
+      team_delete: 'log-tone-red',
+      team_position: 'log-tone-purple',
+      team_leave: 'log-tone-gray',
+      team_member_remove: 'log-tone-rose',
+      team_approve: 'log-tone-indigo',
+      tourn_create: 'log-tone-indigo',
+      tourn_edit: 'log-tone-violet',
+      tourn_end: 'log-tone-amber',
+      tourn_reopen: 'log-tone-cyan',
+      tourn_delete: 'log-tone-red',
+      tourn_approve: 'log-tone-green',
+      ann_create: 'log-tone-sky',
+      ann_edit: 'log-tone-blue',
+      ann_toggle: 'log-tone-amber',
+      ann_delete: 'log-tone-red',
+      ach_create: 'log-tone-pink',
+      ach_edit: 'log-tone-purple',
+      ach_toggle: 'log-tone-amber',
+      ach_delete: 'log-tone-red',
+      shop_create: 'log-tone-amber',
+      shop_edit: 'log-tone-orange',
+      shop_delist: 'log-tone-gray',
+      shop_relist: 'log-tone-cyan',
+      shop_delete: 'log-tone-red',
+      game_config: 'log-tone-cyan',
+    };
+
+    if (toneMap[safeType]) return toneMap[safeType];
+
     if (safeType.startsWith('event_')) return 'log-tone-green';
     if (safeType.startsWith('team_')) return 'log-tone-orange';
     if (safeType.startsWith('tourn_')) return 'log-tone-indigo';
+    if (safeType.startsWith('audit_')) return 'log-tone-rose';
     if (safeType.startsWith('ann_')) return 'log-tone-sky';
     if (safeType.startsWith('ach_')) return 'log-tone-pink';
     if (safeType.startsWith('shop_')) return 'log-tone-amber';

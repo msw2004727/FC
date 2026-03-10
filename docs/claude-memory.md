@@ -5,6 +5,12 @@
 > 新紀錄一律寫在檔案前方，採新到舊排序；若需補記舊項目，應插入對應日期區段，不得追加到檔尾。
 
 ---
+### 2026-03-10 — 稽核暱稱補齊完成後同步寫入操作日誌
+- **問題**：稽核日誌執行 `補齊暱稱（backfillAuditActorNames）` 後，操作日誌沒有留下「誰補齊了哪些用戶暱稱」的紀錄；同時操作日誌類型標籤即使前一版有分色，實際辨識度仍不夠明顯。
+- **原因**：補齊暱稱實際是在 Cloud Function `backfillAuditActorNames` 內批次更新 `auditLogsByDay`，流程中沒有任何 `操作日誌（operationLogs）` 寫入；而操作日誌顏色上一版只做到家族色系，部分既有類型看起來仍接近舊樣式。
+- **修復**：更新 `functions/index.js`，新增後端 `操作日誌寫入（writeOperationLog）` helper，讓 `backfillAuditActorNames` 在成功補齊後，自動把 `操作者（operator）`、補齊日期、補齊筆數、涉及用戶清單摘要寫入 `operationLogs`，類型為 `稽核暱稱補齊（audit_backfill）`；更新 `js/modules/audit-log.js`，補齊成功 toast 改顯示「筆數 + 用戶數」；更新 `js/modules/user-admin-exp.js` 與 `css/admin.css`，把操作日誌標籤改成更明確的逐類型 / 家族色彩映射，並加上更醒目的彩色外框；同步更新 `js/config.js` 與 `index.html` 快取版本到 `20260310ap`。
+- **教訓**：只要管理操作真正發生在 Cloud Function，若想要在前台後台都可靠留痕，就不能只靠前端補記，必須在後端同一交易流程裡把審計與操作日誌一起落地。
+
 ### 2026-03-10 — 操作日誌類型標籤改為按類型家族分色
 - **問題**：日誌中心的操作日誌雖然有 `類型（type）` 標籤，但只有少數既有類型有專屬顏色，其他大量操作類型仍以同色呈現，辨識度不足。
 - **原因**：`操作日誌（operationLogs）` 的渲染直接把原始 `type` 當 CSS class 使用，樣式表只列了部分固定類型，沒有針對新增類型做統一的色系歸類。

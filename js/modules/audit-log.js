@@ -381,7 +381,10 @@ Object.assign(App, {
       }
 
       if (result.updated > 0) {
-        this.showToast(`已補齊 ${result.updated} 筆暱稱`);
+        const uniqueUsers = Number(result.uniqueUsers || 0);
+        this.showToast(uniqueUsers > 0
+          ? `已補齊 ${result.updated} 筆暱稱（${uniqueUsers} 位用戶）`
+          : `已補齊 ${result.updated} 筆暱稱`);
         await this.loadAuditLogs(true);
         return;
       }

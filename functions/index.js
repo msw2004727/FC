@@ -403,6 +403,43 @@ async function resolveAuditActorName(uidOrDocId, fallbackUid = "") {
   );
 }
 
+function formatOperationLogTime(now = new Date()) {
+  const { dayKey, timeKey } = getTaipeiAuditDateInfo(now);
+  return `${dayKey.slice(4, 6)}/${dayKey.slice(6, 8)} ${timeKey.slice(0, 5)}`;
+}
+
+function buildOperationLogPayload({
+  operator = "系統",
+  type = "",
+  typeName = "",
+  content = "",
+  now = new Date(),
+}) {
+  const safeNow = now instanceof Date && !Number.isNaN(now.getTime()) ? now : new Date();
+  return {
+    time: formatOperationLogTime(safeNow),
+    operator: normalizeAuditText(operator || "系統", 80),
+    type: normalizeAuditText(type, 64),
+    typeName: normalizeAuditText(typeName, 80),
+    content: normalizeAuditText(content, 500),
+    createdAt: FieldValue.serverTimestamp(),
+  };
+}
+
+async function writeOperationLog({
+  operator = "系統",
+  type = "",
+  typeName = "",
+  content = "",
+  now = new Date(),
+}) {
+  const safeNow = now instanceof Date && !Number.isNaN(now.getTime()) ? now : new Date();
+  const docId = `op_${safeNow.getTime()}_${Math.random().toString(36).slice(2, 8)}`;
+  const payload = buildOperationLogPayload({ operator, type, typeName, content, now: safeNow });
+  await db.collection("operationLogs").doc(docId).set(payload, { merge: true });
+  return { ...payload, _docId: docId };
+}
+
 async function getUserRoleFromFirestore(uidOrDocId) {
   const found = await findUserDocByUidOrLineUserId(uidOrDocId);
   if (!found) return "user";
@@ -689,6 +726,22 @@ exports.backfillAuditActorNames = onCall(
       throw new HttpsError("permission-denied", "Super admin only");
     }
 
+    const callerUid = request.auth.uid;
+    const callerUser = await findUserDocByUidOrLineUserId(callerUid);
+    let authDisplayName = "";
+    try {
+      const authUser = await authAdmin.getUser(callerUid);
+      authDisplayName = getDisplayNameFromAuthRecord(authUser, "");
+    } catch (_) {}
+    const operatorName = normalizeAuditText(
+      callerUser?.data?.displayName
+        || callerUser?.data?.name
+        || authDisplayName
+        || request.auth.token?.name
+        || callerUid,
+      80
+    );
+
     const requestedDayKey = String(request.data?.dayKey || "").replace(/\D/g, "").slice(0, 8);
     const dayKey = requestedDayKey || getTaipeiAuditDateInfo(new Date()).dayKey;
     if (dayKey.length !== 8) {
@@ -713,6 +766,7 @@ exports.backfillAuditActorNames = onCall(
     let updated = 0;
     let batch = db.batch();
     let pendingWrites = 0;
+    const updatedUsers = new Map();
 
     for (const doc of snapshot.docs) {
       scanned += 1;
@@ -726,6 +780,9 @@ exports.backfillAuditActorNames = onCall(
       if (!resolvedName || resolvedName === actorUid) continue;
 
       batch.update(doc.ref, { actorName: resolvedName });
+      if (!updatedUsers.has(actorUid)) {
+        updatedUsers.set(actorUid, resolvedName);
+      }
       updated += 1;
       pendingWrites += 1;
 
@@ -740,11 +797,33 @@ exports.backfillAuditActorNames = onCall(
       await batch.commit();
     }
 
+    const uniqueUsers = updatedUsers.size;
+    if (updated > 0) {
+      const previewUsers = Array.from(updatedUsers.entries())
+        .slice(0, 8)
+        .map(([uid, name]) => `${name}（${uid}）`);
+      const extraCount = Math.max(0, uniqueUsers - previewUsers.length);
+      const dateLabel = `${dayKey.slice(0, 4)}-${dayKey.slice(4, 6)}-${dayKey.slice(6, 8)}`;
+      const summary = previewUsers.join("、");
+      const content = `補齊 ${dateLabel} 稽核日誌暱稱，共 ${updated} 筆紀錄、${uniqueUsers} 位用戶${summary ? `：${summary}` : ""}${extraCount > 0 ? ` 等 ${uniqueUsers} 位用戶` : ""}`;
+      try {
+        await writeOperationLog({
+          operator: operatorName,
+          type: "audit_backfill",
+          typeName: "稽核暱稱補齊",
+          content,
+        });
+      } catch (opLogErr) {
+        console.warn("[backfillAuditActorNames] failed to write operation log:", opLogErr);
+      }
+    }
+
     return {
       success: true,
       dayKey,
       scanned,
       updated,
+      uniqueUsers,
     };
   }
 );
