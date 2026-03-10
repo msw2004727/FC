@@ -155,8 +155,8 @@
 // 20260310m: 首頁活動卡片性別緞帶移到圖片下方的人數右側空白區
 // 20260310n: 個人資訊的我的資料編輯區開放修改性別
 // 20260310o: 修正首頁活動卡片性別緞帶偏移，恢復斜角絕對定位
-// 20260310p: 新增後台活動參與查詢（關鍵字＋時間區間＋用戶次數）
-const CACHE_VERSION = '20260310p';
+// 20260310q: 後台三種日誌整合為單頁分頁式日誌中心
+const CACHE_VERSION = '20260310q';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {
@@ -381,8 +381,6 @@ const DRAWER_MENUS = [
   { icon: '', label: '成就/徽章管理', i18nKey: 'admin.achievements', page: 'page-admin-achievements', minRole: 'super_admin' },
   { icon: '', label: '自訂層級管理', i18nKey: 'admin.roles', page: 'page-admin-roles', minRole: 'super_admin' },
   { icon: '', label: '無效資料查詢', i18nKey: 'admin.inactive', page: 'page-admin-inactive', minRole: 'super_admin' },
-  { icon: '', label: '操作日誌', i18nKey: 'admin.logs', page: 'page-admin-logs', minRole: 'super_admin' },
-  { icon: '', label: '稽核日誌', i18nKey: 'admin.auditLogs', page: 'page-admin-audit-logs', minRole: 'super_admin' },
-  { icon: '', label: '錯誤日誌', i18nKey: 'admin.errorLogs', page: 'page-admin-error-logs', minRole: 'super_admin' },
+  { icon: '', label: '日誌中心', i18nKey: 'admin.logs', page: 'page-admin-logs', minRole: 'super_admin' },
   { icon: '', label: '歷史入隊補正', i18nKey: 'admin.repair', page: 'page-admin-repair', minRole: 'super_admin' },
 ];

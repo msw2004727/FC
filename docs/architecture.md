@@ -216,6 +216,19 @@ flowchart LR
     RULES --> FS
 ```
 
+## Admin Log Center Update (2026-03-10)
+
+- New frontend module: `js/modules/admin-log-tabs.js`
+  - Merges operation logs, audit logs, and error logs into the single route `page-admin-logs`
+  - Builds tabbed panels at runtime from `pages/admin-system.html`
+  - Keeps legacy routes `page-admin-audit-logs` and `page-admin-error-logs` as aliases that redirect to the same page with the matching tab
+- Updated route dependencies:
+  - `page-admin-logs` now lazy-loads both `adminUsers` and `adminSystem`
+  - `page-admin-logs` now preloads both `operationLogs` and `errorLogs`
+- UI behavior:
+  - Left drawer now exposes one entry only: log center
+  - Inside the page, tabs switch between operation, audit, and error logs without leaving the route
+
 ## Realtime Scope Update (2026-03-09)
 
 - `events` and `teams` are no longer boot-time global realtime listeners.

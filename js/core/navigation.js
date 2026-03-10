@@ -6,6 +6,26 @@ Object.assign(App, {
 
   _pageTransitionSeq: 0,
 
+  _normalizeAdminLogRoute(pageId, options = {}) {
+    let normalizedPageId = pageId;
+    let adminLogTab = options.adminLogTab || '';
+
+    if (pageId === 'page-admin-audit-logs') {
+      normalizedPageId = 'page-admin-logs';
+      adminLogTab = 'audit';
+    } else if (pageId === 'page-admin-error-logs') {
+      normalizedPageId = 'page-admin-logs';
+      adminLogTab = 'error';
+    }
+
+    if (normalizedPageId === 'page-admin-logs') {
+      adminLogTab = adminLogTab || (pageId === 'page-admin-logs' ? 'operation' : this._adminLogActiveTab || 'operation');
+      this._pendingAdminLogTab = adminLogTab;
+    }
+
+    return { pageId: normalizedPageId, adminLogTab };
+  },
+
   _pageNeedsCloud(pageId) {
     return !ModeManager.isDemo() && pageId !== 'page-home';
   },
@@ -130,6 +150,9 @@ Object.assign(App, {
   },
 
   async showPage(pageId, options = {}) {
+    const normalizedRoute = this._normalizeAdminLogRoute(pageId, options);
+    pageId = normalizedRoute.pageId;
+
     if (!options.bypassRestrictionGuard && this._isCurrentUserRestricted() && pageId !== 'page-home') {
       this._showRestrictedToast();
       return;
@@ -253,9 +276,15 @@ Object.assign(App, {
     if (pageId === 'page-admin-announcements') this.renderAnnouncementManage();
     if (pageId === 'page-admin-games') this.renderGameManage();
     if (pageId === 'page-admin-themes') this.renderThemeManage();
-    if (pageId === 'page-admin-logs') this.renderOperationLogs();
-    if (pageId === 'page-admin-audit-logs') this.renderAuditLogPage();
-    if (pageId === 'page-admin-error-logs') this.renderErrorLogs();
+    if (pageId === 'page-admin-logs' && this.renderAdminLogCenter) {
+      this.renderAdminLogCenter(this._pendingAdminLogTab || this._adminLogActiveTab || 'operation');
+    }
+    if (pageId === 'page-admin-audit-logs' && this.renderAdminLogCenter) {
+      this.renderAdminLogCenter('audit');
+    }
+    if (pageId === 'page-admin-error-logs' && this.renderAdminLogCenter) {
+      this.renderAdminLogCenter('error');
+    }
   },
 
   async goBack() {

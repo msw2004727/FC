@@ -43,8 +43,8 @@ Object.assign(App, {
   },
 
   _ensureErrorLogRefreshButton() {
-    const header = document.querySelector('#page-admin-error-logs .page-header');
-    if (!header) return null;
+    const actions = document.getElementById('admin-log-panel-actions-error');
+    if (!actions) return null;
 
     let btn = document.getElementById('errorlog-refresh-btn');
     if (!btn) {
@@ -61,7 +61,7 @@ Object.assign(App, {
         </svg>
       `;
       btn.addEventListener('click', () => { void this.refreshErrorLogs(); });
-      header.appendChild(btn);
+      actions.appendChild(btn);
     }
     return btn;
   },
@@ -74,7 +74,7 @@ Object.assign(App, {
 
     try {
       if (typeof FirebaseService !== 'undefined' && typeof FirebaseService.refreshCollectionsForPage === 'function') {
-        await FirebaseService.refreshCollectionsForPage('page-admin-error-logs');
+        await FirebaseService.refreshCollectionsForPage('page-admin-logs');
       }
       this.filterErrorLogs(this._errorLogPage || 1);
       this.showToast('已重新整理錯誤日誌');

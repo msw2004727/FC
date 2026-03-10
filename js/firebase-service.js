@@ -235,7 +235,7 @@ const FirebaseService = {
     'page-admin-achievements': ['achievements', 'badges'],
     'page-admin-games':       ['gameConfigs'],
     'page-admin-roles':       ['permissions', 'customRoles'],
-    'page-admin-logs':        ['operationLogs'],
+    'page-admin-logs':        ['operationLogs', 'errorLogs'],
     'page-admin-error-logs':  ['errorLogs'],
     'page-admin-inactive':    ['attendanceRecords', 'activityRecords', 'operationLogs'],
     'page-admin-teams':       ['teams', 'tournaments', 'standings', 'matches'],

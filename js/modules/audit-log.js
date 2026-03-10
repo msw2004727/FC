@@ -145,8 +145,8 @@ Object.assign(App, {
   },
 
   _ensureAuditRefreshButton() {
-    const header = document.querySelector('#page-admin-audit-logs .page-header');
-    if (!header) return null;
+    const actions = document.getElementById('admin-log-panel-actions-audit');
+    if (!actions) return null;
 
     let btn = document.getElementById('auditlog-refresh-btn');
     if (!btn) {
@@ -163,7 +163,7 @@ Object.assign(App, {
         </svg>
       `;
       btn.addEventListener('click', () => { void this.refreshAuditLogs(); });
-      header.appendChild(btn);
+      actions.appendChild(btn);
     }
     return btn;
   },
