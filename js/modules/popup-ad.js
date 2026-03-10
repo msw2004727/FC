@@ -9,6 +9,30 @@ Object.assign(App, {
   _popupDismissToday: false,
   _popupSessionShownKey: '',
 
+  _isPopupBindLineNotifyAction(linkUrl) {
+    return typeof linkUrl === 'string' && linkUrl.trim().toLowerCase() === 'app://bind-line-notify';
+  },
+
+  handlePopupAdClick(adId) {
+    const ad = this._popupAdQueue.find(item => item.id === adId)
+      || ApiService.getPopupAds().find(item => item.id === adId);
+    if (!ad) return;
+
+    const linkUrl = (ad.linkUrl || '').trim();
+    if (!linkUrl) return;
+
+    this.trackAdClick('popup', ad.id);
+
+    if (this._isPopupBindLineNotifyAction(linkUrl)) {
+      void this.bindLineNotify();
+      return;
+    }
+
+    if (/^https?:\/\//i.test(linkUrl)) {
+      window.open(linkUrl, '_blank');
+    }
+  },
+
   showPopupAdsOnLoad() {
     const activeAds = ApiService.getActivePopupAds();
     if (!activeAds || activeAds.length === 0) {
@@ -47,9 +71,11 @@ Object.assign(App, {
     const body = document.getElementById('popup-ad-body');
     if (!overlay || !body) return;
 
-    const safeUrl = (ad.linkUrl && /^https?:\/\//.test(ad.linkUrl)) ? escapeHTML(ad.linkUrl) : '';
-    const clickHandler = safeUrl
-      ? `onclick="App.trackAdClick('popup','${escapeHTML(ad.id)}');window.open('${safeUrl}','_blank')" style="cursor:pointer"`
+    const linkUrl = (ad.linkUrl || '').trim();
+    const hasBindAction = this._isPopupBindLineNotifyAction(linkUrl);
+    const safeUrl = (!hasBindAction && /^https?:\/\//i.test(linkUrl)) ? escapeHTML(linkUrl) : '';
+    const clickHandler = (hasBindAction || safeUrl)
+      ? `onclick="App.handlePopupAdClick('${escapeHTML(ad.id)}')" style="cursor:pointer"`
       : '';
     body.innerHTML = ad.image
       ? `<img src="${ad.image}" alt="${escapeHTML(ad.title || '')}" ${clickHandler}>`

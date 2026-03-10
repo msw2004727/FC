@@ -542,7 +542,15 @@ Object.assign(App, {
 
   async bindLineNotify() {
     const user = ApiService.getCurrentUser();
-    if (!user) return;
+    if (!user) {
+      if (!ModeManager.isDemo() && typeof LineAuth !== 'undefined' && !LineAuth.isLoggedIn()) {
+        this.showToast('請先使用 LINE 登入');
+        LineAuth.login();
+        return;
+      }
+      this.showToast('登入資訊尚未同步完成，請稍後再試');
+      return;
+    }
     const btn = document.querySelector('.line-login-btn');
 
     // Demo 模式 → 直接綁定

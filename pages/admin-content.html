@@ -87,7 +87,8 @@
               </div>
             </div>
             <div class="form-row"><label>廣告標題</label><input type="text" id="popupad-input-title" placeholder="例：春季聯賽宣傳" maxlength="12"></div>
-            <div class="form-row"><label>連結網址（選填）</label><input type="text" id="popupad-input-link" placeholder="https://..."></div>
+            <div class="form-row"><label>連結網址（選填）</label><input type="text" id="popupad-input-link" placeholder="https://... 或 app://bind-line-notify"></div>
+            <div class="form-row" style="margin-top:-.3rem"><div style="font-size:.72rem;color:var(--text-muted)">填入 <code>app://bind-line-notify</code> 可直接觸發 LINE 推播綁定</div></div>
             <div class="form-row"><label>啟用方式</label><select id="popupad-input-mode" onchange="App.togglePopupAdSchedule()"><option value="now">立即啟用</option><option value="scheduled">預約啟用</option></select></div>
             <div class="form-row" id="popupad-publish-row" style="display:none"><label>啟用時間</label><input type="datetime-local" id="popupad-input-publish"></div>
             <div class="form-row"><label>結束時間</label><input type="datetime-local" id="popupad-input-unpublish"></div>
