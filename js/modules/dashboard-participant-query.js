@@ -43,7 +43,7 @@ Object.assign(App, {
 
     return `
       <div class="info-card dash-query-card${collapsedClass}">
-        <div class="info-title dash-query-title" onclick="App.toggleDashboardParticipantSearchCard()">
+        <div class="info-title dash-query-title" onclick="var p=this.parentElement;p.classList.toggle('collapsed');try{App._dashboardParticipantSearchState.collapsed=p.classList.contains('collapsed')}catch(e){}">
           <span>活動參與查詢</span>
           <span class="dash-query-arrow">▾</span>
         </div>
