@@ -1146,6 +1146,7 @@ Object.assign(App, {
     // 確保事件已綁定（防止 Phase 1 非同步時機導致未綁定）
     this.bindImageUpload('ce-image', 'ce-upload-preview');
     this.bindTeamOnlyToggle();
+    this.bindGenderRestrictionToggle?.();
     this.showModal('create-event-modal');
     this._eventSubmitInFlight = false;
     this._setCreateEventSubmitIdleLabel('儲存修改');
@@ -1170,6 +1171,7 @@ Object.assign(App, {
     document.getElementById('ce-min-age').value = e.minAge || 0;
     document.getElementById('ce-notes').value = e.notes || '';
     this._initSportTagPicker(e.sportTag || 'football');
+    this._setGenderRestrictionState?.(!!e.genderRestrictionEnabled, e.allowedGender || '');
     // 開放報名時間
     const regOpenInput = document.getElementById('ce-reg-open-time');
     if (regOpenInput) regOpenInput.value = e.regOpenTime || '';

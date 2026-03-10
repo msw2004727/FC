@@ -387,6 +387,62 @@ img { max-width: 100%; display: block; }
   display: inline-block;
   flex-shrink: 0;
 }
+.ce-gender-limit-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: .5rem;
+  width: 100%;
+}
+.ce-gender-limit-header {
+  display: flex;
+  align-items: center;
+  gap: .55rem;
+  flex-wrap: wrap;
+}
+.ce-gender-limit-options {
+  display: flex;
+  gap: .5rem;
+  flex-wrap: wrap;
+}
+.ce-gender-chip {
+  border: 1px solid rgba(220, 38, 38, .18);
+  border-radius: 999px;
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  padding: .38rem .95rem;
+  font-size: .82rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: border-color var(--transition), background var(--transition), color var(--transition), transform var(--transition), box-shadow var(--transition);
+}
+.ce-gender-chip:hover {
+  border-color: rgba(220, 38, 38, .45);
+  color: #b91c1c;
+  transform: translateY(-1px);
+}
+.ce-gender-chip.active {
+  border-color: rgba(220, 38, 38, .7);
+  background: linear-gradient(135deg, rgba(239, 68, 68, .14), rgba(251, 113, 133, .1));
+  color: #b91c1c;
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, .12);
+}
+.ce-gender-chip:focus-visible {
+  outline: none;
+  border-color: rgba(220, 38, 38, .65);
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, .16);
+}
+.ce-gender-limit-tip {
+  font-size: .72rem;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+[data-theme="dark"] .ce-gender-chip {
+  border-color: rgba(248, 113, 113, .22);
+}
+[data-theme="dark"] .ce-gender-chip:hover,
+[data-theme="dark"] .ce-gender-chip.active {
+  color: #fecaca;
+}
 .ce-sport-arrow {
   width: 18px;
   height: 18px;

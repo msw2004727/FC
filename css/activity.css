@@ -97,6 +97,7 @@
   border-bottom: none;
 }
 .tl-event-row {
+  position: relative;
   display: flex;
   align-items: center;
   gap: .55rem;
@@ -108,6 +109,25 @@
   transition: all var(--transition);
   min-width: 0;
   overflow: hidden;
+}
+.tl-event-gender-ribbon {
+  position: absolute;
+  top: 8px;
+  left: -18px;
+  width: 76px;
+  padding: .12rem 0;
+  background: linear-gradient(135deg, #dc2626, #fb7185);
+  color: #fff7f7;
+  font-size: .56rem;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-align: center;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, .18);
+  box-shadow: 0 3px 8px rgba(153, 27, 27, .22);
+  transform: rotate(-45deg);
+  transform-origin: center;
+  z-index: 2;
+  pointer-events: none;
 }
 .tl-event-row:hover {
   border-color: var(--accent);

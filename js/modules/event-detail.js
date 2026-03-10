@@ -135,6 +135,12 @@ Object.assign(App, {
     const isSignedUp = regsLoading ? false : this._isUserSignedUp(e);
     const isOnWaitlist = isSignedUp && this._isUserOnWaitlist(e);
     const canTeamOnlySignup = (typeof this._canSignupTeamOnlyEvent === 'function') ? this._canSignupTeamOnlyEvent(e) : true;
+    const genderSignupState = (typeof this._getEventGenderSignupState === 'function')
+      ? this._getEventGenderSignupState(e, ApiService.getCurrentUser?.() || null)
+      : { restricted: false, canSignup: true, requiresLogin: false, reason: '' };
+    const genderBlockedMessage = (typeof this._getEventGenderRestrictionMessage === 'function')
+      ? this._getEventGenderRestrictionMessage(e, genderSignupState.reason)
+      : '';
     let signupBtn = '';
     if (regsLoading) {
       signupBtn = `<button style="background:#64748b;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:not-allowed;opacity:.7" disabled>載入中…</button>`;
@@ -148,6 +154,8 @@ Object.assign(App, {
       signupBtn = `<button style="background:#dc2626;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:pointer" onclick="App.handleCancelSignup('${e.id}')">取消報名</button>`;
     } else if (e.teamOnly && !canTeamOnlySignup) {
       signupBtn = `<button style="background:#dc2626;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:pointer;opacity:.95" onclick="App.showToast('球隊限定')">球隊限定</button>`;
+    } else if (genderSignupState.restricted && !genderSignupState.requiresLogin && !genderSignupState.canSignup) {
+      signupBtn = `<button style="background:#dc2626;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:pointer;opacity:.95" onclick='App.showToast(${JSON.stringify(genderBlockedMessage)})'>${escapeHTML(this._getEventGenderRibbonText?.(e) || '性別限定')}</button>`;
     } else if (isMainFull) {
       signupBtn = `<button style="background:#7c3aed;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:pointer" onclick="App.handleSignup('${e.id}')">報名候補</button>`;
     } else {
@@ -158,6 +166,9 @@ Object.assign(App, {
       ? `<a href="javascript:void(0)" onclick="App.showTeamDetail('${e.creatorTeamId}')" style="color:inherit;text-decoration:underline;text-underline-offset:2px">${escapeHTML(e.creatorTeamName || '球隊')}</a>`
       : escapeHTML(e.creatorTeamName || '球隊');
     const teamTag = e.teamOnly ? `<div class="detail-row"><span class="detail-label">限定</span><span style="color:#e11d48;font-weight:600">${teamNameLink} 專屬活動</span></div>` : '';
+    const genderTag = this._hasEventGenderRestriction?.(e)
+      ? `<div class="detail-row"><span class="detail-label">性別</span><span style="color:#dc2626;font-weight:700">${escapeHTML(this._getEventGenderDetailText(e))}</span></div>`
+      : '';
 
     const canScan = this._canManageEvent(e);
     const scanBtn = canScan
@@ -188,6 +199,7 @@ Object.assign(App, {
       <div class="detail-row"><span class="detail-label">費用</span>${e.fee > 0 ? '$'+e.fee : '免費'}</div>
       <div class="detail-row"><span class="detail-label">人數</span>已報 ${e.current}/${e.max}${(e.waitlist || 0) > 0 ? '　候補 ' + e.waitlist : ''}</div>
       <div class="detail-row"><span class="detail-label">年齡</span>${e.minAge > 0 ? e.minAge + ' 歲以上' : '無限制'}</div>
+      ${genderTag}
       <div class="detail-row"><span class="detail-label">主辦</span><span class="participant-list" style="display:inline-flex;gap:.3rem;flex-wrap:wrap">${this._userTag(e.creator)}</span></div>
       ${(e.delegates && e.delegates.length) ? `<div class="detail-row"><span class="detail-label">委託</span><span class="participant-list" style="display:inline-flex;gap:.3rem;flex-wrap:wrap">${e.delegates.map(d => this._userTag(d.name)).join('')}</span></div>` : ''}
       ${e.contact ? `<div class="detail-row"><span class="detail-label">聯繫</span>${escapeHTML(e.contact)}</div>` : ''}

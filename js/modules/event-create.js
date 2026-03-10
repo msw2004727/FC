@@ -344,6 +344,7 @@ Object.assign(App, {
   },
 
   _buildCurrentTemplate(name, image) {
+    const genderRestrictionEnabled = !!document.getElementById('ce-gender-restriction-enabled')?.checked;
     return {
       id: 'tpl_' + Date.now(),
       name,
@@ -358,6 +359,8 @@ Object.assign(App, {
       minAge: parseInt(document.getElementById('ce-min-age')?.value) || 0,
       notes: document.getElementById('ce-notes')?.value?.trim() || '',
       sportTag: getSportKeySafe(document.getElementById('ce-sport-tag')?.value || '') || '',
+      genderRestrictionEnabled,
+      allowedGender: genderRestrictionEnabled ? this._getAllowedGenderValue() : '',
       image: image || null,
       updatedAt: new Date().toISOString(),
     };
@@ -367,6 +370,10 @@ Object.assign(App, {
     const nameInput = document.getElementById('ce-template-name');
     const name = (nameInput?.value || '').trim();
     if (!name) { this.showToast('請輸入範本名稱'); return; }
+    if (document.getElementById('ce-gender-restriction-enabled')?.checked && !this._getAllowedGenderValue()) {
+      this.showToast('請先選擇限定性別，再儲存範本');
+      return;
+    }
 
     const cePreviewEl = document.getElementById('ce-upload-preview');
     const ceImg = cePreviewEl?.querySelector('img');
@@ -437,6 +444,7 @@ Object.assign(App, {
     setVal('ce-min-age', tpl.minAge);
     setVal('ce-notes', tpl.notes);
     this._initSportTagPicker(tpl.sportTag || '');
+    this._setGenderRestrictionState(!!tpl.genderRestrictionEnabled, tpl.allowedGender || '');
     if (tpl.image) {
       const preview = document.getElementById('ce-upload-preview');
       if (preview) {
@@ -547,6 +555,7 @@ Object.assign(App, {
     const ceTeamSelect = document.getElementById('ce-team-select');
     if (ceTeamSelect) Array.from(ceTeamSelect.options || []).forEach(opt => { opt.selected = false; });
     if (ceTeamOnly) { ceTeamOnly.checked = false; this._updateTeamOnlyLabel(); }
+    this._setGenderRestrictionState(false, '');
     const cePreview = document.getElementById('ce-upload-preview');
     if (cePreview) {
       cePreview.classList.remove('has-image');
@@ -557,6 +566,7 @@ Object.assign(App, {
     // 確保事件已綁定（防止 Phase 1 非同步時機導致未綁定）
     this.bindImageUpload('ce-image', 'ce-upload-preview');
     this.bindTeamOnlyToggle();
+    this.bindGenderRestrictionToggle();
     this._initSportTagPicker('');
     this.showModal('create-event-modal');
     this._initDelegateSearch();
@@ -1072,6 +1082,84 @@ Object.assign(App, {
     this._updateTeamOnlyLabel();
   },
 
+  _normalizeAllowedGender(value) {
+    return value === '男' || value === '女' ? value : '';
+  },
+
+  _getAllowedGenderValue() {
+    const hidden = document.getElementById('ce-allowed-gender');
+    return this._normalizeAllowedGender(hidden?.value || '');
+  },
+
+  _setGenderRestrictionValue(value) {
+    const hidden = document.getElementById('ce-allowed-gender');
+    const normalized = this._normalizeAllowedGender(value);
+    if (hidden) hidden.value = normalized;
+    document.querySelectorAll('#ce-gender-restriction-options .ce-gender-chip').forEach(btn => {
+      const isActive = btn.dataset.value === normalized;
+      btn.classList.toggle('active', isActive);
+      btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+    });
+    this._updateGenderRestrictionUI();
+  },
+
+  _setGenderRestrictionState(enabled, value = '') {
+    const toggle = document.getElementById('ce-gender-restriction-enabled');
+    if (toggle) toggle.checked = !!enabled;
+    this._setGenderRestrictionValue(enabled ? value : '');
+  },
+
+  _updateGenderRestrictionUI() {
+    const toggle = document.getElementById('ce-gender-restriction-enabled');
+    const label = document.getElementById('ce-gender-restriction-label');
+    const options = document.getElementById('ce-gender-restriction-options');
+    const enabled = !!toggle?.checked;
+    const allowedGender = this._getAllowedGenderValue();
+
+    if (options) options.style.display = enabled ? 'flex' : 'none';
+    if (!label) return;
+
+    if (!enabled) {
+      label.textContent = '關閉 — 不限制性別';
+      label.style.color = 'var(--text-muted)';
+      return;
+    }
+
+    if (!allowedGender) {
+      label.textContent = '已開啟 — 請選擇限定性別';
+      label.style.color = 'var(--warning)';
+      return;
+    }
+
+    label.textContent = allowedGender === '男' ? '已開啟 — 僅限男性報名' : '已開啟 — 僅限女性報名';
+    label.style.color = '#dc2626';
+  },
+
+  bindGenderRestrictionToggle() {
+    const toggle = document.getElementById('ce-gender-restriction-enabled');
+    if (toggle && !toggle.dataset.bound) {
+      toggle.dataset.bound = '1';
+      toggle.addEventListener('change', () => {
+        if (!toggle.checked) {
+          this._setGenderRestrictionValue('');
+          return;
+        }
+        this._updateGenderRestrictionUI();
+      });
+    }
+
+    document.querySelectorAll('#ce-gender-restriction-options .ce-gender-chip').forEach(btn => {
+      if (btn.dataset.bound === '1') return;
+      btn.dataset.bound = '1';
+      btn.addEventListener('click', () => {
+        if (!document.getElementById('ce-gender-restriction-enabled')?.checked) return;
+        this._setGenderRestrictionValue(btn.dataset.value || '');
+      });
+    });
+
+    this._updateGenderRestrictionUI();
+  },
+
   _selectedSportTag: '',
   _sportPickerGlobalBound: false,
 
@@ -1207,6 +1295,8 @@ Object.assign(App, {
     const sportTag = getSportKeySafe(document.getElementById('ce-sport-tag')?.value || this._selectedSportTag || '');
     const regOpenTime = document.getElementById('ce-reg-open-time')?.value || '';
     const teamOnly = !!document.getElementById('ce-team-only')?.checked;
+    const genderRestrictionEnabled = !!document.getElementById('ce-gender-restriction-enabled')?.checked;
+    const allowedGender = genderRestrictionEnabled ? this._getAllowedGenderValue() : '';
 
     if (!title) { this.showToast('請輸入活動名稱'); return; }
     if (title.length > 16) { this.showToast('活動名稱不可超過 16 字'); return; }
@@ -1221,6 +1311,7 @@ Object.assign(App, {
     if (tEnd <= tStart) { this.showToast('結束時間必須晚於開始時間'); return; }
     if (notes.length > 500) { this.showToast('注意事項不可超過 500 字'); return; }
     if (!sportTag) { this.showToast('請先選擇運動 / 場景標籤（必選）'); return; }
+    if (genderRestrictionEnabled && !allowedGender) { this.showToast('請選擇限定性別'); return; }
     // 球隊限定：決定 teamId / teamName
     let resolvedTeamId = null, resolvedTeamName = null;
     if (teamOnly) {
@@ -1280,6 +1371,8 @@ Object.assign(App, {
         regOpenTime: regOpenTime || null,
         gradient: GRADIENT_MAP[type] || GRADIENT_MAP.friendly,
         teamOnly,
+        genderRestrictionEnabled,
+        allowedGender,
         creatorTeamId: teamOnly ? resolvedTeamId : null,
         creatorTeamName: teamOnly ? resolvedTeamName : null,
         creatorTeamIds: teamOnly ? [...resolvedTeamIds] : [],
@@ -1334,6 +1427,8 @@ Object.assign(App, {
         participants: [],
         waitlistNames: [],
         teamOnly,
+        genderRestrictionEnabled,
+        allowedGender,
         creatorTeamId: teamOnly ? resolvedTeamId : null,
         creatorTeamName: teamOnly ? resolvedTeamName : null,
         creatorTeamIds: teamOnly ? [...resolvedTeamIds] : [],
@@ -1390,6 +1485,7 @@ Object.assign(App, {
     const ceTeamSelect = document.getElementById('ce-team-select');
     if (ceTeamSelect) Array.from(ceTeamSelect.options || []).forEach(opt => { opt.selected = false; });
     if (ceTeamOnly) { ceTeamOnly.checked = false; this._updateTeamOnlyLabel(); }
+    this._setGenderRestrictionState(false, '');
     const cePreview = document.getElementById('ce-upload-preview');
     if (cePreview) {
       cePreview.classList.remove('has-image');

@@ -23,9 +23,16 @@ Object.assign(App, {
     const companions = ApiService.getCompanions();
     const remaining = Math.max(0, e.max - e.current);
     const feeLabel = e.fee > 0 ? `費用：NT$${e.fee}/人` : '免費';
+    const allowedGender = this._getEventAllowedGender?.(e) || '';
+    const selfGenderAllowed = this._canEventGenderParticipantSignup?.(e, user?.gender) ?? true;
 
     const infoEl = document.getElementById('companion-select-event-info');
-    if (infoEl) infoEl.innerHTML = `<b>${escapeHTML(e.title)}</b><br>${feeLabel}　剩餘名額：${remaining}/${e.max}`;
+    if (infoEl) {
+      const genderTip = allowedGender
+        ? `<br><span style="color:#dc2626;font-weight:700">性別限定：${escapeHTML(this._getEventGenderDetailText?.(e) || '')}</span>`
+        : '';
+      infoEl.innerHTML = `<b>${escapeHTML(e.title)}</b><br>${feeLabel}　剩餘名額：${remaining}/${e.max}${genderTip}`;
+    }
 
     // 已報名者（不可再勾選）
     const myRegs = ApiService.getMyRegistrationsByEvent(eventId);
@@ -34,8 +41,11 @@ Object.assign(App, {
 
     const listEl = document.getElementById('companion-select-list');
     if (!listEl) return;
-    const selfDisabled = isSelfRegistered ? 'disabled checked' : '';
-    const selfLabel = isSelfRegistered ? '（已報名）' : '';
+    const selfGenderHint = allowedGender && !selfGenderAllowed
+      ? (this._normalizeBinaryGender?.(user?.gender) ? '（不符合性別限定）' : '（請先補齊性別）')
+      : '';
+    const selfDisabled = isSelfRegistered ? 'disabled checked' : (!selfGenderAllowed ? 'disabled' : '');
+    const selfLabel = isSelfRegistered ? '（已報名）' : selfGenderHint;
     listEl.innerHTML = `
       <label style="display:flex;align-items:center;gap:.5rem;padding:.35rem 0;border-bottom:1px solid var(--border);cursor:pointer">
         <input type="checkbox" name="cs-participant" value="self" data-name="${escapeHTML(userName)}" ${selfDisabled} style="width:16px;height:16px" onchange="App._updateCompanionSelectSummary('${eventId}')">
@@ -43,8 +53,12 @@ Object.assign(App, {
       </label>
       ${companions.map(c => {
         const alreadyReg = registeredCompanionIds.has(c.id);
-        const dis = alreadyReg ? 'disabled checked' : '';
-        const lbl = alreadyReg ? '（已報名）' : '';
+        const genderAllowed = this._canEventGenderParticipantSignup?.(e, c.gender) ?? true;
+        const genderHint = allowedGender && !genderAllowed
+          ? (this._normalizeBinaryGender?.(c.gender) ? '（不符合性別限定）' : '（性別未填或不支援）')
+          : '';
+        const dis = alreadyReg ? 'disabled checked' : (!genderAllowed ? 'disabled' : '');
+        const lbl = alreadyReg ? '（已報名）' : genderHint;
         return `<label style="display:flex;align-items:center;gap:.5rem;padding:.35rem 0;border-bottom:1px solid var(--border);cursor:pointer">
           <input type="checkbox" name="cs-participant" value="companion" data-companion-id="${escapeHTML(c.id)}" data-name="${escapeHTML(c.name)}" ${dis} style="width:16px;height:16px" onchange="App._updateCompanionSelectSummary('${eventId}')">
           <span style="font-size:.85rem">${escapeHTML(c.name)}${c.gender ? `（${escapeHTML(c.gender)}）` : ''}${c.notes ? ` — <span style="color:var(--text-muted)">${escapeHTML(c.notes)}</span>` : ''}${lbl}</span>
@@ -94,6 +108,13 @@ Object.assign(App, {
     const user = ApiService.getCurrentUser();
     if (!user?.uid) { this.showToast('用戶資料載入中，請稍候再試'); return; }
     const userId = user.uid;
+    if (!this._canEventGenderParticipantSignup?.(e, user.gender)) {
+      this.showToast(this._getEventGenderRestrictionMessage?.(
+        e,
+        this._normalizeBinaryGender?.(user.gender) ? 'gender_mismatch' : 'missing_gender'
+      ) || '此活動不符合目前性別限制');
+      return;
+    }
     const participantList = [];
     checkboxes.forEach(cb => {
       if (cb.value === 'self') {
@@ -102,6 +123,23 @@ Object.assign(App, {
         participantList.push({ type: 'companion', companionId: cb.dataset.companionId, companionName: cb.dataset.name });
       }
     });
+
+    const companionsById = new Map((ApiService.getCompanions() || []).map(comp => [comp.id, comp]));
+    const invalidParticipant = participantList.find(participant => {
+      if (participant.type === 'self') return !this._canEventGenderParticipantSignup?.(e, user.gender);
+      const companion = companionsById.get(participant.companionId);
+      return !this._canEventGenderParticipantSignup?.(e, companion?.gender);
+    });
+    if (invalidParticipant) {
+      const companionName = invalidParticipant.type === 'companion' ? invalidParticipant.companionName || '' : '';
+      this.showToast(companionName
+        ? (this._getCompanionGenderRestrictionMessage?.(e, companionName) || '所選同行者不符合性別限定')
+        : (this._getEventGenderRestrictionMessage?.(
+          e,
+          this._normalizeBinaryGender?.(user.gender) ? 'gender_mismatch' : 'missing_gender'
+        ) || '此活動不符合目前性別限制'));
+      return;
+    }
 
     this._closeCompanionSelectModal();
 

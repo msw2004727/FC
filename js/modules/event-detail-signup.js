@@ -110,6 +110,13 @@ Object.assign(App, {
       this.showToast('球隊限定活動，僅限該隊成員報名');
       return;
     }
+    const genderSignupState = typeof this._getEventGenderSignupState === 'function'
+      ? this._getEventGenderSignupState(e, ApiService.getCurrentUser?.() || null)
+      : { restricted: false, canSignup: true, requiresLogin: false, reason: '' };
+    if (genderSignupState.restricted && !genderSignupState.requiresLogin && !genderSignupState.canSignup) {
+      this.showToast(this._getEventGenderRestrictionMessage?.(e, genderSignupState.reason) || '此活動不符合目前性別限制');
+      return;
+    }
     // 活動開始時間已過 → 自動結束並阻止操作
     const _startGuard = App._parseEventStartDate?.(e.date);
     if (_startGuard && _startGuard <= new Date() && e.status !== 'ended' && e.status !== 'cancelled') {

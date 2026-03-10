@@ -134,6 +134,73 @@ Object.assign(App, {
     return eventTeamIds.some(id => myTeamIds.has(id));
   },
 
+  _normalizeBinaryGender(value) {
+    return value === '男' || value === '女' ? value : '';
+  },
+
+  _getEventAllowedGender(e) {
+    if (!e?.genderRestrictionEnabled) return '';
+    return this._normalizeBinaryGender(e.allowedGender);
+  },
+
+  _hasEventGenderRestriction(e) {
+    return !!this._getEventAllowedGender(e);
+  },
+
+  _getEventGenderRibbonText(e) {
+    const allowedGender = this._getEventAllowedGender(e);
+    if (!allowedGender) return '';
+    return allowedGender === '男' ? '男生限定' : '女生限定';
+  },
+
+  _getEventGenderDetailText(e) {
+    const allowedGender = this._getEventAllowedGender(e);
+    if (!allowedGender) return '';
+    return allowedGender === '男' ? '限男性報名' : '限女性報名';
+  },
+
+  _canEventGenderParticipantSignup(e, gender) {
+    const allowedGender = this._getEventAllowedGender(e);
+    if (!allowedGender) return true;
+    return this._normalizeBinaryGender(gender) === allowedGender;
+  },
+
+  _getEventGenderSignupState(e, user = ApiService.getCurrentUser?.() || null) {
+    const allowedGender = this._getEventAllowedGender(e);
+    if (!allowedGender) {
+      return { restricted: false, allowedGender: '', canSignup: true, requiresLogin: false, reason: '' };
+    }
+    if (!user?.uid) {
+      return { restricted: true, allowedGender, canSignup: true, requiresLogin: true, reason: '' };
+    }
+    const userGender = this._normalizeBinaryGender(user.gender);
+    if (!userGender) {
+      return { restricted: true, allowedGender, canSignup: false, requiresLogin: false, reason: 'missing_gender' };
+    }
+    if (userGender !== allowedGender) {
+      return { restricted: true, allowedGender, canSignup: false, requiresLogin: false, reason: 'gender_mismatch' };
+    }
+    return { restricted: true, allowedGender, canSignup: true, requiresLogin: false, reason: '' };
+  },
+
+  _getEventGenderRestrictionMessage(e, reason = '') {
+    const detailText = this._getEventGenderDetailText(e);
+    if (!detailText) return '';
+    if (reason === 'missing_gender') {
+      return `${detailText}，請先到個人資料填寫性別`;
+    }
+    return `${detailText}，目前無法報名`;
+  },
+
+  _getCompanionGenderRestrictionMessage(e, companionName = '') {
+    const allowedGender = this._getEventAllowedGender(e);
+    if (!allowedGender) return '';
+    const label = allowedGender === '男' ? '男性限制' : '女性限制';
+    return companionName
+      ? `${companionName} 不符合此活動的${label}`
+      : `所選同行者不符合此活動的${label}`;
+  },
+
   _canViewEventByTeamScope(e) {
     if (!e) return false;
     if (!e.teamOnly) return true;
@@ -398,11 +465,14 @@ Object.assign(App, {
           ? `<span class="h-card-date-chip">${parseInt(_dp[1])}/${parseInt(_dp[2])}</span>`
           : '';
         const _cornerBadges = `<div class="h-card-corner-badges">${_sportIcon}${_dateTag}</div>`;
+        const _genderRibbon = this._hasEventGenderRestriction(e)
+          ? `<span class="h-card-gender-ribbon">${escapeHTML(this._getEventGenderRibbonText(e))}</span>`
+          : '';
         return `
         <div class="h-card" style="${e.pinned ? 'border:1px solid var(--warning);box-shadow:0 0 0 1px rgba(245,158,11,.15)' : ''}" onclick="App.showEventDetail('${e.id}')">
           ${e.image
-            ? `<div class="h-card-img" style="position:relative">${_cornerBadges}<img src="${e.image}" alt="${escapeHTML(e.title)}" loading="lazy"></div>`
-            : `<div class="h-card-img h-card-placeholder" style="position:relative">${_cornerBadges}220 × 90</div>`}
+            ? `<div class="h-card-img" style="position:relative">${_cornerBadges}${_genderRibbon}<img src="${e.image}" alt="${escapeHTML(e.title)}" loading="lazy"></div>`
+            : `<div class="h-card-img h-card-placeholder" style="position:relative">${_cornerBadges}${_genderRibbon}220 × 90</div>`}
           <div class="h-card-body">
             <div class="h-card-title">${e.pinned ? '<span style="font-size:.62rem;padding:.08rem .35rem;border-radius:999px;border:1px solid var(--warning);color:var(--warning);font-weight:700;margin-right:.3rem">置頂</span>' : ''}${escapeHTML(e.title)}${e.teamOnly ? '<span class="tl-teamonly-badge">球隊限定</span>' : ''}${(e.max > 0 && e.current >= e.max && e.status !== 'ended' && e.status !== 'cancelled') ? '<span class="tl-almost-full-badge">已額滿</span>' : ((e.status === 'open' && e.max > 0 && (e.max - e.current) / e.max < 0.2 && e.current < e.max) ? '<span class="tl-almost-full-badge">即將額滿</span>' : '')} ${this._favHeartHtml(this.isEventFavorited(e.id), 'Event', e.id)}</div>
             <div class="h-card-meta">
@@ -503,12 +573,14 @@ Object.assign(App, {
           // 球隊限定用特殊色
           const rowClass = e.teamOnly ? 'tl-type-teamonly' : `tl-type-${e.type}`;
           const teamBadge = e.teamOnly ? '<span class="tl-teamonly-badge">限定</span>' : '';
+          const genderRibbon = this._hasEventGenderRestriction(e) ? '<span class="tl-event-gender-ribbon">限定</span>' : '';
           const sportIcon = this._renderEventSportIcon(e, 'tl-event-sport-corner');
           const favHeart = this._favHeartHtml(this.isEventFavorited(e.id), 'Event', e.id);
           const iconStack = `<div class="tl-event-icons">${favHeart}${sportIcon}</div>`;
 
           html += `
             <div class="tl-event-row ${rowClass}${isEnded ? ' tl-past' : ''}" style="${e.pinned ? 'border:1px solid var(--warning);box-shadow:0 0 0 1px rgba(245,158,11,.12)' : ''}" onclick="App.showEventDetail('${e.id}')">
+              ${genderRibbon}
               ${e.image ? `<div class="tl-event-thumb"><img src="${e.image}" loading="lazy"></div>` : ''}
               <div class="tl-event-info">
                 <div class="tl-event-title-row"><div class="tl-event-title">${e.pinned ? '<span style="font-size:.62rem;padding:.08rem .35rem;border-radius:999px;border:1px solid var(--warning);color:var(--warning);font-weight:700;margin-right:.3rem">置頂</span>' : ''}${escapeHTML(e.title)}${teamBadge}${(e.max > 0 && e.current >= e.max && e.status !== 'ended' && e.status !== 'cancelled') ? '<span class="tl-almost-full-badge">已額滿</span>' : ((e.status === 'open' && e.max > 0 && (e.max - e.current) / e.max < 0.2 && e.current < e.max) ? '<span class="tl-almost-full-badge">即將額滿</span>' : '')}</div></div>

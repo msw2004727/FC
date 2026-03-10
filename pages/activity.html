@@ -195,6 +195,24 @@
           </div>
           <div class="ce-sport-required-tip">* 必選，未選擇運動 / 場景標籤將無法儲存活動</div>
         </div>
+        <div class="ce-row">
+          <label>性別限定</label>
+          <div class="ce-gender-limit-wrap">
+            <div class="ce-gender-limit-header">
+              <label class="toggle-switch" style="margin:0">
+                <input type="checkbox" id="ce-gender-restriction-enabled">
+                <span class="toggle-slider"></span>
+              </label>
+              <span id="ce-gender-restriction-label" style="font-size:.78rem;color:var(--text-muted)">關閉 — 不限制性別</span>
+            </div>
+            <div id="ce-gender-restriction-options" class="ce-gender-limit-options" style="display:none">
+              <button type="button" class="ce-gender-chip" data-value="男">男</button>
+              <button type="button" class="ce-gender-chip" data-value="女">女</button>
+            </div>
+            <input type="hidden" id="ce-allowed-gender" value="">
+            <div class="ce-gender-limit-tip">非必選；開啟後僅限所選性別報名，性別空白或其他不可報名</div>
+          </div>
+        </div>
         <div class="ce-row" style="border-top:1px solid var(--border);padding-top:.6rem;margin-top:.3rem">
           <label>儲存為範本</label>
           <div style="display:flex;gap:.3rem;align-items:center">

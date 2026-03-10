@@ -104,6 +104,25 @@
 .h-card-body { padding: .65rem .75rem; }
 .h-card-title { font-weight: 700; font-size: .85rem; margin-bottom: .2rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .h-card-meta { font-size: .72rem; color: var(--text-secondary); display: flex; flex-wrap: wrap; gap: .3rem .8rem; }
+.h-card-gender-ribbon {
+  position: absolute;
+  right: -36px;
+  bottom: 12px;
+  width: 126px;
+  padding: .18rem 0;
+  background: linear-gradient(135deg, #dc2626, #fb7185);
+  color: #fff7f7;
+  font-size: .62rem;
+  font-weight: 800;
+  letter-spacing: .04em;
+  text-align: center;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, .18);
+  box-shadow: 0 4px 10px rgba(153, 27, 27, .28);
+  transform: rotate(-33deg);
+  transform-origin: center;
+  z-index: 2;
+  pointer-events: none;
+}
 .h-card-corner-badges {
   position: absolute;
   top: .4rem;

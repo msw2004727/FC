@@ -149,7 +149,8 @@
 // 20260310g: 活動名稱上限從 12 字放寬為 16 字
 // 20260310h: 彈跳廣告支援 app://bind-line-notify 直接觸發 LINE 推播綁定
 // 20260310i: LINE 推播綁定在未登入或登入狀態未同步時改為明確提示，未登入時直接導向 LINE 登入
-const CACHE_VERSION = '20260310i';
+// 20260310j: 新增活動性別限定，含範本、報名限制與活動卡緞帶顯示
+const CACHE_VERSION = '20260310j';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {
