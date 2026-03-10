@@ -6,7 +6,47 @@
 Object.assign(App, {
 
   _pendingFirstLogin: false,
+  _brokenAvatarUrlsLoaded: false,
   _brokenAvatarUrls: new Set(),
+  _brokenAvatarStorageKey: 'sporthub_broken_avatar_urls_v1',
+
+  _ensureBrokenAvatarUrlsLoaded() {
+    if (this._brokenAvatarUrlsLoaded) return;
+    this._brokenAvatarUrlsLoaded = true;
+    try {
+      const raw = localStorage.getItem(this._brokenAvatarStorageKey);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      const urls = Array.isArray(parsed?.urls) ? parsed.urls : [];
+      urls
+        .filter(url => typeof url === 'string' && url)
+        .slice(0, 200)
+        .forEach(url => this._brokenAvatarUrls.add(url));
+    } catch (_) {}
+  },
+
+  _persistBrokenAvatarUrls() {
+    try {
+      const urls = Array.from(this._brokenAvatarUrls).slice(-200);
+      localStorage.setItem(this._brokenAvatarStorageKey, JSON.stringify({
+        updatedAt: Date.now(),
+        urls,
+      }));
+    } catch (_) {}
+  },
+
+  _rememberBrokenAvatarUrl(url) {
+    if (!url || typeof url !== 'string') return;
+    this._ensureBrokenAvatarUrlsLoaded();
+    this._brokenAvatarUrls.add(url);
+    this._persistBrokenAvatarUrls();
+  },
+
+  _isKnownBrokenAvatarUrl(url) {
+    if (!url || typeof url !== 'string') return false;
+    this._ensureBrokenAvatarUrlsLoaded();
+    return this._brokenAvatarUrls.has(url);
+  },
 
   _getAvatarInitial(name) {
     const text = String(name || '?').trim();
@@ -18,7 +58,7 @@ Object.assign(App, {
   },
 
   _buildAvatarImageMarkup(url, name, imageClass = '', fallbackClass = 'profile-avatar', extraAttrs = '') {
-    if (url && this._brokenAvatarUrls.has(url)) {
+    if (url && this._isKnownBrokenAvatarUrl(url)) {
       return this._buildAvatarFallbackMarkup(name, fallbackClass);
     }
     if (!url) return this._buildAvatarFallbackMarkup(name, fallbackClass);
@@ -33,7 +73,7 @@ Object.assign(App, {
       img.dataset.avatarFallbackBound = '1';
       img.addEventListener('error', () => {
         if (img.currentSrc || img.src) {
-          this._brokenAvatarUrls.add(img.currentSrc || img.src);
+          this._rememberBrokenAvatarUrl(img.currentSrc || img.src);
         }
         const fallback = document.createElement('div');
         fallback.className = img.dataset.avatarFallbackClass || 'profile-avatar';
@@ -61,13 +101,13 @@ Object.assign(App, {
     if (!userTopbar) return;
     const displayName = profile?.displayName || '?';
     const applyFallback = () => {
-      if (profile?.pictureUrl) this._brokenAvatarUrls.add(profile.pictureUrl);
+      if (profile?.pictureUrl) this._rememberBrokenAvatarUrl(profile.pictureUrl);
       const dropdown = document.getElementById('user-menu-dropdown');
       const dropdownHtml = dropdown ? dropdown.outerHTML : '';
       userTopbar.innerHTML = `<div class="line-avatar-topbar line-avatar-fallback" onclick="App.toggleUserMenu()">${this._getAvatarInitial(displayName)}</div>${dropdownHtml}`;
     };
 
-    if (!avatarImg || !profile?.pictureUrl || this._brokenAvatarUrls.has(profile.pictureUrl)) {
+    if (!avatarImg || !profile?.pictureUrl || this._isKnownBrokenAvatarUrl(profile.pictureUrl)) {
       applyFallback();
       return;
     }
