@@ -102,7 +102,6 @@ Object.assign(App, {
     requestAnimationFrame(() => {
       this._drawDonutChart('dash-chart-type', typeCounts, totalEvents);
       this._drawBarChart('dash-chart-month', monthCounts);
-      this._bindDashboardParticipantSearchDetailsEvents?.();
     });
   },
 

@@ -39,14 +39,14 @@ Object.assign(App, {
     const searchDisabled = state.loading ? 'disabled' : '';
     const shareDisabled = (!state.result || Number(state.result.matchedEventCount || 0) <= 0 || state.loading || state.shareLoading) ? 'disabled' : '';
 
-    const openAttr = state.collapsed ? '' : 'open';
+    const collapsedClass = state.collapsed ? ' collapsed' : '';
 
     return `
-      <details class="info-card dash-query-card" id="dash-participant-query-details" ${openAttr}>
-        <summary class="dash-query-header">
+      <div class="info-card dash-query-card${collapsedClass}">
+        <div class="info-title dash-query-title" onclick="App.toggleDashboardParticipantSearchCard()">
           <span>活動參與查詢</span>
-          <span class="dash-query-summary-arrow">▶</span>
-        </summary>
+          <span class="dash-query-arrow">▾</span>
+        </div>
         <div class="dash-query-body">
           <div class="dash-query-help">輸入活動標題模糊關鍵字與活動日期區間，統計有簽到過該批活動的用戶與參與次數。</div>
           <div class="dash-query-form">
@@ -71,7 +71,7 @@ Object.assign(App, {
           ${this._renderDashboardParticipantShareNotice ? this._renderDashboardParticipantShareNotice(state) : ''}
           ${this._renderDashboardParticipantSearchResult(state)}
         </div>
-      </details>
+      </div>
     `;
   },
 
@@ -157,14 +157,12 @@ Object.assign(App, {
     this.renderDashboard();
   },
 
-  _bindDashboardParticipantSearchDetailsEvents() {
-    const details = document.getElementById('dash-participant-query-details');
-    if (!details || details.dataset.bound === '1') return;
-    details.dataset.bound = '1';
-    details.addEventListener('toggle', () => {
-      const state = this._ensureDashboardParticipantSearchState();
-      state.collapsed = !details.open;
-    });
+  toggleDashboardParticipantSearchCard() {
+    const card = document.querySelector('.dash-query-card');
+    if (!card) return;
+    card.classList.toggle('collapsed');
+    const state = this._ensureDashboardParticipantSearchState();
+    state.collapsed = card.classList.contains('collapsed');
   },
 
   _copyDashboardParticipantText(text) {
