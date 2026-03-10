@@ -38,12 +38,12 @@ Object.assign(App, {
   _canAccessDrawerItem(item, role) {
     if (!item || item.divider || item.sectionLabel) return true;
     const roleKey = this._getEffectiveRoleKey(role);
+    if (item.permissionCode) {
+      return this._getRolePermissionList(roleKey).includes(item.permissionCode);
+    }
     const roleLevel = this._getEffectiveRoleLevel(roleKey);
     const minLevel = ROLE_LEVEL_MAP[item.minRole || 'user'] || 0;
-    if (roleLevel < minLevel) return false;
-    if (!item.permissionCode) return true;
-    if (!this._usesAdminDrawerPermissionMode(roleKey)) return true;
-    return this._getRolePermissionList(roleKey).includes(item.permissionCode);
+    return roleLevel >= minLevel;
   },
 
   _findDrawerMenuItem(pageId) {
@@ -63,6 +63,10 @@ Object.assign(App, {
     const level = this._getEffectiveRoleLevel(role);
 
     document.querySelectorAll('[data-min-role]').forEach(el => {
+      if (el.classList.contains('page') && el.id) {
+        el.style.display = this._canAccessPage(el.id, role) ? '' : 'none';
+        return;
+      }
       const minLevel = ROLE_LEVEL_MAP[el.dataset.minRole] || 0;
       el.style.display = level >= minLevel ? '' : 'none';
     });

@@ -237,8 +237,8 @@ flowchart LR
   - 權限分類排序直接沿用抽屜順序，包含「活動管理」與「賽事管理」入口
   - 內建角色 / 自訂角色的 runtime 等級與顏色資訊改由動態序列計算，不再只靠固定 `ROLE_LEVEL_MAP`
 - `js/modules/role.js`
-  - 抽屜入口現在同時檢查 `minRole` 與 `permissionCode`
-  - `showPage()` 也會共用同一套頁面權限判斷，避免手動切頁繞過抽屜隱藏
+  - 只要抽屜入口有 `permissionCode`，就改由權限碼單獨控制顯示與進頁，不再受 `minRole` 限制
+  - `showPage()` 與頁面根節點顯示共用同一套頁面權限判斷，避免手動切頁繞過抽屜隱藏
 - `js/modules/user-admin-roles.js`
   - 自訂層級列表排序改用 runtime 序列，支援「自訂層級插在自訂層級之後」
   - 權限面板改由內建 catalog + Firestore `permissions` 合併渲染

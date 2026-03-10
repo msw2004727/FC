@@ -163,7 +163,8 @@
 // 20260310v: 後台抽屜入口全面接入自訂層級權限，並修正自訂層級 runtime 等級計算
 // 20260310w: 頭像載入失敗時自動 fallback 成字首，降低 LINE 舊頭像網址 404 對管理頁與個人頁的影響
 // 20260310x: 權限管理頁改版，加入抽屜排序、儲存成預設、只顯示已有權限與總管鎖定
-const CACHE_VERSION = '20260310x';
+// 20260310y: 後台入口改為只看權限碼顯示，不再受抽屜最低層級限制
+const CACHE_VERSION = '20260310y';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {

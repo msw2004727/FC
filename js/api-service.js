@@ -557,18 +557,26 @@ const ApiService = {
   },
 
   getRolePermissions(role) {
+    const hasStoredRolePermissions = this._demoMode
+      ? !!(typeof DemoData !== 'undefined' && DemoData.rolePermissions && Object.prototype.hasOwnProperty.call(DemoData.rolePermissions, role))
+      : !!(FirebaseService._cache.rolePermissions && Object.prototype.hasOwnProperty.call(FirebaseService._cache.rolePermissions, role));
+
     const stored = this._demoMode
       ? ((typeof DemoData !== 'undefined' && DemoData.rolePermissions) ? (DemoData.rolePermissions[role] || []) : [])
       : ((FirebaseService._cache.rolePermissions || {})[role] || []);
 
+    const resolved = hasStoredRolePermissions
+      ? stored
+      : (Array.isArray(getDefaultRolePermissions(role)) ? getDefaultRolePermissions(role) : stored);
+
     if (role === 'super_admin') {
       return Array.from(new Set([
-        ...stored,
+        ...resolved,
         ...getAllPermissionCodes(this._src('permissions') || []),
       ]));
     }
 
-    return stored;
+    return resolved;
   },
 
   getRolePermissionDefaults(role) {
