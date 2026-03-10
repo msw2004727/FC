@@ -49,7 +49,7 @@ Object.assign(App, {
 
   async createDashboardParticipantQueryShare() {
     const state = this._ensureDashboardParticipantSearchState?.();
-    if (!state?.result || !Array.isArray(state.result.items) || !state.result.items.length) {
+    if (!state?.result || Number(state.result.matchedEventCount || 0) <= 0) {
       this.showToast('目前沒有可建立臨時網址的查詢結果');
       return;
     }
@@ -103,7 +103,7 @@ Object.assign(App, {
     }
 
     try {
-      await this._copyDashboardParticipantSearchText(url);
+      await this._copyDashboardParticipantText(url);
       this.showToast('臨時網址已複製到剪貼簿');
     } catch (_) {
       this.showToast('複製失敗');

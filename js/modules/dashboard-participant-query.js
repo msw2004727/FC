@@ -36,8 +36,7 @@ Object.assign(App, {
     const startDate = escapeHTML(state.startDate || '');
     const endDate = escapeHTML(state.endDate || '');
     const searchDisabled = state.loading ? 'disabled' : '';
-    const copyDisabled = (!state.result || !state.result.items || !state.result.items.length || state.loading) ? 'disabled' : '';
-    const shareDisabled = (!state.result || !state.result.items || !state.result.items.length || state.loading || state.shareLoading) ? 'disabled' : '';
+    const shareDisabled = (!state.result || Number(state.result.matchedEventCount || 0) <= 0 || state.loading || state.shareLoading) ? 'disabled' : '';
 
     return `
       <div class="info-card dash-query-card">
@@ -60,7 +59,6 @@ Object.assign(App, {
         <div class="dash-query-actions">
           <button class="primary-btn" onclick="App.runDashboardParticipantSearch()" ${searchDisabled}>${state.loading ? '查詢中...' : '查詢'}</button>
           <button class="outline-btn" onclick="App.clearDashboardParticipantSearch()" ${searchDisabled}>清除</button>
-          <button class="outline-btn" onclick="App.copyDashboardParticipantSearchResult()" ${copyDisabled}>複製結果</button>
           <button class="outline-btn" onclick="App.createDashboardParticipantQueryShare()" ${shareDisabled}>${state.shareLoading ? '產生中...' : '產生臨時網址'}</button>
         </div>
         ${this._renderDashboardParticipantShareNotice ? this._renderDashboardParticipantShareNotice(state) : ''}
@@ -103,43 +101,9 @@ Object.assign(App, {
       return summaryHtml + `<div class="dash-query-state muted">${emptyText}</div>`;
     }
 
-    const rows = result.items.map((item, index) => {
-      const eventsHtml = item.matchedEvents.map(ev => `
-        <div class="dash-query-event-line">
-          <span class="dash-query-event-title">${escapeHTML(ev.title)}</span>
-          <span class="dash-query-event-date">${escapeHTML(ev.date || '')}</span>
-        </div>
-      `).join('');
-      return `
-        <tr>
-          <td>${index + 1}</td>
-          <td>
-            <div class="dash-query-user-name">${escapeHTML(item.userName || item.uid)}</div>
-            <div class="dash-query-user-uid">${escapeHTML(item.uid)}</div>
-          </td>
-          <td>${item.count}</td>
-          <td>${escapeHTML(item.latestParticipationDate || '-')}</td>
-          <td><div class="dash-query-event-list">${eventsHtml}</div></td>
-        </tr>
-      `;
-    }).join('');
-
     return `
       ${summaryHtml}
-      <div class="dash-query-table-wrap">
-        <table class="dash-query-table">
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>用戶</th>
-              <th>次數</th>
-              <th>最近參與</th>
-              <th>符合活動</th>
-            </tr>
-          </thead>
-          <tbody>${rows}</tbody>
-        </table>
-      </div>
+      <div class="dash-query-state muted">詳細名單已改放臨時網址頁查看。</div>
     `;
   },
 
@@ -185,50 +149,7 @@ Object.assign(App, {
     this.renderDashboard();
   },
 
-  async copyDashboardParticipantSearchResult() {
-    const state = this._ensureDashboardParticipantSearchState();
-    if (!state.result || !state.result.items || !state.result.items.length) {
-      this.showToast('目前沒有可複製的結果');
-      return;
-    }
-
-    const text = this._buildDashboardParticipantSearchCopyText(state.result);
-    try {
-      await this._copyDashboardParticipantSearchText(text);
-      this.showToast('查詢結果已複製到剪貼簿');
-    } catch (_) {
-      this.showToast('複製失敗');
-    }
-  },
-
-  _buildDashboardParticipantSearchCopyText(result) {
-    const header = [
-      `活動關鍵字\t${result.keyword}`,
-      `開始日期\t${result.startDate}`,
-      `結束日期\t${result.endDate}`,
-      `符合活動\t${result.matchedEventCount}`,
-      `符合用戶\t${result.matchedUserCount}`,
-      `參與次數\t${result.totalParticipationCount}`,
-      '',
-      '排名\t用戶名稱\tUID\t參與次數\t最近參與\t符合活動',
-    ];
-
-    const rows = result.items.map((item, index) => {
-      const titles = item.matchedEvents.map(ev => `${ev.title}（${ev.date || '-'}）`).join('｜');
-      return [
-        index + 1,
-        item.userName || item.uid,
-        item.uid,
-        item.count,
-        item.latestParticipationDate || '-',
-        titles,
-      ].join('\t');
-    });
-
-    return header.concat(rows).join('\n');
-  },
-
-  _copyDashboardParticipantSearchText(text) {
+  _copyDashboardParticipantText(text) {
     if (navigator.clipboard && navigator.clipboard.writeText) {
       return navigator.clipboard.writeText(text);
     }

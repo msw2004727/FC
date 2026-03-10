@@ -158,7 +158,8 @@
 // 20260310q: 後台三種日誌整合為單頁分頁式日誌中心
 // 20260310r: 後台活動參與查詢新增 7 天臨時網址分享頁
 // 20260310s: 日誌中心工具列統一位置與返回箭頭文案
-const CACHE_VERSION = '20260310s';
+// 20260310t: 活動參與查詢主卡改為摘要模式，明細只留臨時頁
+const CACHE_VERSION = '20260310t';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {
