@@ -20,6 +20,7 @@ Object.assign(App, {
       shareError: '',
       shareUrl: '',
       shareExpiresAt: '',
+      collapsed: false,
     };
   },
 
@@ -38,31 +39,42 @@ Object.assign(App, {
     const searchDisabled = state.loading ? 'disabled' : '';
     const shareDisabled = (!state.result || Number(state.result.matchedEventCount || 0) <= 0 || state.loading || state.shareLoading) ? 'disabled' : '';
 
+    const collapsed = state.collapsed;
+    const arrowClass = collapsed ? 'collapsed' : '';
+    const cardClass = collapsed ? 'info-card dash-query-card collapsed' : 'info-card dash-query-card';
+
+    const bodyHtml = collapsed ? '' : `
+      <div class="dash-query-help">輸入活動標題模糊關鍵字與活動日期區間，統計有簽到過該批活動的用戶與參與次數。</div>
+      <div class="dash-query-form">
+        <label class="dash-query-field">
+          <span>活動關鍵字</span>
+          <input type="text" id="dash-participant-keyword" placeholder="例如：大安、週六、友誼賽" value="${keyword}" ${searchDisabled}>
+        </label>
+        <label class="dash-query-field">
+          <span>開始日期</span>
+          <input type="date" id="dash-participant-start" value="${startDate}" ${searchDisabled}>
+        </label>
+        <label class="dash-query-field">
+          <span>結束日期</span>
+          <input type="date" id="dash-participant-end" value="${endDate}" ${searchDisabled}>
+        </label>
+      </div>
+      <div class="dash-query-actions">
+        <button class="primary-btn" onclick="App.runDashboardParticipantSearch()" ${searchDisabled}>${state.loading ? '查詢中...' : '查詢'}</button>
+        <button class="outline-btn" onclick="App.clearDashboardParticipantSearch()" ${searchDisabled}>清除</button>
+        <button class="outline-btn" onclick="App.createDashboardParticipantQueryShare()" ${shareDisabled}>${state.shareLoading ? '產生中...' : '產生臨時網址'}</button>
+      </div>
+      ${this._renderDashboardParticipantShareNotice ? this._renderDashboardParticipantShareNotice(state) : ''}
+      ${this._renderDashboardParticipantSearchResult(state)}
+    `;
+
     return `
-      <div class="info-card dash-query-card">
-        <div class="info-title">活動參與查詢</div>
-        <div class="dash-query-help">輸入活動標題模糊關鍵字與活動日期區間，統計有簽到過該批活動的用戶與參與次數。</div>
-        <div class="dash-query-form">
-          <label class="dash-query-field">
-            <span>活動關鍵字</span>
-            <input type="text" id="dash-participant-keyword" placeholder="例如：大安、週六、友誼賽" value="${keyword}" ${searchDisabled}>
-          </label>
-          <label class="dash-query-field">
-            <span>開始日期</span>
-            <input type="date" id="dash-participant-start" value="${startDate}" ${searchDisabled}>
-          </label>
-          <label class="dash-query-field">
-            <span>結束日期</span>
-            <input type="date" id="dash-participant-end" value="${endDate}" ${searchDisabled}>
-          </label>
+      <div class="${cardClass}">
+        <div class="info-title dash-query-header" onclick="App.toggleDashboardParticipantSearchCard()">
+          <span>活動參與查詢</span>
+          <span class="dash-query-toggle ${arrowClass}">▾</span>
         </div>
-        <div class="dash-query-actions">
-          <button class="primary-btn" onclick="App.runDashboardParticipantSearch()" ${searchDisabled}>${state.loading ? '查詢中...' : '查詢'}</button>
-          <button class="outline-btn" onclick="App.clearDashboardParticipantSearch()" ${searchDisabled}>清除</button>
-          <button class="outline-btn" onclick="App.createDashboardParticipantQueryShare()" ${shareDisabled}>${state.shareLoading ? '產生中...' : '產生臨時網址'}</button>
-        </div>
-        ${this._renderDashboardParticipantShareNotice ? this._renderDashboardParticipantShareNotice(state) : ''}
-        ${this._renderDashboardParticipantSearchResult(state)}
+        ${bodyHtml}
       </div>
     `;
   },
@@ -146,6 +158,12 @@ Object.assign(App, {
 
   clearDashboardParticipantSearch() {
     this._dashboardParticipantSearchState = this._getDashboardParticipantSearchDefaultState();
+    this.renderDashboard();
+  },
+
+  toggleDashboardParticipantSearchCard() {
+    const state = this._ensureDashboardParticipantSearchState();
+    state.collapsed = !state.collapsed;
     this.renderDashboard();
   },
 
