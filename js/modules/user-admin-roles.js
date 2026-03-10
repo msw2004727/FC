@@ -6,6 +6,81 @@ Object.assign(App, {
 
   // ─── 權限系統（依角色對照表） ───
   _permSelectedRole: null,
+  _permShowCheckedOnly: false,
+
+  _getRolePermissionSource() {
+    if (ModeManager.isDemo()) {
+      if (typeof DemoData === 'undefined') return {};
+      if (!DemoData.rolePermissions) DemoData.rolePermissions = {};
+      return DemoData.rolePermissions;
+    }
+    return FirebaseService._cache.rolePermissions || {};
+  },
+
+  _getRolePermissionMetaSource() {
+    if (ModeManager.isDemo()) {
+      if (typeof DemoData === 'undefined') return {};
+      if (!DemoData.rolePermissionMeta) DemoData.rolePermissionMeta = {};
+      return DemoData.rolePermissionMeta;
+    }
+    return FirebaseService._cache.rolePermissionMeta || {};
+  },
+
+  _persistRolePermissionMetaCache() {
+    if (ModeManager.isDemo()) return;
+    FirebaseService._saveToLS('rolePermissionMeta', FirebaseService._cache.rolePermissionMeta || {});
+  },
+
+  _getSavedRoleDefaultPermissions(roleKey) {
+    const meta = this._getRolePermissionMetaSource();
+    const saved = meta?.[roleKey]?.defaultPermissions;
+    return Array.isArray(saved) ? [...saved] : null;
+  },
+
+  _getRoleResetPermissions(roleKey) {
+    if (this._isLockedPermissionRole(roleKey)) {
+      return [...ApiService.getRolePermissions(roleKey)];
+    }
+    if (typeof ApiService.getRolePermissionDefaults === 'function') {
+      const defaults = ApiService.getRolePermissionDefaults(roleKey);
+      if (Array.isArray(defaults)) return [...defaults];
+    }
+    return null;
+  },
+
+  _getRoleBasePermissions(roleKey) {
+    const defaults = this._getRoleResetPermissions(roleKey);
+    if (Array.isArray(defaults)) return defaults;
+    const currentPerms = ApiService.getRolePermissions(roleKey) || [];
+    return [...currentPerms];
+  },
+
+  _isLockedPermissionRole(roleKey) {
+    return roleKey === 'super_admin';
+  },
+
+  _syncPermissionPanelControls(roleKey) {
+    const filterBtn = document.getElementById('role-perm-filter-btn');
+    if (filterBtn) {
+      filterBtn.textContent = this._permShowCheckedOnly ? '顯示全部權限' : '只顯示已有權限';
+      filterBtn.classList.toggle('active', this._permShowCheckedOnly);
+    }
+
+    const resetBtn = document.getElementById('role-perm-reset-btn');
+    if (resetBtn) {
+      const hasDefaults = Array.isArray(this._getRoleResetPermissions(roleKey));
+      resetBtn.disabled = !hasDefaults;
+      resetBtn.style.opacity = hasDefaults ? '' : '.45';
+      resetBtn.style.cursor = hasDefaults ? 'pointer' : 'not-allowed';
+    }
+
+    const lockHint = document.getElementById('role-perm-lock-hint');
+    if (lockHint) {
+      const locked = this._isLockedPermissionRole(roleKey);
+      lockHint.style.display = locked ? '' : 'none';
+      lockHint.textContent = locked ? '總管層級固定擁有全部權限，所有開關已鎖定，避免誤觸關閉。' : '';
+    }
+  },
 
   // ─── Role Hierarchy ───
 
@@ -89,13 +164,12 @@ Object.assign(App, {
     }
     if (!this._permSelectedRole) return;
     const role = this._permSelectedRole;
-    const _rp = (typeof DemoData !== 'undefined' && DemoData.rolePermissions) ? DemoData.rolePermissions : {};
-    const defaults = _rp[role] || getDefaultRolePermissions(role);
+    const defaults = this._getRoleResetPermissions(role);
     if (!defaults) {
       this.showToast('此層級無預設權限可復原');
       return;
     }
-    const source = ModeManager.isDemo() ? _rp : (FirebaseService._cache.rolePermissions || {});
+    const source = this._getRolePermissionSource();
     const prevPerms = Array.isArray(source[role]) ? [...source[role]] : null;
     source[role] = [...defaults];
     if (!ModeManager.isDemo()) {
@@ -115,27 +189,91 @@ Object.assign(App, {
     this.showToast(`「${info.label}」權限已復原為預設值`);
   },
 
+  async saveRolePermissionDefaults() {
+    if ((ROLE_LEVEL_MAP[this.currentRole] || 0) < ROLE_LEVEL_MAP.super_admin) {
+      this.showToast('權限不足'); return;
+    }
+    if (!this._permSelectedRole) return;
+
+    const role = this._permSelectedRole;
+    const currentPerms = [...ApiService.getRolePermissions(role)];
+    const metaSource = this._getRolePermissionMetaSource();
+    const prevMeta = metaSource[role]
+      ? {
+          ...metaSource[role],
+          defaultPermissions: Array.isArray(metaSource[role].defaultPermissions)
+            ? [...metaSource[role].defaultPermissions]
+            : null,
+        }
+      : null;
+
+    metaSource[role] = {
+      ...(metaSource[role] || {}),
+      defaultPermissions: currentPerms,
+    };
+    this._persistRolePermissionMetaCache();
+
+    if (!ModeManager.isDemo()) {
+      try {
+        await FirebaseService.saveRolePermissionDefaults(role, currentPerms);
+      } catch (err) {
+        if (prevMeta) metaSource[role] = prevMeta;
+        else delete metaSource[role];
+        this._persistRolePermissionMetaCache();
+        console.error('[saveRolePermissionDefaults]', err);
+        this.showToast('預設權限儲存失敗');
+        return;
+      }
+    }
+
+    this.renderPermissions(role);
+    const info = this._getRoleInfo(role);
+    this.showToast(`「${info.label}」目前權限已儲存成預設值`);
+  },
+
+  togglePermShowCheckedOnly() {
+    this._permShowCheckedOnly = !this._permShowCheckedOnly;
+    this.renderPermissions(this._permSelectedRole);
+  },
+
   renderPermissions(role) {
     const container = document.getElementById('permissions-list');
     if (!container) return;
 
     if (role) this._permSelectedRole = role;
     if (!this._permSelectedRole) return;
-    const currentPerms = ApiService.getRolePermissions(this._permSelectedRole);
+    const roleKey = this._permSelectedRole;
+    const lockedRole = this._isLockedPermissionRole(roleKey);
+    const currentPerms = Array.from(new Set(ApiService.getRolePermissions(roleKey)));
+    this._syncPermissionPanelControls(roleKey);
 
-    container.innerHTML = ApiService.getPermissions().map(cat => `
+    const categories = ApiService.getPermissions()
+      .map(category => {
+        const items = (category.items || [])
+          .filter(item => item && typeof item.code === 'string')
+          .filter(item => !this._permShowCheckedOnly || currentPerms.includes(item.code));
+        return { ...category, items };
+      })
+      .filter(category => category.items.length > 0);
+
+    if (!categories.length) {
+      container.innerHTML = '<div style="padding:.75rem .3rem;color:var(--text-muted);font-size:.78rem">目前沒有符合篩選條件的權限。</div>';
+      return;
+    }
+
+    container.innerHTML = categories.map(cat => `
       <div class="perm-category">
         <div class="perm-category-title" onclick="this.parentElement.classList.toggle('collapsed')">
-          ${cat.cat}
+          ${escapeHTML(cat.cat)}
         </div>
         <div class="perm-items">
           ${cat.items.map(p => {
             const checked = currentPerms.includes(p.code);
             return `
-            <div class="perm-item">
-              <span>${p.name}</span>
+            <div class="perm-item ${lockedRole ? 'perm-item-locked' : ''}">
+              <span class="perm-item-label">${escapeHTML(p.name)}</span>
               <label class="toggle-switch ${checked ? 'active' : ''}">
-                <input type="checkbox" ${checked ? 'checked' : ''} onchange="App.togglePermission('${p.code}')">
+                <input type="checkbox" ${checked ? 'checked' : ''} ${lockedRole ? 'disabled' : ''} onchange="App.togglePermission('${p.code}')">
                 <span class="toggle-slider"></span>
               </label>
             </div>`;
@@ -146,8 +284,12 @@ Object.assign(App, {
   },
 
   async togglePermission(code) {
-    const source = ModeManager.isDemo() ? ((typeof DemoData !== 'undefined' && DemoData.rolePermissions) || {}) : (FirebaseService._cache.rolePermissions || {});
     if (!this._permSelectedRole) return;
+    if (this._isLockedPermissionRole(this._permSelectedRole)) {
+      this.showToast('總管權限固定開啟');
+      return;
+    }
+    const source = this._getRolePermissionSource();
     if (!source[this._permSelectedRole]) source[this._permSelectedRole] = [];
     const prevPerms = [...source[this._permSelectedRole]];
     const idx = source[this._permSelectedRole].indexOf(code);
@@ -221,19 +363,27 @@ Object.assign(App, {
     customRoles.push(newRole);
 
     // 初始化權限（複製 afterRole 的權限作為基底）
-    const source = ModeManager.isDemo() ? ((typeof DemoData !== 'undefined' && DemoData.rolePermissions) || {}) : (FirebaseService._cache.rolePermissions || {});
-    source[key] = [...(source[afterRole] || [])];
+    const source = this._getRolePermissionSource();
+    const metaSource = this._getRolePermissionMetaSource();
+    const inheritedPerms = this._getRoleBasePermissions(afterRole);
+    source[key] = [...inheritedPerms];
+    metaSource[key] = {
+      ...(metaSource[key] || {}),
+      defaultPermissions: [...inheritedPerms],
+    };
+    this._persistRolePermissionMetaCache();
 
     // 正式版：寫入 Firestore
     if (!ModeManager.isDemo()) {
       try {
-        await FirebaseService.addCustomRole(newRole);
-        await FirebaseService.saveRolePermissions(key, source[key]);
+        await FirebaseService.addCustomRoleWithPermissions(newRole, source[key], inheritedPerms);
       } catch (err) {
         console.error('[saveCustomRole]', err);
         const rollbackIdx = customRoles.findIndex(c => c.key === key);
         if (rollbackIdx >= 0) customRoles.splice(rollbackIdx, 1);
         delete source[key];
+        delete metaSource[key];
+        this._persistRolePermissionMetaCache();
         this.renderRoleHierarchy();
         this.showToast('新增角色失敗');
         return;
@@ -289,19 +439,31 @@ Object.assign(App, {
     customRoles.splice(idx, 1);
 
     // 移除權限
-    const source = ModeManager.isDemo() ? ((typeof DemoData !== 'undefined' && DemoData.rolePermissions) || {}) : (FirebaseService._cache.rolePermissions || {});
+    const source = this._getRolePermissionSource();
+    const metaSource = this._getRolePermissionMetaSource();
     const prevPerms = Array.isArray(source[key]) ? [...source[key]] : null;
+    const prevMeta = metaSource[key]
+      ? {
+          ...metaSource[key],
+          defaultPermissions: Array.isArray(metaSource[key].defaultPermissions)
+            ? [...metaSource[key].defaultPermissions]
+            : null,
+        }
+      : null;
     delete source[key];
+    delete metaSource[key];
+    this._persistRolePermissionMetaCache();
 
     // 正式版：刪除 Firestore 資料
     if (!ModeManager.isDemo()) {
       try {
-        await FirebaseService.deleteCustomRole(key);
-        await FirebaseService.deleteRolePermissions(key);
+        await FirebaseService.deleteCustomRoleWithPermissions(key);
       } catch (err) {
         console.error('[executeDeleteCustomRole]', err);
         customRoles.splice(idx, 0, removedRole);
         if (prevPerms) source[key] = prevPerms;
+        if (prevMeta) metaSource[key] = prevMeta;
+        this._persistRolePermissionMetaCache();
         this.renderRoleHierarchy();
         this.showToast('刪除角色失敗');
         return;

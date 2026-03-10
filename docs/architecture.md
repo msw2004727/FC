@@ -234,6 +234,7 @@ flowchart LR
 - `js/config.js`
   - 新增後台抽屜入口對應的權限碼定義（例如 `admin.dashboard.entry`、`admin.games.entry`）
   - 內建權限分類改以抽屜入口名稱為分類標題，且每個分類至少包含 `顯示入口`
+  - 權限分類排序直接沿用抽屜順序，包含「活動管理」與「賽事管理」入口
   - 內建角色 / 自訂角色的 runtime 等級與顏色資訊改由動態序列計算，不再只靠固定 `ROLE_LEVEL_MAP`
 - `js/modules/role.js`
   - 抽屜入口現在同時檢查 `minRole` 與 `permissionCode`
@@ -241,8 +242,10 @@ flowchart LR
 - `js/modules/user-admin-roles.js`
   - 自訂層級列表排序改用 runtime 序列，支援「自訂層級插在自訂層級之後」
   - 權限面板改由內建 catalog + Firestore `permissions` 合併渲染
+  - 新增「儲存成預設」與「只顯示已有權限」操作，並把 `rolePermissions.defaultPermissions` 作為各層級重置來源
+  - `super_admin` 權限開關在 UI 層固定鎖定，避免誤觸關閉抽屜入口或其他權限
 - `js/firebase-service.js`
-  - `rolePermissions` 即時監聽新增 catalog metadata
+  - `rolePermissions` 即時監聽新增 catalog metadata，並同步讀取 `defaultPermissions`
   - `super_admin` 登入時會做一次後台入口權限補遷移，避免舊的 admin / super_admin 在新入口權限上線後瞬間失去抽屜入口
 - Inside the page, tabs switch between operation, audit, and error logs without leaving the route
 

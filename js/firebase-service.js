@@ -517,11 +517,14 @@ const FirebaseService = {
             nextRolePermissions[doc.id] = data.permissions || [];
             nextRolePermissionMeta[doc.id] = {
               catalogVersion: data.catalogVersion || '',
+              defaultPermissions: Array.isArray(data.defaultPermissions) ? data.defaultPermissions : null,
             };
           });
 
           const prev = JSON.stringify(this._cache.rolePermissions || {});
+          const prevMeta = JSON.stringify(this._cache.rolePermissionMeta || {});
           const next = JSON.stringify(nextRolePermissions);
+          const nextMeta = JSON.stringify(nextRolePermissionMeta);
           this._cache.rolePermissions = nextRolePermissions;
           this._cache.rolePermissionMeta = nextRolePermissionMeta;
           this._saveToLS('rolePermissions', this._cache.rolePermissions);
@@ -533,7 +536,7 @@ const FirebaseService = {
             return;
           }
 
-          if (prev !== next) {
+          if (prev !== next || prevMeta !== nextMeta) {
             this._onRolePermissionsUpdated();
           }
         },

@@ -557,10 +557,28 @@ const ApiService = {
   },
 
   getRolePermissions(role) {
-    if (this._demoMode) {
-      return (typeof DemoData !== 'undefined' && DemoData.rolePermissions) ? (DemoData.rolePermissions[role] || []) : [];
+    const stored = this._demoMode
+      ? ((typeof DemoData !== 'undefined' && DemoData.rolePermissions) ? (DemoData.rolePermissions[role] || []) : [])
+      : ((FirebaseService._cache.rolePermissions || {})[role] || []);
+
+    if (role === 'super_admin') {
+      return Array.from(new Set([
+        ...stored,
+        ...getAllPermissionCodes(this._src('permissions') || []),
+      ]));
     }
-    return (FirebaseService._cache.rolePermissions || {})[role] || [];
+
+    return stored;
+  },
+
+  getRolePermissionDefaults(role) {
+    const meta = this._demoMode
+      ? ((typeof DemoData !== 'undefined' && DemoData.rolePermissionMeta) ? DemoData.rolePermissionMeta : {})
+      : (FirebaseService._cache.rolePermissionMeta || {});
+    const savedDefaults = meta?.[role]?.defaultPermissions;
+    if (Array.isArray(savedDefaults)) return [...savedDefaults];
+    const builtInDefaults = getDefaultRolePermissions(role);
+    return Array.isArray(builtInDefaults) ? [...builtInDefaults] : null;
   },
 
   // ════════════════════════════════

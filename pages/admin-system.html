@@ -154,7 +154,7 @@
     <section class="page" id="page-admin-roles" data-min-role="super_admin">
       <div class="page-header">
         <button class="back-btn" onclick="App.goBack()">←</button>
-        <h2>自訂層級管理</h2>
+        <h2>權限管理</h2>
       </div>
       <div class="role-hierarchy-card">
         <div class="role-hierarchy-title">目前層級架構 <span style="font-size:.68rem;font-weight:400;color:var(--text-muted)">（點擊查看權限）</span></div>
@@ -179,11 +179,16 @@
       <div class="role-perm-panel" id="role-perm-panel" style="display:none">
         <div class="role-perm-panel-header" onclick="App.togglePermPanel()" style="cursor:pointer">
           <span id="role-perm-panel-title">權限設定</span>
-          <div style="display:flex;align-items:center;gap:.4rem">
-            <button class="text-btn role-perm-reset-btn" onclick="event.stopPropagation();App.resetRolePermissions()" title="復原為預設權限">復原預設</button>
-            <span class="role-perm-arrow" id="role-perm-arrow">▼</span>
+          <span class="role-perm-arrow" id="role-perm-arrow">▼</span>
+        </div>
+        <div class="role-perm-toolbar" id="role-perm-toolbar">
+          <button class="text-btn role-perm-filter-btn" id="role-perm-filter-btn" onclick="App.togglePermShowCheckedOnly()">只顯示已有權限</button>
+          <div class="role-perm-toolbar-actions">
+            <button class="text-btn" id="role-perm-save-default-btn" onclick="App.saveRolePermissionDefaults()">儲存成預設</button>
+            <button class="text-btn role-perm-reset-btn" id="role-perm-reset-btn" onclick="App.resetRolePermissions()" title="復原為預設權限">復原預設</button>
           </div>
         </div>
+        <div class="role-perm-lock-hint" id="role-perm-lock-hint" style="display:none"></div>
         <div class="permissions-list" id="permissions-list" style="display:none"></div>
       </div>
 

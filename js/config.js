@@ -162,7 +162,8 @@
 // 20260310u: 調整後台抽屜中數據儀表板與小遊戲管理的順序與預設角色門檻
 // 20260310v: 後台抽屜入口全面接入自訂層級權限，並修正自訂層級 runtime 等級計算
 // 20260310w: 頭像載入失敗時自動 fallback 成字首，降低 LINE 舊頭像網址 404 對管理頁與個人頁的影響
-const CACHE_VERSION = '20260310w';
+// 20260310x: 權限管理頁改版，加入抽屜排序、儲存成預設、只顯示已有權限與總管鎖定
+const CACHE_VERSION = '20260310x';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {
@@ -516,8 +517,8 @@ const DRAWER_MENUS = [
   { icon: '', label: '排行榜', i18nKey: 'drawer.leaderboard', action: 'coming-soon', minRole: 'user', locked: true },
   { icon: '', label: '分享網頁', i18nKey: 'drawer.share', action: 'share', minRole: 'user' },
   { divider: true },
-  { icon: '', label: '活動管理', i18nKey: 'drawer.activityManage', page: 'page-my-activities', minRole: 'coach' },
-  { icon: '', label: '賽事管理', i18nKey: 'drawer.tournamentManage', page: 'page-admin-tournaments', minRole: 'coach' },
+  { icon: '', label: '活動管理', i18nKey: 'drawer.activityManage', page: 'page-my-activities', minRole: 'coach', permissionCode: 'activity.manage.entry' },
+  { icon: '', label: '賽事管理', i18nKey: 'drawer.tournamentManage', page: 'page-admin-tournaments', minRole: 'coach', permissionCode: 'admin.tournaments.entry' },
   { divider: true, minRole: 'admin' },
   { sectionLabel: '後台管理', i18nKey: 'drawer.backendManage', minRole: 'admin' },
   { icon: '', label: '小遊戲管理', page: 'page-admin-games', minRole: 'admin', permissionCode: 'admin.games.entry' },
@@ -532,13 +533,13 @@ const DRAWER_MENUS = [
   { icon: '', label: '自動 EXP 管理', i18nKey: 'drawer.autoExpManage', page: 'page-admin-auto-exp', minRole: 'super_admin', permissionCode: 'admin.auto_exp.entry' },
   { icon: '', label: '系統公告管理', i18nKey: 'admin.announcements', page: 'page-admin-announcements', minRole: 'super_admin', permissionCode: 'admin.announcements.entry' },
   { icon: '', label: '成就/徽章管理', i18nKey: 'admin.achievements', page: 'page-admin-achievements', minRole: 'super_admin', permissionCode: 'admin.achievements.entry' },
-  { icon: '', label: '自訂層級管理', i18nKey: 'admin.roles', page: 'page-admin-roles', minRole: 'super_admin', permissionCode: 'admin.roles.entry' },
+  { icon: '', label: '權限管理', i18nKey: 'admin.roles', page: 'page-admin-roles', minRole: 'super_admin', permissionCode: 'admin.roles.entry' },
   { icon: '', label: '無效資料查詢', i18nKey: 'admin.inactive', page: 'page-admin-inactive', minRole: 'super_admin', permissionCode: 'admin.inactive.entry' },
   { icon: '', label: '日誌中心', i18nKey: 'admin.logs', page: 'page-admin-logs', minRole: 'super_admin', permissionCode: 'admin.logs.entry' },
   { icon: '', label: '歷史入隊補正', i18nKey: 'admin.repair', page: 'page-admin-repair', minRole: 'super_admin', permissionCode: 'admin.repair.entry' },
 ];
 
-const ROLE_PERMISSION_CATALOG_VERSION = '20260310v';
+const ROLE_PERMISSION_CATALOG_VERSION = '20260310x';
 
 const ADMIN_PAGE_EXTRA_PERMISSION_ITEMS = {
   'page-admin-teams': [
@@ -602,6 +603,13 @@ function getMergedPermissionCatalog(remoteCategories = []) {
   });
 
   return result;
+}
+
+function getAllPermissionCodes(remoteCategories = []) {
+  return getMergedPermissionCatalog(remoteCategories)
+    .flatMap(category => Array.isArray(category?.items) ? category.items : [])
+    .map(item => item.code)
+    .filter(code => typeof code === 'string' && code);
 }
 
 function getDefaultRolePermissions(roleKey) {

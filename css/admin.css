@@ -78,9 +78,14 @@
 .role-delete-btn { width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--danger); background: transparent; color: var(--danger); font-size: .7rem; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: all .15s; line-height: 1; }
 .role-delete-btn:hover { background: var(--danger); color: #fff; }
 .role-perm-panel { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: .85rem; margin-bottom: .65rem; }
-.role-perm-panel-header { font-weight: 700; font-size: .85rem; margin-bottom: .6rem; padding-bottom: .4rem; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; cursor: pointer; }
+.role-perm-panel-header { font-weight: 700; font-size: .85rem; padding-bottom: .4rem; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; cursor: pointer; }
+.role-perm-toolbar { display: flex; align-items: center; justify-content: space-between; gap: .6rem; flex-wrap: wrap; padding: .6rem 0 .55rem; }
+.role-perm-toolbar-actions { display: flex; align-items: center; gap: .45rem; flex-wrap: wrap; }
+.role-perm-filter-btn { font-size: .7rem !important; color: var(--text-secondary) !important; padding: .18rem .5rem; border: 1px solid var(--border); border-radius: var(--radius-full); background: var(--bg-elevated); }
+.role-perm-filter-btn.active { color: var(--accent) !important; border-color: var(--accent); background: var(--accent-bg); }
 .role-perm-reset-btn { font-size: .68rem !important; color: var(--accent) !important; padding: .15rem .4rem; border: 1px solid var(--accent); border-radius: var(--radius-sm); background: transparent; }
 .role-perm-reset-btn:active { background: var(--accent); color: #fff !important; }
+.role-perm-lock-hint { margin-bottom: .55rem; padding: .5rem .65rem; border-radius: var(--radius-sm); background: rgba(220, 38, 38, .08); color: #b91c1c; font-size: .72rem; line-height: 1.45; }
 .role-perm-arrow { font-size: .65rem; color: var(--text-muted); user-select: none; }
 .role-editor-card { background: var(--bg-card); border: 1px solid var(--accent); border-radius: var(--radius); padding: .85rem; margin-bottom: .65rem; }
 .role-editor-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: .65rem; padding-bottom: .4rem; border-bottom: 1px solid var(--border); font-weight: 700; font-size: .85rem; }
@@ -96,6 +101,10 @@
 .perm-item:nth-child(even) { background: transparent; }
 .perm-item span { flex: 1; }
 .perm-item .toggle-switch { margin-left: 0; flex-shrink: 0; }
+.perm-item.perm-item-locked { opacity: .72; }
+.perm-item.perm-item-locked .toggle-switch { pointer-events: none; }
+.perm-item-label { display: flex; align-items: center; gap: .45rem; flex-wrap: wrap; }
+.perm-item-tag { display: inline-flex; align-items: center; padding: .12rem .4rem; border-radius: var(--radius-full); font-size: .62rem; font-weight: 700; color: #b91c1c; background: rgba(220, 38, 38, .1); }
 
 /* ─── Log List ─── */
 .log-list { display: flex; flex-direction: column; gap: .3rem; }

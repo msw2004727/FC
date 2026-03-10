@@ -58,6 +58,10 @@ Object.assign(FirebaseService, {
     await db.collection('rolePermissions').doc(roleKey).set({ permissions }, { merge: true });
   },
 
+  async saveRolePermissionDefaults(roleKey, defaultPermissions) {
+    await db.collection('rolePermissions').doc(roleKey).set({ defaultPermissions }, { merge: true });
+  },
+
   async deleteRolePermissions(roleKey) {
     await db.collection('rolePermissions').doc(roleKey).delete();
   },
@@ -72,8 +76,27 @@ Object.assign(FirebaseService, {
     return data;
   },
 
+  async addCustomRoleWithPermissions(data, permissions = [], defaultPermissions = []) {
+    const batch = db.batch();
+    batch.set(db.collection('customRoles').doc(data.key), data, { merge: true });
+    batch.set(db.collection('rolePermissions').doc(data.key), {
+      permissions,
+      defaultPermissions,
+    }, { merge: true });
+    await batch.commit();
+    data._docId = data.key;
+    return data;
+  },
+
   async deleteCustomRole(key) {
     await db.collection('customRoles').doc(key).delete();
+  },
+
+  async deleteCustomRoleWithPermissions(key) {
+    const batch = db.batch();
+    batch.delete(db.collection('customRoles').doc(key));
+    batch.delete(db.collection('rolePermissions').doc(key));
+    await batch.commit();
   },
 
   async updateNotifTemplate(key, updates) {
