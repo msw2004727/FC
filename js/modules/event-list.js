@@ -153,6 +153,12 @@ Object.assign(App, {
     return allowedGender === '男' ? '男生限定' : '女生限定';
   },
 
+  _getEventGenderTimelineRibbonText(e) {
+    const allowedGender = this._getEventAllowedGender(e);
+    if (!allowedGender) return '';
+    return allowedGender === '男' ? '限男生' : '限女生';
+  },
+
   _getEventGenderDetailText(e) {
     const allowedGender = this._getEventAllowedGender(e);
     if (!allowedGender) return '';
@@ -573,7 +579,9 @@ Object.assign(App, {
           // 球隊限定用特殊色
           const rowClass = e.teamOnly ? 'tl-type-teamonly' : `tl-type-${e.type}`;
           const teamBadge = e.teamOnly ? '<span class="tl-teamonly-badge">限定</span>' : '';
-          const genderRibbon = this._hasEventGenderRestriction(e) ? '<span class="tl-event-gender-ribbon">限定</span>' : '';
+          const genderRibbon = this._hasEventGenderRestriction(e)
+            ? `<span class="tl-event-gender-ribbon">${escapeHTML(this._getEventGenderTimelineRibbonText(e))}</span>`
+            : '';
           const sportIcon = this._renderEventSportIcon(e, 'tl-event-sport-corner');
           const favHeart = this._favHeartHtml(this.isEventFavorited(e.id), 'Event', e.id);
           const iconStack = `<div class="tl-event-icons">${favHeart}${sportIcon}</div>`;

@@ -151,7 +151,8 @@
 // 20260310i: LINE 推播綁定在未登入或登入狀態未同步時改為明確提示，未登入時直接導向 LINE 登入
 // 20260310j: 新增活動性別限定，含範本、報名限制與活動卡緞帶顯示
 // 20260310k: 活動詳情頁在未設定年齡限制時隱藏年齡列
-const CACHE_VERSION = '20260310k';
+// 20260310l: 活動行事曆性別緞帶改為顯示限男生 / 限女生
+const CACHE_VERSION = '20260310l';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {
