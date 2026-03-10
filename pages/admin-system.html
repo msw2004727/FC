@@ -210,7 +210,7 @@
     <!-- PAGE: Backend - Operation Logs (Super Admin) -->
     <section class="page" id="page-admin-logs" data-min-role="super_admin">
       <div class="page-header">
-        <button class="back-btn" onclick="App.goBack()">←</button>
+        <button class="back-btn" onclick="App.goBackFromAdminLogs()">←</button>
         <h2>操作日誌</h2>
         <button class="header-action-btn" onclick="App.clearAllData()" style="margin-left:auto;font-size:.72rem;padding:.3rem .7rem;background:#dc2626;color:#fff;border:none;border-radius:var(--radius);cursor:pointer;font-weight:600">一鍵清除</button>
       </div>
@@ -277,35 +277,39 @@
         <div style="font-size:.78rem;color:var(--text-muted);line-height:1.6">
           僅讀取單日資料，避免掃描全部歷史紀錄。搜尋條件包含時間、暱稱或 UID、行為。
         </div>
-        <div class="audit-log-filter-bar">
-          <button type="button" class="text-btn audit-log-filter-toggle" id="auditlog-filter-toggle" onclick="App.toggleAuditLogFilters()">
-            <span id="auditlog-filter-toggle-label">展開搜尋條件</span>
-            <span class="audit-log-filter-arrow">▶</span>
-          </button>
-        </div>
-        <div class="audit-log-filter-body" id="auditlog-filter-body" hidden>
-          <div class="admin-filters" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:.6rem">
-            <label class="audit-log-date-field">
-              <span>日期</span>
-              <input type="date" id="auditlog-date" onchange="App.loadAuditLogs(true)">
-            </label>
-            <label style="display:flex;flex-direction:column;gap:.25rem;font-size:.78rem">
-              <span>開始時間</span>
-              <input type="time" id="auditlog-time-start" step="1" onchange="App.filterAuditLogs()">
-            </label>
-            <label style="display:flex;flex-direction:column;gap:.25rem;font-size:.78rem">
-              <span>結束時間</span>
-              <input type="time" id="auditlog-time-end" step="1" onchange="App.filterAuditLogs()">
-            </label>
-            <label style="display:flex;flex-direction:column;gap:.25rem;font-size:.78rem">
-              <span>行為</span>
-              <select id="auditlog-action-filter" onchange="App.filterAuditLogs()"></select>
-            </label>
+        <details class="audit-log-filter-details" id="auditlog-filter-details">
+          <summary class="audit-log-filter-summary">
+            <span class="audit-log-filter-summary-copy">
+              <span class="audit-log-filter-summary-title">搜尋條件</span>
+              <span class="audit-log-filter-summary-text" id="auditlog-filter-summary-text">展開搜尋條件</span>
+            </span>
+            <span class="audit-log-filter-summary-meta" id="auditlog-filter-summary-meta">尚未選擇日期</span>
+            <span class="audit-log-filter-arrow" aria-hidden="true">▶</span>
+          </summary>
+          <div class="audit-log-filter-body" id="auditlog-filter-body">
+            <div class="admin-filters audit-log-filter-grid">
+              <label class="audit-log-date-field">
+                <span>日期</span>
+                <input type="date" id="auditlog-date" onchange="App.loadAuditLogs(true)">
+              </label>
+              <label style="display:flex;flex-direction:column;gap:.25rem;font-size:.78rem">
+                <span>開始時間</span>
+                <input type="time" id="auditlog-time-start" step="1" onchange="App.filterAuditLogs()">
+              </label>
+              <label style="display:flex;flex-direction:column;gap:.25rem;font-size:.78rem">
+                <span>結束時間</span>
+                <input type="time" id="auditlog-time-end" step="1" onchange="App.filterAuditLogs()">
+              </label>
+              <label style="display:flex;flex-direction:column;gap:.25rem;font-size:.78rem">
+                <span>行為</span>
+                <select id="auditlog-action-filter" onchange="App.filterAuditLogs()"></select>
+              </label>
+            </div>
+            <div class="admin-search">
+              <input type="text" id="auditlog-search" placeholder="搜尋暱稱、UID、目標名稱或 ID" oninput="App.filterAuditLogs()">
+            </div>
           </div>
-          <div class="admin-search">
-            <input type="text" id="auditlog-search" placeholder="搜尋暱稱、UID、目標名稱或 ID" oninput="App.filterAuditLogs()">
-          </div>
-        </div>
+        </details>
         <div id="auditlog-summary" style="font-size:.78rem;color:var(--text-muted)"></div>
       </div>
       <div class="log-list" id="audit-log-list"></div>

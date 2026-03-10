@@ -26,14 +26,22 @@
 .admin-log-panel-header p { margin: .2rem 0 0; font-size: .75rem; line-height: 1.6; color: var(--text-muted); }
 .admin-log-panel-actions { display: flex; align-items: center; gap: .45rem; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end; }
 .audit-log-filter-card { display: flex; flex-direction: column; gap: .75rem; }
-.audit-log-filter-bar { display: flex; justify-content: flex-end; }
+.audit-log-filter-details { border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-main); overflow: hidden; }
+.audit-log-filter-details[open] { background: var(--bg-card); }
+.audit-log-filter-summary { display: flex; align-items: center; gap: .65rem; padding: .75rem .85rem; cursor: pointer; list-style: none; user-select: none; }
+.audit-log-filter-summary::-webkit-details-marker { display: none; }
+.audit-log-filter-summary-copy { display: flex; flex-direction: column; gap: .12rem; min-width: 0; }
+.audit-log-filter-summary-title { font-size: .82rem; font-weight: 700; color: var(--text-primary); }
+.audit-log-filter-summary-text { font-size: .72rem; color: var(--text-muted); }
+.audit-log-filter-summary-meta { margin-left: auto; font-size: .74rem; color: var(--text-secondary); text-align: right; }
 .audit-log-date-field { display: flex; flex-direction: column; gap: .25rem; font-size: .78rem; min-width: 180px; }
 .audit-log-date-field input { width: 100%; }
-.audit-log-filter-body { display: flex; flex-direction: column; gap: .1rem; }
-.audit-log-filter-toggle { display: inline-flex; align-items: center; gap: .35rem; padding: .2rem 0; white-space: nowrap; }
-.audit-log-filter-toggle.has-active-filters { color: var(--primary); }
+.audit-log-filter-body { display: flex; flex-direction: column; gap: .1rem; padding: 0 .85rem .85rem; border-top: 1px solid var(--border); }
+.audit-log-filter-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(180px,1fr)); gap: .6rem; }
+.audit-log-filter-details.has-active-filters .audit-log-filter-summary-text,
+.audit-log-filter-details.has-active-filters .audit-log-filter-summary-meta { color: var(--primary); }
 .audit-log-filter-arrow { font-size: .7rem; color: var(--text-muted); transition: transform .2s ease; }
-.audit-log-filter-toggle.open .audit-log-filter-arrow { transform: rotate(90deg); }
+.audit-log-filter-details[open] .audit-log-filter-arrow { transform: rotate(90deg); }
 /* ─── Admin User Card ─── */
 .admin-user-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: .75rem .85rem; display: flex; gap: .65rem; align-items: flex-start; }
 .au-avatar { width: 40px; height: 40px; border-radius: 50%; flex-shrink: 0; }

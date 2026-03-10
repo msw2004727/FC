@@ -170,7 +170,8 @@
 // 20260310ac: 操作日誌改抓最新 500 筆並依實際建立時間排序，修正日誌中心看不到新紀錄
 // 20260310ad: 稽核日誌搜尋條件改為可收折，保留日期欄位常駐
 // 20260310ae: 稽核日誌收折範圍擴大為整個搜尋條件區，包含日期欄位
-const CACHE_VERSION = '20260310ae';
+// 20260310af: 稽核日誌搜尋條件改用原生 details/summary 重做收折，避免分頁重組後收折失效
+const CACHE_VERSION = '20260310af';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {

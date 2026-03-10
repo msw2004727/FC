@@ -11,6 +11,18 @@ Object.assign(App, {
     return ['operation', 'audit', 'error'].includes(tabKey) ? tabKey : 'operation';
   },
 
+  async goBackFromAdminLogs() {
+    if (Array.isArray(this.pageHistory) && this.pageHistory.length > 0) {
+      await this.goBack();
+      return;
+    }
+
+    const fallbackPage = (typeof this._canAccessPage === 'function' && this._canAccessPage('page-admin-dashboard'))
+      ? 'page-admin-dashboard'
+      : 'page-home';
+    await this.showPage(fallbackPage, { resetHistory: true });
+  },
+
   _buildAdminLogPanel(key, title, description) {
     const panel = document.createElement('section');
     panel.className = 'admin-log-panel';
@@ -85,7 +97,10 @@ Object.assign(App, {
     const backBtn = header.querySelector('.back-btn');
     const clearAllBtn = header.querySelector('.header-action-btn');
     if (titleEl) titleEl.textContent = '日誌中心';
-    if (backBtn) backBtn.textContent = '←';
+    if (backBtn) {
+      backBtn.textContent = '←';
+      backBtn.setAttribute('onclick', 'App.goBackFromAdminLogs()');
+    }
 
     const operationNodes = Array.from(page.children).filter(node => node !== header);
     const auditPage = document.getElementById('page-admin-audit-logs');
