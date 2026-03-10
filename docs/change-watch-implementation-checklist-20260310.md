@@ -1,0 +1,313 @@
+# 資料異動監看實作清單（只監看、不阻擋）
+
+## 目標
+
+- 先觀察疑似不正常資料修改行為，不改動前端主要流程。
+- 降低推廣期導入 bug 的風險。
+- 優先記錄「誰改了什麼」，而不是立即阻止所有敏感修改。
+
+## 重要原則
+
+- 後端監看器會收到所有「被監看集合」的異動事件。
+- 但第一版設計為只對「疑似不正常行為」寫入監看日誌。
+- 一般正常操作仍會被函式看到並判斷，但不會落地成監看日誌。
+- 這代表：
+  - 正常操作：看得到，不記錄。
+  - 可疑操作：看得到，且記錄。
+
+## 第一版監看範圍
+
+先只監看 4 類，避免範圍過大：
+
+1. 使用者資料（`users`）
+2. 活動資料（`events`）
+3. 報名資料（`registrations`）
+4. 簽到資料（`attendanceRecords`）
+
+第二批再加：
+
+1. 球隊資料（`teams`）
+2. 活動紀錄（`activityRecords`）
+3. 審核訊息（`messages`）
+
+## 資料結構
+
+新增獨立監看日誌集合：
+
+- `changeWatchByDay/{dayKey}/entries/{eventId}`
+
+每筆日誌欄位：
+
+- `dayKey`
+- `timeKey`
+- `collectionName`
+- `documentPath`
+- `documentId`
+- `changeType`
+- `actorType`
+- `actorId`
+- `riskLevel`
+- `reasonCodes`
+- `changedFields`
+- `before`
+- `after`
+- `createdAt`
+- `expiresAt`
+
+欄位說明：
+
+- `changeType`：`create` / `update` / `delete`
+- `actorType`：例如 `user` / `system` / `unknown`
+- `riskLevel`：`high` / `medium` / `low`
+- `reasonCodes`：可疑原因代碼陣列
+- `before` / `after`：只存敏感欄位，不存整份文件
+
+## 函式清單
+
+全部放在 [functions/index.js](/C:/Users/kere/Downloads/github/FC/FC-github/functions/index.js)。
+
+### 共用工具函式
+
+1. `getWatchDayInfo(now)`
+- 產生 `dayKey`、`timeKey`
+
+2. `getChangeType(beforeData, afterData)`
+- 判斷新增、修改、刪除
+
+3. `pickSensitiveDiff(beforeData, afterData, watchedFields)`
+- 只取敏感欄位的前後差異
+
+4. `buildWatchEntry(payload)`
+- 組出監看日誌資料
+
+5. `writeChangeWatchEntry(payload)`
+- 寫入 `changeWatchByDay`
+
+6. `classifyUsersChange(changeType, beforeData, afterData, actorType, actorId)`
+- 判斷使用者資料異動是否可疑
+
+7. `classifyEventsChange(...)`
+- 判斷活動資料異動是否可疑
+
+8. `classifyRegistrationsChange(...)`
+- 判斷報名資料異動是否可疑
+
+9. `classifyAttendanceChange(...)`
+- 判斷簽到資料異動是否可疑
+
+10. `shouldPersistWatchLog(result)`
+- 若非可疑異動，直接略過，不寫日誌
+
+### Firestore 監看函式
+
+第一版新增 4 個：
+
+1. `watchUsersChanges`
+- 監看：`users/{userId}`
+
+2. `watchEventsChanges`
+- 監看：`events/{eventId}`
+
+3. `watchRegistrationsChanges`
+- 監看：`registrations/{regId}`
+
+4. `watchAttendanceChanges`
+- 監看：`attendanceRecords/{recordId}`
+
+## 每個集合的敏感欄位
+
+### 使用者資料
+
+只要碰到以下欄位就進一步檢查：
+
+- `role`
+- `manualRole`
+- `claims`
+- `exp`
+- `level`
+- `teamId`
+- `teamName`
+- `teamIds`
+- `teamNames`
+
+這些欄位的正常變更原則：
+
+- `role` / `manualRole` / `claims` / `exp` / `level`
+  - 一律視為高風險
+- `teamId` / `teamName` / `teamIds` / `teamNames`
+  - 第一版只要變更就記錄為中高風險
+  - 後續若要降噪，再加「只允許縮減」判斷
+
+不記錄的一般欄位：
+
+- `displayName`
+- `photoURL`
+- `pictureUrl`
+- `phone`
+- `gender`
+- `birthday`
+- `region`
+- `sports`
+- `favorites`
+- `socialLinks`
+- `titleBig`
+- `titleNormal`
+- `lineNotify`
+- `companions`
+- `lastLogin`
+- `updatedAt`
+
+### 活動資料
+
+只要碰到以下欄位就記錄：
+
+- `status`
+- `current`
+- `waitlist`
+- `participants`
+- `waitlistNames`
+- `max`
+- `ownerUid`
+- `creatorUid`
+- `captainUid`
+
+判定原則：
+
+- 名額、狀態、參加名單、候補名單被改動，一律高風險
+
+### 報名資料
+
+只要碰到以下欄位就記錄：
+
+- `eventId`
+- `userId`
+- `uid`
+- `status`
+- `promotionOrder`
+- `participantType`
+- `companionId`
+- `companionName`
+
+判定原則：
+
+- 報名狀態被直接改動，一律高風險
+- 活動或使用者關聯欄位被改動，一律高風險
+
+### 簽到資料
+
+只要碰到以下欄位就記錄：
+
+- `eventId`
+- `uid`
+- `status`
+- `checkOutTime`
+- `removedAt`
+- `removedByUid`
+
+判定原則：
+
+- 狀態、簽退、移除類欄位被改動，一律高風險
+
+## 可疑原因代碼
+
+建議先固定幾個代碼，方便之後篩選：
+
+- `user_role_changed`
+- `user_privilege_field_changed`
+- `user_team_membership_changed`
+- `event_signup_state_changed`
+- `event_owner_field_changed`
+- `registration_status_changed`
+- `registration_identity_changed`
+- `attendance_status_changed`
+- `attendance_removal_changed`
+- `delete_sensitive_doc`
+
+## 日誌寫入條件
+
+只在以下情況寫入監看日誌：
+
+1. 敏感欄位被新增
+2. 敏感欄位被修改
+3. 敏感文件被刪除
+4. 可疑原因代碼至少有一個
+
+不寫入監看日誌的情況：
+
+1. 只有一般個資欄位變更
+2. 只有登入時間更新
+3. 只有一般 UI 同步欄位更新，且不屬於敏感欄位
+
+## 成本控制
+
+第一版一律遵守：
+
+1. 不額外查使用者名稱或角色
+2. 不存整份文件
+3. 不發通知
+4. 不把監看日誌再納入監看
+5. 只寫一筆監看日誌，不再同步第二份資料
+
+函式資源設定建議：
+
+- `region: "asia-east1"`
+- `timeoutSeconds: 15`
+- `memory: "128MiB"`
+- `cpu: "gcf_gen1"`
+- `maxInstances: 2`
+
+## 保留期限
+
+第一版建議保留：
+
+- `90` 天或 `180` 天
+
+日誌欄位加上：
+
+- `expiresAt`
+
+之後再用 TTL 自動清除。
+
+## 驗證清單
+
+### 不應寫入監看日誌
+
+1. 使用者正常修改自己的顯示名稱
+2. 使用者正常修改自己的社群連結
+3. 使用者正常修改自己的通知設定
+4. 登入後正常更新最後登入時間
+
+### 應寫入監看日誌
+
+1. 使用者資料中的角色被改動
+2. 使用者資料中的積分被改動
+3. 活動狀態被改成額滿、開放或結束
+4. 活動人數或參加名單被改動
+5. 報名狀態被改動
+6. 簽到狀態被改動
+7. 敏感文件被刪除
+
+## 後續第二階段
+
+若第一版觀察到真實篡改事件，再做：
+
+1. 新增球隊資料監看
+2. 新增審核訊息監看
+3. 新增活動紀錄監看
+4. 針對真實案例，把最常被濫用的操作改成只能走後端
+
+## 實作順序
+
+1. 新增監看日誌資料結構與 helper
+2. 先做使用者資料監看
+3. 再做活動資料監看
+4. 再做報名資料監看
+5. 最後做簽到資料監看
+6. 用手動測試驗證「正常不記錄、可疑才記錄」
+
+## 最終預期結果
+
+- 不改現有前端主流程
+- 正常操作幾乎不受影響
+- 可疑異動會留下可追查紀錄
+- 日後若真的發生篡改事件，可以依日誌決定是否把特定操作收回後端處理

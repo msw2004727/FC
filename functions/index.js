@@ -1,4 +1,7 @@
-const { onDocumentCreated } = require("firebase-functions/v2/firestore");
+const {
+  onDocumentCreated,
+  onDocumentWrittenWithAuthContext,
+} = require("firebase-functions/v2/firestore");
 const { onCall, onRequest, HttpsError } = require("firebase-functions/v2/https");
 const { defineSecret } = require("firebase-functions/params");
 const { initializeApp } = require("firebase-admin/app");
@@ -50,6 +53,108 @@ const ALLOWED_AUDIT_META_KEYS = new Set([
   "statusTo",
 ]);
 const AUDIT_RETENTION_DAYS = 180;
+const CHANGE_WATCH_RETENTION_DAYS = 180;
+const CHANGE_WATCH_FUNCTION_OPTIONS = Object.freeze({
+  region: "asia-east1",
+  timeoutSeconds: 15,
+  memory: "128MiB",
+  cpu: "gcf_gen1",
+  maxInstances: 2,
+});
+const CHANGE_WATCH_ROLE_CACHE_TTL_MS = 5 * 60 * 1000;
+const CHANGE_WATCH_EVENT_CACHE_TTL_MS = 5 * 60 * 1000;
+const CHANGE_WATCH_TRUSTED_ROLES = new Set([
+  "coach",
+  "captain",
+  "venue_owner",
+  "admin",
+  "super_admin",
+]);
+const CHANGE_WATCH_SYSTEM_ACTOR_TYPES = new Set([
+  "service_account",
+  "system",
+]);
+const CHANGE_WATCH_USER_SAFE_PROFILE_FIELDS = new Set([
+  "displayName",
+  "photoURL",
+  "pictureUrl",
+  "phone",
+  "updatedAt",
+  "gender",
+  "birthday",
+  "region",
+  "sports",
+  "favorites",
+  "socialLinks",
+  "titleBig",
+  "titleNormal",
+  "lineNotify",
+  "companions",
+]);
+const CHANGE_WATCH_USER_SAFE_LOGIN_FIELDS = new Set([
+  "displayName",
+  "pictureUrl",
+  "lastLogin",
+]);
+const CHANGE_WATCH_USER_TEAM_FIELDS = new Set([
+  "teamId",
+  "teamName",
+  "teamIds",
+  "teamNames",
+  "updatedAt",
+]);
+const CHANGE_WATCH_USER_PRIVILEGE_FIELDS = new Set([
+  "role",
+  "manualRole",
+  "claims",
+  "exp",
+  "level",
+  "isAdmin",
+]);
+const CHANGE_WATCH_EVENT_SIGNUP_FIELDS = new Set([
+  "status",
+  "current",
+  "waitlist",
+  "participants",
+  "waitlistNames",
+  "updatedAt",
+]);
+const CHANGE_WATCH_EVENT_OWNER_FIELDS = new Set([
+  "ownerUid",
+  "creatorUid",
+  "captainUid",
+]);
+const CHANGE_WATCH_EVENT_CAPACITY_FIELDS = new Set([
+  "max",
+]);
+const CHANGE_WATCH_MAX_NORMAL_SIGNUP_DELTA = 6;
+const CHANGE_WATCH_REGISTRATION_IDENTITY_FIELDS = new Set([
+  "eventId",
+  "userId",
+  "uid",
+  "promotionOrder",
+  "participantType",
+  "companionId",
+  "companionName",
+]);
+const CHANGE_WATCH_REGISTRATION_STATUS_FIELDS = new Set([
+  "status",
+  "cancelledAt",
+  "updatedAt",
+]);
+const CHANGE_WATCH_ATTENDANCE_IDENTITY_FIELDS = new Set([
+  "eventId",
+  "uid",
+]);
+const CHANGE_WATCH_ATTENDANCE_STATUS_FIELDS = new Set([
+  "status",
+  "checkOutTime",
+  "removedAt",
+  "removedByUid",
+  "updatedAt",
+]);
+const changeWatchRoleCache = new Map();
+const changeWatchEventOwnerCache = new Map();
 const ALLOWED_LINE_NOTIFICATION_CATEGORIES = new Set([
   "system",
   "activity",
@@ -1062,6 +1167,795 @@ async function writeAuditEntry(payload) {
     .add(entry);
   return entry;
 }
+
+function getChangeWatchDayInfo(now) {
+  return getTaipeiAuditDateInfo(now);
+}
+
+function normalizeChangeWatchActorType(actorType) {
+  return typeof actorType === "string" && actorType.trim()
+    ? actorType.trim()
+    : "unknown";
+}
+
+function normalizeChangeWatchActorId(actorId) {
+  return typeof actorId === "string" ? actorId.trim() : "";
+}
+
+function isSystemChangeWatchActor(actorType) {
+  return CHANGE_WATCH_SYSTEM_ACTOR_TYPES.has(normalizeChangeWatchActorType(actorType));
+}
+
+function isTrustedChangeWatchRole(actorRole) {
+  return CHANGE_WATCH_TRUSTED_ROLES.has(normalizeRole(actorRole));
+}
+
+function hasOwnField(data, field) {
+  return !!data
+    && typeof data === "object"
+    && Object.prototype.hasOwnProperty.call(data, field);
+}
+
+function timestampLikeToIso(value) {
+  if (!value || typeof value !== "object") return null;
+  if (value instanceof Date) return value.toISOString();
+  if (typeof value.toDate === "function") {
+    try {
+      return value.toDate().toISOString();
+    } catch (_) {}
+  }
+  if (typeof value.seconds === "number") {
+    const millis = (value.seconds * 1000) + Math.floor((value.nanoseconds || 0) / 1000000);
+    return new Date(millis).toISOString();
+  }
+  return null;
+}
+
+function normalizeComparableValue(value) {
+  if (typeof value === "undefined") return "__undefined__";
+  if (value === null) return null;
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+    return value;
+  }
+  const maybeTimestamp = timestampLikeToIso(value);
+  if (maybeTimestamp) return maybeTimestamp;
+  if (Array.isArray(value)) {
+    return value.map(item => normalizeComparableValue(item));
+  }
+  if (typeof value === "object") {
+    return Object.keys(value)
+      .sort()
+      .reduce((acc, key) => {
+        if (typeof value[key] === "undefined") return acc;
+        acc[key] = normalizeComparableValue(value[key]);
+        return acc;
+      }, {});
+  }
+  return String(value);
+}
+
+function areChangeWatchValuesEqual(beforeValue, afterValue) {
+  return JSON.stringify(normalizeComparableValue(beforeValue))
+    === JSON.stringify(normalizeComparableValue(afterValue));
+}
+
+function getChangeType(beforeData, afterData) {
+  if (!beforeData && afterData) return "create";
+  if (beforeData && !afterData) return "delete";
+  if (beforeData && afterData) return "update";
+  return "";
+}
+
+function getChangedFields(beforeData = {}, afterData = {}) {
+  const keys = new Set([
+    ...Object.keys(beforeData || {}),
+    ...Object.keys(afterData || {}),
+  ]);
+  return Array.from(keys).filter(key => !areChangeWatchValuesEqual(
+    beforeData?.[key],
+    afterData?.[key],
+  ));
+}
+
+function hasOnlyFields(changedFields, allowedFields) {
+  if (!Array.isArray(changedFields) || changedFields.length === 0) return false;
+  return changedFields.every(field => allowedFields.has(field));
+}
+
+function collectFieldNames(...fieldGroups) {
+  return fieldGroups.reduce((acc, group) => {
+    Array.from(group || []).forEach(field => acc.add(field));
+    return acc;
+  }, new Set());
+}
+
+function pickSensitiveDiff(beforeData, afterData, watchedFields) {
+  const changedFields = getChangedFields(beforeData, afterData)
+    .filter(field => !watchedFields || watchedFields.has(field));
+  const before = {};
+  const after = {};
+  changedFields.forEach(field => {
+    before[field] = hasOwnField(beforeData, field) ? beforeData[field] ?? null : null;
+    after[field] = hasOwnField(afterData, field) ? afterData[field] ?? null : null;
+  });
+  return { changedFields, before, after };
+}
+
+function normalizeStringList(value) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map(item => String(item || "").trim())
+    .filter(Boolean);
+}
+
+function listSymmetricDiffSize(beforeList, afterList) {
+  const before = new Set(normalizeStringList(beforeList));
+  const after = new Set(normalizeStringList(afterList));
+  let diff = 0;
+  before.forEach(item => {
+    if (!after.has(item)) diff += 1;
+  });
+  after.forEach(item => {
+    if (!before.has(item)) diff += 1;
+  });
+  return diff;
+}
+
+function getNumericValue(data, field, fallback = 0) {
+  const value = Number(data?.[field]);
+  return Number.isFinite(value) ? value : fallback;
+}
+
+function matchesActorId(actorId, ...candidates) {
+  const safeActorId = normalizeChangeWatchActorId(actorId);
+  if (!safeActorId) return false;
+  return candidates.some(candidate => {
+    if (candidate === null || typeof candidate === "undefined") return false;
+    return String(candidate).trim() === safeActorId;
+  });
+}
+
+function getUserTeamIds(data) {
+  const list = normalizeStringList(data?.teamIds);
+  if (list.length > 0) return list;
+  return normalizeStringList(data?.teamId ? [data.teamId] : []);
+}
+
+function hasNonEmptyUserTeamMembership(data) {
+  if (!data || typeof data !== "object") return false;
+  return getUserTeamIds(data).length > 0
+    || normalizeStringList(data?.teamNames).length > 0
+    || (typeof data?.teamName === "string" && data.teamName.trim().length > 0);
+}
+
+function isUserTeamMembershipShrinkOrClear(beforeData, afterData) {
+  const oldIds = getUserTeamIds(beforeData);
+  const newIds = getUserTeamIds(afterData);
+  if (newIds.length === 0) return true;
+  if (oldIds.length === 0) return false;
+  if (newIds.length >= oldIds.length) return false;
+  return newIds.every(teamId => oldIds.includes(teamId));
+}
+
+function isSelfUserDocumentActor(actorId, documentId, beforeData, afterData) {
+  return matchesActorId(
+    actorId,
+    documentId,
+    beforeData?.uid,
+    beforeData?.lineUserId,
+    afterData?.uid,
+    afterData?.lineUserId,
+  );
+}
+
+async function getChangeWatchActorRole(actorId, actorType) {
+  const safeActorId = normalizeChangeWatchActorId(actorId);
+  const safeActorType = normalizeChangeWatchActorType(actorType);
+  if (!safeActorId) return "user";
+  if (isSystemChangeWatchActor(safeActorType)) return safeActorType;
+
+  const cached = changeWatchRoleCache.get(safeActorId);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.role;
+  }
+
+  let role = "user";
+  try {
+    role = normalizeRole(await getUserRoleFromFirestore(safeActorId));
+  } catch (err) {
+    console.warn("[changeWatch] failed to resolve actor role:", safeActorId, err?.message || err);
+  }
+  changeWatchRoleCache.set(safeActorId, {
+    role,
+    expiresAt: Date.now() + CHANGE_WATCH_ROLE_CACHE_TTL_MS,
+  });
+  return role;
+}
+
+function getEventOwnerIdsFromData(data) {
+  if (!data || typeof data !== "object") return [];
+  return [
+    data.ownerUid,
+    data.creatorUid,
+    data.captainUid,
+  ]
+    .map(value => String(value || "").trim())
+    .filter(Boolean);
+}
+
+async function getChangeWatchEventOwnerIds(eventIdentifier) {
+  const safeEventIdentifier = String(eventIdentifier || "").trim();
+  if (!safeEventIdentifier) return [];
+
+  const cached = changeWatchEventOwnerCache.get(safeEventIdentifier);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.ownerIds;
+  }
+
+  let ownerIds = [];
+  try {
+    const querySnap = await db.collection("events")
+      .where("id", "==", safeEventIdentifier)
+      .limit(1)
+      .get();
+    if (!querySnap.empty) {
+      ownerIds = getEventOwnerIdsFromData(querySnap.docs[0].data() || {});
+    } else {
+      const directSnap = await db.collection("events").doc(safeEventIdentifier).get();
+      if (directSnap.exists) {
+        ownerIds = getEventOwnerIdsFromData(directSnap.data() || {});
+      }
+    }
+  } catch (err) {
+    console.warn("[changeWatch] failed to resolve event owners:", safeEventIdentifier, err?.message || err);
+  }
+
+  changeWatchEventOwnerCache.set(safeEventIdentifier, {
+    ownerIds,
+    expiresAt: Date.now() + CHANGE_WATCH_EVENT_CACHE_TTL_MS,
+  });
+  return ownerIds;
+}
+
+async function isChangeWatchEventOwner(actorId, eventIdentifier) {
+  if (!normalizeChangeWatchActorId(actorId)) return false;
+  const ownerIds = await getChangeWatchEventOwnerIds(eventIdentifier);
+  return matchesActorId(actorId, ...ownerIds);
+}
+
+function isPlausibleEventSignupDelta(beforeData, afterData) {
+  const currentDelta = Math.abs(getNumericValue(afterData, "current") - getNumericValue(beforeData, "current"));
+  const waitlistDelta = Math.abs(getNumericValue(afterData, "waitlist") - getNumericValue(beforeData, "waitlist"));
+  const participantDelta = listSymmetricDiffSize(beforeData?.participants, afterData?.participants);
+  const waitlistNameDelta = listSymmetricDiffSize(beforeData?.waitlistNames, afterData?.waitlistNames);
+  const safeStatusValues = new Set(["", "open", "full"]);
+  const nextStatus = String(afterData?.status || "").trim();
+  const nextMax = getNumericValue(afterData, "max", getNumericValue(beforeData, "max", 0));
+  const nextCurrent = getNumericValue(afterData, "current");
+  const nextWaitlist = getNumericValue(afterData, "waitlist");
+
+  if (nextCurrent < 0 || nextWaitlist < 0) return false;
+  if (nextMax > 0 && nextCurrent > nextMax) return false;
+  if (currentDelta > CHANGE_WATCH_MAX_NORMAL_SIGNUP_DELTA) return false;
+  if (waitlistDelta > CHANGE_WATCH_MAX_NORMAL_SIGNUP_DELTA) return false;
+  if (participantDelta > CHANGE_WATCH_MAX_NORMAL_SIGNUP_DELTA) return false;
+  if (waitlistNameDelta > CHANGE_WATCH_MAX_NORMAL_SIGNUP_DELTA) return false;
+  if (!safeStatusValues.has(nextStatus)) return false;
+  return true;
+}
+
+function buildChangeWatchResult({
+  riskLevel = "medium",
+  reasonCodes = [],
+  changedFields = [],
+  before = {},
+  after = {},
+}) {
+  const uniqueReasons = Array.from(new Set(reasonCodes.filter(Boolean)));
+  const uniqueFields = Array.from(new Set(changedFields.filter(Boolean)));
+  if (uniqueReasons.length === 0 || uniqueFields.length === 0) return null;
+  return {
+    riskLevel,
+    reasonCodes: uniqueReasons,
+    changedFields: uniqueFields,
+    before,
+    after,
+  };
+}
+
+function shouldPersistWatchLog(result) {
+  return !!(result
+    && typeof result === "object"
+    && Array.isArray(result.reasonCodes)
+    && result.reasonCodes.length > 0
+    && Array.isArray(result.changedFields)
+    && result.changedFields.length > 0);
+}
+
+function buildChangeWatchEntry({
+  eventId = "",
+  collectionName = "",
+  documentPath = "",
+  documentId = "",
+  changeType = "",
+  actorType = "unknown",
+  actorId = "",
+  actorRole = "user",
+  riskLevel = "medium",
+  reasonCodes = [],
+  changedFields = [],
+  before = {},
+  after = {},
+  now = new Date(),
+}) {
+  const { dayKey, timeKey } = getChangeWatchDayInfo(now);
+  return {
+    eventId: String(eventId || "").trim(),
+    dayKey,
+    timeKey,
+    collectionName: String(collectionName || "").trim(),
+    documentPath: String(documentPath || "").trim(),
+    documentId: String(documentId || "").trim(),
+    changeType: String(changeType || "").trim(),
+    actorType: normalizeChangeWatchActorType(actorType),
+    actorId: normalizeChangeWatchActorId(actorId),
+    actorRole: String(actorRole || "user").trim() || "user",
+    riskLevel: String(riskLevel || "medium").trim() || "medium",
+    reasonCodes: Array.from(new Set(reasonCodes.filter(Boolean))),
+    changedFields: Array.from(new Set(changedFields.filter(Boolean))),
+    before,
+    after,
+    createdAt: FieldValue.serverTimestamp(),
+    expiresAt: new Date(now.getTime() + CHANGE_WATCH_RETENTION_DAYS * 24 * 60 * 60 * 1000),
+  };
+}
+
+async function writeChangeWatchEntry(payload) {
+  const entry = buildChangeWatchEntry(payload);
+  const safeEventId = entry.eventId || `${entry.collectionName}_${entry.documentId}_${entry.timeKey}`;
+  await db.collection("changeWatchByDay")
+    .doc(entry.dayKey)
+    .collection("entries")
+    .doc(safeEventId)
+    .set(entry, { merge: true });
+  return entry;
+}
+
+async function classifyUsersChange({
+  changeType,
+  beforeData,
+  afterData,
+  actorType,
+  actorId,
+  actorRole,
+  documentId,
+}) {
+  const watchedFields = collectFieldNames(
+    CHANGE_WATCH_USER_PRIVILEGE_FIELDS,
+    CHANGE_WATCH_USER_TEAM_FIELDS,
+    new Set(["uid", "lineUserId"]),
+  );
+  const trustedActor = isTrustedChangeWatchRole(actorRole) || isSystemChangeWatchActor(actorType);
+  const selfActor = isSelfUserDocumentActor(actorId, documentId, beforeData, afterData);
+
+  if (changeType === "delete") {
+    if (isSystemChangeWatchActor(actorType)) return null;
+    const diff = pickSensitiveDiff(beforeData, null, watchedFields);
+    return buildChangeWatchResult({
+      riskLevel: "high",
+      reasonCodes: ["delete_sensitive_doc"],
+      changedFields: diff.changedFields,
+      before: diff.before,
+      after: diff.after,
+    });
+  }
+
+  if (changeType === "create") {
+    if (isSystemChangeWatchActor(actorType)) return null;
+    const reasons = [];
+    if (normalizeRole(afterData?.role) !== "user" || normalizeRole(afterData?.manualRole) !== "user") {
+      reasons.push("user_role_changed");
+    }
+    if ((afterData?.claims && typeof afterData.claims === "object" && Object.keys(afterData.claims).length > 0)
+      || getNumericValue(afterData, "exp") !== 0
+      || getNumericValue(afterData, "level", 1) > 1
+      || afterData?.isAdmin === true) {
+      reasons.push("user_privilege_field_changed");
+    }
+    if (hasNonEmptyUserTeamMembership(afterData) && !trustedActor) {
+      reasons.push("user_team_membership_changed");
+    }
+    if (actorId && !matchesActorId(actorId, documentId, afterData?.uid, afterData?.lineUserId)) {
+      reasons.push("user_identity_mismatch");
+    }
+    if (reasons.length === 0) return null;
+    const diff = pickSensitiveDiff(null, afterData, watchedFields);
+    return buildChangeWatchResult({
+      riskLevel: reasons.some(code => code === "user_role_changed" || code === "user_privilege_field_changed")
+        ? "high"
+        : "medium",
+      reasonCodes: reasons,
+      changedFields: diff.changedFields,
+      before: diff.before,
+      after: diff.after,
+    });
+  }
+
+  const changedFields = getChangedFields(beforeData, afterData);
+  if (changedFields.length === 0) return null;
+
+  if (selfActor && hasOnlyFields(changedFields, CHANGE_WATCH_USER_SAFE_PROFILE_FIELDS)) return null;
+  if (selfActor && hasOnlyFields(changedFields, CHANGE_WATCH_USER_SAFE_LOGIN_FIELDS)) return null;
+  if (selfActor
+    && hasOnlyFields(changedFields, CHANGE_WATCH_USER_TEAM_FIELDS)
+    && isUserTeamMembershipShrinkOrClear(beforeData, afterData)) {
+    return null;
+  }
+  if (trustedActor && !selfActor && hasOnlyFields(changedFields, CHANGE_WATCH_USER_TEAM_FIELDS)) return null;
+
+  const reasons = [];
+  if (changedFields.some(field => CHANGE_WATCH_USER_PRIVILEGE_FIELDS.has(field))) {
+    if (changedFields.includes("role") || changedFields.includes("manualRole")) {
+      reasons.push("user_role_changed");
+    }
+    reasons.push("user_privilege_field_changed");
+  }
+  if (changedFields.some(field => CHANGE_WATCH_USER_TEAM_FIELDS.has(field))) {
+    reasons.push("user_team_membership_changed");
+  }
+  if (changedFields.includes("uid") || changedFields.includes("lineUserId")) {
+    reasons.push("user_identity_mismatch");
+  }
+  if (reasons.length === 0) return null;
+
+  const diff = pickSensitiveDiff(beforeData, afterData, watchedFields);
+  return buildChangeWatchResult({
+    riskLevel: reasons.some(code => code === "user_role_changed" || code === "user_privilege_field_changed")
+      ? "high"
+      : "medium",
+    reasonCodes: reasons,
+    changedFields: diff.changedFields,
+    before: diff.before,
+    after: diff.after,
+  });
+}
+
+async function classifyEventsChange({
+  changeType,
+  beforeData,
+  afterData,
+  actorType,
+  actorId,
+  actorRole,
+}) {
+  const watchedFields = collectFieldNames(
+    CHANGE_WATCH_EVENT_SIGNUP_FIELDS,
+    CHANGE_WATCH_EVENT_OWNER_FIELDS,
+    CHANGE_WATCH_EVENT_CAPACITY_FIELDS,
+  );
+  const ownerActor = matchesActorId(
+    actorId,
+    beforeData?.ownerUid,
+    beforeData?.creatorUid,
+    beforeData?.captainUid,
+    afterData?.ownerUid,
+    afterData?.creatorUid,
+    afterData?.captainUid,
+  );
+  const trustedActor = isTrustedChangeWatchRole(actorRole)
+    || isSystemChangeWatchActor(actorType)
+    || ownerActor;
+
+  if (changeType === "delete") {
+    if (trustedActor) return null;
+    const diff = pickSensitiveDiff(beforeData, null, watchedFields);
+    return buildChangeWatchResult({
+      riskLevel: "high",
+      reasonCodes: ["delete_sensitive_doc"],
+      changedFields: diff.changedFields,
+      before: diff.before,
+      after: diff.after,
+    });
+  }
+
+  if (changeType === "create") {
+    if (isSystemChangeWatchActor(actorType)) return null;
+    const reasons = [];
+    if (actorId
+      && !matchesActorId(actorId, afterData?.creatorUid, afterData?.ownerUid, afterData?.captainUid)) {
+      reasons.push("event_owner_field_changed");
+    }
+    if (getNumericValue(afterData, "current") !== 0
+      || getNumericValue(afterData, "waitlist") !== 0
+      || normalizeStringList(afterData?.participants).length > 0
+      || normalizeStringList(afterData?.waitlistNames).length > 0) {
+      reasons.push("event_signup_state_changed");
+    }
+    if (getNumericValue(afterData, "max") < 0) {
+      reasons.push("event_capacity_changed");
+    }
+    if (reasons.length === 0) return null;
+    const diff = pickSensitiveDiff(null, afterData, watchedFields);
+    return buildChangeWatchResult({
+      riskLevel: reasons.includes("event_owner_field_changed") ? "high" : "medium",
+      reasonCodes: reasons,
+      changedFields: diff.changedFields,
+      before: diff.before,
+      after: diff.after,
+    });
+  }
+
+  const changedFields = getChangedFields(beforeData, afterData);
+  if (changedFields.length === 0) return null;
+
+  const reasons = [];
+  if (!trustedActor && changedFields.some(field => CHANGE_WATCH_EVENT_OWNER_FIELDS.has(field))) {
+    reasons.push("event_owner_field_changed");
+  }
+  if (!trustedActor && changedFields.some(field => CHANGE_WATCH_EVENT_CAPACITY_FIELDS.has(field))) {
+    reasons.push("event_capacity_changed");
+  }
+  if (!trustedActor && changedFields.some(field => CHANGE_WATCH_EVENT_SIGNUP_FIELDS.has(field))) {
+    if (!isPlausibleEventSignupDelta(beforeData, afterData)) {
+      reasons.push("event_signup_state_changed");
+    }
+  }
+  if (reasons.length === 0) return null;
+
+  const diff = pickSensitiveDiff(beforeData, afterData, watchedFields);
+  return buildChangeWatchResult({
+    riskLevel: reasons.some(code => code === "event_owner_field_changed" || code === "event_signup_state_changed")
+      ? "high"
+      : "medium",
+    reasonCodes: reasons,
+    changedFields: diff.changedFields,
+    before: diff.before,
+    after: diff.after,
+  });
+}
+
+async function classifyRegistrationsChange({
+  changeType,
+  beforeData,
+  afterData,
+  actorType,
+  actorId,
+  actorRole,
+}) {
+  const watchedFields = collectFieldNames(
+    CHANGE_WATCH_REGISTRATION_IDENTITY_FIELDS,
+    CHANGE_WATCH_REGISTRATION_STATUS_FIELDS,
+  );
+  const eventIdentifier = afterData?.eventId || beforeData?.eventId || "";
+  const eventOwnerActor = await isChangeWatchEventOwner(actorId, eventIdentifier);
+  const trustedActor = isTrustedChangeWatchRole(actorRole)
+    || isSystemChangeWatchActor(actorType)
+    || eventOwnerActor;
+  const selfActor = matchesActorId(actorId, beforeData?.userId, beforeData?.uid, afterData?.userId, afterData?.uid);
+
+  if (changeType === "delete") {
+    if (trustedActor) return null;
+    const diff = pickSensitiveDiff(beforeData, null, watchedFields);
+    return buildChangeWatchResult({
+      riskLevel: "high",
+      reasonCodes: ["delete_sensitive_doc"],
+      changedFields: diff.changedFields,
+      before: diff.before,
+      after: diff.after,
+    });
+  }
+
+  if (changeType === "create") {
+    if (trustedActor) return null;
+    const reasons = [];
+    if (actorId && !selfActor) {
+      reasons.push("registration_identity_changed");
+    }
+    if (getNumericValue(afterData, "promotionOrder") < 0) {
+      reasons.push("registration_identity_changed");
+    }
+    if (afterData?.status && !["confirmed", "waitlisted", "cancelled", "removed"].includes(String(afterData.status))) {
+      reasons.push("registration_status_changed");
+    }
+    if (reasons.length === 0) return null;
+    const diff = pickSensitiveDiff(null, afterData, watchedFields);
+    return buildChangeWatchResult({
+      riskLevel: reasons.includes("registration_identity_changed") ? "high" : "medium",
+      reasonCodes: reasons,
+      changedFields: diff.changedFields,
+      before: diff.before,
+      after: diff.after,
+    });
+  }
+
+  const changedFields = getChangedFields(beforeData, afterData);
+  if (changedFields.length === 0) return null;
+
+  if (trustedActor) return null;
+  if (selfActor
+    && hasOnlyFields(changedFields, CHANGE_WATCH_REGISTRATION_STATUS_FIELDS)
+    && String(afterData?.status || "") === "cancelled") {
+    return null;
+  }
+
+  const reasons = [];
+  if (changedFields.some(field => CHANGE_WATCH_REGISTRATION_IDENTITY_FIELDS.has(field))) {
+    reasons.push("registration_identity_changed");
+  }
+  if (changedFields.includes("status")) {
+    reasons.push("registration_status_changed");
+  }
+  if (reasons.length === 0) return null;
+
+  const diff = pickSensitiveDiff(beforeData, afterData, watchedFields);
+  return buildChangeWatchResult({
+    riskLevel: reasons.some(code => code === "registration_identity_changed" || code === "registration_status_changed")
+      ? "high"
+      : "medium",
+    reasonCodes: reasons,
+    changedFields: diff.changedFields,
+    before: diff.before,
+    after: diff.after,
+  });
+}
+
+async function classifyAttendanceChange({
+  changeType,
+  beforeData,
+  afterData,
+  actorType,
+  actorId,
+  actorRole,
+}) {
+  const watchedFields = collectFieldNames(
+    CHANGE_WATCH_ATTENDANCE_IDENTITY_FIELDS,
+    CHANGE_WATCH_ATTENDANCE_STATUS_FIELDS,
+  );
+  const eventIdentifier = afterData?.eventId || beforeData?.eventId || "";
+  const eventOwnerActor = await isChangeWatchEventOwner(actorId, eventIdentifier);
+  const trustedActor = isTrustedChangeWatchRole(actorRole)
+    || isSystemChangeWatchActor(actorType)
+    || eventOwnerActor;
+  const selfActor = matchesActorId(actorId, beforeData?.uid, afterData?.uid);
+
+  if (changeType === "delete") {
+    if (trustedActor) return null;
+    const diff = pickSensitiveDiff(beforeData, null, watchedFields);
+    return buildChangeWatchResult({
+      riskLevel: "high",
+      reasonCodes: ["delete_sensitive_doc"],
+      changedFields: diff.changedFields,
+      before: diff.before,
+      after: diff.after,
+    });
+  }
+
+  if (changeType === "create") {
+    if (trustedActor) return null;
+    const reasons = [];
+    if (!selfActor) {
+      reasons.push("attendance_status_changed");
+    }
+    if (afterData?.status === "removed" || afterData?.removedAt || afterData?.removedByUid) {
+      reasons.push("attendance_removal_changed");
+    }
+    if (reasons.length === 0) return null;
+    const diff = pickSensitiveDiff(null, afterData, watchedFields);
+    return buildChangeWatchResult({
+      riskLevel: "high",
+      reasonCodes: reasons,
+      changedFields: diff.changedFields,
+      before: diff.before,
+      after: diff.after,
+    });
+  }
+
+  const changedFields = getChangedFields(beforeData, afterData);
+  if (changedFields.length === 0) return null;
+
+  if (trustedActor) return null;
+
+  const reasons = [];
+  if (changedFields.some(field => CHANGE_WATCH_ATTENDANCE_IDENTITY_FIELDS.has(field))) {
+    reasons.push("attendance_status_changed");
+  }
+  if (changedFields.some(field => field === "status" || field === "checkOutTime") && !selfActor) {
+    reasons.push("attendance_status_changed");
+  }
+  if (changedFields.some(field => field === "removedAt" || field === "removedByUid")
+    || String(afterData?.status || "") === "removed") {
+    reasons.push("attendance_removal_changed");
+  }
+  if (reasons.length === 0) return null;
+
+  const diff = pickSensitiveDiff(beforeData, afterData, watchedFields);
+  return buildChangeWatchResult({
+    riskLevel: "high",
+    reasonCodes: reasons,
+    changedFields: diff.changedFields,
+    before: diff.before,
+    after: diff.after,
+  });
+}
+
+async function processChangeWatchEvent(event, collectionName, classifyChange) {
+  const beforeData = event?.data?.before?.exists ? (event.data.before.data() || {}) : null;
+  const afterData = event?.data?.after?.exists ? (event.data.after.data() || {}) : null;
+  const changeType = getChangeType(beforeData, afterData);
+  if (!changeType) return null;
+
+  const documentPath = String(
+    event?.document
+      || event?.data?.after?.ref?.path
+      || event?.data?.before?.ref?.path
+      || "",
+  ).trim();
+  const documentId = documentPath ? documentPath.split("/").pop() : "";
+  const actorType = normalizeChangeWatchActorType(event?.authType);
+  const actorId = normalizeChangeWatchActorId(event?.authId);
+  const actorRole = await getChangeWatchActorRole(actorId, actorType);
+  const result = await classifyChange({
+    changeType,
+    beforeData,
+    afterData,
+    actorType,
+    actorId,
+    actorRole,
+    documentId,
+    documentPath,
+    event,
+  });
+
+  if (!shouldPersistWatchLog(result)) return null;
+
+  return writeChangeWatchEntry({
+    eventId: event?.id || `${collectionName}_${documentId}_${Date.now()}`,
+    collectionName,
+    documentPath,
+    documentId,
+    changeType,
+    actorType,
+    actorId,
+    actorRole,
+    riskLevel: result.riskLevel,
+    reasonCodes: result.reasonCodes,
+    changedFields: result.changedFields,
+    before: result.before,
+    after: result.after,
+  });
+}
+
+exports.watchUsersChanges = onDocumentWrittenWithAuthContext(
+  {
+    ...CHANGE_WATCH_FUNCTION_OPTIONS,
+    document: "users/{userId}",
+  },
+  async (event) => processChangeWatchEvent(event, "users", classifyUsersChange),
+);
+
+exports.watchEventsChanges = onDocumentWrittenWithAuthContext(
+  {
+    ...CHANGE_WATCH_FUNCTION_OPTIONS,
+    document: "events/{eventId}",
+  },
+  async (event) => processChangeWatchEvent(event, "events", classifyEventsChange),
+);
+
+exports.watchRegistrationsChanges = onDocumentWrittenWithAuthContext(
+  {
+    ...CHANGE_WATCH_FUNCTION_OPTIONS,
+    document: "registrations/{regId}",
+  },
+  async (event) => processChangeWatchEvent(event, "registrations", classifyRegistrationsChange),
+);
+
+exports.watchAttendanceChanges = onDocumentWrittenWithAuthContext(
+  {
+    ...CHANGE_WATCH_FUNCTION_OPTIONS,
+    document: "attendanceRecords/{recordId}",
+  },
+  async (event) => processChangeWatchEvent(event, "attendanceRecords", classifyAttendanceChange),
+);
 
 exports.submitShotGameScore = onCall(
   { region: "asia-east1", timeoutSeconds: 30 },
