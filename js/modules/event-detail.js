@@ -169,6 +169,9 @@ Object.assign(App, {
     const genderTag = this._hasEventGenderRestriction?.(e)
       ? `<div class="detail-row"><span class="detail-label">性別</span><span style="color:#dc2626;font-weight:700">${escapeHTML(this._getEventGenderDetailText(e))}</span></div>`
       : '';
+    const ageTag = e.minAge > 0
+      ? `<div class="detail-row"><span class="detail-label">年齡</span>${e.minAge} 歲以上</div>`
+      : '';
 
     const canScan = this._canManageEvent(e);
     const scanBtn = canScan
@@ -198,7 +201,7 @@ Object.assign(App, {
       ${regOpenHtml}
       <div class="detail-row"><span class="detail-label">費用</span>${e.fee > 0 ? '$'+e.fee : '免費'}</div>
       <div class="detail-row"><span class="detail-label">人數</span>已報 ${e.current}/${e.max}${(e.waitlist || 0) > 0 ? '　候補 ' + e.waitlist : ''}</div>
-      <div class="detail-row"><span class="detail-label">年齡</span>${e.minAge > 0 ? e.minAge + ' 歲以上' : '無限制'}</div>
+      ${ageTag}
       ${genderTag}
       <div class="detail-row"><span class="detail-label">主辦</span><span class="participant-list" style="display:inline-flex;gap:.3rem;flex-wrap:wrap">${this._userTag(e.creator)}</span></div>
       ${(e.delegates && e.delegates.length) ? `<div class="detail-row"><span class="detail-label">委託</span><span class="participant-list" style="display:inline-flex;gap:.3rem;flex-wrap:wrap">${e.delegates.map(d => this._userTag(d.name)).join('')}</span></div>` : ''}
