@@ -69,6 +69,12 @@ Object.assign(App, {
     return true;
   },
 
+  _isLoginRequired() {
+    if (ModeManager.isDemo()) return false;
+    if (typeof LineAuth !== 'undefined' && LineAuth.isLoggedIn()) return false;
+    return true;
+  },
+
   bindNavigation() {
     document.querySelectorAll('.bot-tab').forEach(tab => {
       tab.addEventListener('click', () => {
@@ -155,7 +161,7 @@ Object.assign(App, {
 
     if (!options.bypassRestrictionGuard && this._isCurrentUserRestricted() && pageId !== 'page-home') {
       this._showRestrictedToast();
-      return;
+      return { ok: false, reason: 'restricted' };
     }
     // 正式版未登入：擋住球隊、賽事、我的、訊息頁
     const guardedPages = ['page-profile', 'page-teams', 'page-tournaments', 'page-messages', 'page-activities'];
@@ -185,10 +191,14 @@ Object.assign(App, {
           console.warn(`[Navigation] guard cloud init failed for ${pageId}:`, err);
         }
       }
-      if (guardedPages.includes(pageId) && this._requireLogin()) return;
+      if (guardedPages.includes(pageId) && options.suppressLoginToast && this._isLoginRequired()) {
+        return { ok: false, reason: 'login_required' };
+      }
+      if (guardedPages.includes(pageId) && this._requireLogin()) return { ok: false, reason: 'login_required' };
       if (typeof this._canAccessPage === 'function' && !this._canAccessPage(pageId)) {
+        if (options.suppressAccessDeniedToast) return { ok: false, reason: 'forbidden' };
         this.showToast('權限不足');
-        return;
+        return { ok: false, reason: 'forbidden' };
       }
 
       const transitionSeq = ++this._pageTransitionSeq;
@@ -200,10 +210,10 @@ Object.assign(App, {
           console.warn(`[Navigation] 頁面 ${pageId} 載入失敗:`, err);
           this.showToast('頁面載入失敗，請稍後再試');
         }
-        return;
+        return { ok: false, reason: 'load_failed', error: err };
       }
 
-      if (transitionSeq !== this._pageTransitionSeq) return;
+      if (transitionSeq !== this._pageTransitionSeq) return { ok: false, reason: 'stale_transition' };
 
       // 離開遊戲頁時銷毀引擎，釋放 WebGL context
       if (this.currentPage === 'page-game' && pageId !== 'page-game' && this.destroyShotGamePage) {
@@ -231,7 +241,7 @@ Object.assign(App, {
           FirebaseService.finalizePageScopedRealtimeForPage(pageId);
         }
         // 同步 URL hash，讓瀏覽器返回鍵可用（hash 相同時跳過，避免觸發 hashchange）
-        if (location.hash !== '#' + pageId) location.hash = pageId;
+        if (!options.suppressHashSync && location.hash !== '#' + pageId) location.hash = pageId;
         window.scrollTo({ top: 0, behavior: 'smooth' });
         // 重設浮動廣告位置，避免跨頁 scrollTo 觸發 scroll listener 造成跳位
         this._floatAdOffset = 0;
@@ -240,7 +250,9 @@ Object.assign(App, {
         this._renderPageContent(pageId);
 
         if (pageId !== 'page-scan' && this._stopCamera) this._stopCamera();
+        return { ok: true, pageId };
       }
+      return { ok: false, reason: 'missing_target' };
     } finally {
       this._endRouteLoading?.(routeLoadingSeq);
     }

@@ -31,6 +31,8 @@ const App = {
   _routeLoadingSlowTimer: null,
   _routeLoadingHideTimer: null,
   _routeLoadingShownAt: 0,
+  _pendingProtectedBootRoute: null,
+  _pendingProtectedBootRoutePromise: null,
 
   init() {
     this.bindSportPicker();
@@ -534,6 +536,104 @@ const App = {
     setTimeout(kickoff, 0);
   },
 
+  _isProtectedBootRestoreRoute(pageId) {
+    if (!pageId || pageId === 'page-home' || pageId === 'page-temp-participant-report') return false;
+    if (typeof this._findDrawerMenuItem === 'function') {
+      const drawerItem = this._findDrawerMenuItem(pageId);
+      if (drawerItem && (drawerItem.permissionCode || drawerItem.minRole)) return true;
+    }
+    const pageEl = document.getElementById(pageId);
+    const minRole = String(pageEl?.dataset?.minRole || '').trim();
+    return !!minRole && minRole !== 'user';
+  },
+
+  _deferProtectedBootRoute(pageId) {
+    if (!pageId) return;
+    this._pendingProtectedBootRoute = {
+      pageId,
+      queuedAt: Date.now(),
+    };
+  },
+
+  _clearPendingProtectedBootRoute() {
+    this._pendingProtectedBootRoute = null;
+    this._pendingProtectedBootRoutePromise = null;
+  },
+
+  _replaceRouteHash(pageId) {
+    try {
+      const url = new URL(window.location.href);
+      url.hash = pageId ? `#${pageId}` : '';
+      history.replaceState(null, '', url.pathname + (url.search || '') + (url.hash || ''));
+    } catch (_) {
+      if (pageId) location.hash = pageId;
+    }
+  },
+
+  async _flushPendingProtectedBootRoute(options = {}) {
+    const pending = this._pendingProtectedBootRoute;
+    if (!pending?.pageId) return false;
+    if (this._pendingProtectedBootRoutePromise) {
+      return await this._pendingProtectedBootRoutePromise;
+    }
+
+    const pageId = pending.pageId;
+    const skipEnsureCloudReady = options.skipEnsureCloudReady === true;
+    let restorePromise = null;
+    restorePromise = (async () => {
+      try {
+        if (!skipEnsureCloudReady && this._pageNeedsCloud(pageId) && typeof this.ensureCloudReady === 'function') {
+          try {
+            await this.ensureCloudReady({ reason: `restore:${pageId}` });
+          } catch (err) {
+            console.warn(`[Boot] protected route cloud restore failed for ${pageId}:`, err);
+          }
+        }
+
+        if (!ModeManager.isDemo()
+          && typeof FirebaseService !== 'undefined'
+          && typeof FirebaseService._startAuthDependentWork === 'function') {
+          try {
+            await Promise.race([
+              Promise.resolve(FirebaseService._startAuthDependentWork()),
+              new Promise(resolve => setTimeout(resolve, 5000)),
+            ]);
+          } catch (err) {
+            console.warn(`[Boot] protected route access sync failed for ${pageId}:`, err);
+          }
+        }
+
+        const result = await this.showPage(pageId, {
+          resetHistory: true,
+          suppressAccessDeniedToast: true,
+          suppressLoginToast: true,
+        });
+
+        if (result?.ok) {
+          this._clearPendingProtectedBootRoute();
+          return true;
+        }
+
+        this._replaceRouteHash('page-home');
+        if (this.currentPage !== 'page-home') {
+          await this.showPage('page-home', {
+            bypassRestrictionGuard: true,
+            resetHistory: true,
+          });
+        }
+        this._clearPendingProtectedBootRoute();
+        return false;
+      } finally {
+        if (this._pendingProtectedBootRoutePromise === restorePromise) {
+          this._pendingProtectedBootRoutePromise = null;
+        }
+      }
+    })();
+
+    this._pendingProtectedBootRoutePromise = restorePromise;
+    return await restorePromise;
+  },
+
   async ensureCloudReady(options = {}) {
     const { reason = 'unknown' } = options;
     if (this._cloudReady) return true;
@@ -588,6 +688,7 @@ const App = {
         console.error('[Cloud] bindLineLogin failed:', err?.message || err, err?.stack || '');
         try { this.showToast('LINE login init failed.'); } catch (_) {}
       }
+      void this._flushPendingProtectedBootRoute({ skipEnsureCloudReady: true });
       void this._tryOpenPendingDeepLink();
       return true;
     })();
@@ -605,6 +706,7 @@ const App = {
           await this.bindLineLogin();
         }
       } catch (_) {}
+      void this._flushPendingProtectedBootRoute({ skipEnsureCloudReady: true });
       void this._tryOpenPendingDeepLink();
       throw err;
     } finally {
@@ -804,7 +906,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         ? 'page-temp-participant-report'
         : location.hash.replace(/^#/, '');
       if (bootPageId && bootPageId !== App.currentPage) {
-        void App.showPage(bootPageId);
+        if (App._isProtectedBootRestoreRoute(bootPageId)) {
+          App._deferProtectedBootRoute(bootPageId);
+          void App._flushPendingProtectedBootRoute();
+        } else {
+          void App.showPage(bootPageId);
+        }
       }
     }
   } catch (_) {}

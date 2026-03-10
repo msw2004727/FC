@@ -345,6 +345,7 @@ Object.assign(App, {
           this.renderHotEvents();
           this.renderActivityList();
           this.renderMyActivities();
+          void this._flushPendingProtectedBootRoute?.({ skipEnsureCloudReady: true });
         };
         FirebaseService._onUserChanged = refreshAfterUserReady;
         this.renderLoginUI();

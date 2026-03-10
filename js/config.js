@@ -165,7 +165,8 @@
 // 20260310x: 權限管理頁改版，加入抽屜排序、儲存成預設、只顯示已有權限與總管鎖定
 // 20260310y: 後台入口改為只看權限碼顯示，不再受抽屜最低層級限制
 // 20260310z: 持久化記錄失效頭像網址，避免已知 LINE 壞圖反覆觸發 404
-const CACHE_VERSION = '20260310z';
+// 20260310aa: 啟動時延後恢復受保護路由，避免首頁刷新時誤跳權限不足
+const CACHE_VERSION = '20260310aa';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {
