@@ -63,6 +63,8 @@ Object.assign(App, {
         <div class="dash-card"><div class="dash-num">${attendRate}%</div><div class="dash-label">${t('dash.attendRate')}</div></div>
       </div>
 
+      ${this._renderDashboardParticipantSearchCard ? this._renderDashboardParticipantSearchCard() : ''}
+
       <div class="info-card">
         <div class="info-title">${t('dash.typeDistribution')}</div>
         <canvas id="dash-chart-type" style="width:100%;display:block"></canvas>

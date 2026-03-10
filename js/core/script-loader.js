@@ -97,6 +97,7 @@ const ScriptLoader = {
     ],
     adminDashboard: [
       'js/modules/dashboard.js',
+      'js/modules/dashboard-participant-query.js',
     ],
     personalDashboard: [
       'js/modules/personal-dashboard.js',

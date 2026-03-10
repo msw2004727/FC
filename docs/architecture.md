@@ -41,7 +41,7 @@ flowchart TD
             MSG["message-*.js\n訊息"]
             ADM["user-admin-*.js\n用戶後台"]
             AD["ad-manage-*.js\n廣告管理"]
-            UTIL["scan / shop / leaderboard\nachievement / announcement\nfavorites / auto-exp / banner\nrole / site-theme / game-manage / image-upload\npopup-ad / personal-dashboard\nattendance-notify / dashboard"]
+            UTIL["scan / shop / leaderboard\nachievement / announcement\nfavorites / auto-exp / banner\nrole / site-theme / game-manage / image-upload\npopup-ad / personal-dashboard\nattendance-notify / dashboard\ndashboard-participant-query"]
         end
     end
 
@@ -123,6 +123,7 @@ flowchart TD
 | `modules/popup-ad.js` | 首頁彈窗廣告顯示邏輯 |
 | `modules/personal-dashboard.js` | 個人數據儀表板（參加場次、出席率、EXP 統計） |
 | `modules/dashboard.js` | 管理員後台數據儀表板 |
+| `modules/dashboard-participant-query.js` | 管理員後台活動參與查詢（關鍵字、日期區間、用戶次數、複製結果） |
 
 ## 初始化流程（4 階段 + 延遲載入回呼）
 

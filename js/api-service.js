@@ -1358,6 +1358,239 @@ const ApiService = {
     };
   },
 
+  _normalizeEventParticipantKeyword(value) {
+    return String(value || '').trim().toLowerCase();
+  },
+
+  _parseEventParticipantDate(dateStr) {
+    if (!dateStr) return null;
+    const parts = String(dateStr).split(' ');
+    const dateParts = parts[0].split('/');
+    if (dateParts.length < 3) return null;
+    const y = parseInt(dateParts[0], 10);
+    const m = parseInt(dateParts[1], 10) - 1;
+    const d = parseInt(dateParts[2], 10);
+    if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d)) return null;
+    if (parts[1]) {
+      const timePart = parts[1].split('~')[0];
+      const [hh, mm] = timePart.split(':').map(v => parseInt(v, 10));
+      return new Date(y, m, d, Number.isFinite(hh) ? hh : 0, Number.isFinite(mm) ? mm : 0);
+    }
+    return new Date(y, m, d);
+  },
+
+  _chunkArray(items, size) {
+    const chunkSize = Math.max(1, Number(size) || 1);
+    const chunks = [];
+    for (let i = 0; i < items.length; i += chunkSize) {
+      chunks.push(items.slice(i, i + chunkSize));
+    }
+    return chunks;
+  },
+
+  _collectEventParticipantStats({ keyword, startDate, endDate, events, attendanceRecords }) {
+    const normalizedKeyword = this._normalizeEventParticipantKeyword(keyword);
+    const matchedEvents = (events || [])
+      .map(event => {
+        const eventId = event.id || event._docId || '';
+        const title = String(event.title || '').trim();
+        const startAt = this._parseEventParticipantDate(event.date);
+        return {
+          eventId,
+          title,
+          date: event.date || '',
+          startAtMs: startAt ? startAt.getTime() : 0,
+        };
+      })
+      .filter(event => event.eventId && event.title && this._normalizeEventParticipantKeyword(event.title).includes(normalizedKeyword))
+      .sort((a, b) => b.startAtMs - a.startAtMs);
+
+    if (!matchedEvents.length) {
+      return {
+        keyword,
+        startDate,
+        endDate,
+        matchedEventCount: 0,
+        matchedUserCount: 0,
+        totalParticipationCount: 0,
+        items: [],
+      };
+    }
+
+    const eventMap = new Map(matchedEvents.map(event => [event.eventId, event]));
+    const seen = new Set();
+    const userMap = new Map();
+
+    (attendanceRecords || []).forEach(record => {
+      const eventId = String(record.eventId || '').trim();
+      if (!eventMap.has(eventId)) return;
+      if (String(record.status || '').trim() === 'removed' || String(record.status || '').trim() === 'cancelled') return;
+      if (String(record.type || '').trim() !== 'checkin') return;
+
+      const uid = String(record.uid || '').trim();
+      if (!uid) return;
+
+      const dedupeKey = `${uid}::${eventId}`;
+      if (seen.has(dedupeKey)) return;
+      seen.add(dedupeKey);
+
+      const event = eventMap.get(eventId);
+      const userName = String(record.userName || uid).trim() || uid;
+      const existing = userMap.get(uid) || {
+        uid,
+        userName,
+        count: 0,
+        latestParticipationDate: '',
+        latestAtMs: 0,
+        matchedEvents: [],
+      };
+
+      existing.count += 1;
+      existing.matchedEvents.push({
+        eventId,
+        title: event.title,
+        date: event.date,
+        startAtMs: event.startAtMs,
+      });
+      if (event.startAtMs >= existing.latestAtMs) {
+        existing.latestAtMs = event.startAtMs;
+        existing.latestParticipationDate = event.date || '';
+        existing.userName = userName;
+      }
+      userMap.set(uid, existing);
+    });
+
+    const items = [...userMap.values()]
+      .map(item => ({
+        uid: item.uid,
+        userName: item.userName,
+        count: item.count,
+        latestParticipationDate: item.latestParticipationDate,
+        matchedEvents: item.matchedEvents
+          .sort((a, b) => b.startAtMs - a.startAtMs)
+          .map(event => ({
+            eventId: event.eventId,
+            title: event.title,
+            date: event.date,
+          })),
+        latestAtMs: item.latestAtMs,
+      }))
+      .sort((a, b) => {
+        if (b.count !== a.count) return b.count - a.count;
+        if (b.latestAtMs !== a.latestAtMs) return b.latestAtMs - a.latestAtMs;
+        return String(a.userName || '').localeCompare(String(b.userName || ''), 'zh-Hant');
+      })
+      .map(({ latestAtMs, ...item }) => item);
+
+    return {
+      keyword,
+      startDate,
+      endDate,
+      matchedEventCount: matchedEvents.length,
+      matchedUserCount: items.length,
+      totalParticipationCount: items.reduce((sum, item) => sum + item.count, 0),
+      items,
+    };
+  },
+
+  async queryEventParticipantStats(options = {}) {
+    const keyword = String(options.keyword || '').trim();
+    const startDate = String(options.startDate || '').trim();
+    const endDate = String(options.endDate || '').trim();
+
+    if (!keyword) throw new Error('請輸入活動關鍵字');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate) || !/^\d{4}-\d{2}-\d{2}$/.test(endDate)) {
+      throw new Error('請選擇有效的開始與結束日期');
+    }
+
+    const start = new Date(`${startDate}T00:00:00`);
+    const end = new Date(`${endDate}T00:00:00`);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+      throw new Error('日期格式錯誤');
+    }
+    if (start > end) {
+      throw new Error('開始日期不可晚於結束日期');
+    }
+    const rangeDays = Math.floor((end.getTime() - start.getTime()) / 86400000) + 1;
+    if (rangeDays > 365) {
+      throw new Error('單次查詢日期區間不可超過 365 天');
+    }
+
+    if (this._demoMode) {
+      const demoEvents = this.getEvents().filter(event => {
+        const eventStart = this._parseEventParticipantDate(event.date);
+        return eventStart && eventStart >= start && eventStart <= new Date(`${endDate}T23:59:59`);
+      });
+      return this._collectEventParticipantStats({
+        keyword,
+        startDate,
+        endDate,
+        events: demoEvents,
+        attendanceRecords: this._src('attendanceRecords'),
+      });
+    }
+
+    const currentUser = this.getCurrentUser();
+    if (!currentUser || !['admin', 'super_admin'].includes(String(currentUser.role || ''))) {
+      throw new Error('只有管理者可以使用此查詢');
+    }
+
+    const startKey = startDate.replace(/-/g, '/');
+    const endKey = endDate.replace(/-/g, '/') + '\uf8ff';
+    const endAt = new Date(`${endDate}T23:59:59`);
+
+    const eventSnap = await db.collection('events')
+      .where('date', '>=', startKey)
+      .where('date', '<=', endKey)
+      .get({ source: 'server' });
+
+    const rangedEvents = eventSnap.docs
+      .map(doc => ({ ...doc.data(), _docId: doc.id, id: doc.data().id || doc.id }))
+      .filter(event => {
+        const eventStart = this._parseEventParticipantDate(event.date);
+        return eventStart && eventStart >= start && eventStart <= endAt;
+      });
+
+    const matchedEvents = rangedEvents.filter(event =>
+      this._normalizeEventParticipantKeyword(event.title).includes(this._normalizeEventParticipantKeyword(keyword))
+    );
+
+    if (!matchedEvents.length) {
+      return {
+        keyword,
+        startDate,
+        endDate,
+        matchedEventCount: 0,
+        matchedUserCount: 0,
+        totalParticipationCount: 0,
+        items: [],
+      };
+    }
+
+    if (matchedEvents.length > 100) {
+      throw new Error(`符合活動過多（${matchedEvents.length} 場），請縮小日期區間或提高關鍵字精準度`);
+    }
+
+    const eventIdChunks = this._chunkArray(matchedEvents.map(event => event.id).filter(Boolean), 10);
+    const attendanceRecords = [];
+
+    for (const chunk of eventIdChunks) {
+      if (!chunk.length) continue;
+      const snap = await db.collection('attendanceRecords')
+        .where('eventId', 'in', chunk)
+        .get({ source: 'server' });
+      snap.docs.forEach(doc => attendanceRecords.push({ ...doc.data(), _docId: doc.id }));
+    }
+
+    return this._collectEventParticipantStats({
+      keyword,
+      startDate,
+      endDate,
+      events: matchedEvents,
+      attendanceRecords,
+    });
+  },
+
   getCurrentUser() {
     if (this._demoMode) return (typeof DemoData !== 'undefined') ? DemoData.currentUser : null;
     return FirebaseService._cache.currentUser || null;

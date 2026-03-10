@@ -155,7 +155,8 @@
 // 20260310m: 首頁活動卡片性別緞帶移到圖片下方的人數右側空白區
 // 20260310n: 個人資訊的我的資料編輯區開放修改性別
 // 20260310o: 修正首頁活動卡片性別緞帶偏移，恢復斜角絕對定位
-const CACHE_VERSION = '20260310o';
+// 20260310p: 新增後台活動參與查詢（關鍵字＋時間區間＋用戶次數）
+const CACHE_VERSION = '20260310p';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {
