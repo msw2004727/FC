@@ -172,7 +172,8 @@
 // 20260310ae: 稽核日誌收折範圍擴大為整個搜尋條件區，包含日期欄位
 // 20260310af: 稽核日誌搜尋條件改用原生 details/summary 重做收折，避免分頁重組後收折失效
 // 20260310ag: 數據儀表板「活動參與查詢」加入欄位收折功能
-const CACHE_VERSION = '20260310ag';
+// 20260310ah: 改用原生 details/summary 重做收折，與稽核日誌同一方案
+const CACHE_VERSION = '20260310ah';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {
