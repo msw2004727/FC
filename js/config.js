@@ -157,7 +157,8 @@
 // 20260310o: 修正首頁活動卡片性別緞帶偏移，恢復斜角絕對定位
 // 20260310q: 後台三種日誌整合為單頁分頁式日誌中心
 // 20260310r: 後台活動參與查詢新增 7 天臨時網址分享頁
-const CACHE_VERSION = '20260310r';
+// 20260310s: 日誌中心工具列統一位置與返回箭頭文案
+const CACHE_VERSION = '20260310s';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {

@@ -113,57 +113,42 @@ Object.assign(App, {
   },
 
   _ensureAuditBackfillButton() {
-    const summary = document.getElementById('auditlog-summary');
-    if (!summary) return null;
-
-    let row = document.getElementById('auditlog-summary-row');
-    if (!row) {
-      row = document.createElement('div');
-      row.id = 'auditlog-summary-row';
-      row.style.display = 'flex';
-      row.style.alignItems = 'center';
-      row.style.justifyContent = 'space-between';
-      row.style.gap = '.75rem';
-      row.style.flexWrap = 'wrap';
-      summary.parentNode.insertBefore(row, summary);
-      row.appendChild(summary);
-    }
+    const actions = document.getElementById('admin-log-toolbar-actions');
+    if (!actions) return null;
 
     let btn = document.getElementById('auditlog-backfill-btn');
     if (!btn) {
       btn = document.createElement('button');
       btn.id = 'auditlog-backfill-btn';
-      btn.className = 'outline-btn';
-      btn.style.display = 'none';
-      btn.style.fontSize = '.72rem';
-      btn.style.padding = '.28rem .6rem';
+      btn.className = 'outline-btn admin-log-action-btn';
+      btn.type = 'button';
+      btn.dataset.adminLogActionTab = 'audit';
+      btn.dataset.actionAvailable = '0';
       btn.textContent = '補齊暱稱';
       btn.addEventListener('click', () => { void this.backfillAuditActorNames(); });
-      row.appendChild(btn);
+      actions.appendChild(btn);
+      this._refreshAdminLogToolbarActions?.();
     }
     return btn;
   },
 
   _ensureAuditRefreshButton() {
-    const actions = document.getElementById('admin-log-panel-actions-audit');
+    const actions = document.getElementById('admin-log-toolbar-actions');
     if (!actions) return null;
 
     let btn = document.getElementById('auditlog-refresh-btn');
     if (!btn) {
       btn = document.createElement('button');
       btn.id = 'auditlog-refresh-btn';
-      btn.className = 'outline-btn admin-icon-btn';
+      btn.className = 'outline-btn admin-log-action-btn';
       btn.type = 'button';
-      btn.setAttribute('aria-label', '重新整理稽核日誌');
+      btn.dataset.adminLogActionTab = 'audit';
+      btn.dataset.actionAvailable = '1';
       btn.title = '重新整理';
-      btn.innerHTML = `
-        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-          <path d="M21 12a9 9 0 1 1-2.64-6.36"/>
-          <path d="M21 3v6h-6"/>
-        </svg>
-      `;
+      btn.textContent = '重整';
       btn.addEventListener('click', () => { void this.refreshAuditLogs(); });
       actions.appendChild(btn);
+      this._refreshAdminLogToolbarActions?.();
     }
     return btn;
   },
@@ -175,11 +160,12 @@ Object.assign(App, {
     const unresolvedCount = this._auditLogItems.filter(item => this._needsAuditActorBackfill(item)).length;
     const allowBackfill = unresolvedCount > 0 && this._isTodayAuditDay(this._auditLogDayKey);
 
-    btn.style.display = allowBackfill ? '' : 'none';
+    btn.dataset.actionAvailable = allowBackfill ? '1' : '0';
     btn.disabled = this._auditLogBackfilling;
     btn.textContent = this._auditLogBackfilling
       ? '補齊中...'
       : `補齊暱稱（${unresolvedCount}）`;
+    this._refreshAdminLogToolbarActions?.();
   },
 
   renderAuditLogPage() {
@@ -189,6 +175,7 @@ Object.assign(App, {
     this._ensureAuditActionOptions();
     this._ensureAuditBackfillButton();
     this._ensureAuditRefreshButton();
+    this._refreshAdminLogToolbarActions?.();
 
     const nextDayKey = this._getAuditDayKeyFromInput(dateInput.value);
     if (!nextDayKey) return;

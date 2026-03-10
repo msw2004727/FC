@@ -11,7 +11,7 @@ Object.assign(App, {
     return ['operation', 'audit', 'error'].includes(tabKey) ? tabKey : 'operation';
   },
 
-  _buildAdminLogPanel(key, title, description, actionsId) {
+  _buildAdminLogPanel(key, title, description) {
     const panel = document.createElement('section');
     panel.className = 'admin-log-panel';
     panel.dataset.adminLogPanel = key;
@@ -22,10 +22,56 @@ Object.assign(App, {
           <h3>${escapeHTML(title)}</h3>
           <p>${escapeHTML(description)}</p>
         </div>
-        <div class="admin-log-panel-actions" id="${actionsId}"></div>
       </div>
     `;
     return panel;
+  },
+
+  _ensureAdminLogToolbar(page, tabs) {
+    let toolbar = document.getElementById('admin-log-toolbar');
+    if (toolbar) return toolbar;
+
+    toolbar = document.createElement('div');
+    toolbar.id = 'admin-log-toolbar';
+    toolbar.className = 'admin-log-toolbar';
+    toolbar.innerHTML = `
+      <div class="admin-log-toolbar-copy">依目前頁籤顯示對應操作</div>
+      <div class="admin-log-toolbar-actions" id="admin-log-toolbar-actions"></div>
+    `;
+    tabs.insertAdjacentElement('afterend', toolbar);
+    return toolbar;
+  },
+
+  _appendToolbarAction(button, tabKey, extraClass = '') {
+    if (!button) return;
+    const actions = document.getElementById('admin-log-toolbar-actions');
+    if (!actions) return;
+
+    button.dataset.adminLogActionTab = tabKey;
+    button.dataset.actionAvailable = button.dataset.actionAvailable || '1';
+    button.classList.add('admin-log-action-btn');
+    if (extraClass) {
+      extraClass.split(/\s+/).filter(Boolean).forEach(cls => button.classList.add(cls));
+    }
+    actions.appendChild(button);
+  },
+
+  _refreshAdminLogToolbarActions() {
+    const toolbar = document.getElementById('admin-log-toolbar');
+    const actions = document.getElementById('admin-log-toolbar-actions');
+    if (!toolbar || !actions) return;
+
+    const activeTab = this._normalizeAdminLogTab(this._adminLogActiveTab || 'operation');
+    let visibleCount = 0;
+    actions.querySelectorAll('[data-admin-log-action-tab]').forEach(button => {
+      const tabMatch = button.dataset.adminLogActionTab === activeTab;
+      const available = button.dataset.actionAvailable !== '0';
+      const shouldShow = tabMatch && available;
+      button.hidden = !shouldShow;
+      if (shouldShow) visibleCount += 1;
+    });
+
+    toolbar.classList.toggle('is-empty', visibleCount === 0);
   },
 
   _ensureAdminLogCenterLayout() {
@@ -39,7 +85,7 @@ Object.assign(App, {
     const backBtn = header.querySelector('.back-btn');
     const clearAllBtn = header.querySelector('.header-action-btn');
     if (titleEl) titleEl.textContent = '日誌中心';
-    if (backBtn) backBtn.textContent = '返回';
+    if (backBtn) backBtn.textContent = '←';
 
     const operationNodes = Array.from(page.children).filter(node => node !== header);
     const auditPage = document.getElementById('page-admin-audit-logs');
@@ -73,28 +119,32 @@ Object.assign(App, {
     const operationPanel = this._buildAdminLogPanel(
       'operation',
       '操作日誌',
-      '查看後台與系統操作紀錄，可依類型與關鍵字快速篩選。',
-      'admin-log-panel-actions-operation'
+      '查看後台與系統操作紀錄，可依類型與關鍵字快速篩選。'
     );
     const auditPanel = this._buildAdminLogPanel(
       'audit',
       '稽核日誌',
-      '查看敏感行為與關鍵操作紀錄，可依日期、時段與動作條件過濾。',
-      'admin-log-panel-actions-audit'
+      '查看敏感行為與關鍵操作紀錄，可依日期、時段與動作條件過濾。'
     );
     const errorPanel = this._buildAdminLogPanel(
       'error',
       '錯誤日誌',
-      '集中查看前端與系統錯誤，可依錯誤代碼與關鍵字過濾。',
-      'admin-log-panel-actions-error'
+      '集中查看前端與系統錯誤，可依錯誤代碼與關鍵字過濾。'
     );
 
     if (clearAllBtn) {
       clearAllBtn.textContent = '清空資料';
-      operationPanel.querySelector('#admin-log-panel-actions-operation')?.appendChild(clearAllBtn);
+      clearAllBtn.id = 'admin-log-clear-all-btn';
+      clearAllBtn.className = 'outline-btn';
+      clearAllBtn.removeAttribute('style');
+      this._appendToolbarAction(clearAllBtn, 'operation', 'admin-log-action-danger');
     }
     if (errorClearBtn) {
-      errorPanel.querySelector('#admin-log-panel-actions-error')?.appendChild(errorClearBtn);
+      errorClearBtn.id = 'admin-log-clear-old-btn';
+      errorClearBtn.className = 'outline-btn';
+      errorClearBtn.removeAttribute('style');
+      errorClearBtn.textContent = '清除 30 天前';
+      this._appendToolbarAction(errorClearBtn, 'error');
     }
 
     operationNodes.forEach(node => operationPanel.appendChild(node));
@@ -106,11 +156,13 @@ Object.assign(App, {
     panels.appendChild(errorPanel);
 
     header.insertAdjacentElement('afterend', tabs);
-    tabs.insertAdjacentElement('afterend', panels);
+    const toolbar = this._ensureAdminLogToolbar(page, tabs);
+    toolbar.insertAdjacentElement('afterend', panels);
 
     if (auditPage) auditPage.innerHTML = '';
     if (errorPage) errorPage.innerHTML = '';
     page.dataset.logCenterReady = '1';
+    this._refreshAdminLogToolbarActions();
   },
 
   renderAdminLogCenter(tabKey) {
@@ -133,6 +185,7 @@ Object.assign(App, {
     page.querySelectorAll('[data-admin-log-panel]').forEach(panel => {
       panel.hidden = panel.dataset.adminLogPanel !== safeTab;
     });
+    this._refreshAdminLogToolbarActions();
 
     if (safeTab === 'operation') {
       this.filterOperationLogs(this._opLogPage || 1);

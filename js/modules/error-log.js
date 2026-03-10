@@ -43,25 +43,22 @@ Object.assign(App, {
   },
 
   _ensureErrorLogRefreshButton() {
-    const actions = document.getElementById('admin-log-panel-actions-error');
+    const actions = document.getElementById('admin-log-toolbar-actions');
     if (!actions) return null;
 
     let btn = document.getElementById('errorlog-refresh-btn');
     if (!btn) {
       btn = document.createElement('button');
       btn.id = 'errorlog-refresh-btn';
-      btn.className = 'outline-btn admin-icon-btn';
+      btn.className = 'outline-btn admin-log-action-btn';
       btn.type = 'button';
-      btn.setAttribute('aria-label', '重新整理錯誤日誌');
+      btn.dataset.adminLogActionTab = 'error';
+      btn.dataset.actionAvailable = '1';
       btn.title = '重新整理';
-      btn.innerHTML = `
-        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-          <path d="M21 12a9 9 0 1 1-2.64-6.36"/>
-          <path d="M21 3v6h-6"/>
-        </svg>
-      `;
+      btn.textContent = '重整';
       btn.addEventListener('click', () => { void this.refreshErrorLogs(); });
       actions.appendChild(btn);
+      this._refreshAdminLogToolbarActions?.();
     }
     return btn;
   },

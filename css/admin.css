@@ -10,6 +10,14 @@
 .admin-filters select { flex: 1; min-width: 100px; }
 .admin-card-list { display: flex; flex-direction: column; gap: .5rem; }
 .admin-log-tabs { margin-bottom: .7rem; }
+.admin-log-toolbar { display: flex; justify-content: space-between; align-items: center; gap: .75rem; margin-bottom: .7rem; padding: .7rem .85rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-card); }
+.admin-log-toolbar.is-empty { justify-content: flex-end; }
+.admin-log-toolbar.is-empty .admin-log-toolbar-copy { display: none; }
+.admin-log-toolbar-copy { font-size: .74rem; color: var(--text-muted); line-height: 1.6; }
+.admin-log-toolbar-actions { display: flex; align-items: center; justify-content: flex-end; gap: .45rem; flex-wrap: wrap; margin-left: auto; }
+.admin-log-action-btn { min-width: 6rem; justify-content: center; font-size: .74rem; padding: .38rem .8rem; white-space: nowrap; }
+.admin-log-action-danger { border-color: rgba(220,38,38,.45); color: #dc2626; }
+.admin-log-action-danger:hover { border-color: #dc2626; background: rgba(220,38,38,.08); }
 .admin-log-panels { display: flex; flex-direction: column; gap: .7rem; }
 .admin-log-panel { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: .85rem; }
 .admin-log-panel[hidden] { display: none !important; }
@@ -338,6 +346,19 @@
 .participant-share-note { margin-top: .7rem; padding: .7rem .8rem; border-radius: .6rem; background: rgba(239,68,68,.08); color: #b91c1c; font-size: .74rem; line-height: 1.65; }
 
 @media (max-width: 640px) {
+  .admin-log-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .admin-log-toolbar-copy {
+    display: none;
+  }
+  .admin-log-toolbar-actions {
+    width: 100%;
+  }
+  .admin-log-action-btn {
+    width: 100%;
+  }
   .admin-log-panel-header {
     flex-direction: column;
     align-items: stretch;
