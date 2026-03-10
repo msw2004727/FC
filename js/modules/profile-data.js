@@ -133,7 +133,7 @@ Object.assign(App, {
     this.renderLineNotifyCard();
 
     // 編輯模式的靜態欄位
-    if (el('profile-gender-display')) el('profile-gender-display').textContent = v(user.gender);
+    if (el('profile-edit-gender')) el('profile-edit-gender').value = user.gender || '';
     if (el('profile-sports-display')) el('profile-sports-display').textContent = v(user.sports);
     if (el('profile-team-display')) el('profile-team-display').innerHTML = this._getUserTeamHtml(user);
 
@@ -331,9 +331,11 @@ Object.assign(App, {
     } else {
       // 開啟編輯，預填現有值
       const user = ApiService.getCurrentUser();
+      const genderInput = document.getElementById('profile-edit-gender');
       const bdInput = document.getElementById('profile-edit-birthday');
       const regionInput = document.getElementById('profile-edit-region');
       const phoneInput = document.getElementById('profile-edit-phone');
+      if (genderInput) genderInput.value = (user && user.gender) || '';
       if (bdInput && user && user.birthday) {
         // 轉換 yyyy/MM/dd → yyyy-MM-dd（date input 格式）
         bdInput.value = user.birthday.replace(/\//g, '-');
@@ -347,10 +349,12 @@ Object.assign(App, {
   },
 
   saveProfileInfo() {
+    const genderInput = document.getElementById('profile-edit-gender');
     const bdInput = document.getElementById('profile-edit-birthday');
     const regionInput = document.getElementById('profile-edit-region');
     const phoneInput = document.getElementById('profile-edit-phone');
     const updates = {};
+    if (genderInput) updates.gender = genderInput.value || null;
     if (bdInput && bdInput.value) {
       // 轉換 yyyy-MM-dd → yyyy/MM/dd
       updates.birthday = bdInput.value.replace(/-/g, '/');

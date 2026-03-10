@@ -78,7 +78,15 @@
           </div>
           <!-- 編輯模式 -->
           <div id="profile-info-edit" style="display:none">
-            <div class="info-row"><span>性別</span><span id="profile-gender-display">-</span></div>
+            <div class="info-row">
+              <span>性別</span>
+              <select id="profile-edit-gender" class="profile-edit-input">
+                <option value="">請選擇</option>
+                <option value="男">男</option>
+                <option value="女">女</option>
+                <option value="其他">其他</option>
+              </select>
+            </div>
             <div class="info-row"><span>生日</span><input type="date" id="profile-edit-birthday" class="profile-edit-input"></div>
             <div class="info-row"><span>地區</span><input type="text" id="profile-edit-region" class="profile-edit-input" placeholder="例：台北市"></div>
             <div class="info-row"><span>運動類別</span><span id="profile-sports-display">-</span></div>

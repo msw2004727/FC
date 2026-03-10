@@ -475,6 +475,7 @@ Object.assign(App, {
           ? `<span class="h-card-gender-ribbon">${escapeHTML(this._getEventGenderRibbonText(e))}</span>`
           : '';
         const _participantCount = `${e.current}/${e.max}${t('activity.participants')}${(Number(e.waitlist) || 0) > 0 ? ' 候補' + (Number(e.waitlist) || 0) : ''}`;
+        const _metaBottomClass = _genderRibbon ? 'h-card-meta-bottom h-card-meta-bottom-has-ribbon' : 'h-card-meta-bottom';
         return `
         <div class="h-card" style="${e.pinned ? 'border:1px solid var(--warning);box-shadow:0 0 0 1px rgba(245,158,11,.15)' : ''}" onclick="App.showEventDetail('${e.id}')">
           ${e.image
@@ -484,12 +485,12 @@ Object.assign(App, {
             <div class="h-card-title">${e.pinned ? '<span style="font-size:.62rem;padding:.08rem .35rem;border-radius:999px;border:1px solid var(--warning);color:var(--warning);font-weight:700;margin-right:.3rem">置頂</span>' : ''}${escapeHTML(e.title)}${e.teamOnly ? '<span class="tl-teamonly-badge">球隊限定</span>' : ''}${(e.max > 0 && e.current >= e.max && e.status !== 'ended' && e.status !== 'cancelled') ? '<span class="tl-almost-full-badge">已額滿</span>' : ((e.status === 'open' && e.max > 0 && (e.max - e.current) / e.max < 0.2 && e.current < e.max) ? '<span class="tl-almost-full-badge">即將額滿</span>' : '')} ${this._favHeartHtml(this.isEventFavorited(e.id), 'Event', e.id)}</div>
             <div class="h-card-meta">
               <span class="h-card-meta-location">${escapeHTML(e.location)}</span>
-              <div class="h-card-meta-bottom">
+              <div class="${_metaBottomClass}">
                 <span class="h-card-meta-count">${_participantCount}</span>
-                ${_genderRibbon}
               </div>
             </div>
           </div>
+          ${_genderRibbon}
         </div>
       `; }).join('');
   },
