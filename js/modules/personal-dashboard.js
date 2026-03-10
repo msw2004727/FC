@@ -144,7 +144,7 @@ Object.assign(App, {
       const totalFilled = myEvents.reduce((s, e) => s + (e.current || 0), 0);
       const utilization = totalCapacity > 0 ? Math.round(totalFilled / totalCapacity * 100) : 0;
       const avgPerEvent = hostedCount > 0 ? (totalFilled / hostedCount).toFixed(1) : '0';
-      const totalRevenue = myEvents.reduce((s, e) => s + ((e.fee || 0) * (e.current || 0)), 0);
+      const totalRevenue = myEvents.reduce((s, e) => s + (this._getEventFeeAmount(e) * (e.current || 0)), 0);
       const completionRate = hostedCount > 0 ? Math.round(endedMyEvents.length / hostedCount * 100) : 0;
       rolePanelHtml = `
         <div class="info-card">

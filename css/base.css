@@ -237,6 +237,36 @@ img { max-width: 100%; display: block; }
 .ce-row-half > div:first-child { flex: 0 0 40%; }
 .ce-row-half input[type="date"] { width: 100%; min-width: 0; box-sizing: border-box; padding: .45rem .35rem; font-size: .82rem; }
 .ce-row-half select { padding: .45rem .35rem; font-size: .82rem; padding-right: 1.4rem; background-position: right .3rem center; }
+.ce-fee-toggle-wrap {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  padding: .48rem .55rem;
+  display: flex;
+  flex-direction: column;
+  gap: .45rem;
+}
+.ce-fee-toggle-header {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  min-height: 22px;
+}
+.ce-fee-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+}
+.ce-fee-prefix {
+  font-size: .8rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+.ce-fee-input-wrap input {
+  flex: 1;
+  min-width: 0;
+}
 
 /* Team-only Multi Select */
 .ce-team-picker {

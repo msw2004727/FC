@@ -22,7 +22,9 @@ Object.assign(App, {
     const userName = user?.displayName || user?.name || '用戶';
     const companions = ApiService.getCompanions();
     const remaining = Math.max(0, e.max - e.current);
-    const feeLabel = e.fee > 0 ? `費用：NT$${e.fee}/人` : '免費';
+    const feeEnabled = this._isEventFeeEnabled?.(e) ?? Number(e?.fee || 0) > 0;
+    const fee = this._getEventFeeAmount?.(e) ?? (feeEnabled ? (Number(e?.fee || 0) || 0) : 0);
+    const feeLabel = feeEnabled ? (fee > 0 ? `費用：NT$${fee}/人` : '費用：免費') : '';
     const allowedGender = this._getEventAllowedGender?.(e) || '';
     const selfGenderAllowed = this._canEventGenderParticipantSignup?.(e, user?.gender) ?? true;
 
@@ -31,7 +33,7 @@ Object.assign(App, {
       const genderTip = allowedGender
         ? `<br><span style="color:#dc2626;font-weight:700">性別限定：${escapeHTML(this._getEventGenderDetailText?.(e) || '')}</span>`
         : '';
-      infoEl.innerHTML = `<b>${escapeHTML(e.title)}</b><br>${feeLabel}　剩餘名額：${remaining}/${e.max}${genderTip}`;
+      infoEl.innerHTML = `<b>${escapeHTML(e.title)}</b><br>${[feeLabel, `剩餘名額：${remaining}/${e.max}`].filter(Boolean).join('　')}${genderTip}`;
     }
 
     // 已報名者（不可再勾選）
@@ -76,13 +78,14 @@ Object.assign(App, {
     const checkboxes = document.querySelectorAll('#companion-select-list input[name="cs-participant"]:not([disabled])');
     let selected = 0;
     checkboxes.forEach(cb => { if (cb.checked) selected++; });
-    const fee = e?.fee || 0;
+    const feeEnabled = this._isEventFeeEnabled?.(e) ?? Number(e?.fee || 0) > 0;
+    const fee = this._getEventFeeAmount?.(e) ?? (feeEnabled ? (Number(e?.fee || 0) || 0) : 0);
     const remaining = Math.max(0, (e?.max || 0) - (e?.current || 0));
     const summaryEl = document.getElementById('companion-select-summary');
     if (summaryEl) {
       const willWaitlist = Math.max(0, selected - remaining);
       const wlWarning = willWaitlist > 0 ? `<span style="color:var(--warning);font-weight:600">⚠ 其中 ${willWaitlist} 人將列入候補</span>` : '';
-      summaryEl.innerHTML = `<span>已選 <b>${selected}</b> 人</span>${fee > 0 ? `<span>預計費用 <b>NT$${fee * selected}</b></span>` : ''}<span>剩餘名額 <b>${remaining}</b></span>${wlWarning}`;
+      summaryEl.innerHTML = `<span>已選 <b>${selected}</b> 人</span>${feeEnabled && fee > 0 ? `<span>預計費用 <b>NT$${fee * selected}</b></span>` : ''}<span>剩餘名額 <b>${remaining}</b></span>${wlWarning}`;
     }
     const confirmBtn = document.getElementById('companion-select-confirm-btn');
     if (confirmBtn) confirmBtn.disabled = selected === 0;

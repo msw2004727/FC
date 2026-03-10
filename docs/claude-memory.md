@@ -5,6 +5,12 @@
 > 新紀錄一律寫在檔案前方，採新到舊排序；若需補記舊項目，應插入對應日期區段，不得追加到檔尾。
 
 ---
+### 2026-03-11 — 活動費用改為可開關欄位
+- **問題**：活動建立表單的費用欄固定存在，免費活動也會在活動詳情頁佔一列顯示「免費」，無法像球隊限定一樣收起不用的欄位。
+- **原因**：資料模型只有 `fee` 數字，前端各頁直接用 `fee > 0` 或 `fee == 0` 判斷顯示，缺少「是否啟用費用」的獨立狀態。
+- **修復**：在 `pages/activity.html`、`css/base.css`、`app.js`、`js/modules/event-create.js`、`js/modules/event-manage.js`、`js/modules/event-detail.js`、`js/modules/event-detail-companion.js`、`js/modules/personal-dashboard.js` 新增 `活動費用開關（feeEnabled）`、表單顯示/回填邏輯，以及活動詳情與管理端的費用顯示判斷；同步更新 `js/config.js` 與 `index.html` 快取版本到 `20260311a`。
+- **教訓**：像費用這種可選欄位，不能只靠數值 `0` 代表關閉，應拆成「是否啟用」與「值」兩個欄位，前端顯示與資料保存才不會互相打架。
+
 ### 2026-03-10 — 稽核暱稱補齊完成後同步寫入操作日誌
 - **問題**：稽核日誌執行 `補齊暱稱（backfillAuditActorNames）` 後，操作日誌沒有留下「誰補齊了哪些用戶暱稱」的紀錄；同時操作日誌類型標籤即使前一版有分色，實際辨識度仍不夠明顯。
 - **原因**：補齊暱稱實際是在 Cloud Function `backfillAuditActorNames` 內批次更新 `auditLogsByDay`，流程中沒有任何 `操作日誌（operationLogs）` 寫入；而操作日誌顏色上一版只做到家族色系，部分既有類型看起來仍接近舊樣式。

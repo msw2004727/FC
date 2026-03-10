@@ -134,7 +134,19 @@
         <div class="ce-row ce-row-half">
           <div>
             <label>費用 ($)</label>
-            <input type="number" id="ce-fee" placeholder="0" value="300">
+            <div class="ce-fee-toggle-wrap">
+              <div class="ce-fee-toggle-header">
+                <label class="toggle-switch" style="margin:0">
+                  <input type="checkbox" id="ce-fee-enabled">
+                  <span class="toggle-slider"></span>
+                </label>
+                <span id="ce-fee-label" style="font-size:.78rem;color:var(--text-muted)">關閉 - 活動詳情不顯示費用</span>
+              </div>
+              <div id="ce-fee-input-wrap" class="ce-fee-input-wrap" style="display:none">
+                <span class="ce-fee-prefix">NT$</span>
+                <input type="number" id="ce-fee" placeholder="300" value="300" min="0">
+              </div>
+            </div>
           </div>
           <div>
             <label>人數上限 <span class="required">*必填</span></label>

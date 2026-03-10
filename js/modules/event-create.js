@@ -345,6 +345,7 @@ Object.assign(App, {
 
   _buildCurrentTemplate(name, image) {
     const genderRestrictionEnabled = !!document.getElementById('ce-gender-restriction-enabled')?.checked;
+    const feeEnabled = !!document.getElementById('ce-fee-enabled')?.checked;
     return {
       id: 'tpl_' + Date.now(),
       name,
@@ -354,7 +355,8 @@ Object.assign(App, {
       date: document.getElementById('ce-date')?.value || '',
       timeStart: document.getElementById('ce-time-start')?.value || '14:00',
       timeEnd: document.getElementById('ce-time-end')?.value || '16:00',
-      fee: parseInt(document.getElementById('ce-fee')?.value) || 0,
+      fee: feeEnabled ? (parseInt(document.getElementById('ce-fee')?.value, 10) || 0) : 0,
+      feeEnabled,
       max: parseInt(document.getElementById('ce-max')?.value) || 20,
       minAge: parseInt(document.getElementById('ce-min-age')?.value) || 0,
       notes: document.getElementById('ce-notes')?.value?.trim() || '',
@@ -439,7 +441,8 @@ Object.assign(App, {
     setVal('ce-date', tpl.date);
     setVal('ce-time-start', tpl.timeStart);
     setVal('ce-time-end', tpl.timeEnd);
-    setVal('ce-fee', tpl.fee);
+    const feeEnabled = typeof tpl.feeEnabled === 'boolean' ? tpl.feeEnabled : Number(tpl.fee || 0) > 0;
+    this._setEventFeeFormState(feeEnabled, Number(tpl.fee || 0) > 0 ? tpl.fee : 300);
     setVal('ce-max', tpl.max);
     setVal('ce-min-age', tpl.minAge);
     setVal('ce-notes', tpl.notes);
@@ -542,7 +545,7 @@ Object.assign(App, {
     document.getElementById('ce-date').value = '';
     document.getElementById('ce-time-start').value = '14:00';
     document.getElementById('ce-time-end').value = '16:00';
-    document.getElementById('ce-fee').value = '300';
+    this._setEventFeeFormState(false, 300);
     document.getElementById('ce-max').value = '20';
     document.getElementById('ce-waitlist').value = '0';
     document.getElementById('ce-min-age').value = '0';
@@ -566,6 +569,7 @@ Object.assign(App, {
     // 確保事件已綁定（防止 Phase 1 非同步時機導致未綁定）
     this.bindImageUpload('ce-image', 'ce-upload-preview');
     this.bindTeamOnlyToggle();
+    this.bindEventFeeToggle();
     this.bindGenderRestrictionToggle();
     this._initSportTagPicker('');
     this.showModal('create-event-modal');
@@ -682,6 +686,54 @@ Object.assign(App, {
   },
 
   /** 球隊限定：填充下拉選單（僅在切換開啟時呼叫，避免重複重建） */
+  _getEventFeeFormNodes() {
+    return {
+      toggle: document.getElementById('ce-fee-enabled'),
+      label: document.getElementById('ce-fee-label'),
+      wrap: document.getElementById('ce-fee-input-wrap'),
+      input: document.getElementById('ce-fee'),
+    };
+  },
+
+  _updateEventFeeToggle() {
+    const { toggle, label, wrap, input } = this._getEventFeeFormNodes();
+    if (!toggle || !label || !wrap || !input) return;
+
+    const enabled = !!toggle.checked;
+    if (enabled) {
+      if ((parseInt(input.value, 10) || 0) <= 0) input.value = '300';
+      label.textContent = '開啟 - 活動詳情顯示費用';
+      label.style.color = 'var(--accent)';
+      wrap.style.display = '';
+      input.disabled = false;
+      return;
+    }
+
+    label.textContent = '關閉 - 活動詳情不顯示費用';
+    label.style.color = 'var(--text-muted)';
+    wrap.style.display = 'none';
+    input.disabled = true;
+  },
+
+  _setEventFeeFormState(enabled, feeValue = '300') {
+    const { toggle, input } = this._getEventFeeFormNodes();
+    if (input) {
+      const normalized = Number(feeValue);
+      input.value = Number.isFinite(normalized) && normalized > 0 ? String(Math.floor(normalized)) : '300';
+    }
+    if (toggle) toggle.checked = !!enabled;
+    this._updateEventFeeToggle();
+  },
+
+  bindEventFeeToggle() {
+    const { toggle } = this._getEventFeeFormNodes();
+    if (toggle && !toggle.dataset.bound) {
+      toggle.dataset.bound = '1';
+      toggle.addEventListener('change', () => this._updateEventFeeToggle());
+    }
+    this._updateEventFeeToggle();
+  },
+
   _populateTeamSelect(select) {
     const teams = ApiService.getTeams?.() || [];
     const activeTeams = teams.filter(t => t.active !== false);
@@ -1288,7 +1340,8 @@ Object.assign(App, {
     const tStart = document.getElementById('ce-time-start').value;
     const tEnd = document.getElementById('ce-time-end').value;
     const timeVal = (tStart && tEnd) ? `${tStart}~${tEnd}` : '';
-    const fee = parseInt(document.getElementById('ce-fee').value) || 0;
+    const feeEnabled = !!document.getElementById('ce-fee-enabled')?.checked;
+    const fee = feeEnabled ? (parseInt(document.getElementById('ce-fee').value, 10) || 0) : 0;
     const max = parseInt(document.getElementById('ce-max').value) || 20;
     const minAge = parseInt(document.getElementById('ce-min-age').value) || 0;
     const notes = document.getElementById('ce-notes').value.trim();
@@ -1304,6 +1357,7 @@ Object.assign(App, {
     if (!dateVal) { this.showToast('請選擇活動日期'); return; }
     if (!tStart || !tEnd) { this.showToast('請選擇開始與結束時間'); return; }
     // 新增模式：不允許選擇過去的日期時間
+    if (feeEnabled && fee <= 0) { this.showToast('請輸入活動費用'); return; }
     if (!this._editEventId) {
       const startDt = new Date(`${dateVal}T${tStart}`);
       if (startDt < new Date()) { this.showToast('活動開始時間不可早於現在'); return; }
@@ -1367,7 +1421,7 @@ Object.assign(App, {
         })();
 
       const updates = {
-        title, type, location, date: fullDate, fee, max, minAge, notes, image, sportTag,
+        title, type, location, date: fullDate, fee, feeEnabled, max, minAge, notes, image, sportTag,
         regOpenTime: regOpenTime || null,
         gradient: GRADIENT_MAP[type] || GRADIENT_MAP.friendly,
         teamOnly,
@@ -1416,7 +1470,7 @@ Object.assign(App, {
       const newEvent = {
         id: 'ce_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
         title, type, status: initStatus, location, date: fullDate,
-        fee, max, current: 0, waitlist: 0, minAge, notes, image, sportTag,
+        fee, feeEnabled, max, current: 0, waitlist: 0, minAge, notes, image, sportTag,
         regOpenTime: regOpenTime || null,
         creator: creatorName,
         creatorUid,
@@ -1448,7 +1502,7 @@ Object.assign(App, {
         this._setCreateEventSubmitting(false);
       }
       this._saveInputHistory('ce-location', location);
-      if (fee > 0) this._saveInputHistory('ce-fee', fee);
+      if (feeEnabled && fee > 0) this._saveInputHistory('ce-fee', fee);
       this._saveInputHistory('ce-max', max);
       if (minAge > 0) this._saveInputHistory('ce-min-age', minAge);
       this._saveRecentDelegates(this._delegates);
@@ -1467,7 +1521,7 @@ Object.assign(App, {
     this._editEventId = null;
     document.getElementById('ce-title').value = '';
     document.getElementById('ce-location').value = '';
-    document.getElementById('ce-fee').value = '300';
+    this._setEventFeeFormState(false, 300);
     document.getElementById('ce-max').value = '20';
     document.getElementById('ce-waitlist').value = '0';
     document.getElementById('ce-min-age').value = '0';

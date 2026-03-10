@@ -71,6 +71,19 @@ const App = {
   },
 
   /** 啟動時只更新全域 shell，首頁內容改為 critical / deferred 分段渲染 */
+  _isEventFeeEnabled(event) {
+    if (!event || typeof event !== 'object') return false;
+    if (typeof event.feeEnabled === 'boolean') return event.feeEnabled;
+    return Number(event.fee || 0) > 0;
+  },
+
+  _getEventFeeAmount(event) {
+    if (!this._isEventFeeEnabled(event)) return 0;
+    const fee = Number(event?.fee || 0);
+    if (!Number.isFinite(fee) || fee <= 0) return 0;
+    return Math.floor(fee);
+  },
+
   renderAll() {
     this.renderGlobalShell();
     if (!this._isHomePageActive()) return;

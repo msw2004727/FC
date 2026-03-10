@@ -173,6 +173,12 @@ Object.assign(App, {
       ? `<div class="detail-row"><span class="detail-label">年齡</span>${e.minAge} 歲以上</div>`
       : '';
 
+    const feeEnabled = this._isEventFeeEnabled?.(e) ?? Number(e?.fee || 0) > 0;
+    const fee = this._getEventFeeAmount?.(e) ?? (feeEnabled ? (Number(e?.fee || 0) || 0) : 0);
+    const feeRow = feeEnabled
+      ? `<div class="detail-row"><span class="detail-label">費用</span>${fee > 0 ? 'NT$' + fee : '免費'}</div>`
+      : '';
+
     const canScan = this._canManageEvent(e);
     const scanBtn = canScan
       ? `<button class="outline-btn" onclick="App.goToScanForEvent('${e.id}')">現場簽到</button>`
@@ -199,7 +205,7 @@ Object.assign(App, {
       <div class="detail-row"><span class="detail-label">地點</span>${locationHtml}</div>
       <div class="detail-row"><span class="detail-label">時間</span>${escapeHTML(e.date)}</div>
       ${regOpenHtml}
-      <div class="detail-row"><span class="detail-label">費用</span>${e.fee > 0 ? '$'+e.fee : '免費'}</div>
+      ${feeRow}
       <div class="detail-row"><span class="detail-label">人數</span>已報 ${e.current}/${e.max}${(e.waitlist || 0) > 0 ? '　候補 ' + e.waitlist : ''}</div>
       ${ageTag}
       ${genderTag}
@@ -229,6 +235,16 @@ Object.assign(App, {
       <div id="detail-waitlist-container"></div>
       ${this._renderReviews(e)}
     `;
+    const feeLabelEl = Array.from(nodes.body.querySelectorAll('.detail-label'))
+      .find(el => String(el.textContent || '').trim() === '費用');
+    const feeRowEl = feeLabelEl?.closest('.detail-row');
+    if (feeRowEl) {
+      if (!feeEnabled) {
+        feeRowEl.remove();
+      } else {
+        feeRowEl.outerHTML = feeRow;
+      }
+    }
     this._renderAttendanceTable(id, 'detail-attendance-table');
     this._renderUnregTable(id, 'detail-unreg-table');
       this._renderGroupedWaitlistSection(id, 'detail-waitlist-container');

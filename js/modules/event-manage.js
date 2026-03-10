@@ -246,7 +246,8 @@ Object.assign(App, {
         const teamBadge = e.teamOnly ? '<span class="tl-teamonly-badge" style="margin-left:.3rem">限定</span>' : '';
         const sportIcon = this._renderEventSportIcon(e, 'my-event-sport-icon');
         // Fee summary
-        const fee = e.fee || 0;
+        const feeEnabled = this._isEventFeeEnabled?.(e) ?? Number(e?.fee || 0) > 0;
+        const fee = this._getEventFeeAmount?.(e) ?? (feeEnabled ? (Number(e?.fee || 0) || 0) : 0);
         const confirmedRegs = fee > 0 ? ApiService.getRegistrationsByEvent(e.id) : [];
         const confirmedCount = confirmedRegs.length > 0 ? confirmedRegs.length : (e.current || 0);
         const unregCount = fee > 0 ? (unregCountMap.get(e.id) || 0) : 0;
@@ -254,7 +255,7 @@ Object.assign(App, {
         const feeExpected = fee * (confirmedCount + unregCount);
         const feeActual = fee * checkoutCount;
         const feeShort = feeExpected - feeActual;
-        const feeBox = (fee > 0 && isSuperAdmin) ? `<div style="margin-left:auto;padding:.2rem .45rem;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:.68rem;color:var(--text-secondary);display:inline-flex;gap:.5rem;background:var(--bg-elevated);white-space:nowrap">
+        const feeBox = (feeEnabled && fee > 0 && isSuperAdmin) ? `<div style="margin-left:auto;padding:.2rem .45rem;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:.68rem;color:var(--text-secondary);display:inline-flex;gap:.5rem;background:var(--bg-elevated);white-space:nowrap">
           <span>應收<b style="color:var(--text-primary)">$${feeExpected}</b></span>
           <span>實收<b style="color:var(--success)">$${feeActual}</b></span>
           <span>短收<b style="color:${feeShort > 0 ? 'var(--danger)' : 'var(--success)'}">$${feeShort}</b></span>
@@ -356,7 +357,8 @@ Object.assign(App, {
       : '';
 
     // ── 費用摘要（計費來源：報名記錄 + 未報名簽到）──
-    const fee = e.fee || 0;
+    const feeEnabled = this._isEventFeeEnabled?.(e) ?? Number(e?.fee || 0) > 0;
+    const fee = this._getEventFeeAmount?.(e) ?? (feeEnabled ? (Number(e?.fee || 0) || 0) : 0);
     const confirmedRegsDetail = fee > 0 ? ApiService.getRegistrationsByEvent(e.id) : [];
     const confirmedCountDetail = confirmedRegsDetail.length > 0 ? confirmedRegsDetail.length : (e.current || 0);
     const unregCountDetail = fee > 0 ? new Set(records.filter(r => r.type === 'unreg').map(r => r.uid)).size : 0;
@@ -364,7 +366,7 @@ Object.assign(App, {
     const feeActual = fee * (fee > 0 ? ApiService.getAttendanceRecords(e.id).filter(r => r.type === 'checkout').length : 0);
     const feeShort = feeExpected - feeActual;
     const isSuperAdmin = (ROLE_LEVEL_MAP[this.currentRole] || 0) >= ROLE_LEVEL_MAP.super_admin;
-    const feeSection = (fee > 0 && isSuperAdmin)
+    const feeSection = (feeEnabled && fee > 0 && isSuperAdmin)
       ? `<div style="margin:.6rem 0 .2rem;padding:.4rem .6rem;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-elevated);font-size:.78rem;display:flex;gap:.8rem;flex-wrap:wrap">
           <span>應收 <b style="color:var(--text-primary)">$${feeExpected}</b></span>
           <span>實收 <b style="color:var(--success)">$${feeActual}</b></span>
@@ -372,11 +374,16 @@ Object.assign(App, {
         </div>`
       : '';
 
+    const metaParts = [];
+    if (feeEnabled) metaParts.push(`費用：${fee > 0 ? 'NT$' + fee : '免費'}`);
+    metaParts.push(`狀態：${statusConf.label}`);
+    metaParts.push(`主辦：${escapeHTML(e.creator)}`);
+
     content.innerHTML = `
       <h3 style="margin:0 0 .4rem;font-size:1rem">${escapeHTML(e.title)}</h3>
       <div style="font-size:.78rem;color:var(--text-muted);margin-bottom:.6rem">
         <div>${escapeHTML(e.location)} ・ ${escapeHTML(e.date)}</div>
-        <div>費用：${fee > 0 ? 'NT$' + fee : '免費'} ・ 狀態：${statusConf.label} ・ 主辦：${escapeHTML(e.creator)}</div>
+        <div>${metaParts.join(' ・ ')}</div>
       </div>
       <div id="attendance-table-container"></div>
       <div id="waitlist-table-container"></div>
@@ -1146,6 +1153,7 @@ Object.assign(App, {
     // 確保事件已綁定（防止 Phase 1 非同步時機導致未綁定）
     this.bindImageUpload('ce-image', 'ce-upload-preview');
     this.bindTeamOnlyToggle();
+    this.bindEventFeeToggle?.();
     this.bindGenderRestrictionToggle?.();
     this.showModal('create-event-modal');
     this._eventSubmitInFlight = false;
@@ -1165,7 +1173,10 @@ Object.assign(App, {
     const ceTE = document.getElementById('ce-time-end');
     if (ceTS) ceTS.value = timeParts[0] || '14:00';
     if (ceTE) ceTE.value = timeParts[1] || '16:00';
-    document.getElementById('ce-fee').value = e.fee || 0;
+    this._setEventFeeFormState?.(
+      this._isEventFeeEnabled?.(e) ?? Number(e?.fee || 0) > 0,
+      Number(e?.fee || 0) > 0 ? e.fee : 300
+    );
     document.getElementById('ce-max').value = e.max || 20;
     document.getElementById('ce-waitlist').value = 0;
     document.getElementById('ce-min-age').value = e.minAge || 0;
