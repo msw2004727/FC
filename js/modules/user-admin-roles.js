@@ -56,7 +56,17 @@ Object.assign(App, {
   },
 
   _isLockedPermissionRole(roleKey) {
-    return roleKey === 'super_admin';
+    return roleKey === 'super_admin' || roleKey === 'user';
+  },
+
+  _getLockedPermissionRoleHint(roleKey) {
+    if (roleKey === 'super_admin') {
+      return '總管層級固定擁有全部權限，所有開關已鎖定，避免誤關閉。';
+    }
+    if (roleKey === 'user') {
+      return '一般用戶固定沒有任何後台功能權限，所有開關已鎖定，避免誤開啟。';
+    }
+    return '';
   },
 
   _syncPermissionPanelControls(roleKey) {
@@ -68,17 +78,27 @@ Object.assign(App, {
 
     const resetBtn = document.getElementById('role-perm-reset-btn');
     if (resetBtn) {
+      const locked = this._isLockedPermissionRole(roleKey);
       const hasDefaults = Array.isArray(this._getRoleResetPermissions(roleKey));
-      resetBtn.disabled = !hasDefaults;
-      resetBtn.style.opacity = hasDefaults ? '' : '.45';
-      resetBtn.style.cursor = hasDefaults ? 'pointer' : 'not-allowed';
+      const enabled = hasDefaults && !locked;
+      resetBtn.disabled = !enabled;
+      resetBtn.style.opacity = enabled ? '' : '.45';
+      resetBtn.style.cursor = enabled ? 'pointer' : 'not-allowed';
+    }
+
+    const saveDefaultBtn = document.getElementById('role-perm-save-default-btn');
+    if (saveDefaultBtn) {
+      const locked = this._isLockedPermissionRole(roleKey);
+      saveDefaultBtn.disabled = locked;
+      saveDefaultBtn.style.opacity = locked ? '.45' : '';
+      saveDefaultBtn.style.cursor = locked ? 'not-allowed' : 'pointer';
     }
 
     const lockHint = document.getElementById('role-perm-lock-hint');
     if (lockHint) {
       const locked = this._isLockedPermissionRole(roleKey);
       lockHint.style.display = locked ? '' : 'none';
-      lockHint.textContent = locked ? '總管層級固定擁有全部權限，所有開關已鎖定，避免誤觸關閉。' : '';
+      lockHint.textContent = locked ? this._getLockedPermissionRoleHint(roleKey) : '';
     }
   },
 
@@ -164,6 +184,10 @@ Object.assign(App, {
     }
     if (!this._permSelectedRole) return;
     const role = this._permSelectedRole;
+    if (this._isLockedPermissionRole(role)) {
+      this.showToast(this._getLockedPermissionRoleHint(role));
+      return;
+    }
     const defaults = this._getRoleResetPermissions(role);
     if (!defaults) {
       this.showToast('此層級無預設權限可復原');
@@ -196,6 +220,10 @@ Object.assign(App, {
     if (!this._permSelectedRole) return;
 
     const role = this._permSelectedRole;
+    if (this._isLockedPermissionRole(role)) {
+      this.showToast(this._getLockedPermissionRoleHint(role));
+      return;
+    }
     const currentPerms = [...ApiService.getRolePermissions(role)];
     const metaSource = this._getRolePermissionMetaSource();
     const prevMeta = metaSource[role]
@@ -285,6 +313,10 @@ Object.assign(App, {
 
   async togglePermission(code) {
     if (!this._permSelectedRole) return;
+    if (this._permSelectedRole === 'user') {
+      this.showToast(this._getLockedPermissionRoleHint(this._permSelectedRole));
+      return;
+    }
     if (this._isLockedPermissionRole(this._permSelectedRole)) {
       this.showToast('總管權限固定開啟');
       return;

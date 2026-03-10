@@ -557,6 +557,10 @@ const ApiService = {
   },
 
   getRolePermissions(role) {
+    if (role === 'user') {
+      return [];
+    }
+
     const hasStoredRolePermissions = this._demoMode
       ? !!(typeof DemoData !== 'undefined' && DemoData.rolePermissions && Object.prototype.hasOwnProperty.call(DemoData.rolePermissions, role))
       : !!(FirebaseService._cache.rolePermissions && Object.prototype.hasOwnProperty.call(FirebaseService._cache.rolePermissions, role));
@@ -580,6 +584,10 @@ const ApiService = {
   },
 
   getRolePermissionDefaults(role) {
+    if (role === 'user') {
+      return [];
+    }
+
     const meta = this._demoMode
       ? ((typeof DemoData !== 'undefined' && DemoData.rolePermissionMeta) ? DemoData.rolePermissionMeta : {})
       : (FirebaseService._cache.rolePermissionMeta || {});

@@ -73,7 +73,8 @@ service cloud.firestore {
     function hasPerm(perm) {
       let role = authRole();
       let rpPath = /databases/$(database)/documents/rolePermissions/$(role);
-      return exists(rpPath)
+      return role != 'user'
+        && exists(rpPath)
         && get(rpPath).data.permissions is list
         && perm in get(rpPath).data.permissions;
     }

@@ -166,7 +166,8 @@
 // 20260310y: 後台入口改為只看權限碼顯示，不再受抽屜最低層級限制
 // 20260310z: 持久化記錄失效頭像網址，避免已知 LINE 壞圖反覆觸發 404
 // 20260310aa: 啟動時延後恢復受保護路由，避免首頁刷新時誤跳權限不足
-const CACHE_VERSION = '20260310aa';
+// 20260310ab: 鎖定一般用戶為零後台權限，前端與 Firestore 規則都不承認 user 權限
+const CACHE_VERSION = '20260310ab';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {
@@ -617,6 +618,7 @@ function getAllPermissionCodes(remoteCategories = []) {
 
 function getDefaultRolePermissions(roleKey) {
   if (!BUILTIN_ROLE_KEYS.includes(roleKey)) return null;
+  if (roleKey === 'user') return [];
 
   const roleLevel = getRuntimeRoleLevel(roleKey);
   const defaults = [];
