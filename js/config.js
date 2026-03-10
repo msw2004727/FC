@@ -146,7 +146,8 @@
 // 20260310d: 將 operationLogs 寫入改為固定文件 ID + 可重入 set，避免偶發 already-exists
 // 20260310e: 新增第一版 change watch 後端異動監看（users/events/registrations/attendanceRecords）
 // 20260310f: 將 change watch 日誌子集合改名為 changeWatchEntries，避免 entries TTL 誤傷其他集合群組
-const CACHE_VERSION = '20260310f';
+// 20260310g: 活動名稱上限從 12 字放寬為 16 字
+const CACHE_VERSION = '20260310g';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {

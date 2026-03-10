@@ -1209,7 +1209,7 @@ Object.assign(App, {
     const teamOnly = !!document.getElementById('ce-team-only')?.checked;
 
     if (!title) { this.showToast('請輸入活動名稱'); return; }
-    if (title.length > 12) { this.showToast('活動名稱不可超過 12 字'); return; }
+    if (title.length > 16) { this.showToast('活動名稱不可超過 16 字'); return; }
     if (!location) { this.showToast('請輸入地點'); return; }
     if (!dateVal) { this.showToast('請選擇活動日期'); return; }
     if (!tStart || !tEnd) { this.showToast('請選擇開始與結束時間'); return; }
