@@ -1515,7 +1515,7 @@ async function writeChangeWatchEntry(payload) {
   const safeEventId = entry.eventId || `${entry.collectionName}_${entry.documentId}_${entry.timeKey}`;
   await db.collection("changeWatchByDay")
     .doc(entry.dayKey)
-    .collection("entries")
+    .collection("changeWatchEntries")
     .doc(safeEventId)
     .set(entry, { merge: true });
   return entry;

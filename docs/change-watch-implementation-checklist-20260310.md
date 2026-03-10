@@ -34,7 +34,7 @@
 
 新增獨立監看日誌集合：
 
-- `changeWatchByDay/{dayKey}/entries/{eventId}`
+- `changeWatchByDay/{dayKey}/changeWatchEntries/{eventId}`
 
 每筆日誌欄位：
 

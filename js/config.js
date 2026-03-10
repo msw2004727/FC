@@ -145,7 +145,8 @@
 // 20260310c: 將首頁 events 預載也改為序列化，避免首頁啟動期偶發 Firestore Listen/channel 400
 // 20260310d: 將 operationLogs 寫入改為固定文件 ID + 可重入 set，避免偶發 already-exists
 // 20260310e: 新增第一版 change watch 後端異動監看（users/events/registrations/attendanceRecords）
-const CACHE_VERSION = '20260310e';
+// 20260310f: 將 change watch 日誌子集合改名為 changeWatchEntries，避免 entries TTL 誤傷其他集合群組
+const CACHE_VERSION = '20260310f';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {

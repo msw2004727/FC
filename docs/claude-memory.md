@@ -6,6 +6,12 @@
 
 ---
 
+### 2026-03-10 — 收斂 change watch TTL 範圍
+- **問題**：第一版 change watch 日誌子集合沿用通用名稱 `entries`，而專案內另有 `shotGameRankings/{bucket}/entries/{uid}` 等其他 `entries` 集合群組，未來若也寫入 `expiresAt`，TTL 規則可能誤傷非監看資料。
+- **原因**：Firestore TTL 是以 collection group 名稱 + 欄位套用；`entries` 命名過於通用，會讓 change watch TTL 與其他功能共用同一個 collection group 範圍。
+- **修復**：更新 `functions/index.js`，將 change watch 日誌寫入路徑從 `changeWatchByDay/{dayKey}/entries/{eventId}` 改為 `changeWatchByDay/{dayKey}/changeWatchEntries/{eventId}`；同步更新 `docs/change-watch-implementation-checklist-20260310.md` 與快取版本到 `20260310f`，後續再把 TTL 從 `entries.expiresAt` 轉移到 `changeWatchEntries.expiresAt`。
+- **教訓**：會被 TTL、索引或跨功能查詢共用的 collection group 名稱，一開始就要使用專用命名，避免用 `entries` 這類過度通用的名稱。
+
 ### 2026-03-10 — 實作第一版資料異動監看
 - **問題**：專案目前先不想大改前端直寫流程，但需要在推廣期觀察可疑的資料篡改痕跡，至少要知道是誰在何時改了敏感資料。
 - **原因**：現有審計紀錄主要依賴正常前端流程主動寫入；若使用者直接從瀏覽器 DevTools 或自組 payload 改 Firestore，很多情況不會留下可靠痕跡。
