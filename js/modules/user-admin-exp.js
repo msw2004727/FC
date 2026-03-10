@@ -412,6 +412,42 @@ Object.assign(App, {
     return (logs || []).filter(log => !this._shouldHideDuplicatedOperationLog(log));
   },
 
+  _getOperationLogSortMs(log) {
+    const docId = String(log?._docId || '');
+    const docIdMatch = docId.match(/^op_(\d{13})_/);
+    if (docIdMatch) return Number(docIdMatch[1]);
+
+    const createdAt = log?.createdAt;
+    if (createdAt && typeof createdAt.toMillis === 'function') {
+      return createdAt.toMillis();
+    }
+    if (createdAt && typeof createdAt.seconds === 'number') {
+      return (createdAt.seconds * 1000) + Math.floor((createdAt.nanoseconds || 0) / 1000000);
+    }
+
+    const time = String(log?.time || '').trim();
+    const match = time.match(/^(\d{2})\/(\d{2}) (\d{2}):(\d{2})$/);
+    if (!match) return 0;
+
+    const now = new Date();
+    const parsed = new Date(
+      now.getFullYear(),
+      Number(match[1]) - 1,
+      Number(match[2]),
+      Number(match[3]),
+      Number(match[4]),
+      0,
+      0
+    );
+
+    // Avoid treating a previous-year log as a future date when only month/day is stored.
+    if (parsed.getTime() > now.getTime() + (31 * 24 * 60 * 60 * 1000)) {
+      parsed.setFullYear(parsed.getFullYear() - 1);
+    }
+
+    return parsed.getTime();
+  },
+
   filterOperationLogs(page) {
     const keyword = (document.getElementById('oplog-search')?.value || '').trim().toLowerCase();
     const typeFilter = document.getElementById('oplog-type-filter')?.value || '';
@@ -444,8 +480,7 @@ Object.assign(App, {
 
     if (!logs) logs = this._getVisibleOperationLogs(ApiService.getOperationLogs());
     logs = this._getVisibleOperationLogs(logs);
-    // 最新在最上面（time 格式 YYYY/MM/DD HH:MM 字串比較即等於時間比較）
-    const sorted = [...logs].sort((a, b) => (b.time || '').localeCompare(a.time || ''));
+    const sorted = [...logs].sort((a, b) => this._getOperationLogSortMs(b) - this._getOperationLogSortMs(a));
     const PAGE_SIZE = 20;
     const p = Math.max(1, page || 1);
     const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));

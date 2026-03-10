@@ -167,7 +167,9 @@
 // 20260310z: 持久化記錄失效頭像網址，避免已知 LINE 壞圖反覆觸發 404
 // 20260310aa: 啟動時延後恢復受保護路由，避免首頁刷新時誤跳權限不足
 // 20260310ab: 鎖定一般用戶為零後台權限，前端與 Firestore 規則都不承認 user 權限
-const CACHE_VERSION = '20260310ab';
+// 20260310ac: 操作日誌改抓最新 500 筆並依實際建立時間排序，修正日誌中心看不到新紀錄
+// 20260310ad: 稽核日誌搜尋條件改為可收折，保留日期欄位常駐
+const CACHE_VERSION = '20260310ad';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {

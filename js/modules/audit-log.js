@@ -10,6 +10,7 @@ Object.assign(App, {
   _auditLogDayKey: '',
   _auditLogLoading: false,
   _auditLogBackfilling: false,
+  _auditLogFiltersCollapsed: true,
 
   _getAuditActionOptions() {
     return [
@@ -102,6 +103,42 @@ Object.assign(App, {
     return dayKey === this._getAuditDayKeyFromInput(this._getTodayAuditDateValue());
   },
 
+  _hasActiveAuditFilters() {
+    return !!(
+      (document.getElementById('auditlog-search')?.value || '').trim()
+      || (document.getElementById('auditlog-action-filter')?.value || '').trim()
+      || this._normalizeAuditTime(document.getElementById('auditlog-time-start')?.value)
+      || this._normalizeAuditTime(document.getElementById('auditlog-time-end')?.value)
+    );
+  },
+
+  _syncAuditFilterCollapseState() {
+    const card = document.getElementById('auditlog-filter-card');
+    const body = document.getElementById('auditlog-filter-body');
+    const toggle = document.getElementById('auditlog-filter-toggle');
+    const label = document.getElementById('auditlog-filter-toggle-label');
+    if (!card || !body || !toggle || !label) return;
+
+    const collapsed = !!this._auditLogFiltersCollapsed;
+    const hasActiveFilters = this._hasActiveAuditFilters();
+
+    body.hidden = collapsed;
+    card.classList.toggle('collapsed', collapsed);
+    toggle.classList.toggle('open', !collapsed);
+    toggle.classList.toggle('has-active-filters', hasActiveFilters);
+    toggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+    label.textContent = collapsed
+      ? (hasActiveFilters ? '展開搜尋條件（已套用）' : '展開搜尋條件')
+      : '收合搜尋條件';
+  },
+
+  toggleAuditLogFilters(forceCollapsed) {
+    this._auditLogFiltersCollapsed = typeof forceCollapsed === 'boolean'
+      ? forceCollapsed
+      : !this._auditLogFiltersCollapsed;
+    this._syncAuditFilterCollapseState();
+  },
+
   _ensureAuditActionOptions() {
     const select = document.getElementById('auditlog-action-filter');
     if (!select) return;
@@ -175,6 +212,7 @@ Object.assign(App, {
     this._ensureAuditActionOptions();
     this._ensureAuditBackfillButton();
     this._ensureAuditRefreshButton();
+    this._syncAuditFilterCollapseState();
     this._refreshAdminLogToolbarActions?.();
 
     const nextDayKey = this._getAuditDayKeyFromInput(dateInput.value);
@@ -263,6 +301,7 @@ Object.assign(App, {
 
     this.renderAuditLogs(items);
     this._updateAuditBackfillState();
+    this._syncAuditFilterCollapseState();
   },
 
   _updateAuditLoadMoreState() {

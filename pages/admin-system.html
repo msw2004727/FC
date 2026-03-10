@@ -273,30 +273,38 @@
         <button class="back-btn" onclick="App.goBack()">←</button>
         <h2>稽核日誌</h2>
       </div>
-      <div class="form-card" style="display:flex;flex-direction:column;gap:.75rem">
+      <div class="form-card audit-log-filter-card" id="auditlog-filter-card">
         <div style="font-size:.78rem;color:var(--text-muted);line-height:1.6">
           僅讀取單日資料，避免掃描全部歷史紀錄。搜尋條件包含時間、暱稱或 UID、行為。
         </div>
-        <div class="admin-filters" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:.6rem">
-          <label style="display:flex;flex-direction:column;gap:.25rem;font-size:.78rem">
+        <div class="audit-log-filter-bar">
+          <label class="audit-log-date-field">
             <span>日期</span>
             <input type="date" id="auditlog-date" onchange="App.loadAuditLogs(true)">
           </label>
-          <label style="display:flex;flex-direction:column;gap:.25rem;font-size:.78rem">
-            <span>開始時間</span>
-            <input type="time" id="auditlog-time-start" step="1" onchange="App.filterAuditLogs()">
-          </label>
-          <label style="display:flex;flex-direction:column;gap:.25rem;font-size:.78rem">
-            <span>結束時間</span>
-            <input type="time" id="auditlog-time-end" step="1" onchange="App.filterAuditLogs()">
-          </label>
-          <label style="display:flex;flex-direction:column;gap:.25rem;font-size:.78rem">
-            <span>行為</span>
-            <select id="auditlog-action-filter" onchange="App.filterAuditLogs()"></select>
-          </label>
+          <button type="button" class="text-btn audit-log-filter-toggle" id="auditlog-filter-toggle" onclick="App.toggleAuditLogFilters()">
+            <span id="auditlog-filter-toggle-label">展開搜尋條件</span>
+            <span class="audit-log-filter-arrow">▶</span>
+          </button>
         </div>
-        <div class="admin-search">
-          <input type="text" id="auditlog-search" placeholder="搜尋暱稱、UID、目標名稱或 ID" oninput="App.filterAuditLogs()">
+        <div class="audit-log-filter-body" id="auditlog-filter-body" hidden>
+          <div class="admin-filters" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:.6rem">
+            <label style="display:flex;flex-direction:column;gap:.25rem;font-size:.78rem">
+              <span>開始時間</span>
+              <input type="time" id="auditlog-time-start" step="1" onchange="App.filterAuditLogs()">
+            </label>
+            <label style="display:flex;flex-direction:column;gap:.25rem;font-size:.78rem">
+              <span>結束時間</span>
+              <input type="time" id="auditlog-time-end" step="1" onchange="App.filterAuditLogs()">
+            </label>
+            <label style="display:flex;flex-direction:column;gap:.25rem;font-size:.78rem">
+              <span>行為</span>
+              <select id="auditlog-action-filter" onchange="App.filterAuditLogs()"></select>
+            </label>
+          </div>
+          <div class="admin-search">
+            <input type="text" id="auditlog-search" placeholder="搜尋暱稱、UID、目標名稱或 ID" oninput="App.filterAuditLogs()">
+          </div>
         </div>
         <div id="auditlog-summary" style="font-size:.78rem;color:var(--text-muted)"></div>
       </div>

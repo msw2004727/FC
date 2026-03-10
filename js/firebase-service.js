@@ -268,6 +268,15 @@ const FirebaseService = {
     matches: 60 * 1000,
   },
 
+  _buildCollectionQuery(name, limitCount = 200) {
+    if (name === 'operationLogs') {
+      return db.collection(name)
+        .orderBy('createdAt', 'desc')
+        .limit(limitCount);
+    }
+    return db.collection(name).limit(limitCount);
+  },
+
   _getPageScopedRealtimeCollections(pageId) {
     return this._pageScopedRealtimeMap[pageId] || [];
   },
@@ -705,7 +714,7 @@ const FirebaseService = {
   async _fetchCollectionSnapshot(name, limitCount = 200) {
     return await this._fetchQuerySnapshot(
       `collection:${name}`,
-      db.collection(name).limit(limitCount)
+      this._buildCollectionQuery(name, limitCount)
     );
   },
 
