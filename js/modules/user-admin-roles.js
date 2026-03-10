@@ -10,7 +10,7 @@ Object.assign(App, {
   // ─── Role Hierarchy ───
 
   _getBuiltinRoles() {
-    return ['user', 'coach', 'captain', 'venue_owner', 'admin', 'super_admin'];
+    return [...BUILTIN_ROLE_KEYS];
   },
 
   _getCustomRoles() {
@@ -19,15 +19,7 @@ Object.assign(App, {
   },
 
   _getAllRoleKeys() {
-    const builtins = this._getBuiltinRoles();
-    const customs = this._getCustomRoles();
-    // 自訂層級插在 builtins 之間（依 afterRole 排序）
-    const result = [];
-    for (const key of builtins) {
-      result.push(key);
-      customs.filter(c => c.afterRole === key).forEach(c => result.push(c.key));
-    }
-    return result;
+    return getRuntimeRoleSequence();
   },
 
   _getRoleInfo(key) {
@@ -98,7 +90,7 @@ Object.assign(App, {
     if (!this._permSelectedRole) return;
     const role = this._permSelectedRole;
     const _rp = (typeof DemoData !== 'undefined' && DemoData.rolePermissions) ? DemoData.rolePermissions : {};
-    const defaults = _rp[role];
+    const defaults = _rp[role] || getDefaultRolePermissions(role);
     if (!defaults) {
       this.showToast('此層級無預設權限可復原');
       return;

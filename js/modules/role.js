@@ -4,6 +4,74 @@
 
 Object.assign(App, {
 
+  _getEffectiveRoleKey(role) {
+    if (role) return role;
+    if (this.currentRole) return this.currentRole;
+    if (typeof ApiService !== 'undefined' && typeof ApiService.getCurrentUser === 'function') {
+      return ApiService.getCurrentUser()?.role || 'user';
+    }
+    return 'user';
+  },
+
+  _getEffectiveRoleLevel(role) {
+    return ROLE_LEVEL_MAP[this._getEffectiveRoleKey(role)] || 0;
+  },
+
+  _getEffectiveRoleInfo(role) {
+    return ROLES[this._getEffectiveRoleKey(role)] || ROLES.user;
+  },
+
+  _getRolePermissionList(role) {
+    const roleKey = this._getEffectiveRoleKey(role);
+    if (typeof ApiService === 'undefined' || typeof ApiService.getRolePermissions !== 'function') {
+      return [];
+    }
+    return ApiService.getRolePermissions(roleKey) || [];
+  },
+
+  _usesAdminDrawerPermissionMode(role) {
+    const knownCodes = getAdminDrawerPermissionCodes();
+    if (!knownCodes.length) return false;
+    return this._getRolePermissionList(role).some(code => knownCodes.includes(code));
+  },
+
+  _canAccessDrawerItem(item, role) {
+    if (!item || item.divider || item.sectionLabel) return true;
+    const roleKey = this._getEffectiveRoleKey(role);
+    const roleLevel = this._getEffectiveRoleLevel(roleKey);
+    const minLevel = ROLE_LEVEL_MAP[item.minRole || 'user'] || 0;
+    if (roleLevel < minLevel) return false;
+    if (!item.permissionCode) return true;
+    if (!this._usesAdminDrawerPermissionMode(roleKey)) return true;
+    return this._getRolePermissionList(roleKey).includes(item.permissionCode);
+  },
+
+  _findDrawerMenuItem(pageId) {
+    if (!pageId) return null;
+    return DRAWER_MENUS.find(item => item && item.page === pageId) || null;
+  },
+
+  _canAccessPage(pageId, role) {
+    const drawerItem = this._findDrawerMenuItem(pageId);
+    if (drawerItem) return this._canAccessDrawerItem(drawerItem, role);
+    const pageEl = document.getElementById(pageId);
+    if (!pageEl?.dataset?.minRole) return true;
+    return this._getEffectiveRoleLevel(role) >= (ROLE_LEVEL_MAP[pageEl.dataset.minRole] || 0);
+  },
+
+  _applyRoleBoundVisibility(role) {
+    const level = this._getEffectiveRoleLevel(role);
+
+    document.querySelectorAll('[data-min-role]').forEach(el => {
+      const minLevel = ROLE_LEVEL_MAP[el.dataset.minRole] || 0;
+      el.style.display = level >= minLevel ? '' : 'none';
+    });
+
+    document.querySelectorAll('.contact-row').forEach(el => {
+      el.style.display = level >= ROLE_LEVEL_MAP.coach ? 'flex' : 'none';
+    });
+  },
+
   bindRoleSwitcher() {
     const wrapper = document.getElementById('role-switcher-wrapper');
     if (!wrapper) return;
@@ -45,17 +113,19 @@ Object.assign(App, {
 
   applyRole(role, silent) {
     this.currentRole = role;
-    const roleInfo = ROLES[role];
-    const level = ROLE_LEVEL_MAP[role];
+    const roleInfo = this._getEffectiveRoleInfo(role);
 
     // Demo 模式同步 currentUser.role，讓個人資料頁膠囊正確顯示
     if (ModeManager.isDemo() && typeof DemoData !== 'undefined' && DemoData.currentUser) {
       DemoData.currentUser.role = role;
     }
 
-    document.getElementById('drawer-role-tag').textContent = roleInfo.label;
-    document.getElementById('drawer-role-tag').style.background = roleInfo.color + '22';
-    document.getElementById('drawer-role-tag').style.color = roleInfo.color;
+    const drawerRoleTag = document.getElementById('drawer-role-tag');
+    if (drawerRoleTag) {
+      drawerRoleTag.textContent = roleInfo.label;
+      drawerRoleTag.style.background = roleInfo.color + '22';
+      drawerRoleTag.style.color = roleInfo.color;
+    }
 
     // 更新個人資料頁角色膠囊
     const roleTagWrap = document.getElementById('profile-role-tag-wrap');
@@ -63,24 +133,14 @@ Object.assign(App, {
       roleTagWrap.innerHTML = `<span class="uc-role-tag" style="background:${roleInfo.color}22;color:${roleInfo.color}">${roleInfo.label}</span>`;
     }
 
-    document.querySelectorAll('[data-min-role]').forEach(el => {
-      const minLevel = ROLE_LEVEL_MAP[el.dataset.minRole] || 0;
-      el.style.display = level >= minLevel ? '' : 'none';
-    });
-
-    document.querySelectorAll('.contact-row').forEach(el => {
-      el.style.display = level >= 1 ? 'flex' : 'none';
-    });
-
+    this._applyRoleBoundVisibility(role);
     this.renderDrawerMenu();
     if (typeof this.renderAdminUsers === 'function') {
       this.renderAdminUsers();
     }
 
-    const currentPageEl = document.getElementById(this.currentPage);
-    if (currentPageEl && currentPageEl.dataset.minRole) {
-      const minLevel = ROLE_LEVEL_MAP[currentPageEl.dataset.minRole] || 0;
-      if (level < minLevel) this.showPage('page-home');
+    if (this.currentPage && !this._canAccessPage(this.currentPage, role)) {
+      void this.showPage('page-home', { bypassRestrictionGuard: true, resetHistory: true });
     }
 
     if (!silent) this.showToast(`已切換為「${roleInfo.label}」身份`);
@@ -88,18 +148,25 @@ Object.assign(App, {
 
   renderDrawerMenu() {
     const container = document.getElementById('drawer-menu');
-    const level = ROLE_LEVEL_MAP[this.currentRole];
+    if (!container) return;
     let html = '';
     let lastMinRole = null;
+    let hasRenderedActionItem = false;
+    const visibleMenus = DRAWER_MENUS.filter(item =>
+      item.divider || item.sectionLabel || this._canAccessDrawerItem(item)
+    );
 
-    DRAWER_MENUS.forEach(item => {
-      const minLevel = ROLE_LEVEL_MAP[item.minRole] || 0;
-      if (level < minLevel) return;
+    visibleMenus.forEach((item, index) => {
       if (item.divider) {
+        const hasNextActionItem = visibleMenus.slice(index + 1).some(entry => !entry.divider && !entry.sectionLabel);
+        if (!hasRenderedActionItem || !hasNextActionItem) return;
         html += '<div class="drawer-divider"></div>';
       } else if (item.sectionLabel) {
+        const hasNextActionItem = visibleMenus.slice(index + 1).some(entry => !entry.divider && !entry.sectionLabel);
+        if (!hasNextActionItem) return;
         html += `<div class="drawer-section-label">${item.i18nKey ? t(item.i18nKey) : item.sectionLabel}</div>`;
       } else {
+        const minLevel = ROLE_LEVEL_MAP[item.minRole] || 0;
         const isLocked = !!item.locked;
         const onClick = isLocked
           ? `App.showToast('功能尚未開放'); App.closeDrawer()`
@@ -122,6 +189,7 @@ Object.assign(App, {
         html += `<div class="drawer-item ${bgClass}"${lockedStyle} onclick="${onClick}">
           ${displayLabel}${lockIcon}
         </div>`;
+        hasRenderedActionItem = true;
       }
     });
 

@@ -186,6 +186,10 @@ Object.assign(App, {
         }
       }
       if (guardedPages.includes(pageId) && this._requireLogin()) return;
+      if (typeof this._canAccessPage === 'function' && !this._canAccessPage(pageId)) {
+        this.showToast('權限不足');
+        return;
+      }
 
       const transitionSeq = ++this._pageTransitionSeq;
 

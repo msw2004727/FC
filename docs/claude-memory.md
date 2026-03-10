@@ -5,6 +5,18 @@
 > 新紀錄一律寫在檔案前方，採新到舊排序；若需補記舊項目，應插入對應日期區段，不得追加到檔尾。
 
 ---
+### 2026-03-10 — 後台抽屜入口全面接入自訂層級權限並修正自訂層級 runtime
+- **問題**：後台抽屜入口長期只靠 `minRole` / `data-min-role` 控制，未接入自訂層級管理的權限開關；同時「新增自訂層級」建立後，也沒有正確進入全域角色等級比較，插在自訂層級之後的角色甚至不會被排序出來。
+- **原因**：抽屜選單與 `showPage()` 沒有共用權限碼判斷；`permissions` 清單也缺少後台入口權限分類；角色等級則寫死在固定 `ROLE_LEVEL_MAP`，沒有動態計算自訂層級鏈。
+- **修復**：更新 `js/config.js`，新增後台抽屜入口對應的權限碼與內建權限分類，並改用 runtime 角色序列 / Proxy 解析自訂層級的 `ROLES` 與 `ROLE_LEVEL_MAP`；更新 `js/modules/role.js` 與 `js/core/navigation.js`，讓抽屜顯示與切頁都同時檢查入口權限；更新 `js/api-service.js`，將 `permissions` 改為內建 catalog 與 Firestore 清單合併渲染；更新 `js/modules/user-admin-roles.js`，修正自訂層級排序與預設權限重置來源；更新 `js/firebase-service.js`，為 `rolePermissions` 加入 catalog metadata 並補做 admin / super_admin 的後台入口權限遷移；同步更新 `js/modules/profile-core.js`、`docs/architecture.md`、`js/config.js` 與 `index.html` 快取版本到 `20260310v`。
+- **教訓**：只提供「新增自訂層級」表單但不把它接進全域角色等級解析，功能表面上看似完成，實際上會在抽屜、頁面顯示與權限比較時全面失真；這類 runtime 等級模型必須從一開始就做成單一來源。
+
+### 2026-03-10 — 調整後台抽屜中儀表板與小遊戲管理的角色門檻
+- **問題**：後台抽屜裡的「數據儀表板」與「小遊戲管理」順序和預設角色門檻與實際需求不符，數據儀表板需要收斂到總管，小遊戲管理則要開放給一般管理員。
+- **原因**：抽屜選單（`DRAWER_MENUS`）與頁面片段（`data-min-role`）仍沿用舊設定，導致抽屜順序、入口可見性與頁面實際門檻都停留在原本配置。
+- **修復**：更新 `js/config.js`，將「小遊戲管理」與「數據儀表板」在後台抽屜中的位置互換，並把兩者的預設最低角色改為 `admin` 與 `super_admin`；同步更新 `pages/admin-dashboard.html`、`pages/admin-system.html` 的 `data-min-role`，並將 `js/config.js` 與 `index.html` 快取版本升到 `20260310u`。
+- **教訓**：抽屜入口的角色門檻若有調整，必須同時改 `DRAWER_MENUS` 與頁面本身的 `data-min-role`，不能只改其中一層，否則會出現選單與實際頁面權限不一致。
+
 ### 2026-03-10 — 活動參與查詢主卡改為摘要模式
 - **問題**：數據儀表板中的活動參與查詢同時顯示摘要數字與大型明細表格，畫面過重，且詳細資料已經有臨時頁可以承接。
 - **原因**：第一版查詢卡把摘要與完整明細都放在同一張卡裡，還保留了 `複製結果` 流程，導致主儀表板和臨時頁職責重疊。

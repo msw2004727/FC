@@ -52,6 +52,7 @@ const FirebaseService = {
     adminMessages: [],
     notifTemplates: [],
     rolePermissions: {},
+    rolePermissionMeta: {},
     customRoles: [],
     currentUser: null,
   },
@@ -140,6 +141,9 @@ const FirebaseService = {
     if (Object.keys(this._cache.rolePermissions).length > 0) {
       this._saveToLS('rolePermissions', this._cache.rolePermissions);
     }
+    if (Object.keys(this._cache.rolePermissionMeta).length > 0) {
+      this._saveToLS('rolePermissionMeta', this._cache.rolePermissionMeta);
+    }
     localStorage.setItem(this._LS_TS_KEY, Date.now().toString());
   },
 
@@ -175,6 +179,11 @@ const FirebaseService = {
     const rp = this._loadFromLS('rolePermissions');
     if (rp && Object.keys(rp).length > 0) {
       this._cache.rolePermissions = rp;
+      restored++;
+    }
+    const rpMeta = this._loadFromLS('rolePermissionMeta');
+    if (rpMeta && Object.keys(rpMeta).length > 0) {
+      this._cache.rolePermissionMeta = rpMeta;
       restored++;
     }
     // 恢復 currentUser（防止刷新後 currentUser 為 null 導致幽靈用戶）
@@ -381,6 +390,7 @@ const FirebaseService = {
   _onRolePermissionsUpdated() {
     if (typeof App === 'undefined') return;
     try {
+      App.applyRole?.(App.currentRole || 'user', true);
       if (App.currentPage === 'page-teams') {
         App.renderTeamList?.();
       } else if (App.currentPage === 'page-team-manage') {
@@ -390,6 +400,9 @@ const FirebaseService = {
       } else if (App.currentPage === 'page-admin-roles') {
         App.renderRoleHierarchy?.();
         if (App._permSelectedRole) App.renderPermissions?.(App._permSelectedRole);
+      }
+      if (App.currentPage && typeof App._canAccessPage === 'function' && !App._canAccessPage(App.currentPage)) {
+        void App.showPage('page-home', { bypassRestrictionGuard: true, resetHistory: true });
       }
     } catch (err) {
       console.warn('[FirebaseService] rolePermissions UI refresh failed:', err);
@@ -498,14 +511,21 @@ const FirebaseService = {
       const unsub = db.collection('rolePermissions').onSnapshot(
         snapshot => {
           const nextRolePermissions = {};
+          const nextRolePermissionMeta = {};
           snapshot.docs.forEach(doc => {
-            nextRolePermissions[doc.id] = doc.data().permissions || [];
+            const data = doc.data() || {};
+            nextRolePermissions[doc.id] = data.permissions || [];
+            nextRolePermissionMeta[doc.id] = {
+              catalogVersion: data.catalogVersion || '',
+            };
           });
 
           const prev = JSON.stringify(this._cache.rolePermissions || {});
           const next = JSON.stringify(nextRolePermissions);
           this._cache.rolePermissions = nextRolePermissions;
+          this._cache.rolePermissionMeta = nextRolePermissionMeta;
           this._saveToLS('rolePermissions', this._cache.rolePermissions);
+          this._saveToLS('rolePermissionMeta', this._cache.rolePermissionMeta);
 
           if (firstSnapshot) {
             firstSnapshot = false;
@@ -1029,6 +1049,16 @@ const FirebaseService = {
       } catch (err) { console.warn('[FirebaseService] rolePermissions 載入失敗:', err); }
 
       const authRole = await this._resolveCurrentAuthRole();
+      if (!BUILTIN_ROLE_KEYS.includes(authRole)) {
+        try {
+          await this._loadCollectionsByName(['customRoles']);
+          if (typeof App !== 'undefined' && App.currentRole === authRole) {
+            App.applyRole?.(authRole, true);
+          }
+        } catch (err) {
+          console.warn('[FirebaseService] customRoles 載入失敗:', err);
+        }
+      }
       const canAdminSeed = this._roleLevel(authRole) >= this._roleLevel('admin');
       const canSuperAdminSeed = this._roleLevel(authRole) >= this._roleLevel('super_admin');
       const seedTasks = [];
@@ -1518,37 +1548,44 @@ const FirebaseService = {
   // ════════════════════════════════
 
   async _seedRoleData() {
-    // DemoData 未載入時跳過 seed（正式版不需要 Demo 資料）
-    if (typeof DemoData === 'undefined') return;
+    // 權限定義頁面以本地 built-in catalog 為主，這裡只做角色權限補遷移，避免舊角色在新入口權限上線後掉入口。
+    console.log('[FirebaseService] 檢查後台入口預設權限...');
+    try {
+      const rolesToSync = ['admin', 'super_admin'];
+      const batch = db.batch();
+      const nextRolePermissions = { ...(this._cache.rolePermissions || {}) };
+      const nextRolePermissionMeta = { ...(this._cache.rolePermissionMeta || {}) };
+      let hasChanges = false;
 
-    // 1. Seed permissions（權限分類定義）
-    if (this._cache.permissions.length === 0) {
-      console.log('[FirebaseService] 建立預設權限定義...');
-      try {
-        const perms = DemoData.permissions;
-        const batch = db.batch();
-        perms.forEach((cat, i) => {
-          const docId = 'perm_' + i;
-          batch.set(db.collection('permissions').doc(docId), cat, { merge: true });
-        });
-        await batch.commit();
-        this._cache.permissions = perms.map((cat, i) => ({ ...cat, _docId: 'perm_' + i }));
-      } catch (err) { console.warn('[FirebaseService] 權限定義建立失敗:', err); }
-    }
+      rolesToSync.forEach(roleKey => {
+        const defaults = getDefaultRolePermissions(roleKey) || [];
+        const currentPerms = Array.isArray(nextRolePermissions[roleKey]) ? nextRolePermissions[roleKey] : [];
+        const currentMeta = nextRolePermissionMeta[roleKey] || {};
+        if (currentMeta.catalogVersion === ROLE_PERMISSION_CATALOG_VERSION) return;
 
-    // 2. Seed rolePermissions（角色→權限映射）
-    if (Object.keys(this._cache.rolePermissions).length === 0) {
-      console.log('[FirebaseService] 建立預設角色權限...');
-      try {
-        const rp = DemoData.rolePermissions;
-        const batch = db.batch();
-        Object.entries(rp).forEach(([role, permissions]) => {
-          batch.set(db.collection('rolePermissions').doc(role), { permissions }, { merge: true });
-        });
-        await batch.commit();
-        this._cache.rolePermissions = { ...rp };
-        console.log('[FirebaseService] 預設角色權限建立完成');
-      } catch (err) { console.warn('[FirebaseService] 角色權限建立失敗:', err); }
+        const mergedPerms = Array.from(new Set([...currentPerms, ...defaults]));
+        nextRolePermissions[roleKey] = mergedPerms;
+        nextRolePermissionMeta[roleKey] = {
+          ...currentMeta,
+          catalogVersion: ROLE_PERMISSION_CATALOG_VERSION,
+        };
+        batch.set(db.collection('rolePermissions').doc(roleKey), {
+          permissions: mergedPerms,
+          catalogVersion: ROLE_PERMISSION_CATALOG_VERSION,
+        }, { merge: true });
+        hasChanges = true;
+      });
+
+      if (!hasChanges) return;
+
+      await batch.commit();
+      this._cache.rolePermissions = nextRolePermissions;
+      this._cache.rolePermissionMeta = nextRolePermissionMeta;
+      this._saveToLS('rolePermissions', this._cache.rolePermissions);
+      this._saveToLS('rolePermissionMeta', this._cache.rolePermissionMeta);
+      console.log('[FirebaseService] 後台入口預設權限補遷移完成');
+    } catch (err) {
+      console.warn('[FirebaseService] 後台入口預設權限補遷移失敗:', err);
     }
   },
 
@@ -1578,7 +1615,7 @@ const FirebaseService = {
     // 重置快取到初始空白狀態
     Object.keys(this._cache).forEach(k => {
       if (k === 'currentUser') { this._cache[k] = null; }
-      else if (k === 'rolePermissions') { this._cache[k] = {}; }
+      else if (k === 'rolePermissions' || k === 'rolePermissionMeta') { this._cache[k] = {}; }
       else { this._cache[k] = []; }
     });
   },

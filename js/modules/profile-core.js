@@ -353,21 +353,6 @@ Object.assign(App, {
 
     // 依資料庫角色套用抽屜選單與身份標籤
     const userRole = (currentUser && currentUser.role) ? currentUser.role : 'user';
-    this.currentRole = userRole;
-    const roleInfo = ROLES[userRole] || ROLES.user;
-    const roleTag = document.getElementById('drawer-role-tag');
-    if (roleTag) {
-      roleTag.textContent = roleInfo.label;
-      roleTag.style.background = roleInfo.color + '22';
-      roleTag.style.color = roleInfo.color;
-    }
-    this.renderDrawerMenu();
-
-    // 依角色控制頁面內 data-min-role 元素
-    const level = ROLE_LEVEL_MAP[userRole] || 0;
-    document.querySelectorAll('[data-min-role]').forEach(el => {
-      const minLevel = ROLE_LEVEL_MAP[el.dataset.minRole] || 0;
-      el.style.display = level >= minLevel ? '' : 'none';
-    });
+    this.applyRole(userRole, true);
   },
 });

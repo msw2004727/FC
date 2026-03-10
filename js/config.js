@@ -159,7 +159,9 @@
 // 20260310r: 後台活動參與查詢新增 7 天臨時網址分享頁
 // 20260310s: 日誌中心工具列統一位置與返回箭頭文案
 // 20260310t: 活動參與查詢主卡改為摘要模式，明細只留臨時頁
-const CACHE_VERSION = '20260310t';
+// 20260310u: 調整後台抽屜中數據儀表板與小遊戲管理的順序與預設角色門檻
+// 20260310v: 後台抽屜入口全面接入自訂層級權限，並修正自訂層級 runtime 等級計算
+const CACHE_VERSION = '20260310v';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {
@@ -209,7 +211,9 @@ const LINE_CONFIG = {
 };
 
 // ─── Role Hierarchy & Config ───
-const ROLES = {
+const BUILTIN_ROLE_KEYS = ['user', 'coach', 'captain', 'venue_owner', 'admin', 'super_admin'];
+
+const _BASE_ROLES = {
   user:        { level: 0, label: '一般用戶', color: '#6b7280' },
   coach:       { level: 1, label: '教練',     color: '#0d9488' },
   captain:     { level: 2, label: '領隊',     color: '#7c3aed' },
@@ -218,7 +222,152 @@ const ROLES = {
   super_admin: { level: 5, label: '總管',     color: '#dc2626' }
 };
 
-const ROLE_LEVEL_MAP = { user:0, coach:1, captain:2, venue_owner:3, admin:4, super_admin:5 };
+const _BASE_ROLE_LEVEL_MAP = { user:0, coach:1, captain:2, venue_owner:3, admin:4, super_admin:5 };
+
+function _getRuntimeCustomRolesSource() {
+  try {
+    if (typeof App !== 'undefined' && App && typeof App._getCustomRoles === 'function') {
+      const roles = App._getCustomRoles();
+      if (Array.isArray(roles)) return roles;
+    }
+  } catch (_) {}
+
+  try {
+    if (typeof FirebaseService !== 'undefined'
+      && FirebaseService
+      && FirebaseService._cache
+      && Array.isArray(FirebaseService._cache.customRoles)) {
+      return FirebaseService._cache.customRoles;
+    }
+  } catch (_) {}
+
+  try {
+    if (typeof DemoData !== 'undefined' && Array.isArray(DemoData.customRoles)) {
+      return DemoData.customRoles;
+    }
+  } catch (_) {}
+
+  return [];
+}
+
+function _normalizeRuntimeCustomRoles(customRoles) {
+  return (customRoles || [])
+    .filter(role => role && typeof role.key === 'string' && role.key.trim())
+    .map(role => ({
+      key: role.key,
+      label: role.label || role.key,
+      color: role.color || '#6366f1',
+      afterRole: role.afterRole || 'captain',
+    }));
+}
+
+function getRuntimeRoleSequence() {
+  const customRoles = _normalizeRuntimeCustomRoles(_getRuntimeCustomRolesSource());
+  const children = new Map();
+
+  customRoles.forEach(role => {
+    const parent = role.afterRole || 'captain';
+    if (!children.has(parent)) children.set(parent, []);
+    children.get(parent).push(role);
+  });
+
+  const result = [];
+  const visited = new Set();
+
+  const appendRole = (roleKey) => {
+    result.push(roleKey);
+    const childRoles = children.get(roleKey) || [];
+    childRoles.forEach(child => {
+      if (visited.has(child.key)) return;
+      visited.add(child.key);
+      appendRole(child.key);
+    });
+  };
+
+  BUILTIN_ROLE_KEYS.forEach(appendRole);
+
+  customRoles.forEach(role => {
+    if (visited.has(role.key)) return;
+    visited.add(role.key);
+    result.push(role.key);
+  });
+
+  return result;
+}
+
+function _buildRuntimeRoleLevelMap() {
+  const levels = { ..._BASE_ROLE_LEVEL_MAP };
+  const sequence = getRuntimeRoleSequence();
+
+  for (let i = 0; i < BUILTIN_ROLE_KEYS.length - 1; i += 1) {
+    const startKey = BUILTIN_ROLE_KEYS[i];
+    const endKey = BUILTIN_ROLE_KEYS[i + 1];
+    const startIndex = sequence.indexOf(startKey);
+    const endIndex = sequence.indexOf(endKey);
+    if (startIndex < 0 || endIndex < 0 || endIndex <= startIndex + 1) continue;
+
+    const between = sequence.slice(startIndex + 1, endIndex);
+    const step = (_BASE_ROLE_LEVEL_MAP[endKey] - _BASE_ROLE_LEVEL_MAP[startKey]) / (between.length + 1);
+    between.forEach((roleKey, index) => {
+      levels[roleKey] = _BASE_ROLE_LEVEL_MAP[startKey] + step * (index + 1);
+    });
+  }
+
+  const superAdminIndex = sequence.indexOf('super_admin');
+  if (superAdminIndex >= 0 && superAdminIndex < sequence.length - 1) {
+    sequence.slice(superAdminIndex + 1).forEach((roleKey, index) => {
+      levels[roleKey] = _BASE_ROLE_LEVEL_MAP.super_admin + ((index + 1) / 100);
+    });
+  }
+
+  return levels;
+}
+
+function getRuntimeRoleLevel(roleKey) {
+  if (!roleKey) return 0;
+  const levels = _buildRuntimeRoleLevelMap();
+  return levels[roleKey] ?? 0;
+}
+
+function getRuntimeRoleInfo(roleKey) {
+  if (!roleKey) return null;
+  if (Object.prototype.hasOwnProperty.call(_BASE_ROLES, roleKey)) {
+    return _BASE_ROLES[roleKey];
+  }
+  const customRole = _normalizeRuntimeCustomRoles(_getRuntimeCustomRolesSource())
+    .find(role => role.key === roleKey);
+  if (!customRole) return null;
+  return {
+    level: getRuntimeRoleLevel(roleKey),
+    label: customRole.label,
+    color: customRole.color,
+    custom: true,
+  };
+}
+
+const ROLES = new Proxy(_BASE_ROLES, {
+  get(target, prop) {
+    if (typeof prop !== 'string') return target[prop];
+    if (Object.prototype.hasOwnProperty.call(target, prop)) return target[prop];
+    return getRuntimeRoleInfo(prop);
+  },
+  has(target, prop) {
+    if (typeof prop !== 'string') return prop in target;
+    return Object.prototype.hasOwnProperty.call(target, prop) || !!getRuntimeRoleInfo(prop);
+  },
+});
+
+const ROLE_LEVEL_MAP = new Proxy(_BASE_ROLE_LEVEL_MAP, {
+  get(target, prop) {
+    if (typeof prop !== 'string') return target[prop];
+    if (Object.prototype.hasOwnProperty.call(target, prop)) return target[prop];
+    return getRuntimeRoleLevel(prop);
+  },
+  has(target, prop) {
+    if (typeof prop !== 'string') return prop in target;
+    return Object.prototype.hasOwnProperty.call(target, prop) || getRuntimeRoleLevel(prop) > 0;
+  },
+});
 
 
 // ─── Type & Status Config ───
@@ -370,20 +519,104 @@ const DRAWER_MENUS = [
   { icon: '', label: '賽事管理', i18nKey: 'drawer.tournamentManage', page: 'page-admin-tournaments', minRole: 'coach' },
   { divider: true, minRole: 'admin' },
   { sectionLabel: '後台管理', i18nKey: 'drawer.backendManage', minRole: 'admin' },
-  { icon: '', label: '數據儀表板', i18nKey: 'admin.dashboard', page: 'page-admin-dashboard', minRole: 'admin' },
-  { icon: '', label: '用戶管理', i18nKey: 'admin.userManage', page: 'page-admin-users', minRole: 'admin' },
-  { icon: '', label: '廣告管理', i18nKey: 'admin.adManage', page: 'page-admin-banners', minRole: 'admin' },
-  { icon: '', label: '二手商品管理', i18nKey: 'admin.shopManage', page: 'page-admin-shop', minRole: 'admin' },
-  { icon: '', label: '站內信管理', i18nKey: 'admin.messageManage', page: 'page-admin-messages', minRole: 'admin' },
-  { icon: '', label: '球隊管理', i18nKey: 'admin.teamManage', page: 'page-admin-teams', minRole: 'admin' },
-  { icon: '', label: '小遊戲管理', page: 'page-admin-games', minRole: 'super_admin' },
-  { icon: '', label: '佈景主題', i18nKey: 'admin.themes', page: 'page-admin-themes', minRole: 'super_admin' },
-  { icon: '', label: '手動 EXP 管理', i18nKey: 'admin.expManage', page: 'page-admin-exp', minRole: 'super_admin' },
-  { icon: '', label: '自動 EXP 管理', i18nKey: 'drawer.autoExpManage', page: 'page-admin-auto-exp', minRole: 'super_admin' },
-  { icon: '', label: '系統公告管理', i18nKey: 'admin.announcements', page: 'page-admin-announcements', minRole: 'super_admin' },
-  { icon: '', label: '成就/徽章管理', i18nKey: 'admin.achievements', page: 'page-admin-achievements', minRole: 'super_admin' },
-  { icon: '', label: '自訂層級管理', i18nKey: 'admin.roles', page: 'page-admin-roles', minRole: 'super_admin' },
-  { icon: '', label: '無效資料查詢', i18nKey: 'admin.inactive', page: 'page-admin-inactive', minRole: 'super_admin' },
-  { icon: '', label: '日誌中心', i18nKey: 'admin.logs', page: 'page-admin-logs', minRole: 'super_admin' },
-  { icon: '', label: '歷史入隊補正', i18nKey: 'admin.repair', page: 'page-admin-repair', minRole: 'super_admin' },
+  { icon: '', label: '小遊戲管理', page: 'page-admin-games', minRole: 'admin', permissionCode: 'admin.games.entry' },
+  { icon: '', label: '用戶管理', i18nKey: 'admin.userManage', page: 'page-admin-users', minRole: 'admin', permissionCode: 'admin.users.entry' },
+  { icon: '', label: '廣告管理', i18nKey: 'admin.adManage', page: 'page-admin-banners', minRole: 'admin', permissionCode: 'admin.banners.entry' },
+  { icon: '', label: '二手商品管理', i18nKey: 'admin.shopManage', page: 'page-admin-shop', minRole: 'admin', permissionCode: 'admin.shop.entry' },
+  { icon: '', label: '站內信管理', i18nKey: 'admin.messageManage', page: 'page-admin-messages', minRole: 'admin', permissionCode: 'admin.messages.entry' },
+  { icon: '', label: '球隊管理', i18nKey: 'admin.teamManage', page: 'page-admin-teams', minRole: 'admin', permissionCode: 'admin.teams.entry' },
+  { icon: '', label: '數據儀表板', i18nKey: 'admin.dashboard', page: 'page-admin-dashboard', minRole: 'super_admin', permissionCode: 'admin.dashboard.entry' },
+  { icon: '', label: '佈景主題', i18nKey: 'admin.themes', page: 'page-admin-themes', minRole: 'super_admin', permissionCode: 'admin.themes.entry' },
+  { icon: '', label: '手動 EXP 管理', i18nKey: 'admin.expManage', page: 'page-admin-exp', minRole: 'super_admin', permissionCode: 'admin.exp.entry' },
+  { icon: '', label: '自動 EXP 管理', i18nKey: 'drawer.autoExpManage', page: 'page-admin-auto-exp', minRole: 'super_admin', permissionCode: 'admin.auto_exp.entry' },
+  { icon: '', label: '系統公告管理', i18nKey: 'admin.announcements', page: 'page-admin-announcements', minRole: 'super_admin', permissionCode: 'admin.announcements.entry' },
+  { icon: '', label: '成就/徽章管理', i18nKey: 'admin.achievements', page: 'page-admin-achievements', minRole: 'super_admin', permissionCode: 'admin.achievements.entry' },
+  { icon: '', label: '自訂層級管理', i18nKey: 'admin.roles', page: 'page-admin-roles', minRole: 'super_admin', permissionCode: 'admin.roles.entry' },
+  { icon: '', label: '無效資料查詢', i18nKey: 'admin.inactive', page: 'page-admin-inactive', minRole: 'super_admin', permissionCode: 'admin.inactive.entry' },
+  { icon: '', label: '日誌中心', i18nKey: 'admin.logs', page: 'page-admin-logs', minRole: 'super_admin', permissionCode: 'admin.logs.entry' },
+  { icon: '', label: '歷史入隊補正', i18nKey: 'admin.repair', page: 'page-admin-repair', minRole: 'super_admin', permissionCode: 'admin.repair.entry' },
 ];
+
+const ROLE_PERMISSION_CATALOG_VERSION = '20260310v';
+
+const ADMIN_PAGE_EXTRA_PERMISSION_ITEMS = {
+  'page-admin-teams': [
+    { code: 'team.create', name: '建立球隊' },
+    { code: 'team.manage_all', name: '管理所有球隊' },
+  ],
+};
+
+function getAdminDrawerPermissionDefinitions() {
+  return DRAWER_MENUS
+    .filter(item => item && item.page && item.permissionCode)
+    .map(item => ({
+      page: item.page,
+      label: item.label,
+      minRole: item.minRole || 'user',
+      entryCode: item.permissionCode,
+      items: [
+        { code: item.permissionCode, name: '顯示入口' },
+        ...(ADMIN_PAGE_EXTRA_PERMISSION_ITEMS[item.page] || []),
+      ],
+    }));
+}
+
+function getAdminDrawerPermissionCodes() {
+  return getAdminDrawerPermissionDefinitions().map(item => item.entryCode);
+}
+
+function getAdminPagePermissionCode(pageId) {
+  const def = getAdminDrawerPermissionDefinitions().find(item => item.page === pageId);
+  return def ? def.entryCode : '';
+}
+
+function getMergedPermissionCatalog(remoteCategories = []) {
+  const result = [];
+  const assignedCodes = new Set();
+  const builtInCategories = getAdminDrawerPermissionDefinitions().map(def => ({
+    cat: def.label,
+    items: def.items.map(item => ({ ...item })),
+  }));
+
+  builtInCategories.forEach(category => {
+    category.items.forEach(item => assignedCodes.add(item.code));
+    result.push(category);
+  });
+
+  (remoteCategories || []).forEach(category => {
+    const items = Array.isArray(category?.items)
+      ? category.items.filter(item => item && typeof item.code === 'string' && !assignedCodes.has(item.code))
+      : [];
+    if (!items.length) return;
+    items.forEach(item => assignedCodes.add(item.code));
+    const existingCategory = result.find(entry => entry.cat === category.cat);
+    if (existingCategory) {
+      existingCategory.items.push(...items.map(item => ({ ...item })));
+      return;
+    }
+    result.push({
+      ...category,
+      items: items.map(item => ({ ...item })),
+    });
+  });
+
+  return result;
+}
+
+function getDefaultRolePermissions(roleKey) {
+  if (!BUILTIN_ROLE_KEYS.includes(roleKey)) return null;
+
+  const roleLevel = getRuntimeRoleLevel(roleKey);
+  const defaults = [];
+  getAdminDrawerPermissionDefinitions().forEach(def => {
+    if (roleLevel >= getRuntimeRoleLevel(def.minRole)) {
+      defaults.push(def.entryCode);
+    }
+  });
+
+  if (roleLevel >= getRuntimeRoleLevel('admin')) {
+    defaults.push('team.create', 'team.manage_all');
+  }
+
+  return Array.from(new Set(defaults));
+}

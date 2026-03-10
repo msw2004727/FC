@@ -792,7 +792,7 @@ const ApiService = {
       || b.type === 'shotgame'
     ) || null;
   },
-  getPermissions()   { return this._src('permissions'); },
+  getPermissions()   { return getMergedPermissionCatalog(this._src('permissions') || []); },
 
   updateBanner(id, updates)      { return this._update('banners', id, updates, FirebaseService.updateBanner, 'updateBanner'); },
   updateShotGameAd(id, updates)  {

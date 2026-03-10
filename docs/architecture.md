@@ -115,7 +115,7 @@ flowchart TD
 | `modules/favorites.js` | 用戶收藏活動 / 球隊管理 |
 | `modules/auto-exp.js` | 自動 EXP 規則設定（依行為觸發） |
 | `modules/banner.js` | 首頁輪播 Banner 渲染 |
-| `modules/role.js` | 自訂用戶層級標籤管理 |
+| `modules/role.js` | 角色系統、抽屜選單渲染、自訂層級 runtime 等級計算、後台入口權限判斷 |
 | `modules/site-theme.js` | 站點佈景主題設定（管理端） |
 | `modules/game-manage.js` | 小遊戲管理（首頁顯示開關，預留多款遊戲設定） |
 | `modules/image-cropper.js` | 圖片裁切 Modal（拖拽定位 + 縮放 + Canvas 輸出），供 image-upload 與 achievement 呼叫 |
@@ -228,6 +228,22 @@ flowchart LR
   - `page-admin-logs` now preloads both `operationLogs` and `errorLogs`
 - UI behavior:
   - Left drawer now exposes one entry only: log center
+
+## Admin Drawer Permission Update (2026-03-10)
+
+- `js/config.js`
+  - 新增後台抽屜入口對應的權限碼定義（例如 `admin.dashboard.entry`、`admin.games.entry`）
+  - 內建權限分類改以抽屜入口名稱為分類標題，且每個分類至少包含 `顯示入口`
+  - 內建角色 / 自訂角色的 runtime 等級與顏色資訊改由動態序列計算，不再只靠固定 `ROLE_LEVEL_MAP`
+- `js/modules/role.js`
+  - 抽屜入口現在同時檢查 `minRole` 與 `permissionCode`
+  - `showPage()` 也會共用同一套頁面權限判斷，避免手動切頁繞過抽屜隱藏
+- `js/modules/user-admin-roles.js`
+  - 自訂層級列表排序改用 runtime 序列，支援「自訂層級插在自訂層級之後」
+  - 權限面板改由內建 catalog + Firestore `permissions` 合併渲染
+- `js/firebase-service.js`
+  - `rolePermissions` 即時監聽新增 catalog metadata
+  - `super_admin` 登入時會做一次後台入口權限補遷移，避免舊的 admin / super_admin 在新入口權限上線後瞬間失去抽屜入口
 - Inside the page, tabs switch between operation, audit, and error logs without leaving the route
 
 ## Participant Query Temporary Share (2026-03-10)
