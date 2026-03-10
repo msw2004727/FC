@@ -177,7 +177,8 @@
 // 20260310aj: 放棄 details/summary，改用 classList.toggle 直接操作 DOM 實現收折
 // 20260310ak: 收折 onclick 改為完全 inline（this.parentElement.classList.toggle），零外部依賴
 // 20260310al: 活動參與查詢收折改為原生 details/summary，並以獨立 class 與狀態同步重做
-const CACHE_VERSION = '20260310al';
+// 20260310am: 活動參與查詢收折摘要列改版，對齊稽核日誌的箭頭與提示樣式
+const CACHE_VERSION = '20260310am';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {

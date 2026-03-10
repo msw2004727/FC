@@ -31,6 +31,10 @@ Object.assign(App, {
     return this._dashboardParticipantSearchState;
   },
 
+  _getDashboardParticipantSearchPanelHint(state) {
+    return state?.collapsed ? '展開搜尋條件與查詢結果' : '收起搜尋條件與查詢結果';
+  },
+
   _getDashboardParticipantSearchPanelSummary(state) {
     const keyword = String(state?.keyword || '').trim();
     const startDate = String(state?.startDate || '').trim();
@@ -38,17 +42,29 @@ Object.assign(App, {
     const rangeText = startDate && endDate ? `${startDate} 至 ${endDate}` : '未設定日期區間';
 
     if (keyword) {
-      return `關鍵字「${keyword}」 · ${rangeText}`;
+      return `關鍵字：${keyword} · ${rangeText}`;
     }
-    return `預設查詢區間：${rangeText}`;
+    return `日期區間：${rangeText}`;
   },
 
   _getDashboardParticipantSearchPanelMeta(state) {
     if (state.loading) return '查詢中';
     if (state.shareLoading) return '產生網址中';
     if (state.error) return '查詢失敗';
-    if (!state.result) return '未查詢';
+    if (!state.result) return '尚未查詢';
     return `${Number(state.result.matchedEventCount || 0)} 活動 / ${Number(state.result.matchedUserCount || 0)} 用戶 / ${Number(state.result.totalParticipationCount || 0)} 次`;
+  },
+
+  _hasDashboardParticipantSearchHighlight(state) {
+    return Boolean(
+      String(state?.keyword || '').trim() ||
+      state?.loading ||
+      state?.error ||
+      state?.result ||
+      state?.shareLoading ||
+      state?.shareError ||
+      state?.shareUrl
+    );
   },
 
   _renderDashboardParticipantSearchCard() {
@@ -59,18 +75,23 @@ Object.assign(App, {
     const searchDisabled = state.loading ? 'disabled' : '';
     const shareDisabled = (!state.result || Number(state.result.matchedEventCount || 0) <= 0 || state.loading || state.shareLoading) ? 'disabled' : '';
     const openAttr = state.collapsed ? '' : ' open';
+    const detailsClass = this._hasDashboardParticipantSearchHighlight(state) ? ' has-active-filters' : '';
+    const hintText = escapeHTML(this._getDashboardParticipantSearchPanelHint(state));
     const summaryText = escapeHTML(this._getDashboardParticipantSearchPanelSummary(state));
     const summaryMeta = escapeHTML(this._getDashboardParticipantSearchPanelMeta(state));
 
     return `
-      <details class="info-card dash-query-card dash-query-details"${openAttr} ontoggle="App.syncDashboardParticipantSearchCollapse(this)">
+      <details class="info-card dash-query-card dash-query-details${detailsClass}"${openAttr} ontoggle="App.syncDashboardParticipantSearchCollapse(this)">
         <summary class="dash-query-panel-summary">
           <span class="dash-query-panel-copy">
             <span class="dash-query-panel-title">活動參與查詢</span>
-            <span class="dash-query-panel-text">${summaryText}</span>
+            <span class="dash-query-panel-text">${hintText}</span>
           </span>
-          <span class="dash-query-panel-meta">${summaryMeta}</span>
-          <span class="dash-query-arrow" aria-hidden="true">▸</span>
+          <span class="dash-query-panel-meta">
+            <span class="dash-query-panel-meta-primary">${summaryMeta}</span>
+            <span class="dash-query-panel-meta-secondary">${summaryText}</span>
+          </span>
+          <span class="dash-query-arrow" aria-hidden="true">▶</span>
         </summary>
         <div class="dash-query-body">
           <div class="dash-query-help">輸入活動標題模糊關鍵字與活動日期區間，統計有簽到過該批活動的用戶與參與次數。</div>
