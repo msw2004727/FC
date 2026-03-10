@@ -40,9 +40,13 @@ Object.assign(App, {
     }
 
     container.innerHTML = users.map(u => {
-      const avatar = u.pictureUrl
-        ? `<img src="${u.pictureUrl}" class="au-avatar" style="object-fit:cover">`
-        : `<div class="au-avatar au-avatar-fallback">${(u.name || '?')[0]}</div>`;
+      const avatar = this._buildAvatarImageMarkup(
+        u.pictureUrl,
+        u.name || '?',
+        'au-avatar',
+        'au-avatar au-avatar-fallback',
+        'style="object-fit:cover"'
+      );
 
       const teamInfo = u.teamName ? ` ・${escapeHTML(u.teamName)}` : '';
       const genderIcon = u.gender === '男' ? '♂' : u.gender === '女' ? '♀' : '';
@@ -72,6 +76,7 @@ Object.assign(App, {
         </div>
       `;
     }).join('');
+    this._bindAvatarFallbacks(container);
   },
   async toggleUserRestriction(name) {
     if ((ROLE_LEVEL_MAP[this.currentRole] || 0) < ROLE_LEVEL_MAP.super_admin) {

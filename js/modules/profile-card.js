@@ -30,9 +30,7 @@ Object.assign(App, {
       ? (() => { const d = (_ca.toDate ? _ca.toDate() : (_ca.seconds ? new Date(_ca.seconds * 1000) : new Date(_ca))); return isNaN(d) ? '-' : `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}`; })()
       : '-';
 
-    const avatarHtml = pic
-      ? `<img src="${pic}" alt="${escapeHTML(displayName)}">`
-      : (displayName || '?').charAt(0);
+    const avatarHtml = this._buildAvatarImageMarkup(pic, displayName, '', 'uc-avatar-circle');
     const teamHtml = user ? this._getUserTeamHtml(user) : '無';
 
     const badges = ApiService.getBadges();
@@ -96,6 +94,7 @@ Object.assign(App, {
         <div style="font-size:.82rem;color:var(--text-muted)">目前無交易紀錄</div>
       </div>
     `;
+    this._bindAvatarFallbacks(container);
     // 渲染活動紀錄
     const targetUid = user ? (user.uid || user.lineUserId) : null;
     if (targetUid) {

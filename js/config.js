@@ -161,7 +161,8 @@
 // 20260310t: 活動參與查詢主卡改為摘要模式，明細只留臨時頁
 // 20260310u: 調整後台抽屜中數據儀表板與小遊戲管理的順序與預設角色門檻
 // 20260310v: 後台抽屜入口全面接入自訂層級權限，並修正自訂層級 runtime 等級計算
-const CACHE_VERSION = '20260310v';
+// 20260310w: 頭像載入失敗時自動 fallback 成字首，降低 LINE 舊頭像網址 404 對管理頁與個人頁的影響
+const CACHE_VERSION = '20260310w';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {

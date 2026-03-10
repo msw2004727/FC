@@ -55,15 +55,10 @@ Object.assign(App, {
     const pic = (lineProfile && lineProfile.pictureUrl) || user.pictureUrl || null;
 
     // 頭像
-    if (el('profile-avatar')) {
-      if (pic) {
-        el('profile-avatar').className = 'profile-avatar profile-avatar-img';
-        el('profile-avatar').innerHTML = `<img src="${pic}" alt="">`;
-      } else {
-        el('profile-avatar').className = 'profile-avatar';
-        el('profile-avatar').innerHTML = (lineName || '?').charAt(0);
-      }
-    }
+    this._setAvatarContent(el('profile-avatar'), pic, lineName, {
+      fallbackClass: 'profile-avatar',
+      containerImageClass: 'profile-avatar profile-avatar-img',
+    });
 
     // 稱號（HTML 版：金色/銀色標籤）
     const titleHtml = this._buildTitleDisplayHtml(user, lineProfile ? lineProfile.displayName : null);

@@ -6,6 +6,79 @@
 Object.assign(App, {
 
   _pendingFirstLogin: false,
+  _brokenAvatarUrls: new Set(),
+
+  _getAvatarInitial(name) {
+    const text = String(name || '?').trim();
+    return escapeHTML(text ? text.charAt(0) : '?');
+  },
+
+  _buildAvatarFallbackMarkup(name, fallbackClass = 'profile-avatar') {
+    return `<div class="${escapeHTML(fallbackClass)}">${this._getAvatarInitial(name)}</div>`;
+  },
+
+  _buildAvatarImageMarkup(url, name, imageClass = '', fallbackClass = 'profile-avatar', extraAttrs = '') {
+    if (url && this._brokenAvatarUrls.has(url)) {
+      return this._buildAvatarFallbackMarkup(name, fallbackClass);
+    }
+    if (!url) return this._buildAvatarFallbackMarkup(name, fallbackClass);
+    const attrs = extraAttrs ? ` ${extraAttrs}` : '';
+    return `<img src="${escapeHTML(url)}" class="${escapeHTML(imageClass)}" alt="${escapeHTML(name || 'avatar')}" data-avatar-fallback="1" data-avatar-name="${escapeHTML(name || '')}" data-avatar-fallback-class="${escapeHTML(fallbackClass)}"${attrs}>`;
+  },
+
+  _bindAvatarFallbacks(root = document) {
+    if (!root || typeof root.querySelectorAll !== 'function') return;
+    root.querySelectorAll('img[data-avatar-fallback="1"]').forEach(img => {
+      if (img.dataset.avatarFallbackBound === '1') return;
+      img.dataset.avatarFallbackBound = '1';
+      img.addEventListener('error', () => {
+        if (img.currentSrc || img.src) {
+          this._brokenAvatarUrls.add(img.currentSrc || img.src);
+        }
+        const fallback = document.createElement('div');
+        fallback.className = img.dataset.avatarFallbackClass || 'profile-avatar';
+        fallback.textContent = (img.dataset.avatarName || '?').trim().charAt(0) || '?';
+        img.replaceWith(fallback);
+      }, { once: true });
+    });
+  },
+
+  _setAvatarContent(container, url, name, options = {}) {
+    if (!container) return;
+    const fallbackClass = options.fallbackClass || container.className || 'profile-avatar';
+    const imageClass = options.imageClass || '';
+    if (!url) {
+      container.className = fallbackClass;
+      container.innerHTML = this._getAvatarInitial(name);
+      return;
+    }
+    container.className = options.containerImageClass || fallbackClass;
+    container.innerHTML = this._buildAvatarImageMarkup(url, name, imageClass, fallbackClass, options.extraAttrs || '');
+    this._bindAvatarFallbacks(container);
+  },
+
+  _setTopbarAvatar(userTopbar, avatarImg, profile) {
+    if (!userTopbar) return;
+    const displayName = profile?.displayName || '?';
+    const applyFallback = () => {
+      if (profile?.pictureUrl) this._brokenAvatarUrls.add(profile.pictureUrl);
+      const dropdown = document.getElementById('user-menu-dropdown');
+      const dropdownHtml = dropdown ? dropdown.outerHTML : '';
+      userTopbar.innerHTML = `<div class="line-avatar-topbar line-avatar-fallback" onclick="App.toggleUserMenu()">${this._getAvatarInitial(displayName)}</div>${dropdownHtml}`;
+    };
+
+    if (!avatarImg || !profile?.pictureUrl || this._brokenAvatarUrls.has(profile.pictureUrl)) {
+      applyFallback();
+      return;
+    }
+
+    avatarImg.onerror = () => {
+      avatarImg.onerror = null;
+      applyFallback();
+    };
+    avatarImg.alt = escapeHTML(displayName);
+    avatarImg.src = profile.pictureUrl;
+  },
 
   /**
    * 等級公式：升到 level L 的累計 EXP = 50 * L * (L+1)
@@ -84,9 +157,7 @@ Object.assign(App, {
       ? ((lineProfile && lineProfile.pictureUrl) || (user && user.pictureUrl))
       : (user && user.pictureUrl);
 
-    const avatarHtml = pic
-      ? `<img src="${pic}" alt="${escapeHTML(name)}">`
-      : name.charAt(0);
+    const avatarHtml = this._buildAvatarImageMarkup(pic, name, '', 'uc-avatar-circle');
     const teamHtml = user ? this._getUserTeamHtml(user) : '無';
 
     // 稱號顯示（HTML 版：金色/銀色標籤）
@@ -148,6 +219,8 @@ Object.assign(App, {
         </button>
       </div>
     `;
+    this._bindAvatarFallbacks(document.getElementById('user-card-full'));
+
     // 渲染用戶活動紀錄
     const targetUid = user ? (user.uid || user.lineUserId) : null;
     if (targetUid) {
@@ -327,13 +400,7 @@ Object.assign(App, {
     const currentUser = ApiService.getCurrentUser();
     if (loginBtn) loginBtn.style.display = 'none';
     if (userTopbar) userTopbar.style.display = '';
-    if (profile.pictureUrl && avatarImg) {
-      avatarImg.src = profile.pictureUrl;
-    } else if (userTopbar) {
-      const dropdown = document.getElementById('user-menu-dropdown');
-      const dropdownHtml = dropdown ? dropdown.outerHTML : '';
-      userTopbar.innerHTML = `<div class="line-avatar-topbar line-avatar-fallback" onclick="App.toggleUserMenu()">${escapeHTML(profile.displayName.charAt(0))}</div>${dropdownHtml}`;
-    }
+    this._setTopbarAvatar(userTopbar, avatarImg, profile);
 
     // 更新 profile 頁面（資料由 renderProfileData() 統一處理）
     if (profileContent) profileContent.style.display = '';
@@ -341,15 +408,10 @@ Object.assign(App, {
 
     // 更新 drawer
     if (drawerName) drawerName.textContent = profile.displayName;
-    if (drawerAvatar) {
-      if (profile.pictureUrl) {
-        drawerAvatar.className = 'drawer-avatar drawer-avatar-img';
-        drawerAvatar.innerHTML = `<img src="${profile.pictureUrl}" alt="">`;
-      } else {
-        drawerAvatar.className = 'drawer-avatar';
-        drawerAvatar.innerHTML = profile.displayName.charAt(0);
-      }
-    }
+    this._setAvatarContent(drawerAvatar, profile.pictureUrl, profile.displayName, {
+      fallbackClass: 'drawer-avatar',
+      containerImageClass: 'drawer-avatar drawer-avatar-img',
+    });
 
     // 依資料庫角色套用抽屜選單與身份標籤
     const userRole = (currentUser && currentUser.role) ? currentUser.role : 'user';
