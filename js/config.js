@@ -178,7 +178,8 @@
 // 20260310ak: 收折 onclick 改為完全 inline（this.parentElement.classList.toggle），零外部依賴
 // 20260310al: 活動參與查詢收折改為原生 details/summary，並以獨立 class 與狀態同步重做
 // 20260310am: 活動參與查詢收折摘要列改版，對齊稽核日誌的箭頭與提示樣式
-const CACHE_VERSION = '20260310am';
+// 20260310an: 活動參與查詢摘要列改為兩層佈局，箭頭與狀態同行，預設起始日固定為 2026-02-01
+const CACHE_VERSION = '20260310an';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {

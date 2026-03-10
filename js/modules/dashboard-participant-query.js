@@ -2,7 +2,6 @@ Object.assign(App, {
 
   _getDashboardParticipantSearchDefaultState() {
     const end = new Date();
-    const start = new Date(end.getTime() - 89 * 86400000);
     const fmt = (date) => {
       const y = date.getFullYear();
       const m = String(date.getMonth() + 1).padStart(2, '0');
@@ -11,7 +10,7 @@ Object.assign(App, {
     };
     return {
       keyword: '',
-      startDate: fmt(start),
+      startDate: '2026-02-01',
       endDate: fmt(end),
       loading: false,
       error: '',
@@ -83,15 +82,12 @@ Object.assign(App, {
     return `
       <details class="info-card dash-query-card dash-query-details${detailsClass}"${openAttr} ontoggle="App.syncDashboardParticipantSearchCollapse(this)">
         <summary class="dash-query-panel-summary">
-          <span class="dash-query-panel-copy">
-            <span class="dash-query-panel-title">活動參與查詢</span>
-            <span class="dash-query-panel-text">${hintText}</span>
-          </span>
-          <span class="dash-query-panel-meta">
+          <span class="dash-query-panel-title">活動參與查詢</span>
+          <span class="dash-query-panel-side">
             <span class="dash-query-panel-meta-primary">${summaryMeta}</span>
-            <span class="dash-query-panel-meta-secondary">${summaryText}</span>
+            <span class="dash-query-arrow" aria-hidden="true">▶</span>
           </span>
-          <span class="dash-query-arrow" aria-hidden="true">▶</span>
+          <span class="dash-query-panel-text">${hintText} · ${summaryText}</span>
         </summary>
         <div class="dash-query-body">
           <div class="dash-query-help">輸入活動標題模糊關鍵字與活動日期區間，統計有簽到過該批活動的用戶與參與次數。</div>
