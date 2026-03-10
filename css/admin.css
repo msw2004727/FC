@@ -313,6 +313,11 @@
 .dash-query-state { padding: .75rem .85rem; border-radius: var(--radius-sm); background: var(--bg-elevated); color: var(--text-secondary); font-size: .78rem; }
 .dash-query-state.muted { color: var(--text-muted); }
 .dash-query-state.error { background: rgba(220,38,38,.10); color: #dc2626; }
+.dash-query-share-box { margin-bottom: .8rem; padding: .8rem .9rem; border: 1px solid rgba(37,99,235,.18); border-radius: var(--radius-sm); background: linear-gradient(180deg, rgba(37,99,235,.08), rgba(37,99,235,.03)); }
+.dash-query-share-title { font-size: .82rem; font-weight: 800; color: var(--text-primary); }
+.dash-query-share-meta { margin-top: .2rem; font-size: .73rem; line-height: 1.6; color: var(--text-muted); }
+.dash-query-share-link { margin-top: .55rem; padding: .55rem .65rem; border-radius: .55rem; background: var(--bg-card); border: 1px dashed var(--border); font-size: .72rem; line-height: 1.6; color: var(--text-secondary); word-break: break-all; }
+.dash-query-share-actions { display: flex; gap: .45rem; flex-wrap: wrap; margin-top: .65rem; }
 .dash-query-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: .55rem; margin-bottom: .8rem; }
 .dash-query-summary-card { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: .7rem .8rem; background: var(--bg-elevated); }
 .dash-query-summary-num { font-family: var(--font-display); font-size: 1.25rem; font-weight: 800; color: var(--accent); }
@@ -328,6 +333,9 @@
 .dash-query-event-line { display: flex; flex-direction: column; gap: .08rem; padding: .35rem .45rem; border-radius: .5rem; background: var(--bg-elevated); }
 .dash-query-event-title { font-weight: 600; color: var(--text-primary); line-height: 1.4; }
 .dash-query-event-date { font-size: .67rem; color: var(--text-muted); }
+.participant-share-page { display: flex; flex-direction: column; gap: .8rem; }
+.participant-share-meta { margin-top: .22rem; font-size: .76rem; line-height: 1.6; color: var(--text-secondary); }
+.participant-share-note { margin-top: .7rem; padding: .7rem .8rem; border-radius: .6rem; background: rgba(239,68,68,.08); color: #b91c1c; font-size: .74rem; line-height: 1.65; }
 
 @media (max-width: 640px) {
   .admin-log-panel-header {
@@ -340,4 +348,6 @@
   .dash-query-form { grid-template-columns: 1fr; }
   .dash-query-actions { flex-direction: column; }
   .dash-query-actions button { width: 100%; }
+  .dash-query-share-actions { flex-direction: column; }
+  .dash-query-share-actions button { width: 100%; }
 }

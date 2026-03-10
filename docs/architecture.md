@@ -41,7 +41,7 @@ flowchart TD
             MSG["message-*.js\n訊息"]
             ADM["user-admin-*.js\n用戶後台"]
             AD["ad-manage-*.js\n廣告管理"]
-            UTIL["scan / shop / leaderboard\nachievement / announcement\nfavorites / auto-exp / banner\nrole / site-theme / game-manage / image-upload\npopup-ad / personal-dashboard\nattendance-notify / dashboard\ndashboard-participant-query"]
+            UTIL["scan / shop / leaderboard\nachievement / announcement\nfavorites / auto-exp / banner\nrole / site-theme / game-manage / image-upload\npopup-ad / personal-dashboard\nattendance-notify / dashboard\ndashboard-participant-query\ndashboard-participant-share"]
         end
     end
 
@@ -124,6 +124,7 @@ flowchart TD
 | `modules/personal-dashboard.js` | 個人數據儀表板（參加場次、出席率、EXP 統計） |
 | `modules/dashboard.js` | 管理員後台數據儀表板 |
 | `modules/dashboard-participant-query.js` | 管理員後台活動參與查詢（關鍵字、日期區間、用戶次數、複製結果） |
+| `modules/dashboard-participant-share.js` | 活動參與查詢的臨時報表分享模組，負責建立 7 天有效網址與渲染公開快照頁 |
 
 ## 初始化流程（4 階段 + 延遲載入回呼）
 
@@ -227,7 +228,23 @@ flowchart LR
   - `page-admin-logs` now preloads both `operationLogs` and `errorLogs`
 - UI behavior:
   - Left drawer now exposes one entry only: log center
-  - Inside the page, tabs switch between operation, audit, and error logs without leaving the route
+- Inside the page, tabs switch between operation, audit, and error logs without leaving the route
+
+## Participant Query Temporary Share (2026-03-10)
+
+- New frontend module: `js/modules/dashboard-participant-share.js`
+  - Adds the dashboard action that snapshots participant-query results into a short-lived share report
+  - Renders the public route `page-temp-participant-report` from `?rid=<shareId>#page-temp-participant-report`
+- New data model:
+  - `participantQueryShares/{shareId}`
+  - `participantQueryShares/{shareId}/shareItems/{itemId}`
+- Access model:
+  - Only `admin / super_admin` can create report snapshots
+  - Anyone with the URL can read a ready, unexpired snapshot
+  - Public page hides `UID` and only exposes display name, count, recent date, and matched events
+- Lifecycle:
+  - Reports are query-time snapshots, not live reruns
+  - Each snapshot carries `expiresAt` and is intended to expire after 7 days
 
 ## Realtime Scope Update (2026-03-09)
 

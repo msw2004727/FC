@@ -16,6 +16,10 @@ Object.assign(App, {
       loading: false,
       error: '',
       result: null,
+      shareLoading: false,
+      shareError: '',
+      shareUrl: '',
+      shareExpiresAt: '',
     };
   },
 
@@ -33,6 +37,7 @@ Object.assign(App, {
     const endDate = escapeHTML(state.endDate || '');
     const searchDisabled = state.loading ? 'disabled' : '';
     const copyDisabled = (!state.result || !state.result.items || !state.result.items.length || state.loading) ? 'disabled' : '';
+    const shareDisabled = (!state.result || !state.result.items || !state.result.items.length || state.loading || state.shareLoading) ? 'disabled' : '';
 
     return `
       <div class="info-card dash-query-card">
@@ -56,7 +61,9 @@ Object.assign(App, {
           <button class="primary-btn" onclick="App.runDashboardParticipantSearch()" ${searchDisabled}>${state.loading ? '查詢中...' : '查詢'}</button>
           <button class="outline-btn" onclick="App.clearDashboardParticipantSearch()" ${searchDisabled}>清除</button>
           <button class="outline-btn" onclick="App.copyDashboardParticipantSearchResult()" ${copyDisabled}>複製結果</button>
+          <button class="outline-btn" onclick="App.createDashboardParticipantQueryShare()" ${shareDisabled}>${state.shareLoading ? '產生中...' : '產生臨時網址'}</button>
         </div>
+        ${this._renderDashboardParticipantShareNotice ? this._renderDashboardParticipantShareNotice(state) : ''}
         ${this._renderDashboardParticipantSearchResult(state)}
       </div>
     `;
@@ -154,6 +161,9 @@ Object.assign(App, {
     state.loading = true;
     state.error = '';
     state.result = null;
+    state.shareError = '';
+    state.shareUrl = '';
+    state.shareExpiresAt = '';
     this.renderDashboard();
 
     try {

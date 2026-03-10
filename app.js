@@ -192,6 +192,7 @@ const App = {
       'page-shop': '商城',
       'page-achievements': '成就頁面',
       'page-personal-dashboard': '個人儀表板',
+      'page-temp-participant-report': '臨時查詢報表',
     };
     const label = pageLabels[pageId];
     if (!label) return '資料載入中...';
@@ -796,6 +797,17 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // 嘗試立即開啟 deep link（其餘會由 guard 持續輪詢）
   void App._tryOpenPendingDeepLink();
+  try {
+    if (!App._getPendingDeepLink()) {
+      const bootUrl = new URL(window.location.href);
+      const bootPageId = bootUrl.searchParams.get('rid')
+        ? 'page-temp-participant-report'
+        : location.hash.replace(/^#/, '');
+      if (bootPageId && bootPageId !== App.currentPage) {
+        void App.showPage(bootPageId);
+      }
+    }
+  } catch (_) {}
 
   // 定時任務（全部 try-catch 保護）
   // Hash 路由：瀏覽器返回/前進鍵同步頁面
@@ -803,7 +815,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   try {
     window.addEventListener('hashchange', () => {
       const pageId = location.hash.replace(/^#/, '');
-      if (pageId && pageId !== App.currentPage && document.getElementById(pageId)) {
+      const canResolvePage = pageId
+        && (document.getElementById(pageId)
+          || (typeof PageLoader !== 'undefined' && PageLoader._pageFileMap && PageLoader._pageFileMap[pageId]));
+      if (canResolvePage && pageId !== App.currentPage) {
         App.showPage(pageId);
       }
     });

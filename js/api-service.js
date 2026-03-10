@@ -1591,6 +1591,192 @@ const ApiService = {
     });
   },
 
+  _normalizeParticipantQueryShareResult(result = {}) {
+    const items = Array.isArray(result.items) ? result.items : [];
+    return {
+      keyword: String(result.keyword || '').trim(),
+      startDate: String(result.startDate || '').trim(),
+      endDate: String(result.endDate || '').trim(),
+      matchedEventCount: Number(result.matchedEventCount || 0),
+      matchedUserCount: Number(result.matchedUserCount || 0),
+      totalParticipationCount: Number(result.totalParticipationCount || 0),
+      items: items.map((item, index) => ({
+        sortIndex: index + 1,
+        userName: String(item.userName || item.uid || '未知使用者').trim() || '未知使用者',
+        count: Number(item.count || 0),
+        latestParticipationDate: String(item.latestParticipationDate || '').trim(),
+        matchedEvents: Array.isArray(item.matchedEvents)
+          ? item.matchedEvents.map(event => ({
+            title: String(event?.title || '').trim(),
+            date: String(event?.date || '').trim(),
+          })).filter(event => event.title)
+          : [],
+      })),
+    };
+  },
+
+  _assertAdminParticipantQueryShareAccess() {
+    const currentUser = this.getCurrentUser();
+    if (!currentUser || !['admin', 'super_admin'].includes(String(currentUser.role || ''))) {
+      throw new Error('只有管理者可以建立臨時查詢報表');
+    }
+    return currentUser;
+  },
+
+  _buildParticipantQueryShareUrl(shareId) {
+    const url = new URL(window.location.pathname, window.location.origin);
+    url.searchParams.set('rid', shareId);
+    url.hash = 'page-temp-participant-report';
+    return url.toString();
+  },
+
+  async createParticipantQueryShare(result, options = {}) {
+    if (this._demoMode) {
+      throw new Error('Demo 模式不支援臨時查詢報表');
+    }
+
+    this._assertAdminParticipantQueryShareAccess();
+    const normalized = this._normalizeParticipantQueryShareResult(result);
+    if (!normalized.keyword || !normalized.startDate || !normalized.endDate) {
+      throw new Error('查詢條件不完整，無法建立臨時報表');
+    }
+
+    const expiresInDays = Math.max(1, Math.min(30, Number(options.expiresInDays || 7)));
+    const expiresAt = new Date(Date.now() + expiresInDays * 86400000);
+    const shareRef = db.collection('participantQueryShares').doc();
+
+    const baseData = {
+      reportType: 'event_participant_query',
+      status: 'building',
+      publicRead: true,
+      keyword: normalized.keyword,
+      startDate: normalized.startDate,
+      endDate: normalized.endDate,
+      matchedEventCount: normalized.matchedEventCount,
+      matchedUserCount: normalized.matchedUserCount,
+      totalParticipationCount: normalized.totalParticipationCount,
+      itemCount: normalized.items.length,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      expiresAt,
+    };
+
+    await shareRef.set(baseData);
+
+    try {
+      for (let i = 0; i < normalized.items.length; i += 350) {
+        const batch = db.batch();
+        normalized.items.slice(i, i + 350).forEach(item => {
+          const itemRef = shareRef.collection('shareItems').doc(String(item.sortIndex).padStart(4, '0'));
+          batch.set(itemRef, {
+            sortIndex: item.sortIndex,
+            userName: item.userName,
+            count: item.count,
+            latestParticipationDate: item.latestParticipationDate,
+            matchedEvents: item.matchedEvents,
+            eventCount: item.matchedEvents.length,
+            expiresAt,
+          });
+        });
+        await batch.commit();
+      }
+
+      await shareRef.update({
+        status: 'ready',
+        readyAt: firebase.firestore.FieldValue.serverTimestamp(),
+      });
+    } catch (err) {
+      console.error('[createParticipantQueryShare]', err);
+      await shareRef.update({
+        status: 'error',
+        errorAt: firebase.firestore.FieldValue.serverTimestamp(),
+      }).catch(() => {});
+      throw new Error('建立臨時查詢報表失敗');
+    }
+
+    return {
+      shareId: shareRef.id,
+      url: this._buildParticipantQueryShareUrl(shareRef.id),
+      expiresAt: expiresAt.toISOString(),
+      expiresAtMs: expiresAt.getTime(),
+    };
+  },
+
+  async getParticipantQueryShare(shareId) {
+    if (this._demoMode) {
+      throw new Error('Demo 模式不支援臨時查詢報表');
+    }
+
+    const safeShareId = String(shareId || '').trim();
+    if (!safeShareId) {
+      throw new Error('缺少報表識別碼');
+    }
+
+    const shareRef = db.collection('participantQueryShares').doc(safeShareId);
+    let shareSnap;
+    try {
+      shareSnap = await shareRef.get({ source: 'server' });
+    } catch (err) {
+      if (err?.code === 'permission-denied') {
+        throw new Error('此臨時報表已過期、失效或無法存取');
+      }
+      throw err;
+    }
+    if (!shareSnap.exists) {
+      throw new Error('查無此臨時報表');
+    }
+
+    const share = shareSnap.data() || {};
+    const expiresAt = share.expiresAt?.toDate ? share.expiresAt.toDate() : new Date(share.expiresAt || 0);
+    if (!(expiresAt instanceof Date) || Number.isNaN(expiresAt.getTime())) {
+      throw new Error('臨時報表資料已損壞');
+    }
+    if (share.status !== 'ready') {
+      throw new Error('臨時報表尚未完成，請稍後再試');
+    }
+    if (Date.now() >= expiresAt.getTime()) {
+      throw new Error('此臨時報表已過期');
+    }
+
+    let itemSnap;
+    try {
+      itemSnap = await shareRef.collection('shareItems')
+        .orderBy('sortIndex', 'asc')
+        .get({ source: 'server' });
+    } catch (err) {
+      if (err?.code === 'permission-denied') {
+        throw new Error('此臨時報表已過期、失效或無法存取');
+      }
+      throw err;
+    }
+
+    return {
+      shareId: safeShareId,
+      keyword: String(share.keyword || '').trim(),
+      startDate: String(share.startDate || '').trim(),
+      endDate: String(share.endDate || '').trim(),
+      matchedEventCount: Number(share.matchedEventCount || 0),
+      matchedUserCount: Number(share.matchedUserCount || 0),
+      totalParticipationCount: Number(share.totalParticipationCount || 0),
+      itemCount: Number(share.itemCount || 0),
+      expiresAt: expiresAt.toISOString(),
+      items: itemSnap.docs.map(doc => {
+        const data = doc.data() || {};
+        return {
+          sortIndex: Number(data.sortIndex || 0),
+          userName: String(data.userName || '未知使用者').trim() || '未知使用者',
+          count: Number(data.count || 0),
+          latestParticipationDate: String(data.latestParticipationDate || '').trim(),
+          matchedEvents: Array.isArray(data.matchedEvents)
+            ? data.matchedEvents.map(event => ({
+              title: String(event?.title || '').trim(),
+              date: String(event?.date || '').trim(),
+            })).filter(event => event.title)
+            : [],
+        };
+      }),
+    };
+  },
+
   getCurrentUser() {
     if (this._demoMode) return (typeof DemoData !== 'undefined') ? DemoData.currentUser : null;
     return FirebaseService._cache.currentUser || null;

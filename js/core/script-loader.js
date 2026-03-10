@@ -98,6 +98,7 @@ const ScriptLoader = {
     adminDashboard: [
       'js/modules/dashboard.js',
       'js/modules/dashboard-participant-query.js',
+      'js/modules/dashboard-participant-share.js',
     ],
     personalDashboard: [
       'js/modules/personal-dashboard.js',
@@ -140,6 +141,7 @@ const ScriptLoader = {
     'page-game':               ['game'],
     'page-personal-dashboard': ['personalDashboard'],
     'page-admin-dashboard':    ['adminDashboard'],
+    'page-temp-participant-report': ['adminDashboard'],
     'page-admin-users':        ['adminUsers'],
     'page-admin-exp':          ['adminUsers'],
     'page-admin-roles':        ['adminUsers'],

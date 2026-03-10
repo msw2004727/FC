@@ -156,7 +156,8 @@
 // 20260310n: 個人資訊的我的資料編輯區開放修改性別
 // 20260310o: 修正首頁活動卡片性別緞帶偏移，恢復斜角絕對定位
 // 20260310q: 後台三種日誌整合為單頁分頁式日誌中心
-const CACHE_VERSION = '20260310q';
+// 20260310r: 後台活動參與查詢新增 7 天臨時網址分享頁
+const CACHE_VERSION = '20260310r';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {

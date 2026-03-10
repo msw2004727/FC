@@ -49,6 +49,26 @@ service cloud.firestore {
         && authRole() == 'super_admin';
     }
 
+    function isPublicParticipantQueryShareData(data) {
+      return ('reportType' in data)
+        && data.reportType is string
+        && data.reportType == 'event_participant_query'
+        && ('publicRead' in data)
+        && data.publicRead == true
+        && ('status' in data)
+        && data.status is string
+        && data.status == 'ready'
+        && ('expiresAt' in data)
+        && data.expiresAt is timestamp
+        && request.time < data.expiresAt;
+    }
+
+    function canReadPublicParticipantQueryShare(shareId) {
+      let sharePath = /databases/$(database)/documents/participantQueryShares/$(shareId);
+      return exists(sharePath)
+        && isPublicParticipantQueryShareData(get(sharePath).data);
+    }
+
     // ── 動態權限檢查（即時讀取 rolePermissions collection）──
     function hasPerm(perm) {
       let role = authRole();
@@ -726,6 +746,16 @@ service cloud.firestore {
     match /auditLogsByDay/{dayKey}/auditEntries/{logId} {
       allow read: if isSuperAdmin();
       allow create, update, delete: if false;
+    }
+
+    match /participantQueryShares/{shareId} {
+      allow get: if isPublicParticipantQueryShareData(resource.data);
+      allow list: if false;
+      allow create, update, delete: if isAdmin();
+    }
+    match /participantQueryShares/{shareId}/shareItems/{itemId} {
+      allow get, list: if canReadPublicParticipantQueryShare(shareId);
+      allow create, update, delete: if isAdmin();
     }
 
     // ═══════════════════════════════════════════

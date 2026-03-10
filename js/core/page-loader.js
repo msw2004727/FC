@@ -68,6 +68,7 @@ const PageLoader = {
     'page-admin-games':        'admin-system',
     'page-admin-themes':       'admin-system',
     'page-admin-dashboard':    'admin-dashboard',
+    'page-temp-participant-report': 'admin-dashboard',
     'page-admin-auto-exp':     'admin-auto-exp',
     'page-personal-dashboard': 'personal-dashboard',
     'page-admin-teams':        'admin-content',
