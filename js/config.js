@@ -152,7 +152,8 @@
 // 20260310j: 新增活動性別限定，含範本、報名限制與活動卡緞帶顯示
 // 20260310k: 活動詳情頁在未設定年齡限制時隱藏年齡列
 // 20260310l: 活動行事曆性別緞帶改為顯示限男生 / 限女生
-const CACHE_VERSION = '20260310l';
+// 20260310m: 首頁活動卡片性別緞帶移到圖片下方的人數右側空白區
+const CACHE_VERSION = '20260310m';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {
