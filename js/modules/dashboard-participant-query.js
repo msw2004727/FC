@@ -43,7 +43,7 @@ Object.assign(App, {
 
     return `
       <details class="info-card dash-query-card" id="dash-participant-query-details" ${openAttr}>
-        <summary class="dash-query-summary">
+        <summary class="dash-query-header">
           <span>活動參與查詢</span>
           <span class="dash-query-summary-arrow">▶</span>
         </summary>

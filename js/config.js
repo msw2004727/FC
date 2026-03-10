@@ -173,7 +173,8 @@
 // 20260310af: 稽核日誌搜尋條件改用原生 details/summary 重做收折，避免分頁重組後收折失效
 // 20260310ag: 數據儀表板「活動參與查詢」加入欄位收折功能
 // 20260310ah: 改用原生 details/summary 重做收折，與稽核日誌同一方案
-const CACHE_VERSION = '20260310ah';
+// 20260310ai: 修正 .dash-query-summary class 名稱衝突（與結果統計 grid 同名導致 summary 元素 CSS 錯誤）
+const CACHE_VERSION = '20260310ai';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {
