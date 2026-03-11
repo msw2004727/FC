@@ -485,7 +485,7 @@ Object.assign(App, {
     setVal('ce-time-start', tpl.timeStart);
     setVal('ce-time-end', tpl.timeEnd);
     const feeEnabled = typeof tpl.feeEnabled === 'boolean' ? tpl.feeEnabled : Number(tpl.fee || 0) > 0;
-    this._setEventFeeFormState(feeEnabled, Number(tpl.fee || 0) > 0 ? tpl.fee : 300);
+    this._setEventFeeFormState(feeEnabled, Number(tpl.fee || 0) > 0 ? tpl.fee : 0);
     setVal('ce-max', tpl.max);
     setVal('ce-min-age', tpl.minAge);
     setVal('ce-notes', tpl.notes);
@@ -589,7 +589,7 @@ Object.assign(App, {
     document.getElementById('ce-date').value = '';
     document.getElementById('ce-time-start').value = '14:00';
     document.getElementById('ce-time-end').value = '16:00';
-    this._setEventFeeFormState(false, 300);
+    this._setEventFeeFormState(false, 0);
     document.getElementById('ce-max').value = '20';
     document.getElementById('ce-waitlist').value = '0';
     document.getElementById('ce-min-age').value = '0';
@@ -743,7 +743,7 @@ Object.assign(App, {
 
     const enabled = !!toggle.checked;
     if (enabled) {
-      if ((parseInt(input.value, 10) || 0) <= 0) input.value = '300';
+      if ((parseInt(input.value, 10) || 0) <= 0) input.value = '0';
       wrap.style.display = '';
       input.disabled = false;
       return;
@@ -753,11 +753,11 @@ Object.assign(App, {
     input.disabled = true;
   },
 
-  _setEventFeeFormState(enabled, feeValue = '300') {
+  _setEventFeeFormState(enabled, feeValue = '0') {
     const { toggle, input } = this._getEventFeeFormNodes();
     if (input) {
       const normalized = Number(feeValue);
-      input.value = Number.isFinite(normalized) && normalized > 0 ? String(Math.floor(normalized)) : '300';
+      input.value = Number.isFinite(normalized) && normalized > 0 ? String(Math.floor(normalized)) : '0';
     }
     if (toggle) toggle.checked = !!enabled;
     this._updateEventFeeToggle();
@@ -1560,7 +1560,7 @@ Object.assign(App, {
     this._editEventId = null;
     document.getElementById('ce-title').value = '';
     document.getElementById('ce-location').value = '';
-    this._setEventFeeFormState(false, 300);
+    this._setEventFeeFormState(false, 0);
     document.getElementById('ce-max').value = '20';
     document.getElementById('ce-waitlist').value = '0';
     document.getElementById('ce-min-age').value = '0';

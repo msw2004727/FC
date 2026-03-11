@@ -1271,7 +1271,7 @@ Object.assign(App, {
     if (ceTE) ceTE.value = timeParts[1] || '16:00';
     this._setEventFeeFormState?.(
       this._isEventFeeEnabled?.(e) ?? Number(e?.fee || 0) > 0,
-      Number(e?.fee || 0) > 0 ? e.fee : 300
+      Number(e?.fee || 0) > 0 ? e.fee : 0
     );
     document.getElementById('ce-max').value = e.max || 20;
     document.getElementById('ce-waitlist').value = 0;
