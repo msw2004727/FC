@@ -3,6 +3,7 @@ const {
   onDocumentWrittenWithAuthContext,
 } = require("firebase-functions/v2/firestore");
 const { onCall, onRequest, HttpsError } = require("firebase-functions/v2/https");
+const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { defineSecret } = require("firebase-functions/params");
 const { initializeApp } = require("firebase-admin/app");
 const { getFirestore, FieldValue, FieldPath } = require("firebase-admin/firestore");
@@ -1226,6 +1227,82 @@ function getTaipeiAuditDateInfo(now) {
   };
 }
 
+function parseEventStartDateInTaipei(dateStr) {
+  if (typeof dateStr !== "string") return null;
+  const trimmed = dateStr.trim();
+  if (!trimmed) return null;
+
+  const [rawDatePart = "", rawTimePart = ""] = trimmed.split(/\s+/, 2);
+  const dateParts = rawDatePart.split("/").map(part => Number(part));
+  if (dateParts.length < 3 || dateParts.some(part => !Number.isFinite(part))) {
+    return null;
+  }
+
+  const [year, month, day] = dateParts;
+  let hours = 0;
+  let minutes = 0;
+  if (rawTimePart) {
+    const startTimePart = rawTimePart.split("~")[0];
+    const timeParts = startTimePart.split(":").map(part => Number(part));
+    if (timeParts.length >= 2 && Number.isFinite(timeParts[0]) && Number.isFinite(timeParts[1])) {
+      [hours, minutes] = timeParts;
+    }
+  }
+
+  if (
+    !Number.isInteger(year) ||
+    !Number.isInteger(month) ||
+    !Number.isInteger(day) ||
+    !Number.isInteger(hours) ||
+    !Number.isInteger(minutes)
+  ) {
+    return null;
+  }
+
+  if (month < 1 || month > 12 || day < 1 || day > 31 || hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
+    return null;
+  }
+
+  // Treat the stored event date/time as Asia/Taipei local time.
+  return new Date(Date.UTC(year, month - 1, day, hours - 8, minutes, 0, 0));
+}
+
+function shouldAutoEndEvent(data, now = new Date()) {
+  const status = String(data?.status || "").trim();
+  if (!["open", "full", "upcoming"].includes(status)) return false;
+
+  const startDate = parseEventStartDateInTaipei(data?.date);
+  if (!(startDate instanceof Date) || Number.isNaN(startDate.getTime())) return false;
+  return startDate.getTime() <= now.getTime();
+}
+
+async function autoEndStartedEventsBatch({ now = new Date(), batchSize = 400 } = {}) {
+  const snapshot = await db.collection("events")
+    .where("status", "in", ["open", "full", "upcoming"])
+    .select("status", "date")
+    .get();
+
+  const targets = snapshot.docs.filter(doc => shouldAutoEndEvent(doc.data() || {}, now));
+  let updatedCount = 0;
+
+  for (let i = 0; i < targets.length; i += batchSize) {
+    const batch = db.batch();
+    const chunk = targets.slice(i, i + batchSize);
+    chunk.forEach(doc => {
+      batch.update(doc.ref, {
+        status: "ended",
+      });
+    });
+    await batch.commit();
+    updatedCount += chunk.length;
+  }
+
+  return {
+    scannedCount: snapshot.size,
+    updatedCount,
+  };
+}
+
 function buildAuditEntryPayload({
   actorUid = "",
   actorName = "",
@@ -2028,6 +2105,26 @@ async function processChangeWatchEvent(event, collectionName, classifyChange) {
     after: result.after,
   });
 }
+
+exports.autoEndStartedEvents = onSchedule(
+  {
+    region: "asia-east1",
+    schedule: "* * * * *",
+    timeZone: "Asia/Taipei",
+    timeoutSeconds: 60,
+    memory: "256MiB",
+    maxInstances: 1,
+  },
+  async () => {
+    const now = new Date();
+    const result = await autoEndStartedEventsBatch({ now });
+    console.log("[autoEndStartedEvents]", {
+      now: now.toISOString(),
+      scannedCount: result.scannedCount,
+      updatedCount: result.updatedCount,
+    });
+  },
+);
 
 exports.watchUsersChanges = onDocumentWrittenWithAuthContext(
   {
