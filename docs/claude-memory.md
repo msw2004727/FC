@@ -1667,3 +1667,9 @@
 | Cloud Functions SA | `468419387978-compute@developer.gserviceaccount.com` |
 | Cloud Functions region | `asia-east1` |
 | Firebase Auth 帳號 | `msw741121@gmail.com` |
+
+### 2026-03-11 — 賽事重構 Step 4：友誼賽詳情頁接管球隊申請與主辦審核
+- **問題**：賽事詳細頁仍沿用舊的 `registeredTeams + message` 報名流程，無法呈現友誼賽要求的球隊申請、主辦審核與候審灰色佔位，且詳細頁缺少「聯繫主辦人 / 分享賽事」固定按鈕。
+- **原因**：前一階段只完成資料骨架與建立/編輯表單，公開詳情頁仍由 `js/modules/tournament-render.js` 的 legacy 分支控制，沒有讀取 `teamApplications` 與 `teamEntries` 子資料。
+- **修復**：新增 `js/modules/tournament/tournament-friendly-detail.js`，以後載入的模組方式接管友誼賽詳細頁；詳情頁現在會讀取 `球隊申請（teamApplications）` 與 `參賽隊伍（teamEntries）` 狀態，提供球隊層級的參加賽事申請、主辦確認/拒絕、灰色候審列、聯繫主辦人、分享賽事，並把相應樣式補進 `css/tournament.css`；同時更新 `docs/architecture.md`、`js/config.js` 與 `index.html` 到 `20260311k`。
+- **教訓**：當舊 renderer 與新流程共存時，先用獨立模組接管單一模式頁面，比直接在 legacy 大檔上疊更多 if/else 安全，也更符合後續模組化拆分方向。

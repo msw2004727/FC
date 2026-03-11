@@ -50,6 +50,165 @@
 }
 
 /* ─── Tournament Content ─── */
+.tfd-action-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: .7rem;
+  display: flex;
+  flex-direction: column;
+  gap: .55rem;
+}
+.tfd-action-main {
+  display: flex;
+  flex-direction: column;
+  gap: .45rem;
+}
+.tfd-action-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .45rem;
+}
+.tfd-action-meta {
+  font-size: .74rem;
+  color: var(--text-muted);
+  text-align: center;
+}
+.tfd-team-select {
+  width: 100%;
+  margin: 0;
+}
+.tfd-team-board {
+  padding: .1rem .4rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: .55rem;
+}
+.tfd-team-summary {
+  font-size: .76rem;
+  color: var(--text-muted);
+  padding: 0 .1rem;
+}
+.tfd-team-row {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: .7rem;
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+}
+.tfd-team-row-pending {
+  background: color-mix(in srgb, var(--bg-card) 82%, #94a3b8 18%);
+  border-style: dashed;
+}
+.tfd-team-row-rejected {
+  background: color-mix(in srgb, var(--bg-card) 84%, #fecaca 16%);
+}
+.tfd-team-row-slot {
+  border-style: dashed;
+  opacity: .8;
+}
+.tfd-team-side {
+  width: 170px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: .65rem;
+  min-width: 0;
+}
+.tfd-team-thumb {
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  background: var(--bg-elevated);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  font-size: 1rem;
+  font-weight: 700;
+}
+.tfd-team-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.tfd-team-thumb-slot {
+  border: 1px dashed var(--border);
+}
+.tfd-team-meta {
+  min-width: 0;
+}
+.tfd-team-name {
+  font-size: .88rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.3;
+}
+.tfd-team-status {
+  font-size: .72rem;
+  color: var(--text-muted);
+  margin-top: .12rem;
+  line-height: 1.5;
+}
+.tfd-team-roster {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: .35rem;
+  align-items: center;
+}
+.tfd-member-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: .2rem;
+  padding: .24rem .5rem;
+  border-radius: 999px;
+  border: 1px solid rgba(37, 99, 235, .16);
+  background: rgba(37, 99, 235, .08);
+  font-size: .74rem;
+  color: var(--text-secondary);
+}
+.tfd-empty-text {
+  font-size: .74rem;
+  color: var(--text-muted);
+}
+.tfd-review-actions {
+  display: flex;
+  gap: .4rem;
+  flex-shrink: 0;
+}
+.tfd-empty-state {
+  text-align: center;
+  font-size: .82rem;
+  color: var(--text-muted);
+  padding: 2rem 1rem;
+}
+
+@media (max-width: 640px) {
+  .tfd-action-grid {
+    grid-template-columns: 1fr;
+  }
+  .tfd-team-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .tfd-team-side {
+    width: 100%;
+  }
+  .tfd-review-actions {
+    width: 100%;
+  }
+  .tfd-review-actions .primary-btn,
+  .tfd-review-actions .outline-btn {
+    flex: 1;
+  }
+}
+
 .tournament-content { padding: .5rem 0; }
 .match-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: .75rem; margin-bottom: .5rem; }
 .match-teams { display: flex; align-items: center; justify-content: center; gap: .8rem; font-weight: 700; font-size: .95rem; }
