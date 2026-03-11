@@ -5,6 +5,12 @@
 > 新紀錄一律寫在檔案前方，採新到舊排序；若需補記舊項目，應插入對應日期區段，不得追加到檔尾。
 
 ---
+### 2026-03-11 — 賽事重構 Step 6：接上友誼賽站內信模板與通知流程
+- **問題**：友誼賽雖然已完成建賽、球隊申請、主辦審核與 roster，但重要節點還沒有接上站內信通知，後台也缺少對應模板 key 可供編輯。
+- **原因**：前五步優先完成資料模型、表單、詳情頁與 roster，通知仍停留在既有活動/舊賽事流程，friendly 專用模板與投遞掛點尚未建立。
+- **修復**：新增 `js/modules/tournament/tournament-friendly-notify.js`，以外掛方式掛接 `建賽`、`送出球隊申請`、`審核通過/拒絕` 三個節點，沿用既有 `notifTemplates/messages` 發送站內信；同步擴充 `js/modules/message-inbox.js` 的內建模板與 `_sendNotifFromTemplate()` 額外 meta/options 支援，並在 `functions/index.js` 補上 5 組友誼賽預設模板 seed，更新 `docs/architecture.md`，快取版本升到 `20260311m`。
+- **教訓**：大型重構的通知層不要直接寫死在業務流程裡，先把模板與投遞抽成獨立模組，再以 wrapper 掛回關鍵節點，較不容易把舊流程一起扯壞。
+
 ### 2026-03-11 — 賽事重構 Step 5：補上友誼賽 roster 與多隊身份選擇
 - **問題**：友誼賽詳細頁雖然已完成球隊申請與主辦審核，但隊員仍無法在球隊核准後加入或退出參賽名單，多球隊身份也缺少選隊流程。
 - **原因**：前一步只先接管 `球隊申請（teamApplications）` 與 `參賽隊伍（teamEntries）`，尚未讀取 `entries/{teamId}/members` 子集合，也沒有 friendly 專用的 roster UI 與 modal 流程。

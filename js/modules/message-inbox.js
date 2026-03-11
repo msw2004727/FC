@@ -670,6 +670,26 @@ Object.assign(App, {
         title: '活動重新上架通知',
         body: '您先前報名的活動已重新上架：\n\n活動名稱：{eventName}\n活動時間：{date}\n活動地點：{location}\n\n您的報名資格仍然保留，請留意活動時間。',
       },
+      tournament_friendly_host_opened: {
+        title: '友誼賽已建立',
+        body: '主辦球隊「{hostTeamName}」已開啟友誼賽「{tournamentName}」。\n\n報名截止：{regEnd}\n\n若您為主辦球隊成員，現在可前往賽事頁加入球員名單。',
+      },
+      tournament_friendly_team_apply_host: {
+        title: '有新球隊申請參賽',
+        body: '球隊「{teamName}」已申請參加「{tournamentName}」。\n申請人：{applicantName}\n\n請前往賽事詳細頁進行審核。',
+      },
+      tournament_friendly_team_approved_applicant: {
+        title: '球隊申請已通過',
+        body: '恭喜！您代表「{teamName}」申請參加「{tournamentName}」已通過審核。\n審核人：{reviewerName}\n\n隊員現在可加入該隊參賽名單。',
+      },
+      tournament_friendly_team_rejected_applicant: {
+        title: '球隊申請結果通知',
+        body: '很抱歉，您代表「{teamName}」申請參加「{tournamentName}」未獲通過。\n審核人：{reviewerName}\n\n如有疑問請聯繫主辦方。',
+      },
+      tournament_friendly_team_approved_broadcast: {
+        title: '球隊已可加入名單',
+        body: '球隊「{teamName}」已通過「{tournamentName}」參賽審核。\n\n若您是該隊成員，現在可前往賽事頁加入球員名單。',
+      },
     };
   },
 
@@ -714,7 +734,7 @@ Object.assign(App, {
     );
   },
 
-  _sendNotifFromTemplate(key, vars, targetUid, category, categoryName) {
+  _sendNotifFromTemplate(key, vars, targetUid, category, categoryName, extra = null, options = {}) {
     const fallbackTemplates = {
       ...this._getDefaultNotifTemplates(),
       cancel_signup: {
@@ -742,8 +762,16 @@ Object.assign(App, {
       categoryName || '系統',
       targetUid,
       '系統',
-      null,
-      { lineOptions: { source: `template:${key}` } }
+      extra,
+      {
+        lineCategory: options.lineCategory || category || 'system',
+        lineTitle: options.lineTitle || title,
+        lineBody: options.lineBody || body,
+        lineOptions: {
+          source: `template:${key}`,
+          ...(options.lineOptions || {}),
+        },
+      }
     );
   },
 
