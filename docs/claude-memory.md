@@ -1,3 +1,9 @@
+### 2026-03-11 — 修復 iOS Chrome 自己的 LINE 頭像無法顯示
+- **問題**：PC Chrome 與手機版 LINE 瀏覽器可正常顯示登入者頭像，但 iOS Chrome 在右上角、抽屜與個人資訊頁都只出現破圖。
+- **原因**：自我頭像優先使用 LINE 個人資料快取（`liff_profile_cache`）中的 `pictureUrl`，而這份快取沒有時效；一旦 iOS Chrome 留下過期或失效的舊網址，就會持續拿舊圖。另一方面，部分頭像 `<img>` 是先插入 DOM 再綁 `error`，在 iOS Chrome 上可能直接停在破圖狀態，來不及切 fallback。
+- **修復**：更新 `js/line-auth.js`，為 LINE 個人資料快取加入 `cachedAt` 與 6 小時 TTL，舊格式快取會自動清除；更新 `js/modules/profile-core.js`，加入頭像候選網址重試、`referrerpolicy="no-referrer"`、壞圖名單 TTL 與 `v2` key 重置，並改成對已經進入 broken state 的圖片立即 fallback；同步更新 `js/modules/profile-data.js`、`js/modules/profile-card.js`，讓自己的 LINE 頭像失效時會回退到資料庫 `pictureUrl` 再嘗試。
+- **教訓**：第三方頭像網址不能只靠單一來源與永久快取，尤其瀏覽器分流場景要同時處理「快取過期」與「圖片錯誤事件漏接」兩種失效模式。
+
 # SportHub — Claude 修復日誌
 
 此檔案隨 git 版本控制，記錄歷次 bug 修復與重要技術決策，供跨設備、跨會話參考。

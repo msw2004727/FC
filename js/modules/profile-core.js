@@ -6,9 +6,10 @@
 Object.assign(App, {
 
   _pendingFirstLogin: false,
+  _brokenAvatarTtlMs: 12 * 60 * 60 * 1000,
   _brokenAvatarUrlsLoaded: false,
   _brokenAvatarUrls: new Set(),
-  _brokenAvatarStorageKey: 'sporthub_broken_avatar_urls_v1',
+  _brokenAvatarStorageKey: 'sporthub_broken_avatar_urls_v2',
 
   _ensureBrokenAvatarUrlsLoaded() {
     if (this._brokenAvatarUrlsLoaded) return;
@@ -17,6 +18,11 @@ Object.assign(App, {
       const raw = localStorage.getItem(this._brokenAvatarStorageKey);
       if (!raw) return;
       const parsed = JSON.parse(raw);
+      const updatedAt = Number(parsed?.updatedAt || 0);
+      if (updatedAt && Date.now() - updatedAt > this._brokenAvatarTtlMs) {
+        localStorage.removeItem(this._brokenAvatarStorageKey);
+        return;
+      }
       const urls = Array.isArray(parsed?.urls) ? parsed.urls : [];
       urls
         .filter(url => typeof url === 'string' && url)
@@ -48,6 +54,23 @@ Object.assign(App, {
     return this._brokenAvatarUrls.has(url);
   },
 
+  _getAvatarCandidateUrls(...urls) {
+    const seen = new Set();
+    return urls
+      .flat()
+      .map(url => (typeof url === 'string' ? url.trim() : ''))
+      .filter(url => {
+        if (!url || seen.has(url)) return false;
+        seen.add(url);
+        return true;
+      });
+  },
+
+  _getRenderableAvatarCandidateUrls(...urls) {
+    return this._getAvatarCandidateUrls(...urls)
+      .filter(url => !this._isKnownBrokenAvatarUrl(url));
+  },
+
   _getAvatarInitial(name) {
     const text = String(name || '?').trim();
     return escapeHTML(text ? text.charAt(0) : '?');
@@ -58,12 +81,12 @@ Object.assign(App, {
   },
 
   _buildAvatarImageMarkup(url, name, imageClass = '', fallbackClass = 'profile-avatar', extraAttrs = '') {
-    if (url && this._isKnownBrokenAvatarUrl(url)) {
+    const candidateUrl = this._getRenderableAvatarCandidateUrls(url)[0] || null;
+    if (!candidateUrl) {
       return this._buildAvatarFallbackMarkup(name, fallbackClass);
     }
-    if (!url) return this._buildAvatarFallbackMarkup(name, fallbackClass);
     const attrs = extraAttrs ? ` ${extraAttrs}` : '';
-    return `<img src="${escapeHTML(url)}" class="${escapeHTML(imageClass)}" alt="${escapeHTML(name || 'avatar')}" data-avatar-fallback="1" data-avatar-name="${escapeHTML(name || '')}" data-avatar-fallback-class="${escapeHTML(fallbackClass)}"${attrs}>`;
+    return `<img src="${escapeHTML(candidateUrl)}" class="${escapeHTML(imageClass)}" alt="${escapeHTML(name || 'avatar')}" referrerpolicy="no-referrer" data-avatar-fallback="1" data-avatar-name="${escapeHTML(name || '')}" data-avatar-fallback-class="${escapeHTML(fallbackClass)}"${attrs}>`;
   },
 
   _bindAvatarFallbacks(root = document) {
@@ -71,7 +94,9 @@ Object.assign(App, {
     root.querySelectorAll('img[data-avatar-fallback="1"]').forEach(img => {
       if (img.dataset.avatarFallbackBound === '1') return;
       img.dataset.avatarFallbackBound = '1';
-      img.addEventListener('error', () => {
+      const handleBroken = () => {
+        if (img.dataset.avatarFallbackDone === '1') return;
+        img.dataset.avatarFallbackDone = '1';
         if (img.currentSrc || img.src) {
           this._rememberBrokenAvatarUrl(img.currentSrc || img.src);
         }
@@ -79,45 +104,100 @@ Object.assign(App, {
         fallback.className = img.dataset.avatarFallbackClass || 'profile-avatar';
         fallback.textContent = (img.dataset.avatarName || '?').trim().charAt(0) || '?';
         img.replaceWith(fallback);
-      }, { once: true });
+      };
+      img.addEventListener('error', handleBroken, { once: true });
+      if (img.complete && img.naturalWidth === 0) {
+        handleBroken();
+      }
     });
+  },
+
+  _loadAvatarIntoImage(img, candidateUrls, name, onFallback) {
+    if (!img) {
+      if (typeof onFallback === 'function') onFallback();
+      return;
+    }
+
+    const candidates = this._getRenderableAvatarCandidateUrls(candidateUrls);
+    if (!candidates.length) {
+      if (typeof onFallback === 'function') onFallback();
+      return;
+    }
+
+    let index = 0;
+    const tryNext = () => {
+      if (index >= candidates.length) {
+        if (typeof onFallback === 'function') onFallback();
+        return;
+      }
+
+      const nextUrl = candidates[index++];
+      const handleBroken = () => {
+        if (img.dataset.avatarCurrentUrl !== nextUrl) return;
+        this._rememberBrokenAvatarUrl(nextUrl);
+        img.removeAttribute('src');
+        tryNext();
+      };
+
+      img.dataset.avatarCurrentUrl = nextUrl;
+      img.alt = name || 'avatar';
+      img.referrerPolicy = 'no-referrer';
+      img.decoding = 'async';
+      img.onerror = handleBroken;
+      img.onload = () => {
+        if (img.dataset.avatarCurrentUrl !== nextUrl) return;
+        img.dataset.avatarLoaded = '1';
+      };
+      img.removeAttribute('src');
+      img.src = nextUrl;
+
+      setTimeout(() => {
+        if (img.dataset.avatarCurrentUrl === nextUrl && img.complete && img.naturalWidth === 0) {
+          handleBroken();
+        }
+      }, 0);
+    };
+
+    tryNext();
   },
 
   _setAvatarContent(container, url, name, options = {}) {
     if (!container) return;
     const fallbackClass = options.fallbackClass || container.className || 'profile-avatar';
     const imageClass = options.imageClass || '';
-    if (!url) {
+    const candidateUrls = this._getAvatarCandidateUrls(options.candidateUrls || url);
+    if (!candidateUrls.length) {
       container.className = fallbackClass;
       container.innerHTML = this._getAvatarInitial(name);
       return;
     }
     container.className = options.containerImageClass || fallbackClass;
-    container.innerHTML = this._buildAvatarImageMarkup(url, name, imageClass, fallbackClass, options.extraAttrs || '');
-    this._bindAvatarFallbacks(container);
+    container.innerHTML = '';
+    const img = document.createElement('img');
+    if (imageClass) img.className = imageClass;
+    container.appendChild(img);
+    this._loadAvatarIntoImage(img, candidateUrls, name, () => {
+      container.className = fallbackClass;
+      container.innerHTML = this._getAvatarInitial(name);
+    });
   },
 
-  _setTopbarAvatar(userTopbar, avatarImg, profile) {
+  _setTopbarAvatar(userTopbar, avatarImg, profile, options = {}) {
     if (!userTopbar) return;
     const displayName = profile?.displayName || '?';
+    const candidateUrls = this._getAvatarCandidateUrls(options.candidateUrls || profile?.pictureUrl);
     const applyFallback = () => {
-      if (profile?.pictureUrl) this._rememberBrokenAvatarUrl(profile.pictureUrl);
       const dropdown = document.getElementById('user-menu-dropdown');
       const dropdownHtml = dropdown ? dropdown.outerHTML : '';
       userTopbar.innerHTML = `<div class="line-avatar-topbar line-avatar-fallback" onclick="App.toggleUserMenu()">${this._getAvatarInitial(displayName)}</div>${dropdownHtml}`;
     };
 
-    if (!avatarImg || !profile?.pictureUrl || this._isKnownBrokenAvatarUrl(profile.pictureUrl)) {
+    if (!avatarImg || !candidateUrls.length) {
       applyFallback();
       return;
     }
 
-    avatarImg.onerror = () => {
-      avatarImg.onerror = null;
-      applyFallback();
-    };
-    avatarImg.alt = escapeHTML(displayName);
-    avatarImg.src = profile.pictureUrl;
+    this._loadAvatarIntoImage(avatarImg, candidateUrls, displayName, applyFallback);
   },
 
   /**
@@ -193,9 +273,10 @@ Object.assign(App, {
       ? (() => { const d = (_ca.toDate ? _ca.toDate() : (_ca.seconds ? new Date(_ca.seconds * 1000) : new Date(_ca))); return isNaN(d) ? '-' : `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}`; })()
       : '-';
     // 頭像：自己用 LINE 頭像，他人用資料庫 pictureUrl
-    const pic = isSelf
-      ? ((lineProfile && lineProfile.pictureUrl) || (user && user.pictureUrl))
-      : (user && user.pictureUrl);
+    const picCandidates = isSelf
+      ? this._getAvatarCandidateUrls(lineProfile && lineProfile.pictureUrl, user && user.pictureUrl)
+      : this._getAvatarCandidateUrls(user && user.pictureUrl);
+    const pic = picCandidates[0] || null;
 
     const avatarHtml = this._buildAvatarImageMarkup(pic, name, '', 'uc-avatar-circle');
     const teamHtml = user ? this._getUserTeamHtml(user) : '無';
@@ -441,7 +522,10 @@ Object.assign(App, {
     const currentUser = ApiService.getCurrentUser();
     if (loginBtn) loginBtn.style.display = 'none';
     if (userTopbar) userTopbar.style.display = '';
-    this._setTopbarAvatar(userTopbar, avatarImg, profile);
+    const avatarCandidates = this._getAvatarCandidateUrls(profile && profile.pictureUrl, currentUser && currentUser.pictureUrl);
+    this._setTopbarAvatar(userTopbar, avatarImg, profile, {
+      candidateUrls: avatarCandidates,
+    });
 
     // 更新 profile 頁面（資料由 renderProfileData() 統一處理）
     if (profileContent) profileContent.style.display = '';
@@ -449,9 +533,10 @@ Object.assign(App, {
 
     // 更新 drawer
     if (drawerName) drawerName.textContent = profile.displayName;
-    this._setAvatarContent(drawerAvatar, profile.pictureUrl, profile.displayName, {
+    this._setAvatarContent(drawerAvatar, avatarCandidates[0] || null, profile.displayName, {
       fallbackClass: 'drawer-avatar',
       containerImageClass: 'drawer-avatar drawer-avatar-img',
+      candidateUrls: avatarCandidates,
     });
 
     // 依資料庫角色套用抽屜選單與身份標籤

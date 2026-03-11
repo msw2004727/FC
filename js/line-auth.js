@@ -9,6 +9,8 @@ const LineAuth = {
   _profileError: null,
   _profileLoading: false,
   _profilePromise: null,
+  _profileCacheKey: 'liff_profile_cache',
+  _profileCacheMaxAgeMs: 6 * 60 * 60 * 1000,
 
   _getBaseUrl() {
     return window.location.origin + window.location.pathname;
@@ -31,6 +33,22 @@ const LineAuth = {
 
   _sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
+  },
+
+  _persistProfileCache(profile) {
+    if (!profile || typeof profile !== 'object') return;
+    try {
+      localStorage.setItem(this._profileCacheKey, JSON.stringify({
+        ...profile,
+        cachedAt: Date.now(),
+      }));
+    } catch (_) {}
+  },
+
+  _clearProfileCache() {
+    try {
+      localStorage.removeItem(this._profileCacheKey);
+    } catch (_) {}
   },
 
   _withTimeout(promise, ms, label) {
@@ -106,7 +124,7 @@ const LineAuth = {
             pictureUrl: profile.pictureUrl || null,
             email,
           };
-          try { localStorage.setItem('liff_profile_cache', JSON.stringify(this._profile)); } catch (e) {}
+          this._persistProfileCache(this._profile);
           console.log('[LineAuth] 已登入:', this._profile.displayName);
           return this._profile;
         } catch (err) {
@@ -149,12 +167,26 @@ const LineAuth = {
   restoreCachedProfile() {
     if (this._profile) return this._profile;
     try {
-      const cached = localStorage.getItem('liff_profile_cache');
-      if (cached) {
-        this._profile = JSON.parse(cached);
-        return this._profile;
+      const cached = localStorage.getItem(this._profileCacheKey);
+      if (!cached) return null;
+      const parsed = JSON.parse(cached);
+      const cachedAt = Number(parsed?.cachedAt || 0);
+      const isExpired = !cachedAt || (Date.now() - cachedAt > this._profileCacheMaxAgeMs);
+      const isValid = typeof parsed?.userId === 'string' && typeof parsed?.displayName === 'string';
+      if (!isValid || isExpired) {
+        this._clearProfileCache();
+        return null;
       }
-    } catch (e) {}
+      this._profile = {
+        userId: parsed.userId,
+        displayName: parsed.displayName,
+        pictureUrl: typeof parsed.pictureUrl === 'string' ? parsed.pictureUrl : null,
+        email: typeof parsed.email === 'string' ? parsed.email : null,
+      };
+      return this._profile;
+    } catch (e) {
+      this._clearProfileCache();
+    }
     return null;
   },
 
@@ -223,7 +255,7 @@ const LineAuth = {
     this._profileError = null;
     this._profileLoading = false;
     this._profilePromise = null;
-    try { localStorage.removeItem('liff_profile_cache'); } catch (e) {}
+    this._clearProfileCache();
     location.reload();
   },
 

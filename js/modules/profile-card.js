@@ -12,7 +12,8 @@ Object.assign(App, {
 
     const displayName = (lineProfile && lineProfile.displayName) ? lineProfile.displayName : (user ? user.displayName : '-');
     const titleHtml = user ? this._buildTitleDisplayHtml(user, lineProfile ? lineProfile.displayName : null) : escapeHTML(displayName);
-    const pic = (lineProfile && lineProfile.pictureUrl) || (user && user.pictureUrl) || null;
+    const avatarCandidates = this._getAvatarCandidateUrls(lineProfile && lineProfile.pictureUrl, user && user.pictureUrl);
+    const pic = avatarCandidates[0] || null;
     const role = (user && user.role) || 'user';
     const roleInfo = ROLES[role] || ROLES.user;
 

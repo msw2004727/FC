@@ -52,12 +52,14 @@ Object.assign(App, {
 
     const lineProfile = (!ModeManager.isDemo() && typeof LineAuth !== 'undefined' && LineAuth.isLoggedIn()) ? LineAuth.getProfile() : null;
     const lineName = (lineProfile && lineProfile.displayName) || user.displayName;
-    const pic = (lineProfile && lineProfile.pictureUrl) || user.pictureUrl || null;
+    const avatarCandidates = this._getAvatarCandidateUrls(lineProfile && lineProfile.pictureUrl, user.pictureUrl);
+    const pic = avatarCandidates[0] || null;
 
     // 頭像
     this._setAvatarContent(el('profile-avatar'), pic, lineName, {
       fallbackClass: 'profile-avatar',
       containerImageClass: 'profile-avatar profile-avatar-img',
+      candidateUrls: avatarCandidates,
     });
 
     // 稱號（HTML 版：金色/銀色標籤）

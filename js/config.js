@@ -197,7 +197,8 @@
 // 20260311af: route loading 加入超時保險絲，並將 WebSocket fallback 改為 tab-scoped 短 TTL，避免多頁籤長輪詢卡死
 // 20260311ag: 縮小 cloud init boot 集合並延後活動頁即時監聽，減輕多頁籤活動頁切入壓力
 // 20260311ah: 活動頁允許在 cloud 未完成時先顯示快取畫面，再背景補雲端初始化與刷新
-const CACHE_VERSION = '20260311ah';
+// 20260311ai: iOS Chrome 頭像改採候選網址重試、失效快取 TTL 與 LINE profile 快取時效
+const CACHE_VERSION = '20260311ai';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {
