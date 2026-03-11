@@ -195,7 +195,8 @@
 // 20260311ad: 每次切回首頁時將近期活動橫向卡片列重置到最左側，避免停在上次滑動位置
 // 20260311ae: 首頁與活動頁改為先顯示最近一次快取畫面，再背景刷新資料，降低頻繁切頁的阻擋感
 // 20260311af: route loading 加入超時保險絲，並將 WebSocket fallback 改為 tab-scoped 短 TTL，避免多頁籤長輪詢卡死
-const CACHE_VERSION = '20260311af';
+// 20260311ag: 縮小 cloud init boot 集合並延後活動頁即時監聽，減輕多頁籤活動頁切入壓力
+const CACHE_VERSION = '20260311ag';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {

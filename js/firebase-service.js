@@ -71,11 +71,13 @@ const FirebaseService = {
   _authDependentWorkPromise: null,
   _authDependentWorkUid: null,
   _lastLoginAuditAtByUid: {},
+  _postInitWarmupPromise: null,
   _registrationListenerKey: '',
   _pageScopedRealtimeListeners: {
     registrations: null,
     attendanceRecords: null,
   },
+  _pageScopedRealtimeStartTimers: {},
   _collectionLoadedAt: {},
   _realtimeListenerStarted: {},  // 追蹤已啟動的延遲即時監聽器
   _authPromise: null,            // Auth 並行 Promise
@@ -205,13 +207,16 @@ const FirebaseService = {
 
   // 啟動時必要的靜態集合（首頁 + 全域 UI 需要，全部公開讀取）
   _bootCollections: [
-    'banners', 'floatingAds', 'popupAds', 'sponsors',
-    'announcements', 'siteThemes', 'gameConfigs', 'achievements', 'badges',
-    'tournaments',
+    'banners', 'announcements', 'siteThemes', 'achievements', 'badges',
+  ],
+
+  _postInitWarmupCollections: [
+    'floatingAds', 'popupAds', 'sponsors', 'tournaments', 'gameConfigs',
   ],
 
   // 延遲載入的集合（進入對應頁面時才載入，含原 live 中需 Auth 的集合）
   _deferredCollections: [
+    'floatingAds', 'popupAds', 'sponsors', 'gameConfigs',
     'events', 'teams', 'tournaments', 'shopItems', 'leaderboard', 'standings', 'matches',
     'trades', 'attendanceRecords', 'activityRecords',
     'expLogs', 'teamExpLogs', 'operationLogs',
@@ -297,19 +302,31 @@ const FirebaseService = {
     });
   },
 
+  _replaceCollectionCache(name, docs) {
+    const seen = new Set();
+    this._cache[name] = (docs || []).filter(doc => {
+      if (!doc?.id) return true;
+      if (seen.has(doc.id)) return false;
+      seen.add(doc.id);
+      return true;
+    });
+  },
+
   async _loadEventsStatic() {
-    const activeResult = await this._fetchQuerySnapshot(
-      'events:active',
-      db.collection('events')
-        .where('status', 'in', ['open', 'full', 'upcoming'])
-        .limit(200)
-    );
-    const terminalResult = await this._fetchQuerySnapshot(
-      'events:terminal',
-      db.collection('events')
-        .where('status', 'in', ['ended', 'cancelled'])
-        .limit(200)
-    );
+    const [activeResult, terminalResult] = await Promise.all([
+      this._fetchQuerySnapshot(
+        'events:active',
+        db.collection('events')
+          .where('status', 'in', ['open', 'full', 'upcoming'])
+          .limit(200)
+      ),
+      this._fetchQuerySnapshot(
+        'events:terminal',
+        db.collection('events')
+          .where('status', 'in', ['ended', 'cancelled'])
+          .limit(200)
+      ),
+    ]);
 
     if (!activeResult.ok && !terminalResult.ok) {
       console.warn('[FirebaseService] Skip cache overwrite for "events" due to load failure.');
@@ -325,24 +342,19 @@ const FirebaseService = {
   },
 
   async _loadCollectionsByName(names) {
-    const genericNames = [];
-    const loadedNames = [];
+    const uniqueNames = [...new Set((names || []).filter(Boolean))];
+    if (!uniqueNames.length) return [];
 
-    for (const name of names) {
+    const tasks = uniqueNames.map(async name => {
       if (name === 'events') {
-        loadedNames.push(...await this._loadEventsStatic());
-        continue;
+        return await this._loadEventsStatic();
       }
-      genericNames.push(name);
-    }
+      const loaded = await this._loadStaticCollections([name]);
+      this._markCollectionsLoaded(loaded);
+      return loaded;
+    });
 
-    if (genericNames.length > 0) {
-      const genericLoaded = await this._loadStaticCollections(genericNames);
-      this._markCollectionsLoaded(genericLoaded);
-      loadedNames.push(...genericLoaded);
-    }
-
-    return loadedNames;
+    return (await Promise.all(tasks)).flat();
   },
 
   _startPageScopedRealtimeForPage(pageId) {
@@ -351,21 +363,60 @@ const FirebaseService = {
     if (needed.has('attendanceRecords')) this._startAttendanceRecordsListener();
   },
 
+  _cancelDeferredPageScopedRealtimeStart(pageId) {
+    const timer = this._pageScopedRealtimeStartTimers[pageId];
+    if (!timer) return;
+    clearTimeout(timer);
+    delete this._pageScopedRealtimeStartTimers[pageId];
+  },
+
+  _cancelAllDeferredPageScopedRealtimeStarts() {
+    Object.keys(this._pageScopedRealtimeStartTimers).forEach(pageId => {
+      this._cancelDeferredPageScopedRealtimeStart(pageId);
+    });
+  },
+
+  schedulePageScopedRealtimeForPage(pageId, options = {}) {
+    if (ModeManager.isDemo()) return;
+    const needed = this._getPageScopedRealtimeCollections(pageId);
+    if (!needed.length) return;
+
+    this._cancelDeferredPageScopedRealtimeStart(pageId);
+
+    const delayMs = Number(options.delayMs ?? 350);
+    const start = () => {
+      delete this._pageScopedRealtimeStartTimers[pageId];
+      if (typeof App !== 'undefined' && App.currentPage !== pageId) return;
+      this._startPageScopedRealtimeForPage(pageId);
+    };
+
+    if (!Number.isFinite(delayMs) || delayMs <= 0) {
+      start();
+      return;
+    }
+
+    this._pageScopedRealtimeStartTimers[pageId] = setTimeout(start, delayMs);
+  },
+
   finalizePageScopedRealtimeForPage(pageId) {
+    this._cancelAllDeferredPageScopedRealtimeStarts();
     const needed = new Set(this._getPageScopedRealtimeCollections(pageId));
     if (!needed.has('registrations')) this._stopRegistrationsListener();
     if (!needed.has('attendanceRecords')) this._stopAttendanceRecordsListener();
   },
 
   /** 根據頁面 ID 懶載入對應的集合 */
-  async ensureCollectionsForPage(pageId) {
+  async ensureCollectionsForPage(pageId, options = {}) {
     if (ModeManager.isDemo()) return [];
     if (!this._initialized) return [];
     const needed = this._collectionPageMap[pageId];
     if (!needed) return [];
+    const skipRealtimeStart = options.skipRealtimeStart === true;
 
     // 啟動延遲即時監聽器（registrations / attendanceRecords 需 Auth）
-    this._startPageScopedRealtimeForPage(pageId);
+    if (!skipRealtimeStart) {
+      this._startPageScopedRealtimeForPage(pageId);
+    }
     const realtimeNeeded = new Set(this._getPageScopedRealtimeCollections(pageId));
 
     // 靜態集合載入（排除即時監聽器管理的集合）
@@ -412,6 +463,51 @@ const FirebaseService = {
     const loaded = await this._loadCollectionsByName(toLoad);
     this._persistCache();
     return loaded;
+  },
+
+  _handleWarmLoadedCollections(loadedNames) {
+    const loaded = new Set(loadedNames || []);
+    if (!loaded.size || typeof App === 'undefined') return;
+
+    try {
+      if (loaded.has('siteThemes')) {
+        App.applySiteThemes?.();
+      }
+      const shouldRefreshHome = App.currentPage === 'page-home'
+        && ['banners', 'announcements', 'events', 'floatingAds', 'popupAds', 'sponsors', 'tournaments', 'gameConfigs']
+          .some(name => loaded.has(name));
+      if (shouldRefreshHome) {
+        App.renderAll?.();
+      }
+    } catch (err) {
+      console.warn('[FirebaseService] warm collection UI refresh failed:', err);
+    }
+  },
+
+  _schedulePostInitWarmups() {
+    if (ModeManager.isDemo()) return;
+    if (!this._initialized) return;
+    if (this._postInitWarmupPromise) return;
+
+    const warmNames = this._postInitWarmupCollections.filter(name => this._shouldReloadCollection(name));
+    if (!warmNames.length) return;
+
+    const warmPromise = (async () => {
+      console.log('[FirebaseService] Warm static collections:', warmNames.join(', '));
+      const loaded = await this._loadCollectionsByName(warmNames);
+      this._persistCache();
+      this._handleWarmLoadedCollections(loaded);
+      return loaded;
+    })().catch(err => {
+      console.warn('[FirebaseService] Warm static collections failed:', err);
+      return [];
+    });
+
+    this._postInitWarmupPromise = warmPromise.finally(() => {
+      if (this._postInitWarmupPromise === warmPromise) {
+        this._postInitWarmupPromise = null;
+      }
+    });
   },
 
   _onRolePermissionsUpdated() {
@@ -699,23 +795,24 @@ const FirebaseService = {
   },
 
   async _loadStaticCollections(names) {
+    const requested = [...new Set((names || []).filter(Boolean))];
+    if (!requested.length) return [];
+
+    const results = await Promise.all(requested.map(async name => ({
+      name,
+      result: await this._fetchCollectionSnapshot(name, 500),
+    })));
+
     const loadedNames = [];
-    for (const name of names) {
-      const result = await this._fetchCollectionSnapshot(name, 500);
+    results.forEach(({ name, result }) => {
       if (!result || !result.ok) {
         console.warn(`[FirebaseService] Skip cache overwrite for "${name}" due to load failure.`);
-        continue;
+        return;
       }
       const docs = result.docs.map(doc => ({ ...doc.data(), _docId: doc.id }));
-      const seen = new Set();
-      this._cache[name] = docs.filter(d => {
-        if (!d.id) return true;
-        if (seen.has(d.id)) return false;
-        seen.add(d.id);
-        return true;
-      });
+      this._replaceCollectionCache(name, docs);
       loadedNames.push(name);
-    }
+    });
     return loadedNames;
   },
 
@@ -1140,6 +1237,8 @@ const FirebaseService = {
     this._realtimeListenerStarted = {};
     this._authDependentWorkPromise = null;
     this._authDependentWorkUid = null;
+    this._postInitWarmupPromise = null;
+    this._cancelAllDeferredPageScopedRealtimeStarts();
 
     // ── Step 1: 嘗試從 localStorage 恢復快取 ──
     this._restoreCache();
@@ -1180,10 +1279,9 @@ const FirebaseService = {
           console.warn('[FirebaseService] Initial events preload failed:', err);
           return [];
         });
-        const bootSnapshots = [];
-        for (const name of this._bootCollections) {
-          bootSnapshots.push(await this._fetchCollectionSnapshot(name, 200));
-        }
+        const bootSnapshots = await Promise.all(
+          this._bootCollections.map(name => this._fetchCollectionSnapshot(name, 200))
+        );
         return [bootSnapshots];
       })();
       const timeoutPromise = new Promise((_, reject) =>
@@ -1227,13 +1325,7 @@ const FirebaseService = {
       }
       this._bootCollectionLoadFailed[name] = false;
       const docs = result.docs.map(doc => ({ ...doc.data(), _docId: doc.id }));
-      const seen = new Set();
-      this._cache[name] = docs.filter(d => {
-        if (!d.id) return true;
-        if (seen.has(d.id)) return false;
-        seen.add(d.id);
-        return true;
-      });
+      this._replaceCollectionCache(name, docs);
     });
     this._markCollectionsLoaded(this._bootCollections.filter(name => !this._bootCollectionLoadFailed[name]));
 
@@ -1245,6 +1337,7 @@ const FirebaseService = {
     console.log(`[FirebaseService] Public data init complete - boot: ${bootCount}, static events preload, deferred: ${this._deferredCollections.length}`);
     // ── Step 6: 背景啟動 Auth 依賴的監聽器 + seed ──
     this._startAuthDependentWork();
+    this._schedulePostInitWarmups();
   },
 
   /** 背景載入已結束/取消的活動（不阻塞啟動） */

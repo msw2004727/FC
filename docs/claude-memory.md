@@ -5,6 +5,12 @@
 > 新紀錄一律寫在檔案前方，採新到舊排序；若需補記舊項目，應插入對應日期區段，不得追加到檔尾。
 
 ---
+### 2026-03-11 — 縮小 cloud init 負載並延後活動頁即時監聽
+- **問題**：iPhone 多頁籤連續開啟活動頁時，新的頁籤容易在活動頁切入前卡在 cloud init timeout，雖然不再無限 loading，但仍常因 Firebase 初始化過重而失敗。
+- **原因**：`FirebaseService.init()` 會在進頁前同步抓過多 boot collections，且活動頁的 `registrations` / `attendanceRecords` page-scoped 即時監聽在頁面顯示前就啟動，讓多頁籤冷啟動壓力偏高。
+- **修復**：在 `js/firebase-service.js` 將 boot collections 縮到首頁與全域必要資料，改成平行抓取，並把 `floatingAds`、`popupAds`、`sponsors`、`tournaments`、`gameConfigs` 改成 init 後背景 warmup；同時讓活動頁可先跳過 page-scoped realtime 啟動，待 `js/core/navigation.js` 完成進頁與 render 後再延後啟動 listener。
+- **教訓**：切頁阻擋鏈中的資料載入與即時監聽要拆開看，列表頁不該把非首屏必要監聽放在 guarded route 的同步路徑上。
+
 ### 2026-03-11 — 多頁籤活動頁長輪詢卡死保險絲
 - **問題**：iPhone 上同時開多個 `toosterx.com` 分頁時，前面分頁若已卡在活動頁的慢載入提示，後面新分頁再切入活動頁容易一直停在「網路較慢，資料仍在載入中...」。
 - **原因**：頁面切換（`showPage()`）的雲端初始化與頁面進場等待沒有超時保護；另外舊版 WebSocket fallback 會把 `shub_ws_blocked` 寫進 `localStorage` 24 小時，導致一個分頁的超時把後續所有新分頁都推去長輪詢模式，放大多頁籤連線壓力。

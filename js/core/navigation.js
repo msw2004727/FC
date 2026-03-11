@@ -101,6 +101,12 @@ Object.assign(App, {
     requestAnimationFrame(() => { if (this._positionFloatingAds) this._positionFloatingAds(); });
 
     if (options.render !== false) this._renderPageContent(pageId);
+    if (!ModeManager.isDemo()
+      && pageId === 'page-activities'
+      && typeof FirebaseService !== 'undefined'
+      && typeof FirebaseService.schedulePageScopedRealtimeForPage === 'function') {
+      FirebaseService.schedulePageScopedRealtimeForPage(pageId);
+    }
     if (options.resetScroll !== false) this._resetPageScroll(pageId);
     if (pageId !== 'page-scan' && this._stopCamera) this._stopCamera();
     return target;
@@ -109,7 +115,9 @@ Object.assign(App, {
   async _refreshStaleFirstPage(pageId, transitionSeq) {
     try {
       if (typeof FirebaseService === 'undefined' || typeof FirebaseService.ensureCollectionsForPage !== 'function') return;
-      const loaded = await FirebaseService.ensureCollectionsForPage(pageId);
+      const loaded = await FirebaseService.ensureCollectionsForPage(pageId, {
+        skipRealtimeStart: pageId === 'page-activities',
+      });
       if (transitionSeq !== this._pageTransitionSeq || this.currentPage !== pageId) return;
       if ((loaded || []).length > 0) {
         this._renderPageContent(pageId);
@@ -233,7 +241,9 @@ Object.assign(App, {
     if (!ModeManager.isDemo()
       && typeof FirebaseService !== 'undefined'
       && FirebaseService.ensureCollectionsForPage) {
-      await FirebaseService.ensureCollectionsForPage(pageId);
+      await FirebaseService.ensureCollectionsForPage(pageId, {
+        skipRealtimeStart: pageId === 'page-activities',
+      });
     }
   },
 
