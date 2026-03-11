@@ -119,16 +119,16 @@
         </div>
         <div class="ce-row">
           <label>活動時間 <span class="required">*必填</span></label>
-          <div style="display:flex;gap:.3rem;align-items:center">
-            <input type="date" id="ce-date" style="flex:1.2">
-            <input type="time" id="ce-time-start" style="flex:1" step="1800">
-            <span style="font-size:.82rem;color:var(--text-muted)">~</span>
-            <input type="time" id="ce-time-end" style="flex:1" step="1800">
+          <div class="ce-time-row">
+            <input type="date" id="ce-date" class="ce-time-date">
+            <input type="time" id="ce-time-start" class="ce-time-clock" step="1800">
+            <span class="ce-time-separator">~</span>
+            <input type="time" id="ce-time-end" class="ce-time-clock" step="1800">
           </div>
         </div>
         <div class="ce-row">
           <label>開放報名時間 <span style="font-size:.68rem;color:var(--text-muted);font-weight:400">（未設定則立即開放）</span></label>
-          <input type="datetime-local" id="ce-reg-open-time" style="width:100%">
+          <input type="datetime-local" id="ce-reg-open-time" class="ce-reg-open-input">
           <div style="font-size:.68rem;color:var(--text-muted);margin-top:.2rem">報名時間未到將顯示「即將開放」，到達時間後自動變為「報名中」</div>
         </div>
         <div class="ce-row ce-row-half">

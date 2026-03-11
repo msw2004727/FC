@@ -104,6 +104,8 @@ input, select, textarea {
   outline: none;
   transition: border var(--transition);
   width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 input:focus, select:focus, textarea:focus { border-color: var(--accent); }
 select { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238892a4' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right .6rem center; padding-right: 2rem; }
@@ -232,6 +234,26 @@ img { max-width: 100%; display: block; }
 .ce-form { display: flex; flex-direction: column; gap: .75rem; }
 .ce-row { display: flex; flex-direction: column; gap: .3rem; }
 .ce-row label { font-size: .78rem; font-weight: 600; color: var(--text-secondary); }
+.ce-time-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: .3rem;
+  width: 100%;
+  min-width: 0;
+}
+.ce-time-row input {
+  min-width: 0;
+  padding: .45rem .35rem;
+  font-size: .82rem;
+}
+.ce-time-separator {
+  font-size: .82rem;
+  color: var(--text-muted);
+}
+.ce-reg-open-input {
+  min-width: 0;
+}
 .ce-row-half { flex-direction: row; gap: .4rem; }
 .ce-row-half > div { flex: 1; display: flex; flex-direction: column; gap: .3rem; min-width: 0; overflow: hidden; }
 .ce-row-half > div:first-child { flex: 0 0 40%; }
