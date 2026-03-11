@@ -301,6 +301,60 @@
 .participant-list { display: flex; flex-wrap: wrap; gap: .4rem; }
 .participant-tag { padding: .2rem .5rem; border-radius: var(--radius-full); background: var(--bg-elevated); font-size: .75rem; color: var(--text-secondary); }
 .wl-pos { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 50%; background: #7c3aed; color: #fff; font-size: .65rem; font-weight: 700; flex-shrink: 0; }
+#detail-img-placeholder { position: relative; overflow: hidden; }
+.detail-cover-media { position: relative; width: 100%; height: 100%; }
+.detail-cover-image { width: 100%; height: 100%; object-fit: cover; display: block; }
+.detail-cover-media-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background:
+    linear-gradient(180deg, rgba(15, 23, 42, .08), rgba(15, 23, 42, 0)),
+    var(--bg-elevated);
+}
+.detail-cover-placeholder-text {
+  font-size: .8rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  font-family: monospace;
+}
+.detail-cover-ribbon {
+  position: absolute;
+  left: -30px;
+  bottom: 16px;
+  min-width: 132px;
+  padding: .48rem 1.7rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  color: #fff;
+  font-size: .82rem;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, .22);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, .22);
+  transform: rotate(-45deg);
+  transform-origin: center;
+  z-index: 1;
+  pointer-events: none;
+}
+.detail-cover-ribbon-friendly { background: linear-gradient(135deg, #0d9488, #065f46); }
+.detail-cover-ribbon-camp     { background: linear-gradient(135deg, #ec4899, #be185d); }
+.detail-cover-ribbon-play     { background: linear-gradient(135deg, #7c3aed, #4338ca); }
+.detail-cover-ribbon-watch    { background: linear-gradient(135deg, #f59e0b, #d97706); }
+
+@media (max-width: 640px) {
+  .detail-cover-ribbon {
+    left: -34px;
+    bottom: 12px;
+    min-width: 120px;
+    padding: .42rem 1.45rem;
+    font-size: .76rem;
+  }
+}
 
 /* ─── Mini Activity List ─── */
 .mini-activity-list { display: flex; flex-direction: column; gap: .3rem; }

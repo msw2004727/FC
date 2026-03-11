@@ -181,7 +181,8 @@
 // 20260310an: 活動參與查詢摘要列改為兩層佈局，箭頭與狀態同行，預設起始日固定為 2026-02-01
 // 20260310ao: 操作日誌類型標籤改為依類型家族分色，提升辨識度
 // 20260311p: 修補友誼賽站內信審核導流與申請重入保護
-const CACHE_VERSION = '20260311p';
+// 20260311q: 活動詳情封面新增依類型配色的左下斜角緞帶
+const CACHE_VERSION = '20260311q';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {

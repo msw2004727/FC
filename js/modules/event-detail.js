@@ -38,6 +38,34 @@ Object.assign(App, {
       </span>`;
   },
 
+  _getEventDetailRibbonMeta(eventRecord) {
+    const safeType = TYPE_CONFIG?.[eventRecord?.type] ? eventRecord.type : 'friendly';
+    const typeConf = TYPE_CONFIG?.[safeType] || TYPE_CONFIG.friendly;
+    return {
+      typeKey: safeType,
+      label: typeConf?.label || '活動',
+    };
+  },
+
+  _renderEventDetailCover(eventRecord) {
+    const ribbonMeta = this._getEventDetailRibbonMeta(eventRecord);
+    const ribbonHtml = `<span class="detail-cover-ribbon detail-cover-ribbon-${ribbonMeta.typeKey}">${escapeHTML(ribbonMeta.label)}</span>`;
+
+    if (eventRecord?.image) {
+      return `
+        <div class="detail-cover-media">
+          <img class="detail-cover-image" src="${eventRecord.image}" alt="${escapeHTML(eventRecord.title)}" loading="lazy">
+          ${ribbonHtml}
+        </div>`;
+    }
+
+    return `
+      <div class="detail-cover-media detail-cover-media-empty">
+        <span class="detail-cover-placeholder-text">活動圖片 800 × 300</span>
+        ${ribbonHtml}
+      </div>`;
+  },
+
   async toggleEventPublicFromDetail() {
     const eventId = this._currentDetailEventId;
     const e = eventId ? ApiService.getEvent(eventId) : null;
@@ -113,11 +141,10 @@ Object.assign(App, {
     this._renderEventPublicToggle(e);
       const detailImg = nodes.image;
     if (detailImg) {
+      detailImg.innerHTML = this._renderEventDetailCover(e);
       if (e.image) {
-        detailImg.innerHTML = `<img src="${e.image}" alt="${escapeHTML(e.title)}" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block;border-radius:var(--radius)">`;
         detailImg.style.border = 'none';
       } else {
-        detailImg.textContent = '活動圖片 800 × 300';
         detailImg.style.border = '';
       }
     }
