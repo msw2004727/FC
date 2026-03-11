@@ -5,6 +5,12 @@
 > 新紀錄一律寫在檔案前方，採新到舊排序；若需補記舊項目，應插入對應日期區段，不得追加到檔尾。
 
 ---
+### 2026-03-11 — 正式站 console 收斂為 error + 關鍵 warn
+- **問題**：正式站 console 充滿大量 `log / warn / error`，視覺上很雜，也把不少啟動流程、Firebase/Auth 狀態與 fallback 細節直接暴露給外部。
+- **原因**：專案目前沒有集中式 logger 或正式站 console gate；各模組直接呼叫原生 `console.*`，而 `index.html` 的 `debug=1` 還會進一步把輸出鏡像到頁面內 debug console。
+- **修復**：更新 `index.html`，在入口最早期加入正式站 console policy：production host 預設關閉 `console.log / info / debug`、僅保留 `console.error` 與關鍵 `console.warn`，並保留 `debug=1` 作為完整除錯覆寫；同步更新 `js/config.js` 與 `index.html` 快取版本到 `20260311g`。
+- **教訓**：console 乾淨不能只靠人工少寫 `log`，正式站需要入口層統一治理；否則模組一多，啟動診斷與 fallback 訊息會自然失控。
+
 ### 2026-03-11 — 活動管理頁首屏移除 activityRecords 預載
 - **問題**：清除瀏覽器快取後第一次進入活動管理頁時，加載時間明顯變長，資料越多體感越差。
 - **原因**：`活動管理頁（page-my-activities）` 在首屏渲染前會等待 `活動紀錄（activityRecords）` 一起載入，但活動卡片列表首屏本身並不直接依賴這包資料；真正使用 `activityRecords` 的只有少數管理操作。

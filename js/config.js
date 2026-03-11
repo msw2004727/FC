@@ -180,8 +180,8 @@
 // 20260310am: 活動參與查詢收折摘要列改版，對齊稽核日誌的箭頭與提示樣式
 // 20260310an: 活動參與查詢摘要列改為兩層佈局，箭頭與狀態同行，預設起始日固定為 2026-02-01
 // 20260310ao: 操作日誌類型標籤改為依類型家族分色，提升辨識度
-// 20260311f: 活動管理頁首屏不再預載 activityRecords，改為操作時懶載入
-const CACHE_VERSION = '20260311f';
+// 20260311g: 正式站收斂 console 輸出，僅保留紅色 error 與關鍵 warn
+const CACHE_VERSION = '20260311g';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {
@@ -222,6 +222,10 @@ const ACHIEVEMENT_CONDITIONS = {
 
 // ─── Mode Manager（stub — Demo 模式已移除，永遠回傳 production）───
 const ModeManager = { isDemo() { return false; }, getMode() { return 'production'; } };
+
+const PROD_HOSTS = Array.isArray(window.__SPORTHUB_PROD_HOSTS__)
+  ? [...window.__SPORTHUB_PROD_HOSTS__]
+  : ['toosterx.com', 'www.toosterx.com', 'msw2004727.github.io', 'fc-3g8.pages.dev'];
 
 // ─── LINE Login Config ───
 const LINE_CONFIG = {
