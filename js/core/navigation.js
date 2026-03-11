@@ -298,7 +298,10 @@ Object.assign(App, {
 
   /** 根據頁面 ID 渲染對應內容 */
   _renderPageContent(pageId) {
-    if (pageId === 'page-home') { this.renderAll(); }
+    if (pageId === 'page-home') {
+      this.renderAll();
+      this.resetHomeHotEventsScroll?.();
+    }
     if (pageId === 'page-activities') {
       this.resetActivityTab?.({ render: false });
       this.renderActivityList();

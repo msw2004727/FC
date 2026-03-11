@@ -192,7 +192,8 @@
 // 20260311aa: 首頁活動卡片將報名狀態移到人數右側，額滿時整段人數改為紅字
 // 20260311ab: 切換頁面與返回上一頁時統一強制回到頁面頂端，避免延後 render 覆蓋 scroll reset
 // 20260311ac: 切入活動頁時強制回到「一般」頁籤，避免保留上次停留的「已結束」狀態
-const CACHE_VERSION = '20260311ac';
+// 20260311ad: 每次切回首頁時將近期活動橫向卡片列重置到最左側，避免停在上次滑動位置
+const CACHE_VERSION = '20260311ad';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {

@@ -7,6 +7,18 @@ Object.assign(App, {
 
   _activityActiveTab: 'normal',
 
+  resetHomeHotEventsScroll() {
+    const container = document.getElementById('hot-events');
+    if (!container) return;
+
+    const prevBehavior = container.style.scrollBehavior;
+    container.style.scrollBehavior = 'auto';
+    container.scrollLeft = 0;
+    requestAnimationFrame(() => {
+      container.style.scrollBehavior = prevBehavior;
+    });
+  },
+
   _setActivityTab(tab, options = {}) {
     const { render = true } = options;
     this._activityActiveTab = tab;
