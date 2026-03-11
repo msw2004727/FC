@@ -102,16 +102,17 @@
 .h-card.is-pending:hover { transform: none; }
 .h-card.is-pending .h-card-img,
 .h-card.is-pending .h-card-body { opacity: .78; }
-.h-card.is-pending::after {
+.h-card.is-pending .h-card-img::after {
   content: '載入中';
   position: absolute;
-  top: .5rem;
-  right: .5rem;
-  padding: .18rem .48rem;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  padding: .26rem .7rem;
   border-radius: 999px;
   background: rgba(15, 23, 42, .76);
   color: #fff;
-  font-size: .62rem;
+  font-size: .68rem;
   font-weight: 700;
   letter-spacing: .04em;
   box-shadow: 0 4px 12px rgba(15, 23, 42, .18);

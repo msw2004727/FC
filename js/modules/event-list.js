@@ -462,13 +462,25 @@ Object.assign(App, {
   _markHomeEventCardPending(cardEl) {
     if (!cardEl || !cardEl.classList) return;
     clearTimeout(cardEl._homeEventPendingTimer);
+    if (!cardEl.classList.contains('is-pending')) {
+      cardEl._homeEventPendingShownAt = Date.now();
+    }
     cardEl.classList.add('is-pending');
     cardEl.setAttribute('aria-busy', 'true');
+  },
+
+  _clearHomeEventCardPending(cardEl, minVisibleMs = 0) {
+    if (!cardEl || !cardEl.classList) return;
+    clearTimeout(cardEl._homeEventPendingTimer);
+    const shownAt = Number(cardEl._homeEventPendingShownAt || 0);
+    const elapsed = shownAt > 0 ? (Date.now() - shownAt) : minVisibleMs;
+    const waitMs = Math.max(0, minVisibleMs - elapsed);
     cardEl._homeEventPendingTimer = setTimeout(() => {
       cardEl.classList.remove('is-pending');
       cardEl.removeAttribute('aria-busy');
+      cardEl._homeEventPendingShownAt = 0;
       cardEl._homeEventPendingTimer = null;
-    }, 900);
+    }, waitMs);
   },
 
   async openHomeEventDetailFromCard(eventId, cardEl) {
@@ -478,20 +490,34 @@ Object.assign(App, {
 
     if (targetCard?.dataset?.homeEventOpening === '1') {
       this._markHomeEventCardPending(targetCard);
-      this._showHomeEventLoadingToast(true);
+      if (Date.now() - Number(targetCard?._homeEventOpenStartedAt || 0) >= 1000) {
+        this._showHomeEventLoadingToast(true);
+      }
       return { ok: false, reason: 'pending' };
     }
 
     const shouldHintLoading = this._shouldShowHomeEventLoadingHint();
-    if (targetCard?.dataset) targetCard.dataset.homeEventOpening = '1';
+    if (targetCard?.dataset) {
+      targetCard.dataset.homeEventOpening = '1';
+    }
+    if (targetCard) {
+      targetCard._homeEventOpenStartedAt = Date.now();
+    }
     if (shouldHintLoading) {
       this._markHomeEventCardPending(targetCard);
-      this._showHomeEventLoadingToast(false);
+      if (targetCard) {
+        clearTimeout(targetCard._homeEventLoadingToastTimer);
+        targetCard._homeEventLoadingToastTimer = setTimeout(() => {
+          if (targetCard?.dataset?.homeEventOpening === '1') {
+            this._showHomeEventLoadingToast(false);
+          }
+        }, 1000);
+      }
     }
 
     try {
       const result = await this.showEventDetail(safeEventId);
-      if (!result?.ok && result?.reason === 'missing' && !shouldHintLoading) {
+      if (!result?.ok && result?.reason === 'missing') {
         this.showToast('活動資料暫時無法開啟，請稍後再試');
       }
       return result;
@@ -500,10 +526,16 @@ Object.assign(App, {
       this.showToast('活動資料暫時無法開啟，請稍後再試');
       return { ok: false, reason: 'error' };
     } finally {
+      if (targetCard) {
+        clearTimeout(targetCard._homeEventLoadingToastTimer);
+        targetCard._homeEventLoadingToastTimer = null;
+      }
+      this._clearHomeEventCardPending(targetCard, shouldHintLoading ? 650 : 0);
       if (targetCard?.dataset) {
         clearTimeout(targetCard._homeEventOpenLockTimer);
         targetCard._homeEventOpenLockTimer = setTimeout(() => {
           delete targetCard.dataset.homeEventOpening;
+          targetCard._homeEventOpenStartedAt = 0;
           targetCard._homeEventOpenLockTimer = null;
         }, shouldHintLoading ? 900 : 320);
       }
