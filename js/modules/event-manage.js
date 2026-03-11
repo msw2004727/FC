@@ -688,6 +688,61 @@ Object.assign(App, {
     return { people, count: people.length };
   },
 
+  _buildNoShowCountByUid() {
+    const activityRecords = ApiService.getActivityRecords();
+    const attendanceRecords = ApiService.getAttendanceRecords();
+    const attendanceStateByKey = new Map();
+    const countByUid = new Map();
+    const seenActivityKeys = new Set();
+
+    (attendanceRecords || []).forEach(record => {
+      const uid = String(record?.uid || '').trim();
+      const eventId = String(record?.eventId || '').trim();
+      const type = String(record?.type || '').trim();
+      const status = String(record?.status || '').trim();
+      if (!uid || !eventId) return;
+      if (status === 'removed' || status === 'cancelled') return;
+      if (type !== 'checkin' && type !== 'checkout') return;
+
+      const key = `${uid}::${eventId}`;
+      const state = attendanceStateByKey.get(key) || { checkin: false, checkout: false };
+      if (type === 'checkin') state.checkin = true;
+      if (type === 'checkout') state.checkout = true;
+      attendanceStateByKey.set(key, state);
+    });
+
+    (activityRecords || []).forEach(record => {
+      const uid = String(record?.uid || '').trim();
+      const eventId = String(record?.eventId || '').trim();
+      const status = String(record?.status || '').trim();
+      if (!uid || !eventId) return;
+      if (status !== 'registered') return;
+
+      const key = `${uid}::${eventId}`;
+      if (seenActivityKeys.has(key)) return;
+      seenActivityKeys.add(key);
+
+      const event = ApiService.getEvent(eventId);
+      if (!event || event.status !== 'ended') return;
+
+      const attendance = attendanceStateByKey.get(key) || { checkin: false, checkout: false };
+      if (attendance.checkin && attendance.checkout) return;
+
+      countByUid.set(uid, (countByUid.get(uid) || 0) + 1);
+    });
+
+    return countByUid;
+  },
+
+  _getParticipantNoShowCount(person, noShowCountByUid) {
+    if (!person || person.isCompanion || !noShowCountByUid) return null;
+    const directUid = String(person.uid || '').trim();
+    const fallbackUid = String(this._findUserByName?.(person.name)?.uid || '').trim();
+    const resolvedUid = (directUid && directUid !== person.name) ? directUid : fallbackUid;
+    if (!resolvedUid) return null;
+    return noShowCountByUid.get(resolvedUid) || 0;
+  },
+
   _renderAttendanceTable(eventId, containerId) {
     const cId = containerId || 'attendance-table-container';
     const container = document.getElementById(cId);
@@ -701,6 +756,8 @@ Object.assign(App, {
     const records = ApiService.getAttendanceRecords(eventId);
     const summary = this._buildConfirmedParticipantSummary(eventId);
     const people = summary.people;
+    const showNoShowColumn = cId === 'detail-attendance-table';
+    const noShowCountByUid = showNoShowColumn ? this._buildNoShowCountByUid() : null;
 
     if (people.length === 0) {
       container.innerHTML = '<div style="font-size:.8rem;color:var(--text-muted);padding:.3rem 0">尚無報名</div>';
@@ -730,6 +787,10 @@ Object.assign(App, {
         : records.some(r => this._matchAttendanceRecord(r, p) && r.type === 'checkout');
       const noteRec = this._getLatestAttendanceRecord(records, p, 'note');
       const noteText = pendingState ? (pendingState.note || '') : (noteRec?.note || '');
+      const noShowCount = showNoShowColumn ? this._getParticipantNoShowCount(p, noShowCountByUid) : null;
+      const noShowCell = showNoShowColumn
+        ? `<td style="padding:.35rem .2rem;text-align:center;width:3rem"><span title="放鴿子次數（已結束且未完成簽到＋簽退）" style="font-size:.78rem;font-weight:${noShowCount > 0 ? '700' : '600'};color:${noShowCount > 0 ? 'var(--danger)' : 'var(--text-muted)'}">${noShowCount == null ? '—' : noShowCount}</span></td>`
+        : '';
       const autoNote = p.proxyOnly ? '僅代報' : '';
       const combinedNote = [autoNote, noteText].filter(Boolean).join('・');
 
@@ -750,6 +811,7 @@ Object.assign(App, {
         return `<tr style="border-bottom:1px solid var(--border)">
           ${kickTd}
           <td style="padding:.35rem .3rem;text-align:left">${nameHtml}</td>
+          ${noShowCell}
           <td style="padding:.35rem .2rem;text-align:center"><input type="checkbox" id="manual-checkin-${safeUid}" ${hasCheckin ? 'checked' : ''} ${disabledAttr} style="${cbStyle}"></td>
           <td style="padding:.35rem .2rem;text-align:center"><input type="checkbox" id="manual-checkout-${safeUid}" ${hasCheckout ? 'checked' : ''} ${disabledAttr} style="${cbStyle}"></td>
           <td style="padding:.35rem .3rem"><input type="text" maxlength="20" value="${escapeHTML(noteText)}" id="manual-note-${safeUid}" placeholder="備註" ${disabledAttr} style="${noteInputStyle}"></td>
@@ -757,6 +819,7 @@ Object.assign(App, {
       }
       return `<tr style="border-bottom:1px solid var(--border)">
         <td style="padding:.35rem .3rem;text-align:left">${nameHtml}</td>
+        ${noShowCell}
         <td style="padding:.35rem .2rem;text-align:center">${hasCheckin ? '<span style="color:var(--success);font-size:1rem">✓</span>' : ''}</td>
         <td style="padding:.35rem .2rem;text-align:center">${hasCheckout ? '<span style="color:var(--success);font-size:1rem">✓</span>' : ''}</td>
         <td style="padding:.35rem .3rem;font-size:.72rem;color:var(--text-muted)">${escapeHTML(combinedNote)}</td>
@@ -774,16 +837,21 @@ Object.assign(App, {
     const nameThContent = topBtn
       ? `<div style="display:flex;align-items:center;gap:.4rem;white-space:nowrap">${regCountText}${topBtn}</div>`
       : regCountText;
+    const noShowTh = showNoShowColumn
+      ? `<th style="text-align:center;padding:.4rem .2rem;font-weight:600;width:3rem" title="放鴿子次數（已結束且未完成簽到＋簽退）">🕊</th>`
+      : '';
     const thead = tableEditing
       ? `<tr style="border-bottom:2px solid var(--border)">
           <th style="text-align:center;padding:.4rem .2rem;font-weight:600;width:3rem">踢掉</th>
           <th style="text-align:left;padding:.4rem .3rem;font-weight:600">${nameThContent}</th>
+          ${noShowTh}
           <th style="text-align:center;padding:.4rem .2rem;font-weight:600;width:2.5rem">簽到</th>
           <th style="text-align:center;padding:.4rem .2rem;font-weight:600;width:2.5rem">簽退</th>
           <th style="text-align:left;padding:.4rem .3rem;font-weight:600">備註</th>
         </tr>`
       : `<tr style="border-bottom:2px solid var(--border)">
           <th style="text-align:left;padding:.4rem .3rem;font-weight:600">${nameThContent}</th>
+          ${noShowTh}
           <th style="text-align:center;padding:.4rem .2rem;font-weight:600;width:2.5rem">簽到</th>
           <th style="text-align:center;padding:.4rem .2rem;font-weight:600;width:2.5rem">簽退</th>
           <th style="text-align:left;padding:.4rem .3rem;font-weight:600">備註</th>
