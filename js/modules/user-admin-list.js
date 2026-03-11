@@ -299,8 +299,10 @@ Object.assign(App, {
 
   // ── 歷史入隊審批修復（一次性資料修補）──
   async repairApprovedTeamJoins() {
-    const curUser = ApiService.getCurrentUser();
-    if (curUser?.role !== 'super_admin') { this.showToast('權限不足'); return; }
+    if (!this.hasPermission?.('admin.repair.team_join_repair')) {
+      this.showToast('權限不足');
+      return;
+    }
 
     const btn = document.getElementById('repair-team-joins-btn');
     const log = document.getElementById('repair-team-joins-log');
@@ -419,7 +421,7 @@ Object.assign(App, {
 
       const summary = `完成！修復 ${fixed} 人，跳過 ${skipped} 人，失敗 ${errors} 人`;
       addLog(`\n${summary}`);
-      ApiService._writeOpLog('team_approve', '歷史入隊修復', summary);
+      ApiService._writeOpLog('team_join_repair', '歷史入隊補正', summary);
       this.showToast(summary);
     } catch (err) {
       const msg = '查詢失敗：' + (err.message || err);

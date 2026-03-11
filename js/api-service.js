@@ -693,6 +693,79 @@ const ApiService = {
 
   getAdminUsers() { return this._src('adminUsers'); },
 
+  getUserCorrections() { return this._src('userCorrections'); },
+
+  getUserCorrection(uid) {
+    const safeUid = String(uid || '').trim();
+    if (!safeUid) return null;
+    return this._src('userCorrections').find(item => String(item?.uid || item?._docId || '').trim() === safeUid) || null;
+  },
+
+  async saveUserNoShowCorrection(uid, noShow) {
+    const safeUid = String(uid || '').trim();
+    if (!safeUid) throw new Error('USER_CORRECTION_UID_REQUIRED');
+
+    const source = this._src('userCorrections');
+    const nextDoc = {
+      uid: safeUid,
+      noShow: { ...(noShow || {}) },
+      _docId: safeUid,
+    };
+    const idx = source.findIndex(item => String(item?.uid || item?._docId || '').trim() === safeUid);
+    const prevDoc = idx >= 0 ? { ...source[idx], noShow: source[idx]?.noShow ? { ...source[idx].noShow } : null } : null;
+
+    if (idx >= 0) source[idx] = nextDoc;
+    else source.push(nextDoc);
+    if (!this._demoMode && typeof FirebaseService !== 'undefined' && typeof FirebaseService._saveToLS === 'function') {
+      FirebaseService._saveToLS('userCorrections', source);
+    }
+
+    if (!this._demoMode) {
+      try {
+        await FirebaseService.saveUserCorrection(safeUid, nextDoc);
+      } catch (err) {
+        if (idx >= 0 && prevDoc) source[idx] = prevDoc;
+        else if (idx < 0) source.pop();
+        if (typeof FirebaseService !== 'undefined' && typeof FirebaseService._saveToLS === 'function') {
+          FirebaseService._saveToLS('userCorrections', source);
+        }
+        console.error('[saveUserNoShowCorrection]', err);
+        throw err;
+      }
+    }
+
+    return nextDoc;
+  },
+
+  async clearUserNoShowCorrection(uid) {
+    const safeUid = String(uid || '').trim();
+    if (!safeUid) throw new Error('USER_CORRECTION_UID_REQUIRED');
+
+    const source = this._src('userCorrections');
+    const idx = source.findIndex(item => String(item?.uid || item?._docId || '').trim() === safeUid);
+    if (idx < 0) return false;
+    const prevDoc = { ...source[idx], noShow: source[idx]?.noShow ? { ...source[idx].noShow } : null };
+    source.splice(idx, 1);
+    if (!this._demoMode && typeof FirebaseService !== 'undefined' && typeof FirebaseService._saveToLS === 'function') {
+      FirebaseService._saveToLS('userCorrections', source);
+    }
+
+    if (!this._demoMode) {
+      try {
+        await FirebaseService.deleteUserCorrection(safeUid);
+      } catch (err) {
+        source.splice(Math.max(0, idx), 0, prevDoc);
+        if (typeof FirebaseService !== 'undefined' && typeof FirebaseService._saveToLS === 'function') {
+          FirebaseService._saveToLS('userCorrections', source);
+        }
+        console.error('[clearUserNoShowCorrection]', err);
+        throw err;
+      }
+    }
+
+    return true;
+  },
+
   getUserRole(name) {
     if (this._demoMode) {
       if (DEMO_USERS[name]) return DEMO_USERS[name];

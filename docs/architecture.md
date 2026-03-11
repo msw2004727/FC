@@ -39,7 +39,7 @@ flowchart TD
             TOUR["tournament-*.js\n錦標賽"]
             PROF["profile-*.js\n個人資料"]
             MSG["message-*.js\n訊息"]
-            ADM["user-admin-*.js\n用戶後台"]
+            ADM["user-admin-*.js\n用戶後台 / 補正管理"]
             AD["ad-manage-*.js\n廣告管理"]
             UTIL["scan / shop / leaderboard\nachievement / announcement\nfavorites / auto-exp / banner\nrole / site-theme / game-manage / image-upload\npopup-ad / personal-dashboard\nattendance-notify / dashboard\ndashboard-participant-query\ndashboard-participant-share"]
         end
@@ -112,7 +112,7 @@ flowchart TD
 | `modules/tournament-render.js` | 公開賽事頁與詳情頁 renderer；本階段補上前台建立按鈕刷新、主辦顯示格式與可編輯賽事的詳情入口 |
 | `modules/profile-*.js` | 個人資料功能群（核心 UI、資料編輯、名片彈窗） |
 | `modules/message-*.js` | 訊息功能群（收件匣、管理員站內信廣播） |
-| `modules/user-admin-*.js` | 用戶後台管理群（列表、EXP 管理、角色權限） |
+| `modules/user-admin-*.js` | 用戶後台管理群（列表、EXP 管理、角色權限、用戶補正管理；含 `user-admin-corrections.js`） |
 | `modules/ad-manage-*.js` | 廣告管理群（Banner 輪播、浮動廣告、贊助彈窗） |
 | `modules/scan.js` | QR Code 掃描簽到 / 簽退，讀取帳號持有人 UID 後顯示報名清單 |
 | `modules/attendance-notify.js` | 被掃方即時通知（Production: Firestore onSnapshot / Demo: 直接觸發） |

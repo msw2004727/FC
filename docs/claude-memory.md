@@ -1,3 +1,9 @@
+### 2026-03-12 — 用戶補正管理與放鴿子補正上線
+- **問題**：原本只有單一的「歷史入隊補正」入口，缺少可管理放鴿子次數的後台工具；同時活動詳細頁的放鴿子統計規則仍是「未完成簽到加簽退」而不是新需求的「未簽到」。
+- **原因**：放鴿子統計邏輯散落在活動管理模組，沒有補正資料層；既有補正頁也沒有頁籤、用戶搜尋、補正公式與權限細分，Firestore 規則也無法承接新集合與新權限碼。
+- **修復**：更新 `pages/admin-system.html`、新增 `js/modules/user-admin-corrections.js`，將入口改為「用戶補正管理」並拆成「歷史入隊補正」與「放鴿子修改」雙頁籤；更新 `js/modules/event-manage.js`，將放鴿子定義改為只看是否完成簽到，並套用 `userCorrections` 補正差額後再顯示；更新 `js/api-service.js`、`js/firebase-service.js`、`js/firebase-crud.js`、`js/core/navigation.js`、`js/core/script-loader.js`、`js/modules/role.js`、`js/modules/user-admin-list.js`、`js/config.js`、`js/i18n.js` 與 `firestore.rules`，加入用戶補正集合、子權限、頁面渲染與 Firestore 權限；同步更新 `docs/architecture.md`，並將快取版本升到 `20260312a`。
+- **教訓**：涉及公開統計又要允許人工赦免時，不能直接回寫歷史出席資料；應把原始統計與補正差額拆開，並讓前台顯示、後台工具與 Firestore 規則共用同一套權限定義。
+
 ### 2026-03-11 — 活動費用欄位預設改為 0
 - **問題**：活動費用開關在沒有有效金額時，一打開就會自動帶入 `300`，不符合要以 `0` 當預設值的需求。
 - **原因**：活動建立、編輯與表單重置流程中的費用欄位 fallback 都硬編碼為 `300`，包含 HTML 初始值、開關打開時的補值，以及編輯既有活動時的回填預設。

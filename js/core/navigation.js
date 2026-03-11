@@ -479,6 +479,7 @@ Object.assign(App, {
     if (pageId === 'page-admin-achievements') this.renderAdminAchievements();
     if (pageId === 'page-admin-roles') this.renderRoleHierarchy();
     if (pageId === 'page-admin-inactive') this.renderInactiveData();
+    if (pageId === 'page-admin-repair') this.renderUserCorrectionManager?.();
     if (pageId === 'page-admin-exp') { this.renderExpLogs(); }
     if (pageId === 'page-admin-announcements') this.renderAnnouncementManage();
     if (pageId === 'page-admin-games') this.renderGameManage();

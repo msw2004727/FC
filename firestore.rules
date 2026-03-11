@@ -79,6 +79,14 @@ service cloud.firestore {
         && perm in get(rpPath).data.permissions;
     }
 
+    function canRunTeamJoinRepair() {
+      return hasPerm('admin.repair.team_join_repair');
+    }
+
+    function canManageNoShowCorrections() {
+      return hasPerm('admin.repair.no_show_adjust');
+    }
+
     function isCoachPlus() {
       return request.auth != null
         && authRole() in ['coach', 'captain', 'venue_owner', 'admin', 'super_admin'];
@@ -538,6 +546,7 @@ service cloud.firestore {
         || (isOwner(userId) && isSafeLoginUpdate())
         || (isOwner(userId) && isTeamFieldShrinkOrClear())
         || (isAdmin() && isSafeAdminUserUpdate())
+        || (canRunTeamJoinRepair() && isSafeTeamMembershipUpdateByStaff())
         || (isCoachPlus() && !isOwner(userId) && isSafeTeamMembershipUpdateByStaff());
       allow delete: if false;
     }
@@ -672,7 +681,14 @@ service cloud.firestore {
     //  登入可讀寫
     // ═══════════════════════════════════════════
     match /messages/{msgId} {
+      function isTeamJoinRepairMessage() {
+        return ('actionType' in resource.data)
+          && resource.data.actionType is string
+          && resource.data.actionType == 'team_join_request';
+      }
+
       allow read: if isAdmin()
+        || (canRunTeamJoinRepair() && isTeamJoinRepairMessage())
         || isMessageSenderResource()
         || isMessageRecipientResource();
       allow create: if isAuth()
@@ -839,6 +855,10 @@ service cloud.firestore {
       allow create: if isAuth();
       allow update: if false;
       allow delete: if isSuperAdmin();
+    }
+    match /userCorrections/{uid} {
+      allow read: if isAuth();
+      allow create, update, delete: if canManageNoShowCorrections();
     }
     match /auditLogsByDay/{dayKey}/auditEntries/{logId} {
       allow read: if isSuperAdmin();

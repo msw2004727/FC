@@ -340,15 +340,53 @@
     <section class="page" id="page-admin-repair" data-min-role="super_admin">
       <div class="page-header">
         <button class="back-btn" onclick="App.goBack()">←</button>
-        <h2>歷史入隊補正</h2>
+        <h2>用戶補正管理</h2>
       </div>
-      <div class="form-card">
-        <div style="font-weight:600;font-size:.9rem;margin-bottom:.3rem">歷史入隊審批修復</div>
-        <div style="font-size:.78rem;color:var(--text-muted);margin-bottom:.8rem;line-height:1.6">
-          掃描所有已批准（approved）的入隊申請，將其中 <code>teamId</code> 尚未寫入的用戶補寫至球隊。<br>
-          此操作為冪等（重複執行安全），已正確的用戶會自動跳過。
+      <div class="tab-bar" id="admin-repair-tabs">
+        <button class="tab active" data-repair-tab="team-joins" onclick="App.switchUserCorrectionTab('team-joins')">歷史入隊補正</button>
+        <button class="tab" data-repair-tab="no-show" onclick="App.switchUserCorrectionTab('no-show')">放鴿子修改</button>
+      </div>
+      <div class="form-card" id="admin-repair-empty" style="display:none"></div>
+      <div id="repair-pane-team-joins">
+        <div class="form-card">
+          <div style="font-weight:600;font-size:.9rem;margin-bottom:.3rem">歷史入隊審批修復</div>
+          <div style="font-size:.78rem;color:var(--text-muted);margin-bottom:.8rem;line-height:1.6">
+            掃描所有已批准（approved）的入隊申請，將其中 <code>teamId</code> 尚未寫入的用戶補寫至球隊。<br>
+            此操作為冪等（重複執行安全），已正確的用戶會自動跳過。
+          </div>
+          <button id="repair-team-joins-btn" class="primary-btn full-width" onclick="App.repairApprovedTeamJoins()">執行修復</button>
+          <div id="repair-team-joins-log" style="display:none;margin-top:.6rem;font-size:.75rem;color:var(--text-secondary);line-height:1.7;background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-sm);padding:.5rem .6rem;max-height:320px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;font-family:monospace"></div>
         </div>
-        <button id="repair-team-joins-btn" class="primary-btn full-width" onclick="App.repairApprovedTeamJoins()">執行修復</button>
-        <div id="repair-team-joins-log" style="display:none;margin-top:.6rem;font-size:.75rem;color:var(--text-secondary);line-height:1.7;background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-sm);padding:.5rem .6rem;max-height:320px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;font-family:monospace"></div>
+      </div>
+      <div id="repair-pane-no-show" style="display:none">
+        <div class="form-card" style="margin-bottom:.8rem">
+          <div style="font-weight:600;font-size:.9rem;margin-bottom:.3rem">放鴿子補正</div>
+          <div style="font-size:.78rem;color:var(--text-muted);line-height:1.7">
+            統計規則為「活動已結束、正式報名且未完成簽到」。<br>
+            管理員輸入的是最終要公開顯示的次數，系統會自動換算成補正差額。
+          </div>
+        </div>
+        <div class="form-card" style="margin-bottom:.8rem;position:relative">
+          <div style="font-weight:600;font-size:.9rem;margin-bottom:.45rem">搜尋用戶</div>
+          <input type="text" id="user-correction-search" placeholder="搜尋暱稱、UID 或 LINE ID..." oninput="App.searchUserNoShowTarget()" autocomplete="off">
+          <div class="ce-delegate-dropdown" id="user-correction-dropdown"></div>
+          <div id="user-correction-search-result" style="margin-top:.5rem;font-size:.78rem;color:var(--text-muted)"></div>
+        </div>
+        <div class="form-card" style="margin-bottom:.8rem">
+          <div style="font-weight:600;font-size:.9rem;margin-bottom:.45rem">用戶摘要</div>
+          <div id="user-correction-summary"></div>
+        </div>
+        <div class="form-card">
+          <div style="font-weight:600;font-size:.9rem;margin-bottom:.45rem">補正設定</div>
+          <label style="display:flex;flex-direction:column;gap:.3rem;font-size:.82rem;margin-bottom:.6rem">
+            <span>目標顯示次數</span>
+            <input type="number" id="user-correction-target" min="0" step="1" value="0" oninput="App.previewUserNoShowCorrection()">
+          </label>
+          <div id="user-correction-formula" style="font-size:.78rem;color:var(--text-muted);line-height:1.6;margin-bottom:.8rem">公式預覽：原始次數 ± 補正差額 = 顯示次數</div>
+          <div style="display:flex;gap:.6rem;flex-wrap:wrap">
+            <button class="primary-btn" onclick="App.submitUserNoShowCorrection()">確認補正</button>
+            <button class="outline-btn" onclick="App.clearUserNoShowCorrection()">清除補正</button>
+          </div>
+        </div>
       </div>
     </section>

@@ -29,6 +29,11 @@ Object.assign(App, {
     return ApiService.getRolePermissions(roleKey) || [];
   },
 
+  hasPermission(code, role) {
+    if (!code) return false;
+    return this._getRolePermissionList(role).includes(code);
+  },
+
   _usesAdminDrawerPermissionMode(role) {
     const knownCodes = getAdminDrawerPermissionCodes();
     if (!knownCodes.length) return false;
@@ -39,7 +44,7 @@ Object.assign(App, {
     if (!item || item.divider || item.sectionLabel) return true;
     const roleKey = this._getEffectiveRoleKey(role);
     if (item.permissionCode) {
-      return this._getRolePermissionList(roleKey).includes(item.permissionCode);
+      return this.hasPermission(item.permissionCode, roleKey);
     }
     const roleLevel = this._getEffectiveRoleLevel(roleKey);
     const minLevel = ROLE_LEVEL_MAP[item.minRole || 'user'] || 0;

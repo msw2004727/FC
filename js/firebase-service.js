@@ -51,6 +51,7 @@ const FirebaseService = {
     gameConfigs: [],
     adminMessages: [],
     notifTemplates: [],
+    userCorrections: [],
     rolePermissions: {},
     rolePermissionMeta: {},
     customRoles: [],
@@ -221,6 +222,7 @@ const FirebaseService = {
     'trades', 'attendanceRecords', 'activityRecords',
     'expLogs', 'teamExpLogs', 'operationLogs',
     'adminMessages', 'notifTemplates', 'eventTemplates', 'permissions', 'customRoles',
+    'userCorrections',
     'errorLogs',
     'registrations', 'messages',
   ],
@@ -238,7 +240,7 @@ const FirebaseService = {
     'page-shop':              ['shopItems', 'trades'],
     'page-shop-detail':       ['shopItems', 'trades'],
     'page-activities':        ['events', 'attendanceRecords', 'activityRecords', 'registrations'],
-    'page-activity-detail':   ['events', 'registrations', 'attendanceRecords', 'activityRecords'],
+    'page-activity-detail':   ['events', 'registrations', 'attendanceRecords', 'activityRecords', 'userCorrections'],
     'page-my-activities':     ['events', 'attendanceRecords', 'registrations'],
     'page-scan':              ['attendanceRecords'],
     'page-admin-dashboard':   ['expLogs', 'teamExpLogs', 'operationLogs', 'attendanceRecords', 'activityRecords'],
@@ -252,6 +254,7 @@ const FirebaseService = {
     'page-admin-logs':        ['operationLogs', 'errorLogs'],
     'page-admin-error-logs':  ['errorLogs'],
     'page-admin-inactive':    ['attendanceRecords', 'activityRecords', 'operationLogs'],
+    'page-admin-repair':      ['events', 'attendanceRecords', 'activityRecords', 'userCorrections'],
     'page-admin-teams':       ['teams', 'tournaments', 'standings', 'matches'],
     'page-personal-dashboard': ['attendanceRecords', 'activityRecords'],
     'page-profile':            ['attendanceRecords', 'activityRecords'],
@@ -523,6 +526,8 @@ const FirebaseService = {
       } else if (App.currentPage === 'page-admin-roles') {
         App.renderRoleHierarchy?.();
         if (App._permSelectedRole) App.renderPermissions?.(App._permSelectedRole);
+      } else if (App.currentPage === 'page-admin-repair') {
+        App.renderUserCorrectionManager?.();
       }
       if (App.currentPage && typeof App._canAccessPage === 'function' && !App._canAccessPage(App.currentPage)) {
         void App.showPage('page-home', { bypassRestrictionGuard: true, resetHistory: true });

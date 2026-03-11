@@ -66,6 +66,21 @@ Object.assign(FirebaseService, {
     await db.collection('rolePermissions').doc(roleKey).delete();
   },
 
+  async saveUserCorrection(uid, data) {
+    const safeUid = String(uid || '').trim();
+    if (!safeUid) throw new Error('USER_CORRECTION_UID_REQUIRED');
+    await db.collection('userCorrections').doc(safeUid).set({
+      uid: safeUid,
+      ..._stripDocId(data),
+    }, { merge: true });
+  },
+
+  async deleteUserCorrection(uid) {
+    const safeUid = String(uid || '').trim();
+    if (!safeUid) throw new Error('USER_CORRECTION_UID_REQUIRED');
+    await db.collection('userCorrections').doc(safeUid).delete();
+  },
+
   // ════════════════════════════════
   //  Custom Roles CRUD
   // ════════════════════════════════

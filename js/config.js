@@ -198,7 +198,8 @@
 // 20260311ag: 縮小 cloud init boot 集合並延後活動頁即時監聽，減輕多頁籤活動頁切入壓力
 // 20260311ah: 活動頁允許在 cloud 未完成時先顯示快取畫面，再背景補雲端初始化與刷新
 // 20260311am: 活動費用欄位預設改為 0，沒有有效金額時開啟開關顯示 0
-const CACHE_VERSION = '20260311am';
+// 20260312a: 新增用戶補正管理頁，支援放鴿子補正與歷史入隊補正子權限，放鴿子統計改為只看未簽到
+const CACHE_VERSION = '20260312a';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {
@@ -575,15 +576,19 @@ const DRAWER_MENUS = [
   { icon: '', label: '權限管理', i18nKey: 'admin.roles', page: 'page-admin-roles', minRole: 'super_admin', permissionCode: 'admin.roles.entry' },
   { icon: '', label: '無效資料查詢', i18nKey: 'admin.inactive', page: 'page-admin-inactive', minRole: 'super_admin', permissionCode: 'admin.inactive.entry' },
   { icon: '', label: '日誌中心', i18nKey: 'admin.logs', page: 'page-admin-logs', minRole: 'super_admin', permissionCode: 'admin.logs.entry' },
-  { icon: '', label: '歷史入隊補正', i18nKey: 'admin.repair', page: 'page-admin-repair', minRole: 'super_admin', permissionCode: 'admin.repair.entry' },
+  { icon: '', label: '用戶補正管理', i18nKey: 'admin.repair', page: 'page-admin-repair', minRole: 'super_admin', permissionCode: 'admin.repair.entry' },
 ];
 
-const ROLE_PERMISSION_CATALOG_VERSION = '20260310x';
+const ROLE_PERMISSION_CATALOG_VERSION = '20260312a';
 
 const ADMIN_PAGE_EXTRA_PERMISSION_ITEMS = {
   'page-admin-teams': [
     { code: 'team.create', name: '建立球隊' },
     { code: 'team.manage_all', name: '管理所有球隊' },
+  ],
+  'page-admin-repair': [
+    { code: 'admin.repair.team_join_repair', name: '歷史入隊補正' },
+    { code: 'admin.repair.no_show_adjust', name: '放鴿子修改' },
   ],
 };
 

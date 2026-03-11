@@ -688,7 +688,7 @@ Object.assign(App, {
     return { people, count: people.length };
   },
 
-  _buildNoShowCountByUid() {
+  _buildRawNoShowCountByUid() {
     const activityRecords = ApiService.getActivityRecords();
     const attendanceRecords = ApiService.getAttendanceRecords();
     const attendanceStateByKey = new Map();
@@ -702,12 +702,11 @@ Object.assign(App, {
       const status = String(record?.status || '').trim();
       if (!uid || !eventId) return;
       if (status === 'removed' || status === 'cancelled') return;
-      if (type !== 'checkin' && type !== 'checkout') return;
+      if (type !== 'checkin') return;
 
       const key = `${uid}::${eventId}`;
-      const state = attendanceStateByKey.get(key) || { checkin: false, checkout: false };
+      const state = attendanceStateByKey.get(key) || { checkin: false };
       if (type === 'checkin') state.checkin = true;
-      if (type === 'checkout') state.checkout = true;
       attendanceStateByKey.set(key, state);
     });
 
@@ -725,13 +724,55 @@ Object.assign(App, {
       const event = ApiService.getEvent(eventId);
       if (!event || event.status !== 'ended') return;
 
-      const attendance = attendanceStateByKey.get(key) || { checkin: false, checkout: false };
-      if (attendance.checkin && attendance.checkout) return;
+      const attendance = attendanceStateByKey.get(key) || { checkin: false };
+      if (attendance.checkin) return;
 
       countByUid.set(uid, (countByUid.get(uid) || 0) + 1);
     });
 
     return countByUid;
+  },
+
+  _getUserNoShowCorrection(uid) {
+    const safeUid = String(uid || '').trim();
+    if (!safeUid || typeof ApiService?.getUserCorrection !== 'function') return null;
+    return ApiService.getUserCorrection(safeUid);
+  },
+
+  _getUserNoShowAdjustment(uid) {
+    const adjustment = Number(this._getUserNoShowCorrection(uid)?.noShow?.adjustment || 0);
+    return Number.isFinite(adjustment) ? Math.trunc(adjustment) : 0;
+  },
+
+  _buildNoShowCountByUid() {
+    const rawCountByUid = this._buildRawNoShowCountByUid();
+    const effectiveCountByUid = new Map(rawCountByUid);
+    const corrections = typeof ApiService?.getUserCorrections === 'function'
+      ? ApiService.getUserCorrections()
+      : [];
+
+    (corrections || []).forEach(doc => {
+      const uid = String(doc?.uid || doc?._docId || '').trim();
+      if (!uid) return;
+      const adjustment = Number(doc?.noShow?.adjustment || 0);
+      if (!Number.isFinite(adjustment) || adjustment === 0) return;
+      const next = Math.max(0, (effectiveCountByUid.get(uid) || 0) + Math.trunc(adjustment));
+      effectiveCountByUid.set(uid, next);
+    });
+
+    return effectiveCountByUid;
+  },
+
+  _getRawNoShowCount(uid) {
+    const safeUid = String(uid || '').trim();
+    if (!safeUid) return 0;
+    return this._buildRawNoShowCountByUid().get(safeUid) || 0;
+  },
+
+  _getEffectiveNoShowCount(uid) {
+    const safeUid = String(uid || '').trim();
+    if (!safeUid) return 0;
+    return this._buildNoShowCountByUid().get(safeUid) || 0;
   },
 
   _getParticipantNoShowCount(person, noShowCountByUid) {
@@ -789,7 +830,7 @@ Object.assign(App, {
       const noteText = pendingState ? (pendingState.note || '') : (noteRec?.note || '');
       const noShowCount = showNoShowColumn ? this._getParticipantNoShowCount(p, noShowCountByUid) : null;
       const noShowCell = showNoShowColumn
-        ? `<td style="padding:.35rem .2rem;text-align:center;width:3rem"><span title="放鴿子次數（已結束且未完成簽到＋簽退）" style="font-size:.78rem;font-weight:${noShowCount > 0 ? '700' : '600'};color:${noShowCount > 0 ? 'var(--danger)' : 'var(--text-muted)'}">${noShowCount == null ? '—' : (noShowCount > 0 ? noShowCount : '')}</span></td>`
+        ? `<td style="padding:.35rem .2rem;text-align:center;width:3rem"><span title="放鴿子次數（已結束、正式報名且未完成簽到）" style="font-size:.78rem;font-weight:${noShowCount > 0 ? '700' : '600'};color:${noShowCount > 0 ? 'var(--danger)' : 'var(--text-muted)'}">${noShowCount == null ? '—' : (noShowCount > 0 ? noShowCount : '')}</span></td>`
         : '';
       const autoNote = p.proxyOnly ? '僅代報' : '';
       const combinedNote = [autoNote, noteText].filter(Boolean).join('・');
@@ -838,7 +879,7 @@ Object.assign(App, {
       ? `<div style="display:flex;align-items:center;gap:.4rem;white-space:nowrap">${regCountText}${topBtn}</div>`
       : regCountText;
     const noShowTh = showNoShowColumn
-      ? `<th style="text-align:center;padding:.4rem .2rem;font-weight:600;width:3rem" title="放鴿子次數（已結束且未完成簽到＋簽退）">🕊</th>`
+      ? `<th style="text-align:center;padding:.4rem .2rem;font-weight:600;width:3rem" title="放鴿子次數（已結束、正式報名且未完成簽到）">🕊</th>`
       : '';
     const thead = tableEditing
       ? `<tr style="border-bottom:2px solid var(--border)">
