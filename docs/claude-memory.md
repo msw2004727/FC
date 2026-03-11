@@ -5,6 +5,12 @@
 > 新紀錄一律寫在檔案前方，採新到舊排序；若需補記舊項目，應插入對應日期區段，不得追加到檔尾。
 
 ---
+### 2026-03-11 — 活動頁改為 cloud 未完成也可先顯示快取
+- **問題**：即使前兩階段已減輕 Firebase 初始化負載，iPhone 多頁籤進入活動頁時仍可能先卡在 `guard cloud` 或 `page` timeout，導致活動頁打不開。
+- **原因**：`page-activities` 仍把 `ensureCloudReady()` 放在進頁前的阻擋鏈上，只要雲端初始化還沒完成，就算本地已有活動頁快取畫面也不能先顯示。
+- **修復**：在 `js/core/navigation.js` 新增活動頁 soft-entry 條件，只要活動頁 DOM 已在且有快取活動資料或已建立快照，就允許直接先進入活動頁；背景再等待 `ensureCloudReady()`、補跑 `ensureCollectionsForPage()`，完成後重新 render 當前活動頁。
+- **教訓**：列表頁的 guarded route 不應一律採 full fresh-first；當本地已有可用快取時，應優先讓使用者先看到畫面，再把雲端初始化留在背景完成。
+
 ### 2026-03-11 — 縮小 cloud init 負載並延後活動頁即時監聽
 - **問題**：iPhone 多頁籤連續開啟活動頁時，新的頁籤容易在活動頁切入前卡在 cloud init timeout，雖然不再無限 loading，但仍常因 Firebase 初始化過重而失敗。
 - **原因**：`FirebaseService.init()` 會在進頁前同步抓過多 boot collections，且活動頁的 `registrations` / `attendanceRecords` page-scoped 即時監聽在頁面顯示前就啟動，讓多頁籤冷啟動壓力偏高。

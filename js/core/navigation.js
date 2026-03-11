@@ -68,13 +68,29 @@ Object.assign(App, {
     }, 120);
   },
 
+  _hasActivityCacheForSoftEntry() {
+    if (typeof ApiService === 'undefined' || typeof ApiService.getEvents !== 'function') return false;
+    try {
+      return (ApiService.getEvents() || []).length > 0;
+    } catch (_) {
+      return false;
+    }
+  },
+
+  _canUseActivitySoftEntry(options = {}) {
+    const { authPending = false } = options;
+    if (ModeManager.isDemo() || authPending) return false;
+    if (!document.getElementById('page-activities')) return false;
+    return this._hasPageSnapshotReady?.('page-activities') || this._hasActivityCacheForSoftEntry();
+  },
+
   _canUseStaleFirstNavigation(pageId, options = {}) {
     const { authPending = false } = options;
+    if (pageId === 'page-activities') {
+      return this._canUseActivitySoftEntry({ authPending });
+    }
     if (!this._hasPageSnapshotReady?.(pageId)) return false;
     if (pageId === 'page-home') return true;
-    if (pageId === 'page-activities') {
-      return !authPending && !!this._cloudReady;
-    }
     return false;
   },
 
@@ -114,12 +130,23 @@ Object.assign(App, {
 
   async _refreshStaleFirstPage(pageId, transitionSeq) {
     try {
+      if (pageId === 'page-activities'
+        && !this._cloudReady
+        && typeof this.ensureCloudReady === 'function') {
+        try {
+          await this.ensureCloudReady({ reason: `stale:${pageId}` });
+        } catch (err) {
+          if (transitionSeq !== this._pageTransitionSeq || this.currentPage !== pageId) return;
+          console.warn(`[Navigation] stale-first cloud refresh failed for ${pageId}:`, err);
+          return;
+        }
+      }
       if (typeof FirebaseService === 'undefined' || typeof FirebaseService.ensureCollectionsForPage !== 'function') return;
       const loaded = await FirebaseService.ensureCollectionsForPage(pageId, {
         skipRealtimeStart: pageId === 'page-activities',
       });
       if (transitionSeq !== this._pageTransitionSeq || this.currentPage !== pageId) return;
-      if ((loaded || []).length > 0) {
+      if ((loaded || []).length > 0 || pageId === 'page-activities') {
         this._renderPageContent(pageId);
       }
     } catch (err) {
