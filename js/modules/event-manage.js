@@ -89,6 +89,23 @@ Object.assign(App, {
     });
   },
 
+  async _ensureActivityRecordsReady({ required = false } = {}) {
+    if (ModeManager.isDemo()) return true;
+    if (typeof FirebaseService === 'undefined' || typeof FirebaseService.ensureStaticCollectionsLoaded !== 'function') {
+      return true;
+    }
+    try {
+      const ready = await FirebaseService.ensureStaticCollectionsLoaded(['activityRecords']);
+      const ok = ready.includes('activityRecords');
+      if (!ok && required) this.showToast('活動紀錄載入失敗，請稍後再試');
+      return ok;
+    } catch (err) {
+      console.warn('[event-manage] ensure activityRecords failed:', err);
+      if (required) this.showToast('活動紀錄載入失敗，請稍後再試');
+      return false;
+    }
+  },
+
   _collectEventNotifyRecipientUids(event, eventId) {
     const notifyUids = new Set();
     if (!eventId) return notifyUids;
@@ -527,6 +544,7 @@ Object.assign(App, {
     const allRegs = ApiService.getRegistrationsByEvent(eventId);
     const userWaitlisted = allRegs.filter(r => r.userId === userId && r.status === 'waitlisted');
     if (userWaitlisted.length === 0) { this.showToast('找不到候補紀錄'); return; }
+    if (!await this._ensureActivityRecordsReady({ required: true })) return;
 
     // 在 _promoteSingleCandidate 修改本地快取前，先蒐集 activityRecord 的 _docId
     // （_promoteSingleCandidate 會把 ar.status 改成 'registered'，之後就找不到 waitlisted 的了）
@@ -1248,7 +1266,7 @@ Object.assign(App, {
 
       ApiService.updateEvent(id, { status: 'cancelled' });
       // 活動被取消 → 刪除所有個人取消紀錄
-      this._cleanupCancelledRecords(id);
+      await this._cleanupCancelledRecords(id);
       ApiService._writeOpLog('event_cancel', '取消活動', `取消「${e.title}」`);
       this.renderMyActivities();
       this.renderActivityList();
@@ -1359,7 +1377,8 @@ Object.assign(App, {
   },
 
   /** 清理某活動的所有個人取消紀錄（活動被刪除或取消時呼叫） */
-  _cleanupCancelledRecords(eventId) {
+  async _cleanupCancelledRecords(eventId) {
+    if (!await this._ensureActivityRecordsReady()) return;
     const source = ApiService._src('activityRecords');
     for (let i = source.length - 1; i >= 0; i--) {
       if (source[i].eventId === eventId && source[i].status === 'cancelled') {
@@ -1378,6 +1397,7 @@ Object.assign(App, {
 
     const event = ApiService.getEvent(eventId);
     if (!event) return;
+    if (!isCompanion && !await this._ensureActivityRecordsReady({ required: true })) return;
 
     // 找到對應的 registration（相容沒有 participantType 的舊資料與幽靈用戶）
     const allRegs = ApiService._src('registrations');
@@ -1465,7 +1485,7 @@ Object.assign(App, {
       return;
     }
     // 活動被刪除 → 刪除所有個人取消紀錄
-    this._cleanupCancelledRecords(id);
+    await this._cleanupCancelledRecords(id);
     ApiService._writeOpLog('event_delete', '刪除活動', `刪除「${title}」`);
     this.renderMyActivities();
     this.renderActivityList();

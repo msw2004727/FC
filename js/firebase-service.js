@@ -234,7 +234,7 @@ const FirebaseService = {
     'page-shop-detail':       ['shopItems', 'trades'],
     'page-activities':        ['events', 'attendanceRecords', 'activityRecords', 'registrations'],
     'page-activity-detail':   ['events', 'registrations', 'attendanceRecords'],
-    'page-my-activities':     ['events', 'attendanceRecords', 'activityRecords', 'registrations'],
+    'page-my-activities':     ['events', 'attendanceRecords', 'registrations'],
     'page-scan':              ['attendanceRecords'],
     'page-admin-dashboard':   ['expLogs', 'teamExpLogs', 'operationLogs', 'attendanceRecords', 'activityRecords'],
     'page-admin-users':       ['permissions', 'customRoles'],
@@ -378,6 +378,23 @@ const FirebaseService = {
     await this._loadCollectionsByName(toLoad);
     // 持久化新載入的集合
     this._persistCache();
+  },
+
+  async ensureStaticCollectionsLoaded(names) {
+    if (ModeManager.isDemo()) return Array.isArray(names) ? names.filter(Boolean) : [];
+    if (!this._initialized) return [];
+
+    const requested = [...new Set((names || []).filter(Boolean))];
+    if (!requested.length) return [];
+
+    const toLoad = requested.filter(name => this._shouldReloadCollection(name));
+    if (toLoad.length > 0) {
+      console.log('[FirebaseService] Ensure static collections:', toLoad.join(', '));
+      await this._loadCollectionsByName(toLoad);
+      this._persistCache();
+    }
+
+    return requested.filter(name => !this._shouldReloadCollection(name));
   },
 
   async refreshCollectionsForPage(pageId) {
