@@ -7,12 +7,21 @@ Object.assign(App, {
 
   _activityActiveTab: 'normal',
 
-  switchActivityTab(tab) {
+  _setActivityTab(tab, options = {}) {
+    const { render = true } = options;
     this._activityActiveTab = tab;
     document.querySelectorAll('#activity-tabs .tab').forEach(btn => {
       btn.classList.toggle('active', btn.dataset.atab === tab);
     });
-    this.renderActivityList();
+    if (render) this.renderActivityList();
+  },
+
+  switchActivityTab(tab) {
+    this._setActivityTab(tab);
+  },
+
+  resetActivityTab(options = {}) {
+    this._setActivityTab('normal', options);
   },
 
   // ══════════════════════════════════

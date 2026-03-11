@@ -299,7 +299,10 @@ Object.assign(App, {
   /** 根據頁面 ID 渲染對應內容 */
   _renderPageContent(pageId) {
     if (pageId === 'page-home') { this.renderAll(); }
-    if (pageId === 'page-activities') this.renderActivityList();
+    if (pageId === 'page-activities') {
+      this.resetActivityTab?.({ render: false });
+      this.renderActivityList();
+    }
     if (pageId === 'page-achievements') this.renderAchievements();
     if (pageId === 'page-titles') this.renderTitlePage();
     if (pageId === 'page-my-activities') this.renderMyActivities();
