@@ -5,6 +5,12 @@
 > 新紀錄一律寫在檔案前方，採新到舊排序；若需補記舊項目，應插入對應日期區段，不得追加到檔尾。
 
 ---
+### 2026-03-11 — 賽事重構 Step 5：補上友誼賽 roster 與多隊身份選擇
+- **問題**：友誼賽詳細頁雖然已完成球隊申請與主辦審核，但隊員仍無法在球隊核准後加入或退出參賽名單，多球隊身份也缺少選隊流程。
+- **原因**：前一步只先接管 `球隊申請（teamApplications）` 與 `參賽隊伍（teamEntries）`，尚未讀取 `entries/{teamId}/members` 子集合，也沒有 friendly 專用的 roster UI 與 modal 流程。
+- **修復**：新增 `js/modules/tournament/tournament-friendly-roster.js`，在 friendly 詳情頁上補上 roster 成員補載、加入/退出球員名單與多隊身份選擇 modal；同步更新 `css/tournament.css` 的 roster 提示與選隊樣式、`docs/architecture.md` 模組說明，並把快取版本升到 `20260311l`。
+- **教訓**：賽事重構要把「球隊層申請」與「個人層 roster」分開實作，才能在不中斷既有審核流程的前提下，逐步把參賽邏輯補齊。
+
 ### 2026-03-11 — 賽事重構 Step 3：表單改為 friendly-first
 - **問題**：賽事建立與編輯表單仍沿用舊的一般賽事流程，缺少主辦球隊欄位、友誼賽固定 4 隊設定與報名費開關式呈現，符合條件的隊職員在前台也缺少建立與編輯入口。
 - **原因**：前兩步只先完成核心 helper 與資料模型骨架，表單與公開頁仍綁定舊的 `type / teams / fee / organizer` 欄位與既有權限入口，尚未接上 `hostTeam`、`friendlyConfig`、`feeEnabled`。

@@ -106,6 +106,7 @@ flowchart TD
 | `modules/tournament/tournament-core.js` | 賽事共用核心 helper；提供公開賽事頁與後台管理共用的狀態判斷、主辦顯示、友誼賽資料正規化與責任球隊權限骨架 |
 | `modules/tournament/tournament-friendly-detail.js` | 友誼賽詳情頁接管模組；處理球隊申請、主辦審核、灰色候審佔位、聯繫主辦人與分享賽事入口 |
 | `modules/tournament/tournament-friendly-detail-view.js` | 友誼賽詳情頁渲染模組；處理參加賽事按鈕區、球隊橫向列表、灰色待審列與剩餘名額佔位 |
+| `modules/tournament/tournament-friendly-roster.js` | 友誼賽 roster 模組；處理球員名單補載、加入/退出參賽、多隊身份選擇 modal，且只覆蓋 friendly 詳情頁流程 |
 | `modules/tournament-manage.js` | 友誼賽第一階段表單與管理入口；處理建立/編輯 modal 的主辦球隊、封面置頂、報名費開關，以及管理列表的權限過濾 |
 | `modules/tournament-render.js` | 公開賽事頁與詳情頁 renderer；本階段補上前台建立按鈕刷新、主辦顯示格式與可編輯賽事的詳情入口 |
 | `modules/profile-*.js` | 個人資料功能群（核心 UI、資料編輯、名片彈窗） |
