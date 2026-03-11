@@ -810,14 +810,13 @@ Object.assign(App, {
           const sportIcon = this._renderEventSportIcon(e, 'tl-event-sport-corner');
           const favHeart = this._favHeartHtml(this.isEventFavorited(e.id), 'Event', e.id);
           const iconStack = `<div class="tl-event-icons">${favHeart}${sportIcon}</div>`;
-          const capacityBadge = this._renderEventCapacityBadge(e, stats);
 
           html += `
             <div class="tl-event-row ${rowClass}${isEnded ? ' tl-past' : ''}" style="${e.pinned ? 'border:1px solid var(--warning);box-shadow:0 0 0 1px rgba(245,158,11,.12)' : ''}" onclick="App.showEventDetail('${e.id}')">
               ${genderRibbon}
               ${e.image ? `<div class="tl-event-thumb"><img src="${e.image}" loading="lazy"></div>` : ''}
               <div class="tl-event-info">
-                <div class="tl-event-title-row"><div class="tl-event-title">${e.pinned ? '<span style="font-size:.62rem;padding:.08rem .35rem;border-radius:999px;border:1px solid var(--warning);color:var(--warning);font-weight:700;margin-right:.3rem">置頂</span>' : ''}${escapeHTML(e.title)}${teamBadge}${capacityBadge}</div></div>
+                <div class="tl-event-title-row"><div class="tl-event-title">${e.pinned ? '<span style="font-size:.62rem;padding:.08rem .35rem;border-radius:999px;border:1px solid var(--warning);color:var(--warning);font-weight:700;margin-right:.3rem">置頂</span>' : ''}${escapeHTML(e.title)}${teamBadge}</div></div>
                 <div class="tl-event-meta">${typeConf.label} · ${time} · ${escapeHTML(e.location.split('市')[1] || e.location)} · ${stats.confirmedCount}/${stats.maxCount}人${waitlistTag}</div>
               </div>
               <span class="tl-event-status ${statusConf.css}">${statusConf.label}</span>
