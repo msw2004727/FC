@@ -104,8 +104,18 @@ Object.assign(App, {
   },
 
   async handleSignup(id) {
-    const e = ApiService.getEvent(id);
+    let e = ApiService.getEvent(id);
     if (!e) return;
+    e = this._syncEventEffectiveStatus?.(e) || e;
+    if (e.status === 'ended' || e.status === 'cancelled') {
+      this.showToast('\u6d3b\u52d5\u5df2\u958b\u59cb\uff0c\u5831\u540d\u5df2\u7d50\u675f');
+      this.showEventDetail(id);
+      return;
+    }
+    if (e.status === 'upcoming') {
+      this.showToast('\u5831\u540d\u5c1a\u672a\u958b\u653e\uff0c\u8acb\u7a0d\u5f8c\u518d\u8a66');
+      return;
+    }
     if (e.teamOnly && typeof this._canSignupTeamOnlyEvent === 'function' && !this._canSignupTeamOnlyEvent(e)) {
       this.showToast('球隊限定活動，僅限該隊成員報名');
       return;
@@ -253,7 +263,13 @@ Object.assign(App, {
       return;
     }
 
-    const e0 = ApiService.getEvent(id);
+    let e0 = ApiService.getEvent(id);
+    e0 = this._syncEventEffectiveStatus?.(e0) || e0;
+    if (e0?.status === 'ended' || e0?.status === 'cancelled') {
+      this.showToast('\u6d3b\u52d5\u5df2\u958b\u59cb\uff0c\u7121\u6cd5\u518d\u53d6\u6d88\u5831\u540d');
+      this.showEventDetail(id);
+      return;
+    }
     // 活動開始時間已過 → 自動結束並阻止操作
     const _startGuard = App._parseEventStartDate?.(e0?.date);
     if (_startGuard && _startGuard <= new Date() && e0?.status !== 'ended' && e0?.status !== 'cancelled') {

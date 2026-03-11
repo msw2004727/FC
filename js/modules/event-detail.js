@@ -129,6 +129,7 @@ Object.assign(App, {
         this.showToast('\u60a8\u6c92\u6709\u67e5\u770b\u6b64\u6d3b\u52d5\u7684\u6b0a\u9650');
         return { ok: false, reason: 'forbidden' };
       }
+      e = this._syncEventEffectiveStatus?.(e) || e;
 
       const nodes = this._getEventDetailNodes();
       if (!nodes) {

@@ -416,6 +416,51 @@ Object.assign(FirebaseService, {
     return state;
   },
 
+  _getEventRegOpenDate(eventData) {
+    if (!eventData?.regOpenTime) return null;
+    const regOpen = new Date(eventData.regOpenTime);
+    return Number.isNaN(regOpen.getTime()) ? null : regOpen;
+  },
+
+  _getEventStartDate(eventData) {
+    const startDate = App._parseEventStartDate?.(eventData?.date);
+    return startDate instanceof Date && !Number.isNaN(startDate.getTime()) ? startDate : null;
+  },
+
+  async _assertEventSignupOpen(eventData) {
+    if (!eventData) throw new Error('\u6d3b\u52d5\u4e0d\u5b58\u5728');
+
+    const now = new Date();
+    if (eventData.status === 'cancelled') {
+      throw new Error('\u6d3b\u52d5\u5df2\u53d6\u6d88');
+    }
+
+    const startDate = this._getEventStartDate(eventData);
+    if (startDate && startDate <= now) {
+      if (eventData.status !== 'ended') {
+        eventData.status = 'ended';
+        if (eventData._docId) {
+          try {
+            await db.collection('events').doc(eventData._docId).update({ status: 'ended' });
+          } catch (err) {
+            console.warn('[eventSignupGuard] sync ended status failed:', err);
+          }
+        }
+        this._saveToLS('events', this._cache.events);
+      }
+      throw new Error('\u6d3b\u52d5\u5df2\u958b\u59cb\uff0c\u5831\u540d\u5df2\u7d50\u675f');
+    }
+
+    if (eventData.status === 'ended') {
+      throw new Error('\u6d3b\u52d5\u5831\u540d\u5df2\u7d50\u675f');
+    }
+
+    const regOpenDate = this._getEventRegOpenDate(eventData);
+    if (regOpenDate && regOpenDate > now) {
+      throw new Error('\u5831\u540d\u5c1a\u672a\u958b\u653e\uff0c\u8acb\u7a0d\u5f8c\u518d\u8a66');
+    }
+  },
+
   async registerForEvent(eventId, userId, userName) {
     if (!userId || userId === 'unknown') throw new Error('用戶資料載入中，請稍候再試');
 
@@ -430,6 +475,8 @@ Object.assign(FirebaseService, {
     if (!event) throw new Error('活動不存在');
 
     // 檢查重複報名（快取）
+    await this._assertEventSignupOpen(event);
+
     const existing = this._cache.registrations.find(
       r => r.eventId === eventId && r.userId === userId && r.status !== 'cancelled' && r.status !== 'removed'
     );
@@ -1461,6 +1508,8 @@ Object.assign(FirebaseService, {
 
     // 防幽靈：在 transaction 前先查 Firestore 確認主報名者是否已報名
     // 只用 eventId + userId 兩欄位查詢，避免需要複合索引
+    await this._assertEventSignupOpen(event);
+
     const fsCheck = await db.collection('registrations')
       .where('eventId', '==', eventId)
       .where('userId', '==', mainUserId)

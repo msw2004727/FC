@@ -102,8 +102,19 @@ Object.assign(App, {
   async _confirmCompanionRegister() {
     const eventId = this._companionSelectEventId;
     if (!eventId) return;
-    const e = ApiService.getEvent(eventId);
+    let e = ApiService.getEvent(eventId);
     if (!e) return;
+    e = this._syncEventEffectiveStatus?.(e) || e;
+    if (e.status === 'ended' || e.status === 'cancelled') {
+      this._closeCompanionSelectModal();
+      this.showToast('\u6d3b\u52d5\u5df2\u958b\u59cb\uff0c\u5831\u540d\u5df2\u7d50\u675f');
+      this.showEventDetail(eventId);
+      return;
+    }
+    if (e.status === 'upcoming') {
+      this.showToast('\u5831\u540d\u5c1a\u672a\u958b\u653e\uff0c\u8acb\u7a0d\u5f8c\u518d\u8a66');
+      return;
+    }
 
     const checkboxes = document.querySelectorAll('#companion-select-list input[name="cs-participant"]:not([disabled]):checked');
     if (checkboxes.length === 0) { this.showToast('請至少選擇一位參與者'); return; }

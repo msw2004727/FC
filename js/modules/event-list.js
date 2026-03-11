@@ -481,6 +481,32 @@ Object.assign(App, {
   },
 
   /** 計算倒數文字 */
+  _getEventEffectiveStatus(event, nowDate = new Date()) {
+    if (!event) return 'ended';
+    if (event.status === 'cancelled') return 'cancelled';
+    if (event.status === 'ended') return 'ended';
+
+    const start = this._parseEventStartDate(event.date);
+    if (start && start <= nowDate) return 'ended';
+
+    if (event.regOpenTime) {
+      const regOpen = new Date(event.regOpenTime);
+      if (!Number.isNaN(regOpen.getTime()) && regOpen > nowDate) return 'upcoming';
+    }
+
+    return this._isEventTrulyFull(event) ? 'full' : 'open';
+  },
+
+  _syncEventEffectiveStatus(event, nowDate = new Date()) {
+    if (!event?.id) return event;
+    const nextStatus = this._getEventEffectiveStatus(event, nowDate);
+    if (event.status !== nextStatus) {
+      ApiService.updateEvent(event.id, { status: nextStatus });
+      return ApiService.getEvent(event.id) || event;
+    }
+    return event;
+  },
+
   _calcCountdown(e) {
     if (e.status === 'ended') return '已結束';
     if (e.status === 'cancelled') return '已取消';
@@ -507,6 +533,7 @@ Object.assign(App, {
     this._autoEndLastCheck = now;
     const nowDate = new Date();
     ApiService.getEvents().forEach(e => {
+      this._syncEventEffectiveStatus(e, nowDate);
       // 已結束/已取消 → 跳過
       if (e.status === 'ended' || e.status === 'cancelled') return;
       // upcoming → open（報名時間已到）

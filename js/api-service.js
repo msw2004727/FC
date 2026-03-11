@@ -1345,7 +1345,10 @@ const ApiService = {
     if (this._handleRestrictedAction()) {
       throw new Error('ACCOUNT_RESTRICTED');
     }
-    const e = ApiService.getEvent(eventId);
+    const e = App._syncEventEffectiveStatus?.(ApiService.getEvent(eventId)) || ApiService.getEvent(eventId);
+    if (e && e.status === 'cancelled') throw new Error('\u6d3b\u52d5\u5df2\u53d6\u6d88');
+    if (e && e.status === 'ended') throw new Error('\u6d3b\u52d5\u5df2\u958b\u59cb\uff0c\u5831\u540d\u5df2\u7d50\u675f');
+    if (e && e.status === 'upcoming') throw new Error('\u5831\u540d\u5c1a\u672a\u958b\u653e\uff0c\u8acb\u7a0d\u5f8c\u518d\u8a66');
     if (!e) throw new Error('活動不存在');
     const user = this.getCurrentUser();
     const userId = user?.uid || 'unknown';
