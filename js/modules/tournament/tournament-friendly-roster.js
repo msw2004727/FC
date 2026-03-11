@@ -25,12 +25,48 @@ Object.assign(App, {
     return { primary: memberships[0] || null, list: memberships };
   },
 
-  _getFriendlyTournamentJoinableEntries(state, user = ApiService.getCurrentUser?.()) {
+  _isFriendlyTournamentResponsibleMember(team, user = ApiService.getCurrentUser?.()) {
+    return !!(team && user && (
+      this._isTournamentCaptainForTeam?.(team, user)
+      || this._isTournamentLeaderForTeam?.(team, user)
+    ));
+  },
+
+  _isFriendlyTournamentRosterUnlocked(entry, team = ApiService.getTeam?.(entry?.teamId)) {
+    if (!entry || !team) return false;
+    const responsibleUids = new Set();
+    if (team.captainUid) responsibleUids.add(String(team.captainUid).trim());
+    const leaderUids = Array.isArray(team.leaderUids)
+      ? team.leaderUids
+      : (team.leaderUid ? [team.leaderUid] : []);
+    leaderUids.forEach(uid => {
+      const safeUid = String(uid || '').trim();
+      if (safeUid) responsibleUids.add(safeUid);
+    });
+
+    const captainName = String(team.captain || '').trim();
+    const leaderName = String(team.leader || '').trim();
+    return (entry.memberRoster || []).some(member => {
+      const uid = String(member?.uid || '').trim();
+      const name = String(member?.name || '').trim();
+      return responsibleUids.has(uid) || (!!captainName && name === captainName) || (!!leaderName && name === leaderName);
+    });
+  },
+
+  _getFriendlyTournamentApprovedUserEntries(state, user = ApiService.getCurrentUser?.()) {
     const teamIds = typeof this._getUserTeamIds === 'function' ? this._getUserTeamIds(user) : [];
     return (state?.entries || []).filter(entry =>
       (entry.entryStatus === 'host' || entry.entryStatus === 'approved')
       && teamIds.includes(entry.teamId)
     );
+  },
+
+  _getFriendlyTournamentJoinableEntries(state, user = ApiService.getCurrentUser?.()) {
+    return this._getFriendlyTournamentApprovedUserEntries(state, user).filter(entry => {
+      const team = ApiService.getTeam?.(entry.teamId);
+      return this._isFriendlyTournamentResponsibleMember(team, user)
+        || this._isFriendlyTournamentRosterUnlocked(entry, team);
+    });
   },
 
   async _hydrateFriendlyTournamentRosterState(tournamentId) {
@@ -265,6 +301,7 @@ Object.assign(App, {
     const state = this._getFriendlyTournamentState?.(tournament.id) || { tournament, entries: tournament.teamEntries || [] };
     const status = this.getTournamentStatus(tournament);
     const membership = this._getFriendlyTournamentRosterMembership(state);
+    const approvedEntries = this._getFriendlyTournamentApprovedUserEntries(state);
     const joinableEntries = this._getFriendlyTournamentJoinableEntries(state);
 
     let buttonHtml = '';
@@ -280,6 +317,9 @@ Object.assign(App, {
     } else if (status === '報名中' && joinableEntries.length > 1) {
       buttonHtml = `<button class="primary-btn full-width" onclick="App.openFriendlyTournamentRosterPicker('${tournament.id}')">選擇球隊參賽</button>`;
       noteText = `你所屬的 ${joinableEntries.length} 支已核准球隊都可參賽，請先選擇代表球隊。`;
+    } else if (status === '報名中' && approvedEntries.length > 0) {
+      buttonHtml = `<button class="primary-btn full-width" style="opacity:.6" onclick="App.showToast('需球隊負責人先行報名參賽並經主辦核准後，才可加入名單。')">等待負責人先加入</button>`;
+      noteText = '你的球隊已通過審核，但需先由該隊領隊或經理加入球員名單後，其他隊員才可加入。';
     } else {
       return;
     }

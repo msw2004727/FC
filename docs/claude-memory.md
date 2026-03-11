@@ -5,6 +5,12 @@
 > 新紀錄一律寫在檔案前方，採新到舊排序；若需補記舊項目，應插入對應日期區段，不得追加到檔尾。
 
 ---
+### 2026-03-11 — 賽事重構第 1-6 步回頭驗收與一致性修補
+- **問題**：友誼賽重構完成後，仍存在三類風險：`賽事管理（tournament-manage）` 重新覆寫舊版狀態 helper，導致狀態字串在不同頁面不一致；`賽事渲染（tournament-render）` 還保留舊狀態標籤判斷；`友誼賽 roster（tournament-friendly-roster）` 讓一般隊員在球隊通過審核後可直接加入，未遵守「需先由領隊或經理加入」的規則；另外 `賽事規則（firestore.rules）` 的賽事根文件仍只允許 `admin` 建立或更新，與友誼賽建立/編輯權限規格不符，且主辦審核球隊後沒有把 `已報名隊伍（registeredTeams）`、`球隊申請（teamApplications）`、`參賽隊伍（teamEntries）` 同步回根文件。
+- **原因**：Step 1-6 先把新模組接上後，仍殘留部分 legacy helper 與死碼；權限規則只補了子集合，漏掉賽事根文件；審核流程只寫入子集合，沒有兼顧舊頁面與其他裝置仍可能依賴的根層相容欄位。
+- **修復**：清除 `js/modules/tournament-manage.js` 中已被 `return` 截斷的安全死碼，移除舊版 `getTournamentStatus()` / `isTournamentEnded()` 覆寫；更新 `js/modules/tournament-render.js` 讓舊 fallback 同時支援 `即將開始 / 已截止報名` 新狀態；在 `js/modules/tournament/tournament-friendly-roster.js` 補上「領隊或經理先加入才解鎖隊員加入」邏輯；在 `js/modules/tournament/tournament-friendly-detail.js` 新增根層相容欄位同步；在 `firestore.rules` 開放符合條件的主辦球隊領隊或經理建立賽事，並允許主辦方或委託人在不變更 `主辦球隊（hostTeamId）`、`建立者（creatorUid）`、`賽事模式（mode）` 前提下更新賽事根文件；同步更新快取版本到 `20260311n`。
+- **教訓**：這類漸進式重構不能只看新流程能不能跑，還要回頭檢查 legacy helper 是否仍會覆寫新邏輯、根文件與子集合是否一致、以及 Firestore 規則是否真的跟產品權限規格同步。
+
 ### 2026-03-11 — 賽事重構 Step 6：接上友誼賽站內信模板與通知流程
 - **問題**：友誼賽雖然已完成建賽、球隊申請、主辦審核與 roster，但重要節點還沒有接上站內信通知，後台也缺少對應模板 key 可供編輯。
 - **原因**：前五步優先完成資料模型、表單、詳情頁與 roster，通知仍停留在既有活動/舊賽事流程，friendly 專用模板與投遞掛點尚未建立。

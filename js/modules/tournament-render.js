@@ -102,7 +102,9 @@ Object.assign(App, {
     const statusBgMap = {
       '報名中':  { bg: 'rgba(52,211,153,.07)', border: '#10b981', darkBg: 'rgba(52,211,153,.15)' },
       '截止報名': { bg: 'rgba(251,191,36,.07)', border: '#f59e0b', darkBg: 'rgba(251,191,36,.15)' },
+      '已截止報名': { bg: 'rgba(251,191,36,.07)', border: '#f59e0b', darkBg: 'rgba(251,191,36,.15)' },
       '準備中':  { bg: 'rgba(96,165,250,.07)', border: '#60a5fa', darkBg: 'rgba(96,165,250,.15)' },
+      '即將開始':  { bg: 'rgba(96,165,250,.07)', border: '#60a5fa', darkBg: 'rgba(96,165,250,.15)' },
       '已結束':  { bg: 'rgba(107,114,128,.07)', border: '#6b7280', darkBg: 'rgba(107,114,128,.15)' },
     };
     const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
@@ -110,7 +112,14 @@ Object.assign(App, {
     container.innerHTML = tournaments.map(t => {
       const isEnded = this.isTournamentEnded(t);
       const status = isEnded ? '已結束' : this.getTournamentStatus(t);
-      const statusMap = { '報名中': 'open', '截止報名': 'full', '準備中': 'upcoming', '已結束': 'ended' };
+      const statusMap = {
+        '報名中': 'open',
+        '截止報名': 'full',
+        '已截止報名': 'full',
+        '準備中': 'upcoming',
+        '即將開始': 'upcoming',
+        '已結束': 'ended',
+      };
       const css = statusMap[status] || 'open';
       const sBg = statusBgMap[status] || statusBgMap['已結束'];
 
@@ -211,9 +220,9 @@ Object.assign(App, {
       btnHTML = `<button class="primary-btn" style="width:100%" onclick="App.showUserProfile('${escapeHTML(t.organizer || '管理員')}')">聯繫主辦</button>`;
     } else if (hasPendingRequest) {
       btnHTML = `<button class="primary-btn" style="width:100%;opacity:.6;cursor:not-allowed" disabled>等待審核中</button>`;
-    } else if (status === '截止報名' && isFull) {
+    } else if ((status === '截止報名' || status === '已截止報名') && isFull) {
       btnHTML = `<button class="primary-btn" style="width:100%;opacity:.5;cursor:not-allowed" disabled>報名已滿</button>`;
-    } else if (status === '截止報名') {
+    } else if (status === '截止報名' || status === '已截止報名') {
       btnHTML = `<button class="primary-btn" style="width:100%;opacity:.5;cursor:not-allowed" disabled>報名已截止</button>`;
     } else if (status === '報名中' && isFull) {
       btnHTML = `<button class="primary-btn" style="width:100%;opacity:.5;cursor:not-allowed" disabled>報名已滿</button>`;
@@ -223,7 +232,7 @@ Object.assign(App, {
       } else {
         btnHTML = `<button class="primary-btn" style="width:100%" onclick="App.showToast('請聯繫球隊管理人員進行報名')">報名比賽</button>`;
       }
-    } else if (status === '準備中') {
+    } else if (status === '準備中' || status === '即將開始') {
       btnHTML = `<button class="primary-btn" style="width:100%;opacity:.5;cursor:not-allowed" disabled>尚未開放報名</button>`;
     }
 
@@ -369,61 +378,6 @@ Object.assign(App, {
     }
 
     container.innerHTML = `<div class="td-info-card">${infoRows.join('')}${infoActions.length ? `<div style="display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.75rem">${infoActions.join('')}</div>` : ''}</div>`;
-    return;
-
-    const rows = [];
-
-    // 地區
-    if (t.region) {
-      rows.push(`<div class="td-info-row"><span class="td-info-label">地區</span><div class="td-info-value">${escapeHTML(t.region)}</div></div>`);
-    }
-
-    // 場地
-    const venues = t.venues || [];
-    if (venues.length > 0) {
-      const searchPrefix = t.region || '';
-      const venueLinks = venues.map(v => {
-        const mapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(searchPrefix + v)}`;
-        return `<a href="${mapUrl}" target="_blank" rel="noopener" style="color:var(--primary);text-decoration:none;font-size:.82rem">${escapeHTML(v)} 📍</a>`;
-      }).join('<span style="color:var(--border);margin:0 .3rem">|</span>');
-      rows.push(`<div class="td-info-row"><span class="td-info-label">場地</span><div class="td-info-value">${venueLinks}</div></div>`);
-    }
-
-    // 比賽日期
-    const dates = t.matchDates || [];
-    if (dates.length > 0) {
-      const dateTags = dates.map(d => {
-        const parts = d.split('-');
-        return `<span style="display:inline-block;font-size:.7rem;padding:.15rem .5rem;border-radius:20px;background:var(--accent);color:#fff">${parseInt(parts[1])}/${parseInt(parts[2])}</span>`;
-      }).join('');
-      rows.push(`<div class="td-info-row"><span class="td-info-label">比賽日期</span><div class="td-info-value" style="display:flex;flex-wrap:wrap;gap:.25rem">${dateTags}</div></div>`);
-    }
-
-    // 報名時間
-    if (t.regStart && t.regEnd) {
-      const fmtRegDT = d => {
-        const dt = new Date(d);
-        return `${dt.getFullYear()}/${(dt.getMonth()+1).toString().padStart(2,'0')}/${dt.getDate().toString().padStart(2,'0')} ${dt.getHours().toString().padStart(2,'0')}:${dt.getMinutes().toString().padStart(2,'0')}`;
-      };
-      rows.push(`<div class="td-info-row"><span class="td-info-label">報名時間</span><div class="td-info-value">${fmtRegDT(t.regStart)} ~ ${fmtRegDT(t.regEnd)}</div></div>`);
-    }
-
-    // 報名費
-    const fee = t.fee || 0;
-    rows.push(`<div class="td-info-row"><span class="td-info-label">報名費</span><div class="td-info-value" style="font-weight:600">${fee > 0 ? 'NT$' + fee.toLocaleString() + ' / 隊' : '免費'}</div></div>`);
-
-    // 主辦人
-    const organizer = t.organizer || '管理員';
-    rows.push(`<div class="td-info-row"><span class="td-info-label">主辦人</span><div class="td-info-value">${this._userTag(organizer)}</div></div>`);
-
-    // 委託人
-    const delegates = t.delegates || [];
-    if (delegates.length > 0) {
-      const delegateTags = delegates.map(d => this._userTag(d.name)).join(' ');
-      rows.push(`<div class="td-info-row"><span class="td-info-label">委託</span><div class="td-info-value" style="display:flex;flex-wrap:wrap;gap:.3rem">${delegateTags}</div></div>`);
-    }
-
-    container.innerHTML = `<div class="td-info-card">${rows.join('')}</div>`;
   },
 
   renderTournamentTab(tab) {

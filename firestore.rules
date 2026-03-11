@@ -582,6 +582,19 @@ service cloud.firestore {
         return exists(/databases/$(database)/documents/tournaments/$(tournamentId));
       }
 
+      function canCreateTournamentRoot() {
+        return isAuth()
+          && hasString('hostTeamId')
+          && requestFieldEqualsAuthOrAbsent('creatorUid')
+          && (isAdmin() || isCurrentUserTeamCaptainOrLeader(request.resource.data.hostTeamId));
+      }
+
+      function tournamentRootImmutableFieldsSafe() {
+        return request.resource.data.hostTeamId == resource.data.hostTeamId
+          && request.resource.data.creatorUid == resource.data.creatorUid
+          && request.resource.data.mode == resource.data.mode;
+      }
+
       function isTournamentDelegate() {
         return isAuth()
           && tournamentExists()
@@ -605,9 +618,12 @@ service cloud.firestore {
       }
 
       allow read: if true;
-      allow create: if isAdmin()
-        && hasString('name');
-      allow update: if isAdmin();
+      allow create: if hasString('name')
+        && canCreateTournamentRoot();
+      allow update: if isAdmin()
+        || (tournamentExists()
+          && canManageTournamentScope()
+          && tournamentRootImmutableFieldsSafe());
       allow delete: if isAdmin();
 
       match /applications/{applicationId} {

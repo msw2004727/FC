@@ -47,6 +47,44 @@ Object.assign(App, {
       .map(entry => entry.teamId);
   },
 
+  _persistFriendlyTournamentCompatState(tournamentId, state = null) {
+    const currentState = state || this._getFriendlyTournamentState?.(tournamentId);
+    const tournament = currentState?.tournament;
+    if (!tournament || !this._isFriendlyTournamentRecord(tournament)) return currentState;
+    if (!this._canManageTournamentRecord?.(tournament)) return currentState;
+
+    const teamApplications = (currentState.applications || [])
+      .map(item => this._buildFriendlyTournamentApplicationRecord(item))
+      .filter(item => item.id || item.teamId);
+    const teamEntries = (currentState.entries || [])
+      .map(item => this._buildFriendlyTournamentEntryRecord(item))
+      .filter(item => item.teamId);
+    const registeredTeams = teamEntries
+      .filter(entry => entry.entryStatus === 'host' || entry.entryStatus === 'approved')
+      .map(entry => entry.teamId);
+
+    ApiService.updateTournament(tournamentId, {
+      teamApplications,
+      teamEntries,
+      registeredTeams,
+    });
+
+    const nextState = {
+      ...currentState,
+      applications: teamApplications,
+      entries: teamEntries,
+      tournament: this._buildFriendlyTournamentRecord({
+        ...tournament,
+        teamApplications,
+        teamEntries,
+        registeredTeams,
+      }),
+    };
+    this._syncFriendlyTournamentCacheRecord(tournamentId, teamApplications, teamEntries);
+    this._friendlyTournamentDetailStateById[tournamentId] = nextState;
+    return nextState;
+  },
+
   async _loadFriendlyTournamentDetailState(tournamentId) {
     const base = ApiService.getFriendlyTournamentRecord?.(tournamentId) || ApiService.getTournament?.(tournamentId);
     if (!base) return null;
@@ -285,8 +323,9 @@ Object.assign(App, {
     }
 
     await ApiService.updateTournamentApplication(tournamentId, applicationId, reviewMeta);
-    await this._loadFriendlyTournamentDetailState(tournamentId);
-    this.renderRegisterButton(this._getFriendlyTournamentState(tournamentId)?.tournament || tournament);
+    const nextState = await this._loadFriendlyTournamentDetailState(tournamentId);
+    const syncedState = this._persistFriendlyTournamentCompatState(tournamentId, nextState);
+    this.renderRegisterButton(syncedState?.tournament || tournament);
     this.renderTournamentTab('teams');
     this.showToast(action === 'approve' ? `已確認「${application.teamName}」參賽。` : `已拒絕「${application.teamName}」的申請。`);
   },

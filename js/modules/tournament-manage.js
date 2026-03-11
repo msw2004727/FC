@@ -5,31 +5,6 @@
 Object.assign(App, {
 
   // ══════════════════════════════════
-  //  Tournament Status Helpers
-  // ══════════════════════════════════
-
-  /** 根據報名區間計算賽事狀態 */
-  getTournamentStatus(t) {
-    if (!t.regStart || !t.regEnd) return t.status || '準備中';
-    const now = new Date();
-    const start = new Date(t.regStart);
-    const end = new Date(t.regEnd);
-    if (now < start) return '準備中';
-    if (now >= start && now <= end) return '報名中';
-    return '截止報名';
-  },
-
-  /** 判斷賽事是否已結束（手動結束 或 最後比賽日+24h 自動結束） */
-  isTournamentEnded(t) {
-    if (t.ended === true) return true;
-    const dates = t.matchDates || [];
-    if (dates.length === 0) return false;
-    const lastDate = new Date(dates[dates.length - 1]);
-    lastDate.setHours(lastDate.getHours() + 24);
-    return new Date() > lastDate;
-  },
-
-  // ══════════════════════════════════
   //  Tournament Management (Admin)
   // ══════════════════════════════════
 
@@ -113,61 +88,6 @@ Object.assign(App, {
               ${canManage ? `<button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem;background:#10b981;color:#fff;border-color:#10b981" onclick="App.showEditTournament('${t.id}')">編輯賽事</button>` : ''}
               <button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem" onclick="App.showTournamentDetail('${t.id}')">查看詳情</button>
               ${isAdmin ? `<button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem;color:var(--danger)" onclick="App.handleEndTournament('${t.id}')">結束賽事</button>` : ''}
-            `}
-          </div>
-        </div>
-      </div>`;
-    }).join('');
-    return;
-
-    if (filtered.length === 0) {
-      container.innerHTML = `<div style="text-align:center;padding:2rem;color:var(--text-muted);font-size:.85rem">${tab === 'ended' ? '沒有已結束的賽事' : '沒有進行中的賽事'}</div>`;
-      return;
-    }
-
-    container.innerHTML = filtered.map(t => {
-      const status = this.getTournamentStatus(t);
-      const isEnded = this.isTournamentEnded(t);
-      const statusLabel = isEnded ? '已結束' : status;
-      const statusColorMap = { '準備中': '#6b7280', '報名中': '#10b981', '截止報名': '#f59e0b', '已結束': '#6b7280' };
-      const statusColor = statusColorMap[statusLabel] || '#6b7280';
-      const normalized = this.getFriendlyTournamentRecord?.(t) || t;
-      const registered = normalized.registeredTeams || [];
-      const feeEnabled = typeof normalized.feeEnabled === 'boolean' ? normalized.feeEnabled : Number(normalized.fee || 0) > 0;
-      const fee = feeEnabled ? (Number(normalized.fee || 0) || 0) : 0;
-      const revenue = registered.length * fee;
-      const canManage = isAdmin || this._canManageTournamentRecord(normalized, currentUser);
-      const organizerDisplay = this._getTournamentOrganizerDisplayText?.(normalized) || normalized.organizer || '主辦球隊';
-      const typeLabel = this._getTournamentModeLabel?.(normalized) || normalized.type || '友誼賽';
-
-      return `
-      <div class="event-card" style="${isEnded ? 'opacity:.55;filter:grayscale(.4)' : ''}">
-        ${normalized.image ? `<div class="event-card-img"><img src="${normalized.image}" style="width:100%;height:120px;object-fit:cover;display:block;border-radius:var(--radius) var(--radius) 0 0"></div>` : ''}
-        <div class="event-card-body">
-          <div style="display:flex;align-items:center;gap:.4rem">
-            <div class="event-card-title" style="flex:1">${escapeHTML(normalized.name)}</div>
-            <span style="font-size:.68rem;padding:.15rem .45rem;border-radius:20px;background:${statusColor}18;color:${statusColor};font-weight:600;white-space:nowrap">${statusLabel}</span>
-          </div>
-          <div class="event-meta">
-            <span class="event-meta-item">${escapeHTML(typeLabel)}</span>
-            ${normalized.region ? `<span class="event-meta-item">${escapeHTML(normalized.region)}</span>` : ''}
-            <span class="event-meta-item">${t.teams} 隊</span>
-            ${t.matchDates && t.matchDates.length ? `<span class="event-meta-item">比賽日 ${t.matchDates.length} 天</span>` : ''}
-            <span class="event-meta-item">主辦 ${this._userTag(t.organizer || '管理員')}</span>
-          </div>
-          <div style="font-size:.78rem;color:var(--text-secondary);margin-top:.3rem">
-            應收費用：<strong>NT$${revenue.toLocaleString()}</strong>（${registered.length} 隊 × NT$${fee.toLocaleString()}）
-          </div>
-          <div style="display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.5rem">
-            ${isEnded ? `
-              <button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem;background:#10b981;color:#fff;border-color:#10b981" onclick="App.handleReopenTournament('${t.id}')">重新開放</button>
-              ${ROLE_LEVEL_MAP[App.currentRole] >= ROLE_LEVEL_MAP['admin'] ? `<button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem;color:var(--danger)" onclick="App.handleDeleteTournament('${t.id}')">刪除賽事</button>` : ''}
-            ` : `
-              <button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem;background:#10b981;color:#fff;border-color:#10b981" onclick="App.showEditTournament('${t.id}')">編輯賽事</button>
-              <button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem">賽程管理</button>
-              <button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem">賽事統計</button>
-              <button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem">參賽管理</button>
-              <button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem;color:var(--danger)" onclick="App.handleEndTournament('${t.id}')">結束</button>
             `}
           </div>
         </div>
@@ -613,10 +533,6 @@ Object.assign(App, {
       return;
     }
     preview.innerHTML = '<span class="ce-upload-icon">+</span><span class="ce-upload-text">上傳賽事封面圖片</span><span class="ce-upload-hint">建議尺寸 800 x 300 px，JPG / PNG，檔案上限 2MB</span>';
-    return;
-    preview.innerHTML = content
-      ? '<span class="ce-upload-icon">+</span><span class="ce-upload-text">點擊上傳內容圖片</span><span class="ce-upload-hint">建議尺寸 800 × 600 px｜JPG / PNG｜最大 2MB</span>'
-      : '<span class="ce-upload-icon">+</span><span class="ce-upload-text">點擊上傳圖片</span><span class="ce-upload-hint">建議尺寸 800 × 300 px｜JPG / PNG｜最大 2MB</span>';
   },
 
   _buildTournamentHostEntry(team, actor) {
@@ -669,17 +585,6 @@ Object.assign(App, {
     this._resetTournamentImagePreview('ct', true);
     this._initTournamentDelegateSearch('ct');
     this.showModal('create-tournament-modal');
-    return;
-
-    this._ctDelegates = [];
-    this._ctVenues = [];
-    this._ctMatchDates = [];
-    this.showModal('create-tournament-modal');
-    this._initTournamentDelegateSearch('ct');
-    this._renderVenueTags('ct');
-    this._renderMatchDateTags('ct');
-    this._renderTournamentDelegateTags('ct');
-    this._updateTournamentDelegateInput('ct');
   },
 
   handleCreateTournament() {
@@ -794,85 +699,6 @@ Object.assign(App, {
     this._setTournamentFeeFormState('ct', false, 300);
     this._resetTournamentImagePreview('ct');
     this._resetTournamentImagePreview('ct', true);
-    return;
-
-    if ((ROLE_LEVEL_MAP[this.currentRole] || 0) < ROLE_LEVEL_MAP.coach) {
-      this.showToast('權限不足'); return;
-    }
-    const name = document.getElementById('ct-name').value.trim();
-    const type = document.getElementById('ct-type').value;
-    const teams = parseInt(document.getElementById('ct-teams').value) || 8;
-    const regStart = document.getElementById('ct-reg-start').value || null;
-    const regEnd = document.getElementById('ct-reg-end').value || null;
-    const desc = document.getElementById('ct-desc').value.trim();
-    const fee = parseInt(document.getElementById('ct-fee').value) || 0;
-    const region = document.getElementById('ct-region').value.trim();
-    const matchDates = [...this._ctMatchDates];
-    const venues = [...this._ctVenues];
-    const delegates = [...this._ctDelegates];
-
-    if (!name) { this.showToast('請輸入賽事名稱'); return; }
-    if (!regStart || !regEnd) { this.showToast('請選擇報名開始與截止時間'); return; }
-
-    const ctPreviewEl = document.getElementById('ct-upload-preview');
-    const ctImg = ctPreviewEl?.querySelector('img');
-    const image = ctImg ? ctImg.src : null;
-
-    const ctContentPreviewEl = document.getElementById('ct-content-upload-preview');
-    const ctContentImg = ctContentPreviewEl?.querySelector('img');
-    const contentImage = ctContentImg ? ctContentImg.src : null;
-
-    const curUser = ApiService.getCurrentUser();
-    const creatorName = curUser?.displayName || '管理員';
-    const creatorUid = curUser?.uid || 'demo-user';
-
-    const data = {
-      id: 'ct_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
-      name, type, teams, region,
-      matches: teams - 1,
-      regStart, regEnd, matchDates, description: desc,
-      image, contentImage, venues, fee, delegates,
-      organizer: creatorName, creatorUid,
-      registeredTeams: [], maxTeams: teams, ended: false,
-      gradient: TOURNAMENT_GRADIENT_MAP[type] || 'linear-gradient(135deg,#7c3aed,#4338ca)',
-    };
-    data.status = this.getTournamentStatus(data);
-
-    ApiService.createTournament(data);
-
-    ApiService._writeOpLog('tourn_create', '建立賽事', `建立「${name}」`);
-    this.renderTournamentTimeline();
-    this.renderOngoingTournaments();
-    this.renderTournamentManage();
-    this.closeModal();
-    this.showToast(`賽事「${name}」已建立！`);
-
-    // Reset form
-    document.getElementById('ct-name').value = '';
-    document.getElementById('ct-teams').value = '8';
-    document.getElementById('ct-fee').value = '0';
-    document.getElementById('ct-region').value = '';
-    document.getElementById('ct-reg-start').value = '';
-    document.getElementById('ct-reg-end').value = '';
-    document.getElementById('ct-desc').value = '';
-    document.getElementById('ct-desc-count').textContent = '0/500';
-    this._ctMatchDates = [];
-    this._ctVenues = [];
-    this._ctDelegates = [];
-    this._renderMatchDateTags('ct');
-    this._renderVenueTags('ct');
-    this._renderTournamentDelegateTags('ct');
-    this._updateTournamentDelegateInput('ct');
-    const preview = document.getElementById('ct-upload-preview');
-    if (preview) {
-      preview.classList.remove('has-image');
-      preview.innerHTML = '<span class="ce-upload-icon">+</span><span class="ce-upload-text">點擊上傳圖片</span><span class="ce-upload-hint">建議尺寸 800 × 300 px｜JPG / PNG｜最大 2MB</span>';
-    }
-    const contentPreview = document.getElementById('ct-content-upload-preview');
-    if (contentPreview) {
-      contentPreview.classList.remove('has-image');
-      contentPreview.innerHTML = '<span class="ce-upload-icon">+</span><span class="ce-upload-text">點擊上傳圖片</span><span class="ce-upload-hint">建議尺寸 800 × 600 px｜JPG / PNG｜最大 2MB</span>';
-    }
   },
 
   // ══════════════════════════════════
@@ -930,57 +756,6 @@ Object.assign(App, {
     }
 
     this.showModal('edit-tournament-modal');
-    return;
-
-    const t = ApiService.getTournament(id);
-    if (!t) return;
-    this._editTournamentId = id;
-
-    document.getElementById('et-name').value = t.name || '';
-    document.getElementById('et-type').value = t.type || '盃賽';
-    document.getElementById('et-teams').value = t.teams || 8;
-    document.getElementById('et-fee').value = t.fee || 0;
-    document.getElementById('et-region').value = t.region || '';
-    document.getElementById('et-reg-start').value = t.regStart || '';
-    document.getElementById('et-reg-end').value = t.regEnd || '';
-    document.getElementById('et-desc').value = t.description || '';
-    document.getElementById('et-desc-count').textContent = (t.description || '').length + '/500';
-
-    // Venues
-    this._etVenues = [...(t.venues || [])];
-    this._renderVenueTags('et');
-
-    // Delegates
-    this._etDelegates = [...(t.delegates || [])];
-    this._renderTournamentDelegateTags('et');
-    this._updateTournamentDelegateInput('et');
-    this._initTournamentDelegateSearch('et');
-
-    // Match Dates
-    this._etMatchDates = [...(t.matchDates || [])];
-    this._renderMatchDateTags('et');
-
-    // Cover image
-    const preview = document.getElementById('et-upload-preview');
-    if (t.image && preview) {
-      preview.innerHTML = `<img src="${t.image}" style="width:100%;height:100%;object-fit:cover;border-radius:var(--radius-sm)">`;
-      preview.classList.add('has-image');
-    } else if (preview) {
-      preview.classList.remove('has-image');
-      preview.innerHTML = '<span class="ce-upload-icon">+</span><span class="ce-upload-text">點擊上傳圖片</span><span class="ce-upload-hint">建議尺寸 800 × 300 px｜JPG / PNG｜最大 2MB</span>';
-    }
-
-    // Content image
-    const contentPreview = document.getElementById('et-content-upload-preview');
-    if (t.contentImage && contentPreview) {
-      contentPreview.innerHTML = `<img src="${t.contentImage}" style="width:100%;height:100%;object-fit:cover;border-radius:var(--radius-sm)">`;
-      contentPreview.classList.add('has-image');
-    } else if (contentPreview) {
-      contentPreview.classList.remove('has-image');
-      contentPreview.innerHTML = '<span class="ce-upload-icon">+</span><span class="ce-upload-text">點擊上傳圖片</span><span class="ce-upload-hint">建議尺寸 800 × 600 px｜JPG / PNG｜最大 2MB</span>';
-    }
-
-    this.toggleModal('edit-tournament-modal');
   },
 
   handleSaveEditTournament() {
@@ -1079,54 +854,6 @@ Object.assign(App, {
     this.renderTournamentManage();
     this.closeModal();
     this.showToast(`賽事「${editName}」已更新。`);
-    return;
-
-    if ((ROLE_LEVEL_MAP[this.currentRole] || 0) < ROLE_LEVEL_MAP.coach) {
-      this.showToast('權限不足'); return;
-    }
-    const id = this._editTournamentId;
-    const t = ApiService.getTournament(id);
-    if (!t) return;
-
-    const name = document.getElementById('et-name').value.trim();
-    const type = document.getElementById('et-type').value;
-    const teams = parseInt(document.getElementById('et-teams').value) || 8;
-    const fee = parseInt(document.getElementById('et-fee').value) || 0;
-    const region = document.getElementById('et-region').value.trim();
-    const regStart = document.getElementById('et-reg-start').value || null;
-    const regEnd = document.getElementById('et-reg-end').value || null;
-    if (!regStart || !regEnd) { this.showToast('請選擇報名開始與截止時間'); return; }
-    const description = document.getElementById('et-desc').value.trim();
-    const venues = [...this._etVenues];
-    const delegates = [...this._etDelegates];
-    const matchDates = [...this._etMatchDates];
-
-    const etPreviewEl = document.getElementById('et-upload-preview');
-    const etImg = etPreviewEl?.querySelector('img');
-    const image = etImg ? etImg.src : (t.image || null);
-
-    const etContentPreviewEl = document.getElementById('et-content-upload-preview');
-    const etContentImg = etContentPreviewEl?.querySelector('img');
-    const contentImage = etContentImg ? etContentImg.src : (t.contentImage || null);
-
-    const updates = {
-      name, type, teams, maxTeams: teams, fee, region,
-      regStart, regEnd, description,
-      matches: teams - 1,
-      venues, delegates, matchDates,
-      image, contentImage,
-    };
-    updates.status = this.getTournamentStatus({ ...t, ...updates });
-
-    ApiService.updateTournament(id, updates);
-
-    ApiService._writeOpLog('tourn_edit', '編輯賽事', `編輯「${name}」`);
-    this._editTournamentId = null;
-    this.renderTournamentTimeline();
-    this.renderOngoingTournaments();
-    this.renderTournamentManage();
-    this.closeModal();
-    this.showToast(`賽事「${name}」已更新！`);
   },
 
   // ══════════════════════════════════
