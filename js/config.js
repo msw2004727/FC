@@ -182,7 +182,8 @@
 // 20260310ao: 操作日誌類型標籤改為依類型家族分色，提升辨識度
 // 20260311p: 修補友誼賽站內信審核導流與申請重入保護
 // 20260311q: 活動詳情封面新增依類型配色的左下斜角緞帶
-const CACHE_VERSION = '20260311q';
+// 20260311r: 修正活動詳情封面左下斜角緞帶方向
+const CACHE_VERSION = '20260311r';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {
