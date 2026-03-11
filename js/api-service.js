@@ -210,6 +210,21 @@ const ApiService = {
     return this._src(key).find(item => item.id === id) || null;
   },
 
+  _normalizeTournamentRecordForWrite(data, existing = null) {
+    const merged = existing ? { ...existing, ...data } : { ...data };
+    if (typeof App !== 'undefined' && typeof App._buildFriendlyTournamentRecord === 'function') {
+      return App._buildFriendlyTournamentRecord(merged);
+    }
+    return merged;
+  },
+
+  _getDemoTournamentFriendlyArray(tournamentId, field) {
+    const tournament = this.getTournament(tournamentId);
+    if (!tournament) throw new Error('TOURNAMENT_NOT_FOUND');
+    if (!Array.isArray(tournament[field])) tournament[field] = [];
+    return tournament[field];
+  },
+
   /** 通用新增：寫入快取 + 非同步寫入 Firebase */
   _create(key, data, firebaseMethod, label, prepend) {
     if (this._handleRestrictedAction()) return null;
@@ -374,8 +389,123 @@ const ApiService = {
   getMatches()        { return this._src('matches'); },
   getTrades()         { return this._src('trades'); },
 
-  createTournament(data) { return this._create('tournaments', data, FirebaseService.addTournament, 'createTournament'); },
-  updateTournament(id, updates) { return this._update('tournaments', id, updates, FirebaseService.updateTournament, 'updateTournament'); },
+  getFriendlyTournamentRecord(idOrRecord) {
+    const tournament = typeof idOrRecord === 'string'
+      ? this.getTournament(idOrRecord)
+      : idOrRecord;
+    if (!tournament) return null;
+    if (typeof App !== 'undefined' && typeof App._buildFriendlyTournamentRecord === 'function') {
+      return App._buildFriendlyTournamentRecord(tournament);
+    }
+    return tournament;
+  },
+
+  createTournament(data) {
+    const payload = this._normalizeTournamentRecordForWrite(data);
+    return this._create('tournaments', payload, FirebaseService.addTournament, 'createTournament');
+  },
+
+  updateTournament(id, updates) {
+    const payload = this._normalizeTournamentRecordForWrite(updates, this.getTournament(id));
+    return this._update('tournaments', id, payload, FirebaseService.updateTournament, 'updateTournament');
+  },
+
+  async listTournamentApplications(tournamentId) {
+    if (this._demoMode) {
+      return this._getDemoTournamentFriendlyArray(tournamentId, 'teamApplications')
+        .map(item => ({ ...item }));
+    }
+    return await FirebaseService.listTournamentApplications(tournamentId);
+  },
+
+  async createTournamentApplication(tournamentId, data) {
+    const payload = (typeof App !== 'undefined' && typeof App._buildFriendlyTournamentApplicationRecord === 'function')
+      ? App._buildFriendlyTournamentApplicationRecord(data)
+      : { ...data };
+    if (this._demoMode) {
+      const store = this._getDemoTournamentFriendlyArray(tournamentId, 'teamApplications');
+      const idx = store.findIndex(item => item.id === payload.id || item.teamId === payload.teamId);
+      if (idx >= 0) store[idx] = { ...store[idx], ...payload };
+      else store.push(payload);
+      return payload;
+    }
+    if (!(await FirebaseService.ensureAuthReadyForWrite())) throw new Error('AUTH_NOT_READY');
+    return await FirebaseService.createTournamentApplication(tournamentId, payload);
+  },
+
+  async updateTournamentApplication(tournamentId, applicationId, updates) {
+    if (this._demoMode) {
+      const store = this._getDemoTournamentFriendlyArray(tournamentId, 'teamApplications');
+      const idx = store.findIndex(item => item.id === applicationId);
+      if (idx === -1) return null;
+      store[idx] = { ...store[idx], ...updates };
+      return store[idx];
+    }
+    if (!(await FirebaseService.ensureAuthReadyForWrite())) throw new Error('AUTH_NOT_READY');
+    return await FirebaseService.updateTournamentApplication(tournamentId, applicationId, updates);
+  },
+
+  async listTournamentEntries(tournamentId) {
+    if (this._demoMode) {
+      return this._getDemoTournamentFriendlyArray(tournamentId, 'teamEntries')
+        .map(item => ({ ...item }));
+    }
+    return await FirebaseService.listTournamentEntries(tournamentId);
+  },
+
+  async upsertTournamentEntry(tournamentId, teamId, data) {
+    const payload = (typeof App !== 'undefined' && typeof App._buildFriendlyTournamentEntryRecord === 'function')
+      ? App._buildFriendlyTournamentEntryRecord({ ...data, teamId: teamId || data?.teamId })
+      : { ...data, teamId: teamId || data?.teamId };
+    if (this._demoMode) {
+      const store = this._getDemoTournamentFriendlyArray(tournamentId, 'teamEntries');
+      const idx = store.findIndex(item => item.teamId === payload.teamId);
+      if (idx >= 0) store[idx] = { ...store[idx], ...payload };
+      else store.push(payload);
+      return payload;
+    }
+    if (!(await FirebaseService.ensureAuthReadyForWrite())) throw new Error('AUTH_NOT_READY');
+    return await FirebaseService.upsertTournamentEntry(tournamentId, teamId, payload);
+  },
+
+  async listTournamentEntryMembers(tournamentId, teamId) {
+    if (this._demoMode) {
+      const entry = this._getDemoTournamentFriendlyArray(tournamentId, 'teamEntries')
+        .find(item => item.teamId === teamId);
+      return Array.isArray(entry?.memberRoster) ? entry.memberRoster.map(item => ({ ...item })) : [];
+    }
+    return await FirebaseService.listTournamentEntryMembers(tournamentId, teamId);
+  },
+
+  async upsertTournamentEntryMember(tournamentId, teamId, member) {
+    const payload = (typeof App !== 'undefined' && typeof App._buildFriendlyTournamentRosterMemberRecord === 'function')
+      ? App._buildFriendlyTournamentRosterMemberRecord(member)
+      : { ...member };
+    if (this._demoMode) {
+      const store = this._getDemoTournamentFriendlyArray(tournamentId, 'teamEntries');
+      const entry = store.find(item => item.teamId === teamId);
+      if (!entry) return null;
+      if (!Array.isArray(entry.memberRoster)) entry.memberRoster = [];
+      const idx = entry.memberRoster.findIndex(item => item.uid === payload.uid);
+      if (idx >= 0) entry.memberRoster[idx] = { ...entry.memberRoster[idx], ...payload };
+      else entry.memberRoster.push(payload);
+      return payload;
+    }
+    if (!(await FirebaseService.ensureAuthReadyForWrite())) throw new Error('AUTH_NOT_READY');
+    return await FirebaseService.upsertTournamentEntryMember(tournamentId, teamId, payload);
+  },
+
+  async removeTournamentEntryMember(tournamentId, teamId, memberUid) {
+    if (this._demoMode) {
+      const store = this._getDemoTournamentFriendlyArray(tournamentId, 'teamEntries');
+      const entry = store.find(item => item.teamId === teamId);
+      if (!entry || !Array.isArray(entry.memberRoster)) return false;
+      entry.memberRoster = entry.memberRoster.filter(item => item.uid !== memberUid);
+      return true;
+    }
+    if (!(await FirebaseService.ensureAuthReadyForWrite())) throw new Error('AUTH_NOT_READY');
+    return await FirebaseService.removeTournamentEntryMember(tournamentId, teamId, memberUid);
+  },
 
   deleteTournament(id) {
     const source = this._src('tournaments');

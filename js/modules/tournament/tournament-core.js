@@ -28,7 +28,11 @@ Object.assign(App, {
   },
 
   _getTournamentMode(t) {
-    return String(t?.mode || t?.type || 'friendly').trim().toLowerCase();
+    const rawMode = String(t?.mode || t?.typeCode || t?.type || 'friendly').trim().toLowerCase();
+    if (rawMode === 'cup' || rawMode.includes('\u76c3') || rawMode.includes('\u676f')) return 'cup';
+    if (rawMode === 'league' || rawMode.includes('\u806f\u8cfd') || rawMode.includes('\u8054\u8d5b')) return 'league';
+    if (rawMode === 'friendly' || rawMode.includes('\u53cb\u8abc')) return 'friendly';
+    return ['friendly', 'cup', 'league'].includes(rawMode) ? rawMode : 'friendly';
   },
 
   _getFriendlyTournamentTeamLimit(t) {
@@ -41,6 +45,34 @@ Object.assign(App, {
     const safeUserName = String(userName || '').trim();
     if (safeTeamName && safeUserName) return `${safeTeamName}\uFF08${safeUserName}\uFF09`;
     return safeTeamName || safeUserName || '\u4e3b\u8fa6\u7403\u968a';
+  },
+
+  _normalizeTournamentDelegates(delegates) {
+    if (!Array.isArray(delegates)) return [];
+    const seen = new Set();
+    return delegates.reduce((list, delegate) => {
+      const uid = String(delegate?.uid || '').trim();
+      const name = String(delegate?.name || '').trim();
+      const dedupeKey = uid || (name ? `name:${name}` : '');
+      if (!dedupeKey || seen.has(dedupeKey)) return list;
+      seen.add(dedupeKey);
+      list.push({ uid, name });
+      return list;
+    }, []);
+  },
+
+  _getTournamentDelegateUids(tournament) {
+    const direct = Array.isArray(tournament?.delegateUids) ? tournament.delegateUids : [];
+    const delegates = this._normalizeTournamentDelegates(tournament?.delegates);
+    const merged = [...direct, ...delegates.map(delegate => delegate.uid)];
+    const seen = new Set();
+    return merged.reduce((list, uid) => {
+      const safeUid = String(uid || '').trim();
+      if (!safeUid || seen.has(safeUid)) return list;
+      seen.add(safeUid);
+      list.push(safeUid);
+      return list;
+    }, []);
   },
 
   _isTournamentLeaderForTeam(team, user) {
@@ -93,5 +125,108 @@ Object.assign(App, {
     const hostTeamId = String(tournament.hostTeamId || '').trim();
     if (!hostTeamId) return false;
     return this._getFriendlyResponsibleTeams(currentUser).some(team => team.id === hostTeamId);
+  },
+
+  _buildFriendlyTournamentApplicationRecord(data = {}) {
+    const requestedByUid = String(data.requestedByUid || data.creatorUid || '').trim();
+    const requestedByName = String(data.requestedByName || data.creatorName || '').trim();
+    return {
+      id: String(data.id || '').trim(),
+      teamId: String(data.teamId || '').trim(),
+      teamName: String(data.teamName || '').trim(),
+      teamImage: String(data.teamImage || '').trim(),
+      status: String(data.status || 'pending').trim().toLowerCase(),
+      requestedByUid,
+      requestedByName,
+      appliedAt: data.appliedAt || null,
+      reviewedAt: data.reviewedAt || null,
+      reviewedByUid: String(data.reviewedByUid || '').trim(),
+      reviewedByName: String(data.reviewedByName || '').trim(),
+      messageGroupId: String(data.messageGroupId || '').trim(),
+    };
+  },
+
+  _buildFriendlyTournamentRosterMemberRecord(data = {}) {
+    return {
+      uid: String(data.uid || '').trim(),
+      name: String(data.name || data.displayName || '').trim(),
+      joinedAt: data.joinedAt || null,
+    };
+  },
+
+  _buildFriendlyTournamentEntryRecord(data = {}) {
+    const memberRoster = Array.isArray(data.memberRoster)
+      ? data.memberRoster
+          .map(member => this._buildFriendlyTournamentRosterMemberRecord(member))
+          .filter(member => member.uid)
+      : [];
+    return {
+      teamId: String(data.teamId || '').trim(),
+      teamName: String(data.teamName || '').trim(),
+      teamImage: String(data.teamImage || '').trim(),
+      entryStatus: String(data.entryStatus || 'approved').trim().toLowerCase(),
+      approvedAt: data.approvedAt || null,
+      approvedByUid: String(data.approvedByUid || '').trim(),
+      approvedByName: String(data.approvedByName || '').trim(),
+      memberRoster,
+    };
+  },
+
+  _buildFriendlyTournamentRecord(data = {}) {
+    const base = data && typeof data === 'object' ? data : {};
+    const mode = this._getTournamentMode(base);
+    const delegates = this._normalizeTournamentDelegates(base.delegates);
+    const delegateUids = this._getTournamentDelegateUids({ ...base, delegates });
+    const teamLimit = this._getFriendlyTournamentTeamLimit(base);
+    const feeEnabled = typeof base.feeEnabled === 'boolean'
+      ? base.feeEnabled
+      : Number(base.fee || 0) > 0;
+    const fee = feeEnabled ? Math.max(0, Number(base.fee || 0) || 0) : 0;
+    const creatorName = String(base.creatorName || base.organizer || '').trim();
+    const hostTeamName = String(base.hostTeamName || '').trim();
+    const teamEntries = Array.isArray(base.teamEntries)
+      ? base.teamEntries
+          .map(entry => this._buildFriendlyTournamentEntryRecord(entry))
+          .filter(entry => entry.teamId)
+      : [];
+    const teamApplications = Array.isArray(base.teamApplications)
+      ? base.teamApplications
+          .map(application => this._buildFriendlyTournamentApplicationRecord(application))
+          .filter(application => application.teamId)
+      : [];
+    const registeredTeams = Array.isArray(base.registeredTeams) && base.registeredTeams.length > 0
+      ? base.registeredTeams
+          .map(teamId => String(teamId || '').trim())
+          .filter(Boolean)
+      : teamEntries
+          .filter(entry => entry.entryStatus === 'host' || entry.entryStatus === 'approved')
+          .map(entry => entry.teamId);
+
+    return {
+      ...base,
+      mode,
+      schemaVersion: Math.max(2, Number(base.schemaVersion || 0) || 0),
+      dataModel: String(base.dataModel || 'tournament_v2').trim(),
+      creatorUid: String(base.creatorUid || '').trim(),
+      creatorName,
+      hostTeamId: String(base.hostTeamId || '').trim(),
+      hostTeamName,
+      hostTeamImage: String(base.hostTeamImage || '').trim(),
+      organizerDisplay: String(base.organizerDisplay || '').trim() || this._buildTournamentOrganizerDisplay(hostTeamName, creatorName),
+      delegates,
+      delegateUids,
+      feeEnabled,
+      fee,
+      teams: Number(base.teams || 0) || teamLimit,
+      maxTeams: Number(base.maxTeams || 0) || teamLimit,
+      friendlyConfig: {
+        teamLimit,
+        allowMemberSelfJoin: base?.friendlyConfig?.allowMemberSelfJoin !== false,
+        pendingVisibleToThirdParty: base?.friendlyConfig?.pendingVisibleToThirdParty === true,
+      },
+      teamApplications,
+      teamEntries,
+      registeredTeams,
+    };
   },
 });

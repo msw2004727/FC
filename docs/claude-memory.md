@@ -5,6 +5,12 @@
 > 新紀錄一律寫在檔案前方，採新到舊排序；若需補記舊項目，應插入對應日期區段，不得追加到檔尾。
 
 ---
+### 2026-03-11 — 賽事重構 Step 2 建立友誼賽資料模型與子集合骨架
+- **問題**：友誼賽後續要接主辦球隊、球隊申請、主辦審核與隊員 roster，但現有 `tournaments` 只有單層文件 CRUD，`ApiService` 與 `Firestore rules` 都還沒有 friendly 專用資料模型與子集合入口。
+- **原因**：舊賽事功能原本只支援簡單報名與列表顯示，沒有把球隊申請、已核准隊伍、隊員名單拆成可擴充結構，也缺少可讓未來 UI 接上的 API/rules 骨架。
+- **修復**：擴充 `js/modules/tournament/tournament-core.js`，加入友誼賽 `資料正規化（_buildFriendlyTournamentRecord）`、`球隊申請（teamApplications）`、`參賽隊伍（teamEntries）` 與 `隊員名單（memberRoster）` helper；`js/api-service.js` 新增友誼賽讀寫包裝與 demo 分支骨架，並讓 `createTournament/updateTournament` 先寫入 `mode`、`friendlyConfig`、`delegateUids`、`schemaVersion` 等新欄位；`js/firebase-crud.js` 新增 `applications / entries / entries/{teamId}/members` 子集合 CRUD helper；`firestore.rules` 補上友誼賽子集合的 captain/leader、delegate、host team manager 權限掛點，同步更新 `docs/architecture.md`，並把快取版本升到 `20260311i`。
+- **教訓**：在大型重構前先把資料模型與安全規則掛點搭好，比先改 UI 安全，之後每一步可以沿用同一套 schema，不會再把新流程硬塞回舊欄位。
+
 ### 2026-03-11 — 賽事重構 Step 1 先抽出 tournament-core 共用骨架
 - **問題**：公開賽事頁 `tournament-render.js` 直接依賴 `getTournamentStatus()` 與 `isTournamentEnded()`，但這兩個 helper 原本放在僅後台會 lazy load 的 `tournament-manage.js`，結構上存在公開頁依賴後台模組的風險；同時友誼賽重構也需要一個不會再把新權限邏輯散落各檔案的核心落點。
 - **原因**：賽事功能歷史上是從單純展示頁逐步長大，公開頁與後台頁共用的狀態/權限判斷沒有被抽成核心模組，導致賽事頁、收藏頁與後台管理之間出現隱性耦合。

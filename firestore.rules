@@ -198,6 +198,20 @@ service cloud.firestore {
         );
     }
 
+    function isCurrentUserTeamCaptainOrLeader(teamId) {
+      let teamPath = /databases/$(database)/documents/teams/$(teamId);
+      return isAuth()
+        && teamId is string
+        && exists(teamPath)
+        && (
+          ((get(teamPath).data.captainUid is string) && get(teamPath).data.captainUid == request.auth.uid)
+          || ((get(teamPath).data.creatorUid is string) && get(teamPath).data.creatorUid == request.auth.uid)
+          || ((get(teamPath).data.ownerUid is string) && get(teamPath).data.ownerUid == request.auth.uid)
+          || ((get(teamPath).data.leaderUid is string) && get(teamPath).data.leaderUid == request.auth.uid)
+          || ((get(teamPath).data.leaderUids is list) && request.auth.uid in get(teamPath).data.leaderUids)
+        );
+    }
+
     function isMessageSenderResource() {
       return isAuth()
         && (
@@ -564,11 +578,77 @@ service cloud.firestore {
     //  公開可讀；管理員可寫
     // ═══════════════════════════════════════════
     match /tournaments/{tournamentId} {
+      function tournamentExists() {
+        return exists(/databases/$(database)/documents/tournaments/$(tournamentId));
+      }
+
+      function isTournamentDelegate() {
+        return isAuth()
+          && tournamentExists()
+          && (get(/databases/$(database)/documents/tournaments/$(tournamentId)).data.delegateUids is list)
+          && request.auth.uid in get(/databases/$(database)/documents/tournaments/$(tournamentId)).data.delegateUids;
+      }
+
+      function isTournamentHostManager() {
+        return tournamentExists()
+          && hasNonEmptyStringInMap(get(/databases/$(database)/documents/tournaments/$(tournamentId)).data, 'hostTeamId')
+          && isCurrentUserTeamCaptainOrLeader(get(/databases/$(database)/documents/tournaments/$(tournamentId)).data.hostTeamId);
+      }
+
+      function canManageTournamentScope() {
+        return isAdmin() || isTournamentDelegate() || isTournamentHostManager();
+      }
+
+      function tournamentEntryExists(teamId) {
+        return teamId is string
+          && exists(/databases/$(database)/documents/tournaments/$(tournamentId)/entries/$(teamId));
+      }
+
       allow read: if true;
       allow create: if isAdmin()
         && hasString('name');
       allow update: if isAdmin();
       allow delete: if isAdmin();
+
+      match /applications/{applicationId} {
+        allow read: if canManageTournamentScope()
+          || ((resource.data.teamId is string) && isCurrentUserInTeam(resource.data.teamId));
+        allow create: if tournamentExists()
+          && isAuth()
+          && hasString('teamId')
+          && isCurrentUserTeamCaptainOrLeader(request.resource.data.teamId);
+        allow update: if tournamentExists() && canManageTournamentScope();
+        allow delete: if tournamentExists() && canManageTournamentScope();
+      }
+
+      match /entries/{teamId} {
+        allow read: if true;
+        allow create: if tournamentExists() && canManageTournamentScope();
+        allow update: if tournamentExists() && canManageTournamentScope();
+        allow delete: if tournamentExists() && canManageTournamentScope();
+
+        match /members/{memberUid} {
+          allow read: if true;
+          allow create: if tournamentExists()
+            && (canManageTournamentScope()
+            || (isAuth()
+              && memberUid == request.auth.uid
+              && isCurrentUserInTeam(teamId)
+              && tournamentEntryExists(teamId)));
+          allow update: if tournamentExists()
+            && (canManageTournamentScope()
+            || (isAuth()
+              && memberUid == request.auth.uid
+              && isCurrentUserInTeam(teamId)
+              && tournamentEntryExists(teamId)));
+          allow delete: if tournamentExists()
+            && (canManageTournamentScope()
+            || (isAuth()
+              && memberUid == request.auth.uid
+              && isCurrentUserInTeam(teamId)
+              && tournamentEntryExists(teamId)));
+        }
+      }
     }
 
     // ═══════════════════════════════════════════

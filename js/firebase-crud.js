@@ -113,6 +113,130 @@ Object.assign(FirebaseService, {
     return doc;
   },
 
+  _mapCollectionDocs(snapshot) {
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), _docId: doc.id }));
+  },
+
+  async _getTournamentDocRefById(tournamentId) {
+    const safeTournamentId = String(tournamentId || '').trim();
+    if (!safeTournamentId) throw new Error('TOURNAMENT_ID_REQUIRED');
+
+    const cached = this._cache.tournaments.find(t => t.id === safeTournamentId && t._docId);
+    if (cached?._docId) return db.collection('tournaments').doc(cached._docId);
+
+    const snapshot = await db.collection('tournaments').where('id', '==', safeTournamentId).limit(1).get();
+    if (snapshot.empty) throw new Error('TOURNAMENT_DOC_NOT_FOUND');
+    return snapshot.docs[0].ref;
+  },
+
+  async _getTournamentSubcollectionRef(tournamentId, subcollectionName) {
+    const tournamentRef = await this._getTournamentDocRefById(tournamentId);
+    return tournamentRef.collection(subcollectionName);
+  },
+
+  async listTournamentApplications(tournamentId) {
+    const collectionRef = await this._getTournamentSubcollectionRef(tournamentId, 'applications');
+    const snapshot = await collectionRef.get();
+    return this._mapCollectionDocs(snapshot);
+  },
+
+  async createTournamentApplication(tournamentId, data) {
+    const collectionRef = await this._getTournamentSubcollectionRef(tournamentId, 'applications');
+    const payload = (typeof App !== 'undefined' && typeof App._buildFriendlyTournamentApplicationRecord === 'function')
+      ? App._buildFriendlyTournamentApplicationRecord(data)
+      : { ...data };
+    const docRef = payload.id ? collectionRef.doc(payload.id) : collectionRef.doc();
+    payload.id = payload.id || docRef.id;
+    await docRef.set({
+      ..._stripDocId(payload),
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    }, { merge: true });
+    payload._docId = docRef.id;
+    return payload;
+  },
+
+  async updateTournamentApplication(tournamentId, applicationId, updates) {
+    const collectionRef = await this._getTournamentSubcollectionRef(tournamentId, 'applications');
+    const docRef = collectionRef.doc(String(applicationId || '').trim());
+    await docRef.update({
+      ..._stripDocId(updates),
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    });
+    return { id: applicationId, ...updates, _docId: applicationId };
+  },
+
+  async listTournamentEntries(tournamentId) {
+    const collectionRef = await this._getTournamentSubcollectionRef(tournamentId, 'entries');
+    const snapshot = await collectionRef.get();
+    return this._mapCollectionDocs(snapshot);
+  },
+
+  async upsertTournamentEntry(tournamentId, teamId, data) {
+    const collectionRef = await this._getTournamentSubcollectionRef(tournamentId, 'entries');
+    const payload = (typeof App !== 'undefined' && typeof App._buildFriendlyTournamentEntryRecord === 'function')
+      ? App._buildFriendlyTournamentEntryRecord({ ...data, teamId: teamId || data?.teamId })
+      : { ...data, teamId: teamId || data?.teamId };
+    const safeTeamId = String(payload.teamId || '').trim();
+    if (!safeTeamId) throw new Error('TOURNAMENT_ENTRY_TEAM_ID_REQUIRED');
+
+    const docRef = collectionRef.doc(safeTeamId);
+    const snapshot = await docRef.get();
+    const record = {
+      ..._stripDocId(payload),
+      teamId: safeTeamId,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    };
+    if (!snapshot.exists) {
+      record.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+      if (!record.approvedAt) record.approvedAt = firebase.firestore.FieldValue.serverTimestamp();
+    }
+    await docRef.set(record, { merge: true });
+    payload._docId = safeTeamId;
+    return payload;
+  },
+
+  async listTournamentEntryMembers(tournamentId, teamId) {
+    const entryRef = (await this._getTournamentSubcollectionRef(tournamentId, 'entries')).doc(String(teamId || '').trim());
+    const snapshot = await entryRef.collection('members').get();
+    return this._mapCollectionDocs(snapshot);
+  },
+
+  async upsertTournamentEntryMember(tournamentId, teamId, member) {
+    const payload = (typeof App !== 'undefined' && typeof App._buildFriendlyTournamentRosterMemberRecord === 'function')
+      ? App._buildFriendlyTournamentRosterMemberRecord(member)
+      : { ...member };
+    const safeTeamId = String(teamId || '').trim();
+    const safeUid = String(payload.uid || '').trim();
+    if (!safeTeamId) throw new Error('TOURNAMENT_ENTRY_TEAM_ID_REQUIRED');
+    if (!safeUid) throw new Error('TOURNAMENT_ENTRY_MEMBER_UID_REQUIRED');
+
+    const entryRef = (await this._getTournamentSubcollectionRef(tournamentId, 'entries')).doc(safeTeamId);
+    const memberRef = entryRef.collection('members').doc(safeUid);
+    const snapshot = await memberRef.get();
+    const record = {
+      ..._stripDocId(payload),
+      uid: safeUid,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    };
+    if (!snapshot.exists) {
+      record.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+      if (!record.joinedAt) record.joinedAt = firebase.firestore.FieldValue.serverTimestamp();
+    }
+    await memberRef.set(record, { merge: true });
+    payload._docId = safeUid;
+    return payload;
+  },
+
+  async removeTournamentEntryMember(tournamentId, teamId, memberUid) {
+    const safeTeamId = String(teamId || '').trim();
+    const safeUid = String(memberUid || '').trim();
+    if (!safeTeamId || !safeUid) return false;
+    const entryRef = (await this._getTournamentSubcollectionRef(tournamentId, 'entries')).doc(safeTeamId);
+    await entryRef.collection('members').doc(safeUid).delete();
+    return true;
+  },
+
   // ════════════════════════════════
   //  Events CRUD
   // ════════════════════════════════
@@ -449,6 +573,9 @@ Object.assign(FirebaseService, {
   // ════════════════════════════════
 
   async addTournament(data) {
+    if (typeof App !== 'undefined' && typeof App._buildFriendlyTournamentRecord === 'function') {
+      Object.assign(data, App._buildFriendlyTournamentRecord(data));
+    }
     if (data.image && data.image.startsWith('data:')) {
       data.image = await this._uploadImage(data.image, `tournaments/${data.id}`);
     }
@@ -466,6 +593,9 @@ Object.assign(FirebaseService, {
   async updateTournament(id, updates) {
     const doc = this._cache.tournaments.find(t => t.id === id);
     if (!doc || !doc._docId) return null;
+    if (typeof App !== 'undefined' && typeof App._buildFriendlyTournamentRecord === 'function') {
+      Object.assign(updates, App._buildFriendlyTournamentRecord({ ...doc, ...updates }));
+    }
     if (updates.image && updates.image.startsWith('data:')) {
       updates.image = await this._uploadImage(updates.image, `tournaments/${id}`);
     }
