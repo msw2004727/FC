@@ -789,7 +789,7 @@ Object.assign(App, {
       const noteText = pendingState ? (pendingState.note || '') : (noteRec?.note || '');
       const noShowCount = showNoShowColumn ? this._getParticipantNoShowCount(p, noShowCountByUid) : null;
       const noShowCell = showNoShowColumn
-        ? `<td style="padding:.35rem .2rem;text-align:center;width:3rem"><span title="放鴿子次數（已結束且未完成簽到＋簽退）" style="font-size:.78rem;font-weight:${noShowCount > 0 ? '700' : '600'};color:${noShowCount > 0 ? 'var(--danger)' : 'var(--text-muted)'}">${noShowCount == null ? '—' : noShowCount}</span></td>`
+        ? `<td style="padding:.35rem .2rem;text-align:center;width:3rem"><span title="放鴿子次數（已結束且未完成簽到＋簽退）" style="font-size:.78rem;font-weight:${noShowCount > 0 ? '700' : '600'};color:${noShowCount > 0 ? 'var(--danger)' : 'var(--text-muted)'}">${noShowCount == null ? '—' : (noShowCount > 0 ? noShowCount : '')}</span></td>`
         : '';
       const autoNote = p.proxyOnly ? '僅代報' : '';
       const combinedNote = [autoNote, noteText].filter(Boolean).join('・');

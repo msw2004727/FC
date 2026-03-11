@@ -197,8 +197,8 @@
 // 20260311af: route loading 加入超時保險絲，並將 WebSocket fallback 改為 tab-scoped 短 TTL，避免多頁籤長輪詢卡死
 // 20260311ag: 縮小 cloud init boot 集合並延後活動頁即時監聽，減輕多頁籤活動頁切入壓力
 // 20260311ah: 活動頁允許在 cloud 未完成時先顯示快取畫面，再背景補雲端初始化與刷新
-// 20260311aj: 活動詳細頁出席表新增放鴿子次數欄位，公開顯示歷史未完成簽到簽退次數
-const CACHE_VERSION = '20260311aj';
+// 20260311ak: 活動詳細頁放鴿子次數欄位改為 0 不顯示，只保留大於 0 的數字
+const CACHE_VERSION = '20260311ak';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {
