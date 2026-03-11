@@ -1184,8 +1184,7 @@ Object.assign(App, {
     this._initSportTagPicker(e.sportTag || 'football');
     this._setGenderRestrictionState?.(!!e.genderRestrictionEnabled, e.allowedGender || '');
     // 開放報名時間
-    const regOpenInput = document.getElementById('ce-reg-open-time');
-    if (regOpenInput) regOpenInput.value = e.regOpenTime || '';
+    this._setEventRegOpenTimeValue?.(e.regOpenTime || '');
     // 球隊限定
     const ceTeamOnly = document.getElementById('ce-team-only');
     if (ceTeamOnly) {

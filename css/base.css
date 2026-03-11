@@ -237,6 +237,7 @@ img { max-width: 100%; display: block; }
 .ce-time-row {
   display: grid;
   grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) auto minmax(0, 1fr);
+  grid-template-areas: "date start sep end";
   align-items: center;
   gap: .3rem;
   width: 100%;
@@ -247,12 +248,25 @@ img { max-width: 100%; display: block; }
   padding: .45rem .35rem;
   font-size: .82rem;
 }
+.ce-time-date { grid-area: date; }
+.ce-time-start { grid-area: start; }
+.ce-time-end { grid-area: end; }
 .ce-time-separator {
+  grid-area: sep;
   font-size: .82rem;
   color: var(--text-muted);
 }
-.ce-reg-open-input {
+.ce-reg-open-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  gap: .3rem;
+  width: 100%;
   min-width: 0;
+}
+.ce-reg-open-row input {
+  min-width: 0;
+  padding: .45rem .35rem;
+  font-size: .82rem;
 }
 .ce-row-half { flex-direction: row; gap: .4rem; }
 .ce-row-half > div { flex: 1; display: flex; flex-direction: column; gap: .3rem; min-width: 0; overflow: hidden; }
@@ -975,6 +989,14 @@ img { max-width: 100%; display: block; }
   .role-current-label { display: none; }
   .role-avatar-btn { padding: .3rem; }
   .role-arrow { display: none; }
+  .ce-time-row {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-areas:
+      "date date"
+      "start end";
+  }
+  .ce-time-separator { display: none; }
+  .ce-reg-open-row { grid-template-columns: minmax(0, 1fr); }
 }
 @media (min-width: 600px) {
   #main-content { padding: .75rem 1rem; }

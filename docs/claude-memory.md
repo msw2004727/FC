@@ -5,6 +5,12 @@
 > 新紀錄一律寫在檔案前方，採新到舊排序；若需補記舊項目，應插入對應日期區段，不得追加到檔尾。
 
 ---
+### 2026-03-11 — iOS 新增活動時間欄改為自動重排與雙欄報名時間
+- **問題**：上一版已修正桌面模擬手機版的新增活動欄位溢出，但 iOS Chrome 真機仍會出現「活動時間」日期欄被右側時間欄擠壓，以及「開放報名時間」單一 `datetime-local` 欄位仍未真正收縮的情況。
+- **原因**：iOS WebKit 的原生 `date / time / datetime-local` 控制項有更強的最小內容寬度限制；即使補上 `border-box`，單一 `datetime-local` 仍容易撐寬，三欄同列的日期時間排列也會壓縮日期文字。
+- **修復**：更新 `pages/activity.html`、`css/base.css`、`js/modules/event-create.js`、`js/modules/event-manage.js`，將 `開放報名時間（regOpenTime）` 的 UI 改為「日期 + 時間」雙欄，並在 `event-create.js` 新增組裝 / 回填 helper 維持資料仍儲存為單一 `regOpenTime` 字串；同時讓 `活動時間（ce-date / ce-time-start / ce-time-end）` 在窄螢幕自動重排為日期一列、開始/結束下一列；同步更新 `js/config.js` 與 `index.html` 快取版本到 `20260311e`。
+- **教訓**：iOS 上的原生日期時間控制項不能只靠縮 padding 解決，遇到真機收縮不穩時，應優先拆分欄位與重排版面，讓資料格式留在 JS 組裝層，而不是硬把原生控制項塞進同一列。
+
 ### 2026-03-11 — 修正新增活動日期時間欄位橫向溢出
 - **問題**：新增活動表單在手機真機會出現「開放報名時間（ce-reg-open-time）」右側超出，桌面模擬手機尺寸則可能變成「活動結束（ce-time-end）」欄位多出一點，導致 modal 可橫向滑動，操作體感不佳。
 - **原因**：全域表單控制項只有 `width: 100%`，缺少 `box-sizing: border-box`，在不同瀏覽器的原生 `date/time/datetime-local` 控制下會把內距與邊框算到 100% 之外；同時活動時間列用 inline flex，沒有對原生日期時間欄位補 `min-width: 0` 與可收縮版型。

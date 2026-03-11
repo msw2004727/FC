@@ -346,6 +346,7 @@ Object.assign(App, {
   _buildCurrentTemplate(name, image) {
     const genderRestrictionEnabled = !!document.getElementById('ce-gender-restriction-enabled')?.checked;
     const feeEnabled = !!document.getElementById('ce-fee-enabled')?.checked;
+    const regOpenTime = this._getEventRegOpenTimeValue();
     return {
       id: 'tpl_' + Date.now(),
       name,
@@ -361,11 +362,53 @@ Object.assign(App, {
       minAge: parseInt(document.getElementById('ce-min-age')?.value) || 0,
       notes: document.getElementById('ce-notes')?.value?.trim() || '',
       sportTag: getSportKeySafe(document.getElementById('ce-sport-tag')?.value || '') || '',
+      regOpenTime: typeof regOpenTime === 'string' ? regOpenTime : '',
       genderRestrictionEnabled,
       allowedGender: genderRestrictionEnabled ? this._getAllowedGenderValue() : '',
       image: image || null,
       updatedAt: new Date().toISOString(),
     };
+  },
+
+  _getEventRegOpenNodes() {
+    return {
+      date: document.getElementById('ce-reg-open-date'),
+      time: document.getElementById('ce-reg-open-clock'),
+    };
+  },
+
+  _normalizeEventRegOpenTime(value) {
+    const raw = String(value || '').trim();
+    if (!raw) return { date: '', time: '' };
+
+    const match = raw.match(/^(\d{4}-\d{2}-\d{2})[T\s](\d{2}:\d{2})/);
+    if (match) return { date: match[1], time: match[2] };
+
+    const parsed = new Date(raw);
+    if (!Number.isFinite(parsed.getTime())) return { date: '', time: '' };
+
+    const yyyy = parsed.getFullYear();
+    const mm = String(parsed.getMonth() + 1).padStart(2, '0');
+    const dd = String(parsed.getDate()).padStart(2, '0');
+    const hh = String(parsed.getHours()).padStart(2, '0');
+    const min = String(parsed.getMinutes()).padStart(2, '0');
+    return { date: `${yyyy}-${mm}-${dd}`, time: `${hh}:${min}` };
+  },
+
+  _setEventRegOpenTimeValue(value = '') {
+    const { date, time } = this._getEventRegOpenNodes();
+    const normalized = this._normalizeEventRegOpenTime(value);
+    if (date) date.value = normalized.date;
+    if (time) time.value = normalized.time;
+  },
+
+  _getEventRegOpenTimeValue() {
+    const { date, time } = this._getEventRegOpenNodes();
+    const dateVal = date?.value || '';
+    const timeVal = time?.value || '';
+    if (!dateVal && !timeVal) return '';
+    if (!dateVal || !timeVal) return null;
+    return `${dateVal}T${timeVal}`;
   },
 
   async _saveEventTemplate() {
@@ -447,6 +490,7 @@ Object.assign(App, {
     setVal('ce-min-age', tpl.minAge);
     setVal('ce-notes', tpl.notes);
     this._initSportTagPicker(tpl.sportTag || '');
+    this._setEventRegOpenTimeValue(tpl.regOpenTime || '');
     this._setGenderRestrictionState(!!tpl.genderRestrictionEnabled, tpl.allowedGender || '');
     if (tpl.image) {
       const preview = document.getElementById('ce-upload-preview');
@@ -551,8 +595,7 @@ Object.assign(App, {
     document.getElementById('ce-min-age').value = '0';
     document.getElementById('ce-notes').value = '';
     document.getElementById('ce-sport-tag').value = '';
-    const regOpen = document.getElementById('ce-reg-open-time');
-    if (regOpen) regOpen.value = '';
+    this._setEventRegOpenTimeValue('');
     document.getElementById('ce-image').value = '';
     const ceTeamOnly = document.getElementById('ce-team-only');
     const ceTeamSelect = document.getElementById('ce-team-select');
@@ -1341,7 +1384,7 @@ Object.assign(App, {
     const minAge = parseInt(document.getElementById('ce-min-age').value) || 0;
     const notes = document.getElementById('ce-notes').value.trim();
     const sportTag = getSportKeySafe(document.getElementById('ce-sport-tag')?.value || this._selectedSportTag || '');
-    const regOpenTime = document.getElementById('ce-reg-open-time')?.value || '';
+    const regOpenTime = this._getEventRegOpenTimeValue();
     const teamOnly = !!document.getElementById('ce-team-only')?.checked;
     const genderRestrictionEnabled = !!document.getElementById('ce-gender-restriction-enabled')?.checked;
     const allowedGender = genderRestrictionEnabled ? this._getAllowedGenderValue() : '';
@@ -1351,6 +1394,7 @@ Object.assign(App, {
     if (!location) { this.showToast('請輸入地點'); return; }
     if (!dateVal) { this.showToast('請選擇活動日期'); return; }
     if (!tStart || !tEnd) { this.showToast('請選擇開始與結束時間'); return; }
+    if (regOpenTime === null) { this.showToast('請完整選擇開放報名日期與時間'); return; }
     // 新增模式：不允許選擇過去的日期時間
     if (feeEnabled && fee <= 0) { this.showToast('請輸入活動費用'); return; }
     if (!this._editEventId) {
@@ -1522,7 +1566,7 @@ Object.assign(App, {
     document.getElementById('ce-min-age').value = '0';
     document.getElementById('ce-notes').value = '';
     document.getElementById('ce-sport-tag').value = '';
-    document.getElementById('ce-reg-open-time').value = '';
+    this._setEventRegOpenTimeValue('');
     document.getElementById('ce-image').value = '';
     document.getElementById('ce-date').value = '';
     document.getElementById('ce-time-start').value = '14:00';
