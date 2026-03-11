@@ -240,30 +240,17 @@ img { max-width: 100%; display: block; }
 .ce-fee-toggle-wrap {
   display: flex;
   flex-direction: column;
-  gap: .35rem;
+  gap: .3rem;
 }
 .ce-fee-toggle-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: .5rem;
-  min-height: 22px;
-}
-.ce-fee-title-wrap {
-  display: flex;
-  align-items: baseline;
-  gap: .35rem;
-  flex-wrap: wrap;
-  min-width: 0;
+  gap: .45rem;
+  min-height: 19px;
 }
 .ce-fee-title {
   margin: 0;
-}
-.ce-fee-label {
-  font-size: .68rem;
-  line-height: 1.4;
-  font-weight: 400;
-  color: var(--text-muted);
+  flex-shrink: 0;
 }
 .ce-fee-toggle-header .toggle-switch {
   flex-shrink: 0;
@@ -273,6 +260,8 @@ img { max-width: 100%; display: block; }
 }
 .ce-fee-input-wrap input {
   width: 100%;
+  padding: .55rem .75rem;
+  font-size: .93rem;
 }
 
 /* Team-only Multi Select */

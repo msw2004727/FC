@@ -689,26 +689,23 @@ Object.assign(App, {
   _getEventFeeFormNodes() {
     return {
       toggle: document.getElementById('ce-fee-enabled'),
-      label: document.getElementById('ce-fee-label'),
       wrap: document.getElementById('ce-fee-input-wrap'),
       input: document.getElementById('ce-fee'),
     };
   },
 
   _updateEventFeeToggle() {
-    const { toggle, label, wrap, input } = this._getEventFeeFormNodes();
-    if (!toggle || !label || !wrap || !input) return;
+    const { toggle, wrap, input } = this._getEventFeeFormNodes();
+    if (!toggle || !wrap || !input) return;
 
     const enabled = !!toggle.checked;
     if (enabled) {
       if ((parseInt(input.value, 10) || 0) <= 0) input.value = '300';
-      label.textContent = '活動詳情會顯示';
       wrap.style.display = '';
       input.disabled = false;
       return;
     }
 
-    label.textContent = '活動詳情不顯示';
     wrap.style.display = 'none';
     input.disabled = true;
   },
