@@ -264,7 +264,7 @@ Object.assign(App, {
         const sportIcon = this._renderEventSportIcon(e, 'my-event-sport-icon');
         // Fee summary
         const feeEnabled = this._isEventFeeEnabled?.(e) ?? Number(e?.fee || 0) > 0;
-        const fee = this._getEventFeeAmount?.(e) ?? (feeEnabled ? (Number(e?.fee || 0) || 0) : 0);
+        const fee = this._getEventRecordedFeeAmount?.(e) ?? (Number(e?.fee || 0) > 0 ? Math.floor(Number(e.fee || 0)) : 0);
         const confirmedRegs = fee > 0 ? ApiService.getRegistrationsByEvent(e.id) : [];
         const confirmedCount = confirmedRegs.length > 0 ? confirmedRegs.length : (e.current || 0);
         const unregCount = fee > 0 ? (unregCountMap.get(e.id) || 0) : 0;
@@ -272,7 +272,7 @@ Object.assign(App, {
         const feeExpected = fee * (confirmedCount + unregCount);
         const feeActual = fee * checkoutCount;
         const feeShort = feeExpected - feeActual;
-        const feeBox = (feeEnabled && fee > 0 && isSuperAdmin) ? `<div style="margin-left:auto;padding:.2rem .45rem;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:.68rem;color:var(--text-secondary);display:inline-flex;gap:.5rem;background:var(--bg-elevated);white-space:nowrap">
+        const feeBox = (fee > 0 && isSuperAdmin) ? `<div style="margin-left:auto;padding:.2rem .45rem;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:.68rem;color:var(--text-secondary);display:inline-flex;gap:.5rem;background:var(--bg-elevated);white-space:nowrap">
           <span>應收<b style="color:var(--text-primary)">$${feeExpected}</b></span>
           <span>實收<b style="color:var(--success)">$${feeActual}</b></span>
           <span>短收<b style="color:${feeShort > 0 ? 'var(--danger)' : 'var(--success)'}">$${feeShort}</b></span>
@@ -375,7 +375,7 @@ Object.assign(App, {
 
     // ── 費用摘要（計費來源：報名記錄 + 未報名簽到）──
     const feeEnabled = this._isEventFeeEnabled?.(e) ?? Number(e?.fee || 0) > 0;
-    const fee = this._getEventFeeAmount?.(e) ?? (feeEnabled ? (Number(e?.fee || 0) || 0) : 0);
+    const fee = this._getEventRecordedFeeAmount?.(e) ?? (Number(e?.fee || 0) > 0 ? Math.floor(Number(e.fee || 0)) : 0);
     const confirmedRegsDetail = fee > 0 ? ApiService.getRegistrationsByEvent(e.id) : [];
     const confirmedCountDetail = confirmedRegsDetail.length > 0 ? confirmedRegsDetail.length : (e.current || 0);
     const unregCountDetail = fee > 0 ? new Set(records.filter(r => r.type === 'unreg').map(r => r.uid)).size : 0;
@@ -383,7 +383,7 @@ Object.assign(App, {
     const feeActual = fee * (fee > 0 ? ApiService.getAttendanceRecords(e.id).filter(r => r.type === 'checkout').length : 0);
     const feeShort = feeExpected - feeActual;
     const isSuperAdmin = (ROLE_LEVEL_MAP[this.currentRole] || 0) >= ROLE_LEVEL_MAP.super_admin;
-    const feeSection = (feeEnabled && fee > 0 && isSuperAdmin)
+    const feeSection = (fee > 0 && isSuperAdmin)
       ? `<div style="margin:.6rem 0 .2rem;padding:.4rem .6rem;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-elevated);font-size:.78rem;display:flex;gap:.8rem;flex-wrap:wrap">
           <span>應收 <b style="color:var(--text-primary)">$${feeExpected}</b></span>
           <span>實收 <b style="color:var(--success)">$${feeActual}</b></span>
@@ -392,7 +392,7 @@ Object.assign(App, {
       : '';
 
     const metaParts = [];
-    if (feeEnabled) metaParts.push(`費用：${fee > 0 ? 'NT$' + fee : '免費'}`);
+    if (feeEnabled || fee > 0) metaParts.push(`費用：${fee > 0 ? 'NT$' + fee : '免費'}`);
     metaParts.push(`狀態：${statusConf.label}`);
     metaParts.push(`主辦：${escapeHTML(e.creator)}`);
 

@@ -352,8 +352,14 @@ const ApiService = {
     });
   },
 
+  _normalizeEventUpdates(updates) {
+    const normalized = (updates && typeof updates === 'object') ? { ...updates } : {};
+    if (normalized.status === 'ended') normalized.feeEnabled = false;
+    return normalized;
+  },
+
   createEvent(data)         { return this._createAwaitWrite('events', data, FirebaseService.addEvent, 'createEvent'); },
-  updateEvent(id, updates)  { return this._update('events', id, updates, FirebaseService.updateEvent, 'updateEvent'); },
+  updateEvent(id, updates)  { return this._update('events', id, this._normalizeEventUpdates(updates), FirebaseService.updateEvent, 'updateEvent'); },
   deleteEvent(id)           { return this._deleteAwaitWrite('events', id, FirebaseService.deleteEvent, 'deleteEvent'); },
 
   async loadMyEventTemplates(ownerUid) {

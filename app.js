@@ -110,11 +110,15 @@ const App = {
     return Number(event.fee || 0) > 0;
   },
 
-  _getEventFeeAmount(event) {
-    if (!this._isEventFeeEnabled(event)) return 0;
+  _getEventRecordedFeeAmount(event) {
     const fee = Number(event?.fee || 0);
     if (!Number.isFinite(fee) || fee <= 0) return 0;
     return Math.floor(fee);
+  },
+
+  _getEventFeeAmount(event) {
+    if (!this._isEventFeeEnabled(event)) return 0;
+    return this._getEventRecordedFeeAmount(event);
   },
 
   renderAll() {

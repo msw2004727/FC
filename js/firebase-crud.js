@@ -439,9 +439,10 @@ Object.assign(FirebaseService, {
     if (startDate && startDate <= now) {
       if (eventData.status !== 'ended') {
         eventData.status = 'ended';
+        eventData.feeEnabled = false;
         if (eventData._docId) {
           try {
-            await db.collection('events').doc(eventData._docId).update({ status: 'ended' });
+            await db.collection('events').doc(eventData._docId).update({ status: 'ended', feeEnabled: false });
           } catch (err) {
             console.warn('[eventSignupGuard] sync ended status failed:', err);
           }
