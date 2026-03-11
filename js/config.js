@@ -183,7 +183,8 @@
 // 20260311p: 修補友誼賽站內信審核導流與申請重入保護
 // 20260311q: 活動詳情封面新增依類型配色的左下斜角緞帶
 // 20260311r: 修正活動詳情封面左下斜角緞帶方向
-const CACHE_VERSION = '20260311r';
+// 20260311s: 首頁近期活動縮圖新增同款左下類型斜角緞帶
+const CACHE_VERSION = '20260311s';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {

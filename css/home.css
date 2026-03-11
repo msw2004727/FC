@@ -101,6 +101,33 @@
 .h-card-img { height: 90px; overflow: hidden; }
 .h-card-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .h-card-placeholder { border: 2px dashed var(--border); background: var(--bg-elevated); display: flex; align-items: center; justify-content: center; font-size: .72rem; font-weight: 600; color: var(--text-muted); font-family: monospace; }
+.h-card-type-ribbon {
+  position: absolute;
+  left: -28px;
+  bottom: 12px;
+  min-width: 112px;
+  padding: .34rem 1.25rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  color: #fff;
+  font-size: .68rem;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, .22);
+  box-shadow: 0 8px 18px rgba(15, 23, 42, .22);
+  transform: rotate(45deg);
+  transform-origin: center;
+  z-index: 2;
+  pointer-events: none;
+}
+.h-card-type-ribbon-friendly { background: linear-gradient(135deg, #0d9488, #065f46); }
+.h-card-type-ribbon-camp     { background: linear-gradient(135deg, #ec4899, #be185d); }
+.h-card-type-ribbon-play     { background: linear-gradient(135deg, #7c3aed, #4338ca); }
+.h-card-type-ribbon-watch    { background: linear-gradient(135deg, #f59e0b, #d97706); }
 .h-card-body { padding: .65rem .75rem; display: flex; flex-direction: column; gap: .26rem; min-height: 72px; }
 .h-card-title { font-weight: 700; font-size: .85rem; margin-bottom: .2rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .h-card-meta { font-size: .72rem; color: var(--text-secondary); display: flex; flex-direction: column; gap: .24rem; min-width: 0; }
@@ -165,6 +192,16 @@
   font-size: 14px;
   line-height: 1;
   display: inline-block;
+}
+
+@media (max-width: 640px) {
+  .h-card-type-ribbon {
+    left: -30px;
+    bottom: 10px;
+    min-width: 104px;
+    padding: .3rem 1.1rem;
+    font-size: .64rem;
+  }
 }
 
 /* ─── Floating Ads ─── */
