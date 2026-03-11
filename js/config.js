@@ -184,7 +184,8 @@
 // 20260311q: 活動詳情封面新增依類型配色的左下斜角緞帶
 // 20260311r: 修正活動詳情封面左下斜角緞帶方向
 // 20260311s: 首頁近期活動縮圖新增同款左下類型斜角緞帶
-const CACHE_VERSION = '20260311s';
+// 20260311t: 首頁活動首次載入點擊新增 toast 與卡片 pending 提示
+const CACHE_VERSION = '20260311t';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {

@@ -436,6 +436,80 @@ Object.assign(App, {
   //  Render: Hot Events
   // ══════════════════════════════════
 
+  _shouldShowHomeEventLoadingHint() {
+    if (ModeManager.isDemo()) return false;
+
+    const lineAuth = typeof LineAuth !== 'undefined' ? LineAuth : null;
+    const isLoggedIn = !!lineAuth?.isLoggedIn?.();
+    const hasSession = !!lineAuth?.hasLiffSession?.();
+    const authPending = !!lineAuth?.isPendingLogin?.() || (hasSession && !isLoggedIn);
+    const definitelyLoggedOut = !isLoggedIn && !authPending && !hasSession;
+    if (definitelyLoggedOut) return false;
+
+    const publicDataPending = typeof FirebaseService !== 'undefined' && FirebaseService && !FirebaseService._initialized;
+    const cloudPending = !this._cloudReady || !!this._cloudReadyPromise;
+    return authPending || publicDataPending || cloudPending;
+  },
+
+  _showHomeEventLoadingToast(isSlow = false) {
+    const now = Date.now();
+    const cooldownMs = isSlow ? 1400 : 900;
+    if (now - (this._homeEventLoadingToastAt || 0) < cooldownMs) return;
+    this._homeEventLoadingToastAt = now;
+    this.showToast(isSlow ? '網路較慢，活動資料仍在載入中...' : '活動資料載入中，請稍候 1-2 秒');
+  },
+
+  _markHomeEventCardPending(cardEl) {
+    if (!cardEl || !cardEl.classList) return;
+    clearTimeout(cardEl._homeEventPendingTimer);
+    cardEl.classList.add('is-pending');
+    cardEl.setAttribute('aria-busy', 'true');
+    cardEl._homeEventPendingTimer = setTimeout(() => {
+      cardEl.classList.remove('is-pending');
+      cardEl.removeAttribute('aria-busy');
+      cardEl._homeEventPendingTimer = null;
+    }, 900);
+  },
+
+  async openHomeEventDetailFromCard(eventId, cardEl) {
+    const safeEventId = String(eventId || '').trim();
+    const targetCard = cardEl?.closest ? cardEl.closest('.h-card') : cardEl;
+    if (!safeEventId) return { ok: false, reason: 'missing-id' };
+
+    if (targetCard?.dataset?.homeEventOpening === '1') {
+      this._markHomeEventCardPending(targetCard);
+      this._showHomeEventLoadingToast(true);
+      return { ok: false, reason: 'pending' };
+    }
+
+    const shouldHintLoading = this._shouldShowHomeEventLoadingHint();
+    if (targetCard?.dataset) targetCard.dataset.homeEventOpening = '1';
+    if (shouldHintLoading) {
+      this._markHomeEventCardPending(targetCard);
+      this._showHomeEventLoadingToast(false);
+    }
+
+    try {
+      const result = await this.showEventDetail(safeEventId);
+      if (!result?.ok && result?.reason === 'missing' && !shouldHintLoading) {
+        this.showToast('活動資料暫時無法開啟，請稍後再試');
+      }
+      return result;
+    } catch (err) {
+      console.error('[HomeEventClick] open detail failed:', err);
+      this.showToast('活動資料暫時無法開啟，請稍後再試');
+      return { ok: false, reason: 'error' };
+    } finally {
+      if (targetCard?.dataset) {
+        clearTimeout(targetCard._homeEventOpenLockTimer);
+        targetCard._homeEventOpenLockTimer = setTimeout(() => {
+          delete targetCard.dataset.homeEventOpening;
+          targetCard._homeEventOpenLockTimer = null;
+        }, shouldHintLoading ? 900 : 320);
+      }
+    }
+  },
+
   renderHotEvents() {
     this._autoEndExpiredEvents();
     this.renderHomeGameShortcut();
@@ -480,10 +554,10 @@ Object.assign(App, {
         const _participantCount = `${e.current}/${e.max}${t('activity.participants')}${(Number(e.waitlist) || 0) > 0 ? ' 候補' + (Number(e.waitlist) || 0) : ''}`;
         const _metaBottomClass = _genderRibbon ? 'h-card-meta-bottom h-card-meta-bottom-has-ribbon' : 'h-card-meta-bottom';
         return `
-        <div class="h-card" style="${e.pinned ? 'border:1px solid var(--warning);box-shadow:0 0 0 1px rgba(245,158,11,.15)' : ''}" onclick="App.showEventDetail('${e.id}')">
+        <div class="h-card" style="${e.pinned ? 'border:1px solid var(--warning);box-shadow:0 0 0 1px rgba(245,158,11,.15)' : ''}" onclick="App.openHomeEventDetailFromCard('${e.id}', this)">
           ${e.image
-            ? `<div class="h-card-img" style="position:relative">${_cornerBadges}${_typeRibbon}<img src="${e.image}" alt="${escapeHTML(e.title)}" loading="lazy"></div>`
-            : `<div class="h-card-img h-card-placeholder" style="position:relative">${_cornerBadges}${_typeRibbon}220 × 90</div>`}
+            ? `<div class="h-card-img">${_cornerBadges}${_typeRibbon}<img src="${e.image}" alt="${escapeHTML(e.title)}" loading="lazy"></div>`
+            : `<div class="h-card-img h-card-placeholder">${_cornerBadges}${_typeRibbon}220 × 90</div>`}
           <div class="h-card-body">
             <div class="h-card-title">${e.pinned ? '<span style="font-size:.62rem;padding:.08rem .35rem;border-radius:999px;border:1px solid var(--warning);color:var(--warning);font-weight:700;margin-right:.3rem">置頂</span>' : ''}${escapeHTML(e.title)}${e.teamOnly ? '<span class="tl-teamonly-badge">球隊限定</span>' : ''}${(e.max > 0 && e.current >= e.max && e.status !== 'ended' && e.status !== 'cancelled') ? '<span class="tl-almost-full-badge">已額滿</span>' : ((e.status === 'open' && e.max > 0 && (e.max - e.current) / e.max < 0.2 && e.current < e.max) ? '<span class="tl-almost-full-badge">即將額滿</span>' : '')} ${this._favHeartHtml(this.isEventFavorited(e.id), 'Event', e.id)}</div>
             <div class="h-card-meta">
