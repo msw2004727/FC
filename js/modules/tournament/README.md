@@ -27,4 +27,6 @@ This directory is reserved for the tournament refactor so the feature can move o
 - Production still uses the legacy flat files:
   - `tournament-manage.js`
   - `tournament-render.js`
+- The first extracted shared module is already live:
+  - `js/modules/tournament/tournament-core.js`
 - New work should treat this directory as the target landing zone for the refactor.
