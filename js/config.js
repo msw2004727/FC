@@ -199,7 +199,9 @@
 // 20260311ah: 活動頁允許在 cloud 未完成時先顯示快取畫面，再背景補雲端初始化與刷新
 // 20260311am: 活動費用欄位預設改為 0，沒有有效金額時開啟開關顯示 0
 // 20260312a: 新增用戶補正管理頁，支援放鴿子補正與歷史入隊補正子權限，放鴿子統計改為只看未簽到
-const CACHE_VERSION = '20260312a';
+// 20260312b: 修正放鴿子補正的用戶搜尋結果在名稱缺失時重複顯示 UID
+// 20260312c: 修正放鴿子補正寫入被 Firestore 規則拒絕，超級管理員可直接寫入補正
+const CACHE_VERSION = '20260312c';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {

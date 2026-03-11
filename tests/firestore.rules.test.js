@@ -169,6 +169,12 @@ async function seedUserDoc(id, overrides = {}) {
   });
 }
 
+async function seedRolePermissions(roleKey, permissions = []) {
+  await seedDoc("rolePermissions", roleKey, {
+    permissions: [...permissions],
+  });
+}
+
 async function seedBaseDocs() {
   await testEnv.withSecurityRulesDisabled(async (ctx) => {
     const db = ctx.firestore();
@@ -953,6 +959,76 @@ describe("logs/records high-risk matrix", () => {
         return deleteDoc(doc(db, "auditLogsByDay", "20260309", "auditEntries", id));
       },
       denyAll
+    );
+  });
+});
+
+describe("/userCorrections/{uid}", () => {
+  test("super_admin can manage no-show corrections without rolePermissions doc", async () => {
+    await assertSucceeds(
+      setDoc(doc(superAdmin(), "userCorrections", "uidUser"), {
+        uid: "uidUser",
+        noShow: {
+          adjustment: -2,
+          targetCount: 1,
+          baseRawCount: 3,
+          updatedByUid: "uidSA",
+        },
+      })
+    );
+
+    await assertSucceeds(
+      updateDoc(doc(superAdmin(), "userCorrections", "uidUser"), {
+        "noShow.adjustment": -1,
+      })
+    );
+
+    await assertSucceeds(
+      deleteDoc(doc(superAdmin(), "userCorrections", "uidUser"))
+    );
+  });
+
+  test("admin requires explicit permission to manage no-show corrections", async () => {
+    await assertFails(
+      setDoc(doc(admin(), "userCorrections", "uidUser"), {
+        uid: "uidUser",
+        noShow: {
+          adjustment: -2,
+          targetCount: 1,
+          baseRawCount: 3,
+          updatedByUid: "uidAdmin",
+        },
+      })
+    );
+
+    await seedRolePermissions("admin", ["admin.repair.no_show_adjust"]);
+
+    await assertSucceeds(
+      setDoc(doc(admin(), "userCorrections", "uidUser"), {
+        uid: "uidUser",
+        noShow: {
+          adjustment: -2,
+          targetCount: 1,
+          baseRawCount: 3,
+          updatedByUid: "uidAdmin",
+        },
+      })
+    );
+  });
+
+  test("user role cannot manage no-show corrections even if rolePermissions doc exists", async () => {
+    await seedRolePermissions("user", ["admin.repair.no_show_adjust"]);
+
+    await assertFails(
+      setDoc(doc(user(), "userCorrections", "uidUser"), {
+        uid: "uidUser",
+        noShow: {
+          adjustment: -1,
+          targetCount: 0,
+          baseRawCount: 1,
+          updatedByUid: "uidUser",
+        },
+      })
     );
   });
 });

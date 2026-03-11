@@ -80,11 +80,11 @@ service cloud.firestore {
     }
 
     function canRunTeamJoinRepair() {
-      return hasPerm('admin.repair.team_join_repair');
+      return isSuperAdmin() || hasPerm('admin.repair.team_join_repair');
     }
 
     function canManageNoShowCorrections() {
-      return hasPerm('admin.repair.no_show_adjust');
+      return isSuperAdmin() || hasPerm('admin.repair.no_show_adjust');
     }
 
     function isCoachPlus() {

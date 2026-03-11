@@ -5,6 +5,19 @@
 Object.assign(App, {
   _adminRepairActiveTab: 'team-joins',
   _userCorrectionSelectedUid: '',
+  _getUserCorrectionPrimaryLabel(user) {
+    const candidates = [user?.name, user?.displayName, user?.uid, user?.lineUserId];
+    for (const value of candidates) {
+      const text = String(value || '').trim();
+      if (text) return text;
+    }
+    return '未命名用戶';
+  },
+  _getUserCorrectionIdentityText(user) {
+    const primaryLabel = this._getUserCorrectionPrimaryLabel(user);
+    const uid = String(user?.uid || '').trim();
+    return uid && primaryLabel !== uid ? `${primaryLabel}（${uid}）` : primaryLabel;
+  },
   _getAdminRepairTabAccess() {
     return {
       teamJoins: !!this.hasPermission?.('admin.repair.team_join_repair'),
@@ -95,11 +108,19 @@ Object.assign(App, {
     }
 
     dropdown.innerHTML = matches.map(user => {
+      const primaryLabel = this._getUserCorrectionPrimaryLabel(user);
       const roleLabel = ROLES[user.role]?.label || user.role || '使用者';
-      const lineId = user.lineUserId ? ` · ${escapeHTML(user.lineUserId)}` : '';
+      const uid = String(user?.uid || '').trim();
+      const lineUserId = String(user?.lineUserId || '').trim();
+      const metaParts = [];
+      if (uid && primaryLabel !== uid) metaParts.push(escapeHTML(uid));
+      metaParts.push(escapeHTML(roleLabel));
+      if (lineUserId && primaryLabel !== lineUserId && uid !== lineUserId) {
+        metaParts.push(`LINE ID ${escapeHTML(lineUserId)}`);
+      }
       return `<div class="ce-delegate-item" data-uid="${escapeHTML(user.uid)}">
-        <span class="ce-delegate-item-name">${escapeHTML(user.name || user.displayName || user.uid)}</span>
-        <span class="ce-delegate-item-meta">${escapeHTML(user.uid)} · ${escapeHTML(roleLabel)}${lineId}</span>
+        <span class="ce-delegate-item-name">${escapeHTML(primaryLabel)}</span>
+        <span class="ce-delegate-item-meta">${metaParts.join(' · ')}</span>
       </div>`;
     }).join('');
 
@@ -151,7 +172,7 @@ Object.assign(App, {
     if (!user) return;
 
     this._userCorrectionSelectedUid = String(user.uid || '').trim();
-    if (input) input.value = user.name || user.displayName || user.uid;
+    if (input) input.value = this._getUserCorrectionPrimaryLabel(user);
     if (dropdown) dropdown.classList.remove('open');
     if (targetInput) targetInput.value = String(this._getEffectiveNoShowCount(this._userCorrectionSelectedUid));
     this._renderSelectedUserNoShowSummary();
@@ -177,12 +198,13 @@ Object.assign(App, {
     const rawCount = this._getRawNoShowCount(user.uid);
     const adjustment = this._getUserNoShowAdjustment(user.uid);
     const effectiveCount = Math.max(0, rawCount + adjustment);
+    const identityText = this._getUserCorrectionIdentityText(user);
     const roleLabel = ROLES[user.role]?.label || user.role || '使用者';
     const updatedAt = this._formatCorrectionTime(correctionDoc?.noShow?.updatedAt);
     const updatedBy = correctionDoc?.noShow?.updatedByName || '—';
 
     if (result) {
-      result.innerHTML = `<span style="color:var(--success)">已選取：${escapeHTML(user.name || user.uid)}（${escapeHTML(user.uid)}）</span>`;
+      result.innerHTML = `<span style="color:var(--success)">已選取：${escapeHTML(identityText)}</span>`;
     }
     if (targetInput && !String(targetInput.value || '').trim()) {
       targetInput.value = String(effectiveCount);
@@ -190,7 +212,7 @@ Object.assign(App, {
 
     summary.innerHTML = `
       <div style="display:grid;gap:.45rem;font-size:.82rem">
-        <div><strong>${escapeHTML(user.name || user.uid)}</strong> · ${escapeHTML(user.uid)} · ${escapeHTML(roleLabel)}</div>
+        <div><strong>${escapeHTML(identityText)}</strong> · ${escapeHTML(roleLabel)}</div>
         <div>原始放鴿子次數：<strong>${rawCount}</strong></div>
         <div>目前補正差額：<strong>${adjustment >= 0 ? '+' : ''}${adjustment}</strong></div>
         <div>補正後顯示次數：<strong>${effectiveCount}</strong></div>
