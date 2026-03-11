@@ -44,6 +44,58 @@ Object.assign(App, {
     }, 120);
   },
 
+  _canUseStaleFirstNavigation(pageId, options = {}) {
+    const { authPending = false } = options;
+    if (!this._hasPageSnapshotReady?.(pageId)) return false;
+    if (pageId === 'page-home') return true;
+    if (pageId === 'page-activities') {
+      return !authPending && !!this._cloudReady;
+    }
+    return false;
+  },
+
+  _activatePage(pageId, options = {}) {
+    const target = document.getElementById(pageId);
+    if (!target) return null;
+
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    target.classList.add('active');
+    this.currentPage = pageId;
+
+    if (!ModeManager.isDemo()
+      && typeof FirebaseService !== 'undefined'
+      && typeof FirebaseService.finalizePageScopedRealtimeForPage === 'function') {
+      FirebaseService.finalizePageScopedRealtimeForPage(pageId);
+    }
+
+    if (!options.suppressHashSync && location.hash !== '#' + pageId) {
+      location.hash = pageId;
+    }
+
+    this._floatAdOffset = 0;
+    this._floatAdTarget = 0;
+    requestAnimationFrame(() => { if (this._positionFloatingAds) this._positionFloatingAds(); });
+
+    if (options.render !== false) this._renderPageContent(pageId);
+    if (options.resetScroll !== false) this._resetPageScroll(pageId);
+    if (pageId !== 'page-scan' && this._stopCamera) this._stopCamera();
+    return target;
+  },
+
+  async _refreshStaleFirstPage(pageId, transitionSeq) {
+    try {
+      if (typeof FirebaseService === 'undefined' || typeof FirebaseService.ensureCollectionsForPage !== 'function') return;
+      const loaded = await FirebaseService.ensureCollectionsForPage(pageId);
+      if (transitionSeq !== this._pageTransitionSeq || this.currentPage !== pageId) return;
+      if ((loaded || []).length > 0) {
+        this._renderPageContent(pageId);
+      }
+    } catch (err) {
+      if (transitionSeq !== this._pageTransitionSeq || this.currentPage !== pageId) return;
+      console.warn(`[Navigation] stale-first refresh failed for ${pageId}:`, err);
+    }
+  },
+
   _normalizeAdminLogRoute(pageId, options = {}) {
     let normalizedPageId = pageId;
     let adminLogTab = options.adminLogTab || '';
@@ -203,9 +255,6 @@ Object.assign(App, {
     }
     // 正式版未登入：擋住球隊、賽事、我的、訊息頁
     const guardedPages = ['page-profile', 'page-teams', 'page-tournaments', 'page-messages', 'page-activities'];
-    const shouldShowRouteLoading = pageId !== this.currentPage
-      && typeof this._beginRouteLoading === 'function'
-      && typeof this._endRouteLoading === 'function';
     const needsCloudInit = this._pageNeedsCloud(pageId) && (!this._cloudReady || !!this._cloudReadyPromise);
     const authPending = !ModeManager.isDemo()
       && typeof LineAuth !== 'undefined'
@@ -213,6 +262,12 @@ Object.assign(App, {
         (typeof LineAuth.isPendingLogin === 'function' && LineAuth.isPendingLogin())
         || (typeof LineAuth.hasLiffSession === 'function' && LineAuth.hasLiffSession() && !LineAuth._ready)
       );
+    const canUseStaleFirst = pageId !== this.currentPage
+      && this._canUseStaleFirstNavigation(pageId, { authPending });
+    const shouldShowRouteLoading = pageId !== this.currentPage
+      && !canUseStaleFirst
+      && typeof this._beginRouteLoading === 'function'
+      && typeof this._endRouteLoading === 'function';
     const routeLoadingSeq = shouldShowRouteLoading
       ? this._beginRouteLoading({
           pageId,
@@ -222,7 +277,10 @@ Object.assign(App, {
       : 0;
 
     try {
-      if (guardedPages.includes(pageId) && this._pageNeedsCloud(pageId) && typeof this.ensureCloudReady === 'function') {
+      if (!canUseStaleFirst
+        && guardedPages.includes(pageId)
+        && this._pageNeedsCloud(pageId)
+        && typeof this.ensureCloudReady === 'function') {
         try {
           await this.ensureCloudReady({ reason: `guard:${pageId}` });
         } catch (err) {
@@ -240,6 +298,26 @@ Object.assign(App, {
       }
 
       const transitionSeq = ++this._pageTransitionSeq;
+
+      if (canUseStaleFirst) {
+        if (this.currentPage === 'page-home' && pageId !== 'page-home') {
+          this._cancelHomeDeferredRender?.();
+          this.stopBannerCarousel?.();
+        }
+
+        const fromPage = this.currentPage;
+        if (options.resetHistory) {
+          this.pageHistory = [];
+        } else if (fromPage !== pageId) {
+          this.pageHistory.push(fromPage);
+        }
+
+        const activated = this._activatePage(pageId, options);
+        if (!activated) return { ok: false, reason: 'missing_target' };
+
+        void this._refreshStaleFirstPage(pageId, transitionSeq);
+        return { ok: true, pageId, staleFirst: true };
+      }
 
       try {
         await this._ensurePageEntryReady(pageId);
@@ -268,26 +346,11 @@ Object.assign(App, {
       } else if (fromPage !== pageId) {
         this.pageHistory.push(fromPage);
       }
-      document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-      const target = document.getElementById(pageId);
-      if (target) {
-        target.classList.add('active');
-        this.currentPage = pageId;
-        if (!ModeManager.isDemo()
-          && typeof FirebaseService !== 'undefined'
-          && typeof FirebaseService.finalizePageScopedRealtimeForPage === 'function') {
-          FirebaseService.finalizePageScopedRealtimeForPage(pageId);
-        }
+      const activated = this._activatePage(pageId, options);
+      if (activated) {
         // 同步 URL hash，讓瀏覽器返回鍵可用（hash 相同時跳過，避免觸發 hashchange）
         if (!options.suppressHashSync && location.hash !== '#' + pageId) location.hash = pageId;
         // 重設浮動廣告位置，避免跨頁 scrollTo 觸發 scroll listener 造成跳位
-        this._floatAdOffset = 0;
-        this._floatAdTarget = 0;
-        requestAnimationFrame(() => { if (this._positionFloatingAds) this._positionFloatingAds(); });
-        this._renderPageContent(pageId);
-        this._resetPageScroll(pageId);
-
-        if (pageId !== 'page-scan' && this._stopCamera) this._stopCamera();
         return { ok: true, pageId };
       }
       return { ok: false, reason: 'missing_target' };

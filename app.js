@@ -33,6 +33,7 @@ const App = {
   _routeLoadingShownAt: 0,
   _pendingProtectedBootRoute: null,
   _pendingProtectedBootRoutePromise: null,
+  _pageSnapshotReady: {},
 
   init() {
     this.bindSportPicker();
@@ -108,6 +109,7 @@ const App = {
     this.renderBannerCarousel({ autoplay: false });
     this.renderAnnouncement();
     this.renderHotEvents();
+    this._markPageSnapshotReady('page-home');
   },
 
   renderHomeDeferred() {
@@ -150,6 +152,15 @@ const App = {
     }
 
     this._homeDeferredTimerId = setTimeout(run, delayMs);
+  },
+
+  _markPageSnapshotReady(pageId) {
+    if (!pageId) return;
+    this._pageSnapshotReady[pageId] = true;
+  },
+
+  _hasPageSnapshotReady(pageId) {
+    return !!this._pageSnapshotReady[pageId];
   },
 
   /** Phase 1 完成後才執行：綁定 pages/*.html 內的動態元素事件 */

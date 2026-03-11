@@ -359,10 +359,10 @@ const FirebaseService = {
 
   /** 根據頁面 ID 懶載入對應的集合 */
   async ensureCollectionsForPage(pageId) {
-    if (ModeManager.isDemo()) return;
-    if (!this._initialized) return;
+    if (ModeManager.isDemo()) return [];
+    if (!this._initialized) return [];
     const needed = this._collectionPageMap[pageId];
-    if (!needed) return;
+    if (!needed) return [];
 
     // 啟動延遲即時監聽器（registrations / attendanceRecords 需 Auth）
     this._startPageScopedRealtimeForPage(pageId);
@@ -372,12 +372,13 @@ const FirebaseService = {
     const toLoad = needed.filter(name =>
       !realtimeNeeded.has(name) && this._shouldReloadCollection(name)
     );
-    if (toLoad.length === 0) return;
+    if (toLoad.length === 0) return [];
 
     console.log(`[FirebaseService] 懶載入 ${pageId} 需要的集合:`, toLoad.join(', '));
-    await this._loadCollectionsByName(toLoad);
+    const loaded = await this._loadCollectionsByName(toLoad);
     // 持久化新載入的集合
     this._persistCache();
+    return loaded;
   },
 
   async ensureStaticCollectionsLoaded(names) {

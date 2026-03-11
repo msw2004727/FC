@@ -855,6 +855,7 @@ Object.assign(App, {
     });
 
     container.innerHTML = html || `<div style="padding:1.5rem;font-size:.82rem;color:var(--text-muted);text-align:center">${t('activity.noMatch')}</div>`;
+    this._markPageSnapshotReady?.('page-activities');
   },
 
   // ══════════════════════════════════
