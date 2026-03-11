@@ -646,22 +646,15 @@ Object.assign(App, {
   },
 
   // ── 報名名單表格（活動管理 + 活動詳細頁共用）──
-  _renderAttendanceTable(eventId, containerId) {
-    const cId = containerId || 'attendance-table-container';
-    const container = document.getElementById(cId);
-    if (!container) return;
-    // 記住 containerId，供編輯流程重新渲染用
-    this._manualEditingContainerId = cId;
+  _buildConfirmedParticipantSummary(eventId) {
     const e = ApiService.getEvent(eventId);
-    if (!e) return;
+    if (!e) return { people: [], count: 0 };
 
-    const canManage = this._canManageEvent(e);
-    const records = ApiService.getAttendanceRecords(eventId);
     const allActiveRegs = ApiService.getRegistrationsByEvent(eventId);
     const confirmedRegs = allActiveRegs.filter(r => r.status === 'confirmed');
-
-    let people = [];
+    const people = [];
     const addedNames = new Set();
+
     if (confirmedRegs.length > 0) {
       const groups = new Map();
       confirmedRegs.forEach(r => {
@@ -673,7 +666,7 @@ Object.assign(App, {
         const companions = regs.filter(r => r.participantType === 'companion');
         const mainName = selfReg ? selfReg.userName : regs[0].userName;
         const mainUid = regs[0].userId;
-        const proxyOnly = !selfReg; // 僅代報：沒有 self registration
+        const proxyOnly = !selfReg;
         people.push({ name: mainName, uid: mainUid, isCompanion: false, displayName: mainName, hasSelfReg: !proxyOnly, proxyOnly });
         addedNames.add(mainName);
         companions.forEach(c => {
@@ -684,13 +677,30 @@ Object.assign(App, {
         });
       });
     }
-    // 混合資料：補上只在 e.participants 但沒有 registration 的舊成員
+
     (e.participants || []).forEach(p => {
       if (!addedNames.has(p)) {
         people.push({ name: p, uid: p, isCompanion: false, displayName: p, hasSelfReg: true, proxyOnly: false });
         addedNames.add(p);
       }
     });
+
+    return { people, count: people.length };
+  },
+
+  _renderAttendanceTable(eventId, containerId) {
+    const cId = containerId || 'attendance-table-container';
+    const container = document.getElementById(cId);
+    if (!container) return;
+    // 記住 containerId，供編輯流程重新渲染用
+    this._manualEditingContainerId = cId;
+    const e = ApiService.getEvent(eventId);
+    if (!e) return;
+
+    const canManage = this._canManageEvent(e);
+    const records = ApiService.getAttendanceRecords(eventId);
+    const summary = this._buildConfirmedParticipantSummary(eventId);
+    const people = summary.people;
 
     if (people.length === 0) {
       container.innerHTML = '<div style="font-size:.8rem;color:var(--text-muted);padding:.3rem 0">尚無報名</div>';
@@ -760,10 +770,10 @@ Object.assign(App, {
     ) : '';
 
     // 表頭：「報名名單（人數/上限）」欄含操作按鈕；編輯模式多「踢掉」欄
-    const regCount = `報名名單（${people.length}/${e.max}）`;
+    const regCountText = `報名名單（${summary.count}/${e.max}）`;
     const nameThContent = topBtn
-      ? `<div style="display:flex;align-items:center;gap:.4rem;white-space:nowrap">${regCount}${topBtn}</div>`
-      : regCount;
+      ? `<div style="display:flex;align-items:center;gap:.4rem;white-space:nowrap">${regCountText}${topBtn}</div>`
+      : regCountText;
     const thead = tableEditing
       ? `<tr style="border-bottom:2px solid var(--border)">
           <th style="text-align:center;padding:.4rem .2rem;font-weight:600;width:3rem">踢掉</th>

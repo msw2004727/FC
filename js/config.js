@@ -185,8 +185,8 @@
 // 20260311r: 修正活動詳情封面左下斜角緞帶方向
 // 20260311s: 首頁近期活動縮圖新增同款左下類型斜角緞帶
 // 20260311t: 首頁活動首次載入點擊新增 toast 與卡片 pending 提示
-// 20260311u: 首頁活動載入提示延後 1 秒，pending 文案改置中
-const CACHE_VERSION = '20260311u';
+// 20260311v: 活動詳情頁已報人數改與報名名單共用 confirmed 摘要
+const CACHE_VERSION = '20260311v';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {

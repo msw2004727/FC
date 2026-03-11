@@ -154,9 +154,13 @@ Object.assign(App, {
     const mapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(e.location)}`;
     const locationHtml = `<a href="${mapUrl}" target="_blank" rel="noopener" style="color:var(--primary);text-decoration:none">${escapeHTML(e.location)} 📍</a>`;
 
+    const confirmedSummary = typeof this._buildConfirmedParticipantSummary === 'function'
+      ? this._buildConfirmedParticipantSummary(e.id)
+      : { count: Number(e.current || 0), people: [] };
+    const confirmedCount = confirmedSummary.count;
     const isEnded = e.status === 'ended' || e.status === 'cancelled';
     const isUpcoming = e.status === 'upcoming';
-    const isMainFull = e.current >= e.max;
+    const isMainFull = confirmedCount >= e.max;
     // 防幽靈 UI 層：正式版 registrations 快取為空時視為「載入中」，不顯示報名按鈕
     const regsLoading = !ModeManager.isDemo() && FirebaseService._cache.registrations.length === 0 && !FirebaseService._initialized;
     const isSignedUp = regsLoading ? false : this._isUserSignedUp(e);
@@ -233,7 +237,7 @@ Object.assign(App, {
       <div class="detail-row"><span class="detail-label">時間</span>${escapeHTML(e.date)}</div>
       ${regOpenHtml}
       ${feeRow}
-      <div class="detail-row"><span class="detail-label">人數</span>已報 ${e.current}/${e.max}${(e.waitlist || 0) > 0 ? '　候補 ' + e.waitlist : ''}</div>
+      <div class="detail-row"><span class="detail-label">人數</span>已報 ${confirmedCount}/${e.max}${(e.waitlist || 0) > 0 ? '　候補 ' + e.waitlist : ''}</div>
       ${ageTag}
       ${genderTag}
       <div class="detail-row"><span class="detail-label">主辦</span><span class="participant-list" style="display:inline-flex;gap:.3rem;flex-wrap:wrap">${this._userTag(e.creator)}</span></div>
