@@ -238,34 +238,41 @@ img { max-width: 100%; display: block; }
 .ce-row-half input[type="date"] { width: 100%; min-width: 0; box-sizing: border-box; padding: .45rem .35rem; font-size: .82rem; }
 .ce-row-half select { padding: .45rem .35rem; font-size: .82rem; padding-right: 1.4rem; background-position: right .3rem center; }
 .ce-fee-toggle-wrap {
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--bg-elevated);
-  padding: .48rem .55rem;
   display: flex;
   flex-direction: column;
-  gap: .45rem;
+  gap: .35rem;
 }
 .ce-fee-toggle-header {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: .5rem;
   min-height: 22px;
 }
-.ce-fee-input-wrap {
+.ce-fee-title-wrap {
   display: flex;
-  align-items: center;
-  gap: .4rem;
+  align-items: baseline;
+  gap: .35rem;
+  flex-wrap: wrap;
+  min-width: 0;
 }
-.ce-fee-prefix {
-  font-size: .8rem;
-  font-weight: 700;
-  color: var(--text-secondary);
-  white-space: nowrap;
+.ce-fee-title {
+  margin: 0;
+}
+.ce-fee-label {
+  font-size: .68rem;
+  line-height: 1.4;
+  font-weight: 400;
+  color: var(--text-muted);
+}
+.ce-fee-toggle-header .toggle-switch {
+  flex-shrink: 0;
+}
+.ce-fee-input-wrap {
+  width: 100%;
 }
 .ce-fee-input-wrap input {
-  flex: 1;
-  min-width: 0;
+  width: 100%;
 }
 
 /* Team-only Multi Select */

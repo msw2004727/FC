@@ -685,7 +685,7 @@ Object.assign(App, {
     input.placeholder = this._delegates.length >= 3 ? '已達上限 3 人' : '搜尋 UID 或暱稱...';
   },
 
-  /** 球隊限定：填充下拉選單（僅在切換開啟時呼叫，避免重複重建） */
+  /** 活動費用：收合金額欄位與提示文字 */
   _getEventFeeFormNodes() {
     return {
       toggle: document.getElementById('ce-fee-enabled'),
@@ -702,15 +702,13 @@ Object.assign(App, {
     const enabled = !!toggle.checked;
     if (enabled) {
       if ((parseInt(input.value, 10) || 0) <= 0) input.value = '300';
-      label.textContent = '開啟 - 活動詳情顯示費用';
-      label.style.color = 'var(--accent)';
+      label.textContent = '活動詳情會顯示';
       wrap.style.display = '';
       input.disabled = false;
       return;
     }
 
-    label.textContent = '關閉 - 活動詳情不顯示費用';
-    label.style.color = 'var(--text-muted)';
+    label.textContent = '活動詳情不顯示';
     wrap.style.display = 'none';
     input.disabled = true;
   },
