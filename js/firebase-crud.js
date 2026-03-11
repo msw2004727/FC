@@ -368,6 +368,54 @@ Object.assign(FirebaseService, {
   //  Registrations（報名系統）
   // ════════════════════════════════
 
+  _getEventOccupancyState(eventData = {}) {
+    const fallbackCurrent = Math.max(0, Number(eventData.current || 0) || 0);
+    const fallbackWaitlist = Math.max(0, Number(eventData.waitlist || 0) || 0);
+    const hasParticipantArray = Array.isArray(eventData.participants);
+    const hasWaitlistArray = Array.isArray(eventData.waitlistNames);
+    const participantSet = new Set();
+    const waitlistSet = new Set();
+    const participants = [];
+    const waitlistNames = [];
+
+    if (hasParticipantArray) {
+      eventData.participants.forEach(name => {
+        const safeName = String(name || '').trim();
+        if (!safeName || participantSet.has(safeName)) return;
+        participantSet.add(safeName);
+        participants.push(safeName);
+      });
+    }
+
+    if (hasWaitlistArray) {
+      eventData.waitlistNames.forEach(name => {
+        const safeName = String(name || '').trim();
+        if (!safeName || participantSet.has(safeName) || waitlistSet.has(safeName)) return;
+        waitlistSet.add(safeName);
+        waitlistNames.push(safeName);
+      });
+    }
+
+    return {
+      hasParticipantArray,
+      hasWaitlistArray,
+      participants,
+      waitlistNames,
+      current: hasParticipantArray ? participants.length : fallbackCurrent,
+      waitlist: hasWaitlistArray ? waitlistNames.length : fallbackWaitlist,
+    };
+  },
+
+  _applyEventOccupancyState(eventData, occupancy = null) {
+    if (!eventData) return null;
+    const state = occupancy || this._getEventOccupancyState(eventData);
+    eventData.current = state.current;
+    eventData.waitlist = state.waitlist;
+    if (state.hasParticipantArray) eventData.participants = state.participants;
+    if (state.hasWaitlistArray) eventData.waitlistNames = state.waitlistNames;
+    return state;
+  },
+
   async registerForEvent(eventId, userId, userName) {
     if (!userId || userId === 'unknown') throw new Error('用戶資料載入中，請稍候再試');
 
@@ -404,7 +452,10 @@ Object.assign(FirebaseService, {
     });
     if (hasActive) throw new Error('已報名此活動');
 
-    const isWaitlist = event.current >= event.max;
+    const occupancy = this._getEventOccupancyState(event);
+    const participants = occupancy.hasParticipantArray ? [...occupancy.participants] : null;
+    const waitlistNames = occupancy.hasWaitlistArray ? [...occupancy.waitlistNames] : null;
+    const isWaitlist = occupancy.current >= event.max;
     const status = isWaitlist ? 'waitlisted' : 'confirmed';
     const registration = {
       id: 'reg_' + Date.now(),
@@ -433,33 +484,41 @@ Object.assign(FirebaseService, {
     this._cache.registrations.push(registration);
 
     // 更新活動計數（確保不會同時出現在兩個名單）
+    let nextCurrent = occupancy.current;
+    let nextWaitlist = occupancy.waitlist;
+
     if (status === 'confirmed') {
-      event.current++;
-      if (!event.participants) event.participants = [];
-      if (!event.participants.includes(userName)) event.participants.push(userName);
-      if (event.waitlistNames) {
-        const wi = event.waitlistNames.indexOf(userName);
-        if (wi >= 0) { event.waitlistNames.splice(wi, 1); event.waitlist = Math.max(0, (event.waitlist || 0) - 1); }
+      nextCurrent++;
+      if (participants && !participants.includes(userName)) participants.push(userName);
+      if (waitlistNames) {
+        const wi = waitlistNames.indexOf(userName);
+        if (wi >= 0) waitlistNames.splice(wi, 1);
       }
     } else {
-      event.waitlist = (event.waitlist || 0) + 1;
-      if (!event.waitlistNames) event.waitlistNames = [];
-      if (!event.waitlistNames.includes(userName)) event.waitlistNames.push(userName);
-      if (event.participants) {
-        const pi = event.participants.indexOf(userName);
-        if (pi >= 0) { event.participants.splice(pi, 1); event.current = Math.max(0, event.current - 1); }
+      nextWaitlist++;
+      if (waitlistNames && !waitlistNames.includes(userName)) waitlistNames.push(userName);
+      if (participants) {
+        const pi = participants.indexOf(userName);
+        if (pi >= 0) participants.splice(pi, 1);
       }
     }
 
-    if (event.current >= event.max) event.status = 'full';
+    if (participants) nextCurrent = participants.length;
+    if (waitlistNames) nextWaitlist = waitlistNames.length;
+
+    event.current = nextCurrent;
+    event.waitlist = nextWaitlist;
+    if (participants) event.participants = participants;
+    if (waitlistNames) event.waitlistNames = waitlistNames;
+    event.status = event.current >= event.max ? 'full' : 'open';
 
     const eventUpdate = {
       current: event.current,
       waitlist: event.waitlist,
-      participants: event.participants,
-      waitlistNames: event.waitlistNames,
       status: event.status,
     };
+    if (participants) eventUpdate.participants = event.participants;
+    if (waitlistNames) eventUpdate.waitlistNames = event.waitlistNames;
 
     try {
       await db.collection('events').doc(event._docId).update(eventUpdate);
@@ -503,6 +562,8 @@ Object.assign(FirebaseService, {
         event.waitlist = Math.max(0, event.waitlist - 1);
       }
 
+      this._applyEventOccupancyState(event);
+
       // 候補遞補：取排序最前的候補者逐人遞補
       if (event.current < event.max) {
         const candidate = this._cache.registrations
@@ -534,6 +595,8 @@ Object.assign(FirebaseService, {
           }
         }
       }
+
+      this._applyEventOccupancyState(event);
 
       // 遞補後重新判斷 status：正取滿=full，有空位=open
       event.status = event.current >= event.max ? 'full' : 'open';
@@ -1416,11 +1479,12 @@ Object.assign(FirebaseService, {
       const eventDoc = await transaction.get(eventRef);
       if (!eventDoc.exists) throw new Error('活動不存在');
       const ed = eventDoc.data();
-      let currentCount = ed.current || 0;
-      let waitlistCount = ed.waitlist || 0;
+      const occupancy = this._getEventOccupancyState(ed);
       const maxCount = ed.max || 0;
-      const participants = ed.participants || [];
-      const waitlistNames = ed.waitlistNames || [];
+      const participants = occupancy.hasParticipantArray ? [...occupancy.participants] : null;
+      const waitlistNames = occupancy.hasWaitlistArray ? [...occupancy.waitlistNames] : null;
+      let currentCount = occupancy.current;
+      let waitlistCount = occupancy.waitlist;
 
       const registrations = [];
       let confirmed = 0, waitlisted = 0;
@@ -1436,7 +1500,7 @@ Object.assign(FirebaseService, {
         });
         if (existing) { refIdx++; promotionIdx++; continue; }
 
-        const isWaitlist = currentCount + confirmed >= maxCount;
+        const isWaitlist = currentCount >= maxCount;
         const status = isWaitlist ? 'waitlisted' : 'confirmed';
         const displayName = entry.companionName || entry.userName;
 
@@ -1461,34 +1525,55 @@ Object.assign(FirebaseService, {
 
         if (status === 'confirmed') {
           confirmed++;
-          if (!participants.includes(displayName)) participants.push(displayName);
-          const wi = waitlistNames.indexOf(displayName);
-          if (wi >= 0) { waitlistNames.splice(wi, 1); waitlistCount = Math.max(0, waitlistCount - 1); }
+          currentCount++;
+          if (participants && !participants.includes(displayName)) participants.push(displayName);
+          if (waitlistNames) {
+            const wi = waitlistNames.indexOf(displayName);
+            if (wi >= 0) waitlistNames.splice(wi, 1);
+          }
         } else {
           waitlisted++;
-          if (!waitlistNames.includes(displayName)) waitlistNames.push(displayName);
+          waitlistCount++;
+          if (waitlistNames && !waitlistNames.includes(displayName)) waitlistNames.push(displayName);
         }
+        if (participants) currentCount = participants.length;
+        if (waitlistNames) waitlistCount = waitlistNames.length;
         refIdx++;
       }
 
-      const newCurrent = currentCount + confirmed;
-      const newWaitlist = waitlistCount + waitlisted;
+      const newCurrent = currentCount;
+      const newWaitlist = waitlistCount;
       const newStatus = newCurrent >= maxCount ? 'full' : (ed.status || 'open');
+      const eventUpdate = {
+        current: newCurrent,
+        waitlist: newWaitlist,
+        status: newStatus,
+      };
+      if (participants) eventUpdate.participants = participants;
+      if (waitlistNames) eventUpdate.waitlistNames = waitlistNames;
 
-      transaction.update(eventRef, {
-        current: newCurrent, waitlist: newWaitlist,
-        participants, waitlistNames, status: newStatus,
-      });
+      transaction.update(eventRef, eventUpdate);
 
-      return { registrations, confirmed, waitlisted, newCurrent, newWaitlist, newStatus, participants, waitlistNames };
+      return {
+        registrations,
+        confirmed,
+        waitlisted,
+        newCurrent,
+        newWaitlist,
+        newStatus,
+        participants,
+        waitlistNames,
+        hasParticipantArray: occupancy.hasParticipantArray,
+        hasWaitlistArray: occupancy.hasWaitlistArray,
+      };
     });
 
     // Transaction 成功後同步本地快取
     event.current = result.newCurrent;
     event.waitlist = result.newWaitlist;
     event.status = result.newStatus;
-    event.participants = result.participants;
-    event.waitlistNames = result.waitlistNames;
+    if (result.hasParticipantArray) event.participants = result.participants;
+    if (result.hasWaitlistArray) event.waitlistNames = result.waitlistNames;
     result.registrations.forEach(r => this._cache.registrations.push(r));
 
     // 立即寫入 localStorage，避免刷新後資料遺失
@@ -1535,6 +1620,8 @@ Object.assign(FirebaseService, {
       const event = this._cache.events.find(e => e.id === eventId);
       if (!event) continue;
 
+      this._applyEventOccupancyState(event);
+
       // 逐人遞補：每個空位取排序最前的候補
       while (event.current < event.max) {
         const candidate = this._cache.registrations
@@ -1561,6 +1648,7 @@ Object.assign(FirebaseService, {
         if (!event.participants.includes(pName)) { event.participants.push(pName); event.current++; }
       }
 
+      this._applyEventOccupancyState(event);
       event.status = event.current >= event.max ? 'full' : 'open';
       if (event._docId) {
         batch.update(db.collection('events').doc(event._docId), {
