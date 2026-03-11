@@ -37,7 +37,13 @@ Object.assign(App, {
 
   _getFriendlyTournamentTeamLimit(t) {
     const limit = Number(t?.friendlyConfig?.teamLimit ?? t?.teamLimit ?? t?.maxTeams ?? t?.teams ?? 4);
-    return Number.isFinite(limit) && limit > 0 ? limit : 4;
+    return this._sanitizeFriendlyTournamentTeamLimit(limit);
+  },
+
+  _sanitizeFriendlyTournamentTeamLimit(value, fallback = 4) {
+    const limit = Number(value);
+    if (!Number.isFinite(limit)) return fallback;
+    return Math.min(4, Math.max(2, Math.floor(limit)));
   },
 
   _getTournamentModeLabel(modeOrRecord = 'friendly') {
@@ -76,6 +82,77 @@ Object.assign(App, {
     const teamName = String(tournament.hostTeamName || '').trim();
     const userName = String(tournament.organizer || tournament.creatorName || '').trim();
     return this._buildTournamentOrganizerDisplay(teamName, userName);
+  },
+
+  _resolveTournamentOrganizerUser(tournament) {
+    if (!tournament) return null;
+    const users = ApiService.getAdminUsers?.() || [];
+    const organizerUid = String(tournament.creatorUid || '').trim();
+    const organizerNames = [
+      String(tournament.creatorName || '').trim(),
+      String(tournament.organizer || '').trim(),
+    ].filter(Boolean);
+
+    let user = null;
+    if (organizerUid) {
+      user = users.find(item =>
+        String(item?.uid || '').trim() === organizerUid ||
+        String(item?.lineUserId || '').trim() === organizerUid
+      ) || null;
+    }
+
+    if (!user && organizerNames.length > 0) {
+      user = users.find(item => {
+        const name = String(item?.name || '').trim();
+        const displayName = String(item?.displayName || '').trim();
+        return organizerNames.includes(name) || organizerNames.includes(displayName);
+      }) || null;
+    }
+
+    if (!user) {
+      const currentUser = ApiService.getCurrentUser?.();
+      if (currentUser) {
+        const currentName = String(currentUser.name || '').trim();
+        const currentDisplayName = String(currentUser.displayName || '').trim();
+        const currentUid = String(currentUser.uid || currentUser.lineUserId || '').trim();
+        const uidMatched = organizerUid && currentUid === organizerUid;
+        const nameMatched = organizerNames.includes(currentName) || organizerNames.includes(currentDisplayName);
+        if (uidMatched || nameMatched) user = currentUser;
+      }
+    }
+
+    return user || null;
+  },
+
+  contactTournamentOrganizer(tournamentId) {
+    const rawTournament = ApiService.getTournament?.(tournamentId);
+    const tournament = this.getFriendlyTournamentRecord?.(rawTournament) || rawTournament;
+    if (!tournament) {
+      this.showToast?.('暫時找不到主辦人資料。');
+      return;
+    }
+
+    const organizerUser = this._resolveTournamentOrganizerUser(tournament);
+    const lineId = String(organizerUser?.socialLinks?.line || '').trim();
+    if (lineId) {
+      window.open(`https://line.me/ti/p/${encodeURIComponent(lineId)}`, '_blank', 'noopener');
+      return;
+    }
+
+    const profileName = String(
+      organizerUser?.name ||
+      organizerUser?.displayName ||
+      tournament.creatorName ||
+      tournament.organizer ||
+      ''
+    ).trim();
+
+    if (profileName) {
+      this.showUserProfile(profileName);
+      return;
+    }
+
+    this.showToast?.('暫時找不到主辦人資料。');
   },
 
   _normalizeTournamentDelegates(delegates) {

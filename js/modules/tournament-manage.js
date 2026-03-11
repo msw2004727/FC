@@ -461,6 +461,19 @@ Object.assign(App, {
     this._updateTournamentFeeToggle(prefix);
   },
 
+  _getTournamentImmediateRegStartValue(rawValue = '') {
+    const safeValue = String(rawValue || '').trim();
+    if (safeValue) return safeValue;
+    const now = new Date();
+    const localNow = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
+    return localNow.toISOString().slice(0, 16);
+  },
+
+  _getTournamentTeamLimitValue(prefix, fallback = 4) {
+    const rawValue = document.getElementById(`${prefix}-teams`)?.value;
+    return this._sanitizeFriendlyTournamentTeamLimit?.(rawValue, fallback) ?? fallback;
+  },
+
   _ensureTournamentFeeToggle(prefix) {
     const p = prefix || 'ct';
     const row = document.getElementById(`${p}-fee`)?.closest('.ce-row');
@@ -474,7 +487,7 @@ Object.assign(App, {
           <label for="${p}-fee-enabled" class="ce-fee-title">費用 ($)</label>
           <label class="toggle-switch">
             <input type="checkbox" id="${p}-fee-enabled">
-            <span class="slider"></span>
+            <span class="toggle-slider"></span>
           </label>
         </div>
         <div id="${p}-fee-input-wrap" class="ce-fee-input-wrap" style="display:none">
@@ -517,10 +530,38 @@ Object.assign(App, {
 
     const teamsInput = document.getElementById(`${p}-teams`);
     if (teamsInput) {
-      teamsInput.value = '4';
-      teamsInput.readOnly = true;
-      teamsInput.classList.add('ce-readonly-input');
-      this._ensureTournamentFieldNote(teamsInput.closest('.ce-row'), `tournament-team-limit-note-${p}`, '第一階段固定 4 隊，資料結構已保留後續擴充空間。');
+      teamsInput.value = String(this._sanitizeFriendlyTournamentTeamLimit?.(teamsInput.value, 4) ?? 4);
+      teamsInput.min = '2';
+      teamsInput.max = '4';
+      teamsInput.step = '1';
+      teamsInput.readOnly = false;
+      teamsInput.classList.remove('ce-readonly-input');
+      if (!teamsInput.dataset.teamLimitBound) {
+        teamsInput.dataset.teamLimitBound = 'true';
+        teamsInput.addEventListener('change', () => {
+          teamsInput.value = String(this._getTournamentTeamLimitValue(p, 4));
+        });
+      }
+      this._ensureTournamentFieldNote(teamsInput.closest('.ce-row'), `tournament-team-limit-note-${p}`, '第一階段上限四隊，資料結構已保留後續擴充空間');
+    }
+
+    const regStartInput = document.getElementById(`${p}-reg-start`);
+    const regStartWrap = regStartInput?.parentElement || null;
+    const regStartLabel = regStartWrap?.querySelector('label');
+    if (regStartLabel) {
+      regStartLabel.textContent = '報名開始';
+    }
+
+    const regEndInput = document.getElementById(`${p}-reg-end`);
+    const regEndWrap = regEndInput?.parentElement || null;
+    const regEndLabel = regEndWrap?.querySelector('label');
+    if (regEndLabel) {
+      regEndLabel.innerHTML = '報名截止 <span class="required">*必填</span>';
+    }
+
+    const regRow = regStartWrap?.parentElement;
+    if (regRow?.classList.contains('ce-row-half')) {
+      this._ensureTournamentFieldNote(regRow, `tournament-reg-period-note-${p}`, '未設定則立即開放');
     }
   },
 
@@ -595,13 +636,15 @@ Object.assign(App, {
     }
 
     const createName = document.getElementById('ct-name').value.trim();
-    const createRegStart = document.getElementById('ct-reg-start').value || null;
+    const createRegStartInput = document.getElementById('ct-reg-start').value || '';
     const createRegEnd = document.getElementById('ct-reg-end').value || null;
     const createDesc = document.getElementById('ct-desc').value.trim();
     const createRegion = document.getElementById('ct-region').value.trim();
     const createFeeEnabled = !!document.getElementById('ct-fee-enabled')?.checked;
     const createFeeInput = parseInt(document.getElementById('ct-fee').value, 10) || 0;
     const createFee = createFeeEnabled ? Math.max(0, createFeeInput) : 0;
+    const createTeamLimitRaw = Number(document.getElementById('ct-teams')?.value);
+    const createTeamLimit = this._getTournamentTeamLimitValue('ct', 4);
     const hostTeamId = document.getElementById('ct-host-team')?.value || '';
     const hostTeam = ApiService.getTeam?.(hostTeamId);
     const createMatchDates = [...this._ctMatchDates];
@@ -616,10 +659,16 @@ Object.assign(App, {
       this.showToast('請先選擇主辦球隊。');
       return;
     }
-    if (!createRegStart || !createRegEnd) {
-      this.showToast('請填寫完整的報名開始與截止時間。');
+    if (!Number.isFinite(createTeamLimitRaw) || createTeamLimitRaw < 2 || createTeamLimitRaw > 4) {
+      this.showToast('參賽隊伍數需介於 2 到 4 隊。');
       return;
     }
+    if (!createRegEnd) {
+      this.showToast('請填寫報名截止時間。');
+      return;
+    }
+
+    const createRegStart = this._getTournamentImmediateRegStartValue(createRegStartInput);
 
     const createCoverPreview = document.getElementById('ct-upload-preview');
     const createCoverImage = createCoverPreview?.querySelector('img')?.src || null;
@@ -634,9 +683,9 @@ Object.assign(App, {
       type: this._getTournamentModeLabel('friendly'),
       typeCode: 'friendly',
       mode: 'friendly',
-      teams: 4,
-      maxTeams: 4,
-      teamLimit: 4,
+      teams: createTeamLimit,
+      maxTeams: createTeamLimit,
+      teamLimit: createTeamLimit,
       matches: 3,
       region: createRegion,
       regStart: createRegStart,
@@ -661,7 +710,7 @@ Object.assign(App, {
       teamEntries: hostEntry ? [hostEntry] : [],
       teamApplications: [],
       friendlyConfig: {
-        teamLimit: 4,
+        teamLimit: createTeamLimit,
         allowMemberSelfJoin: true,
         pendingVisibleToThirdParty: false,
       },
@@ -774,12 +823,14 @@ Object.assign(App, {
 
     const editName = document.getElementById('et-name').value.trim();
     const editRegion = document.getElementById('et-region').value.trim();
-    const editRegStart = document.getElementById('et-reg-start').value || null;
+    const editRegStartInput = document.getElementById('et-reg-start').value || '';
     const editRegEnd = document.getElementById('et-reg-end').value || null;
     const editDescription = document.getElementById('et-desc').value.trim();
     const editFeeEnabled = !!document.getElementById('et-fee-enabled')?.checked;
     const editFeeInput = parseInt(document.getElementById('et-fee').value, 10) || 0;
     const editFee = editFeeEnabled ? Math.max(0, editFeeInput) : 0;
+    const editTeamLimitRaw = Number(document.getElementById('et-teams')?.value);
+    const editTeamLimit = this._getTournamentTeamLimitValue('et', 4);
     const hostTeamId = document.getElementById('et-host-team')?.value || '';
     const hostTeam = ApiService.getTeam?.(hostTeamId);
     if (!editName) {
@@ -794,10 +845,16 @@ Object.assign(App, {
       this.showToast('主辦球隊建立後暫不開放更換。');
       return;
     }
-    if (!editRegStart || !editRegEnd) {
-      this.showToast('請填寫完整的報名開始與截止時間。');
+    if (!Number.isFinite(editTeamLimitRaw) || editTeamLimitRaw < 2 || editTeamLimitRaw > 4) {
+      this.showToast('參賽隊伍數需介於 2 到 4 隊。');
       return;
     }
+    if (!editRegEnd) {
+      this.showToast('請填寫報名截止時間。');
+      return;
+    }
+
+    const editRegStart = this._getTournamentImmediateRegStartValue(editRegStartInput);
 
     const editVenues = [...this._etVenues];
     const editDelegates = [...this._etDelegates];
@@ -813,9 +870,9 @@ Object.assign(App, {
       type: this._getTournamentModeLabel('friendly'),
       typeCode: 'friendly',
       mode: 'friendly',
-      teams: 4,
-      maxTeams: 4,
-      teamLimit: 4,
+      teams: editTeamLimit,
+      maxTeams: editTeamLimit,
+      teamLimit: editTeamLimit,
       region: editRegion,
       regStart: editRegStart,
       regEnd: editRegEnd,
@@ -836,7 +893,7 @@ Object.assign(App, {
       hostTeamImage: editTournament.hostTeamImage || hostTeam.image || '',
       organizerDisplay: this._buildTournamentOrganizerDisplay(editTournament.hostTeamName || hostTeam.name, editCreatorName),
       friendlyConfig: {
-        teamLimit: 4,
+        teamLimit: editTeamLimit,
         allowMemberSelfJoin: true,
         pendingVisibleToThirdParty: false,
       },

@@ -46,10 +46,7 @@ Object.assign(App, {
       primaryHtml = `<button class="primary-btn full-width" onclick="App.showToast('需由球隊領隊或經理先行報名參賽。')">參加賽事</button>`;
     }
 
-    const contactName = tournament.creatorName || tournament.organizer || '';
-    const contactBtn = contactName
-      ? `<button class="outline-btn full-width" onclick="App.showUserProfile(${JSON.stringify(contactName)})">聯繫主辦人</button>`
-      : `<button class="outline-btn full-width" onclick="App.showToast('暫時找不到主辦人資料。')">聯繫主辦人</button>`;
+    const contactBtn = `<button class="outline-btn full-width" onclick="App.contactTournamentOrganizer('${tournament.id}')">聯繫主辦人</button>`;
 
     area.innerHTML = `
       <div class="tfd-action-card">

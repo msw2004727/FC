@@ -48,6 +48,45 @@
   color: var(--text-primary);
   min-width: 0;
 }
+.td-tabs-row {
+  display: flex;
+  align-items: stretch;
+  gap: .6rem;
+  margin: 0 .8rem .8rem;
+}
+.td-tabs-row .tab-bar {
+  flex: 1;
+  margin-bottom: 0;
+  min-height: 44px;
+}
+.td-toolbar {
+  display: flex;
+  align-items: stretch;
+  flex-shrink: 0;
+}
+.td-edit-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 112px;
+  padding: 0 1rem;
+  border: none;
+  border-radius: var(--radius);
+  background: #16a34a;
+  color: #fff;
+  font-size: .82rem;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: filter var(--transition), transform var(--transition);
+}
+.td-edit-btn:hover {
+  filter: brightness(.95);
+}
+.td-edit-btn:active {
+  transform: translateY(1px);
+}
 
 /* ─── Tournament Content ─── */
 .tfd-action-card {
@@ -228,6 +267,16 @@
 }
 
 @media (max-width: 640px) {
+  .td-tabs-row {
+    flex-wrap: wrap;
+  }
+  .td-toolbar {
+    width: 100%;
+  }
+  .td-edit-btn {
+    width: 100%;
+    min-height: 42px;
+  }
   .tfd-action-grid {
     grid-template-columns: 1fr;
   }

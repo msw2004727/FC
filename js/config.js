@@ -186,7 +186,8 @@
 // 20260311s: 首頁近期活動縮圖新增同款左下類型斜角緞帶
 // 20260311t: 首頁活動首次載入點擊新增 toast 與卡片 pending 提示
 // 20260311w: 首頁與行事曆活動卡片人數改與報名名單共用摘要，已滿時不再誤顯示即將額滿
-const CACHE_VERSION = '20260311w';
+// 20260311x: 賽事詳情主辦聯繫與編輯工具列調整，並修正友誼賽表單的報名費 toggle、報名開始與隊伍上限設定
+const CACHE_VERSION = '20260311x';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {

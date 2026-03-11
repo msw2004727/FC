@@ -173,6 +173,7 @@ Object.assign(App, {
     this.renderRegisterButton(t);
     // 賽事資訊（場地、日期、費用、主辦、委託）
     this.renderTournamentInfo(t);
+    this._ensureTournamentDetailTabsLayout();
 
     // 頁簽綁定
     document.querySelectorAll('#td-tabs .tab').forEach(tab => {
@@ -187,13 +188,53 @@ Object.assign(App, {
     this.renderTournamentTab('info');
   },
 
+  _renderTournamentDetailToolbar(tournament) {
+    const { toolbar } = this._ensureTournamentDetailTabsLayout();
+    if (!toolbar) return;
+
+    if (!this._canManageTournamentRecord?.(tournament)) {
+      toolbar.innerHTML = '';
+      toolbar.style.display = 'none';
+      return;
+    }
+
+    toolbar.innerHTML = `<button class="td-edit-btn" onclick="App.showEditTournament('${escapeHTML(tournament.id)}')">編輯賽事</button>`;
+    toolbar.style.display = 'flex';
+  },
+
+  _ensureTournamentDetailTabsLayout() {
+    const tabs = document.getElementById('td-tabs');
+    if (!tabs) return { tabs: null, row: null, toolbar: null };
+
+    let row = tabs.parentElement;
+    if (!row || !row.classList.contains('td-tabs-row')) {
+      row = document.createElement('div');
+      row.className = 'td-tabs-row';
+      tabs.parentNode?.insertBefore(row, tabs);
+      row.appendChild(tabs);
+    }
+
+    let toolbar = document.getElementById('td-toolbar');
+    if (!toolbar) {
+      toolbar = document.createElement('div');
+      toolbar.id = 'td-toolbar';
+      toolbar.className = 'td-toolbar';
+      toolbar.style.display = 'none';
+      row.appendChild(toolbar);
+    } else if (toolbar.parentElement !== row) {
+      row.appendChild(toolbar);
+    }
+
+    return { tabs, row, toolbar };
+  },
+
   renderRegisterButton(t) {
     const area = document.getElementById('td-register-area');
     if (!area) return;
 
     const status = this.getTournamentStatus(t);
     const registered = t.registeredTeams || [];
-    const maxTeams = t.maxTeams || 999;
+    const maxTeams = this._getFriendlyTournamentTeamLimit?.(t) || t.maxTeams || 999;
     const isFull = registered.length >= maxTeams;
 
     // 找出當前用戶管理的球隊
@@ -217,7 +258,7 @@ Object.assign(App, {
 
     let btnHTML = '';
     if (alreadyRegistered) {
-      btnHTML = `<button class="primary-btn" style="width:100%" onclick="App.showUserProfile('${escapeHTML(t.organizer || '管理員')}')">聯繫主辦</button>`;
+      btnHTML = `<button class="primary-btn" style="width:100%" onclick="App.contactTournamentOrganizer('${t.id}')">聯繫主辦人</button>`;
     } else if (hasPendingRequest) {
       btnHTML = `<button class="primary-btn" style="width:100%;opacity:.6;cursor:not-allowed" disabled>等待審核中</button>`;
     } else if ((status === '截止報名' || status === '已截止報名') && isFull) {
@@ -263,7 +304,7 @@ Object.assign(App, {
       this.showToast('您的球隊已報名此賽事');
       return;
     }
-    if (t.registeredTeams.length >= (t.maxTeams || 999)) {
+    if (t.registeredTeams.length >= (this._getFriendlyTournamentTeamLimit?.(t) || t.maxTeams || 999)) {
       this.showToast('報名已滿');
       return;
     }
@@ -361,7 +402,9 @@ Object.assign(App, {
 
     const feeEnabled = typeof infoTournament.feeEnabled === 'boolean' ? infoTournament.feeEnabled : Number(infoTournament.fee || 0) > 0;
     const feeValue = feeEnabled ? Number(infoTournament.fee || 0) || 0 : 0;
-    infoRows.push(`<div class="td-info-row"><span class="td-info-label">報名費</span><div class="td-info-value" style="font-weight:600">${feeEnabled ? `NT$${feeValue.toLocaleString()} / 隊` : '未開啟'}</div></div>`);
+    if (feeEnabled) {
+      infoRows.push(`<div class="td-info-row"><span class="td-info-label">報名費</span><div class="td-info-value" style="font-weight:600">NT$${feeValue.toLocaleString()} / 隊</div></div>`);
+    }
 
     const organizerDisplay = this._getTournamentOrganizerDisplayText?.(infoTournament) || infoTournament.organizer || '主辦球隊';
     infoRows.push(`<div class="td-info-row"><span class="td-info-label">主辦單位</span><div class="td-info-value">${escapeHTML(organizerDisplay)}</div></div>`);
@@ -372,12 +415,8 @@ Object.assign(App, {
       infoRows.push(`<div class="td-info-row"><span class="td-info-label">委託人</span><div class="td-info-value" style="display:flex;flex-wrap:wrap;gap:.3rem">${delegateTags}</div></div>`);
     }
 
-    const infoActions = [];
-    if (this._canManageTournamentRecord?.(infoTournament)) {
-      infoActions.push(`<button class="outline-btn" onclick="App.showEditTournament('${infoTournament.id}')" style="font-size:.78rem;padding:.45rem .75rem">編輯賽事</button>`);
-    }
-
-    container.innerHTML = `<div class="td-info-card">${infoRows.join('')}${infoActions.length ? `<div style="display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.75rem">${infoActions.join('')}</div>` : ''}</div>`;
+    container.innerHTML = `<div class="td-info-card">${infoRows.join('')}</div>`;
+    this._renderTournamentDetailToolbar(infoTournament);
   },
 
   renderTournamentTab(tab) {
