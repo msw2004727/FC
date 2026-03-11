@@ -6,6 +6,44 @@ Object.assign(App, {
 
   _pageTransitionSeq: 0,
 
+  _runPageScrollReset(targetPage) {
+    const html = document.documentElement;
+    const body = document.body;
+    const mainContent = document.getElementById('main-content');
+    const prevHtmlBehavior = html.style.scrollBehavior;
+    const prevBodyBehavior = body ? body.style.scrollBehavior : '';
+
+    html.style.scrollBehavior = 'auto';
+    if (body) body.style.scrollBehavior = 'auto';
+
+    window.scrollTo(0, 0);
+    html.scrollTop = 0;
+    if (body) body.scrollTop = 0;
+    if (mainContent) mainContent.scrollTop = 0;
+    if (targetPage) targetPage.scrollTop = 0;
+
+    requestAnimationFrame(() => {
+      html.style.scrollBehavior = prevHtmlBehavior;
+      if (body) body.style.scrollBehavior = prevBodyBehavior;
+    });
+  },
+
+  _resetPageScroll(pageId) {
+    const performReset = () => {
+      const targetPage = (pageId && document.getElementById(pageId)) || document.querySelector('.page.active');
+      this._runPageScrollReset(targetPage);
+    };
+
+    performReset();
+    requestAnimationFrame(() => performReset());
+
+    clearTimeout(this._pageScrollResetTimer);
+    this._pageScrollResetTimer = setTimeout(() => {
+      performReset();
+      this._pageScrollResetTimer = null;
+    }, 120);
+  },
+
   _normalizeAdminLogRoute(pageId, options = {}) {
     let normalizedPageId = pageId;
     let adminLogTab = options.adminLogTab || '';
@@ -242,12 +280,12 @@ Object.assign(App, {
         }
         // 同步 URL hash，讓瀏覽器返回鍵可用（hash 相同時跳過，避免觸發 hashchange）
         if (!options.suppressHashSync && location.hash !== '#' + pageId) location.hash = pageId;
-        window.scrollTo({ top: 0, behavior: 'smooth' });
         // 重設浮動廣告位置，避免跨頁 scrollTo 觸發 scroll listener 造成跳位
         this._floatAdOffset = 0;
         this._floatAdTarget = 0;
         requestAnimationFrame(() => { if (this._positionFloatingAds) this._positionFloatingAds(); });
         this._renderPageContent(pageId);
+        this._resetPageScroll(pageId);
 
         if (pageId !== 'page-scan' && this._stopCamera) this._stopCamera();
         return { ok: true, pageId };
@@ -333,6 +371,7 @@ Object.assign(App, {
         t.classList.toggle('active', t.dataset.page === prev && mainPages.includes(prev));
       });
       this._renderPageContent(prev);
+      this._resetPageScroll(prev);
     }
   },
 

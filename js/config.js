@@ -190,7 +190,8 @@
 // 20260311y: 活動行事曆移除標題旁的額滿標籤，滿額狀態改只看最右側報名狀態
 // 20260311z: 活動報名/取消改以 participants、waitlistNames 實際佔位同步 current/waitlist，避免 27/26 未進候補
 // 20260311aa: 首頁活動卡片將報名狀態移到人數右側，額滿時整段人數改為紅字
-const CACHE_VERSION = '20260311aa';
+// 20260311ab: 切換頁面與返回上一頁時統一強制回到頁面頂端，避免延後 render 覆蓋 scroll reset
+const CACHE_VERSION = '20260311ab';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {
