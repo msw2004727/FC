@@ -153,9 +153,11 @@
 .h-card-title { font-weight: 700; font-size: .85rem; margin-bottom: .2rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .h-card-meta { font-size: .72rem; color: var(--text-secondary); display: flex; flex-direction: column; gap: .24rem; min-width: 0; }
 .h-card-meta-location { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.h-card-meta-bottom { display: flex; align-items: center; min-width: 0; min-height: 20px; position: relative; }
+.h-card-meta-bottom { display: flex; align-items: center; gap: .35rem; min-width: 0; min-height: 20px; position: relative; }
 .h-card-meta-bottom-has-ribbon { padding-right: 84px; }
-.h-card-meta-count { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.h-card-meta-count { flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.h-card-meta-count-full { color: var(--danger); font-weight: 700; }
+.h-card-meta-bottom .tl-almost-full-badge { flex: 0 0 auto; }
 .h-card-gender-ribbon {
   position: absolute;
   right: -28px;
