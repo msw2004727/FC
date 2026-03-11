@@ -40,11 +40,32 @@ Object.assign(App, {
     return Number.isFinite(limit) && limit > 0 ? limit : 4;
   },
 
+  _getTournamentModeLabel(modeOrRecord = 'friendly') {
+    const mode = typeof modeOrRecord === 'string'
+      ? this._getTournamentMode({ mode: modeOrRecord })
+      : this._getTournamentMode(modeOrRecord);
+    const labelMap = {
+      friendly: '\u53cb\u8abc\u8cfd',
+      cup: '\u76c3\u8cfd',
+      league: '\u806f\u8cfd',
+    };
+    return labelMap[mode] || labelMap.friendly;
+  },
+
   _buildTournamentOrganizerDisplay(teamName, userName) {
     const safeTeamName = String(teamName || '').trim();
     const safeUserName = String(userName || '').trim();
     if (safeTeamName && safeUserName) return `${safeTeamName}\uFF08${safeUserName}\uFF09`;
     return safeTeamName || safeUserName || '\u4e3b\u8fa6\u7403\u968a';
+  },
+
+  _getTournamentOrganizerDisplayText(tournament) {
+    if (!tournament) return '\u4e3b\u8fa6\u7403\u968a';
+    const direct = String(tournament.organizerDisplay || '').trim();
+    if (direct) return direct;
+    const teamName = String(tournament.hostTeamName || '').trim();
+    const userName = String(tournament.organizer || tournament.creatorName || '').trim();
+    return this._buildTournamentOrganizerDisplay(teamName, userName);
   },
 
   _normalizeTournamentDelegates(delegates) {

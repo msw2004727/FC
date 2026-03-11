@@ -299,6 +299,20 @@ img { max-width: 100%; display: block; }
   padding: .55rem .75rem;
   font-size: .93rem;
 }
+.ce-field-note {
+  font-size: .72rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+.ce-static-select {
+  background-color: var(--surface-alt);
+  color: var(--text-secondary);
+  cursor: not-allowed;
+}
+.ce-readonly-input {
+  background-color: var(--surface-alt);
+  color: var(--text-secondary);
+}
 
 /* Team-only Multi Select */
 .ce-team-picker {

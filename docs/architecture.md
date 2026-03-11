@@ -104,6 +104,8 @@ flowchart TD
 | `modules/tournament-*.js` | 錦標賽功能群（渲染、賽程管理） |
 | `modules/tournament/README.md` | 賽事重構預留目錄說明；後續 friendly / cup / league 模組化拆分將以此目錄為落點 |
 | `modules/tournament/tournament-core.js` | 賽事共用核心 helper；提供公開賽事頁與後台管理共用的狀態判斷、主辦顯示、友誼賽資料正規化與責任球隊權限骨架 |
+| `modules/tournament-manage.js` | 友誼賽第一階段表單與管理入口；處理建立/編輯 modal 的主辦球隊、封面置頂、報名費開關，以及管理列表的權限過濾 |
+| `modules/tournament-render.js` | 公開賽事頁與詳情頁 renderer；本階段補上前台建立按鈕刷新、主辦顯示格式與可編輯賽事的詳情入口 |
 | `modules/profile-*.js` | 個人資料功能群（核心 UI、資料編輯、名片彈窗） |
 | `modules/message-*.js` | 訊息功能群（收件匣、管理員站內信廣播） |
 | `modules/user-admin-*.js` | 用戶後台管理群（列表、EXP 管理、角色權限） |

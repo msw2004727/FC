@@ -54,12 +54,13 @@ Object.assign(App, {
   renderTournamentTimeline() {
     const container = document.getElementById('tournament-timeline');
     if (!container) return;
+    this._refreshTournamentCenterCreateButton?.();
 
     const tab = this._tcActiveTab || 'active';
     const query = (document.getElementById('tc-search')?.value || '').trim().toLowerCase();
     const regionFilter = document.getElementById('tc-region-filter')?.value || '';
 
-    let tournaments = ApiService.getTournaments();
+    let tournaments = (ApiService.getTournaments() || []).map(t => this.getFriendlyTournamentRecord?.(t) || t);
 
     // Tab filter
     tournaments = tournaments.filter(t => {
@@ -71,6 +72,7 @@ Object.assign(App, {
     if (query) {
       tournaments = tournaments.filter(t =>
         t.name.toLowerCase().includes(query) ||
+        (this._getTournamentOrganizerDisplayText?.(t) || '').toLowerCase().includes(query) ||
         (t.organizer || '').toLowerCase().includes(query) ||
         (t.venues || []).some(v => v.toLowerCase().includes(query))
       );
@@ -314,6 +316,60 @@ Object.assign(App, {
   renderTournamentInfo(t) {
     const container = document.getElementById('td-info-section');
     if (!container) return;
+    const infoTournament = this.getFriendlyTournamentRecord?.(t) || t;
+    const infoRows = [];
+
+    if (infoTournament.region) {
+      infoRows.push(`<div class="td-info-row"><span class="td-info-label">地區</span><div class="td-info-value">${escapeHTML(infoTournament.region)}</div></div>`);
+    }
+
+    const infoVenues = Array.isArray(infoTournament.venues) ? infoTournament.venues : [];
+    if (infoVenues.length > 0) {
+      const searchPrefix = infoTournament.region || '';
+      const venueLinks = infoVenues.map(v => {
+        const mapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(searchPrefix + v)}`;
+        return `<a href="${mapUrl}" target="_blank" rel="noopener" style="color:var(--primary);text-decoration:none;font-size:.82rem">${escapeHTML(v)} ↗</a>`;
+      }).join('<span style="color:var(--border);margin:0 .3rem">|</span>');
+      infoRows.push(`<div class="td-info-row"><span class="td-info-label">場地</span><div class="td-info-value">${venueLinks}</div></div>`);
+    }
+
+    const infoDates = Array.isArray(infoTournament.matchDates) ? infoTournament.matchDates : [];
+    if (infoDates.length > 0) {
+      const dateTags = infoDates.map(d => {
+        const parts = String(d || '').split('-');
+        return `<span style="display:inline-block;font-size:.7rem;padding:.15rem .5rem;border-radius:20px;background:var(--accent);color:#fff">${parseInt(parts[1], 10)}/${parseInt(parts[2], 10)}</span>`;
+      }).join('');
+      infoRows.push(`<div class="td-info-row"><span class="td-info-label">比賽日期</span><div class="td-info-value" style="display:flex;flex-wrap:wrap;gap:.25rem">${dateTags}</div></div>`);
+    }
+
+    if (infoTournament.regStart && infoTournament.regEnd) {
+      const fmtRegDT = d => {
+        const dt = new Date(d);
+        return `${dt.getFullYear()}/${(dt.getMonth() + 1).toString().padStart(2, '0')}/${dt.getDate().toString().padStart(2, '0')} ${dt.getHours().toString().padStart(2, '0')}:${dt.getMinutes().toString().padStart(2, '0')}`;
+      };
+      infoRows.push(`<div class="td-info-row"><span class="td-info-label">報名期間</span><div class="td-info-value">${fmtRegDT(infoTournament.regStart)} ~ ${fmtRegDT(infoTournament.regEnd)}</div></div>`);
+    }
+
+    const feeEnabled = typeof infoTournament.feeEnabled === 'boolean' ? infoTournament.feeEnabled : Number(infoTournament.fee || 0) > 0;
+    const feeValue = feeEnabled ? Number(infoTournament.fee || 0) || 0 : 0;
+    infoRows.push(`<div class="td-info-row"><span class="td-info-label">報名費</span><div class="td-info-value" style="font-weight:600">${feeEnabled ? `NT$${feeValue.toLocaleString()} / 隊` : '未開啟'}</div></div>`);
+
+    const organizerDisplay = this._getTournamentOrganizerDisplayText?.(infoTournament) || infoTournament.organizer || '主辦球隊';
+    infoRows.push(`<div class="td-info-row"><span class="td-info-label">主辦單位</span><div class="td-info-value">${escapeHTML(organizerDisplay)}</div></div>`);
+
+    const infoDelegates = Array.isArray(infoTournament.delegates) ? infoTournament.delegates : [];
+    if (infoDelegates.length > 0) {
+      const delegateTags = infoDelegates.map(d => this._userTag(d.name)).join(' ');
+      infoRows.push(`<div class="td-info-row"><span class="td-info-label">委託人</span><div class="td-info-value" style="display:flex;flex-wrap:wrap;gap:.3rem">${delegateTags}</div></div>`);
+    }
+
+    const infoActions = [];
+    if (this._canManageTournamentRecord?.(infoTournament)) {
+      infoActions.push(`<button class="outline-btn" onclick="App.showEditTournament('${infoTournament.id}')" style="font-size:.78rem;padding:.45rem .75rem">編輯賽事</button>`);
+    }
+
+    container.innerHTML = `<div class="td-info-card">${infoRows.join('')}${infoActions.length ? `<div style="display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.75rem">${infoActions.join('')}</div>` : ''}</div>`;
+    return;
 
     const rows = [];
 

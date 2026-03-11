@@ -180,8 +180,8 @@
 // 20260310am: 活動參與查詢收折摘要列改版，對齊稽核日誌的箭頭與提示樣式
 // 20260310an: 活動參與查詢摘要列改為兩層佈局，箭頭與狀態同行，預設起始日固定為 2026-02-01
 // 20260310ao: 操作日誌類型標籤改為依類型家族分色，提升辨識度
-// 20260311i: 建立賽事 friendly schema、API 與 rules 骨架
-const CACHE_VERSION = '20260311i';
+// 20260311j: 建立/編輯賽事表單改為 friendly-first，補主辦球隊與費用開關入口
+const CACHE_VERSION = '20260311j';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {
