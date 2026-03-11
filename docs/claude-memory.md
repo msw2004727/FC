@@ -5,6 +5,12 @@
 > 新紀錄一律寫在檔案前方，採新到舊排序；若需補記舊項目，應插入對應日期區段，不得追加到檔尾。
 
 ---
+### 2026-03-11 — 賽事最終檢查：補強寫入等待與錯誤處理
+- **問題**：最終檢查時發現賽事流程仍有兩個容易在實測卡關的風險：`建立/編輯/結束/重開賽事` 仍採背景寫入，若 Firestore 權限、登入狀態或網路失敗，畫面會先顯示成功再於刷新後消失；另外友誼賽的 `報名申請`、`主辦審核`、`roster 加入/退出` 等按鈕型 async 入口缺少統一錯誤處理，出錯時容易變成無提示的 Promise rejection。
+- **原因**：`ApiService` 原本只有同步樂觀更新版的 `createTournament / updateTournament`；Step 3-5 的表單與 roster 流程又直接從 UI 事件呼叫 async 寫入，沒有等到 Firebase 寫入成功才回應 UI。
+- **修復**：在 `js/api-service.js` 新增 `更新等待寫入（_updateAwaitWrite）` 與 `createTournamentAwait / updateTournamentAwait`；在 `js/modules/tournament/tournament-core.js` 補上共用 `賽事錯誤提示（_showTournamentActionError）`；`js/modules/tournament-manage.js` 的建立、編輯、結束、重開改為等待 Firestore 成功後才顯示成功；`js/modules/tournament/tournament-friendly-detail.js` 與 `js/modules/tournament/tournament-friendly-roster.js` 的主要按鈕流程補上 `try/catch`，避免靜默失敗；同步更新快取版本到 `20260311o`。
+- **教訓**：最終驗收不能只看資料模型與權限是否正確，還要確認 UI 事件層是不是把寫入失敗當成功處理；對高互動頁面來說，等待寫入成功與明確錯誤提示，價值往往高於再多加一層功能。
+
 ### 2026-03-11 — 賽事重構第 1-6 步回頭驗收與一致性修補
 - **問題**：友誼賽重構完成後，仍存在三類風險：`賽事管理（tournament-manage）` 重新覆寫舊版狀態 helper，導致狀態字串在不同頁面不一致；`賽事渲染（tournament-render）` 還保留舊狀態標籤判斷；`友誼賽 roster（tournament-friendly-roster）` 讓一般隊員在球隊通過審核後可直接加入，未遵守「需先由領隊或經理加入」的規則；另外 `賽事規則（firestore.rules）` 的賽事根文件仍只允許 `admin` 建立或更新，與友誼賽建立/編輯權限規格不符，且主辦審核球隊後沒有把 `已報名隊伍（registeredTeams）`、`球隊申請（teamApplications）`、`參賽隊伍（teamEntries）` 同步回根文件。
 - **原因**：Step 1-6 先把新模組接上後，仍殘留部分 legacy helper 與死碼；權限規則只補了子集合，漏掉賽事根文件；審核流程只寫入子集合，沒有兼顧舊頁面與其他裝置仍可能依賴的根層相容欄位。

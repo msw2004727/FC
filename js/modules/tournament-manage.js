@@ -587,7 +587,7 @@ Object.assign(App, {
     this.showModal('create-tournament-modal');
   },
 
-  handleCreateTournament() {
+  async handleCreateTournament() {
     const createUser = ApiService.getCurrentUser?.();
     if (!this._canCreateFriendlyTournament(createUser)) {
       this.showToast('目前只有擁有球隊的領隊或經理可以建立友誼賽。');
@@ -670,7 +670,12 @@ Object.assign(App, {
     };
     createData.status = this.getTournamentStatus(createData);
 
-    ApiService.createTournament(createData);
+    try {
+      await ApiService.createTournamentAwait(createData);
+    } catch (err) {
+      this._showTournamentActionError?.('建立賽事', err);
+      return;
+    }
     ApiService._writeOpLog('tourn_create', '建立賽事', `建立「${createName}」`);
     this.renderTournamentTimeline();
     this.renderOngoingTournaments();
@@ -758,7 +763,7 @@ Object.assign(App, {
     this.showModal('edit-tournament-modal');
   },
 
-  handleSaveEditTournament() {
+  async handleSaveEditTournament() {
     const editId = this._editTournamentId;
     const editTournament = this.getFriendlyTournamentRecord?.(ApiService.getTournament(editId));
     if (!editTournament) return;
@@ -846,7 +851,12 @@ Object.assign(App, {
     }
 
     editUpdates.status = this.getTournamentStatus({ ...editTournament, ...editUpdates });
-    ApiService.updateTournament(editId, editUpdates);
+    try {
+      await ApiService.updateTournamentAwait(editId, editUpdates);
+    } catch (err) {
+      this._showTournamentActionError?.('更新賽事', err);
+      return;
+    }
     ApiService._writeOpLog('tourn_edit', '編輯賽事', `更新「${editName}」`);
     this._editTournamentId = null;
     this.renderTournamentTimeline();
@@ -867,7 +877,12 @@ Object.assign(App, {
     const t = ApiService.getTournament(id);
     if (!t) return;
     if (!(await this.appConfirm(`確定要結束賽事「${t.name}」？`))) return;
-    ApiService.updateTournament(id, { ended: true });
+    try {
+      await ApiService.updateTournamentAwait(id, { ended: true });
+    } catch (err) {
+      this._showTournamentActionError?.('結束賽事', err);
+      return;
+    }
     ApiService._writeOpLog('tourn_end', '結束賽事', `結束「${t.name}」`);
     this.renderTournamentTimeline();
     this.renderOngoingTournaments();
@@ -882,7 +897,12 @@ Object.assign(App, {
     const t = ApiService.getTournament(id);
     if (!t) return;
     if (!(await this.appConfirm(`確定要重新開放賽事「${t.name}」？`))) return;
-    ApiService.updateTournament(id, { ended: false });
+    try {
+      await ApiService.updateTournamentAwait(id, { ended: false });
+    } catch (err) {
+      this._showTournamentActionError?.('重新開放賽事', err);
+      return;
+    }
     ApiService._writeOpLog('tourn_reopen', '重開賽事', `重開「${t.name}」`);
     this.renderTournamentTimeline();
     this.renderOngoingTournaments();

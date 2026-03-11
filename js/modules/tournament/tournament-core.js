@@ -59,6 +59,16 @@ Object.assign(App, {
     return safeTeamName || safeUserName || '\u4e3b\u8fa6\u7403\u968a';
   },
 
+  _showTournamentActionError(actionLabel, err) {
+    console.error(`[Tournament:${actionLabel}]`, err);
+    const raw = `${err?.code || ''} ${err?.message || err || ''}`.toLowerCase();
+    if (raw.includes('permission') || raw.includes('unauth')) {
+      this.showToast?.(`${actionLabel}失敗，請重新登入或確認權限。`);
+      return;
+    }
+    this.showToast?.(`${actionLabel}失敗，請稍後再試。`);
+  },
+
   _getTournamentOrganizerDisplayText(tournament) {
     if (!tournament) return '\u4e3b\u8fa6\u7403\u968a';
     const direct = String(tournament.organizerDisplay || '').trim();

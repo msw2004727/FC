@@ -232,7 +232,8 @@ Object.assign(App, {
       return;
     }
 
-    const state = await this._loadFriendlyTournamentDetailState(id);
+    try {
+      const state = await this._loadFriendlyTournamentDetailState(id);
     const latestTournament = state?.tournament || tournament;
     const ctx = this._getFriendlyTournamentApplyContext(latestTournament, state, user);
     const approvedCount = (state.entries || []).filter(entry => entry.entryStatus === 'host' || entry.entryStatus === 'approved').length;
@@ -278,10 +279,14 @@ Object.assign(App, {
     this.renderRegisterButton(this._getFriendlyTournamentState(id)?.tournament || latestTournament);
     this.renderTournamentTab('teams');
     this.showToast(`已送出「${selectedTeam.name}」的參賽申請。`);
+    } catch (err) {
+      this._showTournamentActionError?.('報名賽事', err);
+    }
   },
 
   async reviewFriendlyTournamentApplication(tournamentId, applicationId, action) {
-    const state = await this._loadFriendlyTournamentDetailState(tournamentId);
+    try {
+      const state = await this._loadFriendlyTournamentDetailState(tournamentId);
     const tournament = state?.tournament;
     if (!tournament || !this._canManageTournamentRecord?.(tournament)) {
       this.showToast('你目前只能審核主辦或受委託的賽事。');
@@ -328,6 +333,9 @@ Object.assign(App, {
     this.renderRegisterButton(syncedState?.tournament || tournament);
     this.renderTournamentTab('teams');
     this.showToast(action === 'approve' ? `已確認「${application.teamName}」參賽。` : `已拒絕「${application.teamName}」的申請。`);
+    } catch (err) {
+      this._showTournamentActionError?.(action === 'approve' ? '確認報名' : '拒絕報名', err);
+    }
   },
 
 });

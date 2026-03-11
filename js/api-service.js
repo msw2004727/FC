@@ -269,6 +269,27 @@ const ApiService = {
     return item;
   },
 
+  async _updateAwaitWrite(key, id, updates, firebaseMethod, label) {
+    if (this._handleRestrictedAction()) return null;
+    const item = this._findById(key, id);
+    if (!item) return null;
+
+    const snapshot = JSON.parse(JSON.stringify(item));
+    Object.assign(item, updates);
+    if (!this._demoMode && firebaseMethod) {
+      try {
+        await FirebaseService.ensureAuthReadyForWrite();
+        await firebaseMethod.call(FirebaseService, id, updates);
+      } catch (err) {
+        Object.keys(item).forEach(keyName => delete item[keyName]);
+        Object.assign(item, snapshot);
+        console.error(`[${label}]`, err);
+        throw err;
+      }
+    }
+    return item;
+  },
+
   /** 通用刪除：先呼叫 Firebase（需要讀取 _docId），再從快取 splice */
   _delete(key, id, firebaseMethod, label) {
     if (this._handleRestrictedAction()) return false;
@@ -405,9 +426,19 @@ const ApiService = {
     return this._create('tournaments', payload, FirebaseService.addTournament, 'createTournament');
   },
 
+  async createTournamentAwait(data) {
+    const payload = this._normalizeTournamentRecordForWrite(data);
+    return await this._createAwaitWrite('tournaments', payload, FirebaseService.addTournament, 'createTournament');
+  },
+
   updateTournament(id, updates) {
     const payload = this._normalizeTournamentRecordForWrite(updates, this.getTournament(id));
     return this._update('tournaments', id, payload, FirebaseService.updateTournament, 'updateTournament');
+  },
+
+  async updateTournamentAwait(id, updates) {
+    const payload = this._normalizeTournamentRecordForWrite(updates, this.getTournament(id));
+    return await this._updateAwaitWrite('tournaments', id, payload, FirebaseService.updateTournament, 'updateTournament');
   },
 
   async listTournamentApplications(tournamentId) {

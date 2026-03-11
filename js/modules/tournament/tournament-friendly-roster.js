@@ -156,7 +156,8 @@ Object.assign(App, {
   },
 
   async openFriendlyTournamentRosterPicker(tournamentId) {
-    const state = await this._hydrateFriendlyTournamentRosterState(tournamentId);
+    try {
+      const state = await this._hydrateFriendlyTournamentRosterState(tournamentId);
     const tournament = state?.tournament;
     if (!tournament || !this._isFriendlyTournamentRecord?.(tournament)) return;
     if (this.getTournamentStatus(tournament) !== '報名中') {
@@ -193,8 +194,11 @@ Object.assign(App, {
           <span class="tfd-picker-sub">${entry.entryStatus === 'host' ? '主辦球隊名單' : '已核准參賽隊伍'}</span>
         </button>`).join('');
     }
-    overlay.classList.add('open');
-    modal?.classList.add('open');
+      overlay.classList.add('open');
+      modal?.classList.add('open');
+    } catch (err) {
+      this._showTournamentActionError?.('載入球員名單', err);
+    }
   },
 
   async selectFriendlyTournamentRosterTeam(teamId) {
@@ -210,7 +214,8 @@ Object.assign(App, {
       return;
     }
 
-    let state = await this._hydrateFriendlyTournamentRosterState(tournamentId);
+    try {
+      let state = await this._hydrateFriendlyTournamentRosterState(tournamentId);
     const tournament = state?.tournament;
     if (!tournament || !this._isFriendlyTournamentRecord?.(tournament)) return;
     if (this.getTournamentStatus(tournament) !== '報名中') {
@@ -240,11 +245,14 @@ Object.assign(App, {
       joinedAt: new Date().toISOString(),
     });
 
-    this.closeFriendlyTournamentRosterPicker();
-    state = await this._hydrateFriendlyTournamentRosterState(tournamentId);
-    this._refreshFriendlyTournamentRosterUi(tournamentId);
+      this.closeFriendlyTournamentRosterPicker();
+      state = await this._hydrateFriendlyTournamentRosterState(tournamentId);
+      this._refreshFriendlyTournamentRosterUi(tournamentId);
     this.showToast(`已加入「${selectedEntry.teamName}」球員名單。`);
     return state;
+    } catch (err) {
+      this._showTournamentActionError?.('加入球員名單', err);
+    }
   },
 
   async cancelFriendlyTournamentRoster(tournamentId) {
@@ -254,7 +262,8 @@ Object.assign(App, {
       return;
     }
 
-    let state = await this._hydrateFriendlyTournamentRosterState(tournamentId);
+    try {
+      let state = await this._hydrateFriendlyTournamentRosterState(tournamentId);
     const memberships = this._getFriendlyTournamentRosterMembership(state, user).list;
     if (memberships.length === 0) {
       this.showToast('你目前尚未加入任何參賽名單。');
@@ -270,11 +279,14 @@ Object.assign(App, {
       ApiService.removeTournamentEntryMember(tournamentId, entry.teamId, user.uid).catch(() => false)
     ));
 
-    this.closeFriendlyTournamentRosterPicker();
-    state = await this._hydrateFriendlyTournamentRosterState(tournamentId);
-    this._refreshFriendlyTournamentRosterUi(tournamentId);
+      this.closeFriendlyTournamentRosterPicker();
+      state = await this._hydrateFriendlyTournamentRosterState(tournamentId);
+      this._refreshFriendlyTournamentRosterUi(tournamentId);
     this.showToast(memberships.length === 1 ? '已取消參賽。' : '已清除目前參賽身份，可重新選擇球隊。');
     return state;
+    } catch (err) {
+      this._showTournamentActionError?.('取消參賽', err);
+    }
   },
 
   async showTournamentDetail(id) {
