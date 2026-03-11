@@ -238,9 +238,117 @@ Object.assign(App, {
     return e.creatorUid === this._getEventCreatorUid();
   },
 
-  /** 判斷活動是否額滿（正取滿即為額滿，候補無限） */
+  /** 活動卡片與列表共用的人數摘要（正取 / 候補） */
+  _buildEventPeopleSummaryByStatus(eventInput, registrations, status, fallbackNames = []) {
+    const event = typeof eventInput === 'string' ? ApiService.getEvent(eventInput) : eventInput;
+    if (!event) return { people: [], count: 0, hasSource: false };
+
+    const targetRegs = (Array.isArray(registrations) ? registrations : [])
+      .filter(r => r?.status === status);
+    const people = [];
+    const addedNames = new Set();
+
+    if (targetRegs.length > 0) {
+      const groups = new Map();
+      targetRegs.forEach(reg => {
+        const groupKey = String(reg.userId || reg.userName || reg.id || '').trim() || `anon-${groups.size}`;
+        if (!groups.has(groupKey)) groups.set(groupKey, []);
+        groups.get(groupKey).push(reg);
+      });
+
+      groups.forEach(regs => {
+        const selfReg = regs.find(reg => reg.participantType === 'self');
+        const companions = regs.filter(reg => reg.participantType === 'companion');
+        const mainName = String(selfReg?.userName || regs[0]?.userName || '').trim();
+
+        if (mainName && !addedNames.has(mainName)) {
+          people.push({ name: mainName, isCompanion: false });
+          addedNames.add(mainName);
+        }
+
+        companions.forEach(companionReg => {
+          const companionName = String(companionReg.companionName || companionReg.userName || '').trim();
+          if (!companionName || addedNames.has(companionName)) return;
+          people.push({ name: companionName, isCompanion: true });
+          addedNames.add(companionName);
+        });
+      });
+    }
+
+    (Array.isArray(fallbackNames) ? fallbackNames : []).forEach(name => {
+      const safeName = String(name || '').trim();
+      if (!safeName || addedNames.has(safeName)) return;
+      people.push({ name: safeName, isCompanion: false });
+      addedNames.add(safeName);
+    });
+
+    return {
+      people,
+      count: people.length,
+      hasSource: targetRegs.length > 0 || people.length > 0,
+    };
+  },
+
+  _getEventParticipantStats(eventInput) {
+    const event = typeof eventInput === 'string' ? ApiService.getEvent(eventInput) : eventInput;
+    if (!event) {
+      return {
+        confirmedCount: 0,
+        waitlistCount: 0,
+        maxCount: 0,
+        remainingCount: 0,
+        isCapacityFull: false,
+        showFullBadge: false,
+        showAlmostFullBadge: false,
+      };
+    }
+
+    const registrations = ApiService.getRegistrationsByEvent?.(event.id) || [];
+    const confirmedSummary = this._buildEventPeopleSummaryByStatus(
+      event,
+      registrations,
+      'confirmed',
+      Array.isArray(event.participants) ? event.participants : []
+    );
+    const waitlistSummary = this._buildEventPeopleSummaryByStatus(
+      event,
+      registrations,
+      'waitlisted',
+      Array.isArray(event.waitlistNames) ? event.waitlistNames : []
+    );
+
+    const fallbackConfirmed = Math.max(0, Number(event.current || 0));
+    const fallbackWaitlist = Math.max(0, Number(event.waitlist || 0));
+    const confirmedCount = confirmedSummary.hasSource ? confirmedSummary.count : fallbackConfirmed;
+    const waitlistCount = waitlistSummary.hasSource ? waitlistSummary.count : fallbackWaitlist;
+    const maxCount = Math.max(0, Number(event.max || 0));
+    const remainingCount = maxCount > 0 ? Math.max(0, maxCount - confirmedCount) : 0;
+    const isCapacityFull = maxCount > 0 && confirmedCount >= maxCount;
+    const isTerminal = event.status === 'ended' || event.status === 'cancelled';
+
+    return {
+      confirmedCount,
+      waitlistCount,
+      maxCount,
+      remainingCount,
+      isCapacityFull,
+      showFullBadge: !isTerminal && isCapacityFull,
+      showAlmostFullBadge: !isTerminal
+        && event.status === 'open'
+        && maxCount > 0
+        && confirmedCount < maxCount
+        && (remainingCount / maxCount) < 0.2,
+    };
+  },
+
+  _renderEventCapacityBadge(event, stats = this._getEventParticipantStats(event)) {
+    if (stats.showFullBadge) return '<span class="tl-almost-full-badge">已額滿</span>';
+    if (stats.showAlmostFullBadge) return '<span class="tl-almost-full-badge">即將額滿</span>';
+    return '';
+  },
+
   _isEventTrulyFull(e) {
-    return e.current >= e.max;
+    return this._getEventParticipantStats(e).isCapacityFull;
   },
 
   /** 判斷當前用戶是否為該活動委託人 */
@@ -583,7 +691,9 @@ Object.assign(App, {
         const _genderRibbon = this._hasEventGenderRestriction(e)
           ? `<span class="h-card-gender-ribbon">${escapeHTML(this._getEventGenderRibbonText(e))}</span>`
           : '';
-        const _participantCount = `${e.current}/${e.max}${t('activity.participants')}${(Number(e.waitlist) || 0) > 0 ? ' 候補' + (Number(e.waitlist) || 0) : ''}`;
+        const _stats = this._getEventParticipantStats(e);
+        const _capacityBadge = this._renderEventCapacityBadge(e, _stats);
+        const _participantCount = `${_stats.confirmedCount}/${_stats.maxCount}${t('activity.participants')}${_stats.waitlistCount > 0 ? ' 候補' + _stats.waitlistCount : ''}`;
         const _metaBottomClass = _genderRibbon ? 'h-card-meta-bottom h-card-meta-bottom-has-ribbon' : 'h-card-meta-bottom';
         return `
         <div class="h-card" style="${e.pinned ? 'border:1px solid var(--warning);box-shadow:0 0 0 1px rgba(245,158,11,.15)' : ''}" onclick="App.openHomeEventDetailFromCard('${e.id}', this)">
@@ -591,7 +701,7 @@ Object.assign(App, {
             ? `<div class="h-card-img">${_cornerBadges}${_typeRibbon}<img src="${e.image}" alt="${escapeHTML(e.title)}" loading="lazy"></div>`
             : `<div class="h-card-img h-card-placeholder">${_cornerBadges}${_typeRibbon}220 × 90</div>`}
           <div class="h-card-body">
-            <div class="h-card-title">${e.pinned ? '<span style="font-size:.62rem;padding:.08rem .35rem;border-radius:999px;border:1px solid var(--warning);color:var(--warning);font-weight:700;margin-right:.3rem">置頂</span>' : ''}${escapeHTML(e.title)}${e.teamOnly ? '<span class="tl-teamonly-badge">球隊限定</span>' : ''}${(e.max > 0 && e.current >= e.max && e.status !== 'ended' && e.status !== 'cancelled') ? '<span class="tl-almost-full-badge">已額滿</span>' : ((e.status === 'open' && e.max > 0 && (e.max - e.current) / e.max < 0.2 && e.current < e.max) ? '<span class="tl-almost-full-badge">即將額滿</span>' : '')} ${this._favHeartHtml(this.isEventFavorited(e.id), 'Event', e.id)}</div>
+            <div class="h-card-title">${e.pinned ? '<span style="font-size:.62rem;padding:.08rem .35rem;border-radius:999px;border:1px solid var(--warning);color:var(--warning);font-weight:700;margin-right:.3rem">置頂</span>' : ''}${escapeHTML(e.title)}${e.teamOnly ? '<span class="tl-teamonly-badge">球隊限定</span>' : ''}${_capacityBadge} ${this._favHeartHtml(this.isEventFavorited(e.id), 'Event', e.id)}</div>
             <div class="h-card-meta">
               <span class="h-card-meta-location">${escapeHTML(e.location)}</span>
               <div class="${_metaBottomClass}">
@@ -689,7 +799,8 @@ Object.assign(App, {
           const statusConf = STATUS_CONFIG[e.status] || STATUS_CONFIG.open;
           const time = e.date.split(' ')[1] || '';
           const isEnded = e.status === 'ended' || e.status === 'cancelled';
-          const waitlistTag = (e.waitlist || 0) > 0 ? ` · 候補(${e.waitlist})` : '';
+          const stats = this._getEventParticipantStats(e);
+          const waitlistTag = stats.waitlistCount > 0 ? ` · 候補(${stats.waitlistCount})` : '';
           // 球隊限定用特殊色
           const rowClass = e.teamOnly ? 'tl-type-teamonly' : `tl-type-${e.type}`;
           const teamBadge = e.teamOnly ? '<span class="tl-teamonly-badge">限定</span>' : '';
@@ -699,14 +810,15 @@ Object.assign(App, {
           const sportIcon = this._renderEventSportIcon(e, 'tl-event-sport-corner');
           const favHeart = this._favHeartHtml(this.isEventFavorited(e.id), 'Event', e.id);
           const iconStack = `<div class="tl-event-icons">${favHeart}${sportIcon}</div>`;
+          const capacityBadge = this._renderEventCapacityBadge(e, stats);
 
           html += `
             <div class="tl-event-row ${rowClass}${isEnded ? ' tl-past' : ''}" style="${e.pinned ? 'border:1px solid var(--warning);box-shadow:0 0 0 1px rgba(245,158,11,.12)' : ''}" onclick="App.showEventDetail('${e.id}')">
               ${genderRibbon}
               ${e.image ? `<div class="tl-event-thumb"><img src="${e.image}" loading="lazy"></div>` : ''}
               <div class="tl-event-info">
-                <div class="tl-event-title-row"><div class="tl-event-title">${e.pinned ? '<span style="font-size:.62rem;padding:.08rem .35rem;border-radius:999px;border:1px solid var(--warning);color:var(--warning);font-weight:700;margin-right:.3rem">置頂</span>' : ''}${escapeHTML(e.title)}${teamBadge}${(e.max > 0 && e.current >= e.max && e.status !== 'ended' && e.status !== 'cancelled') ? '<span class="tl-almost-full-badge">已額滿</span>' : ((e.status === 'open' && e.max > 0 && (e.max - e.current) / e.max < 0.2 && e.current < e.max) ? '<span class="tl-almost-full-badge">即將額滿</span>' : '')}</div></div>
-                <div class="tl-event-meta">${typeConf.label} · ${time} · ${escapeHTML(e.location.split('市')[1] || e.location)} · ${e.current}/${e.max}人${waitlistTag}</div>
+                <div class="tl-event-title-row"><div class="tl-event-title">${e.pinned ? '<span style="font-size:.62rem;padding:.08rem .35rem;border-radius:999px;border:1px solid var(--warning);color:var(--warning);font-weight:700;margin-right:.3rem">置頂</span>' : ''}${escapeHTML(e.title)}${teamBadge}${capacityBadge}</div></div>
+                <div class="tl-event-meta">${typeConf.label} · ${time} · ${escapeHTML(e.location.split('市')[1] || e.location)} · ${stats.confirmedCount}/${stats.maxCount}人${waitlistTag}</div>
               </div>
               <span class="tl-event-status ${statusConf.css}">${statusConf.label}</span>
               ${iconStack}
