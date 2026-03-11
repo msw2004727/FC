@@ -5,6 +5,12 @@
 > 新紀錄一律寫在檔案前方，採新到舊排序；若需補記舊項目，應插入對應日期區段，不得追加到檔尾。
 
 ---
+### 2026-03-11 — 賽事最終複檢：修補友誼賽站內信審核與申請重入
+- **問題**：友誼賽改成 `球隊申請（teamApplications） + 參賽隊伍（teamEntries）` 後，`站內信（message-inbox）` 仍保留舊版 `查看名單審核` 路徑，可能從 `registeredTeams` 舊欄位直接審核，造成新舊資料模型分叉；另外 `參加賽事（registerTournament）` 缺少前端忙碌鎖與穩定申請 ID，快連點時有機會重複送出申請或重複發送通知。
+- **原因**：Step 4-6 建立了新的 `friendly` 詳情頁審核流程與通知模板，但 `message-inbox.js` 的舊審核按鈕沒有一起收斂；同時 `friendly` 申請文件原本使用隨機 `applicationId`，沒有固定到 `隊伍 x 賽事` 粒度，也沒有前端重入保護。
+- **修復**：在 `js/modules/message-inbox.js` 新增 `訊息狀態 badge helper（_renderMessageActionStatus）`、`群組鍵解析（_getTournamentMessageGroupId）`、`訊息群組狀態同步（_syncTournamentMessageActionStatus）` 與 `從站內信跳轉友誼賽審核（openFriendlyTournamentMessageReview）`；友誼賽相關訊息改為在站內信只導向賽事詳情頁的隊伍分頁審核，不再走舊版 `registeredTeams` 審核路徑。於 `js/modules/tournament/tournament-core.js` 讓 `球隊申請 ID` 可回退到 `teamId/_docId`，並在 `js/modules/tournament/tournament-friendly-detail.js` 將申請 ID 固定為 `ta_{teamId}`、補上 `messageGroupId`、加入 `申請忙碌鎖（_friendlyTournamentApplyBusyById）` 與 `審核忙碌鎖（_friendlyTournamentReviewBusyById）`，避免快連點重入。同步將快取版本更新到 `20260311p`。
+- **教訓**：這類「新資料模型 + 舊通知入口」的重構，不能只檢查主頁流程，還要把 `message inbox / deep link / 後台快捷按鈕` 這些旁路入口一起收口；涉及 `create` 類操作時，也要優先做 `穩定 ID + busy guard`，避免重複寫入。
+
 ### 2026-03-11 — 賽事最終檢查：補強寫入等待與錯誤處理
 - **問題**：最終檢查時發現賽事流程仍有兩個容易在實測卡關的風險：`建立/編輯/結束/重開賽事` 仍採背景寫入，若 Firestore 權限、登入狀態或網路失敗，畫面會先顯示成功再於刷新後消失；另外友誼賽的 `報名申請`、`主辦審核`、`roster 加入/退出` 等按鈕型 async 入口缺少統一錯誤處理，出錯時容易變成無提示的 Promise rejection。
 - **原因**：`ApiService` 原本只有同步樂觀更新版的 `createTournament / updateTournament`；Step 3-5 的表單與 roster 流程又直接從 UI 事件呼叫 async 寫入，沒有等到 Firebase 寫入成功才回應 UI。

@@ -159,10 +159,11 @@ Object.assign(App, {
   },
 
   _buildFriendlyTournamentApplicationRecord(data = {}) {
+    const id = String(data.id || data._docId || data.teamId || '').trim();
     const requestedByUid = String(data.requestedByUid || data.creatorUid || '').trim();
     const requestedByName = String(data.requestedByName || data.creatorName || '').trim();
     return {
-      id: String(data.id || '').trim(),
+      id,
       teamId: String(data.teamId || '').trim(),
       teamName: String(data.teamName || '').trim(),
       teamImage: String(data.teamImage || '').trim(),

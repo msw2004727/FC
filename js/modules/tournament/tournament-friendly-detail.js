@@ -15,6 +15,8 @@ Object.assign(App, {
 
   _friendlyTournamentDetailStateById: {},
   _friendlyTournamentDetailSeq: 0,
+  _friendlyTournamentApplyBusyById: {},
+  _friendlyTournamentReviewBusyById: {},
 
   _isFriendlyTournamentRecord(record) {
     return (this._getTournamentMode?.(record) || 'friendly') === 'friendly';
@@ -232,6 +234,10 @@ Object.assign(App, {
       return;
     }
 
+    const busyId = String(id || '').trim();
+    if (this._friendlyTournamentApplyBusyById[busyId]) return;
+    this._friendlyTournamentApplyBusyById[busyId] = true;
+
     try {
       const state = await this._loadFriendlyTournamentDetailState(id);
     const latestTournament = state?.tournament || tournament;
@@ -265,7 +271,7 @@ Object.assign(App, {
     }
 
     await ApiService.createTournamentApplication(id, {
-      id: `ta_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      id: `ta_${selectedTeam.id}`,
       teamId: selectedTeam.id,
       teamName: selectedTeam.name || '',
       teamImage: selectedTeam.image || '',
@@ -273,6 +279,7 @@ Object.assign(App, {
       requestedByUid: user.uid,
       requestedByName: user.displayName || user.name || '',
       appliedAt: new Date().toISOString(),
+      messageGroupId: `tfa_${id}_${selectedTeam.id}`,
     });
 
     await this._loadFriendlyTournamentDetailState(id);
@@ -282,9 +289,16 @@ Object.assign(App, {
     } catch (err) {
       this._showTournamentActionError?.('報名賽事', err);
     }
+    finally {
+      delete this._friendlyTournamentApplyBusyById[busyId];
+    }
   },
 
   async reviewFriendlyTournamentApplication(tournamentId, applicationId, action) {
+    const busyKey = `${String(tournamentId || '').trim()}:${String(applicationId || '').trim()}:${String(action || '').trim().toLowerCase()}`;
+    if (this._friendlyTournamentReviewBusyById[busyKey]) return;
+    this._friendlyTournamentReviewBusyById[busyKey] = true;
+
     try {
       const state = await this._loadFriendlyTournamentDetailState(tournamentId);
     const tournament = state?.tournament;
@@ -335,6 +349,9 @@ Object.assign(App, {
     this.showToast(action === 'approve' ? `已確認「${application.teamName}」參賽。` : `已拒絕「${application.teamName}」的申請。`);
     } catch (err) {
       this._showTournamentActionError?.(action === 'approve' ? '確認報名' : '拒絕報名', err);
+    }
+    finally {
+      delete this._friendlyTournamentReviewBusyById[busyKey];
     }
   },
 

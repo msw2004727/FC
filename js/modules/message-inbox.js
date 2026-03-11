@@ -222,6 +222,65 @@ Object.assign(App, {
     }
   },
 
+  _renderMessageActionStatus(actionStatus, reviewerName = '') {
+    const statusLabels = {
+      approved: ['background:var(--success);color:#fff', '同意'],
+      rejected: ['background:var(--danger);color:#fff', '拒絕'],
+      ignored: ['background:var(--border);color:var(--text-secondary)', '忽略'],
+      opened: ['background:var(--accent-soft);color:var(--accent)', '已通知'],
+    };
+    const safeStatus = String(actionStatus || '').trim().toLowerCase();
+    const [style, label] = statusLabels[safeStatus] || ['', safeStatus];
+    const reviewerSuffix = reviewerName ? `（${escapeHTML(reviewerName)}）` : '';
+    return `<div class="msg-action-status" style="${style}">${escapeHTML(label)}${reviewerSuffix}</div>`;
+  },
+
+  _getTournamentMessageGroupId(msg) {
+    return String(msg?.meta?.messageGroupId || msg?.meta?.groupId || '').trim();
+  },
+
+  _syncTournamentMessageActionStatus(msgId, groupId, updates = {}, options = {}) {
+    const { syncGroup = true } = options;
+    const messages = ApiService.getMessages();
+    const safeGroupId = String(groupId || '').trim();
+    const safeUpdates = { ...updates };
+    const applyUpdates = message => {
+      if (!message) return;
+      Object.assign(message, safeUpdates);
+      ApiService.updateMessage(message.id, safeUpdates);
+    };
+
+    applyUpdates(messages.find(message => message.id === msgId));
+    if (!syncGroup || !safeGroupId) return;
+
+    messages.forEach(message => {
+      if (message.id === msgId) return;
+      if (this._getTournamentMessageGroupId(message) !== safeGroupId) return;
+      if (String(message.actionStatus || '').trim().toLowerCase() !== 'pending') return;
+      applyUpdates(message);
+    });
+  },
+
+  async openFriendlyTournamentMessageReview(msgId) {
+    const messages = ApiService.getMessages();
+    const msg = messages.find(message => message.id === msgId);
+    const tournamentId = String(msg?.meta?.tournamentId || '').trim();
+    if (!tournamentId) {
+      this.showToast('找不到對應的賽事');
+      return;
+    }
+
+    const modal = document.getElementById('msg-inbox-detail-modal');
+    if (modal) modal.style.display = 'none';
+
+    await this.showTournamentDetail(tournamentId);
+    const teamsTab = document.querySelector('#td-tabs .tab[data-ttab="teams"]');
+    if (!teamsTab) return;
+    document.querySelectorAll('#td-tabs .tab').forEach(tab => tab.classList.remove('active'));
+    teamsTab.classList.add('active');
+    this.renderTournamentTab('teams');
+  },
+
   showMessageDetail(id) {
     const messages = ApiService.getMessages();
     const msg = messages.find(m => m.id === id);
@@ -231,7 +290,22 @@ Object.assign(App, {
     if (!modal || !content) return;
 
     let actionHtml = '';
-    if (msg.actionType === 'tournament_register_request') {
+    const relatedTournament = msg.meta?.tournamentId ? ApiService.getTournament(msg.meta.tournamentId) : null;
+    const isFriendlyTournamentMessage = (
+      msg.actionType === 'tournament_friendly_application'
+      || (!!msg.meta?.applicationId && this._isFriendlyTournamentRecord?.(relatedTournament))
+      || (msg.actionType === 'tournament_register_request' && this._isFriendlyTournamentRecord?.(relatedTournament))
+    );
+    if (isFriendlyTournamentMessage) {
+      if (msg.actionStatus === 'pending') {
+        actionHtml = `
+          <div class="msg-action-btns">
+            <button class="msg-action-approve" onclick="App.openFriendlyTournamentMessageReview('${msg.id}')">查看賽事</button>
+          </div>`;
+      } else {
+        actionHtml = this._renderMessageActionStatus(msg.actionStatus, msg.reviewerName);
+      }
+    } else if (msg.actionType === 'tournament_register_request') {
       if (msg.actionStatus === 'pending') {
         actionHtml = `
           <div class="msg-action-btns">
@@ -536,11 +610,18 @@ Object.assign(App, {
     const msg = messages.find(m => m.id === msgId);
     if (!msg || !msg.meta) return;
 
-    const { tournamentId, tournamentName, teamId, teamName, applicantUid, applicantName, groupId } = msg.meta;
+    const { tournamentId, tournamentName, teamId, teamName, applicantUid, applicantName } = msg.meta;
+    const groupId = this._getTournamentMessageGroupId(msg);
     const t = ApiService.getTournament(tournamentId);
     const curUser = ApiService.getCurrentUser();
     const reviewerName = curUser?.displayName || '審核人';
     const actionLabels = { approve: '同意', reject: '拒絕', ignore: '忽略' };
+
+    if (this._isFriendlyTournamentRecord?.(t) || msg.actionType === 'tournament_friendly_application' || msg.meta?.applicationId) {
+      this.showToast('友誼賽請到賽事詳情頁的隊伍分頁進行審核');
+      await this.openFriendlyTournamentMessageReview(msgId);
+      return;
+    }
 
     if (action === 'approve') {
       if (!t) { this.showToast('找不到此賽事'); return; }
@@ -582,16 +663,7 @@ Object.assign(App, {
     const newStatus = statusMap[action];
 
     // 更新本則及同 groupId 的所有相關訊息狀態（讓其他人的按鈕反灰）
-    ApiService.updateMessage(msgId, { actionStatus: newStatus });
-    msg.actionStatus = newStatus;
-    if (groupId) {
-      messages.forEach(m => {
-        if (m.id !== msgId && m.meta && m.meta.groupId === groupId && m.actionStatus === 'pending') {
-          m.actionStatus = newStatus;
-          ApiService.updateMessage(m.id, { actionStatus: newStatus });
-        }
-      });
-    }
+    this._syncTournamentMessageActionStatus(msgId, groupId, { actionStatus: newStatus, reviewerName });
 
     // 通知同組的主辦人與委託人（不包含自己）審核結果
     if (groupId && t) {
