@@ -4,6 +4,35 @@
    擴充：js/core/*.js, js/modules/*.js (Object.assign)
    ================================================ */
 
+function _createSportHubTimeoutError(code, message) {
+  const err = new Error(message || code || 'TIMEOUT');
+  err.code = code || 'timeout';
+  return err;
+}
+
+function _withSportHubTimeout(promise, ms, code, message) {
+  const timeoutMs = Number(ms || 0);
+  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
+    return Promise.resolve(promise);
+  }
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(_createSportHubTimeoutError(code, message));
+    }, timeoutMs);
+
+    Promise.resolve(promise).then(
+      value => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      err => {
+        clearTimeout(timer);
+        reject(err);
+      }
+    );
+  });
+}
+
 const App = {
   currentRole: 'user',
   currentPage: 'page-home',
@@ -31,6 +60,9 @@ const App = {
   _routeLoadingSlowTimer: null,
   _routeLoadingHideTimer: null,
   _routeLoadingShownAt: 0,
+  _routeStepTimeoutMs: 15000,
+  _routeCloudTimeoutMs: 15000,
+  _scriptLoadTimeoutMs: 12000,
   _pendingProtectedBootRoute: null,
   _pendingProtectedBootRoutePromise: null,
   _pageSnapshotReady: {},
@@ -608,7 +640,12 @@ const App = {
       try {
         if (!skipEnsureCloudReady && this._pageNeedsCloud(pageId) && typeof this.ensureCloudReady === 'function') {
           try {
-            await this.ensureCloudReady({ reason: `restore:${pageId}` });
+            await _withSportHubTimeout(
+              this.ensureCloudReady({ reason: `restore:${pageId}` }),
+              this._routeCloudTimeoutMs,
+              'route-step-timeout',
+              `Route step timeout (restore-cloud:${pageId})`
+            );
           } catch (err) {
             console.warn(`[Boot] protected route cloud restore failed for ${pageId}:`, err);
           }
@@ -748,31 +785,59 @@ let _cdnScriptsPromise = null;
 function _loadScript(src) {
   if (_dynamicScriptPromises[src]) return _dynamicScriptPromises[src];
 
+  const timeoutMs = Number(App?._scriptLoadTimeoutMs || 12000);
+  const bindLoadPromise = (scriptEl, options = {}) => {
+    const { removeOnTimeout = false } = options;
+    return _withSportHubTimeout(
+      new Promise((resolve, reject) => {
+        const cleanup = () => {
+          scriptEl.removeEventListener('load', onLoad);
+          scriptEl.removeEventListener('error', onError);
+        };
+        const onLoad = () => {
+          cleanup();
+          scriptEl.dataset.loaded = 'true';
+          resolve();
+        };
+        const onError = () => {
+          cleanup();
+          reject(new Error('Script load failed: ' + src));
+        };
+
+        scriptEl.addEventListener('load', onLoad, { once: true });
+        scriptEl.addEventListener('error', onError, { once: true });
+      }),
+      timeoutMs,
+      'script-load-timeout',
+      'Script load timeout: ' + src
+    ).catch(err => {
+      if (err?.code === 'script-load-timeout' && removeOnTimeout) {
+        try { scriptEl.remove(); } catch (_) {}
+      }
+      throw err;
+    });
+  };
+
   const existing = document.querySelector(`script[src="${src}"]`);
   if (existing) {
     if (existing.dataset.loaded === 'true') {
       return Promise.resolve();
     }
-    _dynamicScriptPromises[src] = new Promise((resolve, reject) => {
-      existing.addEventListener('load', () => {
-        existing.dataset.loaded = 'true';
-        resolve();
-      }, { once: true });
-      existing.addEventListener('error', () => reject(new Error('Script load failed: ' + src)), { once: true });
+    _dynamicScriptPromises[src] = bindLoadPromise(existing).catch(err => {
+      delete _dynamicScriptPromises[src];
+      throw err;
     });
     return _dynamicScriptPromises[src];
   }
 
-  _dynamicScriptPromises[src] = new Promise((resolve, reject) => {
-    const s = document.createElement('script');
-    s.src = src;
-    s.async = true;
-    s.onload = () => {
-      s.dataset.loaded = 'true';
-      resolve();
-    };
-    s.onerror = () => reject(new Error('Script load failed: ' + src));
-    document.head.appendChild(s);
+  const s = document.createElement('script');
+  s.src = src;
+  s.async = true;
+  document.head.appendChild(s);
+
+  _dynamicScriptPromises[src] = bindLoadPromise(s, { removeOnTimeout: true }).catch(err => {
+    delete _dynamicScriptPromises[src];
+    throw err;
   });
   return _dynamicScriptPromises[src];
 }

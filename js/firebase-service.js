@@ -1201,7 +1201,8 @@ const FirebaseService = {
             App.showToast('連線較慢，重新整理頁面可改善速度');
           }
         } else {
-          console.warn('[FirebaseService] 長輪詢連線超時（網路問題）');
+          if (typeof _clearWsBlocked === 'function') _clearWsBlocked();
+          console.warn('[FirebaseService] Long-polling init timed out; clear fallback and retry WebSocket next time.');
         }
       } else {
         throw err;

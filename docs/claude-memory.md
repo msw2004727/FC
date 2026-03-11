@@ -5,6 +5,12 @@
 > 新紀錄一律寫在檔案前方，採新到舊排序；若需補記舊項目，應插入對應日期區段，不得追加到檔尾。
 
 ---
+### 2026-03-11 — 多頁籤活動頁長輪詢卡死保險絲
+- **問題**：iPhone 上同時開多個 `toosterx.com` 分頁時，前面分頁若已卡在活動頁的慢載入提示，後面新分頁再切入活動頁容易一直停在「網路較慢，資料仍在載入中...」。
+- **原因**：頁面切換（`showPage()`）的雲端初始化與頁面進場等待沒有超時保護；另外舊版 WebSocket fallback 會把 `shub_ws_blocked` 寫進 `localStorage` 24 小時，導致一個分頁的超時把後續所有新分頁都推去長輪詢模式，放大多頁籤連線壓力。
+- **修復**：在 `app.js` 新增共用 timeout helper，並替 CDN script loader 加入載入逾時；在 `js/core/navigation.js` 為 guarded route 的雲端初始化與頁面進場套用超時保險絲，逾時時結束 route loading 並回傳失敗，不再無限掛著；在 `js/firebase-config.js` 把 WebSocket fallback 改成 tab-scoped 的 `sessionStorage` 短 TTL，並清掉舊的 cross-tab `localStorage` 標記；在 `js/firebase-service.js` 讓長輪詢本身逾時時清除 fallback，下一次可重新嘗試 WebSocket；同步更新 `js/config.js`、`index.html` 快取版本到 `20260311af`。
+- **教訓**：多頁籤環境下的連線 fallback 不應使用長 TTL 的跨分頁共享旗標；所有 route/cloud loading 都必須有可收斂的 timeout 路徑。
+
 ### 2026-03-11 — 首頁與活動頁改為先顯示快取畫面再背景刷新
 - **問題**：首頁（`page-home`）與活動頁（`page-activities`）切換頻率最高，但每次回頁都會先等待切頁流程與資料檢查，使用者即使剛看過頁面、內容也沒變，仍會感到像重新載入一次。
 - **原因**：原本 `showPage()` 會在顯示頁面前先完成 `_ensurePageEntryReady()`，包含資料檢查與可能的重新抓取；因此即便已有快取資料與最近一次畫面，也會先被切頁等待流程阻擋。

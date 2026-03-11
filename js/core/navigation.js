@@ -6,6 +6,30 @@ Object.assign(App, {
 
   _pageTransitionSeq: 0,
 
+  _getRouteStepTimeoutMs(pageId, step = 'page') {
+    if (step === 'cloud') return Number(this._routeCloudTimeoutMs || 15000);
+    return Number(this._routeStepTimeoutMs || 15000);
+  },
+
+  _awaitRouteStep(promise, pageId, step = 'page') {
+    return _withSportHubTimeout(
+      promise,
+      this._getRouteStepTimeoutMs(pageId, step),
+      'route-step-timeout',
+      `Route step timeout (${step}:${pageId})`
+    );
+  },
+
+  _getRouteFailureToast(pageId, step = 'page', err = null) {
+    const isTimeout = err?.code === 'route-step-timeout';
+    if (isTimeout) {
+      if (pageId === 'page-activities') return '網路較慢，活動頁暫時無法開啟，請稍後再試';
+      return '網路較慢，頁面暫時無法開啟，請稍後再試';
+    }
+    if (step === 'cloud') return '雲端連線失敗，請稍後再試';
+    return '頁面載入失敗，請稍後再試';
+  },
+
   _runPageScrollReset(targetPage) {
     const html = document.documentElement;
     const body = document.body;
@@ -282,9 +306,20 @@ Object.assign(App, {
         && this._pageNeedsCloud(pageId)
         && typeof this.ensureCloudReady === 'function') {
         try {
-          await this.ensureCloudReady({ reason: `guard:${pageId}` });
+          await this._awaitRouteStep(
+            this.ensureCloudReady({ reason: `guard:${pageId}` }),
+            pageId,
+            'cloud'
+          );
         } catch (err) {
           console.warn(`[Navigation] guard cloud init failed for ${pageId}:`, err);
+          this.showToast(this._getRouteFailureToast(pageId, 'cloud', err));
+          return {
+            ok: false,
+            reason: err?.code === 'route-step-timeout' ? 'route_timeout' : 'cloud_init_failed',
+            step: 'cloud',
+            error: err,
+          };
         }
       }
       if (guardedPages.includes(pageId) && options.suppressLoginToast && this._isLoginRequired()) {
@@ -320,13 +355,22 @@ Object.assign(App, {
       }
 
       try {
-        await this._ensurePageEntryReady(pageId);
+        await this._awaitRouteStep(
+          this._ensurePageEntryReady(pageId),
+          pageId,
+          'page'
+        );
       } catch (err) {
         if (transitionSeq === this._pageTransitionSeq) {
           console.warn(`[Navigation] 頁面 ${pageId} 載入失敗:`, err);
-          this.showToast('頁面載入失敗，請稍後再試');
+          this.showToast(this._getRouteFailureToast(pageId, 'page', err));
         }
-        return { ok: false, reason: 'load_failed', error: err };
+        return {
+          ok: false,
+          reason: err?.code === 'route-step-timeout' ? 'route_timeout' : 'load_failed',
+          step: 'page',
+          error: err,
+        };
       }
 
       if (transitionSeq !== this._pageTransitionSeq) return { ok: false, reason: 'stale_transition' };

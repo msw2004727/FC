@@ -33,15 +33,17 @@ const _firebaseAuthReadyPromise = new Promise(resolve => {
 
 // ─── WebSocket 降級偵測 ───
 const _WS_BLOCKED_KEY = 'shub_ws_blocked';
-const _WS_BLOCKED_TTL = 24 * 60 * 60 * 1000; // 24 小時後重新偵測
+const _WS_BLOCKED_SESSION_KEY = 'shub_ws_blocked_tab';
+const _WS_BLOCKED_TTL = 10 * 60 * 1000; // current-tab fallback only
 
 /** 檢查 localStorage 標記：WebSocket 是否曾被擋 */
 function _isWsBlocked() {
+  try { localStorage.removeItem(_WS_BLOCKED_KEY); } catch (e) { /* clear legacy cross-tab marker */ }
   try {
-    const ts = parseInt(localStorage.getItem(_WS_BLOCKED_KEY) || '0', 10);
+    const ts = parseInt(sessionStorage.getItem(_WS_BLOCKED_SESSION_KEY) || '0', 10);
     if (!ts) return false;
     if (Date.now() - ts > _WS_BLOCKED_TTL) {
-      localStorage.removeItem(_WS_BLOCKED_KEY);
+      sessionStorage.removeItem(_WS_BLOCKED_SESSION_KEY);
       return false; // 標記已過期，重新偵測
     }
     return true;
@@ -50,7 +52,11 @@ function _isWsBlocked() {
 
 /** 標記 WebSocket 被擋（寫入時間戳） */
 function _markWsBlocked() {
-  try { localStorage.setItem(_WS_BLOCKED_KEY, Date.now().toString()); } catch (e) { /* ignore */ }
+  try { sessionStorage.setItem(_WS_BLOCKED_SESSION_KEY, Date.now().toString()); } catch (e) { /* ignore */ }
+}
+
+function _clearWsBlocked() {
+  try { sessionStorage.removeItem(_WS_BLOCKED_SESSION_KEY); } catch (e) { /* ignore */ }
 }
 
 function _normalizeStorageBucketUrl(bucket) {

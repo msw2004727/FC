@@ -194,7 +194,8 @@
 // 20260311ac: 切入活動頁時強制回到「一般」頁籤，避免保留上次停留的「已結束」狀態
 // 20260311ad: 每次切回首頁時將近期活動橫向卡片列重置到最左側，避免停在上次滑動位置
 // 20260311ae: 首頁與活動頁改為先顯示最近一次快取畫面，再背景刷新資料，降低頻繁切頁的阻擋感
-const CACHE_VERSION = '20260311ae';
+// 20260311af: route loading 加入超時保險絲，並將 WebSocket fallback 改為 tab-scoped 短 TTL，避免多頁籤長輪詢卡死
+const CACHE_VERSION = '20260311af';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {
