@@ -1,3 +1,9 @@
+### 2026-03-12 — 成就系統 Phase 3 改為 registry 驅動評估
+- **問題**：成就條件判定仍停留在舊版 `if/else` evaluator，`registry.js` 只包住 `ACHIEVEMENT_CONDITIONS`，沒有真正承接 action 支援狀態、timeRange fallback 與事件型條件的統一入口；既有 seed 內的 `attendance_rate`、`bind_line_notify`、`organize_event`、`30d + complete_event` 也沒有完整的集中式邏輯可維護。
+- **原因**：Phase 1 只先建立 achievement 領域骨架與 facade，相容層完成了，但 action metadata 與 evaluator handler 仍未真正拆開，導致後續 UI、資料清理與條件精簡都缺少單一真實來源。
+- **修復**：重寫 `js/modules/achievement/registry.js`，加入 supported action metadata、event trigger 判定、timeRange fallback 與支援狀態查詢；重寫 `js/modules/achievement/evaluator.js`，改成 registry-driven handler，集中支援 `register_event`、`complete_event`、`organize_event`、`attend_*`、`attendance_rate`、`reach_level`、`reach_exp`、`join_team`、`complete_profile`、`bind_line_notify`、`days_registered`，並讓 unsupported action 安全略過不崩潰；同步更新 `docs/architecture.md`。
+- **教訓**：資料夾骨架建立後，下一步不能只「搬檔」，還要盡快把舊邏輯背後的能力表與 handler 抽成 registry-driven，否則 facade 只是換位置，沒有真正形成可擴充邊界。
+
 ### 2026-03-12 — 啟動成就系統 Phase 2 共用計算收斂
 - **問題**：徽章數、已獲得徽章與稱號可選清單分散在個人頁、名片、排行榜、個人儀表板與成就頁各自重算，未來只要改一個條件公式，就很容易出現頁面間統計不一致。
 - **原因**：Phase 1 雖然先建了 `achievement` 資料夾骨架，但 Phase 2 之前還沒有把衍生統計抽成單一 helper，消費端仍直接各自讀 `achievements / badges` 手動判斷完成條件。

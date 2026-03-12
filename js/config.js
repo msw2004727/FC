@@ -204,7 +204,7 @@
 // 20260312e: 修正權限管理「儲存成預設」隔夜失效，避免 catalogVersion 補遷移覆蓋手動權限
 // 20260312f: 啟動 achievement Phase 1，建立 js/modules/achievement/ 骨架與 facade 載入鏈
 // 20260312g: 啟動 achievement Phase 2，抽離 stats helper 並收斂徽章與稱號重複計算
-const CACHE_VERSION = '20260312g';
+const CACHE_VERSION = '20260312h';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {

@@ -120,10 +120,10 @@ flowchart TD
 | `modules/leaderboard.js` | 用戶 EXP 排行榜 |
 | `modules/achievement.js` | 成就領域 facade；保留舊入口方法名稱，逐步轉接到 `modules/achievement/` 子模組 |
 | `modules/achievement/index.js` | 成就領域模組容器；註冊 registry / shared / stats / evaluator 的相容層入口 |
-| `modules/achievement/registry.js` | 成就條件 registry；過渡期封裝 `ACHIEVEMENT_CONDITIONS`，供後台欄位與 evaluator 共用 |
+| `modules/achievement/registry.js` | 成就條件 registry；集中 action 支援表、timeRange fallback 與事件觸發判定，供後台欄位與 evaluator 共用 |
 | `modules/achievement/shared.js` | 成就共用 helper；包含 threshold、條件描述與分類排序等純函式 |
 | `modules/achievement/stats.js` | 成就衍生計算 helper；集中徽章數、已獲得徽章與稱號選項的共用邏輯 |
-| `modules/achievement/evaluator.js` | 成就評估器；先承接舊版 `_evaluateAchievements()` 的邏輯，供 facade 轉呼叫 |
+| `modules/achievement/evaluator.js` | 成就評估器；以 registry 驅動 supported action handler，維持舊版 `_evaluateAchievements()` facade 不變 |
 | `modules/announcement.js` | 系統公告管理與顯示 |
 | `modules/favorites.js` | 用戶收藏活動 / 球隊管理 |
 | `modules/auto-exp.js` | 自動 EXP 規則設定（依行為觸發） |
