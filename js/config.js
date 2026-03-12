@@ -205,7 +205,7 @@
 // 20260312f: 啟動 achievement Phase 1，建立 js/modules/achievement/ 骨架與 facade 載入鏈
 // 20260312g: 啟動 achievement Phase 2，抽離 stats helper 並收斂徽章與稱號重複計算
 // 20260312l: achievement Phase 6，移除假條件並收斂成就正式支援模板
-// 20260312n: achievement Phase 7 收尾，改成只讀快照評估並補齊最終整合自驗 / 手動驗收資產
+// 20260312o: 修正活動候補轉正取後殘留在候補名單，並補上候補顯示去殘影
 const CACHE_VERSION = '20260312o';
 
 // ─── Achievement Condition Config ───

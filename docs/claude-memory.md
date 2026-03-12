@@ -1930,3 +1930,8 @@
 - **原因**：前一階段只完成資料骨架與建立/編輯表單，公開詳情頁仍由 `js/modules/tournament-render.js` 的 legacy 分支控制，沒有讀取 `teamApplications` 與 `teamEntries` 子資料。
 - **修復**：新增 `js/modules/tournament/tournament-friendly-detail.js`，以後載入的模組方式接管友誼賽詳細頁；詳情頁現在會讀取 `球隊申請（teamApplications）` 與 `參賽隊伍（teamEntries）` 狀態，提供球隊層級的參加賽事申請、主辦確認/拒絕、灰色候審列、聯繫主辦人、分享賽事，並把相應樣式補進 `css/tournament.css`；同時更新 `docs/architecture.md`、`js/config.js` 與 `index.html` 到 `20260311k`。
 - **教訓**：當舊 renderer 與新流程共存時，先用獨立模組接管單一模式頁面，比直接在 legacy 大檔上疊更多 if/else 安全，也更符合後續模組化拆分方向。
+### 2026-03-12 — 修正活動候補轉正取後殘留在候補名單
+- **問題**：活動詳細頁與候補編輯模式會出現同一位使用者同時在正取與候補，手動轉正取有時還會顯示「儲存失敗」。
+- **原因**：手動正取流程先改本地狀態，再逐筆寫 Firestore，最後更新活動主檔時誤用了 `events/{event.id}`，造成報名紀錄已變更但 `waitlistNames` 沒同步清掉；詳細頁又會把舊的 `waitlistNames` fallback 繼續畫出來。
+- **修復**：在 `js/modules/event-manage.js` 將手動正取改成批次寫入 `registrations / activityRecords / events`，改用 `event._docId` 更新活動主檔，並在成功後才回寫本地快取；另外補上候補 fallback 過濾與候補顯示數量修正於 `js/modules/event-manage.js`、`js/modules/event-detail.js`，避免已正取的人殘留在候補顯示；同步更新 `js/config.js` 與 `index.html` 快取版本到 `20260312o`。
+- **教訓**：候補與正取是跨集合同步資料，不能先改本地或逐筆寫；活動主檔一律必須用 `_docId`，而候補 UI 的 fallback 也要排除已在正取中的殘影名稱。

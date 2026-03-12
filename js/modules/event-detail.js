@@ -254,6 +254,9 @@ Object.assign(App, {
         ? this._buildConfirmedParticipantSummary(e.id)
         : { count: Number(e.current || 0), people: [] });
     const confirmedCount = confirmedSummary.count;
+    const waitlistDisplayCount = isGuestView
+      ? ((typeof this._getWaitlistFallbackNames === 'function' ? this._getWaitlistFallbackNames(e.id, e, []) : (e.waitlistNames || [])).length)
+      : (typeof this._getEventWaitlistDisplayCount === 'function' ? this._getEventWaitlistDisplayCount(e.id, e) : Number(e.waitlist || 0));
     const isEnded = e.status === 'ended' || e.status === 'cancelled';
     const isUpcoming = e.status === 'upcoming';
     const isMainFull = confirmedCount >= e.max;
@@ -337,7 +340,7 @@ Object.assign(App, {
       <div class="detail-row"><span class="detail-label">時間</span>${escapeHTML(e.date)}</div>
       ${regOpenHtml}
       ${feeRow}
-      <div class="detail-row"><span class="detail-label">人數</span>已報 ${confirmedCount}/${e.max}${(e.waitlist || 0) > 0 ? '　候補 ' + e.waitlist : ''}</div>
+      <div class="detail-row"><span class="detail-label">人數</span>已報 ${confirmedCount}/${e.max}${waitlistDisplayCount > 0 ? '　候補 ' + waitlistDisplayCount : ''}</div>
       ${ageTag}
       ${genderTag}
       <div class="detail-row"><span class="detail-label">主辦</span><span class="participant-list" style="display:inline-flex;gap:.3rem;flex-wrap:wrap">${this._userTag(e.creator)}</span></div>
@@ -456,7 +459,7 @@ Object.assign(App, {
         companionItems.forEach(c => addedNames.add(c.name));
       });
     }
-    (e.waitlistNames || []).forEach(p => {
+    (typeof this._getWaitlistFallbackNames === 'function' ? this._getWaitlistFallbackNames(eventId, e, allRegs) : (e.waitlistNames || [])).forEach(p => {
       if (!addedNames.has(p)) {
         items.push({ name: p, userId: null, companions: [], selfOrphanInfo: null });
         addedNames.add(p);

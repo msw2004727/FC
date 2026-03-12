@@ -130,6 +130,65 @@ Object.assign(App, {
     return notifyUids;
   },
 
+  _getRegistrationParticipantName(registration) {
+    if (!registration) return '';
+    const rawName = registration.participantType === 'companion'
+      ? (registration.companionName || registration.userName)
+      : registration.userName;
+    return String(rawName || '').trim();
+  },
+
+  _getConfirmedParticipantNameSet(eventId, eventData = null, allRegs = null) {
+    const names = new Set();
+    const event = eventData || ApiService.getEvent(eventId);
+    const sourceRegs = Array.isArray(allRegs) ? allRegs : (ApiService.getRegistrationsByEvent(eventId) || []);
+
+    (event?.participants || []).forEach(name => {
+      const safeName = String(name || '').trim();
+      if (safeName) names.add(safeName);
+    });
+
+    sourceRegs.forEach(reg => {
+      if (reg?.status !== 'confirmed') return;
+      const safeName = this._getRegistrationParticipantName(reg);
+      if (safeName) names.add(safeName);
+    });
+
+    return names;
+  },
+
+  _getWaitlistFallbackNames(eventId, eventData = null, allRegs = null) {
+    const event = eventData || ApiService.getEvent(eventId);
+    if (!event) return [];
+
+    const confirmedNames = this._getConfirmedParticipantNameSet(eventId, event, allRegs);
+    const fallbackNames = [];
+    const seen = new Set();
+
+    (event.waitlistNames || []).forEach(name => {
+      const safeName = String(name || '').trim();
+      if (!safeName || seen.has(safeName) || confirmedNames.has(safeName)) return;
+      seen.add(safeName);
+      fallbackNames.push(safeName);
+    });
+
+    return fallbackNames;
+  },
+
+  _getEventWaitlistDisplayCount(eventId, eventData = null, allRegs = null) {
+    const sourceRegs = Array.isArray(allRegs) ? allRegs : (ApiService.getRegistrationsByEvent(eventId) || []);
+    const waitlistNames = new Set();
+
+    sourceRegs.forEach(reg => {
+      if (reg?.status !== 'waitlisted') return;
+      const safeName = this._getRegistrationParticipantName(reg);
+      if (safeName) waitlistNames.add(safeName);
+    });
+
+    this._getWaitlistFallbackNames(eventId, eventData, sourceRegs).forEach(name => waitlistNames.add(name));
+    return waitlistNames.size;
+  },
+
   switchMyActivityTab(filter) {
     this._myActivityFilter = filter || 'all';
     document.querySelectorAll('#my-activity-tabs .tab').forEach(btn => {
@@ -457,7 +516,7 @@ Object.assign(App, {
         companionItems.forEach(c => addedNames.add(c.name));
       });
     }
-    (e.waitlistNames || []).forEach(p => {
+    this._getWaitlistFallbackNames(eventId, e, allActiveRegs).forEach(p => {
       if (!addedNames.has(p)) {
         items.push({ name: p, userId: null, companions: [], selfOrphanInfo: null });
         addedNames.add(p);
@@ -549,44 +608,95 @@ Object.assign(App, {
     // 在 _promoteSingleCandidate 修改本地快取前，先蒐集 activityRecord 的 _docId
     // （_promoteSingleCandidate 會把 ar.status 改成 'registered'，之後就找不到 waitlisted 的了）
     const arSource = ApiService._src('activityRecords');
-    const arDocIds = [];
+    const arRecords = [];
     for (const reg of userWaitlisted) {
       if (reg.participantType !== 'companion') {
         const ar = arSource.find(a => a.eventId === eventId && a.uid === reg.userId && a.status === 'waitlisted');
-        if (ar && ar._docId) arDocIds.push(ar._docId);
+        if (ar && ar._docId) arRecords.push(ar);
       }
     }
 
-    for (const reg of userWaitlisted) {
-      this._promoteSingleCandidate(e, reg);
+    const nextParticipants = Array.isArray(e.participants) ? [...e.participants] : [];
+    const nextWaitlistNames = Array.isArray(e.waitlistNames) ? [...e.waitlistNames] : [];
+    userWaitlisted.forEach(reg => {
+      const participantName = this._getRegistrationParticipantName(reg);
+      if (!participantName) return;
+      const waitlistIndex = nextWaitlistNames.indexOf(participantName);
+      if (waitlistIndex >= 0) nextWaitlistNames.splice(waitlistIndex, 1);
+      if (!nextParticipants.includes(participantName)) nextParticipants.push(participantName);
+    });
+
+    const nextEventState = {
+      ...e,
+      participants: nextParticipants,
+      waitlistNames: nextWaitlistNames,
+    };
+    if (typeof FirebaseService !== 'undefined' && typeof FirebaseService._applyEventOccupancyState === 'function') {
+      FirebaseService._applyEventOccupancyState(nextEventState);
+    } else {
+      nextEventState.current = nextParticipants.length;
+      nextEventState.waitlist = nextWaitlistNames.length;
     }
-    if (e.status !== 'ended') {
-      e.status = e.current >= e.max ? 'full' : 'open';
-    }
+    nextEventState.status = (e.status === 'open' || e.status === 'full')
+      ? (nextEventState.current >= nextEventState.max ? 'full' : 'open')
+      : e.status;
 
     if (!ModeManager.isDemo()) {
       try {
+        const eventDocId = String(e._docId || '').trim();
+        if (!eventDocId) throw new Error('EVENT_DOC_ID_MISSING');
+        const batch = db.batch();
         for (const reg of userWaitlisted) {
           if (reg._docId) {
-            await db.collection('registrations').doc(reg._docId).update({ status: 'confirmed' });
+            batch.update(db.collection('registrations').doc(reg._docId), { status: 'confirmed' });
           }
         }
-        for (const docId of arDocIds) {
-          await db.collection('activityRecords').doc(docId).update({ status: 'registered' });
-        }
-        await db.collection('events').doc(e.id).update({
-          current: e.current,
-          waitlist: e.waitlist,
-          participants: e.participants || [],
-          waitlistNames: e.waitlistNames || [],
-          status: e.status,
+        [...new Set(arRecords.map(record => record._docId).filter(Boolean))].forEach(docId => {
+          batch.update(db.collection('activityRecords').doc(docId), { status: 'registered' });
         });
+        batch.update(db.collection('events').doc(eventDocId), {
+          current: nextEventState.current,
+          waitlist: nextEventState.waitlist,
+          participants: nextEventState.participants || [],
+          waitlistNames: nextEventState.waitlistNames || [],
+          status: nextEventState.status,
+        });
+        await batch.commit();
       } catch (err) {
         console.error('[forcePromote]', err);
         this.showToast('儲存失敗，請重試');
         return;
       }
     }
+
+    userWaitlisted.forEach(reg => {
+      reg.status = 'confirmed';
+    });
+    arRecords.forEach(record => {
+      record.status = 'registered';
+    });
+    e.current = nextEventState.current;
+    e.waitlist = nextEventState.waitlist;
+    e.participants = nextEventState.participants || [];
+    e.waitlistNames = nextEventState.waitlistNames || [];
+    e.status = nextEventState.status;
+
+    if (!ModeManager.isDemo() && typeof FirebaseService !== 'undefined' && typeof FirebaseService._saveToLS === 'function') {
+      FirebaseService._saveToLS('registrations', FirebaseService._cache.registrations);
+      FirebaseService._saveToLS('activityRecords', FirebaseService._cache.activityRecords);
+      FirebaseService._saveToLS('events', FirebaseService._cache.events);
+    }
+
+    const notifiedUsers = new Set();
+    userWaitlisted.forEach(reg => {
+      if (!reg?.userId || notifiedUsers.has(reg.userId)) return;
+      notifiedUsers.add(reg.userId);
+      this._sendNotifFromTemplate('waitlist_promoted', {
+        eventName: e.title,
+        date: e.date,
+        location: e.location,
+      }, reg.userId, 'activity', '活動');
+    });
 
     // Re-render both possible containers (one will be absent = no-op)
     this._renderWaitlistSection(eventId, 'waitlist-table-container');
