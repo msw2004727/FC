@@ -11,7 +11,11 @@ Object.assign(App, {
     const lineProfile = (!ModeManager.isDemo() && typeof LineAuth !== 'undefined' && LineAuth.isLoggedIn()) ? LineAuth.getProfile() : null;
 
     const displayName = (lineProfile && lineProfile.displayName) ? lineProfile.displayName : (user ? user.displayName : '-');
-    const titleHtml = user ? this._buildTitleDisplayHtml(user, lineProfile ? lineProfile.displayName : null) : escapeHTML(displayName);
+    const achievementProfile = this._getAchievementProfile?.();
+    const titleHtml = user
+      ? (achievementProfile?.buildTitleDisplayHtml?.(user, lineProfile ? lineProfile.displayName : null)
+        || this._buildTitleDisplayHtml(user, lineProfile ? lineProfile.displayName : null))
+      : escapeHTML(displayName);
     const avatarCandidates = this._getAvatarCandidateUrls(lineProfile && lineProfile.pictureUrl, user && user.pictureUrl);
     const pic = avatarCandidates[0] || null;
     const role = (user && user.role) || 'user';
@@ -34,11 +38,10 @@ Object.assign(App, {
     const avatarHtml = this._buildAvatarImageMarkup(pic, displayName, '', 'uc-avatar-circle');
     const teamHtml = user ? this._getUserTeamHtml(user) : '無';
 
-    const achievementStats = this._getAchievementStats?.();
-    const earned = achievementStats?.getEarnedBadgeViewModels?.(
-      ApiService.getAchievements(),
-      ApiService.getBadges()
-    ) || [];
+    const badgeHtml = achievementProfile?.buildEarnedBadgeListHtml?.({
+      imageFallbackHtml: '<span style="font-size:1.2rem">--</span>',
+      emptyText: '尚未獲得徽章',
+    }) || '<div style="font-size:.82rem;color:var(--text-muted)">尚未獲得徽章</div>';
 
     container.innerHTML = `
       <div class="uc-header">
@@ -64,13 +67,7 @@ Object.assign(App, {
       </div>
       <div class="info-card">
         <div class="info-title">已獲得徽章</div>
-        ${earned.length ? `<div class="uc-badge-list">${earned.map(item => {
-          const badge = item.badge;
-          return `<div class="uc-badge-item">
-            <div class="badge-img-placeholder">${badge.image ? `<img src="${badge.image}">` : '<span style="font-size:1.2rem">🏅</span>'}</div>
-            <span class="uc-badge-name">${escapeHTML(badge.name)}</span>
-          </div>`;
-        }).join('')}</div>` : '<div style="font-size:.82rem;color:var(--text-muted)">尚未獲得徽章</div>'}
+        ${badgeHtml}
       </div>
       <div class="info-card">
         <div class="info-title">活動紀錄</div>

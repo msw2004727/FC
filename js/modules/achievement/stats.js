@@ -41,8 +41,8 @@ Object.assign(App, {
       return { active, completed, pending };
     };
 
-    const getBadgeCount = (achievements) => {
-      return getCompletedAchievements(achievements).length;
+    const getBadgeCount = (achievements, badges) => {
+      return getEarnedBadgeViewModels(achievements, badges).length;
     };
 
     const getEarnedBadgeViewModels = (achievements, badges) => {

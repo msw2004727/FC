@@ -196,13 +196,13 @@ Object.assign(App, {
     const buildSelfRegistrationsFromActivityRecords = (activityRecords, uid, eventMap) => {
       const byEvent = new Map();
 
-      (activityRecords || []).forEach(record => {
+      (activityRecords || []).forEach((record, index) => {
         if (!record) return;
         if (normalizeString(record.uid) !== normalizeString(uid)) return;
         if (record.companionId || record.participantType === 'companion') return;
 
         const status = normalizeString(record.status);
-        if (status !== 'registered' && status !== 'waitlisted') return;
+        if (!['registered', 'waitlisted', 'cancelled', 'removed'].includes(status)) return;
 
         const eventId = normalizeString(record.eventId);
         if (!eventId) return;
@@ -213,17 +213,23 @@ Object.assign(App, {
           status,
           eventType: normalizeLower(record.eventType || event?.type),
           createdAt: parseDateValue(record.createdAt),
+          _order: index,
         };
 
         const current = byEvent.get(eventId);
-        const currentScore = current?.status === 'registered' ? 2 : current?.status === 'waitlisted' ? 1 : 0;
-        const nextScore = nextRecord.status === 'registered' ? 2 : nextRecord.status === 'waitlisted' ? 1 : 0;
-        if (!current || nextScore >= currentScore) {
+        const currentTime = current?.createdAt?.getTime?.() ?? Number.NEGATIVE_INFINITY;
+        const nextTime = nextRecord.createdAt?.getTime?.() ?? Number.NEGATIVE_INFINITY;
+        const hasNewerTimestamp = nextTime > currentTime;
+        const sameTimestamp = nextTime === currentTime;
+
+        if (!current || hasNewerTimestamp || (sameTimestamp && nextRecord._order >= current._order)) {
           byEvent.set(eventId, nextRecord);
         }
       });
 
-      return [...byEvent.values()];
+      return [...byEvent.values()]
+        .filter(record => record.status === 'registered' || record.status === 'waitlisted')
+        .map(({ _order, ...record }) => record);
     };
 
     const buildAttendanceStateByEvent = (attendanceRecords, uid) => {

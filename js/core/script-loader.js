@@ -70,6 +70,9 @@ const ScriptLoader = {
       'js/modules/achievement/shared.js',
       'js/modules/achievement/stats.js',
       'js/modules/achievement/evaluator.js',
+      'js/modules/achievement/badges.js',
+      'js/modules/achievement/titles.js',
+      'js/modules/achievement/profile.js',
       'js/modules/achievement.js',
     ],
     activity: [
@@ -86,6 +89,8 @@ const ScriptLoader = {
       'js/modules/team-form.js',
     ],
     profile: [
+      'js/modules/profile-core.js',
+      'js/modules/profile-data.js',
       'js/modules/profile-card.js',
     ],
     shop: [
@@ -111,6 +116,7 @@ const ScriptLoader = {
       'js/modules/dashboard-participant-share.js',
     ],
     personalDashboard: [
+      'js/modules/dashboard.js',
       'js/modules/personal-dashboard.js',
     ],
     adminUsers: [
@@ -145,14 +151,15 @@ const ScriptLoader = {
     'page-teams':              ['team'],
     'page-team-detail':        ['team'],
     'page-team-manage':        ['team'],
-    'page-profile':            ['profile'],
+    'page-profile':            ['achievement', 'profile'],
     'page-qrcode':             ['profile'],
-    'page-user-card':          ['profile'],
+    'page-user-card':          ['achievement', 'profile'],
+    'page-titles':             ['achievement', 'profile'],
     'page-shop':               ['shop'],
-    'page-leaderboard':        ['shop'],
+    'page-leaderboard':        ['achievement', 'shop'],
     'page-scan':               ['scan'],
     'page-game':               ['game'],
-    'page-personal-dashboard': ['personalDashboard'],
+    'page-personal-dashboard': ['achievement', 'personalDashboard'],
     'page-admin-dashboard':    ['adminDashboard'],
     'page-temp-participant-report': ['adminDashboard'],
     'page-admin-users':        ['adminUsers'],

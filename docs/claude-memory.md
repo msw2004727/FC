@@ -1,3 +1,14 @@
+### 2026-03-12 — 成就 Phase 4 抽離 badge/title/profile helper
+- **問題**：成就相關的徽章數、稱號顯示、稱號頁與個人名片 badge list 邏輯仍散在 `profile-data.js`、`profile-core.js`、`profile-card.js`、`personal-dashboard.js`、`leaderboard.js`，雖然 Phase 1-3 已完成骨架與 evaluator，但 profile-facing 顯示責任還沒有真正抽進 achievement 資料夾。
+- **原因**：舊個人頁模組直接讀 `achievement stats` 或自行組 HTML，導致 badge/title 顯示與個人頁 UI 耦合；同時 `script-loader` 的 `profile` / `personalDashboard` 群組漏載真依賴，未來改成更明確的 lazy loading 時會有缺件風險。
+- **修復**：新增 `js/modules/achievement/badges.js`、`js/modules/achievement/titles.js`、`js/modules/achievement/profile.js`，並在 `js/modules/achievement/index.js` 補上 part getter；將 `profile-data.js` 的稱號相關方法改為轉接新 helper，將 `profile-core.js`、`profile-card.js`、`personal-dashboard.js`、`leaderboard.js` 的 badge/title 顯示改接 `achievement profile` helper；同步修正 `js/core/script-loader.js` 的 achievement/profile/personalDashboard 載入邊界、更新 `docs/architecture.md`、以及快取版本 `20260312j`。
+- **教訓**：做資料夾化時不要只搬 evaluator 與純 helper，連同 profile-facing display adapter 也要一起收口；另外 `script-loader` 群組必須跟真實依賴保持一致，不然之後縮小全域預載時很容易出現頁面只在某些入口壞掉的隱性 bug。
+### 2026-03-12 — 第三方驗收補修成就 Phase 1-3 遺漏
+- **問題**：第三方角度重驗 `Phase 1-3` 時，發現兩個先前 smoke test 沒覆蓋到的瑕疵：一是徽章數（`badgeCount`）其實在算完成成就數，遇到成就沒有對應徽章時會高估；二是 `activityRecords` fallback 在沒有 `registrations` 可用的 legacy 情境下，沒有完整尊重後續的 `cancelled / removed` 狀態。
+- **原因**：`stats.js` Phase 2 先抽成共用 helper 時延續了舊的「完成成就數 = 徽章數」假設；`evaluator.js` Phase 3 雖然加了 `activityRecords` fallback，但只收 `registered / waitlisted`，忽略了較晚出現的取消或移除記錄。
+- **修復**：調整 `js/modules/achievement/stats.js`，讓徽章數改為依實際存在且已獲得的 badge view model 計算；調整 `js/modules/achievement/evaluator.js` 的 `activityRecords` fallback，改成以較新的 `createdAt` / 順序決定事件最終狀態，並正確排除已取消或移除的紀錄。
+- **教訓**：抽 helper 與做 fallback 時，不能只驗正常路徑；第三方驗收要刻意用「資料缺欄位」、「關聯被刪除」、「舊資料補算」這些不乾淨樣本去撞，才抓得到真實回歸風險。
+
 ### 2026-03-12 — 成就系統 Phase 3 改為 registry 驅動評估
 - **問題**：成就條件判定仍停留在舊版 `if/else` evaluator，`registry.js` 只包住 `ACHIEVEMENT_CONDITIONS`，沒有真正承接 action 支援狀態、timeRange fallback 與事件型條件的統一入口；既有 seed 內的 `attendance_rate`、`bind_line_notify`、`organize_event`、`30d + complete_event` 也沒有完整的集中式邏輯可維護。
 - **原因**：Phase 1 只先建立 achievement 領域骨架與 facade，相容層完成了，但 action metadata 與 evaluator handler 仍未真正拆開，導致後續 UI、資料清理與條件精簡都缺少單一真實來源。

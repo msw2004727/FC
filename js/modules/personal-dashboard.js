@@ -25,7 +25,7 @@ Object.assign(App, {
     const totalGames = user.totalGames || records.length;
     const completedGames = user.completedGames || records.filter(r => r.status === 'completed').length;
     const attendanceRate = user.attendanceRate || (totalGames > 0 ? Math.round(completedGames / totalGames * 100) : 0);
-    const badgeCount = this._getAchievementStats?.()?.getBadgeCount?.(ApiService.getAchievements?.() || []) || 0;
+    const badgeCount = this._getAchievementProfile?.()?.getCurrentBadgeCount?.() || 0;
     const totalExp = user.exp || 0;
     const calcLevel = App._calcLevelFromExp ? App._calcLevelFromExp(totalExp) : { level: 0 };
     const level = calcLevel.level || 0;

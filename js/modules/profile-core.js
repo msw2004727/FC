@@ -251,11 +251,7 @@ Object.assign(App, {
     const user = isSelf ? currentUser : this._findUserByName(name);
     const role = user ? user.role : ApiService.getUserRole(name);
     const roleInfo = ROLES[role] || ROLES.user;
-    const achievementStats = this._getAchievementStats?.();
-    const earned = achievementStats?.getEarnedBadgeViewModels?.(
-      ApiService.getAchievements(),
-      ApiService.getBadges()
-    ) || [];
+    const achievementProfile = this._getAchievementProfile?.();
 
     const totalExp = user ? (user.exp || 0) : 0;
     const { level, progress, needed } = this._calcLevelFromExp(totalExp);
@@ -279,7 +275,13 @@ Object.assign(App, {
     const teamHtml = user ? this._getUserTeamHtml(user) : '無';
 
     // 稱號顯示（HTML 版：金色/銀色標籤）
-    const titleHtml = user ? this._buildTitleDisplayHtml(user, name) : escapeHTML(name);
+    const titleHtml = user
+      ? (achievementProfile?.buildTitleDisplayHtml?.(user, name) || this._buildTitleDisplayHtml(user, name))
+      : escapeHTML(name);
+    const badgeHtml = achievementProfile?.buildEarnedBadgeListHtml?.({
+      useCategoryBorder: true,
+      emptyText: '尚未獲得徽章',
+    }) || '<div style="font-size:.82rem;color:var(--text-muted)">尚未獲得徽章</div>';
 
     const cardHeader = document.querySelector('#page-user-card .page-header h2');
     if (cardHeader) cardHeader.textContent = '用戶資料卡片';
@@ -307,14 +309,7 @@ Object.assign(App, {
       </div>
       <div class="info-card">
         <div class="info-title">已獲得徽章</div>
-        ${earned.length ? `<div class="uc-badge-list">${earned.map(item => {
-          const color = item.color;
-          const badge = item.badge;
-          return `<div class="uc-badge-item">
-            <div class="badge-img-placeholder" style="border-color:${color}">${badge.image ? `<img src="${badge.image}">` : ''}</div>
-            <span class="uc-badge-name">${escapeHTML(badge.name)}</span>
-          </div>`;
-        }).join('')}</div>` : '<div style="font-size:.82rem;color:var(--text-muted)">尚未獲得徽章</div>'}
+        ${badgeHtml}
       </div>
       <div class="info-card">
         <div class="info-title">活動紀錄</div>

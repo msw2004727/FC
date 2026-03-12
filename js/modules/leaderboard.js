@@ -245,7 +245,7 @@ Object.assign(App, {
 
     // 更新統計（方向 B：以掃碼紀錄為依據）
     const { expectedCount, completedCount, attendRate } = this._calcScanStats(uid);
-    const badgeCount = this._getAchievementStats?.()?.getBadgeCount?.(ApiService.getAchievements()) || 0;
+    const badgeCount = this._getAchievementProfile?.()?.getCurrentBadgeCount?.() || 0;
     const el = (id) => document.getElementById(id);
     if (el('uc-stat-total')) el('uc-stat-total').textContent = expectedCount;
     if (el('uc-stat-done')) el('uc-stat-done').textContent = completedCount;

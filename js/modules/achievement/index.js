@@ -13,6 +13,9 @@ Object.assign(App, {
       shared: null,
       stats: null,
       evaluator: null,
+      badges: null,
+      titles: null,
+      profile: null,
     };
     return this._achievementModule;
   },
@@ -42,6 +45,18 @@ Object.assign(App, {
 
   _getAchievementEvaluator() {
     return this._getAchievementPart('evaluator');
+  },
+
+  _getAchievementBadges() {
+    return this._getAchievementPart('badges');
+  },
+
+  _getAchievementTitles() {
+    return this._getAchievementPart('titles');
+  },
+
+  _getAchievementProfile() {
+    return this._getAchievementPart('profile');
   },
 
 });

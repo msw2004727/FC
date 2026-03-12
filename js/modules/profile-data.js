@@ -101,7 +101,7 @@ Object.assign(App, {
     }
     // 徽章數量：從成就資料動態計算
     if (el('profile-stat-badges')) {
-      const _badgeCount = this._getAchievementStats?.()?.getBadgeCount?.(ApiService.getAchievements()) || 0;
+      const _badgeCount = this._getAchievementProfile?.()?.getCurrentBadgeCount?.() || 0;
       el('profile-stat-badges').textContent = _badgeCount;
     }
 
@@ -362,109 +362,34 @@ Object.assign(App, {
 
   // 組合稱號顯示：大成就.普通.暱稱（純文字）
   _buildTitleDisplay(user, overrideName) {
-    const parts = [];
-    if (user.titleBig) parts.push(user.titleBig);
-    if (user.titleNormal) parts.push(user.titleNormal);
-    const name = overrideName || user.displayName || '-';
-    parts.push(name);
-    return parts.join('.');
+    return this._getAchievementTitles?.()?.buildTitleDisplay?.(user, overrideName)
+      || [user?.titleBig, user?.titleNormal, overrideName || user?.displayName || '-']
+        .filter(Boolean)
+        .join('.');
   },
 
   // 組合稱號顯示 HTML 版（金色/銀色標籤）
   _buildTitleDisplayHtml(user, overrideName) {
-    const parts = [];
-    if (user.titleBig) {
-      parts.push(`<span class="title-tag title-gold">${escapeHTML(user.titleBig)}</span>`);
-    }
-    if (user.titleNormal) {
-      parts.push(`<span class="title-tag title-normal">${escapeHTML(user.titleNormal)}</span>`);
-    }
-    const name = overrideName || user.displayName || '-';
-    parts.push(escapeHTML(name));
-    return parts.join('<span class="title-dot">.</span>');
+    return this._getAchievementTitles?.()?.buildTitleDisplayHtml?.(user, overrideName)
+      || escapeHTML(overrideName || user?.displayName || '-');
   },
 
   // 新徽章稱號自動推薦
   _titleSuggestionChecked: false,
   async _checkTitleSuggestion() {
-    const user = ApiService.getCurrentUser();
-    if (!user) return;
-    const earned = this._getAchievementStats?.()?.getTitleOptions?.(ApiService.getAchievements())?.earned || [];
-    if (earned.length === 0) return;
-    const tpKey = 'sporthub_title_prompted_' + ModeManager.getMode();
-    const lastCount = parseInt(localStorage.getItem(tpKey) || '0');
-    if (earned.length <= lastCount) return;
-    localStorage.setItem(tpKey, String(earned.length));
-    // 檢查是否有空的稱號欄位可以裝備
-    const hasGoldSlot = !user.titleBig && earned.some(a => a.category === 'gold');
-    const hasNormalSlot = !user.titleNormal && earned.some(a => a.category !== 'gold');
-    if (hasGoldSlot || hasNormalSlot) {
-      const yes = await this.appConfirm('您獲得了新的稱號，是否前往裝備？');
-      if (yes) this.showPage('page-titles');
-    } else {
-      this.showToast('恭喜獲得新徽章！可至「稱號設定」更換');
-    }
+    return this._getAchievementTitles?.()?.checkTitleSuggestion?.();
   },
 
-  // 渲染稱號設定頁
   renderTitlePage() {
-    const user = ApiService.getCurrentUser();
-    const lineProfile = (!ModeManager.isDemo() && typeof LineAuth !== 'undefined' && LineAuth.isLoggedIn()) ? LineAuth.getProfile() : null;
-    const lineName = lineProfile ? lineProfile.displayName : (user ? user.displayName : '-');
-
-    // LINE 暱稱
-    const nameInput = document.getElementById('title-line-name');
-    if (nameInput) nameInput.value = lineName || '-';
-
-    // 大成就稱號選項：從已完成的成就中取
-    const titleOptions = this._getAchievementStats?.()?.getTitleOptions?.(ApiService.getAchievements())
-      || { bigTitles: [], normalTitles: [] };
-    const bigTitles = titleOptions.bigTitles;
-    const normalTitles = titleOptions.normalTitles;
-
-    const bigSelect = document.getElementById('title-big');
-    const normalSelect = document.getElementById('title-normal');
-    if (bigSelect) {
-      const cur = user && user.titleBig ? user.titleBig : '';
-      bigSelect.innerHTML = '<option value="">（無）</option>' + bigTitles.map(t =>
-        `<option value="${t}" ${t === cur ? 'selected' : ''}>${t}</option>`
-      ).join('');
-    }
-    if (normalSelect) {
-      const cur = user && user.titleNormal ? user.titleNormal : '';
-      normalSelect.innerHTML = '<option value="">（無）</option>' + normalTitles.map(t =>
-        `<option value="${t}" ${t === cur ? 'selected' : ''}>${t}</option>`
-      ).join('');
-    }
-
-    // 即時預覽
-    this._updateTitlePreview();
-    if (bigSelect && !bigSelect.dataset.bound) {
-      bigSelect.dataset.bound = '1';
-      bigSelect.addEventListener('change', () => this._updateTitlePreview());
-    }
-    if (normalSelect && !normalSelect.dataset.bound) {
-      normalSelect.dataset.bound = '1';
-      normalSelect.addEventListener('change', () => this._updateTitlePreview());
-    }
+    return this._getAchievementTitles?.()?.renderTitlePage?.();
   },
 
   _updateTitlePreview() {
-    const big = document.getElementById('title-big')?.value || '';
-    const normal = document.getElementById('title-normal')?.value || '';
-    const name = document.getElementById('title-line-name')?.value || '-';
-    const preview = document.getElementById('title-preview');
-    if (!preview) return;
-    const fakeUser = { titleBig: big || null, titleNormal: normal || null, displayName: name };
-    preview.innerHTML = this._buildTitleDisplayHtml(fakeUser);
+    return this._getAchievementTitles?.()?.updateTitlePreview?.();
   },
 
   saveTitles() {
-    const titleBig = document.getElementById('title-big')?.value || null;
-    const titleNormal = document.getElementById('title-normal')?.value || null;
-    ApiService.updateCurrentUser({ titleBig, titleNormal });
-    this.renderProfileData();
-    this.showToast('稱號已儲存');
+    return this._getAchievementTitles?.()?.saveTitles?.();
   },
 
   toggleUserMenu() {
