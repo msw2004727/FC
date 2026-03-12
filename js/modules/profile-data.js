@@ -371,25 +371,129 @@ Object.assign(App, {
   // 組合稱號顯示 HTML 版（金色/銀色標籤）
   _buildTitleDisplayHtml(user, overrideName) {
     return this._getAchievementTitles?.()?.buildTitleDisplayHtml?.(user, overrideName)
-      || escapeHTML(overrideName || user?.displayName || '-');
+      || (() => {
+        const safeUser = user || {};
+        const parts = [];
+        if (safeUser.titleBig) {
+          parts.push(`<span class="title-tag title-gold">${escapeHTML(safeUser.titleBig)}</span>`);
+        }
+        if (safeUser.titleNormal) {
+          parts.push(`<span class="title-tag title-normal">${escapeHTML(safeUser.titleNormal)}</span>`);
+        }
+        parts.push(escapeHTML(overrideName || safeUser.displayName || '-'));
+        return parts.join('<span class="title-dot">.</span>');
+      })();
   },
 
   // 新徽章稱號自動推薦
   _titleSuggestionChecked: false,
   async _checkTitleSuggestion() {
-    return this._getAchievementTitles?.()?.checkTitleSuggestion?.();
+    const titles = this._getAchievementTitles?.();
+    if (titles?.checkTitleSuggestion) return titles.checkTitleSuggestion();
+
+    const user = ApiService.getCurrentUser();
+    if (!user) return;
+
+    const achievements = ApiService.getAchievements?.() || [];
+    const earned = achievements.filter(achievement => {
+      if (achievement.status === 'archived') return false;
+      const threshold = this._getAchThreshold ? this._getAchThreshold(achievement) : (achievement.condition?.threshold ?? achievement.target ?? 1);
+      return (achievement.current || 0) >= threshold;
+    });
+    if (!earned.length) return;
+
+    const promptKey = 'sporthub_title_prompted_' + ModeManager.getMode();
+    const lastCount = parseInt(localStorage.getItem(promptKey) || '0', 10);
+    if (earned.length <= lastCount) return;
+
+    localStorage.setItem(promptKey, String(earned.length));
+
+    const hasGoldSlot = !user.titleBig && earned.some(achievement => achievement.category === 'gold');
+    const hasNormalSlot = !user.titleNormal && earned.some(achievement => achievement.category !== 'gold');
+    if (!hasGoldSlot && !hasNormalSlot) {
+      this.showToast('你已有可裝備的稱號，前往稱號頁可手動更換');
+      return;
+    }
+
+    const shouldOpen = await this.appConfirm('你獲得了新的稱號，現在前往稱號頁設定嗎？');
+    if (shouldOpen) this.showPage('page-titles');
   },
 
   renderTitlePage() {
-    return this._getAchievementTitles?.()?.renderTitlePage?.();
+    const titles = this._getAchievementTitles?.();
+    if (titles?.renderTitlePage) return titles.renderTitlePage();
+
+    const user = ApiService.getCurrentUser();
+    const lineProfile = (!ModeManager.isDemo() && typeof LineAuth !== 'undefined' && LineAuth.isLoggedIn())
+      ? LineAuth.getProfile()
+      : null;
+    const lineName = lineProfile ? lineProfile.displayName : (user ? user.displayName : '-');
+    const achievements = ApiService.getAchievements?.() || [];
+    const earned = achievements.filter(achievement => {
+      if (achievement.status === 'archived') return false;
+      const threshold = this._getAchThreshold ? this._getAchThreshold(achievement) : (achievement.condition?.threshold ?? achievement.target ?? 1);
+      return (achievement.current || 0) >= threshold;
+    });
+    const bigTitles = earned.filter(achievement => achievement.category === 'gold').map(achievement => achievement.name);
+    const normalTitles = earned.filter(achievement => achievement.category !== 'gold').map(achievement => achievement.name);
+    const bigSelect = document.getElementById('title-big');
+    const normalSelect = document.getElementById('title-normal');
+    const nameInput = document.getElementById('title-line-name');
+
+    if (nameInput) nameInput.value = lineName || '-';
+
+    if (bigSelect) {
+      const currentBig = user?.titleBig || '';
+      bigSelect.innerHTML = '<option value="">不設定</option>' + bigTitles.map(title =>
+        `<option value="${escapeHTML(title)}" ${title === currentBig ? 'selected' : ''}>${escapeHTML(title)}</option>`
+      ).join('');
+    }
+
+    if (normalSelect) {
+      const currentNormal = user?.titleNormal || '';
+      normalSelect.innerHTML = '<option value="">不設定</option>' + normalTitles.map(title =>
+        `<option value="${escapeHTML(title)}" ${title === currentNormal ? 'selected' : ''}>${escapeHTML(title)}</option>`
+      ).join('');
+    }
+
+    this._updateTitlePreview();
+
+    if (bigSelect && !bigSelect.dataset.bound) {
+      bigSelect.dataset.bound = '1';
+      bigSelect.addEventListener('change', () => this._updateTitlePreview());
+    }
+    if (normalSelect && !normalSelect.dataset.bound) {
+      normalSelect.dataset.bound = '1';
+      normalSelect.addEventListener('change', () => this._updateTitlePreview());
+    }
   },
 
   _updateTitlePreview() {
-    return this._getAchievementTitles?.()?.updateTitlePreview?.();
+    const titles = this._getAchievementTitles?.();
+    if (titles?.updateTitlePreview) return titles.updateTitlePreview();
+
+    const big = document.getElementById('title-big')?.value || '';
+    const normal = document.getElementById('title-normal')?.value || '';
+    const name = document.getElementById('title-line-name')?.value || '-';
+    const preview = document.getElementById('title-preview');
+    if (!preview) return;
+
+    preview.innerHTML = this._buildTitleDisplayHtml({
+      titleBig: big || null,
+      titleNormal: normal || null,
+      displayName: name,
+    });
   },
 
   saveTitles() {
-    return this._getAchievementTitles?.()?.saveTitles?.();
+    const titles = this._getAchievementTitles?.();
+    if (titles?.saveTitles) return titles.saveTitles();
+
+    const titleBig = document.getElementById('title-big')?.value || null;
+    const titleNormal = document.getElementById('title-normal')?.value || null;
+    ApiService.updateCurrentUser({ titleBig, titleNormal });
+    this.renderProfileData();
+    this.showToast('稱號已儲存');
   },
 
   toggleUserMenu() {

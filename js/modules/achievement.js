@@ -176,6 +176,8 @@ Object.assign(App, {
   // ══════════════════════════════════
 
   _populateAchConditionSelects() {
+    const admin = this._getAchievementAdmin?.();
+    if (admin?.populateAchConditionSelects) return admin.populateAchConditionSelects();
     const ac = this._getAchievementRegistry?.()?.getConditionConfig?.() || ACHIEVEMENT_CONDITIONS;
     const trSel = document.getElementById('ach-cond-timerange');
     const actSel = document.getElementById('ach-cond-action');
@@ -195,6 +197,8 @@ Object.assign(App, {
   _achBadgeDataURL: null,
 
   renderAdminAchievements() {
+    const admin = this._getAchievementAdmin?.();
+    if (admin?.renderAdminAchievements) return admin.renderAdminAchievements();
     const container = document.getElementById('admin-ach-list');
     if (!container) return;
     this._evaluateAchievements();
@@ -241,6 +245,8 @@ Object.assign(App, {
   // ── Achievement Form (條件選單) ──
 
   showAchForm(editData) {
+    const admin = this._getAchievementAdmin?.();
+    if (admin?.showAchForm) return admin.showAchForm(editData);
     const form = document.getElementById('ach-form-card');
     if (!form) return;
     form.style.display = '';
@@ -275,6 +281,8 @@ Object.assign(App, {
   },
 
   hideAchForm() {
+    const admin = this._getAchievementAdmin?.();
+    if (admin?.hideAchForm) return admin.hideAchForm();
     const form = document.getElementById('ach-form-card');
     if (form) form.style.display = 'none';
     this._achEditId = null;
@@ -282,6 +290,8 @@ Object.assign(App, {
   },
 
   _updateAchConditionUI() {
+    const admin = this._getAchievementAdmin?.();
+    if (admin?.updateAchConditionUI) return admin.updateAchConditionUI();
     const timeRange = document.getElementById('ach-cond-timerange').value;
     const action = document.getElementById('ach-cond-action').value;
     const streakRow = document.getElementById('ach-cond-streakdays-row');
@@ -294,6 +304,8 @@ Object.assign(App, {
   },
 
   _updateConditionPreview() {
+    const admin = this._getAchievementAdmin?.();
+    if (admin?.updateConditionPreview) return admin.updateConditionPreview();
     const preview = document.getElementById('ach-cond-preview');
     if (!preview) return;
     const condition = {
@@ -316,6 +328,8 @@ Object.assign(App, {
   },
 
   _bindAchBadgeUpload() {
+    const admin = this._getAchievementAdmin?.();
+    if (admin?.bindAchBadgeUpload) return admin.bindAchBadgeUpload();
     const input = document.getElementById('ach-badge-image');
     if (!input || input.dataset.bound) return;
     input.dataset.bound = '1';
@@ -353,6 +367,8 @@ Object.assign(App, {
   },
 
   saveAchievement() {
+    const admin = this._getAchievementAdmin?.();
+    if (admin?.saveAchievement) return admin.saveAchievement();
     const name = document.getElementById('ach-input-name').value.trim();
     const category = document.getElementById('ach-input-category').value;
     if (!name) { this.showToast('請輸入成就名稱'); return; }
@@ -403,11 +419,15 @@ Object.assign(App, {
   },
 
   editAchievement(id) {
+    const admin = this._getAchievementAdmin?.();
+    if (admin?.editAchievement) return admin.editAchievement(id);
     const item = ApiService.getAchievements().find(a => a.id === id);
     if (item) this.showAchForm(item);
   },
 
   toggleAchievementStatus(id) {
+    const admin = this._getAchievementAdmin?.();
+    if (admin?.toggleAchievementStatus) return admin.toggleAchievementStatus(id);
     const item = ApiService.getAchievements().find(a => a.id === id);
     if (!item) return;
     const newStatus = item.status === 'archived' ? 'active' : 'archived';
@@ -419,6 +439,8 @@ Object.assign(App, {
   },
 
   async confirmDeleteAchievement(id) {
+    const admin = this._getAchievementAdmin?.();
+    if (admin?.confirmDeleteAchievement) return admin.confirmDeleteAchievement(id);
     const item = ApiService.getAchievements().find(a => a.id === id);
     if (!item) return;
     const ok = await this.appConfirm(`確定要刪除成就「${item.name}」嗎？\n關聯的徽章也會一併刪除，此操作無法復原。`);

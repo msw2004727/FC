@@ -1,3 +1,9 @@
+### 2026-03-12 — 成就 Phase 5 抽離 admin helper
+- **問題**：成就後台管理的列表渲染、表單、圖片上傳與 CRUD 還全塞在 `js/modules/achievement.js`，而且表單選單初始化與徽章上傳綁定沒有穩定掛進 admin 頁生命週期，寫入流程也沒有 `await`，有 race risk；另外舊 facade 一度寫成「直接 return 新 helper」，若新模組缺件會讓 fallback 失效。
+- **原因**：Phase 1 到 4 先抽了 registry、evaluator 與 profile-facing helper，但 admin side 還停留在舊 facade；後台頁面依賴 `achievement.js` 內部狀態，導致模組邊界不清楚，也讓 `script-loader` 難以反映真實依賴；同時相容層的委派寫法不夠保守。
+- **修復**：新增 `js/modules/achievement/admin.js`，把 `renderAdminAchievements`、表單行為、徽章圖片上傳、`save/toggle/delete` 流程集中到 admin helper，並改為真正的 `async/await`；`js/modules/achievement.js` 改成「有 admin helper 才委派，否則保留舊 fallback」；另外把 `js/modules/profile-data.js` 的稱號入口補回 fallback，避免新 helper 缺件時整段無反應；同時更新 `js/modules/achievement/index.js`、`js/core/script-loader.js`、`index.html`、`docs/architecture.md`，快取版本升到 `20260312k`。
+- **教訓**：資料夾化不能只抽純 helper，後台頁面的互動狀態與 CRUD 也要一起收口；另外相容層不能寫成無條件直通，必須保留舊 fallback，才能真的做到逐步搬移而不是一次性切換。
+
 ### 2026-03-12 — 成就 Phase 4 抽離 badge/title/profile helper
 - **問題**：成就相關的徽章數、稱號顯示、稱號頁與個人名片 badge list 邏輯仍散在 `profile-data.js`、`profile-core.js`、`profile-card.js`、`personal-dashboard.js`、`leaderboard.js`，雖然 Phase 1-3 已完成骨架與 evaluator，但 profile-facing 顯示責任還沒有真正抽進 achievement 資料夾。
 - **原因**：舊個人頁模組直接讀 `achievement stats` 或自行組 HTML，導致 badge/title 顯示與個人頁 UI 耦合；同時 `script-loader` 的 `profile` / `personalDashboard` 群組漏載真依賴，未來改成更明確的 lazy loading 時會有缺件風險。
