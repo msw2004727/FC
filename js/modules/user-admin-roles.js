@@ -279,6 +279,9 @@ Object.assign(App, {
       .map(category => {
         const items = (category.items || [])
           .filter(item => item && typeof item.code === 'string')
+          .filter(item => typeof isPermissionCodeEnabled === 'function'
+            ? isPermissionCodeEnabled(item.code)
+            : item.code !== 'admin.roles.entry')
           .filter(item => !this._permShowCheckedOnly || currentPerms.includes(item.code));
         return { ...category, items };
       })
@@ -313,6 +316,10 @@ Object.assign(App, {
 
   async togglePermission(code) {
     if (!this._permSelectedRole) return;
+    if (typeof isPermissionCodeEnabled === 'function' && !isPermissionCodeEnabled(code)) {
+      this.renderPermissions(this._permSelectedRole);
+      return;
+    }
     if (this._permSelectedRole === 'user') {
       this.showToast(this._getLockedPermissionRoleHint(this._permSelectedRole));
       return;
