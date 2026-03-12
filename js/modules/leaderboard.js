@@ -82,8 +82,8 @@ Object.assign(App, {
         const event = ApiService.getEvent(r.eventId);
         if (event && event.status !== 'ended' && event.status !== 'cancelled') {
           registered.push(r);
-        } else if (event && event.status === 'ended') {
-          // 活動已結束但未簽到簽退 → 歸類為 registered 並標記 missed
+        } else if (event && event.status === 'ended' && r.status === 'registered') {
+          // 只有正式報名且活動已結束、未完成簽到者才顯示 missed；waitlisted 不算應到
           registered.push({ ...r, _displayStatus: 'missed' });
         }
       }
@@ -100,27 +100,40 @@ Object.assign(App, {
   _calcScanStats(uid) {
     const attRecords = ApiService.getAttendanceRecords();
     const actRecords = ApiService.getActivityRecords(uid);
-
-    const checkinEventIds = new Set(
-      attRecords.filter(a => a.uid === uid && a.type === 'checkin').map(a => a.eventId)
-    );
-    const checkoutEventIds = new Set(
-      attRecords.filter(a => a.uid === uid && a.type === 'checkout').map(a => a.eventId)
-    );
-    // 已結束有效報名（非取消）的不重複場次 → 出席率分母
-    const endedValidEventIds = new Set(
-      actRecords
-        .filter(r => r.status !== 'cancelled')
-        .map(r => r.eventId)
-        .filter(eid => { const ev = ApiService.getEvent(eid); return ev && ev.status === 'ended'; })
-    );
-
-    const totalCount    = checkinEventIds.size;
-    const completedCount = checkoutEventIds.size;
-    const attendRate    = endedValidEventIds.size > 0
-      ? Math.round((checkinEventIds.size / endedValidEventIds.size) * 100)
+    const expectedEventIds = new Set();
+    // 個人頁統計定義：
+    // - 應到場次（expectedCount）= 已結束 + 本人 + 有效報名（activityRecord.status = registered）
+    // - 完成場次（completedCount）= 應到場次中，同時有 checkin + checkout
+    // - 出席率（attendRate）= 應到場次中，有 checkin 的場次 ÷ 應到場次 × 100
+    // 備註：不計 waitlisted / cancelled / removed、未報名 unreg、同行者 companion
+    (actRecords || []).forEach(record => {
+      if (record.status !== 'registered') return;
+      const event = ApiService.getEvent(record.eventId);
+      if (!event || event.status !== 'ended') return;
+      expectedEventIds.add(record.eventId);
+    });
+    const attendanceStateByEvent = new Map();
+    (attRecords || []).forEach(record => {
+      if (record.uid !== uid) return;
+      if (!expectedEventIds.has(record.eventId)) return;
+      if (record.companionId || record.participantType === 'companion') return;
+      const state = attendanceStateByEvent.get(record.eventId) || { checkin: false, checkout: false };
+      if (record.type === 'checkin') state.checkin = true;
+      if (record.type === 'checkout') state.checkout = true;
+      attendanceStateByEvent.set(record.eventId, state);
+    });
+    const attendedEventIds = new Set();
+    const completedEventIds = new Set();
+    attendanceStateByEvent.forEach((state, eventId) => {
+      if (state.checkin) attendedEventIds.add(eventId);
+      if (state.checkin && state.checkout) completedEventIds.add(eventId);
+    });
+    const expectedCount = expectedEventIds.size;
+    const completedCount = completedEventIds.size;
+    const attendRate = expectedCount > 0
+      ? Math.round((attendedEventIds.size / expectedCount) * 100)
       : 0;
-    return { totalCount, completedCount, attendRate };
+    return { expectedCount, completedCount, attendRate };
   },
 
   /**
@@ -195,9 +208,9 @@ Object.assign(App, {
     container.innerHTML = this._renderRecordListHtml(filtered, p, 'renderActivityRecords', f);
 
     // 更新統計（方向 B：以掃碼紀錄為依據）
-    const { totalCount, completedCount, attendRate } = this._calcScanStats(uid);
+    const { expectedCount, completedCount, attendRate } = this._calcScanStats(uid);
     const el = (id) => document.getElementById(id);
-    if (el('profile-stat-total')) el('profile-stat-total').textContent = totalCount;
+    if (el('profile-stat-total')) el('profile-stat-total').textContent = expectedCount;
     if (el('profile-stat-done')) el('profile-stat-done').textContent = completedCount;
     if (el('profile-stat-rate')) el('profile-stat-rate').textContent = `${attendRate}%`;
 
@@ -231,14 +244,14 @@ Object.assign(App, {
     container.innerHTML = this._renderRecordListHtml(filtered, page || 1, 'renderUserCardRecords', f);
 
     // 更新統計（方向 B：以掃碼紀錄為依據）
-    const { totalCount, completedCount, attendRate } = this._calcScanStats(uid);
+    const { expectedCount, completedCount, attendRate } = this._calcScanStats(uid);
     const _achs = ApiService.getAchievements().filter(a => a.status !== 'archived');
     const badgeCount = _achs.filter(a => {
       const t = a.condition && a.condition.threshold != null ? a.condition.threshold : (a.target != null ? a.target : 1);
       return a.current >= t;
     }).length;
     const el = (id) => document.getElementById(id);
-    if (el('uc-stat-total')) el('uc-stat-total').textContent = totalCount;
+    if (el('uc-stat-total')) el('uc-stat-total').textContent = expectedCount;
     if (el('uc-stat-done')) el('uc-stat-done').textContent = completedCount;
     if (el('uc-stat-rate')) el('uc-stat-rate').textContent = `${attendRate}%`;
     if (el('uc-stat-badges')) el('uc-stat-badges').textContent = badgeCount;

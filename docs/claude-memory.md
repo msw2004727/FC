@@ -1,3 +1,8 @@
+### 2026-03-12 — 個人頁報名統計改為應到場次
+- **問題**：個人專頁的三格統計把未報名簽到、同行者簽到與候補紀錄混進來，導致「參加場次 / 完成 / 出席率」與報名紀錄清單定義不一致。
+- **原因**：統計直接用 ttendanceRecords 的 checkin / checkout 去重，且出席率分母只排除 cancelled，沒有排除 waitlisted、emoved，也沒有排除同行者與未報名紀錄。
+- **修復**：更新 js/modules/leaderboard.js 統計公式為「應到場次（已結束 + 本人 + 有效報名） / 完成場次（checkin + checkout） / 出席率（有 checkin ÷ 應到場次）」，同步排除同行者與未報名紀錄，並修正已結束候補不再顯示為 missed；更新 pages/profile.html、js/modules/profile-core.js、js/modules/profile-card.js 文案，並在 js/modules/leaderboard.js 留下公式備註；同步更新 js/config.js、index.html 版本號為 20260312d。
+- **教訓**：個人頁統計與報名紀錄清單必須共用同一套母集合與狀態定義，否則 UI 名稱再清楚也會因分子分母不一致而失真。
 ### 2026-03-12 — 修復用戶補正頁的搜尋顯示與 Firestore 權限
 - **問題**：放鴿子補正頁的用戶搜尋在名稱缺失時會重複顯示兩次 UID；同時按下「確認補正」會因 Firestore 規則拒絕而報 `Missing or insufficient permissions`。
 - **原因**：搜尋結果、已選取提示與摘要卡直接用 `name || uid` 再額外拼接 UID，遇到名稱就是 UID 時會重複；另外 Firestore 規則只認 `rolePermissions` 文件中的權限碼，沒有承接前端對超級管理員（`super_admin`）的全權模型，導致補正寫入被擋下。

@@ -78,8 +78,8 @@ Object.assign(App, {
       <div class="info-card">
         <div class="info-title">活動紀錄</div>
         <div class="profile-stats" style="margin:-.2rem 0 .5rem" id="uc-record-stats">
-          <div class="stat-item"><span class="stat-num" id="uc-stat-total">-</span><span class="stat-label">參加場次</span></div>
-          <div class="stat-item"><span class="stat-num" id="uc-stat-done">-</span><span class="stat-label">完成</span></div>
+          <div class="stat-item"><span class="stat-num" id="uc-stat-total">-</span><span class="stat-label">應到場次</span></div>
+          <div class="stat-item"><span class="stat-num" id="uc-stat-done">-</span><span class="stat-label">完成場次</span></div>
           <div class="stat-item"><span class="stat-num" id="uc-stat-rate">-</span><span class="stat-label">出席率</span></div>
           <div class="stat-item"><span class="stat-num" id="uc-stat-badges">-</span><span class="stat-label">徽章</span></div>
         </div>

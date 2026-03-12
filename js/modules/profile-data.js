@@ -94,8 +94,8 @@ Object.assign(App, {
     // 統計數據（方向 B：以掃碼紀錄為依據）
     if (this._calcScanStats) {
       const _uid = user.uid || user.lineUserId || 'demo-user';
-      const { totalCount, completedCount, attendRate } = this._calcScanStats(_uid);
-      if (el('profile-stat-total')) el('profile-stat-total').textContent = totalCount;
+      const { expectedCount, completedCount, attendRate } = this._calcScanStats(_uid);
+      if (el('profile-stat-total')) el('profile-stat-total').textContent = expectedCount;
       if (el('profile-stat-done')) el('profile-stat-done').textContent = completedCount;
       if (el('profile-stat-rate')) el('profile-stat-rate').textContent = `${attendRate}%`;
     }
