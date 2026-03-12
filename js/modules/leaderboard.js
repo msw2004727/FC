@@ -98,42 +98,24 @@ Object.assign(App, {
    * 出席率   = checkin場次 ÷ 已結束有效報名場次 × 100%
    */
   _calcScanStats(uid) {
-    const attRecords = ApiService.getAttendanceRecords();
-    const actRecords = ApiService.getActivityRecords(uid);
-    const expectedEventIds = new Set();
-    // 個人頁統計定義：
-    // - 應到場次（expectedCount）= 已結束 + 本人 + 有效報名（activityRecord.status = registered）
-    // - 完成場次（completedCount）= 應到場次中，同時有 checkin + checkout
-    // - 出席率（attendRate）= 應到場次中，有 checkin 的場次 ÷ 應到場次 × 100
-    // 備註：不計 waitlisted / cancelled / removed、未報名 unreg、同行者 companion
-    (actRecords || []).forEach(record => {
-      if (record.status !== 'registered') return;
-      const event = ApiService.getEvent(record.eventId);
-      if (!event || event.status !== 'ended') return;
-      expectedEventIds.add(record.eventId);
+    const stats = this._getAchievementStats?.();
+    const events = ApiService.getEvents?.() || [];
+    const eventMap = new Map(events.map(event => [event.id, event]));
+    const result = stats?.getParticipantAttendanceStats?.({
+      uid,
+      registrations: ApiService.getActivityRecords(uid),
+      attendanceRecords: ApiService.getAttendanceRecords(),
+      eventMap,
+      now: new Date(),
+      isEventEnded: (event) => event?.status === 'ended',
     });
-    const attendanceStateByEvent = new Map();
-    (attRecords || []).forEach(record => {
-      if (record.uid !== uid) return;
-      if (!expectedEventIds.has(record.eventId)) return;
-      if (record.companionId || record.participantType === 'companion') return;
-      const state = attendanceStateByEvent.get(record.eventId) || { checkin: false, checkout: false };
-      if (record.type === 'checkin') state.checkin = true;
-      if (record.type === 'checkout') state.checkout = true;
-      attendanceStateByEvent.set(record.eventId, state);
-    });
-    const attendedEventIds = new Set();
-    const completedEventIds = new Set();
-    attendanceStateByEvent.forEach((state, eventId) => {
-      if (state.checkin) attendedEventIds.add(eventId);
-      if (state.checkin && state.checkout) completedEventIds.add(eventId);
-    });
-    const expectedCount = expectedEventIds.size;
-    const completedCount = completedEventIds.size;
-    const attendRate = expectedCount > 0
-      ? Math.round((attendedEventIds.size / expectedCount) * 100)
-      : 0;
-    return { expectedCount, completedCount, attendRate };
+
+    if (result) {
+      const { expectedCount, completedCount, attendRate } = result;
+      return { expectedCount, completedCount, attendRate };
+    }
+
+    return { expectedCount: 0, completedCount: 0, attendRate: 0 };
   },
 
   /**

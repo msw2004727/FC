@@ -976,11 +976,11 @@ const ApiService = {
 
   createAchievement(data)        { return this._create('achievements', data, FirebaseService.addAchievement, 'createAchievement', false); },
   updateAchievement(id, updates) { return this._update('achievements', id, updates, FirebaseService.updateAchievement, 'updateAchievement'); },
-  deleteAchievement(id)          { return this._delete('achievements', id, FirebaseService.deleteAchievement, 'deleteAchievement'); },
+  deleteAchievement(id)          { return this._deleteAwaitWrite('achievements', id, FirebaseService.deleteAchievement, 'deleteAchievement'); },
 
   createBadge(data)        { return this._create('badges', data, FirebaseService.addBadge, 'createBadge', false); },
   updateBadge(id, updates) { return this._update('badges', id, updates, FirebaseService.updateBadge, 'updateBadge'); },
-  deleteBadge(id)          { return this._delete('badges', id, FirebaseService.deleteBadge, 'deleteBadge'); },
+  deleteBadge(id)          { return this._deleteAwaitWrite('badges', id, FirebaseService.deleteBadge, 'deleteBadge'); },
 
   // ════════════════════════════════
   //  Error Log（錯誤日誌工具）

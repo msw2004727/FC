@@ -1609,8 +1609,8 @@ const FirebaseService = {
     { id: 'a2', name: '全勤之星', category: 'silver', badgeId: 'b2', completedAt: null, current: 0, status: 'active', condition: { timeRange: 'none', action: 'attendance_rate', filter: 'all', threshold: 90 } },
     { id: 'a3', name: '鐵人精神', category: 'silver', badgeId: 'b3', completedAt: null, current: 0, status: 'active', condition: { timeRange: 'none', action: 'complete_event', filter: 'all', threshold: 30 } },
     { id: 'a4', name: '社群達人', category: 'silver', badgeId: 'b4', completedAt: null, current: 0, status: 'active', condition: { timeRange: 'none', action: 'bind_line_notify', filter: 'all', threshold: 1 } },
-    { id: 'a5', name: '月活躍玩家', category: 'gold', badgeId: 'b5', completedAt: null, current: 0, status: 'active', condition: { timeRange: '30d', action: 'complete_event', filter: 'all', threshold: 5 } },
-    { id: 'a6', name: '活動策劃師', category: 'gold', badgeId: 'b6', completedAt: null, current: 0, status: 'active', condition: { timeRange: 'none', action: 'organize_event', filter: 'all', threshold: 10 } },
+    { id: 'a5', name: '球隊新人', category: 'gold', badgeId: 'b5', completedAt: null, current: 0, status: 'active', condition: { timeRange: 'none', action: 'join_team', filter: 'all', threshold: 1 } },
+    { id: 'a6', name: '個人門面', category: 'gold', badgeId: 'b6', completedAt: null, current: 0, status: 'active', condition: { timeRange: 'none', action: 'complete_profile', filter: 'all', threshold: 1 } },
     { id: 'a7', name: '百場達人', category: 'gold', badgeId: 'b7', completedAt: null, current: 0, status: 'active', condition: { timeRange: 'none', action: 'complete_event', filter: 'all', threshold: 100 } },
   ],
   _defaultBadges: [
@@ -1618,8 +1618,8 @@ const FirebaseService = {
     { id: 'b2', name: '全勤徽章', achId: 'a2', category: 'silver', image: null },
     { id: 'b3', name: '鐵人徽章', achId: 'a3', category: 'silver', image: null },
     { id: 'b4', name: '社群徽章', achId: 'a4', category: 'silver', image: null },
-    { id: 'b5', name: '月活躍徽章', achId: 'a5', category: 'gold', image: null },
-    { id: 'b6', name: '策劃師徽章', achId: 'a6', category: 'gold', image: null },
+    { id: 'b5', name: '球隊新人徽章', achId: 'a5', category: 'gold', image: null },
+    { id: 'b6', name: '個人門面徽章', achId: 'a6', category: 'gold', image: null },
     { id: 'b7', name: '百場徽章', achId: 'a7', category: 'gold', image: null },
   ],
 

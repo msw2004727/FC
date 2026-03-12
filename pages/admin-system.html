@@ -42,9 +42,9 @@
             <label>活動篩選</label>
             <select id="ach-cond-filter" onchange="App._updateConditionPreview()"></select>
           </div>
-          <div class="form-row">
+          <div class="form-row" id="ach-cond-threshold-row">
             <label>目標數值</label>
-            <input type="number" id="ach-cond-threshold" value="1" min="0" oninput="App._updateConditionPreview()">
+            <input type="number" id="ach-cond-threshold" value="1" min="1" oninput="App._updateConditionPreview()">
           </div>
           <div class="ach-cond-preview-wrap">
             <span style="font-size:.72rem;color:var(--text-muted)">條件預覽：</span>

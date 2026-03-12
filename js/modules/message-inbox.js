@@ -533,7 +533,7 @@ Object.assign(App, {
             statusTo: 'approved',
           },
         });
-        this._evaluateAchievements();
+        this._evaluateAchievements(null, { targetUid: applicantUid });
         this.showToast('已同意加入申請');
       } else {
         this.showToast('申請者已在此球隊，僅更新審核狀態');

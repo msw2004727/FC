@@ -120,14 +120,14 @@ flowchart TD
 | `modules/leaderboard.js` | 用戶 EXP 排行榜 |
 | `modules/achievement.js` | 成就領域 facade；保留舊入口方法名稱，逐步轉接到 `modules/achievement/` 子模組 |
 | `modules/achievement/index.js` | 成就領域模組容器；註冊 registry / shared / stats / evaluator 的相容層入口 |
-| `modules/achievement/registry.js` | 成就條件 registry；集中 action 支援表、timeRange fallback 與事件觸發判定，供後台欄位與 evaluator 共用 |
+| `modules/achievement/registry.js` | 成就條件 registry；集中正式支援 action / timeRange、field state、legacy label fallback 與事件觸發判定，作為後台欄位 / evaluator / cleanup 的唯一來源 |
 | `modules/achievement/shared.js` | 成就共用 helper；包含 threshold、條件描述與分類排序等純函式 |
 | `modules/achievement/stats.js` | 成就衍生計算 helper；集中徽章數、已獲得徽章與稱號選項的共用邏輯 |
-| `modules/achievement/evaluator.js` | 成就評估器；以 registry 驅動 supported action handler，維持舊版 `_evaluateAchievements()` facade 不變 |
+| `modules/achievement/evaluator.js` | 成就評估器；以 registry 驅動正式支援模板，活動與出席率邏輯與個人頁統計 helper 對齊，維持舊版 `_evaluateAchievements()` facade 不變 |
 | `modules/achievement/badges.js` | 成就徽章 helper；集中徽章數、已獲得徽章清單與 badge list HTML，供個人頁、名片、排行榜與 dashboard 共用 |
 | `modules/achievement/titles.js` | 成就稱號 helper；集中稱號顯示、稱號頁選項、稱號提示與儲存邏輯，讓舊 `profile-data` 入口只保留轉接 |
 | `modules/achievement/profile.js` | 成就個人頁 bridge；將 badges / titles helper 整成 profile-facing API，供 `profile-core`、`profile-card`、`personal-dashboard`、`leaderboard` 共用 |
-| `modules/achievement/admin.js` | 成就後台 helper；集中成就列表、表單、徽章上傳與 CRUD 流程，讓舊 `achievement.js` 只保留管理端 facade 入口 |
+| `modules/achievement/admin.js` | 成就後台 helper；集中成就列表、表單、徽章上傳、legacy cleanup 與 CRUD 流程，讓舊 `achievement.js` 只保留管理端 facade 入口 |
 | `modules/announcement.js` | 系統公告管理與顯示 |
 | `modules/favorites.js` | 用戶收藏活動 / 球隊管理 |
 | `modules/auto-exp.js` | 自動 EXP 規則設定（依行為觸發） |

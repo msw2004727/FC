@@ -11,11 +11,13 @@ Object.assign(App, {
     const state = {
       editId: null,
       badgeDataURL: null,
+      cleanupInFlight: null,
     };
 
     const getRegistry = () => App._getAchievementRegistry?.();
     const getShared = () => App._getAchievementShared?.();
     const getStats = () => App._getAchievementStats?.();
+    const normalizeString = (value) => String(value || '').trim();
 
     const getSupportedActions = () => {
       const registry = getRegistry();
@@ -45,14 +47,14 @@ Object.assign(App, {
 
     const buildConditionFromForm = () => {
       const registry = getRegistry();
-      const rawTimeRange = document.getElementById('ach-cond-timerange')?.value || 'none';
-      const condition = {
-        timeRange: registry?.getEffectiveTimeRangeKey?.(rawTimeRange) || rawTimeRange || 'none',
+      const rawCondition = {
+        timeRange: document.getElementById('ach-cond-timerange')?.value || 'none',
         streakDays: parseInt(document.getElementById('ach-cond-streakdays')?.value || '7', 10) || 7,
         action: document.getElementById('ach-cond-action')?.value || 'complete_event',
         filter: document.getElementById('ach-cond-filter')?.value || 'all',
         threshold: parseInt(document.getElementById('ach-cond-threshold')?.value || '0', 10) || 0,
       };
+      const condition = registry?.normalizeCondition?.(rawCondition) || rawCondition;
       if (condition.timeRange !== 'streak') delete condition.streakDays;
       return condition;
     };
@@ -65,6 +67,65 @@ Object.assign(App, {
     const getLegacyTimeRangeLabel = (timeRangeKey) => {
       const registry = getRegistry();
       return registry?.findTimeRangeConfig?.(timeRangeKey)?.label || timeRangeKey;
+    };
+
+    const cleanupLegacyAchievements = async () => {
+      if (state.cleanupInFlight) return state.cleanupInFlight;
+
+      state.cleanupInFlight = (async () => {
+        const registry = getRegistry();
+        const achievements = ApiService.getAchievements() || [];
+        const badges = ApiService.getBadges() || [];
+        const invalidAchievements = achievements.filter(achievement => !registry?.isSupportedCondition?.(achievement?.condition));
+        const validAchievementIds = new Set(
+          achievements
+            .filter(achievement => registry?.isSupportedCondition?.(achievement?.condition))
+            .map(achievement => normalizeString(achievement.id))
+            .filter(Boolean)
+        );
+        const badgeIdsToDelete = new Set(
+          invalidAchievements
+            .map(achievement => normalizeString(achievement.badgeId))
+            .filter(Boolean)
+        );
+
+        badges.forEach(badge => {
+          const badgeId = normalizeString(badge?.id);
+          const achId = normalizeString(badge?.achId);
+          if (!badgeId || !achId) return;
+          if (!validAchievementIds.has(achId)) badgeIdsToDelete.add(badgeId);
+        });
+
+        if (!invalidAchievements.length && !badgeIdsToDelete.size) return null;
+
+        for (const achievement of invalidAchievements) {
+          try {
+            await ApiService.deleteAchievement(achievement.id);
+          } catch (error) {
+            console.error('[achievementAdmin.cleanup.deleteAchievement]', achievement?.id, error);
+          }
+        }
+
+        for (const badgeId of badgeIdsToDelete) {
+          try {
+            await ApiService.deleteBadge(badgeId);
+          } catch (error) {
+            console.error('[achievementAdmin.cleanup.deleteBadge]', badgeId, error);
+          }
+        }
+
+        App.showToast(`已清理 ${invalidAchievements.length} 個舊成就與 ${badgeIdsToDelete.size} 個徽章`);
+        return {
+          removedAchievements: invalidAchievements.length,
+          removedBadges: badgeIdsToDelete.size,
+        };
+      })();
+
+      try {
+        return await state.cleanupInFlight;
+      } finally {
+        state.cleanupInFlight = null;
+      }
     };
 
     const populateAchConditionSelects = (legacyCondition = null) => {
@@ -100,9 +161,12 @@ Object.assign(App, {
       }
     };
 
-    const renderAdminAchievements = () => {
+    const renderAdminAchievements = async () => {
       const container = document.getElementById('admin-ach-list');
       if (!container) return;
+      container.innerHTML = '<div style="text-align:center;padding:1.25rem;color:var(--text-muted);font-size:.82rem">載入成就管理中...</div>';
+
+      await cleanupLegacyAchievements();
 
       App._evaluateAchievements?.();
       populateAchConditionSelects();
@@ -211,11 +275,25 @@ Object.assign(App, {
       const action = document.getElementById('ach-cond-action')?.value || 'complete_event';
       const streakRow = document.getElementById('ach-cond-streakdays-row');
       const filterRow = document.getElementById('ach-cond-filter-row');
+      const thresholdRow = document.getElementById('ach-cond-threshold-row');
+      const thresholdInput = document.getElementById('ach-cond-threshold');
       const actionCfg = getRegistry()?.findActionConfig?.(action)
         || ACHIEVEMENT_CONDITIONS.actions.find(item => item.key === action);
+      const fieldState = getRegistry()?.getActionFieldState?.(action) || {
+        showFilter: !!actionCfg?.needsFilter,
+        showThreshold: true,
+        fixedThreshold: null,
+        defaultThreshold: 1,
+      };
 
       if (streakRow) streakRow.style.display = timeRange === 'streak' ? '' : 'none';
-      if (filterRow) filterRow.style.display = (actionCfg && actionCfg.needsFilter) ? '' : 'none';
+      if (filterRow) filterRow.style.display = fieldState.showFilter ? '' : 'none';
+      if (thresholdRow) thresholdRow.style.display = fieldState.showThreshold ? '' : 'none';
+      if (thresholdInput && fieldState.fixedThreshold != null) {
+        thresholdInput.value = String(fieldState.fixedThreshold);
+      } else if (thresholdInput && !thresholdInput.value) {
+        thresholdInput.value = String(fieldState.defaultThreshold || 1);
+      }
     };
 
     const updateConditionPreview = () => {

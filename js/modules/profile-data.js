@@ -362,8 +362,20 @@ Object.assign(App, {
 
   // 組合稱號顯示：大成就.普通.暱稱（純文字）
   _buildTitleDisplay(user, overrideName) {
+    const achievements = ApiService.getAchievements?.() || [];
+    const registry = this._getAchievementRegistry?.();
+    const earnedAchievements = achievements.filter(achievement => {
+      if (!achievement || achievement.status === 'archived') return false;
+      if (registry?.isSupportedCondition?.(achievement.condition) === false) return false;
+      const threshold = this._getAchThreshold ? this._getAchThreshold(achievement) : (achievement.condition?.threshold ?? achievement.target ?? 1);
+      return (achievement.current || 0) >= threshold;
+    });
+    const availableBigTitles = new Set(earnedAchievements.filter(achievement => achievement.category === 'gold').map(achievement => achievement.name));
+    const availableNormalTitles = new Set(earnedAchievements.filter(achievement => achievement.category !== 'gold').map(achievement => achievement.name));
+    const safeBig = availableBigTitles.has(user?.titleBig) ? user.titleBig : null;
+    const safeNormal = availableNormalTitles.has(user?.titleNormal) ? user.titleNormal : null;
     return this._getAchievementTitles?.()?.buildTitleDisplay?.(user, overrideName)
-      || [user?.titleBig, user?.titleNormal, overrideName || user?.displayName || '-']
+      || [safeBig, safeNormal, overrideName || user?.displayName || '-']
         .filter(Boolean)
         .join('.');
   },
@@ -373,12 +385,24 @@ Object.assign(App, {
     return this._getAchievementTitles?.()?.buildTitleDisplayHtml?.(user, overrideName)
       || (() => {
         const safeUser = user || {};
+        const achievements = ApiService.getAchievements?.() || [];
+        const registry = this._getAchievementRegistry?.();
+        const earnedAchievements = achievements.filter(achievement => {
+          if (!achievement || achievement.status === 'archived') return false;
+          if (registry?.isSupportedCondition?.(achievement.condition) === false) return false;
+          const threshold = this._getAchThreshold ? this._getAchThreshold(achievement) : (achievement.condition?.threshold ?? achievement.target ?? 1);
+          return (achievement.current || 0) >= threshold;
+        });
+        const availableBigTitles = new Set(earnedAchievements.filter(achievement => achievement.category === 'gold').map(achievement => achievement.name));
+        const availableNormalTitles = new Set(earnedAchievements.filter(achievement => achievement.category !== 'gold').map(achievement => achievement.name));
+        const safeBig = availableBigTitles.has(safeUser.titleBig) ? safeUser.titleBig : null;
+        const safeNormal = availableNormalTitles.has(safeUser.titleNormal) ? safeUser.titleNormal : null;
         const parts = [];
-        if (safeUser.titleBig) {
-          parts.push(`<span class="title-tag title-gold">${escapeHTML(safeUser.titleBig)}</span>`);
+        if (safeBig) {
+          parts.push(`<span class="title-tag title-gold">${escapeHTML(safeBig)}</span>`);
         }
-        if (safeUser.titleNormal) {
-          parts.push(`<span class="title-tag title-normal">${escapeHTML(safeUser.titleNormal)}</span>`);
+        if (safeNormal) {
+          parts.push(`<span class="title-tag title-normal">${escapeHTML(safeNormal)}</span>`);
         }
         parts.push(escapeHTML(overrideName || safeUser.displayName || '-'));
         return parts.join('<span class="title-dot">.</span>');
@@ -395,8 +419,10 @@ Object.assign(App, {
     if (!user) return;
 
     const achievements = ApiService.getAchievements?.() || [];
+    const registry = this._getAchievementRegistry?.();
     const earned = achievements.filter(achievement => {
       if (achievement.status === 'archived') return false;
+      if (registry?.isSupportedCondition?.(achievement.condition) === false) return false;
       const threshold = this._getAchThreshold ? this._getAchThreshold(achievement) : (achievement.condition?.threshold ?? achievement.target ?? 1);
       return (achievement.current || 0) >= threshold;
     });
@@ -408,8 +434,10 @@ Object.assign(App, {
 
     localStorage.setItem(promptKey, String(earned.length));
 
-    const hasGoldSlot = !user.titleBig && earned.some(achievement => achievement.category === 'gold');
-    const hasNormalSlot = !user.titleNormal && earned.some(achievement => achievement.category !== 'gold');
+    const availableBigTitles = new Set(earned.filter(achievement => achievement.category === 'gold').map(achievement => achievement.name));
+    const availableNormalTitles = new Set(earned.filter(achievement => achievement.category !== 'gold').map(achievement => achievement.name));
+    const hasGoldSlot = !availableBigTitles.has(user.titleBig) && earned.some(achievement => achievement.category === 'gold');
+    const hasNormalSlot = !availableNormalTitles.has(user.titleNormal) && earned.some(achievement => achievement.category !== 'gold');
     if (!hasGoldSlot && !hasNormalSlot) {
       this.showToast('你已有可裝備的稱號，前往稱號頁可手動更換');
       return;
@@ -429,13 +457,17 @@ Object.assign(App, {
       : null;
     const lineName = lineProfile ? lineProfile.displayName : (user ? user.displayName : '-');
     const achievements = ApiService.getAchievements?.() || [];
+    const registry = this._getAchievementRegistry?.();
     const earned = achievements.filter(achievement => {
       if (achievement.status === 'archived') return false;
+      if (registry?.isSupportedCondition?.(achievement.condition) === false) return false;
       const threshold = this._getAchThreshold ? this._getAchThreshold(achievement) : (achievement.condition?.threshold ?? achievement.target ?? 1);
       return (achievement.current || 0) >= threshold;
     });
     const bigTitles = earned.filter(achievement => achievement.category === 'gold').map(achievement => achievement.name);
     const normalTitles = earned.filter(achievement => achievement.category !== 'gold').map(achievement => achievement.name);
+    const bigTitleSet = new Set(bigTitles);
+    const normalTitleSet = new Set(normalTitles);
     const bigSelect = document.getElementById('title-big');
     const normalSelect = document.getElementById('title-normal');
     const nameInput = document.getElementById('title-line-name');
@@ -443,14 +475,14 @@ Object.assign(App, {
     if (nameInput) nameInput.value = lineName || '-';
 
     if (bigSelect) {
-      const currentBig = user?.titleBig || '';
+      const currentBig = bigTitleSet.has(user?.titleBig) ? user.titleBig : '';
       bigSelect.innerHTML = '<option value="">不設定</option>' + bigTitles.map(title =>
         `<option value="${escapeHTML(title)}" ${title === currentBig ? 'selected' : ''}>${escapeHTML(title)}</option>`
       ).join('');
     }
 
     if (normalSelect) {
-      const currentNormal = user?.titleNormal || '';
+      const currentNormal = normalTitleSet.has(user?.titleNormal) ? user.titleNormal : '';
       normalSelect.innerHTML = '<option value="">不設定</option>' + normalTitles.map(title =>
         `<option value="${escapeHTML(title)}" ${title === currentNormal ? 'selected' : ''}>${escapeHTML(title)}</option>`
       ).join('');

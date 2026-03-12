@@ -384,6 +384,7 @@ Object.assign(App, {
         teams: ApiService.getTeams?.() || [],
         registrations: fallbackRegistrations,
         validRegistrations,
+        attendanceRecords,
         attendanceStateByEvent,
       };
     };
@@ -434,17 +435,27 @@ Object.assign(App, {
       }).length;
     };
 
-    const computeAttendanceRate = ({ condition, validRegistrations, eventMap, attendanceStateByEvent, registry, now }) => {
-      const expected = validRegistrations.filter(record => {
-        const event = eventMap.get(record.eventId) || null;
-        if (!event || !isEventEnded(event, now)) return false;
-        return isWithinConditionWindow(condition, parseEventEndDate(event) || parseEventStartDate(event), registry, now);
+    const computeAttendanceRate = ({ condition, validRegistrations, eventMap, attendanceRecords, attendanceStateByEvent, registry, now, resolvedUid }) => {
+      const stats = App._getAchievementStats?.();
+      const result = stats?.getParticipantAttendanceStats?.({
+        uid: resolvedUid,
+        registrations: validRegistrations.map(record => ({ ...record, uid: resolvedUid })),
+        attendanceRecords,
+        eventMap,
+        now,
+        isEventEnded,
       });
 
-      if (!expected.length) return 0;
+      if (!result || !result.expectedCount) return 0;
 
-      const attendedCount = expected.filter(record => attendanceStateByEvent.get(record.eventId)?.checkin).length;
-      return Math.round((attendedCount / expected.length) * 100);
+      const filteredExpected = [...result.expectedEventIds].filter(eventId => {
+        const event = eventMap.get(eventId) || null;
+        return isWithinConditionWindow(condition, parseEventEndDate(event) || parseEventStartDate(event), registry, now);
+      });
+      if (!filteredExpected.length) return 0;
+
+      const attendedCount = filteredExpected.filter(eventId => attendanceStateByEvent.get(eventId)?.checkin).length;
+      return Math.round((attendedCount / filteredExpected.length) * 100);
     };
 
     const countOrganizedEvents = ({ condition, actionMeta, events, resolvedUser, registry, now }) => {
@@ -568,8 +579,10 @@ Object.assign(App, {
         return toFiniteNumber(resolvedUser?.exp, 0);
       },
 
-      join_team({ resolvedUser, resolvedUid, teams }) {
-        return countJoinedTeams({ resolvedUser, resolvedUid, teams });
+      join_team({ achievement, resolvedUser, resolvedUid, teams }) {
+        const joinedTeams = countJoinedTeams({ resolvedUser, resolvedUid, teams });
+        if (joinedTeams > 0) return joinedTeams;
+        return normalizeCurrentValue(achievement?.current || 0);
       },
 
       complete_profile({ resolvedUser }) {
@@ -606,6 +619,7 @@ Object.assign(App, {
           const actionMeta = registry?.findActionMeta?.(actionKey);
           const handler = actionMeta?.handlerKey ? actionHandlers[actionMeta.handlerKey] : null;
 
+          if (!registry?.isSupportedCondition?.(condition)) return;
           if (!actionMeta?.supported || typeof handler !== 'function') return;
 
           let current = 0;

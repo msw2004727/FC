@@ -8,6 +8,7 @@ Object.assign(App, {
 
   _buildAchievementStats() {
     const getShared = () => App._getAchievementShared?.();
+    const normalizeString = (value) => String(value || '').trim();
 
     const getThreshold = (achievement) => {
       const shared = getShared();
@@ -18,8 +19,10 @@ Object.assign(App, {
     };
 
     const getActiveAchievements = (achievements) => {
+      const registry = App._getAchievementRegistry?.();
       return (Array.isArray(achievements) ? achievements : [])
-        .filter(achievement => achievement && achievement.status !== 'archived');
+        .filter(achievement => achievement && achievement.status !== 'archived')
+        .filter(achievement => registry?.isSupportedCondition?.(achievement.condition) !== false);
     };
 
     const isCompleted = (achievement) => {
@@ -76,6 +79,79 @@ Object.assign(App, {
       };
     };
 
+    const getParticipantAttendanceStats = ({
+      uid,
+      registrations,
+      attendanceRecords,
+      eventMap,
+      now = new Date(),
+      isEventEnded,
+    } = {}) => {
+      const safeUid = normalizeString(uid);
+      const expectedEventIds = new Set();
+      const attendanceStateByEvent = new Map();
+
+      (Array.isArray(registrations) ? registrations : []).forEach(record => {
+        if (!record) return;
+        const recordUid = normalizeString(record.uid || record.userId || safeUid);
+        if (recordUid && safeUid && recordUid !== safeUid) return;
+        if (normalizeString(record.status) !== 'registered') return;
+
+        const eventId = normalizeString(record.eventId);
+        if (!eventId) return;
+        const event = eventMap?.get?.(eventId) || null;
+        if (!event) return;
+
+        const ended = typeof isEventEnded === 'function'
+          ? isEventEnded(event, now)
+          : normalizeString(event.status) === 'ended';
+        if (!ended) return;
+
+        expectedEventIds.add(eventId);
+      });
+
+      (Array.isArray(attendanceRecords) ? attendanceRecords : []).forEach(record => {
+        if (!record) return;
+        if (normalizeString(record.uid) !== safeUid) return;
+        if (record.companionId || record.participantType === 'companion') return;
+
+        const eventId = normalizeString(record.eventId);
+        if (!expectedEventIds.has(eventId)) return;
+
+        const type = normalizeString(record.type);
+        if (type !== 'checkin' && type !== 'checkout') return;
+
+        const state = attendanceStateByEvent.get(eventId) || { checkin: false, checkout: false };
+        if (type === 'checkin') state.checkin = true;
+        if (type === 'checkout') state.checkout = true;
+        attendanceStateByEvent.set(eventId, state);
+      });
+
+      const attendedEventIds = new Set();
+      const completedEventIds = new Set();
+      attendanceStateByEvent.forEach((state, eventId) => {
+        if (state.checkin) attendedEventIds.add(eventId);
+        if (state.checkin && state.checkout) completedEventIds.add(eventId);
+      });
+
+      const expectedCount = expectedEventIds.size;
+      const attendedCount = attendedEventIds.size;
+      const completedCount = completedEventIds.size;
+      const attendRate = expectedCount > 0
+        ? Math.round((attendedCount / expectedCount) * 100)
+        : 0;
+
+      return {
+        expectedEventIds,
+        attendedEventIds,
+        completedEventIds,
+        expectedCount,
+        attendedCount,
+        completedCount,
+        attendRate,
+      };
+    };
+
     return {
       getThreshold,
       getActiveAchievements,
@@ -86,6 +162,7 @@ Object.assign(App, {
       getBadgeCount,
       getEarnedBadgeViewModels,
       getTitleOptions,
+      getParticipantAttendanceStats,
     };
   },
 

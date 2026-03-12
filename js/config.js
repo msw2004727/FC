@@ -204,34 +204,27 @@
 // 20260312e: 修正權限管理「儲存成預設」隔夜失效，避免 catalogVersion 補遷移覆蓋手動權限
 // 20260312f: 啟動 achievement Phase 1，建立 js/modules/achievement/ 骨架與 facade 載入鏈
 // 20260312g: 啟動 achievement Phase 2，抽離 stats helper 並收斂徽章與稱號重複計算
-const CACHE_VERSION = '20260312k';
+// 20260312l: achievement Phase 6，移除假條件並收斂成就正式支援模板
+const CACHE_VERSION = '20260312l';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {
   timeRanges: [
     { key: 'none',   label: '累計' },
-    { key: '7d',     label: '7 天內' },
-    { key: '30d',    label: '30 天內' },
-    { key: '90d',    label: '90 天內' },
-    { key: 'streak', label: '連續 N 天' },
   ],
   actions: [
     { key: 'register_event',  label: '報名活動',             unit: '場', needsFilter: true },
     { key: 'complete_event',  label: '完成活動（簽到+簽退）', unit: '場', needsFilter: true },
-    { key: 'organize_event',  label: '主辦活動',             unit: '場', needsFilter: true },
-    { key: 'attend_play',     label: '參與 PLAY 活動',       unit: '場', needsFilter: false },
-    { key: 'attend_friendly', label: '參與友誼活動',         unit: '場', needsFilter: false },
-    { key: 'attend_camp',     label: '參與教學活動',         unit: '場', needsFilter: false },
-    { key: 'attend_watch',    label: '參與觀賽',             unit: '場', needsFilter: false },
+    { key: 'attend_play',     label: '出席 PLAY 活動',       unit: '場', needsFilter: false },
+    { key: 'attend_friendly', label: '出席友誼活動',         unit: '場', needsFilter: false },
+    { key: 'attend_camp',     label: '出席教學活動',         unit: '場', needsFilter: false },
+    { key: 'attend_watch',    label: '出席觀賽',             unit: '場', needsFilter: false },
     { key: 'attendance_rate', label: '達到出席率',           unit: '%', needsFilter: false },
     { key: 'reach_level',     label: '達到等級',             unit: '',  needsFilter: false },
     { key: 'reach_exp',       label: '累計 EXP',             unit: '',  needsFilter: false },
     { key: 'join_team',       label: '加入球隊',             unit: '',  needsFilter: false },
-    { key: 'list_shop_item',  label: '刊登二手商品',         unit: '件', needsFilter: false },
-    { key: 'sell_shop_item',  label: '售出二手商品',         unit: '件', needsFilter: false },
     { key: 'complete_profile',label: '完成個人檔案',         unit: '',  needsFilter: false },
     { key: 'bind_line_notify',label: '綁定 LINE 推播',       unit: '',  needsFilter: false },
-    { key: 'earn_badges',     label: '獲得徽章',             unit: '個', needsFilter: false },
     { key: 'days_registered', label: '註冊天數',             unit: '天', needsFilter: false },
   ],
   filters: [

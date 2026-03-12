@@ -1,3 +1,9 @@
+### 2026-03-12 — 成就 Phase 6 清掉假條件並對齊正式模板
+- **問題**：成就系統雖然已經完成資料夾化骨架，但 `ACHIEVEMENT_CONDITIONS`、`registry`、`evaluator`、後台表單與預設 seed 仍同時存在假條件；像 `organize_event`、`30d + complete_event`、`earn_badges` 仍會出現在資料或種子裡，`join_team` 觸發也還可能誤算審核者，前台與後台沒有真正共用同一套正式支援規則。
+- **原因**：Phase 1 到 5 先處理結構與 facade，相容層完成後才開始接回 condition 規格；因此前一階段 registry 仍保留過渡用 metadata，seed 與 title display 也還沒有配合正式支援清單收斂。
+- **修復**：將 `js/config.js` 的正式條件收斂成只剩可上架 action 與 `timeRange=none`；重寫 `js/modules/achievement/registry.js`，加入正式支援判斷、field state 與 legacy label fallback；修正 `js/modules/achievement/evaluator.js` 僅評估 supported condition，`attendance_rate` 改共用 attendance stats helper，`join_team` 改保留已達成狀態，並在 `js/modules/message-inbox.js` 以申請者 `uid` 觸發；`js/modules/achievement/admin.js` 改由 registry 驅動表單並在後台自動清理不支援 achievement / orphan badge；`js/firebase-service.js` 的預設 seed 改成正式模板；`js/modules/achievement/titles.js` 與 `js/modules/profile-data.js` 補上失效稱號 sanitization；另外修正 `js/api-service.js` 的 achievement / badge 刪除為真正 await Firebase 寫入。
+- **教訓**：條件重構不能只改 action 清單，必須同時收斂 seed、cleanup、顯示層與刪除流程；而且只要有「後台 await、底層卻 fire-and-forget」這種斷層，資料清理就會變成看似成功、實際失敗。
+
 ### 2026-03-12 — 成就 Phase 5 抽離 admin helper
 - **問題**：成就後台管理的列表渲染、表單、圖片上傳與 CRUD 還全塞在 `js/modules/achievement.js`，而且表單選單初始化與徽章上傳綁定沒有穩定掛進 admin 頁生命週期，寫入流程也沒有 `await`，有 race risk；另外舊 facade 一度寫成「直接 return 新 helper」，若新模組缺件會讓 fallback 失效。
 - **原因**：Phase 1 到 4 先抽了 registry、evaluator 與 profile-facing helper，但 admin side 還停留在舊 facade；後台頁面依賴 `achievement.js` 內部狀態，導致模組邊界不清楚，也讓 `script-loader` 難以反映真實依賴；同時相容層的委派寫法不夠保守。

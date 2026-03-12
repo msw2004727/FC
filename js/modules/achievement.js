@@ -22,10 +22,11 @@ Object.assign(App, {
     const shared = this._getAchievementShared?.();
     if (shared?.generateConditionDesc) return shared.generateConditionDesc(condition, desc);
     if (!condition) return desc || '（未設定條件）';
+    const registry = this._getAchievementRegistry?.();
     const ac = ACHIEVEMENT_CONDITIONS;
-    const actionCfg = ac.actions.find(a => a.key === condition.action);
-    const timeRangeCfg = ac.timeRanges.find(t => t.key === condition.timeRange);
-    const filterCfg = ac.filters.find(f => f.key === condition.filter);
+    const actionCfg = registry?.findActionConfig?.(condition.action) || ac.actions.find(a => a.key === condition.action);
+    const timeRangeCfg = registry?.findTimeRangeConfig?.(condition.timeRange) || ac.timeRanges.find(t => t.key === condition.timeRange);
+    const filterCfg = registry?.findFilterConfig?.(condition.filter) || ac.filters.find(f => f.key === condition.filter);
     const actionLabel = actionCfg ? actionCfg.label : condition.action;
     const unit = actionCfg ? actionCfg.unit : '';
     const threshold = condition.threshold != null ? condition.threshold : 0;
@@ -296,11 +297,23 @@ Object.assign(App, {
     const action = document.getElementById('ach-cond-action').value;
     const streakRow = document.getElementById('ach-cond-streakdays-row');
     const filterRow = document.getElementById('ach-cond-filter-row');
+    const thresholdRow = document.getElementById('ach-cond-threshold-row');
+    const thresholdInput = document.getElementById('ach-cond-threshold');
     const actionCfg = this._getAchievementRegistry?.()?.findActionConfig?.(action)
       || ACHIEVEMENT_CONDITIONS.actions.find(a => a.key === action);
+    const fieldState = this._getAchievementRegistry?.()?.getActionFieldState?.(action) || {
+      showFilter: !!actionCfg?.needsFilter,
+      showThreshold: true,
+      fixedThreshold: null,
+      defaultThreshold: 1,
+    };
 
     if (streakRow) streakRow.style.display = timeRange === 'streak' ? '' : 'none';
-    if (filterRow) filterRow.style.display = (actionCfg && actionCfg.needsFilter) ? '' : 'none';
+    if (filterRow) filterRow.style.display = fieldState.showFilter ? '' : 'none';
+    if (thresholdRow) thresholdRow.style.display = fieldState.showThreshold ? '' : 'none';
+    if (thresholdInput && fieldState.fixedThreshold != null) {
+      thresholdInput.value = String(fieldState.fixedThreshold);
+    }
   },
 
   _updateConditionPreview() {

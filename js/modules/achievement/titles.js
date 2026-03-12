@@ -8,12 +8,23 @@ Object.assign(App, {
 
   _buildAchievementTitles() {
     const getStats = () => App._getAchievementStats?.();
+    const getSanitizedEquippedTitles = (user) => {
+      const safeUser = user || {};
+      const options = getCurrentTitleOptions();
+      const bigSet = new Set(options.bigTitles || []);
+      const normalSet = new Set(options.normalTitles || []);
+      return {
+        titleBig: bigSet.has(safeUser.titleBig) ? safeUser.titleBig : null,
+        titleNormal: normalSet.has(safeUser.titleNormal) ? safeUser.titleNormal : null,
+      };
+    };
 
     const buildTitleDisplay = (user, overrideName) => {
       const safeUser = user || {};
+      const equipped = getSanitizedEquippedTitles(safeUser);
       const parts = [];
-      if (safeUser.titleBig) parts.push(safeUser.titleBig);
-      if (safeUser.titleNormal) parts.push(safeUser.titleNormal);
+      if (equipped.titleBig) parts.push(equipped.titleBig);
+      if (equipped.titleNormal) parts.push(equipped.titleNormal);
       const name = overrideName || safeUser.displayName || '-';
       parts.push(name);
       return parts.join('.');
@@ -21,12 +32,13 @@ Object.assign(App, {
 
     const buildTitleDisplayHtml = (user, overrideName) => {
       const safeUser = user || {};
+      const equipped = getSanitizedEquippedTitles(safeUser);
       const parts = [];
-      if (safeUser.titleBig) {
-        parts.push(`<span class="title-tag title-gold">${escapeHTML(safeUser.titleBig)}</span>`);
+      if (equipped.titleBig) {
+        parts.push(`<span class="title-tag title-gold">${escapeHTML(equipped.titleBig)}</span>`);
       }
-      if (safeUser.titleNormal) {
-        parts.push(`<span class="title-tag title-normal">${escapeHTML(safeUser.titleNormal)}</span>`);
+      if (equipped.titleNormal) {
+        parts.push(`<span class="title-tag title-normal">${escapeHTML(equipped.titleNormal)}</span>`);
       }
       const name = overrideName || safeUser.displayName || '-';
       parts.push(escapeHTML(name));
@@ -51,8 +63,9 @@ Object.assign(App, {
 
       localStorage.setItem(promptKey, String(earned.length));
 
-      const hasGoldSlot = !user.titleBig && earned.some(achievement => achievement.category === 'gold');
-      const hasNormalSlot = !user.titleNormal && earned.some(achievement => achievement.category !== 'gold');
+      const equipped = getSanitizedEquippedTitles(user);
+      const hasGoldSlot = !equipped.titleBig && earned.some(achievement => achievement.category === 'gold');
+      const hasNormalSlot = !equipped.titleNormal && earned.some(achievement => achievement.category !== 'gold');
       if (!hasGoldSlot && !hasNormalSlot) {
         App.showToast('你已有可裝備的稱號，前往稱號頁可手動更換');
         return;
@@ -92,14 +105,14 @@ Object.assign(App, {
       if (nameInput) nameInput.value = lineName || '-';
 
       if (bigSelect) {
-        const currentBig = user?.titleBig || '';
+        const currentBig = getSanitizedEquippedTitles(user).titleBig || '';
         bigSelect.innerHTML = '<option value="">不設定</option>' + bigTitles.map(title =>
           `<option value="${escapeHTML(title)}" ${title === currentBig ? 'selected' : ''}>${escapeHTML(title)}</option>`
         ).join('');
       }
 
       if (normalSelect) {
-        const currentNormal = user?.titleNormal || '';
+        const currentNormal = getSanitizedEquippedTitles(user).titleNormal || '';
         normalSelect.innerHTML = '<option value="">不設定</option>' + normalTitles.map(title =>
           `<option value="${escapeHTML(title)}" ${title === currentNormal ? 'selected' : ''}>${escapeHTML(title)}</option>`
         ).join('');
