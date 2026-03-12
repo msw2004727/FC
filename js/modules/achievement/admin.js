@@ -168,7 +168,6 @@ Object.assign(App, {
 
       await cleanupLegacyAchievements();
 
-      App._evaluateAchievements?.();
       populateAchConditionSelects();
       bindAchBadgeUpload();
 

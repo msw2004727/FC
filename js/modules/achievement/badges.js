@@ -8,6 +8,15 @@ Object.assign(App, {
 
   _buildAchievementBadges() {
     const getStats = () => App._getAchievementStats?.();
+    const getEvaluator = () => App._getAchievementEvaluator?.();
+
+    const getEvaluatedAchievementsForUser = (user) => {
+      const safeUser = user || ApiService.getCurrentUser?.() || null;
+      return getEvaluator()?.getEvaluatedAchievements?.({
+        targetUser: safeUser,
+        targetUid: safeUser?.uid || safeUser?._docId,
+      }) || (ApiService.getAchievements?.() || []);
+    };
 
     const getEarnedBadgeViewModels = (achievements, badges) => {
       return getStats()?.getEarnedBadgeViewModels?.(achievements, badges) || [];
@@ -18,11 +27,15 @@ Object.assign(App, {
         || getEarnedBadgeViewModels(achievements, badges).length;
     };
 
-    const getCurrentUserBadgeCount = () => {
-      return getBadgeCount(
-        ApiService.getAchievements?.() || [],
+    const getCurrentUserEarnedBadgeViewModels = () => {
+      return getEarnedBadgeViewModels(
+        getEvaluatedAchievementsForUser(ApiService.getCurrentUser?.() || null),
         ApiService.getBadges?.() || []
       );
+    };
+
+    const getCurrentUserBadgeCount = () => {
+      return getCurrentUserEarnedBadgeViewModels().length;
     };
 
     const buildBadgeListHtml = (earnedBadges, options = {}) => {
@@ -56,12 +69,18 @@ Object.assign(App, {
     };
 
     const buildEarnedBadgeListHtml = (achievements, badges, options = {}) => {
-      return buildBadgeListHtml(getEarnedBadgeViewModels(achievements, badges), options);
+      const sourceAchievements = Array.isArray(achievements)
+        ? achievements
+        : getEvaluatedAchievementsForUser(ApiService.getCurrentUser?.() || null);
+      const sourceBadges = Array.isArray(badges) ? badges : (ApiService.getBadges?.() || []);
+      return buildBadgeListHtml(getEarnedBadgeViewModels(sourceAchievements, sourceBadges), options);
     };
 
     return {
+      getEvaluatedAchievementsForUser,
       getEarnedBadgeViewModels,
       getBadgeCount,
+      getCurrentUserEarnedBadgeViewModels,
       getCurrentUserBadgeCount,
       buildBadgeListHtml,
       buildEarnedBadgeListHtml,

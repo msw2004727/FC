@@ -598,56 +598,97 @@ Object.assign(App, {
       },
     };
 
+    const evaluateAchievementRecord = ({ achievement, registry, context, eventType }) => {
+      const cloned = achievement ? { ...achievement } : achievement;
+      if (!achievement?.condition || !registry || !context) return cloned;
+      if (achievement.status === 'archived') return cloned;
+      if (eventType && registry?.shouldEvaluateForEventType && !registry.shouldEvaluateForEventType(achievement.condition, eventType)) {
+        return cloned;
+      }
+
+      const condition = achievement.condition || {};
+      const actionKey = normalizeString(condition.action);
+      const actionMeta = registry?.findActionMeta?.(actionKey);
+      const handler = actionMeta?.handlerKey ? actionHandlers[actionMeta.handlerKey] : null;
+
+      if (!registry?.isSupportedCondition?.(condition)) return cloned;
+      if (!actionMeta?.supported || typeof handler !== 'function') return cloned;
+
+      let current = 0;
+      try {
+        current = normalizeCurrentValue(handler({
+          ...context,
+          achievement,
+          condition,
+          actionMeta,
+        }));
+      } catch (err) {
+        console.warn('[AchievementEvaluator] evaluate failed:', actionKey, achievement?.id, err);
+        return cloned;
+      }
+
+      const target = condition.threshold != null ? toFiniteNumber(condition.threshold, 1) : 1;
+      const shouldComplete = current >= target;
+      const nextCompletedAt = shouldComplete
+        ? (achievement.completedAt || formatCompletedDate(context.now))
+        : null;
+
+      return {
+        ...achievement,
+        current,
+        completedAt: nextCompletedAt,
+      };
+    };
+
+    const getEvaluatedAchievements = ({ eventType, targetUid, targetUser, achievements } = {}) => {
+      const registry = App._getAchievementRegistry?.();
+      const source = Array.isArray(achievements)
+        ? achievements.filter(Boolean)
+        : (ApiService.getAchievements?.() || []).filter(Boolean);
+      if (!source.length) return [];
+
+      const context = buildEvaluationContext({ targetUid, targetUser, registry });
+      if (!context) return source.map(achievement => ({ ...achievement }));
+
+      return source.map(achievement => evaluateAchievementRecord({
+        achievement,
+        registry,
+        context,
+        eventType,
+      }));
+    };
+
     return {
+      getEvaluatedAchievements,
+
       evaluateAchievements({ eventType, targetUid, targetUser } = {}) {
-        const registry = App._getAchievementRegistry?.();
-        let achievements = (ApiService.getAchievements?.() || [])
+        const originalAchievements = (ApiService.getAchievements?.() || [])
           .filter(achievement => achievement && achievement.status !== 'archived' && achievement.condition);
-        if (!achievements.length) return;
+        if (!originalAchievements.length) return;
 
-        if (eventType && registry?.shouldEvaluateForEventType) {
-          achievements = achievements.filter(achievement => registry.shouldEvaluateForEventType(achievement.condition, eventType));
-        }
-        if (!achievements.length) return;
+        const evaluatedAchievements = getEvaluatedAchievements({
+          eventType,
+          targetUid,
+          targetUser,
+          achievements: originalAchievements,
+        });
+        const evaluatedById = new Map(
+          evaluatedAchievements
+            .map(achievement => [normalizeString(achievement?.id), achievement])
+            .filter(([id]) => id)
+        );
 
-        const context = buildEvaluationContext({ targetUid, targetUser, registry });
-        if (!context) return;
-
-        achievements.forEach(achievement => {
-          const condition = achievement.condition || {};
-          const actionKey = normalizeString(condition.action);
-          const actionMeta = registry?.findActionMeta?.(actionKey);
-          const handler = actionMeta?.handlerKey ? actionHandlers[actionMeta.handlerKey] : null;
-
-          if (!registry?.isSupportedCondition?.(condition)) return;
-          if (!actionMeta?.supported || typeof handler !== 'function') return;
-
-          let current = 0;
-          try {
-            current = normalizeCurrentValue(handler({
-              ...context,
-              achievement,
-              condition,
-              actionMeta,
-            }));
-          } catch (err) {
-            console.warn('[AchievementEvaluator] evaluate failed:', actionKey, achievement?.id, err);
-            return;
-          }
-
-          const target = condition.threshold != null ? toFiniteNumber(condition.threshold, 1) : 1;
-          const shouldComplete = current >= target;
-          const nextCompletedAt = shouldComplete
-            ? (achievement.completedAt || formatCompletedDate(context.now))
-            : null;
-
-          if (current === achievement.current && nextCompletedAt === (achievement.completedAt || null)) {
+        originalAchievements.forEach(achievement => {
+          const evaluated = evaluatedById.get(normalizeString(achievement.id));
+          if (!evaluated) return;
+          if ((evaluated.current || 0) === (achievement.current || 0)
+            && (evaluated.completedAt || null) === (achievement.completedAt || null)) {
             return;
           }
 
           ApiService.updateAchievement(achievement.id, {
-            current,
-            completedAt: nextCompletedAt,
+            current: evaluated.current || 0,
+            completedAt: evaluated.completedAt || null,
           });
         });
       },

@@ -1,3 +1,9 @@
+### 2026-03-12 — 成就 Phase 7 補上只讀快照與最終整合驗收
+- **問題**：Phase 6 雖然已把成就條件收斂成正式模板，但第三方角度重跑時發現成就頁、稱號頁與後台 render 仍會直接呼叫 `App._evaluateAchievements()`，把全域 `achievements.current/completedAt` 洗成當前操作者的結果；這會造成 super admin 進後台後，把一般使用者的完成狀態蓋掉，稱號 sanitize 也因此誤判。
+- **原因**：前幾個 phase 先完成資料夾化與 facade，相容層看起來已穩定，但顯示層仍沿用舊習慣，把「render 前順手重算並寫回 Firestore」當成資料來源；`titles.js`、`badges.js`、`profile.js`、`view.js` 都還沒有真正切到只讀快照。
+- **修復**：在 `js/modules/achievement/evaluator.js` 新增只讀 `getEvaluatedAchievements()`，讓 `js/modules/achievement/view.js`、`js/modules/achievement/badges.js`、`js/modules/achievement/titles.js`、`js/modules/achievement/profile.js` 改用目標使用者快照計算，不再於 render 時持久化寫回；`js/modules/achievement/admin.js` 與 `js/modules/achievement.js` 的後台 render fallback 也移除 `_evaluateAchievements()`；另外補上 [docs/achievement-phase1-7-final-self-check.md](docs/achievement-phase1-7-final-self-check.md)、[docs/achievement-phase1-7-manual-checklist.md](docs/achievement-phase1-7-manual-checklist.md) 與 `scripts/achievement-phase1-7-final-smoke.js`，把 Phase 1~7 的最終整合驗收固定化。
+- **教訓**：資料夾化只解決結構，沒解決「render 污染資料」就不算真的收尾；只要顯示層還能在無感情況下寫回共享資料，就一定要補一層只讀快照，把讀與寫分開。
+
 ### 2026-03-12 — 成就 Phase 6 清掉假條件並對齊正式模板
 - **問題**：成就系統雖然已經完成資料夾化骨架，但 `ACHIEVEMENT_CONDITIONS`、`registry`、`evaluator`、後台表單與預設 seed 仍同時存在假條件；像 `organize_event`、`30d + complete_event`、`earn_badges` 仍會出現在資料或種子裡，`join_team` 觸發也還可能誤算審核者，前台與後台沒有真正共用同一套正式支援規則。
 - **原因**：Phase 1 到 5 先處理結構與 facade，相容層完成後才開始接回 condition 規格；因此前一階段 registry 仍保留過渡用 metadata，seed 與 title display 也還沒有配合正式支援清單收斂。

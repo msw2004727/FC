@@ -1,5 +1,5 @@
 /* ================================================
-   SportHub — Achievement Facade (Render + Admin CRUD)
+   SportHub — Achievement Facade
    舊入口保留，內部逐步轉接到 js/modules/achievement/*
    ================================================ */
 
@@ -76,100 +76,7 @@ Object.assign(App, {
   // ══════════════════════════════════
 
   renderAchievements() {
-    const container = document.getElementById('achievement-grid');
-    if (!container) return;
-    this._evaluateAchievements();
-    const stats = this._getAchievementStats?.();
-    const shared = this._getAchievementShared?.();
-    const allAchievements = ApiService.getAchievements();
-    const badges = ApiService.getBadges();
-    const activeAchievements = stats?.getActiveAchievements?.(allAchievements)
-      || allAchievements.filter(a => a.status !== 'archived');
-    const sorted = this._sortByCat(activeAchievements);
-    const pending = stats?.getPendingAchievements?.(sorted)
-      || sorted.filter(a => a.current < this._getAchThreshold(a));
-    const completed = stats?.getCompletedAchievements?.(sorted)
-      || sorted.filter(a => a.current >= this._getAchThreshold(a));
-
-    // 已完成的徽章（用於頂部展示區）
-    const earnedBadges = stats?.getEarnedBadgeViewModels?.(sorted, badges)
-      || completed.map(a => {
-        const badge = badges.find(b => b.id === a.badgeId);
-        if (!badge) return null;
-        const color = this._catColors[a.category] || this._catColors.bronze;
-        return { badge, color, achievement: a, achName: a.name };
-      }).filter(Boolean);
-
-    const renderCard = a => {
-      const threshold = this._getAchThreshold(a);
-      const done = stats?.isCompleted?.(a) ?? (a.current >= threshold);
-      const pct = threshold > 0 ? Math.min(100, Math.round(a.current / threshold * 100)) : 0;
-      const badge = badges.find(b => b.id === a.badgeId);
-      const badgeImg = badge && badge.image
-        ? `<img src="${badge.image}" alt="${escapeHTML(badge.name)}" loading="lazy">`
-        : `<span style="font-size:1.2rem;color:var(--text-muted)">🏅</span>`;
-      const desc = this._generateConditionDesc(a.condition, a.desc);
-      const catColor = shared?.getCategoryColor?.(a.category) || this._catColors[a.category] || this._catColors.bronze;
-      const catLabel = shared?.getCategoryLabel?.(a.category) || this._catLabels[a.category] || '銅';
-
-      return `
-      <div class="ach-card ${done ? 'ach-card-done' : ''}" style="border-color:${catColor}">
-        <div class="ach-card-badge ${done ? '' : 'ach-badge-gray'}">
-          ${badgeImg}
-          ${done ? '<div class="ach-card-done-overlay">已完成</div>' : ''}
-        </div>
-        <div class="ach-card-body">
-          <div class="ach-card-top">
-            <span class="ach-cat-chip ach-cat-${a.category}">${catLabel}</span>
-            <span class="ach-card-name">${escapeHTML(a.name)}</span>
-          </div>
-          <div class="ach-card-desc">${escapeHTML(desc)}</div>
-          ${done
-            ? `<div class="ach-card-completed-date">${a.completedAt ? escapeHTML(a.completedAt) : ''}</div>`
-            : `<div class="ach-card-progress">
-                <div class="ach-bar-mini"><div class="ach-bar-fill" style="width:${pct}%"></div></div>
-                <span class="ach-card-num">${a.current}/${threshold}</span>
-              </div>`
-          }
-        </div>
-      </div>`;
-    };
-
-    let html = '';
-
-    // ── 徽章展示區 ──
-    if (earnedBadges.length) {
-      html += '<div class="ach-section-title">已獲得徽章</div>';
-      html += '<div class="ach-badge-showcase">' + earnedBadges.map(({ badge, color, achName }) => `
-        <div class="ach-showcase-item">
-          <div class="ach-showcase-img">${badge.image ? `<img src="${badge.image}" loading="lazy">` : '<span>🏅</span>'}</div>
-          <span class="ach-showcase-name">${escapeHTML(badge.name)}</span>
-        </div>
-      `).join('') + '</div>';
-      html += '<div class="ach-divider"></div>';
-    }
-
-    // ── 未完成 ──
-    if (pending.length) {
-      html += '<div class="ach-section-title">進行中</div>';
-      html += '<div class="ach-card-grid">' + pending.map(renderCard).join('') + '</div>';
-    }
-
-    // ── 分隔線 ──
-    if (pending.length && completed.length) {
-      html += '<div class="ach-divider"></div>';
-    }
-
-    // ── 已完成 ──
-    if (completed.length) {
-      html += '<div class="ach-section-title">已完成</div>';
-      html += '<div class="ach-card-grid">' + completed.map(renderCard).join('') + '</div>';
-    }
-
-    if (!pending.length && !completed.length) {
-      html = '<div style="text-align:center;padding:2rem;color:var(--text-muted);font-size:.85rem">尚無成就</div>';
-    }
-    container.innerHTML = html;
+    return this._getAchievementView?.()?.renderAchievements?.();
   },
 
   // ══════════════════════════════════
@@ -202,7 +109,6 @@ Object.assign(App, {
     if (admin?.renderAdminAchievements) return admin.renderAdminAchievements();
     const container = document.getElementById('admin-ach-list');
     if (!container) return;
-    this._evaluateAchievements();
     const stats = this._getAchievementStats?.();
     const shared = this._getAchievementShared?.();
     const items = this._sortByCat(ApiService.getAchievements());

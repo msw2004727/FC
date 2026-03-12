@@ -123,10 +123,11 @@ flowchart TD
 | `modules/achievement/registry.js` | 成就條件 registry；集中正式支援 action / timeRange、field state、legacy label fallback 與事件觸發判定，作為後台欄位 / evaluator / cleanup 的唯一來源 |
 | `modules/achievement/shared.js` | 成就共用 helper；包含 threshold、條件描述與分類排序等純函式 |
 | `modules/achievement/stats.js` | 成就衍生計算 helper；集中徽章數、已獲得徽章與稱號選項的共用邏輯 |
-| `modules/achievement/evaluator.js` | 成就評估器；以 registry 驅動正式支援模板，活動與出席率邏輯與個人頁統計 helper 對齊，維持舊版 `_evaluateAchievements()` facade 不變 |
-| `modules/achievement/badges.js` | 成就徽章 helper；集中徽章數、已獲得徽章清單與 badge list HTML，供個人頁、名片、排行榜與 dashboard 共用 |
-| `modules/achievement/titles.js` | 成就稱號 helper；集中稱號顯示、稱號頁選項、稱號提示與儲存邏輯，讓舊 `profile-data` 入口只保留轉接 |
-| `modules/achievement/profile.js` | 成就個人頁 bridge；將 badges / titles helper 整成 profile-facing API，供 `profile-core`、`profile-card`、`personal-dashboard`、`leaderboard` 共用 |
+| `modules/achievement/evaluator.js` | 成就評估器；以 registry 驅動正式支援模板，活動與出席率邏輯與個人頁統計 helper 對齊，並提供「只讀快照評估」給成就頁 / 稱號 / 徽章顯示使用，避免 render 時寫回全域進度 |
+| `modules/achievement/badges.js` | 成就徽章 helper；集中徽章數、已獲得徽章清單與 badge list HTML，預設改用目前使用者的只讀快照成就，供個人頁、名片、排行榜與 dashboard 共用 |
+| `modules/achievement/titles.js` | 成就稱號 helper；集中稱號顯示、稱號頁選項、稱號提示與儲存邏輯，改以目標使用者的快照成就做 sanitization，讓舊 `profile-data` 入口只保留轉接 |
+| `modules/achievement/profile.js` | 成就個人頁 bridge；將 badges / titles helper 整成 profile-facing API，預設走目前使用者快照，供 `profile-core`、`profile-card`、`personal-dashboard`、`leaderboard` 共用 |
+| `modules/achievement/view.js` | 成就頁 view helper；集中公開成就頁卡片與徽章展示 render，改為只讀快照渲染，讓舊 `renderAchievements()` 只保留 facade |
 | `modules/achievement/admin.js` | 成就後台 helper；集中成就列表、表單、徽章上傳、legacy cleanup 與 CRUD 流程，讓舊 `achievement.js` 只保留管理端 facade 入口 |
 | `modules/announcement.js` | 系統公告管理與顯示 |
 | `modules/favorites.js` | 用戶收藏活動 / 球隊管理 |

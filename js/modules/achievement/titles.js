@@ -8,9 +8,24 @@ Object.assign(App, {
 
   _buildAchievementTitles() {
     const getStats = () => App._getAchievementStats?.();
+    const getEvaluator = () => App._getAchievementEvaluator?.();
+
+    const getEvaluatedAchievementsForUser = (user) => {
+      const safeUser = user || ApiService.getCurrentUser?.() || null;
+      return getEvaluator()?.getEvaluatedAchievements?.({
+        targetUser: safeUser,
+        targetUid: safeUser?.uid || safeUser?._docId,
+      }) || (ApiService.getAchievements?.() || []);
+    };
+
+    const getCurrentTitleOptions = (user) => {
+      return getStats()?.getTitleOptions?.(getEvaluatedAchievementsForUser(user))
+        || { earned: [], bigTitles: [], normalTitles: [] };
+    };
+
     const getSanitizedEquippedTitles = (user) => {
       const safeUser = user || {};
-      const options = getCurrentTitleOptions();
+      const options = getCurrentTitleOptions(safeUser);
       const bigSet = new Set(options.bigTitles || []);
       const normalSet = new Set(options.normalTitles || []);
       return {
@@ -45,16 +60,12 @@ Object.assign(App, {
       return parts.join('<span class="title-dot">.</span>');
     };
 
-    const getCurrentTitleOptions = () => {
-      return getStats()?.getTitleOptions?.(ApiService.getAchievements?.() || [])
-        || { earned: [], bigTitles: [], normalTitles: [] };
-    };
-
     const checkTitleSuggestion = async () => {
-      const user = ApiService.getCurrentUser();
+      const user = ApiService.getCurrentUser?.();
       if (!user) return;
 
-      const earned = getCurrentTitleOptions().earned || [];
+      const titleOptions = getCurrentTitleOptions(user);
+      const earned = titleOptions.earned || [];
       if (!earned.length) return;
 
       const promptKey = 'sporthub_title_prompted_' + ModeManager.getMode();
@@ -67,11 +78,11 @@ Object.assign(App, {
       const hasGoldSlot = !equipped.titleBig && earned.some(achievement => achievement.category === 'gold');
       const hasNormalSlot = !equipped.titleNormal && earned.some(achievement => achievement.category !== 'gold');
       if (!hasGoldSlot && !hasNormalSlot) {
-        App.showToast('你已有可裝備的稱號，前往稱號頁可手動更換');
+        App.showToast('你已有可用稱號，可前往稱號頁裝備。');
         return;
       }
 
-      const shouldOpen = await App.appConfirm('你獲得了新的稱號，現在前往稱號頁設定嗎？');
+      const shouldOpen = await App.appConfirm('你獲得新的稱號，現在要前往稱號頁裝備嗎？');
       if (shouldOpen) App.showPage('page-titles');
     };
 
@@ -90,12 +101,12 @@ Object.assign(App, {
     };
 
     const renderTitlePage = () => {
-      const user = ApiService.getCurrentUser();
+      const user = ApiService.getCurrentUser?.();
       const lineProfile = (!ModeManager.isDemo() && typeof LineAuth !== 'undefined' && LineAuth.isLoggedIn())
         ? LineAuth.getProfile()
         : null;
       const lineName = lineProfile ? lineProfile.displayName : (user ? user.displayName : '-');
-      const titleOptions = getCurrentTitleOptions();
+      const titleOptions = getCurrentTitleOptions(user);
       const bigTitles = titleOptions.bigTitles || [];
       const normalTitles = titleOptions.normalTitles || [];
       const bigSelect = document.getElementById('title-big');
@@ -106,14 +117,14 @@ Object.assign(App, {
 
       if (bigSelect) {
         const currentBig = getSanitizedEquippedTitles(user).titleBig || '';
-        bigSelect.innerHTML = '<option value="">不設定</option>' + bigTitles.map(title =>
+        bigSelect.innerHTML = '<option value="">不裝備</option>' + bigTitles.map(title =>
           `<option value="${escapeHTML(title)}" ${title === currentBig ? 'selected' : ''}>${escapeHTML(title)}</option>`
         ).join('');
       }
 
       if (normalSelect) {
         const currentNormal = getSanitizedEquippedTitles(user).titleNormal || '';
-        normalSelect.innerHTML = '<option value="">不設定</option>' + normalTitles.map(title =>
+        normalSelect.innerHTML = '<option value="">不裝備</option>' + normalTitles.map(title =>
           `<option value="${escapeHTML(title)}" ${title === currentNormal ? 'selected' : ''}>${escapeHTML(title)}</option>`
         ).join('');
       }

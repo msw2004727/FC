@@ -73,6 +73,7 @@ const ScriptLoader = {
       'js/modules/achievement/badges.js',
       'js/modules/achievement/titles.js',
       'js/modules/achievement/profile.js',
+      'js/modules/achievement/view.js',
       'js/modules/achievement/admin.js',
       'js/modules/achievement.js',
     ],

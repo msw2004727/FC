@@ -16,6 +16,7 @@ Object.assign(App, {
       badges: null,
       titles: null,
       profile: null,
+      view: null,
       admin: null,
     };
     return this._achievementModule;
@@ -58,6 +59,10 @@ Object.assign(App, {
 
   _getAchievementProfile() {
     return this._getAchievementPart('profile');
+  },
+
+  _getAchievementView() {
+    return this._getAchievementPart('view');
   },
 
   _getAchievementAdmin() {

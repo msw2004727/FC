@@ -29,8 +29,13 @@ Object.assign(App, {
         return badgeHelper.buildBadgeListHtml(options.earnedBadges, options);
       }
 
+      const achievements = Array.isArray(options.achievements)
+        ? options.achievements
+        : badgeHelper.getEvaluatedAchievementsForUser?.(ApiService.getCurrentUser?.() || null)
+          || (ApiService.getAchievements?.() || []);
+
       return badgeHelper.buildEarnedBadgeListHtml(
-        options.achievements ?? (ApiService.getAchievements?.() || []),
+        achievements,
         options.badges ?? (ApiService.getBadges?.() || []),
         options
       );
