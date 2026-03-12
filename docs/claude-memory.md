@@ -1,3 +1,15 @@
+### 2026-03-12 — 修正 admin 使用者刪除活動時被舊 token 權限卡住
+- **問題**：部分已經升成 `admin` 的使用者，在活動管理頁刪除活動時仍會一直失敗；前端畫面已顯示管理員權限，但 Firestore 寫入仍被當成一般用戶拒絕。
+- **原因**：`firestore.rules` 的 `authRole()` 先讀 `request.auth.token.role`，只有 token 沒帶 role 時才 fallback `users/{uid}.role`。當使用者剛被升權、token 還沒刷新時，就會出現 `users` 文件已是 `admin`、token 仍是 `user` 的不一致；Cloud Functions 的 `getCallerRoleWithFallback()` 也有同樣偏向舊 token 的問題。
+- **修復**：更新 `firestore.rules`，改成 authenticated request 一律優先讀 `users/{uid}.role`，找不到 user doc 時才 fallback token role；同步更新 `functions/index.js` 的 `getCallerRoleWithFallback()` 採用同一套來源優先順序；另外在 `tests/firestore.rules.test.js` 補上「升權後 token 仍是 user 應可刪除」與「降權後 token 仍是 admin 應被拒絕」兩個回歸測試。
+- **教訓**：權限判斷若同時依賴 custom claims 與 Firestore user doc，必須先定義單一 authoritative source；否則 UI 已升權、寫入仍 permission-denied 的問題會反覆出現，而且還可能留下降權後舊 token 殘留權限的安全風險。
+
+### 2026-03-12 — 補上全站頁面快取與載入策略擴張規格書
+- **問題**：首頁與活動頁已經有成熟的 `cache-first / stale-first / delayed realtime` 經驗，但全站其他頁面尚未形成統一分型；若直接把同一招硬搬到個人頁、球隊頁、賽事頁與後台頁，容易把不該用舊資料的頁面也套進去，造成誤操作風險。
+- **原因**：目前頁面優化經驗主要散在 `navigation.js`、`firebase-service.js`、`architecture.md` 與 `claude-memory` 歷史記錄，缺少一份把「哪些頁面適合哪種策略、施工順序、風險與驗收」整理成正式規格的文件。
+- **修復**：新增 [docs/page-cache-loading-strategy-expansion-spec.md](docs/page-cache-loading-strategy-expansion-spec.md)，把全站頁面拆成 `快取先開型`、`快取先看但操作前先確認型`、`先準備關鍵資料再開型`、`fresh-first 型` 四類，並補上頁面分組、施工步驟、自我驗收、工作量評估、可能 BUG 與修復方式，作為後續擴張策略的施作前依據。
+- **教訓**：快取策略不能只看「快不快」，還要先看頁面資料敏感度與操作風險；先做頁面分型與資料契約，再做 stale-first 擴張，才不會把架構優化做成新的資料正確性問題。
+
 ### 2026-03-12 — 成就 Phase 7 補上只讀快照與最終整合驗收
 - **問題**：Phase 6 雖然已把成就條件收斂成正式模板，但第三方角度重跑時發現成就頁、稱號頁與後台 render 仍會直接呼叫 `App._evaluateAchievements()`，把全域 `achievements.current/completedAt` 洗成當前操作者的結果；這會造成 super admin 進後台後，把一般使用者的完成狀態蓋掉，稱號 sanitize 也因此誤判。
 - **原因**：前幾個 phase 先完成資料夾化與 facade，相容層看起來已穩定，但顯示層仍沿用舊習慣，把「render 前順手重算並寫回 Firestore」當成資料來源；`titles.js`、`badges.js`、`profile.js`、`view.js` 都還沒有真正切到只讀快照。
