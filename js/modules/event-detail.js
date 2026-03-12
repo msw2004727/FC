@@ -107,12 +107,101 @@ Object.assign(App, {
   //  Show Event Detail
   // ══════════════════════════════════
 
-  async showEventDetail(id) {
+  _isGuestEventDetailView(options = {}) {
+    return !!options.allowGuest && this._isLoginRequired();
+  },
+
+  requestProtectedEventAction(actionType, eventId) {
+    const normalizedType = String(actionType || '').trim();
+    const normalizedEventId = String(eventId || '').trim();
+    if (!normalizedType || !normalizedEventId) return;
+
+    const actionMap = {
+      eventSignup: { type: 'eventSignup', eventId: normalizedEventId },
+      eventCancelSignup: { type: 'eventCancelSignup', eventId: normalizedEventId },
+      toggleFavoriteEvent: { type: 'toggleFavoriteEvent', eventId: normalizedEventId },
+    };
+    const action = actionMap[normalizedType];
+    if (!action || typeof this._requestLoginForAction !== 'function') return;
+    this._requestLoginForAction(action);
+  },
+
+  _buildGuestEventSignupButton(eventRecord, isUpcoming, isEnded, isMainFull) {
+    if (!eventRecord) return '';
+    if (isUpcoming) {
+      return `<button style="background:#64748b;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:not-allowed" disabled>\u5831\u540d\u5c1a\u672a\u958b\u653e</button>`;
+    }
+    if (isEnded) {
+      return `<button style="background:#333;color:#999;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:not-allowed" disabled>\u5831\u540d\u5df2\u7d50\u675f</button>`;
+    }
+    if (isMainFull) {
+      return `<button style="background:#7c3aed;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:pointer" onclick="App.requestProtectedEventAction('eventSignup','${eventRecord.id}')">\u5831\u540d\u5019\u88dc</button>`;
+    }
+    return `<button class="primary-btn" onclick="App.requestProtectedEventAction('eventSignup','${eventRecord.id}')">\u7acb\u5373\u5831\u540d</button>`;
+  },
+
+  _buildGuestEventPeople(eventRecord, fieldName) {
+    const names = Array.isArray(eventRecord?.[fieldName]) ? eventRecord[fieldName] : [];
+    return names
+      .filter(name => typeof name === 'string' && name.trim())
+      .map(name => ({
+        name,
+        uid: name,
+        isCompanion: false,
+        displayName: name,
+        hasSelfReg: true,
+        proxyOnly: false,
+      }));
+  },
+
+  _renderGuestAttendanceTable(eventId, containerId) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    const eventRecord = ApiService.getEvent(eventId);
+    if (!eventRecord) {
+      container.innerHTML = '';
+      return;
+    }
+    const people = this._buildGuestEventPeople(eventRecord, 'participants');
+    if (!people.length) {
+      container.innerHTML = '<div style="font-size:.8rem;color:var(--text-muted);padding:.3rem 0">\u5c1a\u7121\u5831\u540d</div>';
+      return;
+    }
+    container.innerHTML = `
+      <div style="display:flex;flex-wrap:wrap;gap:.4rem">
+        ${people.map(person => `<span class="user-capsule uc-user" onclick="App.showUserProfile('${escapeHTML(person.displayName)}')">${escapeHTML(person.displayName)}</span>`).join('')}
+      </div>`;
+  },
+
+  _renderGuestWaitlistSection(eventId, containerId) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    const eventRecord = ApiService.getEvent(eventId);
+    if (!eventRecord) {
+      container.innerHTML = '';
+      return;
+    }
+    const people = this._buildGuestEventPeople(eventRecord, 'waitlistNames');
+    if (!people.length) {
+      container.innerHTML = '';
+      return;
+    }
+    container.innerHTML = `
+      <div class="detail-section">
+        <div class="detail-section-title">\u5019\u88dc\u540d\u55ae (${people.length})</div>
+        <div style="display:flex;flex-wrap:wrap;gap:.4rem">
+          ${people.map(person => `<span class="user-capsule uc-user" onclick="App.showUserProfile('${escapeHTML(person.displayName)}')">${escapeHTML(person.displayName)}</span>`).join('')}
+        </div>
+      </div>`;
+  },
+
+  async showEventDetail(id, options = {}) {
     try {
-      if (this._requireLogin()) return { ok: false, reason: 'auth' };
+      const isGuestView = this._isGuestEventDetailView(options);
+      if (!isGuestView && this._requireLogin()) return { ok: false, reason: 'auth' };
       let e = ApiService.getEvent(id);
       if (!e) return { ok: false, reason: 'missing' };
-      if (typeof this._canViewEventByTeamScope === 'function' && !this._canViewEventByTeamScope(e)) {
+      if (!isGuestView && typeof this._canViewEventByTeamScope === 'function' && !this._canViewEventByTeamScope(e)) {
         this.showToast('\u60a8\u6c92\u6709\u67e5\u770b\u6b64\u6d3b\u52d5\u7684\u6b0a\u9650');
         return { ok: false, reason: 'forbidden' };
       }
@@ -125,7 +214,7 @@ Object.assign(App, {
 
       e = ApiService.getEvent(id);
       if (!e) return { ok: false, reason: 'missing' };
-      if (typeof this._canViewEventByTeamScope === 'function' && !this._canViewEventByTeamScope(e)) {
+      if (!isGuestView && typeof this._canViewEventByTeamScope === 'function' && !this._canViewEventByTeamScope(e)) {
         this.showToast('\u60a8\u6c92\u6709\u67e5\u770b\u6b64\u6d3b\u52d5\u7684\u6b0a\u9650');
         return { ok: false, reason: 'forbidden' };
       }
@@ -139,7 +228,7 @@ Object.assign(App, {
       }
 
       this._currentDetailEventId = id;
-    this._renderEventPublicToggle(e);
+    this._renderEventPublicToggle(isGuestView ? null : e);
       const detailImg = nodes.image;
     if (detailImg) {
       detailImg.innerHTML = this._renderEventDetailCover(e);
@@ -149,32 +238,42 @@ Object.assign(App, {
         detailImg.style.border = '';
       }
     }
-      nodes.title.innerHTML = escapeHTML(e.title) + ' ' + this._favHeartHtml(this.isEventFavorited(id), 'Event', id);
+      const eventFavorited = isGuestView ? false : this.isEventFavorited(id);
+      nodes.title.innerHTML = escapeHTML(e.title) + ' ' + this._favHeartHtml(eventFavorited, 'Event', id);
 
     const countdown = this._calcCountdown(e);
     const mapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(e.location)}`;
     const locationHtml = `<a href="${mapUrl}" target="_blank" rel="noopener" style="color:var(--primary);text-decoration:none">${escapeHTML(e.location)} 📍</a>`;
 
-    const confirmedSummary = typeof this._buildConfirmedParticipantSummary === 'function'
-      ? this._buildConfirmedParticipantSummary(e.id)
-      : { count: Number(e.current || 0), people: [] };
+    const confirmedSummary = isGuestView
+      ? {
+          count: Number(e.current || (Array.isArray(e.participants) ? e.participants.length : 0)),
+          people: this._buildGuestEventPeople(e, 'participants'),
+        }
+      : (typeof this._buildConfirmedParticipantSummary === 'function'
+        ? this._buildConfirmedParticipantSummary(e.id)
+        : { count: Number(e.current || 0), people: [] });
     const confirmedCount = confirmedSummary.count;
     const isEnded = e.status === 'ended' || e.status === 'cancelled';
     const isUpcoming = e.status === 'upcoming';
     const isMainFull = confirmedCount >= e.max;
     // 防幽靈 UI 層：正式版 registrations 快取為空時視為「載入中」，不顯示報名按鈕
-    const regsLoading = !ModeManager.isDemo() && FirebaseService._cache.registrations.length === 0 && !FirebaseService._initialized;
-    const isSignedUp = regsLoading ? false : this._isUserSignedUp(e);
+    const regsLoading = !isGuestView && !ModeManager.isDemo() && FirebaseService._cache.registrations.length === 0 && !FirebaseService._initialized;
+    const isSignedUp = isGuestView ? false : (regsLoading ? false : this._isUserSignedUp(e));
     const isOnWaitlist = isSignedUp && this._isUserOnWaitlist(e);
-    const canTeamOnlySignup = (typeof this._canSignupTeamOnlyEvent === 'function') ? this._canSignupTeamOnlyEvent(e) : true;
+    const canTeamOnlySignup = isGuestView
+      ? true
+      : ((typeof this._canSignupTeamOnlyEvent === 'function') ? this._canSignupTeamOnlyEvent(e) : true);
     const genderSignupState = (typeof this._getEventGenderSignupState === 'function')
-      ? this._getEventGenderSignupState(e, ApiService.getCurrentUser?.() || null)
+      ? this._getEventGenderSignupState(e, isGuestView ? null : (ApiService.getCurrentUser?.() || null))
       : { restricted: false, canSignup: true, requiresLogin: false, reason: '' };
     const genderBlockedMessage = (typeof this._getEventGenderRestrictionMessage === 'function')
       ? this._getEventGenderRestrictionMessage(e, genderSignupState.reason)
       : '';
     let signupBtn = '';
-    if (regsLoading) {
+    if (isGuestView) {
+      signupBtn = this._buildGuestEventSignupButton(e, isUpcoming, isEnded, isMainFull);
+    } else if (regsLoading) {
       signupBtn = `<button style="background:#64748b;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:not-allowed;opacity:.7" disabled>載入中…</button>`;
     } else if (isUpcoming) {
       signupBtn = `<button style="background:#64748b;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:not-allowed" disabled>報名尚未開放</button>`;
@@ -211,7 +310,7 @@ Object.assign(App, {
       ? `<div class="detail-row"><span class="detail-label">費用</span>${fee > 0 ? 'NT$' + fee : '免費'}</div>`
       : '';
 
-    const canScan = this._canManageEvent(e);
+    const canScan = !isGuestView && this._canManageEvent(e);
     const scanBtn = canScan
       ? `<button class="outline-btn" onclick="App.goToScanForEvent('${e.id}')">現場簽到</button>`
       : '';
@@ -277,9 +376,16 @@ Object.assign(App, {
         feeRowEl.outerHTML = feeRow;
       }
     }
-    this._renderAttendanceTable(id, 'detail-attendance-table');
-    this._renderUnregTable(id, 'detail-unreg-table');
+    if (isGuestView) {
+      const unregSection = document.getElementById('detail-unreg-section');
+      if (unregSection) unregSection.style.display = 'none';
+      this._renderGuestAttendanceTable(id, 'detail-attendance-table');
+      this._renderGuestWaitlistSection(id, 'detail-waitlist-container');
+    } else {
+      this._renderAttendanceTable(id, 'detail-attendance-table');
+      this._renderUnregTable(id, 'detail-unreg-table');
       this._renderGroupedWaitlistSection(id, 'detail-waitlist-container');
+    }
       return { ok: true, reason: 'ok' };
     } catch (err) {
       console.error('[EventDetail] showEventDetail failed:', err);
@@ -496,7 +602,8 @@ Object.assign(App, {
   _renderReviews(e) {
     const reviews = e.reviews || [];
     const isEnded = e.status === 'ended';
-    const user = ApiService.getCurrentUser?.();
+    const isLoggedIn = typeof LineAuth !== 'undefined' && LineAuth.isLoggedIn();
+    const user = isLoggedIn ? ApiService.getCurrentUser?.() : null;
     const uid = user?.uid || '';
     const name = user?.displayName || user?.name || '';
     const isParticipant = (e.participants || []).some(p => p === name || p === uid);
@@ -548,6 +655,7 @@ Object.assign(App, {
   },
 
   submitReview(eventId) {
+    if (this._requireProtectedActionLogin({ type: 'showEventDetail', eventId })) return;
     const e = ApiService.getEvent(eventId);
     if (!e) return;
     if (this._reviewRating < 1) { this.showToast('請選擇星數'); return; }

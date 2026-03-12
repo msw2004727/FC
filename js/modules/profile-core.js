@@ -240,10 +240,14 @@ Object.assign(App, {
     return users.find(u => u.name === name) || null;
   },
 
-  showUserProfile(name) {
+  showUserProfile(name, options = {}) {
+    if (!options.allowGuest && this._requireProtectedActionLogin({ type: 'showUserProfile', name }, { suppressToast: true })) {
+      return;
+    }
     // 判斷是否為當前用戶（比對 displayName / name）
-    const currentUser = ApiService.getCurrentUser();
-    const lineProfile = (!ModeManager.isDemo() && typeof LineAuth !== 'undefined' && LineAuth.isLoggedIn()) ? LineAuth.getProfile() : null;
+    const isLoggedIn = (!ModeManager.isDemo() && typeof LineAuth !== 'undefined' && LineAuth.isLoggedIn());
+    const currentUser = isLoggedIn ? ApiService.getCurrentUser() : null;
+    const lineProfile = isLoggedIn ? LineAuth.getProfile() : null;
     const currentName = (lineProfile && lineProfile.displayName) || (currentUser && currentUser.displayName) || '';
     const isSelf = currentUser && (name === currentName || name === currentUser.displayName || name === currentUser.name);
 
@@ -420,6 +424,7 @@ Object.assign(App, {
           this.renderActivityList();
           this.renderMyActivities();
           void this._flushPendingProtectedBootRoute?.({ skipEnsureCloudReady: true });
+          void this._resumePendingAuthAction?.();
         };
         FirebaseService._onUserChanged = refreshAfterUserReady;
         this.renderLoginUI();

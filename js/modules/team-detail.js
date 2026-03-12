@@ -114,7 +114,10 @@ Object.assign(App, {
     this.showTeamForm(team.id);
   },
 
-  async showTeamDetail(id) {
+  async showTeamDetail(id, options = {}) {
+    if (!options.allowGuest && this._requireProtectedActionLogin({ type: 'showTeamDetail', teamId: id }, { suppressToast: true })) {
+      return { ok: false, reason: 'auth' };
+    }
     try {
       let t = ApiService.getTeam(id);
       if (!t) return { ok: false, reason: 'missing' };

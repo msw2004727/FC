@@ -260,7 +260,7 @@ Object.assign(App, {
     if (lineId) {
       window.open('https://line.me/ti/p/' + encodeURIComponent(lineId), '_blank');
     } else {
-      this.showUserProfile(name);
+      this.showUserProfile(name, { allowGuest: true });
     }
   },
 

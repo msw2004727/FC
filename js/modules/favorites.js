@@ -86,6 +86,9 @@ Object.assign(App, {
   },
 
   toggleFavoriteEvent(eventId) {
+    if (this._requireProtectedActionLogin({ type: 'toggleFavoriteEvent', eventId }, { suppressToast: true })) {
+      return;
+    }
     const favs = this._getFavorites();
     const idx = favs.events.indexOf(eventId);
     const added = idx < 0;
@@ -97,6 +100,9 @@ Object.assign(App, {
   },
 
   toggleFavoriteTournament(tournId) {
+    if (this._requireProtectedActionLogin({ type: 'toggleFavoriteTournament', tournId }, { suppressToast: true })) {
+      return;
+    }
     const favs = this._getFavorites();
     const idx = favs.tournaments.indexOf(tournId);
     const added = idx < 0;

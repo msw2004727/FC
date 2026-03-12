@@ -65,6 +65,9 @@ const App = {
   _scriptLoadTimeoutMs: 12000,
   _pendingProtectedBootRoute: null,
   _pendingProtectedBootRoutePromise: null,
+  _pendingAuthAction: null,
+  _pendingAuthActionPromise: null,
+  _pendingAuthActionStorageKey: '_pendingAuthAction',
   _pageSnapshotReady: {},
 
   init() {
@@ -451,6 +454,199 @@ const App = {
     if (message) this.showToast(message);
   },
 
+  _sanitizePendingAuthAction(action) {
+    if (!action || typeof action !== 'object') return null;
+    const type = String(action.type || '').trim();
+    if (!type) return null;
+
+    const normalizeId = (value) => String(value || '').trim();
+    const normalizeName = (value) => String(value || '').trim().slice(0, 120);
+
+    switch (type) {
+      case 'showPage': {
+        const pageId = normalizeId(action.pageId);
+        return pageId ? { type, pageId } : null;
+      }
+      case 'showEventDetail':
+      case 'eventSignup':
+      case 'eventCancelSignup':
+      case 'toggleFavoriteEvent':
+      case 'goToScanForEvent': {
+        const eventId = normalizeId(action.eventId || action.id);
+        return eventId ? { type, eventId } : null;
+      }
+      case 'showTeamDetail': {
+        const teamId = normalizeId(action.teamId || action.id);
+        return teamId ? { type, teamId } : null;
+      }
+      case 'toggleFavoriteTournament': {
+        const tournId = normalizeId(action.tournId || action.id);
+        return tournId ? { type, tournId } : null;
+      }
+      case 'showUserProfile': {
+        const name = normalizeName(action.name);
+        return name ? { type, name } : null;
+      }
+      default:
+        return null;
+    }
+  },
+
+  _getPendingAuthAction() {
+    if (this._pendingAuthAction) return this._pendingAuthAction;
+    try {
+      const raw = sessionStorage.getItem(this._pendingAuthActionStorageKey);
+      if (!raw) return null;
+      const sanitized = this._sanitizePendingAuthAction(JSON.parse(raw));
+      if (!sanitized) {
+        sessionStorage.removeItem(this._pendingAuthActionStorageKey);
+        return null;
+      }
+      this._pendingAuthAction = sanitized;
+      return sanitized;
+    } catch (_) {
+      try { sessionStorage.removeItem(this._pendingAuthActionStorageKey); } catch (_) {}
+      return null;
+    }
+  },
+
+  _setPendingAuthAction(action) {
+    const sanitized = this._sanitizePendingAuthAction(action);
+    if (!sanitized) return null;
+    this._pendingAuthAction = sanitized;
+    try {
+      sessionStorage.setItem(this._pendingAuthActionStorageKey, JSON.stringify(sanitized));
+    } catch (_) {}
+    return sanitized;
+  },
+
+  _clearPendingAuthAction() {
+    this._pendingAuthAction = null;
+    try {
+      sessionStorage.removeItem(this._pendingAuthActionStorageKey);
+    } catch (_) {}
+  },
+
+  _isAuthenticatedForProtectedAction() {
+    if (ModeManager.isDemo()) return true;
+    return typeof LineAuth !== 'undefined' && LineAuth.isLoggedIn();
+  },
+
+  _requestLoginForAction(action, options = {}) {
+    if (ModeManager.isDemo()) return false;
+    const pending = this._setPendingAuthAction(action);
+    if (!pending) return false;
+
+    const loginCopy = String(options.toastMessage || '\u8acb\u5148\u767b\u5165 LINE \u5e33\u865f');
+    const pendingCopy = String(options.pendingToastMessage || 'LINE \u767b\u5165\u8655\u7406\u4e2d...');
+    const startLogin = () => {
+      if (typeof LineAuth === 'undefined' || typeof LineAuth.login !== 'function') {
+        this.showToast('LINE \u767b\u5165\u5c1a\u672a\u6e96\u5099\u5b8c\u6210');
+        return false;
+      }
+      if (typeof LineAuth.isPendingLogin === 'function' && LineAuth.isPendingLogin()) {
+        this.showToast(pendingCopy);
+        return true;
+      }
+      this.showToast(loginCopy);
+      LineAuth.login();
+      return true;
+    };
+
+    if (typeof LineAuth !== 'undefined' && LineAuth._ready) {
+      try {
+        return startLogin();
+      } catch (err) {
+        console.warn('[AuthAction] login redirect failed:', err);
+        this.showToast('LINE \u767b\u5165\u555f\u52d5\u5931\u6557\uff0c\u8acb\u7a0d\u5f8c\u518d\u8a66');
+        return true;
+      }
+    }
+
+    if (typeof this.ensureCloudReady === 'function') {
+      this.showToast('\u6b63\u5728\u6e96\u5099 LINE \u767b\u5165...');
+      void this.ensureCloudReady({ reason: 'pending-auth-action' })
+        .then(() => {
+          if (this._isAuthenticatedForProtectedAction()) return;
+          try {
+            startLogin();
+          } catch (err) {
+            console.warn('[AuthAction] deferred login redirect failed:', err);
+          }
+        })
+        .catch(err => {
+          console.warn('[AuthAction] ensureCloudReady before login failed:', err);
+          this.showToast('LINE \u767b\u5165\u5c1a\u672a\u6e96\u5099\u5b8c\u6210');
+        });
+      return true;
+    }
+
+    this.showToast('LINE \u767b\u5165\u5c1a\u672a\u6e96\u5099\u5b8c\u6210');
+    return true;
+  },
+
+  async _resumePendingAuthAction() {
+    if (this._pendingAuthActionPromise) {
+      return await this._pendingAuthActionPromise;
+    }
+    if (!this._isAuthenticatedForProtectedAction()) return false;
+
+    const action = this._getPendingAuthAction();
+    if (!action) return false;
+
+    const actionPromise = (async () => {
+      try {
+        switch (action.type) {
+          case 'showPage':
+            await this.showPage(action.pageId, { resetHistory: true });
+            return true;
+          case 'showEventDetail':
+            await this.showEventDetail(action.eventId);
+            return true;
+          case 'eventSignup':
+            await this.showEventDetail(action.eventId);
+            await this.handleSignup?.(action.eventId);
+            return true;
+          case 'eventCancelSignup':
+            await this.showEventDetail(action.eventId);
+            await this.handleCancelSignup?.(action.eventId);
+            return true;
+          case 'toggleFavoriteEvent':
+            await this.showEventDetail(action.eventId);
+            this.toggleFavoriteEvent?.(action.eventId);
+            return true;
+          case 'goToScanForEvent':
+            this.goToScanForEvent?.(action.eventId);
+            return true;
+          case 'showTeamDetail':
+            await this.showTeamDetail(action.teamId);
+            return true;
+          case 'toggleFavoriteTournament':
+            this.toggleFavoriteTournament?.(action.tournId);
+            return true;
+          case 'showUserProfile':
+            this.showUserProfile?.(action.name);
+            return true;
+          default:
+            return false;
+        }
+      } catch (err) {
+        console.warn('[AuthAction] resume failed:', err);
+        return false;
+      } finally {
+        this._clearPendingAuthAction();
+      }
+    })();
+
+    this._pendingAuthActionPromise = actionPromise.finally(() => {
+      if (this._pendingAuthActionPromise === actionPromise) {
+        this._pendingAuthActionPromise = null;
+      }
+    });
+
+    return await this._pendingAuthActionPromise;
+  },
+
   _tryStartDeepLinkLogin() {
     if (this._deepLinkAuthRedirecting) return true;
     if (typeof LineAuth === 'undefined') return false;
@@ -493,7 +689,7 @@ const App = {
     this._bootDeepLinkTimer = setTimeout(() => {
       if (!this._getPendingDeepLink()) return;
       const isAuthedNow = (typeof LineAuth !== 'undefined' && LineAuth.isLoggedIn());
-      if (!isAuthedNow) {
+      if (!isAuthedNow && pending.type !== 'event') {
         // For unauthenticated deep links, prioritize LINE login redirect.
         this._tryStartDeepLinkLogin();
         this._bootDeepLinkTimer = setTimeout(() => {
@@ -508,8 +704,13 @@ const App = {
         }, this._deepLinkBootTimeoutMs);
         return;
       }
-      const targetPage = pending.type === 'team' ? 'page-teams' : 'page-activities';
-      this._completeDeepLinkFallback('\u9801\u9762\u8f09\u5165\u5df2\u903e\u6642\uff0c\u5df2\u5207\u63db\u5230\u5217\u8868\u3002', targetPage);
+      const targetPage = pending.type === 'team'
+        ? 'page-teams'
+        : (isAuthedNow ? 'page-activities' : 'page-home');
+      const fallbackMessage = pending.type === 'event' && !isAuthedNow
+        ? '\u6d3b\u52d5\u8a73\u60c5\u8f09\u5165\u5df2\u903e\u6642\uff0c\u5df2\u5207\u56de\u9996\u9801\u3002'
+        : '\u9801\u9762\u8f09\u5165\u5df2\u903e\u6642\uff0c\u5df2\u5207\u63db\u5230\u5217\u8868\u3002';
+      this._completeDeepLinkFallback(fallbackMessage, targetPage);
     }, this._deepLinkBootTimeoutMs);
 
     this._bootDeepLinkPoller = setInterval(() => {
@@ -528,7 +729,7 @@ const App = {
       }
 
       const isAuthed = (typeof LineAuth !== 'undefined' && LineAuth.isLoggedIn());
-      if (!isAuthed) {
+      if (!isAuthed && pending.type !== 'event') {
         this._tryStartDeepLinkLogin();
         return false;
       }
@@ -538,7 +739,7 @@ const App = {
           const event = ApiService.getEvent?.(pending.id);
           if (!event) return false;
 
-          const result = await this.showEventDetail(pending.id);
+          const result = await this.showEventDetail(pending.id, { allowGuest: !isAuthed });
           if (result?.ok && this.currentPage === 'page-activity-detail' && this._currentDetailEventId === pending.id) {
             this._completeDeepLinkSuccess();
             return true;

@@ -184,7 +184,7 @@ Object.assign(App, {
           ? `App.showToast('已複製分享連結！')`
           : item.action === 'coming-soon'
           ? `App.showToast('功能尚未開放'); App.closeDrawer()`
-          : `App.showPage('${item.page}'); App.closeDrawer()`;
+          : `App.openDrawerPage('${item.page}')`;
         const role = item.minRole || 'user';
         const roleInfo = ROLES[role];
         const bgClass = item.highlight === 'yellow' ? 'drawer-role-yellow'
@@ -204,6 +204,20 @@ Object.assign(App, {
     });
 
     container.innerHTML = html;
+  },
+
+  openDrawerPage(pageId) {
+    const safePageId = String(pageId || '').trim();
+    if (!safePageId) return;
+    const guardedPages = ['page-profile', 'page-teams', 'page-tournaments', 'page-messages', 'page-activities'];
+    if (guardedPages.includes(safePageId) && this._requireProtectedActionLogin({ type: 'showPage', pageId: safePageId }, {
+      suppressToast: true,
+    })) {
+      this.closeDrawer();
+      return;
+    }
+    void this.showPage(safePageId);
+    this.closeDrawer();
   },
 
   toggleDemoRoleMenu() {

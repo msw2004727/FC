@@ -104,6 +104,9 @@ Object.assign(App, {
   },
 
   async handleSignup(id) {
+    if (this._requireProtectedActionLogin({ type: 'eventSignup', eventId: id }, { suppressToast: true })) {
+      return;
+    }
     let e = ApiService.getEvent(id);
     if (!e) return;
     e = this._syncEventEffectiveStatus?.(e) || e;
@@ -243,6 +246,9 @@ Object.assign(App, {
   },
 
   async handleCancelSignup(id) {
+    if (this._requireProtectedActionLogin({ type: 'eventCancelSignup', eventId: id }, { suppressToast: true })) {
+      return;
+    }
     const currentUser = ApiService.getCurrentUser();
     const currentUserId = currentUser?.uid || 'unknown';
     let myRegs = ApiService.getMyRegistrationsByEvent(id);

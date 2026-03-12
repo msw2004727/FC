@@ -218,6 +218,15 @@ Object.assign(App, {
     return true;
   },
 
+  _requireProtectedActionLogin(action, options = {}) {
+    if (!this._isLoginRequired()) return false;
+    if (typeof this._requestLoginForAction === 'function' && action) {
+      this._requestLoginForAction(action, options);
+      return true;
+    }
+    return this._requireLogin();
+  },
+
   _isLoginRequired() {
     if (ModeManager.isDemo()) return false;
     if (typeof LineAuth !== 'undefined' && LineAuth.isLoggedIn()) return false;
@@ -234,6 +243,12 @@ Object.assign(App, {
         }
         if (page === 'page-tournaments') {
           this.showToast('功能準備中');
+          return;
+        }
+        const guardedPages = ['page-profile', 'page-teams', 'page-tournaments', 'page-messages', 'page-activities'];
+        if (guardedPages.includes(page) && this._requireProtectedActionLogin({ type: 'showPage', pageId: page }, {
+          suppressToast: true,
+        })) {
           return;
         }
         this.pageHistory = [];
@@ -292,15 +307,25 @@ Object.assign(App, {
     return await loadedMethod.apply(this, args);
   },
 
-  async showEventDetail(id) {
-    return await this._invokeLazyRouteMethod('page-activity-detail', 'showEventDetail', [id]);
+  async showEventDetail(id, options = {}) {
+    return await this._invokeLazyRouteMethod('page-activity-detail', 'showEventDetail', [id, options]);
   },
 
-  async showTeamDetail(id) {
-    return await this._invokeLazyRouteMethod('page-team-detail', 'showTeamDetail', [id]);
+  async showTeamDetail(id, options = {}) {
+    if (this._requireProtectedActionLogin({ type: 'showTeamDetail', teamId: id }, {
+      suppressToast: true,
+    })) {
+      return { ok: false, reason: 'auth' };
+    }
+    return await this._invokeLazyRouteMethod('page-team-detail', 'showTeamDetail', [id, options]);
   },
 
   goToScanForEvent(eventId) {
+    if (this._requireProtectedActionLogin({ type: 'goToScanForEvent', eventId }, {
+      suppressToast: true,
+    })) {
+      return;
+    }
     // Keep the entrypoint in core so event detail can route to the lazy scan module safely.
     this._scanPresetEventId = eventId || null;
     void this.showPage('page-scan');
