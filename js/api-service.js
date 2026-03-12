@@ -786,7 +786,7 @@ const ApiService = {
     Object.assign(user, updates);
     if (!this._demoMode && user._docId) {
       try {
-        await FirebaseService.updateUser(user._docId, updates);
+        await FirebaseService.manageAdminUser(user._docId, updates);
       } catch (err) {
         Object.assign(user, rollback);
         console.error('[updateAdminUser]', err);
@@ -809,15 +809,15 @@ const ApiService = {
       ? ((typeof DemoData !== 'undefined' && DemoData.rolePermissions) ? (DemoData.rolePermissions[role] || []) : [])
       : ((FirebaseService._cache.rolePermissions || {})[role] || []);
 
-    const resolved = hasStoredRolePermissions
+    const resolved = sanitizePermissionCodeList(hasStoredRolePermissions
       ? stored
-      : (Array.isArray(getDefaultRolePermissions(role)) ? getDefaultRolePermissions(role) : stored);
+      : (Array.isArray(getDefaultRolePermissions(role)) ? getDefaultRolePermissions(role) : stored));
 
     if (role === 'super_admin') {
-      return Array.from(new Set([
+      return sanitizePermissionCodeList([
         ...resolved,
         ...getAllPermissionCodes(this._src('permissions') || []),
-      ]));
+      ]);
     }
 
     return resolved;

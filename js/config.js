@@ -206,7 +206,7 @@
 // 20260312g: 啟動 achievement Phase 2，抽離 stats helper 並收斂徽章與稱號重複計算
 // 20260312l: achievement Phase 6，移除假條件並收斂成就正式支援模板
 // 20260312n: achievement Phase 7 收尾，改成只讀快照評估並補齊最終整合自驗 / 手動驗收資產
-const CACHE_VERSION = '20260312n';
+const CACHE_VERSION = '20260312o';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {
@@ -356,8 +356,10 @@ function _buildRuntimeRoleLevelMap() {
 
   const superAdminIndex = sequence.indexOf('super_admin');
   if (superAdminIndex >= 0 && superAdminIndex < sequence.length - 1) {
-    sequence.slice(superAdminIndex + 1).forEach((roleKey, index) => {
-      levels[roleKey] = _BASE_ROLE_LEVEL_MAP.super_admin + ((index + 1) / 100);
+    const deferredRoles = sequence.slice(superAdminIndex + 1);
+    const step = (_BASE_ROLE_LEVEL_MAP.super_admin - _BASE_ROLE_LEVEL_MAP.admin) / (deferredRoles.length + 1);
+    deferredRoles.forEach((roleKey, index) => {
+      levels[roleKey] = _BASE_ROLE_LEVEL_MAP.admin + (step * (index + 1));
     });
   }
 
@@ -572,15 +574,33 @@ const DRAWER_MENUS = [
   { icon: '', label: '自動 EXP 管理', i18nKey: 'drawer.autoExpManage', page: 'page-admin-auto-exp', minRole: 'super_admin', permissionCode: 'admin.auto_exp.entry' },
   { icon: '', label: '系統公告管理', i18nKey: 'admin.announcements', page: 'page-admin-announcements', minRole: 'super_admin', permissionCode: 'admin.announcements.entry' },
   { icon: '', label: '成就/徽章管理', i18nKey: 'admin.achievements', page: 'page-admin-achievements', minRole: 'super_admin', permissionCode: 'admin.achievements.entry' },
-  { icon: '', label: '權限管理', i18nKey: 'admin.roles', page: 'page-admin-roles', minRole: 'super_admin', permissionCode: 'admin.roles.entry' },
+  { icon: '', label: '權限管理', i18nKey: 'admin.roles', page: 'page-admin-roles', minRole: 'super_admin' },
   { icon: '', label: '無效資料查詢', i18nKey: 'admin.inactive', page: 'page-admin-inactive', minRole: 'super_admin', permissionCode: 'admin.inactive.entry' },
   { icon: '', label: '日誌中心', i18nKey: 'admin.logs', page: 'page-admin-logs', minRole: 'super_admin', permissionCode: 'admin.logs.entry' },
   { icon: '', label: '用戶補正管理', i18nKey: 'admin.repair', page: 'page-admin-repair', minRole: 'super_admin', permissionCode: 'admin.repair.entry' },
 ];
 
-const ROLE_PERMISSION_CATALOG_VERSION = '20260312a';
+const ROLE_PERMISSION_CATALOG_VERSION = '20260312b';
+const DISABLED_PERMISSION_CODES = new Set(['admin.roles.entry']);
+
+function isPermissionCodeEnabled(code) {
+  return typeof code === 'string'
+    && !!code
+    && !DISABLED_PERMISSION_CODES.has(code);
+}
+
+function sanitizePermissionCodeList(codes) {
+  return Array.from(new Set(
+    (Array.isArray(codes) ? codes : []).filter(code => isPermissionCodeEnabled(code))
+  ));
+}
 
 const ADMIN_PAGE_EXTRA_PERMISSION_ITEMS = {
+  'page-admin-users': [
+    { code: 'admin.users.edit_profile', name: '編輯基本資料' },
+    { code: 'admin.users.change_role', name: '修改用戶身分' },
+    { code: 'admin.users.restrict', name: '限制 / 解除限制' },
+  ],
   'page-admin-teams': [
     { code: 'team.create', name: '建立球隊' },
     { code: 'team.manage_all', name: '管理所有球隊' },
@@ -593,7 +613,7 @@ const ADMIN_PAGE_EXTRA_PERMISSION_ITEMS = {
 
 function getAdminDrawerPermissionDefinitions() {
   return DRAWER_MENUS
-    .filter(item => item && item.page && item.permissionCode)
+    .filter(item => item && item.page && isPermissionCodeEnabled(item.permissionCode))
     .map(item => ({
       page: item.page,
       label: item.label,
@@ -630,7 +650,11 @@ function getMergedPermissionCatalog(remoteCategories = []) {
 
   (remoteCategories || []).forEach(category => {
     const items = Array.isArray(category?.items)
-      ? category.items.filter(item => item && typeof item.code === 'string' && !assignedCodes.has(item.code))
+      ? category.items.filter(item =>
+        item
+        && isPermissionCodeEnabled(item.code)
+        && !assignedCodes.has(item.code)
+      )
       : [];
     if (!items.length) return;
     items.forEach(item => assignedCodes.add(item.code));
@@ -652,7 +676,7 @@ function getAllPermissionCodes(remoteCategories = []) {
   return getMergedPermissionCatalog(remoteCategories)
     .flatMap(category => Array.isArray(category?.items) ? category.items : [])
     .map(item => item.code)
-    .filter(code => typeof code === 'string' && code);
+    .filter(code => isPermissionCodeEnabled(code));
 }
 
 function getDefaultRolePermissions(roleKey) {

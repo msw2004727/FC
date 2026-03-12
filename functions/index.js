@@ -24,6 +24,17 @@ const VALID_ROLES = new Set([
   "admin",
   "super_admin",
 ]);
+const DISABLED_PERMISSION_CODES = new Set(["admin.roles.entry"]);
+const ADMIN_USER_EDIT_PROFILE_PERMISSION = "admin.users.edit_profile";
+const ADMIN_USER_CHANGE_ROLE_PERMISSION = "admin.users.change_role";
+const ADMIN_USER_RESTRICT_PERMISSION = "admin.users.restrict";
+const ADMIN_MANAGED_USER_PROFILE_FIELDS = Object.freeze([
+  "region",
+  "gender",
+  "birthday",
+  "sports",
+  "phone",
+]);
 const ALLOWED_AUDIT_ACTIONS = new Set([
   "login_success",
   "login_failure",
@@ -239,7 +250,51 @@ const DEFAULT_TEAM_SHARE_OG_IMAGE = "https://firebasestorage.googleapis.com/v0/b
 
 function normalizeRole(role) {
   if (typeof role !== "string") return "user";
-  return VALID_ROLES.has(role) ? role : "user";
+  const trimmed = role.trim();
+  return trimmed || "user";
+}
+
+function normalizeBuiltInRole(role) {
+  const normalized = normalizeRole(role);
+  return VALID_ROLES.has(normalized) ? normalized : "user";
+}
+
+function sanitizePermissionCodeList(codes) {
+  return Array.from(new Set(
+    (Array.isArray(codes) ? codes : [])
+      .filter(code => typeof code === "string")
+      .map(code => code.trim())
+      .filter(code => code && !DISABLED_PERMISSION_CODES.has(code))
+  ));
+}
+
+function sanitizeAdminManagedProfileUpdates(rawUpdates) {
+  if (!rawUpdates || typeof rawUpdates !== "object" || Array.isArray(rawUpdates)) {
+    return {};
+  }
+
+  const next = {};
+  ADMIN_MANAGED_USER_PROFILE_FIELDS.forEach((field) => {
+    if (!Object.prototype.hasOwnProperty.call(rawUpdates, field)) return;
+    const value = rawUpdates[field];
+    if (value == null) {
+      next[field] = null;
+      return;
+    }
+    if (typeof value !== "string") return;
+    const trimmed = value.trim();
+    if (field === "birthday") {
+      next[field] = trimmed ? trimmed.replace(/-/g, "/") : null;
+      return;
+    }
+    next[field] = trimmed;
+  });
+
+  return next;
+}
+
+function hasAnyOwnKeys(value) {
+  return !!value && typeof value === "object" && !Array.isArray(value) && Object.keys(value).length > 0;
 }
 
 function getAuthErrorCode(err) {
@@ -473,11 +528,44 @@ async function getUserRoleFromFirestore(uidOrDocId) {
 }
 
 async function getCallerRoleWithFallback(request) {
-  let callerRole = normalizeRole(request.auth?.token?.role);
-  if (!["admin", "super_admin"].includes(callerRole) && request.auth?.uid) {
-    callerRole = await getUserRoleFromFirestore(request.auth.uid);
+  if (request.auth?.uid) {
+    const firestoreRole = await getUserRoleFromFirestore(request.auth.uid);
+    if (firestoreRole) {
+      return firestoreRole;
+    }
   }
-  return callerRole;
+  return normalizeRole(request.auth?.token?.role);
+}
+
+async function getRolePermissionsFromFirestore(roleKey) {
+  const safeRole = normalizeRole(roleKey);
+  if (safeRole === "user" || safeRole === "super_admin") return [];
+  const snapshot = await db.collection("rolePermissions").doc(safeRole).get();
+  if (!snapshot.exists) return [];
+  return sanitizePermissionCodeList(snapshot.data()?.permissions);
+}
+
+async function getCallerAccessContext(request) {
+  const role = await getCallerRoleWithFallback(request);
+  const permissions = role === "super_admin"
+    ? []
+    : await getRolePermissionsFromFirestore(role);
+  return {
+    role,
+    permissions,
+    isSuperAdmin: role === "super_admin",
+    hasPermission(code) {
+      return role === "super_admin" || permissions.includes(code);
+    },
+  };
+}
+
+async function roleExists(roleKey) {
+  const safeRole = normalizeRole(roleKey);
+  if (VALID_ROLES.has(safeRole)) return true;
+  if (safeRole === "user") return true;
+  const snapshot = await db.collection("customRoles").doc(safeRole).get();
+  return snapshot.exists;
 }
 
 async function setRoleClaimMerged(uid, role) {
@@ -873,9 +961,9 @@ exports.syncUserRole = onCall(
       throw new HttpsError("unauthenticated", "Authentication required");
     }
 
-    const callerRole = await getCallerRoleWithFallback(request);
-    if (!["admin", "super_admin"].includes(callerRole)) {
-      throw new HttpsError("permission-denied", "Admin only");
+    const access = await getCallerAccessContext(request);
+    if (!access.hasPermission(ADMIN_USER_CHANGE_ROLE_PERMISSION)) {
+      throw new HttpsError("permission-denied", "Missing role-change permission");
     }
 
     const { targetUid } = request.data || {};
@@ -895,7 +983,7 @@ exports.syncUserRole = onCall(
 
     console.log("[syncUserRole] synced claims", {
       callerUid: request.auth.uid,
-      callerRole,
+      callerRole: access.role,
       targetUid: resolvedTargetUid,
       targetDocId: targetUser.docId,
       targetRole,
@@ -906,6 +994,118 @@ exports.syncUserRole = onCall(
       targetUid: resolvedTargetUid,
       targetDocId: targetUser.docId,
       role: targetRole,
+    };
+  }
+);
+
+exports.adminManageUser = onCall(
+  { region: "asia-east1", timeoutSeconds: 30 },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Authentication required");
+    }
+
+    const access = await getCallerAccessContext(request);
+    const callerUid = request.auth.uid;
+    const { targetUid, profileUpdates, restrictionUpdate, roleChange } = request.data || {};
+    if (!targetUid || typeof targetUid !== "string") {
+      throw new HttpsError("invalid-argument", "targetUid is required");
+    }
+
+    const targetUser = await findUserDocByUidOrLineUserId(targetUid);
+    if (!targetUser) {
+      throw new HttpsError("not-found", "Target user not found");
+    }
+
+    const targetData = targetUser.data || {};
+    const resolvedTargetUid = getAuthUidFromUserDoc(targetUser, targetUid);
+    const targetRole = normalizeRole(targetData.role);
+    const isTargetSuperAdmin = targetRole === "super_admin";
+    if (!access.isSuperAdmin && isTargetSuperAdmin) {
+      throw new HttpsError("permission-denied", "Cannot manage super admin");
+    }
+
+    const nextUpdates = {};
+    const sanitizedProfileUpdates = sanitizeAdminManagedProfileUpdates(profileUpdates);
+    if (hasAnyOwnKeys(sanitizedProfileUpdates)) {
+      if (!access.hasPermission(ADMIN_USER_EDIT_PROFILE_PERMISSION)) {
+        throw new HttpsError("permission-denied", "Missing profile edit permission");
+      }
+      Object.assign(nextUpdates, sanitizedProfileUpdates);
+    }
+
+    if (restrictionUpdate != null) {
+      if (!access.hasPermission(ADMIN_USER_RESTRICT_PERMISSION)) {
+        throw new HttpsError("permission-denied", "Missing restriction permission");
+      }
+      if (resolvedTargetUid === callerUid) {
+        throw new HttpsError("failed-precondition", "Cannot restrict yourself");
+      }
+      const callerUser = await findUserDocByUidOrLineUserId(callerUid);
+      let authDisplayName = "";
+      try {
+        const authUser = await authAdmin.getUser(callerUid);
+        authDisplayName = getDisplayNameFromAuthRecord(authUser, "");
+      } catch (_) {}
+      const actorName = normalizeAuditText(
+        callerUser?.data?.displayName
+          || callerUser?.data?.name
+          || authDisplayName
+          || request.auth.token?.name
+          || callerUid,
+        80
+      );
+      const nextRestricted = restrictionUpdate === true
+        || restrictionUpdate?.restricted === true
+        || restrictionUpdate?.isRestricted === true;
+      nextUpdates.isRestricted = nextRestricted;
+      nextUpdates.restrictedAt = nextRestricted ? FieldValue.serverTimestamp() : null;
+      nextUpdates.restrictedByUid = nextRestricted ? callerUid : null;
+      nextUpdates.restrictedByName = nextRestricted ? actorName : null;
+    }
+
+    if (roleChange && typeof roleChange === "object") {
+      if (!access.hasPermission(ADMIN_USER_CHANGE_ROLE_PERMISSION)) {
+        throw new HttpsError("permission-denied", "Missing role-change permission");
+      }
+      const nextRole = normalizeRole(roleChange.role);
+      if (!(await roleExists(nextRole))) {
+        throw new HttpsError("invalid-argument", "Target role does not exist");
+      }
+      if (!access.isSuperAdmin && nextRole === "super_admin") {
+        throw new HttpsError("permission-denied", "Only super admin can assign super_admin");
+      }
+      const nextManualRole = normalizeRole(roleChange.manualRole || nextRole);
+      if (!(await roleExists(nextManualRole))) {
+        throw new HttpsError("invalid-argument", "manualRole does not exist");
+      }
+      nextUpdates.role = nextRole;
+      nextUpdates.manualRole = nextManualRole;
+      nextUpdates.isAdmin = ["admin", "super_admin"].includes(normalizeBuiltInRole(nextRole));
+      nextUpdates.claims = {
+        ...(targetData.claims && typeof targetData.claims === "object" ? targetData.claims : {}),
+        role: nextRole,
+      };
+    }
+
+    if (!hasAnyOwnKeys(nextUpdates)) {
+      throw new HttpsError("invalid-argument", "No supported updates requested");
+    }
+
+    nextUpdates.updatedAt = FieldValue.serverTimestamp();
+    await db.collection("users").doc(targetUser.docId).update(nextUpdates);
+
+    if (typeof nextUpdates.role === "string") {
+      await ensureAuthUser(resolvedTargetUid);
+      await setRoleClaimMerged(resolvedTargetUid, nextUpdates.role);
+    }
+
+    return {
+      success: true,
+      targetUid: resolvedTargetUid,
+      targetDocId: targetUser.docId,
+      role: typeof nextUpdates.role === "string" ? nextUpdates.role : targetRole,
+      forceRefreshToken: typeof nextUpdates.role === "string" && resolvedTargetUid === callerUid,
     };
   }
 );

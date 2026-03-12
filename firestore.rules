@@ -24,19 +24,31 @@ service cloud.firestore {
       return request.auth != null && request.auth.uid == docId;
     }
 
-    function roleFromUserDoc(uid) {
+    function userDocRoleOrEmpty(uid) {
       let userPath = /databases/$(database)/documents/users/$(uid);
       return (exists(userPath) && get(userPath).data.role is string)
         ? get(userPath).data.role
+        : '';
+    }
+
+    function roleFromUserDoc(uid) {
+      let docRole = userDocRoleOrEmpty(uid);
+      return docRole != ''
+        ? docRole
         : 'user';
     }
 
     function authRole() {
+      let docRole = request.auth != null
+        ? userDocRoleOrEmpty(request.auth.uid)
+        : '';
       return request.auth == null
         ? 'user'
-        : ((('role' in request.auth.token) && request.auth.token.role is string)
-          ? request.auth.token.role
-          : roleFromUserDoc(request.auth.uid));
+        : (docRole != ''
+          ? docRole
+          : ((('role' in request.auth.token) && request.auth.token.role is string)
+            ? request.auth.token.role
+            : 'user'));
     }
 
     function isAdmin() {
@@ -523,7 +535,7 @@ service cloud.firestore {
           && (!changed.hasAny(['updatedAt']) || newData.updatedAt == request.time);
       }
 
-      function isSafeAdminUserUpdate() {
+      function isSafeSuperAdminUserUpdate() {
         let changed = request.resource.data.diff(resource.data).affectedKeys();
         return !changed.hasAny(['uid', 'lineUserId', 'createdAt']);
       }
@@ -545,7 +557,7 @@ service cloud.firestore {
       allow update: if (isOwner(userId) && isSafeSelfProfileUpdate())
         || (isOwner(userId) && isSafeLoginUpdate())
         || (isOwner(userId) && isTeamFieldShrinkOrClear())
-        || (isAdmin() && isSafeAdminUserUpdate())
+        || (isSuperAdmin() && isSafeSuperAdminUserUpdate())
         || (canRunTeamJoinRepair() && isSafeTeamMembershipUpdateByStaff())
         || (isCoachPlus() && !isOwner(userId) && isSafeTeamMembershipUpdateByStaff());
       allow delete: if false;

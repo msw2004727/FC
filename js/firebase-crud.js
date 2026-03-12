@@ -55,15 +55,17 @@ Object.assign(FirebaseService, {
   // ════════════════════════════════
 
   async saveRolePermissions(roleKey, permissions) {
+    const sanitizedPermissions = sanitizePermissionCodeList(permissions);
     await db.collection('rolePermissions').doc(roleKey).set({
-      permissions,
+      permissions: sanitizedPermissions,
       catalogVersion: ROLE_PERMISSION_CATALOG_VERSION,
     }, { merge: true });
   },
 
   async saveRolePermissionDefaults(roleKey, defaultPermissions) {
+    const sanitizedDefaults = sanitizePermissionCodeList(defaultPermissions);
     await db.collection('rolePermissions').doc(roleKey).set({
-      defaultPermissions,
+      defaultPermissions: sanitizedDefaults,
       catalogVersion: ROLE_PERMISSION_CATALOG_VERSION,
     }, { merge: true });
   },
@@ -98,11 +100,13 @@ Object.assign(FirebaseService, {
   },
 
   async addCustomRoleWithPermissions(data, permissions = [], defaultPermissions = []) {
+    const sanitizedPermissions = sanitizePermissionCodeList(permissions);
+    const sanitizedDefaults = sanitizePermissionCodeList(defaultPermissions);
     const batch = db.batch();
     batch.set(db.collection('customRoles').doc(data.key), data, { merge: true });
     batch.set(db.collection('rolePermissions').doc(data.key), {
-      permissions,
-      defaultPermissions,
+      permissions: sanitizedPermissions,
+      defaultPermissions: sanitizedDefaults,
       catalogVersion: ROLE_PERMISSION_CATALOG_VERSION,
     }, { merge: true });
     await batch.commit();
@@ -1102,6 +1106,42 @@ Object.assign(FirebaseService, {
     if (typeof auth !== 'undefined' && auth?.currentUser?.uid === uid) {
       await auth.currentUser.getIdToken(true);
     }
+  },
+
+  async manageAdminUser(docId, updates = {}) {
+    if (!docId || typeof firebase === 'undefined' || !firebase.app) {
+      throw new Error('ADMIN_USER_TARGET_REQUIRED');
+    }
+
+    const payload = { targetUid: docId };
+    const profileUpdates = {};
+    ['region', 'gender', 'birthday', 'sports', 'phone'].forEach(field => {
+      if (!Object.prototype.hasOwnProperty.call(updates, field)) return;
+      profileUpdates[field] = updates[field];
+    });
+    if (Object.keys(profileUpdates).length > 0) {
+      payload.profileUpdates = profileUpdates;
+    }
+    if (Object.prototype.hasOwnProperty.call(updates, 'isRestricted')) {
+      payload.restrictionUpdate = { isRestricted: !!updates.isRestricted };
+    }
+    if (typeof updates.role === 'string' || typeof updates.manualRole === 'string') {
+      payload.roleChange = {
+        role: updates.role,
+        manualRole: updates.manualRole || updates.role,
+      };
+    }
+
+    if (Object.keys(payload).length === 1) {
+      return null;
+    }
+
+    const fn = firebase.app().functions('asia-east1').httpsCallable('adminManageUser');
+    const result = await fn(payload);
+    if (result?.data?.forceRefreshToken && typeof auth !== 'undefined' && auth?.currentUser) {
+      await auth.currentUser.getIdToken(true);
+    }
+    return result?.data || null;
   },
 
   async updateUser(docId, updates) {

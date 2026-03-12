@@ -7,6 +7,86 @@ Object.assign(App, {
   // ─── 用戶列表: 當前篩選狀態 ───
   _userEditTarget: null,
 
+  _hasUserAdminCapability(code) {
+    return !!this.hasPermission?.(code);
+  },
+
+  _canEditUserProfile() {
+    return this._hasUserAdminCapability('admin.users.edit_profile');
+  },
+
+  _canChangeUserRole() {
+    return this._hasUserAdminCapability('admin.users.change_role');
+  },
+
+  _canRestrictUser() {
+    return this._hasUserAdminCapability('admin.users.restrict');
+  },
+
+  _canManageTargetSuperAdmin(user) {
+    if (!user) return false;
+    return this.currentRole === 'super_admin' || user.role !== 'super_admin';
+  },
+
+  _canOpenUserEditor(user) {
+    return this._canManageTargetSuperAdmin(user)
+      && (this._canEditUserProfile() || this._canChangeUserRole());
+  },
+
+  _canToggleUserRestrictionFor(user) {
+    return this._canRestrictUser()
+      && this._canManageTargetSuperAdmin(user)
+      && user?.role === 'user';
+  },
+
+  _getAssignableRoleKeys() {
+    const allRoleKeys = getRuntimeRoleSequence();
+    if (this.currentRole === 'super_admin') {
+      return allRoleKeys;
+    }
+    return allRoleKeys.filter(roleKey => (ROLE_LEVEL_MAP[roleKey] || 0) < ROLE_LEVEL_MAP.super_admin);
+  },
+
+  _renderUserRoleSelectOptions(currentRole) {
+    const select = document.getElementById('ue-role');
+    if (!select) return;
+    const options = this._getAssignableRoleKeys()
+      .map(roleKey => {
+        const roleInfo = ROLES[roleKey];
+        const label = roleInfo?.label || roleKey;
+        const selected = roleKey === currentRole ? ' selected' : '';
+        return `<option value="${escapeHTML(roleKey)}"${selected}>${escapeHTML(label)}</option>`;
+      });
+    if (!options.length) {
+      const roleInfo = ROLES[currentRole];
+      const label = roleInfo?.label || currentRole || 'user';
+      select.innerHTML = `<option value="${escapeHTML(currentRole || 'user')}">${escapeHTML(label)}</option>`;
+      return;
+    }
+    select.innerHTML = options.join('');
+  },
+
+  _applyUserEditFieldPermissions(user) {
+    const canEditProfile = this._canEditUserProfile() && this._canManageTargetSuperAdmin(user);
+    const canChangeRole = this._canChangeUserRole() && this._canManageTargetSuperAdmin(user);
+    const roleSelect = document.getElementById('ue-role');
+    const profileFieldIds = ['ue-region', 'ue-gender', 'ue-birthday', 'ue-sports', 'ue-phone'];
+
+    this._renderUserRoleSelectOptions(user?.role || 'user');
+    if (roleSelect) {
+      roleSelect.disabled = !canChangeRole;
+      if (!canChangeRole) {
+        roleSelect.value = user?.role || 'user';
+      }
+    }
+
+    profileFieldIds.forEach(fieldId => {
+      const field = document.getElementById(fieldId);
+      if (!field) return;
+      field.disabled = !canEditProfile;
+    });
+  },
+
   // ─── Step 1: 搜尋與篩選 ───
   filterAdminUsers() {
     const keyword = (document.getElementById('admin-user-search')?.value || '').trim().toLowerCase();
@@ -51,9 +131,9 @@ Object.assign(App, {
       const teamInfo = u.teamName ? ` ・${escapeHTML(u.teamName)}` : '';
       const genderIcon = u.gender === '男' ? '♂' : u.gender === '女' ? '♀' : '';
       const safeName = escapeHTML(u.name || '').replace(/'/g, "\\'");
-      const canRestrictThisUser = u.role === 'user';
+      const canEditThisUser = this._canOpenUserEditor(u);
       const isRestricted = !!u.isRestricted;
-      const restrictBtnHtml = canRestrictThisUser
+      const restrictBtnHtml = this._canToggleUserRestrictionFor(u)
         ? `<button class="au-btn ${isRestricted ? 'au-btn-view' : 'au-btn-edit'}" onclick="App.toggleUserRestriction('${safeName}')">${isRestricted ? '解除限制' : '限制'}</button>`
         : '';
 
@@ -77,9 +157,19 @@ Object.assign(App, {
       `;
     }).join('');
     this._bindAvatarFallbacks(container);
+    container.querySelectorAll('button[onclick*="showUserEditModal"]').forEach(btn => {
+      const handler = btn.getAttribute('onclick') || '';
+      const match = handler.match(/showUserEditModal\('(.+)'\)/);
+      if (!match) return;
+      const userName = match[1].replace(/\\'/g, "'");
+      const user = (users || []).find(entry => entry.name === userName);
+      if (!this._canOpenUserEditor(user)) {
+        btn.remove();
+      }
+    });
   },
   async toggleUserRestriction(name) {
-    if ((ROLE_LEVEL_MAP[this.currentRole] || 0) < ROLE_LEVEL_MAP.super_admin) {
+    if (!this._canRestrictUser()) {
       this.showToast('只有 super_admin 可操作');
       return;
     }
@@ -89,7 +179,7 @@ Object.assign(App, {
       this.showToast('找不到使用者');
       return;
     }
-    if (user.role !== 'user') {
+    if (!this._canToggleUserRestrictionFor(user)) {
       this.showToast('目前僅支援限制一般 user');
       return;
     }
@@ -145,7 +235,7 @@ Object.assign(App, {
   },
 
   async handlePromote(select, name) {
-    if ((ROLE_LEVEL_MAP[this.currentRole] || 0) < ROLE_LEVEL_MAP.super_admin) {
+    if (!this._canChangeUserRole()) {
       this.showToast('權限不足'); return;
     }
     if (!select.value) return;
@@ -191,12 +281,15 @@ Object.assign(App, {
   showUserEditModal(name) {
     const users = ApiService.getAdminUsers();
     const user = users.find(u => u.name === name);
+    if (user && !this._canOpenUserEditor(user)) {
+      this.showToast('甈?銝雲');
+      return;
+    }
     if (!user) { this.showToast('找不到該用戶'); return; }
 
     this._userEditTarget = name;
     document.getElementById('user-edit-modal-title').textContent = `編輯用戶 — ${name}`;
 
-    document.getElementById('ue-role').value = user.role || 'user';
     document.getElementById('ue-region').value = user.region || '台北';
     document.getElementById('ue-gender').value = user.gender || '男';
     document.getElementById('ue-sports').value = user.sports || '';
@@ -209,11 +302,12 @@ Object.assign(App, {
       bdInput.value = '';
     }
 
+    this._applyUserEditFieldPermissions(user);
     this.showModal('user-edit-modal');
   },
 
   async saveUserEdit() {
-    if ((ROLE_LEVEL_MAP[this.currentRole] || 0) < ROLE_LEVEL_MAP.super_admin) {
+    if (!this._canEditUserProfile() && !this._canChangeUserRole()) {
       this.showToast('權限不足'); return;
     }
     const name = this._userEditTarget;
@@ -223,22 +317,30 @@ Object.assign(App, {
     const oldUser = ApiService.getAdminUsers().find(u => u.name === name);
     const oldRole = oldUser ? oldUser.role : null;
 
-    const updates = {
-      role: document.getElementById('ue-role').value,
-      region: document.getElementById('ue-region').value,
-      gender: document.getElementById('ue-gender').value,
-      sports: document.getElementById('ue-sports').value.trim(),
-      phone: document.getElementById('ue-phone').value.trim(),
-    };
+    const updates = {};
+    if (this._canChangeUserRole()) {
+      updates.role = document.getElementById('ue-role').value;
+    }
+    if (this._canEditUserProfile()) {
+      updates.region = document.getElementById('ue-region').value;
+      updates.gender = document.getElementById('ue-gender').value;
+      updates.sports = document.getElementById('ue-sports').value.trim();
+      updates.phone = document.getElementById('ue-phone').value.trim();
 
-    const bdVal = document.getElementById('ue-birthday').value;
-    if (bdVal) {
-      updates.birthday = bdVal.replace(/-/g, '/');
+      const bdVal = document.getElementById('ue-birthday').value;
+      if (bdVal) {
+        updates.birthday = bdVal.replace(/-/g, '/');
+      }
     }
 
     // 後台編輯角色 → 同步設定 manualRole 底線
-    if (oldRole !== updates.role) {
+    if (this._canChangeUserRole() && oldRole !== updates.role) {
       updates.manualRole = updates.role;
+    }
+
+    if (Object.keys(updates).length === 0) {
+      this.showToast('甈?銝雲');
+      return;
     }
 
     let result = null;
@@ -252,7 +354,7 @@ Object.assign(App, {
     }
 
     // Trigger 5：身份變更通知
-    if (result && oldRole && oldRole !== updates.role) {
+    if (result && typeof updates.role === 'string' && oldRole && oldRole !== updates.role) {
       const roleName = ROLES[updates.role]?.label || updates.role;
       this._sendNotifFromTemplate('role_upgrade', {
         userName: name, roleName,
@@ -271,7 +373,7 @@ Object.assign(App, {
           statusTo: updates.role || '',
         },
       });
-      if (oldRole !== updates.role) {
+      if (typeof updates.role === 'string' && oldRole !== updates.role) {
         void ApiService.writeAuditLog({
           action: 'role_change',
           targetType: 'user',

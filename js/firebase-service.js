@@ -643,11 +643,13 @@ const FirebaseService = {
           snapshot.docs.forEach(doc => {
             const data = doc.data() || {};
             if (Object.prototype.hasOwnProperty.call(data, 'permissions')) {
-              nextRolePermissions[doc.id] = Array.isArray(data.permissions) ? data.permissions : [];
+              nextRolePermissions[doc.id] = sanitizePermissionCodeList(data.permissions);
             }
             nextRolePermissionMeta[doc.id] = {
               catalogVersion: data.catalogVersion || '',
-              defaultPermissions: Array.isArray(data.defaultPermissions) ? data.defaultPermissions : null,
+              defaultPermissions: Array.isArray(data.defaultPermissions)
+                ? sanitizePermissionCodeList(data.defaultPermissions)
+                : null,
             };
           });
 
@@ -1689,14 +1691,14 @@ const FirebaseService = {
       let hasChanges = false;
 
       rolesToSync.forEach(roleKey => {
-        const defaults = getDefaultRolePermissions(roleKey) || [];
+        const defaults = sanitizePermissionCodeList(getDefaultRolePermissions(roleKey) || []);
         const hasStoredPermissions = Object.prototype.hasOwnProperty.call(nextRolePermissions, roleKey);
         const currentPerms = hasStoredPermissions && Array.isArray(nextRolePermissions[roleKey])
-          ? nextRolePermissions[roleKey]
+          ? sanitizePermissionCodeList(nextRolePermissions[roleKey])
           : [];
         const currentMeta = nextRolePermissionMeta[roleKey] || {};
         const savedDefaults = Array.isArray(currentMeta.defaultPermissions)
-          ? currentMeta.defaultPermissions
+          ? sanitizePermissionCodeList(currentMeta.defaultPermissions)
           : null;
         if (currentMeta.catalogVersion === ROLE_PERMISSION_CATALOG_VERSION) return;
 

@@ -602,6 +602,50 @@ describe("/users/{userId}", () => {
       })
     );
   });
+
+  test("[SECURITY_HARDENED] user cannot self-edit role/manualRole/claims/isAdmin", async () => {
+    await assertFails(
+      updateDoc(doc(user(), "users", "uidUser"), {
+        role: "admin",
+        manualRole: "admin",
+        claims: { role: "admin" },
+        isAdmin: true,
+        updatedAt: serverTimestamp(),
+      })
+    );
+  });
+
+  test("[SECURITY_HARDENED] admin cannot raw update another user's profile or privilege fields", async () => {
+    await assertFails(
+      updateDoc(doc(admin(), "users", "uidUser"), {
+        phone: "0912345678",
+        updatedAt: serverTimestamp(),
+      })
+    );
+
+    await assertFails(
+      updateDoc(doc(admin(), "users", "uidUser"), {
+        role: "coach",
+        manualRole: "coach",
+        claims: { role: "coach" },
+        isAdmin: false,
+        updatedAt: serverTimestamp(),
+      })
+    );
+  });
+
+  test("[SECURITY_HARDENED] super_admin can directly update another user's profile and role", async () => {
+    await assertSucceeds(
+      updateDoc(doc(superAdmin(), "users", "uidUser"), {
+        phone: "0912345678",
+        role: "coach",
+        manualRole: "coach",
+        claims: { role: "coach" },
+        isAdmin: false,
+        updatedAt: serverTimestamp(),
+      })
+    );
+  });
 });
 
 describe("/events/{eventId}", () => {
@@ -636,6 +680,42 @@ describe("/events/{eventId}", () => {
         return deleteDoc(doc(db, "events", id));
       },
       allowAdminAndSuper
+    );
+  });
+
+  test("delete uses users.role when token claim is stale user after promotion", async () => {
+    await seedUserDoc("uidPromotedAdmin", {
+      displayName: "Promoted Admin",
+      role: "admin",
+    });
+    await seedDoc("events", "event_promoted_admin_delete", {
+      title: "Promoted Admin Delete",
+    });
+
+    const promotedAdminDb = testEnv
+      .authenticatedContext("uidPromotedAdmin", { role: "user" })
+      .firestore();
+
+    await assertSucceeds(
+      deleteDoc(doc(promotedAdminDb, "events", "event_promoted_admin_delete"))
+    );
+  });
+
+  test("delete rejects stale admin token after users.role was demoted", async () => {
+    await seedUserDoc("uidDemotedUser", {
+      displayName: "Demoted User",
+      role: "user",
+    });
+    await seedDoc("events", "event_demoted_user_delete", {
+      title: "Demoted User Delete",
+    });
+
+    const demotedUserDb = testEnv
+      .authenticatedContext("uidDemotedUser", { role: "admin" })
+      .firestore();
+
+    await assertFails(
+      deleteDoc(doc(demotedUserDb, "events", "event_demoted_user_delete"))
     );
   });
 });
