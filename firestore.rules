@@ -859,8 +859,10 @@ service cloud.firestore {
     }
     match /operationLogs/{logId} {
       allow read: if isAuth();
-      allow create: if isAuth();
-      allow update, delete: if false;
+      allow create: if isAuth() && isOpLogOwnerRequest();
+      allow update: if isAdmin()
+        || (isAuth() && isOpLogOwnerResource() && isOpLogOwnerRequest());
+      allow delete: if false;
     }
     match /errorLogs/{docId} {
       allow read: if isSuperAdmin();

@@ -10,6 +10,45 @@ Object.assign(App, {
 
   _msgCurrentFilter: 'sent',
   _scheduledMessageProcessing: false,
+  _recentInboxDeliveryCache: {},
+
+  _buildInboxDeliveryDedupeKey(category, title, body, targetUid, senderName, extra) {
+    const explicitKey = typeof extra?.dedupeKey === 'string' ? extra.dedupeKey.trim() : '';
+    if (explicitKey) return explicitKey;
+    const normalizedRoles = Array.isArray(extra?.targetRoles)
+      ? [...extra.targetRoles].map(v => String(v || '').trim()).filter(Boolean).sort().join(',')
+      : '';
+    return [
+      String(category || '').trim(),
+      String(title || '').trim(),
+      String(body || '').trim(),
+      String(targetUid || '').trim(),
+      String(extra?.targetTeamId || '').trim(),
+      normalizedRoles,
+      String(extra?.targetType || '').trim(),
+      String(senderName || '').trim(),
+    ].join('||');
+  },
+
+  _claimRecentInboxDeliveryKey(dedupeKey, nowMs) {
+    if (!dedupeKey) return true;
+    const windowMs = 5000;
+    const cache = this._recentInboxDeliveryCache || (this._recentInboxDeliveryCache = {});
+    Object.keys(cache).forEach(key => {
+      if (nowMs - cache[key] > windowMs) delete cache[key];
+    });
+    const lastSentAt = Number(cache[dedupeKey] || 0);
+    if (lastSentAt && (nowMs - lastSentAt) < windowMs) {
+      return false;
+    }
+    cache[dedupeKey] = nowMs;
+    return true;
+  },
+
+  _releaseRecentInboxDeliveryKey(dedupeKey) {
+    if (!dedupeKey || !this._recentInboxDeliveryCache) return;
+    delete this._recentInboxDeliveryCache[dedupeKey];
+  },
 
   renderMsgManage(filter) {
     const container = document.getElementById('msg-manage-list');
@@ -611,6 +650,7 @@ Object.assign(App, {
   _deliverMessageToInbox(title, body, category, categoryName, targetUid, senderName, extra) {
     const preview = body.length > 40 ? body.slice(0, 40) + '...' : body;
     const now = new Date();
+    const nowMs = now.getTime();
     const timeStr = `${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
     const currentUser = ApiService.getCurrentUser?.() || null;
     // Firestore rules validate fromUid against the authenticated Firebase uid.
@@ -620,8 +660,13 @@ Object.assign(App, {
     const targetRoles = extra?.targetRoles || null;
     const targetType = extra?.targetType
       || (directTargetUid ? 'individual' : (targetTeamId ? 'team' : ((Array.isArray(targetRoles) && targetRoles.length) ? 'role' : 'all')));
+    const dedupeKey = this._buildInboxDeliveryDedupeKey(category, title, body, directTargetUid, senderName, extra);
+    if (!this._claimRecentInboxDeliveryKey(dedupeKey, nowMs)) {
+      console.warn('[deliverMsg] skip recent duplicate:', dedupeKey);
+      return null;
+    }
     const newMsg = {
-      id: 'msg_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+      id: 'msg_' + nowMs + '_' + Math.random().toString(36).slice(2, 6),
       type: category,
       typeName: categoryName,
       title,
@@ -638,16 +683,25 @@ Object.assign(App, {
       targetTeamId,
       targetRoles,
       targetType,
+      dedupeKey,
       ...(extra || {}),
     };
     // 加入用戶收件箱
     const source = ModeManager.isDemo() ? DemoData.messages : FirebaseService._cache.messages;
     source.unshift(newMsg);
     if (!ModeManager.isDemo()) {
-      FirebaseService.addMessage(newMsg).catch(err => console.error('[deliverMsg]', err));
+      FirebaseService.addMessage(newMsg).catch(err => {
+        const index = source.indexOf(newMsg);
+        if (index !== -1) source.splice(index, 1);
+        this._releaseRecentInboxDeliveryKey(dedupeKey);
+        this.renderMessageList();
+        this.updateNotifBadge();
+        console.error('[deliverMsg]', err);
+      });
     }
     this.renderMessageList();
     this.updateNotifBadge();
+    return newMsg;
   },
 
 });

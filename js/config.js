@@ -206,7 +206,8 @@
 // 20260312g: 啟動 achievement Phase 2，抽離 stats helper 並收斂徽章與稱號重複計算
 // 20260312l: achievement Phase 6，移除假條件並收斂成就正式支援模板
 // 20260312o: 修正活動候補轉正取後殘留在候補名單，並補上候補顯示去殘影
-const CACHE_VERSION = '20260312o';
+// 20260313a: 修正 operationLogs 可重入寫入權限與站內信重送去重，避免 permission-denied / already-exists
+const CACHE_VERSION = '20260313a';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {

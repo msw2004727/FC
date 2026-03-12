@@ -1455,12 +1455,53 @@ Object.assign(FirebaseService, {
         message: 'Firebase auth required before creating messages.',
       };
     }
-    const docRef = await db.collection('messages').add({
+    const explicitId = typeof data?.id === 'string' ? data.id.trim() : '';
+    const fallbackDocId = (typeof data?._docId === 'string' && data._docId.trim())
+      ? data._docId.trim()
+      : db.collection('messages').doc().id;
+    const docId = explicitId || fallbackDocId;
+    const docRef = db.collection('messages').doc(docId);
+    const payload = {
       ..._stripDocId(data),
+      id: explicitId || docId,
       timestamp: firebase.firestore.FieldValue.serverTimestamp(),
       createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-    });
-    data._docId = docRef.id;
+    };
+
+    try {
+      const existing = await docRef.get();
+      if (existing.exists) {
+        data.id = payload.id;
+        data._docId = docId;
+        return data;
+      }
+    } catch (_) {}
+
+    try {
+      await docRef.set(payload);
+    } catch (err) {
+      const errorCode = String(err?.code || '').toLowerCase();
+      const errorMessage = String(err?.message || '').toLowerCase();
+      if (errorCode.includes('already-exists') || errorMessage.includes('document already exists')) {
+        data.id = payload.id;
+        data._docId = docId;
+        return data;
+      }
+      if (errorCode.includes('permission-denied')) {
+        try {
+          const existing = await docRef.get();
+          if (existing.exists) {
+            data.id = payload.id;
+            data._docId = docId;
+            return data;
+          }
+        } catch (_) {}
+      }
+      throw err;
+    }
+
+    data.id = payload.id;
+    data._docId = docId;
     return data;
   },
 

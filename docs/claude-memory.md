@@ -1,3 +1,9 @@
+### 2026-03-13 — 修正操作日誌重送權限與站內信重複建立
+- **問題**：部分管理或通知流程完成後，console 會出現 `[opLog] FirebaseError: Missing or insufficient permissions.` 與 `[deliverMsg] FirebaseError: Document already exists`；前者代表操作日誌（`operationLogs`）補寫失敗，後者代表站內信（`messages`）在短時間重送時撞到既有文件。
+- **原因**：`operationLogs` 前端已改成固定文件 ID + `set()` 的可重入寫法，但 `firestore.rules` 仍只允許 create、不允許同一筆 retry 走 update；站內信寫入則缺少 idempotent 文件 ID 與短時間去重，遇到重試、雙觸發或離線恢復時，無法穩定把同一封訊息視為同一筆寫入。
+- **修復**：更新 `js/api-service.js`，寫入操作日誌時補上 `actorUid`；更新 `firestore.rules`，允許同一位操作者對自己的操作日誌做可重入 update；更新 `js/firebase-crud.js`，讓 `addMessage()` 改用穩定文件 ID、先檢查既有文件並吞掉 `already-exists` 重送；更新 `js/modules/message-admin.js` 與 `js/modules/message-inbox.js`，加入站內信短時間去重與共用 `dedupeKey`；同步更新 `js/config.js`、`index.html` 版本號到 `20260313a`。
+- **教訓**：只把 client 寫入改成「可重入」不夠，`Firestore Rules` 也必須同步承認同型 retry；通知系統若同時有站內信與 LINE 推播，兩條路徑要共用同一個去重鍵，否則其中一條修好，另一條仍會重送。
+
 ### 2026-03-12 — 修正 admin 使用者刪除活動時被舊 token 權限卡住
 - **問題**：部分已經升成 `admin` 的使用者，在活動管理頁刪除活動時仍會一直失敗；前端畫面已顯示管理員權限，但 Firestore 寫入仍被當成一般用戶拒絕。
 - **原因**：`firestore.rules` 的 `authRole()` 先讀 `request.auth.token.role`，只有 token 沒帶 role 時才 fallback `users/{uid}.role`。當使用者剛被升權、token 還沒刷新時，就會出現 `users` 文件已是 `admin`、token 仍是 `user` 的不一致；Cloud Functions 的 `getCallerRoleWithFallback()` 也有同樣偏向舊 token 的問題。

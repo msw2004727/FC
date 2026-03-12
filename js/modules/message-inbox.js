@@ -795,14 +795,21 @@ Object.assign(App, {
 
   _deliverMessageWithLinePush(title, body, category, categoryName, targetUid, senderName, extra, options = {}) {
     if (!targetUid || typeof this._deliverMessageToInbox !== 'function') return;
-    this._deliverMessageToInbox(title, body, category, categoryName, targetUid, senderName, extra);
+    const deliveredMsg = this._deliverMessageToInbox(title, body, category, categoryName, targetUid, senderName, extra);
+    if (!deliveredMsg) return;
     if (typeof this._queueLinePush !== 'function') return;
+    const lineOptions = {
+      ...(options.lineOptions || {}),
+    };
+    if (deliveredMsg.dedupeKey && !lineOptions.dedupeKey) {
+      lineOptions.dedupeKey = deliveredMsg.dedupeKey;
+    }
     this._queueLinePush(
       targetUid,
       options.lineCategory || category || 'system',
       options.lineTitle || title,
       options.lineBody || body,
-      options.lineOptions || {}
+      lineOptions
     );
   },
 
