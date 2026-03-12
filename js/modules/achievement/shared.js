@@ -1,16 +1,48 @@
 /* ================================================
-   SportHub — Achievement Shared Helpers
-   先抽純 helper，供舊 achievement.js 作 facade
+   SportHub Achievement Shared Helpers
+   Pure helpers shared by the facade and domain
+   submodules during the folder refactor.
    ================================================ */
 
 Object.assign(App, {
 
   _buildAchievementShared() {
     const categoryOrder = { gold: 0, silver: 1, bronze: 2 };
+    const categoryColor = {
+      gold: '#d4a017',
+      silver: '#9ca3af',
+      bronze: '#b87333',
+    };
+    const categoryBg = {
+      gold: 'rgba(212,160,23,.12)',
+      silver: 'rgba(156,163,175,.12)',
+      bronze: 'rgba(184,115,51,.12)',
+    };
+    const categoryLabel = {
+      gold: '金',
+      silver: '銀',
+      bronze: '銅',
+    };
 
     return {
       sortByCat(items) {
         return [...items].sort((a, b) => (categoryOrder[a.category] ?? 9) - (categoryOrder[b.category] ?? 9));
+      },
+
+      getCategoryOrder() {
+        return { ...categoryOrder };
+      },
+
+      getCategoryColor(category) {
+        return categoryColor[category] || categoryColor.bronze;
+      },
+
+      getCategoryBg(category) {
+        return categoryBg[category] || categoryBg.bronze;
+      },
+
+      getCategoryLabel(category) {
+        return categoryLabel[category] || categoryLabel.bronze;
       },
 
       getThreshold(achievement) {
@@ -20,7 +52,7 @@ Object.assign(App, {
       },
 
       generateConditionDesc(condition, desc) {
-        if (!condition) return desc || '（未設定條件）';
+        if (!condition) return desc || '未設定成就條件';
 
         const registry = App._getAchievementRegistry?.();
         const actionCfg = registry?.findActionConfig?.(condition.action);
@@ -46,9 +78,9 @@ Object.assign(App, {
           : '';
 
         if (timeText) {
-          return `${timeText}${actionLabel}${filterText} ${threshold}${unit ? ' ' + unit : ''}`.trim();
+          return `${timeText}${actionLabel}${filterText} ${threshold}${unit ? ` ${unit}` : ''}`.trim();
         }
-        return `${actionLabel}${filterText} ${threshold}${unit ? ' ' + unit : ''}`.trim();
+        return `${actionLabel}${filterText} ${threshold}${unit ? ` ${unit}` : ''}`.trim();
       },
     };
   },

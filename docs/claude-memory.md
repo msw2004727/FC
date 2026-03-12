@@ -1,3 +1,9 @@
+### 2026-03-12 — 啟動成就系統 Phase 2 共用計算收斂
+- **問題**：徽章數、已獲得徽章與稱號可選清單分散在個人頁、名片、排行榜、個人儀表板與成就頁各自重算，未來只要改一個條件公式，就很容易出現頁面間統計不一致。
+- **原因**：Phase 1 雖然先建了 `achievement` 資料夾骨架，但 Phase 2 之前還沒有把衍生統計抽成單一 helper，消費端仍直接各自讀 `achievements / badges` 手動判斷完成條件。
+- **修復**：新增 `js/modules/achievement/stats.js`，集中處理 `badgeCount`、`earnedBadgeViewModels`、`titleOptions` 等共用計算；`profile-core.js`、`profile-card.js`、`profile-data.js`、`personal-dashboard.js`、`leaderboard.js`、`achievement.js` 改吃同一套 helper；同步更新 `docs/architecture.md` 與快取版本 `20260312g`。
+- **教訓**：資料夾化不能只搬檔案，還要優先收斂被多處重算的衍生資料；否則 facade 在、資料夾也在，但實際邏輯仍是多頭維護。
+
 ### 2026-03-12 — 啟動成就系統 Phase 1 資料夾骨架
 - **問題**：achievement 系統已完成 `Phase 0` 盤點，但若不先建立領域資料夾與 facade，相同的 helper、條件設定與 evaluator 仍會繼續堆在 `js/modules/achievement.js` 內，後續無法安全進入模組化拆分。
 - **原因**：舊版 achievement 模組同時混有條件描述、條件評估、前台 render、後台 CRUD 與 badge 圖片上傳，而外部頁面與流程又直接依賴 `App.renderAchievements()`、`App.renderAdminAchievements()`、`App._evaluateAchievements()` 等舊入口。

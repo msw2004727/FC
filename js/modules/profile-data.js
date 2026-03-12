@@ -101,11 +101,7 @@ Object.assign(App, {
     }
     // 徽章數量：從成就資料動態計算
     if (el('profile-stat-badges')) {
-      const _achs = ApiService.getAchievements().filter(a => a.status !== 'archived');
-      const _badgeCount = _achs.filter(a => {
-        const t = a.condition && a.condition.threshold != null ? a.condition.threshold : (a.target != null ? a.target : 1);
-        return a.current >= t;
-      }).length;
+      const _badgeCount = this._getAchievementStats?.()?.getBadgeCount?.(ApiService.getAchievements()) || 0;
       el('profile-stat-badges').textContent = _badgeCount;
     }
 
@@ -393,9 +389,7 @@ Object.assign(App, {
   async _checkTitleSuggestion() {
     const user = ApiService.getCurrentUser();
     if (!user) return;
-    const achs = ApiService.getAchievements().filter(a => a.status !== 'archived');
-    const getT = a => (a.condition && a.condition.threshold != null) ? a.condition.threshold : (a.target != null ? a.target : 1);
-    const earned = achs.filter(a => a.current >= getT(a));
+    const earned = this._getAchievementStats?.()?.getTitleOptions?.(ApiService.getAchievements())?.earned || [];
     if (earned.length === 0) return;
     const tpKey = 'sporthub_title_prompted_' + ModeManager.getMode();
     const lastCount = parseInt(localStorage.getItem(tpKey) || '0');
@@ -423,10 +417,10 @@ Object.assign(App, {
     if (nameInput) nameInput.value = lineName || '-';
 
     // 大成就稱號選項：從已完成的成就中取
-    const achievements = ApiService.getAchievements().filter(a => a.status !== 'archived');
-    const _getThreshold = a => (a.condition && a.condition.threshold != null) ? a.condition.threshold : (a.target != null ? a.target : 1);
-    const bigTitles = achievements.filter(a => a.category === 'gold' && a.current >= _getThreshold(a)).map(a => a.name);
-    const normalTitles = achievements.filter(a => a.category !== 'gold' && a.current >= _getThreshold(a)).map(a => a.name);
+    const titleOptions = this._getAchievementStats?.()?.getTitleOptions?.(ApiService.getAchievements())
+      || { bigTitles: [], normalTitles: [] };
+    const bigTitles = titleOptions.bigTitles;
+    const normalTitles = titleOptions.normalTitles;
 
     const bigSelect = document.getElementById('title-big');
     const normalSelect = document.getElementById('title-normal');

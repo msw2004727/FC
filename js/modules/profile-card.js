@@ -34,14 +34,11 @@ Object.assign(App, {
     const avatarHtml = this._buildAvatarImageMarkup(pic, displayName, '', 'uc-avatar-circle');
     const teamHtml = user ? this._getUserTeamHtml(user) : '無';
 
-    const badges = ApiService.getBadges();
-    const achievements = ApiService.getAchievements().filter(a => a.status !== 'archived');
-    const earned = badges.filter(b => {
-      const ach = achievements.find(a => a.id === b.achId);
-      const threshold = ach && ach.condition && ach.condition.threshold != null ? ach.condition.threshold : (ach && ach.target != null ? ach.target : 1);
-      return ach && ach.current >= threshold;
-    });
-    const catColors = { gold: '#d4a017', silver: '#9ca3af', bronze: '#b87333' };
+    const achievementStats = this._getAchievementStats?.();
+    const earned = achievementStats?.getEarnedBadgeViewModels?.(
+      ApiService.getAchievements(),
+      ApiService.getBadges()
+    ) || [];
 
     container.innerHTML = `
       <div class="uc-header">
@@ -67,11 +64,11 @@ Object.assign(App, {
       </div>
       <div class="info-card">
         <div class="info-title">已獲得徽章</div>
-        ${earned.length ? `<div class="uc-badge-list">${earned.map(b => {
-          const color = catColors[b.category] || catColors.bronze;
+        ${earned.length ? `<div class="uc-badge-list">${earned.map(item => {
+          const badge = item.badge;
           return `<div class="uc-badge-item">
-            <div class="badge-img-placeholder">${b.image ? `<img src="${b.image}">` : '<span style="font-size:1.2rem">🏅</span>'}</div>
-            <span class="uc-badge-name">${escapeHTML(b.name)}</span>
+            <div class="badge-img-placeholder">${badge.image ? `<img src="${badge.image}">` : '<span style="font-size:1.2rem">🏅</span>'}</div>
+            <span class="uc-badge-name">${escapeHTML(badge.name)}</span>
           </div>`;
         }).join('')}</div>` : '<div style="font-size:.82rem;color:var(--text-muted)">尚未獲得徽章</div>'}
       </div>

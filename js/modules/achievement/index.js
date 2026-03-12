@@ -1,6 +1,7 @@
 /* ================================================
-   SportHub — Achievement Module Facade Registry
-   建立 achievement 領域模組容器，供舊入口逐步轉接
+   SportHub Achievement Module Registry
+   Keeps the legacy facade stable while internals
+   move into js/modules/achievement/.
    ================================================ */
 
 Object.assign(App, {
@@ -10,6 +11,7 @@ Object.assign(App, {
     this._achievementModule = {
       registry: null,
       shared: null,
+      stats: null,
       evaluator: null,
     };
     return this._achievementModule;
@@ -32,6 +34,10 @@ Object.assign(App, {
 
   _getAchievementShared() {
     return this._getAchievementPart('shared');
+  },
+
+  _getAchievementStats() {
+    return this._getAchievementPart('stats');
   },
 
   _getAchievementEvaluator() {

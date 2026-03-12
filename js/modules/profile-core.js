@@ -251,14 +251,11 @@ Object.assign(App, {
     const user = isSelf ? currentUser : this._findUserByName(name);
     const role = user ? user.role : ApiService.getUserRole(name);
     const roleInfo = ROLES[role] || ROLES.user;
-    const badges = ApiService.getBadges();
-    const achievements = ApiService.getAchievements().filter(a => a.status !== 'archived');
-    const earned = badges.filter(b => {
-      const ach = achievements.find(a => a.id === b.achId);
-      const threshold = ach && ach.condition && ach.condition.threshold != null ? ach.condition.threshold : (ach && ach.target != null ? ach.target : 1);
-      return ach && ach.current >= threshold;
-    });
-    const catColors = { gold: '#d4a017', silver: '#9ca3af', bronze: '#b87333' };
+    const achievementStats = this._getAchievementStats?.();
+    const earned = achievementStats?.getEarnedBadgeViewModels?.(
+      ApiService.getAchievements(),
+      ApiService.getBadges()
+    ) || [];
 
     const totalExp = user ? (user.exp || 0) : 0;
     const { level, progress, needed } = this._calcLevelFromExp(totalExp);
@@ -310,11 +307,12 @@ Object.assign(App, {
       </div>
       <div class="info-card">
         <div class="info-title">已獲得徽章</div>
-        ${earned.length ? `<div class="uc-badge-list">${earned.map(b => {
-          const color = catColors[b.category] || catColors.bronze;
+        ${earned.length ? `<div class="uc-badge-list">${earned.map(item => {
+          const color = item.color;
+          const badge = item.badge;
           return `<div class="uc-badge-item">
-            <div class="badge-img-placeholder" style="border-color:${color}">${b.image ? `<img src="${b.image}">` : ''}</div>
-            <span class="uc-badge-name">${b.name}</span>
+            <div class="badge-img-placeholder" style="border-color:${color}">${badge.image ? `<img src="${badge.image}">` : ''}</div>
+            <span class="uc-badge-name">${escapeHTML(badge.name)}</span>
           </div>`;
         }).join('')}</div>` : '<div style="font-size:.82rem;color:var(--text-muted)">尚未獲得徽章</div>'}
       </div>

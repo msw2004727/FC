@@ -68,6 +68,7 @@ const ScriptLoader = {
       'js/modules/achievement/index.js',
       'js/modules/achievement/registry.js',
       'js/modules/achievement/shared.js',
+      'js/modules/achievement/stats.js',
       'js/modules/achievement/evaluator.js',
       'js/modules/achievement.js',
     ],

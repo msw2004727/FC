@@ -25,13 +25,7 @@ Object.assign(App, {
     const totalGames = user.totalGames || records.length;
     const completedGames = user.completedGames || records.filter(r => r.status === 'completed').length;
     const attendanceRate = user.attendanceRate || (totalGames > 0 ? Math.round(completedGames / totalGames * 100) : 0);
-    const badges = ApiService.getBadges?.() || [];
-    const achievements = (ApiService.getAchievements?.() || []).filter(a => a.status !== 'archived');
-    const earnedBadges = badges.filter(b => {
-      const ach = achievements.find(a => a.id === b.achId);
-      const threshold = ach?.condition?.threshold ?? ach?.target ?? 1;
-      return ach && ach.current >= threshold;
-    });
+    const badgeCount = this._getAchievementStats?.()?.getBadgeCount?.(ApiService.getAchievements?.() || []) || 0;
     const totalExp = user.exp || 0;
     const calcLevel = App._calcLevelFromExp ? App._calcLevelFromExp(totalExp) : { level: 0 };
     const level = calcLevel.level || 0;
@@ -44,7 +38,7 @@ Object.assign(App, {
         <div class="stat-item"><span class="stat-num">${attendanceRate}%</span><span class="stat-label">出席率</span></div>
       </div>
       <div class="profile-stats" style="grid-template-columns:repeat(3,1fr);margin-bottom:.5rem">
-        <div class="stat-item"><span class="stat-num">${earnedBadges.length}</span><span class="stat-label">徽章</span></div>
+        <div class="stat-item"><span class="stat-num">${badgeCount}</span><span class="stat-label">徽章</span></div>
         <div class="stat-item"><span class="stat-num">Lv.${level}</span><span class="stat-label">等級</span></div>
         <div class="stat-item"><span class="stat-num">${totalExp.toLocaleString()}</span><span class="stat-label">總 EXP</span></div>
       </div>`;

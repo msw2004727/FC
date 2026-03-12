@@ -78,30 +78,38 @@ Object.assign(App, {
     const container = document.getElementById('achievement-grid');
     if (!container) return;
     this._evaluateAchievements();
-    const achievements = ApiService.getAchievements().filter(a => a.status !== 'archived');
+    const stats = this._getAchievementStats?.();
+    const shared = this._getAchievementShared?.();
+    const allAchievements = ApiService.getAchievements();
     const badges = ApiService.getBadges();
-    const sorted = this._sortByCat(achievements);
-    const pending = sorted.filter(a => a.current < this._getAchThreshold(a));
-    const completed = sorted.filter(a => a.current >= this._getAchThreshold(a));
+    const activeAchievements = stats?.getActiveAchievements?.(allAchievements)
+      || allAchievements.filter(a => a.status !== 'archived');
+    const sorted = this._sortByCat(activeAchievements);
+    const pending = stats?.getPendingAchievements?.(sorted)
+      || sorted.filter(a => a.current < this._getAchThreshold(a));
+    const completed = stats?.getCompletedAchievements?.(sorted)
+      || sorted.filter(a => a.current >= this._getAchThreshold(a));
 
     // 已完成的徽章（用於頂部展示區）
-    const earnedBadges = completed.map(a => {
-      const badge = badges.find(b => b.id === a.badgeId);
-      if (!badge) return null;
-      const color = this._catColors[a.category] || this._catColors.bronze;
-      return { badge, color, achName: a.name };
-    }).filter(Boolean);
+    const earnedBadges = stats?.getEarnedBadgeViewModels?.(sorted, badges)
+      || completed.map(a => {
+        const badge = badges.find(b => b.id === a.badgeId);
+        if (!badge) return null;
+        const color = this._catColors[a.category] || this._catColors.bronze;
+        return { badge, color, achievement: a, achName: a.name };
+      }).filter(Boolean);
 
     const renderCard = a => {
       const threshold = this._getAchThreshold(a);
-      const done = a.current >= threshold;
+      const done = stats?.isCompleted?.(a) ?? (a.current >= threshold);
       const pct = threshold > 0 ? Math.min(100, Math.round(a.current / threshold * 100)) : 0;
       const badge = badges.find(b => b.id === a.badgeId);
       const badgeImg = badge && badge.image
         ? `<img src="${badge.image}" alt="${escapeHTML(badge.name)}" loading="lazy">`
         : `<span style="font-size:1.2rem;color:var(--text-muted)">🏅</span>`;
       const desc = this._generateConditionDesc(a.condition, a.desc);
-      const catColor = this._catColors[a.category] || this._catColors.bronze;
+      const catColor = shared?.getCategoryColor?.(a.category) || this._catColors[a.category] || this._catColors.bronze;
+      const catLabel = shared?.getCategoryLabel?.(a.category) || this._catLabels[a.category] || '銅';
 
       return `
       <div class="ach-card ${done ? 'ach-card-done' : ''}" style="border-color:${catColor}">
@@ -111,7 +119,7 @@ Object.assign(App, {
         </div>
         <div class="ach-card-body">
           <div class="ach-card-top">
-            <span class="ach-cat-chip ach-cat-${a.category}">${this._catLabels[a.category] || '銅'}</span>
+            <span class="ach-cat-chip ach-cat-${a.category}">${catLabel}</span>
             <span class="ach-card-name">${escapeHTML(a.name)}</span>
           </div>
           <div class="ach-card-desc">${escapeHTML(desc)}</div>
@@ -190,15 +198,17 @@ Object.assign(App, {
     const container = document.getElementById('admin-ach-list');
     if (!container) return;
     this._evaluateAchievements();
+    const stats = this._getAchievementStats?.();
+    const shared = this._getAchievementShared?.();
     const items = this._sortByCat(ApiService.getAchievements());
     const badges = ApiService.getBadges();
 
     container.innerHTML = items.map((a, i) => {
       const isArchived = a.status === 'archived';
-      const color = this._catColors[a.category] || this._catColors.bronze;
+      const color = shared?.getCategoryColor?.(a.category) || this._catColors[a.category] || this._catColors.bronze;
       const threshold = this._getAchThreshold(a);
       const pct = threshold > 0 ? Math.min(100, Math.round(a.current / threshold * 100)) : 0;
-      const completed = a.current >= threshold;
+      const completed = stats?.isCompleted?.(a) ?? (a.current >= threshold);
       const badge = badges.find(b => b.id === a.badgeId);
       const badgeImg = badge && badge.image
         ? `<img src="${badge.image}" style="width:100%;height:100%;object-fit:cover;border-radius:4px" loading="lazy">`
@@ -209,7 +219,7 @@ Object.assign(App, {
         <div class="badge-img-placeholder small" style="border-color:${color};flex-shrink:0">${badgeImg}</div>
         <div class="admin-ach-info" style="flex:1;min-width:0">
           <div style="display:flex;align-items:center;gap:.3rem;flex-wrap:wrap">
-            <span class="ach-cat-tag" style="background:${color};font-size:.6rem;padding:.1rem .3rem">${this._catLabels[a.category]}</span>
+            <span class="ach-cat-tag" style="background:${color};font-size:.6rem;padding:.1rem .3rem">${shared?.getCategoryLabel?.(a.category) || this._catLabels[a.category]}</span>
             <span class="admin-ach-name">${escapeHTML(a.name)}</span>
             ${isArchived ? '<span style="font-size:.6rem;color:var(--danger);font-weight:600">已下架</span>' : ''}
             ${!isArchived && completed ? '<span style="font-size:.6rem;color:var(--success);font-weight:600">已完成</span>' : ''}
