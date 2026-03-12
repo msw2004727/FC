@@ -33,7 +33,7 @@ flowchart TD
         THEME["core/theme.js\n深色 / 淺色主題"]
         MODE["core/mode.js\nDemo ↔ Prod 切換"]
 
-        subgraph MODS["modules/*.js（40 個功能模組）"]
+        subgraph MODS["modules/*.js / modules/*/*.js（44 個功能模組）"]
             EVT["event-*.js\n活動（列表/詳情/建立/管理）"]
             TEAM["team*.js\n球隊（列表/詳情/表單）"]
             TOUR["tournament-*.js\n錦標賽"]
@@ -41,7 +41,7 @@ flowchart TD
             MSG["message-*.js\n訊息"]
             ADM["user-admin-*.js\n用戶後台 / 補正管理"]
             AD["ad-manage-*.js\n廣告管理"]
-            UTIL["scan / shop / leaderboard\nachievement / announcement\nfavorites / auto-exp / banner\nrole / site-theme / game-manage / image-upload\npopup-ad / personal-dashboard\nattendance-notify / dashboard\ndashboard-participant-query\ndashboard-participant-share"]
+            UTIL["scan / shop / leaderboard\nachievement facade / achievement/*\nannouncement / favorites / auto-exp / banner\nrole / site-theme / game-manage / image-upload\npopup-ad / personal-dashboard\nattendance-notify / dashboard\ndashboard-participant-query\ndashboard-participant-share"]
         end
     end
 
@@ -118,7 +118,11 @@ flowchart TD
 | `modules/attendance-notify.js` | 被掃方即時通知（Production: Firestore onSnapshot / Demo: 直接觸發） |
 | `modules/shop.js` | 二手運動商品市集（刊登、購買、管理） |
 | `modules/leaderboard.js` | 用戶 EXP 排行榜 |
-| `modules/achievement.js` | 成就 / 徽章系統管理（條件設定、手動頒發） |
+| `modules/achievement.js` | 成就領域 facade；保留舊入口方法名稱，逐步轉接到 `modules/achievement/` 子模組 |
+| `modules/achievement/index.js` | 成就領域模組容器；註冊 registry / shared / evaluator 的相容層入口 |
+| `modules/achievement/registry.js` | 成就條件 registry；過渡期封裝 `ACHIEVEMENT_CONDITIONS`，供後台欄位與 evaluator 共用 |
+| `modules/achievement/shared.js` | 成就共用 helper；包含 threshold、條件描述與分類排序等純函式 |
+| `modules/achievement/evaluator.js` | 成就評估器；先承接舊版 `_evaluateAchievements()` 的邏輯，供 facade 轉呼叫 |
 | `modules/announcement.js` | 系統公告管理與顯示 |
 | `modules/favorites.js` | 用戶收藏活動 / 球隊管理 |
 | `modules/auto-exp.js` | 自動 EXP 規則設定（依行為觸發） |

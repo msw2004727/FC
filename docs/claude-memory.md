@@ -1,3 +1,9 @@
+### 2026-03-12 — 啟動成就系統 Phase 1 資料夾骨架
+- **問題**：achievement 系統已完成 `Phase 0` 盤點，但若不先建立領域資料夾與 facade，相同的 helper、條件設定與 evaluator 仍會繼續堆在 `js/modules/achievement.js` 內，後續無法安全進入模組化拆分。
+- **原因**：舊版 achievement 模組同時混有條件描述、條件評估、前台 render、後台 CRUD 與 badge 圖片上傳，而外部頁面與流程又直接依賴 `App.renderAchievements()`、`App.renderAdminAchievements()`、`App._evaluateAchievements()` 等舊入口。
+- **修復**：新增 `js/modules/achievement/index.js`、`registry.js`、`shared.js`、`evaluator.js` 建立第一版 achievement 領域骨架；更新 `js/modules/achievement.js` 保留舊入口方法名稱，但將 `_generateConditionDesc`、`_getAchThreshold`、`_sortByCat`、`_evaluateAchievements` 轉為 facade 轉呼叫；同步更新 `js/core/script-loader.js`、`docs/architecture.md`、`js/config.js`、`index.html` 快取版本到 `20260312f`。
+- **教訓**：拆舊系統時，第一步應先把「對外入口穩住」，再把內部責任抽成子模組；若一開始就直接改外部方法名稱，路由、按鈕與業務流程會一起承受回歸風險。
+
 ### 2026-03-12 — 完成成就系統 Phase 0 盤點
 - **問題**：achievement 資料夾化重構雖然已有分期計畫，但若沒有先盤點真實入口、外部呼叫點、責任分布與高風險耦合點，進入 `Phase 1` 時仍容易漏拆或誤拆。
 - **原因**：目前成就 / 徽章 / 稱號邏輯不只存在於 `js/modules/achievement.js`，還分散在 profile、leaderboard、dashboard、signup、message、navigation、config、firebase-service 與 CRUD 層，表面上像單一功能，實際上是多模組耦合。

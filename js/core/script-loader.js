@@ -62,6 +62,15 @@ const ScriptLoader = {
   // ════════════════════════════════
 
   _groups: {
+    achievement: [
+      'js/modules/image-cropper.js',
+      'js/modules/image-upload.js',
+      'js/modules/achievement/index.js',
+      'js/modules/achievement/registry.js',
+      'js/modules/achievement/shared.js',
+      'js/modules/achievement/evaluator.js',
+      'js/modules/achievement.js',
+    ],
     activity: [
       'js/modules/event-list.js',
       'js/modules/event-detail.js',
@@ -127,6 +136,8 @@ const ScriptLoader = {
 
   // 頁面 ID → 需要的群組
   _pageGroups: {
+    'page-achievements':       ['achievement'],
+    'page-admin-achievements': ['achievement'],
     'page-activities':         ['activity'],
     'page-activity-detail':    ['activity'],
     'page-my-activities':      ['activity'],

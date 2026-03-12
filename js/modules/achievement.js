@@ -1,6 +1,6 @@
 /* ================================================
-   SportHub — Achievement & Badge (Render + Admin CRUD)
-   成就條件式系統 — 條件下拉組合 + 徽章圖片上傳
+   SportHub — Achievement Facade (Render + Admin CRUD)
+   舊入口保留，內部逐步轉接到 js/modules/achievement/*
    ================================================ */
 
 Object.assign(App, {
@@ -11,12 +11,16 @@ Object.assign(App, {
   _catLabels: { gold: '金', silver: '銀', bronze: '銅' },
 
   _sortByCat(items) {
+    const shared = this._getAchievementShared?.();
+    if (shared?.sortByCat) return shared.sortByCat(items);
     return [...items].sort((a, b) => (this._catOrder[a.category] ?? 9) - (this._catOrder[b.category] ?? 9));
   },
 
   // ── 條件描述自動產生 ──
 
   _generateConditionDesc(condition, desc) {
+    const shared = this._getAchievementShared?.();
+    if (shared?.generateConditionDesc) return shared.generateConditionDesc(condition, desc);
     if (!condition) return desc || '（未設定條件）';
     const ac = ACHIEVEMENT_CONDITIONS;
     const actionCfg = ac.actions.find(a => a.key === condition.action);
@@ -46,6 +50,8 @@ Object.assign(App, {
   },
 
   _getAchThreshold(ach) {
+    const shared = this._getAchievementShared?.();
+    if (shared?.getThreshold) return shared.getThreshold(ach);
     if (ach.condition && ach.condition.threshold != null) return ach.condition.threshold;
     if (ach.target != null) return ach.target;
     return 1;
@@ -58,98 +64,10 @@ Object.assign(App, {
 
   // eventType: 'play'|'camp'|'friendly'|'watch' 時只評估對應條件，
   //            undefined/null 時全量評估（用於頁面渲染）
-  _evaluateAchievements(eventType) {
-    const _typeToAction = { play: 'attend_play', friendly: 'attend_friendly', camp: 'attend_camp', watch: 'attend_watch' };
-    let achievements = ApiService.getAchievements().filter(a => a.status !== 'archived' && a.condition);
-    if (!achievements.length) return;
-
-    // 有 eventType 時，只評估與該類型相關的成就
-    if (eventType) {
-      const directAction = _typeToAction[eventType];
-      achievements = achievements.filter(a => {
-        const { action, filter } = a.condition;
-        if (directAction && action === directAction) return true;
-        if ((action === 'register_event' || action === 'complete_event') &&
-            (!filter || filter === 'all' || filter === eventType)) return true;
-        return false;
-      });
-    }
-    if (!achievements.length) return;
-
-    const curUser = ApiService.getCurrentUser();
-    const curUid = curUser?.uid;
-    // 用戶尚未載入時不評估，避免 uid 為 undefined 導致誤匹配
-    if (!curUid) return;
-    const allRecords = ApiService.getActivityRecords();
-    const events = ApiService.getEvents();
-    const evMap = {};
-    events.forEach(e => { evMap[e.id] = e; });
-    // 只計算當前用戶已確認報名（非候補、非取消）的紀錄
-    const activeRecords = allRecords.filter(r => r.status === 'registered' && r.uid === curUid);
-
-    for (const ach of achievements) {
-      const { action, threshold, filter } = ach.condition;
-      const t = threshold != null ? threshold : 1;
-      let current = 0;
-
-      if (action === 'attend_play' || action === 'attend_friendly' ||
-          action === 'attend_camp' || action === 'attend_watch') {
-        const typeMap = { attend_play: 'play', attend_friendly: 'friendly', attend_camp: 'camp', attend_watch: 'watch' };
-        const targetType = typeMap[action];
-        // 優先用記錄自帶的 eventType（新格式），fallback 查 evMap（舊記錄）
-        current = activeRecords.filter(r => {
-          const rType = r.eventType || evMap[r.eventId]?.type;
-          return rType === targetType;
-        }).length;
-      } else if (action === 'register_event') {
-        current = activeRecords.filter(r => {
-          if (filter && filter !== 'all') {
-            const rType = r.eventType || evMap[r.eventId]?.type;
-            return rType === filter;
-          }
-          return true;
-        }).length;
-      } else if (action === 'complete_event') {
-        // 活動已結束 + 有正取報名紀錄
-        current = activeRecords.filter(r => {
-          const ev = evMap[r.eventId];
-          if (!ev || ev.status !== 'ended') return false;
-          if (filter && filter !== 'all') {
-            const rType = r.eventType || ev.type;
-            return rType === filter;
-          }
-          return true;
-        }).length;
-      } else if (action === 'join_team') {
-        // 計算當前用戶關聯的球隊數：隊長 + 領隊 + 教練 + 一般成員（用 Set 去重）
-        const jUser = ApiService.getCurrentUser();
-        const jUid = jUser?.uid || jUser?._docId || '';
-        const jName = jUser?.displayName || jUser?.name || '';
-        if (jUid || jName) {
-          const teamSet = new Set();
-          ApiService.getTeams().forEach(t => {
-            const isCaptain = jUid && t.captainUid === jUid;
-            const isLeader  = jUid && t.leaderUid  === jUid;
-            const isCoach   = jName && (t.coaches || []).includes(jName);
-            if (isCaptain || isLeader || isCoach) teamSet.add(t.id);
-          });
-          if (jUser?.teamId) teamSet.add(jUser.teamId);
-          current = teamSet.size;
-        }
-      }
-      // reach_level / reach_exp / attendance_rate 等需不同資料來源，暫不自動評估
-
-      if (current !== ach.current) {
-        const updates = { current };
-        if (current >= t && !ach.completedAt) {
-          const d = new Date();
-          updates.completedAt = `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}`;
-        } else if (current < t) {
-          updates.completedAt = null;
-        }
-        ApiService.updateAchievement(ach.id, updates);
-      }
-    }
+  _evaluateAchievements(eventType, options = {}) {
+    const evaluator = this._getAchievementEvaluator?.();
+    if (!evaluator?.evaluateAchievements) return;
+    evaluator.evaluateAchievements({ eventType, ...options });
   },
 
   // ══════════════════════════════════
@@ -250,7 +168,7 @@ Object.assign(App, {
   // ══════════════════════════════════
 
   _populateAchConditionSelects() {
-    const ac = ACHIEVEMENT_CONDITIONS;
+    const ac = this._getAchievementRegistry?.()?.getConditionConfig?.() || ACHIEVEMENT_CONDITIONS;
     const trSel = document.getElementById('ach-cond-timerange');
     const actSel = document.getElementById('ach-cond-action');
     const filtSel = document.getElementById('ach-cond-filter');
@@ -358,7 +276,8 @@ Object.assign(App, {
     const action = document.getElementById('ach-cond-action').value;
     const streakRow = document.getElementById('ach-cond-streakdays-row');
     const filterRow = document.getElementById('ach-cond-filter-row');
-    const actionCfg = ACHIEVEMENT_CONDITIONS.actions.find(a => a.key === action);
+    const actionCfg = this._getAchievementRegistry?.()?.findActionConfig?.(action)
+      || ACHIEVEMENT_CONDITIONS.actions.find(a => a.key === action);
 
     if (streakRow) streakRow.style.display = timeRange === 'streak' ? '' : 'none';
     if (filterRow) filterRow.style.display = (actionCfg && actionCfg.needsFilter) ? '' : 'none';

@@ -202,7 +202,8 @@
 // 20260312b: 修正放鴿子補正的用戶搜尋結果在名稱缺失時重複顯示 UID
 // 20260312c: 修正放鴿子補正寫入被 Firestore 規則拒絕，超級管理員可直接寫入補正
 // 20260312e: 修正權限管理「儲存成預設」隔夜失效，避免 catalogVersion 補遷移覆蓋手動權限
-const CACHE_VERSION = '20260312e';
+// 20260312f: 啟動 achievement Phase 1，建立 js/modules/achievement/ 骨架與 facade 載入鏈
+const CACHE_VERSION = '20260312f';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {
