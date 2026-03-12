@@ -55,11 +55,17 @@ Object.assign(FirebaseService, {
   // ════════════════════════════════
 
   async saveRolePermissions(roleKey, permissions) {
-    await db.collection('rolePermissions').doc(roleKey).set({ permissions }, { merge: true });
+    await db.collection('rolePermissions').doc(roleKey).set({
+      permissions,
+      catalogVersion: ROLE_PERMISSION_CATALOG_VERSION,
+    }, { merge: true });
   },
 
   async saveRolePermissionDefaults(roleKey, defaultPermissions) {
-    await db.collection('rolePermissions').doc(roleKey).set({ defaultPermissions }, { merge: true });
+    await db.collection('rolePermissions').doc(roleKey).set({
+      defaultPermissions,
+      catalogVersion: ROLE_PERMISSION_CATALOG_VERSION,
+    }, { merge: true });
   },
 
   async deleteRolePermissions(roleKey) {
@@ -97,6 +103,7 @@ Object.assign(FirebaseService, {
     batch.set(db.collection('rolePermissions').doc(data.key), {
       permissions,
       defaultPermissions,
+      catalogVersion: ROLE_PERMISSION_CATALOG_VERSION,
     }, { merge: true });
     await batch.commit();
     data._docId = data.key;

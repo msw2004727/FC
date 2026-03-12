@@ -201,7 +201,8 @@
 // 20260312a: 新增用戶補正管理頁，支援放鴿子補正與歷史入隊補正子權限，放鴿子統計改為只看未簽到
 // 20260312b: 修正放鴿子補正的用戶搜尋結果在名稱缺失時重複顯示 UID
 // 20260312c: 修正放鴿子補正寫入被 Firestore 規則拒絕，超級管理員可直接寫入補正
-const CACHE_VERSION = '20260312d';
+// 20260312e: 修正權限管理「儲存成預設」隔夜失效，避免 catalogVersion 補遷移覆蓋手動權限
+const CACHE_VERSION = '20260312e';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {

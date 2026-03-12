@@ -322,7 +322,10 @@ Object.assign(App, {
       return;
     }
     const source = this._getRolePermissionSource();
-    if (!source[this._permSelectedRole]) source[this._permSelectedRole] = [];
+    const currentPerms = Array.from(new Set(ApiService.getRolePermissions(this._permSelectedRole) || []));
+    if (!Object.prototype.hasOwnProperty.call(source, this._permSelectedRole)) {
+      source[this._permSelectedRole] = [...currentPerms];
+    }
     const prevPerms = [...source[this._permSelectedRole]];
     const idx = source[this._permSelectedRole].indexOf(code);
     if (idx >= 0) {

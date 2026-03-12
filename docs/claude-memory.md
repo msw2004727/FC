@@ -1,8 +1,15 @@
+### 2026-03-12 — 修正權限管理預設值隔夜失效
+- **問題**：後台權限管理頁把角色權限調整好、甚至按下「儲存成預設（`saveRolePermissionDefaults`）」後，隔天重新開站會發現部分角色權限被打亂或掉回不正確狀態。
+- **原因**：有兩個根因。第一，`角色權限（rolePermissions）` 即時同步把只有預設權限、沒有實際權限欄位的文件也當成空權限處理，導致只儲存 `defaultPermissions` 時，隔次載入會被誤認成 `permissions=[]`。第二，啟動補遷移（`_seedRoleData()`）在 `catalogVersion` 缺失時，會把內建預設權限重新合併回目前權限，覆蓋手動調整結果。
+- **修復**：更新 `js/firebase-service.js`，讓 `角色權限（rolePermissions）` 監聽只在文件真的有 `permissions` 欄位時才覆寫目前權限，並讓補遷移優先保留既有權限與已儲存預設，不再把內建預設強灌回去；更新 `js/modules/user-admin-roles.js`，首次編輯尚未有文件的角色時，改以目前有效權限作為編輯基底；更新 `js/firebase-crud.js`，儲存權限與預設權限時同步寫入 `目錄版本（catalogVersion）`，避免隔次啟動再次觸發錯誤補遷移；同步更新 `js/config.js`、`index.html` 版本號為 `20260312e`。
+- **教訓**：預設值（`defaultPermissions`）與實際值（`permissions`）必須嚴格分流；初始化補遷移只能補缺，不能在看不出使用者意圖時重寫現有權限，否則角色設定會在重新整理或隔天重開後被靜默覆蓋。
+
 ### 2026-03-12 — 個人頁報名統計改為應到場次
 - **問題**：個人專頁的三格統計把未報名簽到、同行者簽到與候補紀錄混進來，導致「參加場次 / 完成 / 出席率」與報名紀錄清單定義不一致。
-- **原因**：統計直接用 ttendanceRecords 的 checkin / checkout 去重，且出席率分母只排除 cancelled，沒有排除 waitlisted、emoved，也沒有排除同行者與未報名紀錄。
-- **修復**：更新 js/modules/leaderboard.js 統計公式為「應到場次（已結束 + 本人 + 有效報名） / 完成場次（checkin + checkout） / 出席率（有 checkin ÷ 應到場次）」，同步排除同行者與未報名紀錄，並修正已結束候補不再顯示為 missed；更新 pages/profile.html、js/modules/profile-core.js、js/modules/profile-card.js 文案，並在 js/modules/leaderboard.js 留下公式備註；同步更新 js/config.js、index.html 版本號為 20260312d。
+- **原因**：統計直接用 `出席紀錄（attendanceRecords）` 的 `checkin / checkout` 去重，且出席率分母只排除 `cancelled`，沒有排除 `waitlisted`、`removed`，也沒有排除同行者與未報名紀錄。
+- **修復**：更新 `js/modules/leaderboard.js` 統計公式為「應到場次（已結束 + 本人 + 有效報名） / 完成場次（`checkin + checkout`） / 出席率（有 `checkin` ÷ 應到場次）」；同步排除同行者與未報名紀錄，並修正已結束候補不再顯示為 `missed`；更新 `pages/profile.html`、`js/modules/profile-core.js`、`js/modules/profile-card.js` 文案，並在 `js/modules/leaderboard.js` 留下公式備註；同步更新 `js/config.js`、`index.html` 版本號為 `20260312d`。
 - **教訓**：個人頁統計與報名紀錄清單必須共用同一套母集合與狀態定義，否則 UI 名稱再清楚也會因分子分母不一致而失真。
+
 ### 2026-03-12 — 修復用戶補正頁的搜尋顯示與 Firestore 權限
 - **問題**：放鴿子補正頁的用戶搜尋在名稱缺失時會重複顯示兩次 UID；同時按下「確認補正」會因 Firestore 規則拒絕而報 `Missing or insufficient permissions`。
 - **原因**：搜尋結果、已選取提示與摘要卡直接用 `name || uid` 再額外拼接 UID，遇到名稱就是 UID 時會重複；另外 Firestore 規則只認 `rolePermissions` 文件中的權限碼，沒有承接前端對超級管理員（`super_admin`）的全權模型，導致補正寫入被擋下。

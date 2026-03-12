@@ -642,7 +642,9 @@ const FirebaseService = {
           const nextRolePermissionMeta = {};
           snapshot.docs.forEach(doc => {
             const data = doc.data() || {};
-            nextRolePermissions[doc.id] = data.permissions || [];
+            if (Object.prototype.hasOwnProperty.call(data, 'permissions')) {
+              nextRolePermissions[doc.id] = Array.isArray(data.permissions) ? data.permissions : [];
+            }
             nextRolePermissionMeta[doc.id] = {
               catalogVersion: data.catalogVersion || '',
               defaultPermissions: Array.isArray(data.defaultPermissions) ? data.defaultPermissions : null,
@@ -1688,20 +1690,39 @@ const FirebaseService = {
 
       rolesToSync.forEach(roleKey => {
         const defaults = getDefaultRolePermissions(roleKey) || [];
-        const currentPerms = Array.isArray(nextRolePermissions[roleKey]) ? nextRolePermissions[roleKey] : [];
+        const hasStoredPermissions = Object.prototype.hasOwnProperty.call(nextRolePermissions, roleKey);
+        const currentPerms = hasStoredPermissions && Array.isArray(nextRolePermissions[roleKey])
+          ? nextRolePermissions[roleKey]
+          : [];
         const currentMeta = nextRolePermissionMeta[roleKey] || {};
+        const savedDefaults = Array.isArray(currentMeta.defaultPermissions)
+          ? currentMeta.defaultPermissions
+          : null;
         if (currentMeta.catalogVersion === ROLE_PERMISSION_CATALOG_VERSION) return;
 
-        const mergedPerms = Array.from(new Set([...currentPerms, ...defaults]));
-        nextRolePermissions[roleKey] = mergedPerms;
+        const payload = {
+          catalogVersion: ROLE_PERMISSION_CATALOG_VERSION,
+        };
+
+        // Preserve explicit customizations. Only seed permissions when the role has no stored permissions yet.
+        if (!hasStoredPermissions) {
+          const seededPerms = Array.isArray(savedDefaults) ? [...savedDefaults] : [...defaults];
+          nextRolePermissions[roleKey] = seededPerms;
+          payload.permissions = seededPerms;
+        }
+
         nextRolePermissionMeta[roleKey] = {
           ...currentMeta,
           catalogVersion: ROLE_PERMISSION_CATALOG_VERSION,
+          defaultPermissions: Array.isArray(savedDefaults)
+            ? [...savedDefaults]
+            : (hasStoredPermissions ? [...currentPerms] : [...defaults]),
         };
-        batch.set(db.collection('rolePermissions').doc(roleKey), {
-          permissions: mergedPerms,
-          catalogVersion: ROLE_PERMISSION_CATALOG_VERSION,
-        }, { merge: true });
+        if (!Array.isArray(savedDefaults)) {
+          payload.defaultPermissions = nextRolePermissionMeta[roleKey].defaultPermissions;
+        }
+
+        batch.set(db.collection('rolePermissions').doc(roleKey), payload, { merge: true });
         hasChanges = true;
       });
 
