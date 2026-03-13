@@ -8,6 +8,11 @@
     <select id="scan-event-select" class="scan-event-select">
       <option value="">— 請選擇活動 —</option>
     </select>
+    <div id="scan-date-filter" class="scan-date-filter" style="display:none">
+      <button class="scan-date-tab active" data-scan-date="today">今日 (0)</button>
+      <button class="scan-date-tab" data-scan-date="past">過期 (0)</button>
+      <button class="scan-date-tab" data-scan-date="future">未來 (0)</button>
+    </div>
     <div class="scan-mode-toggle">
       <button class="scan-mode active" data-mode="checkin">簽到</button>
       <button class="scan-mode" data-mode="checkout">簽退</button>

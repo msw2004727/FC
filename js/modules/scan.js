@@ -7,6 +7,8 @@ Object.assign(App, {
   _scanSelectedEventId: null,
   _scanPresetEventId: null,
   _scanMode: 'checkin',
+  _scanDateFilter: 'today',
+  _scanEventBuckets: null,
   _scannerInstance: null,
   _lastScannedUid: null,
   _lastScanTime: 0,
@@ -26,57 +28,157 @@ Object.assign(App, {
       e.status === 'open' || e.status === 'full' || e.status === 'ended'
     );
     if (!isAdmin) {
-      const now = new Date();
-      const todayStr = `${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')}`;
-      events = events.filter(e => {
-        const isOwnerOrDelegate = this._isEventOwner(e) || this._isEventDelegate(e);
-        const eventDateStr = (e.date || '').split(' ')[0];
-        return isOwnerOrDelegate && eventDateStr === todayStr;
-      });
+      events = events.filter(e => this._isEventOwner(e) || this._isEventDelegate(e));
     }
 
-    // 依活動日期+時間排序：越早的越上面（升序）
-    events.sort((a, b) => {
-      const da = (a.date || '');
-      const db = (b.date || '');
-      return da.localeCompare(db);
-    });
-
-    select.innerHTML = '<option value="">— 請選擇活動 —</option>';
-    events.forEach(e => {
-      const opt = document.createElement('option');
-      opt.value = e.id;
-      opt.textContent = `${e.title}（${e.date}）`;
-      select.appendChild(opt);
-    });
+    const filterContainer = document.getElementById('scan-date-filter');
 
     // ── 預設活動模式：從活動詳情頁帶入 ──
     if (this._scanPresetEventId) {
+      if (filterContainer) filterContainer.style.display = 'none';
       const presetId = this._scanPresetEventId;
       this._scanPresetEventId = null;
       const presetEvent = ApiService.getEvent(presetId);
+      select.innerHTML = '<option value="">— 請選擇活動 —</option>';
       if (presetEvent) {
-        if (!select.querySelector(`option[value="${presetId}"]`)) {
-          const opt = document.createElement('option');
-          opt.value = presetId;
-          opt.textContent = `${presetEvent.title}（${presetEvent.date}）`;
-          select.appendChild(opt);
-        }
+        const typeLabel = this._getScanEventTypeLabel(presetEvent);
+        const opt = document.createElement('option');
+        opt.value = presetId;
+        opt.textContent = `${typeLabel}${presetEvent.title}（${presetEvent.date}）`;
+        select.appendChild(opt);
         select.value = presetId;
         this._scanSelectedEventId = presetId;
         select.disabled = true;
       }
     } else {
       select.disabled = false;
-      if (this._scanSelectedEventId) {
-        select.value = this._scanSelectedEventId;
+      if (filterContainer) filterContainer.style.display = '';
+
+      // Categorize events into buckets
+      this._scanEventBuckets = this._categorizeScanEvents(events);
+
+      // Update tab counts
+      this._updateScanDateTabCounts();
+
+      // If current tab is empty, auto-switch to first non-empty
+      const buckets = this._scanEventBuckets;
+      if (buckets[this._scanDateFilter].length === 0) {
+        const order = ['today', 'past', 'future'];
+        const found = order.find(k => buckets[k].length > 0);
+        this._scanDateFilter = found || 'today';
       }
+
+      // Update active tab UI
+      if (filterContainer) {
+        filterContainer.querySelectorAll('.scan-date-tab').forEach(btn => {
+          btn.classList.toggle('active', btn.dataset.scanDate === this._scanDateFilter);
+        });
+      }
+
+      // Populate select with current tab's events
+      this._populateScanSelect();
     }
 
     this._updateScanControls();
     this._renderScanResults();
     this._renderAttendanceSections();
     this._bindScanEvents();
+  },
+
+  /** 取得活動類型前綴標籤 */
+  _getScanEventTypeLabel(e) {
+    if (!e || !e.type) return '';
+    const cfg = (typeof TYPE_CONFIG !== 'undefined') ? TYPE_CONFIG[e.type] : null;
+    return cfg ? `[${cfg.label}] ` : '';
+  },
+
+  /** 將事件分入 today / past / future 三個 bucket */
+  _categorizeScanEvents(events) {
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const tomorrowStart = new Date(todayStart.getTime() + 86400000);
+
+    const buckets = { today: [], past: [], future: [] };
+    events.forEach(e => {
+      const parsed = this._parseEventStartDate ? this._parseEventStartDate(e.date) : null;
+      if (!parsed) { buckets.past.push(e); return; }
+      const eventDay = new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
+      if (eventDay >= todayStart && eventDay < tomorrowStart) {
+        buckets.today.push(e);
+      } else if (eventDay < todayStart) {
+        buckets.past.push(e);
+      } else {
+        buckets.future.push(e);
+      }
+    });
+
+    // Sort: today = ascending, past = descending, future = ascending
+    const cmpAsc = (a, b) => (a.date || '').localeCompare(b.date || '');
+    const cmpDesc = (a, b) => (b.date || '').localeCompare(a.date || '');
+    buckets.today.sort(cmpAsc);
+    buckets.past.sort(cmpDesc);
+    buckets.future.sort(cmpAsc);
+
+    return buckets;
+  },
+
+  /** 更新 tab 上的事件數量文字 */
+  _updateScanDateTabCounts() {
+    const buckets = this._scanEventBuckets;
+    if (!buckets) return;
+    const labels = { today: '今日', past: '過期', future: '未來' };
+    const container = document.getElementById('scan-date-filter');
+    if (!container) return;
+    container.querySelectorAll('.scan-date-tab').forEach(btn => {
+      const key = btn.dataset.scanDate;
+      if (key && labels[key] != null) {
+        btn.textContent = `${labels[key]} (${buckets[key].length})`;
+      }
+    });
+  },
+
+  /** 依當前 tab 填充 select 選項 */
+  _populateScanSelect() {
+    const select = document.getElementById('scan-event-select');
+    if (!select) return;
+    const buckets = this._scanEventBuckets;
+    const list = buckets ? (buckets[this._scanDateFilter] || []) : [];
+
+    select.innerHTML = '<option value="">— 請選擇活動 —</option>';
+    list.forEach(e => {
+      const opt = document.createElement('option');
+      opt.value = e.id;
+      const typeLabel = this._getScanEventTypeLabel(e);
+      opt.textContent = `${typeLabel}${e.title}（${e.date}）`;
+      select.appendChild(opt);
+    });
+
+    // Restore previous selection if still in list
+    if (this._scanSelectedEventId && list.some(e => e.id === this._scanSelectedEventId)) {
+      select.value = this._scanSelectedEventId;
+    } else if (list.length === 1) {
+      // Auto-select if only 1 event
+      select.value = list[0].id;
+      this._scanSelectedEventId = list[0].id;
+    } else {
+      this._scanSelectedEventId = null;
+      select.value = '';
+    }
+  },
+
+  /** 切換日期 tab 時呼叫 */
+  _applyScanDateFilter(tabKey) {
+    this._scanDateFilter = tabKey;
+    const container = document.getElementById('scan-date-filter');
+    if (container) {
+      container.querySelectorAll('.scan-date-tab').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.scanDate === tabKey);
+      });
+    }
+    this._populateScanSelect();
+    this._updateScanControls();
+    this._renderScanResults();
+    this._renderAttendanceSections();
   },
 
   _bindScanEvents() {
@@ -104,6 +206,17 @@ Object.assign(App, {
     });
 
     cameraBtn.addEventListener('click', () => this._toggleCamera());
+
+    // Date filter tabs
+    const dateFilter = document.getElementById('scan-date-filter');
+    if (dateFilter && !dateFilter.dataset.bound) {
+      dateFilter.dataset.bound = '1';
+      dateFilter.addEventListener('click', (ev) => {
+        const tab = ev.target.closest('.scan-date-tab');
+        if (!tab || !tab.dataset.scanDate) return;
+        this._applyScanDateFilter(tab.dataset.scanDate);
+      });
+    }
   },
 
   _updateScanControls() {
