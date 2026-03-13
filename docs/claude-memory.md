@@ -1,3 +1,19 @@
+### 2026-03-14 — 放鴿子計算改用 registrations 權威資料
+- **問題**：放鴿子（no-show）數據不準確，特定用戶數據忽多忽少
+- **原因**：計算依賴 `activityRecords`（衍生資料），存在五個根因：
+  1. `activityRecords` 無 onSnapshot 且無 TTL，整個 session 只載入一次不刷新
+  2. `limit(500)` 截斷，活動越多越容易漏記錄
+  3. 報名時 fire-and-forget `.add()` 可能失敗但 `registrations` transaction 已成功
+  4. `_scanAR` 只修 activityRecords=registered → registrations=cancelled 的單向不一致
+  5. `ApiService.addActivityRecord()` 直接 push 記憶體不去重，`_replaceCollectionCache` 去重用 `doc.id` 但記憶體記錄無此欄位
+- **修復**：
+  - `event-manage.js` `_buildRawNoShowCountByUid()` 從遍歷 `activityRecords` 改為遍歷 `registrations`（Firestore transaction 保障的權威資料）
+  - 使用 `reg.userId`（registrations 欄位）替代 `record.uid`（activityRecords 欄位）
+  - 只計算 `status === 'confirmed'` 的正取報名（候補未遞補不算放鴿子）
+  - 排除 `participantType === 'companion'`（同行者不計算放鴿子）
+  - `registrations` 在活動詳情頁有 onSnapshot 即時同步，資料遠比 activityRecords 準確
+- **教訓**：衍生資料（activityRecords）不應作為核心業務計算的唯一來源；應優先使用 transaction 保障的權威集合（registrations）
+
 ### 2026-03-14 — 活動詳情頁改為 stale-first 策略加速首頁卡片開啟
 - **問題**：首頁點活動卡片需等 ensureCloudReady + ensureCollectionsForPage 完成才顯示詳情（prepare-first），延遲 1~3 秒
 - **原因**：`PAGE_STRATEGY` 設定 `page-activity-detail` 為 `prepare-first`，即使 events 已在快取中仍需等所有資料到齊

@@ -808,12 +808,14 @@ Object.assign(App, {
   },
 
   _buildRawNoShowCountByUid() {
-    const activityRecords = ApiService.getActivityRecords();
+    // 改用 registrations（權威資料，transaction 保障）取代 activityRecords（衍生資料）
+    const allRegistrations = ApiService._src('registrations');
     const attendanceRecords = ApiService.getAttendanceRecords();
-    const attendanceStateByKey = new Map();
+    const checkinKeys = new Set();
     const countByUid = new Map();
-    const seenActivityKeys = new Set();
+    const seenRegKeys = new Set();
 
+    // Step 1: 建立簽到索引
     (attendanceRecords || []).forEach(record => {
       const uid = String(record?.uid || '').trim();
       const eventId = String(record?.eventId || '').trim();
@@ -821,30 +823,29 @@ Object.assign(App, {
       const status = String(record?.status || '').trim();
       if (!uid || !eventId) return;
       if (status === 'removed' || status === 'cancelled') return;
-      if (type !== 'checkin') return;
-
-      const key = `${uid}::${eventId}`;
-      const state = attendanceStateByKey.get(key) || { checkin: false };
-      if (type === 'checkin') state.checkin = true;
-      attendanceStateByKey.set(key, state);
+      if (type === 'checkin') checkinKeys.add(`${uid}::${eventId}`);
     });
 
-    (activityRecords || []).forEach(record => {
-      const uid = String(record?.uid || '').trim();
-      const eventId = String(record?.eventId || '').trim();
-      const status = String(record?.status || '').trim();
+    // Step 2: 遍歷 registrations，僅計算本人（非同行者）的正式報名
+    (allRegistrations || []).forEach(reg => {
+      const uid = String(reg?.userId || '').trim();
+      const eventId = String(reg?.eventId || '').trim();
+      const status = String(reg?.status || '').trim();
       if (!uid || !eventId) return;
-      if (status !== 'registered') return;
+      // 只計算正取報名（confirmed）；候補（waitlisted）未被遞補不算放鴿子
+      if (status !== 'confirmed') return;
+      // 同行者不計算放鴿子
+      if (reg.participantType === 'companion') return;
 
       const key = `${uid}::${eventId}`;
-      if (seenActivityKeys.has(key)) return;
-      seenActivityKeys.add(key);
+      if (seenRegKeys.has(key)) return;
+      seenRegKeys.add(key);
 
       const event = ApiService.getEvent(eventId);
       if (!event || event.status !== 'ended') return;
 
-      const attendance = attendanceStateByKey.get(key) || { checkin: false };
-      if (attendance.checkin) return;
+      // 有簽到紀錄就不算放鴿子
+      if (checkinKeys.has(key)) return;
 
       countByUid.set(uid, (countByUid.get(uid) || 0) + 1);
     });
