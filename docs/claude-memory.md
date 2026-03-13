@@ -12,6 +12,7 @@
   - 只計算 `status === 'confirmed'` 的正取報名（候補未遞補不算放鴿子）
   - 排除 `participantType === 'companion'`（同行者不計算放鴿子）
   - `registrations` 在活動詳情頁有 onSnapshot 即時同步，資料遠比 activityRecords 準確
+  - 追加：活動當天不計入放鴿子，隔天 00:00 後才算（避免活動進行中看到自己放鴿子觀感不佳）
 - **教訓**：衍生資料（activityRecords）不應作為核心業務計算的唯一來源；應優先使用 transaction 保障的權威集合（registrations）
 
 ### 2026-03-14 — 活動詳情頁改為 stale-first 策略加速首頁卡片開啟

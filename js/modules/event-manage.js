@@ -814,6 +814,7 @@ Object.assign(App, {
     const checkinKeys = new Set();
     const countByUid = new Map();
     const seenRegKeys = new Set();
+    const today = new Date().toISOString().slice(0, 10); // "YYYY-MM-DD"
 
     // Step 1: 建立簽到索引
     (attendanceRecords || []).forEach(record => {
@@ -843,6 +844,9 @@ Object.assign(App, {
 
       const event = ApiService.getEvent(eventId);
       if (!event || event.status !== 'ended') return;
+      // 活動當天不計入放鴿子，隔天 00:00 後才算
+      const eventDate = String(event.date || '').split(' ')[0].replace(/\//g, '-');
+      if (!eventDate || eventDate >= today) return;
 
       // 有簽到紀錄就不算放鴿子
       if (checkinKeys.has(key)) return;
