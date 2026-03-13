@@ -1,3 +1,9 @@
+### 2026-03-14 — 反覆報名導致不在名單但紀錄顯示成功
+- **問題**：用戶快速重複報名或取消後立即重報，導致 registration 文件建立成功、activityRecord 記錄成功，但 event.participants 不包含該用戶
+- **原因**：`registerForEvent()` 的 Firestore registrations 查詢在 transaction 外面，transaction 重試時用舊資料重建 occupancy，兩個並行 transaction 會互相覆蓋 event 投影
+- **修復**：把 registrations 查詢 + 重複檢查移到 transaction callback 內部，每次重試都重新查詢最新資料；加 `_signupBusyMap` 防止同一用戶同一活動並行報名
+- **教訓**：Firestore transaction 重試時只保證 `transaction.get()` 的資料一致性；外部查詢的結果不會自動刷新，必須手動放到 callback 內
+
 ### 2026-03-14 — 已取消報名用戶仍收到 LINE 推播提醒
 - **問題**：用戶取消活動報名後仍收到 LINE 推播提醒；且提醒在活動前一天就發送，過早
 - **原因**：`_processEventReminders()` 用 `activityRecords`（status='registered'）判斷，但 activityRecords 不是權威來源，取消後 status 可能未正確更新。且 24h 提醒窗口導致前一天就推播

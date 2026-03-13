@@ -555,6 +555,20 @@ Object.assign(FirebaseService, {
   async registerForEvent(eventId, userId, userName) {
     if (!userId || userId === 'unknown') throw new Error('用戶資料載入中，請稍候再試');
 
+    // 模組層 busy lock（防止同一活動同時多次報名）
+    this._signupBusyMap = this._signupBusyMap || {};
+    const busyKey = eventId + '_' + userId;
+    if (this._signupBusyMap[busyKey]) throw new Error('報名處理中，請稍候');
+    this._signupBusyMap[busyKey] = true;
+
+    try {
+      return await this._doRegisterForEvent(eventId, userId, userName);
+    } finally {
+      delete this._signupBusyMap[busyKey];
+    }
+  },
+
+  async _doRegisterForEvent(eventId, userId, userName) {
     // 確保 Firebase Auth 已登入
     const authed = await this._ensureAuth();
     if (!authed) {
@@ -575,26 +589,6 @@ Object.assign(FirebaseService, {
     );
     if (existing) throw new Error('已報名此活動');
 
-    // 從 Firestore 查詢該活動所有報名紀錄（不依賴本地快取，避免快取不完整導致覆蓋正確計數）
-    let allEventRegs;
-    try {
-      const allRegsSnap = await db.collection('registrations')
-        .where('eventId', '==', eventId)
-        .get();
-      allEventRegs = allRegsSnap.docs.map(d => ({ ...d.data(), _docId: d.id }));
-    } catch (queryErr) {
-      console.error('[registerForEvent] 查詢 registrations 失敗:', queryErr.code, queryErr.message);
-      throw queryErr;
-    }
-
-    // 防幽靈：用 Firestore 真實資料檢查重複報名
-    const hasActive = allEventRegs.some(r =>
-      r.userId === userId
-      && (r.status === 'confirmed' || r.status === 'waitlisted')
-      && r.participantType !== 'companion'
-    );
-    if (hasActive) throw new Error('已報名此活動');
-
     const eventRef = db.collection('events').doc(event._docId);
     const regDocRef = db.collection('registrations').doc();
 
@@ -608,17 +602,30 @@ Object.assign(FirebaseService, {
       registeredAt: new Date().toISOString(),
     };
 
-    // 從 Firestore 查詢結果取得有效報名（不用快取）
-    const firestoreActiveRegs = allEventRegs.filter(
-      r => r.status !== 'cancelled' && r.status !== 'removed'
-    );
-
     const result = await db.runTransaction(async (transaction) => {
       // 原子讀取活動最新狀態
       const eventDoc = await transaction.get(eventRef);
       if (!eventDoc.exists) throw new Error('活動不存在');
       const ed = eventDoc.data();
       const maxCount = ed.max || 0;
+
+      // 每次 transaction 嘗試都重新查詢 registrations（防止重試時用到舊資料）
+      const allRegsSnap = await db.collection('registrations')
+        .where('eventId', '==', eventId)
+        .get();
+      const allEventRegs = allRegsSnap.docs.map(d => ({ ...d.data(), _docId: d.id }));
+
+      // 防幽靈：在 transaction 內再次檢查重複報名
+      const hasActive = allEventRegs.some(r =>
+        r.userId === userId
+        && (r.status === 'confirmed' || r.status === 'waitlisted')
+        && r.participantType !== 'companion'
+      );
+      if (hasActive) throw new Error('已報名此活動');
+
+      const firestoreActiveRegs = allEventRegs.filter(
+        r => r.status !== 'cancelled' && r.status !== 'removed'
+      );
 
       const confirmedCount = firestoreActiveRegs.filter(r => r.status === 'confirmed').length;
 
