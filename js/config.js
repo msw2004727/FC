@@ -225,7 +225,8 @@
 // 20260314z: 活動行事曆卡片點擊新增半透明深底色 + 置中計量條載入動畫
 // 20260314za: 頭像壞圖修復 — 登入時清除壞圖快取 + naturalWidth < 2 + 延遲複檢 + DOM img onerror
 // 20260313o: 委託人（user）掃碼頁 delegate 例外 + Log 彈窗 Firestore 直查（不依賴本地快取）
-const CACHE_VERSION = '20260313o';
+// 20260314zb: 修復手動簽到 UID 不匹配導致已簽到紀錄被批量誤刪（delegate user 觸發）
+const CACHE_VERSION = '20260314zb';
 
 // ─── Page Strategy Registry ───
 // 唯一策略來源，未列出的頁面預設 fresh-first

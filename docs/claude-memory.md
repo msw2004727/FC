@@ -1,3 +1,15 @@
+### 2026-03-14 — 手動簽到 UID 不匹配導致已簽到紀錄被批量誤刪（嚴重 Bug）
+- **問題**：delegate user（role=user）點「完成簽到」後，已完成簽到簽退的紀錄一筆筆被軟刪除（status='removed'）
+- **原因**：`_confirmAllAttendance` 中存在兩個致命缺陷：
+  1. **UID 不匹配**：渲染用 `_buildConfirmedParticipantSummary` 對 registrations 不足的參與者使用名字作為 UID（`uid: "Alice"`），但儲存時 `_confirmAllAttendance` 透過 `_findUserByName` 解析為真實 UID（`uid: "U1234"`），導致 checkbox ID 與 save loop UID 不吻合
+  2. **`_normalizeAttendanceSelection(undefined)` 永遠回傳 `{checkin:false, checkout:false}`**：找不到 checkbox 的人不會被跳過，而是被解讀為「取消所有簽到」，觸發 `removeAttendanceRecord`
+  3. **delegate user 的 registrations 快取只有自己的報名**，導致大多數參與者走 fallback 路徑，放大了 UID 不匹配的影響
+- **修復**：
+  - `_confirmAllAttendance` / `_confirmAllUnregAttendance`：save loop 改為先檢查 `String(p.uid) in desiredStateByUid`，找不到的人直接 `continue`
+  - `_confirmAllAttendance` 的 `e.participants` fallback 改為 `uid: p`（與渲染一致），不再使用 `_findUserByName` 解析
+- **復原**：`docs/recover-attendance-records.js` 可在 console 執行，批量復原 `status='removed'` 且 `removedAt` 在指定時間範圍內的紀錄
+- **教訓**：`_normalizeAttendanceSelection` 回傳值永遠 truthy，`if (!wanted) continue` 是無效防護；任何 save loop 在操作「刪除」語意時，必須有明確的「使用者有意操作」證據（checkbox 實際存在且被讀取過），不能用 fallback 預設值推導刪除意圖
+
 ### 2026-03-13 — 委託人（user 身份）掃碼頁與 Log 彈窗權限修復
 - **問題**：role=user 的委託人被委託管理活動時，(1) 無法進入掃碼頁（page-scan 要求 minRole=coach），(2) Log 彈窗只顯示自己的報名紀錄（registrations 監聽只查自己的資料）
 - **原因**：(1) `_canAccessPage()` 只看 role level，不考慮 delegate 身份 (2) `openEventRegLogModal()` 依賴本地快取 `ApiService._src('registrations')`，非 admin 用戶的快取只有自己的報名

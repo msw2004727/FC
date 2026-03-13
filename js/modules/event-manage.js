@@ -1228,11 +1228,11 @@ Object.assign(App, {
         });
       });
     }
+    // 與 _buildConfirmedParticipantSummary 一致：fallback 時 uid = name，
+    // 確保 checkbox ID 與 save loop 的 UID 吻合
     (e.participants || []).forEach(p => {
       if (!addedNames.has(p)) {
-        const resolved = this._findUserByName?.(p);
-        const resolvedUid = resolved?.uid || resolved?.lineUserId || p;
-        people.push({ name: p, uid: resolvedUid, isCompanion: false });
+        people.push({ name: p, uid: p, isCompanion: false });
         addedNames.add(p);
       }
     });
@@ -1260,8 +1260,9 @@ Object.assign(App, {
 
     try {
       for (const p of people) {
-        const wanted = this._normalizeAttendanceSelection(desiredStateByUid[String(p.uid)]);
-        if (!wanted) continue;
+        // 防護：checkbox 未找到的人（UID 不匹配）絕不處理，避免誤刪紀錄
+        if (!(String(p.uid) in desiredStateByUid)) continue;
+        const wanted = desiredStateByUid[String(p.uid)];
 
         const wantCheckin = wanted.checkin;
         const wantCheckout = wanted.checkout;
@@ -1394,8 +1395,9 @@ Object.assign(App, {
 
     try {
       for (const p of people) {
-        const wanted = this._normalizeAttendanceSelection(desiredStateByUid[String(p.uid)]);
-        if (!wanted) continue;
+        // 防護：checkbox 未找到的人（UID 不匹配）絕不處理，避免誤刪紀錄
+        if (!(String(p.uid) in desiredStateByUid)) continue;
+        const wanted = desiredStateByUid[String(p.uid)];
 
         const wantCheckin = wanted.checkin;
         const wantCheckout = wanted.checkout;
