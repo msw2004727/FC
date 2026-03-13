@@ -1,3 +1,10 @@
+### 2026-03-13 — 一般用戶報名 Missing or insufficient permissions（registrations 讀取規則過嚴）
+- **問題**：一般用戶點報名時出現 Missing or insufficient permissions，無法完成報名
+- **原因**：`firestore.rules` 的 `registrations` 讀取規則為 `isAdmin() || isRegistrationOwnerResource()`（只能讀自己的報名）。但 `registerForEvent` 被改為查詢該活動所有報名紀錄 `db.collection('registrations').where('eventId', '==', eventId).get()`，當結果包含其他用戶的報名紀錄時，Firestore 整個查詢被拒絕
+- **修復**：`registrations` 讀取規則改為 `isAuth()`（所有登入用戶可讀），寫入/刪除規則不變。報名紀錄不含敏感資料（只有 userId、userName、status），且活動頁本來就需要顯示參加者名單
+- **教訓**：修改 Firestore 查詢範圍時必須同步檢查 security rules 是否允許該查詢模式；Firestore list 查詢只要結果中有任一文件不符合 rules 就整個失敗
+- **受影響檔案**：`firestore.rules`
+
 ### 2026-03-13 — LINE 登入回來後活動頁跳轉延遲 + 首頁閃現修復
 - **問題**：用戶從分享連結點報名 → LINE 登入 → 回來後先看到首頁好幾秒才跳到活動頁，讓用戶誤以為離開了活動頁面
 - **原因**：(1) LINE OAuth 回來後 URL 沒有 `?event=` 參數，REST 快速路徑不啟動，必須等完整 Phase 4（~10-14 秒）才能顯示活動頁 (2) `_completeDeepLinkSuccess` 在 `showEventDetail` 完成前就隱藏覆蓋層，背後已渲染的首頁短暫閃現

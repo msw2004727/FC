@@ -568,7 +568,7 @@ service cloud.firestore {
     //  登入可讀寫（報名、取消報名、管理員代報名）
     // ═══════════════════════════════════════════
     match /registrations/{regId} {
-      allow read: if isAdmin() || isRegistrationOwnerResource();
+      allow read: if isAuth();
       allow create: if isAdmin() || isRegistrationOwnerRequest();
       allow update: if isAdmin() || (isRegistrationOwnerResource() && isRegistrationOwnerRequest());
       allow delete: if isAdmin() || isRegistrationOwnerResource();
