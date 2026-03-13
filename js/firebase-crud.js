@@ -945,10 +945,12 @@ Object.assign(FirebaseService, {
     const now = new Date();
     const log = {
       time: `${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, '0')}/${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`,
+      uid: userId,
       target: user.name,
       amount: (pointsDelta > 0 ? '+' : '') + pointsDelta,
       reason: reason,
       operator: operatorLabel || '管理員',
+      operatorUid: auth?.currentUser?.uid || null,
     };
     await db.collection('expLogs').add({
       ...log,

@@ -1,3 +1,10 @@
+### 2026-03-13 — 用戶 ID 欄位規範 + expLogs 補 uid
+- **問題**：expLogs / teamExpLogs 只存 operator 顯示名稱，無法追溯操作者或目標用戶的 UID；不同集合用不同欄位名（userId vs uid）容易混淆
+- **原因**：歷史遺留，各集合開發時間不同，未統一命名規範
+- **修復**：(1) CLAUDE.md / AGENTS.md 加入「用戶 ID 欄位命名規範」，要求新寫入必須包含 uid 欄位 (2) expLogs 新增 `uid`（目標用戶）和 `operatorUid`（操作者）(3) teamExpLogs 新增 `operatorUid`
+- **教訓**：日誌類集合必須存 UID 而非顯示名稱，否則無法做用戶維度的查詢和稽核
+- **受影響檔案**：`js/firebase-crud.js`、`js/api-service.js`、`CLAUDE.md`、`AGENTS.md`
+
 ### 2026-03-13 — 報名/取消操作用快取重建計數導致 event.current 被覆蓋（根因修復）
 - **問題**：活動管理頁顯示 1/20 人，活動頁顯示 21/20 人。event 文件的 `current` 欄位被錯誤覆蓋為極小值
 - **原因**：`4d6b8c9` 提交將報名/取消改為 `_rebuildOccupancy` 從零重建計數，但 transaction 內使用 `this._cache.registrations`（本地快取）而非 Firestore 真實資料。當快取尚未完整同步（LIFF 重導後、首次載入、網速慢），重建結果會以不完整的快取覆蓋 Firestore 中正確的 `current` 值

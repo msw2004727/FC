@@ -1335,7 +1335,7 @@ const ApiService = {
     user.exp = Math.max(0, (user.exp || 0) + amount);
     const now = new Date();
     const timeStr = `${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
-    const log = { time: timeStr, target: user.name, amount: (amount > 0 ? '+' : '') + amount, reason, operator: operatorLabel || '管理員' };
+    const log = { time: timeStr, uid: user.uid || user.lineUserId || null, target: user.name, amount: (amount > 0 ? '+' : '') + amount, reason, operator: operatorLabel || '管理員', operatorUid: auth?.currentUser?.uid || null };
     this._src('expLogs').unshift(log);
     this._writeOpLog('exp', '手動EXP', `${user.name} ${log.amount}「${reason}」`);
     if (!this._demoMode) {
@@ -1355,7 +1355,7 @@ const ApiService = {
     team.teamExp = Math.min(10000, Math.max(0, (team.teamExp || 0) + amount));
     const now = new Date();
     const timeStr = `${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
-    const log = { time: timeStr, target: team.name, targetId: teamId, amount: (amount > 0 ? '+' : '') + amount, reason, operator: operatorLabel || '管理員' };
+    const log = { time: timeStr, target: team.name, targetId: teamId, amount: (amount > 0 ? '+' : '') + amount, reason, operator: operatorLabel || '管理員', operatorUid: auth?.currentUser?.uid || null };
     this._src('teamExpLogs').unshift(log);
     this._writeOpLog('team_exp', '球隊積分', `${team.name} ${log.amount}「${reason}」`);
     if (!this._demoMode) {
