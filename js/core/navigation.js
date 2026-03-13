@@ -391,8 +391,10 @@ Object.assign(App, {
       );
 
     const strategy = this._getPageStrategy(pageId);
+    // 非 guarded 頁面（如活動詳情）即使 auth 正在初始化也允許 stale 導航
+    const staleAuthPending = guardedPages.includes(pageId) ? authPending : false;
     const canUseStale = (strategy === 'stale-first' || strategy === 'stale-confirm')
-      && this._canUseStaleNavigation(pageId, { authPending });
+      && this._canUseStaleNavigation(pageId, { authPending: staleAuthPending });
 
     const needsCloudInit = this._pageNeedsCloud(pageId) && (!this._cloudReady || !!this._cloudReadyPromise);
     const shouldShowRouteLoading = pageId !== this.currentPage

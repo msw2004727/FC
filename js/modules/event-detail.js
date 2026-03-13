@@ -198,8 +198,9 @@ Object.assign(App, {
   async showEventDetail(id, options = {}) {
     try {
       const isGuestView = this._isGuestEventDetailView(options);
-      if (!isGuestView && this._requireLogin()) return { ok: false, reason: 'auth' };
       let e = ApiService.getEvent(id);
+      // stale-first：快取有活動資料時跳過登入擋板（報名按鈕已有「載入中」保護）
+      if (!isGuestView && !e && this._requireLogin()) return { ok: false, reason: 'auth' };
       if (!e) return { ok: false, reason: 'missing' };
       if (!isGuestView && typeof this._canViewEventByTeamScope === 'function' && !this._canViewEventByTeamScope(e)) {
         this.showToast('\u60a8\u6c92\u6709\u67e5\u770b\u6b64\u6d3b\u52d5\u7684\u6b0a\u9650');

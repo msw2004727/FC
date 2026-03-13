@@ -7,8 +7,11 @@
   - showEventDetail 結尾加 `_markPageSnapshotReady('page-activity-detail')` 支援後續 stale 快取命中
   - 內容區用 event.current/event.participants fallback 立即渲染，報名按鈕在 registrations 未就緒時顯示「載入中」保護
   - onSnapshot 回調已有完整重渲染機制（registrations → showEventDetail、attendanceRecords → _renderAttendanceTable），無需額外開發
-- **回滾**：`git checkout pre-stale-detail-20260313 -- js/config.js js/modules/event-detail.js index.html`
-- **教訓**：詳情頁的 required 資料只有 events，registrations 等可透過 onSnapshot 非同步補齊；stale-first 對已有快取的頁面提升最明顯
+  - **追加修正**：首次部署後仍顯示加載中，根因是兩層 auth 擋板：
+    1. `showEventDetail._requireLogin()` — 快取有活動資料時改為跳過（移到 `!e` 分支）
+    2. `showPage.authPending` 對非 guarded 頁面（活動詳情不在 guardedPages）不應阻擋 stale → 新增 `staleAuthPending` 分流
+- **回滾**：`git checkout pre-stale-detail-20260313 -- js/config.js js/modules/event-detail.js js/core/navigation.js index.html`
+- **教訓**：stale-first 策略需同時檢查所有攔截層（requireLogin + showPage.authPending + canUseStaleNavigation），光改 PAGE_STRATEGY 不夠；非 guarded 頁面的公開內容不應被 auth 初始化狀態阻擋
 
 ### 2026-03-14 — 取消報名後 activityRecords 未同步更新導致誤判放鴿子
 - **問題**：用戶已取消報名（registrations status='cancelled'），但 activityRecords 仍為 'registered'，導致放鴿子計算誤判
