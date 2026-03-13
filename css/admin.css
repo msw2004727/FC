@@ -10,8 +10,8 @@
 .admin-filters select { flex: 1; min-width: 100px; }
 .admin-card-list { display: flex; flex-direction: column; gap: .5rem; }
 .admin-log-tabs { margin-bottom: .7rem; }
-.admin-log-toolbar { display: flex; justify-content: flex-end; align-items: center; gap: .45rem; margin-bottom: .5rem; padding: .5rem .65rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-card); }
-.admin-log-toolbar-actions { display: flex; align-items: center; justify-content: flex-end; gap: .45rem; flex-wrap: wrap; }
+.admin-log-toolbar { display: flex; justify-content: center; align-items: center; gap: .45rem; margin-bottom: .5rem; padding: .5rem .65rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-card); }
+.admin-log-toolbar-actions { display: flex; align-items: center; justify-content: center; gap: .45rem; flex-wrap: wrap; }
 .admin-log-action-btn { min-width: 6rem; justify-content: center; font-size: .74rem; padding: .38rem .8rem; white-space: nowrap; }
 .admin-log-action-danger { border-color: rgba(220,38,38,.45); color: #dc2626; }
 .admin-log-action-danger:hover { border-color: #dc2626; background: rgba(220,38,38,.08); }
@@ -319,6 +319,55 @@
 .log-type.ach_create, .log-type.ach_edit, .log-type.ach_toggle, .log-type.ach_delete { background: rgba(236,72,153,.15); color: #ec4899; }
 .log-type.ann_create, .log-type.ann_edit, .log-type.ann_toggle, .log-type.ann_delete { background: rgba(14,165,233,.15); color: #0ea5e9; }
 
+/* ─── Operation Log Row Background Colors ─── */
+.log-item[class*="oplog-row-"] { border-radius: 6px; }
+.log-item.oplog-row-log-tone-blue   { background: rgba(59,130,246,.06); }
+.log-item.oplog-row-log-tone-violet { background: rgba(168,85,247,.06); }
+.log-item.oplog-row-log-tone-purple { background: rgba(139,92,246,.06); }
+.log-item.oplog-row-log-tone-green  { background: rgba(34,197,94,.06); }
+.log-item.oplog-row-log-tone-teal   { background: rgba(20,184,166,.06); }
+.log-item.oplog-row-log-tone-orange { background: rgba(249,115,22,.06); }
+.log-item.oplog-row-log-tone-indigo { background: rgba(99,102,241,.06); }
+.log-item.oplog-row-log-tone-sky    { background: rgba(14,165,233,.06); }
+.log-item.oplog-row-log-tone-pink   { background: rgba(236,72,153,.06); }
+.log-item.oplog-row-log-tone-amber  { background: rgba(245,158,11,.06); }
+.log-item.oplog-row-log-tone-cyan   { background: rgba(6,182,212,.06); }
+.log-item.oplog-row-log-tone-rose   { background: rgba(244,63,94,.06); }
+.log-item.oplog-row-log-tone-red    { background: rgba(239,68,68,.08); }
+.log-item.oplog-row-log-tone-gray   { background: rgba(100,116,139,.05); }
+[data-theme="dark"] .log-item.oplog-row-log-tone-blue   { background: rgba(59,130,246,.12); }
+[data-theme="dark"] .log-item.oplog-row-log-tone-violet { background: rgba(168,85,247,.12); }
+[data-theme="dark"] .log-item.oplog-row-log-tone-purple { background: rgba(139,92,246,.12); }
+[data-theme="dark"] .log-item.oplog-row-log-tone-green  { background: rgba(34,197,94,.12); }
+[data-theme="dark"] .log-item.oplog-row-log-tone-teal   { background: rgba(20,184,166,.12); }
+[data-theme="dark"] .log-item.oplog-row-log-tone-orange { background: rgba(249,115,22,.12); }
+[data-theme="dark"] .log-item.oplog-row-log-tone-indigo { background: rgba(99,102,241,.12); }
+[data-theme="dark"] .log-item.oplog-row-log-tone-sky    { background: rgba(14,165,233,.12); }
+[data-theme="dark"] .log-item.oplog-row-log-tone-pink   { background: rgba(236,72,153,.12); }
+[data-theme="dark"] .log-item.oplog-row-log-tone-amber  { background: rgba(245,158,11,.12); }
+[data-theme="dark"] .log-item.oplog-row-log-tone-cyan   { background: rgba(6,182,212,.12); }
+[data-theme="dark"] .log-item.oplog-row-log-tone-rose   { background: rgba(244,63,94,.12); }
+[data-theme="dark"] .log-item.oplog-row-log-tone-red    { background: rgba(239,68,68,.14); }
+[data-theme="dark"] .log-item.oplog-row-log-tone-gray   { background: rgba(100,116,139,.10); }
+
+/* ─── Audit Log Action Color Classes ─── */
+.log-item.audit-login     { background: rgba(34,197,94,.08); border-radius: 6px; }
+.log-item.audit-logout    { background: rgba(100,116,139,.08); border-radius: 6px; }
+.log-item.audit-signup    { background: rgba(59,130,246,.08); border-radius: 6px; }
+.log-item.audit-cancel    { background: rgba(249,115,22,.08); border-radius: 6px; }
+.log-item.audit-team      { background: rgba(168,85,247,.08); border-radius: 6px; }
+.log-item.audit-role      { background: rgba(236,72,153,.08); border-radius: 6px; }
+.log-item.audit-admin     { background: rgba(239,68,68,.08); border-radius: 6px; }
+.log-item.audit-failure   { background: rgba(239,68,68,.10); border-radius: 6px; }
+[data-theme="dark"] .log-item.audit-login   { background: rgba(34,197,94,.14); }
+[data-theme="dark"] .log-item.audit-logout  { background: rgba(100,116,139,.14); }
+[data-theme="dark"] .log-item.audit-signup  { background: rgba(59,130,246,.14); }
+[data-theme="dark"] .log-item.audit-cancel  { background: rgba(249,115,22,.14); }
+[data-theme="dark"] .log-item.audit-team    { background: rgba(168,85,247,.14); }
+[data-theme="dark"] .log-item.audit-role    { background: rgba(236,72,153,.14); }
+[data-theme="dark"] .log-item.audit-admin   { background: rgba(239,68,68,.14); }
+[data-theme="dark"] .log-item.audit-failure { background: rgba(239,68,68,.16); }
+
 /* ─── Dark Theme Log Types ─── */
 [data-theme="dark"] .log-type.exp { background: rgba(96,165,250,.20); }
 [data-theme="dark"] .log-type.role { background: rgba(167,139,250,.20); }
@@ -425,14 +474,10 @@
 
 @media (max-width: 640px) {
   .admin-log-toolbar {
-    flex-direction: column;
-    align-items: stretch;
+    align-items: center;
   }
   .admin-log-toolbar-actions {
-    width: 100%;
-  }
-  .admin-log-action-btn {
-    width: 100%;
+    justify-content: center;
   }
   .dash-query-panel-summary {
     gap: .18rem .5rem;

@@ -1,3 +1,9 @@
+### 2026-03-13 — 日誌中心 UI 改善：按鈕置中、行底色分類、操作日誌重整按鈕
+- **問題**：稽核日誌的「重整」和「補齊暱稱」按鈕靠右顯示不直觀；日誌行無底色區分行為類型難以快速辨識；操作日誌缺少重整按鈕
+- **原因**：toolbar 使用 `justify-content: flex-end`；audit log 的 `renderAuditLogs` 未加行為底色；操作日誌 tab 未建立重整按鈕
+- **修復**：(1) toolbar CSS 改為 `justify-content: center`，手機版不再 full-width stacking (2) audit-log.js 加 `_getAuditActionClass` 映射行為到底色 CSS class (3) user-admin-exp.js 操作日誌每行加 `oplog-row-{tone}` 底色 class (4) admin.css 新增 30 條 row 底色規則含 dark theme (5) user-admin-exp.js 加 `_ensureOpLogRefreshButton`、admin-log-tabs.js 於 operation tab 呼叫
+- **教訓**：日誌列表加輕微底色可大幅提升可讀性；toolbar 按鈕置中在手機上更容易點擊
+
 ### 2026-03-13 — 跨瀏覽器相容性修復（LINE / Chrome / Safari）
 - **問題**：iOS Safari 模糊效果消失、舊 WebView dvh 不支援導致佈局崩壞、LINE WebView clipboard API 失敗、replaceAll 在舊環境不存在
 - **原因**：(1) 缺 `-webkit-backdrop-filter` 前綴 (2) `100dvh` 無 `100vh` fallback (3) `viewport-fit=cover` 缺失 (4) 無 `overscroll-behavior: none` (5) iOS modal scroll-through (6) clipboard 無 execCommand fallback (7) `replaceAll` 非所有 WebView 支援 (8) share fallback 鏈不完整

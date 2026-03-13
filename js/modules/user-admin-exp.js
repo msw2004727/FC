@@ -388,6 +388,25 @@ Object.assign(App, {
   _opLogPage: 1,
   _opLogFiltered: null,
 
+  _ensureOpLogRefreshButton() {
+    const actions = document.getElementById('admin-log-toolbar-actions');
+    if (!actions) return;
+    let btn = document.getElementById('oplog-refresh-btn');
+    if (!btn) {
+      btn = document.createElement('button');
+      btn.id = 'oplog-refresh-btn';
+      btn.className = 'outline-btn admin-log-action-btn';
+      btn.type = 'button';
+      btn.dataset.adminLogActionTab = 'operation';
+      btn.dataset.actionAvailable = '1';
+      btn.title = '重新整理';
+      btn.textContent = '重整';
+      btn.addEventListener('click', () => { App.filterOperationLogs(1); });
+      actions.appendChild(btn);
+      this._refreshAdminLogToolbarActions?.();
+    }
+  },
+
   _shouldHideDuplicatedOperationLog(log) {
     const type = String(log?.type || '').trim();
     const content = String(log?.content || '');
@@ -554,15 +573,17 @@ Object.assign(App, {
       return;
     }
 
-    let html = pageItems.map(l => `
-      <div class="log-item">
+    let html = pageItems.map(l => {
+      const tone = this._getOperationLogToneClass(l.type);
+      return `
+      <div class="log-item oplog-row-${tone}">
         <span class="log-time">${escapeHTML(l.time)}</span>
         <span class="log-content">
-          <span class="log-type ${this._getOperationLogToneClass(l.type)}">${escapeHTML(l.typeName)}</span>
+          <span class="log-type ${tone}">${escapeHTML(l.typeName)}</span>
           ${escapeHTML(l.operator)}：${escapeHTML(l.content)}
         </span>
-      </div>
-    `).join('');
+      </div>`;
+    }).join('');
 
     if (totalPages > 1) {
       html += `<div style="display:flex;justify-content:center;align-items:center;gap:.5rem;padding:.8rem 0;font-size:.78rem">

@@ -330,6 +330,20 @@ Object.assign(App, {
     return actionLabel;
   },
 
+  _getAuditActionClass(item) {
+    const action = String(item?.action || '');
+    if (item?.result === 'failure') return 'audit-failure';
+    if (action === 'login_success') return 'audit-login';
+    if (action === 'login_failure') return 'audit-failure';
+    if (action === 'logout') return 'audit-logout';
+    if (action === 'event_signup') return 'audit-signup';
+    if (action === 'event_cancel_signup') return 'audit-cancel';
+    if (action.startsWith('team_join')) return 'audit-team';
+    if (action === 'role_change') return 'audit-role';
+    if (action === 'admin_user_edit') return 'audit-admin';
+    return '';
+  },
+
   renderAuditLogs(items) {
     const list = document.getElementById('audit-log-list');
     const summary = document.getElementById('auditlog-summary');
@@ -350,8 +364,9 @@ Object.assign(App, {
       if (item.result === 'failure' && !actionLabel.includes('失敗')) {
         actionLabel += '（失敗）';
       }
+      const actionClass = this._getAuditActionClass(item);
       return `
-        <div class="log-item">
+        <div class="log-item${actionClass ? ' ' + actionClass : ''}">
           <span class="log-time">${escapeHTML(item.createdLabel || item.timeKey || '')}</span>
           <span class="log-content">
             <span class="log-type role">${escapeHTML(actorName)}</span>

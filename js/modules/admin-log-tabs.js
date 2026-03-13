@@ -189,6 +189,7 @@ Object.assign(App, {
     this._refreshAdminLogToolbarActions();
 
     if (safeTab === 'operation') {
+      this._ensureOpLogRefreshButton?.();
       this.filterOperationLogs(this._opLogPage || 1);
       return;
     }

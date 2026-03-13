@@ -212,7 +212,8 @@
 // 20260313d: 所有報名寫入流程改用 batch 原子操作，修復 _removeParticipant 多人遞補
 // 20260313f: 日誌中心 UI 精簡（移除 panel-header/toolbar-copy，新增 ℹ 說明彈窗含毛玻璃效果）
 // 20260313l: 跨瀏覽器相容性修復（webkit-backdrop-filter、dvh fallback、clipboard fallback、replaceAll→replace）
-const CACHE_VERSION = '20260313l';
+// 20260313m: 日誌中心 UI 改善：按鈕置中並排、log 行底色分類、操作日誌加重整按鈕
+const CACHE_VERSION = '20260313m';
 
 // ─── Page Strategy Registry ───
 // 唯一策略來源，未列出的頁面預設 fresh-first
