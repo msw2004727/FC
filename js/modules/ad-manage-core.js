@@ -77,7 +77,7 @@ Object.assign(App, {
 
   // ── 通用：下架 ──
   delistAd(type, id) {
-    if ((ROLE_LEVEL_MAP[this.currentRole] || 0) < ROLE_LEVEL_MAP.admin) {
+    if (!this.hasPermission('admin.banners.entry')) {
       this.showToast('權限不足'); return;
     }
     if (type === 'banner') {
@@ -128,7 +128,7 @@ Object.assign(App, {
 
   // ── 通用：刪除（清空欄位，恢復空白） ──
   async clearAdSlot(type, id) {
-    if ((ROLE_LEVEL_MAP[this.currentRole] || 0) < ROLE_LEVEL_MAP.admin) {
+    if (!this.hasPermission('admin.banners.entry')) {
       this.showToast('權限不足'); return;
     }
     if (!(await this.appConfirm('確定要刪除此廣告？將清空所有設定。'))) return;

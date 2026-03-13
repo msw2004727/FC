@@ -117,7 +117,7 @@ Object.assign(App, {
   },
 
   editPopupAd(id) {
-    if ((ROLE_LEVEL_MAP[this.currentRole] || 0) < ROLE_LEVEL_MAP.admin) {
+    if (!this.hasPermission('admin.banners.entry')) {
       this.showToast('權限不足'); return;
     }
     const item = ApiService.getPopupAds().find(a => a.id === id);
@@ -187,7 +187,7 @@ Object.assign(App, {
   },
 
   async saveSponsorRow(id) {
-    if ((ROLE_LEVEL_MAP[this.currentRole] || 0) < ROLE_LEVEL_MAP.admin) {
+    if (!this.hasPermission('admin.banners.entry')) {
       this.showToast('權限不足'); return;
     }
     const row = document.querySelector(`.sp-manage-row[data-id="${id}"]`);
@@ -242,7 +242,7 @@ Object.assign(App, {
   },
 
   editSponsorItem(id) {
-    if ((ROLE_LEVEL_MAP[this.currentRole] || 0) < ROLE_LEVEL_MAP.admin) {
+    if (!this.hasPermission('admin.banners.entry')) {
       this.showToast('權限不足'); return;
     }
     // 直式模式不需要單獨表單，直接滾動到該列

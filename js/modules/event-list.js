@@ -244,6 +244,7 @@ Object.assign(App, {
     if (!e || !e.teamOnly) return false;
     const myLevel = ROLE_LEVEL_MAP[this.currentRole] || 0;
     if (myLevel >= ROLE_LEVEL_MAP.admin) return true;
+    if (this.hasPermission('event.edit_all')) return true;
     const eventTeamIds = this._getEventLimitedTeamIds(e);
     if (eventTeamIds.length === 0) return this._isEventOwner(e);
     return this._isEventOwner(e) || eventTeamIds.some(teamId => this._isCurrentUserTeamStaff(teamId));
@@ -383,6 +384,7 @@ Object.assign(App, {
   _canManageEvent(e) {
     const myLevel = ROLE_LEVEL_MAP[this.currentRole] || 0;
     if (myLevel >= ROLE_LEVEL_MAP.admin) return true; // admin, super_admin
+    if (this.hasPermission('event.edit_all')) return true;
     return this._isEventOwner(e) || this._isEventDelegate(e);
   },
 

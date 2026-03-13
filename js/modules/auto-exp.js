@@ -88,7 +88,7 @@ Object.assign(App, {
   },
 
   saveAutoExpRules() {
-    if ((ROLE_LEVEL_MAP[this.currentRole] || 0) < ROLE_LEVEL_MAP.super_admin) {
+    if (!this.hasPermission('admin.auto_exp.entry')) {
       this.showToast('權限不足'); return;
     }
     const data = {};

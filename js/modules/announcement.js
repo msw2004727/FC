@@ -138,7 +138,7 @@ Object.assign(App, {
   },
 
   saveAnnouncementItem() {
-    if ((ROLE_LEVEL_MAP[this.currentRole] || 0) < ROLE_LEVEL_MAP.admin) {
+    if (!this.hasPermission('admin.announcements.entry')) {
       this.showToast('權限不足'); return;
     }
     const title = document.getElementById('ann-input-title').value.trim();
@@ -197,7 +197,7 @@ Object.assign(App, {
   },
 
   editAnnouncementItem(id) {
-    if ((ROLE_LEVEL_MAP[this.currentRole] || 0) < ROLE_LEVEL_MAP.admin) {
+    if (!this.hasPermission('admin.announcements.entry')) {
       this.showToast('權限不足'); return;
     }
     const item = ApiService.getAnnouncements().find(a => a.id === id);
@@ -205,7 +205,7 @@ Object.assign(App, {
   },
 
   async deleteAnnouncementItem(id) {
-    if ((ROLE_LEVEL_MAP[this.currentRole] || 0) < ROLE_LEVEL_MAP.admin) {
+    if (!this.hasPermission('admin.announcements.entry')) {
       this.showToast('權限不足'); return;
     }
     const items = ApiService.getAnnouncements();
@@ -220,7 +220,7 @@ Object.assign(App, {
   },
 
   toggleAnnouncementStatus(id) {
-    if ((ROLE_LEVEL_MAP[this.currentRole] || 0) < ROLE_LEVEL_MAP.admin) {
+    if (!this.hasPermission('admin.announcements.entry')) {
       this.showToast('權限不足'); return;
     }
     const item = ApiService.getAnnouncements().find(a => a.id === id);
@@ -234,7 +234,7 @@ Object.assign(App, {
   },
 
   moveAnnouncement(id, dir) {
-    if ((ROLE_LEVEL_MAP[this.currentRole] || 0) < ROLE_LEVEL_MAP.admin) {
+    if (!this.hasPermission('admin.announcements.entry')) {
       this.showToast('權限不足'); return;
     }
     const items = ApiService.getAnnouncements().slice().sort((a, b) => (a.sortOrder || 99) - (b.sortOrder || 99));

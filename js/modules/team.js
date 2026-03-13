@@ -1240,7 +1240,7 @@ Object.assign(App, {
     }
 
     const currentFilter = filter || tabs?.querySelector('.tab.active')?.dataset.tab || 'my-teams';
-    const isAdmin = ROLE_LEVEL_MAP[this.currentRole] >= ROLE_LEVEL_MAP['admin'];
+    const isAdmin = ROLE_LEVEL_MAP[this.currentRole] >= ROLE_LEVEL_MAP['admin'] || this.hasPermission('team.manage_all');
 
     let teams;
     if (currentFilter === 'my-teams' && !isAdmin) {

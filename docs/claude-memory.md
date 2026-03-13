@@ -1,3 +1,20 @@
+### 2026-03-13 — 前端按鈕權限檢查從硬寫 role level 改為 hasPermission()
+- **問題**：多個模組的按鈕級權限檢查使用 `ROLE_LEVEL_MAP >= admin/super_admin` 硬寫判斷，即使 Firestore Rules 已支援 hasPerm 下放，前端 UI 仍阻擋被授權的角色操作
+- **原因**：permission-hardening 計劃改了 Rules 但未同步改前端按鈕檢查
+- **修復**：
+  - 廣告管理（5 檔 10 處）→ `hasPermission('admin.banners.entry')`
+  - 公告管理（5 處）→ `hasPermission('admin.announcements.entry')`
+  - 佈景主題（1 處）→ `hasPermission('admin.themes.entry')`
+  - 自動 EXP（1 處）→ `hasPermission('admin.auto_exp.entry')`
+  - 手動 EXP（4 處）→ `hasPermission('admin.exp.entry')`
+  - 賽事管理（3 處）→ `hasPermission('admin.tournaments.entry')`
+  - 球隊列表顯示（2 處）→ 加入 `hasPermission('team.manage_all')` 判斷
+  - 活動管理 `_canManageEvent` / `_canToggleEventPublic`（2 處）→ 加入 `hasPermission('event.edit_all')` 判斷
+  - admin 預設權限加入 `event.edit_all`
+- **不改的**：`user-admin-roles.js`（super_admin only 不可下放）、`dashboard.js clearAllData`（不可下放）
+- **教訓**：權限治理必須 UI / Rules / Functions 三層同步改；只改 Rules 不改前端等於沒改
+- **受影響檔案**：ad-manage-*.js、announcement.js、site-theme.js、auto-exp.js、user-admin-exp.js、tournament-manage.js、team-list.js、team.js、event-list.js、config.js
+
 ### 2026-03-13 — Step 5：Firestore Rules 全面落實 hasPerm 權限下放
 - **問題**：後台權限管理開關開啟後，對應的 Firestore 寫入操作仍被 `isAdmin()` 硬寫規則阻擋。自訂角色或被授予 permission code 的非 admin 角色看得到按鈕但操作失敗
 - **原因**：11 個集合的 Firestore Rules 仍用 `isAdmin()` 而非 `hasPerm()` 判斷，權限開關形同虛設

@@ -929,7 +929,7 @@ Object.assign(App, {
   // ══════════════════════════════════
 
   async handleEndTournament(id) {
-    if ((ROLE_LEVEL_MAP[this.currentRole] || 0) < ROLE_LEVEL_MAP.admin) {
+    if (!this.hasPermission('admin.tournaments.entry')) {
       this.showToast('權限不足'); return;
     }
     const t = ApiService.getTournament(id);
@@ -949,7 +949,7 @@ Object.assign(App, {
   },
 
   async handleReopenTournament(id) {
-    if ((ROLE_LEVEL_MAP[this.currentRole] || 0) < ROLE_LEVEL_MAP.admin) {
+    if (!this.hasPermission('admin.tournaments.entry')) {
       this.showToast('權限不足'); return;
     }
     const t = ApiService.getTournament(id);
@@ -971,7 +971,7 @@ Object.assign(App, {
   async handleDeleteTournament(id) {
     const t = ApiService.getTournament(id);
     if (!t) return;
-    if (ROLE_LEVEL_MAP[this.currentRole] < ROLE_LEVEL_MAP['admin']) {
+    if (!this.hasPermission('admin.tournaments.entry')) {
       this.showToast('僅管理員可刪除賽事');
       return;
     }
