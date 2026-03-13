@@ -598,9 +598,20 @@ Object.assign(App, {
     wrap.innerHTML = '<button class="event-reg-log-btn" onclick="App.openEventRegLogModal(\'' + e.id + '\')">Log</button>';
   },
 
+  _regLogToMs(v) {
+    if (!v) return 0;
+    if (typeof v === 'number') return v;
+    if (typeof v.toMillis === 'function') { try { return v.toMillis(); } catch (_) {} }
+    if (typeof v === 'object' && typeof v.seconds === 'number')
+      return (v.seconds * 1000) + Math.floor((v.nanoseconds || 0) / 1000000);
+    var t = new Date(v).getTime();
+    return Number.isFinite(t) ? t : 0;
+  },
+
   openEventRegLogModal(eventId) {
-    const modal = document.getElementById('event-reg-log-modal');
-    const body = document.getElementById('event-reg-log-body');
+    var self = this;
+    var modal = document.getElementById('event-reg-log-modal');
+    var body = document.getElementById('event-reg-log-body');
     if (!modal || !body) return;
 
     var allRegs = ApiService._src('registrations').filter(function(r) { return r.eventId === eventId; });
@@ -609,20 +620,20 @@ Object.assign(App, {
     allRegs.forEach(function(r) {
       var name = r.companionName || r.userName || '未知';
       if (r.registeredAt) {
-        entries.push({ time: r.registeredAt, userName: name, action: 'register' });
+        entries.push({ time: r.registeredAt, ms: self._regLogToMs(r.registeredAt), userName: name, action: 'register' });
       }
       if (r.status === 'cancelled' && r.cancelledAt) {
-        entries.push({ time: r.cancelledAt, userName: name, action: 'cancel' });
+        entries.push({ time: r.cancelledAt, ms: self._regLogToMs(r.cancelledAt), userName: name, action: 'cancel' });
       }
     });
 
-    entries.sort(function(a, b) { return (b.time || '').localeCompare(a.time || ''); });
+    entries.sort(function(a, b) { return b.ms - a.ms; });
 
     if (entries.length === 0) {
       body.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:1.5rem;font-size:.82rem">尚無報名紀錄</div>';
     } else {
       body.innerHTML = entries.map(function(e) {
-        var d = new Date(e.time);
+        var d = new Date(e.ms);
         var timeStr = String(d.getMonth() + 1).padStart(2, '0') + '/' + String(d.getDate()).padStart(2, '0') + ' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
         var actionCls = e.action === 'cancel' ? 'cancel' : 'reg';
         var actionLabel = e.action === 'cancel' ? '取消' : '報名';
