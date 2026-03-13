@@ -102,22 +102,29 @@
 .h-card.is-pending:hover { transform: none; }
 .h-card.is-pending .h-card-img,
 .h-card.is-pending .h-card-body { opacity: .78; }
-.h-card.is-pending .h-card-img::after {
-  content: '載入中';
+/* Loading progress bar */
+.h-card.is-pending::after {
+  content: '';
   position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  padding: .26rem .7rem;
-  border-radius: 999px;
-  background: rgba(15, 23, 42, .76);
-  color: #fff;
-  font-size: .68rem;
-  font-weight: 700;
-  letter-spacing: .04em;
-  box-shadow: 0 4px 12px rgba(15, 23, 42, .18);
+  bottom: 0; left: 0;
+  height: 3px;
+  background: var(--accent);
+  border-radius: 0 2px 2px 0;
   z-index: 4;
   pointer-events: none;
+  animation: hCardLoading 1.8s ease-in-out infinite;
+}
+.h-card.is-pending.is-loaded::after {
+  animation: none;
+  width: 100%;
+  border-radius: 0;
+  transition: width .3s ease-out, opacity .4s .25s ease-out;
+  opacity: 0;
+}
+@keyframes hCardLoading {
+  0%   { width: 0; }
+  50%  { width: 75%; }
+  100% { width: 0; }
 }
 .h-card-img { height: 90px; overflow: hidden; position: relative; }
 .h-card-img img { width: 100%; height: 100%; object-fit: cover; display: block; }

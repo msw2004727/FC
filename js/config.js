@@ -216,7 +216,8 @@
 // 20260313n: 修復孤兒資料根因：deleteEvent 級聯清理 + 手動簽到 UID 解析
 // 20260314r: 掃碼簽到加入日期分類篩選（今日/過期/未來）
 // 20260314s: 首頁活動卡片載入 toast 改為持續顯示 + 5 秒後提示重整
-const CACHE_VERSION = '20260314s';
+// 20260314t: 首頁活動卡片載入中改為底部動畫進度條
+const CACHE_VERSION = '20260314t';
 
 // ─── Page Strategy Registry ───
 // 唯一策略來源，未列出的頁面預設 fresh-first

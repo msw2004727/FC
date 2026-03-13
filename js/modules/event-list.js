@@ -655,10 +655,20 @@ Object.assign(App, {
     const elapsed = shownAt > 0 ? (Date.now() - shownAt) : minVisibleMs;
     const waitMs = Math.max(0, minVisibleMs - elapsed);
     cardEl._homeEventPendingTimer = setTimeout(() => {
-      cardEl.classList.remove('is-pending');
-      cardEl.removeAttribute('aria-busy');
-      cardEl._homeEventPendingShownAt = 0;
-      cardEl._homeEventPendingTimer = null;
+      // Trigger "fill to 100%" animation before removing
+      if (cardEl.classList.contains('is-pending')) {
+        cardEl.classList.add('is-loaded');
+        setTimeout(() => {
+          cardEl.classList.remove('is-pending', 'is-loaded');
+          cardEl.removeAttribute('aria-busy');
+          cardEl._homeEventPendingShownAt = 0;
+          cardEl._homeEventPendingTimer = null;
+        }, 650);
+      } else {
+        cardEl.removeAttribute('aria-busy');
+        cardEl._homeEventPendingShownAt = 0;
+        cardEl._homeEventPendingTimer = null;
+      }
     }, waitMs);
   },
 
