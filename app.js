@@ -355,10 +355,12 @@ const App = {
       const modal = document.getElementById('app-confirm-modal');
       document.getElementById('app-confirm-msg').textContent = msg;
       modal.classList.add('open');
+      document.body.classList.add('modal-open');
       const ok = document.getElementById('app-confirm-ok');
       const cancel = document.getElementById('app-confirm-cancel');
       const cleanup = (result) => {
         modal.classList.remove('open');
+        document.body.classList.remove('modal-open');
         ok.replaceWith(ok.cloneNode(true));
         cancel.replaceWith(cancel.cloneNode(true));
         resolve(result);
@@ -366,6 +368,23 @@ const App = {
       ok.addEventListener('click', () => cleanup(true), { once: true });
       cancel.addEventListener('click', () => cleanup(false), { once: true });
     });
+  },
+
+  /** 跨瀏覽器剪貼簿複製（clipboard API → execCommand fallback） */
+  async _copyToClipboard(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      try { await navigator.clipboard.writeText(text); return true; } catch (_) { /* fall through */ }
+    }
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.cssText = 'position:fixed;left:-9999px;opacity:0';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      return true;
+    } catch (_) { return false; }
   },
 
   _getPendingDeepLink() {

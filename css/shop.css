@@ -37,7 +37,7 @@
 .lightbox { position: fixed; inset: 0; z-index: 2000; background: rgba(0,0,0,.85); display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; transition: opacity .3s; }
 .lightbox.open { opacity: 1; pointer-events: auto; }
 .lightbox img { max-width: 90vw; max-height: 85vh; border-radius: var(--radius); object-fit: contain; }
-.lightbox-close { position: absolute; top: 1rem; right: 1rem; width: 40px; height: 40px; border-radius: 50%; background: rgba(255,255,255,.2); color: #fff; font-size: 1.2rem; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(6px); }
+.lightbox-close { position: absolute; top: 1rem; right: 1rem; width: 40px; height: 40px; border-radius: 50%; background: rgba(255,255,255,.2); color: #fff; font-size: 1.2rem; display: flex; align-items: center; justify-content: center; -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
 
 /* ─── Leaderboard ─── */
 .leaderboard-list { padding: .5rem; }

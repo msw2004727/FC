@@ -84,7 +84,9 @@ body {
   font-family: var(--font-body);
   background: var(--bg-root);
   color: var(--text-primary);
+  min-height: 100vh;
   min-height: 100dvh;
+  overscroll-behavior: none;
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
   padding-top: var(--topbar-h);
@@ -117,7 +119,7 @@ img { max-width: 100%; display: block; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 
 /* ─── Main Content / Pages ─── */
-#main-content { max-width: 560px; margin: 0 auto; padding: .5rem; min-height: calc(100dvh - var(--topbar-h) - var(--bottombar-h)); }
+#main-content { max-width: 560px; margin: 0 auto; padding: .5rem; min-height: calc(100vh - var(--topbar-h) - var(--bottombar-h)); min-height: calc(100dvh - var(--topbar-h) - var(--bottombar-h)); }
 .page { display: none; animation: fadeIn .3s ease; }
 .page.active { display: block; }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
@@ -229,6 +231,9 @@ img { max-width: 100%; display: block; }
 .modal-body h4 { color: var(--text-primary); font-size: .9rem; margin: .8rem 0 .3rem; }
 .modal-body h4:first-child { margin-top: 0; }
 .modal-actions { display: flex; gap: .5rem; padding: .75rem 1.2rem; border-top: 1px solid var(--border); justify-content: flex-end; }
+
+/* ─── Modal open body lock (iOS scroll-through fix) ─── */
+body.modal-open { overflow: hidden; }
 
 /* ─── Create Event / Tournament Form ─── */
 .ce-form { display: flex; flex-direction: column; gap: .75rem; }
@@ -708,6 +713,7 @@ img { max-width: 100%; display: block; }
   z-index: 1500;
   pointer-events: none;
   font-family: var(--font-display);
+  -webkit-backdrop-filter: blur(4px);
   backdrop-filter: blur(4px);
   box-shadow: 0 2px 8px rgba(220,38,38,.3);
 }

@@ -143,7 +143,7 @@ Object.assign(App, {
     container.innerHTML = this._renderFriendlyTournamentTeamsTab(state);
   },
 
-  shareTournament(tournamentId) {
+  async shareTournament(tournamentId) {
     const tournament = ApiService.getFriendlyTournamentRecord?.(tournamentId) || ApiService.getTournament?.(tournamentId);
     if (!tournament) return;
     const url = `${location.origin}${location.pathname}?tournament=${encodeURIComponent(tournamentId)}`;
@@ -154,12 +154,14 @@ Object.assign(App, {
       tournament.region ? `地區：${tournament.region}` : '',
       url,
     ].filter(Boolean).join('\n');
+    const doCopy = async () => {
+      const ok = await this._copyToClipboard(shareText);
+      this.showToast(ok ? '賽事分享內容已複製。' : '複製失敗，請手動複製');
+    };
     if (navigator.share) {
-      navigator.share({ text: shareText }).catch(() => {});
-      return;
+      navigator.share({ text: shareText }).catch(() => doCopy());
+    } else {
+      await doCopy();
     }
-    navigator.clipboard.writeText(shareText)
-      .then(() => this.showToast('賽事分享內容已複製。'))
-      .catch(() => this.showToast('複製失敗'));
   },
 });

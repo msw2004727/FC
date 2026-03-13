@@ -348,16 +348,16 @@ Object.assign(App, {
     this.showPage('page-user-card');
   },
 
-  _shareUserCard(name) {
+  async _shareUserCard(name) {
     const shareText = `SportHub 用戶名片：${name}\n${location.origin}${location.pathname}`;
+    const doCopy = async () => {
+      const ok = await this._copyToClipboard(shareText);
+      this.showToast(ok ? '名片連結已複製到剪貼簿' : '複製失敗，請手動複製');
+    };
     if (navigator.share) {
-      navigator.share({ title: `${name} 的 SportHub 名片`, text: shareText }).catch(() => {});
-    } else if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(shareText).then(() => {
-        this.showToast('名片連結已複製到剪貼簿');
-      }).catch(() => this.showToast('複製失敗'));
+      navigator.share({ title: `${name} 的 SportHub 名片`, text: shareText }).catch(() => doCopy());
     } else {
-      this.showToast('您的瀏覽器不支援分享功能');
+      await doCopy();
     }
   },
 

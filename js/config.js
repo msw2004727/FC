@@ -211,7 +211,8 @@
 // 20260313c: 新增 repairRegistrationStatuses() 完整校正 registration status + event 投影
 // 20260313d: 所有報名寫入流程改用 batch 原子操作，修復 _removeParticipant 多人遞補
 // 20260313f: 日誌中心 UI 精簡（移除 panel-header/toolbar-copy，新增 ℹ 說明彈窗含毛玻璃效果）
-const CACHE_VERSION = '20260313k';
+// 20260313l: 跨瀏覽器相容性修復（webkit-backdrop-filter、dvh fallback、clipboard fallback、replaceAll→replace）
+const CACHE_VERSION = '20260313l';
 
 // ─── Page Strategy Registry ───
 // 唯一策略來源，未列出的頁面預設 fresh-first

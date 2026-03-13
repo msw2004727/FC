@@ -135,6 +135,7 @@
   display: flex; align-items: center; justify-content: space-between;
   gap: .75rem;
   padding: 0 1rem;
+  -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
   transition: background var(--transition);
 }

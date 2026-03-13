@@ -13,12 +13,12 @@
 .banner-skeleton { position: absolute; inset: 0; border-radius: var(--radius); }
 .banner-img-placeholder { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: .75rem; font-weight: 600; color: var(--text-muted); font-family: monospace; z-index: 0; }
 .banner-slide::after { content:''; position: absolute; inset: 0; background: linear-gradient(to top, rgba(0,0,0,.35), transparent 60%); }
-.banner-arrow { position: absolute; top: 50%; transform: translateY(-50%); z-index: 3; width: 32px; height: 32px; border-radius: 50%; background: rgba(0,0,0,.25); color: #fff; font-size: 1.2rem; display: flex; align-items: center; justify-content: center; border: none; cursor: pointer; backdrop-filter: blur(4px); transition: background var(--transition); }
+.banner-arrow { position: absolute; top: 50%; transform: translateY(-50%); z-index: 3; width: 32px; height: 32px; border-radius: 50%; background: rgba(0,0,0,.25); color: #fff; font-size: 1.2rem; display: flex; align-items: center; justify-content: center; border: none; cursor: pointer; -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); transition: background var(--transition); }
 .banner-arrow:hover { background: rgba(0,0,0,.45); }
 .banner-arrow-left { left: .5rem; }
 .banner-arrow-right { right: .5rem; }
 .banner-content { position: relative; z-index: 1; color: #fff; }
-.banner-tag { display: inline-block; padding: .2rem .6rem; border-radius: var(--radius-full); background: rgba(255,255,255,.2); backdrop-filter: blur(8px); font-size: .7rem; font-weight: 600; margin-bottom: .4rem; }
+.banner-tag { display: inline-block; padding: .2rem .6rem; border-radius: var(--radius-full); background: rgba(255,255,255,.2); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); font-size: .7rem; font-weight: 600; margin-bottom: .4rem; }
 .banner-content h2 { font-family: var(--font-display); font-size: 1.25rem; font-weight: 800; margin-bottom: .15rem; }
 .banner-content p { font-size: .8rem; opacity: .85; }
 .banner-dots { position: absolute; bottom: .6rem; left: 50%; transform: translateX(-50%); display: flex; gap: 6px; z-index: 2; }

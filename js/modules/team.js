@@ -679,8 +679,9 @@ Object.assign(App, {
     overlay.appendChild(card);
     document.body.appendChild(overlay);
     // Copy button
-    document.getElementById('qr-copy-btn').addEventListener('click', () => {
-      navigator.clipboard.writeText(url).then(() => { App.showToast('邀請連結已複製'); }).catch(() => { App.showToast('複製失敗'); });
+    document.getElementById('qr-copy-btn').addEventListener('click', async () => {
+      const ok = await App._copyToClipboard(url);
+      App.showToast(ok ? '邀請連結已複製' : '複製失敗，請手動複製');
     });
     // Generate QR code (client-side → API fallback)
     const target = document.getElementById('qr-invite-target');

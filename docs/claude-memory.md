@@ -1,3 +1,9 @@
+### 2026-03-13 — 跨瀏覽器相容性修復（LINE / Chrome / Safari）
+- **問題**：iOS Safari 模糊效果消失、舊 WebView dvh 不支援導致佈局崩壞、LINE WebView clipboard API 失敗、replaceAll 在舊環境不存在
+- **原因**：(1) 缺 `-webkit-backdrop-filter` 前綴 (2) `100dvh` 無 `100vh` fallback (3) `viewport-fit=cover` 缺失 (4) 無 `overscroll-behavior: none` (5) iOS modal scroll-through (6) clipboard 無 execCommand fallback (7) `replaceAll` 非所有 WebView 支援 (8) share fallback 鏈不完整
+- **修復**：8 個 CSS 檔案加 webkit 前綴與 dvh fallback、index.html 加 viewport-fit=cover、base.css 加 overscroll-behavior 與 body.modal-open、app.js 加 `_copyToClipboard` helper 與 modal body lock、4 個 JS 模組改用 `_copyToClipboard` 與完整 share→copy→execCommand 鏈、2 個 shot-game 檔案 replaceAll 改 replace regex
+- **教訓**：iOS Safari 需要 `-webkit-` 前綴的 CSS 屬性要同時寫兩行；新 CSS 單位需提供舊值 fallback；LINE WebView 環境 API 支援度有限需完整降級鏈
+
 ### 2026-03-13 — Deep Link 背景刷新未生效修復
 - **問題**：Instant Deep Link 的 SDK ready 後背景刷新沒有讓報名名單、出席紀錄等動態資料渲染出來
 - **原因**：三個串聯問題：(1) `ensureCollectionsForPage` 跳過 realtime 集合（registrations/attendanceRecords），靜態載入未實際載入這些資料 (2) `schedulePageScopedRealtimeForPage` 延遲 350ms 且 guest 無法啟動 listener (3) `showEventDetail` 渲染時 registrations cache 仍為空

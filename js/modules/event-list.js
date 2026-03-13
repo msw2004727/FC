@@ -926,14 +926,14 @@ Object.assign(App, {
       `年齡：${ageText}`,
       url
     ].join('\n');
+    const doCopy = async () => {
+      const ok = await this._copyToClipboard(shareText);
+      this.showToast(ok ? '分享內容已複製到剪貼簿' : '複製失敗，請手動複製');
+    };
     if (navigator.share) {
-      navigator.share({ text: shareText }).catch(() => {});
+      navigator.share({ text: shareText }).catch(() => doCopy());
     } else {
-      navigator.clipboard.writeText(shareText).then(() => {
-        this.showToast('分享內容已複製到剪貼簿');
-      }).catch(() => {
-        this.showToast('複製失敗');
-      });
+      doCopy();
     }
   },
 
