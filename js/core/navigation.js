@@ -320,6 +320,7 @@ Object.assign(App, {
     }
 
     if (!ModeManager.isDemo()
+      && !this._instantDeepLinkMode
       && typeof FirebaseService !== 'undefined'
       && FirebaseService.ensureCollectionsForPage) {
       const contract = typeof PAGE_DATA_CONTRACT !== 'undefined' && PAGE_DATA_CONTRACT[pageId];
@@ -479,8 +480,8 @@ Object.assign(App, {
       }
       if (transitionSeq !== this._pageTransitionSeq) return { ok: false, reason: 'stale_transition' };
 
-      // 載入必要集合
-      if (!ModeManager.isDemo() && typeof FirebaseService !== 'undefined' && FirebaseService.ensureCollectionsForPage) {
+      // 載入必要集合（instant deep link 模式跳過，避免未認證時 Firestore 權限錯誤）
+      if (!ModeManager.isDemo() && !this._instantDeepLinkMode && typeof FirebaseService !== 'undefined' && FirebaseService.ensureCollectionsForPage) {
         await FirebaseService.ensureCollectionsForPage(pageId, { skipRealtimeStart: true });
       }
       if (transitionSeq !== this._pageTransitionSeq) return { ok: false, reason: 'stale_transition' };
