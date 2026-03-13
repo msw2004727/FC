@@ -214,7 +214,7 @@
 // 20260313l: 跨瀏覽器相容性修復（webkit-backdrop-filter、dvh fallback、clipboard fallback、replaceAll→replace）
 // 20260313m: 日誌中心 UI 改善：按鈕置中並排、log 行底色分類、操作日誌加重整按鈕
 // 20260313n: 修復孤兒資料根因：deleteEvent 級聯清理 + 手動簽到 UID 解析
-const CACHE_VERSION = '20260313t';
+const CACHE_VERSION = '20260313u';
 
 // ─── Page Strategy Registry ───
 // 唯一策略來源，未列出的頁面預設 fresh-first
@@ -650,6 +650,9 @@ const ADMIN_PAGE_EXTRA_PERMISSION_ITEMS = {
     { code: 'admin.users.edit_profile', name: '編輯基本資料' },
     { code: 'admin.users.change_role', name: '修改用戶身分' },
     { code: 'admin.users.restrict', name: '限制 / 解除限制' },
+  ],
+  'page-my-activities': [
+    { code: 'event.edit_all', name: '編輯所有活動' },
   ],
   'page-admin-teams': [
     { code: 'team.create', name: '建立球隊' },

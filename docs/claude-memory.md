@@ -1,3 +1,10 @@
+### 2026-03-13 — 活動管理「編輯所有活動」權限開關缺失
+- **問題**：管理員編輯非自己建立的活動時被 Firestore Rules 阻止，權限管理後台也沒有「編輯所有活動」開關可開
+- **原因**：`firestore.rules` 的 events update 規則有 `hasPerm('event.edit_all')`，但 `config.js` 的 `ADMIN_PAGE_EXTRA_PERMISSION_ITEMS` 沒有為活動管理頁（`page-my-activities`）定義此權限項目，導致 super_admin 無法在 UI 授予任何角色此權限
+- **修復**：在 `ADMIN_PAGE_EXTRA_PERMISSION_ITEMS` 新增 `'page-my-activities': [{ code: 'event.edit_all', name: '編輯所有活動' }]`
+- **教訓**：permission-hardening 計劃中已列出此權限但未在前端 toggle 清單落實；每新增 `hasPerm()` 規則時必須同步確認前端有對應開關
+- **受影響檔案**：`js/config.js`
+
 ### 2026-03-13 — 用戶管理只載入 300 人，導致搜尋遺漏與放鴿子顯示 "-"
 - **問題**：admin 在用戶管理搜尋不到部分用戶（如 philip），且該用戶的放鴿子紀錄顯示 "-"
 - **原因**：`firebase-service.js` 的 `_startUsersListener()` 使用 `.limit(300)` 硬限制，剛好卡在用戶總數邊界。超出的用戶不被載入快取，搜尋找不到，放鴿子計算也因 UID 解析失敗回傳 null 顯示 "-"
