@@ -575,22 +575,24 @@ Object.assign(FirebaseService, {
     );
     if (existing) throw new Error('已報名此活動');
 
-    // 防幽靈：直接查 Firestore 做二次確認
-    let fsCheck;
+    // 從 Firestore 查詢該活動所有報名紀錄（不依賴本地快取，避免快取不完整導致覆蓋正確計數）
+    let allEventRegs;
     try {
-      fsCheck = await db.collection('registrations')
+      const allRegsSnap = await db.collection('registrations')
         .where('eventId', '==', eventId)
-        .where('userId', '==', userId)
         .get();
+      allEventRegs = allRegsSnap.docs.map(d => ({ ...d.data(), _docId: d.id }));
     } catch (queryErr) {
       console.error('[registerForEvent] 查詢 registrations 失敗:', queryErr.code, queryErr.message);
       throw queryErr;
     }
-    const hasActive = fsCheck.docs.some(d => {
-      const data = d.data();
-      return (data.status === 'confirmed' || data.status === 'waitlisted')
-        && data.participantType !== 'companion';
-    });
+
+    // 防幽靈：用 Firestore 真實資料檢查重複報名
+    const hasActive = allEventRegs.some(r =>
+      r.userId === userId
+      && (r.status === 'confirmed' || r.status === 'waitlisted')
+      && r.participantType !== 'companion'
+    );
     if (hasActive) throw new Error('已報名此活動');
 
     const eventRef = db.collection('events').doc(event._docId);
@@ -606,6 +608,11 @@ Object.assign(FirebaseService, {
       registeredAt: new Date().toISOString(),
     };
 
+    // 從 Firestore 查詢結果取得有效報名（不用快取）
+    const firestoreActiveRegs = allEventRegs.filter(
+      r => r.status !== 'cancelled' && r.status !== 'removed'
+    );
+
     const result = await db.runTransaction(async (transaction) => {
       // 原子讀取活動最新狀態
       const eventDoc = await transaction.get(eventRef);
@@ -613,11 +620,7 @@ Object.assign(FirebaseService, {
       const ed = eventDoc.data();
       const maxCount = ed.max || 0;
 
-      // 查詢該活動所有有效報名（transaction 外已做過，此處用快取 + 新報名模擬）
-      const cachedRegs = this._cache.registrations.filter(
-        r => r.eventId === eventId && r.status !== 'cancelled' && r.status !== 'removed'
-      );
-      const confirmedCount = cachedRegs.filter(r => r.status === 'confirmed').length;
+      const confirmedCount = firestoreActiveRegs.filter(r => r.status === 'confirmed').length;
 
       const isWaitlist = confirmedCount >= maxCount;
       const status = isWaitlist ? 'waitlisted' : 'confirmed';
@@ -628,8 +631,8 @@ Object.assign(FirebaseService, {
         registeredAt: firebase.firestore.FieldValue.serverTimestamp(),
       });
 
-      // 用 registrations 重建投影
-      const allRegsForRebuild = [...cachedRegs, registration];
+      // 用 Firestore 真實資料 + 新報名重建投影
+      const allRegsForRebuild = [...firestoreActiveRegs, registration];
       const occupancy = this._rebuildOccupancy({ max: maxCount, status: ed.status }, allRegsForRebuild);
 
       transaction.update(eventRef, {
@@ -665,17 +668,35 @@ Object.assign(FirebaseService, {
     const wasPreviouslyConfirmed = reg.status === 'confirmed';
     const event = this._cache.events.find(e => e.id === reg.eventId);
 
+    // 從 Firestore 查詢該活動所有報名（不依賴快取）
+    let firestoreRegs = [];
+    if (event) {
+      try {
+        const snap = await db.collection('registrations')
+          .where('eventId', '==', event.id)
+          .get();
+        firestoreRegs = snap.docs.map(d => ({ ...d.data(), _docId: d.id }));
+      } catch (err) {
+        console.warn('[cancelRegistration] Firestore 查詢失敗，fallback 用快取:', err);
+        firestoreRegs = this._cache.registrations.filter(r => r.eventId === event.id);
+      }
+    }
+
     // 先在本地快取做所有狀態變更
     reg.status = 'cancelled';
     reg.cancelledAt = new Date().toISOString();
+
+    // 同步標記 Firestore 查詢結果中對應的紀錄
+    const fsReg = firestoreRegs.find(r => r.id === registrationId || r._docId === reg._docId);
+    if (fsReg) fsReg.status = 'cancelled';
 
     const promotedCandidates = [];
 
     if (event) {
       // 候補遞補：若取消的是正取，依序將 waitlisted 改 confirmed 直到滿額
       if (wasPreviouslyConfirmed && event.max) {
-        const activeRegs = this._cache.registrations.filter(
-          r => r.eventId === event.id && (r.status === 'confirmed' || r.status === 'waitlisted')
+        const activeRegs = firestoreRegs.filter(
+          r => r.status === 'confirmed' || r.status === 'waitlisted'
         );
         const confirmedCount = activeRegs.filter(r => r.status === 'confirmed').length;
         const slotsAvailable = event.max - confirmedCount;
@@ -694,15 +715,18 @@ Object.assign(FirebaseService, {
           for (const candidate of waitlistedCandidates) {
             if (promoted >= slotsAvailable) break;
             candidate.status = 'confirmed';
+            // 同步到本地快取
+            const localCandidate = this._cache.registrations.find(r => r.id === candidate.id);
+            if (localCandidate) localCandidate.status = 'confirmed';
             promotedCandidates.push(candidate);
             promoted++;
           }
         }
       }
 
-      // 用 _rebuildOccupancy 從零重建投影
-      const allActive = this._cache.registrations.filter(
-        r => r.eventId === event.id && (r.status === 'confirmed' || r.status === 'waitlisted')
+      // 用 Firestore 真實資料重建投影
+      const allActive = firestoreRegs.filter(
+        r => r.status === 'confirmed' || r.status === 'waitlisted'
       );
       const occupancy = this._rebuildOccupancy(event, allActive);
       this._applyRebuildOccupancy(event, occupancy);
@@ -1667,22 +1691,28 @@ Object.assign(FirebaseService, {
     const event = this._cache.events.find(e => e.id === eventId);
     if (!event || !event._docId) throw new Error('活動不存在');
 
-    // 防幽靈：在 transaction 前先查 Firestore 確認主報名者是否已報名
-    // 只用 eventId + userId 兩欄位查詢，避免需要複合索引
+    // 從 Firestore 查詢該活動所有報名紀錄（不依賴快取，避免快取不完整導致覆蓋正確計數）
     await this._assertEventSignupOpen(event);
 
-    const fsCheck = await db.collection('registrations')
+    const allRegsSnap = await db.collection('registrations')
       .where('eventId', '==', eventId)
-      .where('userId', '==', mainUserId)
       .get();
-    const hasActive = fsCheck.docs.some(d => {
-      const s = d.data().status;
-      return s === 'confirmed' || s === 'waitlisted';
-    });
+    const allEventRegs = allRegsSnap.docs.map(d => ({ ...d.data(), _docId: d.id }));
+
+    // 防幽靈：用 Firestore 真實資料檢查重複報名
+    const hasActive = allEventRegs.some(r =>
+      r.userId === mainUserId
+      && (r.status === 'confirmed' || r.status === 'waitlisted')
+    );
     if (hasActive) throw new Error('已報名此活動');
 
     const eventRef = db.collection('events').doc(event._docId);
     const regDocRefs = entries.map(() => db.collection('registrations').doc());
+
+    // 從 Firestore 查詢結果取得有效報名（不用快取）
+    const firestoreActiveRegs = allEventRegs.filter(
+      r => r.status === 'confirmed' || r.status === 'waitlisted'
+    );
 
     const result = await db.runTransaction(async (transaction) => {
       // 原子讀取活動最新狀態
@@ -1691,11 +1721,7 @@ Object.assign(FirebaseService, {
       const ed = eventDoc.data();
       const maxCount = ed.max || 0;
 
-      // 取得目前已有的有效報名數（用快取）
-      const existingActive = this._cache.registrations.filter(
-        r => r.eventId === eventId && (r.status === 'confirmed' || r.status === 'waitlisted')
-      );
-      let confirmedCount = existingActive.filter(r => r.status === 'confirmed').length;
+      let confirmedCount = firestoreActiveRegs.filter(r => r.status === 'confirmed').length;
 
       const registrations = [];
       let confirmed = 0, waitlisted = 0;
@@ -1704,8 +1730,8 @@ Object.assign(FirebaseService, {
 
       for (const entry of entries) {
         const dupKey = entry.companionId ? `${entry.userId}_${entry.companionId}` : entry.userId;
-        const existing = this._cache.registrations.find(r => {
-          if (r.eventId !== eventId || r.status === 'cancelled' || r.status === 'removed') return false;
+        const existing = allEventRegs.find(r => {
+          if (r.status === 'cancelled' || r.status === 'removed') return false;
           const rKey = r.companionId ? `${r.userId}_${r.companionId}` : r.userId;
           return rKey === dupKey;
         });
@@ -1742,8 +1768,8 @@ Object.assign(FirebaseService, {
         refIdx++;
       }
 
-      // 用 _rebuildOccupancy 統一重建投影
-      const allRegsForRebuild = [...existingActive, ...registrations];
+      // 用 Firestore 真實資料 + 新報名重建投影
+      const allRegsForRebuild = [...firestoreActiveRegs, ...registrations];
       const occupancy = this._rebuildOccupancy({ max: maxCount, status: ed.status }, allRegsForRebuild);
 
       transaction.update(eventRef, {

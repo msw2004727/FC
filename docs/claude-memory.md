@@ -1,3 +1,10 @@
+### 2026-03-13 — 報名/取消操作用快取重建計數導致 event.current 被覆蓋（根因修復）
+- **問題**：活動管理頁顯示 1/20 人，活動頁顯示 21/20 人。event 文件的 `current` 欄位被錯誤覆蓋為極小值
+- **原因**：`4d6b8c9` 提交將報名/取消改為 `_rebuildOccupancy` 從零重建計數，但 transaction 內使用 `this._cache.registrations`（本地快取）而非 Firestore 真實資料。當快取尚未完整同步（LIFF 重導後、首次載入、網速慢），重建結果會以不完整的快取覆蓋 Firestore 中正確的 `current` 值
+- **修復**：`registerForEvent`、`batchRegisterForEvent`、`cancelRegistration` 三個函式改為在操作前先從 Firestore 查詢該活動所有 registrations，transaction 內使用 Firestore 查詢結果進行 `_rebuildOccupancy`，不再依賴本地快取。重複報名檢查也改用 Firestore 真實資料
+- **教訓**：在 transaction 內進行「從零重建」操作時，資料來源必須是 Firestore 而非本地快取；增量操作（current++）雖然有其他問題，但不會因快取不完整而覆蓋正確值
+- **受影響檔案**：`js/firebase-crud.js`
+
 ### 2026-03-13 — 活動管理頁人數顯示不一致修復
 - **問題**：「我的活動管理」頁面顯示 1/20 人，但「活動」頁面顯示 21/20 人，數據不一致
 - **原因**：活動管理頁 `event-manage.js` 直接讀取 `e.current` 欄位（事件物件上的靜態值），而活動頁使用 `_getEventParticipantStats()` 從 registrations 即時計算。當 `updateEvent` 因 FieldValue race condition 失敗時，`e.current` 不會更新，導致兩頁數據不同步
