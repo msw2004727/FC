@@ -614,7 +614,28 @@ Object.assign(App, {
     const cooldownMs = isSlow ? 1400 : 900;
     if (now - (this._homeEventLoadingToastAt || 0) < cooldownMs) return;
     this._homeEventLoadingToastAt = now;
-    this.showToast(isSlow ? '網路較慢，活動資料仍在載入中...' : '活動資料載入中，請稍候 1-2 秒');
+
+    // Show persistent toast (no auto-dismiss)
+    const toast = document.getElementById('toast');
+    if (!toast) return;
+    toast.textContent = isSlow ? '網路較慢，活動資料仍在載入中...' : '活動資料載入中，請稍候 1-2 秒';
+    toast.classList.add('show');
+    clearTimeout(this._toastTimer);
+    // Keep toast visible — do NOT set auto-dismiss timer
+
+    // 5s escalation: change message to reload hint
+    clearTimeout(this._homeEventLoadingEscalateTimer);
+    this._homeEventLoadingEscalateTimer = setTimeout(() => {
+      if (!toast.classList.contains('show')) return;
+      toast.textContent = '若加載過久請關閉所有分頁並重整瀏覽器';
+    }, 5000);
+  },
+
+  _dismissHomeEventLoadingToast() {
+    clearTimeout(this._homeEventLoadingEscalateTimer);
+    this._homeEventLoadingEscalateTimer = null;
+    const toast = document.getElementById('toast');
+    if (toast) toast.classList.remove('show');
   },
 
   _markHomeEventCardPending(cardEl) {
@@ -688,6 +709,7 @@ Object.assign(App, {
         clearTimeout(targetCard._homeEventLoadingToastTimer);
         targetCard._homeEventLoadingToastTimer = null;
       }
+      this._dismissHomeEventLoadingToast();
       this._clearHomeEventCardPending(targetCard, shouldHintLoading ? 650 : 0);
       if (targetCard?.dataset) {
         clearTimeout(targetCard._homeEventOpenLockTimer);

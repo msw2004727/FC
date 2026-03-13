@@ -215,7 +215,8 @@
 // 20260313m: 日誌中心 UI 改善：按鈕置中並排、log 行底色分類、操作日誌加重整按鈕
 // 20260313n: 修復孤兒資料根因：deleteEvent 級聯清理 + 手動簽到 UID 解析
 // 20260314r: 掃碼簽到加入日期分類篩選（今日/過期/未來）
-const CACHE_VERSION = '20260314r';
+// 20260314s: 首頁活動卡片載入 toast 改為持續顯示 + 5 秒後提示重整
+const CACHE_VERSION = '20260314s';
 
 // ─── Page Strategy Registry ───
 // 唯一策略來源，未列出的頁面預設 fresh-first
