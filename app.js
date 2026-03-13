@@ -6,33 +6,41 @@
 
 /* 管理工具：掃描並修復 activityRecords 狀態不一致 */
 window._scanAR = async function(fix) {
-  var arSnap = await db.collection('activityRecords').where('status', '==', 'registered').get();
-  var issues = [];
-  var checked = 0;
-  for (var i = 0; i < arSnap.docs.length; i++) {
-    var doc = arSnap.docs[i];
-    var ar = doc.data();
-    if (!ar.uid || !ar.eventId) continue;
-    var regSnap = await db.collection('registrations')
-      .where('userId', '==', ar.uid).where('eventId', '==', ar.eventId).get();
-    var hasActive = false;
+  try {
+    alert('scanning...');
+    var arSnap = await db.collection('activityRecords').where('status', '==', 'registered').get();
+    alert('found ' + arSnap.size + ' registered records, checking...');
+    var regSnap = await db.collection('registrations').where('status', '==', 'cancelled').get();
+    var cancelledMap = {};
     regSnap.forEach(function(rd) {
-      var s = rd.data().status;
-      if (s === 'confirmed' || s === 'registered' || s === 'waitlisted') hasActive = true;
+      var r = rd.data();
+      var key = (r.userId || '') + '|' + (r.eventId || '');
+      cancelledMap[key] = true;
     });
-    checked++;
-    if (!hasActive && regSnap.size > 0) {
-      issues.push(doc.id + '|' + ar.uid + '|' + ar.eventId + '|' + (ar.name || ''));
-      if (fix) {
-        await doc.ref.update({ status: 'cancelled' });
+    var issues = [];
+    arSnap.forEach(function(doc) {
+      var ar = doc.data();
+      if (!ar.uid || !ar.eventId) return;
+      var key = ar.uid + '|' + ar.eventId;
+      if (cancelledMap[key]) {
+        issues.push(doc.id + '|' + (ar.name || '') + '|' + ar.uid.substring(0, 8));
       }
+    });
+    var msg = 'registered AR: ' + arSnap.size + ', cancelled reg match: ' + issues.length;
+    if (issues.length > 0) {
+      msg += '\n' + issues.join('\n');
     }
+    alert(msg);
+    if (fix && issues.length > 0) {
+      for (var i = 0; i < issues.length; i++) {
+        var docId = issues[i].split('|')[0];
+        await db.collection('activityRecords').doc(docId).update({ status: 'cancelled' });
+      }
+      alert('fixed ' + issues.length);
+    }
+  } catch (e) {
+    alert('error: ' + e.message);
   }
-  var msg = 'checked: ' + checked + ', issues: ' + issues.length;
-  if (issues.length > 0) {
-    msg += (fix ? ' (FIXED)' : ' (dry-run)') + '\n' + issues.join('\n');
-  }
-  alert(msg);
 };
 
 function _createSportHubTimeoutError(code, message) {
