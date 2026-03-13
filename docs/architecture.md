@@ -90,7 +90,7 @@ flowchart TD
 | `i18n.js` | 多語系翻譯字串，無外部依賴，最先載入 |
 | `firebase-config.js` | 初始化 Firebase SDK，向外暴露 `db`、`storage`、`auth` 全域物件 |
 | `firebase-service.js` | **快取優先**資料層；以 `_cache` 記憶體物件映射 Firestore，透過 `onSnapshot` 即時同步，並持久化至 localStorage |
-| `firebase-crud.js` | 透過 `Object.assign` 擴充 `FirebaseService`，提供各集合的新增 / 更新 / 刪除 / 圖片上傳操作 |
+| `firebase-crud.js` | 透過 `Object.assign` 擴充 `FirebaseService`，提供各集合的新增 / 更新 / 刪除 / 圖片上傳操作。包含 `_rebuildOccupancy()` 統一佔位重建函式，所有報名/取消/遞補流程共用 |
 | `api-service.js` | **抽象層**；根據 `ModeManager.isDemo()` 決定從 `DemoData` 或 `FirebaseService._cache` 取資料，隔離所有 UI 模組與 Demo / Prod 切換邏輯 |
 | `line-auth.js` | LINE LIFF SDK 封裝；在 Demo 模式或 localhost 時停用，提供登入 / 登出 / 取得個人資料 |
 | `page-loader.js` | 按需非同步載入 `pages/*.html` 片段，快取版本由 `CACHE_VERSION` 控制。延遲載入（`_loadDeferred`）與按需載入（`ensurePage`）完成後自動呼叫 `App._bindPageElements()` 重新綁定事件 |
@@ -100,6 +100,7 @@ flowchart TD
 | `core/theme.js` | 深色 / 淺色主題切換，偏好儲存於 localStorage |
 | `core/mode.js` | Demo ↔ Production 切換（Logo 連按 5 次 / Shift+Alt+D / console 指令），切換時重建 Firebase 監聽器並重繪 UI |
 | `modules/event-*.js` | 活動功能群（列表、詳情、報名/取消、同行者 Modal、建立表單、管理、渲染輔助），透過 `Object.assign(App, {...})` 掛載 |
+| `modules/registration-audit.js` | 報名資料審計與修復：`auditRegistrations()` 掃描差異、`repairRegistrations()` 以 registrations 為準回寫 events 投影 |
 | `modules/team*.js` | 球隊功能群（列表、詳情、表單、成員申請管理） |
 | `modules/tournament-*.js` | 錦標賽功能群（渲染、賽程管理） |
 | `modules/tournament/README.md` | 賽事重構預留目錄說明；後續 friendly / cup / league 模組化拆分將以此目錄為落點 |

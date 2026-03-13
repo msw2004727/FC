@@ -1,3 +1,18 @@
+### 2026-03-13 — 活動報名系統 Bug 修復：統一佔位重建
+- **問題**：活動報名系統的正取/候補邏輯存在多項瑕疵：`registrations` 與 `events` 投影欄位各自維護導致漂移、`registerForEvent()` 無 transaction 存在競態條件、7+ 個流程各自對 current/waitlist/participants 做局部調整無統一規則、重複報名檢查未過濾 `participantType`、`_forcePromoteWaitlist` 無容量檢查。
+- **原因**：雙重資料來源（Dual Source of Truth）、非交易式寫入、分散的佔位邏輯。
+- **修復**：
+  1. 新增 `_rebuildOccupancy()` / `_applyRebuildOccupancy()` 共用函式（`firebase-crud.js`），以 registrations 為唯一真實來源統一重建 event 投影欄位
+  2. `registerForEvent()` 改為 `db.runTransaction()` 原子操作，重複檢查加入 `participantType !== 'companion'`
+  3. `batchRegisterForEvent()` 投影計算改用 `_rebuildOccupancy()`
+  4. `cancelRegistration()` / `cancelCompanionRegistrations()` 改用統一重建，不再手動 `current++/--`
+  5. `_promoteSingleCandidate()` / `_adjustWaitlistOnCapacityChange()` 改用 `_rebuildOccupancy()` 重建
+  6. `_syncEventToFirebase()` 改為 async，失敗時 showToast
+  7. `_removeParticipant()` / `_forcePromoteWaitlist()` 改用統一重建，後者加容量超額 confirm dialog
+  8. Registration ID 加隨機後綴防碰撞
+  9. 新增 `registration-audit.js` 提供 `auditRegistrations()` / `repairRegistrations()` 資料校正工具
+- **教訓**：當多個流程共同維護同一組投影欄位時，必須統一走同一個重建函式，禁止各自做局部增量調整；交易式寫入是防止競態條件的基本要求。
+
 ### 2026-03-13 — 修正操作日誌重送權限與站內信重複建立
 - **問題**：部分管理或通知流程完成後，console 會出現 `[opLog] FirebaseError: Missing or insufficient permissions.` 與 `[deliverMsg] FirebaseError: Document already exists`；前者代表操作日誌（`operationLogs`）補寫失敗，後者代表站內信（`messages`）在短時間重送時撞到既有文件。
 - **原因**：`operationLogs` 前端已改成固定文件 ID + `set()` 的可重入寫法，但 `firestore.rules` 仍只允許 create、不允許同一筆 retry 走 update；站內信寫入則缺少 idempotent 文件 ID 與短時間去重，遇到重試、雙觸發或離線恢復時，無法穩定把同一封訊息視為同一筆寫入。

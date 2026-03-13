@@ -207,7 +207,9 @@
 // 20260312l: achievement Phase 6，移除假條件並收斂成就正式支援模板
 // 20260312o: 修正活動候補轉正取後殘留在候補名單，並補上候補顯示去殘影
 // 20260313a: 修正 operationLogs 可重入寫入權限與站內信重送去重，避免 permission-denied / already-exists
-const CACHE_VERSION = '20260313a';
+// 20260313b: 活動報名系統 Bug 修復 — 統一佔位重建 _rebuildOccupancy，Transaction 化報名流程，新增 registration-audit
+// 20260313c: 新增 repairRegistrationStatuses() 完整校正 registration status + event 投影
+const CACHE_VERSION = '20260313c';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {

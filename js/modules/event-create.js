@@ -1604,12 +1604,9 @@ Object.assign(App, {
       })[0] || null;
   },
 
-  /** 執行單人遞補：將候補 registration 轉為 confirmed，更新活動名單 */
+  /** 執行單人遞補：將候補 registration 轉為 confirmed，重建投影 */
   _promoteSingleCandidate(event, reg) {
     if (!reg) return false;
-    const pName = reg.participantType === 'companion'
-      ? (reg.companionName || reg.userName)
-      : reg.userName;
 
     reg.status = 'confirmed';
     if (!ModeManager.isDemo() && reg._docId) {
@@ -1617,14 +1614,14 @@ Object.assign(App, {
         .catch(err => console.error('[promoteSingle]', err));
     }
 
-    const wIdx = (event.waitlistNames || []).indexOf(pName);
-    if (wIdx >= 0) event.waitlistNames.splice(wIdx, 1);
-    if (!(event.participants || []).includes(pName)) {
-      event.participants = event.participants || [];
-      event.participants.push(pName);
+    // 用 _rebuildOccupancy 統一重建投影（不再手動 current++/--）
+    const allActive = (ApiService._src('registrations') || []).filter(
+      r => r.eventId === event.id && (r.status === 'confirmed' || r.status === 'waitlisted')
+    );
+    if (typeof FirebaseService !== 'undefined' && typeof FirebaseService._rebuildOccupancy === 'function') {
+      const occupancy = FirebaseService._rebuildOccupancy(event, allActive);
+      FirebaseService._applyRebuildOccupancy(event, occupancy);
     }
-    event.current = (event.current || 0) + 1;
-    event.waitlist = Math.max(0, (event.waitlist || 0) - 1);
 
     // 更新 activityRecord：waitlisted → registered（同行者不動）
     if (reg.participantType !== 'companion') {
@@ -1655,72 +1652,94 @@ Object.assign(App, {
     const event = ApiService.getEvent(eventId);
     if (!event) return;
 
+    const allRegs = (ApiService._src('registrations') || []).filter(
+      r => r.eventId === eventId && (r.status === 'confirmed' || r.status === 'waitlisted')
+    );
+
     if (newMax > oldMax) {
       // ── 容量增加 → 遞補候補 ──
-      let slotsAvailable = newMax - event.current;
+      const confirmedCount = allRegs.filter(r => r.status === 'confirmed').length;
+      let slotsAvailable = newMax - confirmedCount;
       if (slotsAvailable <= 0) return;
 
       let promoted = 0;
       while (slotsAvailable > 0) {
         const candidate = this._getNextWaitlistCandidate(eventId);
         if (!candidate) break;
-        this._promoteSingleCandidate(event, candidate);
+        candidate.status = 'confirmed';
+        if (!ModeManager.isDemo() && candidate._docId) {
+          db.collection('registrations').doc(candidate._docId).update({ status: 'confirmed' })
+            .catch(err => console.error('[promoteSingle]', err));
+        }
+        // 更新 activityRecord
+        if (candidate.participantType !== 'companion') {
+          const arSource = ApiService._src('activityRecords');
+          const ar = arSource.find(a => a.eventId === eventId && a.uid === candidate.userId && a.status === 'waitlisted');
+          if (ar) {
+            ar.status = 'registered';
+            if (!ModeManager.isDemo() && ar._docId) {
+              db.collection('activityRecords').doc(ar._docId).update({ status: 'registered' })
+                .catch(err => console.error('[promoteAR]', err));
+            }
+          }
+        }
+        this._sendNotifFromTemplate('waitlist_promoted', {
+          eventName: event.title, date: event.date, location: event.location,
+        }, candidate.userId, 'activity', '活動');
         slotsAvailable--;
         promoted++;
       }
 
-      event.status = event.current >= newMax ? 'full' : 'open';
+      // 統一重建投影
+      const activeAfter = (ApiService._src('registrations') || []).filter(
+        r => r.eventId === eventId && (r.status === 'confirmed' || r.status === 'waitlisted')
+      );
+      if (typeof FirebaseService !== 'undefined' && typeof FirebaseService._rebuildOccupancy === 'function') {
+        const occupancy = FirebaseService._rebuildOccupancy({ max: newMax, status: event.status }, activeAfter);
+        FirebaseService._applyRebuildOccupancy(event, occupancy);
+      }
       this._syncEventToFirebase(event);
 
       if (promoted > 0) {
         console.log(`[adjustWaitlist] 容量增加，已遞補 ${promoted} 位候補者`);
       }
-    } else if (newMax < oldMax && event.current > newMax) {
+    } else if (newMax < oldMax) {
       // ── 容量減少 → 降級多餘正取者到候補 ──
-      const excess = event.current - newMax;
-      const regs = ApiService.getRegistrationsByEvent(eventId);
-      const confirmed = regs
+      const confirmedRegs = allRegs
         .filter(r => r.status === 'confirmed')
         .sort((a, b) => {
-          // 最晚報名者先降
           const ta = new Date(a.registeredAt).getTime();
           const tb = new Date(b.registeredAt).getTime();
           if (ta !== tb) return tb - ta;
-          // 同 userId 中 promotionOrder 最大的先降（同行者先降、本人最後）
           return (b.promotionOrder || 0) - (a.promotionOrder || 0);
         });
+      const excess = confirmedRegs.length - newMax;
+      if (excess <= 0) return;
 
       let demoted = 0;
-      for (const reg of confirmed) {
+      for (const reg of confirmedRegs) {
         if (demoted >= excess) break;
-        const pName = reg.participantType === 'companion'
-          ? (reg.companionName || reg.userName)
-          : reg.userName;
 
         reg.status = 'waitlisted';
         if (!ModeManager.isDemo() && reg._docId) {
           db.collection('registrations').doc(reg._docId).update({ status: 'waitlisted' })
             .catch(err => console.error('[demoteToWaitlist]', err));
         }
-
-        // 從 participants 移到 waitlistNames
-        const pIdx = (event.participants || []).indexOf(pName);
-        if (pIdx >= 0) event.participants.splice(pIdx, 1);
-        if (!(event.waitlistNames || []).includes(pName)) {
-          event.waitlistNames = event.waitlistNames || [];
-          event.waitlistNames.push(pName);
-        }
-        event.current = Math.max(0, event.current - 1);
-        event.waitlist = (event.waitlist || 0) + 1;
         demoted++;
 
-        // 發送降級通知
         this._sendNotifFromTemplate('waitlist_demoted', {
           eventName: event.title, date: event.date, location: event.location,
         }, reg.userId, 'activity', '活動');
       }
 
-      event.status = event.current >= newMax ? 'full' : 'open';
+      // 統一重建投影
+      const activeAfter = (ApiService._src('registrations') || []).filter(
+        r => r.eventId === eventId && (r.status === 'confirmed' || r.status === 'waitlisted')
+      );
+      if (typeof FirebaseService !== 'undefined' && typeof FirebaseService._rebuildOccupancy === 'function') {
+        const occupancy = FirebaseService._rebuildOccupancy({ max: newMax, status: event.status }, activeAfter);
+        FirebaseService._applyRebuildOccupancy(event, occupancy);
+      }
       this._syncEventToFirebase(event);
 
       if (demoted > 0) {
@@ -1730,15 +1749,24 @@ Object.assign(App, {
   },
 
   /** 同步活動計數至 Firebase */
-  _syncEventToFirebase(event) {
+  async _syncEventToFirebase(event) {
     if (!ModeManager.isDemo() && event._docId) {
-      db.collection('events').doc(event._docId).update({
-        current: event.current,
-        waitlist: event.waitlist,
-        participants: event.participants,
-        waitlistNames: event.waitlistNames,
-        status: event.status,
-      }).catch(err => console.error('[syncEvent]', err));
+      try {
+        await db.collection('events').doc(event._docId).update({
+          current: event.current,
+          waitlist: event.waitlist,
+          participants: event.participants || [],
+          waitlistNames: event.waitlistNames || [],
+          status: event.status,
+        });
+      } catch (err) {
+        console.error('[syncEvent]', err);
+        if (typeof this.showToast === 'function') this.showToast('活動同步失敗，請重試');
+      }
+    }
+    // 同步本地快取到 localStorage
+    if (typeof FirebaseService !== 'undefined' && typeof FirebaseService._saveToLS === 'function') {
+      FirebaseService._saveToLS('events', FirebaseService._cache.events);
     }
   },
 
