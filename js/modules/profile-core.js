@@ -48,6 +48,14 @@ Object.assign(App, {
     this._persistBrokenAvatarUrls();
   },
 
+  _forgetBrokenAvatarUrl(url) {
+    if (!url || typeof url !== 'string') return;
+    this._ensureBrokenAvatarUrlsLoaded();
+    if (this._brokenAvatarUrls.delete(url)) {
+      this._persistBrokenAvatarUrls();
+    }
+  },
+
   _isKnownBrokenAvatarUrl(url) {
     if (!url || typeof url !== 'string') return false;
     this._ensureBrokenAvatarUrlsLoaded();
@@ -89,25 +97,41 @@ Object.assign(App, {
     return `<img src="${escapeHTML(candidateUrl)}" class="${escapeHTML(imageClass)}" alt="${escapeHTML(name || 'avatar')}" referrerpolicy="no-referrer" data-avatar-fallback="1" data-avatar-name="${escapeHTML(name || '')}" data-avatar-fallback-class="${escapeHTML(fallbackClass)}"${attrs}>`;
   },
 
+  _isImgBroken(img) {
+    if (!img || !img.complete) return false;
+    // 部分瀏覽器（LINE WebView / 某些 Android Chrome）對壞圖回報 naturalWidth > 0（預設破圖 icon 尺寸）
+    // 破圖 icon 通常 ≤ 24px，正常頭像不可能這麼小
+    return img.naturalWidth < 2 || img.naturalHeight < 2;
+  },
+
   _bindAvatarFallbacks(root = document) {
     if (!root || typeof root.querySelectorAll !== 'function') return;
     root.querySelectorAll('img[data-avatar-fallback="1"]').forEach(img => {
       if (img.dataset.avatarFallbackBound === '1') return;
       img.dataset.avatarFallbackBound = '1';
-      const handleBroken = () => {
+      var self = this;
+      var handleBroken = function() {
         if (img.dataset.avatarFallbackDone === '1') return;
         img.dataset.avatarFallbackDone = '1';
         if (img.currentSrc || img.src) {
-          this._rememberBrokenAvatarUrl(img.currentSrc || img.src);
+          self._rememberBrokenAvatarUrl(img.currentSrc || img.src);
         }
-        const fallback = document.createElement('div');
+        var fallback = document.createElement('div');
         fallback.className = img.dataset.avatarFallbackClass || 'profile-avatar';
         fallback.textContent = (img.dataset.avatarName || '?').trim().charAt(0) || '?';
-        img.replaceWith(fallback);
+        if (img.parentNode) img.replaceWith(fallback);
       };
       img.addEventListener('error', handleBroken, { once: true });
-      if (img.complete && img.naturalWidth === 0) {
+      if (this._isImgBroken(img)) {
         handleBroken();
+      } else if (img.complete && img.naturalWidth === 0) {
+        handleBroken();
+      } else {
+        // 延遲複檢：瀏覽器從 HTTP 快取載入壞圖時，onerror 可能不觸發
+        setTimeout(function() {
+          if (img.dataset.avatarFallbackDone === '1') return;
+          if (self._isImgBroken(img)) handleBroken();
+        }, 1500);
       }
     });
   },
@@ -146,13 +170,14 @@ Object.assign(App, {
       img.onerror = handleBroken;
       img.onload = () => {
         if (img.dataset.avatarCurrentUrl !== nextUrl) return;
+        if (img.naturalWidth < 2) { handleBroken(); return; }
         img.dataset.avatarLoaded = '1';
       };
       img.removeAttribute('src');
       img.src = nextUrl;
 
       setTimeout(() => {
-        if (img.dataset.avatarCurrentUrl === nextUrl && img.complete && img.naturalWidth === 0) {
+        if (img.dataset.avatarCurrentUrl === nextUrl && img.complete && img.naturalWidth < 2) {
           handleBroken();
         }
       }, 0);
@@ -206,7 +231,7 @@ Object.assign(App, {
       probe.referrerPolicy = 'no-referrer';
       probe.onload = () => {
         if (done) return;
-        if (probe.naturalWidth === 0) { this._rememberBrokenAvatarUrl(url); tryNext(); return; }
+        if (probe.naturalWidth < 2) { this._rememberBrokenAvatarUrl(url); tryNext(); return; }
         done = true;
         const fallbackEl = document.getElementById('line-avatar-topbar');
         if (!fallbackEl) return;
@@ -217,13 +242,23 @@ Object.assign(App, {
         img.referrerPolicy = 'no-referrer';
         img.onclick = () => App.toggleUserMenu();
         img.id = 'line-avatar-topbar';
+        // DOM img 也掛 onerror，防止瀏覽器快取的壞圖繞過 probe
+        img.onerror = () => {
+          this._rememberBrokenAvatarUrl(url);
+          const fb = document.createElement('div');
+          fb.id = 'line-avatar-topbar';
+          fb.className = 'line-avatar-topbar line-avatar-fallback';
+          fb.textContent = initial;
+          fb.onclick = () => App.toggleUserMenu();
+          if (img.parentNode) img.replaceWith(fb);
+        };
         fallbackEl.replaceWith(img);
       };
       probe.onerror = () => { this._rememberBrokenAvatarUrl(url); tryNext(); };
       probe.src = url;
       // 超時保護：3 秒內未載入視為失敗
       setTimeout(() => {
-        if (!done && probe.complete && probe.naturalWidth === 0) {
+        if (!done && probe.complete && probe.naturalWidth < 2) {
           this._rememberBrokenAvatarUrl(url);
           tryNext();
         }
@@ -553,6 +588,8 @@ Object.assign(App, {
     if (loginBtn) loginBtn.style.display = 'none';
     if (userTopbar) userTopbar.style.display = '';
     const avatarCandidates = this._getAvatarCandidateUrls(profile && profile.pictureUrl, currentUser && currentUser.pictureUrl);
+    // 登入時取得的最新 LINE 頭像 URL，從壞圖記錄移除，讓它有機會重新載入
+    avatarCandidates.forEach(function(url) { App._forgetBrokenAvatarUrl(url); });
     this._setTopbarAvatar(userTopbar, avatarImg, profile, {
       candidateUrls: avatarCandidates,
     });

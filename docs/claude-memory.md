@@ -1,3 +1,13 @@
+### 2026-03-14 — LINE 頭像壞圖 fallback 強化
+- **問題**：部分手機瀏覽器快取了壞圖的 HTTP 回應，onerror 不觸發或 naturalWidth 回報 > 0（壞圖 icon 尺寸），導致 fallback 沒觸發、顯示方塊 X
+- **原因**：(1) naturalWidth === 0 判斷太嚴格，部分瀏覽器壞圖報非零尺寸 (2) 瀏覽器 HTTP 快取壞圖後再次載入不觸發 onerror (3) 重新登入取得同 URL 但它已被記入壞圖名單
+- **修復**：
+  - `_isImgBroken()` 新增 naturalWidth < 2 判斷（取代 === 0）
+  - `_bindAvatarFallbacks()` 新增 1.5 秒延遲複檢
+  - `_setTopbarAvatar()` 的 DOM img 也掛 onerror fallback
+  - 新增 `_forgetBrokenAvatarUrl()` — 登入取得最新 LINE 頭像時，從壞圖記錄移除讓它重新嘗試
+- **教訓**：不能假設 naturalWidth === 0 就是壞圖的唯一訊號；不同瀏覽器行為差異大，需多重防線
+
 ### 2026-03-14 — 活動行事曆卡片載入動畫
 - **問題**：行事曆活動卡片點擊後無載入反饋，使用者不知是否有觸發
 - **修復**：
