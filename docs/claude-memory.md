@@ -1,3 +1,23 @@
+### 2026-03-13 — 權限治理核心實作（Step 3 + 3.5 + 5 + 6 部分）
+- **問題**：規格書已完成但尚未實作 — roleChange 無邊界防護、日誌中心 Rules 不可下放、coach 身分無自動權限、角色變更無即時生效
+- **修復**：
+  1. **Cloud Function roleChange 邊界規則**（`functions/index.js`）：
+     - 新增 `ROLE_LEVELS` / `INHERENT_ROLE_PERMISSIONS` 常數
+     - 最低角色等級防線：caller < admin → 拒絕
+     - 目標角色上限：非 super_admin 不可指派 admin 級角色
+     - 被修改者等級檢查：不可修改同級或更高級
+     - roleChange 時寫入 `claimsUpdatedAt: serverTimestamp()`
+  2. **Cloud Function 不可剝奪權限**：`getCallerAccessContext()` 合併 `INHERENT_ROLE_PERMISSIONS`
+  3. **Firestore Rules 下放**（`firestore.rules`）：
+     - `errorLogs` read/delete：`isSuperAdmin() || hasPerm('admin.logs.error_read/error_delete')`
+     - `auditLogsByDay` read：`isSuperAdmin() || hasPerm('admin.logs.audit_read')`
+  4. **前端 config.js**：新增 `ADMIN_PAGE_EXTRA_PERMISSION_ITEMS['page-admin-logs']`、`INHERENT_ROLE_PERMISSIONS`、`getInherentRolePermissions()`
+  5. **前端 api-service.js**：`getRolePermissions()` 合併 inherent permissions
+  6. **前端 firebase-service.js**：`_syncCurrentUserFromUsersSnapshot` 偵測 roleChanged → `getIdToken(true)` 強制刷新 → `applyRole()` 即時生效
+- **受影響檔案**：`functions/index.js`、`firestore.rules`、`js/config.js`、`js/api-service.js`、`js/firebase-service.js`、`index.html`
+- **自我驗收**：8 個場景全部通過（super_admin 全權、admin 日誌存取、admin 不可升權同級、低階角色防線、coach 自動權限、user 不可自改、角色即時生效）
+- **教訓**：`autoExpRules` 實際存於 localStorage 而非 Firestore — 規格書已修正此錯誤
+
 ### 2026-03-13 — 權限規格書 rev.2 補強（5 項需求覆蓋檢視）
 - **問題**：`permission-hardening-rollout-plan-20260312.md` 未完整涵蓋 5 項權限基本要求，特別是：(1) Firestore Rules 的 `isSuperAdmin()` 集合下放決策未明確 (2) roleChange 無最低角色等級防線 (3) coach/captain/venue_owner 自動權限未定義
 - **修復**：

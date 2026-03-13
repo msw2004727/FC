@@ -813,14 +813,19 @@ const ApiService = {
       ? stored
       : (Array.isArray(getDefaultRolePermissions(role)) ? getDefaultRolePermissions(role) : stored));
 
+    const inherent = typeof getInherentRolePermissions === 'function'
+      ? getInherentRolePermissions(role)
+      : [];
+
     if (role === 'super_admin') {
       return sanitizePermissionCodeList([
         ...resolved,
+        ...inherent,
         ...getAllPermissionCodes(this._src('permissions') || []),
       ]);
     }
 
-    return resolved;
+    return sanitizePermissionCodeList([...resolved, ...inherent]);
   },
 
   getRolePermissionDefaults(role) {

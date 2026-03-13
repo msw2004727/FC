@@ -211,7 +211,7 @@
 // 20260313c: 新增 repairRegistrationStatuses() 完整校正 registration status + event 投影
 // 20260313d: 所有報名寫入流程改用 batch 原子操作，修復 _removeParticipant 多人遞補
 // 20260313f: 日誌中心 UI 精簡（移除 panel-header/toolbar-copy，新增 ℹ 說明彈窗含毛玻璃效果）
-const CACHE_VERSION = '20260313f';
+const CACHE_VERSION = '20260313g';
 
 // ─── Page Strategy Registry ───
 // 唯一策略來源，未列出的頁面預設 fresh-first
@@ -656,7 +656,23 @@ const ADMIN_PAGE_EXTRA_PERMISSION_ITEMS = {
     { code: 'admin.repair.team_join_repair', name: '歷史入隊補正' },
     { code: 'admin.repair.no_show_adjust', name: '放鴿子修改' },
   ],
+  'page-admin-logs': [
+    { code: 'admin.logs.error_read', name: '錯誤日誌讀取' },
+    { code: 'admin.logs.error_delete', name: '錯誤日誌清除' },
+    { code: 'admin.logs.audit_read', name: '稽核日誌讀取' },
+  ],
 };
+
+// ─── 身分不可剝奪權限（取得身分即自動擁有，不受 rolePermissions 覆蓋）───
+const INHERENT_ROLE_PERMISSIONS = Object.freeze({
+  coach:       ['activity.manage.entry', 'admin.tournaments.entry'],
+  captain:     ['activity.manage.entry', 'admin.tournaments.entry'],
+  venue_owner: ['activity.manage.entry', 'admin.tournaments.entry'],
+});
+
+function getInherentRolePermissions(roleKey) {
+  return INHERENT_ROLE_PERMISSIONS[roleKey] || [];
+}
 
 function getAdminDrawerPermissionDefinitions() {
   return DRAWER_MENUS

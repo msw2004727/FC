@@ -50,7 +50,7 @@
 | Cloud Functions 的 `super_admin` 權限 | `rolePermissions/super_admin` 文件不一定存在，函式靠 `role === 'super_admin'` 短路判斷 | 若查詢方式改變可能遺漏 super_admin 的全權 |
 | `errorLogs` / `auditLogsByDay` 讀取限 `isSuperAdmin()` | 即使 admin 被授予 `admin.logs.entry`，Firestore Rules 仍用 `isSuperAdmin()` 擋讀取（`firestore.rules:868,878`） | admin 進入日誌中心 → 錯誤日誌 / 稽核日誌頁籤空白 |
 | `errorLogs` 刪除限 `isSuperAdmin()` | `allow delete: if isSuperAdmin()`（`firestore.rules:871`） | admin 的「清除 30 天前」按鈕操作失敗 |
-| `autoExpRules` 無 Firestore Rules | 集合未出現在 `firestore.rules`，任何登入使用者可能可讀寫 | 自動 EXP 規則無後端保護 |
+| ~~`autoExpRules` 無 Firestore Rules~~ | ~~集合未出現在 `firestore.rules`~~ → **非議題**：自動 EXP 規則存於 localStorage，非 Firestore 集合 | — |
 | `admin.users.change_role` 無最低角色等級檢查 | Cloud Function `adminManageUser()` 的 roleChange 分支只檢查 `hasPermission()` 不檢查呼叫者角色等級（`functions/index.js:1067-1068`） | 若 super_admin 誤將 `admin.users.change_role` 開給 coach / captain，低階角色即可改角色 |
 | coach / captain / venue_owner 自動權限未定義 | `getDefaultRolePermissions()` 有預設邏輯但規格書未明確定義哪些是不可剝奪的自動權限 | 自訂 `rolePermissions/{role}` 會完全覆蓋預設，可能導致身分對應功能不可用 |
 
@@ -105,7 +105,7 @@
 |------|---------------|-----------|----------|
 | 日誌中心 — 錯誤日誌 | `errorLogs` | `isSuperAdmin()` read/delete | `isSuperAdmin() \|\| hasPerm('admin.logs.error_read')` |
 | 日誌中心 — 稽核日誌 | `auditLogsByDay/*/auditEntries` | `isSuperAdmin()` read | `isSuperAdmin() \|\| hasPerm('admin.logs.audit_read')` |
-| 自動 EXP 管理 | `autoExpRules` | **無 Rules（缺口）** | 新增 `isSuperAdmin() \|\| hasPerm('admin.auto_exp.entry')` |
+| ~~自動 EXP 管理~~ | ~~`autoExpRules`~~ | **非議題**：規則存於 localStorage，非 Firestore 集合 | — |
 
 **已可下放（Rules 已支援 isAdmin / hasPerm）**：
 
@@ -287,7 +287,7 @@
 | `rolePermissions` write | `isSuperAdmin()` | **(B) 不下放** | 維持，且前端 toggle 不顯示 |
 | `customRoles` write | `isSuperAdmin()` | **(B) 不下放** | 維持，且前端 toggle 不顯示 |
 | `permissions` write | `isSuperAdmin()` | **(B) 不下放** | 維持，且前端 toggle 不顯示 |
-| `autoExpRules`（目前無 Rules） | **缺口** | **(A) 下放** | 新增 `isSuperAdmin() \|\| hasPerm('admin.auto_exp.entry')` |
+| ~~`autoExpRules`~~ | **非議題** | — | 規則存於 localStorage，非 Firestore 集合，無需 Rules |
 
   對於決策 **(B) 不下放** 的功能，需同步確認其 permission code **不出現在 `ADMIN_PAGE_EXTRA_PERMISSION_ITEMS` 或 `DRAWER_MENUS` 的 `permissionCode` 中**。
 
@@ -421,7 +421,7 @@
 | Firestore Rules 修改導致誤擋 | 正常操作被拒絕 | 高 | 每步驗證後再進下一步，保留回滾能力 |
 | 前端 capability 檢查與 Rules 不同步 | UI 能按但後端拒絕 | 中 | 使用同一份 capability 名稱常數 |
 | capability 誤授予低階角色 | coach/captain 可改角色 | **高** | Step 3 加入 Cloud Function 最低角色等級檢查 |
-| `autoExpRules` 無 Rules 保護 | 任何登入者可讀寫 | **高** | Step 5 新增 Rules |
+| ~~`autoExpRules` 無 Rules 保護~~ | **非議題**（localStorage） | — | — |
 | 身分自動權限被自訂覆蓋 | coach 進不了活動管理 | 中 | Step 3.5 不可剝奪權限合併邏輯 |
 
 ---
@@ -491,7 +491,7 @@
 | `admin.logs.error_read` | 日誌中心 → 錯誤日誌 | `errorLogs` read | `isSuperAdmin()` → 待改 |
 | `admin.logs.error_delete` | 日誌中心 → 清除 | `errorLogs` delete | `isSuperAdmin()` → 待改 |
 | `admin.logs.audit_read` | 日誌中心 → 稽核日誌 | `auditLogsByDay` read | `isSuperAdmin()` → 待改 |
-| `admin.auto_exp.entry` | `page-admin-auto-exp` | `autoExpRules` write | **無 Rules（缺口）** |
+| `admin.auto_exp.entry` | `page-admin-auto-exp` | localStorage（非 Firestore） | 僅前端入口控制 |
 | `admin.repair.entry` | `page-admin-repair` | — | 頁面入口 |
 | `admin.repair.team_join_repair` | 補正 → 歷史入隊 | `teamJoinRepairs` | `canRunTeamJoinRepair()` |
 | `admin.repair.no_show_adjust` | 補正 → 放鴿子 | `userCorrections` | `canManageNoShowCorrections()` |

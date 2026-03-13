@@ -865,17 +865,17 @@ service cloud.firestore {
       allow delete: if false;
     }
     match /errorLogs/{docId} {
-      allow read: if isSuperAdmin();
+      allow read: if isSuperAdmin() || hasPerm('admin.logs.error_read');
       allow create: if isAuth();
       allow update: if false;
-      allow delete: if isSuperAdmin();
+      allow delete: if isSuperAdmin() || hasPerm('admin.logs.error_delete');
     }
     match /userCorrections/{uid} {
       allow read: if isAuth();
       allow create, update, delete: if canManageNoShowCorrections();
     }
     match /auditLogsByDay/{dayKey}/auditEntries/{logId} {
-      allow read: if isSuperAdmin();
+      allow read: if isSuperAdmin() || hasPerm('admin.logs.audit_read');
       allow create, update, delete: if false;
     }
 

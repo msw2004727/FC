@@ -616,6 +616,8 @@ const FirebaseService = {
       || JSON.stringify(prev.teamIds || []) !== JSON.stringify(next.teamIds || []);
     if (!changed) return;
 
+    const roleChanged = prev && prev.role !== next.role;
+
     this._cache.currentUser = next;
     this._saveToLS('currentUser', next);
     this._startMessagesListener();
@@ -623,6 +625,17 @@ const FirebaseService = {
       this._startRegistrationsListener();
     }
     if (this._onUserChanged) this._onUserChanged();
+
+    if (roleChanged && auth?.currentUser) {
+      auth.currentUser.getIdToken(true).then(() => {
+        console.log('[FirebaseService] Role changed to', next.role, '— token refreshed');
+        if (typeof App !== 'undefined' && typeof App.applyRole === 'function') {
+          App.applyRole(next.role, true);
+        }
+      }).catch(err => {
+        console.warn('[FirebaseService] Token refresh after role change failed:', err);
+      });
+    }
   },
 
   _watchRolePermissionsRealtime(waitForFirstSnapshot = false) {

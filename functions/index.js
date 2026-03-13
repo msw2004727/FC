@@ -35,6 +35,14 @@ const ADMIN_MANAGED_USER_PROFILE_FIELDS = Object.freeze([
   "sports",
   "phone",
 ]);
+const ROLE_LEVELS = Object.freeze({
+  user: 0, coach: 1, captain: 2, venue_owner: 3, admin: 4, super_admin: 5,
+});
+const INHERENT_ROLE_PERMISSIONS = Object.freeze({
+  coach:       ["activity.manage.entry", "admin.tournaments.entry"],
+  captain:     ["activity.manage.entry", "admin.tournaments.entry"],
+  venue_owner: ["activity.manage.entry", "admin.tournaments.entry"],
+});
 const ALLOWED_AUDIT_ACTIONS = new Set([
   "login_success",
   "login_failure",
@@ -547,9 +555,11 @@ async function getRolePermissionsFromFirestore(roleKey) {
 
 async function getCallerAccessContext(request) {
   const role = await getCallerRoleWithFallback(request);
-  const permissions = role === "super_admin"
+  const stored = role === "super_admin"
     ? []
     : await getRolePermissionsFromFirestore(role);
+  const inherent = INHERENT_ROLE_PERMISSIONS[role] || [];
+  const permissions = Array.from(new Set([...stored, ...inherent]));
   return {
     role,
     permissions,
@@ -1068,12 +1078,20 @@ exports.adminManageUser = onCall(
       if (!access.hasPermission(ADMIN_USER_CHANGE_ROLE_PERMISSION)) {
         throw new HttpsError("permission-denied", "Missing role-change permission");
       }
+      const callerLevel = ROLE_LEVELS[access.role] ?? 0;
+      if (callerLevel < ROLE_LEVELS.admin) {
+        throw new HttpsError("permission-denied", "Only admin or above can change roles");
+      }
       const nextRole = normalizeRole(roleChange.role);
       if (!(await roleExists(nextRole))) {
         throw new HttpsError("invalid-argument", "Target role does not exist");
       }
-      if (!access.isSuperAdmin && nextRole === "super_admin") {
-        throw new HttpsError("permission-denied", "Only super admin can assign super_admin");
+      if (!access.isSuperAdmin && (ROLE_LEVELS[nextRole] ?? 0) >= ROLE_LEVELS.admin) {
+        throw new HttpsError("permission-denied", "Only super_admin can assign admin-level roles");
+      }
+      const targetLevel = ROLE_LEVELS[targetRole] ?? 0;
+      if (!access.isSuperAdmin && targetLevel >= callerLevel) {
+        throw new HttpsError("permission-denied", "Cannot modify user with equal or higher role");
       }
       const nextManualRole = normalizeRole(roleChange.manualRole || nextRole);
       if (!(await roleExists(nextManualRole))) {
@@ -1086,6 +1104,7 @@ exports.adminManageUser = onCall(
         ...(targetData.claims && typeof targetData.claims === "object" ? targetData.claims : {}),
         role: nextRole,
       };
+      nextUpdates.claimsUpdatedAt = FieldValue.serverTimestamp();
     }
 
     if (!hasAnyOwnKeys(nextUpdates)) {
