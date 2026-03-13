@@ -4,16 +4,16 @@
    擴充：js/core/*.js, js/modules/*.js (Object.assign)
    ================================================ */
 
-/* 一次性修復：修正 activityRecords 狀態不一致 (修完後刪除) */
-window._fixAR = async function(uid, eid) {
-  var snap = await db.collection('activityRecords').where('uid', '==', uid).where('eventId', '==', eid).get();
-  if (snap.empty) { alert('not found'); return; }
-  var fixed = 0;
-  for (var i = 0; i < snap.docs.length; i++) {
-    var d = snap.docs[i];
-    if (d.data().status !== 'cancelled') { await d.ref.update({ status: 'cancelled' }); fixed++; }
-  }
-  alert('fixed ' + fixed);
+/* 一次性修復工具 (修完後刪除) */
+window._listAR = async function(uid) {
+  var snap = await db.collection('activityRecords').where('uid', '==', uid).get();
+  var rows = [];
+  snap.forEach(function(d) { var r = d.data(); rows.push(d.id + '|' + r.eventId + '|' + r.status + '|' + (r.name || '')); });
+  alert('activityRecords: ' + snap.size + '\n' + rows.join('\n'));
+};
+window._fixAR = async function(docId) {
+  await db.collection('activityRecords').doc(docId).update({ status: 'cancelled' });
+  alert('fixed: ' + docId);
 };
 
 function _createSportHubTimeoutError(code, message) {
