@@ -220,7 +220,8 @@
 // 20260314u: 活動卡片載入改為縮圖半透明遮罩 + 進度條
 // 20260314v: 活動卡片載入改為置中圓潤計量棒 0%→100%
 // 20260314w: 修復載入條被 renderHotEvents 重建 DOM 摧毀的問題
-const CACHE_VERSION = '20260314w';
+// 20260314x: 活動詳情頁新增報名/取消 Log 彈窗（管理者限定）
+const CACHE_VERSION = '20260314x';
 
 // ─── Page Strategy Registry ───
 // 唯一策略來源，未列出的頁面預設 fresh-first

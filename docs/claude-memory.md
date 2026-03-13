@@ -1,3 +1,11 @@
+### 2026-03-14 — 活動詳情頁新增報名/取消 Log 彈窗
+- **問題**：管理員/教練/活動擁有者無法在活動詳情頁快速查看報名與取消記錄
+- **修復**：
+  - `pages/activity.html`：在 header 加入 Log 按鈕容器，在 page-activity-detail 後方加入毛玻璃彈窗
+  - `css/activity.css`：新增 `.event-reg-log-*` 系列樣式（overlay、box、header、body、item）
+  - `js/modules/event-detail.js`：新增 `_renderEventLogButton()`、`openEventRegLogModal()`、`closeEventRegLogModal()` 三個方法
+- **教訓**：直接從 `ApiService._src('registrations')` 取快取資料即可，不需額外 Firestore 查詢；權限沿用既有 `_canManageEvent()`
+
 ### 2026-03-14 — 修復載入條被 DOM 重建摧毀的問題
 - **問題**：載入條注入卡片 DOM 後，Firebase onSnapshot 觸發 `renderAll()` → `renderHotEvents()` 用 `innerHTML` 重建所有卡片，注入的載入條 DOM 被摧毀
 - **修復**：

@@ -230,6 +230,7 @@ Object.assign(App, {
 
       this._currentDetailEventId = id;
     this._renderEventPublicToggle(isGuestView ? null : e);
+    this._renderEventLogButton(isGuestView ? null : e);
       const detailImg = nodes.image;
     if (detailImg) {
       detailImg.innerHTML = this._renderEventDetailCover(e);
@@ -579,6 +580,66 @@ Object.assign(App, {
   _stopWaitlistDetailEdit(eventId, containerId) {
     this._waitlistEditingEventId = null;
     this._renderGroupedWaitlistSection(eventId, containerId);
+  },
+
+  // ══════════════════════════════════
+  //  Event Registration Log
+  // ══════════════════════════════════
+
+  _renderEventLogButton(e) {
+    const wrap = document.getElementById('detail-log-btn-wrap');
+    if (!wrap) return;
+    if (!e || !this._canManageEvent(e)) {
+      wrap.style.display = 'none';
+      wrap.innerHTML = '';
+      return;
+    }
+    wrap.style.display = '';
+    wrap.innerHTML = '<button class="event-reg-log-btn" onclick="App.openEventRegLogModal(\'' + e.id + '\')">Log</button>';
+  },
+
+  openEventRegLogModal(eventId) {
+    const modal = document.getElementById('event-reg-log-modal');
+    const body = document.getElementById('event-reg-log-body');
+    if (!modal || !body) return;
+
+    var allRegs = ApiService._src('registrations').filter(function(r) { return r.eventId === eventId; });
+
+    var entries = [];
+    allRegs.forEach(function(r) {
+      var name = r.companionName || r.userName || '未知';
+      if (r.registeredAt) {
+        entries.push({ time: r.registeredAt, userName: name, action: 'register' });
+      }
+      if (r.status === 'cancelled' && r.cancelledAt) {
+        entries.push({ time: r.cancelledAt, userName: name, action: 'cancel' });
+      }
+    });
+
+    entries.sort(function(a, b) { return (b.time || '').localeCompare(a.time || ''); });
+
+    if (entries.length === 0) {
+      body.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:1.5rem;font-size:.82rem">尚無報名紀錄</div>';
+    } else {
+      body.innerHTML = entries.map(function(e) {
+        var d = new Date(e.time);
+        var timeStr = String(d.getMonth() + 1).padStart(2, '0') + '/' + String(d.getDate()).padStart(2, '0') + ' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+        var actionCls = e.action === 'cancel' ? 'cancel' : 'reg';
+        var actionLabel = e.action === 'cancel' ? '取消' : '報名';
+        return '<div class="event-reg-log-item">' +
+          '<span class="event-reg-log-time">' + timeStr + '</span>' +
+          '<span class="event-reg-log-user">' + escapeHTML(e.userName) + '</span>' +
+          '<span class="event-reg-log-action ' + actionCls + '">' + actionLabel + '</span>' +
+          '</div>';
+      }).join('');
+    }
+
+    modal.classList.add('open');
+  },
+
+  closeEventRegLogModal() {
+    var modal = document.getElementById('event-reg-log-modal');
+    if (modal) modal.classList.remove('open');
   },
 
   // ══════════════════════════════════
