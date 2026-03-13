@@ -1,3 +1,9 @@
+### 2026-03-14 — 登入後頭像顯示為破圖（方塊中X）
+- **問題**：用戶登入後，topbar 頭像顯示為方塊中間一個 X（broken image icon）
+- **原因**：`index.html` 的 `<img src="">` 在容器顯示時立即渲染為破圖；若 LINE pictureUrl 載入失敗，`onerror` 在 LINE WebView 中可能不觸發，導致破圖持續顯示而 fallback 未替換
+- **修復**：改為「fallback first」策略 — topbar 永遠先顯示文字頭像（initials），再用 `new Image()` 在背景預載圖片，僅在確認載入成功後才用 `<img>` 替換 fallback div。`index.html` 的初始元素從 `<img src="">` 改為 `<div>` fallback
+- **教訓**：在 LINE WebView 中不能依賴 `img.onerror` 做破圖替換；應採用「先顯示 fallback、背景預載、成功才替換」的安全模式
+
 ### 2026-03-13 — 用戶無法取消活動報名（Missing or insufficient permissions）
 - **問題**：正取用戶取消報名時顯示 `Missing or insufficient permissions`，無法完成取消
 - **原因**：`cancelRegistration()` 在同一個 batch 中更新自己的 registration（cancelled）+ 遞補候補者的 registration（waitlisted→confirmed）+ event 投影。Firestore rules 的 registration update 規則要求 `isRegistrationOwnerResource() && isRegistrationOwnerRequest()`，但遞補操作是更新他人的文件，當前用戶不是 owner → 整個 batch 被拒

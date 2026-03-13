@@ -186,18 +186,50 @@ Object.assign(App, {
     if (!userTopbar) return;
     const displayName = profile?.displayName || '?';
     const candidateUrls = this._getAvatarCandidateUrls(options.candidateUrls || profile?.pictureUrl);
-    const applyFallback = () => {
-      const dropdown = document.getElementById('user-menu-dropdown');
-      const dropdownHtml = dropdown ? dropdown.outerHTML : '';
-      userTopbar.innerHTML = `<div class="line-avatar-topbar line-avatar-fallback" onclick="App.toggleUserMenu()">${this._getAvatarInitial(displayName)}</div>${dropdownHtml}`;
+    const initial = this._getAvatarInitial(displayName);
+
+    // 永遠先顯示 fallback（文字頭像），避免出現破圖
+    const dropdown = document.getElementById('user-menu-dropdown');
+    const dropdownHtml = dropdown ? dropdown.outerHTML : '';
+    userTopbar.innerHTML = `<div id="line-avatar-topbar" class="line-avatar-topbar line-avatar-fallback" onclick="App.toggleUserMenu()">${initial}</div>${dropdownHtml}`;
+
+    const candidates = this._getRenderableAvatarCandidateUrls(candidateUrls);
+    if (!candidates.length) return;
+
+    // 用 new Image() 在背景預載，載入成功才替換 fallback
+    let done = false;
+    let idx = 0;
+    const tryNext = () => {
+      if (done || idx >= candidates.length) return;
+      const url = candidates[idx++];
+      const probe = new Image();
+      probe.referrerPolicy = 'no-referrer';
+      probe.onload = () => {
+        if (done) return;
+        if (probe.naturalWidth === 0) { this._rememberBrokenAvatarUrl(url); tryNext(); return; }
+        done = true;
+        const fallbackEl = document.getElementById('line-avatar-topbar');
+        if (!fallbackEl) return;
+        const img = document.createElement('img');
+        img.src = url;
+        img.className = 'line-avatar-topbar';
+        img.alt = escapeHTML(displayName);
+        img.referrerPolicy = 'no-referrer';
+        img.onclick = () => App.toggleUserMenu();
+        img.id = 'line-avatar-topbar';
+        fallbackEl.replaceWith(img);
+      };
+      probe.onerror = () => { this._rememberBrokenAvatarUrl(url); tryNext(); };
+      probe.src = url;
+      // 超時保護：3 秒內未載入視為失敗
+      setTimeout(() => {
+        if (!done && probe.complete && probe.naturalWidth === 0) {
+          this._rememberBrokenAvatarUrl(url);
+          tryNext();
+        }
+      }, 3000);
     };
-
-    if (!avatarImg || !candidateUrls.length) {
-      applyFallback();
-      return;
-    }
-
-    this._loadAvatarIntoImage(avatarImg, candidateUrls, displayName, applyFallback);
+    tryNext();
   },
 
   /**
