@@ -177,6 +177,35 @@ Object.assign(App, {
     if (targetInput) targetInput.value = String(this._getEffectiveNoShowCount(this._userCorrectionSelectedUid));
     this._renderSelectedUserNoShowSummary();
   },
+  _renderNoShowDetails(uid) {
+    const container = document.getElementById('user-correction-noshow-details');
+    if (!container) return;
+
+    if (!uid) {
+      container.innerHTML = '<div style="font-size:.8rem;color:var(--text-muted)">請先選取用戶</div>';
+      return;
+    }
+
+    const details = this._getNoShowDetailsByUid(uid);
+    if (!details.length) {
+      container.innerHTML = '<div style="font-size:.8rem;color:var(--text-muted)">無放鴿子紀錄</div>';
+      return;
+    }
+
+    const rows = details.map(d =>
+      `<tr><td style="padding:.3rem .5rem;font-size:.8rem;white-space:nowrap">${escapeHTML(d.eventDate)}</td><td style="padding:.3rem .5rem;font-size:.8rem">${escapeHTML(d.eventName)}</td></tr>`
+    ).join('');
+
+    container.innerHTML = `
+      <table style="width:100%;border-collapse:collapse">
+        <thead><tr>
+          <th style="padding:.3rem .5rem;font-size:.75rem;text-align:left;color:var(--text-muted);border-bottom:1px solid var(--border)">日期</th>
+          <th style="padding:.3rem .5rem;font-size:.75rem;text-align:left;color:var(--text-muted);border-bottom:1px solid var(--border)">活動名稱</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    `;
+  },
   _renderSelectedUserNoShowSummary() {
     const result = document.getElementById('user-correction-search-result');
     const summary = document.getElementById('user-correction-summary');
@@ -191,6 +220,7 @@ Object.assign(App, {
       summary.innerHTML = '<div style="font-size:.8rem;color:var(--text-muted);line-height:1.7">請先搜尋並選取用戶，再設定要顯示的放鴿子次數。</div>';
       formula.textContent = '公式預覽：原始次數 ± 補正差額 = 顯示次數';
       if (targetInput) targetInput.value = '0';
+      this._renderNoShowDetails('');
       return;
     }
 
@@ -221,6 +251,7 @@ Object.assign(App, {
     `;
 
     this.previewUserNoShowCorrection();
+    this._renderNoShowDetails(user.uid);
   },
   previewUserNoShowCorrection() {
     const formula = document.getElementById('user-correction-formula');

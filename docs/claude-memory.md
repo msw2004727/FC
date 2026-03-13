@@ -1,3 +1,12 @@
+### 2026-03-14 — 放鴿子系統：新增明細列表 + Tab 更名
+- **問題**：管理員在「放鴿子修改」中搜尋用戶後只能看到數字，無法驗證哪些活動被算為放鴿子
+- **修復**：
+  - Tab 更名「放鴿子修改」→「放鴿子系統」（`pages/admin-system.html`）
+  - 新增 `_getNoShowDetailsByUid(uid)` 函式（`event-manage.js`），返回該用戶所有放鴿子活動的 `[{ eventId, eventName, eventDate }]` 明細陣列
+  - 新增 `_renderNoShowDetails(uid)` 函式（`user-admin-corrections.js`），在用戶摘要卡片下方渲染明細表格
+  - 在 `admin-system.html` 用戶摘要與補正設定之間插入「放鴿子明細」容器
+- **教訓**：管理後台的數字統計應有對應明細可供核實，避免無法追溯的黑箱數字
+
 ### 2026-03-14 — 日誌中心重整按鈕改為圓形圖示 + 修正操作日誌重整
 - **問題**：各分頁的重整按鈕是 toolbar 內的文字按鈕，且操作日誌的重整只 re-filter 快取，不從 Firestore 重新載入
 - **修復**：

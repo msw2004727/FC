@@ -899,6 +899,56 @@ Object.assign(App, {
     return this._buildNoShowCountByUid().get(safeUid) || 0;
   },
 
+  _getNoShowDetailsByUid(uid) {
+    const safeUid = String(uid || '').trim();
+    if (!safeUid) return [];
+
+    const allRegistrations = ApiService._src('registrations');
+    const attendanceRecords = ApiService.getAttendanceRecords();
+    const checkinKeys = new Set();
+    const seenRegKeys = new Set();
+    const details = [];
+    const today = new Date().toISOString().slice(0, 10);
+
+    (attendanceRecords || []).forEach(record => {
+      const rUid = String(record?.uid || '').trim();
+      const eventId = String(record?.eventId || '').trim();
+      const type = String(record?.type || '').trim();
+      const status = String(record?.status || '').trim();
+      if (!rUid || !eventId) return;
+      if (status === 'removed' || status === 'cancelled') return;
+      if (type === 'checkin') checkinKeys.add(`${rUid}::${eventId}`);
+    });
+
+    (allRegistrations || []).forEach(reg => {
+      const regUid = String(reg?.userId || '').trim();
+      const eventId = String(reg?.eventId || '').trim();
+      const status = String(reg?.status || '').trim();
+      if (regUid !== safeUid || !eventId) return;
+      if (status !== 'confirmed') return;
+      if (reg.participantType === 'companion') return;
+
+      const key = `${regUid}::${eventId}`;
+      if (seenRegKeys.has(key)) return;
+      seenRegKeys.add(key);
+
+      const event = ApiService.getEvent(eventId);
+      if (!event || event.status !== 'ended') return;
+      const eventDate = String(event.date || '').split(' ')[0].replace(/\//g, '-');
+      if (!eventDate || eventDate >= today) return;
+      if (checkinKeys.has(key)) return;
+
+      details.push({
+        eventId,
+        eventName: event.title || event.name || eventId,
+        eventDate: eventDate.replace(/-/g, '/'),
+      });
+    });
+
+    details.sort((a, b) => (b.eventDate > a.eventDate ? 1 : b.eventDate < a.eventDate ? -1 : 0));
+    return details;
+  },
+
   _getParticipantNoShowCount(person, noShowCountByUid) {
     if (!person || person.isCompanion || !noShowCountByUid) return null;
     const directUid = String(person.uid || '').trim();
