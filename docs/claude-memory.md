@@ -1,3 +1,10 @@
+### 2026-03-13 — 用戶管理只載入 300 人，導致搜尋遺漏與放鴿子顯示 "-"
+- **問題**：admin 在用戶管理搜尋不到部分用戶（如 philip），且該用戶的放鴿子紀錄顯示 "-"
+- **原因**：`firebase-service.js` 的 `_startUsersListener()` 使用 `.limit(300)` 硬限制，剛好卡在用戶總數邊界。超出的用戶不被載入快取，搜尋找不到，放鴿子計算也因 UID 解析失敗回傳 null 顯示 "-"
+- **修復**：移除 `.limit(300)`，改為不設限。目前 300 多用戶對效能無影響，此 listener 僅 admin 登入時觸發
+- **教訓**：硬限制要留餘量或改為動態分頁；當用戶數接近限制值時問題難以察覺
+- **受影響檔案**：`js/firebase-service.js`
+
 ### 2026-03-13 — 一般用戶報名 Missing or insufficient permissions（registrations 讀取規則過嚴）
 - **問題**：一般用戶點報名時出現 Missing or insufficient permissions，無法完成報名
 - **原因**：`firestore.rules` 的 `registrations` 讀取規則為 `isAdmin() || isRegistrationOwnerResource()`（只能讀自己的報名）。但 `registerForEvent` 被改為查詢該活動所有報名紀錄 `db.collection('registrations').where('eventId', '==', eventId).get()`，當結果包含其他用戶的報名紀錄時，Firestore 整個查詢被拒絕

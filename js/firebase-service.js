@@ -1034,7 +1034,6 @@ const FirebaseService = {
     if (this._realtimeListenerStarted.users) return;
     this._realtimeListenerStarted.users = true;
     const unsub = db.collection('users')
-      .limit(300)
       .onSnapshot(
         snapshot => {
           this._cache.adminUsers = snapshot.docs.map(doc => this._mapUserDoc(doc.data(), doc.id));
