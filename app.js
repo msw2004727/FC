@@ -856,6 +856,7 @@ const App = {
   async _tryOpenPendingDeepLink() {
     try {
       if (this._deepLinkRendered) return true;  // instant path 已完成
+      if (this._instantDeepLinkMode) return false;  // instant path 正在處理，poller 不介入
 
       const pending = this._getPendingDeepLink();
       if (!pending) return true;
