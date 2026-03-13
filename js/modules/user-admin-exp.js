@@ -389,22 +389,7 @@ Object.assign(App, {
   _opLogFiltered: null,
 
   _ensureOpLogRefreshButton() {
-    const actions = document.getElementById('admin-log-toolbar-actions');
-    if (!actions) return;
-    let btn = document.getElementById('oplog-refresh-btn');
-    if (!btn) {
-      btn = document.createElement('button');
-      btn.id = 'oplog-refresh-btn';
-      btn.className = 'outline-btn admin-log-action-btn';
-      btn.type = 'button';
-      btn.dataset.adminLogActionTab = 'operation';
-      btn.dataset.actionAvailable = '1';
-      btn.title = '重新整理';
-      btn.textContent = '重整';
-      btn.addEventListener('click', () => { App.filterOperationLogs(1); });
-      actions.appendChild(btn);
-      this._refreshAdminLogToolbarActions?.();
-    }
+    // 重整按鈕已移至 tab bar 圓形圖示按鈕（admin-log-tabs.js）
   },
 
   _shouldHideDuplicatedOperationLog(log) {

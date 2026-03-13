@@ -43,32 +43,12 @@ Object.assign(App, {
   },
 
   _ensureErrorLogRefreshButton() {
-    const actions = document.getElementById('admin-log-toolbar-actions');
-    if (!actions) return null;
-
-    let btn = document.getElementById('errorlog-refresh-btn');
-    if (!btn) {
-      btn = document.createElement('button');
-      btn.id = 'errorlog-refresh-btn';
-      btn.className = 'outline-btn admin-log-action-btn';
-      btn.type = 'button';
-      btn.dataset.adminLogActionTab = 'error';
-      btn.dataset.actionAvailable = '1';
-      btn.title = '重新整理';
-      btn.textContent = '重整';
-      btn.addEventListener('click', () => { void this.refreshErrorLogs(); });
-      actions.appendChild(btn);
-      this._refreshAdminLogToolbarActions?.();
-    }
-    return btn;
+    // 重整按鈕已移至 tab bar 圓形圖示按鈕（admin-log-tabs.js）
   },
 
   async refreshErrorLogs() {
     if (this._errorLogRefreshing) return;
     this._errorLogRefreshing = true;
-    const btn = document.getElementById('errorlog-refresh-btn');
-    if (btn) btn.disabled = true;
-
     try {
       if (typeof FirebaseService !== 'undefined' && typeof FirebaseService.refreshCollectionsForPage === 'function') {
         await FirebaseService.refreshCollectionsForPage('page-admin-logs');
@@ -80,7 +60,6 @@ Object.assign(App, {
       this.showToast('重新整理錯誤日誌失敗');
     } finally {
       this._errorLogRefreshing = false;
-      if (btn) btn.disabled = false;
     }
   },
 

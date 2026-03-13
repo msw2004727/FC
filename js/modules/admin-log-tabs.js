@@ -123,6 +123,7 @@ Object.assign(App, {
       <button class="tab active" type="button" data-admin-log-tab="operation" onclick="App.showAdminLogTab('operation')">操作日誌</button>
       <button class="tab" type="button" data-admin-log-tab="audit" onclick="App.showAdminLogTab('audit')">稽核日誌</button>
       <button class="tab" type="button" data-admin-log-tab="error" onclick="App.showAdminLogTab('error')">錯誤日誌</button>
+      <button class="admin-log-info-btn" type="button" id="admin-log-refresh-btn" onclick="App.refreshActiveLogTab()" title="重新整理"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></button>
       <button class="admin-log-info-btn" type="button" onclick="App.showAdminLogInfo()" title="功能說明"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg></button>
     `;
 
@@ -198,6 +199,40 @@ Object.assign(App, {
       return;
     }
     this.filterErrorLogs(this._errorLogPage || 1);
+  },
+
+  async refreshActiveLogTab() {
+    const tab = this._normalizeAdminLogTab(this._adminLogActiveTab);
+    const btn = document.getElementById('admin-log-refresh-btn');
+    if (btn) { btn.disabled = true; btn.style.opacity = '.5'; }
+    try {
+      if (tab === 'operation') {
+        await this.refreshOperationLogs();
+      } else if (tab === 'audit') {
+        await this.refreshAuditLogs();
+      } else {
+        await this.refreshErrorLogs();
+      }
+    } finally {
+      if (btn) { btn.disabled = false; btn.style.opacity = ''; }
+    }
+  },
+
+  async refreshOperationLogs() {
+    if (this._opLogRefreshing) return;
+    this._opLogRefreshing = true;
+    try {
+      if (typeof FirebaseService !== 'undefined' && typeof FirebaseService.refreshCollectionsForPage === 'function') {
+        await FirebaseService.refreshCollectionsForPage('page-admin-logs');
+      }
+      this.filterOperationLogs(1);
+      this.showToast('已重新整理操作日誌');
+    } catch (err) {
+      console.error('[refreshOperationLogs]', err);
+      this.showToast('重新整理操作日誌失敗');
+    } finally {
+      this._opLogRefreshing = false;
+    }
   },
 
   showAdminLogInfo() {

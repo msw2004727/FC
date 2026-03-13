@@ -19,9 +19,12 @@
 .admin-log-panel { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: .5rem; }
 .admin-log-panel[hidden] { display: none !important; }
 
-/* ℹ 按鈕 */
-.admin-log-info-btn { width: 1.8rem; height: 1.8rem; margin-left: auto; border: 1px solid var(--border); border-radius: 50%; background: transparent; color: var(--text-muted); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+/* 圓形圖示按鈕（重整 + 說明） */
+.admin-log-info-btn { width: 1.8rem; height: 1.8rem; border: 1px solid var(--border); border-radius: 50%; background: transparent; color: var(--text-muted); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.admin-log-info-btn:first-of-type { margin-left: auto; }
+.admin-log-info-btn + .admin-log-info-btn { margin-left: .35rem; }
 .admin-log-info-btn:hover { color: var(--primary); border-color: var(--primary); }
+.admin-log-info-btn:disabled { opacity: .5; cursor: not-allowed; }
 
 /* 毛玻璃 overlay */
 .admin-log-info-overlay { position: fixed; inset: 0; z-index: 1100; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.15); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); opacity: 0; pointer-events: none; transition: opacity .25s; }

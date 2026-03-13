@@ -172,24 +172,7 @@ Object.assign(App, {
   },
 
   _ensureAuditRefreshButton() {
-    const actions = document.getElementById('admin-log-toolbar-actions');
-    if (!actions) return null;
-
-    let btn = document.getElementById('auditlog-refresh-btn');
-    if (!btn) {
-      btn = document.createElement('button');
-      btn.id = 'auditlog-refresh-btn';
-      btn.className = 'outline-btn admin-log-action-btn';
-      btn.type = 'button';
-      btn.dataset.adminLogActionTab = 'audit';
-      btn.dataset.actionAvailable = '1';
-      btn.title = '重新整理';
-      btn.textContent = '重整';
-      btn.addEventListener('click', () => { void this.refreshAuditLogs(); });
-      actions.appendChild(btn);
-      this._refreshAdminLogToolbarActions?.();
-    }
-    return btn;
+    // 重整按鈕已移至 tab bar 圓形圖示按鈕（admin-log-tabs.js）
   },
 
   _updateAuditBackfillState() {

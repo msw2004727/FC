@@ -1,3 +1,12 @@
+### 2026-03-14 — 日誌中心重整按鈕改為圓形圖示 + 修正操作日誌重整
+- **問題**：各分頁的重整按鈕是 toolbar 內的文字按鈕，且操作日誌的重整只 re-filter 快取，不從 Firestore 重新載入
+- **修復**：
+  - 移除三個模組各自的 `_ensure*RefreshButton()`，統一在 `admin-log-tabs.js` tab bar 加圓形圖示按鈕（refresh icon），放在說明按鈕左邊
+  - 新增 `refreshActiveLogTab()` 根據當前 tab 呼叫對應的 refresh 函式
+  - 新增 `refreshOperationLogs()` 先呼叫 `FirebaseService.refreshCollectionsForPage('page-admin-logs')` 重載 Firestore 資料再 re-filter
+  - CSS `.admin-log-info-btn` 支援多按鈕排列（first-of-type margin-left:auto + 相鄰間距）
+- **教訓**：refresh 操作應實際重載資料源，不能只 re-filter 快取
+
 ### 2026-03-14 — 放鴿子計算改用 registrations 權威資料
 - **問題**：放鴿子（no-show）數據不準確，特定用戶數據忽多忽少
 - **原因**：計算依賴 `activityRecords`（衍生資料），存在五個根因：
