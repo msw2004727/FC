@@ -1,3 +1,9 @@
+### 2026-03-13 — 用戶無法取消活動報名（Missing or insufficient permissions）
+- **問題**：正取用戶取消報名時顯示 `Missing or insufficient permissions`，無法完成取消
+- **原因**：`cancelRegistration()` 在同一個 batch 中更新自己的 registration（cancelled）+ 遞補候補者的 registration（waitlisted→confirmed）+ event 投影。Firestore rules 的 registration update 規則要求 `isRegistrationOwnerResource() && isRegistrationOwnerRequest()`，但遞補操作是更新他人的文件，當前用戶不是 owner → 整個 batch 被拒
+- **修復**：在 `firestore.rules` 的 registrations match 加入 `isWaitlistPromotion()` 函式，允許已登入用戶在嚴格條件下（僅 status 欄位變更、且從 waitlisted→confirmed）更新他人的 registration
+- **教訓**：batch 寫入中若包含跨用戶文件操作，必須確保每筆寫入都符合 Firestore rules；候補遞補邏輯屬於跨用戶操作，需要額外的 rules 規則支援
+
 ### 2026-03-13 — Deep link 優先載入活動頁 HTML（方案 B）
 - **問題**：用戶點分享連結 → LINE 登入回來後，需等所有 5 個 boot pages + modals 載完才能顯示活動詳情，等待 2-5 秒
 - **原因**：`loadAll()` 用 `Promise.all` 等全部頁面完成後才 `innerHTML` 一次寫入，即使活動頁先到也要等其他頁面

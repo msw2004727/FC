@@ -237,7 +237,7 @@ const LineAuth = {
       App.showToast('LINE 登入服務尚未準備完成');
       return;
     }
-    liff.login();
+    liff.login({ redirectUri: window.location.href });
   },
 
   async logout() {

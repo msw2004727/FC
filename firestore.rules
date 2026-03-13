@@ -566,11 +566,21 @@ service cloud.firestore {
     // ═══════════════════════════════════════════
     //  Registrations（報名）
     //  登入可讀寫（報名、取消報名、管理員代報名）
+    //  候補遞補：取消正取時需同 batch 更新他人的 waitlisted→confirmed
     // ═══════════════════════════════════════════
     match /registrations/{regId} {
+      function isWaitlistPromotion() {
+        let changed = request.resource.data.diff(resource.data).affectedKeys();
+        return changed.hasOnly(['status'])
+          && resource.data.status == 'waitlisted'
+          && request.resource.data.status == 'confirmed';
+      }
+
       allow read: if isAuth();
       allow create: if isAdmin() || isRegistrationOwnerRequest();
-      allow update: if isAdmin() || (isRegistrationOwnerResource() && isRegistrationOwnerRequest());
+      allow update: if isAdmin()
+        || (isRegistrationOwnerResource() && isRegistrationOwnerRequest())
+        || (isAuth() && isWaitlistPromotion());
       allow delete: if isAdmin() || isRegistrationOwnerResource();
     }
 
