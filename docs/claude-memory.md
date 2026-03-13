@@ -1,3 +1,10 @@
+### 2026-03-13 — LINE 登入回來後活動頁跳轉延遲 + 首頁閃現修復
+- **問題**：用戶從分享連結點報名 → LINE 登入 → 回來後先看到首頁好幾秒才跳到活動頁，讓用戶誤以為離開了活動頁面
+- **原因**：(1) LINE OAuth 回來後 URL 沒有 `?event=` 參數，REST 快速路徑不啟動，必須等完整 Phase 4（~10-14 秒）才能顯示活動頁 (2) `_completeDeepLinkSuccess` 在 `showEventDetail` 完成前就隱藏覆蓋層，背後已渲染的首頁短暫閃現
+- **修復**：(1) REST fetch 也檢查 sessionStorage 的 `_pendingDeepEvent`，即使 URL 無 `?event=` 也啟動快速路徑（~1-2 秒即可顯示） (2) `_completeDeepLinkSuccess` 改為等目標頁面（activity-detail / team-detail）實際可見後才隱藏覆蓋層
+- **教訓**：LIFF login redirect 不保留 URL query params，跨 redirect 的狀態必須同時存 sessionStorage 並在回來時恢復所有依賴該參數的邏輯
+- **受影響檔案**：`app.js`
+
 ### 2026-03-13 — 未登入用戶分享連結人數顯示錯誤 + 權限錯誤修復
 - **問題**：未登入用戶透過分享連結開啟活動頁面，人數顯示 1/27（實際 23/27），點報名按鈕出現 Missing or insufficient permissions
 - **原因**：(1) `_buildEventPeopleSummaryByStatus` 的 `hasSource` 判斷將 `event.participants` 陣列視為有效來源，當 registrations 未載入時用不完整的 participants 陣列計數取代正確的 `event.current` (2) `_startAuthDependentWork` 未在啟動 onSnapshot 監聽器前刷新 Firebase Auth token，persistence 恢復的過期 token 導致 Firestore 權限錯誤

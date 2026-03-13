@@ -455,7 +455,22 @@ const App = {
     this._stopDeepLinkGuard();
     this._clearPendingDeepLink();
     this._clearDeepLinkQueryParams();
-    this._hideDeepLinkOverlay();
+    // 延後隱藏覆蓋層：等目標頁面實際可見，避免閃現首頁
+    const targetPage = document.getElementById('page-activity-detail') || document.getElementById('page-team-detail');
+    if (targetPage && targetPage.style.display !== 'none' && targetPage.offsetHeight > 0) {
+      this._hideDeepLinkOverlay();
+    } else {
+      // 頁面尚未切換完成，輪詢等待（最多 2 秒後強制隱藏）
+      let _tries = 0;
+      const _waitHide = setInterval(() => {
+        _tries++;
+        const tp = document.getElementById('page-activity-detail') || document.getElementById('page-team-detail');
+        if ((tp && tp.style.display !== 'none' && tp.offsetHeight > 0) || _tries >= 20) {
+          clearInterval(_waitHide);
+          this._hideDeepLinkOverlay();
+        }
+      }, 100);
+    }
     this._bootDeepLink = null;
     this._deepLinkAuthRedirecting = false;
     this._pendingDeepLinkOpenKey = '';
@@ -1275,9 +1290,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     const deepTeam = String(urlParams.get('team') || '').trim();
     if (deepEvent) sessionStorage.setItem('_pendingDeepEvent', deepEvent);
     if (deepTeam) sessionStorage.setItem('_pendingDeepTeam', deepTeam);
-    // 立即啟動 REST fetch（不等 SDK）
-    if (deepEvent) {
-      App._deepLinkRestFetch = App._fetchEventViaRest(deepEvent);
+    // 立即啟動 REST fetch（不等 SDK）— URL 有 ?event= 或 sessionStorage 有殘留（LINE 登入回來）
+    const restEventId = deepEvent || String(sessionStorage.getItem('_pendingDeepEvent') || '').trim();
+    if (restEventId) {
+      App._deepLinkRestFetch = App._fetchEventViaRest(restEventId);
     }
   } catch (_) {}
   App._startDeepLinkGuard();
