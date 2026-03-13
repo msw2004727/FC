@@ -317,7 +317,12 @@ Object.assign(App, {
             btns = btns.slice(0, firstBtnEnd + 9) + pinBtn + btns.slice(firstBtnEnd + 9);
           }
         }
-        const progressPct = e.max > 0 ? Math.min(100, Math.round(e.current / e.max * 100)) : 0;
+        const _stats = typeof this._getEventParticipantStats === 'function'
+          ? this._getEventParticipantStats(e)
+          : { confirmedCount: Number(e.current || 0), waitlistCount: Number(e.waitlist || 0), maxCount: Number(e.max || 0) };
+        const _confirmedDisplay = _stats.confirmedCount;
+        const _waitlistDisplay = _stats.waitlistCount;
+        const progressPct = _stats.maxCount > 0 ? Math.min(100, Math.round(_confirmedDisplay / _stats.maxCount * 100)) : 0;
         const progressColor = progressPct >= 100 ? 'var(--danger)' : progressPct >= 70 ? 'var(--warning)' : 'var(--success)';
         const teamBadge = e.teamOnly ? '<span class="tl-teamonly-badge" style="margin-left:.3rem">限定</span>' : '';
         const sportIcon = this._renderEventSportIcon(e, 'my-event-sport-icon');
@@ -325,7 +330,7 @@ Object.assign(App, {
         const feeEnabled = this._isEventFeeEnabled?.(e) ?? Number(e?.fee || 0) > 0;
         const fee = this._getEventRecordedFeeAmount?.(e) ?? (Number(e?.fee || 0) > 0 ? Math.floor(Number(e.fee || 0)) : 0);
         const confirmedRegs = fee > 0 ? ApiService.getRegistrationsByEvent(e.id) : [];
-        const confirmedCount = confirmedRegs.length > 0 ? confirmedRegs.length : (e.current || 0);
+        const confirmedCount = confirmedRegs.length > 0 ? confirmedRegs.length : _confirmedDisplay;
         const unregCount = fee > 0 ? (unregCountMap.get(e.id) || 0) : 0;
         const checkoutCount = fee > 0 ? (checkoutCountMap.get(e.id) || 0) : 0;
         const feeExpected = fee * (confirmedCount + unregCount);
@@ -355,7 +360,7 @@ Object.assign(App, {
           <div style="flex:1;height:6px;background:var(--border);border-radius:3px;overflow:hidden">
             <div style="width:${progressPct}%;height:100%;background:${progressColor};border-radius:3px;transition:width .3s"></div>
           </div>
-          <span style="font-size:.72rem;color:var(--text-muted);white-space:nowrap">${e.current}/${e.max} 人${e.waitlist > 0 ? ' ・ 候補 ' + e.waitlist : ''}</span>
+          <span style="font-size:.72rem;color:var(--text-muted);white-space:nowrap">${_confirmedDisplay}/${_stats.maxCount} 人${_waitlistDisplay > 0 ? ' ・ 候補 ' + _waitlistDisplay : ''}</span>
         </div>
         <div style="display:flex;gap:.3rem;margin-top:.4rem;flex-wrap:wrap;align-items:center">${sportIcon}${btns}${feeBox}</div>
       </div>`;

@@ -1,3 +1,10 @@
+### 2026-03-13 — 活動管理頁人數顯示不一致修復
+- **問題**：「我的活動管理」頁面顯示 1/20 人，但「活動」頁面顯示 21/20 人，數據不一致
+- **原因**：活動管理頁 `event-manage.js` 直接讀取 `e.current` 欄位（事件物件上的靜態值），而活動頁使用 `_getEventParticipantStats()` 從 registrations 即時計算。當 `updateEvent` 因 FieldValue race condition 失敗時，`e.current` 不會更新，導致兩頁數據不同步
+- **修復**：活動管理頁改用 `_getEventParticipantStats()` 計算確認人數和候補人數，進度條也改用計算值，不再依賴可能過時的 `e.current`
+- **教訓**：顯示人數應統一從 registrations 即時計算，不應依賴事件物件上的冗餘欄位，因為寫入失敗時冗餘欄位不會更新
+- **受影響檔案**：`js/modules/event-manage.js`、`js/config.js`、`index.html`
+
 ### 2026-03-13 — 孤兒資料根因修復（deleteEvent 級聯刪除 + 手動簽到 UID 解析）
 - **問題**：資料庫存在 61 筆孤兒報名紀錄（活動已刪除但 activityRecords 殘留）、20+ 筆孤兒簽到紀錄（uid 欄位為顯示名稱而非真實 UID）
 - **原因**：(1) `firebase-crud.js` 的 `deleteEvent()` 只刪活動文件，未級聯清理 registrations / activityRecords / attendanceRecords (2) `event-manage.js` 手動簽到舊格式活動時，participants 陣列元素為顯示名稱，直接當作 uid 寫入 attendanceRecords
