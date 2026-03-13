@@ -1,3 +1,18 @@
+### 2026-03-13 — Step 5：Firestore Rules 全面落實 hasPerm 權限下放
+- **問題**：後台權限管理開關開啟後，對應的 Firestore 寫入操作仍被 `isAdmin()` 硬寫規則阻擋。自訂角色或被授予 permission code 的非 admin 角色看得到按鈕但操作失敗
+- **原因**：11 個集合的 Firestore Rules 仍用 `isAdmin()` 而非 `hasPerm()` 判斷，權限開關形同虛設
+- **修復**：將以下集合改為 `isAdmin() || hasPerm('對應權限碼')`：
+  - `announcements` → `admin.announcements.entry`
+  - `achievements` / `badges` → `admin.achievements.entry`
+  - `banners` / `floatingAds` / `sponsors` / `popupAds` → `admin.banners.entry`
+  - `siteThemes` → `admin.themes.entry`
+  - `gameConfigs` → `admin.games.entry`
+  - `adminMessages` → `admin.messages.entry`
+  - `shopItems` update/delete → `admin.shop.entry`
+- **不改的集合**：`rolePermissions/customRoles/permissions`（`isSuperAdmin()` 不可下放）、`matches/standings/linePushQueue/notifTemplates`（無對應 permission code）
+- **教訓**：每次新增 `hasPerm()` 規則時，必須同時確認前端有對應 toggle 且 Firestore Rules 有對應 `hasPerm()` 判斷，三層（UI / Rules / Functions）必須同步
+- **受影響檔案**：`firestore.rules`
+
 ### 2026-03-13 — 活動管理「編輯所有活動」權限開關缺失
 - **問題**：管理員編輯非自己建立的活動時被 Firestore Rules 阻止，權限管理後台也沒有「編輯所有活動」開關可開
 - **原因**：`firestore.rules` 的 events update 規則有 `hasPerm('event.edit_all')`，但 `config.js` 的 `ADMIN_PAGE_EXTRA_PERMISSION_ITEMS` 沒有為活動管理頁（`page-my-activities`）定義此權限項目，導致 super_admin 無法在 UI 授予任何角色此權限
