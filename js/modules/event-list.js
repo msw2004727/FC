@@ -638,76 +638,101 @@ Object.assign(App, {
     if (toast) toast.classList.remove('show');
   },
 
+  // ── Home card loading bar (survives DOM rebuilds via eventId tracking) ──
+  _homeCardLoadingState: null, // { eventId, progress, startedAt, interval }
+
   _markHomeEventCardPending(cardEl) {
     if (!cardEl || !cardEl.classList) return;
-    clearTimeout(cardEl._homeEventPendingTimer);
-    if (!cardEl.classList.contains('is-pending')) {
-      cardEl._homeEventPendingShownAt = Date.now();
-    }
+    const eventId = this._getCardEventId(cardEl);
     cardEl.classList.add('is-pending');
     cardEl.setAttribute('aria-busy', 'true');
+    this._injectCardLoadingBar(cardEl);
 
-    // Inject loading bar DOM if not present
-    const imgEl = cardEl.querySelector('.h-card-img');
-    if (imgEl && !imgEl.querySelector('.h-card-loading-bar')) {
-      const bar = document.createElement('div');
-      bar.className = 'h-card-loading-bar';
-      bar.innerHTML = '<div class="h-card-loading-fill"></div>';
-      imgEl.appendChild(bar);
-    }
-
-    // Start simulated progress: fast at first, slowing toward ~85%
-    if (!cardEl._homeEventProgressInterval) {
-      cardEl._homeEventProgress = 0;
-      cardEl._homeEventProgressInterval = setInterval(() => {
-        const p = cardEl._homeEventProgress;
-        // Gradually slow down as we approach 85%
-        const increment = p < 30 ? 4 : p < 60 ? 2 : p < 80 ? 0.5 : 0.15;
-        cardEl._homeEventProgress = Math.min(p + increment, 85);
-        const fill = imgEl && imgEl.querySelector('.h-card-loading-fill');
-        if (fill) fill.style.width = cardEl._homeEventProgress + '%';
+    // Start or continue simulated progress tracked by eventId
+    if (!this._homeCardLoadingState || this._homeCardLoadingState.eventId !== eventId) {
+      clearInterval(this._homeCardLoadingState?.interval);
+      const state = { eventId, progress: 0, startedAt: Date.now(), interval: null };
+      state.interval = setInterval(() => {
+        const p = state.progress;
+        const inc = p < 30 ? 4 : p < 60 ? 2 : p < 80 ? 0.5 : 0.15;
+        state.progress = Math.min(p + inc, 85);
+        // Update fill on the current DOM element (may have been rebuilt)
+        const card = this._findCardByEventId(state.eventId);
+        const fill = card && card.querySelector('.h-card-loading-fill');
+        if (fill) fill.style.width = state.progress + '%';
       }, 100);
+      this._homeCardLoadingState = state;
     }
   },
 
   _clearHomeEventCardPending(cardEl, minVisibleMs = 0) {
-    if (!cardEl || !cardEl.classList) return;
-    clearTimeout(cardEl._homeEventPendingTimer);
+    const state = this._homeCardLoadingState;
+    if (!state) return;
 
-    // Stop simulated progress
-    clearInterval(cardEl._homeEventProgressInterval);
-    cardEl._homeEventProgressInterval = null;
+    clearInterval(state.interval);
+    state.interval = null;
 
-    const shownAt = Number(cardEl._homeEventPendingShownAt || 0);
-    const elapsed = shownAt > 0 ? (Date.now() - shownAt) : minVisibleMs;
+    const elapsed = Date.now() - state.startedAt;
     const waitMs = Math.max(0, minVisibleMs - elapsed);
+    const eventId = state.eventId;
 
-    cardEl._homeEventPendingTimer = setTimeout(() => {
-      if (!cardEl.classList.contains('is-pending')) {
-        cardEl.removeAttribute('aria-busy');
-        cardEl._homeEventPendingShownAt = 0;
-        cardEl._homeEventPendingTimer = null;
-        return;
-      }
+    setTimeout(() => {
+      const card = this._findCardByEventId(eventId) || cardEl;
+      if (!card) { this._homeCardLoadingState = null; return; }
 
       // Snap to 100%
-      const fill = cardEl.querySelector('.h-card-loading-fill');
+      const fill = card.querySelector('.h-card-loading-fill');
       if (fill) fill.style.width = '100%';
 
       // After fill reaches 100%, fade out overlay + remove bar
       setTimeout(() => {
-        cardEl.classList.add('is-loaded');
+        const card2 = this._findCardByEventId(eventId) || card;
+        if (card2) card2.classList.add('is-loaded');
         setTimeout(() => {
-          cardEl.classList.remove('is-pending', 'is-loaded');
-          cardEl.removeAttribute('aria-busy');
-          cardEl._homeEventPendingShownAt = 0;
-          cardEl._homeEventPendingTimer = null;
-          cardEl._homeEventProgress = 0;
-          const bar = cardEl.querySelector('.h-card-loading-bar');
-          if (bar) bar.remove();
+          const card3 = this._findCardByEventId(eventId) || card2;
+          if (card3) {
+            card3.classList.remove('is-pending', 'is-loaded');
+            card3.removeAttribute('aria-busy');
+            const bar = card3.querySelector('.h-card-loading-bar');
+            if (bar) bar.remove();
+          }
+          this._homeCardLoadingState = null;
         }, 400);
       }, 350);
     }, waitMs);
+  },
+
+  _injectCardLoadingBar(cardEl) {
+    const imgEl = cardEl && cardEl.querySelector('.h-card-img');
+    if (!imgEl || imgEl.querySelector('.h-card-loading-bar')) return;
+    const bar = document.createElement('div');
+    bar.className = 'h-card-loading-bar';
+    bar.innerHTML = '<div class="h-card-loading-fill"></div>';
+    imgEl.appendChild(bar);
+    // Restore current progress if available
+    const state = this._homeCardLoadingState;
+    if (state) {
+      const fill = bar.querySelector('.h-card-loading-fill');
+      if (fill) fill.style.width = state.progress + '%';
+    }
+  },
+
+  _getCardEventId(cardEl) {
+    if (!cardEl) return null;
+    const onclick = cardEl.getAttribute('onclick') || '';
+    const m = onclick.match(/openHomeEventDetailFromCard\(['"]([^'"]+)['"]/);
+    return m ? m[1] : null;
+  },
+
+  _findCardByEventId(eventId) {
+    if (!eventId) return null;
+    const container = document.getElementById('hot-events');
+    if (!container) return null;
+    const cards = container.querySelectorAll('.h-card');
+    for (const c of cards) {
+      if (this._getCardEventId(c) === eventId) return c;
+    }
+    return null;
   },
 
   async openHomeEventDetailFromCard(eventId, cardEl) {
@@ -834,6 +859,17 @@ Object.assign(App, {
           ${_genderRibbon}
         </div>
       `; }).join('');
+
+    // Restore loading bar if a card was being loaded when DOM was rebuilt
+    const loadState = this._homeCardLoadingState;
+    if (loadState && loadState.eventId) {
+      const card = this._findCardByEventId(loadState.eventId);
+      if (card) {
+        card.classList.add('is-pending');
+        card.setAttribute('aria-busy', 'true');
+        this._injectCardLoadingBar(card);
+      }
+    }
   },
 
   // ══════════════════════════════════

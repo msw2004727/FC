@@ -1,3 +1,12 @@
+### 2026-03-14 — 修復載入條被 DOM 重建摧毀的問題
+- **問題**：載入條注入卡片 DOM 後，Firebase onSnapshot 觸發 `renderAll()` → `renderHotEvents()` 用 `innerHTML` 重建所有卡片，注入的載入條 DOM 被摧毀
+- **修復**：
+  - 載入狀態改為用 eventId 追蹤（`_homeCardLoadingState`），不依賴特定 DOM 元素
+  - 新增 `_findCardByEventId()` / `_getCardEventId()` 在 DOM 重建後重新定位卡片
+  - `renderHotEvents` 末尾加入恢復邏輯：若有正在載入的 eventId，自動重新注入載入條並恢復進度
+  - `_clearHomeEventCardPending` 每個階段都重新查詢最新 DOM 元素
+- **教訓**：SPA 中注入的 DOM 元素會被框架/手動 innerHTML 重建摧毀，載入狀態必須獨立於 DOM 追蹤
+
 ### 2026-03-14 — 首頁活動卡片載入改為置中圓潤計量棒
 - **問題**：先前底部 3px 進度條太不明顯，且來回動畫沒有「0% 到 100%」的實際進度感
 - **修復**：
