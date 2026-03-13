@@ -1,3 +1,9 @@
+### 2026-03-14 — 取消報名後 activityRecords 未同步更新導致誤判放鴿子
+- **問題**：用戶已取消報名（registrations status='cancelled'），但 activityRecords 仍為 'registered'，導致放鴿子計算誤判
+- **原因**：`event-detail-signup.js` 取消報名後用 `ApiService.getActivityRecords()` 從本地快取找 activityRecord 來更新，但如果快取尚未載入 activityRecords 集合（直接進活動頁、快取未同步等情況），records 為空陣列，Firestore 中的 activityRecord 就不會被更新
+- **修復**：在快取更新之後加 Firestore 直查兜底（`db.collection('activityRecords').where('uid'==).where('eventId'==).get()`），確保即使快取缺失也能正確更新。同時修復 `event-detail-companion.js` 同樣問題。新增 `_scanAR()` 管理工具掃描全部不一致資料
+- **教訓**：涉及狀態同步的操作不能只依賴本地快取，必須有 Firestore 直查兜底機制；fire-and-forget 的 `.catch()` 只靜默記錄錯誤，不會讓呼叫者知道更新失敗
+
 ### 2026-03-14 — 反覆報名導致不在名單但紀錄顯示成功
 - **問題**：用戶快速重複報名或取消後立即重報，導致 registration 文件建立成功、activityRecord 記錄成功，但 event.participants 不包含該用戶
 - **原因**：`registerForEvent()` 的 Firestore registrations 查詢在 transaction 外面，transaction 重試時用舊資料重建 occupancy，兩個並行 transaction 會互相覆蓋 event 投影

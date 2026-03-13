@@ -415,6 +415,7 @@ Object.assign(App, {
               }, cancelledReg._promotedUserId, 'activity', '活動');
             }
           }
+          // 快取更新
           const records = ApiService.getActivityRecords();
           const hasCancelRec = records.some(r => r.eventId === id && r.uid === userId && r.status === 'cancelled');
           for (let i = records.length - 1; i >= 0; i--) {
@@ -433,6 +434,17 @@ Object.assign(App, {
               }
             }
           }
+          // Firestore 直查兜底：快取可能未載入，確保 Firestore 中的紀錄一定被更新
+          db.collection('activityRecords')
+            .where('uid', '==', userId).where('eventId', '==', id)
+            .get().then(snap => {
+              snap.forEach(doc => {
+                if (doc.data().status !== 'cancelled') {
+                  doc.ref.update({ status: 'cancelled' })
+                    .catch(err => console.error('[activityRecord cancel-fallback]', err));
+                }
+              });
+            }).catch(err => console.error('[activityRecord cancel-fallback query]', err));
           if (!hasCancelRec && !records.some(r => r.eventId === id && r.uid === userId && r.status === 'cancelled')) {
             const ev = ApiService.getEvent(id);
             if (ev) {

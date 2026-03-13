@@ -312,6 +312,7 @@ Object.assign(App, {
           const e = ApiService.getEvent(eventId);
           if (e) {
             // 優先更新現有 registered 紀錄為 cancelled
+            // 快取更新
             const arSource = ApiService._src('activityRecords');
             const existingAR = arSource.find(a => a.eventId === eventId && a.uid === userId && a.status !== 'cancelled');
             if (existingAR) {
@@ -330,6 +331,17 @@ Object.assign(App, {
               }).then(ref => { arCancel._docId = ref.id; })
                 .catch(err => console.error('[companionCancelAR]', err));
             }
+            // Firestore 直查兜底：快取可能未載入
+            db.collection('activityRecords')
+              .where('uid', '==', userId).where('eventId', '==', eventId)
+              .get().then(snap => {
+                snap.forEach(doc => {
+                  if (doc.data().status !== 'cancelled') {
+                    doc.ref.update({ status: 'cancelled' })
+                      .catch(err => console.error('[companionCancelAR-fallback]', err));
+                  }
+                });
+              }).catch(err => console.error('[companionCancelAR-fallback query]', err));
             this._notifySignupCancelledInboxFromTemplate(e, userId, false);
           }
         }
