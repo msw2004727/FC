@@ -892,14 +892,20 @@ const App = {
           }
           if (!event) return false;
 
-          const result = await this.showEventDetail(pending.id, { allowGuest: !isAuthed });
-          if (result?.ok && this.currentPage === 'page-activity-detail' && this._currentDetailEventId === pending.id) {
-            this._completeDeepLinkSuccess();
-            return true;
-          }
-          if (result?.reason === 'forbidden') {
-            this._completeDeepLinkFallback('\u7121\u6cd5\u958b\u555f\u6d3b\u52d5\u8a73\u60c5\uff0c\u5df2\u5207\u56de\u5217\u8868\u3002', 'page-activities');
-            return true;
+          // 未認證時啟用 instant mode，跳過 ensureCollectionsForPage 避免權限錯誤
+          if (!isAuthed) this._instantDeepLinkMode = true;
+          try {
+            const result = await this.showEventDetail(pending.id, { allowGuest: !isAuthed });
+            if (result?.ok && this.currentPage === 'page-activity-detail' && this._currentDetailEventId === pending.id) {
+              this._completeDeepLinkSuccess();
+              return true;
+            }
+            if (result?.reason === 'forbidden') {
+              this._completeDeepLinkFallback('\u7121\u6cd5\u958b\u555f\u6d3b\u52d5\u8a73\u60c5\uff0c\u5df2\u5207\u56de\u5217\u8868\u3002', 'page-activities');
+              return true;
+            }
+          } finally {
+            if (!isAuthed) this._instantDeepLinkMode = false;
           }
           return false;
         }
