@@ -21,7 +21,7 @@ Object.assign(App, {
 
     // Populate event options
     const myLevel = ROLE_LEVEL_MAP[this.currentRole] || 0;
-    const isAdmin = myLevel >= ROLE_LEVEL_MAP.admin;
+    const isAdmin = myLevel >= ROLE_LEVEL_MAP.admin || this.hasPermission('event.edit_all');
     let events = ApiService.getEvents().filter(e =>
       e.status === 'open' || e.status === 'full' || e.status === 'ended'
     );

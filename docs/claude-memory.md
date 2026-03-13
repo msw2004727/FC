@@ -1,3 +1,11 @@
+### 2026-03-13 — 修復殘留前端硬編碼權限檢查（event-create + scan）
+- **問題**：`event-create.js` 建立活動時硬寫 `ROLE_LEVEL_MAP < coach` 阻擋；`scan.js` 掃碼頁事件範圍硬寫 `>= admin` 限制
+- **原因**：Step 5 漏改這兩處前端硬編碼
+- **修復**：
+  - `event-create.js:1371`：`ROLE_LEVEL_MAP < coach` → `!this.hasPermission('activity.manage.entry')`
+  - `scan.js:24`：`isAdmin` 判斷加入 `|| this.hasPermission('event.edit_all')`
+- **教訓**：每次權限治理後應全文搜尋 `ROLE_LEVEL_MAP` 確認無殘留硬編碼
+
 ### 2026-03-13 — 前端按鈕權限檢查從硬寫 role level 改為 hasPermission()
 - **問題**：多個模組的按鈕級權限檢查使用 `ROLE_LEVEL_MAP >= admin/super_admin` 硬寫判斷，即使 Firestore Rules 已支援 hasPerm 下放，前端 UI 仍阻擋被授權的角色操作
 - **原因**：permission-hardening 計劃改了 Rules 但未同步改前端按鈕檢查
