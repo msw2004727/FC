@@ -1632,8 +1632,10 @@ Object.assign(App, {
     if (!event) return;
     if (!isCompanion && !await this._ensureActivityRecordsReady({ required: true })) return;
 
-    // 找到對應的 registration（相容沒有 participantType 的舊資料與幽靈用戶）
     const allRegs = ApiService._src('registrations');
+    const batch = (!ModeManager.isDemo() && typeof db !== 'undefined') ? db.batch() : null;
+
+    // 找到對應的 registration
     let reg;
     if (isCompanion) {
       reg = allRegs.find(r => r.eventId === eventId && r.companionId === uid && r.status !== 'cancelled' && r.status !== 'removed');
@@ -1646,11 +1648,11 @@ Object.assign(App, {
     if (reg) {
       reg.status = 'removed';
       reg.removedAt = new Date().toISOString();
-      if (!ModeManager.isDemo() && reg._docId) {
-        db.collection('registrations').doc(reg._docId).update({
+      if (batch && reg._docId) {
+        batch.update(db.collection('registrations').doc(reg._docId), {
           status: 'removed',
           removedAt: firebase.firestore.FieldValue.serverTimestamp(),
-        }).catch(err => console.error('[removeParticipant]', err));
+        });
       }
     }
 
@@ -1660,26 +1662,32 @@ Object.assign(App, {
       const ar = arSource.find(a => a.eventId === eventId && a.uid === uid && a.status !== 'cancelled' && a.status !== 'removed');
       if (ar) {
         ar.status = 'removed';
-        if (!ModeManager.isDemo() && ar._docId) {
-          db.collection('activityRecords').doc(ar._docId).update({ status: 'removed' })
-            .catch(err => console.error('[removeParticipantAR]', err));
+        if (batch && ar._docId) {
+          batch.update(db.collection('activityRecords').doc(ar._docId), { status: 'removed' });
         }
       }
     }
 
-    // 正取被移除 → 觸發候補遞補
+    // 正取被移除 → 觸發候補遞補（while loop 填滿所有空位）
     if (wasConfirmed) {
       const activeRegs = allRegs.filter(
         r => r.eventId === eventId && (r.status === 'confirmed' || r.status === 'waitlisted')
       );
       const confirmedCount = activeRegs.filter(r => r.status === 'confirmed').length;
-      const slotsAvailable = (event.max || 0) - confirmedCount;
+      let slotsAvailable = (event.max || 0) - confirmedCount;
 
-      if (slotsAvailable > 0) {
+      while (slotsAvailable > 0) {
         const candidate = this._getNextWaitlistCandidate(eventId);
-        if (candidate) {
-          this._promoteSingleCandidate(event, candidate);
+        if (!candidate) break;
+        this._promoteSingleCandidateLocal(event, candidate);
+        if (batch && candidate._docId) {
+          batch.update(db.collection('registrations').doc(candidate._docId), { status: 'confirmed' });
         }
+        const arDocIds = this._getPromotedArDocIds(event, candidate);
+        if (batch) {
+          arDocIds.forEach(docId => batch.update(db.collection('activityRecords').doc(docId), { status: 'registered' }));
+        }
+        slotsAvailable--;
       }
     }
 
@@ -1691,7 +1699,26 @@ Object.assign(App, {
       const occupancy = FirebaseService._rebuildOccupancy(event, activeAfterRemoval);
       FirebaseService._applyRebuildOccupancy(event, occupancy);
     }
-    await this._syncEventToFirebase(event);
+
+    // 所有寫入合併到同一個 batch
+    if (batch && event._docId) {
+      batch.update(db.collection('events').doc(event._docId), {
+        current: event.current, waitlist: event.waitlist,
+        participants: event.participants || [], waitlistNames: event.waitlistNames || [],
+        status: event.status,
+      });
+      try {
+        await batch.commit();
+      } catch (err) {
+        console.error('[removeParticipant] batch commit failed:', err);
+        this.showToast('移除同步失敗，請重試');
+        return;
+      }
+    }
+    if (typeof FirebaseService !== 'undefined' && typeof FirebaseService._saveToLS === 'function') {
+      FirebaseService._saveToLS('registrations', FirebaseService._cache.registrations);
+      FirebaseService._saveToLS('events', FirebaseService._cache.events);
+    }
 
     // 寫操作日誌
     ApiService._writeOpLog('participant_removed', '移除參加者', `從「${event.title}」移除 ${name}`);

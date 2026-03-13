@@ -1604,36 +1604,20 @@ Object.assign(App, {
       })[0] || null;
   },
 
-  /** 執行單人遞補：將候補 registration 轉為 confirmed，重建投影 */
-  _promoteSingleCandidate(event, reg) {
+  /**
+   * 執行單人遞補：僅做本地狀態變更 + 通知，不做 Firestore 寫入也不做投影重建。
+   * 呼叫端負責：batch/transaction 寫入 Firestore + 統一 _rebuildOccupancy + _syncEventToFirebase。
+   */
+  _promoteSingleCandidateLocal(event, reg) {
     if (!reg) return false;
 
     reg.status = 'confirmed';
-    if (!ModeManager.isDemo() && reg._docId) {
-      db.collection('registrations').doc(reg._docId).update({ status: 'confirmed' })
-        .catch(err => console.error('[promoteSingle]', err));
-    }
-
-    // 用 _rebuildOccupancy 統一重建投影（不再手動 current++/--）
-    const allActive = (ApiService._src('registrations') || []).filter(
-      r => r.eventId === event.id && (r.status === 'confirmed' || r.status === 'waitlisted')
-    );
-    if (typeof FirebaseService !== 'undefined' && typeof FirebaseService._rebuildOccupancy === 'function') {
-      const occupancy = FirebaseService._rebuildOccupancy(event, allActive);
-      FirebaseService._applyRebuildOccupancy(event, occupancy);
-    }
 
     // 更新 activityRecord：waitlisted → registered（同行者不動）
     if (reg.participantType !== 'companion') {
       const arSource = ApiService._src('activityRecords');
       const ar = arSource.find(a => a.eventId === event.id && a.uid === reg.userId && a.status === 'waitlisted');
-      if (ar) {
-        ar.status = 'registered';
-        if (!ModeManager.isDemo() && ar._docId) {
-          db.collection('activityRecords').doc(ar._docId).update({ status: 'registered' })
-            .catch(err => console.error('[promoteAR]', err));
-        }
-      }
+      if (ar) ar.status = 'registered';
     }
 
     // 發送遞補通知
@@ -1644,11 +1628,19 @@ Object.assign(App, {
     return true;
   },
 
+  /** 回傳需要 Firestore 寫入的 activityRecord docId 列表（供 batch 使用） */
+  _getPromotedArDocIds(event, reg) {
+    if (!reg || reg.participantType === 'companion') return [];
+    const arSource = ApiService._src('activityRecords');
+    const ar = arSource.find(a => a.eventId === event.id && a.uid === reg.userId && a.status === 'registered');
+    return (ar && ar._docId) ? [ar._docId] : [];
+  },
+
   // ══════════════════════════════════
   //  候補自動遞補 / 降級（容量變更時）
   // ══════════════════════════════════
 
-  _adjustWaitlistOnCapacityChange(eventId, oldMax, newMax) {
+  async _adjustWaitlistOnCapacityChange(eventId, oldMax, newMax) {
     const event = ApiService.getEvent(eventId);
     if (!event) return;
 
@@ -1662,32 +1654,28 @@ Object.assign(App, {
       let slotsAvailable = newMax - confirmedCount;
       if (slotsAvailable <= 0) return;
 
-      let promoted = 0;
+      const batch = (!ModeManager.isDemo() && typeof db !== 'undefined') ? db.batch() : null;
+      const promotedList = [];
+
       while (slotsAvailable > 0) {
         const candidate = this._getNextWaitlistCandidate(eventId);
         if (!candidate) break;
-        candidate.status = 'confirmed';
-        if (!ModeManager.isDemo() && candidate._docId) {
-          db.collection('registrations').doc(candidate._docId).update({ status: 'confirmed' })
-            .catch(err => console.error('[promoteSingle]', err));
+
+        // 本地狀態變更 + 通知
+        this._promoteSingleCandidateLocal(event, candidate);
+        promotedList.push(candidate);
+
+        // 收集 Firestore 寫入到 batch
+        if (batch && candidate._docId) {
+          batch.update(db.collection('registrations').doc(candidate._docId), { status: 'confirmed' });
         }
-        // 更新 activityRecord
-        if (candidate.participantType !== 'companion') {
-          const arSource = ApiService._src('activityRecords');
-          const ar = arSource.find(a => a.eventId === eventId && a.uid === candidate.userId && a.status === 'waitlisted');
-          if (ar) {
-            ar.status = 'registered';
-            if (!ModeManager.isDemo() && ar._docId) {
-              db.collection('activityRecords').doc(ar._docId).update({ status: 'registered' })
-                .catch(err => console.error('[promoteAR]', err));
-            }
-          }
+        // activityRecord 寫入到 batch
+        const arDocIds = this._getPromotedArDocIds(event, candidate);
+        if (batch) {
+          arDocIds.forEach(docId => batch.update(db.collection('activityRecords').doc(docId), { status: 'registered' }));
         }
-        this._sendNotifFromTemplate('waitlist_promoted', {
-          eventName: event.title, date: event.date, location: event.location,
-        }, candidate.userId, 'activity', '活動');
+
         slotsAvailable--;
-        promoted++;
       }
 
       // 統一重建投影
@@ -1698,10 +1686,29 @@ Object.assign(App, {
         const occupancy = FirebaseService._rebuildOccupancy({ max: newMax, status: event.status }, activeAfter);
         FirebaseService._applyRebuildOccupancy(event, occupancy);
       }
-      this._syncEventToFirebase(event);
 
-      if (promoted > 0) {
-        console.log(`[adjustWaitlist] 容量增加，已遞補 ${promoted} 位候補者`);
+      // 把 event 投影也加進 batch，一次寫入
+      if (batch && event._docId) {
+        batch.update(db.collection('events').doc(event._docId), {
+          current: event.current, waitlist: event.waitlist,
+          participants: event.participants || [], waitlistNames: event.waitlistNames || [],
+          status: event.status,
+        });
+        try {
+          await batch.commit();
+        } catch (err) {
+          console.error('[adjustWaitlist] batch commit failed:', err);
+          if (typeof this.showToast === 'function') this.showToast('遞補同步失敗，請重試');
+        }
+      }
+      // 同步 localStorage
+      if (typeof FirebaseService !== 'undefined' && typeof FirebaseService._saveToLS === 'function') {
+        FirebaseService._saveToLS('registrations', FirebaseService._cache.registrations);
+        FirebaseService._saveToLS('events', FirebaseService._cache.events);
+      }
+
+      if (promotedList.length > 0) {
+        console.log(`[adjustWaitlist] 容量增加，已遞補 ${promotedList.length} 位候補者`);
       }
     } else if (newMax < oldMax) {
       // ── 容量減少 → 降級多餘正取者到候補 ──
@@ -1716,17 +1723,16 @@ Object.assign(App, {
       const excess = confirmedRegs.length - newMax;
       if (excess <= 0) return;
 
+      const batch = (!ModeManager.isDemo() && typeof db !== 'undefined') ? db.batch() : null;
       let demoted = 0;
+
       for (const reg of confirmedRegs) {
         if (demoted >= excess) break;
-
         reg.status = 'waitlisted';
-        if (!ModeManager.isDemo() && reg._docId) {
-          db.collection('registrations').doc(reg._docId).update({ status: 'waitlisted' })
-            .catch(err => console.error('[demoteToWaitlist]', err));
+        if (batch && reg._docId) {
+          batch.update(db.collection('registrations').doc(reg._docId), { status: 'waitlisted' });
         }
         demoted++;
-
         this._sendNotifFromTemplate('waitlist_demoted', {
           eventName: event.title, date: event.date, location: event.location,
         }, reg.userId, 'activity', '活動');
@@ -1740,7 +1746,24 @@ Object.assign(App, {
         const occupancy = FirebaseService._rebuildOccupancy({ max: newMax, status: event.status }, activeAfter);
         FirebaseService._applyRebuildOccupancy(event, occupancy);
       }
-      this._syncEventToFirebase(event);
+
+      if (batch && event._docId) {
+        batch.update(db.collection('events').doc(event._docId), {
+          current: event.current, waitlist: event.waitlist,
+          participants: event.participants || [], waitlistNames: event.waitlistNames || [],
+          status: event.status,
+        });
+        try {
+          await batch.commit();
+        } catch (err) {
+          console.error('[adjustWaitlist] batch commit failed:', err);
+          if (typeof this.showToast === 'function') this.showToast('降級同步失敗，請重試');
+        }
+      }
+      if (typeof FirebaseService !== 'undefined' && typeof FirebaseService._saveToLS === 'function') {
+        FirebaseService._saveToLS('registrations', FirebaseService._cache.registrations);
+        FirebaseService._saveToLS('events', FirebaseService._cache.events);
+      }
 
       if (demoted > 0) {
         console.log(`[adjustWaitlist] 容量減少，已降級 ${demoted} 位正取者到候補`);

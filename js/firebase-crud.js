@@ -644,17 +644,14 @@ Object.assign(FirebaseService, {
     if (!reg) throw new Error('報名記錄不存在');
 
     const wasPreviouslyConfirmed = reg.status === 'confirmed';
+    const event = this._cache.events.find(e => e.id === reg.eventId);
 
+    // 先在本地快取做所有狀態變更
     reg.status = 'cancelled';
     reg.cancelledAt = new Date().toISOString();
 
-    await db.collection('registrations').doc(reg._docId).update({
-      status: 'cancelled',
-      cancelledAt: firebase.firestore.FieldValue.serverTimestamp(),
-    });
+    const promotedCandidates = [];
 
-    // 更新活動計數
-    const event = this._cache.events.find(e => e.id === reg.eventId);
     if (event) {
       // 候補遞補：若取消的是正取，依序將 waitlisted 改 confirmed 直到滿額
       if (wasPreviouslyConfirmed && event.max) {
@@ -678,10 +675,7 @@ Object.assign(FirebaseService, {
           for (const candidate of waitlistedCandidates) {
             if (promoted >= slotsAvailable) break;
             candidate.status = 'confirmed';
-            reg._promotedUserId = candidate.userId;
-            if (candidate._docId) {
-              await db.collection('registrations').doc(candidate._docId).update({ status: 'confirmed' });
-            }
+            promotedCandidates.push(candidate);
             promoted++;
           }
         }
@@ -693,16 +687,41 @@ Object.assign(FirebaseService, {
       );
       const occupancy = this._rebuildOccupancy(event, allActive);
       this._applyRebuildOccupancy(event, occupancy);
+    }
 
-      if (event._docId) {
-        await db.collection('events').doc(event._docId).update({
-          current: event.current,
-          waitlist: event.waitlist,
-          participants: event.participants,
-          waitlistNames: event.waitlistNames,
-          status: event.status,
-        });
+    // 所有 Firestore 寫入合併到同一個 batch
+    const batch = db.batch();
+
+    // 1. 取消報名
+    batch.update(db.collection('registrations').doc(reg._docId), {
+      status: 'cancelled',
+      cancelledAt: firebase.firestore.FieldValue.serverTimestamp(),
+    });
+
+    // 2. 遞補候補者
+    for (const candidate of promotedCandidates) {
+      if (candidate._docId) {
+        batch.update(db.collection('registrations').doc(candidate._docId), { status: 'confirmed' });
       }
+    }
+
+    // 3. 更新 event 投影
+    if (event && event._docId) {
+      batch.update(db.collection('events').doc(event._docId), {
+        current: event.current,
+        waitlist: event.waitlist,
+        participants: event.participants,
+        waitlistNames: event.waitlistNames,
+        status: event.status,
+      });
+    }
+
+    await batch.commit();
+
+    // 記錄遞補資訊供呼叫端使用
+    if (promotedCandidates.length > 0) {
+      reg._promotedUserId = promotedCandidates[0].userId;
+      reg._promotedUserIds = promotedCandidates.map(c => c.userId);
     }
 
     // 立即寫入 localStorage

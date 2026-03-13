@@ -209,7 +209,8 @@
 // 20260313a: 修正 operationLogs 可重入寫入權限與站內信重送去重，避免 permission-denied / already-exists
 // 20260313b: 活動報名系統 Bug 修復 — 統一佔位重建 _rebuildOccupancy，Transaction 化報名流程，新增 registration-audit
 // 20260313c: 新增 repairRegistrationStatuses() 完整校正 registration status + event 投影
-const CACHE_VERSION = '20260313c';
+// 20260313d: 所有報名寫入流程改用 batch 原子操作，修復 _removeParticipant 多人遞補
+const CACHE_VERSION = '20260313d';
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {
