@@ -260,8 +260,10 @@ Object.assign(App, {
     const isEnded = e.status === 'ended' || e.status === 'cancelled';
     const isUpcoming = e.status === 'upcoming';
     const isMainFull = confirmedCount >= e.max;
-    // 防幽靈 UI 層：正式版 registrations 快取為空時視為「載入中」，不顯示報名按鈕
-    const regsLoading = !isGuestView && !ModeManager.isDemo() && FirebaseService._cache.registrations.length === 0 && !FirebaseService._initialized;
+    // 防幽靈 UI 層：registrations 快取為空且即時監聽尚未啟動時，視為「載入中」
+    const regsLoading = !isGuestView && !ModeManager.isDemo()
+      && FirebaseService._cache.registrations.length === 0
+      && !FirebaseService._realtimeListenerStarted?.registrations;
     const isSignedUp = isGuestView ? false : (regsLoading ? false : this._isUserSignedUp(e));
     const isOnWaitlist = isSignedUp && this._isUserOnWaitlist(e);
     const canTeamOnlySignup = isGuestView
@@ -389,6 +391,7 @@ Object.assign(App, {
       this._renderUnregTable(id, 'detail-unreg-table');
       this._renderGroupedWaitlistSection(id, 'detail-waitlist-container');
     }
+      this._markPageSnapshotReady?.('page-activity-detail');
       return { ok: true, reason: 'ok' };
     } catch (err) {
       console.error('[EventDetail] showEventDetail failed:', err);

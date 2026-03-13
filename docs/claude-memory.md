@@ -1,3 +1,15 @@
+### 2026-03-14 — 活動詳情頁改為 stale-first 策略加速首頁卡片開啟
+- **問題**：首頁點活動卡片需等 ensureCloudReady + ensureCollectionsForPage 完成才顯示詳情（prepare-first），延遲 1~3 秒
+- **原因**：`PAGE_STRATEGY` 設定 `page-activity-detail` 為 `prepare-first`，即使 events 已在快取中仍需等所有資料到齊
+- **修復**：
+  - `config.js` PAGE_STRATEGY 改為 `stale-first`，快取有 events 即秒開
+  - `event-detail.js` regsLoading 判斷從 `!FirebaseService._initialized` 改為 `!FirebaseService._realtimeListenerStarted?.registrations`，確保 onSnapshot 啟動前按鈕顯示「載入中」
+  - showEventDetail 結尾加 `_markPageSnapshotReady('page-activity-detail')` 支援後續 stale 快取命中
+  - 內容區用 event.current/event.participants fallback 立即渲染，報名按鈕在 registrations 未就緒時顯示「載入中」保護
+  - onSnapshot 回調已有完整重渲染機制（registrations → showEventDetail、attendanceRecords → _renderAttendanceTable），無需額外開發
+- **回滾**：`git checkout pre-stale-detail-20260313 -- js/config.js js/modules/event-detail.js index.html`
+- **教訓**：詳情頁的 required 資料只有 events，registrations 等可透過 onSnapshot 非同步補齊；stale-first 對已有快取的頁面提升最明顯
+
 ### 2026-03-14 — 取消報名後 activityRecords 未同步更新導致誤判放鴿子
 - **問題**：用戶已取消報名（registrations status='cancelled'），但 activityRecords 仍為 'registered'，導致放鴿子計算誤判
 - **原因**：`event-detail-signup.js` 取消報名後用 `ApiService.getActivityRecords()` 從本地快取找 activityRecord 來更新，但如果快取尚未載入 activityRecords 集合（直接進活動頁、快取未同步等情況），records 為空陣列，Firestore 中的 activityRecord 就不會被更新

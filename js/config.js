@@ -214,7 +214,7 @@
 // 20260313l: 跨瀏覽器相容性修復（webkit-backdrop-filter、dvh fallback、clipboard fallback、replaceAll→replace）
 // 20260313m: 日誌中心 UI 改善：按鈕置中並排、log 行底色分類、操作日誌加重整按鈕
 // 20260313n: 修復孤兒資料根因：deleteEvent 級聯清理 + 手動簽到 UID 解析
-const CACHE_VERSION = '20260314k';
+const CACHE_VERSION = '20260314l';
 
 // ─── Page Strategy Registry ───
 // 唯一策略來源，未列出的頁面預設 fresh-first
@@ -235,7 +235,7 @@ const PAGE_STRATEGY = {
   'page-admin-teams':        'stale-confirm',
   'page-admin-tournaments':  'stale-confirm',
 
-  'page-activity-detail':    'prepare-first',
+  'page-activity-detail':    'stale-first',
   'page-my-activities':      'prepare-first',
 };
 
