@@ -1,3 +1,10 @@
+### 2026-03-13 — Deep Link 背景刷新未生效修復
+- **問題**：Instant Deep Link 的 SDK ready 後背景刷新沒有讓報名名單、出席紀錄等動態資料渲染出來
+- **原因**：三個串聯問題：(1) `ensureCollectionsForPage` 跳過 realtime 集合（registrations/attendanceRecords），靜態載入未實際載入這些資料 (2) `schedulePageScopedRealtimeForPage` 延遲 350ms 且 guest 無法啟動 listener (3) `showEventDetail` 渲染時 registrations cache 仍為空
+- **修復**：重寫 `app.js` 背景 IIFE — 直接呼叫 `_startPageScopedRealtimeForPage` 立即啟動 listener（跳過 350ms 延遲排程），新增等待 registrations 首次 onSnapshot 到達（最多 3 秒）再重新渲染，移除冗餘的 `schedulePageScopedRealtimeForPage` 呼叫
+- **教訓**：realtime 集合被 `skipRealtimeStart` 過濾後不會走靜態載入路徑，需要單獨確保 listener 啟動；背景刷新應等資料到位再渲染
+- **受影響檔案**：`app.js`、`js/config.js`、`index.html`
+
 ### 2026-03-13 — 活動分享連結極速預覽（Instant Event Deep Link）
 - **問題**：用戶透過 `?event=xxx` 分享連結進入時需等 5-8 秒（CDN + LIFF + Firebase + 全部 events 查詢），體驗不佳
 - **原因**：原有流程必須等所有 SDK 載入 + 初始化完成才能取得活動資料並渲染

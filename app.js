@@ -1081,13 +1081,19 @@ const App = {
         void (async () => {
           try {
             const pageId = 'page-activity-detail';
-            // 載入該頁所有必要 + 選用集合（registrations / attendanceRecords / activityRecords 等）
+
+            // 1. 載入靜態集合（activityRecords、userCorrections 等）
             if (typeof FirebaseService !== 'undefined' && FirebaseService.ensureCollectionsForPage) {
-              const contract = typeof PAGE_DATA_CONTRACT !== 'undefined' && PAGE_DATA_CONTRACT[pageId];
-              const hasRealtime = contract && contract.realtime && contract.realtime.length > 0;
-              await FirebaseService.ensureCollectionsForPage(pageId, { skipRealtimeStart: hasRealtime });
+              await FirebaseService.ensureCollectionsForPage(pageId, { skipRealtimeStart: true });
             }
-            // 用 SDK 重新取得完整事件資料（覆蓋 REST 簡略版）
+
+            // 2. 立即啟動 realtime listener（registrations + attendanceRecords）
+            //    不走 schedulePageScopedRealtimeForPage 的 350ms 延遲
+            if (typeof FirebaseService !== 'undefined' && FirebaseService._startPageScopedRealtimeForPage) {
+              FirebaseService._startPageScopedRealtimeForPage(pageId);
+            }
+
+            // 3. 用 SDK 重新取得完整事件資料（覆蓋 REST 簡略版）
             if (typeof db !== 'undefined') {
               try {
                 const doc = await db.collection('events').doc(sdkEventId).get();
@@ -1099,13 +1105,23 @@ const App = {
                 }
               } catch (_) {}
             }
-            if (this.currentPage !== pageId) return;
+
+            // 4. 等待 registrations 首次 onSnapshot（最多 3 秒）
+            //    已登入才等（guest 的 listener 不會啟動）
             const isGuest = !(typeof LineAuth !== 'undefined' && LineAuth.isLoggedIn());
-            await this.showEventDetail(sdkEventId, { allowGuest: isGuest });
-            // 啟動 realtime 監聽（registrations / attendanceRecords 變更時自動更新）
-            if (typeof FirebaseService !== 'undefined' && FirebaseService.schedulePageScopedRealtimeForPage) {
-              FirebaseService.schedulePageScopedRealtimeForPage(pageId);
+            if (!isGuest && FirebaseService._cache.registrations.length === 0) {
+              await new Promise(resolve => {
+                const check = () => FirebaseService._cache.registrations.length > 0;
+                if (check()) { resolve(); return; }
+                const interval = setInterval(() => { if (check()) { clearInterval(interval); resolve(); } }, 100);
+                setTimeout(() => { clearInterval(interval); resolve(); }, 3000);
+              });
             }
+
+            if (this.currentPage !== pageId) return;
+
+            // 5. 重新渲染（此時 cache 已有完整資料）
+            await this.showEventDetail(sdkEventId, { allowGuest: isGuest });
             console.log('[DeepLink] SDK background refresh complete for', sdkEventId);
           } catch (err) {
             console.warn('[DeepLink] SDK background refresh failed:', err);
