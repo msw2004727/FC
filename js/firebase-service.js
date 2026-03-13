@@ -269,11 +269,15 @@ const FirebaseService = {
   },
 
   _staticReloadMaxAgeMs: {
-    events: 60 * 1000,
-    teams: 60 * 1000,
-    tournaments: 60 * 1000,
-    standings: 60 * 1000,
-    matches: 60 * 1000,
+    events: 60 * 1000,           // 60 秒 — 報名中活動需較新資料
+    teams: 5 * 60 * 1000,       // 5 分鐘 — 球隊變動頻率低
+    tournaments: 5 * 60 * 1000, // 5 分鐘
+    standings: 5 * 60 * 1000,   // 5 分鐘
+    matches: 5 * 60 * 1000,     // 5 分鐘
+    shopItems: 10 * 60 * 1000,  // 10 分鐘 — 商品變動頻率極低
+    leaderboard: 15 * 60 * 1000,// 15 分鐘 — 排行榜計算後才變
+    achievements: 30 * 60 * 1000,// 30 分鐘 — 成就定義幾乎不變
+    badges: 30 * 60 * 1000,     // 30 分鐘 — 徽章定義幾乎不變
   },
 
   _buildCollectionQuery(name, limitCount = 200) {

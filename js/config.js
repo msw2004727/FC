@@ -210,7 +210,49 @@
 // 20260313b: 活動報名系統 Bug 修復 — 統一佔位重建 _rebuildOccupancy，Transaction 化報名流程，新增 registration-audit
 // 20260313c: 新增 repairRegistrationStatuses() 完整校正 registration status + event 投影
 // 20260313d: 所有報名寫入流程改用 batch 原子操作，修復 _removeParticipant 多人遞補
-const CACHE_VERSION = '20260313d';
+const CACHE_VERSION = '20260313e';
+
+// ─── Page Strategy Registry ───
+// 唯一策略來源，未列出的頁面預設 fresh-first
+const PAGE_STRATEGY = {
+  'page-home':               'stale-first',
+  'page-activities':         'stale-first',
+  'page-teams':              'stale-first',
+  'page-tournaments':        'stale-first',
+  'page-personal-dashboard': 'stale-first',
+  'page-leaderboard':        'stale-first',
+
+  'page-profile':            'stale-confirm',
+  'page-team-detail':        'stale-confirm',
+  'page-tournament-detail':  'stale-confirm',
+  'page-shop':               'stale-confirm',
+  'page-shop-detail':        'stale-confirm',
+  'page-admin-dashboard':    'stale-confirm',
+  'page-admin-teams':        'stale-confirm',
+  'page-admin-tournaments':  'stale-confirm',
+
+  'page-activity-detail':    'prepare-first',
+  'page-my-activities':      'prepare-first',
+};
+
+// ─── Page Data Contract ───
+// 每頁的資料依賴定義：required = 必要集合，optional = 可背景補的，realtime = 需即時監聽的
+const PAGE_DATA_CONTRACT = {
+  'page-home':               { required: ['events', 'banners', 'announcements'], optional: ['teams', 'tournaments', 'leaderboard'], realtime: [] },
+  'page-activities':         { required: ['events'], optional: ['registrations'], realtime: ['registrations', 'attendanceRecords'] },
+  'page-teams':              { required: ['teams'], optional: [], realtime: [] },
+  'page-tournaments':        { required: ['tournaments'], optional: ['standings', 'matches'], realtime: [] },
+  'page-personal-dashboard': { required: ['events', 'registrations'], optional: ['attendanceRecords'], realtime: [] },
+  'page-leaderboard':        { required: ['leaderboard'], optional: [], realtime: [] },
+  'page-profile':            { required: [], optional: ['attendanceRecords', 'activityRecords'], realtime: [] },
+  'page-team-detail':        { required: ['teams'], optional: ['events'], realtime: [] },
+  'page-tournament-detail':  { required: ['tournaments', 'standings', 'matches'], optional: [], realtime: [] },
+  'page-shop':               { required: ['shopItems'], optional: ['trades'], realtime: [] },
+  'page-shop-detail':        { required: ['shopItems'], optional: ['trades'], realtime: [] },
+  'page-activity-detail':    { required: ['events'], optional: ['registrations', 'attendanceRecords', 'activityRecords', 'userCorrections'], realtime: ['registrations', 'attendanceRecords'] },
+  'page-my-activities':      { required: ['events', 'registrations'], optional: ['attendanceRecords'], realtime: ['registrations', 'attendanceRecords'] },
+  'page-scan':               { required: ['events', 'attendanceRecords'], optional: [], realtime: ['attendanceRecords'] },
+};
 
 // ─── Achievement Condition Config ───
 const ACHIEVEMENT_CONDITIONS = {

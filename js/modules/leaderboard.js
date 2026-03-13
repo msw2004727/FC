@@ -21,6 +21,7 @@ Object.assign(App, {
         </div>
       `;
     }).join('');
+    this._markPageSnapshotReady?.('page-leaderboard');
   },
 
   _recordPage: 1,

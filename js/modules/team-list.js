@@ -251,6 +251,7 @@ Object.assign(App, {
     this._refreshTeamCreateButtons();
     const sorted = this._sortTeams(ApiService.getActiveTeams());
     container.innerHTML = sorted.map(t => this._teamCardHTML(t)).join('');
+    this._markPageSnapshotReady?.('page-teams');
   },
 
   filterTeams() {
@@ -408,6 +409,7 @@ Object.assign(App, {
       html += inactiveT.map(adminCard).join('');
     }
     container.innerHTML = html;
+    this._markPageSnapshotReady?.('page-admin-teams');
   },
 
   toggleTeamPin(id) {

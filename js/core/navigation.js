@@ -68,30 +68,31 @@ Object.assign(App, {
     }, 120);
   },
 
-  _hasActivityCacheForSoftEntry() {
-    if (typeof ApiService === 'undefined' || typeof ApiService.getEvents !== 'function') return false;
-    try {
-      return (ApiService.getEvents() || []).length > 0;
-    } catch (_) {
-      return false;
-    }
+  _getPageStrategy(pageId) {
+    return (typeof PAGE_STRATEGY !== 'undefined' && PAGE_STRATEGY[pageId]) || 'fresh-first';
   },
 
-  _canUseActivitySoftEntry(options = {}) {
+  _hasCachedDataForPage(pageId) {
+    if (this._hasPageSnapshotReady?.(pageId)) return true;
+    if (!document.getElementById(pageId)) return false;
+    if (ModeManager.isDemo()) return false;
+    const contract = typeof PAGE_DATA_CONTRACT !== 'undefined' && PAGE_DATA_CONTRACT[pageId];
+    if (!contract) return false;
+    if (!contract.required || contract.required.length === 0) return true;
+    if (typeof FirebaseService === 'undefined' || !FirebaseService._cache) return false;
+    return contract.required.every(name => {
+      const cached = FirebaseService._cache[name];
+      return cached && (Array.isArray(cached) ? cached.length > 0 : Object.keys(cached).length > 0);
+    });
+  },
+
+  _canUseStaleNavigation(pageId, options = {}) {
     const { authPending = false } = options;
     if (ModeManager.isDemo() || authPending) return false;
-    if (!document.getElementById('page-activities')) return false;
-    return this._hasPageSnapshotReady?.('page-activities') || this._hasActivityCacheForSoftEntry();
-  },
-
-  _canUseStaleFirstNavigation(pageId, options = {}) {
-    const { authPending = false } = options;
-    if (pageId === 'page-activities') {
-      return this._canUseActivitySoftEntry({ authPending });
-    }
-    if (!this._hasPageSnapshotReady?.(pageId)) return false;
-    if (pageId === 'page-home') return true;
-    return false;
+    if (pageId === this.currentPage) return false;
+    const strategy = this._getPageStrategy(pageId);
+    if (strategy !== 'stale-first' && strategy !== 'stale-confirm') return false;
+    return this._hasCachedDataForPage(pageId);
   },
 
   _activatePage(pageId, options = {}) {
@@ -118,40 +119,44 @@ Object.assign(App, {
 
     if (options.render !== false) this._renderPageContent(pageId);
     if (!ModeManager.isDemo()
-      && pageId === 'page-activities'
       && typeof FirebaseService !== 'undefined'
       && typeof FirebaseService.schedulePageScopedRealtimeForPage === 'function') {
-      FirebaseService.schedulePageScopedRealtimeForPage(pageId);
+      const contract = typeof PAGE_DATA_CONTRACT !== 'undefined' && PAGE_DATA_CONTRACT[pageId];
+      if (contract && contract.realtime && contract.realtime.length > 0) {
+        FirebaseService.schedulePageScopedRealtimeForPage(pageId);
+      }
     }
     if (options.resetScroll !== false) this._resetPageScroll(pageId);
     if (pageId !== 'page-scan' && this._stopCamera) this._stopCamera();
     return target;
   },
 
-  async _refreshStaleFirstPage(pageId, transitionSeq) {
+  async _refreshStalePage(pageId, transitionSeq) {
     try {
-      if (pageId === 'page-activities'
+      if (this._pageNeedsCloud(pageId)
         && !this._cloudReady
         && typeof this.ensureCloudReady === 'function') {
         try {
           await this.ensureCloudReady({ reason: `stale:${pageId}` });
         } catch (err) {
           if (transitionSeq !== this._pageTransitionSeq || this.currentPage !== pageId) return;
-          console.warn(`[Navigation] stale-first cloud refresh failed for ${pageId}:`, err);
+          console.warn(`[Navigation] stale background refresh cloud failed for ${pageId}:`, err);
           return;
         }
       }
       if (typeof FirebaseService === 'undefined' || typeof FirebaseService.ensureCollectionsForPage !== 'function') return;
+      const contract = typeof PAGE_DATA_CONTRACT !== 'undefined' && PAGE_DATA_CONTRACT[pageId];
+      const hasRealtime = contract && contract.realtime && contract.realtime.length > 0;
       const loaded = await FirebaseService.ensureCollectionsForPage(pageId, {
-        skipRealtimeStart: pageId === 'page-activities',
+        skipRealtimeStart: hasRealtime,
       });
       if (transitionSeq !== this._pageTransitionSeq || this.currentPage !== pageId) return;
-      if ((loaded || []).length > 0 || pageId === 'page-activities') {
+      if ((loaded || []).length > 0 || hasRealtime) {
         this._renderPageContent(pageId);
       }
     } catch (err) {
       if (transitionSeq !== this._pageTransitionSeq || this.currentPage !== pageId) return;
-      console.warn(`[Navigation] stale-first refresh failed for ${pageId}:`, err);
+      console.warn(`[Navigation] stale background refresh failed for ${pageId}:`, err);
     }
   },
 
@@ -177,6 +182,39 @@ Object.assign(App, {
 
   _pageNeedsCloud(pageId) {
     return !ModeManager.isDemo() && pageId !== 'page-home';
+  },
+
+  async _freshCheckBeforeAction(collection, docId, cachedData) {
+    if (ModeManager.isDemo()) return { ok: true, changed: false, freshData: cachedData };
+    if (typeof db === 'undefined') return { ok: false, reason: 'OFFLINE' };
+    try {
+      const doc = await Promise.race([
+        db.collection(collection).doc(docId).get(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('TIMEOUT')), 3000)),
+      ]);
+      if (!doc.exists) return { ok: false, reason: 'NOT_FOUND' };
+      const freshData = doc.data();
+      freshData.id = doc.id;
+      const changed = JSON.stringify(freshData) !== JSON.stringify(cachedData);
+      return { ok: true, changed, freshData };
+    } catch (err) {
+      if (err.message === 'TIMEOUT') {
+        return { ok: false, reason: 'TIMEOUT' };
+      }
+      return { ok: false, reason: 'OFFLINE' };
+    }
+  },
+
+  async _ensurePageHtmlReady(pageId) {
+    if (typeof PageLoader !== 'undefined' && PageLoader.ensurePage) {
+      await PageLoader.ensurePage(pageId);
+    }
+    if (!document.getElementById(pageId)) {
+      throw new Error(`Page element missing: ${pageId}`);
+    }
+    if (typeof ScriptLoader !== 'undefined' && ScriptLoader.ensureForPage) {
+      await ScriptLoader.ensureForPage(pageId);
+    }
   },
 
   _isCurrentUserRestricted() {
@@ -283,8 +321,10 @@ Object.assign(App, {
     if (!ModeManager.isDemo()
       && typeof FirebaseService !== 'undefined'
       && FirebaseService.ensureCollectionsForPage) {
+      const contract = typeof PAGE_DATA_CONTRACT !== 'undefined' && PAGE_DATA_CONTRACT[pageId];
+      const hasRealtime = contract && contract.realtime && contract.realtime.length > 0;
       await FirebaseService.ensureCollectionsForPage(pageId, {
-        skipRealtimeStart: pageId === 'page-activities',
+        skipRealtimeStart: hasRealtime,
       });
     }
   },
@@ -339,19 +379,22 @@ Object.assign(App, {
       this._showRestrictedToast();
       return { ok: false, reason: 'restricted' };
     }
-    // 正式版未登入：擋住球隊、賽事、我的、訊息頁
+
     const guardedPages = ['page-profile', 'page-teams', 'page-tournaments', 'page-messages', 'page-activities'];
-    const needsCloudInit = this._pageNeedsCloud(pageId) && (!this._cloudReady || !!this._cloudReadyPromise);
     const authPending = !ModeManager.isDemo()
       && typeof LineAuth !== 'undefined'
       && (
         (typeof LineAuth.isPendingLogin === 'function' && LineAuth.isPendingLogin())
         || (typeof LineAuth.hasLiffSession === 'function' && LineAuth.hasLiffSession() && !LineAuth._ready)
       );
-    const canUseStaleFirst = pageId !== this.currentPage
-      && this._canUseStaleFirstNavigation(pageId, { authPending });
+
+    const strategy = this._getPageStrategy(pageId);
+    const canUseStale = (strategy === 'stale-first' || strategy === 'stale-confirm')
+      && this._canUseStaleNavigation(pageId, { authPending });
+
+    const needsCloudInit = this._pageNeedsCloud(pageId) && (!this._cloudReady || !!this._cloudReadyPromise);
     const shouldShowRouteLoading = pageId !== this.currentPage
-      && !canUseStaleFirst
+      && !canUseStale
       && typeof this._beginRouteLoading === 'function'
       && typeof this._endRouteLoading === 'function';
     const routeLoadingSeq = shouldShowRouteLoading
@@ -363,7 +406,8 @@ Object.assign(App, {
       : 0;
 
     try {
-      if (!canUseStaleFirst
+      // 非 stale 路徑：需要雲端 + 登入 + 權限檢查
+      if (!canUseStale
         && guardedPages.includes(pageId)
         && this._pageNeedsCloud(pageId)
         && typeof this.ensureCloudReady === 'function') {
@@ -396,72 +440,104 @@ Object.assign(App, {
 
       const transitionSeq = ++this._pageTransitionSeq;
 
-      if (canUseStaleFirst) {
-        if (this.currentPage === 'page-home' && pageId !== 'page-home') {
-          this._cancelHomeDeferredRender?.();
-          this.stopBannerCarousel?.();
-        }
-
-        const fromPage = this.currentPage;
-        if (options.resetHistory) {
-          this.pageHistory = [];
-        } else if (fromPage !== pageId) {
-          this.pageHistory.push(fromPage);
-        }
-
-        const activated = this._activatePage(pageId, options);
-        if (!activated) return { ok: false, reason: 'missing_target' };
-
-        void this._refreshStaleFirstPage(pageId, transitionSeq);
-        return { ok: true, pageId, staleFirst: true };
+      // 策略分派
+      if (canUseStale) {
+        return this._showPageStale(pageId, transitionSeq, options);
       }
-
-      try {
-        await this._awaitRouteStep(
-          this._ensurePageEntryReady(pageId),
-          pageId,
-          'page'
-        );
-      } catch (err) {
-        if (transitionSeq === this._pageTransitionSeq) {
-          console.warn(`[Navigation] 頁面 ${pageId} 載入失敗:`, err);
-          this.showToast(this._getRouteFailureToast(pageId, 'page', err));
-        }
-        return {
-          ok: false,
-          reason: err?.code === 'route-step-timeout' ? 'route_timeout' : 'load_failed',
-          step: 'page',
-          error: err,
-        };
+      if (strategy === 'prepare-first') {
+        return await this._showPagePrepareFirst(pageId, transitionSeq, options);
       }
-
-      if (transitionSeq !== this._pageTransitionSeq) return { ok: false, reason: 'stale_transition' };
-
-      // 離開遊戲頁時銷毀引擎，釋放 WebGL context
-      if (this.currentPage === 'page-game' && pageId !== 'page-game' && this.destroyShotGamePage) {
-        this.destroyShotGamePage();
-      }
-      if (this.currentPage === 'page-home' && pageId !== 'page-home') {
-        this._cancelHomeDeferredRender?.();
-        this.stopBannerCarousel?.();
-      }
-
-      const fromPage = this.currentPage;
-      if (options.resetHistory) {
-        this.pageHistory = [];
-      } else if (fromPage !== pageId) {
-        this.pageHistory.push(fromPage);
-      }
-      const activated = this._activatePage(pageId, options);
-      if (activated) {
-        // 同步 URL hash，讓瀏覽器返回鍵可用（hash 相同時跳過，避免觸發 hashchange）
-        if (!options.suppressHashSync && location.hash !== '#' + pageId) location.hash = pageId;
-        // 重設浮動廣告位置，避免跨頁 scrollTo 觸發 scroll listener 造成跳位
-        return { ok: true, pageId };
-      }
-      return { ok: false, reason: 'missing_target' };
+      // fresh-first（預設）+ 首次進入的 stale-first/stale-confirm 頁（無快取時 fallback）
+      return await this._showPageFreshFirst(pageId, transitionSeq, options);
     } finally {
       this._endRouteLoading?.(routeLoadingSeq);
+    }
+  },
+
+  _showPageStale(pageId, transitionSeq, options) {
+    this._cleanupBeforePageSwitch(pageId);
+    this._pushPageHistory(pageId, options);
+    const activated = this._activatePage(pageId, options);
+    if (!activated) return { ok: false, reason: 'missing_target' };
+    void this._refreshStalePage(pageId, transitionSeq);
+    return { ok: true, pageId, staleFirst: true };
+  },
+
+  async _showPagePrepareFirst(pageId, transitionSeq, options) {
+    try {
+      // 準備 HTML + Script
+      await this._awaitRouteStep(this._ensurePageHtmlReady(pageId), pageId, 'page');
+      if (transitionSeq !== this._pageTransitionSeq) return { ok: false, reason: 'stale_transition' };
+
+      // 確保雲端就緒
+      if (this._pageNeedsCloud(pageId) && typeof this.ensureCloudReady === 'function') {
+        await this._awaitRouteStep(
+          this.ensureCloudReady({ reason: `prepare:${pageId}` }),
+          pageId, 'cloud'
+        );
+      }
+      if (transitionSeq !== this._pageTransitionSeq) return { ok: false, reason: 'stale_transition' };
+
+      // 載入必要集合
+      if (!ModeManager.isDemo() && typeof FirebaseService !== 'undefined' && FirebaseService.ensureCollectionsForPage) {
+        await FirebaseService.ensureCollectionsForPage(pageId, { skipRealtimeStart: true });
+      }
+      if (transitionSeq !== this._pageTransitionSeq) return { ok: false, reason: 'stale_transition' };
+    } catch (err) {
+      if (transitionSeq === this._pageTransitionSeq) {
+        console.warn(`[Navigation] prepare-first ${pageId} 載入失敗:`, err);
+        this.showToast(this._getRouteFailureToast(pageId, 'page', err));
+      }
+      return { ok: false, reason: 'load_failed', step: 'page', error: err };
+    }
+
+    this._cleanupBeforePageSwitch(pageId);
+    this._pushPageHistory(pageId, options);
+    const activated = this._activatePage(pageId, options);
+    if (!activated) return { ok: false, reason: 'missing_target' };
+    return { ok: true, pageId };
+  },
+
+  async _showPageFreshFirst(pageId, transitionSeq, options) {
+    try {
+      await this._awaitRouteStep(
+        this._ensurePageEntryReady(pageId),
+        pageId, 'page'
+      );
+    } catch (err) {
+      if (transitionSeq === this._pageTransitionSeq) {
+        console.warn(`[Navigation] 頁面 ${pageId} 載入失敗:`, err);
+        this.showToast(this._getRouteFailureToast(pageId, 'page', err));
+      }
+      return { ok: false, reason: err?.code === 'route-step-timeout' ? 'route_timeout' : 'load_failed', step: 'page', error: err };
+    }
+
+    if (transitionSeq !== this._pageTransitionSeq) return { ok: false, reason: 'stale_transition' };
+    this._cleanupBeforePageSwitch(pageId);
+    this._pushPageHistory(pageId, options);
+    const activated = this._activatePage(pageId, options);
+    if (activated) {
+      if (!options.suppressHashSync && location.hash !== '#' + pageId) location.hash = pageId;
+      return { ok: true, pageId };
+    }
+    return { ok: false, reason: 'missing_target' };
+  },
+
+  _cleanupBeforePageSwitch(pageId) {
+    if (this.currentPage === 'page-game' && pageId !== 'page-game' && this.destroyShotGamePage) {
+      this.destroyShotGamePage();
+    }
+    if (this.currentPage === 'page-home' && pageId !== 'page-home') {
+      this._cancelHomeDeferredRender?.();
+      this.stopBannerCarousel?.();
+    }
+  },
+
+  _pushPageHistory(pageId, options) {
+    if (options.resetHistory) {
+      this.pageHistory = [];
+    } else if (this.currentPage !== pageId) {
+      this.pageHistory.push(this.currentPage);
     }
   },
 

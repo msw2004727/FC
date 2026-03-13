@@ -103,6 +103,7 @@ Object.assign(App, {
       this._drawDonutChart('dash-chart-type', typeCounts, totalEvents);
       this._drawBarChart('dash-chart-month', monthCounts);
     });
+    this._markPageSnapshotReady?.('page-admin-dashboard');
   },
 
   /** 繪製甜甜圈圖（活動類型分布） */

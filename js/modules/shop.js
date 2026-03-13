@@ -29,6 +29,7 @@ Object.assign(App, {
         </div>`;
       }).join('')
       : '<div style="padding:1rem;font-size:.82rem;color:var(--text-muted)">尚無上架商品</div>';
+    this._markPageSnapshotReady?.('page-shop');
   },
 
   // ══════════════════════════════════

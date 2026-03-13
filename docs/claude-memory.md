@@ -1,3 +1,15 @@
+### 2026-03-13 — 全站頁面快取與載入策略擴張
+- **問題**：全站頁面切換體驗不一致，常用頁面需等待資料載入才能顯示，不夠「秒開」。
+- **原因**：原本只有 page-home / page-activities 支援 stale-first 秒開，其他頁面一律等 Firestore 回應。
+- **修復**：
+  1. 在 `js/config.js` 新增 `PAGE_STRATEGY` registry（4 種策略：stale-first / stale-confirm / prepare-first / fresh-first）與 `PAGE_DATA_CONTRACT`（每頁資料依賴定義）
+  2. 調整 `firebase-service.js` 的 `_staticReloadMaxAgeMs`，依集合變動頻率分級 TTL（teams 5 分鐘、shopItems 10 分鐘、achievements 30 分鐘等）
+  3. 重構 `navigation.js` 的 `showPage()` 為策略分派模式，抽出 `_showPageStale` / `_showPagePrepareFirst` / `_showPageFreshFirst` 三個策略函式
+  4. 新增 `_hasCachedDataForPage()`（通用快取檢測）、`_freshCheckBeforeAction()`（操作前確認最新資料）、`_ensurePageHtmlReady()`（HTML+Script 載入）
+  5. 泛化 `_activatePage()` 與 `_refreshStalePage()` 以支援所有頁面的 realtime 排程與背景刷新
+  6. 在 teams / tournaments / personal-dashboard / leaderboard / profile / shop / admin-dashboard / admin-teams / admin-tournaments 的 render 函式中加入 `_markPageSnapshotReady` 標記
+- **教訓**：頁面載入策略不應散落在各頁自行判斷，統一由 registry 控制策略，由導航層分派執行，才能確保一致性與可維護性。
+
 ### 2026-03-13 — 活動報名系統 Bug 修復：統一佔位重建
 - **問題**：活動報名系統的正取/候補邏輯存在多項瑕疵：`registrations` 與 `events` 投影欄位各自維護導致漂移、`registerForEvent()` 無 transaction 存在競態條件、7+ 個流程各自對 current/waitlist/participants 做局部調整無統一規則、重複報名檢查未過濾 `participantType`、`_forcePromoteWaitlist` 無容量檢查。
 - **原因**：雙重資料來源（Dual Source of Truth）、非交易式寫入、分散的佔位邏輯。

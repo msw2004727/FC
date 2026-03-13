@@ -142,6 +142,7 @@ Object.assign(App, {
       this._titleSuggestionChecked = true;
       setTimeout(() => this._checkTitleSuggestion(), 800);
     }
+    this._markPageSnapshotReady?.('page-profile');
   },
 
   _getTeamApplicationTimeMs(msg) {

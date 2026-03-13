@@ -93,6 +93,7 @@ Object.assign(App, {
         </div>
       </div>`;
     }).join('');
+    this._markPageSnapshotReady?.('page-admin-tournaments');
   },
 
   // ══════════════════════════════════

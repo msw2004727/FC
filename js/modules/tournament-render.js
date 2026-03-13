@@ -51,6 +51,8 @@ Object.assign(App, {
     this.renderTournamentTimeline();
   },
 
+  _tournamentsRenderSeq: 0,
+
   renderTournamentTimeline() {
     const container = document.getElementById('tournament-timeline');
     if (!container) return;
@@ -146,6 +148,7 @@ Object.assign(App, {
           </div>
         </div>`;
     }).join('');
+    this._markPageSnapshotReady?.('page-tournaments');
   },
 
   async showTournamentDetail(id) {

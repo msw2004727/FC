@@ -15,8 +15,13 @@ Object.assign(App, {
       return;
     }
 
-    try { return this._renderPersonalDashboardInner(container, user); }
-    catch (err) { console.error('[personalDashboard]', err); container.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--text-muted)">資料載入失敗，請稍後再試</div>'; }
+    try {
+      this._renderPersonalDashboardInner(container, user);
+      this._markPageSnapshotReady?.('page-personal-dashboard');
+    } catch (err) {
+      console.error('[personalDashboard]', err);
+      container.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--text-muted)">資料載入失敗，請稍後再試</div>';
+    }
   },
 
   _renderPersonalDashboardInner(container, user) {

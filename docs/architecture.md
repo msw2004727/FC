@@ -96,7 +96,7 @@ flowchart TD
 | `page-loader.js` | 按需非同步載入 `pages/*.html` 片段，快取版本由 `CACHE_VERSION` 控制。延遲載入（`_loadDeferred`）與按需載入（`ensurePage`）完成後自動呼叫 `App._bindPageElements()` 重新綁定事件 |
 | `script-loader.js` | 定義頁面群組與模組映射；目前所有模組已在 `index.html` 以 `<script defer>` 靜態載入，ScriptLoader 作為保底機制確保頁面切換時模組可用 |
 | `app.js` | `App` 主物件；定義 4 階段初始化流程、`renderAll()`、`showToast()`、`appConfirm()` |
-| `core/navigation.js` | `showPage()` 頁面路由、Modal 管理、Drawer 開關，透過 `Object.assign` 擴充 App |
+| `core/navigation.js` | `showPage()` 策略分派頁面路由（stale-first / stale-confirm / prepare-first / fresh-first），Modal 管理、Drawer 開關，`_freshCheckBeforeAction()` 操作前確認，透過 `Object.assign` 擴充 App。策略由 `config.js` 的 `PAGE_STRATEGY` registry 定義 |
 | `core/theme.js` | 深色 / 淺色主題切換，偏好儲存於 localStorage |
 | `core/mode.js` | Demo ↔ Production 切換（Logo 連按 5 次 / Shift+Alt+D / console 指令），切換時重建 Firebase 監聽器並重繪 UI |
 | `modules/event-*.js` | 活動功能群（列表、詳情、報名/取消、同行者 Modal、建立表單、管理、渲染輔助），透過 `Object.assign(App, {...})` 掛載 |
