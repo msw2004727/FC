@@ -306,7 +306,7 @@ Object.assign(App, {
     return {
       people,
       count: people.length,
-      hasSource: targetRegs.length > 0 || people.length > 0,
+      hasSource: targetRegs.length > 0,
     };
   },
 

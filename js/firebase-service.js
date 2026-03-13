@@ -1194,6 +1194,14 @@ const FirebaseService = {
         return;
       }
 
+      // 強制刷新 token，確保 persistence 恢復的 token 仍有效
+      try {
+        await auth.currentUser.getIdToken(true);
+      } catch (tokenErr) {
+        console.warn('[FirebaseService] Token refresh failed, skip auth-dependent work:', tokenErr?.code || tokenErr?.message);
+        return;
+      }
+
       this._startMessagesListener();
       this._startUsersListener();
 

@@ -1,3 +1,10 @@
+### 2026-03-13 — 未登入用戶分享連結人數顯示錯誤 + 權限錯誤修復
+- **問題**：未登入用戶透過分享連結開啟活動頁面，人數顯示 1/27（實際 23/27），點報名按鈕出現 Missing or insufficient permissions
+- **原因**：(1) `_buildEventPeopleSummaryByStatus` 的 `hasSource` 判斷將 `event.participants` 陣列視為有效來源，當 registrations 未載入時用不完整的 participants 陣列計數取代正確的 `event.current` (2) `_startAuthDependentWork` 未在啟動 onSnapshot 監聽器前刷新 Firebase Auth token，persistence 恢復的過期 token 導致 Firestore 權限錯誤
+- **修復**：(1) `_buildEventPeopleSummaryByStatus` 的 `hasSource` 改為只在有實際 registration 文件時才為 true，無 registrations 時一律使用 `event.current` 作為人數來源 (2) `_startAuthDependentWork` 在啟動監聽器前加入 `getIdToken(true)` 強制刷新 token，失敗則跳過 auth-dependent 工作
+- **教訓**：guest/未登入路徑的資料來源必須與登入路徑分開考慮；persistence 恢復的 auth 狀態不代表 token 有效
+- **受影響檔案**：`js/modules/event-list.js`、`js/firebase-service.js`
+
 ### 2026-03-13 — 用戶 ID 欄位規範 + expLogs 補 uid
 - **問題**：expLogs / teamExpLogs 只存 operator 顯示名稱，無法追溯操作者或目標用戶的 UID；不同集合用不同欄位名（userId vs uid）容易混淆
 - **原因**：歷史遺留，各集合開發時間不同，未統一命名規範
