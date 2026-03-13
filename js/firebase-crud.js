@@ -298,6 +298,25 @@ Object.assign(FirebaseService, {
     const doc = this._cache.events.find(e => e.id === id);
     if (!doc || !doc._docId) return false;
     await db.collection('events').doc(doc._docId).delete();
+
+    // 級聯清理：刪除該活動的報名、簽到紀錄
+    const cleanupCollections = ['registrations', 'activityRecords', 'attendanceRecords'];
+    for (const colName of cleanupCollections) {
+      try {
+        const snap = await db.collection(colName).where('eventId', '==', id).get();
+        if (snap.empty) continue;
+        const batch = db.batch();
+        snap.docs.forEach(d => batch.delete(d.ref));
+        await batch.commit();
+        // 同步本地快取
+        if (Array.isArray(this._cache[colName])) {
+          this._cache[colName] = this._cache[colName].filter(r => r.eventId !== id);
+        }
+      } catch (err) {
+        console.warn(`[deleteEvent] cleanup ${colName} failed:`, err);
+      }
+    }
+
     return true;
   },
 

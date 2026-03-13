@@ -1170,7 +1170,9 @@ Object.assign(App, {
     }
     (e.participants || []).forEach(p => {
       if (!addedNames.has(p)) {
-        people.push({ name: p, uid: p, isCompanion: false });
+        const resolved = this._findUserByName?.(p);
+        const resolvedUid = resolved?.uid || resolved?.lineUserId || p;
+        people.push({ name: p, uid: resolvedUid, isCompanion: false });
         addedNames.add(p);
       }
     });

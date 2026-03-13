@@ -1,3 +1,10 @@
+### 2026-03-13 — 孤兒資料根因修復（deleteEvent 級聯刪除 + 手動簽到 UID 解析）
+- **問題**：資料庫存在 61 筆孤兒報名紀錄（活動已刪除但 activityRecords 殘留）、20+ 筆孤兒簽到紀錄（uid 欄位為顯示名稱而非真實 UID）
+- **原因**：(1) `firebase-crud.js` 的 `deleteEvent()` 只刪活動文件，未級聯清理 registrations / activityRecords / attendanceRecords (2) `event-manage.js` 手動簽到舊格式活動時，participants 陣列元素為顯示名稱，直接當作 uid 寫入 attendanceRecords
+- **修復**：(1) `deleteEvent()` 新增級聯刪除：刪活動後自動查詢並 batch 刪除同 eventId 的 registrations、activityRecords、attendanceRecords (2) 手動簽到舊格式 participants 改用 `_findUserByName()` 解析真實 UID，解析失敗才 fallback 到原始名稱
+- **教訓**：刪除父文件時必須級聯清理子文件，否則久而久之會累積大量孤兒紀錄影響統計準確性；舊格式資料用顯示名稱當 ID 是常見 data integrity 問題來源
+- **受影響檔案**：`js/firebase-crud.js`、`js/modules/event-manage.js`
+
 ### 2026-03-13 — 日誌中心 UI 改善：按鈕置中、行底色分類、操作日誌重整按鈕
 - **問題**：稽核日誌的「重整」和「補齊暱稱」按鈕靠右顯示不直觀；日誌行無底色區分行為類型難以快速辨識；操作日誌缺少重整按鈕
 - **原因**：toolbar 使用 `justify-content: flex-end`；audit log 的 `renderAuditLogs` 未加行為底色；操作日誌 tab 未建立重整按鈕
