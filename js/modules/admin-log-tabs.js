@@ -7,6 +7,12 @@ Object.assign(App, {
   _adminLogActiveTab: 'operation',
   _pendingAdminLogTab: '',
 
+  _adminLogInfoMap: {
+    operation: { title: '操作日誌', desc: '查看後台與系統操作紀錄，可依類型與關鍵字快速篩選。' },
+    audit:     { title: '稽核日誌', desc: '查看敏感行為與關鍵操作紀錄，可依日期、時段與動作條件過濾。' },
+    error:     { title: '錯誤日誌', desc: '集中查看前端與系統錯誤，可依錯誤代碼與關鍵字過濾。' },
+  },
+
   _normalizeAdminLogTab(tabKey) {
     return ['operation', 'audit', 'error'].includes(tabKey) ? tabKey : 'operation';
   },
@@ -23,19 +29,11 @@ Object.assign(App, {
     await this.showPage(fallbackPage, { resetHistory: true });
   },
 
-  _buildAdminLogPanel(key, title, description) {
+  _buildAdminLogPanel(key) {
     const panel = document.createElement('section');
     panel.className = 'admin-log-panel';
     panel.dataset.adminLogPanel = key;
     panel.hidden = true;
-    panel.innerHTML = `
-      <div class="admin-log-panel-header">
-        <div>
-          <h3>${escapeHTML(title)}</h3>
-          <p>${escapeHTML(description)}</p>
-        </div>
-      </div>
-    `;
     return panel;
   },
 
@@ -47,7 +45,6 @@ Object.assign(App, {
     toolbar.id = 'admin-log-toolbar';
     toolbar.className = 'admin-log-toolbar';
     toolbar.innerHTML = `
-      <div class="admin-log-toolbar-copy">依目前頁籤顯示對應操作</div>
       <div class="admin-log-toolbar-actions" id="admin-log-toolbar-actions"></div>
     `;
     tabs.insertAdjacentElement('afterend', toolbar);
@@ -126,26 +123,15 @@ Object.assign(App, {
       <button class="tab active" type="button" data-admin-log-tab="operation" onclick="App.showAdminLogTab('operation')">操作日誌</button>
       <button class="tab" type="button" data-admin-log-tab="audit" onclick="App.showAdminLogTab('audit')">稽核日誌</button>
       <button class="tab" type="button" data-admin-log-tab="error" onclick="App.showAdminLogTab('error')">錯誤日誌</button>
+      <button class="admin-log-info-btn" type="button" onclick="App.showAdminLogInfo()" title="功能說明"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg></button>
     `;
 
     const panels = document.createElement('div');
     panels.className = 'admin-log-panels';
 
-    const operationPanel = this._buildAdminLogPanel(
-      'operation',
-      '操作日誌',
-      '查看後台與系統操作紀錄，可依類型與關鍵字快速篩選。'
-    );
-    const auditPanel = this._buildAdminLogPanel(
-      'audit',
-      '稽核日誌',
-      '查看敏感行為與關鍵操作紀錄，可依日期、時段與動作條件過濾。'
-    );
-    const errorPanel = this._buildAdminLogPanel(
-      'error',
-      '錯誤日誌',
-      '集中查看前端與系統錯誤，可依錯誤代碼與關鍵字過濾。'
-    );
+    const operationPanel = this._buildAdminLogPanel('operation');
+    const auditPanel = this._buildAdminLogPanel('audit');
+    const errorPanel = this._buildAdminLogPanel('error');
 
     if (clearAllBtn) {
       clearAllBtn.textContent = '清空資料';
@@ -211,5 +197,46 @@ Object.assign(App, {
       return;
     }
     this.filterErrorLogs(this._errorLogPage || 1);
+  },
+
+  showAdminLogInfo() {
+    const tab = this._normalizeAdminLogTab(this._adminLogActiveTab);
+    const info = this._adminLogInfoMap[tab] || this._adminLogInfoMap.operation;
+
+    let overlay = document.querySelector('.admin-log-info-overlay');
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.className = 'admin-log-info-overlay';
+      overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) App.closeAdminLogInfo();
+      });
+      overlay.innerHTML = `
+        <div class="admin-log-info-modal">
+          <div class="modal-header">
+            <h3 class="admin-log-info-title"></h3>
+            <button type="button" class="modal-close" onclick="App.closeAdminLogInfo()">&times;</button>
+          </div>
+          <div class="modal-body">
+            <p class="admin-log-info-desc"></p>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(overlay);
+    }
+
+    overlay.querySelector('.admin-log-info-title').textContent = info.title;
+    overlay.querySelector('.admin-log-info-desc').textContent = info.desc;
+
+    requestAnimationFrame(() => {
+      overlay.classList.add('open');
+      overlay.querySelector('.admin-log-info-modal').classList.add('open');
+    });
+  },
+
+  closeAdminLogInfo() {
+    const overlay = document.querySelector('.admin-log-info-overlay');
+    if (!overlay) return;
+    overlay.classList.remove('open');
+    overlay.querySelector('.admin-log-info-modal').classList.remove('open');
   },
 });

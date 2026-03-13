@@ -1,3 +1,15 @@
+### 2026-03-13 — 日誌中心介面優化
+- **問題**：日誌中心按鈕、搜尋、面板標頭、工具列等 UI 佔太多垂直空間，log 列表被擠到下方
+- **修復**：
+  1. 移除 `.admin-log-panel-header`（標題+描述+底線），節省 ~60px
+  2. 移除 `.admin-log-toolbar-copy` 描述文字，toolbar 改為 `justify-content: flex-end` 並縮小 padding
+  3. `.admin-log-panel` padding 從 `.85rem` 縮至 `.5rem`
+  4. Tab bar 右側新增 ℹ 說明按鈕，點擊顯示當前頁籤的功能說明
+  5. 說明彈窗使用獨立 overlay + 置中 modal，背景使用 `backdrop-filter: blur(8px)` 毛玻璃效果
+  6. 點擊彈窗外圍或 × 按鈕可關閉彈窗
+- **受影響檔案**：`admin-log-tabs.js`、`admin.css`、`config.js`、`index.html`
+- **教訓**：描述資訊移到彈窗後，panel 區域可以完全留給 log 列表，大幅提升可用空間
+
 ### 2026-03-13 — 全站頁面快取與載入策略擴張
 - **問題**：全站頁面切換體驗不一致，常用頁面需等待資料載入才能顯示，不夠「秒開」。
 - **原因**：原本只有 page-home / page-activities 支援 stale-first 秒開，其他頁面一律等 Firestore 回應。

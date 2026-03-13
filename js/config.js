@@ -210,7 +210,8 @@
 // 20260313b: 活動報名系統 Bug 修復 — 統一佔位重建 _rebuildOccupancy，Transaction 化報名流程，新增 registration-audit
 // 20260313c: 新增 repairRegistrationStatuses() 完整校正 registration status + event 投影
 // 20260313d: 所有報名寫入流程改用 batch 原子操作，修復 _removeParticipant 多人遞補
-const CACHE_VERSION = '20260313e';
+// 20260313f: 日誌中心 UI 精簡（移除 panel-header/toolbar-copy，新增 ℹ 說明彈窗含毛玻璃效果）
+const CACHE_VERSION = '20260313f';
 
 // ─── Page Strategy Registry ───
 // 唯一策略來源，未列出的頁面預設 fresh-first
