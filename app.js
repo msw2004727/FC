@@ -770,7 +770,9 @@ const App = {
 
   async _tryInstantEventDeepLink() {
     try {
+      console.log('[DeepLink-Diag] _tryInstantEventDeepLink called, _deepLinkRendered:', this._deepLinkRendered);
       const event = await this._deepLinkRestFetch;
+      console.log('[DeepLink-Diag] REST fetch result:', event ? event.id : null, 'rendered:', this._deepLinkRendered);
       if (!event || this._deepLinkRendered) return false;
 
       // 確保 activity-detail HTML 已載入
@@ -809,7 +811,10 @@ const App = {
 
   _startDeepLinkGuard() {
     const pending = this._getPendingDeepLink();
-    if (!pending) return;
+    console.log('[DeepLink-Diag] _startDeepLinkGuard pending:', JSON.stringify(pending));
+    if (!pending) { console.log('[DeepLink-Diag] NO pending deep link, guard skipped'); return; }
+    const overlay = document.getElementById('deep-link-overlay');
+    console.log('[DeepLink-Diag] overlay element exists:', !!overlay, 'display:', overlay?.style?.display);
     this._bootDeepLink = pending;
     this._deepLinkAuthRedirecting = false;
     this._showDeepLinkOverlay(pending.type);
@@ -1288,14 +1293,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     const urlParams = new URLSearchParams(location.search);
     const deepEvent = String(urlParams.get('event') || '').trim();
     const deepTeam = String(urlParams.get('team') || '').trim();
+    console.log('[DeepLink-Diag] URL:', location.href);
+    console.log('[DeepLink-Diag] deepEvent:', JSON.stringify(deepEvent), 'deepTeam:', JSON.stringify(deepTeam));
     if (deepEvent) sessionStorage.setItem('_pendingDeepEvent', deepEvent);
     if (deepTeam) sessionStorage.setItem('_pendingDeepTeam', deepTeam);
+    const ssEvent = String(sessionStorage.getItem('_pendingDeepEvent') || '').trim();
+    console.log('[DeepLink-Diag] sessionStorage._pendingDeepEvent:', JSON.stringify(ssEvent));
     // 立即啟動 REST fetch（不等 SDK）— URL 有 ?event= 或 sessionStorage 有殘留（LINE 登入回來）
-    const restEventId = deepEvent || String(sessionStorage.getItem('_pendingDeepEvent') || '').trim();
+    const restEventId = deepEvent || ssEvent;
     if (restEventId) {
       App._deepLinkRestFetch = App._fetchEventViaRest(restEventId);
+      console.log('[DeepLink-Diag] REST fetch started for:', restEventId);
     }
-  } catch (_) {}
+  } catch (diagErr) { console.error('[DeepLink-Diag] parse error:', diagErr); }
+  console.log('[DeepLink-Diag] _getPendingDeepLink():', JSON.stringify(App._getPendingDeepLink()));
   App._startDeepLinkGuard();
 
   // ── Phase 1: 載入頁面 HTML 片段（10 秒超時保護）──
