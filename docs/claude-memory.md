@@ -1,3 +1,18 @@
+### 2026-03-13 — 權限規格書 rev.2 補強（5 項需求覆蓋檢視）
+- **問題**：`permission-hardening-rollout-plan-20260312.md` 未完整涵蓋 5 項權限基本要求，特別是：(1) Firestore Rules 的 `isSuperAdmin()` 集合下放決策未明確 (2) roleChange 無最低角色等級防線 (3) coach/captain/venue_owner 自動權限未定義
+- **修復**：
+  1. 新增目標 7（身分自動權限）
+  2. 擴充缺口表：errorLogs/auditLogsByDay/autoExpRules Rules 缺口、change_role 無最低角色檢查、身分自動權限未定義
+  3. 新增設計原則：不可下放原則、最低角色等級防線、身分自動權限
+  4. Step 1 新增「不可下放功能清單」骨架 + permission code ↔ Firestore Rule 對照表
+  5. Step 3 新增最低角色等級防線程式碼 + admin 改角色邊界規則
+  6. 新增 Step 3.5：coach/captain/venue_owner 身分自動權限機制
+  7. Step 5 新增每條 `isSuperAdmin()` Rules 的下放決策表 + 日誌中心子權限碼
+  8. 新增附錄 A（需求覆蓋矩陣）、附錄 B（Permission Code ↔ Rule 對照表骨架）、附錄 C（Admin 改角色邊界規則 + 實作程式碼）
+  9. 更新風險評估、工作量評估、執行順序、交付標準
+- **受影響檔案**：`docs/permission-hardening-rollout-plan-20260312.md`
+- **教訓**：權限規格書必須對每條 Firestore Rules 逐一決定下放策略（A 下放 / B 不下放），否則會出現「前端開了權限但後端 Rules 擋住」的不一致
+
 ### 2026-03-13 — 日誌中心介面優化
 - **問題**：日誌中心按鈕、搜尋、面板標頭、工具列等 UI 佔太多垂直空間，log 列表被擠到下方
 - **修復**：
