@@ -48,6 +48,10 @@ const App = {
   _deepLinkAuthRedirecting: false,
   _pendingDeepLinkOpenKey: '',
   _pendingDeepLinkOpenPromise: null,
+  _deepLinkRestFetch: null,
+  _deepLinkRendered: false,
+  _instantDeepLinkMode: false,
+  _instantDeepLinkEventId: null,
   _cloudReady: false,
   _cloudBootScheduled: false,
   _cloudReadyPromise: null,
@@ -678,6 +682,97 @@ const App = {
     }
   },
 
+  // ── Firestore REST API 直取（不需 SDK）──
+
+  _convertFirestoreRestValue(val) {
+    if (val === undefined || val === null) return null;
+    if ('stringValue' in val) return val.stringValue;
+    if ('integerValue' in val) return Number(val.integerValue);
+    if ('doubleValue' in val) return Number(val.doubleValue);
+    if ('booleanValue' in val) return val.booleanValue;
+    if ('nullValue' in val) return null;
+    if ('timestampValue' in val) return val.timestampValue;
+    if ('arrayValue' in val) {
+      return (val.arrayValue.values || []).map(v => this._convertFirestoreRestValue(v));
+    }
+    if ('mapValue' in val) {
+      const obj = {};
+      const fields = val.mapValue.fields || {};
+      for (const k of Object.keys(fields)) {
+        obj[k] = this._convertFirestoreRestValue(fields[k]);
+      }
+      return obj;
+    }
+    return null;
+  },
+
+  _convertFirestoreRestDoc(doc, eventId) {
+    if (!doc || !doc.fields) return null;
+    const result = {};
+    const fields = doc.fields;
+    for (const k of Object.keys(fields)) {
+      result[k] = this._convertFirestoreRestValue(fields[k]);
+    }
+    result.id = eventId;
+    if (!result._docId) result._docId = eventId;
+    return result;
+  },
+
+  async _fetchEventViaRest(eventId) {
+    try {
+      const pid = typeof firebaseConfig !== 'undefined' && firebaseConfig.projectId;
+      const key = typeof firebaseConfig !== 'undefined' && firebaseConfig.apiKey;
+      if (!pid || !key) return null;
+      const url = `https://firestore.googleapis.com/v1/projects/${pid}/databases/(default)/documents/events/${encodeURIComponent(eventId)}?key=${encodeURIComponent(key)}`;
+      const resp = await fetch(url);
+      if (!resp.ok) return null;
+      const doc = await resp.json();
+      return this._convertFirestoreRestDoc(doc, eventId);
+    } catch (err) {
+      console.warn('[DeepLink] REST fetch failed:', err);
+      return null;
+    }
+  },
+
+  async _tryInstantEventDeepLink() {
+    try {
+      const event = await this._deepLinkRestFetch;
+      if (!event || this._deepLinkRendered) return false;
+
+      // 確保 activity-detail HTML 已載入
+      if (typeof PageLoader !== 'undefined' && PageLoader.ensurePage) {
+        await PageLoader.ensurePage('page-activity-detail');
+      }
+
+      // 注入 cache（讓 ApiService.getEvent 找到）
+      if (typeof FirebaseService !== 'undefined' && FirebaseService._cache && FirebaseService._cache.events) {
+        if (!FirebaseService._cache.events.find(e => e.id === event.id)) {
+          FirebaseService._cache.events.push(event);
+        }
+      }
+
+      // 設置 instant mode（讓 showPage 跳過 ensureCloudReady）
+      this._instantDeepLinkMode = true;
+      try {
+        const result = await this.showEventDetail(event.id, { allowGuest: true });
+        if (result?.ok) {
+          this._deepLinkRendered = true;
+          this._instantDeepLinkEventId = event.id;
+          this._completeDeepLinkSuccess();
+          console.log('[DeepLink] instant preview rendered via REST API');
+          return true;
+        }
+      } finally {
+        this._instantDeepLinkMode = false;
+      }
+      return false;
+    } catch (err) {
+      console.warn('[DeepLink] instant preview failed:', err);
+      this._instantDeepLinkMode = false;
+      return false;
+    }
+  },
+
   _startDeepLinkGuard() {
     const pending = this._getPendingDeepLink();
     if (!pending) return;
@@ -720,6 +815,8 @@ const App = {
 
   async _tryOpenPendingDeepLink() {
     try {
+      if (this._deepLinkRendered) return true;  // instant path 已完成
+
       const pending = this._getPendingDeepLink();
       if (!pending) return true;
 
@@ -976,6 +1073,15 @@ const App = {
       }
       void this._flushPendingProtectedBootRoute({ skipEnsureCloudReady: true });
       void this._tryOpenPendingDeepLink();
+
+      // instant deep link 已渲染 → SDK ready 後背景更新完整資料
+      if (this._instantDeepLinkEventId && this.currentPage === 'page-activity-detail') {
+        const sdkEventId = this._instantDeepLinkEventId;
+        this._instantDeepLinkEventId = null;
+        void this.showEventDetail(sdkEventId, { allowGuest: !(typeof LineAuth !== 'undefined' && LineAuth.isLoggedIn()) });
+        console.log('[DeepLink] SDK background refresh for', sdkEventId);
+      }
+
       return true;
     })();
 
@@ -1103,6 +1209,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     const deepTeam = String(urlParams.get('team') || '').trim();
     if (deepEvent) sessionStorage.setItem('_pendingDeepEvent', deepEvent);
     if (deepTeam) sessionStorage.setItem('_pendingDeepTeam', deepTeam);
+    // 立即啟動 REST fetch（不等 SDK）
+    if (deepEvent) {
+      App._deepLinkRestFetch = App._fetchEventViaRest(deepEvent);
+    }
   } catch (_) {}
   App._startDeepLinkGuard();
 
@@ -1176,7 +1286,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // ── Phase 1 完成後補跑一次 renderAll + 動態頁面事件綁定（非阻塞）──
-  htmlReady.then(function() {
+  htmlReady.then(async function() {
     try {
       App.renderAll();
       console.log('[Boot] Phase 1 後補跑 renderAll 完成');
@@ -1188,6 +1298,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       console.log('[Boot] Phase 1 後補跑 _bindPageElements 完成');
     } catch (e) {
       console.warn('[Boot] _bindPageElements 失敗:', e && e.message || e);
+    }
+    // HTML ready + REST fetch → 嘗試即時渲染活動頁
+    if (App._deepLinkRestFetch && !App._deepLinkRendered) {
+      try {
+        await App._tryInstantEventDeepLink();
+      } catch (e) {
+        console.warn('[Boot] instant deep link failed:', e && e.message || e);
+      }
     }
   });
 

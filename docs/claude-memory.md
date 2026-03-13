@@ -1,3 +1,15 @@
+### 2026-03-13 — 活動分享連結極速預覽（Instant Event Deep Link）
+- **問題**：用戶透過 `?event=xxx` 分享連結進入時需等 5-8 秒（CDN + LIFF + Firebase + 全部 events 查詢），體驗不佳
+- **原因**：原有流程必須等所有 SDK 載入 + 初始化完成才能取得活動資料並渲染
+- **修復**：
+  1. **`app.js`**：新增 `_fetchEventViaRest()` — 用原生 `fetch()` 直呼 Firestore REST API 取單筆活動（~0.8s），不需任何 SDK
+  2. **`app.js`**：新增 `_tryInstantEventDeepLink()` — HTML ready + REST 回應後立即渲染活動頁，SDK 背景載入後自動更新動態資料
+  3. **`js/core/navigation.js`**：`_pageNeedsCloud()` 在 `_instantDeepLinkMode` 時 return false，跳過 ensureCloudReady
+  4. **Boot 序列**：DOMContentLoaded 解析 `?event=xxx` 後立即啟動 REST fetch，htmlReady 後嘗試即時渲染
+  5. **Race condition**：`_deepLinkRendered` flag 防止 SDK/REST 雙重渲染；REST 失敗自動回退到原有 SDK 路徑
+- **受影響檔案**：`app.js`、`js/core/navigation.js`、`js/config.js`、`index.html`
+- **教訓**：Firestore REST API 是公開的，events 已有 `allow read: if true` 規則，可直接用 apiKey + projectId 存取，省去整套 SDK 載入時間
+
 ### 2026-03-13 — Guest Event Preview 修正（LIFF/Firebase 並行 + 單筆直取）
 - **問題**：活動分享連結（`?event=xxx`）guest preview 無法顯示。`ensureCloudReady()` 中 LIFF init 串行阻塞 Firebase init，導致總 boot 時間 5-18 秒，超過 12 秒 deep link guard timeout。
 - **原因**：

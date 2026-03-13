@@ -181,6 +181,7 @@ Object.assign(App, {
   },
 
   _pageNeedsCloud(pageId) {
+    if (this._instantDeepLinkMode) return false;
     return !ModeManager.isDemo() && pageId !== 'page-home';
   },
 
