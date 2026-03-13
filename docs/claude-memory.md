@@ -1,3 +1,11 @@
+### 2026-03-13 — 委託人（user 身份）掃碼頁與 Log 彈窗權限修復
+- **問題**：role=user 的委託人被委託管理活動時，(1) 無法進入掃碼頁（page-scan 要求 minRole=coach），(2) Log 彈窗只顯示自己的報名紀錄（registrations 監聽只查自己的資料）
+- **原因**：(1) `_canAccessPage()` 只看 role level，不考慮 delegate 身份 (2) `openEventRegLogModal()` 依賴本地快取 `ApiService._src('registrations')`，非 admin 用戶的快取只有自己的報名
+- **修復**：
+  - `js/modules/role.js`：`_canAccessPage()` 新增 delegate 例外判斷，page-scan 頁若用戶是任何 open/full 活動的委託人則放行；新增 `_isAnyActiveEventDelegate()` 輔助函式
+  - `js/modules/event-detail.js`：`openEventRegLogModal()` 改為 async，production 模式下直接 Firestore 查詢 `registrations where eventId == x`，不依賴本地快取；Firestore 查詢失敗時 fallback 回快取
+- **教訓**：delegate 權限是功能級別的授權（不是角色級別），需要在每個功能入口單獨處理，不能只靠提升 role 來解決，否則會產生權限擴散副作用
+
 ### 2026-03-14 — LINE 頭像壞圖 fallback 強化
 - **問題**：部分手機瀏覽器快取了壞圖的 HTTP 回應，onerror 不觸發或 naturalWidth 回報 > 0（壞圖 icon 尺寸），導致 fallback 沒觸發、顯示方塊 X
 - **原因**：(1) naturalWidth === 0 判斷太嚴格，部分瀏覽器壞圖報非零尺寸 (2) 瀏覽器 HTTP 快取壞圖後再次載入不觸發 onerror (3) 重新登入取得同 URL 但它已被記入壞圖名單

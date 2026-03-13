@@ -61,7 +61,22 @@ Object.assign(App, {
     if (drawerItem) return this._canAccessDrawerItem(drawerItem, role);
     const pageEl = document.getElementById(pageId);
     if (!pageEl?.dataset?.minRole) return true;
-    return this._getEffectiveRoleLevel(role) >= (ROLE_LEVEL_MAP[pageEl.dataset.minRole] || 0);
+    if (this._getEffectiveRoleLevel(role) >= (ROLE_LEVEL_MAP[pageEl.dataset.minRole] || 0)) return true;
+    // delegate 例外：被委託管理活動的 user 可存取掃碼頁
+    if (pageId === 'page-scan' && typeof this._isAnyActiveEventDelegate === 'function' && this._isAnyActiveEventDelegate()) return true;
+    return false;
+  },
+
+  /** 檢查當前用戶是否為任何進行中活動的委託人 */
+  _isAnyActiveEventDelegate() {
+    if (typeof ApiService === 'undefined') return false;
+    const events = ApiService.getEvents();
+    if (!events || !events.length) return false;
+    return events.some(e =>
+      (e.status === 'open' || e.status === 'full') &&
+      typeof this._isEventDelegate === 'function' &&
+      this._isEventDelegate(e)
+    );
   },
 
   _applyRoleBoundVisibility(role) {

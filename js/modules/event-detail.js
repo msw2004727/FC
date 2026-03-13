@@ -608,17 +608,34 @@ Object.assign(App, {
     return Number.isFinite(t) ? t : 0;
   },
 
-  openEventRegLogModal(eventId) {
+  async openEventRegLogModal(eventId) {
     var self = this;
     var modal = document.getElementById('event-reg-log-modal');
     var body = document.getElementById('event-reg-log-body');
     if (!modal || !body) return;
 
-    var allRegs = ApiService._src('registrations').filter(function(r) { return r.eventId === eventId; });
+    modal.classList.add('open');
+    body.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:1.5rem;font-size:.82rem">\u8f09\u5165\u4e2d\u2026</div>';
+
+    var allRegs;
+    if (!ModeManager.isDemo() && typeof db !== 'undefined') {
+      try {
+        var snap = await db.collection('registrations').where('eventId', '==', eventId).get();
+        allRegs = [];
+        snap.forEach(function(doc) {
+          allRegs.push(Object.assign({ _docId: doc.id, id: doc.id }, doc.data()));
+        });
+      } catch (err) {
+        console.error('[openEventRegLogModal] Firestore query failed, fallback to cache:', err);
+        allRegs = ApiService._src('registrations').filter(function(r) { return r.eventId === eventId; });
+      }
+    } else {
+      allRegs = ApiService._src('registrations').filter(function(r) { return r.eventId === eventId; });
+    }
 
     var entries = [];
     allRegs.forEach(function(r) {
-      var name = r.companionName || r.userName || '未知';
+      var name = r.companionName || r.userName || '\u672a\u77e5';
       if (r.registeredAt) {
         entries.push({ time: r.registeredAt, ms: self._regLogToMs(r.registeredAt), userName: name, action: 'register' });
       }
@@ -630,13 +647,13 @@ Object.assign(App, {
     entries.sort(function(a, b) { return b.ms - a.ms; });
 
     if (entries.length === 0) {
-      body.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:1.5rem;font-size:.82rem">尚無報名紀錄</div>';
+      body.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:1.5rem;font-size:.82rem">\u5c1a\u7121\u5831\u540d\u7d00\u9304</div>';
     } else {
       body.innerHTML = entries.map(function(e) {
         var d = new Date(e.ms);
         var timeStr = String(d.getMonth() + 1).padStart(2, '0') + '/' + String(d.getDate()).padStart(2, '0') + ' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
         var actionCls = e.action === 'cancel' ? 'cancel' : 'reg';
-        var actionLabel = e.action === 'cancel' ? '取消' : '報名';
+        var actionLabel = e.action === 'cancel' ? '\u53d6\u6d88' : '\u5831\u540d';
         return '<div class="event-reg-log-item">' +
           '<span class="event-reg-log-time">' + timeStr + '</span>' +
           '<span class="event-reg-log-user">' + escapeHTML(e.userName) + '</span>' +
@@ -644,8 +661,6 @@ Object.assign(App, {
           '</div>';
       }).join('');
     }
-
-    modal.classList.add('open');
   },
 
   closeEventRegLogModal() {
