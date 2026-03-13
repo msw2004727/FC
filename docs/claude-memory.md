@@ -1,3 +1,10 @@
+### 2026-03-13 — Deep link 優先載入活動頁 HTML（方案 B）
+- **問題**：用戶點分享連結 → LINE 登入回來後，需等所有 5 個 boot pages + modals 載完才能顯示活動詳情，等待 2-5 秒
+- **原因**：`loadAll()` 用 `Promise.all` 等全部頁面完成後才 `innerHTML` 一次寫入，即使活動頁先到也要等其他頁面
+- **修復**：`page-loader.js loadAll()` 偵測 `sessionStorage._pendingDeepEvent`，所有 fetch 仍並行啟動，但優先 await activity.html → 立即 append + 觸發 `_tryInstantEventDeepLink()`，其餘頁面隨後逐一 append
+- **保護機制**：`_deepLinkRendered` 防重複渲染、poller 有 `_pendingDeepLinkOpenKey` 鎖定、`ensurePage` 對已載入頁面立即返回
+- **教訓**：漸進式載入（priority first + rest in parallel）比全等式載入更適合 deep link 場景
+
 ### 2026-03-13 — 修復殘留前端硬編碼權限檢查（event-create + scan）
 - **問題**：`event-create.js` 建立活動時硬寫 `ROLE_LEVEL_MAP < coach` 阻擋；`scan.js` 掃碼頁事件範圍硬寫 `>= admin` 限制
 - **原因**：Step 5 漏改這兩處前端硬編碼

@@ -113,6 +113,7 @@ const PageLoader = {
 
   /**
    * 啟動時載入核心頁面 + 彈窗（快速啟動）
+   * 若偵測到 deep link，優先載入對應頁面並立即觸發渲染，不等其餘頁面。
    */
   async loadAll() {
     if (this._loadAllPromise) return this._loadAllPromise;
@@ -121,31 +122,57 @@ const PageLoader = {
       const mainEl = document.getElementById('main-content');
       const modalEl = document.getElementById('modal-container');
 
-      const [pageResults, modalResults] = await Promise.all([
-        Promise.all(
-          this._bootPages.map(name =>
-            fetch(`pages/${name}.html?v=${CACHE_VERSION}`).then(r => r.text()).catch(err => {
-              console.warn(`[PageLoader] pages/${name}.html 載入失敗:`, err);
-              return '';
-            })
-          )
-        ),
-        Promise.all(
-          this._modals.map(name =>
-            fetch(`pages/${name}.html?v=${CACHE_VERSION}`).then(r => r.text()).catch(err => {
-              console.warn(`[PageLoader] pages/${name}.html 載入失敗:`, err);
-              return '';
-            })
-          )
-        )
-      ]);
+      // ── Deep link 優先載入偵測 ──
+      let priorityFile = null;
+      try {
+        if (sessionStorage.getItem('_pendingDeepEvent')) priorityFile = 'activity';
+        else if (sessionStorage.getItem('_pendingDeepTeam')) priorityFile = 'team';
+      } catch (_) {}
 
-      mainEl.innerHTML = pageResults.join('\n');
+      // 所有 fetch 同時啟動（不論有無 priority，都並行）
+      const fetchMap = {};
+      for (const name of this._bootPages) {
+        fetchMap[name] = fetch(`pages/${name}.html?v=${CACHE_VERSION}`)
+          .then(r => r.text())
+          .catch(err => { console.warn(`[PageLoader] pages/${name}.html 載入失敗:`, err); return ''; });
+      }
+      const modalFetch = Promise.all(
+        this._modals.map(name =>
+          fetch(`pages/${name}.html?v=${CACHE_VERSION}`).then(r => r.text())
+            .catch(err => { console.warn(`[PageLoader] pages/${name}.html 載入失敗:`, err); return ''; })
+        )
+      );
+
+      // Priority page：先 await → 立即 append → 觸發 instant deep link
+      if (priorityFile && fetchMap[priorityFile]) {
+        const html = await fetchMap[priorityFile];
+        if (html) {
+          this._appendToMainContent(html);
+          this._loaded[priorityFile] = true;
+          this._bindLoadedPageElements();
+          console.log(`[PageLoader] deep-link 優先載入: ${priorityFile}`);
+          // 觸發 instant deep link 渲染（fire-and-forget，不阻塞後續載入）
+          if (typeof App !== 'undefined' && App._deepLinkRestFetch && !App._deepLinkRendered) {
+            void App._tryInstantEventDeepLink().catch(() => {});
+          }
+        }
+      }
+
+      // 其餘 boot pages 逐一 append（fetch 早已並行啟動，這裡只是 await 結果）
+      for (const name of this._bootPages) {
+        if (this._loaded[name]) continue;
+        const html = await fetchMap[name];
+        if (html) {
+          this._appendToMainContent(html);
+          this._loaded[name] = true;
+        }
+      }
+
+      // Modals
+      const modalResults = await modalFetch;
       modalEl.innerHTML = modalResults.join('\n');
 
-      // 標記已載入
-      this._bootPages.forEach(name => { this._loaded[name] = true; });
-
+      this._bindLoadedPageElements();
       console.log(`[PageLoader] 啟動載入 ${this._bootPages.length} 頁 + ${this._modals.length} 彈窗，延遲 ${this._deferredPages.length} 頁`);
 
       // 背景預載入延遲頁面（不阻塞啟動）
