@@ -246,24 +246,29 @@ Object.assign(App, {
     if (!user) return;
     const uid = user.uid || user.lineUserId || (ModeManager.isDemo() ? 'demo-user' : null);
     if (!uid) return;
-    const records = ApiService.getActivityRecords(uid).filter(r => r.status === 'registered');
+
+    // 用 registrations（權威來源）判斷用戶是否仍有效報名
+    const activeRegs = ApiService.getRegistrationsByUser(uid);
+    const activeEventIds = new Set(activeRegs.map(r => r.eventId));
+    if (!activeEventIds.size) return;
+
     const events = ApiService.getEvents();
     const now = new Date();
     const sent = JSON.parse(localStorage.getItem('sporthub_reminders_' + ModeManager.getMode()) || '{}');
 
-    records.forEach(r => {
-      const ev = events.find(e => e.id === r.eventId);
+    activeEventIds.forEach(eventId => {
+      const ev = events.find(e => e.id === eventId);
       if (!ev || !ev.date) return;
       // Parse date like "2026/03/15 14:00~16:00"
       const dateStr = ev.date.split('~')[0].trim();
       const eventDate = new Date(dateStr.replace(/\//g, '-'));
       if (isNaN(eventDate)) return;
       const hoursUntil = (eventDate - now) / (1000 * 60 * 60);
-      const key24 = r.eventId + '_24h';
-      const key1 = r.eventId + '_1h';
-      // 24h reminder
-      if (hoursUntil > 0 && hoursUntil <= 24 && !sent[key24]) {
-        sent[key24] = true;
+      const key12 = eventId + '_12h';
+      const key1 = eventId + '_1h';
+      // 12h reminder（活動 12 小時內提醒，避免前一天過早推播）
+      if (hoursUntil > 0 && hoursUntil <= 12 && !sent[key12]) {
+        sent[key12] = true;
         const title = '活動即將開始提醒';
         const body = `您報名的「${ev.title}」將於 ${ev.date} 開始，請做好準備！\n地點：${ev.location}`;
         this._deliverMessageToInbox(title, body, 'activity', '活動', uid, '系統');

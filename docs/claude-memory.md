@@ -1,3 +1,9 @@
+### 2026-03-14 — 已取消報名用戶仍收到 LINE 推播提醒
+- **問題**：用戶取消活動報名後仍收到 LINE 推播提醒；且提醒在活動前一天就發送，過早
+- **原因**：`_processEventReminders()` 用 `activityRecords`（status='registered'）判斷，但 activityRecords 不是權威來源，取消後 status 可能未正確更新。且 24h 提醒窗口導致前一天就推播
+- **修復**：改用 `registrations`（`getRegistrationsByUser`）作為權威來源，只有 confirmed/waitlisted 才發提醒；提醒窗口從 24h 縮為 12h，避免前一天過早推播
+- **教訓**：判斷報名狀態必須用 `registrations` 而非 `activityRecords`；`activityRecords` 是活動紀錄用途，不適合做即時狀態判斷
+
 ### 2026-03-14 — 登入後頭像顯示為破圖（方塊中X）
 - **問題**：用戶登入後，topbar 頭像顯示為方塊中間一個 X（broken image icon）
 - **原因**：`index.html` 的 `<img src="">` 在容器顯示時立即渲染為破圖；若 LINE pictureUrl 載入失敗，`onerror` 在 LINE WebView 中可能不觸發，導致破圖持續顯示而 fallback 未替換
