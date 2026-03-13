@@ -795,6 +795,115 @@ Object.assign(App, {
     }
   },
 
+  // ── Timeline card loading bar ──
+  _tlCardLoadingState: null,
+
+  _tlFindCardByEventId(eventId) {
+    if (!eventId) return null;
+    var container = document.getElementById('activity-list');
+    if (!container) return null;
+    var rows = container.querySelectorAll('.tl-event-row');
+    for (var i = 0; i < rows.length; i++) {
+      var onclick = rows[i].getAttribute('onclick') || '';
+      if (onclick.indexOf("'" + eventId + "'") !== -1) return rows[i];
+    }
+    return null;
+  },
+
+  _markTlCardPending(cardEl) {
+    if (!cardEl || !cardEl.classList) return;
+    cardEl.classList.add('tl-pending');
+    cardEl.setAttribute('aria-busy', 'true');
+    if (!cardEl.querySelector('.tl-loading-bar')) {
+      var bar = document.createElement('div');
+      bar.className = 'tl-loading-bar';
+      bar.innerHTML = '<div class="tl-loading-fill"></div>';
+      cardEl.appendChild(bar);
+    }
+    var eventId = null;
+    var onclick = cardEl.getAttribute('onclick') || '';
+    var m = onclick.match(/openTimelineEventDetail\(['"]([^'"]+)['"]/);
+    if (m) eventId = m[1];
+
+    if (!this._tlCardLoadingState || this._tlCardLoadingState.eventId !== eventId) {
+      clearInterval(this._tlCardLoadingState?.interval);
+      var state = { eventId: eventId, progress: 0, startedAt: Date.now(), interval: null };
+      var self = this;
+      state.interval = setInterval(function() {
+        var p = state.progress;
+        var inc = p < 30 ? 4 : p < 60 ? 2 : p < 80 ? 0.5 : 0.15;
+        state.progress = Math.min(p + inc, 85);
+        var card = self._tlFindCardByEventId(state.eventId);
+        var fill = card && card.querySelector('.tl-loading-fill');
+        if (fill) fill.style.width = state.progress + '%';
+      }, 100);
+      this._tlCardLoadingState = state;
+    }
+    var st = this._tlCardLoadingState;
+    if (st) {
+      var fill = cardEl.querySelector('.tl-loading-fill');
+      if (fill) fill.style.width = st.progress + '%';
+    }
+  },
+
+  _clearTlCardPending(cardEl, minVisibleMs) {
+    var state = this._tlCardLoadingState;
+    if (!state) return;
+    clearInterval(state.interval);
+    state.interval = null;
+    var elapsed = Date.now() - state.startedAt;
+    var waitMs = Math.max(0, (minVisibleMs || 0) - elapsed);
+    var eventId = state.eventId;
+    var self = this;
+    setTimeout(function() {
+      var card = self._tlFindCardByEventId(eventId) || cardEl;
+      if (!card) { self._tlCardLoadingState = null; return; }
+      var fill = card.querySelector('.tl-loading-fill');
+      if (fill) fill.style.width = '100%';
+      setTimeout(function() {
+        var card2 = self._tlFindCardByEventId(eventId) || card;
+        if (card2) card2.classList.add('tl-loaded');
+        setTimeout(function() {
+          var card3 = self._tlFindCardByEventId(eventId) || card2;
+          if (card3) {
+            card3.classList.remove('tl-pending', 'tl-loaded');
+            card3.removeAttribute('aria-busy');
+            var bar = card3.querySelector('.tl-loading-bar');
+            if (bar) bar.remove();
+          }
+          self._tlCardLoadingState = null;
+        }, 400);
+      }, 350);
+    }, waitMs);
+  },
+
+  async openTimelineEventDetail(eventId, cardEl) {
+    var safeEventId = String(eventId || '').trim();
+    var targetCard = cardEl && cardEl.closest ? cardEl.closest('.tl-event-row') : cardEl;
+    if (!safeEventId) return;
+
+    if (targetCard && targetCard.dataset.tlOpening === '1') return;
+    var shouldHint = this._shouldShowHomeEventLoadingHint();
+    if (targetCard && targetCard.dataset) targetCard.dataset.tlOpening = '1';
+    if (shouldHint && targetCard) this._markTlCardPending(targetCard);
+
+    try {
+      var result = await this.showEventDetail(safeEventId);
+      if (!result?.ok && result?.reason === 'missing') {
+        this.showToast('活動資料暫時無法開啟，請稍後再試');
+      }
+    } catch (err) {
+      console.error('[TimelineEventClick] open detail failed:', err);
+      this.showToast('活動資料暫時無法開啟，請稍後再試');
+    } finally {
+      this._clearTlCardPending(targetCard, shouldHint ? 650 : 0);
+      if (targetCard && targetCard.dataset) {
+        var tc = targetCard;
+        setTimeout(function() { delete tc.dataset.tlOpening; }, shouldHint ? 900 : 320);
+      }
+    }
+  },
+
   renderHotEvents() {
     this._autoEndExpiredEvents();
     this.renderHomeGameShortcut();
@@ -970,7 +1079,7 @@ Object.assign(App, {
           const iconStack = `<div class="tl-event-icons">${favHeart}${sportIcon}</div>`;
 
           html += `
-            <div class="tl-event-row ${rowClass}${isEnded ? ' tl-past' : ''}" style="${e.pinned ? 'border:1px solid var(--warning);box-shadow:0 0 0 1px rgba(245,158,11,.12)' : ''}" onclick="App.showEventDetail('${e.id}')">
+            <div class="tl-event-row ${rowClass}${isEnded ? ' tl-past' : ''}" style="${e.pinned ? 'border:1px solid var(--warning);box-shadow:0 0 0 1px rgba(245,158,11,.12)' : ''}" onclick="App.openTimelineEventDetail('${e.id}', this)">
               ${genderRibbon}
               ${e.image ? `<div class="tl-event-thumb"><img src="${e.image}" loading="lazy"></div>` : ''}
               <div class="tl-event-info">

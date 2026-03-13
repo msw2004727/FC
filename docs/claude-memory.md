@@ -1,3 +1,10 @@
+### 2026-03-14 — 活動行事曆卡片載入動畫
+- **問題**：行事曆活動卡片點擊後無載入反饋，使用者不知是否有觸發
+- **修復**：
+  - `event-list.js`：新增 `openTimelineEventDetail()` + `_markTlCardPending()` / `_clearTlCardPending()` / `_tlFindCardByEventId()` 四個方法，行事曆卡 onclick 改走新 handler
+  - `css/activity.css`：新增 `.tl-pending` 半透明深底色遮罩 + `.tl-loading-bar` / `.tl-loading-fill` 置中計量條（寬 50%、高 6px，比首頁縮圖版更小）
+- **教訓**：行事曆卡片沒有獨立縮圖區，overlay 用 `::before` 覆蓋整張卡片；需用 `border-radius: inherit` 保持圓角一致
+
 ### 2026-03-14 — 活動詳情頁新增報名/取消 Log 彈窗
 - **問題**：管理員/教練/活動擁有者無法在活動詳情頁快速查看報名與取消記錄
 - **修復**：

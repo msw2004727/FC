@@ -222,7 +222,8 @@
 // 20260314w: 修復載入條被 renderHotEvents 重建 DOM 摧毀的問題
 // 20260314x: 活動詳情頁新增報名/取消 Log 彈窗（管理者限定）
 // 20260314y: 修復 Log 彈窗 Firestore Timestamp 排序錯誤（localeCompare → 毫秒數值比較）
-const CACHE_VERSION = '20260314y';
+// 20260314z: 活動行事曆卡片點擊新增半透明深底色 + 置中計量條載入動畫
+const CACHE_VERSION = '20260314z';
 
 // ─── Page Strategy Registry ───
 // 唯一策略來源，未列出的頁面預設 fresh-first

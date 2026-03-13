@@ -137,6 +137,40 @@
 .tl-event-row:active {
   transform: scale(.98);
 }
+/* ─── Timeline Card Loading ─── */
+.tl-event-row.tl-pending { cursor: wait; pointer-events: none; }
+.tl-event-row.tl-pending::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, .45);
+  border-radius: inherit;
+  z-index: 3;
+  pointer-events: none;
+  transition: opacity .35s ease-out;
+}
+.tl-event-row.tl-pending.tl-loaded::before { opacity: 0; }
+.tl-loading-bar {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: 50%;
+  height: 6px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, .18);
+  z-index: 5;
+  pointer-events: none;
+  overflow: hidden;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, .25);
+}
+.tl-loading-fill {
+  height: 100%;
+  width: 0;
+  border-radius: 4px;
+  background: linear-gradient(90deg, var(--accent), #60a5fa);
+  transition: width .3s ease-out;
+  box-shadow: 0 0 6px rgba(96, 165, 250, .4);
+}
 .tl-tournament-card.tl-league { border-left: 3px solid #dc2626; background: rgba(220,38,38,.04); }
 .tl-tournament-card.tl-cup { border-left: 3px solid #d97706; background: rgba(217,119,6,.04); }
 [data-theme="dark"] .tl-tournament-card.tl-league { background: rgba(220,38,38,.14); }
