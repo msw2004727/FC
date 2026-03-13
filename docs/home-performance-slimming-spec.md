@@ -329,22 +329,32 @@ Team、Shop、Game 入口遵守同一契約。
 11. 成功後清掉 query params 與 pending state
 12. 關閉 overlay
 
-### 10.3 未登入返回流程
+### 10.3 Guest Event Preview 流程（V2 新增）
 
-1. 若 deep link 命中且 prod 未登入，允許觸發 LIFF login redirect。
+1. `?event=xxx` deep link 在未登入時，**不觸發 LIFF login redirect**。
+2. `_tryOpenPendingDeepLink()` 允許 event type 在未登入時繼續：`if (!isAuthed && pending.type !== 'event')` 才擋。
+3. 若 cache 未命中，直接 `db.collection('events').doc(id).get()` 取單筆。
+4. 呼叫 `showEventDetail(id, { allowGuest: true })`，渲染 guest 版本。
+5. Guest 版本中，互動按鈕（報名/取消/收藏）透過 `requestProtectedEventAction()` 觸發 `_requestLoginForAction()` → LINE 登入。
+6. 分享與聯繫主辦人按鈕不需登入。
+
+### 10.4 未登入返回流程（非 event 類型）
+
+1. 若 deep link 命中且 prod 未登入（非 event 類型），允許觸發 LIFF login redirect。
 2. redirect 前保留 pending state，不清 query。
 3. redirect 回來後，deep link 流程重新走一次，不可直接假設 detail owner 已 ready。
 
-### 10.4 Fallback 規則
+### 10.5 Fallback 規則
 
 | 情境 | fallback |
 |---|---|
-| LIFF / Firebase 初始化超時 | event -> `page-activities`；team -> `page-teams` |
+| LIFF / Firebase 初始化超時（guest event） | `page-home`，toast「活動詳情載入已逾時」 |
+| LIFF / Firebase 初始化超時（logged in） | event -> `page-activities`；team -> `page-teams` |
 | 使用者未登入且登入失敗 | `page-home`，保留 toast |
 | 資料不存在 | event -> `page-activities`；team -> `page-teams` |
 | detail render 失敗 | 導回 list page，不停留空白 detail page |
 
-### 10.5 必守原則
+### 10.6 必守原則
 
 Deep link 成功條件不是「有 query param」，而是「HTML + JS + data + auth state 全部 ready 後，detail page 成功打開」。
 
@@ -360,16 +370,17 @@ Deep link 成功條件不是「有 query param」，而是「HTML + JS + data + 
 
 V2 必須建立 singleton promise gate，包住：
 
-1. `_loadCDNScripts()`
-2. `initFirebaseApp()`
-3. `LineAuth.initSDK()`
-4. `FirebaseService.init()`
+1. `_loadCDNScripts()`（串行，後續步驟需要 SDK）
+2. `initFirebaseApp()`（串行，需要 SDK 已載入）
+3. `LineAuth.initSDK()` + `FirebaseService.init()`（**並行**，避免 LIFF 阻塞資料載入）
+4. `LineAuth.ensureProfile()`（在 3 完成後，僅限有 LIFF session 時）
 
 規則：
 
 1. 只允許初始化一次。
 2. 所有受保護頁與 deep link 都透過此方法入場。
 3. 首頁非 deep link 情境可透過 `requestIdleCallback` 或 fallback `setTimeout` 延後。
+4. **LIFF init 不得阻塞 Firebase 資料載入**，guest deep link 不需要 LIFF。
 
 ### 11.3 啟動時機
 
@@ -540,14 +551,76 @@ V2 若進一步被拆成實作批次，建議用以下標記：
 
 ---
 
-## 18. 最終結論
+## 18. Guest Event Preview（活動分享連結免登入預覽）
+
+### 18.1 需求
+
+用戶透過活動分享連結（`?event=xxx`）進入時，應能**快速預覽**活動頁面，**不需要跳轉登入**。只有當用戶點選互動按鍵（報名、取消、收藏等）時才觸發 LINE 登入。分享按鈕與聯繫主辦人按鈕除外，這兩個不需登入。
+
+### 18.2 V1 實作失敗原因分析
+
+V1 實作（commit `785a1bd`）新增了 `allowGuest` 選項與 `_pendingAuthAction` 系統，邏輯正確但存在**時序瓶頸**：
+
+| 階段 | 耗時 | 說明 |
+|------|------|------|
+| CDN 腳本載入 | 2-5s | Firebase SDK + LIFF SDK |
+| LIFF SDK init | 1-8s | **串行阻塞** Firebase init，guest 不需要 LIFF |
+| FirebaseService.init | 2-5s | 載入所有 events 集合 |
+| **合計** | **5-18s** | 12 秒 deep link guard 超時 → 切回首頁 |
+
+**根本原因**：`ensureCloudReady()` 中 `LineAuth.initSDK()` **串行**執行在 `FirebaseService.init()` 之前。LIFF init 在外部瀏覽器可能耗時 1-8 秒，但 guest event preview 完全不需要 LIFF。
+
+### 18.3 V2 修正方案
+
+#### 修正 A：LIFF init 與 Firebase init 並行
+
+`ensureCloudReady()` 內，將 `LineAuth.initSDK()` 與 `FirebaseService.init()` 放入同一個 `Promise.all` 並行執行。LIFF profile 取得移至兩者完成後。
+
+**預期效果**：節省 1-8 秒，整體 boot 時間降至 4-10 秒。
+
+#### 修正 B：Deep link 快速路徑 — 直接 Firestore 單筆取得
+
+`_tryOpenPendingDeepLink()` 在 `ApiService.getEvent()` cache miss 時，直接用 `db.collection('events').doc(id).get()` 取單筆活動。不需等待所有 events 集合載入完成。
+
+**預期效果**：事件可在 Firebase app init 後 1-2 秒內取得，不需等整個 `_loadEventsStatic()` 完成。
+
+#### 修正 C：Guest 互動按鈕觸發登入
+
+`showEventDetail(id, { allowGuest: true })` 渲染 guest 版本：
+- 報名按鈕 → `requestProtectedEventAction('eventSignup', eventId)` → 觸發 `_requestLoginForAction`
+- 取消/候補等按鈕 → 同上
+- **分享按鈕** → 直接執行 `shareEvent()`，不需登入
+- **聯繫主辦人** → 直接執行 `contactEventOrganizer()`，不需登入
+
+### 18.4 時序改善對比
+
+| | V1（串行） | V2（並行 + 直接取得） |
+|---|---|---|
+| CDN 載入 | 3s | 3s |
+| LIFF init | +3s（串行） | 並行（不阻塞） |
+| Firebase init | +3s | 3s（與 LIFF 並行） |
+| 事件取得 | 等全部載入 | 直接單筆 +1s |
+| **總計** | ~9s | ~4s |
+| 12s timeout | 接近/超時 | 安全範圍 |
+
+### 18.5 安全邊界
+
+1. 並行 LIFF + Firebase init 對**已登入用戶**的影響：Firebase auth persistence 會自動恢復，不依賴 LIFF init 完成。
+2. 直接 Firestore 單筆取得使用 `allow read: if true` 規則，guest 可讀。
+3. Guest view 不暴露用戶個資（只顯示 participants 名稱）。
+4. 所有互動操作仍需登入，防止未授權寫入。
+
+---
+
+## 19. 最終結論
 
 V2 的安全升級結論不是「一次搬空 `index.html`」，而是：
 
 1. 先明確首頁 bootstrap 白名單
 2. 先把 `PageLoader` / `ScriptLoader` / `FirebaseService` 串成真正的 load-before-render 契約
 3. 先建立 deep link 與首頁卡片的安全入口
-4. 再逐步把非首頁模組搬出
-5. 最後再做雲端延後初始化與首頁 staged render
+4. **Guest event preview 快速路徑**：LIFF/Firebase 並行 + 單筆事件直取
+5. 再逐步把非首頁模組搬出
+6. 最後再做雲端延後初始化與首頁 staged render
 
 這是目前最安全、最符合 SportHub 架構、也最有機會一次升級成功的做法。

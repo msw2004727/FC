@@ -1,3 +1,16 @@
+### 2026-03-13 — Guest Event Preview 修正（LIFF/Firebase 並行 + 單筆直取）
+- **問題**：活動分享連結（`?event=xxx`）guest preview 無法顯示。`ensureCloudReady()` 中 LIFF init 串行阻塞 Firebase init，導致總 boot 時間 5-18 秒，超過 12 秒 deep link guard timeout。
+- **原因**：
+  1. `LineAuth.initSDK()` 在 `FirebaseService.init()` **之前**串行 await（1-8 秒）
+  2. `_tryOpenPendingDeepLink()` 只查 `ApiService.getEvent()` cache，first-time visitor cache 為空
+  3. 需等所有 events 集合載入完成才能找到目標 event
+- **修復**：
+  1. **`app.js` ensureCloudReady**：LIFF init 與 Firebase init 改為 `Promise.all` 並行，LIFF profile 取得移至兩者完成後
+  2. **`app.js` _tryOpenPendingDeepLink**：cache miss 時直接用 `db.collection('events').doc(id).get()` 取單筆，注入 cache
+- **受影響檔案**：`app.js`、`js/config.js`、`index.html`、`docs/home-performance-slimming-spec.md`
+- **預期效果**：guest deep link boot time 從 ~9s 降至 ~4s，安全在 12s timeout 內
+- **教訓**：guest preview 不需要 LIFF SDK，初始化順序不應讓不相干的依賴阻塞 critical path
+
 ### 2026-03-13 — 權限治理核心實作（Step 3 + 3.5 + 5 + 6 部分）
 - **問題**：規格書已完成但尚未實作 — roleChange 無邊界防護、日誌中心 Rules 不可下放、coach 身分無自動權限、角色變更無即時生效
 - **修復**：

@@ -736,7 +736,23 @@ const App = {
 
       const openPromise = (async () => {
         if (pending.type === 'event') {
-          const event = ApiService.getEvent?.(pending.id);
+          let event = ApiService.getEvent?.(pending.id);
+          // 快取未命中時，嘗試直接從 Firestore 取單筆活動（guest deep link 快速路徑）
+          if (!event && typeof db !== 'undefined') {
+            try {
+              const doc = await db.collection('events').doc(pending.id).get();
+              if (doc.exists) {
+                event = { ...doc.data(), _docId: doc.id };
+                if (!event.id) event.id = doc.id;
+                const cache = FirebaseService._cache.events;
+                if (!cache.find(e => e.id === event.id || e._docId === doc.id)) {
+                  cache.push(event);
+                }
+              }
+            } catch (err) {
+              console.warn('[DeepLink] direct event fetch failed:', err);
+            }
+          }
           if (!event) return false;
 
           const result = await this.showEventDetail(pending.id, { allowGuest: !isAuthed });
@@ -919,25 +935,29 @@ const App = {
         LineAuth._initError = null;
       }
 
-      if (typeof liff !== 'undefined') {
-        await LineAuth.initSDK();
-        console.log('[Cloud] LIFF SDK ready');
-      }
-
-      if (LineAuth.hasLiffSession()) {
-        LineAuth.restoreCachedProfile();
-        if (LineAuth._profile) {
-          try { this.renderLoginUI(); } catch (_) {}
-        }
-      }
-
-      const profilePromise = LineAuth.hasLiffSession()
-        ? LineAuth.ensureProfile({ force: true }).catch(err => {
-            console.warn('[Cloud] ensureProfile failed:', err);
+      // LIFF init 與 Firebase init 並行，避免 LIFF 阻塞資料載入（guest deep link 需要快速載入事件）
+      const liffReadyPromise = (typeof liff !== 'undefined')
+        ? LineAuth.initSDK().then(() => {
+            console.log('[Cloud] LIFF SDK ready');
+            if (LineAuth.hasLiffSession()) {
+              LineAuth.restoreCachedProfile();
+              if (LineAuth._profile) {
+                try { this.renderLoginUI(); } catch (_) {}
+              }
+            }
+          }).catch(err => {
+            console.warn('[Cloud] LIFF init failed (non-blocking):', err);
           })
         : Promise.resolve();
 
-      await Promise.all([profilePromise, FirebaseService.init()]);
+      await Promise.all([liffReadyPromise, FirebaseService.init()]);
+
+      // LIFF profile（需要 LIFF 已 ready）
+      if (LineAuth.hasLiffSession()) {
+        await LineAuth.ensureProfile({ force: true }).catch(err => {
+          console.warn('[Cloud] ensureProfile failed:', err);
+        });
+      }
 
       this._firebaseConnected = true;
       this._cloudReady = true;
