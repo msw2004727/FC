@@ -124,6 +124,27 @@ FC-github/
 
 ---
 
+## 報名系統保護規則（核心模組鎖定）
+
+報名系統是最核心的業務邏輯，歷史上多次因修改引發嚴重 bug（人數覆蓋、候補未遞補、超收）。以下規則**強制適用**：
+
+### 鎖定範圍（修改需特別審查）
+| 檔案 | 鎖定函式 |
+|------|----------|
+| `js/firebase-crud.js` | `registerForEvent`、`batchRegisterForEvent`、`cancelRegistration`、`cancelCompanionRegistrations`、`_rebuildOccupancy`、`_applyRebuildOccupancy` |
+| `js/modules/event-detail-signup.js` | `handleSignup`、`handleCancelSignup` |
+| `js/modules/event-detail-companion.js` | `_confirmCompanionRegister`、`_confirmCompanionCancel` |
+
+### 強制規則
+1. **禁止使用本地快取作為計數來源**：`_rebuildOccupancy` 的輸入必須來自 Firestore 查詢，禁止用 `this._cache.registrations` 計數
+2. **禁止手動 `current++` / `current--`**：必須透過 `_rebuildOccupancy()` 統一重建（Demo 模式除外）
+3. **必須使用原子操作**：報名寫入用 `db.runTransaction()` 或 `db.batch()`
+4. **候補遞補必須在同一 batch**：取消正取與遞補必須同一 batch 內完成
+5. **修改後必須驗證**：執行 `docs/registration-integrity-check.js` 確認一致性
+6. **`_rebuildOccupancy` 禁止引入副作用**：不寫快取、不呼叫 API、不修改傳入參數
+
+---
+
 ## 修復日誌規則（每次解決問題後必做）
 
 每次解決一個 bug 或完成一項功能後，**必須**在 `docs/claude-memory.md` 新增一筆記錄：

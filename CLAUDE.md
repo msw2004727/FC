@@ -125,6 +125,35 @@ FC-github/
 
 ---
 
+## 報名系統保護規則（核心模組鎖定）
+
+報名系統是最核心的業務邏輯，歷史上多次因修改引發嚴重 bug（人數覆蓋、候補未遞補、超收）。以下規則**強制適用**：
+
+### 鎖定範圍（修改需特別審查）
+| 檔案 | 鎖定函式 | 說明 |
+|------|----------|------|
+| `js/firebase-crud.js` | `registerForEvent()` | 單人報名（Firestore transaction） |
+| `js/firebase-crud.js` | `batchRegisterForEvent()` | 批次報名含同行者（Firestore transaction） |
+| `js/firebase-crud.js` | `cancelRegistration()` | 取消報名 + 候補遞補（Firestore batch） |
+| `js/firebase-crud.js` | `cancelCompanionRegistrations()` | 取消同行者報名 |
+| `js/firebase-crud.js` | `_rebuildOccupancy()` | 佔位重建（純函式） |
+| `js/firebase-crud.js` | `_applyRebuildOccupancy()` | 佔位寫入快取 |
+| `js/modules/event-detail-signup.js` | `handleSignup()` | 報名 UI 入口 |
+| `js/modules/event-detail-signup.js` | `handleCancelSignup()` | 取消報名 UI 入口 |
+| `js/modules/event-detail-companion.js` | `_confirmCompanionRegister()` | 同行者報名 UI |
+| `js/modules/event-detail-companion.js` | `_confirmCompanionCancel()` | 同行者取消 UI |
+
+### 修改這些函式時的強制規則
+
+1. **禁止使用本地快取作為計數來源**：`_rebuildOccupancy` 的輸入資料必須來自 Firestore 查詢結果，禁止使用 `this._cache.registrations` 作為計數或重建的資料來源。快取可能不完整（LIFF 重導、首次載入、網速慢），會導致覆蓋正確的 `current` 值。
+2. **禁止手動 `current++` / `current--`**：所有 `event.current`、`event.waitlist` 的變更必須透過 `_rebuildOccupancy()` 統一重建，不得手動增減（Demo 模式除外）。
+3. **必須使用原子操作**：報名寫入必須使用 `db.runTransaction()` 或 `db.batch()`，禁止分散的 `db.collection().doc().update()` 呼叫。
+4. **候補遞補必須在同一 batch**：取消正取後的候補遞補，必須與取消操作在同一個 batch/transaction 內完成，不得分開提交。
+5. **修改前必須執行驗證**：修改上述任何函式後，必須在 console 執行 `docs/registration-integrity-check.js` 驗證報名系統一致性。
+6. **禁止修改 `_rebuildOccupancy` 的純函式特性**：此函式不得引入副作用（不寫快取、不呼叫 API、不修改傳入參數）。
+
+---
+
 ## 修復日誌規則（每次解決問題後必做）
 
 每次解決一個 bug 或完成一項功能後，**必須**在 `docs/claude-memory.md` 新增一筆記錄：
