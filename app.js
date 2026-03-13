@@ -1074,12 +1074,43 @@ const App = {
       void this._flushPendingProtectedBootRoute({ skipEnsureCloudReady: true });
       void this._tryOpenPendingDeepLink();
 
-      // instant deep link 已渲染 → SDK ready 後背景更新完整資料
+      // instant deep link 已渲染 → SDK ready 後背景載入完整集合 + 重新渲染
       if (this._instantDeepLinkEventId && this.currentPage === 'page-activity-detail') {
         const sdkEventId = this._instantDeepLinkEventId;
         this._instantDeepLinkEventId = null;
-        void this.showEventDetail(sdkEventId, { allowGuest: !(typeof LineAuth !== 'undefined' && LineAuth.isLoggedIn()) });
-        console.log('[DeepLink] SDK background refresh for', sdkEventId);
+        void (async () => {
+          try {
+            const pageId = 'page-activity-detail';
+            // 載入該頁所有必要 + 選用集合（registrations / attendanceRecords / activityRecords 等）
+            if (typeof FirebaseService !== 'undefined' && FirebaseService.ensureCollectionsForPage) {
+              const contract = typeof PAGE_DATA_CONTRACT !== 'undefined' && PAGE_DATA_CONTRACT[pageId];
+              const hasRealtime = contract && contract.realtime && contract.realtime.length > 0;
+              await FirebaseService.ensureCollectionsForPage(pageId, { skipRealtimeStart: hasRealtime });
+            }
+            // 用 SDK 重新取得完整事件資料（覆蓋 REST 簡略版）
+            if (typeof db !== 'undefined') {
+              try {
+                const doc = await db.collection('events').doc(sdkEventId).get();
+                if (doc.exists) {
+                  const fullEvent = { ...doc.data(), id: doc.id, _docId: doc.id };
+                  const cache = FirebaseService._cache.events;
+                  const idx = cache.findIndex(e => e.id === sdkEventId || e._docId === sdkEventId);
+                  if (idx >= 0) cache[idx] = fullEvent; else cache.push(fullEvent);
+                }
+              } catch (_) {}
+            }
+            if (this.currentPage !== pageId) return;
+            const isGuest = !(typeof LineAuth !== 'undefined' && LineAuth.isLoggedIn());
+            await this.showEventDetail(sdkEventId, { allowGuest: isGuest });
+            // 啟動 realtime 監聽（registrations / attendanceRecords 變更時自動更新）
+            if (typeof FirebaseService !== 'undefined' && FirebaseService.schedulePageScopedRealtimeForPage) {
+              FirebaseService.schedulePageScopedRealtimeForPage(pageId);
+            }
+            console.log('[DeepLink] SDK background refresh complete for', sdkEventId);
+          } catch (err) {
+            console.warn('[DeepLink] SDK background refresh failed:', err);
+          }
+        })();
       }
 
       return true;
