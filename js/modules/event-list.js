@@ -646,29 +646,67 @@ Object.assign(App, {
     }
     cardEl.classList.add('is-pending');
     cardEl.setAttribute('aria-busy', 'true');
+
+    // Inject loading bar DOM if not present
+    const imgEl = cardEl.querySelector('.h-card-img');
+    if (imgEl && !imgEl.querySelector('.h-card-loading-bar')) {
+      const bar = document.createElement('div');
+      bar.className = 'h-card-loading-bar';
+      bar.innerHTML = '<div class="h-card-loading-fill"></div>';
+      imgEl.appendChild(bar);
+    }
+
+    // Start simulated progress: fast at first, slowing toward ~85%
+    if (!cardEl._homeEventProgressInterval) {
+      cardEl._homeEventProgress = 0;
+      cardEl._homeEventProgressInterval = setInterval(() => {
+        const p = cardEl._homeEventProgress;
+        // Gradually slow down as we approach 85%
+        const increment = p < 30 ? 4 : p < 60 ? 2 : p < 80 ? 0.5 : 0.15;
+        cardEl._homeEventProgress = Math.min(p + increment, 85);
+        const fill = imgEl && imgEl.querySelector('.h-card-loading-fill');
+        if (fill) fill.style.width = cardEl._homeEventProgress + '%';
+      }, 100);
+    }
   },
 
   _clearHomeEventCardPending(cardEl, minVisibleMs = 0) {
     if (!cardEl || !cardEl.classList) return;
     clearTimeout(cardEl._homeEventPendingTimer);
+
+    // Stop simulated progress
+    clearInterval(cardEl._homeEventProgressInterval);
+    cardEl._homeEventProgressInterval = null;
+
     const shownAt = Number(cardEl._homeEventPendingShownAt || 0);
     const elapsed = shownAt > 0 ? (Date.now() - shownAt) : minVisibleMs;
     const waitMs = Math.max(0, minVisibleMs - elapsed);
+
     cardEl._homeEventPendingTimer = setTimeout(() => {
-      // Trigger "fill to 100%" animation before removing
-      if (cardEl.classList.contains('is-pending')) {
+      if (!cardEl.classList.contains('is-pending')) {
+        cardEl.removeAttribute('aria-busy');
+        cardEl._homeEventPendingShownAt = 0;
+        cardEl._homeEventPendingTimer = null;
+        return;
+      }
+
+      // Snap to 100%
+      const fill = cardEl.querySelector('.h-card-loading-fill');
+      if (fill) fill.style.width = '100%';
+
+      // After fill reaches 100%, fade out overlay + remove bar
+      setTimeout(() => {
         cardEl.classList.add('is-loaded');
         setTimeout(() => {
           cardEl.classList.remove('is-pending', 'is-loaded');
           cardEl.removeAttribute('aria-busy');
           cardEl._homeEventPendingShownAt = 0;
           cardEl._homeEventPendingTimer = null;
-        }, 650);
-      } else {
-        cardEl.removeAttribute('aria-busy');
-        cardEl._homeEventPendingShownAt = 0;
-        cardEl._homeEventPendingTimer = null;
-      }
+          cardEl._homeEventProgress = 0;
+          const bar = cardEl.querySelector('.h-card-loading-bar');
+          if (bar) bar.remove();
+        }, 400);
+      }, 350);
     }, waitMs);
   },
 
