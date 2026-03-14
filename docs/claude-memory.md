@@ -1,3 +1,19 @@
+### 2026-03-14 — 登入重導後空白模板頁面（活動詳情）
+- **問題**：登出狀態點活動報名 → LIFF 登入重導回來後，高機率顯示空白模板（只有「活動名稱」/「活動圖片 800 × 300」佔位文字）
+- **原因**：四項併發問題：
+  1. `showEventDetail` 先 `showPage` 顯示空白模板再取資料，若資料不存在（early return）空白頁面留在畫面
+  2. `_resumePendingAuthAction` 在 `_onUserChanged` 回調觸發，此時 events 集合可能尚未載入，`getEvent()` 回傳 null
+  3. Deep link poller 與 `_resumePendingAuthAction` 同時呼叫 `showEventDetail`，`_eventDetailRequestSeq` 互相無效化，兩者都 return stale
+  4. REST/SDK fallback 以 data ID（`ce_xxx`）作為 Firestore 文件路徑，但實際 doc ID 是自動產生的，導致 404
+- **修復**：
+  - `event-detail.js`：`showEventDetail` 若在 `showPage` 後因 missing 而 early return，自動切回活動列表
+  - `app.js`：新增 `_waitForEventsLoaded()` 等待 events 集合載入（最多 5 秒）
+  - `app.js`：`_resumePendingAuthAction` 啟動前停止 deep link poller + 隱藏覆蓋層，避免 requestSeq 衝突
+  - `app.js`：`_fetchEventViaRest` 增加 structuredQuery fallback（以 `id` 欄位查詢）
+  - `app.js`：`_tryOpenPendingDeepLink` 與 SDK background refresh 的 doc 取得改為先 doc path 再 `where('id', '==')` 查詢
+  - `app.js`：`_convertFirestoreRestDoc` 從 `doc.name` 取得真實 `_docId`
+- **教訓**：deep link + auth redirect + SPA 路由三者交會時，必須注意 (a) 資料就緒時序 (b) 並發呼叫互斥 (c) ID 格式一致性（data ID vs doc ID）
+
 ### 2026-03-14 — 雲端範本刪除靜默失敗（管理員無法刪除雲端範本）
 - **問題**：管理員點擊刪除雲端範本後，toast 顯示「範本已刪除」但範本立即重新出現
 - **原因**：`FirebaseService.deleteEventTemplate` 在快取中找不到範本時回傳 `false` 而非拋錯；`ApiService.deleteEventTemplate` 不檢查回傳值，繼續從本地快取移除後又重新載入 Firestore（範本仍存在），導致範本重新出現。此外缺少 `ensureAuthReadyForWrite` 呼叫，auth 未就緒時也會靜默失敗

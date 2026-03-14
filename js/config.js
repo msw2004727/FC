@@ -228,7 +228,8 @@
 // 20260314zb: 修復手動簽到 UID 不匹配導致已簽到紀錄被批量誤刪（delegate user 觸發）
 // 20260314zc: 修復雲端範本刪除靜默失敗（deleteEventTemplate 回傳 false 不拋錯）
 // 20260314zd: 外部連結改用具名視窗，避免分頁無限累積
-const CACHE_VERSION = '20260314zd';
+// 20260314ze: 修復登入重導後空白模板（race condition + REST/SDK ID 查詢修正）
+const CACHE_VERSION = '20260314ze';
 
 // ─── Page Strategy Registry ───
 // 唯一策略來源，未列出的頁面預設 fresh-first

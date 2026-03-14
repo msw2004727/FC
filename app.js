@@ -597,6 +597,24 @@ const App = {
     return sanitized;
   },
 
+  /**
+   * 等待 events 集合載入完成（最多 5 秒）。
+   * 用於 _resumePendingAuthAction，確保 ApiService.getEvent 能找到活動。
+   */
+  async _waitForEventsLoaded() {
+    // Demo 模式不需等待
+    if (ModeManager.isDemo()) return;
+    // 已有資料直接返回
+    if (typeof FirebaseService !== 'undefined' && FirebaseService._cache.events.length > 0) return;
+    // 等待 events 集合首次填充
+    await new Promise(resolve => {
+      const check = () => typeof FirebaseService !== 'undefined' && FirebaseService._cache.events.length > 0;
+      if (check()) { resolve(); return; }
+      const interval = setInterval(() => { if (check()) { clearInterval(interval); resolve(); } }, 150);
+      setTimeout(() => { clearInterval(interval); resolve(); }, 5000);
+    });
+  },
+
   _clearPendingAuthAction() {
     this._pendingAuthAction = null;
     try {
@@ -677,8 +695,22 @@ const App = {
     const action = this._getPendingAuthAction();
     if (!action) return false;
 
+    // 若有 deep link poller 正在運作，先停止以避免兩者同時呼叫 showEventDetail 造成 requestSeq 衝突
+    if (action.eventId && this._bootDeepLinkPoller) {
+      this._deepLinkRendered = true;
+      this._stopDeepLinkGuard();
+      this._clearPendingDeepLink();
+      this._hideDeepLinkOverlay();
+    }
+
     const actionPromise = (async () => {
       try {
+        // 若涉及活動頁面，先確保 events 集合已載入
+        const needsEvents = ['showEventDetail', 'eventSignup', 'eventCancelSignup', 'toggleFavoriteEvent'].includes(action.type);
+        if (needsEvents && action.eventId) {
+          await this._waitForEventsLoaded();
+        }
+
         switch (action.type) {
           case 'showPage':
             await this.showPage(action.pageId, { resetHistory: true });
@@ -792,8 +824,10 @@ const App = {
     for (const k of Object.keys(fields)) {
       result[k] = this._convertFirestoreRestValue(fields[k]);
     }
-    result.id = eventId;
-    if (!result._docId) result._docId = eventId;
+    // 從 doc.name 取得真實 Firestore 文件 ID
+    const docId = doc.name ? doc.name.split('/').pop() : eventId;
+    if (!result.id) result.id = eventId;
+    result._docId = docId;
     return result;
   },
 
@@ -802,11 +836,34 @@ const App = {
       const pid = typeof firebaseConfig !== 'undefined' && firebaseConfig.projectId;
       const key = typeof firebaseConfig !== 'undefined' && firebaseConfig.apiKey;
       if (!pid || !key) return null;
-      const url = `https://firestore.googleapis.com/v1/projects/${pid}/databases/(default)/documents/events/${encodeURIComponent(eventId)}?key=${encodeURIComponent(key)}`;
-      const resp = await fetch(url);
-      if (!resp.ok) return null;
-      const doc = await resp.json();
-      return this._convertFirestoreRestDoc(doc, eventId);
+
+      // 先嘗試直接以 eventId 當作 doc path 取得（可能 docId === dataId）
+      const directUrl = `https://firestore.googleapis.com/v1/projects/${pid}/databases/(default)/documents/events/${encodeURIComponent(eventId)}?key=${encodeURIComponent(key)}`;
+      const directResp = await fetch(directUrl);
+      if (directResp.ok) {
+        const doc = await directResp.json();
+        if (doc && doc.fields) return this._convertFirestoreRestDoc(doc, eventId);
+      }
+
+      // 直接取得失敗（docId !== dataId），改用 structuredQuery 以 id 欄位查詢
+      const queryUrl = `https://firestore.googleapis.com/v1/projects/${pid}/databases/(default)/documents:runQuery?key=${encodeURIComponent(key)}`;
+      const queryResp = await fetch(queryUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          structuredQuery: {
+            from: [{ collectionId: 'events' }],
+            where: { fieldFilter: { field: { fieldPath: 'id' }, op: 'EQUAL', value: { stringValue: eventId } } },
+            limit: 1
+          }
+        })
+      });
+      if (!queryResp.ok) return null;
+      const results = await queryResp.json();
+      if (Array.isArray(results) && results.length > 0 && results[0].document) {
+        return this._convertFirestoreRestDoc(results[0].document, eventId);
+      }
+      return null;
     } catch (err) {
       console.warn('[DeepLink] REST fetch failed:', err);
       return null;
@@ -917,7 +974,13 @@ const App = {
           // 快取未命中時，嘗試直接從 Firestore 取單筆活動（guest deep link 快速路徑）
           if (!event && typeof db !== 'undefined') {
             try {
-              const doc = await db.collection('events').doc(pending.id).get();
+              // 先嘗試以 pending.id 作為 doc path
+              let doc = await db.collection('events').doc(pending.id).get();
+              // 若 doc path 找不到，改用 id 欄位查詢（因為 docId 與 dataId 可能不同）
+              if (!doc.exists) {
+                const snap = await db.collection('events').where('id', '==', pending.id).limit(1).get();
+                if (!snap.empty) doc = snap.docs[0];
+              }
               if (doc.exists) {
                 event = { ...doc.data(), _docId: doc.id };
                 if (!event.id) event.id = doc.id;
@@ -1182,11 +1245,17 @@ const App = {
             // 3. 用 SDK 重新取得完整事件資料（覆蓋 REST 簡略版）
             if (typeof db !== 'undefined') {
               try {
-                const doc = await db.collection('events').doc(sdkEventId).get();
+                // 先嘗試 doc path，再嘗試 id 欄位查詢
+                let doc = await db.collection('events').doc(sdkEventId).get();
+                if (!doc.exists) {
+                  const snap = await db.collection('events').where('id', '==', sdkEventId).limit(1).get();
+                  if (!snap.empty) doc = snap.docs[0];
+                }
                 if (doc.exists) {
-                  const fullEvent = { ...doc.data(), id: doc.id, _docId: doc.id };
+                  const fullEvent = { ...doc.data(), _docId: doc.id };
+                  if (!fullEvent.id) fullEvent.id = doc.id;
                   const cache = FirebaseService._cache.events;
-                  const idx = cache.findIndex(e => e.id === sdkEventId || e._docId === sdkEventId);
+                  const idx = cache.findIndex(e => e.id === sdkEventId || e._docId === doc.id);
                   if (idx >= 0) cache[idx] = fullEvent; else cache.push(fullEvent);
                 }
               } catch (_) {}
