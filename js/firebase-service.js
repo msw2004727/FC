@@ -471,7 +471,7 @@ const FirebaseService = {
       // 歷史資料修正：部分 attendanceRecords 的 uid 存的是顯示名稱而非 LINE userId
       // 當 uid 查無結果時，改用 userName（顯示名稱）再查一次
       if (attDocs.length === 0) {
-        const user = (this._cache.users || []).find(u => u.uid === uid || u.lineUserId === uid);
+        const user = (this._cache.adminUsers || []).find(u => u.uid === uid || u.lineUserId === uid);
         const displayName = user && (user.displayName || user.name);
         if (displayName) {
           const attByNameSnap = await db.collection('attendanceRecords')
