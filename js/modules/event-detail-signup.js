@@ -405,73 +405,80 @@ Object.assign(App, {
       }).catch(err => console.error('[cancelSignup dedup]', err));
     }
     if (reg && reg._docId) {
-      FirebaseService.cancelRegistration(reg.id)
-        .then((cancelledReg) => {
-          if (cancelledReg && cancelledReg._promotedUserId) {
-            const ev = ApiService.getEvent(id);
-            if (ev) {
-              this._sendNotifFromTemplate('waitlist_promoted', {
-                eventName: ev.title, date: ev.date, location: ev.location,
-              }, cancelledReg._promotedUserId, 'activity', '活動');
-            }
+      try {
+        const cancelledReg = await FirebaseService.cancelRegistration(reg.id);
+        if (cancelledReg && cancelledReg._promotedUserId) {
+          const ev = ApiService.getEvent(id);
+          if (ev) {
+            this._sendNotifFromTemplate('waitlist_promoted', {
+              eventName: ev.title, date: ev.date, location: ev.location,
+            }, cancelledReg._promotedUserId, 'activity', '活動');
           }
-          // 快取更新
-          const records = ApiService.getActivityRecords();
-          const hasCancelRec = records.some(r => r.eventId === id && r.uid === userId && r.status === 'cancelled');
-          for (let i = records.length - 1; i >= 0; i--) {
-            if (records[i].eventId === id && records[i].uid === userId && records[i].status !== 'cancelled') {
+        }
+        // 快取更新
+        const records = ApiService.getActivityRecords();
+        const hasCancelRec = records.some(r => r.eventId === id && r.uid === userId && r.status === 'cancelled');
+        for (let i = records.length - 1; i >= 0; i--) {
+          if (records[i].eventId === id && records[i].uid === userId && records[i].status !== 'cancelled') {
+            if (records[i]._docId) {
+              db.collection('activityRecords').doc(records[i]._docId).update({ status: 'cancelled' })
+                .catch(err => console.error('[activityRecord cancel]', err));
+            }
+            if (hasCancelRec) {
               if (records[i]._docId) {
-                db.collection('activityRecords').doc(records[i]._docId).update({ status: 'cancelled' })
-                  .catch(err => console.error('[activityRecord cancel]', err));
+                db.collection('activityRecords').doc(records[i]._docId).delete().catch(err => console.error('[activityRecord dedup]', err));
               }
-              if (hasCancelRec) {
-                if (records[i]._docId) {
-                  db.collection('activityRecords').doc(records[i]._docId).delete().catch(err => console.error('[activityRecord dedup]', err));
-                }
-                records.splice(i, 1);
-              } else {
-                records[i].status = 'cancelled';
-              }
+              records.splice(i, 1);
+            } else {
+              records[i].status = 'cancelled';
             }
           }
-          // Firestore 直查兜底：快取可能未載入，確保 Firestore 中的紀錄一定被更新
-          db.collection('activityRecords')
-            .where('uid', '==', userId).where('eventId', '==', id)
-            .get().then(snap => {
-              snap.forEach(doc => {
-                if (doc.data().status !== 'cancelled') {
-                  doc.ref.update({ status: 'cancelled' })
-                    .catch(err => console.error('[activityRecord cancel-fallback]', err));
-                }
-              });
-            }).catch(err => console.error('[activityRecord cancel-fallback query]', err));
-          if (!hasCancelRec && !records.some(r => r.eventId === id && r.uid === userId && r.status === 'cancelled')) {
-            const ev = ApiService.getEvent(id);
-            if (ev) {
-              const dp = ev.date.split(' ')[0].split('/');
-              ApiService.addActivityRecord({ eventId: id, name: ev.title, date: `${dp[1]}/${dp[2]}`, status: 'cancelled', uid: userId });
-            }
+        }
+        // Firestore 直查兜底：快取可能未載入，確保 Firestore 中的紀錄一定被更新
+        db.collection('activityRecords')
+          .where('uid', '==', userId).where('eventId', '==', id)
+          .get().then(snap => {
+            snap.forEach(doc => {
+              if (doc.data().status !== 'cancelled') {
+                doc.ref.update({ status: 'cancelled' })
+                  .catch(err => console.error('[activityRecord cancel-fallback]', err));
+              }
+            });
+          }).catch(err => console.error('[activityRecord cancel-fallback query]', err));
+        if (!hasCancelRec && !records.some(r => r.eventId === id && r.uid === userId && r.status === 'cancelled')) {
+          const ev = ApiService.getEvent(id);
+          if (ev) {
+            const dp = ev.date.split(' ')[0].split('/');
+            ApiService.addActivityRecord({ eventId: id, name: ev.title, date: `${dp[1]}/${dp[2]}`, status: 'cancelled', uid: userId });
           }
-          this._notifySignupCancelledInboxFromTemplate(ApiService.getEvent(id) || e0, userId, isWaitlist);
-          void ApiService.writeAuditLog({
-            action: 'event_cancel_signup',
-            targetType: 'event',
-            targetId: e0?.id || id,
-            targetLabel: e0?.title || '',
-            result: 'success',
-            source: 'web',
-            meta: {
-              eventId: e0?.id || id,
-              statusFrom: isWaitlist ? 'waitlisted' : 'registered',
-              statusTo: 'cancelled',
-            },
-          });
-          this.showToast(isWaitlist ? '已取消候補' : '已取消報名');
-          this._evaluateAchievements(e0?.type);
-          this.showEventDetail(id);
-        })
-        .catch(err => { console.error('[cancelSignup]', err); this.showToast('取消失敗：' + (err.message || '')); ApiService._writeErrorLog({ fn: 'handleCancelSignup', eventId: id }, err); })
-        .finally(() => { _restoreCancelUI(); });
+        }
+        this._notifySignupCancelledInboxFromTemplate(ApiService.getEvent(id) || e0, userId, isWaitlist);
+        void ApiService.writeAuditLog({
+          action: 'event_cancel_signup',
+          targetType: 'event',
+          targetId: e0?.id || id,
+          targetLabel: e0?.title || '',
+          result: 'success',
+          source: 'web',
+          meta: {
+            eventId: e0?.id || id,
+            statusFrom: isWaitlist ? 'waitlisted' : 'registered',
+            statusTo: 'cancelled',
+          },
+        });
+        this.showToast(isWaitlist ? '已取消候補' : '已取消報名');
+        this._evaluateAchievements(e0?.type);
+        // 成功：await 確保 showEventDetail 完整渲染後再解除 busy lock
+        await this.showEventDetail(id);
+      } catch (err) {
+        console.error('[cancelSignup]', err);
+        this.showToast('取消失敗：' + (err.message || ''));
+        ApiService._writeErrorLog({ fn: 'handleCancelSignup', eventId: id }, err);
+        // 失敗：恢復按鈕原始狀態讓使用者可重試
+        _restoreCancelUI();
+      } finally {
+        delete this._cancelSignupBusyMap[id];
+      }
     } else {
       console.warn('[cancelSignup] active registration not found', {
         eventId: id,
