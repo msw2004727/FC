@@ -2387,3 +2387,9 @@
 - **原因**：commit `9b42a8c` 將 `liff.login()` 改為 `liff.login({ redirectUri: window.location.href })`，目的是保留 deep link 參數。但外部瀏覽器走 OAuth redirect 流程，`redirectUri` 必須與 LINE Developer Console 的 Endpoint URL 匹配。`window.location.href` 可能帶有額外 query 參數，導致 OAuth callback 在 Safari 中無法正確建立 session。LINE 內部瀏覽器走原生 bridge 不受影響
 - **修復**：`line-auth.js` 的 `login()` 改為條件式帶 `redirectUri`：只在 URL 含 `?event=` 或 `?team=` deep link 參數時才帶（用乾淨的 base URL + 必要參數），否則不帶讓 SDK 自動使用 Endpoint URL
 - **教訓**：`liff.login({ redirectUri })` 在外部瀏覽器的 OAuth flow 對 URL 格式敏感，不要無條件傳 `window.location.href`；LINE 內部瀏覽器不走 OAuth 所以不會暴露問題，測試時必須涵蓋外部瀏覽器場景
+
+### 2026-03-14 — 外部 Safari getProfile 失敗，新增 ID Token fallback
+- **問題**：外部 Safari 的 `liff.getProfile()` API 呼叫持續失敗，即使 LIFF 登入成功也無法取得用戶資料
+- **原因**：外部瀏覽器的 `liff.getProfile()` 需要對 `api.line.me` 發起跨域請求，可能被 Safari ITP 或網路策略阻擋
+- **修復**：在 `ensureProfile()` 的 3 次 `getProfile()` 重試全部失敗後，新增 `liff.getDecodedIDToken()` fallback。ID Token 在 OAuth 流程中已取得，不需額外 API 呼叫，包含 `sub`(userId)、`name`(displayName)、`picture`(pictureUrl)、`email` 等欄位
+- **教訓**：`liff.getProfile()` 依賴跨域 API 呼叫，在隱私保護嚴格的瀏覽器中不可靠；`liff.getDecodedIDToken()` 是純本地解析，作為 fallback 更穩定
