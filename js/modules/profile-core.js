@@ -457,15 +457,38 @@ Object.assign(App, {
         this.showToast('LINE 登入異常：' + (LineAuth._initError.message || '請重新嘗試'));
       }
 
-      // LIFF 已登入但 getProfile 失敗（網路問題等）：提示用戶重新整理
+      // LIFF 已登入但 getProfile 失敗：嘗試清除無效 session 並重新登入
       if (LineAuth._profileError && !LineAuth.isLoggedIn() && !(LineAuth.isPendingLogin && LineAuth.isPendingLogin())) {
         console.error('[App] LINE 用戶資料取得失敗:', LineAuth._profileError);
-        this.showToast('LINE 登入成功但無法取得用戶資料，請重新整理頁面');
+        const isNoToken = LineAuth._profileError && LineAuth._profileError.code === 'no_access_token';
+        // 防止無限重新登入：同一 session 最多自動重試 1 次
+        const retryKey = '_lineLoginRetryCount';
+        const retryCount = Number(sessionStorage.getItem(retryKey) || 0);
+        if (retryCount < 1 && !LineAuth.isLocalhost()) {
+          sessionStorage.setItem(retryKey, String(retryCount + 1));
+          console.log('[App] Session 無效，清除後自動重新登入 (retry:', retryCount + 1, ', noToken:', isNoToken, ')');
+          try {
+            if (LineAuth.hasLiffSession()) liff.logout();
+            LineAuth._profile = null;
+            LineAuth._profileError = null;
+            LineAuth._clearProfileCache();
+          } catch (_) {}
+          try {
+            liff.login();
+            return;
+          } catch (loginErr) {
+            console.warn('[App] 自動重新登入失敗:', loginErr);
+          }
+        } else {
+          this.showToast('LINE 登入異常，請關閉瀏覽器後重新開啟');
+        }
       }
 
       // 未登入 + 無 LIFF 錯誤 + 非 localhost + 無 deep-link + 在首頁 → 自動跳轉 LINE 登入
       if (!LineAuth.isLoggedIn() && !LineAuth._initError && !LineAuth._profileError && !LineAuth.isLocalhost() && !this._bootDeepLink && this.currentPage === 'page-home') {
         console.log('[App] 未登入，自動跳轉 LINE 登入');
+        // 重置重試計數（正常首次登入）
+        try { sessionStorage.removeItem('_lineLoginRetryCount'); } catch (_) {}
         try {
           liff.login();
           return;

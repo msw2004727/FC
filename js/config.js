@@ -233,7 +233,8 @@
 // 20260314zg: 修復 LINE 登入成功但 getProfile 失敗時無限循環跳轉登入
 // 20260314zh: 修復外部 Safari 無法登入（liff.login redirectUri 只在有 deep link 時才帶）
 // 20260314zi: getProfile 失敗時以 ID Token 解析用戶資料（外部瀏覽器 fallback）
-const CACHE_VERSION = '20260314zi';
+// 20260314zj: 外部瀏覽器登入修復：直接 Profile API fallback + access token 診斷 + 無效 session 自動重新登入
+const CACHE_VERSION = '20260314zj';
 
 // ─── Page Strategy Registry ───
 // 唯一策略來源，未列出的頁面預設 fresh-first
