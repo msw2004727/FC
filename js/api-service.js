@@ -391,16 +391,11 @@ const ApiService = {
 
   async deleteEventTemplate(id) {
     if (this._handleRestrictedAction()) return false;
-    const source = this._src('eventTemplates');
     if (!this._demoMode) {
-      try {
-        await FirebaseService.deleteEventTemplate(id);
-      } catch (err) {
-        console.error('[deleteEventTemplate]', err);
-        throw err;
-      }
+      await FirebaseService.deleteEventTemplate(id);
     }
-    const idx = source.findIndex(item => item.id === id);
+    const source = this._src('eventTemplates');
+    const idx = source.findIndex(item => item.id === id || item._docId === id);
     if (idx >= 0) source.splice(idx, 1);
     if (!this._demoMode) FirebaseService._saveToLS('eventTemplates', source);
     return true;

@@ -1,3 +1,11 @@
+### 2026-03-14 — 雲端範本刪除靜默失敗（管理員無法刪除雲端範本）
+- **問題**：管理員點擊刪除雲端範本後，toast 顯示「範本已刪除」但範本立即重新出現
+- **原因**：`FirebaseService.deleteEventTemplate` 在快取中找不到範本時回傳 `false` 而非拋錯；`ApiService.deleteEventTemplate` 不檢查回傳值，繼續從本地快取移除後又重新載入 Firestore（範本仍存在），導致範本重新出現。此外缺少 `ensureAuthReadyForWrite` 呼叫，auth 未就緒時也會靜默失敗
+- **修復**：
+  - `FirebaseService.deleteEventTemplate`：找不到時改為 `throw new Error`，新增 `_docId` fallback 比對，加入 `ensureAuthReadyForWrite`
+  - `ApiService.deleteEventTemplate`：移除 try-catch 包裝讓錯誤直接向上傳播，splice 比對也加入 `_docId` fallback
+- **教訓**：Firestore 操作不應靜默回傳 false，應統一用 throw 讓呼叫端能正確判斷成功/失敗
+
 ### 2026-03-14 — 手動簽到 UID 不匹配導致已簽到紀錄被批量誤刪（嚴重 Bug）
 - **問題**：delegate user（role=user）點「完成簽到」後，已完成簽到簽退的紀錄一筆筆被軟刪除（status='removed'）
 - **原因**：`_confirmAllAttendance` 中存在兩個致命缺陷：

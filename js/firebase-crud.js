@@ -345,6 +345,7 @@ Object.assign(FirebaseService, {
   },
 
   async addEventTemplate(templateData) {
+    await this.ensureAuthReadyForWrite();
     const writeData = { ..._stripDocId(templateData) };
     if (writeData.image && typeof writeData.image === 'string' && writeData.image.startsWith('data:')) {
       const uploaded = await this._uploadImage(writeData.image, `eventTemplates/${writeData.ownerUid || writeData.id}`);
@@ -362,8 +363,12 @@ Object.assign(FirebaseService, {
   },
 
   async deleteEventTemplate(id) {
-    const doc = this._cache.eventTemplates.find(t => t.id === id);
-    if (!doc || !doc._docId) return false;
+    await this.ensureAuthReadyForWrite();
+    const templates = this._cache.eventTemplates || [];
+    const doc = templates.find(t => t.id === id) || templates.find(t => t._docId === id);
+    if (!doc || !doc._docId) {
+      throw new Error('EVENT_TEMPLATE_NOT_FOUND: id=' + id);
+    }
     await db.collection('eventTemplates').doc(doc._docId).delete();
     return true;
   },
