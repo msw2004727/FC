@@ -1634,11 +1634,13 @@ Object.assign(FirebaseService, {
   // ════════════════════════════════
 
   async updateUserRole(docId, newRole) {
-    await db.collection('users').doc(docId).update({
-      role: newRole,
-      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-    });
-    await this._syncUserRoleClaims(docId);
+    const fn = firebase.app().functions('asia-east1').httpsCallable('autoPromoteTeamRole');
+    const result = await fn({ targetUid: docId, newRole });
+    // Refresh current user's token if their own role changed
+    if (result?.data?.newRole && typeof auth !== 'undefined' && auth?.currentUser?.uid === result.data.targetUid) {
+      await auth.currentUser.getIdToken(true);
+    }
+    return result?.data || null;
   },
 
   // ════════════════════════════════

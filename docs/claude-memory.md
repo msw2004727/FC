@@ -1,3 +1,11 @@
+### 2026-03-15 — 球隊自動晉升/降級修正：非 super_admin 無法變更用戶角色
+- **問題**：`promoteUser()` 和 `_recalcUserRole()` 透過 `FirebaseService.updateUserRole()` 直接用 client SDK 寫入 `users.role`，但 Firestore 安全規則只允許 `isSuperAdmin()` 修改 `role` 欄位。admin/captain/coach 在球隊管理中指派隊長/教練或踢人時，觸發的角色晉升/降級靜默失敗（本地快取正常但 Firestore 未更新）。`user-admin-roles.js` 刪除自訂角色時的降級也受同樣影響
+- **原因**：`firestore.rules` 第 560 行 `users.update` 中 `isSafeSuperAdminUserUpdate()` 只開放給 `isSuperAdmin()`，admin 角色無法通過。與 EXP 系統（Issue 1）完全相同的模式
+- **修復**：
+  1. `functions/index.js`：新增 `exports.autoPromoteTeamRole` Cloud Function，限定只能變更 user/coach/captain 三層角色，venue_owner 以上不受影響。呼叫者需 coach 以上角色。使用 Admin SDK 更新 role + sync Auth claims
+  2. `js/firebase-crud.js`：`updateUserRole()` 改為呼叫 `autoPromoteTeamRole` CF，不再直接寫 Firestore
+- **教訓**：所有涉及 `users.role` 欄位寫入的操作都必須走 Cloud Function + Admin SDK，不可用 client SDK 直寫。此為 Issue 1（EXP）的同類問題
+
 ### 2026-03-14 — EXP 系統修正：非 super_admin 無法調整用戶/球隊 EXP
 - **問題**：`adjustUserExp()` 和 `adjustTeamExp()` 使用 client SDK 直接寫入 `users.exp` 和 `teams.teamExp`，但 Firestore 安全規則限制只有 `isSuperAdmin()` 才能修改 `exp` 欄位。結果：admin/coach/captain 等角色調整 EXP 時，本地快取樂觀更新成功（UI 看起來正常），但 Firestore 寫入靜默失敗，重新載入後 EXP 恢復原值。自動 EXP（auto-exp.js）也同樣受影響
 - **原因**：`firestore.rules` 第 557-563 行，`users` collection 的 `update` 規則中，`exp`/`role`/`manualRole` 等欄位只允許 `isSuperAdmin()` 修改。`teams` collection 的 `teamExp` 也不在一般成員可修改的白名單中

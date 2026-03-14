@@ -236,7 +236,8 @@
 // 20260314zj: 外部瀏覽器登入修復：直接 Profile API fallback + access token 診斷 + 無效 session 自動重新登入
 // 20260314zk: 修復取消報名 insufficient permissions：cancelRegistration/cancelCompanionRegistrations 加入 auth 回傳值檢查
 // 20260314zl: EXP 系統修正 — 改用 Cloud Function adjustExp，修復非 super_admin 無法調整 EXP 的問題
-const CACHE_VERSION = '20260314zl';
+// 20260315a: 球隊自動晉升修正 — updateUserRole 改用 autoPromoteTeamRole CF，修復非 super_admin 角色變更失敗
+const CACHE_VERSION = '20260315a';
 
 // ─── Page Strategy Registry ───
 // 唯一策略來源，未列出的頁面預設 fresh-first
