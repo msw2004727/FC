@@ -50,7 +50,7 @@ Object.assign(App, {
     if (amount === 0) return;
     const rule = this._AUTO_EXP_DEFAULTS.find(r => r.key === key);
     const reason = `自動：${rule?.label || key}${context ? '（' + context + '）' : ''}`;
-    const user = ApiService.adjustUserExp(uid, amount, reason, '系統');
+    const user = ApiService.adjustUserExp(uid, amount, reason, '系統', { mode: 'auto' });
     if (!user) return;
     // Write to auto exp log
     const logs = this._getAutoExpLogs();

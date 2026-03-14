@@ -1129,6 +1129,160 @@ exports.adminManageUser = onCall(
   }
 );
 
+// ═══════════════════════════════════════════════════
+//  adjustExp — EXP 調整（用戶 EXP / 球隊積分）
+//  修復：原 client SDK 直寫 users.exp 被 Firestore rules 擋住
+// ═══════════════════════════════════════════════════
+const ADMIN_EXP_PERMISSION = "admin.exp.entry";
+
+exports.adjustExp = onCall(
+  { region: "asia-east1", timeoutSeconds: 30 },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Authentication required");
+    }
+
+    const callerUid = request.auth.uid;
+    const { mode, targets, teamId, amount, reason, operatorLabel } = request.data || {};
+
+    // ── 參數驗證 ──
+    if (typeof amount !== "number" || !Number.isFinite(amount) || amount === 0) {
+      throw new HttpsError("invalid-argument", "amount must be a non-zero finite number");
+    }
+    if (typeof reason !== "string" || !reason.trim()) {
+      throw new HttpsError("invalid-argument", "reason is required");
+    }
+
+    const validModes = ["auto", "manual", "batch", "team", "teamExp"];
+    if (!validModes.includes(mode)) {
+      throw new HttpsError("invalid-argument", `Invalid mode: ${mode}`);
+    }
+
+    // ── 權限檢查 ──
+    if (mode === "auto") {
+      // auto 模式：任何已登入用戶可觸發，但限制幅度
+      if (amount < -100 || amount > 100) {
+        throw new HttpsError("invalid-argument", "Auto mode amount must be between -100 and +100");
+      }
+    } else {
+      // manual / batch / team / teamExp：需要 admin.exp.entry 權限
+      const access = await getCallerAccessContext(request);
+      if (!access.hasPermission(ADMIN_EXP_PERMISSION)) {
+        throw new HttpsError("permission-denied", `Missing permission: ${ADMIN_EXP_PERMISSION}`);
+      }
+    }
+
+    const safeReason = reason.trim().slice(0, 200);
+    const safeOperator = (typeof operatorLabel === "string" && operatorLabel.trim())
+      ? operatorLabel.trim().slice(0, 50)
+      : "管理員";
+    const now = new Date();
+    const timeStr = `${String(now.getMonth() + 1).padStart(2, "0")}/${String(now.getDate()).padStart(2, "0")} ${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+
+    // ═══ 球隊積分模式 ═══
+    if (mode === "teamExp") {
+      if (typeof teamId !== "string" || !teamId) {
+        throw new HttpsError("invalid-argument", "teamId is required for teamExp mode");
+      }
+      const teamRef = db.collection("teams").doc(teamId);
+      const teamSnap = await teamRef.get();
+      if (!teamSnap.exists) {
+        throw new HttpsError("not-found", "Team not found");
+      }
+      const teamData = teamSnap.data() || {};
+      const oldExp = typeof teamData.teamExp === "number" ? teamData.teamExp : 0;
+      const newExp = Math.min(10000, Math.max(0, oldExp + amount));
+
+      const log = {
+        time: timeStr,
+        target: teamData.name || teamId,
+        targetId: teamId,
+        amount: (amount > 0 ? "+" : "") + amount,
+        reason: safeReason,
+        operator: safeOperator,
+        operatorUid: callerUid,
+        createdAt: FieldValue.serverTimestamp(),
+      };
+
+      const batch = db.batch();
+      batch.update(teamRef, { teamExp: newExp, updatedAt: FieldValue.serverTimestamp() });
+      batch.create(db.collection("teamExpLogs").doc(), log);
+      await batch.commit();
+
+      return { success: true, teamId, oldExp, newExp, teamName: teamData.name || teamId };
+    }
+
+    // ═══ 用戶 EXP 模式（manual / batch / team / auto） ═══
+    const targetList = [];
+
+    if (mode === "auto") {
+      // auto 模式：單一目標，targets[0] 為 uid
+      if (!Array.isArray(targets) || targets.length !== 1) {
+        throw new HttpsError("invalid-argument", "Auto mode requires exactly 1 target");
+      }
+      targetList.push(targets[0]);
+    } else if (mode === "batch" || mode === "team") {
+      if (!Array.isArray(targets) || targets.length === 0) {
+        throw new HttpsError("invalid-argument", "targets array is required");
+      }
+      if (targets.length > 50) {
+        throw new HttpsError("invalid-argument", "Maximum 50 targets per batch");
+      }
+      targets.forEach((t) => targetList.push(t));
+    } else {
+      // manual：單一目標
+      if (!Array.isArray(targets) || targets.length !== 1) {
+        throw new HttpsError("invalid-argument", "Manual mode requires exactly 1 target");
+      }
+      targetList.push(targets[0]);
+    }
+
+    const results = [];
+    for (const targetId of targetList) {
+      if (typeof targetId !== "string" || !targetId) continue;
+      const targetUser = await findUserDocByUidOrLineUserId(targetId);
+      if (!targetUser) {
+        results.push({ targetId, success: false, error: "not_found" });
+        continue;
+      }
+
+      const userData = targetUser.data || {};
+      const oldExp = typeof userData.exp === "number" ? userData.exp : 0;
+      const newExp = Math.max(0, oldExp + amount);
+
+      const log = {
+        time: timeStr,
+        uid: userData.uid || userData.lineUserId || targetUser.docId,
+        target: userData.displayName || userData.name || targetId,
+        amount: (amount > 0 ? "+" : "") + amount,
+        reason: safeReason,
+        operator: safeOperator,
+        operatorUid: callerUid,
+        createdAt: FieldValue.serverTimestamp(),
+      };
+
+      const batch = db.batch();
+      batch.update(db.collection("users").doc(targetUser.docId), {
+        exp: newExp,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      batch.create(db.collection("expLogs").doc(), log);
+      await batch.commit();
+
+      results.push({
+        targetId,
+        docId: targetUser.docId,
+        name: userData.displayName || userData.name || targetId,
+        oldExp,
+        newExp,
+        success: true,
+      });
+    }
+
+    return { success: true, results };
+  }
+);
+
 exports.backfillRoleClaims = onCall(
   { region: "asia-east1", timeoutSeconds: 120 },
   async (request) => {

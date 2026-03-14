@@ -1,3 +1,13 @@
+### 2026-03-14 — EXP 系統修正：非 super_admin 無法調整用戶/球隊 EXP
+- **問題**：`adjustUserExp()` 和 `adjustTeamExp()` 使用 client SDK 直接寫入 `users.exp` 和 `teams.teamExp`，但 Firestore 安全規則限制只有 `isSuperAdmin()` 才能修改 `exp` 欄位。結果：admin/coach/captain 等角色調整 EXP 時，本地快取樂觀更新成功（UI 看起來正常），但 Firestore 寫入靜默失敗，重新載入後 EXP 恢復原值。自動 EXP（auto-exp.js）也同樣受影響
+- **原因**：`firestore.rules` 第 557-563 行，`users` collection 的 `update` 規則中，`exp`/`role`/`manualRole` 等欄位只允許 `isSuperAdmin()` 修改。`teams` collection 的 `teamExp` 也不在一般成員可修改的白名單中
+- **修復**：
+  1. `functions/index.js`：新增 `exports.adjustExp` Cloud Function，支援 5 種模式（auto/manual/batch/team/teamExp），使用 Admin SDK 繞過 Firestore rules 限制。auto 模式允許任何已登入用戶（幅度限制 ±100），其餘模式需要 `admin.exp.entry` 權限
+  2. `js/api-service.js`：重構 `adjustUserExp()`/`adjustTeamExp()` 改為呼叫 Cloud Function，保留樂觀更新。新增 `adjustUserExpAsync()`/`adjustTeamExpAsync()`/`adjustBatchUserExpAsync()` async 版本供管理面板使用。批次模式改為單次 CF 呼叫（原為 N 次個別呼叫）
+  3. `js/modules/user-admin-exp.js`：四個 submit handler 改為 async，使用 async 版 API，加入 try/catch 錯誤提示
+  4. `js/modules/auto-exp.js`：`_grantAutoExp()` 傳入 `mode: 'auto'` 參數
+- **教訓**：client SDK 直寫受 Firestore rules 限制的欄位，會造成樂觀更新與實際資料不一致的隱蔽 bug。涉及權限敏感欄位的寫入應一律走 Cloud Function + Admin SDK
+
 ### 2026-03-14 — 取消報名 insufficient permissions（少數用戶無法自行取消）
 - **問題**：部分用戶點取消報名時顯示 `insufficient permissions`，管理員可手動取消但用戶自己無法操作。受影響用戶同時也沒有載入頭像
 - **原因**：`cancelRegistration()` 呼叫 `_ensureAuth()` 後未檢查回傳值。當 LINE Access Token 失效（外部瀏覽器、session 過期等）導致 Firebase Auth 建立失敗時，函式繼續執行 batch commit，被 Firestore 安全規則拒絕。同源問題也導致 `getProfile()` 失敗（沒有頭像）。對比 `_doRegisterForEvent()` 有正確檢查回傳值並丟出友善錯誤

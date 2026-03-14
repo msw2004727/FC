@@ -69,7 +69,7 @@ Object.assign(App, {
   },
 
   // ── 個別送出 ──
-  handleExpSubmit() {
+  async handleExpSubmit() {
     if (!this.hasPermission('admin.exp.entry')) {
       this.showToast('權限不足'); return;
     }
@@ -81,16 +81,21 @@ Object.assign(App, {
     if (amount === 0) { this.showToast('請輸入 EXP 調整值'); return; }
     if (!reason) { this.showToast('請輸入備註原因'); return; }
     const operatorLabel = this._getExpOperatorLabel();
-    const user = ApiService.adjustUserExp(targetName, amount, reason, operatorLabel);
-    if (user) {
-      const updatedDetail = card.querySelector('.exp-target-detail');
-      if (updatedDetail) updatedDetail.textContent = `UID: ${user.uid} ・ Lv.${App._calcLevelFromExp(user.exp || 0).level} ・ EXP: ${(user.exp || 0).toLocaleString()}`;
-      document.getElementById('exp-amount').value = '';
-      document.getElementById('exp-reason').value = '';
-      this.renderExpLogs();
-      this.renderOperationLogs();
-      this.updatePointsDisplay();
-      this.showToast(`已調整「${targetName}」EXP ${amount > 0 ? '+' : ''}${amount}`);
+    try {
+      const user = await ApiService.adjustUserExpAsync(targetName, amount, reason, operatorLabel);
+      if (user) {
+        const updatedDetail = card.querySelector('.exp-target-detail');
+        if (updatedDetail) updatedDetail.textContent = `UID: ${user.uid} ・ Lv.${App._calcLevelFromExp(user.exp || 0).level} ・ EXP: ${(user.exp || 0).toLocaleString()}`;
+        document.getElementById('exp-amount').value = '';
+        document.getElementById('exp-reason').value = '';
+        this.renderExpLogs();
+        this.renderOperationLogs();
+        this.updatePointsDisplay();
+        this.showToast(`已調整「${targetName}」EXP ${amount > 0 ? '+' : ''}${amount}`);
+      }
+    } catch (err) {
+      console.error('[handleExpSubmit]', err);
+      this.showToast('EXP 調整失敗：' + (err.message || '未知錯誤'));
     }
   },
 
@@ -141,7 +146,7 @@ Object.assign(App, {
   },
 
   // ── 批次送出 ──
-  handleBatchExpSubmit() {
+  async handleBatchExpSubmit() {
     if (!this.hasPermission('admin.exp.entry')) {
       this.showToast('權限不足'); return;
     }
@@ -151,19 +156,21 @@ Object.assign(App, {
     if (amount === 0) { this.showToast('請輸入 EXP 調整值'); return; }
     if (!reason) { this.showToast('請輸入備註原因'); return; }
     const operatorLabel = this._getExpOperatorLabel();
-    let successCount = 0;
-    this._expBatchSelected.forEach(name => {
-      const user = ApiService.adjustUserExp(name, amount, reason, operatorLabel);
-      if (user) successCount++;
-    });
-    document.getElementById('exp-batch-amount').value = '';
-    document.getElementById('exp-batch-reason').value = '';
-    this._expBatchSelected = [];
-    this._renderExpBatchTags();
-    this.renderExpLogs();
-    this.renderOperationLogs();
-    this.updatePointsDisplay();
-    this.showToast(`批次調整完成：${successCount} 人 EXP ${amount > 0 ? '+' : ''}${amount}`);
+    try {
+      const results = await ApiService.adjustBatchUserExpAsync(this._expBatchSelected, amount, reason, operatorLabel);
+      const successCount = results.length;
+      document.getElementById('exp-batch-amount').value = '';
+      document.getElementById('exp-batch-reason').value = '';
+      this._expBatchSelected = [];
+      this._renderExpBatchTags();
+      this.renderExpLogs();
+      this.renderOperationLogs();
+      this.updatePointsDisplay();
+      this.showToast(`批次調整完成：${successCount} 人 EXP ${amount > 0 ? '+' : ''}${amount}`);
+    } catch (err) {
+      console.error('[handleBatchExpSubmit]', err);
+      this.showToast('批次 EXP 調整失敗：' + (err.message || '未知錯誤'));
+    }
   },
 
   // ── 球隊下拉 ──
@@ -193,7 +200,7 @@ Object.assign(App, {
   },
 
   // ── 球隊送出 ──
-  handleTeamExpSubmit() {
+  async handleTeamExpSubmit() {
     if (!this.hasPermission('admin.exp.entry')) {
       this.showToast('權限不足'); return;
     }
@@ -203,17 +210,20 @@ Object.assign(App, {
     if (amount === 0) { this.showToast('請輸入 EXP 調整值'); return; }
     if (!reason) { this.showToast('請輸入備註原因'); return; }
     const operatorLabel = this._getExpOperatorLabel();
-    let successCount = 0;
-    this._expTeamMembers.forEach(u => {
-      const result = ApiService.adjustUserExp(u.name, amount, reason, operatorLabel);
-      if (result) successCount++;
-    });
-    document.getElementById('exp-team-amount').value = '';
-    document.getElementById('exp-team-reason').value = '';
-    this.renderExpLogs();
-    this.renderOperationLogs();
-    this.updatePointsDisplay();
-    this.showToast(`全隊調整完成：${successCount} 人 EXP ${amount > 0 ? '+' : ''}${amount}`);
+    try {
+      const memberNames = this._expTeamMembers.map(u => u.name);
+      const results = await ApiService.adjustBatchUserExpAsync(memberNames, amount, reason, operatorLabel);
+      const successCount = results.length;
+      document.getElementById('exp-team-amount').value = '';
+      document.getElementById('exp-team-reason').value = '';
+      this.renderExpLogs();
+      this.renderOperationLogs();
+      this.updatePointsDisplay();
+      this.showToast(`全隊調整完成：${successCount} 人 EXP ${amount > 0 ? '+' : ''}${amount}`);
+    } catch (err) {
+      console.error('[handleTeamExpSubmit]', err);
+      this.showToast('全隊 EXP 調整失敗：' + (err.message || '未知錯誤'));
+    }
   },
 
   // ── 球隊積分搜尋 ──
@@ -273,7 +283,7 @@ Object.assign(App, {
     if (detailEl) detailEl.textContent = `積分: ${(team.teamExp || 0).toLocaleString()} ・ ${team.members} 人 ・ ${team.region || '—'}`;
   },
 
-  handleTeamExpSubmit2() {
+  async handleTeamExpSubmit2() {
     if (!this.hasPermission('admin.exp.entry')) {
       this.showToast('權限不足'); return;
     }
@@ -283,14 +293,19 @@ Object.assign(App, {
     if (amount === 0) { this.showToast('請輸入積分調整值'); return; }
     if (!reason) { this.showToast('請輸入備註原因'); return; }
     const operatorLabel = this._getExpOperatorLabel();
-    const team = ApiService.adjustTeamExp(this._expTeamExpSelectedId, amount, reason, operatorLabel);
-    if (team) {
-      this._selectExpTeamTarget(this._expTeamExpSelectedId);
-      document.getElementById('exp-team-exp-amount').value = '';
-      document.getElementById('exp-team-exp-reason').value = '';
-      this.renderExpLogs();
-      this.renderOperationLogs();
-      this.showToast(`已調整「${team.name}」球隊積分 ${amount > 0 ? '+' : ''}${amount}`);
+    try {
+      const team = await ApiService.adjustTeamExpAsync(this._expTeamExpSelectedId, amount, reason, operatorLabel);
+      if (team) {
+        this._selectExpTeamTarget(this._expTeamExpSelectedId);
+        document.getElementById('exp-team-exp-amount').value = '';
+        document.getElementById('exp-team-exp-reason').value = '';
+        this.renderExpLogs();
+        this.renderOperationLogs();
+        this.showToast(`已調整「${team.name}」球隊積分 ${amount > 0 ? '+' : ''}${amount}`);
+      }
+    } catch (err) {
+      console.error('[handleTeamExpSubmit2]', err);
+      this.showToast('球隊積分調整失敗：' + (err.message || '未知錯誤'));
     }
   },
 

@@ -1324,7 +1324,35 @@ const ApiService = {
   //  EXP Adjustment（手動 EXP）
   // ════════════════════════════════
 
-  adjustUserExp(nameOrUid, amount, reason, operatorLabel) {
+  // ── Cloud Function 呼叫 adjustExp ──
+  async _callAdjustExpCF(payload) {
+    await FirebaseService.ensureAuthReadyForWrite();
+    const fn = firebase.app().functions('asia-east1').httpsCallable('adjustExp');
+    return await fn(payload);
+  },
+
+  adjustUserExp(nameOrUid, amount, reason, operatorLabel, { mode = 'manual' } = {}) {
+    const user = this._src('adminUsers').find(u => u.name === nameOrUid || u.uid === nameOrUid);
+    if (!user) return null;
+    // 樂觀更新本地快取
+    user.exp = Math.max(0, (user.exp || 0) + amount);
+    const now = new Date();
+    const timeStr = `${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+    const log = { time: timeStr, uid: user.uid || user.lineUserId || null, target: user.name, amount: (amount > 0 ? '+' : '') + amount, reason, operator: operatorLabel || '管理員', operatorUid: auth?.currentUser?.uid || null };
+    this._src('expLogs').unshift(log);
+    this._writeOpLog('exp', '手動EXP', `${user.name} ${log.amount}「${reason}」`);
+    if (!this._demoMode) {
+      const targetId = user._docId || user.uid || user.lineUserId;
+      if (targetId) {
+        this._callAdjustExpCF({
+          mode, targets: [targetId], amount, reason, operatorLabel: operatorLabel || '管理員',
+        }).catch(err => console.error('[adjustUserExp CF]', err));
+      }
+    }
+    return user;
+  },
+
+  async adjustUserExpAsync(nameOrUid, amount, reason, operatorLabel, { mode = 'manual' } = {}) {
     const user = this._src('adminUsers').find(u => u.name === nameOrUid || u.uid === nameOrUid);
     if (!user) return null;
     user.exp = Math.max(0, (user.exp || 0) + amount);
@@ -1334,17 +1362,61 @@ const ApiService = {
     this._src('expLogs').unshift(log);
     this._writeOpLog('exp', '手動EXP', `${user.name} ${log.amount}「${reason}」`);
     if (!this._demoMode) {
-      FirebaseService.ensureAuthReadyForWrite().then(() => {
-        if (user._docId) {
-          db.collection('users').doc(user._docId).update({ exp: user.exp }).catch(err => console.error('[adjustUserExp]', err));
-        }
-        db.collection('expLogs').add({ ...log, createdAt: firebase.firestore.FieldValue.serverTimestamp() }).catch(err => console.error('[adjustUserExp log]', err));
-      });
+      const targetId = user._docId || user.uid || user.lineUserId;
+      if (targetId) {
+        await this._callAdjustExpCF({
+          mode, targets: [targetId], amount, reason, operatorLabel: operatorLabel || '管理員',
+        });
+      }
     }
     return user;
   },
 
+  async adjustBatchUserExpAsync(names, amount, reason, operatorLabel) {
+    const results = [];
+    const targetIds = [];
+    for (const nameOrUid of names) {
+      const user = this._src('adminUsers').find(u => u.name === nameOrUid || u.uid === nameOrUid);
+      if (!user) continue;
+      user.exp = Math.max(0, (user.exp || 0) + amount);
+      results.push(user);
+      const targetId = user._docId || user.uid || user.lineUserId;
+      if (targetId) targetIds.push(targetId);
+      const now = new Date();
+      const timeStr = `${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+      const log = { time: timeStr, uid: user.uid || user.lineUserId || null, target: user.name, amount: (amount > 0 ? '+' : '') + amount, reason, operator: operatorLabel || '管理員', operatorUid: auth?.currentUser?.uid || null };
+      this._src('expLogs').unshift(log);
+    }
+    if (results.length > 0) {
+      this._writeOpLog('exp', '批次EXP', `${results.length} 人 ${amount > 0 ? '+' : ''}${amount}「${reason}」`);
+    }
+    if (!this._demoMode && targetIds.length > 0) {
+      await this._callAdjustExpCF({
+        mode: 'batch', targets: targetIds, amount, reason, operatorLabel: operatorLabel || '管理員',
+      });
+    }
+    return results;
+  },
+
   adjustTeamExp(teamId, amount, reason, operatorLabel) {
+    const team = this._findById('teams', teamId);
+    if (!team) return null;
+    // 樂觀更新本地快取
+    team.teamExp = Math.min(10000, Math.max(0, (team.teamExp || 0) + amount));
+    const now = new Date();
+    const timeStr = `${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+    const log = { time: timeStr, target: team.name, targetId: teamId, amount: (amount > 0 ? '+' : '') + amount, reason, operator: operatorLabel || '管理員', operatorUid: auth?.currentUser?.uid || null };
+    this._src('teamExpLogs').unshift(log);
+    this._writeOpLog('team_exp', '球隊積分', `${team.name} ${log.amount}「${reason}」`);
+    if (!this._demoMode) {
+      this._callAdjustExpCF({
+        mode: 'teamExp', teamId, amount, reason, operatorLabel: operatorLabel || '管理員',
+      }).catch(err => console.error('[adjustTeamExp CF]', err));
+    }
+    return team;
+  },
+
+  async adjustTeamExpAsync(teamId, amount, reason, operatorLabel) {
     const team = this._findById('teams', teamId);
     if (!team) return null;
     team.teamExp = Math.min(10000, Math.max(0, (team.teamExp || 0) + amount));
@@ -1354,11 +1426,8 @@ const ApiService = {
     this._src('teamExpLogs').unshift(log);
     this._writeOpLog('team_exp', '球隊積分', `${team.name} ${log.amount}「${reason}」`);
     if (!this._demoMode) {
-      FirebaseService.ensureAuthReadyForWrite().then(() => {
-        if (team._docId) {
-          db.collection('teams').doc(team._docId).update({ teamExp: team.teamExp }).catch(err => console.error('[adjustTeamExp]', err));
-        }
-        db.collection('teamExpLogs').add({ ...log, createdAt: firebase.firestore.FieldValue.serverTimestamp() }).catch(err => console.error('[adjustTeamExp log]', err));
+      await this._callAdjustExpCF({
+        mode: 'teamExp', teamId, amount, reason, operatorLabel: operatorLabel || '管理員',
       });
     }
     return team;
