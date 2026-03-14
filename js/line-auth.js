@@ -237,7 +237,20 @@ const LineAuth = {
       App.showToast('LINE 登入服務尚未準備完成');
       return;
     }
-    liff.login({ redirectUri: window.location.href });
+    // 只在有 deep link 參數時才帶 redirectUri，否則讓 SDK 使用 Endpoint URL（外部 Safari 相容）
+    const base = this._getBaseUrl();
+    const current = new URL(window.location.href);
+    const url = new URL(base);
+    ['event', 'team'].forEach(key => {
+      const val = current.searchParams.get(key);
+      if (val) url.searchParams.set(key, val);
+    });
+    const redirectUri = url.toString();
+    if (redirectUri === base) {
+      liff.login();
+    } else {
+      liff.login({ redirectUri });
+    }
   },
 
   async logout() {
