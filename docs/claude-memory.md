@@ -1,3 +1,9 @@
+### 2026-03-15 — 個人數據頁完成場次/出席率永遠顯示 0
+- **問題**：`personal-dashboard.js` 使用 `user.completedGames || records.filter(r => r.status === 'completed').length` 計算完成場次，但 `activityRecords` 的 status 永遠不會是 `'completed'`（只有 registered/waitlisted/cancelled/removed），且 `user.completedGames` 欄位在用戶建立時初始化為 0 後從未被任何程式碼更新。結果：所有用戶的「完成」和「出席率」永遠為 0
+- **原因**：`personal-dashboard.js` 使用了與 profile 頁面不同的統計邏輯。profile 頁面正確使用 `_calcScanStats()`（交叉比對 attendanceRecords 的 checkin+checkout），而 personal-dashboard 錯誤依賴不存在的 status 值
+- **修復**：`personal-dashboard.js` 改用 `_calcScanStats(uid)` 統一計算，與 profile 頁面和活動紀錄頁一致。同時移除對 `user.totalGames`/`user.completedGames`/`user.attendanceRate` 冗餘欄位的依賴
+- **教訓**：統計邏輯應統一入口，不應在多處用不同方式計算同一指標。`activityRecords.status` 不代表完成狀態，完成判定必須交叉比對 attendanceRecords
+
 ### 2026-03-15 — 球隊自動晉升/降級修正：非 super_admin 無法變更用戶角色
 - **問題**：`promoteUser()` 和 `_recalcUserRole()` 透過 `FirebaseService.updateUserRole()` 直接用 client SDK 寫入 `users.role`，但 Firestore 安全規則只允許 `isSuperAdmin()` 修改 `role` 欄位。admin/captain/coach 在球隊管理中指派隊長/教練或踢人時，觸發的角色晉升/降級靜默失敗（本地快取正常但 Firestore 未更新）。`user-admin-roles.js` 刪除自訂角色時的降級也受同樣影響
 - **原因**：`firestore.rules` 第 560 行 `users.update` 中 `isSafeSuperAdminUserUpdate()` 只開放給 `isSuperAdmin()`，admin 角色無法通過。與 EXP 系統（Issue 1）完全相同的模式

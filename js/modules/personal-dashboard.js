@@ -27,9 +27,11 @@ Object.assign(App, {
   _renderPersonalDashboardInner(container, user) {
     const uid = user.uid || '';
     const records = (ApiService.getActivityRecords?.() || []).filter(r => r.uid === uid);
-    const totalGames = user.totalGames || records.length;
-    const completedGames = user.completedGames || records.filter(r => r.status === 'completed').length;
-    const attendanceRate = user.attendanceRate || (totalGames > 0 ? Math.round(completedGames / totalGames * 100) : 0);
+    // 統一使用 _calcScanStats（與 profile 頁面一致，以掃碼紀錄為依據）
+    const scanStats = this._calcScanStats?.(uid) || { expectedCount: 0, completedCount: 0, attendRate: 0 };
+    const totalGames = scanStats.expectedCount;
+    const completedGames = scanStats.completedCount;
+    const attendanceRate = scanStats.attendRate;
     const badgeCount = this._getAchievementProfile?.()?.getCurrentBadgeCount?.() || 0;
     const totalExp = user.exp || 0;
     const calcLevel = App._calcLevelFromExp ? App._calcLevelFromExp(totalExp) : { level: 0 };
