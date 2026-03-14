@@ -133,6 +133,24 @@ const LineAuth = {
         }
       }
 
+      // Fallback: 從 ID Token 解析用戶資料（外部 Safari 等 getProfile API 呼叫受阻時）
+      try {
+        const idToken = liff.getDecodedIDToken();
+        if (idToken && idToken.sub) {
+          this._profile = {
+            userId: idToken.sub,
+            displayName: idToken.name || 'LINE User',
+            pictureUrl: idToken.picture || null,
+            email: idToken.email || null,
+          };
+          this._persistProfileCache(this._profile);
+          console.log('[LineAuth] 已登入（ID Token fallback）:', this._profile.displayName);
+          return this._profile;
+        }
+      } catch (idTokenErr) {
+        console.warn('[LineAuth] ID Token fallback also failed:', idTokenErr);
+      }
+
       this._profileError = lastErr;
       console.error('[LineAuth] liff.getProfile() 失敗（重試後仍無法取得用戶資料）:', lastErr);
       return null;
