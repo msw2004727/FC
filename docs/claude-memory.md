@@ -2381,3 +2381,9 @@
   - `profile-core.js`：行 467 條件新增 `!LineAuth._profileError` 檢查
   - `app.js`：`_tryStartDeepLinkLogin()` 新增 LIFF session 存在但 `_profileError` 已設定時跳過登入重導的守衛
 - **教訓**：自動跳轉登入的條件必須同時排除 `_initError` 和 `_profileError` 兩種失敗情境，避免「登入成功但取資料失敗」這種中間態觸發無限重導
+
+### 2026-03-14 — 外部 Safari 無法 LINE 登入（liff.login redirectUri 問題）
+- **問題**：從 LINE 點網址跳到外部 Safari 後，無法登入取得 LINE 資料，一直處於未登入狀態；LINE 內部瀏覽器正常
+- **原因**：commit `9b42a8c` 將 `liff.login()` 改為 `liff.login({ redirectUri: window.location.href })`，目的是保留 deep link 參數。但外部瀏覽器走 OAuth redirect 流程，`redirectUri` 必須與 LINE Developer Console 的 Endpoint URL 匹配。`window.location.href` 可能帶有額外 query 參數，導致 OAuth callback 在 Safari 中無法正確建立 session。LINE 內部瀏覽器走原生 bridge 不受影響
+- **修復**：`line-auth.js` 的 `login()` 改為條件式帶 `redirectUri`：只在 URL 含 `?event=` 或 `?team=` deep link 參數時才帶（用乾淨的 base URL + 必要參數），否則不帶讓 SDK 自動使用 Endpoint URL
+- **教訓**：`liff.login({ redirectUri })` 在外部瀏覽器的 OAuth flow 對 URL 格式敏感，不要無條件傳 `window.location.href`；LINE 內部瀏覽器不走 OAuth 所以不會暴露問題，測試時必須涵蓋外部瀏覽器場景

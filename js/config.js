@@ -231,7 +231,8 @@
 // 20260314ze: 修復登入重導後空白模板（race condition + REST/SDK ID 查詢修正）
 // 20260314zf: 修復取消報名後按鈕未更新（showEventDetail 未 await + _restoreCancelUI 時序）
 // 20260314zg: 修復 LINE 登入成功但 getProfile 失敗時無限循環跳轉登入
-const CACHE_VERSION = '20260314zg';
+// 20260314zh: 修復外部 Safari 無法登入（liff.login redirectUri 只在有 deep link 時才帶）
+const CACHE_VERSION = '20260314zh';
 
 // ─── Page Strategy Registry ───
 // 唯一策略來源，未列出的頁面預設 fresh-first
