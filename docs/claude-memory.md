@@ -1,3 +1,13 @@
+### 2026-03-14 — 外部瀏覽器 LINE 登入後無法取得用戶資料
+- **問題**：用外部瀏覽器（Chrome/Safari）登入時，LINE 登入跳轉成功但回來後顯示「LINE 登入成功但無法取得用戶資料，請重新整理頁面」，重新整理也無法解決
+- **原因**：`liff.getProfile()` 在外部瀏覽器有時因 SDK 內部問題或 access token 時序問題失敗，ID Token fallback 也因 channel 未配 `openid` scope 或 token 解析失敗而無法生效。失敗後只顯示 toast 提示，用戶無法自動恢復
+- **修復**：
+  1. `line-auth.js` `ensureProfile`：增加 access token 診斷檢查，若無 token 提前報錯（`no_access_token`）
+  2. `line-auth.js`：新增 `_fetchProfileDirect()` 直接用 fetch 呼叫 `api.line.me/v2/profile`，作為 `liff.getProfile()` 與 ID Token 之間的中間 fallback
+  3. `line-auth.js`：增加重試間隔（0/500/1500ms）與 timeout（8s），給外部瀏覽器更多時間
+  4. `profile-core.js` `bindLineLogin`：profile 取得失敗時，自動清除無效 session 並重新 `liff.login()`（最多 1 次，用 sessionStorage 防止無限循環）。超過重試上限才顯示最終錯誤提示
+- **教訓**：LIFF SDK 的 `getProfile()` 在外部瀏覽器並非 100% 可靠，必須有直接 API 呼叫的 fallback；登入失敗時應優先嘗試自動恢復，而非只顯示 toast 讓用戶手動處理
+
 ### 2026-03-14 — 取消報名後按鈕未更新仍顯示「取消報名」
 - **問題**：用戶點取消報名後，按鈕仍顯示「取消報名」；再點一次則顯示「找不到有效的報名紀錄」
 - **原因**：`handleCancelSignup` 中 `showEventDetail(id)` 未 `await`（fire-and-forget），`.finally()` 立即執行 `_restoreCancelUI()` 將按鈕 innerHTML 恢復為「取消報名」。同時 onSnapshot 觸發另一個 `showEventDetail` 使 `_eventDetailRequestSeq` 遞增，導致 `.then()` 中的 `showEventDetail` 因 stale 而不渲染。`_cancelSignupBusyMap` 也立即清除，讓使用者可在渲染完成前再次點擊

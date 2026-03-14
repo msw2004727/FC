@@ -90,6 +90,14 @@ const LineAuth = {
     return this._profileLoading || (!this._profile && !this._ready);
   },
 
+  async _fetchProfileDirect(accessToken) {
+    const resp = await fetch('https://api.line.me/v2/profile', {
+      headers: { Authorization: 'Bearer ' + accessToken },
+    });
+    if (!resp.ok) throw new Error('LINE Profile API ' + resp.status);
+    return await resp.json();
+  },
+
   async ensureProfile(options = {}) {
     const { force = false } = options;
     if (typeof liff === 'undefined' || !this.hasLiffSession()) return null;
@@ -100,8 +108,21 @@ const LineAuth = {
       this._profileLoading = true;
       this._profileError = null;
 
-      const retryDelays = [0, 250, 800];
-      const profileTimeoutMs = 5000;
+      // 診斷：檢查 access token 是否可用
+      let accessToken = null;
+      try { accessToken = liff.getAccessToken(); } catch (_) {}
+      console.log('[LineAuth] ensureProfile: accessToken=', accessToken ? (accessToken.substring(0, 8) + '...') : 'null');
+
+      if (!accessToken) {
+        const err = new Error('No access token available after liff.init()');
+        err.code = 'no_access_token';
+        this._profileError = err;
+        console.error('[LineAuth] 無 Access Token，LIFF session 可能無效');
+        return null;
+      }
+
+      const retryDelays = [0, 500, 1500];
+      const profileTimeoutMs = 8000;
       let lastErr = null;
 
       for (let i = 0; i < retryDelays.length; i++) {
@@ -129,11 +150,36 @@ const LineAuth = {
           return this._profile;
         } catch (err) {
           lastErr = err;
-          console.warn(`[LineAuth] liff.getProfile() failed (attempt ${i + 1}/${retryDelays.length})`, err);
+          console.warn('[LineAuth] liff.getProfile() failed (attempt ' + (i + 1) + '/' + retryDelays.length + ')', err);
         }
       }
 
-      // Fallback: 從 ID Token 解析用戶資料（外部 Safari 等 getProfile API 呼叫受阻時）
+      // Fallback 1: 直接呼叫 LINE Profile API（繞過 LIFF SDK 內部問題）
+      try {
+        const directProfile = await this._withTimeout(
+          this._fetchProfileDirect(accessToken),
+          8000,
+          'direct Profile API'
+        );
+        if (directProfile && directProfile.userId) {
+          let email = null;
+          try { email = liff.getDecodedIDToken()?.email || null; } catch (_) {}
+          this._profile = {
+            userId: directProfile.userId,
+            displayName: directProfile.displayName || 'LINE User',
+            pictureUrl: directProfile.pictureUrl || null,
+            email,
+          };
+          this._persistProfileCache(this._profile);
+          console.log('[LineAuth] 已登入（直接 API fallback）:', this._profile.displayName);
+          return this._profile;
+        }
+      } catch (directErr) {
+        console.warn('[LineAuth] 直接 Profile API fallback failed:', directErr);
+        lastErr = directErr;
+      }
+
+      // Fallback 2: 從 ID Token 解析用戶資料（外部 Safari 等 getProfile API 呼叫受阻時）
       try {
         const idToken = liff.getDecodedIDToken();
         if (idToken && idToken.sub) {
@@ -146,13 +192,15 @@ const LineAuth = {
           this._persistProfileCache(this._profile);
           console.log('[LineAuth] 已登入（ID Token fallback）:', this._profile.displayName);
           return this._profile;
+        } else {
+          console.warn('[LineAuth] ID Token fallback: token is null or missing sub');
         }
       } catch (idTokenErr) {
         console.warn('[LineAuth] ID Token fallback also failed:', idTokenErr);
       }
 
       this._profileError = lastErr;
-      console.error('[LineAuth] liff.getProfile() 失敗（重試後仍無法取得用戶資料）:', lastErr);
+      console.error('[LineAuth] 所有取得用戶資料的方式均失敗:', lastErr);
       return null;
     })();
 
