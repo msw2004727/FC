@@ -2373,3 +2373,11 @@
 - **原因**：手動正取流程先改本地狀態，再逐筆寫 Firestore，最後更新活動主檔時誤用了 `events/{event.id}`，造成報名紀錄已變更但 `waitlistNames` 沒同步清掉；詳細頁又會把舊的 `waitlistNames` fallback 繼續畫出來。
 - **修復**：在 `js/modules/event-manage.js` 將手動正取改成批次寫入 `registrations / activityRecords / events`，改用 `event._docId` 更新活動主檔，並在成功後才回寫本地快取；另外補上候補 fallback 過濾與候補顯示數量修正於 `js/modules/event-manage.js`、`js/modules/event-detail.js`，避免已正取的人殘留在候補顯示；同步更新 `js/config.js` 與 `index.html` 快取版本到 `20260312o`。
 - **教訓**：候補與正取是跨集合同步資料，不能先改本地或逐筆寫；活動主檔一律必須用 `_docId`，而候補 UI 的 fallback 也要排除已在正取中的殘影名稱。
+
+### 2026-03-14 — LINE 登入成功但 getProfile 失敗時無限循環跳轉登入
+- **問題**：LINE 登入成功後，若 `liff.getProfile()` 失敗（網路問題、token 過期等），頁面會無限循環跳轉 LINE 登入
+- **原因**：`bindLineLogin()` 的自動登入條件（profile-core.js:467）檢查了 `!LineAuth._initError` 但漏檢 `!LineAuth._profileError`。LIFF init 成功時 `_initError` 為 null，即使 getProfile 失敗也會觸發 `liff.login()` 重導，回來後 getProfile 再次失敗，形成無限循環。同樣的問題也存在於 `_tryStartDeepLinkLogin()`（app.js）
+- **修復**：
+  - `profile-core.js`：行 467 條件新增 `!LineAuth._profileError` 檢查
+  - `app.js`：`_tryStartDeepLinkLogin()` 新增 LIFF session 存在但 `_profileError` 已設定時跳過登入重導的守衛
+- **教訓**：自動跳轉登入的條件必須同時排除 `_initError` 和 `_profileError` 兩種失敗情境，避免「登入成功但取資料失敗」這種中間態觸發無限重導
