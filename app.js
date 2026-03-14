@@ -773,6 +773,12 @@ const App = {
       return true;
     }
 
+    // LIFF session exists but getProfile() failed — re-login won't help, avoid infinite redirect loop.
+    if (LineAuth.hasLiffSession && LineAuth.hasLiffSession() && LineAuth._profileError) {
+      console.warn('[DeepLink] LIFF session exists but getProfile failed, skipping login redirect');
+      return false;
+    }
+
     // Wait until SDK is ready (Phase 4) before triggering login.
     if (typeof liff === 'undefined' || !LineAuth._ready) {
       if (typeof this.ensureCloudReady === 'function') {
