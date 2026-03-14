@@ -1,3 +1,12 @@
+### 2026-03-14 — 取消報名 insufficient permissions（少數用戶無法自行取消）
+- **問題**：部分用戶點取消報名時顯示 `insufficient permissions`，管理員可手動取消但用戶自己無法操作。受影響用戶同時也沒有載入頭像
+- **原因**：`cancelRegistration()` 呼叫 `_ensureAuth()` 後未檢查回傳值。當 LINE Access Token 失效（外部瀏覽器、session 過期等）導致 Firebase Auth 建立失敗時，函式繼續執行 batch commit，被 Firestore 安全規則拒絕。同源問題也導致 `getProfile()` 失敗（沒有頭像）。對比 `_doRegisterForEvent()` 有正確檢查回傳值並丟出友善錯誤
+- **修復**：
+  1. `firebase-crud.js` `cancelRegistration()`：加入 `_ensureAuth()` 回傳值檢查，失敗時丟出「Firebase 登入失敗」提示
+  2. `firebase-crud.js` `cancelCompanionRegistrations()`：同上，加入 `ensureAuthReadyForWrite()` 回傳值檢查
+  3. `firebase-crud.js` `addEventTemplate()` / `deleteEventTemplate()` / `batchRegisterForEvent()`：第三方審查發現同類漏洞，一併修復
+- **教訓**：所有 Firestore 寫入函式的 auth 驗證必須檢查回傳值並在失敗時提前丟出錯誤，不可只 await 不檢查。新增 Firestore 寫入函式時應以 `_doRegisterForEvent()` 為範本
+
 ### 2026-03-14 — 外部瀏覽器 LINE 登入後無法取得用戶資料
 - **問題**：用外部瀏覽器（Chrome/Safari）登入時，LINE 登入跳轉成功但回來後顯示「LINE 登入成功但無法取得用戶資料，請重新整理頁面」，重新整理也無法解決
 - **原因**：`liff.getProfile()` 在外部瀏覽器有時因 SDK 內部問題或 access token 時序問題失敗，ID Token fallback 也因 channel 未配 `openid` scope 或 token 解析失敗而無法生效。失敗後只顯示 toast 提示，用戶無法自動恢復

@@ -345,7 +345,10 @@ Object.assign(FirebaseService, {
   },
 
   async addEventTemplate(templateData) {
-    await this.ensureAuthReadyForWrite();
+    const authed = await this.ensureAuthReadyForWrite();
+    if (!authed) {
+      throw new Error('Firebase 登入失敗，請關閉此頁面後重新從 LINE 開啟');
+    }
     const writeData = { ..._stripDocId(templateData) };
     if (writeData.image && typeof writeData.image === 'string' && writeData.image.startsWith('data:')) {
       const uploaded = await this._uploadImage(writeData.image, `eventTemplates/${writeData.ownerUid || writeData.id}`);
@@ -363,7 +366,10 @@ Object.assign(FirebaseService, {
   },
 
   async deleteEventTemplate(id) {
-    await this.ensureAuthReadyForWrite();
+    const authed = await this.ensureAuthReadyForWrite();
+    if (!authed) {
+      throw new Error('Firebase 登入失敗，請關閉此頁面後重新從 LINE 開啟');
+    }
     const templates = this._cache.eventTemplates || [];
     const doc = templates.find(t => t.id === id) || templates.find(t => t._docId === id);
     if (!doc || !doc._docId) {
@@ -673,7 +679,10 @@ Object.assign(FirebaseService, {
   },
 
   async cancelRegistration(registrationId) {
-    await this._ensureAuth();
+    const authed = await this._ensureAuth();
+    if (!authed) {
+      throw new Error('Firebase 登入失敗，請關閉此頁面後重新從 LINE 開啟');
+    }
     const reg = this._cache.registrations.find(r => r.id === registrationId);
     if (!reg) throw new Error('報名記錄不存在');
 
@@ -1699,7 +1708,10 @@ Object.assign(FirebaseService, {
   // ════════════════════════════════
 
   async batchRegisterForEvent(eventId, entries) {
-    await this.ensureAuthReadyForWrite();
+    const authed = await this.ensureAuthReadyForWrite();
+    if (!authed) {
+      throw new Error('Firebase 登入失敗，請關閉此頁面後重新從 LINE 開啟');
+    }
     const mainUserId = entries[0]?.userId;
     if (!mainUserId || mainUserId === 'unknown') throw new Error('用戶資料載入中，請稍候再試');
     const event = this._cache.events.find(e => e.id === eventId);
@@ -1809,7 +1821,10 @@ Object.assign(FirebaseService, {
   },
 
   async cancelCompanionRegistrations(regIds) {
-    await this.ensureAuthReadyForWrite();
+    const authed = await this.ensureAuthReadyForWrite();
+    if (!authed) {
+      throw new Error('Firebase 登入失敗，請關閉此頁面後重新從 LINE 開啟');
+    }
     const batch = db.batch();
     const cancelled = [];
     const hadConfirmed = new Set();
