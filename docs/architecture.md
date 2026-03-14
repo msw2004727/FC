@@ -6,7 +6,6 @@
 flowchart TD
     subgraph F["① 基礎層 Foundation"]
         CONFIG["config.js\n常數 & ModeManager"]
-        DATA["data.js\nDemo 資料集"]
         I18N["i18n.js\n多語系翻譯"]
         FB_CFG["firebase-config.js\nFirebase SDK 初始化"]
     end
@@ -31,17 +30,16 @@ flowchart TD
         direction TB
         NAV["core/navigation.js\n頁面路由 & Modal"]
         THEME["core/theme.js\n深色 / 淺色主題"]
-        MODE["core/mode.js\nDemo ↔ Prod 切換"]
 
-        subgraph MODS["modules/*.js / modules/*/*.js（45 個功能模組）"]
-            EVT["event-*.js\n活動（列表/詳情/建立/管理）"]
-            TEAM["team*.js\n球隊（列表/詳情/表單）"]
-            TOUR["tournament-*.js\n錦標賽"]
+        subgraph MODS["modules/*.js / modules/*/*.js（67 個功能模組）"]
+            EVT["event-*.js\n活動（列表/詳情/建立/管理/報名）"]
+            TEAM["team*.js\n球隊（列表/詳情/表單/管理）"]
+            TOUR["tournament-*.js + tournament/*\n錦標賽（渲染/管理/友誼賽）"]
             PROF["profile-*.js\n個人資料"]
             MSG["message-*.js\n訊息"]
             ADM["user-admin-*.js\n用戶後台 / 補正管理"]
-            AD["ad-manage-*.js\n廣告管理"]
-            UTIL["scan / shop / leaderboard\nachievement facade / achievement/*\nannouncement / favorites / auto-exp / banner\nrole / site-theme / game-manage / image-upload\npopup-ad / personal-dashboard\nattendance-notify / dashboard\ndashboard-participant-query\ndashboard-participant-share"]
+            AD["ad-manage-*.js\n廣告管理（5 個）"]
+            UTIL["scan / shop / leaderboard / registration-audit\nachievement facade / achievement/* (10)\nannouncement / favorites / auto-exp / banner\nrole / site-theme / game-manage\nimage-cropper / image-upload\npopup-ad / personal-dashboard / dashboard\ndashboard-participant-query / dashboard-participant-share\nattendance-notify / admin-log-tabs / audit-log / error-log\nshot-game-engine / shot-game-lab-page / shot-game-page"]
         end
     end
 
@@ -52,7 +50,6 @@ flowchart TD
     FB_SVC --> CONFIG
     FB_SVC --> FB_CFG
     FB_CRUD --> FB_SVC
-    API --> DATA
     API --> CONFIG
     API --> FB_SVC
     API --> FB_CRUD
@@ -75,8 +72,6 @@ flowchart TD
     NAV --> PAGE_LDR
     NAV --> SCRPT_LDR
     THEME --> APP
-    MODE --> APP
-    MODE --> API
     MODS --> APP
     MODS --> API
 ```
@@ -86,7 +81,6 @@ flowchart TD
 | 模組 | 說明 |
 |------|------|
 | `config.js` | 全域常數（`ROLES`、`TYPE_CONFIG`、`CACHE_VERSION` 等）與 `ModeManager` 單例，控制 Demo / Prod 模式 |
-| `data.js` | 完整的 Demo 靜態資料集，結構與 `FirebaseService._cache` 完全對應，供 Demo 模式渲染使用 |
 | `i18n.js` | 多語系翻譯字串，無外部依賴，最先載入 |
 | `firebase-config.js` | 初始化 Firebase SDK，向外暴露 `db`、`storage`、`auth` 全域物件 |
 | `firebase-service.js` | **快取優先**資料層；以 `_cache` 記憶體物件映射 Firestore，透過 `onSnapshot` 即時同步，並持久化至 localStorage |
@@ -98,10 +92,9 @@ flowchart TD
 | `app.js` | `App` 主物件；定義 4 階段初始化流程、`renderAll()`、`showToast()`、`appConfirm()` |
 | `core/navigation.js` | `showPage()` 策略分派頁面路由（stale-first / stale-confirm / prepare-first / fresh-first），Modal 管理、Drawer 開關，`_freshCheckBeforeAction()` 操作前確認，透過 `Object.assign` 擴充 App。策略由 `config.js` 的 `PAGE_STRATEGY` registry 定義 |
 | `core/theme.js` | 深色 / 淺色主題切換，偏好儲存於 localStorage |
-| `core/mode.js` | Demo ↔ Production 切換（Logo 連按 5 次 / Shift+Alt+D / console 指令），切換時重建 Firebase 監聽器並重繪 UI |
-| `modules/event-*.js` | 活動功能群（列表、詳情、報名/取消、同行者 Modal、建立表單、管理、渲染輔助），透過 `Object.assign(App, {...})` 掛載 |
+| `modules/event-*.js` | 活動功能群（event-list / event-detail / event-detail-signup / event-detail-companion / event-create / event-manage，共 6 個），透過 `Object.assign(App, {...})` 掛載 |
 | `modules/registration-audit.js` | 報名資料審計與修復：`auditRegistrations()` 掃描差異、`repairRegistrations()` 以 registrations 為準回寫 events 投影 |
-| `modules/team*.js` | 球隊功能群（列表、詳情、表單、成員申請管理） |
+| `modules/team*.js` | 球隊功能群（team / team-list / team-detail / team-form，共 4 個；列表、詳情、表單、成員申請管理） |
 | `modules/tournament-*.js` | 錦標賽功能群（渲染、賽程管理） |
 | `modules/tournament/README.md` | 賽事重構預留目錄說明；後續 friendly / cup / league 模組化拆分將以此目錄為落點 |
 | `modules/tournament/tournament-core.js` | 賽事共用核心 helper；提供公開賽事頁與後台管理共用的狀態判斷、主辦顯示、友誼賽資料正規化與責任球隊權限骨架 |
@@ -114,7 +107,7 @@ flowchart TD
 | `modules/profile-*.js` | 個人資料功能群（核心 UI、資料編輯、名片彈窗） |
 | `modules/message-*.js` | 訊息功能群（收件匣、管理員站內信廣播） |
 | `modules/user-admin-*.js` | 用戶後台管理群（列表、EXP 管理、角色權限、用戶補正管理；含 `user-admin-corrections.js`） |
-| `modules/ad-manage-*.js` | 廣告管理群（Banner 輪播、浮動廣告、贊助彈窗） |
+| `modules/ad-manage-*.js` | 廣告管理群（ad-manage-core / ad-manage-banner / ad-manage-float / ad-manage-popup-sponsor / ad-manage-shotgame，共 5 個；Banner 輪播、浮動廣告、贊助彈窗、小遊戲廣告） |
 | `modules/scan.js` | QR Code 掃描簽到 / 簽退，讀取帳號持有人 UID 後顯示報名清單 |
 | `modules/attendance-notify.js` | 被掃方即時通知（Production: Firestore onSnapshot / Demo: 直接觸發） |
 | `modules/shop.js` | 二手運動商品市集（刊登、購買、管理） |
@@ -144,6 +137,12 @@ flowchart TD
 | `modules/dashboard.js` | 管理員後台數據儀表板 |
 | `modules/dashboard-participant-query.js` | 管理員後台活動參與查詢摘要卡（關鍵字、日期區間、符合活動 / 用戶 / 次數摘要、臨時頁入口） |
 | `modules/dashboard-participant-share.js` | 活動參與查詢的臨時報表分享模組，負責建立 7 天有效網址與渲染公開快照頁 |
+| `modules/admin-log-tabs.js` | 管理員日誌中心；合併操作日誌、審計日誌、錯誤日誌為 `page-admin-logs` 單一路由的頁籤介面 |
+| `modules/audit-log.js` | `super_admin` 審計日誌查詢（單日查詢、時間/UID/動作篩選） |
+| `modules/error-log.js` | 錯誤日誌查詢與嚴重度分類顯示 |
+| `modules/shot-game-engine.js` | 蓄力射門 3D 遊戲引擎（Three.js），負責場景、物理、計分 |
+| `modules/shot-game-lab-page.js` | 蓄力射門實驗室頁面（token-gated，game-lab.html 專用） |
+| `modules/shot-game-page.js` | 蓄力射門正式版頁面（嵌入主站 game.html） |
 
 ## 初始化流程（4 階段 + 延遲載入回呼）
 
@@ -151,7 +150,7 @@ flowchart TD
 DOMContentLoaded
   │
   ├─ Phase 1（非阻塞）── PageLoader.loadAll()     → 載入 Boot HTML 片段（home / activity / team / profile / message）
-  │                        └─ 排程 _loadDeferred() → 背景載入 9 個延遲頁面（scan / tournament / shop / admin-* / personal-dashboard）
+  │                        └─ 排程 _loadDeferred() → 背景載入延遲頁面（scan / tournament / shop / game / admin-* / personal-dashboard）
   │
   ├─ Phase 2 ── FirebaseService._restoreCache()   → 從 localStorage 還原快取（Prod 模式）
   ├─ Phase 3 ── App.init() → renderAll()          → 立即顯示 UI（使用快取或 Demo 資料）
@@ -180,11 +179,11 @@ DOMContentLoaded
 ## Script 載入順序（index.html defer 順序）
 
 ```
-i18n.js → config.js → data.js → firebase-config.js
+i18n.js → config.js → firebase-config.js
   → firebase-service.js → firebase-crud.js → api-service.js → line-auth.js
   → page-loader.js → script-loader.js → app.js
-  → core/navigation.js → core/theme.js → core/mode.js
-  → [40 個 modules 全部以 <script defer> 靜態載入]
+  → core/navigation.js → core/theme.js
+  → [37 個 boot modules 以 <script defer> 靜態載入，其餘由 ScriptLoader 按需載入]
 ```
 
 ## 3D Charged Shot Lab (Phase 0, private route)

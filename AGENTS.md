@@ -17,7 +17,7 @@
 | 前端 | Vanilla JS (ES6+)、HTML5、CSS3，**無框架、無 build 流程** |
 | 資料庫 | Firebase Firestore |
 | 儲存 / 驗證 | Firebase Storage + LINE LIFF SDK |
-| 推播 / 後端 | LINE Messaging API + Firebase Cloud Functions (Node.js 20) |
+| 推播 / 後端 | LINE Messaging API + Firebase Cloud Functions (Node.js 22) |
 | 離線支援 | Service Worker（sw.js） |
 
 **無 npm / webpack / build**：前端為純靜態，直接以 `<script>` 載入，無需編譯。
@@ -27,39 +27,7 @@
 
 ## 目錄結構
 
-```
-FC-github/
-├── index.html              # 主入口，定義所有 <script> 載入順序（約 40 個 ?v= 參數）
-├── app.js                  # App 核心物件，4 階段初始化流程
-├── sw.js                   # Service Worker
-├── css/                    # 樣式（按頁面拆分：base / layout / home / activity / team 等共 11 個）
-├── js/
-│   ├── config.js           # 全域常數（CACHE_VERSION、ROLES、TYPE_CONFIG 等）、ModeManager
-│   ├── data.js             # Demo 靜態資料集（結構對應 FirebaseService._cache）
-│   ├── i18n.js             # 多語系翻譯字串
-│   ├── firebase-config.js  # Firebase SDK 初始化，暴露 db / storage / auth
-│   ├── firebase-service.js # 快取優先資料層，onSnapshot 即時同步，localStorage 持久化
-│   ├── firebase-crud.js    # CRUD 操作（Object.assign 擴充 FirebaseService）
-│   ├── api-service.js      # Demo / Prod 抽象層（依 ModeManager 切換資料來源）
-│   ├── line-auth.js        # LINE LIFF 登入 / 登出 / 取得個人資料
-│   ├── core/               # 基礎設施：page-loader / script-loader / navigation / theme / mode
-│   └── modules/            # 功能模組 37 個（Object.assign 擴充 App）
-│       ├── event-*.js      # 活動：列表、詳情、建立、管理、渲染
-│       ├── team*.js        # 球隊：列表、詳情、表單
-│       ├── tournament-*.js # 錦標賽：渲染、管理
-│       ├── profile-*.js    # 個人資料：核心、資料、名片
-│       ├── message-*.js    # 訊息：收件匣、管理員廣播
-│       ├── user-admin-*.js # 用戶後台：列表、EXP、角色
-│       ├── ad-manage-*.js  # 廣告管理：Banner、浮動廣告、贊助彈窗
-│       └── [其他]          # scan / shop / dashboard / achievement / favorites /
-│                           # leaderboard / announcement / auto-exp / banner /
-│                           # role / site-theme / image-upload / popup-ad / personal-dashboard
-├── pages/                  # HTML 片段（PageLoader 按需載入）
-│   ├── home/activity/team/profile/message/modals/scan/shop/tournament/personal-dashboard.html
-│   └── admin-dashboard / admin-users / admin-content / admin-auto-exp / admin-system.html
-├── docs/                   # 專案文件（architecture.md、player-registration-plan.md）
-└── functions/              # Cloud Functions：LINE push notification
-```
+> 目錄結構與模組清單統一維護於 `CLAUDE.md`（概覽）和 `docs/architecture.md`（完整），此處不重複列出。
 
 ---
 
