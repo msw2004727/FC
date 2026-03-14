@@ -41,7 +41,7 @@ Object.assign(App, {
         <div class="dash-query-share-link">${escapeHTML(state.shareUrl)}</div>
         <div class="dash-query-share-actions">
           <button class="outline-btn" onclick="App.copyDashboardParticipantQueryShareUrl()">複製連結</button>
-          <button class="outline-btn" onclick="window.open('${escapeHTML(state.shareUrl)}','_blank','noopener')">開新頁查看</button>
+          <button class="outline-btn" onclick="window.open('${escapeHTML(state.shareUrl)}','sporthub_report','noopener')">開新頁查看</button>
         </div>
       </div>
     `;
@@ -56,7 +56,7 @@ Object.assign(App, {
 
     let popup = null;
     try {
-      popup = window.open('about:blank', '_blank');
+      popup = window.open('about:blank', 'sporthub_report');
       if (popup) popup.opener = null;
     } catch (_) {
       popup = null;

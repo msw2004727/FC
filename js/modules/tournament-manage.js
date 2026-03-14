@@ -129,7 +129,7 @@ Object.assign(App, {
     container.innerHTML = arr.map((v, i) => {
       const mapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(v)}`;
       return `<span style="display:inline-flex;align-items:center;gap:.25rem;font-size:.72rem;padding:.2rem .5rem;border-radius:20px;background:var(--surface-alt);border:1px solid var(--border)">
-        <a href="${mapUrl}" target="_blank" rel="noopener" style="color:var(--primary);text-decoration:none">${escapeHTML(v)} 📍</a>
+        <a href="${mapUrl}" target="sporthub_map" rel="noopener" style="color:var(--primary);text-decoration:none">${escapeHTML(v)} 📍</a>
         <span style="cursor:pointer;color:var(--text-muted)" onclick="App.removeTournamentVenue('${prefix}',${i})">✕</span>
       </span>`;
     }).join('');

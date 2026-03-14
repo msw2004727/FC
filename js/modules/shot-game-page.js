@@ -633,7 +633,7 @@
       const safeImg = imageUrl.replace(/"/g, '&quot;');
       const safeLnk = linkUrl.replace(/"/g, '&quot;');
       container.innerHTML = safeLnk
-        ? `<a href="${safeLnk}" target="_blank" rel="noopener noreferrer"><img src="${safeImg}" alt="廣告"></a>`
+        ? `<a href="${safeLnk}" target="sporthub_ad" rel="noopener noreferrer"><img src="${safeImg}" alt="廣告"></a>`
         : `<img src="${safeImg}" alt="廣告">`;
     } catch (_) {
       clearAd();

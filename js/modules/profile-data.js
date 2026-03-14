@@ -623,7 +623,7 @@ Object.assign(App, {
     }
 
     // 綁定同時開啟加好友頁面（確保用戶已加官方帳號好友）
-    window.open(`https://line.me/R/ti/p/${LINE_CONFIG.BOT_BASIC_ID}`, '_blank');
+    window.open(`https://line.me/R/ti/p/${LINE_CONFIG.BOT_BASIC_ID}`, 'sporthub_line');
     this._completeLineBinding(btn);
   },
 

@@ -214,7 +214,13 @@ Object.assign(App, {
       }
 
       e = ApiService.getEvent(id);
-      if (!e) return { ok: false, reason: 'missing' };
+      if (!e) {
+        // showPage 已顯示空白模板，必須切離避免留下空白頁面
+        if (this.currentPage === 'page-activity-detail') {
+          this.showPage('page-activities', { resetHistory: true });
+        }
+        return { ok: false, reason: 'missing' };
+      }
       if (!isGuestView && typeof this._canViewEventByTeamScope === 'function' && !this._canViewEventByTeamScope(e)) {
         this.showToast('\u60a8\u6c92\u6709\u67e5\u770b\u6b64\u6d3b\u52d5\u7684\u6b0a\u9650');
         return { ok: false, reason: 'forbidden' };
@@ -245,7 +251,7 @@ Object.assign(App, {
 
     const countdown = this._calcCountdown(e);
     const mapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(e.location)}`;
-    const locationHtml = `<a href="${mapUrl}" target="_blank" rel="noopener" style="color:var(--primary);text-decoration:none">${escapeHTML(e.location)} 📍</a>`;
+    const locationHtml = `<a href="${mapUrl}" target="sporthub_map" rel="noopener" style="color:var(--primary);text-decoration:none">${escapeHTML(e.location)} 📍</a>`;
 
     const confirmedSummary = isGuestView
       ? {

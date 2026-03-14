@@ -193,7 +193,7 @@ Object.assign(App, {
     if (!active.length) return '';
     const btns = active.map(k => {
       const url = platforms[k].prefix + encodeURIComponent(links[k]);
-      return `<a class="social-btn active" data-platform="${k}" href="${url}" target="_blank" rel="noopener" title="${platforms[k].name}: @${escapeHTML(links[k])}">${svgs[k]}</a>`;
+      return `<a class="social-btn active" data-platform="${k}" href="${url}" target="sporthub_social" rel="noopener" title="${platforms[k].name}: @${escapeHTML(links[k])}">${svgs[k]}</a>`;
     }).join('');
     return `<div class="social-grid" style="margin-bottom:.65rem">${btns}</div>`;
   },
@@ -258,7 +258,7 @@ Object.assign(App, {
     const user = users.find(u => u.name === name || u.displayName === name);
     const lineId = user && user.socialLinks && user.socialLinks.line;
     if (lineId) {
-      window.open('https://line.me/ti/p/' + encodeURIComponent(lineId), '_blank');
+      window.open('https://line.me/ti/p/' + encodeURIComponent(lineId), 'sporthub_line');
     } else {
       this.showUserProfile(name, { allowGuest: true });
     }

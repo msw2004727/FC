@@ -135,7 +135,7 @@ Object.assign(App, {
     const organizerUser = this._resolveTournamentOrganizerUser(tournament);
     const lineId = String(organizerUser?.socialLinks?.line || '').trim();
     if (lineId) {
-      window.open(`https://line.me/ti/p/${encodeURIComponent(lineId)}`, '_blank', 'noopener');
+      window.open(`https://line.me/ti/p/${encodeURIComponent(lineId)}`, 'sporthub_line', 'noopener');
       return;
     }
 
