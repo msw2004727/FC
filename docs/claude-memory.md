@@ -1,3 +1,14 @@
+### 2026-03-14 — 取消報名後按鈕未更新仍顯示「取消報名」
+- **問題**：用戶點取消報名後，按鈕仍顯示「取消報名」；再點一次則顯示「找不到有效的報名紀錄」
+- **原因**：`handleCancelSignup` 中 `showEventDetail(id)` 未 `await`（fire-and-forget），`.finally()` 立即執行 `_restoreCancelUI()` 將按鈕 innerHTML 恢復為「取消報名」。同時 onSnapshot 觸發另一個 `showEventDetail` 使 `_eventDetailRequestSeq` 遞增，導致 `.then()` 中的 `showEventDetail` 因 stale 而不渲染。`_cancelSignupBusyMap` 也立即清除，讓使用者可在渲染完成前再次點擊
+- **修復**：
+  - 將 `.then()/.catch()/.finally()` 改為 `try/catch/finally`（已是 async 函式）
+  - `await FirebaseService.cancelRegistration(reg.id)` + `await this.showEventDetail(id)`
+  - 成功路徑不呼叫 `_restoreCancelUI`（`showEventDetail` 會完整重繪頁面）
+  - `_restoreCancelUI` 只在 `catch` 失敗時執行（讓使用者可重試）
+  - `_cancelSignupBusyMap` 清除移到 `finally`（確保 showEventDetail 完成後才解鎖）
+- **教訓**：async 函式中應使用 try/catch/finally 而非 .then()/.catch()/.finally()，避免 fire-and-forget 造成 UI 時序問題
+
 ### 2026-03-14 — 登入重導後空白模板頁面（活動詳情）
 - **問題**：登出狀態點活動報名 → LIFF 登入重導回來後，高機率顯示空白模板（只有「活動名稱」/「活動圖片 800 × 300」佔位文字）
 - **原因**：四項併發問題：
