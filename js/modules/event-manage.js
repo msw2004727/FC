@@ -799,7 +799,10 @@ Object.assign(App, {
 
     (e.participants || []).forEach(p => {
       if (!addedNames.has(p)) {
-        people.push({ name: p, uid: p, isCompanion: false, displayName: p, hasSelfReg: true, proxyOnly: false });
+        // 從 users 集合查找正確的 LINE userId，避免以顯示名稱作為 uid
+        const userDoc = (ApiService.getAdminUsers() || []).find(u => (u.displayName || u.name) === p);
+        const resolvedUid = (userDoc && (userDoc.uid || userDoc.lineUserId)) || p;
+        people.push({ name: p, uid: resolvedUid, isCompanion: false, displayName: p, hasSelfReg: true, proxyOnly: false });
         addedNames.add(p);
       }
     });
@@ -1228,11 +1231,12 @@ Object.assign(App, {
         });
       });
     }
-    // 與 _buildConfirmedParticipantSummary 一致：fallback 時 uid = name，
-    // 確保 checkbox ID 與 save loop 的 UID 吻合
+    // 與 _buildConfirmedParticipantSummary 一致：從 users 集合查找正確 uid
     (e.participants || []).forEach(p => {
       if (!addedNames.has(p)) {
-        people.push({ name: p, uid: p, isCompanion: false });
+        const userDoc = (ApiService.getAdminUsers() || []).find(u => (u.displayName || u.name) === p);
+        const resolvedUid = (userDoc && (userDoc.uid || userDoc.lineUserId)) || p;
+        people.push({ name: p, uid: resolvedUid, isCompanion: false });
         addedNames.add(p);
       }
     });

@@ -1,3 +1,11 @@
+### 2026-03-15 — attendanceRecords uid 欄位存顯示名稱導致統計查無記錄
+- **問題**：用戶 U196b342b7899c68e07a0a1c27ceff346 有完整簽到簽退，但完成場次顯示 0。查詢 Firestore 發現 `attendanceRecords` 的 `uid` 欄位存的是顯示名稱（如 `"呂維哲 （Weiche Lu）"`）而非 LINE userId，導致 `where('uid','==','U196b342b...')` 返回 0 筆
+- **原因**：`event-manage.js` 的手動簽到功能（`_confirmAllAttendance` / `_buildConfirmedParticipantSummary`）在找不到用戶的 `registrations` 記錄時（因全域 limit(500) 截斷），退而求其次從 `event.participants` 陣列取得顯示名稱，並直接將顯示名稱作為 `uid` 寫入 attendanceRecords。該場活動 24 人中有 21 人的簽到記錄都受此影響
+- **修復**：
+  1. `firebase-service.js` 的 `ensureUserStatsLoaded(uid)` 新增 userName 備援查詢：當 uid 查無 attendanceRecords 時，從 users 快取查找用戶顯示名稱，改用 `where('userName','==',displayName)` 再查一次，並在快取中正規化 uid 為正確的 LINE userId
+  2. `event-manage.js` 的 `_buildConfirmedParticipantSummary` 和 `_confirmAllAttendance` 的 participants fallback 改為從 `ApiService.getAdminUsers()` 查找正確的 LINE userId，不再以顯示名稱代替
+- **教訓**：`event.participants` 陣列存的是顯示名稱，絕不能直接作為 uid 使用。寫入任何 Firestore 文件的 uid 欄位時，必須確保是 LINE userId（U 開頭），不是顯示名稱
+
 ### 2026-03-15 — 查看他人用戶卡片時統計仍使用截斷的全域快取
 - **問題**：透過 `showUserProfile()` 查看其他用戶的卡片時，`ensureUserStatsLoaded()` 未被呼叫，統計資料仍來自 limit(500) 全域快取，導致該用戶的完成場次、出席率等數據不完整
 - **原因**：先前 `ensureUserStatsLoaded()` 只在 `ensureCollectionsForPage()` 中對當前登入用戶觸發（page-profile / page-personal-dashboard），但 `showUserProfile()` 是查看任意用戶卡片的入口，未對目標用戶載入完整記錄
