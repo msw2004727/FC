@@ -29,7 +29,7 @@ Object.assign(App, {
     }
 
     if (/^https?:\/\//i.test(linkUrl)) {
-      window.open(linkUrl, '_blank');
+      window.open(linkUrl, 'sporthub_ad');
     }
   },
 

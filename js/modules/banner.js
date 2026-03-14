@@ -17,7 +17,7 @@ Object.assign(App, {
       track.innerHTML = banners.map(b => {
         const safeUrl = (b.linkUrl && /^https?:\/\//.test(b.linkUrl)) ? escapeHTML(b.linkUrl) : '';
         const clickHandler = safeUrl
-          ? `onclick="App.trackAdClick('banner','${escapeHTML(b.id)}');window.open('${safeUrl}','_blank')" style="cursor:pointer"`
+          ? `onclick="App.trackAdClick('banner','${escapeHTML(b.id)}');window.open('${safeUrl}','sporthub_ad')" style="cursor:pointer"`
           : '';
         if (b.image) {
           return `<div class="banner-slide" style="background-image:url('${b.image}');background-size:cover;background-position:center" ${clickHandler}>
@@ -144,7 +144,7 @@ Object.assign(App, {
     container.innerHTML = ads.map(ad => {
       const safeUrl = (ad.linkUrl && /^https?:\/\//.test(ad.linkUrl)) ? escapeHTML(ad.linkUrl) : '';
       const clickHandler = safeUrl
-        ? `onclick="App.trackAdClick('float','${escapeHTML(ad.id)}');window.open('${safeUrl}','_blank')"`
+        ? `onclick="App.trackAdClick('float','${escapeHTML(ad.id)}');window.open('${safeUrl}','sporthub_ad')"`
         : '';
       return `
       <div class="float-ad" title="${escapeHTML(ad.title || '贊助廣告')}" ${clickHandler}>
@@ -175,7 +175,7 @@ Object.assign(App, {
         const hasLink = isActive && sp.linkUrl;
         const safeUrl = (hasLink && /^https?:\/\//.test(sp.linkUrl)) ? escapeHTML(sp.linkUrl) : '';
         const clickHandler = safeUrl
-          ? `onclick="App.trackAdClick('sponsor','${escapeHTML(sp.id)}');window.open('${safeUrl}','_blank')"`
+          ? `onclick="App.trackAdClick('sponsor','${escapeHTML(sp.id)}');window.open('${safeUrl}','sporthub_ad')"`
           : '';
         if (isActive) {
           html.push(`<div class="sponsor-slot${hasLink ? ' has-link' : ''}" title="${escapeHTML(sp.title || '贊助商')}" ${clickHandler}>

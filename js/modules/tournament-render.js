@@ -381,7 +381,7 @@ Object.assign(App, {
       const searchPrefix = infoTournament.region || '';
       const venueLinks = infoVenues.map(v => {
         const mapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(searchPrefix + v)}`;
-        return `<a href="${mapUrl}" target="_blank" rel="noopener" style="color:var(--primary);text-decoration:none;font-size:.82rem">${escapeHTML(v)} ↗</a>`;
+        return `<a href="${mapUrl}" target="sporthub_map" rel="noopener" style="color:var(--primary);text-decoration:none;font-size:.82rem">${escapeHTML(v)} ↗</a>`;
       }).join('<span style="color:var(--border);margin:0 .3rem">|</span>');
       infoRows.push(`<div class="td-info-row"><span class="td-info-label">場地</span><div class="td-info-value">${venueLinks}</div></div>`);
     }

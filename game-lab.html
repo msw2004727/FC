@@ -1718,7 +1718,7 @@
                 const safeLnk = window.__shotGameAdLinkUrl.replace(/"/g, '&quot;');
                 if (container) {
                   container.innerHTML = safeLnk
-                    ? `<a href="${safeLnk}" target="_blank" rel="noopener noreferrer"><img src="${safeImg}" alt="Ad"></a>`
+                    ? `<a href="${safeLnk}" target="sporthub_ad" rel="noopener noreferrer"><img src="${safeImg}" alt="Ad"></a>`
                     : `<img src="${safeImg}" alt="Ad">`;
                 }
               } else if (container) {

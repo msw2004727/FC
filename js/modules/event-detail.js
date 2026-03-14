@@ -245,7 +245,7 @@ Object.assign(App, {
 
     const countdown = this._calcCountdown(e);
     const mapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(e.location)}`;
-    const locationHtml = `<a href="${mapUrl}" target="_blank" rel="noopener" style="color:var(--primary);text-decoration:none">${escapeHTML(e.location)} 📍</a>`;
+    const locationHtml = `<a href="${mapUrl}" target="sporthub_map" rel="noopener" style="color:var(--primary);text-decoration:none">${escapeHTML(e.location)} 📍</a>`;
 
     const confirmedSummary = isGuestView
       ? {
