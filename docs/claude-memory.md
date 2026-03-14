@@ -1,3 +1,9 @@
+### 2026-03-15 — 查看他人用戶卡片時統計仍使用截斷的全域快取
+- **問題**：透過 `showUserProfile()` 查看其他用戶的卡片時，`ensureUserStatsLoaded()` 未被呼叫，統計資料仍來自 limit(500) 全域快取，導致該用戶的完成場次、出席率等數據不完整
+- **原因**：先前 `ensureUserStatsLoaded()` 只在 `ensureCollectionsForPage()` 中對當前登入用戶觸發（page-profile / page-personal-dashboard），但 `showUserProfile()` 是查看任意用戶卡片的入口，未對目標用戶載入完整記錄
+- **修復**：`profile-core.js` 的 `showUserProfile()` 改為 async，在 `renderUserCardRecords()` 前加入 `await FirebaseService.ensureUserStatsLoaded(targetUid)`，確保任何人查看任何用戶卡片時都從 Firestore 載入該用戶的完整紀錄
+- **教訓**：user-specific 快取的載入點必須覆蓋所有使用場景，不僅限於「自己查看自己」的路徑
+
 ### 2026-03-15 — 用戶統計數據因 limit(500) 截斷導致不完整
 - **問題**：`firebase-service.js` 載入 `attendanceRecords` 和 `activityRecords` 使用全域 `limit(500)` 查詢，當總記錄數超過 500 筆時，較早的記錄被截斷，導致用戶的完成場次、出席率等統計數據不完整
 - **原因**：全域查詢載入所有用戶的紀錄，limit(500) 只取最新 500 筆，活躍用戶的歷史紀錄被排除在外

@@ -307,7 +307,7 @@ Object.assign(App, {
     return users.find(u => u.name === name) || null;
   },
 
-  showUserProfile(name, options = {}) {
+  async showUserProfile(name, options = {}) {
     if (!options.allowGuest && this._requireProtectedActionLogin({ type: 'showUserProfile', name }, { suppressToast: true })) {
       return;
     }
@@ -406,9 +406,10 @@ Object.assign(App, {
     `;
     this._bindAvatarFallbacks(document.getElementById('user-card-full'));
 
-    // 渲染用戶活動紀錄
+    // 渲染用戶活動紀錄（先載入該用戶完整記錄，避免 limit(500) 截斷）
     const targetUid = user ? (user.uid || user.lineUserId) : null;
     if (targetUid) {
+      await FirebaseService.ensureUserStatsLoaded(targetUid);
       this._ucRecordUid = targetUid;
       this.renderUserCardRecords('all', 1);
     }
