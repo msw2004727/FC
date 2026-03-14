@@ -26,7 +26,7 @@ Object.assign(App, {
 
   _renderPersonalDashboardInner(container, user) {
     const uid = user.uid || '';
-    const records = (ApiService.getActivityRecords?.() || []).filter(r => r.uid === uid);
+    const records = ApiService.getActivityRecords?.(uid) || [];
     // 統一使用 _calcScanStats（與 profile 頁面一致，以掃碼紀錄為依據）
     const scanStats = this._calcScanStats?.(uid) || { expectedCount: 0, completedCount: 0, attendRate: 0 };
     const totalGames = scanStats.expectedCount;

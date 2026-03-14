@@ -1,3 +1,14 @@
+### 2026-03-15 — 用戶統計數據因 limit(500) 截斷導致不完整
+- **問題**：`firebase-service.js` 載入 `attendanceRecords` 和 `activityRecords` 使用全域 `limit(500)` 查詢，當總記錄數超過 500 筆時，較早的記錄被截斷，導致用戶的完成場次、出席率等統計數據不完整
+- **原因**：全域查詢載入所有用戶的紀錄，limit(500) 只取最新 500 筆，活躍用戶的歷史紀錄被排除在外
+- **修復**：
+  1. `firebase-service.js` 新增 `_userStatsCache` 和 `ensureUserStatsLoaded(uid)` — 使用 `where('uid','==',uid)` 查詢指定用戶的完整紀錄，無 limit 截斷
+  2. `ensureCollectionsForPage()` 在 `page-profile` / `page-personal-dashboard` 頁面自動並行載入用戶完整紀錄
+  3. `api-service.js` 新增 `getUserAttendanceRecords(uid)` 方法，`getActivityRecords(uid)` 優先使用 user-specific cache
+  4. `leaderboard.js` 的 `_calcScanStats()` 和 `_categorizeRecords()` 改用 user-specific 資料（有 fallback 到全域 cache）
+  5. `personal-dashboard.js` 修正 `records` 變數改用 `getActivityRecords(uid)` 以受惠於 user-specific cache
+- **教訓**：全域 limit 查詢不適合用於用戶級統計。user-facing 統計頁面應使用 `where` 篩選載入完整用戶資料，與全域快取分離儲存
+
 ### 2026-03-15 — 個人數據頁完成場次/出席率永遠顯示 0
 - **問題**：`personal-dashboard.js` 使用 `user.completedGames || records.filter(r => r.status === 'completed').length` 計算完成場次，但 `activityRecords` 的 status 永遠不會是 `'completed'`（只有 registered/waitlisted/cancelled/removed），且 `user.completedGames` 欄位在用戶建立時初始化為 0 後從未被任何程式碼更新。結果：所有用戶的「完成」和「出席率」永遠為 0
 - **原因**：`personal-dashboard.js` 使用了與 profile 頁面不同的統計邏輯。profile 頁面正確使用 `_calcScanStats()`（交叉比對 attendanceRecords 的 checkin+checkout），而 personal-dashboard 錯誤依賴不存在的 status 值

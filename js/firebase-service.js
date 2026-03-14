@@ -82,6 +82,7 @@ const FirebaseService = {
   _collectionLoadedAt: {},
   _realtimeListenerStarted: {},  // 追蹤已啟動的延遲即時監聽器
   _authPromise: null,            // Auth 並行 Promise
+  _userStatsCache: { uid: null, activityRecords: null, attendanceRecords: null },
 
   // ─── localStorage 快取設定 ───
   _LS_PREFIX: 'shub_c_',
@@ -426,17 +427,57 @@ const FirebaseService = {
     }
     const realtimeNeeded = new Set(this._getPageScopedRealtimeCollections(pageId));
 
+    // 用戶統計頁面：並行載入 user-specific records（無 limit 截斷）
+    const _userStatsPages = ['page-profile', 'page-personal-dashboard'];
+    let userStatsPromise = null;
+    if (_userStatsPages.includes(pageId) && auth?.currentUser?.uid) {
+      userStatsPromise = this.ensureUserStatsLoaded(auth.currentUser.uid);
+    }
+
     // 靜態集合載入（排除即時監聽器管理的集合）
     const toLoad = needed.filter(name =>
       !realtimeNeeded.has(name) && this._shouldReloadCollection(name)
     );
-    if (toLoad.length === 0) return [];
+    if (toLoad.length === 0) {
+      if (userStatsPromise) await userStatsPromise;
+      return [];
+    }
 
     console.log(`[FirebaseService] 懶載入 ${pageId} 需要的集合:`, toLoad.join(', '));
-    const loaded = await this._loadCollectionsByName(toLoad);
+    const [loaded] = await Promise.all([
+      this._loadCollectionsByName(toLoad),
+      userStatsPromise,
+    ].filter(Boolean));
     // 持久化新載入的集合
     this._persistCache();
     return loaded;
+  },
+
+  /**
+   * 載入指定用戶的完整 activityRecords + attendanceRecords（無 limit 截斷）
+   * 結果存入 _userStatsCache，供統計函式優先使用
+   */
+  async ensureUserStatsLoaded(uid) {
+    if (!uid || ModeManager.isDemo()) return;
+    if (this._userStatsCache.uid === uid && this._userStatsCache.activityRecords !== null) return;
+
+    try {
+      const [actSnap, attSnap] = await Promise.all([
+        db.collection('activityRecords').where('uid', '==', uid).get(),
+        db.collection('attendanceRecords').where('uid', '==', uid).get(),
+      ]);
+      this._userStatsCache = {
+        uid,
+        activityRecords: actSnap.docs.map(doc => ({ ...doc.data(), _docId: doc.id })),
+        attendanceRecords: attSnap.docs.map(doc => ({ ...doc.data(), _docId: doc.id })),
+      };
+    } catch (err) {
+      console.warn('[FirebaseService] ensureUserStatsLoaded failed:', err);
+    }
+  },
+
+  getUserStatsCache() {
+    return this._userStatsCache;
   },
 
   async ensureStaticCollectionsLoaded(names) {

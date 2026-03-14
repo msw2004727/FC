@@ -34,7 +34,7 @@ Object.assign(App, {
    */
   _categorizeRecords(uid, isPublic) {
     const all = ApiService.getActivityRecords(uid);
-    const attRecords = ApiService.getAttendanceRecords();
+    const attRecords = ApiService.getUserAttendanceRecords?.(uid) || ApiService.getAttendanceRecords();
     const registered = [];
     const completed = [];
     const cancelled = [];
@@ -105,7 +105,7 @@ Object.assign(App, {
     const result = stats?.getParticipantAttendanceStats?.({
       uid,
       registrations: ApiService.getActivityRecords(uid),
-      attendanceRecords: ApiService.getAttendanceRecords(),
+      attendanceRecords: ApiService.getUserAttendanceRecords?.(uid) || ApiService.getAttendanceRecords(),
       eventMap,
       now: new Date(),
       isEventEnded: (event) => event?.status === 'ended',

@@ -885,6 +885,12 @@ const ApiService = {
   getLeaderboard() { return this._src('leaderboard'); },
 
   getActivityRecords(uid) {
+    if (uid && !this._demoMode) {
+      const usc = FirebaseService.getUserStatsCache?.();
+      if (usc && usc.uid === uid && usc.activityRecords !== null) {
+        return usc.activityRecords.filter(r => r.uid === uid);
+      }
+    }
     const source = this._src('activityRecords');
     if (uid) return source.filter(r => r.uid === uid);
     return source;
@@ -914,6 +920,17 @@ const ApiService = {
     const active = source.filter(r => r.status !== 'removed' && r.status !== 'cancelled');
     if (eventId) return active.filter(r => r.eventId === eventId);
     return active;
+  },
+
+  /** 取得指定用戶的簽到簽退紀錄（優先使用 user-specific cache，無 limit 截斷） */
+  getUserAttendanceRecords(uid) {
+    if (uid && !this._demoMode) {
+      const usc = FirebaseService.getUserStatsCache?.();
+      if (usc && usc.uid === uid && usc.attendanceRecords !== null) {
+        return usc.attendanceRecords.filter(r => r.status !== 'removed' && r.status !== 'cancelled');
+      }
+    }
+    return this.getAttendanceRecords().filter(r => r.uid === uid);
   },
 
   async addAttendanceRecord(record) {
