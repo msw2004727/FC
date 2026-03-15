@@ -244,6 +244,11 @@
 ### 2026-03-15 — 球隊自動晉升降級需走 Cloud Function
 - `updateUserRole()` 改為呼叫 `autoPromoteTeamRole` CF，限定 user/coach/captain 三層
 
+### 2026-03-15 — 開球王整合完成 + 玩法說明修正
+- **功能**：完成開球王小遊戲完整 SPA 整合（頁面模板、JS 模組、CSS、Cloud Function、Firestore 規則、首頁入口卡片、管理開關）
+- **修正**：玩法說明移除不可見的「地形」提示，新增 PERFECT ×1.08 / GREAT ×1.04 加成規則說明
+- **PERFECT 判定**：`powerDiff <= 1.2 && aimAcc >= 0.74` — 條件非常嚴格（約 1 frame 視窗），程式邏輯正確但取得困難
+
 ---
 
 *最後濃縮日期：2026-03-15*
