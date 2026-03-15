@@ -102,9 +102,28 @@ Object.assign(App, {
     const stats = this._getAchievementStats?.();
     const events = ApiService.getEvents?.() || [];
     const eventMap = new Map(events.map(event => [event.id, event]));
+
+    // 用 registrations（權威資料）排除已取消的活動，修正 activityRecords 狀態未同步問題
+    const allRegs = ApiService._src('registrations') || [];
+    const activeRegEventIds = new Set();
+    const cancelledRegEventIds = new Set();
+    allRegs.forEach(r => {
+      if (String(r?.userId || '').trim() !== uid) return;
+      if (r.status === 'confirmed' || r.status === 'waitlisted') {
+        activeRegEventIds.add(r.eventId);
+      } else if (r.status === 'cancelled') {
+        cancelledRegEventIds.add(r.eventId);
+      }
+    });
+    // 取消後又重新報名 → 不排除
+    activeRegEventIds.forEach(eid => cancelledRegEventIds.delete(eid));
+
+    const activityRecords = ApiService.getActivityRecords(uid)
+      .filter(r => !cancelledRegEventIds.has(r.eventId));
+
     const result = stats?.getParticipantAttendanceStats?.({
       uid,
-      registrations: ApiService.getActivityRecords(uid),
+      registrations: activityRecords,
       attendanceRecords: ApiService.getUserAttendanceRecords?.(uid) || ApiService.getAttendanceRecords(),
       eventMap,
       now: new Date(),

@@ -2467,3 +2467,9 @@
 - **原因**：與完成場次為 0 的根因相同 — `_confirmAllAttendance` 歷史資料在 `attendanceRecords.uid` 存的是顯示名稱而非 LINE userId。`_buildRawNoShowCountByUid` 用 `attendanceRecords.uid` 建立 `checkinKeys` 索引，但 `registrations.userId` 是正確的 LINE userId，兩者 key 不匹配導致明明有簽到卻被判定為放鴿子
 - **修復**：`event-manage.js` 的 `_buildRawNoShowCountByUid()` 和 `_getNoShowDetailsByUid()` 新增 `nameToUid` 對照表（displayName → LINE userId），建立 `checkinKeys` 時同時加入真實 uid 的索引，確保 `registrations.userId` 能正確匹配到歷史資料的簽到紀錄
 - **教訓**：歷史資料的 uid 欄位不可信（可能是顯示名稱），所有涉及 `attendanceRecords.uid` 與 `registrations.userId` 交叉比對的邏輯都需要加入 displayName → uid 的解析
+
+### 2026-03-15 — 應到場次誤計已取消報名的活動
+- **問題**：用戶取消報名後，該活動仍被算入「應到場次」，導致出席率偏低
+- **原因**：`_calcScanStats` 用 `activityRecords`（衍生資料）作為應到來源，但取消報名後 `activityRecords.status` 可能未同步更新（歷史 bug），仍為 `'registered'`。`getParticipantAttendanceStats` 只看 `status === 'registered'`，無法辨別已取消的報名
+- **修復**：`leaderboard.js` 的 `_calcScanStats` 新增 `registrations`（權威資料）交叉比對，建立 `cancelledRegEventIds` 集合排除已取消的活動，並處理「取消後又重新報名」的情況
+- **教訓**：`activityRecords` 是衍生資料，status 欄位不可作為判斷報名狀態的唯一依據；涉及報名狀態判斷時必須參照 `registrations`（Firestore transaction 保障的權威資料）
