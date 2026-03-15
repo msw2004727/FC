@@ -130,6 +130,46 @@ FC-github/
 
 ---
 
+## 分享功能設計規範（LIFF URL 優先）
+
+本專案的主要用戶群在 LINE 生態系內，所有面向用戶的分享功能**必須優先使用 LIFF URL**，確保連結在 LINE 內建瀏覽器開啟（不受 LINE Labs「使用預設瀏覽器」設定影響）。
+
+### LIFF URL 格式
+
+```
+https://liff.line.me/{LINE_CONFIG.LIFF_ID}?{deepLinkParam}={id}
+```
+
+- 活動：`?event={eventId}`
+- 球隊：`?team={teamId}`
+- 賽事：`?tournament={tournamentId}`
+- 個人名片：`?profile={uid}`
+- 其他新功能：依此模式擴展
+
+### 強制規則
+
+1. **所有面向用戶的分享 URL 必須使用 LIFF URL**：禁止直接分享 `https://toosterx.com/...` 給終端用戶。LIFF URL 保證在 LINE 內建瀏覽器開啟，確保 LIFF session 可用、shareTargetPicker 可用、登入流程順暢。
+2. **分享功能的優先實作順序**：
+   - 首選：`liff.shareTargetPicker()`（Flex Message 卡片）— 需 LIFF session + LINE Developers Console 啟用
+   - 次選：底部選單提供「複製分享連結」（複製 LIFF URL 純文字）
+   - 兜底：`navigator.share()` / `_copyToClipboard()` fallback
+3. **新增分享功能時必須比照 `event-share.js` 的模式**：底部選單（Action Sheet）+ Flex Message + 防連點 + altText 截斷（400 字）+ 各級 fallback。
+4. **QR Code 內容也必須使用 LIFF URL**：QR Code 掃描後在 LINE 開啟，確保最佳體驗。
+5. **Cloud Function OG 頁面為例外**：`/team-share/{id}` 等 OG 預覽用的中繼頁需保留直連 URL（社群平台爬蟲無法解析 LIFF URL），但最終 redirect 目標應改為 LIFF URL。
+6. **LINE Developers Console 設定**：任何使用 `shareTargetPicker` 的 LIFF App，必須確認 Console 中 Share Target Picker 開關為 ON。
+
+### 現有分享功能 LIFF URL 遷移狀態
+
+| 功能 | 目前狀態 | 目標 |
+|------|----------|------|
+| 活動分享 | ✅ 已使用 LIFF URL + Flex Message | — |
+| 球隊邀請 | ❌ 使用 `toosterx.com` 直連 | 改為 LIFF URL + Flex Message |
+| 賽事分享 | ❌ 使用 `location.origin` 直連 | 改為 LIFF URL + Flex Message |
+| 個人名片分享 | ❌ 使用當前頁面 URL | 改為 LIFF URL |
+| Dashboard 報表 | ⚠️ 暫不改（管理功能，非面向一般用戶） | 維持現狀 |
+
+---
+
 ## 報名系統保護規則（核心模組鎖定）
 
 報名系統是最核心的業務邏輯，歷史上多次因修改引發嚴重 bug（人數覆蓋、候補未遞補、超收）。以下規則**強制適用**：
