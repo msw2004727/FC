@@ -216,6 +216,16 @@
 
 ## 一般條目（2026-03-15）
 
+### 2026-03-15 — 球隊申請狀態依賴站內信導致已入隊仍顯示審核中
+- **問題**：用戶已入隊但 profile 仍顯示「XXX俱樂部 審核中」
+- **原因**：`_getMyLatestTeamApplications` 完全依賴 messages 集合判斷狀態，未交叉比對 `users.teamId/teamIds` 實際 membership
+- **修復**：filter 加入 `currentTeamIds.includes(teamId)` 比對，已入隊球隊的申請紀錄不再顯示；支援 name-only 舊 message 反查；`handleJoinTeam` 改為 multi-team 檢查
+- **教訓**：顯示層判斷狀態應以權威資料（membership）為準，站內信僅作為通知管道，不應作為唯一狀態來源
+
+### 2026-03-15 — stale-first 頁面 lazy module 未載入導致 crash
+- **問題**：`renderTeamList is not a function`，stale-first 策略同步呼叫 render 時 lazy script 尚未載入
+- **修復**：`_renderPageContent` 中 stale-first 頁面的 lazy 方法加 `?.()` 防護；`_refreshStalePage` 加入 `ScriptLoader.ensureForPage`
+
 ### 2026-03-15 — renderMyActivities crash
 - event-manage.js 移至 lazy loading 後，profile-core.js 呼叫 `this.renderMyActivities()` 需改為 `?.()` optional chaining
 
