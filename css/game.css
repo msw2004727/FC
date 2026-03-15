@@ -813,7 +813,7 @@
   grid-template-rows: auto auto auto auto auto;
   align-content: start;
   gap: 4px;
-  width: min(76vw, 270px);
+  width: min(92vw, 400px);
   min-height: 102px;
   padding: 8px 10px;
   border-radius: 12px;
@@ -1206,7 +1206,7 @@
 @media (max-width: 480px) {
   #page-kick-game .kg-lb-btn { min-width: 76px; font-size: 11px; }
   #page-kick-game #kg-session-badge {
-    width: min(80vw, 252px);
+    width: min(92vw, 370px);
     padding: 7px 8px;
     gap: 4px;
   }
