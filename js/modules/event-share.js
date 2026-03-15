@@ -154,21 +154,29 @@ Object.assign(App, {
   //  Bottom Action Sheet
   // ══════════════════════════════════
 
-  _showShareActionSheet() {
+  _showShareActionSheet(canPicker) {
     return new Promise(function (resolve) {
       // Overlay
       const overlay = document.createElement('div');
       overlay.className = 'share-action-sheet';
 
-      // Panel
+      // Panel — 根據 canPicker 決定是否顯示「分享到 LINE」
+      const lineBtn = canPicker
+        ? '<button class="share-action-sheet-btn" data-choice="line">' +
+            '<span style="margin-right:6px">\uD83D\uDC9A</span>\u5206\u4EAB\u5230 LINE</button>'
+        : '';
+      const hint = !canPicker
+        ? '<div style="font-size:.75rem;color:var(--text-muted,#999);text-align:center;padding:4px 0 8px">' +
+            '\u8ACB\u5728 LINE \u4E2D\u958B\u555F\u4EE5\u4F7F\u7528\u300C\u5206\u4EAB\u5230 LINE\u300D</div>'
+        : '';
       const panel = document.createElement('div');
       panel.className = 'share-action-sheet-panel';
       panel.innerHTML =
         '<div class="share-action-sheet-title">\u5206\u4EAB\u6D3B\u52D5</div>' +
-        '<button class="share-action-sheet-btn" data-choice="line">' +
-          '<span style="margin-right:6px">\uD83D\uDC9A</span>\u5206\u4EAB\u5230 LINE</button>' +
+        lineBtn +
         '<button class="share-action-sheet-btn" data-choice="copy">' +
           '<span style="margin-right:6px">\uD83D\uDCCB</span>\u8907\u88FD\u5206\u4EAB\u9023\u7D50</button>' +
+        hint +
         '<button class="share-action-sheet-cancel" data-choice="cancel">\u53D6\u6D88</button>';
 
       overlay.appendChild(panel);
@@ -220,21 +228,35 @@ Object.assign(App, {
     }
   },
 
+  async _canUseShareTargetPicker() {
+    // LIFF SDK 尚未載入：嘗試等待 cloud ready
+    if (typeof liff === 'undefined' && typeof App.ensureCloudReady === 'function' && !App._cloudReady) {
+      try { await App.ensureCloudReady({ reason: 'share-event' }); } catch (_) {}
+    }
+    if (typeof liff === 'undefined') return false;
+    if (!LineAuth.hasLiffSession()) return false;
+    if (!liff.isApiAvailable || !liff.isApiAvailable('shareTargetPicker')) return false;
+    return true;
+  },
+
   async _doShareEvent(eventId) {
     const e = ApiService.getEvent(eventId);
     if (!e) return;
 
     const liffUrl = this._buildEventLiffUrl(eventId);
     const altText = this._buildEventShareAltText(e, liffUrl);
+    const canPicker = await this._canUseShareTargetPicker();
 
-    // LIFF available: show action sheet
-    if (LineAuth.hasLiffSession()
-        && typeof liff !== 'undefined'
-        && liff.isApiAvailable
-        && liff.isApiAvailable('shareTargetPicker')) {
-      const choice = await this._showShareActionSheet();
+    // 已登入（任何 tier）：顯示底部選單
+    if (canPicker || LineAuth.isLoggedIn()) {
+      const choice = await this._showShareActionSheet(canPicker);
 
       if (choice === 'line') {
+        if (!canPicker) {
+          // 理論上不會到這（按鈕已隱藏），但防禦性處理
+          this.showToast('\u8ACB\u5728 LINE \u4E2D\u958B\u555F\u4EE5\u4F7F\u7528\u6B64\u529F\u80FD');
+          return;
+        }
         try {
           const flexMsg = this._buildEventFlexMessage(e, liffUrl);
           const res = await liff.shareTargetPicker([
@@ -264,7 +286,7 @@ Object.assign(App, {
       return; // cancel
     }
 
-    // LIFF not available: navigator.share / clipboard fallback
+    // 未登入 + LIFF 不可用：navigator.share / clipboard fallback
     if (navigator.share) {
       try {
         await navigator.share({ text: altText });
@@ -284,9 +306,9 @@ Object.assign(App, {
   // ══════════════════════════════════
 
   async _promptShareAfterCreate(eventId) {
-    if (!LineAuth.hasLiffSession()) return;
-    if (typeof liff === 'undefined' || !liff.isApiAvailable || !liff.isApiAvailable('shareTargetPicker')) return;
-    const confirmed = await this.appConfirm('\u6D3B\u52D5\u5DF2\u5EFA\u7ACB\uFF01\u8981\u5206\u4EAB\u5230 LINE \u55CE\uFF1F');
+    // 只要用戶已登入（任何 tier）就提示分享
+    if (!LineAuth.isLoggedIn()) return;
+    const confirmed = await this.appConfirm('\u6D3B\u52D5\u5DF2\u5EFA\u7ACB\uFF01\u8981\u5206\u4EAB\u55CE\uFF1F');
     if (confirmed) {
       await this.shareEvent(eventId);
     }

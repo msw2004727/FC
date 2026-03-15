@@ -243,7 +243,8 @@
 // 20260315aab: 分享模組修復 — 防連點、altText 截斷、typeof 守衛、toast 語意修正
 // 20260315aac: surrogate pair 安全截斷、var→const/let 統一、unhandled rejection 防護
 // 20260315aad: 修復建立活動無反應+重複建立 — 關鍵收尾(closeModal/toast)提前於非關鍵操作
-const CACHE_VERSION = '20260315aad';
+// 20260315aae: 分享功能改善 — LIFF 未就緒時自動等待、Tier 2 登入也顯示底部選單、外部瀏覽器提示
+const CACHE_VERSION = '20260315aae';
 
 // ─── Page Strategy Registry ───
 // 唯一策略來源，未列出的頁面預設 fresh-first
