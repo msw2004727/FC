@@ -712,7 +712,7 @@
       var terrainBaseY = getTerrainHeightAt(ball.position.x, ball.position.z) + ballRadius;
       cameraModeBlend = gameState === 'flying' ? Math.max(0, cameraModeBlend - 0.11) : 1;
       if (landingCameraDamp > 0 && gameState !== 'flying') landingCameraDamp = Math.max(0, landingCameraDamp - 0.045);
-      var aCX = ball.position.x * 0.015, aCY = 37.5 + nh * 3.6, aCZ = ball.position.z + 216;
+      var aCX = ball.position.x * 0.015, aCY = 11.25 + nh * 1.1, aCZ = ball.position.z + 64.8;
       var aLX = ball.position.x * 0.92, aLY = Math.max(ballRadius, ball.position.y + 11.5), aLZ = ball.position.z - 0.35;
       var fCX = ball.position.x, fCY = Math.max(25.8, ball.position.y + 21.6 + nh * 8.4), fCZ = ball.position.z + 90;
       var fLX = ball.position.x, fLY = Math.max(ballRadius, ball.position.y + 1.15 + nh * 1.4), fLZ = ball.position.z - 1.8;
