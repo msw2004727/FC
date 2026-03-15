@@ -622,7 +622,7 @@
       restartInlineBtn.textContent = '\u91CD\u65B0\u958B\u59CB';
     }
     function resetGame() {
-      _stopRestartCooldown();
+      _startRestartCooldown();
       if (resultTimer) clearTimeout(resultTimer);
       shotsLeft = 3; currentDistance = 0; maxSpeedThisGame = 0; gameStartTime = Date.now();
       lastValidStart.set(0, ballRadius, 0);
