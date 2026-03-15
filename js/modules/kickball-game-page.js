@@ -269,11 +269,12 @@
     var terrainBumps = [];
     var windX = 0, windZ = 0, windStrength = 0, windAngle = 0;
     var maxSpeedThisGame = 0;
+    var bestMaxSpeed = 0;
     var gameStartTime = 0;
     var destroyed = false;
 
     // DOM refs inside container
-    var msgEl, bestEl, currentEl, shotsEl, windEl;
+    var msgEl, bestDistEl, bestSpeedEl, focusDistEl, focusSpeedEl, shotsLeftEl, windEl;
     var restartBtn, floatingUI, aimRadar, aimDot, powerWrap, powerFill;
     var flashOverlay, impactRing, gradePop, shotTypePop, firstTipEl;
 
@@ -292,21 +293,45 @@
         + '    <div id="kg-power-fill" style="width:0%;height:100%;background:linear-gradient(90deg,#00bfff 0%,#0057a0 78%,#ff7a00 92%,#ff0000 100%)"></div>'
         + '  </div>'
         + '</div>'
-        + '<div id="kg-ui" style="position:absolute;inset:0;pointer-events:none;z-index:10">'
-        + '  <div class="kg-top-hud">'
-        + '    <div class="kg-best-row"><div id="kg-best">\u6B77\u53F2\u6700\u4F73: 0.00 m</div><button id="kg-restart-inline" class="kg-restart-inline-btn" style="pointer-events:auto">\u91CD\u65B0\u958B\u59CB</button></div>'
-        + '    <div id="kg-current">\u7576\u4E0B\u7E3D\u8DDD: 0.00 m</div>'
-        + '    <div id="kg-shots">\u7403\u901F: 0.00 km/h \uFF5C \u5269\u9918\u8173\u6578: 3</div>'
-        + '    <div id="kg-wind" style="color:#d7f4ff;font-size:clamp(14px,3vw,18px);margin-top:5px;opacity:.92"> </div>'
+        // Session Badge Card (top-left)
+        + '<div id="kg-session-badge">'
+        + '  <div class="kg-session-top-title"><span>\u672C\u5C40\u8A18\u9304</span><button id="kg-restart-inline" class="kg-restart-inline-btn">\u91CD\u65B0\u958B\u59CB</button></div>'
+        + '  <div class="kg-session-focus-row">'
+        + '    <div class="kg-session-focus-box kg-session-focus-box-dist">'
+        + '      <div class="kg-session-focus-label">\u8DDD\u96E2</div>'
+        + '      <div class="kg-session-focus-value" id="kg-focus-dist">0.00</div>'
+        + '      <div class="kg-session-focus-unit">m</div>'
+        + '    </div>'
+        + '    <div class="kg-session-focus-box kg-session-focus-box-speed">'
+        + '      <div class="kg-session-focus-label">\u7403\u901F</div>'
+        + '      <div class="kg-session-focus-value" id="kg-focus-speed">0.00</div>'
+        + '      <div class="kg-session-focus-unit">km/h</div>'
+        + '    </div>'
         + '  </div>'
-        + '  <div id="kg-msg" style="position:absolute;left:50%;top:40%;transform:translate(-50%,-50%);color:#fff;font-size:clamp(22px,5vw,34px);font-weight:bold;text-shadow:0 2px 10px rgba(0,0,0,.9);text-align:center;opacity:0;transition:opacity .22s;white-space:pre-line"></div>'
-        + '  <div id="kg-restart-wrap" style="position:absolute;bottom:70px;left:50%;transform:translateX(-50%);pointer-events:auto"><button id="kg-restart" style="display:none;border:0;border-radius:10px;padding:14px 34px;background:#e53935;color:#fff;font-weight:bold;font-size:19px;cursor:pointer;box-shadow:0 8px 24px rgba(0,0,0,.25)">\u91CD\u65B0\u6311\u6230</button></div>'
-        + '</div>';
+        + '  <div class="kg-session-info">'
+        + '    <span>\u5269\u9918\u8173\u6578: <span id="kg-shots-left">3</span></span>'
+        + '    <span class="kg-session-sep">\uFF5C</span>'
+        + '    <span id="kg-wind">\u7121\u98A8</span>'
+        + '  </div>'
+        + '  <div class="kg-session-title">\u7576\u524D\u6700\u4F73\u8A18\u9304</div>'
+        + '  <div class="kg-session-best">'
+        + '    <span id="kg-best-dist">--</span>m'
+        + '    <span class="kg-session-sep">|</span>'
+        + '    \u6700\u9AD8\u7403\u901F <span id="kg-best-speed">--</span>km/h'
+        + '  </div>'
+        + '</div>'
+        // Floating message + restart
+        + '<div id="kg-msg" style="position:absolute;left:50%;top:40%;transform:translate(-50%,-50%);color:#fff;font-size:clamp(22px,5vw,34px);font-weight:bold;text-shadow:0 2px 10px rgba(0,0,0,.9);text-align:center;opacity:0;transition:opacity .22s;white-space:pre-line;z-index:10;pointer-events:none"></div>'
+        + '<div style="position:absolute;bottom:70px;left:50%;transform:translateX(-50%);z-index:10"><button id="kg-restart" style="display:none;border:0;border-radius:10px;padding:14px 34px;background:#e53935;color:#fff;font-weight:bold;font-size:19px;cursor:pointer;box-shadow:0 8px 24px rgba(0,0,0,.25)">\u91CD\u65B0\u6311\u6230</button></div>'
+        // Leaderboard button (bottom-right, inside container)
+        + '<div style="position:absolute;right:10px;bottom:8px;z-index:15"><button id="kg-leaderboard-btn-inner" class="kg-lb-btn" type="button">\u958B\u7403\u699C</button></div>';
 
       msgEl = containerEl.querySelector('#kg-msg');
-      bestEl = containerEl.querySelector('#kg-best');
-      currentEl = containerEl.querySelector('#kg-current');
-      shotsEl = containerEl.querySelector('#kg-shots');
+      bestDistEl = containerEl.querySelector('#kg-best-dist');
+      bestSpeedEl = containerEl.querySelector('#kg-best-speed');
+      focusDistEl = containerEl.querySelector('#kg-focus-dist');
+      focusSpeedEl = containerEl.querySelector('#kg-focus-speed');
+      shotsLeftEl = containerEl.querySelector('#kg-shots-left');
       windEl = containerEl.querySelector('#kg-wind');
       restartBtn = containerEl.querySelector('#kg-restart');
       var restartInlineBtn = containerEl.querySelector('#kg-restart-inline');
@@ -323,6 +348,12 @@
 
       restartBtn.addEventListener('click', resetGame);
       restartInlineBtn.addEventListener('click', resetGame);
+      // Leaderboard button inside container
+      var lbBtnInner = containerEl.querySelector('#kg-leaderboard-btn-inner');
+      if (lbBtnInner) {
+        lbBtnInner.addEventListener('pointerdown', function (e) { e.stopPropagation(); });
+        lbBtnInner.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); _openLeaderboard(_lbPeriod); });
+      }
       containerEl.addEventListener('pointerdown', onPointerDown);
       window.addEventListener('pointerup', _onPointerUp);
     }
@@ -484,11 +515,11 @@
       var tiers = [0, 2.5, 5.0, 8.0]; windStrength = tiers[Math.floor(Math.random() * 4)];
       windAngle = Math.random() * Math.PI * 2;
       windX = Math.sin(windAngle) * windStrength; windZ = -Math.cos(windAngle) * windStrength;
-      if (windStrength === 0) { windEl.textContent = '\u98A8\u6CC1\uFF1A\u7121\u98A8'; return; }
+      if (windStrength === 0) { windEl.textContent = '\u7121\u98A8'; return; }
       var arrows = ['\u2191','\u2197','\u2192','\u2198','\u2193','\u2199','\u2190','\u2196'];
       var idx = Math.round(windAngle * 4 / Math.PI) & 7;
       var tl = ['\u7121','\u5FAE','\u4E2D','\u5F37'];
-      windEl.textContent = '\u98A8\u6CC1\uFF1A' + arrows[idx] + ' ' + tl[tiers.indexOf(windStrength)] + '\u98A8';
+      windEl.textContent = arrows[idx] + ' ' + tl[tiers.indexOf(windStrength)] + '\u98A8';
     }
     function resetBallAndState() {
       velocity.set(0, 0, 0); spin.set(0, 0, 0);
@@ -509,8 +540,9 @@
       if (resultTimer) clearTimeout(resultTimer);
       shotsLeft = 3; currentDistance = 0; maxSpeedThisGame = 0; gameStartTime = Date.now();
       lastValidStart.set(0, ballRadius, 0);
-      currentEl.textContent = '\u7576\u4E0B\u7E3D\u8DDD: 0.00 m';
-      shotsEl.textContent = '\u7403\u901F: 0.00 km/h \uFF5C \u5269\u9918\u8173\u6578: 3';
+      focusDistEl.textContent = '0.00';
+      focusSpeedEl.textContent = '0.00';
+      shotsLeftEl.textContent = '3';
       restartBtn.style.display = 'none'; msgEl.style.opacity = '0';
       hasKickedOnce = false; bonusDistance = 0; lastKickGrade = 'GOOD'; distanceAtShotStart = 0;
       initWind(); generateTerrainBumps(); resetBallAndState();
@@ -522,7 +554,7 @@
       var totalDist = currentDistance + bonusDistance;
       shotsLeft -= 1;
       lastValidStart.set(0, ballRadius, ball.position.z);
-      shotsEl.textContent = '\u7403\u901F: ' + displayedSpeedKmh.toFixed(2) + ' km/h \uFF5C \u5269\u9918\u8173\u6578: ' + shotsLeft;
+      shotsLeftEl.textContent = String(shotsLeft);
       if (shotsLeft > 0) {
         var bonusStr = mult > 1.0 ? '\n+' + (rawShotDist * (mult - 1.0)).toFixed(2) + 'm ' + lastKickGrade + ' \u734E\u52F5' : '';
         showMessage('\u76EE\u524D\u63A8\u9032\u81F3 ' + totalDist.toFixed(2) + ' m\n\u6E96\u5099\u4E0B\u4E00\u8173' + bonusStr, '#00ff88', 1800);
@@ -532,9 +564,15 @@
         var durationMs = Date.now() - gameStartTime;
         if (totalDist > bestDistance) {
           bestDistance = totalDist;
-          bestEl.textContent = '\u6B77\u53F2\u6700\u4F73: ' + bestDistance.toFixed(2) + ' m';
+          if (maxSpeedThisGame > bestMaxSpeed) bestMaxSpeed = maxSpeedThisGame;
+          bestDistEl.textContent = bestDistance.toFixed(2);
+          bestSpeedEl.textContent = bestMaxSpeed.toFixed(2);
           showMessage('\uD83C\uDF89 \u65B0\u7D00\u9304\uFF01\n\u7E3D\u8A08 ' + totalDist.toFixed(2) + ' m', '#ffd700', 3000);
         } else {
+          if (maxSpeedThisGame > bestMaxSpeed) {
+            bestMaxSpeed = maxSpeedThisGame;
+            bestSpeedEl.textContent = bestMaxSpeed.toFixed(2);
+          }
           showMessage('\u6311\u6230\u7D50\u675F\n\u7E3D\u8A08 ' + totalDist.toFixed(2) + ' m', '#ffffff', 3000);
         }
         restartBtn.style.display = 'inline-block';
@@ -664,8 +702,8 @@
       displayedDistance += (currentDistance - displayedDistance) * 0.18;
       var currentSpeedKmh = (velocity.length() / unitsPerMeter) * 3.6 * SPEED_DISPLAY_FACTOR;
       displayedSpeedKmh += (currentSpeedKmh - displayedSpeedKmh) * 0.22;
-      currentEl.textContent = '\u7576\u4E0B\u7E3D\u8DDD: ' + (displayedDistance + bonusDistance).toFixed(2) + ' m';
-      shotsEl.textContent = '\u7403\u901F: ' + displayedSpeedKmh.toFixed(2) + ' km/h \uFF5C \u5269\u9918\u8173\u6578: ' + shotsLeft;
+      focusDistEl.textContent = (displayedDistance + bonusDistance).toFixed(2);
+      focusSpeedEl.textContent = displayedSpeedKmh.toFixed(2);
       updateCamera();
       renderer.render(scene, camera);
     }
@@ -701,11 +739,7 @@
   function _bindEvents() {
     if (_eventsBound) return;
     _eventsBound = true;
-    var lbBtn = document.getElementById('kg-leaderboard-btn');
-    if (lbBtn) {
-      lbBtn.addEventListener('pointerdown', function (e) { e.stopPropagation(); });
-      lbBtn.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); _openLeaderboard(_lbPeriod); });
-    }
+    // Note: leaderboard open button is now bound inside _buildUI() (inside game container)
     var lbClose = document.getElementById('kg-leaderboard-close');
     if (lbClose) lbClose.addEventListener('click', _closeLeaderboard);
     var lbModal = document.getElementById('kg-leaderboard-modal');
