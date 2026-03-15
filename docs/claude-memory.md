@@ -2461,3 +2461,9 @@
 - **原因**：外部瀏覽器的 `liff.getProfile()` 需要對 `api.line.me` 發起跨域請求，可能被 Safari ITP 或網路策略阻擋
 - **修復**：在 `ensureProfile()` 的 3 次 `getProfile()` 重試全部失敗後，新增 `liff.getDecodedIDToken()` fallback。ID Token 在 OAuth 流程中已取得，不需額外 API 呼叫，包含 `sub`(userId)、`name`(displayName)、`picture`(pictureUrl)、`email` 等欄位
 - **教訓**：`liff.getProfile()` 依賴跨域 API 呼叫，在隱私保護嚴格的瀏覽器中不可靠；`liff.getDecodedIDToken()` 是純本地解析，作為 fallback 更穩定
+
+### 2026-03-15 — 放鴿子統計：歷史 attendanceRecords uid 為顯示名稱導致誤判
+- **問題**：用戶 U196b342b7899c68e07a0a1c27ceff346 已有完整簽到簽退紀錄，但放鴿子統計仍顯示 1 次放鴿子
+- **原因**：與完成場次為 0 的根因相同 — `_confirmAllAttendance` 歷史資料在 `attendanceRecords.uid` 存的是顯示名稱而非 LINE userId。`_buildRawNoShowCountByUid` 用 `attendanceRecords.uid` 建立 `checkinKeys` 索引，但 `registrations.userId` 是正確的 LINE userId，兩者 key 不匹配導致明明有簽到卻被判定為放鴿子
+- **修復**：`event-manage.js` 的 `_buildRawNoShowCountByUid()` 和 `_getNoShowDetailsByUid()` 新增 `nameToUid` 對照表（displayName → LINE userId），建立 `checkinKeys` 時同時加入真實 uid 的索引，確保 `registrations.userId` 能正確匹配到歷史資料的簽到紀錄
+- **教訓**：歷史資料的 uid 欄位不可信（可能是顯示名稱），所有涉及 `attendanceRecords.uid` 與 `registrations.userId` 交叉比對的邏輯都需要加入 displayName → uid 的解析
