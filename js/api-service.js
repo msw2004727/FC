@@ -1155,7 +1155,13 @@ const ApiService = {
 
   isHomeGameVisible(gameKey) {
     const cfg = this.getGameConfigByKey(gameKey);
-    if (!cfg) return true;
+    if (!cfg) {
+      // 無 Firestore 覆蓋時，使用 HOME_GAME_PRESETS 的預設值
+      const preset = Array.isArray(HOME_GAME_PRESETS)
+        ? HOME_GAME_PRESETS.find(p => p && p.gameKey === gameKey)
+        : null;
+      return preset ? preset.homeVisible !== false : false;
+    }
     if (cfg.enabled === false) return false;
     return cfg.homeVisible !== false;
   },

@@ -415,17 +415,19 @@ Object.assign(App, {
       ? HOME_GAME_PRESETS.find(item => item && item.gameKey === gameKey)
       : null;
     if (!gameConfig) return false;
-    if (gameConfig.enabled === false || gameConfig.homeVisible === false) return false;
+    if (gameConfig.enabled === false) return false;
 
     const minRole = 'user';
     const minLevel = ROLE_LEVEL_MAP[minRole] || 0;
     const currentLevel = ROLE_LEVEL_MAP[this.currentRole] || 0;
     if (currentLevel < minLevel) return false;
 
+    // Firestore gameConfigs 可覆蓋 preset 的 homeVisible 設定
     if (typeof ApiService !== 'undefined' && typeof ApiService.isHomeGameVisible === 'function') {
       return ApiService.isHomeGameVisible(gameKey);
     }
-    return true;
+    // 無 Firestore 覆蓋時使用 preset 預設值
+    return gameConfig.homeVisible !== false;
   },
   _isHomeGameShortcutAvailable() {
     return this._isHomeGameVisible('shot-game');
