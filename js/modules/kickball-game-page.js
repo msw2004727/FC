@@ -278,7 +278,8 @@
     var camPinchDist = 0, camTouchCX = 0, camTouchCY = 0, camTouching = false;
 
     // DOM refs inside container
-    var msgEl, bestDistEl, bestSpeedEl, focusDistEl, focusSpeedEl, shotsLeftEl, windEl;
+    var maxHeightThisKick = 0, displayedHeight = 0;
+    var msgEl, bestDistEl, bestSpeedEl, focusDistEl, focusHeightEl, focusSpeedEl, shotsLeftEl, windEl;
     var restartBtn, floatingUI, aimRadar, aimDot, powerWrap, powerFill;
     var flashOverlay, impactRing, gradePop, shotTypePop, firstTipEl;
 
@@ -304,6 +305,11 @@
         + '    <div class="kg-session-focus-box kg-session-focus-box-dist">'
         + '      <div class="kg-session-focus-label">\u8DDD\u96E2</div>'
         + '      <div class="kg-session-focus-value" id="kg-focus-dist">0.00</div>'
+        + '      <div class="kg-session-focus-unit">m</div>'
+        + '    </div>'
+        + '    <div class="kg-session-focus-box kg-session-focus-box-height">'
+        + '      <div class="kg-session-focus-label">\u9AD8\u5EA6</div>'
+        + '      <div class="kg-session-focus-value" id="kg-focus-height">0.00</div>'
         + '      <div class="kg-session-focus-unit">m</div>'
         + '    </div>'
         + '    <div class="kg-session-focus-box kg-session-focus-box-speed">'
@@ -335,6 +341,7 @@
       bestDistEl = containerEl.querySelector('#kg-best-dist');
       bestSpeedEl = containerEl.querySelector('#kg-best-speed');
       focusDistEl = containerEl.querySelector('#kg-focus-dist');
+      focusHeightEl = containerEl.querySelector('#kg-focus-height');
       focusSpeedEl = containerEl.querySelector('#kg-focus-speed');
       shotsLeftEl = containerEl.querySelector('#kg-shots-left');
       windEl = containerEl.querySelector('#kg-wind');
@@ -568,7 +575,7 @@
       gameState = 'aiming'; shotCameraHold = 0; cameraModeBlend = 1; landingCameraDamp = 0;
       timeScale = 1; slowMoTimer = 0; cameraShakeTimer = 0; cameraShakeStrength = 0;
       hasTriggeredLandingRing = false;
-      displayedDistance = Math.max(0, -ball.position.z) / unitsPerMeter; displayedSpeedKmh = 0;
+      displayedDistance = Math.max(0, -ball.position.z) / unitsPerMeter; displayedSpeedKmh = 0; maxHeightThisKick = 0; displayedHeight = 0;
       aimRadar.classList.remove('locked'); powerWrap.style.display = 'none'; powerFill.style.width = '0%';
       if (firstTipEl) firstTipEl.style.opacity = hasKickedOnce ? '0' : '1';
     }
@@ -577,6 +584,7 @@
       shotsLeft = 3; currentDistance = 0; maxSpeedThisGame = 0; gameStartTime = Date.now();
       lastValidStart.set(0, ballRadius, 0);
       focusDistEl.textContent = '0.00';
+      focusHeightEl.textContent = '0.00';
       focusSpeedEl.textContent = '0.00';
       shotsLeftEl.textContent = '3';
       restartBtn.style.display = 'none'; msgEl.style.opacity = '0';
@@ -648,9 +656,11 @@
       ball.position.addScaledVector(velocity, dt);
       ball.rotation.x += (velocity.z / ballRadius) * dt + spin.x * 0.012 * dt;
       ball.rotation.y += spin.y * 0.014 * dt; ball.rotation.z -= (velocity.x / ballRadius) * dt;
-      // Track max speed
+      // Track max speed + height
       var curSpeed = (velocity.length() / unitsPerMeter) * 3.6 * SPEED_DISPLAY_FACTOR;
       if (curSpeed > maxSpeedThisGame) maxSpeedThisGame = curSpeed;
+      var curHeightM = Math.max(0, (ball.position.y - ballRadius) / unitsPerMeter);
+      if (curHeightM > maxHeightThisKick) maxHeightThisKick = curHeightM;
       var terrainY = getTerrainHeightAt(ball.position.x, ball.position.z) + ballRadius;
       if (!hasTriggeredLandingRing && ball.position.y <= terrainY + 0.25 && velocity.length() > 4) {
         hasTriggeredLandingRing = true; triggerImpactRing(ball.position.clone());
@@ -756,6 +766,8 @@
       var currentSpeedKmh = (velocity.length() / unitsPerMeter) * 3.6 * SPEED_DISPLAY_FACTOR;
       displayedSpeedKmh += (currentSpeedKmh - displayedSpeedKmh) * 0.22;
       focusDistEl.textContent = (displayedDistance + bonusDistance).toFixed(2);
+      displayedHeight += (maxHeightThisKick - displayedHeight) * 0.18;
+      focusHeightEl.textContent = displayedHeight.toFixed(2);
       focusSpeedEl.textContent = displayedSpeedKmh.toFixed(2);
       // Camera snap-back when not actively controlling
       if (!camDragging && !camTouching) {
