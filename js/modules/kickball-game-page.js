@@ -334,11 +334,11 @@
         + '</div>'
         // Floating message + restart
         + '<div id="kg-msg" style="position:absolute;left:50%;top:40%;transform:translate(-50%,-50%);color:#fff;font-size:clamp(18px,4.2vw,28px);font-weight:bold;text-shadow:0 2px 10px rgba(0,0,0,.9);text-align:center;opacity:0;transition:opacity .22s;white-space:nowrap;z-index:10;pointer-events:none"></div>'
-        + '<div style="position:absolute;bottom:70px;left:50%;transform:translateX(-50%);z-index:10"><button id="kg-restart" style="display:none;border:0;border-radius:10px;padding:14px 34px;background:rgba(229,57,53,0.65);color:#fff;font-weight:bold;font-size:19px;cursor:pointer;box-shadow:0 8px 24px rgba(0,0,0,.25);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)">\u91CD\u65B0\u6311\u6230</button></div>'
+        + '<div style="position:absolute;bottom:70px;left:50%;transform:translateX(-50%);z-index:10"><button id="kg-restart" style="display:none;border:0;border-radius:8px;padding:12px 29px;background:#e53935;color:#fff;font-weight:bold;font-size:16px;cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,.25)">\u91CD\u65B0\u6311\u6230</button></div>'
         // Virtual kick button (easier to tap on mobile)
         + '<div id="kg-virtual-ball" style="position:absolute;left:50%;bottom:12%;transform:translateX(-50%);width:clamp(52px,13vw,72px);height:clamp(52px,13vw,72px);border-radius:50%;background:radial-gradient(circle at 38% 36%,rgba(255,255,255,.38),rgba(255,255,255,.08) 55%,rgba(0,0,0,.12));border:2.5px solid rgba(255,255,255,.45);box-shadow:0 0 18px rgba(0,180,255,.25),inset 0 -3px 8px rgba(0,0,0,.18);cursor:pointer;z-index:18;pointer-events:auto;transition:opacity .18s;display:flex;align-items:center;justify-content:center;font-size:clamp(46px,12vw,66px);line-height:0;user-select:none;overflow:hidden;padding-bottom:2px">\u26BD</div>'
         // Shot log + Bottom buttons: restart (left) + leaderboard (right)
-        + '<div id="kg-shot-log" style="position:absolute;left:10px;bottom:36px;z-index:15;display:none;font-size:11px;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.7);line-height:1.5"></div>'
+        + '<div id="kg-shot-log" style="position:absolute;left:10px;bottom:68px;z-index:15;display:none;font-size:11px;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.7);line-height:1.5"></div>'
         + '<div style="position:absolute;left:10px;bottom:8px;z-index:15"><button id="kg-restart-inline" class="kg-lb-btn kg-restart-bottom-btn" type="button">\u91CD\u65B0\u958B\u59CB</button></div>'
         + '<div style="position:absolute;right:10px;bottom:8px;z-index:15"><button id="kg-leaderboard-btn-inner" class="kg-lb-btn" type="button">\u958B\u7403\u699C</button></div>';
 
