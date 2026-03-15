@@ -721,6 +721,7 @@
       var dLX = aLX * b + fLX * b2, dLY = aLY * b + fLY * b2, dLZ = aLZ * b + fLZ * b2;
       var ngb = clamp(1 - ((ball.position.y - terrainBaseY) / 7.5), 0, 1);
       ngb = Math.max(ngb, landingCameraDamp * 0.85);
+      if (gameState === 'aiming' || gameState === 'charging') ngb = 0;
       if (ngb > 0) { dY = dY * (1 - ngb) + (terrainBaseY + 19.2) * ngb; dZ = dZ * (1 - ngb) + (ball.position.z + 37.5) * ngb; dLY = dLY * (1 - ngb) + (terrainBaseY + 0.22) * ngb; dLZ = dLZ * (1 - ngb) + (ball.position.z - 0.18) * ngb; }
       cameraDesiredPosition.set(dX, dY, dZ);
       // Apply camera orbit + zoom offsets
