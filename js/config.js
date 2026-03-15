@@ -238,7 +238,7 @@
 // 20260314zl: EXP 系統修正 — 改用 Cloud Function adjustExp，修復非 super_admin 無法調整 EXP 的問題
 // 20260315a: 球隊自動晉升修正 — updateUserRole 改用 autoPromoteTeamRole CF，修復非 super_admin 角色變更失敗
 // 20260315b: 個人數據頁完成場次/出席率修正 — 統一使用 _calcScanStats 取代永遠為 0 的錯誤邏輯
-const CACHE_VERSION = '20260315zc';
+const CACHE_VERSION = '20260315zd';
 
 // ─── Page Strategy Registry ───
 // 唯一策略來源，未列出的頁面預設 fresh-first
