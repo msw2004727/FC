@@ -294,5 +294,11 @@
 - **修改檔案**：新建 `event-share.js`、修改 `event-list.js`（移除舊 shareEvent）、`event-create.js`（建立後觸發分享提示）、`css/activity.css`（底部選單樣式）、`script-loader.js`（註冊 lazy-load）、`index.html`（script 標籤）
 - **教訓**：shareTargetPicker 不支援 LINE 社群（OpenChat），需另提供複製連結選項；LIFF URL 不受 LINE Labs 設定影響，永遠在 LINE 內建瀏覽器開啟
 
+### 2026-03-15 — [永久] 修復建立活動無反應 + 重複建立
+- **問題**：點「建立活動」後無任何反饋（toast 不顯示、modal 不關閉），用戶多次點擊導致重複建立活動
+- **原因**：`finally` 區塊在 `closeModal()` / `showToast()` 之前就重置了 `_eventSubmitInFlight=false` 並重新啟用按鈕。中間 `_saveInputHistory` 等非關鍵操作若拋錯，closeModal / showToast 永遠不執行，而按鈕已可再次點擊
+- **修復**：重構 try/catch 結構 — 關鍵收尾（closeModal + showToast + flag reset）緊接 createEvent 成功後執行；非關鍵操作（saveHistory / writeOpLog / grantEXP / render）包在獨立 try/catch 中。編輯路徑同步修復
+- **教訓**：`finally` 不應用於重置 UI 鎖定狀態（如提交按鈕），因為它在 success path 其他操作之前執行。關鍵收尾操作（modal 關閉、用戶通知）必須放在非關鍵操作之前，且不依賴非關鍵操作的成功
+
 *最後濃縮日期：2026-03-15*
 *原始檔案：314 條目 / 2475 行 → 濃縮後約 50 條永久教訓*

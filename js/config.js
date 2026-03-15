@@ -242,7 +242,8 @@
 // 20260315aaa: 活動分享升級 — LINE Flex Message + shareTargetPicker + 底部選單 + 建立後分享提示
 // 20260315aab: 分享模組修復 — 防連點、altText 截斷、typeof 守衛、toast 語意修正
 // 20260315aac: surrogate pair 安全截斷、var→const/let 統一、unhandled rejection 防護
-const CACHE_VERSION = '20260315aac';
+// 20260315aad: 修復建立活動無反應+重複建立 — 關鍵收尾(closeModal/toast)提前於非關鍵操作
+const CACHE_VERSION = '20260315aad';
 
 // ─── Page Strategy Registry ───
 // 唯一策略來源，未列出的頁面預設 fresh-first

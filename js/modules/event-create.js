@@ -1484,24 +1484,26 @@ Object.assign(App, {
       }
       const oldMax = existingEvent ? existingEvent.max : max;
       ApiService.updateEvent(this._editEventId, updates);
-
-      // ── 容量變更 → 自動遞補 / 降級候補 ──
-      this._adjustWaitlistOnCapacityChange(this._editEventId, oldMax, max);
-
-      // 發送活動變更通知：優先用 registrations 按 userId 去重（避免同行者重複通知）
-      notifyUids.forEach(uid => {
-        this._sendNotifFromTemplate('event_changed', {
-          eventName: title, date: fullDate, location,
-        }, uid, 'activity', '活動');
-      });
-
-      ApiService._writeOpLog('event_edit', '編輯活動', `編輯「${title}」`);
+      // ── 編輯成功：先完成關鍵收尾 ──
       this.closeModal();
-      this._editEventId = null;
-      this.renderActivityList();
-      this.renderHotEvents();
-      this.renderMyActivities();
       this.showToast(`活動「${title}」已更新！`);
+      const editedId = this._editEventId;
+      this._editEventId = null;
+      // 非關鍵操作：即使失敗也不影響用戶體驗
+      try {
+        this._adjustWaitlistOnCapacityChange(editedId, oldMax, max);
+        notifyUids.forEach(uid => {
+          this._sendNotifFromTemplate('event_changed', {
+            eventName: title, date: fullDate, location,
+          }, uid, 'activity', '活動');
+        });
+        ApiService._writeOpLog('event_edit', '編輯活動', `編輯「${title}」`);
+        this.renderActivityList();
+        this.renderHotEvents();
+        this.renderMyActivities();
+      } catch (postErr) {
+        console.warn('[handleCreateEvent] post-edit error:', postErr);
+      }
     } else {
       const creatorName = this._getEventCreatorName();
       const creatorUid = this._getEventCreatorUid();
@@ -1535,25 +1537,31 @@ Object.assign(App, {
       } catch (err) {
         console.error('[handleCreateEvent:createEvent]', err);
         this.showToast('建立活動失敗，請稍後再試');
-        return;
-      } finally {
         this._eventSubmitInFlight = false;
         this._setCreateEventSubmitting(false);
+        return;
       }
-      this._saveInputHistory('ce-location', location);
-      if (feeEnabled && fee > 0) this._saveInputHistory('ce-fee', fee);
-      this._saveInputHistory('ce-max', max);
-      if (minAge > 0) this._saveInputHistory('ce-min-age', minAge);
-      this._saveRecentDelegates(this._delegates);
-      ApiService._writeOpLog('event_create', '建立活動', `建立「${title}」`);
-      // Auto EXP: host activity
-      const _creatorUser = ApiService.getCurrentUser?.();
-      if (_creatorUser?.uid) this._grantAutoExp(_creatorUser.uid, 'host_activity', title);
+      // ── 建立成功：先完成關鍵收尾（closeModal + toast），再處理非關鍵操作 ──
       this.closeModal();
-      this.renderActivityList();
-      this.renderHotEvents();
-      this.renderMyActivities();
       this.showToast(`活動「${title}」已建立！`);
+      this._eventSubmitInFlight = false;
+      this._setCreateEventSubmitting(false);
+      // 非關鍵操作：即使失敗也不影響用戶體驗
+      try {
+        this._saveInputHistory('ce-location', location);
+        if (feeEnabled && fee > 0) this._saveInputHistory('ce-fee', fee);
+        this._saveInputHistory('ce-max', max);
+        if (minAge > 0) this._saveInputHistory('ce-min-age', minAge);
+        this._saveRecentDelegates(this._delegates);
+        ApiService._writeOpLog('event_create', '建立活動', `建立「${title}」`);
+        const _creatorUser = ApiService.getCurrentUser?.();
+        if (_creatorUser?.uid) this._grantAutoExp(_creatorUser.uid, 'host_activity', title);
+        this.renderActivityList();
+        this.renderHotEvents();
+        this.renderMyActivities();
+      } catch (postErr) {
+        console.warn('[handleCreateEvent] post-create error:', postErr);
+      }
       // 活動建立成功後提示分享到 LINE
       if (newEvent.id && typeof this._promptShareAfterCreate === 'function') {
         const _eid = newEvent.id;
