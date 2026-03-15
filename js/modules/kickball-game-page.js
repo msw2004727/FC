@@ -327,7 +327,7 @@
         + '  <div class="kg-session-best">'
         + '    <span id="kg-best-dist">--</span>m'
         + '    <span class="kg-session-sep">|</span>'
-        + '    \u6700\u9AD8\u7403\u901F <span id="kg-best-speed">--</span>km/h'
+        + '    \u7403\u901F <span id="kg-best-speed">--</span>km/h'
         + '  </div>'
         + '</div>'
         // Floating message + restart
