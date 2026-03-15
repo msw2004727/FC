@@ -244,6 +244,12 @@
 ### 2026-03-15 — 球隊自動晉升降級需走 Cloud Function
 - `updateUserRole()` 改為呼叫 `autoPromoteTeamRole` CF，限定 user/coach/captain 三層
 
+### 2026-03-15 — 小遊戲管理開關無效（homeVisible 合併邏輯 bug）
+- **問題**：管理頁開關顯示已開啟但實際無效，首頁卡片不顯示
+- **原因**：`_getHomeGameManageItems()` 合併 saved + preset 時，`(saved && saved.homeVisible === false) ? false : preset.homeVisible !== false` 只處理 saved=false，saved=true 時落入 else 回傳 preset 預設值
+- **修復**：改為 `saved != null ? saved.homeVisible !== false : preset.homeVisible !== false`，優先採用 Firestore 值
+- **教訓**：布林合併邏輯必須同時處理 true/false 兩個方向，不能只攔截單一值
+
 ### 2026-03-15 — 開球王整合完成 + 玩法說明修正
 - **功能**：完成開球王小遊戲完整 SPA 整合（頁面模板、JS 模組、CSS、Cloud Function、Firestore 規則、首頁入口卡片、管理開關）
 - **修正**：玩法說明移除不可見的「地形」提示，新增 PERFECT ×1.08 / GREAT ×1.04 加成規則說明
