@@ -289,7 +289,7 @@
         + '<div id="kg-impact-ring" style="position:absolute;width:80px;height:80px;margin-left:-40px;margin-top:-40px;border:3px solid rgba(255,255,255,.7);border-radius:50%;opacity:0;transform:scale(.35);pointer-events:none;z-index:45;transition:transform .22s ease-out,opacity .22s ease-out"></div>'
         + '<div id="kg-grade-pop" style="position:absolute;left:50%;top:24%;transform:translate(-50%,-50%) scale(.9);color:#fff;font-weight:900;text-shadow:0 3px 12px rgba(0,0,0,.72);opacity:0;pointer-events:none;transition:opacity .16s ease-out,transform .22s ease-out;z-index:85;font-size:clamp(30px,5.5vw,52px)"></div>'
         + '<div id="kg-shot-type-pop" style="position:absolute;left:50%;top:33%;transform:translate(-50%,-50%) scale(.9);color:#fff;font-weight:900;text-shadow:0 3px 12px rgba(0,0,0,.72);opacity:0;pointer-events:none;transition:opacity .16s ease-out,transform .22s ease-out;z-index:70;font-size:clamp(22px,4.2vw,36px)"></div>'
-        + '<div id="kg-first-tip" style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);color:rgba(255,236,170,.94);font-size:clamp(18px,3.5vw,28px);font-weight:800;text-shadow:0 2px 10px rgba(0,0,0,.75);opacity:0;pointer-events:none;z-index:65;transition:opacity .2s ease-out;white-space:nowrap">\u9EDE\u7403\u9577\u6309\u958B\u59CB</div>'
+        + '<div id="kg-first-tip" style="position:absolute;left:50%;bottom:calc(12% + clamp(52px,13vw,72px) + 1.2em);transform:translateX(-50%);color:rgba(255,236,170,.94);font-size:clamp(18px,3.5vw,28px);font-weight:800;text-shadow:0 2px 10px rgba(0,0,0,.75);opacity:0;pointer-events:none;z-index:65;transition:opacity .2s ease-out;white-space:nowrap">\u9EDE\u7403\u9577\u6309\u958B\u59CB</div>'
         + '<div id="kg-floating-ui" style="position:absolute;transform:translate(-50%,-100%);display:flex;flex-direction:column;align-items:center;gap:12px;z-index:20;pointer-events:none;opacity:0;transition:opacity .15s">'
         + '  <div id="kg-aim-radar" style="position:relative;width:100px;height:100px;border-radius:50%;border:4px solid rgba(255,255,255,.25);background:rgba(255,255,255,.03);box-shadow:inset 0 0 0 1px rgba(255,255,255,.08),0 0 12px rgba(0,0,0,.35);overflow:hidden">'
         + '    <div id="kg-aim-dot" style="position:absolute;width:20px;height:20px;border-radius:50%;left:50%;top:50%;transform:translate(-50%,-50%);background:rgba(55,55,55,.62);border:3px solid rgba(255,255,255,.95);box-shadow:0 0 8px rgba(0,0,0,.28)"></div>'
@@ -334,7 +334,7 @@
         + '<div id="kg-msg" style="position:absolute;left:50%;top:40%;transform:translate(-50%,-50%);color:#fff;font-size:clamp(22px,5vw,34px);font-weight:bold;text-shadow:0 2px 10px rgba(0,0,0,.9);text-align:center;opacity:0;transition:opacity .22s;white-space:pre-line;z-index:10;pointer-events:none"></div>'
         + '<div style="position:absolute;bottom:70px;left:50%;transform:translateX(-50%);z-index:10"><button id="kg-restart" style="display:none;border:0;border-radius:10px;padding:14px 34px;background:#e53935;color:#fff;font-weight:bold;font-size:19px;cursor:pointer;box-shadow:0 8px 24px rgba(0,0,0,.25)">\u91CD\u65B0\u6311\u6230</button></div>'
         // Virtual kick button (easier to tap on mobile)
-        + '<div id="kg-virtual-ball" style="position:absolute;left:50%;bottom:8%;transform:translateX(-50%);width:clamp(52px,13vw,72px);height:clamp(52px,13vw,72px);border-radius:50%;background:radial-gradient(circle at 38% 36%,rgba(255,255,255,.38),rgba(255,255,255,.08) 55%,rgba(0,0,0,.12));border:2.5px solid rgba(255,255,255,.45);box-shadow:0 0 18px rgba(0,180,255,.25),inset 0 -3px 8px rgba(0,0,0,.18);cursor:pointer;z-index:18;pointer-events:auto;transition:opacity .18s;display:flex;align-items:center;justify-content:center;font-size:clamp(28px,7vw,40px);line-height:1;user-select:none">\uD83D\uDC5F</div>'
+        + '<div id="kg-virtual-ball" style="position:absolute;left:50%;bottom:12%;transform:translateX(-50%);width:clamp(52px,13vw,72px);height:clamp(52px,13vw,72px);border-radius:50%;background:radial-gradient(circle at 38% 36%,rgba(255,255,255,.38),rgba(255,255,255,.08) 55%,rgba(0,0,0,.12));border:2.5px solid rgba(255,255,255,.45);box-shadow:0 0 18px rgba(0,180,255,.25),inset 0 -3px 8px rgba(0,0,0,.18);cursor:pointer;z-index:18;pointer-events:auto;transition:opacity .18s;display:flex;align-items:center;justify-content:center;font-size:clamp(28px,7vw,40px);line-height:1;user-select:none">\u26BD</div>'
         // Bottom buttons: restart (left) + leaderboard (right)
         + '<div style="position:absolute;left:10px;bottom:8px;z-index:15"><button id="kg-restart-inline" class="kg-lb-btn kg-restart-bottom-btn" type="button">\u91CD\u65B0\u958B\u59CB</button></div>'
         + '<div style="position:absolute;right:10px;bottom:8px;z-index:15"><button id="kg-leaderboard-btn-inner" class="kg-lb-btn" type="button">\u958B\u7403\u699C</button></div>';
@@ -765,9 +765,7 @@
       floatingUI.style.opacity = isActive ? '0' : '1';
       if (virtualBallEl) { var show = gameState === 'aiming'; virtualBallEl.style.opacity = show ? '1' : '0'; virtualBallEl.style.pointerEvents = show ? 'auto' : 'none'; }
       if (firstTipEl && !hasKickedOnce) {
-        var tw = new THREE.Vector3(ball.position.x, Math.max(-6.2, ball.position.y - 11.6), ball.position.z).project(camera);
-        firstTipEl.style.left = ((tw.x * 0.5 + 0.5) * cw) + 'px';
-        firstTipEl.style.top = ((-(tw.y * 0.5) + 0.5) * ch) + 'px';
+        firstTipEl.style.opacity = (gameState === 'aiming') ? '1' : '0';
       }
       if (gameState === 'aiming') updateAim(dt);
       if (gameState === 'charging') updatePower(dt);
