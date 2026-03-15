@@ -846,8 +846,12 @@
           var rows = snap.docs.map(function (d) { return normalizeRow(d.id, d.data()); }).filter(function (r) { return !isAnonymousRow(r) && r.distance > 0; });
           rows = dedupeRows(rows).sort(compareRows).slice(0, 10);
           var topColors = [0xffd700, 0xc0c0c0, 0xcd7f32];
+          // Pseudo-random offsets so markers scatter left/right (deterministic per rank)
+          var _scatterSeeds = [0.73, -0.41, 0.18, -0.85, 0.56, -0.27, 0.92, -0.63, 0.35, -0.78];
+          var scatterRange = 25; // max X offset in scene units
           rows.forEach(function (row, i) {
             var z = -row.distance * unitsPerMeter;
+            var xOff = _scatterSeeds[i % _scatterSeeds.length] * scatterRange;
             var isTop3 = i < 3;
             var color = isTop3 ? topColors[i] : 0x4a90d9;
             var bH = isTop3 ? 18 + (2 - i) * 4 : 8;
@@ -859,11 +863,11 @@
             // Light beam (cross-shaped)
             var bMat = new THREE.MeshBasicMaterial({ color: color, transparent: true, opacity: beamOpacity, side: THREE.DoubleSide, depthWrite: false });
             var bGeo = new THREE.PlaneGeometry(beamWidth, bH);
-            var b1 = new THREE.Mesh(bGeo, bMat); b1.position.set(0, bH / 2, z); scene.add(b1); _markerObjects.push(b1);
+            var b1 = new THREE.Mesh(bGeo, bMat); b1.position.set(xOff, bH / 2, z); scene.add(b1); _markerObjects.push(b1);
             var b2 = b1.clone(); b2.rotation.y = Math.PI / 2; b2.position.copy(b1.position); scene.add(b2); _markerObjects.push(b2);
             // Ground ring
             var ringMat = new THREE.MeshBasicMaterial({ color: color, transparent: true, opacity: ringOpacity, side: THREE.DoubleSide, depthWrite: false });
-            var ring = new THREE.Mesh(new THREE.RingGeometry(ringInner, ringOuter, 32), ringMat); ring.rotation.x = -Math.PI / 2; ring.position.set(0, 0.06, z); scene.add(ring); _markerObjects.push(ring);
+            var ring = new THREE.Mesh(new THREE.RingGeometry(ringInner, ringOuter, 32), ringMat); ring.rotation.x = -Math.PI / 2; ring.position.set(xOff, 0.06, z); scene.add(ring); _markerObjects.push(ring);
             // Text sprite
             var c = document.createElement('canvas'); c.width = 512; c.height = 96;
             var ctx = c.getContext('2d');
@@ -874,7 +878,7 @@
             var sMat = new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), transparent: true, depthWrite: false });
             var spriteScale = isTop3 ? 36 : 28;
             var spriteH = isTop3 ? 6.75 : 5.25;
-            var sprite = new THREE.Sprite(sMat); sprite.scale.set(spriteScale, spriteH, 1); sprite.position.set(0, bH + 3, z);
+            var sprite = new THREE.Sprite(sMat); sprite.scale.set(spriteScale, spriteH, 1); sprite.position.set(xOff, bH + 3, z);
             scene.add(sprite); _markerObjects.push(sprite);
           });
         }).catch(function () {});
