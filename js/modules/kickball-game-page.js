@@ -293,9 +293,9 @@
         + '    <div id="kg-power-fill" style="width:0%;height:100%;background:linear-gradient(90deg,#00bfff 0%,#0057a0 78%,#ff7a00 92%,#ff0000 100%)"></div>'
         + '  </div>'
         + '</div>'
-        // Session Badge Card (top-left)
+        // Session Badge Card (top-center)
         + '<div id="kg-session-badge">'
-        + '  <div class="kg-session-top-title"><span>\u672C\u5C40\u8A18\u9304</span><button id="kg-restart-inline" class="kg-restart-inline-btn">\u91CD\u65B0\u958B\u59CB</button></div>'
+        + '  <div class="kg-session-top-title">\u672C\u5C40\u8A18\u9304</div>'
         + '  <div class="kg-session-focus-row">'
         + '    <div class="kg-session-focus-box kg-session-focus-box-dist">'
         + '      <div class="kg-session-focus-label">\u8DDD\u96E2</div>'
@@ -323,7 +323,8 @@
         // Floating message + restart
         + '<div id="kg-msg" style="position:absolute;left:50%;top:40%;transform:translate(-50%,-50%);color:#fff;font-size:clamp(22px,5vw,34px);font-weight:bold;text-shadow:0 2px 10px rgba(0,0,0,.9);text-align:center;opacity:0;transition:opacity .22s;white-space:pre-line;z-index:10;pointer-events:none"></div>'
         + '<div style="position:absolute;bottom:70px;left:50%;transform:translateX(-50%);z-index:10"><button id="kg-restart" style="display:none;border:0;border-radius:10px;padding:14px 34px;background:#e53935;color:#fff;font-weight:bold;font-size:19px;cursor:pointer;box-shadow:0 8px 24px rgba(0,0,0,.25)">\u91CD\u65B0\u6311\u6230</button></div>'
-        // Leaderboard button (bottom-right, inside container)
+        // Bottom buttons: restart (left) + leaderboard (right)
+        + '<div style="position:absolute;left:10px;bottom:8px;z-index:15"><button id="kg-restart-inline" class="kg-lb-btn kg-restart-bottom-btn" type="button">\u91CD\u65B0\u958B\u59CB</button></div>'
         + '<div style="position:absolute;right:10px;bottom:8px;z-index:15"><button id="kg-leaderboard-btn-inner" class="kg-lb-btn" type="button">\u958B\u7403\u699C</button></div>';
 
       msgEl = containerEl.querySelector('#kg-msg');
@@ -347,7 +348,8 @@
       firstTipEl = containerEl.querySelector('#kg-first-tip');
 
       restartBtn.addEventListener('click', resetGame);
-      restartInlineBtn.addEventListener('click', resetGame);
+      restartInlineBtn.addEventListener('pointerdown', function (e) { e.stopPropagation(); });
+      restartInlineBtn.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); resetGame(); });
       // Leaderboard button inside container
       var lbBtnInner = containerEl.querySelector('#kg-leaderboard-btn-inner');
       if (lbBtnInner) {
