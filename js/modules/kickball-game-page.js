@@ -258,7 +258,7 @@
     var gameState = 'aiming';
     var aimTarget = { x: 0, y: 0 }, aimTime = 0, charging = false, power = 0, powerDir = 1;
     var shotsLeft = 3, bestDistance = 0, currentDistance = 0, resultTimer = null;
-    var lastKickGrade = 'GOOD', distanceAtShotStart = 0, bonusDistance = 0;
+    var lastKickGrade = 'GOOD', distanceAtShotStart = 0, bonusDistance = 0, shotDistances = [];
     var shotCameraHold = 0, cameraModeBlend = 1, landingCameraDamp = 0, timeScale = 1, slowMoTimer = 0, cameraShakeTimer = 0, cameraShakeStrength = 0;
     var displayedDistance = 0, displayedSpeedKmh = 0, hasTriggeredLandingRing = false, hasKickedOnce = false;
     var SPEED_DISPLAY_FACTOR = 1.45;
@@ -282,7 +282,7 @@
     var maxHeightThisKick = 0, displayedHeight = 0;
     var msgEl, bestDistEl, bestSpeedEl, focusDistEl, focusHeightEl, focusSpeedEl, shotsLeftEl, windEl;
     var restartBtn, restartInlineBtn, floatingUI, aimRadar, aimDot, powerWrap, powerFill, virtualBallEl;
-    var flashOverlay, impactRing, gradePop, shotTypePop, firstTipEl;
+    var flashOverlay, impactRing, gradePop, shotTypePop, firstTipEl, shotLogEl;
     var _restartCdTimer = null;
 
     function _buildUI() {
@@ -337,7 +337,8 @@
         + '<div style="position:absolute;bottom:70px;left:50%;transform:translateX(-50%);z-index:10"><button id="kg-restart" style="display:none;border:0;border-radius:10px;padding:14px 34px;background:#e53935;color:#fff;font-weight:bold;font-size:19px;cursor:pointer;box-shadow:0 8px 24px rgba(0,0,0,.25)">\u91CD\u65B0\u6311\u6230</button></div>'
         // Virtual kick button (easier to tap on mobile)
         + '<div id="kg-virtual-ball" style="position:absolute;left:50%;bottom:12%;transform:translateX(-50%);width:clamp(52px,13vw,72px);height:clamp(52px,13vw,72px);border-radius:50%;background:radial-gradient(circle at 38% 36%,rgba(255,255,255,.38),rgba(255,255,255,.08) 55%,rgba(0,0,0,.12));border:2.5px solid rgba(255,255,255,.45);box-shadow:0 0 18px rgba(0,180,255,.25),inset 0 -3px 8px rgba(0,0,0,.18);cursor:pointer;z-index:18;pointer-events:auto;transition:opacity .18s;display:flex;align-items:center;justify-content:center;font-size:clamp(46px,12vw,66px);line-height:0;user-select:none;overflow:hidden;padding-bottom:2px">\u26BD</div>'
-        // Bottom buttons: restart (left) + leaderboard (right)
+        // Shot log + Bottom buttons: restart (left) + leaderboard (right)
+        + '<div id="kg-shot-log" style="position:absolute;left:10px;bottom:36px;z-index:15;display:none;font-size:11px;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.7);line-height:1.5"></div>'
         + '<div style="position:absolute;left:10px;bottom:8px;z-index:15"><button id="kg-restart-inline" class="kg-lb-btn kg-restart-bottom-btn" type="button">\u91CD\u65B0\u958B\u59CB</button></div>'
         + '<div style="position:absolute;right:10px;bottom:8px;z-index:15"><button id="kg-leaderboard-btn-inner" class="kg-lb-btn" type="button">\u958B\u7403\u699C</button></div>';
 
@@ -361,6 +362,7 @@
       gradePop = containerEl.querySelector('#kg-grade-pop');
       shotTypePop = containerEl.querySelector('#kg-shot-type-pop');
       firstTipEl = containerEl.querySelector('#kg-first-tip');
+      shotLogEl = containerEl.querySelector('#kg-shot-log');
 
       restartBtn.addEventListener('click', function () { if (!restartBtn.disabled) resetGame(); });
       restartInlineBtn.addEventListener('pointerdown', function (e) { e.stopPropagation(); });
@@ -629,12 +631,25 @@
       shotsLeftEl.textContent = '3';
       restartBtn.style.display = 'none'; msgEl.style.opacity = '0';
       hasKickedOnce = false; bonusDistance = 0; lastKickGrade = 'GOOD'; distanceAtShotStart = 0;
+      shotDistances = []; _renderShotLog();
       initWind(); generateTerrainBumps(); resetBallAndState();
+    }
+    function _renderShotLog() {
+      if (!shotLogEl) return;
+      if (shotDistances.length === 0) { shotLogEl.style.display = 'none'; return; }
+      var nums = ['\u2460', '\u2461', '\u2462'];
+      var html = shotDistances.map(function (d, i) {
+        return '<div>' + nums[i] + ' ' + d.toFixed(1) + 'm</div>';
+      }).join('');
+      shotLogEl.innerHTML = html;
+      shotLogEl.style.display = '';
     }
     function finishShot() {
       var rawShotDist = (currentDistance + bonusDistance) - distanceAtShotStart;
       var mult = lastKickGrade === 'PERFECT' ? (1.06 + Math.random() * 0.06) : lastKickGrade === 'GREAT' ? (1.02 + Math.random() * 0.04) : 1.0;
       bonusDistance += rawShotDist * (mult - 1.0);
+      shotDistances.push(rawShotDist * mult);
+      _renderShotLog();
       var totalDist = currentDistance + bonusDistance;
       shotsLeft -= 1;
       lastValidStart.set(0, ballRadius, ball.position.z);
