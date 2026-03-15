@@ -12,6 +12,20 @@
 
 ---
 
+### 2026-03-15 — 全站分享升級：球隊/賽事/名片改用 LIFF URL + Flex Message
+- **問題**：球隊邀請、賽事分享、個人名片分享使用直連 URL（`toosterx.com`），不會強制在 LINE 內建瀏覽器開啟，且沒有 Flex Message 卡片
+- **修復**：
+  - 新建 `team-share.js`、`tournament-share.js`、`profile-share.js`，比照 `event-share.js` 模式（LIFF URL + Flex Message + shareTargetPicker + 底部選單 + fallback）
+  - `team-detail.js` / `team.js`：`_getTeamInviteShareUrl` 改為 LIFF URL、QR Code 編碼 LIFF URL
+  - `tournament-friendly-detail-view.js`：移除舊 `shareTournament`，由新模組覆蓋
+  - `app.js`：新增 `?tournament=` / `?profile=` deep link 路由
+  - `line-auth.js`：login redirectUri 保留 tournament/profile 參數
+  - `functions/index.js`：teamShareOg redirect 改為 LIFF URL
+  - `event-share.js`：`_showShareActionSheet` 支援自訂標題
+- **教訓**：所有面向用戶的分享 URL 應一律使用 LIFF URL，確保 LINE 內建瀏覽器開啟
+
+---
+
 ### 2026-03-15 — 建立/編輯活動後列表未刷新
 - **問題**：建立活動成功後，活動管理列表未顯示新建的活動，需切頁籤或刷新才能看到
 - **原因**：`renderActivityList()`、`renderHotEvents()`、`renderMyActivities()` 三個渲染呼叫放在非關鍵操作的 try-catch 區塊內（與 localStorage 儲存、opLog 寫入、autoExp 發放同一個 try），若前面任一操作拋出例外，渲染呼叫就會被跳過

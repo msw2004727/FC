@@ -673,13 +673,8 @@ Object.assign(App, {
 
   // ══════════════════════════════════
   _getTeamInviteShareUrl(teamId) {
-    const encodedTeamId = encodeURIComponent(String(teamId || '').trim());
-    if (!encodedTeamId) return `${location.origin}${location.pathname}`;
-    const prodHosts = ['toosterx.com', 'www.toosterx.com', 'msw2004727.github.io', 'fc-3g8.pages.dev'];
-    if (prodHosts.includes(location.hostname)) {
-      return `https://toosterx.com/team-share/${encodedTeamId}`;
-    }
-    return `${location.origin}${location.pathname}?team=${encodedTeamId}`;
+    return this._buildTeamLiffUrl ? this._buildTeamLiffUrl(teamId)
+      : 'https://liff.line.me/' + LINE_CONFIG.LIFF_ID + '?team=' + encodeURIComponent(String(teamId || '').trim());
   },
 
   _buildTeamInviteShareText(teamName, shareUrl) {

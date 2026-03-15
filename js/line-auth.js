@@ -360,7 +360,7 @@ const LineAuth = {
     const base = this._getBaseUrl();
     const current = new URL(window.location.href);
     const url = new URL(base);
-    ['event', 'team'].forEach(key => {
+    ['event', 'team', 'tournament', 'profile'].forEach(key => {
       const val = current.searchParams.get(key);
       if (val) url.searchParams.set(key, val);
     });

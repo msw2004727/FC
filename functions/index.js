@@ -2817,8 +2817,9 @@ exports.teamShareOg = onRequest(
     const ogImage = sanitizeImageUrl(
       team?.image || team?.coverImage || team?.cover || team?.banner || team?.logo
     );
+    const LIFF_ID = "2009084941-zgn7tQOp";
     const redirectUrl = (teamId && team)
-      ? `${SHARE_SITE_ORIGIN}/?team=${encodedTeamId}`
+      ? `https://liff.line.me/${LIFF_ID}?team=${encodedTeamId}`
       : `${SHARE_SITE_ORIGIN}/`;
     const html = buildTeamShareHtml({
       ogTitle,

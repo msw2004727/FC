@@ -143,25 +143,5 @@ Object.assign(App, {
     container.innerHTML = this._renderFriendlyTournamentTeamsTab(state);
   },
 
-  async shareTournament(tournamentId) {
-    const tournament = ApiService.getFriendlyTournamentRecord?.(tournamentId) || ApiService.getTournament?.(tournamentId);
-    if (!tournament) return;
-    const url = `${location.origin}${location.pathname}?tournament=${encodeURIComponent(tournamentId)}`;
-    const shareText = [
-      `賽事：${tournament.name}`,
-      `類型：${this._getTournamentModeLabel?.(tournament) || '友誼賽'}`,
-      `主辦：${this._getTournamentOrganizerDisplayText?.(tournament) || tournament.organizer || '主辦球隊'}`,
-      tournament.region ? `地區：${tournament.region}` : '',
-      url,
-    ].filter(Boolean).join('\n');
-    const doCopy = async () => {
-      const ok = await this._copyToClipboard(shareText);
-      this.showToast(ok ? '賽事分享內容已複製。' : '複製失敗，請手動複製');
-    };
-    if (navigator.share) {
-      navigator.share({ text: shareText }).catch(() => doCopy());
-    } else {
-      await doCopy();
-    }
-  },
+  // shareTournament 已移至 js/modules/tournament-share.js（LIFF Flex Message 版）
 });

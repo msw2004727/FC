@@ -94,8 +94,9 @@ flowchart TD
 | `core/theme.js` | 深色 / 淺色主題切換，偏好儲存於 localStorage |
 | `modules/event-*.js` | 活動功能群（event-list / event-share / event-detail / event-detail-signup / event-detail-companion / event-create / event-manage，共 7 個），透過 `Object.assign(App, {...})` 掛載。event-share 提供 LINE Flex Message 分享（shareTargetPicker）+ 底部選單 + 建立後分享提示 |
 | `modules/registration-audit.js` | 報名資料審計與修復：`auditRegistrations()` 掃描差異、`repairRegistrations()` 以 registrations 為準回寫 events 投影 |
-| `modules/team*.js` | 球隊功能群（team / team-list / team-detail / team-form，共 4 個；列表、詳情、表單、成員申請管理） |
-| `modules/tournament-*.js` | 錦標賽功能群（渲染、賽程管理） |
+| `modules/team*.js` | 球隊功能群（team / team-list / team-detail / team-share / team-form，共 5 個；列表、詳情、分享、表單、成員申請管理）。team-share 提供 LINE Flex Message 分享（shareTargetPicker）+ 底部選單 |
+| `modules/tournament-*.js` | 錦標賽功能群（渲染、賽程管理）。tournament-share 提供 LINE Flex Message 分享 |
+| `modules/profile-share.js` | 個人名片 LINE Flex Message 分享（shareTargetPicker）+ 底部選單，覆蓋 profile-core.js 的舊 `_shareUserCard` |
 | `modules/tournament/README.md` | 賽事重構預留目錄說明；後續 friendly / cup / league 模組化拆分將以此目錄為落點 |
 | `modules/tournament/tournament-core.js` | 賽事共用核心 helper；提供公開賽事頁與後台管理共用的狀態判斷、主辦顯示、友誼賽資料正規化與責任球隊權限骨架 |
 | `modules/tournament/tournament-friendly-detail.js` | 友誼賽詳情頁接管模組；處理球隊申請、主辦審核、灰色候審佔位、聯繫主辦人與分享賽事入口 |

@@ -88,14 +88,18 @@ const ScriptLoader = {
       'js/modules/registration-audit.js',
     ],
     team: [
+      'js/modules/event-share.js',
       'js/modules/team-list.js',
       'js/modules/team-detail.js',
+      'js/modules/team-share.js',
       'js/modules/team-form.js',
     ],
     profile: [
+      'js/modules/event-share.js',
       'js/modules/profile-core.js',
       'js/modules/profile-data.js',
       'js/modules/profile-card.js',
+      'js/modules/profile-share.js',
     ],
     shop: [
       'js/modules/shop.js',
@@ -112,7 +116,9 @@ const ScriptLoader = {
       'js/modules/kickball-game-page.js',
     ],
     tournamentAdmin: [
+      'js/modules/event-share.js',
       'js/modules/tournament-manage.js',
+      'js/modules/tournament-share.js',
     ],
     messageAdmin: [
       'js/modules/message-admin.js',

@@ -432,6 +432,10 @@ const App = {
       if (pendingEvent) return { type: 'event', id: pendingEvent };
       const pendingTeam = String(sessionStorage.getItem('_pendingDeepTeam') || '').trim();
       if (pendingTeam) return { type: 'team', id: pendingTeam };
+      const pendingTournament = String(sessionStorage.getItem('_pendingDeepTournament') || '').trim();
+      if (pendingTournament) return { type: 'tournament', id: pendingTournament };
+      const pendingProfile = String(sessionStorage.getItem('_pendingDeepProfile') || '').trim();
+      if (pendingProfile) return { type: 'profile', id: pendingProfile };
     } catch (_) {}
     return null;
   },
@@ -440,6 +444,8 @@ const App = {
     try {
       sessionStorage.removeItem('_pendingDeepEvent');
       sessionStorage.removeItem('_pendingDeepTeam');
+      sessionStorage.removeItem('_pendingDeepTournament');
+      sessionStorage.removeItem('_pendingDeepProfile');
     } catch (_) {}
   },
 
@@ -447,7 +453,7 @@ const App = {
     try {
       const url = new URL(window.location.href);
       let changed = false;
-      ['event', 'team'].forEach((key) => {
+      ['event', 'team', 'tournament', 'profile'].forEach((key) => {
         if (!url.searchParams.has(key)) return;
         url.searchParams.delete(key);
         changed = true;
@@ -463,7 +469,8 @@ const App = {
     if (!overlay) return;
     const title = overlay.querySelector('[data-deep-link-title]');
     const sub = overlay.querySelector('[data-deep-link-sub]');
-    if (title) title.textContent = type === 'team' ? '正在前往球隊頁面' : '正在前往活動頁面';
+    const titleMap = { team: '正在前往球隊頁面', tournament: '正在前往賽事頁面', profile: '正在前往個人名片' };
+    if (title) title.textContent = titleMap[type] || '正在前往活動頁面';
     if (sub) sub.textContent = '正在確認登入與資料，請稍候...';
     overlay.classList.remove('is-hiding');
     overlay.style.display = 'flex';
@@ -495,7 +502,8 @@ const App = {
     this._clearPendingDeepLink();
     this._clearDeepLinkQueryParams();
     // 延後隱藏覆蓋層：等目標頁面實際可見，避免閃現首頁
-    const targetPage = document.getElementById('page-activity-detail') || document.getElementById('page-team-detail');
+    const _findTargetPage = () => document.getElementById('page-activity-detail') || document.getElementById('page-team-detail') || document.getElementById('page-tournament-detail') || document.getElementById('page-user-card');
+    const targetPage = _findTargetPage();
     if (targetPage && targetPage.style.display !== 'none' && targetPage.offsetHeight > 0) {
       this._hideDeepLinkOverlay();
     } else {
@@ -503,7 +511,7 @@ const App = {
       let _tries = 0;
       const _waitHide = setInterval(() => {
         _tries++;
-        const tp = document.getElementById('page-activity-detail') || document.getElementById('page-team-detail');
+        const tp = _findTargetPage();
         if ((tp && tp.style.display !== 'none' && tp.offsetHeight > 0) || _tries >= 20) {
           clearInterval(_waitHide);
           this._hideDeepLinkOverlay();
@@ -936,14 +944,15 @@ const App = {
             this._completeDeepLinkFallback('\u8acb\u5148\u5b8c\u6210 LINE \u767b\u5165\u5f8c\u518d\u958b\u555f\u9023\u7d50\u3002', 'page-home');
             return;
           }
-          const retryTarget = pending.type === 'team' ? 'page-teams' : 'page-activities';
+          const retryTargetMap = { team: 'page-teams', tournament: 'page-tournaments', profile: 'page-profile' };
+          const retryTarget = retryTargetMap[pending.type] || 'page-activities';
           this._completeDeepLinkFallback('\u9801\u9762\u8f09\u5165\u5df2\u903e\u6642\uff0c\u5df2\u5207\u63db\u5230\u5217\u8868\u3002', retryTarget);
         }, this._deepLinkBootTimeoutMs);
         return;
       }
-      const targetPage = pending.type === 'team'
-        ? 'page-teams'
-        : (isAuthedNow ? 'page-activities' : 'page-home');
+      const fallbackPageMap = { team: 'page-teams', tournament: 'page-tournaments', profile: 'page-profile' };
+      const targetPage = fallbackPageMap[pending.type]
+        || (isAuthedNow ? 'page-activities' : 'page-home');
       const fallbackMessage = pending.type === 'event' && !isAuthedNow
         ? '\u6d3b\u52d5\u8a73\u60c5\u8f09\u5165\u5df2\u903e\u6642\uff0c\u5df2\u5207\u56de\u9996\u9801\u3002'
         : '\u9801\u9762\u8f09\u5165\u5df2\u903e\u6642\uff0c\u5df2\u5207\u63db\u5230\u5217\u8868\u3002';
@@ -1029,6 +1038,30 @@ const App = {
             return true;
           }
           return false;
+        }
+
+        if (pending.type === 'tournament') {
+          const tournament = ApiService.getTournament?.(pending.id);
+          if (!tournament) return false;
+
+          await this.showTournamentDetail(pending.id);
+          if (this.currentPage === 'page-tournament-detail' && this.currentTournament === pending.id) {
+            this._completeDeepLinkSuccess();
+            return true;
+          }
+          return false;
+        }
+
+        if (pending.type === 'profile') {
+          const users = ApiService.getAdminUsers?.() || [];
+          const user = users.find(u => u.uid === pending.id || u.lineUserId === pending.id);
+          if (!user) return false;
+
+          const name = user.displayName || user.name;
+          if (!name) return false;
+          await this.showUserProfile(name);
+          this._completeDeepLinkSuccess();
+          return true;
         }
 
         return false;
@@ -1435,8 +1468,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     const urlParams = new URLSearchParams(location.search);
     const deepEvent = String(urlParams.get('event') || '').trim();
     const deepTeam = String(urlParams.get('team') || '').trim();
+    const deepTournament = String(urlParams.get('tournament') || '').trim();
+    const deepProfile = String(urlParams.get('profile') || '').trim();
     if (deepEvent) sessionStorage.setItem('_pendingDeepEvent', deepEvent);
     if (deepTeam) sessionStorage.setItem('_pendingDeepTeam', deepTeam);
+    if (deepTournament) sessionStorage.setItem('_pendingDeepTournament', deepTournament);
+    if (deepProfile) sessionStorage.setItem('_pendingDeepProfile', deepProfile);
     // 立即啟動 REST fetch（不等 SDK）— URL 有 ?event= 或 sessionStorage 有殘留（LINE 登入回來）
     const restEventId = deepEvent || String(sessionStorage.getItem('_pendingDeepEvent') || '').trim();
     if (restEventId) {

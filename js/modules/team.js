@@ -664,7 +664,8 @@ Object.assign(App, {
   showTeamInviteQR(teamId) {
     const t = ApiService.getTeam(teamId);
     if (!t) return;
-    const url = `${location.origin}${location.pathname}?team=${teamId}`;
+    const url = (this._buildTeamLiffUrl ? this._buildTeamLiffUrl(teamId)
+      : 'https://liff.line.me/' + LINE_CONFIG.LIFF_ID + '?team=' + encodeURIComponent(String(teamId || '')));
     // Remove existing overlay if any
     const existing = document.getElementById('qr-invite-overlay');
     if (existing) existing.remove();

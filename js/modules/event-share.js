@@ -12,7 +12,7 @@ Object.assign(App, {
   // ══════════════════════════════════
 
   _buildEventLiffUrl(eventId) {
-    return 'https://liff.line.me/' + LINE_CONFIG.LIFF_ID + '?event=' + eventId;
+    return 'https://liff.line.me/' + LINE_CONFIG.LIFF_ID + '?event=' + encodeURIComponent(String(eventId || '').trim());
   },
 
   // ══════════════════════════════════
@@ -154,7 +154,7 @@ Object.assign(App, {
   //  Bottom Action Sheet
   // ══════════════════════════════════
 
-  _showShareActionSheet(canPicker) {
+  _showShareActionSheet(canPicker, title) {
     return new Promise(function (resolve) {
       // Overlay
       const overlay = document.createElement('div');
@@ -169,10 +169,11 @@ Object.assign(App, {
         ? '<div style="font-size:.75rem;color:var(--text-muted,#999);text-align:center;padding:4px 0 8px">' +
             '\u8ACB\u5728 LINE \u4E2D\u958B\u555F\u4EE5\u4F7F\u7528\u300C\u5206\u4EAB\u5230 LINE\u300D</div>'
         : '';
+      var sheetTitle = title || '\u5206\u4EAB\u6D3B\u52D5';
       const panel = document.createElement('div');
       panel.className = 'share-action-sheet-panel';
       panel.innerHTML =
-        '<div class="share-action-sheet-title">\u5206\u4EAB\u6D3B\u52D5</div>' +
+        '<div class="share-action-sheet-title">' + sheetTitle + '</div>' +
         lineBtn +
         '<button class="share-action-sheet-btn" data-choice="copy">' +
           '<span style="margin-right:6px">\uD83D\uDCCB</span>\u8907\u88FD\u5206\u4EAB\u9023\u7D50</button>' +
