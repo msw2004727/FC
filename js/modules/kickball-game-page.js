@@ -631,9 +631,9 @@
       var p = power / 100, cx = clamp(aimTarget.x, -0.9, 0.9), cy = clamp(aimTarget.y, -0.9, 0.9);
       var offCenter = Math.min(1, Math.hypot(cx, cy)), efficiency = 1 - offCenter * 0.06;
       var upperCZ = Math.max(0, cy) * (1 - Math.min(1, Math.abs(cx) / 0.42));
-      var fwd = ((108 + p * 168) * efficiency + upperCZ * (16 + p * 24)) * 0.625;
-      if (cy < 0) { var t = Math.abs(cy); fwd *= (1 - t * t * 0.9); }
-      var vBase = 8.5 + p * 11, vContact = (-cy) * (14 + p * 24), ucLift = upperCZ * (4 + p * 6), latStart = cx * (3.5 + p * 6.5);
+      var fwd = ((108 + p * 168) * efficiency + upperCZ * (16 + p * 24)) * 1.0625;
+      if (cy < 0) { var t = Math.abs(cy); fwd *= Math.max(0, 1 - t * t * 1.1); }
+      var vBase = 20.4 + p * 26.4, vContact = (-cy) * (44.8 + p * 76.8), ucLift = upperCZ * (9.6 + p * 14.4), latStart = cx * (5.95 + p * 11.05);
       var rng = 0.98 + Math.random() * 0.04;
       velocity.set(latStart * rng, (vBase + vContact + ucLift) * rng, -fwd * rng);
       spin.x = (-cy) * (30 + p * 70) + upperCZ * (-5 - p * 7); spin.y = cx * (48 + p * 105); spin.z = 0;
