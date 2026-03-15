@@ -84,6 +84,7 @@ const ScriptLoader = {
       'js/modules/event-detail-companion.js',
       'js/modules/event-create.js',
       'js/modules/event-manage.js',
+      'js/modules/registration-audit.js',
     ],
     team: [
       'js/modules/team-list.js',

@@ -138,10 +138,10 @@ const App = {
     this.bindImageUpload('popupad-image', 'popupad-preview', 16/9);
     this.bindImageUpload('ct-team-image', 'ct-team-preview', 1);
     this.bindImageUpload('theme-image', 'theme-preview', 0);
-    this._bindAchBadgeUpload();
-    this._populateAchConditionSelects();
-    this.bindShopSearch();
-    this.bindTeamOnlyToggle();
+    this._bindAchBadgeUpload?.();
+    this._populateAchConditionSelects?.();
+    this.bindShopSearch?.();
+    this.bindTeamOnlyToggle?.();
     this.applySiteThemes();
     this.initLangSwitcher();
     this._applyI18nToUI();
@@ -249,10 +249,10 @@ const App = {
   _bindPageElements() {
     this.bindFilterToggle();
     this.bindTabBars();
-    this.bindShopSearch();
-    this.bindTeamOnlyToggle();
-    this._bindAchBadgeUpload();
-    this._populateAchConditionSelects();
+    this.bindShopSearch?.();
+    this.bindTeamOnlyToggle?.();
+    this._bindAchBadgeUpload?.();
+    this._populateAchConditionSelects?.();
     this.bindImageUpload('ce-image',         'ce-upload-preview',         16/9);
     this.bindImageUpload('ct-image',         'ct-upload-preview',         16/9);
     this.bindImageUpload('ct-content-image', 'ct-content-upload-preview', 16/9);
@@ -1473,20 +1473,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 進度條跳到 100% 後淡出
     var _ov = document.getElementById('loading-overlay');
     if (_ov && _ov.style.display !== 'none') {
-      // 讓進度條繼續跑滿 1 秒再跳 100%
+      if (window._bootLoadingAnim) window._bootLoadingAnim.stop();
+      var _pct = _ov.querySelector('.boot-loading__pct');
+      var _fill = _ov.querySelector('.boot-loading__fill');
+      var _bar = _ov.querySelector('.boot-loading__bar');
+      if (_pct) _pct.textContent = '100%';
+      if (_fill) _fill.style.width = '100%';
+      if (_bar) _bar.setAttribute('aria-valuenow', '100');
       setTimeout(function() {
-        if (window._bootLoadingAnim) window._bootLoadingAnim.stop();
-        var _pct = _ov.querySelector('.boot-loading__pct');
-        var _fill = _ov.querySelector('.boot-loading__fill');
-        var _bar = _ov.querySelector('.boot-loading__bar');
-        if (_pct) _pct.textContent = '100%';
-        if (_fill) _fill.style.width = '100%';
-        if (_bar) _bar.setAttribute('aria-valuenow', '100');
-        setTimeout(function() {
-          _ov.style.display = 'none';
-          console.log('[Boot] 載入畫面已隱藏（Phase 3 框架就緒）');
-        }, 400);
-      }, 1000);
+        _ov.style.display = 'none';
+        console.log('[Boot] 載入畫面已隱藏（Phase 3 框架就緒）');
+      }, 150);
     }
     if (window._loadingSafety) clearTimeout(window._loadingSafety);
     console.log('[Boot] Phase 3 完成');
