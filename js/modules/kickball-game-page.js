@@ -331,7 +331,7 @@
         + '  </div>'
         + '</div>'
         // Floating message + restart
-        + '<div id="kg-msg" style="position:absolute;left:50%;top:40%;transform:translate(-50%,-50%);color:#fff;font-size:clamp(22px,5vw,34px);font-weight:bold;text-shadow:0 2px 10px rgba(0,0,0,.9);text-align:center;opacity:0;transition:opacity .22s;white-space:pre-line;z-index:10;pointer-events:none"></div>'
+        + '<div id="kg-msg" style="position:absolute;left:50%;top:40%;transform:translate(-50%,-50%);color:#fff;font-size:clamp(18px,4.2vw,28px);font-weight:bold;text-shadow:0 2px 10px rgba(0,0,0,.9);text-align:center;opacity:0;transition:opacity .22s;white-space:nowrap;z-index:10;pointer-events:none"></div>'
         + '<div style="position:absolute;bottom:70px;left:50%;transform:translateX(-50%);z-index:10"><button id="kg-restart" style="display:none;border:0;border-radius:10px;padding:14px 34px;background:#e53935;color:#fff;font-weight:bold;font-size:19px;cursor:pointer;box-shadow:0 8px 24px rgba(0,0,0,.25)">\u91CD\u65B0\u6311\u6230</button></div>'
         // Virtual kick button (easier to tap on mobile)
         + '<div id="kg-virtual-ball" style="position:absolute;left:50%;bottom:12%;transform:translateX(-50%);width:clamp(52px,13vw,72px);height:clamp(52px,13vw,72px);border-radius:50%;background:radial-gradient(circle at 38% 36%,rgba(255,255,255,.38),rgba(255,255,255,.08) 55%,rgba(0,0,0,.12));border:2.5px solid rgba(255,255,255,.45);box-shadow:0 0 18px rgba(0,180,255,.25),inset 0 -3px 8px rgba(0,0,0,.18);cursor:pointer;z-index:18;pointer-events:auto;transition:opacity .18s;display:flex;align-items:center;justify-content:center;font-size:clamp(46px,12vw,66px);line-height:0;user-select:none;overflow:hidden;padding-bottom:2px">\u26BD</div>'
@@ -613,8 +613,8 @@
       lastValidStart.set(0, ballRadius, ball.position.z);
       shotsLeftEl.textContent = String(shotsLeft);
       if (shotsLeft > 0) {
-        var bonusStr = mult > 1.0 ? '\n+' + (rawShotDist * (mult - 1.0)).toFixed(2) + 'm ' + lastKickGrade + ' \u734E\u52F5' : '';
-        showMessage('\u76EE\u524D\u63A8\u9032\u81F3 ' + totalDist.toFixed(2) + ' m\n\u6E96\u5099\u4E0B\u4E00\u8173' + bonusStr, '#00ff88', 1800);
+        var bonusStr = mult > 1.0 ? ' (+' + (rawShotDist * (mult - 1.0)).toFixed(1) + 'm ' + lastKickGrade + ')' : '';
+        showMessage(totalDist.toFixed(2) + 'm' + bonusStr, '#00ff88', 1800);
         resultTimer = setTimeout(resetBallAndState, 1900);
       } else {
         gameState = 'gameover';
@@ -624,13 +624,13 @@
           if (maxSpeedThisGame > bestMaxSpeed) bestMaxSpeed = maxSpeedThisGame;
           bestDistEl.textContent = bestDistance.toFixed(2);
           bestSpeedEl.textContent = bestMaxSpeed.toFixed(2);
-          showMessage('\uD83C\uDF89 \u65B0\u7D00\u9304\uFF01\n\u7E3D\u8A08 ' + totalDist.toFixed(2) + ' m', '#ffd700', 3000);
+          showMessage('\uD83C\uDF89 \u65B0\u7D00\u9304 ' + totalDist.toFixed(2) + 'm', '#ffd700', 3000);
         } else {
           if (maxSpeedThisGame > bestMaxSpeed) {
             bestMaxSpeed = maxSpeedThisGame;
             bestSpeedEl.textContent = bestMaxSpeed.toFixed(2);
           }
-          showMessage('\u6311\u6230\u7D50\u675F\n\u7E3D\u8A08 ' + totalDist.toFixed(2) + ' m', '#ffffff', 3000);
+          showMessage('\u7E3D\u8A08 ' + totalDist.toFixed(2) + 'm', '#ffffff', 3000);
         }
         restartBtn.style.display = 'inline-block';
         // Report to parent module
