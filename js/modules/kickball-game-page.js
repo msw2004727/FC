@@ -281,8 +281,9 @@
     // DOM refs inside container
     var maxHeightThisKick = 0, displayedHeight = 0;
     var msgEl, bestDistEl, bestSpeedEl, focusDistEl, focusHeightEl, focusSpeedEl, shotsLeftEl, windEl;
-    var restartBtn, floatingUI, aimRadar, aimDot, powerWrap, powerFill, virtualBallEl;
+    var restartBtn, restartInlineBtn, floatingUI, aimRadar, aimDot, powerWrap, powerFill, virtualBallEl;
     var flashOverlay, impactRing, gradePop, shotTypePop, firstTipEl;
+    var _restartCdTimer = null;
 
     function _buildUI() {
       containerEl.innerHTML = ''
@@ -349,7 +350,7 @@
       shotsLeftEl = containerEl.querySelector('#kg-shots-left');
       windEl = containerEl.querySelector('#kg-wind');
       restartBtn = containerEl.querySelector('#kg-restart');
-      var restartInlineBtn = containerEl.querySelector('#kg-restart-inline');
+      restartInlineBtn = containerEl.querySelector('#kg-restart-inline');
       floatingUI = containerEl.querySelector('#kg-floating-ui');
       aimRadar = containerEl.querySelector('#kg-aim-radar');
       aimDot = containerEl.querySelector('#kg-aim-dot');
@@ -361,9 +362,9 @@
       shotTypePop = containerEl.querySelector('#kg-shot-type-pop');
       firstTipEl = containerEl.querySelector('#kg-first-tip');
 
-      restartBtn.addEventListener('click', resetGame);
+      restartBtn.addEventListener('click', function () { if (!restartBtn.disabled) resetGame(); });
       restartInlineBtn.addEventListener('pointerdown', function (e) { e.stopPropagation(); });
-      restartInlineBtn.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); resetGame(); });
+      restartInlineBtn.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); if (!restartInlineBtn.disabled) resetGame(); });
       // Leaderboard button inside container
       var lbBtnInner = containerEl.querySelector('#kg-leaderboard-btn-inner');
       if (lbBtnInner) {
@@ -593,7 +594,36 @@
       aimRadar.classList.remove('locked'); powerWrap.style.display = 'none'; powerFill.style.width = '0%';
       if (firstTipEl) firstTipEl.style.opacity = hasKickedOnce ? '0' : '1';
     }
+    function _startRestartCooldown() {
+      var sec = 10;
+      restartBtn.disabled = true; restartInlineBtn.disabled = true;
+      restartBtn.style.opacity = '0.45'; restartInlineBtn.style.opacity = '0.45';
+      restartBtn.textContent = '\u91CD\u65B0\u6311\u6230(' + sec + 's)';
+      restartInlineBtn.textContent = '\u91CD\u65B0\u958B\u59CB(' + sec + 's)';
+      if (_restartCdTimer) clearInterval(_restartCdTimer);
+      _restartCdTimer = setInterval(function () {
+        sec -= 1;
+        if (sec <= 0) {
+          clearInterval(_restartCdTimer); _restartCdTimer = null;
+          restartBtn.disabled = false; restartInlineBtn.disabled = false;
+          restartBtn.style.opacity = '1'; restartInlineBtn.style.opacity = '1';
+          restartBtn.textContent = '\u91CD\u65B0\u6311\u6230';
+          restartInlineBtn.textContent = '\u91CD\u65B0\u958B\u59CB';
+        } else {
+          restartBtn.textContent = '\u91CD\u65B0\u6311\u6230(' + sec + 's)';
+          restartInlineBtn.textContent = '\u91CD\u65B0\u958B\u59CB(' + sec + 's)';
+        }
+      }, 1000);
+    }
+    function _stopRestartCooldown() {
+      if (_restartCdTimer) { clearInterval(_restartCdTimer); _restartCdTimer = null; }
+      restartBtn.disabled = false; restartInlineBtn.disabled = false;
+      restartBtn.style.opacity = '1'; restartInlineBtn.style.opacity = '1';
+      restartBtn.textContent = '\u91CD\u65B0\u6311\u6230';
+      restartInlineBtn.textContent = '\u91CD\u65B0\u958B\u59CB';
+    }
     function resetGame() {
+      _stopRestartCooldown();
       if (resultTimer) clearTimeout(resultTimer);
       shotsLeft = 3; currentDistance = 0; maxSpeedThisGame = 0; gameStartTime = Date.now();
       lastValidStart.set(0, ballRadius, 0);
@@ -634,6 +664,7 @@
           showMessage('\u7E3D\u8A08 ' + totalDist.toFixed(2) + 'm', '#ffffff', 3000);
         }
         restartBtn.style.display = 'inline-block';
+        _startRestartCooldown();
         // Report to parent module
         var payload = { distance: Math.round(totalDist * 100) / 100, maxSpeed: Math.round(maxSpeedThisGame * 100) / 100, kicks: 3, durationMs: durationMs };
         if (!_bestSession || payload.distance > _bestSession.distance) _bestSession = payload;
@@ -861,6 +892,7 @@
     return {
       destroy: function () {
         destroyed = true;
+        if (_restartCdTimer) clearInterval(_restartCdTimer);
         if (_animFrameId) cancelAnimationFrame(_animFrameId);
         window.removeEventListener('pointerup', _onPointerUp);
         window.removeEventListener('mousemove', _onCamMouseMove);
