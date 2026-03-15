@@ -159,6 +159,38 @@ FC-github/
 
 ---
 
+## 統計系統保護規則（UID 比對鎖定）
+
+統計系統（完成場次、出席率、放鴿子）歷史上多次因 UID 欄位不一致導致統計歸零或誤判。以下規則**強制適用**：
+
+### 背景知識（必讀）
+
+歷史資料中 `attendanceRecords` 的 `uid` 欄位**不可信** — 部分記錄存的是用戶顯示名稱（如「小白」）而非 LINE userId（如 `U196b...`）。這是 `_confirmAllAttendance` 歷史 bug 遺留。因此，所有涉及 `attendanceRecords.uid` 與其他集合（`registrations.userId`、`activityRecords.uid`）交叉比對的邏輯，都必須包含 **displayName → uid 解析**（`nameToUid` 對照表）。
+
+### 鎖定範圍（修改需用戶明確授權）
+
+| 檔案 | 鎖定函式 / 區塊 | 說明 |
+|------|------------------|------|
+| `js/modules/event-manage.js` | `_buildRawNoShowCountByUid()` | 放鴿子原始計數（全用戶） |
+| `js/modules/event-manage.js` | `_getNoShowDetailsByUid()` | 放鴿子明細查詢（單一用戶） |
+| `js/modules/event-manage.js` | `_confirmAllAttendance()` | 批次確認出席（寫入 attendanceRecords） |
+| `js/modules/achievement/stats.js` | `getParticipantAttendanceStats()` | 出席統計核心（完成場次、出席率） |
+| `js/modules/leaderboard.js` | `_calcScanStats()` | 掃碼統計（呼叫 getParticipantAttendanceStats） |
+| `js/modules/leaderboard.js` | `_categorizeRecords()` | 活動紀錄分類（完成 / 未出席 / 取消） |
+| `js/firebase-service.js` | `ensureUserStatsLoaded()` | 用戶統計資料載入（含 userName fallback 查詢） |
+| `js/api-service.js` | `getUserAttendanceRecords()` | 用戶簽到紀錄取得（優先 userStatsCache） |
+
+### 修改這些函式時的強制規則
+
+1. **未經用戶明確授權，禁止修改上述任何函式**。即使是看似無害的重構、變數重命名或程式碼整理，都可能破壞 UID 比對邏輯。
+2. **禁止移除 `nameToUid` 對照表**：`_buildRawNoShowCountByUid` 和 `_getNoShowDetailsByUid` 中的 `nameToUid` 對照表是修正歷史資料 UID 不一致的關鍵機制，不得移除或簡化。
+3. **禁止移除 `ensureUserStatsLoaded` 的 userName fallback 查詢**：當 `uid` 查無 `attendanceRecords` 時，改用 `userName`（顯示名稱）再查一次的邏輯不得移除。
+4. **禁止變更 UID 欄位對照關係**：`registrations` 用 `userId`、`attendanceRecords` 用 `uid`、`activityRecords` 用 `uid`、`users` 集合的快取 key 是 `adminUsers`（非 `users`）。不得變更這些欄位名或快取 key。
+5. **新增涉及 `attendanceRecords.uid` 比對的邏輯時**，必須加入 displayName → uid 解析，不得假設 `attendanceRecords.uid` 一定是 LINE userId。
+6. **修改前必須說明影響範圍**：任何修改提案必須列出對完成場次、出席率、放鴿子統計的影響，並說明是否需要重新驗證歷史資料。
+
+---
+
 ## 修復日誌規則（每次解決問題後必做）
 
 每次解決一個 bug 或完成一項功能後，**必須**在 `docs/claude-memory.md` 新增一筆記錄：
