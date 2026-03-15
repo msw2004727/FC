@@ -214,14 +214,21 @@ Object.assign(App, {
   },
 
   handleJoinTeam(teamId) {
-    // 1. Check if user already has a team
-    let currentTeamId = this._userTeam;
-    if (!ModeManager.isDemo()) {
-      const user = ApiService.getCurrentUser();
-      currentTeamId = user && user.teamId ? user.teamId : null;
+    // 1. Check if user already has a team (含 multi-team 檢查)
+    const user = !ModeManager.isDemo() ? ApiService.getCurrentUser() : null;
+    const currentTeamIds = user
+      ? (typeof this._getUserTeamIds === 'function'
+        ? this._getUserTeamIds(user)
+        : [user.teamId].concat(Array.isArray(user.teamIds) ? user.teamIds : [])
+            .filter(Boolean).map(v => String(v).trim()).filter((v, i, a) => v && a.indexOf(v) === i))
+      : (this._userTeam ? [String(this._userTeam).trim()] : []);
+    if (currentTeamIds.includes(teamId)) {
+      const t2 = ApiService.getTeam(teamId);
+      this.showToast(`您已是「${t2 ? t2.name : '球隊'}」的成員`);
+      return;
     }
-    if (currentTeamId) {
-      const currentTeam = ApiService.getTeam(currentTeamId);
+    if (currentTeamIds.length > 0) {
+      const currentTeam = ApiService.getTeam(currentTeamIds[0]);
       const teamName = currentTeam ? currentTeam.name : '球隊';
       this.showToast(`您已加入「${teamName}」，無法重複加入其他球隊`);
       return;
