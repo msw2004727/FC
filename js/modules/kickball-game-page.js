@@ -357,6 +357,7 @@
         lbBtnInner.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); _openLeaderboard(_lbPeriod); });
       }
       containerEl.addEventListener('pointerdown', onPointerDown);
+      containerEl.addEventListener('contextmenu', function (e) { e.preventDefault(); });
       window.addEventListener('pointerup', _onPointerUp);
     }
 
@@ -404,12 +405,24 @@
     }
 
     // ── Textures ──
-    function createBallTexture() {
-      var c = document.createElement('canvas'); c.width = 512; c.height = 512;
-      var ctx = c.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, 512, 512);
-      ctx.strokeStyle = '#303030'; ctx.lineWidth = 10;
-      for (var i = 0; i < 10; i++) { ctx.beginPath(); ctx.arc(Math.random() * 512, Math.random() * 512, 58, 0, Math.PI * 2); ctx.stroke(); }
-      return new THREE.CanvasTexture(c);
+    var BALL_TEXTURE_URL = 'assets/ball/club-world-cup-2025/textures/Al_Rihla_baseColor.png';
+    function loadBallTexture(material) {
+      var loader = new THREE.TextureLoader();
+      loader.load(BALL_TEXTURE_URL, function (tex) {
+        tex.encoding = THREE.sRGBEncoding;
+        tex.flipY = true;
+        tex.needsUpdate = true;
+        material.map = tex;
+        material.needsUpdate = true;
+      }, undefined, function () {
+        // fallback: canvas-drawn texture
+        var c = document.createElement('canvas'); c.width = 512; c.height = 512;
+        var ctx = c.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, 512, 512);
+        ctx.strokeStyle = '#303030'; ctx.lineWidth = 10;
+        for (var i = 0; i < 10; i++) { ctx.beginPath(); ctx.arc(Math.random() * 512, Math.random() * 512, 58, 0, Math.PI * 2); ctx.stroke(); }
+        material.map = new THREE.CanvasTexture(c);
+        material.needsUpdate = true;
+      });
     }
     function createGrassTexture() {
       var c = document.createElement('canvas'); c.width = 1024; c.height = 2048; var ctx = c.getContext('2d');
@@ -485,7 +498,9 @@
       dirLight.shadow.camera.left = -180; dirLight.shadow.camera.right = 180; dirLight.shadow.camera.top = 180; dirLight.shadow.camera.bottom = -180;
       scene.add(dirLight); scene.add(dirLight.target);
       buildField();
-      ball = new THREE.Mesh(new THREE.SphereGeometry(ballRadius, 32, 32), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.82, metalness: 0.05, map: createBallTexture() }));
+      var ballMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.82, metalness: 0.05 });
+      loadBallTexture(ballMat);
+      ball = new THREE.Mesh(new THREE.SphereGeometry(ballRadius, 32, 32), ballMat);
       ball.castShadow = true; ball.position.set(0, ballRadius, 0); scene.add(ball);
       raycaster = new THREE.Raycaster(); mouse = new THREE.Vector2();
     }

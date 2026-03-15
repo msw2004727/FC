@@ -782,8 +782,14 @@
   user-select: none;
   -webkit-user-select: none;
   -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
   border-radius: 12px;
   overflow: hidden;
+}
+#page-kick-game #kick-game-container * {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 #page-kick-game #kick-game-container canvas {
   position: absolute;
