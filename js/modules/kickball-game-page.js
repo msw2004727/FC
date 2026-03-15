@@ -280,7 +280,7 @@
     // DOM refs inside container
     var maxHeightThisKick = 0, displayedHeight = 0;
     var msgEl, bestDistEl, bestSpeedEl, focusDistEl, focusHeightEl, focusSpeedEl, shotsLeftEl, windEl;
-    var restartBtn, floatingUI, aimRadar, aimDot, powerWrap, powerFill;
+    var restartBtn, floatingUI, aimRadar, aimDot, powerWrap, powerFill, virtualBallEl;
     var flashOverlay, impactRing, gradePop, shotTypePop, firstTipEl;
 
     function _buildUI() {
@@ -333,6 +333,8 @@
         // Floating message + restart
         + '<div id="kg-msg" style="position:absolute;left:50%;top:40%;transform:translate(-50%,-50%);color:#fff;font-size:clamp(22px,5vw,34px);font-weight:bold;text-shadow:0 2px 10px rgba(0,0,0,.9);text-align:center;opacity:0;transition:opacity .22s;white-space:pre-line;z-index:10;pointer-events:none"></div>'
         + '<div style="position:absolute;bottom:70px;left:50%;transform:translateX(-50%);z-index:10"><button id="kg-restart" style="display:none;border:0;border-radius:10px;padding:14px 34px;background:#e53935;color:#fff;font-weight:bold;font-size:19px;cursor:pointer;box-shadow:0 8px 24px rgba(0,0,0,.25)">\u91CD\u65B0\u6311\u6230</button></div>'
+        // Virtual kick button (easier to tap on mobile)
+        + '<div id="kg-virtual-ball" style="position:absolute;left:50%;bottom:28%;transform:translateX(-50%);width:clamp(52px,13vw,72px);height:clamp(52px,13vw,72px);border-radius:50%;background:radial-gradient(circle at 38% 36%,rgba(255,255,255,.38),rgba(255,255,255,.08) 55%,rgba(0,0,0,.12));border:2.5px solid rgba(255,255,255,.45);box-shadow:0 0 18px rgba(0,180,255,.25),inset 0 -3px 8px rgba(0,0,0,.18);cursor:pointer;z-index:18;pointer-events:auto;transition:opacity .18s"></div>'
         // Bottom buttons: restart (left) + leaderboard (right)
         + '<div style="position:absolute;left:10px;bottom:8px;z-index:15"><button id="kg-restart-inline" class="kg-lb-btn kg-restart-bottom-btn" type="button">\u91CD\u65B0\u958B\u59CB</button></div>'
         + '<div style="position:absolute;right:10px;bottom:8px;z-index:15"><button id="kg-leaderboard-btn-inner" class="kg-lb-btn" type="button">\u958B\u7403\u699C</button></div>';
@@ -366,6 +368,17 @@
       if (lbBtnInner) {
         lbBtnInner.addEventListener('pointerdown', function (e) { e.stopPropagation(); });
         lbBtnInner.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); _openLeaderboard(_lbPeriod); });
+      }
+      // Virtual ball button (tap shortcut for mobile)
+      virtualBallEl = containerEl.querySelector('#kg-virtual-ball');
+      if (virtualBallEl) {
+        virtualBallEl.addEventListener('pointerdown', function (e) {
+          e.stopPropagation();
+          if (gameState === 'aiming') {
+            gameState = 'charging'; charging = true; power = 0; powerDir = 1;
+            aimRadar.classList.add('locked'); powerWrap.style.display = 'block';
+          }
+        });
       }
       containerEl.addEventListener('pointerdown', onPointerDown);
       containerEl.addEventListener('contextmenu', function (e) { e.preventDefault(); });
@@ -748,7 +761,9 @@
       var world = new THREE.Vector3(ball.position.x, ball.position.y + 2.5, ball.position.z).project(camera);
       floatingUI.style.left = ((world.x * 0.5 + 0.5) * cw) + 'px';
       floatingUI.style.top = ((-(world.y * 0.5) + 0.5) * ch) + 'px';
-      floatingUI.style.opacity = (gameState === 'flying' || gameState === 'result' || gameState === 'gameover') ? '0' : '1';
+      var isActive = gameState === 'flying' || gameState === 'result' || gameState === 'gameover';
+      floatingUI.style.opacity = isActive ? '0' : '1';
+      if (virtualBallEl) { var show = gameState === 'aiming'; virtualBallEl.style.opacity = show ? '1' : '0'; virtualBallEl.style.pointerEvents = show ? 'auto' : 'none'; }
       if (firstTipEl && !hasKickedOnce) {
         var tw = new THREE.Vector3(ball.position.x, Math.max(-6.2, ball.position.y - 11.6), ball.position.z).project(camera);
         firstTipEl.style.left = ((tw.x * 0.5 + 0.5) * cw) + 'px';
