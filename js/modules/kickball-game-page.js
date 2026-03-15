@@ -272,6 +272,10 @@
     var bestMaxSpeed = 0;
     var gameStartTime = 0;
     var destroyed = false;
+    // Camera control state
+    var camYaw = 0, camPitch = 0, camZoom = 0;
+    var camDragging = false, camDragStartX = 0, camDragStartY = 0;
+    var camPinchDist = 0, camTouchCX = 0, camTouchCY = 0, camTouching = false;
 
     // DOM refs inside container
     var msgEl, bestDistEl, bestSpeedEl, focusDistEl, focusSpeedEl, shotsLeftEl, windEl;
@@ -359,7 +363,21 @@
       containerEl.addEventListener('pointerdown', onPointerDown);
       containerEl.addEventListener('contextmenu', function (e) { e.preventDefault(); });
       window.addEventListener('pointerup', _onPointerUp);
+      // Camera controls: right-click orbit + wheel zoom (desktop), two-finger orbit + pinch (mobile)
+      containerEl.addEventListener('mousedown', function (e) { if (e.button === 2) { camDragging = true; camDragStartX = e.clientX; camDragStartY = e.clientY; } });
+      window.addEventListener('mousemove', _onCamMouseMove);
+      window.addEventListener('mouseup', _onCamMouseUp);
+      containerEl.addEventListener('wheel', _onCamWheel, { passive: false });
+      containerEl.addEventListener('touchstart', _onCamTouchStart, { passive: false });
+      containerEl.addEventListener('touchmove', _onCamTouchMove, { passive: false });
+      containerEl.addEventListener('touchend', _onCamTouchEnd);
     }
+    function _onCamMouseMove(e) { if (!camDragging || destroyed) return; camYaw += (e.clientX - camDragStartX) * 0.004; camPitch += (e.clientY - camDragStartY) * 0.003; camPitch = clamp(camPitch, -0.5, 0.8); camDragStartX = e.clientX; camDragStartY = e.clientY; }
+    function _onCamMouseUp(e) { if (e.button === 2) camDragging = false; }
+    function _onCamWheel(e) { if (destroyed) return; camZoom = clamp(camZoom + e.deltaY * 0.0008, -0.4, 0.5); e.preventDefault(); }
+    function _onCamTouchStart(e) { if (e.touches.length >= 2) { e.preventDefault(); camTouching = true; var t0 = e.touches[0], t1 = e.touches[1]; camPinchDist = Math.hypot(t1.clientX - t0.clientX, t1.clientY - t0.clientY); camTouchCX = (t0.clientX + t1.clientX) / 2; camTouchCY = (t0.clientY + t1.clientY) / 2; } }
+    function _onCamTouchMove(e) { if (e.touches.length >= 2) { e.preventDefault(); var t0 = e.touches[0], t1 = e.touches[1]; var d = Math.hypot(t1.clientX - t0.clientX, t1.clientY - t0.clientY); var cx = (t0.clientX + t1.clientX) / 2, cy = (t0.clientY + t1.clientY) / 2; if (camPinchDist > 0) camZoom = clamp(camZoom - (d - camPinchDist) * 0.002, -0.4, 0.5); camYaw += (cx - camTouchCX) * 0.004; camPitch += (cy - camTouchCY) * 0.003; camPitch = clamp(camPitch, -0.5, 0.8); camPinchDist = d; camTouchCX = cx; camTouchCY = cy; } }
+    function _onCamTouchEnd(e) { if (e.touches.length < 2) { camTouching = false; camPinchDist = 0; } }
 
     function showMessage(text, color, ms) {
       if (!msgEl) return;
@@ -507,6 +525,7 @@
 
     // ── Input ──
     function onPointerDown(e) {
+      if (e.button && e.button !== 0) return;
       var r = containerEl.getBoundingClientRect();
       mouse.x = ((e.clientX - r.left) / r.width) * 2 - 1;
       mouse.y = -((e.clientY - r.top) / r.height) * 2 + 1;
@@ -681,6 +700,21 @@
       ngb = Math.max(ngb, landingCameraDamp * 0.85);
       if (ngb > 0) { dY = dY * (1 - ngb) + (terrainBaseY + 19.2) * ngb; dZ = dZ * (1 - ngb) + (ball.position.z + 37.5) * ngb; dLY = dLY * (1 - ngb) + (terrainBaseY + 0.22) * ngb; dLZ = dLZ * (1 - ngb) + (ball.position.z - 0.18) * ngb; }
       cameraDesiredPosition.set(dX, dY, dZ);
+      // Apply camera orbit + zoom offsets
+      if (camYaw !== 0 || camPitch !== 0 || camZoom !== 0) {
+        var lt = new THREE.Vector3(dLX, dLY, dLZ);
+        var off = cameraDesiredPosition.clone().sub(lt);
+        var cr = off.length() * (1 + camZoom);
+        var cosYaw = Math.cos(camYaw), sinYaw = Math.sin(camYaw);
+        var ox = off.x * cosYaw - off.z * sinYaw, oz = off.x * sinYaw + off.z * cosYaw;
+        off.x = ox; off.z = oz;
+        var hd = Math.sqrt(off.x * off.x + off.z * off.z);
+        var cp = clamp(Math.atan2(off.y, hd) + camPitch, 0.05, 1.3);
+        off.y = cr * Math.sin(cp);
+        var hs = hd > 0.001 ? (cr * Math.cos(cp)) / hd : 0;
+        off.x *= hs; off.z *= hs;
+        cameraDesiredPosition.copy(lt).add(off);
+      }
       camera.position.lerp(cameraDesiredPosition, gameState === 'aiming' ? 0.12 : 0.085);
       cameraLookTarget.lerp(new THREE.Vector3(dLX, dLY, dLZ), gameState === 'aiming' ? 0.14 : 0.1);
       camera.lookAt(cameraLookTarget);
@@ -723,6 +757,13 @@
       displayedSpeedKmh += (currentSpeedKmh - displayedSpeedKmh) * 0.22;
       focusDistEl.textContent = (displayedDistance + bonusDistance).toFixed(2);
       focusSpeedEl.textContent = displayedSpeedKmh.toFixed(2);
+      // Camera snap-back when not actively controlling
+      if (!camDragging && !camTouching) {
+        camYaw *= 0.93; camPitch *= 0.93; camZoom *= 0.93;
+        if (Math.abs(camYaw) < 0.001) camYaw = 0;
+        if (Math.abs(camPitch) < 0.001) camPitch = 0;
+        if (Math.abs(camZoom) < 0.001) camZoom = 0;
+      }
       updateCamera();
       renderer.render(scene, camera);
     }
@@ -733,9 +774,44 @@
       renderer.setSize(containerEl.offsetWidth, containerEl.offsetHeight);
     }
 
+    // ── Top 3 Monthly Markers ──
+    function loadTop3Markers() {
+      var bucket = getTaipeiDateBucket('monthly');
+      firebase.firestore().collection('kickGameRankings').doc(bucket).collection('entries')
+        .orderBy('bestDistance', 'desc').limit(10).get()
+        .then(function (snap) {
+          if (destroyed) return;
+          var rows = snap.docs.map(function (d) { return normalizeRow(d.id, d.data()); }).filter(function (r) { return !isAnonymousRow(r) && r.distance > 0; });
+          rows = dedupeRows(rows).sort(compareRows).slice(0, 3);
+          var colors = [0xffd700, 0xc0c0c0, 0xcd7f32];
+          rows.forEach(function (row, i) {
+            var z = -row.distance * unitsPerMeter;
+            var bH = 18 + (2 - i) * 4;
+            // Light beam (cross-shaped)
+            var bMat = new THREE.MeshBasicMaterial({ color: colors[i], transparent: true, opacity: 0.18, side: THREE.DoubleSide, depthWrite: false });
+            var bGeo = new THREE.PlaneGeometry(1.5, bH);
+            var b1 = new THREE.Mesh(bGeo, bMat); b1.position.set(0, bH / 2, z); scene.add(b1);
+            var b2 = b1.clone(); b2.rotation.y = Math.PI / 2; b2.position.copy(b1.position); scene.add(b2);
+            // Ground ring
+            var ringMat = new THREE.MeshBasicMaterial({ color: colors[i], transparent: true, opacity: 0.35, side: THREE.DoubleSide, depthWrite: false });
+            var ring = new THREE.Mesh(new THREE.RingGeometry(2.5, 3.2, 32), ringMat); ring.rotation.x = -Math.PI / 2; ring.position.set(0, 0.06, z); scene.add(ring);
+            // Text sprite
+            var c = document.createElement('canvas'); c.width = 512; c.height = 96;
+            var ctx = c.getContext('2d');
+            ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(0, 0, 512, 96);
+            ctx.fillStyle = '#fff'; ctx.font = 'bold 42px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillText('#' + (i + 1) + ' ' + row.nick + '  ' + row.distance.toFixed(1) + 'm', 256, 48);
+            var sMat = new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), transparent: true, depthWrite: false });
+            var sprite = new THREE.Sprite(sMat); sprite.scale.set(36, 6.75, 1); sprite.position.set(0, bH + 3, z);
+            scene.add(sprite);
+          });
+        }).catch(function () {});
+    }
+
     // ── Init & Destroy ──
     _buildUI();
     initScene();
+    loadTop3Markers();
     gameStartTime = Date.now();
     resetGame();
     animate();
@@ -746,6 +822,8 @@
         destroyed = true;
         if (_animFrameId) cancelAnimationFrame(_animFrameId);
         window.removeEventListener('pointerup', _onPointerUp);
+        window.removeEventListener('mousemove', _onCamMouseMove);
+        window.removeEventListener('mouseup', _onCamMouseUp);
         window.removeEventListener('resize', _onResize);
         if (resultTimer) clearTimeout(resultTimer);
         if (renderer) { renderer.dispose(); renderer.forceContextLoss(); }

@@ -252,8 +252,20 @@
 
 ### 2026-03-15 — 開球王整合完成 + 玩法說明修正
 - **功能**：完成開球王小遊戲完整 SPA 整合（頁面模板、JS 模組、CSS、Cloud Function、Firestore 規則、首頁入口卡片、管理開關）
-- **修正**：玩法說明移除不可見的「地形」提示，新增 PERFECT ×1.08 / GREAT ×1.04 加成規則說明
-- **PERFECT 判定**：`powerDiff <= 1.2 && aimAcc >= 0.74` — 條件非常嚴格（約 1 frame 視窗），程式邏輯正確但取得困難
+- **修正**：玩法說明移除不可見的「地形」提示，新增 PERFECT/GREAT 加成規則說明（含取得條件提示）
+- **PERFECT 判定放寬**：`powerDiff <= 3 && aimAcc >= 0.68`（約 2.5 frame 視窗），加成改為隨機範圍 ×1.06~1.12
+- **GREAT 判定**：`powerDiff <= 8 && aimAcc >= 0.42`，加成隨機 ×1.02~1.06
+- **物理調整**：二次方高吊懲罰 `(1 - t² × 0.9)` 取代線性懲罰，最遠甜蜜點 cy≈-0.35；隨機速度方差 ±2% 減少同分
+- **色系統一**：開球王 CSS 從綠色改為藍/青色，與射門王一致
+- **標題修正**：射門王 → "TooSterxHub 射門大賽"、開球王 → "TooSterxHub 開球大賽"
+- **動態標題**：兩遊戲 pageTitle 改為從 HOME_GAME_PRESETS / Firestore gameConfigs 動態載入
+
+### 2026-03-15 — 開球王鏡頭控制 + 月排行前三標記
+- **鏡頭控制**：右鍵拖曳旋轉 + 滾輪縮放（桌面）、雙指旋轉 + 捏合縮放（手機），鬆開後自動回正（0.93 衰減）
+- **月排行前三標記**：場地上顯示當月排行前三名的距離標記（光柱 + 地面環 + 暱稱/距離文字精靈）
+- **技術**：yaw/pitch 旋轉矩陣、atan2 仰角夾角、Sprite billboard 文字、cross-shaped 半透明光柱
+- **修改檔案**：`kickball-game-page.js`（camera state + handlers + orbit math + snap-back + loadTop3Markers + destroy cleanup）
+- **教訓**：window 級 listener 必須在 destroy 中 removeEventListener，containerEl 級 listener 因 innerHTML 清除可容忍但不理想
 
 ---
 
