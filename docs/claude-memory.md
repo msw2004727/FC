@@ -12,6 +12,14 @@
 
 ---
 
+### 2026-03-15 — 開球遊戲反作弊 + 排行影子即時更新
+- **問題**：(1) Cloud Function `submitKickGameScore` 對極端數值僅 console.warn 不拒絕，前端可篡改成績；(2) 提交成績後場地上月排行前10名影子不會更新
+- **原因**：(1) flags 偵測後缺少 throw 拒絕邏輯；(2) `loadTop3Markers` 與 `_submitScore` 不同 scope，提交後未觸發重新載入
+- **修復**：(1) `functions/index.js` flags 改為 throw HttpsError 拒絕，閾值收緊(距離>150/球速>250/低速遠距交叉驗證)；(2) `_createGame` return 暴露 `refreshMarkers`，`_submitScore` finally 中呼叫
+- **教訓**：遊戲成績類 Cloud Function 必須有 reject 邏輯，不能只記 log；跨 scope 通訊要透過返回物件暴露方法
+
+---
+
 ## [永久] UID / 資料完整性地雷
 
 ### attendanceRecords uid 欄位存顯示名稱而非 LINE userId

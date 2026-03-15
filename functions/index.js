@@ -2915,13 +2915,16 @@ exports.submitKickGameScore = onCall(
       }
     }
 
-    // 5. 稽核 flags
+    // 5. 稽核 flags — 超出物理合理值直接拒絕
     const flags = [];
-    if (safeDistance > 300) flags.push("extreme_distance");
+    if (safeDistance > 150) flags.push("extreme_distance");
     if (safeDurationMs < 5000) flags.push("fast_game");
-    if (safeMaxSpeed > 200) flags.push("extreme_speed");
+    if (safeMaxSpeed > 250) flags.push("extreme_speed");
+    // 交叉驗證：低速不可能遠距
+    if (safeDistance > 80 && safeMaxSpeed < 60) flags.push("distance_speed_mismatch");
     if (flags.length > 0) {
-      console.warn("[submitKickGameScore] flags detected", { uid, distance: safeDistance, maxSpeed: safeMaxSpeed, kicks, durationMs: safeDurationMs, flags });
+      console.warn("[submitKickGameScore] rejected — flags detected", { uid, distance: safeDistance, maxSpeed: safeMaxSpeed, kicks, durationMs: safeDurationMs, flags });
+      throw new HttpsError("invalid-argument", "成績數據異常，提交被拒絕");
     }
 
     // 6. 寫入原始成績（稽核用）

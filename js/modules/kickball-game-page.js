@@ -243,6 +243,7 @@
     }).catch(function () {}).finally(function () {
       _lbSubmitPending = false;
       if (_lbOpen) _renderLeaderboard(_lbPeriod);
+      if (_gameInstance && _gameInstance.refreshMarkers) _gameInstance.refreshMarkers();
     });
   }
 
@@ -801,7 +802,11 @@
     }
 
     // ── Top 10 Monthly Markers ──
+    var _markerObjects = [];
     function loadTop3Markers() {
+      // Remove old markers
+      _markerObjects.forEach(function (obj) { scene.remove(obj); if (obj.material) obj.material.dispose(); if (obj.geometry) obj.geometry.dispose(); });
+      _markerObjects = [];
       var bucket = getTaipeiDateBucket('monthly');
       firebase.firestore().collection('kickGameRankings').doc(bucket).collection('entries')
         .orderBy('bestDistance', 'desc').limit(20).get()
@@ -823,11 +828,11 @@
             // Light beam (cross-shaped)
             var bMat = new THREE.MeshBasicMaterial({ color: color, transparent: true, opacity: beamOpacity, side: THREE.DoubleSide, depthWrite: false });
             var bGeo = new THREE.PlaneGeometry(beamWidth, bH);
-            var b1 = new THREE.Mesh(bGeo, bMat); b1.position.set(0, bH / 2, z); scene.add(b1);
-            var b2 = b1.clone(); b2.rotation.y = Math.PI / 2; b2.position.copy(b1.position); scene.add(b2);
+            var b1 = new THREE.Mesh(bGeo, bMat); b1.position.set(0, bH / 2, z); scene.add(b1); _markerObjects.push(b1);
+            var b2 = b1.clone(); b2.rotation.y = Math.PI / 2; b2.position.copy(b1.position); scene.add(b2); _markerObjects.push(b2);
             // Ground ring
             var ringMat = new THREE.MeshBasicMaterial({ color: color, transparent: true, opacity: ringOpacity, side: THREE.DoubleSide, depthWrite: false });
-            var ring = new THREE.Mesh(new THREE.RingGeometry(ringInner, ringOuter, 32), ringMat); ring.rotation.x = -Math.PI / 2; ring.position.set(0, 0.06, z); scene.add(ring);
+            var ring = new THREE.Mesh(new THREE.RingGeometry(ringInner, ringOuter, 32), ringMat); ring.rotation.x = -Math.PI / 2; ring.position.set(0, 0.06, z); scene.add(ring); _markerObjects.push(ring);
             // Text sprite
             var c = document.createElement('canvas'); c.width = 512; c.height = 96;
             var ctx = c.getContext('2d');
@@ -839,7 +844,7 @@
             var spriteScale = isTop3 ? 36 : 28;
             var spriteH = isTop3 ? 6.75 : 5.25;
             var sprite = new THREE.Sprite(sMat); sprite.scale.set(spriteScale, spriteH, 1); sprite.position.set(0, bH + 3, z);
-            scene.add(sprite);
+            scene.add(sprite); _markerObjects.push(sprite);
           });
         }).catch(function () {});
     }
@@ -864,7 +869,8 @@
         if (resultTimer) clearTimeout(resultTimer);
         if (renderer) { renderer.dispose(); renderer.forceContextLoss(); }
         containerEl.innerHTML = '';
-      }
+      },
+      refreshMarkers: loadTop3Markers
     };
   }
 
