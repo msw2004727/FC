@@ -240,7 +240,9 @@
 // 20260315b: 個人數據頁完成場次/出席率修正 — 統一使用 _calcScanStats 取代永遠為 0 的錯誤邏輯
 // 20260315zz: Tier 2 login — LIFF 過期時以 Firebase Auth + profile 快取維持登入（30 天快取 + UID 驗證）
 // 20260315aaa: 活動分享升級 — LINE Flex Message + shareTargetPicker + 底部選單 + 建立後分享提示
-const CACHE_VERSION = '20260315aaa';
+// 20260315aab: 分享模組修復 — 防連點、altText 截斷、typeof 守衛、toast 語意修正
+// 20260315aac: surrogate pair 安全截斷、var→const/let 統一、unhandled rejection 防護
+const CACHE_VERSION = '20260315aac';
 
 // ─── Page Strategy Registry ───
 // 唯一策略來源，未列出的頁面預設 fresh-first

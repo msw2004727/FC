@@ -5,6 +5,8 @@
 
 Object.assign(App, {
 
+  _shareInProgress: false,
+
   // ══════════════════════════════════
   //  LIFF URL Builder
   // ══════════════════════════════════
@@ -14,7 +16,7 @@ Object.assign(App, {
   },
 
   // ══════════════════════════════════
-  //  Plain-text Alt Text
+  //  Plain-text Alt Text (max 400 chars for LINE altText limit)
   // ══════════════════════════════════
 
   _buildEventShareAltText(event, liffUrl) {
@@ -27,7 +29,12 @@ Object.assign(App, {
       lines.push('\u4EBA\u6578\uFF1A' + (event.current || 0) + '/' + event.max + ' \u4EBA');
     }
     lines.push(liffUrl);
-    return lines.join('\n');
+    let text = lines.join('\n');
+    if (text.length > 400) {
+      // Use Array.from to avoid splitting surrogate pairs (emoji)
+      text = Array.from(text).slice(0, 397).join('') + '...';
+    }
+    return text;
   },
 
   // ══════════════════════════════════
@@ -35,24 +42,24 @@ Object.assign(App, {
   // ══════════════════════════════════
 
   _buildEventFlexMessage(event, liffUrl) {
-    var typeColors = {
+    const typeColors = {
       play: '#7c3aed',
       friendly: '#0d9488',
       camp: '#ec4899',
       watch: '#f59e0b',
     };
-    var typeLabels = {
+    const typeLabels = {
       play: 'PLAY',
       friendly: '\u53CB\u8ABC',
       camp: '\u6559\u5B78',
       watch: '\u89C0\u8CFD',
     };
-    var sportEmoji = (SPORT_ICON_EMOJI && SPORT_ICON_EMOJI[event.sportTag]) || '\u26BD';
-    var typeColor = typeColors[event.type] || '#7c3aed';
-    var typeLabel = typeLabels[event.type] || 'PLAY';
+    const sportEmoji = (SPORT_ICON_EMOJI && SPORT_ICON_EMOJI[event.sportTag]) || '\u26BD';
+    const typeColor = typeColors[event.type] || '#7c3aed';
+    const typeLabel = typeLabels[event.type] || 'PLAY';
 
     // Body contents
-    var bodyContents = [];
+    const bodyContents = [];
 
     // Type capsule row
     bodyContents.push({
@@ -68,17 +75,17 @@ Object.assign(App, {
       paddingAll: '4px',
       paddingStart: '10px',
       paddingEnd: '10px',
-      width: '80px',
+      width: '90px',
     });
 
-    // Title
+    // Title (maxLines: 2 prevents excessively tall bubbles)
     bodyContents.push({
       type: 'text', text: event.title || '\u6D3B\u52D5',
-      weight: 'bold', size: 'lg', wrap: true, margin: 'md',
+      weight: 'bold', size: 'lg', wrap: true, maxLines: 2, margin: 'md',
     });
 
     // Info rows
-    var infoContents = [];
+    const infoContents = [];
     if (event.date) {
       infoContents.push(this._buildFlexInfoRow('\u65E5\u671F', event.date));
     }
@@ -99,13 +106,13 @@ Object.assign(App, {
     }
 
     // Build body
-    var body = {
+    const body = {
       type: 'box', layout: 'vertical', contents: bodyContents,
       paddingAll: '16px',
     };
 
     // Footer with CTA button
-    var footer = {
+    const footer = {
       type: 'box', layout: 'vertical', contents: [
         {
           type: 'button', style: 'primary', color: typeColor,
@@ -117,7 +124,7 @@ Object.assign(App, {
     };
 
     // Build bubble
-    var bubble = {
+    const bubble = {
       type: 'bubble', size: 'mega',
       body: body,
       footer: footer,
@@ -150,11 +157,11 @@ Object.assign(App, {
   _showShareActionSheet() {
     return new Promise(function (resolve) {
       // Overlay
-      var overlay = document.createElement('div');
+      const overlay = document.createElement('div');
       overlay.className = 'share-action-sheet';
 
       // Panel
-      var panel = document.createElement('div');
+      const panel = document.createElement('div');
       panel.className = 'share-action-sheet-panel';
       panel.innerHTML =
         '<div class="share-action-sheet-title">\u5206\u4EAB\u6D3B\u52D5</div>' +
@@ -172,7 +179,10 @@ Object.assign(App, {
         overlay.classList.add('active');
       });
 
+      let resolved = false;
       function cleanup(choice) {
+        if (resolved) return;
+        resolved = true;
         overlay.classList.remove('active');
         overlay.addEventListener('transitionend', function handler() {
           overlay.removeEventListener('transitionend', handler);
@@ -187,7 +197,7 @@ Object.assign(App, {
 
       // Event delegation
       panel.addEventListener('click', function (ev) {
-        var btn = ev.target.closest('[data-choice]');
+        const btn = ev.target.closest('[data-choice]');
         if (btn) cleanup(btn.dataset.choice);
       });
       overlay.addEventListener('click', function (ev) {
@@ -197,30 +207,45 @@ Object.assign(App, {
   },
 
   // ══════════════════════════════════
-  //  Main Entry — shareEvent (overrides event-list.js)
+  //  Main Entry — shareEvent
   // ══════════════════════════════════
 
   async shareEvent(eventId) {
-    var e = ApiService.getEvent(eventId);
+    if (this._shareInProgress) return;
+    this._shareInProgress = true;
+    try {
+      await this._doShareEvent(eventId);
+    } finally {
+      this._shareInProgress = false;
+    }
+  },
+
+  async _doShareEvent(eventId) {
+    const e = ApiService.getEvent(eventId);
     if (!e) return;
 
-    var liffUrl = this._buildEventLiffUrl(eventId);
-    var altText = this._buildEventShareAltText(e, liffUrl);
+    const liffUrl = this._buildEventLiffUrl(eventId);
+    const altText = this._buildEventShareAltText(e, liffUrl);
 
     // LIFF available: show action sheet
     if (LineAuth.hasLiffSession()
         && typeof liff !== 'undefined'
         && liff.isApiAvailable
         && liff.isApiAvailable('shareTargetPicker')) {
-      var choice = await this._showShareActionSheet();
+      const choice = await this._showShareActionSheet();
 
       if (choice === 'line') {
         try {
-          var flexMsg = this._buildEventFlexMessage(e, liffUrl);
-          var res = await liff.shareTargetPicker([
+          const flexMsg = this._buildEventFlexMessage(e, liffUrl);
+          const res = await liff.shareTargetPicker([
             { type: 'flex', altText: altText, contents: flexMsg },
           ]);
-          this.showToast(res ? '\u6D3B\u52D5\u5DF2\u5206\u4EAB\u5230 LINE' : '\u5DF2\u53D6\u6D88\u5206\u4EAB');
+          // LIFF SDK < 2.19 returns undefined for both success & cancel
+          if (res) {
+            this.showToast('\u6D3B\u52D5\u5DF2\u5206\u4EAB\u5230 LINE');
+          } else {
+            this.showToast('\u5206\u4EAB\u5DF2\u5B8C\u6210');
+          }
         } catch (err) {
           console.warn('[Share] shareTargetPicker failed:', err);
           this.showToast('\u5206\u4EAB\u5931\u6557\uFF0C\u8ACB\u7A0D\u5F8C\u518D\u8A66');
@@ -229,7 +254,7 @@ Object.assign(App, {
       }
 
       if (choice === 'copy') {
-        var ok = await this._copyToClipboard(altText);
+        const ok = await this._copyToClipboard(altText);
         this.showToast(ok
           ? '\u5206\u4EAB\u9023\u7D50\u5DF2\u8907\u88FD\uFF0C\u53EF\u8CBC\u5230 LINE \u793E\u7FA4'
           : '\u8907\u88FD\u5931\u6557');
@@ -248,7 +273,7 @@ Object.assign(App, {
         if (err.name === 'AbortError') return;
       }
     }
-    var copyOk = await this._copyToClipboard(altText);
+    const copyOk = await this._copyToClipboard(altText);
     this.showToast(copyOk
       ? '\u5206\u4EAB\u5167\u5BB9\u5DF2\u8907\u88FD\u5230\u526A\u8CBC\u7C3F'
       : '\u8907\u88FD\u5931\u6557\uFF0C\u8ACB\u624B\u52D5\u8907\u88FD');
@@ -261,9 +286,9 @@ Object.assign(App, {
   async _promptShareAfterCreate(eventId) {
     if (!LineAuth.hasLiffSession()) return;
     if (typeof liff === 'undefined' || !liff.isApiAvailable || !liff.isApiAvailable('shareTargetPicker')) return;
-    var confirmed = await this.appConfirm('\u6D3B\u52D5\u5DF2\u5EFA\u7ACB\uFF01\u8981\u5206\u4EAB\u5230 LINE \u55CE\uFF1F');
+    const confirmed = await this.appConfirm('\u6D3B\u52D5\u5DF2\u5EFA\u7ACB\uFF01\u8981\u5206\u4EAB\u5230 LINE \u55CE\uFF1F');
     if (confirmed) {
-      this.shareEvent(eventId);
+      await this.shareEvent(eventId);
     }
   },
 

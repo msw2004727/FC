@@ -1555,8 +1555,9 @@ Object.assign(App, {
       this.renderMyActivities();
       this.showToast(`活動「${title}」已建立！`);
       // 活動建立成功後提示分享到 LINE
-      if (newEvent.id) {
-        setTimeout(() => this._promptShareAfterCreate(newEvent.id), 500);
+      if (newEvent.id && typeof this._promptShareAfterCreate === 'function') {
+        const _eid = newEvent.id;
+        setTimeout(() => this._promptShareAfterCreate(_eid).catch(err => console.warn('[Share] prompt failed:', err)), 500);
       }
     }
 
