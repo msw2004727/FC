@@ -513,7 +513,7 @@ Object.assign(App, {
           this.renderLoginUI();
           this.renderHotEvents();
           this.renderActivityList();
-          this.renderMyActivities();
+          this.renderMyActivities?.();
           void this._flushPendingProtectedBootRoute?.({ skipEnsureCloudReady: true });
           void this._resumePendingAuthAction?.();
         };
@@ -543,7 +543,7 @@ Object.assign(App, {
         // LINE 登入完成後重新渲染活動列表（修正 currentUser 尚未載入的時序問題）
         this.renderHotEvents();
         this.renderActivityList();
-        this.renderMyActivities();
+        this.renderMyActivities?.();
       }
     }
     this.renderLoginUI();
