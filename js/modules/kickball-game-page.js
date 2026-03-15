@@ -596,30 +596,26 @@
     }
     function _startRestartCooldown() {
       var sec = 10;
-      restartBtn.disabled = true; restartInlineBtn.disabled = true;
-      restartBtn.style.opacity = '0.45'; restartInlineBtn.style.opacity = '0.45';
-      restartBtn.textContent = '\u91CD\u65B0\u6311\u6230(' + sec + 's)';
+      restartInlineBtn.disabled = true;
+      restartInlineBtn.style.opacity = '0.45';
       restartInlineBtn.textContent = '\u91CD\u65B0\u958B\u59CB(' + sec + 's)';
       if (_restartCdTimer) clearInterval(_restartCdTimer);
       _restartCdTimer = setInterval(function () {
         sec -= 1;
         if (sec <= 0) {
           clearInterval(_restartCdTimer); _restartCdTimer = null;
-          restartBtn.disabled = false; restartInlineBtn.disabled = false;
-          restartBtn.style.opacity = '1'; restartInlineBtn.style.opacity = '1';
-          restartBtn.textContent = '\u91CD\u65B0\u6311\u6230';
+          restartInlineBtn.disabled = false;
+          restartInlineBtn.style.opacity = '1';
           restartInlineBtn.textContent = '\u91CD\u65B0\u958B\u59CB';
         } else {
-          restartBtn.textContent = '\u91CD\u65B0\u6311\u6230(' + sec + 's)';
           restartInlineBtn.textContent = '\u91CD\u65B0\u958B\u59CB(' + sec + 's)';
         }
       }, 1000);
     }
     function _stopRestartCooldown() {
       if (_restartCdTimer) { clearInterval(_restartCdTimer); _restartCdTimer = null; }
-      restartBtn.disabled = false; restartInlineBtn.disabled = false;
-      restartBtn.style.opacity = '1'; restartInlineBtn.style.opacity = '1';
-      restartBtn.textContent = '\u91CD\u65B0\u6311\u6230';
+      restartInlineBtn.disabled = false;
+      restartInlineBtn.style.opacity = '1';
       restartInlineBtn.textContent = '\u91CD\u65B0\u958B\u59CB';
     }
     function resetGame() {
