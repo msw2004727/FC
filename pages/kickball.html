@@ -1,0 +1,91 @@
+<!-- PAGE: Kick Game (誰才是開球王) -->
+<section class="page" id="page-kick-game">
+
+  <!-- Login Required Card (Production only) -->
+  <div id="kg-login-required" class="kg-login-card" style="display:none">
+    <div class="kg-login-icon">🏈</div>
+    <h3>請先登入才能遊玩</h3>
+    <p>請先使用 LINE 帳號登入，<br>即可開始開球王挑戰！</p>
+  </div>
+
+  <!-- Loading State -->
+  <div id="kg-main-loading" class="kg-loading-state" style="display:none">遊戲載入中…</div>
+
+  <!-- Game Section -->
+  <div id="kg-game-section" style="display:none">
+    <div class="kg-page-title-row">TooSterxHub PK大賽</div>
+
+    <!-- Game Container (Three.js canvas will be injected here) -->
+    <div id="kick-game-container"></div>
+
+    <!-- Bottom HUD Row -->
+    <div class="kg-bottom-row">
+      <button id="kg-leaderboard-btn" class="kg-lb-btn" type="button">開球榜</button>
+    </div>
+  </div>
+
+  <!-- Intro Modal -->
+  <div id="kg-intro-modal" class="kg-intro-overlay" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="kg-intro-title">
+    <div class="kg-intro-dialog">
+      <h3 id="kg-intro-title">遊戲玩法說明</h3>
+      <ol class="kg-intro-steps">
+        <li class="kg-intro-step"><span class="kg-step-num">1</span><span>點擊足球開始蓄力，鬆開出腳。</span></li>
+        <li class="kg-intro-step"><span class="kg-step-num">2</span><span>準心控制觸球位置，力道條決定踢擊力量。</span></li>
+        <li class="kg-intro-step"><span class="kg-step-num">3</span><span>滿格蓄力 + 準心居中 = PERFECT，距離加乘！</span></li>
+        <li class="kg-intro-step"><span class="kg-step-num">4</span><span>每局 3 腳，累計總距離，越遠越好！</span></li>
+        <li class="kg-intro-step"><span class="kg-step-num">5</span><span>地形與風向會影響球路，善用判斷。</span></li>
+      </ol>
+      <label class="kg-intro-dismiss-row" for="kg-intro-dismiss">
+        <input type="checkbox" id="kg-intro-dismiss"> 我已知道怎麼玩，今日不再提醒
+      </label>
+      <button id="kg-intro-start" class="kg-intro-start-btn" type="button">開始遊戲！</button>
+    </div>
+  </div>
+
+  <!-- Leaderboard Modal -->
+  <div id="kg-leaderboard-modal" class="kg-lb-overlay" aria-hidden="true">
+    <section class="kg-lb-dialog" role="dialog" aria-modal="true" aria-labelledby="kg-leaderboard-title">
+      <div class="kg-lb-head">
+        <div>
+          <h3 id="kg-leaderboard-title">開球榜</h3>
+          <p id="kg-leaderboard-range">每日排行前 10 名</p>
+        </div>
+        <button id="kg-leaderboard-close" class="kg-lb-close-btn" type="button" aria-label="關閉開球榜">
+          <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true">
+            <circle cx="12" cy="12" r="10" fill="rgba(32,106,158,0.22)"></circle>
+            <path d="M8 8l8 8M16 8l-8 8" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+          </svg>
+          <span>關閉</span>
+        </button>
+      </div>
+      <div class="kg-lb-tabs" role="tablist" aria-label="排行榜時間範圍">
+        <button type="button" class="kg-lb-tab is-active" data-lb-period="daily" role="tab" aria-selected="true">每日</button>
+        <button type="button" class="kg-lb-tab" data-lb-period="weekly" role="tab" aria-selected="false">每周</button>
+        <button type="button" class="kg-lb-tab" data-lb-period="monthly" role="tab" aria-selected="false">每月</button>
+      </div>
+      <div class="kg-lb-table-wrap">
+        <table class="kg-lb-table" aria-label="開球排行榜">
+          <colgroup>
+            <col class="kg-lb-col-rank">
+            <col class="kg-lb-col-nick">
+            <col class="kg-lb-col-dist">
+            <col class="kg-lb-col-speed">
+            <col class="kg-lb-col-time">
+          </colgroup>
+          <thead>
+            <tr>
+              <th>排名</th>
+              <th>暱稱</th>
+              <th>距離</th>
+              <th>最高球速</th>
+              <th>時間</th>
+            </tr>
+          </thead>
+          <tbody id="kg-leaderboard-body"></tbody>
+        </table>
+        <div id="kg-leaderboard-player-row" class="kg-lb-player-row is-hidden" aria-live="polite"></div>
+      </div>
+    </section>
+  </div>
+
+</section>

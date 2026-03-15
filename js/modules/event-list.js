@@ -410,9 +410,9 @@ Object.assign(App, {
     contentEl.style.display = isVisible ? '' : 'none';
     if (titleEl) titleEl.style.display = isVisible ? '' : 'none';
   },
-  _isHomeGameShortcutAvailable() {
+  _isHomeGameVisible(gameKey) {
     const gameConfig = Array.isArray(HOME_GAME_PRESETS)
-      ? HOME_GAME_PRESETS.find(item => item && item.gameKey === 'shot-game')
+      ? HOME_GAME_PRESETS.find(item => item && item.gameKey === gameKey)
       : null;
     if (!gameConfig) return false;
     if (gameConfig.enabled === false || gameConfig.homeVisible === false) return false;
@@ -423,22 +423,32 @@ Object.assign(App, {
     if (currentLevel < minLevel) return false;
 
     if (typeof ApiService !== 'undefined' && typeof ApiService.isHomeGameVisible === 'function') {
-      return ApiService.isHomeGameVisible('shot-game');
+      return ApiService.isHomeGameVisible(gameKey);
     }
     return true;
   },
+  _isHomeGameShortcutAvailable() {
+    return this._isHomeGameVisible('shot-game');
+  },
   renderHomeGameShortcut() {
-    const card = document.querySelector('#page-home .home-game-card');
-    if (!card) return;
-    const available = this._isHomeGameShortcutAvailable();
-    this._setHomeSectionVisibility(card, available);
-    if (!available) return;
+    const shotCard = document.getElementById('home-game-card-shot');
+    const kickCard = document.getElementById('home-game-card-kick');
+    const shotAvailable = this._isHomeGameVisible('shot-game');
+    const kickAvailable = this._isHomeGameVisible('kick-game');
+    const anyVisible = shotAvailable || kickAvailable;
 
-    const titleEl = card.querySelector('.home-game-card-title');
-    const subEl = card.querySelector('.home-game-card-sub');
-    if (titleEl) titleEl.textContent = '蓄力射門 誰與爭鋒';
-    if (subEl) subEl.textContent = '挑戰移動九宮格、登上榮耀射手榜!!';
-    card.setAttribute('aria-label', '蓄力射門 誰與爭鋒');
+    // Toggle individual cards (without touching section title)
+    if (shotCard) shotCard.style.display = shotAvailable ? '' : 'none';
+    if (kickCard) kickCard.style.display = kickAvailable ? '' : 'none';
+
+    // Toggle the shared section title based on whether any card is visible
+    const firstCard = shotCard || kickCard;
+    if (firstCard) {
+      const titleEl = firstCard.previousElementSibling;
+      if (titleEl && titleEl.classList && titleEl.classList.contains('section-title')) {
+        titleEl.style.display = anyVisible ? '' : 'none';
+      }
+    }
   },
   _renderEventSportIcon(event, className = '') {
     const sportKey = this._getEventSportTag(event);

@@ -536,6 +536,9 @@ Object.assign(App, {
     if (this.currentPage === 'page-game' && pageId !== 'page-game' && this.destroyShotGamePage) {
       this.destroyShotGamePage();
     }
+    if (this.currentPage === 'page-kick-game' && pageId !== 'page-kick-game' && this.destroyKickGamePage) {
+      this.destroyKickGamePage();
+    }
     if (this.currentPage === 'page-home' && pageId !== 'page-home') {
       this._cancelHomeDeferredRender?.();
       this.stopBannerCarousel?.();
@@ -573,6 +576,7 @@ Object.assign(App, {
     if (pageId === 'page-scan') this.renderScanPage();
     if (pageId === 'page-qrcode') this.renderQrCodePage();
     if (pageId === 'page-game' && this.initShotGamePage) this.initShotGamePage();
+    if (pageId === 'page-kick-game' && this.initKickGamePage) this.initKickGamePage();
     // 按需渲染：進入頁面時才渲染，減少啟動負擔
     if (pageId === 'page-teams') this.renderTeamList?.();
     if (pageId === 'page-messages') this.renderMessageList();

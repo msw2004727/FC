@@ -2833,3 +2833,179 @@ exports.teamShareOg = onRequest(
     res.status(200).send(html);
   }
 );
+
+// ═══════════════════════════════════════════════════════════════
+//  submitKickGameScore — 開球王分數提交（距離排行）
+// ═══════════════════════════════════════════════════════════════
+exports.submitKickGameScore = onCall(
+  { region: "asia-east1", timeoutSeconds: 30 },
+  async (request) => {
+    // 1. 登入驗證
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "必須登入才能提交分數");
+    }
+    const uid = request.auth.uid;
+    const authProvider = String(request.auth?.token?.firebase?.sign_in_provider || "");
+    if (authProvider === "anonymous") {
+      throw new HttpsError("permission-denied", "匿名登入不可提交開球排行榜");
+    }
+    const { distance, maxSpeed, kicks, durationMs, displayName } = request.data || {};
+
+    // 2. Payload 驗證
+    if (!Number.isFinite(distance) || distance < 0 || distance > 99999) {
+      throw new HttpsError("invalid-argument", "distance 必須為 0~99999 的數字");
+    }
+    if (!Number.isFinite(maxSpeed) || maxSpeed < 0) {
+      throw new HttpsError("invalid-argument", "maxSpeed 必須 >= 0");
+    }
+    if (!Number.isInteger(kicks) || kicks < 1) {
+      throw new HttpsError("invalid-argument", "kicks 必須 >= 1");
+    }
+    if (!Number.isFinite(durationMs) || durationMs < 3000) {
+      throw new HttpsError("invalid-argument", "durationMs 必須 >= 3000");
+    }
+    const rawDisplayName =
+      typeof displayName === "string" ? displayName.trim() : "";
+    const tokenDisplayName =
+      typeof request.auth?.token?.name === "string" ? request.auth.token.name.trim() : "";
+    const isPlaceholderDisplayName = (name) => /^玩家[\w-]{2,}$/u.test(String(name || "").trim());
+    const safeDisplayNameCandidate = [rawDisplayName, tokenDisplayName]
+      .find((name) => name && !isPlaceholderDisplayName(name))
+      || [rawDisplayName, tokenDisplayName].find((name) => !!name)
+      || `玩家${String(uid).slice(-4)}`;
+    const safeDisplayName = safeDisplayNameCandidate.slice(0, 50);
+    const safeMaxSpeed = Math.round(maxSpeed * 100) / 100;
+    const safeDistance = Math.round(distance * 100) / 100;
+    const safeDurationMs = Math.round(durationMs);
+    const safeDurationSec = Math.max(3, Math.round(safeDurationMs / 1000));
+
+    // 3. 計算 period buckets（Asia/Taipei）
+    const now = new Date();
+    const {
+      daily: dailyBucket,
+      weekly: weeklyBucket,
+      monthly: monthlyBucket,
+    } = getTaipeiDateInfo(now);
+    const bucketMap = {
+      daily: dailyBucket,
+      weekly: weeklyBucket,
+      monthly: monthlyBucket,
+    };
+
+    // 4. 節流：同 uid（任一榜）10 秒最多 1 次
+    const rankingRefs = Object.entries(bucketMap).reduce((acc, [period, bucket]) => {
+      acc[period] = db
+        .collection("kickGameRankings")
+        .doc(bucket)
+        .collection("entries")
+        .doc(uid);
+      return acc;
+    }, {});
+    const rankingSnaps = Object.fromEntries(
+      await Promise.all(
+        Object.entries(rankingRefs).map(async ([period, ref]) => [period, await ref.get()])
+      )
+    );
+    for (const snap of Object.values(rankingSnaps)) {
+      if (snap.exists) {
+        const lastSubmitAt = snap.data().lastSubmitAt;
+        if (lastSubmitAt && now.getTime() - lastSubmitAt.toMillis() < 10000) {
+          throw new HttpsError("resource-exhausted", "提交過於頻繁，請稍後再試");
+        }
+      }
+    }
+
+    // 5. 稽核 flags
+    const flags = [];
+    if (safeDistance > 300) flags.push("extreme_distance");
+    if (safeDurationMs < 5000) flags.push("fast_game");
+    if (safeMaxSpeed > 200) flags.push("extreme_speed");
+    if (flags.length > 0) {
+      console.warn("[submitKickGameScore] flags detected", { uid, distance: safeDistance, maxSpeed: safeMaxSpeed, kicks, durationMs: safeDurationMs, flags });
+    }
+
+    // 6. 寫入原始成績（稽核用）
+    const attemptRef = db
+      .collection("kickGameScores")
+      .doc(uid)
+      .collection("attempts")
+      .doc();
+    await attemptRef.set({
+      uid,
+      displayName: safeDisplayName,
+      distance: safeDistance,
+      maxSpeed: safeMaxSpeed,
+      kicks,
+      durationMs: safeDurationMs,
+      durationSec: safeDurationSec,
+      createdAt: FieldValue.serverTimestamp(),
+      source: "function",
+      authProvider,
+      flags,
+    });
+
+    // 7. 更新日/周/月榜（距離優先，同距離以球速排，再以時間排）
+    const rankingUpdateResults = await Promise.all(
+      Object.keys(rankingRefs).map(async (period) => {
+        const rankingData = rankingSnaps[period] && rankingSnaps[period].exists
+          ? (rankingSnaps[period].data() || {})
+          : {};
+        const existingDistance = Number.isFinite(rankingData.bestDistance) ? rankingData.bestDistance : -1;
+        const existingMaxSpeed = Number.isFinite(rankingData.bestMaxSpeed) ? rankingData.bestMaxSpeed : -1;
+        const existingDurationSec =
+          Number.isFinite(rankingData.bestDurationSec) && rankingData.bestDurationSec > 0
+            ? rankingData.bestDurationSec
+            : (
+              Number.isFinite(rankingData.bestDurationMs) && rankingData.bestDurationMs > 0
+                ? Math.round(rankingData.bestDurationMs / 1000)
+                : Number.MAX_SAFE_INTEGER
+            );
+        const isNewBest = (
+          safeDistance > existingDistance
+          || (safeDistance === existingDistance && safeMaxSpeed > existingMaxSpeed)
+          || (safeDistance === existingDistance && safeMaxSpeed === existingMaxSpeed && safeDurationSec < existingDurationSec)
+        );
+        const rankingUpdate = {
+          uid,
+          displayName: safeDisplayName,
+          authProvider,
+          lastSubmitAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        };
+        if (isNewBest) {
+          rankingUpdate.bestDistance = safeDistance;
+          rankingUpdate.bestMaxSpeed = safeMaxSpeed;
+          rankingUpdate.bestDurationMs = safeDurationMs;
+          rankingUpdate.bestDurationSec = safeDurationSec;
+          rankingUpdate.bestAt = FieldValue.serverTimestamp();
+        }
+        await rankingRefs[period].set(rankingUpdate, { merge: true });
+        return { period, isNewBest };
+      })
+    );
+    const isNewBestByPeriod = rankingUpdateResults.reduce((acc, item) => {
+      acc[item.period] = item.isNewBest;
+      return acc;
+    }, {});
+    const isNewBest = !!isNewBestByPeriod.daily;
+
+    console.log("[submitKickGameScore]", {
+      uid,
+      distance: safeDistance,
+      maxSpeed: safeMaxSpeed,
+      kicks,
+      durationMs: safeDurationMs,
+      durationSec: safeDurationSec,
+      buckets: bucketMap,
+      isNewBestByPeriod,
+      authProvider,
+    });
+    return {
+      success: true,
+      isNewBest,
+      bucket: dailyBucket,
+      buckets: bucketMap,
+      isNewBestByPeriod,
+    };
+  }
+);

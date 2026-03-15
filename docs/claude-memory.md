@@ -216,6 +216,14 @@
 
 ## 一般條目（2026-03-15）
 
+### 2026-03-15 — 開球王遊戲（誰才是開球王）整合至主站
+- **內容**：將獨立 HTML 的 Three.js 開球遊戲重構後嵌入 SPA 架構
+- **架構修復**：消除全域變數（IIFE 封裝）、加入 setPixelRatio、cancelAnimationFrame 清理、container-relative sizing
+- **新增檔案**：`pages/kickball.html`（頁面模板）、`js/modules/kickball-game-page.js`（遊戲模組）
+- **新增 Cloud Function**：`submitKickGameScore`（距離排行，collections: `kickGameRankings` / `kickGameScores`）
+- **對接**：PageLoader、ScriptLoader、navigation.js（init/destroy lifecycle）、config.js（HOME_GAME_PRESETS homeVisible:false）、首頁第二張金色卡片、Firestore rules、CSS（`#page-kick-game` prefix）
+- **教訓**：多張遊戲卡片共用 section title 時，不能用 `_setHomeSectionVisibility` 逐個控制（會互相覆蓋），需整體判斷 anyVisible 後統一控制 title 顯示
+
 ### 2026-03-15 — 球隊申請狀態依賴站內信導致已入隊仍顯示審核中
 - **問題**：用戶已入隊但 profile 仍顯示「XXX俱樂部 審核中」
 - **原因**：`_getMyLatestTeamApplications` 完全依賴 messages 集合判斷狀態，未交叉比對 `users.teamId/teamIds` 實際 membership

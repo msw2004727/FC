@@ -107,6 +107,9 @@ const ScriptLoader = {
     game: [
       'js/modules/shot-game-page.js',
     ],
+    kickball: [
+      'js/modules/kickball-game-page.js',
+    ],
     tournamentAdmin: [
       'js/modules/tournament-manage.js',
     ],
@@ -162,6 +165,7 @@ const ScriptLoader = {
     'page-leaderboard':        ['achievement', 'shop'],
     'page-scan':               ['scan'],
     'page-game':               ['game'],
+    'page-kick-game':          ['kickball'],
     'page-personal-dashboard': ['achievement', 'personalDashboard'],
     'page-admin-dashboard':    ['adminDashboard'],
     'page-temp-participant-report': ['adminDashboard'],

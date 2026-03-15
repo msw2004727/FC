@@ -39,7 +39,7 @@ flowchart TD
             MSG["message-*.js\n訊息"]
             ADM["user-admin-*.js\n用戶後台 / 補正管理"]
             AD["ad-manage-*.js\n廣告管理（5 個）"]
-            UTIL["scan / shop / leaderboard / registration-audit\nachievement facade / achievement/* (10)\nannouncement / favorites / auto-exp / banner\nrole / site-theme / game-manage\nimage-cropper / image-upload\npopup-ad / personal-dashboard / dashboard\ndashboard-participant-query / dashboard-participant-share\nattendance-notify / admin-log-tabs / audit-log / error-log\nshot-game-engine / shot-game-lab-page / shot-game-page"]
+            UTIL["scan / shop / leaderboard / registration-audit\nachievement facade / achievement/* (10)\nannouncement / favorites / auto-exp / banner\nrole / site-theme / game-manage\nimage-cropper / image-upload\npopup-ad / personal-dashboard / dashboard\ndashboard-participant-query / dashboard-participant-share\nattendance-notify / admin-log-tabs / audit-log / error-log\nshot-game-engine / shot-game-lab-page / shot-game-page\nkickball-game-page"]
         end
     end
 
@@ -143,6 +143,7 @@ flowchart TD
 | `modules/shot-game-engine.js` | 蓄力射門 3D 遊戲引擎（Three.js），負責場景、物理、計分 |
 | `modules/shot-game-lab-page.js` | 蓄力射門實驗室頁面（token-gated，game-lab.html 專用） |
 | `modules/shot-game-page.js` | 蓄力射門正式版頁面（嵌入主站 game.html） |
+| `modules/kickball-game-page.js` | 開球王遊戲頁面（Three.js 3D 開球，嵌入主站 kickball.html） |
 
 ## 初始化流程（4 階段 + 延遲載入回呼）
 
