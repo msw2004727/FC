@@ -151,6 +151,11 @@ Object.assign(App, {
         skipRealtimeStart: hasRealtime,
       });
       if (transitionSeq !== this._pageTransitionSeq || this.currentPage !== pageId) return;
+      // 確保 lazy script 已載入，避免 stale-first 初次渲染時 render 方法不存在
+      if (typeof ScriptLoader !== 'undefined' && ScriptLoader.ensureForPage) {
+        await ScriptLoader.ensureForPage(pageId);
+      }
+      if (transitionSeq !== this._pageTransitionSeq || this.currentPage !== pageId) return;
       if ((loaded || []).length > 0 || hasRealtime) {
         this._renderPageContent(pageId);
       }
@@ -553,7 +558,7 @@ Object.assign(App, {
     }
     if (pageId === 'page-activities') {
       this.resetActivityTab?.({ render: false });
-      this.renderActivityList();
+      this.renderActivityList?.();
     }
     if (pageId === 'page-achievements') this.renderAchievements();
     if (pageId === 'page-titles') this.renderTitlePage();
@@ -563,18 +568,18 @@ Object.assign(App, {
     if (pageId === 'page-temp-participant-report' && this.renderParticipantQuerySharePage) {
       this.renderParticipantQuerySharePage();
     }
-    if (pageId === 'page-personal-dashboard') this.renderPersonalDashboard();
+    if (pageId === 'page-personal-dashboard') this.renderPersonalDashboard?.();
     if (pageId === 'page-admin-auto-exp') this.renderAutoExpRules();
     if (pageId === 'page-scan') this.renderScanPage();
     if (pageId === 'page-qrcode') this.renderQrCodePage();
     if (pageId === 'page-game' && this.initShotGamePage) this.initShotGamePage();
     // 按需渲染：進入頁面時才渲染，減少啟動負擔
-    if (pageId === 'page-teams') this.renderTeamList();
+    if (pageId === 'page-teams') this.renderTeamList?.();
     if (pageId === 'page-messages') this.renderMessageList();
     if (pageId === 'page-tournaments') { this.renderTournamentTimeline(); }
     if (pageId === 'page-profile') { this.renderUserCard(); this.renderProfileData(); this.renderProfileFavorites(); if (this.renderActivityRecords) this.renderActivityRecords('all', 1); }
     if (pageId === 'page-shop') this.renderShop();
-    if (pageId === 'page-leaderboard') this.renderLeaderboard();
+    if (pageId === 'page-leaderboard') this.renderLeaderboard?.();
     if (pageId === 'page-admin-users') this.renderAdminUsers();
     if (pageId === 'page-admin-banners') { this.renderBannerManage(); this.renderFloatingAdManage(); this.renderPopupAdManage(); this.renderSponsorManage(); this.renderShotGameAdManage(); }
     if (pageId === 'page-admin-shop') this.renderShopManage();
