@@ -777,7 +777,7 @@
   height: calc(100vh - var(--topbar-h) - var(--bottombar-h) - 52px);
   height: calc(100dvh - var(--topbar-h) - var(--bottombar-h) - 52px);
   min-height: 380px;
-  background: #1a3a2a;
+  background: #8bc5e0;
   touch-action: none;
   user-select: none;
   -webkit-user-select: none;
@@ -978,7 +978,7 @@
   min-width: 24px;
   height: 24px;
   border-radius: 50%;
-  background: #2e7d32;
+  background: #1a7abf;
   color: #fff;
   display: flex;
   align-items: center;
@@ -1003,7 +1003,7 @@
   padding: 12px 0;
   border-radius: 12px;
   border: none;
-  background: linear-gradient(135deg, #2e7d32, #1b5e20);
+  background: linear-gradient(135deg, #1a7abf, #0e5a8a);
   color: #fff;
   font-size: 15px;
   font-weight: 700;
@@ -1081,9 +1081,9 @@
   cursor: pointer;
 }
 #page-kick-game .kg-lb-tab.is-active {
-  background: linear-gradient(90deg, #66bb6a 0%, #43a047 100%);
-  color: #fff;
-  border-color: rgba(27,94,32,0.3);
+  background: linear-gradient(90deg, #8de4ff 0%, #7af0a8 100%);
+  color: #062037;
+  border-color: rgba(11,75,111,0.2);
 }
 #page-kick-game .kg-lb-table-wrap {
   overflow: auto;
@@ -1131,7 +1131,7 @@
 #page-kick-game .kg-lb-row-top1 td { background: rgba(255,215,0,0.18); }
 #page-kick-game .kg-lb-row-top2 td { background: rgba(192,192,192,0.18); }
 #page-kick-game .kg-lb-row-top3 td { background: rgba(205,127,50,0.15); }
-#page-kick-game .kg-lb-dist { font-weight: 800; color: var(--accent, #2e7d32); }
+#page-kick-game .kg-lb-dist { font-weight: 800; color: var(--accent, #0e6b35); }
 #page-kick-game .kg-lb-nick { text-align: left; padding-left: 6px; overflow: hidden; }
 #page-kick-game .kg-lb-name-pill {
   display: inline-block;
@@ -1169,7 +1169,7 @@
 #page-kick-game .kg-lb-player-row.is-hidden { display: none; }
 
 /* ─── Kick Game Dark Mode ─── */
-[data-theme="dark"] #page-kick-game #kick-game-container { background: #0a1e12; }
+[data-theme="dark"] #page-kick-game #kick-game-container { background: #0b2137; }
 [data-theme="dark"] #page-kick-game #kg-session-badge {
   background: rgba(0,0,0,0.42);
   border-color: rgba(255,255,255,0.28);
@@ -1188,7 +1188,7 @@
   background: linear-gradient(160deg, rgba(255,255,255,0.17), rgba(6,24,41,0.38));
   color: #e9f7ff;
 }
-[data-theme="dark"] #page-kick-game .kg-step-num { background: #43a047; }
+[data-theme="dark"] #page-kick-game .kg-step-num { background: #2a9dd8; }
 [data-theme="dark"] #page-kick-game .kg-lb-table thead th { background: var(--bg-card); }
 [data-theme="dark"] #page-kick-game .kg-lb-name-pill { background: rgba(0,0,0,0.3); }
 [data-theme="dark"] #page-kick-game .kg-lb-player-row { background: rgba(0,0,0,0.2); }
@@ -1196,7 +1196,8 @@
 [data-theme="dark"] #page-kick-game .kg-lb-row-top2 td { background: rgba(192,192,192,0.12); }
 [data-theme="dark"] #page-kick-game .kg-lb-row-top3 td { background: rgba(205,127,50,0.12); }
 [data-theme="dark"] #page-kick-game .kg-lb-tab.is-active {
-  background: linear-gradient(90deg, #388e3c 0%, #2e7d32 100%);
+  background: linear-gradient(90deg, #8de4ff 0%, #7af0a8 100%);
+  color: #062037;
 }
 
 /* ─── Kick Game Mobile ─── */
