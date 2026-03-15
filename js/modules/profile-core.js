@@ -383,12 +383,12 @@ Object.assign(App, {
         ${badgeHtml}
       </div>
       <div class="info-card">
-        <div class="info-title">活動紀錄</div>
+        <div class="info-title" style="display:flex;align-items:center">活動紀錄<button id="uc-records-refresh" type="button" onclick="App.refreshUserCardRecords()" title="重新整理" style="width:1.8rem;height:1.8rem;border:1px solid var(--border);border-radius:50%;background:transparent;color:var(--text-muted);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;margin-left:auto"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></button></div>
         <div class="profile-stats" style="margin:-.2rem 0 .5rem" id="uc-record-stats">
-          <div class="stat-item"><span class="stat-num" id="uc-stat-total">-</span><span class="stat-label">應到場次</span></div>
-          <div class="stat-item"><span class="stat-num" id="uc-stat-done">-</span><span class="stat-label">完成場次</span></div>
-          <div class="stat-item"><span class="stat-num" id="uc-stat-rate">-</span><span class="stat-label">出席率</span></div>
-          <div class="stat-item"><span class="stat-num" id="uc-stat-badges">-</span><span class="stat-label">徽章</span></div>
+          <div class="stat-item"><span class="stat-num" id="uc-stat-total">--</span><span class="stat-label">應到場次</span></div>
+          <div class="stat-item"><span class="stat-num" id="uc-stat-done">--</span><span class="stat-label">完成場次</span></div>
+          <div class="stat-item"><span class="stat-num" id="uc-stat-rate">--</span><span class="stat-label">出席率</span></div>
+          <div class="stat-item"><span class="stat-num" id="uc-stat-badges">--</span><span class="stat-label">徽章</span></div>
         </div>
         <div class="tab-bar compact" id="uc-record-tabs">
           <button class="tab" data-filter="all">全部</button>
@@ -406,14 +406,33 @@ Object.assign(App, {
     `;
     this._bindAvatarFallbacks(document.getElementById('user-card-full'));
 
-    // 渲染用戶活動紀錄（先載入該用戶完整記錄，避免 limit(500) 截斷）
+    // 先顯示頁面（統計先顯示 "--"），再背景載入完整記錄
     const targetUid = user ? (user.uid || user.lineUserId) : null;
+    this._ucRecordUid = targetUid || null;
+    this.showPage('page-user-card');
     if (targetUid) {
       await FirebaseService.ensureUserStatsLoaded(targetUid);
-      this._ucRecordUid = targetUid;
       this.renderUserCardRecords('all', 1);
     }
-    this.showPage('page-user-card');
+  },
+
+  async refreshUserCardRecords() {
+    const uid = this._ucRecordUid;
+    if (!uid) return;
+    const btn = document.getElementById('uc-records-refresh');
+    if (btn) { btn.disabled = true; btn.style.opacity = '.5'; }
+    try {
+      // 清除快取強制重新載入
+      if (FirebaseService._userStatsCache) {
+        FirebaseService._userStatsCache = { uid: null, activityRecords: null, attendanceRecords: null };
+      }
+      await FirebaseService.ensureUserStatsLoaded(uid);
+      this.renderUserCardRecords('all', 1);
+    } catch (err) {
+      console.warn('[refreshUserCardRecords]', err);
+    } finally {
+      if (btn) { btn.disabled = false; btn.style.opacity = ''; }
+    }
   },
 
   async _shareUserCard(name) {

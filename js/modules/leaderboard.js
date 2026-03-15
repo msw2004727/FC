@@ -227,12 +227,21 @@ Object.assign(App, {
     container.innerHTML = this._renderRecordListHtml(filtered, page || 1, 'renderUserCardRecords', f);
 
     // 更新統計（方向 B：以掃碼紀錄為依據）
-    const { expectedCount, completedCount, attendRate } = this._calcScanStats(uid);
+    // 資料尚未載入時顯示 "--"，避免顯示 0 造成誤解
+    const usc = typeof FirebaseService !== 'undefined' && FirebaseService.getUserStatsCache?.();
+    const statsReady = usc && usc.uid === uid && usc.attendanceRecords !== null;
     const badgeCount = this._getAchievementProfile?.()?.getCurrentBadgeCount?.() || 0;
     const el = (id) => document.getElementById(id);
-    if (el('uc-stat-total')) el('uc-stat-total').textContent = expectedCount;
-    if (el('uc-stat-done')) el('uc-stat-done').textContent = completedCount;
-    if (el('uc-stat-rate')) el('uc-stat-rate').textContent = `${attendRate}%`;
+    if (statsReady) {
+      const { expectedCount, completedCount, attendRate } = this._calcScanStats(uid);
+      if (el('uc-stat-total')) el('uc-stat-total').textContent = expectedCount;
+      if (el('uc-stat-done')) el('uc-stat-done').textContent = completedCount;
+      if (el('uc-stat-rate')) el('uc-stat-rate').textContent = `${attendRate}%`;
+    } else {
+      if (el('uc-stat-total')) el('uc-stat-total').textContent = '--';
+      if (el('uc-stat-done')) el('uc-stat-done').textContent = '--';
+      if (el('uc-stat-rate')) el('uc-stat-rate').textContent = '--';
+    }
     if (el('uc-stat-badges')) el('uc-stat-badges').textContent = badgeCount;
 
     // 綁定頁籤
