@@ -959,8 +959,12 @@
         var cfg = typeof ApiService !== 'undefined' && ApiService.getGameConfigByKey ? ApiService.getGameConfigByKey('kick-game') : null;
         var preset = Array.isArray(HOME_GAME_PRESETS) ? HOME_GAME_PRESETS.find(function(p) { return p && p.gameKey === 'kick-game'; }) : null;
         var title = (cfg && cfg.pageTitle) || (preset && preset.pageTitle) || titleRow.textContent;
+        var vTag = titleRow.querySelector('#kg-version-tag');
         titleRow.textContent = title;
+        if (vTag) titleRow.appendChild(vTag);
       }
+      var vTagEl = document.getElementById('kg-version-tag');
+      if (vTagEl) vTagEl.textContent = 'v' + (typeof CACHE_VERSION !== 'undefined' ? CACHE_VERSION : '');
 
       try {
         await _loadThreeJs();
