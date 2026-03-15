@@ -605,6 +605,7 @@
       var offCenter = Math.min(1, Math.hypot(cx, cy)), efficiency = 1 - offCenter * 0.06;
       var upperCZ = Math.max(0, cy) * (1 - Math.min(1, Math.abs(cx) / 0.42));
       var fwd = ((110 + p * 175) * efficiency + upperCZ * (18 + p * 26)) * 0.625;
+      if (cy < 0) { var lf = Math.abs(cy); fwd *= (1 - lf * 0.38); }
       var vBase = 8.5 + p * 10.5, vContact = (-cy) * (13 + p * 22), ucLift = upperCZ * (4.5 + p * 6.5), latStart = cx * (4 + p * 7);
       velocity.set(latStart, vBase + vContact + ucLift, -fwd);
       spin.x = (-cy) * (34 + p * 76) + upperCZ * (-6 - p * 8); spin.y = cx * (55 + p * 115); spin.z = 0;
