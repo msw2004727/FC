@@ -1192,8 +1192,16 @@ const App = {
         ? LineAuth.initSDK().then(() => {
             console.log('[Cloud] LIFF SDK ready');
             if (LineAuth.hasLiffSession()) {
+              // Tier 1：正常 LIFF session
               LineAuth.restoreCachedProfile();
               if (LineAuth._profile) {
+                try { this.renderLoginUI(); } catch (_) {}
+              }
+            } else {
+              // Tier 2 預載：嘗試從快取恢復 profile（Firebase Auth 稍後驗證）
+              LineAuth.restoreCachedProfile();
+              if (LineAuth._profile) {
+                console.log('[Cloud] Tier 2: 從快取恢復 profile（等待 Firebase Auth 驗證）');
                 try { this.renderLoginUI(); } catch (_) {}
               }
             }
@@ -1206,9 +1214,21 @@ const App = {
 
       // LIFF profile（需要 LIFF 已 ready）
       if (LineAuth.hasLiffSession()) {
+        // Tier 1：完整 LIFF 刷新
         await LineAuth.ensureProfile({ force: true }).catch(err => {
           console.warn('[Cloud] ensureProfile failed:', err);
         });
+      } else if (LineAuth._profile && LineAuth._firebaseSessionAlive()) {
+        // Tier 2：LIFF 過期但 Firebase Auth 存活
+        if (LineAuth._matchesFirebaseUid(LineAuth._profile)) {
+          console.log('[Cloud] Tier 2 login: cached profile + Firebase Auth');
+          LineAuth._scheduleProfileRefresh();
+        } else {
+          // UID 不一致，清除快取
+          console.warn('[Cloud] Tier 2: UID mismatch, clearing cache');
+          LineAuth._profile = null;
+          LineAuth._clearProfileCache();
+        }
       }
 
       this._firebaseConnected = true;

@@ -10,7 +10,7 @@ const LineAuth = {
   _profileLoading: false,
   _profilePromise: null,
   _profileCacheKey: 'liff_profile_cache',
-  _profileCacheMaxAgeMs: 6 * 60 * 60 * 1000,
+  _profileCacheMaxAgeMs: 30 * 24 * 60 * 60 * 1000,
 
   _getBaseUrl() {
     return window.location.origin + window.location.pathname;
@@ -49,6 +49,52 @@ const LineAuth = {
     try {
       localStorage.removeItem(this._profileCacheKey);
     } catch (_) {}
+  },
+
+  _profileRefreshPending: false,
+  _profileRefreshTimer: null,
+
+  _firebaseSessionAlive() {
+    try {
+      return typeof auth !== 'undefined' && auth !== null && auth.currentUser !== null;
+    } catch (_) {
+      return false;
+    }
+  },
+
+  _matchesFirebaseUid(cachedProfile) {
+    if (!cachedProfile || !cachedProfile.userId) return false;
+    try {
+      if (typeof auth === 'undefined' || !auth || !auth.currentUser) return false;
+      return auth.currentUser.uid === cachedProfile.userId;
+    } catch (_) {
+      return false;
+    }
+  },
+
+  isLoggedInWithLiff() {
+    return this._ready && this._profile !== null && this.hasLiffSession();
+  },
+
+  _scheduleProfileRefresh() {
+    if (this._profileRefreshPending) return;
+    this._profileRefreshPending = true;
+    let elapsed = 0;
+    const maxMs = 5 * 60 * 1000;
+    const intervalMs = 30000;
+    this._profileRefreshTimer = setInterval(() => {
+      elapsed += intervalMs;
+      if (this.hasLiffSession()) {
+        clearInterval(this._profileRefreshTimer);
+        this._profileRefreshPending = false;
+        this._profileRefreshTimer = null;
+        this.ensureProfile({ force: true }).catch(() => {});
+      } else if (elapsed >= maxMs) {
+        clearInterval(this._profileRefreshTimer);
+        this._profileRefreshPending = false;
+        this._profileRefreshTimer = null;
+      }
+    }, intervalMs);
   },
 
   _withTimeout(promise, ms, label) {
@@ -243,6 +289,13 @@ const LineAuth = {
         this._clearProfileCache();
         return null;
       }
+      // UID 交叉驗證：防止換帳號場景
+      if (typeof auth !== 'undefined' && auth && auth.currentUser) {
+        if (auth.currentUser.uid !== parsed.userId) {
+          this._clearProfileCache();
+          return null;
+        }
+      }
       this._profile = {
         userId: parsed.userId,
         displayName: parsed.displayName,
@@ -339,7 +392,17 @@ const LineAuth = {
   },
 
   isLoggedIn() {
-    return this._ready && this._profile !== null;
+    if (!this._ready) return false;
+    // Tier 1：LIFF profile 存在（正常狀態）
+    if (this._profile !== null) return true;
+    // Tier 2：LIFF 過期但 Firebase Auth 還活著 + 快取 profile
+    if (this._firebaseSessionAlive()) {
+      const cached = this.restoreCachedProfile();
+      if (cached && this._matchesFirebaseUid(cached)) {
+        return true;
+      }
+    }
+    return false;
   },
 
   getProfile() {

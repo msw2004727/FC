@@ -12,6 +12,17 @@
 
 ---
 
+### 2026-03-15 — Tier 2 Login：LIFF 過期時以 Firebase Auth + 快取維持登入
+- **問題**：用戶每天被登出，因為登入判斷完全依賴 LIFF session，而外部瀏覽器的 LIFF session 隔天就會失效
+- **原因**：`isLoggedIn()` 只檢查 `this._profile !== null`，LIFF 過期後 profile 無法獲取，即使 Firebase Auth（IndexedDB persistence，refresh token ~1 年）仍然有效
+- **修復**：
+  - `line-auth.js`：profile 快取 TTL 從 6 小時延長至 30 天；新增 `_firebaseSessionAlive()`、`_matchesFirebaseUid()` 輔助方法；`isLoggedIn()` 新增 Tier 2 fallback（Firebase Auth + 快取 profile）；`restoreCachedProfile()` 加入 UID 交叉驗證防換帳號；新增 `_scheduleProfileRefresh()` 背景刷新
+  - `app.js`：`ensureCloudReady` LIFF init 區塊增加 Tier 2 快取恢復；profile fetch 區塊增加 Tier 2 UID 驗證與背景刷新排程
+  - `profile-core.js`：`bindLineLogin` 的 `loginUser` 失敗時增加 Tier 2 降級處理（Firebase Auth 仍有效則不顯示錯誤）
+- **教訓**：Firebase Auth 的 IndexedDB persistence（LOCAL）遠比 LIFF session 長壽，應作為 fallback 信任層
+
+---
+
 ### 2026-03-15 — 開球遊戲反作弊 + 排行影子即時更新
 - **問題**：(1) Cloud Function `submitKickGameScore` 對極端數值僅 console.warn 不拒絕，前端可篡改成績；(2) 提交成績後場地上月排行前10名影子不會更新
 - **原因**：(1) flags 偵測後缺少 throw 拒絕邏輯；(2) `loadTop3Markers` 與 `_submitScore` 不同 scope，提交後未觸發重新載入

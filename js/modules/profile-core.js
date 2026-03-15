@@ -551,11 +551,18 @@ Object.assign(App, {
           refreshAfterUserReady();
         } catch (err) {
           console.error('[App] 用戶資料同步失敗:', err.code, err.message, err);
-          const code = err?.code || '';
-          if (code === 'permission-denied') {
-            this.showToast('登入失敗：資料庫權限不足，請聯繫管理員更新 Firestore 規則');
+          // Tier 2 降級：如果 loginUser 失敗但 Firebase Auth 仍有效，
+          // 不顯示錯誤，繼續用快取資料
+          if (!LineAuth.hasLiffSession() && LineAuth._firebaseSessionAlive()) {
+            console.log('[App] Tier 2: loginUser failed but Firebase Auth alive, continuing with cache');
+            refreshAfterUserReady();
           } else {
-            this.showToast('登入失敗：' + (err?.message || '資料同步異常'));
+            const code = err?.code || '';
+            if (code === 'permission-denied') {
+              this.showToast('登入失敗：資料庫權限不足，請聯繫管理員更新 Firestore 規則');
+            } else {
+              this.showToast('登入失敗：' + (err?.message || '資料同步異常'));
+            }
           }
         }
         // 註冊即時回調：當資料庫用戶資料變更時自動更新 UI
