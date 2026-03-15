@@ -92,7 +92,7 @@ flowchart TD
 | `app.js` | `App` 主物件；定義 4 階段初始化流程、`renderAll()`、`showToast()`、`appConfirm()` |
 | `core/navigation.js` | `showPage()` 策略分派頁面路由（stale-first / stale-confirm / prepare-first / fresh-first），Modal 管理、Drawer 開關，`_freshCheckBeforeAction()` 操作前確認，透過 `Object.assign` 擴充 App。策略由 `config.js` 的 `PAGE_STRATEGY` registry 定義 |
 | `core/theme.js` | 深色 / 淺色主題切換，偏好儲存於 localStorage |
-| `modules/event-*.js` | 活動功能群（event-list / event-detail / event-detail-signup / event-detail-companion / event-create / event-manage，共 6 個），透過 `Object.assign(App, {...})` 掛載 |
+| `modules/event-*.js` | 活動功能群（event-list / event-share / event-detail / event-detail-signup / event-detail-companion / event-create / event-manage，共 7 個），透過 `Object.assign(App, {...})` 掛載。event-share 提供 LINE Flex Message 分享（shareTargetPicker）+ 底部選單 + 建立後分享提示 |
 | `modules/registration-audit.js` | 報名資料審計與修復：`auditRegistrations()` 掃描差異、`repairRegistrations()` 以 registrations 為準回寫 events 投影 |
 | `modules/team*.js` | 球隊功能群（team / team-list / team-detail / team-form，共 4 個；列表、詳情、表單、成員申請管理） |
 | `modules/tournament-*.js` | 錦標賽功能群（渲染、賽程管理） |

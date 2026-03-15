@@ -288,5 +288,11 @@
 
 ---
 
+### 2026-03-15 — 活動分享升級：LINE Flex Message + shareTargetPicker
+- **問題**：活動分享只能發送純文字，無法在 LINE 中發送精美卡片
+- **修復**：新建 `js/modules/event-share.js`，覆蓋舊 `shareEvent`，實作 Flex Message 卡片 + shareTargetPicker + 底部選單（分享到 LINE / 複製連結）+ 建立活動後自動提示分享
+- **修改檔案**：新建 `event-share.js`、修改 `event-list.js`（移除舊 shareEvent）、`event-create.js`（建立後觸發分享提示）、`css/activity.css`（底部選單樣式）、`script-loader.js`（註冊 lazy-load）、`index.html`（script 標籤）
+- **教訓**：shareTargetPicker 不支援 LINE 社群（OpenChat），需另提供複製連結選項；LIFF URL 不受 LINE Labs 設定影響，永遠在 LINE 內建瀏覽器開啟
+
 *最後濃縮日期：2026-03-15*
 *原始檔案：314 條目 / 2475 行 → 濃縮後約 50 條永久教訓*

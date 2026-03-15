@@ -239,7 +239,8 @@
 // 20260315a: 球隊自動晉升修正 — updateUserRole 改用 autoPromoteTeamRole CF，修復非 super_admin 角色變更失敗
 // 20260315b: 個人數據頁完成場次/出席率修正 — 統一使用 _calcScanStats 取代永遠為 0 的錯誤邏輯
 // 20260315zz: Tier 2 login — LIFF 過期時以 Firebase Auth + profile 快取維持登入（30 天快取 + UID 驗證）
-const CACHE_VERSION = '20260315zz';
+// 20260315aaa: 活動分享升級 — LINE Flex Message + shareTargetPicker + 底部選單 + 建立後分享提示
+const CACHE_VERSION = '20260315aaa';
 
 // ─── Page Strategy Registry ───
 // 唯一策略來源，未列出的頁面預設 fresh-first

@@ -79,6 +79,7 @@ const ScriptLoader = {
     ],
     activity: [
       'js/modules/event-list.js',
+      'js/modules/event-share.js',
       'js/modules/event-detail.js',
       'js/modules/event-detail-signup.js',
       'js/modules/event-detail-companion.js',

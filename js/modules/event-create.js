@@ -1554,6 +1554,10 @@ Object.assign(App, {
       this.renderHotEvents();
       this.renderMyActivities();
       this.showToast(`活動「${title}」已建立！`);
+      // 活動建立成功後提示分享到 LINE
+      if (newEvent.id) {
+        setTimeout(() => this._promptShareAfterCreate(newEvent.id), 500);
+      }
     }
 
     // 重置表單

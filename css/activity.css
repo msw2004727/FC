@@ -478,3 +478,40 @@
 }
 .event-reg-log-action.reg { color: var(--success, #34d399); }
 .event-reg-log-action.cancel { color: var(--danger, #f87171); }
+
+/* ─── Share Action Sheet ─── */
+.share-action-sheet {
+  position: fixed; inset: 0; z-index: 9999;
+  background: rgba(0,0,0,0); display: flex;
+  align-items: flex-end; justify-content: center;
+  transition: background .25s ease;
+}
+.share-action-sheet.active { background: rgba(0,0,0,.45); }
+.share-action-sheet-panel {
+  width: 100%; max-width: 420px;
+  background: var(--bg-card, #fff);
+  border-radius: 16px 16px 0 0;
+  padding: 16px 16px calc(env(safe-area-inset-bottom, 0px) + 12px);
+  transform: translateY(100%);
+  transition: transform .3s cubic-bezier(.22,1,.36,1);
+  max-height: 60vh; overflow-y: auto;
+}
+.share-action-sheet.active .share-action-sheet-panel { transform: translateY(0); }
+.share-action-sheet-title {
+  font-size: .92rem; font-weight: 700; text-align: center;
+  color: var(--text-primary, #222); padding-bottom: 10px;
+  border-bottom: 1px solid var(--border, #e5e5e5); margin-bottom: 8px;
+}
+.share-action-sheet-btn {
+  display: flex; align-items: center; justify-content: center;
+  width: 100%; padding: 14px 0; border: none; background: none;
+  font-size: .92rem; font-weight: 600; color: var(--text-primary, #222);
+  cursor: pointer; border-radius: 10px;
+  transition: background .15s;
+}
+.share-action-sheet-btn:active { background: var(--bg-elevated, #f3f4f6); }
+.share-action-sheet-cancel {
+  display: block; width: 100%; padding: 12px 0; border: none;
+  background: none; font-size: .88rem; color: var(--text-muted, #999);
+  cursor: pointer; margin-top: 4px; border-top: 1px solid var(--border, #e5e5e5);
+}

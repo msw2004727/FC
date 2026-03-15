@@ -1143,27 +1143,4 @@ Object.assign(App, {
     return 'normal';
   },
 
-  shareEvent(eventId) {
-    const e = ApiService.getEvent(eventId);
-    if (!e) return;
-    const url = `${location.origin}${location.pathname}?event=${eventId}`;
-    const ageText = e.minAge > 0 ? `${e.minAge} 歲以上` : '無限制';
-    const shareText = [
-      `＜${e.title}＞`,
-      `日期：${e.date || ''}`,
-      `地點：${e.location || ''}`,
-      `年齡：${ageText}`,
-      url
-    ].join('\n');
-    const doCopy = async () => {
-      const ok = await this._copyToClipboard(shareText);
-      this.showToast(ok ? '分享內容已複製到剪貼簿' : '複製失敗，請手動複製');
-    };
-    if (navigator.share) {
-      navigator.share({ text: shareText }).catch(() => doCopy());
-    } else {
-      doCopy();
-    }
-  },
-
 });
