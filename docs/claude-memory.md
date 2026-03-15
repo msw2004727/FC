@@ -12,6 +12,15 @@
 
 ---
 
+### 2026-03-16 — 分享底部選單新增「分享到 LINE 社群」（line.me/R/share）
+- **問題**：shareTargetPicker 不支援 LINE 社群（OpenChat），用戶只能手動複製連結貼上
+- **修復**：
+  - `event-share.js`：新增 `_openLineRShare(altText)` 共用 helper，底部選單新增 `line-share` 選項
+  - `_showShareActionSheet`：canPicker 時顯示 3 按鈕（Flex / LINE 社群 / 複製）；否則 2 按鈕（LINE / 複製）
+  - 4 個 share 模組全部新增 `line-share` choice handler
+  - CSS 新增 `.share-action-sheet-btn-inner` / `.share-action-sheet-btn-sub` 按鈕副標題樣式
+- **教訓**：`line.me/R/share` 可在任何瀏覽器開啟 LINE 原生分享（含社群），但只能發純文字
+
 ### 2026-03-15 — 全站分享升級：球隊/賽事/名片改用 LIFF URL + Flex Message
 - **問題**：球隊邀請、賽事分享、個人名片分享使用直連 URL（`toosterx.com`），不會強制在 LINE 內建瀏覽器開啟，且沒有 Flex Message 卡片
 - **修復**：

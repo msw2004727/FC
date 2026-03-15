@@ -151,33 +151,61 @@ Object.assign(App, {
   },
 
   // ══════════════════════════════════
+  //  LINE R/share helper
+  // ══════════════════════════════════
+
+  _openLineRShare(altText) {
+    var url = 'https://line.me/R/share?text=' + encodeURIComponent(altText);
+    window.open(url, '_blank');
+  },
+
+  // ══════════════════════════════════
   //  Bottom Action Sheet
   // ══════════════════════════════════
 
   _showShareActionSheet(canPicker, title) {
     return new Promise(function (resolve) {
       // Overlay
-      const overlay = document.createElement('div');
+      var overlay = document.createElement('div');
       overlay.className = 'share-action-sheet';
 
-      // Panel — 根據 canPicker 決定是否顯示「分享到 LINE」
-      const lineBtn = canPicker
-        ? '<button class="share-action-sheet-btn" data-choice="line">' +
-            '<span style="margin-right:6px">\uD83D\uDC9A</span>\u5206\u4EAB\u5230 LINE</button>'
-        : '';
-      const hint = !canPicker
-        ? '<div style="font-size:.75rem;color:var(--text-muted,#999);text-align:center;padding:4px 0 8px">' +
-            '\u8ACB\u5728 LINE \u4E2D\u958B\u555F\u4EE5\u4F7F\u7528\u300C\u5206\u4EAB\u5230 LINE\u300D</div>'
-        : '';
+      // 按鈕組裝
+      var buttons = '';
+
+      if (canPicker) {
+        // LIFF 有效：Flex Message（好友/群組）+ LINE 社群（R/share）+ 複製
+        buttons +=
+          '<button class="share-action-sheet-btn" data-choice="line">' +
+            '<span style="margin-right:6px">\uD83D\uDC9A</span>' +
+            '<span class="share-action-sheet-btn-inner">' +
+              '\u5206\u4EAB\u5230 LINE' +
+              '<span class="share-action-sheet-btn-sub">\u7CBE\u7F8E\u5361\u7247\u30FB\u597D\u53CB / \u7FA4\u7D44</span>' +
+            '</span>' +
+          '</button>' +
+          '<button class="share-action-sheet-btn" data-choice="line-share">' +
+            '<span style="margin-right:6px">\uD83D\uDCAC</span>' +
+            '<span class="share-action-sheet-btn-inner">' +
+              '\u5206\u4EAB\u5230 LINE \u793E\u7FA4' +
+              '<span class="share-action-sheet-btn-sub">\u7D14\u6587\u5B57\u30FB\u652F\u63F4\u793E\u7FA4 / OpenChat</span>' +
+            '</span>' +
+          '</button>';
+      } else {
+        // 非 LIFF：只有 R/share + 複製
+        buttons +=
+          '<button class="share-action-sheet-btn" data-choice="line-share">' +
+            '<span style="margin-right:6px">\uD83D\uDCAC</span>\u5206\u4EAB\u5230 LINE</button>';
+      }
+
+      buttons +=
+        '<button class="share-action-sheet-btn" data-choice="copy">' +
+          '<span style="margin-right:6px">\uD83D\uDCCB</span>\u8907\u88FD\u9023\u7D50</button>';
+
       var sheetTitle = title || '\u5206\u4EAB\u6D3B\u52D5';
-      const panel = document.createElement('div');
+      var panel = document.createElement('div');
       panel.className = 'share-action-sheet-panel';
       panel.innerHTML =
         '<div class="share-action-sheet-title">' + sheetTitle + '</div>' +
-        lineBtn +
-        '<button class="share-action-sheet-btn" data-choice="copy">' +
-          '<span style="margin-right:6px">\uD83D\uDCCB</span>\u8907\u88FD\u5206\u4EAB\u9023\u7D50</button>' +
-        hint +
+        buttons +
         '<button class="share-action-sheet-cancel" data-choice="cancel">\u53D6\u6D88</button>';
 
       overlay.appendChild(panel);
@@ -188,7 +216,7 @@ Object.assign(App, {
         overlay.classList.add('active');
       });
 
-      let resolved = false;
+      var resolved = false;
       function cleanup(choice) {
         if (resolved) return;
         resolved = true;
@@ -206,7 +234,7 @@ Object.assign(App, {
 
       // Event delegation
       panel.addEventListener('click', function (ev) {
-        const btn = ev.target.closest('[data-choice]');
+        var btn = ev.target.closest('[data-choice]');
         if (btn) cleanup(btn.dataset.choice);
       });
       overlay.addEventListener('click', function (ev) {
@@ -276,11 +304,14 @@ Object.assign(App, {
         return;
       }
 
+      if (choice === 'line-share') {
+        this._openLineRShare(altText);
+        return;
+      }
+
       if (choice === 'copy') {
         const ok = await this._copyToClipboard(altText);
-        this.showToast(ok
-          ? '\u5206\u4EAB\u9023\u7D50\u5DF2\u8907\u88FD\uFF0C\u53EF\u8CBC\u5230 LINE \u793E\u7FA4'
-          : '\u8907\u88FD\u5931\u6557');
+        this.showToast(ok ? '\u9023\u7D50\u5DF2\u8907\u88FD' : '\u8907\u88FD\u5931\u6557');
         return;
       }
 

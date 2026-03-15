@@ -148,11 +148,14 @@ Object.assign(App, {
         return;
       }
 
+      if (choice === 'line-share') {
+        this._openLineRShare(altText);
+        return;
+      }
+
       if (choice === 'copy') {
         var ok = await this._copyToClipboard(altText);
-        this.showToast(ok
-          ? '\u540D\u7247\u9023\u7D50\u5DF2\u8907\u88FD\uFF0C\u53EF\u8CBC\u5230 LINE \u793E\u7FA4'
-          : '\u8907\u88FD\u5931\u6557');
+        this.showToast(ok ? '\u9023\u7D50\u5DF2\u8907\u88FD' : '\u8907\u88FD\u5931\u6557');
         return;
       }
 
