@@ -521,8 +521,8 @@
       charging = false; gameState = 'flying';
       shotCameraHold = 0.45; cameraModeBlend = 1; landingCameraDamp = 0; hasTriggeredLandingRing = false;
       var powerDiff = Math.abs(power - 100), aimAcc = 1 - Math.min(1, Math.hypot(aimTarget.x, aimTarget.y) / 1.2), grade = 'GOOD';
-      if (powerDiff <= 1.2 && aimAcc >= 0.74) grade = 'PERFECT';
-      else if (powerDiff <= 4 && aimAcc >= 0.48) grade = 'GREAT';
+      if (powerDiff <= 3 && aimAcc >= 0.68) grade = 'PERFECT';
+      else if (powerDiff <= 8 && aimAcc >= 0.42) grade = 'GREAT';
       if (!hasKickedOnce) { hasKickedOnce = true; if (firstTipEl) firstTipEl.style.opacity = '0'; }
       lastKickGrade = grade; triggerJuice(grade, power); kickBall();
     }
@@ -566,7 +566,7 @@
     }
     function finishShot() {
       var rawShotDist = (currentDistance + bonusDistance) - distanceAtShotStart;
-      var mult = lastKickGrade === 'PERFECT' ? 1.08 : lastKickGrade === 'GREAT' ? 1.04 : 1.0;
+      var mult = lastKickGrade === 'PERFECT' ? (1.06 + Math.random() * 0.06) : lastKickGrade === 'GREAT' ? (1.02 + Math.random() * 0.04) : 1.0;
       bonusDistance += rawShotDist * (mult - 1.0);
       var totalDist = currentDistance + bonusDistance;
       shotsLeft -= 1;
@@ -604,11 +604,12 @@
       var p = power / 100, cx = clamp(aimTarget.x, -0.9, 0.9), cy = clamp(aimTarget.y, -0.9, 0.9);
       var offCenter = Math.min(1, Math.hypot(cx, cy)), efficiency = 1 - offCenter * 0.06;
       var upperCZ = Math.max(0, cy) * (1 - Math.min(1, Math.abs(cx) / 0.42));
-      var fwd = ((110 + p * 175) * efficiency + upperCZ * (18 + p * 26)) * 0.625;
-      if (cy < 0) { var lf = Math.abs(cy); fwd *= (1 - lf * 0.38); }
-      var vBase = 8.5 + p * 10.5, vContact = (-cy) * (13 + p * 22), ucLift = upperCZ * (4.5 + p * 6.5), latStart = cx * (4 + p * 7);
-      velocity.set(latStart, vBase + vContact + ucLift, -fwd);
-      spin.x = (-cy) * (34 + p * 76) + upperCZ * (-6 - p * 8); spin.y = cx * (55 + p * 115); spin.z = 0;
+      var fwd = ((108 + p * 168) * efficiency + upperCZ * (16 + p * 24)) * 0.625;
+      if (cy < 0) { var t = Math.abs(cy); fwd *= (1 - t * t * 0.9); }
+      var vBase = 8.5 + p * 11, vContact = (-cy) * (14 + p * 24), ucLift = upperCZ * (4 + p * 6), latStart = cx * (3.5 + p * 6.5);
+      var rng = 0.98 + Math.random() * 0.04;
+      velocity.set(latStart * rng, (vBase + vContact + ucLift) * rng, -fwd * rng);
+      spin.x = (-cy) * (30 + p * 70) + upperCZ * (-5 - p * 7); spin.y = cx * (48 + p * 105); spin.z = 0;
       var launchSpeedKmh = (velocity.length() / unitsPerMeter) * 3.6 * SPEED_DISPLAY_FACTOR;
       if (launchSpeedKmh > maxSpeedThisGame) maxSpeedThisGame = launchSpeedKmh;
       showShotType(classifyShotType(cx, cy, launchSpeedKmh));
