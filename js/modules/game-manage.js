@@ -50,8 +50,8 @@ Object.assign(App, {
           gameKey: presetKey,
           page: String((saved && saved.page) || preset.page || '').trim(),
           sortOrder: sortOrderRaw,
-          enabled: (saved && saved.enabled === false) ? false : preset.enabled !== false,
-          homeVisible: (saved && saved.homeVisible === false) ? false : preset.homeVisible !== false,
+          enabled: saved != null ? saved.enabled !== false : preset.enabled !== false,
+          homeVisible: saved != null ? saved.homeVisible !== false : preset.homeVisible !== false,
         };
       })
       .sort((a, b) => a.sortOrder - b.sortOrder);
