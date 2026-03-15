@@ -801,35 +801,45 @@
       renderer.setSize(containerEl.offsetWidth, containerEl.offsetHeight);
     }
 
-    // ── Top 3 Monthly Markers ──
+    // ── Top 10 Monthly Markers ──
     function loadTop3Markers() {
       var bucket = getTaipeiDateBucket('monthly');
       firebase.firestore().collection('kickGameRankings').doc(bucket).collection('entries')
-        .orderBy('bestDistance', 'desc').limit(10).get()
+        .orderBy('bestDistance', 'desc').limit(20).get()
         .then(function (snap) {
           if (destroyed) return;
           var rows = snap.docs.map(function (d) { return normalizeRow(d.id, d.data()); }).filter(function (r) { return !isAnonymousRow(r) && r.distance > 0; });
-          rows = dedupeRows(rows).sort(compareRows).slice(0, 3);
-          var colors = [0xffd700, 0xc0c0c0, 0xcd7f32];
+          rows = dedupeRows(rows).sort(compareRows).slice(0, 10);
+          var topColors = [0xffd700, 0xc0c0c0, 0xcd7f32];
           rows.forEach(function (row, i) {
             var z = -row.distance * unitsPerMeter;
-            var bH = 18 + (2 - i) * 4;
+            var isTop3 = i < 3;
+            var color = isTop3 ? topColors[i] : 0x4a90d9;
+            var bH = isTop3 ? 18 + (2 - i) * 4 : 8;
+            var beamOpacity = isTop3 ? 0.18 : 0.10;
+            var ringOpacity = isTop3 ? 0.35 : 0.20;
+            var beamWidth = isTop3 ? 1.5 : 0.8;
+            var ringOuter = isTop3 ? 3.2 : 2.0;
+            var ringInner = isTop3 ? 2.5 : 1.5;
             // Light beam (cross-shaped)
-            var bMat = new THREE.MeshBasicMaterial({ color: colors[i], transparent: true, opacity: 0.18, side: THREE.DoubleSide, depthWrite: false });
-            var bGeo = new THREE.PlaneGeometry(1.5, bH);
+            var bMat = new THREE.MeshBasicMaterial({ color: color, transparent: true, opacity: beamOpacity, side: THREE.DoubleSide, depthWrite: false });
+            var bGeo = new THREE.PlaneGeometry(beamWidth, bH);
             var b1 = new THREE.Mesh(bGeo, bMat); b1.position.set(0, bH / 2, z); scene.add(b1);
             var b2 = b1.clone(); b2.rotation.y = Math.PI / 2; b2.position.copy(b1.position); scene.add(b2);
             // Ground ring
-            var ringMat = new THREE.MeshBasicMaterial({ color: colors[i], transparent: true, opacity: 0.35, side: THREE.DoubleSide, depthWrite: false });
-            var ring = new THREE.Mesh(new THREE.RingGeometry(2.5, 3.2, 32), ringMat); ring.rotation.x = -Math.PI / 2; ring.position.set(0, 0.06, z); scene.add(ring);
+            var ringMat = new THREE.MeshBasicMaterial({ color: color, transparent: true, opacity: ringOpacity, side: THREE.DoubleSide, depthWrite: false });
+            var ring = new THREE.Mesh(new THREE.RingGeometry(ringInner, ringOuter, 32), ringMat); ring.rotation.x = -Math.PI / 2; ring.position.set(0, 0.06, z); scene.add(ring);
             // Text sprite
             var c = document.createElement('canvas'); c.width = 512; c.height = 96;
             var ctx = c.getContext('2d');
-            ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(0, 0, 512, 96);
-            ctx.fillStyle = '#fff'; ctx.font = 'bold 42px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillStyle = isTop3 ? 'rgba(0,0,0,0.55)' : 'rgba(0,0,0,0.40)';
+            ctx.fillRect(0, 0, 512, 96);
+            ctx.fillStyle = '#fff'; ctx.font = (isTop3 ? 'bold 42px' : 'bold 34px') + ' Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
             ctx.fillText('#' + (i + 1) + ' ' + row.nick + '  ' + row.distance.toFixed(1) + 'm', 256, 48);
             var sMat = new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), transparent: true, depthWrite: false });
-            var sprite = new THREE.Sprite(sMat); sprite.scale.set(36, 6.75, 1); sprite.position.set(0, bH + 3, z);
+            var spriteScale = isTop3 ? 36 : 28;
+            var spriteH = isTop3 ? 6.75 : 5.25;
+            var sprite = new THREE.Sprite(sMat); sprite.scale.set(spriteScale, spriteH, 1); sprite.position.set(0, bH + 3, z);
             scene.add(sprite);
           });
         }).catch(function () {});
