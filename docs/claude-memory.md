@@ -12,6 +12,14 @@
 
 ---
 
+### 2026-03-15 — 建立/編輯活動後列表未刷新
+- **問題**：建立活動成功後，活動管理列表未顯示新建的活動，需切頁籤或刷新才能看到
+- **原因**：`renderActivityList()`、`renderHotEvents()`、`renderMyActivities()` 三個渲染呼叫放在非關鍵操作的 try-catch 區塊內（與 localStorage 儲存、opLog 寫入、autoExp 發放同一個 try），若前面任一操作拋出例外，渲染呼叫就會被跳過
+- **修復**：`event-create.js` — 將三個渲染呼叫移到 try-catch 區塊外，各自獨立 try-catch，確保無論記錄操作是否失敗都能刷新列表（建立路徑 + 編輯路徑都修復）
+- **教訓**：渲染呼叫屬於用戶可見的即時回饋，不應與可容錯的背景操作共用同一個 try-catch
+
+---
+
 ### 2026-03-15 — Tier 2 Login：LIFF 過期時以 Firebase Auth + 快取維持登入
 - **問題**：用戶每天被登出，因為登入判斷完全依賴 LIFF session，而外部瀏覽器的 LIFF session 隔天就會失效
 - **原因**：`isLoggedIn()` 只檢查 `this._profile !== null`，LIFF 過期後 profile 無法獲取，即使 Firebase Auth（IndexedDB persistence，refresh token ~1 年）仍然有效

@@ -1498,12 +1498,13 @@ Object.assign(App, {
           }, uid, 'activity', '活動');
         });
         ApiService._writeOpLog('event_edit', '編輯活動', `編輯「${title}」`);
-        this.renderActivityList();
-        this.renderHotEvents();
-        this.renderMyActivities();
       } catch (postErr) {
         console.warn('[handleCreateEvent] post-edit error:', postErr);
       }
+      // 重新渲染（獨立於上方 try-catch，確保即使記錄操作失敗也能刷新列表）
+      try { this.renderActivityList(); } catch (_) {}
+      try { this.renderHotEvents(); } catch (_) {}
+      try { this.renderMyActivities(); } catch (_) {}
     } else {
       const creatorName = this._getEventCreatorName();
       const creatorUid = this._getEventCreatorUid();
@@ -1556,12 +1557,13 @@ Object.assign(App, {
         ApiService._writeOpLog('event_create', '建立活動', `建立「${title}」`);
         const _creatorUser = ApiService.getCurrentUser?.();
         if (_creatorUser?.uid) this._grantAutoExp(_creatorUser.uid, 'host_activity', title);
-        this.renderActivityList();
-        this.renderHotEvents();
-        this.renderMyActivities();
       } catch (postErr) {
         console.warn('[handleCreateEvent] post-create error:', postErr);
       }
+      // 重新渲染（獨立於上方 try-catch，確保即使記錄操作失敗也能刷新列表）
+      try { this.renderActivityList(); } catch (_) {}
+      try { this.renderHotEvents(); } catch (_) {}
+      try { this.renderMyActivities(); } catch (_) {}
       // 活動建立成功後提示分享到 LINE
       if (newEvent.id && typeof this._promptShareAfterCreate === 'function') {
         const _eid = newEvent.id;
