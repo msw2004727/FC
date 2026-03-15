@@ -797,6 +797,15 @@
       if (loadingEl) loadingEl.style.display = '';
       if (gameSection) gameSection.style.display = 'none';
 
+      // Dynamic page title from config / Firestore
+      var titleRow = document.querySelector('#page-kick-game .kg-page-title-row');
+      if (titleRow) {
+        var cfg = typeof ApiService !== 'undefined' && ApiService.getGameConfigByKey ? ApiService.getGameConfigByKey('kick-game') : null;
+        var preset = Array.isArray(HOME_GAME_PRESETS) ? HOME_GAME_PRESETS.find(function(p) { return p && p.gameKey === 'kick-game'; }) : null;
+        var title = (cfg && cfg.pageTitle) || (preset && preset.pageTitle) || titleRow.textContent;
+        titleRow.textContent = title;
+      }
+
       try {
         await _loadThreeJs();
       } catch (e) {

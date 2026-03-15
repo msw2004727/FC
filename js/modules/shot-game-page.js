@@ -662,6 +662,15 @@
       if (loadingEl) loadingEl.style.display = '';
       if (gameSection) gameSection.style.display = 'none';
 
+      // Dynamic page title from config / Firestore
+      const titleRow = document.querySelector('#page-game .sg-page-title-row');
+      if (titleRow) {
+        const cfg = typeof ApiService !== 'undefined' && ApiService.getGameConfigByKey ? ApiService.getGameConfigByKey('shot-game') : null;
+        const preset = Array.isArray(HOME_GAME_PRESETS) ? HOME_GAME_PRESETS.find(p => p && p.gameKey === 'shot-game') : null;
+        const title = (cfg && cfg.pageTitle) || (preset && preset.pageTitle) || titleRow.textContent;
+        titleRow.textContent = title;
+      }
+
       // Lazy-load Three.js + engine
       try {
         await _loadThreeJs();
