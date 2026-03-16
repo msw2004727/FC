@@ -1021,11 +1021,11 @@ Object.assign(App, {
 
     const kickStyle = 'font-size:.7rem;padding:.2rem .4rem;border:1px solid var(--danger);color:var(--danger);background:transparent;border-radius:var(--radius-sm);cursor:pointer;white-space:nowrap'
       + (isSubmitting ? ';opacity:.65;cursor:not-allowed' : '');
-    const cbStyle = 'width:1.4rem;height:1.4rem;cursor:pointer;vertical-align:middle'
-      + (isSubmitting ? ';opacity:.7;cursor:not-allowed' : '');
     const noteInputStyle = 'width:100%;font-size:.72rem;padding:.15rem .3rem;border:1px solid var(--border);border-radius:3px;box-sizing:border-box'
       + (isSubmitting ? ';opacity:.7;cursor:not-allowed' : '');
     const disabledAttr = isSubmitting ? 'disabled' : '';
+    const _attCb = (id, checked) =>
+      `<input type="checkbox" id="${id}" class="att-cb" ${checked ? 'checked' : ''} ${disabledAttr}><label for="${id}" class="att-lbl"><span class="att-box"></span></label>`;
 
     let rows = people.map(p => {
       const pendingState = pendingStateByUid ? pendingStateByUid[String(p.uid)] : null;
@@ -1062,8 +1062,8 @@ Object.assign(App, {
           ${kickTd}
           <td style="padding:.35rem .3rem;text-align:left">${nameHtml}</td>
           ${noShowCell}
-          <td style="padding:.35rem .2rem;text-align:center"><input type="checkbox" id="manual-checkin-${safeUid}" ${hasCheckin ? 'checked' : ''} ${disabledAttr} style="${cbStyle}"></td>
-          <td style="padding:.35rem .2rem;text-align:center"><input type="checkbox" id="manual-checkout-${safeUid}" ${hasCheckout ? 'checked' : ''} ${disabledAttr} style="${cbStyle}"></td>
+          <td style="padding:.35rem .2rem;text-align:center">${_attCb('manual-checkin-' + safeUid, hasCheckin)}</td>
+          <td style="padding:.35rem .2rem;text-align:center">${_attCb('manual-checkout-' + safeUid, hasCheckout)}</td>
           <td style="padding:.35rem .3rem"><input type="text" maxlength="20" value="${escapeHTML(noteText)}" id="manual-note-${safeUid}" placeholder="備註" ${disabledAttr} style="${noteInputStyle}"></td>
         </tr>`;
       }
@@ -1149,11 +1149,11 @@ Object.assign(App, {
     const pendingStateByUid = isSubmitting ? (this._unregPendingStateByUid || Object.create(null)) : null;
     const kickStyle = 'font-size:.7rem;padding:.2rem .4rem;border:1px solid var(--danger);color:var(--danger);background:transparent;border-radius:var(--radius-sm);cursor:pointer;white-space:nowrap'
       + (isSubmitting ? ';opacity:.65;cursor:not-allowed' : '');
-    const cbStyle = 'width:1.4rem;height:1.4rem;cursor:pointer;vertical-align:middle'
-      + (isSubmitting ? ';opacity:.7;cursor:not-allowed' : '');
     const noteInputStyle = 'width:100%;font-size:.72rem;padding:.15rem .3rem;border:1px solid var(--border);border-radius:3px;box-sizing:border-box'
       + (isSubmitting ? ';opacity:.7;cursor:not-allowed' : '');
     const disabledAttr = isSubmitting ? 'disabled' : '';
+    const _attCb = (id, checked) =>
+      `<input type="checkbox" id="${id}" class="att-cb" ${checked ? 'checked' : ''} ${disabledAttr}><label for="${id}" class="att-lbl"><span class="att-box"></span></label>`;
 
     const people = [];
     unregMap.forEach(u => people.push(u));
@@ -1178,8 +1178,8 @@ Object.assign(App, {
         return `<tr style="border-bottom:1px solid var(--border)">
           <td style="padding:.35rem .2rem;text-align:center"><button style="${kickStyle}" ${disabledAttr} onclick="App._removeUnregUser('${escapeHTML(eventId)}','${safeUid}','${safeName}')">踢掉</button></td>
           <td style="padding:.35rem .3rem;text-align:left">${nameHtml}</td>
-          <td style="padding:.35rem .2rem;text-align:center"><input type="checkbox" id="unreg-checkin-${safeUid}" ${hasCheckin ? 'checked' : ''} ${disabledAttr} style="${cbStyle}"></td>
-          <td style="padding:.35rem .2rem;text-align:center"><input type="checkbox" id="unreg-checkout-${safeUid}" ${hasCheckout ? 'checked' : ''} ${disabledAttr} style="${cbStyle}"></td>
+          <td style="padding:.35rem .2rem;text-align:center">${_attCb('unreg-checkin-' + safeUid, hasCheckin)}</td>
+          <td style="padding:.35rem .2rem;text-align:center">${_attCb('unreg-checkout-' + safeUid, hasCheckout)}</td>
           <td style="padding:.35rem .3rem"><input type="text" maxlength="20" value="${escapeHTML(noteText)}" id="unreg-note-${safeUid}" placeholder="備註" ${disabledAttr} style="${noteInputStyle}"></td>
         </tr>`;
       }

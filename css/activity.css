@@ -523,3 +523,75 @@
   background: none; font-size: .88rem; color: var(--text-muted, #999);
   cursor: pointer; margin-top: 4px; border-top: 1px solid var(--border, #e5e5e5);
 }
+
+/* ─── Fancy Attendance Checkbox（手動簽到動畫勾選框）─── */
+.att-cb {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+.att-lbl {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.att-box {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2.5px solid var(--border, #555);
+  position: relative;
+  overflow: hidden;
+  transition: border-color .3s;
+  flex-shrink: 0;
+}
+/* 從中心擴散的圓形填色 */
+.att-box::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  background: #00b894;
+  transform: translate(-50%, -50%);
+  transition: width .4s ease, height .4s ease;
+}
+/* 勾勾 */
+.att-box::after {
+  content: '';
+  position: absolute;
+  left: 8px;
+  top: 4px;
+  width: 8px;
+  height: 14px;
+  border: solid #fff;
+  border-width: 0 2.5px 2.5px 0;
+  transform: rotate(45deg) scale(0);
+  transition: transform .25s .15s ease;
+  z-index: 1;
+}
+/* 勾選狀態 */
+.att-cb:checked + .att-lbl .att-box {
+  border-color: #00b894;
+}
+.att-cb:checked + .att-lbl .att-box::before {
+  width: 32px;
+  height: 32px;
+}
+.att-cb:checked + .att-lbl .att-box::after {
+  transform: rotate(45deg) scale(1);
+}
+/* disabled 狀態 */
+.att-cb:disabled + .att-lbl {
+  cursor: not-allowed;
+  opacity: .6;
+}
+.att-cb:disabled + .att-lbl .att-box {
+  border-color: var(--border, #555);
+}
