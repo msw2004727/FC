@@ -12,6 +12,12 @@
 
 ---
 
+### 2026-03-16 — 修復 LINE 瀏覽器底部導航列按鈕跑位
+- **問題**：LINE 內建瀏覽器開啟時，底部頁籤的按鈕位置偏高
+- **原因**：`#bottom-tabs` 使用 `border-box`（全域 reset），`height: 64px` 包含 `padding-bottom: env(safe-area-inset-bottom)`，導致按鈕內容區被壓縮，`align-items: center` 讓按鈕在更小的空間內置中而偏高
+- **修復**：`#bottom-tabs` 加上 `box-sizing: content-box`，讓 64px 永遠是內容區高度，safe-area padding 只延伸背景不影響按鈕佈局；同步更新 `body` 的 `padding-bottom` 加入 safe-area
+- **教訓**：`position: fixed` 元素若同時使用 `env(safe-area-inset-*)` padding，需注意 `box-sizing` 對內容區的影響，尤其在 LINE WebView 等回報不同 safe-area 值的環境
+
 ### 2026-03-16 — 分享底部選單新增「分享到 LINE 社群」（line.me/R/share）
 - **問題**：shareTargetPicker 不支援 LINE 社群（OpenChat），用戶只能手動複製連結貼上
 - **修復**：

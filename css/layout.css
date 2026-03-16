@@ -373,6 +373,7 @@
   border-top: 1px solid var(--border);
   display: flex; align-items: center; justify-content: space-around;
   padding-bottom: env(safe-area-inset-bottom, 0);
+  box-sizing: content-box;
   transition: background var(--transition);
 }
 /* 半圓凸起背景 */
