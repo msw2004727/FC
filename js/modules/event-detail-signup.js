@@ -192,15 +192,18 @@ Object.assign(App, {
       return;
     }
 
-    // 防幽靈 UI 層：報名期間禁用按鈕，防止重複點擊，並在主報名鈕顯示 spinner
+    // 防幽靈 UI 層：報名期間禁用按鈕，啟動光跡載入特效
     const signupBtns = document.querySelectorAll('#detail-body button');
     let activeBtn = null;
+    let glowWrap = null;
     signupBtns.forEach(b => {
       b.disabled = true; b.style.opacity = '0.6';
       if ((b.getAttribute('onclick') || '').includes('handleSignup')) {
         activeBtn = b;
         b._origText = b.textContent;
-        b.innerHTML = '<span style="display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle;margin-right:.3rem"></span>報名中...';
+        b.style.opacity = '';
+        glowWrap = b.closest('.signup-glow-wrap');
+        if (glowWrap) glowWrap.classList.add('loading');
       }
     });
     try {
@@ -240,6 +243,7 @@ Object.assign(App, {
     } catch (err) {
       console.error('[handleSignup]', err);
       this.showToast(err.message || '報名失敗，請稍後再試');
+      if (glowWrap) glowWrap.classList.remove('loading');
       signupBtns.forEach(b => {
         b.disabled = false; b.style.opacity = '';
         if (b === activeBtn && b._origText) { b.textContent = b._origText; }
@@ -298,18 +302,22 @@ Object.assign(App, {
     const activeCancelBtn = cancelBtns[0] || null;
     let cancelUiRestored = false;
     this._cancelSignupBusyMap[id] = true;
+    let cancelGlowWrap = null;
     cancelBtns.forEach(b => {
       b.disabled = true;
       b.style.opacity = '0.6';
       b._origCancelHtml = b.innerHTML;
     });
     if (activeCancelBtn) {
-      activeCancelBtn.innerHTML = '<span style="display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle;margin-right:.3rem"></span>處理中...';
+      activeCancelBtn.style.opacity = '';
+      cancelGlowWrap = activeCancelBtn.closest('.signup-glow-wrap');
+      if (cancelGlowWrap) cancelGlowWrap.classList.add('loading');
     }
     const _restoreCancelUI = () => {
       if (cancelUiRestored) return;
       cancelUiRestored = true;
       delete this._cancelSignupBusyMap[id];
+      if (cancelGlowWrap) cancelGlowWrap.classList.remove('loading');
       cancelBtns.forEach(b => {
         b.disabled = false;
         b.style.opacity = '';

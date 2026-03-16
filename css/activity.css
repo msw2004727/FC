@@ -524,6 +524,141 @@
   cursor: pointer; margin-top: 4px; border-top: 1px solid var(--border, #e5e5e5);
 }
 
+/* ─── Signup Glow Trace Loading Effect ─── */
+.signup-glow-wrap {
+  position: relative;
+  display: inline-flex;
+  --glow-c: var(--accent);
+  --glow-c-light: var(--accent-hover);
+}
+.signup-glow-wrap > button {
+  position: relative;
+  z-index: 2;
+}
+
+/* 光跡邊框 — 旋轉 conic-gradient */
+.signup-glow-border {
+  position: absolute;
+  inset: -3px;
+  border-radius: var(--radius, 14px);
+  pointer-events: none;
+  z-index: 3;
+  opacity: 0;
+  transition: opacity .3s;
+  overflow: hidden;
+  /* mask 挖掉中間只留邊框 */
+  -webkit-mask:
+    linear-gradient(#fff, #fff) content-box,
+    linear-gradient(#fff, #fff);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#fff, #fff) content-box,
+    linear-gradient(#fff, #fff);
+  mask-composite: exclude;
+  padding: 3px;
+}
+.signup-glow-border::before {
+  content: '';
+  position: absolute;
+  inset: -80%;
+  background: conic-gradient(
+    transparent 0%,
+    transparent 60%,
+    var(--glow-c) 75%,
+    var(--glow-c-light) 82%,
+    #fff 87%,
+    var(--glow-c-light) 92%,
+    var(--glow-c) 97%,
+    transparent 100%
+  );
+}
+.signup-glow-wrap.loading .signup-glow-border {
+  opacity: 1;
+}
+.signup-glow-wrap.loading .signup-glow-border::before {
+  animation: signup-glow-spin 1.4s linear infinite;
+}
+@keyframes signup-glow-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* 外發光暈 */
+.signup-glow-shadow {
+  position: absolute;
+  inset: -5px;
+  border-radius: calc(var(--radius, 14px) + 4px);
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0;
+  transition: opacity .3s;
+}
+.signup-glow-wrap.loading .signup-glow-shadow {
+  opacity: 1;
+  animation: signup-glow-pulse 1.2s ease-in-out infinite;
+}
+@keyframes signup-glow-pulse {
+  0%, 100% { box-shadow: 0 0 12px color-mix(in srgb, var(--glow-c) 25%, transparent), 0 0 24px color-mix(in srgb, var(--glow-c) 10%, transparent); }
+  50% { box-shadow: 0 0 20px color-mix(in srgb, var(--glow-c) 40%, transparent), 0 0 40px color-mix(in srgb, var(--glow-c) 15%, transparent); }
+}
+/* color-mix fallback for older browsers */
+@supports not (color: color-mix(in srgb, red 50%, blue)) {
+  .signup-glow-wrap.loading .signup-glow-shadow {
+    box-shadow: 0 0 16px rgba(0, 0, 0, .15), 0 0 32px rgba(0, 0, 0, .08);
+    animation: none;
+  }
+}
+
+/* 呼吸脈衝 */
+.signup-glow-wrap.loading > button {
+  animation: signup-breathe 1s ease-in-out infinite;
+}
+@keyframes signup-breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.03); }
+}
+
+/* 按鈕下方載入提示 */
+.signup-loading-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 20px;
+  opacity: 0;
+  transform: translateY(-4px);
+  transition: opacity .3s, transform .3s;
+  pointer-events: none;
+  position: absolute;
+  left: 0;
+  bottom: -24px;
+  white-space: nowrap;
+}
+.signup-glow-wrap.loading .signup-loading-hint {
+  opacity: 1;
+  transform: translateY(0);
+}
+.signup-loading-hint .mini-spinner {
+  width: 12px; height: 12px;
+  border: 2px solid rgba(128, 128, 128, .25);
+  border-top-color: var(--glow-c, var(--accent));
+  border-radius: 50%;
+  animation: signup-mini-spin .7s linear infinite;
+  flex-shrink: 0;
+}
+@keyframes signup-mini-spin {
+  to { transform: rotate(360deg); }
+}
+.signup-loading-hint .mini-text {
+  font-size: .72rem;
+  color: var(--text-muted);
+  letter-spacing: .02em;
+}
+
+/* Hover press effect */
+.signup-glow-wrap:not(.loading) > button:not(:disabled):active {
+  transform: scale(.95);
+  transition: transform .12s;
+}
+
 /* ─── Fancy Attendance Checkbox（手動簽到動畫勾選框）─── */
 .att-cb {
   position: absolute;
