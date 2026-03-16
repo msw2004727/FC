@@ -10,6 +10,16 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-16 — [永久] 非管理員用戶看不到活動詳情頁徽章
+- **問題**：一般用戶（非 admin）進入活動詳情頁，參加者名單上看不到任何徽章
+- **原因**：`_refreshRegistrationBadges` 使用 `ApiService.getRegistrationsByEvent()` 讀取本地快取，但非管理員的 Firestore listener 只查自己的報名（`where('userId', '==', uid)`），本地快取不含其他參加者的報名資料
+- **修復**：
+  - `_refreshRegistrationBadges` 改為直接查 Firestore `db.collection('registrations').where('eventId', '==', eventId).get()`（Firestore rules 允許 `isAuth()` 讀取）
+  - 從查詢結果的 `displayBadges` 欄位建立 `badgeMap`，同時以 `userId` 和 `userName` 做 key
+  - `_buildConfirmedParticipantSummary` 的 fallback 路徑（`e.participants` 字串陣列）改從 `_eventBadgeCache` 讀取 `displayBadges`
+  - 管理員仍保留即時計算+寫入 Firestore 的完整流程
+- **教訓**：非管理員的 registrations 本地快取只含自己的資料，任何需要讀取「其他用戶報名資料」的功能都必須直接查 Firestore
+
 ### 2026-03-16 — 成就系統新增 11 種動作類型
 - **需求**：擴充成就系統，新增可立即使用現有資料的動作類型
 - **新增動作**：`organize_event`（啟用）、`diverse_sports`、`no_show_free`、`create_team`、`bring_companion`、`team_member_count`、`early_event`、`night_event`、`shop_trade`、`game_play`、`game_high_score`
