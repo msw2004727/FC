@@ -3088,8 +3088,40 @@ exports.fetchSportsNews = onSchedule(
       return;
     }
 
+    // 排除非體育內容的關鍵字（金融、期貨、商品等被 API 誤標為 sports）
+    const EXCLUDE_KEYWORDS = [
+      "期貨", "持倉", "CFTC", "CBOT", "交易所", "股票", "股市",
+      "基金", "債券", "匯率", "利率", "通膨", "GDP", "央行",
+      "ChatGPT", "AI模型", "加密貨幣", "比特幣", "區塊鏈",
+    ];
+    // 體育相關關鍵字（至少命中一個才算體育新聞）
+    const SPORTS_KEYWORDS = [
+      "球", "賽", "隊", "冠軍", "決賽", "聯賽", "盃", "杯",
+      "選手", "教練", "運動", "體育", "奧運", "世錦賽",
+      "進球", "得分", "比分", "勝", "敗", "平",
+      "NBA", "MLB", "NFL", "FIFA", "ATP", "WTA", "F1",
+      "足球", "籃球", "棒球", "網球", "羽球", "排球", "桌球",
+      "游泳", "田徑", "馬拉松", "路跑", "拳擊", "格鬥", "UFC",
+      "高爾夫", "滑雪", "自行車", "射門", "罰球", "扣籃",
+      "转会", "签约", "签下", "球员", "球队", "联赛",
+      "冠军", "决赛", "比赛", "进球", "助攻", "篮板",
+    ];
+
+    function isSportsArticle(title, description) {
+      const text = (title || "") + " " + (description || "");
+      // Exclude financial/non-sports content
+      for (const kw of EXCLUDE_KEYWORDS) {
+        if (text.includes(kw)) return false;
+      }
+      // Must contain at least one sports keyword
+      for (const kw of SPORTS_KEYWORDS) {
+        if (text.includes(kw)) return true;
+      }
+      return false;
+    }
+
     const articles = apiResponse.results
-      .filter((item) => item.title && item.link)
+      .filter((item) => item.title && item.link && isSportsArticle(item.title, item.description))
       .slice(0, 8)
       .map((item) => ({
         title: (item.title || "").trim(),
