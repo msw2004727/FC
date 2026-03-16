@@ -3020,7 +3020,17 @@ exports.submitKickGameScore = onCall(
 // ═══════════════════════════════════════════════════════════════
 
 const SPORT_TAG_KEYWORDS = {
-  football: ["足球", "世界盃", "英超", "西甲", "德甲", "義甲", "法甲", "歐冠", "FIFA", "soccer"],
+  football: [
+    "足球", "世足", "世界盃", "英超", "西甲", "德甲", "義甲", "法甲", "歐冠", "歐聯", "歐霸",
+    "FIFA", "soccer", "HFL", "MLS", "中超", "J聯盟", "K聯賽",
+    "曼城", "曼聯", "利物浦", "切爾西", "兵工廠", "熱刺",
+    "巴薩", "皇馬", "馬競", "拜仁", "多特蒙德",
+    "AC米蘭", "國際米蘭", "尤文", "巴黎聖日耳曼", "PSG",
+    "梅西", "哈蘭德", "姆巴佩", "薩拉赫", "C羅", "內馬爾", "維尼修斯",
+    "中華男足", "中華女足", "台灣男足", "台灣女足", "國家隊",
+    "世界盃資格賽", "亞洲盃", "美洲盃", "非洲盃", "歐洲盃",
+    "阿根廷", "巴西", "法國", "英格蘭", "德國", "西班牙", "葡萄牙", "荷蘭", "義大利", "日本足球",
+  ],
   basketball: ["籃球", "NBA", "CBA", "PLG", "T1"],
   baseball_softball: ["棒球", "壘球", "MLB", "中職", "CPBL", "大聯盟"],
   volleyball: ["排球"],
@@ -3061,11 +3071,14 @@ exports.fetchSportsNews = onSchedule(
       return;
     }
 
-    const url = `https://newsdata.io/api/1/latest?language=zh&category=sports&apikey=${apiKey}`;
+    // 繁體中文優先：限定台灣 / 香港來源
+    const baseUrl = `https://newsdata.io/api/1/latest?language=zh&category=sports&country=tw,hk&apikey=${apiKey}`;
+    // 足球專用查詢（確保每次都有足球新聞，含球星與俱樂部）
+    const footballUrl = `https://newsdata.io/api/1/latest?language=zh&category=sports&country=tw,hk&q=${encodeURIComponent("足球 OR 英超 OR 歐冠 OR 世足 OR FIFA OR 西甲 OR 德甲 OR 義甲 OR 法甲 OR 梅西 OR 乌克兰 OR 曼城 OR 利物浦 OR 巴薩 OR 皇馬 OR 拜仁")}&apikey=${apiKey}`;
 
-    const fetchData = () =>
+    const fetchJson = (fetchUrl) =>
       new Promise((resolve, reject) => {
-        https.get(url, (res) => {
+        https.get(fetchUrl, (res) => {
           let data = "";
           res.on("data", (chunk) => { data += chunk; });
           res.on("end", () => {
@@ -3075,55 +3088,25 @@ exports.fetchSportsNews = onSchedule(
         }).on("error", reject);
       });
 
-    let apiResponse;
+    // 並行抓兩批：足球專用 + 一般體育
+    let footballResponse, generalResponse;
     try {
-      apiResponse = await fetchData();
+      [footballResponse, generalResponse] = await Promise.all([
+        fetchJson(footballUrl).catch(() => ({ status: "error", results: [] })),
+        fetchJson(baseUrl),
+      ]);
     } catch (err) {
       console.error("[fetchSportsNews] API request failed:", err.message);
       return;
     }
 
-    if (apiResponse.status !== "success" || !Array.isArray(apiResponse.results)) {
-      console.warn("[fetchSportsNews] API returned no results:", apiResponse.status);
+    if (generalResponse.status !== "success" || !Array.isArray(generalResponse.results)) {
+      console.warn("[fetchSportsNews] API returned no results:", generalResponse.status);
       return;
     }
 
-    // 排除非體育內容的關鍵字（金融、期貨、商品等被 API 誤標為 sports）
-    const EXCLUDE_KEYWORDS = [
-      "期貨", "持倉", "CFTC", "CBOT", "交易所", "股票", "股市",
-      "基金", "債券", "匯率", "利率", "通膨", "GDP", "央行",
-      "ChatGPT", "AI模型", "加密貨幣", "比特幣", "區塊鏈",
-    ];
-    // 體育相關關鍵字（至少命中一個才算體育新聞）
-    const SPORTS_KEYWORDS = [
-      "球", "賽", "隊", "冠軍", "決賽", "聯賽", "盃", "杯",
-      "選手", "教練", "運動", "體育", "奧運", "世錦賽",
-      "進球", "得分", "比分", "勝", "敗", "平",
-      "NBA", "MLB", "NFL", "FIFA", "ATP", "WTA", "F1",
-      "足球", "籃球", "棒球", "網球", "羽球", "排球", "桌球",
-      "游泳", "田徑", "馬拉松", "路跑", "拳擊", "格鬥", "UFC",
-      "高爾夫", "滑雪", "自行車", "射門", "罰球", "扣籃",
-      "转会", "签约", "签下", "球员", "球队", "联赛",
-      "冠军", "决赛", "比赛", "进球", "助攻", "篮板",
-    ];
-
-    function isSportsArticle(title, description) {
-      const text = (title || "") + " " + (description || "");
-      // Exclude financial/non-sports content
-      for (const kw of EXCLUDE_KEYWORDS) {
-        if (text.includes(kw)) return false;
-      }
-      // Must contain at least one sports keyword
-      for (const kw of SPORTS_KEYWORDS) {
-        if (text.includes(kw)) return true;
-      }
-      return false;
-    }
-
-    const articles = apiResponse.results
-      .filter((item) => item.title && item.link && isSportsArticle(item.title, item.description))
-      .slice(0, 8)
-      .map((item) => ({
+    function toArticle(item) {
+      return {
         title: (item.title || "").trim(),
         description: (item.description || "").trim().slice(0, 200),
         url: item.link,
@@ -3133,7 +3116,48 @@ exports.fetchSportsNews = onSchedule(
         sportTag: matchSportTag(item.title, item.description),
         fetchedAt: new Date(),
         language: "zh",
-      }));
+      };
+    }
+
+    // 足球關鍵字（用於客戶端二次過濾，確保排前面的真的是足球）
+    const FOOTBALL_VERIFY = [
+      "足球", "世足", "世界盃", "英超", "西甲", "德甲", "義甲", "法甲",
+      "歐冠", "歐聯", "歐霸", "亞足聯", "亞洲盃女足", "FIFA",
+      "進球", "射門", "門將", "前鋒", "後衛", "中場",
+      "HFL", "MLS", "中超", "J聯盟", "K聯賽",
+      // 俱樂部
+      "曼城", "曼聯", "利物浦", "切爾西", "兵工廠", "熱刺",
+      "巴薩", "皇馬", "馬競", "拜仁", "多特蒙德",
+      "AC米蘭", "國際米蘭", "尤文", "巴黎聖日耳曼", "PSG",
+      // 球星
+      "梅西", "哈蘭德", "姆巴佩", "薩拉赫",
+      "C羅", "內馬爾", "貝林厄姆", "維尼修斯",
+      // 國家隊
+      "中華男足", "中華女足", "台灣男足", "台灣女足", "國家隊",
+      "世界盃資格賽", "亞洲盃", "美洲盃", "非洲盃", "歐洲盃",
+      "阿根廷", "巴西", "法國", "英格蘭", "德國", "西班牙", "葡萄牙", "荷蘭", "義大利",
+    ];
+    function isActuallyFootball(item) {
+      const text = (item.title || "") + " " + (item.description || "");
+      return FOOTBALL_VERIFY.some((kw) => text.includes(kw));
+    }
+
+    // 合併兩批結果，去重
+    const allItems = [...(footballResponse.results || []), ...(generalResponse.results || [])]
+      .filter((i) => i.title && i.link);
+    const seen = new Set();
+    const unique = [];
+    for (const item of allItems) {
+      if (!seen.has(item.link)) { seen.add(item.link); unique.push(item); }
+    }
+
+    // 足球新聞排前，其他體育補後
+    const fbFirst = unique.filter(isActuallyFootball);
+    const others = unique.filter((i) => !isActuallyFootball(i));
+    const sorted = [...fbFirst, ...others];
+
+    const articles = sorted.slice(0, 8).map(toArticle);
+    console.log(`[fetchSportsNews] unique: ${unique.length}, football: ${fbFirst.length}, final: ${articles.length}`);
 
     if (articles.length === 0) {
       console.warn("[fetchSportsNews] No valid articles after filtering");
