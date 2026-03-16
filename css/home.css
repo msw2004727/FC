@@ -421,26 +421,33 @@
 }
 .sponsor-slot.has-link { cursor: pointer; }
 
-/* ─── Sports News ─── */
-.news-section-header {
-  text-align: center; padding: 1rem .5rem .1rem;
+/* ─── Home Section Heading (shared) ─── */
+.home-heading {
+  text-align: center; padding: 1rem .5rem .4rem;
 }
-.news-section-header h3 {
+.home-heading h3 {
   font-size: .88rem; font-weight: 800; color: var(--text-primary);
   letter-spacing: .06em; margin: 0;
   display: inline-block; position: relative; padding: 0 .3rem;
 }
-.news-section-header h3::before,
-.news-section-header h3::after {
+.home-heading h3::before,
+.home-heading h3::after {
   content: ''; position: absolute; top: 50%;
   width: 28px; height: 1.5px; background: var(--border);
 }
-.news-section-header h3::before { right: 100%; margin-right: 8px; }
-.news-section-header h3::after { left: 100%; margin-left: 8px; }
-.news-section-accent {
+.home-heading h3::before { right: 100%; margin-right: 8px; }
+.home-heading h3::after { left: 100%; margin-left: 8px; }
+.home-heading-accent {
   width: 32px; height: 2.5px; border-radius: 2px;
   background: var(--accent); margin: 5px auto 0;
 }
+
+.home-divider {
+  border: none; border-top: 1px solid var(--border);
+  margin: .6rem .5rem 0;
+}
+
+/* ─── Sports News ─── */
 
 /* folder-style tabs */
 .news-tabs {

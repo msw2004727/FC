@@ -31,22 +31,24 @@
   </div>
 
   <!-- Hot Events -->
-  <div class="section-title">近期活動</div>
+  <div class="home-heading"><h3>近期活動</h3><div class="home-heading-accent"></div></div>
   <div class="horizontal-scroll" id="hot-events">
     <div class="skeleton skeleton-card"></div>
     <div class="skeleton skeleton-card"></div>
     <div class="skeleton skeleton-card"></div>
   </div>
 
+  <hr class="home-divider">
   <!-- Ongoing Tournaments -->
-  <div class="section-title">近期賽事</div>
+  <div class="home-heading"><h3>近期賽事</h3><div class="home-heading-accent"></div></div>
   <div class="horizontal-scroll" id="ongoing-tournaments">
     <div class="skeleton skeleton-card"></div>
     <div class="skeleton skeleton-card"></div>
   </div>
 
+  <hr class="home-divider">
   <!-- Game Shortcut -->
-  <div class="section-title">小遊戲</div>
+  <div class="home-heading"><h3>小遊戲</h3><div class="home-heading-accent"></div></div>
   <button class="home-game-card" id="home-game-card-shot" onclick="App.showPage('page-game')" type="button" aria-label="蓄力射門 誰與爭鋒">
     <div class="home-game-card-icon" aria-hidden="true">⚽</div>
     <div class="home-game-card-info">
@@ -64,14 +66,15 @@
     <svg class="home-game-card-arrow" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg>
   </button>
 
+  <hr class="home-divider">
   <!-- Sponsors -->
-  <hr style="border:none;border-top:1px solid var(--border);margin:1rem 0 .5rem">
   <div class="sponsor-grid" id="sponsor-grid"></div>
 
+  <hr class="home-divider" id="news-divider" style="display:none">
   <!-- Sports News -->
-  <div class="news-section-header" id="news-section-title" style="display:none">
+  <div class="home-heading" id="news-section-title" style="display:none">
     <h3>每日體育新聞</h3>
-    <div class="news-section-accent"></div>
+    <div class="home-heading-accent"></div>
   </div>
   <div class="news-tabs" id="news-tabs" style="display:none"></div>
   <div class="news-card-list" id="news-card-list"></div>

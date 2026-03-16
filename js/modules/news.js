@@ -11,6 +11,7 @@ Object.assign(App, {
     const titleEl = document.getElementById('news-section-title');
     const tabsEl = document.getElementById('news-tabs');
     const listEl = document.getElementById('news-card-list');
+    const dividerEl = document.getElementById('news-divider');
     if (!titleEl || !listEl) return;
 
     const articles = (typeof ApiService !== 'undefined' && ApiService.getNewsArticles)
@@ -20,11 +21,13 @@ Object.assign(App, {
     if (!articles || articles.length === 0) {
       titleEl.style.display = 'none';
       if (tabsEl) tabsEl.style.display = 'none';
+      if (dividerEl) dividerEl.style.display = 'none';
       listEl.innerHTML = '';
       return;
     }
 
     titleEl.style.display = '';
+    if (dividerEl) dividerEl.style.display = '';
     if (tabsEl) {
       tabsEl.style.display = '';
       this._renderNewsTabs(tabsEl);
