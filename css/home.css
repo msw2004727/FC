@@ -423,44 +423,76 @@
 
 /* ─── Sports News ─── */
 .news-section-header {
-  text-align: center; padding: .8rem .5rem .4rem;
+  text-align: center; padding: 1rem .5rem .1rem;
 }
 .news-section-header h3 {
-  font-size: .95rem; font-weight: 800; color: var(--text-primary);
-  display: inline-flex; align-items: center; gap: 6px;
-  letter-spacing: .03em;
+  font-size: .88rem; font-weight: 800; color: var(--text-primary);
+  letter-spacing: .06em; margin: 0;
+  display: inline-block; position: relative; padding: 0 .3rem;
 }
-.news-section-header h3::before { content: '\26BD'; }
-.news-section-header h3::after { content: '\1F4F0'; }
-.news-section-divider {
-  width: 40px; height: 3px; border-radius: 2px;
-  background: var(--accent); margin: 6px auto 0;
+.news-section-header h3::before,
+.news-section-header h3::after {
+  content: ''; position: absolute; top: 50%;
+  width: 28px; height: 1.5px; background: var(--border);
 }
+.news-section-header h3::before { right: 100%; margin-right: 8px; }
+.news-section-header h3::after { left: 100%; margin-left: 8px; }
+.news-section-accent {
+  width: 32px; height: 2.5px; border-radius: 2px;
+  background: var(--accent); margin: 5px auto 0;
+}
+
+/* folder-style tabs */
 .news-tabs {
-  display: flex; gap: 6px; padding: 0 .5rem .5rem;
+  display: flex; gap: 0; padding: 0 .5rem;
+  margin: 0 .5rem;
   overflow-x: auto; -webkit-overflow-scrolling: touch;
+  position: relative;
 }
 .news-tabs::-webkit-scrollbar { display: none; }
-.news-tab {
-  padding: 6px 16px; border-radius: 4px; border: 1px solid var(--border);
-  background: var(--bg-card); font-size: .78rem; white-space: nowrap;
-  color: var(--text-secondary); cursor: pointer; transition: all .15s;
-  min-width: 52px; text-align: center;
+.news-tabs::after {
+  content: ''; position: absolute; bottom: 0; left: 0; right: 0;
+  height: 1px; background: var(--border); z-index: 0;
 }
+.news-tab {
+  position: relative; z-index: 1;
+  padding: 7px 14px; white-space: nowrap;
+  font-size: .75rem; font-weight: 500; line-height: 1.2;
+  color: var(--text-muted); cursor: pointer;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  border-radius: 6px 6px 0 0;
+  margin-right: -1px;
+  box-shadow: 0 -1px 3px rgba(0,0,0,.04);
+  transition: color .15s, background .15s, box-shadow .15s;
+}
+.news-tab:hover { color: var(--text-secondary); }
 .news-tab.active {
-  background: var(--accent); color: #fff; border-color: var(--accent);
+  background: var(--bg-card);
+  color: var(--accent); font-weight: 700;
+  border-bottom-color: var(--bg-card);
+  box-shadow: 0 -2px 6px rgba(0,0,0,.08);
+  z-index: 2;
 }
 .news-card-list {
-  display: flex; flex-direction: column; gap: 10px;
-  padding: 0 .5rem .5rem;
+  display: flex; flex-direction: column; gap: 0;
+  padding: 6px 6px;
+  background: var(--bg-card);
+  border: 1px solid var(--border); border-top: none;
+  border-radius: 0 0 var(--radius-sm, 8px) var(--radius-sm, 8px);
+  margin: 0 .5rem .5rem;
+  box-shadow: 0 2px 8px rgba(0,0,0,.06);
+}
+.news-card + .news-card {
+  border-top: 1px solid var(--border);
 }
 .news-card {
-  display: flex; gap: 10px; padding: 10px;
-  background: var(--bg-card); border-radius: 10px;
-  border: 1px solid var(--border); cursor: pointer;
-  transition: box-shadow .15s;
+  display: flex; gap: 10px; padding: 8px;
+  border-radius: 8px; cursor: pointer;
+  transition: background .15s;
 }
-.news-card:active { box-shadow: 0 0 0 2px var(--accent-alpha, rgba(37,99,235,.2)); }
+.news-card:active { background: var(--bg-elevated); }
 .news-card-thumb {
   width: 90px; height: 64px; border-radius: 6px;
   object-fit: cover; flex-shrink: 0; background: var(--bg-skeleton, #e2e8f0);
