@@ -10,6 +10,14 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-16 — [永久] 成就鎖定/解鎖功能
+- **需求**：管理員可控制每個成就是否為「達成即永久」或「條件消失即撤銷」
+- **設計**：成就文件新增 `locked` 欄位（預設 `true`，向下相容）
+  - **鎖定（locked: true）**：`completedAt` 一旦設定就永久保留，即使 `current < threshold` 也不清除
+  - **解鎖（locked: false）**：`current < threshold` 時 `completedAt` 會被設為 `null`，成就被撤銷
+- **修改位置**：`evaluator.js:776` 加入 `isLocked` 判斷；`admin.js` 加入鎖頭圖示按鈕 + `toggleAchievementLock`；`achievement.js` 加入 facade
+- **教訓**：`locked` 預設為 `true` 是關鍵決策——所有既有成就自動向下相容為永久型，不會因為升級而意外撤銷用戶的成就
+
 ### 2026-03-16 — 成就批次更新功能（用戶補正管理第三頁籤）
 - **需求**：用戶徽章在活動頁可見但在個人名片不可見，因為 `users/{uid}/achievements` 子集合只有用戶本人觸發才寫入
 - **實作**：

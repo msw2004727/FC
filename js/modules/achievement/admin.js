@@ -192,6 +192,13 @@ Object.assign(App, {
         const timeRangeSupported = registry?.isStrictlySupportedTimeRange?.(achievement.condition?.timeRange || 'none') !== false;
         const hasLegacyWarning = !actionSupported || !timeRangeSupported;
 
+        const isLocked = achievement.locked !== false;
+        const lockIcon = isLocked
+          ? '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg>'
+          : '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"></rect><path d="M16 11V7a4 4 0 0 0-7.4-2.1"></path></svg>';
+        const lockColor = isLocked ? 'var(--accent)' : 'var(--warning)';
+        const lockTitle = isLocked ? '已鎖定（達成即永久）' : '未鎖定（條件消失會撤銷）';
+
         return `
       <div class="admin-ach-row" style="background:${index % 2 === 0 ? 'var(--bg-elevated)' : 'transparent'};border-left:3px solid ${isArchived ? 'var(--text-muted)' : color};${isArchived ? 'opacity:.55;' : ''}">
         <div class="badge-img-placeholder small" style="border-color:${color};flex-shrink:0">${badgeImg}</div>
@@ -209,6 +216,7 @@ Object.assign(App, {
           </div>
         </div>
         <div class="admin-ach-actions">
+          <button class="text-btn" style="font-size:.72rem;color:${lockColor};display:inline-flex;align-items:center;gap:.2rem" title="${lockTitle}" onclick="App.toggleAchievementLock('${achievement.id}')">${lockIcon}</button>
           <button class="text-btn" style="font-size:.72rem" onclick="App.editAchievement('${achievement.id}')">編輯</button>
           <button class="text-btn" style="font-size:.72rem;color:${isArchived ? 'var(--success)' : 'var(--danger)'}" onclick="App.toggleAchievementStatus('${achievement.id}')">${isArchived ? '上架' : '下架'}</button>
           <button class="text-btn" style="font-size:.72rem;color:var(--danger)" onclick="App.confirmDeleteAchievement('${achievement.id}')">刪除</button>
@@ -448,6 +456,37 @@ Object.assign(App, {
       }
     };
 
+    const toggleAchievementLock = async (id) => {
+      const item = ApiService.getAchievements().find(achievement => achievement.id === id);
+      if (!item) return;
+
+      const isCurrentlyLocked = item.locked !== false;
+      const newLocked = !isCurrentlyLocked;
+
+      const message = newLocked
+        ? `確定要鎖定「${item.name}」嗎？\n\n` +
+          '鎖定後，用戶一旦達成此成就就永久保留，\n' +
+          '即使後續條件不再滿足也不會被撤銷。\n\n' +
+          '適合：累計型成就（報名 N 場、完成 N 場）'
+        : `確定要解鎖「${item.name}」嗎？\n\n` +
+          '解鎖後，若用戶不再滿足條件，\n' +
+          '成就會在下次評估時被自動撤銷。\n\n' +
+          '適合：持續維持型成就（出席率、連續無放鴿子）';
+
+      const ok = await App.appConfirm(message);
+      if (!ok) return;
+
+      try {
+        await ApiService.updateAchievement(id, { locked: newLocked });
+        ApiService._writeOpLog?.('ach_edit', '切換成就鎖定', `${newLocked ? '鎖定' : '解鎖'} ${item.name}`);
+        renderAdminAchievements();
+        App.showToast(`成就「${item.name}」已${newLocked ? '鎖定' : '解鎖'}`);
+      } catch (error) {
+        console.error('[achievementAdmin.toggleAchievementLock]', error);
+        App.showToast('切換鎖定狀態失敗，請稍後再試');
+      }
+    };
+
     const confirmDeleteAchievement = async (id) => {
       const item = ApiService.getAchievements().find(achievement => achievement.id === id);
       if (!item) return;
@@ -481,6 +520,7 @@ Object.assign(App, {
       saveAchievement,
       editAchievement,
       toggleAchievementStatus,
+      toggleAchievementLock,
       confirmDeleteAchievement,
     };
   },

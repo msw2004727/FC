@@ -357,6 +357,11 @@ Object.assign(App, {
     this.showToast(`成就「${item.name}」已${newStatus === 'archived' ? '下架' : '上架'}`);
   },
 
+  toggleAchievementLock(id) {
+    const admin = this._getAchievementAdmin?.();
+    if (admin?.toggleAchievementLock) return admin.toggleAchievementLock(id);
+  },
+
   async confirmDeleteAchievement(id) {
     const admin = this._getAchievementAdmin?.();
     if (admin?.confirmDeleteAchievement) return admin.confirmDeleteAchievement(id);

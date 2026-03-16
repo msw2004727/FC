@@ -773,9 +773,11 @@ Object.assign(App, {
 
       const target = condition.threshold != null ? toFiniteNumber(condition.threshold, 1) : 1;
       const shouldComplete = current >= target;
+      // locked（預設 true）：達成後永久保留；unlocked：條件不滿足就撤銷
+      const isLocked = achievement.locked !== false;
       const nextCompletedAt = shouldComplete
         ? (achievement.completedAt || formatCompletedDate(context.now))
-        : null;
+        : (isLocked && achievement.completedAt ? achievement.completedAt : null);
 
       return {
         ...achievement,
