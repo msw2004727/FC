@@ -133,7 +133,7 @@ const App = {
     this.bindImageUpload('cs-img1', 'cs-preview1', 4/3);
     this.bindImageUpload('cs-img2', 'cs-preview2', 4/3);
     this.bindImageUpload('cs-img3', 'cs-preview3', 4/3);
-    this.bindImageUpload('banner-image', 'banner-preview', 3);
+    this.bindImageUpload('banner-image', 'banner-preview', 2.2);
     this.bindImageUpload('floatad-image', 'floatad-preview', 1);
     this.bindImageUpload('popupad-image', 'popupad-preview', 16/9);
     this.bindImageUpload('ct-team-image', 'ct-team-preview', 1);
@@ -261,7 +261,7 @@ const App = {
     this.bindImageUpload('cs-img1',          'cs-preview1',              4/3);
     this.bindImageUpload('cs-img2',          'cs-preview2',              4/3);
     this.bindImageUpload('cs-img3',          'cs-preview3',              4/3);
-    this.bindImageUpload('banner-image',     'banner-preview',           3);
+    this.bindImageUpload('banner-image',     'banner-preview',           2.2);
     this.bindImageUpload('floatad-image',    'floatad-preview',          1);
     this.bindImageUpload('popupad-image',    'popupad-preview',          16/9);
     this.bindImageUpload('ct-team-image',    'ct-team-preview',          1);

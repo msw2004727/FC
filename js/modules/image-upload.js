@@ -12,7 +12,7 @@ Object.assign(App, {
    * @param {string} [outputType] - 'image/webp'(預設) 或 'image/jpeg' / 'image/png'
    * @returns {Promise<string>} base64 data URL
    */
-  _compressImage(file, maxWidth = 1200, quality = 0.78, outputType = 'image/webp') {
+  _compressImage(file, maxWidth = 1600, quality = 0.92, outputType = 'image/webp') {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onerror = reject;

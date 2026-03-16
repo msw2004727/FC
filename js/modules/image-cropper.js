@@ -216,9 +216,9 @@ Object.assign(App, {
 
   _cropperRenderResult(img, state, vpW, vpH) {
     const canvas = document.createElement('canvas');
-    // Output resolution: use viewport pixel dimensions (capped at reasonable size)
-    const outputW = Math.min(vpW * 2, 1920);
-    const outputH = Math.min(vpH * 2, 1080);
+    // Output resolution: fixed 1200px width, height by aspect ratio (not tied to screen size)
+    const outputW = 1200;
+    const outputH = Math.round(1200 * vpH / vpW);
     canvas.width = outputW;
     canvas.height = outputH;
     const ctx = canvas.getContext('2d');
@@ -235,9 +235,9 @@ Object.assign(App, {
       state.imgH * state.scale * ratioY
     );
 
-    let result = canvas.toDataURL('image/webp', 0.82);
+    let result = canvas.toDataURL('image/webp', 0.90);
     if (!result.startsWith('data:image/webp')) {
-      result = canvas.toDataURL('image/jpeg', 0.82);
+      result = canvas.toDataURL('image/jpeg', 0.90);
     }
     return result;
   },

@@ -25,7 +25,7 @@ Object.assign(App, {
           </div>`;
         }
         return `<div class="banner-slide banner-placeholder" style="background:${b.gradient || 'var(--bg-elevated)'}" ${clickHandler}>
-          <div class="banner-img-placeholder">1200 × 400</div>
+          <div class="banner-img-placeholder">1200 × 545</div>
           <div class="banner-content"><div class="banner-tag">${escapeHTML(b.slotName || '廣告位 ' + b.slot)}</div><h2>${escapeHTML(b.title || '')}</h2></div>
         </div>`;
       }).join('');
