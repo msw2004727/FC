@@ -1176,13 +1176,15 @@ Object.assign(App, {
     container.querySelectorAll('.reg-name-badges').forEach(row => {
       if (row.dataset.snapBound) return;
       row.dataset.snapBound = '1';
-      row.addEventListener('touchend', () => {
+      const snapBack = () => {
         if (row.scrollLeft > 0) {
           row.style.scrollBehavior = 'smooth';
           row.scrollLeft = 0;
           setTimeout(() => { row.style.scrollBehavior = ''; }, 350);
         }
-      }, { passive: true });
+      };
+      row.addEventListener('touchend', snapBack, { passive: true });
+      row.addEventListener('touchcancel', snapBack, { passive: true });
     });
   },
 
@@ -1958,6 +1960,10 @@ Object.assign(App, {
       }
       if (!ab || !ab.getEarnedBadgeViewModels) return;
 
+      // 取得 evaluator（可為任何用戶即時計算成就）
+      const evaluator = this._getAchievementEvaluator?.();
+      if (!evaluator || !evaluator.getEvaluatedAchievements) return;
+
       const regs = ApiService.getRegistrationsByEvent(eventId)
         .filter(r => r.status === 'confirmed' && r.participantType === 'self');
       if (!regs.length) return;
@@ -1973,9 +1979,10 @@ Object.assign(App, {
 
         let achievements;
         try {
-          achievements = await ab.getEvaluatedAchievementsForUserAsync?.({ uid, _docId: uid });
+          // 使用 evaluator 即時計算成就（支援任何用戶，不依賴 per-user 子集合）
+          achievements = evaluator.getEvaluatedAchievements({ targetUid: uid });
         } catch (_) { continue; }
-        if (!achievements) continue;
+        if (!achievements || !achievements.length) continue;
 
         const earned = ab.getEarnedBadgeViewModels(achievements, allBadges);
         const newBadges = earned.map(item => ({
@@ -1988,6 +1995,8 @@ Object.assign(App, {
         const oldIds = oldBadges.map(b => b.id).sort().join(',');
         const newIds = newBadges.map(b => b.id).sort().join(',');
         if (oldIds === newIds) continue;
+        // 防護：不以空結果覆蓋已有徽章（避免資料未載入時誤清）
+        if (!newBadges.length && oldBadges.length) continue;
 
         // 更新 Firestore + 快取
         try {

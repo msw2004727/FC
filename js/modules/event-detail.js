@@ -411,7 +411,7 @@ Object.assign(App, {
       this._renderUnregTable(id, 'detail-unreg-table');
       this._renderGroupedWaitlistSection(id, 'detail-waitlist-container');
       // 背景更新報名者徽章（不阻塞頁面渲染）
-      this._refreshRegistrationBadges?.(id, 'detail-attendance-table');
+      this._refreshRegistrationBadges?.(id, 'detail-attendance-table')?.catch?.(() => {});
     }
       this._markPageSnapshotReady?.('page-activity-detail');
       return { ok: true, reason: 'ok' };

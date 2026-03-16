@@ -10,6 +10,16 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-16 — 修復活動詳情頁徽章展示未生效 + 手勢補全
+- **問題**：`_refreshRegistrationBadges` 使用 `getEvaluatedAchievementsForUserAsync` 為其他用戶讀取 per-user 子集合，但大部分用戶無子集合資料，導致成就全部判定為未完成、徽章永遠為空；觸控手勢缺少 `touchcancel` 處理
+- **原因**：`badges.js` 的 `getEvaluatedAchievementsForUserAsync` 對非當前用戶僅讀子集合（不即時計算），子集合空時回傳模板 `current:0`
+- **修復**：
+  - `event-manage.js`: `_refreshRegistrationBadges` 改用 `evaluator.getEvaluatedAchievements({ targetUid })` 即時計算任何用戶成就
+  - 新增防護：空結果不覆蓋已有 `displayBadges`（避免資料未載入時誤清）
+  - `_bindBadgeRowSnapBack` 新增 `touchcancel` 事件支援
+  - `event-detail.js`: 呼叫加 `.catch(() => {})` 防止未處理 rejection
+- **教訓**：`getEvaluatedAchievementsForUserAsync` 只適用於讀取已存在的 per-user 資料；需要即時計算其他用戶成就時，應使用 evaluator 的 `getEvaluatedAchievements`
+
 ### 2026-03-16 — 報名名單顯示用戶徽章
 - **問題**：活動詳情頁報名名單需展示用戶擁有的徽章縮圖
 - **修復**：

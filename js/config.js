@@ -249,7 +249,7 @@
 // 20260316r: Per-user achievement progress — 雙寫子集合 + fallback 即時計算
 // 20260316s: Phase 3+4 — 支援讀其他用戶徽章 + 移除全域寫入 + 清理汙染邏輯
 // 20260316t: 一次性清理全域 achievements 汙染（重設 current/completedAt 為模板狀態）
-const CACHE_VERSION = '20260316zl';
+const CACHE_VERSION = '20260316zm';
 
 // ─── Page Strategy Registry ───
 // 唯一策略來源，未列出的頁面預設 fresh-first
@@ -312,6 +312,17 @@ const ACHIEVEMENT_CONDITIONS = {
     { key: 'complete_profile',label: '完成個人檔案',         unit: '',  needsFilter: false },
     { key: 'bind_line_notify',label: '綁定 LINE 推播',       unit: '',  needsFilter: false },
     { key: 'days_registered', label: '註冊天數',             unit: '天', needsFilter: false },
+    { key: 'organize_event', label: '主辦活動',             unit: '場', needsFilter: true },
+    { key: 'diverse_sports', label: '參與不同運動類型',     unit: '種', needsFilter: false },
+    { key: 'no_show_free',   label: '連續無放鴿子',         unit: '場', needsFilter: false },
+    { key: 'create_team',    label: '建立球隊',             unit: '隊', needsFilter: false },
+    { key: 'bring_companion',label: '帶同行者報名',         unit: '人次', needsFilter: false },
+    { key: 'team_member_count', label: '球隊成員數',        unit: '人', needsFilter: false },
+    { key: 'early_event',    label: '參加早場活動',         unit: '場', needsFilter: false },
+    { key: 'night_event',    label: '參加夜場活動',         unit: '場', needsFilter: false },
+    { key: 'shop_trade',     label: '完成商城兌換',         unit: '次', needsFilter: false },
+    { key: 'game_play',      label: '完成小遊戲',           unit: '場', needsFilter: false },
+    { key: 'game_high_score',label: '小遊戲最高分',         unit: '分', needsFilter: false },
   ],
   filters: [
     { key: 'all',      label: '所有類型' },
