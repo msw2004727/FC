@@ -247,7 +247,8 @@
 // 20260315aaf: 修復建立/編輯活動後列表未刷新 — render 呼叫移出 try-catch 確保獨立執行
 // 20260315aag: 全站分享升級 — 球隊/賽事/名片分享改用 LIFF URL + Flex Message + 底部選單
 // 20260316r: Per-user achievement progress — 雙寫子集合 + fallback 即時計算
-const CACHE_VERSION = '20260316r';
+// 20260316s: Phase 3+4 — 支援讀其他用戶徽章 + 移除全域寫入 + 清理汙染邏輯
+const CACHE_VERSION = '20260316s';
 
 // ─── Page Strategy Registry ───
 // 唯一策略來源，未列出的頁面預設 fresh-first

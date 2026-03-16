@@ -29,10 +29,42 @@ Object.assign(App, {
         return badgeHelper.buildBadgeListHtml(options.earnedBadges, options);
       }
 
+      const targetUser = options.targetUser || null;
       const achievements = Array.isArray(options.achievements)
         ? options.achievements
-        : badgeHelper.getEvaluatedAchievementsForUser?.(ApiService.getCurrentUser?.() || null)
+        : badgeHelper.getEvaluatedAchievementsForUser?.(targetUser || ApiService.getCurrentUser?.() || null)
           || (ApiService.getAchievements?.() || []);
+
+      return badgeHelper.buildEarnedBadgeListHtml(
+        achievements,
+        options.badges ?? (ApiService.getBadges?.() || []),
+        options
+      );
+    };
+
+    /**
+     * 異步版：支援讀取其他用戶的徽章（從 Firestore 子集合）
+     */
+    const buildEarnedBadgeListHtmlAsync = async (options = {}) => {
+      const badgeHelper = getBadges();
+      if (!badgeHelper) {
+        return `<div style="font-size:.82rem;color:var(--text-muted)">${escapeHTML(options.emptyText || '尚未獲得徽章')}</div>`;
+      }
+
+      if (Array.isArray(options.earnedBadges)) {
+        return badgeHelper.buildBadgeListHtml(options.earnedBadges, options);
+      }
+
+      const targetUser = options.targetUser || null;
+      let achievements;
+      if (Array.isArray(options.achievements)) {
+        achievements = options.achievements;
+      } else if (targetUser && badgeHelper.getEvaluatedAchievementsForUserAsync) {
+        achievements = await badgeHelper.getEvaluatedAchievementsForUserAsync(targetUser);
+      } else {
+        achievements = badgeHelper.getEvaluatedAchievementsForUser?.(targetUser || ApiService.getCurrentUser?.() || null)
+          || (ApiService.getAchievements?.() || []);
+      }
 
       return badgeHelper.buildEarnedBadgeListHtml(
         achievements,
@@ -45,6 +77,7 @@ Object.assign(App, {
       buildTitleDisplayHtml,
       getCurrentBadgeCount,
       buildEarnedBadgeListHtml,
+      buildEarnedBadgeListHtmlAsync,
     };
   },
 

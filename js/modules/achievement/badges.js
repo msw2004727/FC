@@ -18,6 +18,52 @@ Object.assign(App, {
       }) || (ApiService.getAchievements?.() || []);
     };
 
+    /**
+     * 異步版：支援讀取其他用戶的成就進度（從 Firestore 子集合）
+     * 當前用戶 → 走快取（同步）；其他用戶 → async 讀子集合
+     */
+    const getEvaluatedAchievementsForUserAsync = async (user) => {
+      const safeUser = user || ApiService.getCurrentUser?.() || null;
+      const targetUid = safeUser?.uid || safeUser?._docId;
+      const currentUser = ApiService.getCurrentUser?.() || null;
+      const currentUid = currentUser?.uid || currentUser?._docId;
+
+      // 當前用戶：走同步路徑（快取已載入）
+      if (!targetUid || targetUid === currentUid) {
+        return getEvaluatedAchievementsForUser(safeUser);
+      }
+
+      // 其他用戶：從子集合讀取 per-user 進度
+      const achievements = (ApiService.getAchievements?.() || []).filter(Boolean);
+      if (!achievements.length) return [];
+
+      let perUserProgress = [];
+      if (typeof FirebaseService !== 'undefined' && typeof FirebaseService.loadUserAchievementProgress === 'function') {
+        try {
+          perUserProgress = await FirebaseService.loadUserAchievementProgress(targetUid);
+        } catch (_) { /* fallback to template */ }
+      }
+
+      if (!perUserProgress.length) {
+        // 沒有 per-user 資料 → 回傳模板（current: 0, completedAt: null）
+        return achievements.map(a => ({ ...a }));
+      }
+
+      const progressMap = new Map();
+      perUserProgress.forEach(r => {
+        const achId = r.achId || r._docId;
+        if (achId) progressMap.set(achId, r);
+      });
+
+      return achievements.map(a => {
+        const perUser = progressMap.get(a.id);
+        if (perUser && perUser.completedAt) {
+          return { ...a, current: perUser.current || 0, completedAt: perUser.completedAt };
+        }
+        return { ...a };
+      });
+    };
+
     const getEarnedBadgeViewModels = (achievements, badges) => {
       return getStats()?.getEarnedBadgeViewModels?.(achievements, badges) || [];
     };
@@ -78,6 +124,7 @@ Object.assign(App, {
 
     return {
       getEvaluatedAchievementsForUser,
+      getEvaluatedAchievementsForUserAsync,
       getEarnedBadgeViewModels,
       getBadgeCount,
       getCurrentUserEarnedBadgeViewModels,

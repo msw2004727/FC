@@ -349,9 +349,11 @@ Object.assign(App, {
     const titleHtml = user
       ? (achievementProfile?.buildTitleDisplayHtml?.(user, name) || this._buildTitleDisplayHtml(user, name))
       : escapeHTML(name);
-    const badgeHtml = achievementProfile?.buildEarnedBadgeListHtml?.({
+    // 同步先顯示（當前用戶快取 or 空狀態），異步再更新（其他用戶）
+    let badgeHtml = achievementProfile?.buildEarnedBadgeListHtml?.({
       useCategoryBorder: true,
       emptyText: '尚未獲得徽章',
+      targetUser: user || null,
     }) || '<div style="font-size:.82rem;color:var(--text-muted)">尚未獲得徽章</div>';
 
     const cardHeader = document.querySelector('#page-user-card .page-header h2');
@@ -380,7 +382,7 @@ Object.assign(App, {
       </div>
       <div class="info-card">
         <div class="info-title">已獲得徽章</div>
-        ${badgeHtml}
+        <div id="uc-badge-container">${badgeHtml}</div>
       </div>
       <div class="info-card">
         <div class="info-title" style="display:flex;align-items:center">活動紀錄<button id="uc-records-refresh" type="button" onclick="App.refreshUserCardRecords()" title="重新整理" style="width:1.8rem;height:1.8rem;border:1px solid var(--border);border-radius:50%;background:transparent;color:var(--text-muted);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;margin-left:auto"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></button></div>
@@ -410,6 +412,19 @@ Object.assign(App, {
     const targetUid = user ? (user.uid || user.lineUserId) : null;
     this._ucRecordUid = targetUid || null;
     this.showPage('page-user-card');
+
+    // 異步更新其他用戶的徽章（從 per-user 子集合讀取）
+    if (!isSelf && user && achievementProfile?.buildEarnedBadgeListHtmlAsync) {
+      achievementProfile.buildEarnedBadgeListHtmlAsync({
+        useCategoryBorder: true,
+        emptyText: '尚未獲得徽章',
+        targetUser: user,
+      }).then(asyncBadgeHtml => {
+        const badgeContainer = document.getElementById('uc-badge-container');
+        if (badgeContainer) badgeContainer.innerHTML = asyncBadgeHtml;
+      }).catch(() => { /* keep sync result */ });
+    }
+
     if (targetUid) {
       await FirebaseService.ensureUserStatsLoaded(targetUid);
       this.renderUserCardRecords('all', 1);

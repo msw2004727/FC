@@ -25,7 +25,8 @@
 - **教訓**：
   - 全域 `achievements` 集合保留為模板（管理員 CRUD 不動），進度存子集合
   - 三道防火牆：①雙寫保留全域 ②fallback 即時計算 ③安全規則 `auth.uid == uid`
-  - Phase 3（讀其他用戶）和 Phase 4（清理全域寫入）待後續穩定後再做
+  - Phase 3：badges.js 新增 `getEvaluatedAchievementsForUserAsync()`，profile.js 新增 `buildEarnedBadgeListHtmlAsync()`，profile-core.js 修正其他用戶顯示自己徽章的 bug（傳遞 targetUser + 異步更新）
+  - Phase 4：移除 evaluator.js 全域 `ApiService.updateAchievement()` 寫入，移除 `_seedAchievements` 汙染清除邏輯
 
 ### 2026-03-16 — 取消報名翻牌動畫 0% 成功率修復
 - **問題**：報名後翻牌成功率高，但取消報名後翻牌成功率為 0%

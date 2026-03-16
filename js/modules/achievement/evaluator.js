@@ -726,10 +726,7 @@ Object.assign(App, {
             completedAt: evaluated.completedAt || null,
           };
 
-          // 保留原有全域寫入（Phase 4 才移除）
-          ApiService.updateAchievement(achievement.id, progressData);
-
-          // 同時寫入 per-user 子集合（靜默失敗）+ 更新記憶體快取
+          // 寫入 per-user 子集合 + 更新記憶體快取
           if (canWritePerUser) {
             FirebaseService.saveUserAchievementProgress(safeTargetUid, achievement.id, progressData);
             // 即時更新記憶體快取，讓同 session 的 getEvaluatedAchievements 可讀

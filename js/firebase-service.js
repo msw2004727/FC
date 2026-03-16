@@ -1737,28 +1737,6 @@ const FirebaseService = {
   },
 
   async _seedAchievements() {
-    // ── 一次性清除汙染：舊版 seed 把 Demo 進度寫入 Firestore ──
-    if (!localStorage.getItem('sporthub_ach_clean_v1')) {
-      const existing = this._cache.achievements;
-      const polluted = existing.some(a => a.current || a.completedAt);
-      if (polluted) {
-        console.log('[FirebaseService] 清除成就汙染資料（重設 current/completedAt）...');
-        try {
-          const batch = db.batch();
-          existing.forEach(doc => {
-            if (doc._docId) {
-              batch.update(db.collection('achievements').doc(doc._docId), { current: 0, completedAt: null });
-              doc.current = 0;
-              doc.completedAt = null;
-            }
-          });
-          await batch.commit();
-          console.log('[FirebaseService] 成就汙染資料清除完成');
-        } catch (err) { console.warn('[FirebaseService] 成就清除失敗:', err); }
-      }
-      localStorage.setItem('sporthub_ach_clean_v1', '1');
-    }
-
     // ── Seed：首次建立預設成就與徽章 ──
     if (localStorage.getItem('sporthub_ach_seeded')) return;
 
