@@ -839,12 +839,13 @@ Object.assign(App, {
       });
     }
 
+    // fallback：從 event.participants 字串陣列補齊（非管理員只有自己的 registrations）
+    const badgeCache = this._eventBadgeCache?.[eventId] || {};
     (e.participants || []).forEach(p => {
       if (!addedNames.has(p)) {
-        // 從 users 集合查找正確的 LINE userId，避免以顯示名稱作為 uid
         const userDoc = (ApiService.getAdminUsers() || []).find(u => (u.displayName || u.name) === p);
         const resolvedUid = (userDoc && (userDoc.uid || userDoc.lineUserId)) || p;
-        people.push({ name: p, uid: resolvedUid, isCompanion: false, displayName: p, hasSelfReg: true, proxyOnly: false });
+        people.push({ name: p, uid: resolvedUid, isCompanion: false, displayName: p, hasSelfReg: true, proxyOnly: false, displayBadges: badgeCache[resolvedUid] || [] });
         addedNames.add(p);
       }
     });
@@ -1941,79 +1942,112 @@ Object.assign(App, {
     this.showToast('活動已刪除');
   },
 
-  // ── 背景更新報名者徽章（開詳情頁時） ──
+  // ── 背景載入報名者徽章（開詳情頁時） ──
+  // 直接查 Firestore 取得該活動所有報名的 displayBadges，
+  // 不依賴本地 registrations 快取（非管理員只有自己的報名）。
   _badgeRefreshCache: {},
+  _eventBadgeCache: {},
   async _refreshRegistrationBadges(eventId, containerId) {
-    const REFRESH_INTERVAL = 30 * 60 * 1000; // 30 分鐘
+    const REFRESH_INTERVAL = 30 * 60 * 1000;
     const lastRefresh = this._badgeRefreshCache[eventId] || 0;
     if (Date.now() - lastRefresh < REFRESH_INTERVAL) return;
 
     try {
-      // 等待 achievement 模組載入（最多 5 秒）
-      let ab = this._getAchievementBadges?.();
-      if (!ab) {
-        for (let i = 0; i < 10; i++) {
-          await new Promise(r => setTimeout(r, 500));
-          ab = this._getAchievementBadges?.();
-          if (ab) break;
-        }
+      if (typeof db === 'undefined') return;
+
+      // Step 1：直接查 Firestore 取得該活動所有報名（isAuth 可讀）
+      const snap = await db.collection('registrations')
+        .where('eventId', '==', eventId)
+        .get();
+      const allDocs = snap.docs.map(d => ({ ...d.data(), _docId: d.id }));
+      const confirmedSelf = allDocs.filter(
+        r => r.status === 'confirmed'
+          && (r.participantType === 'self' || !r.participantType)
+      );
+      if (!confirmedSelf.length) {
+        this._badgeRefreshCache[eventId] = Date.now();
+        return;
       }
-      if (!ab || !ab.getEarnedBadgeViewModels) return;
 
-      // 取得 evaluator（可為任何用戶即時計算成就）
-      const evaluator = this._getAchievementEvaluator?.();
-      if (!evaluator || !evaluator.getEvaluatedAchievements) return;
+      // Step 2：從 docs 提取已有的 displayBadges → 建立 badge map
+      // 同時用 userId 和 userName 做 key（fallback 路徑可能用名字查找）
+      const badgeMap = {};
+      confirmedSelf.forEach(r => {
+        const uid = String(r.userId || '').trim();
+        const name = String(r.userName || '').trim();
+        if (!Array.isArray(r.displayBadges) || !r.displayBadges.length) return;
+        if (uid) badgeMap[uid] = r.displayBadges;
+        if (name && name !== uid) badgeMap[name] = r.displayBadges;
+      });
 
-      const regs = ApiService.getRegistrationsByEvent(eventId)
-        .filter(r => r.status === 'confirmed' && r.participantType === 'self');
-      if (!regs.length) return;
-
-      const allBadges = ApiService.getBadges?.() || [];
-      if (!allBadges.length) return;
-
-      let changed = false;
-
-      for (const reg of regs) {
-        const uid = reg.userId;
-        if (!uid) continue;
-
-        let achievements;
-        try {
-          // 使用 evaluator 即時計算成就（支援任何用戶，不依賴 per-user 子集合）
-          achievements = evaluator.getEvaluatedAchievements({ targetUid: uid });
-        } catch (_) { continue; }
-        if (!achievements || !achievements.length) continue;
-
-        const earned = ab.getEarnedBadgeViewModels(achievements, allBadges);
-        const newBadges = earned.map(item => ({
-          id: item.badge?.id || '',
-          name: item.badge?.name || '',
-          image: item.badge?.image || '',
-        })).filter(b => b.image);
-
-        const oldBadges = reg.displayBadges || [];
-        const oldIds = oldBadges.map(b => b.id).sort().join(',');
-        const newIds = newBadges.map(b => b.id).sort().join(',');
-        if (oldIds === newIds) continue;
-        // 防護：不以空結果覆蓋已有徽章（避免資料未載入時誤清）
-        if (!newBadges.length && oldBadges.length) continue;
-
-        // 更新 Firestore + 快取
-        try {
-          if (reg._docId && typeof db !== 'undefined') {
-            await db.collection('registrations').doc(reg._docId).update({ displayBadges: newBadges });
+      // Step 3：管理員額外做即時計算（有完整資料可評估其他用戶成就）
+      const myLevel = ROLE_LEVEL_MAP[this.currentRole] || 0;
+      if (myLevel >= ROLE_LEVEL_MAP.admin) {
+        let ab = this._getAchievementBadges?.();
+        if (!ab) {
+          for (let i = 0; i < 10; i++) {
+            await new Promise(r => setTimeout(r, 500));
+            ab = this._getAchievementBadges?.();
+            if (ab) break;
           }
-          reg.displayBadges = newBadges;
-          changed = true;
-        } catch (err) {
-          console.warn('[Badges] update failed for', uid, err);
+        }
+        const evaluator = this._getAchievementEvaluator?.();
+        const allBadges = ApiService.getBadges?.() || [];
+
+        if (ab?.getEarnedBadgeViewModels && evaluator?.getEvaluatedAchievements && allBadges.length) {
+          for (const reg of confirmedSelf) {
+            const uid = String(reg.userId || '').trim();
+            if (!uid) continue;
+            let achievements;
+            try {
+              achievements = evaluator.getEvaluatedAchievements({ targetUid: uid });
+            } catch (_) { continue; }
+            if (!achievements || !achievements.length) continue;
+
+            const earned = ab.getEarnedBadgeViewModels(achievements, allBadges);
+            const newBadges = earned.map(item => ({
+              id: item.badge?.id || '',
+              name: item.badge?.name || '',
+              image: item.badge?.image || '',
+            })).filter(b => b.image);
+
+            const oldBadges = reg.displayBadges || [];
+            const oldIds = oldBadges.map(b => b.id).sort().join(',');
+            const newIds = newBadges.map(b => b.id).sort().join(',');
+            if (oldIds === newIds) {
+              if (oldBadges.length) {
+                badgeMap[uid] = oldBadges;
+                const rn = String(reg.userName || '').trim();
+                if (rn && rn !== uid) badgeMap[rn] = oldBadges;
+              }
+              continue;
+            }
+            if (!newBadges.length && oldBadges.length) {
+              badgeMap[uid] = oldBadges;
+              const rn = String(reg.userName || '').trim();
+              if (rn && rn !== uid) badgeMap[rn] = oldBadges;
+              continue;
+            }
+
+            try {
+              if (reg._docId) {
+                await db.collection('registrations').doc(reg._docId).update({ displayBadges: newBadges });
+              }
+              badgeMap[uid] = newBadges;
+              const rName = String(reg.userName || '').trim();
+              if (rName && rName !== uid) badgeMap[rName] = newBadges;
+            } catch (err) {
+              console.warn('[Badges] update failed for', uid, err);
+              if (oldBadges.length) badgeMap[uid] = oldBadges;
+            }
+          }
         }
       }
 
+      // Step 4：存入 badge cache + 重新渲染表格
+      this._eventBadgeCache[eventId] = badgeMap;
       this._badgeRefreshCache[eventId] = Date.now();
-      if (changed) {
-        this._renderAttendanceTable(eventId, containerId || 'detail-attendance-table');
-      }
+      this._renderAttendanceTable(eventId, containerId || 'detail-attendance-table');
     } catch (err) {
       console.warn('[Badges] refresh failed:', err);
     }
