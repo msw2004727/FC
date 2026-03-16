@@ -543,7 +543,12 @@ Object.assign(App, {
       return 0;
     };
 
-    const hasCompletedProfile = (user) => PROFILE_REQUIRED_FIELDS.every(field => normalizeString(user?.[field]));
+    const hasCompletedProfile = (user) => {
+      if (!PROFILE_REQUIRED_FIELDS.every(field => normalizeString(user?.[field]))) return false;
+      var links = user?.socialLinks;
+      if (!links || typeof links !== 'object') return false;
+      return Object.values(links).some(v => normalizeString(v));
+    };
 
     const getDaysRegistered = (user, now) => {
       const createdAt = parseDateValue(user?.createdAt);
