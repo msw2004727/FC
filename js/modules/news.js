@@ -5,6 +5,8 @@
 
 Object.assign(App, {
 
+  _newsActiveTag: 'all',
+
   renderNews() {
     const titleEl = document.getElementById('news-section-title');
     const tabsEl = document.getElementById('news-tabs');
@@ -23,7 +25,50 @@ Object.assign(App, {
     }
 
     titleEl.style.display = '';
-    if (tabsEl) tabsEl.style.display = '';
+    if (tabsEl) {
+      tabsEl.style.display = '';
+      this._renderNewsTabs(tabsEl);
+    }
+
+    this._renderNewsCards(articles, listEl);
+  },
+
+  _renderNewsTabs(tabsEl) {
+    const activeTag = this._newsActiveTag || 'all';
+    let html = '<button class="news-tab' + (activeTag === 'all' ? ' active' : '') + '" data-tag="all" onclick="App._handleNewsTabClick(\'all\')">全部</button>';
+
+    if (typeof EVENT_SPORT_OPTIONS !== 'undefined') {
+      EVENT_SPORT_OPTIONS.forEach(function(opt) {
+        const isActive = activeTag === opt.key ? ' active' : '';
+        html += '<button class="news-tab' + isActive + '" data-tag="' + escapeHTML(opt.key) + '" onclick="App._handleNewsTabClick(\'' + escapeHTML(opt.key) + '\')">' + escapeHTML(opt.label) + '</button>';
+      });
+    }
+
+    tabsEl.innerHTML = html;
+  },
+
+  _handleNewsTabClick(tag) {
+    this._newsActiveTag = tag;
+    const tabsEl = document.getElementById('news-tabs');
+    const listEl = document.getElementById('news-card-list');
+    if (!listEl) return;
+
+    // Update active tab
+    if (tabsEl) {
+      tabsEl.querySelectorAll('.news-tab').forEach(function(btn) {
+        btn.classList.toggle('active', btn.getAttribute('data-tag') === tag);
+      });
+    }
+
+    const articles = (typeof ApiService !== 'undefined' && ApiService.getNewsArticles)
+      ? ApiService.getNewsArticles()
+      : [];
+
+    this._renderNewsCards(articles, listEl);
+  },
+
+  _renderNewsCards(articles, listEl) {
+    const activeTag = this._newsActiveTag || 'all';
 
     const sportLabels = {};
     if (typeof EVENT_SPORT_MAP !== 'undefined') {
@@ -32,7 +77,16 @@ Object.assign(App, {
       });
     }
 
-    listEl.innerHTML = articles.map(function(article) {
+    const filtered = activeTag === 'all'
+      ? articles
+      : articles.filter(function(a) { return a.sportTag === activeTag; });
+
+    if (filtered.length === 0) {
+      listEl.innerHTML = '<div style="text-align:center;padding:1.5rem .5rem;color:var(--text-muted);font-size:.82rem">目前沒有相關新聞</div>';
+      return;
+    }
+
+    listEl.innerHTML = filtered.map(function(article) {
       const safeTitle = escapeHTML(article.title || '');
       const safeSource = escapeHTML(article.source || '');
       const sportTag = article.sportTag || 'general';
