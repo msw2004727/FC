@@ -196,7 +196,7 @@ Object.assign(App, {
         const onClick = isLocked
           ? `App.showToast('功能尚未開放'); App.closeDrawer()`
           : item.action === 'share'
-          ? `App.showToast('已複製分享連結！')`
+          ? `App._copyShareUrl()`
           : item.action === 'coming-soon'
           ? `App.showToast('功能尚未開放'); App.closeDrawer()`
           : `App.openDrawerPage('${item.page}')`;
@@ -262,6 +262,15 @@ Object.assign(App, {
       menu.style.display = 'none';
     }
     this.applyRole(role);
+  },
+
+  async _copyShareUrl() {
+    var url = 'https://liff.line.me/' + LINE_CONFIG.LIFF_ID;
+    var ok = typeof this._copyToClipboard === 'function'
+      ? await this._copyToClipboard(url)
+      : false;
+    this.showToast(ok ? '已複製分享連結！' : '複製失敗，請手動複製');
+    this.closeDrawer();
   },
 
 });
