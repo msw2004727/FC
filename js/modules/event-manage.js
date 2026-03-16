@@ -1947,12 +1947,20 @@ Object.assign(App, {
     if (Date.now() - lastRefresh < REFRESH_INTERVAL) return;
 
     try {
+      // 等待 achievement 模組載入（最多 5 秒）
+      let ab = this._getAchievementBadges?.();
+      if (!ab) {
+        for (let i = 0; i < 10; i++) {
+          await new Promise(r => setTimeout(r, 500));
+          ab = this._getAchievementBadges?.();
+          if (ab) break;
+        }
+      }
+      if (!ab || !ab.getEarnedBadgeViewModels) return;
+
       const regs = ApiService.getRegistrationsByEvent(eventId)
         .filter(r => r.status === 'confirmed' && r.participantType === 'self');
       if (!regs.length) return;
-
-      const ab = this._getAchievementBadges?.();
-      if (!ab || !ab.getEarnedBadgeViewModels) return;
 
       const allBadges = ApiService.getBadges?.() || [];
       if (!allBadges.length) return;

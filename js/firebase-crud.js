@@ -578,8 +578,16 @@ Object.assign(FirebaseService, {
    */
   async _writeDisplayBadgesToReg(regDocId) {
     try {
-      if (typeof App === 'undefined' || !App._getAchievementBadges) return;
-      const ab = App._getAchievementBadges();
+      if (typeof App === 'undefined') return;
+      // 等待 achievement 模組（最多 3 秒）
+      let ab = App._getAchievementBadges?.();
+      if (!ab) {
+        for (let i = 0; i < 6; i++) {
+          await new Promise(r => setTimeout(r, 500));
+          ab = App._getAchievementBadges?.();
+          if (ab) break;
+        }
+      }
       if (!ab || !ab.getCurrentUserEarnedBadgeViewModels) return;
       const earned = ab.getCurrentUserEarnedBadgeViewModels();
       if (!earned || !earned.length) return;

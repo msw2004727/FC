@@ -8,7 +8,7 @@ Object.assign(App, {
 
   _buildAchievementEvaluator() {
     const DAY_MS = 24 * 60 * 60 * 1000;
-    const PROFILE_REQUIRED_FIELDS = ['gender', 'birthday', 'region', 'phone'];
+    const PROFILE_REQUIRED_FIELDS = ['gender', 'birthday', 'region'];
 
     const normalizeString = (value) => String(value || '').trim();
     const normalizeLower = (value) => normalizeString(value).toLowerCase();

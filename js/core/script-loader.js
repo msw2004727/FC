@@ -159,7 +159,7 @@ const ScriptLoader = {
     'page-achievements':       ['achievement'],
     'page-admin-achievements': ['achievement'],
     'page-activities':         ['activity'],
-    'page-activity-detail':    ['activity'],
+    'page-activity-detail':    ['activity', 'achievement'],
     'page-my-activities':      ['activity'],
     'page-teams':              ['team'],
     'page-team-detail':        ['team'],
