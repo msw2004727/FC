@@ -10,6 +10,12 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-16 — 頁籤滑動改為跟手滑動 + 滑出滑入動畫
+- **問題**：`_bindSwipeTabs` 為二元切換，手勢結束才切換，無視覺回饋
+- **修復**：重寫 `app.js:_bindSwipeTabs`，touchmove 時 `translateX` 跟手、邊界阻尼、滑出/滑入動畫（~450ms），`passive:false` 防滑動衝突，`transitionend` 有 350ms fallback
+- **影響範圍**：活動列表（2 tabs）、活動管理（6 tabs）、新聞（動態 tabs）三處呼叫端零修改
+- **教訓**：`transitionend` 在 LINE WebView 偶爾不觸發，必須加 fallback timer
+
 ### 2026-03-16 — 抽屜選單用戶補正管理位置與顏色調整
 - **問題**：「用戶補正管理」在抽屜最底部且無紅底色標示
 - **修復**：移至「日誌中心」與「無效資料查詢」之間；加 `highlight: 'red'` 強制紅底

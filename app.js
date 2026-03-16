@@ -286,53 +286,148 @@ const App = {
    * @param {Function} getKey   從 tab button 取 key 的函式
    */
   _bindSwipeTabs(contentId, tabsId, onSwitch, getKey) {
-    const content = document.getElementById(contentId);
+    var content = document.getElementById(contentId);
     if (!content || content.dataset.swipeBound) return;
     content.dataset.swipeBound = '1';
 
-    let startX = 0, startY = 0, swiping = false, locked = false;
+    var startX = 0, startY = 0, startTime = 0;
+    var swiping = false, locked = false, animating = false;
+    var contentW = 0;
 
-    content.addEventListener('touchstart', (e) => {
+    function _reset() {
+      content.style.transition = '';
+      content.style.transform = '';
+      content.style.opacity = '';
+      content.style.willChange = '';
+    }
+
+    function _onTransitionEnd(cb) {
+      var called = false;
+      function handler() {
+        if (called) return;
+        called = true;
+        content.removeEventListener('transitionend', handler);
+        clearTimeout(fallback);
+        cb();
+      }
+      content.addEventListener('transitionend', handler);
+      var fallback = setTimeout(handler, 350);
+    }
+
+    content.addEventListener('touchstart', function (e) {
+      if (animating) return;
       startX = e.touches[0].clientX;
       startY = e.touches[0].clientY;
+      startTime = Date.now();
       swiping = false;
       locked = false;
+      contentW = content.offsetWidth;
+      content.style.transition = 'none';
+      content.style.willChange = 'transform, opacity';
     }, { passive: true });
 
-    content.addEventListener('touchmove', (e) => {
-      if (locked) return;
-      const dx = e.touches[0].clientX - startX;
-      const dy = e.touches[0].clientY - startY;
+    content.addEventListener('touchmove', function (e) {
+      if (locked || animating) return;
+      var dx = e.touches[0].clientX - startX;
+      var dy = e.touches[0].clientY - startY;
+
       if (!swiping) {
         if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > 10) { locked = true; return; }
-        if (Math.abs(dx) > 10) swiping = true;
+        if (Math.abs(dx) > 10) { swiping = true; } else { return; }
       }
-    }, { passive: true });
 
-    content.addEventListener('touchend', (e) => {
-      if (!swiping || locked) return;
-      const dx = e.changedTouches[0].clientX - startX;
-      if (Math.abs(dx) < 40) return;
+      e.preventDefault();
 
-      const tabs = document.getElementById(tabsId);
+      var tabs = document.getElementById(tabsId);
       if (!tabs) return;
-      const buttons = Array.from(tabs.querySelectorAll('button'));
-      if (buttons.length < 2) return;
+      var buttons = Array.from(tabs.querySelectorAll('button'));
+      var activeIdx = buttons.findIndex(function (b) { return b.classList.contains('active'); });
 
-      const activeIdx = buttons.findIndex(b => b.classList.contains('active'));
-      if (activeIdx < 0) return;
+      var ratio = dx / (contentW || 1);
 
-      const nextIdx = dx < 0
+      // 邊界阻尼：第一頁往右拖 或 最後一頁往左拖
+      if ((activeIdx <= 0 && dx > 0) || (activeIdx >= buttons.length - 1 && dx < 0)) {
+        ratio *= 0.3;
+      }
+
+      content.style.transform = 'translateX(' + (ratio * 100) + '%)';
+      content.style.opacity = String(Math.max(1 - Math.abs(ratio) * 0.4, 0.5));
+    }, { passive: false });
+
+    content.addEventListener('touchend', function (e) {
+      content.style.willChange = '';
+
+      if (!swiping || locked || animating) {
+        content.style.transition = '';
+        content.style.transform = '';
+        content.style.opacity = '';
+        return;
+      }
+
+      var dx = e.changedTouches[0].clientX - startX;
+      var elapsed = Date.now() - startTime;
+      var velocity = Math.abs(dx) / (elapsed || 1);
+
+      var tabs = document.getElementById(tabsId);
+      if (!tabs) { _reset(); return; }
+      var buttons = Array.from(tabs.querySelectorAll('button'));
+      if (buttons.length < 2) { _reset(); return; }
+
+      var activeIdx = buttons.findIndex(function (b) { return b.classList.contains('active'); });
+      if (activeIdx < 0) { _reset(); return; }
+
+      // 閾值：40px 距離 或 速度 > 0.3 px/ms 且至少 20px
+      var shouldSwitch = Math.abs(dx) >= 40 || (Math.abs(dx) >= 20 && velocity > 0.3);
+      var nextIdx = dx < 0
         ? Math.min(activeIdx + 1, buttons.length - 1)
         : Math.max(activeIdx - 1, 0);
-      if (nextIdx === activeIdx) return;
 
-      const key = getKey(buttons[nextIdx]);
-      if (key != null) {
-        onSwitch.call(this, key);
-        // 確保切換後的頁籤可見
-        buttons[nextIdx].scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+      if (!shouldSwitch || nextIdx === activeIdx) {
+        // 彈回原位
+        content.style.transition = 'transform .25s cubic-bezier(.2,.9,.3,1), opacity .25s ease';
+        content.style.transform = 'translateX(0)';
+        content.style.opacity = '1';
+        _onTransitionEnd(function () { _reset(); });
+        return;
       }
+
+      // 滑出動畫
+      animating = true;
+      var exitDir = dx < 0 ? '-100%' : '100%';
+      var enterFrom = dx < 0 ? '40%' : '-40%';
+
+      content.style.transition = 'transform .2s cubic-bezier(.4,0,1,1), opacity .18s ease';
+      content.style.transform = 'translateX(' + exitDir + ')';
+      content.style.opacity = '0';
+
+      _onTransitionEnd(function () {
+        // 切換頁籤（觸發重新渲染）
+        var key = getKey(buttons[nextIdx]);
+        if (key != null) {
+          content.style.transition = 'none';
+          content.style.transform = 'translateX(' + enterFrom + ')';
+          content.style.opacity = '0';
+
+          onSwitch.call(App, key);
+
+          // 強制 reflow 後啟動滑入動畫
+          void content.offsetWidth;
+
+          content.style.transition = 'transform .25s cubic-bezier(.0,0,.2,1), opacity .2s ease';
+          content.style.transform = 'translateX(0)';
+          content.style.opacity = '1';
+
+          _onTransitionEnd(function () {
+            _reset();
+            animating = false;
+          });
+
+          buttons[nextIdx].scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+        } else {
+          _reset();
+          animating = false;
+        }
+      });
     }, { passive: true });
   },
 

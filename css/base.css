@@ -120,7 +120,7 @@ img { max-width: 100%; display: block; }
 
 /* ─── Main Content / Pages ─── */
 #main-content { max-width: 560px; margin: 0 auto; padding: .5rem; min-height: calc(100vh - var(--topbar-h) - var(--bottombar-h)); min-height: calc(100dvh - var(--topbar-h) - var(--bottombar-h)); }
-.page { display: none; animation: fadeIn .3s ease; }
+.page { display: none; animation: fadeIn .3s ease; overflow-x: hidden; }
 .page.active { display: block; }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 
