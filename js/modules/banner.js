@@ -67,18 +67,85 @@ Object.assign(App, {
       this.goToBanner((this.bannerIndex + 1) % cnt);
     });
 
-    // ── Touch Swipe ──
+    // ── Touch Drag (跟手滑動) ──
     const track = document.getElementById('banner-track');
     if (track) {
-      let _swipeStartX = 0;
+      let startX = 0, startY = 0, startTime = 0;
+      let dragging = false, locked = false;
+      let trackW = 0;
+
       track.addEventListener('touchstart', (e) => {
-        _swipeStartX = e.touches[0].clientX;
+        if ((this.bannerCount || 0) <= 1) return;
+        startX = e.touches[0].clientX;
+        startY = e.touches[0].clientY;
+        startTime = Date.now();
+        dragging = false;
+        locked = false;
+        trackW = track.parentElement ? track.parentElement.offsetWidth : track.offsetWidth;
+        // 關閉 transition 讓拖曳跟手
+        track.style.transition = 'none';
+        this.stopBannerCarousel();
       }, { passive: true });
-      track.addEventListener('touchend', (e) => {
-        const dx = e.changedTouches[0].clientX - _swipeStartX;
+
+      track.addEventListener('touchmove', (e) => {
+        if (locked || (this.bannerCount || 0) <= 1) return;
+        const dx = e.touches[0].clientX - startX;
+        const dy = e.touches[0].clientY - startY;
+
+        // 首次移動判斷方向：垂直滑動則放棄
+        if (!dragging) {
+          if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > 8) {
+            locked = true;
+            return;
+          }
+          if (Math.abs(dx) > 8) {
+            dragging = true;
+          } else {
+            return;
+          }
+        }
+
+        e.preventDefault();
         const cnt = this.bannerCount || 1;
-        if (dx < -50) this.goToBanner((this.bannerIndex + 1) % cnt);
-        if (dx > 50) this.goToBanner((this.bannerIndex - 1 + cnt) % cnt);
+        const idx = this.bannerIndex;
+        let ratio = dx / (trackW || 1);
+
+        // 邊界阻尼：第一張往右拖 或 最後一張往左拖
+        if ((idx === 0 && ratio > 0) || (idx === cnt - 1 && ratio < 0)) {
+          ratio *= 0.3;
+        }
+
+        const offset = -(idx * 100) + (ratio * 100);
+        track.style.transform = 'translateX(' + offset + '%)';
+      }, { passive: false });
+
+      track.addEventListener('touchend', (e) => {
+        if ((this.bannerCount || 0) <= 1) return;
+        // 恢復 transition
+        track.style.transition = '';
+
+        if (!dragging) {
+          this.startBannerCarousel();
+          return;
+        }
+
+        const dx = e.changedTouches[0].clientX - startX;
+        const elapsed = Date.now() - startTime;
+        const velocity = Math.abs(dx) / (elapsed || 1); // px/ms
+        const cnt = this.bannerCount || 1;
+        const threshold = (trackW || 300) * 0.25;
+
+        let newIdx = this.bannerIndex;
+        // 快速滑動（速度 > 0.4 px/ms）或拖動距離超過 25%
+        if (dx < -threshold || (dx < -30 && velocity > 0.4)) {
+          newIdx = Math.min(this.bannerIndex + 1, cnt - 1);
+        } else if (dx > threshold || (dx > 30 && velocity > 0.4)) {
+          newIdx = Math.max(this.bannerIndex - 1, 0);
+        }
+
+        this.goToBanner(newIdx);
+        // 延遲恢復自動輪播
+        setTimeout(() => this.startBannerCarousel(), 4000);
       }, { passive: true });
     }
   },
