@@ -1134,7 +1134,7 @@ Object.assign(App, {
               </div>
               <span class="tl-event-status ${statusCss}">${statusLabel}</span>
               ${iconStack}
-              <span class="tl-event-arrow">${isExternal ? '↗' : '›'}</span>
+              <span class="tl-event-arrow">›</span>
             </div>`;
         });
 
