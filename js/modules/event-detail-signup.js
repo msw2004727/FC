@@ -214,13 +214,20 @@ Object.assign(App, {
       if (glowWrap) {
         this._flipAnimating = true;
         glowWrap.classList.remove('loading');
-        const backEl = document.createElement('div');
-        backEl.className = 'signup-flip-back';
-        backEl.innerHTML = `<span>${isWL ? '✓ 已候補' : '✓ 報名成功'}</span>`;
-        glowWrap.appendChild(backEl);
-        void backEl.offsetHeight; // 強制 reflow，確保初始狀態已渲染
-        glowWrap.classList.add('flipped');
-        await new Promise(r => setTimeout(r, 2400));
+        const flipper = glowWrap.querySelector('.signup-flipper');
+        if (flipper) {
+          const backEl = document.createElement('div');
+          backEl.className = 'signup-flip-back';
+          backEl.textContent = isWL ? '✓ 已候補' : '✓ 報名成功';
+          flipper.appendChild(backEl);
+          void flipper.offsetHeight;
+          flipper.classList.add('flipped');
+          glowWrap.classList.add('flipped');
+          // 翻轉 0.75s + 停留 0.6s + 淡出 0.35s
+          await new Promise(r => setTimeout(r, 1350));
+          glowWrap.classList.add('flip-done');
+          await new Promise(r => setTimeout(r, 350));
+        }
         this._flipAnimating = false;
       }
       this.showEventDetail(id);
@@ -255,6 +262,7 @@ Object.assign(App, {
       this._evaluateAchievements?.(e.type);
     } catch (err) {
       console.error('[handleSignup]', err);
+      this._flipAnimating = false;
       this.showToast(err.message || '報名失敗，請稍後再試');
       if (glowWrap) glowWrap.classList.remove('loading');
       signupBtns.forEach(b => {
@@ -450,13 +458,19 @@ Object.assign(App, {
         if (cancelGlowWrap) {
           this._flipAnimating = true;
           cancelGlowWrap.classList.remove('loading');
-          const backEl = document.createElement('div');
-          backEl.className = 'signup-flip-back';
-          backEl.innerHTML = `<span>${isWaitlist ? '✓ 已取消候補' : '✓ 已取消'}</span>`;
-          cancelGlowWrap.appendChild(backEl);
-          void backEl.offsetHeight; // 強制 reflow，確保初始狀態已渲染
-          cancelGlowWrap.classList.add('flipped');
-          await new Promise(r => setTimeout(r, 2400));
+          const flipper = cancelGlowWrap.querySelector('.signup-flipper');
+          if (flipper) {
+            const backEl = document.createElement('div');
+            backEl.className = 'signup-flip-back';
+            backEl.textContent = isWaitlist ? '✓ 已取消候補' : '✓ 已取消';
+            flipper.appendChild(backEl);
+            void flipper.offsetHeight;
+            flipper.classList.add('flipped');
+            cancelGlowWrap.classList.add('flipped');
+            await new Promise(r => setTimeout(r, 1350));
+            cancelGlowWrap.classList.add('flip-done');
+            await new Promise(r => setTimeout(r, 350));
+          }
           this._flipAnimating = false;
         }
         this.showEventDetail(id);

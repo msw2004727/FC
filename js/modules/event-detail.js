@@ -287,9 +287,9 @@ Object.assign(App, {
     const genderBlockedMessage = (typeof this._getEventGenderRestrictionMessage === 'function')
       ? this._getEventGenderRestrictionMessage(e, genderSignupState.reason)
       : '';
-    // 光跡效果包裝 helper
+    // 光跡效果包裝 helper（button 放在 flipper 裡，供翻牌 3D 旋轉使用）
     const _glowWrap = (btnHtml, glowC, glowCLight, hint) =>
-      `<div class="signup-glow-wrap" style="--glow-c:${glowC};--glow-c-light:${glowCLight}"><div class="signup-glow-border"></div><div class="signup-glow-shadow"></div>${btnHtml}<div class="signup-loading-hint"><div class="mini-spinner"></div><span class="mini-text">${hint || '資料更新中'}</span></div></div>`;
+      `<div class="signup-glow-wrap" style="--glow-c:${glowC};--glow-c-light:${glowCLight}"><div class="signup-glow-border"></div><div class="signup-glow-shadow"></div><div class="signup-flipper">${btnHtml}</div><div class="signup-loading-hint"><div class="mini-spinner"></div><span class="mini-text">${hint || '資料更新中'}</span></div></div>`;
     let signupBtn = '';
     if (isGuestView) {
       signupBtn = this._buildGuestEventSignupButton(e, isUpcoming, isEnded, isMainFull);
