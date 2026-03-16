@@ -22,7 +22,7 @@ Object.assign(App, {
     return {
       teamJoins: !!this.hasPermission?.('admin.repair.team_join_repair'),
       noShow: !!this.hasPermission?.('admin.repair.no_show_adjust'),
-      achievementBatch: !!this.hasPermission?.('admin.repair.achievement_batch'),
+      dataSync: !!this.hasPermission?.('admin.repair.data_sync'),
     };
   },
   renderUserCorrectionManager() {
@@ -31,27 +31,27 @@ Object.assign(App, {
     const emptyCard = document.getElementById('admin-repair-empty');
     const teamTab = tabsEl?.querySelector('[data-repair-tab="team-joins"]');
     const noShowTab = tabsEl?.querySelector('[data-repair-tab="no-show"]');
-    const achBatchTab = tabsEl?.querySelector('[data-repair-tab="achievement-batch"]');
+    const dataSyncTab = tabsEl?.querySelector('[data-repair-tab="data-sync"]');
     const teamPane = document.getElementById('repair-pane-team-joins');
     const noShowPane = document.getElementById('repair-pane-no-show');
-    const achBatchPane = document.getElementById('repair-pane-achievement-batch');
+    const dataSyncPane = document.getElementById('repair-pane-data-sync');
 
     if (!tabsEl || !emptyCard || !teamTab || !noShowTab || !teamPane || !noShowPane) return;
 
     teamTab.style.display = access.teamJoins ? '' : 'none';
     noShowTab.style.display = access.noShow ? '' : 'none';
-    if (achBatchTab) achBatchTab.style.display = access.achievementBatch ? '' : 'none';
+    if (dataSyncTab) dataSyncTab.style.display = access.dataSync ? '' : 'none';
 
     const availableTabs = [];
     if (access.teamJoins) availableTabs.push('team-joins');
     if (access.noShow) availableTabs.push('no-show');
-    if (access.achievementBatch) availableTabs.push('achievement-batch');
+    if (access.dataSync) availableTabs.push('data-sync');
 
     if (!availableTabs.length) {
       tabsEl.style.display = 'none';
       teamPane.style.display = 'none';
       noShowPane.style.display = 'none';
-      if (achBatchPane) achBatchPane.style.display = 'none';
+      if (dataSyncPane) dataSyncPane.style.display = 'none';
       emptyCard.style.display = '';
       emptyCard.innerHTML = '<div style="font-weight:600;margin-bottom:.35rem">目前沒有可用權限</div><div style="font-size:.8rem;color:var(--text-muted);line-height:1.7">請先在權限管理中開啟「用戶補正管理」下的子功能。</div>';
       return;
@@ -69,7 +69,7 @@ Object.assign(App, {
 
     teamPane.style.display = this._adminRepairActiveTab === 'team-joins' ? '' : 'none';
     noShowPane.style.display = this._adminRepairActiveTab === 'no-show' ? '' : 'none';
-    if (achBatchPane) achBatchPane.style.display = this._adminRepairActiveTab === 'achievement-batch' ? '' : 'none';
+    if (dataSyncPane) dataSyncPane.style.display = this._adminRepairActiveTab === 'data-sync' ? '' : 'none';
 
     if (this._adminRepairActiveTab === 'no-show') {
       this._renderSelectedUserNoShowSummary();
@@ -79,8 +79,8 @@ Object.assign(App, {
     const access = this._getAdminRepairTabAccess();
     if (tab === 'team-joins' && !access.teamJoins) return;
     if (tab === 'no-show' && !access.noShow) return;
-    if (tab === 'achievement-batch' && !access.achievementBatch) return;
-    const validTabs = ['team-joins', 'no-show', 'achievement-batch'];
+    if (tab === 'data-sync' && !access.dataSync) return;
+    const validTabs = ['team-joins', 'no-show', 'data-sync'];
     this._adminRepairActiveTab = validTabs.includes(tab) ? tab : 'team-joins';
     this.renderUserCorrectionManager();
   },

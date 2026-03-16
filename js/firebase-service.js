@@ -258,7 +258,7 @@ const FirebaseService = {
     'page-admin-logs':        ['operationLogs', 'errorLogs'],
     'page-admin-error-logs':  ['errorLogs'],
     'page-admin-inactive':    ['attendanceRecords', 'activityRecords', 'operationLogs'],
-    'page-admin-repair':      ['events', 'attendanceRecords', 'activityRecords', 'userCorrections'],
+    'page-admin-repair':      ['events', 'attendanceRecords', 'activityRecords', 'userCorrections', 'teams'],
     'page-admin-teams':       ['teams', 'tournaments', 'standings', 'matches'],
     'page-personal-dashboard': ['attendanceRecords', 'activityRecords'],
     'page-profile':            ['attendanceRecords', 'activityRecords'],

@@ -337,7 +337,7 @@
     </section>
 
     <!-- PAGE: Backend - Data Repair Tools (Super Admin) -->
-    <section class="page" id="page-admin-repair" data-min-role="super_admin">
+    <section class="page" id="page-admin-repair" data-min-role="admin">
       <div class="page-header">
         <button class="back-btn" onclick="App.goBack()">←</button>
         <h2>用戶補正管理</h2>
@@ -345,7 +345,7 @@
       <div class="tab-bar" id="admin-repair-tabs">
         <button class="tab active" data-repair-tab="team-joins" onclick="App.switchUserCorrectionTab('team-joins')">歷史入隊補正</button>
         <button class="tab" data-repair-tab="no-show" onclick="App.switchUserCorrectionTab('no-show')">放鴿子系統</button>
-        <button class="tab" data-repair-tab="achievement-batch" onclick="App.switchUserCorrectionTab('achievement-batch')">成就批次更新</button>
+        <button class="tab" data-repair-tab="data-sync" onclick="App.switchUserCorrectionTab('data-sync')">系統資料同步</button>
       </div>
       <div class="form-card" id="admin-repair-empty" style="display:none"></div>
       <div id="repair-pane-team-joins">
@@ -394,24 +394,74 @@
           </div>
         </div>
       </div>
-      <div id="repair-pane-achievement-batch" style="display:none">
+      <div id="repair-pane-data-sync" style="display:none">
         <div class="form-card" style="margin-bottom:.8rem">
-          <div style="font-weight:600;font-size:.9rem;margin-bottom:.3rem">成就批次更新</div>
+          <div style="font-weight:600;font-size:.9rem;margin-bottom:.3rem">系統資料同步</div>
           <div style="font-size:.78rem;color:var(--text-muted);line-height:1.7">
-            一鍵為所有用戶重新計算成就進度，並將結果寫入每位用戶的成就子集合。<br>
-            同時更新所有報名紀錄的徽章快取（displayBadges），讓活動詳情頁與個人名片都能正確顯示徽章。<br>
-            此操作為冪等（重複執行安全），已正確的用戶會自動跳過。
+            修正因快取延遲、操作中斷或歷史資料殘留造成的偏差。<br>
+            所有操作皆為冪等（重複執行安全），不會影響報名狀態、出席紀錄或權限資料。<br>
+            <strong style="color:var(--warning)">注意：每次執行會產生 Firestore 讀寫費用，請勿頻繁操作。點擊執行時會顯示預估費用。</strong>
           </div>
         </div>
-        <div class="form-card">
-          <button id="achievement-batch-btn" class="primary-btn full-width" onclick="App.runAchievementBatchUpdate()">執行成就批次更新</button>
-          <div id="achievement-batch-progress" style="display:none;margin-top:.6rem">
-            <div style="background:var(--border);border-radius:4px;height:8px;overflow:hidden">
-              <div id="achievement-batch-bar" style="height:100%;width:0%;background:var(--accent);transition:width .3s ease"></div>
+        <div class="form-card" style="margin-bottom:.6rem">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:.5rem">
+            <div style="flex:1;min-width:0">
+              <div style="font-weight:600;font-size:.82rem">① 成就進度 + 報名徽章</div>
+              <div style="font-size:.72rem;color:var(--text-muted);line-height:1.5;margin-top:.15rem">
+                重新計算所有用戶的成就進度，寫入每位用戶的成就子集合。<br>
+                同步更新報名記錄的 displayBadges，修正活動頁與名片的徽章顯示。
+              </div>
             </div>
-            <div id="achievement-batch-percent" style="font-size:.72rem;color:var(--text-muted);text-align:center;margin-top:.2rem">0%</div>
+            <button class="outline-btn" style="flex-shrink:0;font-size:.75rem" onclick="App.runDataSyncOp('achievement')">執行</button>
           </div>
-          <div id="achievement-batch-log" style="display:none;margin-top:.6rem;font-size:.75rem;color:var(--text-secondary);line-height:1.7;background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-sm);padding:.5rem .6rem;max-height:400px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;font-family:monospace"></div>
+        </div>
+        <div class="form-card" style="margin-bottom:.6rem">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:.5rem">
+            <div style="flex:1;min-width:0">
+              <div style="font-weight:600;font-size:.82rem">② 球隊成員數重算</div>
+              <div style="font-size:.72rem;color:var(--text-muted);line-height:1.5;margin-top:.15rem">
+                從用戶資料重新計算每支球隊的正確成員數，修正球隊列表與分享卡顯示。<br>
+                資料來源為快取，無額外讀取費用，僅寫入有變動的球隊文件。
+              </div>
+            </div>
+            <button class="outline-btn" style="flex-shrink:0;font-size:.75rem" onclick="App.runDataSyncOp('teamMembers')">執行</button>
+          </div>
+        </div>
+        <div class="form-card" style="margin-bottom:.6rem">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:.5rem">
+            <div style="flex:1;min-width:0">
+              <div style="font-weight:600;font-size:.82rem">③ 用戶球隊欄位驗證</div>
+              <div style="font-size:.72rem;color:var(--text-muted);line-height:1.5;margin-top:.15rem">
+                檢查所有用戶的球隊引用（teamId/teamIds），移除指向已刪除球隊的欄位。<br>
+                修正用戶看到不存在的球隊、或被錯誤包含在球隊限定活動中的問題。
+              </div>
+            </div>
+            <button class="outline-btn" style="flex-shrink:0;font-size:.75rem" onclick="App.runDataSyncOp('userTeam')">執行</button>
+          </div>
+        </div>
+        <div class="form-card" style="margin-bottom:.6rem">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:.5rem">
+            <div style="flex:1;min-width:0">
+              <div style="font-weight:600;font-size:.82rem">④ 孤兒記錄清理</div>
+              <div style="font-size:.72rem;color:var(--text-muted);line-height:1.5;margin-top:.15rem">
+                掃描報名、活動紀錄、出席紀錄，刪除指向已不存在活動的殘留記錄。<br>
+                避免孤兒資料汙染統計數據（出席率、完成場次、排行榜）。
+              </div>
+            </div>
+            <button class="outline-btn" style="flex-shrink:0;font-size:.75rem" onclick="App.runDataSyncOp('orphan')">執行</button>
+          </div>
+        </div>
+        <div class="form-card" style="margin-bottom:.6rem">
+          <button id="data-sync-full-btn" class="primary-btn full-width" onclick="App.runDataSyncOp('all')">一鍵全部同步</button>
+        </div>
+        <div class="form-card">
+          <div id="data-sync-progress" style="display:none">
+            <div style="background:var(--border);border-radius:4px;height:8px;overflow:hidden">
+              <div id="data-sync-bar" style="height:100%;width:0%;background:var(--accent);transition:width .3s ease"></div>
+            </div>
+            <div id="data-sync-percent" style="font-size:.72rem;color:var(--text-muted);text-align:center;margin-top:.2rem">0%</div>
+          </div>
+          <div id="data-sync-log" style="display:none;margin-top:.6rem;font-size:.75rem;color:var(--text-secondary);line-height:1.7;background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-sm);padding:.5rem .6rem;max-height:400px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;font-family:monospace"></div>
         </div>
       </div>
     </section>

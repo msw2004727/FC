@@ -138,6 +138,7 @@ const ScriptLoader = {
       'js/modules/user-admin-roles.js',
       'js/modules/user-admin-corrections.js',
       'js/modules/achievement-batch.js',
+      'js/modules/data-sync.js',
     ],
     adminContent: [
       'js/modules/ad-manage-core.js',

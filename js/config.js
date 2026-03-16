@@ -249,7 +249,7 @@
 // 20260316r: Per-user achievement progress — 雙寫子集合 + fallback 即時計算
 // 20260316s: Phase 3+4 — 支援讀其他用戶徽章 + 移除全域寫入 + 清理汙染邏輯
 // 20260316t: 一次性清理全域 achievements 汙染（重設 current/completedAt 為模板狀態）
-const CACHE_VERSION = '20260316zr';
+const CACHE_VERSION = '20260316zs';
 
 // ─── Page Strategy Registry ───
 // 唯一策略來源，未列出的頁面預設 fresh-first
@@ -691,7 +691,7 @@ const DRAWER_MENUS = [
   { icon: '', label: '權限管理', i18nKey: 'admin.roles', page: 'page-admin-roles', minRole: 'super_admin' },
   { icon: '', label: '無效資料查詢', i18nKey: 'admin.inactive', page: 'page-admin-inactive', minRole: 'super_admin', permissionCode: 'admin.inactive.entry' },
   { icon: '', label: '日誌中心', i18nKey: 'admin.logs', page: 'page-admin-logs', minRole: 'super_admin', permissionCode: 'admin.logs.entry' },
-  { icon: '', label: '用戶補正管理', i18nKey: 'admin.repair', page: 'page-admin-repair', minRole: 'super_admin', permissionCode: 'admin.repair.entry' },
+  { icon: '', label: '用戶補正管理', i18nKey: 'admin.repair', page: 'page-admin-repair', minRole: 'admin', permissionCode: 'admin.repair.entry' },
 ];
 
 const ROLE_PERMISSION_CATALOG_VERSION = '20260312b';
@@ -725,7 +725,7 @@ const ADMIN_PAGE_EXTRA_PERMISSION_ITEMS = {
   'page-admin-repair': [
     { code: 'admin.repair.team_join_repair', name: '歷史入隊補正' },
     { code: 'admin.repair.no_show_adjust', name: '放鴿子修改' },
-    { code: 'admin.repair.achievement_batch', name: '成就批次更新' },
+    { code: 'admin.repair.data_sync', name: '系統資料同步' },
   ],
   'page-admin-logs': [
     { code: 'admin.logs.error_read', name: '錯誤日誌讀取' },

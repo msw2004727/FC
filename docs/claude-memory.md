@@ -10,6 +10,18 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-16 — [永久] 系統資料同步功能
+- **需求**：將「成就批次更新」頁籤擴大為「系統資料同步」，包含 4 項操作
+- **操作項目**：
+  1. **成就進度 + 報名徽章**（原有）：重算成就進度 → `users/{uid}/achievements` + `registrations.displayBadges`
+  2. **球隊成員數重算**（新增）：從 `users.teamId` 動態計算 → `teams.members`
+  3. **用戶球隊欄位驗證**（新增）：移除指向已刪除球隊的 `teamId/teamIds` 引用
+  4. **孤兒記錄清理**（新增）：刪除指向不存在活動的 `registrations/activityRecords/attendanceRecords`
+- **費用預估**：每個操作的確認彈窗會顯示預估讀寫次數與 USD 費用（Firestore Blaze 計價）
+- **權限**：`admin.repair.data_sync`（原 `admin.repair.achievement_batch`），頁面 minRole 從 `super_admin` 降為 `admin`
+- **備註**：放鴿子次數（noShow）不需加入同步 — 此數據僅供 coach 以上層級管理員參考，一般用戶看不到；且 corrections 在管理端已正確套用
+- **教訓**：`teams.members` 是高風險過期欄位，只有瀏覽球隊頁才會重算寫回；`users.teamId` 在球隊被刪除時不會自動清除
+
 ### 2026-03-16 — 身份成就 + 手動授予成就
 - **需求**：新增 4 種身份判定動作類型（教練/領隊/場主/管理員）+ 1 種手動授予動作類型
 - **設計**：

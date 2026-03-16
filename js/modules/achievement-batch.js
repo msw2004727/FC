@@ -8,31 +8,47 @@ Object.assign(App, {
 
   _achBatchRunning: false,
 
-  async runAchievementBatchUpdate() {
+  async runAchievementBatchUpdate(externalLog) {
     if (this._achBatchRunning) {
       this.showToast('批次更新正在執行中');
       return;
     }
-    if (!this.hasPermission?.('admin.repair.achievement_batch')) {
+    if (!this.hasPermission?.('admin.repair.data_sync')) {
       this.showToast('權限不足');
       return;
     }
 
-    const ok = await this.appConfirm(
-      '確定要執行成就批次更新嗎？\n\n' +
-      '此操作會為所有用戶重新計算成就進度並寫入 Firestore。\n' +
-      '過程可能需要數分鐘，請勿關閉頁面。'
+    // Cost estimation
+    const allUsers = ApiService.getAdminUsers?.() || [];
+    const achievements = (ApiService.getAchievements?.() || []).filter(
+      a => a && a.status !== 'archived' && a.condition
     );
-    if (!ok) return;
+    const U = allUsers.length;
+    const A = achievements.length;
+    const estReads = (U * 3) + (FirebaseService._cache?.registrations?.length || 0)
+      + (FirebaseService._cache?.activityRecords?.length || 0)
+      + (FirebaseService._cache?.attendanceRecords?.length || 0);
+    const estWrites = U * A + (FirebaseService._cache?.registrations?.length || 0);
+    const estCost = ((estReads * 0.06 / 100000) + (estWrites * 0.18 / 100000)).toFixed(4);
+
+    if (!externalLog) {
+      const ok = await this.appConfirm(
+        '確定要執行成就進度同步嗎？\n\n' +
+        `用戶 ${U} 位 × 成就 ${A} 個\n` +
+        `預估讀取：至少 ~${estReads.toLocaleString()} 次\n` +
+        `預估寫入：至少 ~${estWrites.toLocaleString()} 次\n` +
+        `預估費用：~$${estCost} USD\n\n` +
+        '過程可能需要數分鐘，請勿關閉頁面。'
+      );
+      if (!ok) return;
+    }
 
     this._achBatchRunning = true;
-    const btn = document.getElementById('achievement-batch-btn');
-    const progressWrap = document.getElementById('achievement-batch-progress');
-    const bar = document.getElementById('achievement-batch-bar');
-    const percentEl = document.getElementById('achievement-batch-percent');
-    const logEl = document.getElementById('achievement-batch-log');
+    const progressWrap = document.getElementById('data-sync-progress');
+    const bar = document.getElementById('data-sync-bar');
+    const percentEl = document.getElementById('data-sync-percent');
+    const logEl = externalLog || document.getElementById('data-sync-log');
 
-    if (btn) btn.disabled = true;
     if (progressWrap) progressWrap.style.display = '';
     if (logEl) { logEl.style.display = ''; logEl.textContent = ''; }
 
@@ -141,7 +157,6 @@ Object.assign(App, {
       this.showToast('成就批次更新失敗');
     } finally {
       this._achBatchRunning = false;
-      if (btn) btn.disabled = false;
     }
   },
 

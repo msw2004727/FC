@@ -109,6 +109,7 @@ flowchart TD
 | `modules/message-*.js` | 訊息功能群（收件匣、管理員站內信廣播） |
 | `modules/user-admin-*.js` | 用戶後台管理群（列表、EXP 管理、角色權限、用戶補正管理；含 `user-admin-corrections.js`） |
 | `modules/achievement-batch.js` | 成就批次更新（一鍵為全員重新計算成就進度，寫入 per-user 子集合 + registrations.displayBadges） |
+| `modules/data-sync.js` | 系統資料同步（球隊成員數重算、用戶球隊欄位驗證、孤兒記錄清理、一鍵全部同步），含費用預估 |
 | `modules/ad-manage-*.js` | 廣告管理群（ad-manage-core / ad-manage-banner / ad-manage-float / ad-manage-popup-sponsor / ad-manage-shotgame，共 5 個；Banner 輪播、浮動廣告、贊助彈窗、小遊戲廣告） |
 | `modules/scan.js` | QR Code 掃描簽到 / 簽退，讀取帳號持有人 UID 後顯示報名清單 |
 | `modules/attendance-notify.js` | 被掃方即時通知（Production: Firestore onSnapshot / Demo: 直接觸發） |
