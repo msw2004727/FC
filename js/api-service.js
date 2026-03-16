@@ -1202,6 +1202,12 @@ const ApiService = {
   deleteAnnouncement(id)          { return this._delete('announcements', id, FirebaseService.deleteAnnouncement, 'deleteAnnouncement'); },
 
   // ════════════════════════════════
+  //  News Articles（每日體育新聞）
+  // ════════════════════════════════
+
+  getNewsArticles() { return this._src('newsArticles'); },
+
+  // ════════════════════════════════
   //  Floating Ads（浮動廣告）
   // ════════════════════════════════
 

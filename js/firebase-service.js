@@ -52,6 +52,7 @@ const FirebaseService = {
     adminMessages: [],
     notifTemplates: [],
     userCorrections: [],
+    newsArticles: [],
     rolePermissions: {},
     rolePermissionMeta: {},
     customRoles: [],
@@ -234,7 +235,7 @@ const FirebaseService = {
 
   // 集合 → 頁面映射（用於懶載入觸發）
   _collectionPageMap: {
-    'page-home':              ['events'],
+    'page-home':              ['events', 'newsArticles'],
     'page-teams':             ['teams'],
     'page-team-detail':       ['teams', 'events'],
     'page-team-manage':       ['teams'],
@@ -288,6 +289,11 @@ const FirebaseService = {
       return db.collection(name)
         .orderBy('createdAt', 'desc')
         .limit(limitCount);
+    }
+    if (name === 'newsArticles') {
+      return db.collection(name)
+        .orderBy('publishedAt', 'desc')
+        .limit(8);
     }
     return db.collection(name).limit(limitCount);
   },

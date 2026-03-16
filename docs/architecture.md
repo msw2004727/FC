@@ -126,6 +126,7 @@ flowchart TD
 | `modules/achievement/admin.js` | 成就後台 helper；集中成就列表、表單、徽章上傳、legacy cleanup 與 CRUD 流程，讓舊 `achievement.js` 只保留管理端 facade 入口 |
 | `modules/announcement.js` | 系統公告管理與顯示 |
 | `modules/favorites.js` | 用戶收藏活動 / 球隊管理 |
+| `modules/news.js` | 首頁每日體育新聞渲染（卡片直瀑式），資料來自 Cloud Function 定時抓取 |
 | `modules/auto-exp.js` | 自動 EXP 規則設定（依行為觸發） |
 | `modules/banner.js` | 首頁輪播 Banner 渲染 |
 | `modules/role.js` | 角色系統、抽屜選單渲染、自訂層級 runtime 等級計算、後台入口權限判斷 |

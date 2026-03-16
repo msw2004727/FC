@@ -1,0 +1,114 @@
+/* ================================================
+   SportHub — News Module
+   每日體育新聞渲染（卡片直瀑式）
+   ================================================ */
+
+Object.assign(App, {
+
+  renderNews() {
+    const titleEl = document.getElementById('news-section-title');
+    const tabsEl = document.getElementById('news-tabs');
+    const listEl = document.getElementById('news-card-list');
+    if (!titleEl || !listEl) return;
+
+    const articles = (typeof ApiService !== 'undefined' && ApiService.getNewsArticles)
+      ? ApiService.getNewsArticles()
+      : [];
+
+    if (!articles || articles.length === 0) {
+      titleEl.style.display = 'none';
+      if (tabsEl) tabsEl.style.display = 'none';
+      listEl.innerHTML = '';
+      return;
+    }
+
+    titleEl.style.display = '';
+    if (tabsEl) tabsEl.style.display = '';
+
+    const sportLabels = {};
+    if (typeof EVENT_SPORT_MAP !== 'undefined') {
+      Object.keys(EVENT_SPORT_MAP).forEach(function(k) {
+        sportLabels[k] = EVENT_SPORT_MAP[k].label;
+      });
+    }
+
+    listEl.innerHTML = articles.map(function(article) {
+      const safeTitle = escapeHTML(article.title || '');
+      const safeSource = escapeHTML(article.source || '');
+      const sportTag = article.sportTag || 'general';
+      const sportLabel = sportLabels[sportTag] || '';
+      const safeUrl = escapeHTML(article.url || '');
+
+      // Time formatting
+      let timeStr = '';
+      if (article.publishedAt) {
+        try {
+          const d = article.publishedAt.toDate
+            ? article.publishedAt.toDate()
+            : new Date(article.publishedAt);
+          const now = new Date();
+          const diff = now - d;
+          if (diff < 3600000) {
+            timeStr = Math.max(1, Math.floor(diff / 60000)) + ' 分鐘前';
+          } else if (diff < 86400000) {
+            timeStr = Math.floor(diff / 3600000) + ' 小時前';
+          } else {
+            timeStr = (d.getMonth() + 1) + '/' + d.getDate();
+          }
+        } catch (_) {}
+      }
+
+      // Thumbnail
+      const imgUrl = article.imageUrl || '';
+      const sportEmoji = (typeof SPORT_ICON_EMOJI !== 'undefined' && SPORT_ICON_EMOJI[sportTag]) || '';
+      const thumbHtml = imgUrl
+        ? '<img class="news-card-thumb" src="' + escapeHTML(imgUrl) + '" alt="" loading="lazy" onerror="this.outerHTML=\'<div class=\\\'news-card-thumb-placeholder\\\'>' + (sportEmoji || '') + '</div>\'">'
+        : '<div class="news-card-thumb-placeholder">' + (sportEmoji || '') + '</div>';
+
+      // Sport tag badge
+      const tagHtml = sportLabel
+        ? '<span class="news-card-sport-tag">' + escapeHTML(sportLabel) + '</span>'
+        : '';
+
+      return '<div class="news-card" onclick="App._openNewsUrl(\'' + safeUrl + '\')">'
+        + thumbHtml
+        + '<div class="news-card-body">'
+        + '<div class="news-card-title">' + safeTitle + '</div>'
+        + '<div class="news-card-meta">'
+        + '<span class="news-card-source">' + safeSource + '</span>'
+        + (timeStr ? '<span>' + escapeHTML(timeStr) + '</span>' : '')
+        + tagHtml
+        + '</div>'
+        + '</div>'
+        + '</div>';
+    }).join('');
+  },
+
+  _openNewsUrl(url) {
+    if (!url) return;
+    // Validate URL starts with https://
+    if (url.indexOf('https://') !== 0 && url.indexOf('http://') !== 0) return;
+    location.href = url;
+  },
+
+  async _openNewsArticle(newsId) {
+    if (!newsId) return;
+    try {
+      if (typeof db !== 'undefined') {
+        const doc = await db.collection('newsArticles').doc(newsId).get();
+        if (doc.exists) {
+          const data = doc.data();
+          if (data.url) {
+            location.href = data.url;
+            return;
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('[News] Failed to open news article:', err);
+    }
+    // Fallback: go to home
+    this.showToast('新聞已過期');
+  },
+
+});

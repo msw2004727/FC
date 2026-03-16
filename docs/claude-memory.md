@@ -10,6 +10,19 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-16 — 首頁每日體育新聞功能
+- **問題**：用戶希望在首頁新增每日體育新聞區塊
+- **修復**：
+  - `functions/index.js`: 新增 `fetchSportsNews` scheduled function（每 6 小時從 NewsData.io 抓取中文體育新聞）
+  - `js/firebase-service.js`: 新增 `newsArticles` 快取 + `_buildCollectionQuery` 排序
+  - `js/api-service.js`: 新增 `getNewsArticles()` 方法
+  - `js/modules/news.js`: **新建** — 新聞卡片直瀑式渲染模組
+  - `pages/home.html`: 贊助商下方新增新聞區塊 HTML
+  - `css/home.css`: 新聞卡片 + 頁籤樣式
+  - `app.js`: `renderHomeDeferred()` 加入 `renderNews()` + deep link `?news=` 參數
+  - `firestore.rules`: 新增 `newsArticles` 集合規則（公開可讀、僅 CF 可寫）
+- **教訓**：新聞來源 API 需設定 Secret（`firebase functions:secrets:set NEWS_API_KEY`）
+
 ### 2026-03-16 — 外部活動連結功能
 - **問題**：用戶希望在行事曆與首頁顯示外部平台活動，點擊後直接跳轉到外部連結
 - **修復**：

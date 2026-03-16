@@ -198,6 +198,7 @@ const App = {
     if (!this._isHomePageActive()) return false;
     this.renderOngoingTournaments();
     this.renderSponsors();
+    if (this.renderNews) this.renderNews();
     this.renderFloatingAds();
     this.showPopupAdsOnLoad();
     this.startBannerCarousel();
@@ -1470,10 +1471,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     const deepTeam = String(urlParams.get('team') || '').trim();
     const deepTournament = String(urlParams.get('tournament') || '').trim();
     const deepProfile = String(urlParams.get('profile') || '').trim();
+    const deepNews = String(urlParams.get('news') || '').trim();
     if (deepEvent) sessionStorage.setItem('_pendingDeepEvent', deepEvent);
     if (deepTeam) sessionStorage.setItem('_pendingDeepTeam', deepTeam);
     if (deepTournament) sessionStorage.setItem('_pendingDeepTournament', deepTournament);
     if (deepProfile) sessionStorage.setItem('_pendingDeepProfile', deepProfile);
+    // news deep link: redirect immediately to article URL
+    if (deepNews && App._openNewsArticle) {
+      App._openNewsArticle(deepNews);
+    }
     // 立即啟動 REST fetch（不等 SDK）— URL 有 ?event= 或 sessionStorage 有殘留（LINE 登入回來）
     const restEventId = deepEvent || String(sessionStorage.getItem('_pendingDeepEvent') || '').trim();
     if (restEventId) {

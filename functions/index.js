@@ -16,6 +16,7 @@ const db = getFirestore();
 const authAdmin = getAuth();
 
 const LINE_CHANNEL_ACCESS_TOKEN = defineSecret("LINE_CHANNEL_ACCESS_TOKEN");
+const NEWS_API_KEY = defineSecret("NEWS_API_KEY");
 const VALID_ROLES = new Set([
   "user",
   "coach",
@@ -3011,5 +3012,114 @@ exports.submitKickGameScore = onCall(
       buckets: bucketMap,
       isNewBestByPeriod,
     };
+  }
+);
+
+// ═══════════════════════════════════════════════════════════════
+//  fetchSportsNews — 定時抓取中文體育新聞（每 6 小時）
+// ═══════════════════════════════════════════════════════════════
+
+const SPORT_TAG_KEYWORDS = {
+  football: ["足球", "世界盃", "英超", "西甲", "德甲", "義甲", "法甲", "歐冠", "FIFA", "soccer"],
+  basketball: ["籃球", "NBA", "CBA", "PLG", "T1"],
+  baseball_softball: ["棒球", "壘球", "MLB", "中職", "CPBL", "大聯盟"],
+  volleyball: ["排球"],
+  table_tennis: ["桌球", "乒乓"],
+  tennis: ["網球", "ATP", "WTA"],
+  badminton: ["羽球", "羽毛球"],
+  running: ["馬拉松", "路跑", "田徑"],
+  cycling: ["自行車", "單車", "環法"],
+  martial_arts: ["格鬥", "拳擊", "UFC", "MMA", "柔道", "跆拳"],
+  yoga: ["瑜伽"],
+  hiking: ["登山"],
+};
+
+function matchSportTag(title, description) {
+  const text = (title || "") + " " + (description || "");
+  for (const [tag, keywords] of Object.entries(SPORT_TAG_KEYWORDS)) {
+    for (const kw of keywords) {
+      if (text.includes(kw)) return tag;
+    }
+  }
+  return "general";
+}
+
+exports.fetchSportsNews = onSchedule(
+  {
+    region: "asia-east1",
+    schedule: "0 */6 * * *",
+    timeZone: "Asia/Taipei",
+    timeoutSeconds: 120,
+    memory: "256MiB",
+    maxInstances: 1,
+    secrets: [NEWS_API_KEY],
+  },
+  async () => {
+    const apiKey = NEWS_API_KEY.value();
+    if (!apiKey) {
+      console.error("[fetchSportsNews] NEWS_API_KEY not set");
+      return;
+    }
+
+    const url = `https://newsdata.io/api/1/latest?language=zh&category=sports&apikey=${apiKey}`;
+
+    const fetchData = () =>
+      new Promise((resolve, reject) => {
+        https.get(url, (res) => {
+          let data = "";
+          res.on("data", (chunk) => { data += chunk; });
+          res.on("end", () => {
+            try { resolve(JSON.parse(data)); } catch (e) { reject(e); }
+          });
+          res.on("error", reject);
+        }).on("error", reject);
+      });
+
+    let apiResponse;
+    try {
+      apiResponse = await fetchData();
+    } catch (err) {
+      console.error("[fetchSportsNews] API request failed:", err.message);
+      return;
+    }
+
+    if (apiResponse.status !== "success" || !Array.isArray(apiResponse.results)) {
+      console.warn("[fetchSportsNews] API returned no results:", apiResponse.status);
+      return;
+    }
+
+    const articles = apiResponse.results
+      .filter((item) => item.title && item.link)
+      .slice(0, 8)
+      .map((item) => ({
+        title: (item.title || "").trim(),
+        description: (item.description || "").trim().slice(0, 200),
+        url: item.link,
+        imageUrl: item.image_url || "",
+        source: (item.source_name || item.source_id || "").trim(),
+        publishedAt: item.pubDate ? new Date(item.pubDate) : new Date(),
+        sportTag: matchSportTag(item.title, item.description),
+        fetchedAt: new Date(),
+        language: "zh",
+      }));
+
+    if (articles.length === 0) {
+      console.warn("[fetchSportsNews] No valid articles after filtering");
+      return;
+    }
+
+    // Clear old articles and write new batch
+    const batchOp = db.batch();
+    const collRef = db.collection("newsArticles");
+    const oldDocs = await collRef.get();
+    oldDocs.forEach((doc) => batchOp.delete(doc.ref));
+
+    articles.forEach((article) => {
+      const docRef = collRef.doc();
+      batchOp.set(docRef, article);
+    });
+
+    await batchOp.commit();
+    console.log(`[fetchSportsNews] Wrote ${articles.length} articles`);
   }
 );

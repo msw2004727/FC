@@ -830,6 +830,15 @@ service cloud.firestore {
     }
 
     // ═══════════════════════════════════════════
+    //  News Articles（每日體育新聞）
+    //  公開可讀；僅 Cloud Function 可寫（admin-sdk 繞過規則）
+    // ═══════════════════════════════════════════
+    match /newsArticles/{articleId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // ═══════════════════════════════════════════
     //  Site Themes（佈景主題）
     //  公開可讀；admin 或持有 admin.themes.entry 可寫
     // ═══════════════════════════════════════════
