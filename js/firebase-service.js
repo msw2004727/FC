@@ -1737,6 +1737,28 @@ const FirebaseService = {
   },
 
   async _seedAchievements() {
+    // ── 一次性清除全域汙染：重設 current/completedAt 為模板狀態 ──
+    // Per-user 遷移後，全域 achievements 僅作模板，不應殘留進度資料
+    if (!localStorage.getItem('sporthub_ach_clean_v2')) {
+      const existing = this._cache.achievements;
+      const polluted = existing.some(a => a.current || a.completedAt);
+      if (polluted) {
+        try {
+          const batch = db.batch();
+          existing.forEach(doc => {
+            if (doc._docId) {
+              batch.update(db.collection('achievements').doc(doc._docId), { current: 0, completedAt: null });
+              doc.current = 0;
+              doc.completedAt = null;
+            }
+          });
+          await batch.commit();
+          console.log('[FirebaseService] 全域成就模板已重設（per-user 遷移清理）');
+        } catch (err) { console.warn('[FirebaseService] 全域成就重設失敗:', err); }
+      }
+      localStorage.setItem('sporthub_ach_clean_v2', '1');
+    }
+
     // ── Seed：首次建立預設成就與徽章 ──
     if (localStorage.getItem('sporthub_ach_seeded')) return;
 
