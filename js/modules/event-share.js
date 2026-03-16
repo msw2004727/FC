@@ -346,4 +346,168 @@ Object.assign(App, {
     }
   },
 
+  // ══════════════════════════════════
+  //  External Event Share
+  // ══════════════════════════════════
+
+  async shareExternalEvent(eventId) {
+    if (this._shareInProgress) return;
+    this._shareInProgress = true;
+    try {
+      await this._doShareExternalEvent(eventId);
+    } finally {
+      this._shareInProgress = false;
+    }
+  },
+
+  _buildExternalEventShareAltText(event) {
+    var lines = [
+      '\uFF1C' + (event.title || '') + '\uFF1E',
+      '\u65E5\u671F\uFF1A' + (event.date || ''),
+    ];
+    if (event.location) {
+      lines.push('\u5730\u9EDE\uFF1A' + event.location);
+    }
+    lines.push('\u9023\u7D50\uFF1A' + (event.externalUrl || ''));
+    var text = lines.join('\n');
+    if (text.length > 400) {
+      text = Array.from(text).slice(0, 397).join('') + '...';
+    }
+    return text;
+  },
+
+  _buildExternalEventFlexMessage(event) {
+    var sportEmoji = (typeof SPORT_ICON_EMOJI !== 'undefined' && SPORT_ICON_EMOJI[event.sportTag]) || '\u26BD';
+    var typeColor = '#6b7280';
+
+    var bodyContents = [];
+
+    // Type capsule
+    bodyContents.push({
+      type: 'box', layout: 'horizontal', contents: [
+        {
+          type: 'text', text: sportEmoji + ' \u5916\u90E8\u6D3B\u52D5',
+          size: 'xs', color: '#ffffff', weight: 'bold',
+          align: 'center', gravity: 'center',
+        },
+      ],
+      backgroundColor: typeColor,
+      cornerRadius: '12px',
+      paddingAll: '4px',
+      paddingStart: '10px',
+      paddingEnd: '10px',
+      width: '110px',
+    });
+
+    // Title
+    bodyContents.push({
+      type: 'text', text: event.title || '\u6D3B\u52D5',
+      weight: 'bold', size: 'lg', wrap: true, maxLines: 2, margin: 'md',
+    });
+
+    // Info rows
+    var infoContents = [];
+    if (event.date) {
+      infoContents.push(this._buildFlexInfoRow('\u65E5\u671F', event.date));
+    }
+    if (event.location) {
+      infoContents.push(this._buildFlexInfoRow('\u5730\u9EDE', event.location));
+    }
+    if (infoContents.length > 0) {
+      bodyContents.push({
+        type: 'box', layout: 'vertical', contents: infoContents,
+        margin: 'lg', spacing: 'sm',
+      });
+    }
+
+    var body = {
+      type: 'box', layout: 'vertical', contents: bodyContents,
+      paddingAll: '16px',
+    };
+
+    // Footer with external link button
+    var footer = {
+      type: 'box', layout: 'vertical', contents: [
+        {
+          type: 'button', style: 'primary', color: typeColor,
+          action: { type: 'uri', label: '\u524D\u5F80\u6D3B\u52D5\u9801\u9762', uri: event.externalUrl || 'https://example.com' },
+          height: 'sm',
+        },
+      ],
+      paddingAll: '12px',
+    };
+
+    var bubble = {
+      type: 'bubble', size: 'mega',
+      body: body,
+      footer: footer,
+    };
+
+    if (event.image) {
+      bubble.hero = {
+        type: 'image', url: event.image,
+        size: 'full', aspectRatio: '20:13', aspectMode: 'cover',
+      };
+    }
+
+    return bubble;
+  },
+
+  async _doShareExternalEvent(eventId) {
+    var e = ApiService.getEvent(eventId);
+    if (!e) return;
+
+    var altText = this._buildExternalEventShareAltText(e);
+    var canPicker = await this._canUseShareTargetPicker();
+
+    if (canPicker || LineAuth.isLoggedIn()) {
+      var choice = await this._showShareActionSheet(canPicker, '\u5206\u4EAB\u6D3B\u52D5\u9023\u7D50');
+
+      if (choice === 'line') {
+        if (!canPicker) {
+          this.showToast('\u8ACB\u5728 LINE \u4E2D\u958B\u555F\u4EE5\u4F7F\u7528\u6B64\u529F\u80FD');
+          return;
+        }
+        try {
+          var flexMsg = this._buildExternalEventFlexMessage(e);
+          var res = await liff.shareTargetPicker([
+            { type: 'flex', altText: altText, contents: flexMsg },
+          ]);
+          this.showToast(res ? '\u6D3B\u52D5\u5DF2\u5206\u4EAB\u5230 LINE' : '\u5206\u4EAB\u5DF2\u5B8C\u6210');
+        } catch (err) {
+          console.warn('[ShareExternal] shareTargetPicker failed:', err);
+          this.showToast('\u5206\u4EAB\u5931\u6557\uFF0C\u8ACB\u7A0D\u5F8C\u518D\u8A66');
+        }
+        return;
+      }
+
+      if (choice === 'line-share') {
+        this._openLineRShare(altText);
+        return;
+      }
+
+      if (choice === 'copy') {
+        var ok = await this._copyToClipboard(altText);
+        this.showToast(ok ? '\u9023\u7D50\u5DF2\u8907\u88FD' : '\u8907\u88FD\u5931\u6557');
+        return;
+      }
+
+      return; // cancel
+    }
+
+    // 未登入 fallback
+    if (navigator.share) {
+      try {
+        await navigator.share({ text: altText });
+        return;
+      } catch (err) {
+        if (err.name === 'AbortError') return;
+      }
+    }
+    var copyOk = await this._copyToClipboard(altText);
+    this.showToast(copyOk
+      ? '\u5206\u4EAB\u5167\u5BB9\u5DF2\u8907\u88FD\u5230\u526A\u8CBC\u7C3F'
+      : '\u8907\u88FD\u5931\u6557\uFF0C\u8ACB\u624B\u52D5\u8907\u88FD');
+  },
+
 });

@@ -298,6 +298,7 @@ Object.assign(App, {
             btns += `<button class="outline-btn" style="${s};color:var(--success)" onclick="App.reopenMyActivity('${e.id}')">重新開放</button>`;
           }
           if (isAdmin) btns += `<button class="outline-btn" style="${s};color:var(--danger)" onclick="App.deleteMyActivity('${e.id}')">刪除</button>`;
+          btns += `<button class="outline-btn" style="${s};margin-left:auto;color:var(--accent)" onclick="event.stopPropagation();App.shareExternalEvent('${e.id}')">分享</button>`;
         } else if (canManage) {
           if (e.status === 'upcoming') {
             btns = `<button class="primary-btn small" style="${s}" onclick="App.showMyActivityDetail('${e.id}')">查看名單</button>`
