@@ -710,8 +710,10 @@ Object.assign(App, {
     if (modalTitle) modalTitle.textContent = isEdit ? '編輯活動連結' : '新增活動連結';
     if (submitBtn) submitBtn.textContent = isEdit ? '儲存修改' : '建立活動連結';
 
-    // 圖片上傳綁定
-    this.bindImageUpload('cee-image', 'cee-upload-preview');
+    // 圖片上傳綁定（含裁切，活動封面比例 8:3）
+    const ceeInput = document.getElementById('cee-image');
+    if (ceeInput) delete ceeInput.dataset.bound;
+    this.bindImageUpload('cee-image', 'cee-upload-preview', 8 / 3);
 
     // Sport picker 初始化（複用通用版但指定不同容器）
     this._initSportTagPickerForContainer('cee');
