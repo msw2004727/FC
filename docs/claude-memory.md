@@ -10,6 +10,17 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-16 — 成就批次更新功能（用戶補正管理第三頁籤）
+- **需求**：用戶徽章在活動頁可見但在個人名片不可見，因為 `users/{uid}/achievements` 子集合只有用戶本人觸發才寫入
+- **實作**：
+  - 在用戶補正管理頁新增第三個頁籤「成就批次更新」
+  - 新增 `js/modules/achievement-batch.js`（~200 行），逐一為每位用戶查 Firestore 完整資料、暫時替換快取、呼叫 evaluator、還原快取
+  - 寫入 `users/{uid}/achievements/{achId}` + 更新 `registrations.displayBadges`（diff 比對無變動跳過）
+  - Firestore rules 放寬 achievements 子集合寫入：`isOwner(userId) || isAdmin()`
+  - 新增權限碼 `admin.repair.achievement_batch`
+- **修改檔案**：`firestore.rules`、`pages/admin-system.html`、`js/modules/user-admin-corrections.js`、`js/modules/achievement-batch.js`（新增）、`js/core/script-loader.js`、`js/config.js`、`index.html`
+- **教訓**：快取替換必須在 try/finally 中還原，evaluator 是同步的所以循序處理時不會有併發問題
+
 ### 2026-03-16 — [永久] 非管理員用戶看不到活動詳情頁徽章
 - **問題**：一般用戶（非 admin）進入活動詳情頁，參加者名單上看不到任何徽章
 - **原因**：`_refreshRegistrationBadges` 使用 `ApiService.getRegistrationsByEvent()` 讀取本地快取，但非管理員的 Firestore listener 只查自己的報名（`where('userId', '==', uid)`），本地快取不含其他參加者的報名資料

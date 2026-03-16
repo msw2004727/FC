@@ -137,6 +137,7 @@ const ScriptLoader = {
       'js/modules/user-admin-exp.js',
       'js/modules/user-admin-roles.js',
       'js/modules/user-admin-corrections.js',
+      'js/modules/achievement-batch.js',
     ],
     adminContent: [
       'js/modules/ad-manage-core.js',
@@ -182,7 +183,7 @@ const ScriptLoader = {
     'page-admin-inactive':     ['adminUsers'],
     'page-admin-logs':         ['adminUsers', 'adminDashboard', 'adminSystem'],
     'page-admin-audit-logs':   ['adminSystem'],
-    'page-admin-repair':       ['adminUsers'],
+    'page-admin-repair':       ['adminUsers', 'achievement'],
     'page-admin-banners':      ['adminContent'],
     'page-admin-shop':         ['shop'],
     'page-admin-messages':     ['messageAdmin'],

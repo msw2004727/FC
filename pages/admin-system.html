@@ -345,6 +345,7 @@
       <div class="tab-bar" id="admin-repair-tabs">
         <button class="tab active" data-repair-tab="team-joins" onclick="App.switchUserCorrectionTab('team-joins')">歷史入隊補正</button>
         <button class="tab" data-repair-tab="no-show" onclick="App.switchUserCorrectionTab('no-show')">放鴿子系統</button>
+        <button class="tab" data-repair-tab="achievement-batch" onclick="App.switchUserCorrectionTab('achievement-batch')">成就批次更新</button>
       </div>
       <div class="form-card" id="admin-repair-empty" style="display:none"></div>
       <div id="repair-pane-team-joins">
@@ -391,6 +392,26 @@
             <button class="primary-btn" onclick="App.submitUserNoShowCorrection()">確認補正</button>
             <button class="outline-btn" onclick="App.clearUserNoShowCorrection()">清除補正</button>
           </div>
+        </div>
+      </div>
+      <div id="repair-pane-achievement-batch" style="display:none">
+        <div class="form-card" style="margin-bottom:.8rem">
+          <div style="font-weight:600;font-size:.9rem;margin-bottom:.3rem">成就批次更新</div>
+          <div style="font-size:.78rem;color:var(--text-muted);line-height:1.7">
+            一鍵為所有用戶重新計算成就進度，並將結果寫入每位用戶的成就子集合。<br>
+            同時更新所有報名紀錄的徽章快取（displayBadges），讓活動詳情頁與個人名片都能正確顯示徽章。<br>
+            此操作為冪等（重複執行安全），已正確的用戶會自動跳過。
+          </div>
+        </div>
+        <div class="form-card">
+          <button id="achievement-batch-btn" class="primary-btn full-width" onclick="App.runAchievementBatchUpdate()">執行成就批次更新</button>
+          <div id="achievement-batch-progress" style="display:none;margin-top:.6rem">
+            <div style="background:var(--border);border-radius:4px;height:8px;overflow:hidden">
+              <div id="achievement-batch-bar" style="height:100%;width:0%;background:var(--accent);transition:width .3s ease"></div>
+            </div>
+            <div id="achievement-batch-percent" style="font-size:.72rem;color:var(--text-muted);text-align:center;margin-top:.2rem">0%</div>
+          </div>
+          <div id="achievement-batch-log" style="display:none;margin-top:.6rem;font-size:.75rem;color:var(--text-secondary);line-height:1.7;background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-sm);padding:.5rem .6rem;max-height:400px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;font-family:monospace"></div>
         </div>
       </div>
     </section>

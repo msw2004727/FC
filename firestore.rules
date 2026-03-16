@@ -565,7 +565,7 @@ service cloud.firestore {
       // Per-user achievement progress subcollection
       match /achievements/{achId} {
         allow read: if isAuth();
-        allow write: if isOwner(userId);
+        allow write: if isOwner(userId) || isAdmin();
       }
     }
 

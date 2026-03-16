@@ -249,7 +249,7 @@
 // 20260316r: Per-user achievement progress — 雙寫子集合 + fallback 即時計算
 // 20260316s: Phase 3+4 — 支援讀其他用戶徽章 + 移除全域寫入 + 清理汙染邏輯
 // 20260316t: 一次性清理全域 achievements 汙染（重設 current/completedAt 為模板狀態）
-const CACHE_VERSION = '20260316zo';
+const CACHE_VERSION = '20260316zp';
 
 // ─── Page Strategy Registry ───
 // 唯一策略來源，未列出的頁面預設 fresh-first
@@ -720,6 +720,7 @@ const ADMIN_PAGE_EXTRA_PERMISSION_ITEMS = {
   'page-admin-repair': [
     { code: 'admin.repair.team_join_repair', name: '歷史入隊補正' },
     { code: 'admin.repair.no_show_adjust', name: '放鴿子修改' },
+    { code: 'admin.repair.achievement_batch', name: '成就批次更新' },
   ],
   'page-admin-logs': [
     { code: 'admin.logs.error_read', name: '錯誤日誌讀取' },
