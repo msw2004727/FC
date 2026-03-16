@@ -765,3 +765,26 @@
 .att-cb:disabled + .att-lbl .att-box {
   border-color: var(--border, #555);
 }
+
+/* ── 活動管理：空列表載入提示（純 CSS） ── */
+#my-activity-list:empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: .45rem;
+  padding: 2.5rem 0;
+  color: var(--text-muted);
+  font-size: .78rem;
+}
+#my-activity-list:empty::before {
+  content: '';
+  width: 14px; height: 14px;
+  border: 2px solid rgba(128,128,128,.25);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: signup-mini-spin .7s linear infinite;
+  flex-shrink: 0;
+}
+#my-activity-list:empty::after {
+  content: '\8cc7\6599\8f09\5165\4e2d';
+}
