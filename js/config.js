@@ -249,7 +249,7 @@
 // 20260316r: Per-user achievement progress — 雙寫子集合 + fallback 即時計算
 // 20260316s: Phase 3+4 — 支援讀其他用戶徽章 + 移除全域寫入 + 清理汙染邏輯
 // 20260316t: 一次性清理全域 achievements 汙染（重設 current/completedAt 為模板狀態）
-const CACHE_VERSION = '20260316ze';
+const CACHE_VERSION = '20260316zf';
 
 // ─── Page Strategy Registry ───
 // 唯一策略來源，未列出的頁面預設 fresh-first

@@ -216,7 +216,7 @@ const FirebaseService = {
   ],
 
   _postInitWarmupCollections: [
-    'floatingAds', 'popupAds', 'sponsors', 'tournaments', 'gameConfigs', 'newsArticles',
+    'floatingAds', 'popupAds', 'sponsors', 'tournaments', 'gameConfigs',
   ],
 
   // 延遲載入的集合（進入對應頁面時才載入，含原 live 中需 Auth 的集合）
