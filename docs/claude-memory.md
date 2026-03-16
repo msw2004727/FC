@@ -12,6 +12,21 @@
 
 ---
 
+### 2026-03-16 — 報名/取消速度優化 + 翻牌特效修復
+- **問題**：報名與取消報名流程冗長，有時卡在「取消處理中，請稍後」；翻牌特效不生效
+- **原因**：
+  1. `_ensureAuth()` 每次都 `getIdToken(true)` 強制刷新 token — 多一次網路往返
+  2. `_syncMyEventRegistrations` 在確認對話框之前就發 Firestore query — 用戶按「否」也白等
+  3. `_cancelSignupBusyMap` 無超時保護，Firestore 卡住時永久鎖定
+  4. CSS 翻轉缺少 `transform-style: preserve-3d`，按鈕原有 `z-index` 干擾 3D 渲染
+- **修復**：
+  - `_ensureAuth`: `getIdToken(false)` 優先用快取 token，過期才強制刷新
+  - `handleCancelSignup`: `_syncMyEventRegistrations` 移到 `appConfirm()` 之後
+  - 新增 15 秒安全超時自動解鎖 `_cancelSignupBusyMap`
+  - 取消成功 `showEventDetail` 移除不必要的 `await`
+  - CSS: 加 `transform-style: preserve-3d`、移除按鈕 `z-index`、翻轉時隱藏光跡元素
+- **教訓**：`getIdToken(true)` 是昂貴操作，正常寫入不需要強制刷新；busy lock 必須有超時保護
+
 ### 2026-03-16 — 修復三項 Bug（_evaluateAchievements / feeEnabled / 翻牌動畫）
 - **問題 1**：`_evaluateAchievements is not a function` — 報名/取消報名時瀏覽器報錯
 - **原因**：`achievement.js` 是 lazy-loaded 模組，僅在 achievement/profile 頁面載入，活動詳情頁未載入

@@ -15,15 +15,24 @@ Object.assign(FirebaseService, {
     console.log('[_ensureAuth] start, currentUser=', auth?.currentUser?.uid || 'null', 'expectedUid=', expectedUid || 'none');
 
     if (auth?.currentUser) {
-      try {
-        await auth.currentUser.getIdToken(true);
-        if (hasExpectedUid(auth.currentUser.uid)) {
-          console.log('[_ensureAuth] token refresh ok, uid=', auth.currentUser.uid);
+      if (hasExpectedUid(auth.currentUser.uid)) {
+        // Token 尚未過期時直接放行，避免每次都強制刷新（省一次網路往返）
+        try {
+          await auth.currentUser.getIdToken(false);
+          console.log('[_ensureAuth] token ok (cached), uid=', auth.currentUser.uid);
           return true;
+        } catch (e) {
+          // Token 無效，嘗試強制刷新
+          try {
+            await auth.currentUser.getIdToken(true);
+            console.log('[_ensureAuth] token refresh ok, uid=', auth.currentUser.uid);
+            return true;
+          } catch (e2) {
+            console.warn('[_ensureAuth] token refresh failed:', e2.code, e2.message);
+          }
         }
-        console.warn('[_ensureAuth] uid mismatch after token refresh, current=', auth.currentUser.uid, 'expected=', expectedUid);
-      } catch (e) {
-        console.warn('[_ensureAuth] token refresh failed:', e.code, e.message);
+      } else {
+        console.warn('[_ensureAuth] uid mismatch, current=', auth.currentUser.uid, 'expected=', expectedUid);
       }
     }
 

@@ -529,12 +529,13 @@
   position: relative;
   display: inline-flex;
   perspective: 600px;
+  transform-style: preserve-3d;
+  -webkit-transform-style: preserve-3d;
   --glow-c: var(--accent);
   --glow-c-light: var(--accent-hover);
 }
 .signup-glow-wrap > button {
   position: relative;
-  z-index: 2;
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
   transition: transform .5s ease;
@@ -553,7 +554,6 @@
   -webkit-backface-visibility: hidden;
   transform: rotateY(-180deg);
   transition: transform .5s ease;
-  z-index: 2;
   border-radius: var(--radius);
   font-size: .85rem;
   font-weight: 700;
@@ -562,6 +562,12 @@
 }
 .signup-glow-wrap.flipped .signup-flip-back {
   transform: rotateY(0deg);
+}
+.signup-glow-wrap.flipped .signup-glow-border,
+.signup-glow-wrap.flipped .signup-glow-shadow,
+.signup-glow-wrap.flipped .signup-loading-hint {
+  opacity: 0 !important;
+  animation: none !important;
 }
 
 /* 光跡邊框 — 旋轉 conic-gradient */

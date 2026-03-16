@@ -265,23 +265,21 @@ Object.assign(App, {
     if (this._requireProtectedActionLogin({ type: 'eventCancelSignup', eventId: id }, { suppressToast: true })) {
       return;
     }
+    this._cancelSignupBusyMap = this._cancelSignupBusyMap || {};
+    if (this._cancelSignupBusyMap[id]) {
+      this.showToast('取消處理中，請稍後');
+      return;
+    }
+
     const currentUser = ApiService.getCurrentUser();
     const currentUserId = currentUser?.uid || 'unknown';
     let myRegs = ApiService.getMyRegistrationsByEvent(id);
-    if (!ApiService._demoMode && currentUserId !== 'unknown' && (!myRegs.length || myRegs.every(r => !r._docId))) {
-      const syncedRegs = await this._syncMyEventRegistrations(id, currentUserId);
-      if (Array.isArray(syncedRegs) && syncedRegs.length) myRegs = syncedRegs;
-    }
+
     // 有真正的同行者報名（companionId 存在）→ 顯示多選取消 Modal
     // 若只是本人報名出現重複（資料競態窗口），不誤觸同行者 modal
     const hasRealCompanions = myRegs.some(r => r.participantType === 'companion' || r.companionId);
     if (myRegs.length > 1 && hasRealCompanions) {
       this._openCompanionCancelModal(id, myRegs);
-      return;
-    }
-    this._cancelSignupBusyMap = this._cancelSignupBusyMap || {};
-    if (this._cancelSignupBusyMap[id]) {
-      this.showToast('取消處理中，請稍後');
       return;
     }
 
@@ -304,6 +302,13 @@ Object.assign(App, {
     const isWaitlist = singleReg ? singleReg.status === 'waitlisted' : (e0 && this._isUserOnWaitlist(e0));
     const confirmMsg = isWaitlist ? '確定要取消候補？' : '確定要取消報名？';
     if (!await this.appConfirm(confirmMsg)) return;
+
+    // Firestore 同步移到 confirm 之後 — 只在用戶確認取消後才發 query
+    if (!ApiService._demoMode && currentUserId !== 'unknown' && (!myRegs.length || myRegs.every(r => !r._docId))) {
+      const syncedRegs = await this._syncMyEventRegistrations(id, currentUserId);
+      if (Array.isArray(syncedRegs) && syncedRegs.length) myRegs = syncedRegs;
+    }
+
     const user = ApiService.getCurrentUser();
     const userName = user?.displayName || user?.name || '用戶';
     const userId = user?.uid || 'unknown';
@@ -312,6 +317,8 @@ Object.assign(App, {
     const activeCancelBtn = cancelBtns[0] || null;
     let cancelUiRestored = false;
     this._cancelSignupBusyMap[id] = true;
+    // 安全超時：15 秒後自動解鎖，防止 Firestore 卡住導致永久鎖定
+    const _busyTimeout = setTimeout(() => { delete this._cancelSignupBusyMap[id]; }, 15000);
     let cancelGlowWrap = null;
     cancelBtns.forEach(b => {
       b.disabled = true;
@@ -446,9 +453,8 @@ Object.assign(App, {
           cancelGlowWrap.classList.add('flipped');
           await new Promise(r => setTimeout(r, 700));
         }
-        await this.showEventDetail(id);
+        this.showEventDetail(id);
         // ── 背景 post-ops（fire-and-forget，不阻塞 UI）──
-        // 快取更新（activityRecords，不影響 event detail 頁面渲染）
         const records = ApiService.getActivityRecords();
         const hasCancelRec = records.some(r => r.eventId === id && r.uid === userId && r.status === 'cancelled');
         for (let i = records.length - 1; i >= 0; i--) {
@@ -467,7 +473,6 @@ Object.assign(App, {
             }
           }
         }
-        // Firestore 直查兜底：快取可能未載入，確保 Firestore 中的紀錄一定被更新
         db.collection('activityRecords')
           .where('uid', '==', userId).where('eventId', '==', id)
           .get().then(snap => {
@@ -507,6 +512,7 @@ Object.assign(App, {
         // 失敗：恢復按鈕原始狀態讓使用者可重試
         _restoreCancelUI();
       } finally {
+        clearTimeout(_busyTimeout);
         delete this._cancelSignupBusyMap[id];
       }
     } else {
