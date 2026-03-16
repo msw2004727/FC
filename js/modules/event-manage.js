@@ -827,7 +827,8 @@ Object.assign(App, {
         const mainName = selfReg ? selfReg.userName : regs[0].userName;
         const mainUid = regs[0].userId;
         const proxyOnly = !selfReg;
-        people.push({ name: mainName, uid: mainUid, isCompanion: false, displayName: mainName, hasSelfReg: !proxyOnly, proxyOnly });
+        const mainReg = selfReg || regs[0];
+        people.push({ name: mainName, uid: mainUid, isCompanion: false, displayName: mainName, hasSelfReg: !proxyOnly, proxyOnly, displayBadges: mainReg.displayBadges || [] });
         addedNames.add(mainName);
         companions.forEach(c => {
           const cName = c.companionName || c.userName;
@@ -1085,14 +1086,25 @@ Object.assign(App, {
       const autoNote = p.proxyOnly ? '僅代報' : '';
       const combinedNote = [autoNote, noteText].filter(Boolean).join('・');
 
-      let nameHtml;
+      // 徽章縮圖
+      const badges = p.displayBadges || [];
+      const badgeHtml = badges.length
+        ? '<span class="reg-badge-list">' + badges.map(b =>
+            `<img class="reg-badge-icon" src="${escapeHTML(b.image || '')}" alt="${escapeHTML(b.name || '')}" loading="lazy">`
+          ).join('') + '</span>'
+        : '';
+
+      let nameInner;
       if (p.isCompanion) {
-        nameHtml = `<span style="padding-left:1.2rem;color:var(--text-secondary)">↳ ${escapeHTML(p.displayName)}</span>`;
+        nameInner = `<span class="reg-name-text" style="padding-left:1.2rem;color:var(--text-secondary)">↳ ${escapeHTML(p.displayName)}</span>`;
       } else if (p.hasSelfReg) {
-        nameHtml = this._userTag(p.displayName);
+        nameInner = `<span class="reg-name-text">${this._userTag(p.displayName)}</span>`;
       } else {
-        nameHtml = ` ${escapeHTML(p.displayName)}`;
+        nameInner = `<span class="reg-name-text">${escapeHTML(p.displayName)}</span>`;
       }
+      const nameHtml = badgeHtml
+        ? `<div class="reg-name-badges">${nameInner}${badgeHtml}</div>`
+        : nameInner;
 
       const safeUid = escapeHTML(p.uid);
       const safeName = escapeHTML(p.name);
@@ -1155,6 +1167,23 @@ Object.assign(App, {
       </table>
     </div>`;
     this._bindAttendanceCheckboxLink(container, 'manual-checkin-', 'manual-checkout-');
+    this._bindBadgeRowSnapBack(container);
+  },
+
+  /** 徽章行滑動彈回：放手後 scrollLeft 彈回 0 */
+  _bindBadgeRowSnapBack(container) {
+    if (!container) return;
+    container.querySelectorAll('.reg-name-badges').forEach(row => {
+      if (row.dataset.snapBound) return;
+      row.dataset.snapBound = '1';
+      row.addEventListener('touchend', () => {
+        if (row.scrollLeft > 0) {
+          row.style.scrollBehavior = 'smooth';
+          row.scrollLeft = 0;
+          setTimeout(() => { row.style.scrollBehavior = ''; }, 350);
+        }
+      }, { passive: true });
+    });
   },
 
   // ── 未報名單表格（活動詳情頁用）──
@@ -1908,6 +1937,69 @@ Object.assign(App, {
     this.renderActivityList();
     this.renderHotEvents();
     this.showToast('活動已刪除');
+  },
+
+  // ── 背景更新報名者徽章（開詳情頁時） ──
+  _badgeRefreshCache: {},
+  async _refreshRegistrationBadges(eventId, containerId) {
+    const REFRESH_INTERVAL = 30 * 60 * 1000; // 30 分鐘
+    const lastRefresh = this._badgeRefreshCache[eventId] || 0;
+    if (Date.now() - lastRefresh < REFRESH_INTERVAL) return;
+
+    try {
+      const regs = ApiService.getRegistrationsByEvent(eventId)
+        .filter(r => r.status === 'confirmed' && r.participantType === 'self');
+      if (!regs.length) return;
+
+      const ab = this._getAchievementBadges?.();
+      if (!ab || !ab.getEarnedBadgeViewModels) return;
+
+      const allBadges = ApiService.getBadges?.() || [];
+      if (!allBadges.length) return;
+
+      let changed = false;
+
+      for (const reg of regs) {
+        const uid = reg.userId;
+        if (!uid) continue;
+
+        let achievements;
+        try {
+          achievements = await ab.getEvaluatedAchievementsForUserAsync?.({ uid, _docId: uid });
+        } catch (_) { continue; }
+        if (!achievements) continue;
+
+        const earned = ab.getEarnedBadgeViewModels(achievements, allBadges);
+        const newBadges = earned.map(item => ({
+          id: item.badge?.id || '',
+          name: item.badge?.name || '',
+          image: item.badge?.image || '',
+        })).filter(b => b.image);
+
+        const oldBadges = reg.displayBadges || [];
+        const oldIds = oldBadges.map(b => b.id).sort().join(',');
+        const newIds = newBadges.map(b => b.id).sort().join(',');
+        if (oldIds === newIds) continue;
+
+        // 更新 Firestore + 快取
+        try {
+          if (reg._docId && typeof db !== 'undefined') {
+            await db.collection('registrations').doc(reg._docId).update({ displayBadges: newBadges });
+          }
+          reg.displayBadges = newBadges;
+          changed = true;
+        } catch (err) {
+          console.warn('[Badges] update failed for', uid, err);
+        }
+      }
+
+      this._badgeRefreshCache[eventId] = Date.now();
+      if (changed) {
+        this._renderAttendanceTable(eventId, containerId || 'detail-attendance-table');
+      }
+    } catch (err) {
+      console.warn('[Badges] refresh failed:', err);
+    }
   },
 
 });

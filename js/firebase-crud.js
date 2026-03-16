@@ -572,6 +572,32 @@ Object.assign(FirebaseService, {
     }
   },
 
+  /**
+   * 報名成功後，背景寫入用戶徽章到 registration 文件
+   * 在 transaction 外執行，失敗不影響報名
+   */
+  async _writeDisplayBadgesToReg(regDocId) {
+    try {
+      if (typeof App === 'undefined' || !App._getAchievementBadges) return;
+      const ab = App._getAchievementBadges();
+      if (!ab || !ab.getCurrentUserEarnedBadgeViewModels) return;
+      const earned = ab.getCurrentUserEarnedBadgeViewModels();
+      if (!earned || !earned.length) return;
+      const displayBadges = earned.map(item => ({
+        id: item.badge?.id || '',
+        name: item.badge?.name || '',
+        image: item.badge?.image || '',
+      })).filter(b => b.image);
+      if (!displayBadges.length) return;
+      await db.collection('registrations').doc(regDocId).update({ displayBadges });
+      // 同步本地快取
+      const cached = this._cache.registrations.find(r => r._docId === regDocId);
+      if (cached) cached.displayBadges = displayBadges;
+    } catch (err) {
+      console.warn('[Registration] displayBadges write failed (non-critical):', err);
+    }
+  },
+
   async registerForEvent(eventId, userId, userName) {
     if (!userId || userId === 'unknown') throw new Error('用戶資料載入中，請稍候再試');
 
@@ -683,6 +709,9 @@ Object.assign(FirebaseService, {
 
     this._saveToLS('registrations', this._cache.registrations);
     this._saveToLS('events', this._cache.events);
+
+    // 背景寫入徽章（不阻塞報名流程）
+    this._writeDisplayBadgesToReg(regDocRef.id);
 
     return { registration, status: result.status };
   },
@@ -1827,6 +1856,12 @@ Object.assign(FirebaseService, {
     // 立即寫入 localStorage，避免刷新後資料遺失
     this._saveToLS('registrations', this._cache.registrations);
     this._saveToLS('events', this._cache.events);
+
+    // 背景寫入徽章到 self 報名文件（不阻塞報名流程）
+    const selfReg = result.registrations.find(r => r.participantType === 'self');
+    if (selfReg && selfReg._docId) {
+      this._writeDisplayBadgesToReg(selfReg._docId);
+    }
 
     return { registrations: result.registrations, confirmed: result.confirmed, waitlisted: result.waitlisted };
   },

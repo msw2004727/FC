@@ -10,6 +10,15 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-16 — 報名名單顯示用戶徽章
+- **問題**：活動詳情頁報名名單需展示用戶擁有的徽章縮圖
+- **修復**：
+  - `firebase-crud.js`: 報名成功後背景寫入 `displayBadges` 到 registration 文件（transaction 外）
+  - `event-manage.js`: `_buildConfirmedParticipantSummary` 傳遞 `displayBadges`；`_renderAttendanceTable` 名字旁顯示徽章；新增 `_refreshRegistrationBadges` 背景更新 + `_bindBadgeRowSnapBack` 滑動彈回
+  - `event-detail.js`: 開詳情頁時觸發背景徽章更新
+  - `css/activity.css`: 新增 `.reg-name-badges` 橫向滾動 + `.reg-badge-icon` 樣式
+- **教訓**：徽章寫入必須在報名 transaction 外，避免影響報名核心邏輯；背景更新用 30 分鐘間隔避免重複查詢
+
 ### 2026-03-16 — 首頁每日體育新聞功能
 - **問題**：用戶希望在首頁新增每日體育新聞區塊
 - **修復**：

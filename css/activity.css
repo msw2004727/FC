@@ -813,3 +813,22 @@
 #my-activity-list:empty::after {
   content: '\8cc7\6599\8f09\5165\4e2d';
 }
+
+/* ─── Registration Badge Display ─── */
+.reg-name-badges {
+  display: flex; align-items: center; gap: 4px;
+  overflow-x: auto; -webkit-overflow-scrolling: touch;
+  scroll-behavior: auto;
+}
+.reg-name-badges::-webkit-scrollbar { display: none; }
+.reg-name-badges { scrollbar-width: none; }
+.reg-name-text { flex-shrink: 0; }
+.reg-badge-list {
+  display: flex; align-items: center; gap: 2px;
+  flex-shrink: 0;
+}
+.reg-badge-icon {
+  width: 18px; height: 18px; border-radius: 3px;
+  object-fit: contain; flex-shrink: 0;
+  background: var(--bg-elevated);
+}
