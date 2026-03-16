@@ -12,6 +12,15 @@
 
 ---
 
+### 2026-03-16 — 取消報名翻牌動畫 0% 成功率修復
+- **問題**：報名後翻牌成功率高，但取消報名後翻牌成功率為 0%
+- **原因**：`_flipAnimating = true` 設在 `cancelRegistration()` 之後，但 Firestore `onSnapshot` 在 await 期間觸發 `showEventDetail()` 重渲染 DOM，導致翻牌操作的目標 DOM 已被替換（detached elements）
+- **修復**：
+  - `_flipAnimating = true` 移到 Firestore 操作之前（loading setup 階段）
+  - `_restoreCancelUI()` 中加入 `this._flipAnimating = false` 確保錯誤路徑也清除
+  - catch / finally 區塊都加入 `this._flipAnimating = false`
+- **教訓**：[永久] onSnapshot 會在任何 await 期間觸發重渲染，所有需要保護 DOM 的標誌必須在 Firestore 操作之前設定，且所有退出路徑都必須清除標誌
+
 ### 2026-03-16 — 報名/取消速度優化 + 翻牌特效修復
 - **問題**：報名與取消報名流程冗長，有時卡在「取消處理中，請稍後」；翻牌特效不生效
 - **原因**：

@@ -206,13 +206,14 @@ Object.assign(App, {
         if (glowWrap) glowWrap.classList.add('loading');
       }
     });
+    // 在 Firestore 操作前鎖定重渲染，防止 onSnapshot 中途替換 DOM
+    if (glowWrap) this._flipAnimating = true;
     try {
       const result = await FirebaseService.registerForEvent(id, userId, userName);
       // ── 即時回饋：翻牌動畫 + toast ──
       const isWL = result.status === 'waitlisted';
       this.showToast(isWL ? '已加入候補名單' : '報名成功！');
       if (glowWrap) {
-        this._flipAnimating = true;
         glowWrap.classList.remove('loading');
         const flipper = glowWrap.querySelector('.signup-flipper');
         if (flipper) {
@@ -339,11 +340,16 @@ Object.assign(App, {
     if (activeCancelBtn) {
       activeCancelBtn.style.opacity = '';
       cancelGlowWrap = activeCancelBtn.closest('.signup-glow-wrap');
-      if (cancelGlowWrap) cancelGlowWrap.classList.add('loading');
+      if (cancelGlowWrap) {
+        cancelGlowWrap.classList.add('loading');
+        // 在 Firestore 操作前鎖定重渲染，防止 onSnapshot 中途替換 DOM
+        this._flipAnimating = true;
+      }
     }
     const _restoreCancelUI = () => {
       if (cancelUiRestored) return;
       cancelUiRestored = true;
+      this._flipAnimating = false;
       delete this._cancelSignupBusyMap[id];
       if (cancelGlowWrap) cancelGlowWrap.classList.remove('loading');
       cancelBtns.forEach(b => {
@@ -456,7 +462,6 @@ Object.assign(App, {
         // ── 即時回饋：翻牌動畫 + toast ──
         this.showToast(isWaitlist ? '已取消候補' : '已取消報名');
         if (cancelGlowWrap) {
-          this._flipAnimating = true;
           cancelGlowWrap.classList.remove('loading');
           const flipper = cancelGlowWrap.querySelector('.signup-flipper');
           if (flipper) {
@@ -531,12 +536,14 @@ Object.assign(App, {
         this._evaluateAchievements?.(e0?.type);
       } catch (err) {
         console.error('[cancelSignup]', err);
+        this._flipAnimating = false;
         this.showToast('取消失敗：' + (err.message || ''));
         ApiService._writeErrorLog({ fn: 'handleCancelSignup', eventId: id }, err);
         // 失敗：恢復按鈕原始狀態讓使用者可重試
         _restoreCancelUI();
       } finally {
         clearTimeout(_busyTimeout);
+        this._flipAnimating = false;
         delete this._cancelSignupBusyMap[id];
       }
     } else {

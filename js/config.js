@@ -246,7 +246,7 @@
 // 20260315aae: 分享功能改善 — LIFF 未就緒時自動等待、Tier 2 登入也顯示底部選單、外部瀏覽器提示
 // 20260315aaf: 修復建立/編輯活動後列表未刷新 — render 呼叫移出 try-catch 確保獨立執行
 // 20260315aag: 全站分享升級 — 球隊/賽事/名片分享改用 LIFF URL + Flex Message + 底部選單
-const CACHE_VERSION = '20260316l';
+const CACHE_VERSION = '20260316m';
 
 // ─── Page Strategy Registry ───
 // 唯一策略來源，未列出的頁面預設 fresh-first
