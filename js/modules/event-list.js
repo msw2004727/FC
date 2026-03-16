@@ -397,18 +397,29 @@ Object.assign(App, {
     const key = getSportKeySafe(event?.sportTag);
     return key || 'football';
   },
-  _setHomeSectionVisibility(sectionContent, isVisible) {
+  _setHomeSectionVisibility(sectionContent, isVisible, skipContent) {
     const contentEl = typeof sectionContent === 'string'
       ? document.getElementById(sectionContent)
       : sectionContent;
     if (!contentEl) return;
 
-    const titleEl = contentEl.previousElementSibling && contentEl.previousElementSibling.classList?.contains('section-title')
-      ? contentEl.previousElementSibling
-      : null;
+    const display = isVisible ? '' : 'none';
+    if (!skipContent) contentEl.style.display = display;
 
-    contentEl.style.display = isVisible ? '' : 'none';
-    if (titleEl) titleEl.style.display = isVisible ? '' : 'none';
+    // Find heading (.home-heading) + preceding divider
+    let el = contentEl.previousElementSibling;
+    while (el) {
+      if (el.classList.contains('home-heading') || el.classList.contains('section-title')) {
+        el.style.display = display;
+        // Check for divider right before heading
+        const prev = el.previousElementSibling;
+        if (prev && prev.classList.contains('home-divider')) {
+          prev.style.display = display;
+        }
+        break;
+      }
+      el = el.previousElementSibling;
+    }
   },
   _isHomeGameVisible(gameKey) {
     const gameConfig = Array.isArray(HOME_GAME_PRESETS)
@@ -439,17 +450,13 @@ Object.assign(App, {
     const kickAvailable = this._isHomeGameVisible('kick-game');
     const anyVisible = shotAvailable || kickAvailable;
 
-    // Toggle individual cards (without touching section title)
     if (shotCard) shotCard.style.display = shotAvailable ? '' : 'none';
     if (kickCard) kickCard.style.display = kickAvailable ? '' : 'none';
 
-    // Toggle the shared section title based on whether any card is visible
+    // Toggle heading + divider (skip content — cards handled above)
     const firstCard = shotCard || kickCard;
     if (firstCard) {
-      const titleEl = firstCard.previousElementSibling;
-      if (titleEl && titleEl.classList && titleEl.classList.contains('section-title')) {
-        titleEl.style.display = anyVisible ? '' : 'none';
-      }
+      this._setHomeSectionVisibility(firstCard, anyVisible, true);
     }
   },
   _renderEventSportIcon(event, className = '') {
