@@ -10,6 +10,12 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-17 — [永久] admin 角色缺少賽事管理固有權限
+- **問題**：admin 角色在權限管理頁存過自訂權限後，賽事管理權限消失；coach/captain/venue_owner 不受影響
+- **原因**：`INHERENT_ROLE_PERMISSIONS` 只定義了 coach/captain/venue_owner 的固有權限，admin 不在其中。自訂 `rolePermissions` 覆蓋預設權限時，如未包含 `admin.tournaments.entry` 就會遺失
+- **修復**：將 admin 加入 `INHERENT_ROLE_PERMISSIONS`，確保 `activity.manage.entry` 和 `admin.tournaments.entry` 不可被自訂權限覆蓋
+- **教訓**：新增角色層級時必須同步檢查 `INHERENT_ROLE_PERMISSIONS` 是否需要擴充；固有權限是防止自訂權限覆蓋的最後保底機制
+
 ### 2026-03-16 — 頁籤滑動改為跟手滑動 + 滑出滑入動畫
 - **問題**：`_bindSwipeTabs` 為二元切換，手勢結束才切換，無視覺回饋
 - **修復**：重寫 `app.js:_bindSwipeTabs`，touchmove 時 `translateX` 跟手、邊界阻尼、滑出/滑入動畫（~450ms），`passive:false` 防滑動衝突，`transitionend` 有 350ms fallback
