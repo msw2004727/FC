@@ -704,7 +704,7 @@ Object.assign(App, {
       } else {
         // 動態載入 QR Code 產生器
         const s = document.createElement('script');
-        s.src = 'https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js';
+        s.src = 'https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js';
         s.onload = () => {
           if (typeof QRCode !== 'undefined' && QRCode.toDataURL) {
             QRCode.toDataURL(url, { width: 200, margin: 2, errorCorrectionLevel: 'M' })
