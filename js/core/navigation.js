@@ -565,7 +565,7 @@ Object.assign(App, {
     }
     if (pageId === 'page-achievements') this.renderAchievements();
     if (pageId === 'page-titles') this.renderTitlePage();
-    if (pageId === 'page-my-activities') this.renderMyActivities();
+    if (pageId === 'page-my-activities') this.renderMyActivities?.();
     if (pageId === 'page-team-manage') this.renderTeamManage();
     if (pageId === 'page-admin-dashboard') this.renderDashboard();
     if (pageId === 'page-temp-participant-report' && this.renderParticipantQuerySharePage) {
