@@ -329,7 +329,7 @@ Object.assign(App, {
         // Fee summary
         const feeEnabled = this._isEventFeeEnabled?.(e) ?? Number(e?.fee || 0) > 0;
         const fee = this._getEventRecordedFeeAmount?.(e) ?? (Number(e?.fee || 0) > 0 ? Math.floor(Number(e.fee || 0)) : 0);
-        const confirmedRegs = fee > 0 ? ApiService.getRegistrationsByEvent(e.id) : [];
+        const confirmedRegs = fee > 0 ? ApiService.getRegistrationsByEvent(e.id).filter(r => r.status === 'confirmed' || r.status === 'registered') : [];
         const confirmedCount = confirmedRegs.length > 0 ? confirmedRegs.length : _confirmedDisplay;
         const unregCount = fee > 0 ? (unregCountMap.get(e.id) || 0) : 0;
         const checkoutCount = fee > 0 ? (checkoutCountMap.get(e.id) || 0) : 0;
@@ -440,7 +440,7 @@ Object.assign(App, {
     // ── 費用摘要（計費來源：報名記錄 + 未報名簽到）──
     const feeEnabled = this._isEventFeeEnabled?.(e) ?? Number(e?.fee || 0) > 0;
     const fee = this._getEventRecordedFeeAmount?.(e) ?? (Number(e?.fee || 0) > 0 ? Math.floor(Number(e.fee || 0)) : 0);
-    const confirmedRegsDetail = fee > 0 ? ApiService.getRegistrationsByEvent(e.id) : [];
+    const confirmedRegsDetail = fee > 0 ? ApiService.getRegistrationsByEvent(e.id).filter(r => r.status === 'confirmed' || r.status === 'registered') : [];
     const confirmedCountDetail = confirmedRegsDetail.length > 0 ? confirmedRegsDetail.length : (e.current || 0);
     const unregCountDetail = fee > 0 ? new Set(records.filter(r => r.type === 'unreg').map(r => r.uid)).size : 0;
     const feeExpected = fee * (confirmedCountDetail + unregCountDetail);
