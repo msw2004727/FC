@@ -561,6 +561,12 @@ service cloud.firestore {
         || (canRunTeamJoinRepair() && isSafeTeamMembershipUpdateByStaff())
         || (isCoachPlus() && !isOwner(userId) && isSafeTeamMembershipUpdateByStaff());
       allow delete: if false;
+
+      // Per-user achievement progress subcollection
+      match /achievements/{achId} {
+        allow read: if isAuth();
+        allow write: if isOwner(userId);
+      }
     }
 
     // ═══════════════════════════════════════════

@@ -12,6 +12,21 @@
 
 ---
 
+### [永久] 2026-03-16 — Per-User Achievement Progress 遷移（Phase 1+2）
+- **問題**：`achievements` 集合是全域共用文件，任何用戶觸發 `evaluateAchievements()` 都會把 `current/completedAt` 寫回全域文件，導致所有人都顯示「已獲得」
+- **原因**：成就進度存在全域 `achievements` 集合而非每用戶獨立存儲
+- **修復**：
+  - 新增 `users/{uid}/achievements/{achId}` 子集合儲存每用戶進度
+  - `firebase-crud.js` 新增 `saveUserAchievementProgress()` / `loadUserAchievementProgress()`
+  - `evaluator.js` 的 `evaluateAchievements()` 改為雙寫（全域 + per-user 子集合），安全防線確保只寫自己的子集合
+  - `evaluator.js` 的 `getEvaluatedAchievements()` 優先讀取 per-user 已完成記錄，fallback 到即時計算
+  - `firebase-service.js` 新增 `_loadCurrentUserAchievementProgress()` 非阻塞載入 + `getUserAchievementProgressMap()` 查詢介面
+  - `firestore.rules` 新增子集合規則：任何登入用戶可讀，僅 owner 可寫
+- **教訓**：
+  - 全域 `achievements` 集合保留為模板（管理員 CRUD 不動），進度存子集合
+  - 三道防火牆：①雙寫保留全域 ②fallback 即時計算 ③安全規則 `auth.uid == uid`
+  - Phase 3（讀其他用戶）和 Phase 4（清理全域寫入）待後續穩定後再做
+
 ### 2026-03-16 — 取消報名翻牌動畫 0% 成功率修復
 - **問題**：報名後翻牌成功率高，但取消報名後翻牌成功率為 0%
 - **原因**：`_flipAnimating = true` 設在 `cancelRegistration()` 之後，但 Firestore `onSnapshot` 在 await 期間觸發 `showEventDetail()` 重渲染 DOM，導致翻牌操作的目標 DOM 已被替換（detached elements）

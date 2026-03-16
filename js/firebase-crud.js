@@ -1973,4 +1973,35 @@ Object.assign(FirebaseService, {
     return deleted;
   },
 
+  // ═══════════════════════════════════════════
+  //  Per-User Achievement Progress（子集合）
+  // ═══════════════════════════════════════════
+
+  async saveUserAchievementProgress(uid, achId, data) {
+    if (!uid || !achId) return;
+    try {
+      await db.collection('users').doc(uid).collection('achievements')
+        .doc(achId).set({
+          achId,
+          current: data.current || 0,
+          completedAt: data.completedAt || null,
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        }, { merge: true });
+    } catch (err) {
+      console.warn('[FirebaseService] saveUserAchievementProgress failed:', achId, err);
+    }
+  },
+
+  async loadUserAchievementProgress(uid) {
+    if (!uid) return [];
+    try {
+      const snap = await db.collection('users').doc(uid)
+        .collection('achievements').get();
+      return snap.docs.map(doc => ({ ...doc.data(), _docId: doc.id }));
+    } catch (err) {
+      console.warn('[FirebaseService] loadUserAchievementProgress failed:', err);
+      return [];
+    }
+  },
+
 });

@@ -650,12 +650,38 @@ Object.assign(App, {
       const context = buildEvaluationContext({ targetUid, targetUser, registry });
       if (!context) return source.map(achievement => ({ ...achievement }));
 
-      return source.map(achievement => evaluateAchievementRecord({
-        achievement,
-        registry,
-        context,
-        eventType,
-      }));
+      // Phase 2：嘗試讀取 per-user 進度（僅當前用戶）
+      const currentUser = ApiService.getCurrentUser?.() || null;
+      const currentUid = normalizeString(currentUser?.uid || currentUser?._docId);
+      const resolvedUid = normalizeString(targetUid || currentUid);
+      const isCurrentUser = resolvedUid && resolvedUid === currentUid;
+      const perUserMap = isCurrentUser
+        && typeof FirebaseService !== 'undefined'
+        && typeof FirebaseService.getUserAchievementProgressMap === 'function'
+        ? FirebaseService.getUserAchievementProgressMap()
+        : null;
+
+      return source.map(achievement => {
+        // 如果 per-user 有已完成記錄，直接採用（跳過重算）
+        if (perUserMap) {
+          const achId = normalizeString(achievement?.id);
+          const perUser = achId ? perUserMap.get(achId) : null;
+          if (perUser && perUser.completedAt) {
+            return {
+              ...achievement,
+              current: perUser.current || 0,
+              completedAt: perUser.completedAt,
+            };
+          }
+        }
+        // Fallback：即時計算（與改版前行為一致）
+        return evaluateAchievementRecord({
+          achievement,
+          registry,
+          context,
+          eventType,
+        });
+      });
     };
 
     return {
@@ -678,6 +704,15 @@ Object.assign(App, {
             .filter(([id]) => id)
         );
 
+        // 解析當前用戶 UID（僅寫入自己的子集合）
+        const currentUser = ApiService.getCurrentUser?.() || null;
+        const currentUid = normalizeString(currentUser?.uid || currentUser?._docId);
+        const safeTargetUid = normalizeString(targetUid || currentUid);
+        // 安全防線：只允許寫入自己的子集合
+        const canWritePerUser = safeTargetUid && safeTargetUid === currentUid
+          && typeof FirebaseService !== 'undefined'
+          && typeof FirebaseService.saveUserAchievementProgress === 'function';
+
         originalAchievements.forEach(achievement => {
           const evaluated = evaluatedById.get(normalizeString(achievement.id));
           if (!evaluated) return;
@@ -686,10 +721,23 @@ Object.assign(App, {
             return;
           }
 
-          ApiService.updateAchievement(achievement.id, {
+          const progressData = {
             current: evaluated.current || 0,
             completedAt: evaluated.completedAt || null,
-          });
+          };
+
+          // 保留原有全域寫入（Phase 4 才移除）
+          ApiService.updateAchievement(achievement.id, progressData);
+
+          // 同時寫入 per-user 子集合（靜默失敗）+ 更新記憶體快取
+          if (canWritePerUser) {
+            FirebaseService.saveUserAchievementProgress(safeTargetUid, achievement.id, progressData);
+            // 即時更新記憶體快取，讓同 session 的 getEvaluatedAchievements 可讀
+            const progressArr = FirebaseService._userAchievementProgress || [];
+            const idx = progressArr.findIndex(r => (r.achId || r._docId) === achievement.id);
+            const entry = { achId: achievement.id, current: progressData.current, completedAt: progressData.completedAt, _docId: achievement.id };
+            if (idx >= 0) { progressArr[idx] = entry; } else { progressArr.push(entry); }
+          }
         });
       },
     };

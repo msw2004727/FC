@@ -83,6 +83,8 @@ const FirebaseService = {
   _realtimeListenerStarted: {},  // 追蹤已啟動的延遲即時監聽器
   _authPromise: null,            // Auth 並行 Promise
   _userStatsCache: { uid: null, activityRecords: null, attendanceRecords: null },
+  _userAchievementProgress: [],  // Per-user achievement progress from subcollection
+  _userAchievementProgressUid: null,
 
   // ─── localStorage 快取設定 ───
   _LS_PREFIX: 'shub_c_',
@@ -1302,6 +1304,9 @@ const FirebaseService = {
         await Promise.all(seedTasks);
       }
 
+      // 非阻塞載入 per-user 成就進度（失敗不影響任何功能）
+      this._loadCurrentUserAchievementProgress(authUid);
+
       this._persistCache();
       console.log('[FirebaseService] Auth-dependent init complete.');
     })();
@@ -1706,6 +1711,30 @@ const FirebaseService = {
     { id: 'b6', name: '個人門面徽章', achId: 'a6', category: 'gold', image: null },
     { id: 'b7', name: '百場徽章', achId: 'a7', category: 'gold', image: null },
   ],
+
+  _loadCurrentUserAchievementProgress(uid) {
+    if (!uid) return;
+    // 非阻塞：不 await，失敗時快取保持空陣列，觸發 fallback 到即時計算
+    this.loadUserAchievementProgress(uid).then(progress => {
+      this._userAchievementProgress = progress || [];
+      this._userAchievementProgressUid = uid;
+      console.log(`[FirebaseService] Per-user achievement progress loaded: ${this._userAchievementProgress.length} records`);
+    }).catch(err => {
+      console.warn('[FirebaseService] Per-user achievement progress load failed (fallback to realtime calc):', err);
+      this._userAchievementProgress = [];
+      this._userAchievementProgressUid = uid;
+    });
+  },
+
+  getUserAchievementProgressMap() {
+    if (!this._userAchievementProgress || !this._userAchievementProgress.length) return null;
+    const map = new Map();
+    this._userAchievementProgress.forEach(record => {
+      const achId = record.achId || record._docId;
+      if (achId) map.set(achId, record);
+    });
+    return map.size > 0 ? map : null;
+  },
 
   async _seedAchievements() {
     // ── 一次性清除汙染：舊版 seed 把 Demo 進度寫入 Firestore ──
