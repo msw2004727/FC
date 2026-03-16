@@ -176,6 +176,7 @@ Object.assign(App, {
     if (!container) return;
     let html = '';
     let lastMinRole = null;
+    let lastBgClass = '';
     let hasRenderedActionItem = false;
     const visibleMenus = DRAWER_MENUS.filter(item =>
       item.divider || item.sectionLabel || this._canAccessDrawerItem(item)
@@ -206,9 +207,11 @@ Object.assign(App, {
           : item.highlight === 'red' ? 'drawer-role-super'
           : minLevel >= 5 ? 'drawer-role-super' : minLevel >= 4 ? 'drawer-role-admin' : '';
         if (lastMinRole !== role && minLevel >= 4) {
-          if (lastMinRole && ROLE_LEVEL_MAP[lastMinRole] >= 4) html += '<div class="drawer-divider"></div>';
+          var bothRed = bgClass === 'drawer-role-super' && lastBgClass === 'drawer-role-super';
+          if (lastMinRole && ROLE_LEVEL_MAP[lastMinRole] >= 4 && !bothRed) html += '<div class="drawer-divider"></div>';
           lastMinRole = role;
         }
+        lastBgClass = bgClass;
         const displayLabel = item.i18nKey ? t(item.i18nKey) : item.label;
         const lockIcon = isLocked ? '<span style="margin-left:auto;font-size:.7rem;opacity:.5">🔒</span>' : '';
         const lockedStyle = isLocked ? ' style="opacity:.55;display:flex;align-items:center"' : '';
