@@ -10,6 +10,15 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-17 — [永久] 成就出席率徽章無法達成：evaluator 缺少 displayName → UID 對照
+- **問題**：用戶個人檔案顯示 100% 出席率，但成就系統的「達到出席率」徽章無法達成
+- **原因**：成就 evaluator 的 `buildAttendanceStateByEvent` 對 `attendanceRecords.uid` 做嚴格 UID 比對，但歷史資料中部分 attendance record 的 uid 存的是顯示名稱（非 LINE userId）。個人檔案統計走 `ensureUserStatsLoaded` → `getUserAttendanceRecords` 有 displayName fallback（先查 uid、查無再用 userName），所以能正確顯示 100%。但 evaluator 走 `getAttendanceRecords()`（全域快取、無 fallback），UID 不匹配 → 認為無簽到 → 出席率 0%
+- **修復**：
+  1. `buildAttendanceStateByEvent` 新增第三參數 `nameSet`：UID 不匹配時，檢查 record.uid 是否為目標用戶的已知 displayName
+  2. `buildEvaluationContext` 改用 `getUserAttendanceRecords(uid)`（優先使用 user-specific cache，含 displayName fallback）作為 attendanceRecords 來源
+  3. 傳入 `getUserNameSet(resolvedUser)` 作為 nameSet
+- **教訓**：任何涉及 `attendanceRecords.uid` 比對的新邏輯，都必須加入 displayName → uid 解析（與 CLAUDE.md 統計系統保護規則第 5 條一致）
+
 ### 2026-03-17 — [永久] 權限管理 UI 重構為收折式分組 + _seedRoleData 自動補新權限碼
 - **問題**：(1) 權限管理頁所有權限平鋪列出，缺乏入口/子權限的視覺層級；(2) `_seedRoleData()` 對已有自訂權限的角色完全跳過 seed，導致新增入口權限時既有角色不會自動獲得
 - **修復**：

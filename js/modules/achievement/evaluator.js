@@ -232,12 +232,17 @@ Object.assign(App, {
         .map(({ _order, ...record }) => record);
     };
 
-    const buildAttendanceStateByEvent = (attendanceRecords, uid) => {
+    const buildAttendanceStateByEvent = (attendanceRecords, uid, nameSet) => {
       const stateMap = new Map();
+      const normalizedUid = normalizeString(uid);
 
       (attendanceRecords || []).forEach(record => {
         if (!record) return;
-        if (normalizeString(record.uid) !== normalizeString(uid)) return;
+        const recordUid = normalizeString(record.uid);
+        // 歷史資料修正：部分 attendanceRecords.uid 存的是顯示名稱而非 LINE userId
+        if (recordUid !== normalizedUid) {
+          if (!nameSet || !nameSet.has(normalizeLower(record.uid))) return;
+        }
         if (record.companionId || record.participantType === 'companion') return;
 
         const eventId = normalizeString(record.eventId);
@@ -371,8 +376,10 @@ Object.assign(App, {
         ? selfRegistrations
         : buildSelfRegistrationsFromActivityRecords(activityRecords, resolvedUid, eventMap);
       const validRegistrations = fallbackRegistrations.filter(record => record.status === 'registered');
-      const attendanceRecords = ApiService.getAttendanceRecords?.() || [];
-      const attendanceStateByEvent = buildAttendanceStateByEvent(attendanceRecords, resolvedUid);
+      // 優先使用 user-specific cache（含 displayName fallback），降級為全域快取
+      const attendanceRecords = ApiService.getUserAttendanceRecords?.(resolvedUid) || ApiService.getAttendanceRecords?.() || [];
+      const nameSet = getUserNameSet(resolvedUser);
+      const attendanceStateByEvent = buildAttendanceStateByEvent(attendanceRecords, resolvedUid, nameSet);
 
       return {
         now,
