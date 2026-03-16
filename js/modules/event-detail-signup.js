@@ -217,8 +217,9 @@ Object.assign(App, {
         backEl.className = 'signup-flip-back';
         backEl.innerHTML = `<span>${isWL ? '✓ 已候補' : '✓ 報名成功'}</span>`;
         glowWrap.appendChild(backEl);
+        void backEl.offsetHeight; // 強制 reflow，確保初始狀態已渲染
         glowWrap.classList.add('flipped');
-        await new Promise(r => setTimeout(r, 700));
+        await new Promise(r => setTimeout(r, 900));
       }
       this.showEventDetail(id);
       // ── 背景 post-ops（fire-and-forget，不阻塞 UI）──
@@ -450,8 +451,9 @@ Object.assign(App, {
           backEl.className = 'signup-flip-back';
           backEl.innerHTML = `<span>${isWaitlist ? '✓ 已取消候補' : '✓ 已取消'}</span>`;
           cancelGlowWrap.appendChild(backEl);
+          void backEl.offsetHeight; // 強制 reflow，確保初始狀態已渲染
           cancelGlowWrap.classList.add('flipped');
-          await new Promise(r => setTimeout(r, 700));
+          await new Promise(r => setTimeout(r, 900));
         }
         this.showEventDetail(id);
         // ── 背景 post-ops（fire-and-forget，不阻塞 UI）──
