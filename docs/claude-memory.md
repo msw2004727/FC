@@ -12,6 +12,15 @@
 
 ---
 
+### 2026-03-16 — 報名/簽到速度優化（Strategy C）
+- **問題**：按下「立即報名」、「取消報名」或掃碼簽到後，需等待 Firestore 寫入完成才有 UI 回饋，體感延遲明顯
+- **修復**：
+  - `event-detail.js`：進入活動詳情頁時 fire-and-forget 呼叫 `ensureAuthReadyForWrite()` 預熱 auth
+  - `event-detail-signup.js`：`handleSignup()` / `handleCancelSignup()` 成功後立即 toast + 刷新頁面，通知/成就/audit 移至背景
+  - `event-detail-companion.js`：`_confirmCompanionRegister()` 同上模式
+  - `scan.js`：`_processAttendance()` / `_confirmFamilyCheckin()` 改用 Optimistic UI，`addAttendanceRecord` 同步推入快取後不 await Firestore，UI 即時刷新，錯誤在背景以 toast 通知
+- **教訓**：報名核心 transaction（registerForEvent / cancelRegistration）必須 await 確保資料一致性，但後續的 activityRecords、audit log、通知、成就評估等 post-ops 可以 fire-and-forget；簽到紀錄的 `addAttendanceRecord` 已內建 cache-first + rollback 機制，適合 optimistic UI
+
 ### 2026-03-16 — 修復 LINE 瀏覽器底部導航列按鈕跑位
 - **問題**：LINE 內建瀏覽器開啟時，底部頁籤的按鈕位置偏高
 - **原因**：`#bottom-tabs` 使用 `border-box`（全域 reset），`height: 64px` 包含 `padding-bottom: env(safe-area-inset-bottom)`，導致按鈕內容區被壓縮，`align-items: center` 讓按鈕在更小的空間內置中而偏高

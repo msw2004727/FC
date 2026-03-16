@@ -162,8 +162,11 @@ Object.assign(App, {
       const regCount = result.confirmed || 0;
       const wlCount = result.waitlisted || 0;
       const total = regCount + wlCount;
-
-      // 寫入 activityRecords（只紀錄本人）
+      // ── 即時回饋：先顯示結果、刷新頁面 ──
+      const wlMsg = wlCount > 0 ? `（${wlCount} 人候補）` : '';
+      this.showToast(`共 ${total} 人報名成功${wlMsg}`);
+      this.showEventDetail(eventId);
+      // ── 背景 post-ops（fire-and-forget，不阻塞 UI）──
       const selfSelected = participantList.find(p => p.type === 'self');
       if (selfSelected) {
         const dateParts = e.date.split(' ')[0].split('/');
@@ -183,10 +186,6 @@ Object.assign(App, {
         }
         if (!isWl) this._grantAutoExp(userId, 'register_activity', e.title);
       }
-
-      const wlMsg = wlCount > 0 ? `（${wlCount} 人候補）` : '';
-      this.showToast(`共 ${total} 人報名成功${wlMsg}`);
-      this.showEventDetail(eventId);
     } catch (err) {
       console.error('[_confirmCompanionRegister]', err);
       this.showToast(err.message || '報名失敗，請稍後再試');

@@ -205,6 +205,10 @@ Object.assign(App, {
     });
     try {
       const result = await FirebaseService.registerForEvent(id, userId, userName);
+      // ── 即時回饋：先顯示結果、刷新頁面 ──
+      this.showToast(result.status === 'waitlisted' ? '已加入候補名單' : '報名成功！');
+      this.showEventDetail(id);
+      // ── 背景 post-ops（fire-and-forget，不阻塞 UI）──
       const dateParts = e.date.split(' ')[0].split('/');
       const dateStr = `${dateParts[1]}/${dateParts[2]}`;
       const arRecord = {
@@ -232,9 +236,7 @@ Object.assign(App, {
         eventName: e.title, date: e.date, location: e.location,
         status: result.status === 'waitlisted' ? '候補' : '正取',
       }, userId, 'activity', '活動');
-      this.showToast(result.status === 'waitlisted' ? '已加入候補名單' : '報名成功！');
       this._evaluateAchievements(e.type);
-      this.showEventDetail(id);
     } catch (err) {
       console.error('[handleSignup]', err);
       this.showToast(err.message || '報名失敗，請稍後再試');
@@ -415,7 +417,11 @@ Object.assign(App, {
             }, cancelledReg._promotedUserId, 'activity', '活動');
           }
         }
-        // 快取更新
+        // ── 即時回饋：先顯示結果、刷新頁面 ──
+        this.showToast(isWaitlist ? '已取消候補' : '已取消報名');
+        await this.showEventDetail(id);
+        // ── 背景 post-ops（fire-and-forget，不阻塞 UI）──
+        // 快取更新（activityRecords，不影響 event detail 頁面渲染）
         const records = ApiService.getActivityRecords();
         const hasCancelRec = records.some(r => r.eventId === id && r.uid === userId && r.status === 'cancelled');
         for (let i = records.length - 1; i >= 0; i--) {
@@ -466,10 +472,7 @@ Object.assign(App, {
             statusTo: 'cancelled',
           },
         });
-        this.showToast(isWaitlist ? '已取消候補' : '已取消報名');
         this._evaluateAchievements(e0?.type);
-        // 成功：await 確保 showEventDetail 完整渲染後再解除 busy lock
-        await this.showEventDetail(id);
       } catch (err) {
         console.error('[cancelSignup]', err);
         this.showToast('取消失敗：' + (err.message || ''));

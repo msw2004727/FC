@@ -208,6 +208,8 @@ Object.assign(App, {
       }
 
       const requestSeq = ++this._eventDetailRequestSeq;
+      // Pre-warm Firebase Auth（fire-and-forget），讓後續報名/取消寫入時免等 auth
+      FirebaseService.ensureAuthReadyForWrite().catch(() => {});
       await this.showPage('page-activity-detail');
       if (requestSeq !== this._eventDetailRequestSeq || this.currentPage !== 'page-activity-detail') {
         return { ok: false, reason: 'stale' };
