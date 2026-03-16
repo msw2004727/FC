@@ -437,23 +437,9 @@ Object.assign(App, {
       ? `<div style="font-size:.85rem;font-weight:700;margin:.6rem 0 .3rem;color:var(--danger)">⚠️ 未報名掃碼（${unregList.length}）</div>${unregList.map(recRow).join('')}`
       : '';
 
-    // ── 費用摘要（計費來源：報名記錄 + 未報名簽到）──
-    const feeEnabled = this._isEventFeeEnabled?.(e) ?? Number(e?.fee || 0) > 0;
-    const fee = this._getEventRecordedFeeAmount?.(e) ?? (Number(e?.fee || 0) > 0 ? Math.floor(Number(e.fee || 0)) : 0);
-    const confirmedRegsDetail = fee > 0 ? ApiService.getRegistrationsByEvent(e.id).filter(r => r.status === 'confirmed' || r.status === 'registered') : [];
-    const confirmedCountDetail = confirmedRegsDetail.length > 0 ? confirmedRegsDetail.length : (e.current || 0);
-    const unregCountDetail = fee > 0 ? new Set(records.filter(r => r.type === 'unreg').map(r => r.uid)).size : 0;
-    const feeExpected = fee * (confirmedCountDetail + unregCountDetail);
-    const feeActual = fee * (fee > 0 ? ApiService.getAttendanceRecords(e.id).filter(r => r.type === 'checkout').length : 0);
-    const feeShort = feeExpected - feeActual;
+    // ── 費用摘要（使用獨立容器，供手動簽到後即時刷新）──
     const isSuperAdmin = (ROLE_LEVEL_MAP[this.currentRole] || 0) >= ROLE_LEVEL_MAP.super_admin;
-    const feeSection = (fee > 0 && isSuperAdmin)
-      ? `<div style="margin:.6rem 0 .2rem;padding:.4rem .6rem;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-elevated);font-size:.78rem;display:flex;gap:.8rem;flex-wrap:wrap">
-          <span>應收 <b style="color:var(--text-primary)">$${feeExpected}</b></span>
-          <span>實收 <b style="color:var(--success)">$${feeActual}</b></span>
-          <span>短收 <b style="color:${feeShort > 0 ? 'var(--danger)' : 'var(--success)'}">$${feeShort}</b></span>
-        </div>`
-      : '';
+    const feeSection = isSuperAdmin ? `<div id="detail-fee-summary"></div>` : '';
 
     const metaParts = [];
     if (feeEnabled || fee > 0) metaParts.push(`費用：${fee > 0 ? 'NT$' + fee : '免費'}`);
@@ -475,7 +461,31 @@ Object.assign(App, {
     `;
     this._renderAttendanceTable(e.id);
     this._renderWaitlistSection(e.id, 'waitlist-table-container');
+    this._renderDetailFeeSummary(e.id);
     modal.style.display = 'flex';
+  },
+
+  /** 費用摘要即時渲染（獨立函式，供手動簽到後刷新） */
+  _renderDetailFeeSummary(eventId) {
+    const container = document.getElementById('detail-fee-summary');
+    if (!container) return;
+    const e = ApiService.getEvent(eventId);
+    if (!e) { container.innerHTML = ''; return; }
+    const fee = this._getEventRecordedFeeAmount?.(e) ?? (Number(e?.fee || 0) > 0 ? Math.floor(Number(e.fee || 0)) : 0);
+    if (fee <= 0) { container.innerHTML = ''; return; }
+    const records = ApiService.getAttendanceRecords(eventId);
+    const confirmedRegs = ApiService.getRegistrationsByEvent(eventId).filter(r => r.status === 'confirmed' || r.status === 'registered');
+    const confirmedCount = confirmedRegs.length > 0 ? confirmedRegs.length : (e.current || 0);
+    const unregCount = new Set(records.filter(r => r.type === 'unreg').map(r => r.uid)).size;
+    const checkoutCount = records.filter(r => r.type === 'checkout').length;
+    const feeExpected = fee * (confirmedCount + unregCount);
+    const feeActual = fee * checkoutCount;
+    const feeShort = feeExpected - feeActual;
+    container.innerHTML = `<div style="margin:.6rem 0 .2rem;padding:.4rem .6rem;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-elevated);font-size:.78rem;display:flex;gap:.8rem;flex-wrap:wrap">
+      <span>應收 <b style="color:var(--text-primary)">$${feeExpected}</b></span>
+      <span>實收 <b style="color:var(--success)">$${feeActual}</b></span>
+      <span>短收 <b style="color:${feeShort > 0 ? 'var(--danger)' : 'var(--success)'}">$${feeShort}</b></span>
+    </div>`;
   },
 
   // ── 候補名單表格（管理模態 - 分組顯示 + 正取編輯模式）──
@@ -1372,6 +1382,7 @@ Object.assign(App, {
       ApiService._writeErrorLog({ fn: '_confirmAllAttendance', eventId, errCount }, new Error(`${errCount} 筆寫入失敗`));
     }
     ApiService._writeOpLog('manual_attendance', '手動簽到', `活動 ${e.title} 已套用手動簽到（共 ${people.length} 筆）${errCount > 0 ? `，${errCount} 筆失敗` : ''}`);
+    this._renderDetailFeeSummary(eventId);
     this.showToast(errCount > 0 ? `儲存完成，但有 ${errCount} 筆失敗` : '儲存完成');
   },
   _startUnregTableEdit(eventId) {
@@ -1390,6 +1401,7 @@ Object.assign(App, {
     }
     ApiService._writeOpLog('unreg_removed', '移除未報名掃碼', `從「${ApiService.getEvent(eventId)?.title}」移除 ${name}`);
     this._renderUnregTable(eventId, 'detail-unreg-table');
+    this._renderDetailFeeSummary(eventId);
     this.showToast(`已將 ${name} 從未報名單中移除`);
   },
 
@@ -1494,6 +1506,7 @@ Object.assign(App, {
       this._renderUnregTable(eventId, 'detail-unreg-table');
     }
 
+    this._renderDetailFeeSummary(eventId);
     this.showToast(errCount > 0 ? `儲存完成，但有 ${errCount} 筆失敗` : '儲存完成');
   },
   editMyActivity(id) {
