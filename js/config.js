@@ -249,7 +249,7 @@
 // 20260316r: Per-user achievement progress — 雙寫子集合 + fallback 即時計算
 // 20260316s: Phase 3+4 — 支援讀其他用戶徽章 + 移除全域寫入 + 清理汙染邏輯
 // 20260316t: 一次性清理全域 achievements 汙染（重設 current/completedAt 為模板狀態）
-const CACHE_VERSION = '20260317d';
+const CACHE_VERSION = '20260317e';
 
 // ─── Page Strategy Registry ───
 // 唯一策略來源，未列出的頁面預設 fresh-first
@@ -735,18 +735,12 @@ const ADMIN_PAGE_EXTRA_PERMISSION_ITEMS = {
 };
 
 // ─── 身分不可剝奪權限（取得身分即自動擁有，不受 rolePermissions 覆蓋）───
-// 只列入口權限（.entry）與核心功能權限；子權限（如 .edit_profile）保持可配置
+// coach/captain/venue_owner 的活動管理與賽事為身分核心功能，不可拔除
+// admin 以上的所有權限由 super_admin 在權限管理 UI 自由啟閉
 const INHERENT_ROLE_PERMISSIONS = Object.freeze({
   coach:       ['activity.manage.entry', 'admin.tournaments.entry'],
   captain:     ['activity.manage.entry', 'admin.tournaments.entry'],
   venue_owner: ['activity.manage.entry', 'admin.tournaments.entry'],
-  admin:       [
-    'activity.manage.entry', 'admin.tournaments.entry',
-    'admin.games.entry', 'admin.users.entry', 'admin.banners.entry',
-    'admin.shop.entry', 'admin.messages.entry', 'admin.teams.entry',
-    'admin.repair.entry',
-    'team.create', 'team.manage_all', 'event.edit_all',
-  ],
 });
 
 function getInherentRolePermissions(roleKey) {
