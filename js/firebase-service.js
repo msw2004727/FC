@@ -1823,11 +1823,21 @@ const FirebaseService = {
           catalogVersion: ROLE_PERMISSION_CATALOG_VERSION,
         };
 
-        // Preserve explicit customizations. Only seed permissions when the role has no stored permissions yet.
         if (!hasStoredPermissions) {
+          // 首次：完整 seed
           const seededPerms = Array.isArray(savedDefaults) ? [...savedDefaults] : [...defaults];
           nextRolePermissions[roleKey] = seededPerms;
           payload.permissions = seededPerms;
+        } else if (Array.isArray(savedDefaults)) {
+          // 既有角色：自動加入「新增的」預設權限碼（在 defaults 但不在 savedDefaults 的碼）
+          var prevDefaultSet = new Set(savedDefaults);
+          var newCodes = defaults.filter(function(code) { return !prevDefaultSet.has(code); });
+          if (newCodes.length > 0) {
+            var merged = sanitizePermissionCodeList([].concat(currentPerms, newCodes));
+            nextRolePermissions[roleKey] = merged;
+            payload.permissions = merged;
+            console.log('[FirebaseService] ' + roleKey + ': 自動加入 ' + newCodes.length + ' 個新權限碼', newCodes);
+          }
         }
 
         nextRolePermissionMeta[roleKey] = {

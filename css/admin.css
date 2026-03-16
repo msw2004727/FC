@@ -119,13 +119,17 @@
 .role-editor-card { background: var(--bg-card); border: 1px solid var(--accent); border-radius: var(--radius); padding: .85rem; margin-bottom: .65rem; }
 .role-editor-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: .65rem; padding-bottom: .4rem; border-bottom: 1px solid var(--border); font-weight: 700; font-size: .85rem; }
 
-.perm-category { margin-bottom: .5rem; }
-.perm-category-title { font-size: .78rem; font-weight: 700; color: var(--accent); padding: .4rem 0; cursor: pointer; display: flex; align-items: center; gap: .3rem; }
+.perm-category { margin-bottom: .5rem; border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; }
+.perm-category-title { font-size: .78rem; font-weight: 700; color: var(--accent); padding: .5rem .6rem; cursor: pointer; display: flex; align-items: center; gap: .3rem; background: var(--bg-elevated); }
 .perm-category-title::before { content: '▼'; font-size: .6rem; transition: transform var(--transition); }
 .perm-category.collapsed .perm-category-title::before { transform: rotate(-90deg); }
-.perm-items { display: flex; flex-direction: column; gap: 0; border-radius: var(--radius-sm); overflow: hidden; }
+.perm-category.no-sub .perm-category-title::before { display: none; }
+.perm-category.no-sub .perm-category-title { cursor: default; }
+.perm-cat-name { flex: 1; }
+.perm-category-title .toggle-switch { flex-shrink: 0; }
+.perm-items { display: flex; flex-direction: column; gap: 0; }
 .perm-category.collapsed .perm-items { display: none; }
-.perm-item { display: flex; align-items: center; justify-content: space-between; gap: .5rem; padding: .45rem .6rem; font-size: .78rem; }
+.perm-item { display: flex; align-items: center; justify-content: space-between; gap: .5rem; padding: .45rem .6rem .45rem 1.6rem; font-size: .78rem; }
 .perm-item:nth-child(odd) { background: var(--bg-elevated); }
 .perm-item:nth-child(even) { background: transparent; }
 .perm-item span { flex: 1; }

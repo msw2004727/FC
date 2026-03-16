@@ -275,43 +275,87 @@ Object.assign(App, {
     const currentPerms = Array.from(new Set(ApiService.getRolePermissions(roleKey)));
     this._syncPermissionPanelControls(roleKey);
 
-    const categories = ApiService.getPermissions()
-      .map(category => {
-        const items = (category.items || [])
-          .filter(item => item && typeof item.code === 'string')
-          .filter(item => typeof isPermissionCodeEnabled === 'function'
-            ? isPermissionCodeEnabled(item.code)
-            : item.code !== 'admin.roles.entry')
-          .filter(item => !this._permShowCheckedOnly || currentPerms.includes(item.code));
-        return { ...category, items };
+    var categories = ApiService.getPermissions()
+      .map(function(category) {
+        var items = (category.items || [])
+          .filter(function(item) { return item && typeof item.code === 'string'; })
+          .filter(function(item) {
+            return typeof isPermissionCodeEnabled === 'function'
+              ? isPermissionCodeEnabled(item.code)
+              : item.code !== 'admin.roles.entry';
+          });
+        return { cat: category.cat, items: items };
       })
-      .filter(category => category.items.length > 0);
+      .filter(function(category) { return category.items.length > 0; });
 
-    if (!categories.length) {
+    // 分離入口權限（header toggle）與子權限
+    var mapped = categories.map(function(cat) {
+      var entryItem = null;
+      var subItems = [];
+      cat.items.forEach(function(item) {
+        if (!entryItem && item.code.endsWith('.entry')) {
+          entryItem = item;
+        } else {
+          subItems.push(item);
+        }
+      });
+      return { cat: cat.cat, entryItem: entryItem, subItems: subItems };
+    });
+
+    // 篩選：只顯示已勾選
+    if (this._permShowCheckedOnly) {
+      mapped = mapped.filter(function(cat) {
+        var entryChecked = cat.entryItem && currentPerms.indexOf(cat.entryItem.code) >= 0;
+        var anySubChecked = cat.subItems.some(function(p) { return currentPerms.indexOf(p.code) >= 0; });
+        return entryChecked || anySubChecked;
+      });
+      mapped = mapped.map(function(cat) {
+        return {
+          cat: cat.cat,
+          entryItem: cat.entryItem,
+          subItems: cat.subItems.filter(function(p) { return currentPerms.indexOf(p.code) >= 0; }),
+        };
+      });
+    }
+
+    if (!mapped.length) {
       container.innerHTML = '<div style="padding:.75rem .3rem;color:var(--text-muted);font-size:.78rem">目前沒有符合篩選條件的權限。</div>';
       return;
     }
 
-    container.innerHTML = categories.map(cat => `
-      <div class="perm-category">
-        <div class="perm-category-title" onclick="this.parentElement.classList.toggle('collapsed')">
-          ${escapeHTML(cat.cat)}
-        </div>
-        <div class="perm-items">
-          ${cat.items.map(p => {
-            const checked = currentPerms.includes(p.code);
-            return `
-            <div class="perm-item ${lockedRole ? 'perm-item-locked' : ''}">
-              <span class="perm-item-label">${escapeHTML(p.name)}</span>
-              <label class="toggle-switch ${checked ? 'active' : ''}">
-                <input type="checkbox" ${checked ? 'checked' : ''} ${lockedRole ? 'disabled' : ''} onchange="App.togglePermission('${p.code}')">
-                <span class="toggle-slider"></span>
-              </label>
-            </div>`;
-          }).join('')}
-        </div>
-      </div>
-    `).join('');
+    container.innerHTML = mapped.map(function(cat) {
+      var hasSubItems = cat.subItems.length > 0;
+
+      // 入口開關（放在 header 右側）
+      var entryToggleHtml = '';
+      if (cat.entryItem) {
+        var entryChecked = currentPerms.indexOf(cat.entryItem.code) >= 0;
+        entryToggleHtml = '<label class="toggle-switch ' + (entryChecked ? 'active' : '') + '" onclick="event.stopPropagation()">'
+          + '<input type="checkbox" ' + (entryChecked ? 'checked' : '') + ' ' + (lockedRole ? 'disabled' : '') + ' onchange="App.togglePermission(\'' + cat.entryItem.code + '\')">'
+          + '<span class="toggle-slider"></span>'
+          + '</label>';
+      }
+
+      // 子權限列表
+      var subHtml = cat.subItems.map(function(p) {
+        var checked = currentPerms.indexOf(p.code) >= 0;
+        return '<div class="perm-item ' + (lockedRole ? 'perm-item-locked' : '') + '">'
+          + '<span class="perm-item-label">' + escapeHTML(p.name) + '</span>'
+          + '<label class="toggle-switch ' + (checked ? 'active' : '') + '">'
+          + '<input type="checkbox" ' + (checked ? 'checked' : '') + ' ' + (lockedRole ? 'disabled' : '') + ' onchange="App.togglePermission(\'' + p.code + '\')">'
+          + '<span class="toggle-slider"></span>'
+          + '</label>'
+          + '</div>';
+      }).join('');
+
+      return '<div class="perm-category ' + (hasSubItems ? '' : 'no-sub') + '">'
+        + '<div class="perm-category-title" onclick="' + (hasSubItems ? "this.parentElement.classList.toggle(\'collapsed\')" : '') + '">'
+        + '<span class="perm-cat-name">' + escapeHTML(cat.cat) + '</span>'
+        + entryToggleHtml
+        + '</div>'
+        + (hasSubItems ? '<div class="perm-items">' + subHtml + '</div>' : '')
+        + '</div>';
+    }).join('');
   },
 
   async togglePermission(code) {

@@ -10,6 +10,21 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-17 — [永久] 權限管理 UI 重構為收折式分組 + _seedRoleData 自動補新權限碼
+- **問題**：(1) 權限管理頁所有權限平鋪列出，缺乏入口/子權限的視覺層級；(2) `_seedRoleData()` 對已有自訂權限的角色完全跳過 seed，導致新增入口權限時既有角色不會自動獲得
+- **修復**：
+  - `renderPermissions()` 重寫為收折式分組：入口權限開關放在分類標題右側（header toggle），子權限收進可展開區塊
+  - `_seedRoleData()` 新增 `else if (savedDefaults)` 分支：比對 savedDefaults 與 defaults 的差集，自動補入新增碼（只加不刪）
+  - `ROLE_PERMISSION_CATALOG_VERSION` 升至 `20260317a` 以觸發 baseline 儲存
+  - CSS 更新：`.perm-category` 加邊框、`.perm-cat-name` flex:1、`.no-sub` 隱藏箭頭
+- **教訓**：新增入口權限後若不 bump catalog version，既有角色不會觸發 seed 邏輯；必須同步 bump 並確保 `defaultPermissions` baseline 已建立
+
+### 2026-03-17 — [永久] admin 角色固有權限設計決策
+- **決策**：admin 及以上角色的所有入口權限均由 super_admin 在權限管理 UI 自由啟閉，不放入 `INHERENT_ROLE_PERMISSIONS`
+- **原因**：用戶明確要求「入口權限是由總管去權限管理來決定所有層級的權限與入口」
+- **`INHERENT_ROLE_PERMISSIONS` 僅保留**：coach/captain/venue_owner 的 `activity.manage.entry` + `admin.tournaments.entry`（身分核心功能）
+- **配套**：`_seedRoleData()` 自動補新權限碼機制確保既有角色不會因新增入口而掉功能
+
 ### 2026-03-17 — [永久] admin 角色固有權限不足導致自訂覆蓋後功能消失
 - **問題**：admin 在權限管理頁存過自訂權限後，大量入口權限消失（賽事、用戶、廣告、球隊等）
 - **原因**：`INHERENT_ROLE_PERMISSIONS` 只列了 2 個權限，但 admin 應有 12 個入口權限。`getRolePermissions()` 在有自訂權限時完全覆蓋預設，只有固有權限不受影響
