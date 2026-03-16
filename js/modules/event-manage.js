@@ -391,6 +391,11 @@ Object.assign(App, {
       }).join('')
       : '<div style="padding:1rem;font-size:.82rem;color:var(--text-muted);text-align:center">此分類沒有活動</div>';
 
+    // 綁定左右滑動切換頁籤
+    this._bindSwipeTabs('my-activity-list', 'my-activity-tabs',
+      this.switchMyActivityTab,
+      (btn) => btn.dataset.afilter
+    );
   },
 
   // ── 活動置頂 ──

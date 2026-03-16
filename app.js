@@ -278,6 +278,64 @@ const App = {
       : base;
   },
 
+  /**
+   * 為內容區綁定左右滑動切換頁籤
+   * @param {string} contentId  內容容器 ID
+   * @param {string} tabsId     頁籤容器 ID
+   * @param {Function} onSwitch 切換回呼，傳入新 tab 的 key
+   * @param {Function} getKey   從 tab button 取 key 的函式
+   */
+  _bindSwipeTabs(contentId, tabsId, onSwitch, getKey) {
+    const content = document.getElementById(contentId);
+    if (!content || content.dataset.swipeBound) return;
+    content.dataset.swipeBound = '1';
+
+    let startX = 0, startY = 0, swiping = false, locked = false;
+
+    content.addEventListener('touchstart', (e) => {
+      startX = e.touches[0].clientX;
+      startY = e.touches[0].clientY;
+      swiping = false;
+      locked = false;
+    }, { passive: true });
+
+    content.addEventListener('touchmove', (e) => {
+      if (locked) return;
+      const dx = e.touches[0].clientX - startX;
+      const dy = e.touches[0].clientY - startY;
+      if (!swiping) {
+        if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > 10) { locked = true; return; }
+        if (Math.abs(dx) > 10) swiping = true;
+      }
+    }, { passive: true });
+
+    content.addEventListener('touchend', (e) => {
+      if (!swiping || locked) return;
+      const dx = e.changedTouches[0].clientX - startX;
+      if (Math.abs(dx) < 40) return;
+
+      const tabs = document.getElementById(tabsId);
+      if (!tabs) return;
+      const buttons = Array.from(tabs.querySelectorAll('button'));
+      if (buttons.length < 2) return;
+
+      const activeIdx = buttons.findIndex(b => b.classList.contains('active'));
+      if (activeIdx < 0) return;
+
+      const nextIdx = dx < 0
+        ? Math.min(activeIdx + 1, buttons.length - 1)
+        : Math.max(activeIdx - 1, 0);
+      if (nextIdx === activeIdx) return;
+
+      const key = getKey(buttons[nextIdx]);
+      if (key != null) {
+        onSwitch.call(this, key);
+        // 確保切換後的頁籤可見
+        buttons[nextIdx].scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+      }
+    }, { passive: true });
+  },
+
   showToast(msg) {
     const toast = document.getElementById('toast');
     toast.textContent = msg;

@@ -34,6 +34,12 @@ Object.assign(App, {
     }
 
     this._renderNewsCards(articles, listEl);
+
+    // 綁定左右滑動切換頁籤
+    this._bindSwipeTabs('news-card-list', 'news-tabs',
+      this._handleNewsTabClick,
+      (btn) => btn.getAttribute('data-tag')
+    );
   },
 
   _renderNewsTabs(tabsEl) {
