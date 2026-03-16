@@ -212,6 +212,7 @@ Object.assign(App, {
       const isWL = result.status === 'waitlisted';
       this.showToast(isWL ? '已加入候補名單' : '報名成功！');
       if (glowWrap) {
+        this._flipAnimating = true;
         glowWrap.classList.remove('loading');
         const backEl = document.createElement('div');
         backEl.className = 'signup-flip-back';
@@ -219,7 +220,8 @@ Object.assign(App, {
         glowWrap.appendChild(backEl);
         void backEl.offsetHeight; // 強制 reflow，確保初始狀態已渲染
         glowWrap.classList.add('flipped');
-        await new Promise(r => setTimeout(r, 900));
+        await new Promise(r => setTimeout(r, 2400));
+        this._flipAnimating = false;
       }
       this.showEventDetail(id);
       // ── 背景 post-ops（fire-and-forget，不阻塞 UI）──
@@ -446,6 +448,7 @@ Object.assign(App, {
         // ── 即時回饋：翻牌動畫 + toast ──
         this.showToast(isWaitlist ? '已取消候補' : '已取消報名');
         if (cancelGlowWrap) {
+          this._flipAnimating = true;
           cancelGlowWrap.classList.remove('loading');
           const backEl = document.createElement('div');
           backEl.className = 'signup-flip-back';
@@ -453,7 +456,8 @@ Object.assign(App, {
           cancelGlowWrap.appendChild(backEl);
           void backEl.offsetHeight; // 強制 reflow，確保初始狀態已渲染
           cancelGlowWrap.classList.add('flipped');
-          await new Promise(r => setTimeout(r, 900));
+          await new Promise(r => setTimeout(r, 2400));
+          this._flipAnimating = false;
         }
         this.showEventDetail(id);
         // ── 背景 post-ops（fire-and-forget，不阻塞 UI）──

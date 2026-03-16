@@ -537,7 +537,7 @@
 }
 /* ── 翻牌動畫（用 animation 而非 transition，避免 animation→transition 衝突）── */
 .signup-glow-wrap.flipped > button {
-  animation: signup-flip-out .5s ease forwards;
+  animation: signup-flip-out 1.5s ease forwards;
 }
 .signup-flip-back {
   position: absolute;
@@ -556,7 +556,7 @@
   z-index: 5;
 }
 .signup-glow-wrap.flipped .signup-flip-back {
-  animation: signup-flip-in .5s ease .2s forwards;
+  animation: signup-flip-in 1.5s ease .6s forwards;
 }
 @keyframes signup-flip-out {
   0%   { transform: perspective(600px) rotateY(0deg); opacity: 1; }

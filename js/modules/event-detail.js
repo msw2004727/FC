@@ -196,6 +196,8 @@ Object.assign(App, {
   },
 
   async showEventDetail(id, options = {}) {
+    // 翻牌動畫播放中 → 跳過 onSnapshot 觸發的重新渲染（避免 DOM 被中途替換）
+    if (this._flipAnimating) return;
     try {
       const isGuestView = this._isGuestEventDetailView(options);
       let e = ApiService.getEvent(id);
