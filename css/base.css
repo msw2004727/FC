@@ -131,7 +131,7 @@ img { max-width: 100%; display: block; }
 .my-section { padding: .2rem; margin-bottom: .5rem; }
 
 /* ─── Card List ─── */
-.card-list { display: flex; flex-direction: column; gap: .65rem; padding-bottom: 1rem; }
+.card-list { display: flex; flex-direction: column; gap: .65rem; padding-bottom: 1rem; min-height: 45vh; }
 
 /* ─── Tab Bar ─── */
 .tab-bar { display: flex; gap: .25rem; padding: .3rem; background: var(--bg-elevated); border-radius: var(--radius); margin-bottom: .8rem; overflow-x: auto; }
