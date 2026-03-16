@@ -283,12 +283,22 @@ Object.assign(App, {
     container.innerHTML = filtered.length > 0
       ? filtered.map(e => {
         const statusConf = STATUS_CONFIG[e.status] || STATUS_CONFIG.open;
+        const isExternal = e.type === 'external';
         const canManage = this._canManageEvent(e);
         let btns = '';
         const pinBtn = canManage
           ? `<button class="outline-btn" style="${s}" onclick="App.toggleMyActivityPin('${e.id}')">${e.pinned ? '取消置頂' : '置頂'}</button>`
           : '';
-        if (canManage) {
+        if (isExternal && canManage) {
+          // 外部活動管理按鈕
+          btns = `<button class="outline-btn" style="${s}" onclick="App.editExternalActivity('${e.id}')">編輯</button>`;
+          if (e.status !== 'cancelled') {
+            btns += `<button class="outline-btn" style="${s};color:var(--danger)" onclick="App.cancelMyActivity('${e.id}')">取消</button>`;
+          } else {
+            btns += `<button class="outline-btn" style="${s};color:var(--success)" onclick="App.reopenMyActivity('${e.id}')">重新開放</button>`;
+          }
+          if (isAdmin) btns += `<button class="outline-btn" style="${s};color:var(--danger)" onclick="App.deleteMyActivity('${e.id}')">刪除</button>`;
+        } else if (canManage) {
           if (e.status === 'upcoming') {
             btns = `<button class="primary-btn small" style="${s}" onclick="App.showMyActivityDetail('${e.id}')">查看名單</button>`
                  + `<button class="outline-btn" style="${s}" onclick="App.editMyActivity('${e.id}')">編輯</button>`
@@ -309,7 +319,7 @@ Object.assign(App, {
                  + (isAdmin ? `<button class="outline-btn" style="${s};color:var(--danger)" onclick="App.deleteMyActivity('${e.id}')">刪除</button>` : '');
           }
         } else {
-          btns = `<button class="primary-btn small" style="${s}" onclick="App.showMyActivityDetail('${e.id}')">查看名單</button>`;
+          if (!isExternal) btns = `<button class="primary-btn small" style="${s}" onclick="App.showMyActivityDetail('${e.id}')">查看名單</button>`;
         }
         if (canManage && pinBtn && btns) {
           const firstBtnEnd = btns.indexOf('</button>');
@@ -317,51 +327,64 @@ Object.assign(App, {
             btns = btns.slice(0, firstBtnEnd + 9) + pinBtn + btns.slice(firstBtnEnd + 9);
           }
         }
-        const _stats = typeof this._getEventParticipantStats === 'function'
-          ? this._getEventParticipantStats(e)
-          : { confirmedCount: Number(e.current || 0), waitlistCount: Number(e.waitlist || 0), maxCount: Number(e.max || 0) };
-        const _confirmedDisplay = _stats.confirmedCount;
-        const _waitlistDisplay = _stats.waitlistCount;
-        const progressPct = _stats.maxCount > 0 ? Math.min(100, Math.round(_confirmedDisplay / _stats.maxCount * 100)) : 0;
-        const progressColor = progressPct >= 100 ? 'var(--danger)' : progressPct >= 70 ? 'var(--warning)' : 'var(--success)';
         const teamBadge = e.teamOnly ? '<span class="tl-teamonly-badge" style="margin-left:.3rem">限定</span>' : '';
         const sportIcon = this._renderEventSportIcon(e, 'my-event-sport-icon');
-        // Fee summary
-        const feeEnabled = this._isEventFeeEnabled?.(e) ?? Number(e?.fee || 0) > 0;
-        const fee = this._getEventRecordedFeeAmount?.(e) ?? (Number(e?.fee || 0) > 0 ? Math.floor(Number(e.fee || 0)) : 0);
-        const confirmedRegs = fee > 0 ? ApiService.getRegistrationsByEvent(e.id).filter(r => r.status === 'confirmed' || r.status === 'registered') : [];
-        const confirmedCount = confirmedRegs.length > 0 ? confirmedRegs.length : _confirmedDisplay;
-        const unregCount = fee > 0 ? (unregCountMap.get(e.id) || 0) : 0;
-        const checkoutCount = fee > 0 ? (checkoutCountMap.get(e.id) || 0) : 0;
-        const feeExpected = fee * (confirmedCount + unregCount);
-        const feeActual = fee * checkoutCount;
-        const feeShort = feeExpected - feeActual;
-        const feeBox = (fee > 0 && isSuperAdmin) ? `<div style="margin-left:auto;padding:.2rem .45rem;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:.68rem;color:var(--text-secondary);display:inline-flex;gap:.5rem;background:var(--bg-elevated);white-space:nowrap">
-          <span>應收<b style="color:var(--text-primary)">$${feeExpected}</b></span>
-          <span>實收<b style="color:var(--success)">$${feeActual}</b></span>
-          <span>短收<b style="color:${feeShort > 0 ? 'var(--danger)' : 'var(--success)'}">$${feeShort}</b></span>
-        </div>` : '';
         const pinCardStyle = e.pinned
           ? ';border:1px solid var(--warning);box-shadow:0 0 0 1px rgba(245,158,11,.15)'
           : '';
         const pinBadge = e.pinned
           ? '<span style="font-size:.68rem;color:var(--warning);font-weight:700;border:1px solid var(--warning);border-radius:999px;padding:.05rem .35rem">置頂</span>'
           : '';
+
+        // 外部活動：不顯示進度條與費用
+        let progressRow = '';
+        let feeBox = '';
+        if (isExternal) {
+          progressRow = `<div style="font-size:.72rem;color:var(--info);margin-top:.3rem">🔗 外部活動連結</div>`;
+        } else {
+          const _stats = typeof this._getEventParticipantStats === 'function'
+            ? this._getEventParticipantStats(e)
+            : { confirmedCount: Number(e.current || 0), waitlistCount: Number(e.waitlist || 0), maxCount: Number(e.max || 0) };
+          const _confirmedDisplay = _stats.confirmedCount;
+          const _waitlistDisplay = _stats.waitlistCount;
+          const progressPct = _stats.maxCount > 0 ? Math.min(100, Math.round(_confirmedDisplay / _stats.maxCount * 100)) : 0;
+          const progressColor = progressPct >= 100 ? 'var(--danger)' : progressPct >= 70 ? 'var(--warning)' : 'var(--success)';
+          progressRow = `<div style="display:flex;align-items:center;gap:.5rem;margin-top:.3rem">
+            <div style="flex:1;height:6px;background:var(--border);border-radius:3px;overflow:hidden">
+              <div style="width:${progressPct}%;height:100%;background:${progressColor};border-radius:3px;transition:width .3s"></div>
+            </div>
+            <span style="font-size:.72rem;color:var(--text-muted);white-space:nowrap">${_confirmedDisplay}/${_stats.maxCount} 人${_waitlistDisplay > 0 ? ' ・ 候補 ' + _waitlistDisplay : ''}</span>
+          </div>`;
+          // Fee summary
+          const feeEnabled = this._isEventFeeEnabled?.(e) ?? Number(e?.fee || 0) > 0;
+          const fee = this._getEventRecordedFeeAmount?.(e) ?? (Number(e?.fee || 0) > 0 ? Math.floor(Number(e.fee || 0)) : 0);
+          const confirmedRegs = fee > 0 ? ApiService.getRegistrationsByEvent(e.id).filter(r => r.status === 'confirmed' || r.status === 'registered') : [];
+          const confirmedCount = confirmedRegs.length > 0 ? confirmedRegs.length : _confirmedDisplay;
+          const unregCount = fee > 0 ? (unregCountMap.get(e.id) || 0) : 0;
+          const checkoutCount = fee > 0 ? (checkoutCountMap.get(e.id) || 0) : 0;
+          const feeExpected = fee * (confirmedCount + unregCount);
+          const feeActual = fee * checkoutCount;
+          const feeShort = feeExpected - feeActual;
+          feeBox = (fee > 0 && isSuperAdmin) ? `<div style="margin-left:auto;padding:.2rem .45rem;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:.68rem;color:var(--text-secondary);display:inline-flex;gap:.5rem;background:var(--bg-elevated);white-space:nowrap">
+            <span>應收<b style="color:var(--text-primary)">$${feeExpected}</b></span>
+            <span>實收<b style="color:var(--success)">$${feeActual}</b></span>
+            <span>短收<b style="color:${feeShort > 0 ? 'var(--danger)' : 'var(--success)'}">$${feeShort}</b></span>
+          </div>` : '';
+        }
+
+        const cardOnclick = isExternal
+          ? `if(!event.target.closest('button'))window.open('${escapeHTML(e.externalUrl || '')}','_blank')`
+          : `if(!event.target.closest('button')&&!event.target.closest('.user-capsule'))App.showEventDetail('${e.id}')`;
         return `
-      <div class="msg-manage-card" style="margin-bottom:.5rem;cursor:pointer${pinCardStyle}" onclick="if(!event.target.closest('button')&&!event.target.closest('.user-capsule'))App.showEventDetail('${e.id}')">
+      <div class="msg-manage-card" style="margin-bottom:.5rem;cursor:pointer${pinCardStyle}" onclick="${cardOnclick}">
         <div style="display:flex;align-items:center;gap:.4rem;margin-bottom:.2rem">
           <span class="msg-manage-title" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHTML(e.title)}${teamBadge}</span>
           ${pinBadge}
           ${this._userTag(e.creator, ApiService.getUserRole(e.creator))}
           <span class="banner-manage-status status-${statusConf.css}">${statusConf.label}</span>
         </div>
-        <div style="font-size:.75rem;color:var(--text-muted)">${escapeHTML(e.location)} ・ ${escapeHTML(e.date)}</div>
-        <div style="display:flex;align-items:center;gap:.5rem;margin-top:.3rem">
-          <div style="flex:1;height:6px;background:var(--border);border-radius:3px;overflow:hidden">
-            <div style="width:${progressPct}%;height:100%;background:${progressColor};border-radius:3px;transition:width .3s"></div>
-          </div>
-          <span style="font-size:.72rem;color:var(--text-muted);white-space:nowrap">${_confirmedDisplay}/${_stats.maxCount} 人${_waitlistDisplay > 0 ? ' ・ 候補 ' + _waitlistDisplay : ''}</span>
-        </div>
+        <div style="font-size:.75rem;color:var(--text-muted)">${escapeHTML(e.location || '')} ・ ${escapeHTML(e.date)}</div>
+        ${progressRow}
         <div style="display:flex;gap:.3rem;margin-top:.4rem;flex-wrap:wrap;align-items:center">${sportIcon}${btns}${feeBox}</div>
       </div>`;
       }).join('')
@@ -1511,10 +1534,19 @@ Object.assign(App, {
     this._renderDetailFeeSummary(eventId);
     this.showToast(errCount > 0 ? `儲存完成，但有 ${errCount} 筆失敗` : '儲存完成');
   },
+  editExternalActivity(id) {
+    const e = ApiService.getEvent(id);
+    if (!e || e.type !== 'external') return;
+    if (!this._canManageEvent(e)) { this.showToast('您只能編輯自己的活動'); return; }
+    this.openCreateExternalEventModal(id);
+  },
+
   editMyActivity(id) {
     const e = ApiService.getEvent(id);
     if (!e) return;
     if (!this._canManageEvent(e)) { this.showToast('您只能編輯自己的活動'); return; }
+    // 外部活動走專用編輯流程
+    if (e.type === 'external') { this.editExternalActivity(id); return; }
     this._editEventId = id;
     // 確保事件已綁定（防止 Phase 1 非同步時機導致未綁定）
     this.bindImageUpload('ce-image', 'ce-upload-preview');

@@ -183,6 +183,9 @@
 [data-theme="dark"] .tl-type-camp     { background: rgba(236,72,153,.14); }
 [data-theme="dark"] .tl-type-play     { background: rgba(124,58,237,.14); }
 [data-theme="dark"] .tl-type-watch    { background: rgba(245,158,11,.14); }
+.tl-type-external { border-left: 3px solid #9ca3af; background: rgba(156,163,175,.04); }
+[data-theme="dark"] .tl-type-external { background: rgba(156,163,175,.14); }
+.tl-event-status.external { background: rgba(96,165,250,.12); color: var(--info); }
 .tl-type-teamonly { border-left: 3px solid #e11d48; background: linear-gradient(90deg, rgba(225,29,72,.08), rgba(251,146,60,.06)); }
 [data-theme="dark"] .tl-type-teamonly { background: linear-gradient(90deg, rgba(225,29,72,.20), rgba(251,146,60,.14)); }
 .tl-teamonly-badge { display:inline-block;font-size:.6rem;padding:.1rem .35rem;border-radius:3px;background:#e11d48;color:#fff;margin-left:.3rem;vertical-align:middle;font-weight:700 }

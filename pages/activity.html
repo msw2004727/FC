@@ -10,6 +10,7 @@
           <option value="play">PLAY</option>
           <option value="camp">教學</option>
           <option value="watch">觀賽</option>
+          <option value="external">外部</option>
         </select>
         <div class="filter-search-wrap">
           <input type="text" id="activity-filter-keyword" placeholder="搜尋名稱 / 地點..." style="border-radius:var(--radius-sm) 0 0 var(--radius-sm);border-right:none">
@@ -87,6 +88,76 @@
         </div>
       </div>
     </section>
+
+  <!-- Create External Event Modal -->
+  <div class="modal" id="create-external-event-modal">
+    <div class="modal-header">
+      <h3 id="cee-modal-title">新增活動連結</h3>
+      <button class="modal-close" onclick="App.closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="ce-form">
+        <div class="ce-row">
+          <label>活動封面圖片</label>
+          <div class="ce-upload" id="cee-upload-area">
+            <input type="file" id="cee-image" accept="image/*" hidden>
+            <div class="ce-upload-placeholder" id="cee-upload-preview" onclick="document.getElementById('cee-image').click()">
+              <span class="ce-upload-icon">+</span>
+              <span class="ce-upload-text">點擊上傳圖片</span>
+              <span class="ce-upload-hint">建議尺寸 800 × 300 px｜JPG / PNG｜最大 2MB</span>
+            </div>
+          </div>
+        </div>
+        <div class="ce-row">
+          <label>活動名稱 <span class="required">*必填</span></label>
+          <input type="text" id="cee-title" placeholder="例：XX 平台足球活動" maxlength="16">
+        </div>
+        <div class="ce-row">
+          <label>活動時間 <span class="required">*必填</span></label>
+          <div class="ce-time-row">
+            <input type="date" id="cee-date" class="ce-time-date">
+            <input type="time" id="cee-start-time" class="ce-time-clock ce-time-start" step="1800" value="14:00">
+            <span class="ce-time-separator">~</span>
+            <input type="time" id="cee-end-time" class="ce-time-clock ce-time-end" step="1800" value="16:00">
+          </div>
+        </div>
+        <div class="ce-row">
+          <label>地點</label>
+          <input type="text" id="cee-location" placeholder="選填，例：台北市大安運動中心">
+        </div>
+        <div class="ce-row">
+          <label>運動 / 場景標籤 <span class="required">*必選</span></label>
+          <div class="ce-sport-picker" id="cee-sport-picker">
+            <button type="button" class="ce-sport-selected" id="cee-sport-selected" aria-haspopup="listbox" aria-expanded="false">
+              <span class="ce-sport-selected-inner" id="cee-sport-selected-inner">
+                <span class="ce-sport-placeholder">請選擇運動 / 場景標籤</span>
+              </span>
+              <span class="ce-sport-arrow" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M6 9l6 6 6-6"></path>
+                </svg>
+              </span>
+            </button>
+            <div class="ce-sport-dropdown" id="cee-sport-dropdown">
+              <input type="text" id="cee-sport-search" class="ce-sport-search" placeholder="搜尋運動 / 場景標籤">
+              <div id="cee-sport-list" class="ce-sport-list" role="listbox"></div>
+            </div>
+            <input type="hidden" id="cee-sport-tag" value="">
+          </div>
+          <div class="ce-sport-required-tip">* 必選，未選擇運動 / 場景標籤將無法儲存</div>
+        </div>
+        <div class="ce-row">
+          <label>活動連結 <span class="required">*必填</span></label>
+          <input type="url" id="cee-external-url" placeholder="https://..." maxlength="500">
+          <div style="font-size:.68rem;color:var(--text-muted);margin-top:.2rem">僅限 https:// 開頭的連結</div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="outline-btn" onclick="App.closeModal()">取消</button>
+      <button class="primary-btn" id="cee-submit-btn" onclick="App.handleCreateExternalEvent()">建立活動連結</button>
+    </div>
+  </div>
 
   <!-- Create Event Modal -->
   <div class="modal" id="create-event-modal">

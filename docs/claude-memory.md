@@ -10,6 +10,18 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-16 — 外部活動連結功能
+- **問題**：用戶希望在行事曆與首頁顯示外部平台活動，點擊後直接跳轉到外部連結
+- **修復**：
+  - `config.js`: TYPE_CONFIG / GRADIENT_MAP 新增 `external` 類型
+  - `css/activity.css` / `css/home.css`: 新增外部活動樣式（灰色系）
+  - `pages/activity.html`: 新增 `create-external-event-modal` + 篩選下拉選項
+  - `event-create.js`: `openCreateEventModal()` 改為先彈 Action Sheet 選擇自訂/外部，新增 `openCreateExternalEventModal()` + `handleCreateExternalEvent()`
+  - `event-list.js`: renderHotEvents / renderActivityList 為外部活動顯示不同 meta（無人數），點擊跳轉 externalUrl
+  - `event-manage.js`: renderMyActivities 為外部活動顯示不同按鈕，新增 `editExternalActivity()`
+  - `event-detail.js`: showEventDetail 攔截 external type 直接跳轉
+- **教訓**：外部活動 `max:0, current:0` 會觸發 `current >= max` → full 的判斷，需額外排除
+
 ---
 
 ### [永久] 2026-03-16 — Per-User Achievement Progress 遷移（Phase 1+2）

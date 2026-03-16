@@ -558,8 +558,8 @@ Object.assign(App, {
         }
         return;
       }
-      // open → full（人數已達上限）
-      if (e.status === 'open' && e.current >= e.max) {
+      // open → full（人數已達上限，外部活動不適用）
+      if (e.status === 'open' && e.type !== 'external' && e.max > 0 && e.current >= e.max) {
         ApiService.updateEvent(e.id, { status: 'full' });
       }
       if (e.status !== 'open' && e.status !== 'full') return;
@@ -752,6 +752,13 @@ Object.assign(App, {
     const targetCard = cardEl?.closest ? cardEl.closest('.h-card') : cardEl;
     if (!safeEventId) return { ok: false, reason: 'missing-id' };
 
+    // 外部活動：直接跳轉
+    const extEvent = ApiService.getEvent(safeEventId);
+    if (extEvent?.type === 'external' && extEvent.externalUrl) {
+      location.href = extEvent.externalUrl;
+      return { ok: true };
+    }
+
     if (targetCard?.dataset?.homeEventOpening === '1') {
       this._markHomeEventCardPending(targetCard);
       if (Date.now() - Number(targetCard?._homeEventOpenStartedAt || 0) >= 1000) {
@@ -894,6 +901,13 @@ Object.assign(App, {
     var targetCard = cardEl && cardEl.closest ? cardEl.closest('.tl-event-row') : cardEl;
     if (!safeEventId) return;
 
+    // 外部活動：直接跳轉
+    var extEvent = ApiService.getEvent(safeEventId);
+    if (extEvent && extEvent.type === 'external' && extEvent.externalUrl) {
+      location.href = extEvent.externalUrl;
+      return;
+    }
+
     if (targetCard && targetCard.dataset.tlOpening === '1') return;
     var shouldHint = this._shouldShowHomeEventLoadingHint();
     if (targetCard && targetCard.dataset) targetCard.dataset.tlOpening = '1';
@@ -954,14 +968,21 @@ Object.assign(App, {
           ? `<span class="h-card-date-chip">${parseInt(_dp[1])}/${parseInt(_dp[2])}</span>`
           : '';
         const _cornerBadges = `<div class="h-card-corner-badges">${_sportIcon}${_dateTag}</div>`;
-        const _genderRibbon = this._hasEventGenderRestriction(e)
+        const _isExternal = e.type === 'external';
+        const _genderRibbon = !_isExternal && this._hasEventGenderRestriction(e)
           ? `<span class="h-card-gender-ribbon">${escapeHTML(this._getEventGenderRibbonText(e))}</span>`
           : '';
-        const _stats = this._getEventParticipantStats(e);
-        const _capacityBadge = this._renderEventCapacityBadge(e, _stats);
-        const _participantCountClass = _stats.isCapacityFull ? 'h-card-meta-count h-card-meta-count-full' : 'h-card-meta-count';
-        const _participantCount = `${_stats.confirmedCount}/${_stats.maxCount}${t('activity.participants')}${_stats.waitlistCount > 0 ? ' 候補' + _stats.waitlistCount : ''}`;
-        const _metaBottomClass = _genderRibbon ? 'h-card-meta-bottom h-card-meta-bottom-has-ribbon' : 'h-card-meta-bottom';
+        let _metaBottom = '';
+        if (_isExternal) {
+          _metaBottom = `<div class="h-card-meta-bottom"><span class="h-card-meta-count" style="color:var(--info)">外部活動</span></div>`;
+        } else {
+          const _stats = this._getEventParticipantStats(e);
+          const _capacityBadge = this._renderEventCapacityBadge(e, _stats);
+          const _participantCountClass = _stats.isCapacityFull ? 'h-card-meta-count h-card-meta-count-full' : 'h-card-meta-count';
+          const _participantCount = `${_stats.confirmedCount}/${_stats.maxCount}${t('activity.participants')}${_stats.waitlistCount > 0 ? ' 候補' + _stats.waitlistCount : ''}`;
+          const _metaBottomClass = _genderRibbon ? 'h-card-meta-bottom h-card-meta-bottom-has-ribbon' : 'h-card-meta-bottom';
+          _metaBottom = `<div class="${_metaBottomClass}"><span class="${_participantCountClass}">${_participantCount}</span>${_capacityBadge}</div>`;
+        }
         return `
         <div class="h-card" style="${e.pinned ? 'border:1px solid var(--warning);box-shadow:0 0 0 1px rgba(245,158,11,.15)' : ''}" onclick="App.openHomeEventDetailFromCard('${e.id}', this)">
           ${e.image
@@ -970,11 +991,8 @@ Object.assign(App, {
           <div class="h-card-body">
             <div class="h-card-title">${e.pinned ? '<span style="font-size:.62rem;padding:.08rem .35rem;border-radius:999px;border:1px solid var(--warning);color:var(--warning);font-weight:700;margin-right:.3rem">置頂</span>' : ''}${escapeHTML(e.title)}${e.teamOnly ? '<span class="tl-teamonly-badge">球隊限定</span>' : ''} ${this._favHeartHtml(this.isEventFavorited(e.id), 'Event', e.id)}</div>
             <div class="h-card-meta">
-              <span class="h-card-meta-location">${escapeHTML(e.location)}</span>
-              <div class="${_metaBottomClass}">
-                <span class="${_participantCountClass}">${_participantCount}</span>
-                ${_capacityBadge}
-              </div>
+              <span class="h-card-meta-location">${escapeHTML(e.location || '')}</span>
+              ${_metaBottom}
             </div>
           </div>
           ${_genderRibbon}
@@ -1075,15 +1093,31 @@ Object.assign(App, {
 
         dayInfo.events.forEach(e => {
           const typeConf = TYPE_CONFIG[e.type] || TYPE_CONFIG.friendly;
-          const statusConf = STATUS_CONFIG[e.status] || STATUS_CONFIG.open;
           const time = e.date.split(' ')[1] || '';
           const isEnded = e.status === 'ended' || e.status === 'cancelled';
-          const stats = this._getEventParticipantStats(e);
-          const waitlistTag = stats.waitlistCount > 0 ? ` · 候補(${stats.waitlistCount})` : '';
+          const isExternal = e.type === 'external';
+
+          // 外部活動：自訂 status 與 meta
+          let statusLabel, statusCss, metaText;
+          if (isExternal) {
+            if (e.status === 'cancelled') { statusLabel = '已取消'; statusCss = 'cancelled'; }
+            else if (isEnded) { statusLabel = '已結束'; statusCss = 'ended'; }
+            else { statusLabel = '外部活動'; statusCss = 'external'; }
+            const locPart = e.location ? ` · ${escapeHTML((e.location || '').split('市')[1] || e.location)}` : '';
+            metaText = `${typeConf.label} · ${time}${locPart}`;
+          } else {
+            const statusConf = STATUS_CONFIG[e.status] || STATUS_CONFIG.open;
+            statusLabel = statusConf.label;
+            statusCss = statusConf.css;
+            const stats = this._getEventParticipantStats(e);
+            const waitlistTag = stats.waitlistCount > 0 ? ` · 候補(${stats.waitlistCount})` : '';
+            metaText = `${typeConf.label} · ${time} · ${escapeHTML((e.location || '').split('市')[1] || e.location)} · ${stats.confirmedCount}/${stats.maxCount}人${waitlistTag}`;
+          }
+
           // 球隊限定用特殊色
           const rowClass = e.teamOnly ? 'tl-type-teamonly' : `tl-type-${e.type}`;
           const teamBadge = e.teamOnly ? '<span class="tl-teamonly-badge">限定</span>' : '';
-          const genderRibbon = this._hasEventGenderRestriction(e)
+          const genderRibbon = !isExternal && this._hasEventGenderRestriction(e)
             ? `<span class="tl-event-gender-ribbon">${escapeHTML(this._getEventGenderTimelineRibbonText(e))}</span>`
             : '';
           const sportIcon = this._renderEventSportIcon(e, 'tl-event-sport-corner');
@@ -1096,11 +1130,11 @@ Object.assign(App, {
               ${e.image ? `<div class="tl-event-thumb"><img src="${e.image}" loading="lazy"></div>` : ''}
               <div class="tl-event-info">
                 <div class="tl-event-title-row"><div class="tl-event-title">${e.pinned ? '<span style="font-size:.62rem;padding:.08rem .35rem;border-radius:999px;border:1px solid var(--warning);color:var(--warning);font-weight:700;margin-right:.3rem">置頂</span>' : ''}${escapeHTML(e.title)}${teamBadge}</div></div>
-                <div class="tl-event-meta">${typeConf.label} · ${time} · ${escapeHTML(e.location.split('市')[1] || e.location)} · ${stats.confirmedCount}/${stats.maxCount}人${waitlistTag}</div>
+                <div class="tl-event-meta">${metaText}</div>
               </div>
-              <span class="tl-event-status ${statusConf.css}">${statusConf.label}</span>
+              <span class="tl-event-status ${statusCss}">${statusLabel}</span>
               ${iconStack}
-              <span class="tl-event-arrow">›</span>
+              <span class="tl-event-arrow">${isExternal ? '↗' : '›'}</span>
             </div>`;
         });
 

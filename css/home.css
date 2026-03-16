@@ -165,6 +165,7 @@
 .h-card-type-ribbon-camp     { background: linear-gradient(135deg, #ec4899, #be185d); }
 .h-card-type-ribbon-play     { background: linear-gradient(135deg, #7c3aed, #4338ca); }
 .h-card-type-ribbon-watch    { background: linear-gradient(135deg, #f59e0b, #d97706); }
+.h-card-type-ribbon-external { background: linear-gradient(135deg, #6b7280, #4b5563); }
 .h-card-body { padding: .65rem .75rem; display: flex; flex-direction: column; gap: .26rem; min-height: 72px; }
 .h-card-title { font-weight: 700; font-size: .85rem; margin-bottom: .2rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .h-card-meta { font-size: .72rem; color: var(--text-secondary); display: flex; flex-direction: column; gap: .24rem; min-width: 0; }

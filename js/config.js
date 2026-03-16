@@ -249,7 +249,7 @@
 // 20260316r: Per-user achievement progress — 雙寫子集合 + fallback 即時計算
 // 20260316s: Phase 3+4 — 支援讀其他用戶徽章 + 移除全域寫入 + 清理汙染邏輯
 // 20260316t: 一次性清理全域 achievements 汙染（重設 current/completedAt 為模板狀態）
-const CACHE_VERSION = '20260316t';
+const CACHE_VERSION = '20260316u';
 
 // ─── Page Strategy Registry ───
 // 唯一策略來源，未列出的頁面預設 fresh-first
@@ -504,6 +504,7 @@ const TYPE_CONFIG = {
   camp:     { icon: '', label: '教學', color: 'camp' },
   play:     { icon: '', label: 'PLAY', color: 'play' },
   watch:    { icon: '', label: '觀賽', color: 'watch' },
+  external: { icon: '', label: '外部', color: 'external' },
 };
 
 const EVENT_SPORT_OPTIONS = [
@@ -604,6 +605,7 @@ const GRADIENT_MAP = {
   camp:     'linear-gradient(135deg,#ec4899,#be185d)',
   play:     'linear-gradient(135deg,#7c3aed,#4338ca)',
   watch:    'linear-gradient(135deg,#f59e0b,#d97706)',
+  external: 'linear-gradient(135deg,#6b7280,#4b5563)',
 };
 
 const TOURNAMENT_GRADIENT_MAP = {
