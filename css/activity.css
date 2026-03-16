@@ -551,15 +551,13 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
   transform: rotateY(180deg);
   border-radius: var(--radius);
   font-size: .85rem;
-  font-weight: 700;
-  color: #fff;
-  background: var(--glow-c);
+  border: none;
+  cursor: pointer;
 }
 .signup-flipper.flipped {
   transform: rotateY(180deg);
@@ -571,11 +569,6 @@
 .signup-glow-wrap.flipped .signup-loading-hint {
   opacity: 0 !important;
   animation: none !important;
-}
-/* 翻轉完成後淡出整個區塊，銜接頁面刷新 */
-.signup-glow-wrap.flip-done {
-  transition: opacity .35s ease;
-  opacity: 0;
 }
 
 /* 光跡邊框 — 旋轉 conic-gradient */

@@ -218,15 +218,15 @@ Object.assign(App, {
         if (flipper) {
           const backEl = document.createElement('div');
           backEl.className = 'signup-flip-back';
-          backEl.textContent = isWL ? '✓ 已候補' : '✓ 報名成功';
+          backEl.style.cssText = isWL
+            ? 'background:#7c3aed;color:#fff;padding:.55rem 1.2rem'
+            : 'background:#dc2626;color:#fff;padding:.55rem 1.2rem';
+          backEl.textContent = isWL ? '取消候補' : '取消報名';
           flipper.appendChild(backEl);
           void flipper.offsetHeight;
           flipper.classList.add('flipped');
           glowWrap.classList.add('flipped');
-          // 翻轉 0.75s + 停留 0.6s + 淡出 0.35s
-          await new Promise(r => setTimeout(r, 1350));
-          glowWrap.classList.add('flip-done');
-          await new Promise(r => setTimeout(r, 350));
+          await new Promise(r => setTimeout(r, 1200));
         }
         this._flipAnimating = false;
       }
@@ -460,16 +460,20 @@ Object.assign(App, {
           cancelGlowWrap.classList.remove('loading');
           const flipper = cancelGlowWrap.querySelector('.signup-flipper');
           if (flipper) {
+            // 取消後翻轉到「立即報名」或「報名候補」
+            const ev = ApiService.getEvent(id);
+            const stillFull = ev && ev.current >= ev.max;
             const backEl = document.createElement('div');
             backEl.className = 'signup-flip-back';
-            backEl.textContent = isWaitlist ? '✓ 已取消候補' : '✓ 已取消';
+            backEl.style.cssText = stillFull
+              ? 'background:#7c3aed;color:#fff;padding:.55rem 1.2rem'
+              : 'background:var(--accent);color:#fff;padding:.55rem 1.2rem;font-weight:600';
+            backEl.textContent = stillFull ? '報名候補' : '立即報名';
             flipper.appendChild(backEl);
             void flipper.offsetHeight;
             flipper.classList.add('flipped');
             cancelGlowWrap.classList.add('flipped');
-            await new Promise(r => setTimeout(r, 1350));
-            cancelGlowWrap.classList.add('flip-done');
-            await new Promise(r => setTimeout(r, 350));
+            await new Promise(r => setTimeout(r, 1200));
           }
           this._flipAnimating = false;
         }
