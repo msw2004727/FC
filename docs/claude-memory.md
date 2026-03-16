@@ -10,6 +10,12 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-17 — 用戶名片活動記錄徽章數量顯示錯誤
+- **問題**：查看其他用戶的活動記錄時，徽章數量顯示的是管理員（當前登入者）自己的徽章數，而非該用戶實際獲得的徽章數
+- **原因**：`renderUserCardRecords` 使用 `getCurrentBadgeCount()` 計算徽章數，此函式固定對當前登入者（`ApiService.getCurrentUser()`）評估成就，未考慮目標用戶
+- **修復**：新增 `_updateUserCardBadgeCount(uid)` 方法：當前用戶 → 同步走 `getCurrentBadgeCount()`；其他用戶 → 異步從 per-user 子集合讀取成就進度再計算徽章數
+- **教訓**：統計數據（出席率、場次）已正確使用目標 uid，但徽章數遺漏了。新增統計維度時必須確認資料來源是否對應正確用戶
+
 ### 2026-03-17 — [永久] 成就出席率徽章無法達成：evaluator 缺少 displayName → UID 對照
 - **問題**：用戶個人檔案顯示 100% 出席率，但成就系統的「達到出席率」徽章無法達成
 - **原因**：成就 evaluator 的 `buildAttendanceStateByEvent` 對 `attendanceRecords.uid` 做嚴格 UID 比對，但歷史資料中部分 attendance record 的 uid 存的是顯示名稱（非 LINE userId）。個人檔案統計走 `ensureUserStatsLoaded` → `getUserAttendanceRecords` 有 displayName fallback（先查 uid、查無再用 userName），所以能正確顯示 100%。但 evaluator 走 `getAttendanceRecords()`（全域快取、無 fallback），UID 不匹配 → 認為無簽到 → 出席率 0%

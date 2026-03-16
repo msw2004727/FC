@@ -249,7 +249,6 @@ Object.assign(App, {
     // 資料尚未載入時顯示 "--"，避免顯示 0 造成誤解
     const usc = typeof FirebaseService !== 'undefined' && FirebaseService.getUserStatsCache?.();
     const statsReady = usc && usc.uid === uid && usc.attendanceRecords !== null;
-    const badgeCount = this._getAchievementProfile?.()?.getCurrentBadgeCount?.() || 0;
     const el = (id) => document.getElementById(id);
     if (statsReady) {
       const { expectedCount, completedCount, attendRate } = this._calcScanStats(uid);
@@ -261,7 +260,8 @@ Object.assign(App, {
       if (el('uc-stat-done')) el('uc-stat-done').textContent = '--';
       if (el('uc-stat-rate')) el('uc-stat-rate').textContent = '--';
     }
-    if (el('uc-stat-badges')) el('uc-stat-badges').textContent = badgeCount;
+    // 徽章數量：必須對應目標用戶，非當前登入者
+    this._updateUserCardBadgeCount(uid);
 
     // 綁定頁籤
     const tabs = document.getElementById('uc-record-tabs');
@@ -275,6 +275,36 @@ Object.assign(App, {
         });
       });
     }
+  },
+
+  _updateUserCardBadgeCount(uid) {
+    var badgeEl = document.getElementById('uc-stat-badges');
+    if (!badgeEl) return;
+
+    var currentUser = ApiService.getCurrentUser?.() || null;
+    var currentUid = currentUser?.uid || currentUser?._docId;
+
+    // 當前用戶：同步計算
+    if (uid === currentUid) {
+      badgeEl.textContent = this._getAchievementProfile?.()?.getCurrentBadgeCount?.() || 0;
+      return;
+    }
+
+    // 其他用戶：異步從 per-user 子集合計算
+    badgeEl.textContent = '--';
+    var badgeHelper = this._getAchievementBadges?.();
+    if (!badgeHelper?.getEvaluatedAchievementsForUserAsync) return;
+
+    var users = ApiService.getAdminUsers?.() || [];
+    var targetUser = users.find(function(u) { return u.uid === uid || u.lineUserId === uid; });
+    if (!targetUser) return;
+
+    badgeHelper.getEvaluatedAchievementsForUserAsync(targetUser).then(function(achievements) {
+      var badges = ApiService.getBadges?.() || [];
+      var count = badgeHelper.getBadgeCount(achievements, badges);
+      var el = document.getElementById('uc-stat-badges');
+      if (el) el.textContent = count;
+    }).catch(function() {});
   },
 
 });
