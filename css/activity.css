@@ -528,12 +528,40 @@
 .signup-glow-wrap {
   position: relative;
   display: inline-flex;
+  perspective: 600px;
   --glow-c: var(--accent);
   --glow-c-light: var(--accent-hover);
 }
 .signup-glow-wrap > button {
   position: relative;
   z-index: 2;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  transition: transform .5s ease;
+}
+.signup-glow-wrap.flipped > button {
+  transform: rotateY(180deg);
+}
+.signup-flip-back {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  transform: rotateY(-180deg);
+  transition: transform .5s ease;
+  z-index: 2;
+  border-radius: var(--radius);
+  font-size: .85rem;
+  font-weight: 700;
+  color: #fff;
+  background: var(--glow-c);
+}
+.signup-glow-wrap.flipped .signup-flip-back {
+  transform: rotateY(0deg);
 }
 
 /* 光跡邊框 — 旋轉 conic-gradient */

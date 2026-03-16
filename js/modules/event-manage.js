@@ -441,6 +441,8 @@ Object.assign(App, {
     const isSuperAdmin = (ROLE_LEVEL_MAP[this.currentRole] || 0) >= ROLE_LEVEL_MAP.super_admin;
     const feeSection = isSuperAdmin ? `<div id="detail-fee-summary"></div>` : '';
 
+    const feeEnabled = this._isEventFeeEnabled?.(e) ?? Number(e?.fee || 0) > 0;
+    const fee = Number(e?.fee || 0);
     const metaParts = [];
     if (feeEnabled || fee > 0) metaParts.push(`費用：${fee > 0 ? 'NT$' + fee : '免費'}`);
     metaParts.push(`狀態：${statusConf.label}`);

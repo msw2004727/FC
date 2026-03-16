@@ -12,6 +12,17 @@
 
 ---
 
+### 2026-03-16 — 修復三項 Bug（_evaluateAchievements / feeEnabled / 翻牌動畫）
+- **問題 1**：`_evaluateAchievements is not a function` — 報名/取消報名時瀏覽器報錯
+- **原因**：`achievement.js` 是 lazy-loaded 模組，僅在 achievement/profile 頁面載入，活動詳情頁未載入
+- **修復**：`event-detail-signup.js` 中 4 處 `this._evaluateAchievements()` 改為 `this._evaluateAchievements?.()`（optional chaining）
+- **問題 2**：`feeEnabled is not defined` — 點擊活動管理查看名單報錯
+- **原因**：費用摘要重構時移除了 `feeEnabled` / `fee` 變數宣告，但 `metaParts` 仍引用
+- **修復**：在 `event-manage.js` 的 `showMyActivityDetail()` 中補回 `feeEnabled` 和 `fee` 變數宣告
+- **問題 3**：報名成功後缺少翻牌特效
+- **修復**：CSS 加入 `.signup-flip-back` / `.flipped` 3D 翻轉樣式，JS 在報名/取消成功後動態注入背面元素並觸發翻牌動畫（700ms），完成後再刷新頁面
+- **教訓**：重構時移除程式碼區塊前，必須全文搜尋被移除變數的所有引用點；lazy-loaded 模組的方法呼叫必須用 optional chaining
+
 ### 2026-03-16 — 報名/簽到速度優化（Strategy C）
 - **問題**：按下「立即報名」、「取消報名」或掃碼簽到後，需等待 Firestore 寫入完成才有 UI 回饋，體感延遲明顯
 - **修復**：

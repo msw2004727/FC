@@ -187,7 +187,7 @@ Object.assign(App, {
         eventName: e.title, date: e.date, location: e.location,
         status: isWaitlist ? '候補' : '正取',
       }, userId, 'activity', '活動');
-      this._evaluateAchievements(e.type);
+      this._evaluateAchievements?.(e.type);
       this.showEventDetail(id);
       return;
     }
@@ -208,8 +208,18 @@ Object.assign(App, {
     });
     try {
       const result = await FirebaseService.registerForEvent(id, userId, userName);
-      // ── 即時回饋：先顯示結果、刷新頁面 ──
-      this.showToast(result.status === 'waitlisted' ? '已加入候補名單' : '報名成功！');
+      // ── 即時回饋：翻牌動畫 + toast ──
+      const isWL = result.status === 'waitlisted';
+      this.showToast(isWL ? '已加入候補名單' : '報名成功！');
+      if (glowWrap) {
+        glowWrap.classList.remove('loading');
+        const backEl = document.createElement('div');
+        backEl.className = 'signup-flip-back';
+        backEl.innerHTML = `<span>${isWL ? '✓ 已候補' : '✓ 報名成功'}</span>`;
+        glowWrap.appendChild(backEl);
+        glowWrap.classList.add('flipped');
+        await new Promise(r => setTimeout(r, 700));
+      }
       this.showEventDetail(id);
       // ── 背景 post-ops（fire-and-forget，不阻塞 UI）──
       const dateParts = e.date.split(' ')[0].split('/');
@@ -239,7 +249,7 @@ Object.assign(App, {
         eventName: e.title, date: e.date, location: e.location,
         status: result.status === 'waitlisted' ? '候補' : '正取',
       }, userId, 'activity', '活動');
-      this._evaluateAchievements(e.type);
+      this._evaluateAchievements?.(e.type);
     } catch (err) {
       console.error('[handleSignup]', err);
       this.showToast(err.message || '報名失敗，請稍後再試');
@@ -394,7 +404,7 @@ Object.assign(App, {
       });
       this.showToast(isWaitlist ? '已取消候補' : '已取消報名');
       if (!isWaitlist) this._grantAutoExp(userId, 'cancel_registration', e0.title);
-      this._evaluateAchievements(e0?.type);
+      this._evaluateAchievements?.(e0?.type);
       this.showEventDetail(id);
       return;
     }
@@ -425,8 +435,17 @@ Object.assign(App, {
             }, cancelledReg._promotedUserId, 'activity', '活動');
           }
         }
-        // ── 即時回饋：先顯示結果、刷新頁面 ──
+        // ── 即時回饋：翻牌動畫 + toast ──
         this.showToast(isWaitlist ? '已取消候補' : '已取消報名');
+        if (cancelGlowWrap) {
+          cancelGlowWrap.classList.remove('loading');
+          const backEl = document.createElement('div');
+          backEl.className = 'signup-flip-back';
+          backEl.innerHTML = `<span>${isWaitlist ? '✓ 已取消候補' : '✓ 已取消'}</span>`;
+          cancelGlowWrap.appendChild(backEl);
+          cancelGlowWrap.classList.add('flipped');
+          await new Promise(r => setTimeout(r, 700));
+        }
         await this.showEventDetail(id);
         // ── 背景 post-ops（fire-and-forget，不阻塞 UI）──
         // 快取更新（activityRecords，不影響 event detail 頁面渲染）
@@ -480,7 +499,7 @@ Object.assign(App, {
             statusTo: 'cancelled',
           },
         });
-        this._evaluateAchievements(e0?.type);
+        this._evaluateAchievements?.(e0?.type);
       } catch (err) {
         console.error('[cancelSignup]', err);
         this.showToast('取消失敗：' + (err.message || ''));
