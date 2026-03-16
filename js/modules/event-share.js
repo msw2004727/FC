@@ -165,53 +165,50 @@ Object.assign(App, {
 
   _showShareActionSheet(canPicker, title) {
     return new Promise(function (resolve) {
-      // Overlay
       var overlay = document.createElement('div');
       overlay.className = 'share-action-sheet';
 
-      // 按鈕組裝
       var buttons = '';
 
       if (canPicker) {
-        // LIFF 有效：Flex Message（好友/群組）+ LINE 社群（R/share）+ 複製
         buttons +=
           '<button class="share-action-sheet-btn" data-choice="line">' +
-            '<span style="margin-right:6px">\uD83D\uDC9A</span>' +
-            '<span class="share-action-sheet-btn-inner">' +
-              '\u5206\u4EAB\u5230 LINE' +
+            '<span class="share-action-sheet-btn-icon">\uD83D\uDC9A</span>' +
+            '<span class="share-action-sheet-btn-label">LINE \u597D\u53CB' +
               '<span class="share-action-sheet-btn-sub">\u7CBE\u7F8E\u5361\u7247\u30FB\u597D\u53CB / \u7FA4\u7D44</span>' +
             '</span>' +
           '</button>' +
           '<button class="share-action-sheet-btn" data-choice="line-share">' +
-            '<span style="margin-right:6px">\uD83D\uDCAC</span>' +
-            '<span class="share-action-sheet-btn-inner">' +
-              '\u5206\u4EAB\u5230 LINE \u793E\u7FA4' +
-              '<span class="share-action-sheet-btn-sub">\u7D14\u6587\u5B57\u30FB\u652F\u63F4\u793E\u7FA4 / OpenChat</span>' +
+            '<span class="share-action-sheet-btn-icon">\uD83D\uDCAC</span>' +
+            '<span class="share-action-sheet-btn-label">LINE \u793E\u7FA4' +
+              '<span class="share-action-sheet-btn-sub">\u7D14\u6587\u5B57\u30FB\u652F\u63F4 OpenChat</span>' +
             '</span>' +
           '</button>';
       } else {
-        // 非 LIFF：只有 R/share + 複製
         buttons +=
           '<button class="share-action-sheet-btn" data-choice="line-share">' +
-            '<span style="margin-right:6px">\uD83D\uDCAC</span>\u5206\u4EAB\u5230 LINE</button>';
+            '<span class="share-action-sheet-btn-icon">\uD83D\uDCAC</span>' +
+            '<span class="share-action-sheet-btn-label">\u5206\u4EAB\u5230 LINE</span>' +
+          '</button>';
       }
 
       buttons +=
         '<button class="share-action-sheet-btn" data-choice="copy">' +
-          '<span style="margin-right:6px">\uD83D\uDCCB</span>\u8907\u88FD\u9023\u7D50</button>';
+          '<span class="share-action-sheet-btn-icon">\uD83D\uDCCB</span>' +
+          '<span class="share-action-sheet-btn-label">\u8907\u88FD\u9023\u7D50</span>' +
+        '</button>';
 
       var sheetTitle = title || '\u5206\u4EAB\u6D3B\u52D5';
       var panel = document.createElement('div');
       panel.className = 'share-action-sheet-panel';
       panel.innerHTML =
         '<div class="share-action-sheet-title">' + sheetTitle + '</div>' +
-        buttons +
+        '<div class="share-action-sheet-grid">' + buttons + '</div>' +
         '<button class="share-action-sheet-cancel" data-choice="cancel">\u53D6\u6D88</button>';
 
       overlay.appendChild(panel);
       document.body.appendChild(overlay);
 
-      // Trigger animation
       requestAnimationFrame(function () {
         overlay.classList.add('active');
       });
@@ -225,14 +222,12 @@ Object.assign(App, {
           overlay.removeEventListener('transitionend', handler);
           if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
         });
-        // Fallback removal
         setTimeout(function () {
           if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
         }, 400);
         resolve(choice);
       }
 
-      // Event delegation
       panel.addEventListener('click', function (ev) {
         var btn = ev.target.closest('[data-choice]');
         if (btn) cleanup(btn.dataset.choice);
