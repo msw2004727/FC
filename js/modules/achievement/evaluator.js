@@ -382,6 +382,7 @@ Object.assign(App, {
         events,
         eventMap,
         teams: ApiService.getTeams?.() || [],
+        rawRegistrations: registrations,
         registrations: fallbackRegistrations,
         validRegistrations,
         attendanceRecords,
@@ -595,6 +596,149 @@ Object.assign(App, {
 
       days_registered({ resolvedUser, now }) {
         return getDaysRegistered(resolvedUser, now);
+      },
+
+      diverse_sports({ validRegistrations, eventMap, attendanceStateByEvent, now }) {
+        const sportSet = new Set();
+        validRegistrations.forEach(record => {
+          const event = eventMap.get(record.eventId) || null;
+          if (!event || !isEventEnded(event, now)) return;
+          const att = attendanceStateByEvent.get(record.eventId);
+          if (!att?.checkin) return;
+          const tag = normalizeLower(event.sportTag);
+          if (tag) sportSet.add(tag);
+        });
+        return sportSet.size;
+      },
+
+      no_show_free({ validRegistrations, eventMap, attendanceStateByEvent, now }) {
+        const ended = validRegistrations
+          .filter(r => {
+            const ev = eventMap.get(r.eventId);
+            return ev && isEventEnded(ev, now);
+          })
+          .map(r => {
+            const ev = eventMap.get(r.eventId);
+            const start = parseEventStartDate(ev);
+            const att = attendanceStateByEvent.get(r.eventId);
+            return { startMs: start?.getTime() || 0, attended: !!att?.checkin };
+          })
+          .sort((a, b) => b.startMs - a.startMs);
+        let streak = 0;
+        for (const item of ended) {
+          if (!item.attended) break;
+          streak++;
+        }
+        return streak;
+      },
+
+      create_team({ resolvedUid, resolvedUser, teams }) {
+        const identitySet = getUserIdentitySet(resolvedUser);
+        const nameSet = getUserNameSet(resolvedUser);
+        let count = 0;
+        (teams || []).forEach(team => {
+          if (!team) return;
+          const captainUid = normalizeString(team.captainUid);
+          const creatorUid = normalizeString(team.creatorUid);
+          if (captainUid && identitySet.has(captainUid)) { count++; return; }
+          if (creatorUid && identitySet.has(creatorUid)) { count++; return; }
+          const captain = normalizeLower(team.captain);
+          if (captain && nameSet.has(captain)) { count++; }
+        });
+        return count;
+      },
+
+      bring_companion({ resolvedUid, rawRegistrations }) {
+        const safeUid = normalizeString(resolvedUid);
+        let count = 0;
+        (rawRegistrations || []).forEach(r => {
+          if (!r) return;
+          if (normalizeString(r.userId) !== safeUid) return;
+          if (!(r.participantType === 'companion' || r.companionId)) return;
+          const status = normalizeString(r.status);
+          if (status === 'cancelled' || status === 'removed') return;
+          count++;
+        });
+        return count;
+      },
+
+      team_member_count({ resolvedUid, resolvedUser, teams }) {
+        const identitySet = getUserIdentitySet(resolvedUser);
+        const nameSet = getUserNameSet(resolvedUser);
+        const users = ApiService.getAdminUsers?.() || [];
+        let maxMembers = 0;
+        (teams || []).forEach(team => {
+          if (!team) return;
+          const teamId = normalizeString(team.id || team._docId);
+          if (!teamId) return;
+          const captainUid = normalizeString(team.captainUid);
+          const creatorUid = normalizeString(team.creatorUid);
+          const captain = normalizeLower(team.captain);
+          const isOwner = (captainUid && identitySet.has(captainUid))
+            || (creatorUid && identitySet.has(creatorUid))
+            || (captain && nameSet.has(captain));
+          if (!isOwner) return;
+          let memberCount = 0;
+          users.forEach(u => {
+            if (!u) return;
+            const tIds = Array.isArray(u.teamIds) ? u.teamIds : [];
+            const tId = normalizeString(u.teamId);
+            if (tIds.includes(teamId) || tId === teamId) memberCount++;
+          });
+          if (memberCount > maxMembers) maxMembers = memberCount;
+        });
+        return maxMembers;
+      },
+
+      early_event({ validRegistrations, eventMap, attendanceStateByEvent, now }) {
+        let count = 0;
+        validRegistrations.forEach(record => {
+          const event = eventMap.get(record.eventId) || null;
+          if (!event || !isEventEnded(event, now)) return;
+          const att = attendanceStateByEvent.get(record.eventId);
+          if (!att?.checkin) return;
+          const start = parseEventStartDate(event);
+          if (start && start.getHours() < 8) count++;
+        });
+        return count;
+      },
+
+      night_event({ validRegistrations, eventMap, attendanceStateByEvent, now }) {
+        let count = 0;
+        validRegistrations.forEach(record => {
+          const event = eventMap.get(record.eventId) || null;
+          if (!event || !isEventEnded(event, now)) return;
+          const att = attendanceStateByEvent.get(record.eventId);
+          if (!att?.checkin) return;
+          const start = parseEventStartDate(event);
+          if (start && start.getHours() >= 21) count++;
+        });
+        return count;
+      },
+
+      shop_trade({ resolvedUid }) {
+        const trades = ApiService.getTrades?.() || [];
+        return trades.filter(t => {
+          if (!t) return false;
+          const buyer = normalizeString(t.buyerUid || t.uid);
+          return buyer === normalizeString(resolvedUid);
+        }).length;
+      },
+
+      game_play({ resolvedUid }) {
+        const leaderboard = ApiService.getLeaderboard?.() || [];
+        const entry = leaderboard.find(e =>
+          normalizeString(e?.uid) === normalizeString(resolvedUid)
+        );
+        return entry ? 1 : 0;
+      },
+
+      game_high_score({ resolvedUid }) {
+        const leaderboard = ApiService.getLeaderboard?.() || [];
+        const entry = leaderboard.find(e =>
+          normalizeString(e?.uid) === normalizeString(resolvedUid)
+        );
+        return toFiniteNumber(entry?.bestScore || entry?.score, 0);
       },
     };
 

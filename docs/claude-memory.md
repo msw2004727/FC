@@ -10,6 +10,12 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-16 — 成就系統新增 11 種動作類型
+- **需求**：擴充成就系統，新增可立即使用現有資料的動作類型
+- **新增動作**：`organize_event`（啟用）、`diverse_sports`、`no_show_free`、`create_team`、`bring_companion`、`team_member_count`、`early_event`、`night_event`、`shop_trade`、`game_play`、`game_high_score`
+- **修改檔案**：`config.js`（ACHIEVEMENT_CONDITIONS）、`registry.js`（actionMetaMap）、`evaluator.js`（actionHandlers）
+- **注意**：`shop_trade`、`game_play`、`game_high_score` 依賴 trades/leaderboard 集合資料，尚無交易功能時這些成就自然不會觸發
+
 ### 2026-03-16 — 修復活動詳情頁徽章展示未生效 + 手勢補全
 - **問題**：`_refreshRegistrationBadges` 使用 `getEvaluatedAchievementsForUserAsync` 為其他用戶讀取 per-user 子集合，但大部分用戶無子集合資料，導致成就全部判定為未完成、徽章永遠為空；觸控手勢缺少 `touchcancel` 處理
 - **原因**：`badges.js` 的 `getEvaluatedAchievementsForUserAsync` 對非當前用戶僅讀子集合（不即時計算），子集合空時回傳模板 `current:0`
