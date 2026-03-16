@@ -249,7 +249,7 @@
 // 20260316r: Per-user achievement progress — 雙寫子集合 + fallback 即時計算
 // 20260316s: Phase 3+4 — 支援讀其他用戶徽章 + 移除全域寫入 + 清理汙染邏輯
 // 20260316t: 一次性清理全域 achievements 汙染（重設 current/completedAt 為模板狀態）
-const CACHE_VERSION = '20260316zq';
+const CACHE_VERSION = '20260316zr';
 
 // ─── Page Strategy Registry ───
 // 唯一策略來源，未列出的頁面預設 fresh-first
@@ -323,6 +323,11 @@ const ACHIEVEMENT_CONDITIONS = {
     { key: 'shop_trade',     label: '完成商城兌換',         unit: '次', needsFilter: false },
     { key: 'game_play',      label: '完成小遊戲',           unit: '場', needsFilter: false },
     { key: 'game_high_score',label: '小遊戲最高分',         unit: '分', needsFilter: false },
+    { key: 'role_coach',     label: '教練身份',             unit: '',  needsFilter: false },
+    { key: 'role_captain',   label: '領隊/經理身份',        unit: '',  needsFilter: false },
+    { key: 'role_venue_owner',label: '場主身份',            unit: '',  needsFilter: false },
+    { key: 'role_admin',     label: '管理員身份',           unit: '',  needsFilter: false },
+    { key: 'manual_award',   label: '手動授予',             unit: '',  needsFilter: false },
   ],
   filters: [
     { key: 'all',      label: '所有類型' },

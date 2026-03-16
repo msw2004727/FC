@@ -199,6 +199,11 @@ Object.assign(App, {
         const lockColor = isLocked ? 'var(--accent)' : 'var(--warning)';
         const lockTitle = isLocked ? '已鎖定（達成即永久）' : '未鎖定（條件消失會撤銷）';
 
+        const isManualAward = normalizeString(achievement.condition?.action) === 'manual_award';
+        const awardBtn = isManualAward && !isArchived
+          ? `<button class="text-btn" style="font-size:.72rem;color:var(--accent)" onclick="App.openManualAwardPanel('${achievement.id}')">授予</button>`
+          : '';
+
         return `
       <div class="admin-ach-row" style="background:${index % 2 === 0 ? 'var(--bg-elevated)' : 'transparent'};border-left:3px solid ${isArchived ? 'var(--text-muted)' : color};${isArchived ? 'opacity:.55;' : ''}">
         <div class="badge-img-placeholder small" style="border-color:${color};flex-shrink:0">${badgeImg}</div>
@@ -216,6 +221,7 @@ Object.assign(App, {
           </div>
         </div>
         <div class="admin-ach-actions">
+          ${awardBtn}
           <button class="text-btn" style="font-size:.72rem;color:${lockColor};display:inline-flex;align-items:center;gap:.2rem" title="${lockTitle}" onclick="App.toggleAchievementLock('${achievement.id}')">${lockIcon}</button>
           <button class="text-btn" style="font-size:.72rem" onclick="App.editAchievement('${achievement.id}')">編輯</button>
           <button class="text-btn" style="font-size:.72rem;color:${isArchived ? 'var(--success)' : 'var(--danger)'}" onclick="App.toggleAchievementStatus('${achievement.id}')">${isArchived ? '上架' : '下架'}</button>
@@ -509,6 +515,147 @@ Object.assign(App, {
       }
     };
 
+    const openManualAwardPanel = async (achId) => {
+      const achievement = (ApiService.getAchievements() || []).find(a => a.id === achId);
+      if (!achievement) return;
+
+      const users = ApiService.getAdminUsers?.() || [];
+      const badge = (ApiService.getBadges() || []).find(b => b.id === achievement.badgeId);
+      const badgeName = badge?.name || achievement.name;
+
+      const overlay = document.createElement('div');
+      overlay.id = 'manual-award-overlay';
+      overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;padding:1rem';
+      overlay.innerHTML = `
+        <div style="background:var(--bg-card);border-radius:12px;width:100%;max-width:420px;max-height:85vh;overflow:hidden;display:flex;flex-direction:column">
+          <div style="padding:.75rem 1rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
+            <span style="font-weight:600;font-size:.9rem">手動授予 — ${escapeHTML(badgeName)}</span>
+            <button id="manual-award-close" style="background:none;border:none;font-size:1.2rem;cursor:pointer;color:var(--text-muted);padding:.2rem">&times;</button>
+          </div>
+          <div style="padding:.75rem 1rem">
+            <input id="manual-award-search" type="text" placeholder="搜尋用戶名稱..."
+              style="width:100%;padding:.4rem .6rem;border:1px solid var(--border);border-radius:6px;font-size:.82rem;background:var(--bg-elevated);color:var(--text-primary);box-sizing:border-box">
+            <div id="manual-award-results" style="max-height:180px;overflow-y:auto;margin-top:.5rem"></div>
+          </div>
+          <div style="padding:0 1rem .75rem;flex:1;overflow-y:auto">
+            <div style="font-size:.76rem;color:var(--text-muted);margin-bottom:.4rem">已授予用戶</div>
+            <div id="manual-award-list"></div>
+          </div>
+        </div>`;
+      document.body.appendChild(overlay);
+
+      const closePanel = () => overlay.remove();
+      overlay.querySelector('#manual-award-close').addEventListener('click', closePanel);
+      overlay.addEventListener('click', (e) => { if (e.target === overlay) closePanel(); });
+
+      // Load current awardees
+      const awardeeList = overlay.querySelector('#manual-award-list');
+      const renderAwardees = async () => {
+        let awardees = [];
+        try {
+          const db = typeof FirebaseService !== 'undefined' ? FirebaseService._db : null;
+          if (!db) { awardeeList.innerHTML = '<div style="font-size:.78rem;color:var(--text-muted)">無法讀取</div>'; return; }
+          const allUsers = users;
+          for (const u of allUsers) {
+            const uid = normalizeString(u?.uid || u?._docId);
+            if (!uid) continue;
+            try {
+              const doc = await db.collection('users').doc(uid).collection('achievements').doc(achId).get();
+              if (doc.exists) {
+                const data = doc.data();
+                if (data?.completedAt) {
+                  awardees.push({ uid, name: u.displayName || u.name || uid, completedAt: data.completedAt });
+                }
+              }
+            } catch (_) {}
+          }
+        } catch (_) {}
+
+        if (!awardees.length) {
+          awardeeList.innerHTML = '<div style="font-size:.78rem;color:var(--text-muted)">尚無已授予用戶</div>';
+          return;
+        }
+        awardeeList.innerHTML = awardees.map(a => `
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:.3rem 0;border-bottom:1px solid var(--border)">
+            <span style="font-size:.8rem">${escapeHTML(a.name)}</span>
+            <button class="text-btn" style="font-size:.7rem;color:var(--danger)" data-revoke-uid="${a.uid}">撤銷</button>
+          </div>`).join('');
+        awardeeList.querySelectorAll('[data-revoke-uid]').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            const uid = btn.dataset.revokeUid;
+            const ok = await App.appConfirm(`確定要撤銷「${escapeHTML(badgeName)}」？`);
+            if (!ok) return;
+            try {
+              const db = FirebaseService._db;
+              await db.collection('users').doc(uid).collection('achievements').doc(achId).set({
+                achId, current: 0, completedAt: null, updatedAt: new Date().toISOString(),
+              });
+              ApiService._writeOpLog?.('ach_manual_revoke', '撤銷手動成就', `撤銷 ${badgeName} from ${uid}`);
+              App.showToast('已撤銷');
+              await renderAwardees();
+            } catch (err) {
+              console.error('[manualAward.revoke]', err);
+              App.showToast('撤銷失敗');
+            }
+          });
+        });
+      };
+      await renderAwardees();
+
+      // Search and award
+      const searchInput = overlay.querySelector('#manual-award-search');
+      const resultsDiv = overlay.querySelector('#manual-award-results');
+      let searchTimer = null;
+      searchInput.addEventListener('input', () => {
+        if (searchTimer) clearTimeout(searchTimer);
+        searchTimer = setTimeout(() => {
+          const query = normalizeString(searchInput.value).toLowerCase();
+          if (!query || query.length < 1) { resultsDiv.innerHTML = ''; return; }
+          const matches = users.filter(u => {
+            const name = (u.displayName || u.name || '').toLowerCase();
+            const uid = normalizeString(u.uid || u._docId).toLowerCase();
+            return name.includes(query) || uid.includes(query);
+          }).slice(0, 10);
+          if (!matches.length) {
+            resultsDiv.innerHTML = '<div style="font-size:.78rem;color:var(--text-muted);padding:.3rem 0">無符合用戶</div>';
+            return;
+          }
+          resultsDiv.innerHTML = matches.map(u => {
+            const uid = normalizeString(u.uid || u._docId);
+            const name = u.displayName || u.name || uid;
+            return `<div style="display:flex;align-items:center;justify-content:space-between;padding:.35rem 0;border-bottom:1px solid var(--border)">
+              <span style="font-size:.8rem">${escapeHTML(name)}</span>
+              <button class="text-btn" style="font-size:.7rem;color:var(--accent)" data-award-uid="${uid}" data-award-name="${escapeHTML(name)}">授予</button>
+            </div>`;
+          }).join('');
+          resultsDiv.querySelectorAll('[data-award-uid]').forEach(btn => {
+            btn.addEventListener('click', async () => {
+              const uid = btn.dataset.awardUid;
+              const userName = btn.dataset.awardName;
+              const ok = await App.appConfirm(`確定要授予「${escapeHTML(badgeName)}」給 ${userName}？`);
+              if (!ok) return;
+              try {
+                const db = FirebaseService._db;
+                const now = new Date();
+                const completedAt = `${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, '0')}/${String(now.getDate()).padStart(2, '0')}`;
+                await db.collection('users').doc(uid).collection('achievements').doc(achId).set({
+                  achId, current: 1, completedAt, updatedAt: now.toISOString(),
+                });
+                ApiService._writeOpLog?.('ach_manual_award', '手動授予成就', `授予 ${badgeName} to ${userName}(${uid})`);
+                App.showToast(`已授予「${badgeName}」給 ${userName}`);
+                searchInput.value = '';
+                resultsDiv.innerHTML = '';
+                await renderAwardees();
+              } catch (err) {
+                console.error('[manualAward.award]', err);
+                App.showToast('授予失敗');
+              }
+            });
+          });
+        }, 200);
+      });
+    };
+
     return {
       populateAchConditionSelects,
       renderAdminAchievements,
@@ -522,6 +669,7 @@ Object.assign(App, {
       toggleAchievementStatus,
       toggleAchievementLock,
       confirmDeleteAchievement,
+      openManualAwardPanel,
     };
   },
 

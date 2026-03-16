@@ -362,6 +362,11 @@ Object.assign(App, {
     if (admin?.toggleAchievementLock) return admin.toggleAchievementLock(id);
   },
 
+  openManualAwardPanel(id) {
+    const admin = this._getAchievementAdmin?.();
+    if (admin?.openManualAwardPanel) return admin.openManualAwardPanel(id);
+  },
+
   async confirmDeleteAchievement(id) {
     const admin = this._getAchievementAdmin?.();
     if (admin?.confirmDeleteAchievement) return admin.confirmDeleteAchievement(id);

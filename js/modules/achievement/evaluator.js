@@ -740,6 +740,22 @@ Object.assign(App, {
         );
         return toFiniteNumber(entry?.bestScore || entry?.score, 0);
       },
+
+      role_check({ resolvedUser, actionMeta }) {
+        const targetRole = normalizeString(actionMeta?.targetRole || 'coach');
+        const userRole = normalizeString(resolvedUser?.role || 'user');
+        const targetLevel = typeof ROLE_LEVEL_MAP !== 'undefined'
+          ? toFiniteNumber(ROLE_LEVEL_MAP[targetRole], 99)
+          : toFiniteNumber(_BASE_ROLE_LEVEL_MAP?.[targetRole], 99);
+        const userLevel = typeof ROLE_LEVEL_MAP !== 'undefined'
+          ? toFiniteNumber(ROLE_LEVEL_MAP[userRole], 0)
+          : toFiniteNumber(_BASE_ROLE_LEVEL_MAP?.[userRole], 0);
+        return userLevel >= targetLevel ? 1 : 0;
+      },
+
+      manual_award({ achievement }) {
+        return normalizeCurrentValue(achievement?.current || 0);
+      },
     };
 
     const evaluateAchievementRecord = ({ achievement, registry, context, eventType }) => {

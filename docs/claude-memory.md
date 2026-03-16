@@ -10,6 +10,14 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-16 — 身份成就 + 手動授予成就
+- **需求**：新增 4 種身份判定動作類型（教練/領隊/場主/管理員）+ 1 種手動授予動作類型
+- **設計**：
+  - **身份成就**：`role_coach`、`role_captain`、`role_venue_owner`、`role_admin`，共用 `role_check` handler，以 `ROLE_LEVEL_MAP` 做階層判定（高階角色自動滿足低階條件），`fixedThreshold: 1`
+  - **手動授予**：`manual_award`，evaluator handler 直接回傳既有 `current` 值（不自動評估），管理員透過後台「授予」按鈕開啟面板，模糊搜尋用戶後直接寫入 `users/{uid}/achievements/{achId}`
+- **修改位置**：`config.js` 加 5 筆 actions、`registry.js` 加 5 筆 actionMetaMap、`evaluator.js` 加 `role_check` + `manual_award` handler、`admin.js` 加 `openManualAwardPanel` + 授予/撤銷 UI、`achievement.js` 加 facade
+- **教訓**：手動授予繞過 evaluator 自動計算，直接寫 Firestore 子集合，因此批次更新時 `manual_award` handler 會保留既有 `current` 值不覆蓋
+
 ### 2026-03-16 — [永久] 成就鎖定/解鎖功能
 - **需求**：管理員可控制每個成就是否為「達成即永久」或「條件消失即撤銷」
 - **設計**：成就文件新增 `locked` 欄位（預設 `true`，向下相容）

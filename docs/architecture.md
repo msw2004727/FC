@@ -119,12 +119,12 @@ flowchart TD
 | `modules/achievement/registry.js` | 成就條件 registry；集中正式支援 action / timeRange、field state、legacy label fallback 與事件觸發判定，作為後台欄位 / evaluator / cleanup 的唯一來源 |
 | `modules/achievement/shared.js` | 成就共用 helper；包含 threshold、條件描述與分類排序等純函式 |
 | `modules/achievement/stats.js` | 成就衍生計算 helper；集中徽章數、已獲得徽章與稱號選項的共用邏輯 |
-| `modules/achievement/evaluator.js` | 成就評估器；以 registry 驅動 23 種動作類型（含 organize_event、diverse_sports、no_show_free、create_team、bring_companion、team_member_count、early_event、night_event、shop_trade、game_play、game_high_score），提供「只讀快照評估」。雙寫 per-user 子集合，讀取優先採用已完成記錄，fallback 到即時計算 |
+| `modules/achievement/evaluator.js` | 成就評估器；以 registry 驅動 25 種動作類型（含 role_check × 4 身份判定 + manual_award 手動授予），提供「只讀快照評估」。雙寫 per-user 子集合，讀取優先採用已完成記錄，fallback 到即時計算 |
 | `modules/achievement/badges.js` | 成就徽章 helper；集中徽章數、已獲得徽章清單與 badge list HTML，支援同步（當前用戶快取）與異步（其他用戶 Firestore 子集合）兩種路徑 |
 | `modules/achievement/titles.js` | 成就稱號 helper；集中稱號顯示、稱號頁選項、稱號提示與儲存邏輯，改以目標使用者的快照成就做 sanitization，讓舊 `profile-data` 入口只保留轉接 |
 | `modules/achievement/profile.js` | 成就個人頁 bridge；將 badges / titles helper 整成 profile-facing API，預設走目前使用者快照，供 `profile-core`、`profile-card`、`personal-dashboard`、`leaderboard` 共用 |
 | `modules/achievement/view.js` | 成就頁 view helper；集中公開成就頁卡片與徽章展示 render，改為只讀快照渲染，讓舊 `renderAchievements()` 只保留 facade |
-| `modules/achievement/admin.js` | 成就後台 helper；集中成就列表、表單、徽章上傳、legacy cleanup 與 CRUD 流程，讓舊 `achievement.js` 只保留管理端 facade 入口 |
+| `modules/achievement/admin.js` | 成就後台 helper；集中成就列表、表單、徽章上傳、legacy cleanup、鎖定切換、手動授予面板（模糊搜尋 + 授予/撤銷）與 CRUD 流程 |
 | `modules/announcement.js` | 系統公告管理與顯示 |
 | `modules/favorites.js` | 用戶收藏活動 / 球隊管理 |
 | `modules/news.js` | 首頁每日體育新聞渲染（卡片直瀑式），資料來自 Cloud Function 定時抓取 |
