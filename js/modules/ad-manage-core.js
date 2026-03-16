@@ -66,6 +66,25 @@ Object.assign(App, {
     return btns.join('');
   },
 
+  // ── 首頁新聞開關 ──
+  renderNewsToggle() {
+    var toggle = document.getElementById('news-visible-toggle');
+    if (!toggle) return;
+    toggle.checked = ApiService.isNewsVisible();
+  },
+
+  toggleNewsVisible(visible) {
+    if (!this.hasPermission('admin.banners.entry')) {
+      this.showToast('權限不足'); return;
+    }
+    ApiService.upsertGameConfig('news-section', {
+      gameKey: 'news-section',
+      homeVisible: !!visible,
+      updatedAt: new Date().toISOString(),
+    });
+    this.showToast(visible ? '已開啟首頁新聞' : '已關閉首頁新聞');
+  },
+
   // ── 通用：編輯 ──
   editAd(type, id) {
     if (type === 'banner') this.editBannerItem(id);

@@ -107,6 +107,27 @@
         </div>
       </div>
 
+      <!-- 首頁新聞開關 -->
+      <div class="ad-collapse-section">
+        <div class="admin-section-label ad-collapse-toggle" onclick="App.toggleAdSection(this)">
+          <span>首頁新聞</span><span class="ad-collapse-arrow">▶</span>
+        </div>
+        <div class="ad-collapse-content" style="display:none">
+          <div class="form-card" style="padding:.8rem 1rem">
+            <div style="display:flex;align-items:center;justify-content:space-between">
+              <div>
+                <div style="font-size:.82rem;font-weight:600;color:var(--text-primary)">顯示每日體育新聞</div>
+                <div style="font-size:.72rem;color:var(--text-muted);margin-top:.15rem">關閉後首頁將不顯示新聞區塊</div>
+              </div>
+              <label class="toggle-switch" style="margin:0">
+                <input type="checkbox" id="news-visible-toggle" onchange="App.toggleNewsVisible(this.checked)">
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- 射門遊戲廣告 -->
       <div class="ad-collapse-section">
         <div class="admin-section-label ad-collapse-toggle" onclick="App.toggleAdSection(this)">

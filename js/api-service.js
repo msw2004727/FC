@@ -1166,6 +1166,11 @@ const ApiService = {
     return cfg.homeVisible !== false;
   },
 
+  isNewsVisible() {
+    var cfg = this.getGameConfigs().find(function (c) { return c.gameKey === 'news-section' || c.id === 'news-section'; });
+    return !cfg || cfg.homeVisible !== false;
+  },
+
   upsertGameConfig(id, updates) {
     if (this._handleRestrictedAction()) return null;
     const configId = String(id || '').trim();

@@ -14,6 +14,15 @@ Object.assign(App, {
     const dividerEl = document.getElementById('news-divider');
     if (!titleEl || !listEl) return;
 
+    // 管理員關閉新聞顯示時隱藏整個區塊
+    if (typeof ApiService !== 'undefined' && !ApiService.isNewsVisible()) {
+      titleEl.style.display = 'none';
+      if (tabsEl) tabsEl.style.display = 'none';
+      if (dividerEl) dividerEl.style.display = 'none';
+      listEl.innerHTML = '';
+      return;
+    }
+
     const articles = (typeof ApiService !== 'undefined' && ApiService.getNewsArticles)
       ? ApiService.getNewsArticles()
       : [];
