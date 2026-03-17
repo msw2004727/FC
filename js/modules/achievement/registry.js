@@ -388,15 +388,17 @@ Object.assign(App, {
       getActionFieldState(actionKey) {
         const actionMeta = this.findActionMeta(actionKey) || {};
         const fixedThreshold = Number.isFinite(actionMeta.fixedThreshold) ? actionMeta.fixedThreshold : null;
+        // reverseComparison 類型（如 no_show_free）允許 defaultThreshold = 0
+        const minThreshold = actionMeta.reverseComparison ? 0 : 1;
         const defaultThreshold = fixedThreshold != null
           ? fixedThreshold
-          : Math.max(1, toFiniteNumber(actionMeta.defaultThreshold, 1));
+          : Math.max(minThreshold, toFiniteNumber(actionMeta.defaultThreshold, 1));
         return {
           showFilter: !!actionMeta.needsFilter,
           showThreshold: fixedThreshold == null,
           fixedThreshold,
           defaultThreshold,
-          thresholdMin: 1,
+          thresholdMin: minThreshold,
         };
       },
 
@@ -411,9 +413,10 @@ Object.assign(App, {
           timeRange: this.getEffectiveTimeRangeKey(rawTimeRange),
           action: actionKey,
           filter: fieldState.showFilter && this.findFilterConfig(rawFilter) ? rawFilter : 'all',
+          // rawThreshold 可能為 0（reverseComparison 類型），不可用 || 判斷
           threshold: fieldState.fixedThreshold != null
             ? fieldState.fixedThreshold
-            : Math.max(fieldState.thresholdMin, rawThreshold || fieldState.defaultThreshold),
+            : Math.max(fieldState.thresholdMin, rawThreshold != null ? rawThreshold : fieldState.defaultThreshold),
         };
         return normalized;
       },

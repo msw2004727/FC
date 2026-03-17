@@ -52,7 +52,7 @@ Object.assign(App, {
         streakDays: parseInt(document.getElementById('ach-cond-streakdays')?.value || '7', 10) || 7,
         action: document.getElementById('ach-cond-action')?.value || 'complete_event',
         filter: document.getElementById('ach-cond-filter')?.value || 'all',
-        threshold: parseInt(document.getElementById('ach-cond-threshold')?.value || '0', 10) || 0,
+        threshold: parseInt(document.getElementById('ach-cond-threshold')?.value ?? '0', 10),
       };
       const condition = registry?.normalizeCondition?.(rawCondition) || rawCondition;
       if (condition.timeRange !== 'streak') delete condition.streakDays;
@@ -306,10 +306,12 @@ Object.assign(App, {
       if (streakRow) streakRow.style.display = timeRange === 'streak' ? '' : 'none';
       if (filterRow) filterRow.style.display = fieldState.showFilter ? '' : 'none';
       if (thresholdRow) thresholdRow.style.display = fieldState.showThreshold ? '' : 'none';
+      // 動態設定 min 值（reverseComparison 類型允許 0）
+      if (thresholdInput) thresholdInput.min = String(fieldState.thresholdMin ?? 0);
       if (thresholdInput && fieldState.fixedThreshold != null) {
         thresholdInput.value = String(fieldState.fixedThreshold);
       } else if (thresholdInput && !thresholdInput.value) {
-        thresholdInput.value = String(fieldState.defaultThreshold || 1);
+        thresholdInput.value = String(fieldState.defaultThreshold ?? 1);
       }
     };
 
