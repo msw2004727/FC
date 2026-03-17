@@ -253,7 +253,8 @@
 // 20260317zn: 教育型俱樂部系統 Phase 1-8（type/eduSettings + 分組/學員/課程/簽到/行事曆/通知）
 // 20260317zo: QA 修復 — onclick XSS、missing await、deleteEduStudent、null guard
 // 20260317zp: fix — 教育 CRUD 全部加 ensureAuthReadyForWrite 防止權限錯誤
-const CACHE_VERSION = '20260317zp';
+// 20260317zq: fix — 刷新時 detail 頁面退回列表 + showTeamDetail render-before-show
+const CACHE_VERSION = '20260317zq';
 
 // ─── Page Strategy Registry ───
 // 唯一策略來源，未列出的頁面預設 fresh-first

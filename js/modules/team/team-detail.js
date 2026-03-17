@@ -123,8 +123,15 @@ Object.assign(App, {
       let t = ApiService.getTeam(id);
       if (!t) return { ok: false, reason: 'missing' };
       const requestSeq = ++this._teamDetailRequestSeq;
-      await this.showPage('page-team-detail');
-      if (requestSeq !== this._teamDetailRequestSeq || this.currentPage !== 'page-team-detail') {
+
+      // ── 確保頁面 HTML + Script 已載入（不切換顯示），避免空白模板閃現 ──
+      if (typeof PageLoader !== 'undefined' && PageLoader.ensurePage) {
+        await PageLoader.ensurePage('page-team-detail');
+      }
+      if (typeof ScriptLoader !== 'undefined' && ScriptLoader.ensureForPage) {
+        await ScriptLoader.ensureForPage('page-team-detail');
+      }
+      if (requestSeq !== this._teamDetailRequestSeq) {
         return { ok: false, reason: 'stale' };
       }
 
@@ -138,25 +145,26 @@ Object.assign(App, {
         return { ok: false, reason: 'page-not-ready' };
       }
 
+      // ── 先渲染內容到隱藏 DOM ──
       this._teamDetailId = id;
-    this._refreshTeamDetailEditButton(t);
-    const canManageMembers = this._canManageTeamMembers(t);
-    const memberEditMode = !!this._teamMemberEditModeByTeam[t.id];
-    const staffIdentity = this._getTeamStaffIdentity(t);
+      this._refreshTeamDetailEditButton(t);
+      const canManageMembers = this._canManageTeamMembers(t);
+      const memberEditMode = !!this._teamMemberEditModeByTeam[t.id];
+      const staffIdentity = this._getTeamStaffIdentity(t);
       nodes.title.textContent = t.name;
       nodes.nameEn.textContent = t.nameEn || '';
 
       const imgEl = nodes.image;
-    const detailRank = this._getTeamRank(t.teamExp);
-    imgEl.style.position = 'relative';
-    if (t.image) {
-      imgEl.innerHTML = '<img src="' + t.image + '" loading="lazy" style="width:100%;height:100%;object-fit:cover"><span class="tc-rank-badge tc-rank-badge-lg" style="color:' + detailRank.color + '"><span class="tc-rank-score">' + (t.teamExp || 0).toLocaleString() + '</span>' + detailRank.rank + '</span>';
-    } else {
-      imgEl.innerHTML = '\u7403\u968a\u5c01\u9762 800 \u00d7 300<span class="tc-rank-badge tc-rank-badge-lg" style="color:' + detailRank.color + '"><span class="tc-rank-score">' + (t.teamExp || 0).toLocaleString() + '</span>' + detailRank.rank + '</span>';
-    }
+      const detailRank = this._getTeamRank(t.teamExp);
+      imgEl.style.position = 'relative';
+      if (t.image) {
+        imgEl.innerHTML = '<img src="' + t.image + '" loading="lazy" style="width:100%;height:100%;object-fit:cover"><span class="tc-rank-badge tc-rank-badge-lg" style="color:' + detailRank.color + '"><span class="tc-rank-score">' + (t.teamExp || 0).toLocaleString() + '</span>' + detailRank.rank + '</span>';
+      } else {
+        imgEl.innerHTML = '\u7403\u968a\u5c01\u9762 800 \u00d7 300<span class="tc-rank-badge tc-rank-badge-lg" style="color:' + detailRank.color + '"><span class="tc-rank-score">' + (t.teamExp || 0).toLocaleString() + '</span>' + detailRank.rank + '</span>';
+      }
 
-    const totalGames = (t.wins || 0) + (t.draws || 0) + (t.losses || 0);
-    const winRate = totalGames > 0 ? Math.round((t.wins || 0) / totalGames * 100) : 0;
+      const totalGames = (t.wins || 0) + (t.draws || 0) + (t.losses || 0);
+      const winRate = totalGames > 0 ? Math.round((t.wins || 0) / totalGames * 100) : 0;
 
       // 教育型俱樂部委派 edu-detail-render.js 渲染
       if (t.type === 'education' && typeof this.renderEduClubDetail === 'function') {
@@ -164,6 +172,13 @@ Object.assign(App, {
       } else {
         nodes.body.innerHTML = this._buildTeamDetailBodyHtml(t, canManageMembers, memberEditMode, staffIdentity, totalGames, winRate);
       }
+
+      // ── 內容已渲染就緒，切換顯示頁面（避免空白模板閃現）──
+      await this.showPage('page-team-detail');
+      if (requestSeq !== this._teamDetailRequestSeq || this.currentPage !== 'page-team-detail') {
+        return { ok: false, reason: 'stale' };
+      }
+      this._markPageSnapshotReady?.('page-team-detail');
       return { ok: true, reason: 'ok' };
     } catch (err) {
       console.error('[TeamDetail] showTeamDetail failed:', err);

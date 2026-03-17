@@ -1253,6 +1253,22 @@ const App = {
     setTimeout(kickoff, 0);
   },
 
+  // detail 頁面需要 ID 才能渲染，hash 還原無法提供 ID → 退回父頁面
+  _DETAIL_PAGE_FALLBACK: {
+    'page-team-detail': 'page-teams',
+    'page-activity-detail': 'page-activities',
+    'page-edu-groups': 'page-teams',
+    'page-edu-students': 'page-teams',
+    'page-edu-course-plan': 'page-teams',
+    'page-edu-checkin': 'page-teams',
+    'page-edu-calendar': 'page-teams',
+    'page-edu-student-apply': 'page-teams',
+  },
+
+  _resolveBootPageId(pageId) {
+    return this._DETAIL_PAGE_FALLBACK[pageId] || pageId;
+  },
+
   _isProtectedBootRestoreRoute(pageId) {
     if (!pageId || pageId === 'page-home' || pageId === 'page-temp-participant-report') return false;
     if (typeof this._findDrawerMenuItem === 'function') {
@@ -1757,9 +1773,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   try {
     if (!App._getPendingDeepLink()) {
       const bootUrl = new URL(window.location.href);
-      const bootPageId = bootUrl.searchParams.get('rid')
+      const rawPageId = bootUrl.searchParams.get('rid')
         ? 'page-temp-participant-report'
         : location.hash.replace(/^#/, '');
+      const bootPageId = App._resolveBootPageId(rawPageId);
       if (bootPageId && bootPageId !== App.currentPage) {
         if (App._isProtectedBootRestoreRoute(bootPageId)) {
           App._deferProtectedBootRoute(bootPageId);
@@ -1776,7 +1793,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   // pageId !== App.currentPage 條件防止 showPage() 設 hash 後再次觸發無窮迴圈
   try {
     window.addEventListener('hashchange', () => {
-      const pageId = location.hash.replace(/^#/, '');
+      const rawPageId = location.hash.replace(/^#/, '');
+      const pageId = App._resolveBootPageId(rawPageId);
       const canResolvePage = pageId
         && (document.getElementById(pageId)
           || (typeof PageLoader !== 'undefined' && PageLoader._pageFileMap && PageLoader._pageFileMap[pageId]));
