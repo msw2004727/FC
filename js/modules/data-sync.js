@@ -129,25 +129,30 @@ Object.assign(App, {
     let updated = 0;
     for (let i = 0; i < teams.length; i++) {
       const team = teams[i];
-      const teamId = String(team?.id || team?._docId || '').trim();
-      if (!teamId) continue;
+      const teamCustomId = String(team?.id || '').trim();
+      const teamDocId = String(team?._docId || '').trim();
+      if (!teamCustomId && !teamDocId) continue;
 
+      // 成員比對用自訂 ID（user.teamId 存的是 team.id）
+      const matchId = teamCustomId || teamDocId;
       const computed = typeof this._calcTeamMemberCountByTeam === 'function'
         ? this._calcTeamMemberCountByTeam(team, users)
         : users.filter(u => {
             const tId = String(u?.teamId || '').trim();
             const tIds = Array.isArray(u?.teamIds) ? u.teamIds : [];
-            return tId === teamId || tIds.includes(teamId);
+            return tId === matchId || tIds.includes(matchId);
           }).length;
 
       const stored = team.members || 0;
       if (computed !== stored) {
+        // Firestore 寫入必須用 _docId（teams 用 .add() 建立，doc ID ≠ team.id）
+        const writeId = teamDocId || teamCustomId;
         try {
-          await db.collection('teams').doc(teamId).update({ members: computed });
-          ui.log(`${team.name || teamId}：${stored} → ${computed}`);
+          await db.collection('teams').doc(writeId).update({ members: computed });
+          ui.log(`${team.name || matchId}：${stored} → ${computed}`);
           updated++;
         } catch (err) {
-          ui.log(`錯誤 [${team.name || teamId}]：${err.message}`);
+          ui.log(`錯誤 [${team.name || matchId}]：${err.message}`);
         }
       }
       ui.setProgress(i + 1, teams.length);
@@ -178,7 +183,10 @@ Object.assign(App, {
 
       const cleanTeamId = teamId && validTeamIds.has(teamId) ? teamId : '';
       const cleanTeamIds = teamIds.filter(id => validTeamIds.has(id));
-      const cleanTeamNames = cleanTeamIds.length === teamIds.length ? teamNames : [];
+      // 保留有效 teamId 對應位置的 teamName（而非全部清空）
+      const cleanTeamNames = teamIds.length === teamNames.length
+        ? teamIds.map((id, idx) => validTeamIds.has(id) ? teamNames[idx] : null).filter(n => n !== null)
+        : [];
 
       const needsUpdate = cleanTeamId !== teamId
         || cleanTeamIds.length !== teamIds.length;
@@ -187,7 +195,7 @@ Object.assign(App, {
         try {
           const updates = { teamId: cleanTeamId || null };
           if (Array.isArray(user.teamIds)) updates.teamIds = cleanTeamIds;
-          if (Array.isArray(user.teamNames) && cleanTeamNames.length !== teamNames.length) {
+          if (Array.isArray(user.teamNames)) {
             updates.teamNames = cleanTeamNames;
           }
           await db.collection('users').doc(uid).update(updates);
