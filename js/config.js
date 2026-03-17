@@ -255,7 +255,8 @@
 // 20260317zp: fix — 教育 CRUD 全部加 ensureAuthReadyForWrite 防止權限錯誤
 // 20260317zq: fix — 刷新時 detail 頁面退回列表 + showTeamDetail render-before-show
 // 20260318a: fix — hashchange 不套用 detail fallback，修復點卡片無法進入 detail 頁
-const CACHE_VERSION = '20260318a';
+// 20260318b: redeploy trigger
+const CACHE_VERSION = '20260318b';
 
 // ─── Page Strategy Registry ───
 // 唯一策略來源，未列出的頁面預設 fresh-first
