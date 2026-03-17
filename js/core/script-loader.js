@@ -110,9 +110,15 @@ const ScriptLoader = {
       'js/modules/attendance-notify.js',
     ],
     game: [
+      'js/modules/shot-page-ui.js',
       'js/modules/shot-game-page.js',
     ],
     kickball: [
+      'js/modules/kickball-helpers.js',
+      'js/modules/kickball-leaderboard.js',
+      'js/modules/kickball-renderer.js',
+      'js/modules/kickball-ui.js',
+      'js/modules/kickball-physics.js',
       'js/modules/kickball-game-page.js',
     ],
     tournamentAdmin: [
@@ -121,6 +127,8 @@ const ScriptLoader = {
       'js/modules/tournament-share.js',
     ],
     messageAdmin: [
+      'js/modules/message-admin-list.js',
+      'js/modules/message-admin-compose.js',
       'js/modules/message-admin.js',
     ],
     adminDashboard: [
