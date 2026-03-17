@@ -10,6 +10,11 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-17 — [永久] firebase-service.js 全域快取 limit 移除（attendanceRecords / registrations / activityRecords）
+- **問題**：全域快取 attendanceRecords limit 500、registrations limit 500（admin）/ 200（user），導致超過限制的紀錄被截斷，放鴿子計算漏掉簽到紀錄而誤判
+- **修復**：移除三處 limit — `_getRegistrationsListenerQuery` 移除 limit(500)/limit(200)、`_startAttendanceRecordsListener` 移除 limit(500)、`_buildCollectionQuery` 對 attendanceRecords/registrations/activityRecords 不設 limit
+- **教訓**：統計關鍵集合（attendanceRecords、registrations、activityRecords）不可設 limit，否則資料截斷會導致所有依賴這些集合的統計計算出錯
+
 ### 2026-03-17 — [永久] 放鴿子計算用全域快取（limit 200）vs 出席率用 userStatsCache（無 limit）導致不一致
 - **問題**：用戶出席率 100% 但放鴿子顯示 1
 - **原因**：`_buildRawNoShowCountByUid` 用 `ApiService.getAttendanceRecords()`（全域快取，limit 200），`_calcScanStats` 用 `getUserAttendanceRecords(uid)`（_userStatsCache，Firestore 直查無 limit）。如果用戶的簽到紀錄超過全域快取限制，放鴿子計算就會漏掉簽到紀錄而誤判

@@ -295,6 +295,10 @@ const FirebaseService = {
         .orderBy('publishedAt', 'desc')
         .limit(8);
     }
+    // 統計關鍵集合不設 limit，避免截斷導致放鴿子/出席率計算錯誤
+    if (name === 'attendanceRecords' || name === 'registrations' || name === 'activityRecords') {
+      return db.collection(name);
+    }
     return db.collection(name).limit(limitCount);
   },
 
@@ -1164,11 +1168,10 @@ const FirebaseService = {
 
   _getRegistrationsListenerQuery(ctx) {
     if (ctx.canReadAll) {
-      return db.collection('registrations').limit(500);
+      return db.collection('registrations');
     }
     return db.collection('registrations')
-      .where('userId', '==', ctx.uid)
-      .limit(200);
+      .where('userId', '==', ctx.uid);
   },
 
   _stopRegistrationsListener() {
@@ -1200,7 +1203,6 @@ const FirebaseService = {
     this._lazyLoaded.attendanceRecords = true;
     const unsub = db.collection('attendanceRecords')
       .orderBy('createdAt', 'desc')
-      .limit(500)
       .onSnapshot(
         snapshot => {
           this._cache.attendanceRecords = snapshot.docs.map(doc => ({ ...doc.data(), _docId: doc.id }));
