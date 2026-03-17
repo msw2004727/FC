@@ -88,6 +88,7 @@ const ScriptLoader = {
       'js/modules/event/event-detail-reviews.js',
       'js/modules/event/event-detail.js',
       'js/modules/event/event-detail-signup.js',
+      'js/modules/event/event-detail-notify-prompt.js',
       'js/modules/event/event-detail-companion.js',
       'js/modules/event/event-create-input-history.js',
       'js/modules/event/event-create-sport-picker.js',

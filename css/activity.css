@@ -833,3 +833,113 @@
   object-fit: contain; flex-shrink: 0;
   background: var(--bg-elevated);
 }
+
+/* ═══════════════════════════════════
+   LINE 推播綁定引導彈窗
+   ═══════════════════════════════════ */
+.ln-prompt-overlay {
+  position: fixed; inset: 0; z-index: 1250;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(0,0,0,.45);
+  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  opacity: 0; pointer-events: none;
+  transition: opacity .3s ease;
+}
+.ln-prompt-overlay.open { opacity: 1; pointer-events: auto; }
+
+.ln-prompt-card {
+  background: var(--bg-card);
+  border-radius: 18px;
+  padding: 2rem 1.5rem 1.5rem;
+  width: 300px; max-width: 88vw;
+  text-align: center;
+  transform: translateY(24px) scale(.94);
+  transition: transform .3s ease;
+  box-shadow: 0 8px 32px rgba(0,0,0,.25);
+}
+.ln-prompt-overlay.open .ln-prompt-card {
+  transform: translateY(0) scale(1);
+}
+
+.ln-prompt-icon { font-size: 2.2rem; margin-bottom: .5rem; }
+
+.ln-prompt-title {
+  font-size: 1.1rem; font-weight: 700;
+  color: var(--text-primary);
+  margin: 0 0 .7rem;
+}
+
+.ln-prompt-desc {
+  font-size: .85rem; line-height: 1.6;
+  color: var(--text-secondary);
+  margin: 0 0 1.4rem;
+}
+
+.ln-prompt-actions {
+  display: flex; gap: 10px;
+}
+
+.ln-prompt-btn {
+  flex: 1; border: none; border-radius: 12px;
+  padding: .7rem .4rem; font-size: .9rem; font-weight: 600;
+  cursor: pointer; transition: transform .15s, opacity .15s;
+}
+.ln-prompt-btn:active { transform: scale(.95); }
+
+/* 請別煩我 */
+.ln-prompt-dismiss {
+  background: var(--bg-elevated);
+  color: var(--text-muted);
+}
+
+/* 立即綁定 — 綠色 + 彩色光跡 */
+.ln-prompt-bind {
+  position: relative;
+  background: #06C755;
+  color: #fff;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+/* 360° 彩色光跡邊框 */
+.ln-prompt-bind-glow {
+  position: absolute; inset: -3px;
+  border-radius: 14px;
+  overflow: hidden;
+  pointer-events: none;
+  -webkit-mask: linear-gradient(#fff,#fff) content-box, linear-gradient(#fff,#fff);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#fff,#fff) content-box, linear-gradient(#fff,#fff);
+  mask-composite: exclude;
+  padding: 3px;
+  z-index: -1;
+}
+.ln-prompt-bind-glow::before {
+  content: '';
+  position: absolute; inset: -80%;
+  background: conic-gradient(
+    transparent 0%, transparent 45%,
+    #06C755 55%, #00e676 62%, #69f0ae 68%,
+    #fff 74%, #b9f6ca 80%,
+    #00e676 86%, #06C755 92%,
+    transparent 100%
+  );
+  animation: ln-glow-spin 2s linear infinite;
+}
+@keyframes ln-glow-spin { to { transform: rotate(360deg); } }
+
+/* 外層柔光呼吸 */
+.ln-prompt-bind::after {
+  content: '';
+  position: absolute; inset: -4px;
+  border-radius: 15px;
+  pointer-events: none;
+  z-index: -2;
+  animation: ln-glow-pulse 1.8s ease-in-out infinite;
+}
+@keyframes ln-glow-pulse {
+  0%, 100% { box-shadow: 0 0 10px rgba(6,199,85,.2), 0 0 20px rgba(6,199,85,.08); }
+  50%      { box-shadow: 0 0 18px rgba(6,199,85,.35), 0 0 36px rgba(6,199,85,.12); }
+}
+
+.ln-prompt-bind-text { position: relative; z-index: 1; }

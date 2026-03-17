@@ -188,6 +188,7 @@ Object.assign(App, {
         status: isWaitlist ? '候補' : '正取',
       }, userId, 'activity', '活動');
       this._evaluateAchievements?.(e.type);
+      this._maybeShowLineNotifyPrompt?.();
       this.showEventDetail(id);
       return;
     }
@@ -232,6 +233,7 @@ Object.assign(App, {
         this._flipAnimating = false;
       }
       this.showEventDetail(id);
+      this._maybeShowLineNotifyPrompt?.();
       // ── 背景 post-ops（fire-and-forget，不阻塞 UI）──
       const dateParts = e.date.split(' ')[0].split('/');
       const dateStr = `${dateParts[1]}/${dateParts[2]}`;
