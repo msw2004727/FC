@@ -218,29 +218,29 @@ Object.assign(App, {
       const requestSeq = ++this._eventDetailRequestSeq;
       // Pre-warm Firebase Auth（fire-and-forget），讓後續報名/取消寫入時免等 auth
       FirebaseService.ensureAuthReadyForWrite().catch(() => {});
-      await this.showPage('page-activity-detail');
-      if (requestSeq !== this._eventDetailRequestSeq || this.currentPage !== 'page-activity-detail') {
+      // ── 確保頁面 HTML + Script 已載入（不切換顯示），避免空白模板閃現 ──
+      if (typeof PageLoader !== 'undefined' && PageLoader.ensurePage) {
+        await PageLoader.ensurePage('page-activity-detail');
+      }
+      if (typeof ScriptLoader !== 'undefined' && ScriptLoader.ensureForPage) {
+        await ScriptLoader.ensureForPage('page-activity-detail');
+      }
+      if (requestSeq !== this._eventDetailRequestSeq) {
         return { ok: false, reason: 'stale' };
       }
-
+      // 重新取得活動資料（await 期間快取可能被刷新）
       e = ApiService.getEvent(id);
-      if (!e) {
-        // showPage 已顯示空白模板，必須切離避免留下空白頁面
-        if (this.currentPage === 'page-activity-detail') {
-          this.showPage('page-activities', { resetHistory: true });
-        }
-        return { ok: false, reason: 'missing' };
-      }
+      if (!e) return { ok: false, reason: 'missing' };
       if (!isGuestView && typeof this._canViewEventByTeamScope === 'function' && !this._canViewEventByTeamScope(e)) {
         this.showToast('\u60a8\u6c92\u6709\u67e5\u770b\u6b64\u6d3b\u52d5\u7684\u6b0a\u9650');
         return { ok: false, reason: 'forbidden' };
       }
       e = this._syncEventEffectiveStatus?.(e) || e;
 
+      // 驗證 DOM 節點存在（頁面已載入 DOM 但尚未切換顯示）
       const nodes = this._getEventDetailNodes();
       if (!nodes) {
-        console.warn('[EventDetail] detail shell missing after navigation');
-        this.showToast('\u6d3b\u52d5\u8a73\u60c5\u9801\u9762\u8f09\u5165\u5931\u6557');
+        console.warn('[EventDetail] detail shell missing');
         return { ok: false, reason: 'page-not-ready' };
       }
 
@@ -414,6 +414,11 @@ Object.assign(App, {
       // 背景更新報名者徽章（不阻塞頁面渲染）
       this._refreshRegistrationBadges?.(id, 'detail-attendance-table')?.catch?.(() => {});
     }
+      // ── 內容已渲染就緒，切換顯示頁面（避免空白模板閃現）──
+      await this.showPage('page-activity-detail');
+      if (requestSeq !== this._eventDetailRequestSeq || this.currentPage !== 'page-activity-detail') {
+        return { ok: false, reason: 'stale' };
+      }
       this._markPageSnapshotReady?.('page-activity-detail');
       return { ok: true, reason: 'ok' };
     } catch (err) {

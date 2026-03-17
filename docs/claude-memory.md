@@ -10,6 +10,12 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-17 — 修正瀏覽器重整後活動詳情頁空白模板閃現
+- **問題**：在活動詳情頁重新整理瀏覽器後，deep link poller 觸發 showEventDetail()，先呼叫 showPage() 顯示空白模板（"活動圖片 800 × 300"），再渲染活動資料。若渲染失敗或競態條件觸發，用戶會看到空白頁面
+- **原因**：showEventDetail() 在 line 221 先 await showPage('page-activity-detail') 使頁面可見，之後才在 line 240+ 渲染內容。showPage 與 render 之間存在競態窗口
+- **修復**：重構 showEventDetail() 流程為「先確保 HTML/Script 載入 → 先渲染內容到隱藏 DOM → 最後才 showPage 切換顯示」。使用 PageLoader.ensurePage + ScriptLoader.ensureForPage 取代直接 showPage，所有內容渲染完成後才呼叫 showPage
+- **教訓**：detail 頁面渲染應遵循「render-before-show」模式，避免空白模板閃現
+
 ### 2026-03-17 — [永久] UID 欄位一致性修正：attendanceRecords/activityRecords uid 欄位歷史資料不一致
 - **問題**：部分 attendanceRecords 和 activityRecords 的 uid 欄位存的是 displayName（如「小白」）而非 LINE userId（如 `U196b...`），導致跨集合 JOIN 比對失敗，11+ 處代碼需要 nameToUid 補救邏輯
 - **原因**：`event-manage-confirm.js:53` — `_confirmAllAttendance()` 從 `events.participants[]`（displayName 陣列）解析用戶時，若 adminUsers 查找失敗，直接用 displayName 作為 uid 寫入
