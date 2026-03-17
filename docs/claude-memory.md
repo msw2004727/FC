@@ -15,9 +15,10 @@
 - **原因**：`event-manage-confirm.js:53` — `_confirmAllAttendance()` 從 `events.participants[]`（displayName 陣列）解析用戶時，若 adminUsers 查找失敗，直接用 displayName 作為 uid 寫入
 - **修復**：
   - Phase 1（止血）：修改 `_confirmAllAttendance` 未能解析 UID 時跳過而非寫入 displayName；`_buildConfirmedParticipantSummary` 加 `uidResolved` 標記
-  - Phase 2（治療）：新增 Cloud Function `migrateUidFields`（Admin SDK 繞過安全規則）批次修正歷史資料，含 dry-run + 備份 + 同名交叉比對 registrations
+  - Phase 2（治療）：新增 Cloud Function `migrateUidFields`（Admin SDK 繞過安全規則）批次修正 92 筆歷史資料，含 dry-run + 備份 + 同名交叉比對 registrations
+  - Phase 4（清理）：移除 `_buildRawNoShowCountByUid`、`_getNoShowDetailsByUid`、`getParticipantAttendanceStats`、`_calcScanStats`、`ensureUserStatsLoaded` 中的 nameToUid/nameSet fallback 代碼，簡化架構
   - 前端觸發：`data-sync.js` 新增 `uidMigration` 操作，admin-system.html 新增「⑤ UID 欄位修正」按鈕
-- **教訓**：寫入 Firestore 的 uid 欄位必須是 LINE userId，禁止用 displayName 代替；Firestore 安全規則禁止更新 uid 欄位，歷史資料修正必須用 Cloud Function Admin SDK
+- **教訓**：寫入 Firestore 的 uid 欄位必須是 LINE userId，禁止用 displayName 代替；Firestore 安全規則禁止更新 uid 欄位，歷史資料修正必須用 Cloud Function Admin SDK；遷移完成後應清除 fallback 代碼避免技術債累積
 
 ### 2026-03-17 — [永久] 放鴿子計算 _userStatsCache 汙染：切換用戶導致其他人放鴿子數跳動
 - **問題**：查看用戶 A 時放鴿子 = 0（正確），查看用戶 B 後 A 的放鴿子變成 1（錯誤）

@@ -478,22 +478,7 @@ const FirebaseService = {
         db.collection('activityRecords').where('uid', '==', uid).get(),
         db.collection('attendanceRecords').where('uid', '==', uid).get(),
       ]);
-      let attDocs = attSnap.docs.map(doc => ({ ...doc.data(), _docId: doc.id }));
-
-      // 歷史資料修正：部分 attendanceRecords 的 uid 存的是顯示名稱而非 LINE userId
-      // 當 uid 查無結果時，改用 userName（顯示名稱）再查一次
-      if (attDocs.length === 0) {
-        const user = (this._cache.adminUsers || []).find(u => u.uid === uid || u.lineUserId === uid);
-        const displayName = user && (user.displayName || user.name);
-        if (displayName) {
-          const attByNameSnap = await db.collection('attendanceRecords')
-            .where('userName', '==', displayName).get();
-          attDocs = attByNameSnap.docs.map(doc => {
-            const data = doc.data();
-            return { ...data, uid, _docId: doc.id }; // 正規化 uid 為正確的 LINE userId
-          });
-        }
-      }
+      const attDocs = attSnap.docs.map(doc => ({ ...doc.data(), _docId: doc.id }));
 
       this._userStatsCache = {
         uid,

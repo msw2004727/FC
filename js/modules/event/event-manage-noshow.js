@@ -1,5 +1,5 @@
 /* === SportHub — No-show statistics ===
-   Contains LOCKED functions per CLAUDE.md — do not modify _buildRawNoShowCountByUid or _getNoShowDetailsByUid
+   Contains LOCKED functions per CLAUDE.md — do not modify without explicit user authorization
    依賴：event-manage.js (shared helpers)
    =================================== */
 
@@ -64,19 +64,7 @@ Object.assign(App, {
     const seenRegKeys = new Set();
     const today = new Date().toISOString().slice(0, 10); // "YYYY-MM-DD"
 
-    // 歷史資料修正：部分 attendanceRecords 的 uid 存的是顯示名稱而非 LINE userId
-    // 建立 displayName → uid 對照表以正確匹配簽到紀錄
-    const nameToUid = new Map();
-    (ApiService.getAdminUsers() || []).forEach(u => {
-      const resolvedId = String(u?.uid || u?.lineUserId || '').trim();
-      if (!resolvedId) return;
-      [u?.displayName, u?.name].forEach(n => {
-        const name = String(n || '').trim();
-        if (name && name !== resolvedId) nameToUid.set(name, resolvedId);
-      });
-    });
-
-    // Step 1: 建立簽到索引（同時處理 uid 為顯示名稱的歷史資料）
+    // Step 1: 建立簽到索引
     (attendanceRecords || []).forEach(record => {
       const uid = String(record?.uid || '').trim();
       const eventId = String(record?.eventId || '').trim();
@@ -86,9 +74,6 @@ Object.assign(App, {
       if (status === 'removed' || status === 'cancelled') return;
       if (type === 'checkin') {
         checkinKeys.add(`${uid}::${eventId}`);
-        // 若 uid 是顯示名稱，也用真實 uid 建立索引
-        const realUid = nameToUid.get(uid);
-        if (realUid) checkinKeys.add(`${realUid}::${eventId}`);
       }
     });
 
@@ -176,17 +161,6 @@ Object.assign(App, {
     const details = [];
     const today = new Date().toISOString().slice(0, 10);
 
-    // 歷史資料修正：部分 attendanceRecords 的 uid 存的是顯示名稱而非 LINE userId
-    const nameToUid = new Map();
-    (ApiService.getAdminUsers() || []).forEach(u => {
-      const resolvedId = String(u?.uid || u?.lineUserId || '').trim();
-      if (!resolvedId) return;
-      [u?.displayName, u?.name].forEach(n => {
-        const name = String(n || '').trim();
-        if (name && name !== resolvedId) nameToUid.set(name, resolvedId);
-      });
-    });
-
     (attendanceRecords || []).forEach(record => {
       const rUid = String(record?.uid || '').trim();
       const eventId = String(record?.eventId || '').trim();
@@ -196,8 +170,6 @@ Object.assign(App, {
       if (status === 'removed' || status === 'cancelled') return;
       if (type === 'checkin') {
         checkinKeys.add(`${rUid}::${eventId}`);
-        const realUid = nameToUid.get(rUid);
-        if (realUid) checkinKeys.add(`${realUid}::${eventId}`);
       }
     });
 

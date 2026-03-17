@@ -3,36 +3,24 @@
  *
  * Extracted from js/modules/event/event-manage-noshow.js
  * Tests: _buildRawNoShowCountByUid, _buildNoShowCountByUid,
- *        _getNoShowDetailsByUid, nameToUid historical data fix
+ *        _getNoShowDetailsByUid
  *
  * These are LOCKED functions per CLAUDE.md — tests protect against regressions.
  */
 
 // ---------------------------------------------------------------------------
-// Extracted from event-manage-noshow.js:55-120
+// Extracted from event-manage-noshow.js
 // Adapted: inject dependencies instead of ApiService globals
 // Parameters:
 //   registrations – all registrations
 //   attendanceRecords – attendance records
-//   adminUsers – user list for nameToUid mapping
 //   getEvent – function(eventId) => event or null
 //   today – ISO date string "YYYY-MM-DD"
 // ---------------------------------------------------------------------------
-function _buildRawNoShowCountByUid({ registrations, attendanceRecords, adminUsers, getEvent, today }) {
+function _buildRawNoShowCountByUid({ registrations, attendanceRecords, getEvent, today }) {
   const checkinKeys = new Set();
   const countByUid = new Map();
   const seenRegKeys = new Set();
-
-  // Build nameToUid map for historical data correction
-  const nameToUid = new Map();
-  (adminUsers || []).forEach(u => {
-    const resolvedId = String(u?.uid || u?.lineUserId || '').trim();
-    if (!resolvedId) return;
-    [u?.displayName, u?.name].forEach(n => {
-      const name = String(n || '').trim();
-      if (name && name !== resolvedId) nameToUid.set(name, resolvedId);
-    });
-  });
 
   // Step 1: Build checkin index
   (attendanceRecords || []).forEach(record => {
@@ -44,8 +32,6 @@ function _buildRawNoShowCountByUid({ registrations, attendanceRecords, adminUser
     if (status === 'removed' || status === 'cancelled') return;
     if (type === 'checkin') {
       checkinKeys.add(`${uid}::${eventId}`);
-      const realUid = nameToUid.get(uid);
-      if (realUid) checkinKeys.add(`${realUid}::${eventId}`);
     }
   });
 
@@ -95,26 +81,16 @@ function _buildNoShowCountByUid(rawCountByUid, corrections) {
 }
 
 // ---------------------------------------------------------------------------
-// Extracted from event-manage-noshow.js:164-227
+// Extracted from event-manage-noshow.js
 // Adapted: inject dependencies
 // ---------------------------------------------------------------------------
-function _getNoShowDetailsByUid({ uid, registrations, attendanceRecords, adminUsers, getEvent, today }) {
+function _getNoShowDetailsByUid({ uid, registrations, attendanceRecords, getEvent, today }) {
   const safeUid = String(uid || '').trim();
   if (!safeUid) return [];
 
   const checkinKeys = new Set();
   const seenRegKeys = new Set();
   const details = [];
-
-  const nameToUid = new Map();
-  (adminUsers || []).forEach(u => {
-    const resolvedId = String(u?.uid || u?.lineUserId || '').trim();
-    if (!resolvedId) return;
-    [u?.displayName, u?.name].forEach(n => {
-      const name = String(n || '').trim();
-      if (name && name !== resolvedId) nameToUid.set(name, resolvedId);
-    });
-  });
 
   (attendanceRecords || []).forEach(record => {
     const rUid = String(record?.uid || '').trim();
@@ -125,8 +101,6 @@ function _getNoShowDetailsByUid({ uid, registrations, attendanceRecords, adminUs
     if (status === 'removed' || status === 'cancelled') return;
     if (type === 'checkin') {
       checkinKeys.add(`${rUid}::${eventId}`);
-      const realUid = nameToUid.get(rUid);
-      if (realUid) checkinKeys.add(`${realUid}::${eventId}`);
     }
   });
 
@@ -173,9 +147,7 @@ function mkReg(userId, eventId, status = 'confirmed', extras = {}) {
 function mkAtt(uid, eventId, type, extras = {}) {
   return { uid, eventId, type, ...extras };
 }
-function mkUser(uid, displayName, name) {
-  return { uid, displayName, name: name || displayName };
-}
+
 
 const TODAY = '2026-03-15'; // fixed today for deterministic tests
 
@@ -184,7 +156,6 @@ describe('_buildRawNoShowCountByUid — basic counting', () => {
     const result = _buildRawNoShowCountByUid({
       registrations: [],
       attendanceRecords: [],
-      adminUsers: [],
       getEvent: () => null,
       today: TODAY,
     });
@@ -196,7 +167,6 @@ describe('_buildRawNoShowCountByUid — basic counting', () => {
     const result = _buildRawNoShowCountByUid({
       registrations: [mkReg('u1', 'e1')],
       attendanceRecords: [],
-      adminUsers: [],
       getEvent: id => events[id],
       today: TODAY,
     });
@@ -208,7 +178,6 @@ describe('_buildRawNoShowCountByUid — basic counting', () => {
     const result = _buildRawNoShowCountByUid({
       registrations: [mkReg('u1', 'e1')],
       attendanceRecords: [mkAtt('u1', 'e1', 'checkin')],
-      adminUsers: [],
       getEvent: id => events[id],
       today: TODAY,
     });
@@ -220,7 +189,6 @@ describe('_buildRawNoShowCountByUid — basic counting', () => {
     const result = _buildRawNoShowCountByUid({
       registrations: [mkReg('u1', 'e1', 'waitlisted')],
       attendanceRecords: [],
-      adminUsers: [],
       getEvent: id => events[id],
       today: TODAY,
     });
@@ -232,7 +200,6 @@ describe('_buildRawNoShowCountByUid — basic counting', () => {
     const result = _buildRawNoShowCountByUid({
       registrations: [mkReg('u1', 'e1', 'confirmed', { participantType: 'companion' })],
       attendanceRecords: [],
-      adminUsers: [],
       getEvent: id => events[id],
       today: TODAY,
     });
@@ -244,7 +211,6 @@ describe('_buildRawNoShowCountByUid — basic counting', () => {
     const result = _buildRawNoShowCountByUid({
       registrations: [mkReg('u1', 'e1')],
       attendanceRecords: [],
-      adminUsers: [],
       getEvent: id => events[id],
       today: TODAY,
     });
@@ -256,7 +222,6 @@ describe('_buildRawNoShowCountByUid — basic counting', () => {
     const result = _buildRawNoShowCountByUid({
       registrations: [mkReg('u1', 'e1')],
       attendanceRecords: [],
-      adminUsers: [],
       getEvent: id => events[id],
       today: TODAY,
     });
@@ -274,7 +239,6 @@ describe('_buildRawNoShowCountByUid — basic counting', () => {
         mkReg('u1', 'e2'),
       ],
       attendanceRecords: [],
-      adminUsers: [],
       getEvent: id => events[id],
       today: TODAY,
     });
@@ -289,7 +253,6 @@ describe('_buildRawNoShowCountByUid — basic counting', () => {
         mkReg('u1', 'e1'), // duplicate
       ],
       attendanceRecords: [],
-      adminUsers: [],
       getEvent: id => events[id],
       today: TODAY,
     });
@@ -297,44 +260,16 @@ describe('_buildRawNoShowCountByUid — basic counting', () => {
   });
 });
 
-describe('_buildRawNoShowCountByUid — nameToUid historical fix', () => {
-  test('matches checkin by displayName when uid stored as displayName', () => {
-    const events = { e1: mkEvent('e1', 'ended', '2026/03/01') };
-    // Historical bug: attendance record has uid='小白' instead of real uid
-    const result = _buildRawNoShowCountByUid({
-      registrations: [mkReg('U123', 'e1')],
-      attendanceRecords: [mkAtt('小白', 'e1', 'checkin')],
-      adminUsers: [mkUser('U123', '小白')],
-      getEvent: id => events[id],
-      today: TODAY,
-    });
-    // Should NOT count as no-show because checkin exists via nameToUid mapping
-    expect(result.has('U123')).toBe(false);
-  });
-
+describe('_buildRawNoShowCountByUid — attendance record status', () => {
   test('ignores removed/cancelled attendance records', () => {
     const events = { e1: mkEvent('e1', 'ended', '2026/03/01') };
     const result = _buildRawNoShowCountByUid({
       registrations: [mkReg('u1', 'e1')],
       attendanceRecords: [mkAtt('u1', 'e1', 'checkin', { status: 'removed' })],
-      adminUsers: [],
       getEvent: id => events[id],
       today: TODAY,
     });
     expect(result.get('u1')).toBe(1); // removed checkin doesn't count
-  });
-
-  test('nameToUid does not map uid to itself', () => {
-    const events = { e1: mkEvent('e1', 'ended', '2026/03/01') };
-    // Edge case: user displayName equals uid
-    const result = _buildRawNoShowCountByUid({
-      registrations: [mkReg('U123', 'e1')],
-      attendanceRecords: [],
-      adminUsers: [mkUser('U123', 'U123')], // name same as uid
-      getEvent: id => events[id],
-      today: TODAY,
-    });
-    expect(result.get('U123')).toBe(1);
   });
 });
 
@@ -344,7 +279,6 @@ describe('_buildRawNoShowCountByUid — date format handling', () => {
     const result = _buildRawNoShowCountByUid({
       registrations: [mkReg('u1', 'e1')],
       attendanceRecords: [],
-      adminUsers: [],
       getEvent: id => events[id],
       today: TODAY,
     });
@@ -356,7 +290,6 @@ describe('_buildRawNoShowCountByUid — date format handling', () => {
     const result = _buildRawNoShowCountByUid({
       registrations: [mkReg('u1', 'e1')],
       attendanceRecords: [],
-      adminUsers: [],
       getEvent: id => events[id],
       today: TODAY,
     });
@@ -421,7 +354,6 @@ describe('_getNoShowDetailsByUid', () => {
       uid: '',
       registrations: [],
       attendanceRecords: [],
-      adminUsers: [],
       getEvent: () => null,
       today: TODAY,
     })).toEqual([]);
@@ -439,7 +371,6 @@ describe('_getNoShowDetailsByUid', () => {
         mkReg('u1', 'e2'),
       ],
       attendanceRecords: [],
-      adminUsers: [],
       getEvent: id => events[id],
       today: TODAY,
     });
@@ -454,7 +385,6 @@ describe('_getNoShowDetailsByUid', () => {
       uid: 'u1',
       registrations: [mkReg('u1', 'e1')],
       attendanceRecords: [mkAtt('u1', 'e1', 'checkin')],
-      adminUsers: [],
       getEvent: id => events[id],
       today: TODAY,
     });
@@ -470,24 +400,10 @@ describe('_getNoShowDetailsByUid', () => {
         mkReg('u2', 'e1'),
       ],
       attendanceRecords: [],
-      adminUsers: [],
       getEvent: id => events[id],
       today: TODAY,
     });
     expect(result).toHaveLength(1);
-  });
-
-  test('uses nameToUid mapping for historical checkin records', () => {
-    const events = { e1: mkEvent('e1', 'ended', '2026/03/01') };
-    const result = _getNoShowDetailsByUid({
-      uid: 'U123',
-      registrations: [mkReg('U123', 'e1')],
-      attendanceRecords: [mkAtt('小白', 'e1', 'checkin')],
-      adminUsers: [mkUser('U123', '小白')],
-      getEvent: id => events[id],
-      today: TODAY,
-    });
-    expect(result).toHaveLength(0); // checkin matched via nameToUid
   });
 
   test('formats eventDate correctly', () => {
@@ -496,7 +412,6 @@ describe('_getNoShowDetailsByUid', () => {
       uid: 'u1',
       registrations: [mkReg('u1', 'e1')],
       attendanceRecords: [],
-      adminUsers: [],
       getEvent: id => events[id],
       today: TODAY,
     });
@@ -513,7 +428,6 @@ describe('_getNoShowDetailsByUid', () => {
       uid: 'u1',
       registrations: [mkReg('u1', 'e1'), mkReg('u1', 'e2'), mkReg('u1', 'e3')],
       attendanceRecords: [],
-      adminUsers: [],
       getEvent: id => events[id],
       today: TODAY,
     });
