@@ -133,6 +133,7 @@ const ScriptLoader = {
       'js/modules/profile/profile-data-history.js',
       'js/modules/profile/profile-card.js',
       'js/modules/profile/profile-share.js',
+      'js/modules/image-cropper.js',
     ],
     shop: [
       'js/modules/shop.js',
@@ -158,6 +159,14 @@ const ScriptLoader = {
       'js/modules/kickball/kickball-physics.js',
       'js/modules/kickball/kickball-game-page.js',
     ],
+    tournament: [
+      'js/modules/tournament/tournament-detail.js',
+      'js/modules/tournament/tournament-friendly-detail.js',
+      'js/modules/tournament/tournament-friendly-detail-view.js',
+      'js/modules/tournament/tournament-share.js',
+      'js/modules/tournament/tournament-friendly-roster.js',
+      'js/modules/tournament/tournament-friendly-notify.js',
+    ],
     tournamentAdmin: [
       'js/modules/event/event-share-builders.js',
       'js/modules/event/event-share.js',
@@ -166,6 +175,11 @@ const ScriptLoader = {
       'js/modules/tournament/tournament-manage-edit.js',
       'js/modules/tournament/tournament-manage.js',
       'js/modules/tournament/tournament-share.js',
+    ],
+    message: [
+      'js/modules/message/message-actions.js',
+      'js/modules/message/message-actions-team.js',
+      'js/modules/message/message-inbox.js',
     ],
     messageAdmin: [
       'js/modules/message/message-admin-list.js',
@@ -223,6 +237,9 @@ const ScriptLoader = {
     'page-titles':             ['achievement', 'profile'],
     'page-shop':               ['shop'],
     'page-leaderboard':        ['achievement', 'shop'],
+    'page-tournaments':        ['tournament'],
+    'page-tournament-detail':  ['tournament'],
+    'page-messages':           ['message'],
     'page-scan':               ['scan'],
     'page-game':               ['game'],
     'page-kick-game':          ['kickball'],

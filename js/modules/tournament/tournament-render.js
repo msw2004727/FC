@@ -5,6 +5,12 @@
 
 Object.assign(App, {
 
+  /** 動態載入 tournament 群組後開啟賽事詳情（供首頁 / 收藏等尚未載入 tournament-detail.js 時使用） */
+  async _openTournamentDetail(id) {
+    await ScriptLoader.ensureForPage('page-tournament-detail');
+    await this.showTournamentDetail(id);
+  },
+
   renderOngoingTournaments() {
     const container = document.getElementById('ongoing-tournaments');
     if (!container) return;
@@ -23,7 +29,7 @@ Object.assign(App, {
       return;
     }
     container.innerHTML = ongoing.map(t => `
-      <div class="h-card" onclick="App.showTournamentDetail('${t.id}')">
+      <div class="h-card" onclick="App._openTournamentDetail('${t.id}')">
         ${t.image
           ? `<div class="h-card-img"><img src="${t.image}" alt="${escapeHTML(t.name)}"></div>`
           : `<div class="h-card-img h-card-placeholder">220 × 90</div>`}
@@ -136,7 +142,7 @@ Object.assign(App, {
       const region = t.region || '';
 
       return `
-        <div class="tl-event-row" onclick="App.showTournamentDetail('${t.id}')" style="margin-bottom:.4rem;flex-wrap:wrap;padding:.45rem .6rem .35rem;background:${isDark ? sBg.darkBg : sBg.bg};border-left:3px solid ${sBg.border}">
+        <div class="tl-event-row" onclick="App._openTournamentDetail('${t.id}')" style="margin-bottom:.4rem;flex-wrap:wrap;padding:.45rem .6rem .35rem;background:${isDark ? sBg.darkBg : sBg.bg};border-left:3px solid ${sBg.border}">
           <div style="width:100%;display:flex;align-items:center;gap:.35rem">
             <div class="tl-event-title" style="flex:1">${escapeHTML(t.name)}</div>
             <span style="font-size:.58rem;color:var(--text-muted);opacity:.7">待定義</span>

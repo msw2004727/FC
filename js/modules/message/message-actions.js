@@ -120,6 +120,7 @@ Object.assign(App, {
     const modal = document.getElementById('msg-inbox-detail-modal');
     if (modal) modal.style.display = 'none';
 
+    await ScriptLoader.ensureForPage('page-tournament-detail');
     await this.showTournamentDetail(tournamentId);
     const teamsTab = document.querySelector('#td-tabs .tab[data-ttab="teams"]');
     if (!teamsTab) return;

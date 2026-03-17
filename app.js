@@ -1198,6 +1198,7 @@ const App = {
           const tournament = ApiService.getTournament?.(pending.id);
           if (!tournament) return false;
 
+          await ScriptLoader.ensureForPage('page-tournament-detail');
           await this.showTournamentDetail(pending.id);
           if (this.currentPage === 'page-tournament-detail' && this.currentTournament === pending.id) {
             this._completeDeepLinkSuccess();

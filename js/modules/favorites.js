@@ -221,7 +221,7 @@ Object.assign(App, {
     items.forEach(it => {
       const onclick = it.type === 'event'
         ? `App.showEventDetail('${it.id}')`
-        : `App.showTournamentDetail('${it.id}')`;
+        : `App._openTournamentDetail('${it.id}')`;
       const toggleFn = it.type === 'event'
         ? `App.toggleFavoriteEvent('${it.id}')`
         : `App.toggleFavoriteTournament('${it.id}')`;

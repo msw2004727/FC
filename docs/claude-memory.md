@@ -10,6 +10,12 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-17 — 效能優化 Phase 1：21 個 script 從 index.html 移至動態載入
+- **內容**：將 21 個非首頁必需的 script 從 index.html 移除，改由 script-loader.js 按需載入。新增 `tournament`、`message` 兩個群組，`image-cropper.js` 加入 `profile` 群組。新增 `_pageGroups` 映射：page-tournaments、page-tournament-detail、page-messages
+- **移除清單**：image-cropper / profile-avatar / profile-data / profile-data-render / profile-data-stats / profile-data-history / profile-card / profile-share / event-share-builders / event-share / team-share / tournament-detail / tournament-friendly-detail / tournament-friendly-detail-view / tournament-share / tournament-friendly-roster / tournament-friendly-notify / leaderboard / message-actions / message-actions-team / message-inbox
+- **安全措施**：新增 `_openTournamentDetail()` 包裝函式（tournament-render.js），確保動態載入 tournament 群組後再呼叫 `showTournamentDetail`。所有非 tournament 群組內的呼叫端（首頁輪播、收藏清單、深連結、訊息操作）均改用此包裝或加入 `ScriptLoader.ensureForPage` 前置載入
+- **教訓**：從 index.html 移除 script 時，必須檢查所有 onclick / 程式呼叫端是否假設函式已存在；若呼叫端在不同群組，需加入動態載入保護
+
 ### 2026-03-17 — 模組資料夾化（80+ 模組移入 12 個功能子資料夾）
 - **內容**：將 js/modules/ 下 80+ 個扁平模組移入 12 個子資料夾：event/(27), team/(10), tournament/(12), profile/(9), message/(9), scan/(5), dashboard/(5), kickball/(6), ad-manage/(5), user-admin/(4), shot-game/(10), achievement/(10 既有)。保留 21 個獨立模組在扁平目錄
 - **更新檔案**：script-loader.js（97 條路徑）、index.html（75 個 script tag）、game-lab.html（8 條路徑）、shot-game-page.js（5 條硬編碼路徑）
