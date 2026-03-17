@@ -83,8 +83,8 @@ Object.assign(App, {
             this.showToast(`權限已更新為「${ROLES[latestRole]?.label || latestRole}」`);
           }
           this._handleRestrictedStateChange?.();
-          this.renderProfileData();
-          this.renderProfileFavorites();
+          this.renderProfileData?.();
+          this.renderProfileFavorites?.();
           this.renderLoginUI();
           this.renderHotEvents();
           this.renderActivityList();
@@ -130,8 +130,8 @@ Object.assign(App, {
     }
     this.renderLoginUI();
     this._handleRestrictedStateChange?.();
-    this.renderProfileData();
-    this.renderProfileFavorites();
+    this.renderProfileData?.();
+    this.renderProfileFavorites?.();
     if (this._pendingFirstLogin && !this._isCurrentUserRestricted?.()) {
       this.initFirstLoginRegionPicker?.();
       this.showModal('first-login-modal');

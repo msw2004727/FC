@@ -134,6 +134,7 @@ const ScriptLoader = {
       'js/modules/profile/profile-card.js',
       'js/modules/profile/profile-share.js',
       'js/modules/image-cropper.js',
+      'js/modules/leaderboard.js',
     ],
     shop: [
       'js/modules/shop.js',
