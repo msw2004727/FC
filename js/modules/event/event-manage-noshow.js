@@ -12,6 +12,7 @@ Object.assign(App, {
     const allActiveRegs = ApiService.getRegistrationsByEvent(eventId);
     const confirmedRegs = allActiveRegs.filter(r => r.status === 'confirmed');
     const people = [];
+    const addedUids = new Set();
     const addedNames = new Set();
 
     if (confirmedRegs.length > 0) {
@@ -28,11 +29,13 @@ Object.assign(App, {
         const proxyOnly = !selfReg;
         const mainReg = selfReg || regs[0];
         people.push({ name: mainName, uid: mainUid, isCompanion: false, displayName: mainName, hasSelfReg: !proxyOnly, proxyOnly, displayBadges: mainReg.displayBadges || [] });
+        addedUids.add(mainUid);
         addedNames.add(mainName);
         companions.forEach(c => {
           const cName = c.companionName || c.userName;
           const cUid = c.companionId || (mainUid + '_' + c.companionName);
           people.push({ name: cName, uid: cUid, isCompanion: true, displayName: cName, hasSelfReg: false, proxyOnly: false });
+          addedUids.add(cUid);
           addedNames.add(cName);
         });
       });
@@ -42,13 +45,14 @@ Object.assign(App, {
     // Phase 1b fix: 標記 uidResolved 以區分 UID 是否成功解析
     const badgeCache = this._eventBadgeCache?.[eventId] || {};
     (e.participants || []).forEach(p => {
-      if (!addedNames.has(p)) {
-        const userDoc = (ApiService.getAdminUsers() || []).find(u => (u.displayName || u.name) === p);
-        const resolvedUid = (userDoc && (userDoc.uid || userDoc.lineUserId)) || p;
-        const uidResolved = resolvedUid !== p;
-        people.push({ name: p, uid: resolvedUid, isCompanion: false, displayName: p, hasSelfReg: true, proxyOnly: false, uidResolved, displayBadges: badgeCache[resolvedUid] || [] });
-        addedNames.add(p);
-      }
+      if (addedNames.has(p)) return;
+      const userDoc = (ApiService.getAdminUsers() || []).find(u => (u.displayName || u.name) === p);
+      const resolvedUid = (userDoc && (userDoc.uid || userDoc.lineUserId)) || p;
+      if (addedUids.has(resolvedUid)) return;
+      const uidResolved = resolvedUid !== p;
+      people.push({ name: p, uid: resolvedUid, isCompanion: false, displayName: p, hasSelfReg: true, proxyOnly: false, uidResolved, displayBadges: badgeCache[resolvedUid] || [] });
+      addedUids.add(resolvedUid);
+      addedNames.add(p);
     });
 
     return { people, count: people.length };

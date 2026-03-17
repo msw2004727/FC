@@ -497,10 +497,13 @@ Object.assign(App, {
           }
 
           addLog(`  [修復] ${displayName}（${applicantUid}）：teamId ${currentTeamId || 'null'} → ${teamId}（${teamName}）`);
-          await db.collection('users').doc(docId).update({
+          const updateData = {
             teamId, teamName,
             updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-          });
+          };
+          if (teamId) updateData.teamIds = firebase.firestore.FieldValue.arrayUnion(teamId);
+          if (teamName) updateData.teamNames = firebase.firestore.FieldValue.arrayUnion(teamName);
+          await db.collection('users').doc(docId).update(updateData);
 
           // 寫入後立即 server-read 驗證
           const verifySnap = await db.collection('users').doc(docId).get({ source: 'server' });

@@ -399,7 +399,7 @@
           <div style="font-weight:600;font-size:.9rem;margin-bottom:.3rem">系統資料同步</div>
           <div style="font-size:.78rem;color:var(--text-muted);line-height:1.7">
             修正因快取延遲、操作中斷或歷史資料殘留造成的偏差。<br>
-            所有操作皆為冪等（重複執行安全），不會影響報名狀態、出席紀錄或權限資料。<br>
+            ①②③ 為安全操作（冪等、可重複執行），④ 為刪除操作（含 dry-run 預覽與雙重確認）。<br>
             <strong style="color:var(--warning)">注意：每次執行會產生 Firestore 讀寫費用，請勿頻繁操作。點擊執行時會顯示預估費用。</strong>
           </div>
         </div>
@@ -442,10 +442,10 @@
         <div class="form-card" style="margin-bottom:.6rem">
           <div style="display:flex;align-items:center;justify-content:space-between;gap:.5rem">
             <div style="flex:1;min-width:0">
-              <div style="font-weight:600;font-size:.82rem">④ 孤兒記錄清理</div>
+              <div style="font-weight:600;font-size:.82rem">④ 孤兒記錄清理 <span style="font-size:.68rem;color:#dc2626;font-weight:500">（不可逆）</span></div>
               <div style="font-size:.72rem;color:var(--text-muted);line-height:1.5;margin-top:.15rem">
                 掃描報名、活動紀錄、出席紀錄，刪除指向已不存在活動的殘留記錄。<br>
-                避免孤兒資料汙染統計數據（出席率、完成場次、排行榜）。
+                含 dry-run 預覽與雙重確認。刪除後<strong>無法復原</strong>，請先確認預覽結果再執行。
               </div>
             </div>
             <button class="outline-btn" style="flex-shrink:0;font-size:.75rem" onclick="App.runDataSyncOp('orphan')">執行</button>
@@ -454,17 +454,17 @@
         <div class="form-card" style="margin-bottom:.6rem">
           <div style="display:flex;align-items:center;justify-content:space-between;gap:.5rem">
             <div style="flex:1;min-width:0">
-              <div style="font-weight:600;font-size:.82rem">⑤ UID 欄位修正</div>
+              <div style="font-weight:600;font-size:.82rem">⑤ UID 欄位修正 <span style="font-size:.68rem;color:#16a34a;font-weight:500">（已完成）</span></div>
               <div style="font-size:.72rem;color:var(--text-muted);line-height:1.5;margin-top:.15rem">
                 修正出席紀錄和活動紀錄中 uid 欄位誤存為顯示名稱的歷史資料。<br>
-                透過 Cloud Function 執行，含 dry-run 預覽與自動備份，可安全回滾。
+                歷史資料已於 2026-03-17 修正完成。可再次執行作為健康檢查（預期結果：0 筆需修正）。
               </div>
             </div>
             <button class="outline-btn" style="flex-shrink:0;font-size:.75rem" onclick="App.runDataSyncOp('uidMigration')">執行</button>
           </div>
         </div>
         <div class="form-card" style="margin-bottom:.6rem">
-          <button id="data-sync-full-btn" class="primary-btn full-width" onclick="App.runDataSyncOp('all')">一鍵全部同步</button>
+          <button id="data-sync-full-btn" class="primary-btn full-width" onclick="App.runDataSyncOp('all')">一鍵同步 ①②③</button>
         </div>
         <div class="form-card">
           <div id="data-sync-progress" style="display:none">

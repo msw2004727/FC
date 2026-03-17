@@ -89,10 +89,8 @@ Object.assign(App, {
   _estimateDataSyncCost(op) {
     const users = ApiService.getAdminUsers?.() || [];
     const teams = ApiService.getTeams?.() || [];
-    const events = ApiService.getEvents?.() || [];
     const U = users.length;
     const T = teams.length;
-    const E = events.length;
     const R = FirebaseService._cache?.registrations?.length || 0;
     const Act = FirebaseService._cache?.activityRecords?.length || 0;
     const Att = FirebaseService._cache?.attendanceRecords?.length || 0;
@@ -116,9 +114,9 @@ Object.assign(App, {
     } else if (op === 'all') {
       const achU = U;
       const achA = (ApiService.getAchievements?.() || []).filter(a => a && a.status !== 'archived' && a.condition).length;
-      reads = (achU * 3) + R + Act + Att + R + Act + Att;
-      writes = (achU * achA) + R + T + U + Math.round((R + Act + Att) * 0.05);
-      summary = `用戶 ${U} 位、成就 ${achA} 個、球隊 ${T} 支\n報名 ${R}、活動紀錄 ${Act}、出席紀錄 ${Att}`;
+      reads = (achU * 3) + R + Act + Att;
+      writes = (achU * achA) + R + T + U;
+      summary = `用戶 ${U} 位、成就 ${achA} 個、球隊 ${T} 支\n報名 ${R}、活動紀錄 ${Act}、出席紀錄 ${Att}\n（僅執行 ①②③，不含 ④ 孤兒記錄清理）`;
     }
     const cost = ((reads * 0.06 / 100000) + (writes * 0.18 / 100000)).toFixed(4);
     return { reads, writes, cost, summary };
@@ -164,6 +162,9 @@ Object.assign(App, {
       if (i % 5 === 0) await new Promise(r => setTimeout(r, 0));
     }
     ui.log(`球隊成員數：更新 ${updated}/${teams.length} 支`);
+    if (updated > 0) {
+      ApiService._writeOpLog?.('data_sync', '球隊成員數重算', `更新 ${updated}/${teams.length} 支`);
+    }
   },
 
   // ── ③ 用戶球隊欄位驗證 ──
@@ -188,10 +189,11 @@ Object.assign(App, {
 
       const cleanTeamId = teamId && validTeamIds.has(teamId) ? teamId : '';
       const cleanTeamIds = teamIds.filter(id => validTeamIds.has(id));
-      // 保留有效 teamId 對應位置的 teamName（而非全部清空）
+      // 保留有效 teamId 對應位置的 teamName；長度不一致時從 teams 快取查名稱
+      const teamNameMap = new Map(teams.map(t => [String(t?.id || t?._docId || '').trim(), t?.name || '']));
       const cleanTeamNames = teamIds.length === teamNames.length
         ? teamIds.map((id, idx) => validTeamIds.has(id) ? teamNames[idx] : null).filter(n => n !== null)
-        : [];
+        : cleanTeamIds.map(id => teamNameMap.get(id) || '');
 
       const needsUpdate = cleanTeamId !== teamId
         || cleanTeamIds.length !== teamIds.length;
@@ -215,6 +217,9 @@ Object.assign(App, {
       if (i % 5 === 0) await new Promise(r => setTimeout(r, 0));
     }
     ui.log(`用戶球隊欄位：修正 ${updated}/${users.length} 位`);
+    if (updated > 0) {
+      ApiService._writeOpLog?.('data_sync', '用戶球隊驗證', `修正 ${updated}/${users.length} 位`);
+    }
   },
 
   // ── ④ 孤兒記錄清理（含 dry-run 安全機制）──
@@ -250,8 +255,10 @@ Object.assign(App, {
 
     // ── Dry-run：先掃描統計，不刪除 ──
     const dryRunResults = [];
-    for (const col of collections) {
+    for (let ci = 0; ci < collections.length; ci++) {
+      const col = collections[ci];
       ui.log(`掃描 ${col.label}...`);
+      ui.setProgress(ci, collections.length * 2);
       try {
         const snap = await db.collection(col.name).get();
         const orphans = [];
@@ -321,9 +328,13 @@ Object.assign(App, {
       } catch (err) {
         ui.log(`錯誤 [${col.label}]：${err.message}`);
       }
-      ui.setProgress(dryRunResults.indexOf(result) + 1, dryRunResults.length);
+      ui.setProgress(collections.length + dryRunResults.indexOf(result) + 1, collections.length * 2);
     }
     ui.log(`孤兒記錄清理完成：共刪除 ${totalDeleted} 筆`);
+    if (totalDeleted > 0) {
+      const detail = dryRunResults.map(r => `${r.col.label} ${r.orphanCount}/${r.total}`).join('、');
+      ApiService._writeOpLog?.('data_sync', '孤兒記錄清理', `刪除 ${totalDeleted} 筆（${detail}）`);
+    }
   },
 
   // ── ⑤ UID 欄位修正（Cloud Function）──
@@ -399,9 +410,10 @@ Object.assign(App, {
     ui.setProgress(2, 2);
   },
 
-  // ── 一鍵全部同步 ──
+  // ── 一鍵全部同步（僅安全操作，不含 ④ 孤兒記錄清理）──
   async _syncAll(ui) {
-    ui.log('========== 開始全部同步 ==========\n');
+    ui.log('========== 開始全部同步（①②③）==========\n');
+    ui.log('注意：④ 孤兒記錄清理因涉及不可逆刪除，需單獨執行。\n');
 
     // 1. Achievement batch
     ui.log('【① 成就進度 + 報名徽章】');
@@ -416,9 +428,6 @@ Object.assign(App, {
 
     ui.log('\n【③ 用戶球隊欄位驗證】');
     await this._syncUserTeamFields(ui);
-
-    ui.log('\n【④ 孤兒記錄清理】');
-    await this._syncOrphanCleanup(ui);
   },
 
 });
