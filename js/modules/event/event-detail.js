@@ -419,6 +419,9 @@ Object.assign(App, {
       if (requestSeq !== this._eventDetailRequestSeq || this.currentPage !== 'page-activity-detail') {
         return { ok: false, reason: 'stale' };
       }
+      // 頁面可見後偵測徽章溢出（hidden 時 scrollWidth=0 無法偵測）
+      const attTable = document.getElementById('detail-attendance-table');
+      this._markBadgeRowOverflow?.(attTable);
       this._markPageSnapshotReady?.('page-activity-detail');
       return { ok: true, reason: 'ok' };
     } catch (err) {
