@@ -1793,8 +1793,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   // pageId !== App.currentPage 條件防止 showPage() 設 hash 後再次觸發無窮迴圈
   try {
     window.addEventListener('hashchange', () => {
-      const rawPageId = location.hash.replace(/^#/, '');
-      const pageId = App._resolveBootPageId(rawPageId);
+      const pageId = location.hash.replace(/^#/, '');
+      // hashchange 不套用 _resolveBootPageId，因為正常導航（showTeamDetail 等）
+      // 會在渲染完成後設定 hash，此時不應被重導回列表頁
       const canResolvePage = pageId
         && (document.getElementById(pageId)
           || (typeof PageLoader !== 'undefined' && PageLoader._pageFileMap && PageLoader._pageFileMap[pageId]));

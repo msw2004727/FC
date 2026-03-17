@@ -254,7 +254,8 @@
 // 20260317zo: QA 修復 — onclick XSS、missing await、deleteEduStudent、null guard
 // 20260317zp: fix — 教育 CRUD 全部加 ensureAuthReadyForWrite 防止權限錯誤
 // 20260317zq: fix — 刷新時 detail 頁面退回列表 + showTeamDetail render-before-show
-const CACHE_VERSION = '20260317zq';
+// 20260318a: fix — hashchange 不套用 detail fallback，修復點卡片無法進入 detail 頁
+const CACHE_VERSION = '20260318a';
 
 // ─── Page Strategy Registry ───
 // 唯一策略來源，未列出的頁面預設 fresh-first
