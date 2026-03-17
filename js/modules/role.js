@@ -67,14 +67,20 @@ Object.assign(App, {
     return false;
   },
 
-  /** 檢查當前用戶是否為任何進行中活動的委託人 */
+  /** 檢查當前用戶是否為任何可簽到活動的委託人 */
   _isAnyActiveEventDelegate() {
     if (typeof ApiService === 'undefined') return false;
+    const isDelegateFn = typeof this._isEventDelegate === 'function';
+    if (!isDelegateFn) return false;
+    // goToScanForEvent 帶入的特定活動優先檢查（解決 events 列表尚未載入的時序問題）
+    if (this._scanPresetEventId) {
+      const presetEvent = ApiService.getEvent(this._scanPresetEventId);
+      if (presetEvent && this._isEventDelegate(presetEvent)) return true;
+    }
     const events = ApiService.getEvents();
     if (!events || !events.length) return false;
     return events.some(e =>
-      (e.status === 'open' || e.status === 'full') &&
-      typeof this._isEventDelegate === 'function' &&
+      (e.status === 'open' || e.status === 'full' || e.status === 'ended') &&
       this._isEventDelegate(e)
     );
   },
