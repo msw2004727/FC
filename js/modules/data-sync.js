@@ -212,9 +212,17 @@ Object.assign(App, {
     let validEventIds;
     try {
       const eventsSnap = await db.collection('events').get();
-      validEventIds = new Set(
-        eventsSnap.docs.map(d => String(d.id || '').trim()).filter(Boolean)
-      );
+      validEventIds = new Set();
+      eventsSnap.docs.forEach(d => {
+        const data = d.data();
+        // event.id（自訂 ID）是 registrations/activityRecords/attendanceRecords 的 eventId 欄位
+        // 注意：event.id ≠ Firestore doc.id（自動產生的文件 ID）
+        const customId = String(data.id || '').trim();
+        if (customId) validEventIds.add(customId);
+        // 也加入 Firestore doc.id 以防部分記錄用的是文件 ID
+        const docId = String(d.id || '').trim();
+        if (docId) validEventIds.add(docId);
+      });
     } catch (err) {
       ui.log('錯誤：無法載入 events 集合，中止清理（' + err.message + '）');
       return;
