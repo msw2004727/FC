@@ -444,8 +444,9 @@ Object.assign(App, {
       }).length;
     };
 
-    const computeAttendanceRate = ({ condition, validRegistrations, eventMap, attendanceRecords, attendanceStateByEvent, registry, now, resolvedUid }) => {
+    const computeAttendanceRate = ({ condition, validRegistrations, eventMap, attendanceRecords, attendanceStateByEvent, registry, now, resolvedUid, resolvedUser }) => {
       const stats = App._getAchievementStats?.();
+      const nameSet = getUserNameSet(resolvedUser);
       const result = stats?.getParticipantAttendanceStats?.({
         uid: resolvedUid,
         registrations: validRegistrations.map(record => ({ ...record, uid: resolvedUid })),
@@ -453,6 +454,7 @@ Object.assign(App, {
         eventMap,
         now,
         isEventEnded,
+        nameSet: nameSet.size > 0 ? nameSet : null,
       });
 
       if (!result || !result.expectedCount) return 0;

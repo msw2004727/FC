@@ -86,6 +86,7 @@ Object.assign(App, {
       eventMap,
       now = new Date(),
       isEventEnded,
+      nameSet,
     } = {}) => {
       const safeUid = normalizeString(uid);
       const expectedEventIds = new Set();
@@ -114,7 +115,11 @@ Object.assign(App, {
 
       (Array.isArray(attendanceRecords) ? attendanceRecords : []).forEach(record => {
         if (!record) return;
-        if (normalizeString(record.uid) !== safeUid) return;
+        // 歷史資料修正：attendanceRecords.uid 可能存的是顯示名稱而非 LINE userId
+        const recordUid = normalizeString(record.uid);
+        if (recordUid !== safeUid) {
+          if (!nameSet || !nameSet.has(normalizeString(record.uid)?.toLowerCase?.())) return;
+        }
         if (record.companionId || record.participantType === 'companion') return;
 
         const eventId = normalizeString(record.eventId);

@@ -121,6 +121,16 @@ Object.assign(App, {
     const activityRecords = ApiService.getActivityRecords(uid)
       .filter(r => !cancelledRegEventIds.has(r.eventId));
 
+    // 建立 displayName → uid 對照（歷史資料修正：attendanceRecords.uid 可能是顯示名稱）
+    const user = (ApiService.getAdminUsers?.() || []).find(u => u.uid === uid || u.lineUserId === uid);
+    const nameSet = new Set();
+    if (user) {
+      [user.displayName, user.name].forEach(n => {
+        const name = String(n || '').trim().toLowerCase();
+        if (name) nameSet.add(name);
+      });
+    }
+
     const result = stats?.getParticipantAttendanceStats?.({
       uid,
       registrations: activityRecords,
@@ -128,6 +138,7 @@ Object.assign(App, {
       eventMap,
       now: new Date(),
       isEventEnded: (event) => event?.status === 'ended',
+      nameSet: nameSet.size > 0 ? nameSet : null,
     });
 
     if (result) {

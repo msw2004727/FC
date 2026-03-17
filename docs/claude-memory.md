@@ -10,6 +10,12 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-17 — [永久] stats.js 缺少 displayName fallback 導致出席率與放鴿子不一致
+- **問題**：用戶出席率 100% 但放鴿子次數 > 0，兩個數字矛盾
+- **原因**：`stats.js` 的 `getParticipantAttendanceStats` 比對 `attendanceRecords.uid` 時用嚴格匹配（`uid === safeUid`），但歷史資料的 `attendanceRecords.uid` 可能存的是顯示名稱（如「小白」）而非 LINE userId。`_buildRawNoShowCountByUid` 和 `evaluator.js` 都有 nameToUid/nameSet fallback，唯獨 stats.js 沒有，造成同一筆簽到紀錄在一個路徑被認定有出席、另一個路徑被忽略
+- **修復**：`getParticipantAttendanceStats` 新增 `nameSet` 參數，attendanceRecords UID 比對加入 displayName fallback
+- **教訓**：所有涉及 attendanceRecords.uid 比對的函數，都必須包含 displayName fallback（這是 CLAUDE.md 統計系統保護規則的重點）
+
 ### 2026-03-17 — [永久] registrations 用 'confirmed' vs activityRecords 用 'registered' 混用導致統計歸零
 - **問題**：修正 `'registered'` → `'confirmed'` 後，完成場次和出席率反而歸零
 - **原因**：`_calcScanStats()` 把 `activityRecords`（status='registered'）當作 registrations 參數傳給 `getParticipantAttendanceStats()`，但該函數已改為只接受 `'confirmed'`
