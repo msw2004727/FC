@@ -10,6 +10,11 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-17 — 自動化測試擴充：新增 4 個測試套件 124 個測試
+- **內容**：新增 tournament-core.test.js、leaderboard-stats.test.js、script-loader.test.js、no-show-stats.test.js
+- **覆蓋範圍**：賽事狀態/模式/隊長判斷、活動紀錄三階段分類、ScriptLoader URL 正規化/群組去重、放鴿子統計含 nameToUid 歷史修正
+- **教訓**：測試 _categorizeRecords 時需注意「取消後重新報名」的 seenCancel 清除邏輯，以及 waitlisted + 活動結束不算 missed 的業務規則
+
 ### 2026-03-17 — 效能優化 Phase 1：21 個 script 從 index.html 移至動態載入
 - **內容**：將 21 個非首頁必需的 script 從 index.html 移除，改由 script-loader.js 按需載入。新增 `tournament`、`message` 兩個群組，`image-cropper.js` 加入 `profile` 群組。新增 `_pageGroups` 映射：page-tournaments、page-tournament-detail、page-messages
 - **移除清單**：image-cropper / profile-avatar / profile-data / profile-data-render / profile-data-stats / profile-data-history / profile-card / profile-share / event-share-builders / event-share / team-share / tournament-detail / tournament-friendly-detail / tournament-friendly-detail-view / tournament-share / tournament-friendly-roster / tournament-friendly-notify / leaderboard / message-actions / message-actions-team / message-inbox
