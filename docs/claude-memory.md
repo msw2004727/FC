@@ -10,6 +10,16 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-17 — [永久] 成就系統 status 名稱不匹配導致所有報名相關成就失效
+- **問題**：出席率 100% 仍無法獲得成就徽章，所有依賴 validRegistrations 的成就條件（出席率、完成場次、報名次數等）全部回傳 0
+- **原因**：`evaluator.js` 和 `stats.js` 用 `status === 'registered'` 過濾報名紀錄，但 `firebase-crud.js` 實際寫入的是 `status: 'confirmed'`。系統中從未有任何地方寫入 `status: 'registered'`，導致 `validRegistrations` 永遠是空陣列
+- **修復**：
+  1. `evaluator.js` 3 處 `'registered'` → `'confirmed'`（優先度排序 + validRegistrations 過濾）
+  2. `stats.js` 1 處 `'registered'` → `'confirmed'`（getParticipantAttendanceStats 過濾）
+  3. `no_show_free` 改為計算放鴿子次數（原本計算連續出席數），加入 `reverseComparison`（current <= target）
+  4. `registry.js` no_show_free defaultThreshold 10 → 0，加入 `reverseComparison: true`
+- **教訓**：status 欄位值必須與 CRUD 層一致（`confirmed` / `waitlisted` / `cancelled` / `removed`），不可假設有 `registered` 狀態
+
 ### 2026-03-17 — [永久] 孤兒記錄清理 event.id vs Firestore doc.id 混淆導致全量誤刪
 - **問題**：執行 `_syncOrphanCleanup` 後，registrations、activityRecords、attendanceRecords 三個集合被全部清空
 - **原因**：修復快取問題時改用 `db.collection('events').get()`，但取有效 ID 時用了 `d.id`（Firestore 自動產生的 doc ID），而非 `d.data().id`（自訂的 event ID 如 `ce_xxx`）。由於 registrations 等集合的 `eventId` 欄位存的是自訂 ID，所以所有紀錄都被誤判為孤兒而刪除

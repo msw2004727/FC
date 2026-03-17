@@ -179,8 +179,8 @@ Object.assign(App, {
         };
 
         const current = byEvent.get(eventId);
-        const currentScore = current?.status === 'registered' ? 2 : current?.status === 'waitlisted' ? 1 : 0;
-        const nextScore = nextRecord.status === 'registered' ? 2 : nextRecord.status === 'waitlisted' ? 1 : 0;
+        const currentScore = current?.status === 'confirmed' ? 2 : current?.status === 'waitlisted' ? 1 : 0;
+        const nextScore = nextRecord.status === 'confirmed' ? 2 : nextRecord.status === 'waitlisted' ? 1 : 0;
         if (!current || nextScore > currentScore) {
           byEvent.set(eventId, nextRecord);
           return;
@@ -375,7 +375,7 @@ Object.assign(App, {
       const fallbackRegistrations = selfRegistrations.length
         ? selfRegistrations
         : buildSelfRegistrationsFromActivityRecords(activityRecords, resolvedUid, eventMap);
-      const validRegistrations = fallbackRegistrations.filter(record => record.status === 'registered');
+      const validRegistrations = fallbackRegistrations.filter(record => record.status === 'confirmed');
       // 優先使用 user-specific cache（含 displayName fallback），降級為全域快取
       const attendanceRecords = ApiService.getUserAttendanceRecords?.(resolvedUid) || ApiService.getAttendanceRecords?.() || [];
       const nameSet = getUserNameSet(resolvedUser);
@@ -624,24 +624,15 @@ Object.assign(App, {
       },
 
       no_show_free({ validRegistrations, eventMap, attendanceStateByEvent, now }) {
-        const ended = validRegistrations
-          .filter(r => {
-            const ev = eventMap.get(r.eventId);
-            return ev && isEventEnded(ev, now);
-          })
-          .map(r => {
-            const ev = eventMap.get(r.eventId);
-            const start = parseEventStartDate(ev);
-            const att = attendanceStateByEvent.get(r.eventId);
-            return { startMs: start?.getTime() || 0, attended: !!att?.checkin };
-          })
-          .sort((a, b) => b.startMs - a.startMs);
-        let streak = 0;
-        for (const item of ended) {
-          if (!item.attended) break;
-          streak++;
-        }
-        return streak;
+        // 計算放鴿子次數：已結束活動中有報名但未簽到的次數
+        let noShowCount = 0;
+        validRegistrations.forEach(r => {
+          const ev = eventMap.get(r.eventId);
+          if (!ev || !isEventEnded(ev, now)) return;
+          const att = attendanceStateByEvent.get(r.eventId);
+          if (!att?.checkin) noShowCount++;
+        });
+        return noShowCount;
       },
 
       create_team({ resolvedUid, resolvedUser, teams }) {
@@ -800,7 +791,10 @@ Object.assign(App, {
       }
 
       const target = condition.threshold != null ? toFiniteNumber(condition.threshold, 1) : 1;
-      const shouldComplete = current >= target;
+      // reverseComparison：current <= target 表示達成（如放鴿子次數 <= 0）
+      const shouldComplete = actionMeta?.reverseComparison
+        ? current <= target
+        : current >= target;
       // locked（預設 true）：達成後永久保留；unlocked：條件不滿足就撤銷
       const isLocked = achievement.locked !== false;
       const nextCompletedAt = shouldComplete

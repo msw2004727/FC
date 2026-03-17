@@ -164,7 +164,8 @@ Object.assign(App, {
         handlerKey: 'no_show_free',
         needsFilter: false,
         eventTrigger: false,
-        defaultThreshold: 10,
+        reverseComparison: true,
+        defaultThreshold: 0,
         fixedThreshold: null,
       },
       create_team: {

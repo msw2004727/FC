@@ -95,7 +95,7 @@ Object.assign(App, {
         if (!record) return;
         const recordUid = normalizeString(record.uid || record.userId || safeUid);
         if (recordUid && safeUid && recordUid !== safeUid) return;
-        if (normalizeString(record.status) !== 'registered') return;
+        if (normalizeString(record.status) !== 'confirmed') return;
 
         const eventId = normalizeString(record.eventId);
         if (!eventId) return;
