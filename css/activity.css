@@ -816,11 +816,25 @@
 }
 
 /* ─── Registration Badge Display ─── */
+.reg-name-badges-wrap {
+  position: relative;
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+}
+.reg-name-badges-wrap.has-overflow::after {
+  content: '';
+  position: absolute;
+  right: 0; top: 0; bottom: 0;
+  width: 28px;
+  background: linear-gradient(to right, transparent, var(--bg-card));
+  pointer-events: none;
+  z-index: 1;
+}
 .reg-name-badges {
   display: flex; align-items: center; gap: 4px;
   overflow-x: auto; -webkit-overflow-scrolling: touch;
   scroll-behavior: auto;
-  max-width: 100%;
 }
 .reg-name-badges::-webkit-scrollbar { display: none; }
 .reg-name-badges { scrollbar-width: none; }
@@ -828,10 +842,6 @@
 .reg-badge-list {
   display: flex; align-items: center; gap: 2px;
   flex-shrink: 0;
-}
-.reg-name-badges.has-overflow {
-  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
-  mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
 }
 .reg-badge-icon {
   width: 18px; height: 18px; border-radius: 3px;
