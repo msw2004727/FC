@@ -820,10 +820,11 @@
   display: flex; align-items: center; gap: 4px;
   overflow-x: auto; -webkit-overflow-scrolling: touch;
   scroll-behavior: auto;
+  max-width: 100%;
 }
 .reg-name-badges::-webkit-scrollbar { display: none; }
 .reg-name-badges { scrollbar-width: none; }
-.reg-name-text { flex-shrink: 0; }
+.reg-name-text { flex-shrink: 0; white-space: nowrap; }
 .reg-badge-list {
   display: flex; align-items: center; gap: 2px;
   flex-shrink: 0;

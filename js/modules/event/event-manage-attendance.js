@@ -206,18 +206,18 @@ Object.assign(App, {
           ${noShowTh}
           <th style="text-align:center;padding:.4rem .2rem;font-weight:600;width:2.5rem">簽到</th>
           <th style="text-align:center;padding:.4rem .2rem;font-weight:600;width:2.5rem">簽退</th>
-          <th style="text-align:left;padding:.4rem .3rem;font-weight:600">備註</th>
+          <th style="text-align:left;padding:.4rem .3rem;font-weight:600;width:4.5rem">備註</th>
         </tr>`
       : `<tr style="border-bottom:2px solid var(--border)">
           <th style="text-align:left;padding:.4rem .3rem;font-weight:600">${nameThContent}</th>
           ${noShowTh}
           <th style="text-align:center;padding:.4rem .2rem;font-weight:600;width:2.5rem">簽到</th>
           <th style="text-align:center;padding:.4rem .2rem;font-weight:600;width:2.5rem">簽退</th>
-          <th style="text-align:left;padding:.4rem .3rem;font-weight:600">備註</th>
+          <th style="text-align:left;padding:.4rem .3rem;font-weight:600;width:4.5rem">備註</th>
         </tr>`;
 
     container.innerHTML = `<div style="overflow-x:auto">
-      <table style="width:100%;border-collapse:collapse;font-size:.8rem">
+      <table style="width:100%;border-collapse:collapse;font-size:.8rem;table-layout:fixed">
         <thead>${thead}</thead>
         <tbody>${rows}</tbody>
       </table>
@@ -335,17 +335,17 @@ Object.assign(App, {
           <th style="text-align:left;padding:.4rem .3rem;font-weight:600">${nameThContent}</th>
           <th style="text-align:center;padding:.4rem .2rem;font-weight:600;width:2.5rem">簽到</th>
           <th style="text-align:center;padding:.4rem .2rem;font-weight:600;width:2.5rem">簽退</th>
-          <th style="text-align:left;padding:.4rem .3rem;font-weight:600">備註</th>
+          <th style="text-align:left;padding:.4rem .3rem;font-weight:600;width:4.5rem">備註</th>
         </tr>`
       : `<tr style="border-bottom:2px solid var(--border)">
           <th style="text-align:left;padding:.4rem .3rem;font-weight:600">${nameThContent}</th>
           <th style="text-align:center;padding:.4rem .2rem;font-weight:600;width:2.5rem">簽到</th>
           <th style="text-align:center;padding:.4rem .2rem;font-weight:600;width:2.5rem">簽退</th>
-          <th style="text-align:left;padding:.4rem .3rem;font-weight:600">備註</th>
+          <th style="text-align:left;padding:.4rem .3rem;font-weight:600;width:4.5rem">備註</th>
         </tr>`;
 
     container.innerHTML = `<div style="overflow-x:auto">
-      <table style="width:100%;border-collapse:collapse;font-size:.8rem">
+      <table style="width:100%;border-collapse:collapse;font-size:.8rem;table-layout:fixed">
         <thead>${thead}</thead>
         <tbody>${rows}</tbody>
       </table>
