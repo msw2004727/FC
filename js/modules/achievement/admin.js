@@ -181,8 +181,12 @@ Object.assign(App, {
         const isArchived = achievement.status === 'archived';
         const color = shared?.getCategoryColor?.(achievement.category) || App._catColors[achievement.category] || App._catColors.bronze;
         const threshold = App._getAchThreshold(achievement);
-        const pct = threshold > 0 ? Math.min(100, Math.round((achievement.current || 0) / threshold * 100)) : 0;
-        const completed = stats?.isCompleted?.(achievement) ?? (achievement.current >= threshold);
+        const actionCfg = getRegistry()?.findActionMeta?.(achievement.condition?.action);
+        const isReverse = !!actionCfg?.reverseComparison;
+        const pct = isReverse
+          ? ((achievement.current || 0) <= threshold ? 100 : 0)
+          : (threshold > 0 ? Math.min(100, Math.round((achievement.current || 0) / threshold * 100)) : 0);
+        const completed = stats?.isCompleted?.(achievement) ?? (isReverse ? (achievement.current || 0) <= threshold : (achievement.current || 0) >= threshold);
         const badge = badges.find(item => item.id === achievement.badgeId);
         const badgeImg = badge?.image
           ? `<img src="${escapeHTML(badge.image)}" style="width:100%;height:100%;object-fit:cover;border-radius:4px" loading="lazy">`
@@ -392,10 +396,15 @@ Object.assign(App, {
           }
 
           let completedAt = item.completedAt || null;
-          if ((item.current || 0) >= condition.threshold && !completedAt) {
+          const editActionCfg = getRegistry()?.findActionMeta?.(condition.action);
+          const editIsReverse = !!editActionCfg?.reverseComparison;
+          const editMet = editIsReverse
+            ? (item.current || 0) <= condition.threshold
+            : (item.current || 0) >= condition.threshold;
+          if (editMet && !completedAt) {
             const d = new Date();
             completedAt = `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}`;
-          } else if ((item.current || 0) < condition.threshold) {
+          } else if (!editMet) {
             completedAt = null;
           }
 
