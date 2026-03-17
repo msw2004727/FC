@@ -140,7 +140,7 @@ Object.assign(App, {
     if (!(await this.appConfirm(`確定要刪除「${t.name}」？此操作無法復原。`))) return;
     const tName = t.name;
 
-    // 刪隊前收集球隊經理 + 領隊 + 教練 uid，用於刪隊後降級檢查
+    // 刪隊前收集俱樂部經理 + 領隊 + 教練 uid，用於刪隊後降級檢查
     const affectedUids = [];
     const allUsers = ApiService.getAdminUsers();
     if (t.captainUid) {
@@ -161,12 +161,12 @@ Object.assign(App, {
       await ApiService.deleteTeam(id);
     } catch (err) {
       console.error('[removeTeam] delete failed:', err);
-      this.showToast('刪除球隊失敗，請稍後再試');
+      this.showToast('刪除俱樂部失敗，請稍後再試');
       return;
     }
     // Demo 模式：同步清除 _userTeam
     if (ModeManager.isDemo() && this._userTeam === id) this._userTeam = null;
-    ApiService._writeOpLog('team_delete', '刪除球隊', `刪除「${tName}」`);
+    ApiService._writeOpLog('team_delete', '刪除俱樂部', `刪除「${tName}」`);
 
     // 刪隊後逐一重新計算角色
     affectedUids.forEach(uid => {

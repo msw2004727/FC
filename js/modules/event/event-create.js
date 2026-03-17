@@ -180,7 +180,7 @@ Object.assign(App, {
     if (notes.length > 500) { this.showToast('注意事項不可超過 500 字'); return; }
     if (!sportTag) { this.showToast('請先選擇運動 / 場景標籤（必選）'); return; }
     if (genderRestrictionEnabled && !allowedGender) { this.showToast('請選擇限定性別'); return; }
-    // 球隊限定：決定 teamId / teamName
+    // 俱樂部限定：決定 teamId / teamName
     let resolvedTeamId = null, resolvedTeamName = null;
     if (teamOnly) {
       const team = this._getEventCreatorTeam();
@@ -191,7 +191,7 @@ Object.assign(App, {
         // 從下拉選單取
         const select = document.getElementById('ce-team-select');
         const selVal = select?.value;
-        if (!selVal) { this.showToast('請選擇限定球隊'); return; }
+        if (!selVal) { this.showToast('請選擇限定俱樂部'); return; }
         resolvedTeamId = selVal;
         resolvedTeamName = select.options[select.selectedIndex]?.dataset?.name || selVal;
       }
@@ -200,7 +200,7 @@ Object.assign(App, {
     let resolvedTeamIds = [], resolvedTeamNames = [];
     if (teamOnly) {
       const selectedTeams = this._resolveTeamOnlySelection();
-      if (selectedTeams.length === 0) { this.showToast('請至少選擇 1 支球隊'); return; }
+      if (selectedTeams.length === 0) { this.showToast('請至少選擇 1 支俱樂部'); return; }
       resolvedTeamIds = selectedTeams.map(t => t.id);
       resolvedTeamNames = selectedTeams.map(t => t.name || t.id);
       resolvedTeamId = resolvedTeamIds[0] || null;

@@ -12,7 +12,7 @@
 
 > **D-1 `Critical` 審查備註：F-01-C auto-exp 已是 production bug，不能推遲**
 >
-> `_grantAutoExp` 由一般用戶 session 觸發（報名、取消、評價、加入球隊等 **13 處**呼叫點：
+> `_grantAutoExp` 由一般用戶 session 觸發（報名、取消、評價、加入俱樂部等 **13 處**呼叫點：
 > `event-detail-signup.js:70,226`、`event-detail-companion.js:132,245`、`event-detail.js:356`、
 > `event-create.js:586`、`scan.js:502,754`、`team-form.js:88`、`team.js:277,489`、`team-detail.js:270`）。
 >
@@ -340,7 +340,7 @@
 > - `_recalcUserRole` × 4：line 138、513、518、654
 > - `promoteUser` × 2：line 467（promote to captain）、479（promote to coach）
 >
-> 這些呼叫發生在「建立球隊 / 編輯球隊 / 更換隊長教練」流程中，一旦 B-5 把
+> 這些呼叫發生在「建立俱樂部 / 編輯俱樂部 / 更換隊長教練」流程中，一旦 B-5 把
 > `promoteUser` 和 `_recalcUserRole` 改成 async，`team-form.js` 的呼叫端若沒加
 > `await + try/catch`，會產生 **unhandled promise rejection** 且 UI 不反映失敗。
 >
@@ -474,7 +474,7 @@ function authRole() {
 > 4. 一般用戶報名活動後 → EXP 正確增加，`expLogs` 有對應記錄
 > 5. 一般用戶取消報名後 → EXP 正確扣減，`expLogs` 有對應記錄
 > 6. 一般用戶提交評價後 → EXP 正確增加
-> 7. 一般用戶加入球隊後 → EXP 正確增加
+> 7. 一般用戶加入俱樂部後 → EXP 正確增加
 > 8. EXP 變更失敗時 → UI 顯示提示（不靜默吞掉）
 
 ---
@@ -534,7 +534,7 @@ function authRole() {
 |------|------|
 | **現狀** | `_grantAutoExp` → `adjustUserExp` 的兩個 Firestore 寫入（`users.exp` + `expLogs`）在一般用戶 session 下靜默失敗 |
 | **根因** | `ownerUserUpdateSafe` 的 `sameFieldValue('exp')` + `expLogs` 的 `isAdmin()` create rule |
-| **影響** | EXP 系統完全無效：報名、取消、評價、加入球隊等 13 個觸發點全部失效 |
+| **影響** | EXP 系統完全無效：報名、取消、評價、加入俱樂部等 13 個觸發點全部失效 |
 | **與本計劃的關係** | 本計劃第 3 點明確排除 F-01-C，但這已不是「未來議題」而是 production bug |
 | **建議** | Phase A 加暫時方案：新增 `grantExp` callable（Admin SDK 寫入），或至少在 Phase A+ 單獨處理 |
 

@@ -10,7 +10,7 @@
 
 ## 專案概述
 
-**SportHub** 是一套運動活動報名與管理系統，提供用戶報名活動（PLAY / 友誼 / 教學 / 觀賽）、組建球隊、參加錦標賽、QR Code 簽到簽退及個人數據統計等功能。管理端提供活動管理、用戶管理、EXP 系統、成就徽章、廣告投放等後台能力。
+**SportHub** 是一套運動活動報名與管理系統，提供用戶報名活動（PLAY / 友誼 / 教學 / 觀賽）、組建俱樂部、參加錦標賽、QR Code 簽到簽退及個人數據統計等功能。管理端提供活動管理、用戶管理、EXP 系統、成就徽章、廣告投放等後台能力。
 
 - **部署平台**：自有域名 `toosterx.com`（Cloudflare Pages）、GitHub Pages（`msw2004727.github.io`）
 - **使用者驗證**：LINE LIFF 登入
@@ -54,7 +54,7 @@ FC-github/
 │   ├── core/               # 基礎設施（4 個）
 │   └── modules/            # 功能模組（12 子資料夾 + 21 獨立檔案）
 │       ├── event/          # 活動系統（27）：列表、詳情、報名、建立、管理、分享
-│       ├── team/           # 球隊系統（10）：列表、詳情、表單、分享
+│       ├── team/           # 俱樂部系統（10）：列表、詳情、表單、分享
 │       ├── tournament/     # 賽事系統（12）：渲染、詳情、管理、友誼賽
 │       ├── profile/        # 個人資料（9）：核心、資料、名片、分享
 │       ├── message/        # 訊息系統（9）：渲染、操作、收件匣、管理員
@@ -149,7 +149,7 @@ https://liff.line.me/{LINE_CONFIG.LIFF_ID}?{deepLinkParam}={id}
 ```
 
 - 活動：`?event={eventId}`
-- 球隊：`?team={teamId}`
+- 俱樂部：`?team={teamId}`
 - 賽事：`?tournament={tournamentId}`
 - 個人名片：`?profile={uid}`
 - 其他新功能：依此模式擴展
@@ -171,7 +171,7 @@ https://liff.line.me/{LINE_CONFIG.LIFF_ID}?{deepLinkParam}={id}
 | 功能 | 目前狀態 | 目標 |
 |------|----------|------|
 | 活動分享 | ✅ 已使用 LIFF URL + Flex Message | — |
-| 球隊邀請 | ❌ 使用 `toosterx.com` 直連 | 改為 LIFF URL + Flex Message |
+| 俱樂部邀請 | ❌ 使用 `toosterx.com` 直連 | 改為 LIFF URL + Flex Message |
 | 賽事分享 | ❌ 使用 `location.origin` 直連 | 改為 LIFF URL + Flex Message |
 | 個人名片分享 | ❌ 使用當前頁面 URL | 改為 LIFF URL |
 | Dashboard 報表 | ⚠️ 暫不改（管理功能，非面向一般用戶） | 維持現狀 |

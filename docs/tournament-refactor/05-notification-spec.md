@@ -28,12 +28,12 @@
 ### 1. 主辦建賽通知
 - key：`tournament_friendly_host_opened`
 - 觸發：友誼賽建立成功
-- 收件者：主辦球隊所有成員
+- 收件者：主辦俱樂部所有成員
 - 目的：提醒主辦隊成員與職員加入 roster
 
-### 2. 球隊申請待審通知
+### 2. 俱樂部申請待審通知
 - key：`tournament_friendly_team_apply_host`
-- 觸發：其他球隊送出 application
+- 觸發：其他俱樂部送出 application
 - 收件者：
   - 建立者 `creatorUid`
   - 該賽事 `delegates`
@@ -51,7 +51,7 @@
 ### 5. 核准後廣播給該隊成員
 - key：`tournament_friendly_team_approved_broadcast`
 - 觸發：主辦核准某隊
-- 收件者：該球隊全部成員
+- 收件者：該俱樂部全部成員
 - 目的：提醒已可加入該隊 roster
 
 ## Message meta 建議欄位
@@ -71,6 +71,6 @@
   - `rejected`
 
 ## v1 不做
-- 對同一球隊成員發送已讀同步規則
+- 對同一俱樂部成員發送已讀同步規則
 - 對不同語系收件者做模板語系分流
 - 通知節流與批次合併

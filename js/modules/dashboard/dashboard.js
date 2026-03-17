@@ -45,7 +45,7 @@ Object.assign(App, {
       monthCounts[key] = (monthCounts[key] || 0) + 1;
     });
 
-    // ── 球隊排名 Top 5 ──
+    // ── 俱樂部排名 Top 5 ──
     const topTeams = [...teams].sort((a, b) => (b.teamExp || 0) - (a.teamExp || 0)).slice(0, 5);
 
     // Build HTML

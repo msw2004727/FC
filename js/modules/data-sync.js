@@ -1,6 +1,6 @@
 /* ================================================
    SportHub - Data Sync Operations
-   球隊成員數重算、用戶球隊欄位驗證、孤兒記錄清理、UID 欄位修正
+   俱樂部成員數重算、用戶俱樂部欄位驗證、孤兒記錄清理、UID 欄位修正
    ================================================ */
 
 Object.assign(App, {
@@ -47,8 +47,8 @@ Object.assign(App, {
     }
 
     const opMap = {
-      teamMembers: { label: '球隊成員數重算', fn: '_syncTeamMembers' },
-      userTeam: { label: '用戶球隊欄位驗證', fn: '_syncUserTeamFields' },
+      teamMembers: { label: '俱樂部成員數重算', fn: '_syncTeamMembers' },
+      userTeam: { label: '用戶俱樂部欄位驗證', fn: '_syncUserTeamFields' },
       orphan: { label: '孤兒記錄清理', fn: '_syncOrphanCleanup' },
       uidMigration: { label: 'UID 欄位修正', fn: '_syncUidMigration' },
       all: { label: '全部同步', fn: '_syncAll' },
@@ -98,10 +98,10 @@ Object.assign(App, {
     let reads = 0, writes = 0, summary = '';
     if (op === 'teamMembers') {
       reads = 0; writes = T;
-      summary = `球隊 ${T} 支、用戶 ${U} 位（從快取計算，無額外讀取）`;
+      summary = `俱樂部 ${T} 支、用戶 ${U} 位（從快取計算，無額外讀取）`;
     } else if (op === 'userTeam') {
       reads = 0; writes = U;
-      summary = `用戶 ${U} 位、球隊 ${T} 支（從快取比對，無額外讀取）`;
+      summary = `用戶 ${U} 位、俱樂部 ${T} 支（從快取比對，無額外讀取）`;
     } else if (op === 'orphan') {
       const E = (ApiService.getEvents?.() || []).length;
       reads = E + R + Act + Att;
@@ -116,18 +116,18 @@ Object.assign(App, {
       const achA = (ApiService.getAchievements?.() || []).filter(a => a && a.status !== 'archived' && a.condition).length;
       reads = (achU * 3) + R + Act + Att;
       writes = (achU * achA) + R + T + U;
-      summary = `用戶 ${U} 位、成就 ${achA} 個、球隊 ${T} 支\n報名 ${R}、活動紀錄 ${Act}、出席紀錄 ${Att}\n（僅執行 ①②③，不含 ④ 孤兒記錄清理）`;
+      summary = `用戶 ${U} 位、成就 ${achA} 個、俱樂部 ${T} 支\n報名 ${R}、活動紀錄 ${Act}、出席紀錄 ${Att}\n（僅執行 ①②③，不含 ④ 孤兒記錄清理）`;
     }
     const cost = ((reads * 0.06 / 100000) + (writes * 0.18 / 100000)).toFixed(4);
     return { reads, writes, cost, summary };
   },
 
-  // ── ② 球隊成員數重算 ──
+  // ── ② 俱樂部成員數重算 ──
   async _syncTeamMembers(ui) {
-    ui.log('開始球隊成員數重算...');
+    ui.log('開始俱樂部成員數重算...');
     const teams = ApiService.getTeams?.() || [];
     const users = ApiService.getAdminUsers?.() || [];
-    if (!teams.length) { ui.log('找不到球隊資料'); return; }
+    if (!teams.length) { ui.log('找不到俱樂部資料'); return; }
 
     let updated = 0;
     for (let i = 0; i < teams.length; i++) {
@@ -161,15 +161,15 @@ Object.assign(App, {
       ui.setProgress(i + 1, teams.length);
       if (i % 5 === 0) await new Promise(r => setTimeout(r, 0));
     }
-    ui.log(`球隊成員數：更新 ${updated}/${teams.length} 支`);
+    ui.log(`俱樂部成員數：更新 ${updated}/${teams.length} 支`);
     if (updated > 0) {
-      ApiService._writeOpLog?.('data_sync', '球隊成員數重算', `更新 ${updated}/${teams.length} 支`);
+      ApiService._writeOpLog?.('data_sync', '俱樂部成員數重算', `更新 ${updated}/${teams.length} 支`);
     }
   },
 
-  // ── ③ 用戶球隊欄位驗證 ──
+  // ── ③ 用戶俱樂部欄位驗證 ──
   async _syncUserTeamFields(ui) {
-    ui.log('開始用戶球隊欄位驗證...');
+    ui.log('開始用戶俱樂部欄位驗證...');
     const users = ApiService.getAdminUsers?.() || [];
     const teams = ApiService.getTeams?.() || [];
     const validTeamIds = new Set(
@@ -207,7 +207,7 @@ Object.assign(App, {
           }
           await db.collection('users').doc(uid).update(updates);
           const name = user.displayName || user.name || uid;
-          ui.log(`${name}：移除無效球隊引用`);
+          ui.log(`${name}：移除無效俱樂部引用`);
           updated++;
         } catch (err) {
           ui.log(`錯誤 [${uid}]：${err.message}`);
@@ -216,9 +216,9 @@ Object.assign(App, {
       ui.setProgress(i + 1, users.length);
       if (i % 5 === 0) await new Promise(r => setTimeout(r, 0));
     }
-    ui.log(`用戶球隊欄位：修正 ${updated}/${users.length} 位`);
+    ui.log(`用戶俱樂部欄位：修正 ${updated}/${users.length} 位`);
     if (updated > 0) {
-      ApiService._writeOpLog?.('data_sync', '用戶球隊驗證', `修正 ${updated}/${users.length} 位`);
+      ApiService._writeOpLog?.('data_sync', '用戶俱樂部驗證', `修正 ${updated}/${users.length} 位`);
     }
   },
 
@@ -423,10 +423,10 @@ Object.assign(App, {
       ui.log(`成就同步錯誤：${err.message}`);
     }
 
-    ui.log('\n【② 球隊成員數重算】');
+    ui.log('\n【② 俱樂部成員數重算】');
     await this._syncTeamMembers(ui);
 
-    ui.log('\n【③ 用戶球隊欄位驗證】');
+    ui.log('\n【③ 用戶俱樂部欄位驗證】');
     await this._syncUserTeamFields(ui);
   },
 

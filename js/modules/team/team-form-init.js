@@ -52,14 +52,14 @@ Object.assign(App, {
 
   showTeamForm(id) {
     if (!id && typeof this._canCreateTeamByPermission === 'function' && !this._canCreateTeamByPermission()) {
-      this.showToast('目前未開啟建立球隊權限');
+      this.showToast('目前未開啟建立俱樂部權限');
       return;
     }
     if (id) {
       const targetTeam = ApiService.getTeam(id);
       if (!targetTeam) return;
       if (typeof this._canEditTeamByRoleOrCaptain === 'function' && !this._canEditTeamByRoleOrCaptain(targetTeam)) {
-        this.showToast('您沒有編輯此球隊的權限');
+        this.showToast('您沒有編輯此俱樂部的權限');
         return;
       }
     }
@@ -72,7 +72,7 @@ Object.assign(App, {
     if (id) {
       const t = ApiService.getTeam(id);
       if (!t) return;
-      titleEl.textContent = '編輯球隊';
+      titleEl.textContent = '編輯俱樂部';
       saveBtn.textContent = '儲存變更';
       document.getElementById('ct-team-name').value = t.name || '';
       document.getElementById('ct-team-name-en').value = t.nameEn || '';
@@ -104,12 +104,12 @@ Object.assign(App, {
       }
       this._renderLeaderTags();
 
-      // 編輯模式：球隊經理欄位，僅經理本人或 admin 可轉移
+      // 編輯模式：俱樂部經理欄位，僅經理本人或 admin 可轉移
       const me = ApiService.getCurrentUser();
       const isAdmin = me && (ROLE_LEVEL_MAP[me.role] || 0) >= ROLE_LEVEL_MAP['admin'];
       const canTransferCaptain = isAdmin || (me && me.uid === t.captainUid);
       captainDisplay.style.display = '';
-      captainDisplay.innerHTML = `目前球隊經理：<span style="color:var(--accent)">${escapeHTML(t.captain || '（未設定）')}</span>`;
+      captainDisplay.innerHTML = `目前俱樂部經理：<span style="color:var(--accent)">${escapeHTML(t.captain || '（未設定）')}</span>`;
       captainTransfer.style.display = canTransferCaptain ? '' : 'none';
       document.getElementById('ct-captain-locked').style.display = canTransferCaptain ? 'none' : '';
       const captainHint = captainTransfer.querySelector('.ct-captain-hint');
@@ -153,20 +153,20 @@ Object.assign(App, {
         preview.classList.remove('has-image');
       }
     } else {
-      // 新增模式：自動填入當前用戶為球隊經理，鎖定不可更改
-      titleEl.textContent = '新增球隊';
-      saveBtn.textContent = '建立球隊';
+      // 新增模式：自動填入當前用戶為俱樂部經理，鎖定不可更改
+      titleEl.textContent = '新增俱樂部';
+      saveBtn.textContent = '建立俱樂部';
       this._resetTeamForm();
 
-      // 自動設定創立者為球隊經理
+      // 自動設定創立者為俱樂部經理
       const me = ApiService.getCurrentUser();
       if (me) {
         this._teamCaptainUid = me.uid;
         captainDisplay.style.display = '';
-        captainDisplay.innerHTML = `球隊經理（創立者）：<span style="color:var(--accent)">${escapeHTML(me.displayName || me.name || '')}</span>`;
+        captainDisplay.innerHTML = `俱樂部經理（創立者）：<span style="color:var(--accent)">${escapeHTML(me.displayName || me.name || '')}</span>`;
         captainTransfer.style.display = 'none';
         document.getElementById('ct-captain-locked').style.display = '';
-        document.getElementById('ct-captain-locked').textContent = '（創立者自動成為球隊經理）';
+        document.getElementById('ct-captain-locked').textContent = '（創立者自動成為俱樂部經理）';
       } else {
         captainDisplay.style.display = 'none';
         captainTransfer.style.display = '';

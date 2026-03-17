@@ -445,8 +445,8 @@ const App = {
     const pageLabels = {
       'page-activities': '活動',
       'page-activity-detail': '活動詳情',
-      'page-teams': '球隊',
-      'page-team-detail': '球隊詳情',
+      'page-teams': '俱樂部',
+      'page-team-detail': '俱樂部詳情',
       'page-profile': '個人資料',
       'page-messages': '訊息',
       'page-game': '小遊戲',
@@ -623,7 +623,7 @@ const App = {
     if (!overlay) return;
     const title = overlay.querySelector('[data-deep-link-title]');
     const sub = overlay.querySelector('[data-deep-link-sub]');
-    const titleMap = { team: '正在前往球隊頁面', tournament: '正在前往賽事頁面', profile: '正在前往個人名片' };
+    const titleMap = { team: '正在前往俱樂部頁面', tournament: '正在前往賽事頁面', profile: '正在前往個人名片' };
     if (title) title.textContent = titleMap[type] || '正在前往活動頁面';
     if (sub) sub.textContent = '正在確認登入與資料，請稍候...';
     overlay.classList.remove('is-hiding');

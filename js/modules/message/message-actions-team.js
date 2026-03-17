@@ -15,7 +15,7 @@ Object.assign(App, {
 
     // 1. Permission check: current user must be team staff (captain/leader/coach) or admin
     const team = ApiService.getTeam(teamId);
-    if (!team) { this.showToast('找不到此球隊'); return; }
+    if (!team) { this.showToast('找不到此俱樂部'); return; }
     const curUser = ApiService.getCurrentUser();
     const curUid = curUser?.uid || (ModeManager.isDemo() ? DemoData.currentUser?.uid : null);
     const myNames = new Set([curUser?.name, curUser?.displayName].filter(Boolean));
@@ -161,8 +161,8 @@ Object.assign(App, {
         ApiService.updateTeam(teamId, { members: memberCount });
 
         this._deliverMessageWithLinePush(
-          '球隊申請通過',
-          `恭喜！您已成功加入「${finalTeamName}」球隊，審核人：${reviewerName}。`,
+          '俱樂部申請通過',
+          `恭喜！您已成功加入「${finalTeamName}」俱樂部，審核人：${reviewerName}。`,
           'system', '系統', applicantUid, '系統', null,
           { lineOptions: { source: 'team_join_review:approve' } }
         );
@@ -178,13 +178,13 @@ Object.assign(App, {
         this._evaluateAchievements(null, { targetUid: applicantUid });
         this.showToast('已同意加入申請');
       } else {
-        this.showToast('申請者已在此球隊，僅更新審核狀態');
+        this.showToast('申請者已在此俱樂部，僅更新審核狀態');
       }
 
     } else if (action === 'reject') {
       this._deliverMessageWithLinePush(
-        '球隊申請結果',
-        `很抱歉，您申請加入「${teamName}」球隊未獲通過。如有疑問，請聯繫球隊職員。`,
+        '俱樂部申請結果',
+        `很抱歉，您申請加入「${teamName}」俱樂部未獲通過。如有疑問，請聯繫俱樂部職員。`,
         'system', '系統', applicantUid, '系統', null,
         { lineOptions: { source: 'team_join_review:reject' } }
       );
@@ -200,7 +200,7 @@ Object.assign(App, {
       this.showToast('已拒絕加入申請');
 
     } else if (action === 'ignore') {
-      ApiService._writeOpLog('team_approve', '球隊審批', `${reviewerName} 忽略「${applicantName}」加入「${teamName}」的申請`);
+      ApiService._writeOpLog('team_approve', '俱樂部審批', `${reviewerName} 忽略「${applicantName}」加入「${teamName}」的申請`);
       this.showToast('已忽略此申請');
     }
 

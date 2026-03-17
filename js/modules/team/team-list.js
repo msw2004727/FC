@@ -221,7 +221,7 @@ Object.assign(App, {
 
   openTeamCreateFromTeamsPage() {
     if (!this._canCreateTeamByPermission()) {
-      this.showToast('目前未開啟建立球隊權限');
+      this.showToast('目前未開啟建立俱樂部權限');
       return;
     }
     this.showTeamForm();

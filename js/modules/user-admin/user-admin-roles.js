@@ -571,7 +571,7 @@ Object.assign(App, {
     this.showToast(`層級「${info.label}」已刪除，相關用戶已降為一般用戶`);
   },
 
-  // ─── 不活躍用戶/球隊（從資料讀取） ───
+  // ─── 不活躍用戶/俱樂部（從資料讀取） ───
   renderInactiveData() {
     const container = document.getElementById('inactive-list');
     if (!container) return;
@@ -597,7 +597,7 @@ Object.assign(App, {
   _renderInactiveTeams(container) {
     const teams = ApiService.getTeams().filter(t => t.active === false);
 
-    // 也找沒有球隊或長期未活動的用戶
+    // 也找沒有俱樂部或長期未活動的用戶
     const users = ApiService.getAdminUsers();
     const inactiveUsers = users.filter(u => {
       if (!u.lastActive) return true;
@@ -619,7 +619,7 @@ Object.assign(App, {
     let html = '';
 
     if (teams.length > 0) {
-      html += '<div style="font-weight:700;margin-bottom:.5rem;color:var(--text-secondary)">已解散球隊</div>';
+      html += '<div style="font-weight:700;margin-bottom:.5rem;color:var(--text-secondary)">已解散俱樂部</div>';
       html += teams.map(t => `
         <div class="inactive-card">
           <div style="font-weight:700">${escapeHTML(t.name)}</div>
@@ -628,7 +628,7 @@ Object.assign(App, {
         </div>
       `).join('');
     } else {
-      html += '<div style="text-align:center;padding:1.5rem;color:var(--text-muted)">目前沒有已解散球隊</div>';
+      html += '<div style="text-align:center;padding:1.5rem;color:var(--text-muted)">目前沒有已解散俱樂部</div>';
     }
 
     if (inactiveUsers.length > 0) {
@@ -637,7 +637,7 @@ Object.assign(App, {
         <div class="inactive-card">
           <div style="font-weight:700">${escapeHTML(u.name)} <span style="font-weight:400;font-size:.78rem;color:var(--text-muted)">${ROLES[u.role]?.label || u.role}</span></div>
           <div style="font-size:.78rem;color:var(--text-muted);margin-top:.3rem">UID: ${escapeHTML(u.uid)} ・ Lv.${App._calcLevelFromExp(u.exp || 0).level} ・ ${escapeHTML(u.region)}</div>
-          <div style="font-size:.78rem;color:var(--text-muted)">最後活動：${escapeHTML(u.lastActive || '未知')} ・ 球隊：${escapeHTML(u.teamName || '無')}</div>
+          <div style="font-size:.78rem;color:var(--text-muted)">最後活動：${escapeHTML(u.lastActive || '未知')} ・ 俱樂部：${escapeHTML(u.teamName || '無')}</div>
         </div>
       `).join('');
     } else {

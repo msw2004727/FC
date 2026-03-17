@@ -26,7 +26,7 @@
         <button class="tab active" onclick="App.switchExpTab('individual')">個別調整</button>
         <button class="tab" onclick="App.switchExpTab('batch')">批次調整</button>
         <button class="tab" onclick="App.switchExpTab('team')">整隊調整</button>
-        <button class="tab" onclick="App.switchExpTab('teamExp')">球隊積分</button>
+        <button class="tab" onclick="App.switchExpTab('teamExp')">俱樂部積分</button>
       </div>
 
       <!-- 個別調整 -->
@@ -77,12 +77,12 @@
         </div>
       </div>
 
-      <!-- 球隊調整 -->
+      <!-- 俱樂部調整 -->
       <div class="exp-tab-panel" id="exp-panel-team" style="display:none">
         <div class="form-row" style="padding:0 .2rem">
-          <label>選擇球隊</label>
+          <label>選擇俱樂部</label>
           <select id="exp-team-select" onchange="App.expTeamSelect()">
-            <option value="">— 請選擇球隊 —</option>
+            <option value="">— 請選擇俱樂部 —</option>
           </select>
         </div>
         <div id="exp-team-members" class="reward-tags" style="margin:.5rem .2rem .65rem"></div>
@@ -93,16 +93,16 @@
           </div>
           <div class="form-row">
             <label>備註原因 <span class="required">*必填</span></label>
-            <input type="text" id="exp-team-reason" placeholder="例：球隊獎勵">
+            <input type="text" id="exp-team-reason" placeholder="例：俱樂部獎勵">
           </div>
           <button class="primary-btn full-width" onclick="App.handleTeamExpSubmit()">全隊送出</button>
         </div>
       </div>
 
-      <!-- 球隊積分 -->
+      <!-- 俱樂部積分 -->
       <div class="exp-tab-panel" id="exp-panel-teamExp" style="display:none">
         <div class="admin-search" style="position:relative">
-          <input type="text" placeholder="輸入球隊名稱搜尋..." id="exp-team-exp-search" oninput="App.expTeamExpSearch()">
+          <input type="text" placeholder="輸入俱樂部名稱搜尋..." id="exp-team-exp-search" oninput="App.expTeamExpSearch()">
           <div class="ce-delegate-dropdown" id="exp-team-exp-dropdown"></div>
         </div>
         <div class="exp-target-card" id="exp-team-exp-card" style="display:none">
@@ -115,7 +115,7 @@
           </div>
           <div class="exp-form">
             <div class="form-row">
-              <label>球隊積分調整</label>
+              <label>俱樂部積分調整</label>
               <input type="number" id="exp-team-exp-amount" placeholder="+500 或 -200">
             </div>
             <div class="form-row">

@@ -256,7 +256,7 @@ Object.assign(App, {
     return this._isEventOwner(e) || this._isEventDelegate(e);
   },
 
-  /** 取得當前用戶可見的活動列表（過濾球隊限定） */
+  /** 取得當前用戶可見的活動列表（過濾俱樂部限定） */
   _getVisibleEvents() {
     const all = ApiService.getEvents();
     return all.filter(e => this._canViewEventByTeamScope(e));

@@ -60,14 +60,14 @@ function _buildTournamentOrganizerDisplay(teamName, userName) {
   const safeTeamName = String(teamName || '').trim();
   const safeUserName = String(userName || '').trim();
   if (safeTeamName && safeUserName) return `${safeTeamName}（${safeUserName}）`;
-  return safeTeamName || safeUserName || '主辦球隊';
+  return safeTeamName || safeUserName || '主辦俱樂部';
 }
 
 // ---------------------------------------------------------------------------
 // Extracted from tournament-core.js:78-85
 // ---------------------------------------------------------------------------
 function _getTournamentOrganizerDisplayText(tournament) {
-  if (!tournament) return '主辦球隊';
+  if (!tournament) return '主辦俱樂部';
   const direct = String(tournament.organizerDisplay || '').trim();
   if (direct) return direct;
   const teamName = String(tournament.hostTeamName || '').trim();
@@ -336,20 +336,20 @@ describe('_buildTournamentOrganizerDisplay', () => {
   });
 
   test('returns fallback when both empty', () => {
-    expect(_buildTournamentOrganizerDisplay('', '')).toBe('主辦球隊');
-    expect(_buildTournamentOrganizerDisplay(null, null)).toBe('主辦球隊');
-    expect(_buildTournamentOrganizerDisplay(undefined, undefined)).toBe('主辦球隊');
+    expect(_buildTournamentOrganizerDisplay('', '')).toBe('主辦俱樂部');
+    expect(_buildTournamentOrganizerDisplay(null, null)).toBe('主辦俱樂部');
+    expect(_buildTournamentOrganizerDisplay(undefined, undefined)).toBe('主辦俱樂部');
   });
 
   test('trims whitespace', () => {
     expect(_buildTournamentOrganizerDisplay('  Team  ', '  User  ')).toBe('Team（User）');
-    expect(_buildTournamentOrganizerDisplay('  ', '  ')).toBe('主辦球隊');
+    expect(_buildTournamentOrganizerDisplay('  ', '  ')).toBe('主辦俱樂部');
   });
 });
 
 describe('_getTournamentOrganizerDisplayText', () => {
   test('returns fallback for null tournament', () => {
-    expect(_getTournamentOrganizerDisplayText(null)).toBe('主辦球隊');
+    expect(_getTournamentOrganizerDisplayText(null)).toBe('主辦俱樂部');
   });
 
   test('returns organizerDisplay when set', () => {

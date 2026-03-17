@@ -105,9 +105,9 @@ Object.assign(App, {
       const teamName = String(msg.meta?.teamName || '').trim();
       const teamExists = teamId ? liveTeamIds.has(teamId) : !!teamName && liveTeamNames.has(teamName);
       if (!teamExists) return false;
-      // 已入隊 → 不再顯示該球隊的申請紀錄（無論 message 狀態為何）
+      // 已入隊 → 不再顯示該俱樂部的申請紀錄（無論 message 狀態為何）
       if (teamId && currentTeamIds.includes(teamId)) return false;
-      // name-only 舊 message（無 teamId）：透過球隊名稱反查 ID 比對 membership
+      // name-only 舊 message（無 teamId）：透過俱樂部名稱反查 ID 比對 membership
       if (!teamId && teamName) {
         const matchedTeam = liveTeams.find(t => String(t.name || '').trim() === teamName);
         if (matchedTeam && currentTeamIds.includes(String(matchedTeam.id || '').trim())) return false;

@@ -96,7 +96,7 @@ Object.assign(App, {
     const maxTeams = this._getFriendlyTournamentTeamLimit?.(t) || t.maxTeams || 999;
     const isFull = registered.length >= maxTeams;
 
-    // 找出當前用戶管理的球隊
+    // 找出當前用戶管理的俱樂部
     const curUser = ApiService.getCurrentUser();
     const allTeams = ApiService.getTeams();
     const myManagedTeams = curUser ? allTeams.filter(tm =>
@@ -130,7 +130,7 @@ Object.assign(App, {
       if (canRegister) {
         btnHTML = `<button class="primary-btn" style="width:100%" onclick="App.registerTournament('${t.id}')">報名比賽</button>`;
       } else {
-        btnHTML = `<button class="primary-btn" style="width:100%" onclick="App.showToast('請聯繫球隊管理人員進行報名')">報名比賽</button>`;
+        btnHTML = `<button class="primary-btn" style="width:100%" onclick="App.showToast('請聯繫俱樂部管理人員進行報名')">報名比賽</button>`;
       }
     } else if (status === '準備中' || status === '即將開始') {
       btnHTML = `<button class="primary-btn" style="width:100%;opacity:.5;cursor:not-allowed" disabled>尚未開放報名</button>`;
@@ -145,7 +145,7 @@ Object.assign(App, {
     const t = ApiService.getTournament(id);
     if (!t) return;
 
-    // 找出當前用戶所屬球隊（作為領隊或教練的）
+    // 找出當前用戶所屬俱樂部（作為領隊或教練的）
     const curUser = ApiService.getCurrentUser();
     if (!curUser) { this.showToast('請先登入'); return; }
     const allTeams = ApiService.getTeams();
@@ -155,13 +155,13 @@ Object.assign(App, {
       (tm.coaches || []).includes(curUser.displayName)
     );
     if (!myTeam) {
-      this.showToast('您尚未管理任何球隊');
+      this.showToast('您尚未管理任何俱樂部');
       return;
     }
 
     if (!t.registeredTeams) t.registeredTeams = [];
     if (t.registeredTeams.includes(myTeam.id)) {
-      this.showToast('您的球隊已報名此賽事');
+      this.showToast('您的俱樂部已報名此賽事');
       return;
     }
     if (t.registeredTeams.length >= (this._getFriendlyTournamentTeamLimit?.(t) || t.maxTeams || 999)) {
@@ -196,7 +196,7 @@ Object.assign(App, {
 
     // 產生 groupId 關聯同一筆報名申請的所有通知
     const groupId = 'trg_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
-    const msgBody = `「${myTeam.name}」申請報名賽事「${t.name}」，請審核此申請。\n\n申請人：${curUser.displayName}\n球隊：${myTeam.name}`;
+    const msgBody = `「${myTeam.name}」申請報名賽事「${t.name}」，請審核此申請。\n\n申請人：${curUser.displayName}\n俱樂部：${myTeam.name}`;
     const metaData = { tournamentId: id, tournamentName: t.name, teamId: myTeam.id, teamName: myTeam.name, applicantUid: curUser.uid, applicantName: curUser.displayName, groupId };
 
     // 發送給主辦人
@@ -266,7 +266,7 @@ Object.assign(App, {
       infoRows.push(`<div class="td-info-row"><span class="td-info-label">報名費</span><div class="td-info-value" style="font-weight:600">NT$${feeValue.toLocaleString()} / 隊</div></div>`);
     }
 
-    const organizerDisplay = this._getTournamentOrganizerDisplayText?.(infoTournament) || infoTournament.organizer || '主辦球隊';
+    const organizerDisplay = this._getTournamentOrganizerDisplayText?.(infoTournament) || infoTournament.organizer || '主辦俱樂部';
     infoRows.push(`<div class="td-info-row"><span class="td-info-label">主辦單位</span><div class="td-info-value">${escapeHTML(organizerDisplay)}</div></div>`);
 
     const infoDelegates = Array.isArray(infoTournament.delegates) ? infoTournament.delegates : [];
@@ -296,7 +296,7 @@ Object.assign(App, {
     } else if (tab === 'teams') {
       const teamIds = t.registeredTeams || [];
       if (teamIds.length === 0) {
-        container.innerHTML = '<div style="padding:2rem;text-align:center;color:var(--text-muted);font-size:.85rem">尚無球隊報名</div>';
+        container.innerHTML = '<div style="padding:2rem;text-align:center;color:var(--text-muted);font-size:.85rem">尚無俱樂部報名</div>';
         return;
       }
       const allTeams = ApiService.getTeams();

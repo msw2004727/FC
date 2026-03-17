@@ -175,7 +175,7 @@
 - **配套**：`_seedRoleData()` 自動補新權限碼機制確保既有角色不會因新增入口而掉功能
 
 ### 2026-03-17 — [永久] admin 角色固有權限不足導致自訂覆蓋後功能消失
-- **問題**：admin 在權限管理頁存過自訂權限後，大量入口權限消失（賽事、用戶、廣告、球隊等）
+- **問題**：admin 在權限管理頁存過自訂權限後，大量入口權限消失（賽事、用戶、廣告、俱樂部等）
 - **原因**：`INHERENT_ROLE_PERMISSIONS` 只列了 2 個權限，但 admin 應有 12 個入口權限。`getRolePermissions()` 在有自訂權限時完全覆蓋預設，只有固有權限不受影響
 - **修復**：admin 固有權限擴充為全部入口權限（9 個 .entry + team.create + team.manage_all + event.edit_all）。子權限（.edit_profile 等）保持可配置
 - **教訓**：`INHERENT_ROLE_PERMISSIONS` 是自訂權限覆蓋的最後防線；新增入口權限時若 minRole <= admin，必須同步加入此處
@@ -195,13 +195,13 @@
 - **需求**：將「成就批次更新」頁籤擴大為「系統資料同步」，包含 4 項操作
 - **操作項目**：
   1. **成就進度 + 報名徽章**（原有）：重算成就進度 → `users/{uid}/achievements` + `registrations.displayBadges`
-  2. **球隊成員數重算**（新增）：從 `users.teamId` 動態計算 → `teams.members`
-  3. **用戶球隊欄位驗證**（新增）：移除指向已刪除球隊的 `teamId/teamIds` 引用
+  2. **俱樂部成員數重算**（新增）：從 `users.teamId` 動態計算 → `teams.members`
+  3. **用戶俱樂部欄位驗證**（新增）：移除指向已刪除俱樂部的 `teamId/teamIds` 引用
   4. **孤兒記錄清理**（新增）：刪除指向不存在活動的 `registrations/activityRecords/attendanceRecords`
 - **費用預估**：每個操作的確認彈窗會顯示預估讀寫次數與 USD 費用（Firestore Blaze 計價）
 - **權限**：`admin.repair.data_sync`（原 `admin.repair.achievement_batch`），頁面 minRole 從 `super_admin` 降為 `admin`
 - **備註**：放鴿子次數（noShow）不需加入同步 — 此數據僅供 coach 以上層級管理員參考，一般用戶看不到；且 corrections 在管理端已正確套用
-- **教訓**：`teams.members` 是高風險過期欄位，只有瀏覽球隊頁才會重算寫回；`users.teamId` 在球隊被刪除時不會自動清除
+- **教訓**：`teams.members` 是高風險過期欄位，只有瀏覽俱樂部頁才會重算寫回；`users.teamId` 在俱樂部被刪除時不會自動清除
 
 ### 2026-03-16 — 身份成就 + 手動授予成就
 - **需求**：新增 4 種身份判定動作類型（教練/領隊/場主/管理員）+ 1 種手動授予動作類型
@@ -367,8 +367,8 @@
   - CSS 新增 `.share-action-sheet-btn-inner` / `.share-action-sheet-btn-sub` 按鈕副標題樣式
 - **教訓**：`line.me/R/share` 可在任何瀏覽器開啟 LINE 原生分享（含社群），但只能發純文字
 
-### 2026-03-15 — 全站分享升級：球隊/賽事/名片改用 LIFF URL + Flex Message
-- **問題**：球隊邀請、賽事分享、個人名片分享使用直連 URL（`toosterx.com`），不會強制在 LINE 內建瀏覽器開啟，且沒有 Flex Message 卡片
+### 2026-03-15 — 全站分享升級：俱樂部/賽事/名片改用 LIFF URL + Flex Message
+- **問題**：俱樂部邀請、賽事分享、個人名片分享使用直連 URL（`toosterx.com`），不會強制在 LINE 內建瀏覽器開啟，且沒有 Flex Message 卡片
 - **修復**：
   - 新建 `team-share.js`、`tournament-share.js`、`profile-share.js`，比照 `event-share.js` 模式（LIFF URL + Flex Message + shareTargetPicker + 底部選單 + fallback）
   - `team-detail.js` / `team.js`：`_getTeamInviteShareUrl` 改為 LIFF URL、QR Code 編碼 LIFF URL
@@ -509,7 +509,7 @@
 
 ### 收緊使用者欄位寫入邊界（2026-03-09）
 - `lastLogin`/`updatedAt` 時間驗證改為 `request.time`
-- 球隊欄位需有縮減/清空規則，不能與一般個人資料共用寬鬆白名單
+- 俱樂部欄位需有縮減/清空規則，不能與一般個人資料共用寬鬆白名單
 
 ---
 
@@ -620,10 +620,10 @@
 - **對接**：PageLoader、ScriptLoader、navigation.js（init/destroy lifecycle）、config.js（HOME_GAME_PRESETS homeVisible:false）、首頁第二張金色卡片、Firestore rules、CSS（`#page-kick-game` prefix）
 - **教訓**：多張遊戲卡片共用 section title 時，不能用 `_setHomeSectionVisibility` 逐個控制（會互相覆蓋），需整體判斷 anyVisible 後統一控制 title 顯示
 
-### 2026-03-15 — 球隊申請狀態依賴站內信導致已入隊仍顯示審核中
+### 2026-03-15 — 俱樂部申請狀態依賴站內信導致已入隊仍顯示審核中
 - **問題**：用戶已入隊但 profile 仍顯示「XXX俱樂部 審核中」
 - **原因**：`_getMyLatestTeamApplications` 完全依賴 messages 集合判斷狀態，未交叉比對 `users.teamId/teamIds` 實際 membership
-- **修復**：filter 加入 `currentTeamIds.includes(teamId)` 比對，已入隊球隊的申請紀錄不再顯示；支援 name-only 舊 message 反查；`handleJoinTeam` 改為 multi-team 檢查
+- **修復**：filter 加入 `currentTeamIds.includes(teamId)` 比對，已入隊俱樂部的申請紀錄不再顯示；支援 name-only 舊 message 反查；`handleJoinTeam` 改為 multi-team 檢查
 - **教訓**：顯示層判斷狀態應以權威資料（membership）為準，站內信僅作為通知管道，不應作為唯一狀態來源
 
 ### 2026-03-15 — stale-first 頁面 lazy module 未載入導致 crash
@@ -637,7 +637,7 @@
 - 資料未就緒時顯示 `--` 而非 `0`，避免誤解
 - 先 showPage 顯示頁面，再 await 載入資料，最後 renderUserCardRecords
 
-### 2026-03-15 — 球隊自動晉升降級需走 Cloud Function
+### 2026-03-15 — 俱樂部自動晉升降級需走 Cloud Function
 - `updateUserRole()` 改為呼叫 `autoPromoteTeamRole` CF，限定 user/coach/captain 三層
 
 ### 2026-03-15 — 小遊戲管理開關無效（homeVisible 合併邏輯 bug）

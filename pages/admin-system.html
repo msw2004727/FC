@@ -201,7 +201,7 @@
         <h2>無效資料查詢</h2>
       </div>
       <div class="tab-bar">
-        <button class="tab active">已解散球隊</button>
+        <button class="tab active">已解散俱樂部</button>
         <button class="tab">已結束賽事</button>
       </div>
       <div class="card-list" id="inactive-list"></div>
@@ -221,7 +221,7 @@
             <option value="">全部類型</option>
             <optgroup label="用戶">
               <option value="exp">手動EXP</option>
-              <option value="team_exp">球隊積分</option>
+              <option value="team_exp">俱樂部積分</option>
               <option value="role">角色變更</option>
             </optgroup>
             <optgroup label="活動">
@@ -240,10 +240,10 @@
               <option value="tourn_delete">刪除賽事</option>
               <option value="tourn_approve">賽事審批</option>
             </optgroup>
-            <optgroup label="球隊">
-              <option value="team_create">建立球隊</option>
-              <option value="team_edit">編輯球隊</option>
-              <option value="team_delete">刪除球隊</option>
+            <optgroup label="俱樂部">
+              <option value="team_create">建立俱樂部</option>
+              <option value="team_edit">編輯俱樂部</option>
+              <option value="team_delete">刪除俱樂部</option>
               <option value="team_position">職位變更</option>
               <option value="team_approve">入隊審批</option>
             </optgroup>
@@ -352,7 +352,7 @@
         <div class="form-card">
           <div style="font-weight:600;font-size:.9rem;margin-bottom:.3rem">歷史入隊審批修復</div>
           <div style="font-size:.78rem;color:var(--text-muted);margin-bottom:.8rem;line-height:1.6">
-            掃描所有已批准（approved）的入隊申請，將其中 <code>teamId</code> 尚未寫入的用戶補寫至球隊。<br>
+            掃描所有已批准（approved）的入隊申請，將其中 <code>teamId</code> 尚未寫入的用戶補寫至俱樂部。<br>
             此操作為冪等（重複執行安全），已正確的用戶會自動跳過。
           </div>
           <button id="repair-team-joins-btn" class="primary-btn full-width" onclick="App.repairApprovedTeamJoins()">執行修復</button>
@@ -418,10 +418,10 @@
         <div class="form-card" style="margin-bottom:.6rem">
           <div style="display:flex;align-items:center;justify-content:space-between;gap:.5rem">
             <div style="flex:1;min-width:0">
-              <div style="font-weight:600;font-size:.82rem">② 球隊成員數重算</div>
+              <div style="font-weight:600;font-size:.82rem">② 俱樂部成員數重算</div>
               <div style="font-size:.72rem;color:var(--text-muted);line-height:1.5;margin-top:.15rem">
-                從用戶資料重新計算每支球隊的正確成員數，修正球隊列表與分享卡顯示。<br>
-                資料來源為快取，無額外讀取費用，僅寫入有變動的球隊文件。
+                從用戶資料重新計算每支俱樂部的正確成員數，修正俱樂部列表與分享卡顯示。<br>
+                資料來源為快取，無額外讀取費用，僅寫入有變動的俱樂部文件。
               </div>
             </div>
             <button class="outline-btn" style="flex-shrink:0;font-size:.75rem" onclick="App.runDataSyncOp('teamMembers')">執行</button>
@@ -430,10 +430,10 @@
         <div class="form-card" style="margin-bottom:.6rem">
           <div style="display:flex;align-items:center;justify-content:space-between;gap:.5rem">
             <div style="flex:1;min-width:0">
-              <div style="font-weight:600;font-size:.82rem">③ 用戶球隊欄位驗證</div>
+              <div style="font-weight:600;font-size:.82rem">③ 用戶俱樂部欄位驗證</div>
               <div style="font-size:.72rem;color:var(--text-muted);line-height:1.5;margin-top:.15rem">
-                檢查所有用戶的球隊引用（teamId/teamIds），移除指向已刪除球隊的欄位。<br>
-                修正用戶看到不存在的球隊、或被錯誤包含在球隊限定活動中的問題。
+                檢查所有用戶的俱樂部引用（teamId/teamIds），移除指向已刪除俱樂部的欄位。<br>
+                修正用戶看到不存在的俱樂部、或被錯誤包含在俱樂部限定活動中的問題。
               </div>
             </div>
             <button class="outline-btn" style="flex-shrink:0;font-size:.75rem" onclick="App.runDataSyncOp('userTeam')">執行</button>

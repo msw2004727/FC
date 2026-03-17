@@ -115,7 +115,7 @@
 | 廣告管理 | `banners` / `floatingAds` | `isAdmin()` |
 | 站內信 | `adminMessages` | `isAdmin()` |
 | 商品管理 | `shopProducts` | `isAdmin()` |
-| 球隊管理 | `teams` | `isAdmin()` / `isCoachPlus()` |
+| 俱樂部管理 | `teams` | `isAdmin()` / `isCoachPlus()` |
 | 活動管理 | `events` | `isAuth()` + `isEventOwner()` |
 | 賽事管理 | `tournaments` | `isAdmin()` |
 | 公告管理 | `announcements` | `isAdmin()` |

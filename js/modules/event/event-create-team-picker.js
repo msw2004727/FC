@@ -18,7 +18,7 @@ Object.assign(App, {
 
   _resolveTeamDisplayName(teamId, hintedName = '') {
     const id = String(teamId || '').trim();
-    if (!id) return '未知球隊';
+    if (!id) return '未知俱樂部';
 
     const hint = String(hintedName || '').trim();
     if (hint) return hint;
@@ -45,7 +45,7 @@ Object.assign(App, {
       }
     }
 
-    return '未知球隊';
+    return '未知俱樂部';
   },
 
   _getTeamOnlyCandidateTeams() {
@@ -210,7 +210,7 @@ Object.assign(App, {
             <span class="ce-team-chip-remove">×</span>
           </button>
         `).join('')
-      : '<span class="ce-team-placeholder">尚未選擇球隊</span>';
+      : '<span class="ce-team-placeholder">尚未選擇俱樂部</span>';
 
     const keyword = String(search.value || '').trim().toLowerCase();
     const filtered = options.filter(opt => {
@@ -220,7 +220,7 @@ Object.assign(App, {
     });
 
     if (filtered.length === 0) {
-      list.innerHTML = '<div class="ce-team-empty">找不到符合的球隊</div>';
+      list.innerHTML = '<div class="ce-team-empty">找不到符合的俱樂部</div>';
       return;
     }
 
@@ -298,14 +298,14 @@ Object.assign(App, {
     if (select) select.style.display = 'none';
 
     if (teams.length === 0) {
-      label.textContent = '已啟用：目前沒有可選球隊';
+      label.textContent = '已啟用：目前沒有可選俱樂部';
       this._renderTeamOnlyPicker();
       return;
     }
 
     const selectedVals = this._resolveTeamOnlySelection();
     if (selectedVals.length === 0) {
-      label.textContent = '已啟用：請至少選擇 1 支球隊';
+      label.textContent = '已啟用：請至少選擇 1 支俱樂部';
       this._renderTeamOnlyPicker();
       return;
     }
@@ -316,7 +316,7 @@ Object.assign(App, {
       return;
     }
 
-    label.textContent = `已啟用：已選 ${selectedVals.length} 支球隊`;
+    label.textContent = `已啟用：已選 ${selectedVals.length} 支俱樂部`;
     this._renderTeamOnlyPicker();
   },
 

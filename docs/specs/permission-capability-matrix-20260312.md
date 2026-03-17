@@ -31,8 +31,8 @@
 
 | Capability | UI | Firestore / Function | 說明 |
 | --- | --- | --- | --- |
-| `team.create` | 球隊建立入口 | `teams.create` | 已存在 |
-| `team.manage_all` | 球隊管理 | `teams.update` | 已存在 |
+| `team.create` | 俱樂部建立入口 | `teams.create` | 已存在 |
+| `team.manage_all` | 俱樂部管理 | `teams.update` | 已存在 |
 | `event.edit_all` | 活動管理 | `events.update` | 已存在 |
 | `admin.repair.team_join_repair` | 補正頁按鈕 | `users.update` / `messages.read` | 已存在 |
 | `admin.repair.no_show_adjust` | 補正頁按鈕 | `userCorrections.*` | 已存在 |

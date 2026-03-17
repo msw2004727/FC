@@ -66,7 +66,7 @@ Object.assign(App, {
     hostRow.className = 'ce-row';
     // Note: innerHTML usage is safe — no user content in this template
     hostRow.innerHTML = `
-      <label>主辦球隊 <span class="required">*</span></label>
+      <label>主辦俱樂部 <span class="required">*</span></label>
       <select id="${p}-host-team"></select>
       <div id="${p}-host-team-summary" class="ce-field-note"></div>
     `;
@@ -87,7 +87,7 @@ Object.assign(App, {
     // Note: innerHTML usage is safe — all user content passes through escapeHTML()
     select.innerHTML = teams.length
       ? teams.map(team => `<option value="${escapeHTML(team.id)}">${escapeHTML(team.name)}</option>`).join('')
-      : '<option value="">目前沒有可選擇的主辦球隊</option>';
+      : '<option value="">目前沒有可選擇的主辦俱樂部</option>';
 
     if (safeSelectedId && teams.some(team => team.id === safeSelectedId)) {
       select.value = safeSelectedId;
@@ -112,13 +112,13 @@ Object.assign(App, {
     const actor = ApiService.getCurrentUser?.();
     const actorName = actor?.displayName || actor?.name || '';
     if (!team) {
-      summary.textContent = '請先選擇主辦球隊。';
+      summary.textContent = '請先選擇主辦俱樂部。';
       return;
     }
 
     const organizerText = this._buildTournamentOrganizerDisplay(team.name, actorName);
     summary.textContent = locked
-      ? `主辦顯示：${organizerText}｜主辦球隊建立後暫不開放更換。`
+      ? `主辦顯示：${organizerText}｜主辦俱樂部建立後暫不開放更換。`
       : `主辦顯示：${organizerText}`;
   },
 

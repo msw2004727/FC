@@ -22,7 +22,7 @@ Object.assign(App, {
     if (ModeManager.isDemo()) {
       if (this._userTeam === teamId) {
         const sameTeam = ApiService.getTeam(teamId);
-        this.showToast(`您已是「${sameTeam ? sameTeam.name : '球隊'}」隊員，無需重複申請`);
+        this.showToast(`您已是「${sameTeam ? sameTeam.name : '俱樂部'}」隊員，無需重複申請`);
         return;
       }
     } else {
@@ -33,14 +33,14 @@ Object.assign(App, {
       );
       if (alreadyInTeam) {
         const sameTeam = ApiService.getTeam(teamId);
-        this.showToast(`您已是「${sameTeam ? sameTeam.name : '球隊'}」隊員，無需重複申請`);
+        this.showToast(`您已是「${sameTeam ? sameTeam.name : '俱樂部'}」隊員，無需重複申請`);
         return;
       }
     }
 
     // 2. Get target team
     const t = ApiService.getTeam(teamId);
-    if (!t) { this.showToast('找不到此球隊'); return; }
+    if (!t) { this.showToast('找不到此俱樂部'); return; }
 
     // 3. Get current user info
     const curUser = ApiService.getCurrentUser();
@@ -84,7 +84,7 @@ Object.assign(App, {
       const elapsed = Date.now() - mostRecentSentAt;
       if (elapsed < COOLDOWN_MS) {
         const hoursLeft = Math.ceil((COOLDOWN_MS - elapsed) / 3600000);
-        this.showToast(`您已申請此球隊，請等候審核（可於 ${hoursLeft} 小時後再次申請）`);
+        this.showToast(`您已申請此俱樂部，請等候審核（可於 ${hoursLeft} 小時後再次申請）`);
         return;
       }
       // Pending > 24h: mark as ignored (superseded) so staff won't see stale requests
@@ -129,7 +129,7 @@ Object.assign(App, {
       if (u && u.uid) staffUids.add(u.uid);
     });
     if (staffUids.size === 0) {
-      this.showToast('此球隊暫無可審核的職員，請聯繫管理員');
+      this.showToast('此俱樂部暫無可審核的職員，請聯繫管理員');
       return;
     }
 
@@ -139,8 +139,8 @@ Object.assign(App, {
     // 6. Broadcast join request to ALL staff
     staffUids.forEach(staffUid => {
       this._deliverMessageWithLinePush(
-        '球隊加入申請',
-        `${applicantName} 申請加入「${t.name}」球隊，請審核此申請。`,
+        '俱樂部加入申請',
+        `${applicantName} 申請加入「${t.name}」俱樂部，請審核此申請。`,
         'system', '系統', staffUid, applicantName,
         {
           actionType: 'team_join_request',
@@ -169,7 +169,7 @@ Object.assign(App, {
   async handleLeaveTeam(teamId) {
     const t = ApiService.getTeam(teamId);
     if (!t) return;
-    if (!(await this.appConfirm(`確定要退出「${t.name}」球隊？此操作無法自行撤回。`))) return;
+    if (!(await this.appConfirm(`確定要退出「${t.name}」俱樂部？此操作無法自行撤回。`))) return;
 
     const curUser = ApiService.getCurrentUser();
     const userName = curUser?.displayName || (ModeManager.isDemo() ? DemoData.currentUser.displayName : '');
@@ -177,18 +177,18 @@ Object.assign(App, {
 
     // 領隊不能退出
     if (t.captain === userName) {
-      this.showToast('領隊無法退出球隊，請先轉移領隊職務');
+      this.showToast('領隊無法退出俱樂部，請先轉移領隊職務');
       return;
     }
 
-    // 如果用戶是教練，從球隊 coaches 移除
+    // 如果用戶是教練，從俱樂部 coaches 移除
     const wasCoach = (t.coaches || []).includes(userName);
     if (wasCoach) {
       const newCoaches = t.coaches.filter(c => c !== userName);
       ApiService.updateTeam(teamId, { coaches: newCoaches });
     }
 
-    // 清除用戶球隊資料
+    // 清除用戶俱樂部資料
     const baseUser = ModeManager.isDemo()
       ? (DemoData.currentUser || null)
       : (ApiService.getCurrentUser() || null);
@@ -232,7 +232,7 @@ Object.assign(App, {
       }
     }
 
-    // 球隊人數 -1
+    // 俱樂部人數 -1
     const memberCount = (typeof this._calcTeamMemberCount === 'function')
       ? this._calcTeamMemberCount(teamId)
       : Math.max(0, (t.members || 1) - 1);
@@ -243,7 +243,7 @@ Object.assign(App, {
       this._applyRoleChange(ApiService._recalcUserRole(uid));
     }
 
-    ApiService._writeOpLog('team_leave', '退出球隊', `${userName} 退出「${t.name}」`);
+    ApiService._writeOpLog('team_leave', '退出俱樂部', `${userName} 退出「${t.name}」`);
     this.showToast(`已退出「${t.name}」`);
     this.showTeamDetail(teamId);
     this.renderTeamList();
@@ -266,7 +266,7 @@ Object.assign(App, {
     if (teamId) {
       this.showTeamDetail(teamId);
     } else {
-      this.showToast('您目前沒有加入任何球隊');
+      this.showToast('您目前沒有加入任何俱樂部');
     }
   },
 

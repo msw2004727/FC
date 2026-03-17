@@ -120,7 +120,7 @@ Object.assign(App, {
       return;
     }
     if (e.teamOnly && typeof this._canSignupTeamOnlyEvent === 'function' && !this._canSignupTeamOnlyEvent(e)) {
-      this.showToast('球隊限定活動，僅限該隊成員報名');
+      this.showToast('俱樂部限定活動，僅限該隊成員報名');
       return;
     }
     const genderSignupState = typeof this._getEventGenderSignupState === 'function'

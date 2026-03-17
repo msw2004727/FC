@@ -728,11 +728,11 @@ HTML 特殊字元跳脫，防止 XSS。
 | 6 | `returns anonymous message for empty companion name` |
 | 7 | `returns empty string for null event` |
 
-#### 活動球隊邏輯 (event-list.js:135-148) — 11 tests
+#### 活動俱樂部邏輯 (event-list.js:135-148) — 11 tests
 
 ##### `_getEventLimitedTeamIds` — 11 tests
 
-取得活動的球隊限制 ID 清單（含去重、trim）。
+取得活動的俱樂部限制 ID 清單（含去重、trim）。
 
 | # | 測試案例 |
 |---|---------|
@@ -1079,7 +1079,7 @@ HTML 特殊字元跳脫，防止 XSS。
 2. 測試使用 `@firebase/rules-unit-testing` 套件，載入 `firestore.rules` 規則檔。
 3. `beforeEach` 會清除所有 Firestore 資料並重新 seed 基礎文件。
 4. 透過 `assertSucceeds` / `assertFails` 驗證各角色（guest / user / coach / admin / super_admin）對各集合的 CRUD 權限。
-5. `seedBaseDocs()` 建立完整的測試種子資料（用戶、活動、報名、訊息、球隊、日誌等）。
+5. `seedBaseDocs()` 建立完整的測試種子資料（用戶、活動、報名、訊息、俱樂部、日誌等）。
 6. 角色權限測試使用 `rolePermissions` 集合模擬動態權限查詢。
 
 ---
@@ -1091,7 +1091,7 @@ HTML 特殊字元跳脫，防止 XSS。
 - **純函式邏輯**：佔位計算、委託人判斷、活動分類、HTML 跳脫、ID 生成、運動項目查找
 - **權限系統**：權限碼啟用檢查、清理、角色預設權限、權限目錄合併
 - **成就系統**：等級排序/顏色/標籤、門檻計算、完成判斷、徽章 ViewModel、出席統計
-- **活動工具**：性別限制全鏈路（9 個函式）、球隊 ID 提取、人員摘要建構、容量徽章、運動標籤
+- **活動工具**：性別限制全鏈路（9 個函式）、俱樂部 ID 提取、人員摘要建構、容量徽章、運動標籤
 - **導航工具**：路由逾時計算、失敗提示訊息
 - **Firestore 安全規則**：15 個集合/子集合的完整 CRUD 權限矩陣，含角色提升/降級、時間戳偽造防護、欄位級別寫入限制
 

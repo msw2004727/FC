@@ -28,9 +28,9 @@ Object.assign(App, {
     ownTeamIds.forEach((tid, idx) => {
       const teamObj = teams.find(t => t.id === tid);
       const fallbackName = Array.isArray(user.teamNames) ? user.teamNames[idx] : null;
-      teamSet.set(tid, (teamObj && teamObj.name) || fallbackName || user.teamName || '球隊');
+      teamSet.set(tid, (teamObj && teamObj.name) || fallbackName || user.teamName || '俱樂部');
     });
-    // 檢查是否為任何球隊的隊長、領隊或教練
+    // 檢查是否為任何俱樂部的隊長、領隊或教練
     teams.forEach(t => {
       if (teamSet.has(t.id)) return;
       const isCaptain = (myUid && t.captainUid === myUid) || (userName && t.captain === userName);
@@ -115,7 +115,7 @@ Object.assign(App, {
     if (el('profile-join-date')) el('profile-join-date').textContent = _fmtCreatedAt(user.createdAt);
     if (el('profile-join-date-edit')) el('profile-join-date-edit').textContent = _fmtCreatedAt(user.createdAt);
 
-    // 所屬球隊（含領隊球隊，可點擊）
+    // 所屬俱樂部（含領隊俱樂部，可點擊）
     const teamEl = el('profile-team');
     if (teamEl) teamEl.innerHTML = this._getUserTeamHtml(user);
 
@@ -130,7 +130,7 @@ Object.assign(App, {
     if (el('profile-sports-display')) el('profile-sports-display').textContent = v(user.sports);
     if (el('profile-team-display')) el('profile-team-display').innerHTML = this._getUserTeamHtml(user);
 
-    // 我的球隊申請
+    // 我的俱樂部申請
     this._renderMyApplications();
 
     // 同行者數量標記
@@ -209,7 +209,7 @@ Object.assign(App, {
     }
   },
 
-  /** 輕量判斷：有無球隊申請 → 控制卡片顯示 + badge */
+  /** 輕量判斷：有無俱樂部申請 → 控制卡片顯示 + badge */
   _showApplicationsCard() {
     const card = document.getElementById('profile-applications-card');
     if (!card) return;

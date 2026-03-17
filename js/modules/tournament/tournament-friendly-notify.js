@@ -38,7 +38,7 @@ Object.assign(App, {
     const safeTournament = tournament || {};
     return {
       tournamentName: String(safeTournament.name || '').trim() || '未命名賽事',
-      hostTeamName: String(safeTournament.hostTeamName || '').trim() || '主辦球隊',
+      hostTeamName: String(safeTournament.hostTeamName || '').trim() || '主辦俱樂部',
       teamName: String(extra.teamName || '').trim(),
       creatorName: String(extra.creatorName || safeTournament.creatorName || safeTournament.organizer || '').trim() || '主辦人',
       applicantName: String(extra.applicantName || '').trim() || '申請人',

@@ -274,7 +274,7 @@ const FirebaseService = {
 
   _staticReloadMaxAgeMs: {
     events: 60 * 1000,           // 60 秒 — 報名中活動需較新資料
-    teams: 5 * 60 * 1000,       // 5 分鐘 — 球隊變動頻率低
+    teams: 5 * 60 * 1000,       // 5 分鐘 — 俱樂部變動頻率低
     tournaments: 5 * 60 * 1000, // 5 分鐘
     standings: 5 * 60 * 1000,   // 5 分鐘
     matches: 5 * 60 * 1000,     // 5 分鐘
@@ -1615,7 +1615,7 @@ const FirebaseService = {
     {
       const existing = new Set((this._cache.notifTemplates || []).map(t => t.key));
       const defaults = [
-        { key: 'welcome', title: '歡迎加入 SportHub！', body: '嗨 {userName}，歡迎加入 SportHub 平台！\n\n您可以在這裡瀏覽並報名各類足球活動、加入球隊、參與聯賽。\n祝您使用愉快！' },
+        { key: 'welcome', title: '歡迎加入 SportHub！', body: '嗨 {userName}，歡迎加入 SportHub 平台！\n\n您可以在這裡瀏覽並報名各類足球活動、加入俱樂部、參與聯賽。\n祝您使用愉快！' },
         { key: 'signup_success', title: '報名成功通知', body: '您已成功報名以下活動：\n\n活動名稱：{eventName}\n活動時間：{date}\n活動地點：{location}\n報名狀態：{status}\n\n請準時出席，如需取消請提前至活動頁面操作。' },
         { key: 'cancel_signup', title: '取消報名通知', body: '{status}。\n\n活動名稱：{eventName}\n活動時間：{date}\n活動地點：{location}\n\n如需再次參加，可回到活動頁重新報名。' },
         { key: 'waitlist_promoted', title: '候補遞補通知', body: '恭喜！由於有人取消報名，您已從候補名單自動遞補為正式參加者。\n\n活動名稱：{eventName}\n活動時間：{date}\n活動地點：{location}\n\n請準時出席！' },
@@ -1649,7 +1649,7 @@ const FirebaseService = {
     }
     const existing = new Set((this._cache.notifTemplates || []).map(t => t.key));
     const defaults = [
-      { key: 'welcome', title: '歡迎加入 SportHub！', body: '嗨 {userName}，歡迎加入 SportHub 平台！\n\n您可以在這裡瀏覽並報名各類足球活動、加入球隊、參與聯賽。\n祝您使用愉快！' },
+      { key: 'welcome', title: '歡迎加入 SportHub！', body: '嗨 {userName}，歡迎加入 SportHub 平台！\n\n您可以在這裡瀏覽並報名各類足球活動、加入俱樂部、參與聯賽。\n祝您使用愉快！' },
       { key: 'signup_success', title: '報名成功通知', body: '您已成功報名以下活動：\n\n活動名稱：{eventName}\n活動時間：{date}\n活動地點：{location}\n報名狀態：{status}\n\n請準時出席，如需取消請提前至活動頁面操作。' },
       { key: 'cancel_signup', title: '取消報名通知', body: '{status}：\n\n活動名稱：{eventName}\n活動時間：{date}\n活動地點：{location}\n\n如之後想再次參加，請回到活動頁重新報名。' },
       { key: 'waitlist_promoted', title: '候補遞補通知', body: '恭喜！由於有人取消報名，您已從候補名單自動遞補為正式參加者。\n\n活動名稱：{eventName}\n活動時間：{date}\n活動地點：{location}\n\n請準時出席！' },
@@ -1691,7 +1691,7 @@ const FirebaseService = {
     { id: 'a2', name: '全勤之星', category: 'silver', badgeId: 'b2', completedAt: null, current: 0, status: 'active', condition: { timeRange: 'none', action: 'attendance_rate', filter: 'all', threshold: 90 } },
     { id: 'a3', name: '鐵人精神', category: 'silver', badgeId: 'b3', completedAt: null, current: 0, status: 'active', condition: { timeRange: 'none', action: 'complete_event', filter: 'all', threshold: 30 } },
     { id: 'a4', name: '社群達人', category: 'silver', badgeId: 'b4', completedAt: null, current: 0, status: 'active', condition: { timeRange: 'none', action: 'bind_line_notify', filter: 'all', threshold: 1 } },
-    { id: 'a5', name: '球隊新人', category: 'gold', badgeId: 'b5', completedAt: null, current: 0, status: 'active', condition: { timeRange: 'none', action: 'join_team', filter: 'all', threshold: 1 } },
+    { id: 'a5', name: '俱樂部新人', category: 'gold', badgeId: 'b5', completedAt: null, current: 0, status: 'active', condition: { timeRange: 'none', action: 'join_team', filter: 'all', threshold: 1 } },
     { id: 'a6', name: '個人門面', category: 'gold', badgeId: 'b6', completedAt: null, current: 0, status: 'active', condition: { timeRange: 'none', action: 'complete_profile', filter: 'all', threshold: 1 } },
     { id: 'a7', name: '百場達人', category: 'gold', badgeId: 'b7', completedAt: null, current: 0, status: 'active', condition: { timeRange: 'none', action: 'complete_event', filter: 'all', threshold: 100 } },
   ],
@@ -1700,7 +1700,7 @@ const FirebaseService = {
     { id: 'b2', name: '全勤徽章', achId: 'a2', category: 'silver', image: null },
     { id: 'b3', name: '鐵人徽章', achId: 'a3', category: 'silver', image: null },
     { id: 'b4', name: '社群徽章', achId: 'a4', category: 'silver', image: null },
-    { id: 'b5', name: '球隊新人徽章', achId: 'a5', category: 'gold', image: null },
+    { id: 'b5', name: '俱樂部新人徽章', achId: 'a5', category: 'gold', image: null },
     { id: 'b6', name: '個人門面徽章', achId: 'a6', category: 'gold', image: null },
     { id: 'b7', name: '百場徽章', achId: 'a7', category: 'gold', image: null },
   ],

@@ -51,7 +51,7 @@ Object.assign(App, {
       const fee = feeEnabled ? (Number(t.fee || 0) || 0) : 0;
       const revenue = registered.length * fee;
       const canManage = isAdmin || this._canManageTournamentRecord(t, currentUser);
-      const organizerDisplay = this._getTournamentOrganizerDisplayText?.(t) || t.organizer || '主辦球隊';
+      const organizerDisplay = this._getTournamentOrganizerDisplayText?.(t) || t.organizer || '主辦俱樂部';
       const typeLabel = this._getTournamentModeLabel?.(t) || t.type || '友誼賽';
       const teamLimit = this._getFriendlyTournamentTeamLimit?.(t) || t.maxTeams || 4;
       const scheduleCount = Array.isArray(t.matchDates) ? t.matchDates.length : 0;
@@ -96,13 +96,13 @@ Object.assign(App, {
   // ══════════════════════════════════
   openCreateTournamentModal() {
     if (!this._canCreateFriendlyTournament()) {
-      this.showToast('目前只有擁有球隊的領隊或經理可以建立友誼賽。');
+      this.showToast('目前只有擁有俱樂部的領隊或經理可以建立友誼賽。');
       return;
     }
     this._ensureTournamentFormLayout('ct');
     const hostTeams = this._getTournamentSelectableHostTeams();
     if (hostTeams.length === 0) {
-      this.showToast('目前沒有可代表建立賽事的主辦球隊。');
+      this.showToast('目前沒有可代表建立賽事的主辦俱樂部。');
       return;
     }
     this._ctDelegates = [];
@@ -133,7 +133,7 @@ Object.assign(App, {
   async handleCreateTournament() {
     const createUser = ApiService.getCurrentUser?.();
     if (!this._canCreateFriendlyTournament(createUser)) {
-      this.showToast('目前只有擁有球隊的領隊或經理可以建立友誼賽。');
+      this.showToast('目前只有擁有俱樂部的領隊或經理可以建立友誼賽。');
       return;
     }
     const createName = document.getElementById('ct-name').value.trim();
@@ -152,7 +152,7 @@ Object.assign(App, {
     const createVenues = [...this._ctVenues];
     const createDelegates = [...this._ctDelegates];
     if (!createName) { this.showToast('請輸入賽事名稱。'); return; }
-    if (!hostTeam) { this.showToast('請先選擇主辦球隊。'); return; }
+    if (!hostTeam) { this.showToast('請先選擇主辦俱樂部。'); return; }
     if (!Number.isFinite(createTeamLimitRaw) || createTeamLimitRaw < 2 || createTeamLimitRaw > 4) {
       this.showToast('參賽隊伍數需介於 2 到 4 隊。'); return;
     }

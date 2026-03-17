@@ -555,7 +555,7 @@ const ApiService = {
   },
 
   // ════════════════════════════════
-  //  Teams（球隊）
+  //  Teams（俱樂部）
   // ════════════════════════════════
 
   getTeams()        { return this._src('teams'); },
@@ -636,7 +636,7 @@ const ApiService = {
     const pendingWrites = [];
     const writtenDocIds = new Set();
 
-    // 清除所有引用此球隊的用戶
+    // 清除所有引用此俱樂部的用戶
     const users = this._src('adminUsers');
     users.forEach(u => {
       const updates = buildNextMembership(u);
@@ -652,7 +652,7 @@ const ApiService = {
       }
     });
 
-    // 清除 currentUser 的球隊引用
+    // 清除 currentUser 的俱樂部引用
     const cur = this.getCurrentUser();
     const currentUserUpdates = buildNextMembership(cur);
     if (cur && currentUserUpdates) {
@@ -1308,7 +1308,7 @@ const ApiService = {
   },
 
   /**
-   * 重新計算用戶角色：掃描所有球隊職位 + manualRole 底線，取最高。
+   * 重新計算用戶角色：掃描所有俱樂部職位 + manualRole 底線，取最高。
    * @param {string} uid
    * @returns {{ uid, oldRole, newRole, userName }|null} 有變化回傳結果，無變化回傳 null
    */
@@ -1319,7 +1319,7 @@ const ApiService = {
     // venue_owner 以上由管理員手動管理，不做自動降級
     if ((ROLE_LEVEL_MAP[oldRole] || 0) >= ROLE_LEVEL_MAP['venue_owner']) return null;
 
-    // 掃描所有球隊，找出此用戶擔任的最高職位
+    // 掃描所有俱樂部，找出此用戶擔任的最高職位
     let highestTeamLevel = 0;
     const teams = this._src('teams');
     teams.forEach(t => {
@@ -1441,7 +1441,7 @@ const ApiService = {
     const timeStr = `${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
     const log = { time: timeStr, target: team.name, targetId: teamId, amount: (amount > 0 ? '+' : '') + amount, reason, operator: operatorLabel || '管理員', operatorUid: auth?.currentUser?.uid || null };
     this._src('teamExpLogs').unshift(log);
-    this._writeOpLog('team_exp', '球隊積分', `${team.name} ${log.amount}「${reason}」`);
+    this._writeOpLog('team_exp', '俱樂部積分', `${team.name} ${log.amount}「${reason}」`);
     if (!this._demoMode) {
       this._callAdjustExpCF({
         mode: 'teamExp', teamId, amount, reason, operatorLabel: operatorLabel || '管理員',
@@ -1458,7 +1458,7 @@ const ApiService = {
     const timeStr = `${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
     const log = { time: timeStr, target: team.name, targetId: teamId, amount: (amount > 0 ? '+' : '') + amount, reason, operator: operatorLabel || '管理員', operatorUid: auth?.currentUser?.uid || null };
     this._src('teamExpLogs').unshift(log);
-    this._writeOpLog('team_exp', '球隊積分', `${team.name} ${log.amount}「${reason}」`);
+    this._writeOpLog('team_exp', '俱樂部積分', `${team.name} ${log.amount}「${reason}」`);
     if (!this._demoMode) {
       await this._callAdjustExpCF({
         mode: 'teamExp', teamId, amount, reason, operatorLabel: operatorLabel || '管理員',

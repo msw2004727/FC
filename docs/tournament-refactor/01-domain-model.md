@@ -67,7 +67,7 @@
 - `hostAutoApproved`
   - 第一階段固定 `true`
 
-## 球隊申請子集合
+## 俱樂部申請子集合
 路徑：`tournaments/{tournamentId}/applications/{applicationId}`
 
 ### 欄位
@@ -89,7 +89,7 @@
 - `reviewedByName`
 
 ### 規則
-- 同一支球隊在同一賽事同時間只能有一筆 `pending` 或 `approved` 狀態
+- 同一支俱樂部在同一賽事同時間只能有一筆 `pending` 或 `approved` 狀態
 - `rejected` 在 v1 不可直接重複申請
 - `cancelled` 僅供未來擴充，v1 不開放 UI 操作
 

@@ -119,7 +119,7 @@ Object.assign(App, {
         <div class="info-row"><span>生日</span><span>${escapeHTML(birthday)}</span></div>
         <div class="info-row"><span>地區</span><span>${escapeHTML(region)}</span></div>
         <div class="info-row"><span>運動類別</span><span>${escapeHTML(sports)}</span></div>
-        <div class="info-row"><span>所屬球隊</span><span>${teamHtml}</span></div>
+        <div class="info-row"><span>所屬俱樂部</span><span>${teamHtml}</span></div>
         <div class="info-row"><span>聯繫方式</span><span>${escapeHTML(phone)}</span></div>
         <div class="info-row"><span>加入時間</span><span>${escapeHTML(joinDate)}</span></div>
       </div>

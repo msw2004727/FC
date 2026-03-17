@@ -41,7 +41,7 @@ flowchart TD
 
         subgraph MODS["modules/ — 12 功能子資料夾 + 21 獨立模組"]
             EVT["event/ (27)\n活動系統"]
-            TEAM["team/ (10)\n球隊系統"]
+            TEAM["team/ (10)\n俱樂部系統"]
             TOUR["tournament/ (12)\n賽事系統"]
             PROF["profile/ (9)\n個人資料"]
             MSG["message/ (9)\n訊息系統"]
@@ -116,7 +116,7 @@ flowchart TD
 
 | 檔案 | 說明 |
 |------|------|
-| `event-list-helpers.js` | 活動列表共用工具函式（建立者、球隊、性別、歸屬判斷） |
+| `event-list-helpers.js` | 活動列表共用工具函式（建立者、俱樂部、性別、歸屬判斷） |
 | `event-list-stats.js` | 活動列表統計渲染（徽章、日期解析、狀態、倒數計時） |
 | `event-list-home.js` | 首頁活動區塊、運動捷徑、熱門活動渲染 |
 | `event-list-timeline.js` | 時間軸卡片載入與活動列表渲染 |
@@ -131,7 +131,7 @@ flowchart TD
 | `event-create-sport-picker.js` | 建立活動運動標籤選擇器 |
 | `event-create-delegates.js` | 建立活動代理人搜尋與管理 |
 | `event-create-options.js` | 建立活動選項（費用、性別、報名開放時間） |
-| `event-create-team-picker.js` | 建立活動球隊限定選擇器 |
+| `event-create-team-picker.js` | 建立活動俱樂部限定選擇器 |
 | `event-create-external.js` | 建立外部活動工作流 |
 | `event-create-template.js` | 建立活動範本管理（本地 + 雲端） |
 | `event-create-waitlist.js` | 建立活動候補自動遞補設定 |
@@ -144,20 +144,20 @@ flowchart TD
 | `event-manage-waitlist.js` | 候補名單管理表格 |
 | `event-manage.js` | 活動管理主模組（共用 helper） |
 
-### team/ — 球隊系統（10 個模組）
+### team/ — 俱樂部系統（10 個模組）
 
 | 檔案 | 說明 |
 |------|------|
-| `team-list.js` | 球隊列表主模組 |
-| `team-list-render.js` | 球隊卡片渲染與列表顯示 |
-| `team-detail.js` | 球隊詳情主模組 |
-| `team-detail-render.js` | 球隊詳情渲染（活動、動態牆、留言） |
-| `team-detail-members.js` | 球隊成員管理與邀請 |
-| `team-share.js` | 球隊分享（LINE Flex Message + 底部選單） |
-| `team-form-join.js` | 加入/退出球隊與角色變更 |
-| `team-form-search.js` | 球隊表單搜尋 UI（隊長/副隊長/教練） |
-| `team-form-init.js` | 球隊表單初始化與顯示 |
-| `team-form.js` | 球隊表單主模組（建立/編輯） |
+| `team-list.js` | 俱樂部列表主模組 |
+| `team-list-render.js` | 俱樂部卡片渲染與列表顯示 |
+| `team-detail.js` | 俱樂部詳情主模組 |
+| `team-detail-render.js` | 俱樂部詳情渲染（活動、動態牆、留言） |
+| `team-detail-members.js` | 俱樂部成員管理與邀請 |
+| `team-share.js` | 俱樂部分享（LINE Flex Message + 底部選單） |
+| `team-form-join.js` | 加入/退出俱樂部與角色變更 |
+| `team-form-search.js` | 俱樂部表單搜尋 UI（隊長/副隊長/教練） |
+| `team-form-init.js` | 俱樂部表單初始化與顯示 |
+| `team-form.js` | 俱樂部表單主模組（建立/編輯） |
 
 ### tournament/ — 賽事系統（12 個模組 + README）
 
@@ -169,13 +169,13 @@ flowchart TD
 | `tournament-render.js` | 公開賽事頁與詳情頁 renderer |
 | `tournament-manage.js` | 賽事管理入口與管理列表權限過濾 |
 | `tournament-manage-form.js` | 賽事表單工具與 helper（場地管理等） |
-| `tournament-manage-host.js` | 賽事主辦球隊選擇與表單布局 |
+| `tournament-manage-host.js` | 賽事主辦俱樂部選擇與表單布局 |
 | `tournament-manage-edit.js` | 賽事編輯 Modal 與儲存處理 |
 | `tournament-share.js` | 賽事分享（LINE Flex Message） |
-| `tournament-friendly-detail.js` | 友誼賽詳情頁（球隊申請、主辦審核、聯繫主辦人） |
-| `tournament-friendly-detail-view.js` | 友誼賽詳情頁渲染（參加按鈕、球隊列表、待審列） |
+| `tournament-friendly-detail.js` | 友誼賽詳情頁（俱樂部申請、主辦審核、聯繫主辦人） |
+| `tournament-friendly-detail-view.js` | 友誼賽詳情頁渲染（參加按鈕、俱樂部列表、待審列） |
 | `tournament-friendly-roster.js` | 友誼賽 roster（球員名單、加入/退出、多隊身份選擇） |
-| `tournament-friendly-notify.js` | 友誼賽通知（建賽、球隊申請、主辦審核推播） |
+| `tournament-friendly-notify.js` | 友誼賽通知（建賽、俱樂部申請、主辦審核推播） |
 
 ### profile/ — 個人資料（9 個模組）
 
@@ -198,7 +198,7 @@ flowchart TD
 | `message-render.js` | 訊息收件匣渲染與顯示 |
 | `message-inbox.js` | 用戶收件匣與通知工具（slim glue） |
 | `message-actions.js` | 收件匣操作（已讀、清除、賽事審核） |
-| `message-actions-team.js` | 球隊加入申請審核操作 |
+| `message-actions-team.js` | 俱樂部加入申請審核操作 |
 | `message-notify.js` | 通知範本與 LINE 推播 |
 | `message-line-push.js` | LINE 推播通知佇列 |
 | `message-admin-list.js` | 管理員站內信列表 |
@@ -301,9 +301,9 @@ flowchart TD
 | `audit-log.js` | `super_admin` 審計日誌查詢（單日查詢、時間/UID/動作篩選） |
 | `auto-exp.js` | 自動 EXP 規則設定（依行為觸發） |
 | `banner.js` | 首頁輪播 Banner 渲染 |
-| `data-sync.js` | 系統資料同步（球隊成員數重算、用戶球隊欄位驗證、孤兒記錄清理），含費用預估 |
+| `data-sync.js` | 系統資料同步（俱樂部成員數重算、用戶俱樂部欄位驗證、孤兒記錄清理），含費用預估 |
 | `error-log.js` | 錯誤日誌查詢與嚴重度分類顯示 |
-| `favorites.js` | 用戶收藏活動 / 球隊管理 |
+| `favorites.js` | 用戶收藏活動 / 俱樂部管理 |
 | `game-manage.js` | 小遊戲管理（首頁顯示開關，預留多款遊戲設定） |
 | `image-cropper.js` | 圖片裁切 Modal（拖拽定位 + 縮放 + Canvas 輸出） |
 | `image-upload.js` | 圖片上傳共用功能（Firebase Storage），整合 image-cropper 裁切 |
@@ -367,7 +367,7 @@ ScriptLoader（`js/core/script-loader.js`）定義了以下頁面群組，按需
 |----------|----------|----------|
 | `achievement` | `image-cropper` + `image-upload` + `achievement/*` (10) + `achievement.js` | 成就頁、個人資料、排行榜 |
 | `activity` | `event/*` (27) + `registration-audit.js` | 活動列表、詳情、我的活動 |
-| `team` | `event/event-share-builders` + `event/event-share` + `team/*` (10) | 球隊列表、詳情、管理 |
+| `team` | `event/event-share-builders` + `event/event-share` + `team/*` (10) | 俱樂部列表、詳情、管理 |
 | `profile` | `event/event-share-builders` + `event/event-share` + `profile/*` (9) | 個人資料、名片、稱號 |
 | `shop` | `shop.js` + `leaderboard.js` | 商城、排行榜 |
 | `scan` | `scan/*` (5) + `attendance-notify.js` | QR Code 掃描 |
@@ -531,13 +531,13 @@ flowchart LR
 - `users/{userId}` 的自助更新責任已拆成三條規則路徑：
   - 一般個人資料更新：`isSafeSelfProfileUpdate`
   - 登入更新格式：`isSafeLoginUpdate`
-  - 球隊欄位退出流程：`isTeamFieldShrinkOrClear`
+  - 俱樂部欄位退出流程：`isTeamFieldShrinkOrClear`
 - 最後登入時間（`lastLogin`）不再允許夾帶於一般個人資料更新；只接受登入更新格式，且值必須等於 `request.time`。
-- 更新時間（`updatedAt`）在自助更新與隊職員跨使用者球隊調整中，皆改為只接受 `request.time`，避免客戶端偽造任意 Timestamp。
-- 球隊欄位（`teamId`、`teamName`、`teamIds`、`teamNames`）已自一般個人資料白名單移除：
-  - 一般使用者不可自行填入新球隊歸屬
+- 更新時間（`updatedAt`）在自助更新與隊職員跨使用者俱樂部調整中，皆改為只接受 `request.time`，避免客戶端偽造任意 Timestamp。
+- 俱樂部欄位（`teamId`、`teamName`、`teamIds`、`teamNames`）已自一般個人資料白名單移除：
+  - 一般使用者不可自行填入新俱樂部歸屬
   - 一般使用者只能全清或把既有 `teamIds` 縮減為嚴格子集
-- 前端的退出球隊（`handleLeaveTeam`）沿用既有多球隊 shrink 邏輯；刪除球隊（`deleteTeam`）則補上 secondary team 清理，避免只清主球隊造成殘留引用。
+- 前端的退出俱樂部（`handleLeaveTeam`）沿用既有多俱樂部 shrink 邏輯；刪除俱樂部（`deleteTeam`）則補上 secondary team 清理，避免只清主俱樂部造成殘留引用。
 
 ---
 

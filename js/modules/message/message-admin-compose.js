@@ -114,7 +114,7 @@ Object.assign(App, {
     if (result) result.innerHTML = `<span style="color:var(--success)">&#10003; 已選取：${escapeHTML(match.name)}（${escapeHTML(match.uid)}）・ ${escapeHTML(match.role)}</span>`;
   },
 
-  // ── 搜尋球隊（模糊搜尋 + 下拉選單）──
+  // ── 搜尋俱樂部（模糊搜尋 + 下拉選單）──
   searchMsgTeam() {
     const input = document.getElementById('msg-team-target').value.trim();
     const dropdown = document.getElementById('msg-team-dropdown');
@@ -148,7 +148,7 @@ Object.assign(App, {
         });
         dropdown.classList.add('open');
       } else {
-        dropdown.innerHTML = '<div style="padding:.4rem .6rem;font-size:.78rem;color:var(--text-muted)">找不到符合的球隊</div>';
+        dropdown.innerHTML = '<div style="padding:.4rem .6rem;font-size:.78rem;color:var(--text-muted)">找不到符合的俱樂部</div>';
         dropdown.classList.add('open');
       }
     }
@@ -199,7 +199,7 @@ Object.assign(App, {
 
     if (targetType === 'team') {
       if (!this._msgMatchedTeam) {
-        this.showToast('請先搜尋並選取目標球隊');
+        this.showToast('請先搜尋並選取目標俱樂部');
         return;
       }
       targetLabel = this._msgMatchedTeam.name;

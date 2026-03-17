@@ -229,7 +229,7 @@ Object.assign(App, {
             metaText = `${typeConf.label} · ${time} · ${escapeHTML((e.location || '').split('市')[1] || e.location)} · ${stats.confirmedCount}/${stats.maxCount}人${waitlistTag}`;
           }
 
-          // 球隊限定用特殊色
+          // 俱樂部限定用特殊色
           const rowClass = e.teamOnly ? 'tl-type-teamonly' : `tl-type-${e.type}`;
           const teamBadge = e.teamOnly ? '<span class="tl-teamonly-badge">限定</span>' : '';
           const genderRibbon = !isExternal && this._hasEventGenderRestriction(e)

@@ -9,7 +9,7 @@
 // 20260224s: 修復 Android 開前鏡頭（exact:environment）+ videoConstraints 衝突移除 + overconstrained 自動降級
 // 20260224w: opening loading overlay redesign (pixel bar + brand image)
 // 20260224x: bottom tabs (teams/tournaments) show "功能準備中" during testing
-// 20260224za: 頁籤順序調整（賽事→球隊→首頁→活動→我的）+ 首頁卡片地點去除自動加「市」
+// 20260224za: 頁籤順序調整（賽事→俱樂部→首頁→活動→我的）+ 首頁卡片地點去除自動加「市」
 // 20260224zb: Tab bar 中央半圓凸起 + QR Code 快捷按鈕
 // 20260224zi: Firestore WebSocket fallback（預設 WS，被擋自動降級長輪詢）
 // 20260224zj: loading overlay 在框架就緒（Phase 3）即隱藏，不等 Phase 4
@@ -27,14 +27,14 @@
 // 20260226f: 修復新用戶卡在「登入確認中」—liff.init()/Auth timeout + isPendingLogin 自動降級
 // 20260226g: LINE 首次登入速度優化（ensureProfile + Firebase 並行化 + profile 快取）
 // 20260226k: 解除首頁底部隊伍按鈕「功能準備中」擋板（保留賽事按鈕）
-// 20260226l: 球隊頁右上角新增球隊按鈕（依後台 rolePermissions 的 team.create 顯示）
-// 20260226m: 球隊建立領隊必填 + 詳情頁編輯入口 + 修復入隊申請站內信收件人解析
+// 20260226l: 俱樂部頁右上角新增俱樂部按鈕（依後台 rolePermissions 的 team.create 顯示）
+// 20260226m: 俱樂部建立領隊必填 + 詳情頁編輯入口 + 修復入隊申請站內信收件人解析
 // 20260226n: rolePermissions 改為 onSnapshot 即時同步（權限變更可即時反映前台功能）
-// 20260226w: 修復球隊隊員在活動行事曆看不到球隊限定活動（補 adminUsers teamId fallback）
-// 20260226x: 活動行事曆球隊限定標籤改為固定「球隊限定」
-// 20260226y: 活動頁熱區卡片球隊限定標籤與行事曆統一為「球隊限定」
+// 20260226w: 修復俱樂部隊員在活動行事曆看不到俱樂部限定活動（補 adminUsers teamId fallback）
+// 20260226x: 活動行事曆俱樂部限定標籤改為固定「俱樂部限定」
+// 20260226y: 活動頁熱區卡片俱樂部限定標籤與行事曆統一為「俱樂部限定」
 // 20260226z: 修復活動開始即 ended 與 ended/cancelled 活動狀態切換後前端短暫消失
-// 20260226za: 活動行事曆卡片球隊限定標籤文案改為「限定」
+// 20260226za: 活動行事曆卡片俱樂部限定標籤文案改為「限定」
 // 20260226zb: 修復手動/掃碼簽到寫入錯誤被吞、備註讀取抓到舊紀錄問題
 // 20260226zc: 簽到編輯改為軟刪除（status=removed），保留審計軌跡並避開 attendanceRecords delete 規則
 // 20260226ze: 簽到寫入前補 Firebase Auth 自動重試，權限錯誤改為明確中文提示
@@ -57,21 +57,21 @@
 // 20260227y: 修正 event-list.js map block body 缺少 } 的語法錯誤
 // 20260227z: 入隊申請升級：廣播全體職員、冷卻機制、第一操作勝出、教練可審核
 // 20260227za: 入隊申請 pending 逾 24h 自動解鎖可重新申請
-// 20260227zb: 個人頁面球隊申請記錄依 groupId 去重，修正廣播後顯示重複筆數
+// 20260227zb: 個人頁面俱樂部申請記錄依 groupId 去重，修正廣播後顯示重複筆數
 // 20260227zc: banner 初始 skeleton + V 版本號同步修正 SW 快取清除失效
 // 20260227zo: 站內信審批 — ensureAuth + 修正 in-memory rollback + leaderUids isTeamStaff
-// 20260227zp: 歷史入隊補正 — 去重改為每人取最新一筆 + 目標球隊存在性驗證
+// 20260227zp: 歷史入隊補正 — 去重改為每人取最新一筆 + 目標俱樂部存在性驗證
 // 20260227zq: 操作日誌排序修正 — 最新在最上面（依 time 字串降序）
-// 20260227zr: 補齊操作日誌 — 申請入隊、退出球隊、忽略審批、商品 CRUD、取消報名、手動簽到
+// 20260227zr: 補齊操作日誌 — 申請入隊、退出俱樂部、忽略審批、商品 CRUD、取消報名、手動簽到
 // 20260227zs: 前端錯誤日誌系統 — 自動記錄系統異常到 Firestore errorLogs，總管可查閱/清除
 // 20260227zt: 補上 admin.errorLogs i18n 翻譯（錯誤日誌按鈕顯示正確）
 // 20260227zu: 修復 _writeErrorLog 靜默失敗（FirebaseService._db → db）+ 入隊審批 permission-denied（rules 改用 sameFieldValue）
 // 20260227zv: 入隊審批 permission-denied 終極修復 — users.update 改 isAuth() + _ensureAuth 檢查回傳值
 // 20260227zw: 修復錯誤日誌寫入/讀取 — .catch 改為 console.warn 可見 + rules 改 token.role 直接判斷避免 roleFromUserDoc null 問題
-// 20260227zx: 球隊介紹頁 — 成員膠囊全部顯示（移除 slice/...xx人）+ 新增球隊限定活動欄位
+// 20260227zx: 俱樂部介紹頁 — 成員膠囊全部顯示（移除 slice/...xx人）+ 新增俱樂部限定活動欄位
 // 20260227zy: 隊員數改為即時從 users.teamId 動態計算（team-detail + team-list 共 4 處）
-// 20260227zz: 個人資料頁球隊申請欄位只顯示最新一筆
-// 20260227zza: 球隊動態實裝 DB 寫入（發文/刪文/置頂/表情/留言/刪留言 共 6 處）
+// 20260227zz: 個人資料頁俱樂部申請欄位只顯示最新一筆
+// 20260227zza: 俱樂部動態實裝 DB 寫入（發文/刪文/置頂/表情/留言/刪留言 共 6 處）
 // 20260228a: force global cache refresh for i18n locale rollout
 // 20260228b: team invite share text + dynamic team OG + team-share redirects
 // 20260228c: Cloudflare Worker route for team-share dynamic OG (main domain)
@@ -136,9 +136,9 @@
 // 20260306v: 活動刪除改為等待 Firestore 成功後才更新前端，避免刷新後被刪活動重新出現
 // 20260306y: 修復活動詳情頁「現場簽到」在 scan.js lazy load 前點擊會報 goToScanForEvent is not a function
 // 20260309l: 修復取消再報名後出席紀錄顯示未出席的 BUG
-// 20260309y: 收緊 users 時間/球隊欄位寫入規則 + deleteTeam 多球隊清理 + 規則測試補強
-// 20260309z: 個人資訊頁球隊申請改為每支球隊顯示最新一筆狀態
-// 20260309aa: 修正 messages 監聽查詢與個人頁球隊申請過濾
+// 20260309y: 收緊 users 時間/俱樂部欄位寫入規則 + deleteTeam 多俱樂部清理 + 規則測試補強
+// 20260309z: 個人資訊頁俱樂部申請改為每支俱樂部顯示最新一筆狀態
+// 20260309aa: 修正 messages 監聽查詢與個人頁俱樂部申請過濾
 // 20260310: 將 registrations 即時監聽改為規則相容的 user-scoped/admin-scoped 查詢
 // 20260310a: 收斂 boot/static collection query，移除 documentId orderBy 啟動查詢
 // 20260310b: 將 boot/static collection 載入改為序列化，降低 init 期 Firestore targets 壓力
@@ -236,7 +236,7 @@
 // 20260314zj: 外部瀏覽器登入修復：直接 Profile API fallback + access token 診斷 + 無效 session 自動重新登入
 // 20260314zk: 修復取消報名 insufficient permissions：cancelRegistration/cancelCompanionRegistrations 加入 auth 回傳值檢查
 // 20260314zl: EXP 系統修正 — 改用 Cloud Function adjustExp，修復非 super_admin 無法調整 EXP 的問題
-// 20260315a: 球隊自動晉升修正 — updateUserRole 改用 autoPromoteTeamRole CF，修復非 super_admin 角色變更失敗
+// 20260315a: 俱樂部自動晉升修正 — updateUserRole 改用 autoPromoteTeamRole CF，修復非 super_admin 角色變更失敗
 // 20260315b: 個人數據頁完成場次/出席率修正 — 統一使用 _calcScanStats 取代永遠為 0 的錯誤邏輯
 // 20260315zz: Tier 2 login — LIFF 過期時以 Firebase Auth + profile 快取維持登入（30 天快取 + UID 驗證）
 // 20260315aaa: 活動分享升級 — LINE Flex Message + shareTargetPicker + 底部選單 + 建立後分享提示
@@ -245,12 +245,12 @@
 // 20260315aad: 修復建立活動無反應+重複建立 — 關鍵收尾(closeModal/toast)提前於非關鍵操作
 // 20260315aae: 分享功能改善 — LIFF 未就緒時自動等待、Tier 2 登入也顯示底部選單、外部瀏覽器提示
 // 20260315aaf: 修復建立/編輯活動後列表未刷新 — render 呼叫移出 try-catch 確保獨立執行
-// 20260315aag: 全站分享升級 — 球隊/賽事/名片分享改用 LIFF URL + Flex Message + 底部選單
+// 20260315aag: 全站分享升級 — 俱樂部/賽事/名片分享改用 LIFF URL + Flex Message + 底部選單
 // 20260316r: Per-user achievement progress — 雙寫子集合 + fallback 即時計算
 // 20260316s: Phase 3+4 — 支援讀其他用戶徽章 + 移除全域寫入 + 清理汙染邏輯
 // 20260316t: 一次性清理全域 achievements 汙染（重設 current/completedAt 為模板狀態）
 // 20260317j: Phase 2 — 拆分 event-list/scan/team-detail/profile-data/profile-core/team-list/dashboard
-const CACHE_VERSION = '20260317zj';
+const CACHE_VERSION = '20260317zk';
 
 // ─── Page Strategy Registry ───
 // 唯一策略來源，未列出的頁面預設 fresh-first
@@ -309,16 +309,16 @@ const ACHIEVEMENT_CONDITIONS = {
     { key: 'attendance_rate', label: '達到出席率',           unit: '%', needsFilter: false },
     { key: 'reach_level',     label: '達到等級',             unit: '',  needsFilter: false },
     { key: 'reach_exp',       label: '累計 EXP',             unit: '',  needsFilter: false },
-    { key: 'join_team',       label: '加入球隊',             unit: '',  needsFilter: false },
+    { key: 'join_team',       label: '加入俱樂部',             unit: '',  needsFilter: false },
     { key: 'complete_profile',label: '完成個人檔案',         unit: '',  needsFilter: false },
     { key: 'bind_line_notify',label: '綁定 LINE 推播',       unit: '',  needsFilter: false },
     { key: 'days_registered', label: '註冊天數',             unit: '天', needsFilter: false },
     { key: 'organize_event', label: '主辦活動',             unit: '場', needsFilter: true },
     { key: 'diverse_sports', label: '參與不同運動類型',     unit: '種', needsFilter: false },
     { key: 'no_show_free',   label: '連續無放鴿子',         unit: '場', needsFilter: false },
-    { key: 'create_team',    label: '建立球隊',             unit: '隊', needsFilter: false },
+    { key: 'create_team',    label: '建立俱樂部',             unit: '隊', needsFilter: false },
     { key: 'bring_companion',label: '帶同行者報名',         unit: '人次', needsFilter: false },
-    { key: 'team_member_count', label: '球隊成員數',        unit: '人', needsFilter: false },
+    { key: 'team_member_count', label: '俱樂部成員數',        unit: '人', needsFilter: false },
     { key: 'early_event',    label: '參加早場活動',         unit: '場', needsFilter: false },
     { key: 'night_event',    label: '參加夜場活動',         unit: '場', needsFilter: false },
     { key: 'shop_trade',     label: '完成商城兌換',         unit: '次', needsFilter: false },
@@ -682,7 +682,7 @@ const DRAWER_MENUS = [
   { icon: '', label: '廣告管理', i18nKey: 'admin.adManage', page: 'page-admin-banners', minRole: 'admin', permissionCode: 'admin.banners.entry' },
   { icon: '', label: '二手商品管理', i18nKey: 'admin.shopManage', page: 'page-admin-shop', minRole: 'admin', permissionCode: 'admin.shop.entry' },
   { icon: '', label: '站內信管理', i18nKey: 'admin.messageManage', page: 'page-admin-messages', minRole: 'admin', permissionCode: 'admin.messages.entry' },
-  { icon: '', label: '球隊管理', i18nKey: 'admin.teamManage', page: 'page-admin-teams', minRole: 'admin', permissionCode: 'admin.teams.entry' },
+  { icon: '', label: '俱樂部管理', i18nKey: 'admin.teamManage', page: 'page-admin-teams', minRole: 'admin', permissionCode: 'admin.teams.entry' },
   { icon: '', label: '數據儀表板', i18nKey: 'admin.dashboard', page: 'page-admin-dashboard', minRole: 'super_admin', permissionCode: 'admin.dashboard.entry' },
   { icon: '', label: '佈景主題', i18nKey: 'admin.themes', page: 'page-admin-themes', minRole: 'super_admin', permissionCode: 'admin.themes.entry' },
   { icon: '', label: '手動 EXP 管理', i18nKey: 'admin.expManage', page: 'page-admin-exp', minRole: 'super_admin', permissionCode: 'admin.exp.entry' },
@@ -720,8 +720,8 @@ const ADMIN_PAGE_EXTRA_PERMISSION_ITEMS = {
     { code: 'event.edit_all', name: '編輯所有活動' },
   ],
   'page-admin-teams': [
-    { code: 'team.create', name: '建立球隊' },
-    { code: 'team.manage_all', name: '管理所有球隊' },
+    { code: 'team.create', name: '建立俱樂部' },
+    { code: 'team.manage_all', name: '管理所有俱樂部' },
   ],
   'page-admin-repair': [
     { code: 'admin.repair.team_join_repair', name: '歷史入隊補正' },

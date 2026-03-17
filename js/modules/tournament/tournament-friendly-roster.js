@@ -123,11 +123,11 @@ Object.assign(App, {
     overlay.innerHTML = `
       <div class="modal tfd-picker-modal" id="friendly-roster-picker-modal">
         <div class="modal-header">
-          <h3>選擇參賽球隊</h3>
+          <h3>選擇參賽俱樂部</h3>
           <button class="modal-close" type="button" data-action="close">✕</button>
         </div>
         <div class="modal-body">
-          <div class="tfd-picker-meta" id="friendly-roster-picker-meta">請選擇要代表出賽的球隊。</div>
+          <div class="tfd-picker-meta" id="friendly-roster-picker-meta">請選擇要代表出賽的俱樂部。</div>
           <div class="tfd-picker-list" id="friendly-roster-picker-list"></div>
         </div>
         <div class="modal-actions">
@@ -173,7 +173,7 @@ Object.assign(App, {
 
     const joinableEntries = this._getFriendlyTournamentJoinableEntries(state);
     if (joinableEntries.length === 0) {
-      this.showToast('需球隊負責人先行報名參賽並經主辦核准後，才可加入名單。');
+      this.showToast('需俱樂部負責人先行報名參賽並經主辦核准後，才可加入名單。');
       return;
     }
     if (joinableEntries.length === 1) {
@@ -186,12 +186,12 @@ Object.assign(App, {
     const meta = document.getElementById('friendly-roster-picker-meta');
     const list = document.getElementById('friendly-roster-picker-list');
     this._friendlyTournamentRosterPickerState = { tournamentId: String(tournamentId || '').trim() };
-    if (meta) meta.textContent = `你目前可代表 ${joinableEntries.length} 支已核准球隊參賽，請選擇身份。`;
+    if (meta) meta.textContent = `你目前可代表 ${joinableEntries.length} 支已核准俱樂部參賽，請選擇身份。`;
     if (list) {
       list.innerHTML = joinableEntries.map(entry => `
         <button class="tfd-picker-option" type="button" data-team-id="${escapeHTML(entry.teamId)}">
-          <span class="tfd-picker-title">${escapeHTML(entry.teamName || '未命名球隊')}</span>
-          <span class="tfd-picker-sub">${entry.entryStatus === 'host' ? '主辦球隊名單' : '已核准參賽隊伍'}</span>
+          <span class="tfd-picker-title">${escapeHTML(entry.teamName || '未命名俱樂部')}</span>
+          <span class="tfd-picker-sub">${entry.entryStatus === 'host' ? '主辦俱樂部名單' : '已核准參賽隊伍'}</span>
         </button>`).join('');
     }
       overlay.classList.add('open');
@@ -226,7 +226,7 @@ Object.assign(App, {
     const membership = this._getFriendlyTournamentRosterMembership(state, user);
     if (membership.primary) {
       const message = explicitTeamId && membership.primary.teamId !== explicitTeamId
-        ? '如需改以其他球隊身份參賽，請先取消目前的參賽名單。'
+        ? '如需改以其他俱樂部身份參賽，請先取消目前的參賽名單。'
         : `你已以「${membership.primary.teamName}」身分參賽。`;
       this.showToast(message);
       return;
@@ -235,7 +235,7 @@ Object.assign(App, {
     const joinableEntries = this._getFriendlyTournamentJoinableEntries(state, user);
     const selectedEntry = joinableEntries.find(entry => entry.teamId === String(explicitTeamId || '').trim()) || joinableEntries[0];
     if (!selectedEntry) {
-      this.showToast('目前沒有可加入的球隊名單。');
+      this.showToast('目前沒有可加入的俱樂部名單。');
       return;
     }
 
@@ -272,7 +272,7 @@ Object.assign(App, {
 
     const confirmText = memberships.length === 1
       ? `確定取消「${memberships[0].teamName}」的參賽名單？`
-      : '偵測到你同時存在多支球隊名單，確定要全部取消後重新選擇嗎？';
+      : '偵測到你同時存在多支俱樂部名單，確定要全部取消後重新選擇嗎？';
     if (!(await this.appConfirm(confirmText))) return;
 
     await Promise.all(memberships.map(entry =>
@@ -282,7 +282,7 @@ Object.assign(App, {
       this.closeFriendlyTournamentRosterPicker();
       state = await this._hydrateFriendlyTournamentRosterState(tournamentId);
       this._refreshFriendlyTournamentRosterUi(tournamentId);
-    this.showToast(memberships.length === 1 ? '已取消參賽。' : '已清除目前參賽身份，可重新選擇球隊。');
+    this.showToast(memberships.length === 1 ? '已取消參賽。' : '已清除目前參賽身份，可重新選擇俱樂部。');
     return state;
     } catch (err) {
       this._showTournamentActionError?.('取消參賽', err);
@@ -322,16 +322,16 @@ Object.assign(App, {
       buttonHtml = status === '報名中'
         ? `<button class="primary-btn full-width" onclick="App.cancelFriendlyTournamentRoster('${tournament.id}')">取消參賽</button>`
         : `<button class="primary-btn full-width" disabled>已列入球員名單</button>`;
-      noteText = `目前以「${membership.primary.teamName}」身分參賽${status === '報名中' ? '，可取消後重新選擇球隊。' : '。'}`;
+      noteText = `目前以「${membership.primary.teamName}」身分參賽${status === '報名中' ? '，可取消後重新選擇俱樂部。' : '。'}`;
     } else if (status === '報名中' && joinableEntries.length === 1) {
       buttonHtml = `<button class="primary-btn full-width" onclick="App.joinFriendlyTournamentRoster('${tournament.id}','${joinableEntries[0].teamId}')">加入球員名單</button>`;
-      noteText = `你的球隊「${joinableEntries[0].teamName}」已通過審核，現在可加入參賽名單。`;
+      noteText = `你的俱樂部「${joinableEntries[0].teamName}」已通過審核，現在可加入參賽名單。`;
     } else if (status === '報名中' && joinableEntries.length > 1) {
-      buttonHtml = `<button class="primary-btn full-width" onclick="App.openFriendlyTournamentRosterPicker('${tournament.id}')">選擇球隊參賽</button>`;
-      noteText = `你所屬的 ${joinableEntries.length} 支已核准球隊都可參賽，請先選擇代表球隊。`;
+      buttonHtml = `<button class="primary-btn full-width" onclick="App.openFriendlyTournamentRosterPicker('${tournament.id}')">選擇俱樂部參賽</button>`;
+      noteText = `你所屬的 ${joinableEntries.length} 支已核准俱樂部都可參賽，請先選擇代表俱樂部。`;
     } else if (status === '報名中' && approvedEntries.length > 0) {
-      buttonHtml = `<button class="primary-btn full-width" style="opacity:.6" onclick="App.showToast('需球隊負責人先行報名參賽並經主辦核准後，才可加入名單。')">等待負責人先加入</button>`;
-      noteText = '你的球隊已通過審核，但需先由該隊領隊或經理加入球員名單後，其他隊員才可加入。';
+      buttonHtml = `<button class="primary-btn full-width" style="opacity:.6" onclick="App.showToast('需俱樂部負責人先行報名參賽並經主辦核准後，才可加入名單。')">等待負責人先加入</button>`;
+      noteText = '你的俱樂部已通過審核，但需先由該隊領隊或經理加入球員名單後，其他隊員才可加入。';
     } else {
       return;
     }

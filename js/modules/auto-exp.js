@@ -17,8 +17,8 @@ Object.assign(App, {
     { key: 'cancel_registration',  label: '取消報名',     desc: '取消活動報名（可設負數扣分）' },
     { key: 'host_activity',        label: '主辦活動',     desc: '建立一場新活動' },
     { key: 'submit_review',        label: '提交評價',     desc: '提交活動星級評價' },
-    { key: 'join_team',            label: '加入球隊',     desc: '成功申請加入球隊' },
-    { key: 'post_team_feed',       label: '發佈球隊動態', desc: '在球隊動態牆發佈一則貼文' },
+    { key: 'join_team',            label: '加入俱樂部',     desc: '成功申請加入俱樂部' },
+    { key: 'post_team_feed',       label: '發佈俱樂部動態', desc: '在俱樂部動態牆發佈一則貼文' },
   ],
 
   // ── Rule CRUD ──

@@ -255,10 +255,10 @@ Object.assign(App, {
     }
     if (ctx.availableTeams.length === 0) {
       const message = ctx.pendingTeams.length > 0
-        ? '你的球隊申請已送出，等待主辦審核。'
+        ? '你的俱樂部申請已送出，等待主辦審核。'
         : ctx.approvedTeams.length > 0
-          ? '你的球隊已通過審核。'
-          : '需由球隊領隊或經理先行報名參賽。';
+          ? '你的俱樂部已通過審核。'
+          : '需由俱樂部領隊或經理先行報名參賽。';
       this.showToast(message);
       return;
     }
@@ -266,7 +266,7 @@ Object.assign(App, {
     const selectedTeamId = document.getElementById('td-apply-team-select')?.value || ctx.availableTeams[0].id;
     const selectedTeam = ctx.availableTeams.find(team => team.id === selectedTeamId);
     if (!selectedTeam) {
-      this.showToast('請先選擇要報名的球隊。');
+      this.showToast('請先選擇要報名的俱樂部。');
       return;
     }
 
@@ -327,7 +327,7 @@ Object.assign(App, {
       const approvedCount = (state.entries || []).filter(entry => entry.entryStatus === 'host' || entry.entryStatus === 'approved').length;
       const teamLimit = this._getFriendlyTournamentTeamLimit?.(tournament) || 4;
       if (!(state.entries || []).some(entry => entry.teamId === application.teamId) && approvedCount >= teamLimit) {
-        this.showToast('隊伍名額已滿，無法再核准更多球隊。');
+        this.showToast('隊伍名額已滿，無法再核准更多俱樂部。');
         return;
       }
       await ApiService.upsertTournamentEntry(tournamentId, application.teamId, {

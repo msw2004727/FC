@@ -186,7 +186,7 @@ const DEFAULT_NOTIFICATION_TEMPLATES = Object.freeze([
   {
     key: "welcome",
     title: "歡迎加入 SportHub！",
-    body: "嗨 {userName}，歡迎加入 SportHub 平台！\n\n您可以在這裡瀏覽並報名各類足球活動、加入球隊、參與聯賽。\n祝您使用愉快！",
+    body: "嗨 {userName}，歡迎加入 SportHub 平台！\n\n您可以在這裡瀏覽並報名各類足球活動、加入俱樂部、參與聯賽。\n祝您使用愉快！",
   },
   {
     key: "signup_success",
@@ -231,27 +231,27 @@ const DEFAULT_NOTIFICATION_TEMPLATES = Object.freeze([
   {
     key: "tournament_friendly_host_opened",
     title: "友誼賽已建立",
-    body: "主辦球隊「{hostTeamName}」已開啟友誼賽「{tournamentName}」。\n\n報名截止：{regEnd}\n\n若您為主辦球隊成員，現在可前往賽事頁加入球員名單。",
+    body: "主辦俱樂部「{hostTeamName}」已開啟友誼賽「{tournamentName}」。\n\n報名截止：{regEnd}\n\n若您為主辦俱樂部成員，現在可前往賽事頁加入球員名單。",
   },
   {
     key: "tournament_friendly_team_apply_host",
-    title: "有新球隊申請參賽",
-    body: "球隊「{teamName}」已申請參加「{tournamentName}」。\n申請人：{applicantName}\n\n請前往賽事詳細頁進行審核。",
+    title: "有新俱樂部申請參賽",
+    body: "俱樂部「{teamName}」已申請參加「{tournamentName}」。\n申請人：{applicantName}\n\n請前往賽事詳細頁進行審核。",
   },
   {
     key: "tournament_friendly_team_approved_applicant",
-    title: "球隊申請已通過",
+    title: "俱樂部申請已通過",
     body: "恭喜！您代表「{teamName}」申請參加「{tournamentName}」已通過審核。\n審核人：{reviewerName}\n\n隊員現在可加入該隊參賽名單。",
   },
   {
     key: "tournament_friendly_team_rejected_applicant",
-    title: "球隊申請結果通知",
+    title: "俱樂部申請結果通知",
     body: "很抱歉，您代表「{teamName}」申請參加「{tournamentName}」未獲通過。\n審核人：{reviewerName}\n\n如有疑問請聯繫主辦方。",
   },
   {
     key: "tournament_friendly_team_approved_broadcast",
-    title: "球隊已可加入名單",
-    body: "球隊「{teamName}」已通過「{tournamentName}」參賽審核。\n\n若您是該隊成員，現在可前往賽事頁加入球員名單。",
+    title: "俱樂部已可加入名單",
+    body: "俱樂部「{teamName}」已通過「{tournamentName}」參賽審核。\n\n若您是該隊成員，現在可前往賽事頁加入球員名單。",
   },
 ]);
 const SHARE_SITE_ORIGIN = "https://toosterx.com";
@@ -1131,7 +1131,7 @@ exports.adminManageUser = onCall(
 );
 
 // ═══════════════════════════════════════════════════
-//  adjustExp — EXP 調整（用戶 EXP / 球隊積分）
+//  adjustExp — EXP 調整（用戶 EXP / 俱樂部積分）
 //  修復：原 client SDK 直寫 users.exp 被 Firestore rules 擋住
 // ═══════════════════════════════════════════════════
 const ADMIN_EXP_PERMISSION = "admin.exp.entry";
@@ -1180,7 +1180,7 @@ exports.adjustExp = onCall(
     const now = new Date();
     const timeStr = `${String(now.getMonth() + 1).padStart(2, "0")}/${String(now.getDate()).padStart(2, "0")} ${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
 
-    // ═══ 球隊積分模式 ═══
+    // ═══ 俱樂部積分模式 ═══
     if (mode === "teamExp") {
       if (typeof teamId !== "string" || !teamId) {
         throw new HttpsError("invalid-argument", "teamId is required for teamExp mode");
@@ -1285,7 +1285,7 @@ exports.adjustExp = onCall(
 );
 
 // ═══════════════════════════════════════════════════
-//  autoPromoteTeamRole — 球隊職位變動觸發的自動角色晉升/降級
+//  autoPromoteTeamRole — 俱樂部職位變動觸發的自動角色晉升/降級
 //  修復：原 client SDK 直寫 users.role 被 Firestore rules 擋住
 //  僅允許 user / coach / captain 三層角色變動
 // ═══════════════════════════════════════════════════
@@ -1302,7 +1302,7 @@ exports.autoPromoteTeamRole = onCall(
     const callerRole = await getCallerRoleWithFallback(request);
     const callerLevel = ROLE_LEVELS[callerRole] ?? 0;
 
-    // 只有 coach 以上可以觸發（管理球隊的人）
+    // 只有 coach 以上可以觸發（管理俱樂部的人）
     if (callerLevel < ROLE_LEVELS.coach) {
       throw new HttpsError("permission-denied", "Coach or above required");
     }
@@ -2810,11 +2810,11 @@ exports.teamShareOg = onRequest(
 
     const teamName = String(team?.name || "").trim();
     const hasTeam = !!teamName;
-    const teamLabel = hasTeam ? `「${teamName}」球隊` : "球隊";
+    const teamLabel = hasTeam ? `「${teamName}」俱樂部` : "俱樂部";
     const ogTitle = hasTeam
-      ? `加入「${teamName}」球隊｜TooSterx Hub`
-      : "TooSterx Hub 球隊邀請";
-    const ogDescription = `這是在TooSterx Hub上創立的${teamLabel}，誠摯邀請您加入球隊，跟我們一起享受活動~`;
+      ? `加入「${teamName}」俱樂部｜TooSterx Hub`
+      : "TooSterx Hub 俱樂部邀請";
+    const ogDescription = `這是在TooSterx Hub上創立的${teamLabel}，誠摯邀請您加入俱樂部，跟我們一起享受活動~`;
     const ogImage = sanitizeImageUrl(
       team?.image || team?.coverImage || team?.cover || team?.banner || team?.logo
     );

@@ -173,16 +173,16 @@ Object.assign(App, {
     }
   },
 
-  // ── 球隊下拉 ──
+  // ── 俱樂部下拉 ──
   _populateExpTeamDropdown() {
     const sel = document.getElementById('exp-team-select');
     if (!sel) return;
     const teams = ApiService.getActiveTeams();
-    sel.innerHTML = '<option value="">— 請選擇球隊 —</option>' +
+    sel.innerHTML = '<option value="">— 請選擇俱樂部 —</option>' +
       teams.map(t => `<option value="${t.id}">${escapeHTML(t.name)}（${t.members || 0} 人）</option>`).join('');
   },
 
-  // ── 球隊選擇 ──
+  // ── 俱樂部選擇 ──
   expTeamSelect() {
     const teamId = document.getElementById('exp-team-select')?.value;
     const container = document.getElementById('exp-team-members');
@@ -191,7 +191,7 @@ Object.assign(App, {
     const members = ApiService.getAdminUsers().filter(u => u.teamId === teamId);
     this._expTeamMembers = members;
     if (members.length === 0) {
-      container.innerHTML = '<span style="color:var(--text-muted);font-size:.78rem">該球隊無成員資料</span>';
+      container.innerHTML = '<span style="color:var(--text-muted);font-size:.78rem">該俱樂部無成員資料</span>';
       return;
     }
     container.innerHTML = members.map(u =>
@@ -199,12 +199,12 @@ Object.assign(App, {
     ).join('') + `<span style="font-size:.72rem;color:var(--text-muted);align-self:center">共 ${members.length} 人</span>`;
   },
 
-  // ── 球隊送出 ──
+  // ── 俱樂部送出 ──
   async handleTeamExpSubmit() {
     if (!this.hasPermission('admin.exp.entry')) {
       this.showToast('權限不足'); return;
     }
-    if (this._expTeamMembers.length === 0) { this.showToast('請先選擇球隊'); return; }
+    if (this._expTeamMembers.length === 0) { this.showToast('請先選擇俱樂部'); return; }
     const amount = parseInt(document.getElementById('exp-team-amount')?.value) || 0;
     const reason = (document.getElementById('exp-team-reason')?.value || '').trim();
     if (amount === 0) { this.showToast('請輸入 EXP 調整值'); return; }
@@ -226,7 +226,7 @@ Object.assign(App, {
     }
   },
 
-  // ── 球隊積分搜尋 ──
+  // ── 俱樂部積分搜尋 ──
   _expTeamExpSelectedId: null,
 
   expTeamExpSearch() {
@@ -287,7 +287,7 @@ Object.assign(App, {
     if (!this.hasPermission('admin.exp.entry')) {
       this.showToast('權限不足'); return;
     }
-    if (!this._expTeamExpSelectedId) { this.showToast('請先搜尋並選擇球隊'); return; }
+    if (!this._expTeamExpSelectedId) { this.showToast('請先搜尋並選擇俱樂部'); return; }
     const amount = parseInt(document.getElementById('exp-team-exp-amount')?.value) || 0;
     const reason = (document.getElementById('exp-team-exp-reason')?.value || '').trim();
     if (amount === 0) { this.showToast('請輸入積分調整值'); return; }
@@ -301,11 +301,11 @@ Object.assign(App, {
         document.getElementById('exp-team-exp-reason').value = '';
         this.renderExpLogs();
         this.renderOperationLogs();
-        this.showToast(`已調整「${team.name}」球隊積分 ${amount > 0 ? '+' : ''}${amount}`);
+        this.showToast(`已調整「${team.name}」俱樂部積分 ${amount > 0 ? '+' : ''}${amount}`);
       }
     } catch (err) {
       console.error('[handleTeamExpSubmit2]', err);
-      this.showToast('球隊積分調整失敗：' + (err.message || '未知錯誤'));
+      this.showToast('俱樂部積分調整失敗：' + (err.message || '未知錯誤'));
     }
   },
 
@@ -346,7 +346,7 @@ Object.assign(App, {
       } else {
         colorClass = isPlus ? 'log-user-plus' : 'log-user-minus';
       }
-      const typeTag = l.logType === 'team' ? '<span class="log-type team_exp">球隊</span>' : '';
+      const typeTag = l.logType === 'team' ? '<span class="log-type team_exp">俱樂部</span>' : '';
       return `
       <div class="log-item ${colorClass}">
         <span class="log-time">${escapeHTML(l.time)}</span>

@@ -203,7 +203,7 @@ Object.assign(App, {
       notifyUids.forEach(uid => {
         this._deliverMessageWithLinePush(
           '報名審核結果通知',
-          `${reviewerName} 已「${actionLabels[action]}」球隊「${teamName}」報名賽事「${tournamentName}」的申請。`,
+          `${reviewerName} 已「${actionLabels[action]}」俱樂部「${teamName}」報名賽事「${tournamentName}」的申請。`,
           'tournament', '賽事', uid, '系統', null,
           { lineOptions: { source: `tournament_review:broadcast:${action}` } }
         );

@@ -591,7 +591,7 @@ service cloud.firestore {
     }
 
     // ═══════════════════════════════════════════
-    //  Teams（球隊）
+    //  Teams（俱樂部）
     //  公開可讀；update 依 owner / hasPerm / 成員欄位白名單
     // ═══════════════════════════════════════════
     match /teams/{teamId} {

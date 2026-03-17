@@ -14,7 +14,7 @@ Object.assign(App, {
         ${t.pinned ? '<div class="tc-pin-badge">置頂</div>' : ''}
         ${t.image
           ? `<div style="position:relative;width:100%;aspect-ratio:1;overflow:hidden;border-radius:var(--radius) var(--radius) 0 0"><img src="${t.image}" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block"><span class="tc-rank-badge" style="color:${rank.color}"><span class="tc-rank-score">${(t.teamExp || 0).toLocaleString()}</span>${rank.rank}</span></div>`
-          : `<div class="tc-img-placeholder" style="position:relative">球隊圖片<span class="tc-rank-badge" style="color:${rank.color}"><span class="tc-rank-score">${(t.teamExp || 0).toLocaleString()}</span>${rank.rank}</span></div>`}
+          : `<div class="tc-img-placeholder" style="position:relative">俱樂部圖片<span class="tc-rank-badge" style="color:${rank.color}"><span class="tc-rank-score">${(t.teamExp || 0).toLocaleString()}</span>${rank.rank}</span></div>`}
         <div class="tc-body">
           <div class="tc-name">${escapeHTML(t.name)}</div>
           <div class="tc-info-row"><span class="tc-label">${I18N.t('team.memberLabel')}</span><span>${this._calcTeamMemberCount(t.id)} ${I18N.t('team.personUnit')}</span></div>
@@ -64,7 +64,7 @@ Object.assign(App, {
     }
 
     if (!teams.length) {
-      container.innerHTML = '<div style="padding:2rem;text-align:center;color:var(--text-muted);font-size:.85rem">尚無球隊資料</div>';
+      container.innerHTML = '<div style="padding:2rem;text-align:center;color:var(--text-muted);font-size:.85rem">尚無俱樂部資料</div>';
       return;
     }
 
@@ -82,7 +82,7 @@ Object.assign(App, {
           </div>
           <div class="event-meta">
             <span class="event-meta-item">領隊 ${escapeHTML(t.leader || '未設定')}</span>
-            <span class="event-meta-item">球隊經理 ${escapeHTML(t.captain || '未設定')}</span>
+            <span class="event-meta-item">俱樂部經理 ${escapeHTML(t.captain || '未設定')}</span>
             <span class="event-meta-item">${this._calcTeamMemberCount(t.id)}人</span>
             <span class="event-meta-item">${escapeHTML(t.region)}</span>
           </div>
@@ -96,7 +96,7 @@ Object.assign(App, {
     };
     let html = activeTeams.map(renderCard).join('');
     if (inactiveTeams.length) {
-      html += '<hr class="team-section-divider"><div class="team-section-label">已下架球隊</div>';
+      html += '<hr class="team-section-divider"><div class="team-section-label">已下架俱樂部</div>';
       html += inactiveTeams.map(renderCard).join('');
     }
     container.innerHTML = html;
@@ -119,7 +119,7 @@ Object.assign(App, {
       (t.region || '').toLowerCase().includes(q)
     );
     if (!teams.length) {
-      container.innerHTML = '<div style="padding:1rem;font-size:.82rem;color:var(--text-muted);text-align:center">未找到符合條件的球隊</div>';
+      container.innerHTML = '<div style="padding:1rem;font-size:.82rem;color:var(--text-muted);text-align:center">未找到符合條件的俱樂部</div>';
       return;
     }
     const activeT = teams.filter(t => t.active);
@@ -135,7 +135,7 @@ Object.assign(App, {
           </div>
           <div class="event-meta">
             <span class="event-meta-item">領隊 ${escapeHTML(t.leader || '未設定')}</span>
-            <span class="event-meta-item">球隊經理 ${escapeHTML(t.captain || '未設定')}</span>
+            <span class="event-meta-item">俱樂部經理 ${escapeHTML(t.captain || '未設定')}</span>
             <span class="event-meta-item">${this._calcTeamMemberCount(t.id)}人</span>
             <span class="event-meta-item">${escapeHTML(t.region)}</span>
             <span class="event-meta-item" style="color:${t.active ? 'var(--success)' : 'var(--danger)'}">${t.active ? '上架中' : '已下架'}</span>
@@ -152,7 +152,7 @@ Object.assign(App, {
     };
     let html = activeT.map(adminCard).join('');
     if (inactiveT.length) {
-      html += '<hr class="team-section-divider"><div class="team-section-label">已下架球隊</div>';
+      html += '<hr class="team-section-divider"><div class="team-section-label">已下架俱樂部</div>';
       html += inactiveT.map(adminCard).join('');
     }
     container.innerHTML = html;

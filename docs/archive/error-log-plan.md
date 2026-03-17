@@ -140,7 +140,7 @@ ApiService._writeErrorLog({ fn: '函式名稱', teamId, applicantUid }, err);
 > 純字串只知道「哪支函式出錯」，物件可以知道「哪支函式對哪個資料出錯」：
 > ```
 > context: "handleTeamJoinAction"
-> → 知道「審批流程出錯」，但不知道是哪個球隊、哪個申請人
+> → 知道「審批流程出錯」，但不知道是哪個俱樂部、哪個申請人
 >
 > context: { fn: "handleTeamJoinAction", teamId: "team_abc", applicantUid: "U123" }
 > → 直接可以去 Firestore 查對應資料，一次定位
@@ -322,7 +322,7 @@ Object.assign(App, {
 
 ## 驗證步驟
 
-1. **正常路徑**：執行報名、退出球隊等正常操作 → 確認 `errorLogs` 無新增記錄
+1. **正常路徑**：執行報名、退出俱樂部等正常操作 → 確認 `errorLogs` 無新增記錄
 2. **觸發系統錯誤**：用低權限帳號執行寫入 → 確認 `errorLogs` 出現一筆，且包含 `errorCode: "permission-denied"`
 3. **dedup 驗證**：連續觸發同一錯誤 5 次 → 確認 `errorLogs` 只新增 1 筆
 4. **entity ID 驗證**：確認 context 物件中的 `teamId`/`eventId` 正確記錄

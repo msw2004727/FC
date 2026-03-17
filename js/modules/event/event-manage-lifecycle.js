@@ -55,11 +55,11 @@ Object.assign(App, {
     this._setGenderRestrictionState?.(!!e.genderRestrictionEnabled, e.allowedGender || '');
     // 開放報名時間
     this._setEventRegOpenTimeValue?.(e.regOpenTime || '');
-    // 球隊限定
+    // 俱樂部限定
     const ceTeamOnly = document.getElementById('ce-team-only');
     if (ceTeamOnly) {
       ceTeamOnly.checked = !!e.teamOnly;
-      // 編輯模式：若為球隊限定且建立者無球隊，需先填充下拉再還原選擇
+      // 編輯模式：若為俱樂部限定且建立者無俱樂部，需先填充下拉再還原選擇
       if (e.teamOnly) {
         const ceTeamSelect = document.getElementById('ce-team-select');
         if (ceTeamSelect) {

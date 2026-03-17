@@ -427,7 +427,7 @@ Object.assign(App, {
       if (snap.empty) { addLog('沒有已批准的入隊記錄。'); return; }
       addLog(`共找到 ${snap.docs.length} 筆 approved 訊息，開始去重...`);
 
-      // 去重：同一申請人只保留最新一筆（依 timestamp 排序），防止跨球隊重複修復
+      // 去重：同一申請人只保留最新一筆（依 timestamp 排序），防止跨俱樂部重複修復
       const latestByUid = new Map();
       snap.docs.forEach(doc => {
         const data = doc.data();
@@ -480,19 +480,19 @@ Object.assign(App, {
             skipped++; continue;
           }
 
-          // 驗證目標球隊是否仍存在
+          // 驗證目標俱樂部是否仍存在
           const teamSnap = await db.collection('teams').doc(teamId).get({ source: 'server' });
           if (!teamSnap.exists) {
             // 嘗試用 id 欄位查詢
             const teamQ = await db.collection('teams').where('id', '==', teamId).limit(1).get({ source: 'server' });
             if (teamQ.empty) {
-              addLog(`  [跳過] ${displayName} → 目標球隊 ${teamId}（${teamName}）已不存在，略過`);
+              addLog(`  [跳過] ${displayName} → 目標俱樂部 ${teamId}（${teamName}）已不存在，略過`);
               skipped++; continue;
             }
           }
 
           if (currentTeamId === teamId) {
-            addLog(`  [跳過] ${displayName} → 已在正確球隊（${teamId}）`);
+            addLog(`  [跳過] ${displayName} → 已在正確俱樂部（${teamId}）`);
             skipped++; continue;
           }
 

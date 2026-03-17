@@ -176,11 +176,11 @@
     <section class="page" id="page-admin-teams" data-min-role="admin">
       <div class="page-header">
         <button class="back-btn" onclick="App.goBack()">←</button>
-        <h2>球隊管理</h2>
-        <button class="primary-btn small" onclick="App.showTeamForm()">＋ 新增球隊</button>
+        <h2>俱樂部管理</h2>
+        <button class="primary-btn small" onclick="App.showTeamForm()">＋ 新增俱樂部</button>
       </div>
       <div class="admin-search">
-        <input type="text" id="team-search-input" placeholder="搜尋球隊名稱 / 領隊..." oninput="App.filterAdminTeams()">
+        <input type="text" id="team-search-input" placeholder="搜尋俱樂部名稱 / 領隊..." oninput="App.filterAdminTeams()">
       </div>
       <div class="card-list" id="admin-team-list"></div>
     </section>
@@ -230,7 +230,7 @@
               <option value="venue_owner">全體場主</option>
               <option value="coach_up">教練以上</option>
               <option value="admin">管理員</option>
-              <option value="team">指定球隊</option>
+              <option value="team">指定俱樂部</option>
               <option value="individual">指定用戶 (UID/暱稱)</option>
             </select>
           </div>
@@ -243,9 +243,9 @@
             <div id="msg-target-result" style="font-size:.75rem;margin-top:.2rem;color:var(--text-muted)"></div>
           </div>
           <div class="form-row" id="msg-team-row" style="display:none">
-            <label>指定球隊</label>
+            <label>指定俱樂部</label>
             <div style="position:relative">
-              <input type="text" id="msg-team-target" placeholder="輸入球隊名稱搜尋" oninput="App.searchMsgTeam()" autocomplete="off">
+              <input type="text" id="msg-team-target" placeholder="輸入俱樂部名稱搜尋" oninput="App.searchMsgTeam()" autocomplete="off">
               <div id="msg-team-dropdown" class="ce-delegate-dropdown"></div>
             </div>
             <div id="msg-team-result" style="font-size:.75rem;margin-top:.2rem;color:var(--text-muted)"></div>

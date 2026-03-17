@@ -37,13 +37,13 @@ Object.assign(App, {
         : '';
       primaryHtml = `${selector}<button class="primary-btn full-width" onclick="App.registerTournament('${tournament.id}')">參加賽事</button>`;
     } else if (ctx.pendingTeams.length > 0) {
-      primaryHtml = `<button class="primary-btn full-width" disabled>球隊審核中</button>`;
+      primaryHtml = `<button class="primary-btn full-width" disabled>俱樂部審核中</button>`;
     } else if (ctx.approvedTeams.length > 0) {
-      primaryHtml = `<button class="primary-btn full-width" disabled>球隊已通過審核</button>`;
+      primaryHtml = `<button class="primary-btn full-width" disabled>俱樂部已通過審核</button>`;
     } else if (ctx.rejectedTeams.length > 0) {
-      primaryHtml = `<button class="primary-btn full-width" disabled>球隊申請未通過</button>`;
+      primaryHtml = `<button class="primary-btn full-width" disabled>俱樂部申請未通過</button>`;
     } else {
-      primaryHtml = `<button class="primary-btn full-width" onclick="App.showToast('需由球隊領隊或經理先行報名參賽。')">參加賽事</button>`;
+      primaryHtml = `<button class="primary-btn full-width" onclick="App.showToast('需由俱樂部領隊或經理先行報名參賽。')">參加賽事</button>`;
     }
 
     const contactBtn = `<button class="outline-btn full-width" onclick="App.contactTournamentOrganizer('${tournament.id}')">聯繫主辦人</button>`;
@@ -81,8 +81,8 @@ Object.assign(App, {
           <div class="tfd-team-side">
             <div class="tfd-team-thumb">${entry.teamImage ? `<img src="${entry.teamImage}" alt="${escapeHTML(entry.teamName)}">` : `<span>${escapeHTML((entry.teamName || '?').slice(0, 1))}</span>`}</div>
             <div class="tfd-team-meta">
-              <div class="tfd-team-name">${escapeHTML(entry.teamName || '未命名球隊')}</div>
-              <div class="tfd-team-status">${entry.entryStatus === 'host' ? '主辦球隊' : '已核准參賽'}</div>
+              <div class="tfd-team-name">${escapeHTML(entry.teamName || '未命名俱樂部')}</div>
+              <div class="tfd-team-status">${entry.entryStatus === 'host' ? '主辦俱樂部' : '已核准參賽'}</div>
             </div>
           </div>
           <div class="tfd-team-roster">${roster}</div>
@@ -102,7 +102,7 @@ Object.assign(App, {
           <div class="tfd-team-side">
             <div class="tfd-team-thumb">${application.teamImage ? `<img src="${application.teamImage}" alt="${escapeHTML(application.teamName)}">` : `<span>${escapeHTML((application.teamName || '?').slice(0, 1))}</span>`}</div>
             <div class="tfd-team-meta">
-              <div class="tfd-team-name">${escapeHTML(application.teamName || '未命名球隊')}</div>
+              <div class="tfd-team-name">${escapeHTML(application.teamName || '未命名俱樂部')}</div>
               <div class="tfd-team-status">${isRejected ? '申請未通過' : '審核中，僅主辦方與申請方可見'}</div>
             </div>
           </div>
@@ -116,7 +116,7 @@ Object.assign(App, {
         <div class="tfd-team-side">
           <div class="tfd-team-thumb tfd-team-thumb-slot"><span>+</span></div>
           <div class="tfd-team-meta">
-            <div class="tfd-team-name">待報名球隊</div>
+            <div class="tfd-team-name">待報名俱樂部</div>
             <div class="tfd-team-status">保留友誼賽名額</div>
           </div>
         </div>

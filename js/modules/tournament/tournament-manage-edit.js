@@ -81,11 +81,11 @@ Object.assign(App, {
       return;
     }
     if (!hostTeam) {
-      this.showToast('請先選擇主辦球隊。');
+      this.showToast('請先選擇主辦俱樂部。');
       return;
     }
     if (editTournament.hostTeamId && hostTeam.id !== editTournament.hostTeamId) {
-      this.showToast('主辦球隊建立後暫不開放更換。');
+      this.showToast('主辦俱樂部建立後暫不開放更換。');
       return;
     }
     if (!Number.isFinite(editTeamLimitRaw) || editTeamLimitRaw < 2 || editTeamLimitRaw > 4) {
