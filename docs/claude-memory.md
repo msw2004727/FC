@@ -10,6 +10,12 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-17 — [永久] _showPageStale 未等待 ensureForPage 導致動態函式呼叫崩潰
+- **問題**：開啟個人頁面時報錯 `renderUserCard is not a function`
+- **原因**：`_showPageStale()` 是同步函式，直接呼叫 `_activatePage()` → `_renderPageContent()`，未先 `await ScriptLoader.ensureForPage(pageId)` 載入動態腳本。`stale-first`/`stale-confirm` 策略的頁面（page-profile、page-activity-detail 等）會走此路徑
+- **修復**：`_showPageStale` 改為 `async`，在 `_activatePage` 前加入 `ensureForPage`。呼叫端加 `await` 確保 `finally` 中的 `_endRouteLoading` 時序正確
+- **教訓**：Phase 1 移除 eager script 後，不只要檢查 `_renderPageContent` 內的呼叫，還要檢查所有進入 `_renderPageContent` 的路徑是否都有 `ensureForPage` 前置。`_showPageStale` 是唯一沒有的路徑
+
 ### 2026-03-17 — 自動化測試擴充：新增 5 個測試套件 139 個測試（總計 511）
 - **內容**：新增 tournament-core.test.js(42)、leaderboard-stats.test.js(30)、script-loader.test.js(22)、no-show-stats.test.js(30)、script-deps.test.js(15)
 - **覆蓋範圍**：賽事狀態/模式/隊長判斷、活動紀錄三階段分類、ScriptLoader URL 正規化/群組去重、放鴿子統計含 nameToUid 歷史修正、跨模組依賴靜態驗證

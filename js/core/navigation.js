@@ -451,7 +451,7 @@ Object.assign(App, {
 
       // 策略分派
       if (canUseStale) {
-        return this._showPageStale(pageId, transitionSeq, options);
+        return await this._showPageStale(pageId, transitionSeq, options);
       }
       if (strategy === 'prepare-first') {
         return await this._showPagePrepareFirst(pageId, transitionSeq, options);
@@ -463,9 +463,13 @@ Object.assign(App, {
     }
   },
 
-  _showPageStale(pageId, transitionSeq, options) {
+  async _showPageStale(pageId, transitionSeq, options) {
     this._cleanupBeforePageSwitch(pageId);
     this._pushPageHistory(pageId, options);
+    // 確保動態腳本已載入，避免 _renderPageContent 呼叫尚未載入的函式
+    if (typeof ScriptLoader !== 'undefined' && ScriptLoader.ensureForPage) {
+      await ScriptLoader.ensureForPage(pageId);
+    }
     const activated = this._activatePage(pageId, options);
     if (!activated) return { ok: false, reason: 'missing_target' };
     void this._refreshStalePage(pageId, transitionSeq);
