@@ -55,15 +55,8 @@ Object.assign(App, {
   _buildRawNoShowCountByUid() {
     // 改用 registrations（權威資料，transaction 保障）取代 activityRecords（衍生資料）
     const allRegistrations = ApiService._src('registrations');
-    // 合併全域快取 + user-specific cache（避免全域快取 limit 截斷漏掉簽到紀錄）
-    const globalAttRecords = ApiService.getAttendanceRecords();
-    const usc = FirebaseService.getUserStatsCache?.();
-    const userAttRecords = (usc && usc.attendanceRecords) || [];
-    // 用 _docId 去重，優先保留 user-specific cache 的完整資料
-    const attMap = new Map();
-    globalAttRecords.forEach(r => { if (r._docId) attMap.set(r._docId, r); else attMap.set(JSON.stringify([r.uid, r.eventId, r.type]), r); });
-    userAttRecords.forEach(r => { if (r._docId) attMap.set(r._docId, r); else attMap.set(JSON.stringify([r.uid, r.eventId, r.type]), r); });
-    const attendanceRecords = [...attMap.values()];
+    // 全域快取已移除 limit，直接使用全域資料（不再合併 userStatsCache，避免切換用戶時汙染其他人的統計）
+    const attendanceRecords = ApiService.getAttendanceRecords();
     const checkinKeys = new Set();
     const countByUid = new Map();
     const seenRegKeys = new Set();
@@ -174,13 +167,8 @@ Object.assign(App, {
     if (!safeUid) return [];
 
     const allRegistrations = ApiService._src('registrations');
-    // 合併全域快取 + user-specific cache（與 _buildRawNoShowCountByUid 一致）
-    const globalAttRecords = ApiService.getAttendanceRecords();
-    const userAttRecords = ApiService.getUserAttendanceRecords?.(safeUid) || [];
-    const attMap = new Map();
-    globalAttRecords.forEach(r => { if (r._docId) attMap.set(r._docId, r); else attMap.set(JSON.stringify([r.uid, r.eventId, r.type]), r); });
-    userAttRecords.forEach(r => { if (r._docId) attMap.set(r._docId, r); else attMap.set(JSON.stringify([r.uid, r.eventId, r.type]), r); });
-    const attendanceRecords = [...attMap.values()];
+    // 全域快取已移除 limit，直接使用全域資料（不再合併 userStatsCache，避免切換用戶時汙染統計）
+    const attendanceRecords = ApiService.getAttendanceRecords();
     const checkinKeys = new Set();
     const seenRegKeys = new Set();
     const details = [];

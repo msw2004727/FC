@@ -10,6 +10,12 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-17 — [永久] 放鴿子計算 _userStatsCache 汙染：切換用戶導致其他人放鴿子數跳動
+- **問題**：查看用戶 A 時放鴿子 = 0（正確），查看用戶 B 後 A 的放鴿子變成 1（錯誤）
+- **原因**：`_buildRawNoShowCountByUid` 是全域函式（計算所有人），但合併了 `_userStatsCache`（只有當前查看的那一個用戶的簽到紀錄）。切換用戶後 `_userStatsCache` 被覆蓋，原先用戶的補充簽到紀錄消失，導致被誤判為放鴿子
+- **修復**：移除 `_buildRawNoShowCountByUid` 和 `_getNoShowDetailsByUid` 中的 `_userStatsCache` 合併邏輯，全域快取已移除 limit 不再需要補充
+- **教訓**：全域統計函式（計算所有人）絕對不能依賴單一用戶的快取資料作為補充來源，否則會因為切換用戶而汙染其他人的統計結果
+
 ### 2026-03-17 — [永久] firebase-service.js 全域快取 limit 移除（attendanceRecords / registrations / activityRecords）
 - **問題**：全域快取 attendanceRecords limit 500、registrations limit 500（admin）/ 200（user），導致超過限制的紀錄被截斷，放鴿子計算漏掉簽到紀錄而誤判
 - **修復**：移除三處 limit — `_getRegistrationsListenerQuery` 移除 limit(500)/limit(200)、`_startAttendanceRecordsListener` 移除 limit(500)、`_buildCollectionQuery` 對 attendanceRecords/registrations/activityRecords 不設 limit
