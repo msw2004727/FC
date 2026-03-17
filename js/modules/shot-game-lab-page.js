@@ -39,23 +39,13 @@
         throw new Error('Missing required game lab elements');
       }
 
-      var showGate = function (message) {
-        gate.style.display = 'block';
-        gameSection.style.display = 'none';
-        if (tokenFeedback) tokenFeedback.textContent = message || 'Enter test token to continue';
-      };
-      var showGame = function () {
-        gate.style.display = 'none';
-        gameSection.style.display = 'block';
-      };
-      var showLoginRequiredCard = function (message) {
-        var tokenForm = document.getElementById('token-form');
-        var loginCard = document.getElementById('login-required-card');
-        if (tokenForm) tokenForm.style.display = 'none';
-        if (loginCard) loginCard.style.display = '';
-        gate.style.display = 'block';
-        gameSection.style.display = 'none';
-        if (tokenFeedback) tokenFeedback.textContent = message || '\u8ACB\u5148\u767B\u5165\u624D\u80FD\u904A\u73A9';
+      var showGate = function (msg) { gate.style.display = 'block'; gameSection.style.display = 'none'; if (tokenFeedback) tokenFeedback.textContent = msg || 'Enter test token to continue'; };
+      var showGame = function () { gate.style.display = 'none'; gameSection.style.display = 'block'; };
+      var showLoginRequiredCard = function (msg) {
+        var tf = document.getElementById('token-form'), lc = document.getElementById('login-required-card');
+        if (tf) tf.style.display = 'none'; if (lc) lc.style.display = '';
+        gate.style.display = 'block'; gameSection.style.display = 'none';
+        if (tokenFeedback) tokenFeedback.textContent = msg || '\u8ACB\u5148\u767B\u5165\u624D\u80FD\u904A\u73A9';
       };
       var isAnonymousAuthUser = function (user) {
         if (!user) return false;
@@ -281,31 +271,17 @@
       };
 
       // Event bindings
-      if (tokenSubmit) {
-        tokenSubmit.addEventListener('click', function () { unlockWithToken(tokenInput ? tokenInput.value : '', true); });
-      }
-      if (tokenInput) {
-        tokenInput.addEventListener('keydown', function (event) { if (event.key === 'Enter') unlockWithToken(tokenInput.value, true); });
-      }
-      if (leaderboardBtn) {
-        leaderboardBtn.addEventListener('pointerdown', function (event) { event.stopPropagation(); });
-        leaderboardBtn.addEventListener('click', function (event) { event.preventDefault(); event.stopPropagation(); openLeaderboard(leaderboardPeriod); });
-      }
+      if (tokenSubmit) tokenSubmit.addEventListener('click', function () { unlockWithToken(tokenInput ? tokenInput.value : '', true); });
+      if (tokenInput) tokenInput.addEventListener('keydown', function (e) { if (e.key === 'Enter') unlockWithToken(tokenInput.value, true); });
+      if (leaderboardBtn) { leaderboardBtn.addEventListener('pointerdown', function (e) { e.stopPropagation(); }); leaderboardBtn.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); openLeaderboard(leaderboardPeriod); }); }
       if (introStartBtn) introStartBtn.addEventListener('click', closeIntro);
       if (leaderboardClose) leaderboardClose.addEventListener('click', closeLeaderboard);
-      if (leaderboardModal) {
-        leaderboardModal.addEventListener('click', function (event) { if (event.target === leaderboardModal) closeLeaderboard(); });
-      }
-      leaderboardTabs.forEach(function (tab) {
-        tab.addEventListener('click', function () { renderLeaderboard(tab.getAttribute('data-lb-period') || 'daily'); });
-      });
-      window.addEventListener('keydown', function (event) { if (event.key === 'Escape' && leaderboardOpen) closeLeaderboard(); });
+      if (leaderboardModal) leaderboardModal.addEventListener('click', function (e) { if (e.target === leaderboardModal) closeLeaderboard(); });
+      leaderboardTabs.forEach(function (tab) { tab.addEventListener('click', function () { renderLeaderboard(tab.getAttribute('data-lb-period') || 'daily'); }); });
+      window.addEventListener('keydown', function (e) { if (e.key === 'Escape' && leaderboardOpen) closeLeaderboard(); });
       window.addEventListener('shotgame-ad-updated', syncBillboardAdImage);
       window.addEventListener('resize', syncHudPanelHeight);
-      window.addEventListener('beforeunload', function () {
-        window.removeEventListener('shotgame-ad-updated', syncBillboardAdImage);
-        if (engine) engine.destroy();
-      });
+      window.addEventListener('beforeunload', function () { window.removeEventListener('shotgame-ad-updated', syncBillboardAdImage); if (engine) engine.destroy(); });
 
       renderLeaderboard(leaderboardPeriod);
       setSessionBadge();

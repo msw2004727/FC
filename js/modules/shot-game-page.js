@@ -137,50 +137,23 @@
     const modal = document.getElementById('sg-leaderboard-modal');
     if (!modal) return;
     _renderLeaderboard(period || _lbPeriod);
-    modal.classList.add('is-open');
-    modal.setAttribute('aria-hidden', 'false');
-    _lbOpen = true;
+    modal.classList.add('is-open'); modal.setAttribute('aria-hidden', 'false'); _lbOpen = true;
   }
-
   function _closeLeaderboard() {
     const modal = document.getElementById('sg-leaderboard-modal');
     if (!modal) return;
-    modal.classList.remove('is-open');
-    modal.setAttribute('aria-hidden', 'true');
-    _lbOpen = false;
+    modal.classList.remove('is-open'); modal.setAttribute('aria-hidden', 'true'); _lbOpen = false;
   }
-
-  function _openIntro() {
-    if (UI.isIntroSuppressed()) return;
-    const modal = document.getElementById('sg-intro-modal');
-    if (modal) modal.setAttribute('aria-hidden', 'false');
-  }
-
-  function _closeIntro() {
-    const modal = document.getElementById('sg-intro-modal');
-    const check = document.getElementById('sg-intro-dismiss');
-    if (!modal) return;
-    if (check && check.checked) UI.suppressIntroToday();
-    modal.setAttribute('aria-hidden', 'true');
-  }
-
-  function _syncHudPanelHeight() {
-    const container = document.getElementById('shot-game-container');
-    const badge = document.getElementById('session-badge');
-    if (!container || !badge) return;
-    badge.style.height = 'auto';
-  }
+  function _openIntro() { if (UI.isIntroSuppressed()) return; const m = document.getElementById('sg-intro-modal'); if (m) m.setAttribute('aria-hidden', 'false'); }
+  function _closeIntro() { const m = document.getElementById('sg-intro-modal'), c = document.getElementById('sg-intro-dismiss'); if (!m) return; if (c && c.checked) UI.suppressIntroToday(); m.setAttribute('aria-hidden', 'true'); }
+  function _syncHudPanelHeight() { const c = document.getElementById('shot-game-container'), b = document.getElementById('session-badge'); if (c && b) b.style.height = 'auto'; }
 
   function _updateSessionBadge() {
     const badge = document.getElementById('session-badge');
     if (!badge) return;
-    if (!badge.querySelector('.sg-session-title')) {
-      badge.textContent = '';
-      UI.buildSessionBadgeDOM(badge);
-    }
+    if (!badge.querySelector('.sg-session-title')) { badge.textContent = ''; UI.buildSessionBadgeDOM(badge); }
     const hasBest = !!_bestSession;
-    const el = (sel) => badge.querySelector(sel);
-    const set = (sel, val) => { const e = el(sel); if (e) e.textContent = String(val); };
+    const set = (sel, val) => { const e = badge.querySelector(sel); if (e) e.textContent = String(val); };
     set('.sg-session-best-score', hasBest ? Math.max(0, Math.round(Number(_bestSession.score) || 0)) : '--');
     set('.sg-session-best-shots', hasBest ? Math.max(0, Math.round(Number(_bestSession.shots) || 0)) : '--');
     set('.sg-session-best-time', hasBest ? Math.max(0, Math.round(Number(_bestSession.durationMs || 0) / 1000)) : '--');
@@ -189,85 +162,47 @@
     _syncHudPanelHeight();
   }
 
-  function _isBetter(incoming, best) {
-    if (!best) return true;
-    if (incoming.score !== best.score) return incoming.score > best.score;
-    if (incoming.shots !== best.shots) return incoming.shots < best.shots;
-    return incoming.durationMs < best.durationMs;
-  }
+  function _isBetter(a, b) { if (!b) return true; if (a.score !== b.score) return a.score > b.score; if (a.shots !== b.shots) return a.shots < b.shots; return a.durationMs < b.durationMs; }
 
-  /* ── Game Start ── */
-  async function _submitScoreToRanking(scorePayload) {
+  async function _submitScoreToRanking(sp) {
     const user = typeof auth !== 'undefined' ? auth.currentUser : null;
-    if (!scorePayload || scorePayload.score <= 0 || !user) return;
+    if (!sp || sp.score <= 0 || !user) return;
     _lbSubmitPending = true;
-    try {
-      await firebase.app().functions('asia-east1').httpsCallable('submitShotGameScore')({
-        score: scorePayload.score, shots: scorePayload.shots,
-        streak: scorePayload.streak, durationMs: scorePayload.durationMs,
-        displayName: UI.getPreferredPlayerDisplayName(user),
-      });
-    } catch (_) {}
-    finally { _lbSubmitPending = false; if (_lbOpen) _renderLeaderboard(_lbPeriod); }
+    try { await firebase.app().functions('asia-east1').httpsCallable('submitShotGameScore')({ score: sp.score, shots: sp.shots, streak: sp.streak, durationMs: sp.durationMs, displayName: UI.getPreferredPlayerDisplayName(user) }); }
+    catch (_) {} finally { _lbSubmitPending = false; if (_lbOpen) _renderLeaderboard(_lbPeriod); }
   }
 
   function _startGame() {
     if (_engine) { _engine.destroy(); _engine = null; }
     const container = document.getElementById('shot-game-container');
     if (!container || !window.ShotGameEngine) return;
-    _liveScore = 0; _liveStreak = 0;
-    _updateSessionBadge();
-    if (document.fonts && document.fonts.ready) {
-      document.fonts.ready.then(_syncHudPanelHeight).catch(() => {});
-    } else { _syncHudPanelHeight(); }
-    const lowFx = new URLSearchParams(location.search).get('low') === '1';
+    _liveScore = 0; _liveStreak = 0; _updateSessionBadge();
+    if (document.fonts && document.fonts.ready) { document.fonts.ready.then(_syncHudPanelHeight).catch(() => {}); } else { _syncHudPanelHeight(); }
+    const $ = id => document.getElementById(id);
     _engine = window.ShotGameEngine.create({
-      container, lowFx, billboardImageUrl: _billboardAdImageUrl,
-      ui: {
-        scoreEl: document.getElementById('sg-score'), streakEl: document.getElementById('sg-streak'),
-        powerBarEl: document.getElementById('sg-power'), powerFillEl: document.getElementById('sg-power-fill'),
-        crosshairEl: document.getElementById('sg-crosshair'), messageEl: document.getElementById('sg-message'),
-        restartBtn: document.getElementById('sg-restart'),
-      },
-      onScoreChange(payload) {
-        _liveScore = Number(payload && payload.score != null ? payload.score : 0);
-        _liveStreak = Number(payload && payload.streak != null ? payload.streak : 0);
-        _updateSessionBadge();
-      },
-      onGameOver(payload) {
-        const normalized = {
-          score: Number(payload && payload.score ? payload.score : 0),
-          shots: Number(payload && payload.shots ? payload.shots : 0),
-          streak: Number(payload && payload.bestStreak != null ? payload.bestStreak : (payload ? payload.streak : 0)),
-          durationMs: Number(payload && payload.durationMs ? payload.durationMs : 0),
-        };
-        if (_isBetter(normalized, _bestSession)) _bestSession = normalized;
-        _updateSessionBadge();
-        _submitScoreToRanking(normalized);
-        if (_lbOpen) _renderLeaderboard(_lbPeriod);
+      container, lowFx: new URLSearchParams(location.search).get('low') === '1', billboardImageUrl: _billboardAdImageUrl,
+      ui: { scoreEl: $('sg-score'), streakEl: $('sg-streak'), powerBarEl: $('sg-power'), powerFillEl: $('sg-power-fill'), crosshairEl: $('sg-crosshair'), messageEl: $('sg-message'), restartBtn: $('sg-restart') },
+      onScoreChange(p) { _liveScore = Number(p && p.score != null ? p.score : 0); _liveStreak = Number(p && p.streak != null ? p.streak : 0); _updateSessionBadge(); },
+      onGameOver(p) {
+        const n = { score: Number(p && p.score ? p.score : 0), shots: Number(p && p.shots ? p.shots : 0), streak: Number(p && p.bestStreak != null ? p.bestStreak : (p ? p.streak : 0)), durationMs: Number(p && p.durationMs ? p.durationMs : 0) };
+        if (_isBetter(n, _bestSession)) _bestSession = n;
+        _updateSessionBadge(); _submitScoreToRanking(n); if (_lbOpen) _renderLeaderboard(_lbPeriod);
       },
     });
-    _updateSessionBadge();
-    _openIntro();
+    _updateSessionBadge(); _openIntro();
   }
 
-  /* ── Event Binding ── */
   function _bindEvents() {
-    if (_eventsBound) return;
-    _eventsBound = true;
-    const lbBtn = document.getElementById('sg-leaderboard-btn');
-    if (lbBtn) {
-      lbBtn.addEventListener('pointerdown', e => e.stopPropagation());
-      lbBtn.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); _openLeaderboard(_lbPeriod); });
-    }
-    const lbClose = document.getElementById('sg-leaderboard-close');
+    if (_eventsBound) return; _eventsBound = true;
+    const $ = id => document.getElementById(id);
+    const lbBtn = $('sg-leaderboard-btn');
+    if (lbBtn) { lbBtn.addEventListener('pointerdown', e => e.stopPropagation()); lbBtn.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); _openLeaderboard(_lbPeriod); }); }
+    const lbClose = $('sg-leaderboard-close');
     if (lbClose) lbClose.addEventListener('click', _closeLeaderboard);
-    const lbModal = document.getElementById('sg-leaderboard-modal');
+    const lbModal = $('sg-leaderboard-modal');
     if (lbModal) lbModal.addEventListener('click', e => { if (e.target === lbModal) _closeLeaderboard(); });
-    document.querySelectorAll('#sg-leaderboard-modal .sg-lb-tab').forEach(tab => {
-      tab.addEventListener('click', () => _renderLeaderboard(tab.getAttribute('data-lb-period') || 'daily'));
-    });
-    const introStart = document.getElementById('sg-intro-start');
+    document.querySelectorAll('#sg-leaderboard-modal .sg-lb-tab').forEach(tab => { tab.addEventListener('click', () => _renderLeaderboard(tab.getAttribute('data-lb-period') || 'daily')); });
+    const introStart = $('sg-intro-start');
     if (introStart) introStart.addEventListener('click', _closeIntro);
     window.addEventListener('keydown', e => { if (e.key === 'Escape' && _lbOpen) _closeLeaderboard(); });
     window.addEventListener('resize', _syncHudPanelHeight);

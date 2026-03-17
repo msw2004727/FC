@@ -78,6 +78,10 @@ const ScriptLoader = {
       'js/modules/achievement.js',
     ],
     activity: [
+      'js/modules/event-list-helpers.js',
+      'js/modules/event-list-stats.js',
+      'js/modules/event-list-home.js',
+      'js/modules/event-list-timeline.js',
       'js/modules/event-list.js',
       'js/modules/event-share.js',
       'js/modules/event-detail.js',
@@ -90,14 +94,22 @@ const ScriptLoader = {
     team: [
       'js/modules/event-share.js',
       'js/modules/team-list.js',
+      'js/modules/team-list-render.js',
       'js/modules/team-detail.js',
+      'js/modules/team-detail-render.js',
+      'js/modules/team-detail-members.js',
       'js/modules/team-share.js',
       'js/modules/team-form.js',
     ],
     profile: [
       'js/modules/event-share.js',
+      'js/modules/profile-avatar.js',
       'js/modules/profile-core.js',
+      'js/modules/profile-form.js',
       'js/modules/profile-data.js',
+      'js/modules/profile-data-render.js',
+      'js/modules/profile-data-stats.js',
+      'js/modules/profile-data-history.js',
       'js/modules/profile-card.js',
       'js/modules/profile-share.js',
     ],
@@ -107,6 +119,10 @@ const ScriptLoader = {
     ],
     scan: [
       'js/modules/scan.js',
+      'js/modules/scan-ui.js',
+      'js/modules/scan-camera.js',
+      'js/modules/scan-process.js',
+      'js/modules/scan-family.js',
       'js/modules/attendance-notify.js',
     ],
     game: [
@@ -132,11 +148,13 @@ const ScriptLoader = {
       'js/modules/message-admin.js',
     ],
     adminDashboard: [
+      'js/modules/dashboard-widgets.js',
       'js/modules/dashboard.js',
       'js/modules/dashboard-participant-query.js',
       'js/modules/dashboard-participant-share.js',
     ],
     personalDashboard: [
+      'js/modules/dashboard-widgets.js',
       'js/modules/dashboard.js',
       'js/modules/personal-dashboard.js',
     ],

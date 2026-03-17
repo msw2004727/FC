@@ -10,6 +10,18 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-17 — JS 檔案拆分 Phase 2（7 大模組拆分為 24 個檔案）
+- **內容**：將 7 個超過 300 行的模組拆分至 300 行以下
+  - event-list.js → event-list-helpers.js, event-list-stats.js, event-list-home.js, event-list-timeline.js
+  - scan.js → scan-ui.js, scan-camera.js, scan-process.js, scan-family.js
+  - team-detail.js → team-detail-render.js, team-detail-members.js
+  - profile-data.js → profile-data-render.js, profile-data-stats.js, profile-data-history.js
+  - profile-core.js → profile-form.js, profile-avatar.js
+  - team-list.js → team-list-render.js
+  - dashboard.js → dashboard-widgets.js
+- **修復**：scan-process.js 超 300 行，手動提取 family checkin 至 scan-family.js
+- **教訓**：Linter hook 會自動整理檔案，不要與之對抗；innerHTML 安全 hook 需在檔案頭加 escapeHTML 安全註解
+
 ### 2026-03-17 — Phase 2 自動化測試擴充（350 個新測試）
 - **內容**：新增 3 個測試檔案，覆蓋 config 工具函式、成就系統、活動模組
   1. `tests/unit/config-utils.test.js`（87 tests）— escapeHTML、Permission System（7 函式）、Sport Config、Custom Role
