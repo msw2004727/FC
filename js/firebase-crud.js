@@ -2084,6 +2084,8 @@ Object.assign(FirebaseService, {
   },
 
   async createEduGroup(teamId, data) {
+    const authed = await this.ensureAuthReadyForWrite();
+    if (!authed) throw new Error('Firebase 登入失敗，請關閉此頁面後重新從 LINE 開啟');
     const collRef = await this._getTeamSubcollectionRef(teamId, 'groups');
     const docRef = data.id ? collRef.doc(data.id) : collRef.doc();
     const payload = { ..._stripDocId(data), id: data.id || docRef.id };
@@ -2097,6 +2099,8 @@ Object.assign(FirebaseService, {
   },
 
   async updateEduGroup(teamId, groupId, updates) {
+    const authed = await this.ensureAuthReadyForWrite();
+    if (!authed) throw new Error('Firebase 登入失敗，請關閉此頁面後重新從 LINE 開啟');
     const collRef = await this._getTeamSubcollectionRef(teamId, 'groups');
     await collRef.doc(groupId).update({
       ..._stripDocId(updates),
@@ -2106,6 +2110,8 @@ Object.assign(FirebaseService, {
   },
 
   async deleteEduGroup(teamId, groupId) {
+    const authed = await this.ensureAuthReadyForWrite();
+    if (!authed) throw new Error('Firebase 登入失敗，請關閉此頁面後重新從 LINE 開啟');
     const collRef = await this._getTeamSubcollectionRef(teamId, 'groups');
     await collRef.doc(groupId).delete();
     return true;
@@ -2122,6 +2128,8 @@ Object.assign(FirebaseService, {
   },
 
   async createEduStudent(teamId, data) {
+    const authed = await this.ensureAuthReadyForWrite();
+    if (!authed) throw new Error('Firebase 登入失敗，請關閉此頁面後重新從 LINE 開啟');
     const collRef = await this._getTeamSubcollectionRef(teamId, 'students');
     const docRef = data.id ? collRef.doc(data.id) : collRef.doc();
     const payload = { ..._stripDocId(data), id: data.id || docRef.id };
@@ -2135,6 +2143,8 @@ Object.assign(FirebaseService, {
   },
 
   async updateEduStudent(teamId, studentId, updates) {
+    const authed = await this.ensureAuthReadyForWrite();
+    if (!authed) throw new Error('Firebase 登入失敗，請關閉此頁面後重新從 LINE 開啟');
     const collRef = await this._getTeamSubcollectionRef(teamId, 'students');
     await collRef.doc(studentId).update({
       ..._stripDocId(updates),
@@ -2144,6 +2154,8 @@ Object.assign(FirebaseService, {
   },
 
   async deleteEduStudent(teamId, studentId) {
+    const authed = await this.ensureAuthReadyForWrite();
+    if (!authed) throw new Error('Firebase 登入失敗，請關閉此頁面後重新從 LINE 開啟');
     const collRef = await this._getTeamSubcollectionRef(teamId, 'students');
     await collRef.doc(studentId).delete();
   },
@@ -2159,6 +2171,8 @@ Object.assign(FirebaseService, {
   },
 
   async createEduCoursePlan(teamId, data) {
+    const authed = await this.ensureAuthReadyForWrite();
+    if (!authed) throw new Error('Firebase 登入失敗，請關閉此頁面後重新從 LINE 開啟');
     const collRef = await this._getTeamSubcollectionRef(teamId, 'coursePlans');
     const docRef = data.id ? collRef.doc(data.id) : collRef.doc();
     const payload = { ..._stripDocId(data), id: data.id || docRef.id };
@@ -2172,6 +2186,8 @@ Object.assign(FirebaseService, {
   },
 
   async updateEduCoursePlan(teamId, planId, updates) {
+    const authed = await this.ensureAuthReadyForWrite();
+    if (!authed) throw new Error('Firebase 登入失敗，請關閉此頁面後重新從 LINE 開啟');
     const collRef = await this._getTeamSubcollectionRef(teamId, 'coursePlans');
     await collRef.doc(planId).update({
       ..._stripDocId(updates),
@@ -2181,6 +2197,8 @@ Object.assign(FirebaseService, {
   },
 
   async deleteEduCoursePlan(teamId, planId) {
+    const authed = await this.ensureAuthReadyForWrite();
+    if (!authed) throw new Error('Firebase 登入失敗，請關閉此頁面後重新從 LINE 開啟');
     const collRef = await this._getTeamSubcollectionRef(teamId, 'coursePlans');
     await collRef.doc(planId).delete();
     return true;
@@ -2191,6 +2209,8 @@ Object.assign(FirebaseService, {
   // ════════════════════════════════
 
   async addEduAttendance(data) {
+    const authed = await this.ensureAuthReadyForWrite();
+    if (!authed) throw new Error('Firebase 登入失敗，請關閉此頁面後重新從 LINE 開啟');
     const docRef = data.id ? db.collection('eduAttendance').doc(data.id) : db.collection('eduAttendance').doc();
     const payload = { ..._stripDocId(data), id: data.id || docRef.id };
     await docRef.set({
