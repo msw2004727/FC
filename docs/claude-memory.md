@@ -10,6 +10,12 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-17 — JS 檔案拆分 Phase 3（6 大模組 + 整合既有拆分檔）
+- **內容**：event-manage(2056→532)、event-create(2249→402)、team-form(1011→386)、tournament-manage(988→299)、event-detail(793→692)、tournament-render(557→155)、event-share(508→262)。新增 23 個拆分檔、刪除 team.js(1381行)
+- **風險發現**：event-share-builders.js 僅在 script-loader 但 event-share.js 在 index.html 直接載入，已修復（加入 index.html）
+- **評估不拆的檔案**：user-admin-roles(670)/exp(599)/list(537)、event-detail-signup(563)、tournament-render(557→已拆)、banner(414)、audit-log(409)、event-create(402→已拆) — 耦合緊密或已為拆分後殘餘
+- **教訓**：拆分後必須檢查 index.html 直接載入 vs script-loader 動態載入的一致性，避免拆出的檔案未被載入
+
 ### 2026-03-17 — JS 檔案拆分 Phase 2（7 大模組拆分為 24 個檔案）
 - **內容**：將 7 個超過 300 行的模組拆分至 300 行以下
   - event-list.js → event-list-helpers.js, event-list-stats.js, event-list-home.js, event-list-timeline.js

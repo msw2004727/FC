@@ -77,18 +77,18 @@
   function _loadEngine() {
     if (window.ShotGameEngine) return Promise.resolve();
     const deps = [
-      'js/modules/shot-physics.js',
-      'js/modules/shot-renderer.js',
-      'js/modules/shot-scoring.js',
-      'js/modules/shot-game-loop.js',
+      'js/modules/shot-game/shot-physics.js',
+      'js/modules/shot-game/shot-renderer.js',
+      'js/modules/shot-game/shot-scoring.js',
+      'js/modules/shot-game/shot-game-loop.js',
     ];
     const loadDep = (typeof ScriptLoader !== 'undefined')
       ? (p) => ScriptLoader._load(p)
       : _loadScriptSimple;
     return Promise.all(deps.map(loadDep)).then(() => {
       return (typeof ScriptLoader !== 'undefined')
-        ? ScriptLoader._load('js/modules/shot-game-engine.js')
-        : _loadScriptSimple('js/modules/shot-game-engine.js');
+        ? ScriptLoader._load('js/modules/shot-game/shot-game-engine.js')
+        : _loadScriptSimple('js/modules/shot-game/shot-game-engine.js');
     });
   }
 
