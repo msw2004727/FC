@@ -10,6 +10,16 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-17 — [永久] 孤兒記錄清理 event.id vs Firestore doc.id 混淆導致全量誤刪
+- **問題**：執行 `_syncOrphanCleanup` 後，registrations、activityRecords、attendanceRecords 三個集合被全部清空
+- **原因**：修復快取問題時改用 `db.collection('events').get()`，但取有效 ID 時用了 `d.id`（Firestore 自動產生的 doc ID），而非 `d.data().id`（自訂的 event ID 如 `ce_xxx`）。由於 registrations 等集合的 `eventId` 欄位存的是自訂 ID，所以所有紀錄都被誤判為孤兒而刪除
+- **修復**：改為同時收集 `d.data().id`（自訂 ID）和 `d.id`（Firestore doc ID），確保兩種 ID 都納入有效清單
+- **資料恢復**：從 events.participants / waitlistNames 陣列重建 registrations、activityRecords、attendanceRecords（docs/rebuild-records.js）
+- **教訓**：
+  1. **event 有兩個 ID**：`doc.id`（Firestore 自動產生）≠ `doc.data().id`（程式自訂如 `ce_xxx`）。所有子集合（registrations/activityRecords/attendanceRecords）的 `eventId` 欄位存的是自訂 ID
+  2. **任何批量刪除操作必須先做 dry-run**：先 log 要刪的數量和抽樣，確認後才實際刪除
+  3. **Firestore 沒有自動備份**：此專案未啟用 PITR 或排程備份，刪除不可逆
+
 ### 2026-03-17 — [永久] 孤兒記錄清理用快取當有效清單導致誤刪
 - **問題**：用戶出席率顯示 0% 而非 100%。診斷發現 7 個活動的 events 文件不存在，但 registrations/activityRecords/attendanceRecords 還在
 - **原因**：`_syncOrphanCleanup` 用 `ApiService.getEvents()`（前端快取，limit 200+200）作為有效活動清單。若系統活動超過快取上限，正常活動被誤判為孤兒而清除相關資料，或活動本身被正常刪除但級聯清理不完整

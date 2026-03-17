@@ -204,7 +204,7 @@ Object.assign(App, {
     ui.log(`用戶球隊欄位：修正 ${updated}/${users.length} 位`);
   },
 
-  // ── ④ 孤兒記錄清理 ──
+  // ── ④ 孤兒記錄清理（含 dry-run 安全機制）──
   async _syncOrphanCleanup(ui) {
     ui.log('開始孤兒記錄清理...');
     // 直接從 Firestore 查所有 events（不用快取，避免 limit 截斷導致誤刪）
@@ -235,22 +235,67 @@ Object.assign(App, {
       { name: 'attendanceRecords', label: '出席紀錄' },
     ];
 
-    let totalDeleted = 0;
+    // ── Dry-run：先掃描統計，不刪除 ──
+    const dryRunResults = [];
     for (const col of collections) {
       ui.log(`掃描 ${col.label}...`);
-      let orphanCount = 0;
       try {
         const snap = await db.collection(col.name).get();
         const orphans = [];
+        const sampleOrphans = [];
         snap.docs.forEach(doc => {
           const data = doc.data();
           const eventId = String(data?.eventId || '').trim();
           if (eventId && !validEventIds.has(eventId)) {
             orphans.push(doc.id);
+            if (sampleOrphans.length < 3) {
+              sampleOrphans.push({ docId: doc.id, eventId, userName: data.userName || data.uid || '?' });
+            }
           }
         });
+        dryRunResults.push({ col, total: snap.size, orphanCount: orphans.length, orphans, sampleOrphans });
+        ui.log(`${col.label}：${orphans.length}/${snap.size} 筆為孤兒`);
+        sampleOrphans.forEach(s => ui.log(`  樣本：${s.userName} (eventId=${s.eventId})`));
+      } catch (err) {
+        ui.log(`錯誤 [${col.label}]：${err.message}`);
+        dryRunResults.push({ col, total: 0, orphanCount: 0, orphans: [], sampleOrphans: [] });
+      }
+    }
 
-        // Batch delete in chunks of 450
+    // ── 安全檢查：孤兒比例 > 50% 時強制確認 ──
+    const totalRecords = dryRunResults.reduce((s, r) => s + r.total, 0);
+    const totalOrphans = dryRunResults.reduce((s, r) => s + r.orphanCount, 0);
+    const orphanRatio = totalRecords > 0 ? totalOrphans / totalRecords : 0;
+
+    if (orphanRatio > 0.5) {
+      ui.log(`\n⚠️ 警告：孤兒比例 ${(orphanRatio * 100).toFixed(1)}% 超過 50%，可能有判斷錯誤！`);
+      const forceOk = await this.appConfirm(
+        `⚠️ 危險：孤兒比例 ${(orphanRatio * 100).toFixed(1)}% 超過 50%！\n\n` +
+        dryRunResults.map(r => `${r.col.label}：${r.orphanCount}/${r.total} 筆`).join('\n') + '\n\n' +
+        '這可能代表判斷邏輯有誤。確定要繼續刪除嗎？'
+      );
+      if (!forceOk) {
+        ui.log('用戶取消操作（孤兒比例過高）');
+        return;
+      }
+    }
+
+    // ── 確認後再執行實際刪除 ──
+    const confirmOk = await this.appConfirm(
+      `孤兒掃描完成：\n\n` +
+      dryRunResults.map(r => `${r.col.label}：將刪除 ${r.orphanCount}/${r.total} 筆`).join('\n') + '\n\n' +
+      '確定要執行刪除嗎？'
+    );
+    if (!confirmOk) {
+      ui.log('用戶取消刪除操作');
+      return;
+    }
+
+    let totalDeleted = 0;
+    for (const result of dryRunResults) {
+      const { col, orphans } = result;
+      let orphanCount = 0;
+      try {
         for (let s = 0; s < orphans.length; s += 450) {
           const chunk = orphans.slice(s, s + 450);
           const batch = db.batch();
@@ -258,13 +303,12 @@ Object.assign(App, {
           await batch.commit();
           orphanCount += chunk.length;
         }
-
-        ui.log(`${col.label}：刪除 ${orphanCount} 筆孤兒（共 ${snap.size} 筆）`);
+        ui.log(`${col.label}：刪除 ${orphanCount} 筆孤兒（共 ${result.total} 筆）`);
         totalDeleted += orphanCount;
       } catch (err) {
         ui.log(`錯誤 [${col.label}]：${err.message}`);
       }
-      ui.setProgress(collections.indexOf(col) + 1, collections.length);
+      ui.setProgress(dryRunResults.indexOf(result) + 1, dryRunResults.length);
     }
     ui.log(`孤兒記錄清理完成：共刪除 ${totalDeleted} 筆`);
   },
