@@ -342,6 +342,21 @@ async function seedBaseDocs() {
       eventId: "eventB",
     });
 
+    await setDoc(doc(db, "attendanceRecords", "att_existing"), {
+      uid: "uidUser",
+      status: "checkin",
+      eventId: "eventA",
+      type: "play",
+      checkInTime: new Date(),
+    });
+
+    await setDoc(doc(db, "rolePermissions", "admin"), {
+      permissions: ["event.edit_all", "team.manage_all"],
+    });
+    await setDoc(doc(db, "rolePermissions", "super_admin"), {
+      permissions: ["event.edit_all", "team.manage_all", "admin.repair.no_show_adjust"],
+    });
+
     await setDoc(doc(db, "expLogs", "expA"), { targetUid: "uidA", amount: 1 });
     await setDoc(doc(db, "expLogs", "expB"), { targetUid: "uidB", amount: 1 });
 
@@ -1366,6 +1381,20 @@ describe("Role usability smoke tests", () => {
     );
   });
 
+  test("user can read own attendance record", async () => {
+    await assertSucceeds(getDoc(doc(user(), "attendanceRecords", "attA")));
+  });
+
+  test("user can create attendance record", async () => {
+    await assertSucceeds(
+      setDoc(doc(user(), "attendanceRecords", "att_user_smoke"), {
+        uid: "uidUser",
+        status: "checkin",
+        eventId: "eventA",
+      })
+    );
+  });
+
   test("user cannot create line push queue job", async () => {
     await assertFails(
       setDoc(doc(user(), "linePushQueue", "queue_user_smoke"), {
@@ -1392,6 +1421,562 @@ describe("Role usability smoke tests", () => {
         title: "super admin push",
         body: "payload",
         status: "pending",
+      })
+    );
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════
+//  attendanceRecords comprehensive tests
+// ═══════════════════════════════════════════════════════════════
+describe("/attendanceRecords/{recordId}", () => {
+  test("any authenticated user can read", async () => {
+    await assertByRole(
+      ({ db }) => getDoc(doc(db, "attendanceRecords", "attA")),
+      allowAuth
+    );
+  });
+
+  test("guest cannot read", async () => {
+    await assertFails(getDoc(doc(guest(), "attendanceRecords", "attA")));
+  });
+
+  test("any authenticated user can create", async () => {
+    await assertByRole(
+      ({ db, role }) =>
+        setDoc(doc(db, "attendanceRecords", `att_cr_${role}`), {
+          uid: role,
+          status: "checkin",
+          eventId: "eventA",
+        }),
+      allowAuth
+    );
+  });
+
+  test("guest cannot create", async () => {
+    await assertFails(
+      setDoc(doc(guest(), "attendanceRecords", "att_cr_guest"), {
+        uid: "nobody",
+        status: "checkin",
+        eventId: "eventA",
+      })
+    );
+  });
+
+  test("admin can update any field", async () => {
+    await assertSucceeds(
+      updateDoc(doc(admin(), "attendanceRecords", "att_existing"), {
+        status: "checkout",
+        eventId: "eventB",
+        type: "friendly",
+        checkOutTime: new Date(),
+      })
+    );
+  });
+
+  test("non-admin can update status fields only (isAttendanceStatusUpdate)", async () => {
+    await assertSucceeds(
+      updateDoc(doc(user(), "attendanceRecords", "att_existing"), {
+        status: "checkout",
+        checkOutTime: new Date(),
+        updatedAt: new Date(),
+      })
+    );
+  });
+
+  test("non-admin can update removedAt and removedByUid status fields", async () => {
+    await assertSucceeds(
+      updateDoc(doc(memberA(), "attendanceRecords", "att_existing"), {
+        status: "removed",
+        removedAt: new Date(),
+        removedByUid: "uidA",
+        updatedAt: new Date(),
+      })
+    );
+  });
+
+  test("non-admin cannot update non-status fields like eventId or type", async () => {
+    await assertFails(
+      updateDoc(doc(user(), "attendanceRecords", "att_existing"), {
+        eventId: "eventB",
+      })
+    );
+    await assertFails(
+      updateDoc(doc(memberA(), "attendanceRecords", "att_existing"), {
+        type: "friendly",
+      })
+    );
+    await assertFails(
+      updateDoc(doc(user(), "attendanceRecords", "att_existing"), {
+        uid: "uidOther",
+      })
+    );
+  });
+
+  test("non-admin cannot update status + non-status fields together", async () => {
+    await assertFails(
+      updateDoc(doc(user(), "attendanceRecords", "att_existing"), {
+        status: "checkout",
+        eventId: "eventB",
+      })
+    );
+  });
+
+  test("nobody can delete (allow delete: if false)", async () => {
+    await assertByRole(
+      async ({ db, role }) => {
+        const id = `att_del_check_${role}`;
+        await seedDoc("attendanceRecords", id, {
+          uid: "uidA",
+          status: "checkin",
+          eventId: "eventA",
+        });
+        return deleteDoc(doc(db, "attendanceRecords", id));
+      },
+      denyAll
+    );
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════
+//  users self-update security boundaries
+// ═══════════════════════════════════════════════════════════════
+describe("/users/{userId} self-update security boundaries", () => {
+  // --- isSafeSelfProfileUpdate path ---
+  test("owner can update safe profile fields (displayName, phone, gender, etc.)", async () => {
+    await assertSucceeds(
+      updateDoc(doc(user(), "users", "uidUser"), {
+        displayName: "New Name",
+        phone: "0912345678",
+        gender: "male",
+        birthday: "1990-01-01",
+        region: "Taipei",
+        sports: "football",
+        updatedAt: serverTimestamp(),
+      })
+    );
+  });
+
+  test("owner can update photoURL, pictureUrl, favorites, socialLinks", async () => {
+    await assertSucceeds(
+      updateDoc(doc(user(), "users", "uidUser"), {
+        photoURL: "https://example.com/photo.png",
+        pictureUrl: "https://example.com/pic.png",
+        favorites: { team: "teamA" },
+        socialLinks: { line: "myline" },
+        updatedAt: serverTimestamp(),
+      })
+    );
+  });
+
+  test("owner can update titleBig, titleNormal, lineNotify, companions", async () => {
+    await assertSucceeds(
+      updateDoc(doc(user(), "users", "uidUser"), {
+        titleBig: "MVP",
+        titleNormal: "Player",
+        lineNotify: { enabled: true },
+        companions: [{ name: "Friend" }],
+        updatedAt: serverTimestamp(),
+      })
+    );
+  });
+
+  test("owner can set nullable profile fields to null", async () => {
+    await assertSucceeds(
+      updateDoc(doc(user(), "users", "uidUser"), {
+        phone: null,
+        gender: null,
+        birthday: null,
+        photoURL: null,
+        pictureUrl: null,
+        region: null,
+        sports: null,
+        favorites: null,
+        socialLinks: null,
+        titleBig: null,
+        titleNormal: null,
+        lineNotify: null,
+        companions: null,
+        updatedAt: serverTimestamp(),
+      })
+    );
+  });
+
+  test("owner CANNOT update role", async () => {
+    await assertFails(
+      updateDoc(doc(user(), "users", "uidUser"), {
+        role: "admin",
+      })
+    );
+  });
+
+  test("owner CANNOT update exp", async () => {
+    await assertFails(
+      updateDoc(doc(user(), "users", "uidUser"), {
+        exp: 9999,
+      })
+    );
+  });
+
+  test("owner CANNOT update level", async () => {
+    await assertFails(
+      updateDoc(doc(user(), "users", "uidUser"), {
+        level: 99,
+      })
+    );
+  });
+
+  test("owner CANNOT update uid", async () => {
+    await assertFails(
+      updateDoc(doc(user(), "users", "uidUser"), {
+        uid: "uidHacked",
+      })
+    );
+  });
+
+  test("owner CANNOT update isAdmin", async () => {
+    await assertFails(
+      updateDoc(doc(user(), "users", "uidUser"), {
+        isAdmin: true,
+      })
+    );
+  });
+
+  test("owner CANNOT update createdAt", async () => {
+    await assertFails(
+      updateDoc(doc(user(), "users", "uidUser"), {
+        createdAt: new Date(),
+      })
+    );
+  });
+
+  test("owner CANNOT update claims or manualRole", async () => {
+    await assertFails(
+      updateDoc(doc(user(), "users", "uidUser"), {
+        claims: { role: "admin" },
+      })
+    );
+    await assertFails(
+      updateDoc(doc(user(), "users", "uidUser"), {
+        manualRole: "admin",
+      })
+    );
+  });
+
+  test("owner CANNOT update lineUserId", async () => {
+    await assertFails(
+      updateDoc(doc(user(), "users", "uidUser"), {
+        lineUserId: "Ufake123",
+      })
+    );
+  });
+
+  test("owner CANNOT update teamId/teamName via normal profile update", async () => {
+    await assertFails(
+      updateDoc(doc(user(), "users", "uidUser"), {
+        displayName: "Updated",
+        teamId: "teamA",
+        teamName: "Team A",
+        updatedAt: serverTimestamp(),
+      })
+    );
+  });
+
+  // --- isTeamFieldShrinkOrClear path ---
+  test("owner CAN do team field shrink (remove from teamIds)", async () => {
+    await seedUserDoc("uidUser", {
+      displayName: "General User",
+      teamId: "teamA",
+      teamName: "Team A",
+      teamIds: ["teamA", "teamB", "teamC"],
+      teamNames: ["Team A", "Team B", "Team C"],
+    });
+
+    await assertSucceeds(
+      updateDoc(doc(user(), "users", "uidUser"), {
+        teamId: "teamA",
+        teamName: "Team A",
+        teamIds: ["teamA", "teamB"],
+        teamNames: ["Team A", "Team B"],
+        updatedAt: serverTimestamp(),
+      })
+    );
+  });
+
+  test("owner CAN clear all team fields", async () => {
+    await seedUserDoc("uidUser", {
+      displayName: "General User",
+      teamId: "teamA",
+      teamName: "Team A",
+      teamIds: ["teamA"],
+      teamNames: ["Team A"],
+    });
+
+    await assertSucceeds(
+      updateDoc(doc(user(), "users", "uidUser"), {
+        teamId: null,
+        teamName: null,
+        teamIds: [],
+        teamNames: [],
+        updatedAt: serverTimestamp(),
+      })
+    );
+  });
+
+  test("owner CAN clear team fields using null for teamIds/teamNames", async () => {
+    await seedUserDoc("uidUser", {
+      displayName: "General User",
+      teamId: "teamA",
+      teamName: "Team A",
+      teamIds: ["teamA"],
+      teamNames: ["Team A"],
+    });
+
+    await assertSucceeds(
+      updateDoc(doc(user(), "users", "uidUser"), {
+        teamId: null,
+        teamName: null,
+        teamIds: null,
+        teamNames: null,
+        updatedAt: serverTimestamp(),
+      })
+    );
+  });
+
+  test("owner CANNOT add new team via team shrink path", async () => {
+    await seedUserDoc("uidUser", {
+      displayName: "General User",
+      teamId: "teamA",
+      teamName: "Team A",
+      teamIds: ["teamA"],
+      teamNames: ["Team A"],
+    });
+
+    // Trying to add a new team that wasn't in original teamIds
+    await assertFails(
+      updateDoc(doc(user(), "users", "uidUser"), {
+        teamId: "teamX",
+        teamName: "Team X",
+        teamIds: ["teamX"],
+        teamNames: ["Team X"],
+        updatedAt: serverTimestamp(),
+      })
+    );
+  });
+
+  test("owner CANNOT grow team list (same size, not shrinking)", async () => {
+    await seedUserDoc("uidUser", {
+      displayName: "General User",
+      teamId: "teamA",
+      teamName: "Team A",
+      teamIds: ["teamA"],
+      teamNames: ["Team A"],
+    });
+
+    // Same size as original — not a shrink
+    await assertFails(
+      updateDoc(doc(user(), "users", "uidUser"), {
+        teamId: "teamA",
+        teamName: "Team A",
+        teamIds: ["teamA"],
+        teamNames: ["Team A"],
+        updatedAt: serverTimestamp(),
+      })
+    );
+  });
+
+  // --- isSafeLoginUpdate path ---
+  test("login update: can update displayName + pictureUrl + lastLogin", async () => {
+    await assertSucceeds(
+      updateDoc(doc(user(), "users", "uidUser"), {
+        displayName: "Login Updated Name",
+        pictureUrl: "https://example.com/new-avatar.png",
+        lastLogin: serverTimestamp(),
+      })
+    );
+  });
+
+  test("login update: can update only lastLogin with server timestamp", async () => {
+    await assertSucceeds(
+      updateDoc(doc(user(), "users", "uidUser"), {
+        lastLogin: serverTimestamp(),
+      })
+    );
+  });
+
+  test("login update: can update displayName + lastLogin without pictureUrl", async () => {
+    await assertSucceeds(
+      updateDoc(doc(user(), "users", "uidUser"), {
+        displayName: "Just Name Update",
+        lastLogin: serverTimestamp(),
+      })
+    );
+  });
+
+  test("login update: lastLogin must equal request.time (serverTimestamp)", async () => {
+    await assertFails(
+      updateDoc(doc(user(), "users", "uidUser"), {
+        displayName: "Spoofed Login",
+        pictureUrl: "https://example.com/pic.png",
+        lastLogin: new Date("2020-01-01T00:00:00.000Z"),
+      })
+    );
+  });
+
+  test("login update: cannot include other fields like phone", async () => {
+    await assertFails(
+      updateDoc(doc(user(), "users", "uidUser"), {
+        displayName: "Login Name",
+        pictureUrl: "https://example.com/pic.png",
+        lastLogin: serverTimestamp(),
+        phone: "0912345678",
+      })
+    );
+  });
+
+  test("login update: cannot include updatedAt (not in login shape)", async () => {
+    await assertFails(
+      updateDoc(doc(user(), "users", "uidUser"), {
+        displayName: "Login Name",
+        lastLogin: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      })
+    );
+  });
+
+  // --- Cross-path: non-owner cannot use self-update paths ---
+  test("non-owner cannot update another user's profile even with safe fields", async () => {
+    await assertFails(
+      updateDoc(doc(memberA(), "users", "uidUser"), {
+        displayName: "Hacked Name",
+        updatedAt: serverTimestamp(),
+      })
+    );
+  });
+
+  test("non-owner cannot use login update path on another user", async () => {
+    await assertFails(
+      updateDoc(doc(memberA(), "users", "uidUser"), {
+        displayName: "Hacked Login",
+        lastLogin: serverTimestamp(),
+      })
+    );
+  });
+
+  // --- delete always denied ---
+  test("nobody can delete a user document", async () => {
+    await assertByRole(
+      async ({ db, role }) => {
+        const id = `user_del_${role}`;
+        await seedUserDoc(id, { displayName: `Del ${role}` });
+        return deleteDoc(doc(db, "users", id));
+      },
+      denyAll
+    );
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════
+//  rolePermissions collection tests
+// ═══════════════════════════════════════════════════════════════
+describe("/rolePermissions/{roleKey}", () => {
+  test("any authenticated user can read", async () => {
+    await assertByRole(
+      ({ db }) => getDoc(doc(db, "rolePermissions", "admin")),
+      allowAuth
+    );
+  });
+
+  test("guest cannot read", async () => {
+    await assertFails(getDoc(doc(guest(), "rolePermissions", "admin")));
+  });
+
+  test("superAdmin can create new rolePermissions doc", async () => {
+    await assertSucceeds(
+      setDoc(doc(superAdmin(), "rolePermissions", "coach"), {
+        permissions: ["event.edit_all"],
+      })
+    );
+  });
+
+  test("superAdmin can update existing rolePermissions doc", async () => {
+    await assertSucceeds(
+      updateDoc(doc(superAdmin(), "rolePermissions", "admin"), {
+        permissions: ["event.edit_all", "team.manage_all", "admin.shop.entry"],
+      })
+    );
+  });
+
+  test("superAdmin can delete rolePermissions doc", async () => {
+    await seedDoc("rolePermissions", "rp_del_test", {
+      permissions: ["some.perm"],
+    });
+    await assertSucceeds(
+      deleteDoc(doc(superAdmin(), "rolePermissions", "rp_del_test"))
+    );
+  });
+
+  test("admin cannot create rolePermissions", async () => {
+    await assertFails(
+      setDoc(doc(admin(), "rolePermissions", "captain"), {
+        permissions: ["event.edit_all"],
+      })
+    );
+  });
+
+  test("admin cannot update rolePermissions", async () => {
+    await assertFails(
+      updateDoc(doc(admin(), "rolePermissions", "admin"), {
+        permissions: ["event.edit_all", "team.manage_all", "admin.shop.entry"],
+      })
+    );
+  });
+
+  test("admin cannot delete rolePermissions", async () => {
+    await assertFails(
+      deleteDoc(doc(admin(), "rolePermissions", "admin"))
+    );
+  });
+
+  test("regular user cannot create rolePermissions", async () => {
+    await assertFails(
+      setDoc(doc(user(), "rolePermissions", "user"), {
+        permissions: ["event.edit_all"],
+      })
+    );
+  });
+
+  test("regular user cannot update rolePermissions", async () => {
+    await assertFails(
+      updateDoc(doc(user(), "rolePermissions", "admin"), {
+        permissions: [],
+      })
+    );
+  });
+
+  test("regular user cannot delete rolePermissions", async () => {
+    await assertFails(
+      deleteDoc(doc(user(), "rolePermissions", "admin"))
+    );
+  });
+
+  test("memberA cannot write rolePermissions", async () => {
+    await assertFails(
+      setDoc(doc(memberA(), "rolePermissions", "memberA_test"), {
+        permissions: ["event.edit_all"],
+      })
+    );
+    await assertFails(
+      updateDoc(doc(memberA(), "rolePermissions", "admin"), {
+        permissions: [],
+      })
+    );
+  });
+
+  test("guest cannot write rolePermissions", async () => {
+    await assertFails(
+      setDoc(doc(guest(), "rolePermissions", "guest_test"), {
+        permissions: [],
       })
     );
   });
