@@ -62,7 +62,7 @@ Object.assign(App, {
       for (let i = 0; i < totalSlots; i++) {
         const attended = i < records.length;
         const record = attended ? records[i] : null;
-        const shortDate = record ? (() => {
+        const shortDate = (record && record.date) ? (() => {
           const parts = record.date.split('-');
           return parseInt(parts[1]) + '/' + parseInt(parts[2]);
         })() : '';

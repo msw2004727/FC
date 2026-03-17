@@ -108,7 +108,7 @@ Object.assign(App, {
       // 多個孩子，讓教練選擇
       resultEl.innerHTML = '<div class="edu-scan-multi">' +
         '<div style="font-weight:600;margin-bottom:.3rem">此帳號對應多位學員，請選擇：</div>' +
-        matched.map(s => '<button class="outline-btn" style="margin:.2rem" onclick="App._eduScanCheckinStudent(\'' + teamId + '\',\'' + s.id + '\',\'' + escapeHTML(s.name) + '\')">' + escapeHTML(s.name) + '</button>').join('') +
+        matched.map(s => '<button class="outline-btn" style="margin:.2rem" data-team="' + escapeHTML(teamId) + '" data-student="' + escapeHTML(s.id) + '" data-name="' + escapeHTML(s.name) + '" onclick="App._eduScanCheckinStudent(this.dataset.team,this.dataset.student,this.dataset.name)">' + escapeHTML(s.name) + '</button>').join('') +
       '</div>';
       return;
     }

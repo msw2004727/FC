@@ -78,11 +78,11 @@ Object.assign(App, {
 
     bodyEl.innerHTML = infoCard + bioCard + groupSection + courseSection + checkinSection + calendarSection + applySection;
 
-    // 非同步載入分組列表
-    this.renderEduGroupList(teamId);
-    // 非同步載入課程方案
+    // 載入分組列表
+    await this.renderEduGroupList(teamId);
+    // 載入課程方案
     if (isStaff && typeof this.renderEduCoursePlanList === 'function') {
-      this.renderEduCoursePlanList(teamId);
+      await this.renderEduCoursePlanList(teamId);
     }
   },
 

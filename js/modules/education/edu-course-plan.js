@@ -198,7 +198,7 @@ Object.assign(App, {
         if (idx !== -1) cached.splice(idx, 1);
       }
       this.showToast('課程方案已刪除');
-      this.renderEduCoursePlanList(teamId);
+      await this.renderEduCoursePlanList(teamId);
     } catch (err) {
       console.error('[deleteEduCoursePlan]', err);
       this.showToast('刪除失敗');

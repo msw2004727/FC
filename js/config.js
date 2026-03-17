@@ -251,7 +251,8 @@
 // 20260316t: 一次性清理全域 achievements 汙染（重設 current/completedAt 為模板狀態）
 // 20260317j: Phase 2 — 拆分 event-list/scan/team-detail/profile-data/profile-core/team-list/dashboard
 // 20260317zn: 教育型俱樂部系統 Phase 1-8（type/eduSettings + 分組/學員/課程/簽到/行事曆/通知）
-const CACHE_VERSION = '20260317zn';
+// 20260317zo: QA 修復 — onclick XSS、missing await、deleteEduStudent、null guard
+const CACHE_VERSION = '20260317zo';
 
 // ─── Page Strategy Registry ───
 // 唯一策略來源，未列出的頁面預設 fresh-first

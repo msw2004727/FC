@@ -2143,6 +2143,11 @@ Object.assign(FirebaseService, {
     return { id: studentId, ...updates, _docId: studentId };
   },
 
+  async deleteEduStudent(teamId, studentId) {
+    const collRef = await this._getTeamSubcollectionRef(teamId, 'students');
+    await collRef.doc(studentId).delete();
+  },
+
   // ════════════════════════════════
   //  Education: Course Plans CRUD
   // ════════════════════════════════

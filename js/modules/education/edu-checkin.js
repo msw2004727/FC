@@ -180,7 +180,7 @@ Object.assign(App, {
       }
 
       // 重新渲染
-      this._onEduCheckinGroupChange();
+      await this._onEduCheckinGroupChange();
     } catch (err) {
       console.error('[confirmEduCheckin]', err);
       this.showToast('簽到失敗：' + (err.message || '請稍後再試'));

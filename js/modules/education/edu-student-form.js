@@ -138,9 +138,9 @@ Object.assign(App, {
       }
       this.closeModal();
       if (this._eduCurrentGroupId) {
-        this.renderEduStudentList(teamId, this._eduCurrentGroupId);
+        await this.renderEduStudentList(teamId, this._eduCurrentGroupId);
       }
-      this.renderEduGroupList(teamId);
+      await this.renderEduGroupList(teamId);
     } catch (err) {
       console.error('[handleSaveEduStudent]', err);
       this.showToast('儲存失敗：' + (err.message || '請稍後再試'));

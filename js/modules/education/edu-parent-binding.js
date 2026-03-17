@@ -66,8 +66,8 @@ Object.assign(App, {
           (child.teamName ? '<span class="edu-group-tag">' + escapeHTML(child.teamName) + '</span>' : '') +
         '</div>' +
         '<div class="edu-student-actions">' +
-          '<button class="outline-btn small" onclick="App.showEduCalendar(\'' + escapeHTML(child.teamId) + '\',\'' + escapeHTML(child.id) + '\')">出席紀錄</button>' +
-          '<button class="outline-btn small danger" onclick="App.removeEduChildBinding(\'' + escapeHTML(child.id) + '\')">解除綁定</button>' +
+          '<button class="outline-btn small" data-team="' + escapeHTML(child.teamId) + '" data-student="' + escapeHTML(child.id) + '" onclick="App.showEduCalendar(this.dataset.team,this.dataset.student)">出席紀錄</button>' +
+          '<button class="outline-btn small danger" data-child="' + escapeHTML(child.id) + '" onclick="App.removeEduChildBinding(this.dataset.child)">解除綁定</button>' +
         '</div>' +
       '</div>';
     }).join('');

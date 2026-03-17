@@ -32,7 +32,7 @@ Object.assign(App, {
    * 渲染分組列表
    */
   async renderEduGroupList(teamId) {
-    const container = document.getElementById('edu-group-list');
+    const container = document.getElementById('edu-group-list') || document.getElementById('edu-group-list-page');
     if (!container) return;
 
     const isStaff = this.isEduClubStaff(teamId);
@@ -86,7 +86,7 @@ Object.assign(App, {
         if (idx !== -1) cached.splice(idx, 1);
       }
       this.showToast('分組已刪除');
-      this.renderEduGroupList(teamId);
+      await this.renderEduGroupList(teamId);
     } catch (err) {
       console.error('[deleteEduGroup]', err);
       this.showToast('刪除失敗：' + (err.message || '請稍後再試'));

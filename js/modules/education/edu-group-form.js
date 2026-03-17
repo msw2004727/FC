@@ -93,7 +93,7 @@ Object.assign(App, {
         this.showToast('分組已建立');
       }
       this.closeModal();
-      this.renderEduGroupList(teamId);
+      await this.renderEduGroupList(teamId);
     } catch (err) {
       console.error('[handleSaveEduGroup]', err);
       this.showToast('儲存失敗：' + (err.message || '請稍後再試'));
