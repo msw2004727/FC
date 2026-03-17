@@ -10,6 +10,14 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-17 — Phase 2 自動化測試擴充（350 個新測試）
+- **內容**：新增 3 個測試檔案，覆蓋 config 工具函式、成就系統、活動模組
+  1. `tests/unit/config-utils.test.js`（87 tests）— escapeHTML、Permission System（7 函式）、Sport Config、Custom Role
+  2. `tests/unit/achievement.test.js`（141 tests）— shared/evaluator/stats 三檔案，含 getParticipantAttendanceStats 深度測試（23 tests）
+  3. `tests/unit/event-utils.test.js`（122 tests）— 性別限制（9 函式）、_buildEventPeopleSummaryByStatus、_getEventOccupancyState、Navigation
+- **累計**：4 個測試檔案、378 個單元測試，全部通過
+- **教訓**：Agent 執行 npm install 時可能汙染 package.json（加入 dependencies），需在 commit 前檢查還原
+
 ### 2026-03-17 — Phase 1 自動化測試建立
 - **內容**：建立兩層自動化測試基礎
   1. `tests/unit/pure-functions.test.js`（28 個測試）— 從 Object.assign 模組中提取純函式邏輯進行測試：_rebuildOccupancy、_isEventDelegate、_isAnyActiveEventDelegate、_categorizeScanEvents
