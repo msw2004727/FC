@@ -227,9 +227,20 @@ Object.assign(App, {
     this.showTeamForm();
   },
 
+  _currentTeamTypeTab: '',
+
+  switchTeamTypeTab(type) {
+    this._currentTeamTypeTab = type || '';
+    document.querySelectorAll('.team-type-tab').forEach(btn => {
+      btn.classList.toggle('active', (btn.dataset.type || '') === this._currentTeamTypeTab);
+    });
+    this.filterTeams();
+  },
+
   filterTeams() {
     const query = (document.getElementById('team-search')?.value || '').trim().toLowerCase();
     const region = document.getElementById('team-region-filter')?.value || '';
+    const typeTab = this._currentTeamTypeTab || '';
     const container = document.getElementById('team-list');
 
     let filtered = ApiService.getActiveTeams();
@@ -243,6 +254,12 @@ Object.assign(App, {
     }
     if (region) {
       filtered = filtered.filter(t => t.region === region);
+    }
+    if (typeTab) {
+      filtered = filtered.filter(t => {
+        const teamType = t.type || 'general';
+        return teamType === typeTab;
+      });
     }
 
     const sorted = this._sortTeams(filtered);

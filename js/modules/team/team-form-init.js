@@ -30,12 +30,26 @@ Object.assign(App, {
     this._teamLeaderUids = [];
     this._teamCaptainUid = null;
     this._teamCoachUids = [];
+    // 俱樂部類型重置
+    const typeSelect = document.getElementById('ct-team-type');
+    if (typeSelect) typeSelect.value = 'general';
+    this._onTeamTypeChange('general');
     const preview = document.getElementById('ct-team-preview');
     preview.innerHTML = '<span class="ce-upload-icon">+</span><span class="ce-upload-text">點擊上傳封面圖片</span><span class="ce-upload-hint">建議尺寸 800 × 300 px｜JPG / PNG｜最大 2MB</span>';
     preview.style.backgroundImage = '';
     preview.classList.remove('has-image');
     const fileInput = document.getElementById('ct-team-image');
     if (fileInput) fileInput.value = '';
+  },
+
+  /**
+   * 俱樂部類型切換時顯示/隱藏教育型專屬欄位
+   */
+  _onTeamTypeChange(type) {
+    const eduSection = document.getElementById('ct-edu-settings');
+    if (eduSection) {
+      eduSection.style.display = type === 'education' ? '' : 'none';
+    }
   },
 
   _getCurrentUserName() {
@@ -81,6 +95,18 @@ Object.assign(App, {
       document.getElementById('ct-team-founded').value = t.founded || '';
       document.getElementById('ct-team-contact').value = t.contact || '';
       document.getElementById('ct-team-bio').value = t.bio || '';
+
+      // 編輯模式：載入俱樂部類型
+      const typeSelect = document.getElementById('ct-team-type');
+      if (typeSelect) {
+        typeSelect.value = t.type || 'general';
+        this._onTeamTypeChange(t.type || 'general');
+      }
+      // 教育型設定
+      const acceptToggle = document.getElementById('ct-edu-accepting');
+      if (acceptToggle && t.eduSettings) {
+        acceptToggle.checked = t.eduSettings.acceptingStudents !== false;
+      }
 
       // 編輯模式：載入已有領隊（複數）
       const users = ApiService.getAdminUsers();
@@ -157,6 +183,9 @@ Object.assign(App, {
       titleEl.textContent = '新增俱樂部';
       saveBtn.textContent = '建立俱樂部';
       this._resetTeamForm();
+      // 新增模式預設一般型
+      const typeSelectNew = document.getElementById('ct-team-type');
+      if (typeSelectNew) typeSelectNew.value = 'general';
 
       // 自動設定創立者為俱樂部經理
       const me = ApiService.getCurrentUser();

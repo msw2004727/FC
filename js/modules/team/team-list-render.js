@@ -9,6 +9,14 @@ Object.assign(App, {
     const pinnedClass = t.pinned ? ' tc-pinned' : '';
     const color = t.color || '#6b7280';
     const rank = this._getTeamRank(t.teamExp);
+    const isEdu = t.type === 'education';
+    const eduBadge = isEdu ? '<span class="tc-edu-badge">教學</span>' : '';
+    const memberLabel = isEdu ? '學員' : I18N.t('team.memberLabel');
+    const memberCount = isEdu
+      ? ((this._eduStudentsCache && this._eduStudentsCache[t.id])
+        ? this._eduStudentsCache[t.id].filter(s => s.enrollStatus === 'active').length
+        : 0)
+      : this._calcTeamMemberCount(t.id);
     return `
       <div class="tc-card${pinnedClass}" onclick="App.showTeamDetail('${t.id}')">
         ${t.pinned ? '<div class="tc-pin-badge">置頂</div>' : ''}
@@ -16,8 +24,8 @@ Object.assign(App, {
           ? `<div style="position:relative;width:100%;aspect-ratio:1;overflow:hidden;border-radius:var(--radius) var(--radius) 0 0"><img src="${t.image}" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block"><span class="tc-rank-badge" style="color:${rank.color}"><span class="tc-rank-score">${(t.teamExp || 0).toLocaleString()}</span>${rank.rank}</span></div>`
           : `<div class="tc-img-placeholder" style="position:relative">俱樂部圖片<span class="tc-rank-badge" style="color:${rank.color}"><span class="tc-rank-score">${(t.teamExp || 0).toLocaleString()}</span>${rank.rank}</span></div>`}
         <div class="tc-body">
-          <div class="tc-name">${escapeHTML(t.name)}</div>
-          <div class="tc-info-row"><span class="tc-label">${I18N.t('team.memberLabel')}</span><span>${this._calcTeamMemberCount(t.id)} ${I18N.t('team.personUnit')}</span></div>
+          <div class="tc-name">${escapeHTML(t.name)}${eduBadge}</div>
+          <div class="tc-info-row"><span class="tc-label">${memberLabel}</span><span>${memberCount} ${I18N.t('team.personUnit')}</span></div>
           <div class="tc-info-row"><span class="tc-label">${I18N.t('team.regionLabel')}</span><span>${escapeHTML(t.region || '')}</span></div>
         </div>
       </div>`;

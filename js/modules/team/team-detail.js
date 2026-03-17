@@ -158,7 +158,12 @@ Object.assign(App, {
     const totalGames = (t.wins || 0) + (t.draws || 0) + (t.losses || 0);
     const winRate = totalGames > 0 ? Math.round((t.wins || 0) / totalGames * 100) : 0;
 
-      nodes.body.innerHTML = this._buildTeamDetailBodyHtml(t, canManageMembers, memberEditMode, staffIdentity, totalGames, winRate);
+      // 教育型俱樂部委派 edu-detail-render.js 渲染
+      if (t.type === 'education' && typeof this.renderEduClubDetail === 'function') {
+        await this.renderEduClubDetail(id);
+      } else {
+        nodes.body.innerHTML = this._buildTeamDetailBodyHtml(t, canManageMembers, memberEditMode, staffIdentity, totalGames, winRate);
+      }
       return { ok: true, reason: 'ok' };
     } catch (err) {
       console.error('[TeamDetail] showTeamDetail failed:', err);

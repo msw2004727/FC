@@ -159,7 +159,7 @@ Object.assign(App, {
         nameInner = `<span class="reg-name-text">${escapeHTML(p.displayName)}</span>`;
       }
       const nameHtml = badgeHtml
-        ? `<div class="reg-name-badges">${nameInner}${badgeHtml}</div>`
+        ? `<div class="reg-name-badges-wrap"><div class="reg-name-badges">${nameInner}${badgeHtml}</div></div>`
         : nameInner;
 
       const safeUid = escapeHTML(p.uid);
@@ -245,11 +245,14 @@ Object.assign(App, {
     });
   },
 
-  /** 徽章行溢出偵測：有溢出時加 has-overflow 顯示漸層提示 */
+  /** 徽章行溢出偵測：有溢出時在 wrapper 加 has-overflow 顯示漸層提示 */
   _markBadgeRowOverflow(container) {
     if (!container) return;
-    container.querySelectorAll('.reg-name-badges').forEach(row => {
-      row.classList.toggle('has-overflow', row.scrollWidth > row.clientWidth);
+    requestAnimationFrame(() => {
+      container.querySelectorAll('.reg-name-badges-wrap').forEach(wrap => {
+        const row = wrap.querySelector('.reg-name-badges');
+        if (row) wrap.classList.toggle('has-overflow', row.scrollWidth > row.clientWidth);
+      });
     });
   },
 

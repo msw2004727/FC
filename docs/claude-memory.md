@@ -677,5 +677,20 @@
 - **修復**：重構 try/catch 結構 — 關鍵收尾（closeModal + showToast + flag reset）緊接 createEvent 成功後執行；非關鍵操作（saveHistory / writeOpLog / grantEXP / render）包在獨立 try/catch 中。編輯路徑同步修復
 - **教訓**：`finally` 不應用於重置 UI 鎖定狀態（如提交按鈕），因為它在 success path 其他操作之前執行。關鍵收尾操作（modal 關閉、用戶通知）必須放在非關鍵操作之前，且不依賴非關鍵操作的成功
 
+### 2026-03-17 — 新增教育型俱樂部系統（MVP 全 8 Phase）
+- **問題**：現有系統缺少面向兒童教學的場景，教練需要不建活動就能簽到、行事曆式出席追蹤、學員分組管理
+- **修復**：完整實作教育型俱樂部 MVP，包含 8 個階段：
+  - Phase 1: 基礎建設（type=education 欄位、edu-helpers.js）
+  - Phase 2: 分組管理 + 學員註冊（groups/students 子集合 CRUD、申請審核流程）
+  - Phase 3: 課程方案（weekly/session 兩種類型）
+  - Phase 4: 簽到流程（批次簽到 + QR 掃碼混合模式）
+  - Phase 5: 行事曆卡片 UI（集點卡 + 月曆雙視圖切換）
+  - Phase 6: 家長-孩子綁定（eduChildren on users doc）
+  - Phase 7: 通知（簽到成功推播、課前提醒、出席報告）
+  - Phase 8: 俱樂部列表 Tab 篩選（全部/運動/教學）
+- **新增檔案**：15 個 JS 模組（js/modules/education/）、1 個 HTML（pages/education.html）、1 個 CSS（css/education.css）
+- **修改檔案**：firebase-crud.js、api-service.js、firestore.rules、page-loader.js、script-loader.js、team-detail.js、team-form.js、team-form-init.js、team-form-join.js、team-list.js、team-list-render.js、team.html、team.css、index.html、config.js、architecture.md
+- **教訓**：eduAttendance 獨立為頂層集合（非 attendanceRecords 子集合），因為教育簽到沒有 eventId、查詢模式完全不同、分開避免污染現有統計
+
 *最後濃縮日期：2026-03-15*
 *原始檔案：314 條目 / 2475 行 → 濃縮後約 50 條永久教訓*

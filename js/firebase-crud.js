@@ -1751,6 +1751,13 @@ Object.assign(FirebaseService, {
     });
   },
 
+  async updateUserEduChildren(docId, eduChildren) {
+    await db.collection('users').doc(docId).update({
+      eduChildren,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    });
+  },
+
   // ════════════════════════════════
   //  Batch Registration（批次報名）
   // ════════════════════════════════
@@ -2045,6 +2052,160 @@ Object.assign(FirebaseService, {
       console.warn('[FirebaseService] loadUserAchievementProgress failed:', err);
       return [];
     }
+  },
+
+  // ════════════════════════════════
+  //  Education: Team Subcollection Helpers
+  // ════════════════════════════════
+
+  async _getTeamDocRefById(teamId) {
+    const safeId = String(teamId || '').trim();
+    if (!safeId) throw new Error('TEAM_ID_REQUIRED');
+    const cached = this._cache.teams.find(t => t.id === safeId && t._docId);
+    if (cached && cached._docId) return db.collection('teams').doc(cached._docId);
+    const snapshot = await db.collection('teams').where('id', '==', safeId).limit(1).get();
+    if (snapshot.empty) throw new Error('TEAM_DOC_NOT_FOUND');
+    return snapshot.docs[0].ref;
+  },
+
+  async _getTeamSubcollectionRef(teamId, subcollectionName) {
+    const teamRef = await this._getTeamDocRefById(teamId);
+    return teamRef.collection(subcollectionName);
+  },
+
+  // ════════════════════════════════
+  //  Education: Groups CRUD
+  // ════════════════════════════════
+
+  async listEduGroups(teamId) {
+    const collRef = await this._getTeamSubcollectionRef(teamId, 'groups');
+    const snapshot = await collRef.orderBy('sortOrder').get();
+    return this._mapCollectionDocs(snapshot);
+  },
+
+  async createEduGroup(teamId, data) {
+    const collRef = await this._getTeamSubcollectionRef(teamId, 'groups');
+    const docRef = data.id ? collRef.doc(data.id) : collRef.doc();
+    const payload = { ..._stripDocId(data), id: data.id || docRef.id };
+    await docRef.set({
+      ...payload,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    }, { merge: true });
+    payload._docId = docRef.id;
+    return payload;
+  },
+
+  async updateEduGroup(teamId, groupId, updates) {
+    const collRef = await this._getTeamSubcollectionRef(teamId, 'groups');
+    await collRef.doc(groupId).update({
+      ..._stripDocId(updates),
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    });
+    return { id: groupId, ...updates, _docId: groupId };
+  },
+
+  async deleteEduGroup(teamId, groupId) {
+    const collRef = await this._getTeamSubcollectionRef(teamId, 'groups');
+    await collRef.doc(groupId).delete();
+    return true;
+  },
+
+  // ════════════════════════════════
+  //  Education: Students CRUD
+  // ════════════════════════════════
+
+  async listEduStudents(teamId) {
+    const collRef = await this._getTeamSubcollectionRef(teamId, 'students');
+    const snapshot = await collRef.get();
+    return this._mapCollectionDocs(snapshot);
+  },
+
+  async createEduStudent(teamId, data) {
+    const collRef = await this._getTeamSubcollectionRef(teamId, 'students');
+    const docRef = data.id ? collRef.doc(data.id) : collRef.doc();
+    const payload = { ..._stripDocId(data), id: data.id || docRef.id };
+    await docRef.set({
+      ...payload,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    }, { merge: true });
+    payload._docId = docRef.id;
+    return payload;
+  },
+
+  async updateEduStudent(teamId, studentId, updates) {
+    const collRef = await this._getTeamSubcollectionRef(teamId, 'students');
+    await collRef.doc(studentId).update({
+      ..._stripDocId(updates),
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    });
+    return { id: studentId, ...updates, _docId: studentId };
+  },
+
+  // ════════════════════════════════
+  //  Education: Course Plans CRUD
+  // ════════════════════════════════
+
+  async listEduCoursePlans(teamId) {
+    const collRef = await this._getTeamSubcollectionRef(teamId, 'coursePlans');
+    const snapshot = await collRef.get();
+    return this._mapCollectionDocs(snapshot);
+  },
+
+  async createEduCoursePlan(teamId, data) {
+    const collRef = await this._getTeamSubcollectionRef(teamId, 'coursePlans');
+    const docRef = data.id ? collRef.doc(data.id) : collRef.doc();
+    const payload = { ..._stripDocId(data), id: data.id || docRef.id };
+    await docRef.set({
+      ...payload,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    }, { merge: true });
+    payload._docId = docRef.id;
+    return payload;
+  },
+
+  async updateEduCoursePlan(teamId, planId, updates) {
+    const collRef = await this._getTeamSubcollectionRef(teamId, 'coursePlans');
+    await collRef.doc(planId).update({
+      ..._stripDocId(updates),
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    });
+    return { id: planId, ...updates, _docId: planId };
+  },
+
+  async deleteEduCoursePlan(teamId, planId) {
+    const collRef = await this._getTeamSubcollectionRef(teamId, 'coursePlans');
+    await collRef.doc(planId).delete();
+    return true;
+  },
+
+  // ════════════════════════════════
+  //  Education: Attendance (eduAttendance top-level)
+  // ════════════════════════════════
+
+  async addEduAttendance(data) {
+    const docRef = data.id ? db.collection('eduAttendance').doc(data.id) : db.collection('eduAttendance').doc();
+    const payload = { ..._stripDocId(data), id: data.id || docRef.id };
+    await docRef.set({
+      ...payload,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    });
+    payload._docId = docRef.id;
+    return payload;
+  },
+
+  async queryEduAttendance(filters) {
+    let query = db.collection('eduAttendance');
+    if (filters.teamId) query = query.where('teamId', '==', filters.teamId);
+    if (filters.groupId) query = query.where('groupId', '==', filters.groupId);
+    if (filters.studentId) query = query.where('studentId', '==', filters.studentId);
+    if (filters.coursePlanId) query = query.where('coursePlanId', '==', filters.coursePlanId);
+    if (filters.date) query = query.where('date', '==', filters.date);
+    const snapshot = await query.get();
+    return this._mapCollectionDocs(snapshot).filter(r => r.status !== 'removed');
   },
 
 });

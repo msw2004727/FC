@@ -420,7 +420,8 @@ service cloud.firestore {
             'favorites', 'socialLinks',
             'titleBig', 'titleNormal',
             'lineNotify',
-            'companions'
+            'companions',
+            'eduChildren'
           ])
           && !changed.hasAny(['uid', 'lineUserId', 'role', 'claims', 'isAdmin', 'exp', 'level', 'createdAt', 'manualRole'])
           && (!changed.hasAny(['displayName']) || (
@@ -479,6 +480,10 @@ service cloud.firestore {
           && (!changed.hasAny(['companions']) || (
               request.resource.data.companions == null
               || request.resource.data.companions is list
+          ))
+          && (!changed.hasAny(['eduChildren']) || (
+              request.resource.data.eduChildren == null
+              || request.resource.data.eduChildren is list
           ))
           && (!changed.hasAny(['updatedAt']) || (
               request.resource.data.updatedAt == request.time
@@ -608,6 +613,29 @@ service cloud.firestore {
       allow update: if isAuth()
         && (isTeamOwner() || hasPerm('team.manage_all') || isTeamMemberFieldsOnly());
       allow delete: if isAdmin() || isTeamOwner();
+
+      // ── Education: Groups（分組）──
+      // 公開可讀；俱樂部幹部可 CUD
+      match /groups/{groupId} {
+        allow read: if true;
+        allow create, update, delete: if isCurrentUserTeamCaptainOrLeader(teamId);
+      }
+
+      // ── Education: Course Plans（課程方案）──
+      // 公開可讀；俱樂部幹部可 CUD
+      match /coursePlans/{planId} {
+        allow read: if true;
+        allow create, update, delete: if isCurrentUserTeamCaptainOrLeader(teamId);
+      }
+
+      // ── Education: Students（學員）──
+      // 認證可讀；幹部或本人(parentUid/selfUid)可建；幹部可改刪
+      match /students/{studentId} {
+        allow read: if isAuth();
+        allow create: if isAuth()
+          && hasString('name');
+        allow update, delete: if isCurrentUserTeamCaptainOrLeader(teamId);
+      }
     }
 
     // ═══════════════════════════════════════════
@@ -1003,6 +1031,20 @@ service cloud.firestore {
     match /kickGameRankings/{periodBucket}/entries/{entryUid} {
       allow read: if isAuth();
       allow write: if false;
+    }
+
+    // ═══════════════════════════════════════════
+    //  Education Attendance（教育簽到）
+    //  認證可讀；認證+必填欄位可建；禁刪（審計軌跡）
+    // ═══════════════════════════════════════════
+    match /eduAttendance/{recordId} {
+      allow read: if isAuth();
+      allow create: if isAuth()
+        && hasString('teamId')
+        && hasString('studentId')
+        && hasString('date');
+      allow update: if isAuth();
+      allow delete: if false;
     }
 
     // ═══════════════════════════════════════════

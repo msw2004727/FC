@@ -17,6 +17,7 @@ const PageLoader = {
     'admin-dashboard', 'admin-auto-exp', 'personal-dashboard',
     'game',
     'kickball',
+    'education',
   ],
 
   /** 全域彈窗片段 */
@@ -75,6 +76,12 @@ const PageLoader = {
     'page-admin-teams':        'admin-content',
     'page-game':               'game',
     'page-kick-game':          'kickball',
+    'page-edu-groups':         'education',
+    'page-edu-students':       'education',
+    'page-edu-course-plan':    'education',
+    'page-edu-checkin':        'education',
+    'page-edu-calendar':       'education',
+    'page-edu-student-apply':  'education',
   },
 
   _appendToMainContent(html) {

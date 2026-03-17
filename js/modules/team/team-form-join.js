@@ -42,6 +42,12 @@ Object.assign(App, {
     const t = ApiService.getTeam(teamId);
     if (!t) { this.showToast('找不到此俱樂部'); return; }
 
+    // 教育型俱樂部導向學員申請流程
+    if (t.type === 'education' && typeof this.showEduStudentApply === 'function') {
+      this.showEduStudentApply(teamId);
+      return;
+    }
+
     // 3. Get current user info
     const curUser = ApiService.getCurrentUser();
     const applicantUid = curUser?.uid || (ModeManager.isDemo() ? DemoData.currentUser.uid : null);

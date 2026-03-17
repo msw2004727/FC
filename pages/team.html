@@ -20,6 +20,11 @@
           <option value="高雄市">高雄市</option>
         </select>
       </div>
+      <div class="team-type-tabs" id="team-type-tabs">
+        <button class="team-type-tab active" data-type="" onclick="App.switchTeamTypeTab('')">全部</button>
+        <button class="team-type-tab" data-type="general" onclick="App.switchTeamTypeTab('general')">運動</button>
+        <button class="team-type-tab" data-type="education" onclick="App.switchTeamTypeTab('education')">教學</button>
+      </div>
       <div class="my-section" data-min-role="captain">
         <button class="action-btn" onclick="App.showPage('page-team-manage')">俱樂部管理</button>
       </div>
@@ -78,6 +83,22 @@
             <span class="ce-upload-hint">建議尺寸 800 × 300 px｜JPG / PNG｜最大 2MB</span>
           </div>
           <input type="file" id="ct-team-image" accept=".jpg,.jpeg,.png" hidden>
+        </div>
+        <div class="ce-row">
+          <label>俱樂部類型 <span class="required">*必填</span></label>
+          <select id="ct-team-type" onchange="App._onTeamTypeChange(this.value)">
+            <option value="general">一般俱樂部（運動型）</option>
+            <option value="education">教學俱樂部（課程教學）</option>
+          </select>
+        </div>
+        <div id="ct-edu-settings" style="display:none">
+          <div class="ce-row" style="display:flex;align-items:center;gap:.5rem">
+            <label style="flex:1;margin:0">接受新學員報名</label>
+            <label class="toggle-switch" style="margin:0;transform:scale(.85)">
+              <input type="checkbox" id="ct-edu-accepting" checked>
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
         </div>
         <div class="ce-row">
           <label>俱樂部名稱（最多 15 字） <span class="required">*必填</span></label>

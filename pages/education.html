@@ -1,0 +1,173 @@
+    <!-- PAGE: Education Groups (分組管理) -->
+    <section class="page" id="page-edu-groups">
+      <div class="page-header">
+        <button class="back-btn" onclick="App.goBack()">←</button>
+        <h2>分組管理</h2>
+      </div>
+      <div id="edu-group-list-page"></div>
+    </section>
+
+    <!-- PAGE: Education Students (學員列表) -->
+    <section class="page" id="page-edu-students">
+      <div class="page-header">
+        <button class="back-btn" onclick="App.goBack()">←</button>
+        <h2 id="edu-students-title">學員列表</h2>
+      </div>
+      <div id="edu-student-list"></div>
+    </section>
+
+    <!-- PAGE: Education Course Plan (課程方案) -->
+    <section class="page" id="page-edu-course-plan">
+      <div class="page-header">
+        <button class="back-btn" onclick="App.goBack()">←</button>
+        <h2>課程方案</h2>
+      </div>
+      <div id="edu-course-plan-page"></div>
+    </section>
+
+    <!-- PAGE: Education Check-in (批次簽到) -->
+    <section class="page" id="page-edu-checkin">
+      <div class="page-header">
+        <button class="back-btn" onclick="App.goBack()">←</button>
+        <h2>課程簽到</h2>
+      </div>
+      <div id="edu-checkin-container"></div>
+    </section>
+
+    <!-- PAGE: Education Calendar (行事曆) -->
+    <section class="page" id="page-edu-calendar">
+      <div class="page-header">
+        <button class="back-btn" onclick="App.goBack()">←</button>
+        <h2 id="edu-calendar-title">出席紀錄</h2>
+      </div>
+      <div id="edu-calendar-toggle" style="display:flex;justify-content:center;gap:.5rem;margin:.5rem 0">
+        <button class="outline-btn small edu-view-btn active" data-view="stamp" onclick="App.switchEduCalendarView('stamp')">集點卡</button>
+        <button class="outline-btn small edu-view-btn" data-view="monthly" onclick="App.switchEduCalendarView('monthly')">月曆</button>
+      </div>
+      <div id="edu-calendar-content"></div>
+    </section>
+
+    <!-- PAGE: Education Student Apply (學員申請) -->
+    <section class="page" id="page-edu-student-apply">
+      <div class="page-header">
+        <button class="back-btn" onclick="App.goBack()">←</button>
+        <h2 id="edu-apply-title">申請加入</h2>
+      </div>
+      <div class="ce-form" style="padding:1rem">
+        <input type="hidden" id="edu-apply-team-id">
+        <div class="ce-row">
+          <label>學員姓名 <span class="required">*必填</span></label>
+          <input type="text" id="edu-apply-name" maxlength="20" placeholder="學員的姓名">
+        </div>
+        <div class="ce-row">
+          <label>生日</label>
+          <input type="date" id="edu-apply-birthday">
+        </div>
+        <div class="ce-row">
+          <label>性別</label>
+          <select id="edu-apply-gender">
+            <option value="male">男</option>
+            <option value="female">女</option>
+          </select>
+        </div>
+        <div class="ce-row">
+          <label>您的身份</label>
+          <select id="edu-apply-relation">
+            <option value="parent">我是家長（為孩子報名）</option>
+            <option value="self">我是學員本人</option>
+          </select>
+        </div>
+        <div style="margin-top:1rem">
+          <button class="primary-btn" style="width:100%" onclick="App.handleEduStudentApply()">送出申請</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- MODAL: Education Group Form -->
+    <div class="modal" id="edu-group-modal">
+      <div class="modal-header">
+        <h3 id="edu-group-modal-title">建立分組</h3>
+        <button class="modal-close" onclick="App.closeModal()">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="ce-form">
+          <div class="ce-row">
+            <label>分組名稱 <span class="required">*必填</span></label>
+            <input type="text" id="edu-grp-name" maxlength="20" placeholder="例：U8、競技班">
+          </div>
+          <div class="ce-row">
+            <label>說明</label>
+            <input type="text" id="edu-grp-desc" maxlength="100" placeholder="選填說明">
+          </div>
+          <div class="ce-row" style="display:flex;gap:.5rem">
+            <div style="flex:1">
+              <label>最小年齡</label>
+              <input type="number" id="edu-grp-age-min" min="1" max="99" placeholder="例：6">
+            </div>
+            <div style="flex:1">
+              <label>最大年齡</label>
+              <input type="number" id="edu-grp-age-max" min="1" max="99" placeholder="例：8">
+            </div>
+          </div>
+          <div class="ce-row">
+            <label>性別限制</label>
+            <select id="edu-grp-gender">
+              <option value="all">不限</option>
+              <option value="male">限男生</option>
+              <option value="female">限女生</option>
+            </select>
+          </div>
+          <div class="ce-row">
+            <label>上課時間</label>
+            <input type="text" id="edu-grp-schedule" maxlength="50" placeholder="例：每週六 09:00-10:30">
+          </div>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="outline-btn" onclick="App.closeModal()">取消</button>
+        <button class="primary-btn" id="edu-group-save-btn" onclick="App.handleSaveEduGroup()">建立分組</button>
+      </div>
+    </div>
+
+    <!-- MODAL: Education Student Form -->
+    <div class="modal" id="edu-student-modal">
+      <div class="modal-header">
+        <h3 id="edu-student-modal-title">新增學員</h3>
+        <button class="modal-close" onclick="App.closeModal()">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="ce-form">
+          <div class="ce-row">
+            <label>學員姓名 <span class="required">*必填</span></label>
+            <input type="text" id="edu-stu-name" maxlength="20" placeholder="學員姓名">
+          </div>
+          <div class="ce-row">
+            <label>生日</label>
+            <input type="date" id="edu-stu-birthday">
+          </div>
+          <div class="ce-row">
+            <label>性別</label>
+            <select id="edu-stu-gender">
+              <option value="male">男</option>
+              <option value="female">女</option>
+            </select>
+          </div>
+          <div class="ce-row">
+            <label>分組（可多選）</label>
+            <div id="edu-stu-groups" class="edu-checkbox-group"></div>
+          </div>
+          <div class="ce-row">
+            <label>位置標籤（逗號分隔）</label>
+            <input type="text" id="edu-stu-tags" maxlength="100" placeholder="例：GK, CF, CB">
+          </div>
+          <div class="ce-row">
+            <label>教練備註（學員不可見）</label>
+            <textarea id="edu-stu-notes" maxlength="500" rows="3" placeholder="僅教練可見的內部備註"></textarea>
+          </div>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="outline-btn" onclick="App.closeModal()">取消</button>
+        <button class="primary-btn" id="edu-student-save-btn" onclick="App.handleSaveEduStudent()">新增學員</button>
+      </div>
+    </div>

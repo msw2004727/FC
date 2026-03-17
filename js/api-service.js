@@ -1517,6 +1517,40 @@ const ApiService = {
     return true;
   },
 
+  // ── Education: Parent-Child Binding ──
+
+  getEduChildren() {
+    const user = this.getCurrentUser();
+    return (user && user.eduChildren) || [];
+  },
+
+  addEduChild(data) {
+    if (this._handleRestrictedAction()) return null;
+    const user = this.getCurrentUser();
+    if (!user) return null;
+    if (!user.eduChildren) user.eduChildren = [];
+    user.eduChildren.push(data);
+    if (!this._demoMode && user._docId) {
+      FirebaseService.updateUserEduChildren(user._docId, user.eduChildren)
+        .catch(err => console.error('[addEduChild]', err));
+    }
+    return data;
+  },
+
+  removeEduChild(childId) {
+    if (this._handleRestrictedAction()) return false;
+    const user = this.getCurrentUser();
+    if (!user || !user.eduChildren) return false;
+    const idx = user.eduChildren.findIndex(c => c.id === childId);
+    if (idx < 0) return false;
+    user.eduChildren.splice(idx, 1);
+    if (!this._demoMode && user._docId) {
+      FirebaseService.updateUserEduChildren(user._docId, user.eduChildren)
+        .catch(err => console.error('[removeEduChild]', err));
+    }
+    return true;
+  },
+
   getMyRegistrationsByEvent(eventId) {
     const uid = this.getCurrentUser()?.uid;
     if (!uid) return [];

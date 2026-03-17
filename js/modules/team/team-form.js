@@ -189,6 +189,12 @@ Object.assign(App, {
       ? this._calcTeamMemberCountByTeam(teamForMemberCount, users)
       : 0;
 
+    // ── 俱樂部類型 ──
+    const teamType = document.getElementById('ct-team-type')?.value || 'general';
+    const eduSettings = teamType === 'education' ? {
+      acceptingStudents: document.getElementById('ct-edu-accepting')?.checked !== false,
+    } : null;
+
     const preview = document.getElementById('ct-team-preview');
     let image = null;
     const imgEl = preview.querySelector('img');
@@ -210,7 +216,10 @@ Object.assign(App, {
           leaders: leaderNames, leaderUids: realLeaderUids,
           captain, captainUid: captainUidForSave,
           coaches, members,
+          type: teamType,
         };
+        if (eduSettings) updates.eduSettings = eduSettings;
+        else updates.eduSettings = firebase.firestore.FieldValue.delete();
         if (image) updates.image = image;
         ApiService.updateTeam(this._teamEditId, updates);
         ApiService._writeOpLog('team_edit', '編輯俱樂部', `編輯「${name}」`);
@@ -260,7 +269,9 @@ Object.assign(App, {
           active: true, pinned: false, pinOrder: 0,
           wins: 0, draws: 0, losses: 0, gf: 0, ga: 0,
           history: [],
+          type: teamType,
         };
+        if (eduSettings) data.eduSettings = eduSettings;
         ApiService.createTeam(data);
         ApiService._writeOpLog('team_create', '建立俱樂部', `建立「${name}」`);
         // ── 新建俱樂部職位日誌 ──

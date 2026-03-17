@@ -184,6 +184,48 @@
   color: #000; text-shadow: none;
 }
 
+/* ── Team Type Tabs ── */
+.team-type-tabs {
+  display: flex;
+  gap: .3rem;
+  margin: .5rem 0;
+}
+.team-type-tab {
+  flex: 1;
+  padding: .4rem .5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius, 8px);
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  font-size: .82rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all .15s;
+  text-align: center;
+}
+.team-type-tab:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+.team-type-tab.active {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+}
+
+/* ── Education Type Badge on Team Card ── */
+.tc-edu-badge {
+  display: inline-block;
+  font-size: .62rem;
+  padding: .06rem .3rem;
+  border-radius: 3px;
+  background: #8b5cf6;
+  color: #fff;
+  font-weight: 600;
+  margin-left: .3rem;
+  vertical-align: middle;
+}
+
 /* Dark theme */
 [data-theme="dark"] .td-member-role.captain { background: rgba(251,191,36,.18); color: #fcd34d; }
 [data-theme="dark"] .td-member-role.coach { background: rgba(124,58,237,.18); color: #c4b5fd; }

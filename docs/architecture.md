@@ -51,6 +51,7 @@ flowchart TD
             SCAN["scan/ (5)\nQR Code 掃描"]
             DASH["dashboard/ (5)\n儀表板"]
             ADMG["ad-manage/ (5)\n廣告管理"]
+            EDU["education/ (15)\n教育型俱樂部"]
             UADM["user-admin/ (4)\n用戶管理後台"]
             STANDALONE["21 個獨立模組\nbanner / shop / role / leaderboard\nachievement facade / news / favorites\nannouncement / popup-ad / auto-exp\nsite-theme / game-manage / data-sync\nimage-cropper / image-upload\nattendance-notify / registration-audit\nachievement-batch / admin-log-tabs\naudit-log / error-log"]
         end
@@ -266,6 +267,26 @@ flowchart TD
 | `dashboard-participant-share.js` | 活動參與查詢臨時報表分享（7 天有效網址與公開快照頁） |
 | `personal-dashboard.js` | 個人數據儀表板（參加場次、出席率、EXP 統計） |
 
+### education/ — 教育型俱樂部（15 個模組）
+
+| 檔案 | 說明 |
+|------|------|
+| `edu-helpers.js` | 共用工具：isEducationClub、權限、年齡計算、generateWeeklyDates |
+| `edu-group-list.js` | 分組列表渲染 |
+| `edu-group-form.js` | 分組 CRUD 表單 |
+| `edu-student-list.js` | 學員列表、分組內學員卡片 |
+| `edu-student-form.js` | 學員資料表單（新增/編輯/自動歸組） |
+| `edu-student-join.js` | 學員/家長申請加入 + 教練審核 |
+| `edu-detail-render.js` | 教育型俱樂部詳情頁渲染 |
+| `edu-course-plan.js` | 課程方案 CRUD（週期制 + 堂數制） |
+| `edu-checkin.js` | 群組批次簽到 |
+| `edu-checkin-scan.js` | QR 掃碼簽到（掃到自動歸組） |
+| `edu-calendar-core.js` | 行事曆共用邏輯、視圖切換 |
+| `edu-calendar-stamp.js` | 集點卡視圖 |
+| `edu-calendar-monthly.js` | 月曆格子視圖 |
+| `edu-parent-binding.js` | 家長-孩子綁定管理 |
+| `edu-notify.js` | 通知：簽到成功、課前提醒、出席報告 |
+
 ### ad-manage/ — 廣告管理（5 個模組）
 
 | 檔案 | 說明 |
@@ -378,6 +399,7 @@ ScriptLoader（`js/core/script-loader.js`）定義了以下頁面群組，按需
 | `adminDashboard` | `dashboard/*` (4，不含 personal-dashboard) | 管理員儀表板 |
 | `personalDashboard` | `dashboard/dashboard-widgets` + `dashboard/dashboard` + `dashboard/personal-dashboard` | 個人儀表板 |
 | `adminUsers` | `user-admin/*` (4) + `achievement-batch` + `data-sync` | 用戶管理 |
+| `education` | `education/*` (15) | 教育型俱樂部（分組、學員、課程、簽到、行事曆） |
 | `adminContent` | `ad-manage/*` (5) | 廣告管理 |
 | `adminSystem` | `auto-exp` + `game-manage` + `admin-log-tabs` + `error-log` + `audit-log` | 系統管理 |
 

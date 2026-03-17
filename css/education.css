@@ -1,0 +1,425 @@
+/* ================================================
+   SportHub — Education Module Styles
+   ================================================ */
+
+/* ── Type Badge ── */
+.edu-type-badge {
+  display: inline-block;
+  font-size: .68rem;
+  padding: .12rem .4rem;
+  border-radius: var(--radius-full, 999px);
+  background: #8b5cf6;
+  color: #fff;
+  font-weight: 600;
+}
+
+/* ── Empty State ── */
+.edu-empty-state {
+  text-align: center;
+  padding: 1.5rem .5rem;
+  color: var(--text-muted);
+  font-size: .85rem;
+}
+
+/* ── Group Cards ── */
+.edu-group-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius, 8px);
+  padding: .6rem .8rem;
+  margin-bottom: .5rem;
+  background: var(--bg-card);
+  cursor: pointer;
+  transition: border-color .15s;
+}
+.edu-group-card:hover {
+  border-color: var(--primary);
+}
+.edu-group-header {
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  flex-wrap: wrap;
+}
+.edu-group-name {
+  font-weight: 600;
+  font-size: .9rem;
+  color: var(--text-primary);
+}
+.edu-group-age {
+  font-size: .7rem;
+  padding: .08rem .3rem;
+  border-radius: var(--radius-full, 999px);
+  background: var(--accent-bg, #ede9fe);
+  color: var(--primary);
+  font-weight: 500;
+}
+.edu-group-count {
+  font-size: .72rem;
+  color: var(--text-muted);
+  margin-left: auto;
+}
+.edu-group-schedule {
+  font-size: .75rem;
+  color: var(--text-secondary);
+  margin-top: .2rem;
+}
+.edu-group-desc {
+  font-size: .72rem;
+  color: var(--text-muted);
+  margin-top: .15rem;
+}
+.edu-group-actions {
+  display: flex;
+  gap: .3rem;
+  margin-top: .3rem;
+}
+
+/* ── Student Cards ── */
+.edu-student-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius, 8px);
+  padding: .5rem .7rem;
+  margin-bottom: .4rem;
+  background: var(--bg-card);
+}
+.edu-student-header {
+  display: flex;
+  align-items: center;
+  gap: .35rem;
+  flex-wrap: wrap;
+}
+.edu-student-name {
+  font-weight: 600;
+  font-size: .85rem;
+  color: var(--text-primary);
+}
+.edu-student-gender {
+  font-size: .82rem;
+}
+.edu-student-age {
+  font-size: .72rem;
+  color: var(--text-muted);
+}
+.edu-student-groups {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .2rem;
+  margin-top: .2rem;
+}
+.edu-group-tag {
+  font-size: .65rem;
+  padding: .06rem .3rem;
+  border-radius: 3px;
+  background: var(--accent-bg, #ede9fe);
+  color: var(--primary);
+  font-weight: 500;
+}
+.edu-student-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .2rem;
+  margin-top: .15rem;
+}
+.edu-tag {
+  font-size: .62rem;
+  padding: .04rem .25rem;
+  border-radius: 3px;
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+}
+.edu-coach-note {
+  font-size: .72rem;
+  color: var(--text-muted);
+  font-style: italic;
+  margin-top: .15rem;
+  padding-left: .3rem;
+  border-left: 2px solid var(--border);
+}
+.edu-student-actions {
+  display: flex;
+  gap: .3rem;
+  margin-top: .25rem;
+}
+.edu-status-pending {
+  font-size: .65rem;
+  padding: .06rem .3rem;
+  border-radius: 3px;
+  background: #fef3c7;
+  color: #92400e;
+  font-weight: 600;
+}
+.edu-status-active {
+  font-size: .65rem;
+  padding: .06rem .3rem;
+  border-radius: 3px;
+  background: #d1fae5;
+  color: #065f46;
+  font-weight: 600;
+}
+
+/* ── Checkbox Group ── */
+.edu-checkbox-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .3rem;
+}
+.edu-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: .3rem;
+  font-size: .82rem;
+  padding: .2rem .4rem;
+  border-radius: var(--radius-sm, 4px);
+  cursor: pointer;
+}
+.edu-checkbox-label:hover {
+  background: var(--bg-elevated);
+}
+.edu-already-checked {
+  opacity: .6;
+}
+
+/* ── Course Plan Cards ── */
+.edu-course-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius, 8px);
+  padding: .5rem .7rem;
+  margin-bottom: .4rem;
+  background: var(--bg-card);
+}
+.edu-course-header {
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+}
+.edu-course-name {
+  font-weight: 600;
+  font-size: .85rem;
+  color: var(--text-primary);
+}
+.edu-course-type {
+  font-size: .65rem;
+  padding: .06rem .3rem;
+  border-radius: 3px;
+  background: #dbeafe;
+  color: #1e40af;
+  font-weight: 500;
+}
+.edu-course-group {
+  font-size: .75rem;
+  color: var(--text-secondary);
+  margin-top: .15rem;
+}
+.edu-course-schedule {
+  font-size: .78rem;
+  color: var(--text-primary);
+  margin-top: .15rem;
+}
+.edu-course-actions {
+  display: flex;
+  gap: .3rem;
+  margin-top: .25rem;
+}
+
+/* ── Stamp Card ── */
+.edu-stamp-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius, 8px);
+  padding: .8rem;
+  background: var(--bg-card);
+}
+.edu-stamp-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: .5rem;
+}
+.edu-stamp-title {
+  font-weight: 700;
+  font-size: .95rem;
+  color: var(--text-primary);
+}
+.edu-stamp-stats {
+  font-size: .78rem;
+  color: var(--primary);
+  font-weight: 600;
+}
+.edu-stamp-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: .4rem;
+}
+.edu-stamp-cell {
+  aspect-ratio: 1;
+  border: 2px dashed var(--border);
+  border-radius: var(--radius, 8px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  background: var(--bg-elevated);
+  transition: all .2s;
+}
+.edu-stamp-cell.edu-stamp-checked {
+  border-color: var(--success, #10b981);
+  border-style: solid;
+  background: #d1fae5;
+}
+.edu-stamp-num {
+  font-size: .65rem;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+.edu-stamp-mark {
+  font-size: 1.2rem;
+  color: var(--success, #10b981);
+  line-height: 1;
+}
+.edu-stamp-date {
+  font-size: .55rem;
+  color: var(--text-muted);
+}
+
+/* ── Monthly Calendar ── */
+.edu-monthly-calendar {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius, 8px);
+  padding: .6rem;
+}
+.edu-cal-nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: .5rem;
+}
+.edu-cal-month-label {
+  font-weight: 700;
+  font-size: .9rem;
+  color: var(--text-primary);
+}
+.edu-cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+.edu-cal-header {
+  text-align: center;
+  font-size: .68rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  padding: .2rem 0;
+}
+.edu-cal-cell {
+  aspect-ratio: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm, 4px);
+  position: relative;
+  min-height: 2rem;
+}
+.edu-cal-empty {
+  background: transparent;
+}
+.edu-cal-day {
+  font-size: .75rem;
+  color: var(--text-primary);
+}
+.edu-cal-attended {
+  background: #d1fae5;
+}
+.edu-cal-attended .edu-cal-day {
+  font-weight: 700;
+  color: #065f46;
+}
+.edu-cal-today {
+  outline: 2px solid var(--primary);
+  outline-offset: -1px;
+}
+.edu-cal-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--success, #10b981);
+  margin-top: 1px;
+}
+.edu-cal-summary {
+  text-align: center;
+  margin-top: .5rem;
+  font-size: .78rem;
+  color: var(--text-secondary);
+}
+
+/* ── Check-in ── */
+.edu-checkin-form {
+  padding: .5rem;
+}
+.edu-checkin-list {
+  border: 1px solid var(--border);
+  border-radius: var(--radius, 8px);
+  padding: .5rem;
+  margin-top: .3rem;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+/* ── Scan ── */
+.edu-scan-section {
+  padding: .5rem;
+}
+.edu-scan-success {
+  text-align: center;
+  padding: .8rem;
+  background: #d1fae5;
+  border-radius: var(--radius, 8px);
+  color: #065f46;
+}
+.edu-scan-fail {
+  text-align: center;
+  padding: .8rem;
+  background: #fee2e2;
+  border-radius: var(--radius, 8px);
+  color: #991b1b;
+}
+.edu-scan-multi {
+  text-align: center;
+  padding: .5rem;
+}
+
+/* ── View Toggle ── */
+.edu-view-btn.active {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+}
+
+/* ── Dark Theme ── */
+[data-theme="dark"] .edu-stamp-cell.edu-stamp-checked {
+  background: #064e3b;
+  border-color: #10b981;
+}
+[data-theme="dark"] .edu-cal-attended {
+  background: #064e3b;
+}
+[data-theme="dark"] .edu-cal-attended .edu-cal-day {
+  color: #6ee7b7;
+}
+[data-theme="dark"] .edu-status-pending {
+  background: #451a03;
+  color: #fbbf24;
+}
+[data-theme="dark"] .edu-course-type {
+  background: #1e3a5f;
+  color: #93c5fd;
+}
+[data-theme="dark"] .edu-scan-success {
+  background: #064e3b;
+  color: #6ee7b7;
+}
+[data-theme="dark"] .edu-scan-fail {
+  background: #450a0a;
+  color: #fca5a5;
+}
