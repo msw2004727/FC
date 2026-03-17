@@ -1107,45 +1107,374 @@ HTML 特殊字元跳脫，防止 XSS。
 - **Demo 模式**：`DemoData` / `ModeManager` 的模式切換邏輯
 - **瀏覽器相容性**：LINE WebView / Chrome / Safari 的跨瀏覽器行為
 
-### 2.6 `tests/unit/tournament-core.test.js`
+### 2.5 `tests/unit/tournament-core.test.js`
 
 - **測試來源**：`js/modules/tournament/tournament-core.js`
 - **測試數量**：42
-- **涵蓋函式**：`getTournamentStatus`、`isTournamentEnded`、`_getTournamentMode`、`_sanitizeFriendlyTournamentTeamLimit`、`_buildTournamentOrganizerDisplay`、`_getTournamentOrganizerDisplayText`、`_normalizeTournamentDelegates`、`_getTournamentDelegateUids`、`_isTournamentLeaderForTeam`、`_isTournamentCaptainForTeam`、`_buildFriendlyTournamentApplicationRecord`
 
-### 2.7 `tests/unit/leaderboard-stats.test.js`
+#### `getTournamentStatus` — 6 tests
+
+根據報名起訖日期判斷賽事狀態。
+
+| # | 測試案例 |
+|---|---------|
+| 1 | `returns 即將開始 for null/undefined` |
+| 2 | `returns existing status when no dates` |
+| 3 | `returns 即將開始 when missing regStart/regEnd` |
+| 4 | `returns 即將開始 when before regStart` |
+| 5 | `returns 報名中 when within registration period` |
+| 6 | `returns 已截止報名 when after regEnd` |
+
+#### `isTournamentEnded` — 8 tests
+
+根據 ended 旗標與最後比賽日判斷賽事是否結束。
+
+| # | 測試案例 |
+|---|---------|
+| 1 | `returns false for null/undefined` |
+| 2 | `returns true when ended flag is true` |
+| 3 | `returns false when ended flag is false with no matchDates` |
+| 4 | `returns false when matchDates is empty` |
+| 5 | `returns false when matchDates has invalid date` |
+| 6 | `returns true when last matchDate + 24h is in the past` |
+| 7 | `returns false when last matchDate + 24h is in the future` |
+| 8 | `uses the last element of matchDates` |
+
+#### `_getTournamentMode` — 6 tests
+
+解析賽事模式（友誼賽/杯賽/聯賽）。
+
+| # | 測試案例 |
+|---|---------|
+| 1 | `defaults to friendly for null/undefined` |
+| 2 | `detects cup mode` |
+| 3 | `detects league mode` |
+| 4 | `detects friendly mode` |
+| 5 | `falls back to friendly for unknown modes` |
+| 6 | `priority: mode > typeCode > type` |
+
+#### `_sanitizeFriendlyTournamentTeamLimit` — 5 tests
+
+友誼賽隊伍上限清理（限制 2~4 範圍）。
+
+| # | 測試案例 |
+|---|---------|
+| 1 | `clamps to [2, 4] range` |
+| 2 | `floors decimal values` |
+| 3 | `returns fallback for non-finite values` |
+| 4 | `respects custom fallback` |
+| 5 | `handles string numbers` |
+
+#### `_buildTournamentOrganizerDisplay` — 5 tests
+
+組合主辦方顯示文字（隊名 + 用戶名）。
+
+| # | 測試案例 |
+|---|---------|
+| 1 | `returns combined format when both provided` |
+| 2 | `returns team name only when user empty` |
+| 3 | `returns user name only when team empty` |
+| 4 | `returns fallback when both empty` |
+| 5 | `trims whitespace` |
+
+#### `_getTournamentOrganizerDisplayText` — 4 tests
+
+從賽事物件取得主辦方顯示文字。
+
+| # | 測試案例 |
+|---|---------|
+| 1 | `returns fallback for null tournament` |
+| 2 | `returns organizerDisplay when set` |
+| 3 | `builds from hostTeamName + organizer` |
+| 4 | `falls back to creatorName` |
+
+#### `_normalizeTournamentDelegates` — 5 tests
+
+正規化賽事委託人清單（去重、過濾空值）。
+
+| # | 測試案例 |
+|---|---------|
+| 1 | `returns empty array for non-array input` |
+| 2 | `normalizes delegates` |
+| 3 | `deduplicates by uid` |
+| 4 | `deduplicates by name when uid empty` |
+| 5 | `skips entries with no uid or name` |
+
+#### `_getTournamentDelegateUids` — 4 tests
+
+合併 delegateUids 與 delegates 為 UID 集合。
+
+| # | 測試案例 |
+|---|---------|
+| 1 | `merges delegateUids and delegates` |
+| 2 | `deduplicates across both sources` |
+| 3 | `handles missing delegateUids` |
+| 4 | `skips empty uids` |
+
+#### `_isTournamentLeaderForTeam` — 5 tests
+
+判斷用戶是否為某隊領隊。
+
+| # | 測試案例 |
+|---|---------|
+| 1 | `returns false for null inputs` |
+| 2 | `matches by leaderUids array` |
+| 3 | `matches by single leaderUid` |
+| 4 | `matches by leader displayName` |
+| 5 | `returns false when no match` |
+
+#### `_isTournamentCaptainForTeam` — 5 tests
+
+判斷用戶是否為某隊隊長。
+
+| # | 測試案例 |
+|---|---------|
+| 1 | `returns false for null inputs` |
+| 2 | `matches by captainUid` |
+| 3 | `matches by captain displayName` |
+| 4 | `uses name fallback when displayName missing` |
+| 5 | `returns false when no match` |
+
+#### `_buildFriendlyTournamentApplicationRecord` — 4 tests
+
+建立友誼賽申請紀錄（含預設值與正規化）。
+
+| # | 測試案例 |
+|---|---------|
+| 1 | `returns default values for empty input` |
+| 2 | `normalizes all string fields` |
+| 3 | `falls back to _docId for id` |
+| 4 | `falls back to creatorUid for requestedByUid` |
+
+---
+
+### 2.6 `tests/unit/leaderboard-stats.test.js`
 
 - **測試來源**：`js/modules/leaderboard.js`
-- **測試數量**：30
-- **涵蓋函式**：`_categorizeRecords`（活動紀錄分類：完成/未出席/取消）
-- **測試重點**：基本分類、取消後再報名、去重、結束活動、公開模式、跨類別衝突
+- **測試數量**：18
 
-### 2.8 `tests/unit/script-loader.test.js`
+#### `_categorizeRecords` — 基本分類 — 6 tests
+
+活動紀錄三階段分類（完成/報名中/取消）。
+
+| # | 測試案例 |
+|---|---------|
+| 1 | `empty input returns empty arrays` |
+| 2 | `registered records appear in registered (event open)` |
+| 3 | `cancelled records appear in cancelled` |
+| 4 | `completed records (checkin + checkout) appear in completed` |
+| 5 | `checkin only (no checkout) does NOT count as completed` |
+| 6 | `removed records are excluded from all categories` |
+
+#### `_categorizeRecords` — 取消後再報名 — 2 tests
+
+| # | 測試案例 |
+|---|---------|
+| 1 | `cancel then re-register: cancel record hidden, registered shown` |
+| 2 | `cancel then re-register then complete: shows completed only` |
+
+#### `_categorizeRecords` — 去重 — 2 tests
+
+| # | 測試案例 |
+|---|---------|
+| 1 | `duplicate cancelled records for same event only show once` |
+| 2 | `duplicate completed records for same event only show once` |
+
+#### `_categorizeRecords` — 結束活動處理 — 2 tests
+
+| # | 測試案例 |
+|---|---------|
+| 1 | `registered + event ended = missed status` |
+| 2 | `waitlisted + event ended = not shown (waitlisted not counted as missed)` |
+
+#### `_categorizeRecords` — 公開模式 — 2 tests
+
+| # | 測試案例 |
+|---|---------|
+| 1 | `public mode hides registered records` |
+| 2 | `public mode still shows completed and cancelled` |
+
+#### `_categorizeRecords` — 多活動混合 — 2 tests
+
+| # | 測試案例 |
+|---|---------|
+| 1 | `correctly classifies mixed events` |
+| 2 | `event with null getEvent result does not appear` |
+
+#### `_categorizeRecords` — 跨類別衝突 — 2 tests
+
+| # | 測試案例 |
+|---|---------|
+| 1 | `completed event is not also shown in registered` |
+| 2 | `attendance from different uid does not affect target user` |
+
+---
+
+### 2.7 `tests/unit/script-loader.test.js`
 
 - **測試來源**：`js/core/script-loader.js`
 - **測試數量**：22
-- **涵蓋函式**：`_normalizeLocalSrc`（URL 正規化）、`filterToLoad`、`resolvePageScripts`（群組去重）
-- **測試重點**：包含實際專案群組驗證（確認群組定義與頁面對映一致性）
 
-### 2.9 `tests/unit/no-show-stats.test.js`
+#### `_normalizeLocalSrc` — 9 tests
+
+URL 路徑正規化（同源判斷、解碼、query/hash 移除）。
+
+| # | 測試案例 |
+|---|---------|
+| 1 | `normalizes relative path` |
+| 2 | `normalizes absolute path on same origin` |
+| 3 | `normalizes URL with query string` |
+| 4 | `normalizes URL with hash` |
+| 5 | `normalizes full same-origin URL` |
+| 6 | `returns null for external URLs` |
+| 7 | `returns null for invalid URLs` |
+| 8 | `decodes URL-encoded paths` |
+| 9 | `handles nested paths` |
+
+#### `filterToLoad` — 4 tests
+
+過濾已載入的 script（避免重複載入）。
+
+| # | 測試案例 |
+|---|---------|
+| 1 | `returns all scripts when none loaded` |
+| 2 | `filters out already loaded scripts` |
+| 3 | `returns empty array when all loaded` |
+| 4 | `handles empty input` |
+
+#### `resolvePageScripts` — 5 tests
+
+解析頁面所需 script 清單（跨群組去重）。
+
+| # | 測試案例 |
+|---|---------|
+| 1 | `returns scripts for single group` |
+| 2 | `deduplicates shared scripts across groups` |
+| 3 | `returns empty array for unknown page` |
+| 4 | `handles missing group gracefully` |
+| 5 | `preserves order within groups` |
+
+#### `resolvePageScripts` — 實際專案群組驗證 — 3 tests
+
+使用真實專案的群組定義做整合驗證。
+
+| # | 測試案例 |
+|---|---------|
+| 1 | `page-tournaments loads tournament group` |
+| 2 | `page-profile deduplicates image-cropper.js across achievement+profile` |
+| 3 | `page-user-card loads both achievement and profile groups` |
+
+---
+
+### 2.8 `tests/unit/no-show-stats.test.js`
 
 - **測試來源**：`js/modules/event/event-manage-noshow.js`
 - **測試數量**：30
-- **涵蓋函式**：`_buildRawNoShowCountByUid`、`_buildNoShowCountByUid`（含補正）、`_getNoShowDetailsByUid`
-- **測試重點**：nameToUid 歷史資料修正、日期格式處理、同行者排除、補正值 clamp
 
-### 2.10 `tests/unit/script-deps.test.js`
+#### `_buildRawNoShowCountByUid` — 基本計數 — 9 tests
+
+統計每位用戶的放鴿子次數（未簽到 + 活動已結束）。
+
+| # | 測試案例 |
+|---|---------|
+| 1 | `returns empty map when no registrations` |
+| 2 | `counts confirmed registration with no checkin as no-show` |
+| 3 | `does not count if user has checkin` |
+| 4 | `does not count waitlisted registrations` |
+| 5 | `does not count companions` |
+| 6 | `does not count non-ended events` |
+| 7 | `does not count events happening today (grace period)` |
+| 8 | `counts multiple no-shows per user` |
+| 9 | `deduplicates same user+event registration` |
+
+#### `_buildRawNoShowCountByUid` — nameToUid 歷史修正 — 3 tests
+
+修正歷史資料中 `attendanceRecords.uid` 儲存為顯示名稱的問題。
+
+| # | 測試案例 |
+|---|---------|
+| 1 | `matches checkin by displayName when uid stored as displayName` |
+| 2 | `ignores removed/cancelled attendance records` |
+| 3 | `nameToUid does not map uid to itself` |
+
+#### `_buildRawNoShowCountByUid` — 日期格式處理 — 2 tests
+
+| # | 測試案例 |
+|---|---------|
+| 1 | `handles date with time component` |
+| 2 | `handles YYYY-MM-DD format` |
+
+#### `_buildNoShowCountByUid` — 補正值處理 — 7 tests
+
+管理員手動補正放鴿子次數。
+
+| # | 測試案例 |
+|---|---------|
+| 1 | `applies negative adjustment` |
+| 2 | `applies positive adjustment` |
+| 3 | `clamps to minimum 0` |
+| 4 | `adds correction for user not in raw count` |
+| 5 | `ignores non-finite adjustments` |
+| 6 | `uses _docId as fallback uid` |
+| 7 | `does not modify original map` |
+
+#### `_getNoShowDetailsByUid` — 7 tests
+
+查詢特定用戶的放鴿子明細（含事件資訊）。
+
+| # | 測試案例 |
+|---|---------|
+| 1 | `returns empty array for empty uid` |
+| 2 | `returns details for no-show events` |
+| 3 | `excludes events where user checked in` |
+| 4 | `only returns details for the specified uid` |
+| 5 | `uses nameToUid mapping for historical checkin records` |
+| 6 | `formats eventDate correctly` |
+| 7 | `sorts by eventDate descending` |
+
+---
+
+### 2.9 `tests/unit/script-deps.test.js`
 
 - **測試來源**：跨模組依賴驗證（解析 `index.html`、`js/core/script-loader.js` 及所有 JS 模組）
-- **測試數量**：15
+- **測試數量**：9
 - **測試類型**：靜態分析（不執行模組程式碼）
-- **測試重點**：
-  - 驗證 eager 載入的腳本不會呼叫僅在 dynamic 群組中定義的函式（除非有 `?.()` 或 truthiness guard）
-  - 驗證 `index.html` inline onclick 不會呼叫動態載入的函式
-  - 驗證 ScriptLoader 群組中的腳本檔案都存在
-  - 驗證 `_pageGroups` 引用的群組名稱都存在
-  - 驗證所有 JS 模組至少在 index.html 或某個 ScriptLoader 群組中（偵測遺漏）
 - **設計目的**：防止 Phase 1 效能優化（移除 eager script）後的跨模組呼叫斷裂，此測試能在部署前捕捉此類問題
+
+#### Script dependency validation — 3 tests
+
+基本結構驗證。
+
+| # | 測試案例 |
+|---|---------|
+| 1 | `index.html has eager scripts` |
+| 2 | `script-loader has groups defined` |
+| 3 | `script-loader has pageGroups defined` |
+
+#### Eager scripts — no unguarded calls — 2 tests
+
+驗證 eager 載入的腳本不會未保護地呼叫僅在 dynamic 群組中定義的函式。
+
+| # | 測試案例 | 說明 |
+|---|---------|------|
+| 1 | `no unguarded calls to undefined functions in eager scripts` | 掃描所有 App 模組的 `this.X()` 呼叫，排除 `?.()` / `typeof` / truthiness guard |
+| 2 | `no unguarded calls in index.html inline onclick` | 掃描 index.html 中 `onclick="App.X()"` 是否呼叫未載入的函式 |
+
+#### ScriptLoader groups — no orphaned scripts — 3 tests
+
+驗證 ScriptLoader 群組完整性。
+
+| # | 測試案例 | 說明 |
+|---|---------|------|
+| 1 | `all scripts in groups point to existing files` | 群組內的路徑對應到實際存在的檔案 |
+| 2 | `all pageGroup references point to existing groups` | `_pageGroups` 引用的群組名稱都存在 |
+| 3 | `scripts not in index.html must be in at least one ScriptLoader group` | 偵測遺漏模組（不在 eager 也不在任何群組） |
+
+#### Eager script file existence — 1 test
+
+| # | 測試案例 |
+|---|---------|
+| 1 | `all scripts referenced in index.html exist on disk` |
 
 ---
 
