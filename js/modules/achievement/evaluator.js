@@ -375,7 +375,8 @@ Object.assign(App, {
       const fallbackRegistrations = selfRegistrations.length
         ? selfRegistrations
         : buildSelfRegistrationsFromActivityRecords(activityRecords, resolvedUid, eventMap);
-      const validRegistrations = fallbackRegistrations.filter(record => record.status === 'confirmed');
+      // registrations 集合用 'confirmed'，activityRecords fallback 用 'registered'，兩者都視為有效
+      const validRegistrations = fallbackRegistrations.filter(record => record.status === 'confirmed' || record.status === 'registered');
       // 優先使用 user-specific cache（含 displayName fallback），降級為全域快取
       const attendanceRecords = ApiService.getUserAttendanceRecords?.(resolvedUid) || ApiService.getAttendanceRecords?.() || [];
       const nameSet = getUserNameSet(resolvedUser);

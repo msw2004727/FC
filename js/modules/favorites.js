@@ -73,7 +73,7 @@ Object.assign(App, {
       .filter(r => r && r.eventId === eventId && r.userId === uid);
     if (!regs.length) return { css: fallback.css, label: fallback.label };
 
-    if (regs.some(r => r.status === 'confirmed' || r.status === 'registered')) {
+    if (regs.some(r => r.status === 'confirmed')) {
       return { css: 'open', label: '已報名' };
     }
     if (regs.some(r => r.status === 'waitlisted')) {

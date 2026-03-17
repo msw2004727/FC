@@ -95,7 +95,9 @@ Object.assign(App, {
         if (!record) return;
         const recordUid = normalizeString(record.uid || record.userId || safeUid);
         if (recordUid && safeUid && recordUid !== safeUid) return;
-        if (normalizeString(record.status) !== 'confirmed') return;
+        // registrations 集合用 'confirmed'，activityRecords 集合用 'registered'，兩者都視為有效報名
+        const st = normalizeString(record.status);
+        if (st !== 'confirmed' && st !== 'registered') return;
 
         const eventId = normalizeString(record.eventId);
         if (!eventId) return;

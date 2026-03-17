@@ -10,6 +10,19 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-17 — [永久] registrations 用 'confirmed' vs activityRecords 用 'registered' 混用導致統計歸零
+- **問題**：修正 `'registered'` → `'confirmed'` 後，完成場次和出席率反而歸零
+- **原因**：`_calcScanStats()` 把 `activityRecords`（status='registered'）當作 registrations 參數傳給 `getParticipantAttendanceStats()`，但該函數已改為只接受 `'confirmed'`
+- **根本問題**：系統有兩個集合使用不同的 status 命名規則：
+  - `registrations` 集合 → `'confirmed'` / `'waitlisted'`
+  - `activityRecords` 集合 → `'registered'` / `'waitlisted'`
+  - 兩者都會被餵進 `getParticipantAttendanceStats()` 作為 registrations 參數
+- **修復**：`stats.js` 和 `evaluator.js` 的 status 過濾同時接受 `'confirmed'` 和 `'registered'`
+- **教訓**：
+  1. 修改 status 過濾時，必須追蹤該函數的**所有呼叫者**和它們傳入的資料來源
+  2. `registrations` 和 `activityRecords` 是兩個獨立集合，status 欄位命名不同，但都會流入統計函數
+  3. 任何改動 status 比對的地方，必須同時驗證兩條路徑
+
 ### 2026-03-17 — [永久] 成就系統 status 名稱不匹配導致所有報名相關成就失效
 - **問題**：出席率 100% 仍無法獲得成就徽章，所有依賴 validRegistrations 的成就條件（出席率、完成場次、報名次數等）全部回傳 0
 - **原因**：`evaluator.js` 和 `stats.js` 用 `status === 'registered'` 過濾報名紀錄，但 `firebase-crud.js` 實際寫入的是 `status: 'confirmed'`。系統中從未有任何地方寫入 `status: 'registered'`，導致 `validRegistrations` 永遠是空陣列
