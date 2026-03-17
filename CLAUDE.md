@@ -1,5 +1,13 @@
 # SportHub — Claude Code 專案指引
 
+<!--
+  結構文件交叉引用（任一檔案的結構描述更新時，必須同步更新以下所有檔案）：
+  - docs/architecture.md       ← 完整架構圖 + 模組清單 + Mermaid 圖
+  - docs/structure-guide.md    ← 中文功能導覽圖（給人看的，附功能解釋）
+  - CLAUDE.md                  ← 目錄結構概覽（§ 目錄結構）
+  - AGENTS.md                  ← 目錄結構指引（§ 目錄結構）
+-->
+
 ## 專案概述
 
 **SportHub** 是一套運動活動報名與管理系統，提供用戶報名活動（PLAY / 友誼 / 教學 / 觀賽）、組建球隊、參加錦標賽、QR Code 簽到簽退及個人數據統計等功能。管理端提供活動管理、用戶管理、EXP 系統、成就徽章、廣告投放等後台能力。
@@ -31,38 +39,36 @@
 
 ```
 FC-github/
-├── index.html              # 主入口，定義所有 <script> 載入順序
-├── app.js                  # App 核心物件，4 階段初始化流程
+├── index.html              # 主入口
+├── app.js                  # App 核心物件
 ├── sw.js                   # Service Worker
-├── css/                    # 樣式（13 個 CSS，按頁面拆分）
+├── css/                    # 樣式（13 個 CSS）
 ├── js/
-│   ├── config.js           # 全域常數（CACHE_VERSION、ROLES、TYPE_CONFIG 等）、ModeManager
-│   ├── i18n.js             # 多語系翻譯字串
-│   ├── firebase-config.js  # Firebase SDK 初始化，暴露 db / storage / auth
-│   ├── firebase-service.js # 快取優先資料層，onSnapshot 即時同步，localStorage 持久化
-│   ├── firebase-crud.js    # CRUD 操作（Object.assign 擴充 FirebaseService）
-│   ├── api-service.js      # Demo / Prod 抽象層（依 ModeManager 切換資料來源）
-│   ├── line-auth.js        # LINE LIFF 登入 / 登出 / 取得個人資料
-│   ├── core/               # 基礎設施（4 個）：page-loader / script-loader / navigation / theme
-│   └── modules/            # 功能模組 67 個（Object.assign 擴充 App）
-│       ├── event-*.js      # 活動（6 個）：列表、詳情、報名、同行者、建立、管理
-│       ├── team*.js        # 球隊（4 個）：列表、詳情、表單、管理
-│       ├── tournament-*.js # 錦標賽（7 個）：渲染、管理 + tournament/ 子目錄
-│       ├── profile-*.js    # 個人資料（3 個）：核心、資料、名片
-│       ├── message-*.js    # 訊息（2 個）：收件匣、管理員廣播
-│       ├── user-admin-*.js # 用戶後台（4 個）：列表、EXP、角色、補正
-│       ├── ad-manage-*.js  # 廣告管理（5 個）：核心、Banner、浮動、贊助、小遊戲
-│       ├── achievement/    # 成就子系統（10 個）：registry / evaluator / badges / titles 等
-│       └── [其他]          # scan / shop / dashboard / leaderboard / achievement facade
-│                           # announcement / favorites / auto-exp / banner / role
-│                           # site-theme / game-manage / image-cropper / image-upload
-│                           # popup-ad / personal-dashboard / attendance-notify
-│                           # admin-log-tabs / audit-log / error-log / registration-audit
-│                           # shot-game-engine / shot-game-lab-page / shot-game-page
-│                           # dashboard-participant-query / dashboard-participant-share
-├── pages/                  # HTML 片段（16 個，PageLoader 按需載入）
-├── docs/                   # 專案文件（architecture.md、claude-memory.md 等）
-└── functions/              # Cloud Functions（Node.js 22，18 個 exports）
+│   ├── config.js           # 全域常數、ModeManager
+│   ├── i18n.js             # 多語系
+│   ├── firebase-config.js  # Firebase SDK 初始化
+│   ├── firebase-service.js # 快取優先資料層
+│   ├── firebase-crud.js    # CRUD 操作
+│   ├── api-service.js      # Demo / Prod 抽象層
+│   ├── line-auth.js        # LINE LIFF 登入
+│   ├── core/               # 基礎設施（4 個）
+│   └── modules/            # 功能模組（12 子資料夾 + 21 獨立檔案）
+│       ├── event/          # 活動系統（27）：列表、詳情、報名、建立、管理、分享
+│       ├── team/           # 球隊系統（10）：列表、詳情、表單、分享
+│       ├── tournament/     # 賽事系統（12）：渲染、詳情、管理、友誼賽
+│       ├── profile/        # 個人資料（9）：核心、資料、名片、分享
+│       ├── message/        # 訊息系統（9）：渲染、操作、收件匣、管理員
+│       ├── achievement/    # 成就系統（10）：registry / evaluator / badges 等
+│       ├── shot-game/      # 射門遊戲（10）：引擎、物理、渲染、計分
+│       ├── kickball/       # 踢球遊戲（6）：物理、渲染、排行榜
+│       ├── scan/           # QR 掃描（5）：掃描、處理、家庭成員
+│       ├── dashboard/      # 儀表板（5）：管理員、個人、報表分享
+│       ├── ad-manage/      # 廣告管理（5）：輪播、浮動、贊助、小遊戲
+│       ├── user-admin/     # 用戶後台（4）：列表、EXP、角色、補正
+│       └── [21 獨立模組]   # banner / shop / leaderboard / role 等
+├── pages/                  # HTML 片段（16 個）
+├── docs/                   # 專案文件
+└── functions/              # Cloud Functions
 ```
 
 ---
@@ -93,13 +99,13 @@ FC-github/
 - **bug 修復或小幅調整** → 直接修改現有檔案
 - **同一責任範圍的邏輯擴充** → 修改現有檔案
 - **新的責任範圍或獨立業務邏輯** → 在 `js/modules/` 建立新模組，以 `Object.assign(App, {...})` 掛載
-- **單一檔案不得超過 300 行**，超過則拆分（參考 `user-admin-list/exp/roles.js` 的拆分方式）
+- **單一檔案不得超過 300 行**，超過則拆分（新模組放入對應功能子資料夾（如 js/modules/event/、js/modules/team/），參考既有資料夾結構）
 
 ## 模組化演進目標（新增）
 
 - 專案長期目標是逐步走向**功能模組化、資料夾化、責任邊界清楚**的架構；對於已明顯跨頁、跨責任、跨資料來源的功能，不應長期維持在單一大檔案中持續堆疊。
 - 重構既有功能時，預設採用「**保留舊入口、內部邏輯逐步抽離到新資料夾**」的方式進行；除非使用者明確要求，否則不要直接做一次性大搬家。
-- 若某功能已演進為多個責任混雜的領域（例如：前台顯示、後台管理、資料評估、共用 helper、狀態同步），應優先規劃同名資料夾，例如 `js/modules/achievement/`、`js/modules/tournament/`、`js/modules/user-admin/`，再逐步拆分。
+- 已完成 12 個功能子資料夾化（achievement / tournament / user-admin / event / team / profile / message / scan / dashboard / kickball / ad-manage / shot-game），新增模組應放入對應子資料夾。
 - 舊檔若仍承擔既有入口責任，應先轉為 facade / compatibility layer，再逐步瘦身，而不是在第一步就刪除。
 - 功能重構時，要明確區分「結構整理」與「業務邏輯改寫」兩種工作；若兩者同時進行會提高回歸風險，預設先做結構整理，再做邏輯重寫。
 - 每次完成資料夾化或模組拆分後，必須同步更新 `docs/architecture.md`，讓專案結構演進有文件可追。
@@ -114,6 +120,7 @@ FC-github/
 4. 修改任何 JS 或 HTML 檔案後，必須同步更新快取版本號（見上方規則）
 5. 若功能已明顯超出單檔可維護範圍，優先建立功能資料夾，不要繼續把新責任疊加在既有大檔上
 6. 功能搬移若涉及既有頁面入口，預設先保留舊入口檔案作為相容層，再逐步轉接到新資料夾
+7. 若變更涉及模組新增、搬移或刪除，必須同步更新結構文件（見檔案頂部交叉引用清單）
 
 ---
 
@@ -183,10 +190,10 @@ https://liff.line.me/{LINE_CONFIG.LIFF_ID}?{deepLinkParam}={id}
 | `js/firebase-crud.js` | `cancelCompanionRegistrations()` | 取消同行者報名 |
 | `js/firebase-crud.js` | `_rebuildOccupancy()` | 佔位重建（純函式） |
 | `js/firebase-crud.js` | `_applyRebuildOccupancy()` | 佔位寫入快取 |
-| `js/modules/event-detail-signup.js` | `handleSignup()` | 報名 UI 入口 |
-| `js/modules/event-detail-signup.js` | `handleCancelSignup()` | 取消報名 UI 入口 |
-| `js/modules/event-detail-companion.js` | `_confirmCompanionRegister()` | 同行者報名 UI |
-| `js/modules/event-detail-companion.js` | `_confirmCompanionCancel()` | 同行者取消 UI |
+| `js/modules/event/event-detail-signup.js` | `handleSignup()` | 報名 UI 入口 |
+| `js/modules/event/event-detail-signup.js` | `handleCancelSignup()` | 取消報名 UI 入口 |
+| `js/modules/event/event-detail-companion.js` | `_confirmCompanionRegister()` | 同行者報名 UI |
+| `js/modules/event/event-detail-companion.js` | `_confirmCompanionCancel()` | 同行者取消 UI |
 
 ### 修改這些函式時的強制規則
 
@@ -211,9 +218,9 @@ https://liff.line.me/{LINE_CONFIG.LIFF_ID}?{deepLinkParam}={id}
 
 | 檔案 | 鎖定函式 / 區塊 | 說明 |
 |------|------------------|------|
-| `js/modules/event-manage.js` | `_buildRawNoShowCountByUid()` | 放鴿子原始計數（全用戶） |
-| `js/modules/event-manage.js` | `_getNoShowDetailsByUid()` | 放鴿子明細查詢（單一用戶） |
-| `js/modules/event-manage.js` | `_confirmAllAttendance()` | 批次確認出席（寫入 attendanceRecords） |
+| `js/modules/event/event-manage-noshow.js` | `_buildRawNoShowCountByUid()` | 放鴿子原始計數（全用戶） |
+| `js/modules/event/event-manage-noshow.js` | `_getNoShowDetailsByUid()` | 放鴿子明細查詢（單一用戶） |
+| `js/modules/event/event-manage-confirm.js` | `_confirmAllAttendance()` | 批次確認出席（寫入 attendanceRecords） |
 | `js/modules/achievement/stats.js` | `getParticipantAttendanceStats()` | 出席統計核心（完成場次、出席率） |
 | `js/modules/leaderboard.js` | `_calcScanStats()` | 掃碼統計（呼叫 getParticipantAttendanceStats） |
 | `js/modules/leaderboard.js` | `_categorizeRecords()` | 活動紀錄分類（完成 / 未出席 / 取消） |

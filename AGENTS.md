@@ -1,5 +1,13 @@
 # SportHub — Claude Code 專案指引
 
+<!--
+  結構文件交叉引用（任一檔案的結構描述更新時，必須同步更新以下所有檔案）：
+  - docs/architecture.md       ← 完整架構圖 + 模組清單 + Mermaid 圖
+  - docs/structure-guide.md    ← 中文功能導覽圖（給人看的，附功能解釋）
+  - CLAUDE.md                  ← 目錄結構概覽（§ 目錄結構）
+  - AGENTS.md                  ← 目錄結構指引（§ 目錄結構）
+-->
+
 ## 專案概述
 
 **SportHub** 是一套運動活動報名與管理系統，提供用戶報名活動（PLAY / 友誼 / 教學 / 觀賽）、組建球隊、參加錦標賽、QR Code 簽到簽退及個人數據統計等功能。管理端提供活動管理、用戶管理、EXP 系統、成就徽章、廣告投放等後台能力。
@@ -27,7 +35,7 @@
 
 ## 目錄結構
 
-> 目錄結構與模組清單統一維護於 `CLAUDE.md`（概覽）和 `docs/architecture.md`（完整），此處不重複列出。
+> 目錄結構與模組清單統一維護於 `CLAUDE.md`（概覽）、`docs/architecture.md`（完整架構圖）和 `docs/structure-guide.md`（中文功能導覽），此處不重複列出。
 
 ---
 
@@ -57,13 +65,13 @@
 - **bug 修復或小幅調整** → 直接修改現有檔案
 - **同一責任範圍的邏輯擴充** → 修改現有檔案
 - **新的責任範圍或獨立業務邏輯** → 在 `js/modules/` 建立新模組，以 `Object.assign(App, {...})` 掛載
-- **單一檔案不得超過 300 行**，超過則拆分（參考 `user-admin-list/exp/roles.js` 的拆分方式）
+- **單一檔案不得超過 300 行**，超過則拆分（新模組放入對應功能子資料夾（如 js/modules/event/、js/modules/team/），參考既有資料夾結構）
 
 ## 模組化演進目標（新增）
 
 - 專案長期目標是逐步走向**功能模組化、資料夾化、責任邊界清楚**的架構；對於已明顯跨頁、跨責任、跨資料來源的功能，不應長期維持在單一大檔案中持續堆疊。
 - 重構既有功能時，預設採用「**保留舊入口、內部邏輯逐步抽離到新資料夾**」的方式進行；除非使用者明確要求，否則不要直接做一次性大搬家。
-- 若某功能已演進為多個責任混雜的領域（例如：前台顯示、後台管理、資料評估、共用 helper、狀態同步），應優先規劃同名資料夾，例如 `js/modules/achievement/`、`js/modules/tournament/`、`js/modules/user-admin/`，再逐步拆分。
+- 已完成 12 個功能子資料夾化（achievement / tournament / user-admin / event / team / profile / message / scan / dashboard / kickball / ad-manage / shot-game），新增模組應放入對應子資料夾。
 - 舊檔若仍承擔既有入口責任，應先轉為 facade / compatibility layer，再逐步瘦身，而不是在第一步就刪除。
 - 功能重構時，要明確區分「結構整理」與「業務邏輯改寫」兩種工作；若兩者同時進行會提高回歸風險，預設先做結構整理，再做邏輯重寫。
 - 每次完成資料夾化或模組拆分後，必須同步更新 `docs/architecture.md`，讓專案結構演進有文件可追。
@@ -78,6 +86,7 @@
 4. 修改任何 JS 或 HTML 檔案後，必須同步更新快取版本號（見上方規則）
 5. 若功能已明顯超出單檔可維護範圍，優先建立功能資料夾，不要繼續把新責任疊加在既有大檔上
 6. 功能搬移若涉及既有頁面入口，預設先保留舊入口檔案作為相容層，再逐步轉接到新資料夾
+7. 若變更涉及模組新增、搬移或刪除，必須同步更新結構文件（見檔案頂部交叉引用清單）
 
 ---
 
@@ -115,8 +124,8 @@
 | 檔案 | 鎖定函式 |
 |------|----------|
 | `js/firebase-crud.js` | `registerForEvent`、`batchRegisterForEvent`、`cancelRegistration`、`cancelCompanionRegistrations`、`_rebuildOccupancy`、`_applyRebuildOccupancy` |
-| `js/modules/event-detail-signup.js` | `handleSignup`、`handleCancelSignup` |
-| `js/modules/event-detail-companion.js` | `_confirmCompanionRegister`、`_confirmCompanionCancel` |
+| `js/modules/event/event-detail-signup.js` | `handleSignup`、`handleCancelSignup` |
+| `js/modules/event/event-detail-companion.js` | `_confirmCompanionRegister`、`_confirmCompanionCancel` |
 
 ### 強制規則
 1. **禁止使用本地快取作為計數來源**：`_rebuildOccupancy` 的輸入必須來自 Firestore 查詢，禁止用 `this._cache.registrations` 計數

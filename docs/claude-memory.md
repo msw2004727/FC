@@ -10,6 +10,11 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-17 — 模組資料夾化（80+ 模組移入 12 個功能子資料夾）
+- **內容**：將 js/modules/ 下 80+ 個扁平模組移入 12 個子資料夾：event/(27), team/(10), tournament/(12), profile/(9), message/(9), scan/(5), dashboard/(5), kickball/(6), ad-manage/(5), user-admin/(4), shot-game/(10), achievement/(10 既有)。保留 21 個獨立模組在扁平目錄
+- **更新檔案**：script-loader.js（97 條路徑）、index.html（75 個 script tag）、game-lab.html（8 條路徑）、shot-game-page.js（5 條硬編碼路徑）
+- **教訓**：shot-game-page.js 內有硬編碼的動態載入路徑（`_loadEngine()`），資料夾化時容易遺漏。其他模組都透過 Object.assign 掛載，不含路徑引用
+
 ### 2026-03-17 — JS 檔案拆分 Phase 3（6 大模組 + 整合既有拆分檔）
 - **內容**：event-manage(2056→532)、event-create(2249→402)、team-form(1011→386)、tournament-manage(988→299)、event-detail(793→692)、tournament-render(557→155)、event-share(508→262)。新增 23 個拆分檔、刪除 team.js(1381行)
 - **風險發現**：event-share-builders.js 僅在 script-loader 但 event-share.js 在 index.html 直接載入，已修復（加入 index.html）
