@@ -10,6 +10,12 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-17 — [永久] 孤兒記錄清理用快取當有效清單導致誤刪
+- **問題**：用戶出席率顯示 0% 而非 100%。診斷發現 7 個活動的 events 文件不存在，但 registrations/activityRecords/attendanceRecords 還在
+- **原因**：`_syncOrphanCleanup` 用 `ApiService.getEvents()`（前端快取，limit 200+200）作為有效活動清單。若系統活動超過快取上限，正常活動被誤判為孤兒而清除相關資料，或活動本身被正常刪除但級聯清理不完整
+- **修復**：改為 `db.collection('events').get()` 直接查 Firestore 完整集合，不再依賴快取
+- **教訓**：任何「判斷資料是否有效」的邏輯，絕不可用有 limit 上限的前端快取作為唯一資料來源
+
 ### 2026-03-17 — [永久] _showPageStale 未等待 ensureForPage 導致動態函式呼叫崩潰
 - **問題**：開啟個人頁面時報錯 `renderUserCard is not a function`
 - **原因**：`_showPageStale()` 是同步函式，直接呼叫 `_activatePage()` → `_renderPageContent()`，未先 `await ScriptLoader.ensureForPage(pageId)` 載入動態腳本。`stale-first`/`stale-confirm` 策略的頁面（page-profile、page-activity-detail 等）會走此路徑

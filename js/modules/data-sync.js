@@ -104,9 +104,10 @@ Object.assign(App, {
       reads = 0; writes = U;
       summary = `用戶 ${U} 位、球隊 ${T} 支（從快取比對，無額外讀取）`;
     } else if (op === 'orphan') {
-      reads = R + Act + Att;
+      const E = (ApiService.getEvents?.() || []).length;
+      reads = E + R + Act + Att;
       writes = Math.round((R + Act + Att) * 0.05);
-      summary = `報名 ${R}、活動紀錄 ${Act}、出席紀錄 ${Att}\n（快取為下限，實際集合可能更大；預估 5% 為孤兒）`;
+      summary = `活動 ${E}+、報名 ${R}、活動紀錄 ${Act}、出席紀錄 ${Att}\n（會直接查 Firestore 完整 events 集合；預估 5% 為孤兒）`;
     } else if (op === 'all') {
       const achU = U;
       const achA = (ApiService.getAchievements?.() || []).filter(a => a && a.status !== 'archived' && a.condition).length;
@@ -206,10 +207,18 @@ Object.assign(App, {
   // ── ④ 孤兒記錄清理 ──
   async _syncOrphanCleanup(ui) {
     ui.log('開始孤兒記錄清理...');
-    const events = ApiService.getEvents?.() || [];
-    const validEventIds = new Set(
-      events.map(e => String(e?.id || e?._docId || '').trim()).filter(Boolean)
-    );
+    // 直接從 Firestore 查所有 events（不用快取，避免 limit 截斷導致誤刪）
+    ui.log('從 Firestore 載入完整活動清單...');
+    let validEventIds;
+    try {
+      const eventsSnap = await db.collection('events').get();
+      validEventIds = new Set(
+        eventsSnap.docs.map(d => String(d.id || '').trim()).filter(Boolean)
+      );
+    } catch (err) {
+      ui.log('錯誤：無法載入 events 集合，中止清理（' + err.message + '）');
+      return;
+    }
     ui.log(`有效活動 ${validEventIds.size} 個，開始掃描集合...`);
 
     const collections = [

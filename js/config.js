@@ -250,7 +250,7 @@
 // 20260316s: Phase 3+4 — 支援讀其他用戶徽章 + 移除全域寫入 + 清理汙染邏輯
 // 20260316t: 一次性清理全域 achievements 汙染（重設 current/completedAt 為模板狀態）
 // 20260317j: Phase 2 — 拆分 event-list/scan/team-detail/profile-data/profile-core/team-list/dashboard
-const CACHE_VERSION = '20260317o';
+const CACHE_VERSION = '20260317p';
 
 // ─── Page Strategy Registry ───
 // 唯一策略來源，未列出的頁面預設 fresh-first
