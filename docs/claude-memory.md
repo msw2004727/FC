@@ -10,6 +10,13 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-17 — Phase 1 自動化測試建立
+- **內容**：建立兩層自動化測試基礎
+  1. `tests/unit/pure-functions.test.js`（28 個測試）— 從 Object.assign 模組中提取純函式邏輯進行測試：_rebuildOccupancy、_isEventDelegate、_isAnyActiveEventDelegate、_categorizeScanEvents
+  2. `tests/firestore.rules.test.js` 擴充（+585 行）— 新增 attendanceRecords CRUD 權限、users 自更新安全邊界（3 條路徑）、rolePermissions 讀寫權限測試
+  3. `package.json` 新增 `test:unit` script
+- **教訓**：專案使用 Object.assign 模式無法直接 import，測試需複製純函式邏輯；修改原始函式時需同步更新對應測試
+
 ### 2026-03-17 — 用戶名片活動記錄徽章數量顯示錯誤
 - **問題**：查看其他用戶的活動記錄時，徽章數量顯示的是管理員（當前登入者）自己的徽章數，而非該用戶實際獲得的徽章數
 - **原因**：`renderUserCardRecords` 使用 `getCurrentBadgeCount()` 計算徽章數，此函式固定對當前登入者（`ApiService.getCurrentUser()`）評估成就，未考慮目標用戶
