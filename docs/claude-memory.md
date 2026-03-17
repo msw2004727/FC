@@ -10,6 +10,12 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-17 — [永久] 放鴿子計算用全域快取（limit 200）vs 出席率用 userStatsCache（無 limit）導致不一致
+- **問題**：用戶出席率 100% 但放鴿子顯示 1
+- **原因**：`_buildRawNoShowCountByUid` 用 `ApiService.getAttendanceRecords()`（全域快取，limit 200），`_calcScanStats` 用 `getUserAttendanceRecords(uid)`（_userStatsCache，Firestore 直查無 limit）。如果用戶的簽到紀錄超過全域快取限制，放鴿子計算就會漏掉簽到紀錄而誤判
+- **修復**：`_buildRawNoShowCountByUid` 和 `_getNoShowDetailsByUid` 合併全域快取 + _userStatsCache，用 _docId 去重
+- **教訓**：所有統計計算必須使用相同的資料來源；全域快取有 limit 截斷風險，涉及個人統計時必須優先使用 user-specific cache
+
 ### 2026-03-17 — [永久] stats.js 缺少 displayName fallback 導致出席率與放鴿子不一致
 - **問題**：用戶出席率 100% 但放鴿子次數 > 0，兩個數字矛盾
 - **原因**：`stats.js` 的 `getParticipantAttendanceStats` 比對 `attendanceRecords.uid` 時用嚴格匹配（`uid === safeUid`），但歷史資料的 `attendanceRecords.uid` 可能存的是顯示名稱（如「小白」）而非 LINE userId。`_buildRawNoShowCountByUid` 和 `evaluator.js` 都有 nameToUid/nameSet fallback，唯獨 stats.js 沒有，造成同一筆簽到紀錄在一個路徑被認定有出席、另一個路徑被忽略
