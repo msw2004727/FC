@@ -440,6 +440,18 @@ flowchart LR
     RULES --> FS
 ```
 
+## UID Migration Cloud Function (2026-03-17)
+
+- New Cloud Function: `functions/index.js` exports `migrateUidFields`
+  - `onCall`, requires `super_admin` role
+  - Fixes historical `attendanceRecords`/`activityRecords` where `uid` field contains displayName instead of LINE userId
+  - Supports `dryRun` mode for preview, automatic backup to `_migrationBackups` collection
+  - Handles duplicate names via cross-referencing `registrations` collection
+  - Region: `asia-east1`, timeout: 540s, memory: 512MiB
+- Frontend trigger: `js/modules/data-sync.js` — `_syncUidMigration()` operation
+  - UI button in `pages/admin-system.html` ("⑤ UID 欄位修正")
+  - Follows existing dry-run + confirm + progress pattern
+
 ## Admin Log Center Update (2026-03-10)
 
 - Frontend module: `js/modules/admin-log-tabs.js`

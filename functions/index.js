@@ -3179,3 +3179,229 @@ exports.fetchSportsNews = onSchedule(
     console.log(`[fetchSportsNews] Wrote ${articles.length} articles`);
   }
 );
+
+// ─── UID 欄位遷移 ───────────────────────────────────────────────
+// 修正 attendanceRecords / activityRecords 中 uid 為 displayName 的歷史資料
+exports.migrateUidFields = onCall(
+  {
+    region: "asia-east1",
+    timeoutSeconds: 540,
+    memory: "512MiB",
+    maxInstances: 1,
+  },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Authentication required");
+    }
+
+    const access = await getCallerAccessContext(request);
+    if (!access.isSuperAdmin) {
+      throw new HttpsError("permission-denied", "Only super_admin can run UID migration");
+    }
+
+    const { dryRun: rawDryRun = true, collection = "both" } = request.data || {};
+    // 嚴格型別：只有 boolean false 才執行寫入，"false" 字串視為 dry-run
+    const dryRun = rawDryRun !== false;
+    if (!["attendanceRecords", "activityRecords", "both"].includes(collection)) {
+      throw new HttpsError("invalid-argument", "collection must be attendanceRecords, activityRecords, or both");
+    }
+
+    console.log(`[migrateUidFields] start — dryRun=${dryRun}, collection=${collection}, caller=${request.auth.uid}`);
+
+    // Step 1: 載入所有用戶，建立映射表
+    const usersSnap = await db.collection("users").get();
+    const validUids = new Set();
+    const nameToUid = new Map();
+    const duplicateNames = new Set();
+
+    usersSnap.docs.forEach((doc) => {
+      const data = doc.data() || {};
+      const uid = String(data.uid || data.lineUserId || doc.id || "").trim();
+      if (!uid) return;
+      validUids.add(uid);
+      if (data.lineUserId) validUids.add(String(data.lineUserId).trim());
+      // doc.id 也加入合法 UID，避免用 Firestore 文件 ID 作為 uid 的記錄被誤判
+      if (doc.id && doc.id !== uid) validUids.add(doc.id);
+
+      [data.displayName, data.name].forEach((n) => {
+        const name = String(n || "").trim();
+        if (!name || name === uid) return;
+        if (nameToUid.has(name) && nameToUid.get(name) !== uid) {
+          duplicateNames.add(name);
+        }
+        // 優先使用有 lineUserId 的用戶
+        if (!nameToUid.has(name) || data.lineUserId) {
+          nameToUid.set(name, uid);
+        }
+      });
+    });
+
+    console.log(`[migrateUidFields] users=${usersSnap.size}, validUids=${validUids.size}, nameMap=${nameToUid.size}, duplicateNames=${duplicateNames.size}`);
+
+    // Step 2: 載入 registrations 用於同名用戶交叉比對
+    const regsSnap = await db.collection("registrations").get();
+    const regsByEventAndName = new Map(); // "eventId::userName" → userId
+    regsSnap.docs.forEach((doc) => {
+      const data = doc.data() || {};
+      const userId = String(data.userId || "").trim();
+      const eventId = String(data.eventId || "").trim();
+      const userName = String(data.userName || "").trim();
+      if (userId && eventId && userName) {
+        regsByEventAndName.set(`${eventId}::${userName}`, userId);
+      }
+    });
+
+    // Step 3: 掃描並修正目標集合
+    const collections = [];
+    if (collection === "attendanceRecords" || collection === "both") {
+      collections.push("attendanceRecords");
+    }
+    if (collection === "activityRecords" || collection === "both") {
+      collections.push("activityRecords");
+    }
+
+    const result = {
+      success: true,
+      dryRun,
+      collections: {},
+      totalFixed: 0,
+      totalUnmapped: 0,
+      totalSkipped: 0,
+      duplicateNames: Array.from(duplicateNames).slice(0, 20),
+    };
+
+    for (const colName of collections) {
+      const colSnap = await db.collection(colName).get();
+      const colResult = {
+        total: colSnap.size,
+        alreadyCorrect: 0,
+        fixed: 0,
+        unmapped: 0,
+        fixedSamples: [],
+        unmappedSamples: [],
+      };
+
+      const changes = []; // { docId, oldUid, newUid }
+
+      for (const doc of colSnap.docs) {
+        const data = doc.data() || {};
+        const uid = String(data.uid || "").trim();
+        if (!uid) continue;
+
+        // 已經是合法 UID → 跳過
+        if (validUids.has(uid)) {
+          colResult.alreadyCorrect++;
+          continue;
+        }
+
+        // 嘗試用 nameToUid 映射
+        let resolvedUid = nameToUid.get(uid) || null;
+
+        // 同名用戶衝突：交叉比對 registrations，若比對失敗則標記為無法映射（避免寫入錯誤 UID）
+        if (resolvedUid && duplicateNames.has(uid)) {
+          const eventId = String(data.eventId || "").trim();
+          const regKey = `${eventId}::${uid}`;
+          const regUid = regsByEventAndName.get(regKey);
+          if (regUid && validUids.has(regUid)) {
+            resolvedUid = regUid;
+          } else {
+            resolvedUid = null; // 無法確定是哪位同名用戶，寧可不改
+          }
+        }
+
+        // 二次查詢：用 doc.userName 欄位
+        if (!resolvedUid) {
+          const userName = String(data.userName || "").trim();
+          if (userName && userName !== uid) {
+            resolvedUid = nameToUid.get(userName) || null;
+            // 同名衝突也做交叉比對，比對失敗則標記為無法映射
+            if (resolvedUid && duplicateNames.has(userName)) {
+              const eventId = String(data.eventId || "").trim();
+              const regKey = `${eventId}::${userName}`;
+              const regUid = regsByEventAndName.get(regKey);
+              if (regUid && validUids.has(regUid)) {
+                resolvedUid = regUid;
+              } else {
+                resolvedUid = null; // 無法確定是哪位同名用戶，寧可不改
+              }
+            }
+          }
+        }
+
+        if (resolvedUid) {
+          changes.push({ docId: doc.id, oldUid: uid, newUid: resolvedUid });
+          colResult.fixed++;
+          if (colResult.fixedSamples.length < 10) {
+            colResult.fixedSamples.push({
+              docId: doc.id,
+              oldUid: uid,
+              newUid: resolvedUid,
+              eventId: data.eventId || "?",
+              userName: data.userName || "?",
+            });
+          }
+        } else {
+          colResult.unmapped++;
+          if (colResult.unmappedSamples.length < 10) {
+            colResult.unmappedSamples.push({
+              docId: doc.id,
+              uid,
+              eventId: data.eventId || "?",
+              userName: data.userName || "?",
+            });
+          }
+        }
+      }
+
+      // 實際寫入（非 dry-run）
+      if (!dryRun && changes.length > 0) {
+        // 備份：按 1000 筆分片
+        const timestamp = Date.now();
+        for (let s = 0; s < changes.length; s += 1000) {
+          const slice = changes.slice(s, s + 1000);
+          const backupDocId = `${colName}_${timestamp}_${Math.floor(s / 1000)}`;
+          await db.collection("_migrationBackups").doc(backupDocId).set({
+            collection: colName,
+            timestamp,
+            callerUid: request.auth.uid,
+            startIndex: s,
+            count: slice.length,
+            changes: slice,
+          });
+        }
+
+        // 批次更新：每 400 筆一個 batch
+        for (let s = 0; s < changes.length; s += 400) {
+          const chunk = changes.slice(s, s + 400);
+          const batch = db.batch();
+          chunk.forEach((c) => {
+            batch.update(db.collection(colName).doc(c.docId), { uid: c.newUid });
+          });
+          await batch.commit();
+        }
+
+        console.log(`[migrateUidFields] ${colName}: fixed ${changes.length} docs`);
+      }
+
+      result.collections[colName] = colResult;
+      result.totalFixed += colResult.fixed;
+      result.totalUnmapped += colResult.unmapped;
+      result.totalSkipped += colResult.alreadyCorrect;
+    }
+
+    // 寫操作日誌（非 dry-run）
+    if (!dryRun && result.totalFixed > 0) {
+      const callerUser = await findUserDocByUidOrLineUserId(request.auth.uid);
+      const callerName = callerUser?.data?.displayName || callerUser?.data?.name || request.auth.uid;
+      await writeOperationLog({
+        operator: callerName,
+        type: "uid_migration",
+        typeName: "UID 欄位修正",
+        content: `修正 ${result.totalFixed} 筆記錄的 uid 欄位（displayName → LINE userId），無法映射 ${result.totalUnmapped} 筆`,
+      });
+    }
+
+    console.log(`[migrateUidFields] done — fixed=${result.totalFixed}, unmapped=${result.totalUnmapped}, skipped=${result.totalSkipped}`);
+    return result;
+  }
+);

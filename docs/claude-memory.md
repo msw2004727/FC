@@ -10,6 +10,15 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-17 — [永久] UID 欄位一致性修正：attendanceRecords/activityRecords uid 欄位歷史資料不一致
+- **問題**：部分 attendanceRecords 和 activityRecords 的 uid 欄位存的是 displayName（如「小白」）而非 LINE userId（如 `U196b...`），導致跨集合 JOIN 比對失敗，11+ 處代碼需要 nameToUid 補救邏輯
+- **原因**：`event-manage-confirm.js:53` — `_confirmAllAttendance()` 從 `events.participants[]`（displayName 陣列）解析用戶時，若 adminUsers 查找失敗，直接用 displayName 作為 uid 寫入
+- **修復**：
+  - Phase 1（止血）：修改 `_confirmAllAttendance` 未能解析 UID 時跳過而非寫入 displayName；`_buildConfirmedParticipantSummary` 加 `uidResolved` 標記
+  - Phase 2（治療）：新增 Cloud Function `migrateUidFields`（Admin SDK 繞過安全規則）批次修正歷史資料，含 dry-run + 備份 + 同名交叉比對 registrations
+  - 前端觸發：`data-sync.js` 新增 `uidMigration` 操作，admin-system.html 新增「⑤ UID 欄位修正」按鈕
+- **教訓**：寫入 Firestore 的 uid 欄位必須是 LINE userId，禁止用 displayName 代替；Firestore 安全規則禁止更新 uid 欄位，歷史資料修正必須用 Cloud Function Admin SDK
+
 ### 2026-03-17 — [永久] 放鴿子計算 _userStatsCache 汙染：切換用戶導致其他人放鴿子數跳動
 - **問題**：查看用戶 A 時放鴿子 = 0（正確），查看用戶 B 後 A 的放鴿子變成 1（錯誤）
 - **原因**：`_buildRawNoShowCountByUid` 是全域函式（計算所有人），但合併了 `_userStatsCache`（只有當前查看的那一個用戶的簽到紀錄）。切換用戶後 `_userStatsCache` 被覆蓋，原先用戶的補充簽到紀錄消失，導致被誤判為放鴿子

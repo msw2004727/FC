@@ -1,6 +1,6 @@
 /* ================================================
    SportHub - Data Sync Operations
-   球隊成員數重算、用戶球隊欄位驗證、孤兒記錄清理
+   球隊成員數重算、用戶球隊欄位驗證、孤兒記錄清理、UID 欄位修正
    ================================================ */
 
 Object.assign(App, {
@@ -50,6 +50,7 @@ Object.assign(App, {
       teamMembers: { label: '球隊成員數重算', fn: '_syncTeamMembers' },
       userTeam: { label: '用戶球隊欄位驗證', fn: '_syncUserTeamFields' },
       orphan: { label: '孤兒記錄清理', fn: '_syncOrphanCleanup' },
+      uidMigration: { label: 'UID 欄位修正', fn: '_syncUidMigration' },
       all: { label: '全部同步', fn: '_syncAll' },
     };
     const config = opMap[op];
@@ -108,6 +109,10 @@ Object.assign(App, {
       reads = E + R + Act + Att;
       writes = Math.round((R + Act + Att) * 0.05);
       summary = `活動 ${E}+、報名 ${R}、活動紀錄 ${Act}、出席紀錄 ${Att}\n（會直接查 Firestore 完整 events 集合；預估 5% 為孤兒）`;
+    } else if (op === 'uidMigration') {
+      reads = U + R + Act + Att;
+      writes = Math.round((Act + Att) * 0.1);
+      summary = `用戶 ${U} 位、出席紀錄 ${Att}、活動紀錄 ${Act}、報名 ${R}\n（透過 Cloud Function 執行，讀寫發生在伺服器端；含 dry-run 預覽）`;
     } else if (op === 'all') {
       const achU = U;
       const achA = (ApiService.getAchievements?.() || []).filter(a => a && a.status !== 'archived' && a.condition).length;
@@ -319,6 +324,79 @@ Object.assign(App, {
       ui.setProgress(dryRunResults.indexOf(result) + 1, dryRunResults.length);
     }
     ui.log(`孤兒記錄清理完成：共刪除 ${totalDeleted} 筆`);
+  },
+
+  // ── ⑤ UID 欄位修正（Cloud Function）──
+  async _syncUidMigration(ui) {
+    ui.log('開始 UID 欄位修正...');
+    ui.log('呼叫 Cloud Function（dry-run 預覽）...');
+
+    const fn = firebase.app().functions('asia-east1').httpsCallable('migrateUidFields');
+    let dryResult;
+    try {
+      const resp = await fn({ dryRun: true, collection: 'both' });
+      dryResult = resp.data;
+    } catch (err) {
+      ui.log('Cloud Function 呼叫失敗：' + (err.message || err));
+      ui.setProgress(2, 2);
+      return;
+    }
+
+    // 顯示 dry-run 報告
+    ui.log('\n--- Dry-run 報告 ---');
+    for (const [colName, stats] of Object.entries(dryResult.collections || {})) {
+      ui.log(`${colName}：共 ${stats.total} 筆`);
+      ui.log(`  已正確：${stats.alreadyCorrect}`);
+      ui.log(`  可修正：${stats.fixed}`);
+      ui.log(`  無法映射：${stats.unmapped}`);
+      if (stats.fixedSamples?.length > 0) {
+        ui.log('  修正樣本：');
+        stats.fixedSamples.slice(0, 5).forEach(s => {
+          ui.log(`    ${s.userName}: ${s.oldUid} -> ${s.newUid}`);
+        });
+      }
+      if (stats.unmappedSamples?.length > 0) {
+        ui.log('  無法映射樣本：');
+        stats.unmappedSamples.slice(0, 5).forEach(s => {
+          ui.log(`    ${s.userName}: uid=${s.uid}, event=${s.eventId}`);
+        });
+      }
+    }
+    if (dryResult.duplicateNames?.length > 0) {
+      ui.log(`\n重名警告（已交叉比對 registrations）：${dryResult.duplicateNames.join(', ')}`);
+    }
+    ui.log(`\n合計：可修正 ${dryResult.totalFixed} 筆，無法映射 ${dryResult.totalUnmapped} 筆，已正確 ${dryResult.totalSkipped} 筆`);
+    ui.setProgress(1, 2);
+
+    if (dryResult.totalFixed === 0) {
+      ui.log('\n所有 UID 欄位均正確，無需遷移。');
+      ui.setProgress(2, 2);
+      return;
+    }
+
+    // 確認後執行實際遷移
+    const confirmOk = await this.appConfirm(
+      `UID 欄位修正預覽：\n\n` +
+      `可修正：${dryResult.totalFixed} 筆\n` +
+      `無法映射：${dryResult.totalUnmapped} 筆\n\n` +
+      '確定要執行修正嗎？（會自動備份至 _migrationBackups 集合）'
+    );
+    if (!confirmOk) {
+      ui.log('用戶取消操作');
+      ui.setProgress(2, 2);
+      return;
+    }
+
+    ui.log('\n呼叫 Cloud Function（正式執行）...');
+    try {
+      const resp = await fn({ dryRun: false, collection: 'both' });
+      const result = resp.data;
+      ui.log(`\n修正完成：${result.totalFixed} 筆已更新，${result.totalUnmapped} 筆無法映射`);
+      ui.log('備份已寫入 _migrationBackups 集合');
+    } catch (err) {
+      ui.log('Cloud Function 執行失敗：' + (err.message || err));
+    }
+    ui.setProgress(2, 2);
   },
 
   // ── 一鍵全部同步 ──

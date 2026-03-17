@@ -47,10 +47,15 @@ Object.assign(App, {
       });
     }
     // 與 _buildConfirmedParticipantSummary 一致：從 users 集合查找正確 uid
+    // Phase 1a fix: 未能解析 UID 時跳過，不再用 displayName 作為 uid 寫入
     (e.participants || []).forEach(p => {
       if (!addedNames.has(p)) {
         const userDoc = (ApiService.getAdminUsers() || []).find(u => (u.displayName || u.name) === p);
-        const resolvedUid = (userDoc && (userDoc.uid || userDoc.lineUserId)) || p;
+        const resolvedUid = (userDoc && (userDoc.uid || userDoc.lineUserId)) || null;
+        if (!resolvedUid) {
+          console.warn('[_confirmAllAttendance] 無法解析 UID，跳過:', p);
+          return;
+        }
         people.push({ name: p, uid: resolvedUid, isCompanion: false });
         addedNames.add(p);
       }

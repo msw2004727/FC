@@ -452,6 +452,18 @@
           </div>
         </div>
         <div class="form-card" style="margin-bottom:.6rem">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:.5rem">
+            <div style="flex:1;min-width:0">
+              <div style="font-weight:600;font-size:.82rem">⑤ UID 欄位修正</div>
+              <div style="font-size:.72rem;color:var(--text-muted);line-height:1.5;margin-top:.15rem">
+                修正出席紀錄和活動紀錄中 uid 欄位誤存為顯示名稱的歷史資料。<br>
+                透過 Cloud Function 執行，含 dry-run 預覽與自動備份，可安全回滾。
+              </div>
+            </div>
+            <button class="outline-btn" style="flex-shrink:0;font-size:.75rem" onclick="App.runDataSyncOp('uidMigration')">執行</button>
+          </div>
+        </div>
+        <div class="form-card" style="margin-bottom:.6rem">
           <button id="data-sync-full-btn" class="primary-btn full-width" onclick="App.runDataSyncOp('all')">一鍵全部同步</button>
         </div>
         <div class="form-card">

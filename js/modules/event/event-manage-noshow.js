@@ -39,12 +39,14 @@ Object.assign(App, {
     }
 
     // fallback：從 event.participants 字串陣列補齊（非管理員只有自己的 registrations）
+    // Phase 1b fix: 標記 uidResolved 以區分 UID 是否成功解析
     const badgeCache = this._eventBadgeCache?.[eventId] || {};
     (e.participants || []).forEach(p => {
       if (!addedNames.has(p)) {
         const userDoc = (ApiService.getAdminUsers() || []).find(u => (u.displayName || u.name) === p);
         const resolvedUid = (userDoc && (userDoc.uid || userDoc.lineUserId)) || p;
-        people.push({ name: p, uid: resolvedUid, isCompanion: false, displayName: p, hasSelfReg: true, proxyOnly: false, displayBadges: badgeCache[resolvedUid] || [] });
+        const uidResolved = resolvedUid !== p;
+        people.push({ name: p, uid: resolvedUid, isCompanion: false, displayName: p, hasSelfReg: true, proxyOnly: false, uidResolved, displayBadges: badgeCache[resolvedUid] || [] });
         addedNames.add(p);
       }
     });
