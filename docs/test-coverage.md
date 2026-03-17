@@ -4,9 +4,9 @@
 
 | 類別 | 測試數量 | 執行指令 |
 |------|----------|----------|
-| 純函式單元測試 | 372 | `npm run test:unit` |
+| 純函式單元測試 | 511 | `npm run test:unit` |
 | Firestore 規則測試 | 113 | `npm run test:rules` |
-| **總計** | **485** | — |
+| **總計** | **624** | — |
 
 ### 執行前置條件
 
@@ -1107,12 +1107,54 @@ HTML 特殊字元跳脫，防止 XSS。
 - **Demo 模式**：`DemoData` / `ModeManager` 的模式切換邏輯
 - **瀏覽器相容性**：LINE WebView / Chrome / Safari 的跨瀏覽器行為
 
+### 2.6 `tests/unit/tournament-core.test.js`
+
+- **測試來源**：`js/modules/tournament/tournament-core.js`
+- **測試數量**：42
+- **涵蓋函式**：`getTournamentStatus`、`isTournamentEnded`、`_getTournamentMode`、`_sanitizeFriendlyTournamentTeamLimit`、`_buildTournamentOrganizerDisplay`、`_getTournamentOrganizerDisplayText`、`_normalizeTournamentDelegates`、`_getTournamentDelegateUids`、`_isTournamentLeaderForTeam`、`_isTournamentCaptainForTeam`、`_buildFriendlyTournamentApplicationRecord`
+
+### 2.7 `tests/unit/leaderboard-stats.test.js`
+
+- **測試來源**：`js/modules/leaderboard.js`
+- **測試數量**：30
+- **涵蓋函式**：`_categorizeRecords`（活動紀錄分類：完成/未出席/取消）
+- **測試重點**：基本分類、取消後再報名、去重、結束活動、公開模式、跨類別衝突
+
+### 2.8 `tests/unit/script-loader.test.js`
+
+- **測試來源**：`js/core/script-loader.js`
+- **測試數量**：22
+- **涵蓋函式**：`_normalizeLocalSrc`（URL 正規化）、`filterToLoad`、`resolvePageScripts`（群組去重）
+- **測試重點**：包含實際專案群組驗證（確認群組定義與頁面對映一致性）
+
+### 2.9 `tests/unit/no-show-stats.test.js`
+
+- **測試來源**：`js/modules/event/event-manage-noshow.js`
+- **測試數量**：30
+- **涵蓋函式**：`_buildRawNoShowCountByUid`、`_buildNoShowCountByUid`（含補正）、`_getNoShowDetailsByUid`
+- **測試重點**：nameToUid 歷史資料修正、日期格式處理、同行者排除、補正值 clamp
+
+### 2.10 `tests/unit/script-deps.test.js`
+
+- **測試來源**：跨模組依賴驗證（解析 `index.html`、`js/core/script-loader.js` 及所有 JS 模組）
+- **測試數量**：15
+- **測試類型**：靜態分析（不執行模組程式碼）
+- **測試重點**：
+  - 驗證 eager 載入的腳本不會呼叫僅在 dynamic 群組中定義的函式（除非有 `?.()` 或 truthiness guard）
+  - 驗證 `index.html` inline onclick 不會呼叫動態載入的函式
+  - 驗證 ScriptLoader 群組中的腳本檔案都存在
+  - 驗證 `_pageGroups` 引用的群組名稱都存在
+  - 驗證所有 JS 模組至少在 index.html 或某個 ScriptLoader 群組中（偵測遺漏）
+- **設計目的**：防止 Phase 1 效能優化（移除 eager script）後的跨模組呼叫斷裂，此測試能在部署前捕捉此類問題
+
+---
+
 ### 未來測試階段建議
 
 1. **Phase 3：擴充純函式覆蓋**
    - `js/firebase-service.js` 的快取邏輯（`_mergeLocalAndCloud` 等）
-   - `js/modules/leaderboard.js` 的 `_calcScanStats` / `_categorizeRecords`
-   - `js/modules/event-manage.js` 的 `_buildRawNoShowCountByUid`
+   - ~~`js/modules/leaderboard.js` 的 `_categorizeRecords`~~ ✅ 已完成（leaderboard-stats.test.js）
+   - ~~`js/modules/event-manage-noshow.js` 的 `_buildRawNoShowCountByUid`~~ ✅ 已完成（no-show-stats.test.js）
 
 2. **Phase 4：Mock 整合測試**
    - 使用 jsdom 或類似工具測試 DOM 渲染邏輯

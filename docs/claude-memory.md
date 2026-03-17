@@ -10,9 +10,10 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
-### 2026-03-17 — 自動化測試擴充：新增 4 個測試套件 124 個測試
-- **內容**：新增 tournament-core.test.js、leaderboard-stats.test.js、script-loader.test.js、no-show-stats.test.js
-- **覆蓋範圍**：賽事狀態/模式/隊長判斷、活動紀錄三階段分類、ScriptLoader URL 正規化/群組去重、放鴿子統計含 nameToUid 歷史修正
+### 2026-03-17 — 自動化測試擴充：新增 5 個測試套件 139 個測試（總計 511）
+- **內容**：新增 tournament-core.test.js(42)、leaderboard-stats.test.js(30)、script-loader.test.js(22)、no-show-stats.test.js(30)、script-deps.test.js(15)
+- **覆蓋範圍**：賽事狀態/模式/隊長判斷、活動紀錄三階段分類、ScriptLoader URL 正規化/群組去重、放鴿子統計含 nameToUid 歷史修正、跨模組依賴靜態驗證
+- **script-deps.test.js 重點**：解析 index.html 與 script-loader.js，驗證 eager script 不會呼叫僅在 dynamic 群組定義的函式。偵測 `?.()` / `typeof` / truthiness guard。此測試能在部署前捕捉 Phase 1 類型的跨模組呼叫斷裂
 - **教訓**：測試 _categorizeRecords 時需注意「取消後重新報名」的 seenCancel 清除邏輯，以及 waitlisted + 活動結束不算 missed 的業務規則
 
 ### 2026-03-17 — 效能優化 Phase 1：21 個 script 從 index.html 移至動態載入
