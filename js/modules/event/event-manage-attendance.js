@@ -224,6 +224,7 @@ Object.assign(App, {
     </div>`;
     this._bindAttendanceCheckboxLink(container, 'manual-checkin-', 'manual-checkout-');
     this._bindBadgeRowSnapBack(container);
+    this._markBadgeRowOverflow(container);
   },
 
   /** 徽章行滑動彈回：放手後 scrollLeft 彈回 0 */
@@ -241,6 +242,14 @@ Object.assign(App, {
       };
       row.addEventListener('touchend', snapBack, { passive: true });
       row.addEventListener('touchcancel', snapBack, { passive: true });
+    });
+  },
+
+  /** 徽章行溢出偵測：有溢出時加 has-overflow 顯示漸層提示 */
+  _markBadgeRowOverflow(container) {
+    if (!container) return;
+    container.querySelectorAll('.reg-name-badges').forEach(row => {
+      row.classList.toggle('has-overflow', row.scrollWidth > row.clientWidth);
     });
   },
 
