@@ -325,11 +325,17 @@ Object.assign(App, {
           const fee = this._getEventRecordedFeeAmount?.(e) ?? (Number(e?.fee || 0) > 0 ? Math.floor(Number(e.fee || 0)) : 0);
           const confirmedRegs = fee > 0 ? ApiService.getRegistrationsByEvent(e.id).filter(r => r.status === 'confirmed' || r.status === 'registered') : [];
           const confirmedCount = confirmedRegs.length > 0 ? confirmedRegs.length : _confirmedDisplay;
-          const _confirmedUids = fee > 0 ? new Set(confirmedRegs.map(r => r.userId)) : null;
+          const _confirmedKeys = fee > 0 ? new Set(confirmedRegs.map(r => r.userId + '|' + (r.companionId || ''))) : null;
           const _unregUids = fee > 0 ? (unregUidsByEvent.get(e.id) || null) : null;
-          const checkoutCount = fee > 0
-            ? (checkoutsByEvent.get(e.id) || []).filter(r => (_confirmedUids && _confirmedUids.has(r.uid)) || (_unregUids && _unregUids.has(r.uid))).length
-            : 0;
+          let checkoutCount = 0;
+          if (fee > 0) {
+            const _seen = new Set();
+            (checkoutsByEvent.get(e.id) || []).forEach(r => {
+              const k = r.uid + '|' + (r.companionId || '');
+              if (_seen.has(k)) return;
+              if ((_confirmedKeys && _confirmedKeys.has(k)) || (!r.companionId && _unregUids && _unregUids.has(r.uid))) { _seen.add(k); checkoutCount++; }
+            });
+          }
           const feeExpected = fee * confirmedCount;
           const feeActual = fee * checkoutCount;
           const feeShort = feeExpected - feeActual;
@@ -475,9 +481,16 @@ Object.assign(App, {
     const records = ApiService.getAttendanceRecords(eventId);
     const confirmedRegs = ApiService.getRegistrationsByEvent(eventId).filter(r => r.status === 'confirmed' || r.status === 'registered');
     const confirmedCount = confirmedRegs.length > 0 ? confirmedRegs.length : (e.current || 0);
-    const confirmedUids = new Set(confirmedRegs.map(r => r.userId));
+    const confirmedKeys = new Set(confirmedRegs.map(r => r.userId + '|' + (r.companionId || '')));
     const unregUids = new Set(records.filter(r => r.type === 'unreg').map(r => r.uid));
-    const checkoutCount = records.filter(r => r.type === 'checkout' && (confirmedUids.has(r.uid) || unregUids.has(r.uid))).length;
+    const _seen = new Set();
+    let checkoutCount = 0;
+    records.forEach(r => {
+      if (r.type !== 'checkout') return;
+      const k = r.uid + '|' + (r.companionId || '');
+      if (_seen.has(k)) return;
+      if (confirmedKeys.has(k) || (!r.companionId && unregUids.has(r.uid))) { _seen.add(k); checkoutCount++; }
+    });
     const feeExpected = fee * confirmedCount;
     const feeActual = fee * checkoutCount;
     const feeShort = feeExpected - feeActual;

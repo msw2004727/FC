@@ -17,10 +17,10 @@
 - **教訓**：sessionStorage 在同一分頁內可靠（之前失敗是因為 LIFF webview 開新 context），此場景正好適用
 
 ### 2026-03-18 — 活動管理應收/實收費用公式修正
-- **問題**：應收把「未報名」人數也算入，導致金額偏高；實收計算所有簽退人數（含候補），導致金額不正確
-- **原因**：應收公式為 `fee * (confirmedCount + unregCount)`（多算了未報名）；實收直接取全部 checkout 數量，未過濾只算正取+未報名的簽退
-- **修復**：`js/modules/event/event-manage.js` 兩處（列表卡片 + 詳情 `_renderDetailFeeSummary`）：應收改為 `fee * confirmedCount`（僅報名名單）；實收改為只計算 UID 屬於正取或未報名者的 checkout 記錄數 × fee
-- **教訓**：費用計算涉及多集合交叉比對（registrations × attendanceRecords），修改時需同步更新列表和詳情兩處公式
+- **問題**：應收把「未報名」人數也算入，導致金額偏高；實收計算所有簽退記錄數（含重複），導致金額翻倍
+- **原因**：應收公式多算了未報名人數；實收用 `.filter().length` 計算 checkout 記錄數而非唯一人次，同行者 checkout 記錄的 uid 與主報名者相同導致重複計數
+- **修復**：`js/modules/event/event-manage.js` 兩處（列表卡片 + 詳情 `_renderDetailFeeSummary`）：應收改為 `fee * confirmedCount`（僅報名名單）；實收改為用 `uid + companionId` 組合鍵去重，只計算唯一人次中屬於正取或未報名者的 checkout 人數 × fee
+- **教訓**：同行者 checkout 記錄的 uid 欄位存的是主報名者 uid（不是 companionId），必須用 `uid|companionId` 作為唯一人次鍵才能正確計數
 
 ### 2026-03-18 — 私密活動首頁卡片「不公開」印章
 - **需求**：私密活動在首頁卡片圖片上疊加紅色圓形「不公開」印章
