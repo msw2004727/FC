@@ -10,6 +10,18 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-18 — LIFF bounce 外部瀏覽器取消跳轉後無限迴圈
+- **問題**：外部瀏覽器（如 Safari）開啟 `toosterx.com/?event=xxx` 後跳轉 `liff.line.me/...`，若用戶拒絕開啟 LINE App，liff.line.me 會 fallback 回 toosterx.com，造成無限迴圈
+- **原因**：UA 偵測只防了「已在 LINE 內」的情境，未防「外部瀏覽器被 liff.line.me 彈回」的情境
+- **修復**：`index.html` 跳轉腳本加 `sessionStorage('_liffBounce')` 單次保護——跳轉前設旗標，被彈回時偵測到旗標即不再跳轉，讓頁面正常載入
+- **教訓**：sessionStorage 在同一分頁內可靠（之前失敗是因為 LIFF webview 開新 context），此場景正好適用
+
+### 2026-03-18 — 活動管理應收/實收費用公式修正
+- **問題**：應收把「未報名」人數也算入，導致金額偏高；實收計算所有簽退人數（含候補），導致金額不正確
+- **原因**：應收公式為 `fee * (confirmedCount + unregCount)`（多算了未報名）；實收直接取全部 checkout 數量，未過濾只算正取+未報名的簽退
+- **修復**：`js/modules/event/event-manage.js` 兩處（列表卡片 + 詳情 `_renderDetailFeeSummary`）：應收改為 `fee * confirmedCount`（僅報名名單）；實收改為只計算 UID 屬於正取或未報名者的 checkout 記錄數 × fee
+- **教訓**：費用計算涉及多集合交叉比對（registrations × attendanceRecords），修改時需同步更新列表和詳情兩處公式
+
 ### 2026-03-18 — 私密活動首頁卡片「不公開」印章
 - **需求**：私密活動在首頁卡片圖片上疊加紅色圓形「不公開」印章
 - **實作**：`css/home.css` 新增 `.stamp-circle` + `.h-card-img .stamp-circle` 定位樣式；`js/modules/event/event-list.js` 在 `.h-card-img` 內依 `e.privateEvent` 條件插入 `<span class="stamp-circle">不公開</span>`
