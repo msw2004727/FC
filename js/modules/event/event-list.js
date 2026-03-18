@@ -127,8 +127,8 @@ Object.assign(App, {
         return `
         <div class="h-card" style="${e.pinned ? 'border:1px solid var(--warning);box-shadow:0 0 0 1px rgba(245,158,11,.15)' : ''}" onclick="App.openHomeEventDetailFromCard('${e.id}', this)">
           ${e.image
-            ? `<div class="h-card-img">${_cornerBadges}${_typeRibbon}${e.privateEvent ? '<span class="stamp-circle">不公開</span>' : ''}<img src="${e.image}" alt="${escapeHTML(e.title)}" loading="lazy"></div>`
-            : `<div class="h-card-img h-card-placeholder">${_cornerBadges}${_typeRibbon}${e.privateEvent ? '<span class="stamp-circle">不公開</span>' : ''}220 × 90</div>`}
+            ? `<div class="h-card-img">${_cornerBadges}${_typeRibbon}<img src="${e.image}" alt="${escapeHTML(e.title)}" loading="lazy"></div>`
+            : `<div class="h-card-img h-card-placeholder">${_cornerBadges}${_typeRibbon}220 × 90</div>`}
           <div class="h-card-body">
             <div class="h-card-title">${e.pinned ? '<span style="font-size:.62rem;padding:.08rem .35rem;border-radius:999px;border:1px solid var(--warning);color:var(--warning);font-weight:700;margin-right:.3rem">置頂</span>' : ''}${escapeHTML(e.title)}${e.teamOnly ? '<span class="tl-teamonly-badge">俱樂部限定</span>' : ''} ${this._favHeartHtml(this.isEventFavorited(e.id), 'Event', e.id)}</div>
             <div class="h-card-meta">
@@ -137,6 +137,7 @@ Object.assign(App, {
             </div>
           </div>
           ${_genderRibbon}
+          ${e.privateEvent ? '<span class="stamp-circle">不公開</span>' : ''}
         </div>
       `; }).join('');
 
