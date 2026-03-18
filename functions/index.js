@@ -2825,9 +2825,9 @@ exports.teamShareOg = onRequest(
     const hasTeam = !!teamName;
     const teamLabel = hasTeam ? `「${teamName}」俱樂部` : "俱樂部";
     const ogTitle = hasTeam
-      ? `加入「${teamName}」俱樂部｜TooSterx Hub`
-      : "TooSterx Hub 俱樂部邀請";
-    const ogDescription = `這是在TooSterx Hub上創立的${teamLabel}，誠摯邀請您加入俱樂部，跟我們一起享受活動~`;
+      ? `加入「${teamName}」俱樂部｜ToosterX Hub`
+      : "ToosterX Hub 俱樂部邀請";
+    const ogDescription = `這是在ToosterX Hub上創立的${teamLabel}，誠摯邀請您加入俱樂部，跟我們一起享受活動~`;
     const ogImage = sanitizeImageUrl(
       team?.image || team?.coverImage || team?.cover || team?.banner || team?.logo
     );

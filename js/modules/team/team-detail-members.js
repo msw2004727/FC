@@ -19,7 +19,7 @@ Object.assign(App, {
   _buildTeamInviteShareText(teamName, shareUrl) {
     const cleanName = String(teamName || '').trim();
     const teamLabel = cleanName ? `\u300c${cleanName}\u300d\u7403\u968a` : '\u7403\u968a';
-    return `\u9019\u662f\u5728TooSterx Hub\u4e0a\u5275\u7acb\u7684${teamLabel}\uff0c\u8aa0\u647d\u9080\u8acb\u60a8\u52a0\u5165\u7403\u968a\uff0c\u8ddf\u6211\u5011\u4e00\u8d77\u4eab\u53d7\u6d3b\u52d5~\n${shareUrl}`;
+    return `\u9019\u662f\u5728ToosterX Hub\u4e0a\u5275\u7acb\u7684${teamLabel}\uff0c\u8aa0\u647d\u9080\u8acb\u60a8\u52a0\u5165\u7403\u968a\uff0c\u8ddf\u6211\u5011\u4e00\u8d77\u4eab\u53d7\u6d3b\u52d5~\n${shareUrl}`;
   },
 
   _copyTextFallback(text) {
