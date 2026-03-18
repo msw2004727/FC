@@ -10,6 +10,12 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-18 — 刷新瀏覽器後點頁籤缺少加載提示
+- **問題**：刷新瀏覽器後點擊底部功能頁籤（活動、俱樂部、我的等），因 stale-first 快取策略跳過了加載提示，但第一次切頁仍有延遲，用戶容易以為按鈕壞掉
+- **原因**：`showPage` 中 `shouldShowRouteLoading` 條件含 `!canUseStale`，stale-first 路徑完全不顯示 status-hint 加載提示
+- **修復**：移除 `!canUseStale` 條件，stale 導航使用 500ms 延遲（`delayMs: canUseStale ? 500 : 220`），500ms 內完成則不顯示，超過才跳出提示
+- **教訓**：stale-first 雖然能從快取快速渲染，但首次載入仍需等腳本下載，應保留延遲加載提示作為用戶反饋
+
 ### 2026-03-18 — Auto-EXP 發放後畫面 EXP 數字未更新
 - **問題**：觸發自動 EXP（報名/簽退等）後，個人頁面與頂部的 EXP 數字不會增加
 - **原因**：`adjustUserExp()` 只更新 `adminUsers` 快取中的 user 物件，但 `getCurrentUser()` 回傳的是 `FirebaseService._cache.currentUser`——兩者是不同的物件參照，EXP 變更沒有同步到 currentUser；且 `_grantAutoExp` 執行後沒有觸發 UI 重新渲染

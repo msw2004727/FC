@@ -411,7 +411,6 @@ Object.assign(App, {
 
     const needsCloudInit = this._pageNeedsCloud(pageId) && (!this._cloudReady || !!this._cloudReadyPromise);
     const shouldShowRouteLoading = pageId !== this.currentPage
-      && !canUseStale
       && typeof this._beginRouteLoading === 'function'
       && typeof this._endRouteLoading === 'function';
     const routeLoadingSeq = shouldShowRouteLoading
@@ -419,6 +418,7 @@ Object.assign(App, {
           pageId,
           phase: authPending ? 'auth' : (needsCloudInit ? 'cloud' : 'page'),
           immediate: authPending,
+          delayMs: canUseStale ? 500 : 220,
         })
       : 0;
 
