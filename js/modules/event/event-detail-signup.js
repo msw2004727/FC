@@ -317,11 +317,8 @@ Object.assign(App, {
     const confirmMsg = isWaitlist ? '確定要取消候補？' : '確定要取消報名？';
     if (!await this.appConfirm(confirmMsg)) return;
 
-    // Firestore 同步移到 confirm 之後 — 只在用戶確認取消後才發 query
-    if (!ApiService._demoMode && currentUserId !== 'unknown' && (!myRegs.length || myRegs.every(r => !r._docId))) {
-      const syncedRegs = await this._syncMyEventRegistrations(id, currentUserId);
-      if (Array.isArray(syncedRegs) && syncedRegs.length) myRegs = syncedRegs;
-    }
+    // B1 優化：移除 _syncMyEventRegistrations 前置查詢
+    // cancelRegistration 內部已查詢 firestoreRegs 並自動回填 _docId（C1），不再需要額外同步
 
     const user = ApiService.getCurrentUser();
     const userName = user?.displayName || user?.name || '用戶';

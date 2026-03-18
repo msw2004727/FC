@@ -256,7 +256,8 @@
 // 20260317zq: fix — 刷新時 detail 頁面退回列表 + showTeamDetail render-before-show
 // 20260318a: fix — hashchange 不套用 detail fallback，修復點卡片無法進入 detail 頁
 // 20260318b: redeploy trigger
-const CACHE_VERSION = '20260318b';
+// 20260318c: B1+C1 — cancelRegistration _docId 回填 + 移除 _syncMyEventRegistrations 前置查詢
+const CACHE_VERSION = '20260318c';
 
 // ─── Page Strategy Registry ───
 // 唯一策略來源，未列出的頁面預設 fresh-first
