@@ -10,6 +10,19 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-18 — [永久] EXP 系統全面修復（5 階段）
+- **問題**：候補遞補不發 EXP、手動確認出席不發 EXP、CF 無冪等性、auto-EXP 規則只存 localStorage、CF 失敗時快取不 rollback、3 個未實作規則佔空間
+- **修復**：
+  - 候補遞補補發 register_activity EXP（event-detail-signup.js）
+  - 手動確認簽退補發 complete_activity EXP（event-manage-confirm.js）
+  - 掃碼簽退後觸發成就重評（scan-process.js）
+  - adjustUserExp/adjustUserExpAsync 加 uid null 守衛 + CF 失敗 rollback
+  - CF adjustExp 加 requestId 冪等性保護（_expDedupe collection, create 原子操作）
+  - Auto-EXP 規則持久化到 Firestore siteConfig/autoExpRules + localStorage fallback
+  - 移除 submit_review/join_team/post_team_feed 3 個未實作規則
+- **檔案**：event-detail-signup.js、event-manage-confirm.js、scan-process.js、api-service.js、auto-exp.js、app.js、functions/index.js、firestore.rules
+- **教訓**：EXP 相關改動必須同時檢查所有發放路徑（報名/取消/掃碼/手動確認/遞補），避免路徑遺漏
+
 ### 2026-03-18 — 活動詳情頁按鈕佈局重構 + 一鍵加入行事曆
 - **變更**：報名按鈕全寬置頂、工具列（聯繫主辦/分享活動/加入行事曆/現場簽到）純文字按鈕排列於下方；新增 event-detail-calendar.js 模組，iOS 用 data URI、Android/桌面用 blob download 觸發系統行事曆
 - **修復**：iOS blob: URL 靜默失敗改為 data:text/calendar URI；報名按鈕高度 +15%（padding .55→.63rem）

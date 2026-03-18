@@ -875,6 +875,15 @@ service cloud.firestore {
       allow create, update: if isAdmin() || hasPerm('admin.themes.entry');
       allow delete: if false;
     }
+    // ═══════════════════════════════════════════
+    //  Site Config（站台設定，含 Auto-EXP 規則）
+    //  登入可讀；admin 或持有 admin.auto_exp.entry 可寫
+    // ═══════════════════════════════════════════
+    match /siteConfig/{docId} {
+      allow read: if isAuth();
+      allow create, update: if isAdmin() || hasPerm('admin.auto_exp.entry');
+      allow delete: if false;
+    }
 
     // ═══════════════════════════════════════════
     //  Home Game Config（首頁小遊戲設定）

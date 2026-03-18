@@ -1144,7 +1144,20 @@ exports.adjustExp = onCall(
     }
 
     const callerUid = request.auth.uid;
-    const { mode, targets, teamId, amount, reason, operatorLabel } = request.data || {};
+    const { mode, targets, teamId, amount, reason, operatorLabel, requestId } = request.data || {};
+
+    // ── 冪等性保護（可選） ──
+    if (typeof requestId === "string" && requestId.length > 0) {
+      const dedupRef = db.collection("_expDedupe").doc(requestId);
+      try {
+        await dedupRef.create({ callerUid, createdAt: FieldValue.serverTimestamp() });
+      } catch (e) {
+        if (e.code === 6 || e.code === "already-exists") {
+          return { success: true, deduplicated: true };
+        }
+        // 其他錯誤不阻塞（dedup 失敗不影響主流程）
+      }
+    }
 
     // ── 參數驗證 ──
     if (typeof amount !== "number" || !Number.isFinite(amount) || amount === 0) {
@@ -1161,7 +1174,7 @@ exports.adjustExp = onCall(
 
     // ── 權限檢查 ──
     if (mode === "auto") {
-      // auto 模式：任何已登入用戶可觸發，但限制幅度
+      // auto 模式：任何已登入用戶可觸發，限制幅度 ±100 + 冪等性保護
       if (amount < -100 || amount > 100) {
         throw new HttpsError("invalid-argument", "Auto mode amount must be between -100 and +100");
       }

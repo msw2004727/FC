@@ -1365,42 +1365,46 @@ const ApiService = {
     return await fn(payload);
   },
 
-  adjustUserExp(nameOrUid, amount, reason, operatorLabel, { mode = 'manual' } = {}) {
+  adjustUserExp(nameOrUid, amount, reason, operatorLabel, { mode = 'manual', requestId } = {}) {
     const user = this._src('adminUsers').find(u => u.name === nameOrUid || u.uid === nameOrUid);
-    if (!user) return null;
+    if (!user || !(user.uid || user.lineUserId)) return null;
     // 樂觀更新本地快取
     user.exp = Math.max(0, (user.exp || 0) + amount);
     const now = new Date();
     const timeStr = `${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
-    const log = { time: timeStr, uid: user.uid || user.lineUserId || null, target: user.name, amount: (amount > 0 ? '+' : '') + amount, reason, operator: operatorLabel || '管理員', operatorUid: auth?.currentUser?.uid || null };
+    const log = { time: timeStr, uid: user.uid || user.lineUserId, target: user.name, amount: (amount > 0 ? '+' : '') + amount, reason, operator: operatorLabel || '管理員', operatorUid: auth?.currentUser?.uid || null };
     this._src('expLogs').unshift(log);
     this._writeOpLog('exp', '手動EXP', `${user.name} ${log.amount}「${reason}」`);
     if (!this._demoMode) {
       const targetId = user._docId || user.uid || user.lineUserId;
       if (targetId) {
-        this._callAdjustExpCF({
-          mode, targets: [targetId], amount, reason, operatorLabel: operatorLabel || '管理員',
-        }).catch(err => console.error('[adjustUserExp CF]', err));
+        const payload = { mode, targets: [targetId], amount, reason, operatorLabel: operatorLabel || '管理員' };
+        if (requestId) payload.requestId = requestId;
+        this._callAdjustExpCF(payload).catch(err => {
+          console.error('[adjustUserExp CF]', err);
+          // CF 失敗 → rollback 樂觀更新
+          user.exp = Math.max(0, (user.exp || 0) - amount);
+        });
       }
     }
     return user;
   },
 
-  async adjustUserExpAsync(nameOrUid, amount, reason, operatorLabel, { mode = 'manual' } = {}) {
+  async adjustUserExpAsync(nameOrUid, amount, reason, operatorLabel, { mode = 'manual', requestId } = {}) {
     const user = this._src('adminUsers').find(u => u.name === nameOrUid || u.uid === nameOrUid);
-    if (!user) return null;
+    if (!user || !(user.uid || user.lineUserId)) return null;
     user.exp = Math.max(0, (user.exp || 0) + amount);
     const now = new Date();
     const timeStr = `${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
-    const log = { time: timeStr, uid: user.uid || user.lineUserId || null, target: user.name, amount: (amount > 0 ? '+' : '') + amount, reason, operator: operatorLabel || '管理員', operatorUid: auth?.currentUser?.uid || null };
+    const log = { time: timeStr, uid: user.uid || user.lineUserId, target: user.name, amount: (amount > 0 ? '+' : '') + amount, reason, operator: operatorLabel || '管理員', operatorUid: auth?.currentUser?.uid || null };
     this._src('expLogs').unshift(log);
     this._writeOpLog('exp', '手動EXP', `${user.name} ${log.amount}「${reason}」`);
     if (!this._demoMode) {
       const targetId = user._docId || user.uid || user.lineUserId;
       if (targetId) {
-        await this._callAdjustExpCF({
-          mode, targets: [targetId], amount, reason, operatorLabel: operatorLabel || '管理員',
-        });
+        const payload = { mode, targets: [targetId], amount, reason, operatorLabel: operatorLabel || '管理員' };
+        if (requestId) payload.requestId = requestId;
+        await this._callAdjustExpCF(payload);
       }
     }
     return user;

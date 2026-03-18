@@ -482,6 +482,10 @@ Object.assign(App, {
             this._sendNotifFromTemplate('waitlist_promoted', {
               eventName: ev.title, date: ev.date, location: ev.location,
             }, cancelledReg._promotedUserId, 'activity', '活動');
+            // 候補遞補為正取 → 補發報名 EXP
+            (cancelledReg._promotedUserIds || [cancelledReg._promotedUserId]).forEach(pUid => {
+              this._grantAutoExp(pUid, 'register_activity', ev.title);
+            });
           }
         }
         // ── 即時回饋：翻牌動畫 + toast ──

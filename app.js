@@ -1441,6 +1441,11 @@ const App = {
       ApiService._errorLogReady = true;
       console.log('[Cloud] Firebase + LIFF ready');
 
+      // 背景載入 Auto-EXP 規則（Firestore → 記憶體快取 + localStorage fallback）
+      if (typeof this._loadAutoExpRulesFromFirestore === 'function') {
+        this._loadAutoExpRulesFromFirestore().catch(() => {});
+      }
+
       try { this.renderAll(); } catch (_) {}
       try {
         if (typeof this.bindLineLogin === 'function') {

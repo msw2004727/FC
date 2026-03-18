@@ -183,6 +183,7 @@ Object.assign(App, {
         // Auto EXP: complete activity
         const _evt = ApiService.getEvent(this._scanSelectedEventId);
         this._grantAutoExp(uid, 'complete_activity', _evt?.title || '');
+        this._evaluateAchievements?.(_evt?.type);
       } else {
         const now = new Date();
         const timeStr = App._formatDateTime(now);
@@ -199,6 +200,7 @@ Object.assign(App, {
         // Auto EXP: complete activity
         const _evt = ApiService.getEvent(this._scanSelectedEventId);
         this._grantAutoExp(uid, 'complete_activity', _evt?.title || '');
+        this._evaluateAchievements?.(_evt?.type);
       }
     }
 
