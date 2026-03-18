@@ -10,6 +10,11 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-18 — 私密活動首頁卡片「不公開」印章
+- **需求**：私密活動在首頁卡片圖片上疊加紅色圓形「不公開」印章
+- **實作**：`css/home.css` 新增 `.stamp-circle` + `.h-card-img .stamp-circle` 定位樣式；`js/modules/event/event-list.js` 在 `.h-card-img` 內依 `e.privateEvent` 條件插入 `<span class="stamp-circle">不公開</span>`
+- **教訓**：stamp 使用 `position:absolute` + `mix-blend-mode:multiply`，需確保父容器 `.h-card-img` 有 `position:relative`（已有）
+
 ### 2026-03-18 — 首次開站或久未操作時報名卡在「報名中」
 - **問題**：首次開站或長時間未操作後，點「立即報名」會卡在「報名中...」無回應，刷新後才正常
 - **原因**：Production 路徑在鎖定按鈕後直接呼叫 `registerForEvent`，但 Firebase SDK/Auth 尚未完成初始化（`ensureCloudReady` 未完成），`_ensureAuth` 等待 persistence restore + CF cold start 可能超過 15s timeout
