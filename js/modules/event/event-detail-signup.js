@@ -193,6 +193,13 @@ Object.assign(App, {
       return;
     }
 
+    // 確保 Firebase SDK + Auth 已就緒（首次開啟或長時間未操作時可能未完成初始化）
+    if (!this._cloudReady) {
+      this.showToast('系統載入中，請稍候再試');
+      void this.ensureCloudReady?.({ reason: 'signup' });
+      return;
+    }
+
     // 防幽靈 UI 層：報名期間禁用按鈕，啟動光跡載入特效
     const signupBtns = document.querySelectorAll('#detail-body button');
     let activeBtn = null;
@@ -295,6 +302,11 @@ Object.assign(App, {
 
   async handleCancelSignup(id) {
     if (this._requireProtectedActionLogin({ type: 'eventCancelSignup', eventId: id }, { suppressToast: true })) {
+      return;
+    }
+    if (!this._cloudReady) {
+      this.showToast('系統載入中，請稍候再試');
+      void this.ensureCloudReady?.({ reason: 'cancel-signup' });
       return;
     }
     this._cancelSignupBusyMap = this._cancelSignupBusyMap || {};

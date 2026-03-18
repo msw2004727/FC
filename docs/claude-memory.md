@@ -10,6 +10,12 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-18 — 首次開站或久未操作時報名卡在「報名中」
+- **問題**：首次開站或長時間未操作後，點「立即報名」會卡在「報名中...」無回應，刷新後才正常
+- **原因**：Production 路徑在鎖定按鈕後直接呼叫 `registerForEvent`，但 Firebase SDK/Auth 尚未完成初始化（`ensureCloudReady` 未完成），`_ensureAuth` 等待 persistence restore + CF cold start 可能超過 15s timeout
+- **修復**：在 `handleSignup`/`handleCancelSignup`/`_confirmCompanionRegister` 鎖定按鈕之前，先檢查 `_cloudReady`；若未就緒則 toast 提示並觸發 `ensureCloudReady`，不鎖按鈕
+- **教訓**：所有需要 Firestore 寫入的 UI 操作，必須先確認 cloud init 已完成，不能依賴快取中的用戶資料假設 SDK 已就緒
+
 ### 2026-03-18 — [永久] 首次造訪或快取過期時卡在空框架
 - **問題**：手機開網址時只看到框架沒有內容，要多刷新一兩次才正常
 - **原因**：Loading overlay 在 Phase 3 後無條件移除，不管是否有資料渲染；首頁被排除在 cloud 依賴外，完全仰賴 localStorage 快取（TTL 2h）；CDN SDK 延遲到 Phase 4 才下載；Firestore WS 超時 15 秒

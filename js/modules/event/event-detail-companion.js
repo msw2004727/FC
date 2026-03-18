@@ -102,6 +102,11 @@ Object.assign(App, {
   async _confirmCompanionRegister() {
     const eventId = this._companionSelectEventId;
     if (!eventId) return;
+    if (!this._cloudReady) {
+      this.showToast('系統載入中，請稍候再試');
+      void this.ensureCloudReady?.({ reason: 'companion-signup' });
+      return;
+    }
     let e = ApiService.getEvent(eventId);
     if (!e) return;
     e = this._syncEventEffectiveStatus?.(e) || e;
