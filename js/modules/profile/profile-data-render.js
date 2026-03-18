@@ -119,19 +119,19 @@ Object.assign(App, {
     const teamEl = el('profile-team');
     if (teamEl) teamEl.innerHTML = this._getUserTeamHtml(user);
 
-    // 社群連結
-    this.renderSocialLinks(user);
+    // 社群連結（profile-card.js 可能尚未載入）
+    this.renderSocialLinks?.(user);
 
     // LINE 推播通知卡片
-    this.renderLineNotifyCard();
+    this.renderLineNotifyCard?.();
 
     // 編輯模式的靜態欄位
     if (el('profile-edit-gender')) el('profile-edit-gender').value = user.gender || '';
     if (el('profile-sports-display')) el('profile-sports-display').textContent = v(user.sports);
     if (el('profile-team-display')) el('profile-team-display').innerHTML = this._getUserTeamHtml(user);
 
-    // 我的俱樂部申請
-    this._renderMyApplications();
+    // 我的俱樂部申請（profile-data-history.js 可能尚未載入）
+    this._renderMyApplications?.();
 
     // 同行者數量標記
     const compBadge = document.getElementById('companions-count');
