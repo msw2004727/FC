@@ -304,7 +304,12 @@ Object.assign(App, {
   },
 
   async _ensurePageEntryReady(pageId) {
-    if (this._pageNeedsCloud(pageId) && typeof this.ensureCloudReady === 'function') {
+    // stale-first 快取捷徑：有快取時只載 HTML + JS，跳過 cloud + data 等待
+    const canStale = !ModeManager.isDemo()
+      && this._getPageStrategy(pageId) === 'stale-first'
+      && this._hasCachedDataForPage(pageId);
+
+    if (!canStale && this._pageNeedsCloud(pageId) && typeof this.ensureCloudReady === 'function') {
       try {
         await this.ensureCloudReady({ reason: `page:${pageId}` });
       } catch (err) {
@@ -324,7 +329,10 @@ Object.assign(App, {
       await ScriptLoader.ensureForPage(pageId);
     }
 
-    if (!ModeManager.isDemo()
+    if (canStale) {
+      // 背景刷新：不阻塞頁面渲染
+      void this._refreshStalePage(pageId, this._pageTransitionSeq);
+    } else if (!ModeManager.isDemo()
       && !this._instantDeepLinkMode
       && typeof FirebaseService !== 'undefined'
       && FirebaseService.ensureCollectionsForPage) {
