@@ -154,24 +154,27 @@ Object.assign(App, {
 
   _openIcsInSystemCalendar(calEvent) {
     var icsContent = this._buildIcsContent(calEvent);
-    var blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
-    var blobUrl = URL.createObjectURL(blob);
+    var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
-    // 不帶 download 屬性 → OS 以原生行事曆 app 開啟 .ics
-    // iOS: 直接彈出 Apple Calendar「加入行程」
-    // Android: 彈出 intent 選擇器（Google Calendar 等）
-    // 桌面: 開啟預設行事曆應用
-    var a = document.createElement('a');
-    a.href = blobUrl;
-    a.target = '_blank';
-    a.rel = 'noopener';
-    // 設定 type 提示瀏覽器這是行事曆檔案
-    a.type = 'text/calendar';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+    if (isIOS) {
+      // iOS Safari / LINE WebView 不支援 blob: URL 開啟 .ics
+      // 改用 data URI — iOS 會直接彈出 Apple Calendar「加入行程」對話框
+      var dataUri = 'data:text/calendar;charset=utf-8,' + encodeURIComponent(icsContent);
+      window.open(dataUri);
+    } else {
+      // Android / 桌面 — blob URL + download 屬性
+      // Android 會觸發 intent 選擇器（Google Calendar 等）
+      var blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
+      var blobUrl = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = (calEvent.title || 'event').replace(/[^\w\u4e00-\u9fff]/g, '_').slice(0, 30) + '.ics';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(function () { URL.revokeObjectURL(blobUrl); }, 10000);
+    }
 
-    setTimeout(function () { URL.revokeObjectURL(blobUrl); }, 10000);
     this.showToast('\u6B63\u5728\u958B\u555F\u884C\u4E8B\u66C6\u2026');
   },
 
