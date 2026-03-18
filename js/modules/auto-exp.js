@@ -71,6 +71,14 @@ Object.assign(App, {
     var requestId = 'autoexp_' + uid + '_' + key + '_' + Date.now();
     var user = ApiService.adjustUserExp(uid, amount, reason, '\u7CFB\u7D71', { mode: 'auto', requestId: requestId });
     if (!user) return;
+    // 同步 currentUser 的 EXP（adjustUserExp 只更新 adminUsers 快取）
+    var curUser = ApiService.getCurrentUser();
+    if (curUser && (curUser.uid === uid || curUser.lineUserId === uid)) {
+      curUser.exp = user.exp;
+      // 即時刷新畫面上的 EXP 顯示
+      if (typeof this.renderProfileData === 'function') this.renderProfileData();
+      if (typeof this.renderPersonalDashboard === 'function') this.renderPersonalDashboard();
+    }
     // Write to auto exp log
     var logs = this._getAutoExpLogs();
     var now = new Date();

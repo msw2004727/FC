@@ -10,6 +10,12 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-18 — Auto-EXP 發放後畫面 EXP 數字未更新
+- **問題**：觸發自動 EXP（報名/簽退等）後，個人頁面與頂部的 EXP 數字不會增加
+- **原因**：`adjustUserExp()` 只更新 `adminUsers` 快取中的 user 物件，但 `getCurrentUser()` 回傳的是 `FirebaseService._cache.currentUser`——兩者是不同的物件參照，EXP 變更沒有同步到 currentUser；且 `_grantAutoExp` 執行後沒有觸發 UI 重新渲染
+- **修復**：(1) `api-service.js` 的 `adjustUserExp` / `adjustUserExpAsync` 在更新 adminUsers 後同步 currentUser.exp（含 rollback 路徑）(2) `auto-exp.js` 的 `_grantAutoExp` 在同步 currentUser 後呼叫 `renderProfileData()` / `renderPersonalDashboard()` 即時刷新 UI
+- **教訓**：`adminUsers` 與 `currentUser` 是不同物件，任何修改 user.exp 的路徑都必須兩邊同步
+
 ### 2026-03-18 — 賽事系統二次 QA 審計修復
 - **問題**：(1) 建立/編輯賽事無 regStart ≤ regEnd 驗證，可設無效報名期間 (2) 名額已滿時若用戶有 pending 申請，按鈕顯示「審核中」給人假希望
 - **修復**：

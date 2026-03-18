@@ -1390,6 +1390,11 @@ const ApiService = {
     if (!user || !(user.uid || user.lineUserId)) return null;
     // 樂觀更新本地快取
     user.exp = Math.max(0, (user.exp || 0) + amount);
+    // 同步 currentUser（adminUsers 和 currentUser 是不同物件）
+    const curUser = this.getCurrentUser();
+    if (curUser && curUser !== user && (curUser.uid === (user.uid || user.lineUserId) || curUser.lineUserId === (user.uid || user.lineUserId))) {
+      curUser.exp = user.exp;
+    }
     const now = new Date();
     const timeStr = `${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
     const log = { time: timeStr, uid: user.uid || user.lineUserId, target: user.name, amount: (amount > 0 ? '+' : '') + amount, reason, operator: operatorLabel || '管理員', operatorUid: auth?.currentUser?.uid || null };
@@ -1404,6 +1409,10 @@ const ApiService = {
           console.error('[adjustUserExp CF]', err);
           // CF 失敗 → rollback 樂觀更新
           user.exp = Math.max(0, (user.exp || 0) - amount);
+          const _cur = this.getCurrentUser();
+          if (_cur && _cur !== user && (_cur.uid === (user.uid || user.lineUserId) || _cur.lineUserId === (user.uid || user.lineUserId))) {
+            _cur.exp = user.exp;
+          }
         });
       }
     }
@@ -1414,6 +1423,11 @@ const ApiService = {
     const user = this._src('adminUsers').find(u => u.name === nameOrUid || u.uid === nameOrUid);
     if (!user || !(user.uid || user.lineUserId)) return null;
     user.exp = Math.max(0, (user.exp || 0) + amount);
+    // 同步 currentUser
+    const curUser = this.getCurrentUser();
+    if (curUser && curUser !== user && (curUser.uid === (user.uid || user.lineUserId) || curUser.lineUserId === (user.uid || user.lineUserId))) {
+      curUser.exp = user.exp;
+    }
     const now = new Date();
     const timeStr = `${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
     const log = { time: timeStr, uid: user.uid || user.lineUserId, target: user.name, amount: (amount > 0 ? '+' : '') + amount, reason, operator: operatorLabel || '管理員', operatorUid: auth?.currentUser?.uid || null };
