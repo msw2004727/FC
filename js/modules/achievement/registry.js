@@ -292,6 +292,15 @@ Object.assign(App, {
         defaultThreshold: 1,
         fixedThreshold: 1,
       },
+      role_super_admin: {
+        supported: true,
+        handlerKey: 'role_check',
+        targetRole: 'super_admin',
+        needsFilter: false,
+        eventTrigger: false,
+        defaultThreshold: 1,
+        fixedThreshold: 1,
+      },
       manual_award: {
         supported: true,
         handlerKey: 'manual_award',
