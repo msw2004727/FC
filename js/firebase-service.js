@@ -92,6 +92,10 @@ const FirebaseService = {
   _LS_TS_KEY: 'shub_cache_ts',
   _LS_TTL: 30 * 60 * 1000, // 預設 30 分鐘（admin/super_admin）
   _LS_TTL_LONG: 120 * 60 * 1000, // 一般用戶 120 分鐘
+  _visibilityRefreshDebounce: null, // visibilitychange 防抖 timer
+  _snapshotReconnectAttempts: {},   // onSnapshot 重連計數
+  _reconnectTimers: {},             // onSnapshot 重連 setTimeout ID
+  _registrationsRevalidating: false, // 防止並行 revalidation 競爭
 
   /** 將 users 集合文件映射為 adminUsers 格式（補齊 name / uid / lastActive） */
   _mapUserDoc(data, docId) {
@@ -108,20 +112,37 @@ const FirebaseService = {
   //  localStorage 快取層
   // ════════════════════════════════
 
+  /** 取得當前 UID 前綴的 localStorage key（RC8：跨用戶隔離） */
+  _getLSKey(name) {
+    const uid = this._lsUidPrefix || '';
+    return uid ? `shub_c_${uid}_${name}` : `${this._LS_PREFIX}${name}`;
+  },
+
+  /** 取得當前 UID 前綴的 TS key */
+  _getLSTsKey() {
+    const uid = this._lsUidPrefix || '';
+    return uid ? `shub_ts_${uid}` : this._LS_TS_KEY;
+  },
+
+  /** 設定 localStorage UID 前綴（登入後呼叫） */
+  _setLSUidPrefix(uid) {
+    this._lsUidPrefix = uid || '';
+  },
+
   /** 儲存集合到 localStorage */
   _saveToLS(name, data) {
     try {
       const json = JSON.stringify(data);
       // 單一集合超過 500KB 就不存（避免 localStorage 爆掉）
       if (json.length > 512000) return;
-      localStorage.setItem(this._LS_PREFIX + name, json);
+      localStorage.setItem(this._getLSKey(name), json);
     } catch (e) { /* quota exceeded — 忽略 */ }
   },
 
   /** 從 localStorage 讀取集合 */
   _loadFromLS(name) {
     try {
-      const raw = localStorage.getItem(this._LS_PREFIX + name);
+      const raw = localStorage.getItem(this._getLSKey(name));
       return raw ? JSON.parse(raw) : null;
     } catch (e) { return null; }
   },
@@ -151,7 +172,7 @@ const FirebaseService = {
     if (Object.keys(this._cache.rolePermissionMeta).length > 0) {
       this._saveToLS('rolePermissionMeta', this._cache.rolePermissionMeta);
     }
-    localStorage.setItem(this._LS_TS_KEY, Date.now().toString());
+    localStorage.setItem(this._getLSTsKey(), Date.now().toString());
   },
 
   /** 根據快取中的用戶角色決定 TTL */
@@ -166,9 +187,34 @@ const FirebaseService = {
 
   /** 從 localStorage 恢復快取（回傳是否成功） */
   _restoreCache() {
-    const ts = parseInt(localStorage.getItem(this._LS_TS_KEY) || '0', 10);
+    // RC8：嘗試從 legacy key 中恢復 currentUser 以取得 UID 前綴
+    // （此時 auth 尚未就緒，無法直接取得 UID）
+    if (!this._lsUidPrefix) {
+      try {
+        const raw = localStorage.getItem(this._LS_PREFIX + 'currentUser');
+        const saved = raw ? JSON.parse(raw) : null;
+        if (saved && saved.uid) {
+          this._setLSUidPrefix(saved.uid);
+        }
+      } catch (_) {}
+    }
+
+    const ts = parseInt(localStorage.getItem(this._getLSTsKey()) || '0', 10);
     const ttl = this._getEffectiveTTL();
-    if (Date.now() - ts > ttl) return false;
+    // 嘗試 UID-scoped key 失敗時，回退到 legacy key
+    if (Date.now() - ts > ttl) {
+      if (this._lsUidPrefix) {
+        const legacyTs = parseInt(localStorage.getItem(this._LS_TS_KEY) || '0', 10);
+        if (Date.now() - legacyTs <= ttl) {
+          this._setLSUidPrefix(''); // 暫時用 legacy key 讀取
+          console.log('[FirebaseService] UID-scoped 快取過期，回退 legacy key');
+        } else {
+          return false;
+        }
+      } else {
+        return false;
+      }
+    }
 
     let restored = 0;
     const allCollections = [
@@ -197,6 +243,10 @@ const FirebaseService = {
     const savedUser = this._loadFromLS('currentUser');
     if (savedUser && savedUser.uid) {
       this._cache.currentUser = savedUser;
+      // Issue 5：若剛才用 legacy key 讀取，恢復 UID 前綴避免後續寫入汙染共用命名空間
+      if (!this._lsUidPrefix && savedUser.uid) {
+        this._setLSUidPrefix(savedUser.uid);
+      }
       console.log('[FirebaseService] currentUser 從 localStorage 恢復:', savedUser.displayName);
     }
     console.log(`[FirebaseService] localStorage 快取恢復: ${restored} 個集合 (${Math.round((Date.now() - ts) / 1000)}s ago)`);
@@ -1127,6 +1177,7 @@ const FirebaseService = {
       .onSnapshot(
         snapshot => {
           this._cache.registrations = snapshot.docs.map(doc => ({ ...doc.data(), _docId: doc.id }));
+          this._snapshotReconnectAttempts.registrations = 0; // RC4：成功時重置重連計數
           this._debouncedPersistCache();
           if (typeof App !== 'undefined') {
             if (App.currentPage === 'page-activity-detail') App.showEventDetail?.(App._currentDetailEventId);
@@ -1134,7 +1185,7 @@ const FirebaseService = {
             if (App.currentPage === 'page-my-activities') App.renderMyActivities?.();
           }
         },
-        err => { console.warn('[onSnapshot] registrations 監聽錯誤:', err); }
+        err => this._reconnectRegistrationsListener(err) // RC4：自動重連
       );
     this._pageScopedRealtimeListeners.registrations = unsub;
   },
@@ -1191,6 +1242,7 @@ const FirebaseService = {
       .onSnapshot(
         snapshot => {
           this._cache.attendanceRecords = snapshot.docs.map(doc => ({ ...doc.data(), _docId: doc.id }));
+          this._snapshotReconnectAttempts.attendanceRecords = 0; // RC4：成功時重置重連計數
           this._debouncedPersistCache();
           if (typeof App !== 'undefined') {
             if (App.currentPage === 'page-activity-detail') {
@@ -1202,7 +1254,7 @@ const FirebaseService = {
             }
           }
         },
-        err => { console.warn('[onSnapshot] attendanceRecords 監聽錯誤:', err); }
+        err => this._reconnectAttendanceRecordsListener(err) // RC4：自動重連
       );
     this._pageScopedRealtimeListeners.attendanceRecords = unsub;
   },
@@ -1246,6 +1298,9 @@ const FirebaseService = {
         return;
       }
 
+      // RC8：設定 UID 前綴，確保 localStorage 快取隔離
+      this._setLSUidPrefix(authUid);
+
       // 強制刷新 token，確保 persistence 恢復的 token 仍有效
       try {
         await auth.currentUser.getIdToken(true);
@@ -1256,6 +1311,10 @@ const FirebaseService = {
 
       this._startMessagesListener();
       this._startUsersListener();
+
+      // RC1：stale-while-revalidate — Auth 就緒後立即背景刷新 registrations
+      // 不 await，不阻塞後續初始化；UI 已用 localStorage 快取渲染，刷新後自動覆蓋
+      this._staleWhileRevalidateRegistrations(authUid);
 
       try {
         await this._watchRolePermissionsRealtime(true);
@@ -1399,6 +1458,7 @@ const FirebaseService = {
     // 超時 → 用 localStorage 快取兜底
     if (timedOut) {
       this._initialized = true;
+      this._setupVisibilityRefresh(); // RC3
       console.log('[FirebaseService] Init timed out; continue with localStorage cache.');
       this._startAuthDependentWork();
       return;
@@ -1421,6 +1481,9 @@ const FirebaseService = {
     // ── 標記初始化完成（首頁可渲染）──
     this._initialized = true;
     this._persistCache();
+
+    // RC3：啟動 visibilitychange 監聽（頁面切回自動刷新）
+    this._setupVisibilityRefresh();
 
     const bootCount = this._bootCollections.length;
     console.log(`[FirebaseService] Public data init complete - boot: ${bootCount}, static events preload, deferred: ${this._deferredCollections.length}`);
@@ -1859,6 +1922,166 @@ const FirebaseService = {
   //  清理
   // ════════════════════════════════
 
+  // ════════════════════════════════
+  //  RC8：登出時清除用戶 localStorage 快取
+  // ════════════════════════════════
+  clearUserCache() {
+    try {
+      const keysToRemove = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && (key.startsWith('shub_c_') || key.startsWith('shub_ts_'))) {
+          keysToRemove.push(key);
+        }
+      }
+      keysToRemove.forEach(k => localStorage.removeItem(k));
+      // 也清除舊格式 key（向下相容）
+      localStorage.removeItem(this._LS_TS_KEY);
+      console.log(`[FirebaseService] 已清除 ${keysToRemove.length} 筆 localStorage 快取`);
+    } catch (e) { /* 忽略 */ }
+  },
+
+  // ════════════════════════════════
+  //  RC1：stale-while-revalidate（背景刷新 registrations）
+  // ════════════════════════════════
+  _staleWhileRevalidateRegistrations(authUid) {
+    if (ModeManager.isDemo()) return; // Issue 9：防禦 demo 模式
+    // 如果 registrations listener 已啟動（例如用戶直接進活動頁），不重複查詢
+    if (this._realtimeListenerStarted.registrations) return;
+    // Issue 1：防止並行 revalidation 競爭
+    if (this._registrationsRevalidating) return;
+    this._registrationsRevalidating = true;
+
+    const ctx = this._getRegistrationsVisibilityContext();
+    if (!ctx.uid && !ctx.canReadAll) { this._registrationsRevalidating = false; return; }
+
+    this._getRegistrationsListenerQuery(ctx).get().then(snapshot => {
+      this._registrationsRevalidating = false;
+      const fresh = snapshot.docs.map(doc => ({ ...doc.data(), _docId: doc.id }));
+      const oldCount = this._cache.registrations.length;
+      this._cache.registrations = fresh;
+      this._debouncedPersistCache();
+      if (oldCount !== fresh.length) {
+        console.log(`[FirebaseService] RC1 stale-while-revalidate: registrations ${oldCount} → ${fresh.length}`);
+      }
+      // 若用戶正在活動相關頁面，觸發 UI 更新
+      if (typeof App !== 'undefined') {
+        if (App.currentPage === 'page-activity-detail') App.showEventDetail?.(App._currentDetailEventId);
+        if (App.currentPage === 'page-activities') App.renderActivityList?.();
+        if (App.currentPage === 'page-my-activities') App.renderMyActivities?.();
+      }
+    }).catch(err => {
+      this._registrationsRevalidating = false;
+      console.warn('[FirebaseService] RC1 stale-while-revalidate registrations 失敗:', err);
+    });
+  },
+
+  // ════════════════════════════════
+  //  RC3：visibilitychange 頁面切回刷新
+  // ════════════════════════════════
+  _setupVisibilityRefresh() {
+    if (this._visibilityRefreshBound) return;
+    this._visibilityRefreshBound = true;
+    this._visibilityRefreshHandler = () => {
+      if (document.visibilityState !== 'visible') return;
+      if (ModeManager.isDemo()) return;
+      // 防抖 1 秒，避免快速切換連續觸發
+      clearTimeout(this._visibilityRefreshDebounce);
+      this._visibilityRefreshDebounce = setTimeout(() => {
+        this._handleVisibilityResume();
+      }, 1000);
+    };
+    document.addEventListener('visibilitychange', this._visibilityRefreshHandler);
+  },
+
+  _handleVisibilityResume() {
+    if (!this._initialized || !auth?.currentUser) return;
+    console.log('[FirebaseService] 頁面切回，觸發 stale-while-revalidate');
+
+    // 如果 registrations listener 存活 → 已有即時同步，不需額外操作
+    if (this._pageScopedRealtimeListeners.registrations) return;
+
+    // Issue 1：防止並行 revalidation 競爭
+    if (this._registrationsRevalidating) return;
+    this._registrationsRevalidating = true;
+
+    // listener 不在（首頁、或已被 finalize 停止）→ 做一次性 Firestore 查詢刷新 registrations
+    const ctx = this._getRegistrationsVisibilityContext();
+    if (!ctx.uid && !ctx.canReadAll) { this._registrationsRevalidating = false; return; }
+
+    this._getRegistrationsListenerQuery(ctx).get().then(snapshot => {
+      this._registrationsRevalidating = false;
+      const fresh = snapshot.docs.map(doc => ({ ...doc.data(), _docId: doc.id }));
+      const oldLen = this._cache.registrations.length;
+      this._cache.registrations = fresh;
+      this._debouncedPersistCache();
+      if (fresh.length !== oldLen) {
+        console.log(`[FirebaseService] registrations 刷新: ${oldLen} → ${fresh.length}`);
+      }
+      // 觸發當前頁面 UI 更新
+      if (typeof App !== 'undefined') {
+        if (App.currentPage === 'page-activity-detail') App.showEventDetail?.(App._currentDetailEventId);
+        if (App.currentPage === 'page-activities') App.renderActivityList?.();
+        if (App.currentPage === 'page-my-activities') App.renderMyActivities?.();
+      }
+    }).catch(err => {
+      this._registrationsRevalidating = false;
+      console.warn('[FirebaseService] visibilitychange registrations 刷新失敗:', err);
+    });
+  },
+
+  // ════════════════════════════════
+  //  RC4：onSnapshot 斷線自動重連
+  // ════════════════════════════════
+  _reconnectRegistrationsListener(err) {
+    console.warn('[onSnapshot] registrations 監聽錯誤:', err);
+    this._pageScopedRealtimeListeners.registrations = null;
+    this._realtimeListenerStarted.registrations = false;
+    this._registrationListenerKey = '';
+
+    const key = 'registrations';
+    const attempts = (this._snapshotReconnectAttempts[key] || 0) + 1;
+    this._snapshotReconnectAttempts[key] = attempts;
+    if (attempts > 5) {
+      console.warn(`[onSnapshot] registrations 重連已達上限 (${attempts} 次)，停止重試`);
+      return;
+    }
+    const delay = Math.min(1000 * Math.pow(2, attempts - 1), 30000); // 1s, 2s, 4s, 8s, 16s
+    console.log(`[onSnapshot] registrations 將在 ${delay}ms 後重連 (第 ${attempts} 次)`);
+    this._reconnectTimers.registrations = setTimeout(() => {
+      delete this._reconnectTimers.registrations;
+      if (!auth?.currentUser) return;
+      const pageId = typeof App !== 'undefined' ? App.currentPage : '';
+      if (this._getPageScopedRealtimeCollections(pageId).includes('registrations')) {
+        this._startRegistrationsListener();
+      }
+    }, delay);
+  },
+
+  _reconnectAttendanceRecordsListener(err) {
+    console.warn('[onSnapshot] attendanceRecords 監聯錯誤:', err);
+    this._pageScopedRealtimeListeners.attendanceRecords = null;
+    this._realtimeListenerStarted.attendanceRecords = false;
+
+    const key = 'attendanceRecords';
+    const attempts = (this._snapshotReconnectAttempts[key] || 0) + 1;
+    this._snapshotReconnectAttempts[key] = attempts;
+    if (attempts > 5) {
+      console.warn(`[onSnapshot] attendanceRecords 重連已達上限 (${attempts} 次)，停止重試`);
+      return;
+    }
+    const delay = Math.min(1000 * Math.pow(2, attempts - 1), 30000);
+    console.log(`[onSnapshot] attendanceRecords 將在 ${delay}ms 後重連 (第 ${attempts} 次)`);
+    this._reconnectTimers.attendanceRecords = setTimeout(() => {
+      delete this._reconnectTimers.attendanceRecords;
+      if (!auth?.currentUser) return;
+      const pageId = typeof App !== 'undefined' ? App.currentPage : '';
+      if (this._getPageScopedRealtimeCollections(pageId).includes('attendanceRecords')) {
+        this._startAttendanceRecordsListener();
+      }
+    }, delay);
+  },
+
   destroy() {
     this._listeners.forEach(unsub => unsub());
     this._listeners = [];
@@ -1878,6 +2101,18 @@ const FirebaseService = {
     this._authPromise = null;
     this._authDependentWorkPromise = null;
     this._authDependentWorkUid = null;
+    // RC4：清除重連 timer + 計數
+    Object.values(this._reconnectTimers).forEach(id => clearTimeout(id));
+    this._reconnectTimers = {};
+    this._snapshotReconnectAttempts = {};
+    // RC3：清除 visibilitychange listener + debounce timer
+    clearTimeout(this._visibilityRefreshDebounce);
+    if (this._visibilityRefreshHandler) {
+      document.removeEventListener('visibilitychange', this._visibilityRefreshHandler);
+      this._visibilityRefreshHandler = null;
+      this._visibilityRefreshBound = false;
+    }
+    this._registrationsRevalidating = false;
     // 重置快取到初始空白狀態
     Object.keys(this._cache).forEach(k => {
       if (k === 'currentUser') { this._cache[k] = null; }

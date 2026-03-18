@@ -10,6 +10,18 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-18 — [永久] 跨裝置報名狀態不同步修復（RC1+RC3+RC4+RC5+RC8）
+- **問題**：兩台裝置看到的報名/取消狀態不一致，裝置 A 報名後裝置 B 仍顯示未報名
+- **原因**：多層快取同步空窗疊加 — (1) 無 visibilitychange 刷新，切回分頁不更新；(2) localStorage TTL 120 分鐘內只讀快取不查 Firestore；(3) onSnapshot 斷線靜默失敗不重連；(4) localStorage 無 UID 隔離，換帳號讀到前用戶資料
+- **修復**：
+  - RC3：新增 `visibilitychange` 監聽，頁面切回時自動做一次性 Firestore 查詢刷新 registrations（1 秒防抖）
+  - RC4：`onSnapshot` 錯誤回調改為自動重連（exponential backoff 1s→30s，上限 5 次），成功時重置計數
+  - RC1：Auth 就緒後立即背景 Firestore 查詢刷新 registrations（stale-while-revalidate，不阻塞 UI）
+  - RC8：localStorage key 加 UID 前綴隔離（`shub_c_{uid}_{collection}`），logout 時清除所有 `shub_c_*` / `shub_ts_*`
+  - RC5：已有覆蓋（onSnapshot callback 已觸發 showEventDetail 重渲染）
+  - QA 修復：reconnect timer ID 存儲 + destroy 清理、visibilitychange listener 可移除、並行 revalidation 競爭防護、legacy fallback 後恢復 UID 前綴
+- **教訓**：Cache-first 架構必須有「切回刷新」和「背景驗證」機制，不能只靠 onSnapshot 即時同步（listener 有頁面範圍限制且可能斷線）。localStorage 快取必須有用戶隔離，否則換帳號會讀到前用戶資料
+
 ### 2026-03-18 — LINE Notify 綁定修復：外部/PC 瀏覽器無法綁定（P1）
 - **問題**：從個人資訊頁或報名後彈窗綁定 LINE 推播時，外部手機瀏覽器和 PC 瀏覽器因 `liff.isLoggedIn()` 檢查而被擋住，無法完成綁定
 - **原因**：`profile-data.js` 的 `bindLineNotify()` 有 LIFF 登入狀態檢查（`typeof liff === 'undefined' || !liff.isLoggedIn()`），但外部/PC 瀏覽器不會載入 LIFF SDK 或不會有 LIFF session

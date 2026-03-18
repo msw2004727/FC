@@ -388,6 +388,10 @@ const LineAuth = {
     this._profileLoading = false;
     this._profilePromise = null;
     this._clearProfileCache();
+    // RC8：清除 FirebaseService 的 localStorage 快取，防止下一個用戶讀到舊資料
+    if (typeof FirebaseService !== 'undefined' && FirebaseService.clearUserCache) {
+      FirebaseService.clearUserCache();
+    }
     location.reload();
   },
 
