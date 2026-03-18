@@ -22,6 +22,41 @@ Object.assign(App, {
     });
   },
 
+  _fontSizes: [15, 16.5, 18],
+  _fontLabels: ['', 'font-m', 'font-l'],
+
+  cycleFontSize() {
+    const sizes = this._fontSizes;
+    const cur = parseFloat(localStorage.getItem('sporthub_font_size')) || sizes[0];
+    const idx = sizes.indexOf(cur);
+    const next = (idx + 1) % sizes.length;
+    const val = sizes[next];
+    document.documentElement.style.fontSize = val + 'px';
+    if (val === sizes[0]) {
+      localStorage.removeItem('sporthub_font_size');
+    } else {
+      localStorage.setItem('sporthub_font_size', '' + val);
+    }
+    this._updateFontBtn(next);
+  },
+
+  _updateFontBtn(idx) {
+    const btn = document.getElementById('drawer-font-btn');
+    if (!btn) return;
+    btn.classList.remove('font-m', 'font-l');
+    if (this._fontLabels[idx]) btn.classList.add(this._fontLabels[idx]);
+    var tips = ['小', '中', '大'];
+    btn.title = '字型大小：' + tips[idx];
+  },
+
+  initFontSize() {
+    var sizes = this._fontSizes;
+    var cur = parseFloat(localStorage.getItem('sporthub_font_size')) || sizes[0];
+    var idx = sizes.indexOf(cur);
+    if (idx === -1) idx = 0;
+    this._updateFontBtn(idx);
+  },
+
   bindFilterToggle() {
     const toggle = document.getElementById('filter-toggle');
     if (!toggle || toggle.dataset.bound) return;

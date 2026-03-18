@@ -10,6 +10,11 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-19 — 抽屜字型放大按鈕
+- **需求**：在左側抽屜頭像區右上方加字型放大按鈕，三段切換（小 15px / 中 16.5px / 大 18px）
+- **實作**：`index.html` 抽屜 header 加按鈕 + body 開頭加早期 restore 腳本；`css/layout.css` 加 `.drawer-font-btn` 樣式 + `.drawer-name` overflow 保護；`js/core/theme.js` 加 `cycleFontSize` / `initFontSize`；`app.js` init 時呼叫 `initFontSize`
+- **教訓**：最大 1.2x（18px）是安全上限，超過會導致抽屜名稱溢出、徽章變形、表單擁擠
+
 ### 2026-03-18 — LIFF bounce 外部瀏覽器取消跳轉後無限迴圈
 - **問題**：外部瀏覽器（如 Safari）開啟 `toosterx.com/?event=xxx` 後跳轉 `liff.line.me/...`，若用戶拒絕開啟 LINE App，liff.line.me 會 fallback 回 toosterx.com，造成無限迴圈
 - **原因**：UA 偵測只防了「已在 LINE 內」的情境，未防「外部瀏覽器被 liff.line.me 彈回」的情境

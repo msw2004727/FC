@@ -138,6 +138,7 @@ const App = {
     this.bindNavigation();
     this.bindDrawer();
     this.bindTheme();
+    this.initFontSize();
     this.bindFilterToggle();
     this.bindTabBars();
     this.bindTournamentTabs();
