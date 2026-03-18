@@ -793,7 +793,9 @@ Object.assign(App, {
         return cloned;
       }
 
-      const target = condition.threshold != null ? toFiniteNumber(condition.threshold, 1) : 1;
+      const rawTarget = condition.threshold != null ? toFiniteNumber(condition.threshold, 1) : 1;
+      // 非 reverseComparison 類型 threshold 至少為 1，防止 Firestore 舊資料 threshold=0 導致所有人通過
+      const target = actionMeta?.reverseComparison ? rawTarget : Math.max(1, rawTarget);
       // reverseComparison：current <= target 表示達成（如放鴿子次數 <= 0）
       const shouldComplete = actionMeta?.reverseComparison
         ? current <= target

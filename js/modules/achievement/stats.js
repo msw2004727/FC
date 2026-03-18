@@ -26,7 +26,15 @@ Object.assign(App, {
     };
 
     const isCompleted = (achievement) => {
-      return Number(achievement?.current || 0) >= Number(getThreshold(achievement));
+      const registry = App._getAchievementRegistry?.();
+      const actionMeta = registry?.findActionMeta?.(achievement?.condition?.action);
+      const threshold = Number(getThreshold(achievement));
+      // 非 reverseComparison 類型 threshold 至少為 1，防止 threshold=0 導致所有人通過
+      const safeThreshold = actionMeta?.reverseComparison ? threshold : Math.max(1, threshold);
+      const current = Number(achievement?.current || 0);
+      return actionMeta?.reverseComparison
+        ? current <= safeThreshold
+        : current >= safeThreshold;
     };
 
     const getCompletedAchievements = (achievements) => {
