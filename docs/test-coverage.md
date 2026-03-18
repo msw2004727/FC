@@ -4,9 +4,9 @@
 
 | 類別 | 測試數量 | 執行指令 |
 |------|----------|----------|
-| 純函式單元測試 | 511 | `npm run test:unit` |
+| 純函式單元測試 | 551 | `npm run test:unit` |
 | Firestore 規則測試 | 113 | `npm run test:rules` |
-| **總計** | **624** | — |
+| **總計** | **664** | — |
 
 ### 執行前置條件
 
@@ -1475,6 +1475,83 @@ URL 路徑正規化（同源判斷、解碼、query/hash 移除）。
 | # | 測試案例 |
 |---|---------|
 | 1 | `all scripts referenced in index.html exist on disk` |
+
+### 2.10 `tests/unit/signup-logic.test.js`
+
+- **測試來源**：`js/modules/event/event-list-stats.js`、`js/firebase-crud.js`、`js/modules/event/event-detail-signup.js`
+- **測試數量**：43
+- **設計目的**：保護報名/取消按鈕狀態判斷、`_docId` 回填防禦、取消流程的 reg 選擇邏輯
+
+#### `_isUserSignedUp` (event-list-stats.js:261-275) — 14 tests
+
+判斷當前用戶是否已報名（決定按鈕顯示「立即報名」or「取消報名」）。
+
+| # | 測試案例 |
+|---|---------|
+| 1 | `no user → false` |
+| 2 | `user with confirmed registration → true` |
+| 3 | `user with waitlisted registration → true` |
+| 4 | `user with cancelled registration → false` |
+| 5 | `user with removed registration → false` |
+| 6 | `different userId → false` |
+| 7 | `fallback: uid in participants → true` |
+| 8 | `fallback: displayName in participants → true` |
+| 9 | `fallback: uid in waitlistNames → true` |
+| 10 | `fallback: name in waitlistNames → true` |
+| 11 | `no match anywhere → false` |
+| 12 | `getRegistrationsByEvent is undefined → graceful fallback` |
+| 13 | `mixed: cancelled in regs but name in participants → true (fallback)` |
+| 14 | `user with empty uid and empty name → false` |
+
+#### `_isUserOnWaitlist` (event-list-stats.js:278-290) — 9 tests
+
+判斷當前用戶是否在候補名單（決定按鈕顯示「取消報名」or「取消候補」）。
+
+| # | 測試案例 |
+|---|---------|
+| 1 | `no user → false` |
+| 2 | `user with waitlisted registration → true` |
+| 3 | `user with confirmed registration → false` |
+| 4 | `user with cancelled registration → false` |
+| 5 | `different userId waitlisted → false` |
+| 6 | `fallback: uid in waitlistNames → true` |
+| 7 | `fallback: displayName in waitlistNames → true` |
+| 8 | `name in participants but not waitlistNames → false` |
+| 9 | `getRegistrationsByEvent undefined → graceful fallback` |
+
+#### `_docId backfill` (firebase-crud.js:752-757) — 8 tests
+
+測試 `cancelRegistration` 內的 `_docId` 回填邏輯與防禦 throw。
+
+| # | 測試案例 |
+|---|---------|
+| 1 | `reg has _docId → no change, no throw` |
+| 2 | `reg missing _docId, fsReg matched by id → backfill` |
+| 3 | `reg missing _docId, no fsReg match → throws` |
+| 4 | `reg missing _docId, firestoreRegs empty → throws` |
+| 5 | `reg has _docId, fsReg has different _docId → keeps original` |
+| 6 | `multiple fsRegs, first match by id wins` |
+| 7 | `fsReg matched but fsReg._docId also undefined → throws` |
+| 8 | `does not mutate original reg object` |
+
+#### `selectCancelReg` (event-detail-signup.js:435-441) — 12 tests
+
+測試取消報名時的 reg 選擇優先順序與 extraRegs 清除邏輯。
+
+| # | 測試案例 |
+|---|---------|
+| 1 | `single confirmed reg → selected` |
+| 2 | `single waitlisted reg (isWaitlist) → selected` |
+| 3 | `isWaitlist=false: prefers confirmed over other statuses` |
+| 4 | `isWaitlist=false: accepts "registered" status too` |
+| 5 | `isWaitlist=true: prefers waitlisted over confirmed` |
+| 6 | `fallback: no matching status, uses _docId + active status` |
+| 7 | `fallback: no _docId, uses first reg` |
+| 8 | `empty array → reg is null` |
+| 9 | `extraRegs: duplicate regs with _docId are marked as extra` |
+| 10 | `extraRegs: regs without _docId are NOT in extraRegs` |
+| 11 | `cancelled regs are skipped by fallback _docId check` |
+| 12 | `removed regs are skipped by fallback _docId check` |
 
 ---
 
