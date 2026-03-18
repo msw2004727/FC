@@ -1,7 +1,6 @@
 /* ================================================
    SportHub — Event: Add to Calendar
-   產生 .ics 檔（含提醒）及 Google / Outlook 行事曆連結
-   依賴：event-share.js（共用 action sheet CSS）
+   一鍵加入行事曆 — 產生 .ics 直接開啟系統行事曆（含提醒）
    ================================================ */
 
 Object.assign(App, {
@@ -9,43 +8,30 @@ Object.assign(App, {
   _calendarInProgress: false,
 
   // ══════════════════════════════════
-  //  Main Entry
+  //  Main Entry — 一鍵加入行事曆
   // ══════════════════════════════════
 
-  async addEventToCalendar(eventId) {
+  addEventToCalendar(eventId) {
     if (this._calendarInProgress) return;
     this._calendarInProgress = true;
     try {
-      await this._doAddEventToCalendar(eventId);
+      var event = ApiService.getEvents().find(function (ev) { return ev.id === eventId; });
+      if (!event) { this.showToast('\u627E\u4E0D\u5230\u6D3B\u52D5\u8CC7\u6599'); return; }
+
+      var parsed = this._parseEventDateRange(event.date);
+      if (!parsed) { this.showToast('\u7121\u6CD5\u89E3\u6790\u6D3B\u52D5\u6642\u9593'); return; }
+
+      var calEvent = {
+        title: event.title || '',
+        location: event.location || '',
+        description: this._buildCalendarDescription(event),
+        start: parsed.start,
+        end: parsed.end,
+      };
+
+      this._openIcsInSystemCalendar(calEvent);
     } finally {
       this._calendarInProgress = false;
-    }
-  },
-
-  async _doAddEventToCalendar(eventId) {
-    var event = ApiService.getEvents().find(function (ev) { return ev.id === eventId; });
-    if (!event) { this.showToast('找不到活動資料'); return; }
-
-    var parsed = this._parseEventDateRange(event.date);
-    if (!parsed) { this.showToast('無法解析活動時間'); return; }
-
-    var choice = await this._showCalendarActionSheet();
-    if (choice === 'cancel') return;
-
-    var calEvent = {
-      title: event.title || '',
-      location: event.location || '',
-      description: this._buildCalendarDescription(event),
-      start: parsed.start,
-      end: parsed.end,
-    };
-
-    if (choice === 'ics') {
-      this._downloadIcsFile(calEvent);
-    } else if (choice === 'google') {
-      this._openGoogleCalendar(calEvent);
-    } else if (choice === 'outlook') {
-      this._openOutlookCalendar(calEvent);
     }
   },
 
@@ -56,8 +42,7 @@ Object.assign(App, {
   /** 解析活動日期格式 "YYYY/MM/DD HH:MM~HH:MM" → { start: Date, end: Date } */
   _parseEventDateRange(dateStr) {
     if (!dateStr) return null;
-    // 格式: "2026/03/22 14:00~16:00" 或 "2026/03/22 14:00"
-    var m = String(dateStr).match(/(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})\s+(\d{1,2}):(\d{2})(?:\s*[~～\-]\s*(\d{1,2}):(\d{2}))?/);
+    var m = String(dateStr).match(/(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})\s+(\d{1,2}):(\d{2})(?:\s*[~\uFF5E\-]\s*(\d{1,2}):(\d{2}))?/);
     if (!m) return null;
 
     var year = parseInt(m[1], 10);
@@ -71,7 +56,6 @@ Object.assign(App, {
     if (m[6] && m[7]) {
       end = new Date(year, month, day, parseInt(m[6], 10), parseInt(m[7], 10), 0);
     } else {
-      // 無結束時間預設 2 小時
       end = new Date(start.getTime() + 2 * 60 * 60 * 1000);
     }
     return { start: start, end: end };
@@ -92,79 +76,10 @@ Object.assign(App, {
   },
 
   // ══════════════════════════════════
-  //  Action Sheet
-  // ══════════════════════════════════
-
-  _showCalendarActionSheet() {
-    return new Promise(function (resolve) {
-      var overlay = document.createElement('div');
-      overlay.className = 'share-action-sheet';
-
-      var buttons =
-        '<button class="share-action-sheet-btn" data-choice="ics">' +
-          '<span class="share-action-sheet-btn-icon">\uD83D\uDCC5</span>' +
-          '<span class="share-action-sheet-btn-label">Apple / Outlook' +
-            '<span class="share-action-sheet-btn-sub">\u4E0B\u8F09 .ics \u6A94\u30FB\u542B\u63D0\u9192</span>' +
-          '</span>' +
-        '</button>' +
-        '<button class="share-action-sheet-btn" data-choice="google">' +
-          '<span class="share-action-sheet-btn-icon">\uD83D\uDFE2</span>' +
-          '<span class="share-action-sheet-btn-label">Google \u65E5\u66C6' +
-            '<span class="share-action-sheet-btn-sub">\u958B\u555F\u7DB2\u9801\u65E5\u66C6</span>' +
-          '</span>' +
-        '</button>' +
-        '<button class="share-action-sheet-btn" data-choice="outlook">' +
-          '<span class="share-action-sheet-btn-icon">\uD83D\uDD35</span>' +
-          '<span class="share-action-sheet-btn-label">Outlook.com' +
-            '<span class="share-action-sheet-btn-sub">\u958B\u555F\u7DB2\u9801\u884C\u4E8B\u66C6</span>' +
-          '</span>' +
-        '</button>';
-
-      var panel = document.createElement('div');
-      panel.className = 'share-action-sheet-panel';
-      panel.innerHTML =
-        '<div class="share-action-sheet-title">\u52A0\u5165\u884C\u4E8B\u66C6</div>' +
-        '<div class="share-action-sheet-grid">' + buttons + '</div>' +
-        '<button class="share-action-sheet-cancel" data-choice="cancel">\u53D6\u6D88</button>';
-
-      overlay.appendChild(panel);
-      document.body.appendChild(overlay);
-
-      requestAnimationFrame(function () {
-        overlay.classList.add('active');
-      });
-
-      var resolved = false;
-      function cleanup(choice) {
-        if (resolved) return;
-        resolved = true;
-        overlay.classList.remove('active');
-        overlay.addEventListener('transitionend', function handler() {
-          overlay.removeEventListener('transitionend', handler);
-          if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
-        });
-        setTimeout(function () {
-          if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
-        }, 400);
-        resolve(choice);
-      }
-
-      panel.addEventListener('click', function (ev) {
-        var btn = ev.target.closest('[data-choice]');
-        if (btn) cleanup(btn.dataset.choice);
-      });
-      overlay.addEventListener('click', function (ev) {
-        if (ev.target === overlay) cleanup('cancel');
-      });
-    });
-  },
-
-  // ══════════════════════════════════
-  //  .ics File (iCalendar RFC 5545)
+  //  .ics — 直接開啟系統行事曆
   // ══════════════════════════════════
 
   _toIcsDateStr(d) {
-    // 轉為本地時間格式 YYYYMMDDTHHMMSS（不帶 Z，搭配 TZID 使用）
     var pad = function (n) { return n < 10 ? '0' + n : '' + n; };
     return d.getFullYear() +
       pad(d.getMonth() + 1) +
@@ -175,7 +90,6 @@ Object.assign(App, {
   },
 
   _foldIcsLine(line) {
-    // RFC 5545: 每行最多 75 octets，超過須折行（CRLF + 空格）
     var result = [];
     while (line.length > 75) {
       result.push(line.slice(0, 75));
@@ -194,7 +108,7 @@ Object.assign(App, {
       .replace(/\n/g, '\\n');
   },
 
-  _downloadIcsFile(calEvent) {
+  _buildIcsContent(calEvent) {
     var uid = 'sporthub-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8) + '@toosterx.com';
     var now = this._toIcsDateStr(new Date());
     var tzid = 'Asia/Taipei';
@@ -205,7 +119,6 @@ Object.assign(App, {
       'PRODID:-//SportHub//Event//ZH',
       'CALSCALE:GREGORIAN',
       'METHOD:PUBLISH',
-      // 時區定義
       'BEGIN:VTIMEZONE',
       'TZID:Asia/Taipei',
       'BEGIN:STANDARD',
@@ -222,13 +135,11 @@ Object.assign(App, {
       this._foldIcsLine('SUMMARY:' + this._escapeIcsText(calEvent.title)),
       this._foldIcsLine('LOCATION:' + this._escapeIcsText(calEvent.location)),
       this._foldIcsLine('DESCRIPTION:' + this._escapeIcsText(calEvent.description)),
-      // 提醒：活動前 1 天
       'BEGIN:VALARM',
       'TRIGGER:-P1D',
       'ACTION:DISPLAY',
       this._foldIcsLine('DESCRIPTION:' + this._escapeIcsText(calEvent.title) + ' \u660E\u5929\u958B\u59CB'),
       'END:VALARM',
-      // 提醒：活動前 30 分鐘
       'BEGIN:VALARM',
       'TRIGGER:-PT30M',
       'ACTION:DISPLAY',
@@ -238,63 +149,30 @@ Object.assign(App, {
       'END:VCALENDAR',
     ];
 
-    var icsContent = lines.join('\r\n');
-    var blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
-    var url = URL.createObjectURL(blob);
+    return lines.join('\r\n');
+  },
 
+  _openIcsInSystemCalendar(calEvent) {
+    var icsContent = this._buildIcsContent(calEvent);
+    var blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
+    var blobUrl = URL.createObjectURL(blob);
+
+    // 不帶 download 屬性 → OS 以原生行事曆 app 開啟 .ics
+    // iOS: 直接彈出 Apple Calendar「加入行程」
+    // Android: 彈出 intent 選擇器（Google Calendar 等）
+    // 桌面: 開啟預設行事曆應用
     var a = document.createElement('a');
-    a.href = url;
-    a.download = (calEvent.title || 'event').replace(/[^\w\u4e00-\u9fff]/g, '_').slice(0, 30) + '.ics';
+    a.href = blobUrl;
+    a.target = '_blank';
+    a.rel = 'noopener';
+    // 設定 type 提示瀏覽器這是行事曆檔案
+    a.type = 'text/calendar';
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
 
-    setTimeout(function () { URL.revokeObjectURL(url); }, 5000);
-    this.showToast('\u5DF2\u4E0B\u8F09\u884C\u4E8B\u66C6\u6A94\u6848\uFF08\u542B\u63D0\u9192\uFF09');
-  },
-
-  // ══════════════════════════════════
-  //  Google Calendar URL
-  // ══════════════════════════════════
-
-  _toUtcDateStr(d) {
-    var pad = function (n) { return n < 10 ? '0' + n : '' + n; };
-    return d.getUTCFullYear() +
-      pad(d.getUTCMonth() + 1) +
-      pad(d.getUTCDate()) + 'T' +
-      pad(d.getUTCHours()) +
-      pad(d.getUTCMinutes()) +
-      pad(d.getUTCSeconds()) + 'Z';
-  },
-
-  _openGoogleCalendar(calEvent) {
-    var dates = this._toUtcDateStr(calEvent.start) + '/' + this._toUtcDateStr(calEvent.end);
-    var params = new URLSearchParams({
-      action: 'TEMPLATE',
-      text: calEvent.title,
-      dates: dates,
-      location: calEvent.location,
-      details: calEvent.description,
-    });
-    window.open('https://calendar.google.com/calendar/render?' + params.toString(), '_blank');
-  },
-
-  // ══════════════════════════════════
-  //  Outlook.com URL
-  // ══════════════════════════════════
-
-  _openOutlookCalendar(calEvent) {
-    var fmt = function (d) { return d.toISOString().replace(/\.\d{3}Z$/, '+00:00'); };
-    var params = new URLSearchParams({
-      path: '/calendar/action/compose',
-      rru: 'addevent',
-      subject: calEvent.title,
-      startdt: fmt(calEvent.start),
-      enddt: fmt(calEvent.end),
-      location: calEvent.location,
-      body: calEvent.description,
-    });
-    window.open('https://outlook.live.com/calendar/0/deeplink/compose?' + params.toString(), '_blank');
+    setTimeout(function () { URL.revokeObjectURL(blobUrl); }, 10000);
+    this.showToast('\u6B63\u5728\u958B\u555F\u884C\u4E8B\u66C6\u2026');
   },
 
 });
