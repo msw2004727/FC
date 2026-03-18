@@ -258,7 +258,8 @@
 // 20260318b: redeploy trigger
 // 20260318c: B1+C1 — cancelRegistration _docId 回填 + 移除 _syncMyEventRegistrations 前置查詢
 // 20260318d: QA fix — _docId 防禦移到快取變更前 + 移除 handleCancelSignup 的 _docId 門檻
-const CACHE_VERSION = '20260318d';
+// 20260318e: fix — bindLineNotify 移除 LIFF 登入檢查，外部/PC 瀏覽器可正常綁定
+const CACHE_VERSION = '20260318e';
 
 // ─── Page Strategy Registry ───
 // 唯一策略來源，未列出的頁面預設 fresh-first

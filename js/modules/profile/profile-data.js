@@ -56,13 +56,8 @@ Object.assign(App, {
       return;
     }
 
-    // 檢查 LIFF 登入狀態
-    if (typeof liff === 'undefined' || !liff.isLoggedIn()) {
-      this.showToast('請先登入 LINE 帳號');
-      return;
-    }
-
-    // 綁定同時開啟加好友頁面（確保用戶已加官方帳號好友）
+    // 開啟加好友頁面（確保用戶已加官方帳號好友）
+    // LINE 內建瀏覽器用 line.me/R/ti/p 可直接開啟；外部/PC 瀏覽器則開網頁版
     window.open(`https://line.me/R/ti/p/${LINE_CONFIG.BOT_BASIC_ID}`, 'sporthub_line');
     this._completeLineBinding(btn);
   },

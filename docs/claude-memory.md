@@ -10,6 +10,12 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-18 — LINE Notify 綁定修復：外部/PC 瀏覽器無法綁定（P1）
+- **問題**：從個人資訊頁或報名後彈窗綁定 LINE 推播時，外部手機瀏覽器和 PC 瀏覽器因 `liff.isLoggedIn()` 檢查而被擋住，無法完成綁定
+- **原因**：`profile-data.js` 的 `bindLineNotify()` 有 LIFF 登入狀態檢查（`typeof liff === 'undefined' || !liff.isLoggedIn()`），但外部/PC 瀏覽器不會載入 LIFF SDK 或不會有 LIFF session
+- **修復**：移除 LIFF 登入檢查，改為僅依賴 Firebase Auth 登入狀態（`ApiService.getCurrentUser()`）。LINE 推播的安全性由 Cloud Function `processLinePushQueue` 的自動解綁機制保障（偵測無效接收者時自動設 `lineNotify.bound = false`）
+- **教訓**：LINE Notify 綁定只是在用戶文件上標記 bound=true + 引導加好友，不需要 LIFF session；實際推播由 Cloud Function 執行，無效接收者會自動解綁，不會造成安全問題
+
 ### 2026-03-18 — 取消報名速度優化 + _docId 防禦修復（B1+C1）
 - **問題**：取消報名流程有兩個問題：(1) `_syncMyEventRegistrations` 前置查詢多花 200-500ms，而 `cancelRegistration` 內部已查詢相同資料；(2) 若快取中 `_docId` 缺失，`cancelRegistration` 的 `doc(undefined)` 會 crash
 - **原因**：歷史上 `_syncMyEventRegistrations` 是為了補救快取缺 `_docId` 而加的，但 `cancelRegistration` 內部已查詢 firestoreRegs 卻沒有回填 `_docId` 給快取中的 reg
