@@ -158,6 +158,9 @@ Object.assign(App, {
     }
     if (!createRegEnd) { this.showToast('請填寫報名截止時間。'); return; }
     const createRegStart = this._getTournamentImmediateRegStartValue(createRegStartInput);
+    if (new Date(createRegStart) >= new Date(createRegEnd)) {
+      this.showToast('報名開始時間不能晚於或等於截止時間。'); return;
+    }
     const createCoverPreview = document.getElementById('ct-upload-preview');
     const createCoverImage = createCoverPreview?.querySelector('img')?.src || null;
     const createContentPreview = document.getElementById('ct-content-upload-preview');

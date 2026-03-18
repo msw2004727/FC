@@ -29,7 +29,9 @@ Object.assign(App, {
       primaryHtml = `<button class="primary-btn full-width" disabled>報名尚未開始</button>`;
     } else if (status === '已截止報名' || this.isTournamentEnded?.(tournament)) {
       primaryHtml = `<button class="primary-btn full-width" disabled>報名已截止</button>`;
-    } else if (approvedCount >= teamLimit && ctx.availableTeams.length > 0) {
+    } else if (approvedCount >= teamLimit && ctx.approvedTeams.length > 0) {
+      primaryHtml = `<button class="primary-btn full-width" disabled>俱樂部已通過審核</button>`;
+    } else if (approvedCount >= teamLimit) {
       primaryHtml = `<button class="primary-btn full-width" disabled>隊伍名額已滿</button>`;
     } else if (ctx.availableTeams.length > 0) {
       const selector = ctx.availableTeams.length > 1

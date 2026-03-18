@@ -10,6 +10,13 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-18 — 賽事系統二次 QA 審計修復
+- **問題**：(1) 建立/編輯賽事無 regStart ≤ regEnd 驗證，可設無效報名期間 (2) 名額已滿時若用戶有 pending 申請，按鈕顯示「審核中」給人假希望
+- **修復**：
+  - `handleCreateTournament` 與 `handleSaveEditTournament` 加報名時間先後驗證
+  - `renderRegisterButton` 改為名額已滿時優先顯示「名額已滿」，僅用戶已核准時顯示「已通過審核」
+- **檔案**：tournament-manage.js、tournament-manage-edit.js、tournament-friendly-detail-view.js
+
 ### 2026-03-18 — 賽事系統全面審計與修復
 - **問題**：5 個邏輯/安全瑕疵 — state null 存取崩潰、creatorUid 可為 'demo-user'、delegateUids 含空字串、roster 成員重複、刪除賽事不清理 subcollections
 - **修復**：

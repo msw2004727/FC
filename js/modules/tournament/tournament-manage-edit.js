@@ -98,6 +98,10 @@ Object.assign(App, {
     }
 
     const editRegStart = this._getTournamentImmediateRegStartValue(editRegStartInput);
+    if (new Date(editRegStart) >= new Date(editRegEnd)) {
+      this.showToast('報名開始時間不能晚於或等於截止時間。');
+      return;
+    }
     const editVenues = [...this._etVenues];
     const editDelegates = [...this._etDelegates];
     const editMatchDates = [...this._etMatchDates];
