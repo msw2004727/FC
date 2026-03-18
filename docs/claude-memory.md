@@ -10,6 +10,11 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-18 — 活動詳情頁按鈕佈局重構 + 一鍵加入行事曆
+- **變更**：報名按鈕全寬置頂、工具列（聯繫主辦/分享活動/加入行事曆/現場簽到）純文字按鈕排列於下方；新增 event-detail-calendar.js 模組，iOS 用 data URI、Android/桌面用 blob download 觸發系統行事曆
+- **修復**：iOS blob: URL 靜默失敗改為 data:text/calendar URI；報名按鈕高度 +15%（padding .55→.63rem）
+- **檔案**：css/activity.css、js/modules/event/event-detail.js、js/modules/event/event-detail-calendar.js、js/core/script-loader.js
+
 ### 2026-03-18 — [永久] 站內信與 LINE 推播通知完全失效（Notification Fix）
 - **問題**：活動報名、候補遞補、角色變更等自動通知全部停發（站內信 + LINE 推播），用戶收不到任何通知
 - **原因**：`_deliverMessageToInbox` 定義在 `message-admin.js`，屬於 ScriptLoader `messageAdmin` 群組，僅在管理後台頁面載入。通知觸發點（活動頁面等）從未載入此模組，導致 `_deliverMessageWithLinePush` 內的 guard `typeof this._deliverMessageToInbox !== 'function'` 始終為 true，直接 return 跳過所有通知

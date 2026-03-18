@@ -339,10 +339,10 @@
 .detail-action-primary { margin-bottom: .6rem; }
 .detail-action-primary > button,
 .detail-action-primary > div { width: 100%; }
-.detail-action-primary > button { display: block; width: 100%; text-align: center; }
+.detail-action-primary > button { display: block; width: 100%; text-align: center; padding-top: .63rem !important; padding-bottom: .63rem !important; }
 .detail-action-primary .signup-glow-wrap { display: flex; width: 100%; }
 .detail-action-primary .signup-glow-wrap .signup-flipper { width: 100%; }
-.detail-action-primary .signup-glow-wrap .signup-flipper > button { width: 100%; }
+.detail-action-primary .signup-glow-wrap .signup-flipper > button { width: 100%; padding-top: .63rem !important; padding-bottom: .63rem !important; }
 .detail-action-toolbar { display: flex; justify-content: center; gap: .35rem; }
 .detail-toolbar-btn {
   flex: 1 1 0; display: flex; align-items: center; justify-content: center;
