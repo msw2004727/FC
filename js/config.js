@@ -257,7 +257,8 @@
 // 20260318a: fix — hashchange 不套用 detail fallback，修復點卡片無法進入 detail 頁
 // 20260318b: redeploy trigger
 // 20260318c: B1+C1 — cancelRegistration _docId 回填 + 移除 _syncMyEventRegistrations 前置查詢
-const CACHE_VERSION = '20260318c';
+// 20260318d: QA fix — _docId 防禦移到快取變更前 + 移除 handleCancelSignup 的 _docId 門檻
+const CACHE_VERSION = '20260318d';
 
 // ─── Page Strategy Registry ───
 // 唯一策略來源，未列出的頁面預設 fresh-first

@@ -447,7 +447,7 @@ Object.assign(App, {
         cancelledAt: firebase.firestore.FieldValue.serverTimestamp(),
       }).catch(err => console.error('[cancelSignup dedup]', err));
     }
-    if (reg && reg._docId) {
+    if (reg) {
       try {
         const cancelledReg = await FirebaseService.cancelRegistration(reg.id);
         if (cancelledReg && cancelledReg._promotedUserId) {

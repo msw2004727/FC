@@ -749,16 +749,19 @@ Object.assign(FirebaseService, {
       }
     }
 
+    // 回填 _docId（C1：從 Firestore 查詢結果補救快取缺失）
+    const fsReg = firestoreRegs.find(r => r.id === registrationId || r._docId === reg._docId);
+    if (fsReg && !reg._docId && fsReg._docId) reg._docId = fsReg._docId;
+
+    // _docId 防禦：若仍缺失則明確報錯（在變更快取之前，確保不會汙染狀態）
+    if (!reg._docId) throw new Error('報名記錄不完整，請重新整理後再試');
+
     // 先在本地快取做所有狀態變更
     reg.status = 'cancelled';
     reg.cancelledAt = new Date().toISOString();
 
-    // 同步標記 Firestore 查詢結果中對應的紀錄，並回填 _docId（防止快取缺失）
-    const fsReg = firestoreRegs.find(r => r.id === registrationId || r._docId === reg._docId);
-    if (fsReg) {
-      fsReg.status = 'cancelled';
-      if (!reg._docId && fsReg._docId) reg._docId = fsReg._docId;
-    }
+    // 同步標記 Firestore 查詢結果
+    if (fsReg) fsReg.status = 'cancelled';
 
     const promotedCandidates = [];
 
@@ -805,8 +808,7 @@ Object.assign(FirebaseService, {
     // 所有 Firestore 寫入合併到同一個 batch
     const batch = db.batch();
 
-    // 1. 取消報名（_docId 防禦：若仍缺失則明確報錯）
-    if (!reg._docId) throw new Error('報名記錄不完整，請重新整理後再試');
+    // 1. 取消報名
     batch.update(db.collection('registrations').doc(reg._docId), {
       status: 'cancelled',
       cancelledAt: firebase.firestore.FieldValue.serverTimestamp(),

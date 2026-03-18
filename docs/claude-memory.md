@@ -11,13 +11,12 @@
 > - 總行數超過 500 行時觸發清理
 
 ### 2026-03-18 — 取消報名速度優化 + _docId 防禦修復（B1+C1）
-- **問題**：取消報名流程有兩個問題：(1) `_syncMyEventRegistrations` 前置查詢多花 200-500ms，而 `cancelRegistration` 內部已查詢相同資料；(2) 若快取中 `_docId` 缺失，`cancelRegistration` line 806 `db.collection('registrations').doc(undefined)` 會 crash
+- **問題**：取消報名流程有兩個問題：(1) `_syncMyEventRegistrations` 前置查詢多花 200-500ms，而 `cancelRegistration` 內部已查詢相同資料；(2) 若快取中 `_docId` 缺失，`cancelRegistration` 的 `doc(undefined)` 會 crash
 - **原因**：歷史上 `_syncMyEventRegistrations` 是為了補救快取缺 `_docId` 而加的，但 `cancelRegistration` 內部已查詢 firestoreRegs 卻沒有回填 `_docId` 給快取中的 reg
 - **修復**：
-  - `cancelRegistration` 中 fsReg 找到後自動回填 `reg._docId`（C1）
-  - `cancelRegistration` batch.update 前加 `_docId` 防禦檢查，缺失時拋明確錯誤而非 crash
-  - `handleCancelSignup` 移除 `_syncMyEventRegistrations` 條件查詢（B1），因 cancelRegistration 已自行處理
-- **教訓**：當下游函式已具備資料查詢能力時，上游不應重複查詢；_docId 回填應在資料最靠近來源處完成
+  - `cancelRegistration` 中 fsReg 找到後自動回填 `reg._docId`（C1），且 `_docId` 防禦檢查移到快取變更之前，防止 throw 時汙染快取
+  - `handleCancelSignup` 移除 `_syncMyEventRegistrations` 條件查詢（B1），且 `if (reg && reg._docId)` 門檻改為 `if (reg)`，讓 cancelRegistration 內部自行回填
+- **教訓**：[永久] 移除前置資料修復（如 _syncMyEventRegistrations）時，必須確認下游函式的入口門檻不依賴被移除的前置修復結果。防禦性 throw 必須在狀態變更之前執行，否則會汙染快取
 
 ### 2026-03-17 — 修正瀏覽器重整後活動詳情頁空白模板閃現
 - **問題**：在活動詳情頁重新整理瀏覽器後，deep link poller 觸發 showEventDetail()，先呼叫 showPage() 顯示空白模板（"活動圖片 800 × 300"），再渲染活動資料。若渲染失敗或競態條件觸發，用戶會看到空白頁面
