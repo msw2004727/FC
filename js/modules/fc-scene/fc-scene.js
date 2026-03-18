@@ -101,6 +101,26 @@ function initProfileScene(containerId) {
     } else {
       drawMoonIcon(ctx, sw - 20, 18);
     }
+
+    // "Coming soon." — 置中文字
+    var textY = (groundY + 6) / 2; // 天空區域垂直置中
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    // 陰影層（增加可讀性）
+    ctx.shadowColor = light ? 'rgba(0,0,0,0.18)' : 'rgba(0,0,0,0.5)';
+    ctx.shadowBlur = 8;
+    ctx.shadowOffsetY = 2;
+    // 主標題
+    ctx.font = '800 20px "Noto Sans TC", "SF Pro Display", -apple-system, "Segoe UI", sans-serif';
+    ctx.fillStyle = light ? 'rgba(255,255,255,0.92)' : 'rgba(255,255,255,0.75)';
+    ctx.fillText('Coming soon.', sw / 2, textY);
+    ctx.shadowColor = 'transparent';
+    // 副標題（小字）
+    ctx.font = '500 10px "Noto Sans TC", "SF Pro Display", -apple-system, "Segoe UI", sans-serif';
+    ctx.fillStyle = light ? 'rgba(255,255,255,0.7)' : 'rgba(255,255,255,0.45)';
+    ctx.fillText('\u2500\u2500  \u656C\u8ACB\u671F\u5F85  \u2500\u2500', sw / 2, textY + 18);
+    ctx.restore();
   }
 
   // Initial render
