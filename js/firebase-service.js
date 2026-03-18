@@ -310,6 +310,11 @@ const FirebaseService = {
     'page-admin-inactive':    ['attendanceRecords', 'activityRecords', 'operationLogs'],
     'page-admin-repair':      ['events', 'attendanceRecords', 'activityRecords', 'userCorrections', 'teams'],
     'page-admin-teams':       ['teams', 'tournaments', 'standings', 'matches'],
+    'page-admin-tournaments': ['tournaments', 'standings', 'matches'],
+    'page-admin-banners':     ['banners', 'floatingAds', 'popupAds', 'sponsors'],
+    'page-admin-shop':        ['shopItems', 'trades'],
+    'page-admin-themes':      ['siteThemes'],
+    'page-admin-announcements': ['announcements'],
     'page-personal-dashboard': ['attendanceRecords', 'activityRecords'],
     'page-profile':            ['attendanceRecords', 'activityRecords'],
     'page-leaderboard':       ['leaderboard'],
@@ -332,6 +337,24 @@ const FirebaseService = {
     leaderboard: 15 * 60 * 1000,// 15 分鐘 — 排行榜計算後才變
     achievements: 30 * 60 * 1000,// 30 分鐘 — 成就定義幾乎不變
     badges: 30 * 60 * 1000,     // 30 分鐘 — 徽章定義幾乎不變
+    // 後台管理集合 — 支援 stale-first 背景刷新
+    operationLogs: 2 * 60 * 1000,   // 2 分鐘 — 操作紀錄較頻繁
+    errorLogs: 2 * 60 * 1000,       // 2 分鐘
+    adminMessages: 2 * 60 * 1000,   // 2 分鐘 — 站內信管理需即時
+    expLogs: 3 * 60 * 1000,         // 3 分鐘
+    teamExpLogs: 3 * 60 * 1000,     // 3 分鐘
+    trades: 5 * 60 * 1000,          // 5 分鐘
+    banners: 5 * 60 * 1000,         // 5 分鐘
+    floatingAds: 5 * 60 * 1000,     // 5 分鐘
+    popupAds: 5 * 60 * 1000,        // 5 分鐘
+    sponsors: 5 * 60 * 1000,        // 5 分鐘
+    announcements: 5 * 60 * 1000,   // 5 分鐘
+    gameConfigs: 5 * 60 * 1000,     // 5 分鐘
+    userCorrections: 5 * 60 * 1000, // 5 分鐘
+    permissions: 10 * 60 * 1000,    // 10 分鐘 — 權限設定少變
+    customRoles: 10 * 60 * 1000,    // 10 分鐘
+    notifTemplates: 10 * 60 * 1000, // 10 分鐘
+    siteThemes: 10 * 60 * 1000,     // 10 分鐘 — 佈景主題少變
   },
 
   _buildCollectionQuery(name, limitCount = 200) {

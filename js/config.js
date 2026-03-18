@@ -261,29 +261,46 @@
 // 20260318e: fix — bindLineNotify 移除 LIFF 登入檢查，外部/PC 瀏覽器可正常綁定
 // 20260318f: fix — 跨裝置報名狀態同步（RC1+RC3+RC4+RC5+RC8）
 // 20260318g: fix — _flipAnimating 卡死導致活動卡片無法點擊（F1+F2+F3+F4）
-const CACHE_VERSION = '20260318h';
+const CACHE_VERSION = '20260318i';
 
 // ─── Page Strategy Registry ───
 // 唯一策略來源，未列出的頁面預設 fresh-first
 const PAGE_STRATEGY = {
+  // 主要頁面
   'page-home':               'stale-first',
   'page-activities':         'stale-first',
   'page-teams':              'stale-first',
   'page-tournaments':        'stale-first',
   'page-personal-dashboard': 'stale-first',
   'page-leaderboard':        'stale-first',
+  'page-activity-detail':    'stale-first',
+  'page-my-activities':      'stale-first',
+  'page-shop':               'stale-first',
 
+  // 詳情頁（需確認資料新鮮度）
   'page-profile':            'stale-confirm',
   'page-team-detail':        'stale-confirm',
   'page-tournament-detail':  'stale-confirm',
-  'page-shop':               'stale-confirm',
   'page-shop-detail':        'stale-confirm',
-  'page-admin-dashboard':    'stale-confirm',
-  'page-admin-teams':        'stale-confirm',
-  'page-admin-tournaments':  'stale-confirm',
 
-  'page-activity-detail':    'stale-first',
-  'page-my-activities':      'stale-first',
+  // 後台管理頁（抽屜入口 — 快取優先 + 背景刷新）
+  'page-admin-dashboard':    'stale-first',
+  'page-admin-teams':        'stale-first',
+  'page-admin-tournaments':  'stale-first',
+  'page-admin-games':        'stale-first',
+  'page-admin-users':        'stale-first',
+  'page-admin-banners':      'stale-first',
+  'page-admin-shop':         'stale-first',
+  'page-admin-messages':     'stale-first',
+  'page-admin-themes':       'stale-first',
+  'page-admin-exp':          'stale-first',
+  'page-admin-auto-exp':     'stale-first',
+  'page-admin-announcements':'stale-first',
+  'page-admin-achievements': 'stale-first',
+  'page-admin-roles':        'stale-first',
+  'page-admin-logs':         'stale-first',
+  'page-admin-repair':       'stale-first',
+  'page-admin-inactive':     'stale-first',
 };
 
 // ─── Page Data Contract ───
@@ -303,6 +320,24 @@ const PAGE_DATA_CONTRACT = {
   'page-activity-detail':    { required: ['events'], optional: ['registrations', 'attendanceRecords', 'activityRecords', 'userCorrections'], realtime: ['registrations', 'attendanceRecords'] },
   'page-my-activities':      { required: ['events', 'registrations'], optional: ['attendanceRecords'], realtime: ['registrations', 'attendanceRecords'] },
   'page-scan':               { required: ['events', 'attendanceRecords'], optional: [], realtime: ['attendanceRecords'] },
+  // 後台管理頁（required: [] 允許首次載入後即走 stale-first）
+  'page-admin-dashboard':    { required: [], optional: ['expLogs', 'teamExpLogs', 'operationLogs', 'attendanceRecords', 'activityRecords'], realtime: [] },
+  'page-admin-teams':        { required: [], optional: ['teams', 'tournaments', 'standings', 'matches'], realtime: [] },
+  'page-admin-tournaments':  { required: [], optional: ['tournaments', 'standings', 'matches'], realtime: [] },
+  'page-admin-games':        { required: [], optional: ['gameConfigs'], realtime: [] },
+  'page-admin-users':        { required: [], optional: ['permissions', 'customRoles'], realtime: [] },
+  'page-admin-banners':      { required: [], optional: ['banners', 'floatingAds', 'popupAds', 'sponsors'], realtime: [] },
+  'page-admin-shop':         { required: [], optional: ['shopItems', 'trades'], realtime: [] },
+  'page-admin-messages':     { required: [], optional: ['adminMessages', 'notifTemplates'], realtime: [] },
+  'page-admin-themes':       { required: [], optional: ['siteThemes'], realtime: [] },
+  'page-admin-exp':          { required: [], optional: ['expLogs', 'teamExpLogs'], realtime: [] },
+  'page-admin-auto-exp':     { required: [], optional: ['expLogs'], realtime: [] },
+  'page-admin-announcements':{ required: [], optional: ['announcements'], realtime: [] },
+  'page-admin-achievements': { required: [], optional: ['achievements', 'badges'], realtime: [] },
+  'page-admin-roles':        { required: [], optional: ['permissions', 'customRoles'], realtime: [] },
+  'page-admin-logs':         { required: [], optional: ['operationLogs', 'errorLogs'], realtime: [] },
+  'page-admin-repair':       { required: [], optional: ['events', 'attendanceRecords', 'activityRecords', 'userCorrections', 'teams'], realtime: [] },
+  'page-admin-inactive':     { required: [], optional: ['attendanceRecords', 'activityRecords', 'operationLogs'], realtime: [] },
 };
 
 // ─── Achievement Condition Config ───
