@@ -341,6 +341,7 @@ Object.assign(App, {
                   }
                 });
               }).catch(err => console.error('[companionCancelAR-fallback query]', err));
+            this._grantAutoExp(userId, 'cancel_registration', e.title);
             this._notifySignupCancelledInboxFromTemplate(e, userId, false);
           }
         }

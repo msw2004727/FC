@@ -784,5 +784,25 @@
 - **去重三層保護**：(1) expLogs reason 解析 + eventId↔title 雙向映射、(2) `_expDedupe` collection 前綴查詢、(3) `queuedSet` 防同次 run 重複
 - **教訓**：線上 `_grantAutoExp` 用 event.title 作 context，backfill 用 eventId 作 context，去重必須雙向映射才能正確比對；同一 userId+eventId 可能有多筆 registration doc（companion），需 queuedSet 防重複
 
+### 2026-03-18 — Auto-EXP Production 路徑遺漏修復
+- **問題**：用戶報名活動後 EXP 不增加（register_activity 設 3，報名前後積分皆 27）
+- **原因**：`_grantAutoExp` 呼叫只存在於 Demo 模式的 code path，Production 路徑完全沒有呼叫
+- **修復**：
+  - `event-detail-signup.js`：Production 報名成功後加 `_grantAutoExp(userId, 'register_activity', e.title)`
+  - `event-detail-signup.js`：Production 取消報名後加 `_grantAutoExp(userId, 'cancel_registration', e0.title)`
+  - `event-detail-companion.js`：Production 同行者取消後加 `_grantAutoExp(userId, 'cancel_registration', e.title)`
+- **教訓**：Demo / Production 分支邏輯容易遺漏，新增功能時必須確認兩個路徑都有覆蓋；可用 backfillAutoExp CF 補發歷史缺漏
+
+### 2026-03-18 — 成就徽章 threshold=0 導致 level 0 誤拿徽章
+- **問題**：等級 0 用戶在報名名單內顯示拿到需要等級 1 的徽章
+- **原因**：Firestore 存了 `condition.threshold: 0`，evaluator 直接讀取未經 normalizeCondition 保護，`0 >= 0 = true`
+- **修復**：evaluator.js + stats.js 的 isCompleted 加 `Math.max(1, rawTarget)` for non-reverseComparison types
+- **教訓**：threshold 從 Firestore 讀取時不可信任原值，非 reverseComparison 類型必須 clamp 至少為 1
+
+### 2026-03-18 — 成就條件預覽 reach_level/reach_exp threshold 未顯示
+- **問題**：等級目標輸入 1，條件預覽文字看不到數值
+- **原因**：shared.js `describeCondition` 中 `if (!unit && threshold <= 1) return actionLabel` 跳過數值，reach_level/reach_exp 的 unit 為空字串
+- **修復**：config.js 中 reach_level unit 改為 `'級'`、reach_exp 改為 `'點'`
+
 *最後濃縮日期：2026-03-15*
 *原始檔案：314 條目 / 2475 行 → 濃縮後約 50 條永久教訓*

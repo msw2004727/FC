@@ -276,6 +276,7 @@ Object.assign(App, {
         eventName: e.title, date: e.date, location: e.location,
         status: result.status === 'waitlisted' ? '候補' : '正取',
       }, userId, 'activity', '活動');
+      if (result.status !== 'waitlisted') this._grantAutoExp(userId, 'register_activity', e.title);
       this._evaluateAchievements?.(e.type);
     } catch (err) {
       console.error('[handleSignup]', err);
@@ -562,6 +563,7 @@ Object.assign(App, {
             statusTo: 'cancelled',
           },
         });
+        if (!isWaitlist) this._grantAutoExp(userId, 'cancel_registration', e0.title);
         this._evaluateAchievements?.(e0?.type);
       } catch (err) {
         console.error('[cancelSignup]', err);
