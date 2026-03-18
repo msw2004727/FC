@@ -202,6 +202,9 @@ Object.assign(App, {
       if ((b.getAttribute('onclick') || '').includes('handleSignup')) {
         activeBtn = b;
         b._origText = b.textContent;
+        // 按鈕文字即時切換為處理中狀態
+        const txt = b.textContent.trim();
+        b.textContent = txt.includes('候補') ? '候補中...' : '報名中...';
         b.style.opacity = '';
         glowWrap = b.closest('.signup-glow-wrap');
         if (glowWrap) glowWrap.classList.add('loading');
@@ -349,6 +352,8 @@ Object.assign(App, {
       b.disabled = true;
       b.style.opacity = '0.6';
       b._origCancelHtml = b.innerHTML;
+      // 按鈕文字即時切換為處理中狀態
+      b.textContent = isWaitlist ? '取消候補中...' : '取消報名中...';
     });
     if (activeCancelBtn) {
       activeCancelBtn.style.opacity = '';
