@@ -10,6 +10,11 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-18 — 新增私密活動功能
+- **需求**：活動建立時可設為私密，私密活動不顯示在列表中，僅能透過分享連結查看
+- **實作**：建立表單新增「私密活動」開關（性別限定下方），`_getVisibleEvents()` 過濾 privateEvent（建立者/委託人/管理員除外），詳情頁顯示私密標籤，deeplink 直接存取不受影響
+- **檔案**：activity.html、event-create-options.js、event-create.js、event-manage-lifecycle.js、event-create-template.js、event-list-helpers.js、event-detail.js
+
 ### 2026-03-18 — 圖片裁切功能在多數頁面靜默失效
 - **問題**：上傳圖片的裁切功能消失，選圖後直接顯示預覽而不彈出裁切視窗
 - **原因**：3/9 效能優化（commit 9b70774）將 `image-cropper.js` 從 `index.html` 移至 ScriptLoader 動態載入，但只加到 `achievement` 和 `profile` 兩個群組；其餘頁面（活動建立、賽事、廣告、俱樂部等）的 `showImageCropper` 為 undefined，條件 `aspectRatio && this.showImageCropper` 靜默 fallthrough

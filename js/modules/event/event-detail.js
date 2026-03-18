@@ -331,6 +331,7 @@ Object.assign(App, {
       ? `<a href="javascript:void(0)" onclick="App.showTeamDetail('${e.creatorTeamId}')" style="color:inherit;text-decoration:underline;text-underline-offset:2px">${escapeHTML(e.creatorTeamName || '俱樂部')}</a>`
       : escapeHTML(e.creatorTeamName || '俱樂部');
     const teamTag = e.teamOnly ? `<div class="detail-row"><span class="detail-label">限定</span><span style="color:#e11d48;font-weight:600">${teamNameLink} 專屬活動</span></div>` : '';
+    const privateTag = e.privateEvent ? `<div class="detail-row"><span class="detail-label">可見</span><span style="color:#7c3aed;font-weight:600">🔒 私密活動 — 僅限連結分享</span></div>` : '';
     const genderTag = this._hasEventGenderRestriction?.(e)
       ? `<div class="detail-row"><span class="detail-label">性別</span><span style="color:#dc2626;font-weight:700">${escapeHTML(this._getEventGenderDetailText(e))}</span></div>`
       : '';
@@ -382,6 +383,7 @@ Object.assign(App, {
       ${(e.delegates && e.delegates.length) ? `<div class="detail-row detail-row-wide"><span class="detail-label">\u59D4\u8A17</span><span class="participant-list" style="display:inline-flex;gap:.3rem;flex-wrap:wrap">${e.delegates.map(d => this._userTag(d.name)).join('')}</span></div>` : ''}
       ${e.contact ? `<div class="detail-row detail-row-wide"><span class="detail-label">\u806F\u7E6B</span>${escapeHTML(e.contact)}</div>` : ''}
       ${teamTag ? teamTag.replace('detail-row"', 'detail-row detail-row-wide"') : ''}
+      ${privateTag ? privateTag.replace('detail-row"', 'detail-row detail-row-wide"') : ''}
       ${e.notes ? `
       <div class="detail-section">
         <div class="detail-section-title">注意事項</div>

@@ -128,6 +128,32 @@ Object.assign(App, {
     this._updateGenderRestrictionUI();
   },
 
+  // ── Private Event ──
+
+  _updatePrivateEventUI() {
+    const toggle = document.getElementById('ce-private-event');
+    const label = document.getElementById('ce-private-event-label');
+    if (!label) return;
+    const enabled = !!toggle?.checked;
+    label.textContent = enabled ? '已開啟 — 僅限連結可見' : '關閉 — 所有人可見';
+    label.style.color = enabled ? '#dc2626' : 'var(--text-muted)';
+  },
+
+  _setPrivateEventState(enabled) {
+    const toggle = document.getElementById('ce-private-event');
+    if (toggle) toggle.checked = !!enabled;
+    this._updatePrivateEventUI();
+  },
+
+  bindPrivateEventToggle() {
+    const toggle = document.getElementById('ce-private-event');
+    if (toggle && !toggle.dataset.bound) {
+      toggle.dataset.bound = '1';
+      toggle.addEventListener('change', () => this._updatePrivateEventUI());
+    }
+    this._updatePrivateEventUI();
+  },
+
   // ── Registration Open Time ──
 
   _getEventRegOpenNodes() {

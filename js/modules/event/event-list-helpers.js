@@ -256,10 +256,15 @@ Object.assign(App, {
     return this._isEventOwner(e) || this._isEventDelegate(e);
   },
 
-  /** 取得當前用戶可見的活動列表（過濾俱樂部限定） */
+  /** 取得當前用戶可見的活動列表（過濾俱樂部限定 + 私密活動） */
   _getVisibleEvents() {
     const all = ApiService.getEvents();
-    return all.filter(e => this._canViewEventByTeamScope(e));
+    return all.filter(e => {
+      if (!this._canViewEventByTeamScope(e)) return false;
+      // 私密活動：僅建立者/委託人/管理員可在列表中看到
+      if (e.privateEvent && !this._canManageEvent(e)) return false;
+      return true;
+    });
   },
 
 });

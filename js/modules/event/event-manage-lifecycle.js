@@ -25,6 +25,7 @@ Object.assign(App, {
     this.bindTeamOnlyToggle();
     this.bindEventFeeToggle?.();
     this.bindGenderRestrictionToggle?.();
+    this.bindPrivateEventToggle?.();
     this.showModal('create-event-modal');
     this._eventSubmitInFlight = false;
     this._setCreateEventSubmitIdleLabel('儲存修改');
@@ -53,6 +54,7 @@ Object.assign(App, {
     document.getElementById('ce-notes').value = e.notes || '';
     this._initSportTagPicker(e.sportTag || 'football');
     this._setGenderRestrictionState?.(!!e.genderRestrictionEnabled, e.allowedGender || '');
+    this._setPrivateEventState?.(!!e.privateEvent);
     // 開放報名時間
     this._setEventRegOpenTimeValue?.(e.regOpenTime || '');
     // 俱樂部限定

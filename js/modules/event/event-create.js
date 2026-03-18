@@ -109,6 +109,7 @@ Object.assign(App, {
     if (ceTeamSelect) Array.from(ceTeamSelect.options || []).forEach(opt => { opt.selected = false; });
     if (ceTeamOnly) { ceTeamOnly.checked = false; this._updateTeamOnlyLabel(); }
     this._setGenderRestrictionState(false, '');
+    this._setPrivateEventState(false);
     const cePreview = document.getElementById('ce-upload-preview');
     if (cePreview) {
       cePreview.classList.remove('has-image');
@@ -121,6 +122,7 @@ Object.assign(App, {
     this.bindTeamOnlyToggle();
     this.bindEventFeeToggle();
     this.bindGenderRestrictionToggle();
+    this.bindPrivateEventToggle();
     this._initSportTagPicker('');
     this.showModal('create-event-modal');
     this._initDelegateSearch();
@@ -163,6 +165,7 @@ Object.assign(App, {
     const teamOnly = !!document.getElementById('ce-team-only')?.checked;
     const genderRestrictionEnabled = !!document.getElementById('ce-gender-restriction-enabled')?.checked;
     const allowedGender = genderRestrictionEnabled ? this._getAllowedGenderValue() : '';
+    const privateEvent = !!document.getElementById('ce-private-event')?.checked;
 
     if (!title) { this.showToast('請輸入活動名稱'); return; }
     if (title.length > 16) { this.showToast('活動名稱不可超過 16 字'); return; }
@@ -241,6 +244,7 @@ Object.assign(App, {
         teamOnly,
         genderRestrictionEnabled,
         allowedGender,
+        privateEvent,
         creatorTeamId: teamOnly ? resolvedTeamId : null,
         creatorTeamName: teamOnly ? resolvedTeamName : null,
         creatorTeamIds: teamOnly ? [...resolvedTeamIds] : [],
@@ -300,6 +304,7 @@ Object.assign(App, {
         teamOnly,
         genderRestrictionEnabled,
         allowedGender,
+        privateEvent,
         creatorTeamId: teamOnly ? resolvedTeamId : null,
         creatorTeamName: teamOnly ? resolvedTeamName : null,
         creatorTeamIds: teamOnly ? [...resolvedTeamIds] : [],
@@ -369,6 +374,7 @@ Object.assign(App, {
     if (ceTeamSelect) Array.from(ceTeamSelect.options || []).forEach(opt => { opt.selected = false; });
     if (ceTeamOnly) { ceTeamOnly.checked = false; this._updateTeamOnlyLabel(); }
     this._setGenderRestrictionState(false, '');
+    this._setPrivateEventState(false);
     const cePreview = document.getElementById('ce-upload-preview');
     if (cePreview) {
       cePreview.classList.remove('has-image');
