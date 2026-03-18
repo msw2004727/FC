@@ -10,11 +10,11 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
-### 2026-03-18 — LIFF bounce redirect 無限迴圈
+### 2026-03-18 — [永久] LIFF bounce redirect 無限迴圈
 - **問題**：`toosterx.com/?event=xxx` → `liff.line.me/...` → LIFF 開回 `toosterx.com/?event=xxx` → 再次跳轉 → 無限迴圈
-- **原因**：防迴圈用 `sessionStorage` 設 flag，但 LIFF 在新 webview 中開啟 endpoint URL 時 sessionStorage 是空的（per-tab），flag 遺失
-- **修復**：改用 `localStorage` + `Date.now()` 時間戳（30 秒有效期），跨 webview 也能偵測已跳轉過
-- **教訓**：LINE LIFF 從 `liff.line.me` 回到 endpoint URL 可能開在不同 webview context，`sessionStorage` 不跨 tab/webview，跨頁面狀態必須用 `localStorage`
+- **原因**：防迴圈用 sessionStorage/localStorage 設 flag，但 LIFF 在隔離 webview 中開啟 endpoint URL 時兩者都是空的
+- **修復**：改用 User Agent 偵測（`/Line\//i.test(navigator.userAgent)`），已在 LINE 瀏覽器內則不跳轉，不依賴任何 storage
+- **教訓**：LINE LIFF webview 是完全隔離的瀏覽環境，sessionStorage 和 localStorage 都不跨 webview。跨頁面狀態傳遞不能依賴 client storage，應使用環境偵測（UA）或 URL 參數
 
 ### 2026-03-18 — 新增私密活動功能
 - **需求**：活動建立時可設為私密，私密活動不顯示在列表中，僅能透過分享連結查看
