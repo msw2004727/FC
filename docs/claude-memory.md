@@ -10,6 +10,16 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-18 — LINE 社群分享連結被自動回收
+- **問題**：活動/球隊/賽事/名片分享到 LINE OpenChat 社群後，訊息被自動回收
+- **原因**：分享的純文字 altText 中包含 `liff.line.me/` URL，LINE OpenChat 會自動回收含此域名的訊息
+- **修復**：
+  - 新增 `_buildShareUrl(paramKey, paramValue)` 產生 `toosterx.com/?event=xxx` 格式的中繼 URL（event-share-builders.js）
+  - 所有 share 模組的 altText 改用 `shareUrl`（不含 liff.line.me），Flex Message 按鈕仍用 `liffUrl`
+  - index.html 新增 LIFF bounce redirect script：偵測 deep link 參數後自動跳轉至 `liff.line.me/...`，sessionStorage 防無限迴圈
+  - 影響檔案：index.html、event-share-builders.js、event-share.js、team-share.js、tournament-share.js、profile-share.js
+- **教訓**：LINE OpenChat 會回收含 `liff.line.me/` 的訊息，社群分享文字必須使用自有域名 URL，再透過前端 redirect 導向 LIFF
+
 ### 2026-03-18 — 刷新瀏覽器後點頁籤缺少加載提示
 - **問題**：刷新瀏覽器後點擊底部功能頁籤（活動、俱樂部、我的等），因 stale-first 快取策略跳過了加載提示，但第一次切頁仍有延遲，用戶容易以為按鈕壞掉
 - **原因**：`showPage` 中 `shouldShowRouteLoading` 條件含 `!canUseStale`，stale-first 路徑完全不顯示 status-hint 加載提示

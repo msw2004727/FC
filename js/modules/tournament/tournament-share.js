@@ -129,7 +129,8 @@ Object.assign(App, {
     if (!tournament) return;
 
     var liffUrl = this._buildTournamentLiffUrl(tournamentId);
-    var altText = this._buildTournamentShareAltText(tournament, liffUrl);
+    var shareUrl = this._buildShareUrl('tournament', tournamentId);
+    var altText = this._buildTournamentShareAltText(tournament, shareUrl);
     var canPicker = await this._canUseShareTargetPicker();
 
     if (canPicker || LineAuth.isLoggedIn()) {

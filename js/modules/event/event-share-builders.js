@@ -13,6 +13,11 @@ Object.assign(App, {
     return 'https://liff.line.me/' + LINE_CONFIG.LIFF_ID + '?event=' + encodeURIComponent(String(eventId || '').trim());
   },
 
+  /** 社群分享用 URL（不含 liff.line.me，避免被 OpenChat 回收） */
+  _buildShareUrl(paramKey, paramValue) {
+    return 'https://toosterx.com/?' + paramKey + '=' + encodeURIComponent(String(paramValue || '').trim());
+  },
+
   // ══════════════════════════════════
   //  Plain-text Alt Text (max 400 chars for LINE altText limit)
   // ══════════════════════════════════

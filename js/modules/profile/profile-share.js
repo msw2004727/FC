@@ -120,7 +120,8 @@ Object.assign(App, {
     var uid = (user && (user.uid || user.lineUserId)) || '';
 
     var liffUrl = this._buildProfileLiffUrl(uid);
-    var altText = this._buildProfileShareAltText(name, user, liffUrl);
+    var shareUrl = this._buildShareUrl('profile', uid);
+    var altText = this._buildProfileShareAltText(name, user, shareUrl);
     var canPicker = await this._canUseShareTargetPicker();
 
     if (canPicker || LineAuth.isLoggedIn()) {

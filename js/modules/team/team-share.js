@@ -127,7 +127,8 @@ Object.assign(App, {
     if (!t) return;
 
     var liffUrl = this._buildTeamLiffUrl(teamId);
-    var altText = this._buildTeamShareAltText(t, liffUrl);
+    var shareUrl = this._buildShareUrl('team', teamId);
+    var altText = this._buildTeamShareAltText(t, shareUrl);
     var canPicker = await this._canUseShareTargetPicker();
 
     if (canPicker || LineAuth.isLoggedIn()) {
