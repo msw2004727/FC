@@ -10,6 +10,11 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-18 — EXP 系統自動化測試 + 死代碼清理
+- **變更**：新增 `tests/unit/exp-system.test.js`（42 個測試），覆蓋 auto-exp 規則載入、fallback chain、金額查詢、uid null guard、樂觀更新 + rollback、requestId 生成、grant 守衛、log 建構
+- **修復**：移除 `firebase-crud.js` 中的 `updateUserPoints` 死函式（無權限檢查、繞過 CF 直接寫 Firestore，為安全風險）
+- **檔案**：tests/unit/exp-system.test.js（新增）、js/firebase-crud.js（移除死代碼）
+
 ### 2026-03-18 — [永久] EXP 系統全面修復（5 階段）
 - **問題**：候補遞補不發 EXP、手動確認出席不發 EXP、CF 無冪等性、auto-EXP 規則只存 localStorage、CF 失敗時快取不 rollback、3 個未實作規則佔空間
 - **修復**：

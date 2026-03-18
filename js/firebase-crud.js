@@ -999,42 +999,6 @@ Object.assign(FirebaseService, {
   },
 
   // ════════════════════════════════
-  //  User Points（積分系統）
-  // ════════════════════════════════
-
-  async updateUserPoints(userId, pointsDelta, reason, operatorLabel) {
-    const user = this._cache.adminUsers.find(u => u.uid === userId);
-    if (!user) throw new Error('用戶不存在');
-
-    user.exp = Math.max(0, (user.exp || 0) + pointsDelta);
-
-    if (user._docId) {
-      await db.collection('users').doc(user._docId).update({
-        exp: user.exp,
-      });
-    }
-
-    // 記錄 EXP 操作日誌
-    const now = new Date();
-    const log = {
-      time: `${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, '0')}/${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`,
-      uid: userId,
-      target: user.name,
-      amount: (pointsDelta > 0 ? '+' : '') + pointsDelta,
-      reason: reason,
-      operator: operatorLabel || '管理員',
-      operatorUid: auth?.currentUser?.uid || null,
-    };
-    await db.collection('expLogs').add({
-      ...log,
-      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-    });
-    this._cache.expLogs.unshift(log);
-
-    return user;
-  },
-
-  // ════════════════════════════════
   //  Users（LINE 登入用戶）
   // ════════════════════════════════
 
