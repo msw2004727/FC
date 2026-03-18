@@ -363,20 +363,25 @@ Object.assign(App, {
       }
     }
 
+      // 短文字組（雙欄 grid 流排）
+      const _shortCells = [];
+      if (feeRow) _shortCells.push(feeRow);
+      _shortCells.push(`<div class="detail-row"><span class="detail-label">\u4EBA\u6578</span>\u5DF2\u5831 ${confirmedCount}/${e.max}${waitlistDisplayCount > 0 ? '\u3000\u5019\u88DC ' + waitlistDisplayCount : ''}</div>`);
+      _shortCells.push(`<div class="detail-row"><span class="detail-label">\u5012\u6578</span><span style="color:${isEnded ? 'var(--text-muted)' : 'var(--primary)'};font-weight:600">${countdown}</span></div>`);
+      const _heatHtml = this._renderHeatPrediction(e);
+      if (_heatHtml) _shortCells.push(_heatHtml);
+      if (ageTag) _shortCells.push(ageTag);
+      if (genderTag) _shortCells.push(genderTag);
+
       nodes.body.innerHTML = `
-      <div class="detail-row"><span class="detail-label">地點</span>${locationHtml}</div>
-      <div class="detail-row"><span class="detail-label">時間</span>${escapeHTML(e.date)}</div>
-      ${regOpenHtml}
-      ${feeRow}
-      <div class="detail-row"><span class="detail-label">人數</span>已報 ${confirmedCount}/${e.max}${waitlistDisplayCount > 0 ? '　候補 ' + waitlistDisplayCount : ''}</div>
-      ${ageTag}
-      ${genderTag}
-      <div class="detail-row"><span class="detail-label">主辦</span><span class="participant-list" style="display:inline-flex;gap:.3rem;flex-wrap:wrap">${this._userTag(e.creator)}</span></div>
-      ${(e.delegates && e.delegates.length) ? `<div class="detail-row"><span class="detail-label">委託</span><span class="participant-list" style="display:inline-flex;gap:.3rem;flex-wrap:wrap">${e.delegates.map(d => this._userTag(d.name)).join('')}</span></div>` : ''}
-      ${e.contact ? `<div class="detail-row"><span class="detail-label">聯繫</span>${escapeHTML(e.contact)}</div>` : ''}
-      ${teamTag}
-      <div class="detail-row"><span class="detail-label">倒數</span><span style="color:${isEnded ? 'var(--text-muted)' : 'var(--primary)' };font-weight:600">${countdown}</span></div>
-      ${this._renderHeatPrediction(e)}
+      <div class="detail-row detail-row-wide"><span class="detail-label">\u5730\u9EDE</span>${locationHtml}</div>
+      <div class="detail-row detail-row-wide"><span class="detail-label">\u6642\u9593</span>${escapeHTML(e.date)}</div>
+      ${regOpenHtml ? regOpenHtml.replace('detail-row"', 'detail-row detail-row-wide"') : ''}
+      <div class="detail-grid">${_shortCells.join('')}</div>
+      <div class="detail-row detail-row-wide"><span class="detail-label">\u4E3B\u8FA6</span><span class="participant-list" style="display:inline-flex;gap:.3rem;flex-wrap:wrap">${this._userTag(e.creator)}</span></div>
+      ${(e.delegates && e.delegates.length) ? `<div class="detail-row detail-row-wide"><span class="detail-label">\u59D4\u8A17</span><span class="participant-list" style="display:inline-flex;gap:.3rem;flex-wrap:wrap">${e.delegates.map(d => this._userTag(d.name)).join('')}</span></div>` : ''}
+      ${e.contact ? `<div class="detail-row detail-row-wide"><span class="detail-label">\u806F\u7E6B</span>${escapeHTML(e.contact)}</div>` : ''}
+      ${teamTag ? teamTag.replace('detail-row"', 'detail-row detail-row-wide"') : ''}
       ${e.notes ? `
       <div class="detail-section">
         <div class="detail-section-title">注意事項</div>
