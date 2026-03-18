@@ -225,22 +225,21 @@ Object.assign(App, {
       statsEl.textContent = `共 ${allEvents.length} 場${upcomingCount ? ' ・ 即將開放 ' + upcomingCount : ''} ・ 報名中 ${openCount} ・ 已額滿 ${fullCount} ・ 已結束 ${endedCount} ・ 已取消 ${cancelledCount}`;
     }
 
-    // 預計算簽退次數 Map（避免每筆活動重新 filter 全部出席紀錄）
+    // 預計算出席紀錄 Map（避免每筆活動重新 filter 全部出席紀錄）
     const isSuperAdmin = (ROLE_LEVEL_MAP[this.currentRole] || 0) >= ROLE_LEVEL_MAP.super_admin;
-    const checkoutCountMap = new Map();
-    const unregCountMap = new Map();
+    const checkoutsByEvent = new Map();
+    const unregUidsByEvent = new Map();
     if (isSuperAdmin) {
-      const unregSets = new Map();
       ApiService.getAttendanceRecords().forEach(r => {
         if (r.type === 'checkout') {
-          checkoutCountMap.set(r.eventId, (checkoutCountMap.get(r.eventId) || 0) + 1);
+          if (!checkoutsByEvent.has(r.eventId)) checkoutsByEvent.set(r.eventId, []);
+          checkoutsByEvent.get(r.eventId).push(r);
         }
         if (r.type === 'unreg') {
-          if (!unregSets.has(r.eventId)) unregSets.set(r.eventId, new Set());
-          unregSets.get(r.eventId).add(r.uid);
+          if (!unregUidsByEvent.has(r.eventId)) unregUidsByEvent.set(r.eventId, new Set());
+          unregUidsByEvent.get(r.eventId).add(r.uid);
         }
       });
-      unregSets.forEach((s, eid) => unregCountMap.set(eid, s.size));
     }
 
     const s = 'font-size:.72rem;padding:.2rem .5rem';
@@ -326,9 +325,12 @@ Object.assign(App, {
           const fee = this._getEventRecordedFeeAmount?.(e) ?? (Number(e?.fee || 0) > 0 ? Math.floor(Number(e.fee || 0)) : 0);
           const confirmedRegs = fee > 0 ? ApiService.getRegistrationsByEvent(e.id).filter(r => r.status === 'confirmed' || r.status === 'registered') : [];
           const confirmedCount = confirmedRegs.length > 0 ? confirmedRegs.length : _confirmedDisplay;
-          const unregCount = fee > 0 ? (unregCountMap.get(e.id) || 0) : 0;
-          const checkoutCount = fee > 0 ? (checkoutCountMap.get(e.id) || 0) : 0;
-          const feeExpected = fee * (confirmedCount + unregCount);
+          const _confirmedUids = fee > 0 ? new Set(confirmedRegs.map(r => r.userId)) : null;
+          const _unregUids = fee > 0 ? (unregUidsByEvent.get(e.id) || null) : null;
+          const checkoutCount = fee > 0
+            ? (checkoutsByEvent.get(e.id) || []).filter(r => (_confirmedUids && _confirmedUids.has(r.uid)) || (_unregUids && _unregUids.has(r.uid))).length
+            : 0;
+          const feeExpected = fee * confirmedCount;
           const feeActual = fee * checkoutCount;
           const feeShort = feeExpected - feeActual;
           feeBox = (fee > 0 && isSuperAdmin) ? `<div style="margin-left:auto;padding:.2rem .45rem;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:.68rem;color:var(--text-secondary);display:inline-flex;gap:.5rem;background:var(--bg-elevated);white-space:nowrap">
@@ -473,9 +475,10 @@ Object.assign(App, {
     const records = ApiService.getAttendanceRecords(eventId);
     const confirmedRegs = ApiService.getRegistrationsByEvent(eventId).filter(r => r.status === 'confirmed' || r.status === 'registered');
     const confirmedCount = confirmedRegs.length > 0 ? confirmedRegs.length : (e.current || 0);
-    const unregCount = new Set(records.filter(r => r.type === 'unreg').map(r => r.uid)).size;
-    const checkoutCount = records.filter(r => r.type === 'checkout').length;
-    const feeExpected = fee * (confirmedCount + unregCount);
+    const confirmedUids = new Set(confirmedRegs.map(r => r.userId));
+    const unregUids = new Set(records.filter(r => r.type === 'unreg').map(r => r.uid));
+    const checkoutCount = records.filter(r => r.type === 'checkout' && (confirmedUids.has(r.uid) || unregUids.has(r.uid))).length;
+    const feeExpected = fee * confirmedCount;
     const feeActual = fee * checkoutCount;
     const feeShort = feeExpected - feeActual;
     /* innerHTML — safe: only numeric values interpolated */
