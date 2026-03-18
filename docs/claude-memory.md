@@ -778,5 +778,11 @@
 - **修改檔案**：firebase-crud.js、api-service.js、firestore.rules、page-loader.js、script-loader.js、team-detail.js、team-form.js、team-form-init.js、team-form-join.js、team-list.js、team-list-render.js、team.html、team.css、index.html、config.js、architecture.md
 - **教訓**：eduAttendance 獨立為頂層集合（非 attendanceRecords 子集合），因為教育簽到沒有 eventId、查詢模式完全不同、分開避免污染現有統計
 
+### 2026-03-18 — 歷史 EXP 回推補發 Cloud Function（backfillAutoExp）
+- **功能**：掃描 registrations / attendanceRecords / events，比對 expLogs，補發從未發放的 Auto-EXP（模式 A：補差額）
+- **新增**：`functions/index.js` 新增 `backfillAutoExp` CF、`pages/admin-auto-exp.html` 新增回推區塊、`js/modules/auto-exp.js` 新增 `runAutoExpBackfill()`
+- **去重三層保護**：(1) expLogs reason 解析 + eventId↔title 雙向映射、(2) `_expDedupe` collection 前綴查詢、(3) `queuedSet` 防同次 run 重複
+- **教訓**：線上 `_grantAutoExp` 用 event.title 作 context，backfill 用 eventId 作 context，去重必須雙向映射才能正確比對；同一 userId+eventId 可能有多筆 registration doc（companion），需 queuedSet 防重複
+
 *最後濃縮日期：2026-03-15*
 *原始檔案：314 條目 / 2475 行 → 濃縮後約 50 條永久教訓*

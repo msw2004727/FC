@@ -130,6 +130,63 @@ Object.assign(App, {
     this.showToast('\u81EA\u52D5 EXP \u898F\u5247\u5DF2\u5132\u5B58');
   },
 
+  // ── Backfill ──
+
+  async runAutoExpBackfill(dryRun) {
+    if (!this.hasPermission('admin.auto_exp.entry')) {
+      this.showToast('權限不足'); return;
+    }
+    var resultEl = document.getElementById('auto-exp-backfill-result');
+    var executeBtn = document.getElementById('auto-exp-backfill-execute-btn');
+    if (resultEl) {
+      resultEl.style.display = 'block';
+      resultEl.innerHTML = '<div style="font-size:.82rem;color:var(--text-muted);padding:.5rem 0">處理中，請稍候…</div>';
+    }
+    if (executeBtn) executeBtn.disabled = true;
+
+    try {
+      var fn = firebase.app().functions('asia-east1').httpsCallable('backfillAutoExp');
+      var res = await fn({ dryRun: !!dryRun });
+      var d = res.data || {};
+      var stats = d.stats || {};
+      var labels = { register_activity: '報名活動', cancel_registration: '取消報名', complete_activity: '完成活動', host_activity: '主辦活動' };
+      var rows = Object.keys(labels).map(function (key) {
+        var s = stats[key] || {};
+        return '<tr>'
+          + '<td style="padding:.25rem .4rem;font-size:.78rem">' + escapeHTML(labels[key]) + '</td>'
+          + '<td style="padding:.25rem .4rem;font-size:.78rem;text-align:center">' + (s.scanned || 0) + '</td>'
+          + '<td style="padding:.25rem .4rem;font-size:.78rem;text-align:center">' + (s.alreadyGranted || 0) + '</td>'
+          + '<td style="padding:.25rem .4rem;font-size:.78rem;text-align:center;font-weight:600;color:var(--success)">' + (dryRun ? (s.toGrant || 0) : (s.granted || 0)) + '</td>'
+          + '</tr>';
+      }).join('');
+      var html = '<table style="width:100%;border-collapse:collapse;margin-bottom:.4rem">'
+        + '<thead><tr style="border-bottom:1px solid var(--border)">'
+        + '<th style="padding:.25rem .4rem;font-size:.72rem;text-align:left;color:var(--text-muted)">規則</th>'
+        + '<th style="padding:.25rem .4rem;font-size:.72rem;text-align:center;color:var(--text-muted)">掃描</th>'
+        + '<th style="padding:.25rem .4rem;font-size:.72rem;text-align:center;color:var(--text-muted)">已發放</th>'
+        + '<th style="padding:.25rem .4rem;font-size:.72rem;text-align:center;color:var(--text-muted)">' + (dryRun ? '待補發' : '已補發') + '</th>'
+        + '</tr></thead><tbody>' + rows + '</tbody></table>';
+      html += '<div style="font-size:.78rem;color:var(--text-primary);font-weight:600">' + escapeHTML(d.message || '') + '</div>';
+      if (d.totalErrors > 0) {
+        html += '<div style="font-size:.75rem;color:var(--danger)">失敗 ' + d.totalErrors + ' 筆</div>';
+      }
+      if (resultEl) resultEl.innerHTML = html;
+
+      // 預覽完成且有待補發 → 啟用確認按鈕
+      if (dryRun && (d.totalToGrant || 0) > 0 && executeBtn) {
+        executeBtn.disabled = false;
+      }
+      if (!dryRun) {
+        this.showToast(d.message || '補發完成');
+        if (executeBtn) executeBtn.disabled = true;
+      }
+    } catch (err) {
+      var msg = (err && err.message) || '回推補發失敗';
+      if (resultEl) resultEl.innerHTML = '<div style="font-size:.82rem;color:var(--danger);padding:.5rem 0">' + escapeHTML(msg) + '</div>';
+      this.showToast(msg);
+    }
+  },
+
   _renderAutoExpLogs() {
     var container = document.getElementById('auto-exp-log-list');
     if (!container) return;

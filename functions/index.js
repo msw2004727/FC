@@ -3418,3 +3418,352 @@ exports.migrateUidFields = onCall(
     return result;
   }
 );
+
+// ═══════════════════════════════════════════════════
+//  backfillAutoExp — 回推補發歷史 Auto-EXP（模式 A：補差額）
+//  掃描 registrations / attendanceRecords / events，比對 expLogs，
+//  只補發從未發放過的 Auto-EXP，不重新計算已發放的歷史紀錄。
+// ═══════════════════════════════════════════════════
+const BACKFILL_AUTO_EXP_PERMISSION = "admin.auto_exp.entry";
+
+exports.backfillAutoExp = onCall(
+  { region: "asia-east1", timeoutSeconds: 540, memory: "512MiB" },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Authentication required");
+    }
+
+    const access = await getCallerAccessContext(request);
+    if (!access.hasPermission(BACKFILL_AUTO_EXP_PERMISSION)) {
+      throw new HttpsError("permission-denied", `Missing permission: ${BACKFILL_AUTO_EXP_PERMISSION}`);
+    }
+
+    const { dryRun = true } = request.data || {};
+
+    // ── 載入當前 Auto-EXP 規則 ──
+    const rulesDoc = await db.collection("siteConfig").doc("autoExpRules").get();
+    const rules = rulesDoc.exists ? (rulesDoc.data() || {}) : {};
+    const ruleLabels = {
+      complete_activity: "完成活動",
+      register_activity: "報名活動",
+      cancel_registration: "取消報名",
+      host_activity: "主辦活動",
+    };
+
+    // 若所有規則都是 0，直接返回
+    const activeRules = Object.entries(ruleLabels).filter(([key]) => {
+      const amount = typeof rules[key] === "number" ? rules[key] : 0;
+      return amount !== 0;
+    });
+    if (activeRules.length === 0) {
+      return { success: true, dryRun, message: "所有規則金額皆為 0，無需補發", stats: {} };
+    }
+
+    // ── 載入 eventId→title 映射（用於去重比對） ──
+    // 線上 _grantAutoExp 用 event.title 作為 context，
+    // backfill 用 eventId 作為 context，因此需要雙向比對。
+    const allEventsSnap = await db.collection("events").get();
+    const eventTitleMap = new Map(); // eventId → title
+    const eventIdByTitle = new Map(); // title → Set<eventId>（title 可能重複）
+    allEventsSnap.docs.forEach((doc) => {
+      const title = (doc.data() || {}).title || "";
+      if (title) {
+        eventTitleMap.set(doc.id, title);
+        if (!eventIdByTitle.has(title)) eventIdByTitle.set(title, new Set());
+        eventIdByTitle.get(title).add(doc.id);
+      }
+    });
+
+    // ── 載入所有已存在的 expLogs（用於去重） ──
+    const expLogsSnap = await db.collection("expLogs").get();
+    // 建立已發放的 Set：key = `${uid}_${ruleKey}_${context}`
+    // context 可能是 eventTitle（線上發放）或 eventId（backfill 發放）
+    const grantedSet = new Set();
+    expLogsSnap.docs.forEach((doc) => {
+      const data = doc.data() || {};
+      const reason = data.reason || "";
+      const uid = data.uid || "";
+      if (!uid || !reason.startsWith("自動：")) return;
+      for (const [key, label] of Object.entries(ruleLabels)) {
+        if (reason.includes(`自動：${label}`)) {
+          const match = reason.match(/（(.+?)）/);
+          const context = match ? match[1] : "";
+          if (context) {
+            grantedSet.add(`${uid}_${key}_${context}`);
+            // 若 context 是 title，也加入對應的 eventId 映射
+            const ids = eventIdByTitle.get(context);
+            if (ids) {
+              ids.forEach((eid) => grantedSet.add(`${uid}_${key}_${eid}`));
+            }
+            // 若 context 是 eventId，也加入對應的 title 映射
+            const title = eventTitleMap.get(context);
+            if (title) {
+              grantedSet.add(`${uid}_${key}_${title}`);
+            }
+          }
+          break;
+        }
+      }
+    });
+
+    // 也檢查 _expDedupe 中已有的 backfill 記錄
+    const dedupeSnap = await db.collection("_expDedupe")
+      .where(FieldPath.documentId(), ">=", "autoexp_backfill_")
+      .where(FieldPath.documentId(), "<", "autoexp_backfill_\uf8ff")
+      .get();
+    const dedupeSet = new Set();
+    dedupeSnap.docs.forEach((doc) => dedupeSet.add(doc.id));
+
+    const stats = {
+      register_activity: { scanned: 0, alreadyGranted: 0, toGrant: 0, granted: 0 },
+      cancel_registration: { scanned: 0, alreadyGranted: 0, toGrant: 0, granted: 0 },
+      complete_activity: { scanned: 0, alreadyGranted: 0, toGrant: 0, granted: 0 },
+      host_activity: { scanned: 0, alreadyGranted: 0, toGrant: 0, granted: 0 },
+    };
+    const grantQueue = []; // { uid, amount, reason, requestId, key }
+    // 防止同一次 run 內重複加入 grantQueue（同 userId+eventId 多筆 registration doc）
+    const queuedSet = new Set();
+
+    // ── 1. register_activity：registrations where status='confirmed' ──
+    const registerAmount = typeof rules.register_activity === "number" ? rules.register_activity : 0;
+    if (registerAmount !== 0) {
+      const regSnap = await db.collection("registrations")
+        .where("status", "==", "confirmed")
+        .get();
+      for (const doc of regSnap.docs) {
+        const data = doc.data() || {};
+        const uid = data.userId;
+        const eventId = data.eventId || doc.id;
+        if (!uid) continue;
+        stats.register_activity.scanned++;
+        const dedupKey = `${uid}_register_activity_${eventId}`;
+        const requestId = `autoexp_backfill_${uid}_register_activity_${eventId}`;
+        if (grantedSet.has(dedupKey) || dedupeSet.has(requestId) || queuedSet.has(requestId)) {
+          stats.register_activity.alreadyGranted++;
+          continue;
+        }
+        queuedSet.add(requestId);
+        stats.register_activity.toGrant++;
+        grantQueue.push({
+          uid,
+          amount: registerAmount,
+          reason: `自動：報名活動（${eventId}）`,
+          requestId,
+          key: "register_activity",
+        });
+      }
+    }
+
+    // ── 2. cancel_registration：registrations where status='cancelled' ──
+    const cancelAmount = typeof rules.cancel_registration === "number" ? rules.cancel_registration : 0;
+    if (cancelAmount !== 0) {
+      const cancelSnap = await db.collection("registrations")
+        .where("status", "==", "cancelled")
+        .get();
+      for (const doc of cancelSnap.docs) {
+        const data = doc.data() || {};
+        const uid = data.userId;
+        const eventId = data.eventId || doc.id;
+        if (!uid) continue;
+        stats.cancel_registration.scanned++;
+        const dedupKey = `${uid}_cancel_registration_${eventId}`;
+        const requestId = `autoexp_backfill_${uid}_cancel_registration_${eventId}`;
+        if (grantedSet.has(dedupKey) || dedupeSet.has(requestId) || queuedSet.has(requestId)) {
+          stats.cancel_registration.alreadyGranted++;
+          continue;
+        }
+        queuedSet.add(requestId);
+        stats.cancel_registration.toGrant++;
+        grantQueue.push({
+          uid,
+          amount: cancelAmount,
+          reason: `自動：取消報名（${eventId}）`,
+          requestId,
+          key: "cancel_registration",
+        });
+      }
+    }
+
+    // ── 3. complete_activity：attendanceRecords（checkin + checkout 同時存在） ──
+    const completeAmount = typeof rules.complete_activity === "number" ? rules.complete_activity : 0;
+    if (completeAmount !== 0) {
+      const attendSnap = await db.collection("attendanceRecords").get();
+      // 分組：eventId+uid → { hasCheckin, hasCheckout }
+      const attendMap = new Map();
+      for (const doc of attendSnap.docs) {
+        const data = doc.data() || {};
+        const uid = data.uid;
+        const eventId = data.eventId;
+        const type = data.type; // 'checkin' or 'checkout'
+        if (!uid || !eventId || !type) continue;
+        const mapKey = `${eventId}_${uid}`;
+        if (!attendMap.has(mapKey)) {
+          attendMap.set(mapKey, { uid, eventId, hasCheckin: false, hasCheckout: false });
+        }
+        const entry = attendMap.get(mapKey);
+        if (type === "checkin") entry.hasCheckin = true;
+        if (type === "checkout") entry.hasCheckout = true;
+      }
+      for (const [, entry] of attendMap) {
+        if (!entry.hasCheckin || !entry.hasCheckout) continue;
+        stats.complete_activity.scanned++;
+        const dedupKey = `${entry.uid}_complete_activity_${entry.eventId}`;
+        const requestId = `autoexp_backfill_${entry.uid}_complete_activity_${entry.eventId}`;
+        if (grantedSet.has(dedupKey) || dedupeSet.has(requestId) || queuedSet.has(requestId)) {
+          stats.complete_activity.alreadyGranted++;
+          continue;
+        }
+        queuedSet.add(requestId);
+        stats.complete_activity.toGrant++;
+        grantQueue.push({
+          uid: entry.uid,
+          amount: completeAmount,
+          reason: `自動：完成活動（${entry.eventId}）`,
+          requestId,
+          key: "complete_activity",
+        });
+      }
+    }
+
+    // ── 4. host_activity：events where creatorUid exists ──
+    // 複用前面已載入的 allEventsSnap
+    const hostAmount = typeof rules.host_activity === "number" ? rules.host_activity : 0;
+    if (hostAmount !== 0) {
+      for (const doc of allEventsSnap.docs) {
+        const data = doc.data() || {};
+        const uid = data.creatorUid;
+        const eventId = doc.id;
+        if (!uid) continue;
+        stats.host_activity.scanned++;
+        const dedupKey = `${uid}_host_activity_${eventId}`;
+        const requestId = `autoexp_backfill_${uid}_host_activity_${eventId}`;
+        if (grantedSet.has(dedupKey) || dedupeSet.has(requestId) || queuedSet.has(requestId)) {
+          stats.host_activity.alreadyGranted++;
+          continue;
+        }
+        queuedSet.add(requestId);
+        stats.host_activity.toGrant++;
+        grantQueue.push({
+          uid,
+          amount: hostAmount,
+          reason: `自動：主辦活動（${eventId}）`,
+          requestId,
+          key: "host_activity",
+        });
+      }
+    }
+
+    // ── Dry-run 模式：只回傳統計 ──
+    if (dryRun) {
+      return {
+        success: true,
+        dryRun: true,
+        stats,
+        totalToGrant: grantQueue.length,
+        message: `預覽完成：共 ${grantQueue.length} 筆待補發`,
+      };
+    }
+
+    // ── 實際發放 ──
+    const now = new Date();
+    const timeStr = `${String(now.getMonth() + 1).padStart(2, "0")}/${String(now.getDate()).padStart(2, "0")} ${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+    let grantedCount = 0;
+    let errorCount = 0;
+
+    // 按 uid 分組以減少 user doc 讀取次數
+    const byUid = new Map();
+    for (const item of grantQueue) {
+      if (!byUid.has(item.uid)) byUid.set(item.uid, []);
+      byUid.get(item.uid).push(item);
+    }
+
+    for (const [uid, items] of byUid) {
+      const targetUser = await findUserDocByUidOrLineUserId(uid);
+      if (!targetUser) {
+        errorCount += items.length;
+        continue;
+      }
+      const userData = targetUser.data || {};
+      let currentExp = typeof userData.exp === "number" ? userData.exp : 0;
+
+      // 一個 uid 的所有補發在一個 batch 內完成（Firestore batch 上限 500）
+      const chunks = [];
+      for (let i = 0; i < items.length; i += 200) {
+        chunks.push(items.slice(i, i + 200));
+      }
+
+      for (const chunk of chunks) {
+        const batch = db.batch();
+        let expDelta = 0;
+
+        for (const item of chunk) {
+          // _expDedupe 冪等性保護
+          const dedupRef = db.collection("_expDedupe").doc(item.requestId);
+          batch.create(dedupRef, {
+            callerUid: request.auth.uid,
+            createdAt: FieldValue.serverTimestamp(),
+            backfill: true,
+          });
+
+          // expLog
+          const logRef = db.collection("expLogs").doc();
+          batch.create(logRef, {
+            time: timeStr,
+            uid,
+            target: userData.displayName || userData.name || uid,
+            amount: (item.amount > 0 ? "+" : "") + item.amount,
+            reason: item.reason,
+            operator: "系統回推",
+            operatorUid: request.auth.uid,
+            createdAt: FieldValue.serverTimestamp(),
+            backfill: true,
+          });
+
+          expDelta += item.amount;
+          stats[item.key].granted++;
+        }
+
+        // 更新 user.exp
+        const newExp = Math.max(0, currentExp + expDelta);
+        batch.update(db.collection("users").doc(targetUser.docId), {
+          exp: newExp,
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+
+        try {
+          await batch.commit();
+          grantedCount += chunk.length;
+          currentExp = newExp;
+        } catch (err) {
+          // _expDedupe create 失敗代表已存在（重複執行），跳過
+          if (err.code === 6 || err.code === "already-exists") {
+            stats[chunk[0].key].alreadyGranted += chunk.length;
+          } else {
+            console.error(`[backfillAutoExp] batch error for uid=${uid}:`, err.message);
+            errorCount += chunk.length;
+          }
+        }
+      }
+    }
+
+    // 寫操作日誌
+    const callerUser = await findUserDocByUidOrLineUserId(request.auth.uid);
+    const callerName = callerUser?.data?.displayName || callerUser?.data?.name || request.auth.uid;
+    await writeOperationLog({
+      operator: callerName,
+      type: "exp_backfill",
+      typeName: "EXP 回推補發",
+      content: `補發 ${grantedCount} 筆 Auto-EXP（錯誤 ${errorCount} 筆）`,
+    });
+
+    console.log(`[backfillAutoExp] done — granted=${grantedCount}, errors=${errorCount}`);
+    return {
+      success: true,
+      dryRun: false,
+      stats,
+      totalGranted: grantedCount,
+      totalErrors: errorCount,
+      message: `補發完成：成功 ${grantedCount} 筆${errorCount > 0 ? `，失敗 ${errorCount} 筆` : ""}`,
+    };
+  }
+);

@@ -12,6 +12,15 @@
       <button class="primary-btn full-width" style="margin-top:.6rem" onclick="App.saveAutoExpRules()">儲存設定</button>
     </div>
     <div class="info-card">
+      <div class="info-title">歷史 EXP 回推補發</div>
+      <div style="font-size:.78rem;color:var(--text-muted);margin-bottom:.5rem">掃描所有歷史活動資料，補發從未發放的自動 EXP（僅補差額，不影響已發放紀錄）。</div>
+      <div id="auto-exp-backfill-result" style="display:none;margin-bottom:.5rem"></div>
+      <div style="display:flex;gap:.5rem">
+        <button class="outline-btn" style="flex:1" onclick="App.runAutoExpBackfill(true)">預覽（不發放）</button>
+        <button class="primary-btn" style="flex:1" id="auto-exp-backfill-execute-btn" onclick="App.runAutoExpBackfill(false)" disabled>確認補發</button>
+      </div>
+    </div>
+    <div class="info-card">
       <div class="info-title">自動發放紀錄</div>
       <div id="auto-exp-log-list" style="max-height:400px;overflow-y:auto"></div>
     </div>
