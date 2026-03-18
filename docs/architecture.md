@@ -124,7 +124,6 @@ flowchart TD
 | `event-list.js` | 活動列表主模組（整合上述 helper） |
 | `event-share-builders.js` | 分享訊息建構工具（純函式，建構 Flex Message 內容） |
 | `event-share.js` | 活動分享（LINE shareTargetPicker + 底部選單 + 建立後分享提示） |
-| `event-detail-reviews.js` | 活動詳情頁評論區渲染 |
 | `event-detail.js` | 活動詳情頁主模組 |
 | `event-detail-signup.js` | 活動報名 UI 入口（含 `handleSignup()`、`handleCancelSignup()`） |
 | `event-detail-companion.js` | 同行者報名 UI（含 `_confirmCompanionRegister()`、`_confirmCompanionCancel()`） |

@@ -2,7 +2,7 @@
    SportHub — Event: Detail View
    依賴：event-list.js, config.js, api-service.js
    報名/取消邏輯已搬至 event-detail-signup.js
-   評價邏輯已搬至 event-detail-reviews.js
+   評價功能已移除
    ================================================ */
 
 Object.assign(App, {
@@ -405,7 +405,6 @@ Object.assign(App, {
         <div id="detail-unreg-table"></div>
       </div>
       <div id="detail-waitlist-container"></div>
-      ${this._renderReviews(e)}
     `;
     const feeLabelEl = Array.from(nodes.body.querySelectorAll('.detail-label'))
       .find(el => String(el.textContent || '').trim() === '費用');

@@ -264,7 +264,7 @@
 // 20260318zl: fix — 刷新瀏覽器後點頁籤恢復 500ms 延遲加載提示，避免用戶以為按鈕壞掉
 // 20260318zm: feat — 分享連結改用 toosterx.com 中繼跳轉，避免 liff.line.me 被 LINE 社群回收
 // 20260318zn: fix — image-cropper.js 加回 index.html，修復效能優化後裁切功能消失
-const CACHE_VERSION = '20260318zp';
+const CACHE_VERSION = '20260318zq';
 
 // ─── Page Strategy Registry ───
 // 唯一策略來源，未列出的頁面預設 fresh-first
