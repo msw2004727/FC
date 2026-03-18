@@ -334,6 +334,29 @@
 .detail-row { display: flex; align-items: center; gap: .5rem; padding: .4rem 0; font-size: .88rem; color: var(--text-secondary); }
 .detail-row .icon { font-size: 1rem; width: 22px; text-align: center; }
 .detail-label { font-size: .75rem; font-weight: 600; color: var(--text-muted); min-width: 2.5em; flex-shrink: 0; }
+/* ─── Detail Action Zone (方案 A：主按鈕 + 圖示工具列) ─── */
+.detail-action-zone { margin: 1rem 0 1.6rem; }
+.detail-action-primary { margin-bottom: .6rem; }
+.detail-action-primary > button,
+.detail-action-primary > div { width: 100%; }
+.detail-action-primary > button { display: block; width: 100%; text-align: center; }
+.detail-action-primary .signup-glow-wrap { display: flex; width: 100%; }
+.detail-action-primary .signup-glow-wrap .signup-flipper { width: 100%; }
+.detail-action-primary .signup-glow-wrap .signup-flipper > button { width: 100%; }
+.detail-action-toolbar { display: flex; justify-content: center; gap: .25rem; }
+.detail-toolbar-btn {
+  flex: 1 1 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 2px; padding: .5rem .25rem; border: 1.5px solid var(--border, #e5e5e5);
+  border-radius: var(--radius-sm, 8px); background: none; cursor: pointer;
+  transition: all .15s ease; color: var(--text-secondary, #666);
+  min-width: 0; max-width: 100px;
+}
+.detail-toolbar-btn:active { background: var(--accent-bg, #eef2ff); border-color: var(--accent, #6366f1); color: var(--accent, #6366f1); }
+.detail-toolbar-icon { font-size: 1.15rem; line-height: 1; }
+.detail-toolbar-label { font-size: .68rem; font-weight: 600; line-height: 1.2; white-space: nowrap; }
+[data-theme="dark"] .detail-toolbar-btn { background: var(--bg-elevated, #1e1e1e); border-color: var(--border, #333); }
+[data-theme="dark"] .detail-toolbar-btn:active { background: rgba(99,102,241,.15); border-color: var(--accent, #818cf8); color: var(--accent, #818cf8); }
+
 .detail-section { margin-top: 1rem; }
 .detail-section-title { font-weight: 700; font-size: .85rem; margin-bottom: .5rem; border-bottom: 1px solid var(--border); padding-bottom: .3rem; }
 .participant-list { display: flex; flex-wrap: wrap; gap: .4rem; }

@@ -345,9 +345,6 @@ Object.assign(App, {
       : '';
 
     const canScan = !isGuestView && this._canManageEvent(e);
-    const scanBtn = canScan
-      ? `<button class="outline-btn" onclick="App.goToScanForEvent('${e.id}')">現場簽到</button>`
-      : '';
 
     // 開放報名時間顯示
     let regOpenHtml = '';
@@ -385,12 +382,22 @@ Object.assign(App, {
         <div class="detail-section-title">注意事項</div>
         <p style="font-size:.85rem;color:var(--text-secondary);line-height:1.7;white-space:pre-wrap">${escapeHTML(e.notes)}</p>
       </div>` : ''}
-      <div style="display:flex;gap:.5rem;margin:1rem 0 1.6rem;flex-wrap:wrap;align-items:center">
-        ${signupBtn}
-        <button class="outline-btn" onclick="App.contactEventOrganizer('${escapeHTML(e.creator)}')">聯繫主辦人</button>
-        <button class="outline-btn" onclick="App.shareEvent('${e.id}')">分享活動</button>
-        <button class="outline-btn" onclick="App.addEventToCalendar('${e.id}')">加入行事曆</button>
-        ${scanBtn}
+      <div class="detail-action-zone">
+        <div class="detail-action-primary">${signupBtn}</div>
+        <div class="detail-action-toolbar">
+          <button class="detail-toolbar-btn" onclick="App.contactEventOrganizer('${escapeHTML(e.creator)}')">
+            <span class="detail-toolbar-icon">\uD83D\uDCAC</span><span class="detail-toolbar-label">\u806F\u7E6B\u4E3B\u8FA6</span>
+          </button>
+          <button class="detail-toolbar-btn" onclick="App.shareEvent('${e.id}')">
+            <span class="detail-toolbar-icon">\uD83D\uDCE4</span><span class="detail-toolbar-label">\u5206\u4EAB</span>
+          </button>
+          <button class="detail-toolbar-btn" onclick="App.addEventToCalendar('${e.id}')">
+            <span class="detail-toolbar-icon">\uD83D\uDCC5</span><span class="detail-toolbar-label">\u884C\u4E8B\u66C6</span>
+          </button>
+          ${canScan ? `<button class="detail-toolbar-btn" onclick="App.goToScanForEvent('${e.id}')">
+            <span class="detail-toolbar-icon">\uD83D\uDCF7</span><span class="detail-toolbar-label">\u7C3D\u5230</span>
+          </button>` : ''}
+        </div>
       </div>
       <div class="detail-section">
         <div id="detail-attendance-table"></div>
