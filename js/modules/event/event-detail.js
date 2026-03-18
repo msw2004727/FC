@@ -389,6 +389,7 @@ Object.assign(App, {
         ${signupBtn}
         <button class="outline-btn" onclick="App.contactEventOrganizer('${escapeHTML(e.creator)}')">聯繫主辦人</button>
         <button class="outline-btn" onclick="App.shareEvent('${e.id}')">分享活動</button>
+        <button class="outline-btn" onclick="App.addEventToCalendar('${e.id}')">加入行事曆</button>
         ${scanBtn}
       </div>
       <div class="detail-section">

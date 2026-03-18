@@ -85,6 +85,7 @@ const ScriptLoader = {
       'js/modules/event/event-list.js',
       'js/modules/event/event-share-builders.js',
       'js/modules/event/event-share.js',
+      'js/modules/event/event-detail-calendar.js',
       'js/modules/event/event-detail-reviews.js',
       'js/modules/event/event-detail.js',
       'js/modules/event/event-detail-signup.js',
