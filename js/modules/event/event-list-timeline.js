@@ -239,6 +239,7 @@ Object.assign(App, {
           const favHeart = this._favHeartHtml(this.isEventFavorited(e.id), 'Event', e.id);
           const iconStack = `<div class="tl-event-icons">${favHeart}${sportIcon}</div>`;
 
+          const privateStamp = e.privateEvent ? '<span class="tl-stamp-private">不公開</span>' : '';
           html += `
             <div class="tl-event-row ${rowClass}${isEnded ? ' tl-past' : ''}" style="${e.pinned ? 'border:1px solid var(--warning);box-shadow:0 0 0 1px rgba(245,158,11,.12)' : ''}" onclick="App.openTimelineEventDetail('${e.id}', this)">
               ${genderRibbon}
@@ -250,6 +251,7 @@ Object.assign(App, {
               <span class="tl-event-status ${statusCss}">${statusLabel}</span>
               ${iconStack}
               <span class="tl-event-arrow">›</span>
+              ${privateStamp}
             </div>`;
         });
 
