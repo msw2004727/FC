@@ -8,7 +8,7 @@ Object.assign(App, {
   //  Event Templates (cloud + local fallback)
   // ══════════════════════════════════
   _templateKey() { return 'sporthub_event_templates_' + ModeManager.getMode(); },
-  _MAX_TEMPLATES: 10,
+  _MAX_TEMPLATES: 30,
   _templateMigrationKey(uid) { return `sporthub_event_templates_migrated_${ModeManager.getMode()}_${uid}`; },
   _templatesLoadedUid: null,
 
