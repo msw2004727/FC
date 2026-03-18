@@ -63,8 +63,6 @@ const ScriptLoader = {
 
   _groups: {
     achievement: [
-      'js/modules/image-cropper.js',
-      'js/modules/image-upload.js',
       'js/modules/achievement/index.js',
       'js/modules/achievement/registry.js',
       'js/modules/achievement/shared.js',
@@ -137,7 +135,6 @@ const ScriptLoader = {
       'js/modules/profile/profile-data-history.js',
       'js/modules/profile/profile-card.js',
       'js/modules/profile/profile-share.js',
-      'js/modules/image-cropper.js',
       'js/modules/leaderboard.js',
       'js/modules/fc-scene/fc-scene.js',
     ],

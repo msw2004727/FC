@@ -10,6 +10,12 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-18 — 圖片裁切功能在多數頁面靜默失效
+- **問題**：上傳圖片的裁切功能消失，選圖後直接顯示預覽而不彈出裁切視窗
+- **原因**：3/9 效能優化（commit 9b70774）將 `image-cropper.js` 從 `index.html` 移至 ScriptLoader 動態載入，但只加到 `achievement` 和 `profile` 兩個群組；其餘頁面（活動建立、賽事、廣告、俱樂部等）的 `showImageCropper` 為 undefined，條件 `aspectRatio && this.showImageCropper` 靜默 fallthrough
+- **修復**：將 `image-cropper.js` 加回 `index.html`（在 `image-upload.js` 之前），並從 ScriptLoader 群組中移除重複項
+- **教訓**：搬移全域使用的模組到動態載入時，必須檢查所有呼叫點是否都在對應的 ScriptLoader 群組內
+
 ### 2026-03-18 — LINE 社群分享連結被自動回收
 - **問題**：活動/球隊/賽事/名片分享到 LINE OpenChat 社群後，訊息被自動回收
 - **原因**：分享的純文字 altText 中包含 `liff.line.me/` URL，LINE OpenChat 會自動回收含此域名的訊息
