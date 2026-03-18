@@ -240,7 +240,8 @@ Object.assign(App, {
 
     try {
       const state = await this._loadFriendlyTournamentDetailState(id);
-    const latestTournament = state?.tournament || tournament;
+    if (!state) { this.showToast('無法載入賽事資料'); return; }
+    const latestTournament = state.tournament || tournament;
     const ctx = this._getFriendlyTournamentApplyContext(latestTournament, state, user);
     const approvedCount = (state.entries || []).filter(entry => entry.entryStatus === 'host' || entry.entryStatus === 'approved').length;
     const teamLimit = this._getFriendlyTournamentTeamLimit?.(latestTournament) || 4;

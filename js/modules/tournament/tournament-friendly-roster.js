@@ -80,9 +80,14 @@ Object.assign(App, {
       }
       const fallbackMembers = Array.isArray(entry.memberRoster) ? entry.memberRoster : [];
       const rawMembers = await ApiService.listTournamentEntryMembers(tournamentId, entry.teamId).catch(() => fallbackMembers);
+      const _seenUids = new Set();
       const memberRoster = (Array.isArray(rawMembers) ? rawMembers : fallbackMembers)
         .map(member => this._buildFriendlyTournamentRosterMemberRecord(member))
-        .filter(member => member.uid)
+        .filter(member => {
+          if (!member.uid || _seenUids.has(member.uid)) return false;
+          _seenUids.add(member.uid);
+          return true;
+        })
         .sort((a, b) => String(a.joinedAt || '').localeCompare(String(b.joinedAt || '')));
       return this._buildFriendlyTournamentEntryRecord({ ...entry, memberRoster });
     }));

@@ -547,7 +547,27 @@ const ApiService = {
     if (!this._demoMode) {
       if (removed._docId) {
         FirebaseService.ensureAuthReadyForWrite()
-          .then(() => db.collection('tournaments').doc(removed._docId).delete())
+          .then(async () => {
+            const docRef = db.collection('tournaments').doc(removed._docId);
+            // 清理 subcollections: applications, entries (含 members)
+            const subs = ['applications', 'entries'];
+            for (const sub of subs) {
+              const snap = await docRef.collection(sub).get();
+              if (!snap.empty) {
+                const batch = db.batch();
+                for (const doc of snap.docs) {
+                  // entries 底下可能有 members subcollection
+                  if (sub === 'entries') {
+                    const membersSnap = await doc.ref.collection('members').get();
+                    membersSnap.docs.forEach(m => batch.delete(m.ref));
+                  }
+                  batch.delete(doc.ref);
+                }
+                await batch.commit();
+              }
+            }
+            await docRef.delete();
+          })
           .catch(err => console.error('[deleteTournament]', err));
       }
       FirebaseService._saveToLS('tournaments', source);

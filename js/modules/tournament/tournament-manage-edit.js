@@ -122,7 +122,7 @@ Object.assign(App, {
       matches: 3,
       venues: editVenues,
       delegates: editDelegates,
-      delegateUids: editDelegates.map(delegate => delegate.uid).filter(Boolean),
+      delegateUids: editDelegates.map(delegate => String(delegate.uid || '').trim()).filter(uid => uid.length > 0),
       matchDates: editMatchDates,
       image: editImage,
       contentImage: editContentImage,

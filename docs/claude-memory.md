@@ -10,6 +10,16 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-18 — 賽事系統全面審計與修復
+- **問題**：5 個邏輯/安全瑕疵 — state null 存取崩潰、creatorUid 可為 'demo-user'、delegateUids 含空字串、roster 成員重複、刪除賽事不清理 subcollections
+- **修復**：
+  - `registerTournament` 加 state null guard 防止 TypeError（tournament-friendly-detail.js）
+  - `handleCreateTournament` creatorUid 空字串 + production 強制登入（tournament-manage.js）
+  - delegateUids 改用 trim + length 過濾（tournament-manage.js、tournament-manage-edit.js）
+  - roster 載入加 Set dedup 防重複成員（tournament-friendly-roster.js）
+  - `deleteTournament` 先清理 applications/entries/members subcollections 再刪主文件（api-service.js）
+- **教訓**：Firestore 刪除主文件不會 cascade 刪除 subcollections，必須手動清理
+
 ### 2026-03-18 — EXP 系統自動化測試 + 死代碼清理
 - **變更**：新增 `tests/unit/exp-system.test.js`（42 個測試），覆蓋 auto-exp 規則載入、fallback chain、金額查詢、uid null guard、樂觀更新 + rollback、requestId 生成、grant 守衛、log 建構
 - **修復**：移除 `firebase-crud.js` 中的 `updateUserPoints` 死函式（無權限檢查、繞過 CF 直接寫 Firestore，為安全風險）

@@ -163,7 +163,10 @@ Object.assign(App, {
     const createContentPreview = document.getElementById('ct-content-upload-preview');
     const createContentImage = createContentPreview?.querySelector('img')?.src || null;
     const createCreatorName = createUser?.displayName || createUser?.name || '使用者';
-    const createCreatorUid = createUser?.uid || 'demo-user';
+    const createCreatorUid = createUser?.uid || '';
+    if (!createCreatorUid && !ModeManager.isDemo()) {
+      this.showToast('請先登入後再建立賽事。'); return;
+    }
     const hostEntry = this._buildTournamentHostEntry(hostTeam, createUser);
     const createData = {
       id: 'ct_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
@@ -186,7 +189,7 @@ Object.assign(App, {
       feeEnabled: createFeeEnabled,
       fee: createFee,
       delegates: createDelegates,
-      delegateUids: createDelegates.map(delegate => delegate.uid).filter(Boolean),
+      delegateUids: createDelegates.map(delegate => String(delegate.uid || '').trim()).filter(uid => uid.length > 0),
       organizer: createCreatorName,
       creatorName: createCreatorName,
       creatorUid: createCreatorUid,
