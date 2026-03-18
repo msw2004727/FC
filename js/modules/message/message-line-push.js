@@ -82,21 +82,17 @@ Object.assign(App, {
       .then(result => {
         const data = result?.data || {};
         if (data.skipped) {
-          App.showToast?.('[DEBUG] LINE Push skipped: ' + (data.reason || 'unknown'));
+          console.log('[LINE Push] skipped:', data.reason || 'unknown', payload);
         } else if (data.queued) {
-          App.showToast?.('[DEBUG] LINE Push queued: ' + (data.queueId || '').slice(0, 8));
-        } else {
-          App.showToast?.('[DEBUG] LINE Push result: ' + JSON.stringify(data).slice(0, 60));
+          console.log('[LINE Push] queued via callable:', data.queueId || '(no-id)', payload);
         }
         return data;
       });
   },
 
   _queueLinePush(uid, category, title, body, options = {}) {
-    if (!uid || !category || !title || !body) {
-      App.showToast?.('[DEBUG] LINE Push skip: missing params');
-      return;
-    }
+    if (!uid || !category || !title || !body) return;
+    // 查找目標用戶的 lineNotify 設定
 
     if (ModeManager.isDemo()) {
       console.log('[LINE Push]', { uid, category, title, body });
@@ -104,9 +100,7 @@ Object.assign(App, {
     } else {
       if (this._canCurrentUserUsePrivilegedLineQueue()) {
         this._enqueuePrivilegedLinePush(uid, category, title, body, options)
-          .catch(err => {
-            App.showToast?.('[DEBUG] LINE Push error: ' + (err.message || err).toString().slice(0, 60));
-          });
+          .catch(err => console.error('[LINE Push] callable enqueue failed:', err));
         return;
       }
 
