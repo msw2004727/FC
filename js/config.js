@@ -261,7 +261,7 @@
 // 20260318e: fix — bindLineNotify 移除 LIFF 登入檢查，外部/PC 瀏覽器可正常綁定
 // 20260318f: fix — 跨裝置報名狀態同步（RC1+RC3+RC4+RC5+RC8）
 // 20260318g: fix — _flipAnimating 卡死導致活動卡片無法點擊（F1+F2+F3+F4）
-const CACHE_VERSION = '20260318x';
+const CACHE_VERSION = '20260318y';
 
 // ─── Page Strategy Registry ───
 // 唯一策略來源，未列出的頁面預設 fresh-first

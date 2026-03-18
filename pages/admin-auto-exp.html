@@ -21,6 +21,12 @@
       </div>
     </div>
     <div class="info-card">
+      <div class="info-title">補發紀錄</div>
+      <div style="font-size:.78rem;color:var(--text-muted);margin-bottom:.5rem">顯示回推補發的 EXP 紀錄（最近 100 筆）。</div>
+      <button class="outline-btn full-width" style="margin-bottom:.5rem" onclick="App._loadBackfillLogs()">載入補發紀錄</button>
+      <div id="auto-exp-backfill-log-list" style="max-height:400px;overflow-y:auto"></div>
+    </div>
+    <div class="info-card">
       <div class="info-title">自動發放紀錄</div>
       <div id="auto-exp-log-list" style="max-height:400px;overflow-y:auto"></div>
     </div>

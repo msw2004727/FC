@@ -145,7 +145,7 @@ Object.assign(App, {
     if (executeBtn) executeBtn.disabled = true;
 
     try {
-      var fn = firebase.app().functions('asia-east1').httpsCallable('backfillAutoExp');
+      var fn = firebase.app().functions('asia-east1').httpsCallable('backfillAutoExp', { timeout: 540000 });
       var res = await fn({ dryRun: !!dryRun });
       var d = res.data || {};
       var stats = d.stats || {};
@@ -179,11 +179,61 @@ Object.assign(App, {
       if (!dryRun) {
         this.showToast(d.message || '補發完成');
         if (executeBtn) executeBtn.disabled = true;
+        this._loadBackfillLogs();
       }
     } catch (err) {
       var msg = (err && err.message) || '回推補發失敗';
       if (resultEl) resultEl.innerHTML = '<div style="font-size:.82rem;color:var(--danger);padding:.5rem 0">' + escapeHTML(msg) + '</div>';
       this.showToast(msg);
+    }
+  },
+
+  async _loadBackfillLogs() {
+    var container = document.getElementById('auto-exp-backfill-log-list');
+    if (!container || ModeManager.isDemo() || typeof db === 'undefined') return;
+    container.innerHTML = '<div style="font-size:.82rem;color:var(--text-muted);padding:.5rem 0">載入中…</div>';
+    try {
+      var snap = await db.collection('expLogs')
+        .where('backfill', '==', true)
+        .limit(200)
+        .get();
+      if (snap.empty) {
+        container.innerHTML = '<div style="font-size:.82rem;color:var(--text-muted);padding:.5rem 0">尚無補發紀錄</div>';
+        return;
+      }
+      // 按 createdAt 降序排序（client-side，避免需要 composite index）
+      var docs = snap.docs.slice().sort(function (a, b) {
+        var ta = a.data().createdAt?.toMillis?.() || 0;
+        var tb = b.data().createdAt?.toMillis?.() || 0;
+        return tb - ta;
+      }).slice(0, 100);
+      var html = '<table style="width:100%;border-collapse:collapse">'
+        + '<thead><tr style="border-bottom:1px solid var(--border)">'
+        + '<th style="padding:.25rem .4rem;font-size:.72rem;text-align:left;color:var(--text-muted)">時間</th>'
+        + '<th style="padding:.25rem .4rem;font-size:.72rem;text-align:left;color:var(--text-muted)">用戶</th>'
+        + '<th style="padding:.25rem .4rem;font-size:.72rem;text-align:left;color:var(--text-muted)">補發行為</th>'
+        + '<th style="padding:.25rem .4rem;font-size:.72rem;text-align:right;color:var(--text-muted)">EXP</th>'
+        + '</tr></thead><tbody>';
+      docs.forEach(function (doc) {
+        var d = doc.data() || {};
+        var time = d.time || '';
+        if (!time && d.createdAt && d.createdAt.toDate) {
+          var dt = d.createdAt.toDate();
+          time = (dt.getMonth() + 1 + '').padStart(2, '0') + '/' + (dt.getDate() + '').padStart(2, '0') + ' ' + (dt.getHours() + '').padStart(2, '0') + ':' + (dt.getMinutes() + '').padStart(2, '0');
+        }
+        var amt = d.amount || 0;
+        var color = String(amt).indexOf('-') === 0 ? 'var(--danger)' : 'var(--success)';
+        html += '<tr style="border-bottom:1px solid var(--border)">'
+          + '<td style="padding:.25rem .4rem;font-size:.75rem;color:var(--text-muted);white-space:nowrap">' + escapeHTML(time) + '</td>'
+          + '<td style="padding:.25rem .4rem;font-size:.75rem;font-weight:600">' + escapeHTML(d.target || d.uid || '') + '</td>'
+          + '<td style="padding:.25rem .4rem;font-size:.75rem;color:var(--text-secondary)">' + escapeHTML(d.reason || '') + '</td>'
+          + '<td style="padding:.25rem .4rem;font-size:.75rem;font-weight:700;text-align:right;color:' + color + '">' + escapeHTML(String(amt)) + '</td>'
+          + '</tr>';
+      });
+      html += '</tbody></table>';
+      container.innerHTML = html;
+    } catch (err) {
+      container.innerHTML = '<div style="font-size:.82rem;color:var(--danger);padding:.5rem 0">載入失敗：' + escapeHTML(err.message || '') + '</div>';
     }
   },
 

@@ -3677,8 +3677,20 @@ exports.backfillAutoExp = onCall(
       byUid.get(item.uid).push(item);
     }
 
+    // 批次載入所有需要的 user docs（避免逐一查詢）
+    const allUsersSnap = await db.collection("users").get();
+    const userByUid = new Map();   // uid → { docId, data }
+    const userByDocId = new Map(); // docId → { docId, data }
+    allUsersSnap.docs.forEach((doc) => {
+      const data = doc.data() || {};
+      const entry = { docId: doc.id, data };
+      userByDocId.set(doc.id, entry);
+      if (data.uid) userByUid.set(data.uid, entry);
+      if (data.lineUserId) userByUid.set(data.lineUserId, entry);
+    });
+
     for (const [uid, items] of byUid) {
-      const targetUser = await findUserDocByUidOrLineUserId(uid);
+      const targetUser = userByUid.get(uid) || userByDocId.get(uid) || null;
       if (!targetUser) {
         errorCount += items.length;
         continue;
