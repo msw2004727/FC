@@ -78,6 +78,7 @@ const FirebaseService = {
   _pageScopedRealtimeListeners: {
     registrations: null,
     attendanceRecords: null,
+    events: null,
   },
   _pageScopedRealtimeStartTimers: {},
   _collectionLoadedAt: {},
@@ -321,6 +322,7 @@ const FirebaseService = {
   },
 
   _pageScopedRealtimeMap: {
+    'page-home':            ['events'],
     'page-activities':      ['registrations', 'attendanceRecords'],
     'page-activity-detail': ['registrations', 'attendanceRecords'],
     'page-my-activities':   ['registrations', 'attendanceRecords'],
@@ -454,6 +456,7 @@ const FirebaseService = {
     const needed = new Set(this._getPageScopedRealtimeCollections(pageId));
     if (needed.has('registrations')) this._startRegistrationsListener();
     if (needed.has('attendanceRecords')) this._startAttendanceRecordsListener();
+    if (needed.has('events')) this._startEventsRealtimeListener();
   },
 
   _cancelDeferredPageScopedRealtimeStart(pageId) {
@@ -496,6 +499,7 @@ const FirebaseService = {
     const needed = new Set(this._getPageScopedRealtimeCollections(pageId));
     if (!needed.has('registrations')) this._stopRegistrationsListener();
     if (!needed.has('attendanceRecords')) this._stopAttendanceRecordsListener();
+    if (!needed.has('events')) this._stopEventsRealtimeListener();
   },
 
   /** 根據頁面 ID 懶載入對應的集合 */
@@ -703,6 +707,7 @@ const FirebaseService = {
     this._debouncedPersistCache();
 
     if (!shouldRefreshUI || typeof App === 'undefined') return;
+    if (App.currentPage === 'page-home') App.renderHotEvents?.();
     if (App.currentPage === 'page-my-activities') App.renderMyActivities?.();
     if (App.currentPage === 'page-activities') App.renderActivityList?.();
   },
@@ -2081,6 +2086,57 @@ const FirebaseService = {
     }, delay);
   },
 
+  // ════════════════════════════════
+  //  Events 即時監聽（首頁活動卡片即時更新）
+  // ════════════════════════════════
+
+  _startEventsRealtimeListener() {
+    if (this._realtimeListenerStarted.events) return;
+    this._realtimeListenerStarted.events = true;
+    this._lazyLoaded.events = true;
+    const unsub = db.collection('events')
+      .where('status', 'in', ['open', 'full', 'upcoming'])
+      .onSnapshot(
+        snapshot => {
+          this._eventSlices.active = snapshot.docs.map(doc => ({ ...doc.data(), _docId: doc.id }));
+          this._mergeRealtimeEventSlices(true);
+          this._snapshotReconnectAttempts.events = 0;
+        },
+        err => this._reconnectEventsListener(err)
+      );
+    this._pageScopedRealtimeListeners.events = unsub;
+  },
+
+  _stopEventsRealtimeListener() {
+    if (this._pageScopedRealtimeListeners.events) {
+      this._pageScopedRealtimeListeners.events();
+      this._pageScopedRealtimeListeners.events = null;
+    }
+    this._realtimeListenerStarted.events = false;
+  },
+
+  _reconnectEventsListener(err) {
+    console.warn('[onSnapshot] events 監聽錯誤:', err);
+    this._pageScopedRealtimeListeners.events = null;
+    this._realtimeListenerStarted.events = false;
+    const key = 'events';
+    const attempts = (this._snapshotReconnectAttempts[key] || 0) + 1;
+    this._snapshotReconnectAttempts[key] = attempts;
+    if (attempts > 5) {
+      console.warn(`[onSnapshot] events 重連已達上限 (${attempts} 次)，停止重試`);
+      return;
+    }
+    const delay = Math.min(1000 * Math.pow(2, attempts - 1), 30000);
+    console.log(`[onSnapshot] events 將在 ${delay}ms 後重連 (第 ${attempts} 次)`);
+    this._reconnectTimers.events = setTimeout(() => {
+      delete this._reconnectTimers.events;
+      const pageId = typeof App !== 'undefined' ? App.currentPage : '';
+      if (this._getPageScopedRealtimeCollections(pageId).includes('events')) {
+        this._startEventsRealtimeListener();
+      }
+    }, delay);
+  },
+
   _reconnectAttendanceRecordsListener(err) {
     console.warn('[onSnapshot] attendanceRecords 監聯錯誤:', err);
     this._pageScopedRealtimeListeners.attendanceRecords = null;
@@ -2111,6 +2167,7 @@ const FirebaseService = {
     this._stopMessagesListener();
     this._stopRegistrationsListener();
     this._stopAttendanceRecordsListener();
+    this._stopEventsRealtimeListener();
     if (this._userListener) {
       this._userListener();
       this._userListener = null;
