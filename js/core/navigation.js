@@ -560,6 +560,9 @@ Object.assign(App, {
       this._cancelHomeDeferredRender?.();
       this.stopBannerCarousel?.();
     }
+    if (this.currentPage === 'page-profile' && pageId !== 'page-profile') {
+      this._destroyProfileScene?.();
+    }
   },
 
   _pushPageHistory(pageId, options) {
@@ -598,7 +601,7 @@ Object.assign(App, {
     if (pageId === 'page-teams') this.renderTeamList?.();
     if (pageId === 'page-messages') this.renderMessageList();
     if (pageId === 'page-tournaments') { this.renderTournamentTimeline(); }
-    if (pageId === 'page-profile') { this.renderUserCard(); this.renderProfileData(); this.renderProfileFavorites(); if (this.renderActivityRecords) this.renderActivityRecords('all', 1); }
+    if (pageId === 'page-profile') { this.renderUserCard(); this.renderProfileData(); this.renderProfileFavorites(); if (this.renderActivityRecords) this.renderActivityRecords('all', 1); this._initProfileScene?.(); }
     if (pageId === 'page-shop') this.renderShop();
     if (pageId === 'page-leaderboard') this.renderLeaderboard?.();
     if (pageId === 'page-admin-users') this.renderAdminUsers();
