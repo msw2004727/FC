@@ -261,7 +261,7 @@
 // 20260318e: fix — bindLineNotify 移除 LIFF 登入檢查，外部/PC 瀏覽器可正常綁定
 // 20260318f: fix — 跨裝置報名狀態同步（RC1+RC3+RC4+RC5+RC8）
 // 20260318g: fix — _flipAnimating 卡死導致活動卡片無法點擊（F1+F2+F3+F4）
-const CACHE_VERSION = '20260318z';
+const CACHE_VERSION = '20260318za';
 
 // ─── Page Strategy Registry ───
 // 唯一策略來源，未列出的頁面預設 fresh-first
@@ -353,8 +353,8 @@ const ACHIEVEMENT_CONDITIONS = {
     { key: 'attend_camp',     label: '出席教學活動',         unit: '場', needsFilter: false },
     { key: 'attend_watch',    label: '出席觀賽',             unit: '場', needsFilter: false },
     { key: 'attendance_rate', label: '達到出席率',           unit: '%', needsFilter: false },
-    { key: 'reach_level',     label: '達到等級',             unit: '',  needsFilter: false },
-    { key: 'reach_exp',       label: '累計 EXP',             unit: '',  needsFilter: false },
+    { key: 'reach_level',     label: '達到等級',             unit: '級',  needsFilter: false },
+    { key: 'reach_exp',       label: '累計 EXP',             unit: '點',  needsFilter: false },
     { key: 'join_team',       label: '加入俱樂部',             unit: '',  needsFilter: false },
     { key: 'complete_profile',label: '完成個人檔案',         unit: '',  needsFilter: false },
     { key: 'bind_line_notify',label: '綁定 LINE 推播',       unit: '',  needsFilter: false },
