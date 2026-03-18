@@ -112,7 +112,7 @@ Object.assign(App, {
         });
         if (!cId) {
           const _evt = ApiService.getEvent(eventId);
-          this._grantAutoExp(uid, 'complete_activity', _evt?.title || '');
+          this._grantAutoExp?.(uid, 'complete_activity', _evt?.title || '');
         }
       }
     }

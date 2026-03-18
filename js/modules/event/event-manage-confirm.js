@@ -138,7 +138,7 @@ Object.assign(App, {
             });
             // 手動確認簽退 → 發放完成活動 EXP（與掃碼簽退一致）
             if (wantCheckin && recordUid) {
-              this._grantAutoExp(recordUid, 'complete_activity', e.title);
+              this._grantAutoExp?.(recordUid, 'complete_activity', e.title);
             }
           }
           if (note !== existingNoteText) {

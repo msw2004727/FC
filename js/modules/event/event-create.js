@@ -331,7 +331,7 @@ Object.assign(App, {
         this._saveRecentDelegates(this._delegates);
         ApiService._writeOpLog('event_create', '建立活動', `建立「${title}」`);
         const _creatorUser = ApiService.getCurrentUser?.();
-        if (_creatorUser?.uid) this._grantAutoExp(_creatorUser.uid, 'host_activity', title);
+        if (_creatorUser?.uid) this._grantAutoExp?.(_creatorUser.uid, 'host_activity', title);
       } catch (postErr) {
         console.warn('[handleCreateEvent] post-create error:', postErr);
       }

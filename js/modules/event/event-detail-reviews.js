@@ -100,7 +100,7 @@ Object.assign(App, {
     const timeStr = `${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
     e.reviews.push({ uid, name, rating: this._reviewRating, text, time: timeStr });
     this._reviewRating = 0;
-    this._grantAutoExp(uid, 'submit_review', e.title);
+    this._grantAutoExp?.(uid, 'submit_review', e.title);
     this.showToast('評價已送出！');
     this.showEventDetail(eventId);
   },

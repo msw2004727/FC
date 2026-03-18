@@ -182,7 +182,7 @@ Object.assign(App, {
         resultMsg = `${userName} 未簽到，已自動完成簽到與簽退`;
         // Auto EXP: complete activity
         const _evt = ApiService.getEvent(this._scanSelectedEventId);
-        this._grantAutoExp(uid, 'complete_activity', _evt?.title || '');
+        this._grantAutoExp?.(uid, 'complete_activity', _evt?.title || '');
         this._evaluateAchievements?.(_evt?.type);
       } else {
         const now = new Date();
@@ -199,7 +199,7 @@ Object.assign(App, {
         resultMsg = `${userName} 簽退成功`;
         // Auto EXP: complete activity
         const _evt = ApiService.getEvent(this._scanSelectedEventId);
-        this._grantAutoExp(uid, 'complete_activity', _evt?.title || '');
+        this._grantAutoExp?.(uid, 'complete_activity', _evt?.title || '');
         this._evaluateAchievements?.(_evt?.type);
       }
     }

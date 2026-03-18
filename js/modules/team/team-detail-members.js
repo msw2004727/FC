@@ -183,7 +183,7 @@ Object.assign(App, {
     t.feed.push({ id: 'f_' + Date.now(), uid, name, content, time: timeStr, pinned: false, isPublic });
     this._teamFeedPage[teamId] = 1;
     ApiService.updateTeam(teamId, { feed: t.feed });
-    if (uid) this._grantAutoExp(uid, 'post_team_feed', content.slice(0, 20));
+    if (uid) this._grantAutoExp?.(uid, 'post_team_feed', content.slice(0, 20));
     this.showToast('\u52d5\u614b\u5df2\u767c\u4f48');
     this._refreshTeamDetailFeed(teamId);
   },

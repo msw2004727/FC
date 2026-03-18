@@ -184,7 +184,7 @@ Object.assign(App, {
           }).then(ref => { arRecord._docId = ref.id; })
             .catch(err => console.error('[companionRegAR]', err));
         }
-        if (!isWl) this._grantAutoExp(userId, 'register_activity', e.title);
+        if (!isWl) this._grantAutoExp?.(userId, 'register_activity', e.title);
       }
     } catch (err) {
       console.error('[_confirmCompanionRegister]', err);
@@ -293,7 +293,7 @@ Object.assign(App, {
             }
           }
           ApiService.addActivityRecord({ eventId, name: e.title, date: dateStr, status: 'cancelled', uid: userId });
-          this._grantAutoExp(userId, 'cancel_registration', e.title);
+          this._grantAutoExp?.(userId, 'cancel_registration', e.title);
           this._notifySignupCancelledInboxFromTemplate(e, userId, false);
         }
       }
@@ -341,7 +341,7 @@ Object.assign(App, {
                   }
                 });
               }).catch(err => console.error('[companionCancelAR-fallback query]', err));
-            this._grantAutoExp(userId, 'cancel_registration', e.title);
+            this._grantAutoExp?.(userId, 'cancel_registration', e.title);
             this._notifySignupCancelledInboxFromTemplate(e, userId, false);
           }
         }

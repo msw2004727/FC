@@ -78,6 +78,7 @@ const ScriptLoader = {
       'js/modules/achievement.js',
     ],
     activity: [
+      'js/modules/auto-exp.js',
       'js/modules/event/event-list-helpers.js',
       'js/modules/event/event-list-stats.js',
       'js/modules/event/event-list-home.js',
@@ -110,6 +111,7 @@ const ScriptLoader = {
       'js/modules/registration-audit.js',
     ],
     team: [
+      'js/modules/auto-exp.js',
       'js/modules/event/event-share-builders.js',
       'js/modules/event/event-share.js',
       'js/modules/team/team-list.js',
@@ -143,6 +145,7 @@ const ScriptLoader = {
       'js/modules/leaderboard.js',
     ],
     scan: [
+      'js/modules/auto-exp.js',
       'js/modules/scan/scan.js',
       'js/modules/scan/scan-ui.js',
       'js/modules/scan/scan-camera.js',

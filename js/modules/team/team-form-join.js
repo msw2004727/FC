@@ -168,7 +168,7 @@ Object.assign(App, {
         teamId,
       },
     });
-    this._grantAutoExp(applicantUid, 'join_team', t.name);
+    this._grantAutoExp?.(applicantUid, 'join_team', t.name);
     this.showToast('已送出加入申請！');
   },
 

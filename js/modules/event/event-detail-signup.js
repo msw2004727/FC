@@ -170,7 +170,7 @@ Object.assign(App, {
         status: isWaitlist ? 'waitlisted' : 'registered', uid: userId, eventType: e.type,
       });
       this.showToast(isWaitlist ? '已加入候補名單' : '報名成功！');
-      if (!isWaitlist) this._grantAutoExp(userId, 'register_activity', e.title);
+      if (!isWaitlist) this._grantAutoExp?.(userId, 'register_activity', e.title);
       void ApiService.writeAuditLog({
         action: 'event_signup',
         targetType: 'event',
@@ -276,7 +276,7 @@ Object.assign(App, {
         eventName: e.title, date: e.date, location: e.location,
         status: result.status === 'waitlisted' ? '候補' : '正取',
       }, userId, 'activity', '活動');
-      if (result.status !== 'waitlisted') this._grantAutoExp(userId, 'register_activity', e.title);
+      if (result.status !== 'waitlisted') this._grantAutoExp?.(userId, 'register_activity', e.title);
       this._evaluateAchievements?.(e.type);
     } catch (err) {
       console.error('[handleSignup]', err);
@@ -447,7 +447,7 @@ Object.assign(App, {
         },
       });
       this.showToast(isWaitlist ? '已取消候補' : '已取消報名');
-      if (!isWaitlist) this._grantAutoExp(userId, 'cancel_registration', e0.title);
+      if (!isWaitlist) this._grantAutoExp?.(userId, 'cancel_registration', e0.title);
       this._evaluateAchievements?.(e0?.type);
       this.showEventDetail(id);
       return;
@@ -485,7 +485,7 @@ Object.assign(App, {
             }, cancelledReg._promotedUserId, 'activity', '活動');
             // 候補遞補為正取 → 補發報名 EXP
             (cancelledReg._promotedUserIds || [cancelledReg._promotedUserId]).forEach(pUid => {
-              this._grantAutoExp(pUid, 'register_activity', ev.title);
+              this._grantAutoExp?.(pUid, 'register_activity', ev.title);
             });
           }
         }
@@ -563,7 +563,7 @@ Object.assign(App, {
             statusTo: 'cancelled',
           },
         });
-        if (!isWaitlist) this._grantAutoExp(userId, 'cancel_registration', e0.title);
+        if (!isWaitlist) this._grantAutoExp?.(userId, 'cancel_registration', e0.title);
         this._evaluateAchievements?.(e0?.type);
       } catch (err) {
         console.error('[cancelSignup]', err);
