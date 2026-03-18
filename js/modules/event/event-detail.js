@@ -383,13 +383,13 @@ Object.assign(App, {
         <p style="font-size:.85rem;color:var(--text-secondary);line-height:1.7;white-space:pre-wrap">${escapeHTML(e.notes)}</p>
       </div>` : ''}
       <div class="detail-action-zone">
-        <div class="detail-action-primary">${signupBtn}</div>
         <div class="detail-action-toolbar">
           <button class="detail-toolbar-btn" onclick="App.contactEventOrganizer('${escapeHTML(e.creator)}')">\u806F\u7E6B\u4E3B\u8FA6</button>
           <button class="detail-toolbar-btn" onclick="App.shareEvent('${e.id}')">\u5206\u4EAB\u6D3B\u52D5</button>
           <button class="detail-toolbar-btn" onclick="App.addEventToCalendar('${e.id}')">\u52A0\u5165\u884C\u4E8B\u66C6</button>
           ${canScan ? `<button class="detail-toolbar-btn" onclick="App.goToScanForEvent('${e.id}')">\u73FE\u5834\u7C3D\u5230</button>` : ''}
         </div>
+        <div class="detail-action-primary">${signupBtn}</div>
       </div>
       <div class="detail-section">
         <div id="detail-attendance-table"></div>

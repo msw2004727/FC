@@ -336,7 +336,7 @@
 .detail-label { font-size: .75rem; font-weight: 600; color: var(--text-muted); min-width: 2.5em; flex-shrink: 0; }
 /* ─── Detail Action Zone（主按鈕滿寬 + 文字工具列） ─── */
 .detail-action-zone { margin: 1rem 0 1.6rem; }
-.detail-action-primary { margin-bottom: .6rem; }
+.detail-action-primary { margin-top: .6rem; }
 .detail-action-primary > button,
 .detail-action-primary > div { width: 100%; }
 .detail-action-primary > button { display: block; width: 100%; text-align: center; padding-top: .63rem !important; padding-bottom: .63rem !important; }
