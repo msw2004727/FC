@@ -1440,7 +1440,7 @@ const FirebaseService = {
     }
 
     // Step 3: wait for boot collections + public preload with timeout protection.
-    const _INIT_TIMEOUT = 15000;
+    const _INIT_TIMEOUT = 6000;
     let bootSnapshots = null;
     let timedOut = false;
 

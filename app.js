@@ -72,6 +72,26 @@ function _withSportHubTimeout(promise, ms, code, message) {
   });
 }
 
+/** 隱藏啟動 loading overlay（進度條跳 100% → 150ms 後淡出） */
+function _dismissBootOverlay(reason) {
+  try {
+    var _ov = document.getElementById('loading-overlay');
+    if (!_ov || _ov.style.display === 'none') return;
+    if (window._bootLoadingAnim) window._bootLoadingAnim.stop();
+    var _pct = _ov.querySelector('.boot-loading__pct');
+    var _fill = _ov.querySelector('.boot-loading__fill');
+    var _bar = _ov.querySelector('.boot-loading__bar');
+    if (_pct) _pct.textContent = '100%';
+    if (_fill) _fill.style.width = '100%';
+    if (_bar) _bar.setAttribute('aria-valuenow', '100');
+    setTimeout(function() {
+      _ov.style.display = 'none';
+      console.log('[Boot] 載入畫面已隱藏（' + (reason || '') + '）');
+    }, 150);
+    if (window._loadingSafety) { clearTimeout(window._loadingSafety); window._loadingSafety = null; }
+  } catch (_) {}
+}
+
 const App = {
   currentRole: 'user',
   currentPage: 'page-home',
@@ -1447,6 +1467,7 @@ const App = {
       }
 
       try { this.renderAll(); } catch (_) {}
+      _dismissBootOverlay('Cloud ready');
       try {
         if (typeof this.bindLineLogin === 'function') {
           await this.bindLineLogin();
@@ -1529,6 +1550,7 @@ const App = {
     } catch (err) {
       this._cloudReadyError = err;
       console.error(`[Cloud] ensureCloudReady failed (${reason}):`, err?.message || err);
+      _dismissBootOverlay('Cloud init failed');
       try { this.showToast('Cloud init failed. Please retry.'); } catch (_) {}
       try {
         if (typeof this.bindLineLogin === 'function') {
@@ -1601,6 +1623,8 @@ function _loadScript(src) {
   const s = document.createElement('script');
   s.src = src;
   s.async = true;
+  // 跨域 script 設定 CORS anonymous，匹配 <link rel="preload" crossorigin> 避免重複下載
+  try { if (new URL(src).origin !== location.origin) s.crossOrigin = 'anonymous'; } catch (_) {}
   document.head.appendChild(s);
 
   _dynamicScriptPromises[src] = bindLoadPromise(s, { removeOnTimeout: true }).catch(err => {
@@ -1705,25 +1729,28 @@ document.addEventListener('DOMContentLoaded', async () => {
     } catch (e2) {}
   }
 
-  // Phase 3 完成：移除 prod-early class + 隱藏載入畫面（框架已就緒，Phase 4 背景執行）
+  // Phase 3 完成：移除 prod-early class，根據快取狀態決定是否隱藏載入畫面
   try {
     document.documentElement.classList.remove('prod-early');
-    // 進度條跳到 100% 後淡出
-    var _ov = document.getElementById('loading-overlay');
-    if (_ov && _ov.style.display !== 'none') {
-      if (window._bootLoadingAnim) window._bootLoadingAnim.stop();
-      var _pct = _ov.querySelector('.boot-loading__pct');
-      var _fill = _ov.querySelector('.boot-loading__fill');
-      var _bar = _ov.querySelector('.boot-loading__bar');
-      if (_pct) _pct.textContent = '100%';
-      if (_fill) _fill.style.width = '100%';
-      if (_bar) _bar.setAttribute('aria-valuenow', '100');
-      setTimeout(function() {
-        _ov.style.display = 'none';
-        console.log('[Boot] 載入畫面已隱藏（Phase 3 框架就緒）');
-      }, 150);
+    // 檢查首頁是否有實際內容（localStorage 快取命中）
+    var _homeHasContent = false;
+    try {
+      if (typeof ModeManager !== 'undefined' && ModeManager.isDemo()) {
+        _homeHasContent = true;
+      } else if (typeof FirebaseService !== 'undefined' && FirebaseService._cache) {
+        _homeHasContent = FirebaseService._cache.events.length > 0;
+      }
+    } catch (_) {}
+
+    if (_homeHasContent) {
+      _dismissBootOverlay('Phase 3 快取命中');
+    } else {
+      // 快取未命中：保留 overlay，等 Phase 4 cloud boot 完成再隱藏
+      var _sub = document.querySelector('#loading-overlay .boot-loading__sub');
+      if (_sub) _sub.textContent = '載入資料中..';
+      console.log('[Boot] 快取未命中，保留載入畫面等待 Cloud ready');
+      // 20 秒 safety timeout 繼續生效（index.html 已設置）
     }
-    if (window._loadingSafety) clearTimeout(window._loadingSafety);
     console.log('[Boot] Phase 3 完成');
   } catch (e) {
     console.warn('[Boot] Phase 3 完成處理失敗:', e && e.message || e);

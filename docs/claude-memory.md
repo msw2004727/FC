@@ -10,6 +10,16 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-18 — [永久] 首次造訪或快取過期時卡在空框架
+- **問題**：手機開網址時只看到框架沒有內容，要多刷新一兩次才正常
+- **原因**：Loading overlay 在 Phase 3 後無條件移除，不管是否有資料渲染；首頁被排除在 cloud 依賴外，完全仰賴 localStorage 快取（TTL 2h）；CDN SDK 延遲到 Phase 4 才下載；Firestore WS 超時 15 秒
+- **修復**：
+  - overlay 改為「有內容才收」：Phase 3 檢查 events 快取，無資料則保留 overlay 到 Phase 4 完成
+  - CDN SDK 加 `<link rel="preload">` 搶跑下載
+  - Firestore init timeout 15s → 6s
+  - SW CACHE_NAME 更新
+- **教訓**：loading overlay 的移除必須以「用戶可見內容已就緒」為判斷依據，不能以「框架初始化完成」為依據。首頁依賴 localStorage 快取的架構下，必須有 fallback loading 狀態
+
 ### 2026-03-18 — [永久] LIFF bounce redirect 無限迴圈
 - **問題**：`toosterx.com/?event=xxx` → `liff.line.me/...` → LIFF 開回 `toosterx.com/?event=xxx` → 再次跳轉 → 無限迴圈
 - **原因**：防迴圈用 sessionStorage/localStorage 設 flag，但 LIFF 在隔離 webview 中開啟 endpoint URL 時兩者都是空的
