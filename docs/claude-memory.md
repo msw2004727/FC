@@ -10,6 +10,16 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-18 — [永久] _flipAnimating 卡死導致活動卡片無法點擊（F1+F2+F3+F4）
+- **問題**：從分享連結進入首頁後，點活動卡片卡死進不去，必須重整瀏覽器才恢復
+- **原因**：`_flipAnimating` 旗標在報名/取消的翻牌動畫期間設為 `true`，但多種場景下不會被重置 — (1) 報名中途離開頁面，catch 區塊未執行；(2) Firestore 掛住 await 永不 resolve；(3) `glowWrap` DOM 被 onSnapshot 替換後走不到 reset 行。此旗標一旦卡住，`showEventDetail` 入口的 `if (this._flipAnimating) return` 會擋住**所有**後續活動卡片點擊
+- **修復**：
+  - F1：`showEventDetail` 加 5 秒安全重置（`_flipAnimatingAt` 時間戳判斷），超時強制解鎖
+  - F2：`handleSignup` 改用 `finally` 區塊確保 flag 重置，成功路徑在 `showEventDetail` 之前先解鎖
+  - F3：報名/取消的 Firestore 操作加 15 秒 `Promise.race` timeout，防止永久掛住
+  - F4：`_cleanupBeforePageSwitch` 離開活動詳情頁時強制清除 flag
+- **教訓**：任何「全域 boolean 鎖」都必須有 (1) finally 保底重置、(2) 超時自動解鎖、(3) 頁面切換清理三層防線，缺一不可。特別是 async 流程中的鎖，任何 await 中斷、DOM 消失、網路掛住都會導致鎖孤立
+
 ### 2026-03-18 — [永久] 跨裝置報名狀態不同步修復（RC1+RC3+RC4+RC5+RC8）
 - **問題**：兩台裝置看到的報名/取消狀態不一致，裝置 A 報名後裝置 B 仍顯示未報名
 - **原因**：多層快取同步空窗疊加 — (1) 無 visibilitychange 刷新，切回分頁不更新；(2) localStorage TTL 120 分鐘內只讀快取不查 Firestore；(3) onSnapshot 斷線靜默失敗不重連；(4) localStorage 無 UID 隔離，換帳號讀到前用戶資料

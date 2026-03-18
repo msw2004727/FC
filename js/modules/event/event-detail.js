@@ -198,7 +198,15 @@ Object.assign(App, {
 
   async showEventDetail(id, options = {}) {
     // 翻牌動畫播放中 → 跳過 onSnapshot 觸發的重新渲染（避免 DOM 被中途替換）
-    if (this._flipAnimating) return;
+    // F1：安全重置 — 超過 5 秒強制解鎖，防止旗標卡死導致所有導航失效
+    if (this._flipAnimating) {
+      if (this._flipAnimatingAt && Date.now() - this._flipAnimatingAt > 5000) {
+        console.warn('[EventDetail] _flipAnimating 超時 5s，強制重置');
+        this._flipAnimating = false;
+      } else {
+        return;
+      }
+    }
     try {
       const isGuestView = this._isGuestEventDetailView(options);
       let e = ApiService.getEvent(id);

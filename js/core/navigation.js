@@ -537,6 +537,11 @@ Object.assign(App, {
   },
 
   _cleanupBeforePageSwitch(pageId) {
+    // F4：離開活動詳情頁時強制清除翻牌動畫鎖，防止 _flipAnimating 卡死導致後續導航失效
+    if (this.currentPage === 'page-activity-detail' && pageId !== 'page-activity-detail') {
+      this._flipAnimating = false;
+      this._flipAnimatingAt = 0;
+    }
     if (this.currentPage === 'page-game' && pageId !== 'page-game' && this.destroyShotGamePage) {
       this.destroyShotGamePage();
     }

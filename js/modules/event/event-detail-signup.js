@@ -208,9 +208,18 @@ Object.assign(App, {
       }
     });
     // 在 Firestore 操作前鎖定重渲染，防止 onSnapshot 中途替換 DOM
-    if (glowWrap) this._flipAnimating = true;
+    if (glowWrap) {
+      this._flipAnimating = true;
+      this._flipAnimatingAt = Date.now(); // F1：記錄時間戳供安全重置判斷
+    }
     try {
-      const result = await FirebaseService.registerForEvent(id, userId, userName);
+      // F3：15 秒 timeout 保護，防止 Firestore 掛住導致永久卡死
+      const _signupTimeout = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('報名操作逾時，請重新整理後再試')), 15000));
+      const result = await Promise.race([
+        FirebaseService.registerForEvent(id, userId, userName),
+        _signupTimeout,
+      ]);
       // ── 即時回饋：翻牌動畫 + toast ──
       const isWL = result.status === 'waitlisted';
       this.showToast(isWL ? '已加入候補名單' : '報名成功！');
@@ -230,8 +239,10 @@ Object.assign(App, {
           glowWrap.classList.add('flipped');
           await new Promise(r => setTimeout(r, 1200));
         }
-        this._flipAnimating = false;
       }
+      // QA fix：在 showEventDetail 之前先解鎖，否則 showEventDetail 會被 _flipAnimating 擋住
+      this._flipAnimating = false;
+      this._flipAnimatingAt = 0;
       this.showEventDetail(id);
       this._maybeShowLineNotifyPrompt?.();
       // ── 背景 post-ops（fire-and-forget，不阻塞 UI）──
@@ -265,13 +276,16 @@ Object.assign(App, {
       this._evaluateAchievements?.(e.type);
     } catch (err) {
       console.error('[handleSignup]', err);
-      this._flipAnimating = false;
       this.showToast(err.message || '報名失敗，請稍後再試');
       if (glowWrap) glowWrap.classList.remove('loading');
       signupBtns.forEach(b => {
         b.disabled = false; b.style.opacity = '';
         if (b === activeBtn && b._origText) { b.textContent = b._origText; }
       });
+    } finally {
+      // F2：無論成功/失敗/timeout，確保 flag 被重置
+      this._flipAnimating = false;
+      this._flipAnimatingAt = 0;
     }
   },
 
@@ -343,6 +357,7 @@ Object.assign(App, {
         cancelGlowWrap.classList.add('loading');
         // 在 Firestore 操作前鎖定重渲染，防止 onSnapshot 中途替換 DOM
         this._flipAnimating = true;
+        this._flipAnimatingAt = Date.now(); // F1：記錄時間戳供安全重置判斷
       }
     }
     const _restoreCancelUI = () => {
@@ -449,7 +464,13 @@ Object.assign(App, {
     }
     if (reg) {
       try {
-        const cancelledReg = await FirebaseService.cancelRegistration(reg.id);
+        // F3：15 秒 timeout 保護，防止 Firestore 掛住導致永久卡死
+        const _cancelTimeout = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('取消操作逾時，請重新整理後再試')), 15000));
+        const cancelledReg = await Promise.race([
+          FirebaseService.cancelRegistration(reg.id),
+          _cancelTimeout,
+        ]);
         if (cancelledReg && cancelledReg._promotedUserId) {
           const ev = ApiService.getEvent(id);
           if (ev) {
@@ -543,6 +564,7 @@ Object.assign(App, {
       } finally {
         clearTimeout(_busyTimeout);
         this._flipAnimating = false;
+        this._flipAnimatingAt = 0;
         delete this._cancelSignupBusyMap[id];
       }
     } else {
