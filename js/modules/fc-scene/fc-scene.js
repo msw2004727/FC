@@ -108,18 +108,18 @@ function initProfileScene(containerId) {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     // 陰影層（增加可讀性）
-    ctx.shadowColor = light ? 'rgba(0,0,0,0.18)' : 'rgba(0,0,0,0.5)';
-    ctx.shadowBlur = 8;
-    ctx.shadowOffsetY = 2;
-    // 主標題
+    ctx.shadowColor = light ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.5)';
+    ctx.shadowBlur = 6;
+    ctx.shadowOffsetY = 1;
+    // 主標題（淺色主題用深色字、深色主題用淺色字）
     ctx.font = '800 20px "Noto Sans TC", "SF Pro Display", -apple-system, "Segoe UI", sans-serif';
-    ctx.fillStyle = light ? 'rgba(255,255,255,0.92)' : 'rgba(255,255,255,0.75)';
-    ctx.fillText('Coming soon.', sw / 2, textY);
+    ctx.fillStyle = light ? 'rgba(30,60,40,0.82)' : 'rgba(255,255,255,0.78)';
+    ctx.fillText('Coming soon.', sw / 2, textY - 4);
     ctx.shadowColor = 'transparent';
-    // 副標題（小字）
+    // 副標題（加大間距）
     ctx.font = '500 10px "Noto Sans TC", "SF Pro Display", -apple-system, "Segoe UI", sans-serif';
-    ctx.fillStyle = light ? 'rgba(255,255,255,0.7)' : 'rgba(255,255,255,0.45)';
-    ctx.fillText('\u2500\u2500  \u656C\u8ACB\u671F\u5F85  \u2500\u2500', sw / 2, textY + 18);
+    ctx.fillStyle = light ? 'rgba(30,60,40,0.6)' : 'rgba(255,255,255,0.45)';
+    ctx.fillText('\u2500\u2500  \u656C\u8ACB\u671F\u5F85  \u2500\u2500', sw / 2, textY + 20);
     ctx.restore();
   }
 
