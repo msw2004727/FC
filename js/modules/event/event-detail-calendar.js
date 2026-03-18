@@ -1,6 +1,6 @@
 /* ================================================
    SportHub — Event: Add to Calendar
-   一鍵加入行事曆 — 產生 .ics 直接開啟系統行事曆（含提醒）
+   一鍵加入行事曆 — Google Calendar URL 外開
    ================================================ */
 
 Object.assign(App, {
@@ -29,7 +29,7 @@ Object.assign(App, {
         end: parsed.end,
       };
 
-      this._openIcsInSystemCalendar(calEvent);
+      this._openGoogleCalendar(calEvent);
     } finally {
       this._calendarInProgress = false;
     }
@@ -76,11 +76,13 @@ Object.assign(App, {
   },
 
   // ══════════════════════════════════
-  //  .ics — 直接開啟系統行事曆
+  //  Google Calendar URL
   // ══════════════════════════════════
 
-  _toIcsDateStr(d) {
+  _toGcalDateStr(d) {
     var pad = function (n) { return n < 10 ? '0' + n : '' + n; };
+    // Google Calendar 需要 UTC 格式 YYYYMMDDTHHmmSSZ
+    // 但我們用本地時間，所以不加 Z，改用不帶時區的格式
     return d.getFullYear() +
       pad(d.getMonth() + 1) +
       pad(d.getDate()) + 'T' +
@@ -89,93 +91,28 @@ Object.assign(App, {
       pad(d.getSeconds());
   },
 
-  _foldIcsLine(line) {
-    var result = [];
-    while (line.length > 75) {
-      result.push(line.slice(0, 75));
-      line = ' ' + line.slice(75);
-    }
-    result.push(line);
-    return result.join('\r\n');
-  },
+  _openGoogleCalendar(calEvent) {
+    var dates = this._toGcalDateStr(calEvent.start) + '/' + this._toGcalDateStr(calEvent.end);
 
-  _escapeIcsText(str) {
-    if (!str) return '';
-    return String(str)
-      .replace(/\\/g, '\\\\')
-      .replace(/;/g, '\\;')
-      .replace(/,/g, '\\,')
-      .replace(/\n/g, '\\n');
-  },
-
-  _buildIcsContent(calEvent) {
-    var uid = 'sporthub-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8) + '@toosterx.com';
-    var now = this._toIcsDateStr(new Date());
-    var tzid = 'Asia/Taipei';
-
-    var lines = [
-      'BEGIN:VCALENDAR',
-      'VERSION:2.0',
-      'PRODID:-//SportHub//Event//ZH',
-      'CALSCALE:GREGORIAN',
-      'METHOD:PUBLISH',
-      'BEGIN:VTIMEZONE',
-      'TZID:Asia/Taipei',
-      'BEGIN:STANDARD',
-      'DTSTART:19700101T000000',
-      'TZOFFSETFROM:+0800',
-      'TZOFFSETTO:+0800',
-      'END:STANDARD',
-      'END:VTIMEZONE',
-      'BEGIN:VEVENT',
-      this._foldIcsLine('UID:' + uid),
-      'DTSTAMP:' + now,
-      this._foldIcsLine('DTSTART;TZID=' + tzid + ':' + this._toIcsDateStr(calEvent.start)),
-      this._foldIcsLine('DTEND;TZID=' + tzid + ':' + this._toIcsDateStr(calEvent.end)),
-      this._foldIcsLine('SUMMARY:' + this._escapeIcsText(calEvent.title)),
-      this._foldIcsLine('LOCATION:' + this._escapeIcsText(calEvent.location)),
-      this._foldIcsLine('DESCRIPTION:' + this._escapeIcsText(calEvent.description)),
-      'BEGIN:VALARM',
-      'TRIGGER:-P1D',
-      'ACTION:DISPLAY',
-      this._foldIcsLine('DESCRIPTION:' + this._escapeIcsText(calEvent.title) + ' \u660E\u5929\u958B\u59CB'),
-      'END:VALARM',
-      'BEGIN:VALARM',
-      'TRIGGER:-PT30M',
-      'ACTION:DISPLAY',
-      this._foldIcsLine('DESCRIPTION:' + this._escapeIcsText(calEvent.title) + ' \u5373\u5C07\u958B\u59CB'),
-      'END:VALARM',
-      'END:VEVENT',
-      'END:VCALENDAR',
+    var params = [
+      'action=TEMPLATE',
+      'text=' + encodeURIComponent(calEvent.title),
+      'dates=' + dates,
+      'location=' + encodeURIComponent(calEvent.location),
+      'details=' + encodeURIComponent(calEvent.description),
+      'ctz=Asia/Taipei',
     ];
 
-    return lines.join('\r\n');
-  },
+    var url = 'https://calendar.google.com/calendar/render?' + params.join('&');
 
-  _openIcsInSystemCalendar(calEvent) {
-    var icsContent = this._buildIcsContent(calEvent);
-    var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-
-    if (isIOS) {
-      // iOS Safari / LINE WebView 不支援 blob: URL 開啟 .ics
-      // 改用 data URI — iOS 會直接彈出 Apple Calendar「加入行程」對話框
-      var dataUri = 'data:text/calendar;charset=utf-8,' + encodeURIComponent(icsContent);
-      window.open(dataUri);
+    // LIFF 環境用 openWindow 外開，確保 LINE WebView 能正常跳轉
+    if (typeof liff !== 'undefined' && liff.isInClient && liff.isInClient()) {
+      liff.openWindow({ url: url, external: true });
     } else {
-      // Android / 桌面 — blob URL + download 屬性
-      // Android 會觸發 intent 選擇器（Google Calendar 等）
-      var blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
-      var blobUrl = URL.createObjectURL(blob);
-      var a = document.createElement('a');
-      a.href = blobUrl;
-      a.download = (calEvent.title || 'event').replace(/[^\w\u4e00-\u9fff]/g, '_').slice(0, 30) + '.ics';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      setTimeout(function () { URL.revokeObjectURL(blobUrl); }, 10000);
+      window.open(url, '_blank');
     }
 
-    this.showToast('\u6B63\u5728\u958B\u555F\u884C\u4E8B\u66C6\u2026');
+    this.showToast('\u6B63\u5728\u958B\u555F Google \u884C\u4E8B\u66C6\u2026');
   },
 
 });
