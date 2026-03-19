@@ -112,6 +112,7 @@ Object.assign(App, {
       App.closeExternalTransitCard();
     });
     document.getElementById('ext-transit-share').addEventListener('click', function () {
+      App.closeExternalTransitCard();
       App.shareExternalEvent(eventId);
     });
     overlay.addEventListener('click', function (ev) {
