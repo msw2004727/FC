@@ -10,6 +10,12 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### [永久] 2026-03-20 — 首屏載入優化：38→12 script tags
+- **問題**：新用戶首次開啟 Mini App 時，LINE WebView 需同時下載 38+ JS 檔案，瀏覽器同域並發上限 6 個，排隊導致 LIFF 初始化超時，LINE 顯示「伺服器連線失敗」
+- **修復**：index.html 只保留 12 個核心 script，其餘 26 個移入 `ScriptLoader._groups.boot`，在 Phase 2.5 動態載入
+- **架構**：`App.init()` 拆為 `initCore()`（同步，核心 UI）+ `initModules()`（等 boot 模組載入後執行）
+- **教訓**：所有 `App.init()` 中呼叫模組方法必須用 `?.()` 防護，避免模組未載入時報錯
+
 ### 2026-03-19 — 外部活動中繼卡片加一鍵分享按鈕
 - **功能**：中繼卡片右下角新增圓形分享 FAB 按鈕（箭頭圖示），點擊呼叫 `shareExternalEvent()`
 - **修改**：`event-external-transit.js`（加 shareHtml + 事件綁定）、`activity.css`（`.ext-transit-share-fab` 樣式）

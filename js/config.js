@@ -278,7 +278,8 @@
 // 20260320a: 分享按鈕改為與操作按鈕同行排列
 // 20260320b: 分享按鈕先關閉中繼卡片再觸發分享流程
 // 20260320c: 分享改用自帶邏輯（navigator.share / clipboard），不關閉中繼頁
-const CACHE_VERSION = '20260320c';
+// 20260320d: 首屏載入優化：26 個模組改為動態載入，減少首次 HTTP 請求數
+const CACHE_VERSION = '20260320d';
 
 // ─── Page Strategy Registry ───
 // 唯一策略來源，未列出的頁面預設 fresh-first

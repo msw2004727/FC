@@ -62,6 +62,35 @@ const ScriptLoader = {
   // ════════════════════════════════
 
   _groups: {
+    // ── 首屏啟動必要模組（App.init 呼叫到的） ──
+    boot: [
+      'js/modules/pwa-install.js',
+      'js/modules/image-cropper.js',
+      'js/modules/image-upload.js',
+      'js/modules/role.js',
+      'js/modules/site-theme.js',
+      'js/modules/banner.js',
+      'js/modules/popup-ad.js',
+      'js/modules/announcement.js',
+      'js/modules/favorites.js',
+      'js/modules/news.js',
+      'js/modules/event/event-external-transit.js',
+      'js/modules/event/event-list-helpers.js',
+      'js/modules/event/event-list-stats.js',
+      'js/modules/event/event-list-home.js',
+      'js/modules/event/event-list-timeline.js',
+      'js/modules/event/event-list.js',
+      'js/modules/message/message-render.js',
+      'js/modules/message/message-inbox.js',
+      'js/modules/message/message-line-push.js',
+      'js/modules/message/message-notify.js',
+      'js/modules/tournament/tournament-core.js',
+      'js/modules/tournament/tournament-render.js',
+      'js/modules/profile/profile-avatar.js',
+      'js/modules/profile/profile-core.js',
+      'js/modules/profile/profile-data-stats.js',
+      'js/modules/profile/profile-form.js',
+    ],
     achievement: [
       'js/modules/achievement/index.js',
       'js/modules/achievement/registry.js',
