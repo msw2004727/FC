@@ -133,51 +133,40 @@ const App = {
   _pendingAuthActionStorageKey: '_pendingAuthAction',
   _pageSnapshotReady: {},
 
-  /** Phase 3a: 只綁定核心 UI（不依賴動態載入的模組） */
-  initCore() {
+  init() {
     this.bindSportPicker();
     this.bindNavigation();
     this.bindDrawer();
     this.bindTheme();
     this.initFontSize();
+    this.initPwaInstall();
     this.bindFilterToggle();
     this.bindTabBars();
     this.bindTournamentTabs();
     this.bindScanModes();
+    this.bindFloatingAds();
     this.bindNotifBtn();
-    this.initLangSwitcher();
-    this._applyI18nToUI();
-  },
-
-  /** Phase 3b: 綁定需要動態模組的功能（boot 模組載入後呼叫） */
-  initModules() {
-    this.initPwaInstall?.();
-    this.bindFloatingAds?.();
-    this.bindLineLogin?.();
-    this.bindImageUpload?.('ce-image', 'ce-upload-preview', 16/9);
-    this.bindImageUpload?.('ct-image', 'ct-upload-preview', 16/9);
-    this.bindImageUpload?.('ct-content-image', 'ct-content-upload-preview', 16/9);
-    this.bindImageUpload?.('et-image', 'et-upload-preview', 16/9);
-    this.bindImageUpload?.('et-content-image', 'et-content-upload-preview', 16/9);
-    this.bindImageUpload?.('cs-img1', 'cs-preview1', 4/3);
-    this.bindImageUpload?.('cs-img2', 'cs-preview2', 4/3);
-    this.bindImageUpload?.('cs-img3', 'cs-preview3', 4/3);
-    this.bindImageUpload?.('banner-image', 'banner-preview', 2.2);
-    this.bindImageUpload?.('floatad-image', 'floatad-preview', 1);
-    this.bindImageUpload?.('popupad-image', 'popupad-preview', 16/9);
-    this.bindImageUpload?.('ct-team-image', 'ct-team-preview', 1);
-    this.bindImageUpload?.('theme-image', 'theme-preview', 0);
+    this.bindLineLogin();
+    this.bindImageUpload('ce-image', 'ce-upload-preview', 16/9);
+    this.bindImageUpload('ct-image', 'ct-upload-preview', 16/9);
+    this.bindImageUpload('ct-content-image', 'ct-content-upload-preview', 16/9);
+    this.bindImageUpload('et-image', 'et-upload-preview', 16/9);
+    this.bindImageUpload('et-content-image', 'et-content-upload-preview', 16/9);
+    this.bindImageUpload('cs-img1', 'cs-preview1', 4/3);
+    this.bindImageUpload('cs-img2', 'cs-preview2', 4/3);
+    this.bindImageUpload('cs-img3', 'cs-preview3', 4/3);
+    this.bindImageUpload('banner-image', 'banner-preview', 2.2);
+    this.bindImageUpload('floatad-image', 'floatad-preview', 1);
+    this.bindImageUpload('popupad-image', 'popupad-preview', 16/9);
+    this.bindImageUpload('ct-team-image', 'ct-team-preview', 1);
+    this.bindImageUpload('theme-image', 'theme-preview', 0);
     this._bindAchBadgeUpload?.();
     this._populateAchConditionSelects?.();
     this.bindShopSearch?.();
     this.bindTeamOnlyToggle?.();
-    this.applySiteThemes?.();
-  },
-
-  /** 相容舊呼叫：同步執行全部 init（boot 模組已在 index.html 時使用） */
-  init() {
-    this.initCore();
-    this.initModules();
+    this.applySiteThemes();
+    this.initLangSwitcher();
+    this._applyI18nToUI();
     this.renderAll();
     this.applyRole('user', true);
   },
@@ -208,7 +197,7 @@ const App = {
   },
 
   renderGlobalShell() {
-    this.updateNotifBadge?.();
+    this.updateNotifBadge();
     this.updatePointsDisplay();
     this.updateStorageBar();
   },
@@ -221,20 +210,20 @@ const App = {
 
   renderHomeCritical() {
     if (!this._isHomePageActive()) return;
-    this.renderBannerCarousel?.({ autoplay: false });
-    this.renderAnnouncement?.();
-    this.renderHotEvents?.();
+    this.renderBannerCarousel({ autoplay: false });
+    this.renderAnnouncement();
+    this.renderHotEvents();
     this._markPageSnapshotReady('page-home');
   },
 
   renderHomeDeferred() {
     if (!this._isHomePageActive()) return false;
-    this.renderOngoingTournaments?.();
-    this.renderSponsors?.();
-    this.renderNews?.();
-    this.renderFloatingAds?.();
-    this.showPopupAdsOnLoad?.();
-    this.startBannerCarousel?.();
+    this.renderOngoingTournaments();
+    this.renderSponsors();
+    if (this.renderNews) this.renderNews();
+    this.renderFloatingAds();
+    this.showPopupAdsOnLoad();
+    this.startBannerCarousel();
     return true;
   },
 
@@ -287,19 +276,19 @@ const App = {
     this.bindTeamOnlyToggle?.();
     this._bindAchBadgeUpload?.();
     this._populateAchConditionSelects?.();
-    this.bindImageUpload?.('ce-image',         'ce-upload-preview',         16/9);
-    this.bindImageUpload?.('ct-image',         'ct-upload-preview',         16/9);
-    this.bindImageUpload?.('ct-content-image', 'ct-content-upload-preview', 16/9);
-    this.bindImageUpload?.('et-image',         'et-upload-preview',         16/9);
-    this.bindImageUpload?.('et-content-image', 'et-content-upload-preview', 16/9);
-    this.bindImageUpload?.('cs-img1',          'cs-preview1',              4/3);
-    this.bindImageUpload?.('cs-img2',          'cs-preview2',              4/3);
-    this.bindImageUpload?.('cs-img3',          'cs-preview3',              4/3);
-    this.bindImageUpload?.('banner-image',     'banner-preview',           2.2);
-    this.bindImageUpload?.('floatad-image',    'floatad-preview',          1);
-    this.bindImageUpload?.('popupad-image',    'popupad-preview',          16/9);
-    this.bindImageUpload?.('ct-team-image',    'ct-team-preview',          1);
-    this.bindImageUpload?.('theme-image',      'theme-preview',            0);
+    this.bindImageUpload('ce-image',         'ce-upload-preview',         16/9);
+    this.bindImageUpload('ct-image',         'ct-upload-preview',         16/9);
+    this.bindImageUpload('ct-content-image', 'ct-content-upload-preview', 16/9);
+    this.bindImageUpload('et-image',         'et-upload-preview',         16/9);
+    this.bindImageUpload('et-content-image', 'et-content-upload-preview', 16/9);
+    this.bindImageUpload('cs-img1',          'cs-preview1',              4/3);
+    this.bindImageUpload('cs-img2',          'cs-preview2',              4/3);
+    this.bindImageUpload('cs-img3',          'cs-preview3',              4/3);
+    this.bindImageUpload('banner-image',     'banner-preview',           2.2);
+    this.bindImageUpload('floatad-image',    'floatad-preview',          1);
+    this.bindImageUpload('popupad-image',    'popupad-preview',          16/9);
+    this.bindImageUpload('ct-team-image',    'ct-team-preview',          1);
+    this.bindImageUpload('theme-image',      'theme-preview',            0);
   },
 
   /** 將 Date 格式化為 YYYY/MM/DD HH:MM 字串（省略時間時傳 false） */
@@ -1722,31 +1711,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     console.warn('[Boot] Phase 2 快取恢復失敗:', e && e.message || e);
   }
 
-  // ── Phase 2.5: 載入首屏必要模組（boot group）──
-  console.log('[Boot] Phase 2.5: 載入 boot 模組');
-  var _bootReady = ScriptLoader.loadGroup(ScriptLoader._groups.boot).catch(function(e) {
-    console.warn('[Boot] boot 模組載入部分失敗:', e && e.message || e);
-  });
-
-  // ── Phase 3: 先綁定核心 UI，再等 boot 模組載入完成後渲染首頁 ──
+  // ── Phase 3: 立即顯示頁面（不等 HTML / CDN / Firebase）──
   try {
     console.log('[Boot] Phase 3: App.init() 開始');
-    App.initCore();
-    _bootReady.then(function() {
-      console.log('[Boot] Phase 2.5: boot 模組載入完成');
-      try {
-        App.initModules();
-        App.renderAll();
-        App.applyRole('user', true);
-        console.log('[Boot] Phase 3: App.init() 完成');
-        // boot 模組載入 + 渲染完成，嘗試隱藏載入畫面
-        if (typeof _dismissBootOverlay === 'function') {
-          _dismissBootOverlay('boot 模組渲染完成');
-        }
-      } catch (e) {
-        console.error('[Boot] Phase 3 initModules 失敗:', e && e.message || e, e && e.stack || '');
-      }
-    });
+    App.init();
+    console.log('[Boot] Phase 3: App.init() 完成');
   } catch (initErr) {
     console.error('[Boot] Phase 3 App.init() 失敗:', initErr && initErr.message || initErr, initErr && initErr.stack || '');
     try {
