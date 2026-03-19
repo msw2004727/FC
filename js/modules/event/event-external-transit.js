@@ -107,17 +107,36 @@ Object.assign(App, {
     requestAnimationFrame(function () { overlay.classList.add('visible'); });
 
     // 事件綁定
-    var eventId = e.id;
     document.getElementById('ext-transit-close').addEventListener('click', function () {
       App.closeExternalTransitCard();
     });
     document.getElementById('ext-transit-share').addEventListener('click', function () {
-      App.closeExternalTransitCard();
-      App.shareExternalEvent(eventId);
+      App._shareFromTransitCard(e);
     });
     overlay.addEventListener('click', function (ev) {
       if (ev.target === overlay) App.closeExternalTransitCard();
     });
+  },
+
+  /* ── 中繼卡片內分享（不依賴 event-share.js） ── */
+  async _shareFromTransitCard(event) {
+    var shareUrl = event.id
+      ? (MINI_APP_BASE_URL + '?event=' + encodeURIComponent(event.id))
+      : (event.externalUrl || '');
+    var text = (event.title || '') + '\n' + shareUrl;
+
+    // 優先用系統原生分享
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: event.title || '', text: text });
+        return;
+      } catch (err) {
+        if (err.name === 'AbortError') return;
+      }
+    }
+    // fallback: 複製到剪貼簿
+    var ok = await this._copyToClipboard(text);
+    this.showToast(ok ? '分享連結已複製' : '複製失敗，請手動複製');
   },
 
   /* ── 關閉中繼卡片 ── */
