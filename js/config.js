@@ -275,7 +275,8 @@
 // 20260319x: 抽屜按鈕移到第二行，防名字過長擠出
 // 20260319y: cancelRegistration 修正：commit 成功後才更新快取
 // 20260319z: 外部活動中繼卡片加分享按鈕（右下角圓形）
-const CACHE_VERSION = '20260319z';
+// 20260320a: 分享按鈕改為與操作按鈕同行排列
+const CACHE_VERSION = '20260320a';
 
 // ─── Page Strategy Registry ───
 // 唯一策略來源，未列出的頁面預設 fresh-first

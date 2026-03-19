@@ -60,7 +60,14 @@ Object.assign(App, {
         + '</div>';
     }
 
-    // YouTube 嵌入 或 跳轉按鈕
+    // 分享按鈕 SVG
+    var shareSvg = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+      + '<path d="M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7"/>'
+      + '<polyline points="16 6 12 2 8 6"/>'
+      + '<line x1="12" y1="2" x2="12" y2="15"/>'
+      + '</svg>';
+
+    // YouTube 嵌入 或 跳轉按鈕（與分享按鈕同行）
     var contentHtml = '';
     if (ytId) {
       contentHtml = '<div class="ext-transit-yt-wrap">'
@@ -68,23 +75,22 @@ Object.assign(App, {
         + ' allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"'
         + ' allowfullscreen></iframe>'
         + '</div>'
+        + '<div class="ext-transit-actions">'
         + '<a class="ext-transit-btn ext-transit-btn-secondary" href="' + escapeHTML(e.externalUrl) + '" target="_blank" rel="noopener">'
         + '在 YouTube 開啟'
-        + '</a>';
+        + '</a>'
+        + '<button class="ext-transit-btn ext-transit-btn-share" id="ext-transit-share" title="分享">'
+        + shareSvg + '</button>'
+        + '</div>';
     } else {
-      contentHtml = '<a class="ext-transit-btn ext-transit-btn-primary" href="' + escapeHTML(e.externalUrl) + '" target="_blank" rel="noopener">'
+      contentHtml = '<div class="ext-transit-actions">'
+        + '<a class="ext-transit-btn ext-transit-btn-primary" href="' + escapeHTML(e.externalUrl) + '" target="_blank" rel="noopener">'
         + '前往活動頁面'
-        + '</a>';
+        + '</a>'
+        + '<button class="ext-transit-btn ext-transit-btn-share" id="ext-transit-share" title="分享">'
+        + shareSvg + '</button>'
+        + '</div>';
     }
-
-    // 分享按鈕（右下角圓形）
-    var shareHtml = '<button class="ext-transit-share-fab" id="ext-transit-share" title="分享">'
-      + '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
-      + '<path d="M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7"/>'
-      + '<polyline points="16 6 12 2 8 6"/>'
-      + '<line x1="12" y1="2" x2="12" y2="15"/>'
-      + '</svg>'
-      + '</button>';
 
     overlay.innerHTML =
       '<div class="ext-transit-card">'
@@ -95,7 +101,6 @@ Object.assign(App, {
       + infoHtml
       + contentHtml
       + '</div>'
-      + shareHtml
       + '</div>';
 
     document.body.appendChild(overlay);
