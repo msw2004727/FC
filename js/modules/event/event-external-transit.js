@@ -111,32 +111,29 @@ Object.assign(App, {
       App.closeExternalTransitCard();
     });
     document.getElementById('ext-transit-share').addEventListener('click', function () {
-      App._shareFromTransitCard(e);
+      App._transitShareExternal(e);
     });
     overlay.addEventListener('click', function (ev) {
       if (ev.target === overlay) App.closeExternalTransitCard();
     });
   },
 
-  /* ── 中繼卡片內分享（不依賴 event-share.js） ── */
-  async _shareFromTransitCard(event) {
-    var shareUrl = event.id
-      ? (MINI_APP_BASE_URL + '?event=' + encodeURIComponent(event.id))
-      : (event.externalUrl || '');
-    var text = (event.title || '') + '\n' + shareUrl;
-
-    // 優先用系統原生分享
-    if (navigator.share) {
+  /* ── 中繼卡片分享：載入 event-share 模組後呼叫完整分享流程 ── */
+  async _transitShareExternal(event) {
+    if (this._shareInProgress) return;
+    // 確保 event-share.js + event-share-builders.js 已載入
+    if (typeof this.shareExternalEvent !== 'function') {
       try {
-        await navigator.share({ title: event.title || '', text: text });
-        return;
+        await ScriptLoader.loadGroup([
+          'js/modules/event/event-share-builders.js',
+          'js/modules/event/event-share.js',
+        ]);
       } catch (err) {
-        if (err.name === 'AbortError') return;
+        this.showToast('分享功能載入失敗，請稍後再試');
+        return;
       }
     }
-    // fallback: 複製到剪貼簿
-    var ok = await this._copyToClipboard(text);
-    this.showToast(ok ? '分享連結已複製' : '複製失敗，請手動複製');
+    await this.shareExternalEvent(event.id);
   },
 
   /* ── 關閉中繼卡片 ── */
