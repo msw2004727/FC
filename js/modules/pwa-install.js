@@ -171,8 +171,8 @@ Object.assign(App, {
       ? '<div class="pwa-guide-step pwa-guide-step-highlight">'
         + '<div class="pwa-guide-num pwa-guide-num-warn">!</div>'
         + '<div class="pwa-guide-text">'
-        + '<strong>先用 Safari 開啟本頁</strong><br>'
-        + '點右上角「⋯」→「在預設瀏覽器中開啟」'
+        + '<strong>請先回到桌面，用 Safari 開啟本網站</strong><br>'
+        + '網址：toosterx.com'
         + '</div></div>'
         + '<div class="pwa-guide-divider"></div>'
       : '';
