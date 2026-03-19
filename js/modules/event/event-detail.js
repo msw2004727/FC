@@ -646,20 +646,22 @@ Object.assign(App, {
     try {
       // 從 Firestore 直接讀取最新 event 資料
       if (!ModeManager.isDemo() && typeof db !== 'undefined') {
-        const doc = await db.collection('events').doc(
-          (ApiService.getEvent(id) || {})?._docId || ''
-        ).get();
-        if (doc.exists) {
-          const fresh = { ...doc.data(), _docId: doc.id };
-          const cached = (FirebaseService._cache.events || []);
-          const idx = cached.findIndex(e => e.id === fresh.id || e._docId === fresh._docId);
-          if (idx >= 0) Object.assign(cached[idx], fresh);
-          else cached.push(fresh);
+        const docId = (ApiService.getEvent(id) || {})?._docId;
+        if (docId) {
+          const doc = await db.collection('events').doc(docId).get();
+          if (doc.exists) {
+            const fresh = { ...doc.data(), _docId: doc.id };
+            const cached = (FirebaseService._cache.events || []);
+            const idx = cached.findIndex(e => e.id === fresh.id || e._docId === fresh._docId);
+            if (idx >= 0) Object.assign(cached[idx], fresh);
+            else cached.push(fresh);
+          }
         }
       }
       this.showEventDetail(id);
     } catch (err) {
       console.warn('[refreshEventDetail]', err);
+      this.showToast?.('刷新失敗，請稍後再試');
     } finally {
       if (btn) { btn.disabled = false; btn.classList.remove('spinning'); }
     }

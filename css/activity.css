@@ -513,7 +513,7 @@
   padding: 0; transition: transform .3s;
 }
 .event-detail-refresh-btn:active { transform: rotate(180deg); }
-.event-detail-refresh-btn.spinning svg { animation: detail-refresh-spin .6s ease; }
+.event-detail-refresh-btn.spinning svg { animation: detail-refresh-spin .6s linear infinite; }
 @keyframes detail-refresh-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 .event-reg-log-btn {
   padding: .3rem .6rem; border-radius: var(--radius-sm);
