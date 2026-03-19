@@ -115,8 +115,7 @@ Object.assign(App, {
     if (!e) return;
 
     const liffUrl = this._buildEventLiffUrl(eventId);
-    const shareUrl = this._buildEventShareOgUrl(eventId);
-    const altText = this._buildEventShareAltText(e, shareUrl);
+    const altText = this._buildEventShareAltText(e, liffUrl);
     const canPicker = await this._canUseShareTargetPicker();
 
     // 已登入（任何 tier）：顯示底部選單
