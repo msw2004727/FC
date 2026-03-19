@@ -198,14 +198,18 @@ https://miniapp.line.me/2009525300-AuPGQ0sh?{deepLinkParam}={id}
 |------|----------|------|
 | `js/firebase-crud.js` | `registerForEvent()` | 單人報名（Firestore transaction） |
 | `js/firebase-crud.js` | `batchRegisterForEvent()` | 批次報名含同行者（Firestore transaction） |
-| `js/firebase-crud.js` | `cancelRegistration()` | 取消報名 + 候補遞補（Firestore batch） |
-| `js/firebase-crud.js` | `cancelCompanionRegistrations()` | 取消同行者報名 |
+| `js/firebase-crud.js` | `cancelRegistration()` | 取消報名 + 候補遞補（Firestore batch + 模擬模式） |
+| `js/firebase-crud.js` | `cancelCompanionRegistrations()` | 取消同行者報名 + 候補遞補（Firestore 查詢 + 模擬模式） |
 | `js/firebase-crud.js` | `_rebuildOccupancy()` | 佔位重建（純函式） |
 | `js/firebase-crud.js` | `_applyRebuildOccupancy()` | 佔位寫入快取 |
 | `js/modules/event/event-detail-signup.js` | `handleSignup()` | 報名 UI 入口 |
 | `js/modules/event/event-detail-signup.js` | `handleCancelSignup()` | 取消報名 UI 入口 |
 | `js/modules/event/event-detail-companion.js` | `_confirmCompanionRegister()` | 同行者報名 UI |
 | `js/modules/event/event-detail-companion.js` | `_confirmCompanionCancel()` | 同行者取消 UI |
+| `js/modules/event/event-create-waitlist.js` | `_adjustWaitlistOnCapacityChange()` | 容量變更時自動遞補 / 降級（Firestore 查詢 + batch） |
+| `js/modules/event/event-create-waitlist.js` | `_getNextWaitlistCandidate()` | 取得下一位候補遞補者（排序邏輯） |
+| `js/modules/event/event-create-waitlist.js` | `_promoteSingleCandidateLocal()` | 單人遞補本地狀態變更 + 通知 |
+| `js/modules/event/event-create-waitlist.js` | `_getPromotedArDocIds()` | 遞補時取得 activityRecord docId |
 
 ### 修改這些函式時的強制規則
 
@@ -215,6 +219,15 @@ https://miniapp.line.me/2009525300-AuPGQ0sh?{deepLinkParam}={id}
 4. **候補遞補必須在同一 batch**：取消正取後的候補遞補，必須與取消操作在同一個 batch/transaction 內完成，不得分開提交。
 5. **修改前必須執行驗證**：修改上述任何函式後，必須在 console 執行 `docs/registration-integrity-check.js` 驗證報名系統一致性。
 6. **禁止修改 `_rebuildOccupancy` 的純函式特性**：此函式不得引入副作用（不寫快取、不呼叫 API、不修改傳入參數）。
+
+### 候補系統額外強制規則（歷史上多次因違反而產生嚴重 bug）
+
+7. **遞補排序不可變更**：候補遞補順序固定為 `registeredAt ASC`（報名時間先到先遞補），同時間內依 `promotionOrder ASC`。任何遞補路徑（容量變更、取消觸發）都必須遵守此排序，不得自行定義其他排序邏輯。
+8. **降級排序不可變更**：容量減少時的降級順序固定為 `registeredAt DESC`（最晚報名先降級），同時間內依 `promotionOrder DESC`。
+9. **狀態變更必須同步 activityRecord**：任何將 registration 從 `confirmed ↔ waitlisted` 轉換的操作，必須同步更新對應的 `activityRecord`（`registered ↔ waitlisted`）。同行者（`participantType === 'companion'`）除外，因其不產生 activityRecord。
+10. **禁止在 batch.commit() 前修改本地快取**：`cancelRegistration` 和 `cancelCompanionRegistrations` 必須使用「模擬模式」— 在副本上計算結果，commit 成功後才寫入本地快取。違反此規則會導致 commit 失敗時快取汙染（假成功）。
+11. **Firestore 查詢結果的 Timestamp 必須轉換**：從 Firestore 讀取的 `registeredAt` 是 Timestamp 物件，必須透過 `data.registeredAt?.toDate?.()?.toISOString?.() || data.registeredAt` 轉換為 ISO 字串後才能用於排序。未轉換的 Timestamp 會導致 `new Date()` 回傳 NaN，遞補排序失效。
+12. **`_adjustWaitlistOnCapacityChange` 必須先查詢 Firestore**：函式開頭必須先從 Firestore 查詢最新報名資料並同步到快取，不得直接使用可能過時的快取資料進行遞補/降級判斷。
 
 ---
 
