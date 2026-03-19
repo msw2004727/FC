@@ -326,13 +326,14 @@
 .drawer-header { padding: 1.5rem 1.2rem 1rem; border-bottom: 1px solid var(--border); }
 .drawer-user { display: flex; align-items: center; gap: .75rem; }
 .drawer-avatar { width: 44px; height: 44px; border-radius: 50%; background: linear-gradient(135deg, var(--accent), #0d9488); display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: 1.1rem; flex-shrink: 0; }
-.drawer-name { font-weight: 700; font-size: .95rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 130px; }
-.drawer-font-btn { margin-left: auto; flex-shrink: 0; width: 36px; height: 36px; border-radius: 50%; border: 2px solid var(--border); background: var(--bg-elevated); color: var(--text-secondary); font-weight: 900; font-size: .85rem; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all var(--transition); }
+.drawer-name { font-weight: 700; font-size: .95rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 180px; }
+.drawer-actions { display: flex; align-items: center; gap: .5rem; margin-top: .6rem; }
+.drawer-font-btn { flex-shrink: 0; width: 36px; height: 36px; border-radius: 50%; border: 2px solid var(--border); background: var(--bg-elevated); color: var(--text-secondary); font-weight: 900; font-size: .85rem; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all var(--transition); }
 .drawer-font-btn:hover { border-color: var(--accent); color: var(--accent); }
 .drawer-font-btn.font-m { font-size: .95rem; border-color: var(--accent); color: var(--accent); }
 .drawer-font-btn.font-l { font-size: 1.08rem; border-color: var(--accent); color: var(--accent); background: var(--accent-bg); }
 /* ─── PWA Install Button (Drawer) ─── */
-.drawer-pwa-btn { margin-left: auto; flex-shrink: 0; height: 30px; padding: 0 .55rem; border-radius: var(--radius-full); border: none; background: transparent; color: #fff; font-weight: 700; font-size: .68rem; cursor: pointer; white-space: nowrap; transition: all var(--transition); letter-spacing: .02em; position: relative; overflow: hidden; animation: pwa-glow 2s ease-in-out infinite; }
+.drawer-pwa-btn { flex-shrink: 0; height: 30px; padding: 0 .55rem; border-radius: var(--radius-full); border: none; background: transparent; color: #fff; font-weight: 700; font-size: .68rem; cursor: pointer; white-space: nowrap; transition: all var(--transition); letter-spacing: .02em; position: relative; overflow: hidden; animation: pwa-glow 2s ease-in-out infinite; }
 .drawer-pwa-btn > span { position: relative; z-index: 3; }
 .drawer-pwa-btn::before { content: ''; position: absolute; top: 50%; left: 50%; width: 300%; aspect-ratio: 1; margin-left: -150%; margin-top: -150%; background: conic-gradient(from 0deg, transparent 40%, #b8860b 60%, #ffd700 75%, #fff8dc 82%, #ffd700 90%, #b8860b 97%, transparent 100%); animation: pwa-border-spin 2s linear infinite; z-index: 1; }
 .drawer-pwa-btn::after { content: ''; position: absolute; inset: 2px; border-radius: inherit; background: #22c55e; z-index: 2; }
@@ -340,7 +341,6 @@
 .drawer-pwa-btn:active::after { background: #16a34a; }
 @keyframes pwa-glow { 0%, 100% { box-shadow: 0 0 4px rgba(255,215,0,.3); } 50% { box-shadow: 0 0 10px rgba(255,215,0,.5), 0 0 20px rgba(255,215,0,.2); } }
 @keyframes pwa-border-spin { to { transform: rotate(360deg); } }
-.drawer-pwa-btn + .drawer-font-btn { margin-left: .4rem; }
 /* ─── PWA Install Modals (共用) ─── */
 .pwa-modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,.55); z-index: 9999; justify-content: center; align-items: center; opacity: 0; transition: opacity .25s; }
 .pwa-modal-overlay.visible { display: flex; opacity: 1; }

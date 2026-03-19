@@ -272,7 +272,8 @@
 // 20260319u: iOS 加複製網址按鈕 + 兩端加 URL 提示
 // 20260319v: 外部活動中繼卡片 + YouTube 嵌入播放
 // 20260319w: 外部活動分享連結改 Mini App URL（先進站再跳外部）
-const CACHE_VERSION = '20260319w';
+// 20260319x: 抽屜按鈕移到第二行，防名字過長擠出
+const CACHE_VERSION = '20260319x';
 
 // ─── Page Strategy Registry ───
 // 唯一策略來源，未列出的頁面預設 fresh-first
