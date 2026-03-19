@@ -256,6 +256,7 @@ const DEFAULT_NOTIFICATION_TEMPLATES = Object.freeze([
 ]);
 const SHARE_SITE_ORIGIN = "https://toosterx.com";
 const DEFAULT_TEAM_SHARE_OG_IMAGE = "https://firebasestorage.googleapis.com/v0/b/fc-football-6c8dc.firebasestorage.app/o/images%2Ftest%2FS__174522375.jpg?alt=media&token=73eb0e3f-a94a-4368-a6df-d4afafaa4ea0";
+const DEFAULT_EVENT_SHARE_OG_IMAGE = "https://toosterx.com/assets/icons/icon-512x512.png";
 
 function normalizeRole(role) {
   if (typeof role !== "string") return "user";
@@ -2842,6 +2843,134 @@ exports.teamShareOg = onRequest(
       ogDescription,
       ogImage,
       ogUrl: teamShareUrl,
+      redirectUrl,
+    });
+
+    res.set("Content-Type", "text/html; charset=utf-8");
+    res.set("Cache-Control", "public, max-age=60, s-maxage=300");
+    res.status(200).send(html);
+  }
+);
+
+// ═══════════════════════════════════════════════════════════════
+//  eventShareOg — 活動分享 OG 中繼頁（動態縮圖）
+// ═══════════════════════════════════════════════════════════════
+
+function sanitizeEventImageUrl(rawUrl) {
+  if (typeof rawUrl !== "string") return DEFAULT_EVENT_SHARE_OG_IMAGE;
+  const trimmed = rawUrl.trim();
+  if (!trimmed) return DEFAULT_EVENT_SHARE_OG_IMAGE;
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  return DEFAULT_EVENT_SHARE_OG_IMAGE;
+}
+
+function parseEventShareId(req) {
+  const rawQueryValue = req.query?.eventId;
+  const queryValue = Array.isArray(rawQueryValue) ? rawQueryValue[0] : rawQueryValue;
+  if (typeof queryValue === "string" && queryValue.trim()) {
+    return queryValue.trim();
+  }
+
+  const parts = String(req.path || "")
+    .split("/")
+    .filter(Boolean);
+  if (!parts.length) return "";
+
+  const lastSegment = parts[parts.length - 1];
+  try {
+    return decodeURIComponent(lastSegment).trim();
+  } catch (_) {
+    return String(lastSegment || "").trim();
+  }
+}
+
+function buildEventShareHtml({ ogTitle, ogDescription, ogImage, ogUrl, redirectUrl }) {
+  const escapedTitle = escapeHtml(ogTitle);
+  const escapedDescription = escapeHtml(ogDescription);
+  const escapedImage = escapeHtml(ogImage);
+  const escapedOgUrl = escapeHtml(ogUrl);
+  const escapedRedirectUrl = escapeHtml(redirectUrl);
+  const scriptRedirectUrl = JSON.stringify(redirectUrl);
+
+  return `<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>${escapedTitle}</title>
+  <meta property="og:title" content="${escapedTitle}">
+  <meta property="og:description" content="${escapedDescription}">
+  <meta property="og:image" content="${escapedImage}">
+  <meta property="og:url" content="${escapedOgUrl}">
+  <meta property="og:type" content="website">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="${escapedTitle}">
+  <meta name="twitter:description" content="${escapedDescription}">
+  <meta name="twitter:image" content="${escapedImage}">
+  <meta name="robots" content="noindex,nofollow">
+  <meta http-equiv="refresh" content="0;url=${escapedRedirectUrl}">
+</head>
+<body>
+  <script>
+    location.replace(${scriptRedirectUrl});
+  </script>
+</body>
+</html>`;
+}
+
+async function getEventById(eventId) {
+  if (!eventId) return null;
+  const snap = await db.collection("events").doc(eventId).get();
+  if (snap.exists) return snap.data() || {};
+  return null;
+}
+
+exports.eventShareOg = onRequest(
+  { region: "asia-east1", timeoutSeconds: 15 },
+  async (req, res) => {
+    if (!["GET", "HEAD"].includes(req.method)) {
+      res.set("Allow", "GET, HEAD");
+      res.status(405).send("Method Not Allowed");
+      return;
+    }
+
+    const eventId = parseEventShareId(req);
+    const encodedEventId = encodeURIComponent(eventId || "");
+    const eventShareUrl = eventId
+      ? `${SHARE_SITE_ORIGIN}/event-share/${encodedEventId}`
+      : `${SHARE_SITE_ORIGIN}/event-share`;
+
+    let event = null;
+    if (eventId) {
+      try {
+        event = await getEventById(eventId);
+      } catch (err) {
+        console.error("[eventShareOg] failed to read event data:", eventId, err);
+      }
+    }
+
+    const eventTitle = String(event?.title || "").trim();
+    const hasEvent = !!eventTitle;
+    const ogTitle = hasEvent
+      ? `${eventTitle}｜ToosterX Hub`
+      : "ToosterX Hub 活動";
+    const descParts = [];
+    if (event?.date) descParts.push(event.date);
+    if (event?.location) descParts.push(event.location);
+    if (event?.max) descParts.push(`${event.current || 0}/${event.max} 人`);
+    const ogDescription = descParts.length > 0
+      ? descParts.join(" · ")
+      : "在 ToosterX Hub 上瀏覽並報名運動活動";
+    const ogImage = sanitizeEventImageUrl(event?.image);
+    const MINI_APP_ID = "2009525300-AuPGQ0sh";
+    const redirectUrl = (eventId && event)
+      ? `https://miniapp.line.me/${MINI_APP_ID}?event=${encodedEventId}`
+      : `${SHARE_SITE_ORIGIN}/`;
+    const html = buildEventShareHtml({
+      ogTitle,
+      ogDescription,
+      ogImage,
+      ogUrl: eventShareUrl,
       redirectUrl,
     });
 

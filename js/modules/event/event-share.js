@@ -115,7 +115,7 @@ Object.assign(App, {
     if (!e) return;
 
     const liffUrl = this._buildEventLiffUrl(eventId);
-    const shareUrl = this._buildShareUrl('event', eventId);
+    const shareUrl = this._buildEventShareOgUrl(eventId);
     const altText = this._buildEventShareAltText(e, shareUrl);
     const canPicker = await this._canUseShareTargetPicker();
 

@@ -14,10 +14,14 @@ Object.assign(App, {
     // [備用] 舊 LIFF URL：'https://liff.line.me/' + LINE_CONFIG.LIFF_ID + '?event=' + encodeURIComponent(String(eventId || '').trim());
   },
 
-  /** 社群分享用 URL（Mini App URL，同時用於 Flex Message 按鈕與純文字分享） */
+  /** 通用社群分享用 URL（Mini App URL，team/tournament/profile 使用） */
   _buildShareUrl(paramKey, paramValue) {
     return MINI_APP_BASE_URL + '?' + paramKey + '=' + encodeURIComponent(String(paramValue || '').trim());
-    // [備用] 舊 toosterx.com 中繼跳轉：'https://toosterx.com/?' + paramKey + '=' + encodeURIComponent(String(paramValue || '').trim());
+  },
+
+  /** 活動專用社群分享 URL（經由 OG 中繼頁，讓連結預覽顯示活動封面圖） */
+  _buildEventShareOgUrl(eventId) {
+    return 'https://toosterx.com/event-share/' + encodeURIComponent(String(eventId || '').trim());
   },
 
   // ══════════════════════════════════
