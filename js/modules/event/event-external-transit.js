@@ -77,6 +77,15 @@ Object.assign(App, {
         + '</a>';
     }
 
+    // 分享按鈕（右下角圓形）
+    var shareHtml = '<button class="ext-transit-share-fab" id="ext-transit-share" title="分享">'
+      + '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+      + '<path d="M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7"/>'
+      + '<polyline points="16 6 12 2 8 6"/>'
+      + '<line x1="12" y1="2" x2="12" y2="15"/>'
+      + '</svg>'
+      + '</button>';
+
     overlay.innerHTML =
       '<div class="ext-transit-card">'
       + '<button class="ext-transit-close" id="ext-transit-close">&times;</button>'
@@ -86,14 +95,19 @@ Object.assign(App, {
       + infoHtml
       + contentHtml
       + '</div>'
+      + shareHtml
       + '</div>';
 
     document.body.appendChild(overlay);
     requestAnimationFrame(function () { overlay.classList.add('visible'); });
 
     // 事件綁定
+    var eventId = e.id;
     document.getElementById('ext-transit-close').addEventListener('click', function () {
       App.closeExternalTransitCard();
+    });
+    document.getElementById('ext-transit-share').addEventListener('click', function () {
+      App.shareExternalEvent(eventId);
     });
     overlay.addEventListener('click', function (ev) {
       if (ev.target === overlay) App.closeExternalTransitCard();

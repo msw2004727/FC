@@ -1025,3 +1025,5 @@
 .ext-transit-btn-primary:active { opacity: .85; transform: scale(.98); }
 .ext-transit-btn-secondary { background: var(--bg-elevated, #f0f0f0); color: var(--text-secondary, #666); font-size: .78rem; padding: .5rem; }
 .ext-transit-btn-secondary:active { opacity: .7; }
+.ext-transit-share-fab { position: absolute; bottom: .75rem; right: .75rem; z-index: 3; width: 40px; height: 40px; border-radius: 50%; border: none; background: var(--accent); color: #fff; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,.2); transition: transform .15s, opacity .15s; }
+.ext-transit-share-fab:active { transform: scale(.9); opacity: .85; }

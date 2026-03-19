@@ -10,6 +10,10 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-19 — 外部活動中繼卡片加一鍵分享按鈕
+- **功能**：中繼卡片右下角新增圓形分享 FAB 按鈕（箭頭圖示），點擊呼叫 `shareExternalEvent()`
+- **修改**：`event-external-transit.js`（加 shareHtml + 事件綁定）、`activity.css`（`.ext-transit-share-fab` 樣式）
+
 ### [永久] 2026-03-19 — cancelRegistration 快取提前寫入導致假成功
 - **問題**：用戶取消報名時，UI 顯示「已取消」+ 發送站內信，但資料庫未更新。一定機率出現
 - **原因**：`cancelRegistration()` 在 `batch.commit()` 之前就修改了本地快取（`reg.status = 'cancelled'`），若 commit 失敗（網路延遲、文件不存在），快取已汙染，呼叫端以為成功
