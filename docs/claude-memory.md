@@ -10,6 +10,18 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### [永久] 2026-03-20 — 候補邏輯四項修復（容量變更 / 同行者取消）
+- **問題 1**：容量減少降級正取者時，activityRecord 未從 `registered` 更新為 `waitlisted`，導致活動紀錄顯示錯誤
+- **問題 2**：`cancelCompanionRegistrations` 在 `batch.commit()` 前就修改快取，commit 失敗時快取已汙染
+- **問題 3**：`cancelCompanionRegistrations` 用本地快取判斷候補遞補，快取過時可能遞補錯人
+- **問題 4**：`_adjustWaitlistOnCapacityChange` 用本地快取而非 Firestore 查詢
+- **修復**：
+  - `event-create-waitlist.js`：降級迴圈新增 activityRecord 同步更新（local + Firestore batch）
+  - `event-create-waitlist.js`：函式開頭新增 Firestore 查詢刷新快取（含 Timestamp 轉換）
+  - `firebase-crud.js`：`cancelCompanionRegistrations` 改為 5 階段模式（收集 → Firestore 查詢 → 模擬 → batch 寫入 → commit 後才更新快取），與 `cancelRegistration` 結構對齊
+  - `firebase-crud.js`：新增 `_docId` 防禦（回填後仍缺失則排除 + warn）、Timestamp 轉 ISO 確保遞補排序正確
+- **教訓**：所有改變 registration 狀態的路徑，必須同步更新 activityRecord；Firestore 查詢結果的 Timestamp 需轉換後再排序
+
 ### 2026-03-19 — 外部活動中繼卡片加一鍵分享按鈕
 - **功能**：中繼卡片右下角新增圓形分享 FAB 按鈕（箭頭圖示），點擊呼叫 `shareExternalEvent()`
 - **修改**：`event-external-transit.js`（加 shareHtml + 事件綁定）、`activity.css`（`.ext-transit-share-fab` 樣式）

@@ -1869,80 +1869,179 @@ Object.assign(FirebaseService, {
     if (!authed) {
       throw new Error('Firebase 登入失敗，請關閉此頁面後重新從 LINE 開啟');
     }
-    const batch = db.batch();
-    const cancelled = [];
+
+    // ── 階段 1：收集要取消的報名（不修改快取）──
+    const regsToCancel = [];
+    const affectedEventIds = new Set();
     const hadConfirmed = new Set();
 
     for (const regId of regIds) {
       const reg = this._cache.registrations.find(r => r.id === regId);
       if (!reg || reg.status === 'cancelled' || reg.status === 'removed') continue;
-
       if (reg.status === 'confirmed') hadConfirmed.add(reg.eventId);
-      reg.status = 'cancelled';
-      reg.cancelledAt = new Date().toISOString();
-      if (reg._docId) {
-        batch.update(db.collection('registrations').doc(reg._docId), {
-          status: 'cancelled',
-          cancelledAt: firebase.firestore.FieldValue.serverTimestamp(),
-        });
-      }
-      cancelled.push(reg);
+      affectedEventIds.add(reg.eventId);
+      regsToCancel.push(reg);
     }
 
-    if (cancelled.length === 0) return cancelled;
+    if (regsToCancel.length === 0) return [];
 
-    // 按活動分組處理遞補 + 重建投影
-    const affectedEvents = new Set(cancelled.map(r => r.eventId));
-    for (const eventId of affectedEvents) {
+    // ── 階段 2：從 Firestore 查詢受影響活動的最新報名資料（不依賴快取）──
+    const firestoreRegsByEvent = {};
+    for (const eventId of affectedEventIds) {
+      try {
+        const snap = await db.collection('registrations')
+          .where('eventId', '==', eventId)
+          .get();
+        firestoreRegsByEvent[eventId] = snap.docs.map(d => {
+          const data = d.data();
+          return {
+            ...data,
+            _docId: d.id,
+            registeredAt: data.registeredAt?.toDate?.()?.toISOString?.() || data.registeredAt,
+          };
+        });
+      } catch (err) {
+        console.warn('[cancelCompanionRegistrations] Firestore query failed, fallback:', err);
+        firestoreRegsByEvent[eventId] = this._cache.registrations.filter(r => r.eventId === eventId);
+      }
+    }
+
+    // 回填 _docId（從 Firestore 查詢結果補救快取缺失）
+    for (const reg of regsToCancel) {
+      if (!reg._docId) {
+        const fsRegs = firestoreRegsByEvent[reg.eventId] || [];
+        const fsReg = fsRegs.find(r => r.id === reg.id);
+        if (fsReg?._docId) reg._docId = fsReg._docId;
+      }
+    }
+
+    // _docId 防禦：排除回填後仍缺失的報名，避免快取與 Firestore 不一致
+    const missingDocIds = regsToCancel.filter(r => !r._docId);
+    if (missingDocIds.length > 0) {
+      console.warn('[cancelCompanionRegistrations] skipping regs without _docId:', missingDocIds.map(r => r.id));
+    }
+    const validRegsToCancel = regsToCancel.filter(r => r._docId);
+    if (validRegsToCancel.length === 0) {
+      throw new Error('報名記錄不完整，請重新整理後再試');
+    }
+
+    // ── 階段 3：在模擬副本上計算取消 + 遞補（不修改快取）──
+    const cancelledIdSet = new Set(validRegsToCancel.map(r => r.id));
+    const simRegsByEvent = {};
+    for (const eventId of affectedEventIds) {
+      simRegsByEvent[eventId] = (firestoreRegsByEvent[eventId] || []).map(r => ({ ...r }));
+      // 在模擬中標記取消
+      for (const simReg of simRegsByEvent[eventId]) {
+        if (cancelledIdSet.has(simReg.id)) simReg.status = 'cancelled';
+      }
+    }
+
+    // 候補遞補（模擬）
+    const promotedCandidates = [];
+    for (const eventId of affectedEventIds) {
+      if (!hadConfirmed.has(eventId)) continue;
       const event = this._cache.events.find(e => e.id === eventId);
       if (!event) continue;
 
-      // 候補遞補：若有正取被取消，依序將 waitlisted 改 confirmed
-      if (hadConfirmed.has(eventId)) {
-        const activeRegs = this._cache.registrations.filter(
-          r => r.eventId === eventId && (r.status === 'confirmed' || r.status === 'waitlisted')
-        );
-        const confirmedCount = activeRegs.filter(r => r.status === 'confirmed').length;
-        const slotsAvailable = (event.max || 0) - confirmedCount;
+      const activeRegs = simRegsByEvent[eventId].filter(
+        r => r.status === 'confirmed' || r.status === 'waitlisted'
+      );
+      const confirmedCount = activeRegs.filter(r => r.status === 'confirmed').length;
+      const slotsAvailable = (event.max || 0) - confirmedCount;
 
-        if (slotsAvailable > 0) {
-          const waitlistedCandidates = activeRegs
-            .filter(r => r.status === 'waitlisted')
-            .sort((a, b) => {
-              const ta = new Date(a.registeredAt).getTime();
-              const tb = new Date(b.registeredAt).getTime();
-              if (ta !== tb) return ta - tb;
-              return (a.promotionOrder || 0) - (b.promotionOrder || 0);
-            });
+      if (slotsAvailable > 0) {
+        const waitlistedCandidates = activeRegs
+          .filter(r => r.status === 'waitlisted')
+          .sort((a, b) => {
+            const ta = new Date(a.registeredAt).getTime();
+            const tb = new Date(b.registeredAt).getTime();
+            if (ta !== tb) return ta - tb;
+            return (a.promotionOrder || 0) - (b.promotionOrder || 0);
+          });
 
-          let promoted = 0;
-          for (const candidate of waitlistedCandidates) {
-            if (promoted >= slotsAvailable) break;
-            candidate.status = 'confirmed';
-            if (candidate._docId) batch.update(db.collection('registrations').doc(candidate._docId), { status: 'confirmed' });
-            promoted++;
-          }
+        let promoted = 0;
+        for (const candidate of waitlistedCandidates) {
+          if (promoted >= slotsAvailable) break;
+          candidate.status = 'confirmed';
+          promotedCandidates.push(candidate);
+          promoted++;
         }
       }
+    }
 
-      // 統一重建投影
-      const allActive = this._cache.registrations.filter(
-        r => r.eventId === eventId && (r.status === 'confirmed' || r.status === 'waitlisted')
+    // 用模擬結果重建投影
+    const occupancyByEvent = {};
+    for (const eventId of affectedEventIds) {
+      const event = this._cache.events.find(e => e.id === eventId);
+      if (!event) continue;
+      const allActive = simRegsByEvent[eventId].filter(
+        r => r.status === 'confirmed' || r.status === 'waitlisted'
       );
-      const occupancy = this._rebuildOccupancy(event, allActive);
-      this._applyRebuildOccupancy(event, occupancy);
+      occupancyByEvent[eventId] = this._rebuildOccupancy(event, allActive);
+    }
 
-      if (event._docId) {
+    // ── 階段 4：所有 Firestore 寫入合併到同一個 batch ──
+    const batch = db.batch();
+
+    // 1. 取消報名
+    for (const reg of validRegsToCancel) {
+      batch.update(db.collection('registrations').doc(reg._docId), {
+        status: 'cancelled',
+        cancelledAt: firebase.firestore.FieldValue.serverTimestamp(),
+      });
+    }
+
+    // 2. 遞補候補者
+    for (const candidate of promotedCandidates) {
+      if (candidate._docId) {
+        batch.update(db.collection('registrations').doc(candidate._docId), { status: 'confirmed' });
+      }
+    }
+
+    // 3. 更新 event 投影
+    for (const eventId of affectedEventIds) {
+      const event = this._cache.events.find(e => e.id === eventId);
+      const occupancy = occupancyByEvent[eventId];
+      if (event?._docId && occupancy) {
         batch.update(db.collection('events').doc(event._docId), {
-          current: event.current, waitlist: event.waitlist,
-          participants: event.participants, waitlistNames: event.waitlistNames, status: event.status,
+          current: occupancy.current, waitlist: occupancy.waitlist,
+          participants: occupancy.participants, waitlistNames: occupancy.waitlistNames,
+          status: occupancy.status,
         });
       }
     }
 
+    // ── 階段 5：commit 成功後才更新本地快取 ──
     await batch.commit();
 
-    // 立即寫入 localStorage
+    const cancelled = [];
+    for (const reg of validRegsToCancel) {
+      reg.status = 'cancelled';
+      reg.cancelledAt = new Date().toISOString();
+      cancelled.push(reg);
+    }
+
+    // 同步候補遞補到本地快取
+    for (const candidate of promotedCandidates) {
+      const localReg = this._cache.registrations.find(r => r.id === candidate.id);
+      if (localReg) localReg.status = 'confirmed';
+    }
+
+    // 寫入 event 投影到快取
+    for (const eventId of affectedEventIds) {
+      const event = this._cache.events.find(e => e.id === eventId);
+      const occupancy = occupancyByEvent[eventId];
+      if (event && occupancy) {
+        this._applyRebuildOccupancy(event, occupancy);
+      }
+    }
+
+    // 記錄遞補資訊供呼叫端使用
+    if (promotedCandidates.length > 0 && cancelled.length > 0) {
+      cancelled[0]._promotedUserId = promotedCandidates[0].userId;
+      cancelled[0]._promotedUserIds = promotedCandidates.map(c => c.userId);
+    }
+
     this._saveToLS('registrations', this._cache.registrations);
     this._saveToLS('events', this._cache.events);
 

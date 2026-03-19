@@ -57,6 +57,38 @@ Object.assign(App, {
     const event = ApiService.getEvent(eventId);
     if (!event) return;
 
+    // 從 Firestore 查詢最新報名資料（不依賴快取），避免快取過時導致遞補/降級錯誤
+    if (!ModeManager.isDemo() && typeof db !== 'undefined') {
+      try {
+        const snap = await db.collection('registrations')
+          .where('eventId', '==', eventId)
+          .get();
+        const firestoreRegs = snap.docs.map(d => {
+          const data = d.data();
+          return {
+            ...data,
+            _docId: d.id,
+            registeredAt: data.registeredAt?.toDate?.()?.toISOString?.() || data.registeredAt,
+          };
+        });
+        // 同步 Firestore 資料到快取
+        const cacheRegs = ApiService._src('registrations') || [];
+        for (const fsReg of firestoreRegs) {
+          const cached = cacheRegs.find(r => r.id === fsReg.id || (r._docId && r._docId === fsReg._docId));
+          if (cached) {
+            cached.status = fsReg.status;
+            cached._docId = fsReg._docId;
+            cached.registeredAt = fsReg.registeredAt;
+            cached.promotionOrder = fsReg.promotionOrder;
+          } else {
+            cacheRegs.push(fsReg);
+          }
+        }
+      } catch (err) {
+        console.warn('[adjustWaitlist] Firestore refresh failed, using cache:', err);
+      }
+    }
+
     const allRegs = (ApiService._src('registrations') || []).filter(
       r => r.eventId === eventId && (r.status === 'confirmed' || r.status === 'waitlisted')
     );
@@ -144,6 +176,17 @@ Object.assign(App, {
         reg.status = 'waitlisted';
         if (batch && reg._docId) {
           batch.update(db.collection('registrations').doc(reg._docId), { status: 'waitlisted' });
+        }
+        // 同步更新 activityRecord：registered → waitlisted（同行者不動）
+        if (reg.participantType !== 'companion') {
+          const arSource = ApiService._src('activityRecords');
+          const ar = arSource.find(a => a.eventId === event.id && a.uid === reg.userId && a.status === 'registered');
+          if (ar) {
+            ar.status = 'waitlisted';
+            if (batch && ar._docId) {
+              batch.update(db.collection('activityRecords').doc(ar._docId), { status: 'waitlisted' });
+            }
+          }
         }
         demoted++;
         this._sendNotifFromTemplate('waitlist_demoted', {
