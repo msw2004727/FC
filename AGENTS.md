@@ -103,17 +103,17 @@
 
 ---
 
-## 分享功能設計規範（LIFF URL 優先）
+## 分享功能設計規範（LINE Mini App URL 優先）
 
-所有面向用戶的分享功能**必須優先使用 LIFF URL**（`https://liff.line.me/{LIFF_ID}?param=value`），確保連結在 LINE 內建瀏覽器開啟。
+所有面向用戶的分享功能**必須使用 LINE Mini App URL**（`https://miniapp.line.me/{MINI_APP_ID}?param=value`），確保連結在 LINE 內直接開啟 Mini App。全域常數 `MINI_APP_BASE_URL`（定義於 `js/config.js`）為唯一分享 URL 來源。
 
 ### 強制規則
-1. **禁止直接分享 `toosterx.com` URL 給用戶**：一律使用 LIFF URL
+1. **禁止使用 `liff.line.me` 或 `toosterx.com` 作為新分享連結**：一律使用 `MINI_APP_BASE_URL`
 2. **分享優先順序**：`liff.shareTargetPicker()`（Flex Message）→ 底部選單複製連結 → `navigator.share()` → clipboard fallback
 3. **新增分享功能比照 `event-share.js` 模式**：Action Sheet + Flex Message + 防連點 + altText 截斷 + fallback
-4. **QR Code 也必須編碼 LIFF URL**
+4. **QR Code 也必須編碼 Mini App URL**
 5. **Deep link 參數**：`?event=` / `?team=` / `?tournament=` / `?profile=` — 依功能擴展
-6. **LINE Developers Console**：使用 `shareTargetPicker` 的 LIFF App 必須確認 Console 中開關為 ON
+6. **LINE Developers Console**：Mini App channel 的 LIFF 設定中，Share Target Picker 開關必須為 ON
 
 ---
 

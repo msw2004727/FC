@@ -194,7 +194,10 @@ Object.assign(App, {
   },
 
   async _shareUserCard(name) {
-    const shareText = `SportHub 用戶名片：${name}\n${location.origin}${location.pathname}`;
+    // 備用版本（profile-share.js 載入後會覆蓋此方法）
+    const uid = this._ucRecordUid || '';
+    const profileUrl = uid ? (MINI_APP_BASE_URL + '?profile=' + encodeURIComponent(uid)) : MINI_APP_BASE_URL;
+    const shareText = `SportHub 用戶名片：${name}\n${profileUrl}`;
     const doCopy = async () => {
       const ok = await this._copyToClipboard(shareText);
       this.showToast(ok ? '名片連結已複製到剪貼簿' : '複製失敗，請手動複製');
