@@ -16,9 +16,10 @@
 - **修復**：登入 Cloudflare Dashboard → Caching → Configuration → **Purge Everything**，清除所有 CDN 邊緣快取
 - **教訓**：
   1. 每次部署含關鍵 JS 變更後，若行為未如預期，優先檢查 CDN 快取（不只是瀏覽器快取和 SW 快取）
-  2. 三層快取排查順序：**Cloudflare CDN → Service Worker → 瀏覽器快取**
+  2. 四層快取排查順序：**Cloudflare CDN → LINE WebView → Service Worker → 瀏覽器快取**
   3. 驗證方式：讓用戶在 Console 執行 `alert(CACHE_VERSION)` 比對版本號，可快速定位是哪一層快取
   4. 未來重大 JS 變更部署後，應主動到 Cloudflare Dashboard 執行 Purge Everything
+  5. **LINE WebView 快取特別頑固**：關閉分頁甚至退出 APP 都不一定清除，通常需等數小時～24 小時自動過期。用戶手動清除路徑：LINE → 設定 → 聊天 → 刪除資料 → 勾選「快取」→ 刪除。架構上確保 index.html 不被快取（Cloudflare Pages 預設行為），靠 `?v=CACHE_VERSION` 讓後續 JS/CSS 自動更新
 
 ### 2026-03-19 — 活動分享 OG 中繼頁（動態封面圖預覽）
 - **需求**：LINE 分享活動連結時顯示活動封面圖作為 OG 預覽縮圖
