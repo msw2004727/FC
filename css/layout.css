@@ -336,19 +336,38 @@
 .drawer-pwa-btn:active { background: #16a34a; transform: scale(.95); }
 @keyframes pwa-glow { 0%, 100% { box-shadow: 0 0 4px rgba(34,197,94,.4); } 50% { box-shadow: 0 0 14px rgba(34,197,94,.7), 0 0 28px rgba(34,197,94,.25); } }
 .drawer-pwa-btn + .drawer-font-btn { margin-left: .4rem; }
-/* ─── iOS PWA Install Guide Modal ─── */
-.pwa-ios-modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,.55); z-index: 9999; justify-content: center; align-items: center; opacity: 0; transition: opacity .25s; }
-.pwa-ios-modal-overlay.visible { display: flex; opacity: 1; }
-.pwa-ios-modal { background: var(--bg-card, #fff); border-radius: 16px; max-width: 360px; width: 90%; max-height: 82vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
-.pwa-ios-modal-header { display: flex; justify-content: space-between; align-items: center; padding: .9rem 1.1rem; font-weight: 700; font-size: .95rem; border-bottom: 1px solid var(--border, #e5e7eb); position: sticky; top: 0; background: var(--bg-card, #fff); border-radius: 16px 16px 0 0; z-index: 1; }
-.pwa-ios-modal-close { background: none; border: none; font-size: 1.5rem; color: var(--text-secondary, #888); cursor: pointer; line-height: 1; padding: 0 .2rem; }
-.pwa-ios-modal-body { padding: 1rem; }
-.pwa-ios-step { display: flex; gap: .6rem; align-items: flex-start; margin-bottom: .5rem; }
-.pwa-ios-step-num { flex-shrink: 0; width: 26px; height: 26px; border-radius: 50%; background: #22c55e; color: #fff; font-weight: 700; font-size: .78rem; display: flex; align-items: center; justify-content: center; margin-top: .1rem; }
-.pwa-ios-step-text { font-size: .82rem; line-height: 1.45; color: var(--text-primary, #333); }
-.pwa-ios-step-text strong { font-size: .88rem; }
-.pwa-ios-img { width: 100%; border-radius: 10px; border: 1px solid var(--border, #e5e7eb); margin-bottom: .3rem; }
-.pwa-ios-divider { height: 1px; background: var(--border, #e5e7eb); margin: .7rem 0; }
+/* ─── PWA Install Modals (共用) ─── */
+.pwa-modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,.55); z-index: 9999; justify-content: center; align-items: center; opacity: 0; transition: opacity .25s; }
+.pwa-modal-overlay.visible { display: flex; opacity: 1; }
+.pwa-modal-close { background: none; border: none; font-size: 1.5rem; color: var(--text-secondary, #888); cursor: pointer; line-height: 1; padding: 0 .2rem; }
+/* ─── System Picker ─── */
+.pwa-picker-panel { background: var(--bg-card, #fff); border-radius: 16px; max-width: 320px; width: 88%; overflow: hidden; }
+.pwa-picker-header { display: flex; justify-content: space-between; align-items: center; padding: .9rem 1.1rem; font-weight: 700; font-size: .95rem; border-bottom: 1px solid var(--border, #e5e7eb); }
+.pwa-picker-body { padding: 1rem 1.1rem 1.2rem; }
+.pwa-picker-desc { font-size: .82rem; color: var(--text-secondary, #666); margin: 0 0 .8rem; line-height: 1.4; }
+.pwa-picker-btns { display: flex; gap: .6rem; }
+.pwa-picker-btn { flex: 1; display: flex; flex-direction: column; align-items: center; gap: .25rem; padding: .9rem .4rem; border-radius: 12px; border: 2px solid var(--border, #e5e7eb); background: var(--bg-elevated, #f8f8f8); cursor: pointer; transition: all .2s; }
+.pwa-picker-btn:active { transform: scale(.96); }
+.pwa-picker-android:hover, .pwa-picker-android:active { border-color: #22c55e; background: rgba(34,197,94,.08); }
+.pwa-picker-ios:hover, .pwa-picker-ios:active { border-color: #3b82f6; background: rgba(59,130,246,.08); }
+.pwa-picker-icon { font-size: 1.8rem; line-height: 1; }
+.pwa-picker-label { font-weight: 700; font-size: .85rem; color: var(--text-primary, #333); }
+.pwa-picker-sub { font-size: .68rem; color: var(--text-muted, #999); }
+/* ─── Guide Panel (Android / iOS 共用) ─── */
+.pwa-guide-panel { background: var(--bg-card, #fff); border-radius: 16px; max-width: 340px; width: 90%; max-height: 82vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+.pwa-guide-header { display: flex; justify-content: space-between; align-items: center; padding: .9rem 1.1rem; font-weight: 700; font-size: .92rem; border-bottom: 1px solid var(--border, #e5e7eb); position: sticky; top: 0; background: var(--bg-card, #fff); border-radius: 16px 16px 0 0; z-index: 1; }
+.pwa-guide-body { padding: .8rem 1rem 1rem; }
+.pwa-guide-step { display: flex; gap: .55rem; align-items: flex-start; margin-bottom: .4rem; }
+.pwa-guide-num { flex-shrink: 0; width: 24px; height: 24px; border-radius: 50%; background: #22c55e; color: #fff; font-weight: 700; font-size: .72rem; display: flex; align-items: center; justify-content: center; margin-top: .15rem; }
+.pwa-guide-num-warn { background: #f59e0b; }
+.pwa-guide-text { font-size: .8rem; line-height: 1.45; color: var(--text-primary, #333); }
+.pwa-guide-text strong { font-size: .85rem; }
+.pwa-guide-step-highlight { background: rgba(245,158,11,.08); border-radius: 8px; padding: .5rem; margin-bottom: .5rem; }
+.pwa-guide-img-wrap { text-align: center; margin-bottom: .3rem; }
+.pwa-guide-img { width: 72%; border-radius: 10px; border: 1px solid var(--border, #e5e7eb); }
+.pwa-guide-divider { height: 1px; background: var(--border, #e5e7eb); margin: .6rem 0; }
+.pwa-guide-copy-btn { display: block; width: 100%; padding: .55rem; border: none; border-radius: 8px; background: #22c55e; color: #fff; font-weight: 700; font-size: .82rem; cursor: pointer; margin: .3rem 0 .2rem; transition: all .2s; }
+.pwa-guide-copy-btn:active { background: #16a34a; transform: scale(.97); }
 .drawer-role-tag { display: inline-block; font-size: .7rem; padding: .15rem .5rem; border-radius: var(--radius-full); background: var(--accent-bg); color: var(--accent); font-weight: 600; margin-top: .2rem; }
 .drawer-menu { flex: 1; overflow-y: auto; padding: .5rem 0; }
 .drawer-item {
