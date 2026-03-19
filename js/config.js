@@ -273,7 +273,8 @@
 // 20260319v: 外部活動中繼卡片 + YouTube 嵌入播放
 // 20260319w: 外部活動分享連結改 Mini App URL（先進站再跳外部）
 // 20260319x: 抽屜按鈕移到第二行，防名字過長擠出
-const CACHE_VERSION = '20260319x';
+// 20260319y: cancelRegistration 修正：commit 成功後才更新快取
+const CACHE_VERSION = '20260319y';
 
 // ─── Page Strategy Registry ───
 // 唯一策略來源，未列出的頁面預設 fresh-first

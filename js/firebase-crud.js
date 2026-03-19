@@ -756,19 +756,19 @@ Object.assign(FirebaseService, {
     // _docId 防禦：若仍缺失則明確報錯（在變更快取之前，確保不會汙染狀態）
     if (!reg._docId) throw new Error('報名記錄不完整，請重新整理後再試');
 
-    // 先在本地快取做所有狀態變更
-    reg.status = 'cancelled';
-    reg.cancelledAt = new Date().toISOString();
-
-    // 同步標記 Firestore 查詢結果
-    if (fsReg) fsReg.status = 'cancelled';
+    // ── 先計算投影，但不修改快取（commit 成功後才寫入）──
+    // 模擬取消：在 firestoreRegs 的副本上計算
+    const simRegs = firestoreRegs.map(r => ({ ...r }));
+    const simTarget = simRegs.find(r => r.id === registrationId || r._docId === reg._docId);
+    if (simTarget) simTarget.status = 'cancelled';
 
     const promotedCandidates = [];
 
+    let occupancy = null;
     if (event) {
       // 候補遞補：若取消的是正取，依序將 waitlisted 改 confirmed 直到滿額
       if (wasPreviouslyConfirmed && event.max) {
-        const activeRegs = firestoreRegs.filter(
+        const activeRegs = simRegs.filter(
           r => r.status === 'confirmed' || r.status === 'waitlisted'
         );
         const confirmedCount = activeRegs.filter(r => r.status === 'confirmed').length;
@@ -788,24 +788,20 @@ Object.assign(FirebaseService, {
           for (const candidate of waitlistedCandidates) {
             if (promoted >= slotsAvailable) break;
             candidate.status = 'confirmed';
-            // 同步到本地快取
-            const localCandidate = this._cache.registrations.find(r => r.id === candidate.id);
-            if (localCandidate) localCandidate.status = 'confirmed';
             promotedCandidates.push(candidate);
             promoted++;
           }
         }
       }
 
-      // 用 Firestore 真實資料重建投影
-      const allActive = firestoreRegs.filter(
+      // 用模擬結果重建投影（不寫入快取）
+      const allActive = simRegs.filter(
         r => r.status === 'confirmed' || r.status === 'waitlisted'
       );
-      const occupancy = this._rebuildOccupancy(event, allActive);
-      this._applyRebuildOccupancy(event, occupancy);
+      occupancy = this._rebuildOccupancy(event, allActive);
     }
 
-    // 所有 Firestore 寫入合併到同一個 batch
+    // ── 所有 Firestore 寫入合併到同一個 batch ──
     const batch = db.batch();
 
     // 1. 取消報名
@@ -822,17 +818,34 @@ Object.assign(FirebaseService, {
     }
 
     // 3. 更新 event 投影
-    if (event && event._docId) {
+    if (event && event._docId && occupancy) {
       batch.update(db.collection('events').doc(event._docId), {
-        current: event.current,
-        waitlist: event.waitlist,
-        participants: event.participants,
-        waitlistNames: event.waitlistNames,
-        status: event.status,
+        current: occupancy.current,
+        waitlist: occupancy.waitlist,
+        participants: occupancy.participants,
+        waitlistNames: occupancy.waitlistNames,
+        status: occupancy.status,
       });
     }
 
+    // ── commit 成功後才更新本地快取 ──
     await batch.commit();
+
+    // commit 成功 → 安全寫入本地快取
+    reg.status = 'cancelled';
+    reg.cancelledAt = new Date().toISOString();
+    if (fsReg) fsReg.status = 'cancelled';
+
+    // 同步候補遞補到本地快取
+    for (const candidate of promotedCandidates) {
+      const localCandidate = this._cache.registrations.find(r => r.id === candidate.id);
+      if (localCandidate) localCandidate.status = 'confirmed';
+    }
+
+    // 寫入 event 投影到快取
+    if (event && occupancy) {
+      this._applyRebuildOccupancy(event, occupancy);
+    }
 
     // 記錄遞補資訊供呼叫端使用
     if (promotedCandidates.length > 0) {

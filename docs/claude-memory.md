@@ -10,6 +10,12 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### [永久] 2026-03-19 — cancelRegistration 快取提前寫入導致假成功
+- **問題**：用戶取消報名時，UI 顯示「已取消」+ 發送站內信，但資料庫未更新。一定機率出現
+- **原因**：`cancelRegistration()` 在 `batch.commit()` 之前就修改了本地快取（`reg.status = 'cancelled'`），若 commit 失敗（網路延遲、文件不存在），快取已汙染，呼叫端以為成功
+- **修復**：改為「先計算投影（用 simRegs 副本），commit 成功後才寫入本地快取」。batch.commit() 是唯一的成功判定點
+- **教訓**：所有 Firestore 寫入操作，本地快取必須在 `await commit()` 之後才能修改。這是報名系統的核心安全規則
+
 ### 2026-03-19 — 外部活動中繼卡片 + YouTube 嵌入
 - **問題**：外部活動分享後直接跳轉第三方，站點零曝光
 - **修復**：新增 `event-external-transit.js`，外部活動改為顯示中繼卡片（活動資訊 + YouTube 嵌入播放或跳轉按鈕），不再直接 `location.href` 跳走
