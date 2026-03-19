@@ -10,6 +10,13 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-19 — 活動分享 OG 中繼頁（動態封面圖預覽）
+- **需求**：LINE 分享活動連結時顯示活動封面圖作為 OG 預覽縮圖
+- **實作**：新增 Cloud Function `eventShareOg`（asia-east1）讀取 Firestore 活動資料，產生含 og:image 的 HTML 中繼頁，meta refresh 跳轉至 Mini App URL
+- **範圍**：functions/index.js（新增 eventShareOg + helpers）、_worker.js（新增 /event-share 路由 + 重構共用 handleOgShare）、event-share-builders.js（新增 _buildEventShareOgUrl）、event-share.js（altText 改用 OG URL）
+- **風險控管**：_worker.js 重構將 team-share 專用邏輯抽為共用 handleOgShare，行為完全等同；既有 /team-share 路由、一般頁面路由不受影響
+- **部署注意**：Cloud Function 需另外執行 `firebase deploy --only functions:eventShareOg`
+
 ### 2026-03-19 — 分享連結遷移至 LINE Mini App URL
 - **變更**：所有分享 URL 從 `liff.line.me/2009084941-zgn7tQOp` 改為 `miniapp.line.me/2009525300-AuPGQ0sh`
 - **範圍**：config.js（新增 MINI_APP_ID + MINI_APP_BASE_URL）、event-share-builders.js、team-share.js、tournament-share.js、profile-share.js、team-detail-members.js、role.js、index.html 中繼跳轉、functions/index.js OG redirect
