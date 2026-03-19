@@ -10,6 +10,12 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-19 — 分享連結遷移至 LINE Mini App URL
+- **變更**：所有分享 URL 從 `liff.line.me/2009084941-zgn7tQOp` 改為 `miniapp.line.me/2009525300-AuPGQ0sh`
+- **範圍**：config.js（新增 MINI_APP_ID + MINI_APP_BASE_URL）、event-share-builders.js、team-share.js、tournament-share.js、profile-share.js、team-detail-members.js、role.js、index.html 中繼跳轉、functions/index.js OG redirect
+- **向後相容**：舊 LIFF URL 仍可運作（LIFF App 未下架）；舊 toosterx.com 中繼跳轉保留並改導向 Mini App URL；所有舊 URL 以 `// [備用]` 註解保留
+- **教訓**：分享 URL 是散佈在多個模組的硬編碼，遷移時必須全面搜尋 `liff.line.me` 和 `toosterx.com` 確保無遺漏
+
 ### 2026-03-19 — 抽屜字型放大按鈕
 - **需求**：在左側抽屜頭像區右上方加字型放大按鈕，三段切換（小 15px / 中 16.5px / 大 18px）
 - **實作**：`index.html` 抽屜 header 加按鈕 + body 開頭加早期 restore 腳本；`css/layout.css` 加 `.drawer-font-btn` 樣式 + `.drawer-name` overflow 保護；`js/core/theme.js` 加 `cycleFontSize` / `initFontSize`；`app.js` init 時呼叫 `initFontSize`

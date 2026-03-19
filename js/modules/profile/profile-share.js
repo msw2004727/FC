@@ -10,8 +10,9 @@ Object.assign(App, {
   // ══════════════════════════════════
 
   _buildProfileLiffUrl(uid) {
-    if (!uid) return 'https://liff.line.me/' + LINE_CONFIG.LIFF_ID;
-    return 'https://liff.line.me/' + LINE_CONFIG.LIFF_ID + '?profile=' + encodeURIComponent(String(uid));
+    if (!uid) return MINI_APP_BASE_URL;
+    return MINI_APP_BASE_URL + '?profile=' + encodeURIComponent(String(uid));
+    // [備用] 舊 LIFF URL：'https://liff.line.me/' + LINE_CONFIG.LIFF_ID + '?profile=' + encodeURIComponent(String(uid));
   },
 
   // ══════════════════════════════════

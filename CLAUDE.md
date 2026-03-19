@@ -138,14 +138,14 @@ FC-github/
 
 ---
 
-## 分享功能設計規範（LIFF URL 優先）
+## 分享功能設計規範（LINE Mini App URL 優先）
 
-本專案的主要用戶群在 LINE 生態系內，所有面向用戶的分享功能**必須優先使用 LIFF URL**，確保連結在 LINE 內建瀏覽器開啟（不受 LINE Labs「使用預設瀏覽器」設定影響）。
+本專案的主要用戶群在 LINE 生態系內，所有面向用戶的分享功能**必須使用 LINE Mini App URL**，確保連結在 LINE 內直接開啟 Mini App。
 
-### LIFF URL 格式
+### Mini App URL 格式
 
 ```
-https://liff.line.me/{LINE_CONFIG.LIFF_ID}?{deepLinkParam}={id}
+https://miniapp.line.me/2009525300-AuPGQ0sh?{deepLinkParam}={id}
 ```
 
 - 活動：`?event={eventId}`
@@ -154,27 +154,38 @@ https://liff.line.me/{LINE_CONFIG.LIFF_ID}?{deepLinkParam}={id}
 - 個人名片：`?profile={uid}`
 - 其他新功能：依此模式擴展
 
+**全域常數**：`MINI_APP_BASE_URL`（定義於 `js/config.js`），所有分享 URL 統一使用此常數。
+
+### 向後相容
+
+- **舊 LIFF URL**（`liff.line.me/2009084941-zgn7tQOp?...`）：LIFF App 仍在運作，舊連結不受影響
+- **舊 toosterx.com 中繼跳轉**（`toosterx.com/?event=xxx`）：`index.html` 保留中繼跳轉邏輯，自動導向 Mini App URL
+- 各分享模組中保留 `// [備用]` 註解標記舊 URL，需要時可快速切回
+
 ### 強制規則
 
-1. **所有面向用戶的分享 URL 必須使用 LIFF URL**：禁止直接分享 `https://toosterx.com/...` 給終端用戶。LIFF URL 保證在 LINE 內建瀏覽器開啟，確保 LIFF session 可用、shareTargetPicker 可用、登入流程順暢。
+1. **所有面向用戶的分享 URL 必須使用 Mini App URL**：禁止使用 `liff.line.me` 或 `toosterx.com` 作為新分享連結。
 2. **分享功能的優先實作順序**：
    - 首選：`liff.shareTargetPicker()`（Flex Message 卡片）— 需 LIFF session + LINE Developers Console 啟用
-   - 次選：底部選單提供「複製分享連結」（複製 LIFF URL 純文字）
+   - 次選：底部選單提供「複製分享連結」（複製 Mini App URL 純文字）
    - 兜底：`navigator.share()` / `_copyToClipboard()` fallback
 3. **新增分享功能時必須比照 `event-share.js` 的模式**：底部選單（Action Sheet）+ Flex Message + 防連點 + altText 截斷（400 字）+ 各級 fallback。
-4. **QR Code 內容也必須使用 LIFF URL**：QR Code 掃描後在 LINE 開啟，確保最佳體驗。
-5. **Cloud Function OG 頁面為例外**：`/team-share/{id}` 等 OG 預覽用的中繼頁需保留直連 URL（社群平台爬蟲無法解析 LIFF URL），但最終 redirect 目標應改為 LIFF URL。
+4. **QR Code 內容也必須使用 Mini App URL**：QR Code 掃描後在 LINE 開啟 Mini App。
+5. **Cloud Function OG 頁面為例外**：`/team-share/{id}` 等 OG 預覽用的中繼頁需保留直連 URL（社群平台爬蟲無法解析 Mini App URL），但最終 redirect 目標應改為 Mini App URL。
 6. **LINE Developers Console 設定**：任何使用 `shareTargetPicker` 的 LIFF App，必須確認 Console 中 Share Target Picker 開關為 ON。
 
-### 現有分享功能 LIFF URL 遷移狀態
+### 分享功能遷移狀態
 
-| 功能 | 目前狀態 | 目標 |
-|------|----------|------|
-| 活動分享 | ✅ 已使用 LIFF URL + Flex Message | — |
-| 俱樂部邀請 | ❌ 使用 `toosterx.com` 直連 | 改為 LIFF URL + Flex Message |
-| 賽事分享 | ❌ 使用 `location.origin` 直連 | 改為 LIFF URL + Flex Message |
-| 個人名片分享 | ❌ 使用當前頁面 URL | 改為 LIFF URL |
-| Dashboard 報表 | ⚠️ 暫不改（管理功能，非面向一般用戶） | 維持現狀 |
+| 功能 | 狀態 |
+|------|------|
+| 活動分享 | ✅ Mini App URL + Flex Message |
+| 俱樂部邀請 | ✅ Mini App URL + Flex Message |
+| 賽事分享 | ✅ Mini App URL + Flex Message |
+| 個人名片分享 | ✅ Mini App URL |
+| 角色頁複製連結 | ✅ Mini App URL |
+| index.html 中繼跳轉 | ✅ 跳轉目標改為 Mini App URL |
+| Cloud Function OG | ✅ redirect 目標改為 Mini App URL |
+| Dashboard 報表 | ⚠️ 維持現狀（管理功能，非面向一般用戶） |
 
 ---
 

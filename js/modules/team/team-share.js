@@ -10,7 +10,8 @@ Object.assign(App, {
   // ══════════════════════════════════
 
   _buildTeamLiffUrl(teamId) {
-    return 'https://liff.line.me/' + LINE_CONFIG.LIFF_ID + '?team=' + encodeURIComponent(String(teamId || ''));
+    return MINI_APP_BASE_URL + '?team=' + encodeURIComponent(String(teamId || ''));
+    // [備用] 舊 LIFF URL：'https://liff.line.me/' + LINE_CONFIG.LIFF_ID + '?team=' + encodeURIComponent(String(teamId || ''));
   },
 
   // ══════════════════════════════════

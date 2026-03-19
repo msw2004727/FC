@@ -265,7 +265,7 @@
 // 20260318zm: feat — 分享連結改用 toosterx.com 中繼跳轉，避免 liff.line.me 被 LINE 社群回收
 // 20260318zn: fix — image-cropper.js 加回 index.html，修復效能優化後裁切功能消失
 // 20260318zs: fix — 首次造訪空框架問題：overlay 改為有內容才收 + CDN preload + WS timeout 降為 6s + SW 更新
-const CACHE_VERSION = '20260319i';
+const CACHE_VERSION = '20260319j';
 
 // ─── Page Strategy Registry ───
 // 唯一策略來源，未列出的頁面預設 fresh-first
@@ -400,9 +400,15 @@ const PROD_HOSTS = Array.isArray(window.__SPORTHUB_PROD_HOSTS__)
 // ─── LINE Login Config ───
 const LINE_CONFIG = {
   LIFF_ID: '2009084941-zgn7tQOp',
+  MINI_APP_ID: '2009525300-AuPGQ0sh',
   CHANNEL_ID: '2009084941',
   BOT_BASIC_ID: '@830utvza',
 };
+
+// ─── Share URL Base ───
+// 所有新分享連結統一使用 LINE Mini App URL
+// 舊 LIFF URL (liff.line.me/2009084941-zgn7tQOp) 仍透過 index.html 中繼跳轉支援
+const MINI_APP_BASE_URL = 'https://miniapp.line.me/' + LINE_CONFIG.MINI_APP_ID;
 
 // ─── Role Hierarchy & Config ───
 const BUILTIN_ROLE_KEYS = ['user', 'coach', 'captain', 'venue_owner', 'admin', 'super_admin'];

@@ -13,7 +13,8 @@ Object.assign(App, {
 
   _getTeamInviteShareUrl(teamId) {
     return this._buildTeamLiffUrl ? this._buildTeamLiffUrl(teamId)
-      : 'https://liff.line.me/' + LINE_CONFIG.LIFF_ID + '?team=' + encodeURIComponent(String(teamId || '').trim());
+      : MINI_APP_BASE_URL + '?team=' + encodeURIComponent(String(teamId || '').trim());
+    // [備用] 舊 LIFF fallback：'https://liff.line.me/' + LINE_CONFIG.LIFF_ID + '?team=' + ...
   },
 
   _buildTeamInviteShareText(teamName, shareUrl) {

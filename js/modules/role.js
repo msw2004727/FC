@@ -275,7 +275,8 @@ Object.assign(App, {
   },
 
   async _copyShareUrl() {
-    var url = 'https://liff.line.me/' + LINE_CONFIG.LIFF_ID;
+    var url = MINI_APP_BASE_URL;
+    // [備用] 舊 LIFF URL：'https://liff.line.me/' + LINE_CONFIG.LIFF_ID
     var ok = typeof this._copyToClipboard === 'function'
       ? await this._copyToClipboard(url)
       : false;

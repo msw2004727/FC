@@ -2831,10 +2831,12 @@ exports.teamShareOg = onRequest(
     const ogImage = sanitizeImageUrl(
       team?.image || team?.coverImage || team?.cover || team?.banner || team?.logo
     );
-    const LIFF_ID = "2009084941-zgn7tQOp";
+    const MINI_APP_ID = "2009525300-AuPGQ0sh";
+    // [備用] 舊 LIFF_ID：const LIFF_ID = "2009084941-zgn7tQOp";
     const redirectUrl = (teamId && team)
-      ? `https://liff.line.me/${LIFF_ID}?team=${encodedTeamId}`
+      ? `https://miniapp.line.me/${MINI_APP_ID}?team=${encodedTeamId}`
       : `${SHARE_SITE_ORIGIN}/`;
+    // [備用] 舊 LIFF 跳轉：`https://liff.line.me/${LIFF_ID}?team=${encodedTeamId}`
     const html = buildTeamShareHtml({
       ogTitle,
       ogDescription,

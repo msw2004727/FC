@@ -10,12 +10,14 @@ Object.assign(App, {
   // ══════════════════════════════════
 
   _buildEventLiffUrl(eventId) {
-    return 'https://liff.line.me/' + LINE_CONFIG.LIFF_ID + '?event=' + encodeURIComponent(String(eventId || '').trim());
+    return MINI_APP_BASE_URL + '?event=' + encodeURIComponent(String(eventId || '').trim());
+    // [備用] 舊 LIFF URL：'https://liff.line.me/' + LINE_CONFIG.LIFF_ID + '?event=' + encodeURIComponent(String(eventId || '').trim());
   },
 
-  /** 社群分享用 URL（不含 liff.line.me，避免被 OpenChat 回收） */
+  /** 社群分享用 URL（Mini App URL，同時用於 Flex Message 按鈕與純文字分享） */
   _buildShareUrl(paramKey, paramValue) {
-    return 'https://toosterx.com/?' + paramKey + '=' + encodeURIComponent(String(paramValue || '').trim());
+    return MINI_APP_BASE_URL + '?' + paramKey + '=' + encodeURIComponent(String(paramValue || '').trim());
+    // [備用] 舊 toosterx.com 中繼跳轉：'https://toosterx.com/?' + paramKey + '=' + encodeURIComponent(String(paramValue || '').trim());
   },
 
   // ══════════════════════════════════
