@@ -267,7 +267,8 @@
 // 20260318zs: fix — 首次造訪空框架問題：overlay 改為有內容才收 + CDN preload + WS timeout 降為 6s + SW 更新
 // 20260319p: 活動分享連結改回 Mini App URL
 // 20260319q: 抽屜加入「下載APP」PWA 安裝按鈕
-const CACHE_VERSION = '20260319r';
+// 20260319s: 下載APP 按鈕加光激繞圈效果
+const CACHE_VERSION = '20260319s';
 
 // ─── Page Strategy Registry ───
 // 唯一策略來源，未列出的頁面預設 fresh-first

@@ -332,9 +332,13 @@
 .drawer-font-btn.font-m { font-size: .95rem; border-color: var(--accent); color: var(--accent); }
 .drawer-font-btn.font-l { font-size: 1.08rem; border-color: var(--accent); color: var(--accent); background: var(--accent-bg); }
 /* ─── PWA Install Button (Drawer) ─── */
-.drawer-pwa-btn { margin-left: auto; flex-shrink: 0; height: 30px; padding: 0 .55rem; border-radius: var(--radius-full); border: none; background: #22c55e; color: #fff; font-weight: 700; font-size: .68rem; cursor: pointer; white-space: nowrap; animation: pwa-glow 2s ease-in-out infinite; transition: all var(--transition); letter-spacing: .02em; }
+.drawer-pwa-btn { margin-left: auto; flex-shrink: 0; height: 30px; padding: 0 .55rem; border-radius: var(--radius-full); border: none; background: #22c55e; color: #fff; font-weight: 700; font-size: .68rem; cursor: pointer; white-space: nowrap; transition: all var(--transition); letter-spacing: .02em; position: relative; z-index: 0; overflow: visible; animation: pwa-glow 2s ease-in-out infinite; }
+.drawer-pwa-btn::before { content: ''; position: absolute; inset: -2px; border-radius: inherit; background: conic-gradient(from 0deg, transparent 55%, #4ade80 70%, #bbf7d0 80%, #fff 85%, #bbf7d0 90%, #4ade80 95%, transparent 100%); animation: pwa-border-spin 2s linear infinite; z-index: -1; }
+.drawer-pwa-btn::after { content: ''; position: absolute; inset: 0; border-radius: inherit; background: #22c55e; z-index: -1; }
 .drawer-pwa-btn:active { background: #16a34a; transform: scale(.95); }
+.drawer-pwa-btn:active::after { background: #16a34a; }
 @keyframes pwa-glow { 0%, 100% { box-shadow: 0 0 4px rgba(34,197,94,.4); } 50% { box-shadow: 0 0 14px rgba(34,197,94,.7), 0 0 28px rgba(34,197,94,.25); } }
+@keyframes pwa-border-spin { to { transform: rotate(360deg); } }
 .drawer-pwa-btn + .drawer-font-btn { margin-left: .4rem; }
 /* ─── PWA Install Modals (共用) ─── */
 .pwa-modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,.55); z-index: 9999; justify-content: center; align-items: center; opacity: 0; transition: opacity .25s; }

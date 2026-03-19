@@ -10,6 +10,12 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-19 — 下載APP 按鈕光激繞圈效果修正
+- **問題**：抽屜「下載APP」按鈕只有 box-shadow 呼吸光暈，缺少 conic-gradient 旋轉光跡邊框
+- **原因**：原始 CSS 只定義了 `pwa-glow`（box-shadow pulse），未加入 `::before` 旋轉光跡
+- **修復**：`css/layout.css` — 加入 `::before`（conic-gradient 旋轉邊框）+ `::after`（內填色遮蓋），`pwa-border-spin` 動畫 2s 線性無限循環
+- **教訓**：小按鈕的旋轉光跡需 `position: relative; z-index: 0; overflow: visible` + `::before` z-index: -1 配合 `::after` 填色
+
 ### [永久] 2026-03-19 — Cloudflare CDN 快取導致 JS 更新未生效
 - **問題**：更新 `CACHE_VERSION` 和 `?v=` 參數後，用戶瀏覽器仍載入舊版 JS（`config.js` 顯示舊版本號），即使用無痕模式也一樣
 - **原因**：Cloudflare CDN 邊緣快取會快取靜態資源（JS/CSS），且可能忽略 query string 差異，導致 `config.js?v=20260319p` 仍回傳舊版內容。更新 `CACHE_VERSION` 和 `sw.js CACHE_NAME` 都無法繞過 CDN 層快取
