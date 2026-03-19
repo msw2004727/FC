@@ -171,7 +171,8 @@ Object.assign(App, {
     if (event.location) {
       lines.push('\u5730\u9EDE\uFF1A' + event.location);
     }
-    lines.push('\u9023\u7D50\uFF1A' + (event.externalUrl || ''));
+    var shareUrl = event.id ? (MINI_APP_BASE_URL + '?event=' + event.id) : (event.externalUrl || '');
+    lines.push('\u9023\u7D50\uFF1A' + shareUrl);
     var text = lines.join('\n');
     if (text.length > 400) {
       text = Array.from(text).slice(0, 397).join('') + '...';
@@ -232,12 +233,13 @@ Object.assign(App, {
       paddingAll: '16px',
     };
 
-    // Footer with external link button
+    // Footer — 連結導回 Mini App（用戶先看中繼卡片，再決定是否跳外部）
+    var miniAppUrl = event.id ? (MINI_APP_BASE_URL + '?event=' + event.id) : (event.externalUrl || 'https://example.com');
     var footer = {
       type: 'box', layout: 'vertical', contents: [
         {
           type: 'button', style: 'primary', color: typeColor,
-          action: { type: 'uri', label: '\u524D\u5F80\u6D3B\u52D5\u9801\u9762', uri: event.externalUrl || 'https://example.com' },
+          action: { type: 'uri', label: '\u67E5\u770B\u6D3B\u52D5', uri: miniAppUrl },
           height: 'sm',
         },
       ],
