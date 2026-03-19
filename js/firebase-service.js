@@ -324,7 +324,7 @@ const FirebaseService = {
   _pageScopedRealtimeMap: {
     'page-home':            ['events'],
     'page-activities':      ['registrations', 'attendanceRecords'],
-    'page-activity-detail': ['registrations', 'attendanceRecords'],
+    'page-activity-detail': ['registrations', 'attendanceRecords', 'events'],
     'page-my-activities':   ['registrations', 'attendanceRecords'],
     'page-scan':            ['attendanceRecords'],
   },
@@ -708,6 +708,7 @@ const FirebaseService = {
 
     if (!shouldRefreshUI || typeof App === 'undefined') return;
     if (App.currentPage === 'page-home') App.renderHotEvents?.();
+    if (App.currentPage === 'page-activity-detail') App.showEventDetail?.(App._currentDetailEventId);
     if (App.currentPage === 'page-my-activities') App.renderMyActivities?.();
     if (App.currentPage === 'page-activities') App.renderActivityList?.();
   },

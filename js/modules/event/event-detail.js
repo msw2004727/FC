@@ -254,6 +254,7 @@ Object.assign(App, {
 
       this._currentDetailEventId = id;
     this._renderEventPublicToggle(isGuestView ? null : e);
+    this._renderEventRefreshButton(isGuestView ? null : e);
     this._renderEventLogButton(isGuestView ? null : e);
       const detailImg = nodes.image;
     if (detailImg) {
@@ -628,6 +629,41 @@ Object.assign(App, {
   // ══════════════════════════════════
   //  Event Registration Log
   // ══════════════════════════════════
+
+  _renderEventRefreshButton(e) {
+    const wrap = document.getElementById('detail-refresh-btn-wrap');
+    if (!wrap) return;
+    if (!e) { wrap.style.display = 'none'; wrap.innerHTML = ''; return; }
+    wrap.style.display = '';
+    wrap.innerHTML = '<button class="event-detail-refresh-btn" onclick="App._refreshEventDetail()" title="重新整理"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 4v6h6"/><path d="M23 20v-6h-6"/><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"/></svg></button>';
+  },
+
+  async _refreshEventDetail() {
+    const id = this._currentDetailEventId;
+    if (!id) return;
+    const btn = document.querySelector('.event-detail-refresh-btn');
+    if (btn) { btn.disabled = true; btn.classList.add('spinning'); }
+    try {
+      // 從 Firestore 直接讀取最新 event 資料
+      if (!ModeManager.isDemo() && typeof db !== 'undefined') {
+        const doc = await db.collection('events').doc(
+          (ApiService.getEvent(id) || {})?._docId || ''
+        ).get();
+        if (doc.exists) {
+          const fresh = { ...doc.data(), _docId: doc.id };
+          const cached = (FirebaseService._cache.events || []);
+          const idx = cached.findIndex(e => e.id === fresh.id || e._docId === fresh._docId);
+          if (idx >= 0) Object.assign(cached[idx], fresh);
+          else cached.push(fresh);
+        }
+      }
+      this.showEventDetail(id);
+    } catch (err) {
+      console.warn('[refreshEventDetail]', err);
+    } finally {
+      if (btn) { btn.disabled = false; btn.classList.remove('spinning'); }
+    }
+  },
 
   _renderEventLogButton(e) {
     const wrap = document.getElementById('detail-log-btn-wrap');
