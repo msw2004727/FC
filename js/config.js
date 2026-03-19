@@ -270,7 +270,8 @@
 // 20260319s: 下載APP 按鈕加光激繞圈效果
 // 20260319t: 修正光跡遮蔽 + 金色光跡
 // 20260319u: iOS 加複製網址按鈕 + 兩端加 URL 提示
-const CACHE_VERSION = '20260319u';
+// 20260319v: 外部活動中繼卡片 + YouTube 嵌入播放
+const CACHE_VERSION = '20260319v';
 
 // ─── Page Strategy Registry ───
 // 唯一策略來源，未列出的頁面預設 fresh-first

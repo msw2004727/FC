@@ -213,9 +213,9 @@ Object.assign(App, {
       // stale-first：快取有活動資料時跳過登入擋板（報名按鈕已有「載入中」保護）
       if (!isGuestView && !e && this._requireLogin()) return { ok: false, reason: 'auth' };
       if (!e) return { ok: false, reason: 'missing' };
-      // 外部活動直接跳轉，不進詳情頁
+      // 外部活動：中繼卡片（YouTube 嵌入 / 跳轉按鈕）
       if (e.type === 'external' && e.externalUrl) {
-        location.href = e.externalUrl;
+        this.showExternalTransitCard(e);
         return { ok: true };
       }
       if (!isGuestView && typeof this._canViewEventByTeamScope === 'function' && !this._canViewEventByTeamScope(e)) {

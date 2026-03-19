@@ -233,10 +233,10 @@ Object.assign(App, {
     const targetCard = cardEl?.closest ? cardEl.closest('.h-card') : cardEl;
     if (!safeEventId) return { ok: false, reason: 'missing-id' };
 
-    // 外部活動：直接跳轉
+    // 外部活動：中繼卡片
     const extEvent = ApiService.getEvent(safeEventId);
     if (extEvent?.type === 'external' && extEvent.externalUrl) {
-      location.href = extEvent.externalUrl;
+      this.showExternalTransitCard(extEvent);
       return { ok: true };
     }
 

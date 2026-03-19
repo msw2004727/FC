@@ -10,6 +10,12 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-19 — 外部活動中繼卡片 + YouTube 嵌入
+- **問題**：外部活動分享後直接跳轉第三方，站點零曝光
+- **修復**：新增 `event-external-transit.js`，外部活動改為顯示中繼卡片（活動資訊 + YouTube 嵌入播放或跳轉按鈕），不再直接 `location.href` 跳走
+- **影響範圍**：`event-detail.js`、`event-list-timeline.js`、`event-list-home.js` 三處 redirect 改為呼叫 `showExternalTransitCard()`
+- **教訓**：transit 模組須在 index.html 中早於 event-list-home.js 載入（boot script），因首頁熱門活動卡片點擊也需要呼叫
+
 ### 2026-03-19 — 下載APP 按鈕光激繞圈效果修正
 - **問題**：抽屜「下載APP」按鈕只有 box-shadow 呼吸光暈，缺少 conic-gradient 旋轉光跡邊框
 - **原因**：原始 CSS 只定義了 `pwa-glow`（box-shadow pulse），未加入 `::before` 旋轉光跡

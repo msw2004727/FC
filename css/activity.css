@@ -1006,3 +1006,22 @@
 }
 
 .ln-prompt-bind-text { position: relative; z-index: 1; }
+
+/* ─── External Event Transit Card ─── */
+.ext-transit-overlay { display: flex; position: fixed; top: 0; right: 0; bottom: 0; left: 0; z-index: 1200; background: rgba(0,0,0,.55); -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); justify-content: center; align-items: center; opacity: 0; transition: opacity .25s; }
+.ext-transit-overlay.visible { opacity: 1; }
+.ext-transit-card { position: relative; width: 92%; max-width: 420px; max-height: 88vh; overflow-y: auto; -webkit-overflow-scrolling: touch; background: var(--bg-card, #fff); border-radius: 16px; box-shadow: 0 8px 32px rgba(0,0,0,.18); }
+.ext-transit-close { position: absolute; top: .5rem; right: .6rem; z-index: 2; background: rgba(0,0,0,.45); border: none; color: #fff; width: 28px; height: 28px; border-radius: 50%; font-size: 1.2rem; line-height: 1; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+.ext-transit-cover { width: 100%; aspect-ratio: 8/3; overflow: hidden; border-radius: 16px 16px 0 0; background: var(--bg-elevated, #f0f0f0); }
+.ext-transit-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.ext-transit-body { padding: 1rem 1.1rem 1.2rem; }
+.ext-transit-title { font-weight: 800; font-size: 1.05rem; margin-bottom: .5rem; line-height: 1.35; color: var(--text-primary); }
+.ext-transit-info { margin-bottom: .75rem; }
+.ext-transit-meta { font-size: .78rem; color: var(--text-secondary, #666); line-height: 1.5; }
+.ext-transit-yt-wrap { position: relative; width: 100%; padding-bottom: 56.25%; height: 0; overflow: hidden; border-radius: var(--radius, 8px); background: #000; margin-bottom: .6rem; }
+.ext-transit-yt-wrap iframe { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none; }
+.ext-transit-btn { display: block; width: 100%; text-align: center; padding: .7rem; border-radius: var(--radius, 8px); font-weight: 700; font-size: .88rem; text-decoration: none; transition: all .2s; cursor: pointer; border: none; margin-top: .5rem; }
+.ext-transit-btn-primary { background: var(--accent); color: #fff; }
+.ext-transit-btn-primary:active { opacity: .85; transform: scale(.98); }
+.ext-transit-btn-secondary { background: var(--bg-elevated, #f0f0f0); color: var(--text-secondary, #666); font-size: .78rem; padding: .5rem; }
+.ext-transit-btn-secondary:active { opacity: .7; }

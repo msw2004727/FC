@@ -97,10 +97,10 @@ Object.assign(App, {
     var targetCard = cardEl && cardEl.closest ? cardEl.closest('.tl-event-row') : cardEl;
     if (!safeEventId) return;
 
-    // 外部活動：直接跳轉
+    // 外部活動：中繼卡片
     var extEvent = ApiService.getEvent(safeEventId);
     if (extEvent && extEvent.type === 'external' && extEvent.externalUrl) {
-      location.href = extEvent.externalUrl;
+      App.showExternalTransitCard(extEvent);
       return;
     }
 
