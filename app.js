@@ -139,6 +139,7 @@ const App = {
     this.bindDrawer();
     this.bindTheme();
     this.initFontSize();
+    this.initPwaInstall();
     this.bindFilterToggle();
     this.bindTabBars();
     this.bindTournamentTabs();
