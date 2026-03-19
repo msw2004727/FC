@@ -269,7 +269,8 @@
 // 20260319q: 抽屜加入「下載APP」PWA 安裝按鈕
 // 20260319s: 下載APP 按鈕加光激繞圈效果
 // 20260319t: 修正光跡遮蔽 + 金色光跡
-const CACHE_VERSION = '20260319t';
+// 20260319u: iOS 加複製網址按鈕 + 兩端加 URL 提示
+const CACHE_VERSION = '20260319u';
 
 // ─── Page Strategy Registry ───
 // 唯一策略來源，未列出的頁面預設 fresh-first

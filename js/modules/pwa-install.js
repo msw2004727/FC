@@ -122,6 +122,7 @@ Object.assign(App, {
       + '點擊下方按鈕複製本站網址'
       + '</div></div>'
       + '<button class="pwa-guide-copy-btn" id="pwa-android-copy">複製網址</button>'
+      + '<div class="pwa-guide-url-hint">toosterx.com</div>'
       + '<div class="pwa-guide-divider"></div>'
       + '<div class="pwa-guide-step">'
       + '<div class="pwa-guide-num">2</div>'
@@ -188,31 +189,40 @@ Object.assign(App, {
       + '<div class="pwa-guide-step">'
       + '<div class="pwa-guide-num">1</div>'
       + '<div class="pwa-guide-text">'
-      + '<strong>點擊 Safari 底部的「分享」按鈕</strong><br>'
-      + '方框加向上箭頭的圖示'
+      + '<strong>複製網址</strong><br>'
+      + '點擊下方按鈕複製本站網址，再到 Safari 貼上開啟'
       + '</div></div>'
-      + '<div class="pwa-guide-img-wrap">'
-      + '<img class="pwa-guide-img" src="PWA/PWA01.jpg" alt="步驟1">'
-      + '</div>'
+      + '<button class="pwa-guide-copy-btn" id="pwa-ios-copy">複製網址</button>'
+      + '<div class="pwa-guide-url-hint">toosterx.com</div>'
       + '<div class="pwa-guide-divider"></div>'
       + '<div class="pwa-guide-step">'
       + '<div class="pwa-guide-num">2</div>'
       + '<div class="pwa-guide-text">'
-      + '<strong>往下滑，點選「加入主畫面」</strong><br>'
-      + '在分享選單列表中找到此選項'
+      + '<strong>點擊 Safari 底部的「分享」按鈕</strong><br>'
+      + '方框加向上箭頭的圖示'
       + '</div></div>'
       + '<div class="pwa-guide-img-wrap">'
-      + '<img class="pwa-guide-img" src="PWA/PWA02.jpg" alt="步驟2">'
+      + '<img class="pwa-guide-img" src="PWA/PWA01.jpg" alt="步驟2">'
       + '</div>'
       + '<div class="pwa-guide-divider"></div>'
       + '<div class="pwa-guide-step">'
       + '<div class="pwa-guide-num">3</div>'
       + '<div class="pwa-guide-text">'
+      + '<strong>往下滑，點選「加入主畫面」</strong><br>'
+      + '在分享選單列表中找到此選項'
+      + '</div></div>'
+      + '<div class="pwa-guide-img-wrap">'
+      + '<img class="pwa-guide-img" src="PWA/PWA02.jpg" alt="步驟3">'
+      + '</div>'
+      + '<div class="pwa-guide-divider"></div>'
+      + '<div class="pwa-guide-step">'
+      + '<div class="pwa-guide-num">4</div>'
+      + '<div class="pwa-guide-text">'
       + '<strong>點右上角「加入」完成安裝</strong><br>'
       + 'APP 圖示將出現在你的主畫面'
       + '</div></div>'
       + '<div class="pwa-guide-img-wrap">'
-      + '<img class="pwa-guide-img" src="PWA/PWA03.jpg" alt="步驟3">'
+      + '<img class="pwa-guide-img" src="PWA/PWA03.jpg" alt="步驟4">'
       + '</div>'
       + '</div></div>';
 
@@ -224,6 +234,11 @@ Object.assign(App, {
     });
     overlay.addEventListener('click', function (e) {
       if (e.target === overlay) App._closePwaModal('pwa-ios-modal');
+    });
+    document.getElementById('pwa-ios-copy').addEventListener('click', function () {
+      App._copyToClipboard('https://toosterx.com').then(function (ok) {
+        App.showToast(ok ? '網址已複製' : '複製失敗，請手動複製');
+      });
     });
   },
 

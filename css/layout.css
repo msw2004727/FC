@@ -373,6 +373,7 @@
 .pwa-guide-divider { height: 1px; background: var(--border, #e5e7eb); margin: .6rem 0; }
 .pwa-guide-copy-btn { display: block; width: 100%; padding: .55rem; border: none; border-radius: 8px; background: #22c55e; color: #fff; font-weight: 700; font-size: .82rem; cursor: pointer; margin: .3rem 0 .2rem; transition: all .2s; }
 .pwa-guide-copy-btn:active { background: #16a34a; transform: scale(.97); }
+.pwa-guide-url-hint { text-align: center; font-size: .72rem; color: var(--text-muted, #999); margin: .15rem 0 0; letter-spacing: .02em; }
 .drawer-role-tag { display: inline-block; font-size: .7rem; padding: .15rem .5rem; border-radius: var(--radius-full); background: var(--accent-bg); color: var(--accent); font-weight: 600; margin-top: .2rem; }
 .drawer-menu { flex: 1; overflow-y: auto; padding: .5rem 0; }
 .drawer-item {
