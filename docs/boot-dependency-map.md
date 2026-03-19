@@ -1,6 +1,6 @@
 # SportHub — 啟動依賴地圖
 
-> 建立日期：2026-03-19（經二次驗證）
+> 建立日期：2026-03-19（經三次驗證，第三次發現 event-external-transit.js 降級）
 > 目的：完整記錄 `App.init()` 啟動流程中的函式呼叫鏈與模組依賴關係，作為載入優化的基礎。
 > ⚠️ 本文件包含實作步驟，換設備 / 換會話時請直接閱讀本文件繼續執行。
 
@@ -60,16 +60,23 @@
 
 ### 第 5 層：可以安全延遲的 Script ✅
 
-| # | 檔案 | 原因 | 驗證結果 |
-|---|------|------|---------|
-| 31 | `js/modules/profile/profile-avatar.js` | ✅ 定義 avatar 工具函式，只在開 profile 頁時被呼叫，啟動不依賴 |
-| 32 | `js/modules/profile/profile-data-stats.js` | ✅ 定義 title/stats 顯示，只在 profile 頁使用 |
-| 33 | `js/modules/event/event-external-transit.js` | ✅ 只在 deep link / 點擊外部活動時才呼叫 |
-| 34 | `js/modules/event/event-list-timeline.js` | ✅ 時間軸視圖，非首頁渲染 |
-| 35 | `js/modules/message/message-line-push.js` | ✅ LINE 推播投遞，Cloud boot 後才需要 |
-| 36 | `js/modules/message/message-notify.js` | ✅ 通知範本+投遞邏輯，bindNotifBtn 內部不引用它 |
-| 37 | `js/modules/favorites.js` | ⚠️ 定義 `_processEventReminders()`，啟動時有呼叫但包在 try/catch |
-| 38 | `js/modules/news.js` | ✅ **已有 `if (this.renderNews)` 防護**，最安全的候選 |
+> ⚠️ 注意：以下多數 script **不在任何 ScriptLoader group 中**，Phase B 必須先加入 group 再從 index.html 移除。
+
+| # | 檔案 | 安全原因 | 目前在 ScriptLoader group？ |
+|---|------|---------|---------------------------|
+| 31 | `js/modules/profile/profile-avatar.js` | ✅ 只在 profile 頁用，啟動不呼叫 | ✅ 已在 `profile` group |
+| 32 | `js/modules/profile/profile-data-stats.js` | ✅ 只在 profile/titles 頁用 | ✅ 已在 `profile` group |
+| 33 | `js/modules/event/event-list-timeline.js` | ✅ 時間軸視圖，非首頁渲染 | ✅ 已在 `activity` group |
+| 34 | `js/modules/message/message-line-push.js` | ✅ 推播投遞，Cloud 後才需要 | ❌ 不在任何 group，需加入 |
+| 35 | `js/modules/message/message-notify.js` | ✅ 通知範本+投遞，啟動不引用 | ❌ 不在任何 group，需加入 |
+| 36 | `js/modules/favorites.js` | ⚠️ _processEventReminders 有 try/catch | ❌ 不在任何 group，需加入 |
+| 37 | `js/modules/news.js` | ✅ **已有 `if (this.renderNews)` 防護** | ❌ 不在任何 group，需加入 |
+
+### ❌ 第三次驗證降級：原標安全但實際不可延遲
+
+| 檔案 | 降級原因 |
+|------|---------|
+| `js/modules/event/event-external-transit.js` (#33→降級) | **event-list-home.js:239（啟動必要 #24）直接硬呼叫 `showExternalTransitCard()`，無防護。event-detail.js:218 也在 `ensureForPage` 之前就呼叫。從 index.html 移除會導致首頁點擊外部活動 crash。且不在任何 ScriptLoader group 中。** |
 
 ---
 
@@ -134,7 +141,7 @@ App.init()                              → app.js:136
 
 ## 三、分類總結（已驗證修正）
 
-### ❌ 絕對不能延遲（27 個）
+### ❌ 絕對不能延遲（28 個）
 
 | # | 檔案 | 致命呼叫 |
 |---|------|---------|
@@ -165,6 +172,7 @@ App.init()                              → app.js:136
 | 25 | js/modules/event/event-list.js | renderHotEvents |
 | 26 | js/modules/message/message-render.js | updateNotifBadge + updateStorageBar |
 | 27 | js/modules/message/message-inbox.js | **隱藏依賴：_filterMyMessages 被 #26 呼叫** |
+| 28 | js/modules/event/event-external-transit.js | **第三次驗證降級：event-list-home.js:239 硬呼叫 showExternalTransitCard** |
 
 ### ⚠️ 可延遲但需加防護才安全（3 個）
 
@@ -174,18 +182,17 @@ App.init()                              → app.js:136
 | 29 | js/modules/tournament/tournament-render.js | 同上 | 同上 |
 | 30 | js/modules/popup-ad.js | 250ms 延遲 showPopupAdsOnLoad | 加 `if` 防護 |
 
-### ✅ 確定可以安全延遲（8 個）
+### ✅ 確定可以安全延遲（7 個）
 
 | # | 檔案 | 安全原因 |
 |---|------|---------|
 | 31 | js/modules/profile/profile-avatar.js | 只在 profile 頁用，啟動不呼叫 |
 | 32 | js/modules/profile/profile-data-stats.js | 只在 profile/titles 頁用 |
-| 33 | js/modules/event/event-external-transit.js | 只在 deep link / 外部活動點擊 |
-| 34 | js/modules/event/event-list-timeline.js | 時間軸視圖，非首頁 |
-| 35 | js/modules/message/message-line-push.js | 推播投遞，Cloud 後才需要 |
-| 36 | js/modules/message/message-notify.js | 通知範本+投遞，啟動不引用 |
-| 37 | js/modules/favorites.js | _processEventReminders 有 try/catch |
-| 38 | js/modules/news.js | **已有 `if (this.renderNews)` 防護** |
+| 33 | js/modules/event/event-list-timeline.js | 時間軸視圖，非首頁 |
+| 34 | js/modules/message/message-line-push.js | 推播投遞，Cloud 後才需要 |
+| 35 | js/modules/message/message-notify.js | 通知範本+投遞，啟動不引用 |
+| 36 | js/modules/favorites.js | _processEventReminders 有 try/catch |
+| 37 | js/modules/news.js | **已有 `if (this.renderNews)` 防護** |
 
 ---
 
@@ -193,10 +200,11 @@ App.init()                              → app.js:136
 
 ### 核心數據
 
-- 38 個 script 中，**27 個在啟動時被直接或間接呼叫**（不可動）
+- 38 個 script 中，**28 個在啟動時被直接或間接呼叫**（不可動，含 event-external-transit.js 第三次驗證降級）
 - **3 個**需加防護後才能延遲
-- **8 個**可安全延遲
-- 延遲 8 個 script ≈ 減少 **21%** 首次載入 script 數量（38→30）
+- **7 個**可安全延遲（原為 8 個，event-external-transit.js 降級）
+- 延遲 7 個 script ≈ 減少 **18%** 首次載入 script 數量（38→31）
+- ⚠️ 7 個中有 4 個不在任何 ScriptLoader group，必須先加入才能移除
 
 ### 根本原因
 
@@ -263,12 +271,12 @@ init() {
 ```javascript
 renderHomeDeferred() {
   if (!this._isHomePageActive()) return false;
-  if (typeof this.renderOngoingTournaments === 'function') this.renderOngoingTournaments();  // ← 加防護
-  this.renderSponsors();
-  if (this.renderNews) this.renderNews();                     // ← 已有防護
-  this.renderFloatingAds();
-  if (typeof this.showPopupAdsOnLoad === 'function') this.showPopupAdsOnLoad();  // ← 加防護
-  this.startBannerCarousel();
+  if (typeof this.renderOngoingTournaments === 'function') this.renderOngoingTournaments();  // ← 加防護（Phase C 會移除）
+  this.renderSponsors();                                      // banner.js 定義，永遠存在
+  if (this.renderNews) this.renderNews();                     // ← 已有防護 ✅
+  this.renderFloatingAds();                                   // banner.js 定義，永遠存在
+  if (typeof this.showPopupAdsOnLoad === 'function') this.showPopupAdsOnLoad();  // ← 加防護（Phase C 會移除）
+  this.startBannerCarousel();                                 // banner.js 定義，永遠存在
   return true;
 },
 ```
@@ -282,86 +290,83 @@ renderHomeDeferred() {
 
 ---
 
-### Phase B：移除 8 個安全 script（低風險）
+### Phase B：移除 7 個安全 script（低風險）
 
-**目的**：把 8 個確認安全的 script 從 index.html 移除，改由 ScriptLoader 動態載入。
+**目的**：把 7 個確認安全的 script 從 index.html 移除，改由 ScriptLoader 動態載入。
 
 **前置條件**：Phase A 已完成並驗證
 
 **改動檔案**：
-1. `index.html` — 移除 8 個 `<script>` 標籤
-2. `js/core/script-loader.js` — 將移除的 script 加入對應的 `_groups`
+1. `js/core/script-loader.js` — **先**將不在 group 中的 script 加入對應 group
+2. `index.html` — **然後**移除 7 個 `<script>` 標籤
 
-**要移除的 8 個 script（從 index.html 刪除）**：
+**⚠️ 執行順序很重要：必須先加 group 再移除 script tag，否則移除後永遠無法載入！**
 
-```
-js/modules/profile/profile-avatar.js      → 加入 _groups.profile
-js/modules/profile/profile-data-stats.js   → 加入 _groups.profile
-js/modules/event/event-external-transit.js → 加入 _groups.activity
-js/modules/event/event-list-timeline.js    → 加入 _groups.activity
-js/modules/message/message-line-push.js    → 加入 _groups.message + _groups.activity
-js/modules/message/message-notify.js       → 加入 _groups.message + _groups.activity
-js/modules/favorites.js                    → 加入 _groups.activity
-js/modules/news.js                         → 加入 _groups.activity（首頁 news 區塊）
-```
+**要移除的 7 個 script 與 group 狀態**：
 
-**script-loader.js 改動明細**：
+| 檔案 | 目前在 group？ | 需要加入的 group |
+|------|--------------|----------------|
+| `js/modules/profile/profile-avatar.js` | ✅ 已在 `profile` | 不需改 |
+| `js/modules/profile/profile-data-stats.js` | ✅ 已在 `profile` | 不需改 |
+| `js/modules/event/event-list-timeline.js` | ✅ 已在 `activity` | 不需改 |
+| `js/modules/message/message-line-push.js` | ❌ 不在任何 group | 加入 `activity` + `message` |
+| `js/modules/message/message-notify.js` | ❌ 不在任何 group | 加入 `activity` + `message`（在 line-push 之後） |
+| `js/modules/favorites.js` | ❌ 不在任何 group | 加入 `activity` |
+| `js/modules/news.js` | ❌ 不在任何 group | 加入 `activity` |
+
+**⛔ 不移除 `event-external-transit.js`**：第三次驗證發現 event-list-home.js:239 直接硬呼叫 `showExternalTransitCard()`，移除會 crash。
+
+**script-loader.js 具體改動**：
 
 ```javascript
-// 確認以下 script 已經在對應 group 中（有些可能已經在）
-// 如果不在，加到 group 陣列的 "正確位置"（注意 Object.assign 順序依賴）
+// _groups.activity — 在現有陣列的適當位置插入 4 個新 script
+activity: [
+  'js/modules/auto-exp.js',
+  'js/modules/favorites.js',                    // ← 新增（靠前，無前置依賴）
+  'js/modules/event/event-list-helpers.js',      // 已有
+  'js/modules/event/event-list-stats.js',        // 已有
+  'js/modules/event/event-list-home.js',         // 已有
+  'js/modules/event/event-list-timeline.js',     // 已有
+  'js/modules/event/event-list.js',              // 已有
+  'js/modules/event/event-share-builders.js',    // 已有
+  'js/modules/event/event-share.js',             // 已有
+  // ... 其他現有 event 模組保持不動 ...
+  'js/modules/registration-audit.js',            // 已有（尾部）
+  'js/modules/message/message-line-push.js',     // ← 新增（notify 依賴它，必須在前）
+  'js/modules/message/message-notify.js',        // ← 新增
+  'js/modules/news.js',                          // ← 新增（放最後）
+],
 
-_groups: {
-  activity: [
-    'js/modules/auto-exp.js',
-    'js/modules/favorites.js',              // ← 新增（在 event-list 前面）
-    'js/modules/event/event-list-helpers.js',
-    'js/modules/event/event-list-stats.js',
-    'js/modules/event/event-list-home.js',
-    'js/modules/event/event-list-timeline.js',  // ← 確認已在
-    'js/modules/event/event-list.js',
-    'js/modules/event/event-external-transit.js', // ← 確認已在（可能需要加）
-    'js/modules/event/event-share-builders.js',
-    'js/modules/event/event-share.js',
-    // ... 其他 event 模組
-    'js/modules/message/message-line-push.js',   // ← 新增（notify 依賴它）
-    'js/modules/message/message-notify.js',      // ← 新增
-    'js/modules/news.js',                        // ← 新增（放最後）
-  ],
-  profile: [
-    // ... 現有的
-    'js/modules/profile/profile-avatar.js',       // ← 確認已在
-    'js/modules/profile/profile-data-stats.js',   // ← 確認已在
-    // ...
-  ],
-  // message group 也要加 message-line-push 和 message-notify
-  message: [
-    'js/modules/message/message-line-push.js',   // ← 新增
-    'js/modules/message/message-notify.js',      // ← 新增
-    'js/modules/message/message-actions.js',
-    'js/modules/message/message-actions-team.js',
-    'js/modules/message/message-inbox.js',
-  ],
-}
+// _groups.message — 在現有陣列 "前面" 插入 2 個新 script
+message: [
+  'js/modules/message/message-line-push.js',     // ← 新增
+  'js/modules/message/message-notify.js',        // ← 新增
+  'js/modules/message/message-actions.js',       // 已有
+  'js/modules/message/message-actions-team.js',  // 已有
+  'js/modules/message/message-inbox.js',         // 已有
+],
+
+// _groups.profile — 不需改，profile-avatar.js 和 profile-data-stats.js 已在其中
 ```
 
 **⚠️ 特別注意**：
 - `message-notify.js` 依賴 `message-line-push.js`（見檔案頂部註解），載入順序必須先 push 後 notify
-- `favorites.js` 定義 `_processEventReminders`，但啟動時有 try/catch 保護，不載入也不 crash
+- `favorites.js` 定義 `_processEventReminders`，啟動時有 try/catch 保護，不載入也不 crash
 - `news.js` 的 `renderNews` 已有 `if (this.renderNews)` 防護
-- `event-external-transit.js` 在 `_transitShareExternal` 中用 `ScriptLoader.loadGroup` 載入 share 模組，本身作為被載入方也需要確認路徑
+- `ScriptLoader._primeLoadedFromDom()` 會標記已在 index.html 中的 script 為 loaded，所以 group 中重複出現的路徑不會被重複載入
 
 **驗證清單**：
 1. ✅ 首頁：輪播、公告、活動列表、賽事正常顯示
 2. ✅ 首頁 news 區塊：延遲渲染後正常出現（或不出現但不報錯）
 3. ✅ 點活動列表 → 時間軸視圖正常
-4. ✅ 點外部活動 → 中繼卡片正常
+4. ✅ **點外部活動 → 中繼卡片正常**（event-external-transit.js 仍在 index.html）
 5. ✅ 點個人資料 → 頭像、統計正常
 6. ✅ 收到訊息 → 通知功能正常
 7. ✅ 分享活動 → LINE 推播正常
-8. ✅ Console 無新增 error
+8. ✅ 收藏活動功能正常（favorites.js 在 activity group 中被載入）
+9. ✅ Console 無新增 error
 
-**commit message**：`啟動優化 Phase B：8 個非啟動 script 改動態載入（38→30）`
+**commit message**：`啟動優化 Phase B：7 個非啟動 script 改動態載入（38→31）`
 
 ---
 
@@ -373,11 +378,11 @@ _groups: {
 
 **要移除的 3 個 script（從 index.html 刪除）**：
 
-```
-js/modules/tournament/tournament-core.js    → 已在 _groups.tournament
-js/modules/tournament/tournament-render.js  → 已在 _groups.tournament
-js/modules/popup-ad.js                      → 需加入適當 group
-```
+| 檔案 | 目前在 group？ | 需要加入的 group |
+|------|--------------|----------------|
+| `js/modules/tournament/tournament-core.js` | ❌ **不在** tournament group（group 只有 detail/friendly/share） | 加入 `tournament` group 開頭 |
+| `js/modules/tournament/tournament-render.js` | ❌ **不在** tournament group | 加入 `tournament` group（在 core 之後） |
+| `js/modules/popup-ad.js` | ❌ 不在任何 group | 新建 `homeDeferred` group 或加入 `activity` |
 
 **額外改動 — app.js renderHomeDeferred()**：
 
@@ -399,7 +404,7 @@ async renderHomeDeferred() {
   if (typeof this.renderOngoingTournaments === 'function') this.renderOngoingTournaments();
   this.renderSponsors();
   if (this.renderNews) this.renderNews();
-  if (typeof this.renderFloatingAds === 'function') this.renderFloatingAds();
+  this.renderFloatingAds();  // banner.js 定義，永遠存在，不需防護
   if (typeof this.showPopupAdsOnLoad === 'function') this.showPopupAdsOnLoad();
   this.startBannerCarousel();
   return true;
@@ -448,9 +453,9 @@ async renderHomeDeferred() {
 | ct-content-image | ct-content-upload-preview | 16/9 | 建立賽事 |
 | et-image | et-upload-preview | 16/9 | 編輯賽事 |
 | et-content-image | et-content-upload-preview | 16/9 | 編輯賽事 |
-| cs-img1 | cs-preview1 | 4/3 | 某個表單 |
-| cs-img2 | cs-preview2 | 4/3 | 某個表單 |
-| cs-img3 | cs-preview3 | 4/3 | 某個表單 |
+| cs-img1 | cs-preview1 | 4/3 | 商店頁（pages/shop.html） |
+| cs-img2 | cs-preview2 | 4/3 | 商店頁（pages/shop.html） |
+| cs-img3 | cs-preview3 | 4/3 | 商店頁（pages/shop.html） |
 | banner-image | banner-preview | 2.2 | 橫幅管理 |
 | floatad-image | floatad-preview | 1 | 浮動廣告管理 |
 | popupad-image | popupad-preview | 16/9 | 彈窗廣告管理 |
@@ -469,10 +474,10 @@ async renderHomeDeferred() {
 | Phase | 移除 script 數 | 剩餘 script 數 | 風險 | 預估節省 |
 |-------|---------------|---------------|------|---------|
 | A | 0 | 38 | 零 | 0（但為後續鋪路） |
-| B | 8 | 30 | 低 | ~80KB + 8 次 HTTP 請求 |
-| C | 3 | 27 | 中 | ~30KB + 3 次 HTTP 請求 |
-| D | 0 | 27 | 高 | 啟動時 13 次 DOM 查詢 + 事件綁定 |
-| **總計** | **11** | **27** | — | **~110KB + 11 次 HTTP 請求** |
+| B | 7 | 31 | 低 | ~70KB + 7 次 HTTP 請求 |
+| C | 3 | 28 | 中 | ~30KB + 3 次 HTTP 請求 |
+| D | 0 | 28 | 高 | 啟動時 13 次 DOM 查詢 + 事件綁定 |
+| **總計** | **10** | **28** | — | **~100KB + 10 次 HTTP 請求** |
 
 > 注意：Service Worker 的 cache-first 策略意味著第二次訪問已經很快。
 > 這些優化主要改善**首次訪問**和**清快取後**的體驗。
