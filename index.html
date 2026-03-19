@@ -455,6 +455,17 @@
   <script defer src="js/core/navigation.js?v=20260320d"></script>
   <script defer src="js/core/theme.js?v=20260320d"></script>
 
+  <!-- 全域必需模組（任意頁面、任意時機都可能呼叫，不可延遲載入） -->
+  <script defer src="js/modules/pwa-install.js?v=20260320d"></script>
+  <script defer src="js/modules/image-cropper.js?v=20260320d"></script>
+  <script defer src="js/modules/image-upload.js?v=20260320d"></script>
+  <script defer src="js/modules/role.js?v=20260320d"></script>
+  <script defer src="js/modules/site-theme.js?v=20260320d"></script>
+  <script defer src="js/modules/message/message-render.js?v=20260320d"></script>
+  <script defer src="js/modules/message/message-inbox.js?v=20260320d"></script>
+  <script defer src="js/modules/message/message-line-push.js?v=20260320d"></script>
+  <script defer src="js/modules/message/message-notify.js?v=20260320d"></script>
+
   <!-- Service Worker Registration + 版本更新 -->
   <script>
     if ('serviceWorker' in navigator) {

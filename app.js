@@ -133,48 +133,48 @@ const App = {
   _pendingAuthActionStorageKey: '_pendingAuthAction',
   _pageSnapshotReady: {},
 
-  /** Phase 3a: 只綁定核心 UI（不依賴動態載入的模組） */
+  /** Phase 3a: 綁定核心 UI + index.html 內的全域模組 */
   initCore() {
     this.bindSportPicker();
     this.bindNavigation();
     this.bindDrawer();
     this.bindTheme();
     this.initFontSize();
+    this.initPwaInstall();
     this.bindFilterToggle();
     this.bindTabBars();
     this.bindTournamentTabs();
     this.bindScanModes();
     this.bindNotifBtn();
-    this.initLangSwitcher();
-    this._applyI18nToUI();
-  },
-
-  /** Phase 3b: 綁定需要動態模組的功能（boot 模組載入後呼叫） */
-  initModules() {
-    this.initPwaInstall?.();
-    this.bindFloatingAds?.();
-    this.bindLineLogin?.();
-    this.bindImageUpload?.('ce-image', 'ce-upload-preview', 16/9);
-    this.bindImageUpload?.('ct-image', 'ct-upload-preview', 16/9);
-    this.bindImageUpload?.('ct-content-image', 'ct-content-upload-preview', 16/9);
-    this.bindImageUpload?.('et-image', 'et-upload-preview', 16/9);
-    this.bindImageUpload?.('et-content-image', 'et-content-upload-preview', 16/9);
-    this.bindImageUpload?.('cs-img1', 'cs-preview1', 4/3);
-    this.bindImageUpload?.('cs-img2', 'cs-preview2', 4/3);
-    this.bindImageUpload?.('cs-img3', 'cs-preview3', 4/3);
-    this.bindImageUpload?.('banner-image', 'banner-preview', 2.2);
-    this.bindImageUpload?.('floatad-image', 'floatad-preview', 1);
-    this.bindImageUpload?.('popupad-image', 'popupad-preview', 16/9);
-    this.bindImageUpload?.('ct-team-image', 'ct-team-preview', 1);
-    this.bindImageUpload?.('theme-image', 'theme-preview', 0);
+    this.bindLineLogin();
+    this.bindImageUpload('ce-image', 'ce-upload-preview', 16/9);
+    this.bindImageUpload('ct-image', 'ct-upload-preview', 16/9);
+    this.bindImageUpload('ct-content-image', 'ct-content-upload-preview', 16/9);
+    this.bindImageUpload('et-image', 'et-upload-preview', 16/9);
+    this.bindImageUpload('et-content-image', 'et-content-upload-preview', 16/9);
+    this.bindImageUpload('cs-img1', 'cs-preview1', 4/3);
+    this.bindImageUpload('cs-img2', 'cs-preview2', 4/3);
+    this.bindImageUpload('cs-img3', 'cs-preview3', 4/3);
+    this.bindImageUpload('banner-image', 'banner-preview', 2.2);
+    this.bindImageUpload('floatad-image', 'floatad-preview', 1);
+    this.bindImageUpload('popupad-image', 'popupad-preview', 16/9);
+    this.bindImageUpload('ct-team-image', 'ct-team-preview', 1);
+    this.bindImageUpload('theme-image', 'theme-preview', 0);
     this._bindAchBadgeUpload?.();
     this._populateAchConditionSelects?.();
     this.bindShopSearch?.();
     this.bindTeamOnlyToggle?.();
-    this.applySiteThemes?.();
+    this.applySiteThemes();
+    this.initLangSwitcher();
+    this._applyI18nToUI();
   },
 
-  /** 相容舊呼叫：同步執行全部 init（boot 模組已在 index.html 時使用） */
+  /** Phase 3b: 綁定需要 boot 動態模組的功能（banner / event-list / tournament 等） */
+  initModules() {
+    this.bindFloatingAds?.();
+  },
+
+  /** 相容舊呼叫 */
   init() {
     this.initCore();
     this.initModules();
