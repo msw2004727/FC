@@ -10,6 +10,16 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### [永久] 2026-03-19 — Cloudflare CDN 快取導致 JS 更新未生效
+- **問題**：更新 `CACHE_VERSION` 和 `?v=` 參數後，用戶瀏覽器仍載入舊版 JS（`config.js` 顯示舊版本號），即使用無痕模式也一樣
+- **原因**：Cloudflare CDN 邊緣快取會快取靜態資源（JS/CSS），且可能忽略 query string 差異，導致 `config.js?v=20260319p` 仍回傳舊版內容。更新 `CACHE_VERSION` 和 `sw.js CACHE_NAME` 都無法繞過 CDN 層快取
+- **修復**：登入 Cloudflare Dashboard → Caching → Configuration → **Purge Everything**，清除所有 CDN 邊緣快取
+- **教訓**：
+  1. 每次部署含關鍵 JS 變更後，若行為未如預期，優先檢查 CDN 快取（不只是瀏覽器快取和 SW 快取）
+  2. 三層快取排查順序：**Cloudflare CDN → Service Worker → 瀏覽器快取**
+  3. 驗證方式：讓用戶在 Console 執行 `alert(CACHE_VERSION)` 比對版本號，可快速定位是哪一層快取
+  4. 未來重大 JS 變更部署後，應主動到 Cloudflare Dashboard 執行 Purge Everything
+
 ### 2026-03-19 — 活動分享 OG 中繼頁（動態封面圖預覽）
 - **需求**：LINE 分享活動連結時顯示活動封面圖作為 OG 預覽縮圖
 - **實作**：新增 Cloud Function `eventShareOg`（asia-east1）讀取 Firestore 活動資料，產生含 og:image 的 HTML 中繼頁，meta refresh 跳轉至 Mini App URL
