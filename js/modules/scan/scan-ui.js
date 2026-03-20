@@ -251,9 +251,12 @@ Object.assign(App, {
       }
     });
     const regTags = [];
-    regByUid.forEach(p => regTags.push(buildTag(p, false)));
+    regByUid.forEach(p => regTags.push(p));
+    regTags.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    const regTagsHtml = regTags.map(p => buildTag(p, false));
 
     // 未報名
+    unregPersons.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
     const unregTags = unregPersons.map(p => buildTag(p, true));
 
     // 統計（僅計已報名者）
@@ -262,7 +265,7 @@ Object.assign(App, {
 
     regDiv.innerHTML = `<div class="scan-section scan-section-registered">
       <h4>已報名（${regByUid.size}）</h4>
-      <div class="scan-user-tags">${regTags.length ? regTags.join('') : '<span style="font-size:.78rem;color:var(--text-muted)">尚無</span>'}</div>
+      <div class="scan-user-tags">${regTagsHtml.length ? regTagsHtml.join('') : '<span style="font-size:.78rem;color:var(--text-muted)">尚無</span>'}</div>
     </div>`;
 
     unregDiv.innerHTML = unregTags.length ? `<div class="scan-section scan-section-unreg">

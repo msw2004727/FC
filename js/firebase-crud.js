@@ -443,6 +443,24 @@ Object.assign(FirebaseService, {
     const confirmed = registrations.filter(r => r.status === 'confirmed');
     const waitlisted = registrations.filter(r => r.status === 'waitlisted');
 
+    // 排序：確保 participants / waitlistNames 順序一致（registeredAt ASC → docId ASC）
+    const _regSortTime = (r) => {
+      const v = r && r.registeredAt;
+      if (!v) return Number.POSITIVE_INFINITY;
+      if (typeof v.toMillis === 'function') { try { return v.toMillis(); } catch (_e) {} }
+      if (typeof v === 'object' && typeof v.seconds === 'number')
+        return (v.seconds * 1000) + Math.floor((v.nanoseconds || 0) / 1000000);
+      const t = new Date(v).getTime();
+      return Number.isFinite(t) ? t : Number.POSITIVE_INFINITY;
+    };
+    const _regSort = (a, b) => {
+      const ta = _regSortTime(a), tb = _regSortTime(b);
+      if (ta !== tb) return ta - tb;
+      return String(a._docId || a.id || '').localeCompare(String(b._docId || b.id || ''));
+    };
+    confirmed.sort(_regSort);
+    waitlisted.sort(_regSort);
+
     const participants = confirmed.map(r =>
       r.participantType === 'companion'
         ? String(r.companionName || r.userName || '').trim()

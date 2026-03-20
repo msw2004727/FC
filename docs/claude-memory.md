@@ -964,5 +964,11 @@
   - `event-manage.js`：費用計算 confirmedCount 改用 event.current 優先
 - **教訓**：所有從 Firestore 快取取出的陣列在渲染前必須顯式排序；涉及人數計算的場景必須優先使用 event document 欄位（由 transaction 維護），不可依賴 registrations 陣列長度
 
+### 2026-03-20 — _rebuildOccupancy 排序修正：Admin vs 一般用戶候補順序不一致
+- **問題**：Admin 看候補第 9 位是 MWC，一般用戶看到是 baskara
+- **原因**：Admin 從 registrations（已排序）渲染；一般用戶從 event.waitlistNames（文件欄位）渲染。`_rebuildOccupancy` 寫入 waitlistNames 時沒有排序，順序取決於 Firestore 文件 ID 字典序
+- **修復**：`firebase-crud.js` `_rebuildOccupancy` 加入 registeredAt → docId 排序（confirmed + waitlisted），確保寫入 Firestore 的 participants / waitlistNames 順序與前端一致；同時修正 scan-ui.js 已報名/未報名標籤排序
+- **教訓**：凡是寫入 Firestore 的陣列欄位，若前端會直接用該順序渲染，寫入前必須排序。`_rebuildOccupancy` 是名單順序的唯一寫入源頭，排序必須在此處保證
+
 *最後濃縮日期：2026-03-15*
 *原始檔案：314 條目 / 2475 行 → 濃縮後約 50 條永久教訓*
