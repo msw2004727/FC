@@ -1,19 +1,21 @@
 /* ================================================
    ColorCat — 球物理與繪製
-   依賴：color-cat-config.js (ColorCatConfig)
+   依賴：color-cat-config.js, color-cat-stats.js
    ================================================ */
 ;(function() {
 
 var C = window.ColorCatConfig;
+var _bs; // 延遲取得 ColorCatStats.ball
+function _b() { if (!_bs) _bs = window.ColorCatStats && window.ColorCatStats.ball; return _bs || {}; }
 
-// ── 球物件 ──
+// ── 球物件（物理值由 stats 提供） ──
 var ball = {
   x: 0, y: 0,
   vx: 0, vy: 0,
-  r: 6.3,
-  gravity: 0.15,
-  friction: 0.985,
-  bounceLoss: 0.35,
+  get r() { return _b().radius || 6.3; },
+  get gravity() { return _b().gravity || 0.15; },
+  get friction() { return _b().friction || 0.985; },
+  get bounceLoss() { return _b().bounceLoss || 0.35; },
   spin: 0,
 };
 
@@ -46,8 +48,8 @@ function updateBall(sceneWidth) {
   if (ball.y + ball.r >= floorY) {
     ball.y = floorY - ball.r;
     ball.vy = -ball.vy * ball.bounceLoss;
-    ball.vx *= 0.92;
-    if (Math.abs(ball.vy) < 0.5) ball.vy = 0;
+    ball.vx *= (_b().groundFriction || 0.92);
+    if (Math.abs(ball.vy) < (_b().minBounceVy || 0.5)) ball.vy = 0;
   }
 
   // 天花板
@@ -56,18 +58,19 @@ function updateBall(sceneWidth) {
     ball.vy = -ball.vy * ball.bounceLoss;
   }
 
-  // 左右牆壁反彈（5 倍力道）
+  // 左右牆壁反彈
+  var wbm = _b().wallBounceMult || 5;
   if (ball.x - ball.r < 0) {
     ball.x = ball.r;
-    ball.vx = Math.abs(ball.vx) * 5;
+    ball.vx = Math.abs(ball.vx) * wbm;
   }
   if (ball.x + ball.r > sw) {
     ball.x = sw - ball.r;
-    ball.vx = -Math.abs(ball.vx) * 5;
+    ball.vx = -Math.abs(ball.vx) * wbm;
   }
 
   // 極小速度歸零
-  if (Math.abs(ball.vx) < 0.05) ball.vx = 0;
+  if (Math.abs(ball.vx) < (_b().minVx || 0.05)) ball.vx = 0;
 
   // 更新灰塵粒子
   updateDust();
@@ -124,10 +127,13 @@ function drawDust(ctx, light) {
 
 // ── 被踢 ──
 function kickBall(facingDir, sceneWidth) {
-  var edgeMargin = 20;
+  var bs = _b();
+  var edgeMargin = bs.edgeMargin || 20;
   var nearEdge = ball.x < edgeMargin || ball.x > sceneWidth - edgeMargin;
-  var power = nearEdge ? (3 + Math.random() * 3) : (1.5 + Math.random() * 2);
-  var angle = -Math.PI * (0.1 + Math.random() * 0.3);
+  var power = nearEdge
+    ? ((bs.kickPowerEdgeMin || 3) + Math.random() * ((bs.kickPowerEdgeMax || 6) - (bs.kickPowerEdgeMin || 3)))
+    : ((bs.kickPowerMin || 1.5) + Math.random() * ((bs.kickPowerMax || 3.5) - (bs.kickPowerMin || 1.5)));
+  var angle = -Math.PI * ((bs.kickAngleMin || 0.1) + Math.random() * ((bs.kickAngleMax || 0.4) - (bs.kickAngleMin || 0.1)));
 
   // 角落時強制往中間踢
   var dir = facingDir;

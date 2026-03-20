@@ -50,26 +50,7 @@ window.ColorCatConfig = {
   // attack_2:         { num: '23', suffix: 'Cat_Attack_2_Hits-Sheet.png',      frames: 10, speed: 0.25, type: 'move', label: '連擊 Combo',       moveSpeed: 2, fw: 64 },
   // special_attack:   { num: '24', suffix: 'Cat_Special_Attack-Sheet.png',     frames: 8,  speed: 0.2,  type: 'once', label: '必殺技 Special',   fw: 64 },
 
-  // ── 角色養成預留欄位 ──
-  PET_DEFAULTS: {
-    name: '',
-    level: 1,
-    exp: 0,
-    expToNext: 100,
-    hp: 100,
-    maxHp: 100,
-    mood: 100,      // 心情 0~100
-    hunger: 100,    // 飽食度 0~100
-    energy: 100,    // 體力 0~100
-    skin: 'whiteCat',
-    // ── 預留：未來擴充 ──
-    // attack: 10,
-    // defense: 5,
-    // speed: 5,
-    // skills: [],
-    // equipment: {},
-    // achievements: [],
-  },
+  // 養成數值已移至 color-cat-stats.js (ColorCatStats)
 };
 
 // ── 工具函式 ──
