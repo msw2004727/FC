@@ -148,22 +148,24 @@ Object.assign(App, {
     return allRegions.filter(name => this._fuzzyMatch(this._normalizeRegionKeyword(name), q));
   },
 
+  _regionPicking: false,
+
   _renderRegionDropdown(matched) {
     const dropdown = document.getElementById('fl-region-dropdown');
     if (!dropdown) return;
+    var self = this;
     if (matched.length === 0) {
       dropdown.innerHTML = '<div style="padding:8px 12px;color:#999;font-size:14px">無匹配結果</div>';
     } else {
       dropdown.innerHTML = '';
-      matched.forEach(name => {
-        const item = document.createElement('div');
+      matched.forEach(function(name) {
+        var item = document.createElement('div');
         item.textContent = name;
         item.style.cssText = 'padding:8px 12px;cursor:pointer;font-size:14px';
-        item.onmouseenter = function() { this.style.background = 'var(--bg-hover,#f3f4f6)'; };
-        item.onmouseleave = function() { this.style.background = ''; };
-        item.onmousedown = function(e) { e.preventDefault(); };
-        item.ontouchstart = function(e) { e.preventDefault(); };
-        item.onclick = () => { this._selectRegion(name); };
+        item.onmousedown = function(e) { e.preventDefault(); self._regionPicking = true; };
+        item.ontouchstart = function() { self._regionPicking = true; };
+        item.onclick = function() { self._selectRegion(name); };
+        item.ontouchend = function(e) { e.preventDefault(); self._selectRegion(name); };
         dropdown.appendChild(item);
       });
     }
@@ -171,26 +173,25 @@ Object.assign(App, {
   },
 
   _selectRegion(name) {
-    const input = document.getElementById('fl-region-input');
-    const dropdown = document.getElementById('fl-region-dropdown');
-    if (input) input.value = name;
+    this._regionPicking = false;
+    var input = document.getElementById('fl-region-input');
+    var dropdown = document.getElementById('fl-region-dropdown');
+    if (input) { input.value = name; input.blur(); }
     if (dropdown) dropdown.style.display = 'none';
   },
 
   onRegionInput(value) {
-    const matched = this._getFilteredRegions(value);
-    this._renderRegionDropdown(matched);
+    this._renderRegionDropdown(this._getFilteredRegions(value));
   },
 
   onRegionFocus() {
-    const input = document.getElementById('fl-region-input');
-    const keyword = input ? input.value : '';
-    const matched = this._getFilteredRegions(keyword);
-    this._renderRegionDropdown(matched);
+    var input = document.getElementById('fl-region-input');
+    this._renderRegionDropdown(this._getFilteredRegions(input ? input.value : ''));
   },
 
   onRegionBlur() {
-    const dropdown = document.getElementById('fl-region-dropdown');
+    if (this._regionPicking) return;
+    var dropdown = document.getElementById('fl-region-dropdown');
     if (dropdown) dropdown.style.display = 'none';
   },
 
