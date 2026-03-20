@@ -84,7 +84,7 @@ function updateStamina() {
   var draining = (act === 'chase' || act === 'kick' || act === 'dash' ||
                   act === 'biteBall' || act === 'jumpOff' ||
                   (act === 'combo') ||
-                  (act === 'test' && testMode));
+                  testMode);
   // 散步（走向紙箱）
   var walking = (act === 'goToBox');
 
@@ -106,6 +106,7 @@ function updateStamina() {
   if (act !== 'sleeping' && act !== 'weak' && act !== 'goToBox') {
     if (pct <= 20) {
       // 虛弱等級 2：原地喘氣到全滿
+      if (testMode) stopTest();
       releaseBall();
       if (act === 'combo') endCombo();
       _weakLevel = 2;
@@ -116,6 +117,7 @@ function updateStamina() {
       character.spriteTimer = 0;
     } else if (pct <= 30) {
       // 虛弱等級 1
+      if (testMode) stopTest();
       releaseBall();
       if (act === 'combo') endCombo();
       _weakLevel = 1;
