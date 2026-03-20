@@ -33,6 +33,8 @@ _.drawFlowers = function() {};
 _.handleFlowerClick = function() { return false; };
 _.addFlower = function() {};
 _.handlePanelClick = function() { return false; };
+_.updateSkyEvents = function() {};
+_.drawSkyEvents = function() {};
 
 // ===== 主迴圈 =====
 
@@ -40,6 +42,7 @@ function render() {
   var light = !C.isThemeDark();
   var sleeping = ColorCatCharacter.isSleeping();
   _.drawBackground(_ctx, _sw, light);
+  _.drawSkyEvents(_ctx, light);
   _.drawFlowers(_ctx, light);
   _.drawBox(_ctx, light, sleeping);
   ColorCatBall.draw(_ctx, light);
@@ -51,6 +54,8 @@ function render() {
 
 function update() {
   _.updateFlowers(_sw);
+  var light = !C.isThemeDark();
+  _.updateSkyEvents(_sw, light);
   var ew = _.getEffectiveWidth ? _.getEffectiveWidth(_sw) : _sw;
   // 球邊界先夾（確保角色追球時目標不在面板內）
   var bs = ColorCatBall.state;

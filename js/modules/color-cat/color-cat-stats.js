@@ -98,7 +98,7 @@ var _ball = {
   gravity: 0.15,
   friction: 0.985,
   bounceLoss: 0.35,
-  wallBounceMult: 5,         // 左右牆反彈倍率
+  wallBounceMult: 0.4,       // 左右牆反彈倍率（衰減 60%）
   groundFriction: 0.92,      // 落地後水平摩擦
   minBounceVy: 0.5,          // 低於此值停止彈跳
   minVx: 0.05,               // 低於此值水平歸零

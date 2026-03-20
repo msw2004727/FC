@@ -1,11 +1,17 @@
 /* ================================================
-   ColorCat — 場景背景繪製（天空、草地、太陽/月亮）
+   ColorCat — 場景背景繪製（天空、草地、太陽/月亮、鳥群/流星）
    依賴：color-cat-scene.js (ColorCatScene._)
    ================================================ */
 ;(function() {
 
 var C = window.ColorCatConfig;
 var _ = window.ColorCatScene._;
+
+// ── 天空動畫常數 ──
+var SKY_EVENT_INTERVAL = 300;  // 每 10 秒（300 frames @30fps）
+// TODO: 未來由後台設定 SKY_EVENT_INTERVAL
+var _skyTimer = 0;
+var _skyEvents = [];  // { type:'birds'|'meteor', x, y, vx, vy, timer, maxTimer, ... }
 
 function drawSun(ctx, x, y) {
   ctx.save();
@@ -63,6 +69,100 @@ function drawBackground(ctx, sw, light) {
   else drawMoon(ctx, sw - 20, 18);
 }
 
+// ── 天空動畫：鳥群（白天）/ 流星（夜晚） ──
+
+function spawnSkyEvent(sw, light) {
+  if (light) {
+    // 鳥群：3~6 隻，從左或右飛入，Y 在天空上半部
+    var fromLeft = Math.random() < 0.5;
+    var baseY = 8 + Math.random() * 30;
+    var count = 3 + Math.floor(Math.random() * 4);
+    var speed = 0.8 + Math.random() * 0.6;
+    var dir = fromLeft ? 1 : -1;
+    var startX = fromLeft ? -20 : sw + 20;
+    _skyEvents.push({
+      type: 'birds', x: startX, y: baseY, vx: speed * dir, count: count,
+      timer: 0, maxTimer: Math.ceil((sw + 60) / speed),
+      offsets: (function() {
+        var o = [];
+        for (var i = 0; i < count; i++) o.push({ dx: (Math.random() - 0.5) * 16, dy: (Math.random() - 0.5) * 10 });
+        return o;
+      })()
+    });
+  } else {
+    // 流星：從右上往左下劃過
+    var sx = sw * 0.3 + Math.random() * sw * 0.6;
+    var sy = 2 + Math.random() * 15;
+    _skyEvents.push({
+      type: 'meteor', x: sx, y: sy,
+      vx: -(2.5 + Math.random() * 1.5), vy: 1.2 + Math.random() * 0.8,
+      timer: 0, maxTimer: 40 + Math.floor(Math.random() * 20),
+      brightness: 0.7 + Math.random() * 0.3
+    });
+  }
+}
+
+function updateSkyEvents(sw, light) {
+  _skyTimer++;
+  if (_skyTimer >= SKY_EVENT_INTERVAL) {
+    _skyTimer = 0;
+    spawnSkyEvent(sw, light);
+  }
+  for (var i = _skyEvents.length - 1; i >= 0; i--) {
+    var e = _skyEvents[i];
+    e.x += e.vx;
+    if (e.vy) e.y += e.vy;
+    e.timer++;
+    if (e.timer >= e.maxTimer) _skyEvents.splice(i, 1);
+  }
+}
+
+function drawBirds(ctx, e) {
+  ctx.save();
+  ctx.strokeStyle = 'rgba(40,40,40,0.5)';
+  ctx.lineWidth = 0.8;
+  var wingPhase = Math.sin(e.timer * 0.25);
+  for (var i = 0; i < e.count; i++) {
+    var bx = e.x + e.offsets[i].dx * (1 + i * 0.3);
+    var by = e.y + e.offsets[i].dy;
+    ctx.beginPath();
+    ctx.moveTo(bx - 3, by + wingPhase * 1.5);
+    ctx.lineTo(bx, by);
+    ctx.lineTo(bx + 3, by + wingPhase * 1.5);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawMeteor(ctx, e) {
+  ctx.save();
+  var fade = 1 - e.timer / e.maxTimer;
+  var tailLen = 18;
+  var grad = ctx.createLinearGradient(e.x, e.y, e.x - e.vx * tailLen * 0.3, e.y - e.vy * tailLen * 0.3);
+  grad.addColorStop(0, 'rgba(255,255,240,' + (fade * e.brightness) + ')');
+  grad.addColorStop(1, 'rgba(255,255,240,0)');
+  ctx.strokeStyle = grad;
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(e.x, e.y);
+  ctx.lineTo(e.x - e.vx * tailLen * 0.3, e.y - e.vy * tailLen * 0.3);
+  ctx.stroke();
+  // 亮點
+  ctx.fillStyle = 'rgba(255,255,255,' + (fade * e.brightness) + ')';
+  ctx.beginPath(); ctx.arc(e.x, e.y, 1, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+}
+
+function drawSkyEvents(ctx, light) {
+  for (var i = 0; i < _skyEvents.length; i++) {
+    var e = _skyEvents[i];
+    if (e.type === 'birds' && light) drawBirds(ctx, e);
+    else if (e.type === 'meteor' && !light) drawMeteor(ctx, e);
+  }
+}
+
 _.drawBackground = drawBackground;
+_.updateSkyEvents = updateSkyEvents;
+_.drawSkyEvents = drawSkyEvents;
 
 })();

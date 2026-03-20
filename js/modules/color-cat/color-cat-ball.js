@@ -59,7 +59,7 @@ function updateBall(sceneWidth) {
   }
 
   // 左右牆壁反彈
-  var wbm = _b().wallBounceMult || 5;
+  var wbm = _b().wallBounceMult || 0.4;
   if (ball.x - ball.r < 0) {
     ball.x = ball.r;
     ball.vx = Math.abs(ball.vx) * wbm;
