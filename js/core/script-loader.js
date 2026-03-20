@@ -63,6 +63,8 @@ const ScriptLoader = {
 
   _groups: {
     achievement: [
+      'js/modules/auto-exp.js',
+      'js/modules/auto-exp-rules.js',
       'js/modules/achievement/index.js',
       'js/modules/achievement/registry.js',
       'js/modules/achievement/shared.js',
@@ -77,6 +79,7 @@ const ScriptLoader = {
     ],
     activity: [
       'js/modules/auto-exp.js',
+      'js/modules/auto-exp-rules.js',
       'js/modules/event/event-list-helpers.js',
       'js/modules/event/event-list-stats.js',
       'js/modules/event/event-list-home.js',
@@ -123,6 +126,8 @@ const ScriptLoader = {
       'js/modules/team/team-form.js',
     ],
     profile: [
+      'js/modules/auto-exp.js',
+      'js/modules/auto-exp-rules.js',
       'js/modules/event/event-share-builders.js',
       'js/modules/event/event-share.js',
       'js/modules/profile/profile-avatar.js',
@@ -145,10 +150,16 @@ const ScriptLoader = {
       'js/modules/color-cat/color-cat-character-actions.js',
       'js/modules/color-cat/color-cat-character-combo.js',
       'js/modules/color-cat/color-cat-character-ai.js',
+      'js/modules/color-cat/color-cat-profile.js',
       'js/modules/color-cat/color-cat-scene.js',
       'js/modules/color-cat/color-cat-scene-bg.js',
       'js/modules/color-cat/color-cat-scene-box.js',
       'js/modules/color-cat/color-cat-scene-flag.js',
+      'js/modules/color-cat/color-cat-scene-flower.js',
+      'js/modules/color-cat/color-cat-scene-panel.js',
+      'js/modules/color-cat/color-cat-scene-panel-tab0.js',
+      'js/modules/color-cat/color-cat-scene-panel-tab1.js',
+      'js/modules/color-cat/color-cat-scene-panel-tab2.js',
     ],
     shop: [
       'js/modules/shop.js',
@@ -214,6 +225,9 @@ const ScriptLoader = {
       'js/modules/dashboard/personal-dashboard.js',
     ],
     adminUsers: [
+      'js/modules/auto-exp.js',
+      'js/modules/auto-exp-rules.js',
+      'js/modules/event/event-manage-noshow.js',
       'js/modules/user-admin/user-admin-list.js',
       'js/modules/user-admin/user-admin-exp.js',
       'js/modules/user-admin/user-admin-roles.js',

@@ -1145,7 +1145,7 @@ exports.adjustExp = onCall(
     }
 
     const callerUid = request.auth.uid;
-    const { mode, targets, teamId, amount, reason, operatorLabel, requestId } = request.data || {};
+    const { mode, targets, teamId, amount, reason, operatorLabel, requestId, ruleKey } = request.data || {};
 
     // ── 冪等性保護（可選） ──
     if (typeof requestId === "string" && requestId.length > 0) {
@@ -1275,6 +1275,7 @@ exports.adjustExp = onCall(
         operatorUid: callerUid,
         createdAt: FieldValue.serverTimestamp(),
       };
+      if (typeof ruleKey === "string" && ruleKey) log.ruleKey = ruleKey;
 
       const batch = db.batch();
       batch.update(db.collection("users").doc(targetUser.docId), {

@@ -1407,7 +1407,7 @@ const ApiService = {
     return await fn(payload);
   },
 
-  adjustUserExp(nameOrUid, amount, reason, operatorLabel, { mode = 'manual', requestId } = {}) {
+  adjustUserExp(nameOrUid, amount, reason, operatorLabel, { mode = 'manual', requestId, ruleKey } = {}) {
     const user = this._src('adminUsers').find(u => u.name === nameOrUid || u.uid === nameOrUid);
     if (!user || !(user.uid || user.lineUserId)) return null;
     // 樂觀更新本地快取
@@ -1428,6 +1428,7 @@ const ApiService = {
       if (targetId) {
         const payload = { mode, targets: [targetId], amount, reason, operatorLabel: operatorLabel || '管理員' };
         if (requestId) payload.requestId = requestId;
+        if (ruleKey) payload.ruleKey = ruleKey;
         this._callAdjustExpCF(payload).catch(err => {
           console.error('[adjustUserExp CF]', err);
           // CF 失敗 → rollback 樂觀更新
@@ -1442,7 +1443,7 @@ const ApiService = {
     return user;
   },
 
-  async adjustUserExpAsync(nameOrUid, amount, reason, operatorLabel, { mode = 'manual', requestId } = {}) {
+  async adjustUserExpAsync(nameOrUid, amount, reason, operatorLabel, { mode = 'manual', requestId, ruleKey } = {}) {
     const user = this._src('adminUsers').find(u => u.name === nameOrUid || u.uid === nameOrUid);
     if (!user || !(user.uid || user.lineUserId)) return null;
     user.exp = Math.max(0, (user.exp || 0) + amount);
@@ -1462,6 +1463,7 @@ const ApiService = {
       if (targetId) {
         const payload = { mode, targets: [targetId], amount, reason, operatorLabel: operatorLabel || '管理員' };
         if (requestId) payload.requestId = requestId;
+        if (ruleKey) payload.ruleKey = ruleKey;
         await this._callAdjustExpCF(payload);
       }
     }

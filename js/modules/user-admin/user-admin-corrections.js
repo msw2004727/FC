@@ -318,6 +318,10 @@ Object.assign(App, {
       if (targetInput) targetInput.value = String(targetCount);
       this._renderSelectedUserNoShowSummary();
       this.showToast('放鴿子補正已儲存');
+      // 放鴿子 EXP 對帳
+      if (typeof this._reconcileNoShowExp === 'function') {
+        this._reconcileNoShowExp(user.uid);
+      }
     } catch (err) {
       console.error('[submitUserNoShowCorrection]', err);
       this.showToast('補正儲存失敗，請稍後再試');
@@ -346,6 +350,10 @@ Object.assign(App, {
       if (targetInput) targetInput.value = String(this._getRawNoShowCount(user.uid));
       this._renderSelectedUserNoShowSummary();
       this.showToast('已清除放鴿子補正');
+      // 放鴿子 EXP 對帳
+      if (typeof this._reconcileNoShowExp === 'function') {
+        this._reconcileNoShowExp(user.uid);
+      }
     } catch (err) {
       console.error('[clearUserNoShowCorrection]', err);
       this.showToast('清除補正失敗，請稍後再試');

@@ -339,6 +339,7 @@ flowchart TD
 | `attendance-notify.js` | 被掃方即時通知（Production: Firestore onSnapshot / Demo: 直接觸發） |
 | `audit-log.js` | `super_admin` 審計日誌查詢（單日查詢、時間/UID/動作篩選） |
 | `auto-exp.js` | 自動 EXP 規則設定（依行為觸發） |
+| `auto-exp-rules.js` | 自動 EXP 對帳規則（放鴿子扣分 / LINE 綁定獎勵 / 徽章獎勵，reconciliation model） |
 | `banner.js` | 首頁輪播 Banner 渲染 |
 | `data-sync.js` | 系統資料同步（俱樂部成員數重算、用戶俱樂部欄位驗證、孤兒記錄清理），含費用預估 |
 | `error-log.js` | 錯誤日誌查詢與嚴重度分類顯示 |

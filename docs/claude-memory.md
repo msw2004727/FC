@@ -10,6 +10,15 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-20 — 自動 EXP 對帳規則：放鴿子 / LINE 綁定 / 徽章獎勵
+- **功能**：新增 3 條自動 EXP 規則，以 reconciliation model 運作（expected vs applied → delta 補發/扣回）
+- **新檔**：`js/modules/auto-exp-rules.js` — 對帳核心 + 3 條規則邏輯
+- **修改**：`auto-exp.js`（新增 3 個 rule key 到 `_AUTO_EXP_DEFAULTS`）、`api-service.js`（ruleKey 透傳）、`functions/index.js`（expLog 寫入 ruleKey）、`firestore.rules`（新增 `autoExpTracking` 子集合）
+- **觸發點**：`event-manage-confirm.js`（確認出席後）、`user-admin-corrections.js`（補正儲存/清除後）、`profile-data.js`（LINE 綁定後）、`evaluator.js`（成就評估後）
+- **追蹤儲存**：`users/{uid}/autoExpTracking/{ruleKey}` Firestore 子集合，欄位 `{ applied, updatedAt }`
+- **CF ±100 限制**：delta > 100 時自動分 chunk 呼叫，每 chunk ≤ 100
+- **教訓**：LINE 綁定用 deterministic requestId + CF dedup 達到一次性保證；放鴿子/徽章用 tracking doc 做增量對帳
+
 ### 2026-03-20 — 掃碼頁「未報名」誤判（缺少 registrations 資料依賴）
 - **問題**：已報名用戶掃碼後，scan log 顯示「未報名此活動」，但簽到簽退功能正常
 - **原因**：`firebase-service.js` 的 `_collectionPageMap` 和 `_pageScopedRealtimeMap` 中，`page-scan` 只聲明了 `attendanceRecords`，未包含 `registrations`。掃碼時查報名名單為空或舊快取 → `isRegistered = false` → 寫入錯誤的 `unreg` 記錄

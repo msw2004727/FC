@@ -166,6 +166,18 @@ Object.assign(App, {
     ApiService._writeOpLog('manual_attendance', '手動簽到', `活動 ${e.title} 已套用手動簽到（共 ${people.length} 筆）${errCount > 0 ? `，${errCount} 筆失敗` : ''}`);
     this._renderDetailFeeSummary(eventId);
     this.showToast(errCount > 0 ? `儲存完成，但有 ${errCount} 筆失敗` : '儲存完成');
+
+    // 放鴿子 EXP 對帳：對本活動所有正取報名者進行 no-show reconciliation
+    if (typeof this._reconcileNoShowExp === 'function') {
+      var allRegs = ApiService.getRegistrationsByEvent(eventId);
+      var reconcileUids = new Set();
+      (allRegs || []).forEach(function (r) {
+        if (r.status === 'confirmed' && r.participantType !== 'companion' && r.userId) {
+          reconcileUids.add(r.userId);
+        }
+      });
+      reconcileUids.forEach(function (uid) { App._reconcileNoShowExp(uid); });
+    }
   },
   _startUnregTableEdit(eventId) {
     this._unregEditingEventId = eventId;

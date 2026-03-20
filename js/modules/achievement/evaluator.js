@@ -903,6 +903,11 @@ Object.assign(App, {
             if (idx >= 0) { progressArr[idx] = entry; } else { progressArr.push(entry); }
           }
         });
+
+        // 徽章 EXP 對帳：評估結束後更新徽章獎勵
+        if (canWritePerUser && safeTargetUid && typeof App._reconcileBadgeExp === 'function') {
+          App._reconcileBadgeExp(safeTargetUid);
+        }
       },
     };
   },

@@ -72,6 +72,11 @@ Object.assign(App, {
       settings: { activity: true, system: true, tournament: false }
     };
     ApiService.updateCurrentUser({ lineNotify: notify });
+    // LINE 綁定 EXP 獎勵（一次性）
+    var curUser = ApiService.getCurrentUser();
+    if (curUser && typeof this._reconcileLineBindingExp === 'function') {
+      this._reconcileLineBindingExp(curUser.uid || curUser.lineUserId);
+    }
     setTimeout(() => {
       if (btn) btn.classList.remove('loading');
       const boundEl = document.getElementById('line-notify-bound');

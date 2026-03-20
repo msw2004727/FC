@@ -18,6 +18,9 @@ Object.assign(App, {
     { key: 'register_activity',    label: '\u5831\u540D\u6D3B\u52D5',     desc: '\u6210\u529F\u5831\u540D\u4E00\u5834\u6D3B\u52D5' },
     { key: 'cancel_registration',  label: '\u53D6\u6D88\u5831\u540D',     desc: '\u53D6\u6D88\u6D3B\u52D5\u5831\u540D\uFF08\u53EF\u8A2D\u8CA0\u6578\u6263\u5206\uFF09' },
     { key: 'host_activity',        label: '\u4E3B\u8FA6\u6D3B\u52D5',     desc: '\u5EFA\u7ACB\u4E00\u5834\u65B0\u6D3B\u52D5' },
+    { key: 'line_binding',         label: '\u7D81\u5B9ALINE\u63A8\u64AD', desc: '\u9996\u6B21\u7D81\u5B9A LINE \u63A8\u64AD\u901A\u77E5\uFF08\u4E00\u6B21\u6027\uFF09' },
+    { key: 'noshow_penalty',       label: '\u653E\u9D3F\u5B50\u6263\u5206', desc: '\u6BCF\u6B21\u653E\u9D3F\u5B50\u6263\u9664\uFF08\u8CA0\u6578\uFF0C\u5982 -50\uFF09' },
+    { key: 'badge_bonus',          label: '\u5FBD\u7AE0\u734E\u52F5',     desc: '\u6BCF\u679A\u5FBD\u7AE0\u734E\u52F5\uFF08\u6EFE\u52D5\u66F4\u65B0\uFF0C\u5FBD\u7AE0\u6E1B\u5C11\u4E5F\u6703\u6263\u56DE\uFF09' },
   ],
 
   // ── Rule CRUD ──
