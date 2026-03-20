@@ -69,6 +69,18 @@ Object.assign(App, {
       }
     });
 
+    // 依 event.waitlistNames 順序重排，確保所有角色看到一致排序
+    const wlOrder = e.waitlistNames || [];
+    if (wlOrder.length > 0) {
+      const orderMap = new Map();
+      wlOrder.forEach((name, i) => orderMap.set(name, i));
+      items.sort((a, b) => {
+        const ia = orderMap.has(a.name) ? orderMap.get(a.name) : 99999;
+        const ib = orderMap.has(b.name) ? orderMap.get(b.name) : 99999;
+        return ia - ib;
+      });
+    }
+
     if (items.length === 0) { container.innerHTML = ''; return; }
 
     const totalCount = items.reduce((sum, it) => sum + 1 + it.companions.length, 0);

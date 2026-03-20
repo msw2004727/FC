@@ -285,7 +285,8 @@
 // 20260320i: 修正正取名單排序 + 候補人數計算
 // 20260320j: 全面修正 12 處跨裝置排序不一致 + 角色快取計數問題
 // 20260320k: _rebuildOccupancy 排序修正，確保 waitlistNames 寫入順序一致
-const CACHE_VERSION = '20260320k';
+// 20260320l: 候補名單渲染依 event.waitlistNames 順序重排，修正一般用戶排序 #1 問題
+const CACHE_VERSION = '20260320l';
 
 // ─── Page Strategy Registry ───
 // 唯一策略來源，未列出的頁面預設 fresh-first
