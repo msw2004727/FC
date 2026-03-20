@@ -534,9 +534,9 @@
   position: fixed;
   left: 6px;
   bottom: calc(var(--bottombar-h) + env(safe-area-inset-bottom, 0) + 2px);
-  font-size: .55rem;
+  font-size: .7rem;
   color: var(--text-muted);
-  opacity: .35;
+  opacity: .55;
   letter-spacing: .02em;
   user-select: text;
   z-index: 899;

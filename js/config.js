@@ -293,7 +293,8 @@
 // 20260320q: 版號改為 fixed 定位貼齊 bottom-tabs 上方，不隨滑動
 // 20260320r: 修復首次/久未開啟用戶空白首頁 — timeout 後背景重載 + 移除 sw.js 幽靈 mode.js
 // 20260320s: Safari PWA 恢復時刷新 events + pagehide 持久化快取
-const CACHE_VERSION = '20260320s';
+// 20260320t: 版號字體加大 + 顏色加深
+const CACHE_VERSION = '20260320t';
 
 // ─── Page Strategy Registry ───
 // 唯一策略來源，未列出的頁面預設 fresh-first
