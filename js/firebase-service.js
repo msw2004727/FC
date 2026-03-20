@@ -313,7 +313,7 @@ const FirebaseService = {
     'page-activities':        ['events', 'attendanceRecords', 'activityRecords', 'registrations'],
     'page-activity-detail':   ['events', 'registrations', 'attendanceRecords', 'activityRecords', 'userCorrections'],
     'page-my-activities':     ['events', 'attendanceRecords', 'registrations'],
-    'page-scan':              ['attendanceRecords'],
+    'page-scan':              ['attendanceRecords', 'registrations'],
     'page-admin-dashboard':   ['expLogs', 'teamExpLogs', 'operationLogs', 'attendanceRecords', 'activityRecords'],
     'page-admin-users':       ['permissions', 'customRoles'],
     'page-admin-messages':    ['adminMessages', 'notifTemplates'],
@@ -342,7 +342,7 @@ const FirebaseService = {
     'page-activities':      ['registrations', 'attendanceRecords'],
     'page-activity-detail': ['registrations', 'attendanceRecords', 'events'],
     'page-my-activities':   ['registrations', 'attendanceRecords'],
-    'page-scan':            ['attendanceRecords'],
+    'page-scan':            ['attendanceRecords', 'registrations'],
   },
 
   _staticReloadMaxAgeMs: {

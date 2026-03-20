@@ -10,6 +10,12 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-20 — 掃碼頁「未報名」誤判（缺少 registrations 資料依賴）
+- **問題**：已報名用戶掃碼後，scan log 顯示「未報名此活動」，但簽到簽退功能正常
+- **原因**：`firebase-service.js` 的 `_collectionPageMap` 和 `_pageScopedRealtimeMap` 中，`page-scan` 只聲明了 `attendanceRecords`，未包含 `registrations`。掃碼時查報名名單為空或舊快取 → `isRegistered = false` → 寫入錯誤的 `unreg` 記錄
+- **修復**：兩處 `page-scan` 加入 `registrations`
+- **教訓**：新增頁面功能時，若該頁需要查詢某集合的資料，必須在 `_collectionPageMap` 和 `_pageScopedRealtimeMap` 中同步聲明依賴
+
 ### 2026-03-20 — ColorCat 模組化拆分 + 修復煙霧/喘氣/貓臉消失
 - **問題**：角色拆分為子模組後，煙霧效果、虛弱喘氣粒子消失，AI 不動作
 - **原因**：5 個角色子模組檔案（stamina/particles/actions/combo/ai）已建立在磁碟上，但未加入 test-color-cat.html 的 `<script>` 標籤與 script-loader.js 的 profile 群組。子模組未載入導致核心的函式插槽（stubs）保持空操作
