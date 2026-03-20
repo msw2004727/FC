@@ -403,7 +403,7 @@
 .drawer-footer { padding: .75rem 1.2rem; border-top: 1px solid var(--border); }
 #theme-toggle { display: flex; align-items: center; gap: .6rem; width: 100%; font-size: .88rem; color: var(--text-secondary); padding: .5rem 0; line-height: 22px; min-height: 22px; }
 .drawer-footer-bottom { display: flex; align-items: center; gap: .6rem; padding: .35rem 0 0; }
-.toggle-switch { flex: 1; min-width: 40px; height: 22px; border-radius: 11px; background: var(--border); position: relative; transition: background var(--transition); overflow: hidden; }
+.toggle-switch { width: 46px; min-width: 40px; height: 22px; border-radius: 11px; background: var(--border); position: relative; transition: background var(--transition); overflow: hidden; }
 .toggle-switch.active { background: var(--accent); }
 .toggle-switch::before { content: '🌙'; position: absolute; left: 5px; top: 50%; transform: translateY(-50%); font-size: 11px; line-height: 1; z-index: 1; pointer-events: none; }
 .toggle-switch::after { content: '☀️'; position: absolute; right: 5px; top: 50%; transform: translateY(-50%); font-size: 11px; line-height: 1; z-index: 1; pointer-events: none; }
