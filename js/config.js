@@ -288,7 +288,8 @@
 // 20260320l: 候補名單渲染依 event.waitlistNames 順序重排，修正一般用戶排序 #1 問題
 // 20260320m: 修正一般用戶重新報名時 activityRecords 權限錯誤
 // 20260320n: body padding-bottom 加 55px 避免 QR 按鈕遮擋名單底部
-const CACHE_VERSION = '20260320n';
+// 20260320o: 修正首頁活動卡片候補人數不正確 — hasSource 誤判部分快取為完整資料 + registrations listener 缺少首頁重繪
+const CACHE_VERSION = '20260320o';
 
 // ─── Page Strategy Registry ───
 // 唯一策略來源，未列出的頁面預設 fresh-first

@@ -90,8 +90,14 @@ Object.assign(App, {
 
     const fallbackConfirmed = Math.max(0, Number(event.current || 0));
     const fallbackWaitlist = Math.max(0, Number(event.waitlist || 0));
-    const confirmedCount = confirmedSummary.hasSource ? confirmedSummary.count : fallbackConfirmed;
-    const waitlistCount = waitlistSummary.hasSource ? waitlistSummary.count : fallbackWaitlist;
+
+    // 只有在 registrations 監聽器存活 且 取得全量資料（admin）時，才信任 registration 計數；
+    // 否則使用 event 投影欄位（由 _rebuildOccupancy 保證正確，且透過 events listener 即時更新）。
+    const _hasCompleteRegs = typeof FirebaseService !== 'undefined'
+      && FirebaseService._realtimeListenerStarted?.registrations
+      && FirebaseService._registrationListenerKey === 'all';
+    const confirmedCount = (confirmedSummary.hasSource && _hasCompleteRegs) ? confirmedSummary.count : fallbackConfirmed;
+    const waitlistCount = (waitlistSummary.hasSource && _hasCompleteRegs) ? waitlistSummary.count : fallbackWaitlist;
     const maxCount = Math.max(0, Number(event.max || 0));
     const remainingCount = maxCount > 0 ? Math.max(0, maxCount - confirmedCount) : 0;
     const isCapacityFull = maxCount > 0 && confirmedCount >= maxCount;

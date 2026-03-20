@@ -10,6 +10,14 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-20 — 首頁活動卡片候補人數不正確（hasSource 誤判 + 缺少首頁重繪）
+- **問題**：少數用戶在首頁看到活動卡片上的候補人數與實際不符
+- **原因 1**：`_getEventParticipantStats()` 的 `hasSource` 只要快取有任何一筆 registration 就為 true，但一般用戶快取僅含自己的報名紀錄（非全量），導致混合計數與 event 投影欄位不一致
+- **原因 2**：用戶瀏覽活動詳情頁後，registrations 快取殘留；回到首頁後 listener 停止但過期快取仍被讀取
+- **原因 3**：registrations listener 的 onSnapshot 回調缺少 `page-home` → `renderHotEvents()` 觸發
+- **修復**：(1) `_getEventParticipantStats` 僅在 admin 且 listener 存活時信任 registration 計數，否則使用 event.current/event.waitlist (2) registrations onSnapshot 加入首頁重繪
+- **教訓**：`hasSource` 模式在快取可能不完整的場景下不可靠；首頁卡片計數應一律使用 event 文件投影欄位
+
 ### 2026-03-20 — 正取名單排序不一致 + 候補人數跨裝置差異
 - **問題 1**：不同手機看到的正取報名名單排序不同，重新整理也一樣
 - **原因**：`_buildConfirmedParticipantSummary()` 沒有對 confirmedRegs 做排序，順序取決於各手機 Firestore 快取的文件 ID 字典序

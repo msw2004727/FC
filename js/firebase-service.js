@@ -1209,6 +1209,7 @@ const FirebaseService = {
           this._snapshotReconnectAttempts.registrations = 0; // RC4：成功時重置重連計數
           this._debouncedPersistCache();
           if (typeof App !== 'undefined') {
+            if (App.currentPage === 'page-home') App.renderHotEvents?.();
             if (App.currentPage === 'page-activity-detail') App.showEventDetail?.(App._currentDetailEventId);
             if (App.currentPage === 'page-activities') App.renderActivityList?.();
             if (App.currentPage === 'page-my-activities') App.renderMyActivities?.();
