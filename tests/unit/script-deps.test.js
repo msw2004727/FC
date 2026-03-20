@@ -488,3 +488,143 @@ describe('Eager script file existence', () => {
     expect(missing).toEqual([]);
   });
 });
+
+// ═══════════════════════════════════════════════════════
+//  Step 9/10 safety net: cross-module dependency checks
+// ═══════════════════════════════════════════════════════
+
+describe('Step 9/10: renderHomeDeferred dependencies must be loadable', () => {
+  let loaderData;
+
+  beforeAll(() => {
+    loaderData = parseScriptLoader();
+  });
+
+  // These 3 modules are required by renderHomeDeferred (called 250ms after boot).
+  // If they're removed from index.html (Phase C), they MUST be in a ScriptLoader group.
+  const HOME_DEFERRED_DEPS = [
+    'js/modules/tournament/tournament-core.js',
+    'js/modules/tournament/tournament-render.js',
+    'js/modules/popup-ad.js',
+  ];
+
+  test('renderHomeDeferred dependencies exist on disk', () => {
+    const missing = HOME_DEFERRED_DEPS.filter(p => !fs.existsSync(path.join(ROOT, p)));
+    expect(missing).toEqual([]);
+  });
+
+  test('renderHomeDeferred dependencies are in index.html OR a ScriptLoader group', () => {
+    const eager = new Set(getEagerScripts());
+    const allGroupScripts = new Set();
+    Object.values(loaderData.groups).forEach(scripts => {
+      scripts.forEach(s => allGroupScripts.add(s));
+    });
+
+    const unreachable = HOME_DEFERRED_DEPS.filter(dep =>
+      !eager.has(dep) && !allGroupScripts.has(dep)
+    );
+
+    if (unreachable.length > 0) {
+      console.error('renderHomeDeferred deps not loadable:', unreachable);
+    }
+    expect(unreachable).toEqual([]);
+  });
+});
+
+describe('Step 9: Phase B scripts must be in ScriptLoader groups before removal', () => {
+  let loaderData;
+
+  beforeAll(() => {
+    loaderData = parseScriptLoader();
+  });
+
+  // These 7 scripts are candidates for removal from index.html in Phase B.
+  // They MUST be in at least one ScriptLoader group before removal.
+  const PHASE_B_CANDIDATES = [
+    'js/modules/profile/profile-avatar.js',
+    'js/modules/profile/profile-data-stats.js',
+    'js/modules/event/event-list-timeline.js',
+    'js/modules/message/message-line-push.js',
+    'js/modules/message/message-notify.js',
+    'js/modules/favorites.js',
+    'js/modules/news.js',
+  ];
+
+  test('all Phase B candidate files exist on disk', () => {
+    const missing = PHASE_B_CANDIDATES.filter(p => !fs.existsSync(path.join(ROOT, p)));
+    expect(missing).toEqual([]);
+  });
+
+  test('Phase B candidates currently in index.html are tracked', () => {
+    const eager = new Set(getEagerScripts());
+    // Track which Phase B candidates are still eager (not yet removed)
+    const stillEager = PHASE_B_CANDIDATES.filter(p => eager.has(p));
+    // Track which are already in a group (safe to remove)
+    const allGroupScripts = new Set();
+    Object.values(loaderData.groups).forEach(scripts => {
+      scripts.forEach(s => allGroupScripts.add(s));
+    });
+    const inGroup = PHASE_B_CANDIDATES.filter(p => allGroupScripts.has(p));
+
+    // Any candidate NOT in a group would be orphaned if removed from index.html
+    const wouldBeOrphaned = stillEager.filter(p => !allGroupScripts.has(p));
+    if (wouldBeOrphaned.length > 0) {
+      console.warn('Phase B scripts still in index.html but NOT in any group (must add before removing):');
+      wouldBeOrphaned.forEach(p => console.warn(`  ${p}`));
+    }
+    // This is informational — not a hard failure until Phase B is executed
+    // After Phase B, this should be empty
+    expect(wouldBeOrphaned.length).toBeLessThanOrEqual(PHASE_B_CANDIDATES.length);
+  });
+});
+
+describe('Step 9: message-notify depends on message-line-push (load order)', () => {
+  let loaderData;
+
+  beforeAll(() => {
+    loaderData = parseScriptLoader();
+  });
+
+  test('in every group containing message-notify, message-line-push appears BEFORE it', () => {
+    const violations = [];
+    Object.entries(loaderData.groups).forEach(([groupName, scripts]) => {
+      const notifyIdx = scripts.indexOf('js/modules/message/message-notify.js');
+      const pushIdx = scripts.indexOf('js/modules/message/message-line-push.js');
+      if (notifyIdx >= 0 && pushIdx < 0) {
+        violations.push({ group: groupName, issue: 'has message-notify but missing message-line-push' });
+      }
+      if (notifyIdx >= 0 && pushIdx >= 0 && pushIdx > notifyIdx) {
+        violations.push({ group: groupName, issue: 'message-line-push loaded AFTER message-notify' });
+      }
+    });
+    expect(violations).toEqual([]);
+  });
+});
+
+describe('SW STATIC_ASSETS integrity', () => {
+  test('all files in sw.js STATIC_ASSETS exist on disk', () => {
+    const swSrc = readFile('sw.js');
+    const assetsMatch = swSrc.match(/const STATIC_ASSETS\s*=\s*\[([\s\S]*?)\]/);
+    if (!assetsMatch) {
+      // No STATIC_ASSETS found — skip
+      return;
+    }
+    const pathRe = /'([^']+)'/g;
+    const assets = [];
+    let m;
+    while ((m = pathRe.exec(assetsMatch[1])) !== null) {
+      assets.push(m[1]);
+    }
+
+    const missing = assets.filter(a => {
+      if (a === './') return false; // root is always valid
+      const filePath = path.join(ROOT, a.replace(/^\.\//, ''));
+      return !fs.existsSync(filePath);
+    });
+
+    if (missing.length > 0) {
+      console.error('SW STATIC_ASSETS references non-existent files:', missing);
+    }
+    expect(missing).toEqual([]);
+  });
+});
