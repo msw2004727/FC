@@ -13,9 +13,11 @@ Object.assign(App, {
   /** 恢復報名時移除該活動的取消紀錄（恢復報名則不列為取消） */
   _removeCancelRecordOnResignup(eventId, uid) {
     const source = ApiService._src('activityRecords');
+    const canDelete = !ModeManager.isDemo()
+      && (ROLE_LEVEL_MAP[this.currentRole] || 0) >= ROLE_LEVEL_MAP.admin;
     for (let i = source.length - 1; i >= 0; i--) {
       if (source[i].eventId === eventId && source[i].uid === uid && source[i].status === 'cancelled') {
-        if (!ModeManager.isDemo() && source[i]._docId) {
+        if (canDelete && source[i]._docId) {
           db.collection('activityRecords').doc(source[i]._docId).delete()
             .catch(err => console.error('[removeCancelRecord]', err));
         }
