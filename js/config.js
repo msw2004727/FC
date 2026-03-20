@@ -295,7 +295,8 @@
 // 20260320s: Safari PWA 恢復時刷新 events + pagehide 持久化快取
 // 20260320t: 版號字體加大 + 顏色加深
 // 20260320u: SW cache.addAll 改逐個快取，單檔失敗不阻塞
-const CACHE_VERSION = '20260320u';
+// 20260320v: init() ?.() 防護 + try-catch 錯誤邊界 + renderHomeDeferred 防護
+const CACHE_VERSION = '20260320v';
 
 // ─── Page Strategy Registry ───
 // 唯一策略來源，未列出的頁面預設 fresh-first

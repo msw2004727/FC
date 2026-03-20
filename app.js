@@ -134,38 +134,45 @@ const App = {
   _pageSnapshotReady: {},
 
   init() {
+    // ── 核心 UI（硬呼叫，失敗代表致命問題）──
     this.bindSportPicker();
     this.bindNavigation();
     this.bindDrawer();
     this.bindTheme();
     this.initFontSize();
-    this.initPwaInstall();
-    this.bindFilterToggle();
-    this.bindTabBars();
-    this.bindTournamentTabs();
-    this.bindScanModes();
-    this.bindFloatingAds();
-    this.bindNotifBtn();
-    this.bindLineLogin();
-    this.bindImageUpload('ce-image', 'ce-upload-preview', 16/9);
-    this.bindImageUpload('ct-image', 'ct-upload-preview', 16/9);
-    this.bindImageUpload('ct-content-image', 'ct-content-upload-preview', 16/9);
-    this.bindImageUpload('et-image', 'et-upload-preview', 16/9);
-    this.bindImageUpload('et-content-image', 'et-content-upload-preview', 16/9);
-    this.bindImageUpload('cs-img1', 'cs-preview1', 4/3);
-    this.bindImageUpload('cs-img2', 'cs-preview2', 4/3);
-    this.bindImageUpload('cs-img3', 'cs-preview3', 4/3);
-    this.bindImageUpload('banner-image', 'banner-preview', 2.2);
-    this.bindImageUpload('floatad-image', 'floatad-preview', 1);
-    this.bindImageUpload('popupad-image', 'popupad-preview', 16/9);
-    this.bindImageUpload('ct-team-image', 'ct-team-preview', 1);
-    this.bindImageUpload('theme-image', 'theme-preview', 0);
-    this._bindAchBadgeUpload?.();
-    this._populateAchConditionSelects?.();
-    this.bindShopSearch?.();
-    this.bindTeamOnlyToggle?.();
-    this.applySiteThemes();
-    this.initLangSwitcher();
+    // ── 非核心模組（?.() + try-catch，失敗不影響核心渲染）──
+    try {
+      this.initPwaInstall?.();
+      this.bindFilterToggle();
+      this.bindTabBars();
+      this.bindTournamentTabs();
+      this.bindScanModes();
+      this.bindFloatingAds?.();
+      this.bindNotifBtn();
+      this.bindLineLogin();
+      this.bindImageUpload?.('ce-image', 'ce-upload-preview', 16/9);
+      this.bindImageUpload?.('ct-image', 'ct-upload-preview', 16/9);
+      this.bindImageUpload?.('ct-content-image', 'ct-content-upload-preview', 16/9);
+      this.bindImageUpload?.('et-image', 'et-upload-preview', 16/9);
+      this.bindImageUpload?.('et-content-image', 'et-content-upload-preview', 16/9);
+      this.bindImageUpload?.('cs-img1', 'cs-preview1', 4/3);
+      this.bindImageUpload?.('cs-img2', 'cs-preview2', 4/3);
+      this.bindImageUpload?.('cs-img3', 'cs-preview3', 4/3);
+      this.bindImageUpload?.('banner-image', 'banner-preview', 2.2);
+      this.bindImageUpload?.('floatad-image', 'floatad-preview', 1);
+      this.bindImageUpload?.('popupad-image', 'popupad-preview', 16/9);
+      this.bindImageUpload?.('ct-team-image', 'ct-team-preview', 1);
+      this.bindImageUpload?.('theme-image', 'theme-preview', 0);
+      this._bindAchBadgeUpload?.();
+      this._populateAchConditionSelects?.();
+      this.bindShopSearch?.();
+      this.bindTeamOnlyToggle?.();
+      this.applySiteThemes?.();
+      this.initLangSwitcher?.();
+    } catch (e) {
+      console.error('[App] 非核心模組初始化失敗:', e.message);
+    }
+    // ── 核心渲染（不受上方錯誤影響）──
     this._applyI18nToUI();
     this.renderAll();
     this.applyRole('user', true);
@@ -228,11 +235,11 @@ const App = {
 
   renderHomeDeferred() {
     if (!this._isHomePageActive()) return false;
-    this.renderOngoingTournaments();
+    if (typeof this.renderOngoingTournaments === 'function') this.renderOngoingTournaments();
     this.renderSponsors();
     if (this.renderNews) this.renderNews();
     this.renderFloatingAds();
-    this.showPopupAdsOnLoad();
+    if (typeof this.showPopupAdsOnLoad === 'function') this.showPopupAdsOnLoad();
     this.startBannerCarousel();
     return true;
   },
