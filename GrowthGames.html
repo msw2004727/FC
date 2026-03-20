@@ -24,11 +24,13 @@
 
 <h2>GrowthGames — 養成角色互動</h2>
 
-<div class="toolbar" id="toolbar">
+<div class="toolbar" id="toolbar-top">
   <button onclick="toggleTheme()">主題</button>
 </div>
 
 <div class="canvas-wrap" id="scene-container"></div>
+
+<div class="toolbar" id="toolbar-bottom" style="margin-top:.8rem;"></div>
 
 <!-- 載入模組 -->
 <script src="js/modules/color-cat/color-cat-config.js?v=20260321a"></script>
@@ -59,12 +61,13 @@ function toggleTheme() {
   document.documentElement.setAttribute('data-theme', t === 'dark' ? 'light' : 'dark');
 }
 
-// ── 建立測試工具列按鈕 ──
+// ── 建立工具列按鈕 ──
 (function buildTestToolbar() {
-  var toolbar = document.getElementById('toolbar');
+  var top = document.getElementById('toolbar-top');
+  var bot = document.getElementById('toolbar-bottom');
   var C = window.ColorCatConfig;
 
-  // 角色皮膚切換
+  // ── 上方：角色皮膚 + 長花 ──
   var skinKeys = Object.keys(C.SKINS);
   skinKeys.forEach(function(sk) {
     var btn = document.createElement('button');
@@ -76,26 +79,29 @@ function toggleTheme() {
       document.querySelectorAll('.skin-btn').forEach(function(b) { b.classList.remove('active'); });
       btn.classList.add('active');
     };
-    toolbar.appendChild(btn);
+    top.appendChild(btn);
   });
 
-  // 分隔
   var sep = document.createElement('span');
   sep.textContent = '｜';
   sep.style.cssText = 'font-size:.7rem;color:#999;align-self:center;';
-  toolbar.appendChild(sep);
+  top.appendChild(sep);
 
-  // 動作測試按鈕
+  var flowerBtn = document.createElement('button');
+  flowerBtn.textContent = '長花';
+  flowerBtn.style.borderColor = '#5DA849';
+  flowerBtn.onclick = function() { ColorCatScene.addFlower(); };
+  top.appendChild(flowerBtn);
+
+  // ── 下方：動作 + 爬牆 + 爬紙箱 + 咬球 + 虛弱 ──
   var actions = Object.keys(C.ACTION_DEFS);
   actions.forEach(function(key) {
     var btn = document.createElement('button');
     btn.textContent = C.ACTION_DEFS[key].label;
     btn.id = 'btn-' + key;
     btn.onclick = function() {
-      // 清除舊 active
-      var old = document.querySelector('.toolbar button.active:not(.skin-btn)');
+      var old = bot.querySelector('button.active:not(.weak-btn)');
       if (old) old.classList.remove('active');
-
       if (ColorCatCharacter.getTestMode() === key) {
         ColorCatCharacter.stopTest();
       } else {
@@ -103,16 +109,14 @@ function toggleTheme() {
         btn.classList.add('active');
       }
     };
-    toolbar.appendChild(btn);
+    bot.appendChild(btn);
   });
 
-  // 分隔
   var sep2 = document.createElement('span');
   sep2.textContent = '｜';
   sep2.style.cssText = 'font-size:.7rem;color:#999;align-self:center;';
-  toolbar.appendChild(sep2);
+  bot.appendChild(sep2);
 
-  // 爬邊牆按鈕
   var wallBtn = document.createElement('button');
   wallBtn.textContent = '爬邊牆';
   wallBtn.style.borderColor = '#10b981';
@@ -121,21 +125,18 @@ function toggleTheme() {
     var sw = container ? container.offsetWidth : 300;
     ColorCatCharacter.startComboWall(sw);
   };
-  toolbar.appendChild(wallBtn);
+  bot.appendChild(wallBtn);
 
-  // 爬紙箱按鈕
   var boxBtn = document.createElement('button');
   boxBtn.textContent = '爬紙箱';
   boxBtn.style.borderColor = '#10b981';
   boxBtn.onclick = function() {
     var container = document.getElementById('scene-container');
     var sw = container ? container.offsetWidth : 300;
-    // 紙箱位置：BOX_X=35, BOX_H=46, BOX_BOTTOM_Y≈125
     ColorCatCharacter.startComboBox(sw, 35, 125 - 46);
   };
-  toolbar.appendChild(boxBtn);
+  bot.appendChild(boxBtn);
 
-  // 咬球按鈕
   var biteBtn = document.createElement('button');
   biteBtn.textContent = '咬球';
   biteBtn.style.borderColor = '#ef4444';
@@ -144,18 +145,13 @@ function toggleTheme() {
     var sw = container ? container.offsetWidth : 300;
     ColorCatCharacter.startBiteBall(sw);
   };
-  toolbar.appendChild(biteBtn);
+  bot.appendChild(biteBtn);
 
-  // 長花測試按鈕
-  var flowerBtn = document.createElement('button');
-  flowerBtn.textContent = '長花';
-  flowerBtn.style.borderColor = '#5DA849';
-  flowerBtn.onclick = function() {
-    ColorCatScene.addFlower();
-  };
-  toolbar.appendChild(flowerBtn);
+  var sep3 = document.createElement('span');
+  sep3.textContent = '｜';
+  sep3.style.cssText = 'font-size:.7rem;color:#999;align-self:center;';
+  bot.appendChild(sep3);
 
-  // 虛弱等級按鈕（1~3）
   for (var wl = 1; wl <= 3; wl++) {
     (function(level) {
       var wBtn = document.createElement('button');
@@ -172,7 +168,7 @@ function toggleTheme() {
           wBtn.classList.add('active');
         }
       };
-      toolbar.appendChild(wBtn);
+      bot.appendChild(wBtn);
     })(wl);
   }
 })();
