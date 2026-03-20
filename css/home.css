@@ -529,13 +529,17 @@
   background: var(--accent-alpha, rgba(37,99,235,.1)); color: var(--accent);
 }
 
-/* Version Tag */
+/* Version Tag — fixed above bottom tab bar */
 .home-version-tag {
-  text-align: left;
-  padding: 0.5rem 0.8rem 1rem;
-  font-size: .6rem;
+  position: fixed;
+  left: 6px;
+  bottom: calc(var(--bottombar-h) + env(safe-area-inset-bottom, 0) + 2px);
+  font-size: .55rem;
   color: var(--text-muted);
-  opacity: .45;
+  opacity: .35;
   letter-spacing: .02em;
   user-select: text;
+  z-index: 899;
+  pointer-events: none;
+  line-height: 1;
 }

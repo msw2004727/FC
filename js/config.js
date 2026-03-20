@@ -290,7 +290,8 @@
 // 20260320n: body padding-bottom 加 55px 避免 QR 按鈕遮擋名單底部
 // 20260320o: 修正首頁活動卡片候補人數不正確 — hasSource 誤判部分快取為完整資料 + registrations listener 缺少首頁重繪
 // 20260320p: 首頁左下角顯示短版號 v0.xxx（取 CACHE_VERSION 後三碼）
-const CACHE_VERSION = '20260320p';
+// 20260320q: 版號改為 fixed 定位貼齊 bottom-tabs 上方，不隨滑動
+const CACHE_VERSION = '20260320q';
 
 // ─── Page Strategy Registry ───
 // 唯一策略來源，未列出的頁面預設 fresh-first

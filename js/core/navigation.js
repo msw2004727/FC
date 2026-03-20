@@ -559,6 +559,7 @@ Object.assign(App, {
     if (this.currentPage === 'page-home' && pageId !== 'page-home') {
       this._cancelHomeDeferredRender?.();
       this.stopBannerCarousel?.();
+      this._renderHomeVersionTag?.(false);
     }
     if (this.currentPage === 'page-profile' && pageId !== 'page-profile') {
       this._destroyProfileScene?.();
