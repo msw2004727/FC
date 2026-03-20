@@ -1811,10 +1811,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  // Global unhandled rejection → errorLog（過濾第三方 SDK 雜訊）
+  // Global unhandled rejection → errorLog（過濾第三方 SDK 雜訊，但記錄嚴重錯誤）
   window.addEventListener('unhandledrejection', (event) => {
-    if (!ApiService._errorLogReady) return;
     const msg = (event.reason?.message || '').toLowerCase();
+    // Firebase SDK INTERNAL ASSERTION FAILED：記錄但不報錯（已知 IndexedDB 問題）
+    if (msg.includes('assertion') && (msg.includes('firebase') || msg.includes('firestore'))) {
+      console.error('[SDK] Firebase assertion error (IndexedDB issue):', event.reason?.message);
+      return;
+    }
+    if (!ApiService._errorLogReady) return;
     if (msg.includes('liff') || msg.includes('firebase') || msg.includes('firestore') || msg.includes('chunkloaderror')) return;
     ApiService._writeErrorLog('unhandledrejection', event.reason);
   });

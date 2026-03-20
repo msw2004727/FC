@@ -114,8 +114,13 @@ Object.assign(App, {
             refreshAfterUserReady();
           } else {
             const code = err?.code || '';
+            const msg = (err?.message || '').toLowerCase();
             if (code === 'permission-denied') {
               this.showToast('登入失敗：資料庫權限不足，請聯繫管理員更新 Firestore 規則');
+            } else if (msg.includes('assertion') || msg.includes('internal')) {
+              // Firebase SDK 內部錯誤（IndexedDB 損壞等）→ 建議清快取重試
+              console.error('[App] Firebase SDK internal error during login:', err);
+              this.showToast('登入異常，請關閉所有分頁後重新開啟');
             } else {
               this.showToast('登入失敗：' + (err?.message || '資料同步異常'));
             }

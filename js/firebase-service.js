@@ -921,9 +921,17 @@ const FirebaseService = {
         });
       }
     } catch (err) {
-      console.error('[FirebaseService] Custom Token 登入失敗:', err?.code, err?.message);
+      const errMsg = err?.message || '';
+      const errCode = err?.code || '';
+      console.error('[FirebaseService] Custom Token 登入失敗:', errCode, errMsg, err?.stack || '');
       if (typeof App !== 'undefined' && App.showToast) {
-        App.showToast('LINE 驗證失敗，部分功能可能受限');
+        if (errMsg.toLowerCase().includes('assertion') || errMsg.toLowerCase().includes('internal')) {
+          App.showToast('系統初始化異常，請關閉所有分頁後重新開啟');
+        } else if (errCode === 'functions/unavailable' || errCode === 'unavailable') {
+          App.showToast('伺服器暫時不可用，請稍後再試');
+        } else {
+          App.showToast('LINE 驗證失敗，部分功能可能受限');
+        }
       }
     }
   },

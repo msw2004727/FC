@@ -125,13 +125,23 @@ function initFirebaseApp() {
       }
     });
 
-    db.enablePersistence({ synchronizeTabs: true }).catch(err => {
-      if (err.code === 'failed-precondition') {
-        console.warn('[Firestore] 多個分頁開啟，僅一個可啟用離線快取');
-      } else if (err.code === 'unimplemented') {
-        console.warn('[Firestore] 此瀏覽器不支援離線持久化');
-      }
-    });
+    // Firestore 離線持久化（IndexedDB）
+    // 已知問題：Firebase 10.14.1 compat 在 LINE WebView 中可能觸發
+    // "INTERNAL ASSERTION FAILED" — 用 try-catch 包裹防止影響啟動流程
+    try {
+      db.enablePersistence({ synchronizeTabs: true }).catch(err => {
+        if (err.code === 'failed-precondition') {
+          console.warn('[Firestore] 多個分頁開啟，僅一個可啟用離線快取');
+        } else if (err.code === 'unimplemented') {
+          console.warn('[Firestore] 此瀏覽器不支援離線持久化');
+        } else {
+          console.warn('[Firestore] enablePersistence 失敗:', err.code || '', err.message || err);
+        }
+      });
+    } catch (persistErr) {
+      // Firebase SDK 內部 assertion failure — 放棄離線持久化，不影響線上功能
+      console.warn('[Firestore] enablePersistence 同步例外（已降級為無離線快取）:', persistErr.message || persistErr);
+    }
     console.log('[Firebase] App 初始化成功');
     return true;
   } catch (e) {

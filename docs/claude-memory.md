@@ -10,6 +10,16 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-20 — Firebase INTERNAL ASSERTION FAILED 防護 + 登入錯誤訊息改善
+- **問題**：用戶在 LINE WebView 中看到 `FIRESTORE (10.14.1) INTERNAL ASSERTION FAILED` 錯誤，導致登入失敗
+- **原因**：Firebase SDK 10.14.1 compat 的 `enablePersistence({ synchronizeTabs: true })` 在 LINE WebView 的 IndexedDB 環境中觸發 SDK 內部 assertion error。此為火忘 Promise，assertion 同步拋出時未被攔截
+- **修復**：
+  1. `firebase-config.js`: `enablePersistence` 加 try-catch 包裹，assertion error 時降級為無離線快取
+  2. `profile-form.js`: 登入失敗訊息區分 assertion/internal 錯誤，建議用戶「關閉所有分頁後重新開啟」
+  3. `firebase-service.js`: Custom Token 登入失敗區分伺服器不可用 vs assertion error
+  4. `app.js`: unhandledrejection handler 攔截 Firebase assertion error 並記錄（原先被過濾掉）
+- **教訓**：`enablePersistence` 的 `.catch()` 只能捕獲 Promise reject，SDK 同步拋出的 assertion error 需要外層 try-catch
+
 ### 2026-03-20 — boot-dependency-map 優化 8 步全部實作完成
 - **問題**：首次訪問/4G 中階手機載入慢、SW cache 永遠為空、快取層級聯失敗風險
 - **修復**（8 個獨立 commit，版本 20260320u→aa）：
