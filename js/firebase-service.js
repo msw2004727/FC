@@ -133,25 +133,27 @@ const FirebaseService = {
 
   /** 儲存集合到 localStorage */
   _saveToLS(name, data) {
-    const json = JSON.stringify(data);
-    // 單一集合超過 500KB 就不存（避免 localStorage 爆掉）
-    if (json.length > 512000) return;
     try {
-      localStorage.setItem(this._getLSKey(name), json);
-    } catch (e) {
-      // quota exceeded — 嘗試淘汰非 boot 集合騰空間
-      const expendable = ['newsArticles', 'gameConfigs'];
-      for (const lp of expendable) {
-        if (lp === name) continue; // 不淘汰自己
-        try {
-          localStorage.removeItem(this._getLSKey(lp));
-          localStorage.setItem(this._getLSKey(name), json);
-          console.warn(`[LS] Evicted "${lp}" to save "${name}"`);
-          return;
-        } catch (_) { continue; }
+      const json = JSON.stringify(data);
+      // 單一集合超過 500KB 就不存（避免 localStorage 爆掉）
+      if (json.length > 512000) return;
+      try {
+        localStorage.setItem(this._getLSKey(name), json);
+      } catch (e) {
+        // quota exceeded — 嘗試淘汰非 boot 集合騰空間
+        const expendable = ['newsArticles', 'gameConfigs'];
+        for (const lp of expendable) {
+          if (lp === name) continue; // 不淘汰自己
+          try {
+            localStorage.removeItem(this._getLSKey(lp));
+            localStorage.setItem(this._getLSKey(name), json);
+            console.warn(`[LS] Evicted "${lp}" to save "${name}"`);
+            return;
+          } catch (_) { continue; }
+        }
+        console.warn(`[LS] quota exceeded for "${name}", eviction failed`);
       }
-      console.warn(`[LS] quota exceeded for "${name}", eviction failed`);
-    }
+    } catch (e) { /* JSON.stringify 失敗 — 忽略，不中斷其他集合 */ }
   },
 
   /** 從 localStorage 讀取集合 */
