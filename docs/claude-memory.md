@@ -978,5 +978,11 @@
 - **修復**：`firebase-crud.js` `_rebuildOccupancy` 加入 registeredAt → docId 排序（confirmed + waitlisted），確保寫入 Firestore 的 participants / waitlistNames 順序與前端一致；同時修正 scan-ui.js 已報名/未報名標籤排序
 - **教訓**：凡是寫入 Firestore 的陣列欄位，若前端會直接用該順序渲染，寫入前必須排序。`_rebuildOccupancy` 是名單順序的唯一寫入源頭，排序必須在此處保證
 
+### 2026-03-20 — 首次/久未開啟用戶空白首頁
+- **問題**：首次開網站或太久沒開的用戶，首頁除了 LINE 頭像外無任何資料
+- **原因**：三因素疊加：(1) localStorage 快取為空（首次/過期）→ _restoreCache 失敗；(2) Firestore WebSocket 連線慢 → 6 秒 init timeout；(3) timeout 路徑提前 return，跳過 `_schedulePostInitWarmups()`，且背景中 `_loadEventsStatic()` 完成後無人觸發重新渲染。另外 `sw.js` STATIC_ASSETS 包含不存在的 `mode.js` 導致 cache.addAll 每次必定失敗，SW cache 形同虛設
+- **修復**：(1) `firebase-service.js` timeout 路徑新增 `_continueLoadAfterTimeout()` — 背景繼續載入 events + boot collections，完成後觸發 `App.renderAll()` + `_schedulePostInitWarmups()`；(2) `sw.js` 移除不存在的 `./js/core/mode.js`
+- **教訓**：timeout 不代表放棄 — 應設計「timeout 先給用戶兜底畫面，背景繼續載入完成後補渲染」的模式。STATIC_ASSETS 列表變更時必須驗證所有檔案存在
+
 *最後濃縮日期：2026-03-15*
 *原始檔案：314 條目 / 2475 行 → 濃縮後約 50 條永久教訓*

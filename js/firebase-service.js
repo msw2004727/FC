@@ -1485,12 +1485,14 @@ const FirebaseService = {
       }
     }
 
-    // 超時 → 用 localStorage 快取兜底
+    // 超時 → 用 localStorage 快取兜底，但背景繼續載入
     if (timedOut) {
       this._initialized = true;
       this._setupVisibilityRefresh(); // RC3
       console.log('[FirebaseService] Init timed out; continue with localStorage cache.');
       this._startAuthDependentWork();
+      // 背景繼續等資料回來，完成後更新快取 + 觸發首頁重新渲染
+      this._continueLoadAfterTimeout();
       return;
     }
 
@@ -1520,6 +1522,36 @@ const FirebaseService = {
     // ── Step 6: 背景啟動 Auth 依賴的監聽器 + seed ──
     this._startAuthDependentWork();
     this._schedulePostInitWarmups();
+  },
+
+  /** timeout 後背景繼續載入 events + boot collections，完成後觸發首頁渲染 */
+  _continueLoadAfterTimeout() {
+    (async () => {
+      try {
+        // 重試載入 events
+        const eventsLoaded = await this._loadEventsStatic().catch(() => []);
+        // 重試載入 boot collections
+        const bootResults = await Promise.all(
+          this._bootCollections.map(name => this._fetchCollectionSnapshot(name, 200))
+        ).catch(() => []);
+        this._bootCollections.forEach((name, i) => {
+          const result = bootResults[i];
+          if (!result || !result.ok) return;
+          const docs = result.docs.map(doc => ({ ...doc.data(), _docId: doc.id }));
+          this._replaceCollectionCache(name, docs);
+        });
+        this._markCollectionsLoaded(this._bootCollections.filter((name, i) => bootResults[i]?.ok));
+        this._persistCache();
+        // 觸發首頁重新渲染
+        if (typeof App !== 'undefined' && App.currentPage === 'page-home') {
+          App.renderAll?.();
+        }
+        console.log('[FirebaseService] Background reload after timeout complete');
+        this._schedulePostInitWarmups();
+      } catch (err) {
+        console.warn('[FirebaseService] Background reload after timeout failed:', err);
+      }
+    })();
   },
 
   /** 背景載入已結束/取消的活動（不阻塞啟動） */

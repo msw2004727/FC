@@ -291,7 +291,8 @@
 // 20260320o: 修正首頁活動卡片候補人數不正確 — hasSource 誤判部分快取為完整資料 + registrations listener 缺少首頁重繪
 // 20260320p: 首頁左下角顯示短版號 v0.xxx（取 CACHE_VERSION 後三碼）
 // 20260320q: 版號改為 fixed 定位貼齊 bottom-tabs 上方，不隨滑動
-const CACHE_VERSION = '20260320q';
+// 20260320r: 修復首次/久未開啟用戶空白首頁 — timeout 後背景重載 + 移除 sw.js 幽靈 mode.js
+const CACHE_VERSION = '20260320r';
 
 // ─── Page Strategy Registry ───
 // 唯一策略來源，未列出的頁面預設 fresh-first
