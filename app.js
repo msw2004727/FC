@@ -602,6 +602,26 @@ const App = {
     });
   },
 
+  async confirmClearCache() {
+    const yes = await this.appConfirm('確定要清除所有快取並重新登入嗎？\n這會回到最乾淨的狀態，可解決白屏或異常問題。');
+    if (!yes) return;
+    try {
+      if ('caches' in window) { var ks = await caches.keys(); await Promise.all(ks.map(function(n){ return caches.delete(n); })); }
+      if ('serviceWorker' in navigator) { var regs = await navigator.serviceWorker.getRegistrations(); regs.forEach(function(r){ r.unregister(); }); }
+      var lsKeys = Object.keys(localStorage);
+      for (var i = 0; i < lsKeys.length; i++) {
+        var k = lsKeys[i];
+        if (k.indexOf('shub_c_') === 0 || k.indexOf('shub_ts_') === 0 || k.indexOf('shub_cache_') === 0 || k.indexOf('LIFF') === 0) {
+          localStorage.removeItem(k);
+        }
+      }
+      localStorage.removeItem('sporthub_auto_exp_rules');
+      localStorage.removeItem('sporthub_auto_exp_logs');
+      try { var dbs = await indexedDB.databases(); dbs.forEach(function(db){ indexedDB.deleteDatabase(db.name); }); } catch(_){}
+    } catch(_){}
+    location.href = location.pathname + '?clear=1';
+  },
+
   /** 跨瀏覽器剪貼簿複製（clipboard API → execCommand fallback） */
   async _copyToClipboard(text) {
     if (navigator.clipboard && navigator.clipboard.writeText) {

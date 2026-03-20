@@ -328,6 +328,9 @@
 .drawer-avatar { width: 44px; height: 44px; border-radius: 50%; background: linear-gradient(135deg, var(--accent), #0d9488); display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: 1.1rem; flex-shrink: 0; }
 .drawer-name { font-weight: 700; font-size: .95rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 180px; }
 .drawer-actions { display: flex; align-items: center; gap: .5rem; margin-top: .6rem; }
+.drawer-clear-btn { flex-shrink: 0; width: 36px; height: 36px; border-radius: 50%; border: 2px solid var(--border); background: var(--bg-elevated); color: var(--text-secondary); font-size: 1rem; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all var(--transition); }
+.drawer-clear-btn:hover { border-color: #ef4444; color: #ef4444; }
+.drawer-clear-btn:active { background: #fef2f2; border-color: #ef4444; color: #ef4444; }
 .drawer-font-btn { flex-shrink: 0; width: 36px; height: 36px; border-radius: 50%; border: 2px solid var(--border); background: var(--bg-elevated); color: var(--text-secondary); font-weight: 900; font-size: .85rem; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all var(--transition); }
 .drawer-font-btn:hover { border-color: var(--accent); color: var(--accent); }
 .drawer-font-btn.font-m { font-size: .95rem; border-color: var(--accent); color: var(--accent); }
