@@ -19,6 +19,9 @@ var ball = {
   spin: 0,
 };
 
+// ── 連續撞牆衰減 ──
+var _wallBounceCount = 0;  // 連續撞牆次數，停下時重置
+
 // ── 灰塵粒子 ──
 var dustParticles = [];
 
@@ -58,19 +61,28 @@ function updateBall(sceneWidth) {
     ball.vy = -ball.vy * ball.bounceLoss;
   }
 
-  // 左右牆壁反彈
-  var wbm = _b().wallBounceMult || 0.4;
+  // 左右牆壁反彈（連續撞牆每次衰減 50%）
+  var hitWall = false;
   if (ball.x - ball.r < 0) {
     ball.x = ball.r;
-    ball.vx = Math.abs(ball.vx) * wbm;
+    hitWall = true;
+    _wallBounceCount++;
+    ball.vx = Math.abs(ball.vx) * Math.pow(0.5, _wallBounceCount);
   }
   if (ball.x + ball.r > sw) {
     ball.x = sw - ball.r;
-    ball.vx = -Math.abs(ball.vx) * wbm;
+    hitWall = true;
+    _wallBounceCount++;
+    ball.vx = -Math.abs(ball.vx) * Math.pow(0.5, _wallBounceCount);
   }
 
-  // 極小速度歸零
-  if (Math.abs(ball.vx) < (_b().minVx || 0.05)) ball.vx = 0;
+  // 極小速度歸零 + 重置撞牆計數
+  if (Math.abs(ball.vx) < (_b().minVx || 0.05)) {
+    ball.vx = 0;
+    _wallBounceCount = 0;
+  } else if (!hitWall) {
+    _wallBounceCount = 0;
+  }
 
   // 更新灰塵粒子
   updateDust();
