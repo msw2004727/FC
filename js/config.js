@@ -298,7 +298,8 @@
 // 20260320v: init() ?.() 防護 + try-catch 錯誤邊界 + renderHomeDeferred 防護
 // 20260320w: FirebaseService.init() 防重入鎖
 // 20260320x: onSnapshot 重連加 jitter 防驚群
-const CACHE_VERSION = '20260320x';
+// 20260320y: renderHotEvents 空列表時顯示 loading 提示
+const CACHE_VERSION = '20260320y';
 
 // ─── Page Strategy Registry ───
 // 唯一策略來源，未列出的頁面預設 fresh-first

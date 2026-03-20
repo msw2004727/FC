@@ -93,11 +93,19 @@ Object.assign(App, {
         return (da || 0) - (db || 0);
       })
       .slice(0, 10);
-    this._setHomeSectionVisibility(container, visible.length > 0);
     if (visible.length === 0) {
-      container.textContent = '';
+      if (!this._cloudReady) {
+        // Cloud 尚未就緒 — 顯示 loading 提示，保持 section 可見
+        this._setHomeSectionVisibility(container, true);
+        container.innerHTML = '<div style="text-align:center;padding:1.5rem 0;color:var(--text-secondary);font-size:.8rem">載入中…</div>';
+      } else {
+        // 確實無活動
+        this._setHomeSectionVisibility(container, false);
+        container.textContent = '';
+      }
       return;
     }
+    this._setHomeSectionVisibility(container, true);
 
     const cards = visible.map(e => {
         const _dp = (e.date || '').split(' ')[0].split('/');
