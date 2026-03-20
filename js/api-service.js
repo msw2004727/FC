@@ -250,10 +250,24 @@ const ApiService = {
         const idx = source.indexOf(data);
         if (idx >= 0) source.splice(idx, 1);
         console.error(`[${label}]`, err);
+        this._handleFirestoreWriteError(err, label);
         throw err;
       }
     }
     return data;
+  },
+
+  /** Firestore 寫入失敗統一處理：permission-denied / assertion 給用戶提示 */
+  _handleFirestoreWriteError(err, label) {
+    const code = (err?.code || '').toLowerCase();
+    const msg = (err?.message || '').toLowerCase();
+    if (typeof App !== 'undefined' && App.showToast) {
+      if (code === 'permission-denied') {
+        App.showToast('操作失敗：權限不足，請重新登入或聯繫管理員');
+      } else if (msg.includes('assertion') || msg.includes('internal')) {
+        App.showToast('系統異常，請關閉所有分頁後重新開啟');
+      }
+    }
   },
 
   /** 通用更新：快取 Object.assign + 非同步寫入 Firebase */
@@ -264,7 +278,10 @@ const ApiService = {
     if (!this._demoMode && firebaseMethod) {
       FirebaseService.ensureAuthReadyForWrite()
         .then(() => firebaseMethod.call(FirebaseService, id, updates))
-        .catch(err => console.error(`[${label}]`, err));
+        .catch(err => {
+          console.error(`[${label}]`, err);
+          this._handleFirestoreWriteError(err, label);
+        });
     }
     return item;
   },
@@ -284,6 +301,7 @@ const ApiService = {
         Object.keys(item).forEach(keyName => delete item[keyName]);
         Object.assign(item, snapshot);
         console.error(`[${label}]`, err);
+        this._handleFirestoreWriteError(err, label);
         throw err;
       }
     }
@@ -298,7 +316,10 @@ const ApiService = {
     if (!this._demoMode && firebaseMethod) {
       FirebaseService.ensureAuthReadyForWrite()
         .then(() => firebaseMethod.call(FirebaseService, id))
-        .catch(err => console.error(`[${label}]`, err));
+        .catch(err => {
+          console.error(`[${label}]`, err);
+          this._handleFirestoreWriteError(err, label);
+        });
     }
     const idx = source.findIndex(item => item.id === id);
     if (idx >= 0) source.splice(idx, 1);
@@ -320,6 +341,7 @@ const ApiService = {
         if (!deleted) return false;
       } catch (err) {
         console.error(`[${label}]`, err);
+        this._handleFirestoreWriteError(err, label);
         throw err;
       }
     }

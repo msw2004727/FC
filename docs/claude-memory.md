@@ -10,6 +10,14 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-20 — Firestore 寫入失敗靜默吞掉：permission-denied 無用戶提示
+- **問題**：`ApiService._update()` / `_delete()` 是 fire-and-forget 模式，`.catch()` 只 `console.error`；`app.js` unhandledrejection 又把所有含 firebase/firestore 字樣的錯誤靜默 return，導致 permission-denied 寫入失敗時用戶完全不知道
+- **原因**：兩層靜默：(1) ApiService catch 不提示用戶 (2) app.js 全面過濾 firebase 錯誤
+- **修復**：
+  - `api-service.js`：新增 `_handleFirestoreWriteError()` 統一處理，所有 5 個通用 CRUD 方法（`_update`/`_updateAwaitWrite`/`_delete`/`_deleteAwaitWrite`/`_createAwaitWrite`）失敗時顯示 toast
+  - `app.js:1822`：unhandledrejection 中 permission-denied 不再靜默，改為記錄 + toast 提示
+- **教訓**：fire-and-forget 寫入必須有用戶可見的錯誤回饋，不能只 console.error
+
 ### 2026-03-20 — [永久] 首次登入 modal 在 LINE WebView 中按鈕無反應 + 地區列表不顯示
 - **問題**：LINE 瀏覽器中首次登入 modal 的確認按鈕點擊無反應，地區搜尋列表不顯示
 - **原因**：`profile-data.js` 是懶載入（script-loader.js 的 profile bundle），但 `bindLineLogin` 在 app init 時就執行。此時 `initFirstLoginRegionPicker?.()` 和 `saveFirstLoginProfile` 都不存在於 App 上。之前改用 addEventListener 綁定按鈕後，inline onclick 被移除，導致按鈕完全無法點擊

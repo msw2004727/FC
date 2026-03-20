@@ -1820,6 +1820,16 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
     if (!ApiService._errorLogReady) return;
+    // permission-denied 不靜默：記錄並提示用戶
+    const code = (event.reason?.code || '').toLowerCase();
+    if (code === 'permission-denied') {
+      console.error('[unhandledrejection] Firestore permission-denied:', event.reason?.message);
+      if (typeof App !== 'undefined' && App.showToast) {
+        App.showToast('操作失敗：權限不足，請重新登入或聯繫管理員');
+      }
+      ApiService._writeErrorLog('permission-denied', event.reason);
+      return;
+    }
     if (msg.includes('liff') || msg.includes('firebase') || msg.includes('firestore') || msg.includes('chunkloaderror')) return;
     ApiService._writeErrorLog('unhandledrejection', event.reason);
   });

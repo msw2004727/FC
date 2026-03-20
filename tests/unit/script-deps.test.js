@@ -329,6 +329,8 @@ describe('Eager scripts — no unguarded calls to dynamic-only functions', () =>
     'showImageCropper',    // image-cropper.js, called in image-upload.js (page-gated)
     'trackAdClick',        // popup-ad.js internal
     'bindLineNotify',      // called only on profile page
+    '_flNormalize',         // defined in same Object.assign block in profile-form.js
+    'flRenderList',         // defined in same Object.assign block in profile-form.js
     '_getEventEffectiveStatus',    // event module internal
     '_syncEventEffectiveStatus',   // event module internal
     '_renderEventCapacityBadge',   // event module internal
