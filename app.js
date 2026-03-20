@@ -176,6 +176,8 @@ const App = {
     this._applyI18nToUI();
     this.renderAll();
     this.applyRole('user', true);
+    // 清除開機看門狗（清快取後的自動重載保護）
+    try { clearTimeout(window._bootWatchdogTimer); sessionStorage.removeItem('_bootWatchdog'); } catch(_){}
   },
 
   /** 啟動時只更新全域 shell，首頁內容改為 critical / deferred 分段渲染 */
