@@ -149,8 +149,8 @@ function drawPanel(ctx, sw, light) {
     }
     var ballState = window.ColorCatBall.state;
     if (ballState.x + ballState.r > panelEdge) {
-      ballState.vx = -(8 + Math.random() * 4);
-      ballState.vy = -(3 + Math.random() * 2);
+      ballState.vx = -(3 + Math.random() * 2);
+      ballState.vy = -(1 + Math.random() * 1.5);
     }
   }
 
