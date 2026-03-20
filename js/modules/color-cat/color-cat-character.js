@@ -25,8 +25,16 @@ var _ = {
   boxTargetX: 0, dashTargetX: 0, pendingGoToBox: 0,
   suppressGroundShadow: false,
   biteBallPhase: 0, biteBallTimer: 0, biteBallTargetX: 0,
+  jumpOffPhase: 0, jumpOffWalkDist: 0,
+  knockbackPhase: 0, knockbackTimer: 0, knockbackRollDist: 0, knockbackSpeedX: 5,
+  pendingWeak: false,
   aiTimer: 0, aiCooldown: 0, aiSceneInfo: null,
   COMBO_LEDGE_Y: 73, FOOT_OFFSET: 7,
+  isBunny: function() {
+    var sk = window.ColorCatSprite ? ColorCatSprite.getSkin() : 'whiteCat';
+    var skin = C.SKINS[sk];
+    return skin && skin.species === 'bunny';
+  },
 };
 
 // 子模組函式插槽（載入時由各子模組填入實作）
@@ -64,6 +72,8 @@ _.updateGoToBox = function() { return false; };
 _.updateBiteBall = function() { return false; };
 _.updateDash = function() { return false; };
 _.updateChaseKickIdle = function() { return false; };
+_.startKnockback = function() {};
+_.updateKnockback = function() { return false; };
 
 // ── 初始化 ──
 function initCharacter(sceneWidth) {
@@ -83,25 +93,26 @@ function getSpriteKey() {
     if (_.comboType === 'wall') {
       if (_.comboStep === 0) return 'run';
       if (_.comboStep === 1) return 'jump';
-      if (_.comboStep === 2) return 'ledge_idle';
-      if (_.comboStep === 3) return 'ledge_land';
+      if (_.comboStep === 2) return _.isBunny() ? 'wall_slide' : 'ledge_idle';
+      if (_.comboStep === 3) return _.isBunny() ? 'wall_slide' : 'ledge_land';
       if (_.comboStep === 4) return 'jump';
     } else if (_.comboType === 'box') {
       if (_.comboStep === 0) return 'run';
-      if (_.comboStep === 1) return 'climb';
+      if (_.comboStep === 1) return _.isBunny() ? 'jump' : 'climb';
       if (_.comboStep === 2) return 'idle';
       if (_.comboStep === 3) return 'jump';
     }
     return 'idle';
   }
-  if (character.action === 'jumpOff') return 'jump';
+  if (character.action === 'jumpOff') return _.jumpOffPhase === 1 ? 'run' : _.jumpOffPhase === 2 ? 'idle' : 'jump';
   if (character.action === 'chase') return 'run';
   if (character.action === 'dash') return 'roll';
   if (character.action === 'goToBox') return 'run';
   if (character.action === 'biteBall') return 'run';
   if (character.action === 'kick') return 'attack';
   if (character.action === 'sleeping') return 'idle';
-  if (character.action === 'weak') return 'idle';
+  if (character.action === 'weak') return _.isBunny() ? 'death' : 'idle';
+  if (character.action === 'knockback') return _.knockbackPhase === 2 ? 'idle' : 'roll';
   if (!character.onGround) return 'jump';
   return 'idle';
 }
@@ -119,19 +130,35 @@ function updateCharacter(sceneWidth, ballState) {
     character.spriteTimer += def.speed;
     if (character.spriteTimer >= 1) {
       character.spriteTimer -= 1;
-      character.spriteFrame++;
-      if (character.spriteFrame >= def.frames) {
-        character.spriteFrame = 0;
-        if (_.testMode) {
-          var testDef = defs[_.testMode];
-          if (testDef.type === 'once') { _.stopTest(); return false; }
+      // 兔子虛弱恢復：反轉播放倒地動畫
+      if (_.weakRecovering) {
+        character.spriteFrame--;
+        if (character.spriteFrame <= 0) {
+          _.weakRecovering = false;
+          character.action = 'idle';
+          character.spriteFrame = 0; character.spriteTimer = 0;
+          _.aiResetCooldown();
+        }
+      } else {
+        character.spriteFrame++;
+        if (character.spriteFrame >= def.frames) {
+          // 力竭倒地：停在最後一幀
+          if (character.action === 'weak' && _.isBunny()) {
+            character.spriteFrame = def.frames - 1;
+          } else {
+            character.spriteFrame = 0;
+          }
+          if (_.testMode) {
+            var testDef = defs[_.testMode];
+            if (testDef.type === 'once') { _.stopTest(); return false; }
+          }
         }
       }
     }
   }
 
   // 垂直物理（combo/jumpOff 自行處理，跳過）
-  if (!character.onGround && character.action !== 'combo' && character.action !== 'jumpOff') {
+  if (!character.onGround && character.action !== 'combo' && character.action !== 'jumpOff' && character.action !== 'knockback') {
     var floorY = character._testBoxY || C.CHAR_GROUND_Y;
     if (_s()) character.vy += _s().physics.gravity;
     character.y += character.vy;
@@ -163,6 +190,7 @@ function updateCharacter(sceneWidth, ballState) {
   if (character.action === 'goToBox') return _.updateGoToBox();
   if (character.action === 'biteBall') return _.updateBiteBall(sw, ballState);
   if (character.action === 'dash') return _.updateDash(sw);
+  if (character.action === 'knockback') return _.updateKnockback(sw);
   return _.updateChaseKickIdle(sw, ballState, defs);
 }
 
@@ -210,6 +238,7 @@ window.ColorCatCharacter = {
   startComboWall: function(sw) { _.startComboWall(sw); },
   startComboBox: function(sw, x, y, w) { _.startComboBox(sw, x, y, w); },
   startBiteBall: function(sw) { _.startBiteBall(sw); },
+  startKnockback: function(sw) { _.startKnockback(sw); },
   getSpriteKey: getSpriteKey,
   setSuppressGroundShadow: function(v) { _.suppressGroundShadow = !!v; },
   setSceneInfo: function(info) { _.aiSetSceneInfo(info); },
@@ -219,6 +248,7 @@ window.ColorCatCharacter = {
     var lv = level === true ? 1 : (parseInt(level) || 0);
     if (lv > 0) {
       rt.weakLevel = Math.min(lv, 3);
+      _s().stamina.current = 0;  // 體力歸零觸發力竭
       character.action = 'weak'; character.spriteFrame = 0; character.spriteTimer = 0;
     } else {
       rt.weakLevel = 0;

@@ -27,6 +27,12 @@ _.drawFlag = function() {};
 _.drawWallShadow = function() {};
 _.isBoxClicked = function() { return false; };
 _.isFlagClicked = function() { return false; };
+_.drawPanel = function() {};
+_.updateFlowers = function() {};
+_.drawFlowers = function() {};
+_.handleFlowerClick = function() { return false; };
+_.addFlower = function() {};
+_.handlePanelClick = function() { return false; };
 
 // ===== 主迴圈 =====
 
@@ -34,18 +40,45 @@ function render() {
   var light = !C.isThemeDark();
   var sleeping = ColorCatCharacter.isSleeping();
   _.drawBackground(_ctx, _sw, light);
+  _.drawFlowers(_ctx, light);
   _.drawBox(_ctx, light, sleeping);
   ColorCatBall.draw(_ctx, light);
   _.drawWallShadow(_ctx);
   _.drawFlag(_ctx, light);
   ColorCatCharacter.draw(_ctx, light);
+  _.drawPanel(_ctx, _sw, light);
 }
 
 function update() {
+  _.updateFlowers();
+  var ew = _.getEffectiveWidth ? _.getEffectiveWidth(_sw) : _sw;
+  // 球邊界先夾（確保角色追球時目標不在面板內）
+  var bs = ColorCatBall.state;
+  if (bs.x + bs.r > ew) {
+    bs.x = ew - bs.r;
+    if (bs.vx > 0) bs.vx = -bs.vx;
+  }
   ColorCatBall.update(_sw);
-  var kicked = ColorCatCharacter.update(_sw, ColorCatBall.state);
+  if (bs.x + bs.r > ew) { bs.x = ew - bs.r; if (bs.vx > 0) bs.vx = -bs.vx; }
+  var kicked = ColorCatCharacter.update(ew, bs);
   if (kicked) {
     ColorCatBall.kick(ColorCatCharacter.state.facing, _sw);
+  }
+  // 角色不超過面板邊界（knockback 飛行中不夾，讓拋物線完整播放）
+  var halfW = C.SPRITE_DRAW / 2;
+  var chAct = ColorCatCharacter.state.action;
+  if (chAct !== 'knockback' && chAct !== 'combo' && chAct !== 'jumpOff' && ColorCatCharacter.state.x > ew - halfW) {
+    ColorCatCharacter.state.x = ew - halfW;
+    // 避免在邊界原地踏步：攔截向右移動的動作（combo 自行管理位置，不攔截）
+    if (ColorCatCharacter.state.facing === 1 &&
+        chAct !== 'idle' && chAct !== 'sleeping' && chAct !== 'weak' &&
+        chAct !== 'jumpOff' && chAct !== 'test' && chAct !== 'combo') {
+      if (chAct === 'biteBall') ColorCatBall.setCarried(false);
+      ColorCatCharacter.state.action = 'idle';
+      ColorCatCharacter.state.facing = -1;
+      ColorCatCharacter.state.spriteFrame = 0;
+      ColorCatCharacter.state.spriteTimer = 0;
+    }
   }
   render();
 }
@@ -62,6 +95,12 @@ function handleClick(e) {
   var rect = _canvas.getBoundingClientRect();
   var cx = e.clientX - rect.left;
   var cy = e.clientY - rect.top;
+
+  // 面板攔截（優先處理）
+  if (_.handlePanelClick(cx, cy, _sw)) return;
+
+  // 點擊花朵 → 採集 +EXP
+  if (_.handleFlowerClick(cx, cy)) return;
 
   // 點擊太陽/月亮 → 爬邊牆
   if (isSunMoonClicked(cx, cy)) {
@@ -118,7 +157,7 @@ function initInteractiveScene(containerId) {
   _ctx = _canvas.getContext('2d');
   _ctx.scale(_dpr, _dpr);
 
-  _.BOX_BOTTOM_Y = C.CHAR_GROUND_Y - 4;
+  _.BOX_BOTTOM_Y = C.CHAR_GROUND_Y - 6;
   _.FLAG_POLE_X = _.BOX_X - _.BOX_W / 4;
   _.FLAG_POLE_TOP = _.BOX_BOTTOM_Y - _.BOX_H - _.FLAG_POLE_H;
 
@@ -247,6 +286,8 @@ window.ColorCatScene = {
   initStatic: initStaticScene,
   destroy: destroy,
   init: initStaticScene,
+  // TODO: 正式版由後台設定觸發長花，此 API 供外部（測試工具列 / 後台排程）呼叫
+  addFlower: function() { _.addFlower(_sw); },
   _: _,
 };
 

@@ -16,18 +16,29 @@ var SPRITE_DEFS = {};
 // ── SPRITE_DEFS 重建 ──
 function rebuildSpriteDefs() {
   var keys = Object.keys(C.ACTION_DEFS);
+  var skin = C.SKINS[currentSkin];
+  var isBunny = skin && skin.species === 'bunny';
   SPRITE_DEFS = {};
   keys.forEach(function(key) {
     var ad = C.ACTION_DEFS[key];
+    var frames = ad.frames;
+    var fw = ad.fw;
+    // 兔子覆蓋 frames / fw
+    if (isBunny && C.BUNNY_ACTION_MAP[key]) {
+      var bm = C.BUNNY_ACTION_MAP[key];
+      frames = bm.frames;
+      if (bm.fw) fw = bm.fw;
+      else if (fw && !bm.fw) fw = undefined; // 兔子無 fw 則清除
+    }
     SPRITE_DEFS[key] = {
-      file: C.getSpriteFilePath(currentSkin, ad),
-      frames: ad.frames,
+      file: C.getSpriteFilePath(currentSkin, ad, key),
+      frames: frames,
       speed: ad.speed,
       type: ad.type,
       label: ad.label,
       moveSpeed: ad.moveSpeed,
       jumpVy: ad.jumpVy,
-      fw: ad.fw,
+      fw: fw,
     };
   });
 }
@@ -50,7 +61,7 @@ function loadSkinSprites(skinKey, callback) {
       loaded++;
       if (loaded === total) { spritesLoaded = true; if (callback) callback(); }
     };
-    img.src = C.getSpriteFilePath(skinKey, C.ACTION_DEFS[key]);
+    img.src = C.getSpriteFilePath(skinKey, C.ACTION_DEFS[key], key);
   });
 }
 
@@ -168,6 +179,7 @@ window.ColorCatSprite = {
   getDefs: function() { return SPRITE_DEFS; },
   getSkin: function() { return currentSkin; },
   isLoaded: function() { return spritesLoaded; },
+  getImage: function(key) { return sprites[key] || null; },
 };
 
 })();

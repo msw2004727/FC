@@ -15,9 +15,12 @@ function updateStamina() {
   var rt = _s().runtime;
   var act = ch.action;
 
-  var draining = (act === 'chase' || act === 'kick' || act === 'dash' ||
-                  act === 'biteBall' || act === 'jumpOff' ||
-                  (act === 'combo') || _.testMode);
+  // 紙箱上站立(step2)/跳(step3) 與 跳下動作 不扣體力
+  var isOnBox = (act === 'combo' && _.comboType === 'box' && _.comboStep >= 2);
+  var draining = !isOnBox && (
+    act === 'chase' || act === 'kick' || act === 'dash' ||
+    act === 'biteBall' || act === 'combo' || _.testMode
+  );
   var walking = (act === 'goToBox');
 
   if (draining) {
@@ -32,41 +35,38 @@ function updateStamina() {
     st.current = Math.min(st.max, st.current + st.regenIdle);
   }
 
-  // 虛弱觸發
-  var pct = st.current / st.max * 100;
-  if (act !== 'sleeping' && act !== 'weak' && act !== 'goToBox') {
-    if (pct <= st.weakThreshold2) {
+  // 體力歸零觸發力竭（貓咪原地喘氣、兔子下落姿勢）
+  if (act !== 'sleeping' && act !== 'weak' && act !== 'goToBox' && act !== 'knockback') {
+    if (st.current <= 0) {
+      st.current = 0;
       if (_.testMode) _.stopTest();
       _.releaseBall();
-      if (act === 'combo') _.endCombo();
-      rt.weakLevel = 2;
-      ch.action = 'weak'; ch.y = C.CHAR_GROUND_Y; ch.onGround = true;
-      ch.spriteFrame = 0; ch.spriteTimer = 0;
-    } else if (pct <= st.weakThreshold1) {
-      if (_.testMode) _.stopTest();
-      _.releaseBall();
-      if (act === 'combo') _.endCombo();
-      rt.weakLevel = 1;
-      ch.action = 'weak'; ch.y = C.CHAR_GROUND_Y; ch.onGround = true;
-      ch.spriteFrame = 0; ch.spriteTimer = 0;
+      // 攀牆中體力歸零：先完成落地再進入虛弱
+      if (act === 'combo' && _.comboType === 'wall') {
+        _.pendingWeak = true;
+        _.comboStep = 4; ch.onGround = false; ch.vy = 0;
+        ch.spriteFrame = 0; ch.spriteTimer = 0;
+      } else {
+        if (act === 'combo') _.endCombo();
+        rt.weakLevel = 1;
+        ch.action = 'weak'; ch.y = C.CHAR_GROUND_Y; ch.onGround = true;
+        ch.spriteFrame = 0; ch.spriteTimer = 0;
+      }
     }
   }
 
-  // 虛弱2：必須全滿才能恢復
-  if (act === 'weak' && rt.weakLevel === 2) {
+  // 力竭恢復：必須補滿 100% 才能恢復
+  if (act === 'weak' && rt.weakLevel > 0) {
     if (st.current >= st.max) {
-      rt.weakLevel = 0; ch.action = 'idle';
-      ch.spriteFrame = 0; ch.spriteTimer = 0;
-      _.aiResetCooldown();
-    }
-    return;
-  }
-  // 虛弱1：體力回到恢復門檻以上
-  if (act === 'weak' && rt.weakLevel === 1) {
-    if (pct > st.recoverThreshold) {
-      rt.weakLevel = 0; ch.action = 'idle';
-      ch.spriteFrame = 0; ch.spriteTimer = 0;
-      _.aiResetCooldown();
+      if (_.isBunny()) {
+        // 兔子：反轉倒地動畫站起
+        rt.weakLevel = 0;
+        _.weakRecovering = true;
+      } else {
+        rt.weakLevel = 0; ch.action = 'idle';
+        ch.spriteFrame = 0; ch.spriteTimer = 0;
+        _.aiResetCooldown();
+      }
     }
   }
 }
@@ -74,6 +74,7 @@ function updateStamina() {
 function drawStaminaBar(ctx) {
   if (ch.action === 'sleeping' || !_s()) return;
   var st = _s().stamina;
+  if (st.current >= st.max) return;  // 體力滿時隱藏
   var barW = 24, barH = 3;
   var bx = ch.x - barW / 2;
   var by = ch.y - C.SPRITE_DRAW + 4;

@@ -4,6 +4,7 @@
    ================================================ */
 ;(function() {
 
+var C = window.ColorCatConfig;
 var _ = window.ColorCatCharacter._;
 var _s = _._s;
 var ch = _.char;
@@ -27,6 +28,10 @@ function aiPickAction(sw, ballState) {
   if (pct < 60) sleepBonus = (60 - pct) * a.sleepBonusMultiplier;
   var w = a.weights;
   var sleepW = w.sleep + sleepBonus;
+  // 晚上兔子愛睡、白天貓咪愛睡（+50%）
+  var isDark = C.isThemeDark();
+  if (isDark && _.isBunny()) sleepW *= 1.5;
+  else if (!isDark && !_.isBunny()) sleepW *= 1.5;
   var total = w.biteBall + w.chase + w.dash + w.climbBox + w.climbWall + sleepW;
   var roll = Math.random() * total;
 

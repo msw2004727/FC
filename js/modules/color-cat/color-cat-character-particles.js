@@ -80,8 +80,14 @@ function updateBreath() {
       var mult = pt.breathLevelMult[rt.weakLevel] || 1;
       var baseCount = pt.breathBaseCount + Math.floor(Math.random() * 2);
       var count = baseCount * mult;
-      var mouthX = ch.x + ch.facing * (C.SPRITE_DRAW * 0.18);
-      var mouthY = ch.y - C.SPRITE_DRAW * 0.35 - 3;
+      // 兔子倒地時嘴巴位置較低（接近地面）
+      var bunnyDown = _.isBunny();
+      var mouthX = bunnyDown
+        ? ch.x + ch.facing * (C.SPRITE_DRAW * 0.25)
+        : ch.x + ch.facing * (C.SPRITE_DRAW * 0.18);
+      var mouthY = bunnyDown
+        ? ch.y - 8
+        : ch.y - C.SPRITE_DRAW * 0.35 - 3;
       for (var i = 0; i < count; i++) {
         _breathParticles.push({
           x: mouthX + (Math.random() - 0.3) * 4 * mult,

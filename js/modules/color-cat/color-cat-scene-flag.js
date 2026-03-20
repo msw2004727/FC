@@ -52,40 +52,54 @@ function drawFlag(ctx, light) {
   ctx.quadraticCurveTo(fx + _.FLAG_W * 0.5, fy + _.FLAG_H + wave1 * 0.5, fx, fy + _.FLAG_H);
   ctx.stroke();
 
-  // 貓臉（依當前角色皮膚切換）
-  var skin = ColorCatCharacter.getSkin();
-  var isWhite = skin === 'whiteCat';
+  // 角色臉（依皮膚物種切換貓/兔）
+  var skinKey = ColorCatCharacter.getSkin();
+  var skinObj = C.SKINS[skinKey];
+  var isBunny = skinObj && skinObj.species === 'bunny';
   var faceX = fx + _.FLAG_W * 0.35 + wave1 * 0.3;
   var faceY = fy + _.FLAG_H / 2 + wave2 * 0.2;
-  var catFace = isWhite ? (light ? '#FFF' : '#EEE') : (light ? '#333' : '#222');
-  var catEye = isWhite ? '#333' : (light ? '#EEE' : '#CCC');
+  if (isBunny) faceY += 2;
 
-  // 貓耳朵
-  ctx.fillStyle = catFace;
-  ctx.beginPath();
-  ctx.moveTo(faceX - 3, faceY - 2);
-  ctx.lineTo(faceX - 1.5, faceY - 5);
-  ctx.lineTo(faceX, faceY - 2);
-  ctx.fill();
-  ctx.beginPath();
-  ctx.moveTo(faceX + 3, faceY - 2);
-  ctx.lineTo(faceX + 1.5, faceY - 5);
-  ctx.lineTo(faceX, faceY - 2);
-  ctx.fill();
+  // 臉色：依皮膚
+  var fc, ec;
+  if (skinKey === 'blueRabbit')      { fc = light ? '#A0D0F0' : '#70A8D0'; ec = '#333'; }
+  else if (skinKey === 'pinkRabbit') { fc = light ? '#F0A8C0' : '#D088A0'; ec = '#333'; }
+  else if (skinKey === 'blackCat')   { fc = light ? '#333' : '#222'; ec = light ? '#EEE' : '#CCC'; }
+  else                               { fc = light ? '#FFF' : '#EEE'; ec = '#333'; }
+
+  if (isBunny) {
+    // ── 兔耳（長條） ──
+    ctx.fillStyle = fc;
+    ctx.save(); ctx.translate(faceX - 2, faceY - 5); ctx.rotate(-0.15);
+    ctx.beginPath(); ctx.ellipse(0, 0, 1, 4, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+    ctx.save(); ctx.translate(faceX + 2, faceY - 5); ctx.rotate(0.15);
+    ctx.beginPath(); ctx.ellipse(0, 0, 1, 4, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  } else {
+    // ── 貓耳（三角） ──
+    ctx.fillStyle = fc;
+    ctx.beginPath();
+    ctx.moveTo(faceX - 3, faceY - 2); ctx.lineTo(faceX - 1.5, faceY - 5);
+    ctx.lineTo(faceX, faceY - 2); ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(faceX + 3, faceY - 2); ctx.lineTo(faceX + 1.5, faceY - 5);
+    ctx.lineTo(faceX, faceY - 2); ctx.fill();
+  }
 
   // 臉（圓）
-  ctx.fillStyle = catFace;
+  ctx.fillStyle = fc;
   ctx.beginPath();
   ctx.arc(faceX, faceY, 3, 0, Math.PI * 2);
   ctx.fill();
 
   // 眼睛
-  ctx.fillStyle = catEye;
+  ctx.fillStyle = ec;
   ctx.fillRect(faceX - 1.5, faceY - 1, 1, 1);
   ctx.fillRect(faceX + 0.5, faceY - 1, 1, 1);
 
   // 嘴巴
-  ctx.fillStyle = catEye;
+  ctx.fillStyle = ec;
   ctx.fillRect(faceX - 0.5, faceY + 0.5, 1, 0.5);
 
   ctx.restore();

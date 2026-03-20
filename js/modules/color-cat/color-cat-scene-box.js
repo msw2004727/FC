@@ -1,9 +1,10 @@
 /* ================================================
-   ColorCat — 場景紙箱繪製（箱體、貓臉塗鴉、蓋子、Zzz）
-   依賴：color-cat-scene.js (ColorCatScene._)
+   ColorCat — 場景紙箱繪製（箱體、塗鴉臉、蓋子、Zzz）
+   依賴：color-cat-scene.js (ColorCatScene._), color-cat-config.js
    ================================================ */
 ;(function() {
 
+var C = window.ColorCatConfig;
 var _ = window.ColorCatScene._;
 
 function drawZzz(ctx, x, y, light) {
@@ -58,43 +59,60 @@ function drawBox(ctx, light, sleeping) {
   ctx.fillStyle = light ? '#A8864E' : '#5A4028';
   ctx.fillRect(bx, by, 3, _.BOX_H);
 
-  // ── 箱體上的塗鴉貓臉 ──
-  var skin = ColorCatCharacter.getSkin();
+  // ── 箱體上的塗鴉臉（依物種切換貓/兔） ──
+  var skinKey = ColorCatCharacter.getSkin();
+  var skinObj = C.SKINS[skinKey];
+  var isBunny = skinObj && skinObj.species === 'bunny';
+  var isLight = !skinObj || !skinObj.altColour;
   var faceX = bx + _.BOX_W * 0.55;
   var faceY = midY + 1;
-  var isWhite = skin === 'whiteCat';
+  if (isBunny) faceY += 2;
   var inkColor = light ? 'rgba(90,60,30,0.55)' : 'rgba(220,200,170,0.45)';
 
-  // 大圓臉（塗鴉線條）
+  var boxBg = light ? '#C8A06E' : '#7A5C3A';  // 箱體底色（用來遮耳朵底部）
   ctx.strokeStyle = inkColor;
   ctx.lineWidth = 1.2;
-  ctx.beginPath();
-  ctx.arc(faceX, faceY, 12, 0, Math.PI * 2);
-  ctx.stroke();
 
-  // 耳朵（手繪三角）
-  ctx.beginPath();
-  ctx.moveTo(faceX - 10, faceY - 7);
-  ctx.lineTo(faceX - 5, faceY - 16);
-  ctx.lineTo(faceX - 1, faceY - 9);
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.moveTo(faceX + 10, faceY - 7);
-  ctx.lineTo(faceX + 5, faceY - 16);
-  ctx.lineTo(faceX + 1, faceY - 9);
-  ctx.stroke();
+  if (isBunny) {
+    // ── 兔耳先畫（會被頭蓋住底部） ──
+    ctx.beginPath();
+    ctx.save(); ctx.translate(faceX - 5, faceY - 13); ctx.rotate(-0.15);
+    ctx.ellipse(0, 0, 3, 9, 0, 0, Math.PI * 2); ctx.restore(); ctx.stroke();
+    ctx.beginPath();
+    ctx.save(); ctx.translate(faceX + 5, faceY - 13); ctx.rotate(0.15);
+    ctx.ellipse(0, 0, 3, 9, 0, 0, Math.PI * 2); ctx.restore(); ctx.stroke();
+    // 耳朵內線
+    ctx.lineWidth = 0.6; ctx.strokeStyle = inkColor;
+    ctx.beginPath();
+    ctx.save(); ctx.translate(faceX - 5, faceY - 13); ctx.rotate(-0.15);
+    ctx.ellipse(0, 0, 1.2, 5.5, 0, 0, Math.PI * 2); ctx.restore(); ctx.stroke();
+    ctx.beginPath();
+    ctx.save(); ctx.translate(faceX + 5, faceY - 13); ctx.rotate(0.15);
+    ctx.ellipse(0, 0, 1.2, 5.5, 0, 0, Math.PI * 2); ctx.restore(); ctx.stroke();
+    ctx.lineWidth = 1.2;
+    // 頭填箱體色蓋住耳朵底部，再描頭輪廓
+    ctx.fillStyle = boxBg;
+    ctx.beginPath(); ctx.arc(faceX, faceY, 12, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = inkColor;
+    ctx.beginPath(); ctx.arc(faceX, faceY, 12, 0, Math.PI * 2); ctx.stroke();
+  } else {
+    // ── 貓：頭輪廓 + 三角耳（耳朵從頭頂長出，不需遮蓋） ──
+    ctx.beginPath(); ctx.arc(faceX, faceY, 12, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(faceX - 10, faceY - 7); ctx.lineTo(faceX - 5, faceY - 16);
+    ctx.lineTo(faceX - 1, faceY - 9); ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(faceX + 10, faceY - 7); ctx.lineTo(faceX + 5, faceY - 16);
+    ctx.lineTo(faceX + 1, faceY - 9); ctx.stroke();
+  }
 
   // 眼睛（小黑點）
   ctx.fillStyle = inkColor;
-  ctx.beginPath();
-  ctx.arc(faceX - 4, faceY - 2, 1.8, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.beginPath();
-  ctx.arc(faceX + 4, faceY - 2, 1.8, 0, Math.PI * 2);
-  ctx.fill();
+  ctx.beginPath(); ctx.arc(faceX - 4, faceY - 2, 1.8, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(faceX + 4, faceY - 2, 1.8, 0, Math.PI * 2); ctx.fill();
 
-  // 小白：加眼睛高光；小黑：加瞳孔反光
-  if (isWhite) {
+  // 眼睛高光
+  if (isLight) {
     ctx.fillStyle = light ? 'rgba(255,255,255,0.7)' : 'rgba(255,255,255,0.5)';
   } else {
     ctx.fillStyle = light ? 'rgba(180,255,180,0.6)' : 'rgba(140,220,140,0.5)';
@@ -105,30 +123,43 @@ function drawBox(ctx, light, sleeping) {
   // 鼻子（小三角）
   ctx.fillStyle = inkColor;
   ctx.beginPath();
-  ctx.moveTo(faceX, faceY + 1);
-  ctx.lineTo(faceX - 1.5, faceY + 3);
-  ctx.lineTo(faceX + 1.5, faceY + 3);
-  ctx.fill();
+  ctx.moveTo(faceX, faceY + 1); ctx.lineTo(faceX - 1.5, faceY + 3);
+  ctx.lineTo(faceX + 1.5, faceY + 3); ctx.fill();
 
-  // 嘴巴（:3 貓嘴）
-  ctx.lineWidth = 0.8;
-  ctx.beginPath();
-  ctx.moveTo(faceX, faceY + 3);
-  ctx.quadraticCurveTo(faceX - 4, faceY + 7, faceX - 6, faceY + 4);
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.moveTo(faceX, faceY + 3);
-  ctx.quadraticCurveTo(faceX + 4, faceY + 7, faceX + 6, faceY + 4);
-  ctx.stroke();
-
-  // 鬍鬚（隨意歪斜的線）
-  ctx.lineWidth = 0.5;
-  ctx.beginPath();
-  ctx.moveTo(faceX - 12, faceY); ctx.lineTo(faceX - 5, faceY + 1);
-  ctx.moveTo(faceX - 11, faceY + 3); ctx.lineTo(faceX - 5, faceY + 3);
-  ctx.moveTo(faceX + 12, faceY); ctx.lineTo(faceX + 5, faceY + 1);
-  ctx.moveTo(faceX + 11, faceY + 3); ctx.lineTo(faceX + 5, faceY + 3);
-  ctx.stroke();
+  if (isBunny) {
+    // ── 兔嘴（Y 型微笑） ──
+    ctx.lineWidth = 0.8;
+    ctx.beginPath();
+    ctx.moveTo(faceX, faceY + 3); ctx.lineTo(faceX, faceY + 5.5);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(faceX, faceY + 5.5);
+    ctx.quadraticCurveTo(faceX - 3, faceY + 7, faceX - 4, faceY + 5);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(faceX, faceY + 5.5);
+    ctx.quadraticCurveTo(faceX + 3, faceY + 7, faceX + 4, faceY + 5);
+    ctx.stroke();
+  } else {
+    // ── 貓嘴（:3） ──
+    ctx.lineWidth = 0.8;
+    ctx.beginPath();
+    ctx.moveTo(faceX, faceY + 3);
+    ctx.quadraticCurveTo(faceX - 4, faceY + 7, faceX - 6, faceY + 4);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(faceX, faceY + 3);
+    ctx.quadraticCurveTo(faceX + 4, faceY + 7, faceX + 6, faceY + 4);
+    ctx.stroke();
+    // ── 鬍鬚 ──
+    ctx.lineWidth = 0.5;
+    ctx.beginPath();
+    ctx.moveTo(faceX - 12, faceY); ctx.lineTo(faceX - 5, faceY + 1);
+    ctx.moveTo(faceX - 11, faceY + 3); ctx.lineTo(faceX - 5, faceY + 3);
+    ctx.moveTo(faceX + 12, faceY); ctx.lineTo(faceX + 5, faceY + 1);
+    ctx.moveTo(faceX + 11, faceY + 3); ctx.lineTo(faceX + 5, faceY + 3);
+    ctx.stroke();
+  }
 
   // ── 右側開口（圓拱形洞口） ──
 

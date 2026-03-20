@@ -28,6 +28,7 @@ function endCombo() {
 
 // ── 測試動作 ──
 function testAction(key) {
+  if (ch.action === 'weak') return;
   var defs = ColorCatSprite.getDefs();
   var def = defs[key];
   if (!def) return;
@@ -47,6 +48,7 @@ function testAction(key) {
 
 // ── 開始追球 ──
 function startChase() {
+  if (ch.action === 'weak') return;
   if (_.testMode) stopTest();
   releaseBall();
   if (ch.action === 'sleeping') {
@@ -57,6 +59,7 @@ function startChase() {
     _.comboStep = -1; _.comboType = '';
     ch.action = 'jumpOff'; ch.facing = 1;
     ch.vy = _s() ? _s().physics.jumpVy : -3; ch.onGround = false;
+    _.jumpOffPhase = 0;
     ch.spriteFrame = 0; ch.spriteTimer = 0; return;
   }
   if (ch.action === 'combo') endCombo();
@@ -66,6 +69,7 @@ function startChase() {
 
 // ── 走向紙箱 ──
 function startGoToBox(boxX) {
+  if (ch.action === 'weak') return;
   if (_.testMode) stopTest();
   releaseBall();
   if (ch.action === 'sleeping') return;
@@ -74,6 +78,7 @@ function startGoToBox(boxX) {
     _.comboStep = -1; _.comboType = '';
     ch.action = 'jumpOff'; ch.facing = 1;
     ch.vy = _s() ? _s().physics.jumpVy : -3; ch.onGround = false;
+    _.jumpOffPhase = 0;
     ch.spriteFrame = 0; ch.spriteTimer = 0; return;
   }
   if (ch.action === 'combo') endCombo();
@@ -129,16 +134,42 @@ function updateSleeping() {
 }
 
 // ── 更新：從紙箱跳下 ──
+// phase 0: 跳躍弧線（重力+水平移動）
+// phase 1: 落地後向右散步一段距離，再銜接下一個動作
 function updateJumpOff() {
   if (!_s()) return false;
-  ch.vy += _s().physics.gravity; ch.y += ch.vy;
-  ch.x += _s().movement.jumpOffVx;
-  if (ch.y >= C.CHAR_GROUND_Y) {
-    ch.y = C.CHAR_GROUND_Y; ch.vy = 0; ch.onGround = true;
-    if (_.pendingGoToBox) {
-      _.boxTargetX = _.pendingGoToBox; _.pendingGoToBox = 0; ch.action = 'goToBox';
-    } else { ch.action = 'chase'; ch.actionFrame = 0; }
-    ch.spriteFrame = 0; ch.spriteTimer = 0;
+  if (_.jumpOffPhase === 0) {
+    ch.vy += _s().physics.gravity; ch.y += ch.vy;
+    ch.x += _s().movement.jumpOffVx;
+    if (ch.y >= C.CHAR_GROUND_Y) {
+      ch.y = C.CHAR_GROUND_Y; ch.vy = 0; ch.onGround = true;
+      if (_.pendingGoToBox) {
+        _.boxTargetX = _.pendingGoToBox; _.pendingGoToBox = 0;
+        ch.action = 'goToBox'; ch.spriteFrame = 0; ch.spriteTimer = 0;
+        return false;
+      }
+      // 落地後進入散步階段
+      _.jumpOffPhase = 1; _.jumpOffWalkDist = 0;
+      ch.facing = 1; ch.spriteFrame = 0; ch.spriteTimer = 0;
+    }
+  } else if (_.jumpOffPhase === 1) {
+    // 散步離開
+    var walkSpeed = ch.speed * 0.7;
+    ch.x += ch.facing * walkSpeed;
+    _.jumpOffWalkDist += walkSpeed;
+    if (_.jumpOffWalkDist >= 40) {
+      _.jumpOffPhase = 0;
+      ch.action = 'chase'; ch.actionFrame = 0;
+      ch.spriteFrame = 0; ch.spriteTimer = 0;
+    }
+  } else if (_.jumpOffPhase === 2) {
+    // 攀牆落地：原地面左待機 1 秒（30 frames @30fps）
+    ch.facing = -1;
+    _.jumpOffWalkDist++;
+    if (_.jumpOffWalkDist >= 30) {
+      _.jumpOffPhase = 1; _.jumpOffWalkDist = 0;
+      ch.spriteFrame = 0; ch.spriteTimer = 0;
+    }
   }
   return false;
 }
@@ -173,7 +204,57 @@ function updateDash() {
     var bi = _.comboBoxInfo;
     if (bi && (ch.x < bi.x - bi.halfW || ch.x > bi.x + bi.halfW)) {
       ch._onBoxY = 0; ch.action = 'jumpOff'; ch.onGround = false; ch.vy = 0;
+      _.jumpOffPhase = 0;
       ch.spriteFrame = 0; ch.spriteTimer = 0;
+    }
+  }
+  return false;
+}
+
+// ── 被面板撞飛 ──
+// phase 0: 向左拋物線飛行（roll 精靈水平翻轉）
+// phase 1: 落地翻滾減速
+// phase 2: 喘氣靜止 3 秒
+function startKnockback(sw) {
+  if (ch.action === 'sleeping' || ch.action === 'knockback') return;
+  releaseBall();
+  if (ch.action === 'combo') endCombo();
+  _.knockbackPhase = 0; _.knockbackTimer = 0; _.knockbackRollDist = 0;
+  _.knockbackSpeedX = 8;
+  ch.action = 'knockback'; ch.facing = -1;
+  ch.vy = _s() ? _s().physics.jumpVy : -3;   // 拋物線弧度
+  ch.onGround = false;
+  ch.spriteFrame = 0; ch.spriteTimer = 0;
+}
+
+function updateKnockback(sw) {
+  if (_.knockbackPhase === 0) {
+    // 拋物線飛行：自身水平速度 + 不超過欄位邊緣
+    if (_s()) ch.vy += _s().physics.gravity;
+    ch.y += ch.vy;
+    ch.x -= _.knockbackSpeedX;
+    var edgeX = sw - C.SPRITE_DRAW / 2;
+    if (ch.x > edgeX) ch.x = edgeX;
+    if (ch.x < C.SPRITE_DRAW / 2) ch.x = C.SPRITE_DRAW / 2;
+    if (ch.y >= C.CHAR_GROUND_Y) {
+      ch.y = C.CHAR_GROUND_Y; ch.vy = 0; ch.onGround = true;
+      _.knockbackPhase = 1; _.knockbackRollDist = 0;
+      ch.spriteFrame = 0; ch.spriteTimer = 0;
+    }
+  } else if (_.knockbackPhase === 1) {
+    // 翻滾減速（距離 3 倍）
+    var rollSpeed = 9 * Math.max(0, 1 - _.knockbackRollDist / 90);
+    ch.x -= rollSpeed; _.knockbackRollDist += rollSpeed;
+    if (ch.x < C.SPRITE_DRAW / 2) ch.x = C.SPRITE_DRAW / 2;
+    if (rollSpeed < 0.3 || _.knockbackRollDist >= 90) {
+      _.knockbackPhase = 2; _.knockbackTimer = 0;
+      ch.spriteFrame = 0; ch.spriteTimer = 0;
+    }
+  } else {
+    // 喘氣 3 秒（90 frames @30fps）
+    _.knockbackTimer++;
+    if (_.knockbackTimer >= 90) {
+      ch.action = 'idle'; ch.spriteFrame = 0; ch.spriteTimer = 0;
     }
   }
   return false;
@@ -192,5 +273,7 @@ _.updateSleeping = updateSleeping;
 _.updateJumpOff = updateJumpOff;
 _.updateGoToBox = updateGoToBox;
 _.updateDash = updateDash;
+_.startKnockback = startKnockback;
+_.updateKnockback = updateKnockback;
 
 })();

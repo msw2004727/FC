@@ -26,7 +26,7 @@ var _stamina = {
   drain: 0.18,              // 運動消耗 / frame
   regenSleep: 0.35,         // 睡覺恢復 / frame（最快）
   regenIdle: 0.15,          // 待機恢復
-  regenWeak: 0.10,          // 虛弱恢復
+  regenWeak: 0.20,          // 虛弱恢復（加速兩倍）
   regenWalk: 0.05,          // 散步恢復（最慢）
   weakThreshold1: 30,       // ≤30% → 虛弱等級 1
   weakThreshold2: 20,       // ≤20% → 虛弱等級 2
