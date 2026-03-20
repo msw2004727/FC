@@ -63,6 +63,7 @@ const FirebaseService = {
   _userListener: null,
   _onUserChanged: null,
   _initialized: false,
+  _initInFlight: false,
   _messageListeners: [],
   _messageListenerResults: {},
   _messageVisibilityKey: '',
@@ -1411,6 +1412,9 @@ const FirebaseService = {
 
   async init() {
     if (this._initialized) return;
+    if (this._initInFlight) { console.warn('[FirebaseService] init() 已在執行中，跳過重複呼叫'); return; }
+    this._initInFlight = true;
+    try {
     this._bootCollectionLoadFailed = {};
     this._realtimeListenerStarted = {};
     this._authDependentWorkPromise = null;
@@ -1522,6 +1526,9 @@ const FirebaseService = {
     // ── Step 6: 背景啟動 Auth 依賴的監聽器 + seed ──
     this._startAuthDependentWork();
     this._schedulePostInitWarmups();
+    } finally {
+      this._initInFlight = false;
+    }
   },
 
   /** timeout 後背景繼續載入 events + boot collections，完成後觸發首頁渲染 */
