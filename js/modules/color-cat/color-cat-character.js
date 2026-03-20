@@ -33,6 +33,8 @@ function initCharacter(sceneWidth) {
   character.onGround = true;
   character.spriteFrame = 0;
   character.spriteTimer = 0;
+  _stamina = _staminaMax;
+  _weakLevel = 0;
   ColorCatSprite.init();
   aiResetCooldown();
 }
@@ -58,12 +60,117 @@ var _biteBallPhase = 0;     // 0=跑向球, 1=咬住跑, 2=放下
 var _biteBallTimer = 0;
 var _biteBallTargetX = 0;   // 咬球後跑去的目標
 
+// ── 體力系統 ──
+var _stamina = 100;          // 0~100
+var _staminaMax = 100;
+// 每 frame 消耗 / 恢復量（@30fps）
+var STAMINA_DRAIN    = 0.18; // 運動時消耗
+var STAMINA_REGEN_SLEEP = 0.35; // 睡覺恢復（最快）
+var STAMINA_REGEN_IDLE  = 0.15; // 待機/站著
+var STAMINA_REGEN_WEAK  = 0.10; // 虛弱喘氣
+var STAMINA_REGEN_WALK  = 0.05; // 散步（goToBox）
+
 // ── 自主 AI ──
 var _aiTimer = 0;
 var _aiCooldown = 0;         // 下次行動前等待的 frame 數
 var _aiSceneInfo = null;     // { sw, boxX, boxTopY, boxW, openingX }
 
 function aiSetSceneInfo(info) { _aiSceneInfo = info; }
+
+// ── 體力更新 ──
+function updateStamina() {
+  var act = character.action;
+  // 消耗型動作
+  var draining = (act === 'chase' || act === 'kick' || act === 'dash' ||
+                  act === 'biteBall' || act === 'jumpOff' ||
+                  (act === 'combo') ||
+                  (act === 'test' && testMode));
+  // 散步（走向紙箱）
+  var walking = (act === 'goToBox');
+
+  if (draining) {
+    _stamina = Math.max(0, _stamina - STAMINA_DRAIN);
+  } else if (act === 'sleeping') {
+    _stamina = Math.min(_staminaMax, _stamina + STAMINA_REGEN_SLEEP);
+  } else if (act === 'weak') {
+    _stamina = Math.min(_staminaMax, _stamina + STAMINA_REGEN_WEAK);
+  } else if (walking) {
+    _stamina = Math.min(_staminaMax, _stamina + STAMINA_REGEN_WALK);
+  } else {
+    // idle / 站著
+    _stamina = Math.min(_staminaMax, _stamina + STAMINA_REGEN_IDLE);
+  }
+
+  // 虛弱觸發（體力 < 40%）— 但不中斷 sleeping
+  var pct = _stamina / _staminaMax * 100;
+  if (act !== 'sleeping' && act !== 'weak' && act !== 'goToBox') {
+    if (pct <= 20) {
+      // 虛弱等級 2：原地喘氣到全滿
+      releaseBall();
+      if (act === 'combo') endCombo();
+      _weakLevel = 2;
+      character.action = 'weak';
+      character.y = C.CHAR_GROUND_Y;
+      character.onGround = true;
+      character.spriteFrame = 0;
+      character.spriteTimer = 0;
+    } else if (pct <= 30) {
+      // 虛弱等級 1
+      releaseBall();
+      if (act === 'combo') endCombo();
+      _weakLevel = 1;
+      character.action = 'weak';
+      character.y = C.CHAR_GROUND_Y;
+      character.onGround = true;
+      character.spriteFrame = 0;
+      character.spriteTimer = 0;
+    }
+  }
+
+  // 虛弱2：必須全滿才能恢復
+  if (act === 'weak' && _weakLevel === 2) {
+    if (_stamina >= _staminaMax) {
+      _weakLevel = 0;
+      character.action = 'idle';
+      character.spriteFrame = 0;
+      character.spriteTimer = 0;
+      aiResetCooldown();
+    }
+    return; // 虛弱2 鎖定不做其他事
+  }
+
+  // 虛弱1：體力回到 40% 以上恢復
+  if (act === 'weak' && _weakLevel === 1) {
+    if (pct > 40) {
+      _weakLevel = 0;
+      character.action = 'idle';
+      character.spriteFrame = 0;
+      character.spriteTimer = 0;
+      aiResetCooldown();
+    }
+  }
+}
+
+// ── 繪製體力條 ──
+function drawStaminaBar(ctx) {
+  if (character.action === 'sleeping') return;
+  var barW = 24;
+  var barH = 3;
+  var bx = character.x - barW / 2;
+  var by = character.y - C.SPRITE_DRAW + 4;
+  var pct = _stamina / _staminaMax;
+
+  // 背景
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  ctx.fillRect(bx - 0.5, by - 0.5, barW + 1, barH + 1);
+
+  // 體力條顏色：綠→黃→紅
+  var r, g;
+  if (pct > 0.5) { r = Math.floor((1 - pct) * 2 * 255); g = 200; }
+  else { r = 255; g = Math.floor(pct * 2 * 200); }
+  ctx.fillStyle = 'rgb(' + r + ',' + g + ',50)';
+  ctx.fillRect(bx, by, barW * pct, barH);
+}
 
 function aiResetCooldown() {
   // 隨機等待 2~6 秒（60~180 frame @30fps）
@@ -84,26 +191,28 @@ function startBiteBall(sw) {
 function aiPickAction(sw, ballState) {
   if (!_aiSceneInfo) return;
   var info = _aiSceneInfo;
-  // 加權隨機：咬球跑50%, 追球15%, 亂跑12%, 爬紙箱10%, 爬牆7%, 睡覺6%
-  var roll = Math.random() * 100;
+  var pct = _stamina / _staminaMax * 100;
+
+  // 體力越低，去睡覺的機率越高
+  var sleepBonus = 0;
+  if (pct < 60) sleepBonus = (60 - pct) * 0.8; // 最高 +48%
+
+  // 加權隨機（基礎：咬球50%, 追球15%, 亂跑12%, 爬紙箱10%, 爬牆7%, 睡覺6%）
+  var baseSleep = 6 + sleepBonus;
+  var total = 94 + baseSleep;
+  var roll = Math.random() * total;
 
   if (roll < 50) {
-    // 咬球跑
     startBiteBall(sw);
   } else if (roll < 65) {
-    // 追球
     startChase();
   } else if (roll < 77) {
-    // 隨機亂跑
     tapCharacter(sw);
   } else if (roll < 87) {
-    // 爬紙箱
     startComboBox(sw, info.boxX, info.boxTopY, info.boxW);
   } else if (roll < 94) {
-    // 爬牆
     startComboWall(sw);
   } else {
-    // 去紙箱睡覺
     startGoToBox(info.openingX);
   }
 }
@@ -130,11 +239,12 @@ function getSpriteKey() {
   }
   if (character.action === 'jumpOff') return 'jump';
   if (character.action === 'chase') return 'run';
-  if (character.action === 'dash') return 'run';
+  if (character.action === 'dash') return 'roll';
   if (character.action === 'goToBox') return 'run';
   if (character.action === 'biteBall') return 'run';
   if (character.action === 'kick') return 'attack';
   if (character.action === 'sleeping') return 'idle';
+  if (character.action === 'weak') return 'idle';
   if (!character.onGround) return 'jump';
   return 'idle';
 }
@@ -223,6 +333,7 @@ function startChase() {
   }
   if (character.action === 'combo') endCombo();
   character.action = 'chase';
+  character._chaseFacing = 0; // 重新偵測方向
   character.actionFrame = 0;
   character.spriteFrame = 0;
   character.spriteTimer = 0;
@@ -274,6 +385,10 @@ function tapCharacter(sceneWidth) {
     character._onBoxY = bi.topY + FOOT_OFFSET;
     return;
   }
+  // chase/kick 可被中斷
+  if (character.action === 'chase' || character.action === 'kick') {
+    character.action = 'idle';
+  }
   if (character.action !== 'idle') return; // 忙碌中禁止
   var dir = Math.random() < 0.5 ? -1 : 1;
   var dist = 40 + Math.random() * 50; // 跑 40~90 px
@@ -292,6 +407,7 @@ function tapCharacter(sceneWidth) {
 function startComboWall(sceneWidth) {
   if (testMode) stopTest();
   releaseBall();
+  if (character.action === 'chase' || character.action === 'kick') character.action = 'idle';
   if (character.action !== 'idle') return;
   _comboType = 'wall';
   _comboSceneW = sceneWidth;
@@ -309,6 +425,7 @@ function startComboBox(sceneWidth, boxX, boxTopY, boxW) {
   releaseBall();
   // 已經在紙箱上了，不重複
   if (character.action === 'combo' && _comboType === 'box' && _comboStep === 2) return;
+  if (character.action === 'chase' || character.action === 'kick') character.action = 'idle';
   if (character.action !== 'idle') return;
   _comboType = 'box';
   _comboSceneW = sceneWidth;
@@ -333,6 +450,7 @@ function wakeUp(boxX) {
 // 回傳 true 表示踢到球
 function updateCharacter(sceneWidth, ballState) {
   var sw = sceneWidth;
+  updateStamina();
   var defs = ColorCatSprite.getDefs();
   var key = getSpriteKey();
   var def = defs[key];
@@ -692,16 +810,20 @@ function updateCharacter(sceneWidth, ballState) {
 
   // ── 正常遊戲 AI ──
   if (character.action === 'chase') {
-    var kickOffset = character.facing >= 0 ? -18 : 18;
+    // 鎖定追球方向（用球的位置決定，避免抖動）
+    if (!character._chaseFacing) {
+      character._chaseFacing = (ballState.x >= character.x) ? 1 : -1;
+    }
+    var kickOffset = character._chaseFacing >= 0 ? -18 : 18;
     var targetX = ballState.x + kickOffset;
     var dist = targetX - character.x;
 
-    if (dist > 2) character.facing = 1;
-    else if (dist < -2) character.facing = -1;
+    character.facing = character._chaseFacing;
 
     if (Math.abs(dist) > 4) {
       character.x += (dist > 0 ? 1 : -1) * character.speed;
     } else {
+      character._chaseFacing = 0;
       character.action = 'kick';
       character.actionFrame = 0;
       character.spriteFrame = 0;
@@ -810,14 +932,75 @@ function drawDust(ctx, light) {
   ctx.restore();
 }
 
+// ── 虛弱喘氣粒子 ──
+var _breathParticles = [];
+var _breathTimer = 0;
+var _weakLevel = 0; // 0=正常, 1=輕微, 2=中等, 3=嚴重
+var BREATH_WAVE_INTERVAL = 28; // 每 28 幀噴一波（接近 1 秒一波）
+
+function updateBreath() {
+  if (character.action === 'weak' && _weakLevel > 0) {
+    _breathTimer++;
+    if (_breathTimer >= BREATH_WAVE_INTERVAL) {
+      _breathTimer = 0;
+      // 等級1: 3~4顆, 等級2: 2倍(6~8), 等級3: 4倍(12~16)
+      var mult = _weakLevel === 1 ? 1 : (_weakLevel === 2 ? 2 : 4);
+      var baseCount = 3 + Math.floor(Math.random() * 2);
+      var count = baseCount * mult;
+      var mouthX = character.x + character.facing * (C.SPRITE_DRAW * 0.18);
+      var mouthY = character.y - C.SPRITE_DRAW * 0.35 - 3;
+      for (var i = 0; i < count; i++) {
+        _breathParticles.push({
+          x: mouthX + (Math.random() - 0.3) * 4 * mult,
+          y: mouthY + (Math.random() - 0.5) * 3 * mult,
+          vx: character.facing * (0.3 + Math.random() * 0.4),
+          vy: -(0.2 + Math.random() * 0.3),
+          life: 1,
+          decay: 0.02 + Math.random() * 0.015,
+          size: 1.5 + Math.random() * 2,
+        });
+      }
+    }
+  } else {
+    _breathTimer = 0;
+  }
+  for (var i = _breathParticles.length - 1; i >= 0; i--) {
+    var p = _breathParticles[i];
+    p.x += p.vx;
+    p.y += p.vy;
+    p.vx *= 0.97;
+    p.vy *= 0.95;
+    p.size += 0.03;
+    p.life -= p.decay;
+    if (p.life <= 0) _breathParticles.splice(i, 1);
+  }
+}
+
+function drawBreath(ctx) {
+  if (_breathParticles.length === 0) return;
+  ctx.save();
+  for (var i = 0; i < _breathParticles.length; i++) {
+    var p = _breathParticles[i];
+    var alpha = p.life * 0.5;
+    ctx.fillStyle = 'rgba(255,255,255,' + alpha + ')';
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
 // ── 繪製（委派給 ColorCatSprite） ──
 function drawCharacter(ctx, light) {
   updateDust();
+  updateBreath();
   drawDust(ctx, light !== undefined ? light : true);
   if (character.action === 'sleeping') return;
   var key = getSpriteKey();
   var noShadow = _suppressGroundShadow || (character.action === 'combo' && _comboType === 'box' && _comboStep >= 1) || character.action === 'jumpOff';
   ColorCatSprite.draw(ctx, key, character.spriteFrame, character.x, character.y, character.facing, noShadow);
+  drawBreath(ctx);
+  drawStaminaBar(ctx);
 }
 
 // ── 角色點擊判定 ──
@@ -852,6 +1035,21 @@ window.ColorCatCharacter = {
   getSpriteKey: getSpriteKey,
   setSuppressGroundShadow: function(v) { _suppressGroundShadow = !!v; },
   setSceneInfo: aiSetSceneInfo,
+  setWeak: function(level) {
+    // level: 0/false=關閉, 1=輕微, 2=中等, 3=嚴重
+    var lv = level === true ? 1 : (parseInt(level) || 0);
+    if (lv > 0) {
+      _weakLevel = Math.min(lv, 3);
+      character.action = 'weak'; character.spriteFrame = 0; character.spriteTimer = 0;
+    } else {
+      _weakLevel = 0;
+      if (character.action === 'weak') { character.action = 'idle'; character.spriteFrame = 0; character.spriteTimer = 0; }
+    }
+  },
+  isWeak: function() { return character.action === 'weak'; },
+  getWeakLevel: function() { return _weakLevel; },
+  getStamina: function() { return _stamina; },
+  getStaminaMax: function() { return _staminaMax; },
 };
 
 })();

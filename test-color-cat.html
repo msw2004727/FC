@@ -130,6 +130,27 @@ function toggleTheme() {
     ColorCatCharacter.startBiteBall(sw);
   };
   toolbar.appendChild(biteBtn);
+
+  // 虛弱等級按鈕（1~3）
+  for (var wl = 1; wl <= 3; wl++) {
+    (function(level) {
+      var wBtn = document.createElement('button');
+      wBtn.textContent = '虛弱' + level;
+      wBtn.className = 'weak-btn';
+      wBtn.style.borderColor = '#f59e0b';
+      wBtn.onclick = function() {
+        var cur = ColorCatCharacter.getWeakLevel();
+        document.querySelectorAll('.weak-btn').forEach(function(b) { b.classList.remove('active'); });
+        if (cur === level && ColorCatCharacter.isWeak()) {
+          ColorCatCharacter.setWeak(0);
+        } else {
+          ColorCatCharacter.setWeak(level);
+          wBtn.classList.add('active');
+        }
+      };
+      toolbar.appendChild(wBtn);
+    })(wl);
+  }
 })();
 
 // ── 啟動互動場景 ──

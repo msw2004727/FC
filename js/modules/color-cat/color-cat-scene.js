@@ -503,7 +503,7 @@ function initInteractiveScene(containerId) {
   _ctx = _canvas.getContext('2d');
   _ctx.scale(_dpr, _dpr);
 
-  BOX_BOTTOM_Y = C.CHAR_GROUND_Y - 2; // 紙箱底部對齊角色腳底
+  BOX_BOTTOM_Y = C.CHAR_GROUND_Y - 4; // 紙箱底部比角色腳底高 4px
   FLAG_POLE_X = BOX_X - BOX_W / 4;    // 旗桿在箱子左側 1/4 處
   FLAG_POLE_TOP = BOX_BOTTOM_Y - BOX_H - FLAG_POLE_H; // 旗桿頂部
 
