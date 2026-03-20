@@ -278,10 +278,25 @@ function handleFlowerClick(cx, cy) {
   return false;
 }
 
+// ── 查詢盛開花朵（供角色 AI 用） ──
+function getBloomedFlowers() {
+  var arr = [];
+  for (var i = 0; i < flowers.length; i++) {
+    if (flowers[i].state === 'bloomed') arr.push(flowers[i]);
+  }
+  return arr;
+}
+
+function isFlowerAlive(f) {
+  return f && (f.state === 'growing' || f.state === 'bloomed');
+}
+
 // 註冊到共享狀態
 _.updateFlowers = updateFlowers;
 _.drawFlowers = drawFlowers;
 _.handleFlowerClick = handleFlowerClick;
 _.addFlower = addFlower;
+_.getBloomedFlowers = getBloomedFlowers;
+_.isFlowerAlive = isFlowerAlive;
 
 })();

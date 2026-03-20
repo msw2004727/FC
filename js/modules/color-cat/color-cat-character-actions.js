@@ -260,6 +260,71 @@ function updateKnockback(sw) {
   return false;
 }
 
+// ── 看花：走向花朵旁待機 + 愛心 ──
+var WATCH_FLOWER_MIN = 150;  // 最少 5 秒（150 frames @30fps）
+
+function startWatchFlower(sw) {
+  if (ch.action === 'weak' || ch.action === 'knockback' || ch.action === 'sleeping') return;
+  var scene_ = window.ColorCatScene && window.ColorCatScene._;
+  if (!scene_ || !scene_.getBloomedFlowers) return;
+  var bloomed = scene_.getBloomedFlowers();
+  if (bloomed.length === 0) return;
+  var f = bloomed[Math.floor(Math.random() * bloomed.length)];
+  if (_.testMode) _.stopTest();
+  releaseBall();
+  if (ch.action === 'combo') endCombo();
+  _.watchFlowerRef = f;
+  _.watchFlowerTimer = 0;
+  _.watchFlowerDuration = WATCH_FLOWER_MIN + Math.floor(Math.random() * 90);  // 5~8 秒
+  // 目標：花旁邊 10~15px
+  var side = (ch.x < f.x) ? -1 : 1;
+  _.watchFlowerTargetX = f.x + side * (10 + Math.random() * 5);
+  ch.action = 'goToFlower';
+  ch.spriteFrame = 0; ch.spriteTimer = 0;
+}
+
+function updateGoToFlower(sw) {
+  var f = _.watchFlowerRef;
+  var scene_ = window.ColorCatScene && window.ColorCatScene._;
+  // 花消失 → 回閒置
+  if (!f || !scene_ || !scene_.isFlowerAlive(f)) {
+    ch.action = 'idle'; ch.spriteFrame = 0; ch.spriteTimer = 0;
+    _.watchFlowerRef = null;
+    return false;
+  }
+  var dist = _.watchFlowerTargetX - ch.x;
+  if (Math.abs(dist) > 4) {
+    ch.facing = dist > 0 ? 1 : -1;
+    ch.x += ch.facing * ch.speed;
+  } else {
+    // 到達花旁，轉為看花
+    ch.facing = (f.x > ch.x) ? 1 : -1;
+    ch.action = 'watchFlower';
+    _.watchFlowerTimer = 0;
+    ch.spriteFrame = 0; ch.spriteTimer = 0;
+  }
+  return false;
+}
+
+function updateWatchFlower(sw) {
+  var f = _.watchFlowerRef;
+  var scene_ = window.ColorCatScene && window.ColorCatScene._;
+  _.watchFlowerTimer++;
+  // 花消失或被摘 + 已過最低時間 → 結束
+  var flowerGone = !f || !scene_ || !scene_.isFlowerAlive(f);
+  if (flowerGone && _.watchFlowerTimer >= WATCH_FLOWER_MIN) {
+    ch.action = 'idle'; ch.spriteFrame = 0; ch.spriteTimer = 0;
+    _.watchFlowerRef = null; _.aiResetCooldown();
+    return false;
+  }
+  // 自然結束（5~8 秒）
+  if (_.watchFlowerTimer >= _.watchFlowerDuration) {
+    ch.action = 'idle'; ch.spriteFrame = 0; ch.spriteTimer = 0;
+    _.watchFlowerRef = null; _.aiResetCooldown();
+  }
+  return false;
+}
+
 // 註冊到共享狀態
 _.releaseBall = releaseBall;
 _.stopTest = stopTest;
@@ -275,5 +340,8 @@ _.updateGoToBox = updateGoToBox;
 _.updateDash = updateDash;
 _.startKnockback = startKnockback;
 _.updateKnockback = updateKnockback;
+_.startWatchFlower = startWatchFlower;
+_.updateGoToFlower = updateGoToFlower;
+_.updateWatchFlower = updateWatchFlower;
 
 })();

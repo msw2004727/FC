@@ -27,6 +27,7 @@ var _ = {
   biteBallPhase: 0, biteBallTimer: 0, biteBallTargetX: 0,
   jumpOffPhase: 0, jumpOffWalkDist: 0,
   knockbackPhase: 0, knockbackTimer: 0, knockbackRollDist: 0, knockbackSpeedX: 5,
+  watchFlowerRef: null, watchFlowerTimer: 0, watchFlowerDuration: 150, watchFlowerTargetX: 0,
   pendingWeak: false,
   aiTimer: 0, aiCooldown: 0, aiSceneInfo: null,
   COMBO_LEDGE_Y: 73, FOOT_OFFSET: 7,
@@ -74,6 +75,12 @@ _.updateDash = function() { return false; };
 _.updateChaseKickIdle = function() { return false; };
 _.startKnockback = function() {};
 _.updateKnockback = function() { return false; };
+_.updateHearts = function() {};
+_.drawHearts = function() {};
+_.updateWatchFlower = function() { return false; };
+_.updateGoToFlower = function() { return false; };
+_.startWatchFlower = function() {};
+_.spawnKnockbackBurst = function() {};
 
 // ── 初始化 ──
 function initCharacter(sceneWidth) {
@@ -111,6 +118,8 @@ function getSpriteKey() {
   if (character.action === 'biteBall') return 'run';
   if (character.action === 'kick') return 'attack';
   if (character.action === 'sleeping') return 'idle';
+  if (character.action === 'watchFlower') return 'idle';
+  if (character.action === 'goToFlower') return 'run';
   if (character.action === 'weak') return _.isBunny() ? 'death' : 'idle';
   if (character.action === 'knockback') return _.knockbackPhase === 2 ? 'idle' : 'roll';
   if (!character.onGround) return 'jump';
@@ -191,6 +200,8 @@ function updateCharacter(sceneWidth, ballState) {
   if (character.action === 'biteBall') return _.updateBiteBall(sw, ballState);
   if (character.action === 'dash') return _.updateDash(sw);
   if (character.action === 'knockback') return _.updateKnockback(sw);
+  if (character.action === 'watchFlower') return _.updateWatchFlower(sw);
+  if (character.action === 'goToFlower') return _.updateGoToFlower(sw);
   return _.updateChaseKickIdle(sw, ballState, defs);
 }
 
@@ -198,6 +209,7 @@ function updateCharacter(sceneWidth, ballState) {
 function drawCharacter(ctx, light) {
   _.updateDust();
   _.updateBreath();
+  _.updateHearts();
   _.drawDust(ctx, light !== undefined ? light : true);
   if (character.action === 'sleeping') return;
   var key = getSpriteKey();
@@ -206,6 +218,7 @@ function drawCharacter(ctx, light) {
     character.action === 'jumpOff';
   ColorCatSprite.draw(ctx, key, character.spriteFrame, character.x, character.y, character.facing, noShadow);
   _.drawBreath(ctx);
+  _.drawHearts(ctx);
   _.drawStaminaBar(ctx);
 }
 

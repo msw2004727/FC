@@ -32,15 +32,22 @@ function aiPickAction(sw, ballState) {
   var isDark = C.isThemeDark();
   if (isDark && _.isBunny()) sleepW *= 1.5;
   else if (!isDark && !_.isBunny()) sleepW *= 1.5;
-  var total = w.biteBall + w.chase + w.dash + w.climbBox + w.climbWall + sleepW;
+
+  // 有盛開花朵時加入看花權重
+  var scene_ = window.ColorCatScene && window.ColorCatScene._;
+  var hasFlowers = scene_ && scene_.getBloomedFlowers && scene_.getBloomedFlowers().length > 0;
+  var watchFlowerW = hasFlowers ? (w.chase * 0.8) : 0;
+
+  var total = w.biteBall + w.chase + w.dash + w.climbBox + w.climbWall + sleepW + watchFlowerW;
   var roll = Math.random() * total;
 
   var cum = 0;
-  cum += w.biteBall;  if (roll < cum) { rt.totalActions++; _.startBiteBall(sw); return; }
-  cum += w.chase;     if (roll < cum) { rt.totalActions++; _.startChase(); return; }
-  cum += w.dash;      if (roll < cum) { rt.totalActions++; _.tapCharacter(sw); return; }
-  cum += w.climbBox;  if (roll < cum) { rt.totalActions++; _.startComboBox(sw, info.boxX, info.boxTopY, info.boxW); return; }
-  cum += w.climbWall; if (roll < cum) { rt.totalActions++; _.startComboWall(sw); return; }
+  cum += w.biteBall;    if (roll < cum) { rt.totalActions++; _.startBiteBall(sw); return; }
+  cum += w.chase;       if (roll < cum) { rt.totalActions++; _.startChase(); return; }
+  cum += w.dash;        if (roll < cum) { rt.totalActions++; _.tapCharacter(sw); return; }
+  cum += w.climbBox;    if (roll < cum) { rt.totalActions++; _.startComboBox(sw, info.boxX, info.boxTopY, info.boxW); return; }
+  cum += w.climbWall;   if (roll < cum) { rt.totalActions++; _.startComboWall(sw); return; }
+  cum += watchFlowerW;  if (roll < cum) { rt.totalActions++; _.startWatchFlower(sw); return; }
   rt.totalSleeps++;
   _.startGoToBox(info.openingX);
 }

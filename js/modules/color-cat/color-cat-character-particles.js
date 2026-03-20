@@ -121,6 +121,56 @@ function drawBreath(ctx) {
   ctx.restore();
 }
 
+// ── 看花愛心粒子 ──
+var _heartParticles = [];
+var _heartTimer = 0;
+
+function updateHearts() {
+  if (ch.action === 'watchFlower') {
+    _heartTimer++;
+    if (_heartTimer >= 12) {  // 每 0.4 秒噴一顆
+      _heartTimer = 0;
+      var headY = ch.y - C.SPRITE_DRAW * 0.6;
+      _heartParticles.push({
+        x: ch.x + (Math.random() - 0.5) * 6,
+        y: headY,
+        vx: (Math.random() - 0.5) * 0.5,
+        vy: -(0.5 + Math.random() * 0.4),
+        life: 1, decay: 0.015 + Math.random() * 0.01,
+        size: 3 + Math.random() * 2,
+      });
+    }
+  } else { _heartTimer = 0; }
+  for (var i = _heartParticles.length - 1; i >= 0; i--) {
+    var p = _heartParticles[i];
+    p.x += p.vx; p.y += p.vy;
+    p.vx *= 0.98; p.vy *= 0.97;
+    p.life -= p.decay;
+    if (p.life <= 0) _heartParticles.splice(i, 1);
+  }
+}
+
+function drawHearts(ctx) {
+  if (_heartParticles.length === 0) return;
+  ctx.save();
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  for (var i = 0; i < _heartParticles.length; i++) {
+    var p = _heartParticles[i];
+    ctx.globalAlpha = p.life * 0.8;
+    ctx.font = p.size + 'px sans-serif';
+    ctx.fillStyle = '#E8524A';
+    // 用簡單的心形路徑
+    var s = p.size * 0.5;
+    ctx.beginPath();
+    ctx.moveTo(p.x, p.y + s * 0.3);
+    ctx.bezierCurveTo(p.x - s, p.y - s * 0.5, p.x - s * 0.5, p.y - s, p.x, p.y - s * 0.4);
+    ctx.bezierCurveTo(p.x + s * 0.5, p.y - s, p.x + s, p.y - s * 0.5, p.x, p.y + s * 0.3);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  ctx.restore();
+}
+
 // ── 面板撞擊大量煙塵（跑步的 5 倍） ──
 function spawnKnockbackBurst() {
   var footX = ch.x;
@@ -142,6 +192,8 @@ _.updateDust = updateDust;
 _.drawDust = drawDust;
 _.updateBreath = updateBreath;
 _.drawBreath = drawBreath;
+_.updateHearts = updateHearts;
+_.drawHearts = drawHearts;
 _.spawnKnockbackBurst = spawnKnockbackBurst;
 
 })();
