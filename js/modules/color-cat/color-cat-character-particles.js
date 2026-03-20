@@ -15,7 +15,7 @@ var _dustTimer = 0;
 
 function isRunning() {
   if (ch.action === 'chase' || ch.action === 'dash' || ch.action === 'goToBox') return true;
-  if (ch.action === 'biteBall') return true;
+  if (ch.action === 'biteBall' || ch.action === 'chaseButterfly') return true;
   if (ch.action === 'combo' && _.comboStep === 0) return true;
   if (_.testMode === 'run') return true;
   return false;

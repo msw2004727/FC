@@ -10,6 +10,12 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-21 — ColorCat 追蝴蝶、蝴蝶加速離場
+- **功能**：角色 AI 隨機追逐停在花上的蝴蝶，蝴蝶觸發 flee 階段加速逃離，角色追到蝴蝶離場後回閒置
+- **設計**：角色追蝴蝶速度 2.0 < 蝴蝶逃跑初速 2.5（逐幀 +0.03 加速），確保永遠追不上
+- **修改**：scene-flower.js（flee 階段 + API）、character.js（stub + dispatch）、character-actions.js（追逐邏輯）、character-ai.js（AI 權重）、character-particles.js（跑步煙塵）
+- **附帶**：自然離場蝴蝶也改為逐幀加速（初速 1.5，+0.015/frame）
+
 ### 2026-03-21 — test-color-cat 更名 GrowthGames + 架構整理
 - **變更**：`test-color-cat.html` → `GrowthGames.html`，更新標題與頁面 heading
 - **清理**：刪除孤兒檔 `color-cat-scene-panel-tabs.js`（已被 tab0/tab1/tab2 取代）

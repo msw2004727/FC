@@ -331,6 +331,49 @@ function updateWatchFlower(sw) {
   return false;
 }
 
+// ── 追蝴蝶：跑向蝴蝶 → 接近時蝴蝶逃走 → 追到離場 ──
+var CHASE_BUTTERFLY_SPEED = 2.0;  // 必須 < 蝴蝶逃跑速度 (2.5+)
+var CHASE_BUTTERFLY_TRIGGER_DIST = 25;  // 接近多少 px 時觸發蝴蝶逃跑
+
+function startChaseButterfly(sw) {
+  if (ch.action === 'weak' || ch.action === 'knockback' || ch.action === 'sleeping') return;
+  var scene_ = window.ColorCatScene && window.ColorCatScene._;
+  if (!scene_ || !scene_.getHoveringButterflies) return;
+  var hovering = scene_.getHoveringButterflies();
+  if (hovering.length === 0) return;
+  var b = hovering[Math.floor(Math.random() * hovering.length)];
+  if (_.testMode) _.stopTest();
+  releaseBall();
+  if (ch.action === 'combo') endCombo();
+  _.chaseButterflyRef = b;
+  ch.action = 'chaseButterfly';
+  ch.spriteFrame = 0; ch.spriteTimer = 0;
+}
+
+function updateChaseButterfly(sw) {
+  var b = _.chaseButterflyRef;
+  var scene_ = window.ColorCatScene && window.ColorCatScene._;
+  // 蝴蝶已離場（被移除） → 結束追逐
+  if (!b || !scene_ || !scene_.isButterflyAlive(b)) {
+    ch.action = 'idle'; ch.spriteFrame = 0; ch.spriteTimer = 0;
+    _.chaseButterflyRef = null; _.aiResetCooldown();
+    return false;
+  }
+  // 跑向蝴蝶
+  var dx = b.x - ch.x;
+  ch.facing = dx > 0 ? 1 : -1;
+  ch.x += ch.facing * CHASE_BUTTERFLY_SPEED;
+  // 邊界限制
+  if (ch.x < C.SPRITE_DRAW / 2) ch.x = C.SPRITE_DRAW / 2;
+  if (ch.x > sw - C.SPRITE_DRAW / 2) ch.x = sw - C.SPRITE_DRAW / 2;
+  // 接近蝴蝶 → 觸發逃跑
+  var dist = Math.abs(dx);
+  if (dist < CHASE_BUTTERFLY_TRIGGER_DIST && b.phase === 'hover') {
+    if (scene_.startButterflyFlee) scene_.startButterflyFlee(b);
+  }
+  return false;
+}
+
 // 註冊到共享狀態
 _.releaseBall = releaseBall;
 _.stopTest = stopTest;
@@ -349,5 +392,7 @@ _.updateKnockback = updateKnockback;
 _.startWatchFlower = startWatchFlower;
 _.updateGoToFlower = updateGoToFlower;
 _.updateWatchFlower = updateWatchFlower;
+_.startChaseButterfly = startChaseButterfly;
+_.updateChaseButterfly = updateChaseButterfly;
 
 })();

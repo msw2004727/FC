@@ -38,7 +38,11 @@ function aiPickAction(sw, ballState) {
   var hasFlowers = scene_ && scene_.getBloomedFlowers && scene_.getBloomedFlowers().length > 0;
   var watchFlowerW = hasFlowers ? (w.chase * 2.5) : 0;
 
-  var total = w.biteBall + w.chase + w.dash + w.climbBox + w.climbWall + sleepW + watchFlowerW;
+  // 有停留蝴蝶時加入追蝴蝶權重
+  var hasButterflies = scene_ && scene_.getHoveringButterflies && scene_.getHoveringButterflies().length > 0;
+  var chaseButterflyW = hasButterflies ? (w.chase * 2) : 0;
+
+  var total = w.biteBall + w.chase + w.dash + w.climbBox + w.climbWall + sleepW + watchFlowerW + chaseButterflyW;
   var roll = Math.random() * total;
 
   var cum = 0;
@@ -48,6 +52,7 @@ function aiPickAction(sw, ballState) {
   cum += w.climbBox;    if (roll < cum) { rt.totalActions++; _.startComboBox(sw, info.boxX, info.boxTopY, info.boxW); return; }
   cum += w.climbWall;   if (roll < cum) { rt.totalActions++; _.startComboWall(sw); return; }
   cum += watchFlowerW;  if (roll < cum) { rt.totalActions++; _.startWatchFlower(sw); return; }
+  cum += chaseButterflyW; if (roll < cum) { rt.totalActions++; _.startChaseButterfly(sw); return; }
   rt.totalSleeps++;
   _.startGoToBox(info.openingX);
 }

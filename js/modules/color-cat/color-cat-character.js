@@ -28,6 +28,7 @@ var _ = {
   jumpOffPhase: 0, jumpOffWalkDist: 0,
   knockbackPhase: 0, knockbackTimer: 0, knockbackRollDist: 0, knockbackSpeedX: 5,
   watchFlowerRef: null, watchFlowerTimer: 0, watchFlowerDuration: 150, watchFlowerTargetX: 0,
+  chaseButterflyRef: null,
   pendingWeak: false,
   aiTimer: 0, aiCooldown: 0, aiSceneInfo: null,
   COMBO_LEDGE_Y: 73, FOOT_OFFSET: 7,
@@ -80,6 +81,8 @@ _.drawHearts = function() {};
 _.updateWatchFlower = function() { return false; };
 _.updateGoToFlower = function() { return false; };
 _.startWatchFlower = function() {};
+_.startChaseButterfly = function() {};
+_.updateChaseButterfly = function() { return false; };
 _.spawnKnockbackBurst = function() {};
 _.updateKnockDust = function() {};
 _.drawKnockDust = function() {};
@@ -122,6 +125,7 @@ function getSpriteKey() {
   if (character.action === 'sleeping') return 'idle';
   if (character.action === 'watchFlower') return 'idle';
   if (character.action === 'goToFlower') return 'run';
+  if (character.action === 'chaseButterfly') return 'run';
   if (character.action === 'weak') return _.isBunny() ? 'death' : 'idle';
   if (character.action === 'knockback') return _.knockbackPhase === 2 ? 'idle' : 'roll';
   if (!character.onGround) return 'jump';
@@ -204,6 +208,7 @@ function updateCharacter(sceneWidth, ballState) {
   if (character.action === 'knockback') return _.updateKnockback(sw);
   if (character.action === 'watchFlower') return _.updateWatchFlower(sw);
   if (character.action === 'goToFlower') return _.updateGoToFlower(sw);
+  if (character.action === 'chaseButterfly') return _.updateChaseButterfly(sw);
   return _.updateChaseKickIdle(sw, ballState, defs);
 }
 

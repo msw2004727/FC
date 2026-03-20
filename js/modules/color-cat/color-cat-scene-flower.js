@@ -364,9 +364,20 @@ function updateButterflies(sw) {
         b.phase = 'leave'; b.timer = 0;
         b.leaveDir = Math.random() < 0.5 ? -1 : 1;
       }
+    } else if (b.phase === 'flee') {
+      // 被角色追趕 → 加速逃離
+      if (!b.fleeSpeed) b.fleeSpeed = 2.5;
+      b.fleeSpeed += 0.03;  // 逐幀加速
+      b.x += b.leaveDir * b.fleeSpeed;
+      b.y -= 0.8 + Math.sin(b.timer * 0.12) * 0.4;
+      if (b.x < -20 || b.x > sw + 20 || b.y < -20) {
+        butterflies.splice(i, 1);
+      }
     } else {
-      // 飛離畫面
-      b.x += b.leaveDir * 1.5;
+      // 飛離畫面（自然離場也加速）
+      if (!b.leaveSpeed) b.leaveSpeed = 1.5;
+      b.leaveSpeed += 0.015;
+      b.x += b.leaveDir * b.leaveSpeed;
       b.y -= 0.5 + Math.sin(b.timer * 0.1) * 0.3;
       if (b.x < -15 || b.x > sw + 15 || b.y < -15) {
         butterflies.splice(i, 1);
@@ -411,6 +422,30 @@ function drawButterflies(ctx) {
   }
 }
 
+// ── 查詢停留中的蝴蝶（供角色 AI 用） ──
+function getHoveringButterflies() {
+  var arr = [];
+  for (var i = 0; i < butterflies.length; i++) {
+    if (butterflies[i].phase === 'hover') arr.push(butterflies[i]);
+  }
+  return arr;
+}
+
+function startButterflyFlee(b) {
+  if (!b || b.phase === 'flee' || b.phase === 'leave') return;
+  b.phase = 'flee'; b.timer = 0;
+  b.fleeSpeed = 2.5;
+  // 逃離方向：遠離畫面中心
+  b.leaveDir = b.x < 280 ? -1 : 1;
+}
+
+function isButterflyAlive(b) {
+  for (var i = 0; i < butterflies.length; i++) {
+    if (butterflies[i] === b) return true;
+  }
+  return false;
+}
+
 // ── 查詢盛開花朵（供角色 AI 用） ──
 function getBloomedFlowers() {
   var arr = [];
@@ -431,5 +466,8 @@ _.handleFlowerClick = handleFlowerClick;
 _.addFlower = addFlower;
 _.getBloomedFlowers = getBloomedFlowers;
 _.isFlowerAlive = isFlowerAlive;
+_.getHoveringButterflies = getHoveringButterflies;
+_.startButterflyFlee = startButterflyFlee;
+_.isButterflyAlive = isButterflyAlive;
 
 })();
