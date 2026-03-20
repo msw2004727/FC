@@ -303,8 +303,13 @@ var BUTTERFLY_COLORS = [
 function spawnButterfly(sw) {
   if (butterflies.length >= MAX_BUTTERFLIES) return;
   var bloomed = getBloomedFlowers();
-  if (bloomed.length === 0) return;
-  var target = bloomed[Math.floor(Math.random() * bloomed.length)];
+  // 只選標準大小以上的花（hScale >= 1.0）
+  var tall = [];
+  for (var bi = 0; bi < bloomed.length; bi++) {
+    if ((bloomed[bi].hScale || 1) >= 1.0) tall.push(bloomed[bi]);
+  }
+  if (tall.length === 0) return;
+  var target = tall[Math.floor(Math.random() * tall.length)];
   var fh = FLOWER_H * (target.hScale || 1);
   var fromLeft = Math.random() < 0.5;
   var colors = BUTTERFLY_COLORS[Math.floor(Math.random() * BUTTERFLY_COLORS.length)];
