@@ -90,7 +90,7 @@ body {
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
   padding-top: var(--topbar-h);
-  padding-bottom: calc(var(--bottombar-h) + env(safe-area-inset-bottom, 0));
+  padding-bottom: calc(var(--bottombar-h) + 55px + env(safe-area-inset-bottom, 0));
   transition: background var(--transition), color var(--transition);
 }
 a { color: var(--accent); text-decoration: none; }
