@@ -246,6 +246,25 @@ flowchart TD
 | `kickball-physics.js` | 踢球遊戲物理引擎 |
 | `kickball-game-page.js` | 開球王遊戲頁面（嵌入主站 kickball.html） |
 
+### color-cat/ — 養成角色系統（14 個模組）
+
+| 檔案 | 說明 |
+|------|------|
+| `color-cat-config.js` | 常數、皮膚定義、動作定義 |
+| `color-cat-stats.js` | 遊戲數值（體力、AI 權重、物理、粒子參數） |
+| `color-cat-sprite.js` | 精靈圖載入、繪製、剪影 |
+| `color-cat-ball.js` | 球體物理、踢球煙塵、叼球模式 |
+| `color-cat-character.js` | 角色核心（共享狀態、初始化、更新迴圈、公開 API） |
+| `color-cat-character-stamina.js` | 體力消耗/恢復、虛弱等級觸發、體力條繪製 |
+| `color-cat-character-particles.js` | 跑步煙塵、虛弱喘氣粒子特效 |
+| `color-cat-character-actions.js` | 動作啟動/停止、移動更新（追球、走向紙箱、短跑） |
+| `color-cat-character-combo.js` | 連續動作序列（爬邊牆、爬紙箱、咬球跑） |
+| `color-cat-character-ai.js` | AI 行為選擇、追球/踢球/閒置更新 |
+| `color-cat-scene.js` | 場景核心（共享狀態、主迴圈、初始化、點擊、App 掛載） |
+| `color-cat-scene-bg.js` | 背景繪製（天空漸層、草地、太陽/月亮） |
+| `color-cat-scene-box.js` | 紙箱繪製（箱體、貓臉塗鴉、蓋子開合、Zzz） |
+| `color-cat-scene-flag.js` | 旗子繪製（飄揚動畫、旗上貓臉）+ 牆面影子 |
+
 ### scan/ — QR Code 掃描（5 個模組）
 
 | 檔案 | 說明 |

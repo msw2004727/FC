@@ -10,6 +10,16 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-20 — ColorCat 模組化拆分 + 修復煙霧/喘氣/貓臉消失
+- **問題**：角色拆分為子模組後，煙霧效果、虛弱喘氣粒子消失，AI 不動作
+- **原因**：5 個角色子模組檔案（stamina/particles/actions/combo/ai）已建立在磁碟上，但未加入 test-color-cat.html 的 `<script>` 標籤與 script-loader.js 的 profile 群組。子模組未載入導致核心的函式插槽（stubs）保持空操作
+- **修復**：
+  - 在 test-color-cat.html 加入 8 個新 script 標籤（5 角色子模組 + 3 場景子模組）
+  - 在 script-loader.js profile 群組加入 8 個新模組路徑
+  - 將 scene.js（639 行）拆為 4 檔：scene.js（253）+ scene-bg.js（68）+ scene-box.js（208）+ scene-flag.js（133）
+  - character.js（原 1049 行）拆為 6 檔：character.js（236）+ stamina（95）+ particles（124）+ actions（196）+ combo（186）+ ai（93）
+- **教訓**：拆分模組時，除了建立新檔案，必須同步更新所有載入點（HTML script 標籤、script-loader 群組）。子模組採「函式插槽」模式時，未載入只會靜默失效（no-op），不會報錯，極難察覺
+
 ### 2026-03-20 — 主題切換開關加入太陽/月亮 emoji 圖示
 - **變更**：在 `.toggle-switch` track 上用 `::before`（🌙左側）和 `::after`（☀️右側）放置 emoji，`.toggle-knob` 加 `z-index:2` 蓋住對應圖示
 - **效果**：淺色模式 knob 在左蓋住月亮→太陽可見；深色模式 knob 在右蓋住太陽→月亮可見
