@@ -50,7 +50,7 @@ function render() {
 }
 
 function update() {
-  _.updateFlowers();
+  _.updateFlowers(_sw);
   var ew = _.getEffectiveWidth ? _.getEffectiveWidth(_sw) : _sw;
   // 球邊界先夾（確保角色追球時目標不在面板內）
   var bs = ColorCatBall.state;

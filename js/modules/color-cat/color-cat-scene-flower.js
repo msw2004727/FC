@@ -37,10 +37,9 @@ var flowers = [];
 var expEffects = [];   // { x, y, alpha, vy, exp, gold }
 var sproutFx = [];     // 冒土粒子 { x, y, vy, alpha, size }
 
-// TODO: 未來改為隨時間自動長花，在此加入計時器邏輯
-// var autoGrowTimer = 0;
-// var AUTO_GROW_INTERVAL = 300;  // 每 10 秒（300 frames @30fps）嘗試一次
-// var AUTO_GROW_CHANCE  = 0.25;  // 每次嘗試的機率
+// ── 自動長花計時器 ──
+var autoGrowTimer = 0;
+var AUTO_GROW_INTERVAL = 450;  // 每 15 秒（450 frames @30fps）
 
 // ── 新增花朵 / 枯萎一朵 ──
 function addFlower(sw) {
@@ -86,7 +85,7 @@ function addFlower(sw) {
 }
 
 // ── 每幀更新 ──
-function updateFlowers() {
+function updateFlowers(sw) {
   // 枯萎模式：所有花都消失後恢復長花
   if (_wilting && flowers.length === 0) {
     _wilting = false;
@@ -121,14 +120,16 @@ function updateFlowers() {
     if (p.alpha <= 0) sproutFx.splice(k, 1);
   }
 
-  // TODO: 未來自動長花邏輯
-  // autoGrowTimer++;
-  // if (autoGrowTimer >= AUTO_GROW_INTERVAL) {
-  //   autoGrowTimer = 0;
-  //   if (flowers.length < MAX_FLOWERS && Math.random() < AUTO_GROW_CHANCE) {
-  //     addFlower(sceneWidth);
-  //   }
-  // }
+  // 自動長花（每 15 秒）
+  if (!_wilting && sw) {
+    autoGrowTimer++;
+    if (autoGrowTimer >= AUTO_GROW_INTERVAL) {
+      autoGrowTimer = 0;
+      if (flowers.length < MAX_FLOWERS) {
+        addFlower(sw);
+      }
+    }
+  }
 }
 
 // ── 繪製單朵花 ──
