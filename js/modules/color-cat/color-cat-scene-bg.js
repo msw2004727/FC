@@ -7,10 +7,16 @@
 var C = window.ColorCatConfig;
 var _ = window.ColorCatScene._;
 
-// ── 天空動畫常數 ──
-var SKY_EVENT_INTERVAL = 300;  // 每 10 秒（300 frames @30fps）
-// TODO: 未來由後台設定 SKY_EVENT_INTERVAL
+// ── 天空動畫常數（@30fps） ──
+// TODO: 未來由後台設定間隔
+var BIRD_INTERVAL_MIN   = 300;   // 鳥群：10 秒
+var BIRD_INTERVAL_MAX   = 900;   // 鳥群：30 秒
+var METEOR_INTERVAL_MIN = 150;   // 流星：5 秒
+var METEOR_INTERVAL_MAX = 300;   // 流星：10 秒
+
+function randInterval(min, max) { return min + Math.floor(Math.random() * (max - min)); }
 var _skyTimer = 0;
+var _skyNextAt = randInterval(METEOR_INTERVAL_MIN, METEOR_INTERVAL_MAX);
 var _skyEvents = [];  // { type:'birds'|'meteor', x, y, vx, vy, timer, maxTimer, ... }
 
 function drawSun(ctx, x, y) {
@@ -73,19 +79,38 @@ function drawBackground(ctx, sw, light) {
 
 function spawnSkyEvent(sw, light) {
   if (light) {
-    // 鳥群：3~6 隻，從左或右飛入，Y 在天空上半部
+    // 鳥群：2~8 隻，隨機排列（V形、散佈、斜列），從左或右飛入
     var fromLeft = Math.random() < 0.5;
     var baseY = 8 + Math.random() * 30;
-    var count = 3 + Math.floor(Math.random() * 4);
-    var speed = 0.8 + Math.random() * 0.6;
+    var count = 2 + Math.floor(Math.random() * 7);
+    var speed = 0.6 + Math.random() * 0.8;
     var dir = fromLeft ? 1 : -1;
-    var startX = fromLeft ? -20 : sw + 20;
+    var startX = fromLeft ? -30 : sw + 30;
+    var formation = Math.random();  // 0~0.33 V形, 0.33~0.66 斜列, 0.66~1 散佈
     _skyEvents.push({
       type: 'birds', x: startX, y: baseY, vx: speed * dir, count: count,
-      timer: 0, maxTimer: Math.ceil((sw + 60) / speed),
+      timer: 0, maxTimer: Math.ceil((sw + 80) / speed),
       offsets: (function() {
         var o = [];
-        for (var i = 0; i < count; i++) o.push({ dx: (Math.random() - 0.5) * 16, dy: (Math.random() - 0.5) * 10 });
+        for (var i = 0; i < count; i++) {
+          var dx, dy;
+          if (formation < 0.33) {
+            // V 形：左右交替展開
+            var side = (i % 2 === 0) ? -1 : 1;
+            var rank = Math.ceil(i / 2);
+            dx = -dir * rank * (6 + Math.random() * 3);
+            dy = side * rank * (4 + Math.random() * 2);
+          } else if (formation < 0.66) {
+            // 斜列
+            dx = -dir * i * (5 + Math.random() * 3);
+            dy = i * (2 + Math.random() * 2) - count * 1.5;
+          } else {
+            // 散佈
+            dx = (Math.random() - 0.5) * count * 6;
+            dy = (Math.random() - 0.5) * count * 4;
+          }
+          o.push({ dx: dx, dy: dy });
+        }
         return o;
       })()
     });
@@ -104,8 +129,11 @@ function spawnSkyEvent(sw, light) {
 
 function updateSkyEvents(sw, light) {
   _skyTimer++;
-  if (_skyTimer >= SKY_EVENT_INTERVAL) {
+  if (_skyTimer >= _skyNextAt) {
     _skyTimer = 0;
+    _skyNextAt = light
+      ? randInterval(BIRD_INTERVAL_MIN, BIRD_INTERVAL_MAX)
+      : randInterval(METEOR_INTERVAL_MIN, METEOR_INTERVAL_MAX);
     spawnSkyEvent(sw, light);
   }
   for (var i = _skyEvents.length - 1; i >= 0; i--) {
