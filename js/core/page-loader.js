@@ -104,7 +104,9 @@ const PageLoader = {
     if (this._loading[fileName]) return this._loading[fileName];
 
     this._loading[fileName] = (async () => {
-      const html = await fetch(`pages/${fileName}.html?v=${CACHE_VERSION}`).then(r => r.text());
+      const r = await fetch(`pages/${fileName}.html?v=${CACHE_VERSION}`);
+      if (!r.ok) { console.warn(`[PageLoader] ${fileName} HTTP ${r.status}`); return; }
+      const html = await r.text();
       this._appendToMainContent(html);
       this._loaded[fileName] = true;
       console.log(`[PageLoader] ${reason}: ${fileName}`);
@@ -142,12 +144,13 @@ const PageLoader = {
       const fetchMap = {};
       for (const name of this._bootPages) {
         fetchMap[name] = fetch(`pages/${name}.html?v=${CACHE_VERSION}`)
-          .then(r => r.text())
+          .then(r => { if (!r.ok) { console.warn(`[PageLoader] pages/${name}.html HTTP ${r.status}`); return ''; } return r.text(); })
           .catch(err => { console.warn(`[PageLoader] pages/${name}.html 載入失敗:`, err); return ''; });
       }
       const modalFetch = Promise.all(
         this._modals.map(name =>
-          fetch(`pages/${name}.html?v=${CACHE_VERSION}`).then(r => r.text())
+          fetch(`pages/${name}.html?v=${CACHE_VERSION}`)
+            .then(r => { if (!r.ok) { console.warn(`[PageLoader] pages/${name}.html HTTP ${r.status}`); return ''; } return r.text(); })
             .catch(err => { console.warn(`[PageLoader] pages/${name}.html 載入失敗:`, err); return ''; })
         )
       );
