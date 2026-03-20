@@ -19,6 +19,25 @@
   .toolbar .skin-btn.active { background: #f59e0b; color: #fff; border-color: #f59e0b; }
   .canvas-wrap { width: 100%; max-width: 560px; height: 127px; border-radius: 8px; overflow: hidden; position: relative; }
 </style>
+<script>
+// ── 快取清除（?clear=1）+ 版本自動更新 ──
+(function(){
+  var V='20260321b';
+  if(location.search.indexOf('clear=1')!==-1){
+    if('caches' in window) caches.keys().then(function(k){k.forEach(function(n){caches.delete(n)})});
+    if('serviceWorker' in navigator) navigator.serviceWorker.getRegistrations().then(function(r){r.forEach(function(w){w.unregister()})});
+    localStorage.setItem('gg_cache_ver',V);
+    location.replace(location.pathname);
+    return;
+  }
+  var prev=localStorage.getItem('gg_cache_ver');
+  if(prev&&prev!==V){
+    if('caches' in window) caches.keys().then(function(k){k.forEach(function(n){caches.delete(n)})});
+    if('serviceWorker' in navigator) navigator.serviceWorker.getRegistrations().then(function(r){r.forEach(function(w){w.unregister()})});
+  }
+  localStorage.setItem('gg_cache_ver',V);
+})();
+</script>
 </head>
 <body>
 
@@ -55,10 +74,18 @@
 <script src="js/modules/color-cat/color-cat-scene-panel-tab2.js?v=20260321b"></script>
 
 <script>
-// ── 主題切換 ──
+// ── 主題：讀取主站 localStorage 同步 ──
+(function syncTheme() {
+  var saved = localStorage.getItem('sporthub_theme');
+  if (saved === 'dark' || saved === 'light') {
+    document.documentElement.setAttribute('data-theme', saved);
+  }
+})();
 function toggleTheme() {
   var t = document.documentElement.getAttribute('data-theme');
-  document.documentElement.setAttribute('data-theme', t === 'dark' ? 'light' : 'dark');
+  var next = t === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  localStorage.setItem('sporthub_theme', next);
 }
 
 // ── 建立工具列按鈕 ──
