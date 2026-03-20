@@ -271,13 +271,14 @@
         </div>
         <div class="ce-row">
           <label>地區 <span class="required">*必填</span></label>
-          <input type="text" id="fl-region-input" placeholder="輸入或選擇縣市" autocomplete="off" style="width:100%;box-sizing:border-box;padding:.45rem .35rem;font-size:.82rem;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg-card);color:var(--text-primary)" oninput="App.onRegionInput(this.value)" onfocus="App.onRegionFocus()" onblur="setTimeout(function(){App.onRegionBlur()},200)">
+          <input type="text" id="fl-region-input" placeholder="輸入縣市名稱" autocomplete="off" style="width:100%;box-sizing:border-box;padding:.45rem .35rem;font-size:.82rem;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg-card);color:var(--text-primary)">
+          <div id="fl-region-list" style="max-height:140px;overflow-y:auto;border:1px solid var(--border,#ddd);border-radius:var(--radius,8px);background:var(--bg-card,#fff);margin-top:4px"></div>
         </div>
       </div>
     </div>
     <div id="fl-error-msg" style="display:none;color:var(--danger);font-size:.8rem;padding:.3rem .5rem;border-radius:var(--radius-sm);background:rgba(239,68,68,.08);margin:.4rem 1.2rem 0"></div>
     <div class="modal-actions">
-      <button class="primary-btn" onclick="App.saveFirstLoginProfile()">確認送出</button>
+      <button class="primary-btn" id="fl-submit-btn">確認送出</button>
     </div>
   </div>
 

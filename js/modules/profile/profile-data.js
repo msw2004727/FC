@@ -139,101 +139,95 @@ Object.assign(App, {
     return true;
   },
 
-  // ── 地區自動完成 ──
+  // ── 地區自動完成（LINE WebView 相容）──
 
-  _getFilteredRegions(keyword) {
-    const allRegions = this._getFirstLoginRegionList();
-    const q = this._normalizeRegionKeyword(keyword);
-    if (!q) return allRegions;
-    return allRegions.filter(name => this._fuzzyMatch(this._normalizeRegionKeyword(name), q));
-  },
+  _flRegionBound: false,
 
-  _regionPicking: false,
-
-  _ensureRegionDropdown() {
-    var dd = document.getElementById('fl-region-dropdown');
-    if (dd) return dd;
-    dd = document.createElement('div');
-    dd.id = 'fl-region-dropdown';
-    dd.style.cssText = 'display:none;position:fixed;max-height:160px;overflow-y:auto;background:var(--bg-card,#fff);border:1px solid var(--border,#ddd);border-radius:8px 8px 0 0;z-index:9999;box-shadow:0 -4px 12px rgba(0,0,0,.12)';
-    document.body.appendChild(dd);
-    return dd;
-  },
-
-  _positionRegionDropdown() {
-    var input = document.getElementById('fl-region-input');
-    var dd = document.getElementById('fl-region-dropdown');
-    if (!input || !dd) return;
-    var rect = input.getBoundingClientRect();
-    dd.style.left = rect.left + 'px';
-    dd.style.width = rect.width + 'px';
-    dd.style.bottom = (window.innerHeight - rect.top) + 'px';
-    dd.style.top = 'auto';
-  },
-
-  _renderRegionDropdown(matched) {
-    var dd = this._ensureRegionDropdown();
-    var self = this;
-    if (matched.length === 0) {
-      dd.innerHTML = '<div style="padding:8px 12px;color:#999;font-size:14px">無匹配結果</div>';
-    } else {
-      dd.innerHTML = '';
-      matched.forEach(function(name) {
-        var item = document.createElement('div');
-        item.textContent = name;
-        item.style.cssText = 'padding:8px 12px;cursor:pointer;font-size:14px';
-        item.onmousedown = function(e) { e.preventDefault(); self._regionPicking = true; };
-        item.ontouchstart = function() { self._regionPicking = true; };
-        item.onclick = function() { self._selectRegion(name); };
-        item.ontouchend = function(e) { e.preventDefault(); self._selectRegion(name); };
-        dd.appendChild(item);
+  _renderRegionList(keyword) {
+    var list = document.getElementById('fl-region-list');
+    if (!list) return;
+    var allRegions = this._getFirstLoginRegionList();
+    var q = this._normalizeRegionKeyword(keyword);
+    var matched = allRegions;
+    if (q) {
+      var self = this;
+      matched = allRegions.filter(function(name) {
+        return self._fuzzyMatch(self._normalizeRegionKeyword(name), q);
       });
     }
-    this._positionRegionDropdown();
-    dd.style.display = '';
-  },
-
-  _selectRegion(name) {
-    this._regionPicking = false;
+    list.innerHTML = '';
+    if (matched.length === 0) {
+      list.innerHTML = '<div style="padding:8px 12px;color:#999;font-size:13px">無匹配結果</div>';
+      return;
+    }
     var input = document.getElementById('fl-region-input');
-    var dd = document.getElementById('fl-region-dropdown');
-    if (input) input.value = name;
-    if (dd) dd.style.display = 'none';
-  },
-
-  onRegionInput(value) {
-    this._renderRegionDropdown(this._getFilteredRegions(value));
-  },
-
-  onRegionFocus() {
-    var input = document.getElementById('fl-region-input');
-    this._renderRegionDropdown(this._getFilteredRegions(input ? input.value : ''));
-  },
-
-  onRegionBlur() {
-    if (this._regionPicking) return;
-    var dd = document.getElementById('fl-region-dropdown');
-    if (dd) dd.style.display = 'none';
+    matched.forEach(function(name) {
+      var item = document.createElement('div');
+      item.textContent = name;
+      item.setAttribute('data-region', name);
+      item.style.cssText = 'padding:7px 12px;font-size:13px;border-bottom:1px solid var(--border,#eee)';
+      list.appendChild(item);
+    });
   },
 
   initFirstLoginRegionPicker() {
-    // 新版 autocomplete 不需額外初始化，事件已綁定在 HTML
+    if (this._flRegionBound) return;
+    var input = document.getElementById('fl-region-input');
+    var list = document.getElementById('fl-region-list');
+    var submitBtn = document.getElementById('fl-submit-btn');
+    if (!input || !list) return;
+    var self = this;
+
+    // 輸入時過濾
+    input.addEventListener('input', function() {
+      self._renderRegionList(input.value);
+    });
+
+    // 點選選項（用 event delegation，相容 LINE WebView）
+    list.addEventListener('click', function(e) {
+      var target = e.target;
+      var region = target.getAttribute('data-region');
+      if (!region) return;
+      input.value = region;
+      // 高亮選中項
+      var items = list.querySelectorAll('[data-region]');
+      for (var i = 0; i < items.length; i++) {
+        items[i].style.background = '';
+        items[i].style.fontWeight = '';
+      }
+      target.style.background = 'var(--bg-hover,#f3f4f6)';
+      target.style.fontWeight = '600';
+    });
+
+    // 確認送出按鈕
+    if (submitBtn) {
+      submitBtn.addEventListener('click', function() {
+        self.saveFirstLoginProfile();
+      });
+    }
+
+    this._flRegionBound = true;
+    this._renderRegionList('');
   },
 
   resetFirstLoginRegionFilter() {
-    const input = document.getElementById('fl-region-input');
+    var input = document.getElementById('fl-region-input');
     if (input) input.value = '';
+    this._renderRegionList('');
   },
 
   saveFirstLoginProfile() {
-    const regionInput = document.getElementById('fl-region-input');
-    const gender = document.getElementById('fl-gender').value;
-    const birthday = document.getElementById('fl-birthday').value;
-    const region = regionInput ? regionInput.value.trim() : '';
-    const errEl = document.getElementById('fl-error-msg');
-    const showFlError = (msg) => {
+    var input = document.getElementById('fl-region-input');
+    var genderEl = document.getElementById('fl-gender');
+    var birthdayEl = document.getElementById('fl-birthday');
+    var gender = genderEl ? genderEl.value : '';
+    var birthday = birthdayEl ? birthdayEl.value : '';
+    var region = input ? input.value.trim() : '';
+    var errEl = document.getElementById('fl-error-msg');
+    var self = this;
+    var showFlError = function(msg) {
       if (errEl) { errEl.textContent = msg; errEl.style.display = ''; }
-      else this.showToast(msg);
+      else self.showToast(msg);
     };
     if (errEl) errEl.style.display = 'none';
     if (!gender || !birthday || !region) {
@@ -241,7 +235,7 @@ Object.assign(App, {
       return;
     }
     try {
-      ApiService.updateCurrentUser({ gender, birthday, region });
+      ApiService.updateCurrentUser({ gender: gender, birthday: birthday, region: region });
     } catch (err) {
       console.error('[saveFirstLoginProfile]', err);
       showFlError('儲存失敗：' + (err.message || '請稍後再試'));
@@ -250,7 +244,7 @@ Object.assign(App, {
     this._pendingFirstLogin = false;
     this.resetFirstLoginRegionFilter();
     this.closeModal();
-    this.renderProfileData();
+    if (typeof this.renderProfileData === 'function') this.renderProfileData();
     this.showToast('個人資料已儲存');
   },
 
