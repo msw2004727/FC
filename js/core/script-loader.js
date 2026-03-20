@@ -136,6 +136,7 @@ const ScriptLoader = {
       'js/modules/profile/profile-share.js',
       'js/modules/leaderboard.js',
       'js/modules/color-cat/color-cat-config.js',
+      'js/modules/color-cat/color-cat-stats.js',
       'js/modules/color-cat/color-cat-sprite.js',
       'js/modules/color-cat/color-cat-ball.js',
       'js/modules/color-cat/color-cat-character.js',

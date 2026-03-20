@@ -183,7 +183,7 @@ function startBiteBall(sw) {
 }
 
 function aiPickAction(sw, ballState) {
-  if (!_aiSceneInfo) return;
+  if (!_aiSceneInfo || !_s()) return;
   var info = _aiSceneInfo;
   var a = _s().ai;
   var st = _s().stamina;

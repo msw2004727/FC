@@ -10,6 +10,12 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-20 — ColorCat 煙霧與貓臉消失（script-loader 漏載 stats 模組）
+- **問題**：正式版 profile 頁面中 ColorCat 場景的跑步煙塵與紙箱貓臉塗鴉消失，角色 AI 約 4 秒後崩潰凍結
+- **原因**：commit 4cbe9cf 將養成數值抽到獨立的 `color-cat-stats.js`，但未同步更新 `js/core/script-loader.js` 的 profile 模組載入清單。導致 `window.ColorCatStats` 未定義，`_s()` 回傳 undefined，`aiPickAction()` 呼叫 `_s().ai` 拋 TypeError
+- **修復**：在 `script-loader.js` 的 profile 模組群組中加入 `color-cat-stats.js`（放在 config 之後、sprite 之前）；同時在 `aiPickAction()` 加入 `!_s()` null check 防護
+- **教訓**：模組拆分時必須同步更新所有載入入口（script-loader、index.html、test 頁面），不能只更新 test 頁面
+
 ### [永久] 2026-03-20 — 清除快取後角色降為 user（LIFF/Firebase Auth 半死半活狀態）
 - **問題**：用戶點擊抽屜「清除快取」後，瀏覽器報 `auth uid mismatch: authUid: null`，角色降為 user，必須手動登出再登入才恢復
 - **原因**：`confirmClearCache()` 清除 LIFF localStorage + 刪除所有 IndexedDB，但未先執行正式登出。在 LINE WebView 中，`liff.isLoggedIn()` 仍回傳 true（WebView session 層級），但 `liff.getAccessToken()` 回傳 null（localStorage 已清）。結果：系統認為用戶已登入（profile 取得成功），但無法取得 access token 走 Custom Token 流程，Firebase Auth 永遠為 null，Firestore 寫入被拒
