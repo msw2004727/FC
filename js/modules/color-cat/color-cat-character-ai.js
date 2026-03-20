@@ -36,7 +36,7 @@ function aiPickAction(sw, ballState) {
   // 有盛開花朵時加入看花權重
   var scene_ = window.ColorCatScene && window.ColorCatScene._;
   var hasFlowers = scene_ && scene_.getBloomedFlowers && scene_.getBloomedFlowers().length > 0;
-  var watchFlowerW = hasFlowers ? (w.chase * 0.8) : 0;
+  var watchFlowerW = hasFlowers ? (w.chase * 2.5) : 0;
 
   var total = w.biteBall + w.chase + w.dash + w.climbBox + w.climbWall + sleepW + watchFlowerW;
   var roll = Math.random() * total;
