@@ -136,8 +136,23 @@ function drawSideTabs(ctx, px, h, light) {
 
 function drawPanel(ctx, sw, light) {
   var h = C.SCENE_H;
+  var prevSlide = _slide;
   if (_open && _slide < 1) _slide = Math.min(1, _slide + SLIDE_SPEED);
   if (!_open && _slide > 0) _slide = Math.max(0, _slide - SLIDE_SPEED);
+
+  // 面板正在展開時，每幀檢測面板左緣是否碰到角色/球
+  if (_slide > prevSlide) {
+    var panelEdge = sw - panelW(sw) * _slide - HANDLE_W;
+    var charState = window.ColorCatCharacter.state;
+    if (charState.x > panelEdge && charState.action !== 'knockback' && charState.action !== 'sleeping') {
+      window.ColorCatCharacter.startKnockback(sw);
+    }
+    var ballState = window.ColorCatBall.state;
+    if (ballState.x + ballState.r > panelEdge) {
+      ballState.vx = -(8 + Math.random() * 4);
+      ballState.vy = -(3 + Math.random() * 2);
+    }
+  }
 
   drawHandle(ctx, sw, h, light);
   if (_slide <= 0) return;
@@ -184,19 +199,6 @@ function handlePanelClick(cx, cy, sw) {
   var hx = sw - pw * _slide - HANDLE_W;
   var hy = Math.floor((h - HANDLE_H) / 2);
   if (cx >= hx && cx <= hx + HANDLE_W && cy >= hy && cy <= hy + HANDLE_H) {
-    if (!_open) {
-      // 展開時：角色/球在面板區域則彈飛
-      var panelLeftEdge = sw - panelW(sw) - HANDLE_W;
-      var charState = window.ColorCatCharacter.state;
-      if (charState.x > panelLeftEdge && charState.action !== 'knockback') {
-        window.ColorCatCharacter.startKnockback(sw);
-      }
-      var ballState = window.ColorCatBall.state;
-      if (ballState.x > panelLeftEdge) {
-        ballState.vx = -(8 + Math.random() * 4);
-        ballState.vy = -(3 + Math.random() * 2);
-      }
-    }
     _open = !_open;
     return true;
   }
