@@ -10,7 +10,23 @@ Object.assign(App, {
     if (!e) return { people: [], count: 0 };
 
     const allActiveRegs = ApiService.getRegistrationsByEvent(eventId);
-    const confirmedRegs = allActiveRegs.filter(r => r.status === 'confirmed');
+    const _regTime = (r) => {
+      const v = r && r.registeredAt;
+      if (!v) return Number.POSITIVE_INFINITY;
+      if (typeof v.toMillis === 'function') { try { return v.toMillis(); } catch (_e) {} }
+      if (typeof v === 'object' && typeof v.seconds === 'number')
+        return (v.seconds * 1000) + Math.floor((v.nanoseconds || 0) / 1000000);
+      const t = new Date(v).getTime();
+      return Number.isFinite(t) ? t : Number.POSITIVE_INFINITY;
+    };
+    const confirmedRegs = allActiveRegs.filter(r => r.status === 'confirmed')
+      .sort((a, b) => {
+        const ta = _regTime(a), tb = _regTime(b);
+        if (ta !== tb) return ta - tb;
+        const pa = Number(a.promotionOrder || 0), pb = Number(b.promotionOrder || 0);
+        if (pa !== pb) return pa - pb;
+        return String(a._docId || a.id || '').localeCompare(String(b._docId || b.id || ''));
+      });
     const people = [];
     const addedUids = new Set();
     const addedNames = new Set();

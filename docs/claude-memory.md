@@ -10,6 +10,14 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-20 — 正取名單排序不一致 + 候補人數跨裝置差異
+- **問題 1**：不同手機看到的正取報名名單排序不同，重新整理也一樣
+- **原因**：`_buildConfirmedParticipantSummary()` 沒有對 confirmedRegs 做排序，順序取決於各手機 Firestore 快取的文件 ID 字典序
+- **問題 2**：不同手機看到的候補人數有差異
+- **原因**：一般用戶 registrations 快取只有自己的紀錄，`_getEventWaitlistDisplayCount()` 從不完整快取計算出錯誤數量
+- **修復**：(1) confirmedRegs 加排序（registeredAt → promotionOrder → docId），與候補名單排序邏輯一致 (2) 候補人數優先使用 event.waitlist（由 _rebuildOccupancy 寫入），fallback 才用 Set 計算
+- **教訓**：任何面向用戶的名單顯示都必須有明確排序，不能依賴快取陣列順序；跨角色可見範圍不同的資料，數量顯示應使用 event 文件上的權威數字
+
 ### [永久] 2026-03-20 — 候補邏輯四項修復（容量變更 / 同行者取消）
 - **問題 1**：容量減少降級正取者時，activityRecord 未從 `registered` 更新為 `waitlisted`，導致活動紀錄顯示錯誤
 - **問題 2**：`cancelCompanionRegistrations` 在 `batch.commit()` 前就修改快取，commit 失敗時快取已汙染

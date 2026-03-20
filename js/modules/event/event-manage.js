@@ -140,6 +140,13 @@ Object.assign(App, {
   },
 
   _getEventWaitlistDisplayCount(eventId, eventData = null, allRegs = null) {
+    const event = eventData || ApiService.getEvent(eventId);
+    // 優先使用 event 文件上由 _rebuildOccupancy 寫入的 waitlist 數字，
+    // 確保所有用戶（不論角色）看到一致的候補人數
+    const docCount = Number(event?.waitlist || 0);
+    if (docCount > 0) return docCount;
+
+    // fallback：event.waitlist 為 0 時，從 registrations + waitlistNames 合併計算
     const sourceRegs = Array.isArray(allRegs) ? allRegs : (ApiService.getRegistrationsByEvent(eventId) || []);
     const waitlistNames = new Set();
 
@@ -149,7 +156,7 @@ Object.assign(App, {
       if (safeName) waitlistNames.add(safeName);
     });
 
-    this._getWaitlistFallbackNames(eventId, eventData, sourceRegs).forEach(name => waitlistNames.add(name));
+    this._getWaitlistFallbackNames(eventId, event, sourceRegs).forEach(name => waitlistNames.add(name));
     return waitlistNames.size;
   },
 

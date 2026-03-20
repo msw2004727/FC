@@ -282,7 +282,7 @@
 // 20260320f: 修復候補邏輯 — 降級 activityRecord 同步、cancelCompanionRegistrations 改用 Firestore 查詢 + 模擬模式、容量變更快取刷新
 // 20260320g: 活動詳情頁即時監聯 events + 手動刷新按鈕
 // 20260320h: 修正刷新按鈕 _docId 防禦 + spinning 持續旋轉
-const CACHE_VERSION = '20260320h';
+const CACHE_VERSION = '20260320i';
 
 // ─── Page Strategy Registry ───
 // 唯一策略來源，未列出的頁面預設 fresh-first
