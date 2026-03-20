@@ -294,7 +294,8 @@
 // 20260320r: 修復首次/久未開啟用戶空白首頁 — timeout 後背景重載 + 移除 sw.js 幽靈 mode.js
 // 20260320s: Safari PWA 恢復時刷新 events + pagehide 持久化快取
 // 20260320t: 版號字體加大 + 顏色加深
-const CACHE_VERSION = '20260320t';
+// 20260320u: SW cache.addAll 改逐個快取，單檔失敗不阻塞
+const CACHE_VERSION = '20260320u';
 
 // ─── Page Strategy Registry ───
 // 唯一策略來源，未列出的頁面預設 fresh-first
