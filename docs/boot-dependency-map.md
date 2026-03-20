@@ -456,7 +456,7 @@ if (!cacheRestored) {
 }
 ```
 
-### 5.9 `clear=1` 參數未清除 localStorage 快取（嚴重度：🟡 P2 — 第五次驗證發現）
+### 5.9 `clear=1` 參數未清除 localStorage 快取（嚴重度：🟡 P2 — ✅ 已修復 2026-03-20）
 
 **原始碼位置**：`index.html:94-112`
 
@@ -594,7 +594,7 @@ async init() {
 - 在 LINE WebView 中降低快取策略：只快取 boot 集合 + 當前頁面必要集合
 - 或改用 IndexedDB（配額通常更大且可申請更多空間）
 
-### 5.16 localStorage UID 前綴競爭 — 共用裝置的資料洩漏風險（嚴重度：🟡 P2 — 第六次驗證新增）
+### 5.16 localStorage UID 前綴競爭 — 共用裝置的資料洩漏風險（嚴重度：🟡 P2 — ✅ 已隨 5.9 修復 2026-03-20）
 
 **原始碼位置**：`firebase-service.js:193-200`
 
@@ -1521,9 +1521,7 @@ fetch(`pages/${name}.html?v=${CACHE_VERSION}`).then(r => {
 **仍存在的未修復風險路徑**：
 - 5.3（無 limit 集合）：首次訪問全量載入仍無限制
 - 5.8（_restoreCache 回傳值忽略）：恢復失敗不會 warn
-- 5.9（clear=1 不清 LS）：用戶清快取不完整
 - 5.15（LINE WebView 配額）：1MB 限制下仍可能快取不足
-- 5.16（UID 競爭）：共用裝置短暫看到他人資料（依賴 5.9 修復）
 
 ---
 

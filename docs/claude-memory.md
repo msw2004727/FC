@@ -10,6 +10,12 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-20 — clear=1 與版本更新未清 localStorage 集合快取（5.9 + 5.16）
+- **問題**：`?clear=1` 只清 SW cache 和 2 個舊 key，30+ 個 `shub_c_*` / `shub_ts_*` 集合快取未清；版本更新時同樣。共用裝置上用戶 A 清快取後用戶 B 開啟會短暫看到 A 的資料
+- **原因**：原始 clear=1 handler 只針對 2 個已知 key，未涵蓋 FirebaseService 的集合快取前綴
+- **修復**：`index.html` clear=1 handler 和版本不符 handler 都加入清除 `shub_c_*` / `shub_ts_*` / `shub_cache_*` 前綴的 localStorage
+- **教訓**：快取清除功能必須隨快取策略同步更新，否則形同虛設
+
 ### 2026-03-20 — Firestore 寫入失敗靜默吞掉：permission-denied 無用戶提示
 - **問題**：`ApiService._update()` / `_delete()` 是 fire-and-forget 模式，`.catch()` 只 `console.error`；`app.js` unhandledrejection 又把所有含 firebase/firestore 字樣的錯誤靜默 return，導致 permission-denied 寫入失敗時用戶完全不知道
 - **原因**：兩層靜默：(1) ApiService catch 不提示用戶 (2) app.js 全面過濾 firebase 錯誤
