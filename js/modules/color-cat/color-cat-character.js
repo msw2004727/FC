@@ -256,6 +256,7 @@ window.ColorCatCharacter = {
   startComboBox: function(sw, x, y, w) { _.startComboBox(sw, x, y, w); },
   startBiteBall: function(sw) { _.startBiteBall(sw); },
   startKnockback: function(sw) { _.startKnockback(sw); },
+  startWatchFlower: function(sw) { _.startWatchFlower(sw); },
   getSpriteKey: getSpriteKey,
   setSuppressGroundShadow: function(v) { _.suppressGroundShadow = !!v; },
   setSceneInfo: function(info) { _.aiSetSceneInfo(info); },

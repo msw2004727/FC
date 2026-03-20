@@ -147,6 +147,16 @@ function toggleTheme() {
   };
   bot.appendChild(biteBtn);
 
+  var watchBtn = document.createElement('button');
+  watchBtn.textContent = '看花';
+  watchBtn.style.borderColor = '#E8524A';
+  watchBtn.onclick = function() {
+    var container = document.getElementById('scene-container');
+    var sw = container ? container.offsetWidth : 300;
+    ColorCatCharacter.startWatchFlower(sw);
+  };
+  bot.appendChild(watchBtn);
+
   var sep3 = document.createElement('span');
   sep3.textContent = '｜';
   sep3.style.cssText = 'font-size:.7rem;color:#999;align-self:center;';
