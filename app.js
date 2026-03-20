@@ -608,6 +608,17 @@ const App = {
     const yes = await this.appConfirm('確定要清除所有快取並重新登入嗎？\n這會回到最乾淨的狀態，可解決白屏或異常問題。');
     if (!yes) return;
     try {
+      // 先正式登出 Firebase Auth + LIFF，避免清除儲存後產生半死半活狀態
+      // （LIFF WebView session 存活但 access token 已清 → _ensureAuth 永遠失敗）
+      try { if (typeof auth !== 'undefined' && auth && auth.currentUser) await auth.signOut(); } catch(_){}
+      try { if (typeof liff !== 'undefined' && liff.isLoggedIn && liff.isLoggedIn()) liff.logout(); } catch(_){}
+      if (typeof LineAuth !== 'undefined') {
+        LineAuth._profile = null;
+        LineAuth._profileError = null;
+        LineAuth._profileLoading = false;
+        LineAuth._profilePromise = null;
+        try { LineAuth._clearProfileCache(); } catch(_){}
+      }
       if ('caches' in window) { var ks = await caches.keys(); await Promise.all(ks.map(function(n){ return caches.delete(n); })); }
       if ('serviceWorker' in navigator) { var regs = await navigator.serviceWorker.getRegistrations(); regs.forEach(function(r){ r.unregister(); }); }
       var lsKeys = Object.keys(localStorage);
@@ -620,6 +631,8 @@ const App = {
       localStorage.removeItem('sporthub_auto_exp_rules');
       localStorage.removeItem('sporthub_auto_exp_logs');
       try { var dbs = await indexedDB.databases(); dbs.forEach(function(db){ indexedDB.deleteDatabase(db.name); }); } catch(_){}
+      // 清除登入重試計數，讓重載後能正常觸發自動登入
+      try { sessionStorage.removeItem('_lineLoginRetryCount'); } catch(_){}
     } catch(_){}
     location.href = location.pathname + '?clear=1';
   },

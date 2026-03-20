@@ -10,6 +10,12 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### [永久] 2026-03-20 — 清除快取後角色降為 user（LIFF/Firebase Auth 半死半活狀態）
+- **問題**：用戶點擊抽屜「清除快取」後，瀏覽器報 `auth uid mismatch: authUid: null`，角色降為 user，必須手動登出再登入才恢復
+- **原因**：`confirmClearCache()` 清除 LIFF localStorage + 刪除所有 IndexedDB，但未先執行正式登出。在 LINE WebView 中，`liff.isLoggedIn()` 仍回傳 true（WebView session 層級），但 `liff.getAccessToken()` 回傳 null（localStorage 已清）。結果：系統認為用戶已登入（profile 取得成功），但無法取得 access token 走 Custom Token 流程，Firebase Auth 永遠為 null，Firestore 寫入被拒
+- **修復**：`app.js:confirmClearCache()` 在清除儲存前先執行 `auth.signOut()` + `liff.logout()` + 清除 LineAuth 狀態 + 清除 `_lineLoginRetryCount`；`index.html:?clear=1` handler 也清除 `_lineLoginRetryCount`，確保重載後能正常觸發自動登入流程
+- **教訓**：清除快取時必須先正式登出所有 auth 層（Firebase Auth + LIFF），再清除底層儲存。否則 WebView session 存活 + localStorage token 消失 = 半死半活狀態，無法自行恢復
+
 ### 2026-03-20 — clear=1 與版本更新未清 localStorage 集合快取（5.9 + 5.16）
 - **問題**：`?clear=1` 只清 SW cache 和 2 個舊 key，30+ 個 `shub_c_*` / `shub_ts_*` 集合快取未清；版本更新時同樣。共用裝置上用戶 A 清快取後用戶 B 開啟會短暫看到 A 的資料
 - **原因**：原始 clear=1 handler 只針對 2 個已知 key，未涵蓋 FirebaseService 的集合快取前綴
