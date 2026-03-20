@@ -10,6 +10,19 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-20 — boot-dependency-map 優化 8 步全部實作完成
+- **問題**：首次訪問/4G 中階手機載入慢、SW cache 永遠為空、快取層級聯失敗風險
+- **修復**（8 個獨立 commit，版本 20260320u→aa）：
+  - Step 1: SW cache.addAll → 逐個快取（單檔失敗不阻塞）
+  - Step 2: pagehide 持久化（已提前完成）
+  - Step 3: init() ?.() 防護 + try-catch 錯誤邊界
+  - Step 4: FirebaseService.init() 防重入鎖
+  - Step 5: onSnapshot 重連加 jitter 防驚群
+  - Step 6: renderHotEvents 空列表顯示 loading 提示
+  - Step 7: page-loader fetch 加 response.ok 檢查
+  - Step 8: localStorage quota exceeded 淘汰 newsArticles/gameConfigs
+- **教訓**：每層快取的失敗處理都要獨立加固，打斷級聯雪崩鏈
+
 ### 2026-03-20 — 首次登入地區選擇改為自動完成元件
 - **問題**：地區搜尋欄與選單分開，用戶體驗差（輸入後看不到篩選結果）
 - **修復**：將 input + select 改為 input + dropdown 自動完成；新增 `onRegionInput`、`onRegionFocus`、`onRegionBlur`、`_selectRegion`、`_renderRegionDropdown`、`_getFilteredRegions`；`saveFirstLoginProfile` 改讀 `fl-region-input`
