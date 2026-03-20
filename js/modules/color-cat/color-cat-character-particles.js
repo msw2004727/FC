@@ -128,16 +128,16 @@ var _heartTimer = 0;
 function updateHearts() {
   if (ch.action === 'watchFlower') {
     _heartTimer++;
-    if (_heartTimer >= 12) {  // 每 0.4 秒噴一顆
+    if (_heartTimer >= 22) {  // 每 ~0.7 秒噴一顆（拉遠間距）
       _heartTimer = 0;
       var headY = ch.y - C.SPRITE_DRAW * 0.6;
       _heartParticles.push({
-        x: ch.x + (Math.random() - 0.5) * 6,
+        x: ch.x + (Math.random() - 0.5) * 14,
         y: headY,
-        vx: (Math.random() - 0.5) * 0.8,
-        vy: -(0.6 + Math.random() * 0.5),
+        vx: (Math.random() - 0.5) * 1.2,
+        vy: -(0.8 + Math.random() * 0.6),
         life: 1, decay: 0.012 + Math.random() * 0.008,
-        size: 30 + Math.random() * 20,
+        size: 12 + Math.random() * 8,
       });
     }
   } else { _heartTimer = 0; }
