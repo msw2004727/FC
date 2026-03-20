@@ -297,7 +297,8 @@
 // 20260320u: SW cache.addAll 改逐個快取，單檔失敗不阻塞
 // 20260320v: init() ?.() 防護 + try-catch 錯誤邊界 + renderHomeDeferred 防護
 // 20260320w: FirebaseService.init() 防重入鎖
-const CACHE_VERSION = '20260320w';
+// 20260320x: onSnapshot 重連加 jitter 防驚群
+const CACHE_VERSION = '20260320x';
 
 // ─── Page Strategy Registry ───
 // 唯一策略來源，未列出的頁面預設 fresh-first

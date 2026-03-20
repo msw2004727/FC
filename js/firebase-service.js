@@ -2145,7 +2145,8 @@ const FirebaseService = {
       console.warn(`[onSnapshot] registrations 重連已達上限 (${attempts} 次)，停止重試`);
       return;
     }
-    const delay = Math.min(1000 * Math.pow(2, attempts - 1), 30000); // 1s, 2s, 4s, 8s, 16s
+    const baseDelay = Math.min(1000 * Math.pow(2, attempts - 1), 30000);
+    const delay = Math.round(baseDelay + baseDelay * Math.random() * 0.3); // +0~30% jitter
     console.log(`[onSnapshot] registrations 將在 ${delay}ms 後重連 (第 ${attempts} 次)`);
     this._reconnectTimers.registrations = setTimeout(() => {
       delete this._reconnectTimers.registrations;
@@ -2197,7 +2198,8 @@ const FirebaseService = {
       console.warn(`[onSnapshot] events 重連已達上限 (${attempts} 次)，停止重試`);
       return;
     }
-    const delay = Math.min(1000 * Math.pow(2, attempts - 1), 30000);
+    const baseDelay = Math.min(1000 * Math.pow(2, attempts - 1), 30000);
+    const delay = Math.round(baseDelay + baseDelay * Math.random() * 0.3); // +0~30% jitter
     console.log(`[onSnapshot] events 將在 ${delay}ms 後重連 (第 ${attempts} 次)`);
     this._reconnectTimers.events = setTimeout(() => {
       delete this._reconnectTimers.events;
@@ -2220,7 +2222,8 @@ const FirebaseService = {
       console.warn(`[onSnapshot] attendanceRecords 重連已達上限 (${attempts} 次)，停止重試`);
       return;
     }
-    const delay = Math.min(1000 * Math.pow(2, attempts - 1), 30000);
+    const baseDelay = Math.min(1000 * Math.pow(2, attempts - 1), 30000);
+    const delay = Math.round(baseDelay + baseDelay * Math.random() * 0.3); // +0~30% jitter
     console.log(`[onSnapshot] attendanceRecords 將在 ${delay}ms 後重連 (第 ${attempts} 次)`);
     this._reconnectTimers.attendanceRecords = setTimeout(() => {
       delete this._reconnectTimers.attendanceRecords;
