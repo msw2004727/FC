@@ -48,6 +48,7 @@ var _comboStep = -1;
 var _comboTimer = 0;
 var _comboSceneW = 0;
 var _comboBoxInfo = null;   // { x, topY } 紙箱資訊
+var _pendingGoToBox = 0;    // jumpOff 後要去紙箱的目標 X（0=無）
 var COMBO_LEDGE_Y = 73;    // 爬邊牆：攀緣 Y 位置
 var FOOT_OFFSET = 7;       // 精靈圖底部留白修正（像素）
 
@@ -62,7 +63,7 @@ function getSpriteKey() {
       if (_comboStep === 3) return 'ledge_land';
       if (_comboStep === 4) return 'jump';
     } else if (_comboType === 'box') {
-      if (_comboStep === 0) return 'walk';
+      if (_comboStep === 0) return 'run';
       if (_comboStep === 1) return 'climb';
       if (_comboStep === 2) return 'idle';
     }
@@ -71,7 +72,7 @@ function getSpriteKey() {
   if (character.action === 'jumpOff') return 'jump';
   if (character.action === 'chase') return 'run';
   if (character.action === 'dash') return 'run';
-  if (character.action === 'goToBox') return 'walk';
+  if (character.action === 'goToBox') return 'run';
   if (character.action === 'kick') return 'attack';
   if (character.action === 'sleeping') return 'idle';
   if (!character.onGround) return 'jump';
@@ -136,6 +137,20 @@ function startChase() {
 function startGoToBox(boxX) {
   if (testMode) stopTest();
   if (character.action === 'sleeping') return;
+  // 站在紙箱上 → 先跳下來，落地後再跑去紙箱
+  if (character.action === 'combo' && _comboType === 'box' && _comboStep === 2) {
+    _pendingGoToBox = boxX;
+    _comboStep = -1;
+    _comboType = '';
+    character.action = 'jumpOff';
+    character.facing = 1;
+    character.vy = -3;
+    character.onGround = false;
+    character.spriteFrame = 0;
+    character.spriteTimer = 0;
+    return;
+  }
+  if (character.action === 'combo') endCombo();
   _boxTargetX = boxX;
   character.action = 'goToBox';
   character.spriteFrame = 0;
@@ -174,6 +189,8 @@ function startComboWall(sceneWidth) {
 // ── 爬紙箱：走到紙箱前 → 爬梯子往上 → 站在紙箱上面朝右 ──
 function startComboBox(sceneWidth, boxX, boxTopY) {
   if (testMode) stopTest();
+  // 已經在紙箱上了，不重複
+  if (character.action === 'combo' && _comboType === 'box' && _comboStep === 2) return;
   if (character.action !== 'idle') return;
   _comboType = 'box';
   _comboSceneW = sceneWidth;
@@ -258,9 +275,15 @@ function updateCharacter(sceneWidth, ballState) {
       character.y = C.CHAR_GROUND_Y;
       character.vy = 0;
       character.onGround = true;
-      // 落地後接追球
-      character.action = 'chase';
-      character.actionFrame = 0;
+      // 落地後：有待執行的紙箱目標 → 跑去紙箱；否則追球
+      if (_pendingGoToBox) {
+        _boxTargetX = _pendingGoToBox;
+        _pendingGoToBox = 0;
+        character.action = 'goToBox';
+      } else {
+        character.action = 'chase';
+        character.actionFrame = 0;
+      }
       character.spriteFrame = 0;
       character.spriteTimer = 0;
     }
@@ -334,13 +357,13 @@ function updateCharacter(sceneWidth, ballState) {
       var bi = _comboBoxInfo;
       var standY = bi.topY + FOOT_OFFSET; // 修正精靈圖底部留白
       if (_comboStep === 0) {
-        // Step 0：散步到紙箱前
+        // Step 0：跑到紙箱前
         var targetX = bi.x;
         var bDist = targetX - character.x;
         if (bDist > 2) character.facing = 1;
         else if (bDist < -2) character.facing = -1;
         if (Math.abs(bDist) > 4) {
-          character.x += (bDist > 0 ? 1 : -1) * (character.speed * 0.6);
+          character.x += (bDist > 0 ? 1 : -1) * character.speed;
         } else {
           character.x = targetX;
           _comboStep = 1;
@@ -375,7 +398,7 @@ function updateCharacter(sceneWidth, ballState) {
     else if (boxDist < -2) character.facing = -1;
 
     if (Math.abs(boxDist) > 8) {
-      character.x += (boxDist > 0 ? 1 : -1) * (character.speed * 0.6);
+      character.x += (boxDist > 0 ? 1 : -1) * character.speed;
     } else {
       // 到達開口，進入睡覺
       character.action = 'sleeping';
