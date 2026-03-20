@@ -10,6 +10,12 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-20 — [永久] 首次登入 modal 在 LINE WebView 中按鈕無反應 + 地區列表不顯示
+- **問題**：LINE 瀏覽器中首次登入 modal 的確認按鈕點擊無反應，地區搜尋列表不顯示
+- **原因**：`profile-data.js` 是懶載入（script-loader.js 的 profile bundle），但 `bindLineLogin` 在 app init 時就執行。此時 `initFirstLoginRegionPicker?.()` 和 `saveFirstLoginProfile` 都不存在於 App 上。之前改用 addEventListener 綁定按鈕後，inline onclick 被移除，導致按鈕完全無法點擊
+- **修復**：將首次登入相關邏輯（地區列表、模糊搜尋、saveFirstLoginProfile）搬到 `profile-form.js`（eagerly loaded in index.html），HTML 改回 inline onclick/oninput
+- **教訓**：懶載入模組中的方法不能用 addEventListener 綁定 UI 事件；inline handler（`onclick="App.xxx()"`）在執行時才解析 App，不受載入順序影響。修改事件綁定方式前必須確認目標 JS 檔案的載入時機
+
 ### 2026-03-20 — Firebase INTERNAL ASSERTION FAILED 防護 + 登入錯誤訊息改善
 - **問題**：用戶在 LINE WebView 中看到 `FIRESTORE (10.14.1) INTERNAL ASSERTION FAILED` 錯誤，導致登入失敗
 - **原因**：Firebase SDK 10.14.1 compat 的 `enablePersistence({ synchronizeTabs: true })` 在 LINE WebView 的 IndexedDB 環境中觸發 SDK 內部 assertion error。此為火忘 Promise，assertion 同步拋出時未被攔截

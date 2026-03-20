@@ -222,4 +222,111 @@ Object.assign(App, {
     this.applyRole(userRole, true);
   },
 
+  // ── 首次登入：地區模糊搜尋 + 儲存（eagerly loaded，不依賴 profile-data.js）──
+
+  _FL_REGIONS: [
+    '台北市','新北市','桃園市','台中市','台南市','高雄市',
+    '基隆市','新竹市','嘉義市',
+    '新竹縣','苗栗縣','彰化縣','南投縣','雲林縣','嘉義縣',
+    '屏東縣','宜蘭縣','花蓮縣','台東縣',
+    '澎湖縣','金門縣','連江縣',
+    '其他'
+  ],
+
+  _flNormalize: function(v) {
+    return String(v || '').trim().toLowerCase().replace(/臺/g, '台').replace(/\s+/g, '');
+  },
+
+  _flFuzzy: function(text, query) {
+    var ti = 0;
+    for (var qi = 0; qi < query.length; qi++) {
+      var found = false;
+      while (ti < text.length) {
+        if (text[ti] === query[qi]) { ti++; found = true; break; }
+        ti++;
+      }
+      if (!found) return false;
+    }
+    return true;
+  },
+
+  flRenderList: function(keyword) {
+    var list = document.getElementById('fl-region-list');
+    if (!list) return;
+    var q = this._flNormalize(keyword);
+    var matched = this._FL_REGIONS;
+    if (q) {
+      var self = this;
+      matched = this._FL_REGIONS.filter(function(name) {
+        return self._flFuzzy(self._flNormalize(name), q);
+      });
+    }
+    list.innerHTML = '';
+    if (matched.length === 0) {
+      list.innerHTML = '<div style="padding:8px 12px;color:#999;font-size:13px">無匹配結果</div>';
+      return;
+    }
+    matched.forEach(function(name) {
+      var item = document.createElement('div');
+      item.textContent = name;
+      item.setAttribute('data-region', name);
+      item.style.cssText = 'padding:7px 12px;font-size:13px;border-bottom:1px solid var(--border,#eee)';
+      list.appendChild(item);
+    });
+  },
+
+  flSelectRegion: function(e) {
+    var target = e.target;
+    var region = target.getAttribute('data-region');
+    if (!region) return;
+    var input = document.getElementById('fl-region-input');
+    if (input) input.value = region;
+    var list = document.getElementById('fl-region-list');
+    if (!list) return;
+    var items = list.querySelectorAll('[data-region]');
+    for (var i = 0; i < items.length; i++) {
+      items[i].style.background = '';
+      items[i].style.fontWeight = '';
+    }
+    target.style.background = 'var(--bg-hover,#f3f4f6)';
+    target.style.fontWeight = '600';
+  },
+
+  initFirstLoginRegionPicker: function() {
+    this.flRenderList('');
+  },
+
+  saveFirstLoginProfile: function() {
+    var genderEl = document.getElementById('fl-gender');
+    var birthdayEl = document.getElementById('fl-birthday');
+    var regionEl = document.getElementById('fl-region-input');
+    var gender = genderEl ? genderEl.value : '';
+    var birthday = birthdayEl ? birthdayEl.value : '';
+    var region = regionEl ? regionEl.value.trim() : '';
+    var errEl = document.getElementById('fl-error-msg');
+    var self = this;
+    var showErr = function(msg) {
+      if (errEl) { errEl.textContent = msg; errEl.style.display = ''; }
+      else self.showToast(msg);
+    };
+    if (errEl) errEl.style.display = 'none';
+    if (!gender || !birthday || !region) {
+      showErr('請填寫所有必填欄位（性別、生日、地區）');
+      return;
+    }
+    try {
+      ApiService.updateCurrentUser({ gender: gender, birthday: birthday, region: region });
+    } catch (err) {
+      console.error('[saveFirstLoginProfile]', err);
+      showErr('儲存失敗：' + (err.message || '請稍後再試'));
+      return;
+    }
+    this._pendingFirstLogin = false;
+    var input = document.getElementById('fl-region-input');
+    if (input) input.value = '';
+    this.closeModal();
+    if (typeof this.renderProfileData === 'function') this.renderProfileData();
+    this.showToast('個人資料已儲存');
+  },
+
 });
