@@ -101,7 +101,7 @@ Object.assign(App, {
           if (user && user._isNewUser) {
             this._sendNotifFromTemplate('welcome', { userName: profile.displayName }, user.uid);
           }
-          if (user && (!user.gender || !user.birthday)) {
+          if (user && (!user.gender || !user.birthday || !user.region)) {
             this._pendingFirstLogin = true;
           }
           refreshAfterUserReady();

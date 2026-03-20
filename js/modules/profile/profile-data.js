@@ -162,6 +162,7 @@ Object.assign(App, {
         item.onmouseenter = function() { this.style.background = 'var(--bg-hover,#f3f4f6)'; };
         item.onmouseleave = function() { this.style.background = ''; };
         item.onmousedown = function(e) { e.preventDefault(); };
+        item.ontouchstart = function(e) { e.preventDefault(); };
         item.onclick = () => { this._selectRegion(name); };
         dropdown.appendChild(item);
       });
@@ -213,8 +214,8 @@ Object.assign(App, {
       else this.showToast(msg);
     };
     if (errEl) errEl.style.display = 'none';
-    if (!gender || !birthday) {
-      showFlError('請填寫所有必填欄位（性別、生日）');
+    if (!gender || !birthday || !region) {
+      showFlError('請填寫所有必填欄位（性別、生日、地區）');
       return;
     }
     try {

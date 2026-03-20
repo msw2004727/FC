@@ -270,17 +270,9 @@
           <input type="date" id="fl-birthday">
         </div>
         <div class="ce-row">
-          <label>地區 <span style="font-size:.7rem;color:var(--text-secondary)">（選填）</span></label>
+          <label>地區 <span class="required">*必填</span></label>
           <div style="position:relative">
-            <input
-              type="text"
-              id="fl-region-input"
-              class="profile-edit-input"
-              placeholder="輸入或選擇縣市"
-              autocomplete="off"
-              oninput="App.onRegionInput(this.value)"
-              onfocus="App.onRegionFocus()"
-              onblur="setTimeout(function(){App.onRegionBlur()},150)">
+            <input type="text" id="fl-region-input" placeholder="輸入或選擇縣市" autocomplete="off" style="width:100%;box-sizing:border-box;padding:.45rem .35rem;font-size:.82rem;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg-card);color:var(--text-primary)" oninput="App.onRegionInput(this.value)" onfocus="App.onRegionFocus()" onblur="setTimeout(function(){App.onRegionBlur()},150)">
             <div id="fl-region-dropdown" style="display:none;position:absolute;left:0;right:0;top:100%;max-height:160px;overflow-y:auto;background:var(--bg-card,#fff);border:1px solid var(--border,#ddd);border-radius:0 0 8px 8px;z-index:10;box-shadow:0 4px 12px rgba(0,0,0,.12)"></div>
           </div>
         </div>
