@@ -213,7 +213,15 @@ const App = {
     this.renderBannerCarousel({ autoplay: false });
     this.renderAnnouncement();
     this.renderHotEvents();
+    this._renderHomeVersionTag();
     this._markPageSnapshotReady('page-home');
+  },
+
+  _renderHomeVersionTag() {
+    const el = document.getElementById('home-version-tag');
+    if (!el) return;
+    const ver = typeof CACHE_VERSION === 'string' ? CACHE_VERSION : '';
+    el.textContent = ver ? 'v0.' + ver.slice(-3) : '';
   },
 
   renderHomeDeferred() {

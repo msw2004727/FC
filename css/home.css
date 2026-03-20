@@ -528,3 +528,14 @@
   padding: 1px 6px; border-radius: 8px; font-size: .62rem;
   background: var(--accent-alpha, rgba(37,99,235,.1)); color: var(--accent);
 }
+
+/* Version Tag */
+.home-version-tag {
+  text-align: left;
+  padding: 0.5rem 0.8rem 1rem;
+  font-size: .6rem;
+  color: var(--text-muted);
+  opacity: .45;
+  letter-spacing: .02em;
+  user-select: text;
+}
