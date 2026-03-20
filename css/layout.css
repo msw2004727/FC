@@ -403,9 +403,11 @@
 .drawer-footer { padding: .75rem 1.2rem; border-top: 1px solid var(--border); }
 #theme-toggle { display: flex; align-items: center; gap: .6rem; width: 100%; font-size: .88rem; color: var(--text-secondary); padding: .5rem 0; line-height: 22px; min-height: 22px; justify-content: flex-end; }
 .drawer-footer-bottom { display: flex; align-items: center; gap: .6rem; padding: .35rem 0 0; }
-.toggle-switch { margin-left: auto; width: 40px; height: 22px; border-radius: 11px; background: var(--border); position: relative; transition: background var(--transition); }
+.toggle-switch { width: 40px; min-width: 40px; height: 22px; border-radius: 11px; background: var(--border); position: relative; transition: background var(--transition); overflow: hidden; }
 .toggle-switch.active { background: var(--accent); }
-.toggle-knob { position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: transform var(--transition); box-shadow: 0 1px 3px rgba(0,0,0,.2); }
+.toggle-switch::before { content: '🌙'; position: absolute; left: 3px; top: 50%; transform: translateY(-50%); font-size: 11px; line-height: 1; z-index: 1; pointer-events: none; }
+.toggle-switch::after { content: '☀️'; position: absolute; right: 3px; top: 50%; transform: translateY(-50%); font-size: 11px; line-height: 1; z-index: 1; pointer-events: none; }
+.toggle-knob { position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: transform var(--transition); box-shadow: 0 1px 3px rgba(0,0,0,.2); z-index: 2; }
 .toggle-switch.active .toggle-knob { transform: translateX(18px); }
 /* ─── Language Switcher ─── */
 .lang-switcher { display: flex; align-items: center; gap: .5rem; padding: .4rem 0 0; margin-left: auto; }

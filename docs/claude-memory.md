@@ -10,6 +10,11 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-20 — 主題切換開關加入太陽/月亮 emoji 圖示
+- **變更**：在 `.toggle-switch` track 上用 `::before`（🌙左側）和 `::after`（☀️右側）放置 emoji，`.toggle-knob` 加 `z-index:2` 蓋住對應圖示
+- **效果**：淺色模式 knob 在左蓋住月亮→太陽可見；深色模式 knob 在右蓋住太陽→月亮可見
+- **同步**：移除 `.toggle-switch` 的 `margin-left: auto`，文字靠右緊鄰開關
+
 ### 2026-03-20 — ColorCat 煙霧與貓臉消失（script-loader 漏載 stats 模組）
 - **問題**：正式版 profile 頁面中 ColorCat 場景的跑步煙塵與紙箱貓臉塗鴉消失，角色 AI 約 4 秒後崩潰凍結
 - **原因**：commit 4cbe9cf 將養成數值抽到獨立的 `color-cat-stats.js`，但未同步更新 `js/core/script-loader.js` 的 profile 模組載入清單。導致 `window.ColorCatStats` 未定義，`_s()` 回傳 undefined，`aiPickAction()` 呼叫 `_s().ai` 拋 TypeError
