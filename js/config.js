@@ -301,7 +301,7 @@
 // 20260320y: renderHotEvents 空列表時顯示 loading 提示
 // 20260320z: page-loader fetch 加 response.ok 檢查
 // 20260320aa: localStorage 寫入失敗時淘汰 newsArticles/gameConfigs 騰空間
-const CACHE_VERSION = '20260320ap';
+const CACHE_VERSION = '20260320aq';
 
 // ─── Page Strategy Registry ───
 // 唯一策略來源，未列出的頁面預設 fresh-first

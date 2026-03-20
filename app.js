@@ -231,7 +231,7 @@ const App = {
     if (!el) return;
     if (visible === false) { el.style.display = 'none'; return; }
     const ver = typeof CACHE_VERSION === 'string' ? CACHE_VERSION : '';
-    el.textContent = ver ? 'v0.' + ver.slice(-3) : '';
+    el.textContent = ver ? 'v0.' + ver : '';
     el.style.display = '';
   },
 
