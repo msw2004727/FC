@@ -120,6 +120,9 @@ function updateFlowers(sw) {
     if (p.alpha <= 0) sproutFx.splice(k, 1);
   }
 
+  // 蝴蝶
+  if (sw) updateButterflies(sw);
+
   // 自動長花（每 15 秒）
   if (!_wilting && sw) {
     autoGrowTimer++;
@@ -243,6 +246,9 @@ function drawFlowers(ctx, light) {
     drawSingleFlower(ctx, flowers[i], light);
   }
 
+  // 蝴蝶
+  drawButterflies(ctx);
+
   // EXP 浮動特效
   for (var j = 0; j < expEffects.length; j++) {
     var e = expEffects[j];
@@ -276,6 +282,128 @@ function handleFlowerClick(cx, cy) {
     }
   }
   return false;
+}
+
+// ── 蝴蝶系統 ──
+var MAX_BUTTERFLIES = 3;
+var BUTTERFLY_INTERVAL_MIN = 450;   // 15 秒
+var BUTTERFLY_INTERVAL_MAX = 900;   // 30 秒
+var _butterflyTimer = 0;
+var _butterflyNextAt = BUTTERFLY_INTERVAL_MIN + Math.floor(Math.random() * (BUTTERFLY_INTERVAL_MAX - BUTTERFLY_INTERVAL_MIN));
+var butterflies = [];
+// 蝴蝶顏色組
+var BUTTERFLY_COLORS = [
+  ['#FF6B9D', '#FF9EC6'],  // 粉
+  ['#7CB3FF', '#A8D0FF'],  // 藍
+  ['#FFD700', '#FFE66D'],  // 黃
+  ['#B388FF', '#D1B3FF'],  // 紫
+  ['#FF8A65', '#FFAB91'],  // 橘
+];
+
+function spawnButterfly(sw) {
+  if (butterflies.length >= MAX_BUTTERFLIES) return;
+  var bloomed = getBloomedFlowers();
+  if (bloomed.length === 0) return;
+  var target = bloomed[Math.floor(Math.random() * bloomed.length)];
+  var fh = FLOWER_H * (target.hScale || 1);
+  var fromLeft = Math.random() < 0.5;
+  var colors = BUTTERFLY_COLORS[Math.floor(Math.random() * BUTTERFLY_COLORS.length)];
+  butterflies.push({
+    x: fromLeft ? -10 : sw + 10,
+    y: 10 + Math.random() * 30,
+    targetX: target.x + (Math.random() - 0.5) * 8,
+    targetY: target.baseY - fh - 3,
+    flowerRef: target,
+    phase: 'fly',      // fly → hover → leave
+    timer: 0,
+    hoverDur: 120 + Math.floor(Math.random() * 120),  // 4~8 秒停留
+    wingPhase: Math.random() * Math.PI * 2,
+    color1: colors[0], color2: colors[1],
+    size: 2.5 + Math.random() * 1.5,
+  });
+}
+
+function updateButterflies(sw) {
+  // 計時生成
+  var bloomed = getBloomedFlowers();
+  if (bloomed.length > 0 && butterflies.length < MAX_BUTTERFLIES) {
+    _butterflyTimer++;
+    if (_butterflyTimer >= _butterflyNextAt) {
+      _butterflyTimer = 0;
+      _butterflyNextAt = BUTTERFLY_INTERVAL_MIN + Math.floor(Math.random() * (BUTTERFLY_INTERVAL_MAX - BUTTERFLY_INTERVAL_MIN));
+      spawnButterfly(sw);
+    }
+  }
+  for (var i = butterflies.length - 1; i >= 0; i--) {
+    var b = butterflies[i];
+    b.wingPhase += 0.2;
+    b.timer++;
+    if (b.phase === 'fly') {
+      // 飛向花朵（曲線）
+      var dx = b.targetX - b.x, dy = b.targetY - b.y;
+      var dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist > 3) {
+        var spd = Math.min(1.5, dist * 0.03);
+        b.x += (dx / dist) * spd + Math.sin(b.timer * 0.08) * 0.5;
+        b.y += (dy / dist) * spd + Math.cos(b.timer * 0.1) * 0.3;
+      } else {
+        b.phase = 'hover'; b.timer = 0;
+      }
+      // 花消失 → 直接離開
+      if (!isFlowerAlive(b.flowerRef)) { b.phase = 'leave'; b.timer = 0; }
+    } else if (b.phase === 'hover') {
+      // 停在花朵上微微飄動
+      b.x = b.targetX + Math.sin(b.timer * 0.05) * 2;
+      b.y = b.targetY + Math.cos(b.timer * 0.07) * 1.5;
+      if (b.timer >= b.hoverDur || !isFlowerAlive(b.flowerRef)) {
+        b.phase = 'leave'; b.timer = 0;
+        b.leaveDir = Math.random() < 0.5 ? -1 : 1;
+      }
+    } else {
+      // 飛離畫面
+      b.x += b.leaveDir * 1.5;
+      b.y -= 0.5 + Math.sin(b.timer * 0.1) * 0.3;
+      if (b.x < -15 || b.x > sw + 15 || b.y < -15) {
+        butterflies.splice(i, 1);
+      }
+    }
+  }
+}
+
+function drawButterfly(ctx, b) {
+  var wing = Math.sin(b.wingPhase) * 0.7;
+  var s = b.size;
+  ctx.save();
+  ctx.translate(b.x, b.y);
+  // 左翅
+  ctx.fillStyle = b.color1;
+  ctx.beginPath();
+  ctx.ellipse(-s * 0.6, 0, s * (0.6 + wing * 0.3), s * 0.9, -0.3, 0, Math.PI * 2);
+  ctx.fill();
+  // 右翅
+  ctx.fillStyle = b.color2;
+  ctx.beginPath();
+  ctx.ellipse(s * 0.6, 0, s * (0.6 + wing * 0.3), s * 0.9, 0.3, 0, Math.PI * 2);
+  ctx.fill();
+  // 身體
+  ctx.fillStyle = '#333';
+  ctx.beginPath();
+  ctx.ellipse(0, 0, s * 0.15, s * 0.5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // 觸角
+  ctx.strokeStyle = '#555';
+  ctx.lineWidth = 0.5;
+  ctx.beginPath();
+  ctx.moveTo(0, -s * 0.4); ctx.lineTo(-s * 0.4, -s * 1.1);
+  ctx.moveTo(0, -s * 0.4); ctx.lineTo(s * 0.4, -s * 1.1);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawButterflies(ctx) {
+  for (var i = 0; i < butterflies.length; i++) {
+    drawButterfly(ctx, butterflies[i]);
+  }
 }
 
 // ── 查詢盛開花朵（供角色 AI 用） ──
