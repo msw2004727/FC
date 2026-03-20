@@ -202,6 +202,8 @@ function drawBall(ctx, light) {
 
   // 灰塵粒子（在球之後繪製，避免被球遮蓋）
   drawDust(ctx, light);
+  updatePanelDust();
+  drawPanelDust(ctx, light);
 }
 
 // ── 咬球模式 ──
@@ -217,20 +219,48 @@ function setPosition(x, y) {
   ball.vy = 0;
 }
 
-// ── 面板撞擊大量煙塵（踢球的 ~3 倍粒子量 + 大顆） ──
+// ── 面板撞擊煙塵（跟隨球，相對座標） ──
+var _panelDust = [];
+
 function spawnPanelHitDust() {
   var count = 15 + Math.floor(Math.random() * 6);
   for (var i = 0; i < count; i++) {
-    dustParticles.push({
-      x: ball.x + (Math.random() - 0.5) * 12,
-      y: ball.y + (Math.random() - 0.5) * 10,
-      vx: -(1 + Math.random() * 2.5),
+    _panelDust.push({
+      ox: (Math.random() - 0.5) * 12,
+      oy: (Math.random() - 0.5) * 10,
+      vx: (Math.random() - 0.5) * 1.5,
       vy: -(0.3 + Math.random() * 1.8),
       life: 1.0,
       decay: 0.02 + Math.random() * 0.02,
       size: 2.5 + Math.random() * 4,
     });
   }
+}
+
+function updatePanelDust() {
+  for (var i = _panelDust.length - 1; i >= 0; i--) {
+    var p = _panelDust[i];
+    p.ox += p.vx; p.oy += p.vy;
+    p.vy += 0.03; p.vx *= 0.96; p.size *= 0.97;
+    p.life -= p.decay;
+    if (p.life <= 0) _panelDust.splice(i, 1);
+  }
+}
+
+function drawPanelDust(ctx, light) {
+  if (_panelDust.length === 0) return;
+  ctx.save();
+  for (var i = 0; i < _panelDust.length; i++) {
+    var p = _panelDust[i];
+    var alpha = p.life * 0.45;
+    ctx.fillStyle = light
+      ? 'rgba(180,160,130,' + alpha + ')'
+      : 'rgba(200,190,170,' + alpha + ')';
+    ctx.beginPath();
+    ctx.arc(ball.x + p.ox, ball.y + p.oy, p.size, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
 }
 
 // ── 公開 API ──

@@ -171,20 +171,46 @@ function drawHearts(ctx) {
   ctx.restore();
 }
 
-// ── 面板撞擊大量煙塵（跑步的 5 倍） ──
+// ── 面板撞擊煙塵（跟隨角色，相對座標） ──
+var _knockDust = [];
+
 function spawnKnockbackBurst() {
-  var footX = ch.x;
-  var footY = ch.y - _.FOOT_OFFSET - 4;
   for (var i = 0; i < 15; i++) {
-    _dustParticles.push({
-      x: footX + (Math.random() - 0.5) * 16,
-      y: footY + (Math.random() - 0.5) * 10,
-      vx: -(1 + Math.random() * 2),
+    _knockDust.push({
+      ox: (Math.random() - 0.5) * 16,
+      oy: -_.FOOT_OFFSET - 4 + (Math.random() - 0.5) * 10,
+      vx: (Math.random() - 0.5) * 1.5,
       vy: -(0.5 + Math.random() * 1.5),
       life: 1, decay: 0.02 + Math.random() * 0.02,
       size: 3.5 + Math.random() * 4,
     });
   }
+}
+
+function updateKnockDust() {
+  for (var i = _knockDust.length - 1; i >= 0; i--) {
+    var p = _knockDust[i];
+    p.ox += p.vx; p.oy += p.vy;
+    p.vy *= 0.95; p.vx *= 0.95; p.size *= 0.97;
+    p.life -= p.decay;
+    if (p.life <= 0) _knockDust.splice(i, 1);
+  }
+}
+
+function drawKnockDust(ctx, light) {
+  if (_knockDust.length === 0) return;
+  ctx.save();
+  for (var i = 0; i < _knockDust.length; i++) {
+    var p = _knockDust[i];
+    var alpha = p.life * 0.5;
+    ctx.fillStyle = light
+      ? 'rgba(180,160,130,' + alpha + ')'
+      : 'rgba(200,190,170,' + alpha + ')';
+    ctx.beginPath();
+    ctx.arc(ch.x + p.ox, ch.y + p.oy, p.size, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
 }
 
 _.isRunning = isRunning;
@@ -195,5 +221,7 @@ _.drawBreath = drawBreath;
 _.updateHearts = updateHearts;
 _.drawHearts = drawHearts;
 _.spawnKnockbackBurst = spawnKnockbackBurst;
+_.updateKnockDust = updateKnockDust;
+_.drawKnockDust = drawKnockDust;
 
 })();

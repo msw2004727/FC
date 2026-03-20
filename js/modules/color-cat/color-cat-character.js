@@ -81,6 +81,8 @@ _.updateWatchFlower = function() { return false; };
 _.updateGoToFlower = function() { return false; };
 _.startWatchFlower = function() {};
 _.spawnKnockbackBurst = function() {};
+_.updateKnockDust = function() {};
+_.drawKnockDust = function() {};
 
 // ── 初始化 ──
 function initCharacter(sceneWidth) {
@@ -210,7 +212,9 @@ function drawCharacter(ctx, light) {
   _.updateDust();
   _.updateBreath();
   _.updateHearts();
+  _.updateKnockDust();
   _.drawDust(ctx, light !== undefined ? light : true);
+  _.drawKnockDust(ctx, light !== undefined ? light : true);
   if (character.action === 'sleeping') return;
   var key = getSpriteKey();
   var noShadow = _.suppressGroundShadow ||
