@@ -75,16 +75,22 @@ FC-github/
 
 ## 快取版本號規則（每次修改必做）
 
-當你修改了任何 JS 或 HTML 檔案後，**必須**同步更新快取版本號：
+當你修改了任何 JS 或 HTML 檔案後，**必須**同步更新以下 **四個位置**的版本號（缺一不可，否則用戶端無法正確更新）：
 
-1. 更新 `js/config.js` 中的 `CACHE_VERSION` 常數
-2. 更新 `index.html` 中所有 `?v=` 參數（CSS + JS，共約 40 處）
-3. 版本號格式：`YYYYMMDD`，同天多次部署加後綴 `a`, `b`, `c`...
+| # | 檔案 | 位置 | 說明 |
+|---|------|------|------|
+| 1 | `js/config.js` | `CACHE_VERSION` 常數 | 動態載入的 pages/*.html 和 js 模組用此值做 cache busting |
+| 2 | `index.html` | 所有 `?v=` 參數（約 62 處） | CSS + JS 靜態資源的 cache busting |
+| 3 | `index.html` | 第 96 行 `var V='...'` | **快取自動清除觸發器**——版本號變更時自動清除所有 SW 快取並重新下載 |
+| 4 | `sw.js` | 第 9 行 `CACHE_NAME` | Service Worker 快取群組名稱，必須與 `var V` 同步，否則舊快取不會被清除 |
+
+**四個值必須完全一致**（同一個版本號字串）。
+
+版本號格式：`YYYYMMDD`，同天多次部署加後綴 `a`, `b`, `c`...
 
 範例：`20260211` → `20260211a` → `20260211b` → `20260212`
 
 > `page-loader.js` 的 fetch 會自動讀取 `CACHE_VERSION`，不需額外改。
-> `sw.js` 內的 `CACHE_NAME` 是 Service Worker 獨立快取識別名稱，**一般改版不需動**，只有在需要強制清除所有 SW 快取時才一併更新。
 
 ---
 
