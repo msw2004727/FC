@@ -947,5 +947,22 @@
 - **原因**：shared.js `describeCondition` 中 `if (!unit && threshold <= 1) return actionLabel` 跳過數值，reach_level/reach_exp 的 unit 為空字串
 - **修復**：config.js 中 reach_level unit 改為 `'級'`、reach_exp 改為 `'點'`
 
+### 2026-03-20 — 全面修正 12 處跨裝置排序不一致 + 角色快取計數問題
+- **問題**：不同手機看到的名單排序、候補人數、費用計算等有差異
+- **原因**：Firestore 無 `.orderBy()` 時 document 排列為 ID 字典序，不同裝置 cache sync 時序不同導致 Array 原始順序不一致；非管理員角色只拿到自己的 registrations，計數函式卻以 registrations 陣列長度為準
+- **修復**：
+  - `event-manage-waitlist.js`：候補名單加 registeredAt → docId 排序
+  - `message-render.js`：訊息列表加 time desc 排序
+  - `news.js`：新聞加 publishedAt desc 排序
+  - `tournament-render.js`：賽事列表加 name 排序（ongoing + timeline）
+  - `team-list.js`：非置頂俱樂部加 name 排序（取代 return 0）
+  - `shop.js`：商品加 createdAt desc → name 排序
+  - `user-admin-list.js`：用戶管理列表加 name 排序
+  - `event-manage-attendance.js`：未報名表格加 name 排序
+  - `announcement.js`：跑馬燈加 sortOrder 排序
+  - `scan-ui.js`：統計報名人數改用 event.current（文件欄位）
+  - `event-manage.js`：費用計算 confirmedCount 改用 event.current 優先
+- **教訓**：所有從 Firestore 快取取出的陣列在渲染前必須顯式排序；涉及人數計算的場景必須優先使用 event document 欄位（由 transaction 維護），不可依賴 registrations 陣列長度
+
 *最後濃縮日期：2026-03-15*
 *原始檔案：314 條目 / 2475 行 → 濃縮後約 50 條永久教訓*

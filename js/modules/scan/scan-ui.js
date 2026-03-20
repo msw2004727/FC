@@ -196,6 +196,8 @@ Object.assign(App, {
     confirmedRegs.forEach(r => {
       confirmedCountByUid.set(r.userId, (confirmedCountByUid.get(r.userId) || 0) + 1);
     });
+    // 使用 event.current（文件欄位，由 transaction 維護）作為可靠的正取總人數
+    const confirmedTotalFromDoc = Number(event.current || 0);
 
     // Build per-person state：按 uid+companionId 分組
     const personMap = new Map();
@@ -269,7 +271,7 @@ Object.assign(App, {
     </div>` : '';
 
     // Stats
-    const totalConfirmed = confirmedRegs.length > 0 ? confirmedRegs.length : (event.participants || []).length;
+    const totalConfirmed = confirmedTotalFromDoc > 0 ? confirmedTotalFromDoc : (confirmedRegs.length > 0 ? confirmedRegs.length : (event.participants || []).length);
     const completionRate = totalConfirmed > 0 ? Math.round(regCheckinCount / totalConfirmed * 100) : 0;
 
     statsDiv.innerHTML = `

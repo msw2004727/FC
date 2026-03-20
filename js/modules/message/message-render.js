@@ -9,7 +9,8 @@ Object.assign(App, {
     const f = filter || this._msgInboxFilter || 'all';
     this._msgInboxFilter = f;
     const allMessages = this._filterMyMessages(ApiService.getMessages());
-    let messages = f === 'all' ? allMessages : allMessages.filter(m => m.type === f);
+    let messages = (f === 'all' ? allMessages : allMessages.filter(m => m.type === f))
+      .sort((a, b) => (b.time || '').localeCompare(a.time || ''));
 
     // 關鍵字搜尋
     const keyword = this._msgSearchKeyword || '';

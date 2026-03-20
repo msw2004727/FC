@@ -487,7 +487,7 @@ Object.assign(App, {
     if (fee <= 0) { container.innerHTML = ''; return; }
     const records = ApiService.getAttendanceRecords(eventId);
     const confirmedRegs = ApiService.getRegistrationsByEvent(eventId).filter(r => r.status === 'confirmed' || r.status === 'registered');
-    const confirmedCount = confirmedRegs.length > 0 ? confirmedRegs.length : (e.current || 0);
+    const confirmedCount = Number(e.current || 0) > 0 ? Number(e.current) : confirmedRegs.length;
     const confirmedKeys = new Set(confirmedRegs.map(r => r.userId + '|' + (r.companionId || '')));
     const unregUids = new Set(records.filter(r => r.type === 'unreg').map(r => r.uid));
     const _seen = new Set();

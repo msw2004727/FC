@@ -15,7 +15,21 @@ Object.assign(App, {
     const canManage = this._canManageEvent(e);
     const tableEditing = this._waitlistEditingEventId === eventId;
     const allActiveRegs = ApiService.getRegistrationsByEvent(eventId);
-    const waitlistedRegs = allActiveRegs.filter(r => r.status === 'waitlisted');
+    const _regTime = (r) => {
+      const v = r && r.registeredAt;
+      if (!v) return Number.POSITIVE_INFINITY;
+      if (typeof v.toMillis === 'function') { try { return v.toMillis(); } catch (_e) {} }
+      if (typeof v === 'object' && typeof v.seconds === 'number')
+        return (v.seconds * 1000) + Math.floor((v.nanoseconds || 0) / 1000000);
+      const t = new Date(v).getTime();
+      return Number.isFinite(t) ? t : Number.POSITIVE_INFINITY;
+    };
+    const waitlistedRegs = allActiveRegs.filter(r => r.status === 'waitlisted')
+      .sort((a, b) => {
+        const ta = _regTime(a), tb = _regTime(b);
+        if (ta !== tb) return ta - tb;
+        return String(a._docId || a.id || '').localeCompare(String(b._docId || b.id || ''));
+      });
     const addedNames = new Set();
     let items = [];
 

@@ -42,6 +42,7 @@ Object.assign(App, {
       this._renderNewsTabs(tabsEl);
     }
 
+    articles.sort((a, b) => (b.publishedAt || '').localeCompare(a.publishedAt || ''));
     this._renderNewsCards(articles, listEl);
 
     // 綁定左右滑動切換頁籤

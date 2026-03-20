@@ -113,6 +113,7 @@ Object.assign(App, {
     if (!container) return;
 
     if (!users) users = ApiService.getAdminUsers();
+    users = [...users].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 
     if (users.length === 0) {
       container.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--text-muted)">找不到符合條件的使用者</div>';

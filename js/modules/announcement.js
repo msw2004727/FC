@@ -15,7 +15,8 @@ Object.assign(App, {
     const track = document.getElementById('announce-marquee-track');
     if (!wrap || !track) return;
 
-    const items = ApiService.getActiveAnnouncements();
+    const items = ApiService.getActiveAnnouncements()
+      .sort((a, b) => (Number(a.sortOrder) || 0) - (Number(b.sortOrder) || 0));
     if (!items.length) {
       wrap.style.display = 'none';
       track.innerHTML = '';

@@ -297,6 +297,7 @@ Object.assign(App, {
 
     const people = [];
     unregMap.forEach(u => people.push(u));
+    people.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 
     let rows = people.map(p => {
       const person = { uid: p.uid, name: p.name, isCompanion: false };

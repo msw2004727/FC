@@ -11,7 +11,8 @@ Object.assign(App, {
   renderShop() {
     const container = document.getElementById('shop-grid');
     if (!container) return;
-    const items = ApiService.getShopItems().filter(s => s.status !== 'delisted');
+    const items = ApiService.getShopItems().filter(s => s.status !== 'delisted')
+      .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || '') || (a.name || '').localeCompare(b.name || ''));
     container.innerHTML = items.length > 0
       ? items.map(s => {
         const hasImg = s.images && s.images.length > 0;

@@ -14,7 +14,8 @@ Object.assign(App, {
   renderOngoingTournaments() {
     const container = document.getElementById('ongoing-tournaments');
     if (!container) return;
-    const ongoing = ApiService.getTournaments().filter(t => !this.isTournamentEnded(t));
+    const ongoing = ApiService.getTournaments().filter(t => !this.isTournamentEnded(t))
+      .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 
     // ── 已渲染且 ID 完全相同 → 跳過，避免封面圖重載 ──
     const existingCards = container.querySelectorAll('.h-card:not(.skeleton)');
@@ -91,6 +92,8 @@ Object.assign(App, {
     if (regionFilter) {
       tournaments = tournaments.filter(t => t.region === regionFilter);
     }
+
+    tournaments.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 
     if (tournaments.length === 0) {
       container.innerHTML = `<div style="text-align:center;padding:2rem;color:var(--text-muted);font-size:.85rem">${tab === 'ended' ? t('tournament.noEnded') : t('tournament.noActive')}</div>`;

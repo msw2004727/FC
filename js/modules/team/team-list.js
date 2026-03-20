@@ -137,7 +137,7 @@ Object.assign(App, {
       if (a.pinned && !b.pinned) return -1;
       if (!a.pinned && b.pinned) return 1;
       if (a.pinned && b.pinned) return (a.pinOrder || 0) - (b.pinOrder || 0);
-      return 0;
+      return (a.name || '').localeCompare(b.name || '');
     });
   },
 
