@@ -292,7 +292,8 @@
 // 20260320p: 首頁左下角顯示短版號 v0.xxx（取 CACHE_VERSION 後三碼）
 // 20260320q: 版號改為 fixed 定位貼齊 bottom-tabs 上方，不隨滑動
 // 20260320r: 修復首次/久未開啟用戶空白首頁 — timeout 後背景重載 + 移除 sw.js 幽靈 mode.js
-const CACHE_VERSION = '20260320r';
+// 20260320s: Safari PWA 恢復時刷新 events + pagehide 持久化快取
+const CACHE_VERSION = '20260320s';
 
 // ─── Page Strategy Registry ───
 // 唯一策略來源，未列出的頁面預設 fresh-first

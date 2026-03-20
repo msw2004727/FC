@@ -2054,11 +2054,22 @@ const FirebaseService = {
       }, 1000);
     };
     document.addEventListener('visibilitychange', this._visibilityRefreshHandler);
+    // pagehide：PWA 關閉 / LINE WebView 切頁前強制持久化快取
+    // 用 pagehide 而非 beforeunload — iOS Safari 不可靠觸發 beforeunload
+    window.addEventListener('pagehide', () => {
+      clearTimeout(this._persistDebounceTimer);
+      this._persistCache();
+    });
   },
 
   _handleVisibilityResume() {
     if (!this._initialized || !auth?.currentUser) return;
     console.log('[FirebaseService] 頁面切回，觸發 stale-while-revalidate');
+
+    // ── events 刷新（首頁 + 所有需要活動人數的頁面）──
+    // Safari PWA 凍結/恢復後 onSnapshot 可能已失效（zombie listener），
+    // 一律做一次性查詢確保 event.current / event.waitlist 是最新的
+    this._refreshEventsOnResume();
 
     // 如果 registrations listener 存活 → 已有即時同步，不需額外操作
     if (this._pageScopedRealtimeListeners.registrations) return;
@@ -2089,6 +2100,25 @@ const FirebaseService = {
     }).catch(err => {
       this._registrationsRevalidating = false;
       console.warn('[FirebaseService] visibilitychange registrations 刷新失敗:', err);
+    });
+  },
+
+  /** visibilitychange 恢復時刷新 events（解決 Safari PWA zombie listener 問題） */
+  _refreshEventsOnResume() {
+    if (this._eventsRevalidating) return;
+    this._eventsRevalidating = true;
+    this._loadEventsStatic().then(() => {
+      this._eventsRevalidating = false;
+      // 觸發首頁重新渲染
+      if (typeof App !== 'undefined') {
+        if (App.currentPage === 'page-home') App.renderHotEvents?.();
+        if (App.currentPage === 'page-activities') App.renderActivityList?.();
+        if (App.currentPage === 'page-my-activities') App.renderMyActivities?.();
+      }
+      console.log('[FirebaseService] events 恢復刷新完成');
+    }).catch(err => {
+      this._eventsRevalidating = false;
+      console.warn('[FirebaseService] events 恢復刷新失敗:', err);
     });
   },
 

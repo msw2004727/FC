@@ -984,5 +984,11 @@
 - **修復**：(1) `firebase-service.js` timeout 路徑新增 `_continueLoadAfterTimeout()` — 背景繼續載入 events + boot collections，完成後觸發 `App.renderAll()` + `_schedulePostInitWarmups()`；(2) `sw.js` 移除不存在的 `./js/core/mode.js`
 - **教訓**：timeout 不代表放棄 — 應設計「timeout 先給用戶兜底畫面，背景繼續載入完成後補渲染」的模式。STATIC_ASSETS 列表變更時必須驗證所有檔案存在
 
+### 2026-03-20 — Safari PWA 活動人數不更新（zombie listener + 缺少 events 刷新）
+- **問題**：Safari PWA 安裝在桌面的用戶，首頁活動卡片人數永遠是舊數據，退出重進也不更新
+- **原因**：(1) `_handleVisibilityResume()` 只刷新 registrations 不刷新 events — 首頁人數來自 `event.current`/`event.waitlist`（event 文件欄位），不是 registrations；(2) Safari PWA 凍結/恢復後 onSnapshot WebSocket 可能已失效（zombie listener），但不觸發 onerror；(3) 沒有 `pagehide` handler，PWA 關閉前 30 秒 debounce 的快取持久化來不及寫入
+- **修復**：(1) `_handleVisibilityResume` 加入 `_refreshEventsOnResume()` — 每次恢復時一次性查詢最新 events 並觸發首頁重繪；(2) `_setupVisibilityRefresh` 加入 `pagehide` handler 強制持久化快取
+- **教訓**：Safari PWA 的 WebSocket 在凍結/恢復後不可信賴，visibilitychange 恢復時應對所有首頁關鍵資料做一次性查詢兜底，不能只依賴 onSnapshot listener
+
 *最後濃縮日期：2026-03-15*
 *原始檔案：314 條目 / 2475 行 → 濃縮後約 50 條永久教訓*
