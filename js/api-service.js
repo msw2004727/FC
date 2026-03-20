@@ -1421,7 +1421,8 @@ const ApiService = {
     const timeStr = `${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
     const log = { time: timeStr, uid: user.uid || user.lineUserId, target: user.name, amount: (amount > 0 ? '+' : '') + amount, reason, operator: operatorLabel || '管理員', operatorUid: auth?.currentUser?.uid || null };
     this._src('expLogs').unshift(log);
-    this._writeOpLog('exp', '手動EXP', `${user.name} ${log.amount}「${reason}」`);
+    const _expLogLabel = mode === 'auto' ? '自動EXP' : '手動EXP';
+    this._writeOpLog('exp', _expLogLabel, `${user.name} ${log.amount}「${reason}」`);
     if (!this._demoMode) {
       const targetId = user._docId || user.uid || user.lineUserId;
       if (targetId) {
@@ -1454,7 +1455,8 @@ const ApiService = {
     const timeStr = `${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
     const log = { time: timeStr, uid: user.uid || user.lineUserId, target: user.name, amount: (amount > 0 ? '+' : '') + amount, reason, operator: operatorLabel || '管理員', operatorUid: auth?.currentUser?.uid || null };
     this._src('expLogs').unshift(log);
-    this._writeOpLog('exp', '手動EXP', `${user.name} ${log.amount}「${reason}」`);
+    const _expLogLabel2 = mode === 'auto' ? '自動EXP' : '手動EXP';
+    this._writeOpLog('exp', _expLogLabel2, `${user.name} ${log.amount}「${reason}」`);
     if (!this._demoMode) {
       const targetId = user._docId || user.uid || user.lineUserId;
       if (targetId) {
