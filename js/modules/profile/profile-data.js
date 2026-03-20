@@ -150,14 +150,34 @@ Object.assign(App, {
 
   _regionPicking: false,
 
+  _ensureRegionDropdown() {
+    var dd = document.getElementById('fl-region-dropdown');
+    if (dd) return dd;
+    dd = document.createElement('div');
+    dd.id = 'fl-region-dropdown';
+    dd.style.cssText = 'display:none;position:fixed;max-height:160px;overflow-y:auto;background:var(--bg-card,#fff);border:1px solid var(--border,#ddd);border-radius:8px 8px 0 0;z-index:9999;box-shadow:0 -4px 12px rgba(0,0,0,.12)';
+    document.body.appendChild(dd);
+    return dd;
+  },
+
+  _positionRegionDropdown() {
+    var input = document.getElementById('fl-region-input');
+    var dd = document.getElementById('fl-region-dropdown');
+    if (!input || !dd) return;
+    var rect = input.getBoundingClientRect();
+    dd.style.left = rect.left + 'px';
+    dd.style.width = rect.width + 'px';
+    dd.style.bottom = (window.innerHeight - rect.top) + 'px';
+    dd.style.top = 'auto';
+  },
+
   _renderRegionDropdown(matched) {
-    const dropdown = document.getElementById('fl-region-dropdown');
-    if (!dropdown) return;
+    var dd = this._ensureRegionDropdown();
     var self = this;
     if (matched.length === 0) {
-      dropdown.innerHTML = '<div style="padding:8px 12px;color:#999;font-size:14px">無匹配結果</div>';
+      dd.innerHTML = '<div style="padding:8px 12px;color:#999;font-size:14px">無匹配結果</div>';
     } else {
-      dropdown.innerHTML = '';
+      dd.innerHTML = '';
       matched.forEach(function(name) {
         var item = document.createElement('div');
         item.textContent = name;
@@ -166,18 +186,19 @@ Object.assign(App, {
         item.ontouchstart = function() { self._regionPicking = true; };
         item.onclick = function() { self._selectRegion(name); };
         item.ontouchend = function(e) { e.preventDefault(); self._selectRegion(name); };
-        dropdown.appendChild(item);
+        dd.appendChild(item);
       });
     }
-    dropdown.style.display = '';
+    this._positionRegionDropdown();
+    dd.style.display = '';
   },
 
   _selectRegion(name) {
     this._regionPicking = false;
     var input = document.getElementById('fl-region-input');
-    var dropdown = document.getElementById('fl-region-dropdown');
-    if (input) { input.value = name; input.blur(); }
-    if (dropdown) dropdown.style.display = 'none';
+    var dd = document.getElementById('fl-region-dropdown');
+    if (input) input.value = name;
+    if (dd) dd.style.display = 'none';
   },
 
   onRegionInput(value) {
@@ -191,8 +212,8 @@ Object.assign(App, {
 
   onRegionBlur() {
     if (this._regionPicking) return;
-    var dropdown = document.getElementById('fl-region-dropdown');
-    if (dropdown) dropdown.style.display = 'none';
+    var dd = document.getElementById('fl-region-dropdown');
+    if (dd) dd.style.display = 'none';
   },
 
   initFirstLoginRegionPicker() {
