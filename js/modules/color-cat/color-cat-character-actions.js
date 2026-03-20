@@ -269,7 +269,13 @@ function startWatchFlower(sw) {
   if (!scene_ || !scene_.getBloomedFlowers) return;
   var bloomed = scene_.getBloomedFlowers();
   if (bloomed.length === 0) return;
-  var f = bloomed[Math.floor(Math.random() * bloomed.length)];
+  // 金花權重 2 倍（多 100% 機率被選中）
+  var pool = [];
+  for (var fi = 0; fi < bloomed.length; fi++) {
+    pool.push(bloomed[fi]);
+    if (bloomed[fi].gold) pool.push(bloomed[fi]);
+  }
+  var f = pool[Math.floor(Math.random() * pool.length)];
   if (_.testMode) _.stopTest();
   releaseBall();
   if (ch.action === 'combo') endCombo();

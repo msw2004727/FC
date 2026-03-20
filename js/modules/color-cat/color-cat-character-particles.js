@@ -134,10 +134,10 @@ function updateHearts() {
       _heartParticles.push({
         x: ch.x + (Math.random() - 0.5) * 6,
         y: headY,
-        vx: (Math.random() - 0.5) * 0.5,
-        vy: -(0.5 + Math.random() * 0.4),
-        life: 1, decay: 0.015 + Math.random() * 0.01,
-        size: 3 + Math.random() * 2,
+        vx: (Math.random() - 0.5) * 0.8,
+        vy: -(0.6 + Math.random() * 0.5),
+        life: 1, decay: 0.012 + Math.random() * 0.008,
+        size: 30 + Math.random() * 20,
       });
     }
   } else { _heartTimer = 0; }
