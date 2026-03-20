@@ -115,11 +115,56 @@ function drawSprite(ctx, spriteKey, spriteFrame, x, footY, facing, noShadow) {
   ctx.restore();
 }
 
+// ── 繪製剪影（用於牆面投影） ──
+var _silCanvas = null;
+var _silCtx = null;
+
+function drawSilhouette(ctx, spriteKey, spriteFrame, x, footY, facing, alpha) {
+  var img = sprites[spriteKey];
+  if (!spritesLoaded || !img) return;
+
+  var sDef = SPRITE_DEFS[spriteKey];
+  var frameW = (sDef && sDef.fw) ? sDef.fw : C.SPRITE_SIZE;
+  var frame = spriteFrame % (sDef ? sDef.frames : 1);
+  var drawW = frameW * C.SPRITE_SCALE;
+  var drawY = footY - C.SPRITE_DRAW;
+
+  // 離屏畫布：繪製精靈圖後轉為純黑剪影
+  if (!_silCanvas) {
+    _silCanvas = document.createElement('canvas');
+    _silCtx = _silCanvas.getContext('2d');
+  }
+  _silCanvas.width = drawW;
+  _silCanvas.height = C.SPRITE_DRAW;
+  var oc = _silCtx;
+
+  oc.save();
+  oc.imageSmoothingEnabled = false;
+  if (facing < 0) { oc.translate(drawW, 0); oc.scale(-1, 1); }
+  oc.drawImage(img, frame * frameW, 0, frameW, C.SPRITE_SIZE, 0, 0, drawW, C.SPRITE_DRAW);
+  oc.restore();
+
+  // source-in：只保留已繪畫像素，填黑
+  oc.globalCompositeOperation = 'source-in';
+  oc.fillStyle = '#000';
+  oc.fillRect(0, 0, drawW, C.SPRITE_DRAW);
+
+  // 繪製到主畫布（斜切：頂部往左偏 2px）
+  var skewPx = -2;
+  var skewAngle = skewPx / C.SPRITE_DRAW; // tan(θ) ≈ θ
+  ctx.save();
+  ctx.globalAlpha = alpha || 0.2;
+  ctx.transform(1, 0, skewAngle, 1, x - drawW / 2, drawY);
+  ctx.drawImage(_silCanvas, 0, 0);
+  ctx.restore();
+}
+
 // ── 公開 API ──
 window.ColorCatSprite = {
   init: initSprites,
   switchSkin: switchSkin,
   draw: drawSprite,
+  drawSilhouette: drawSilhouette,
   getDefs: function() { return SPRITE_DEFS; },
   getSkin: function() { return currentSkin; },
   isLoaded: function() { return spritesLoaded; },

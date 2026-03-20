@@ -186,14 +186,30 @@ function drawBall(ctx, light) {
   drawDust(ctx, light);
 }
 
+// ── 咬球模式 ──
+var _carried = false;
+
+function setCarried(on) { _carried = !!on; }
+function isCarried() { return _carried; }
+
+function setPosition(x, y) {
+  ball.x = x;
+  ball.y = y;
+  ball.vx = 0;
+  ball.vy = 0;
+}
+
 // ── 公開 API ──
 window.ColorCatBall = {
   state: ball,
   init: initBall,
-  update: updateBall,
+  update: function(sw) { if (!_carried) updateBall(sw); },
   kick: kickBall,
   isClicked: isBallClicked,
   draw: drawBall,
+  setCarried: setCarried,
+  isCarried: isCarried,
+  setPosition: setPosition,
 };
 
 })();

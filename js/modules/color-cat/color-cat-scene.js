@@ -121,6 +121,78 @@ function drawBox(ctx, light, sleeping) {
   ctx.fillStyle = light ? '#A8864E' : '#5A4028';
   ctx.fillRect(bx, by, 3, BOX_H);
 
+  // ── 箱體上的塗鴉貓臉 ──
+  var skin = ColorCatCharacter.getSkin();
+  var faceX = bx + BOX_W * 0.55;
+  var faceY = midY + 1;
+  var isWhite = skin === 'whiteCat';
+  var inkColor = light ? 'rgba(90,60,30,0.55)' : 'rgba(220,200,170,0.45)';
+
+  // 大圓臉（塗鴉線條）
+  ctx.strokeStyle = inkColor;
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  ctx.arc(faceX, faceY, 12, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // 耳朵（手繪三角）
+  ctx.beginPath();
+  ctx.moveTo(faceX - 10, faceY - 7);
+  ctx.lineTo(faceX - 5, faceY - 16);
+  ctx.lineTo(faceX - 1, faceY - 9);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(faceX + 10, faceY - 7);
+  ctx.lineTo(faceX + 5, faceY - 16);
+  ctx.lineTo(faceX + 1, faceY - 9);
+  ctx.stroke();
+
+  // 眼睛（小黑點）
+  ctx.fillStyle = inkColor;
+  ctx.beginPath();
+  ctx.arc(faceX - 4, faceY - 2, 1.8, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(faceX + 4, faceY - 2, 1.8, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 小白：加眼睛高光；小黑：加瞳孔反光
+  if (isWhite) {
+    ctx.fillStyle = light ? 'rgba(255,255,255,0.7)' : 'rgba(255,255,255,0.5)';
+  } else {
+    ctx.fillStyle = light ? 'rgba(180,255,180,0.6)' : 'rgba(140,220,140,0.5)';
+  }
+  ctx.beginPath(); ctx.arc(faceX - 3.5, faceY - 2.8, 0.6, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(faceX + 4.5, faceY - 2.8, 0.6, 0, Math.PI * 2); ctx.fill();
+
+  // 鼻子（小三角）
+  ctx.fillStyle = inkColor;
+  ctx.beginPath();
+  ctx.moveTo(faceX, faceY + 1);
+  ctx.lineTo(faceX - 1.5, faceY + 3);
+  ctx.lineTo(faceX + 1.5, faceY + 3);
+  ctx.fill();
+
+  // 嘴巴（:3 貓嘴）
+  ctx.lineWidth = 0.8;
+  ctx.beginPath();
+  ctx.moveTo(faceX, faceY + 3);
+  ctx.quadraticCurveTo(faceX - 4, faceY + 7, faceX - 6, faceY + 4);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(faceX, faceY + 3);
+  ctx.quadraticCurveTo(faceX + 4, faceY + 7, faceX + 6, faceY + 4);
+  ctx.stroke();
+
+  // 鬍鬚（隨意歪斜的線）
+  ctx.lineWidth = 0.5;
+  ctx.beginPath();
+  ctx.moveTo(faceX - 12, faceY); ctx.lineTo(faceX - 5, faceY + 1);
+  ctx.moveTo(faceX - 11, faceY + 3); ctx.lineTo(faceX - 5, faceY + 3);
+  ctx.moveTo(faceX + 12, faceY); ctx.lineTo(faceX + 5, faceY + 1);
+  ctx.moveTo(faceX + 11, faceY + 3); ctx.lineTo(faceX + 5, faceY + 3);
+  ctx.stroke();
+
   // ── 右側開口（圓拱形洞口） ──
 
   if (sleeping) {
@@ -236,12 +308,16 @@ function drawFlag(ctx, light) {
   ctx.quadraticCurveTo(fx + FLAG_W * 0.5, fy + FLAG_H + wave1 * 0.5, fx, fy + FLAG_H);
   ctx.stroke();
 
-  // 貓臉（簡易像素風）
+  // 貓臉（依當前角色皮膚切換）
+  var skin = ColorCatCharacter.getSkin();
+  var isWhite = skin === 'whiteCat';
   var faceX = fx + FLAG_W * 0.35 + wave1 * 0.3;
   var faceY = fy + FLAG_H / 2 + wave2 * 0.2;
+  var catFace = isWhite ? (light ? '#FFF' : '#EEE') : (light ? '#333' : '#222');
+  var catEye = isWhite ? '#333' : (light ? '#EEE' : '#CCC');
 
   // 貓耳朵
-  ctx.fillStyle = light ? '#FFF' : '#EEE';
+  ctx.fillStyle = catFace;
   ctx.beginPath();
   ctx.moveTo(faceX - 3, faceY - 2);
   ctx.lineTo(faceX - 1.5, faceY - 5);
@@ -254,17 +330,18 @@ function drawFlag(ctx, light) {
   ctx.fill();
 
   // 臉（圓）
-  ctx.fillStyle = light ? '#FFF' : '#EEE';
+  ctx.fillStyle = catFace;
   ctx.beginPath();
   ctx.arc(faceX, faceY, 3, 0, Math.PI * 2);
   ctx.fill();
 
   // 眼睛
-  ctx.fillStyle = '#333';
+  ctx.fillStyle = catEye;
   ctx.fillRect(faceX - 1.5, faceY - 1, 1, 1);
   ctx.fillRect(faceX + 0.5, faceY - 1, 1, 1);
 
   // 嘴巴
+  ctx.fillStyle = catEye;
   ctx.fillRect(faceX - 0.5, faceY + 0.5, 1, 0.5);
 
   ctx.restore();
@@ -303,16 +380,49 @@ function isBoxClicked(cx, cy) {
   return cx >= bx - 4 && cx <= bx + BOX_W + 4 && cy >= by && cy <= BOX_BOTTOM_Y + 4;
 }
 
+// ===== 紙箱牆面影子 =====
+
+function drawWallShadow(ctx) {
+  var ch = ColorCatCharacter.state;
+  if (ch.action === 'sleeping') return;
+
+  var bx = BOX_X - BOX_W / 2;
+  var by = BOX_BOTTOM_Y - BOX_H;
+  var boxRight = bx + BOX_W;
+  var halfSprite = C.SPRITE_DRAW / 2;
+
+  // 角色精靈圖與紙箱 X 範圍是否重疊
+  var charLeft = ch.x - halfSprite;
+  var charRight = ch.x + halfSprite;
+  if (charRight < bx || charLeft > boxRight) {
+    ColorCatCharacter.setSuppressGroundShadow(false);
+    return;
+  }
+
+  // 抑制地面影子，改為牆面投影
+  ColorCatCharacter.setSuppressGroundShadow(true);
+
+  var key = ColorCatCharacter.getSpriteKey();
+  ctx.save();
+  // 裁切到紙箱範圍內
+  ctx.beginPath();
+  ctx.rect(bx, by, BOX_W, BOX_H);
+  ctx.clip();
+  ColorCatSprite.drawSilhouette(ctx, key, ch.spriteFrame, ch.x - 1, ch.y, ch.facing, 0.35);
+  ctx.restore();
+}
+
 // ===== 主迴圈 =====
 
 function render() {
   var light = !C.isThemeDark();
   var sleeping = ColorCatCharacter.isSleeping();
   drawBackground(_ctx, _sw, light);
-  ColorCatBall.draw(_ctx, light);
   drawBox(_ctx, light, sleeping);
+  ColorCatBall.draw(_ctx, light);
+  drawWallShadow(_ctx);
   drawFlag(_ctx, light);
-  ColorCatCharacter.draw(_ctx);
+  ColorCatCharacter.draw(_ctx, light);
 }
 
 function update() {
@@ -347,7 +457,7 @@ function handleClick(e) {
   // 點擊旗子 → 爬紙箱
   var boxTopY = BOX_BOTTOM_Y - BOX_H;
   if (isFlagClicked(cx, cy)) {
-    ColorCatCharacter.startComboBox(_sw, BOX_X, boxTopY);
+    ColorCatCharacter.startComboBox(_sw, BOX_X, boxTopY, BOX_W);
     return;
   }
 
@@ -399,6 +509,15 @@ function initInteractiveScene(containerId) {
 
   ColorCatCharacter.init(_sw);
   ColorCatBall.init(_sw);
+
+  // 提供場景資訊給角色 AI
+  ColorCatCharacter.setSceneInfo({
+    sw: _sw,
+    boxX: BOX_X,
+    boxTopY: BOX_BOTTOM_Y - BOX_H,
+    boxW: BOX_W,
+    openingX: BOX_X + BOX_W / 2 + 12,
+  });
 
   _canvas.addEventListener('click', handleClick);
 

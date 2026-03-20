@@ -119,6 +119,17 @@ function toggleTheme() {
     ColorCatCharacter.startComboBox(sw, 35, 125 - 46);
   };
   toolbar.appendChild(boxBtn);
+
+  // 咬球按鈕
+  var biteBtn = document.createElement('button');
+  biteBtn.textContent = '咬球';
+  biteBtn.style.borderColor = '#ef4444';
+  biteBtn.onclick = function() {
+    var container = document.getElementById('scene-container');
+    var sw = container ? container.offsetWidth : 300;
+    ColorCatCharacter.startBiteBall(sw);
+  };
+  toolbar.appendChild(biteBtn);
 })();
 
 // ── 啟動互動場景 ──
