@@ -121,10 +121,27 @@ function drawBreath(ctx) {
   ctx.restore();
 }
 
+// ── 面板撞擊大量煙塵（跑步的 5 倍） ──
+function spawnKnockbackBurst() {
+  var footX = ch.x;
+  var footY = ch.y - _.FOOT_OFFSET - 4;
+  for (var i = 0; i < 15; i++) {
+    _dustParticles.push({
+      x: footX + (Math.random() - 0.5) * 16,
+      y: footY + (Math.random() - 0.5) * 10,
+      vx: -(1 + Math.random() * 2),
+      vy: -(0.5 + Math.random() * 1.5),
+      life: 1, decay: 0.02 + Math.random() * 0.02,
+      size: 3.5 + Math.random() * 4,
+    });
+  }
+}
+
 _.isRunning = isRunning;
 _.updateDust = updateDust;
 _.drawDust = drawDust;
 _.updateBreath = updateBreath;
 _.drawBreath = drawBreath;
+_.spawnKnockbackBurst = spawnKnockbackBurst;
 
 })();

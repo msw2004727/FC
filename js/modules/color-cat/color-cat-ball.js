@@ -217,6 +217,22 @@ function setPosition(x, y) {
   ball.vy = 0;
 }
 
+// ── 面板撞擊大量煙塵（踢球的 ~3 倍粒子量 + 大顆） ──
+function spawnPanelHitDust() {
+  var count = 15 + Math.floor(Math.random() * 6);
+  for (var i = 0; i < count; i++) {
+    dustParticles.push({
+      x: ball.x + (Math.random() - 0.5) * 12,
+      y: ball.y + (Math.random() - 0.5) * 10,
+      vx: -(1 + Math.random() * 2.5),
+      vy: -(0.3 + Math.random() * 1.8),
+      life: 1.0,
+      decay: 0.02 + Math.random() * 0.02,
+      size: 2.5 + Math.random() * 4,
+    });
+  }
+}
+
 // ── 公開 API ──
 window.ColorCatBall = {
   state: ball,
@@ -228,6 +244,7 @@ window.ColorCatBall = {
   setCarried: setCarried,
   isCarried: isCarried,
   setPosition: setPosition,
+  spawnPanelHitDust: spawnPanelHitDust,
 };
 
 })();

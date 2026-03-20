@@ -146,11 +146,17 @@ function drawPanel(ctx, sw, light) {
     var charState = window.ColorCatCharacter.state;
     if (charState.x > panelEdge && charState.action !== 'knockback' && charState.action !== 'sleeping') {
       window.ColorCatCharacter.startKnockback(sw);
+      if (window.ColorCatCharacter._ && window.ColorCatCharacter._.spawnKnockbackBurst) {
+        window.ColorCatCharacter._.spawnKnockbackBurst();
+      }
     }
     var ballState = window.ColorCatBall.state;
     if (ballState.x + ballState.r > panelEdge) {
       ballState.vx = -(3 + Math.random() * 2);
       ballState.vy = -(1 + Math.random() * 1.5);
+      if (window.ColorCatBall.spawnPanelHitDust) {
+        window.ColorCatBall.spawnPanelHitDust();
+      }
     }
   }
 
