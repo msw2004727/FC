@@ -246,7 +246,7 @@ flowchart TD
 | `kickball-physics.js` | 踢球遊戲物理引擎 |
 | `kickball-game-page.js` | 開球王遊戲頁面（嵌入主站 kickball.html） |
 
-### color-cat/ — 養成角色系統（14 個模組）
+### color-cat/ — 養成角色系統（20 個模組）
 
 | 檔案 | 說明 |
 |------|------|
@@ -260,10 +260,16 @@ flowchart TD
 | `color-cat-character-actions.js` | 動作啟動/停止、移動更新（追球、走向紙箱、短跑） |
 | `color-cat-character-combo.js` | 連續動作序列（爬邊牆、爬紙箱、咬球跑） |
 | `color-cat-character-ai.js` | AI 行為選擇、追球/踢球/閒置更新 |
+| `color-cat-profile.js` | 角色資訊（名稱、等級、數值、個性、心情、裝備） |
 | `color-cat-scene.js` | 場景核心（共享狀態、主迴圈、初始化、點擊、App 掛載） |
 | `color-cat-scene-bg.js` | 背景繪製（天空漸層、草地、太陽/月亮） |
 | `color-cat-scene-box.js` | 紙箱繪製（箱體、貓臉塗鴉、蓋子開合、Zzz） |
 | `color-cat-scene-flag.js` | 旗子繪製（飄揚動畫、旗上貓臉）+ 牆面影子 |
+| `color-cat-scene-flower.js` | 花朵系統（生長動畫、金花、採集 EXP、枯萎機制） |
+| `color-cat-scene-panel.js` | 右側抽屜面板（框架、把手、側邊頁籤、碰撞檢測） |
+| `color-cat-scene-panel-tab0.js` | 面板頁籤0：基本資料（頭像、名稱、五維數值） |
+| `color-cat-scene-panel-tab1.js` | 面板頁籤1：狀態（動作、體力、個性、心情） |
+| `color-cat-scene-panel-tab2.js` | 面板頁籤2：裝備（6 格裝備欄位） |
 
 ### scan/ — QR Code 掃描（5 個模組）
 

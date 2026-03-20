@@ -10,6 +10,12 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-21 — test-color-cat 更名 GrowthGames + 架構整理
+- **變更**：`test-color-cat.html` → `GrowthGames.html`，更新標題與頁面 heading
+- **清理**：刪除孤兒檔 `color-cat-scene-panel-tabs.js`（已被 tab0/tab1/tab2 取代）
+- **文件**：`docs/architecture.md` color-cat 區段從 14 模組更新為 20 模組（補入 profile、flower、panel、panel-tab0/1/2）
+- **版號**：`20260321` → `20260321a`（四處同步）
+
 ### 2026-03-20 — 自動 EXP 對帳規則：放鴿子 / LINE 綁定 / 徽章獎勵
 - **功能**：新增 3 條自動 EXP 規則，以 reconciliation model 運作（expected vs applied → delta 補發/扣回）
 - **新檔**：`js/modules/auto-exp-rules.js` — 對帳核心 + 3 條規則邏輯
@@ -27,9 +33,9 @@
 
 ### 2026-03-20 — ColorCat 模組化拆分 + 修復煙霧/喘氣/貓臉消失
 - **問題**：角色拆分為子模組後，煙霧效果、虛弱喘氣粒子消失，AI 不動作
-- **原因**：5 個角色子模組檔案（stamina/particles/actions/combo/ai）已建立在磁碟上，但未加入 test-color-cat.html 的 `<script>` 標籤與 script-loader.js 的 profile 群組。子模組未載入導致核心的函式插槽（stubs）保持空操作
+- **原因**：5 個角色子模組檔案（stamina/particles/actions/combo/ai）已建立在磁碟上，但未加入 GrowthGames.html 的 `<script>` 標籤與 script-loader.js 的 profile 群組。子模組未載入導致核心的函式插槽（stubs）保持空操作
 - **修復**：
-  - 在 test-color-cat.html 加入 8 個新 script 標籤（5 角色子模組 + 3 場景子模組）
+  - 在 GrowthGames.html 加入 8 個新 script 標籤（5 角色子模組 + 3 場景子模組）
   - 在 script-loader.js profile 群組加入 8 個新模組路徑
   - 將 scene.js（639 行）拆為 4 檔：scene.js（253）+ scene-bg.js（68）+ scene-box.js（208）+ scene-flag.js（133）
   - character.js（原 1049 行）拆為 6 檔：character.js（236）+ stamina（95）+ particles（124）+ actions（196）+ combo（186）+ ai（93）
