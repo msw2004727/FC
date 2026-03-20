@@ -126,84 +126,95 @@ Object.assign(App, {
       .replace(/\s+/g, '');
   },
 
-  _renderFirstLoginRegionOptions(keyword = '') {
-    const regionSelect = document.getElementById('fl-region');
-    if (!regionSelect) return;
+  _fuzzyMatch(text, query) {
+    var ti = 0;
+    for (var qi = 0; qi < query.length; qi++) {
+      var found = false;
+      while (ti < text.length) {
+        if (text[ti] === query[qi]) { ti++; found = true; break; }
+        ti++;
+      }
+      if (!found) return false;
+    }
+    return true;
+  },
 
+  // ── 地區自動完成 ──
+
+  _getFilteredRegions(keyword) {
     const allRegions = this._getFirstLoginRegionList();
-    const currentValue = regionSelect.value;
     const q = this._normalizeRegionKeyword(keyword);
-    let matched = allRegions;
+    if (!q) return allRegions;
+    return allRegions.filter(name => this._fuzzyMatch(this._normalizeRegionKeyword(name), q));
+  },
 
-    if (q) {
-      matched = allRegions.filter(name => this._normalizeRegionKeyword(name).includes(q));
+  _renderRegionDropdown(matched) {
+    const dropdown = document.getElementById('fl-region-dropdown');
+    if (!dropdown) return;
+    if (matched.length === 0) {
+      dropdown.innerHTML = '<div style="padding:8px 12px;color:#999;font-size:14px">無匹配結果</div>';
+    } else {
+      dropdown.innerHTML = '';
+      matched.forEach(name => {
+        const item = document.createElement('div');
+        item.textContent = name;
+        item.style.cssText = 'padding:8px 12px;cursor:pointer;font-size:14px';
+        item.onmouseenter = function() { this.style.background = 'var(--bg-hover,#f3f4f6)'; };
+        item.onmouseleave = function() { this.style.background = ''; };
+        item.onmousedown = function(e) { e.preventDefault(); };
+        item.onclick = () => { this._selectRegion(name); };
+        dropdown.appendChild(item);
+      });
     }
-    if (currentValue && allRegions.includes(currentValue) && !matched.includes(currentValue)) {
-      matched = [currentValue, ...matched];
-    }
+    dropdown.style.display = '';
+  },
 
-    regionSelect.innerHTML = '<option value="">請選擇</option>';
-    matched.forEach(name => {
-      const option = document.createElement('option');
-      option.value = name;
-      option.textContent = name;
-      regionSelect.appendChild(option);
-    });
+  _selectRegion(name) {
+    const input = document.getElementById('fl-region-input');
+    const dropdown = document.getElementById('fl-region-dropdown');
+    if (input) input.value = name;
+    if (dropdown) dropdown.style.display = 'none';
+  },
 
-    if (currentValue) regionSelect.value = currentValue;
+  onRegionInput(value) {
+    const matched = this._getFilteredRegions(value);
+    this._renderRegionDropdown(matched);
+  },
+
+  onRegionFocus() {
+    const input = document.getElementById('fl-region-input');
+    const keyword = input ? input.value : '';
+    const matched = this._getFilteredRegions(keyword);
+    this._renderRegionDropdown(matched);
+  },
+
+  onRegionBlur() {
+    const dropdown = document.getElementById('fl-region-dropdown');
+    if (dropdown) dropdown.style.display = 'none';
   },
 
   initFirstLoginRegionPicker() {
-    const searchInput = document.getElementById('fl-region-search');
-    const regionSelect = document.getElementById('fl-region');
-    if (!searchInput || !regionSelect) return;
-
-    if (searchInput.dataset.bound !== '1') {
-      regionSelect.addEventListener('change', () => {
-        if (regionSelect.value) searchInput.value = regionSelect.value;
-      });
-
-      searchInput.addEventListener('keydown', (e) => {
-        if (e.key !== 'Enter') return;
-        const firstMatch = Array.from(regionSelect.options).find(opt => opt.value);
-        if (!firstMatch) return;
-        e.preventDefault();
-        regionSelect.value = firstMatch.value;
-        searchInput.value = firstMatch.value;
-      });
-
-      searchInput.dataset.bound = '1';
-    }
-
-    this.resetFirstLoginRegionFilter();
-  },
-
-  filterFirstLoginRegionOptions(keyword = '') {
-    this._renderFirstLoginRegionOptions(keyword);
+    // 新版 autocomplete 不需額外初始化，事件已綁定在 HTML
   },
 
   resetFirstLoginRegionFilter() {
-    const searchInput = document.getElementById('fl-region-search');
-    if (searchInput) searchInput.value = '';
-    this._renderFirstLoginRegionOptions('');
+    const input = document.getElementById('fl-region-input');
+    if (input) input.value = '';
   },
 
   saveFirstLoginProfile() {
-    const regionSelectEl = document.getElementById('fl-region');
-    if (regionSelectEl && regionSelectEl.options.length <= 1) {
-      this.initFirstLoginRegionPicker();
-    }
+    const regionInput = document.getElementById('fl-region-input');
     const gender = document.getElementById('fl-gender').value;
     const birthday = document.getElementById('fl-birthday').value;
-    const region = regionSelectEl ? regionSelectEl.value : '';
+    const region = regionInput ? regionInput.value.trim() : '';
     const errEl = document.getElementById('fl-error-msg');
     const showFlError = (msg) => {
       if (errEl) { errEl.textContent = msg; errEl.style.display = ''; }
       else this.showToast(msg);
     };
     if (errEl) errEl.style.display = 'none';
-    if (!gender || !birthday || !region) {
-      showFlError('請填寫所有必填欄位（性別、生日、地區）');
+    if (!gender || !birthday) {
+      showFlError('請填寫所有必填欄位（性別、生日）');
       return;
     }
     try {

@@ -135,7 +135,11 @@ const ScriptLoader = {
       'js/modules/profile/profile-card.js',
       'js/modules/profile/profile-share.js',
       'js/modules/leaderboard.js',
-      'js/modules/fc-scene/fc-scene.js',
+      'js/modules/color-cat/color-cat-config.js',
+      'js/modules/color-cat/color-cat-sprite.js',
+      'js/modules/color-cat/color-cat-ball.js',
+      'js/modules/color-cat/color-cat-character.js',
+      'js/modules/color-cat/color-cat-scene.js',
     ],
     shop: [
       'js/modules/shop.js',

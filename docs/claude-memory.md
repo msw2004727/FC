@@ -10,6 +10,11 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-20 — 首次登入地區選擇改為自動完成元件
+- **問題**：地區搜尋欄與選單分開，用戶體驗差（輸入後看不到篩選結果）
+- **修復**：將 input + select 改為 input + dropdown 自動完成；新增 `onRegionInput`、`onRegionFocus`、`onRegionBlur`、`_selectRegion`、`_renderRegionDropdown`、`_getFilteredRegions`；`saveFirstLoginProfile` 改讀 `fl-region-input`
+- **教訓**：HTML 事件綁定與 JS 方法需同步新增，否則會造成無聲錯誤
+
 ### 2026-03-20 — 首頁活動卡片候補人數不正確（hasSource 誤判 + 缺少首頁重繪）
 - **問題**：少數用戶在首頁看到活動卡片上的候補人數與實際不符
 - **原因 1**：`_getEventParticipantStats()` 的 `hasSource` 只要快取有任何一筆 registration 就為 true，但一般用戶快取僅含自己的報名紀錄（非全量），導致混合計數與 event 投影欄位不一致

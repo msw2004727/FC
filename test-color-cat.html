@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="zh-Hant" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ColorCat — 養成角色測試</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Noto Sans TC', -apple-system, sans-serif; background: #f5f5f5; display: flex; flex-direction: column; align-items: center; padding: 1rem; min-height: 100vh; }
+  [data-theme="dark"] body { background: #111; color: #eee; }
+  h2 { font-size: .9rem; margin-bottom: .5rem; }
+  .toolbar { display: flex; gap: .4rem; margin-bottom: .8rem; flex-wrap: wrap; justify-content: center; max-width: 580px; }
+  .toolbar button { font-size: .65rem; padding: .25rem .5rem; border: 1px solid #ccc; border-radius: 6px; background: #fff; cursor: pointer; white-space: nowrap; }
+  [data-theme="dark"] .toolbar button { background: #222; border-color: #444; color: #eee; }
+  .toolbar button:hover { background: #e0e0e0; }
+  [data-theme="dark"] .toolbar button:hover { background: #333; }
+  .toolbar button.active { background: #3b82f6; color: #fff; border-color: #3b82f6; }
+  .toolbar .skin-btn { border-color: #f59e0b; }
+  .toolbar .skin-btn.active { background: #f59e0b; color: #fff; border-color: #f59e0b; }
+  .canvas-wrap { width: 100%; max-width: 560px; height: 127px; border-radius: 8px; overflow: hidden; position: relative; }
+</style>
+</head>
+<body>
+
+<h2>ColorCat — 養成角色畫布測試</h2>
+
+<div class="toolbar" id="toolbar">
+  <button onclick="toggleTheme()">主題</button>
+</div>
+
+<div class="canvas-wrap" id="scene-container"></div>
+
+<!-- 載入模組 -->
+<script src="js/modules/color-cat/color-cat-config.js"></script>
+<script src="js/modules/color-cat/color-cat-sprite.js"></script>
+<script src="js/modules/color-cat/color-cat-ball.js"></script>
+<script src="js/modules/color-cat/color-cat-character.js"></script>
+<script src="js/modules/color-cat/color-cat-scene.js"></script>
+
+<script>
+// ── 主題切換 ──
+function toggleTheme() {
+  var t = document.documentElement.getAttribute('data-theme');
+  document.documentElement.setAttribute('data-theme', t === 'dark' ? 'light' : 'dark');
+}
+
+// ── 建立測試工具列按鈕 ──
+(function buildTestToolbar() {
+  var toolbar = document.getElementById('toolbar');
+  var C = window.ColorCatConfig;
+
+  // 角色皮膚切換
+  var skinKeys = Object.keys(C.SKINS);
+  skinKeys.forEach(function(sk) {
+    var btn = document.createElement('button');
+    btn.textContent = C.SKINS[sk].name;
+    btn.id = 'skin-' + sk;
+    btn.className = 'skin-btn' + (sk === ColorCatCharacter.getSkin() ? ' active' : '');
+    btn.onclick = function() {
+      ColorCatCharacter.switchSkin(sk);
+      document.querySelectorAll('.skin-btn').forEach(function(b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+    };
+    toolbar.appendChild(btn);
+  });
+
+  // 分隔
+  var sep = document.createElement('span');
+  sep.textContent = '｜';
+  sep.style.cssText = 'font-size:.7rem;color:#999;align-self:center;';
+  toolbar.appendChild(sep);
+
+  // 動作測試按鈕
+  var actions = Object.keys(C.ACTION_DEFS);
+  actions.forEach(function(key) {
+    var btn = document.createElement('button');
+    btn.textContent = C.ACTION_DEFS[key].label;
+    btn.id = 'btn-' + key;
+    btn.onclick = function() {
+      // 清除舊 active
+      var old = document.querySelector('.toolbar button.active:not(.skin-btn)');
+      if (old) old.classList.remove('active');
+
+      if (ColorCatCharacter.getTestMode() === key) {
+        ColorCatCharacter.stopTest();
+      } else {
+        ColorCatCharacter.testAction(key);
+        btn.classList.add('active');
+      }
+    };
+    toolbar.appendChild(btn);
+  });
+
+  // 分隔
+  var sep2 = document.createElement('span');
+  sep2.textContent = '｜';
+  sep2.style.cssText = 'font-size:.7rem;color:#999;align-self:center;';
+  toolbar.appendChild(sep2);
+
+  // 爬邊牆按鈕
+  var wallBtn = document.createElement('button');
+  wallBtn.textContent = '爬邊牆';
+  wallBtn.style.borderColor = '#10b981';
+  wallBtn.onclick = function() {
+    var container = document.getElementById('scene-container');
+    var sw = container ? container.offsetWidth : 300;
+    ColorCatCharacter.startComboWall(sw);
+  };
+  toolbar.appendChild(wallBtn);
+
+  // 爬紙箱按鈕
+  var boxBtn = document.createElement('button');
+  boxBtn.textContent = '爬紙箱';
+  boxBtn.style.borderColor = '#10b981';
+  boxBtn.onclick = function() {
+    var container = document.getElementById('scene-container');
+    var sw = container ? container.offsetWidth : 300;
+    // 紙箱位置：BOX_X=35, BOX_H=46, BOX_BOTTOM_Y≈125
+    ColorCatCharacter.startComboBox(sw, 35, 125 - 46);
+  };
+  toolbar.appendChild(boxBtn);
+})();
+
+// ── 啟動互動場景 ──
+ColorCatScene.initInteractive('scene-container');
+</script>
+</body>
+</html>
