@@ -35,8 +35,7 @@ function initCharacter(sceneWidth) {
   character.onGround = true;
   character.spriteFrame = 0;
   character.spriteTimer = 0;
-  _s().stamina.current = _s().stamina.max;
-  _s().runtime.weakLevel = 0;
+  if (_s()) { _s().stamina.current = _s().stamina.max; _s().runtime.weakLevel = 0; }
   ColorCatSprite.init();
   aiResetCooldown();
 }
@@ -71,6 +70,7 @@ function aiSetSceneInfo(info) { _aiSceneInfo = info; }
 
 // ── 體力更新（數值來自 ColorCatStats） ──
 function updateStamina() {
+  if (!_s()) return;
   var st = _s().stamina;
   var rt = _s().runtime;
   var act = character.action;
@@ -145,7 +145,7 @@ function updateStamina() {
 
 // ── 繪製體力條 ──
 function drawStaminaBar(ctx) {
-  if (character.action === 'sleeping') return;
+  if (character.action === 'sleeping' || !_s()) return;
   var st = _s().stamina;
   var barW = 24;
   var barH = 3;
@@ -166,6 +166,7 @@ function drawStaminaBar(ctx) {
 }
 
 function aiResetCooldown() {
+  if (!_s()) { _aiCooldown = 120; _aiTimer = 0; return; }
   var a = _s().ai;
   _aiCooldown = a.cooldownMin + Math.floor(Math.random() * (a.cooldownMax - a.cooldownMin));
   _aiTimer = 0;
