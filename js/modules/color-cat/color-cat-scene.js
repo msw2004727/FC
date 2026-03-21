@@ -517,17 +517,48 @@ function _drawStaticBg(ctx, cw, light) {
 }
 
 function _drawKey(ctx, cx, cy, light) {
+  var R = 18; // 圓圈按鈕半徑
   ctx.save();
-  ctx.strokeStyle = light ? 'rgba(180,140,60,0.7)' : 'rgba(220,190,100,0.6)';
-  ctx.lineWidth = 1.8;
-  ctx.lineCap = 'round';
+
+  // ── 毛玻璃圓圈背景 ──
+  ctx.save();
+  ctx.beginPath(); ctx.arc(cx, cy + 4, R, 0, Math.PI * 2); ctx.closePath(); ctx.clip();
+  // 半透明底色模擬磨砂
+  ctx.fillStyle = light ? 'rgba(255,255,255,0.45)' : 'rgba(40,40,60,0.5)';
+  ctx.fill();
+  // 疊加模糊光暈
+  ctx.filter = 'blur(6px)';
+  ctx.fillStyle = light ? 'rgba(255,255,255,0.35)' : 'rgba(80,80,120,0.35)';
+  ctx.fillRect(cx - R, cy + 4 - R, R * 2, R * 2);
+  ctx.filter = 'none';
+  ctx.restore();
+
+  // ── 圓圈邊框 ──
+  ctx.beginPath(); ctx.arc(cx, cy + 4, R, 0, Math.PI * 2);
+  ctx.strokeStyle = light ? 'rgba(190,160,80,0.55)' : 'rgba(220,200,120,0.4)';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // ── 鑰匙（加粗 + 金色反光） ──
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  // 外層光暈
+  ctx.shadowColor = light ? 'rgba(255,215,0,0.6)' : 'rgba(255,220,80,0.5)';
+  ctx.shadowBlur = 5;
+  // 主色漸層（金色反光）
+  var grad = ctx.createLinearGradient(cx - 5, cy - 6, cx + 5, cy + 14);
+  grad.addColorStop(0, light ? '#e8c840' : '#f0d060');
+  grad.addColorStop(0.45, light ? '#f5e080' : '#ffe890');
+  grad.addColorStop(1, light ? '#c8a020' : '#d4b040');
+  ctx.strokeStyle = grad;
+  ctx.lineWidth = 2.6;
   // 鑰匙圈（圓頭）
-  ctx.beginPath(); ctx.arc(cx, cy - 4, 5, 0, Math.PI * 2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(cx, cy - 4, 5.5, 0, Math.PI * 2); ctx.stroke();
   // 鑰匙桿
   ctx.beginPath(); ctx.moveTo(cx, cy + 1); ctx.lineTo(cx, cy + 12); ctx.stroke();
   // 鑰匙齒
-  ctx.beginPath(); ctx.moveTo(cx, cy + 9); ctx.lineTo(cx + 3, cy + 9); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(cx, cy + 12); ctx.lineTo(cx + 3, cy + 12); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx, cy + 8); ctx.lineTo(cx + 3.5, cy + 8); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx, cy + 12); ctx.lineTo(cx + 3.5, cy + 12); ctx.stroke();
+
   ctx.restore();
 }
 
@@ -583,7 +614,7 @@ function initStaticScene(containerId) {
     var rect = canvas.getBoundingClientRect();
     var cx = e.clientX - rect.left;
     var cy = e.clientY - rect.top;
-    if (Math.abs(cx - _keyX) < 14 && Math.abs(cy - _keyY) < 18) {
+    if (Math.abs(cx - _keyX) < 20 && Math.abs(cy - (_keyY + 4)) < 20) {
       var pw = prompt('請輸入測試密碼');
       if (pw === '8888') {
         destroy();
