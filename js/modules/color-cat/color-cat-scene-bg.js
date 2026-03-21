@@ -8,16 +8,11 @@ var C = window.ColorCatConfig;
 var _ = window.ColorCatScene._;
 
 // ── 天空動畫常數（@30fps） ──
-// TODO: 未來由後台設定間隔
-var BIRD_INTERVAL_MIN   = 300;   // 鳥群：10 秒
-var BIRD_INTERVAL_MAX   = 900;   // 鳥群：30 秒
-var METEOR_INTERVAL_MIN = 150;   // 流星：5 秒
-var METEOR_INTERVAL_MAX = 300;   // 流星：10 秒
-
+var BIRD_INTERVAL_MIN = 300, BIRD_INTERVAL_MAX = 900;
+var METEOR_INTERVAL_MIN = 150, METEOR_INTERVAL_MAX = 300;
 function randInterval(min, max) { return min + Math.floor(Math.random() * (max - min)); }
-var _skyTimer = 0;
-var _skyNextAt = randInterval(METEOR_INTERVAL_MIN, METEOR_INTERVAL_MAX);
-var _skyEvents = [];  // { type:'birds'|'meteor', x, y, vx, vy, timer, maxTimer, ... }
+var _skyTimer = 0, _skyNextAt = randInterval(METEOR_INTERVAL_MIN, METEOR_INTERVAL_MAX);
+var _skyEvents = [];
 
 function drawSun(ctx, x, y) {
   ctx.save();
@@ -40,15 +35,10 @@ function drawMoon(ctx, x, y) {
   ctx.beginPath(); ctx.arc(x, y, 8, 0, Math.PI * 2); ctx.fill();
   ctx.fillStyle = '#0a1628';
   ctx.beginPath(); ctx.arc(x + 4, y - 2, 7, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = 'rgba(255,255,255,0.7)';
-  ctx.font = '6px serif';
-  ctx.fillText('\u2726', x - 14, y - 4);
-  ctx.fillText('\u2726', x - 8, y + 10);
   ctx.restore();
 }
 
 // ── 山巒（兩層景深） ──
-// 座標 [x比例, y高度]，繪製為連續折線山脈剪影
 var FAR_PEAKS = [
   [0,92],[0.06,75],[0.12,82],[0.18,68],[0.25,78],[0.32,62],
   [0.4,72],[0.48,58],[0.55,66],[0.62,54],[0.7,64],[0.78,58],
@@ -72,13 +62,59 @@ function drawMountainLayer(ctx, sw, peaks, color) {
   ctx.fill();
 }
 
+// ── 山頂積雪 ──
+function drawSnowCaps(ctx, sw, peaks, light) {
+  ctx.fillStyle = light ? 'rgba(255,255,255,0.55)' : 'rgba(180,200,220,0.25)';
+  for (var i = 1; i < peaks.length - 1; i++) {
+    var py = peaks[i][1], prevY = peaks[i - 1][1], nextY = peaks[i + 1][1];
+    if (py >= prevY || py >= nextY) continue; // 僅山頂（局部最低 y）
+    var px = peaks[i][0] * sw;
+    var snowH = Math.max(2, (90 - py) * 0.12);
+    var leftDx = (px - peaks[i - 1][0] * sw) / (prevY - py) * snowH;
+    var rightDx = (peaks[i + 1][0] * sw - px) / (nextY - py) * snowH;
+    ctx.beginPath();
+    ctx.moveTo(px, py);
+    ctx.lineTo(px - leftDx, py + snowH);
+    ctx.lineTo(px + rightDx, py + snowH);
+    ctx.closePath();
+    ctx.fill();
+  }
+}
+
 function drawMountains(ctx, sw, light) {
-  // 遠山（較高、較淡）
-  drawMountainLayer(ctx, sw, FAR_PEAKS,
-    light ? 'rgba(140,165,195,0.3)' : 'rgba(10,18,32,0.5)');
-  // 近山（較矮、較深）
-  drawMountainLayer(ctx, sw, NEAR_PEAKS,
-    light ? 'rgba(110,140,170,0.35)' : 'rgba(14,24,42,0.55)');
+  drawMountainLayer(ctx, sw, FAR_PEAKS, light ? 'rgba(140,165,195,0.3)' : 'rgba(30,42,62,0.45)');
+  drawSnowCaps(ctx, sw, FAR_PEAKS, light);
+  drawMountainLayer(ctx, sw, NEAR_PEAKS, light ? 'rgba(110,140,170,0.35)' : 'rgba(10,16,28,0.7)');
+}
+
+// ── 星星（夜間，預生成固定位置） ──
+var _stars = (function() {
+  var arr = [];
+  for (var i = 0; i < 40; i++) {
+    arr.push({
+      xr: Math.random(),           // x 比例（0~1），乘以 sw 得實際位置
+      y: 3 + Math.random() * 52,   // y 3~55（天空區，山巒會自然遮擋）
+      r: 0.3 + Math.random() * 0.7, // 半徑 0.3~1.0
+      a: 0.3 + Math.random() * 0.6, // 基礎亮度 0.3~0.9
+      twinkleSpd: 0.02 + Math.random() * 0.04, // 閃爍速度
+      twinkleOff: Math.random() * Math.PI * 2,  // 閃爍相位
+    });
+  }
+  return arr;
+})();
+var _starTimer = 0;
+
+function drawStars(ctx, sw) {
+  _starTimer++;
+  for (var i = 0; i < _stars.length; i++) {
+    var s = _stars[i];
+    var twinkle = 0.5 + 0.5 * Math.sin(_starTimer * s.twinkleSpd + s.twinkleOff);
+    var alpha = s.a * (0.6 + 0.4 * twinkle);
+    ctx.fillStyle = 'rgba(255,255,255,' + alpha + ')';
+    ctx.beginPath();
+    ctx.arc(s.xr * sw, s.y, s.r, 0, Math.PI * 2);
+    ctx.fill();
+  }
 }
 
 function drawBackground(ctx, sw, light) {
@@ -91,6 +127,9 @@ function drawBackground(ctx, sw, light) {
   }
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, sw, C.SCENE_H);
+
+  // 星星（夜間，畫在山巒前讓山巒自然遮擋）
+  if (!light) drawStars(ctx, sw);
 
   // 山巒（天空之上、草地之下）
   drawMountains(ctx, sw, light);
@@ -107,9 +146,35 @@ function drawBackground(ctx, sw, light) {
   ctx.fillStyle = light ? 'rgba(255,255,255,0.4)' : 'rgba(255,255,255,0.08)';
   ctx.fillRect(0, C.GROUND_Y + 4, sw, 1);
 
+  // 樹（右側背景）
+  drawTree(ctx, sw, light);
+
   // 太陽/月亮
   if (light) drawSun(ctx, sw - 20, 18);
   else drawMoon(ctx, sw - 20, 18);
+}
+
+// ── 背景樹叢（三棵，稍微重疊、高低不同） ──
+var _trees = [
+  { xr: 0.824, trunkH: 20, crownRx: 15, crownRy: 22 }, // 左（最高）
+  { xr: 0.87, trunkH: 17, crownRx: 13, crownRy: 19 },  // 中（稍矮）
+  { xr: 0.91, trunkH: 22, crownRx: 14, crownRy: 21 },  // 右（中高）
+];
+function drawTree(ctx, sw, light) {
+  var gY = C.GROUND_Y;
+  var trunkC = light ? '#6D4C2E' : '#2A1F14';
+  var crownD = light ? '#2E7D32' : '#0E2E10';
+  var crownL = light ? '#43A047' : '#1B4A1E';
+  for (var i = 0; i < _trees.length; i++) {
+    var t = _trees[i], tx = sw * t.xr;
+    var cy = gY - t.trunkH - t.crownRy + 6;
+    ctx.fillStyle = trunkC;
+    ctx.fillRect(tx - 2.5, gY - t.trunkH, 5, t.trunkH);
+    ctx.fillStyle = crownD;
+    ctx.beginPath(); ctx.ellipse(tx, cy + 2, t.crownRx + 2, t.crownRy + 2, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = crownL;
+    ctx.beginPath(); ctx.ellipse(tx - 1, cy, t.crownRx, t.crownRy, 0, 0, Math.PI * 2); ctx.fill();
+  }
 }
 
 // ── 天空動畫：鳥群（白天）/ 流星（夜晚） ──

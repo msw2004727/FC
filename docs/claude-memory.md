@@ -10,6 +10,20 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-21 — 場景背景視覺增強
+- **功能**：(1) 遠山山頂積雪 (2) 夜間主題兩層山巒色差修正 (3) 40 顆閃爍星星 (4) 移除月亮旁裝飾星 (5) 右側三棵背景樹叢
+- **改動**：color-cat-scene-bg.js — drawSnowCaps 新增、夜間山巒色值調整、_stars 預生成陣列、drawMoon 簡化、_trees 三棵橢圓樹冠
+
+### 2026-03-21 — 濃霧時角色 90% 想回紙箱睡覺
+- **功能**：場景濃霧啟動時，AI 行動選擇中 sleep 權重提升至 90%
+- **改動**：color-cat-character-ai.js — aiPickAction 新增 isFog 判斷，sleepW = otherW × 9
+
+### 2026-03-21 — 模組拆分（花朵/蝴蝶、角色動作）
+- **問題**：scene-flower.js（526 行）與 character-actions.js（751 行）超過 300 行限制
+- **修復**：scene-flower.js → flower（270 行）+ butterfly（176 行）；character-actions.js → core（270 行）+ interact（192 行）+ special（236 行）
+- **改動**：新增 scene-butterfly.js、character-actions-interact.js、character-actions-special.js；更新 GrowthGames.html、script-loader.js 載入順序
+- **教訓**：跨 IIFE 拆分時，被拆出的檔案透過共享命名空間 `_` 存取原 IIFE 內部函式；需確認載入順序（flower 先於 butterfly、actions 先於 interact/special）
+
 ### 2026-03-21 — 總管隱身模式
 - **功能**：點抽屜角色標籤切換隱身，全站膠囊/個人名片/資料頁顯示為一般用戶
 - **實作**：`_stealthRole()` 攔截 role 顯示，`localStorage('admin_stealth')` 持久化，抽屜標籤變半透明提示

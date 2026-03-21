@@ -42,6 +42,13 @@ function aiPickAction(sw, ballState) {
   var hasButterflies = scene_ && scene_.getHoveringButterflies && scene_.getHoveringButterflies().length > 0;
   var chaseButterflyW = hasButterflies ? (w.chase * 2) : 0;
 
+  // 濃霧時角色想回紙箱睡覺（90% 機率）
+  var isFog = scene_ && scene_.isFogActive && scene_.isFogActive();
+  if (isFog) {
+    var otherW = w.biteBall + w.chase + w.dash + w.climbBox + w.climbWall + watchFlowerW + chaseButterflyW;
+    sleepW = otherW * 9;  // sleep:other = 9:1 = 90%
+  }
+
   // 有存活敵人時攻擊敵人為最高優先（壓倒性權重：80% 機率攻擊敵人）
   var E = window.ColorCatEnemy;
   var hasEnemies = E && E.hasAlive();
@@ -128,8 +135,8 @@ function updateChaseKickIdle(sw, ballState, defs) {
         ch.y = C.CHAR_GROUND_Y; ch.onGround = true; ch.vy = 0;
       }
     }
-    if (ch._dragKickPhase !== undefined && _isDrag) {
-      // ── 拖曳 kick（兩階段） ──
+    if (ch._dragKickPhase !== undefined) {
+      // ── 拖曳 kick（兩階段，拖曳結束後仍播完動畫） ──
       if (ch._dragKickPhase === 0) {
         // 跳躍階段：朝球飛行，接近時切攻擊
         ch.facing = (ballState.x >= ch.x) ? 1 : -1;
@@ -139,17 +146,16 @@ function updateChaseKickIdle(sw, ballState, defs) {
         var dist0 = Math.sqrt(dx0 * dx0 + dy0 * dy0);
         if (dist0 < DRAG_ATTACK_DIST + ballState.r) {
           ch._dragKickPhase = 1; ch._kickFacing = ch.facing;
-          ch.spriteFrame = 0; ch.spriteTimer = 0;
+          ch.spriteFrame = 0; ch.spriteTimer = 0; ch.actionFrame = 0;
         } else if (ch.onGround && ch.actionFrame > 8) {
-          // 落地未觸球 → 重新追擊
           ch._dragKickPhase = undefined;
-          if (_s().stamina.current > 0) {
+          if (_isDrag && _s().stamina.current > 0) {
             ch.action = 'chase'; ch.actionFrame = 0;
             ch.spriteFrame = 0; ch.spriteTimer = 0;
           } else { ch.action = 'idle'; ch.actionFrame = 0; ch.spriteFrame = 0; ch.spriteTimer = 0; }
         }
       } else {
-        // 攻擊階段：方向鎖定，命中判定
+        // 攻擊階段：方向鎖定，命中判定，動畫播完才結束
         ch.facing = ch._kickFacing;
         var hitFrame = _s().physics.hitFrame;
         if (!ch._kicked && ch.spriteFrame >= hitFrame) {
@@ -158,16 +164,20 @@ function updateChaseKickIdle(sw, ballState, defs) {
           var hd = Math.sqrt(dx1 * dx1 + dy1 * dy1);
           if (hd < C.SPRITE_DRAW * 0.6 + ballState.r) {
             ch._kicked = true; _s().runtime.totalKicks++;
-            ch._dragKickPhase = undefined;
-            return true;   // 踢飛球（場景釋放拖曳 + 踢球）
+            return true;   // 踢飛球（場景釋放拖曳 + 踢球，_dragKickPhase 保留讓動畫播完）
           }
         }
-        if (ch.onGround && ch.actionFrame > 12) {
+        var atkTotal = Math.ceil(defs.attack.frames / defs.attack.speed);
+        if (ch.onGround && ch.actionFrame > atkTotal) {
           ch._dragKickPhase = undefined;
-          if (_s().stamina.current > 0) {
+          if (_isDrag && _s().stamina.current > 0) {
             ch.action = 'chase'; ch.actionFrame = 0;
             ch.spriteFrame = 0; ch.spriteTimer = 0;
           } else { ch.action = 'idle'; ch.actionFrame = 0; ch.spriteFrame = 0; ch.spriteTimer = 0; }
+        } else if (ch.actionFrame > atkTotal + 60) {
+          ch.y = C.CHAR_GROUND_Y; ch.onGround = true; ch.vy = 0;
+          ch._dragKickPhase = undefined;
+          ch.action = 'idle'; ch.actionFrame = 0; ch.spriteFrame = 0; ch.spriteTimer = 0;
         }
       }
     } else {
