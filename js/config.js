@@ -306,7 +306,8 @@
 // 20260321f: Toast 支援多行 + 錯誤提示加入原因與排除步驟
 // 20260321g: 清除快取彈窗加 Warning 紅字 + 毛玻璃背景 + 風險提示
 // 20260321h: 補發操作紀錄改為 Firestore operationLogs（全管理員可見）
-const CACHE_VERSION = '20260321h';
+// 20260321i: 補發操作紀錄改為卡片式排版
+const CACHE_VERSION = '20260321i';
 
 // ─── Page Strategy Registry ───
 // 唯一策略來源，未列出的頁面預設 fresh-first

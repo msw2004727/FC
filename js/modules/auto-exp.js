@@ -270,29 +270,30 @@ Object.assign(App, {
         var tb = b.data().createdAt?.toMillis?.() || 0;
         return tb - ta;
       });
-      var html = '<table style="width:100%;border-collapse:collapse">'
-        + '<thead><tr style="border-bottom:1px solid var(--border)">'
-        + '<th style="padding:.25rem .4rem;font-size:.72rem;text-align:left;color:var(--text-muted)">時間</th>'
-        + '<th style="padding:.25rem .4rem;font-size:.72rem;text-align:left;color:var(--text-muted)">操作者</th>'
-        + '<th style="padding:.25rem .4rem;font-size:.72rem;text-align:center;color:var(--text-muted)">人數</th>'
-        + '<th style="padding:.25rem .4rem;font-size:.72rem;text-align:center;color:var(--text-muted)">筆數</th>'
-        + '<th style="padding:.25rem .4rem;font-size:.72rem;text-align:right;color:var(--text-muted)">總 EXP</th>'
-        + '</tr></thead><tbody>';
+      var html = '';
       docs.forEach(function (doc) {
         var d = doc.data() || {};
         var time = d.time || '';
         var totalExp = typeof d.totalExp === 'number' ? d.totalExp : null;
-        var expStr = totalExp !== null ? ((totalExp >= 0 ? '+' : '') + totalExp) : d.content || '-';
+        var expStr = totalExp !== null ? ((totalExp >= 0 ? '+' : '') + totalExp) : '-';
         var expColor = totalExp !== null ? (totalExp >= 0 ? 'var(--success)' : 'var(--danger)') : 'var(--text-primary)';
-        html += '<tr style="border-bottom:1px solid var(--border)">'
-          + '<td style="padding:.25rem .4rem;font-size:.75rem;color:var(--text-muted);white-space:nowrap">' + escapeHTML(time) + '</td>'
-          + '<td style="padding:.25rem .4rem;font-size:.75rem;font-weight:600">' + escapeHTML(d.operator || '') + '</td>'
-          + '<td style="padding:.25rem .4rem;font-size:.75rem;text-align:center">' + (typeof d.uniqueUsers === 'number' ? d.uniqueUsers : '-') + '</td>'
-          + '<td style="padding:.25rem .4rem;font-size:.75rem;text-align:center">' + (typeof d.grantedCount === 'number' ? d.grantedCount : '-') + '</td>'
-          + '<td style="padding:.25rem .4rem;font-size:.75rem;font-weight:700;text-align:right;color:' + expColor + '">' + escapeHTML(expStr) + '</td>'
-          + '</tr>';
+        var hasDetail = typeof d.uniqueUsers === 'number';
+        html += '<div style="padding:.5rem .6rem;margin-bottom:.4rem;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-card)">'
+          // 第一行：時間 + 操作者
+          + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.3rem">'
+          + '<span style="font-size:.78rem;font-weight:600;color:var(--text-primary)">' + escapeHTML(d.operator || '-') + '</span>'
+          + '<span style="font-size:.7rem;color:var(--text-muted)">' + escapeHTML(time) + '</span>'
+          + '</div>'
+          // 第二行：統計數據
+          + '<div style="display:flex;align-items:center;gap:.6rem;font-size:.75rem">'
+          + '<span style="color:var(--text-secondary)">補發 <b>' + (hasDetail ? d.uniqueUsers : '-') + '</b> 人</span>'
+          + '<span style="color:var(--text-secondary)">共 <b>' + (hasDetail ? d.grantedCount : '-') + '</b> 筆</span>'
+          + '<span style="font-weight:700;color:' + expColor + '">總計 ' + escapeHTML(expStr) + ' EXP</span>'
+          + (typeof d.errorCount === 'number' && d.errorCount > 0
+            ? '<span style="font-size:.7rem;color:var(--danger)">失敗 ' + d.errorCount + ' 筆</span>' : '')
+          + '</div>'
+          + '</div>';
       });
-      html += '</tbody></table>';
       container.innerHTML = html;
     } catch (err) {
       container.innerHTML = '<div style="font-size:.82rem;color:var(--danger);padding:.5rem 0">載入失敗：' + escapeHTML(err.message || '') + '</div>';
