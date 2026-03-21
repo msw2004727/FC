@@ -140,17 +140,17 @@ const ApiService = {
     const normalized = raw.toLowerCase().replace(/\s+/g, '');
     if (this._isAttendancePermissionError(err)) {
       if (!this._hasLiffSession()) {
-        return '未偵測到 LINE 登入，請關閉後重新從 LINE 開啟';
+        return '未偵測到 LINE 登入，請嘗試登出再重新登入';
       }
       if (!this._hasLineAccessToken()) {
-        return 'LINE 登入已過期，請關閉後重新從 LINE 開啟';
+        return 'LINE 登入已過期，請嘗試登出再重新登入';
       }
       // auth.currentUser 存在但 Firestore 拒絕 vs 根本未登入
       const hasUser = typeof auth !== 'undefined' && !!auth?.currentUser;
       if (!hasUser) {
-        return 'Firebase 登入失敗，請關閉此頁面後重新從 LINE 開啟';
+        return 'Firebase 登入失敗，請嘗試登出再重新登入';
       }
-      return 'Firebase 權限不足，請聯繫管理員確認帳號權限';
+      return 'Firebase 權限不足，請嘗試登出再重新登入，若仍無法使用請聯繫管理員';
     }
     if (normalized.includes('missingrequiredfields')) {
       return '簽到資料格式錯誤，缺少必要欄位';
