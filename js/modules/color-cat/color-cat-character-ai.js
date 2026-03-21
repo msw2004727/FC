@@ -77,6 +77,7 @@ function aiSetSceneInfo(info) { _.aiSceneInfo = info; }
 var DRAG_JUMP_DIST = 50;     // 起跳距離 px
 var DRAG_ATTACK_DIST = 22;   // 切換攻擊距離 px
 var DRAG_MAX_VY = -3.5;      // 最大跳躍力（限制高度 ~41px）
+var DRAG_ABOVE_THRESHOLD = 20; // 正上方判定範圍（±px），避免左右甩動
 
 // ── 更新：追球 / 踢球 / 閒置 AI ──
 function updateChaseKickIdle(sw, ballState, defs) {
@@ -85,24 +86,56 @@ function updateChaseKickIdle(sw, ballState, defs) {
 
   if (ch.action === 'chase') {
     if (_isDrag) {
-      // ── 拖曳模式：跑向球 → 到距離後起跳 ──
-      ch.facing = (ballState.x >= ch.x) ? 1 : -1;
+      // ── 拖曳模式 ──
       var dxDrag = Math.abs(ballState.x - ch.x);
-      if (dxDrag > DRAG_JUMP_DIST) {
-        ch.x += ch.facing * ch.speed * 1.3;
-      } else {
-        // 起跳距離內：跳向球
+      var isAbove = dxDrag <= DRAG_ABOVE_THRESHOLD;
+
+      if (isAbove) {
+        // ── 球在正上方：不移動，原地跳 → 接近後攻擊 ──
+        // 面向保持不變（避免甩動）
         if (ch.onGround) {
-          var floorY = C.CHAR_GROUND_Y - 6;
-          var ballH = floorY - ballState.y - ballState.r;
-          var jp = ballH > 10
-            ? Math.max(DRAG_MAX_VY, -(Math.sqrt(2 * 0.15 * Math.max(ballH, 20)) + 0.5))
-            : -2.5;
-          ch.vy = jp; ch.onGround = false;
+          var floorY0 = C.CHAR_GROUND_Y - 6;
+          var ballH0 = floorY0 - ballState.y - ballState.r;
+          if (ballH0 > 5) {
+            var jp0 = Math.max(DRAG_MAX_VY, -(Math.sqrt(2 * 0.15 * Math.max(ballH0, 20)) + 0.5));
+            ch.vy = jp0; ch.onGround = false;
+          } else {
+            // 球很低，直接攻擊
+            ch._dragKickPhase = 0;
+            ch.action = 'kick'; ch.actionFrame = 0;
+            ch.spriteFrame = 0; ch.spriteTimer = 0; ch._kicked = false;
+          }
         }
-        ch._dragKickPhase = 0;
-        ch.action = 'kick'; ch.actionFrame = 0;
-        ch.spriteFrame = 0; ch.spriteTimer = 0; ch._kicked = false;
+        // 空中：檢查是否接近球可以攻擊
+        if (!ch.onGround) {
+          var dy0 = Math.abs(ballState.y - (ch.y - C.SPRITE_DRAW * 0.4));
+          var dist0 = Math.sqrt(dxDrag * dxDrag + dy0 * dy0);
+          if (dist0 < DRAG_ATTACK_DIST + ballState.r) {
+            ch.facing = (ballState.x >= ch.x) ? 1 : -1;
+            ch._dragKickPhase = 1; ch._kickFacing = ch.facing;
+            ch.action = 'kick'; ch.actionFrame = 0;
+            ch.spriteFrame = 0; ch.spriteTimer = 0; ch._kicked = false;
+          }
+        }
+      } else {
+        // ── 球不在正上方：跑向球 → 到距離後起跳 ──
+        ch.facing = (ballState.x >= ch.x) ? 1 : -1;
+        if (dxDrag > DRAG_JUMP_DIST) {
+          ch.x += ch.facing * ch.speed * 1.3;
+        } else {
+          // 起跳距離內：跳向球
+          if (ch.onGround) {
+            var floorY = C.CHAR_GROUND_Y - 6;
+            var ballH = floorY - ballState.y - ballState.r;
+            var jp = ballH > 10
+              ? Math.max(DRAG_MAX_VY, -(Math.sqrt(2 * 0.15 * Math.max(ballH, 20)) + 0.5))
+              : -2.5;
+            ch.vy = jp; ch.onGround = false;
+          }
+          ch._dragKickPhase = 0;
+          ch.action = 'kick'; ch.actionFrame = 0;
+          ch.spriteFrame = 0; ch.spriteTimer = 0; ch._kicked = false;
+        }
       }
     } else {
       // ── 一般追球：方向固定 ──
@@ -139,15 +172,21 @@ function updateChaseKickIdle(sw, ballState, defs) {
       // ── 拖曳 kick（兩階段，拖曳結束後仍播完動畫） ──
       if (ch._dragKickPhase === 0) {
         // 跳躍階段：朝球飛行，接近時切攻擊
-        ch.facing = (ballState.x >= ch.x) ? 1 : -1;
-        ch.x += ch.facing * ch.speed * 0.8;
         var dx0 = Math.abs(ballState.x - ch.x);
+        var isAbove0 = dx0 <= DRAG_ABOVE_THRESHOLD;
+        if (!isAbove0) {
+          ch.facing = (ballState.x >= ch.x) ? 1 : -1;
+          ch.x += ch.facing * ch.speed * 0.8;
+        }
+        // 不更新 dx0，用原值判定距離
         var dy0 = Math.abs(ballState.y - (ch.y - C.SPRITE_DRAW * 0.4));
         var dist0 = Math.sqrt(dx0 * dx0 + dy0 * dy0);
         if (dist0 < DRAG_ATTACK_DIST + ballState.r) {
+          ch.facing = (ballState.x >= ch.x) ? 1 : -1;
           ch._dragKickPhase = 1; ch._kickFacing = ch.facing;
           ch.spriteFrame = 0; ch.spriteTimer = 0; ch.actionFrame = 0;
         } else if (ch.onGround && ch.actionFrame > 8) {
+          // 落地未打到：回到 chase 重新跳
           ch._dragKickPhase = undefined;
           if (_isDrag && _s().stamina.current > 0) {
             ch.action = 'chase'; ch.actionFrame = 0;
