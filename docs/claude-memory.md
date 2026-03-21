@@ -10,6 +10,12 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-21 — 總管隱身模式
+- **功能**：點抽屜角色標籤切換隱身，全站膠囊/個人名片/資料頁顯示為一般用戶
+- **實作**：`_stealthRole()` 攔截 role 顯示，`localStorage('admin_stealth')` 持久化，抽屜標籤變半透明提示
+- **改動**：profile-core.js（_userTag + showUserProfile）、profile-data-render.js、role.js
+- **教訓**：純顯示層修改，不碰權限判斷（getUserRole / applyRole 的權限邏輯不受影響）
+
 ### 2026-03-21 — 拖曳追球兩階段系統（跳躍→攻擊）
 - **問題**：(1) 拖曳中球不被踢飛 (2) 兔子無攻擊動作 (3) 跳太高超出畫面 (4) 攻擊時角色左右翻轉 (5) 應從遠處起跳、接近時才攻擊
 - **修復**：`color-cat-character-ai.js` 重寫拖曳 kick 為兩階段 `_dragKickPhase`：Phase 0（跳躍，'jump' 精靈，朝球飛行可轉向）→ Phase 1（攻擊，'attack' 精靈，方向鎖定，命中即踢飛球）。起跳距離 50px、切攻擊距離 22px、最大 vy=-3.5（限高 ~41px）。命中後 return true 讓場景釋放拖曳+踢球。`character.js` getSpriteKey 增加 _dragKickPhase 判斷，Phase 1 一律用 'attack'（解決兔子無 jump_attack 問題）

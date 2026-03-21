@@ -8,6 +8,25 @@ Object.assign(App, {
 
   _pendingFirstLogin: false,
 
+  /* ── Admin Stealth Mode ── */
+  _isAdminStealth() {
+    return localStorage.getItem('admin_stealth') === '1';
+  },
+  _toggleAdminStealth() {
+    const cur = this._isAdminStealth();
+    if (cur) localStorage.removeItem('admin_stealth');
+    else localStorage.setItem('admin_stealth', '1');
+    return !cur;
+  },
+  /** 若隱身模式啟用且 name 是自己，回傳 'user'；否則回傳原 role */
+  _stealthRole(name, role) {
+    if (!this._isAdminStealth()) return role;
+    if (role !== 'admin' && role !== 'super_admin') return role;
+    const cu = ApiService.getCurrentUser();
+    const myName = (cu && (cu.displayName || cu.name)) || '';
+    return (name === myName) ? 'user' : role;
+  },
+
   /**
    * 等級公式：升到 level L 的累計 EXP = 50 * L * (L+1)
    * 每級所需：level N → N+1 需要 (N+1)*100 EXP
@@ -39,7 +58,8 @@ Object.assign(App, {
   },
 
   _userTag(name, forceRole) {
-    const role = forceRole || ApiService.getUserRole(name);
+    const rawRole = forceRole || ApiService.getUserRole(name);
+    const role = this._stealthRole(name, rawRole);
     const user = this._findUserByName(name);
     const lvl = this._calcLevelFromExp((user && user.exp) || 0).level;
     return `<span class="user-capsule uc-${role}" onclick="App.showUserProfile('${escapeHTML(name)}')" title="${ROLES[role]?.label || '一般用戶'}"><span class="uc-lv">Lv${lvl}</span>${escapeHTML(name)}</span>`;
@@ -65,7 +85,8 @@ Object.assign(App, {
 
     // 如果是自己，優先用 currentUser + LINE 資料；否則從 adminUsers 查
     const user = isSelf ? currentUser : this._findUserByName(name);
-    const role = user ? user.role : ApiService.getUserRole(name);
+    const rawRole = user ? user.role : ApiService.getUserRole(name);
+    const role = this._stealthRole(name, rawRole);
     const roleInfo = ROLES[role] || ROLES.user;
     const achievementProfile = this._getAchievementProfile?.();
 

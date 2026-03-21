@@ -155,12 +155,33 @@ Object.assign(App, {
       drawerRoleTag.textContent = roleInfo.label;
       drawerRoleTag.style.background = roleInfo.color + '22';
       drawerRoleTag.style.color = roleInfo.color;
+      // Admin stealth toggle（僅 admin / super_admin 可用）
+      if (role === 'admin' || role === 'super_admin') {
+        drawerRoleTag.style.cursor = 'pointer';
+        drawerRoleTag.onclick = function() {
+          const on = App._toggleAdminStealth();
+          drawerRoleTag.style.opacity = on ? '.45' : '1';
+          drawerRoleTag.title = on ? '隱身模式（點擊恢復）' : '';
+          if (typeof App.showToast === 'function') {
+            App.showToast(on ? '已開啟隱身模式' : '已關閉隱身模式');
+          }
+        };
+        // 初始狀態同步
+        if (App._isAdminStealth()) {
+          drawerRoleTag.style.opacity = '.45';
+          drawerRoleTag.title = '隱身模式（點擊恢復）';
+        }
+      }
     }
 
-    // 更新個人資料頁角色膠囊
+    // 更新個人資料頁角色膠囊（受隱身模式影響）
     const roleTagWrap = document.getElementById('profile-role-tag-wrap');
     if (roleTagWrap) {
-      roleTagWrap.innerHTML = `<span class="uc-role-tag" style="background:${roleInfo.color}22;color:${roleInfo.color}">${roleInfo.label}</span>`;
+      const cu = ApiService.getCurrentUser();
+      const myName = (cu && (cu.displayName || cu.name)) || '';
+      const visRole = this._stealthRole(myName, role);
+      const visInfo = ROLES[visRole] || ROLES.user;
+      roleTagWrap.innerHTML = `<span class="uc-role-tag" style="background:${visInfo.color}22;color:${visInfo.color}">${visInfo.label}</span>`;
     }
 
     this._applyRoleBoundVisibility(role);

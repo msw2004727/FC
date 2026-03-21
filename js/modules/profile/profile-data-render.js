@@ -79,7 +79,8 @@ Object.assign(App, {
     // 角色膠囊
     const roleTagWrap = el('profile-role-tag-wrap');
     if (roleTagWrap) {
-      const role = user.role || 'user';
+      const rawRole = user.role || 'user';
+      const role = this._stealthRole(user.displayName || user.name || '', rawRole);
       const roleInfo = ROLES[role] || ROLES.user;
       roleTagWrap.innerHTML = `<span class="uc-role-tag" style="background:${roleInfo.color}22;color:${roleInfo.color}">${roleInfo.label}</span>`;
     }
