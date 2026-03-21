@@ -320,7 +320,8 @@
 // 20260321t: 法律按鈕縮小字體與寬度，不換行不擠壓主題文字
 // 20260321u: 字體/下載按鈕移到用戶名右側同行，名字過長 ellipsis
 // 20260321v: 字體/下載按鈕置右
-const CACHE_VERSION = '20260321v';
+// 20260321w: 修復拖曳球時角色無攻擊動作（雙重力/jump_attack/持續追擊）
+const CACHE_VERSION = '20260321w';
 
 // ─── Page Strategy Registry ───
 // 唯一策略來源，未列出的頁面預設 fresh-first

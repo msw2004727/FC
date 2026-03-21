@@ -152,7 +152,7 @@ function getSpriteKey() {
   if (character.action === 'dash') return 'roll';
   if (character.action === 'goToBox') return 'run';
   if (character.action === 'biteBall') return 'run';
-  if (character.action === 'kick') return character.onGround ? 'attack' : 'jump';
+  if (character.action === 'kick') return character.onGround ? 'attack' : 'jump_attack';
   if (character.action === 'sleeping') return 'idle';
   if (character.action === 'watchFlower') return 'idle';
   if (character.action === 'goToFlower') return 'run';
@@ -215,7 +215,7 @@ function updateCharacter(sceneWidth, ballState) {
   }
 
   // 垂直物理（combo/jumpOff 自行處理，跳過）
-  if (!character.onGround && character.action !== 'combo' && character.action !== 'jumpOff' && character.action !== 'knockback' && character.action !== 'attackButterfly') {
+  if (!character.onGround && character.action !== 'combo' && character.action !== 'jumpOff' && character.action !== 'knockback' && character.action !== 'attackButterfly' && character.action !== 'kick') {
     var floorY = character._testBoxY || C.CHAR_GROUND_Y;
     if (_s()) character.vy += _s().physics.gravity;
     character.y += character.vy;

@@ -69,29 +69,33 @@ function aiSetSceneInfo(info) { _.aiSceneInfo = info; }
 // ── 更新：追球 / 踢球 / 閒置 AI ──
 function updateChaseKickIdle(sw, ballState, defs) {
   if (!_s()) return false;
+  var _isDrag = window.ColorCatBall && ColorCatBall.isDragging();
+
   if (ch.action === 'chase') {
-    var isDrag = window.ColorCatBall && ColorCatBall.isDragging();
-    if (isDrag) {
-      // 拖曳模式：持續更新朝向，避免倒著跑
+    if (_isDrag) {
+      // ── 拖曳模式：持續追蹤球位置 ──
       ch._chaseFacing = (ballState.x >= ch.x) ? 1 : -1;
       ch.facing = ch._chaseFacing;
-      var dxDrag = ballState.x - ch.x;
-      if (Math.abs(dxDrag) > 10) {
-        ch.x += ch.facing * ch.speed;
+      var dxDrag = Math.abs(ballState.x - ch.x);
+      if (dxDrag > 15) {
+        // 跑向球（加速追趕）
+        ch.x += ch.facing * ch.speed * 1.3;
       } else {
-        // 接近球：跳起攻擊
-        var floorY = C.CHAR_GROUND_Y - 6;
-        var ballH = floorY - ballState.y - ballState.r;
-        if (ballH > 15 && ch.onGround) {
-          var jumpPower = Math.min(-7, -(Math.sqrt(2 * 0.15 * ballH) + 1));
-          ch.vy = jumpPower;
+        // 接近球：一律跳起攻擊
+        if (ch.onGround) {
+          var floorY = C.CHAR_GROUND_Y - 6;
+          var ballH = floorY - ballState.y - ballState.r;
+          var jp = ballH > 15
+            ? Math.min(-7, -(Math.sqrt(2 * 0.15 * ballH) + 1))
+            : -4;   // 球在地面也做小跳
+          ch.vy = jp;
           ch.onGround = false;
         }
-        ch._chaseFacing = 0; ch.action = 'kick'; ch.actionFrame = 0;
+        ch.action = 'kick'; ch.actionFrame = 0;
         ch.spriteFrame = 0; ch.spriteTimer = 0; ch._kicked = false;
       }
     } else {
-      // 一般追球：方向固定
+      // ── 一般追球：方向固定 ──
       if (!ch._chaseFacing) ch._chaseFacing = (ballState.x >= ch.x) ? 1 : -1;
       var ko = _s().physics.kickOffset;
       var kickOffset = ch._chaseFacing >= 0 ? -ko : ko;
@@ -114,7 +118,13 @@ function updateChaseKickIdle(sw, ballState, defs) {
     }
   } else if (ch.action === 'kick') {
     ch.actionFrame++;
-    // 空中物理
+    // 拖曳中：邊跳邊追球（不停下來）
+    if (_isDrag) {
+      var dragDir = (ballState.x >= ch.x) ? 1 : -1;
+      ch.facing = dragDir;
+      ch.x += dragDir * ch.speed * 0.8;
+    }
+    // 空中物理（kick 已排除 character.js 通用重力，此處自行處理）
     if (!ch.onGround) {
       ch.vy += 0.15;
       ch.y += ch.vy;
@@ -126,21 +136,18 @@ function updateChaseKickIdle(sw, ballState, defs) {
     var totalFrames = Math.ceil(attackDef.frames / attackDef.speed);
     var hitFrame = _s().physics.hitFrame;
     if (!ch._kicked && ch.spriteFrame >= hitFrame) {
-      // 判定攻擊範圍：角色中心到球的距離
       var dx = Math.abs(ballState.x - ch.x);
       var dy = Math.abs(ballState.y - (ch.y - C.SPRITE_DRAW * 0.4));
       var hitDist = Math.sqrt(dx * dx + dy * dy);
       if (hitDist < C.SPRITE_DRAW * 0.6 + ballState.r) {
         ch._kicked = true; _s().runtime.totalKicks++;
-        return true;
+        // 拖曳中不釋放球，繼續追擊循環
+        if (!_isDrag) return true;
       }
     }
     if (ch.actionFrame > totalFrames) {
-      var dragging = window.ColorCatBall && ColorCatBall.isDragging();
-      var hasStamina = _s() && _s().stamina.current > 0;
       if (ch.onGround) {
-        // 球被拖曳中且有體力 → 立即再追（不冷卻）
-        if (dragging && hasStamina) {
+        if (_isDrag && _s() && _s().stamina.current > 0) {
           ch.action = 'chase'; ch.actionFrame = 0;
           ch.spriteFrame = 0; ch.spriteTimer = 0; ch._chaseFacing = 0;
         } else {
@@ -148,9 +155,8 @@ function updateChaseKickIdle(sw, ballState, defs) {
           ch.spriteFrame = 0; ch.spriteTimer = 0;
         }
       } else if (ch.actionFrame > totalFrames + 60) {
-        // 安全閥：空中超過 2 秒強制落地
         ch.y = C.CHAR_GROUND_Y; ch.onGround = true; ch.vy = 0;
-        if (dragging && hasStamina) {
+        if (_isDrag && _s() && _s().stamina.current > 0) {
           ch.action = 'chase'; ch.actionFrame = 0;
           ch.spriteFrame = 0; ch.spriteTimer = 0; ch._chaseFacing = 0;
         } else {
@@ -160,10 +166,8 @@ function updateChaseKickIdle(sw, ballState, defs) {
       }
     }
   } else {
-    // 球被拖曳中且有體力 → 立即追球（跳過冷卻）
-    var draggingIdle = window.ColorCatBall && ColorCatBall.isDragging();
-    var hasStaminaIdle = _s() && _s().stamina.current > 0;
-    if (draggingIdle && hasStaminaIdle) {
+    // 拖曳中且有體力 → 立即追球
+    if (_isDrag && _s() && _s().stamina.current > 0) {
       ch.action = 'chase'; ch.actionFrame = 0;
       ch.spriteFrame = 0; ch.spriteTimer = 0; ch._chaseFacing = 0;
       return false;
