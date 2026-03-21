@@ -327,8 +327,7 @@ function initInteractiveScene(containerId) {
       _canvas.height = C.SCENE_H * _dpr;
       _ctx = _canvas.getContext('2d');
       _ctx.scale(_dpr, _dpr);
-      ColorCatBall.state.x = Math.min(ColorCatBall.state.x, _sw - ColorCatBall.state.r);
-      ColorCatCharacter.state.x = Math.min(ColorCatCharacter.state.x, _sw - 20);
+      _canvas.style.width = _sw + 'px';
     }, 150);
   });
 
@@ -343,6 +342,50 @@ function initInteractiveScene(containerId) {
 
 // ===== 初始化（靜態版，僅背景，用於正式版尚未開放互動時） =====
 
+function _drawStaticBg(ctx, cw, light) {
+  // 天空漸層（不畫山和樹）
+  var grad = ctx.createLinearGradient(0, 0, 0, C.SCENE_H);
+  if (light) {
+    grad.addColorStop(0, '#87CEEB'); grad.addColorStop(0.7, '#B0E0F0'); grad.addColorStop(1, '#4CAF50');
+  } else {
+    grad.addColorStop(0, '#0a1628'); grad.addColorStop(0.7, '#0f2035'); grad.addColorStop(1, '#1a3a1a');
+  }
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, cw, C.SCENE_H);
+  // 草地
+  ctx.fillStyle = light ? '#4CAF50' : '#1a3a1a';
+  ctx.fillRect(0, C.GROUND_Y, cw, C.SCENE_H - C.GROUND_Y);
+  ctx.fillStyle = light ? '#388E3C' : '#153015';
+  for (var gx = 0; gx < cw; gx += 6) ctx.fillRect(gx, C.GROUND_Y, 3, 2);
+  // 太陽/月亮
+  if (light) {
+    ctx.save(); ctx.fillStyle = '#FDB813';
+    ctx.beginPath(); ctx.arc(cw - 20, 18, 7, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#FDB813'; ctx.lineWidth = 1.5;
+    for (var i = 0; i < 8; i++) {
+      var a = (i / 8) * Math.PI * 2;
+      ctx.beginPath(); ctx.moveTo(cw-20+Math.cos(a)*9, 18+Math.sin(a)*9);
+      ctx.lineTo(cw-20+Math.cos(a)*13, 18+Math.sin(a)*13); ctx.stroke();
+    }
+    ctx.restore();
+  }
+}
+
+function _drawKey(ctx, cx, cy, light) {
+  ctx.save();
+  ctx.strokeStyle = light ? 'rgba(180,140,60,0.7)' : 'rgba(220,190,100,0.6)';
+  ctx.lineWidth = 1.8;
+  ctx.lineCap = 'round';
+  // 鑰匙圈（圓頭）
+  ctx.beginPath(); ctx.arc(cx, cy - 4, 5, 0, Math.PI * 2); ctx.stroke();
+  // 鑰匙桿
+  ctx.beginPath(); ctx.moveTo(cx, cy + 1); ctx.lineTo(cx, cy + 12); ctx.stroke();
+  // 鑰匙齒
+  ctx.beginPath(); ctx.moveTo(cx, cy + 9); ctx.lineTo(cx + 3, cy + 9); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx, cy + 12); ctx.lineTo(cx + 3, cy + 12); ctx.stroke();
+  ctx.restore();
+}
+
 function initStaticScene(containerId) {
   var container = document.getElementById(containerId);
   if (!container) return;
@@ -355,16 +398,17 @@ function initStaticScene(containerId) {
   var cw = container.offsetWidth || 300;
   canvas.width = cw * dpr;
   canvas.height = C.SCENE_H * dpr;
-  canvas.style.cssText = 'width:100%;height:' + C.SCENE_H + 'px;border-radius:var(--radius-sm);image-rendering:pixelated;display:block;';
+  canvas.style.cssText = 'width:100%;height:' + C.SCENE_H + 'px;border-radius:var(--radius-sm);image-rendering:pixelated;display:block;cursor:pointer;';
   container.appendChild(canvas);
   var ctx = canvas.getContext('2d');
   ctx.scale(dpr, dpr);
 
+  var _keyX, _keyY;
+
   function renderStatic() {
     var light = !C.isThemeDark();
-    _.drawBackground(ctx, cw, light);
+    _drawStaticBg(ctx, cw, light);
 
-    // "Coming soon." 文字
     var textY = (C.GROUND_Y + 6) / 2;
     ctx.save();
     ctx.textAlign = 'center';
@@ -380,9 +424,28 @@ function initStaticScene(containerId) {
     ctx.fillStyle = light ? 'rgba(30,60,40,0.6)' : 'rgba(255,255,255,0.45)';
     ctx.fillText('\u2500\u2500  \u656C\u8ACB\u671F\u5F85  \u2500\u2500', cw / 2, textY + 20);
     ctx.restore();
+
+    // 鑰匙圖示
+    _keyX = cw / 2;
+    _keyY = textY + 38;
+    _drawKey(ctx, _keyX, _keyY, light);
   }
 
   renderStatic();
+
+  // 點擊鑰匙 → 輸入密碼解鎖互動模式
+  canvas.addEventListener('click', function(e) {
+    var rect = canvas.getBoundingClientRect();
+    var cx = e.clientX - rect.left;
+    var cy = e.clientY - rect.top;
+    if (Math.abs(cx - _keyX) < 14 && Math.abs(cy - _keyY) < 18) {
+      var pw = prompt('請輸入測試密碼');
+      if (pw === '8888') {
+        destroy();
+        initInteractiveScene(containerId);
+      }
+    }
+  });
 
   var _observer = new MutationObserver(function() { renderStatic(); });
   _observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
