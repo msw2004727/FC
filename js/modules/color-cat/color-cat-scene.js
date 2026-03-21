@@ -517,28 +517,7 @@ function _drawStaticBg(ctx, cw, light) {
 }
 
 function _drawKey(ctx, cx, cy, light) {
-  var R = 16; // 圓圈按鈕半徑（原18縮小10%）
-  var dc = 4; // 圓盤中心偏移
   ctx.save();
-
-  // ── 毛玻璃圓圈背景 ──
-  ctx.save();
-  ctx.beginPath(); ctx.arc(cx, cy + dc, R, 0, Math.PI * 2); ctx.closePath(); ctx.clip();
-  ctx.fillStyle = light ? 'rgba(255,255,255,0.45)' : 'rgba(40,40,60,0.5)';
-  ctx.fill();
-  ctx.filter = 'blur(6px)';
-  ctx.fillStyle = light ? 'rgba(255,255,255,0.35)' : 'rgba(80,80,120,0.35)';
-  ctx.fillRect(cx - R, cy + dc - R, R * 2, R * 2);
-  ctx.filter = 'none';
-  ctx.restore();
-
-  // ── 圓圈邊框 ──
-  ctx.beginPath(); ctx.arc(cx, cy + dc, R, 0, Math.PI * 2);
-  ctx.strokeStyle = light ? 'rgba(190,160,80,0.55)' : 'rgba(220,200,120,0.4)';
-  ctx.lineWidth = 1.5;
-  ctx.stroke();
-
-  // ── 鑰匙（縮小15%，下移2px） ──
   ctx.lineCap = 'round'; ctx.lineJoin = 'round';
   ctx.shadowColor = light ? 'rgba(255,215,0,0.6)' : 'rgba(255,220,80,0.5)';
   ctx.shadowBlur = 4;
@@ -555,7 +534,6 @@ function _drawKey(ctx, cx, cy, light) {
   // 鑰匙齒
   ctx.beginPath(); ctx.moveTo(cx, cy + 8.8); ctx.lineTo(cx + 3, cy + 8.8); ctx.stroke();
   ctx.beginPath(); ctx.moveTo(cx, cy + 12.2); ctx.lineTo(cx + 3, cy + 12.2); ctx.stroke();
-
   ctx.restore();
 }
 
@@ -598,9 +576,9 @@ function initStaticScene(containerId) {
     ctx.fillText('\u2500\u2500  \u656C\u8ACB\u671F\u5F85  \u2500\u2500', cw / 2, textY + 20);
     ctx.restore();
 
-    // 鑰匙圖示
-    _keyX = cw / 2;
-    _keyY = textY + 43;
+    // 鑰匙圖示（左上角，與右上角太陽/月亮對稱）
+    _keyX = 20;
+    _keyY = 12;
     _drawKey(ctx, _keyX, _keyY, light);
   }
 
@@ -611,7 +589,7 @@ function initStaticScene(containerId) {
     var rect = canvas.getBoundingClientRect();
     var cx = e.clientX - rect.left;
     var cy = e.clientY - rect.top;
-    if (Math.abs(cx - _keyX) < 18 && Math.abs(cy - (_keyY + 4)) < 18) {
+    if (Math.abs(cx - _keyX) < 16 && Math.abs(cy - _keyY - 5) < 16) {
       var pw = prompt('請輸入測試密碼');
       if (pw === '8888') {
         destroy();
