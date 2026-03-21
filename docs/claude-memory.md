@@ -10,10 +10,11 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
-### 2026-03-21 — 名字膠囊 LV 顯示樣式調整
-- **問題**：LV 以藍色膠囊 badge 顯示於左上角，用戶希望改為綠色純文字
-- **修復**：`css/profile.css` `.uc-lv` 去除 background/padding/border-radius，改為綠色文字（`#22c55e`），定位改為 `left:15%; top:25%`
-- **教訓**：UI 微調需保持 dark mode 同步更新
+### 2026-03-21 — LV 膠囊 badge 被 overflow:hidden 容器遮擋
+- **問題**：`.uc-lv` 用 `top:-7px` 溢出 `.user-capsule` 上方，但 `.admin-user-name`、`.reg-name-badges-wrap`、`.tl-event-row` 等容器有 `overflow:hidden`，導致部分場景 badge 被裁切
+- **原因**：CSS 規範中 `overflow-x:hidden` + `overflow-y:visible` 會被瀏覽器強制將 visible 解讀為 auto，無法單軸放寬
+- **修復**：`.user-capsule` 加 `margin-top:7px` 預留空間，badge 的 `top:-7px` 回到視覺原位但不超出父容器邊界，所有場景統一解決
+- **教訓**：absolute 定位的子元素若用負 offset 溢出，應優先用 margin 預留空間而非修改祖先 overflow
 
 ### 2026-03-21 — 頂部 EXP 顯示不同步
 - **問題**：右上角 `#points-value` 的 EXP 與角色資料頁的 EXP 不一致
