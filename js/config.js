@@ -311,7 +311,8 @@
 // 20260321k: 修復頂部 EXP 不同步（exp 變更未觸發 currentUser 更新）
 // 20260321l: 補發完成後刷新操作紀錄卡片 + 舊紀錄 fallback 顯示
 // 20260321m: 名字膠囊左上角顯示角色 LV
-const CACHE_VERSION = '20260321m';
+// 20260321n: LV 改為綠色純文字顯示，調整位置
+const CACHE_VERSION = '20260321n';
 
 // ─── Page Strategy Registry ───
 // 唯一策略來源，未列出的頁面預設 fresh-first

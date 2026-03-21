@@ -10,6 +10,11 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-21 — 名字膠囊 LV 顯示樣式調整
+- **問題**：LV 以藍色膠囊 badge 顯示於左上角，用戶希望改為綠色純文字
+- **修復**：`css/profile.css` `.uc-lv` 去除 background/padding/border-radius，改為綠色文字（`#22c55e`），定位改為 `left:15%; top:25%`
+- **教訓**：UI 微調需保持 dark mode 同步更新
+
 ### 2026-03-21 — 頂部 EXP 顯示不同步
 - **問題**：右上角 `#points-value` 的 EXP 與角色資料頁的 EXP 不一致
 - **原因**：`_syncCurrentUserFromUsersSnapshot` 的 `changed` 判斷不包含 `exp` 欄位，當 onSnapshot 收到 exp 變更時，`currentUser` 不更新，`updatePointsDisplay` 也不被呼叫

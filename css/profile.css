@@ -40,13 +40,12 @@
 /* Capsule LV badge */
 .user-capsule { position: relative; }
 .uc-lv {
-  position: absolute; top: -7px; left: -2px;
+  position: absolute; left: 15%; top: 25%;
   font-size: .5rem; font-weight: 700; line-height: 1;
-  padding: .1rem .25rem; border-radius: 4px;
-  background: var(--accent, #3b82f6); color: #fff;
+  color: #22c55e;
   pointer-events: none; white-space: nowrap;
 }
-[data-theme="dark"] .uc-lv { background: #2563eb; }
+[data-theme="dark"] .uc-lv { color: #4ade80; }
 /* Capsule inside leaderboard / admin - smaller variant */
 .lb-name .user-capsule, .admin-user-name .user-capsule { font-size: .75rem; padding: .15rem .5rem; }
 .td-member-name .user-capsule { font-size: .75rem; padding: .15rem .5rem; }
