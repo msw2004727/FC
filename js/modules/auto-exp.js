@@ -248,24 +248,55 @@ Object.assign(App, {
     }
   },
 
-  _renderAutoExpLogs() {
+  async _renderAutoExpLogs() {
     var container = document.getElementById('auto-exp-log-list');
     if (!container) return;
-    var logs = this._getAutoExpLogs();
-    if (!logs.length) {
-      container.innerHTML = '<div style="font-size:.82rem;color:var(--text-muted);padding:.5rem 0">\u5C1A\u7121\u81EA\u52D5\u767C\u653E\u7D00\u9304</div>';
+    if (ModeManager.isDemo() || typeof db === 'undefined') {
+      container.innerHTML = '<div style="font-size:.82rem;color:var(--text-muted);padding:.5rem 0">Demo 模式無操作紀錄</div>';
       return;
     }
-    container.innerHTML = logs.slice(0, 50).map(function (l) {
-      var sign = l.amount > 0 ? '+' : '';
-      var color = l.amount > 0 ? 'var(--success)' : 'var(--danger)';
-      return '<div style="display:flex;align-items:center;gap:.4rem;padding:.35rem 0;border-bottom:1px solid var(--border);font-size:.78rem">'
-        + '<span style="color:var(--text-primary);font-weight:600;min-width:3.5em">' + escapeHTML(l.target) + '</span>'
-        + '<span style="color:var(--text-secondary);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escapeHTML(l.context || l.key) + '</span>'
-        + '<span style="font-weight:700;color:' + color + ';flex-shrink:0">' + sign + l.amount + '</span>'
-        + '<span style="color:var(--text-muted);font-size:.68rem;flex-shrink:0">' + escapeHTML(l.time) + '</span>'
-        + '</div>';
-    }).join('');
+    container.innerHTML = '<div style="font-size:.82rem;color:var(--text-muted);padding:.5rem 0">載入中…</div>';
+    try {
+      var snap = await db.collection('operationLogs')
+        .where('type', '==', 'exp_backfill')
+        .limit(50)
+        .get();
+      if (snap.empty) {
+        container.innerHTML = '<div style="font-size:.82rem;color:var(--text-muted);padding:.5rem 0">尚無補發操作紀錄</div>';
+        return;
+      }
+      var docs = snap.docs.slice().sort(function (a, b) {
+        var ta = a.data().createdAt?.toMillis?.() || 0;
+        var tb = b.data().createdAt?.toMillis?.() || 0;
+        return tb - ta;
+      });
+      var html = '<table style="width:100%;border-collapse:collapse">'
+        + '<thead><tr style="border-bottom:1px solid var(--border)">'
+        + '<th style="padding:.25rem .4rem;font-size:.72rem;text-align:left;color:var(--text-muted)">時間</th>'
+        + '<th style="padding:.25rem .4rem;font-size:.72rem;text-align:left;color:var(--text-muted)">操作者</th>'
+        + '<th style="padding:.25rem .4rem;font-size:.72rem;text-align:center;color:var(--text-muted)">人數</th>'
+        + '<th style="padding:.25rem .4rem;font-size:.72rem;text-align:center;color:var(--text-muted)">筆數</th>'
+        + '<th style="padding:.25rem .4rem;font-size:.72rem;text-align:right;color:var(--text-muted)">總 EXP</th>'
+        + '</tr></thead><tbody>';
+      docs.forEach(function (doc) {
+        var d = doc.data() || {};
+        var time = d.time || '';
+        var totalExp = typeof d.totalExp === 'number' ? d.totalExp : null;
+        var expStr = totalExp !== null ? ((totalExp >= 0 ? '+' : '') + totalExp) : d.content || '-';
+        var expColor = totalExp !== null ? (totalExp >= 0 ? 'var(--success)' : 'var(--danger)') : 'var(--text-primary)';
+        html += '<tr style="border-bottom:1px solid var(--border)">'
+          + '<td style="padding:.25rem .4rem;font-size:.75rem;color:var(--text-muted);white-space:nowrap">' + escapeHTML(time) + '</td>'
+          + '<td style="padding:.25rem .4rem;font-size:.75rem;font-weight:600">' + escapeHTML(d.operator || '') + '</td>'
+          + '<td style="padding:.25rem .4rem;font-size:.75rem;text-align:center">' + (typeof d.uniqueUsers === 'number' ? d.uniqueUsers : '-') + '</td>'
+          + '<td style="padding:.25rem .4rem;font-size:.75rem;text-align:center">' + (typeof d.grantedCount === 'number' ? d.grantedCount : '-') + '</td>'
+          + '<td style="padding:.25rem .4rem;font-size:.75rem;font-weight:700;text-align:right;color:' + expColor + '">' + escapeHTML(expStr) + '</td>'
+          + '</tr>';
+      });
+      html += '</tbody></table>';
+      container.innerHTML = html;
+    } catch (err) {
+      container.innerHTML = '<div style="font-size:.82rem;color:var(--danger);padding:.5rem 0">載入失敗：' + escapeHTML(err.message || '') + '</div>';
+    }
   },
 
 });

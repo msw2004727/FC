@@ -3890,14 +3890,23 @@ exports.backfillAutoExp = onCall(
       }
     }
 
-    // 寫操作日誌
+    // 寫操作日誌（含結構化統計欄位）
+    const uniqueUsers = byUid.size;
+    const totalExp = grantQueue.reduce((sum, item) => sum + item.amount, 0);
     const callerUser = await findUserDocByUidOrLineUserId(request.auth.uid);
     const callerName = callerUser?.data?.displayName || callerUser?.data?.name || request.auth.uid;
-    await writeOperationLog({
+    const logResult = await writeOperationLog({
       operator: callerName,
       type: "exp_backfill",
       typeName: "EXP 回推補發",
-      content: `補發 ${grantedCount} 筆 Auto-EXP（錯誤 ${errorCount} 筆）`,
+      content: `補發 ${grantedCount} 筆 Auto-EXP、${uniqueUsers} 位用戶、總計 ${totalExp >= 0 ? "+" : ""}${totalExp} EXP${errorCount > 0 ? `（錯誤 ${errorCount} 筆）` : ""}`,
+    });
+    // 額外寫入結構化數值，方便前端讀取
+    await db.collection("operationLogs").doc(logResult._docId).update({
+      grantedCount,
+      uniqueUsers,
+      totalExp,
+      errorCount,
     });
 
     console.log(`[backfillAutoExp] done — granted=${grantedCount}, errors=${errorCount}`);

@@ -10,6 +10,11 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-21 — 補發操作紀錄改為 Firestore operationLogs
+- **問題**：「自動發放紀錄」區塊使用 localStorage 存放，只能看到自己觸發的紀錄，其他管理員的操作看不到
+- **修復**：前端 `_renderAutoExpLogs` 改為查詢 Firestore `operationLogs`（`type=='exp_backfill'`），CF 端 `backfillAutoExp` 操作日誌新增 `grantedCount`、`uniqueUsers`、`totalExp`、`errorCount` 結構化欄位
+- **教訓**：操作級別的審計紀錄應存 Firestore 而非 localStorage
+
 ### 2026-03-21 — 手動簽到批次寫入優化（Firestore batch）
 - **問題**：手動簽到確認（_confirmAllAttendance）使用逐筆 await 寫入 Firestore，30 人活動需 60+ 次 round trip + 60 次 localStorage 序列化
 - **修復**：改為 Firestore batch 原子寫入，收集所有 add/remove 操作後一次 batch.commit()，再做一次 _saveToLS。新增 `FirebaseService.batchWriteAttendance()` 和 `ApiService.batchWriteAttendance()`，抽取共用 `_collectAttendanceOps()` 消除重複邏輯
