@@ -9,6 +9,7 @@ var C = window.ColorCatConfig;
 var _sceneInterval = null;
 var _canvas, _ctx, _sw, _sh, _dpr;
 var _container = null;
+var _containerId = null;
 var _isLandscape = false;
 var _forcedPortrait = false;   // 使用者按返回按鈕後鎖定直放，直到實際翻回直放再解除
 var _returnBtn = null;
@@ -51,6 +52,9 @@ _.getGravePos = function() { return -1; };
 _.updateFog = function() {};
 _.drawFog = function() {};
 _.toggleFog = function() {};
+// 重新整理按鈕插槽（由 scene-bg.js 填入）
+_.drawRefreshBtn = function() {};
+_.isRefreshBtnClicked = function() { return false; };
 
 // ===== 主迴圈 =====
 
@@ -202,6 +206,12 @@ function handleClick(e) {
   var sf = C.scaleFactor || 1;
   var cx = (e.clientX - rect.left) / sf;
   var cy = (e.clientY - rect.top) / sf;
+
+  // 重新整理按鈕（左上角）
+  if (_.isRefreshBtnClicked && _.isRefreshBtnClicked(cx, cy)) {
+    resetScene();
+    return;
+  }
 
   // 面板攔截（優先處理）
   if (_.handlePanelClick(cx, cy, _sw)) return;
@@ -410,6 +420,7 @@ function initInteractiveScene(containerId) {
   destroy();
   container.innerHTML = '';
   _container = container;
+  _containerId = containerId;
 
   _dpr = window.devicePixelRatio || 1;
   _canvas = document.createElement('canvas');
@@ -621,6 +632,23 @@ function initStaticScene(containerId) {
   });
 
   container._fcObserver = _observer;
+}
+
+// ===== 重新整理（隨機換角色 + 重置場景） =====
+
+function resetScene() {
+  if (!_containerId) return;
+  // 隨機選一隻不同的角色皮膚
+  var C_ = window.ColorCatConfig;
+  var skinKeys = Object.keys(C_.SKINS);
+  var curSkin = ColorCatCharacter.getSkin();
+  var candidates = skinKeys.filter(function(k) { return k !== curSkin; });
+  var newSkin = candidates[Math.floor(Math.random() * candidates.length)];
+  ColorCatCharacter.switchSkin(newSkin);
+  // 清除敵人
+  if (window.ColorCatEnemy) ColorCatEnemy.clearAll();
+  // 重新初始化場景
+  initInteractiveScene(_containerId);
 }
 
 // ===== 清理 =====

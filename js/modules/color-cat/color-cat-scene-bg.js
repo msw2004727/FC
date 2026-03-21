@@ -152,6 +152,9 @@ function drawBackground(ctx, sw, light) {
   // 太陽/月亮
   if (light) drawSun(ctx, sw - 20, 18);
   else drawMoon(ctx, sw - 20, 18);
+
+  // 重新整理按鈕（左上角）
+  drawRefreshBtn(ctx, light);
 }
 
 // ── 背景樹叢（三棵，稍微重疊、高低不同） ──
@@ -304,9 +307,42 @@ function isTreeClicked(cx, cy, sw) {
   return false;
 }
 
+// ── 重新整理按鈕（左上角，與太陽/月亮對稱） ──
+var REFRESH_X = 20, REFRESH_Y = 18;
+
+function drawRefreshBtn(ctx, light) {
+  ctx.save();
+  var x = REFRESH_X, y = REFRESH_Y, r = 6;
+  var col = light ? 'rgba(50,50,50,0.45)' : 'rgba(200,200,200,0.45)';
+  ctx.strokeStyle = col;
+  ctx.lineWidth = 1.5;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  // 圓弧（約 306° 順時鐘，缺口在右上方）
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 1.7);
+  ctx.stroke();
+  // 箭頭（弧末端，指向順時鐘方向）
+  var ea = Math.PI * 1.7;
+  var tipX = x + r * Math.cos(ea), tipY = y + r * Math.sin(ea);
+  ctx.beginPath();
+  ctx.moveTo(tipX - 1.5, tipY - 3);
+  ctx.lineTo(tipX, tipY);
+  ctx.lineTo(tipX - 3.3, tipY - 0.5);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function isRefreshBtnClicked(cx, cy) {
+  var dx = cx - REFRESH_X, dy = cy - REFRESH_Y;
+  return dx * dx + dy * dy < 15 * 15;
+}
+
 _.drawBackground = drawBackground;
 _.updateSkyEvents = updateSkyEvents;
 _.drawSkyEvents = drawSkyEvents;
 _.isTreeClicked = isTreeClicked;
+_.drawRefreshBtn = drawRefreshBtn;
+_.isRefreshBtnClicked = isRefreshBtnClicked;
 
 })();

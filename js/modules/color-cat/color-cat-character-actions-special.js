@@ -9,6 +9,15 @@ var _ = window.ColorCatCharacter._;
 var _s = _._s;
 var ch = _.char;
 
+// ── 輔助：隨機生成一隻敵人 ──
+function _spawnRandomEnemy(sw) {
+  var E = window.ColorCatEnemy;
+  if (!E) return;
+  var skinKeys = Object.keys(E.SKINS);
+  var rndSkin = skinKeys[Math.floor(Math.random() * skinKeys.length)];
+  E.spawn(rndSkin, sw);
+}
+
 // ── 攻擊蝴蝶：跑到蝴蝶下方 → 跳起攻擊 → 蝴蝶擊落 ──
 function startAttackButterfly(b) {
   if (ch.action === 'weak' || ch.action === 'knockback' || ch.action === 'sleeping' || ch.action === 'dying' || ch.action === 'hurt') return;
@@ -73,12 +82,14 @@ function updateAttackButterfly(sw) {
       if (!_.isBunny()) {
         ch._butterflyKnocked = true;
         if (scene_.knockButterfly) scene_.knockButterfly(b);
+        _spawnRandomEnemy(sw);
       }
     }
     var hitFrame = _s() ? _s().physics.hitFrame : 3;
     if (ch._attackHit && !ch._butterflyKnocked && ch.spriteFrame >= hitFrame) {
       ch._butterflyKnocked = true;
       if (scene_.knockButterfly) scene_.knockButterfly(b);
+      _spawnRandomEnemy(sw);
     }
     if (ch.y >= C.CHAR_GROUND_Y) {
       ch.y = C.CHAR_GROUND_Y; ch.vy = 0; ch.onGround = true;
@@ -184,14 +195,22 @@ function ultimateAreaAttack(sw, def) {
     var bloomed = scene_.getBloomedFlowers();
     for (var i = 0; i < bloomed.length; i++) {
       var f = bloomed[i];
-      if (f.x >= left && f.x <= right) scene_.knockFlower(f, f.x >= ch.x ? 1 : -1);
+      if (f.x >= left && f.x <= right) {
+        scene_.knockFlower(f, f.x >= ch.x ? 1 : -1);
+        // 每朵花獨立 20% 機率召喚敵人
+        if (Math.random() < 0.2) _spawnRandomEnemy(sw);
+      }
     }
   }
   if (scene_.getAllAliveButterflies && scene_.knockButterfly) {
     var bflies = scene_.getAllAliveButterflies();
     for (var j = 0; j < bflies.length; j++) {
       var b = bflies[j];
-      if (b.x >= left && b.x <= right && b.y >= top && b.y <= ch.y) scene_.knockButterfly(b);
+      if (b.x >= left && b.x <= right && b.y >= top && b.y <= ch.y) {
+        scene_.knockButterfly(b);
+        // 蝴蝶必定召喚敵人
+        _spawnRandomEnemy(sw);
+      }
     }
   }
   var bs = window.ColorCatBall && ColorCatBall.state;
