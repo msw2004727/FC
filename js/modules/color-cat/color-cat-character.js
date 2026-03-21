@@ -152,7 +152,11 @@ function getSpriteKey() {
   if (character.action === 'dash') return 'roll';
   if (character.action === 'goToBox') return 'run';
   if (character.action === 'biteBall') return 'run';
-  if (character.action === 'kick') return character.onGround ? 'attack' : 'jump_attack';
+  if (character.action === 'kick') {
+    if (character._dragKickPhase === 0) return 'jump';
+    if (character._dragKickPhase === 1) return 'attack';
+    return character.onGround ? 'attack' : 'jump_attack';
+  }
   if (character.action === 'sleeping') return 'idle';
   if (character.action === 'watchFlower') return 'idle';
   if (character.action === 'goToFlower') return 'run';

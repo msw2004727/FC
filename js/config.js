@@ -321,7 +321,8 @@
 // 20260321u: 字體/下載按鈕移到用戶名右側同行，名字過長 ellipsis
 // 20260321v: 字體/下載按鈕置右
 // 20260321w: 修復拖曳球時角色無攻擊動作（雙重力/jump_attack/持續追擊）
-const CACHE_VERSION = '20260321w';
+// 20260321x: 拖曳追球兩階段（跳躍→攻擊）、球被踢飛、兔子攻擊、限高、方向鎖定
+const CACHE_VERSION = '20260321x';
 
 // ─── Page Strategy Registry ───
 // 唯一策略來源，未列出的頁面預設 fresh-first

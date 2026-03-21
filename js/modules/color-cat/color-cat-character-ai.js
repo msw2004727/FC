@@ -66,6 +66,11 @@ function aiPickAction(sw, ballState) {
 
 function aiSetSceneInfo(info) { _.aiSceneInfo = info; }
 
+// ── 拖曳追球常數 ──
+var DRAG_JUMP_DIST = 50;     // 起跳距離 px
+var DRAG_ATTACK_DIST = 22;   // 切換攻擊距離 px
+var DRAG_MAX_VY = -3.5;      // 最大跳躍力（限制高度 ~41px）
+
 // ── 更新：追球 / 踢球 / 閒置 AI ──
 function updateChaseKickIdle(sw, ballState, defs) {
   if (!_s()) return false;
@@ -73,24 +78,22 @@ function updateChaseKickIdle(sw, ballState, defs) {
 
   if (ch.action === 'chase') {
     if (_isDrag) {
-      // ── 拖曳模式：持續追蹤球位置 ──
-      ch._chaseFacing = (ballState.x >= ch.x) ? 1 : -1;
-      ch.facing = ch._chaseFacing;
+      // ── 拖曳模式：跑向球 → 到距離後起跳 ──
+      ch.facing = (ballState.x >= ch.x) ? 1 : -1;
       var dxDrag = Math.abs(ballState.x - ch.x);
-      if (dxDrag > 15) {
-        // 跑向球（加速追趕）
+      if (dxDrag > DRAG_JUMP_DIST) {
         ch.x += ch.facing * ch.speed * 1.3;
       } else {
-        // 接近球：一律跳起攻擊
+        // 起跳距離內：跳向球
         if (ch.onGround) {
           var floorY = C.CHAR_GROUND_Y - 6;
           var ballH = floorY - ballState.y - ballState.r;
-          var jp = ballH > 15
-            ? Math.min(-7, -(Math.sqrt(2 * 0.15 * ballH) + 1))
-            : -4;   // 球在地面也做小跳
-          ch.vy = jp;
-          ch.onGround = false;
+          var jp = ballH > 10
+            ? Math.max(DRAG_MAX_VY, -(Math.sqrt(2 * 0.15 * Math.max(ballH, 20)) + 0.5))
+            : -2.5;
+          ch.vy = jp; ch.onGround = false;
         }
+        ch._dragKickPhase = 0;
         ch.action = 'kick'; ch.actionFrame = 0;
         ch.spriteFrame = 0; ch.spriteTimer = 0; ch._kicked = false;
       }
@@ -109,57 +112,85 @@ function updateChaseKickIdle(sw, ballState, defs) {
         var ballH2 = floorY2 - ballState.y - ballState.r;
         if (ballH2 > 15 && ch.onGround) {
           var jumpPower2 = Math.min(-7, -(Math.sqrt(2 * 0.15 * ballH2) + 1));
-          ch.vy = jumpPower2;
-          ch.onGround = false;
+          ch.vy = jumpPower2; ch.onGround = false;
         }
-        ch._chaseFacing = 0; ch.action = 'kick'; ch.actionFrame = 0;
+        ch._chaseFacing = 0; ch._dragKickPhase = undefined;
+        ch.action = 'kick'; ch.actionFrame = 0;
         ch.spriteFrame = 0; ch.spriteTimer = 0; ch._kicked = false;
       }
     }
   } else if (ch.action === 'kick') {
     ch.actionFrame++;
-    // 拖曳中：邊跳邊追球（不停下來）
-    if (_isDrag) {
-      var dragDir = (ballState.x >= ch.x) ? 1 : -1;
-      ch.facing = dragDir;
-      ch.x += dragDir * ch.speed * 0.8;
-    }
-    // 空中物理（kick 已排除 character.js 通用重力，此處自行處理）
+    // 空中物理（kick 排除 character.js 通用重力）
     if (!ch.onGround) {
-      ch.vy += 0.15;
-      ch.y += ch.vy;
+      ch.vy += 0.15; ch.y += ch.vy;
       if (ch.y >= C.CHAR_GROUND_Y) {
         ch.y = C.CHAR_GROUND_Y; ch.onGround = true; ch.vy = 0;
       }
     }
-    var attackDef = defs.attack;
-    var totalFrames = Math.ceil(attackDef.frames / attackDef.speed);
-    var hitFrame = _s().physics.hitFrame;
-    if (!ch._kicked && ch.spriteFrame >= hitFrame) {
-      var dx = Math.abs(ballState.x - ch.x);
-      var dy = Math.abs(ballState.y - (ch.y - C.SPRITE_DRAW * 0.4));
-      var hitDist = Math.sqrt(dx * dx + dy * dy);
-      if (hitDist < C.SPRITE_DRAW * 0.6 + ballState.r) {
-        ch._kicked = true; _s().runtime.totalKicks++;
-        // 拖曳中不釋放球，繼續追擊循環
-        if (!_isDrag) return true;
+    if (ch._dragKickPhase !== undefined && _isDrag) {
+      // ── 拖曳 kick（兩階段） ──
+      if (ch._dragKickPhase === 0) {
+        // 跳躍階段：朝球飛行，接近時切攻擊
+        ch.facing = (ballState.x >= ch.x) ? 1 : -1;
+        ch.x += ch.facing * ch.speed * 0.8;
+        var dx0 = Math.abs(ballState.x - ch.x);
+        var dy0 = Math.abs(ballState.y - (ch.y - C.SPRITE_DRAW * 0.4));
+        var dist0 = Math.sqrt(dx0 * dx0 + dy0 * dy0);
+        if (dist0 < DRAG_ATTACK_DIST + ballState.r) {
+          ch._dragKickPhase = 1; ch._kickFacing = ch.facing;
+          ch.spriteFrame = 0; ch.spriteTimer = 0;
+        } else if (ch.onGround && ch.actionFrame > 8) {
+          // 落地未觸球 → 重新追擊
+          ch._dragKickPhase = undefined;
+          if (_s().stamina.current > 0) {
+            ch.action = 'chase'; ch.actionFrame = 0;
+            ch.spriteFrame = 0; ch.spriteTimer = 0;
+          } else { ch.action = 'idle'; ch.actionFrame = 0; ch.spriteFrame = 0; ch.spriteTimer = 0; }
+        }
+      } else {
+        // 攻擊階段：方向鎖定，命中判定
+        ch.facing = ch._kickFacing;
+        var hitFrame = _s().physics.hitFrame;
+        if (!ch._kicked && ch.spriteFrame >= hitFrame) {
+          var dx1 = Math.abs(ballState.x - ch.x);
+          var dy1 = Math.abs(ballState.y - (ch.y - C.SPRITE_DRAW * 0.4));
+          var hd = Math.sqrt(dx1 * dx1 + dy1 * dy1);
+          if (hd < C.SPRITE_DRAW * 0.6 + ballState.r) {
+            ch._kicked = true; _s().runtime.totalKicks++;
+            ch._dragKickPhase = undefined;
+            return true;   // 踢飛球（場景釋放拖曳 + 踢球）
+          }
+        }
+        if (ch.onGround && ch.actionFrame > 12) {
+          ch._dragKickPhase = undefined;
+          if (_s().stamina.current > 0) {
+            ch.action = 'chase'; ch.actionFrame = 0;
+            ch.spriteFrame = 0; ch.spriteTimer = 0;
+          } else { ch.action = 'idle'; ch.actionFrame = 0; ch.spriteFrame = 0; ch.spriteTimer = 0; }
+        }
       }
-    }
-    if (ch.actionFrame > totalFrames) {
-      if (ch.onGround) {
-        if (_isDrag && _s() && _s().stamina.current > 0) {
-          ch.action = 'chase'; ch.actionFrame = 0;
-          ch.spriteFrame = 0; ch.spriteTimer = 0; ch._chaseFacing = 0;
-        } else {
+    } else {
+      // ── 一般 kick（非拖曳） ──
+      ch._dragKickPhase = undefined;
+      var attackDef = defs.attack;
+      var totalFrames = Math.ceil(attackDef.frames / attackDef.speed);
+      var hitFrame2 = _s().physics.hitFrame;
+      if (!ch._kicked && ch.spriteFrame >= hitFrame2) {
+        var dx2 = Math.abs(ballState.x - ch.x);
+        var dy2 = Math.abs(ballState.y - (ch.y - C.SPRITE_DRAW * 0.4));
+        var hd2 = Math.sqrt(dx2 * dx2 + dy2 * dy2);
+        if (hd2 < C.SPRITE_DRAW * 0.6 + ballState.r) {
+          ch._kicked = true; _s().runtime.totalKicks++;
+          return true;
+        }
+      }
+      if (ch.actionFrame > totalFrames) {
+        if (ch.onGround) {
           ch.action = 'idle'; ch.actionFrame = 0;
           ch.spriteFrame = 0; ch.spriteTimer = 0;
-        }
-      } else if (ch.actionFrame > totalFrames + 60) {
-        ch.y = C.CHAR_GROUND_Y; ch.onGround = true; ch.vy = 0;
-        if (_isDrag && _s() && _s().stamina.current > 0) {
-          ch.action = 'chase'; ch.actionFrame = 0;
-          ch.spriteFrame = 0; ch.spriteTimer = 0; ch._chaseFacing = 0;
-        } else {
+        } else if (ch.actionFrame > totalFrames + 60) {
+          ch.y = C.CHAR_GROUND_Y; ch.onGround = true; ch.vy = 0;
           ch.action = 'idle'; ch.actionFrame = 0;
           ch.spriteFrame = 0; ch.spriteTimer = 0;
         }
@@ -176,7 +207,6 @@ function updateChaseKickIdle(sw, ballState, defs) {
     else if (ballState.x < ch.x - 5) ch.facing = -1;
     if (!_.testMode && _.aiSceneInfo) {
       _.aiTimer++;
-      // 有敵人時大幅縮短冷卻（戰鬥模式：0.5 秒重新接戰）
       var E = window.ColorCatEnemy;
       var combatCD = (E && E.hasAlive()) ? 15 : _.aiCooldown;
       if (_.aiTimer >= combatCD) {
