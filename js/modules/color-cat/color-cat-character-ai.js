@@ -42,10 +42,17 @@ function aiPickAction(sw, ballState) {
   var hasButterflies = scene_ && scene_.getHoveringButterflies && scene_.getHoveringButterflies().length > 0;
   var chaseButterflyW = hasButterflies ? (w.chase * 2) : 0;
 
-  var total = w.biteBall + w.chase + w.dash + w.climbBox + w.climbWall + sleepW + watchFlowerW + chaseButterflyW;
+  // 有存活敵人時攻擊敵人為最高優先（壓倒性權重：80% 機率攻擊敵人）
+  var E = window.ColorCatEnemy;
+  var hasEnemies = E && E.hasAlive();
+  var baseTotal = w.biteBall + w.chase + w.dash + w.climbBox + w.climbWall + sleepW + watchFlowerW + chaseButterflyW;
+  var attackEnemyW = hasEnemies ? (baseTotal * 4) : 0;
+
+  var total = baseTotal + attackEnemyW;
   var roll = Math.random() * total;
 
   var cum = 0;
+  cum += attackEnemyW;  if (roll < cum) { rt.totalActions++; var ni = E.findNearest(ch.x); if (ni >= 0) _.startAttackEnemy(ni); return; }
   cum += w.biteBall;    if (roll < cum) { rt.totalActions++; _.startBiteBall(sw); return; }
   cum += w.chase;       if (roll < cum) { rt.totalActions++; _.startChase(); return; }
   cum += w.dash;        if (roll < cum) { rt.totalActions++; _.tapCharacter(sw); return; }
@@ -93,7 +100,10 @@ function updateChaseKickIdle(sw, ballState, defs) {
     else if (ballState.x < ch.x - 5) ch.facing = -1;
     if (!_.testMode && _.aiSceneInfo) {
       _.aiTimer++;
-      if (_.aiTimer >= _.aiCooldown) {
+      // 有敵人時大幅縮短冷卻（戰鬥模式：0.5 秒重新接戰）
+      var E = window.ColorCatEnemy;
+      var combatCD = (E && E.hasAlive()) ? 15 : _.aiCooldown;
+      if (_.aiTimer >= combatCD) {
         aiPickAction(sw, ballState);
         aiResetCooldown();
       }

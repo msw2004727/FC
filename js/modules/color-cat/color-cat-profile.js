@@ -9,7 +9,7 @@ var C = window.ColorCatConfig;
 
 // ── 五項數值（純數字，預設 10） ──
 var _stats = {
-  stamina: 10,       // 體力
+  stamina: 100,      // 體力
   agility: 10,       // 敏捷
   speed: 10,         // 速度
   luck: 10,          // 幸運

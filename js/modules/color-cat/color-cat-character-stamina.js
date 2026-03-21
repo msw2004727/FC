@@ -36,7 +36,7 @@ function updateStamina() {
   }
 
   // 體力歸零觸發力竭（貓咪原地喘氣、兔子下落姿勢）
-  if (act !== 'sleeping' && act !== 'weak' && act !== 'goToBox' && act !== 'knockback') {
+  if (act !== 'sleeping' && act !== 'weak' && act !== 'goToBox' && act !== 'knockback' && act !== 'ultimate' && act !== 'dying' && act !== 'hurt') {
     if (st.current <= 0) {
       st.current = 0;
       if (_.testMode) _.stopTest();
@@ -69,6 +69,10 @@ function updateStamina() {
       }
     }
   }
+
+  // 體力=HP 同步（單一數值條）
+  _.charHp = st.current;
+  _.charMaxHp = st.max;
 }
 
 function drawStaminaBar(ctx) {

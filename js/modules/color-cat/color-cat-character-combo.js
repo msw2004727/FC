@@ -13,7 +13,7 @@ var ch = _.char;
 function startBiteBall() {
   if (ch.action === 'weak') return;
   if (_.testMode) _.stopTest();
-  if (ch.action === 'combo') _.endCombo();
+  if (ch.action === 'combo') { if (_.interruptCombo()) return; }
   ch.action = 'biteBall'; _.biteBallPhase = 0; _.biteBallTimer = 0;
   ch.spriteFrame = 0; ch.spriteTimer = 0;
 }

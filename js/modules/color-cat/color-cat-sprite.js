@@ -30,6 +30,10 @@ function rebuildSpriteDefs() {
       if (bm.fw) fw = bm.fw;
       else if (fw && !bm.fw) fw = undefined; // 兔子無 fw 則清除
     }
+    var fh = undefined;
+    if (isBunny && C.BUNNY_ACTION_MAP[key] && C.BUNNY_ACTION_MAP[key].fh) {
+      fh = C.BUNNY_ACTION_MAP[key].fh;
+    }
     SPRITE_DEFS[key] = {
       file: C.getSpriteFilePath(currentSkin, ad, key),
       frames: frames,
@@ -39,6 +43,7 @@ function rebuildSpriteDefs() {
       moveSpeed: ad.moveSpeed,
       jumpVy: ad.jumpVy,
       fw: fw,
+      fh: fh,
     };
   });
 }
@@ -101,26 +106,27 @@ function drawSprite(ctx, spriteKey, spriteFrame, x, footY, facing, noShadow) {
     return;
   }
 
-  var drawY = footY - C.SPRITE_DRAW;
-
-  // 翻轉面向
-  ctx.translate(x, drawY + C.SPRITE_DRAW / 2);
-  if (facing < 0) ctx.scale(-1, 1);
-  ctx.translate(-x, -(drawY + C.SPRITE_DRAW / 2));
-
   // 裁切並繪製當前 frame
   var sDef = SPRITE_DEFS[spriteKey];
   var frameW = (sDef && sDef.fw) ? sDef.fw : C.SPRITE_SIZE;
+  var frameH = (sDef && sDef.fh) ? sDef.fh : C.SPRITE_SIZE;
   var frame = spriteFrame % (sDef ? sDef.frames : 1);
   var drawW = frameW * C.SPRITE_SCALE;
+  var drawH = frameH * C.SPRITE_SCALE;
+  var drawY = footY - drawH;
+
+  // 翻轉面向
+  ctx.translate(x, drawY + drawH / 2);
+  if (facing < 0) ctx.scale(-1, 1);
+  ctx.translate(-x, -(drawY + drawH / 2));
 
   ctx.imageSmoothingEnabled = false;
   ctx.drawImage(
     img,
     frame * frameW, 0,     // 來源裁切位置
-    frameW, C.SPRITE_SIZE, // 來源裁切大小
+    frameW, frameH,        // 來源裁切大小
     x - drawW / 2, drawY,  // 目標位置
-    drawW, C.SPRITE_DRAW    // 目標大小
+    drawW, drawH            // 目標大小
   );
 
   ctx.restore();

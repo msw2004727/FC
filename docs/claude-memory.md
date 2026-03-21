@@ -1120,5 +1120,15 @@
 - **修復**：(1) `_handleVisibilityResume` 加入 `_refreshEventsOnResume()` — 每次恢復時一次性查詢最新 events 並觸發首頁重繪；(2) `_setupVisibilityRefresh` 加入 `pagehide` handler 強制持久化快取
 - **教訓**：Safari PWA 的 WebSocket 在凍結/恢復後不可信賴，visibilitychange 恢復時應對所有首頁關鍵資料做一次性查詢兜底，不能只依賴 onSnapshot listener
 
+### 2026-03-21 — 敵人遠程攻擊系統（弓箭手/法師/哥布林弓手）
+- **問題**：弓箭手、法師、哥布林弓手應該是遠程攻擊角色，但原本與近戰角色行為完全一樣
+- **修復**：(1) PROFILES 新增 `ranged: true, projType: 'arrow'/'magic'`；(2) 攻擊時改為發射投射物，命中率隨距離遞減（90%→5%）；(3) 遠程 AI 在距離 <80px 時逃跑保持距離；(4) 新建 `color-cat-enemy-projectile.js` 處理投射物物理/繪製/命中判定/粒子特效；(5) 拆出 `color-cat-enemy-util.js` 保持主檔案 <300 行
+- **教訓**：enemy.js 已接近 300 行上限，戰鬥工具函式（getClicked/dealDamage 等）可獨立為子模組，透過 stub 覆蓋模式與核心解耦
+
+### 2026-03-21 — 傷害飄字、死亡重生睡覺、球拖曳系統
+- **問題**：(1) 被攻擊時無傷害數值顯示；(2) 死亡重生直接站著，不自然；(3) 球無法拖曳互動
+- **修復**：(1) 新建 `color-cat-damage-number.js` — 敵人被打黃色飄字、主角被打紅色飄字，連打疊加；(2) 重生 phase 3 改為 `sleeping` 狀態在紙箱內登場；(3) `color-cat-ball.js` 新增拖曳模式 + scene.js 加入 mousedown/mousemove/touchstart/touchmove 事件，拖曳球時角色自動追球，踢中後解除拖曳並擊飛
+- **教訓**：Canvas 拖曳需在 touchmove 中 preventDefault 避免頁面捲動，且 mouseup 後要攔截 click 事件避免重複觸發
+
 *最後濃縮日期：2026-03-15*
 *原始檔案：314 條目 / 2475 行 → 濃縮後約 50 條永久教訓*

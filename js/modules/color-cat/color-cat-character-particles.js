@@ -16,6 +16,9 @@ var _dustTimer = 0;
 function isRunning() {
   if (ch.action === 'chase' || ch.action === 'dash' || ch.action === 'goToBox') return true;
   if (ch.action === 'biteBall' || ch.action === 'chaseButterfly') return true;
+  if (ch.action === 'attackFlower' && _.attackFlowerPhase === 0) return true;
+  if (ch.action === 'attackButterfly' && _.attackButterflyPhase === 0) return true;
+  if (ch.action === 'attackEnemy' && _.attackEnemyPhase === 0) return true;
   if (ch.action === 'combo' && _.comboStep === 0) return true;
   if (_.testMode === 'run') return true;
   return false;

@@ -212,6 +212,25 @@ var _carried = false;
 function setCarried(on) { _carried = !!on; }
 function isCarried() { return _carried; }
 
+// ── 拖曳模式 ──
+var _dragging = false;
+
+function setDragging(on) { _dragging = !!on; }
+function isDragging() { return _dragging; }
+
+function dragTo(x, y) {
+  if (!_dragging) return;
+  var floorY = C.CHAR_GROUND_Y - 6;
+  ball.x = x;
+  ball.y = Math.min(y, floorY - ball.r);
+  if (ball.y < ball.r) ball.y = ball.r;
+  ball.vx = 0; ball.vy = 0;
+}
+
+function releaseDrag() {
+  _dragging = false;
+}
+
 function setPosition(x, y) {
   ball.x = x;
   ball.y = y;
@@ -267,13 +286,17 @@ function drawPanelDust(ctx, light) {
 window.ColorCatBall = {
   state: ball,
   init: initBall,
-  update: function(sw) { if (!_carried) updateBall(sw); },
+  update: function(sw) { if (!_carried && !_dragging) updateBall(sw); },
   kick: kickBall,
   isClicked: isBallClicked,
   draw: drawBall,
   setCarried: setCarried,
   isCarried: isCarried,
   setPosition: setPosition,
+  setDragging: setDragging,
+  isDragging: isDragging,
+  dragTo: dragTo,
+  releaseDrag: releaseDrag,
   spawnPanelHitDust: spawnPanelHitDust,
 };
 

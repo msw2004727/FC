@@ -29,7 +29,16 @@ var _ = {
   knockbackPhase: 0, knockbackTimer: 0, knockbackRollDist: 0, knockbackSpeedX: 5,
   watchFlowerRef: null, watchFlowerTimer: 0, watchFlowerDuration: 150, watchFlowerTargetX: 0,
   chaseButterflyRef: null,
-  pendingWeak: false,
+  attackFlowerRef: null, attackFlowerPhase: 0,
+  attackButterflyRef: null, attackButterflyPhase: 0,
+  pendingAttackFlower: null, pendingAttackButterfly: null,
+  pendingUltimate: false, pendingWeak: false,
+  ultCharging: false, ultChargeTimer: 0, ultChargeDuration: 45, ultAnimTimer: 0,
+  charHp: 100, charMaxHp: 100,
+  dyingPhase: 0, dyingTimer: 0, dyingAlpha: 1,
+  attackEnemyIdx: -1, attackEnemyPhase: 0, pendingAttackEnemy: -1,
+  attackGraveIdx: -1, attackGravePhase: 0,
+  hurtTimer: 0,
   aiTimer: 0, aiCooldown: 0, aiSceneInfo: null,
   COMBO_LEDGE_Y: 73, FOOT_OFFSET: 7,
   isBunny: function() {
@@ -66,6 +75,7 @@ _.endCombo = function() {
   _.comboStep = -1; _.comboType = '';
   character.y = C.CHAR_GROUND_Y; character.onGround = true;
 };
+_.interruptCombo = function() { _.endCombo(); return false; };
 _.releaseBall = function() {};
 _.updateSleeping = function() { return false; };
 _.updateJumpOff = function() { return false; };
@@ -83,6 +93,24 @@ _.updateGoToFlower = function() { return false; };
 _.startWatchFlower = function() {};
 _.startChaseButterfly = function() {};
 _.updateChaseButterfly = function() { return false; };
+_.startAttackFlower = function() {};
+_.updateAttackFlower = function() { return false; };
+_.startAttackButterfly = function() {};
+_.updateAttackButterfly = function() { return false; };
+_.startUltimate = function() {};
+_.updateUltimate = function() { return false; };
+_.drawChargeBar = function() {};
+_.canUltimate = function() { return false; };
+_.takeDamage = function() {};
+_.startDying = function() {};
+_.updateDying = function() { return false; };
+_.drawDyingCountdown = function() {};
+_.drawHpBar = function() {};
+_.startAttackEnemy = function() {};
+_.updateAttackEnemy = function() { return false; };
+_.startAttackGrave = function() {};
+_.updateAttackGrave = function() { return false; };
+_.updateHurt = function() { return false; };
 _.spawnKnockbackBurst = function() {};
 _.updateKnockDust = function() {};
 _.drawKnockDust = function() {};
@@ -94,6 +122,9 @@ function initCharacter(sceneWidth) {
   character.action = 'idle'; character.onGround = true;
   character.spriteFrame = 0; character.spriteTimer = 0;
   if (_s()) { _s().stamina.current = _s().stamina.max; _s().runtime.weakLevel = 0; }
+  _.charHp = _s() ? _s().stamina.max : 100;
+  _.charMaxHp = _s() ? _s().stamina.max : 100;
+  _.dyingAlpha = 1;
   ColorCatSprite.init();
   _.aiResetCooldown();
 }
@@ -126,6 +157,17 @@ function getSpriteKey() {
   if (character.action === 'watchFlower') return 'idle';
   if (character.action === 'goToFlower') return 'run';
   if (character.action === 'chaseButterfly') return 'run';
+  if (character.action === 'attackFlower') return _.attackFlowerPhase === 0 ? 'run' : 'attack';
+  if (character.action === 'attackButterfly') {
+    if (_.attackButterflyPhase === 0) return 'run';
+    if (_.attackButterflyPhase === 1) return _.isBunny() ? 'attack' : 'jump_attack';
+    return 'jump';
+  }
+  if (character.action === 'ultimate') return 'special_attack';
+  if (character.action === 'dying') return 'death';
+  if (character.action === 'hurt') return 'take_damage';
+  if (character.action === 'attackEnemy') return _.attackEnemyPhase === 0 ? 'run' : 'attack';
+  if (character.action === 'attackGrave') return _.attackGravePhase === 0 ? 'run' : 'attack';
   if (character.action === 'weak') return _.isBunny() ? 'death' : 'idle';
   if (character.action === 'knockback') return _.knockbackPhase === 2 ? 'idle' : 'roll';
   if (!character.onGround) return 'jump';
@@ -157,8 +199,8 @@ function updateCharacter(sceneWidth, ballState) {
       } else {
         character.spriteFrame++;
         if (character.spriteFrame >= def.frames) {
-          // 力竭倒地：停在最後一幀
-          if (character.action === 'weak' && _.isBunny()) {
+          // 力竭倒地 / 死亡動畫：停在最後一幀
+          if (character.action === 'dying' || (character.action === 'weak' && _.isBunny())) {
             character.spriteFrame = def.frames - 1;
           } else {
             character.spriteFrame = 0;
@@ -173,7 +215,7 @@ function updateCharacter(sceneWidth, ballState) {
   }
 
   // 垂直物理（combo/jumpOff 自行處理，跳過）
-  if (!character.onGround && character.action !== 'combo' && character.action !== 'jumpOff' && character.action !== 'knockback') {
+  if (!character.onGround && character.action !== 'combo' && character.action !== 'jumpOff' && character.action !== 'knockback' && character.action !== 'attackButterfly') {
     var floorY = character._testBoxY || C.CHAR_GROUND_Y;
     if (_s()) character.vy += _s().physics.gravity;
     character.y += character.vy;
@@ -209,6 +251,13 @@ function updateCharacter(sceneWidth, ballState) {
   if (character.action === 'watchFlower') return _.updateWatchFlower(sw);
   if (character.action === 'goToFlower') return _.updateGoToFlower(sw);
   if (character.action === 'chaseButterfly') return _.updateChaseButterfly(sw);
+  if (character.action === 'attackFlower') return _.updateAttackFlower(sw);
+  if (character.action === 'attackButterfly') return _.updateAttackButterfly(sw);
+  if (character.action === 'ultimate') return _.updateUltimate(sw);
+  if (character.action === 'dying') return _.updateDying(sw);
+  if (character.action === 'hurt') return _.updateHurt();
+  if (character.action === 'attackEnemy') return _.updateAttackEnemy(sw);
+  if (character.action === 'attackGrave') return _.updateAttackGrave(sw);
   return _.updateChaseKickIdle(sw, ballState, defs);
 }
 
@@ -223,12 +272,22 @@ function drawCharacter(ctx, light) {
   if (character.action === 'sleeping') return;
   var key = getSpriteKey();
   var noShadow = _.suppressGroundShadow ||
+    character.action === 'dying' ||
     (character.action === 'combo' && _.comboType === 'box' && _.comboStep >= 1) ||
-    character.action === 'jumpOff';
-  ColorCatSprite.draw(ctx, key, character.spriteFrame, character.x, character.y, character.facing, noShadow);
+    (character.action === 'jumpOff' && _.jumpOffPhase === 0);
+  // 死亡淡出
+  if (character.action === 'dying' && _.dyingAlpha < 1) {
+    ctx.save(); ctx.globalAlpha = _.dyingAlpha;
+    ColorCatSprite.draw(ctx, key, character.spriteFrame, character.x, character.y, character.facing, noShadow);
+    ctx.restore();
+  } else {
+    ColorCatSprite.draw(ctx, key, character.spriteFrame, character.x, character.y, character.facing, noShadow);
+  }
   _.drawBreath(ctx);
   _.drawHearts(ctx);
-  _.drawStaminaBar(ctx);
+  _.drawChargeBar(ctx);
+  _.drawHpBar(ctx);
+  _.drawDyingCountdown(ctx);
 }
 
 // ── 角色點擊判定 ──
@@ -262,6 +321,10 @@ window.ColorCatCharacter = {
   startBiteBall: function(sw) { _.startBiteBall(sw); },
   startKnockback: function(sw) { _.startKnockback(sw); },
   startWatchFlower: function(sw) { _.startWatchFlower(sw); },
+  startAttackFlower: function(f) { _.startAttackFlower(f); },
+  startAttackButterfly: function(b) { _.startAttackButterfly(b); },
+  startUltimate: function() { _.startUltimate(); },
+  canUltimate: function() { return _.canUltimate(); },
   getSpriteKey: getSpriteKey,
   setSuppressGroundShadow: function(v) { _.suppressGroundShadow = !!v; },
   setSceneInfo: function(info) { _.aiSetSceneInfo(info); },
@@ -283,6 +346,12 @@ window.ColorCatCharacter = {
   getStamina: function() { return _s() ? _s().stamina.current : 100; },
   getStaminaMax: function() { return _s() ? _s().stamina.max : 100; },
   getStats: function() { return _s(); },
+  takeDamage: function(dmg) { _.takeDamage(dmg); },
+  startAttackEnemy: function(idx) { _.startAttackEnemy(idx); },
+  startAttackGrave: function(idx) { _.startAttackGrave(idx); },
+  getHp: function() { return _.charHp; },
+  getMaxHp: function() { return _.charMaxHp; },
+  isDying: function() { return character.action === 'dying'; },
   _: _,
 };
 

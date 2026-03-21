@@ -45,6 +45,19 @@ function updatePanel(sw) {
         window.ColorCatCharacter._.spawnKnockbackBurst();
       }
     }
+    // 敵人彈飛
+    if (window.ColorCatEnemy) {
+      var eAll = window.ColorCatEnemy.getAll();
+      var eVW = window.ColorCatEnemy.VIS_W;
+      for (var ei = 0; ei < eAll.length; ei++) {
+        var ee = eAll[ei];
+        if (ee.dead || ee.inKnockback || ee.action === 'falling' || ee.action === 'spawning') continue;
+        if (ee.x + eVW / 2 > panelEdge) {
+          window.ColorCatEnemy.knockback(ei);
+        }
+      }
+    }
+
     var ballState = window.ColorCatBall.state;
     if (ballState.x + ballState.r > panelEdge) {
       ballState.vx = -(3 + Math.random() * 2);

@@ -265,6 +265,7 @@ function drawFlowers(ctx, light) {
   }
 }
 
+// 點擊花朵 → 回傳花朵引用（由角色攻擊後才採集）
 function handleFlowerClick(cx, cy) {
   for (var i = flowers.length - 1; i >= 0; i--) {
     var f = flowers[i];
@@ -273,15 +274,41 @@ function handleFlowerClick(cx, cy) {
     var topY = f.baseY - fh;
     var dx = cx - f.x, dy = cy - topY;
     if (Math.sqrt(dx * dx + dy * dy) < 12) {
-      f.state = 'collected'; f.timer = 0;
-      var exp = f.gold ? EXP_GOLD : EXP_NORMAL;
-      expEffects.push({ x: f.x, y: topY - 5, alpha: 1, vy: -0.8, exp: exp, gold: f.gold });
-      // TODO: 未來與用戶 EXP 系統對接
-      //   ApiService.addUserExp(exp, f.gold ? 'gold_flower_collect' : 'flower_collect');
-      return true;
+      return f;  // 回傳引用，由角色攻擊後再呼叫 knockFlower
     }
   }
-  return false;
+  return null;
+}
+
+// 角色攻擊命中 → 花朵被打倒 + 獲得 EXP
+function knockFlower(f, dir) {
+  if (!f || f.state !== 'bloomed') return;
+  f.state = 'wilting'; f.timer = 0;
+  f.wiltDir = dir || 1;
+  var fh = FLOWER_H * (f.hScale || 1);
+  var topY = f.baseY - fh;
+  var exp = f.gold ? EXP_GOLD : EXP_NORMAL;
+  expEffects.push({ x: f.x, y: topY - 5, alpha: 1, vy: -0.8, exp: exp, gold: f.gold });
+}
+
+// 點擊蝴蝶 → 回傳蝴蝶引用
+function handleButterflyClick(cx, cy) {
+  for (var i = butterflies.length - 1; i >= 0; i--) {
+    var b = butterflies[i];
+    if (b.phase === 'falling') continue;
+    var dx = cx - b.x, dy = cy - b.y;
+    if (Math.sqrt(dx * dx + dy * dy) < 15) {
+      return b;
+    }
+  }
+  return null;
+}
+
+// 蝴蝶被擊落 → 掉落 + EXP
+function knockButterfly(b) {
+  if (!b) return;
+  b.phase = 'falling'; b.timer = 0;
+  b.fallVy = 0;
 }
 
 // ── 蝴蝶系統 ──
@@ -354,8 +381,11 @@ function updateButterflies(sw) {
       } else {
         b.phase = 'hover'; b.timer = 0;
       }
-      // 花消失 → 直接離開
-      if (!isFlowerAlive(b.flowerRef)) { b.phase = 'leave'; b.timer = 0; }
+      // 花消失 → 飛離
+      if (!isFlowerAlive(b.flowerRef)) {
+        b.phase = 'leave'; b.timer = 0;
+        b.leaveDir = b.x < (sw / 2) ? -1 : 1;
+      }
     } else if (b.phase === 'hover') {
       // 停在花朵上微微飄動
       b.x = b.targetX + Math.sin(b.timer * 0.05) * 2;
@@ -363,6 +393,17 @@ function updateButterflies(sw) {
       if (b.timer >= b.hoverDur || !isFlowerAlive(b.flowerRef)) {
         b.phase = 'leave'; b.timer = 0;
         b.leaveDir = Math.random() < 0.5 ? -1 : 1;
+      }
+    } else if (b.phase === 'falling') {
+      // 被擊落：旋轉掉落
+      b.fallVy += 0.3;
+      b.y += b.fallVy;
+      b.x += Math.sin(b.timer * 0.3) * 0.5;  // 微微左右搖擺
+      b.wingPhase += 0.05;  // 翅膀減速
+      if (b.y >= C.GROUND_Y) {
+        // 落地 → EXP +1
+        expEffects.push({ x: b.x, y: b.y - 5, alpha: 1, vy: -0.8, exp: 1, gold: false });
+        butterflies.splice(i, 1);
       }
     } else if (b.phase === 'flee') {
       // 被角色追趕 → 加速逃離
@@ -431,6 +472,14 @@ function getHoveringButterflies() {
   return arr;
 }
 
+function getAllAliveButterflies() {
+  var arr = [];
+  for (var i = 0; i < butterflies.length; i++) {
+    if (butterflies[i].phase !== 'falling') arr.push(butterflies[i]);
+  }
+  return arr;
+}
+
 function startButterflyFlee(b) {
   if (!b || b.phase === 'flee' || b.phase === 'leave') return;
   b.phase = 'flee'; b.timer = 0;
@@ -469,5 +518,9 @@ _.isFlowerAlive = isFlowerAlive;
 _.getHoveringButterflies = getHoveringButterflies;
 _.startButterflyFlee = startButterflyFlee;
 _.isButterflyAlive = isButterflyAlive;
+_.knockFlower = knockFlower;
+_.handleButterflyClick = handleButterflyClick;
+_.knockButterfly = knockButterfly;
+_.getAllAliveButterflies = getAllAliveButterflies;
 
 })();

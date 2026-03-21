@@ -34,6 +34,8 @@ window.ColorCatConfig = {
     ledge_idle:  { num: '1', suffix: 'Bunny_Idle-Sheet.png',        frames: 8 },       // 無 Ledge，用 Idle 替代
     climb:       { num: '1', suffix: 'Bunny_Idle-Sheet.png',        frames: 8 },       // 無 Climb，用 Idle 替代
     wall_slide:  { num: '6', suffix: 'Bunny_Wall_Slide-Sheet.png', frames: 4 },
+    take_damage: { num: '10', suffix: 'Bunny_Take_Damage-Sheet.png', frames: 4 },
+    special_attack: { num: '9', suffix: 'Bunny_Attack_3-Sheet.png', frames: 8, fw: 64, fh: 48 },
   },
 
   // ── 動作定義 ──
@@ -53,6 +55,8 @@ window.ColorCatConfig = {
     ledge_idle:  { num: '8',  suffix: 'Cat_Ledge_Grab_Idle-Sheet.png',  frames: 8,  speed: 0.15, type: 'loop', label: '攀緣待機' },
     climb:       { num: '9',  suffix: 'Cat_Climb_Ladder-Sheet.png',     frames: 8,  speed: 0.2,  type: 'loop', label: '爬梯子 Climb' },
     wall_slide:  { num: '5',  suffix: 'Cat_Wall_Slide-Sheet.png',        frames: 4,  speed: 0.15, type: 'loop', label: '滑牆 Wall Slide' },
+    take_damage:    { num: '17', suffix: 'Cat_Take_Damage-Sheet.png',    frames: 4,  speed: 0.15, type: 'once', label: '受傷 Damage' },
+    special_attack: { num: '24', suffix: 'Cat_Special_Attack-Sheet.png', frames: 8,  speed: 0.2,  type: 'once', label: '必殺技 Special', fw: 64 },
   },
 
   // ── 備用動作（未來選擇性開放，取消註解移入 ACTION_DEFS 即可） ──

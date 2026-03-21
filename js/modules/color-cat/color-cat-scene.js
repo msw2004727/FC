@@ -31,11 +31,18 @@ _.updatePanel = function() {};
 _.drawPanel = function() {};
 _.updateFlowers = function() {};
 _.drawFlowers = function() {};
-_.handleFlowerClick = function() { return false; };
+_.handleFlowerClick = function() { return null; };
+_.handleButterflyClick = function() { return null; };
 _.addFlower = function() {};
 _.handlePanelClick = function() { return false; };
 _.updateSkyEvents = function() {};
 _.drawSkyEvents = function() {};
+_.addGrave = function() {};
+_.drawGraves = function() {};
+_.updateGraves = function() {};
+_.getClickedGrave = function() { return -1; };
+_.destroyGrave = function() {};
+_.getGravePos = function() { return -1; };
 
 // ===== 主迴圈 =====
 
@@ -48,13 +55,19 @@ function render() {
   _.drawBox(_ctx, light, sleeping);
   ColorCatBall.draw(_ctx, light);
   _.drawWallShadow(_ctx);
+  if (window.ColorCatEnemy) ColorCatEnemy.drawBoxShadows(_ctx);
   _.drawFlag(_ctx, light);
+  _.drawGraves(_ctx, light);
+  if (window.ColorCatEnemy) ColorCatEnemy.draw(_ctx);
+  if (window.ColorCatEnemy) ColorCatEnemy.drawProjectiles(_ctx);
   ColorCatCharacter.draw(_ctx, light);
+  if (window.ColorCatDamageNumber) ColorCatDamageNumber.draw(_ctx);
   _.drawPanel(_ctx, _sw, light);
 }
 
 function update() {
   _.updateFlowers(_sw);
+  _.updateGraves();
   var light = !C.isThemeDark();
   _.updateSkyEvents(_sw, light);
   // 面板滑動 + 碰撞判定（必須在 getEffectiveWidth / 角色位置夾限之前）
@@ -68,19 +81,39 @@ function update() {
   }
   ColorCatBall.update(_sw);
   if (bs.x + bs.r > ew) { bs.x = ew - bs.r; if (bs.vx > 0) bs.vx = -bs.vx; }
+  // 大絕招蓄力計時
+  var char_ = ColorCatCharacter._;
+  if (char_.ultCharging) {
+    char_.ultChargeTimer++;
+    if (char_.ultChargeTimer >= char_.ultChargeDuration) {
+      char_.ultCharging = false;
+      char_.ultChargeTimer = 0;
+      _ultBlockClick = true;
+      ColorCatCharacter.startUltimate();
+    }
+  }
+  if (window.ColorCatEnemy) { ColorCatEnemy.update(ew); ColorCatEnemy.updateProjectiles(ew); }
+  if (window.ColorCatDamageNumber) ColorCatDamageNumber.update();
   var kicked = ColorCatCharacter.update(ew, bs);
   if (kicked) {
+    // 踢球時解除拖曳
+    if (_ballDragging || ColorCatBall.isDragging()) {
+      _ballDragging = false;
+      ColorCatBall.releaseDrag();
+    }
     ColorCatBall.kick(ColorCatCharacter.state.facing, _sw);
   }
   // 角色不超過面板邊界（knockback 飛行中不夾，讓拋物線完整播放）
   var halfW = C.SPRITE_DRAW / 2;
   var chAct = ColorCatCharacter.state.action;
-  if (chAct !== 'knockback' && chAct !== 'combo' && chAct !== 'jumpOff' && ColorCatCharacter.state.x > ew - halfW) {
+  if (chAct !== 'knockback' && chAct !== 'combo' && chAct !== 'jumpOff' && chAct !== 'ultimate' && chAct !== 'dying' && chAct !== 'hurt' && chAct !== 'attackEnemy' && chAct !== 'attackGrave' && ColorCatCharacter.state.x > ew - halfW) {
     ColorCatCharacter.state.x = ew - halfW;
     // 避免在邊界原地踏步：攔截向右移動的動作（combo 自行管理位置，不攔截）
     if (ColorCatCharacter.state.facing === 1 &&
         chAct !== 'idle' && chAct !== 'sleeping' && chAct !== 'weak' &&
-        chAct !== 'jumpOff' && chAct !== 'test' && chAct !== 'combo') {
+        chAct !== 'jumpOff' && chAct !== 'test' && chAct !== 'combo' &&
+        chAct !== 'attackFlower' && chAct !== 'attackButterfly' && chAct !== 'ultimate' &&
+        chAct !== 'dying' && chAct !== 'attackEnemy' && chAct !== 'attackGrave') {
       if (chAct === 'biteBall') ColorCatBall.setCarried(false);
       ColorCatCharacter.state.action = 'idle';
       ColorCatCharacter.state.facing = -1;
@@ -89,6 +122,57 @@ function update() {
     }
   }
   render();
+}
+
+// ===== 長按蓄力（大絕招）+ 球拖曳 =====
+
+var _ultBlockClick = false;
+var _ballDragging = false;
+
+function _getPointer(e) {
+  var rect = _canvas.getBoundingClientRect();
+  if (e.touches) return { x: e.touches[0].clientX - rect.left, y: e.touches[0].clientY - rect.top };
+  return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+}
+
+function handlePressStart(e) {
+  var p = _getPointer(e);
+  // 優先判定球拖曳
+  if (ColorCatBall.isClicked(p.x, p.y)) {
+    _ballDragging = true;
+    ColorCatBall.setDragging(true);
+    ColorCatBall.dragTo(p.x, p.y);
+    ColorCatCharacter.startChase();
+    return;
+  }
+  // 大絕招蓄力
+  if (ColorCatCharacter.isClicked(p.x, p.y) && ColorCatCharacter.canUltimate()) {
+    var char_ = ColorCatCharacter._;
+    char_.ultCharging = true;
+    char_.ultChargeTimer = 0;
+  }
+}
+
+function handleDragMove(e) {
+  if (!_ballDragging) return;
+  if (e.cancelable) e.preventDefault();
+  var p = _getPointer(e);
+  ColorCatBall.dragTo(p.x, p.y);
+}
+
+function handlePressEnd() {
+  if (_ballDragging) {
+    _ballDragging = false;
+    ColorCatBall.releaseDrag();
+    _ultBlockClick = true; // 攔截此次 click
+    return;
+  }
+  var char_ = ColorCatCharacter._;
+  if (char_.ultCharging) {
+    if (char_.ultChargeTimer > 10) _ultBlockClick = true;
+    char_.ultCharging = false;
+    char_.ultChargeTimer = 0;
+  }
 }
 
 // ===== 點擊處理 =====
@@ -100,6 +184,9 @@ function isSunMoonClicked(cx, cy) {
 }
 
 function handleClick(e) {
+  // 大絕招蓄力完成 / 蓄力中斷 → 攔截此次 click
+  if (_ultBlockClick) { _ultBlockClick = false; return; }
+
   var rect = _canvas.getBoundingClientRect();
   var cx = e.clientX - rect.left;
   var cy = e.clientY - rect.top;
@@ -107,8 +194,21 @@ function handleClick(e) {
   // 面板攔截（優先處理）
   if (_.handlePanelClick(cx, cy, _sw)) return;
 
-  // 點擊花朵 → 採集 +EXP
-  if (_.handleFlowerClick(cx, cy)) return;
+  // 點擊蝴蝶 → 角色追擊蝴蝶
+  if (_.handleButterflyClick) {
+    var clickedB = _.handleButterflyClick(cx, cy);
+    if (clickedB) {
+      ColorCatCharacter.startAttackButterfly(clickedB);
+      return;
+    }
+  }
+
+  // 點擊花朵 → 角色跑去攻擊花朵
+  var clickedFlower = _.handleFlowerClick(cx, cy);
+  if (clickedFlower) {
+    ColorCatCharacter.startAttackFlower(clickedFlower);
+    return;
+  }
 
   // 點擊太陽/月亮 → 爬邊牆
   if (isSunMoonClicked(cx, cy)) {
@@ -132,6 +232,22 @@ function handleClick(e) {
       ColorCatCharacter.startGoToBox(openingX);
     }
     return;
+  }
+
+  // 點擊墓地 → 角色跑去攻擊墓地
+  var graveIdx = _.getClickedGrave(cx, cy);
+  if (graveIdx >= 0) {
+    ColorCatCharacter.startAttackGrave(graveIdx);
+    return;
+  }
+
+  // 點擊敵人 → 角色跑去攻擊敵人
+  if (window.ColorCatEnemy) {
+    var enemyIdx = ColorCatEnemy.getClicked(cx, cy);
+    if (enemyIdx >= 0) {
+      ColorCatCharacter.startAttackEnemy(enemyIdx);
+      return;
+    }
   }
 
   // 點擊角色
@@ -182,6 +298,18 @@ function initInteractiveScene(containerId) {
   });
 
   _canvas.addEventListener('click', handleClick);
+  // 長按蓄力事件
+  _canvas.addEventListener('mousedown', handlePressStart);
+  _canvas.addEventListener('mouseup', handlePressEnd);
+  _canvas.addEventListener('mouseleave', handlePressEnd);
+  _canvas.addEventListener('touchstart', handlePressStart, { passive: true });
+  _canvas.addEventListener('touchend', handlePressEnd);
+  _canvas.addEventListener('touchcancel', handlePressEnd);
+  _canvas.addEventListener('mousemove', handleDragMove);
+  _canvas.addEventListener('touchmove', function(e) {
+    if (_ballDragging || ColorCatCharacter._.ultCharging) e.preventDefault();
+    handleDragMove(e);
+  }, { passive: false });
 
   // 視窗縮放
   var rt = null;
