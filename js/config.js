@@ -310,7 +310,8 @@
 // 20260321j: 回推補發新增 LINE綁定/放鴿子扣分/徽章獎勵 三條規則
 // 20260321k: 修復頂部 EXP 不同步（exp 變更未觸發 currentUser 更新）
 // 20260321l: 補發完成後刷新操作紀錄卡片 + 舊紀錄 fallback 顯示
-const CACHE_VERSION = '20260321l';
+// 20260321m: 名字膠囊左上角顯示角色 LV
+const CACHE_VERSION = '20260321m';
 
 // ─── Page Strategy Registry ───
 // 唯一策略來源，未列出的頁面預設 fresh-first

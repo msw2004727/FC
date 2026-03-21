@@ -37,6 +37,16 @@
 [data-theme="dark"] .uc-venue_owner { background: rgba(217,119,6,.20); color: #fbbf24; border-color: rgba(217,119,6,.4); }
 [data-theme="dark"] .uc-admin { background: rgba(59,130,246,.20); color: #93bbfc; border-color: rgba(59,130,246,.4); }
 [data-theme="dark"] .uc-super_admin { background: rgba(239,68,68,.20); color: #fca5a5; border-color: rgba(239,68,68,.4); }
+/* Capsule LV badge */
+.user-capsule { position: relative; }
+.uc-lv {
+  position: absolute; top: -7px; left: -2px;
+  font-size: .5rem; font-weight: 700; line-height: 1;
+  padding: .1rem .25rem; border-radius: 4px;
+  background: var(--accent, #3b82f6); color: #fff;
+  pointer-events: none; white-space: nowrap;
+}
+[data-theme="dark"] .uc-lv { background: #2563eb; }
 /* Capsule inside leaderboard / admin - smaller variant */
 .lb-name .user-capsule, .admin-user-name .user-capsule { font-size: .75rem; padding: .15rem .5rem; }
 .td-member-name .user-capsule { font-size: .75rem; padding: .15rem .5rem; }

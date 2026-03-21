@@ -40,7 +40,9 @@ Object.assign(App, {
 
   _userTag(name, forceRole) {
     const role = forceRole || ApiService.getUserRole(name);
-    return `<span class="user-capsule uc-${role}" onclick="App.showUserProfile('${escapeHTML(name)}')" title="${ROLES[role]?.label || '一般用戶'}">${escapeHTML(name)}</span>`;
+    const user = this._findUserByName(name);
+    const lvl = this._calcLevelFromExp((user && user.exp) || 0).level;
+    return `<span class="user-capsule uc-${role}" onclick="App.showUserProfile('${escapeHTML(name)}')" title="${ROLES[role]?.label || '一般用戶'}"><span class="uc-lv">Lv${lvl}</span>${escapeHTML(name)}</span>`;
   },
 
   _findUserByName(name) {
