@@ -401,8 +401,9 @@
 [data-theme="dark"] .drawer-role-super { background: rgba(220,38,38,.15); }
 [data-theme="dark"] .drawer-role-yellow { background: rgba(234,179,8,.22); }
 .drawer-footer { padding: .75rem 1.2rem; border-top: 1px solid var(--border); }
-#theme-toggle { display: flex; align-items: center; gap: .6rem; width: 100%; font-size: .88rem; color: var(--text-secondary); padding: .5rem 0; line-height: 22px; min-height: 22px; }
-.drawer-legal-row { display: flex; gap: .6rem; padding: .4rem 0 .2rem; }
+.drawer-theme-row { display: flex; align-items: center; gap: .6rem; padding: .5rem 0; }
+#theme-toggle { display: flex; align-items: center; gap: .6rem; font-size: .88rem; color: var(--text-secondary); line-height: 22px; min-height: 22px; }
+.drawer-legal-row { display: flex; gap: .4rem; margin-left: auto; }
 @keyframes legal-glow {
   0% { background-position: 0% 50%; }
   100% { background-position: 200% 50%; }
