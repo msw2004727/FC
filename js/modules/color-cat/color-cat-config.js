@@ -7,6 +7,17 @@ window.ColorCatConfig = {
   SCENE_H: 127,
   GROUND_Y: 107,        // SCENE_H - 20
   CHAR_GROUND_Y: 127,   // groundY + 20，角色腳底位置
+
+  // ── 橫向全螢幕相關 ──
+  scaleFactor: 1,       // 畫布縮放倍率（直放=1，橫放=actualWidth/560）
+
+  /** 動態更新場景尺寸（地面固定在底部往上 20px） */
+  updateSceneSize: function(w, h) {
+    this.SCENE_H = h;
+    this.GROUND_Y = h - 20;
+    this.CHAR_GROUND_Y = h;
+  },
+
   SPRITE_SIZE: 32,
   SPRITE_SCALE: 1.8,
   SPRITE_DRAW: 32 * 1.8, // 57.6

@@ -4,7 +4,7 @@
 var C = window.ColorCatConfig;
 var _ = window.ColorCatScene._;
 var GW = 12, GH = 16;
-var BASE_Y = C.GROUND_Y + 10;
+function BASE_Y() { return C.GROUND_Y + 10; }
 
 var _graves = [];
 var _particles = [];
@@ -22,7 +22,7 @@ function getClickedGrave(cx, cy) {
   for (var i = _graves.length - 1; i >= 0; i--) {
     var g = _graves[i]; if (g.crumbling) continue;
     if (cx >= g.x - GW/2 - 3 && cx <= g.x + GW/2 + 3 &&
-        cy >= BASE_Y - GH && cy <= BASE_Y + 5) return i;
+        cy >= BASE_Y() - GH && cy <= BASE_Y() + 5) return i;
   }
   return -1;
 }
@@ -36,7 +36,7 @@ function destroyGrave(idx) {
     var life = 22 + Math.floor(Math.random() * 14);
     _particles.push({
       x: g.x + (Math.random()-0.5) * GW,
-      y: BASE_Y - Math.random() * GH,
+      y: BASE_Y() - Math.random() * GH,
       vx: (Math.random()-0.5) * 4.5,
       vy: -(1.2 + Math.random() * 2.8),
       life: life, maxLife: life,
@@ -85,19 +85,19 @@ function drawStone(ctx, x, light) {
   // 土堆
   ctx.fillStyle = light ? '#8B7355' : '#5a4a30';
   ctx.beginPath();
-  ctx.ellipse(x, BASE_Y + 2, hw + 3, 3, 0, 0, Math.PI * 2);
+  ctx.ellipse(x, BASE_Y() + 2, hw + 3, 3, 0, 0, Math.PI * 2);
   ctx.fill();
   // 石碑主體
   ctx.fillStyle = light ? '#9a9a9a' : '#707070';
-  ctx.fillRect(x - hw, BASE_Y - GH + 5, GW, GH - 5);
+  ctx.fillRect(x - hw, BASE_Y() - GH + 5, GW, GH - 5);
   // 圓頂
   ctx.beginPath();
-  ctx.arc(x, BASE_Y - GH + 5, hw, Math.PI, 0);
+  ctx.arc(x, BASE_Y() - GH + 5, hw, Math.PI, 0);
   ctx.fill();
   // 十字架
   ctx.fillStyle = light ? '#c0c0c0' : '#555';
-  ctx.fillRect(x - 1, BASE_Y - GH + 3, 2, 8);
-  ctx.fillRect(x - 3, BASE_Y - GH + 5, 6, 2);
+  ctx.fillRect(x - 1, BASE_Y() - GH + 3, 2, 8);
+  ctx.fillRect(x - 3, BASE_Y() - GH + 5, 6, 2);
 }
 
 // 註冊到場景共享狀態

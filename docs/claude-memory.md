@@ -1174,5 +1174,15 @@
 - **修復**：(1) 新建 `color-cat-damage-number.js` — 敵人被打黃色飄字、主角被打紅色飄字，連打疊加；(2) 重生 phase 3 改為 `sleeping` 狀態在紙箱內登場；(3) `color-cat-ball.js` 新增拖曳模式 + scene.js 加入 mousedown/mousemove/touchstart/touchmove 事件，拖曳球時角色自動追球，踢中後解除拖曳並擊飛
 - **教訓**：Canvas 拖曳需在 touchmove 中 preventDefault 避免頁面捲動，且 mouseup 後要攔截 click 事件避免重複觸發
 
+### 2026-03-22 — 模組拆分（flower→butterfly、actions→interact/special）
+- **問題**：`color-cat-scene-flower.js`（526 行）和 `color-cat-character-actions.js`（751 行）超過 300 行限制
+- **修復**：(1) 從 flower.js 拆出 `color-cat-scene-butterfly.js`（176 行），花檔降為 270 行；(2) 從 actions.js 拆出 `color-cat-character-actions-interact.js`（192 行，擊退+花互動）和 `color-cat-character-actions-special.js`（236 行，蝴蝶+大絕招），核心檔降為 270 行
+- **教訓**：跨 IIFE 拆分用 `_` 共享命名空間；拆出檔透過 `if (_.fn) _.fn()` 惰性呼叫；載入順序須確保核心先載、子檔後載（GrowthGames.html + script-loader.js 都要更新）
+
+### 2026-03-22 — 個人頁畫布加入日月星空 + 鑰匙下移
+- **問題**：靜態個人頁畫布（`_drawStaticBg`）在暗色模式下沒有月亮和星空，與互動場景不一致；鑰匙圖示位置偏高
+- **修復**：(1) 在 `color-cat-scene.js` 新增 `_staticStars` 預生成 30 顆星陣列（固定 alpha，無動畫），暗色模式繪製星空+新月；(2) `_keyY` 從 `textY+38` 改為 `textY+43`，下移 5px
+- **教訓**：靜態場景無動畫迴圈，星星不能用 `_starTimer` 閃爍，須用預生成固定值陣列
+
 *最後濃縮日期：2026-03-15*
 *原始檔案：314 條目 / 2475 行 → 濃縮後約 50 條永久教訓*

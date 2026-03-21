@@ -7,7 +7,11 @@
 
 var C = window.ColorCatConfig;
 var _sceneInterval = null;
-var _canvas, _ctx, _sw, _dpr;
+var _canvas, _ctx, _sw, _sh, _dpr;
+var _container = null;
+var _isLandscape = false;
+var _forcedPortrait = false;   // 使用者按返回按鈕後鎖定直放，直到實際翻回直放再解除
+var _returnBtn = null;
 
 // ── 內部共享狀態（子模組透過 ColorCatScene._ 存取） ──
 var _ = {
@@ -137,8 +141,9 @@ var _ballDragging = false;
 
 function _getPointer(e) {
   var rect = _canvas.getBoundingClientRect();
-  if (e.touches) return { x: e.touches[0].clientX - rect.left, y: e.touches[0].clientY - rect.top };
-  return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+  var sf = C.scaleFactor || 1;
+  if (e.touches) return { x: (e.touches[0].clientX - rect.left) / sf, y: (e.touches[0].clientY - rect.top) / sf };
+  return { x: (e.clientX - rect.left) / sf, y: (e.clientY - rect.top) / sf };
 }
 
 function handlePressStart(e) {
@@ -194,8 +199,9 @@ function handleClick(e) {
   if (_ultBlockClick) { _ultBlockClick = false; return; }
 
   var rect = _canvas.getBoundingClientRect();
-  var cx = e.clientX - rect.left;
-  var cy = e.clientY - rect.top;
+  var sf = C.scaleFactor || 1;
+  var cx = (e.clientX - rect.left) / sf;
+  var cy = (e.clientY - rect.top) / sf;
 
   // 面板攔截（優先處理）
   if (_.handlePanelClick(cx, cy, _sw)) return;
@@ -268,6 +274,127 @@ function handleClick(e) {
   }
 }
 
+// ===== 畫布尺寸 / 橫放偵測 / 縮放 =====
+
+function _resizeCanvas() {
+  if (!_canvas || !_container) return;
+  var prevLandscape = _isLandscape;
+  var physicalLandscape = window.innerWidth > window.innerHeight;
+  // 使用者手動按返回 → 鎖定直放，直到實際翻回直放後再允許橫放
+  if (_forcedPortrait) {
+    if (!physicalLandscape) _forcedPortrait = false; // 翻回直放，解鎖
+    _isLandscape = false;
+  } else {
+    _isLandscape = physicalLandscape;
+  }
+  _dpr = window.devicePixelRatio || 1;
+
+  if (_isLandscape) {
+    var actualW = window.innerWidth;
+    var actualH = window.innerHeight;
+    C.scaleFactor = actualW / 560;
+    _sw = 560;
+    _sh = actualH / C.scaleFactor;
+    C.updateSceneSize(_sw, _sh);
+
+    _canvas.width = actualW * _dpr;
+    _canvas.height = actualH * _dpr;
+    _canvas.style.cssText = 'width:' + actualW + 'px;height:' + actualH + 'px;display:block;cursor:pointer;image-rendering:pixelated;';
+    _container.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:9999;max-width:none;border-radius:0;';
+  } else {
+    C.scaleFactor = 1;
+    _sw = _container.parentElement ? _container.parentElement.offsetWidth : (_container.offsetWidth || 300);
+    _sh = 127;
+    C.updateSceneSize(_sw, _sh);
+
+    _canvas.width = _sw * _dpr;
+    _canvas.height = _sh * _dpr;
+    _canvas.style.cssText = 'width:100%;height:' + _sh + 'px;display:block;cursor:pointer;image-rendering:pixelated;';
+    _container.style.cssText = '';
+  }
+
+  _ctx = _canvas.getContext('2d');
+  _ctx.setTransform(C.scaleFactor * _dpr, 0, 0, C.scaleFactor * _dpr, 0, 0);
+
+  // 更新場景物件位置
+  _.BOX_BOTTOM_Y = C.CHAR_GROUND_Y - 6;
+  _.FLAG_POLE_TOP = _.BOX_BOTTOM_Y - _.BOX_H - _.FLAG_POLE_H;
+
+  // 夾限角色和球位置
+  ColorCatBall.state.x = Math.min(ColorCatBall.state.x, _sw - ColorCatBall.state.r);
+  ColorCatBall.state.y = Math.min(ColorCatBall.state.y, C.CHAR_GROUND_Y - ColorCatBall.state.r);
+  ColorCatCharacter.state.x = Math.min(ColorCatCharacter.state.x, _sw - 20);
+  ColorCatCharacter.state.y = C.CHAR_GROUND_Y;
+
+  // 更新角色 AI 場景資訊
+  ColorCatCharacter.setSceneInfo({
+    sw: _sw,
+    boxX: _.BOX_X,
+    boxTopY: _.BOX_BOTTOM_Y - _.BOX_H,
+    boxW: _.BOX_W,
+    openingX: _.BOX_X + _.BOX_W / 2 + 12,
+  });
+
+  // 橫放 UI：隱藏周圍元素、顯示返回按鈕
+  _toggleLandscapeUI(_isLandscape);
+
+  // 首次進入橫放時嘗試載入 2x 精靈圖
+  if (_isLandscape && !prevLandscape && window.ColorCatSprite && !ColorCatSprite.has2x()) {
+    ColorCatSprite.load2x(ColorCatSprite.getSkin());
+  }
+}
+
+// ===== 橫放 UI 控制（Step 4） =====
+
+function _toggleLandscapeUI(landscape) {
+  // 隱藏 / 顯示工具列、標題、其他頁面元素
+  var toolbars = document.querySelectorAll('.toolbar, h2');
+  for (var i = 0; i < toolbars.length; i++) {
+    toolbars[i].style.display = landscape ? 'none' : '';
+  }
+
+  // 在主站（profile 頁）隱藏導覽列和底部元素
+  var navBar = document.querySelector('.bottom-nav');
+  if (navBar) navBar.style.display = landscape ? 'none' : '';
+  var header = document.querySelector('.header');
+  if (header) header.style.display = landscape ? 'none' : '';
+
+  // 返回按鈕
+  if (landscape) {
+    if (!_returnBtn) {
+      _returnBtn = document.createElement('button');
+      _returnBtn.textContent = '\u2716';
+      _returnBtn.style.cssText = 'position:fixed;top:8px;right:12px;z-index:10000;width:32px;height:32px;border:none;border-radius:50%;background:rgba(0,0,0,0.45);color:#fff;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;';
+      _returnBtn.onclick = function() {
+        // 強制恢復直放模式，鎖定直到使用者實際翻回直放
+        _isLandscape = false;
+        _forcedPortrait = true;
+        C.scaleFactor = 1;
+        _sw = _container.parentElement ? _container.parentElement.offsetWidth : (_container.offsetWidth || 300);
+        _sh = 127;
+        C.updateSceneSize(_sw, _sh);
+        _canvas.width = _sw * _dpr;
+        _canvas.height = _sh * _dpr;
+        _canvas.style.cssText = 'width:100%;height:' + _sh + 'px;display:block;cursor:pointer;image-rendering:pixelated;';
+        _container.style.cssText = '';
+        _ctx = _canvas.getContext('2d');
+        _ctx.setTransform(_dpr, 0, 0, _dpr, 0, 0);
+        _.BOX_BOTTOM_Y = C.CHAR_GROUND_Y - 6;
+        _.FLAG_POLE_TOP = _.BOX_BOTTOM_Y - _.BOX_H - _.FLAG_POLE_H;
+        ColorCatBall.state.x = Math.min(ColorCatBall.state.x, _sw - ColorCatBall.state.r);
+        ColorCatCharacter.state.x = Math.min(ColorCatCharacter.state.x, _sw - 20);
+        ColorCatCharacter.state.y = C.CHAR_GROUND_Y;
+        ColorCatCharacter.setSceneInfo({ sw: _sw, boxX: _.BOX_X, boxTopY: _.BOX_BOTTOM_Y - _.BOX_H, boxW: _.BOX_W, openingX: _.BOX_X + _.BOX_W / 2 + 12 });
+        _toggleLandscapeUI(false);
+      };
+      document.body.appendChild(_returnBtn);
+    }
+    _returnBtn.style.display = 'flex';
+  } else {
+    if (_returnBtn) _returnBtn.style.display = 'none';
+  }
+}
+
 // ===== 初始化（互動版，含球+角色） =====
 
 function initInteractiveScene(containerId) {
@@ -276,16 +403,18 @@ function initInteractiveScene(containerId) {
 
   destroy();
   container.innerHTML = '';
+  _container = container;
 
   _dpr = window.devicePixelRatio || 1;
   _canvas = document.createElement('canvas');
   _sw = container.offsetWidth || 300;
+  _sh = C.SCENE_H;
   _canvas.width = _sw * _dpr;
-  _canvas.height = C.SCENE_H * _dpr;
-  _canvas.style.cssText = 'width:100%;height:' + C.SCENE_H + 'px;display:block;cursor:pointer;image-rendering:pixelated;';
+  _canvas.height = _sh * _dpr;
+  _canvas.style.cssText = 'width:100%;height:' + _sh + 'px;display:block;cursor:pointer;image-rendering:pixelated;';
   container.appendChild(_canvas);
   _ctx = _canvas.getContext('2d');
-  _ctx.scale(_dpr, _dpr);
+  _ctx.setTransform(_dpr, 0, 0, _dpr, 0, 0);
 
   _.BOX_BOTTOM_Y = C.CHAR_GROUND_Y - 6;
   _.FLAG_POLE_X = _.BOX_X - _.BOX_W / 4;
@@ -317,18 +446,11 @@ function initInteractiveScene(containerId) {
     handleDragMove(e);
   }, { passive: false });
 
-  // 視窗縮放
+  // 視窗縮放 / 橫放偵測
   var rt = null;
   window.addEventListener('resize', function() {
     clearTimeout(rt);
-    rt = setTimeout(function() {
-      _sw = container.offsetWidth || 300;
-      _canvas.width = _sw * _dpr;
-      _canvas.height = C.SCENE_H * _dpr;
-      _ctx = _canvas.getContext('2d');
-      _ctx.scale(_dpr, _dpr);
-      _canvas.style.width = _sw + 'px';
-    }, 150);
+    rt = setTimeout(_resizeCanvas, 150);
   });
 
   // 主題變更
@@ -342,8 +464,16 @@ function initInteractiveScene(containerId) {
 
 // ===== 初始化（靜態版，僅背景，用於正式版尚未開放互動時） =====
 
+// 靜態星星（個人頁用，不動畫）
+var _staticStars = (function() {
+  var arr = [];
+  for (var i = 0; i < 30; i++) {
+    arr.push({ xr: Math.random(), y: 3 + Math.random() * 52, r: 0.3 + Math.random() * 0.7, a: 0.3 + Math.random() * 0.5 });
+  }
+  return arr;
+})();
+
 function _drawStaticBg(ctx, cw, light) {
-  // 天空漸層（不畫山和樹）
   var grad = ctx.createLinearGradient(0, 0, 0, C.SCENE_H);
   if (light) {
     grad.addColorStop(0, '#87CEEB'); grad.addColorStop(0.7, '#B0E0F0'); grad.addColorStop(1, '#4CAF50');
@@ -352,6 +482,14 @@ function _drawStaticBg(ctx, cw, light) {
   }
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, cw, C.SCENE_H);
+  // 星星（夜間）
+  if (!light) {
+    for (var si = 0; si < _staticStars.length; si++) {
+      var s = _staticStars[si];
+      ctx.fillStyle = 'rgba(255,255,255,' + s.a + ')';
+      ctx.beginPath(); ctx.arc(s.xr * cw, s.y, s.r, 0, Math.PI * 2); ctx.fill();
+    }
+  }
   // 草地
   ctx.fillStyle = light ? '#4CAF50' : '#1a3a1a';
   ctx.fillRect(0, C.GROUND_Y, cw, C.SCENE_H - C.GROUND_Y);
@@ -367,6 +505,13 @@ function _drawStaticBg(ctx, cw, light) {
       ctx.beginPath(); ctx.moveTo(cw-20+Math.cos(a)*9, 18+Math.sin(a)*9);
       ctx.lineTo(cw-20+Math.cos(a)*13, 18+Math.sin(a)*13); ctx.stroke();
     }
+    ctx.restore();
+  } else {
+    ctx.save();
+    ctx.fillStyle = '#F5E6B8';
+    ctx.beginPath(); ctx.arc(cw - 20, 18, 8, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#0a1628';
+    ctx.beginPath(); ctx.arc(cw - 16, 16, 7, 0, Math.PI * 2); ctx.fill();
     ctx.restore();
   }
 }
@@ -427,7 +572,7 @@ function initStaticScene(containerId) {
 
     // 鑰匙圖示
     _keyX = cw / 2;
-    _keyY = textY + 38;
+    _keyY = textY + 43;
     _drawKey(ctx, _keyX, _keyY, light);
   }
 
@@ -470,6 +615,15 @@ function initStaticScene(containerId) {
 
 function destroy() {
   if (_sceneInterval) { clearInterval(_sceneInterval); _sceneInterval = null; }
+  // 清理返回按鈕
+  if (_returnBtn) { _returnBtn.remove(); _returnBtn = null; }
+  // 恢復橫放 UI
+  if (_isLandscape) _toggleLandscapeUI(false);
+  _isLandscape = false;
+  _forcedPortrait = false;
+  C.scaleFactor = 1;
+  C.updateSceneSize(560, 127);
+  _container = null;
   var el = document.getElementById('profile-slot-banner');
   if (el) {
     if (el._fcObserver) { el._fcObserver.disconnect(); el._fcObserver = null; }

@@ -9,7 +9,9 @@ var C = window.ColorCatConfig;
 
 // ── 精靈圖快取 ──
 var sprites = {};
+var sprites2x = {};     // 2x 高解析度版本（可選）
 var spritesLoaded = false;
+var _has2x = false;     // 是否成功載入 2x 精靈圖
 var currentSkin = 'whiteCat';
 var SPRITE_DEFS = {};
 
@@ -52,6 +54,8 @@ function rebuildSpriteDefs() {
 function loadSkinSprites(skinKey, callback) {
   spritesLoaded = false;
   sprites = {};
+  sprites2x = {};
+  _has2x = false;
   var keys = Object.keys(C.ACTION_DEFS);
   var loaded = 0;
   var total = keys.length;
@@ -67,6 +71,30 @@ function loadSkinSprites(skinKey, callback) {
       if (loaded === total) { spritesLoaded = true; if (callback) callback(); }
     };
     img.src = C.getSpriteFilePath(skinKey, C.ACTION_DEFS[key], key);
+  });
+}
+
+// ── 載入 2x 高解析度精靈圖（橫放時呼叫，失敗自動降級 1x） ──
+function load2xSprites(skinKey) {
+  var skin = C.SKINS[skinKey];
+  if (!skin) return;
+  var keys = Object.keys(C.ACTION_DEFS);
+  var loaded2x = 0, success2x = 0;
+  keys.forEach(function(key) {
+    var path1x = C.getSpriteFilePath(skinKey, C.ACTION_DEFS[key], key);
+    // 2x 路徑：img/sprites/2x/{folder}/{filename}
+    var path2x = path1x.replace('img/sprites/', 'img/sprites/2x/');
+    var img = new Image();
+    img.onload = function() {
+      sprites2x[key] = img;
+      loaded2x++; success2x++;
+      if (loaded2x === keys.length) _has2x = success2x > 0;
+    };
+    img.onerror = function() {
+      loaded2x++;
+      if (loaded2x === keys.length) _has2x = success2x > 0;
+    };
+    img.src = path2x;
   });
 }
 
@@ -96,7 +124,9 @@ function drawSprite(ctx, spriteKey, spriteFrame, x, footY, facing, noShadow) {
     ctx.fill();
   }
 
-  var img = sprites[spriteKey];
+  // 2x 精靈圖優先（scaleFactor > 1.2 且有 2x 圖時使用）
+  var use2x = _has2x && (C.scaleFactor || 1) > 1.2 && sprites2x[spriteKey];
+  var img = use2x ? sprites2x[spriteKey] : sprites[spriteKey];
 
   if (!spritesLoaded || !img) {
     // 未載入時顯示佔位方塊
@@ -110,6 +140,8 @@ function drawSprite(ctx, spriteKey, spriteFrame, x, footY, facing, noShadow) {
   var sDef = SPRITE_DEFS[spriteKey];
   var frameW = (sDef && sDef.fw) ? sDef.fw : C.SPRITE_SIZE;
   var frameH = (sDef && sDef.fh) ? sDef.fh : C.SPRITE_SIZE;
+  var srcFW = use2x ? frameW * 2 : frameW;   // 2x 圖來源尺寸加倍
+  var srcFH = use2x ? frameH * 2 : frameH;
   var frame = spriteFrame % (sDef ? sDef.frames : 1);
   var drawW = frameW * C.SPRITE_SCALE;
   var drawH = frameH * C.SPRITE_SCALE;
@@ -123,10 +155,10 @@ function drawSprite(ctx, spriteKey, spriteFrame, x, footY, facing, noShadow) {
   ctx.imageSmoothingEnabled = false;
   ctx.drawImage(
     img,
-    frame * frameW, 0,     // 來源裁切位置
-    frameW, frameH,        // 來源裁切大小
-    x - drawW / 2, drawY,  // 目標位置
-    drawW, drawH            // 目標大小
+    frame * srcFW, 0,      // 來源裁切位置
+    srcFW, srcFH,          // 來源裁切大小（2x 時為雙倍）
+    x - drawW / 2, drawY,  // 目標位置（虛擬座標）
+    drawW, drawH            // 目標大小（虛擬座標）
   );
 
   ctx.restore();
@@ -180,11 +212,13 @@ function drawSilhouette(ctx, spriteKey, spriteFrame, x, footY, facing, alpha) {
 window.ColorCatSprite = {
   init: initSprites,
   switchSkin: switchSkin,
+  load2x: load2xSprites,
   draw: drawSprite,
   drawSilhouette: drawSilhouette,
   getDefs: function() { return SPRITE_DEFS; },
   getSkin: function() { return currentSkin; },
   isLoaded: function() { return spritesLoaded; },
+  has2x: function() { return _has2x; },
   getImage: function(key) { return sprites[key] || null; },
 };
 
