@@ -26,6 +26,10 @@ var WISP_N = 8;          // 飄動帶數量
 function toggle() {
   _active = !_active;
   if (_active) {
+    // 嚇跑所有敵人
+    if (window.ColorCatEnemy && window.ColorCatEnemy.scareAll) {
+      window.ColorCatEnemy.scareAll();
+    }
     _leftEdge = 0;
     _rightEdge = _lastSw;
     _timer = 0;

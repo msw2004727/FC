@@ -53,6 +53,8 @@ function updatePanel(sw) {
         var ee = eAll[ei];
         if (ee.dead || ee.inKnockback || ee.action === 'falling' || ee.action === 'spawning') continue;
         if (ee.x + eVW / 2 > panelEdge) {
+          var dmg = Math.ceil(ee.maxHp * 0.5);
+          window.ColorCatEnemy.dealDamage(ei, dmg);
           window.ColorCatEnemy.knockback(ei);
         }
       }

@@ -63,6 +63,7 @@ function startChase() {
   if (_.testMode) stopTest();
   releaseBall();
   if (ch.action === 'sleeping') {
+    _.manualSleep = false;
     ch.action = 'chase'; ch.x = ch.x + C.SPRITE_DRAW / 3;
     ch.actionFrame = 0; ch.spriteFrame = 0; ch.spriteTimer = 0; return;
   }
@@ -128,12 +129,14 @@ function tapCharacter(sceneWidth) {
 // ── 從紙箱醒來 ──
 function wakeUp(boxX) {
   if (ch.action !== 'sleeping') return;
+  _.manualSleep = false;
   ch.action = 'idle'; ch.x = boxX + C.SPRITE_DRAW / 3;
   ch.spriteFrame = 0; ch.spriteTimer = 0;
 }
 
 // ── 更新：睡覺中 ──
 function updateSleeping() {
+  if (_.manualSleep) return false;
   if (!_.testMode && _.aiSceneInfo && _s()) {
     _.aiTimer++;
     var a = _s().ai;

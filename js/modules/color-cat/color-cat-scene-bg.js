@@ -40,14 +40,12 @@ function drawMoon(ctx, x, y) {
 
 // ── 山巒（兩層景深） ──
 var FAR_PEAKS = [
-  [0,92],[0.06,75],[0.12,82],[0.18,68],[0.25,78],[0.32,62],
-  [0.4,72],[0.48,58],[0.55,66],[0.62,54],[0.7,64],[0.78,58],
-  [0.85,68],[0.92,76],[1,88]
+  [0,78],[0.12,48],[0.25,80],[0.45,40],[0.65,78],[0.82,46],[1,74]
 ];
 var NEAR_PEAKS = [
-  [0,97],[0.05,90],[0.1,84],[0.18,92],[0.24,82],[0.3,88],
-  [0.38,78],[0.45,85],[0.52,76],[0.6,82],[0.68,74],[0.75,82],
-  [0.82,78],[0.9,84],[0.96,90],[1,96]
+  [0,86],[0.08,78],[0.16,88],[0.25,74],[0.35,86],
+  [0.45,72],[0.55,85],[0.65,70],[0.75,84],
+  [0.85,74],[0.95,84],[1,88]
 ];
 
 function drawMountainLayer(ctx, sw, peaks, color) {
@@ -81,10 +79,64 @@ function drawSnowCaps(ctx, sw, peaks, light) {
   }
 }
 
+// ── 角色離場後的遠山剪影 ──
+var _silhouette = { progress: 0, active: false, atPeak: false, legPhase: 0 };
+// 中間最高峰 [0.45, 40]，起點在近遠山交會處 (xr≈0.27, y≈76)
+var SIL_START_XR = 0.27, SIL_START_Y = 76;
+var SIL_END_XR = 0.45, SIL_END_Y = 40;
+var SIL_SPEED = 0.0005;
+
+function updateSilhouette() {
+  var char_ = window.ColorCatCharacter && window.ColorCatCharacter._;
+  if (!char_ || !char_.signpostAway) {
+    _silhouette.active = false;
+    _silhouette.progress = 0;
+    _silhouette.atPeak = false;
+    return;
+  }
+  _silhouette.active = true;
+  if (!_silhouette.atPeak) {
+    _silhouette.progress += SIL_SPEED;
+    _silhouette.legPhase += 0.12;
+    if (_silhouette.progress >= 1) {
+      _silhouette.progress = 1;
+      _silhouette.atPeak = true;
+    }
+  }
+}
+
+function drawSilhouette(ctx, sw) {
+  if (!_silhouette.active) return;
+  var p = _silhouette.progress;
+  var x = (SIL_START_XR + (SIL_END_XR - SIL_START_XR) * p) * sw;
+  var y = SIL_START_Y + (SIL_END_Y - SIL_START_Y) * p;
+  var h = 2;
+  // 模糊化處理
+  ctx.save();
+  ctx.filter = 'blur(0.6px)';
+  var col = 'rgba(0,0,0,0.45)';
+  // 頭
+  ctx.fillStyle = col;
+  ctx.beginPath(); ctx.arc(x, y - h, 0.5, 0, Math.PI * 2); ctx.fill();
+  // 身體
+  ctx.strokeStyle = col; ctx.lineWidth = 0.4;
+  ctx.beginPath(); ctx.moveTo(x, y - h + 0.4); ctx.lineTo(x, y - 0.5); ctx.stroke();
+  // 腿（走路擺動）
+  var legSwing = _silhouette.atPeak ? 0 : Math.sin(_silhouette.legPhase) * 0.6;
+  ctx.beginPath();
+  ctx.moveTo(x, y - 0.5); ctx.lineTo(x - 0.5 + legSwing, y);
+  ctx.moveTo(x, y - 0.5); ctx.lineTo(x + 0.5 - legSwing, y);
+  ctx.stroke();
+  ctx.restore();
+}
+
 function drawMountains(ctx, sw, light) {
   drawMountainLayer(ctx, sw, FAR_PEAKS, light ? 'rgba(140,165,195,0.3)' : 'rgba(30,42,62,0.45)');
   drawSnowCaps(ctx, sw, FAR_PEAKS, light);
-  drawMountainLayer(ctx, sw, NEAR_PEAKS, light ? 'rgba(110,140,170,0.35)' : 'rgba(10,16,28,0.7)');
+  // 遠山剪影（在遠山之上、近山之下）
+  updateSilhouette();
+  drawSilhouette(ctx, sw);
+  drawMountainLayer(ctx, sw, NEAR_PEAKS, light ? '#9BB8D4' : '#1A3048');
 }
 
 // ── 星星（夜間，預生成固定位置） ──
@@ -131,6 +183,9 @@ function drawBackground(ctx, sw, light) {
   // 星星（夜間，畫在山巒前讓山巒自然遮擋）
   if (!light) drawStars(ctx, sw);
 
+  // 流星（夜間，山巒後面）
+  if (!light) drawMeteorsBehind(ctx);
+
   // 山巒（天空之上、草地之下）
   drawMountains(ctx, sw, light);
 
@@ -148,6 +203,9 @@ function drawBackground(ctx, sw, light) {
 
   // 樹（右側背景）
   drawTree(ctx, sw, light);
+
+  // 路標（草地、樹之後，欄位之前）
+  drawSignpost(ctx, sw, light);
 
   // 太陽/月亮
   if (light) drawSun(ctx, sw - 20, 18);
@@ -286,11 +344,19 @@ function drawMeteor(ctx, e) {
   ctx.restore();
 }
 
+// 流星：山巒後面（在 drawBackground 中呼叫）
+function drawMeteorsBehind(ctx) {
+  for (var i = 0; i < _skyEvents.length; i++) {
+    var e = _skyEvents[i];
+    if (e.type === 'meteor') drawMeteor(ctx, e);
+  }
+}
+
+// 鳥群：山巒前面（在 render 中呼叫）
 function drawSkyEvents(ctx, light) {
   for (var i = 0; i < _skyEvents.length; i++) {
     var e = _skyEvents[i];
     if (e.type === 'birds' && light) drawBirds(ctx, e);
-    else if (e.type === 'meteor' && !light) drawMeteor(ctx, e);
   }
 }
 
@@ -305,6 +371,59 @@ function isTreeClicked(cx, cy, sw) {
     if (dx * dx + dy * dy <= 1) return true;
   }
   return false;
+}
+
+// ── 木頭路標（右側太陽下方，箭頭指右） ──
+function drawSignpost(ctx, sw, light) {
+  var postX = sw - 20;
+  var postTop = 93;
+  var postBottom = C.CHAR_GROUND_Y - 8;  // 深入草地
+  var postW = 3.5;
+
+  // 木柱
+  var trunkC = light ? '#6D4C2E' : '#3A2A18';
+  ctx.fillStyle = trunkC;
+  ctx.fillRect(postX - postW / 2, postTop, postW, postBottom - postTop);
+
+  // 柱頂小圓帽
+  ctx.fillStyle = light ? '#5A3D20' : '#2E1C0E';
+  ctx.beginPath();
+  ctx.arc(postX, postTop, 2.2, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 箭頭招牌
+  var boardY = postTop + 4;
+  var boardH = 9;
+  var boardLeft = postX - 3;
+  var boardRight = sw - 8;
+  var arrowTip = sw - 3;
+
+  ctx.fillStyle = light ? '#A0784A' : '#5A3D24';
+  ctx.beginPath();
+  ctx.moveTo(boardLeft, boardY);
+  ctx.lineTo(boardRight, boardY);
+  ctx.lineTo(arrowTip, boardY + boardH / 2);
+  ctx.lineTo(boardRight, boardY + boardH);
+  ctx.lineTo(boardLeft, boardY + boardH);
+  ctx.closePath();
+  ctx.fill();
+
+  // 招牌邊框
+  ctx.strokeStyle = light ? '#5A3D20' : '#2E1C0E';
+  ctx.lineWidth = 0.6;
+  ctx.stroke();
+
+  // 木紋線
+  ctx.strokeStyle = light ? 'rgba(90,61,32,0.25)' : 'rgba(80,60,30,0.2)';
+  ctx.lineWidth = 0.4;
+  ctx.beginPath();
+  ctx.moveTo(boardLeft + 2, boardY + 3);
+  ctx.lineTo(boardRight - 2, boardY + 3);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(boardLeft + 2, boardY + 6);
+  ctx.lineTo(boardRight - 2, boardY + 6);
+  ctx.stroke();
 }
 
 // ── 重新整理按鈕（左上角，與太陽/月亮對稱） ──
@@ -338,10 +457,18 @@ function isRefreshBtnClicked(cx, cy) {
   return dx * dx + dy * dy < 15 * 15;
 }
 
+// ── 路標點擊判定 ──
+function isSignpostClicked(cx, cy, sw) {
+  var postX = sw - 20;
+  var postTop = 93;
+  return cx >= postX - 8 && cx <= sw - 2 && cy >= postTop - 3 && cy <= C.GROUND_Y + 5;
+}
+
 _.drawBackground = drawBackground;
 _.updateSkyEvents = updateSkyEvents;
 _.drawSkyEvents = drawSkyEvents;
 _.isTreeClicked = isTreeClicked;
+_.isSignpostClicked = isSignpostClicked;
 _.drawRefreshBtn = drawRefreshBtn;
 _.isRefreshBtnClicked = isRefreshBtnClicked;
 

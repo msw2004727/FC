@@ -38,9 +38,10 @@ var _ = {
   dyingPhase: 0, dyingTimer: 0, dyingAlpha: 1,
   attackEnemyIdx: -1, attackEnemyPhase: 0, pendingAttackEnemy: -1,
   attackGraveIdx: -1, attackGravePhase: 0,
-  hurtTimer: 0,
+  hurtTimer: 0, manualSleep: false,
+  signpostAway: false, returnPantTreeX: 0,
   aiTimer: 0, aiCooldown: 0, aiSceneInfo: null,
-  COMBO_LEDGE_Y: 73, FOOT_OFFSET: 7,
+  COMBO_LEDGE_Y: 86, FOOT_OFFSET: 7,
   isBunny: function() {
     var sk = window.ColorCatSprite ? ColorCatSprite.getSkin() : 'whiteCat';
     var skin = C.SKINS[sk];
@@ -114,6 +115,10 @@ _.updateHurt = function() { return false; };
 _.spawnKnockbackBurst = function() {};
 _.updateKnockDust = function() {};
 _.drawKnockDust = function() {};
+_.startRunAway = function() {};
+_.updateRunAway = function() { return false; };
+_.startReturnPanting = function() {};
+_.updateReturnPanting = function() { return false; };
 
 // ── 初始化 ──
 function initCharacter(sceneWidth) {
@@ -172,6 +177,8 @@ function getSpriteKey() {
   if (character.action === 'hurt') return 'take_damage';
   if (character.action === 'attackEnemy') return _.attackEnemyPhase === 0 ? 'run' : 'attack';
   if (character.action === 'attackGrave') return _.attackGravePhase === 0 ? 'run' : 'attack';
+  if (character.action === 'runAway') return 'run';
+  if (character.action === 'returnPanting') return 'run';
   if (character.action === 'weak') return _.isBunny() ? 'death' : 'idle';
   if (character.action === 'knockback') return _.knockbackPhase === 2 ? 'idle' : 'roll';
   if (!character.onGround) return 'jump';
@@ -180,6 +187,7 @@ function getSpriteKey() {
 
 // ── 主更新（每 frame 呼叫），回傳 true 表示踢到球 ──
 function updateCharacter(sceneWidth, ballState) {
+  if (_.signpostAway) return false;
   var sw = sceneWidth;
   _.updateStamina();
   var defs = ColorCatSprite.getDefs();
@@ -262,11 +270,14 @@ function updateCharacter(sceneWidth, ballState) {
   if (character.action === 'hurt') return _.updateHurt();
   if (character.action === 'attackEnemy') return _.updateAttackEnemy(sw);
   if (character.action === 'attackGrave') return _.updateAttackGrave(sw);
+  if (character.action === 'runAway') return _.updateRunAway(sw);
+  if (character.action === 'returnPanting') return _.updateReturnPanting(sw);
   return _.updateChaseKickIdle(sw, ballState, defs);
 }
 
 // ── 繪製（委派給子模組與 ColorCatSprite） ──
 function drawCharacter(ctx, light) {
+  if (_.signpostAway) return;
   _.updateDust();
   _.updateBreath();
   _.updateHearts();
@@ -292,6 +303,8 @@ function drawCharacter(ctx, light) {
   _.drawChargeBar(ctx);
   _.drawHpBar(ctx);
   _.drawDyingCountdown(ctx);
+  if (_.updateBubble) _.updateBubble();
+  if (_.drawBubble) _.drawBubble(ctx);
 }
 
 // ── 角色點擊判定 ──
@@ -353,6 +366,8 @@ window.ColorCatCharacter = {
   takeDamage: function(dmg) { _.takeDamage(dmg); },
   startAttackEnemy: function(idx) { _.startAttackEnemy(idx); },
   startAttackGrave: function(idx) { _.startAttackGrave(idx); },
+  startRunAway: function(sw) { _.startRunAway(sw); },
+  startReturnPanting: function(sw) { _.startReturnPanting(sw); },
   getHp: function() { return _.charHp; },
   getMaxHp: function() { return _.charMaxHp; },
   isDying: function() { return character.action === 'dying'; },

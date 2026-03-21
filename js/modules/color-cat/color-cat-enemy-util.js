@@ -67,6 +67,19 @@ function hasAlive() {
   return false;
 }
 
+// ── 濃霧驚嚇：所有活著的敵人冒驚嘆號後往右跑出場景 ──
+function scareAll() {
+  var all = E.getAll();
+  for (var i = 0; i < all.length; i++) {
+    var e = all[i];
+    if (e.dead || e.action === 'falling' || e.action === 'spawning') continue;
+    e.action = 'walk'; e.sf = 0; e.st = 0;
+    e.facing = 1;
+    e.scared = true;
+    e.scaredTimer = 25;  // 驚嘆號顯示幀數
+  }
+}
+
 // 覆蓋 stub
 E.getClicked = getClicked;
 E.getInRange = getInRange;
@@ -74,5 +87,6 @@ E.dealDamage = dealDamage;
 E.findNearest = findNearest;
 E.hasAlive = hasAlive;
 E.knockback = knockbackEnemy;
+E.scareAll = scareAll;
 
 })();

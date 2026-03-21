@@ -187,6 +187,54 @@ function updateAttackFlower(sw) {
   return false;
 }
 
+// ── 路標：奔跑離場 ──
+function startRunAway(sw) {
+  if (ch.action === 'weak' || ch.action === 'knockback' || ch.action === 'dying' || ch.action === 'hurt') return;
+  if (_.testMode) _.stopTest();
+  _.releaseBall();
+  if (ch.action === 'combo') { if (_.interruptCombo()) return; }
+  if (ch.action === 'sleeping') { _.wakeUp(); _.manualSleep = false; }
+  ch.facing = 1;
+  ch.action = 'runAway';
+  ch.spriteFrame = 0; ch.spriteTimer = 0;
+}
+
+function updateRunAway(sw) {
+  ch.x += ch.speed * 3;
+  if (ch.x > sw + C.SPRITE_DRAW) {
+    _.signpostAway = true;
+    ch.action = 'idle';
+    ch.spriteFrame = 0; ch.spriteTimer = 0;
+  }
+  return false;
+}
+
+// ── 路標：喘氣走回場景 ──
+function startReturnPanting(sw) {
+  _.signpostAway = false;
+  ch.x = sw + C.SPRITE_DRAW;
+  ch.y = C.CHAR_GROUND_Y;
+  ch.onGround = true;
+  ch.facing = -1;
+  ch.action = 'returnPanting';
+  ch.spriteFrame = 0; ch.spriteTimer = 0;
+  _.returnPantTreeX = sw * 0.82;
+}
+
+function updateReturnPanting(sw) {
+  ch.x -= ch.speed * 0.4;
+  if (ch.x <= _.returnPantTreeX) {
+    ch.action = 'idle';
+    ch.spriteFrame = 0; ch.spriteTimer = 0;
+    _.aiResetCooldown();
+  }
+  return false;
+}
+
+_.startRunAway = startRunAway;
+_.updateRunAway = updateRunAway;
+_.startReturnPanting = startReturnPanting;
+_.updateReturnPanting = updateReturnPanting;
 _.startKnockback = startKnockback;
 _.updateKnockback = updateKnockback;
 _.startWatchFlower = startWatchFlower;

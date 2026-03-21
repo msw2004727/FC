@@ -11,17 +11,19 @@ var VIS_H = 41;        // 可見角色高度（像素），用於點擊/HP 條
 var VIS_W = 34;        // 可見角色寬度（像素），用於點擊/AI
 var MAX_ENEMIES = 5;
 
+var RACES = { human: '人類', goblin: '哥布林', orc: '獸人', slime: '史萊姆' };
+
 var SKINS = {
-  humanBow:     { folder: 'Human_Bow',                  name: '弓箭手' },
-  humanMage:    { folder: 'Human_Mage',                 name: '法師' },
-  humanMace:    { folder: 'Human_Soldier_Mace_Shield',   name: '錘盾兵' },
-  humanPolearm: { folder: 'Human_Soldier_Polearm',       name: '長槍兵' },
-  humanSword:   { folder: 'Human_Soldier_Sword_Shield',  name: '劍盾兵' },
-  goblinBow:    { folder: 'Monster_Goblin_Bow',          name: '哥布林弓手' },
-  orcAxe:       { folder: 'Monster_Orc_Axe',             name: '獸人斧手' },
-  orcFist:      { folder: 'Monster_Orc_Fist',            name: '獸人拳手' },
-  orcShield:    { folder: 'Monster_Orc_Shield',           name: '獸人盾兵' },
-  slime:        { folder: 'Monster_Slime',                name: '史萊姆' },
+  humanBow:     { folder: 'Human_Bow',                  name: '弓箭手', race: 'human' },
+  humanMage:    { folder: 'Human_Mage',                 name: '法師', race: 'human' },
+  humanMace:    { folder: 'Human_Soldier_Mace_Shield',   name: '錘盾兵', race: 'human' },
+  humanPolearm: { folder: 'Human_Soldier_Polearm',       name: '長槍兵', race: 'human' },
+  humanSword:   { folder: 'Human_Soldier_Sword_Shield',  name: '劍盾兵', race: 'human' },
+  goblinBow:    { folder: 'Monster_Goblin_Bow',          name: '哥布林弓手', race: 'goblin' },
+  orcAxe:       { folder: 'Monster_Orc_Axe',             name: '獸人斧手', race: 'orc' },
+  orcFist:      { folder: 'Monster_Orc_Fist',            name: '獸人拳手', race: 'orc' },
+  orcShield:    { folder: 'Monster_Orc_Shield',           name: '獸人盾兵', race: 'orc' },
+  slime:        { folder: 'Monster_Slime',                name: '史萊姆', race: 'slime' },
 };
 
 var ACTIONS = {
@@ -95,11 +97,15 @@ function spawn(skinKey, sw) {
   loadSprites(skinKey, function() {
     var margin = VIS_W;
     var rx = margin + Math.random() * (sw - margin * 2);
+    // 10% 機率產生巨型敵人（體型 +25%、數值 +25%）
+    var isElite = Math.random() < 0.1;
+    var m = isElite ? 1.25 : 1;
     enemies.push({
-      skin: skinKey, x: rx, y: -60,
+      skin: skinKey, race: SKINS[skinKey].race, x: rx, y: -60,
       facing: Math.random() < 0.5 ? -1 : 1, action: 'falling',
       sf: 0, st: 0, fallVy: 2,
-      hp: p.hp, maxHp: p.hp,
+      hp: Math.ceil(p.hp * m), maxHp: Math.ceil(p.hp * m),
+      dmgMul: m, spdMul: m, elite: isElite,
       aiTimer: 0, aiCD: p.cdMin + Math.floor(Math.random() * (p.cdMax - p.cdMin)),
       atkHit: false, blocking: false,
       dead: false, deathTimer: 0, fadeAlpha: 1,
@@ -200,22 +206,58 @@ function updateAll(sw) {
       }
       continue;
     }
+    // 濃霧驚嚇：快速往右跑出場景
+    if (e.scared) {
+      if (e.scaredTimer > 0) e.scaredTimer--;
+      e.facing = 1;
+      e.x += 3.5;
+      if (e.x > sw + 40) { enemies.splice(i, 1); }
+      continue;
+    }
     if (e.action === 'falling' || e.action === 'spawning' || e.action === 'hurt' || e.action === 'jump_fall') continue;
     if (e.action === 'block') continue;
     if (e.action === 'attack1' || e.action === 'attack2') {
       if (!e.atkHit && e.sf >= 4) {
         e.atkHit = true;
-        var p = PROFILES[e.skin];
-        var dmg = e.action === 'attack1' ? p.dmg1 : p.dmg2;
-        if (p.ranged) {
-          // 遠程：發射投射物
-          if (window.ColorCatEnemy.spawnProjectile) {
-            window.ColorCatEnemy.spawnProjectile(e, dmg);
+        // 敵人打花（角色死亡時）
+        if (e._atkFlowerByEnemy && e._atkFlower) {
+          var scene_ = window.ColorCatScene && window.ColorCatScene._;
+          if (scene_ && scene_.knockFlower && scene_.isFlowerAlive && scene_.isFlowerAlive(e._atkFlower)) {
+            scene_.knockFlower(e._atkFlower, e.facing, true);
+            // 20% 機率生怪（敵人打的不給玩家經驗）
+            if (Math.random() < 0.2 && window.ColorCatEnemy) {
+              var skinKeys = Object.keys(SKINS);
+              var rndSkin = skinKeys[Math.floor(Math.random() * skinKeys.length)];
+              spawn(rndSkin, sw);
+            }
           }
+          e._atkFlower = null; e._atkFlowerByEnemy = false;
+        } else if (e._atkEnemyTarget) {
+          // 敵人間互鬥（不同種族）
+          var tgt = e._atkEnemyTarget;
+          var tgtIdx = -1;
+          for (var ti = 0; ti < enemies.length; ti++) {
+            if (enemies[ti] === tgt) { tgtIdx = ti; break; }
+          }
+          if (tgtIdx >= 0 && !tgt.dead) {
+            var p = PROFILES[e.skin];
+            var eDmg = Math.ceil((e.action === 'attack1' ? p.dmg1 : p.dmg2) * (e.dmgMul || 1));
+            window.ColorCatEnemy.dealDamage(tgtIdx, eDmg);
+          }
+          e._atkEnemyTarget = null;
         } else {
-          // 近戰
-          if (Math.abs(ch.x - e.x) < VIS_W && !charDying) {
-            ColorCatCharacter.takeDamage(dmg);
+          var p = PROFILES[e.skin];
+          var dmg = Math.ceil((e.action === 'attack1' ? p.dmg1 : p.dmg2) * (e.dmgMul || 1));
+          if (p.ranged) {
+            // 遠程：發射投射物
+            if (window.ColorCatEnemy.spawnProjectile) {
+              window.ColorCatEnemy.spawnProjectile(e, dmg);
+            }
+          } else {
+            // 近戰
+            if (Math.abs(ch.x - e.x) < VIS_W && !charDying) {
+              ColorCatCharacter.takeDamage(dmg);
+            }
           }
         }
       }
@@ -234,11 +276,45 @@ function updateAll(sw) {
       }
     } else if (e.action === 'walk') {
       var p = PROFILES[e.skin];
+      var spd = p.spd * (e.spdMul || 1);
       if (charDying) {
-        e.x += e.facing * p.spd * 0.5;
-        if (e.x < 30 || e.x > sw - 30) e.facing *= -1;
-        e.aiTimer++;
-        if (e.aiTimer > 90) { e.action = 'idle'; e.sf = 0; e.st = 0; e.aiTimer = 0; }
+        // 角色死亡/在紙箱：找最近的花或不同種族敵人攻擊
+        var scene_ = window.ColorCatScene && window.ColorCatScene._;
+        var bloomed = scene_ && scene_.getBloomedFlowers ? scene_.getBloomedFlowers() : [];
+        var bestTgt = null, bestTgtD = Infinity, bestTgtType = '';
+        for (var fi = 0; fi < bloomed.length; fi++) {
+          var fd = Math.abs(bloomed[fi].x - e.x);
+          if (fd < bestTgtD) { bestTgtD = fd; bestTgt = bloomed[fi]; bestTgtType = 'flower'; }
+        }
+        for (var ei2 = 0; ei2 < enemies.length; ei2++) {
+          if (ei2 === i) continue;
+          var e2 = enemies[ei2];
+          if (e2.dead || e2.action === 'falling' || e2.action === 'spawning' || e2.scared) continue;
+          if (e2.race === e.race) continue;
+          var ed = Math.abs(e2.x - e.x);
+          if (ed < bestTgtD) { bestTgtD = ed; bestTgt = e2; bestTgtType = 'enemy'; }
+        }
+        if (bestTgt) {
+          e.facing = bestTgt.x > e.x ? 1 : -1;
+          if (bestTgtD > 12) {
+            e.x += e.facing * spd;
+            clampX(e, sw);
+          } else {
+            e.action = 'attack1'; e.sf = 0; e.st = 0; e.atkHit = false;
+            if (bestTgtType === 'flower') {
+              e._atkFlower = bestTgt; e._atkFlowerByEnemy = true;
+              e._atkEnemyTarget = null;
+            } else {
+              e._atkFlower = null; e._atkFlowerByEnemy = false;
+              e._atkEnemyTarget = bestTgt;
+            }
+          }
+        } else {
+          e.x += e.facing * spd * 0.5;
+          if (e.x < 30 || e.x > sw - 30) e.facing *= -1;
+          e.aiTimer++;
+          if (e.aiTimer > 90) { e.action = 'idle'; e.sf = 0; e.st = 0; e.aiTimer = 0; }
+        }
       } else if (p.ranged) {
         // 遠程 AI：保持在 80~235px 射程帶（命中率 ≥50%）
         var dx = ch.x - e.x;
@@ -246,11 +322,11 @@ function updateAll(sw) {
         e.facing = dx > 0 ? 1 : -1;
         if (dist < 80) {
           // 太近：快速逃離
-          e.x += (dx > 0 ? -1 : 1) * p.spd * 1.5;
+          e.x += (dx > 0 ? -1 : 1) * spd * 1.5;
           clampX(e, sw);
         } else if (dist > 235) {
           // 太遠：跑向主角至射程內
-          e.x += e.facing * p.spd;
+          e.x += e.facing * spd;
           clampX(e, sw);
         } else {
           // 理想距離：選擇動作攻擊
@@ -264,7 +340,7 @@ function updateAll(sw) {
           e.facing = dx > 0 ? 1 : -1;
         }
         if (Math.abs(dx) > VIS_W * 0.6) {
-          e.x += e.facing * p.spd; clampX(e, sw);
+          e.x += e.facing * spd; clampX(e, sw);
         } else {
           chooseAction(e, p);
         }
@@ -275,7 +351,7 @@ function updateAll(sw) {
 
 // ── 公開 API（戰鬥工具函式由 enemy-util.js 覆蓋） ──
 window.ColorCatEnemy = {
-  SKINS: SKINS, ACTIONS: ACTIONS, PROFILES: PROFILES,
+  SKINS: SKINS, ACTIONS: ACTIONS, PROFILES: PROFILES, RACES: RACES,
   SZ: SZ, SCALE: SCALE, FRAME: FRAME, FOOT_ROW: FOOT_ROW, FOOT_OFFSET: FOOT_OFFSET,
   VIS_W: VIS_W, VIS_H: VIS_H, _cache: _cache,
   spawn: spawn, update: updateAll,
@@ -288,6 +364,7 @@ window.ColorCatEnemy = {
   findNearest: function() { return -1; },
   hasAlive: function() { return false; },
   knockback: function() {},
+  scareAll: function() {},
   clearAll: function() { enemies.length = 0; _dust.length = 0; },
   spawnProjectile: function() {},
   updateProjectiles: function() {},

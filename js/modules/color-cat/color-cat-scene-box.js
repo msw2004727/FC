@@ -43,10 +43,6 @@ function drawBox(ctx, light, sleeping) {
   ctx.lineWidth = 1;
   ctx.strokeRect(bx + 0.5, by + 0.5, _.BOX_W - 1, _.BOX_H - 1);
 
-  // 橫向中線膠帶
-  ctx.fillStyle = light ? '#D4B896' : '#8B7355';
-  ctx.fillRect(bx, midY - 2, _.BOX_W - 4, 4);
-
   // 摺痕
   ctx.strokeStyle = light ? 'rgba(139,105,20,0.3)' : 'rgba(74,53,32,0.5)';
   ctx.lineWidth = 0.5;

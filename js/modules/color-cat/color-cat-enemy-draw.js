@@ -50,8 +50,9 @@ function drawOne(ctx, e, box) {
   var img = imgs[actKey] || imgs.idle; if (!img) return;
   var ad = E.ACTIONS[actKey] || E.ACTIONS.idle;
   var frame = e.sf % ad.frames;
-  var dw = FRAME, dh = FRAME;
-  var dy = e.y - FOOT_ROW * SCALE + FOOT_OFFSET;
+  var es = e.elite ? 1.25 : 1;
+  var dw = FRAME * es, dh = FRAME * es;
+  var dy = e.y - FOOT_ROW * SCALE * es + FOOT_OFFSET * es;
   var onBox = !e.dead && isOnBox(e, box);
 
   // 地面陰影（與主角相同風格，紙箱位置時隱藏）
@@ -61,7 +62,7 @@ function drawOne(ctx, e, box) {
     else ctx.globalAlpha = 0.15;
     ctx.fillStyle = '#000';
     ctx.beginPath();
-    ctx.ellipse(e.x, C.GROUND_Y + 14, VIS_W * 0.35, 3, 0, 0, Math.PI * 2);
+    ctx.ellipse(e.x, C.GROUND_Y + 14, VIS_W * 0.35 * es, 3 * es, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
   }
@@ -77,7 +78,20 @@ function drawOne(ctx, e, box) {
   ctx.restore();
 
   // HP 條
-  if (!e.dead && e.hp < e.maxHp) drawBar(ctx, e.x, e.y - VIS_H - 4, e.hp, e.maxHp);
+  if (!e.dead && e.hp < e.maxHp) drawBar(ctx, e.x, e.y - VIS_H * es - 4, e.hp, e.maxHp);
+
+  // 驚嘆號（濃霧驚嚇）
+  if (e.scared && e.scaredTimer > 0) {
+    ctx.save();
+    ctx.font = 'bold 12px sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+    ctx.fillStyle = '#FF3333';
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
+    var ey = e.y - VIS_H * es - 8;
+    ctx.strokeText('!', e.x, ey);
+    ctx.fillText('!', e.x, ey);
+    ctx.restore();
+  }
 }
 
 function drawBar(ctx, x, y, hp, max) {

@@ -120,7 +120,7 @@ function update() {
   // 角色不超過面板邊界（knockback 飛行中不夾，讓拋物線完整播放）
   var halfW = C.SPRITE_DRAW / 2;
   var chAct = ColorCatCharacter.state.action;
-  if (chAct !== 'knockback' && chAct !== 'combo' && chAct !== 'jumpOff' && chAct !== 'ultimate' && chAct !== 'dying' && chAct !== 'hurt' && chAct !== 'attackEnemy' && chAct !== 'attackGrave' && ColorCatCharacter.state.x > ew - halfW) {
+  if (chAct !== 'knockback' && chAct !== 'combo' && chAct !== 'jumpOff' && chAct !== 'ultimate' && chAct !== 'dying' && chAct !== 'hurt' && chAct !== 'attackEnemy' && chAct !== 'attackGrave' && chAct !== 'runAway' && chAct !== 'returnPanting' && ColorCatCharacter.state.x > ew - halfW) {
     ColorCatCharacter.state.x = ew - halfW;
     // 避免在邊界原地踏步：攔截向右移動的動作（combo 自行管理位置，不攔截）
     if (ColorCatCharacter.state.facing === 1 &&
@@ -216,6 +216,26 @@ function handleClick(e) {
   // 面板攔截（優先處理）
   if (_.handlePanelClick(cx, cy, _sw)) return;
 
+  // 點擊路標 → 角色跑出/跑回場景（優先於其他角色互動）
+  if (_.isSignpostClicked && _.isSignpostClicked(cx, cy, _sw)) {
+    var char_ = ColorCatCharacter._;
+    if (char_.signpostAway) {
+      ColorCatCharacter.startReturnPanting(_sw);
+    } else {
+      ColorCatCharacter.startRunAway(_sw);
+    }
+    return;
+  }
+
+  // 角色離場中 → 除路標、樹、面板外不回應任何點擊
+  if (ColorCatCharacter._.signpostAway) {
+    // 點擊樹 → 觸發/撤回濃霧（非角色互動，允許）
+    if (_.isTreeClicked && _.isTreeClicked(cx, cy, _sw)) {
+      if (_.toggleFog) _.toggleFog();
+    }
+    return;
+  }
+
   // 點擊蝴蝶 → 角色追擊蝴蝶
   if (_.handleButterflyClick) {
     var clickedB = _.handleButterflyClick(cx, cy);
@@ -258,6 +278,7 @@ function handleClick(e) {
       ColorCatCharacter.wakeUp(openingX);
     } else {
       ColorCatCharacter.startGoToBox(openingX);
+      ColorCatCharacter._.manualSleep = true;
     }
     return;
   }

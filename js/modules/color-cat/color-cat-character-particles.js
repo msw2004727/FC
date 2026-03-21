@@ -19,6 +19,7 @@ function isRunning() {
   if (ch.action === 'attackFlower' && _.attackFlowerPhase === 0) return true;
   if (ch.action === 'attackButterfly' && _.attackButterflyPhase === 0) return true;
   if (ch.action === 'attackEnemy' && _.attackEnemyPhase === 0) return true;
+  if (ch.action === 'runAway') return true;
   if (ch.action === 'combo' && _.comboStep === 0) return true;
   if (_.testMode === 'run') return true;
   return false;
@@ -76,15 +77,16 @@ function updateBreath() {
   if (!_s()) return;
   var rt = _s().runtime;
   var pt = _s().particles;
-  if (ch.action === 'weak' && rt.weakLevel > 0) {
+  var isPanting = (ch.action === 'weak' && rt.weakLevel > 0) || ch.action === 'returnPanting';
+  if (isPanting) {
     _breathTimer++;
     if (_breathTimer >= pt.breathWaveInterval) {
       _breathTimer = 0;
-      var mult = pt.breathLevelMult[rt.weakLevel] || 1;
+      var mult = ch.action === 'returnPanting' ? 1 : (pt.breathLevelMult[rt.weakLevel] || 1);
       var baseCount = pt.breathBaseCount + Math.floor(Math.random() * 2);
       var count = baseCount * mult;
-      // 兔子倒地時嘴巴位置較低（接近地面）
-      var bunnyDown = _.isBunny();
+      // 兔子倒地時嘴巴位置較低（接近地面），走路時用正常位置
+      var bunnyDown = _.isBunny() && ch.action === 'weak';
       var mouthX = bunnyDown
         ? ch.x + ch.facing * (C.SPRITE_DRAW * 0.25)
         : ch.x + ch.facing * (C.SPRITE_DRAW * 0.18);

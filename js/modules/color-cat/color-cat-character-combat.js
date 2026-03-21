@@ -184,7 +184,7 @@ function drawHpBar(ctx) {
   if (_.charHp >= _.charMaxHp) return;
   var barW = 24, barH = 3;
   var bx = ch.x - barW / 2;
-  var by = ch.y - C.SPRITE_DRAW - 2;
+  var by = ch.y - C.SPRITE_DRAW + 8;
   var pct = _.charHp / _.charMaxHp;
 
   ctx.fillStyle = 'rgba(0,0,0,0.3)';

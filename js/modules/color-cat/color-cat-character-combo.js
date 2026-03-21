@@ -47,9 +47,9 @@ function startComboBox(sceneWidth, boxX, boxTopY, boxW) {
 function updateCombo(sw, defs) {
   if (!_s()) return false;
   if (_.comboType === 'wall') {
-    // 面板展開時：sw = ew（比場景窄），攀到把手右緣 ew + 3
-    // 面板關閉時：sw = 場景寬，攀到畫布右緣 sw - 9
-    var rightEdge = (sw < _.comboSceneW - 5) ? (sw + 3) : (sw - 9);
+    // 面板展開時：sw = ew（比場景窄），攀到把手左緣
+    // 面板關閉時：sw = 場景寬，攀到把手左緣（HANDLE_W=12）
+    var rightEdge = (sw < _.comboSceneW - 5) ? (sw - 8) : (sw - 20);
     if (_.comboStep === 0) {
       ch.facing = 1;
       if (ch.x < rightEdge) { ch.x += ch.speed * _s().movement.wallRunSpeedMult; }

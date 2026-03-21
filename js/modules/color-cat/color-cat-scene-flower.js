@@ -236,14 +236,16 @@ function handleFlowerClick(cx, cy) {
   return null;
 }
 
-function knockFlower(f, dir) {
+function knockFlower(f, dir, noExp) {
   if (!f || f.state !== 'bloomed') return;
   f.state = 'wilting'; f.timer = 0;
   f.wiltDir = dir || 1;
-  var fh = FLOWER_H * (f.hScale || 1);
-  var topY = f.baseY - fh;
-  var exp = f.gold ? EXP_GOLD : EXP_NORMAL;
-  expEffects.push({ x: f.x, y: topY - 5, alpha: 1, vy: -0.8, exp: exp, gold: f.gold });
+  if (!noExp) {
+    var fh = FLOWER_H * (f.hScale || 1);
+    var topY = f.baseY - fh;
+    var exp = f.gold ? EXP_GOLD : EXP_NORMAL;
+    expEffects.push({ x: f.x, y: topY - 5, alpha: 1, vy: -0.8, exp: exp, gold: f.gold });
+  }
 }
 
 function getBloomedFlowers() {
