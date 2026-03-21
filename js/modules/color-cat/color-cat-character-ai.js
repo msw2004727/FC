@@ -70,27 +70,47 @@ function aiSetSceneInfo(info) { _.aiSceneInfo = info; }
 function updateChaseKickIdle(sw, ballState, defs) {
   if (!_s()) return false;
   if (ch.action === 'chase') {
-    if (!ch._chaseFacing) ch._chaseFacing = (ballState.x >= ch.x) ? 1 : -1;
-    var ko = _s().physics.kickOffset;
-    var kickOffset = ch._chaseFacing >= 0 ? -ko : ko;
-    var targetX = ballState.x + kickOffset;
-    var dist = targetX - ch.x;
-    ch.facing = ch._chaseFacing;
-    // 水平移動到球的 x 位置
-    if (Math.abs(dist) > 4) {
-      ch.x += (dist > 0 ? 1 : -1) * ch.speed;
-    } else {
-      // 球在空中時跳起攻擊
-      var floorY = C.CHAR_GROUND_Y - 6;
-      var ballH = floorY - ballState.y - ballState.r;
-      if (ballH > 15 && ch.onGround) {
-        // 依球高度計算跳躍力道
-        var jumpPower = Math.min(-7, -(Math.sqrt(2 * 0.15 * ballH) + 1));
-        ch.vy = jumpPower;
-        ch.onGround = false;
+    var isDrag = window.ColorCatBall && ColorCatBall.isDragging();
+    if (isDrag) {
+      // 拖曳模式：持續更新朝向，避免倒著跑
+      ch._chaseFacing = (ballState.x >= ch.x) ? 1 : -1;
+      ch.facing = ch._chaseFacing;
+      var dxDrag = ballState.x - ch.x;
+      if (Math.abs(dxDrag) > 10) {
+        ch.x += ch.facing * ch.speed;
+      } else {
+        // 接近球：跳起攻擊
+        var floorY = C.CHAR_GROUND_Y - 6;
+        var ballH = floorY - ballState.y - ballState.r;
+        if (ballH > 15 && ch.onGround) {
+          var jumpPower = Math.min(-7, -(Math.sqrt(2 * 0.15 * ballH) + 1));
+          ch.vy = jumpPower;
+          ch.onGround = false;
+        }
+        ch._chaseFacing = 0; ch.action = 'kick'; ch.actionFrame = 0;
+        ch.spriteFrame = 0; ch.spriteTimer = 0; ch._kicked = false;
       }
-      ch._chaseFacing = 0; ch.action = 'kick'; ch.actionFrame = 0;
-      ch.spriteFrame = 0; ch.spriteTimer = 0; ch._kicked = false;
+    } else {
+      // 一般追球：方向固定
+      if (!ch._chaseFacing) ch._chaseFacing = (ballState.x >= ch.x) ? 1 : -1;
+      var ko = _s().physics.kickOffset;
+      var kickOffset = ch._chaseFacing >= 0 ? -ko : ko;
+      var targetX = ballState.x + kickOffset;
+      var dist = targetX - ch.x;
+      ch.facing = ch._chaseFacing;
+      if (Math.abs(dist) > 4) {
+        ch.x += (dist > 0 ? 1 : -1) * ch.speed;
+      } else {
+        var floorY2 = C.CHAR_GROUND_Y - 6;
+        var ballH2 = floorY2 - ballState.y - ballState.r;
+        if (ballH2 > 15 && ch.onGround) {
+          var jumpPower2 = Math.min(-7, -(Math.sqrt(2 * 0.15 * ballH2) + 1));
+          ch.vy = jumpPower2;
+          ch.onGround = false;
+        }
+        ch._chaseFacing = 0; ch.action = 'kick'; ch.actionFrame = 0;
+        ch.spriteFrame = 0; ch.spriteTimer = 0; ch._kicked = false;
+      }
     }
   } else if (ch.action === 'kick') {
     ch.actionFrame++;
