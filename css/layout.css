@@ -403,21 +403,21 @@
 .drawer-footer { padding: .75rem 1.2rem; border-top: 1px solid var(--border); }
 .drawer-theme-row { display: flex; align-items: center; gap: .6rem; padding: .5rem 0; }
 #theme-toggle { display: flex; align-items: center; gap: .6rem; font-size: .88rem; color: var(--text-secondary); line-height: 22px; min-height: 22px; }
-.drawer-legal-row { display: flex; gap: .4rem; margin-left: auto; }
+.drawer-legal-row { display: flex; gap: .3rem; margin-left: auto; flex-shrink: 0; }
 @keyframes legal-glow {
   0% { background-position: 0% 50%; }
   100% { background-position: 200% 50%; }
 }
 .drawer-legal-btn {
   position: relative; display: flex; align-items: center; justify-content: center;
-  height: 22px; padding: 0 .7rem; border-radius: 11px;
+  height: 20px; padding: 0 .45rem; border-radius: 10px;
   background: var(--bg-elevated);
   text-decoration: none; color: var(--text-muted);
-  font-size: .75rem; font-weight: 500; line-height: 22px;
+  font-size: .6rem; font-weight: 500; line-height: 20px; white-space: nowrap;
   cursor: pointer; overflow: hidden; z-index: 0;
 }
 .drawer-legal-btn::before {
-  content: ''; position: absolute; inset: 0; border-radius: 11px; padding: 1.5px;
+  content: ''; position: absolute; inset: 0; border-radius: 10px; padding: 1.5px;
   background: linear-gradient(90deg, transparent 0%, #f472b6 25%, #ec4899 50%, #f472b6 75%, transparent 100%);
   background-size: 200% 100%;
   animation: legal-glow 3s linear infinite;
