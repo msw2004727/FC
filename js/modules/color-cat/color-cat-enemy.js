@@ -143,10 +143,13 @@ function advanceSprite(e) {
     if (e.sf >= ad.frames) {
       if (e.dead) { e.sf = ad.frames - 1; return; }
       if (ad.type === 'once') {
+        var wasHurt = e.action === 'hurt';
         e.blocking = (e.action === 'block');
         e.action = 'idle'; e.sf = 0; e.st = 0;
         var p = PROFILES[e.skin];
-        e.aiTimer = 0; e.aiCD = p.cdMin + Math.floor(Math.random() * (p.cdMax - p.cdMin));
+        // 受傷後快速反擊（短冷卻），其他動作正常冷卻
+        e.aiTimer = 0;
+        e.aiCD = wasHurt ? Math.floor(p.cdMin * 0.3) : p.cdMin + Math.floor(Math.random() * (p.cdMax - p.cdMin));
       } else { e.sf = 0; }
     }
   }

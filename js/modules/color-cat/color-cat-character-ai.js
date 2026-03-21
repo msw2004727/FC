@@ -76,26 +76,78 @@ function updateChaseKickIdle(sw, ballState, defs) {
     var targetX = ballState.x + kickOffset;
     var dist = targetX - ch.x;
     ch.facing = ch._chaseFacing;
+    // 水平移動到球的 x 位置
     if (Math.abs(dist) > 4) {
       ch.x += (dist > 0 ? 1 : -1) * ch.speed;
     } else {
+      // 球在空中時跳起攻擊
+      var floorY = C.CHAR_GROUND_Y - 6;
+      var ballH = floorY - ballState.y - ballState.r;
+      if (ballH > 15 && ch.onGround) {
+        // 依球高度計算跳躍力道
+        var jumpPower = Math.min(-7, -(Math.sqrt(2 * 0.15 * ballH) + 1));
+        ch.vy = jumpPower;
+        ch.onGround = false;
+      }
       ch._chaseFacing = 0; ch.action = 'kick'; ch.actionFrame = 0;
       ch.spriteFrame = 0; ch.spriteTimer = 0; ch._kicked = false;
     }
   } else if (ch.action === 'kick') {
     ch.actionFrame++;
+    // 空中物理
+    if (!ch.onGround) {
+      ch.vy += 0.15;
+      ch.y += ch.vy;
+      if (ch.y >= C.CHAR_GROUND_Y) {
+        ch.y = C.CHAR_GROUND_Y; ch.onGround = true; ch.vy = 0;
+      }
+    }
     var attackDef = defs.attack;
     var totalFrames = Math.ceil(attackDef.frames / attackDef.speed);
     var hitFrame = _s().physics.hitFrame;
     if (!ch._kicked && ch.spriteFrame >= hitFrame) {
-      ch._kicked = true; _s().runtime.totalKicks++;
-      return true;
+      // 判定攻擊範圍：角色中心到球的距離
+      var dx = Math.abs(ballState.x - ch.x);
+      var dy = Math.abs(ballState.y - (ch.y - C.SPRITE_DRAW * 0.4));
+      var hitDist = Math.sqrt(dx * dx + dy * dy);
+      if (hitDist < C.SPRITE_DRAW * 0.6 + ballState.r) {
+        ch._kicked = true; _s().runtime.totalKicks++;
+        return true;
+      }
     }
     if (ch.actionFrame > totalFrames) {
-      ch.action = 'idle'; ch.actionFrame = 0;
-      ch.spriteFrame = 0; ch.spriteTimer = 0;
+      var dragging = window.ColorCatBall && ColorCatBall.isDragging();
+      var hasStamina = _s() && _s().stamina.current > 0;
+      if (ch.onGround) {
+        // 球被拖曳中且有體力 → 立即再追（不冷卻）
+        if (dragging && hasStamina) {
+          ch.action = 'chase'; ch.actionFrame = 0;
+          ch.spriteFrame = 0; ch.spriteTimer = 0; ch._chaseFacing = 0;
+        } else {
+          ch.action = 'idle'; ch.actionFrame = 0;
+          ch.spriteFrame = 0; ch.spriteTimer = 0;
+        }
+      } else if (ch.actionFrame > totalFrames + 60) {
+        // 安全閥：空中超過 2 秒強制落地
+        ch.y = C.CHAR_GROUND_Y; ch.onGround = true; ch.vy = 0;
+        if (dragging && hasStamina) {
+          ch.action = 'chase'; ch.actionFrame = 0;
+          ch.spriteFrame = 0; ch.spriteTimer = 0; ch._chaseFacing = 0;
+        } else {
+          ch.action = 'idle'; ch.actionFrame = 0;
+          ch.spriteFrame = 0; ch.spriteTimer = 0;
+        }
+      }
     }
   } else {
+    // 球被拖曳中且有體力 → 立即追球（跳過冷卻）
+    var draggingIdle = window.ColorCatBall && ColorCatBall.isDragging();
+    var hasStaminaIdle = _s() && _s().stamina.current > 0;
+    if (draggingIdle && hasStaminaIdle) {
+      ch.action = 'chase'; ch.actionFrame = 0;
+      ch.spriteFrame = 0; ch.spriteTimer = 0; ch._chaseFacing = 0;
+      return false;
+    }
     if (ballState.x > ch.x + 5) ch.facing = 1;
     else if (ballState.x < ch.x - 5) ch.facing = -1;
     if (!_.testMode && _.aiSceneInfo) {

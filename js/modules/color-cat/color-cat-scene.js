@@ -43,6 +43,12 @@ _.updateGraves = function() {};
 _.getClickedGrave = function() { return -1; };
 _.destroyGrave = function() {};
 _.getGravePos = function() { return -1; };
+// 濃霧效果插槽（由 scene-fog.js 填入）
+_.updateFog = function() {};
+_.drawFog = function() {};
+_.drawFogButton = function() {};
+_.isFogBtnClicked = function() { return false; };
+_.toggleFog = function() {};
 
 // ===== 主迴圈 =====
 
@@ -62,7 +68,9 @@ function render() {
   if (window.ColorCatEnemy) ColorCatEnemy.drawProjectiles(_ctx);
   ColorCatCharacter.draw(_ctx, light);
   if (window.ColorCatDamageNumber) ColorCatDamageNumber.draw(_ctx);
+  _.drawFog(_ctx, _sw);
   _.drawPanel(_ctx, _sw, light);
+  _.drawFogButton(_ctx, _sw, light);
 }
 
 function update() {
@@ -94,6 +102,7 @@ function update() {
   }
   if (window.ColorCatEnemy) { ColorCatEnemy.update(ew); ColorCatEnemy.updateProjectiles(ew); }
   if (window.ColorCatDamageNumber) ColorCatDamageNumber.update();
+  _.updateFog(_sw);
   var kicked = ColorCatCharacter.update(ew, bs);
   if (kicked) {
     // 踢球時解除拖曳
@@ -190,6 +199,9 @@ function handleClick(e) {
   var rect = _canvas.getBoundingClientRect();
   var cx = e.clientX - rect.left;
   var cy = e.clientY - rect.top;
+
+  // 霧氣按鈕
+  if (_.isFogBtnClicked(cx, cy)) { _.toggleFog(); return; }
 
   // 面板攔截（優先處理）
   if (_.handlePanelClick(cx, cy, _sw)) return;

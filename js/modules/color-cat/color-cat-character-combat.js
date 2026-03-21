@@ -12,6 +12,7 @@ var ch = _.char;
 // ── 受傷（體力=HP，扣同一個值） ──
 function takeDamage(dmg) {
   if (ch.action === 'dying' || ch.action === 'sleeping') return;
+  if (_.ultCharging) return; // 蓄力大絕招時免疫傷害
   if (!_s()) return;
   var st = _s().stamina;
   st.current = Math.max(0, st.current - dmg);

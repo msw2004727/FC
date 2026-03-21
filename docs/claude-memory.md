@@ -10,6 +10,13 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-21 — 場景新增山巒背景、濃霧效果、拖曳球持續追擊
+- **功能1**：背景加入兩層山巒景深（遠山＋近山），以折線剪影繪製在天空與草地之間，日夜主題各有配色
+- **功能2**：左上角新增濃霧按鈕（雲朵圖示），點擊後雲霧從左右兩側緩緩飄入直到幾乎看不見物件，雲霧有正弦飄動＋脈動呼吸感，再點一次淡出
+- **功能3**：拖曳球時角色持續跑步→跳→攻擊，踢完不冷卻立即再追，除非體力歸零
+- **新檔**：`color-cat-scene-fog.js`（~170行）
+- **修改**：`color-cat-scene-bg.js`（加 drawMountains）、`color-cat-scene.js`（fog 整合）、`color-cat-character-ai.js`（拖曳球不冷卻）
+
 ### 2026-03-21 — LV 膠囊 badge 被 overflow:hidden 容器遮擋
 - **問題**：`.uc-lv` 用 `top:-7px` 溢出 `.user-capsule` 上方，但 `.admin-user-name`、`.reg-name-badges-wrap`、`.tl-event-row` 等容器有 `overflow:hidden`，導致部分場景 badge 被裁切
 - **原因**：CSS 規範中 `overflow-x:hidden` + `overflow-y:visible` 會被瀏覽器強制將 visible 解讀為 auto，無法單軸放寬

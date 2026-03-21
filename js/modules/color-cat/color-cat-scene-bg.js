@@ -47,6 +47,40 @@ function drawMoon(ctx, x, y) {
   ctx.restore();
 }
 
+// ── 山巒（兩層景深） ──
+// 座標 [x比例, y高度]，繪製為連續折線山脈剪影
+var FAR_PEAKS = [
+  [0,92],[0.06,75],[0.12,82],[0.18,68],[0.25,78],[0.32,62],
+  [0.4,72],[0.48,58],[0.55,66],[0.62,54],[0.7,64],[0.78,58],
+  [0.85,68],[0.92,76],[1,88]
+];
+var NEAR_PEAKS = [
+  [0,97],[0.05,90],[0.1,84],[0.18,92],[0.24,82],[0.3,88],
+  [0.38,78],[0.45,85],[0.52,76],[0.6,82],[0.68,74],[0.75,82],
+  [0.82,78],[0.9,84],[0.96,90],[1,96]
+];
+
+function drawMountainLayer(ctx, sw, peaks, color) {
+  ctx.beginPath();
+  ctx.moveTo(0, C.GROUND_Y);
+  for (var i = 0; i < peaks.length; i++) {
+    ctx.lineTo(peaks[i][0] * sw, peaks[i][1]);
+  }
+  ctx.lineTo(sw, C.GROUND_Y);
+  ctx.closePath();
+  ctx.fillStyle = color;
+  ctx.fill();
+}
+
+function drawMountains(ctx, sw, light) {
+  // 遠山（較高、較淡）
+  drawMountainLayer(ctx, sw, FAR_PEAKS,
+    light ? 'rgba(140,165,195,0.3)' : 'rgba(10,18,32,0.5)');
+  // 近山（較矮、較深）
+  drawMountainLayer(ctx, sw, NEAR_PEAKS,
+    light ? 'rgba(110,140,170,0.35)' : 'rgba(14,24,42,0.55)');
+}
+
 function drawBackground(ctx, sw, light) {
   // 天空漸層
   var grad = ctx.createLinearGradient(0, 0, 0, C.SCENE_H);
@@ -57,6 +91,9 @@ function drawBackground(ctx, sw, light) {
   }
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, sw, C.SCENE_H);
+
+  // 山巒（天空之上、草地之下）
+  drawMountains(ctx, sw, light);
 
   // 草地
   ctx.fillStyle = light ? '#4CAF50' : '#1a3a1a';
