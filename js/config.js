@@ -307,7 +307,8 @@
 // 20260321g: 清除快取彈窗加 Warning 紅字 + 毛玻璃背景 + 風險提示
 // 20260321h: 補發操作紀錄改為 Firestore operationLogs（全管理員可見）
 // 20260321i: 補發操作紀錄改為卡片式排版
-const CACHE_VERSION = '20260321i';
+// 20260321j: 回推補發新增 LINE綁定/放鴿子扣分/徽章獎勵 三條規則
+const CACHE_VERSION = '20260321j';
 
 // ─── Page Strategy Registry ───
 // 唯一策略來源，未列出的頁面預設 fresh-first

@@ -10,6 +10,11 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-21 — 回推補發新增 LINE綁定/放鴿子扣分/徽章獎勵
+- **問題**：CF `backfillAutoExp` 只處理 4 條原始規則（報名/取消/完成/主辦），缺少 line_binding、noshow_penalty、badge_bonus
+- **修復**：CF 新增 3 條規則掃描邏輯：LINE 綁定查 `users.lineNotify.bound`、放鴿子查 registrations+attendanceRecords+userCorrections、徽章查 `users/{uid}/achievements` + `badges` 集合。reconciliation 規則（noshow/badge）成功後更新 `autoExpTracking` 子集合
+- **教訓**：reconciliation 模型（對帳式）與 event-based 模型（逐事件補差額）的 backfill 邏輯不同，需分別處理 tracking doc
+
 ### 2026-03-21 — 補發操作紀錄改為 Firestore operationLogs
 - **問題**：「自動發放紀錄」區塊使用 localStorage 存放，只能看到自己觸發的紀錄，其他管理員的操作看不到
 - **修復**：前端 `_renderAutoExpLogs` 改為查詢 Firestore `operationLogs`（`type=='exp_backfill'`），CF 端 `backfillAutoExp` 操作日誌新增 `grantedCount`、`uniqueUsers`、`totalExp`、`errorCount` 結構化欄位

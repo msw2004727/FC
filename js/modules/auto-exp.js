@@ -160,7 +160,7 @@ Object.assign(App, {
       var res = await fn({ dryRun: !!dryRun });
       var d = res.data || {};
       var stats = d.stats || {};
-      var labels = { register_activity: '報名活動', cancel_registration: '取消報名', complete_activity: '完成活動', host_activity: '主辦活動' };
+      var labels = { register_activity: '報名活動', cancel_registration: '取消報名', complete_activity: '完成活動', host_activity: '主辦活動', line_binding: '綁定LINE推播', noshow_penalty: '放鴿子扣分', badge_bonus: '徽章獎勵' };
       var rows = Object.keys(labels).map(function (key) {
         var s = stats[key] || {};
         return '<tr>'

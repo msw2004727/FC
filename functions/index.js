@@ -3580,6 +3580,9 @@ exports.backfillAutoExp = onCall(
       register_activity: "報名活動",
       cancel_registration: "取消報名",
       host_activity: "主辦活動",
+      line_binding: "綁定LINE推播",
+      noshow_penalty: "放鴿子扣分",
+      badge_bonus: "徽章獎勵",
     };
 
     // 若所有規則都是 0，直接返回
@@ -3651,6 +3654,9 @@ exports.backfillAutoExp = onCall(
       cancel_registration: { scanned: 0, alreadyGranted: 0, toGrant: 0, granted: 0 },
       complete_activity: { scanned: 0, alreadyGranted: 0, toGrant: 0, granted: 0 },
       host_activity: { scanned: 0, alreadyGranted: 0, toGrant: 0, granted: 0 },
+      line_binding: { scanned: 0, alreadyGranted: 0, toGrant: 0, granted: 0 },
+      noshow_penalty: { scanned: 0, alreadyGranted: 0, toGrant: 0, granted: 0 },
+      badge_bonus: { scanned: 0, alreadyGranted: 0, toGrant: 0, granted: 0 },
     };
     const grantQueue = []; // { uid, amount, reason, requestId, key }
     // 防止同一次 run 內重複加入 grantQueue（同 userId+eventId 多筆 registration doc）
@@ -3785,6 +3791,190 @@ exports.backfillAutoExp = onCall(
       }
     }
 
+    // ── 5. line_binding：users where lineNotify.bound === true（一次性獎勵） ──
+    const lineBindingAmount = typeof rules.line_binding === "number" ? rules.line_binding : 0;
+    if (lineBindingAmount !== 0) {
+      for (const doc of allUsersSnap.docs) {
+        const data = doc.data() || {};
+        const uid = data.uid || data.lineUserId || doc.id;
+        if (!uid) continue;
+        if (!data.lineNotify || data.lineNotify.bound !== true) continue;
+        stats.line_binding.scanned++;
+        const dedupKey = `${uid}_line_binding_binding`;
+        const requestId = `autoexp_backfill_${uid}_line_binding`;
+        if (grantedSet.has(dedupKey) || dedupeSet.has(requestId) || queuedSet.has(requestId)) {
+          stats.line_binding.alreadyGranted++;
+          continue;
+        }
+        // 也檢查線上發放的 dedup key（requestId = autoexp_{uid}_line_binding）
+        const onlineRequestId = `autoexp_${uid}_line_binding`;
+        const onlineDedupeDoc = await db.collection("_expDedupe").doc(onlineRequestId).get();
+        if (onlineDedupeDoc.exists) {
+          stats.line_binding.alreadyGranted++;
+          continue;
+        }
+        queuedSet.add(requestId);
+        stats.line_binding.toGrant++;
+        grantQueue.push({
+          uid,
+          amount: lineBindingAmount,
+          reason: `自動：綁定 LINE 推播`,
+          requestId,
+          key: "line_binding",
+        });
+      }
+    }
+
+    // ── 6. noshow_penalty：放鴿子扣分（reconciliation 模型：count × amount） ──
+    const noshowAmount = typeof rules.noshow_penalty === "number" ? rules.noshow_penalty : 0;
+    if (noshowAmount !== 0) {
+      // 載入所有 registrations 與 attendanceRecords 計算放鴿子次數
+      const allRegsSnap = await db.collection("registrations").get();
+      const allAttendSnap = await db.collection("attendanceRecords").get();
+      // 載入 userCorrections 補正值
+      const correctionsSnap = await db.collection("userCorrections").get();
+      const correctionMap = new Map();
+      correctionsSnap.docs.forEach((doc) => {
+        const d = doc.data() || {};
+        const adj = Number(d?.noShow?.adjustment || 0);
+        if (Number.isFinite(adj) && adj !== 0) correctionMap.set(doc.id, Math.trunc(adj));
+      });
+
+      // 建立簽到索引
+      const checkinKeys = new Set();
+      allAttendSnap.docs.forEach((doc) => {
+        const d = doc.data() || {};
+        const uid = String(d.uid || "").trim();
+        const eventId = String(d.eventId || "").trim();
+        const type = String(d.type || "").trim();
+        const status = String(d.status || "").trim();
+        if (!uid || !eventId) return;
+        if (status === "removed" || status === "cancelled") return;
+        if (type === "checkin") checkinKeys.add(`${uid}::${eventId}`);
+      });
+
+      // 計算每位用戶的放鴿子次數
+      const today = new Date().toISOString().slice(0, 10);
+      const noshowCountByUid = new Map();
+      const seenRegKeys = new Set();
+      allRegsSnap.docs.forEach((doc) => {
+        const d = doc.data() || {};
+        const uid = String(d.userId || "").trim();
+        const eventId = String(d.eventId || "").trim();
+        const status = String(d.status || "").trim();
+        if (!uid || !eventId) return;
+        if (status !== "confirmed") return;
+        if (d.participantType === "companion") return;
+        const regKey = `${uid}::${eventId}`;
+        if (seenRegKeys.has(regKey)) return;
+        seenRegKeys.add(regKey);
+        // 檢查活動是否已結束
+        const evt = eventTitleMap.has(eventId) ? allEventsSnap.docs.find((e) => e.id === eventId) : null;
+        const evtData = evt ? (evt.data() || {}) : {};
+        const dateStr = String(evtData.date || "").trim();
+        if (!dateStr || dateStr >= today) return;
+        if (checkinKeys.has(regKey)) return;
+        noshowCountByUid.set(uid, (noshowCountByUid.get(uid) || 0) + 1);
+      });
+
+      // 套用 correction 補正
+      correctionMap.forEach((adj, uid) => {
+        const raw = noshowCountByUid.get(uid) || 0;
+        const effective = Math.max(0, raw + adj);
+        if (effective > 0) noshowCountByUid.set(uid, effective);
+        else noshowCountByUid.delete(uid);
+      });
+
+      // 讀取已發放的 noshow_penalty tracking
+      for (const [uid, count] of noshowCountByUid) {
+        stats.noshow_penalty.scanned++;
+        const expectedTotal = count * noshowAmount;
+        // 檢查 autoExpTracking 中已 applied 的值
+        let applied = 0;
+        try {
+          const trackDoc = await db.collection("users").doc(uid)
+            .collection("autoExpTracking").doc("noshow_penalty").get();
+          if (trackDoc.exists) applied = Number(trackDoc.data().applied) || 0;
+        } catch (_) { /* ignore */ }
+        const delta = expectedTotal - applied;
+        if (delta === 0) {
+          stats.noshow_penalty.alreadyGranted++;
+          continue;
+        }
+        const requestId = `autoexp_backfill_${uid}_noshow_penalty_${expectedTotal}`;
+        if (dedupeSet.has(requestId) || queuedSet.has(requestId)) {
+          stats.noshow_penalty.alreadyGranted++;
+          continue;
+        }
+        queuedSet.add(requestId);
+        stats.noshow_penalty.toGrant++;
+        grantQueue.push({
+          uid,
+          amount: delta,
+          reason: `自動：放鴿子扣分（${count} 次 × ${noshowAmount}）`,
+          requestId,
+          key: "noshow_penalty",
+        });
+      }
+    }
+
+    // ── 7. badge_bonus：徽章獎勵（reconciliation 模型：badgeCount × amount） ──
+    const badgeBonusAmount = typeof rules.badge_bonus === "number" ? rules.badge_bonus : 0;
+    if (badgeBonusAmount !== 0) {
+      // 載入 badges 集合（achId 映射）
+      const badgesSnap = await db.collection("badges").get();
+      const badgeAchIds = new Set();
+      badgesSnap.docs.forEach((doc) => {
+        const achId = (doc.data() || {}).achId;
+        if (achId) badgeAchIds.add(achId);
+      });
+
+      // 遍歷所有用戶，讀取 achievements 子集合中已完成且對應 badge 的成就
+      for (const userDoc of allUsersSnap.docs) {
+        const userData = userDoc.data() || {};
+        const uid = userData.uid || userData.lineUserId || userDoc.id;
+        if (!uid) continue;
+        let badgeCount = 0;
+        try {
+          const achSnap = await db.collection("users").doc(userDoc.id)
+            .collection("achievements").get();
+          achSnap.docs.forEach((achDoc) => {
+            const achData = achDoc.data() || {};
+            if (achData.completedAt && badgeAchIds.has(achDoc.id)) badgeCount++;
+          });
+        } catch (_) { continue; }
+        if (badgeCount === 0) continue;
+
+        stats.badge_bonus.scanned++;
+        const expectedTotal = badgeCount * badgeBonusAmount;
+        let applied = 0;
+        try {
+          const trackDoc = await db.collection("users").doc(userDoc.id)
+            .collection("autoExpTracking").doc("badge_bonus").get();
+          if (trackDoc.exists) applied = Number(trackDoc.data().applied) || 0;
+        } catch (_) { /* ignore */ }
+        const delta = expectedTotal - applied;
+        if (delta === 0) {
+          stats.badge_bonus.alreadyGranted++;
+          continue;
+        }
+        const requestId = `autoexp_backfill_${uid}_badge_bonus_${expectedTotal}`;
+        if (dedupeSet.has(requestId) || queuedSet.has(requestId)) {
+          stats.badge_bonus.alreadyGranted++;
+          continue;
+        }
+        queuedSet.add(requestId);
+        stats.badge_bonus.toGrant++;
+        grantQueue.push({
+          uid,
+          amount: delta,
+          reason: `自動：徽章獎勵（${badgeCount} 枚 × ${badgeBonusAmount}）`,
+          requestId,
+          key: "badge_bonus",
+        });
+      }
+    }
+
     // ── Dry-run 模式：只回傳統計 ──
     if (dryRun) {
       return {
@@ -3887,6 +4077,29 @@ exports.backfillAutoExp = onCall(
             errorCount += chunk.length;
           }
         }
+      }
+    }
+
+    // ── 更新 reconciliation tracking（noshow_penalty / badge_bonus） ──
+    // 記錄已 applied 的總量，讓線上 _reconcileAutoExp 不會重複計算
+    const reconKeys = ["noshow_penalty", "badge_bonus"];
+    for (const item of grantQueue) {
+      if (!reconKeys.includes(item.key)) continue;
+      // 只更新成功發放的項目（dedup 失敗的跳過）
+      if (!stats[item.key].granted) continue;
+      try {
+        const userEntry = userByUid.get(item.uid) || userByDocId.get(item.uid);
+        if (!userEntry) continue;
+        const trackRef = db.collection("users").doc(userEntry.docId)
+          .collection("autoExpTracking").doc(item.key);
+        const trackDoc = await trackRef.get();
+        const prevApplied = trackDoc.exists ? (Number(trackDoc.data().applied) || 0) : 0;
+        await trackRef.set({
+          applied: prevApplied + item.amount,
+          updatedAt: FieldValue.serverTimestamp(),
+        }, { merge: true });
+      } catch (err) {
+        console.warn(`[backfillAutoExp] tracking update failed for ${item.uid}/${item.key}:`, err.message);
       }
     }
 
