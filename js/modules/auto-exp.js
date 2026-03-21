@@ -188,9 +188,10 @@ Object.assign(App, {
         executeBtn.disabled = false;
       }
       if (!dryRun) {
-        this.showToast(d.message || '補發完成');
+        this.showToast(d.message || '補發完成', 4000);
         if (executeBtn) executeBtn.disabled = true;
         this._loadBackfillLogs();
+        this._renderAutoExpLogs();
       }
     } catch (err) {
       var msg = (err && err.message) || '回推補發失敗';
@@ -284,14 +285,16 @@ Object.assign(App, {
           + '<span style="font-size:.78rem;font-weight:600;color:var(--text-primary)">' + escapeHTML(d.operator || '-') + '</span>'
           + '<span style="font-size:.7rem;color:var(--text-muted)">' + escapeHTML(time) + '</span>'
           + '</div>'
-          // 第二行：統計數據
-          + '<div style="display:flex;align-items:center;gap:.6rem;font-size:.75rem">'
-          + '<span style="color:var(--text-secondary)">補發 <b>' + (hasDetail ? d.uniqueUsers : '-') + '</b> 人</span>'
-          + '<span style="color:var(--text-secondary)">共 <b>' + (hasDetail ? d.grantedCount : '-') + '</b> 筆</span>'
-          + '<span style="font-weight:700;color:' + expColor + '">總計 ' + escapeHTML(expStr) + ' EXP</span>'
-          + (typeof d.errorCount === 'number' && d.errorCount > 0
-            ? '<span style="font-size:.7rem;color:var(--danger)">失敗 ' + d.errorCount + ' 筆</span>' : '')
-          + '</div>'
+          // 第二行：統計數據或 fallback 文字
+          + (hasDetail
+            ? '<div style="display:flex;align-items:center;gap:.6rem;font-size:.75rem">'
+              + '<span style="color:var(--text-secondary)">補發 <b>' + d.uniqueUsers + '</b> 人</span>'
+              + '<span style="color:var(--text-secondary)">共 <b>' + d.grantedCount + '</b> 筆</span>'
+              + '<span style="font-weight:700;color:' + expColor + '">總計 ' + escapeHTML(expStr) + ' EXP</span>'
+              + (typeof d.errorCount === 'number' && d.errorCount > 0
+                ? '<span style="font-size:.7rem;color:var(--danger)">失敗 ' + d.errorCount + ' 筆</span>' : '')
+              + '</div>'
+            : '<div style="font-size:.75rem;color:var(--text-secondary)">' + escapeHTML(d.content || '-') + '</div>')
           + '</div>';
       });
       container.innerHTML = html;
