@@ -222,6 +222,12 @@ function handleClick(e) {
     return;
   }
 
+  // 點擊樹 → 觸發/撤回濃霧
+  if (_.isTreeClicked && _.isTreeClicked(cx, cy, _sw)) {
+    if (_.toggleFog) _.toggleFog();
+    return;
+  }
+
   // 點擊太陽/月亮 → 爬邊牆
   if (isSunMoonClicked(cx, cy)) {
     ColorCatCharacter.startComboWall(_sw);

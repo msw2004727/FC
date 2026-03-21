@@ -44,36 +44,42 @@ function drawEquipment(ctx, px, pw, cy, light) {
   var labelH = 10;
   var usableW = pw - PAD * 2;
   var usableH = C.SCENE_H - cy - 4;
-  var slotW = Math.floor((usableW - (cols - 1) * gapX) / cols);
-  var rowH = Math.floor((usableH - (rows - 1) * gapY) / rows);
-  var slotH = rowH - labelH;
 
-  var totalW = cols * slotW + (cols - 1) * gapX;
+  // 正方形邊長：取寬高可容納的最小值
+  var maxSideW = Math.floor((usableW - (cols - 1) * gapX) / cols);
+  var maxSideH = Math.floor((usableH - (rows - 1) * gapY - rows * labelH) / rows);
+  var side = Math.min(maxSideW, maxSideH);
+
+  // 水平置中
+  var totalW = cols * side + (cols - 1) * gapX;
   var sx = px + Math.floor((pw - totalW) / 2);
-  var sy = cy + PAD;
+
+  // 垂直置中
+  var totalH = rows * (side + labelH) + (rows - 1) * gapY;
+  var sy = cy + Math.floor((usableH - totalH) / 2);
 
   ctx.font = '8px "Noto Sans TC", sans-serif';
   ctx.textAlign = 'center'; ctx.textBaseline = 'top';
 
   for (var i = 0; i < 6; i++) {
     var col = i % cols, row = Math.floor(i / cols);
-    var x = sx + col * (slotW + gapX);
-    var y = sy + row * (rowH + gapY);
+    var x = sx + col * (side + gapX);
+    var y = sy + row * (side + labelH + gapY);
 
-    drawInsetSlot(ctx, x, y, slotW, slotH, light);
+    drawInsetSlot(ctx, x, y, side, side, light);
 
     // 已裝備圖示
     var item = equipped[slots[i]];
     if (item) {
       ctx.fillStyle = tc; ctx.font = 'bold 12px sans-serif';
       ctx.textBaseline = 'middle';
-      ctx.fillText(item.icon || '?', x + slotW / 2, y + slotH / 2);
+      ctx.fillText(item.icon || '?', x + side / 2, y + side / 2);
       ctx.textBaseline = 'top';
     }
 
     // 欄位名稱
     ctx.fillStyle = dc; ctx.font = '8px "Noto Sans TC", sans-serif';
-    ctx.fillText(labels[slots[i]], x + slotW / 2, y + slotH + 1);
+    ctx.fillText(labels[slots[i]], x + side / 2, y + side + 1);
   }
 }
 

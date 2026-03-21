@@ -170,6 +170,12 @@ function updateAttackFlower(sw) {
     if (!ch._attackHit && ch.spriteFrame >= hitFrame) {
       ch._attackHit = true;
       if (scene_.knockFlower) scene_.knockFlower(f, ch.facing);
+      // 20% 機率隨機召喚一隻敵人
+      if (Math.random() < 0.2 && window.ColorCatEnemy) {
+        var skinKeys = Object.keys(window.ColorCatEnemy.SKINS);
+        var rndSkin = skinKeys[Math.floor(Math.random() * skinKeys.length)];
+        window.ColorCatEnemy.spawn(rndSkin, sw);
+      }
     }
     var defs = ColorCatSprite.getDefs();
     var atkDef = defs.attack;

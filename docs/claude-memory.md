@@ -10,6 +10,15 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-22 — GrowthGames 多項功能與修復
+- **功能 1**：攻擊花朵時 20% 機率隨機召喚一隻敵人（10 種隨機）
+- **功能 2**：點擊場景右側三棵樹可觸發/撤回濃霧效果
+- **功能 3**：裝備頁籤（tab2）格子改為正方形並上下置中
+- **問題**：個人頁面測試版體力條不顯示
+- **原因**：`script-loader.js` 的 profile 群組缺少 `color-cat-character-combat.js`，導致 `drawHpBar` 始終為空函式；同時也缺少 enemy、damage-number、fog、grave 等子模組
+- **修復**：將所有缺失的 color-cat 子模組（combat、enemy 4 個、damage-number、fog、grave）加入 profile 群組
+- **教訓**：新增 color-cat 子模組時，必須同步更新 GrowthGames.html 的 script 標籤**和** script-loader.js 的 profile 群組，兩處缺一不可
+
 ### 2026-03-21 — 場景背景視覺增強
 - **功能**：(1) 遠山山頂積雪 (2) 夜間主題兩層山巒色差修正 (3) 40 顆閃爍星星 (4) 移除月亮旁裝飾星 (5) 右側三棵背景樹叢
 - **改動**：color-cat-scene-bg.js — drawSnowCaps 新增、夜間山巒色值調整、_stars 預生成陣列、drawMoon 簡化、_trees 三棵橢圓樹冠

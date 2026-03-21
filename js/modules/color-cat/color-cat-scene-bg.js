@@ -291,8 +291,22 @@ function drawSkyEvents(ctx, light) {
   }
 }
 
+// ── 樹點擊判定（橢圓樹冠範圍） ──
+function isTreeClicked(cx, cy, sw) {
+  var gY = C.GROUND_Y;
+  for (var i = 0; i < _trees.length; i++) {
+    var t = _trees[i], tx = sw * t.xr;
+    var tcy = gY - t.trunkH - t.crownRy + 6;
+    var dx = (cx - tx) / t.crownRx;
+    var dy = (cy - tcy) / t.crownRy;
+    if (dx * dx + dy * dy <= 1) return true;
+  }
+  return false;
+}
+
 _.drawBackground = drawBackground;
 _.updateSkyEvents = updateSkyEvents;
 _.drawSkyEvents = drawSkyEvents;
+_.isTreeClicked = isTreeClicked;
 
 })();
