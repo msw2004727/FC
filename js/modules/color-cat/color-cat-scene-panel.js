@@ -27,6 +27,35 @@ _.drawPanelTab2 = function() {};
 
 function panelW(sw) { return Math.floor(sw / 3); }
 
+// ── 面板更新（每幀在 scene.update 中呼叫，必須在角色位置夾限前執行） ──
+function updatePanel(sw) {
+  var prevSlide = _slide;
+  if (_open && _slide < 1) _slide = Math.min(1, _slide + SLIDE_SPEED);
+  if (!_open && _slide > 0) _slide = Math.max(0, _slide - SLIDE_SPEED);
+
+  // 面板正在展開時，檢測面板左緣是否碰到角色/球
+  if (_slide > prevSlide) {
+    var panelEdge = sw - panelW(sw) * _slide - HANDLE_W;
+    var charState = window.ColorCatCharacter.state;
+    var halfW = C.SPRITE_DRAW / 2;
+    // 用角色右緣（x + halfW）判定碰撞，而非中心點
+    if (charState.x + halfW > panelEdge && charState.action !== 'knockback' && charState.action !== 'sleeping') {
+      window.ColorCatCharacter.startKnockback(sw);
+      if (window.ColorCatCharacter._ && window.ColorCatCharacter._.spawnKnockbackBurst) {
+        window.ColorCatCharacter._.spawnKnockbackBurst();
+      }
+    }
+    var ballState = window.ColorCatBall.state;
+    if (ballState.x + ballState.r > panelEdge) {
+      ballState.vx = -(3 + Math.random() * 2);
+      ballState.vy = -(1 + Math.random() * 1.5);
+      if (window.ColorCatBall.spawnPanelHitDust) {
+        window.ColorCatBall.spawnPanelHitDust();
+      }
+    }
+  }
+}
+
 // 暴露有效活動寬度（面板展開時壓縮）
 _.getEffectiveWidth = function(sw) {
   if (_slide <= 0) return sw;
@@ -136,30 +165,7 @@ function drawSideTabs(ctx, px, h, light) {
 
 function drawPanel(ctx, sw, light) {
   var h = C.SCENE_H;
-  var prevSlide = _slide;
-  if (_open && _slide < 1) _slide = Math.min(1, _slide + SLIDE_SPEED);
-  if (!_open && _slide > 0) _slide = Math.max(0, _slide - SLIDE_SPEED);
-
-  // 面板正在展開時，每幀檢測面板左緣是否碰到角色/球
-  if (_slide > prevSlide) {
-    var panelEdge = sw - panelW(sw) * _slide - HANDLE_W;
-    var charState = window.ColorCatCharacter.state;
-    if (charState.x > panelEdge && charState.action !== 'knockback' && charState.action !== 'sleeping') {
-      window.ColorCatCharacter.startKnockback(sw);
-      if (window.ColorCatCharacter._ && window.ColorCatCharacter._.spawnKnockbackBurst) {
-        window.ColorCatCharacter._.spawnKnockbackBurst();
-      }
-    }
-    var ballState = window.ColorCatBall.state;
-    if (ballState.x + ballState.r > panelEdge) {
-      ballState.vx = -(3 + Math.random() * 2);
-      ballState.vy = -(1 + Math.random() * 1.5);
-      if (window.ColorCatBall.spawnPanelHitDust) {
-        window.ColorCatBall.spawnPanelHitDust();
-      }
-    }
-  }
-
+  // _slide 已由 updatePanel() 在 update 階段推進，此處只負責繪製
   drawHandle(ctx, sw, h, light);
   if (_slide <= 0) return;
 
@@ -231,6 +237,7 @@ function handlePanelClick(cx, cy, sw) {
 }
 
 // 註冊
+_.updatePanel = updatePanel;
 _.drawPanel = drawPanel;
 _.handlePanelClick = handlePanelClick;
 

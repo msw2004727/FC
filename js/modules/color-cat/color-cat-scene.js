@@ -27,6 +27,7 @@ _.drawFlag = function() {};
 _.drawWallShadow = function() {};
 _.isBoxClicked = function() { return false; };
 _.isFlagClicked = function() { return false; };
+_.updatePanel = function() {};
 _.drawPanel = function() {};
 _.updateFlowers = function() {};
 _.drawFlowers = function() {};
@@ -56,6 +57,8 @@ function update() {
   _.updateFlowers(_sw);
   var light = !C.isThemeDark();
   _.updateSkyEvents(_sw, light);
+  // 面板滑動 + 碰撞判定（必須在 getEffectiveWidth / 角色位置夾限之前）
+  if (_.updatePanel) _.updatePanel(_sw);
   var ew = _.getEffectiveWidth ? _.getEffectiveWidth(_sw) : _sw;
   // 球邊界先夾（確保角色追球時目標不在面板內）
   var bs = ColorCatBall.state;
