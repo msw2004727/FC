@@ -606,7 +606,30 @@ const App = {
   },
 
   async confirmClearCache() {
-    const yes = await this.appConfirm('確定要清除所有快取並重新登入嗎？\n這會回到最乾淨的狀態，可解決白屏或異常問題。');
+    // 清除快取用特殊 HTML 彈窗（含 Warning 紅字）
+    const msgEl = document.getElementById('app-confirm-msg');
+    msgEl.innerHTML = '<div class="app-confirm-warning">⚠ Warning</div>'
+      + '確定要清除所有快取並重新登入嗎？<br>'
+      + '這會回到最乾淨的狀態，或許可解決白屏或異常問題，'
+      + '但若您的網路狀態與手機性能不佳時可能會讓問題更嚴重。<br>'
+      + '建議您先使用關閉分頁並重新登入的方式試試看。';
+    const modal = document.getElementById('app-confirm-modal');
+    modal.classList.add('open');
+    document.body.classList.add('modal-open');
+    const ok = document.getElementById('app-confirm-ok');
+    const cancel = document.getElementById('app-confirm-cancel');
+    const yes = await new Promise(resolve => {
+      const cleanup = (result) => {
+        modal.classList.remove('open');
+        document.body.classList.remove('modal-open');
+        msgEl.innerHTML = '';
+        ok.replaceWith(ok.cloneNode(true));
+        cancel.replaceWith(cancel.cloneNode(true));
+        resolve(result);
+      };
+      ok.addEventListener('click', () => cleanup(true), { once: true });
+      cancel.addEventListener('click', () => cleanup(false), { once: true });
+    });
     if (!yes) return;
     try {
       // 先正式登出 Firebase Auth + LIFF，避免清除儲存後產生半死半活狀態

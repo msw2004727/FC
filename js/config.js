@@ -304,7 +304,8 @@
 // 20260321d: 手動簽到批次寫入（Firestore batch 取代逐筆 await）
 // 20260321e: 權限異常提示統一改為「請嘗試登出再重新登入」
 // 20260321f: Toast 支援多行 + 錯誤提示加入原因與排除步驟
-const CACHE_VERSION = '20260321f';
+// 20260321g: 清除快取彈窗加 Warning 紅字 + 毛玻璃背景 + 風險提示
+const CACHE_VERSION = '20260321g';
 
 // ─── Page Strategy Registry ───
 // 唯一策略來源，未列出的頁面預設 fresh-first
