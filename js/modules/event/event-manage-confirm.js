@@ -156,6 +156,7 @@ Object.assign(App, {
     }
 
     let failed = false;
+    let failMsg = '';
     try {
       if (allAdds.length > 0 || allRemoves.length > 0) {
         await ApiService.batchWriteAttendance(allAdds, allRemoves);
@@ -163,6 +164,7 @@ Object.assign(App, {
     } catch (err) {
       console.error('[_confirmAllAttendance] batch failed:', err);
       failed = true;
+      failMsg = err?.message || '';
       ApiService._writeErrorLog({ fn: '_confirmAllAttendance', eventId, adds: allAdds.length, removes: allRemoves.length }, err);
     } finally {
       this._attendanceSubmittingEventId = null;
@@ -181,7 +183,7 @@ Object.assign(App, {
     const totalOps = allAdds.length + allRemoves.length;
     ApiService._writeOpLog('manual_attendance', '手動簽到', `活動 ${e.title} 已套用手動簽到（共 ${people.length} 人，${totalOps} 筆操作）${failed ? '，批次寫入失敗' : ''}`);
     this._renderDetailFeeSummary(eventId);
-    this.showToast(failed ? '儲存失敗，請稍後再試' : '儲存完成');
+    this.showToast(failed ? (failMsg || '儲存失敗\n請稍後再試\n若仍異常請聯繫管理員') : '儲存完成');
 
     // 放鴿子 EXP 對帳：對本活動所有正取報名者進行 no-show reconciliation
     if (!failed && typeof this._reconcileNoShowExp === 'function') {
@@ -265,6 +267,7 @@ Object.assign(App, {
     }
 
     let failed = false;
+    let failMsg = '';
     try {
       if (allAdds.length > 0 || allRemoves.length > 0) {
         await ApiService.batchWriteAttendance(allAdds, allRemoves);
@@ -272,6 +275,7 @@ Object.assign(App, {
     } catch (err) {
       console.error('[_confirmAllUnregAttendance] batch failed:', err);
       failed = true;
+      failMsg = err?.message || '';
     } finally {
       this._unregSubmittingEventId = null;
       this._unregPendingStateByUid = null;
@@ -280,7 +284,7 @@ Object.assign(App, {
     }
 
     this._renderDetailFeeSummary(eventId);
-    this.showToast(failed ? '儲存失敗，請稍後再試' : '儲存完成');
+    this.showToast(failed ? (failMsg || '儲存失敗\n請稍後再試\n若仍異常請聯繫管理員') : '儲存完成');
   },
 
 });

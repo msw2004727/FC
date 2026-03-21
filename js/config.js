@@ -303,7 +303,8 @@
 // 20260320aa: localStorage 寫入失敗時淘汰 newsArticles/gameConfigs 騰空間
 // 20260321d: 手動簽到批次寫入（Firestore batch 取代逐筆 await）
 // 20260321e: 權限異常提示統一改為「請嘗試登出再重新登入」
-const CACHE_VERSION = '20260321e';
+// 20260321f: Toast 支援多行 + 錯誤提示加入原因與排除步驟
+const CACHE_VERSION = '20260321f';
 
 // ─── Page Strategy Registry ───
 // 唯一策略來源，未列出的頁面預設 fresh-first

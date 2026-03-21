@@ -472,12 +472,13 @@ const App = {
     }, { passive: true });
   },
 
-  showToast(msg) {
+  showToast(msg, duration) {
     const toast = document.getElementById('toast');
     toast.textContent = msg;
     toast.classList.add('show');
     clearTimeout(this._toastTimer);
-    this._toastTimer = setTimeout(() => toast.classList.remove('show'), 2500);
+    const ms = duration || (msg && msg.includes('\n') ? 4000 : 2500);
+    this._toastTimer = setTimeout(() => toast.classList.remove('show'), ms);
   },
 
   _getRouteLoadingCopy(pageId, phase = 'page') {
@@ -1860,7 +1861,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (code === 'permission-denied') {
       console.error('[unhandledrejection] Firestore permission-denied:', event.reason?.message);
       if (typeof App !== 'undefined' && App.showToast) {
-        App.showToast('操作失敗：權限不足，請重新登入或聯繫管理員');
+        App.showToast('操作失敗：權限不足\n請清除瀏覽器緩存後重新登入\n若仍異常請聯繫管理員');
       }
       ApiService._writeErrorLog('permission-denied', event.reason);
       return;

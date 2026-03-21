@@ -356,7 +356,7 @@ Object.assign(FirebaseService, {
   async addEventTemplate(templateData) {
     const authed = await this.ensureAuthReadyForWrite();
     if (!authed) {
-      throw new Error('Firebase 登入失敗，請嘗試登出再重新登入');
+      throw new Error('Firebase 登入失敗\n請清除瀏覽器緩存後重新登入\n若仍異常請聯繫管理員');
     }
     const writeData = { ..._stripDocId(templateData) };
     if (writeData.image && typeof writeData.image === 'string' && writeData.image.startsWith('data:')) {
@@ -377,7 +377,7 @@ Object.assign(FirebaseService, {
   async deleteEventTemplate(id) {
     const authed = await this.ensureAuthReadyForWrite();
     if (!authed) {
-      throw new Error('Firebase 登入失敗，請嘗試登出再重新登入');
+      throw new Error('Firebase 登入失敗\n請清除瀏覽器緩存後重新登入\n若仍異常請聯繫管理員');
     }
     const templates = this._cache.eventTemplates || [];
     const doc = templates.find(t => t.id === id) || templates.find(t => t._docId === id);
@@ -704,7 +704,7 @@ Object.assign(FirebaseService, {
     // 確保 Firebase Auth 已登入
     const authed = await this._ensureAuth();
     if (!authed) {
-      throw new Error('Firebase 登入失敗，請嘗試登出再重新登入');
+      throw new Error('Firebase 登入失敗\n請清除瀏覽器緩存後重新登入\n若仍異常請聯繫管理員');
     }
     console.log('[registerForEvent] auth OK, uid:', auth.currentUser?.uid, 'userId:', userId);
 
@@ -805,7 +805,7 @@ Object.assign(FirebaseService, {
   async cancelRegistration(registrationId) {
     const authed = await this._ensureAuth();
     if (!authed) {
-      throw new Error('Firebase 登入失敗，請嘗試登出再重新登入');
+      throw new Error('Firebase 登入失敗\n請清除瀏覽器緩存後重新登入\n若仍異常請聯繫管理員');
     }
     const reg = this._cache.registrations.find(r => r.id === registrationId);
     if (!reg) throw new Error('報名記錄不存在');
@@ -1826,7 +1826,7 @@ Object.assign(FirebaseService, {
   async batchRegisterForEvent(eventId, entries) {
     const authed = await this.ensureAuthReadyForWrite();
     if (!authed) {
-      throw new Error('Firebase 登入失敗，請嘗試登出再重新登入');
+      throw new Error('Firebase 登入失敗\n請清除瀏覽器緩存後重新登入\n若仍異常請聯繫管理員');
     }
     const mainUserId = entries[0]?.userId;
     if (!mainUserId || mainUserId === 'unknown') throw new Error('用戶資料載入中，請稍候再試');
@@ -1945,7 +1945,7 @@ Object.assign(FirebaseService, {
   async cancelCompanionRegistrations(regIds) {
     const authed = await this.ensureAuthReadyForWrite();
     if (!authed) {
-      throw new Error('Firebase 登入失敗，請嘗試登出再重新登入');
+      throw new Error('Firebase 登入失敗\n請清除瀏覽器緩存後重新登入\n若仍異常請聯繫管理員');
     }
 
     // ── 階段 1：收集要取消的報名（不修改快取）──
@@ -2245,7 +2245,7 @@ Object.assign(FirebaseService, {
 
   async createEduGroup(teamId, data) {
     const authed = await this.ensureAuthReadyForWrite();
-    if (!authed) throw new Error('Firebase 登入失敗，請嘗試登出再重新登入');
+    if (!authed) throw new Error('Firebase 登入失敗\n請清除瀏覽器緩存後重新登入\n若仍異常請聯繫管理員');
     const collRef = await this._getTeamSubcollectionRef(teamId, 'groups');
     const docRef = data.id ? collRef.doc(data.id) : collRef.doc();
     const payload = { ..._stripDocId(data), id: data.id || docRef.id };
@@ -2260,7 +2260,7 @@ Object.assign(FirebaseService, {
 
   async updateEduGroup(teamId, groupId, updates) {
     const authed = await this.ensureAuthReadyForWrite();
-    if (!authed) throw new Error('Firebase 登入失敗，請嘗試登出再重新登入');
+    if (!authed) throw new Error('Firebase 登入失敗\n請清除瀏覽器緩存後重新登入\n若仍異常請聯繫管理員');
     const collRef = await this._getTeamSubcollectionRef(teamId, 'groups');
     await collRef.doc(groupId).update({
       ..._stripDocId(updates),
@@ -2271,7 +2271,7 @@ Object.assign(FirebaseService, {
 
   async deleteEduGroup(teamId, groupId) {
     const authed = await this.ensureAuthReadyForWrite();
-    if (!authed) throw new Error('Firebase 登入失敗，請嘗試登出再重新登入');
+    if (!authed) throw new Error('Firebase 登入失敗\n請清除瀏覽器緩存後重新登入\n若仍異常請聯繫管理員');
     const collRef = await this._getTeamSubcollectionRef(teamId, 'groups');
     await collRef.doc(groupId).delete();
     return true;
@@ -2289,7 +2289,7 @@ Object.assign(FirebaseService, {
 
   async createEduStudent(teamId, data) {
     const authed = await this.ensureAuthReadyForWrite();
-    if (!authed) throw new Error('Firebase 登入失敗，請嘗試登出再重新登入');
+    if (!authed) throw new Error('Firebase 登入失敗\n請清除瀏覽器緩存後重新登入\n若仍異常請聯繫管理員');
     const collRef = await this._getTeamSubcollectionRef(teamId, 'students');
     const docRef = data.id ? collRef.doc(data.id) : collRef.doc();
     const payload = { ..._stripDocId(data), id: data.id || docRef.id };
@@ -2304,7 +2304,7 @@ Object.assign(FirebaseService, {
 
   async updateEduStudent(teamId, studentId, updates) {
     const authed = await this.ensureAuthReadyForWrite();
-    if (!authed) throw new Error('Firebase 登入失敗，請嘗試登出再重新登入');
+    if (!authed) throw new Error('Firebase 登入失敗\n請清除瀏覽器緩存後重新登入\n若仍異常請聯繫管理員');
     const collRef = await this._getTeamSubcollectionRef(teamId, 'students');
     await collRef.doc(studentId).update({
       ..._stripDocId(updates),
@@ -2315,7 +2315,7 @@ Object.assign(FirebaseService, {
 
   async deleteEduStudent(teamId, studentId) {
     const authed = await this.ensureAuthReadyForWrite();
-    if (!authed) throw new Error('Firebase 登入失敗，請嘗試登出再重新登入');
+    if (!authed) throw new Error('Firebase 登入失敗\n請清除瀏覽器緩存後重新登入\n若仍異常請聯繫管理員');
     const collRef = await this._getTeamSubcollectionRef(teamId, 'students');
     await collRef.doc(studentId).delete();
   },
@@ -2332,7 +2332,7 @@ Object.assign(FirebaseService, {
 
   async createEduCoursePlan(teamId, data) {
     const authed = await this.ensureAuthReadyForWrite();
-    if (!authed) throw new Error('Firebase 登入失敗，請嘗試登出再重新登入');
+    if (!authed) throw new Error('Firebase 登入失敗\n請清除瀏覽器緩存後重新登入\n若仍異常請聯繫管理員');
     const collRef = await this._getTeamSubcollectionRef(teamId, 'coursePlans');
     const docRef = data.id ? collRef.doc(data.id) : collRef.doc();
     const payload = { ..._stripDocId(data), id: data.id || docRef.id };
@@ -2347,7 +2347,7 @@ Object.assign(FirebaseService, {
 
   async updateEduCoursePlan(teamId, planId, updates) {
     const authed = await this.ensureAuthReadyForWrite();
-    if (!authed) throw new Error('Firebase 登入失敗，請嘗試登出再重新登入');
+    if (!authed) throw new Error('Firebase 登入失敗\n請清除瀏覽器緩存後重新登入\n若仍異常請聯繫管理員');
     const collRef = await this._getTeamSubcollectionRef(teamId, 'coursePlans');
     await collRef.doc(planId).update({
       ..._stripDocId(updates),
@@ -2358,7 +2358,7 @@ Object.assign(FirebaseService, {
 
   async deleteEduCoursePlan(teamId, planId) {
     const authed = await this.ensureAuthReadyForWrite();
-    if (!authed) throw new Error('Firebase 登入失敗，請嘗試登出再重新登入');
+    if (!authed) throw new Error('Firebase 登入失敗\n請清除瀏覽器緩存後重新登入\n若仍異常請聯繫管理員');
     const collRef = await this._getTeamSubcollectionRef(teamId, 'coursePlans');
     await collRef.doc(planId).delete();
     return true;
@@ -2370,7 +2370,7 @@ Object.assign(FirebaseService, {
 
   async addEduAttendance(data) {
     const authed = await this.ensureAuthReadyForWrite();
-    if (!authed) throw new Error('Firebase 登入失敗，請嘗試登出再重新登入');
+    if (!authed) throw new Error('Firebase 登入失敗\n請清除瀏覽器緩存後重新登入\n若仍異常請聯繫管理員');
     const docRef = data.id ? db.collection('eduAttendance').doc(data.id) : db.collection('eduAttendance').doc();
     const payload = { ..._stripDocId(data), id: data.id || docRef.id };
     await docRef.set({
