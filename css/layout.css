@@ -402,23 +402,33 @@
 [data-theme="dark"] .drawer-role-yellow { background: rgba(234,179,8,.22); }
 .drawer-footer { padding: .75rem 1.2rem; border-top: 1px solid var(--border); }
 #theme-toggle { display: flex; align-items: center; gap: .6rem; width: 100%; font-size: .88rem; color: var(--text-secondary); padding: .5rem 0; line-height: 22px; min-height: 22px; }
-.drawer-legal-row { display: flex; justify-content: center; gap: 1.2rem; padding: .5rem 0 .3rem; }
-.drawer-legal-btn {
-  display: flex; flex-direction: column; align-items: center; gap: .25rem;
-  width: 52px; height: 52px; border-radius: 50%;
-  background: var(--bg-elevated); border: 1.5px solid var(--border);
-  justify-content: center; cursor: pointer;
-  text-decoration: none; color: var(--text-muted);
-  font-size: .58rem; font-weight: 600; line-height: 1;
-  transition: all var(--transition);
+.drawer-legal-row { display: flex; gap: .6rem; padding: .4rem 0 .2rem; }
+@keyframes legal-glow {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
 }
-.drawer-legal-btn svg { flex-shrink: 0; opacity: .65; }
-.drawer-legal-btn span { margin-top: -1px; }
-.drawer-legal-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-bg); }
-.drawer-legal-btn:hover svg { opacity: 1; stroke: var(--accent); }
-.drawer-legal-btn:active { transform: scale(.93); }
-[data-theme="dark"] .drawer-legal-btn { background: #1e1e1e; border-color: #333; }
-[data-theme="dark"] .drawer-legal-btn:hover { background: rgba(59,130,246,.12); border-color: var(--accent); }
+.drawer-legal-btn {
+  position: relative; display: flex; align-items: center; justify-content: center;
+  height: 22px; padding: 0 .7rem; border-radius: 11px;
+  background: var(--bg-elevated);
+  text-decoration: none; color: var(--text-muted);
+  font-size: .75rem; font-weight: 500; line-height: 22px;
+  cursor: pointer; overflow: hidden; z-index: 0;
+}
+.drawer-legal-btn::before {
+  content: ''; position: absolute; inset: 0; border-radius: 11px; padding: 1.5px;
+  background: linear-gradient(90deg, transparent 0%, #f472b6 25%, #ec4899 50%, #f472b6 75%, transparent 100%);
+  background-size: 200% 100%;
+  animation: legal-glow 3s linear infinite;
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}
+.drawer-legal-btn span { position: relative; z-index: 1; }
+.drawer-legal-btn:hover { color: #ec4899; }
+.drawer-legal-btn:active { transform: scale(.95); }
+[data-theme="dark"] .drawer-legal-btn { background: #1a1a1a; }
+[data-theme="dark"] .drawer-legal-btn:hover { color: #f9a8d4; }
 .drawer-footer-bottom { display: flex; align-items: center; gap: .6rem; padding: .35rem 0 0; }
 .toggle-switch { width: 46px; min-width: 40px; height: 22px; border-radius: 11px; background: var(--border); position: relative; transition: background var(--transition); overflow: hidden; }
 .toggle-switch.active { background: var(--accent); }

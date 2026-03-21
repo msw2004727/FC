@@ -315,7 +315,8 @@
 // 20260321o: 恢復 LV 膠囊樣式，用 margin-top 解決 overflow 遮擋
 // 20260321p: LV 膠囊改淡色調，降低視覺搶眼度
 // 20260321q: 側選單新增隱私權政策、服務條款圓形按鈕
-const CACHE_VERSION = '20260321q';
+// 20260321r: 法律按鈕改橢圓文字 + 粉色光跡動畫
+const CACHE_VERSION = '20260321r';
 
 // ─── Page Strategy Registry ───
 // 唯一策略來源，未列出的頁面預設 fresh-first
