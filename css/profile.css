@@ -43,11 +43,11 @@
   position: absolute; top: -7px; left: -2px;
   font-size: .5rem; font-weight: 700; line-height: 1;
   padding: .1rem .25rem; border-radius: 4px;
-  background: var(--accent, #3b82f6); color: #fff;
+  background: #d1d5db; color: #6b7280;
   pointer-events: none; white-space: nowrap;
   z-index: 2;
 }
-[data-theme="dark"] .uc-lv { background: #2563eb; }
+[data-theme="dark"] .uc-lv { background: #374151; color: #9ca3af; }
 /* Capsule inside leaderboard / admin - smaller variant */
 .lb-name .user-capsule, .admin-user-name .user-capsule { font-size: .75rem; padding: .15rem .5rem; }
 .td-member-name .user-capsule { font-size: .75rem; padding: .15rem .5rem; }

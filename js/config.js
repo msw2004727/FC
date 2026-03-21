@@ -313,7 +313,8 @@
 // 20260321m: 名字膠囊左上角顯示角色 LV
 // 20260321n: LV 改為綠色純文字顯示，調整位置
 // 20260321o: 恢復 LV 膠囊樣式，用 margin-top 解決 overflow 遮擋
-const CACHE_VERSION = '20260321o';
+// 20260321p: LV 膠囊改淡色調，降低視覺搶眼度
+const CACHE_VERSION = '20260321p';
 
 // ─── Page Strategy Registry ───
 // 唯一策略來源，未列出的頁面預設 fresh-first
