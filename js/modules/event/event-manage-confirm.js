@@ -1,6 +1,7 @@
-/* === SportHub — Attendance confirmation ===
+/* === SportHub — Attendance confirmation (batch write) ===
    Contains LOCKED function per CLAUDE.md — do not modify _confirmAllAttendance
    依賴：event-manage-attendance.js (rendering), event-manage.js (shared helpers)
+   優化：使用 Firestore batch 原子寫入取代逐筆 await，大幅減少 round trips
    ============================================ */
 
 Object.assign(App, {
@@ -13,6 +14,53 @@ Object.assign(App, {
   _startTableEdit(eventId) {
     this._attendanceEditingEventId = eventId;
     this._renderAttendanceTable(eventId, this._manualEditingContainerId);
+  },
+
+  /**
+   * 收集單一參加者的出席變更操作（新增 / 軟刪除）
+   * @returns {{ adds: Array, removes: Array, grantExp: boolean }}
+   */
+  _collectAttendanceOps(person, wanted, currentRecords, eventId, timeStr, baseRecord, idCounter) {
+    const adds = [];
+    const removes = [];
+    let grantExp = false;
+
+    const hasCheckin = currentRecords.some(r => this._matchAttendanceRecord(r, person) && r.type === 'checkin');
+    const hasCheckout = currentRecords.some(r => this._matchAttendanceRecord(r, person) && r.type === 'checkout');
+    const existingNote = this._getLatestAttendanceRecord(currentRecords, person, 'note');
+    const existingNoteText = (existingNote?.note || '').trim();
+
+    if (wanted.checkin === hasCheckin && wanted.checkout === hasCheckout && wanted.note === existingNoteText) {
+      return { adds, removes, grantExp };
+    }
+
+    // 取消簽退
+    if (!wanted.checkout && hasCheckout) {
+      const rec = this._getLatestAttendanceRecord(currentRecords, person, 'checkout');
+      if (rec) removes.push(rec);
+    }
+    // 取消簽到（連帶取消簽退）
+    if (!wanted.checkin && hasCheckin) {
+      const recOut = this._getLatestAttendanceRecord(currentRecords, person, 'checkout');
+      if (recOut && !removes.some(r => r.id === recOut.id)) removes.push(recOut);
+      const recIn = this._getLatestAttendanceRecord(currentRecords, person, 'checkin');
+      if (recIn) removes.push(recIn);
+    }
+    // 新增簽到
+    if (wanted.checkin && !hasCheckin) {
+      adds.push({ ...baseRecord, id: 'att_' + idCounter.v++ + '_' + Math.random().toString(36).slice(2, 6), type: 'checkin', time: timeStr });
+    }
+    // 新增簽退
+    if (wanted.checkout && !hasCheckout) {
+      adds.push({ ...baseRecord, id: 'att_' + idCounter.v++ + '_' + Math.random().toString(36).slice(2, 6), type: 'checkout', time: timeStr });
+      if (wanted.checkin && baseRecord.uid) grantExp = true;
+    }
+    // 備註變更
+    if (wanted.note !== existingNoteText) {
+      adds.push({ ...baseRecord, id: 'att_note_' + idCounter.v++, type: 'note', time: timeStr, note: wanted.note });
+    }
+
+    return { adds, removes, grantExp };
   },
 
   async _confirmAllAttendance(eventId) {
@@ -78,81 +126,44 @@ Object.assign(App, {
     this._attendancePendingStateByUid = desiredStateByUid;
     this._renderAttendanceTable(eventId, containerId);
 
-    const now = new Date();
-    const timeStr = App._formatDateTime(now);
-    let errCount = 0;
+    const timeStr = App._formatDateTime(new Date());
+    const currentRecords = ApiService.getAttendanceRecords(eventId);
+    const allAdds = [];
+    const allRemoves = [];
+    const expTargets = [];
+    const idCounter = { v: Date.now() };
 
-    try {
-      for (const p of people) {
-        // 防護：checkbox 未找到的人（UID 不匹配）絕不處理，避免誤刪紀錄
-        if (!(String(p.uid) in desiredStateByUid)) continue;
-        const wanted = desiredStateByUid[String(p.uid)];
+    for (const p of people) {
+      if (!(String(p.uid) in desiredStateByUid)) continue;
+      const wanted = desiredStateByUid[String(p.uid)];
 
-        const wantCheckin = wanted.checkin;
-        const wantCheckout = wanted.checkout;
-        const note = wanted.note;
-
-        const person = { uid: p.uid, name: p.name, isCompanion: p.isCompanion };
-        const currentRecords = ApiService.getAttendanceRecords(eventId);
-        const hasCheckin = currentRecords.some(r => this._matchAttendanceRecord(r, person) && r.type === 'checkin');
-        const hasCheckout = currentRecords.some(r => this._matchAttendanceRecord(r, person) && r.type === 'checkout');
-        const existingNote = this._getLatestAttendanceRecord(currentRecords, person, 'note');
-        const existingNoteText = (existingNote?.note || '').trim();
-
-        if (wantCheckin === hasCheckin && wantCheckout === hasCheckout && note === existingNoteText) continue;
-
-        let recordUid = p.uid, recordUserName = p.name, companionId = null, companionName = null, participantType = 'self';
-        if (p.isCompanion) {
-          const cReg = allActiveRegs.find(r => r.companionId === p.uid);
-          if (cReg) {
-            recordUid = cReg.userId; recordUserName = cReg.userName;
-            companionId = p.uid; companionName = p.name; participantType = 'companion';
-          }
-        }
-
-        try {
-          if (!wantCheckout && hasCheckout) {
-            const rec = this._getLatestAttendanceRecord(currentRecords, person, 'checkout');
-            if (rec) await ApiService.removeAttendanceRecord(rec);
-          }
-          if (!wantCheckin && hasCheckin) {
-            const recOut = this._getLatestAttendanceRecord(currentRecords, person, 'checkout');
-            if (recOut) await ApiService.removeAttendanceRecord(recOut);
-            const recIn = this._getLatestAttendanceRecord(currentRecords, person, 'checkin');
-            if (recIn) await ApiService.removeAttendanceRecord(recIn);
-          }
-          if (wantCheckin && !hasCheckin) {
-            await ApiService.addAttendanceRecord({
-              id: 'att_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5),
-              eventId, uid: recordUid, userName: recordUserName,
-              participantType, companionId, companionName,
-              type: 'checkin', time: timeStr,
-            });
-          }
-          if (wantCheckout && !hasCheckout) {
-            await ApiService.addAttendanceRecord({
-              id: 'att_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5),
-              eventId, uid: recordUid, userName: recordUserName,
-              participantType, companionId, companionName,
-              type: 'checkout', time: timeStr,
-            });
-            // 手動確認簽退 → 發放完成活動 EXP（與掃碼簽退一致）
-            if (wantCheckin && recordUid) {
-              this._grantAutoExp?.(recordUid, 'complete_activity', e.title);
-            }
-          }
-          if (note !== existingNoteText) {
-            await ApiService.addAttendanceRecord({
-              id: 'att_note_' + Date.now(), eventId, uid: recordUid, userName: recordUserName,
-              participantType, companionId, companionName,
-              type: 'note', time: timeStr, note,
-            });
-          }
-        } catch (err) {
-          console.error('[_confirmAllAttendance]', p.name, err);
-          errCount++;
+      let recordUid = p.uid, recordUserName = p.name, companionId = null, companionName = null, participantType = 'self';
+      if (p.isCompanion) {
+        const cReg = allActiveRegs.find(r => r.companionId === p.uid);
+        if (cReg) {
+          recordUid = cReg.userId; recordUserName = cReg.userName;
+          companionId = p.uid; companionName = p.name; participantType = 'companion';
         }
       }
+
+      const baseRecord = { eventId, uid: recordUid, userName: recordUserName, participantType, companionId, companionName };
+      const person = { uid: p.uid, name: p.name, isCompanion: p.isCompanion };
+      const ops = this._collectAttendanceOps(person, wanted, currentRecords, eventId, timeStr, baseRecord, idCounter);
+
+      allAdds.push(...ops.adds);
+      allRemoves.push(...ops.removes);
+      if (ops.grantExp) expTargets.push(recordUid);
+    }
+
+    let failed = false;
+    try {
+      if (allAdds.length > 0 || allRemoves.length > 0) {
+        await ApiService.batchWriteAttendance(allAdds, allRemoves);
+      }
+    } catch (err) {
+      console.error('[_confirmAllAttendance] batch failed:', err);
+      failed = true;
+      ApiService._writeErrorLog({ fn: '_confirmAllAttendance', eventId, adds: allAdds.length, removes: allRemoves.length }, err);
     } finally {
       this._attendanceSubmittingEventId = null;
       this._attendancePendingStateByUid = null;
@@ -160,15 +171,20 @@ Object.assign(App, {
       this._renderAttendanceTable(eventId, containerId);
     }
 
-    if (errCount > 0) {
-      ApiService._writeErrorLog({ fn: '_confirmAllAttendance', eventId, errCount }, new Error(`${errCount} 筆寫入失敗`));
+    if (!failed) {
+      // 手動確認簽退 → 發放完成活動 EXP（與掃碼簽退一致）
+      for (const uid of expTargets) {
+        this._grantAutoExp?.(uid, 'complete_activity', e.title);
+      }
     }
-    ApiService._writeOpLog('manual_attendance', '手動簽到', `活動 ${e.title} 已套用手動簽到（共 ${people.length} 筆）${errCount > 0 ? `，${errCount} 筆失敗` : ''}`);
+
+    const totalOps = allAdds.length + allRemoves.length;
+    ApiService._writeOpLog('manual_attendance', '手動簽到', `活動 ${e.title} 已套用手動簽到（共 ${people.length} 人，${totalOps} 筆操作）${failed ? '，批次寫入失敗' : ''}`);
     this._renderDetailFeeSummary(eventId);
-    this.showToast(errCount > 0 ? `儲存完成，但有 ${errCount} 筆失敗` : '儲存完成');
+    this.showToast(failed ? '儲存失敗，請稍後再試' : '儲存完成');
 
     // 放鴿子 EXP 對帳：對本活動所有正取報名者進行 no-show reconciliation
-    if (typeof this._reconcileNoShowExp === 'function') {
+    if (!failed && typeof this._reconcileNoShowExp === 'function') {
       var allRegs = ApiService.getRegistrationsByEvent(eventId);
       var reconcileUids = new Set();
       (allRegs || []).forEach(function (r) {
@@ -179,6 +195,7 @@ Object.assign(App, {
       reconcileUids.forEach(function (uid) { App._reconcileNoShowExp(uid); });
     }
   },
+
   _startUnregTableEdit(eventId) {
     this._unregEditingEventId = eventId;
     this._renderUnregTable(eventId, 'detail-unreg-table');
@@ -231,68 +248,30 @@ Object.assign(App, {
     this._unregPendingStateByUid = desiredStateByUid;
     this._renderUnregTable(eventId, 'detail-unreg-table');
 
-    const now = new Date();
-    const timeStr = App._formatDateTime(now);
-    let errCount = 0;
+    const timeStr = App._formatDateTime(new Date());
+    const currentRecords = ApiService.getAttendanceRecords(eventId);
+    const allAdds = [];
+    const allRemoves = [];
+    const idCounter = { v: Date.now() };
 
+    for (const p of people) {
+      if (!(String(p.uid) in desiredStateByUid)) continue;
+      const wanted = desiredStateByUid[String(p.uid)];
+      const person = { uid: p.uid, name: p.name, isCompanion: false };
+      const baseRecord = { eventId, uid: p.uid, userName: p.name, participantType: 'self', companionId: null, companionName: null };
+      const ops = this._collectAttendanceOps(person, wanted, currentRecords, eventId, timeStr, baseRecord, idCounter);
+      allAdds.push(...ops.adds);
+      allRemoves.push(...ops.removes);
+    }
+
+    let failed = false;
     try {
-      for (const p of people) {
-        // 防護：checkbox 未找到的人（UID 不匹配）絕不處理，避免誤刪紀錄
-        if (!(String(p.uid) in desiredStateByUid)) continue;
-        const wanted = desiredStateByUid[String(p.uid)];
-
-        const wantCheckin = wanted.checkin;
-        const wantCheckout = wanted.checkout;
-        const note = wanted.note;
-
-        const person = { uid: p.uid, name: p.name, isCompanion: false };
-        const currentRecords = ApiService.getAttendanceRecords(eventId);
-        const hasCheckin = currentRecords.some(r => this._matchAttendanceRecord(r, person) && r.type === 'checkin');
-        const hasCheckout = currentRecords.some(r => this._matchAttendanceRecord(r, person) && r.type === 'checkout');
-        const existingNote = this._getLatestAttendanceRecord(currentRecords, person, 'note');
-        const existingNoteText = (existingNote?.note || '').trim();
-
-        if (wantCheckin === hasCheckin && wantCheckout === hasCheckout && note === existingNoteText) continue;
-
-        try {
-          if (!wantCheckout && hasCheckout) {
-            const rec = this._getLatestAttendanceRecord(currentRecords, person, 'checkout');
-            if (rec) await ApiService.removeAttendanceRecord(rec);
-          }
-          if (!wantCheckin && hasCheckin) {
-            const recOut = this._getLatestAttendanceRecord(currentRecords, person, 'checkout');
-            if (recOut) await ApiService.removeAttendanceRecord(recOut);
-            const recIn = this._getLatestAttendanceRecord(currentRecords, person, 'checkin');
-            if (recIn) await ApiService.removeAttendanceRecord(recIn);
-          }
-          if (wantCheckin && !hasCheckin) {
-            await ApiService.addAttendanceRecord({
-              id: 'att_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5),
-              eventId, uid: p.uid, userName: p.name,
-              participantType: 'self', companionId: null, companionName: null,
-              type: 'checkin', time: timeStr,
-            });
-          }
-          if (wantCheckout && !hasCheckout) {
-            await ApiService.addAttendanceRecord({
-              id: 'att_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5),
-              eventId, uid: p.uid, userName: p.name,
-              participantType: 'self', companionId: null, companionName: null,
-              type: 'checkout', time: timeStr,
-            });
-          }
-          if (note !== existingNoteText) {
-            await ApiService.addAttendanceRecord({
-              id: 'att_note_' + Date.now(), eventId, uid: p.uid, userName: p.name,
-              participantType: 'self', companionId: null, companionName: null,
-              type: 'note', time: timeStr, note,
-            });
-          }
-        } catch (err) {
-          console.error('[_confirmAllUnregAttendance]', p.name, err);
-          errCount++;
-        }
+      if (allAdds.length > 0 || allRemoves.length > 0) {
+        await ApiService.batchWriteAttendance(allAdds, allRemoves);
       }
+    } catch (err) {
+      console.error('[_confirmAllUnregAttendance] batch failed:', err);
+      failed = true;
     } finally {
       this._unregSubmittingEventId = null;
       this._unregPendingStateByUid = null;
@@ -301,7 +280,7 @@ Object.assign(App, {
     }
 
     this._renderDetailFeeSummary(eventId);
-    this.showToast(errCount > 0 ? `儲存完成，但有 ${errCount} 筆失敗` : '儲存完成');
+    this.showToast(failed ? '儲存失敗，請稍後再試' : '儲存完成');
   },
 
 });

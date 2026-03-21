@@ -10,6 +10,12 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-21 — 手動簽到批次寫入優化（Firestore batch）
+- **問題**：手動簽到確認（_confirmAllAttendance）使用逐筆 await 寫入 Firestore，30 人活動需 60+ 次 round trip + 60 次 localStorage 序列化
+- **修復**：改為 Firestore batch 原子寫入，收集所有 add/remove 操作後一次 batch.commit()，再做一次 _saveToLS。新增 `FirebaseService.batchWriteAttendance()` 和 `ApiService.batchWriteAttendance()`，抽取共用 `_collectAttendanceOps()` 消除重複邏輯
+- **影響檔案**：firebase-crud.js（新增 batchWriteAttendance）、api-service.js（新增 batchWriteAttendance）、event-manage-confirm.js（重寫 _confirmAllAttendance 和 _confirmAllUnregAttendance）
+- **教訓**：Firestore batch 上限 500 操作，30 人最多 180 操作遠低於上限；超過 100 人的活動需注意。Demo 模式需另外處理（直接更新快取）
+
 ### 2026-03-21 — [永久] 面板碰撞彈飛失效：update/render 時序 bug
 - **問題**：角色靠近右側面板時，展開面板有時只被推開不被彈飛
 - **原因**：面板滑動推進 (`_slide`) 和碰撞判定在 `drawPanel()`（render 階段），但角色位置夾限在 `update()` 階段先執行。`update()` 用舊的 `_slide` 算出 `ew`，將角色夾到 `ew - halfW`；然後 `drawPanel()` 推進 `_slide`，新的 `panelEdge` 比角色已被夾過的 x 更右，`charState.x > panelEdge` 永遠 false

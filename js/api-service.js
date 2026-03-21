@@ -1026,6 +1026,38 @@ const ApiService = {
     return target;
   },
 
+  /**
+   * 批次寫入出席紀錄（原子操作：全部成功或全部失敗）
+   * @param {Array} adds - 要新增的紀錄（需有 eventId, uid）
+   * @param {Array} removes - 要軟刪除的紀錄（需有 id）
+   */
+  async batchWriteAttendance(adds, removes) {
+    if (this._handleRestrictedAction()) return;
+    for (const record of adds) {
+      record.status = record.status || 'active';
+      if (!this._demoMode && (typeof record.eventId !== 'string' || !record.eventId || typeof record.uid !== 'string' || !record.uid)) {
+        throw new Error('missing required fields: eventId/uid');
+      }
+    }
+    if (this._demoMode) {
+      const source = this._src('attendanceRecords');
+      for (const record of removes) {
+        const target = source.find(r => r.id === record.id);
+        if (target) { target.status = 'removed'; target.removedAt = new Date().toISOString(); }
+      }
+      for (const record of adds) source.push(record);
+      return;
+    }
+    try {
+      await this._runAttendanceWriteWithAuthRetry(async () => {
+        await FirebaseService.batchWriteAttendance(adds, removes);
+      }, 'batchWriteAttendance');
+    } catch (err) {
+      console.error('[batchWriteAttendance]', err);
+      throw new Error(this._mapAttendanceWriteError(err));
+    }
+  },
+
   // ════════════════════════════════
   //  Achievements & Badges
   // ════════════════════════════════

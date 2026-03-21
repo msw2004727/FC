@@ -429,6 +429,66 @@ Object.assign(FirebaseService, {
     this._saveToLS('attendanceRecords', this._cache.attendanceRecords);
   },
 
+  /**
+   * 批次寫入出席紀錄（Firestore batch：原子性，全部成功或全部失敗）
+   * @param {Array} adds - 要新增的紀錄陣列
+   * @param {Array} removes - 要軟刪除的紀錄陣列（需有 id，有 _docId 才寫 Firestore）
+   */
+  async batchWriteAttendance(adds, removes) {
+    const batch = db.batch();
+
+    // 新增紀錄：預先產生 docId
+    for (const record of adds) {
+      const docRef = db.collection('attendanceRecords').doc();
+      record._docId = docRef.id;
+      batch.set(docRef, {
+        ..._stripDocId(record),
+        status: record.status || 'active',
+        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      });
+    }
+
+    // 軟刪除紀錄：update status='removed'
+    const removedDocIds = new Set();
+    const removeUpdates = {
+      status: 'removed',
+      removedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    };
+    if (typeof auth !== 'undefined' && auth?.currentUser?.uid) {
+      removeUpdates.removedByUid = auth.currentUser.uid;
+    }
+    for (const record of removes) {
+      const inCache = this._cache.attendanceRecords.find(r => r.id === record.id);
+      const target = record._docId ? record : inCache;
+      if (target && target._docId && !removedDocIds.has(target._docId)) {
+        removedDocIds.add(target._docId);
+        batch.update(
+          db.collection('attendanceRecords').doc(target._docId),
+          removeUpdates
+        );
+      } else if (!target?._docId) {
+        console.warn('[batchWriteAttendance] record missing _docId, skipping remove:', record.id);
+      }
+    }
+
+    // 原子提交
+    await batch.commit();
+
+    // commit 成功 → 更新本地快取
+    const source = this._cache.attendanceRecords;
+    for (const record of removes) {
+      const inCache = source.find(r => r.id === record.id);
+      if (inCache) {
+        inCache.status = 'removed';
+        inCache.removedAt = new Date().toISOString();
+      }
+    }
+    for (const record of adds) {
+      source.push(record);
+    }
+    this._saveToLS('attendanceRecords', source);
+  },
+
   // ════════════════════════════════
   //  Registrations（報名系統）
   // ════════════════════════════════
