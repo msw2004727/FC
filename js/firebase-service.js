@@ -756,6 +756,16 @@ const FirebaseService = {
       lineUserId: preferred.lineUserId || authUid,
     };
 
+    // 輕量更新：exp 變更只需刷新頂部顯示，不觸發重量級同步
+    const expChanged = prev && (prev.exp || 0) !== (next.exp || 0);
+    if (expChanged) {
+      this._cache.currentUser = next;
+      this._saveToLS('currentUser', next);
+      if (typeof App !== 'undefined' && typeof App.updatePointsDisplay === 'function') {
+        App.updatePointsDisplay();
+      }
+    }
+
     const changed = !prev
       || prev._docId !== next._docId
       || prev.role !== next.role

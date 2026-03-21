@@ -10,6 +10,12 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-21 — 頂部 EXP 顯示不同步
+- **問題**：右上角 `#points-value` 的 EXP 與角色資料頁的 EXP 不一致
+- **原因**：`_syncCurrentUserFromUsersSnapshot` 的 `changed` 判斷不包含 `exp` 欄位，當 onSnapshot 收到 exp 變更時，`currentUser` 不更新，`updatePointsDisplay` 也不被呼叫
+- **修復**：在 `changed` 判斷前加入 `expChanged` 輕量分支，exp 變更時更新 `currentUser` 並刷新頂部顯示，不觸發 listener/role 等重量級操作
+- **教訓**：`_syncCurrentUserFromUsersSnapshot` 的 changed 判斷每新增重要欄位都需檢查是否遺漏
+
 ### 2026-03-21 — 回推補發新增 LINE綁定/放鴿子扣分/徽章獎勵
 - **問題**：CF `backfillAutoExp` 只處理 4 條原始規則（報名/取消/完成/主辦），缺少 line_binding、noshow_penalty、badge_bonus
 - **修復**：CF 新增 3 條規則掃描邏輯：LINE 綁定查 `users.lineNotify.bound`、放鴿子查 registrations+attendanceRecords+userCorrections、徽章查 `users/{uid}/achievements` + `badges` 集合。reconciliation 規則（noshow/badge）成功後更新 `autoExpTracking` 子集合

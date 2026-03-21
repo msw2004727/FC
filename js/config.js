@@ -308,7 +308,8 @@
 // 20260321h: 補發操作紀錄改為 Firestore operationLogs（全管理員可見）
 // 20260321i: 補發操作紀錄改為卡片式排版
 // 20260321j: 回推補發新增 LINE綁定/放鴿子扣分/徽章獎勵 三條規則
-const CACHE_VERSION = '20260321j';
+// 20260321k: 修復頂部 EXP 不同步（exp 變更未觸發 currentUser 更新）
+const CACHE_VERSION = '20260321k';
 
 // ─── Page Strategy Registry ───
 // 唯一策略來源，未列出的頁面預設 fresh-first
