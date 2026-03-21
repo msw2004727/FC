@@ -326,8 +326,9 @@
 .drawer-header { padding: 1.5rem 1.2rem 1rem; border-bottom: 1px solid var(--border); }
 .drawer-user { display: flex; align-items: center; gap: .75rem; }
 .drawer-avatar { width: 44px; height: 44px; border-radius: 50%; background: linear-gradient(135deg, var(--accent), #0d9488); display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: 1.1rem; flex-shrink: 0; }
-.drawer-name { font-weight: 700; font-size: .95rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 180px; }
-.drawer-actions { display: flex; align-items: center; gap: .5rem; margin-top: .6rem; }
+.drawer-user-info { flex: 1; min-width: 0; }
+.drawer-name { font-weight: 700; font-size: .95rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.drawer-actions { display: flex; align-items: center; gap: .5rem; flex-shrink: 0; margin-left: auto; }
 .drawer-clear-btn { flex-shrink: 0; display: inline-flex; align-items: center; gap: .3rem; padding: .28rem .6rem; border-radius: var(--radius-full); border: 1px solid var(--border); background: var(--bg-elevated); color: var(--text-muted); font-size: .72rem; font-weight: 500; cursor: pointer; transition: all var(--transition); line-height: 1; }
 .drawer-clear-btn svg { flex-shrink: 0; opacity: .7; }
 .drawer-clear-btn:hover { border-color: #ef4444; color: #ef4444; background: rgba(239,68,68,.08); }
