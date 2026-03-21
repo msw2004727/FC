@@ -3594,10 +3594,9 @@ exports.backfillAutoExp = onCall(
       return { success: true, dryRun, message: "所有規則金額皆為 0，無需補發", stats: {} };
     }
 
-    // ── 載入 eventId→title 映射（用於去重比對） ──
-    // 線上 _grantAutoExp 用 event.title 作為 context，
-    // backfill 用 eventId 作為 context，因此需要雙向比對。
+    // ── 載入全域資料（用於多條規則） ──
     const allEventsSnap = await db.collection("events").get();
+    const allUsersSnap = await db.collection("users").get();
     const eventTitleMap = new Map(); // eventId → title
     const eventIdByTitle = new Map(); // title → Set<eventId>（title 可能重複）
     allEventsSnap.docs.forEach((doc) => {
@@ -3999,8 +3998,7 @@ exports.backfillAutoExp = onCall(
       byUid.get(item.uid).push(item);
     }
 
-    // 批次載入所有需要的 user docs（避免逐一查詢）
-    const allUsersSnap = await db.collection("users").get();
+    // 建立 uid → user doc 映射（複用前面已載入的 allUsersSnap）
     const userByUid = new Map();   // uid → { docId, data }
     const userByDocId = new Map(); // docId → { docId, data }
     allUsersSnap.docs.forEach((doc) => {
