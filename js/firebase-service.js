@@ -100,6 +100,43 @@ const FirebaseService = {
   _snapshotReconnectAttempts: {},   // onSnapshot 重連計數
   _reconnectTimers: {},             // onSnapshot 重連 setTimeout ID
   _registrationsRevalidating: false, // 防止並行 revalidation 競爭
+  _snapshotRenderTimer: null, // onSnapshot 渲染防抖 timer
+
+  /**
+   * onSnapshot 觸發的 UI 更新
+   * - 用戶操作頁（detail / scan）：立即渲染，避免延遲感
+   * - 背景頁（home / activities / my-activities）：500ms 防抖，減少連續渲染
+   * @param {'registrations'|'events'|'attendance'} source - 觸發來源
+   */
+  _debouncedSnapshotRender(source) {
+    if (typeof App === 'undefined') return;
+    const page = App.currentPage;
+
+    // 用戶操作頁：立即渲染
+    if (page === 'page-activity-detail') {
+      App.showEventDetail?.(App._currentDetailEventId);
+      App._renderAttendanceTable?.(App._currentDetailEventId, 'detail-attendance-table');
+      return;
+    }
+    if (page === 'page-scan' && source === 'attendance') {
+      App._renderScanResults?.();
+      App._renderAttendanceSections?.();
+      return;
+    }
+
+    // attendance 變更不影響列表頁，跳過
+    if (source === 'attendance') return;
+
+    // 背景頁：500ms 防抖
+    clearTimeout(this._snapshotRenderTimer);
+    this._snapshotRenderTimer = setTimeout(() => {
+      if (typeof App === 'undefined') return;
+      const p = App.currentPage;
+      if (p === 'page-home') App.renderHotEvents?.();
+      if (p === 'page-activities') App.renderActivityList?.();
+      if (p === 'page-my-activities') App.renderMyActivities?.();
+    }, 500);
+  },
 
   /** 將 users 集合文件映射為 adminUsers 格式（補齊 name / uid / lastActive） */
   _mapUserDoc(data, docId) {
@@ -724,11 +761,8 @@ const FirebaseService = {
     this._cache.events = merged;
     this._debouncedPersistCache();
 
-    if (!shouldRefreshUI || typeof App === 'undefined') return;
-    if (App.currentPage === 'page-home') App.renderHotEvents?.();
-    if (App.currentPage === 'page-activity-detail') App.showEventDetail?.(App._currentDetailEventId);
-    if (App.currentPage === 'page-my-activities') App.renderMyActivities?.();
-    if (App.currentPage === 'page-activities') App.renderActivityList?.();
+    if (!shouldRefreshUI) return;
+    this._debouncedSnapshotRender('events');
   },
 
   _syncCurrentUserFromUsersSnapshot() {
@@ -1269,12 +1303,7 @@ const FirebaseService = {
           this._cache.registrations = snapshot.docs.map(doc => ({ ...doc.data(), _docId: doc.id }));
           this._snapshotReconnectAttempts.registrations = 0; // RC4：成功時重置重連計數
           this._debouncedPersistCache();
-          if (typeof App !== 'undefined') {
-            if (App.currentPage === 'page-home') App.renderHotEvents?.();
-            if (App.currentPage === 'page-activity-detail') App.showEventDetail?.(App._currentDetailEventId);
-            if (App.currentPage === 'page-activities') App.renderActivityList?.();
-            if (App.currentPage === 'page-my-activities') App.renderMyActivities?.();
-          }
+          this._debouncedSnapshotRender('registrations');
         },
         err => this._reconnectRegistrationsListener(err) // RC4：自動重連
       );
@@ -1335,15 +1364,7 @@ const FirebaseService = {
           this._cache.attendanceRecords = snapshot.docs.map(doc => ({ ...doc.data(), _docId: doc.id }));
           this._snapshotReconnectAttempts.attendanceRecords = 0; // RC4：成功時重置重連計數
           this._debouncedPersistCache();
-          if (typeof App !== 'undefined') {
-            if (App.currentPage === 'page-activity-detail') {
-              App._renderAttendanceTable?.(App._currentDetailEventId, 'detail-attendance-table');
-            }
-            if (App.currentPage === 'page-scan') {
-              App._renderScanResults?.();
-              App._renderAttendanceSections?.();
-            }
-          }
+          this._debouncedSnapshotRender('attendance');
         },
         err => this._reconnectAttendanceRecordsListener(err) // RC4：自動重連
       );
@@ -1508,6 +1529,20 @@ const FirebaseService = {
         });
       });
       this._listeners.push(unsubAuthObserver);
+    }
+
+    // Step 2.5: 若 localStorage 快取夠新（< 5 分鐘），直接用快取渲染，Firestore 背景更新
+    const _FRESH_CACHE_TTL = 5 * 60 * 1000;
+    const _cacheTs = parseInt(localStorage.getItem(this._getLSTsKey()) || '0', 10);
+    const _cacheAge = Date.now() - _cacheTs;
+    if (_cacheAge < _FRESH_CACHE_TTL && this._cache.events.length > 0) {
+      this._initialized = true;
+      this._setupVisibilityRefresh();
+      console.log(`[FirebaseService] Fresh cache hit (${Math.round(_cacheAge / 1000)}s old) — skip boot wait`);
+      this._startAuthDependentWork();
+      this._schedulePostInitWarmups();
+      this._continueLoadAfterTimeout(); // 背景靜默更新 Firestore 資料
+      return;
     }
 
     // Step 3: wait for boot collections + public preload with timeout protection.
