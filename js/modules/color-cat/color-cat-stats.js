@@ -143,6 +143,11 @@ var _runtime = {
   totalActions: 0,            // 累計動作次數（未來成就用）
   totalKicks: 0,              // 累計踢球次數
   totalSleeps: 0,             // 累計睡覺次數
+  flowersRed: 0,              // 累計摘紅花
+  flowersGold: 0,             // 累計摘黃花
+  enemyKills: {},             // 累計擊殺 { skinKey: count }
+  enemyBossKills: {},         // 累計擊殺巨型 Boss { skinKey: count }
+  playerKills: 0,             // 累計擊敗玩家（預留）
 };
 
 // ═══════════════════════════════════════════════
@@ -183,7 +188,42 @@ function resetToDefaults() {
   _runtime.totalActions = 0;
   _runtime.totalKicks = 0;
   _runtime.totalSleeps = 0;
+  _runtime.flowersRed = 0;
+  _runtime.flowersGold = 0;
+  _runtime.enemyKills = {};
+  _runtime.enemyBossKills = {};
+  _runtime.playerKills = 0;
+  saveLocal();
 }
+
+// ═══════════════════════════════════════════════
+// 本地暫存（TODO: 改用 Firestore + Cloud Functions）
+// ═══════════════════════════════════════════════
+var _saveTimer = null;
+function saveLocal() {
+  clearTimeout(_saveTimer);
+  _saveTimer = setTimeout(function() {
+    _saveTimer = null;
+    try {
+      localStorage.setItem('gg_stats_runtime', JSON.stringify(_clone(_runtime)));
+    } catch (e) {}
+  }, 500);
+}
+
+function loadLocal() {
+  try {
+    var data = localStorage.getItem('gg_stats_runtime');
+    if (!data) return;
+    var saved = JSON.parse(data);
+    var keys = Object.keys(saved);
+    for (var i = 0; i < keys.length; i++) {
+      if (keys[i] === 'weakLevel') continue;
+      _runtime[keys[i]] = saved[keys[i]];
+    }
+  } catch (e) {}
+}
+
+loadLocal();
 
 // ═══════════════════════════════════════════════
 // 工具函式
@@ -237,6 +277,7 @@ window.ColorCatStats = {
   load: loadFromDB,
   toJSON: toJSON,
   reset: resetToDefaults,
+  saveLocal: saveLocal,
 };
 
 })();

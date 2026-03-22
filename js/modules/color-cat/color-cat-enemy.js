@@ -242,7 +242,7 @@ function updateAll(sw) {
           if (tgtIdx >= 0 && !tgt.dead) {
             var p = PROFILES[e.skin];
             var eDmg = Math.ceil((e.action === 'attack1' ? p.dmg1 : p.dmg2) * (e.dmgMul || 1));
-            window.ColorCatEnemy.dealDamage(tgtIdx, eDmg);
+            window.ColorCatEnemy.dealDamage(tgtIdx, eDmg, false);
           }
           e._atkEnemyTarget = null;
         } else {

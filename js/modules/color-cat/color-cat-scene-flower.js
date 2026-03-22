@@ -217,9 +217,9 @@ function drawFlowers(ctx, light) {
     ctx.textAlign = 'center';
     ctx.strokeStyle = 'rgba(0,0,0,0.5)';
     ctx.lineWidth = 2;
-    ctx.strokeText('+' + e.exp + ' EXP', e.x, e.y);
+    ctx.strokeText('+' + e.exp, e.x, e.y);
     ctx.fillStyle = e.gold ? '#FF8C00' : '#FFD700';
-    ctx.fillText('+' + e.exp + ' EXP', e.x, e.y);
+    ctx.fillText('+' + e.exp, e.x, e.y);
     ctx.restore();
   }
 }
@@ -243,8 +243,13 @@ function knockFlower(f, dir, noExp) {
   if (!noExp) {
     var fh = FLOWER_H * (f.hScale || 1);
     var topY = f.baseY - fh;
-    var exp = f.gold ? EXP_GOLD : EXP_NORMAL;
-    expEffects.push({ x: f.x, y: topY - 5, alpha: 1, vy: -0.8, exp: exp, gold: f.gold });
+    expEffects.push({ x: f.x, y: topY - 5, alpha: 1, vy: -0.8, exp: 1, gold: f.gold });
+    // 累計摘花
+    if (window.ColorCatStats) {
+      if (f.gold) ColorCatStats.runtime.flowersGold++;
+      else ColorCatStats.runtime.flowersRed++;
+      ColorCatStats.saveLocal();
+    }
   }
 }
 

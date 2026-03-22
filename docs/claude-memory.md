@@ -10,6 +10,13 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-22 — GrowthGames 戰績統計彈窗 + 紙箱行為改版
+- **功能**：點擊紙箱彈出毛玻璃 HTML 彈窗，顯示摘花（紅/黃）、敵人擊殺（含 Boss per-type）、擊敗玩家（預留）統計
+- **變更**：紙箱點擊行為改為「有敵人 → 紅色 Toast 警告；無敵人 → 角色進箱睡覺 + 開啟統計」；花朵/敵人擊殺飄字從 "+N EXP" 改為 "+1"（計數語義）
+- **涉及檔案**：`stats.js`（新增 runtime 欄位 + localStorage 暫存）、`scene-flower.js`（+1 + 計數）、`enemy-util.js`（+1 + 計數 + byPlayer 參數）、`enemy.js`（NPC 互鬥不計入）、`scene.js`（紙箱行為）、新增 `scene-stats-modal.js`
+- **資料持久化**：暫用 localStorage（key: `gg_stats_runtime`），TODO 改用 Firestore + Cloud Functions 防竄改（Security Rules deny client writes）
+- **教訓**：`dealDamage` 需區分玩家擊殺與 NPC 互鬥，用 `byPlayer !== false` 預設計入避免漏改舊 call sites
+
 ### 2026-03-22 — 背景分頁自動暫停 Firestore listeners 省頻寬
 - **問題**：用戶從 LINE 分享連結開啟多個分頁，每個分頁各自維持 Firestore onSnapshot 監聽（users 全集合、messages、registrations 等），搶佔頻寬導致新分頁加載變慢
 - **修復**：visibilitychange hidden 時 `_suspendListeners()` 卸載所有 data listeners（保留 auth + rolePermissions），visible 時 `_resumeListeners()` 重啟 + `_handleVisibilityResume()` 刷新資料。新增 `_usersUnsub` 單獨追蹤 users listener 的 unsub（原本混在 `_listeners[]` 無法單獨停止）

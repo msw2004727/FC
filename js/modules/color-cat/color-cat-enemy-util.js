@@ -23,7 +23,7 @@ function getInRange(left, right) {
   return r;
 }
 
-function dealDamage(idx, dmg) {
+function dealDamage(idx, dmg, byPlayer) {
   var e = E.getAll()[idx]; if (!e || e.dead) return;
   if (e.action === 'falling' || e.action === 'spawning') return;
   var actualDmg = (e.action === 'block' || e.blocking) ? Math.floor(dmg * 0.5) : dmg;
@@ -35,6 +35,18 @@ function dealDamage(idx, dmg) {
   }
   if (e.hp <= 0) {
     e.dead = true; e.action = 'death'; e.sf = 0; e.st = 0; e.deathTimer = 0;
+    // 玩家擊殺：+1 飄字 + 累計統計
+    if (byPlayer !== false) {
+      if (window.ColorCatDamageNumber) {
+        window.ColorCatDamageNumber.spawn(e.x, e.y - E.VIS_H - 12, '+1', '#4ADE80');
+      }
+      if (window.ColorCatStats) {
+        var rt = ColorCatStats.runtime;
+        rt.enemyKills[e.skin] = (rt.enemyKills[e.skin] || 0) + 1;
+        if (e.elite) rt.enemyBossKills[e.skin] = (rt.enemyBossKills[e.skin] || 0) + 1;
+        ColorCatStats.saveLocal();
+      }
+    }
   } else {
     e.action = 'hurt'; e.sf = 0; e.st = 0;
   }

@@ -271,15 +271,20 @@ function handleClick(e) {
     return;
   }
 
-  // 點擊紙箱 → 進去睡覺
+  // 點擊紙箱 → 查看統計 + 進去睡覺（有敵人時提示危險）
   var openingX = _.BOX_X + _.BOX_W / 2 + 12;
   if (_.isBoxClicked(cx, cy)) {
     if (ColorCatCharacter.isSleeping()) {
       ColorCatCharacter.wakeUp(openingX);
-    } else {
-      ColorCatCharacter.startGoToBox(openingX);
-      ColorCatCharacter._.manualSleep = true;
+      return;
     }
+    if (window.ColorCatEnemy && ColorCatEnemy.hasAlive()) {
+      if (window.ColorCatStatsModal) ColorCatStatsModal.showDangerToast();
+      return;
+    }
+    ColorCatCharacter.startGoToBox(openingX);
+    ColorCatCharacter._.manualSleep = true;
+    if (window.ColorCatStatsModal) ColorCatStatsModal.open();
     return;
   }
 
