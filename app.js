@@ -162,9 +162,12 @@ const App = {
     } catch (e) { /* localStorage 不可用 */ }
     // 無快取：載入 profile scripts 後走正常流程
     this._qrPopupLoading = true;
+    const needLoad = !this.showUidQrCode;
+    const seq = needLoad
+      ? this._beginRouteLoading({ pageId: 'page-qrcode', immediate: true })
+      : 0;
     try {
-      if (!this.showUidQrCode) {
-        this.showToast('QR Code 生成中...');
+      if (needLoad) {
         if (typeof ScriptLoader !== 'undefined' && ScriptLoader.ensureForPage) {
           await ScriptLoader.ensureForPage('page-qrcode');
         }
@@ -174,6 +177,7 @@ const App = {
       }
     } finally {
       this._qrPopupLoading = false;
+      if (seq) this._endRouteLoading(seq);
     }
   },
 
@@ -553,6 +557,7 @@ const App = {
       'page-achievements': '成就頁面',
       'page-personal-dashboard': '個人儀表板',
       'page-temp-participant-report': '臨時查詢報表',
+      'page-qrcode': 'QR Code',
     };
     const label = pageLabels[pageId];
     if (!label) return '資料載入中...';
