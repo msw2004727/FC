@@ -337,12 +337,14 @@ function shouldUseServerRegistration() {
     ? FirebaseService.getCachedDoc('siteConfig', 'featureFlags')
     : null;
   if (!flags || !flags.useServerRegistration) return false;
+  const uid = (typeof App !== 'undefined' && App.currentUser) ? App.currentUser.uid : '';
+  if (!uid) return false;
+  // 白名單：testUids 內的用戶直接走 CF（不受 rolloutPercent 限制）
+  if (Array.isArray(flags.testUids) && flags.testUids.includes(uid)) return true;
   // 灰度：根據用戶 UID 的 djb2 hash 百分比決定
   const percent = flags.serverRegistrationRolloutPercent || 0;
   if (percent >= 100) return true;
   if (percent <= 0) return false;
-  const uid = (typeof App !== 'undefined' && App.currentUser) ? App.currentUser.uid : '';
-  if (!uid) return false;
   let h = 5381;
   for (let i = 0; i < uid.length; i++) {
     h = ((h << 5) + h) + uid.charCodeAt(i);
