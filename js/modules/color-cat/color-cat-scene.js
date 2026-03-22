@@ -701,7 +701,7 @@ function destroy() {
 
 if (typeof App !== 'undefined') {
   Object.assign(App, {
-    _initProfileScene: function() { initStaticScene('profile-slot-banner'); },
+    _initProfileScene: function() { initInteractiveScene('profile-slot-banner'); },
     _destroyProfileScene: function() { destroy(); },
   });
 }

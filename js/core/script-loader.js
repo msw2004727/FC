@@ -173,6 +173,7 @@ const ScriptLoader = {
       'js/modules/color-cat/color-cat-damage-number.js',
       'js/modules/color-cat/color-cat-scene-fog.js',
       'js/modules/color-cat/color-cat-scene-grave.js',
+      'js/modules/color-cat/color-cat-scene-stats-modal.js',
     ],
     shop: [
       'js/modules/shop.js',
