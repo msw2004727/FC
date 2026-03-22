@@ -673,6 +673,10 @@ function resetScene() {
   var candidates = skinKeys.filter(function(k) { return k !== curSkin; });
   var newSkin = candidates[Math.floor(Math.random() * candidates.length)];
   ColorCatCharacter.switchSkin(newSkin);
+  // 隨機指派新 MBTI 人格
+  if (window.ColorCatStats && ColorCatStats.randomizeMBTI) {
+    ColorCatStats.randomizeMBTI();
+  }
   // 清除敵人
   if (window.ColorCatEnemy) ColorCatEnemy.clearAll();
   // 重新初始化場景
