@@ -126,6 +126,13 @@ Object.assign(App, {
         if (!err) {
           canvas.style.display = 'block';
           container.appendChild(canvas);
+          // 快取 QR code data URL（僅主頁 400px 尺寸）
+          if (size === 400 && data && data !== 'unknown') {
+            try {
+              localStorage.setItem('shub_qr_uid', data);
+              localStorage.setItem('shub_qr_data', canvas.toDataURL('image/png'));
+            } catch (e) { /* quota exceeded — ignore */ }
+          }
         } else {
           console.warn('[QR] 本地生成失敗，切換 API:', err);
           this._qrFallbackImg(container, data, size);
@@ -152,10 +159,12 @@ Object.assign(App, {
     container.appendChild(img);
   },
 
-  /** 渲染「我的 QR Code」頁面 */
+  /** 渲染「我的 QR Code」頁面（含 localStorage 快取） */
   renderQrCodePage() {
     const user = ApiService.getCurrentUser();
-    const uid = user?.uid || user?.lineUserId || 'unknown';
+    let uid = user?.uid || user?.lineUserId || '';
+    // Auth 未恢復時，使用上次快取的 UID
+    if (!uid) uid = localStorage.getItem('shub_qr_uid') || 'unknown';
     const container = document.getElementById('page-qr-canvas');
     const uidText = document.getElementById('page-qr-uid');
     if (!container) return;
@@ -163,6 +172,22 @@ Object.assign(App, {
     container.style.display = 'flex';
     container.style.alignItems = 'center';
     container.style.justifyContent = 'center';
+    // 嘗試從快取直接渲染（毫秒級，不需等 CDN 或 auth）
+    try {
+      const cachedUid = localStorage.getItem('shub_qr_uid');
+      const cachedData = localStorage.getItem('shub_qr_data');
+      if (cachedUid && cachedUid === uid && cachedData) {
+        container.innerHTML = '';
+        const img = document.createElement('img');
+        img.src = cachedData;
+        img.width = 400;
+        img.height = 400;
+        img.alt = 'QR Code';
+        img.style.display = 'block';
+        container.appendChild(img);
+        return;
+      }
+    } catch (e) { /* localStorage 不可用，走正常路徑 */ }
     this._generateQrCode(container, uid, 400);
   },
 

@@ -10,6 +10,11 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-22 — QR Code 快取優化（localStorage 持久化）
+- **問題**：長時間未開 App 的用戶開啟首頁後點 QR Code 按鈕會點不開，因為 auth 尚未恢復 → getCurrentUser() 回傳 null → UID 為 unknown → 顯示錯誤
+- **修復**：在 profile-card.js 實作 localStorage 快取 — 首次生成 QR 後將 canvas data URL + UID 存入 shub_qr_uid / shub_qr_data，下次直接從快取渲染（毫秒級），不需等 auth 或 CDN；登出時 clearUserCache() 清除快取
+- **教訓**：QR code 內容為固定 UID，適合長期快取；auth 恢復前的 fallback 策略應優先使用 localStorage 而非等待
+
 ### 2026-03-22 — GrowthGames 多項功能與修復
 - **功能 1**：攻擊花朵時 20% 機率隨機召喚一隻敵人（10 種隨機），大絕招打掉複數花時每朵獨立計算 20%
 - **功能 2**：點擊場景右側三棵樹可觸發/撤回濃霧效果

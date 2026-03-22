@@ -2103,6 +2103,9 @@ const FirebaseService = {
       keysToRemove.forEach(k => localStorage.removeItem(k));
       // 也清除舊格式 key（向下相容）
       localStorage.removeItem(this._LS_TS_KEY);
+      // 清除 QR code 快取
+      localStorage.removeItem('shub_qr_uid');
+      localStorage.removeItem('shub_qr_data');
       console.log(`[FirebaseService] 已清除 ${keysToRemove.length} 筆 localStorage 快取`);
     } catch (e) { /* 忽略 */ }
   },
