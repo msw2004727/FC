@@ -730,7 +730,7 @@ body.modal-open { overflow: hidden; }
   z-index: 10001;
   opacity: 0; pointer-events: none;
   transition: all .4s cubic-bezier(.4,0,.2,1);
-  white-space: pre-line; max-width: 92vw; text-align: center;
+  white-space: pre-line; max-width: min(420px, 94vw); text-align: center;
 }
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); pointer-events: auto; }
 

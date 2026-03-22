@@ -162,6 +162,7 @@ const App = {
     } catch (e) { /* localStorage 不可用 */ }
     // 無快取：載入 profile scripts 後走正常流程
     this._qrPopupLoading = true;
+    this.showToast('QR Code 生成中...');
     try {
       if (!this.showUidQrCode) {
         if (typeof ScriptLoader !== 'undefined' && ScriptLoader.ensureForPage) {
