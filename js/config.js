@@ -325,7 +325,7 @@
 // 20260321y: 總管隱身模式：點抽屜角色標籤切換，全站膠囊顯示一般用戶
 // 20260322a: 靜態場景改版（移除山樹、加鑰匙密碼解鎖互動模式）
 // 20260322h: 蝴蝶必定生怪、大絕招花/蝶獨立生怪、重新整理按鈕
-const CACHE_VERSION = '20260322l';
+const CACHE_VERSION = '20260322m';
 
 // ─── CF Migration Feature Flag ───
 // 判斷是否走 Cloud Functions 報名流程（Wave 1）

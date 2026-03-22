@@ -10,6 +10,11 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-22 — 背景分頁自動暫停 Firestore listeners 省頻寬
+- **問題**：用戶從 LINE 分享連結開啟多個分頁，每個分頁各自維持 Firestore onSnapshot 監聽（users 全集合、messages、registrations 等），搶佔頻寬導致新分頁加載變慢
+- **修復**：visibilitychange hidden 時 `_suspendListeners()` 卸載所有 data listeners（保留 auth + rolePermissions），visible 時 `_resumeListeners()` 重啟 + `_handleVisibilityResume()` 刷新資料。新增 `_usersUnsub` 單獨追蹤 users listener 的 unsub（原本混在 `_listeners[]` 無法單獨停止）
+- **教訓**：多分頁場景下 Firestore 連線數是隱性成本；背景分頁的監聽對用戶毫無價值但持續消耗頻寬
+
 ### 2026-03-22 — QR Code 快取優化 + 首頁按鈕修復
 - **問題 1**：長時間未開 App 的用戶點 QR Code 按鈕會點不開（auth 未恢復 → UID unknown）
 - **問題 2（根因）**：首頁 QR 按鈕呼叫 `showUidQrCode()`，但該函式在 `profile-card.js`（懶載入的 profile script group），首頁不載入 → 函式 undefined → 靜默失敗；去過個人頁後 script 已載入才會成功

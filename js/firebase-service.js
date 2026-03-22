@@ -62,6 +62,7 @@ const FirebaseService = {
   _singleDocCache: {},  // { 'collection/docId': { ...data } }
 
   _listeners: [],
+  _usersUnsub: null,
   _userListener: null,
   _onUserChanged: null,
   _initialized: false,
@@ -1262,7 +1263,7 @@ const FirebaseService = {
     if (!auth?.currentUser) return;
     if (this._realtimeListenerStarted.users) return;
     this._realtimeListenerStarted.users = true;
-    const unsub = db.collection('users')
+    this._usersUnsub = db.collection('users')
       .onSnapshot(
         snapshot => {
           this._cache.adminUsers = snapshot.docs.map(doc => this._mapUserDoc(doc.data(), doc.id));
@@ -1271,7 +1272,14 @@ const FirebaseService = {
         },
         err => { console.warn('[onSnapshot] users 監聽錯誤:', err); }
       );
-    this._listeners.push(unsub);
+  },
+
+  _stopUsersListener() {
+    if (this._usersUnsub) {
+      try { this._usersUnsub(); } catch (_) {}
+      this._usersUnsub = null;
+    }
+    this._realtimeListenerStarted.users = false;
   },
 
   /** 啟動 registrations 監聽器（需 Auth，進入活動頁面時觸發） */
@@ -2148,15 +2156,51 @@ const FirebaseService = {
   // ════════════════════════════════
   //  RC3：visibilitychange 頁面切回刷新
   // ════════════════════════════════
+  _listenersSuspended: false,
+
+  /** 背景分頁省頻寬：卸載所有 data listeners（保留 auth + rolePermissions） */
+  _suspendListeners() {
+    if (this._listenersSuspended) return;
+    this._listenersSuspended = true;
+    this._stopUsersListener();
+    this._stopMessagesListener();
+    this._stopRegistrationsListener();
+    this._stopAttendanceRecordsListener();
+    this._stopEventsRealtimeListener();
+    this._persistCache();
+    console.log('[FirebaseService] 背景分頁：已暫停所有 data listeners');
+  },
+
+  /** 前景恢復：重新啟動 listeners + 刷新資料 */
+  _resumeListeners() {
+    if (!this._listenersSuspended) return;
+    this._listenersSuspended = false;
+    if (!auth?.currentUser) return;
+    // 重啟全域 listeners
+    this._startUsersListener();
+    this._startMessagesListener();
+    // 重啟當前頁面需要的 page-scoped listeners
+    if (typeof App !== 'undefined') {
+      const pageId = App.currentPage;
+      this.schedulePageScopedRealtimeForPage?.(pageId, { delayMs: 0 });
+    }
+    console.log('[FirebaseService] 前景恢復：已重啟 data listeners');
+  },
+
   _setupVisibilityRefresh() {
     if (this._visibilityRefreshBound) return;
     this._visibilityRefreshBound = true;
     this._visibilityRefreshHandler = () => {
-      if (document.visibilityState !== 'visible') return;
       if (ModeManager.isDemo()) return;
-      // 防抖 1 秒，避免快速切換連續觸發
+      // 分頁進入背景 → 卸載 listeners 省頻寬
+      if (document.visibilityState === 'hidden') {
+        this._suspendListeners();
+        return;
+      }
+      // 分頁切回前景 → 重啟 listeners + 刷新
       clearTimeout(this._visibilityRefreshDebounce);
       this._visibilityRefreshDebounce = setTimeout(() => {
+        this._resumeListeners();
         this._handleVisibilityResume();
       }, 1000);
     };
@@ -2338,6 +2382,8 @@ const FirebaseService = {
   destroy() {
     this._listeners.forEach(unsub => unsub());
     this._listeners = [];
+    this._listenersSuspended = false;
+    this._stopUsersListener();
     this._stopMessagesListener();
     this._stopRegistrationsListener();
     this._stopAttendanceRecordsListener();
