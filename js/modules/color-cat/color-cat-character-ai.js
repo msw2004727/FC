@@ -27,20 +27,29 @@ function aiPickAction(sw, ballState) {
   var sleepBonus = 0;
   if (pct < 60) sleepBonus = (60 - pct) * a.sleepBonusMultiplier;
   var w = a.weights;
-  var sleepW = w.sleep + sleepBonus;
+
+  // 取得 MBTI 權重乘數
+  var mbtiW = null;
+  if (rt.mbti && window.ColorCatMBTI) {
+    mbtiW = ColorCatMBTI.getWeights(rt.mbti);
+  }
+  // 套用 MBTI 乘數的輔助函式
+  function mw(key, base) { return mbtiW && mbtiW[key] ? base * mbtiW[key] : base; }
+
+  var sleepW = mw('sleep', w.sleep) + sleepBonus;
   // 晚上兔子愛睡、白天貓咪愛睡（+50%）
   var isDark = C.isThemeDark();
   if (isDark && _.isBunny()) sleepW *= 1.5;
   else if (!isDark && !_.isBunny()) sleepW *= 1.5;
 
-  // 有盛開花朵時加入看花權重
+  // 有盛開花朵時加入看花權重（受 MBTI watchFlower 乘數影響）
   var scene_ = window.ColorCatScene && window.ColorCatScene._;
   var hasFlowers = scene_ && scene_.getBloomedFlowers && scene_.getBloomedFlowers().length > 0;
-  var watchFlowerW = hasFlowers ? (w.chase * 2.5) : 0;
+  var watchFlowerW = hasFlowers ? mw('watchFlower', w.chase * 2.5) : 0;
 
-  // 有停留蝴蝶時加入追蝴蝶權重
+  // 有停留蝴蝶時加入追蝴蝶權重（受 MBTI chaseButterfly 乘數影響）
   var hasButterflies = scene_ && scene_.getHoveringButterflies && scene_.getHoveringButterflies().length > 0;
-  var chaseButterflyW = hasButterflies ? (w.chase * 2) : 0;
+  var chaseButterflyW = hasButterflies ? mw('chaseButterfly', w.chase * 2) : 0;
 
   // 濃霧時角色想回紙箱睡覺（90% 機率）
   var isFog = scene_ && scene_.isFogActive && scene_.isFogActive();
@@ -52,19 +61,25 @@ function aiPickAction(sw, ballState) {
   // 有存活敵人時攻擊敵人為最高優先（壓倒性權重：80% 機率攻擊敵人）
   var E = window.ColorCatEnemy;
   var hasEnemies = E && E.hasAlive();
-  var baseTotal = w.biteBall + w.chase + w.dash + w.climbBox + w.climbWall + sleepW + watchFlowerW + chaseButterflyW;
-  var attackEnemyW = hasEnemies ? (baseTotal * 4) : 0;
+  var wBiteBall = mw('biteBall', w.biteBall);
+  var wChase    = mw('chase', w.chase);
+  var wDash     = mw('dash', w.dash);
+  var wClimbBox = mw('climbBox', w.climbBox);
+  var wClimbWall= mw('climbWall', w.climbWall);
+
+  var baseTotal = wBiteBall + wChase + wDash + wClimbBox + wClimbWall + sleepW + watchFlowerW + chaseButterflyW;
+  var attackEnemyW = hasEnemies ? mw('attackEnemy', baseTotal * 4) : 0;
 
   var total = baseTotal + attackEnemyW;
   var roll = Math.random() * total;
 
   var cum = 0;
   cum += attackEnemyW;  if (roll < cum) { rt.totalActions++; var ni = E.findNearest(ch.x); if (ni >= 0) _.startAttackEnemy(ni); return; }
-  cum += w.biteBall;    if (roll < cum) { rt.totalActions++; _.startBiteBall(sw); return; }
-  cum += w.chase;       if (roll < cum) { rt.totalActions++; _.startChase(); return; }
-  cum += w.dash;        if (roll < cum) { rt.totalActions++; _.tapCharacter(sw); return; }
-  cum += w.climbBox;    if (roll < cum) { rt.totalActions++; _.startComboBox(sw, info.boxX, info.boxTopY, info.boxW); return; }
-  cum += w.climbWall;   if (roll < cum) { rt.totalActions++; _.startComboWall(sw); return; }
+  cum += wBiteBall;     if (roll < cum) { rt.totalActions++; _.startBiteBall(sw); return; }
+  cum += wChase;        if (roll < cum) { rt.totalActions++; _.startChase(); return; }
+  cum += wDash;         if (roll < cum) { rt.totalActions++; _.tapCharacter(sw); return; }
+  cum += wClimbBox;     if (roll < cum) { rt.totalActions++; _.startComboBox(sw, info.boxX, info.boxTopY, info.boxW); return; }
+  cum += wClimbWall;    if (roll < cum) { rt.totalActions++; _.startComboWall(sw); return; }
   cum += watchFlowerW;  if (roll < cum) { rt.totalActions++; _.startWatchFlower(sw); return; }
   cum += chaseButterflyW; if (roll < cum) { rt.totalActions++; _.startChaseButterfly(sw); return; }
   rt.totalSleeps++;

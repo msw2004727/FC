@@ -18,14 +18,54 @@ var CD_MIN = 240;           // 最短冷卻（約 8 秒）
 var CD_MAX = 540;           // 最長冷卻（約 18 秒）
 
 function resetCooldown() {
-  _cooldown = CD_MIN + Math.floor(Math.random() * (CD_MAX - CD_MIN));
+  // MBTI talkCdMultiplier 影響冷卻時間：E 型較短（愛說話），I 型較長（沉默）
+  var cdMult = 1;
+  var S = window.ColorCatStats;
+  if (S && S.runtime.mbti && window.ColorCatMBTI) {
+    var mw = ColorCatMBTI.getWeights(S.runtime.mbti);
+    if (mw && mw.talkCdMultiplier) cdMult = mw.talkCdMultiplier;
+  }
+  var cdMin = Math.floor(CD_MIN * cdMult);
+  var cdMax = Math.floor(CD_MAX * cdMult);
+  _cooldown = cdMin + Math.floor(Math.random() * (cdMax - cdMin));
 }
 
 // 初始化隨機冷卻
 resetCooldown();
 
-// ── 隨機取一句話（目前不分心情，全部混合抽） ──
+// ── 動作映射到 MBTI 對話類別 ──
+var ACTION_TO_DIALOGUE = {
+  idle: 'idle', walking: 'idle', returnWalking: 'idle',
+  sleeping: 'sleep', goToBox: 'sleep',
+  chase: 'chase', biteBallRun: 'biteBall', kick: 'biteBall',
+  dash: 'dash', dashBox: 'dash',
+  climbBox: 'climbBox', boxIdle: 'climbBox', boxJump: 'climbBox',
+  climbWall: 'climbWall', wallClimb: 'climbWall', wallTop: 'climbWall',
+  watchFlower: 'watchFlower',
+  attackEnemy: 'attackEnemy', chaseEnemy: 'attackEnemy',
+  chaseButterfly: 'chaseButterfly',
+  hurt: 'hurt', knockback: 'hurt',
+};
+
+// ── 隨機取一句話（優先 MBTI 對話，fallback 到舊對話） ──
 function pickLine() {
+  // 嘗試 MBTI 對話
+  var S = window.ColorCatStats;
+  var DM = window.ColorCatDialogueMBTI;
+  if (S && S.runtime.mbti && DM) {
+    var mbtiLines = DM[S.runtime.mbti];
+    if (mbtiLines) {
+      // 根據當前動作選對話類別
+      var action = ch.action || 'idle';
+      var cat = ACTION_TO_DIALOGUE[action] || 'general';
+      var arr = mbtiLines[cat];
+      if (!arr || arr.length === 0) arr = mbtiLines['general'];
+      if (arr && arr.length > 0) {
+        return arr[Math.floor(Math.random() * arr.length)];
+      }
+    }
+  }
+  // fallback：舊的 skin+mood 對話
   var D = window.ColorCatDialogue;
   if (!D) return '';
   var skinKey = window.ColorCatSprite ? ColorCatSprite.getSkin() : 'whiteCat';
@@ -33,9 +73,9 @@ function pickLine() {
   if (!charLines) return '';
   var moods = ['happy', 'angry', 'sad', 'joy'];
   var mood = moods[Math.floor(Math.random() * moods.length)];
-  var arr = charLines[mood];
-  if (!arr || arr.length === 0) return '';
-  return arr[Math.floor(Math.random() * arr.length)];
+  var fallback = charLines[mood];
+  if (!fallback || fallback.length === 0) return '';
+  return fallback[Math.floor(Math.random() * fallback.length)];
 }
 
 // ── 更新（每幀呼叫） ──

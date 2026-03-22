@@ -10,6 +10,15 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-23 — ColorCat MBTI 16 人格系統
+- **功能**：為角色新增 16 種 MBTI 人格，每個角色出生時隨機指派、永久不變（除非測試刷新按鈕）
+- **行為差異**：E 型活動量高（dash/chase 權重高、talkCd 低＝愛說話）、I 型偏安靜（sleep/watchFlower 高、talkCd 高）、T 型攻擊力高、F 型賞花多、J 型有結構（climbBox 高）、P 型自發（dash/chase 高）
+- **對話系統**：每個人格 30 句不重複台詞，分 12 個動作類別（idle/sleep/biteBall/chase/dash/climbBox/climbWall/watchFlower/attackEnemy/chaseButterfly/hurt/general），根據當前動作選對話
+- **新增檔案**：`color-cat-mbti.js`（類型定義+權重乘數）、`dialogue/color-cat-dialogue-mbti-analysts.js`（INTJ/INTP/ENTJ/ENTP）、`-diplomats.js`（INFJ/INFP/ENFJ/ENFP）、`-sentinels.js`（ISTJ/ISFJ/ESTJ/ESFJ）、`-explorers.js`（ISTP/ISFP/ESTP/ESFP）
+- **修改檔案**：`color-cat-stats.js`（runtime.mbti 持久化+randomizeMBTI）、`color-cat-character-ai.js`（aiPickAction 套用 MBTI 權重乘數）、`color-cat-character-bubble.js`（MBTI 動作對話+talkCdMultiplier 冷卻）、`script-loader.js` + `GrowthGames.html`（載入順序）
+- **載入順序**：`color-cat-mbti.js` 必須在 `color-cat-stats.js` 之前載入（stats 初始化時需要 randomType）
+- **教訓**：MBTI 權重設計應優先考慮人格整體性格而非機械套用四字母；對話系統 fallback 到 general 類別確保任何動作都能有台詞
+
 ### 2026-03-22 — GrowthGames 戰績統計彈窗 + 紙箱行為改版
 - **功能**：點擊紙箱彈出毛玻璃 HTML 彈窗，顯示摘花（紅/黃）、敵人擊殺（含 Boss per-type）、擊敗玩家（預留）統計
 - **變更**：紙箱點擊行為改為「有敵人 → 紅色 Toast 警告；無敵人 → 角色進箱睡覺 + 開啟統計」；花朵/敵人擊殺飄字從 "+N EXP" 改為 "+1"（計數語義）

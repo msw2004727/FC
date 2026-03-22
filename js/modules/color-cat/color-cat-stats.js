@@ -148,6 +148,7 @@ var _runtime = {
   enemyKills: {},             // 累計擊殺 { skinKey: count }
   enemyBossKills: {},         // 累計擊殺巨型 Boss { skinKey: count }
   playerKills: 0,             // 累計擊敗玩家（預留）
+  mbti: '',                   // MBTI 人格類型（永久，首次隨機指派）
 };
 
 // ═══════════════════════════════════════════════
@@ -193,6 +194,7 @@ function resetToDefaults() {
   _runtime.enemyKills = {};
   _runtime.enemyBossKills = {};
   _runtime.playerKills = 0;
+  // mbti 不重置（永久人格），除非刷新鈕觸發 randomizeMBTI()
   saveLocal();
 }
 
@@ -224,6 +226,24 @@ function loadLocal() {
 }
 
 loadLocal();
+
+// 首次載入：若尚無 MBTI 則自動指派
+if (!_runtime.mbti && window.ColorCatMBTI) {
+  _runtime.mbti = ColorCatMBTI.randomType();
+  saveLocal();
+}
+
+/** 隨機重新指派 MBTI（測試用刷新按鈕） */
+function randomizeMBTI() {
+  if (!window.ColorCatMBTI) return '';
+  _runtime.mbti = ColorCatMBTI.randomType();
+  // 同步到 Profile 模組
+  if (window.ColorCatProfile) {
+    ColorCatProfile.setMBTI(_runtime.mbti);
+  }
+  saveLocal();
+  return _runtime.mbti;
+}
 
 // ═══════════════════════════════════════════════
 // 工具函式
@@ -278,6 +298,7 @@ window.ColorCatStats = {
   toJSON: toJSON,
   reset: resetToDefaults,
   saveLocal: saveLocal,
+  randomizeMBTI: randomizeMBTI,
 };
 
 })();
