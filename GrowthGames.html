@@ -22,7 +22,7 @@
 <script>
 // ── 快取清除（?clear=1）+ 版本自動更新 ──
 (function(){
-  var V='20260322n';
+  var V='20260322o';
   if(location.search.indexOf('clear=1')!==-1){
     if('caches' in window) caches.keys().then(function(k){k.forEach(function(n){caches.delete(n)})});
     if('serviceWorker' in navigator) navigator.serviceWorker.getRegistrations().then(function(r){r.forEach(function(w){w.unregister()})});
@@ -53,40 +53,40 @@
 <div class="toolbar" id="toolbar-enemy" style="margin-top:.4rem;"></div>
 
 <!-- 載入模組 -->
-<script src="js/modules/color-cat/color-cat-config.js?v=20260322n"></script>
-<script src="js/modules/color-cat/color-cat-stats.js?v=20260322n"></script>
-<script src="js/modules/color-cat/color-cat-sprite.js?v=20260322n"></script>
-<script src="js/modules/color-cat/color-cat-ball.js?v=20260322n"></script>
-<script src="js/modules/color-cat/dialogue/color-cat-dialogue-data.js?v=20260322n"></script>
-<script src="js/modules/color-cat/color-cat-character.js?v=20260322n"></script>
-<script src="js/modules/color-cat/color-cat-character-stamina.js?v=20260322n"></script>
-<script src="js/modules/color-cat/color-cat-character-particles.js?v=20260322n"></script>
-<script src="js/modules/color-cat/color-cat-character-actions.js?v=20260322n"></script>
-<script src="js/modules/color-cat/color-cat-character-actions-interact.js?v=20260322n"></script>
-<script src="js/modules/color-cat/color-cat-character-actions-special.js?v=20260322n"></script>
-<script src="js/modules/color-cat/color-cat-character-combat.js?v=20260322n"></script>
-<script src="js/modules/color-cat/color-cat-character-combo.js?v=20260322n"></script>
-<script src="js/modules/color-cat/color-cat-character-ai.js?v=20260322n"></script>
-<script src="js/modules/color-cat/color-cat-character-bubble.js?v=20260322n"></script>
-<script src="js/modules/color-cat/color-cat-profile.js?v=20260322n"></script>
-<script src="js/modules/color-cat/color-cat-scene.js?v=20260322n"></script>
-<script src="js/modules/color-cat/color-cat-scene-bg.js?v=20260322n"></script>
-<script src="js/modules/color-cat/color-cat-scene-box.js?v=20260322n"></script>
-<script src="js/modules/color-cat/color-cat-scene-flag.js?v=20260322n"></script>
-<script src="js/modules/color-cat/color-cat-scene-flower.js?v=20260322n"></script>
-<script src="js/modules/color-cat/color-cat-scene-butterfly.js?v=20260322n"></script>
-<script src="js/modules/color-cat/color-cat-scene-panel.js?v=20260322n"></script>
-<script src="js/modules/color-cat/color-cat-scene-panel-tab0.js?v=20260322n"></script>
-<script src="js/modules/color-cat/color-cat-scene-panel-tab1.js?v=20260322n"></script>
-<script src="js/modules/color-cat/color-cat-scene-panel-tab2.js?v=20260322n"></script>
-<script src="js/modules/color-cat/color-cat-enemy.js?v=20260322n"></script>
-<script src="js/modules/color-cat/color-cat-enemy-util.js?v=20260322n"></script>
-<script src="js/modules/color-cat/color-cat-enemy-draw.js?v=20260322n"></script>
-<script src="js/modules/color-cat/color-cat-enemy-projectile.js?v=20260322n"></script>
-<script src="js/modules/color-cat/color-cat-damage-number.js?v=20260322n"></script>
-<script src="js/modules/color-cat/color-cat-scene-fog.js?v=20260322n"></script>
-<script src="js/modules/color-cat/color-cat-scene-grave.js?v=20260322n"></script>
-<script src="js/modules/color-cat/color-cat-scene-stats-modal.js?v=20260322n"></script>
+<script src="js/modules/color-cat/color-cat-config.js?v=20260322o"></script>
+<script src="js/modules/color-cat/color-cat-stats.js?v=20260322o"></script>
+<script src="js/modules/color-cat/color-cat-sprite.js?v=20260322o"></script>
+<script src="js/modules/color-cat/color-cat-ball.js?v=20260322o"></script>
+<script src="js/modules/color-cat/dialogue/color-cat-dialogue-data.js?v=20260322o"></script>
+<script src="js/modules/color-cat/color-cat-character.js?v=20260322o"></script>
+<script src="js/modules/color-cat/color-cat-character-stamina.js?v=20260322o"></script>
+<script src="js/modules/color-cat/color-cat-character-particles.js?v=20260322o"></script>
+<script src="js/modules/color-cat/color-cat-character-actions.js?v=20260322o"></script>
+<script src="js/modules/color-cat/color-cat-character-actions-interact.js?v=20260322o"></script>
+<script src="js/modules/color-cat/color-cat-character-actions-special.js?v=20260322o"></script>
+<script src="js/modules/color-cat/color-cat-character-combat.js?v=20260322o"></script>
+<script src="js/modules/color-cat/color-cat-character-combo.js?v=20260322o"></script>
+<script src="js/modules/color-cat/color-cat-character-ai.js?v=20260322o"></script>
+<script src="js/modules/color-cat/color-cat-character-bubble.js?v=20260322o"></script>
+<script src="js/modules/color-cat/color-cat-profile.js?v=20260322o"></script>
+<script src="js/modules/color-cat/color-cat-scene.js?v=20260322o"></script>
+<script src="js/modules/color-cat/color-cat-scene-bg.js?v=20260322o"></script>
+<script src="js/modules/color-cat/color-cat-scene-box.js?v=20260322o"></script>
+<script src="js/modules/color-cat/color-cat-scene-flag.js?v=20260322o"></script>
+<script src="js/modules/color-cat/color-cat-scene-flower.js?v=20260322o"></script>
+<script src="js/modules/color-cat/color-cat-scene-butterfly.js?v=20260322o"></script>
+<script src="js/modules/color-cat/color-cat-scene-panel.js?v=20260322o"></script>
+<script src="js/modules/color-cat/color-cat-scene-panel-tab0.js?v=20260322o"></script>
+<script src="js/modules/color-cat/color-cat-scene-panel-tab1.js?v=20260322o"></script>
+<script src="js/modules/color-cat/color-cat-scene-panel-tab2.js?v=20260322o"></script>
+<script src="js/modules/color-cat/color-cat-enemy.js?v=20260322o"></script>
+<script src="js/modules/color-cat/color-cat-enemy-util.js?v=20260322o"></script>
+<script src="js/modules/color-cat/color-cat-enemy-draw.js?v=20260322o"></script>
+<script src="js/modules/color-cat/color-cat-enemy-projectile.js?v=20260322o"></script>
+<script src="js/modules/color-cat/color-cat-damage-number.js?v=20260322o"></script>
+<script src="js/modules/color-cat/color-cat-scene-fog.js?v=20260322o"></script>
+<script src="js/modules/color-cat/color-cat-scene-grave.js?v=20260322o"></script>
+<script src="js/modules/color-cat/color-cat-scene-stats-modal.js?v=20260322o"></script>
 
 <script>
 // ── 主題：讀取主站 localStorage 同步 ──

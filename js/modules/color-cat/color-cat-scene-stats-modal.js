@@ -39,7 +39,7 @@ var CSS = [
   // flower card: 不放大
   '.gg-stats-card.flower canvas{width:48px;height:48px}',
   // enemy card: 文字緊貼圖片
-  '.gg-stats-card.enemy .label{margin-top:-2px}',
+  '.gg-stats-card.enemy .label{margin-top:-2.4rem}',
   // pvp row-card
   '.gg-stats-pvp{display:flex;align-items:center;gap:.4rem;padding:.4rem .7rem;background:#f8f8f8;border-radius:10px;border:1px solid #eee;font-size:.78rem}',
   '[data-theme="dark"] .gg-stats-pvp{background:#2a2a2a;border-color:#3a3a3a}',
