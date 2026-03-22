@@ -364,4 +364,28 @@ const ScriptLoader = {
       setTimeout(load, 3000);
     }
   },
+
+  _preloadQueued: false,
+
+  /**
+   * 首頁渲染完成後，按指定順序背景預載入核心頁面 scripts
+   * 順序：活動 → 我的活動（同 group）→ 俱樂部 → 賽事
+   */
+  preloadCorePages() {
+    if (this._preloadQueued) return;
+    this._preloadQueued = true;
+    const run = async () => {
+      const order = ['page-activities', 'page-teams', 'page-tournaments'];
+      for (const pageId of order) {
+        try { await this.ensureForPage(pageId); } catch (e) { /* 繼續下一個 */ }
+      }
+      console.log('[ScriptLoader] 核心頁面背景預載入完成: activity → team → tournament');
+    };
+    // 等首頁渲染穩定後再開始，避免搶佔頻寬
+    if (typeof requestIdleCallback !== 'undefined') {
+      requestIdleCallback(() => run(), { timeout: 3000 });
+    } else {
+      setTimeout(() => run(), 1500);
+    }
+  },
 };

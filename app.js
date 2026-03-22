@@ -275,6 +275,10 @@ const App = {
     this.renderHotEvents();
     this._renderHomeVersionTag();
     this._markPageSnapshotReady('page-home');
+    // 首頁渲染完成 → 背景預載入核心頁面 scripts（活動→俱樂部→賽事）
+    if (typeof ScriptLoader !== 'undefined' && ScriptLoader.preloadCorePages) {
+      ScriptLoader.preloadCorePages();
+    }
   },
 
   _renderHomeVersionTag(visible) {
