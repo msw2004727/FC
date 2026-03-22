@@ -38,10 +38,8 @@ var CSS = [
   '.gg-stats-card .boss{font-size:.58rem;color:#e67e22;font-weight:600;line-height:1}',
   // flower card: 不放大
   '.gg-stats-card.flower canvas{width:48px;height:48px}',
-  // enemy card: 文字疊在圖片上，靠近中心
-  '.gg-stats-card.enemy .label{margin-top:-3rem;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.8)}',
-  '.gg-stats-card.enemy .count{color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.8)}',
-  '.gg-stats-card.enemy .boss{text-shadow:0 1px 3px rgba(0,0,0,.8)}',
+  // enemy card: 文字緊貼圖片
+  '.gg-stats-card.enemy .label{margin-top:-2px}',
   // pvp row-card
   '.gg-stats-pvp{display:flex;align-items:center;gap:.4rem;padding:.4rem .7rem;background:#f8f8f8;border-radius:10px;border:1px solid #eee;font-size:.78rem}',
   '[data-theme="dark"] .gg-stats-pvp{background:#2a2a2a;border-color:#3a3a3a}',
