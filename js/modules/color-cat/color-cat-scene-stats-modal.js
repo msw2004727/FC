@@ -21,8 +21,8 @@ var CSS = [
   '[data-theme="dark"] .gg-stats-modal{background:#1e1e1e;color:#e8e8e8;box-shadow:0 8px 32px rgba(0,0,0,.6)}',
   // title + divider
   '.gg-stats-title{text-align:center;font-size:.95rem;font-weight:700;margin-bottom:.5rem;letter-spacing:.5px}',
-  '.gg-stats-divider{text-align:center;font-size:.68rem;color:#333;margin:3.25rem 0 .35rem;letter-spacing:2px}',
-  '[data-theme="dark"] .gg-stats-divider{color:#ddd}',
+  '.gg-stats-divider{text-align:center;font-size:.68rem;color:#555;margin:3.25rem 0 .35rem;letter-spacing:2px}',
+  '[data-theme="dark"] .gg-stats-divider{color:#aaa}',
   // grid
   '.gg-stats-grid{display:grid;gap:5px}',
   '.gg-stats-grid.cols-2{grid-template-columns:repeat(2,1fr)}',
