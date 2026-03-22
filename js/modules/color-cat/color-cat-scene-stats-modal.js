@@ -17,12 +17,15 @@ var CSS = [
   '.gg-stats-overlay.open{opacity:1;pointer-events:auto}',
   '.gg-stats-backdrop{position:absolute;inset:0;background:rgba(0,0,0,.35);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}',
   // modal
-  '.gg-stats-modal{position:relative;background:#fff;border-radius:16px;padding:.9rem 1rem 1rem;min-width:240px;max-width:88vw;max-height:80vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,.15);font-family:"Noto Sans TC",-apple-system,sans-serif}',
+  '.gg-stats-modal{position:relative;display:flex;flex-direction:column;background:#fff;border-radius:16px;padding:.9rem 1rem 1rem;min-width:240px;max-width:88vw;max-height:80vh;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,.15);font-family:"Noto Sans TC",-apple-system,sans-serif}',
   '[data-theme="dark"] .gg-stats-modal{background:#1e1e1e;color:#e8e8e8;box-shadow:0 8px 32px rgba(0,0,0,.6)}',
   // title + divider
-  '.gg-stats-title{text-align:center;font-size:.95rem;font-weight:700;margin-bottom:.5rem;letter-spacing:.5px}',
-  '.gg-stats-divider{text-align:center;font-size:.68rem;color:#555;margin:3.25rem 0 .35rem;letter-spacing:2px}',
-  '[data-theme="dark"] .gg-stats-divider{color:#aaa}',
+  '.gg-stats-title{text-align:center;font-size:1.1rem;font-weight:800;margin-bottom:.3rem;padding-bottom:.45rem;letter-spacing:1.5px;border-bottom:2px solid #e0e0e0;background:linear-gradient(90deg,#e74c3c,#f59e0b);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}',
+  '[data-theme="dark"] .gg-stats-title{border-bottom-color:#444}',
+  '#gg-stats-content{display:flex;flex-direction:column;gap:1.2rem;margin-top:1.5rem;overflow-y:auto;flex:1;padding-bottom:.5rem}',
+  '.gg-stats-section{margin:0}',
+  '.gg-stats-section-title{text-align:center;font-size:.85rem;font-weight:700;color:#333;margin-bottom:.4rem;letter-spacing:.5px}',
+  '[data-theme="dark"] .gg-stats-section-title{color:#ddd}',
   // grid
   '.gg-stats-grid{display:grid;gap:5px}',
   '.gg-stats-grid.cols-2{grid-template-columns:repeat(2,1fr)}',
@@ -46,11 +49,11 @@ var CSS = [
   '.gg-stats-pvp .name{flex:1}',
   '.gg-stats-pvp .count{font-weight:600;color:#333}',
   '[data-theme="dark"] .gg-stats-pvp .count{color:#ccc}',
-  // close
-  '.gg-stats-close{display:block;margin:.6rem auto 0;padding:.35rem 1.8rem;border:1px solid #ddd;border-radius:8px;background:#f5f5f5;cursor:pointer;font-size:.78rem;font-family:inherit}',
-  '[data-theme="dark"] .gg-stats-close{background:#333;border-color:#555;color:#eee}',
-  '.gg-stats-close:hover{background:#e0e0e0}',
-  '[data-theme="dark"] .gg-stats-close:hover{background:#444}',
+  // close (右上角圓圈 X)
+  '.gg-stats-close{position:absolute;top:8px;right:8px;width:28px;height:28px;border:2px solid #bbb;border-radius:50%;background:none;cursor:pointer;font-size:1rem;line-height:1;color:#888;display:flex;align-items:center;justify-content:center;padding:0}',
+  '[data-theme="dark"] .gg-stats-close{border-color:#666;color:#aaa}',
+  '.gg-stats-close:hover{background:rgba(0,0,0,.08);border-color:#888;color:#555}',
+  '[data-theme="dark"] .gg-stats-close:hover{background:rgba(255,255,255,.1);border-color:#999;color:#ddd}',
   // toast
   '.gg-danger-toast{position:fixed;top:18%;left:50%;transform:translateX(-50%);background:rgba(220,38,38,.92);color:#fff;padding:.55rem 1.2rem;border-radius:10px;font-size:.8rem;z-index:10002;font-family:"Noto Sans TC",sans-serif;box-shadow:0 4px 16px rgba(0,0,0,.25);white-space:nowrap;animation:gg-toast-anim 2.2s ease forwards}',
   '@keyframes gg-toast-anim{0%{opacity:0;transform:translateX(-50%) translateY(8px)}10%{opacity:1;transform:translateX(-50%) translateY(0)}70%{opacity:1}100%{opacity:0;transform:translateX(-50%) translateY(-6px)}}',
@@ -126,7 +129,7 @@ function _createOverlay() {
     '<div class="gg-stats-modal">' +
       '<div class="gg-stats-title">\u6230\u7E3E\u7D71\u8A08</div>' +
       '<div id="gg-stats-content"></div>' +
-      '<button class="gg-stats-close">\u95DC\u9589</button>' +
+      '<button class="gg-stats-close">\u00D7</button>' +
     '</div>';
   _overlay.querySelector('.gg-stats-backdrop').addEventListener('click', close);
   _overlay.querySelector('.gg-stats-close').addEventListener('click', close);
@@ -179,18 +182,51 @@ function _renderContent() {
   var rt = window.ColorCatStats ? ColorCatStats.runtime : {};
   var E = window.ColorCatEnemy;
 
-  // 花朵（同一行 2 欄）
+  // 對戰紀錄（母欄位，置頂）
+  var sec2 = document.createElement('div');
+  sec2.className = 'gg-stats-section';
+  var t2 = document.createElement('div');
+  t2.className = 'gg-stats-section-title';
+  t2.textContent = '\u5C0D\u6230\u7D00\u9304';
+  sec2.appendChild(t2);
+
+  var pvp = document.createElement('div');
+  pvp.className = 'gg-stats-pvp';
+  var pvpIcon = document.createElement('span');
+  pvpIcon.style.cssText = 'font-size:1rem;flex-shrink:0';
+  pvpIcon.textContent = '\u2694';
+  var pvpNm = document.createElement('span');
+  pvpNm.className = 'name';
+  pvpNm.textContent = '\u64CA\u6BBA\u73A9\u5BB6';
+  var pvpCt = document.createElement('span');
+  pvpCt.className = 'count';
+  pvpCt.textContent = rt.playerKills || 0;
+  pvp.appendChild(pvpIcon); pvp.appendChild(pvpNm); pvp.appendChild(pvpCt);
+  sec2.appendChild(pvp);
+  el.appendChild(sec2);
+
+  // 花朵紀錄（母欄位）
+  var secFlower = document.createElement('div');
+  secFlower.className = 'gg-stats-section';
+  var tFlower = document.createElement('div');
+  tFlower.className = 'gg-stats-section-title';
+  tFlower.textContent = '\u82B1\u6735\u7D00\u9304';
+  secFlower.appendChild(tFlower);
+
   var flowerGrid = document.createElement('div');
   flowerGrid.className = 'gg-stats-grid cols-2';
   flowerGrid.appendChild(_flowerCard(false, rt.flowersRed || 0));
   flowerGrid.appendChild(_flowerCard(true, rt.flowersGold || 0));
-  el.appendChild(flowerGrid);
+  secFlower.appendChild(flowerGrid);
+  el.appendChild(secFlower);
 
-  // 擊殺紀錄
-  var d1 = document.createElement('div');
-  d1.className = 'gg-stats-divider';
-  d1.textContent = '\u2500\u2500 \u64CA\u6BBA\u7D00\u9304 \u2500\u2500';
-  el.appendChild(d1);
+  // 擊殺紀錄（母欄位）
+  var sec1 = document.createElement('div');
+  sec1.className = 'gg-stats-section';
+  var t1 = document.createElement('div');
+  t1.className = 'gg-stats-section-title';
+  t1.textContent = '\u64CA\u6BBA\u7D00\u9304';
+  sec1.appendChild(t1);
 
   if (E && E.SKINS) {
     var enemyGrid = document.createElement('div');
@@ -202,28 +238,9 @@ function _renderContent() {
       var bc = (rt.enemyBossKills && rt.enemyBossKills[sk]) || 0;
       enemyGrid.appendChild(_enemyCard(sk, E.SKINS[sk].name, kc, bc));
     }
-    el.appendChild(enemyGrid);
+    sec1.appendChild(enemyGrid);
   }
-
-  // 對戰紀錄
-  var d2 = document.createElement('div');
-  d2.className = 'gg-stats-divider';
-  d2.textContent = '\u2500\u2500 \u5C0D\u6230\u7D00\u9304 \u2500\u2500';
-  el.appendChild(d2);
-
-  var pvp = document.createElement('div');
-  pvp.className = 'gg-stats-pvp';
-  var pvpIcon = document.createElement('span');
-  pvpIcon.style.cssText = 'font-size:1rem;flex-shrink:0';
-  pvpIcon.textContent = '\u2694';
-  var pvpNm = document.createElement('span');
-  pvpNm.className = 'name';
-  pvpNm.textContent = '\u64CA\u6557\u73A9\u5BB6';
-  var pvpCt = document.createElement('span');
-  pvpCt.className = 'count';
-  pvpCt.textContent = rt.playerKills || 0;
-  pvp.appendChild(pvpIcon); pvp.appendChild(pvpNm); pvp.appendChild(pvpCt);
-  el.appendChild(pvp);
+  el.appendChild(sec1);
 }
 
 // ── 開啟 ──
