@@ -285,15 +285,17 @@ Object.assign(App, {
           this._showRestrictedToast();
           return;
         }
-        if (page === 'page-tournaments') {
-          this.showToast('功能準備中');
-          return;
-        }
         const guardedPages = ['page-profile', 'page-teams', 'page-tournaments', 'page-messages', 'page-activities'];
         if (guardedPages.includes(page) && this._requireProtectedActionLogin({ type: 'showPage', pageId: page }, {
           suppressToast: true,
         })) {
           return;
+        }
+        // 頁面腳本尚未就緒時提示載入中（已載入則靜默切換）
+        if (page !== 'page-home'
+            && typeof ScriptLoader !== 'undefined' && ScriptLoader.isPageReady
+            && !ScriptLoader.isPageReady(page)) {
+          this.showToast('載入中...');
         }
         this.pageHistory = [];
         void this.showPage(page);

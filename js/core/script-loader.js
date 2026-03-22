@@ -350,6 +350,19 @@ const ScriptLoader = {
     await this.loadGroup(orderedScripts);
   },
 
+  /** 檢查頁面所需腳本是否全部已載入（同步） */
+  isPageReady(pageId) {
+    this._primeLoadedFromDom();
+    const groups = this._pageGroups[pageId] || [];
+    for (const groupName of groups) {
+      const scripts = this._groups[groupName] || [];
+      for (const src of scripts) {
+        if (!this._loaded[src]) return false;
+      }
+    }
+    return true;
+  },
+
   /** 預載入所有群組（背景，不阻塞） */
   preloadAll() {
     this._primeLoadedFromDom();

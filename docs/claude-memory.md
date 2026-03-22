@@ -1213,5 +1213,11 @@
 - **修復**：根據語境以 binary 方式替換：行 286（權限檢查）→ `'權限不足'`；行 343（無欄位變更）→ `'沒有變更'`
 - **教訓**：PUA 字元在 Read 工具顯示為 `?`，Edit 工具無法匹配；需用 Python binary replace 處理
 
+### 2026-03-22 — 導航 Tab 智慧 Toast 提示
+- **問題**：(1) QR Code Toast 在腳本已載入時仍顯示「生成中」；(2) 賽事 Tab 被硬編碼封鎖無法進入；(3) 頁面腳本未就緒時無載入提示
+- **原因**：QR toast 放在 `showUidQrCode` 檢查之前；賽事 Tab 有寫死的 `return`；導航未檢查 ScriptLoader 載入狀態
+- **修復**：(A) `app.js` — 將 QR toast 移入 `if (!this.showUidQrCode)` 內；(B) `navigation.js` — 移除賽事封鎖，加入 `ScriptLoader.isPageReady()` 判斷，未就緒時 toast「載入中…」；(C) `script-loader.js` — 新增 `isPageReady(pageId)` 同步方法
+- **教訓**：Toast 提示應以實際狀態為依據，不可無條件顯示；封鎖功能入口應使用 config flag 而非硬編碼 return
+
 *最後濃縮日期：2026-03-15*
 *原始檔案：314 條目 / 2475 行 → 濃縮後約 50 條永久教訓*
