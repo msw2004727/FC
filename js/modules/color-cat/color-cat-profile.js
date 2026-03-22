@@ -41,6 +41,12 @@ var EQUIP_SLOTS  = ['hat', 'top', 'gloves', 'pants', 'shoes', 'accessory'];
 var EQUIP_LABELS = { hat: '帽子', top: '上衣', gloves: '手套', pants: '褲子', shoes: '鞋子', accessory: '飾品' };
 var _equipped = { hat: null, top: null, gloves: null, pants: null, shoes: null, accessory: null };
 
+// ── 從 runtime 同步 MBTI（stats.js 先載入，profile 後載入） ──
+var S = window.ColorCatStats;
+if (S && S.runtime.mbti && S.runtime.mbti !== '') {
+  _mbti = S.runtime.mbti;
+}
+
 // ── 公開 API ──
 window.ColorCatProfile = {
   // 名稱 & 等級
