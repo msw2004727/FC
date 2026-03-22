@@ -291,11 +291,11 @@ Object.assign(App, {
         })) {
           return;
         }
-        // 頁面腳本尚未就緒時提示載入中（已載入則靜默切換）
+        // 頁面腳本尚未就緒時持續顯示載入提示（每次點擊延長，就緒後自動消失）
         if (page !== 'page-home'
             && typeof ScriptLoader !== 'undefined' && ScriptLoader.isPageReady
             && !ScriptLoader.isPageReady(page)) {
-          this.showToast('載入中...');
+          this._showLoadingToastUntilReady(page);
         }
         this.pageHistory = [];
         void this.showPage(page);
@@ -303,6 +303,30 @@ Object.assign(App, {
         tab.classList.add('active');
       });
     });
+  },
+
+  /**
+   * 持續顯示「載入中」toast 直到頁面腳本就緒，重複呼叫會重置計時
+   */
+  _showLoadingToastUntilReady(pageId) {
+    // 清除前一輪輪詢
+    clearInterval(this._loadingToastPoll);
+    const toast = document.getElementById('toast');
+    // 立即顯示
+    this.showToast('載入中...');
+    // 每 300ms 檢查：就緒則關閉，否則持續延長 toast
+    this._loadingToastPoll = setInterval(() => {
+      if (ScriptLoader.isPageReady(pageId)) {
+        clearInterval(this._loadingToastPoll);
+        this._loadingToastPoll = null;
+        // 就緒 → 立即隱藏 toast
+        clearTimeout(this._toastTimer);
+        if (toast) toast.classList.remove('show');
+        return;
+      }
+      // 尚未就緒 → 刷新 toast 計時保持顯示
+      this.showToast('載入中...');
+    }, 300);
   },
 
   async _ensurePageEntryReady(pageId) {
