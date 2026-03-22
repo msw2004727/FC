@@ -211,7 +211,6 @@ Object.assign(App, {
       if ((b.getAttribute('onclick') || '').includes('handleSignup')) {
         activeBtn = b;
         b._origText = b.textContent;
-        // 按鈕文字即時切換為處理中狀態
         const txt = b.textContent.trim();
         b.textContent = txt.includes('候補') ? '候補中...' : '報名中...';
         b.style.opacity = '';
@@ -219,19 +218,51 @@ Object.assign(App, {
         if (glowWrap) glowWrap.classList.add('loading');
       }
     });
-    // 在 Firestore 操作前鎖定重渲染，防止 onSnapshot 中途替換 DOM
     if (glowWrap) {
       this._flipAnimating = true;
-      this._flipAnimatingAt = Date.now(); // F1：記錄時間戳供安全重置判斷
+      this._flipAnimatingAt = Date.now();
     }
     try {
-      // F3：15 秒 timeout 保護，防止 Firestore 掛住導致永久卡死
       const _signupTimeout = new Promise((_, reject) =>
         setTimeout(() => reject(new Error('報名操作逾時，請重新整理後再試')), 15000));
-      const result = await Promise.race([
-        FirebaseService.registerForEvent(id, userId, userName),
-        _signupTimeout,
-      ]);
+
+      let result;
+      const useCF = typeof shouldUseServerRegistration === 'function' && shouldUseServerRegistration();
+      if (useCF) {
+        // ═══ CF 路徑：呼叫 Cloud Function ═══
+        const cfResult = await Promise.race([
+          firebase.app().functions('asia-east1').httpsCallable('registerForEvent')({
+            eventId: id,
+            participants: [{ userId, userName }],
+            requestId: `${userId}_${id}_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`,
+          }),
+          _signupTimeout,
+        ]);
+        const data = cfResult.data;
+        if (data.deduplicated) { this.showToast('報名處理中，請稍候'); return; }
+        // 同步 CF 回傳結果到本地快取
+        const selfReg = (data.registrations || []).find(r => r.participantType === 'self') || data.registrations?.[0];
+        // 若 CF 回傳 waitlisted 計數 > 0 且 selfReg 未定義，使用 waitlisted 狀態以避免誤報
+        const inferredStatus = (!selfReg && data.waitlisted > 0) ? 'waitlisted' : (selfReg?.status || 'confirmed');
+        result = { status: inferredStatus };
+        // 樂觀更新本地快取（onSnapshot 到來時會以 Firestore 為準覆蓋）
+        if (data.event && e) {
+          e.current = data.event.current;
+          e.waitlist = data.event.waitlist;
+          e.participants = data.event.participants;
+          e.waitlistNames = data.event.waitlistNames;
+          e.status = data.event.status;
+          FirebaseService._saveToLS?.('events', FirebaseService._cache?.events);
+        }
+        // CF 已完成 activityRecord / auditLog / EXP / 通知，前端不需要再做
+      } else {
+        // ═══ 原有路徑：前端 Firestore Transaction（fallback）═══
+        result = await Promise.race([
+          FirebaseService.registerForEvent(id, userId, userName),
+          _signupTimeout,
+        ]);
+      }
+
       // ── 即時回饋：翻牌動畫 + toast ──
       const isWL = result.status === 'waitlisted';
       this.showToast(isWL ? '已加入候補名單' : '報名成功！');
@@ -252,51 +283,62 @@ Object.assign(App, {
           await new Promise(r => setTimeout(r, 1200));
         }
       }
-      // QA fix：在 showEventDetail 之前先解鎖，否則 showEventDetail 會被 _flipAnimating 擋住
       this._flipAnimating = false;
       this._flipAnimatingAt = 0;
       this.showEventDetail(id);
       this._maybeShowLineNotifyPrompt?.();
-      // ── 背景 post-ops（fire-and-forget，不阻塞 UI）──
-      const dateParts = e.date.split(' ')[0].split('/');
-      const dateStr = `${dateParts[1]}/${dateParts[2]}`;
-      const arRecord = {
-        eventId: e.id, name: e.title, date: dateStr,
-        status: result.status === 'waitlisted' ? 'waitlisted' : 'registered', uid: userId, eventType: e.type,
-      };
-      ApiService.addActivityRecord(arRecord);
-      db.collection('activityRecords').add({
-        ...arRecord, createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-      }).then(ref => { arRecord._docId = ref.id; })
-        .catch(err => console.error('[activityRecord]', err));
-      void ApiService.writeAuditLog({
-        action: 'event_signup',
-        targetType: 'event',
-        targetId: e.id,
-        targetLabel: e.title,
-        result: 'success',
-        source: 'web',
-        meta: {
-          eventId: e.id,
-          statusTo: result.status === 'waitlisted' ? 'waitlisted' : 'registered',
-        },
-      });
-      this._sendNotifFromTemplate('signup_success', {
-        eventName: e.title, date: e.date, location: e.location,
-        status: result.status === 'waitlisted' ? '候補' : '正取',
-      }, userId, 'activity', '活動');
-      if (result.status !== 'waitlisted') this._grantAutoExp?.(userId, 'register_activity', e.title);
+
+      // ── 背景 post-ops（僅 fallback 路徑需要，CF 路徑已在伺服器完成）──
+      if (!useCF) {
+        const dateParts = e.date.split(' ')[0].split('/');
+        const dateStr = `${dateParts[1]}/${dateParts[2]}`;
+        const arRecord = {
+          eventId: e.id, name: e.title, date: dateStr,
+          status: result.status === 'waitlisted' ? 'waitlisted' : 'registered', uid: userId, eventType: e.type,
+        };
+        ApiService.addActivityRecord(arRecord);
+        db.collection('activityRecords').add({
+          ...arRecord, createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+        }).then(ref => { arRecord._docId = ref.id; })
+          .catch(err => console.error('[activityRecord]', err));
+        void ApiService.writeAuditLog({
+          action: 'event_signup',
+          targetType: 'event',
+          targetId: e.id,
+          targetLabel: e.title,
+          result: 'success',
+          source: 'web',
+          meta: { eventId: e.id, statusTo: result.status === 'waitlisted' ? 'waitlisted' : 'registered' },
+        });
+        this._sendNotifFromTemplate('signup_success', {
+          eventName: e.title, date: e.date, location: e.location,
+          status: result.status === 'waitlisted' ? '候補' : '正取',
+        }, userId, 'activity', '活動');
+        if (result.status !== 'waitlisted') this._grantAutoExp?.(userId, 'register_activity', e.title);
+      }
       this._evaluateAchievements?.(e.type);
     } catch (err) {
       console.error('[handleSignup]', err);
-      this.showToast(err.message || '報名失敗，請稍後再試');
+      // CF 錯誤碼轉換為友善訊息
+      const cfMsg = {
+        ALREADY_REGISTERED: '已報名此活動',
+        EVENT_NOT_FOUND: '活動不存在',
+        EVENT_ENDED: '活動已開始，報名已結束',
+        EVENT_CANCELLED: '活動已取消',
+        REG_NOT_OPEN: '報名尚未開放，請稍後再試',
+        GENDER_RESTRICTED: '此活動不符合目前性別限制',
+        TEAM_RESTRICTED: '俱樂部限定活動，僅限該隊成員報名',
+      };
+      const errCode = err?.details || err?.message || '';
+      const isNetworkOrTimeout = /timeout|network|fetch|ECONNREFUSED|逾時/i.test(err?.message || '');
+      const friendlyMsg = cfMsg[errCode] || (isNetworkOrTimeout ? '連線逾時，請檢查網路後重新整理再試' : err.message || '報名失敗，請稍後再試');
+      this.showToast(friendlyMsg);
       if (glowWrap) glowWrap.classList.remove('loading');
       signupBtns.forEach(b => {
         b.disabled = false; b.style.opacity = '';
         if (b === activeBtn && b._origText) { b.textContent = b._origText; }
       });
     } finally {
-      // F2：無論成功/失敗/timeout，確保 flag 被重置
       this._flipAnimating = false;
       this._flipAnimatingAt = 0;
     }
@@ -484,32 +526,67 @@ Object.assign(App, {
     }
     if (reg) {
       try {
-        // F3：15 秒 timeout 保護，防止 Firestore 掛住導致永久卡死
         const _cancelTimeout = new Promise((_, reject) =>
           setTimeout(() => reject(new Error('取消操作逾時，請重新整理後再試')), 15000));
-        const cancelledReg = await Promise.race([
-          FirebaseService.cancelRegistration(reg.id),
-          _cancelTimeout,
-        ]);
-        if (cancelledReg && cancelledReg._promotedUserId) {
+
+        let cancelledReg;
+        const useCF = typeof shouldUseServerRegistration === 'function' && shouldUseServerRegistration();
+
+        if (useCF) {
+          // ═══ CF 路徑：呼叫 Cloud Function ═══
+          const cfResult = await Promise.race([
+            firebase.app().functions('asia-east1').httpsCallable('cancelRegistration')({
+              eventId: id,
+              registrationIds: [reg.id],
+              reason: 'user_cancel',
+              requestId: `cancel_${userId}_${id}_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`,
+            }),
+            _cancelTimeout,
+          ]);
+          const data = cfResult.data;
+          if (data.deduplicated) { this.showToast('取消處理中，請稍候'); return; }
+          cancelledReg = { _promotedUserIds: (data.promoted || []).map(p => p.userId) };
+          if (cancelledReg._promotedUserIds.length > 0) {
+            cancelledReg._promotedUserId = cancelledReg._promotedUserIds[0];
+          }
+          // 樂觀更新本地快取
+          reg.status = 'cancelled';
+          reg.cancelledAt = new Date().toISOString();
+          if (data.event && e0) {
+            e0.current = data.event.current;
+            e0.waitlist = data.event.waitlist;
+            e0.participants = data.event.participants;
+            e0.waitlistNames = data.event.waitlistNames;
+            e0.status = data.event.status;
+          }
+          FirebaseService._saveToLS?.('registrations', FirebaseService._cache?.registrations);
+          FirebaseService._saveToLS?.('events', FirebaseService._cache?.events);
+        } else {
+          // ═══ 原有路徑：前端 Firestore（fallback）═══
+          cancelledReg = await Promise.race([
+            FirebaseService.cancelRegistration(reg.id),
+            _cancelTimeout,
+          ]);
+        }
+
+        if (!useCF && cancelledReg && cancelledReg._promotedUserId) {
           const ev = ApiService.getEvent(id);
           if (ev) {
             this._sendNotifFromTemplate('waitlist_promoted', {
               eventName: ev.title, date: ev.date, location: ev.location,
             }, cancelledReg._promotedUserId, 'activity', '活動');
-            // 候補遞補為正取 → 補發報名 EXP
             (cancelledReg._promotedUserIds || [cancelledReg._promotedUserId]).forEach(pUid => {
               this._grantAutoExp?.(pUid, 'register_activity', ev.title);
             });
           }
         }
+
         // ── 即時回饋：翻牌動畫 + toast ──
         this.showToast(isWaitlist ? '已取消候補' : '已取消報名');
         if (cancelGlowWrap) {
           cancelGlowWrap.classList.remove('loading');
           const flipper = cancelGlowWrap.querySelector('.signup-flipper');
           if (flipper) {
-            // 取消後翻轉到「立即報名」或「報名候補」
             const ev = ApiService.getEvent(id);
             const stillFull = ev && ev.current >= ev.max;
             const backEl = document.createElement('div');
@@ -527,64 +604,70 @@ Object.assign(App, {
           this._flipAnimating = false;
         }
         this.showEventDetail(id);
-        // ── 背景 post-ops（fire-and-forget，不阻塞 UI）──
-        const records = ApiService.getActivityRecords();
-        const hasCancelRec = records.some(r => r.eventId === id && r.uid === userId && r.status === 'cancelled');
-        for (let i = records.length - 1; i >= 0; i--) {
-          if (records[i].eventId === id && records[i].uid === userId && records[i].status !== 'cancelled') {
-            if (records[i]._docId) {
-              db.collection('activityRecords').doc(records[i]._docId).update({ status: 'cancelled' })
-                .catch(err => console.error('[activityRecord cancel]', err));
-            }
-            if (hasCancelRec) {
+
+        // ── 背景 post-ops（僅 fallback 路徑，CF 已在伺服器完成）──
+        if (!useCF) {
+          const records = ApiService.getActivityRecords();
+          const hasCancelRec = records.some(r => r.eventId === id && r.uid === userId && r.status === 'cancelled');
+          for (let i = records.length - 1; i >= 0; i--) {
+            if (records[i].eventId === id && records[i].uid === userId && records[i].status !== 'cancelled') {
               if (records[i]._docId) {
-                db.collection('activityRecords').doc(records[i]._docId).delete().catch(err => console.error('[activityRecord dedup]', err));
+                db.collection('activityRecords').doc(records[i]._docId).update({ status: 'cancelled' })
+                  .catch(err => console.error('[activityRecord cancel]', err));
               }
-              records.splice(i, 1);
-            } else {
-              records[i].status = 'cancelled';
+              if (hasCancelRec) {
+                if (records[i]._docId) {
+                  db.collection('activityRecords').doc(records[i]._docId).delete().catch(err => console.error('[activityRecord dedup]', err));
+                }
+                records.splice(i, 1);
+              } else {
+                records[i].status = 'cancelled';
+              }
             }
           }
-        }
-        db.collection('activityRecords')
-          .where('uid', '==', userId).where('eventId', '==', id)
-          .get().then(snap => {
-            snap.forEach(doc => {
-              if (doc.data().status !== 'cancelled') {
-                doc.ref.update({ status: 'cancelled' })
-                  .catch(err => console.error('[activityRecord cancel-fallback]', err));
-              }
-            });
-          }).catch(err => console.error('[activityRecord cancel-fallback query]', err));
-        if (!hasCancelRec && !records.some(r => r.eventId === id && r.uid === userId && r.status === 'cancelled')) {
-          const ev = ApiService.getEvent(id);
-          if (ev) {
-            const dp = ev.date.split(' ')[0].split('/');
-            ApiService.addActivityRecord({ eventId: id, name: ev.title, date: `${dp[1]}/${dp[2]}`, status: 'cancelled', uid: userId });
+          db.collection('activityRecords')
+            .where('uid', '==', userId).where('eventId', '==', id)
+            .get().then(snap => {
+              snap.forEach(doc => {
+                if (doc.data().status !== 'cancelled') {
+                  doc.ref.update({ status: 'cancelled' })
+                    .catch(err => console.error('[activityRecord cancel-fallback]', err));
+                }
+              });
+            }).catch(err => console.error('[activityRecord cancel-fallback query]', err));
+          if (!hasCancelRec && !records.some(r => r.eventId === id && r.uid === userId && r.status === 'cancelled')) {
+            const ev = ApiService.getEvent(id);
+            if (ev) {
+              const dp = ev.date.split(' ')[0].split('/');
+              ApiService.addActivityRecord({ eventId: id, name: ev.title, date: `${dp[1]}/${dp[2]}`, status: 'cancelled', uid: userId });
+            }
           }
+          this._notifySignupCancelledInboxFromTemplate(ApiService.getEvent(id) || e0, userId, isWaitlist);
+          void ApiService.writeAuditLog({
+            action: 'event_cancel_signup',
+            targetType: 'event',
+            targetId: e0?.id || id,
+            targetLabel: e0?.title || '',
+            result: 'success',
+            source: 'web',
+            meta: { eventId: e0?.id || id, statusFrom: isWaitlist ? 'waitlisted' : 'registered', statusTo: 'cancelled' },
+          });
+          if (!isWaitlist) this._grantAutoExp?.(userId, 'cancel_registration', e0.title);
         }
-        this._notifySignupCancelledInboxFromTemplate(ApiService.getEvent(id) || e0, userId, isWaitlist);
-        void ApiService.writeAuditLog({
-          action: 'event_cancel_signup',
-          targetType: 'event',
-          targetId: e0?.id || id,
-          targetLabel: e0?.title || '',
-          result: 'success',
-          source: 'web',
-          meta: {
-            eventId: e0?.id || id,
-            statusFrom: isWaitlist ? 'waitlisted' : 'registered',
-            statusTo: 'cancelled',
-          },
-        });
-        if (!isWaitlist) this._grantAutoExp?.(userId, 'cancel_registration', e0.title);
         this._evaluateAchievements?.(e0?.type);
       } catch (err) {
         console.error('[cancelSignup]', err);
         this._flipAnimating = false;
-        this.showToast('取消失敗：' + (err.message || ''));
+        const cfMsg = {
+          ALREADY_CANCELLED: '已取消此報名',
+          REG_NOT_FOUND: '找不到報名紀錄',
+          EVENT_NOT_FOUND: '活動不存在',
+          PERMISSION_DENIED: '無權限執行此操作',
+        };
+        const errCode = err?.details || err?.message || '';
+        const isNetworkOrTimeout = /timeout|network|fetch|ECONNREFUSED|逾時/i.test(err?.message || '');
+        this.showToast('取消失敗：' + (cfMsg[errCode] || (isNetworkOrTimeout ? '連線逾時，請檢查網路後重新整理再試' : err.message || '')));
         ApiService._writeErrorLog({ fn: 'handleCancelSignup', eventId: id }, err);
-        // 失敗：恢復按鈕原始狀態讓使用者可重試
         _restoreCancelUI();
       } finally {
         clearTimeout(_busyTimeout);

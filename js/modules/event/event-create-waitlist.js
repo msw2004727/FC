@@ -57,7 +57,18 @@ Object.assign(App, {
     const event = ApiService.getEvent(eventId);
     if (!event) return;
 
-    // 從 Firestore 查詢最新報名資料（不依賴快取），避免快取過時導致遞補/降級錯誤
+    const useCF = typeof shouldUseServerRegistration === 'function' && shouldUseServerRegistration();
+
+    if (useCF && !ModeManager.isDemo() && newMax !== oldMax) {
+      // ═══ CF 路徑：容量變更的遞補/降級由 cancelRegistration(reason='capacity_change') 處理 ═══
+      // 容量變更不需要取消任何報名，只需要調整候補狀態
+      // CF cancelRegistration 的 capacity_change 模式會在 transaction 內重建 occupancy
+      // 但目前 CF 的 cancelRegistration 需要 registrationIds，容量變更不一定有要取消的
+      // 所以這個情境暫時仍用 fallback 路徑，直到 Wave 2 的 onRegistrationWritten trigger 接管
+      // fallthrough to original logic
+    }
+
+    // ═══ 原有路徑（包含 CF 模式下的容量變更）═══
     if (!ModeManager.isDemo() && typeof db !== 'undefined') {
       try {
         const snap = await db.collection('registrations')
@@ -71,7 +82,6 @@ Object.assign(App, {
             registeredAt: data.registeredAt?.toDate?.()?.toISOString?.() || data.registeredAt,
           };
         });
-        // 同步 Firestore 資料到快取
         const cacheRegs = ApiService._src('registrations') || [];
         for (const fsReg of firestoreRegs) {
           const cached = cacheRegs.find(r => r.id === fsReg.id || (r._docId && r._docId === fsReg._docId));
@@ -94,7 +104,6 @@ Object.assign(App, {
     );
 
     if (newMax > oldMax) {
-      // ── 容量增加 → 遞補候補 ──
       const confirmedCount = allRegs.filter(r => r.status === 'confirmed').length;
       let slotsAvailable = newMax - confirmedCount;
       if (slotsAvailable <= 0) return;
@@ -105,25 +114,18 @@ Object.assign(App, {
       while (slotsAvailable > 0) {
         const candidate = this._getNextWaitlistCandidate(eventId);
         if (!candidate) break;
-
-        // 本地狀態變更 + 通知
         this._promoteSingleCandidateLocal(event, candidate);
         promotedList.push(candidate);
-
-        // 收集 Firestore 寫入到 batch
         if (batch && candidate._docId) {
           batch.update(db.collection('registrations').doc(candidate._docId), { status: 'confirmed' });
         }
-        // activityRecord 寫入到 batch
         const arDocIds = this._getPromotedArDocIds(event, candidate);
         if (batch) {
           arDocIds.forEach(docId => batch.update(db.collection('activityRecords').doc(docId), { status: 'registered' }));
         }
-
         slotsAvailable--;
       }
 
-      // 統一重建投影
       const activeAfter = (ApiService._src('registrations') || []).filter(
         r => r.eventId === eventId && (r.status === 'confirmed' || r.status === 'waitlisted')
       );
@@ -132,7 +134,6 @@ Object.assign(App, {
         FirebaseService._applyRebuildOccupancy(event, occupancy);
       }
 
-      // 把 event 投影也加進 batch，一次寫入
       if (batch && event._docId) {
         batch.update(db.collection('events').doc(event._docId), {
           current: event.current, waitlist: event.waitlist,
@@ -146,7 +147,6 @@ Object.assign(App, {
           if (typeof this.showToast === 'function') this.showToast('遞補同步失敗，請重試');
         }
       }
-      // 同步 localStorage
       if (typeof FirebaseService !== 'undefined' && typeof FirebaseService._saveToLS === 'function') {
         FirebaseService._saveToLS('registrations', FirebaseService._cache.registrations);
         FirebaseService._saveToLS('events', FirebaseService._cache.events);
@@ -156,7 +156,6 @@ Object.assign(App, {
         console.log(`[adjustWaitlist] 容量增加，已遞補 ${promotedList.length} 位候補者`);
       }
     } else if (newMax < oldMax) {
-      // ── 容量減少 → 降級多餘正取者到候補 ──
       const confirmedRegs = allRegs
         .filter(r => r.status === 'confirmed')
         .sort((a, b) => {
@@ -177,7 +176,6 @@ Object.assign(App, {
         if (batch && reg._docId) {
           batch.update(db.collection('registrations').doc(reg._docId), { status: 'waitlisted' });
         }
-        // 同步更新 activityRecord：registered → waitlisted（同行者不動）
         if (reg.participantType !== 'companion') {
           const arSource = ApiService._src('activityRecords');
           const ar = arSource.find(a => a.eventId === event.id && a.uid === reg.userId && a.status === 'registered');
@@ -194,7 +192,6 @@ Object.assign(App, {
         }, reg.userId, 'activity', '活動');
       }
 
-      // 統一重建投影
       const activeAfter = (ApiService._src('registrations') || []).filter(
         r => r.eventId === eventId && (r.status === 'confirmed' || r.status === 'waitlisted')
       );

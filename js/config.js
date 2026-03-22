@@ -327,6 +327,29 @@
 // 20260322h: 蝴蝶必定生怪、大絕招花/蝶獨立生怪、重新整理按鈕
 const CACHE_VERSION = '20260322i';
 
+// ─── CF Migration Feature Flag ───
+// 判斷是否走 Cloud Functions 報名流程（Wave 1）
+function shouldUseServerRegistration() {
+  // 僅 Production 模式才走 CF
+  if (typeof ModeManager !== 'undefined' && ModeManager.isDemo()) return false;
+  // 讀取 Firestore featureFlags（在 boot collections 時已快取）
+  const flags = (typeof FirebaseService !== 'undefined' && typeof FirebaseService.getCachedDoc === 'function')
+    ? FirebaseService.getCachedDoc('siteConfig', 'featureFlags')
+    : null;
+  if (!flags || !flags.useServerRegistration) return false;
+  // 灰度：根據用戶 UID 的 djb2 hash 百分比決定
+  const percent = flags.serverRegistrationRolloutPercent || 0;
+  if (percent >= 100) return true;
+  if (percent <= 0) return false;
+  const uid = (typeof App !== 'undefined' && App.currentUser) ? App.currentUser.uid : '';
+  if (!uid) return false;
+  let h = 5381;
+  for (let i = 0; i < uid.length; i++) {
+    h = ((h << 5) + h) + uid.charCodeAt(i);
+  }
+  return (Math.abs(h) % 100) < percent;
+}
+
 // ─── Page Strategy Registry ───
 // 唯一策略來源，未列出的頁面預設 fresh-first
 const PAGE_STRATEGY = {

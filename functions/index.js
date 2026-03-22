@@ -4131,3 +4131,749 @@ exports.backfillAutoExp = onCall(
     };
   }
 );
+
+// ═══════════════════════════════════════════════════════════════════════
+//  Wave 1 — 報名流程原子化 (Cloud Functions Migration)
+// ═══════════════════════════════════════════════════════════════════════
+
+// ── 純函式：重建活動佔位投影（與前端 firebase-crud.js _rebuildOccupancy 邏輯一致）──
+function rebuildOccupancy(event, registrations) {
+  const confirmed = registrations.filter((r) => r.status === "confirmed");
+  const waitlisted = registrations.filter((r) => r.status === "waitlisted");
+
+  const regSortTime = (r) => {
+    const v = r && r.registeredAt;
+    if (!v) return Number.POSITIVE_INFINITY;
+    // Firestore Timestamp
+    if (typeof v.toMillis === "function") {
+      try { return v.toMillis(); } catch (_e) { /* ignore */ }
+    }
+    if (typeof v === "object" && typeof v.seconds === "number") {
+      return v.seconds * 1000 + Math.floor((v.nanoseconds || 0) / 1000000);
+    }
+    const t = new Date(v).getTime();
+    return Number.isFinite(t) ? t : Number.POSITIVE_INFINITY;
+  };
+  const regSort = (a, b) => {
+    const ta = regSortTime(a);
+    const tb = regSortTime(b);
+    if (ta !== tb) return ta - tb;
+    return String(a._docId || a.id || "").localeCompare(String(b._docId || b.id || ""));
+  };
+  confirmed.sort(regSort);
+  waitlisted.sort(regSort);
+
+  const participants = confirmed
+    .map((r) =>
+      r.participantType === "companion"
+        ? String(r.companionName || r.userName || "").trim()
+        : String(r.userName || "").trim()
+    )
+    .filter(Boolean);
+
+  const waitlistNames = waitlisted
+    .map((r) =>
+      r.participantType === "companion"
+        ? String(r.companionName || r.userName || "").trim()
+        : String(r.userName || "").trim()
+    )
+    .filter(Boolean);
+
+  const current = participants.length;
+  const waitlist = waitlistNames.length;
+
+  let status = event.status;
+  if (status !== "ended" && status !== "cancelled") {
+    status = current >= (event.max || 0) ? "full" : "open";
+  }
+
+  return { participants, waitlistNames, current, waitlist, status };
+}
+
+// ── 內部用 adjustExp（同進程直接呼叫，不走 onCall） ──
+async function adjustExpInternal({ targetUid, amount, reason, ruleKey, operatorUid }) {
+  if (!targetUid || typeof amount !== "number" || amount === 0) return null;
+
+  const targetUser = await findUserDocByUidOrLineUserId(targetUid);
+  if (!targetUser) return null;
+
+  const userData = targetUser.data || {};
+  const safeReason = String(reason || "").trim().slice(0, 200);
+
+  const now = new Date();
+  const timeStr =
+    `${String(now.getMonth() + 1).padStart(2, "0")}/${String(now.getDate()).padStart(2, "0")} ` +
+    `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+
+  const log = {
+    time: timeStr,
+    uid: userData.uid || userData.lineUserId || targetUser.docId,
+    target: userData.displayName || userData.name || targetUid,
+    amount: (amount > 0 ? "+" : "") + amount,
+    reason: safeReason,
+    operator: "系統",
+    operatorUid: operatorUid || "cloud_function",
+    createdAt: FieldValue.serverTimestamp(),
+  };
+  if (typeof ruleKey === "string" && ruleKey) log.ruleKey = ruleKey;
+
+  const batch = db.batch();
+  // 使用 FieldValue.increment 確保原子性（避免 read-then-write 的競爭條件）
+  batch.update(db.collection("users").doc(targetUser.docId), {
+    exp: FieldValue.increment(amount),
+    updatedAt: FieldValue.serverTimestamp(),
+  });
+  batch.create(db.collection("expLogs").doc(), log);
+  await batch.commit();
+
+  return { targetUid, amount };
+}
+
+// ── 寫入 auditLog 的內部 helper ──
+async function writeAuditEntryInternal({ action, targetType, targetId, targetLabel, result, source, meta, actorUid, actorName }) {
+  try {
+    const payload = buildAuditEntryPayload({
+      action: normalizeAuditEnum(action, ALLOWED_AUDIT_ACTIONS) || "unknown",
+      targetType: normalizeAuditEnum(targetType, ALLOWED_AUDIT_TARGET_TYPES) || "system",
+      targetId: normalizeAuditText(targetId || ""),
+      targetLabel: normalizeAuditText(targetLabel || ""),
+      result: normalizeAuditEnum(result, ALLOWED_AUDIT_RESULTS) || "success",
+      source: "cloud_function",
+      meta: sanitizeAuditMeta(meta || {}),
+      actorId: actorUid || "system",
+      actorName: actorName || "系統",
+      actorRole: "system",
+    });
+    await writeAuditEntry(payload);
+  } catch (err) {
+    console.error("[writeAuditEntryInternal]", err);
+  }
+}
+
+// ── 寫入 inbox 通知的內部 helper ──
+async function writeInboxNotification({ recipientUid, title, body, category, categoryLabel }) {
+  try {
+    await db.collection("messages").add({
+      recipientUid,
+      title: String(title || "").slice(0, 200),
+      body: String(body || "").slice(0, 2000),
+      category: category || "activity",
+      categoryLabel: categoryLabel || "活動",
+      senderName: "系統",
+      read: false,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+  } catch (err) {
+    console.error("[writeInboxNotification]", err);
+  }
+}
+
+// ── 驗證呼叫者是否為活動管理者 ──
+async function canManageEvent(eventData, callerUid) {
+  if (!eventData || !callerUid) return false;
+  // 活動建立者
+  if (eventData.creatorUid === callerUid) return true;
+  // 委託人
+  if (Array.isArray(eventData.delegates) && eventData.delegates.some((d) => d.uid === callerUid)) return true;
+  // 管理員角色
+  const role = await getUserRoleFromFirestore(callerUid);
+  const level = ROLE_LEVELS[role] || 0;
+  return level >= ROLE_LEVELS.admin;
+}
+
+// ── sanitize 字串 helper ──
+function sanitizeStr(val, maxLen) {
+  if (typeof val !== "string") return "";
+  return val.trim().slice(0, maxLen || 50);
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  registerForEvent — 報名 callable（含同行者）
+// ═══════════════════════════════════════════════════════════════
+exports.registerForEvent = onCall(
+  { region: "asia-east1", timeoutSeconds: 30, memory: "512MiB" },
+  async (request) => {
+    // ── 身份驗證 ──
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Authentication required");
+    }
+    const callerUid = request.auth.uid;
+
+    const { eventId, participants, requestId } = request.data || {};
+
+    // ── 參數驗證 ──
+    if (typeof eventId !== "string" || !eventId.trim()) {
+      throw new HttpsError("invalid-argument", "eventId is required");
+    }
+    if (!Array.isArray(participants) || participants.length === 0 || participants.length > 10) {
+      throw new HttpsError("invalid-argument", "participants must be an array (1-10)");
+    }
+
+    // ── 冪等性保護 ──
+    const safeRequestId = typeof requestId === "string" && requestId.length > 0
+      ? requestId.slice(0, 100)
+      : `${callerUid}_${eventId}_${Date.now()}`;
+    const dedupRef = db.collection("_regDedupe").doc(safeRequestId);
+    try {
+      // expiresAt 供 Firestore TTL Policy 自動清理（設定 TTL 於 _regDedupe 集合的 expiresAt 欄位）
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 分鐘後過期
+      await dedupRef.create({
+        callerUid,
+        createdAt: FieldValue.serverTimestamp(),
+        expiresAt: admin.firestore.Timestamp.fromDate(expiresAt),
+      });
+    } catch (e) {
+      if (e.code === 6 || e.code === "already-exists") {
+        return { success: true, deduplicated: true };
+      }
+      // 非 already-exists 錯誤：記錄但不中斷流程（dedupe 為保護性機制，非必要條件）
+      console.warn("[registerForEvent] dedupe create failed:", e.message);
+    }
+
+    // ── 強制 participants[0].userId === callerUid ──
+    const firstParticipant = participants[0];
+    if (!firstParticipant || firstParticipant.userId !== callerUid) {
+      throw new HttpsError("permission-denied", "First participant must be the caller");
+    }
+
+    // ── sanitize 所有參與者 ──
+    const sanitizedParticipants = participants.map((p, idx) => ({
+      userId: sanitizeStr(p.userId, 100),
+      userName: sanitizeStr(p.userName, 50),
+      participantType: idx === 0 && !p.companionId ? "self" : "companion",
+      companionId: p.companionId ? sanitizeStr(p.companionId, 100) : null,
+      companionName: p.companionName ? sanitizeStr(p.companionName, 50) : null,
+    }));
+
+    // ── 預先查詢呼叫者資料（在 Transaction 外，避免 Transaction 內做非交易讀取）──
+    const callerUserDoc = await findUserDocByUidOrLineUserId(callerUid);
+
+    // ── Firestore Transaction ──
+    const regDocRefs = sanitizedParticipants.map(() => db.collection("registrations").doc());
+
+    const result = await db.runTransaction(async (transaction) => {
+      // T1: 讀取活動
+      const eventRef = db.collection("events").doc(eventId);
+      const eventDoc = await transaction.get(eventRef);
+      if (!eventDoc.exists) {
+        throw new HttpsError("not-found", "EVENT_NOT_FOUND");
+      }
+      const ed = eventDoc.data();
+      const maxCount = ed.max || 0;
+
+      // T2: 驗證活動狀態
+      if (ed.status === "ended") throw new HttpsError("failed-precondition", "EVENT_ENDED");
+      if (ed.status === "cancelled") throw new HttpsError("failed-precondition", "EVENT_CANCELLED");
+      if (ed.status === "upcoming") throw new HttpsError("failed-precondition", "REG_NOT_OPEN");
+
+      // 檢查活動開始時間
+      if (ed.date) {
+        const startDate = parseEventStartDateInTaipei(ed.date);
+        if (startDate && startDate <= new Date()) {
+          throw new HttpsError("failed-precondition", "EVENT_ENDED");
+        }
+      }
+
+      // 報名開放時間檢查
+      if (ed.regOpenTime) {
+        const regOpen = new Date(ed.regOpenTime);
+        if (!isNaN(regOpen.getTime()) && regOpen > new Date()) {
+          throw new HttpsError("failed-precondition", "REG_NOT_OPEN");
+        }
+      }
+
+      // T2: 查詢所有報名（在 Transaction 內查詢，確保一致性）
+      const allRegsSnap = await transaction.get(
+        db.collection("registrations").where("eventId", "==", eventId)
+      );
+      const allEventRegs = allRegsSnap.docs.map((d) => {
+        const data = d.data();
+        return {
+          ...data,
+          _docId: d.id,
+          registeredAt: data.registeredAt?.toDate?.()?.toISOString?.() || data.registeredAt,
+        };
+      });
+
+      // T3: 重複報名檢查
+      const hasActive = allEventRegs.some(
+        (r) =>
+          r.userId === callerUid &&
+          (r.status === "confirmed" || r.status === "waitlisted") &&
+          r.participantType !== "companion"
+      );
+      if (hasActive) {
+        throw new HttpsError("already-exists", "ALREADY_REGISTERED");
+      }
+
+      // T3: 性別限制檢查（使用 Transaction 前預查的 callerUserDoc，避免 Transaction 內非交易讀取）
+      if (ed.genderRestrictionEnabled && ed.allowedGender) {
+        const callerGender = callerUserDoc?.data?.gender;
+        if (callerGender && ed.allowedGender !== "all") {
+          const normalizedGender = callerGender === "男" || callerGender === "male" ? "male" : callerGender === "女" || callerGender === "female" ? "female" : "";
+          if (normalizedGender && normalizedGender !== ed.allowedGender) {
+            throw new HttpsError("failed-precondition", "GENDER_RESTRICTED");
+          }
+        }
+      }
+
+      // T3: 俱樂部限制檢查（使用預查的 callerUserDoc）
+      if (ed.teamOnly && ed.creatorTeamIds && ed.creatorTeamIds.length > 0) {
+        const callerTeamIds = getUserTeamIds(callerUserDoc?.data);
+        const isMember = ed.creatorTeamIds.some((tid) => callerTeamIds.includes(tid));
+        if (!isMember) {
+          throw new HttpsError("failed-precondition", "TEAM_RESTRICTED");
+        }
+      }
+
+      // T4-T5: 判定 confirmed/waitlisted 並寫入
+      const firestoreActiveRegs = allEventRegs.filter(
+        (r) => r.status !== "cancelled" && r.status !== "removed"
+      );
+      let confirmedCount = firestoreActiveRegs.filter((r) => r.status === "confirmed").length;
+
+      const registrations = [];
+      let newConfirmed = 0;
+      let newWaitlisted = 0;
+      const nowTimestamp = admin.firestore.Timestamp.now();
+      const nowISOString = nowTimestamp.toDate().toISOString();
+
+      for (let idx = 0; idx < sanitizedParticipants.length; idx++) {
+        const p = sanitizedParticipants[idx];
+
+        // 同行者重複檢查
+        if (p.companionId) {
+          const dupKey = `${p.userId}_${p.companionId}`;
+          const existing = allEventRegs.find((r) => {
+            if (r.status === "cancelled" || r.status === "removed") return false;
+            const rKey = r.companionId ? `${r.userId}_${r.companionId}` : r.userId;
+            return rKey === dupKey;
+          });
+          if (existing) continue;
+        }
+
+        const isWaitlist = confirmedCount >= maxCount;
+        const status = isWaitlist ? "waitlisted" : "confirmed";
+
+        const reg = {
+          id: "reg_" + Date.now() + "_" + Math.random().toString(36).slice(2, 5),
+          eventId,
+          userId: p.userId,
+          userName: p.userName,
+          participantType: p.participantType,
+          companionId: p.companionId || null,
+          companionName: p.companionName || null,
+          status,
+          promotionOrder: idx,
+          registeredAt: nowTimestamp,
+        };
+
+        transaction.set(regDocRefs[idx], reg);
+        // 儲存帶有統一時間源的副本供 rebuildOccupancy 使用
+        registrations.push({ ...reg, _docId: regDocRefs[idx].id, registeredAt: nowISOString });
+
+        if (status === "confirmed") {
+          newConfirmed++;
+          confirmedCount++;
+        } else {
+          newWaitlisted++;
+        }
+      }
+
+      // T6: 寫入 activityRecord（僅 self，不含 companion）
+      const selfReg = registrations.find((r) => r.participantType === "self");
+      let activityRecordDocId = null;
+      if (selfReg) {
+        const dateParts = (ed.date || "").split(" ")[0].split("/");
+        const dateStr = dateParts.length >= 3 ? `${dateParts[1]}/${dateParts[2]}` : "";
+        const arRef = db.collection("activityRecords").doc();
+        transaction.set(arRef, {
+          eventId,
+          name: ed.title || "",
+          date: dateStr,
+          status: selfReg.status === "waitlisted" ? "waitlisted" : "registered",
+          uid: callerUid,
+          eventType: ed.type || "",
+          createdAt: FieldValue.serverTimestamp(),
+        });
+        activityRecordDocId = arRef.id;
+      }
+
+      // T7: 更新 event occupancy
+      const allRegsForRebuild = [...firestoreActiveRegs, ...registrations];
+      const occupancy = rebuildOccupancy({ max: maxCount, status: ed.status }, allRegsForRebuild);
+
+      transaction.update(eventRef, {
+        current: occupancy.current,
+        waitlist: occupancy.waitlist,
+        participants: occupancy.participants,
+        waitlistNames: occupancy.waitlistNames,
+        status: occupancy.status,
+      });
+
+      return {
+        registrations: registrations.map((r) => ({
+          id: r.id,
+          docId: r._docId,
+          status: r.status,
+          userId: r.userId,
+          participantType: r.participantType,
+        })),
+        event: occupancy,
+        confirmed: newConfirmed,
+        waitlisted: newWaitlisted,
+        activityRecordDocId,
+        eventData: { title: ed.title || "", date: ed.date || "", location: ed.location || "", type: ed.type || "" },
+      };
+    });
+
+    // ── Transaction 成功：後置操作（fire-and-forget） ──
+    const postOps = [];
+
+    // P1: auditLog
+    postOps.push(
+      writeAuditEntryInternal({
+        action: "event_signup",
+        targetType: "event",
+        targetId: eventId,
+        targetLabel: result.eventData.title,
+        result: "success",
+        source: "cloud_function",
+        meta: { eventId, statusTo: result.registrations[0]?.status || "confirmed" },
+        actorUid: callerUid,
+      })
+    );
+
+    // P2: 通知
+    const selfReg = result.registrations.find((r) => r.participantType === "self");
+    if (selfReg) {
+      const statusLabel = selfReg.status === "waitlisted" ? "候補" : "正取";
+      postOps.push(
+        writeInboxNotification({
+          recipientUid: callerUid,
+          title: "報名成功通知",
+          body:
+            `報名結果：${statusLabel}\n\n` +
+            `活動名稱：${result.eventData.title}\n` +
+            `活動時間：${result.eventData.date}\n` +
+            `活動地點：${result.eventData.location}`,
+          category: "activity",
+          categoryLabel: "活動",
+        })
+      );
+    }
+
+    // P3: adjustExp（僅 confirmed 才加分）
+    if (selfReg && selfReg.status === "confirmed") {
+      postOps.push(
+        adjustExpInternal({
+          targetUid: callerUid,
+          amount: 10,
+          reason: `報名活動：${result.eventData.title}`,
+          ruleKey: "register_activity",
+          operatorUid: callerUid,
+        })
+      );
+    }
+
+    // 非同步執行所有後置操作
+    Promise.allSettled(postOps).catch((err) => console.error("[registerForEvent postOps]", err));
+
+    return {
+      success: true,
+      registrations: result.registrations,
+      event: result.event,
+      confirmed: result.confirmed,
+      waitlisted: result.waitlisted,
+    };
+  }
+);
+
+// ═══════════════════════════════════════════════════════════════
+//  cancelRegistration — 取消/移除/候補調整 callable
+// ═══════════════════════════════════════════════════════════════
+exports.cancelRegistration = onCall(
+  { region: "asia-east1", timeoutSeconds: 30, memory: "512MiB" },
+  async (request) => {
+    // ── 身份驗證 ──
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Authentication required");
+    }
+    const callerUid = request.auth.uid;
+
+    const { eventId, registrationIds, reason, requestId } = request.data || {};
+
+    // ── 參數驗證 ──
+    if (typeof eventId !== "string" || !eventId.trim()) {
+      throw new HttpsError("invalid-argument", "eventId is required");
+    }
+    if (!Array.isArray(registrationIds) || registrationIds.length === 0 || registrationIds.length > 20) {
+      throw new HttpsError("invalid-argument", "registrationIds must be an array (1-20)");
+    }
+    const validReasons = ["user_cancel", "manager_remove", "capacity_change"];
+    const cancelReason = validReasons.includes(reason) ? reason : "user_cancel";
+
+    // ── 冪等性保護 ──
+    const safeRequestId = typeof requestId === "string" && requestId.length > 0
+      ? requestId.slice(0, 100)
+      : `cancel_${callerUid}_${eventId}_${Date.now()}`;
+    const dedupRef = db.collection("_regDedupe").doc(safeRequestId);
+    try {
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+      await dedupRef.create({
+        callerUid,
+        createdAt: FieldValue.serverTimestamp(),
+        expiresAt: admin.firestore.Timestamp.fromDate(expiresAt),
+      });
+    } catch (e) {
+      if (e.code === 6 || e.code === "already-exists") {
+        return { success: true, deduplicated: true };
+      }
+      console.warn("[cancelRegistration] dedupe create failed:", e.message);
+    }
+
+    // ── 預先查詢呼叫者角色（在 Transaction 外，避免 Transaction 內非交易讀取）──
+    let callerRole = null;
+    if (cancelReason !== "user_cancel") {
+      callerRole = await getUserRoleFromFirestore(callerUid);
+    }
+
+    // ── Firestore Transaction ──
+    const result = await db.runTransaction(async (transaction) => {
+      // T1: 讀取活動
+      const eventRef = db.collection("events").doc(eventId);
+      const eventDoc = await transaction.get(eventRef);
+      if (!eventDoc.exists) {
+        throw new HttpsError("not-found", "EVENT_NOT_FOUND");
+      }
+      const ed = eventDoc.data();
+
+      // T2: 查詢所有報名（在 Transaction 內查詢，確保一致性）
+      const allRegsSnap = await transaction.get(
+        db.collection("registrations").where("eventId", "==", eventId)
+      );
+      const allEventRegs = allRegsSnap.docs.map((d) => {
+        const data = d.data();
+        return {
+          ...data,
+          _docId: d.id,
+          registeredAt: data.registeredAt?.toDate?.()?.toISOString?.() || data.registeredAt,
+        };
+      });
+
+      // T3: 驗證 registrationIds 存在且可取消
+      const targetRegs = [];
+      const idSet = new Set(registrationIds);
+      for (const reg of allEventRegs) {
+        if (idSet.has(reg.id) || idSet.has(reg._docId)) {
+          if (reg.status === "cancelled" || reg.status === "removed") {
+            throw new HttpsError("failed-precondition", "ALREADY_CANCELLED");
+          }
+          targetRegs.push(reg);
+        }
+      }
+      if (targetRegs.length === 0) {
+        throw new HttpsError("not-found", "REG_NOT_FOUND");
+      }
+
+      // 權限檢查：user_cancel 只能取消自己的；manager_remove / capacity_change 需管理者權限
+      if (cancelReason === "user_cancel") {
+        const unauthorized = targetRegs.find((r) => r.userId !== callerUid);
+        if (unauthorized) {
+          throw new HttpsError("permission-denied", "PERMISSION_DENIED");
+        }
+      } else {
+        // 使用 Transaction 前預查的 callerRole，避免 Transaction 內非交易讀取
+        const isCreator = ed.creatorUid === callerUid;
+        const isDelegate = Array.isArray(ed.delegates) && ed.delegates.some((d) => d.uid === callerUid);
+        const isAdmin = callerRole && (ROLE_LEVELS[callerRole] || 0) >= ROLE_LEVELS.admin;
+        if (!isCreator && !isDelegate && !isAdmin) {
+          throw new HttpsError("permission-denied", "PERMISSION_DENIED");
+        }
+      }
+
+      // T4: 標記取消/移除
+      const newStatus = cancelReason === "manager_remove" ? "removed" : "cancelled";
+      const hadConfirmed = targetRegs.some((r) => r.status === "confirmed");
+
+      // 在副本上操作
+      const simRegs = allEventRegs.map((r) => ({ ...r }));
+      const cancelledDocIds = new Set(targetRegs.map((r) => r._docId));
+      for (const simReg of simRegs) {
+        if (cancelledDocIds.has(simReg._docId)) {
+          simReg.status = newStatus;
+        }
+      }
+
+      // 寫入 Firestore
+      for (const reg of targetRegs) {
+        transaction.update(db.collection("registrations").doc(reg._docId), {
+          status: newStatus,
+          [`${newStatus}At`]: FieldValue.serverTimestamp(),
+        });
+      }
+
+      // T5: 候補遞補
+      const promotedCandidates = [];
+      if (hadConfirmed) {
+        const activeRegs = simRegs.filter(
+          (r) => r.status === "confirmed" || r.status === "waitlisted"
+        );
+        const confirmedCount = activeRegs.filter((r) => r.status === "confirmed").length;
+        const maxCount = ed.max || 0;
+        let slotsAvailable = maxCount - confirmedCount;
+
+        if (slotsAvailable > 0) {
+          const waitlistedCandidates = activeRegs
+            .filter((r) => r.status === "waitlisted")
+            .sort((a, b) => {
+              const ta = new Date(a.registeredAt).getTime();
+              const tb = new Date(b.registeredAt).getTime();
+              if (ta !== tb) return ta - tb;
+              return (a.promotionOrder || 0) - (b.promotionOrder || 0);
+            });
+
+          for (const candidate of waitlistedCandidates) {
+            if (slotsAvailable <= 0) break;
+            candidate.status = "confirmed";
+            promotedCandidates.push(candidate);
+            transaction.update(db.collection("registrations").doc(candidate._docId), {
+              status: "confirmed",
+              promotedAt: FieldValue.serverTimestamp(),
+            });
+            slotsAvailable--;
+          }
+        }
+      }
+
+      // T6: 更新 activityRecords（在 Transaction 內查詢，確保一致性）
+      // 取消者的 activityRecord → cancelled/removed
+      const arSnap = await transaction.get(
+        db.collection("activityRecords").where("eventId", "==", eventId)
+      );
+      const allArs = arSnap.docs.map((d) => ({ ...d.data(), _docId: d.id }));
+
+      for (const reg of targetRegs) {
+        if (reg.participantType === "companion") continue;
+        const ar = allArs.find((a) => a.uid === reg.userId && a.status !== "cancelled" && a.status !== "removed");
+        if (ar) {
+          transaction.update(db.collection("activityRecords").doc(ar._docId), { status: newStatus });
+        }
+      }
+
+      // 升補者的 activityRecord → registered
+      for (const candidate of promotedCandidates) {
+        if (candidate.participantType === "companion") continue;
+        const ar = allArs.find((a) => a.uid === candidate.userId && a.status === "waitlisted");
+        if (ar) {
+          transaction.update(db.collection("activityRecords").doc(ar._docId), { status: "registered" });
+        }
+      }
+
+      // T7: 重建 event occupancy
+      const allActive = simRegs.filter(
+        (r) => r.status === "confirmed" || r.status === "waitlisted"
+      );
+      const occupancy = rebuildOccupancy({ max: ed.max || 0, status: ed.status }, allActive);
+
+      transaction.update(eventRef, {
+        current: occupancy.current,
+        waitlist: occupancy.waitlist,
+        participants: occupancy.participants,
+        waitlistNames: occupancy.waitlistNames,
+        status: occupancy.status,
+      });
+
+      return {
+        cancelled: targetRegs.map((r) => ({ id: r.id, docId: r._docId, userId: r.userId })),
+        promoted: promotedCandidates.map((r) => ({ id: r.id, docId: r._docId, userId: r.userId, userName: r.userName })),
+        event: occupancy,
+        eventData: { title: ed.title || "", date: ed.date || "", location: ed.location || "", type: ed.type || "" },
+      };
+    });
+
+    // ── Transaction 成功：後置操作（fire-and-forget） ──
+    const postOps = [];
+
+    // P1: 通知取消者
+    for (const reg of result.cancelled) {
+      postOps.push(
+        writeInboxNotification({
+          recipientUid: reg.userId,
+          title: cancelReason === "manager_remove" ? "報名已被管理員移除" : "取消報名通知",
+          body:
+            `活動名稱：${result.eventData.title}\n` +
+            `活動時間：${result.eventData.date}\n` +
+            `活動地點：${result.eventData.location}`,
+          category: "activity",
+          categoryLabel: "活動",
+        })
+      );
+    }
+
+    // P2: 通知升補者
+    for (const candidate of result.promoted) {
+      postOps.push(
+        writeInboxNotification({
+          recipientUid: candidate.userId,
+          title: "候補遞補通知",
+          body:
+            `恭喜！您已從候補升為正取：\n\n` +
+            `活動名稱：${result.eventData.title}\n` +
+            `活動時間：${result.eventData.date}\n` +
+            `活動地點：${result.eventData.location}`,
+          category: "activity",
+          categoryLabel: "活動",
+        })
+      );
+      // 升補者補發 EXP
+      postOps.push(
+        adjustExpInternal({
+          targetUid: candidate.userId,
+          amount: 10,
+          reason: `候補遞補報名：${result.eventData.title}`,
+          ruleKey: "register_activity",
+          operatorUid: callerUid,
+        })
+      );
+    }
+
+    // P3: 取消者扣 EXP（僅 user_cancel）
+    if (cancelReason === "user_cancel") {
+      for (const reg of result.cancelled) {
+        postOps.push(
+          adjustExpInternal({
+            targetUid: reg.userId,
+            amount: -5,
+            reason: `取消報名：${result.eventData.title}`,
+            ruleKey: "cancel_registration",
+            operatorUid: callerUid,
+          })
+        );
+      }
+    }
+
+    // P4: auditLog
+    postOps.push(
+      writeAuditEntryInternal({
+        action: "event_cancel_signup",
+        targetType: "event",
+        targetId: eventId,
+        targetLabel: result.eventData.title,
+        result: "success",
+        source: "cloud_function",
+        meta: { eventId, reason: cancelReason, cancelledCount: result.cancelled.length, promotedCount: result.promoted.length },
+        actorUid: callerUid,
+      })
+    );
+
+    Promise.allSettled(postOps).catch((err) => console.error("[cancelRegistration postOps]", err));
+
+    return {
+      success: true,
+      cancelled: result.cancelled,
+      promoted: result.promoted,
+      event: result.event,
+    };
+  }
+);
