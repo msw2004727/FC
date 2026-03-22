@@ -143,6 +143,8 @@ Object.assign(App, {
 
   applyRole(role, silent) {
     this.currentRole = role;
+    // Firestore user doc 已載入 → 同步隱身狀態到 localStorage
+    if (typeof this._syncStealthFromUser === 'function') this._syncStealthFromUser();
     const roleInfo = this._getEffectiveRoleInfo(role);
 
     // Demo 模式同步 currentUser.role，讓個人資料頁膠囊正確顯示

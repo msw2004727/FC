@@ -1219,5 +1219,11 @@
 - **修復**：(A) `app.js` — 將 QR toast 移入 `if (!this.showUidQrCode)` 內；(B) `navigation.js` — 移除賽事封鎖，加入 `ScriptLoader.isPageReady()` 判斷，未就緒時 toast「載入中…」；(C) `script-loader.js` — 新增 `isPageReady(pageId)` 同步方法
 - **教訓**：Toast 提示應以實際狀態為依據，不可無條件顯示；封鎖功能入口應使用 config flag 而非硬編碼 return
 
+### 2026-03-22 — 總管隱身模式改存 Firestore 持久化
+- **問題**：隱身狀態存 localStorage，LINE WebView 重啟 / App 更新 / iOS ITP 會清除，導致隱身經常失效
+- **原因**：localStorage 在 LINE in-app browser 中不可靠，非持久儲存
+- **修復**：`_isAdminStealth()` 改為優先讀 user doc `stealth` 欄位（Firestore），fallback localStorage；`_toggleAdminStealth()` 同時寫 localStorage + `ApiService.updateCurrentUser({ stealth })`；新增 `_syncStealthFromUser()` 在 `applyRole()` 中同步 Firestore → localStorage
+- **教訓**：需要跨 session 持久的用戶偏好不應只存 localStorage，應以 Firestore user doc 為 source of truth，localStorage 僅作啟動快取
+
 *最後濃縮日期：2026-03-15*
 *原始檔案：314 條目 / 2475 行 → 濃縮後約 50 條永久教訓*

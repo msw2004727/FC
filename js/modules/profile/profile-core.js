@@ -9,14 +9,30 @@ Object.assign(App, {
   _pendingFirstLogin: false,
 
   /* ── Admin Stealth Mode ── */
+  /** 讀取隱身狀態：優先從 user doc（Firestore source of truth），fallback localStorage */
   _isAdminStealth() {
+    const user = ApiService.getCurrentUser();
+    if (user && typeof user.stealth !== 'undefined') {
+      return user.stealth === true;
+    }
+    // user doc 尚未載入前 fallback localStorage
     return localStorage.getItem('admin_stealth') === '1';
   },
   _toggleAdminStealth() {
     const cur = this._isAdminStealth();
-    if (cur) localStorage.removeItem('admin_stealth');
-    else localStorage.setItem('admin_stealth', '1');
-    return !cur;
+    const next = !cur;
+    // 同步寫 localStorage（即時快取）+ Firestore（持久化）
+    if (next) localStorage.setItem('admin_stealth', '1');
+    else localStorage.removeItem('admin_stealth');
+    ApiService.updateCurrentUser({ stealth: next });
+    return next;
+  },
+  /** 啟動時從 Firestore user doc 同步隱身狀態到 localStorage */
+  _syncStealthFromUser() {
+    const user = ApiService.getCurrentUser();
+    if (!user || typeof user.stealth === 'undefined') return;
+    if (user.stealth === true) localStorage.setItem('admin_stealth', '1');
+    else localStorage.removeItem('admin_stealth');
   },
   /** 若隱身模式啟用且 name 是自己，回傳 'user'；否則回傳原 role */
   _stealthRole(name, role) {
