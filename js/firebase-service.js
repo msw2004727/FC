@@ -59,6 +59,8 @@ const FirebaseService = {
     currentUser: null,
   },
 
+  _singleDocCache: {},  // { 'collection/docId': { ...data } }
+
   _listeners: [],
   _userListener: null,
   _onUserChanged: null,
@@ -946,7 +948,32 @@ const FirebaseService = {
     }
   },
 
-  /** 載入指定的靜態集合 */
+  /**
+   * 讀取快取中的單一文件
+   * @param {string} collection - 集合名稱
+   * @param {string} docId - 文件 ID
+   * @returns {object|null}
+   */
+  getCachedDoc(collection, docId) {
+    return this._singleDocCache[collection + '/' + docId] || null;
+  },
+
+  /**
+   * 載入單一 Firestore 文件到快取
+   * @param {string} collection
+   * @param {string} docId
+   */
+  async _fetchSingleDoc(collection, docId) {
+    try {
+      const snap = await db.collection(collection).doc(docId).get();
+      if (snap.exists) {
+        this._singleDocCache[collection + '/' + docId] = snap.data();
+      }
+    } catch (err) {
+      console.warn('[FirebaseService] Failed to fetch ' + collection + '/' + docId + ':', err);
+    }
+  },
+
   _roleLevel(role) {
     if (typeof ROLE_LEVEL_MAP === 'undefined') return 0;
     return ROLE_LEVEL_MAP[role] || 0;
@@ -1494,9 +1521,10 @@ const FirebaseService = {
           console.warn('[FirebaseService] Initial events preload failed:', err);
           return [];
         });
-        const bootSnapshots = await Promise.all(
-          this._bootCollections.map(name => this._fetchCollectionSnapshot(name, 200))
-        );
+        const [bootSnapshots] = await Promise.all([
+          Promise.all(this._bootCollections.map(name => this._fetchCollectionSnapshot(name, 200))),
+          this._fetchSingleDoc('siteConfig', 'featureFlags'),
+        ]);
         return [bootSnapshots];
       })();
       const timeoutPromise = new Promise((_, reject) =>
@@ -1570,10 +1598,11 @@ const FirebaseService = {
       try {
         // 重試載入 events
         const eventsLoaded = await this._loadEventsStatic().catch(() => []);
-        // 重試載入 boot collections
-        const bootResults = await Promise.all(
-          this._bootCollections.map(name => this._fetchCollectionSnapshot(name, 200))
-        ).catch(() => []);
+        // 重試載入 boot collections + feature flags
+        const [bootResults] = await Promise.all([
+          Promise.all(this._bootCollections.map(name => this._fetchCollectionSnapshot(name, 200))).catch(() => []),
+          this._fetchSingleDoc('siteConfig', 'featureFlags'),
+        ]);
         this._bootCollections.forEach((name, i) => {
           const result = bootResults[i];
           if (!result || !result.ok) return;
