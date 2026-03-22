@@ -115,7 +115,7 @@ Object.assign(App, {
     // 整表編輯模式（手動簽到）
     const tableEditing = canManage && this._attendanceEditingEventId === eventId;
     const isSubmitting = canManage && this._attendanceSubmittingEventId === eventId;
-    const pendingStateByUid = isSubmitting ? (this._attendancePendingStateByUid || Object.create(null)) : null;
+    const pendingStateByUid = (isSubmitting || this._attendancePendingStateByUid) ? (this._attendancePendingStateByUid || Object.create(null)) : null;
 
     const kickStyle = 'font-size:.7rem;padding:.2rem .4rem;border:1px solid var(--danger);color:var(--danger);background:transparent;border-radius:var(--radius-sm);cursor:pointer;white-space:nowrap'
       + (isSubmitting ? ';opacity:.65;cursor:not-allowed' : '');
@@ -286,7 +286,7 @@ Object.assign(App, {
 
     const tableEditing = canManage && this._unregEditingEventId === eventId;
     const isSubmitting = canManage && this._unregSubmittingEventId === eventId;
-    const pendingStateByUid = isSubmitting ? (this._unregPendingStateByUid || Object.create(null)) : null;
+    const pendingStateByUid = (isSubmitting || this._unregPendingStateByUid) ? (this._unregPendingStateByUid || Object.create(null)) : null;
     const kickStyle = 'font-size:.7rem;padding:.2rem .4rem;border:1px solid var(--danger);color:var(--danger);background:transparent;border-radius:var(--radius-sm);cursor:pointer;white-space:nowrap'
       + (isSubmitting ? ';opacity:.65;cursor:not-allowed' : '');
     const noteInputStyle = 'width:100%;font-size:.72rem;padding:.15rem .3rem;border:1px solid var(--border);border-radius:3px;box-sizing:border-box'

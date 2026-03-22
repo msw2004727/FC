@@ -168,9 +168,14 @@ Object.assign(App, {
       ApiService._writeErrorLog({ fn: '_confirmAllAttendance', eventId, adds: allAdds.length, removes: allRemoves.length }, err);
     } finally {
       this._attendanceSubmittingEventId = null;
-      this._attendancePendingStateByUid = null;
-      this._attendanceEditingEventId = null;
-      this._renderAttendanceTable(eventId, containerId);
+      if (failed) {
+        // 失敗：保留編輯狀態與勾選，讓用戶可直接重試
+        this._renderAttendanceTable(eventId, containerId);
+      } else {
+        this._attendancePendingStateByUid = null;
+        this._attendanceEditingEventId = null;
+        this._renderAttendanceTable(eventId, containerId);
+      }
     }
 
     if (!failed) {
@@ -183,7 +188,7 @@ Object.assign(App, {
     const totalOps = allAdds.length + allRemoves.length;
     ApiService._writeOpLog('manual_attendance', '手動簽到', `活動 ${e.title} 已套用手動簽到（共 ${people.length} 人，${totalOps} 筆操作）${failed ? '，批次寫入失敗' : ''}`);
     this._renderDetailFeeSummary(eventId);
-    this.showToast(failed ? (failMsg || '儲存失敗\n請稍後再試\n若仍異常請聯繫管理員') : '儲存完成');
+    this.showToast(failed ? '儲存失敗，勾選已保留\n請再按一次「完成簽到」重試' : '儲存完成');
 
     // 放鴿子 EXP 對帳：對本活動所有正取報名者進行 no-show reconciliation
     if (!failed && typeof this._reconcileNoShowExp === 'function') {
@@ -278,13 +283,18 @@ Object.assign(App, {
       failMsg = err?.message || '';
     } finally {
       this._unregSubmittingEventId = null;
-      this._unregPendingStateByUid = null;
-      this._unregEditingEventId = null;
-      this._renderUnregTable(eventId, 'detail-unreg-table');
+      if (failed) {
+        // 失敗：保留編輯狀態與勾選，讓用戶可直接重試
+        this._renderUnregTable(eventId, 'detail-unreg-table');
+      } else {
+        this._unregPendingStateByUid = null;
+        this._unregEditingEventId = null;
+        this._renderUnregTable(eventId, 'detail-unreg-table');
+      }
     }
 
     this._renderDetailFeeSummary(eventId);
-    this.showToast(failed ? (failMsg || '儲存失敗\n請稍後再試\n若仍異常請聯繫管理員') : '儲存完成');
+    this.showToast(failed ? '儲存失敗，勾選已保留\n請再按一次「完成簽到」重試' : '儲存完成');
   },
 
 });
