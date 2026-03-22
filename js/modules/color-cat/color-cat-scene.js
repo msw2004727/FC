@@ -13,6 +13,7 @@ var _containerId = null;
 var _isLandscape = false;
 var _forcedPortrait = false;   // 使用者按返回按鈕後鎖定直放，直到實際翻回直放再解除
 var _returnBtn = null;
+var _profileUnlocked = false;  // 密碼解鎖後記住，避免切頁回來被重置
 
 // ── 內部共享狀態（子模組透過 ColorCatScene._ 存取） ──
 var _ = {
@@ -635,6 +636,7 @@ function initStaticScene(containerId) {
     if (Math.abs(cx - _keyX) < 16 && Math.abs(cy - _keyY - 5) < 16) {
       var pw = prompt('請輸入測試密碼');
       if (pw === '8888') {
+        _profileUnlocked = true;
         destroy();
         initInteractiveScene(containerId);
       }
@@ -701,7 +703,13 @@ function destroy() {
 
 if (typeof App !== 'undefined') {
   Object.assign(App, {
-    _initProfileScene: function() { initInteractiveScene('profile-slot-banner'); },
+    _initProfileScene: function() {
+      if (_profileUnlocked) {
+        initInteractiveScene('profile-slot-banner');
+      } else {
+        initStaticScene('profile-slot-banner');
+      }
+    },
     _destroyProfileScene: function() { destroy(); },
   });
 }
