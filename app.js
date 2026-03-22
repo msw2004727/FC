@@ -133,6 +133,57 @@ const App = {
   _pendingAuthActionStorageKey: '_pendingAuthAction',
   _pageSnapshotReady: {},
 
+  _qrPopupLoading: false,
+
+  /** 首頁 QR 按鈕入口：確保 profile script 已載入後再顯示 */
+  async _openQrPopup() {
+    if (this._qrPopupLoading) return;
+    // 快取秒開：script 尚未載入也能即時顯示 QR 彈窗
+    try {
+      const cachedUid = localStorage.getItem('shub_qr_uid');
+      const cachedData = localStorage.getItem('shub_qr_data');
+      if (cachedUid && cachedUid !== 'unknown' && cachedData && cachedData.indexOf('data:image/') === 0) {
+        const modal = document.getElementById('uid-qr-modal');
+        const content = document.getElementById('uid-qr-content');
+        if (modal && content) {
+          const safeUid = escapeHTML(cachedUid);
+          content.innerHTML = '<div style="font-size:.85rem;font-weight:700;margin-bottom:.8rem">\u6211\u7684 UID QR Code</div>'
+            + '<div style="background:#fff;display:inline-block;padding:4px;border-radius:var(--radius)">'
+            + '<img src="' + cachedData + '" width="270" height="270" alt="QR Code" style="display:block">'
+            + '</div>'
+            + '<div style="margin-top:.7rem;font-size:.75rem;color:var(--text-muted);word-break:break-all">' + safeUid + '</div>'
+            + '<button onclick="App._copyUidSafe(\'' + safeUid + '\')" style="margin-top:.6rem;padding:.45rem 1.2rem;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg-elevated);color:var(--text-primary);font-size:.8rem;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:.3rem">'
+            + '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>'
+            + '\u8907\u88FD UID</button>';
+          modal.style.display = 'flex';
+          return;
+        }
+      }
+    } catch (e) { /* localStorage 不可用 */ }
+    // 無快取：載入 profile scripts 後走正常流程
+    this._qrPopupLoading = true;
+    try {
+      if (!this.showUidQrCode) {
+        if (typeof ScriptLoader !== 'undefined' && ScriptLoader.ensureForPage) {
+          await ScriptLoader.ensureForPage('page-qrcode');
+        }
+      }
+      if (this.showUidQrCode) {
+        this.showUidQrCode();
+      }
+    } finally {
+      this._qrPopupLoading = false;
+    }
+  },
+
+  /** 複製 UID — profile-card.js 未載入時的安全 fallback */
+  _copyUidSafe(uid) {
+    if (this._copyUidToClipboard) { this._copyUidToClipboard(uid); return; }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(uid).then(() => this.showToast?.('UID 已複製到剪貼簿')).catch(() => {});
+    }
+  },
+
   init() {
     // ── 核心 UI（硬呼叫，失敗代表致命問題）──
     this.bindSportPicker();
