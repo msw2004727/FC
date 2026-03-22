@@ -283,7 +283,7 @@ Object.assign(App, {
     const users = ApiService.getAdminUsers();
     const user = users.find(u => u.name === name);
     if (user && !this._canOpenUserEditor(user)) {
-      this.showToast('甈?銝雲');
+      this.showToast('權限不足');
       return;
     }
     if (!user) { this.showToast('找不到該用戶'); return; }
@@ -340,7 +340,7 @@ Object.assign(App, {
     }
 
     if (Object.keys(updates).length === 0) {
-      this.showToast('甈?銝雲');
+      this.showToast('沒有變更');
       return;
     }
 
