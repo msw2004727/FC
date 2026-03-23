@@ -15,6 +15,103 @@ var LS_KEY = 'colorCatCloudCache';
 var _autoTimer = null, _debounceTimer = null, _destroyed = false;
 var _boundVis = null, _boundUnload = null;
 
+// ── 雙開偵測（localStorage 心跳） ──────────────
+var HB_KEY = 'gg_session_heartbeat';
+var HB_INTERVAL = 2000;   // 每 2 秒寫一次心跳
+var HB_TIMEOUT  = 5000;   // 超過 5 秒未更新視為已離開
+var _hbTimer = null;
+var _sessionId = Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+var _isDuplicate = false;
+var _boundStorage = null;
+
+function _writeHeartbeat() {
+  try {
+    localStorage.setItem(HB_KEY, JSON.stringify({ sid: _sessionId, ts: Date.now() }));
+  } catch (e) { /**/ }
+}
+
+function _checkDuplicate() {
+  try {
+    var raw = localStorage.getItem(HB_KEY);
+    if (!raw) return false;
+    var hb = JSON.parse(raw);
+    // 不同 session 且心跳尚未超時 → 有另一個分頁在跑
+    return hb.sid !== _sessionId && (Date.now() - hb.ts) < HB_TIMEOUT;
+  } catch (e) { return false; }
+}
+
+/** 監聽其他分頁搶佔：新分頁寫入心跳時，舊分頁收到 storage 事件 */
+function _onStorageEvent(e) {
+  if (e.key !== HB_KEY || _isDuplicate) return;
+  try {
+    var hb = JSON.parse(e.newValue);
+    if (hb && hb.sid !== _sessionId) {
+      // 被新分頁搶佔 → 自己變成舊分頁，暫停遊戲
+      _isDuplicate = true;
+      _stopHeartbeat();
+      destroy();
+      if (window.ColorCatScene) ColorCatScene.destroy();
+      _showDuplicateOverlay();
+    }
+  } catch (ex) { /**/ }
+}
+
+function _startHeartbeat() {
+  _writeHeartbeat();
+  _hbTimer = setInterval(_writeHeartbeat, HB_INTERVAL);
+  _boundStorage = _onStorageEvent;
+  window.addEventListener('storage', _boundStorage);
+}
+
+function _stopHeartbeat() {
+  if (_hbTimer) { clearInterval(_hbTimer); _hbTimer = null; }
+  if (_boundStorage) { window.removeEventListener('storage', _boundStorage); _boundStorage = null; }
+}
+
+function _clearHeartbeat() {
+  _stopHeartbeat();
+  try {
+    var raw = localStorage.getItem(HB_KEY);
+    if (raw) {
+      var hb = JSON.parse(raw);
+      if (hb.sid === _sessionId) localStorage.removeItem(HB_KEY);
+    }
+  } catch (e) { /**/ }
+}
+
+function _showDuplicateOverlay() {
+  if (document.getElementById('gg-dup-overlay')) return;
+  var ov = document.createElement('div');
+  ov.id = 'gg-dup-overlay';
+  var dark = document.documentElement.getAttribute('data-theme') === 'dark';
+  ov.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;z-index:10002;'
+    + 'display:flex;align-items:center;justify-content:center;'
+    + 'background:' + (dark ? 'rgba(0,0,0,0.85)' : 'rgba(0,0,0,0.6)');
+  var box = document.createElement('div');
+  box.style.cssText = 'background:' + (dark ? '#1e1e2e' : '#fff')
+    + ';color:' + (dark ? '#e0e0e0' : '#222')
+    + ';border-radius:12px;padding:28px 24px;max-width:320px;text-align:center;'
+    + 'font-family:sans-serif;box-shadow:0 4px 20px rgba(0,0,0,0.3)';
+  box.innerHTML = '<div style="font-size:18px;font-weight:bold;margin-bottom:10px">'
+    + '\u904a\u6232\u5df2\u5728\u5176\u4ed6\u5206\u9801\u904b\u884c</div>'
+    + '<div style="font-size:14px;color:#888;margin-bottom:16px">'
+    + '\u8acb\u95dc\u9589\u6b64\u5206\u9801\uff0c\u6216\u9ede\u64ca\u4e0b\u65b9\u6309\u9215\u5728\u6b64\u5206\u9801\u7e7c\u7e8c</div>'
+    + '<button id="gg-dup-takeover" style="padding:10px 24px;border-radius:8px;border:none;'
+    + 'background:#4a7dff;color:#fff;font-size:15px;cursor:pointer">'
+    + '\u5728\u6b64\u5206\u9801\u7e7c\u7e8c</button>';
+  ov.appendChild(box);
+  document.body.appendChild(ov);
+  document.getElementById('gg-dup-takeover').addEventListener('click', function() {
+    ov.parentNode.removeChild(ov);
+    _isDuplicate = false;
+    // 搶回主控權：重新寫心跳 + 重新初始化場景
+    _startHeartbeat();
+    if (window.ColorCatScene) {
+      ColorCatScene.initInteractive('profile-slot-banner');
+    }
+  });
+}
+
 function _uid() {
   try { var u = firebase.auth().currentUser; return u ? u.uid : null; }
   catch (e) { return null; }
@@ -189,19 +286,37 @@ function _onBeforeUnload() {
 }
 
 // ── 初始化 / 銷毀 ────────────────────────────
+
+/**
+ * 初始化雲端存檔 + 雙開偵測
+ * @returns {boolean} true=正常啟動, false=偵測到雙開已阻擋
+ */
 function init() {
   _destroyed = false;
+  _isDuplicate = false;
   console.log(TAG, 'init');
+
+  // 雙開偵測
+  if (_checkDuplicate()) {
+    console.warn(TAG, 'duplicate tab detected');
+    _isDuplicate = true;
+    _showDuplicateOverlay();
+    return false;
+  }
+  _startHeartbeat();
+
   _autoTimer = setInterval(function() { if (_loggedIn()) saveToCloud(); }, AUTO_SAVE_MS);
   _boundVis = _onVisibility;
   _boundUnload = _onBeforeUnload;
   document.addEventListener('visibilitychange', _boundVis);
   window.addEventListener('beforeunload', _boundUnload);
+  return true;
 }
 
 function destroy() {
   _destroyed = true;
   console.log(TAG, 'destroy');
+  _clearHeartbeat();
   clearInterval(_autoTimer); clearTimeout(_debounceTimer);
   _autoTimer = null; _debounceTimer = null;
   if (_boundVis) document.removeEventListener('visibilitychange', _boundVis);
@@ -213,6 +328,7 @@ function destroy() {
 window.ColorCatCloudSave = {
   init: init, loadFromCloud: loadFromCloud, saveToCloud: saveToCloud,
   destroy: destroy, isLoggedIn: _loggedIn, getUid: _uid,
+  isDuplicate: function() { return _isDuplicate; },
 };
 
 })();

@@ -514,9 +514,14 @@ function initInteractiveScene(containerId) {
   var weatherSaved = window.ColorCatStats && ColorCatStats.runtime.weather;
   _.initWeather(weatherSaved || null);
 
-  // 雲端存檔系統初始化
+  // 雲端存檔系統初始化（含雙開偵測）
   if (window.ColorCatCloudSave) {
-    ColorCatCloudSave.init();
+    var canStart = ColorCatCloudSave.init();
+    if (!canStart) {
+      // 雙開偵測觸發，場景不啟動
+      if (_sceneInterval) { clearInterval(_sceneInterval); _sceneInterval = null; }
+      return;
+    }
     ColorCatCloudSave.loadFromCloud().then(function(data) {
       if (!data) return;
       // 還原角色數值
