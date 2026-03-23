@@ -244,6 +244,11 @@ function handlePanelClick(cx, cy, sw) {
             break;
           }
         }
+      } else {
+        // 點擊內容區 → 開啟放大彈窗
+        if (window.ColorCatPanelModal) {
+          ColorCatPanelModal.open(_tab);
+        }
       }
       return true; // 攔截面板內所有點擊
     }
