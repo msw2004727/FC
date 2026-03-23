@@ -187,6 +187,13 @@ function updateJumpOff() {
           return false;
         }
       }
+      if (_.pendingRunAway) {
+        _.pendingRunAway = false;
+        ch.facing = 1;
+        ch.action = 'runAway';
+        ch.spriteFrame = 0; ch.spriteTimer = 0;
+        return false;
+      }
       if (_.pendingUltimate) {
         _.pendingUltimate = false;
         ch.action = 'ultimate'; _.ultAnimTimer = 0;

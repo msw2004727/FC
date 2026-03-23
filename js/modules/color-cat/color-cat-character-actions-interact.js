@@ -203,6 +203,16 @@ function startRunAway(sw) {
   if (ch.action === 'weak' || ch.action === 'knockback' || ch.action === 'dying' || ch.action === 'hurt') return;
   if (_.testMode) _.stopTest();
   _.releaseBall();
+  // 在紙箱上 → 先跳下再跑
+  if (ch.action === 'combo' && _.comboType === 'box' && _.comboStep === 2) {
+    _.pendingRunAway = true;
+    _.comboStep = -1; _.comboType = '';
+    ch.action = 'jumpOff'; ch.facing = 1;
+    ch.vy = _s() ? _s().physics.jumpVy : -3; ch.onGround = false;
+    _.jumpOffPhase = 0;
+    ch.spriteFrame = 0; ch.spriteTimer = 0;
+    return;
+  }
   if (ch.action === 'combo') { if (_.interruptCombo()) return; }
   if (ch.action === 'sleeping') { _.wakeUp(); _.manualSleep = false; }
   ch.facing = 1;

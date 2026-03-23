@@ -10,6 +10,12 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-23 — 紙箱上點路牌角色瞬移修復
+- **問題**：角色站在紙箱上時點擊路牌，角色會瞬間從紙箱高度跳到地面再往外跑
+- **原因**：`startRunAway` 未處理 combo/box 狀態，直接切換 action 為 runAway，導致跳過 jumpOff 落地動畫
+- **修復**：在 `startRunAway` 新增紙箱判斷（`comboStep === 2`），設定 `pendingRunAway` 旗標後先執行 jumpOff；`updateJumpOff` 落地後檢查旗標再接 runAway
+- **教訓**：所有需要角色離開紙箱的動作都要走 jumpOff + pending 模式，不能直接切 action
+
 ### 2026-03-23 — 養成遊戲 Log 查詢功能（管理員用）
 - **功能**：在小遊戲管理頁新增「養成遊戲 Log 查詢」區塊，管理員可模糊搜尋用戶暱稱、查看遊戲存檔（角色、數值、戰績、場景、裝備），並匯出 JSON
 - **資料來源**：Firestore `users/{uid}/gamePublic/profile`（搜尋）+ `users/{uid}/game/save`（詳情）

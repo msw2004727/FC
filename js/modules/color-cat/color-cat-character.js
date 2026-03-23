@@ -33,7 +33,7 @@ var _ = {
   attackGrassRef: null, attackGrassPhase: 0,
   attackButterflyRef: null, attackButterflyPhase: 0,
   pendingAttackFlower: null, pendingAttackButterfly: null, pendingAttackGrass: null,
-  pendingUltimate: false, pendingWeak: false,
+  pendingUltimate: false, pendingWeak: false, pendingRunAway: false,
   ultCharging: false, ultChargeTimer: 0, ultChargeDuration: 45, ultAnimTimer: 0,
   charHp: 100, charMaxHp: 100,
   dyingPhase: 0, dyingTimer: 0, dyingAlpha: 1,
