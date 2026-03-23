@@ -120,19 +120,31 @@ function saveToCloud() {
 // ── 載入 ──────────────────────────────────────
 function _toMs(ts) { return ts && ts.toMillis ? ts.toMillis() : 0; }
 
+function _loadLocal() {
+  try {
+    var raw = localStorage.getItem(LS_KEY);
+    if (!raw) return null;
+    var d = JSON.parse(raw);
+    return (d && typeof d === 'object' && d.version) ? d : null;
+  } catch (e) { return null; }
+}
+
 function loadFromCloud() {
+  // 未登入 → 嘗試 localStorage
   if (!_loggedIn()) {
-    console.log(TAG, 'not logged in, using localStorage');
-    return Promise.resolve(null);
+    console.log(TAG, 'not logged in, trying localStorage');
+    return Promise.resolve(_loadLocal());
   }
   var ref = _ref('game', 'save');
-  if (!ref) return Promise.resolve(null);
+  if (!ref) return Promise.resolve(_loadLocal());
   return ref.get().then(function(snap) {
-    if (!snap.exists) { console.log(TAG, 'no cloud save'); return null; }
+    var local = _loadLocal();
+    if (!snap.exists) {
+      console.log(TAG, 'no cloud save, using localStorage');
+      return local;  // 可能是 null（全新用戶），也可能有上次暫存
+    }
     var cloud = _migrate(snap.data());
     // 衝突解決：比較 savedAt，取較新者
-    var local = null;
-    try { local = JSON.parse(localStorage.getItem(LS_KEY)); } catch (e) { /**/ }
     if (local && local.savedAt && local.savedAt > _toMs(cloud.savedAt)) {
       console.log(TAG, 'local is newer, using local');
       return local;
@@ -145,7 +157,7 @@ function loadFromCloud() {
     return cloud;
   }).catch(function(err) {
     console.warn(TAG, 'load failed:', err);
-    return null;
+    return _loadLocal();  // 網路錯誤時 fallback localStorage
   });
 }
 
@@ -159,14 +171,15 @@ function _migrate(data) {
 
 // ── 事件 ──────────────────────────────────────
 function _onVisibility() {
-  if (document.visibilityState === 'hidden') saveToCloud();
+  if (document.visibilityState === 'hidden') _doSave();  // 切頁立即存，不 debounce
 }
 function _onBeforeUnload() {
-  if (!_loggedIn()) return;
+  // beforeunload 中 async 操作不可靠，優先存 localStorage
   var doc = _buildSaveDoc(false);
   doc.savedAt = Date.now();
   try { localStorage.setItem(LS_KEY, JSON.stringify(doc)); } catch (e) { /**/ }
-  saveToCloud();
+  // 嘗試寫 Firestore（可能來不及完成，但 localStorage 已保底）
+  if (_loggedIn()) _doSave();
 }
 
 // ── 初始化 / 銷毀 ────────────────────────────
