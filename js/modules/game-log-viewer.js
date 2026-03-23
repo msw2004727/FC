@@ -6,153 +6,134 @@
 
 Object.assign(App, {
 
-  _gameLogCache: null,   // { uid, save, profile }
-  _gameLogResults: null,  // 搜尋結果列表
+  _gameLogCache: null,        // { uid, save, profile }
+  _gameLogResults: null,      // 搜尋結果列表
+  _gameLogProfiles: null,     // 預載的所有 gamePublic 資料
+  _gameLogDebounce: null,     // 搜尋 debounce timer
 
   /* ── 渲染主畫面 ── */
-  renderGameLogViewer() {
+  async renderGameLogViewer() {
     const container = document.getElementById('game-log-viewer');
     if (!container) return;
 
     container.innerHTML = `
       <div style="margin-bottom:.8rem">
-        <div style="display:flex;gap:.4rem">
-          <input type="text" id="game-log-search" placeholder="輸入暱稱模糊搜尋..."
-            style="flex:1;padding:.5rem .7rem;border:1px solid var(--border);border-radius:8px;font-size:.85rem;background:var(--card-bg);color:var(--text-primary)">
-          <button class="primary-btn" onclick="App.searchGameLog()" style="white-space:nowrap;padding:.5rem .8rem">搜尋</button>
-        </div>
+        <input type="text" id="game-log-search" placeholder="輸入暱稱即時搜尋..."
+          style="width:100%;padding:.5rem .7rem;border:1px solid var(--border);border-radius:8px;font-size:.85rem;background:var(--card-bg);color:var(--text-primary);box-sizing:border-box">
       </div>
-      <div id="game-log-results" style="font-size:.82rem;color:var(--text-muted)">輸入暱稱後點搜尋</div>
+      <div id="game-log-results" style="font-size:.82rem;color:var(--text-muted)">載入用戶資料中...</div>
       <div id="game-log-detail" style="display:none"></div>
     `;
 
+    // 預載所有有遊戲存檔的用戶資料
+    await this._preloadGameProfiles();
+
     const input = document.getElementById('game-log-search');
     if (input) {
-      input.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') this.searchGameLog();
+      input.addEventListener('input', () => {
+        clearTimeout(this._gameLogDebounce);
+        this._gameLogDebounce = setTimeout(() => this._filterGameLog(), 200);
       });
+    }
+
+    const resultsEl = document.getElementById('game-log-results');
+    if (resultsEl) resultsEl.textContent = '輸入暱稱開始搜尋';
+  },
+
+  /* ── 預載所有 gamePublic profiles ── */
+  async _preloadGameProfiles() {
+    if (this._gameLogProfiles) return;
+    try {
+      const db = firebase.firestore();
+      const allUsers = (typeof FirebaseService !== 'undefined' && FirebaseService._cache)
+        ? (FirebaseService._cache.adminUsers || []) : [];
+      const userMap = new Map();
+      for (const u of allUsers) {
+        const uid = u.uid || u._docId;
+        if (uid) userMap.set(uid, u);
+      }
+
+      // 批次載入所有 gamePublic/profile
+      const uids = Array.from(userMap.keys());
+      const profiles = [];
+      // 每批 10 筆並行查詢
+      for (let i = 0; i < uids.length; i += 10) {
+        const batch = uids.slice(i, i + 10);
+        const results = await Promise.all(batch.map(async (uid) => {
+          try {
+            const snap = await db.collection('users').doc(uid).collection('gamePublic').doc('profile').get();
+            if (!snap.exists) return null;
+            const p = snap.data();
+            const user = userMap.get(uid);
+            return {
+              uid,
+              displayName: (user && (user.displayName || user.name)) || '',
+              customName: p.customName || '',
+              level: p.level || 1,
+              skin: p.skin || 'whiteCat',
+              lastOnline: p.lastOnline || null,
+              equipped: p.equipped || {},
+            };
+          } catch (e) { return null; }
+        }));
+        for (const r of results) { if (r) profiles.push(r); }
+      }
+      this._gameLogProfiles = profiles;
+    } catch (err) {
+      console.error('[GameLog] preload error:', err);
+      this._gameLogProfiles = [];
     }
   },
 
-  /* ── 模糊搜尋用戶（從 adminUsers 快取 + gamePublic） ── */
-  async searchGameLog() {
+  /* ── 即時篩選（本地過濾） ── */
+  _filterGameLog() {
     const input = document.getElementById('game-log-search');
     const resultsEl = document.getElementById('game-log-results');
     const detailEl = document.getElementById('game-log-detail');
     if (!input || !resultsEl) return;
+    if (detailEl) detailEl.style.display = 'none';
 
     const keyword = (input.value || '').trim();
     if (!keyword) {
-      resultsEl.innerHTML = '<div style="color:var(--text-muted)">請輸入暱稱關鍵字</div>';
-      if (detailEl) detailEl.style.display = 'none';
+      this._gameLogResults = null;
+      resultsEl.innerHTML = '<div style="color:var(--text-muted)">輸入暱稱開始搜尋</div>';
       return;
     }
 
-    resultsEl.innerHTML = '<div style="color:var(--text-muted)">搜尋中...</div>';
-    if (detailEl) detailEl.style.display = 'none';
+    const profiles = this._gameLogProfiles || [];
+    const kw = keyword.toLowerCase();
+    const matches = profiles.filter(m => {
+      const dn = (m.displayName || '').toLowerCase();
+      const cn = (m.customName || '').toLowerCase();
+      return dn.includes(kw) || cn.includes(kw);
+    });
 
-    try {
-      const db = firebase.firestore();
-      const kw = keyword.toLowerCase();
+    this._gameLogResults = matches;
 
-      // 從 adminUsers 快取搜尋 displayName
-      const allUsers = (typeof FirebaseService !== 'undefined' && FirebaseService._cache)
-        ? (FirebaseService._cache.adminUsers || [])
-        : [];
-      const nameMatches = allUsers.filter(u => {
-        const dn = (u.displayName || u.name || '').toLowerCase();
-        return dn.includes(kw);
-      });
-
-      // 對每個匹配用戶，嘗試讀取 gamePublic/profile
-      const tasks = nameMatches.map(async (u) => {
-        const uid = u.uid || u._docId;
-        if (!uid) return null;
-        try {
-          const profSnap = await db.collection('users').doc(uid).collection('gamePublic').doc('profile').get();
-          if (!profSnap.exists) return null;
-          const p = profSnap.data();
-          return {
-            uid,
-            displayName: u.displayName || u.name || '',
-            customName: p.customName || '',
-            level: p.level || 1,
-            skin: p.skin || 'whiteCat',
-            lastOnline: p.lastOnline || null,
-            equipped: p.equipped || {},
-          };
-        } catch (e) { return null; }
-      });
-
-      // 也搜尋 customName（遊戲暱稱可能不同於 LINE 名稱）
-      // 取所有用戶 UID，批次查 gamePublic
-      const allUids = allUsers.map(u => u.uid || u._docId).filter(Boolean);
-      const nameMatchUids = new Set(nameMatches.map(u => u.uid || u._docId));
-
-      // 對非 displayName 匹配的用戶，查 customName
-      const otherUids = allUids.filter(id => !nameMatchUids.has(id));
-      // 為避免過多查詢，限制最多查 50 筆（如果用戶很多）
-      const batchUids = otherUids.slice(0, 50);
-      const customTasks = batchUids.map(async (uid) => {
-        try {
-          const profSnap = await db.collection('users').doc(uid).collection('gamePublic').doc('profile').get();
-          if (!profSnap.exists) return null;
-          const p = profSnap.data();
-          const cn = (p.customName || '').toLowerCase();
-          if (!cn.includes(kw)) return null;
-          const user = allUsers.find(u => (u.uid || u._docId) === uid);
-          return {
-            uid,
-            displayName: (user && (user.displayName || user.name)) || '',
-            customName: p.customName || '',
-            level: p.level || 1,
-            skin: p.skin || 'whiteCat',
-            lastOnline: p.lastOnline || null,
-            equipped: p.equipped || {},
-          };
-        } catch (e) { return null; }
-      });
-
-      const results = await Promise.all([...tasks, ...customTasks]);
-      const matches = results.filter(Boolean);
-
-      // 去重（同一 UID 可能從兩邊都匹配到）
-      const seen = new Set();
-      const unique = [];
-      for (const m of matches) {
-        if (!seen.has(m.uid)) { seen.add(m.uid); unique.push(m); }
-      }
-
-      this._gameLogResults = unique;
-
-      if (!unique.length) {
-        resultsEl.innerHTML = `<div style="color:var(--text-muted)">找不到符合「${escapeHTML(keyword)}」的用戶（或該用戶尚無遊戲存檔）</div>`;
-        return;
-      }
-
-      resultsEl.innerHTML = unique.map((m, i) => {
-        const name = escapeHTML(m.customName || m.displayName || '未命名');
-        const sub = m.customName && m.displayName
-          ? `<span style="color:var(--text-muted);font-size:.72rem">（${escapeHTML(m.displayName)}）</span>` : '';
-        const lastOn = m.lastOnline && m.lastOnline.toDate
-          ? m.lastOnline.toDate().toLocaleString('zh-TW') : '-';
-        return `
-          <div class="banner-manage-card" style="cursor:pointer;margin-bottom:.4rem"
-               onclick="App.viewGameLog(${i})">
-            <div style="display:flex;align-items:center;gap:.5rem;width:100%">
-              <div style="flex:1">
-                <div style="font-weight:700;font-size:.85rem">${name} ${sub}</div>
-                <div style="font-size:.72rem;color:var(--text-muted)">Lv.${m.level} · ${escapeHTML(m.skin)} · 最後上線：${lastOn}</div>
-              </div>
-              <span style="color:var(--text-muted);font-size:.8rem">&rarr;</span>
-            </div>
-          </div>
-        `;
-      }).join('');
-    } catch (err) {
-      console.error('[GameLog] search error:', err);
-      resultsEl.innerHTML = `<div style="color:#ef4444">搜尋失敗：${escapeHTML(err.message)}</div>`;
+    if (!matches.length) {
+      resultsEl.innerHTML = `<div style="color:var(--text-muted)">找不到符合「${escapeHTML(keyword)}」的用戶</div>`;
+      return;
     }
+
+    resultsEl.innerHTML = matches.map((m, i) => {
+      const name = escapeHTML(m.customName || m.displayName || '未命名');
+      const sub = m.customName && m.displayName
+        ? `<span style="color:var(--text-muted);font-size:.72rem">（${escapeHTML(m.displayName)}）</span>` : '';
+      const lastOn = m.lastOnline && m.lastOnline.toDate
+        ? m.lastOnline.toDate().toLocaleString('zh-TW') : '-';
+      return `
+        <div class="banner-manage-card" style="cursor:pointer;margin-bottom:.4rem"
+             onclick="App.viewGameLog(${i})">
+          <div style="display:flex;align-items:center;gap:.5rem;width:100%">
+            <div style="flex:1">
+              <div style="font-weight:700;font-size:.85rem">${name} ${sub}</div>
+              <div style="font-size:.72rem;color:var(--text-muted)">Lv.${m.level} · ${escapeHTML(m.skin)} · 最後上線：${lastOn}</div>
+            </div>
+            <span style="color:var(--text-muted);font-size:.8rem">&rarr;</span>
+          </div>
+        </div>
+      `;
+    }).join('');
   },
 
   /* ── 查看單一用戶詳情 ── */
