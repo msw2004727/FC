@@ -27,11 +27,6 @@ var CSS = [
   '[data-theme="dark"] .cc-panel-tab.active{color:#E8D4A8;border-bottom-color:#E8D4A8}',
   // content
   '.cc-panel-body{padding:.8rem;overflow-y:auto;flex:1}',
-  // close
-  '.cc-panel-close{position:absolute;top:8px;right:8px;width:28px;height:28px;border:2px solid #C4A46E;border-radius:50%;background:none;cursor:pointer;font-size:1rem;line-height:1;color:#8B7355;display:flex;align-items:center;justify-content:center;padding:0}',
-  '[data-theme="dark"] .cc-panel-close{border-color:#5A4830;color:#8A7B60}',
-  '.cc-panel-close:hover{background:rgba(0,0,0,.08);border-color:#8B7355;color:#4A3520}',
-  '[data-theme="dark"] .cc-panel-close:hover{background:rgba(255,255,255,.1);border-color:#AA9060;color:#E8D4A8}',
   // 基本資料卡片
   '.cc-panel-card{display:flex;gap:.6rem;margin-bottom:.8rem}',
   '.cc-panel-avatar{width:80px;height:80px;background:rgba(0,0,0,.06);border-radius:8px;overflow:hidden;flex-shrink:0;display:flex;align-items:center;justify-content:center}',
@@ -86,10 +81,8 @@ function _createOverlay() {
         '<div class="cc-panel-tab" data-tab="2">\u88DD\u5099</div>' +
       '</div>' +
       '<div class="cc-panel-body" id="cc-panel-body"></div>' +
-      '<button class="cc-panel-close">\u00D7</button>' +
     '</div>';
   _overlay.querySelector('.cc-panel-backdrop').addEventListener('click', close);
-  _overlay.querySelector('.cc-panel-close').addEventListener('click', close);
   // 頁籤切換
   var tabs = _overlay.querySelectorAll('.cc-panel-tab');
   for (var i = 0; i < tabs.length; i++) {
