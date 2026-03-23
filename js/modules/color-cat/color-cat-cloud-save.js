@@ -132,15 +132,22 @@ function _loadLocal() {
 function loadFromCloud() {
   // 未登入 → 嘗試 localStorage
   if (!_loggedIn()) {
-    console.log(TAG, 'not logged in, trying localStorage');
-    return Promise.resolve(_loadLocal());
+    var localData = _loadLocal();
+    var flCount = localData && localData.scene && localData.scene.flowers ? localData.scene.flowers.length : 0;
+    alert('[CloudSave] 未登入，localStorage ' + (localData ? '有資料(花:' + flCount + ')' : '無資料'));
+    return Promise.resolve(localData);
   }
   var ref = _ref('game', 'save');
-  if (!ref) return Promise.resolve(_loadLocal());
+  if (!ref) {
+    var ld = _loadLocal();
+    alert('[CloudSave] Firestore ref 取不到，localStorage ' + (ld ? '有資料' : '無資料'));
+    return Promise.resolve(ld);
+  }
   return ref.get().then(function(snap) {
     var local = _loadLocal();
     if (!snap.exists) {
-      console.log(TAG, 'no cloud save, using localStorage');
+      var fc = local && local.scene && local.scene.flowers ? local.scene.flowers.length : 0;
+      alert('[CloudSave] Firestore 無資料，localStorage ' + (local ? '有資料(花:' + fc + ')' : '無資料'));
       return local;  // 可能是 null（全新用戶），也可能有上次暫存
     }
     var cloud = _migrate(snap.data());
@@ -175,9 +182,15 @@ function _onVisibility() {
 }
 function _onBeforeUnload() {
   // beforeunload 中 async 操作不可靠，優先存 localStorage
-  var doc = _buildSaveDoc(false);
-  doc.savedAt = Date.now();
-  try { localStorage.setItem(LS_KEY, JSON.stringify(doc)); } catch (e) { /**/ }
+  try {
+    var doc = _buildSaveDoc(false);
+    doc.savedAt = Date.now();
+    var json = JSON.stringify(doc);
+    localStorage.setItem(LS_KEY, json);
+    console.log(TAG, 'beforeunload saved to localStorage, flowers:', (doc.scene && doc.scene.flowers) ? doc.scene.flowers.length : 0);
+  } catch (e) {
+    console.warn(TAG, 'beforeunload save error:', e);
+  }
   // 嘗試寫 Firestore（可能來不及完成，但 localStorage 已保底）
   if (_loggedIn()) _doSave();
 }
