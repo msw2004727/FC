@@ -10,6 +10,13 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-23 — 放置魚缸：雜草系統
+- **功能**：雜草自動生長（與花相同間隔）、3 種草型（blade/sage/tall）、深淺綠色隨機、離線補長、鋤草按鈕（角色跑過底邊清除）、存入雲端存檔
+- **新增檔案**：`color-cat-scene-grass.js`（MAX_GRASS=50, AUTO_GROW_INTERVAL=450）
+- **修改檔案**：`color-cat-scene.js`（草插槽+渲染+更新+除草按鈕替換刷新按鈕+離線補長+存檔還原）、`color-cat-scene-bg.js`（刷新按鈕→鋤草按鈕）、`color-cat-cloud-save.js`（scene.grass 欄位）、`script-loader.js`、`GrowthGames.html`
+- **QA 修復**：除草前檢查角色狀態（禁止 sleeping/dying/combo 等）、場景銷毀時清除 weeding 狀態
+- **教訓**：除草動畫涉及角色狀態切換，必須檢查 forbidden states 避免破壞 action state machine
+
 ### 2026-03-23 — Cloud Functions 冷啟動優化（P0+P1）
 - **問題**：27 個 Cloud Functions 全無 `minInstances`，冷啟動 3-5 秒；`@line/bot-sdk` 全域載入拖慢所有函式
 - **修復**：(1) `createCustomToken` 加 `minInstances: 1`，消除登入冷啟動 (2) `@line/bot-sdk` 改為 lazy-load，僅 `processLinePushQueue` 實際使用時才載入，其餘 26 個函式省 ~0.5-1s

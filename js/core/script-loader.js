@@ -166,6 +166,7 @@ const ScriptLoader = {
       'js/modules/color-cat/color-cat-scene-box.js',
       'js/modules/color-cat/color-cat-scene-flag.js',
       'js/modules/color-cat/color-cat-scene-flower.js',
+      'js/modules/color-cat/color-cat-scene-grass.js',
       'js/modules/color-cat/color-cat-scene-butterfly.js',
       'js/modules/color-cat/color-cat-scene-panel.js',
       'js/modules/color-cat/color-cat-scene-panel-tab0.js',

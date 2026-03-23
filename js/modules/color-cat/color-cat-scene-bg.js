@@ -211,8 +211,8 @@ function drawBackground(ctx, sw, light) {
   if (light) drawSun(ctx, sw - 20, 18);
   else drawMoon(ctx, sw - 20, 18);
 
-  // 重新整理按鈕（左上角）
-  drawRefreshBtn(ctx, light);
+  // 鋤草按鈕（左上角，取代刷新按鈕）
+  if (_.drawWeedBtn) _.drawWeedBtn(ctx, light);
 }
 
 // ── 背景樹叢（三棵，稍微重疊、高低不同） ──

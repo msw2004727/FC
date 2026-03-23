@@ -62,6 +62,17 @@ _.getWeatherType = function() { return 'clear'; };
 // 重新整理按鈕插槽（由 scene-bg.js 填入）
 _.drawRefreshBtn = function() {};
 _.isRefreshBtnClicked = function() { return false; };
+// 雜草系統插槽（由 scene-grass.js 填入）
+_.updateGrass = function() {};
+_.drawGrass = function() {};
+_.drawWeedBtn = function() {};
+_.isWeedBtnClicked = function() { return false; };
+_.exportGrass = function() { return []; };
+_.importGrass = function() {};
+_.startWeeding = function() {};
+_.isWeeding = function() { return false; };
+_.catchUpGrass = function() {};
+_.getGrassCount = function() { return 0; };
 
 // ===== 主迴圈 =====
 
@@ -82,6 +93,7 @@ function render() {
   if (window.ColorCatEnemy) ColorCatEnemy.drawProjectiles(_ctx);
   ColorCatCharacter.draw(_ctx, light);
   if (window.ColorCatDamageNumber) ColorCatDamageNumber.draw(_ctx);
+  _.drawGrass(_ctx, light);
   _.drawFog(_ctx, _sw);
   _.drawPanel(_ctx, _sw, light);
 }
@@ -90,6 +102,7 @@ function update() {
   _.updateFlowers(_sw);
   _.updateGraves();
   _.updateWeather(_sw);
+  _.updateGrass(_sw);
   var light = !C.isThemeDark();
   _.updateSkyEvents(_sw, light);
   // 面板滑動 + 碰撞判定（必須在 getEffectiveWidth / 角色位置夾限之前）
@@ -216,9 +229,9 @@ function handleClick(e) {
   var cx = (e.clientX - rect.left) / sf;
   var cy = (e.clientY - rect.top) / sf;
 
-  // 重新整理按鈕（左上角）
-  if (_.isRefreshBtnClicked && _.isRefreshBtnClicked(cx, cy)) {
-    resetScene();
+  // 鋤草按鈕（左上角，取代刷新按鈕）
+  if (_.isWeedBtnClicked && _.isWeedBtnClicked(cx, cy) && !_.isWeeding()) {
+    _.startWeeding(_sw);
     return;
   }
 
@@ -531,7 +544,13 @@ function initInteractiveScene(containerId) {
         if (data.scene.flowers && _.importFlowers) _.importFlowers(data.scene.flowers);
         if (data.scene.ball && window.ColorCatBall) ColorCatBall.importState(data.scene.ball);
         if (data.scene.graves && _.importGraves) _.importGraves(data.scene.graves);
+        if (data.scene.grass && _.importGrass) _.importGrass(data.scene.grass);
         if (data.scene.weather) _.initWeather(data.scene.weather);
+      }
+      // 離線補長雜草（根據 savedAt 計算離線時間）
+      if (_.catchUpGrass) {
+        var savedMs = data.savedAt && data.savedAt.toMillis ? data.savedAt.toMillis() : (data.savedAt || 0);
+        if (savedMs > 0) _.catchUpGrass(Date.now() - savedMs, _sw);
       }
       // 還原角色皮膚
       if (data.character && data.character.skin && window.ColorCatCharacter) {
@@ -732,6 +751,8 @@ function destroy() {
   if (_sceneInterval) { clearInterval(_sceneInterval); _sceneInterval = null; }
   // 銷毀雲端存檔（觸發最後一次存檔）
   if (window.ColorCatCloudSave) ColorCatCloudSave.destroy();
+  // 清除除草動畫狀態
+  if (_.resetWeeding) _.resetWeeding();
   // 清理返回按鈕
   if (_returnBtn) { _returnBtn.remove(); _returnBtn = null; }
   // 恢復橫放 UI
