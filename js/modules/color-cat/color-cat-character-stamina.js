@@ -21,7 +21,7 @@ function updateStamina() {
     st.current = Math.min(st.max, st.current + st.regenSleep);
   } else if (act === 'weak') {
     st.current = Math.min(st.max, st.current + st.regenWeak);
-  } else if (walking) {
+  } else if (act === 'chase' || act === 'goToBox' || act === 'dash' || act === 'weeding') {
     st.current = Math.min(st.max, st.current + st.regenWalk);
   } else {
     st.current = Math.min(st.max, st.current + st.regenIdle);
