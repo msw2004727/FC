@@ -246,6 +246,7 @@ function handlePanelClick(cx, cy, sw) {
         }
       } else {
         // 點擊內容區 → 開啟放大彈窗
+        alert('panel click: tab=' + _tab + ', modal=' + !!window.ColorCatPanelModal);
         if (window.ColorCatPanelModal) {
           ColorCatPanelModal.open(_tab);
         }
