@@ -64,6 +64,9 @@ Object.assign(App, {
   async renderUsageMetrics(container) {
     if (!container) return;
 
+    // 防止重複渲染
+    if (document.getElementById('usage-metrics-card')) return;
+
     // 僅 super_admin 可見
     if (this.currentRole !== 'super_admin') return;
 
