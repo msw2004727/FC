@@ -132,22 +132,15 @@ function _loadLocal() {
 function loadFromCloud() {
   // 未登入 → 嘗試 localStorage
   if (!_loggedIn()) {
-    var localData = _loadLocal();
-    var flCount = localData && localData.scene && localData.scene.flowers ? localData.scene.flowers.length : 0;
-    alert('[CloudSave] 未登入，localStorage ' + (localData ? '有資料(花:' + flCount + ')' : '無資料'));
-    return Promise.resolve(localData);
+    console.log(TAG, 'not logged in, trying localStorage');
+    return Promise.resolve(_loadLocal());
   }
   var ref = _ref('game', 'save');
-  if (!ref) {
-    var ld = _loadLocal();
-    alert('[CloudSave] Firestore ref 取不到，localStorage ' + (ld ? '有資料' : '無資料'));
-    return Promise.resolve(ld);
-  }
+  if (!ref) return Promise.resolve(_loadLocal());
   return ref.get().then(function(snap) {
     var local = _loadLocal();
     if (!snap.exists) {
-      var fc = local && local.scene && local.scene.flowers ? local.scene.flowers.length : 0;
-      alert('[CloudSave] Firestore 無資料，localStorage ' + (local ? '有資料(花:' + fc + ')' : '無資料'));
+      console.log(TAG, 'no cloud save, using localStorage');
       return local;  // 可能是 null（全新用戶），也可能有上次暫存
     }
     var cloud = _migrate(snap.data());

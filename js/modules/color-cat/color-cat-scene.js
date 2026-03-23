@@ -518,10 +518,7 @@ function initInteractiveScene(containerId) {
   if (window.ColorCatCloudSave) {
     ColorCatCloudSave.init();
     ColorCatCloudSave.loadFromCloud().then(function(data) {
-      if (!data) { alert('[Scene] loadFromCloud 回傳 null，無存檔可還原'); return; }
-      var fCount = data.scene && data.scene.flowers ? data.scene.flowers.length : 0;
-      var ballX = data.scene && data.scene.ball ? data.scene.ball.x : '?';
-      alert('[Scene] 開始還原：花=' + fCount + ', 球x=' + ballX + ', 皮膚=' + (data.character && data.character.skin || '?'));
+      if (!data) return;
       // 還原角色數值
       if (window.ColorCatStats) ColorCatStats.loadFullSave(data);
       // 還原場景物件
@@ -539,8 +536,8 @@ function initInteractiveScene(containerId) {
       if (data.character && data.character.mbti && window.ColorCatProfile) {
         ColorCatProfile.setMBTI(data.character.mbti);
       }
-      console.log('[Scene] cloud save restored');
-    }).catch(function(e) { alert('[Scene] cloud load 錯誤: ' + e.message); });
+      console.log('[Scene] cloud save restored, flowers:', data.scene ? (data.scene.flowers || []).length : 0);
+    }).catch(function(e) { console.warn('[Scene] cloud load error:', e); });
   }
 
   // 30fps 主迴圈
