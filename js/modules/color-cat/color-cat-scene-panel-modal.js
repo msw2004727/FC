@@ -16,7 +16,7 @@ var CSS = [
   '.cc-panel-overlay.open{opacity:1;pointer-events:auto}',
   '.cc-panel-backdrop{position:absolute;inset:0;background:rgba(0,0,0,.35);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}',
   // modal
-  '.cc-panel-modal{position:relative;display:flex;flex-direction:column;background:#F5E6C8;border-radius:16px;padding:0;min-width:260px;max-width:88vw;max-height:80vh;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,.15);font-family:"Noto Sans TC",-apple-system,sans-serif;touch-action:none}',
+  '.cc-panel-modal{position:relative;display:flex;flex-direction:column;background:#F5E6C8;border-radius:16px;padding:0;min-width:260px;max-width:88vw;max-height:80vh;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,.15);font-family:"Noto Sans TC",-apple-system,sans-serif}',
   '[data-theme="dark"] .cc-panel-modal{background:#2E2418;color:#E8D4A8;box-shadow:0 8px 32px rgba(0,0,0,.6)}',
   // tabs
   '.cc-panel-tabs{display:flex;border-bottom:2px solid #C4A46E;padding:0}',
@@ -92,8 +92,12 @@ function _createOverlay() {
       _renderContent();
     });
   }
-  // 阻止觸控穿透
-  _overlay.addEventListener('touchmove', function(e) { e.preventDefault(); e.stopPropagation(); }, { passive: false });
+  // 阻止觸控穿透：backdrop 攔截滑動，modal 內部允許滾動
+  _overlay.addEventListener('touchmove', function(e) {
+    var modal = _overlay.querySelector('.cc-panel-modal');
+    if (modal && modal.contains(e.target)) return;
+    e.preventDefault(); e.stopPropagation();
+  }, { passive: false });
   _overlay.addEventListener('touchstart', function(e) { e.stopPropagation(); }, { passive: true });
   document.body.appendChild(_overlay);
 }
