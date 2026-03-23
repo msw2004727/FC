@@ -10,6 +10,14 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-23 — 雲端用量儀表板（Cloud Monitoring API 整合）
+- **功能**：在管理員儀表板新增雲端用量區塊，顯示 Firestore 讀/寫/刪/儲存 + Cloud Functions 呼叫/延遲
+- **後端**：`functions/index.js` 新增 `fetchUsageMetrics`（每小時 onSchedule）+ `fetchUsageMetricsManual`（super_admin onCall），使用 Google Cloud Monitoring API v3 + `google-auth-library` ADC
+- **前端**：`js/modules/dashboard/dashboard-usage.js` — 用量卡片 grid、免費額度進度條、80% 警示橫幅、7 天趨勢折線圖
+- **Firestore**：新集合 `usageMetrics/{dateKey}`，rules 僅 super_admin 可讀、client 禁寫
+- **前提**：需在 Google Cloud Console 啟用 Monitoring API；Spark 方案可拿用量但拿不到帳單金額
+- **QA 修復**：`const now` TDZ 變數衝突（改用 `storageNow`）、移除模組層 `ModeManager.isDemo()` 直接呼叫、escapeHTML 補齊
+
 ### 2026-03-23 — ColorCat MBTI 16 人格系統
 - **功能**：為角色新增 16 種 MBTI 人格，每個角色出生時隨機指派、永久不變（除非測試刷新按鈕）
 - **行為差異**：E 型活動量高（dash/chase 權重高、talkCd 低＝愛說話）、I 型偏安靜（sleep/watchFlower 高、talkCd 高）、T 型攻擊力高、F 型賞花多、J 型有結構（climbBox 高）、P 型自發（dash/chase 高）

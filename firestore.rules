@@ -1063,6 +1063,15 @@ service cloud.firestore {
     }
 
     // ═══════════════════════════════════════════
+    //  Usage Metrics（雲端用量指標）
+    //  僅 super_admin 可讀；寫入由 Cloud Function 執行（client 禁寫）
+    // ═══════════════════════════════════════════
+    match /usageMetrics/{dateKey} {
+      allow read: if isSuperAdmin();
+      allow write: if false;
+    }
+
+    // ═══════════════════════════════════════════
     //  Catch-all：未列出的集合一律拒絕
     // ═══════════════════════════════════════════
     match /{collection}/{docId} {

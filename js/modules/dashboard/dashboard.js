@@ -103,6 +103,14 @@ Object.assign(App, {
       this._drawDonutChart('dash-chart-type', typeCounts, totalEvents);
       this._drawBarChart('dash-chart-month', monthCounts);
     });
+
+    // ── 雲端用量指標（非同步載入，不阻塞主儀表板） ──
+    if (typeof this.renderUsageMetrics === 'function') {
+      this.renderUsageMetrics(container).catch(err => {
+        console.warn('[dashboard] renderUsageMetrics 失敗:', err);
+      });
+    }
+
     this._markPageSnapshotReady?.('page-admin-dashboard');
   },
 

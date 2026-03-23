@@ -4877,3 +4877,161 @@ exports.cancelRegistration = onCall(
     };
   }
 );
+
+// ═══════════════════════════════════════════════════════════════
+//  Usage Metrics — 雲端用量監控
+//  定時從 Google Cloud Monitoring API 抓取 Firestore / Functions 用量
+//  寫入 usageMetrics/{date} 供前端儀表板顯示
+// ═══════════════════════════════════════════════════════════════
+
+const USAGE_PROJECT_ID = "fc-football-6c8dc";
+
+/**
+ * 透過 Google Cloud Monitoring API v3 查詢指定 metric
+ * 使用 ADC (Application Default Credentials) — Cloud Functions 內建
+ */
+async function queryMonitoringMetric(metricType, hours = 24) {
+  const { GoogleAuth } = require("google-auth-library");
+  const auth = new GoogleAuth({ scopes: ["https://www.googleapis.com/auth/monitoring.read"] });
+  const client = await auth.getClient();
+
+  const now = new Date();
+  const startTime = new Date(now.getTime() - hours * 60 * 60 * 1000);
+
+  const filter = `metric.type="${metricType}" AND resource.labels.project_id="${USAGE_PROJECT_ID}"`;
+  const url = `https://monitoring.googleapis.com/v3/projects/${USAGE_PROJECT_ID}/timeSeries`
+    + `?filter=${encodeURIComponent(filter)}`
+    + `&interval.startTime=${startTime.toISOString()}`
+    + `&interval.endTime=${now.toISOString()}`
+    + `&aggregation.alignmentPeriod=${hours * 3600}s`
+    + `&aggregation.perSeriesAligner=ALIGN_SUM`;
+
+  const res = await client.request({ url, method: "GET" });
+  return res.data;
+}
+
+/** 從 Monitoring API 回應中提取數值總和 */
+function extractMetricSum(data) {
+  if (!data || !data.timeSeries || data.timeSeries.length === 0) return 0;
+  let total = 0;
+  for (const series of data.timeSeries) {
+    for (const point of (series.points || [])) {
+      const v = point.value;
+      total += v.int64Value ? parseInt(v.int64Value) : (v.doubleValue || 0);
+    }
+  }
+  return total;
+}
+
+/** 從 Monitoring API 回應中提取分布值 (distribution) 的 count */
+function extractDistributionCount(data) {
+  if (!data || !data.timeSeries || data.timeSeries.length === 0) return 0;
+  let total = 0;
+  for (const series of data.timeSeries) {
+    for (const point of (series.points || [])) {
+      const v = point.value;
+      if (v.distributionValue) {
+        total += v.distributionValue.count ? parseInt(v.distributionValue.count) : 0;
+      } else {
+        total += v.int64Value ? parseInt(v.int64Value) : (v.doubleValue || 0);
+      }
+    }
+  }
+  return total;
+}
+
+/**
+ * fetchUsageMetrics — 每小時自動抓取用量指標
+ * 也可透過 onCall 手動觸發
+ */
+async function collectUsageMetrics() {
+  const metrics = {};
+  const errors = [];
+
+  // 定義要抓的指標
+  const metricQueries = [
+    { key: "firestoreReads",   metric: "firestore.googleapis.com/document/read_count",   extractor: extractMetricSum },
+    { key: "firestoreWrites",  metric: "firestore.googleapis.com/document/write_count",  extractor: extractMetricSum },
+    { key: "firestoreDeletes", metric: "firestore.googleapis.com/document/delete_count", extractor: extractMetricSum },
+    { key: "functionsInvocations", metric: "cloudfunctions.googleapis.com/function/execution_count", extractor: extractMetricSum },
+    { key: "functionsLatency", metric: "cloudfunctions.googleapis.com/function/execution_times", extractor: extractDistributionCount },
+  ];
+
+  for (const q of metricQueries) {
+    try {
+      const data = await queryMonitoringMetric(q.metric, 24);
+      metrics[q.key] = q.extractor(data);
+    } catch (err) {
+      errors.push(`${q.key}: ${err.message || err}`);
+      metrics[q.key] = null;
+    }
+  }
+
+  // Firestore 儲存量（使用不同的 aligner，不做 SUM 聚合）
+  try {
+    const { GoogleAuth: StorageGAuth } = require("google-auth-library");
+    const storageAuth = new StorageGAuth({ scopes: ["https://www.googleapis.com/auth/monitoring.read"] });
+    const client = await storageAuth.getClient();
+    const storageNow = new Date();
+    const startTime = new Date(storageNow.getTime() - 2 * 60 * 60 * 1000);
+    const filter = `metric.type="firestore.googleapis.com/storage/size" AND resource.labels.project_id="${USAGE_PROJECT_ID}"`;
+    const url = `https://monitoring.googleapis.com/v3/projects/${USAGE_PROJECT_ID}/timeSeries`
+      + `?filter=${encodeURIComponent(filter)}`
+      + `&interval.startTime=${startTime.toISOString()}`
+      + `&interval.endTime=${storageNow.toISOString()}`;
+    const res = await client.request({ url, method: "GET" });
+    if (res.data && res.data.timeSeries && res.data.timeSeries.length > 0) {
+      const points = res.data.timeSeries[0].points || [];
+      if (points.length > 0) {
+        const v = points[0].value;
+        metrics.firestoreStorageBytes = v.int64Value ? parseInt(v.int64Value) : (v.doubleValue || 0);
+      }
+    }
+    if (!metrics.firestoreStorageBytes) metrics.firestoreStorageBytes = null;
+  } catch (err) {
+    errors.push(`firestoreStorage: ${err.message || err}`);
+    metrics.firestoreStorageBytes = null;
+  }
+
+  // 寫入 Firestore
+  const now = new Date(); // eslint-disable-line no-redeclare -- 上方 storageNow 為獨立用途
+  const taipeiOffset = 8 * 60 * 60 * 1000;
+  const taipeiDate = new Date(now.getTime() + taipeiOffset);
+  const dateKey = taipeiDate.toISOString().slice(0, 10).replace(/-/g, "");
+
+  const docData = {
+    ...metrics,
+    collectedAt: FieldValue.serverTimestamp(),
+    dateKey,
+    periodHours: 24,
+    errors: errors.length > 0 ? errors : null,
+  };
+
+  await db.collection("usageMetrics").doc(dateKey).set(docData, { merge: true });
+  console.log(`[fetchUsageMetrics] ${dateKey} written:`, JSON.stringify(metrics));
+  return { dateKey, metrics, errors };
+}
+
+// 定時排程：每小時執行
+exports.fetchUsageMetrics = onSchedule(
+  { schedule: "every 1 hours", region: "asia-east1", timeoutSeconds: 120 },
+  async () => {
+    await collectUsageMetrics();
+  }
+);
+
+// 手動觸發（super_admin only）
+exports.fetchUsageMetricsManual = onCall(
+  { region: "asia-east1", timeoutSeconds: 120 },
+  async (request) => {
+    if (!request.auth) throw new HttpsError("unauthenticated", "未登入");
+    const callerUid = request.auth.uid;
+    const callerDoc = await db.collection("users").doc(callerUid).get();
+    const callerRole = callerDoc.exists ? callerDoc.data().role : "user";
+    if (callerRole !== "super_admin") {
+      throw new HttpsError("permission-denied", "僅限超級管理員");
+    }
+    const result = await collectUsageMetrics();
+    return { success: true, ...result };
+  }
+);

@@ -289,6 +289,7 @@ flowchart TD
 | `dashboard.js` | 管理員後台數據儀表板 |
 | `dashboard-participant-query.js` | 活動參與查詢摘要卡（關鍵字、日期區間、摘要、臨時頁入口） |
 | `dashboard-participant-share.js` | 活動參與查詢臨時報表分享（7 天有效網址與公開快照頁） |
+| `dashboard-usage.js` | 雲端用量指標（Firestore/Functions 用量、免費額度百分比、7 天趨勢圖） |
 | `personal-dashboard.js` | 個人數據儀表板（參加場次、出席率、EXP 統計） |
 
 ### education/ — 教育型俱樂部（15 個模組）
@@ -421,7 +422,7 @@ ScriptLoader（`js/core/script-loader.js`）定義了以下頁面群組，按需
 | `kickball` | `kickball/*` (6) | 踢球遊戲 |
 | `tournamentAdmin` | `event/event-share-*` + `tournament/tournament-manage-*` + `tournament-share` | 賽事管理 |
 | `messageAdmin` | `message/message-admin-*` (3) | 管理員訊息 |
-| `adminDashboard` | `dashboard/*` (4，不含 personal-dashboard) | 管理員儀表板 |
+| `adminDashboard` | `dashboard/*` (5，不含 personal-dashboard) | 管理員儀表板 |
 | `personalDashboard` | `dashboard/dashboard-widgets` + `dashboard/dashboard` + `dashboard/personal-dashboard` | 個人儀表板 |
 | `adminUsers` | `user-admin/*` (4) + `achievement-batch` + `data-sync` | 用戶管理 |
 | `education` | `education/*` (15) | 教育型俱樂部（分組、學員、課程、簽到、行事曆） |
