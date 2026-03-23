@@ -65,15 +65,19 @@ function addGrass(sw) {
   var type = _pickType();
   if (type === 'sage') height = 10 + Math.random() * 10;   // 鼠尾草較高
   if (type === 'tall') height = 14 + Math.random() * 8;    // 高草
+  // seed: 固定隨機值，避免每幀重算導致抖動
+  var seed = Math.random();
   grasses.push({
     x: x,
-    baseY: C.GROUND_Y,
+    baseY: C.CHAR_GROUND_Y,
     height: height,
     type: type,
     color: _pickColor(),
     state: 'growing',    // growing → grown → clearing
     timer: 0,
     fallDir: 0,          // 倒下方向（除草時設定）
+    seed: seed,
+    bendDir: seed > 0.5 ? 1 : -1,  // 彎曲方向（固定）
   });
 }
 
@@ -126,50 +130,60 @@ function _updateWeeding(sw) {
   var state = ch.state;
 
   if (_weedPhase === 0) {
-    // 跑到近邊
+    // Phase 0：面朝近邊方向，跑到近邊（不清草，只是移動到起點）
     var dir = _weedTargetX < state.x ? -1 : 1;
-    state.x += dir * _weedSpeed;
     state.facing = dir;
+    state.x += dir * _weedSpeed;
     if ((dir < 0 && state.x <= _weedTargetX) || (dir > 0 && state.x >= _weedTargetX)) {
       state.x = _weedTargetX;
-      // 到達近邊，轉向跑到遠邊
+      // 到達近邊，面朝遠邊開始清掃
       _weedPhase = 1;
       _weedTargetX = _weedTargetX < sw / 2 ? sw - 30 : 30;
+      state.facing = _weedTargetX > state.x ? 1 : -1;
     }
-    _clearGrassAtX(state.x, dir);
   } else if (_weedPhase === 1) {
-    // 跑到遠邊
+    // Phase 1：面朝遠邊衝刺，沿路清草 + 收割花
     var dir2 = _weedTargetX < state.x ? -1 : 1;
-    state.x += dir2 * _weedSpeed;
     state.facing = dir2;
-    _clearGrassAtX(state.x, dir2);
+    state.x += dir2 * _weedSpeed;
+    _clearAtX(state.x, dir2);
     if ((dir2 < 0 && state.x <= _weedTargetX) || (dir2 > 0 && state.x >= _weedTargetX)) {
       state.x = _weedTargetX;
       _weedPhase = 2;
     }
   } else {
-    // 除草完成，角色回到原位
+    // 除草完成
     _weeding = false;
     state.action = 'idle';
   }
 }
 
-function _clearGrassAtX(charX, dir) {
+function _clearAtX(charX, dir) {
+  // 清除雜草
   for (var i = 0; i < grasses.length; i++) {
     var g = grasses[i];
     if (g.state === 'clearing') continue;
-    // 角色通過位置 ± 判定範圍時才倒下
     if (Math.abs(g.x - charX) < 12) {
       g.state = 'clearing';
       g.timer = 0;
       g.fallDir = dir;
     }
   }
+  // 同時收割花朵
+  if (_.knockFlower) {
+    var bloomed = _.getBloomedFlowers ? _.getBloomedFlowers() : [];
+    for (var j = 0; j < bloomed.length; j++) {
+      var f = bloomed[j];
+      if (Math.abs(f.x - charX) < 12) {
+        _.knockFlower(f, dir, false);
+      }
+    }
+  }
 }
 
 // ── 開始除草 ──
 function startWeeding(sw) {
-  if (_weeding || grasses.length === 0) return;
+  if (_weeding) return;
   var ch = window.ColorCatCharacter;
   if (!ch) return;
   // 禁止在特殊狀態下除草
@@ -178,12 +192,13 @@ function startWeeding(sw) {
   for (var f = 0; f < forbidden.length; f++) {
     if (act === forbidden[f]) return;
   }
-  // 只清除 growing/grown 的草（不重複清 clearing 中的）
-  var aliveCount = 0;
+  // 需要有草或有已開花的花才觸發
+  var aliveGrass = 0;
   for (var c = 0; c < grasses.length; c++) {
-    if (grasses[c].state !== 'clearing') aliveCount++;
+    if (grasses[c].state !== 'clearing') aliveGrass++;
   }
-  if (aliveCount === 0) return;
+  var bloomedFlowers = _.getBloomedFlowers ? _.getBloomedFlowers().length : 0;
+  if (aliveGrass === 0 && bloomedFlowers === 0) return;
 
   _weeding = true;
   _weedPhase = 0;
@@ -229,14 +244,14 @@ function _drawSingleGrass(ctx, g, light) {
   var color = g.color;
 
   if (g.type === 'blade') {
-    // 單支草葉 — 微彎曲線
+    // 單支草葉 — 微彎曲線（用 seed 決定彎曲，不用 Math.random）
     ctx.strokeStyle = color;
     ctx.lineWidth = 1.2;
     ctx.lineCap = 'round';
     ctx.beginPath();
     ctx.moveTo(g.x, baseY);
-    var tipX = g.x + (Math.sin(g.x * 0.1) * 2);   // 微偏移讓每根不同
-    var cpX = g.x + Math.sin(g.x * 0.3) * 3;
+    var tipX = g.x + g.bendDir * 2;
+    var cpX = g.x + g.bendDir * 3 * g.seed;
     ctx.quadraticCurveTo(cpX, baseY - h * 0.6, tipX, baseY - h);
     ctx.stroke();
   } else if (g.type === 'sage') {
@@ -249,11 +264,11 @@ function _drawSingleGrass(ctx, g, light) {
     ctx.moveTo(g.x, baseY);
     ctx.lineTo(g.x, baseY - h);
     ctx.stroke();
-    // 對生葉片（2~3 對）
+    // 對生葉片（2~3 對，用固定值不用 random）
     var pairs = 2 + Math.floor(g.height / 8);
     for (var p = 1; p <= pairs; p++) {
       var ly = baseY - h * (p / (pairs + 1));
-      var leafLen = 3 + Math.random() * 2;
+      var leafLen = 3 + g.seed * 2;
       ctx.fillStyle = color;
       // 左葉
       ctx.beginPath();
@@ -264,11 +279,12 @@ function _drawSingleGrass(ctx, g, light) {
       ctx.ellipse(g.x + leafLen * 0.5, ly, leafLen, 1.5, 0.3, 0, Math.PI * 2);
       ctx.fill();
     }
-    // 頂端花序（小圓點）
+    // 頂端花序（小圓點，固定位置）
     ctx.fillStyle = light ? '#7B1FA2' : '#9C27B0';
     for (var t = 0; t < 3; t++) {
+      var dotOff = (g.seed - 0.5) * 2;
       ctx.beginPath();
-      ctx.arc(g.x + (Math.random() - 0.5) * 2, baseY - h - t * 2, 1.2, 0, Math.PI * 2);
+      ctx.arc(g.x + dotOff, baseY - h - t * 2, 1.2, 0, Math.PI * 2);
       ctx.fill();
     }
   } else if (g.type === 'tall') {
@@ -278,7 +294,7 @@ function _drawSingleGrass(ctx, g, light) {
     ctx.lineCap = 'round';
     ctx.beginPath();
     ctx.moveTo(g.x, baseY);
-    var bendX = g.x + (Math.random() > 0.5 ? 3 : -3);
+    var bendX = g.x + g.bendDir * 3;
     ctx.quadraticCurveTo(g.x, baseY - h * 0.7, bendX, baseY - h);
     ctx.stroke();
     // 頂端穗
@@ -304,12 +320,13 @@ function drawGrass(ctx, light) {
 var WEED_BTN_X = 20, WEED_BTN_Y = 18;
 
 function drawWeedBtn(ctx, light) {
-  // 只在有草時顯示
+  // 有草或有已開花的花時顯示
   var alive = 0;
   for (var c = 0; c < grasses.length; c++) {
     if (grasses[c].state !== 'clearing') alive++;
   }
-  if (alive === 0 && !_weeding) return;
+  var bloomCount = _.getBloomedFlowers ? _.getBloomedFlowers().length : 0;
+  if (alive === 0 && bloomCount === 0 && !_weeding) return;
 
   ctx.save();
   var x = WEED_BTN_X, y = WEED_BTN_Y;
@@ -352,7 +369,7 @@ function exportGrass() {
   for (var i = 0; i < grasses.length; i++) {
     var g = grasses[i];
     if (g.state === 'growing' || g.state === 'grown') {
-      arr.push({ x: g.x, baseY: g.baseY, height: g.height, type: g.type, color: g.color });
+      arr.push({ x: g.x, baseY: g.baseY, height: g.height, type: g.type, color: g.color, seed: g.seed });
     }
   }
   return arr;
@@ -365,11 +382,13 @@ function importGrass(data) {
   if (!data || !data.length) return;
   for (var i = 0; i < data.length; i++) {
     var d = data[i];
+    var sd = d.seed != null ? d.seed : Math.random();
     grasses.push({
-      x: d.x, baseY: d.baseY || C.GROUND_Y,
+      x: d.x, baseY: d.baseY || C.CHAR_GROUND_Y,
       height: d.height || 10, type: d.type || 'blade',
       color: d.color || '#4CAF50',
       state: 'grown', timer: GROW_PHASE, fallDir: 0,
+      seed: sd, bendDir: sd > 0.5 ? 1 : -1,
     });
   }
 }
