@@ -10,6 +10,12 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-23 — LINE 瀏覽器 deep link 跳轉至 Mini App
+- **問題**：LINE 瀏覽器內開 `toosterx.com/?event=xxx` 不會跳轉到 Mini App，導致 LIFF shareTargetPicker 不可用、分享精美卡片選項消失
+- **原因**：`index.html` 中繼跳轉腳本有 `if(/Line\//i.test(navigator.userAgent))return` 守衛，LINE 瀏覽器被排除在外，只有外部瀏覽器會跳轉
+- **修復**：移除 LINE UA 守衛，改用 `localStorage`（跨 WebView 共享）防彈跳迴圈，30 秒視窗防止 Mini App 載入時重複跳轉
+- **教訓**：LINE 內建瀏覽器 ≠ LINE Mini App，shareTargetPicker 等 LIFF API 只在 Mini App 環境可用
+
 ### 2026-03-23 — 紙箱上點路牌角色瞬移修復
 - **問題**：角色站在紙箱上時點擊路牌，角色會瞬間從紙箱高度跳到地面再往外跑
 - **原因**：`startRunAway` 未處理 combo/box 狀態，直接切換 action 為 runAway，導致跳過 jumpOff 落地動畫
