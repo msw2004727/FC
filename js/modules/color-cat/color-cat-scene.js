@@ -231,6 +231,7 @@ function handleClick(e) {
 
   // 鋤草按鈕（左上角，取代刷新按鈕）
   if (_.isWeedBtnClicked && _.isWeedBtnClicked(cx, cy) && !_.isWeeding()) {
+    ColorCatCharacter._.manualOverride = true;
     _.startWeeding(_sw);
     return;
   }
@@ -262,6 +263,7 @@ function handleClick(e) {
   if (_.handleButterflyClick) {
     var clickedB = _.handleButterflyClick(cx, cy);
     if (clickedB) {
+      ColorCatCharacter._.manualOverride = true;
       ColorCatCharacter.startAttackButterfly(clickedB);
       return;
     }
@@ -270,6 +272,7 @@ function handleClick(e) {
   // 點擊花朵 → 角色跑去攻擊花朵
   var clickedFlower = _.handleFlowerClick(cx, cy);
   if (clickedFlower) {
+    ColorCatCharacter._.manualOverride = true;
     ColorCatCharacter.startAttackFlower(clickedFlower);
     return;
   }
@@ -278,6 +281,7 @@ function handleClick(e) {
   if (_.handleGrassClick) {
     var clickedGrass = _.handleGrassClick(cx, cy);
     if (clickedGrass) {
+      ColorCatCharacter._.manualOverride = true;
       ColorCatCharacter.startAttackGrass(clickedGrass);
       return;
     }
@@ -291,6 +295,7 @@ function handleClick(e) {
 
   // 點擊太陽/月亮 → 爬邊牆
   if (isSunMoonClicked(cx, cy)) {
+    ColorCatCharacter._.manualOverride = true;
     ColorCatCharacter.startComboWall(_sw);
     return;
   }
@@ -298,6 +303,7 @@ function handleClick(e) {
   // 點擊旗子 → 爬紙箱
   var boxTopY = _.BOX_BOTTOM_Y - _.BOX_H;
   if (_.isFlagClicked(cx, cy)) {
+    ColorCatCharacter._.manualOverride = true;
     ColorCatCharacter.startComboBox(_sw, _.BOX_X, boxTopY, _.BOX_W);
     return;
   }
@@ -313,6 +319,7 @@ function handleClick(e) {
       if (window.ColorCatStatsModal) ColorCatStatsModal.showDangerToast();
       return;
     }
+    ColorCatCharacter._.manualOverride = true;
     ColorCatCharacter.startGoToBox(openingX);
     ColorCatCharacter._.manualSleep = true;
     if (window.ColorCatStatsModal) ColorCatStatsModal.open();
@@ -322,11 +329,12 @@ function handleClick(e) {
   // 點擊墓地 → 角色跑去攻擊墓地
   var graveIdx = _.getClickedGrave(cx, cy);
   if (graveIdx >= 0) {
+    ColorCatCharacter._.manualOverride = true;
     ColorCatCharacter.startAttackGrave(graveIdx);
     return;
   }
 
-  // 點擊敵人 → 角色跑去攻擊敵人
+  // 點擊敵人 → 角色跑去攻擊敵人（不設 manualOverride，與自動戰鬥一致）
   if (window.ColorCatEnemy) {
     var enemyIdx = ColorCatEnemy.getClicked(cx, cy);
     if (enemyIdx >= 0) {
@@ -337,12 +345,14 @@ function handleClick(e) {
 
   // 點擊角色
   if (ColorCatCharacter.isClicked(cx, cy)) {
+    ColorCatCharacter._.manualOverride = true;
     ColorCatCharacter.tap(_sw);
     return;
   }
 
   // 點擊球
   if (ColorCatBall.isClicked(cx, cy)) {
+    ColorCatCharacter._.manualOverride = true;
     ColorCatCharacter.startChase();
   }
 }

@@ -39,7 +39,7 @@ var _ = {
   dyingPhase: 0, dyingTimer: 0, dyingAlpha: 1,
   attackEnemyIdx: -1, attackEnemyPhase: 0, pendingAttackEnemy: -1,
   attackGraveIdx: -1, attackGravePhase: 0,
-  hurtTimer: 0, manualSleep: false,
+  hurtTimer: 0, manualSleep: false, manualOverride: false,
   signpostAway: false, returnPantTreeX: 0,
   aiTimer: 0, aiCooldown: 0, aiSceneInfo: null,
   COMBO_LEDGE_Y: 86, FOOT_OFFSET: 7,

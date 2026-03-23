@@ -58,9 +58,19 @@ function aiPickAction(sw, ballState) {
     sleepW = otherW * 9;  // sleep:other = 9:1 = 90%
   }
 
-  // 有存活敵人時攻擊敵人為最高優先（壓倒性權重：80% 機率攻擊敵人）
+  // 敵人全滅時自動重置手動模式
   var E = window.ColorCatEnemy;
   var hasEnemies = E && E.hasAlive();
+  if (!hasEnemies && _.manualOverride) _.manualOverride = false;
+
+  // 有存活敵人且非手動模式 → 100% 攻擊最近敵人
+  if (hasEnemies && !_.manualOverride) {
+    rt.totalActions++;
+    var ni = E.findNearest(ch.x);
+    if (ni >= 0) _.startAttackEnemy(ni);
+    return;
+  }
+
   var wBiteBall = mw('biteBall', w.biteBall);
   var wChase    = mw('chase', w.chase);
   var wDash     = mw('dash', w.dash);
@@ -68,13 +78,11 @@ function aiPickAction(sw, ballState) {
   var wClimbWall= mw('climbWall', w.climbWall);
 
   var baseTotal = wBiteBall + wChase + wDash + wClimbBox + wClimbWall + sleepW + watchFlowerW + chaseButterflyW;
-  var attackEnemyW = hasEnemies ? mw('attackEnemy', baseTotal * 4) : 0;
 
-  var total = baseTotal + attackEnemyW;
+  var total = baseTotal;
   var roll = Math.random() * total;
 
   var cum = 0;
-  cum += attackEnemyW;  if (roll < cum) { rt.totalActions++; var ni = E.findNearest(ch.x); if (ni >= 0) _.startAttackEnemy(ni); return; }
   cum += wBiteBall;     if (roll < cum) { rt.totalActions++; _.startBiteBall(sw); return; }
   cum += wChase;        if (roll < cum) { rt.totalActions++; _.startChase(); return; }
   cum += wDash;         if (roll < cum) { rt.totalActions++; _.tapCharacter(sw); return; }

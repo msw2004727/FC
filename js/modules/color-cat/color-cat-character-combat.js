@@ -17,6 +17,8 @@ function takeDamage(dmg) {
   var st = _s().stamina;
   st.current = Math.max(0, st.current - dmg);
   _.charHp = st.current;
+  // 被攻擊後取消手動模式，恢復自動戰鬥
+  _.manualOverride = false;
   // 飄字
   if (window.ColorCatDamageNumber) {
     window.ColorCatDamageNumber.spawn(ch.x, ch.y - C.SPRITE_DRAW + 10, dmg, '#FF3333');
