@@ -239,15 +239,15 @@ function handleClick(e) {
   // 面板攔截（優先處理）
   if (_.handlePanelClick(cx, cy, _sw)) return;
 
-  // 點擊路標 → 離場中點擊回來，否則開啟路牌選單
+  // 點擊路標 → 離場中點擊回來，否則角色先跑出場景再開彈窗
   if (_.isSignpostClicked && _.isSignpostClicked(cx, cy, _sw)) {
     var char_ = ColorCatCharacter._;
     if (char_.signpostAway) {
       char_.awayMode = '';
       ColorCatCharacter.startReturnPanting(_sw);
-    } else if (window.ColorCatSignpostModal) {
-      ColorCatSignpostModal.open();
     } else {
+      char_.awayMode = '';
+      char_.pendingSignpostModal = true;
       ColorCatCharacter.startRunAway(_sw);
     }
     return;

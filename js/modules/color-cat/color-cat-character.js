@@ -40,7 +40,7 @@ var _ = {
   attackEnemyIdx: -1, attackEnemyPhase: 0, pendingAttackEnemy: -1,
   attackGraveIdx: -1, attackGravePhase: 0,
   hurtTimer: 0, manualSleep: false, manualOverride: false,
-  signpostAway: false, awayMode: '', returnPantTreeX: 0,
+  signpostAway: false, awayMode: '', pendingSignpostModal: false, returnPantTreeX: 0,
   aiTimer: 0, aiCooldown: 0, aiSceneInfo: null,
   COMBO_LEDGE_Y: 86, FOOT_OFFSET: 7,
   isBunny: function() {

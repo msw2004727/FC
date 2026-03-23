@@ -1,6 +1,7 @@
 /* ================================================
    ColorCat — 路牌彈窗（爬山 / 旅遊 / 拜訪）
-   點擊右下路牌觸發，毛玻璃風格
+   角色跑出場景後觸發，選擇離場目的地
+   點外部關閉 = 角色返回場景
    依賴：color-cat-character.js, color-cat-scene.js
    ================================================ */
 ;(function() {
@@ -41,18 +42,19 @@ function _createOverlay() {
     '<div class="cc-sp-backdrop"></div>' +
     '<div class="cc-sp-modal">' +
       '<div class="cc-sp-title">\u51FA\u767C\u524D\u5F80...</div>' +
-      '<button class="cc-sp-btn cc-sp-btn--hike" data-action="hike">\u2F30 \u722C\u5C71</button>' +
-      '<button class="cc-sp-btn cc-sp-btn--travel" data-action="travel">\u2708 \u65C5\u904A</button>' +
-      '<button class="cc-sp-btn cc-sp-btn--visit" data-action="visit">\u2F24 \u62DC\u8A2A</button>' +
+      '<button class="cc-sp-btn cc-sp-btn--hike" data-action="hike">\u26F0\uFE0F \u722C\u5C71</button>' +
+      '<button class="cc-sp-btn cc-sp-btn--travel" data-action="travel">\u2708\uFE0F \u65C5\u904A</button>' +
+      '<button class="cc-sp-btn cc-sp-btn--visit" data-action="visit">\uD83D\uDC65 \u62DC\u8A2A</button>' +
     '</div>';
 
-  _overlay.querySelector('.cc-sp-backdrop').addEventListener('click', close);
+  // 點外部 = 關閉並返回場景
+  _overlay.querySelector('.cc-sp-backdrop').addEventListener('click', _cancelAndReturn);
 
   var btns = _overlay.querySelectorAll('.cc-sp-btn');
   for (var i = 0; i < btns.length; i++) {
     btns[i].addEventListener('click', function() {
       var action = this.getAttribute('data-action');
-      close();
+      _closeOverlay();
       _dispatch(action);
     });
   }
@@ -68,39 +70,26 @@ function _createOverlay() {
   document.body.appendChild(_overlay);
 }
 
+/** 角色已在場外，選擇設定 awayMode */
 function _dispatch(action) {
   var Ch = window.ColorCatCharacter;
   if (!Ch) return;
-  var sw = (window.ColorCatScene && ColorCatScene.getSw) ? ColorCatScene.getSw() : 300;
-
-  if (action === 'hike') {
-    // 爬山：用現有的 runAway 動畫（含背景爬山剪影）
-    Ch._.awayMode = 'hike';
-    Ch.startRunAway(sw);
-  } else if (action === 'travel') {
-    // 旅遊：角色直接離場，無爬山動畫
-    Ch._.awayMode = 'travel';
-    _sendAway(Ch, sw);
-  } else if (action === 'visit') {
-    // 拜訪：角色直接離場，無爬山動畫
-    Ch._.awayMode = 'visit';
-    _sendAway(Ch, sw);
-  }
+  Ch._.awayMode = action; // 'hike' / 'travel' / 'visit'
 }
 
-/** 角色立即離場（不播放跑步動畫） */
-function _sendAway(Ch, sw) {
-  var C = window.ColorCatConfig;
-  var ch = Ch.state;
-  if (ch.action === 'weak' || ch.action === 'knockback' || ch.action === 'dying' || ch.action === 'hurt') return;
-  if (Ch._.testMode) Ch._.stopTest();
-  Ch._.releaseBall();
-  if (ch.action === 'combo') { if (Ch._.interruptCombo) Ch._.interruptCombo(); }
-  if (ch.action === 'sleeping') { Ch._.wakeUp(); Ch._.manualSleep = false; }
-  ch.x = sw + (C ? C.SPRITE_DRAW : 32) + 10;
-  ch.action = 'idle';
-  ch.spriteFrame = 0; ch.spriteTimer = 0;
-  Ch._.signpostAway = true;
+/** 關閉彈窗但不返回 */
+function _closeOverlay() {
+  if (_overlay) _overlay.classList.remove('open');
+}
+
+/** 關閉彈窗 + 角色返回場景（用戶點外部取消） */
+function _cancelAndReturn() {
+  _closeOverlay();
+  var Ch = window.ColorCatCharacter;
+  if (!Ch) return;
+  var sw = (window.ColorCatScene && ColorCatScene.getSw) ? ColorCatScene.getSw() : 300;
+  Ch._.awayMode = '';
+  Ch.startReturnPanting(sw);
 }
 
 function open() {
@@ -108,13 +97,9 @@ function open() {
   requestAnimationFrame(function() { _overlay.classList.add('open'); });
 }
 
-function close() {
-  if (_overlay) _overlay.classList.remove('open');
-}
-
 window.ColorCatSignpostModal = {
   open: open,
-  close: close,
+  close: _cancelAndReturn,
 };
 
 })();

@@ -205,7 +205,6 @@ function startRunAway(sw) {
   _.releaseBall();
   if (ch.action === 'combo') { if (_.interruptCombo()) return; }
   if (ch.action === 'sleeping') { _.wakeUp(); _.manualSleep = false; }
-  if (!_.awayMode) _.awayMode = 'hike';
   ch.facing = 1;
   ch.action = 'runAway';
   ch.spriteFrame = 0; ch.spriteTimer = 0;
@@ -217,6 +216,11 @@ function updateRunAway(sw) {
     _.signpostAway = true;
     ch.action = 'idle';
     ch.spriteFrame = 0; ch.spriteTimer = 0;
+    // 角色到場外後開啟路牌選單
+    if (_.pendingSignpostModal) {
+      _.pendingSignpostModal = false;
+      if (window.ColorCatSignpostModal) ColorCatSignpostModal.open();
+    }
   }
   return false;
 }
