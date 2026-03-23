@@ -148,7 +148,7 @@ function update() {
     if (ColorCatCharacter.state.facing === 1 &&
         chAct !== 'idle' && chAct !== 'sleeping' && chAct !== 'weak' &&
         chAct !== 'jumpOff' && chAct !== 'test' && chAct !== 'combo' &&
-        chAct !== 'attackFlower' && chAct !== 'attackButterfly' && chAct !== 'ultimate' &&
+        chAct !== 'attackFlower' && chAct !== 'attackGrass' && chAct !== 'attackButterfly' && chAct !== 'ultimate' &&
         chAct !== 'dying' && chAct !== 'attackEnemy' && chAct !== 'attackGrave') {
       if (chAct === 'biteBall') ColorCatBall.setCarried(false);
       ColorCatCharacter.state.action = 'idle';
@@ -272,6 +272,15 @@ function handleClick(e) {
   if (clickedFlower) {
     ColorCatCharacter.startAttackFlower(clickedFlower);
     return;
+  }
+
+  // 點擊雜草 → 角色跑去攻擊雜草
+  if (_.handleGrassClick) {
+    var clickedGrass = _.handleGrassClick(cx, cy);
+    if (clickedGrass) {
+      ColorCatCharacter.startAttackGrass(clickedGrass);
+      return;
+    }
   }
 
   // 點擊樹 → 觸發/撤回濃霧

@@ -387,6 +387,31 @@ function getGrassCount() {
   return n;
 }
 
+// ── 點擊偵測：返回被點中的草物件 ──
+function handleGrassClick(cx, cy) {
+  for (var i = grasses.length - 1; i >= 0; i--) {
+    var g = grasses[i];
+    if (g.state === 'clearing') continue;
+    // 點擊範圍：x ±10, y 從底部往上 height
+    if (Math.abs(cx - g.x) < 10 && cy >= g.baseY - g.height - 5 && cy <= g.baseY + 2) {
+      return g;
+    }
+  }
+  return null;
+}
+
+function isGrassAlive(g) {
+  if (!g) return false;
+  return grasses.indexOf(g) >= 0 && g.state !== 'clearing';
+}
+
+function knockGrass(g, dir) {
+  if (!g || g.state === 'clearing') return;
+  g.state = 'clearing';
+  g.timer = 0;
+  g.fallDir = dir;
+}
+
 // ── 註冊至場景共享狀態 ──
 _.updateGrass = updateGrass;
 _.drawGrass = drawGrass;
@@ -399,5 +424,8 @@ _.isWeeding = isWeeding;
 _.catchUpGrass = catchUpOffline;
 _.getGrassCount = getGrassCount;
 _.resetWeeding = function() { _weeding = false; _weedPhase = 0; };
+_.handleGrassClick = handleGrassClick;
+_.isGrassAlive = isGrassAlive;
+_.knockGrass = knockGrass;
 
 })();

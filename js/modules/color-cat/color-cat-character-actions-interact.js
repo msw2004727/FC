@@ -254,4 +254,77 @@ _.updateWatchFlower = updateWatchFlower;
 _.startAttackFlower = startAttackFlower;
 _.updateAttackFlower = updateAttackFlower;
 
+// ── 攻擊雜草：跑到草旁 → 攻擊動畫 → 命中清除 ──
+function startAttackGrass(g) {
+  if (ch.action === 'weak' || ch.action === 'knockback' || ch.action === 'dying' || ch.action === 'hurt') return;
+  _wakeIfSleeping();
+  var scene_ = window.ColorCatScene && window.ColorCatScene._;
+  if (!g || !scene_ || !scene_.isGrassAlive(g)) return;
+  if (_.testMode) _.stopTest();
+  _.releaseBall();
+  if (ch.action === 'combo' && _.comboType === 'box' && _.comboStep === 2) {
+    _.pendingAttackGrass = g;
+    _.comboStep = -1; _.comboType = '';
+    ch.action = 'jumpOff'; ch.facing = 1;
+    ch.vy = _s() ? _s().physics.jumpVy : -3; ch.onGround = false;
+    _.jumpOffPhase = 0;
+    ch.spriteFrame = 0; ch.spriteTimer = 0; return;
+  }
+  if (ch.action === 'combo') { if (_.interruptCombo()) return; }
+  _.attackGrassRef = g;
+  _.attackGrassPhase = 0;
+  ch.action = 'attackGrass';
+  ch.spriteFrame = 0; ch.spriteTimer = 0;
+}
+
+function updateAttackGrass(sw) {
+  var g = _.attackGrassRef;
+  var scene_ = window.ColorCatScene && window.ColorCatScene._;
+  if (!g || !scene_) {
+    ch.action = 'idle'; ch.spriteFrame = 0; ch.spriteTimer = 0;
+    _.attackGrassRef = null; _.aiResetCooldown();
+    return false;
+  }
+  if (_.attackGrassPhase === 0) {
+    if (!scene_.isGrassAlive(g)) {
+      ch.action = 'idle'; ch.spriteFrame = 0; ch.spriteTimer = 0;
+      _.attackGrassRef = null; _.aiResetCooldown();
+      return false;
+    }
+    var side = (ch.x < g.x) ? 1 : -1;
+    var targetX = g.x - side * 15;
+    var dist = targetX - ch.x;
+    ch.facing = dist > 0 ? 1 : -1;
+    if (Math.abs(dist) > 5) {
+      ch.x += ch.facing * ch.speed;
+    } else {
+      ch.facing = (g.x > ch.x) ? 1 : -1;
+      _.attackGrassPhase = 1;
+      ch.spriteFrame = 0; ch.spriteTimer = 0;
+      ch._attackHit = false;
+    }
+  } else {
+    var hitFrame = _s() ? _s().physics.hitFrame : 3;
+    if (!ch._attackHit && ch.spriteFrame >= hitFrame) {
+      ch._attackHit = true;
+      if (scene_.knockGrass) scene_.knockGrass(g, ch.facing);
+      if (Math.random() < 0.2 && window.ColorCatEnemy) {
+        var skinKeys = Object.keys(window.ColorCatEnemy.SKINS);
+        var rndSkin = skinKeys[Math.floor(Math.random() * skinKeys.length)];
+        window.ColorCatEnemy.spawn(rndSkin, sw);
+      }
+    }
+    var defs = ColorCatSprite.getDefs();
+    var atkDef = defs.attack;
+    if (atkDef && ch.spriteFrame >= atkDef.frames - 1) {
+      ch.action = 'idle'; ch.spriteFrame = 0; ch.spriteTimer = 0;
+      _.attackGrassRef = null; _.aiResetCooldown();
+    }
+  }
+  return false;
+}
+
+_.startAttackGrass = startAttackGrass;
+_.updateAttackGrass = updateAttackGrass;
+
 })();

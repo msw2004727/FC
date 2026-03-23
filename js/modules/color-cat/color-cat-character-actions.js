@@ -169,6 +169,15 @@ function updateJumpOff() {
           return false;
         }
       }
+      if (_.pendingAttackGrass) {
+        var pg = _.pendingAttackGrass; _.pendingAttackGrass = null;
+        var scene_g = window.ColorCatScene && window.ColorCatScene._;
+        if (pg && scene_g && scene_g.isGrassAlive && scene_g.isGrassAlive(pg)) {
+          _.attackGrassRef = pg; _.attackGrassPhase = 0;
+          ch.action = 'attackGrass'; ch.spriteFrame = 0; ch.spriteTimer = 0;
+          return false;
+        }
+      }
       if (_.pendingAttackButterfly) {
         var pb = _.pendingAttackButterfly; _.pendingAttackButterfly = null;
         var scene_b = window.ColorCatScene && window.ColorCatScene._;

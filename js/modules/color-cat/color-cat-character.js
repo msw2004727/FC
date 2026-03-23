@@ -30,8 +30,9 @@ var _ = {
   watchFlowerRef: null, watchFlowerTimer: 0, watchFlowerDuration: 150, watchFlowerTargetX: 0,
   chaseButterflyRef: null,
   attackFlowerRef: null, attackFlowerPhase: 0,
+  attackGrassRef: null, attackGrassPhase: 0,
   attackButterflyRef: null, attackButterflyPhase: 0,
-  pendingAttackFlower: null, pendingAttackButterfly: null,
+  pendingAttackFlower: null, pendingAttackButterfly: null, pendingAttackGrass: null,
   pendingUltimate: false, pendingWeak: false,
   ultCharging: false, ultChargeTimer: 0, ultChargeDuration: 45, ultAnimTimer: 0,
   charHp: 100, charMaxHp: 100,
@@ -96,6 +97,8 @@ _.startChaseButterfly = function() {};
 _.updateChaseButterfly = function() { return false; };
 _.startAttackFlower = function() {};
 _.updateAttackFlower = function() { return false; };
+_.startAttackGrass = function() {};
+_.updateAttackGrass = function() { return false; };
 _.startAttackButterfly = function() {};
 _.updateAttackButterfly = function() { return false; };
 _.startUltimate = function() {};
@@ -167,6 +170,7 @@ function getSpriteKey() {
   if (character.action === 'goToFlower') return 'run';
   if (character.action === 'chaseButterfly') return 'run';
   if (character.action === 'attackFlower') return _.attackFlowerPhase === 0 ? 'run' : 'attack';
+  if (character.action === 'attackGrass') return _.attackGrassPhase === 0 ? 'run' : 'attack';
   if (character.action === 'attackButterfly') {
     if (_.attackButterflyPhase === 0) return 'run';
     if (_.attackButterflyPhase === 1) return _.isBunny() ? 'attack' : 'jump_attack';
@@ -265,6 +269,7 @@ function updateCharacter(sceneWidth, ballState) {
   if (character.action === 'goToFlower') return _.updateGoToFlower(sw);
   if (character.action === 'chaseButterfly') return _.updateChaseButterfly(sw);
   if (character.action === 'attackFlower') return _.updateAttackFlower(sw);
+  if (character.action === 'attackGrass') return _.updateAttackGrass(sw);
   if (character.action === 'attackButterfly') return _.updateAttackButterfly(sw);
   if (character.action === 'ultimate') return _.updateUltimate(sw);
   if (character.action === 'dying') return _.updateDying(sw);
@@ -341,6 +346,7 @@ window.ColorCatCharacter = {
   startKnockback: function(sw) { _.startKnockback(sw); },
   startWatchFlower: function(sw) { _.startWatchFlower(sw); },
   startAttackFlower: function(f) { _.startAttackFlower(f); },
+  startAttackGrass: function(g) { _.startAttackGrass(g); },
   startAttackButterfly: function(b) { _.startAttackButterfly(b); },
   startUltimate: function() { _.startUltimate(); },
   canUltimate: function() { return _.canUltimate(); },
