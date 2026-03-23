@@ -215,6 +215,18 @@ function saveToCloud() {
   _debounceTimer = setTimeout(_doSave, DEBOUNCE_MS);
 }
 
+/**
+ * 關鍵動作觸發：摘花、除草、打敵人等，用較短 debounce 確保及時存檔
+ * 防止跨裝置雙開利用「動作後尚未同步」的時間差作弊
+ */
+var DIRTY_DEBOUNCE_MS = 2000;
+var _dirtyTimer = null;
+function markDirty() {
+  if (_destroyed || !_loggedIn()) return;
+  clearTimeout(_dirtyTimer);
+  _dirtyTimer = setTimeout(_doSave, DIRTY_DEBOUNCE_MS);
+}
+
 // ── 載入 ──────────────────────────────────────
 function _toMs(ts) { return ts && ts.toMillis ? ts.toMillis() : 0; }
 
@@ -242,16 +254,12 @@ function loadFromCloud() {
       return local;  // 可能是 null（全新用戶），也可能有上次暫存
     }
     var cloud = _migrate(snap.data());
-    // 衝突解決：比較 savedAt，取較新者
-    if (local && local.savedAt && local.savedAt > _toMs(cloud.savedAt)) {
-      console.log(TAG, 'local is newer, using local');
-      return local;
-    }
+    // 防作弊：雲端有資料時一律以雲端為準（防止跨裝置雙開利用本地舊檔）
     // 快取至 localStorage
     var cache = Object.assign({}, cloud);
     cache.savedAt = _toMs(cloud.savedAt) || Date.now();
     try { localStorage.setItem(LS_KEY, JSON.stringify(cache)); } catch (e) { /**/ }
-    console.log(TAG, 'loaded from Firestore');
+    console.log(TAG, 'loaded from Firestore (authoritative)');
     return cloud;
   }).catch(function(err) {
     console.warn(TAG, 'load failed:', err);
@@ -318,8 +326,8 @@ function destroy() {
   _destroyed = true;
   console.log(TAG, 'destroy');
   _clearHeartbeat();
-  clearInterval(_autoTimer); clearTimeout(_debounceTimer);
-  _autoTimer = null; _debounceTimer = null;
+  clearInterval(_autoTimer); clearTimeout(_debounceTimer); clearTimeout(_dirtyTimer);
+  _autoTimer = null; _debounceTimer = null; _dirtyTimer = null;
   if (_boundVis) document.removeEventListener('visibilitychange', _boundVis);
   if (_boundUnload) window.removeEventListener('beforeunload', _boundUnload);
   _boundVis = null; _boundUnload = null;
@@ -327,7 +335,7 @@ function destroy() {
 
 // ── 公開 API ─────────────────────────────────
 window.ColorCatCloudSave = {
-  init: init, loadFromCloud: loadFromCloud, saveToCloud: saveToCloud,
+  init: init, loadFromCloud: loadFromCloud, saveToCloud: saveToCloud, markDirty: markDirty,
   destroy: destroy, isLoggedIn: _loggedIn, getUid: _uid,
   isDuplicate: function() { return _isDuplicate; },
 };

@@ -46,6 +46,7 @@ function dealDamage(idx, dmg, byPlayer) {
         if (e.elite) rt.enemyBossKills[e.skin] = (rt.enemyBossKills[e.skin] || 0) + 1;
         ColorCatStats.saveLocal();
       }
+      if (window.ColorCatCloudSave) ColorCatCloudSave.markDirty();
     }
   } else {
     e.action = 'hurt'; e.sf = 0; e.st = 0;

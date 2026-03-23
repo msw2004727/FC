@@ -613,7 +613,7 @@ Object.assign(App, {
     if (pageId === 'page-admin-repair') this.renderUserCorrectionManager?.();
     if (pageId === 'page-admin-exp') { this.renderExpLogs(); }
     if (pageId === 'page-admin-announcements') this.renderAnnouncementManage();
-    if (pageId === 'page-admin-games') this.renderGameManage();
+    if (pageId === 'page-admin-games') { this.renderGameManage(); if (this.renderGameLogViewer) this.renderGameLogViewer(); }
     if (pageId === 'page-admin-themes') this.renderThemeManage();
     if (pageId === 'page-admin-logs' && this.renderAdminLogCenter) {
       this.renderAdminLogCenter(this._pendingAdminLogTab || this._adminLogActiveTab || 'operation');

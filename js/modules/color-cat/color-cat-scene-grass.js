@@ -410,6 +410,7 @@ function knockGrass(g, dir) {
   g.state = 'clearing';
   g.timer = 0;
   g.fallDir = dir;
+  if (window.ColorCatCloudSave) ColorCatCloudSave.markDirty();
 }
 
 // ── 註冊至場景共享狀態 ──

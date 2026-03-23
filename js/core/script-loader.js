@@ -270,6 +270,7 @@ const ScriptLoader = {
     adminSystem: [
       'js/modules/auto-exp.js',
       'js/modules/game-manage.js',
+      'js/modules/game-log-viewer.js',
       'js/modules/admin-log-tabs.js',
       'js/modules/error-log.js',
       'js/modules/audit-log.js',

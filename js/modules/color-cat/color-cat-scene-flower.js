@@ -250,6 +250,7 @@ function knockFlower(f, dir, noExp) {
       else ColorCatStats.runtime.flowersRed++;
       ColorCatStats.saveLocal();
     }
+    if (window.ColorCatCloudSave) ColorCatCloudSave.markDirty();
   }
 }
 

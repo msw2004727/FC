@@ -10,6 +10,17 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-23 — 養成遊戲 Log 查詢功能（管理員用）
+- **功能**：在小遊戲管理頁新增「養成遊戲 Log 查詢」區塊，管理員可模糊搜尋用戶暱稱、查看遊戲存檔（角色、數值、戰績、場景、裝備），並匯出 JSON
+- **資料來源**：Firestore `users/{uid}/gamePublic/profile`（搜尋）+ `users/{uid}/game/save`（詳情）
+- **改動檔案**：新增 `js/modules/game-log-viewer.js`、修改 `pages/admin-system.html`、`js/core/script-loader.js`、`js/core/navigation.js`
+
+### 2026-03-23 — 防作弊：開局強制讀取雲端存檔 + 關鍵動作即時存檔
+- **問題**：用戶可在設備A摘花後，立即開設備B繼續摘（因Firestore尚未同步）
+- **修復**：(1) `loadFromCloud` 移除「本地較新則用本地」邏輯，雲端有資料時一律以雲端為準；(2) 新增 `markDirty()` 函式（2秒debounce存檔），在摘花、除草、擊殺敵人時觸發
+- **改動檔案**：`color-cat-cloud-save.js`、`color-cat-scene-flower.js`、`color-cat-enemy-util.js`、`color-cat-scene-grass.js`
+- **教訓**：防作弊核心是「關鍵動作即時存檔 + 開局強制讀雲端」，session踢出只是輔助
+
 ### 2026-03-23 — 放置魚缸：雜草系統
 - **功能**：雜草自動生長（與花相同間隔）、3 種草型（blade/sage/tall）、深淺綠色隨機、離線補長、鋤草按鈕（角色跑過底邊清除）、存入雲端存檔
 - **新增檔案**：`color-cat-scene-grass.js`（MAX_GRASS=50, AUTO_GROW_INTERVAL=450）
