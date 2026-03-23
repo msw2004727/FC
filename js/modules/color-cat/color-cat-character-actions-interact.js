@@ -205,6 +205,7 @@ function startRunAway(sw) {
   _.releaseBall();
   if (ch.action === 'combo') { if (_.interruptCombo()) return; }
   if (ch.action === 'sleeping') { _.wakeUp(); _.manualSleep = false; }
+  if (!_.awayMode) _.awayMode = 'hike';
   ch.facing = 1;
   ch.action = 'runAway';
   ch.spriteFrame = 0; ch.spriteTimer = 0;
@@ -223,6 +224,7 @@ function updateRunAway(sw) {
 // ── 路標：喘氣走回場景 ──
 function startReturnPanting(sw) {
   _.signpostAway = false;
+  _.awayMode = '';
   ch.x = sw + C.SPRITE_DRAW;
   ch.y = C.CHAR_GROUND_Y;
   ch.onGround = true;

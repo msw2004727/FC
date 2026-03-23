@@ -239,11 +239,14 @@ function handleClick(e) {
   // 面板攔截（優先處理）
   if (_.handlePanelClick(cx, cy, _sw)) return;
 
-  // 點擊路標 → 角色跑出/跑回場景（優先於其他角色互動）
+  // 點擊路標 → 離場中點擊回來，否則開啟路牌選單
   if (_.isSignpostClicked && _.isSignpostClicked(cx, cy, _sw)) {
     var char_ = ColorCatCharacter._;
     if (char_.signpostAway) {
+      char_.awayMode = '';
       ColorCatCharacter.startReturnPanting(_sw);
+    } else if (window.ColorCatSignpostModal) {
+      ColorCatSignpostModal.open();
     } else {
       ColorCatCharacter.startRunAway(_sw);
     }
@@ -810,6 +813,7 @@ window.ColorCatScene = {
   init: initStaticScene,
   // TODO: 正式版由後台設定觸發長花，此 API 供外部（測試工具列 / 後台排程）呼叫
   addFlower: function() { _.addFlower(_sw); },
+  getSw: function() { return _sw; },
   _: _,
 };
 

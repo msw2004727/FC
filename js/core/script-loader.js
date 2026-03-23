@@ -173,6 +173,7 @@ const ScriptLoader = {
       'js/modules/color-cat/color-cat-scene-panel-tab1.js',
       'js/modules/color-cat/color-cat-scene-panel-tab2.js',
       'js/modules/color-cat/color-cat-scene-panel-modal.js',
+      'js/modules/color-cat/color-cat-scene-signpost-modal.js',
       'js/modules/color-cat/color-cat-enemy.js',
       'js/modules/color-cat/color-cat-enemy-util.js',
       'js/modules/color-cat/color-cat-enemy-draw.js',

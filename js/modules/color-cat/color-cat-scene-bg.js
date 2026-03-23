@@ -88,7 +88,7 @@ var SIL_SPEED = 0.0005;
 
 function updateSilhouette() {
   var char_ = window.ColorCatCharacter && window.ColorCatCharacter._;
-  if (!char_ || !char_.signpostAway) {
+  if (!char_ || !char_.signpostAway || char_.awayMode !== 'hike') {
     _silhouette.active = false;
     _silhouette.progress = 0;
     _silhouette.atPeak = false;
