@@ -67,7 +67,7 @@ Object.assign(App, {
     // 僅 super_admin 可見
     if (this.currentRole !== 'super_admin') return;
 
-    // 取得最近 7 天的 usageMetrics
+    // 取得當月的 usageMetrics（用於累計費用），至少 31 天
     let docs = [];
     try {
       // Demo 模式或 db 未就緒時跳過
@@ -75,7 +75,7 @@ Object.assign(App, {
       if (typeof db === 'undefined') return;
       const snap = await db.collection('usageMetrics')
         .orderBy('dateKey', 'desc')
-        .limit(7)
+        .limit(31)
         .get();
       snap.forEach(d => docs.push({ id: d.id, ...d.data() }));
     } catch (err) {
@@ -142,8 +142,8 @@ Object.assign(App, {
       </div>`;
       html += `</div>`; // grid end
 
-      // ── 費用區塊 ──
-      html += this._renderCostSection(latest);
+      // ── 費用區塊（傳入所有 docs 以累計當月估算） ──
+      html += this._renderCostSection(latest, docs);
 
       // 錯誤提示
       if (latest.errors && latest.errors.length > 0) {
@@ -206,8 +206,8 @@ Object.assign(App, {
     return sym + num.toFixed(2);
   },
 
-  /** 渲染費用區塊（Billing API 實際 + 估算備援） */
-  _renderCostSection(latest) {
+  /** 渲染費用區塊（Billing API 實際 + 當月累計估算） */
+  _renderCostSection(latest, docs) {
     const billing = latest.billing;
     const estimated = latest.estimated;
     if (!billing && !estimated) return '';
@@ -222,7 +222,6 @@ Object.assign(App, {
         <span class="dash-cost-label">實際費用（${escapeHTML(billing.billingPeriod || '--')}）</span>
         <span class="dash-cost-val" style="color:${color}">${escapeHTML(this._fmtCurrency(billing.totalCost, billing.currency))}</span>
       </div>`;
-      // 服務明細
       if (billing.costByService) {
         const entries = Object.entries(billing.costByService).sort((a, b) => b[1] - a[1]);
         for (const [svc, cost] of entries) {
@@ -238,31 +237,68 @@ Object.assign(App, {
       </div>`;
     }
 
-    // 用量估算費用
-    if (estimated) {
-      const estColor = estimated.totalCost > 0 ? '#f59e0b' : '#10b981';
+    // 當月累計估算：累加 docs 中當月所有天的 estimated.totalCost
+    const monthlyEst = this._calcMonthlyEstimated(docs);
+
+    // 當月累計
+    if (monthlyEst) {
+      const mColor = monthlyEst.totalCost > 0 ? '#f59e0b' : '#10b981';
       html += `<div class="dash-cost-row" style="margin-top:.4rem">
-        <span class="dash-cost-label">用量估算（今日超額）</span>
-        <span class="dash-cost-val" style="color:${estColor}">${escapeHTML(this._fmtCurrency(estimated.totalCost, 'USD'))}</span>
+        <span class="dash-cost-label">當月累計估算（${escapeHTML(String(monthlyEst.days))} 天）</span>
+        <span class="dash-cost-val" style="color:${mColor}">${escapeHTML(this._fmtCurrency(monthlyEst.totalCost, 'USD'))}</span>
       </div>`;
-      if (estimated.breakdown) {
-        for (const [key, info] of Object.entries(estimated.breakdown)) {
-          if (info.overage > 0) {
+      if (monthlyEst.breakdown) {
+        for (const [key, info] of Object.entries(monthlyEst.breakdown)) {
+          if (info.cost > 0) {
             const label = key.replace('firestore', 'Firestore ').replace('functions', 'Functions ').replace('Reads', '讀取').replace('Writes', '寫入').replace('Deletes', '刪除').replace('Invocations', '呼叫');
             html += `<div class="dash-cost-row dash-cost-detail">
-              <span class="dash-cost-label">${escapeHTML(label)}（超額 ${escapeHTML(this._fmtUsageNum(info.overage))}）</span>
+              <span class="dash-cost-label">${escapeHTML(label)}（累計超額 ${escapeHTML(this._fmtUsageNum(info.overage))}）</span>
               <span class="dash-cost-val">${escapeHTML(this._fmtCurrency(info.cost, 'USD'))}</span>
             </div>`;
           }
         }
       }
-      if (estimated.totalCost === 0) {
-        html += `<div style="font-size:.72rem;color:#10b981;margin-top:.2rem">所有用量皆在免費額度內</div>`;
+      if (monthlyEst.totalCost === 0) {
+        html += `<div style="font-size:.72rem;color:#10b981;margin-top:.2rem">本月所有用量皆在免費額度內</div>`;
       }
+    }
+
+    // 今日超額明細（摺疊顯示）
+    if (estimated && estimated.totalCost > 0) {
+      html += `<div style="margin-top:.4rem;font-size:.72rem;color:var(--text-secondary)">今日超額：${escapeHTML(this._fmtCurrency(estimated.totalCost, 'USD'))}</div>`;
     }
 
     html += `</div>`;
     return html;
+  },
+
+  /** 累加當月所有 docs 的 estimated 費用 */
+  _calcMonthlyEstimated(docs) {
+    if (!docs || docs.length === 0) return null;
+    const now = new Date();
+    const monthPrefix = String(now.getFullYear()) + String(now.getMonth() + 1).padStart(2, '0');
+    const monthDocs = docs.filter(d => d.dateKey && d.dateKey.startsWith(monthPrefix) && d.estimated);
+    if (monthDocs.length === 0) return null;
+
+    const totalBreakdown = {};
+    let totalCost = 0;
+    for (const doc of monthDocs) {
+      const est = doc.estimated;
+      totalCost += (Number(est.totalCost) || 0);
+      if (est.breakdown) {
+        for (const [key, info] of Object.entries(est.breakdown)) {
+          if (!totalBreakdown[key]) totalBreakdown[key] = { overage: 0, cost: 0 };
+          totalBreakdown[key].overage += (Number(info.overage) || 0);
+          totalBreakdown[key].cost += (Number(info.cost) || 0);
+        }
+      }
+    }
+    // 四捨五入
+    totalCost = Math.round(totalCost * 100) / 100;
+    for (const key of Object.keys(totalBreakdown)) {
+      totalBreakdown[key].cost = Math.round(totalBreakdown[key].cost * 10000) / 10000;
+    }
+    return { totalCost, breakdown: totalBreakdown, days: monthDocs.length };
   },
 
   /** 繪製 7 天用量趨勢折線圖 */
