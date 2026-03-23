@@ -4967,29 +4967,31 @@ async function collectUsageMetrics() {
     }
   }
 
-  // Firestore 儲存量（使用不同的 aligner，不做 SUM 聚合）
-  try {
-    const { GoogleAuth: StorageGAuth } = require("google-auth-library");
-    const storageAuth = new StorageGAuth({ scopes: ["https://www.googleapis.com/auth/monitoring.read"] });
-    const client = await storageAuth.getClient();
-    const storageNow = new Date();
-    const startTime = new Date(storageNow.getTime() - 2 * 60 * 60 * 1000);
-    const filter = `metric.type="firestore.googleapis.com/storage/size" AND resource.labels.project_id="${USAGE_PROJECT_ID}"`;
-    const url = `https://monitoring.googleapis.com/v3/projects/${USAGE_PROJECT_ID}/timeSeries`
-      + `?filter=${encodeURIComponent(filter)}`
-      + `&interval.startTime=${startTime.toISOString()}`
-      + `&interval.endTime=${storageNow.toISOString()}`;
-    const res = await client.request({ url, method: "GET" });
-    if (res.data && res.data.timeSeries && res.data.timeSeries.length > 0) {
-      const points = res.data.timeSeries[0].points || [];
-      if (points.length > 0) {
-        const v = points[0].value;
-        metrics.firestoreStorageBytes = v.int64Value ? parseInt(v.int64Value) : (v.doubleValue || 0);
+  // Firestore 儲存量
+  // 嘗試多種 metric 名稱（不同 Firestore 模式/方案有不同 metric）
+  // 此指標在 Spark 方案或新啟用 Monitoring API 的專案可能不存在，靜默跳過不報錯
+  const storageMetricCandidates = [
+    "firestore.googleapis.com/storage/size",
+    "firestore.googleapis.com/document/storage/size",
+  ];
+  metrics.firestoreStorageBytes = null;
+  for (const candidate of storageMetricCandidates) {
+    try {
+      const data = await queryMonitoringMetric(candidate, 2);
+      if (data && data.timeSeries && data.timeSeries.length > 0) {
+        const points = data.timeSeries[0].points || [];
+        if (points.length > 0) {
+          const v = points[0].value;
+          metrics.firestoreStorageBytes = v.int64Value ? parseInt(v.int64Value) : (v.doubleValue || 0);
+          break; // 找到就停
+        }
       }
+    } catch (_) {
+      // 此 metric 不存在，嘗試下一個候選
     }
-    if (!metrics.firestoreStorageBytes) metrics.firestoreStorageBytes = null;
-  } catch (err) {
-    errors.push(`firestoreStorage: ${err.message || err}`);
+  }
+  if (!metrics.firestoreStorageBytes) {
+    // 靜默設為 null，不計入 errors（此指標在部分方案不可用是預期行為）
     metrics.firestoreStorageBytes = null;
   }
 

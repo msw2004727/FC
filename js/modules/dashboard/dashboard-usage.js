@@ -125,7 +125,15 @@ Object.assign(App, {
       html += this._renderUsageCard('Firestore 寫入', latest.firestoreWrites, ft.firestoreWrites);
       html += this._renderUsageCard('Firestore 刪除', latest.firestoreDeletes, ft.firestoreDeletes);
       html += this._renderUsageCard('Functions 呼叫', latest.functionsInvocations, ft.functionsInvocations);
-      html += this._renderUsageCard('Firestore 儲存', latest.firestoreStorageBytes, ft.firestoreStorageBytes, this._fmtBytes.bind(this));
+      if (latest.firestoreStorageBytes != null) {
+        html += this._renderUsageCard('Firestore 儲存', latest.firestoreStorageBytes, ft.firestoreStorageBytes, this._fmtBytes.bind(this));
+      } else {
+        html += `<div class="dash-usage-card">
+          <div class="dash-usage-label">Firestore 儲存</div>
+          <div class="dash-usage-num" style="font-size:.82rem;color:var(--text-secondary)">指標不適用</div>
+          <div class="dash-usage-sub">Spark 方案無此資料</div>
+        </div>`;
+      }
       // Functions 錯誤（不顯示百分比）
       html += `<div class="dash-usage-card">
         <div class="dash-usage-label">Functions 延遲</div>
