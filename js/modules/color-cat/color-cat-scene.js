@@ -53,6 +53,12 @@ _.getGravePos = function() { return -1; };
 _.updateFog = function() {};
 _.drawFog = function() {};
 _.toggleFog = function() {};
+// 天氣系統插槽（由 scene-weather.js 填入）
+_.initWeather = function() {};
+_.updateWeather = function() {};
+_.drawWeather = function() {};
+_.exportWeather = function() { return null; };
+_.getWeatherType = function() { return 'clear'; };
 // 重新整理按鈕插槽（由 scene-bg.js 填入）
 _.drawRefreshBtn = function() {};
 _.isRefreshBtnClicked = function() { return false; };
@@ -64,6 +70,7 @@ function render() {
   var sleeping = ColorCatCharacter.isSleeping();
   _.drawBackground(_ctx, _sw, light);
   _.drawSkyEvents(_ctx, light);
+  _.drawWeather(_ctx, _sw, light);
   _.drawFlowers(_ctx, light);
   _.drawBox(_ctx, light, sleeping);
   ColorCatBall.draw(_ctx, light);
@@ -82,6 +89,7 @@ function render() {
 function update() {
   _.updateFlowers(_sw);
   _.updateGraves();
+  _.updateWeather(_sw);
   var light = !C.isThemeDark();
   _.updateSkyEvents(_sw, light);
   // 面板滑動 + 碰撞判定（必須在 getEffectiveWidth / 角色位置夾限之前）
@@ -502,6 +510,36 @@ function initInteractiveScene(containerId) {
   _observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
   container._fcObserver = _observer;
 
+  // 天氣初始化（從 runtime 或預設）
+  var weatherSaved = window.ColorCatStats && ColorCatStats.runtime.weather;
+  _.initWeather(weatherSaved || null);
+
+  // 雲端存檔系統初始化
+  if (window.ColorCatCloudSave) {
+    ColorCatCloudSave.init();
+    ColorCatCloudSave.loadFromCloud().then(function(data) {
+      if (!data) return;
+      // 還原角色數值
+      if (window.ColorCatStats) ColorCatStats.loadFullSave(data);
+      // 還原場景物件
+      if (data.scene) {
+        if (data.scene.flowers && _.importFlowers) _.importFlowers(data.scene.flowers);
+        if (data.scene.ball && window.ColorCatBall) ColorCatBall.importState(data.scene.ball);
+        if (data.scene.graves && _.importGraves) _.importGraves(data.scene.graves);
+        if (data.scene.weather) _.initWeather(data.scene.weather);
+      }
+      // 還原角色皮膚
+      if (data.character && data.character.skin && window.ColorCatCharacter) {
+        ColorCatCharacter.switchSkin(data.character.skin);
+      }
+      // 同步 MBTI
+      if (data.character && data.character.mbti && window.ColorCatProfile) {
+        ColorCatProfile.setMBTI(data.character.mbti);
+      }
+      console.log('[Scene] cloud save restored');
+    }).catch(function(e) { console.warn('[Scene] cloud load error:', e); });
+  }
+
   // 30fps 主迴圈
   _sceneInterval = setInterval(update, 33);
 }
@@ -687,6 +725,8 @@ function resetScene() {
 
 function destroy() {
   if (_sceneInterval) { clearInterval(_sceneInterval); _sceneInterval = null; }
+  // 銷毀雲端存檔（觸發最後一次存檔）
+  if (window.ColorCatCloudSave) ColorCatCloudSave.destroy();
   // 清理返回按鈕
   if (_returnBtn) { _returnBtn.remove(); _returnBtn = null; }
   // 恢復橫放 UI

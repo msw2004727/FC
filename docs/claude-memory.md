@@ -10,6 +10,14 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-23 — GrowthGames 第一期：雲端存檔 + 天氣 + 命名系統
+- **功能**：遊戲進度雲端存檔（Firestore）、場景物件持久化（花/球/墓碑位置）、天氣系統（6 種天氣 + 粒子特效）、角色命名 UI
+- **新增檔案**：`color-cat-cloud-save.js`（Firestore 存讀檔 + localStorage 備援）、`color-cat-scene-weather.js`（天氣系統）、`color-cat-naming.js`（命名 overlay）
+- **修改檔案**：`color-cat-stats.js`（loadFullSave）、`color-cat-ball.js`/`scene-flower.js`/`scene-grave.js`（export/import）、`color-cat-scene.js`（天氣+雲端整合）、`color-cat-profile.js`（customName）、`firestore.rules`（game/gamePublic/gameInbox 規則）、`script-loader.js`（新模組）、`GrowthGames.html`（新 script + 工具列按鈕）
+- **存檔策略**：localStorage 即時存（關鍵動作）、Firestore 定時存（5 分鐘 + visibilitychange + beforeunload）
+- **Firestore 結構**：`users/{uid}/game/save`（私有）、`users/{uid}/gamePublic/profile`（公開）、`users/{uid}/gameInbox/{docId}`（互動，第二期用）
+- **教訓**：cloud-save 模組必須處理 Firebase 不可用情況（GrowthGames.html 獨立頁面無 Firebase）；loadFullSave 需做型別檢查防止損壞資料
+
 ### 2026-03-23 — 雲端用量儀表板（Cloud Monitoring API + Billing API 整合）
 - **功能**：在管理員儀表板新增雲端用量區塊，顯示 Firestore 讀/寫/刪/儲存 + Cloud Functions 呼叫/延遲 + 本月費用
 - **後端**：`functions/index.js` 新增 `fetchUsageMetrics`（每小時 onSchedule）+ `fetchUsageMetricsManual`（super_admin onCall），使用 Google Cloud Monitoring API v3 + `google-auth-library` ADC

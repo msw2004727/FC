@@ -265,7 +265,32 @@ function isFlowerAlive(f) {
   return f && (f.state === 'growing' || f.state === 'bloomed');
 }
 
+// ── 匯出/匯入（存檔用） ──
+function exportFlowers() {
+  var arr = [];
+  for (var i = 0; i < flowers.length; i++) {
+    var f = flowers[i];
+    if (f.state === 'growing' || f.state === 'bloomed') {
+      arr.push({ x: f.x, baseY: f.baseY, state: f.state, timer: f.timer, gold: f.gold, hScale: f.hScale });
+    }
+  }
+  return arr;
+}
+
+function importFlowers(data) {
+  flowers.length = 0;
+  _wilting = false;
+  if (!data || !data.length) return;
+  for (var i = 0; i < data.length; i++) {
+    var d = data[i];
+    flowers.push({ x: d.x, baseY: d.baseY || C.GROUND_Y, state: d.state || 'bloomed', timer: d.timer || 50, gold: !!d.gold, hScale: d.hScale || 1 });
+  }
+  if (flowers.length >= WILT_THRESHOLD) _wilting = true;
+}
+
 _._expEffects = expEffects;
+_.exportFlowers = exportFlowers;
+_.importFlowers = importFlowers;
 _.updateFlowers = updateFlowers;
 _.drawFlowers = drawFlowers;
 _.handleFlowerClick = handleFlowerClick;

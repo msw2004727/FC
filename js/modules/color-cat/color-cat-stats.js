@@ -280,6 +280,42 @@ function _clone(obj) {
 }
 
 // ═══════════════════════════════════════════════
+// 雲端存檔還原（從 CloudSave 載入完整遊戲存檔）
+// ═══════════════════════════════════════════════
+function loadFullSave(data) {
+  if (!data || typeof data !== 'object') return;
+  var ch = data.character;
+  if (ch && typeof ch === 'object') {
+    if (typeof ch.skin === 'string') _base.skin = ch.skin;
+    if (typeof ch.customName === 'string') _base.name = ch.customName;
+    if (typeof ch.level === 'number' && ch.level >= 1) _base.level = ch.level;
+    if (typeof ch.exp === 'number' && ch.exp >= 0) _base.exp = ch.exp;
+    if (typeof ch.expToNext === 'number' && ch.expToNext > 0) _base.expToNext = ch.expToNext;
+    if (typeof ch.staminaCurrent === 'number') _stamina.current = Math.max(0, Math.min(_stamina.max, ch.staminaCurrent));
+    if (typeof ch.mbti === 'string') _runtime.mbti = ch.mbti;
+    if (typeof ch.weakLevel === 'number') _runtime.weakLevel = ch.weakLevel;
+  }
+  var lt = data.lifetime;
+  if (lt && typeof lt === 'object') {
+    var ltKeys = Object.keys(lt);
+    for (var i = 0; i < ltKeys.length; i++) {
+      var k = ltKeys[i];
+      if (_runtime.hasOwnProperty(k) && typeof lt[k] === typeof _runtime[k]) {
+        _runtime[k] = lt[k];
+      }
+    }
+  }
+  // scene data (goldCounter, nextGoldAt, weather) stored in runtime for CloudSave to read
+  var sc = data.scene;
+  if (sc && typeof sc === 'object') {
+    if (typeof sc.goldCounter === 'number') _runtime.goldCounter = sc.goldCounter;
+    if (typeof sc.nextGoldAt === 'number') _runtime.nextGoldAt = sc.nextGoldAt;
+    if (sc.weather && typeof sc.weather === 'object') _runtime.weather = sc.weather;
+  }
+  saveLocal();
+}
+
+// ═══════════════════════════════════════════════
 // 公開 API
 // ═══════════════════════════════════════════════
 window.ColorCatStats = {
@@ -299,6 +335,7 @@ window.ColorCatStats = {
   reset: resetToDefaults,
   saveLocal: saveLocal,
   randomizeMBTI: randomizeMBTI,
+  loadFullSave: loadFullSave,
 };
 
 })();

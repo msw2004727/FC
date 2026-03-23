@@ -22,7 +22,7 @@
 <script>
 // ── 快取清除（?clear=1）+ 版本自動更新 ──
 (function(){
-  var V='20260323e';
+  var V='20260323j';
   if(location.search.indexOf('clear=1')!==-1){
     if('caches' in window) caches.keys().then(function(k){k.forEach(function(n){caches.delete(n)})});
     if('serviceWorker' in navigator) navigator.serviceWorker.getRegistrations().then(function(r){r.forEach(function(w){w.unregister()})});
@@ -53,45 +53,48 @@
 <div class="toolbar" id="toolbar-enemy" style="margin-top:.4rem;"></div>
 
 <!-- 載入模組 -->
-<script src="js/modules/color-cat/color-cat-config.js?v=20260323e"></script>
-<script src="js/modules/color-cat/color-cat-mbti.js?v=20260323e"></script>
-<script src="js/modules/color-cat/dialogue/color-cat-dialogue-data.js?v=20260323e"></script>
-<script src="js/modules/color-cat/dialogue/color-cat-dialogue-mbti-analysts.js?v=20260323e"></script>
-<script src="js/modules/color-cat/dialogue/color-cat-dialogue-mbti-diplomats.js?v=20260323e"></script>
-<script src="js/modules/color-cat/dialogue/color-cat-dialogue-mbti-sentinels.js?v=20260323e"></script>
-<script src="js/modules/color-cat/dialogue/color-cat-dialogue-mbti-explorers.js?v=20260323e"></script>
-<script src="js/modules/color-cat/color-cat-stats.js?v=20260323e"></script>
-<script src="js/modules/color-cat/color-cat-sprite.js?v=20260323e"></script>
-<script src="js/modules/color-cat/color-cat-ball.js?v=20260323e"></script>
-<script src="js/modules/color-cat/color-cat-character.js?v=20260323e"></script>
-<script src="js/modules/color-cat/color-cat-character-stamina.js?v=20260323e"></script>
-<script src="js/modules/color-cat/color-cat-character-particles.js?v=20260323e"></script>
-<script src="js/modules/color-cat/color-cat-character-actions.js?v=20260323e"></script>
-<script src="js/modules/color-cat/color-cat-character-actions-interact.js?v=20260323e"></script>
-<script src="js/modules/color-cat/color-cat-character-actions-special.js?v=20260323e"></script>
-<script src="js/modules/color-cat/color-cat-character-combat.js?v=20260323e"></script>
-<script src="js/modules/color-cat/color-cat-character-combo.js?v=20260323e"></script>
-<script src="js/modules/color-cat/color-cat-character-ai.js?v=20260323e"></script>
-<script src="js/modules/color-cat/color-cat-character-bubble.js?v=20260323e"></script>
-<script src="js/modules/color-cat/color-cat-profile.js?v=20260323e"></script>
-<script src="js/modules/color-cat/color-cat-scene.js?v=20260323e"></script>
-<script src="js/modules/color-cat/color-cat-scene-bg.js?v=20260323e"></script>
-<script src="js/modules/color-cat/color-cat-scene-box.js?v=20260323e"></script>
-<script src="js/modules/color-cat/color-cat-scene-flag.js?v=20260323e"></script>
-<script src="js/modules/color-cat/color-cat-scene-flower.js?v=20260323e"></script>
-<script src="js/modules/color-cat/color-cat-scene-butterfly.js?v=20260323e"></script>
-<script src="js/modules/color-cat/color-cat-scene-panel.js?v=20260323e"></script>
-<script src="js/modules/color-cat/color-cat-scene-panel-tab0.js?v=20260323e"></script>
-<script src="js/modules/color-cat/color-cat-scene-panel-tab1.js?v=20260323e"></script>
-<script src="js/modules/color-cat/color-cat-scene-panel-tab2.js?v=20260323e"></script>
-<script src="js/modules/color-cat/color-cat-enemy.js?v=20260323e"></script>
-<script src="js/modules/color-cat/color-cat-enemy-util.js?v=20260323e"></script>
-<script src="js/modules/color-cat/color-cat-enemy-draw.js?v=20260323e"></script>
-<script src="js/modules/color-cat/color-cat-enemy-projectile.js?v=20260323e"></script>
-<script src="js/modules/color-cat/color-cat-damage-number.js?v=20260323e"></script>
-<script src="js/modules/color-cat/color-cat-scene-fog.js?v=20260323e"></script>
-<script src="js/modules/color-cat/color-cat-scene-grave.js?v=20260323e"></script>
-<script src="js/modules/color-cat/color-cat-scene-stats-modal.js?v=20260323e"></script>
+<script src="js/modules/color-cat/color-cat-config.js?v=20260323j"></script>
+<script src="js/modules/color-cat/color-cat-mbti.js?v=20260323j"></script>
+<script src="js/modules/color-cat/dialogue/color-cat-dialogue-data.js?v=20260323j"></script>
+<script src="js/modules/color-cat/dialogue/color-cat-dialogue-mbti-analysts.js?v=20260323j"></script>
+<script src="js/modules/color-cat/dialogue/color-cat-dialogue-mbti-diplomats.js?v=20260323j"></script>
+<script src="js/modules/color-cat/dialogue/color-cat-dialogue-mbti-sentinels.js?v=20260323j"></script>
+<script src="js/modules/color-cat/dialogue/color-cat-dialogue-mbti-explorers.js?v=20260323j"></script>
+<script src="js/modules/color-cat/color-cat-stats.js?v=20260323j"></script>
+<script src="js/modules/color-cat/color-cat-sprite.js?v=20260323j"></script>
+<script src="js/modules/color-cat/color-cat-ball.js?v=20260323j"></script>
+<script src="js/modules/color-cat/color-cat-character.js?v=20260323j"></script>
+<script src="js/modules/color-cat/color-cat-character-stamina.js?v=20260323j"></script>
+<script src="js/modules/color-cat/color-cat-character-particles.js?v=20260323j"></script>
+<script src="js/modules/color-cat/color-cat-character-actions.js?v=20260323j"></script>
+<script src="js/modules/color-cat/color-cat-character-actions-interact.js?v=20260323j"></script>
+<script src="js/modules/color-cat/color-cat-character-actions-special.js?v=20260323j"></script>
+<script src="js/modules/color-cat/color-cat-character-combat.js?v=20260323j"></script>
+<script src="js/modules/color-cat/color-cat-character-combo.js?v=20260323j"></script>
+<script src="js/modules/color-cat/color-cat-character-ai.js?v=20260323j"></script>
+<script src="js/modules/color-cat/color-cat-character-bubble.js?v=20260323j"></script>
+<script src="js/modules/color-cat/color-cat-profile.js?v=20260323j"></script>
+<script src="js/modules/color-cat/color-cat-scene.js?v=20260323j"></script>
+<script src="js/modules/color-cat/color-cat-scene-bg.js?v=20260323j"></script>
+<script src="js/modules/color-cat/color-cat-scene-box.js?v=20260323j"></script>
+<script src="js/modules/color-cat/color-cat-scene-flag.js?v=20260323j"></script>
+<script src="js/modules/color-cat/color-cat-scene-flower.js?v=20260323j"></script>
+<script src="js/modules/color-cat/color-cat-scene-butterfly.js?v=20260323j"></script>
+<script src="js/modules/color-cat/color-cat-scene-panel.js?v=20260323j"></script>
+<script src="js/modules/color-cat/color-cat-scene-panel-tab0.js?v=20260323j"></script>
+<script src="js/modules/color-cat/color-cat-scene-panel-tab1.js?v=20260323j"></script>
+<script src="js/modules/color-cat/color-cat-scene-panel-tab2.js?v=20260323j"></script>
+<script src="js/modules/color-cat/color-cat-enemy.js?v=20260323j"></script>
+<script src="js/modules/color-cat/color-cat-enemy-util.js?v=20260323j"></script>
+<script src="js/modules/color-cat/color-cat-enemy-draw.js?v=20260323j"></script>
+<script src="js/modules/color-cat/color-cat-enemy-projectile.js?v=20260323j"></script>
+<script src="js/modules/color-cat/color-cat-damage-number.js?v=20260323j"></script>
+<script src="js/modules/color-cat/color-cat-scene-fog.js?v=20260323j"></script>
+<script src="js/modules/color-cat/color-cat-scene-grave.js?v=20260323j"></script>
+<script src="js/modules/color-cat/color-cat-scene-stats-modal.js?v=20260323j"></script>
+<script src="js/modules/color-cat/color-cat-scene-weather.js?v=20260323j"></script>
+<script src="js/modules/color-cat/color-cat-naming.js?v=20260323j"></script>
+<script src="js/modules/color-cat/color-cat-cloud-save.js?v=20260323j"></script>
 
 <script>
 // ── 主題：讀取主站 localStorage 同步 ──
@@ -149,6 +152,24 @@ function toggleTheme() {
   };
   top.appendChild(fogBtn);
 
+  // 天氣切換按鈕
+  var weatherTypes = ['clear','cloudy','rain','thunderstorm','snow','fog'];
+  var weatherLabels = {clear:'晴天',cloudy:'多雲',rain:'雨天',thunderstorm:'雷暴',snow:'下雪',fog:'霧'};
+  var weatherBtn = document.createElement('button');
+  weatherBtn.style.borderColor = '#0ea5e9';
+  var s_ = window.ColorCatScene && window.ColorCatScene._;
+  weatherBtn.textContent = '天氣：' + (s_ && s_.getWeatherType ? weatherLabels[s_.getWeatherType()] || '晴天' : '晴天');
+  weatherBtn.onclick = function() {
+    var sc = window.ColorCatScene && window.ColorCatScene._;
+    if (!sc || !sc.initWeather) return;
+    var cur = sc.getWeatherType ? sc.getWeatherType() : 'clear';
+    var idx = weatherTypes.indexOf(cur);
+    var next = weatherTypes[(idx + 1) % weatherTypes.length];
+    sc.initWeather({ type: next, intensity: 0.6, changedAt: Date.now() });
+    weatherBtn.textContent = '天氣：' + (weatherLabels[next] || next);
+  };
+  top.appendChild(weatherBtn);
+
   // MBTI 隨機人格按鈕
   var mbtiBtn = document.createElement('button');
   var curMbti = window.ColorCatStats && ColorCatStats.runtime.mbti;
@@ -161,6 +182,19 @@ function toggleTheme() {
     mbtiBtn.textContent = '人格：' + newType + ' ' + name;
   };
   top.appendChild(mbtiBtn);
+
+  // 角色命名按鈕
+  var nameBtn = document.createElement('button');
+  nameBtn.textContent = '命名';
+  nameBtn.style.borderColor = '#a855f7';
+  nameBtn.onclick = function() {
+    if (window.ColorCatNaming) {
+      ColorCatNaming.showNameDialog(function(name) {
+        nameBtn.textContent = '命名：' + name;
+      });
+    }
+  };
+  top.appendChild(nameBtn);
 
   // ── 下方：動作 + 爬牆 + 爬紙箱 + 咬球 + 虛弱 ──
   var actions = Object.keys(C.ACTION_DEFS);

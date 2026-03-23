@@ -578,6 +578,33 @@ service cloud.firestore {
         allow read: if isOwner(userId) || isAdmin();
         allow write: if isOwner(userId) || isAdmin();
       }
+
+      // ── GrowthGames 遊戲存檔（私有，僅自己可讀寫） ──
+      match /game/{docId} {
+        allow read: if isOwner(userId);
+        allow write: if isOwner(userId)
+          && request.resource.data.keys().hasAll(['version', 'savedAt', 'character', 'lifetime', 'scene'])
+          && request.resource.data.version is int
+          && request.resource.data.version > 0
+          && request.resource.data.savedAt is timestamp
+          && request.resource.data.character is map
+          && request.resource.data.lifetime is map
+          && request.resource.data.scene is map;
+      }
+
+      // ── GrowthGames 公開檔案（任何已登入用戶可讀，僅自己可寫） ──
+      match /gamePublic/{docId} {
+        allow read: if isAuth();
+        allow write: if isOwner(userId);
+      }
+
+      // ── GrowthGames 互動收件匣（任何已登入用戶可建立，自己可讀刪） ──
+      match /gameInbox/{msgId} {
+        allow read: if isOwner(userId);
+        allow create: if isAuth();
+        allow delete: if isOwner(userId);
+        allow update: if false;
+      }
     }
 
     // ═══════════════════════════════════════════

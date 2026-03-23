@@ -282,6 +282,21 @@ function drawPanelDust(ctx, light) {
   ctx.restore();
 }
 
+// ── 匯出/匯入（存檔用） ──
+function exportState() {
+  return {
+    x: (isFinite(ball.x) ? ball.x : 0),
+    y: (isFinite(ball.y) ? ball.y : 0)
+  };
+}
+
+function importState(data) {
+  if (!data) return;
+  if (data.x !== undefined) ball.x = data.x;
+  if (data.y !== undefined) ball.y = data.y;
+  ball.vx = 0; ball.vy = 0; ball.spin = 0;
+}
+
 // ── 公開 API ──
 window.ColorCatBall = {
   state: ball,
@@ -298,6 +313,8 @@ window.ColorCatBall = {
   dragTo: dragTo,
   releaseDrag: releaseDrag,
   spawnPanelHitDust: spawnPanelHitDust,
+  exportState: exportState,
+  importState: importState,
 };
 
 })();

@@ -54,7 +54,10 @@ window.ColorCatProfile = {
   // 例如：return App.currentUser?.displayName || C.SKINS[skin].name;
   // 或透過 ApiService.getCurrentUser() 取得用戶暱稱
   getName: function() {
-    var skin = ColorCatCharacter.getSkin();
+    // 優先使用自訂名稱（存檔還原 / 命名模組設定）
+    var S = window.ColorCatStats;
+    if (S && S.base && S.base.name) return S.base.name;
+    var skin = window.ColorCatCharacter ? ColorCatCharacter.getSkin() : 'whiteCat';
     return C.SKINS[skin] ? C.SKINS[skin].name : '???';
   },
   // TODO: 未來與用戶系統對接時，改為讀取用戶實際等級與稱號

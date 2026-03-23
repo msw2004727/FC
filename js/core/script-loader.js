@@ -179,6 +179,9 @@ const ScriptLoader = {
       'js/modules/color-cat/color-cat-scene-fog.js',
       'js/modules/color-cat/color-cat-scene-grave.js',
       'js/modules/color-cat/color-cat-scene-stats-modal.js',
+      'js/modules/color-cat/color-cat-scene-weather.js',
+      'js/modules/color-cat/color-cat-naming.js',
+      'js/modules/color-cat/color-cat-cloud-save.js',
     ],
     shop: [
       'js/modules/shop.js',

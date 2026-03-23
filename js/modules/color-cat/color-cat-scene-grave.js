@@ -100,6 +100,24 @@ function drawStone(ctx, x, light) {
   ctx.fillRect(x - 3, BASE_Y() - GH + 5, 6, 2);
 }
 
+// ── 匯出/匯入（存檔用） ──
+function exportGraves() {
+  var arr = [];
+  for (var i = 0; i < _graves.length; i++) {
+    if (!_graves[i].crumbling) arr.push({ x: _graves[i].x });
+  }
+  return arr;
+}
+
+function importGraves(data) {
+  _graves.length = 0;
+  _particles.length = 0;
+  if (!data || !data.length) return;
+  for (var i = 0; i < data.length; i++) {
+    _graves.push({ x: data[i].x, crumbling: false, crumbleTimer: 0 });
+  }
+}
+
 // 註冊到場景共享狀態
 _.addGrave = addGrave;
 _.drawGraves = drawGraves;
@@ -107,5 +125,7 @@ _.updateGraves = updateGraves;
 _.getClickedGrave = getClickedGrave;
 _.destroyGrave = destroyGrave;
 _.getGravePos = getGravePos;
+_.exportGraves = exportGraves;
+_.importGraves = importGraves;
 
 })();

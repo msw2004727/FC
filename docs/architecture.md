@@ -246,7 +246,7 @@ flowchart TD
 | `kickball-physics.js` | 踢球遊戲物理引擎 |
 | `kickball-game-page.js` | 開球王遊戲頁面（嵌入主站 kickball.html） |
 
-### color-cat/ — 養成角色系統（20 個模組）
+### color-cat/ — 養成角色系統（23 個模組）
 
 | 檔案 | 說明 |
 |------|------|
@@ -270,6 +270,9 @@ flowchart TD
 | `color-cat-scene-panel-tab0.js` | 面板頁籤0：基本資料（頭像、名稱、五維數值） |
 | `color-cat-scene-panel-tab1.js` | 面板頁籤1：狀態（動作、體力、個性、心情） |
 | `color-cat-scene-panel-tab2.js` | 面板頁籤2：裝備（6 格裝備欄位） |
+| `color-cat-scene-weather.js` | 天氣系統（晴/陰/雨/雷暴/雪/霧 + 粒子特效） |
+| `color-cat-naming.js` | 角色命名 UI overlay（LINE 暱稱帶入 + 自訂） |
+| `color-cat-cloud-save.js` | Firestore 雲端存讀檔 + localStorage 備援 |
 
 ### scan/ — QR Code 掃描（5 個模組）
 
