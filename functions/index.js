@@ -8,7 +8,14 @@ const { defineSecret } = require("firebase-functions/params");
 const { initializeApp } = require("firebase-admin/app");
 const { getFirestore, FieldValue, FieldPath } = require("firebase-admin/firestore");
 const { getAuth } = require("firebase-admin/auth");
-const { messagingApi } = require("@line/bot-sdk");
+// @line/bot-sdk: lazy-loaded — 只有 processLinePushQueue 使用
+let _messagingApi;
+function getMessagingApi() {
+  if (!_messagingApi) {
+    _messagingApi = require("@line/bot-sdk").messagingApi;
+  }
+  return _messagingApi;
+}
 const https = require("https");
 
 initializeApp();
@@ -756,7 +763,7 @@ function getLineUserIdByAccessToken(accessToken) {
  * 接收 LINE Access Token，驗證身份後簽發 Firebase Custom Token（UID = LINE userId）
  */
 exports.createCustomToken = onCall(
-  { region: "asia-east1", timeoutSeconds: 15 },
+  { region: "asia-east1", timeoutSeconds: 15, minInstances: 1 },
   async (request) => {
     const { accessToken } = request.data;
     if (!accessToken || typeof accessToken !== "string") {
@@ -1584,7 +1591,7 @@ exports.processLinePushQueue = onDocumentCreated(
       return;
     }
 
-    const client = new messagingApi.MessagingApiClient({
+    const client = new (getMessagingApi()).MessagingApiClient({
       channelAccessToken: LINE_CHANNEL_ACCESS_TOKEN.value(),
     });
 

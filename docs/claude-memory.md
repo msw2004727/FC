@@ -10,6 +10,11 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-23 — Cloud Functions 冷啟動優化（P0+P1）
+- **問題**：27 個 Cloud Functions 全無 `minInstances`，冷啟動 3-5 秒；`@line/bot-sdk` 全域載入拖慢所有函式
+- **修復**：(1) `createCustomToken` 加 `minInstances: 1`，消除登入冷啟動 (2) `@line/bot-sdk` 改為 lazy-load，僅 `processLinePushQueue` 實際使用時才載入，其餘 26 個函式省 ~0.5-1s
+- **教訓**：`google-auth-library` 已是 lazy-load（函式內 require），無需再改。未來新增重型 SDK 一律 lazy-load
+
 ### 2026-03-23 — GrowthGames 第一期：雲端存檔 + 天氣 + 命名系統
 - **功能**：遊戲進度雲端存檔（Firestore）、場景物件持久化（花/球/墓碑位置）、天氣系統（6 種天氣 + 粒子特效）、角色命名 UI
 - **新增檔案**：`color-cat-cloud-save.js`（Firestore 存讀檔 + localStorage 備援）、`color-cat-scene-weather.js`（天氣系統）、`color-cat-naming.js`（命名 overlay）
