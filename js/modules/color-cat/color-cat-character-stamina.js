@@ -15,17 +15,9 @@ function updateStamina() {
   var rt = _s().runtime;
   var act = ch.action;
 
-  // 紙箱上站立(step2)/跳(step3) 與 跳下動作 不扣體力
-  var isOnBox = (act === 'combo' && _.comboType === 'box' && _.comboStep >= 2);
-  var draining = !isOnBox && (
-    act === 'chase' || act === 'kick' || act === 'dash' ||
-    act === 'biteBall' || act === 'combo' || _.testMode
-  );
-  var walking = (act === 'goToBox');
-
-  if (draining) {
-    st.current = Math.max(0, st.current - st.drain);
-  } else if (act === 'sleeping') {
+  // 動作不再消耗體力，體力僅作為 HP（被攻擊扣血）
+  // 恢復邏輯保留，讓被攻擊後能回血
+  if (act === 'sleeping') {
     st.current = Math.min(st.max, st.current + st.regenSleep);
   } else if (act === 'weak') {
     st.current = Math.min(st.max, st.current + st.regenWeak);

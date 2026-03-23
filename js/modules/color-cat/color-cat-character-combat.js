@@ -113,9 +113,18 @@ function updateDying(sw) {
 }
 
 // ── 攻擊敵人：跑到敵人旁 → 攻擊動畫 → 命中傷害 ──
+function _wakeIfSleeping() {
+  if (ch.action === 'sleeping') {
+    _.manualSleep = false;
+    ch.x = ch.x + C.SPRITE_DRAW / 3;
+    ch.action = 'idle'; ch.spriteFrame = 0; ch.spriteTimer = 0;
+  }
+}
+
 function startAttackEnemy(idx) {
   if (ch.action === 'weak' || ch.action === 'knockback' ||
-      ch.action === 'sleeping' || ch.action === 'dying' || ch.action === 'hurt') return;
+      ch.action === 'dying' || ch.action === 'hurt') return;
+  _wakeIfSleeping();
   var E = window.ColorCatEnemy;
   if (!E) return;
   var enemies = E.getAll();
@@ -214,8 +223,9 @@ function drawDyingCountdown(ctx) {
 
 // ── 攻擊墓碑：跑到墓碑旁 → 攻擊 → 崩解 ──
 function startAttackGrave(idx) {
-  if (ch.action === 'dying' || ch.action === 'sleeping' ||
+  if (ch.action === 'dying' ||
       ch.action === 'weak' || ch.action === 'hurt') return;
+  _wakeIfSleeping();
   if (_.testMode) _.stopTest();
   _.releaseBall();
   if (ch.action === 'combo') { _.interruptCombo(); }

@@ -11,7 +11,8 @@ var ch = _.char;
 
 // ── 被面板撞飛 ──
 function startKnockback(sw) {
-  if (ch.action === 'sleeping' || ch.action === 'knockback') return;
+  if (ch.action === 'knockback') return;
+  _wakeIfSleeping();
   _.releaseBall();
   if (ch.action === 'combo') { _.endCombo(); }
   _.knockbackPhase = 0; _.knockbackTimer = 0; _.knockbackRollDist = 0;
@@ -55,8 +56,17 @@ function updateKnockback(sw) {
 // ── 看花：走向花朵旁待機 + 愛心 ──
 var WATCH_FLOWER_MIN = 150;
 
+function _wakeIfSleeping() {
+  if (ch.action === 'sleeping') {
+    _.manualSleep = false;
+    ch.x = ch.x + C.SPRITE_DRAW / 3;
+    ch.action = 'idle'; ch.spriteFrame = 0; ch.spriteTimer = 0;
+  }
+}
+
 function startWatchFlower(sw) {
-  if (ch.action === 'weak' || ch.action === 'knockback' || ch.action === 'sleeping' || ch.action === 'dying' || ch.action === 'hurt') return;
+  if (ch.action === 'weak' || ch.action === 'knockback' || ch.action === 'dying' || ch.action === 'hurt') return;
+  _wakeIfSleeping();
   var scene_ = window.ColorCatScene && window.ColorCatScene._;
   if (!scene_ || !scene_.getBloomedFlowers) return;
   var bloomed = scene_.getBloomedFlowers();
@@ -119,7 +129,8 @@ function updateWatchFlower(sw) {
 
 // ── 攻擊花朵：跑到花旁 → 攻擊動畫 → 命中花朵打倒 ──
 function startAttackFlower(f) {
-  if (ch.action === 'weak' || ch.action === 'knockback' || ch.action === 'sleeping' || ch.action === 'dying' || ch.action === 'hurt') return;
+  if (ch.action === 'weak' || ch.action === 'knockback' || ch.action === 'dying' || ch.action === 'hurt') return;
+  _wakeIfSleeping();
   var scene_ = window.ColorCatScene && window.ColorCatScene._;
   if (!f || !scene_ || !scene_.isFlowerAlive(f)) return;
   if (_.testMode) _.stopTest();

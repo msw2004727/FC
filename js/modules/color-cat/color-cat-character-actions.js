@@ -84,7 +84,7 @@ function startGoToBox(boxX) {
   if (ch.action === 'weak' || ch.action === 'dying' || ch.action === 'hurt') return;
   if (_.testMode) stopTest();
   releaseBall();
-  if (ch.action === 'sleeping') return;
+  if (ch.action === 'sleeping') return;  // 已在箱中，不需再走
   if (ch.action === 'combo' && _.comboType === 'box' && _.comboStep === 2) {
     _.pendingGoToBox = boxX;
     _.comboStep = -1; _.comboType = '';

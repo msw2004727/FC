@@ -1270,5 +1270,10 @@
 - **修復**：`_isAdminStealth()` 改為優先讀 user doc `stealth` 欄位（Firestore），fallback localStorage；`_toggleAdminStealth()` 同時寫 localStorage + `ApiService.updateCurrentUser({ stealth })`；新增 `_syncStealthFromUser()` 在 `applyRole()` 中同步 Firestore → localStorage
 - **教訓**：需要跨 session 持久的用戶偏好不應只存 localStorage，應以 Firestore user doc 為 source of truth，localStorage 僅作啟動快取
 
+### 2026-03-23 — 體力改為純 HP + 睡覺可被叫醒 + 統計彈窗觸控穿透修復
+- **問題**：(1) 所有動作消耗體力不合理，體力應純作 HP；(2) 角色在紙箱內/上時無法被其他動作叫出；(3) 戰績統計彈窗拖曳時觸控事件穿透到後方個人頁
+- **修復**：(A) `color-cat-character-stamina.js` — 移除所有動作體力消耗（chase/kick/dash/biteBall/combo/test），僅保留被攻擊扣血和恢復邏輯；(B) `color-cat-character-actions-special.js` — 大絕招結束不再扣體力/觸發虛弱，直接回 idle；(C) 三個檔案（actions-interact/actions-special/combat）加入 `_wakeIfSleeping()` helper，6 個動作函式移除 sleeping 封鎖改為自動醒來；(D) `color-cat-scene-stats-modal.js` — modal 加 `touch-action:none` CSS，overlay 加 touchmove preventDefault + touchstart stopPropagation
+- **教訓**：角色狀態機中「封鎖動作」vs「自動轉換狀態」是不同策略，後者互動性更好；彈窗觸控穿透需 CSS + JS 雙重阻擋
+
 *最後濃縮日期：2026-03-15*
 *原始檔案：314 條目 / 2475 行 → 濃縮後約 50 條永久教訓*

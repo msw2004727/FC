@@ -17,7 +17,7 @@ var CSS = [
   '.gg-stats-overlay.open{opacity:1;pointer-events:auto}',
   '.gg-stats-backdrop{position:absolute;inset:0;background:rgba(0,0,0,.35);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}',
   // modal
-  '.gg-stats-modal{position:relative;display:flex;flex-direction:column;background:#fff;border-radius:16px;padding:.9rem 1rem 1rem;min-width:240px;max-width:88vw;max-height:80vh;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,.15);font-family:"Noto Sans TC",-apple-system,sans-serif}',
+  '.gg-stats-modal{position:relative;display:flex;flex-direction:column;background:#fff;border-radius:16px;padding:.9rem 1rem 1rem;min-width:240px;max-width:88vw;max-height:80vh;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,.15);font-family:"Noto Sans TC",-apple-system,sans-serif;touch-action:none}',
   '[data-theme="dark"] .gg-stats-modal{background:#1e1e1e;color:#e8e8e8;box-shadow:0 8px 32px rgba(0,0,0,.6)}',
   // title + divider
   '.gg-stats-title{text-align:center;font-size:1.1rem;font-weight:800;margin-bottom:.3rem;padding-bottom:.45rem;letter-spacing:1.5px;border-bottom:2px solid #e0e0e0;background:linear-gradient(90deg,#e74c3c,#f59e0b);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}',
@@ -133,6 +133,9 @@ function _createOverlay() {
     '</div>';
   _overlay.querySelector('.gg-stats-backdrop').addEventListener('click', close);
   _overlay.querySelector('.gg-stats-close').addEventListener('click', close);
+  // 阻止觸控事件穿透到下方頁面
+  _overlay.addEventListener('touchmove', function(e) { e.preventDefault(); e.stopPropagation(); }, { passive: false });
+  _overlay.addEventListener('touchstart', function(e) { e.stopPropagation(); }, { passive: true });
   document.body.appendChild(_overlay);
 }
 

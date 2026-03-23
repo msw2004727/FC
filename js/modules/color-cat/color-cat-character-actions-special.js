@@ -19,8 +19,17 @@ function _spawnRandomEnemy(sw) {
 }
 
 // ── 攻擊蝴蝶：跑到蝴蝶下方 → 跳起攻擊 → 蝴蝶擊落 ──
+function _wakeIfSleeping() {
+  if (ch.action === 'sleeping') {
+    _.manualSleep = false;
+    ch.x = ch.x + C.SPRITE_DRAW / 3;
+    ch.action = 'idle'; ch.spriteFrame = 0; ch.spriteTimer = 0;
+  }
+}
+
 function startAttackButterfly(b) {
-  if (ch.action === 'weak' || ch.action === 'knockback' || ch.action === 'sleeping' || ch.action === 'dying' || ch.action === 'hurt') return;
+  if (ch.action === 'weak' || ch.action === 'knockback' || ch.action === 'dying' || ch.action === 'hurt') return;
+  _wakeIfSleeping();
   var scene_ = window.ColorCatScene && window.ColorCatScene._;
   if (!b || !scene_ || !scene_.isButterflyAlive(b)) return;
   if (_.testMode) _.stopTest();
@@ -105,7 +114,8 @@ var CHASE_BUTTERFLY_SPEED = 2.0;
 var CHASE_BUTTERFLY_TRIGGER_DIST = 25;
 
 function startChaseButterfly(sw) {
-  if (ch.action === 'weak' || ch.action === 'knockback' || ch.action === 'sleeping' || ch.action === 'dying' || ch.action === 'hurt') return;
+  if (ch.action === 'weak' || ch.action === 'knockback' || ch.action === 'dying' || ch.action === 'hurt') return;
+  _wakeIfSleeping();
   var scene_ = window.ColorCatScene && window.ColorCatScene._;
   if (!scene_ || !scene_.getHoveringButterflies) return;
   var hovering = scene_.getHoveringButterflies();
@@ -141,7 +151,7 @@ function updateChaseButterfly(sw) {
 
 // ── 大絕招：必殺技動畫 → 體力歸零 ──
 function canUltimate() {
-  return ch.action !== 'weak' && ch.action !== 'sleeping' &&
+  return ch.action !== 'weak' &&
          ch.action !== 'knockback' && ch.action !== 'ultimate' &&
          ch.action !== 'dying' && ch.action !== 'hurt' && !_.testMode;
 }
@@ -174,11 +184,8 @@ function updateUltimate(sw) {
     ultimateAreaAttack(sw, def);
   }
   if (_.ultAnimTimer >= totalFrames) {
-    if (_s()) {
-      _s().stamina.current = 0;
-      _s().runtime.weakLevel = 1;
-    }
-    ch.action = 'weak'; ch.spriteFrame = 0; ch.spriteTimer = 0;
+    // 大絕招結束回到 idle（不再扣體力/觸發虛弱）
+    ch.action = 'idle'; ch.spriteFrame = 0; ch.spriteTimer = 0;
   }
   return false;
 }
