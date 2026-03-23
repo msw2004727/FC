@@ -142,7 +142,7 @@ function update() {
   // 角色不超過面板邊界（knockback 飛行中不夾，讓拋物線完整播放）
   var halfW = C.SPRITE_DRAW / 2;
   var chAct = ColorCatCharacter.state.action;
-  if (chAct !== 'knockback' && chAct !== 'combo' && chAct !== 'jumpOff' && chAct !== 'ultimate' && chAct !== 'dying' && chAct !== 'hurt' && chAct !== 'attackEnemy' && chAct !== 'attackGrave' && chAct !== 'runAway' && chAct !== 'returnPanting' && ColorCatCharacter.state.x > ew - halfW) {
+  if (chAct !== 'knockback' && chAct !== 'combo' && chAct !== 'jumpOff' && chAct !== 'ultimate' && chAct !== 'dying' && chAct !== 'hurt' && chAct !== 'attackEnemy' && chAct !== 'attackGrave' && chAct !== 'runAway' && chAct !== 'returnPanting' && chAct !== 'weeding' && ColorCatCharacter.state.x > ew - halfW) {
     ColorCatCharacter.state.x = ew - halfW;
     // 避免在邊界原地踏步：攔截向右移動的動作（combo 自行管理位置，不攔截）
     if (ColorCatCharacter.state.facing === 1 &&

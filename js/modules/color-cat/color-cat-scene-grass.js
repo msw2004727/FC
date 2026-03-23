@@ -18,7 +18,7 @@ var AUTO_GROW_INTERVAL = 450;  // 與花朵相同（可未來獨立調整）
 // ── 雜草種類定義 ──
 var GRASS_TYPES = [
   { name: 'blade',  weight: 70 },   // 普通一支草
-  { name: 'sage',   weight: 15 },   // 鼠尾草（較寬、分叉）
+  { name: 'reed',   weight: 15 },   // 蘆葦草（細莖 + 頂端穗）
   { name: 'tall',   weight: 15 },   // 高草
 ];
 var _totalWeight = 0;
@@ -63,7 +63,7 @@ function addGrass(sw) {
   var x = minX + Math.random() * (maxX - minX);
   var height = 6 + Math.random() * 12;          // 6~18 px 高度變化
   var type = _pickType();
-  if (type === 'sage') height = 10 + Math.random() * 10;   // 鼠尾草較高
+  if (type === 'reed') height = 14 + Math.random() * 10;   // 蘆葦草較高
   if (type === 'tall') height = 14 + Math.random() * 8;    // 高草
   // seed: 固定隨機值，避免每幀重算導致抖動
   var seed = Math.random();
@@ -203,7 +203,7 @@ function startWeeding(sw) {
   _weeding = true;
   _weedPhase = 0;
   _weedOrigX = ch.state.x;
-  ch.state.action = 'chase';   // 用跑步動作
+  ch.state.action = 'weeding';   // 專用動作，不受 AI 干擾
 
   // 決定先跑到哪個邊（離角色較近的邊）
   var leftEdge = 30, rightEdge = sw - 30;
@@ -254,39 +254,22 @@ function _drawSingleGrass(ctx, g, light) {
     var cpX = g.x + g.bendDir * 3 * g.seed;
     ctx.quadraticCurveTo(cpX, baseY - h * 0.6, tipX, baseY - h);
     ctx.stroke();
-  } else if (g.type === 'sage') {
-    // 鼠尾草 — 主莖 + 分叉葉片
+  } else if (g.type === 'reed') {
+    // 蘆葦草 — 細莖微彎 + 頂端橢圓穗
     ctx.strokeStyle = color;
-    ctx.lineWidth = 1.5;
+    ctx.lineWidth = 1.3;
     ctx.lineCap = 'round';
-    // 主莖
+    // 細莖（微彎）
+    var rBendX = g.x + g.bendDir * 2 * g.seed;
     ctx.beginPath();
     ctx.moveTo(g.x, baseY);
-    ctx.lineTo(g.x, baseY - h);
+    ctx.quadraticCurveTo(g.x, baseY - h * 0.6, rBendX, baseY - h);
     ctx.stroke();
-    // 對生葉片（2~3 對，用固定值不用 random）
-    var pairs = 2 + Math.floor(g.height / 8);
-    for (var p = 1; p <= pairs; p++) {
-      var ly = baseY - h * (p / (pairs + 1));
-      var leafLen = 3 + g.seed * 2;
-      ctx.fillStyle = color;
-      // 左葉
-      ctx.beginPath();
-      ctx.ellipse(g.x - leafLen * 0.5, ly, leafLen, 1.5, -0.3, 0, Math.PI * 2);
-      ctx.fill();
-      // 右葉
-      ctx.beginPath();
-      ctx.ellipse(g.x + leafLen * 0.5, ly, leafLen, 1.5, 0.3, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    // 頂端花序（小圓點，固定位置）
-    ctx.fillStyle = light ? '#7B1FA2' : '#9C27B0';
-    for (var t = 0; t < 3; t++) {
-      var dotOff = (g.seed - 0.5) * 2;
-      ctx.beginPath();
-      ctx.arc(g.x + dotOff, baseY - h - t * 2, 1.2, 0, Math.PI * 2);
-      ctx.fill();
-    }
+    // 頂端穗（橢圓形，棕色）
+    ctx.fillStyle = light ? '#8D6E63' : '#6D4C41';
+    ctx.beginPath();
+    ctx.ellipse(rBendX, baseY - h - 3, 1.8, 4, 0, 0, Math.PI * 2);
+    ctx.fill();
   } else if (g.type === 'tall') {
     // 高草 — 粗一些，頂端微彎
     ctx.strokeStyle = color;
@@ -348,13 +331,6 @@ function drawWeedBtn(ctx, light) {
   ctx.lineTo(x + 7, y - 3);
   ctx.stroke();
 
-  // 草數量標示
-  if (alive > 0) {
-    ctx.font = 'bold 7px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillStyle = light ? '#2E7D32' : '#66BB6A';
-    ctx.fillText(alive.toString(), x, y + 15);
-  }
   ctx.restore();
 }
 

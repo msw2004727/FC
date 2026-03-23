@@ -179,6 +179,7 @@ function getSpriteKey() {
   if (character.action === 'attackGrave') return _.attackGravePhase === 0 ? 'run' : 'attack';
   if (character.action === 'runAway') return 'run';
   if (character.action === 'returnPanting') return 'run';
+  if (character.action === 'weeding') return 'run';
   if (character.action === 'weak') return _.isBunny() ? 'death' : 'idle';
   if (character.action === 'knockback') return _.knockbackPhase === 2 ? 'idle' : 'roll';
   if (!character.onGround) return 'jump';
@@ -272,6 +273,7 @@ function updateCharacter(sceneWidth, ballState) {
   if (character.action === 'attackGrave') return _.updateAttackGrave(sw);
   if (character.action === 'runAway') return _.updateRunAway(sw);
   if (character.action === 'returnPanting') return _.updateReturnPanting(sw);
+  if (character.action === 'weeding') return false;  // 由 scene-grass.js 控制移動
   return _.updateChaseKickIdle(sw, ballState, defs);
 }
 
