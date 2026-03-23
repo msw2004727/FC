@@ -54,6 +54,7 @@ var _weedPhase = 0;       // 0=跑到近邊, 1=跑到遠邊, 2=完成
 var _weedSpeed = 4;
 var _weedOrigX = 0;       // 角色原始 x（除草結束後回歸）
 var _weedOrigAction = '';
+var _weedSw = 0;          // 除草時場景寬度（供敵人生成用）
 
 // ── 新增雜草 ──
 function addGrass(sw) {
@@ -169,13 +170,21 @@ function _clearAtX(charX, dir) {
       g.fallDir = dir;
     }
   }
-  // 同時收割花朵
+  // 同時收割花朵（每朵 20% 機率召喚敵人）
   if (_.knockFlower) {
     var bloomed = _.getBloomedFlowers ? _.getBloomedFlowers() : [];
     for (var j = 0; j < bloomed.length; j++) {
       var f = bloomed[j];
       if (Math.abs(f.x - charX) < 12) {
         _.knockFlower(f, dir, false);
+        if (Math.random() < 0.2) {
+          var E = window.ColorCatEnemy;
+          if (E) {
+            var skinKeys = Object.keys(E.SKINS);
+            var rndSkin = skinKeys[Math.floor(Math.random() * skinKeys.length)];
+            E.spawn(rndSkin, _weedSw);
+          }
+        }
       }
     }
   }
@@ -203,6 +212,7 @@ function startWeeding(sw) {
   _weeding = true;
   _weedPhase = 0;
   _weedOrigX = ch.state.x;
+  _weedSw = sw;
   ch.state.action = 'weeding';   // 專用動作，不受 AI 干擾
 
   // 決定先跑到哪個邊（離角色較近的邊）
