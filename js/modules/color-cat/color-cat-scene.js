@@ -236,29 +236,25 @@ function handleClick(e) {
     return;
   }
 
-  // 面板攔截（優先處理）
-  if (_.handlePanelClick(cx, cy, _sw)) return;
-
-  // 點擊路標 → 離場中點擊回來，否則角色先跑出場景再開彈窗
-  if (_.isSignpostClicked && _.isSignpostClicked(cx, cy, _sw)) {
-    var char_ = ColorCatCharacter._;
-    if (char_.signpostAway) {
-      char_.awayMode = '';
+  // 角色離場中 → 只允許路牌召喚回來，其餘全部忽略
+  if (ColorCatCharacter._.signpostAway) {
+    if (_.isSignpostClicked && _.isSignpostClicked(cx, cy, _sw)) {
+      var char_a = ColorCatCharacter._;
+      char_a.awayMode = '';
       ColorCatCharacter.startReturnPanting(_sw);
-    } else {
-      char_.awayMode = '';
-      char_.pendingSignpostModal = true;
-      ColorCatCharacter.startRunAway(_sw);
     }
     return;
   }
 
-  // 角色離場中 → 除路標、樹、面板外不回應任何點擊
-  if (ColorCatCharacter._.signpostAway) {
-    // 點擊樹 → 觸發/撤回濃霧（非角色互動，允許）
-    if (_.isTreeClicked && _.isTreeClicked(cx, cy, _sw)) {
-      if (_.toggleFog) _.toggleFog();
-    }
+  // 面板攔截（優先處理）
+  if (_.handlePanelClick(cx, cy, _sw)) return;
+
+  // 點擊路標 → 角色先跑出場景再開彈窗
+  if (_.isSignpostClicked && _.isSignpostClicked(cx, cy, _sw)) {
+    var char_ = ColorCatCharacter._;
+    char_.awayMode = '';
+    char_.pendingSignpostModal = true;
+    ColorCatCharacter.startRunAway(_sw);
     return;
   }
 
