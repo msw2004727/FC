@@ -326,7 +326,7 @@
 // 20260322a: 靜態場景改版（移除山樹、加鑰匙密碼解鎖互動模式）
 // 20260322h: 蝴蝶必定生怪、大絕招花/蝶獨立生怪、重新整理按鈕
 // 20260323b: 個人資訊頁啟用互動畫布 + 載入戰績統計彈窗模組
-const CACHE_VERSION = '20260323g';
+const CACHE_VERSION = '20260323h';
 
 // ─── CF Migration Feature Flag ───
 // 判斷是否走 Cloud Functions 報名流程（Wave 1）

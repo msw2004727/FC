@@ -110,7 +110,7 @@ Object.assign(App, {
 
       if (alertItems.length > 0) {
         html += `<div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:.5rem .75rem;margin-bottom:.75rem;font-size:.78rem;color:#991b1b">
-          ⚠ 接近免費額度上限：${alertItems.join('、')}
+          ⚠ 接近免費額度上限：${escapeHTML(alertItems.join('、'))}
         </div>`;
       }
 
@@ -134,13 +134,16 @@ Object.assign(App, {
           <div class="dash-usage-sub">Spark 方案無此資料</div>
         </div>`;
       }
-      // Functions 錯誤（不顯示百分比）
+      // Functions 延遲
       html += `<div class="dash-usage-card">
         <div class="dash-usage-label">Functions 延遲</div>
-        <div class="dash-usage-num">${this._fmtUsageNum(latest.functionsLatency)}</div>
+        <div class="dash-usage-num">${escapeHTML(this._fmtUsageNum(latest.functionsLatency))}</div>
         <div class="dash-usage-sub">執行次數 (含延遲採樣)</div>
       </div>`;
       html += `</div>`; // grid end
+
+      // ── 費用區塊 ──
+      html += this._renderCostSection(latest);
 
       // 錯誤提示
       if (latest.errors && latest.errors.length > 0) {
@@ -192,6 +195,74 @@ Object.assign(App, {
     if (docs.length >= 2) {
       requestAnimationFrame(() => this._drawUsageTrendChart(docs.reverse()));
     }
+  },
+
+  /** 格式化金額 */
+  _fmtCurrency(val, currency) {
+    if (val == null) return '--';
+    const num = Number(val);
+    if (isNaN(num)) return '--';
+    const sym = currency === 'USD' ? '$' : currency + ' ';
+    return sym + num.toFixed(2);
+  },
+
+  /** 渲染費用區塊（Billing API 實際 + 估算備援） */
+  _renderCostSection(latest) {
+    const billing = latest.billing;
+    const estimated = latest.estimated;
+    if (!billing && !estimated) return '';
+
+    let html = `<div style="margin-top:.75rem;padding-top:.75rem;border-top:1px solid var(--border-color,#e2e8f0)">
+      <div style="font-size:.82rem;font-weight:600;margin-bottom:.5rem">本月費用</div>`;
+
+    // 實際費用（Billing API）
+    if (billing && billing.totalCost != null) {
+      const color = billing.totalCost > 0 ? '#ef4444' : '#10b981';
+      html += `<div class="dash-cost-row">
+        <span class="dash-cost-label">實際費用（${escapeHTML(billing.billingPeriod || '--')}）</span>
+        <span class="dash-cost-val" style="color:${color}">${escapeHTML(this._fmtCurrency(billing.totalCost, billing.currency))}</span>
+      </div>`;
+      // 服務明細
+      if (billing.costByService) {
+        const entries = Object.entries(billing.costByService).sort((a, b) => b[1] - a[1]);
+        for (const [svc, cost] of entries) {
+          html += `<div class="dash-cost-row dash-cost-detail">
+            <span class="dash-cost-label">${escapeHTML(svc)}</span>
+            <span class="dash-cost-val">${escapeHTML(this._fmtCurrency(cost, billing.currency))}</span>
+          </div>`;
+        }
+      }
+    } else {
+      html += `<div style="font-size:.75rem;color:var(--text-secondary);margin-bottom:.3rem">
+        Billing API 無資料（需啟用 Billing Export 或等待數據同步）
+      </div>`;
+    }
+
+    // 用量估算費用
+    if (estimated) {
+      const estColor = estimated.totalCost > 0 ? '#f59e0b' : '#10b981';
+      html += `<div class="dash-cost-row" style="margin-top:.4rem">
+        <span class="dash-cost-label">用量估算（今日超額）</span>
+        <span class="dash-cost-val" style="color:${estColor}">${escapeHTML(this._fmtCurrency(estimated.totalCost, 'USD'))}</span>
+      </div>`;
+      if (estimated.breakdown) {
+        for (const [key, info] of Object.entries(estimated.breakdown)) {
+          if (info.overage > 0) {
+            const label = key.replace('firestore', 'Firestore ').replace('functions', 'Functions ').replace('Reads', '讀取').replace('Writes', '寫入').replace('Deletes', '刪除').replace('Invocations', '呼叫');
+            html += `<div class="dash-cost-row dash-cost-detail">
+              <span class="dash-cost-label">${escapeHTML(label)}（超額 ${escapeHTML(this._fmtUsageNum(info.overage))}）</span>
+              <span class="dash-cost-val">${escapeHTML(this._fmtCurrency(info.cost, 'USD'))}</span>
+            </div>`;
+          }
+        }
+      }
+      if (estimated.totalCost === 0) {
+        html += `<div style="font-size:.72rem;color:#10b981;margin-top:.2rem">所有用量皆在免費額度內</div>`;
+      }
+    }
+
+    html += `</div>`;
+    return html;
   },
 
   /** 繪製 7 天用量趨勢折線圖 */

@@ -4995,14 +4995,80 @@ async function collectUsageMetrics() {
     metrics.firestoreStorageBytes = null;
   }
 
+  // ── Cloud Billing API：取得本月實際費用 ──
+  const billingData = { totalCost: null, costByService: null, currency: "USD", billingPeriod: null };
+  try {
+    const { GoogleAuth: BillingGAuth } = require("google-auth-library");
+
+    // 取當月起迄（UTC）
+    const billingNow = new Date();
+    const monthStart = new Date(Date.UTC(billingNow.getUTCFullYear(), billingNow.getUTCMonth(), 1));
+    billingData.billingPeriod = `${monthStart.toISOString().slice(0, 7)}`;
+
+    // 使用 Cloud Monitoring 的 billing/cost metric（最輕量方式，不需 BigQuery Export）
+    const billingFilter = `metric.type="billing.googleapis.com/billing/cost" AND resource.labels.project_id="${USAGE_PROJECT_ID}"`;
+    const billingUrl = `https://monitoring.googleapis.com/v3/projects/${USAGE_PROJECT_ID}/timeSeries`
+      + `?filter=${encodeURIComponent(billingFilter)}`
+      + `&interval.startTime=${monthStart.toISOString()}`
+      + `&interval.endTime=${billingNow.toISOString()}`
+      + `&aggregation.alignmentPeriod=${Math.max(1, Math.floor((billingNow - monthStart) / 1000))}s`
+      + `&aggregation.perSeriesAligner=ALIGN_SUM`;
+
+    const monAuth = new BillingGAuth({ scopes: ["https://www.googleapis.com/auth/monitoring.read"] });
+    const monClient = await monAuth.getClient();
+    const billingRes = await monClient.request({ url: billingUrl, method: "GET" });
+
+    if (billingRes.data && billingRes.data.timeSeries) {
+      const costByService = {};
+      let total = 0;
+      for (const series of billingRes.data.timeSeries) {
+        const serviceName = (series.resource && series.resource.labels && series.resource.labels.service)
+          || (series.metric && series.metric.labels && series.metric.labels.service)
+          || "other";
+        let seriesCost = 0;
+        for (const point of (series.points || [])) {
+          const v = point.value;
+          seriesCost += v.doubleValue || (v.int64Value ? parseInt(v.int64Value) : 0);
+        }
+        costByService[serviceName] = (costByService[serviceName] || 0) + seriesCost;
+        total += seriesCost;
+      }
+      billingData.totalCost = Math.round(total * 100) / 100;
+      billingData.costByService = costByService;
+    }
+  } catch (err) {
+    // Billing metric 可能不存在（需要 Billing Export 啟用），靜默失敗
+    console.warn("[fetchUsageMetrics] billing cost fetch failed (expected if billing export not enabled):", err.message || err);
+    billingData.totalCost = null;
+  }
+
+  // ── 用量估算費用（作為 Billing API 的即時備援） ──
+  const estimated = { totalCost: 0, breakdown: {} };
+  const PRICING = {
+    firestoreReads:   { free: 50000,   pricePerUnit: 0.06 / 100000 },
+    firestoreWrites:  { free: 20000,   pricePerUnit: 0.18 / 100000 },
+    firestoreDeletes: { free: 20000,   pricePerUnit: 0.02 / 100000 },
+    functionsInvocations: { free: 66666, pricePerUnit: 0.40 / 1000000 },
+  };
+  for (const [key, pricing] of Object.entries(PRICING)) {
+    const used = metrics[key] || 0;
+    const overage = Math.max(0, used - pricing.free);
+    const cost = Math.round(overage * pricing.pricePerUnit * 10000) / 10000;
+    estimated.breakdown[key] = { used, free: pricing.free, overage, cost };
+    estimated.totalCost += cost;
+  }
+  estimated.totalCost = Math.round(estimated.totalCost * 100) / 100;
+
   // 寫入 Firestore
-  const now = new Date(); // eslint-disable-line no-redeclare -- 上方 storageNow 為獨立用途
+  const now = new Date();
   const taipeiOffset = 8 * 60 * 60 * 1000;
   const taipeiDate = new Date(now.getTime() + taipeiOffset);
   const dateKey = taipeiDate.toISOString().slice(0, 10).replace(/-/g, "");
 
   const docData = {
     ...metrics,
+    billing: billingData,
+    estimated,
     collectedAt: FieldValue.serverTimestamp(),
     dateKey,
     periodHours: 24,
@@ -5011,7 +5077,7 @@ async function collectUsageMetrics() {
 
   await db.collection("usageMetrics").doc(dateKey).set(docData, { merge: true });
   console.log(`[fetchUsageMetrics] ${dateKey} written:`, JSON.stringify(metrics));
-  return { dateKey, metrics, errors };
+  return { dateKey, metrics, billing: billingData, estimated, errors };
 }
 
 // 定時排程：每小時執行

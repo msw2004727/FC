@@ -10,13 +10,14 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
-### 2026-03-23 — 雲端用量儀表板（Cloud Monitoring API 整合）
-- **功能**：在管理員儀表板新增雲端用量區塊，顯示 Firestore 讀/寫/刪/儲存 + Cloud Functions 呼叫/延遲
+### 2026-03-23 — 雲端用量儀表板（Cloud Monitoring API + Billing API 整合）
+- **功能**：在管理員儀表板新增雲端用量區塊，顯示 Firestore 讀/寫/刪/儲存 + Cloud Functions 呼叫/延遲 + 本月費用
 - **後端**：`functions/index.js` 新增 `fetchUsageMetrics`（每小時 onSchedule）+ `fetchUsageMetricsManual`（super_admin onCall），使用 Google Cloud Monitoring API v3 + `google-auth-library` ADC
-- **前端**：`js/modules/dashboard/dashboard-usage.js` — 用量卡片 grid、免費額度進度條、80% 警示橫幅、7 天趨勢折線圖
-- **Firestore**：新集合 `usageMetrics/{dateKey}`，rules 僅 super_admin 可讀、client 禁寫
-- **前提**：需在 Google Cloud Console 啟用 Monitoring API；Spark 方案可拿用量但拿不到帳單金額
-- **QA 修復**：`const now` TDZ 變數衝突（改用 `storageNow`）、移除模組層 `ModeManager.isDemo()` 直接呼叫、escapeHTML 補齊
+- **費用功能**：Cloud Billing API（`billing.googleapis.com/billing/cost` metric）取得實際費用 + 用量估算備援（基於 Firebase 公開定價）
+- **前端**：`js/modules/dashboard/dashboard-usage.js` — 用量卡片 grid、免費額度進度條、80% 警示橫幅、費用區塊（實際+估算）、7 天趨勢折線圖
+- **Firestore**：新集合 `usageMetrics/{dateKey}`，rules 僅 super_admin 可讀、client 禁寫；docData 包含 `billing`（實際費用）與 `estimated`（估算費用）
+- **前提**：需在 Google Cloud Console 啟用 Monitoring API + Cloud Billing API；服務帳號需 `billing.viewer` 角色；Billing metric 需啟用 Billing Export 才有資料，否則靜默降級
+- **QA 修復**：`const now` TDZ 變數衝突（改用 `storageNow`）、移除模組層 `ModeManager.isDemo()` 直接呼叫、escapeHTML 補齊、移除未使用 `billingClient` 變數、`_fmtCurrency` 類型安全檢查、alignmentPeriod 防零值
 
 ### 2026-03-23 — ColorCat MBTI 16 人格系統
 - **功能**：為角色新增 16 種 MBTI 人格，每個角色出生時隨機指派、永久不變（除非測試刷新按鈕）
