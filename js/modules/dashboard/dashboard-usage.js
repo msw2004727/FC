@@ -67,7 +67,7 @@ Object.assign(App, {
     // 僅 super_admin 可見
     if (this.currentRole !== 'super_admin') return;
 
-    // 取得當月的 usageMetrics（用於累計費用），至少 31 天
+    // 取得最近 7 天的 usageMetrics
     let docs = [];
     try {
       // Demo 模式或 db 未就緒時跳過
@@ -75,7 +75,7 @@ Object.assign(App, {
       if (typeof db === 'undefined') return;
       const snap = await db.collection('usageMetrics')
         .orderBy('dateKey', 'desc')
-        .limit(31)
+        .limit(7)
         .get();
       snap.forEach(d => docs.push({ id: d.id, ...d.data() }));
     } catch (err) {
@@ -206,20 +206,20 @@ Object.assign(App, {
     return sym + num.toFixed(2);
   },
 
-  /** 渲染費用區塊（Billing API 實際 + 當月累計估算） */
+  /** 渲染費用區塊（Billing API 實際 + 近 N 天累計估算） */
   _renderCostSection(latest, docs) {
     const billing = latest.billing;
     const estimated = latest.estimated;
     if (!billing && !estimated) return '';
 
     let html = `<div style="margin-top:.75rem;padding-top:.75rem;border-top:1px solid var(--border-color,#e2e8f0)">
-      <div style="font-size:.82rem;font-weight:600;margin-bottom:.5rem">本月費用</div>`;
+      <div style="font-size:.82rem;font-weight:600;margin-bottom:.5rem">費用</div>`;
 
     // 實際費用（Billing API）
     if (billing && billing.totalCost != null) {
       const color = billing.totalCost > 0 ? '#ef4444' : '#10b981';
       html += `<div class="dash-cost-row">
-        <span class="dash-cost-label">實際費用（${escapeHTML(billing.billingPeriod || '--')}）</span>
+        <span class="dash-cost-label">實際帳單（${escapeHTML(billing.billingPeriod || '--')}）</span>
         <span class="dash-cost-val" style="color:${color}">${escapeHTML(this._fmtCurrency(billing.totalCost, billing.currency))}</span>
       </div>`;
       if (billing.costByService) {
@@ -237,52 +237,45 @@ Object.assign(App, {
       </div>`;
     }
 
-    // 當月累計估算：累加 docs 中當月所有天的 estimated.totalCost
-    const monthlyEst = this._calcMonthlyEstimated(docs);
+    // 近 N 天累計估算：只累加有資料的天數，誠實標示
+    const recentEst = this._calcRecentEstimated(docs);
 
-    // 當月累計
-    if (monthlyEst) {
-      const mColor = monthlyEst.totalCost > 0 ? '#f59e0b' : '#10b981';
+    if (recentEst) {
+      const mColor = recentEst.totalCost > 0 ? '#f59e0b' : '#10b981';
       html += `<div class="dash-cost-row" style="margin-top:.4rem">
-        <span class="dash-cost-label">當月累計估算（${escapeHTML(String(monthlyEst.days))} 天）</span>
-        <span class="dash-cost-val" style="color:${mColor}">${escapeHTML(this._fmtCurrency(monthlyEst.totalCost, 'USD'))}</span>
+        <span class="dash-cost-label">近 ${escapeHTML(String(recentEst.days))} 天超額估算</span>
+        <span class="dash-cost-val" style="color:${mColor}">${escapeHTML(this._fmtCurrency(recentEst.totalCost, 'USD'))}</span>
       </div>`;
-      if (monthlyEst.breakdown) {
-        for (const [key, info] of Object.entries(monthlyEst.breakdown)) {
+      if (recentEst.breakdown) {
+        for (const [key, info] of Object.entries(recentEst.breakdown)) {
           if (info.cost > 0) {
             const label = key.replace('firestore', 'Firestore ').replace('functions', 'Functions ').replace('Reads', '讀取').replace('Writes', '寫入').replace('Deletes', '刪除').replace('Invocations', '呼叫');
             html += `<div class="dash-cost-row dash-cost-detail">
-              <span class="dash-cost-label">${escapeHTML(label)}（累計超額 ${escapeHTML(this._fmtUsageNum(info.overage))}）</span>
+              <span class="dash-cost-label">${escapeHTML(label)}（超額 ${escapeHTML(this._fmtUsageNum(info.overage))}）</span>
               <span class="dash-cost-val">${escapeHTML(this._fmtCurrency(info.cost, 'USD'))}</span>
             </div>`;
           }
         }
       }
-      if (monthlyEst.totalCost === 0) {
-        html += `<div style="font-size:.72rem;color:#10b981;margin-top:.2rem">本月所有用量皆在免費額度內</div>`;
+      if (recentEst.totalCost === 0) {
+        html += `<div style="font-size:.72rem;color:#10b981;margin-top:.2rem">所有用量皆在免費額度內</div>`;
       }
-    }
-
-    // 今日超額明細（摺疊顯示）
-    if (estimated && estimated.totalCost > 0) {
-      html += `<div style="margin-top:.4rem;font-size:.72rem;color:var(--text-secondary)">今日超額：${escapeHTML(this._fmtCurrency(estimated.totalCost, 'USD'))}</div>`;
+      html += `<div style="font-size:.68rem;color:var(--text-secondary);margin-top:.2rem">* 估算基於用量×公開定價，僅供參考，非實際帳單</div>`;
     }
 
     html += `</div>`;
     return html;
   },
 
-  /** 累加當月所有 docs 的 estimated 費用 */
-  _calcMonthlyEstimated(docs) {
+  /** 累加所有有 estimated 資料的 docs（誠實顯示有幾天就算幾天） */
+  _calcRecentEstimated(docs) {
     if (!docs || docs.length === 0) return null;
-    const now = new Date();
-    const monthPrefix = String(now.getFullYear()) + String(now.getMonth() + 1).padStart(2, '0');
-    const monthDocs = docs.filter(d => d.dateKey && d.dateKey.startsWith(monthPrefix) && d.estimated);
-    if (monthDocs.length === 0) return null;
+    const estDocs = docs.filter(d => d.estimated);
+    if (estDocs.length === 0) return null;
 
     const totalBreakdown = {};
     let totalCost = 0;
-    for (const doc of monthDocs) {
+    for (const doc of estDocs) {
       const est = doc.estimated;
       totalCost += (Number(est.totalCost) || 0);
       if (est.breakdown) {
@@ -298,7 +291,7 @@ Object.assign(App, {
     for (const key of Object.keys(totalBreakdown)) {
       totalBreakdown[key].cost = Math.round(totalBreakdown[key].cost * 10000) / 10000;
     }
-    return { totalCost, breakdown: totalBreakdown, days: monthDocs.length };
+    return { totalCost, breakdown: totalBreakdown, days: estDocs.length };
   },
 
   /** 繪製 7 天用量趨勢折線圖 */
