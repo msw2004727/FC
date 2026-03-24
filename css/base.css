@@ -825,7 +825,7 @@ body.modal-open { overflow: hidden; }
 .boot-loading__image-slot {
   width: 100%;
   max-width: 260px;
-  height: 130px;
+  height: 180px;
   border-radius: 12px;
   border: 1px solid var(--border);
   display: grid;
@@ -838,6 +838,7 @@ body.modal-open { overflow: hidden; }
   width: 100%;
   height: 100%;
   object-fit: contain;
+  object-position: center 35%;
   display: block;
 }
 
