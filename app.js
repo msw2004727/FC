@@ -159,7 +159,7 @@ const App = {
   _routeLoadingShownAt: 0,
   _routeStepTimeoutMs: 15000,
   _routeCloudTimeoutMs: 15000,
-  _scriptLoadTimeoutMs: 12000,
+  _scriptLoadTimeoutMs: 18000,
   _pendingProtectedBootRoute: null,
   _pendingProtectedBootRoutePromise: null,
   _pendingAuthAction: null,
@@ -1844,18 +1844,34 @@ function _loadScript(src) {
   return _dynamicScriptPromises[src];
 }
 
+async function _loadCDNScriptsOnce() {
+  await _loadScript('https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js');
+  await Promise.all([
+    _loadScript('https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js'),
+    _loadScript('https://www.gstatic.com/firebasejs/10.14.1/firebase-storage-compat.js'),
+    _loadScript('https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js'),
+    _loadScript('https://www.gstatic.com/firebasejs/10.14.1/firebase-functions-compat.js'),
+    _loadScript('https://static.line-scdn.net/liff/edge/2/sdk.js'),
+  ]);
+}
+
 async function _loadCDNScripts() {
   if (_cdnScriptsPromise) return await _cdnScriptsPromise;
 
   _cdnScriptsPromise = (async () => {
-    await _loadScript('https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js');
-    await Promise.all([
-      _loadScript('https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js'),
-      _loadScript('https://www.gstatic.com/firebasejs/10.14.1/firebase-storage-compat.js'),
-      _loadScript('https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js'),
-      _loadScript('https://www.gstatic.com/firebasejs/10.14.1/firebase-functions-compat.js'),
-      _loadScript('https://static.line-scdn.net/liff/edge/2/sdk.js'),
-    ]);
+    try {
+      await _loadCDNScriptsOnce();
+    } catch (firstErr) {
+      // 首次超時 → 自動重試一次（瀏覽器已部分快取，第二次通常更快）
+      console.warn('[CDN] 首次載入失敗，自動重試:', firstErr?.message || firstErr);
+      const origTimeout = App._scriptLoadTimeoutMs;
+      App._scriptLoadTimeoutMs = 10000; // 重試用較短超時（瀏覽器有快取）
+      try {
+        await _loadCDNScriptsOnce();
+      } finally {
+        App._scriptLoadTimeoutMs = origTimeout;
+      }
+    }
     console.log('[CDN] Firebase + LIFF SDK loaded');
     return true;
   })();
