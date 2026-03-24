@@ -87,9 +87,43 @@ function _dismissBootOverlay(reason) {
     setTimeout(function() {
       _ov.style.display = 'none';
       console.log('[Boot] 載入畫面已隱藏（' + (reason || '') + '）');
+      _startContentStallCheck();
     }, 150);
     if (window._loadingSafety) { clearTimeout(window._loadingSafety); window._loadingSafety = null; }
   } catch (_) {}
+}
+
+/**
+ * 白屏卡住偵測：boot-loading 消失後 6 秒，
+ * 若頁面內容仍未渲染（_contentReady === false）則顯示重整提示。
+ * 僅觸發一次，不自動重整，由用戶決定。
+ */
+function _startContentStallCheck() {
+  if (window._contentStallTimer) return;
+  window._contentStallTimer = setTimeout(function() {
+    window._contentStallTimer = null;
+    if (window._contentReady) return;
+    console.warn('[Stall] 頁面內容未在 6 秒內渲染完成，顯示重整提示');
+    var el = document.createElement('div');
+    el.id = 'content-stall-hint';
+    el.setAttribute('role', 'alert');
+    el.setAttribute('style',
+      'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);' +
+      'background:rgba(0,0,0,.85);color:#fff;padding:12px 20px;border-radius:12px;' +
+      'font-size:14px;z-index:9999;text-align:center;max-width:320px;' +
+      'box-shadow:0 4px 20px rgba(0,0,0,.3);'
+    );
+    el.innerHTML =
+      '<div style="margin-bottom:8px">頁面載入似乎遇到問題</div>' +
+      '<button id="stall-reload-btn" style="' +
+        'background:#0d9488;color:#fff;border:none;padding:8px 24px;' +
+        'border-radius:8px;font-size:14px;font-weight:600;cursor:pointer' +
+      '">重新整理</button>';
+    document.body.appendChild(el);
+    document.getElementById('stall-reload-btn').addEventListener('click', function() {
+      location.reload();
+    });
+  }, 6000);
 }
 
 const App = {

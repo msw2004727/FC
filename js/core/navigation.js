@@ -627,6 +627,12 @@ Object.assign(App, {
     if (pageId === 'page-admin-error-logs' && this.renderAdminLogCenter) {
       this.renderAdminLogCenter('error');
     }
+
+    /* 白屏卡住偵測：標記頁面內容已開始渲染 */
+    window._contentReady = true;
+    if (document.getElementById('content-stall-hint')) {
+      document.getElementById('content-stall-hint').remove();
+    }
   },
 
   async goBack() {
