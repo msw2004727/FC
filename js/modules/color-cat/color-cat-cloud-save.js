@@ -160,7 +160,7 @@ function _buildSaveDoc(isCreate) {
       graves: (Sc && Sc.exportGraves) ? Sc.exportGraves() : [],
       grass: (Sc && Sc.exportGrass) ? Sc.exportGrass() : [],
       goldCounter: r.goldCounter || 0, nextGoldAt: r.nextGoldAt || 0,
-      weather: r.weather || { type: 'clear', intensity: 0, changedAt: null },
+      weather: (Sc && Sc.exportWeather) ? Sc.exportWeather() : { type: 'clear', intensity: 0, changedAt: null },
     },
     savedAt: _ts(), playTimeMinutes: r.playTimeMinutes || 0,
   };

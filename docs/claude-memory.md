@@ -10,6 +10,15 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-24 — 天氣系統永遠晴天 bug 修復
+- **問題**：養成遊戲天氣系統永遠顯示晴天(clear)，不會出現雨/雪/霧/雷暴等變化
+- **原因**：cloud-save 存檔時用 `r.weather`（runtime.weather）但 `_runtime` 物件未定義 `weather` 屬性，永遠 fallback 到 `{ type: 'clear' }`。且 `exportWeather()` 函式存在但從未被 cloud-save 呼叫
+- **修復**：
+  1. `color-cat-cloud-save.js:163` — 改用 `Sc.exportWeather()` 取得即時天氣狀態
+  2. `color-cat-scene.js:545-546` — 場景初始化改為 `initWeather(null)` 每次進入隨機天氣
+  3. `color-cat-scene.js:566` — 移除從雲端存檔還原天氣的邏輯（用戶要求每次進入隨機）
+- **教訓**：cloud-save 的 `_buildSaveDoc()` 中場景資料應統一透過 export 函式取得，而非直接讀 runtime 屬性
+
 ### 2026-03-24 — ScriptLoader 平行預載入優化
 - **問題**：刷新後點底部分頁按鈕（活動/俱樂部/賽事/我的）要等 2-5 秒，因為 30+ 個 JS 模組逐一下載+執行
 - **修復**：

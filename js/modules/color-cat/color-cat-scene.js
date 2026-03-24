@@ -541,9 +541,8 @@ function initInteractiveScene(containerId) {
   _observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
   container._fcObserver = _observer;
 
-  // 天氣初始化（從 runtime 或預設）
-  var weatherSaved = window.ColorCatStats && ColorCatStats.runtime.weather;
-  _.initWeather(weatherSaved || null);
+  // 天氣初始化（每次進入隨機）
+  _.initWeather(null);
 
   // 雲端存檔系統初始化（含雙開偵測）
   if (window.ColorCatCloudSave) {
@@ -563,7 +562,7 @@ function initInteractiveScene(containerId) {
         if (data.scene.ball && window.ColorCatBall) ColorCatBall.importState(data.scene.ball);
         if (data.scene.graves && _.importGraves) _.importGraves(data.scene.graves);
         if (data.scene.grass && _.importGrass) _.importGrass(data.scene.grass);
-        if (data.scene.weather) _.initWeather(data.scene.weather);
+        // 天氣不從存檔還原，每次進入場景隨機產生
       }
       // 離線補長雜草（根據 savedAt 計算離線時間）
       if (_.catchUpGrass) {
