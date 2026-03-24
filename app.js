@@ -293,6 +293,11 @@ const App = {
     if (!this._isHomePageActive()) return;
     this.renderHomeCritical();
     this._scheduleHomeDeferredRender();
+    /* 白屏卡住偵測：首頁初始渲染完成 */
+    window._contentReady = true;
+    if (document.getElementById('content-stall-hint')) {
+      document.getElementById('content-stall-hint').remove();
+    }
   },
 
   renderGlobalShell() {
