@@ -48,10 +48,30 @@ const ScriptLoader = {
     return this._loading[src];
   },
 
-  /** 載入一組 scripts（嚴格依序執行，避免 Object.assign 順序競態） */
+  /**
+   * 平行預載入：用 <link rel="preload"> 讓瀏覽器同時下載所有檔案到 HTTP 快取，
+   * 後續 <script> 標籤執行時直接命中快取，不再等網路。
+   */
+  _preloaded: {},
+
+  _preloadFiles(scripts) {
+    scripts.forEach(src => {
+      if (this._preloaded[src] || this._loaded[src]) return;
+      this._preloaded[src] = true;
+      const link = document.createElement('link');
+      link.rel = 'preload';
+      link.as = 'script';
+      link.href = src + '?v=' + CACHE_VERSION;
+      document.head.appendChild(link);
+    });
+  },
+
+  /** 載入一組 scripts（平行預載 + 嚴格依序執行，避免 Object.assign 順序競態） */
   async loadGroup(scripts) {
     const toLoad = scripts.filter(s => !this._loaded[s]);
     if (toLoad.length === 0) return;
+    // 先觸發平行下載，再依序執行（命中快取後每個 script 幾乎秒完成）
+    this._preloadFiles(toLoad);
     for (const src of toLoad) {
       await this._load(src);
     }
@@ -395,24 +415,40 @@ const ScriptLoader = {
   _preloadQueued: false,
 
   /**
-   * 首頁渲染完成後，按指定順序背景預載入核心頁面 scripts
-   * 順序：活動 → 我的活動（同 group）→ 俱樂部 → 賽事
+   * 首頁渲染完成後，背景預載入核心頁面 scripts
+   * Step 1: 立即平行下載所有核心頁面的檔案（不阻塞、不執行）
+   * Step 2: 閒置時依序執行（活動 → 俱樂部 → 賽事 → 個人）
    */
   preloadCorePages() {
     if (this._preloadQueued) return;
     this._preloadQueued = true;
+
+    // Step 1: 立即觸發平行下載（只下載不執行，不影響首頁效能）
+    this._primeLoadedFromDom();
+    const corePages = ['page-activities', 'page-teams', 'page-tournaments', 'page-profile'];
+    const allScripts = [];
+    const seen = new Set();
+    corePages.forEach(pageId => {
+      const groups = this._pageGroups[pageId] || [];
+      groups.forEach(g => {
+        (this._groups[g] || []).forEach(src => {
+          if (!seen.has(src) && !this._loaded[src]) { seen.add(src); allScripts.push(src); }
+        });
+      });
+    });
+    if (allScripts.length > 0) this._preloadFiles(allScripts);
+
+    // Step 2: 閒置時依序執行
     const run = async () => {
-      const order = ['page-activities', 'page-teams', 'page-tournaments'];
-      for (const pageId of order) {
+      for (const pageId of corePages) {
         try { await this.ensureForPage(pageId); } catch (e) { /* 繼續下一個 */ }
       }
-      console.log('[ScriptLoader] 核心頁面背景預載入完成: activity → team → tournament');
+      console.log('[ScriptLoader] 核心頁面背景預載入完成: activity → team → tournament → profile');
     };
-    // 等首頁渲染穩定後再開始，避免搶佔頻寬
     if (typeof requestIdleCallback !== 'undefined') {
-      requestIdleCallback(() => run(), { timeout: 3000 });
+      requestIdleCallback(() => run(), { timeout: 2000 });
     } else {
-      setTimeout(() => run(), 1500);
+      setTimeout(() => run(), 1000);
     }
   },
 };
