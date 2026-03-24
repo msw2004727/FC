@@ -605,7 +605,7 @@ Object.assign(App, {
     if (pageId === 'page-shop') this.renderShop();
     if (pageId === 'page-leaderboard') this.renderLeaderboard?.();
     if (pageId === 'page-admin-users') this.renderAdminUsers();
-    if (pageId === 'page-admin-banners') { this.renderBannerManage(); this.renderFloatingAdManage(); this.renderPopupAdManage(); this.renderSponsorManage(); this.renderShotGameAdManage(); this.renderNewsToggle(); }
+    if (pageId === 'page-admin-banners') { this.renderBannerManage(); this.renderFloatingAdManage(); this.renderPopupAdManage(); this.renderSponsorManage(); this.renderShotGameAdManage(); this.renderBootBrandManage?.(); this.renderNewsToggle(); }
     if (pageId === 'page-admin-shop') this.renderShopManage();
     if (pageId === 'page-admin-messages') this.renderMsgManage();
     if (pageId === 'page-admin-tournaments') this.renderTournamentManage();

@@ -287,6 +287,7 @@ const ScriptLoader = {
       'js/modules/ad-manage/ad-manage-float.js',
       'js/modules/ad-manage/ad-manage-popup-sponsor.js',
       'js/modules/ad-manage/ad-manage-shotgame.js',
+      'js/modules/ad-manage/boot-brand-manage.js',
     ],
     adminSystem: [
       'js/modules/auto-exp.js',

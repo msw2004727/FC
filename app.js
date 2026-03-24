@@ -2055,6 +2055,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     });
   } catch (e) {}
+  try { App._syncBootBrandToLocal?.(); } catch (e) {}
   try { App._autoExpireAds(); } catch (e) {}
   setInterval(() => { try { App._autoExpireAds(); } catch (e) {} }, 60000);
   try { Promise.resolve(App._processScheduledMessages()).catch(() => {}); } catch (e) {}
