@@ -114,7 +114,7 @@ function _startContentStallCheck() {
       'box-shadow:0 4px 20px rgba(0,0,0,.3);'
     );
     el.innerHTML =
-      '<div style="margin-bottom:8px">頁面載入似乎遇到問題</div>' +
+      '<div style="margin-bottom:8px">加載卡住了，再給我一次加載機會</div>' +
       '<button id="stall-reload-btn" style="' +
         'background:#0d9488;color:#fff;border:none;padding:8px 24px;' +
         'border-radius:8px;font-size:14px;font-weight:600;cursor:pointer' +
