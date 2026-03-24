@@ -293,10 +293,16 @@ const App = {
     if (!this._isHomePageActive()) return;
     this.renderHomeCritical();
     this._scheduleHomeDeferredRender();
-    /* 白屏卡住偵測：首頁初始渲染完成 */
-    window._contentReady = true;
-    if (document.getElementById('content-stall-hint')) {
-      document.getElementById('content-stall-hint').remove();
+    /* 白屏卡住偵測：首頁關鍵區塊有實質內容才標記完成（防 partial loading 誤判）
+       - 有活動卡片 → 標記完成
+       - Cloud 已就緒（即使 0 筆活動）→ 標記完成（資料確實載完，不是 loading 問題） */
+    var _hotEl = document.getElementById('hot-events');
+    var _hasContent = (_hotEl && _hotEl.querySelector('.h-card')) || this._cloudReady;
+    if (_hasContent) {
+      window._contentReady = true;
+      if (document.getElementById('content-stall-hint')) {
+        document.getElementById('content-stall-hint').remove();
+      }
     }
   },
 
