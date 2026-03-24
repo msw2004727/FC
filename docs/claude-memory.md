@@ -10,6 +10,12 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-24 — 睡覺時點路牌角色消失 bug 修復
+- **問題**：角色在紙箱睡覺時點擊路牌，角色會消失（永遠不再出現）
+- **原因**：`startRunAway()` 呼叫 `_.wakeUp()` 但沒傳 `boxX` 參數，導致 `ch.x = undefined + SPRITE_DRAW/3 = NaN`。NaN 座標使角色渲染在不可見位置，且 `updateRunAway` 中 `NaN + speed = NaN` 永遠無法到達場景邊緣
+- **修復**：`color-cat-character-actions-interact.js:217` — 改用內聯喚醒邏輯 `ch.x = ch.x + C.SPRITE_DRAW / 3`（與 `_wakeIfSleeping()` 同模式），不依賴需要外部參數的 `wakeUp(boxX)`
+- **教訓**：`wakeUp(boxX)` 設計需要外部傳入 boxX，但在多個呼叫點容易遺漏；考慮未來統一用 `ch.x` 相對偏移模式
+
 ### 2026-03-24 — 天氣系統永遠晴天 bug 修復
 - **問題**：養成遊戲天氣系統永遠顯示晴天(clear)，不會出現雨/雪/霧/雷暴等變化
 - **原因**：cloud-save 存檔時用 `r.weather`（runtime.weather）但 `_runtime` 物件未定義 `weather` 屬性，永遠 fallback 到 `{ type: 'clear' }`。且 `exportWeather()` 函式存在但從未被 cloud-save 呼叫

@@ -214,7 +214,7 @@ function startRunAway(sw) {
     return;
   }
   if (ch.action === 'combo') { if (_.interruptCombo()) return; }
-  if (ch.action === 'sleeping') { _.wakeUp(); _.manualSleep = false; }
+  if (ch.action === 'sleeping') { _.manualSleep = false; ch.x = ch.x + C.SPRITE_DRAW / 3; ch.action = 'idle'; ch.spriteFrame = 0; ch.spriteTimer = 0; }
   ch.facing = 1;
   ch.action = 'runAway';
   ch.spriteFrame = 0; ch.spriteTimer = 0;
