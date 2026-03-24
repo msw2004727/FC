@@ -110,7 +110,7 @@ function _startContentStallCheck() {
     el.setAttribute('style',
       'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);' +
       'background:rgba(0,0,0,.85);color:#fff;padding:12px 20px;border-radius:12px;' +
-      'font-size:14px;z-index:9999;text-align:center;max-width:320px;' +
+      'font-size:14px;z-index:9999;text-align:center;max-width:420px;white-space:nowrap;' +
       'box-shadow:0 4px 20px rgba(0,0,0,.3);'
     );
     el.innerHTML =
