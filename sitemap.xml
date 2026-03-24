@@ -57,4 +57,26 @@
     <priority>0.5</priority>
   </url>
 
+  <!-- SEO 著陸頁 — 運動項目 -->
+  <url>
+    <loc>https://toosterx.com/seo/football.html</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://toosterx.com/seo/running.html</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://toosterx.com/seo/hiking.html</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://toosterx.com/seo/pickleball.html</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+
 </urlset>
