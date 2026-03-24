@@ -843,7 +843,7 @@ body.modal-open { overflow: hidden; }
   object-fit: contain;
   object-position: center top;
   display: block;
-  margin-top: -15%;
+  margin-top: 5%;
 }
 
 .boot-loading__fallback {
