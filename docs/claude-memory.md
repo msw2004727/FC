@@ -10,6 +10,15 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-24 — 前端效能優化第二輪（渲染層 1~5）
+- **問題**：中低階手機滾動/彈窗掉幀，首頁圖片搶頻寬，離開首頁後動畫仍在跑
+- **修復**：
+  - (1) 所有動態卡片圖片加 `decoding="async"`（event/tournament/sponsor/news/floating-ad）
+  - (2) loading-overlay `backdrop-filter` 從 `blur(14px) saturate(140%)` 降到 `blur(10px)`（符合 CLAUDE.md 規範），top-bar 從 `blur(12px)` 降到 `blur(8px)`
+  - (4) 離開首頁時加 `home-paused` class 暫停跑馬燈/浮動廣告呼吸/遊戲卡片光效動畫，回來時恢復
+  - (5) popup-ad box-shadow `24px 64px` 降到 `12px 32px`，ln-prompt-card `32px` 降到 `20px`
+- **教訓**：CSS selector 必須對準實際有 animation 的元素（是 `.float-ad` 不是 `.float-ad-img`，是 `.announce-marquee-inner` 不是 `.announce-marquee-track`）
+
 ### 2026-03-24 — 前端效能優化批次（A~G）
 - **問題**：中低階手機/4G 網路下首次載入慢、頁面切換不夠流暢
 - **修復**：

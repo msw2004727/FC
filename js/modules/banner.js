@@ -215,7 +215,7 @@ Object.assign(App, {
         : '';
       return `
       <div class="float-ad" title="${escapeHTML(ad.title || '贊助廣告')}" ${clickHandler}>
-        <div class="float-ad-img">${ad.image ? `<img src="${ad.image}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">` : '廣告'}</div>
+        <div class="float-ad-img">${ad.image ? `<img src="${ad.image}" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover;border-radius:50%">` : '廣告'}</div>
       </div>`;
     }).join('');
     // 重設位置與狀態，避免渲染後偏移
@@ -246,7 +246,7 @@ Object.assign(App, {
           : '';
         if (isActive) {
           html.push(`<div class="sponsor-slot${hasLink ? ' has-link' : ''}" title="${escapeHTML(sp.title || '贊助商')}" ${clickHandler}>
-            <img src="${sp.image}" alt="${escapeHTML(sp.title || '')}" loading="lazy">
+            <img src="${sp.image}" alt="${escapeHTML(sp.title || '')}" loading="lazy" decoding="async">
           </div>`);
           continue;
         }

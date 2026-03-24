@@ -135,7 +135,7 @@ Object.assign(App, {
       const imgUrl = article.imageUrl || '';
       const sportEmoji = (typeof SPORT_ICON_EMOJI !== 'undefined' && SPORT_ICON_EMOJI[sportTag]) || '';
       const thumbHtml = imgUrl
-        ? '<img class="news-card-thumb" src="' + escapeHTML(imgUrl) + '" alt="" loading="lazy" onerror="this.outerHTML=\'<div class=\\\'news-card-thumb-placeholder\\\'>' + (sportEmoji || '') + '</div>\'">'
+        ? '<img class="news-card-thumb" src="' + escapeHTML(imgUrl) + '" alt="" loading="lazy" decoding="async" onerror="this.outerHTML=\'<div class=\\\'news-card-thumb-placeholder\\\'>' + (sportEmoji || '') + '</div>\'">'
         : '<div class="news-card-thumb-placeholder">' + (sportEmoji || '') + '</div>';
 
       // Sport tag badge

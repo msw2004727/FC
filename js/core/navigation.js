@@ -556,6 +556,8 @@ Object.assign(App, {
       this._cancelHomeDeferredRender?.();
       this.stopBannerCarousel?.();
       this._renderHomeVersionTag?.(false);
+      // 暫停首頁無限循環動畫（跑馬燈、浮動廣告呼吸、遊戲卡片光效）
+      document.getElementById('page-home')?.classList.add('home-paused');
     }
     if (this.currentPage === 'page-profile' && pageId !== 'page-profile') {
       this._destroyProfileScene?.();
@@ -573,6 +575,7 @@ Object.assign(App, {
   /** 根據頁面 ID 渲染對應內容 */
   _renderPageContent(pageId) {
     if (pageId === 'page-home') {
+      document.getElementById('page-home')?.classList.remove('home-paused');
       this.renderAll();
       this.resetHomeHotEventsScroll?.();
     }
