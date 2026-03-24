@@ -3,19 +3,133 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>ToosterX</title>
-  <meta property="og:title" content="ToosterX">
-  <meta property="og:description" content="ToosterX — football signup, team management, tournaments, inbox notifications, and LINE alerts.">
+  <title>ToosterX — 運動揪團報名平台｜足球、籃球、羽球活動一鍵報名</title>
+  <meta name="description" content="ToosterX 是台灣在地的運動揪團報名平台。LINE 一鍵登入，快速報名足球、籃球、羽球、排球等各類運動活動，支援揪團、俱樂部、賽事管理、QR Code 簽到與 LINE 即時通知。">
+  <meta name="keywords" content="運動揪團,報名平台,足球,籃球,羽球,排球,網球,運動活動,揪人打球,LINE報名,台灣運動,ToosterX,運動社群,球隊管理,賽事報名">
+  <link rel="canonical" href="https://toosterx.com/">
+  <!-- Open Graph -->
+  <meta property="og:title" content="ToosterX — 運動揪團報名平台">
+  <meta property="og:description" content="LINE 一鍵登入，快速報名足球、籃球、羽球等各類運動活動。支援揪團、俱樂部管理、賽事與 QR Code 簽到。">
   <meta property="og:image" content="https://toosterx.com/assets/icons/icon-512x512.png">
+  <meta property="og:image:width" content="512">
+  <meta property="og:image:height" content="512">
   <meta property="og:url" content="https://toosterx.com">
   <meta property="og:type" content="website">
+  <meta property="og:locale" content="zh_TW">
+  <meta property="og:site_name" content="ToosterX">
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="ToosterX — 運動揪團報名平台">
+  <meta name="twitter:description" content="LINE 一鍵登入，快速報名足球、籃球、羽球等各類運動活動。">
+  <meta name="twitter:image" content="https://toosterx.com/assets/icons/icon-512x512.png">
+  <!-- SEO 結構化資料 -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "WebApplication",
+        "name": "ToosterX",
+        "alternateName": "ToosterX 運動揪團報名平台",
+        "url": "https://toosterx.com",
+        "description": "台灣在地的運動活動揪團與報名平台，透過 LINE 一鍵登入，快速發起、搜尋並報名足球、籃球、羽球、排球等各類運動活動。",
+        "applicationCategory": "SportsApplication",
+        "operatingSystem": "Web",
+        "browserRequirements": "Requires JavaScript. Requires HTML5.",
+        "inLanguage": ["zh-TW", "en"],
+        "image": "https://toosterx.com/assets/icons/icon-512x512.png",
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "TWD"
+        },
+        "featureList": [
+          "運動活動一鍵報名",
+          "LINE 帳號快速登入",
+          "智慧候補自動遞補機制",
+          "俱樂部組建與管理",
+          "錦標賽與友誼賽",
+          "QR Code 簽到簽退",
+          "個人運動數據統計",
+          "成就徽章與排行榜",
+          "LINE 即時推播通知"
+        ],
+        "audience": {
+          "@type": "PeopleAudience",
+          "suggestedMinAge": 12,
+          "audienceType": "運動愛好者"
+        }
+      },
+      {
+        "@type": "Organization",
+        "name": "ToosterX",
+        "url": "https://toosterx.com",
+        "logo": "https://toosterx.com/assets/icons/icon-512x512.png",
+        "description": "ToosterX 運動揪團報名平台 — 讓每個人都能輕鬆找到運動夥伴"
+      },
+      {
+        "@type": "FAQPage",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "ToosterX 是什麼？",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "ToosterX 是台灣在地的運動揪團報名平台。使用者可以透過 LINE 帳號一鍵登入，快速瀏覽並報名附近的足球、籃球、羽球、排球等各類運動活動，也可以自己發起揪團活動邀請好友參加。"
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "如何使用 ToosterX 報名運動活動？",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "透過 LINE 開啟 ToosterX，用 LINE 帳號一鍵登入後，瀏覽首頁的熱門活動或切換到活動頁面搜尋想參加的運動。點選活動查看詳情（時間、地點、費用、已報名人數），確認後一鍵報名即可，LINE 會收到報名確認通知。"
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "ToosterX 支援哪些運動項目？",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "ToosterX 支援多種運動項目，包括足球、籃球、羽球、排球、網球、桌球、棒球、壘球、健身、跑步、游泳等。活動發起者可以自由選擇運動類型。"
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "ToosterX 需要付費嗎？",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "ToosterX 平台本身完全免費使用。報名活動時，個別活動可能會收取場地費或參加費，由活動發起者自行設定，費用詳情會在活動頁面上清楚標示。"
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "報名額滿怎麼辦？",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "ToosterX 提供智慧候補機制。當活動報名額滿時，您可以選擇加入候補名單。一旦有人取消報名，系統會自動按候補順序遞補，並透過 LINE 即時通知您已成功遞補報名。"
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "如何建立自己的運動俱樂部？",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "登入後前往俱樂部頁面，點選建立俱樂部，填寫俱樂部名稱、運動類型和簡介即可。建立後可以邀請好友加入，在俱樂部內發起專屬活動，管理成員角色（隊長、副隊長、成員）。"
+            }
+          }
+        ]
+      }
+    ]
+  }
+  </script>
   <link rel="icon" href="assets/icons/icon-192x192.png" type="image/png">
   <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#0d9488">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="SportHub">
+  <meta name="apple-mobile-web-app-title" content="ToosterX">
   <!-- CDN preconnect + 預載外部資源 -->
   <link rel="preconnect" href="https://www.gstatic.com">
   <link rel="preconnect" href="https://static.line-scdn.net">
@@ -171,6 +285,39 @@
   </noscript>
 </head>
 <body>
+  <!-- SEO: 爬蟲可見的靜態內容（不影響 JS 正常渲染的用戶畫面） -->
+  <div id="seo-content" style="position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden" aria-hidden="true">
+    <h1>ToosterX — 運動揪團報名平台</h1>
+    <p>ToosterX 是台灣在地的運動活動揪團與報名平台。透過 LINE 一鍵登入，快速發起、搜尋並報名各類運動活動。</p>
+    <h2>平台功能</h2>
+    <ul>
+      <li><strong>快速報名</strong>：瀏覽附近的足球、籃球、羽球、排球、網球、桌球等運動活動，一鍵報名參加</li>
+      <li><strong>輕鬆揪團</strong>：自己發起活動，設定時間、地點、人數上限，透過 LINE 分享給好友</li>
+      <li><strong>組建俱樂部</strong>：建立或加入運動俱樂部，與固定球友定期約戰</li>
+      <li><strong>參加賽事</strong>：報名錦標賽或友誼賽，與其他隊伍切磋較勁</li>
+      <li><strong>即時通知</strong>：透過 LINE 推播收到報名確認、活動提醒、候補遞補通知</li>
+      <li><strong>QR Code 簽到</strong>：活動現場掃碼簽到簽退，記錄出席與運動數據</li>
+      <li><strong>個人數據</strong>：完成場次、出席率統計，成就徽章與排行榜</li>
+    </ul>
+    <h2>支援運動項目</h2>
+    <p>足球、籃球、羽球、排球、網球、桌球、棒球、壘球、健身、跑步、游泳及更多運動項目。</p>
+    <h2>如何使用</h2>
+    <ol>
+      <li>透過 LINE 開啟 ToosterX</li>
+      <li>LINE 帳號一鍵登入，無需額外註冊</li>
+      <li>瀏覽首頁的熱門活動或搜尋想參加的運動</li>
+      <li>點選活動查看詳情（時間、地點、費用、已報名人數）</li>
+      <li>一鍵報名，LINE 收到確認通知</li>
+      <li>活動當天掃 QR Code 簽到</li>
+    </ol>
+    <h2>常見問題</h2>
+    <h3>ToosterX 需要付費嗎？</h3>
+    <p>平台完全免費使用。個別活動可能收取場地費或參加費，由活動發起者設定，費用詳情在活動頁面上清楚標示。</p>
+    <h3>報名額滿怎麼辦？</h3>
+    <p>ToosterX 提供智慧候補機制。報名額滿時可加入候補名單，有人取消時系統自動遞補並透過 LINE 通知。</p>
+    <h3>如何建立運動俱樂部？</h3>
+    <p>登入後前往俱樂部頁面，點選建立俱樂部，填寫名稱、運動類型和簡介即可。可邀請好友加入並管理成員角色。</p>
+  </div>
   <!-- 字型大小：啟動時立即套用，避免閃爍 -->
   <script>
   (function(){var s=localStorage.getItem('sporthub_font_size');if(s)document.documentElement.style.fontSize=s+'px'})();

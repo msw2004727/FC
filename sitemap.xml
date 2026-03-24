@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+
+  <!-- 首頁（主入口） -->
+  <url>
+    <loc>https://toosterx.com/</loc>
+    <changefreq>daily</changefreq>
+    <priority>1.0</priority>
+  </url>
+
+  <!-- 活動列表 — 報名揪團核心頁面 -->
+  <url>
+    <loc>https://toosterx.com/#page-activities</loc>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+  </url>
+
+  <!-- 俱樂部列表 — 組隊與社群 -->
+  <url>
+    <loc>https://toosterx.com/#page-teams</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+
+  <!-- 賽事列表 — 錦標賽與友誼賽 -->
+  <url>
+    <loc>https://toosterx.com/#page-tournaments</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+
+  <!-- 個人頁面 — 數據統計與成就 -->
+  <url>
+    <loc>https://toosterx.com/#page-profile</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+
+  <!-- 訊息中心 -->
+  <url>
+    <loc>https://toosterx.com/#page-messages</loc>
+    <changefreq>daily</changefreq>
+    <priority>0.6</priority>
+  </url>
+
+  <!-- 商城 -->
+  <url>
+    <loc>https://toosterx.com/#page-shop</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.5</priority>
+  </url>
+
+  <!-- 排行榜 -->
+  <url>
+    <loc>https://toosterx.com/#page-leaderboard</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.5</priority>
+  </url>
+
+</urlset>

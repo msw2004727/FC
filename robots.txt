@@ -1,0 +1,20 @@
+# ToosterX — robots.txt
+# https://toosterx.com
+
+User-agent: *
+Allow: /
+
+# 禁止爬取管理後台相關 HTML 片段
+Disallow: /pages/admin-
+Disallow: /pages/scan.html
+Disallow: /pages/modals.html
+Disallow: /functions/
+
+# 禁止爬取開發/測試檔案
+Disallow: /test-
+Disallow: /GrowthGames.html
+Disallow: /game-lab.html
+Disallow: /docs/
+
+# Sitemap
+Sitemap: https://toosterx.com/sitemap.xml
