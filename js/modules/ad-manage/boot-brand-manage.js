@@ -26,17 +26,15 @@ Object.assign(App, {
           <span>開機品牌圖設定</span>
         </div>
 
-        <!-- 預覽區 -->
+        <!-- 預覽區（與實際 boot-loading 結構一致） -->
         <div class="form-row">
-          <label>預覽</label>
-          <div id="boot-brand-preview-box" style="
-            width:100%;max-width:260px;height:180px;border-radius:12px;
-            border:1px solid var(--border);overflow:hidden;margin:0 auto;
+          <label>預覽（與實際開機畫面一致）</label>
+          <div id="boot-brand-preview-box" class="boot-loading__image-slot" style="
+            margin:0 auto;
             background:${bgMode === 'light' ? bgColor : bgMode === 'dark' ? '#1e1e2e' : 'var(--bg-card)'}
           ">
-            <img id="boot-brand-preview-img" src="${escapeHTML(imgUrl)}" alt="" style="
-              width:100%;height:${imgHeight}%;object-fit:contain;
-              object-position:center top;display:block;margin-top:${marginTop}%
+            <img id="boot-brand-preview-img" class="boot-loading__image" src="${escapeHTML(imgUrl)}" alt="" style="
+              height:${imgHeight}%;margin-top:${marginTop}%
             ">
           </div>
         </div>
