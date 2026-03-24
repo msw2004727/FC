@@ -92,7 +92,7 @@ Object.assign(App, {
         const db = this._parseEventStartDate(b.date);
         return (da || 0) - (db || 0);
       })
-      .slice(0, 10);
+      .slice(0, (typeof NetDevice !== 'undefined' && NetDevice.shouldDegrade()) ? 6 : 10);
     if (visible.length === 0) {
       if (!this._cloudReady) {
         // Cloud 尚未就緒 — 顯示 loading 提示，保持 section 可見

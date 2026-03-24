@@ -32,7 +32,7 @@ Object.assign(App, {
     container.innerHTML = ongoing.map(t => `
       <div class="h-card" onclick="App._openTournamentDetail('${t.id}')">
         ${t.image
-          ? `<div class="h-card-img"><img src="${t.image}" alt="${escapeHTML(t.name)}"></div>`
+          ? `<div class="h-card-img"><img src="${t.image}" alt="${escapeHTML(t.name)}" loading="lazy"></div>`
           : `<div class="h-card-img h-card-placeholder">220 × 90</div>`}
         <div class="h-card-body">
           <div class="h-card-title">${escapeHTML(t.name)}</div>

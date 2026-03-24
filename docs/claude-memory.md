@@ -10,6 +10,17 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-24 — 前端效能優化批次（A~G）
+- **問題**：中低階手機/4G 網路下首次載入慢、頁面切換不夠流暢
+- **修復**：
+  - (A) 頁面切換動畫改為 `.22s ease-out + translateY(6px)`，比原 `.3s fadeIn` 更絲滑
+  - (B) Google Fonts 改為 `media="print" onload` 非阻塞載入，減少字重 (4→2 + 5→3)
+  - (C) 骨架屏已存在，確認無需新增
+  - (D) og.png 壓縮 2.6→1.4MB、appicon.png 壓縮 1.9→259KB（非載入路徑，備用）
+  - (E) SW STATIC_ASSETS 新增 6 個 boot page HTML 預快取 + fallback 加 `{ignoreSearch:true}`
+  - (F+G) 新增 `NetDevice` 偵測工具（慢網路/低端設備），deferred render 延長 idle timeout，首頁慢速提示，熱門活動卡片數降級 10→6，賽事圖片加 `loading="lazy"`，banner-track 加 `will-change:transform`
+- **教訓**：不碰 onSnapshot 監聽或 script 動態載入順序（歷史上反覆出問題），只做 CSS/HTML/渲染層優化最安全
+
 ### 2026-03-23 — LINE 瀏覽器 deep link 跳轉至 Mini App
 - **問題**：LINE 瀏覽器內開 `toosterx.com/?event=xxx` 不會跳轉到 Mini App，導致 LIFF shareTargetPicker 不可用、分享精美卡片選項消失
 - **原因**：`index.html` 中繼跳轉腳本有 `if(/Line\//i.test(navigator.userAgent))return` 守衛，LINE 瀏覽器被排除在外，只有外部瀏覽器會跳轉

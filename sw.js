@@ -6,7 +6,7 @@
      - Firebase Storage 圖片 → stale-while-revalidate（獨立快取）
    ================================================ */
 
-const CACHE_NAME       = 'sporthub-20260323zg';
+const CACHE_NAME       = 'sporthub-20260324a';
 const IMAGE_CACHE_NAME = 'sporthub-images-v2';
 const MAX_IMAGE_CACHE  = 150;                         // 最多快取 150 張圖片
 const MAX_IMAGE_AGE_MS = 7 * 24 * 60 * 60 * 1000;    // 7 天過期
@@ -32,6 +32,13 @@ const STATIC_ASSETS = [
   './js/core/navigation.js',
   './js/core/theme.js',
   './js/core/script-loader.js',
+  // boot page HTML fragments — 回訪時從 SW cache 秒取
+  './pages/home.html',
+  './pages/activity.html',
+  './pages/team.html',
+  './pages/message.html',
+  './pages/profile.html',
+  './pages/modals.html',
 ];
 
 // ─── 圖片快取工具函式 ───
@@ -162,7 +169,7 @@ self.addEventListener('fetch', (event) => {
           caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
         }
         return response;
-      }).catch(() => caches.match(event.request))
+      }).catch(() => caches.match(event.request, { ignoreSearch: true }))
     );
     return;
   }

@@ -328,7 +328,29 @@
 // 20260323b: 個人資訊頁啟用互動畫布 + 載入戰績統計彈窗模組
 // 20260323j: 雲端存檔 + 天氣系統 + 角色命名（第一期）
 // 20260323k: 雙開偵測（localStorage 心跳 + storage 事件搶佔）
-const CACHE_VERSION = '20260323zg';
+const CACHE_VERSION = '20260324a';
+
+// ─── 網路 / 設備偵測（用於 UI 降級）───
+const NetDevice = {
+  /** 偵測慢速網路（4G 以下或 saveData） */
+  isSlowNetwork() {
+    const conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+    if (!conn) return false;
+    if (conn.saveData) return true;
+    const ect = conn.effectiveType;          // '4g' | '3g' | '2g' | 'slow-2g'
+    return ect === '2g' || ect === 'slow-2g' || ect === '3g';
+  },
+  /** 偵測低端設備（記憶體 ≤ 4GB 或 CPU 核心 ≤ 2） */
+  isLowDevice() {
+    const mem = navigator.deviceMemory;      // Chrome 63+, 未支援回傳 undefined
+    const cores = navigator.hardwareConcurrency || 4;
+    if (mem && mem <= 4) return true;
+    if (cores <= 2) return true;
+    return false;
+  },
+  /** 便捷：慢網路或低端設備（任一成立） */
+  shouldDegrade() { return this.isSlowNetwork() || this.isLowDevice(); },
+};
 
 // ─── CF Migration Feature Flag ───
 // 判斷是否走 Cloud Functions 報名流程（Wave 1）

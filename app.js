@@ -279,6 +279,7 @@ const App = {
     this.renderAnnouncement();
     this.renderHotEvents();
     this._renderHomeVersionTag();
+    this._showSlowNetHint();
     this._markPageSnapshotReady('page-home');
     // 首頁渲染完成 → 背景預載入核心頁面 scripts（活動→俱樂部→賽事）
     if (typeof ScriptLoader !== 'undefined' && ScriptLoader.preloadCorePages) {
@@ -303,7 +304,27 @@ const App = {
     this.renderFloatingAds();
     if (typeof this.showPopupAdsOnLoad === 'function') this.showPopupAdsOnLoad();
     this.startBannerCarousel();
+    // 移除慢速提示
+    this._removeSlowNetHint();
     return true;
+  },
+
+  /** 慢速網路提示：首頁底部顯示「載入中…」，deferred 完成後移除 */
+  _showSlowNetHint() {
+    if (document.getElementById('slow-net-hint')) return;
+    const degrade = typeof NetDevice !== 'undefined' && NetDevice.shouldDegrade();
+    if (!degrade) return;
+    const home = document.getElementById('page-home');
+    if (!home) return;
+    const hint = document.createElement('div');
+    hint.id = 'slow-net-hint';
+    hint.className = 'slow-net-hint';
+    hint.textContent = '內容載入中…';
+    home.appendChild(hint);
+  },
+  _removeSlowNetHint() {
+    const el = document.getElementById('slow-net-hint');
+    if (el) el.remove();
   },
 
   _cancelHomeDeferredRender() {
@@ -322,6 +343,11 @@ const App = {
     this._cancelHomeDeferredRender();
     if (!this._isHomePageActive()) return;
 
+    // 慢網路 / 低端設備：延長 idle timeout，讓主要內容先渲染完畢
+    const degrade = typeof NetDevice !== 'undefined' && NetDevice.shouldDegrade();
+    const idleTimeout = degrade ? 2500 : 1200;
+    const fallbackDelay = degrade ? Math.max(delayMs, 600) : delayMs;
+
     const seq = this._homeDeferredSeq;
     const run = () => {
       this._homeDeferredIdleId = null;
@@ -331,11 +357,11 @@ const App = {
     };
 
     if (typeof requestIdleCallback === 'function') {
-      this._homeDeferredIdleId = requestIdleCallback(run, { timeout: 1200 });
+      this._homeDeferredIdleId = requestIdleCallback(run, { timeout: idleTimeout });
       return;
     }
 
-    this._homeDeferredTimerId = setTimeout(run, delayMs);
+    this._homeDeferredTimerId = setTimeout(run, fallbackDelay);
   },
 
   _markPageSnapshotReady(pageId) {
