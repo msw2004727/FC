@@ -1297,7 +1297,21 @@ const FirebaseService = {
       return;
     }
     const ctx = this._getRegistrationsVisibilityContext();
-    if (!ctx.uid && !ctx.canReadAll) return;
+    if (!ctx.uid && !ctx.canReadAll) {
+      // 場景 B：UID 尚未解析 → 排程 3 秒後重試（僅一次，避免無限迴圈）
+      if (!this._realtimeListenerStarted._retryNoUid) {
+        this._realtimeListenerStarted._retryNoUid = true;
+        this._retryNoUidTimer = setTimeout(() => {
+          this._realtimeListenerStarted._retryNoUid = false;
+          this._retryNoUidTimer = null;
+          if (!this._realtimeListenerStarted.registrations
+            && this._getPageScopedRealtimeCollections(App?.currentPage).includes('registrations')) {
+            this._startRegistrationsListener();
+          }
+        }, 3000);
+      }
+      return;
+    }
     const nextKey = this._getRegistrationsListenerKey(ctx);
     if (this._realtimeListenerStarted.registrations && this._registrationListenerKey === nextKey) return;
 
@@ -1346,6 +1360,9 @@ const FirebaseService = {
     this._registrationListenerKey = '';
     this._realtimeListenerStarted.registrations = false;
     this._realtimeListenerStarted._pendingRegistrations = false;
+    this._realtimeListenerStarted._retryNoUid = false;
+    clearTimeout(this._retryNoUidTimer);
+    this._retryNoUidTimer = null;
   },
 
   /** 啟動 attendanceRecords 監聽器（需 Auth，進入掃描/管理頁時觸發） */

@@ -10,6 +10,14 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-24 — 活動詳情「載入中」按鈕卡住修復
+- **問題**：活動詳情頁的報名按鈕偶爾持續顯示「載入中…」無法恢復
+- **原因**：registrations 監聽器在 Auth 未就緒或 UID 未解析時靜默退出且不排程重試，導致按鈕永遠卡在 loading 狀態
+- **修復**：
+  - 資料層（firebase-service.js）：`_startRegistrationsListener` 在 UID 未解析靜默退出時，排程 3 秒後一次性重試
+  - UI 層（event-detail.js）：偵測到 `regsLoading` 時設 3 秒重繪 timer（最多 3 次），Auth/UID 就緒後自動恢復
+- **教訓**：監聽器靜默退出（silent return）必須有重試或通知機制，否則上層 UI 無法得知需要重繪
+
 ### 2026-03-24 — 睡覺時點路牌角色消失 bug 修復
 - **問題**：角色在紙箱睡覺時點擊路牌，角色會消失（永遠不再出現）
 - **原因**：`startRunAway()` 呼叫 `_.wakeUp()` 但沒傳 `boxX` 參數，導致 `ch.x = undefined + SPRITE_DRAW/3 = NaN`。NaN 座標使角色渲染在不可見位置，且 `updateRunAway` 中 `NaN + speed = NaN` 永遠無法到達場景邊緣

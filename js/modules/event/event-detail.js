@@ -8,6 +8,8 @@
 Object.assign(App, {
 
   _eventDetailRequestSeq: 0,
+  _regsLoadingRetryTimer: null,
+  _regsLoadingRetryCount: 0,
 
   _getEventDetailNodes() {
     const nodes = {
@@ -291,6 +293,22 @@ Object.assign(App, {
     const regsLoading = !isGuestView && !ModeManager.isDemo()
       && FirebaseService._cache.registrations.length === 0
       && !FirebaseService._realtimeListenerStarted?.registrations;
+    // 載入中按鈕卡住保護：3 秒後自動重繪（若 Auth/UID 已就緒則按鈕自動恢復，最多重試 3 次）
+    if (regsLoading && this._regsLoadingRetryCount < 3) {
+      clearTimeout(this._regsLoadingRetryTimer);
+      const retryEventId = e.id;
+      this._regsLoadingRetryTimer = setTimeout(() => {
+        if (this.currentPage === 'page-activity-detail'
+          && this._currentDetailEventId === retryEventId
+          && !this._flipAnimating) {
+          this._regsLoadingRetryCount++;
+          this.showEventDetail(retryEventId);
+        }
+      }, 3000);
+    } else if (!regsLoading) {
+      clearTimeout(this._regsLoadingRetryTimer);
+      this._regsLoadingRetryCount = 0;
+    }
     const isSignedUp = isGuestView ? false : (regsLoading ? false : this._isUserSignedUp(e));
     const isOnWaitlist = isSignedUp && this._isUserOnWaitlist(e);
     const canTeamOnlySignup = isGuestView
