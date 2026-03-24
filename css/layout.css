@@ -154,6 +154,7 @@
 #menu-toggle span { display: block; width: 20px; height: 2px; background: var(--text-primary); border-radius: 2px; transition: var(--transition); }
 .logo { display: flex; align-items: center; gap: .4rem; flex: 1; min-width: 0; }
 .logo-text { font-family: var(--font-display); font-weight: 800; font-size: 1.2rem; letter-spacing: -.02em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.logo-img { height: 28px; width: auto; object-fit: contain; }
 /* ─── Points Display ─── */
 .points-display {
   display: flex;
