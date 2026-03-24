@@ -833,12 +833,15 @@ body.modal-open { overflow: hidden; }
   background: var(--bg-card);
   overflow: hidden;
 }
+[data-theme="light"] .boot-loading__image-slot {
+  background: #1a1a2e;
+}
 
 .boot-loading__image {
   width: 100%;
   height: 100%;
   object-fit: contain;
-  object-position: center 35%;
+  object-position: center 0%;
   display: block;
 }
 
