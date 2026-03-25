@@ -14,7 +14,12 @@ Object.assign(App, {
     const { teamId, teamName, applicantUid, applicantName, groupId } = msg.meta;
 
     // 1. Permission check: current user must be team staff (captain/leader/coach) or admin
-    const team = ApiService.getTeam(teamId);
+    let team = ApiService.getTeam(teamId);
+    if (!team && !ModeManager.isDemo()) {
+      // teams 可能尚未載入（訊息頁不觸發 teams 集合載入）
+      try { await FirebaseService.ensureCollectionsForPage('page-teams', { skipRealtimeStart: true }); } catch (_) {}
+      team = ApiService.getTeam(teamId);
+    }
     if (!team) { this.showToast('找不到此俱樂部'); return; }
     const curUser = ApiService.getCurrentUser();
     const curUid = curUser?.uid || (ModeManager.isDemo() ? DemoData.currentUser?.uid : null);
