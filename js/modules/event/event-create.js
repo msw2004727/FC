@@ -302,6 +302,7 @@ Object.assign(App, {
         participants: [],
         waitlistNames: [],
         teamOnly,
+        isPublic: !!teamOnly,
         genderRestrictionEnabled,
         allowedGender,
         privateEvent,
