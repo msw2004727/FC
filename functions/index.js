@@ -4425,9 +4425,14 @@ exports.registerForEvent = onCall(
       }
 
       // T3: 俱樂部限制檢查（使用預查的 callerUserDoc）
-      if (ed.teamOnly && ed.creatorTeamIds && ed.creatorTeamIds.length > 0) {
+      // 合併 creatorTeamIds（新欄位）與 creatorTeamId（舊欄位）向後相容
+      const eventLimitedTeamIds = normalizeStringList(ed.creatorTeamIds);
+      if (ed.creatorTeamId && typeof ed.creatorTeamId === "string" && !eventLimitedTeamIds.includes(ed.creatorTeamId)) {
+        eventLimitedTeamIds.push(ed.creatorTeamId);
+      }
+      if (ed.teamOnly && eventLimitedTeamIds.length > 0) {
         const callerTeamIds = getUserTeamIds(callerUserDoc?.data);
-        const isMember = ed.creatorTeamIds.some((tid) => callerTeamIds.includes(tid));
+        const isMember = eventLimitedTeamIds.some((tid) => callerTeamIds.includes(tid));
         if (!isMember) {
           throw new HttpsError("failed-precondition", "TEAM_RESTRICTED");
         }

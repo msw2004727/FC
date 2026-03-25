@@ -131,6 +131,9 @@ Object.assign(App, {
 
   _buildGuestEventSignupButton(eventRecord, isUpcoming, isEnded, isMainFull) {
     if (!eventRecord) return '';
+    if (eventRecord.teamOnly) {
+      return `<button style="background:#64748b;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:not-allowed;opacity:.7" disabled>球隊限定</button>`;
+    }
     if (isUpcoming) {
       return `<button style="background:#64748b;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:not-allowed" disabled>\u5831\u540d\u5c1a\u672a\u958b\u653e</button>`;
     }
@@ -337,7 +340,7 @@ Object.assign(App, {
     } else if (isSignedUp) {
       signupBtn = _glowWrap(`<button style="background:#dc2626;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:pointer" onclick="App.handleCancelSignup('${e.id}')">取消報名</button>`, '#dc2626', '#f87171', '正在取消報名');
     } else if (e.teamOnly && !canTeamOnlySignup) {
-      signupBtn = `<button style="background:#dc2626;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:pointer;opacity:.95" onclick="App.showToast('俱樂部限定')">俱樂部限定</button>`;
+      signupBtn = `<button style="background:#64748b;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:not-allowed;opacity:.7" disabled>球隊限定</button>`;
     } else if (genderSignupState.restricted && !genderSignupState.requiresLogin && !genderSignupState.canSignup) {
       signupBtn = `<button style="background:#dc2626;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:pointer;opacity:.95" onclick='App.showToast(${JSON.stringify(genderBlockedMessage)})'>${escapeHTML(this._getEventGenderRibbonText?.(e) || '性別限定')}</button>`;
     } else if (isMainFull) {

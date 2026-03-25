@@ -52,8 +52,11 @@ Object.assign(App, {
     const teams = ApiService.getTeams?.() || [];
     const activeTeamMap = new Map();
     teams.forEach(t => {
-      if (!t?.id || t.active === false) return;
-      activeTeamMap.set(String(t.id), t);
+      if (!t || t.active === false) return;
+      const customId = String(t.id || '').trim();
+      const docId = String(t._docId || '').trim();
+      if (customId) activeTeamMap.set(customId, t);
+      if (docId && docId !== customId) activeTeamMap.set(docId, t);
     });
 
     const ids = new Set();
@@ -76,6 +79,18 @@ Object.assign(App, {
       this._getVisibleTeamIdsForLimitedEvents().forEach(pushId);
     }
 
+    // 建構用戶 teamId → teamName 的對照表，作為名稱 fallback
+    const userTeamNameMap = new Map();
+    if (currentUser) {
+      const uIds = Array.isArray(currentUser.teamIds) ? currentUser.teamIds : (currentUser.teamId ? [currentUser.teamId] : []);
+      const uNames = Array.isArray(currentUser.teamNames) ? currentUser.teamNames : (currentUser.teamName ? [currentUser.teamName] : []);
+      uIds.forEach((tid, idx) => {
+        const k = String(tid || '').trim();
+        const v = String(uNames[idx] || '').trim();
+        if (k && v) userTeamNameMap.set(k, v);
+      });
+    }
+
     const result = [];
     ids.forEach(id => {
       const team = activeTeamMap.get(id);
@@ -86,7 +101,9 @@ Object.assign(App, {
         });
         return;
       }
-      result.push({ id, name: this._resolveTeamDisplayName(id) });
+      // fallback：從用戶的 teamNames 取名稱，避免顯示「未知俱樂部」
+      const fallbackName = userTeamNameMap.get(id) || '';
+      result.push({ id, name: this._resolveTeamDisplayName(id, fallbackName) });
     });
 
     result.sort((a, b) => String(a.name || a.id).localeCompare(String(b.name || b.id), 'zh-Hant'));

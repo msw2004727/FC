@@ -10,6 +10,15 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-25 — 俱樂部限定活動「未知俱樂部」+ 非成員按鈕修復
+- **問題**：開啟俱樂部限定時顯示「未知俱樂部」；非成員可點擊報名按鈕；未登入者看不到限定標示
+- **原因**：activeTeamMap 只用 t.id 作 key，用戶的 teamId 可能是 _docId 格式導致查不到；Guest 按鈕未做 teamOnly 判斷
+- **修復**：
+  - event-create-team-picker.js：activeTeamMap 雙 key（id + _docId）+ userTeamNameMap fallback 名稱
+  - event-detail.js：Guest 按鈕加 teamOnly 檢查顯示「球隊限定」disabled；已登入非成員按鈕改 disabled
+  - functions/index.js：CF registerForEvent 合併 creatorTeamId 向後相容
+- **教訓**：teams 集合用 .add() 建立導致 _docId ≠ id，所有用 team ID 做 Map key 的地方都需要加入雙 key
+
 ### 2026-03-25 — 俱樂部系統 13 個 Bug 批次修復
 - **問題**：全面審查俱樂部系統發現 13 個 bug（2 嚴重 / 5 高 / 5 中 / 1 低）
 - **修復**：
