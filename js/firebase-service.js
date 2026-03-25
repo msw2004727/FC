@@ -373,7 +373,7 @@ const FirebaseService = {
     'page-admin-themes':      ['siteThemes'],
     'page-admin-announcements': ['announcements'],
     'page-personal-dashboard': ['attendanceRecords', 'activityRecords'],
-    'page-profile':            ['attendanceRecords', 'activityRecords'],
+    'page-profile':            ['attendanceRecords', 'activityRecords', 'teams'],
     'page-leaderboard':       ['leaderboard'],
   },
 
