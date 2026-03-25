@@ -10,6 +10,22 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-25 — 俱樂部系統 13 個 Bug 批次修復
+- **問題**：全面審查俱樂部系統發現 13 個 bug（2 嚴重 / 5 高 / 5 中 / 1 低）
+- **修復**：
+  - [嚴重] functions/index.js：import Timestamp 取代未定義的 admin.firestore.Timestamp（3處）
+  - [嚴重] team-form-search.js：_renderCoachTags 加入 escapeHTML() 防 XSS
+  - [高] team-form-join.js：handleLeaveTeam 經理/教練比對改用 UID + myNames Set（同時含 name 和 displayName）
+  - [高] team-form-join.js：新增領隊(leaderUids)退出阻擋
+  - [高] team-detail.js：_isTeamMember 教練比對改用 myNames Set
+  - [高] team-form.js：錯誤日誌變數名 _editingTeamId → _teamEditId
+  - [中] team-share.js：成員數判斷 Array.isArray → typeof number（兩處）
+  - [中] firebase-crud.js：deleteTeam 加入用戶引用連鎖清理 + 本地快取更新
+  - [中] message-actions-team.js + team-detail.js：成員計數 fallback 加入 teamIds 檢查
+  - [中] data-sync.js：validTeamIds 同時加入 team.id 和 team._docId
+  - [低] team-form-search.js：_teamSearchUsers 加入 (u.name || '') null safety
+- **教訓**：`displayName`（LINE 即時名稱）與 `name`（Firestore 儲存值）不保證一致，身份判定應優先用 UID，fallback 時需同時比對兩者
+
 ### 2026-03-25 — CDN SDK 載入超時改善（18 秒 + 自動重試）
 - **問題**：中階行動裝置在 LINE WebView 內載入 Firebase SDK 經常超過 12 秒超時，導致連鎖失敗（Firestore 未初始化 → 登入失敗 → 權限被拒）
 - **修復**：

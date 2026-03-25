@@ -157,7 +157,7 @@ Object.assign(App, {
       if (shouldWriteMembership) {
         const memberCount = (typeof this._calcTeamMemberCount === 'function')
           ? this._calcTeamMemberCount(teamId)
-          : (ApiService.getAdminUsers() || []).filter(u => u.teamId === teamId).length;
+          : (ApiService.getAdminUsers() || []).filter(u => u.teamId === teamId || (Array.isArray(u.teamIds) && u.teamIds.includes(teamId))).length;
         ApiService.updateTeam(teamId, { members: memberCount });
 
         this._deliverMessageWithLinePush(

@@ -1021,6 +1021,32 @@ Object.assign(FirebaseService, {
     const doc = this._cache.teams.find(t => t.id === id);
     if (!doc || !doc._docId) return false;
     await db.collection('teams').doc(doc._docId).delete();
+
+    // 連鎖清理：移除相關用戶的俱樂部引用
+    const teamId = String(id);
+    const users = this._cache.adminUsers || [];
+    for (const u of users) {
+      const userTeamIds = Array.isArray(u.teamIds) ? u.teamIds : (u.teamId ? [u.teamId] : []);
+      if (!userTeamIds.includes(teamId)) continue;
+      const nextIds = userTeamIds.filter(tid => tid !== teamId);
+      const nextNames = nextIds.map((tid, idx) => {
+        const tNames = Array.isArray(u.teamNames) ? u.teamNames : [];
+        const origIdx = userTeamIds.indexOf(tid);
+        return origIdx >= 0 && origIdx < tNames.length ? tNames[origIdx] : '';
+      });
+      const updates = nextIds.length > 0
+        ? { teamId: nextIds[0], teamName: nextNames[0] || '', teamIds: nextIds, teamNames: nextNames }
+        : { teamId: null, teamName: null, teamIds: [], teamNames: [] };
+      Object.assign(u, updates);
+      if (u._docId) {
+        try { await db.collection('users').doc(u._docId).update(updates); } catch (_) {}
+      }
+    }
+
+    // 更新本地快取
+    const idx = this._cache.teams.indexOf(doc);
+    if (idx !== -1) this._cache.teams.splice(idx, 1);
+    this._saveToLS('teams', this._cache.teams);
     return true;
   },
 

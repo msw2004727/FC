@@ -10,7 +10,7 @@ Object.assign(App, {
     const q = query.toLowerCase();
     return users.filter(u =>
       !excludeUids.includes(u.uid) &&
-      (u.name.toLowerCase().includes(q) || u.uid.toLowerCase().includes(q))
+      ((u.name || '').toLowerCase().includes(q) || (u.uid || '').toLowerCase().includes(q))
     ).slice(0, 5);
   },
 
@@ -127,10 +127,10 @@ Object.assign(App, {
     document.getElementById('ct-coach-tags').innerHTML = this._teamCoachUids.map(uid => {
       if (uid.startsWith('__legacy_')) {
         const legacyName = uid.replace('__legacy_', '');
-        return `<span class="team-tag">${legacyName}<span class="team-tag-x" onclick="App.removeTeamCoach('${uid}')">×</span></span>`;
+        return `<span class="team-tag">${escapeHTML(legacyName)}<span class="team-tag-x" onclick="App.removeTeamCoach('${escapeHTML(uid)}')">×</span></span>`;
       }
       const u = users.find(u => u.uid === uid);
-      return u ? `<span class="team-tag">${u.name}<span class="team-tag-x" onclick="App.removeTeamCoach('${uid}')">×</span></span>` : '';
+      return u ? `<span class="team-tag">${escapeHTML(u.name)}<span class="team-tag-x" onclick="App.removeTeamCoach('${escapeHTML(uid)}')">×</span></span>` : '';
     }).join('');
   },
 

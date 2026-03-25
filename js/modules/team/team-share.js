@@ -24,7 +24,7 @@ Object.assign(App, {
       '\u8A98\u60A8\u52A0\u5165\u7403\u968A\uFF0C\u8DDF\u6211\u5011\u4E00\u8D77\u4EAB\u53D7\u904B\u52D5\uFF01',
     ];
     if (team.region) lines.push('\u5730\u5340\uFF1A' + team.region);
-    var members = Array.isArray(team.members) ? team.members.length : 0;
+    var members = typeof team.members === 'number' ? team.members : (Array.isArray(team.members) ? team.members.length : 0);
     if (members > 0) lines.push('\u6210\u54E1\uFF1A' + members + ' \u4EBA');
     lines.push(liffUrl);
     var text = lines.join('\n');
@@ -70,7 +70,7 @@ Object.assign(App, {
     if (team.region) {
       infoContents.push(this._buildFlexInfoRow('\u5730\u5340', team.region));
     }
-    var members = Array.isArray(team.members) ? team.members.length : 0;
+    var members = typeof team.members === 'number' ? team.members : (Array.isArray(team.members) ? team.members.length : 0);
     if (members > 0) {
       infoContents.push(this._buildFlexInfoRow('\u6210\u54E1', members + ' \u4EBA'));
     }

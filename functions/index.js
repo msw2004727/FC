@@ -6,7 +6,7 @@ const { onCall, onRequest, HttpsError } = require("firebase-functions/v2/https")
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { defineSecret } = require("firebase-functions/params");
 const { initializeApp } = require("firebase-admin/app");
-const { getFirestore, FieldValue, FieldPath } = require("firebase-admin/firestore");
+const { getFirestore, FieldValue, FieldPath, Timestamp } = require("firebase-admin/firestore");
 const { getAuth } = require("firebase-admin/auth");
 // @line/bot-sdk: lazy-loaded — 只有 processLinePushQueue 使用
 let _messagingApi;
@@ -4327,7 +4327,7 @@ exports.registerForEvent = onCall(
       await dedupRef.create({
         callerUid,
         createdAt: FieldValue.serverTimestamp(),
-        expiresAt: admin.firestore.Timestamp.fromDate(expiresAt),
+        expiresAt: Timestamp.fromDate(expiresAt),
       });
     } catch (e) {
       if (e.code === 6 || e.code === "already-exists") {
@@ -4442,7 +4442,7 @@ exports.registerForEvent = onCall(
       const registrations = [];
       let newConfirmed = 0;
       let newWaitlisted = 0;
-      const nowTimestamp = admin.firestore.Timestamp.now();
+      const nowTimestamp = Timestamp.now();
       const nowISOString = nowTimestamp.toDate().toISOString();
 
       for (let idx = 0; idx < sanitizedParticipants.length; idx++) {
@@ -4630,7 +4630,7 @@ exports.cancelRegistration = onCall(
       await dedupRef.create({
         callerUid,
         createdAt: FieldValue.serverTimestamp(),
-        expiresAt: admin.firestore.Timestamp.fromDate(expiresAt),
+        expiresAt: Timestamp.fromDate(expiresAt),
       });
     } catch (e) {
       if (e.code === 6 || e.code === "already-exists") {

@@ -172,9 +172,13 @@ Object.assign(App, {
     ui.log('開始用戶俱樂部欄位驗證...');
     const users = ApiService.getAdminUsers?.() || [];
     const teams = ApiService.getTeams?.() || [];
-    const validTeamIds = new Set(
-      teams.map(t => String(t?.id || t?._docId || '').trim()).filter(Boolean)
-    );
+    const validTeamIds = new Set();
+    teams.forEach(t => {
+      const customId = String(t?.id || '').trim();
+      const docId = String(t?._docId || '').trim();
+      if (customId) validTeamIds.add(customId);
+      if (docId) validTeamIds.add(docId);
+    });
     if (!users.length) { ui.log('找不到用戶資料'); return; }
 
     let updated = 0;

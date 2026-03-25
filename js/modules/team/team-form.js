@@ -289,7 +289,7 @@ Object.assign(App, {
     } catch (err) {
       console.error('[handleSaveTeam]', err);
       this.showToast('儲存失敗：' + (err.message || '請稍後再試'));
-      ApiService._writeErrorLog({ fn: '_saveTeam', teamId: this._editingTeamId }, err);
+      ApiService._writeErrorLog({ fn: '_saveTeam', teamId: this._teamEditId }, err);
       return;
     }
 

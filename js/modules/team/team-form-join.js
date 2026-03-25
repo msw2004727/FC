@@ -181,16 +181,24 @@ Object.assign(App, {
     const userName = curUser?.displayName || (ModeManager.isDemo() ? DemoData.currentUser.displayName : '');
     const uid = curUser?.uid || (ModeManager.isDemo() ? DemoData.currentUser.uid : null);
 
+    // 經理不能退出（優先用 UID 比對，fallback 用 name）
+    if ((t.captainUid && t.captainUid === uid) || (!t.captainUid && t.captain && (t.captain === userName || t.captain === curUser?.name))) {
+      this.showToast('經理無法退出俱樂部，請先轉移經理職務');
+      return;
+    }
+
     // 領隊不能退出
-    if (t.captain === userName) {
+    const leaderUids = t.leaderUids || (t.leaderUid ? [t.leaderUid] : []);
+    if (uid && leaderUids.includes(uid)) {
       this.showToast('領隊無法退出俱樂部，請先轉移領隊職務');
       return;
     }
 
-    // 如果用戶是教練，從俱樂部 coaches 移除
-    const wasCoach = (t.coaches || []).includes(userName);
+    // 如果用戶是教練，從俱樂部 coaches 移除（用 name 比對 coaches 陣列，同時比對 displayName 和 name）
+    const myNames = new Set([curUser?.name, curUser?.displayName].filter(Boolean));
+    const wasCoach = (t.coaches || []).some(c => myNames.has(c));
     if (wasCoach) {
-      const newCoaches = t.coaches.filter(c => c !== userName);
+      const newCoaches = t.coaches.filter(c => !myNames.has(c));
       ApiService.updateTeam(teamId, { coaches: newCoaches });
     }
 

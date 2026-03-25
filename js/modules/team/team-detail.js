@@ -26,8 +26,9 @@ Object.assign(App, {
     const team = ApiService.getTeam(teamId);
     if (!team || !user) return false;
     if (team.captainUid && team.captainUid === user.uid) return true;
-    if (team.captain && team.captain === user.displayName) return true;
-    if ((team.coaches || []).includes(user.displayName)) return true;
+    const myNames = new Set([user.name, user.displayName].filter(Boolean));
+    if (team.captain && myNames.has(team.captain)) return true;
+    if ((team.coaches || []).some(c => myNames.has(c))) return true;
     const leaderUids = team.leaderUids || (team.leaderUid ? [team.leaderUid] : []);
     if (leaderUids.includes(user.uid)) return true;
     return false;
@@ -279,7 +280,7 @@ Object.assign(App, {
 
     const memberCount = (typeof this._calcTeamMemberCount === 'function')
       ? this._calcTeamMemberCount(teamId)
-      : (ApiService.getAdminUsers() || []).filter(u => u.teamId === teamId).length;
+      : (ApiService.getAdminUsers() || []).filter(u => u.teamId === teamId || (Array.isArray(u.teamIds) && u.teamIds.includes(teamId))).length;
     ApiService.updateTeam(teamId, { members: memberCount });
 
     const actorName = currentUser?.displayName || currentUser?.name || '\u8077\u54e1';
