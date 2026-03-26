@@ -29,7 +29,7 @@ Object.assign(App, {
       })() : '';
       slotsHtml += '<div class="edu-stamp-cell' + (attended ? ' edu-stamp-checked' : '') + '">'
         + '<div class="edu-stamp-num">' + (i + 1) + '</div>'
-        + (attended ? '<div class="edu-stamp-mark">&#x2714;</div>' : '')
+        + (attended ? '<div class="edu-stamp-seal">出席</div>' : '')
         + (shortDate ? '<div class="edu-stamp-date">' + shortDate + '</div>' : '')
         + '</div>';
     }

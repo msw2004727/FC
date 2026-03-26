@@ -286,23 +286,36 @@
   transition: all .2s;
 }
 .edu-stamp-cell.edu-stamp-checked {
-  border-color: var(--success, #10b981);
+  border-color: #b91c1c;
   border-style: solid;
-  background: #d1fae5;
+  background: #fef2f2;
 }
 .edu-stamp-num {
   font-size: .65rem;
   color: var(--text-muted);
   font-weight: 600;
 }
-.edu-stamp-mark {
-  font-size: 1.2rem;
-  color: var(--success, #10b981);
-  line-height: 1;
+.edu-stamp-seal {
+  position: absolute;
+  font-size: .7rem;
+  font-weight: 800;
+  color: #b91c1c;
+  border: 2px solid #b91c1c;
+  border-radius: 50%;
+  width: 2rem;
+  height: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform: rotate(-45deg);
+  opacity: .85;
+  letter-spacing: .05em;
 }
 .edu-stamp-date {
   font-size: .55rem;
   color: var(--text-muted);
+  position: relative;
+  z-index: 1;
 }
 
 /* ── Monthly Calendar ── */
@@ -353,11 +366,12 @@
   color: var(--text-primary);
 }
 .edu-cal-attended {
-  background: #d1fae5;
+  background: #b91c1c;
+  border-radius: 50%;
 }
 .edu-cal-attended .edu-cal-day {
   font-weight: 700;
-  color: #065f46;
+  color: #fff;
 }
 .edu-cal-today {
   outline: 2px solid var(--primary);
@@ -369,12 +383,13 @@
 [data-theme="dark"] .edu-cal-course-day {
   background: #451a03;
 }
-.edu-cal-dot {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--success, #10b981);
-  margin-top: 1px;
+.edu-cal-seal {
+  font-size: .4rem;
+  font-weight: 800;
+  color: rgba(255,255,255,.7);
+  transform: rotate(-45deg);
+  line-height: 1;
+  letter-spacing: .03em;
 }
 .edu-cal-summary {
   text-align: center;
@@ -440,14 +455,18 @@
 
 /* ── Dark Theme ── */
 [data-theme="dark"] .edu-stamp-cell.edu-stamp-checked {
-  background: #064e3b;
-  border-color: #10b981;
+  background: #450a0a;
+  border-color: #b91c1c;
+}
+[data-theme="dark"] .edu-stamp-seal {
+  color: #fca5a5;
+  border-color: #fca5a5;
 }
 [data-theme="dark"] .edu-cal-attended {
-  background: #064e3b;
+  background: #991b1b;
 }
 [data-theme="dark"] .edu-cal-attended .edu-cal-day {
-  color: #6ee7b7;
+  color: #fff;
 }
 [data-theme="dark"] .edu-status-pending {
   background: #451a03;
