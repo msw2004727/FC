@@ -13,7 +13,7 @@ Object.assign(App, {
   /**
    * 為教育型俱樂部建構詳情頁 body HTML
    */
-  async renderEduClubDetail(teamId) {
+  renderEduClubDetail(teamId) {
     const bodyEl = document.getElementById('team-detail-body');
     if (!bodyEl) return;
 
@@ -22,13 +22,6 @@ Object.assign(App, {
 
     this._eduDetailTeamId = teamId;
     const isStaff = this.isEduClubStaff(teamId);
-    const curUser = ApiService.getCurrentUser();
-
-    // ★ 先載入學員快取，確保後續判斷正確
-    await this._loadEduStudents(teamId);
-
-    // ★ 啟動即時監聽
-    this._startEduStudentsListener(teamId);
 
     // ── 基本資訊卡 ──
     const infoCard = '<div class="td-card">'
@@ -70,20 +63,20 @@ Object.assign(App, {
       + '<div id="edu-course-plan-list"></div>'
       + '</div>';
 
-    // ── 學員狀態區塊（非幹部用，即時渲染目標）──
+    // ── 學員狀態區塊（即時渲染目標）──
     const memberSection = '<div id="edu-member-section"></div>';
 
     bodyEl.innerHTML = infoCard + bioCard + groupSection + courseSection + checkinSection + memberSection;
 
-    // 渲染學員區塊
+    // ★ Phase 1：用快取立即渲染（可能為空或舊資料）
     this._renderEduMemberSection(teamId);
-
-    // 載入分組列表
-    await this.renderEduGroupList(teamId);
-    // 載入課程方案
+    this.renderEduGroupList(teamId);
     if (typeof this.renderEduCoursePlanList === 'function') {
-      await this.renderEduCoursePlanList(teamId, isStaff);
+      this.renderEduCoursePlanList(teamId, isStaff);
     }
+
+    // ★ Phase 2：啟動 onSnapshot 即時監聽（listener 回來後自動重繪）
+    this._startEduStudentsListener(teamId);
   },
 
   /**
