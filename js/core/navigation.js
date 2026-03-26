@@ -607,11 +607,6 @@ Object.assign(App, {
     // 按需渲染：進入頁面時才渲染，減少啟動負擔
     if (pageId === 'page-teams') {
       this.renderTeamList?.();
-      // 背景載入教育俱樂部學員數後重繪，再啟動即時監聽
-      const eduTeams = (ApiService.getActiveTeams?.() || []).filter(t => t.type === 'education');
-      if (eduTeams.length && this._loadEduStudentCountsForList) {
-        this._loadEduStudentCountsForList(eduTeams).then(() => { if (this.currentPage === 'page-teams') this.renderTeamList?.(); });
-      }
       this._startEduTeamsListener?.();
     }
     if (pageId === 'page-messages') this.renderMessageList();

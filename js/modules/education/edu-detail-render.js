@@ -197,6 +197,7 @@ Object.assign(App, {
   // ══════════════════════════════════
 
   _eduTeamsUnsub: null,
+  _eduTeamsStudentUnsubs: [],
 
   _startEduTeamsListener() {
     this._stopEduTeamsListener();
@@ -211,11 +212,10 @@ Object.assign(App, {
             const inactiveTeams = (FirebaseService._cache.teams || []).filter(t => !t.active);
             FirebaseService._cache.teams = [...freshTeams, ...inactiveTeams];
             FirebaseService._debouncedPersistCache();
+            // 為教育俱樂部啟動學員 subcollection 監聽
+            this._startEduTeamsStudentListeners(freshTeams);
             if (this.currentPage === 'page-teams') {
-              // 先載入學員數，載完再渲染
-              this._loadEduStudentCountsForList(freshTeams).then(() => {
-                if (this.currentPage === 'page-teams') this.renderTeamList();
-              });
+              this.renderTeamList();
             }
           },
           err => { console.error('[edu-realtime] teams listener error:', err); }
@@ -224,21 +224,30 @@ Object.assign(App, {
   },
 
   /**
-   * 為列表頁上尚未快取學員的教育俱樂部載入學員資料
-   * 載入後重繪列表以更新人數
+   * 為列表頁的每個教育俱樂部監聽 students subcollection
+   * 學員變動 → 快取更新 → 重繪列表人數
    */
-  async _loadEduStudentCountsForList(teams) {
+  _startEduTeamsStudentListeners(teams) {
+    // 先清掉舊的
+    this._eduTeamsStudentUnsubs.forEach(fn => fn());
+    this._eduTeamsStudentUnsubs = [];
+
     const eduTeams = teams.filter(t => t.type === 'education');
-    if (!eduTeams.length) return;
-    let changed = false;
     for (const t of eduTeams) {
       try {
-        await this._loadEduStudents(t.id);
-        changed = true;
+        const unsub = firebase.firestore()
+          .collection('teams').doc(t.id).collection('students')
+          .onSnapshot(
+            snap => {
+              this._eduStudentsCache[t.id] = snap.docs.map(doc => ({ id: doc.id, ...doc.data(), _docId: doc.id }));
+              if (this.currentPage === 'page-teams') {
+                this.renderTeamList();
+              }
+            },
+            () => {} // 靜默忽略錯誤
+          );
+        this._eduTeamsStudentUnsubs.push(unsub);
       } catch (_) {}
-    }
-    if (changed && this.currentPage === 'page-teams') {
-      this.renderTeamList();
     }
   },
 
@@ -247,6 +256,8 @@ Object.assign(App, {
       this._eduTeamsUnsub();
       this._eduTeamsUnsub = null;
     }
+    this._eduTeamsStudentUnsubs.forEach(fn => fn());
+    this._eduTeamsStudentUnsubs = [];
   },
 
   // ══════════════════════════════════
