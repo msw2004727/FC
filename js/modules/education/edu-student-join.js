@@ -19,10 +19,49 @@ Object.assign(App, {
     if (titleEl) titleEl.textContent = team ? '申請加入「' + team.name + '」' : '申請加入';
 
     document.getElementById('edu-apply-team-id').value = teamId;
-    document.getElementById('edu-apply-name').value = '';
-    document.getElementById('edu-apply-birthday').value = '';
-    document.getElementById('edu-apply-gender').value = 'male';
-    document.getElementById('edu-apply-relation').value = 'self';
+
+    // 檢查此俱樂部是否已有「本人」紀錄
+    const curUser = ApiService.getCurrentUser();
+    const students = await this._loadEduStudents(teamId);
+    const hasSelf = curUser && students.some(s =>
+      s.enrollStatus !== 'inactive' && s.selfUid === curUser.uid
+    );
+
+    const relationEl = document.getElementById('edu-apply-relation');
+    if (hasSelf) {
+      // 已有本人 → 鎖定代理
+      relationEl.value = 'parent';
+      relationEl.disabled = true;
+    } else {
+      relationEl.value = 'self';
+      relationEl.disabled = false;
+    }
+
+    // 觸發身份聯動（帶入/清空欄位）
+    this._onEduApplyRelationChange();
+  },
+
+  /**
+   * 身份選單切換 → 自動帶入或清空欄位
+   */
+  _onEduApplyRelationChange() {
+    const relation = document.getElementById('edu-apply-relation').value;
+    const nameEl = document.getElementById('edu-apply-name');
+    const birthdayEl = document.getElementById('edu-apply-birthday');
+    const genderEl = document.getElementById('edu-apply-gender');
+
+    if (relation === 'self') {
+      const curUser = ApiService.getCurrentUser();
+      nameEl.value = curUser ? (curUser.displayName || curUser.name || '') : '';
+      nameEl.readOnly = true;
+      birthdayEl.value = curUser && curUser.birthday ? curUser.birthday : '';
+      genderEl.value = curUser && curUser.gender ? curUser.gender : 'male';
+    } else {
+      nameEl.value = '';
+      nameEl.readOnly = false;
+      birthdayEl.value = '';
+      genderEl.value = 'male';
+    }
   },
 
   /**
@@ -37,7 +76,10 @@ Object.assign(App, {
     const gender = document.getElementById('edu-apply-gender').value;
     const relation = document.getElementById('edu-apply-relation').value;
 
+    // ★ 必填驗證
     if (!name) { this.showToast('請輸入學員姓名'); return; }
+    if (!birthday) { this.showToast('請選擇生日'); return; }
+    if (!gender) { this.showToast('請選擇性別'); return; }
     if (!teamId) { this.showToast('俱樂部資料錯誤'); return; }
 
     const curUser = ApiService.getCurrentUser();
@@ -54,20 +96,42 @@ Object.assign(App, {
       return;
     }
 
-    // ★ 重複申請檢查：同 uid（不分身份類型）+ 同學員姓名不可重複
+    // ★ 重複申請檢查
     const existingStudents = await this._loadEduStudents(teamId);
-    const duplicate = existingStudents.find(s =>
-      s.enrollStatus !== 'inactive' &&
-      (s.parentUid === curUser.uid || s.selfUid === curUser.uid) &&
-      s.name.trim() === name
-    );
-    if (duplicate) {
-      const statusText = duplicate.enrollStatus === 'pending' ? '審核中' : '已通過';
-      this.showToast('「' + name + '」已申請過此俱樂部（' + statusText + '）');
-      return;
+    if (relation === 'self') {
+      // 本人：同一俱樂部只能有一筆 selfUid
+      const selfDup = existingStudents.find(s =>
+        s.enrollStatus !== 'inactive' && s.selfUid === curUser.uid
+      );
+      if (selfDup) {
+        this.showToast('您已以本人身份加入此俱樂部');
+        return;
+      }
+    } else {
+      // 代理：同 parentUid + 同姓名不可重複
+      const agentDup = existingStudents.find(s =>
+        s.enrollStatus !== 'inactive' &&
+        s.parentUid === curUser.uid &&
+        (s.name || '').trim() === name
+      );
+      if (agentDup) {
+        const statusText = agentDup.enrollStatus === 'pending' ? '審核中' : '已通過';
+        this.showToast('「' + name + '」已申請過此俱樂部（' + statusText + '）');
+        return;
+      }
     }
 
     this._eduApplySubmitting = true;
+
+    // ★ 本人模式：同步生日/性別到個人資料
+    if (relation === 'self') {
+      const profileUpdates = {};
+      if (birthday && birthday !== (curUser.birthday || '')) profileUpdates.birthday = birthday;
+      if (gender && gender !== (curUser.gender || '')) profileUpdates.gender = gender;
+      if (Object.keys(profileUpdates).length > 0) {
+        ApiService.updateCurrentUser(profileUpdates);
+      }
+    }
 
     // 建立待審核學員
     const studentData = {
@@ -112,8 +176,8 @@ Object.assign(App, {
       staffUids.forEach(staffUid => {
         this._deliverMessageWithLinePush(
           '學員加入申請',
-          curUser.displayName + ' 為「' + name + '」申請加入「' + team.name + '」教學班，請審核。',
-          'system', '系統', staffUid, curUser.displayName,
+          (curUser.displayName || curUser.name || '用戶') + ' 為「' + name + '」申請加入「' + team.name + '」教學班，請審核。',
+          'system', '系統', staffUid, (curUser.displayName || curUser.name || '用戶'),
           {
             actionType: 'edu_student_apply',
             actionStatus: 'pending',

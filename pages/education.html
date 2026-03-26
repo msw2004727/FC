@@ -56,25 +56,25 @@
       <div class="ce-form" style="padding:1rem">
         <input type="hidden" id="edu-apply-team-id">
         <div class="ce-row">
+          <label>您的身份 <span class="required">*必填</span></label>
+          <select id="edu-apply-relation" onchange="App._onEduApplyRelationChange()">
+            <option value="self">本人</option>
+            <option value="parent">代理（為他人報名）</option>
+          </select>
+        </div>
+        <div class="ce-row">
           <label>學員姓名 <span class="required">*必填</span></label>
           <input type="text" id="edu-apply-name" maxlength="20" placeholder="學員的姓名">
         </div>
         <div class="ce-row">
-          <label>生日</label>
+          <label>生日 <span class="required">*必填</span></label>
           <input type="date" id="edu-apply-birthday">
         </div>
         <div class="ce-row">
-          <label>性別</label>
+          <label>性別 <span class="required">*必填</span></label>
           <select id="edu-apply-gender">
             <option value="male">男</option>
             <option value="female">女</option>
-          </select>
-        </div>
-        <div class="ce-row">
-          <label>您的身份</label>
-          <select id="edu-apply-relation">
-            <option value="self">本人</option>
-            <option value="parent">代理（為他人報名）</option>
           </select>
         </div>
         <div style="margin-top:1rem">
