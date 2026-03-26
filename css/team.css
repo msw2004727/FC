@@ -302,6 +302,7 @@
   box-shadow: 0 3px 8px rgba(34, 197, 94, .28);
   transform: rotate(-35deg);
   transform-origin: center;
+  opacity: .75;
   pointer-events: none;
   z-index: 3;
 }
