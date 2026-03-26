@@ -87,7 +87,6 @@ Object.assign(App, {
     if (!container) return;
 
     const isStaff = this.isEduClubStaff(teamId);
-    if (isStaff) { container.innerHTML = ''; return; }
 
     const curUser = ApiService.getCurrentUser();
     const myStudents = this._getMyEduStudents(teamId, curUser);
