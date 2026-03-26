@@ -200,6 +200,11 @@ Object.assign(App, {
     if (!student) return;
 
     const newGroupIds = (student.groupIds || []).filter(id => id !== groupId);
+
+    // 若移除後無任何分組 → 二次確認除名
+    if (newGroupIds.length === 0) {
+      if (!(await this.appConfirm('「' + name + '」學員目前已沒有任何分組，若同意移除則會踢出俱樂部。'))) return;
+    }
     const groups = this.getEduGroups(teamId);
     const newGroupNames = newGroupIds.map(id => {
       const g = groups.find(g => g.id === id);
