@@ -282,16 +282,16 @@
   vertical-align: middle;
 }
 
-/* ── Education Ribbon (diagonal, bottom-right) ── */
+/* ── Education Ribbon (diagonal, image bottom-right) ── */
 .tc-edu-ribbon {
   position: absolute;
-  right: -22px;
-  bottom: 10px;
+  right: -26px;
+  bottom: 6px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 96px;
-  padding: .14rem .25rem;
+  width: 104px;
+  padding: .18rem .25rem;
   background: linear-gradient(135deg, #4ade80, #22c55e);
   color: #fff;
   font-size: .58rem;
@@ -303,7 +303,7 @@
   transform: rotate(-35deg);
   transform-origin: center;
   pointer-events: none;
-  z-index: 2;
+  z-index: 3;
 }
 
 /* Dark theme */

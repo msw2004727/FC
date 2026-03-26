@@ -328,7 +328,7 @@
 // 20260323b: 個人資訊頁啟用互動畫布 + 載入戰績統計彈窗模組
 // 20260323j: 雲端存檔 + 天氣系統 + 角色命名（第一期）
 // 20260323k: 雙開偵測（localStorage 心跳 + storage 事件搶佔）
-const CACHE_VERSION = '20260326zj';
+const CACHE_VERSION = '20260326zk';
 
 // ─── 網路 / 設備偵測（用於 UI 降級）───
 const NetDevice = {
