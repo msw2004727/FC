@@ -58,7 +58,7 @@
       <div class="page-header">
         <button class="back-btn" onclick="App.goBack()">←</button>
         <h2>俱樂部管理</h2>
-        <button class="primary-btn small" id="team-manage-create-btn" onclick="App.showTeamForm()">＋ 新增俱樂部</button>
+        <button class="primary-btn small" id="team-manage-create-btn" onclick="App._showTeamTypeSelect()">＋ 新增俱樂部</button>
       </div>
       <div class="tab-bar" id="team-manage-tabs">
         <button class="tab active" data-tab="my-teams">我的俱樂部</button>
@@ -66,6 +66,28 @@
       </div>
       <div class="card-list" id="team-manage-list"></div>
     </section>
+
+  <!-- Team Type Selection Modal -->
+  <div class="modal" id="team-type-select-modal">
+    <div class="modal-header">
+      <h3>選擇俱樂部類型</h3>
+      <button class="modal-close" onclick="App.closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="team-type-select-grid">
+        <div class="team-type-select-card" onclick="App._selectTeamCreateType('general')">
+          <div class="team-type-select-icon">⚽</div>
+          <div class="team-type-select-title">運動俱樂部</div>
+          <div class="team-type-select-desc">組建競技團隊，管理成員、賽事與戰績</div>
+        </div>
+        <div class="team-type-select-card" onclick="App._selectTeamCreateType('education')">
+          <div class="team-type-select-icon">📚</div>
+          <div class="team-type-select-title">教學俱樂部</div>
+          <div class="team-type-select-desc">開設課程教學，管理學員報名與課程排程</div>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <!-- Create Team Modal -->
   <div class="modal" id="create-team-modal">
@@ -84,12 +106,10 @@
           </div>
           <input type="file" id="ct-team-image" accept=".jpg,.jpeg,.png" hidden>
         </div>
-        <div class="ce-row">
-          <label>俱樂部類型 <span class="required">*必填</span></label>
-          <select id="ct-team-type" onchange="App._onTeamTypeChange(this.value)">
-            <option value="general">一般俱樂部（運動型）</option>
-            <option value="education">教學俱樂部（課程教學）</option>
-          </select>
+        <input type="hidden" id="ct-team-type" value="general">
+        <div class="ce-row" id="ct-team-type-display" style="display:none">
+          <label>俱樂部類型</label>
+          <div id="ct-team-type-label" style="font-size:.85rem;font-weight:600;color:var(--accent);padding:.3rem 0"></div>
         </div>
         <div id="ct-edu-settings" style="display:none">
           <div class="ce-row" style="display:flex;align-items:center;gap:.5rem">

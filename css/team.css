@@ -213,6 +213,37 @@
   border-color: var(--primary);
 }
 
+/* ── Team Type Selection Cards ── */
+.team-type-select-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: .75rem;
+  padding: .5rem 0;
+}
+.team-type-select-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: .5rem;
+  padding: 1.2rem .8rem;
+  background: var(--bg-elevated);
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: all .2s ease;
+  text-align: center;
+}
+.team-type-select-card:hover {
+  border-color: var(--accent);
+  background: var(--accent-bg);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(0,0,0,.1);
+}
+.team-type-select-card:active { transform: translateY(0); }
+.team-type-select-icon { font-size: 2rem; line-height: 1; }
+.team-type-select-title { font-size: .92rem; font-weight: 700; color: var(--text-primary); }
+.team-type-select-desc { font-size: .72rem; color: var(--text-muted); line-height: 1.4; }
+
 /* ── Education Type Badge on Team Card ── */
 .tc-edu-badge {
   display: inline-block;

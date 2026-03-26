@@ -52,6 +52,26 @@ Object.assign(App, {
     }
   },
 
+  /**
+   * 開啟俱樂部類型選擇畫面
+   */
+  _showTeamTypeSelect() {
+    if (!this._canCreateTeamByPermission()) {
+      this.showToast('目前未開啟建立俱樂部權限');
+      return;
+    }
+    this.showModal('team-type-select-modal');
+  },
+
+  /**
+   * 選擇類型後進入新增表單
+   */
+  _selectTeamCreateType(type) {
+    this.closeModal();
+    this._pendingTeamCreateType = type;
+    this.showTeamForm(null);
+  },
+
   _getCurrentUserName() {
     if (ModeManager.isDemo()) return DemoData.currentUser.displayName;
     const user = ApiService.getCurrentUser();
@@ -96,11 +116,16 @@ Object.assign(App, {
       document.getElementById('ct-team-contact').value = t.contact || '';
       document.getElementById('ct-team-bio').value = t.bio || '';
 
-      // 編輯模式：載入俱樂部類型
-      const typeSelect = document.getElementById('ct-team-type');
-      if (typeSelect) {
-        typeSelect.value = t.type || 'general';
-        this._onTeamTypeChange(t.type || 'general');
+      // 編輯模式：載入俱樂部類型（隱藏欄位 + 顯示標籤）
+      const typeInput = document.getElementById('ct-team-type');
+      if (typeInput) typeInput.value = t.type || 'general';
+      this._onTeamTypeChange(t.type || 'general');
+      const typeDisplay = document.getElementById('ct-team-type-display');
+      const typeLabel = document.getElementById('ct-team-type-label');
+      if (typeDisplay && typeLabel) {
+        typeDisplay.style.display = '';
+        const editType = t.type || 'general';
+        typeLabel.textContent = editType === 'education' ? '📚 教學俱樂部' : '⚽ 運動俱樂部';
       }
       // 教育型設定
       const acceptToggle = document.getElementById('ct-edu-accepting');
@@ -180,12 +205,22 @@ Object.assign(App, {
       }
     } else {
       // 新增模式：自動填入當前用戶為俱樂部經理，鎖定不可更改
-      titleEl.textContent = '新增俱樂部';
+      const selectedType = this._pendingTeamCreateType || 'general';
+      this._pendingTeamCreateType = null;
+      titleEl.textContent = selectedType === 'education' ? '新增教學俱樂部' : '新增運動俱樂部';
       saveBtn.textContent = '建立俱樂部';
       this._resetTeamForm();
-      // 新增模式預設一般型
-      const typeSelectNew = document.getElementById('ct-team-type');
-      if (typeSelectNew) typeSelectNew.value = 'general';
+      // 設定類型
+      const typeInput = document.getElementById('ct-team-type');
+      if (typeInput) typeInput.value = selectedType;
+      this._onTeamTypeChange(selectedType);
+      // 顯示類型標籤
+      const typeDisplay = document.getElementById('ct-team-type-display');
+      const typeLabel = document.getElementById('ct-team-type-label');
+      if (typeDisplay && typeLabel) {
+        typeDisplay.style.display = '';
+        typeLabel.textContent = selectedType === 'education' ? '📚 教學俱樂部' : '⚽ 運動俱樂部';
+      }
 
       // 自動設定創立者為俱樂部經理
       const me = ApiService.getCurrentUser();

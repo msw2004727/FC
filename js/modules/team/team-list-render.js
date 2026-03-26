@@ -35,8 +35,16 @@ Object.assign(App, {
     const container = document.getElementById('team-list');
     if (!container) return;
     this._refreshTeamCreateButtons();
-    const sorted = this._sortTeams(ApiService.getActiveTeams());
-    container.innerHTML = sorted.map(t => this._teamCardHTML(t)).join('');
+    let teams = ApiService.getActiveTeams();
+    // 套用當前 type tab 過濾
+    const typeTab = this._currentTeamTypeTab || '';
+    if (typeTab) {
+      teams = teams.filter(t => (t.type || 'general') === typeTab);
+    }
+    const sorted = this._sortTeams(teams);
+    container.innerHTML = sorted.length > 0
+      ? sorted.map(t => this._teamCardHTML(t)).join('')
+      : '<div style="grid-column:1/-1;text-align:center;padding:2rem;color:var(--text-muted);font-size:.85rem">此類型尚無俱樂部</div>';
     this._markPageSnapshotReady?.('page-teams');
   },
 
