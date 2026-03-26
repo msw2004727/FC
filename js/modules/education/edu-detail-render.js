@@ -124,7 +124,7 @@ Object.assign(App, {
         actionBtns = '<button class="outline-btn small edu-attendance-btn" onclick="App.showEduCalendar(\'' + teamId + '\',\'' + s.id + '\')">出席紀錄</button>'
           + '<button class="outline-btn small edu-withdraw-btn" onclick="App._confirmEduWithdraw(\'' + teamId + '\',\'' + s.id + '\',this)" data-name="' + escapeHTML(s.name) + '">退學</button>';
       } else {
-        actionBtns = '<button class="outline-btn small edu-withdraw-btn" onclick="App._confirmEduWithdraw(\'' + teamId + '\',\'' + s.id + '\',this)" data-name="' + escapeHTML(s.name) + '">取消申請</button>';
+        actionBtns = '<button class="outline-btn small edu-withdraw-btn" onclick="App._confirmEduCancelApply(\'' + teamId + '\',\'' + s.id + '\',this)" data-name="' + escapeHTML(s.name) + '">取消申請</button>';
       }
 
       return '<div class="edu-student-card">'
@@ -252,6 +252,12 @@ Object.assign(App, {
   // ══════════════════════════════════
   //  退學確認（含文字輸入驗證）
   // ══════════════════════════════════
+
+  async _confirmEduCancelApply(teamId, studentId, btnEl) {
+    const studentName = btnEl && btnEl.dataset ? btnEl.dataset.name : '';
+    if (!(await this.appConfirm('確定要取消「' + studentName + '」的申請嗎？'))) return;
+    await this._executeEduWithdraw(teamId, studentId, studentName);
+  },
 
   _confirmEduWithdraw(teamId, studentId, btnEl) {
     const studentName = btnEl && btnEl.dataset ? btnEl.dataset.name : '';
