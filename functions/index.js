@@ -5115,3 +5115,157 @@ exports.fetchUsageMetricsManual = onCall(
     return { success: true, ...result };
   }
 );
+
+// ═══════════════════════════════════════════
+//  Education: Secure Check-in（教育簽到 — 後端驗證）
+//  僅俱樂部幹部（captainUid / leaderUids / coaches）可執行簽到
+// ═══════════════════════════════════════════
+exports.eduCheckin = onCall(
+  { region: "asia-east1", timeoutSeconds: 30 },
+  async (request) => {
+    // 1. 登入驗證
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "必須登入才能執行簽到");
+    }
+    const callerUid = request.auth.uid;
+
+    const { teamId, records } = request.data || {};
+
+    // 2. 參數驗證
+    if (typeof teamId !== "string" || !teamId.trim()) {
+      throw new HttpsError("invalid-argument", "teamId 為必填");
+    }
+    if (!Array.isArray(records) || records.length === 0) {
+      throw new HttpsError("invalid-argument", "records 必須為非空陣列");
+    }
+    if (records.length > 100) {
+      throw new HttpsError("invalid-argument", "單次簽到不得超過 100 筆");
+    }
+
+    // 3. 驗證呼叫者是否為該俱樂部幹部
+    const teamDoc = await db.collection("teams").doc(teamId).get();
+    if (!teamDoc.exists) {
+      throw new HttpsError("not-found", "俱樂部不存在");
+    }
+    const team = teamDoc.data();
+
+    const isStaff = (() => {
+      if (team.captainUid === callerUid) return true;
+      if (team.creatorUid === callerUid) return true;
+      if (team.ownerUid === callerUid) return true;
+      if (team.leaderUid === callerUid) return true;
+      if (Array.isArray(team.leaderUids) && team.leaderUids.includes(callerUid)) return true;
+      // coaches 是名稱陣列，需要透過 uid 查找
+      // 先用 callerUid 查 users 集合取得名稱
+      return false;
+    })();
+
+    // 若非直接 UID 匹配，檢查 coaches 名稱匹配
+    let isCoachMatch = false;
+    if (!isStaff && Array.isArray(team.coaches) && team.coaches.length > 0) {
+      const callerUserDoc = await db.collection("users").doc(callerUid).get();
+      if (callerUserDoc.exists) {
+        const callerData = callerUserDoc.data();
+        const callerNames = [callerData.displayName, callerData.name].filter(Boolean);
+        isCoachMatch = team.coaches.some((c) => callerNames.includes(c));
+      }
+    }
+
+    if (!isStaff && !isCoachMatch) {
+      throw new HttpsError("permission-denied", "僅俱樂部幹部可執行簽到");
+    }
+
+    // 4. 驗證日期合法性（不允許未來日期，最多回溯 7 天）
+    const now = new Date();
+    const taipeiOffset = 8 * 60 * 60 * 1000;
+    const todayTaipei = new Date(now.getTime() + taipeiOffset).toISOString().slice(0, 10);
+
+    // 5. 收集所有 studentId + date 組合，用於重複檢查
+    const checkPairs = new Set();
+    const validatedRecords = [];
+
+    for (const r of records) {
+      if (typeof r.studentId !== "string" || !r.studentId.trim()) {
+        throw new HttpsError("invalid-argument", "每筆記錄需包含 studentId");
+      }
+      if (typeof r.date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(r.date)) {
+        throw new HttpsError("invalid-argument", "date 格式須為 YYYY-MM-DD");
+      }
+      // 不允許未來日期
+      if (r.date > todayTaipei) {
+        throw new HttpsError("invalid-argument", "不允許簽到未來日期：" + r.date);
+      }
+      // 最多回溯 7 天
+      const diffDays = (new Date(todayTaipei) - new Date(r.date)) / (1000 * 60 * 60 * 24);
+      if (diffDays > 7) {
+        throw new HttpsError("invalid-argument", "簽到日期不得超過 7 天前：" + r.date);
+      }
+      // 同一批次內不可重複 studentId+date
+      const pairKey = r.studentId + "_" + r.date;
+      if (checkPairs.has(pairKey)) continue;
+      checkPairs.add(pairKey);
+      validatedRecords.push(r);
+    }
+
+    // 6. 查詢已存在的簽到紀錄，跳過重複
+    const studentIds = [...new Set(validatedRecords.map((r) => r.studentId))];
+    const dates = [...new Set(validatedRecords.map((r) => r.date))];
+    const existingKeys = new Set();
+
+    // Firestore in 查詢限制 30 個元素，分批查
+    for (let i = 0; i < studentIds.length; i += 30) {
+      const chunk = studentIds.slice(i, i + 30);
+      for (const date of dates) {
+        const snap = await db.collection("eduAttendance")
+          .where("teamId", "==", teamId)
+          .where("studentId", "in", chunk)
+          .where("date", "==", date)
+          .where("status", "==", "active")
+          .get();
+        snap.forEach((doc) => {
+          const d = doc.data();
+          existingKeys.add(d.studentId + "_" + d.date);
+        });
+      }
+    }
+
+    // 7. 批次寫入（僅新紀錄，伺服器端生成 ID）
+    const batch = db.batch();
+    const written = [];
+
+    for (const r of validatedRecords) {
+      const pairKey = r.studentId + "_" + r.date;
+      if (existingKeys.has(pairKey)) continue; // 跳過已存在
+
+      const docRef = db.collection("eduAttendance").doc(); // 伺服器生成 ID
+      const docId = docRef.id;
+
+      const payload = {
+        id: docId,
+        teamId: teamId,
+        groupId: r.groupId || "",
+        coursePlanId: r.coursePlanId || null,
+        studentId: r.studentId,
+        studentName: typeof r.studentName === "string" ? r.studentName.slice(0, 50) : "",
+        parentUid: r.parentUid || null,
+        selfUid: r.selfUid || null,
+        checkedInByUid: callerUid,
+        date: r.date,
+        time: typeof r.time === "string" ? r.time.slice(0, 5) : "",
+        sessionNumber: r.sessionNumber || null,
+        status: "active",
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      };
+
+      batch.set(docRef, payload);
+      written.push({ id: docId, studentId: r.studentId, studentName: payload.studentName });
+    }
+
+    if (written.length > 0) {
+      await batch.commit();
+    }
+
+    return { success: true, count: written.length, records: written };
+  }
+);

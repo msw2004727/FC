@@ -662,11 +662,15 @@ service cloud.firestore {
       }
 
       // ── Education: Students（學員）──
-      // 認證可讀；幹部或本人(parentUid/selfUid)可建；幹部可改刪
+      // 認證可讀；一般用戶只能建 pending 學員；幹部可建任意狀態+改刪
       match /students/{studentId} {
         allow read: if isAuth();
         allow create: if isAuth()
-          && hasString('name');
+          && hasString('name')
+          && (
+            request.resource.data.enrollStatus == 'pending'
+            || isCurrentUserTeamCaptainOrLeader(teamId)
+          );
         allow update, delete: if isCurrentUserTeamCaptainOrLeader(teamId);
       }
     }
@@ -1077,16 +1081,12 @@ service cloud.firestore {
 
     // ═══════════════════════════════════════════
     //  Education Attendance（教育簽到）
-    //  認證可讀；認證+必填欄位可建；禁刪（審計軌跡）
+    //  認證可讀；寫入由 Cloud Function eduCheckin 執行
+    //  前端禁止直接寫入（防篡改）
     // ═══════════════════════════════════════════
     match /eduAttendance/{recordId} {
       allow read: if isAuth();
-      allow create: if isAuth()
-        && hasString('teamId')
-        && hasString('studentId')
-        && hasString('date');
-      allow update: if isAuth();
-      allow delete: if false;
+      allow create, update, delete: if false;
     }
 
     // ═══════════════════════════════════════════

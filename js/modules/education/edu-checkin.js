@@ -140,43 +140,29 @@ Object.assign(App, {
       return;
     }
 
-    const curUser = ApiService.getCurrentUser();
-    const checkedInByUid = curUser?.uid || '';
-
-    const students = Array.from(checkboxes).map(cb => ({
+    const records = Array.from(checkboxes).map(cb => ({
+      id: this._generateEduId('ea'),
       studentId: cb.value,
       studentName: cb.dataset.name || '',
       parentUid: cb.dataset.parentUid || null,
       selfUid: cb.dataset.selfUid || null,
+      groupId,
+      coursePlanId: coursePlanId || null,
+      date,
+      time,
+      sessionNumber: null,
     }));
 
     try {
-      const results = [];
-      for (const s of students) {
-        const record = {
-          id: this._generateEduId('ea'),
-          teamId,
-          groupId,
-          coursePlanId: coursePlanId || null,
-          studentId: s.studentId,
-          studentName: s.studentName,
-          parentUid: s.parentUid || null,
-          selfUid: s.selfUid || null,
-          checkedInByUid,
-          date,
-          time,
-          sessionNumber: null,
-          status: 'active',
-        };
-        const result = await FirebaseService.addEduAttendance(record);
-        results.push(result);
-      }
+      const fn = firebase.app().functions('asia-east1').httpsCallable('eduCheckin');
+      const res = await fn({ teamId, records });
+      const count = res.data.count || records.length;
 
-      this.showToast('已簽到 ' + results.length + ' 位學員');
+      this.showToast('已簽到 ' + count + ' 位學員');
 
-      // 觸發通知
+      // 用本地 records 觸發通知（CF 回傳的缺少 parentUid/date 等欄位）
       if (typeof this._notifyEduCheckin === 'function') {
-        this._notifyEduCheckin(teamId, groupId, results);
+        this._notifyEduCheckin(teamId, groupId, records);
       }
 
       // 重新渲染

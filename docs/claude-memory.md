@@ -10,6 +10,16 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### [永久] 2026-03-26 — 教育簽到安全強化：簽到走 CF + Firestore Rules 封鎖前端寫入
+- **問題**：`eduAttendance` 前端直寫，任何登入用戶都能偽造/篡改簽到紀錄；`students` create 可繞過審核直接寫入 `enrollStatus: 'active'`
+- **修復**：
+  - 新增 CF `eduCheckin`（asia-east1）：驗證呼叫者為俱樂部幹部（captainUid/leaderUids/coaches name match）、日期合法性（不允許未來日期、最多回溯 7 天）、伺服器端生成 docId（防覆寫）、重複簽到自動跳過
+  - `firestore.rules`：`eduAttendance` 改為 `create, update, delete: if false`（僅 admin SDK 可寫）
+  - `firestore.rules`：`students` create 增加 `enrollStatus == 'pending' || isCurrentUserTeamCaptainOrLeader` 約束
+  - 前端 `edu-checkin.js` / `edu-checkin-scan.js` 改呼叫 `httpsCallable('eduCheckin')`
+- **已知限制**：coaches 身份驗證仍依賴 displayName 比對（歷史架構），長期應遷移為 coachUids 陣列
+- **教訓**：可審計資料（出席、成績、交易）必須由後端寫入，前端僅發起請求
+
 ### 2026-03-26 — 教學俱樂部系統重大修正（快取未載入 + 重複申請 + 課程方案不可見）
 - **問題**：①申請加入後仍可重複申請 ②加入後看不到學員狀態 ③課程方案只有幹部可見
 - **原因**：`renderEduClubDetail` 未呼叫 `_loadEduStudents()`，導致 `_isEduStudentOrParent` 永遠讀到空快取回傳 false；`handleEduStudentApply` 無重複檢查；課程方案區塊包在 `isStaff ?` 條件中

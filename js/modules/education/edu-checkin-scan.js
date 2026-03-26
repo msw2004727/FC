@@ -130,28 +130,25 @@ Object.assign(App, {
       groupId = student.groupIds[0];
     }
 
-    const curUser = ApiService.getCurrentUser();
     const date = this._todayStr();
     const time = this._nowTimeStr();
 
     try {
       const record = {
         id: this._generateEduId('ea'),
-        teamId,
-        groupId,
-        coursePlanId: null,
         studentId,
         studentName: studentName || '',
         parentUid: student?.parentUid || null,
         selfUid: student?.selfUid || null,
-        checkedInByUid: curUser?.uid || '',
+        groupId,
+        coursePlanId: null,
         date,
         time,
         sessionNumber: null,
-        status: 'active',
       };
 
-      await FirebaseService.addEduAttendance(record);
+      const fn = firebase.app().functions('asia-east1').httpsCallable('eduCheckin');
+      await fn({ teamId, records: [record] });
 
       if (resultEl) {
         resultEl.innerHTML = '<div class="edu-scan-success">' +
