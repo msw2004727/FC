@@ -220,11 +220,22 @@ Object.assign(App, {
     }
 
     try {
-      await FirebaseService.updateEduStudent(teamId, studentId, {
+      // 指派到分組 = 視同審核通過
+      const updates = {
         groupIds: newGroupIds,
         groupNames: newGroupNames,
-      });
+      };
+      if (student.enrollStatus === 'pending') {
+        updates.enrollStatus = 'active';
+        updates.enrolledAt = new Date().toISOString();
+      }
+
+      await FirebaseService.updateEduStudent(teamId, studentId, updates);
       student.groupIds = newGroupIds;
+      if (updates.enrollStatus) {
+        student.enrollStatus = 'active';
+        student.enrolledAt = updates.enrolledAt;
+      }
       student.groupNames = newGroupNames;
 
       // 移除該行（視覺回饋）
