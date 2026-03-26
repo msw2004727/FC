@@ -10,6 +10,12 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-26 — eduCheckin CF 無法找到俱樂部（CORS → not-found）
+- **問題**：課程批次簽到呼叫 Cloud Function 報 CORS 錯誤，部署後改報「俱樂部不存在」
+- **原因**：1) CF 未部署（CORS 錯誤）。2) 部署後，CF 用 `doc(teamId)` 查 Firestore，但 `teamId` 是資料的 `id` 欄位（自訂 ID），非 Firestore 文件 ID（`.add()` 自動生成）
+- **修復**：`functions/index.js` 的 `eduCheckin` 改用 `where("id", "==", teamId).limit(1)` 查詢
+- **教訓**：本專案 teams 用 `.add()` 建立，`doc.id`（Firestore 文件 ID）≠ `data.id`（自訂 ID）。CF 中不能用自訂 ID 當 `doc()` 路徑
+
 ### 2026-03-26 — 教學俱樂部卡片新增右下角斜緞帶
 - **需求**：俱樂部列表中，教學俱樂部卡片要有類似活動卡片分類的斜緞帶標示
 - **修復**：team.css 新增 `.tc-edu-ribbon`（淺綠漸層、右下角 -35° 旋轉），team-list-render.js 的 `_teamCardHTML()` 為 education 類型卡片渲染緞帶

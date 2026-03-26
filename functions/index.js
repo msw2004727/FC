@@ -5143,11 +5143,12 @@ exports.eduCheckin = onCall(
     }
 
     // 3. 驗證呼叫者是否為該俱樂部幹部
-    const teamDoc = await db.collection("teams").doc(teamId).get();
-    if (!teamDoc.exists) {
+    //    前端傳入的 teamId 是資料的 id 欄位（自訂 ID），非 Firestore 文件 ID
+    const teamSnap = await db.collection("teams").where("id", "==", teamId).limit(1).get();
+    if (teamSnap.empty) {
       throw new HttpsError("not-found", "俱樂部不存在");
     }
-    const team = teamDoc.data();
+    const team = teamSnap.docs[0].data();
 
     const isStaff = (() => {
       if (team.captainUid === callerUid) return true;
