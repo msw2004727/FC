@@ -475,12 +475,17 @@
   color: var(--text-primary);
 }
 .edu-cal-attended {
+  position: relative;
+}
+.edu-cal-stamp {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 88%;
+  height: 88%;
   background: #b91c1c;
   border-radius: 50%;
-}
-.edu-cal-attended .edu-cal-day {
-  font-weight: 700;
-  color: #fff;
+  z-index: 1;
 }
 .edu-cal-today {
   outline: 2px solid var(--primary);
@@ -504,6 +509,7 @@
   transform: rotate(-15deg);
   line-height: 1;
   letter-spacing: .06em;
+  z-index: 2;
 }
 .edu-cal-summary {
   text-align: center;
@@ -650,11 +656,8 @@
   color: #fca5a5;
   border-color: #fca5a5;
 }
-[data-theme="dark"] .edu-cal-attended {
+[data-theme="dark"] .edu-cal-stamp {
   background: #991b1b;
-}
-[data-theme="dark"] .edu-cal-attended .edu-cal-day {
-  color: #fff;
 }
 [data-theme="dark"] .edu-status-pending {
   background: #451a03;

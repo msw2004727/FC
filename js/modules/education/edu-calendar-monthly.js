@@ -58,7 +58,7 @@ Object.assign(App, {
 
       cellsHtml += '<div class="' + cls + '">'
         + '<span class="edu-cal-day">' + day + '</span>'
-        + (isAttended ? '<span class="edu-cal-seal">出席</span>' : '')
+        + (isAttended ? '<span class="edu-cal-stamp"></span><span class="edu-cal-seal">出席</span>' : '')
         + '</div>';
     }
 
