@@ -54,8 +54,13 @@ Object.assign(App, {
       const curUser = ApiService.getCurrentUser();
       nameEl.value = curUser ? (curUser.displayName || curUser.name || '') : '';
       nameEl.readOnly = true;
-      birthdayEl.value = curUser && curUser.birthday ? curUser.birthday : '';
-      genderEl.value = curUser && curUser.gender ? curUser.gender : 'male';
+      // 生日格式統一為 YYYY-MM-DD（個人資料可能存 YYYY/MM/DD）
+      const rawBday = (curUser && curUser.birthday) || '';
+      birthdayEl.value = rawBday.replace(/\//g, '-');
+      // 性別對照：中文 → value（個人資料可能存「男」「女」或 male/female）
+      const rawGender = (curUser && curUser.gender) || '';
+      const genderMap = { '男': 'male', '女': 'female', 'male': 'male', 'female': 'female' };
+      genderEl.value = genderMap[rawGender] || 'male';
     } else {
       nameEl.value = '';
       nameEl.readOnly = false;
@@ -126,8 +131,11 @@ Object.assign(App, {
     // ★ 本人模式：同步生日/性別到個人資料
     if (relation === 'self') {
       const profileUpdates = {};
-      if (birthday && birthday !== (curUser.birthday || '')) profileUpdates.birthday = birthday;
-      if (gender && gender !== (curUser.gender || '')) profileUpdates.gender = gender;
+      const curBday = (curUser.birthday || '').replace(/\//g, '-');
+      if (birthday && birthday !== curBday) profileUpdates.birthday = birthday;
+      const genderMap = { '男': 'male', '女': 'female' };
+      const curGenderNorm = genderMap[curUser.gender] || curUser.gender || '';
+      if (gender && gender !== curGenderNorm) profileUpdates.gender = gender;
       if (Object.keys(profileUpdates).length > 0) {
         ApiService.updateCurrentUser(profileUpdates);
       }
