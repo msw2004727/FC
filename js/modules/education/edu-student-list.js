@@ -133,6 +133,47 @@ Object.assign(App, {
       + '</div>';
   },
 
+  /**
+   * 從快取渲染（不重新 fetch，供 onSnapshot 呼叫）
+   */
+  _renderEduStudentListFromCache(teamId, groupId) {
+    const container = document.getElementById('edu-student-list');
+    if (!container) return;
+
+    const isStaff = this.isEduClubStaff(teamId);
+    const allStudents = this.getEduStudents(teamId);
+
+    const inGroup = groupId
+      ? allStudents.filter(s => s.enrollStatus !== 'inactive' && (s.groupIds || []).includes(groupId))
+      : allStudents.filter(s => s.enrollStatus !== 'inactive');
+
+    const pendingStudents = inGroup.filter(s => s.enrollStatus === 'pending');
+    const activeStudents = inGroup.filter(s => s.enrollStatus === 'active');
+
+    if (!inGroup.length) {
+      container.innerHTML = '<div class="edu-empty-state">此分組尚無學員'
+        + (isStaff ? '<br><button class="primary-btn small" style="margin-top:.5rem" onclick="App.showEduAssignStudentModal(\'' + teamId + '\',\'' + (groupId || '') + '\')">新增學員</button>' : '')
+        + '</div>';
+      return;
+    }
+
+    let html = '';
+    if (isStaff && pendingStudents.length) {
+      html += '<div class="edu-section-label">待審核（' + pendingStudents.length + '）</div>';
+      html += pendingStudents.map(s => this._renderPendingStudentRow(teamId, groupId, s)).join('');
+      html += '<hr style="border:none;border-top:1px solid var(--border);margin:.6rem 0">';
+    }
+    if (isStaff) {
+      html += '<div style="margin-bottom:.5rem"><button class="primary-btn small" onclick="App.showEduAssignStudentModal(\'' + teamId + '\',\'' + (groupId || '') + '\')">＋ 新增學員</button></div>';
+    }
+    if (activeStudents.length) {
+      html += activeStudents.map(s => this._renderActiveStudentRow(teamId, groupId, s, isStaff)).join('');
+    } else if (!pendingStudents.length) {
+      html += '<div class="edu-empty-state">此分組尚無正式學員</div>';
+    }
+    container.innerHTML = html;
+  },
+
   async _approveFromList(teamId, studentId) {
     await this.approveEduStudent(teamId, studentId);
     const groupId = this._eduCurrentGroupId;
@@ -166,14 +207,20 @@ Object.assign(App, {
     });
 
     try {
-      await FirebaseService.updateEduStudent(teamId, studentId, {
+      const updates = {
         groupIds: newGroupIds,
         groupNames: newGroupNames,
-      });
+      };
+      // 若無任何分組 → 自動除名
+      if (newGroupIds.length === 0) {
+        updates.enrollStatus = 'inactive';
+      }
+      await FirebaseService.updateEduStudent(teamId, studentId, updates);
       student.groupIds = newGroupIds;
       student.groupNames = newGroupNames;
+      if (updates.enrollStatus) student.enrollStatus = 'inactive';
       this._updateGroupMemberCounts(teamId);
-      this.showToast(name + ' 已移除此分組');
+      this.showToast(name + (newGroupIds.length === 0 ? ' 已從俱樂部除名' : ' 已移除此分組'));
       await this.renderEduStudentList(teamId, groupId);
     } catch (err) {
       console.error('[_removeStudentFromGroup]', err);

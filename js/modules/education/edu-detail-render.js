@@ -168,10 +168,20 @@ Object.assign(App, {
       this._eduStudentsUnsub = ref.onSnapshot(
         snapshot => {
           this._eduStudentsCache[teamId] = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), _docId: doc.id }));
-          if (this.currentPage === 'page-team-detail' && this._eduDetailTeamId === teamId) {
+          const page = this.currentPage;
+          // 俱樂部詳情頁：重繪學員區塊 + 分組人數
+          if (page === 'page-team-detail' && this._eduDetailTeamId === teamId) {
             this._renderEduMemberSection(teamId);
             this._updateGroupMemberCounts(teamId);
             this.renderEduGroupList(teamId);
+          }
+          // 分組學員列表頁：即時重繪（快取已更新，直接渲染不需再 fetch）
+          if (page === 'page-edu-students' && this._eduCurrentGroupId) {
+            this._renderEduStudentListFromCache(teamId, this._eduCurrentGroupId);
+          }
+          // 俱樂部列表頁：更新卡片人數
+          if (page === 'page-teams') {
+            this.renderTeamList();
           }
         },
         err => { console.error('[edu-realtime] students listener error:', err); }
