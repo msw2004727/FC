@@ -10,6 +10,35 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### [永久] 2026-03-26 — .page 內的 position:fixed 彈窗會定位偏移
+- **問題**：站內信詳情彈窗、撰寫站內信、通知腳本編輯器等 modal 位置偏移，需滾動才看到，不同瀏覽器表現不一
+- **原因**：modal 放在 `<section class="page">` 內部，而 `.page` 的 `animation: pageIn` 帶 `transform`，CSS 規範中 transform 會建立新的 containing block，使內部 `position:fixed` 失效
+- **修復**：開啟彈窗時 `document.body.appendChild(modal)` 動態掛載到 body，脫離 `.page` 的 transform 影響
+- **教訓**：不可將 modal 移出 `<section class="page">` 的 HTML 結構（會破壞頁面切換的 display:none 隱藏邏輯），必須用 JS 動態搬移。所有在 `.page` 內使用 `position:fixed` 的 overlay 都有此風險
+
+### 2026-03-26 — updateEvent 在 db 未初始化時靜默失敗
+- **問題**：弱網環境下編輯活動後看似成功，但重整後改動消失
+- **原因**：`firebase-crud.js` 的 `updateEvent` 直接使用全域 `db`，未檢查是否已初始化；`ensureAuthReadyForWrite` 只檢查 auth 不檢查 db
+- **修復**：updateEvent 開頭加 `db` 存在性檢查，throw 明確 Error；api-service `_handleFirestoreWriteError` 加「尚未準備就緒」匹配顯示 toast
+- **教訓**：fire-and-forget 寫入路徑（_update）的 catch 只 console.error，用戶無感知。新增的錯誤類型需同步在 `_handleFirestoreWriteError` 加 toast 匹配
+
+### [永久] 2026-03-26 — 圖片裁切框 aspectRatio 必須與顯示區域一致
+- **問題**：俱樂部封面裁切框設為 1:1（正方形），但顯示區域是 800x300（8:3）；活動/賽事/教學封面裁切框設為 16:9，但顯示區域也是 800x300
+- **原因**：`app.js` 的 `bindImageUpload` 呼叫時 aspectRatio 參數與實際顯示區域不匹配
+- **修復**：俱樂部封面 1→8/3，活動/賽事/教學封面 16/9→8/3，共 10 處（兩組綁定）
+- **教訓**：新增圖片上傳時必須確認裁切比例與 CSS 顯示區域的 aspect-ratio 一致。全站比例對照表：封面類 8/3、商品圖 4/3、banner 2.2、浮動廣告 1、彈窗廣告 16/9
+
+### 2026-03-26 — 學員申請審核彈窗缺少同意/拒絕/略過按鈕
+- **問題**：教學俱樂部學員申請（actionType: edu_student_apply）的站內信詳情彈窗沒有審核按鈕
+- **原因**：`showMessageDetail` 只處理了 tournament_register_request 和 team_join_request，漏掉 edu_student_apply
+- **修復**：message-render.js 新增 edu_student_apply 分支渲染按鈕；message-actions.js 新增 `_handleEduApplyAction` 呼叫既有 approveEduStudent/rejectEduStudent + 發送通知
+- **教訓**：新增 actionType 時需同步更新 showMessageDetail 的 if-else 分支
+
+### 2026-03-26 — inline 彈窗毛玻璃規範統一
+- **問題**：6 處 inline modal overlay 使用 `backdrop-filter:blur(4px)` 且缺少 `-webkit-` 前綴，Safari/LINE WebView 毛玻璃不生效
+- **修復**：統一為 `-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);background:rgba(0,0,0,.35)` 符合專案規範
+- **教訓**：所有 backdrop-filter 必須同時寫 `-webkit-` 前綴版本
+
 ### 2026-03-25 — 俱樂部限定活動「未知俱樂部」+ 非成員按鈕修復
 - **問題**：開啟俱樂部限定時顯示「未知俱樂部」；非成員可點擊報名按鈕；未登入者看不到限定標示
 - **原因**：activeTeamMap 只用 t.id 作 key，用戶的 teamId 可能是 _docId 格式導致查不到；Guest 按鈕未做 teamOnly 判斷
