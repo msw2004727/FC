@@ -213,6 +213,31 @@
   border-color: var(--primary);
 }
 
+/* ── Education Toggle in Form ── */
+.ct-edu-toggle-wrap {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: .6rem .75rem;
+}
+.ct-edu-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .5rem;
+}
+.ct-edu-toggle-label {
+  font-size: .85rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.ct-edu-toggle-hint {
+  font-size: .72rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+  margin-top: .4rem;
+}
+
 /* ── Team Type Selection Cards ── */
 .team-type-select-grid {
   display: grid;

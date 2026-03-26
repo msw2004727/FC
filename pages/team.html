@@ -111,13 +111,17 @@
           <label>俱樂部類型</label>
           <div id="ct-team-type-label" style="font-size:.85rem;font-weight:600;color:var(--accent);padding:.3rem 0"></div>
         </div>
-        <div id="ct-edu-settings" style="display:none">
-          <div class="ce-row" style="display:flex;align-items:center;gap:.5rem">
-            <label style="flex:1;margin:0">接受新學員報名</label>
-            <label class="toggle-switch" style="margin:0;transform:scale(.85)">
-              <input type="checkbox" id="ct-edu-accepting" checked>
-              <span class="toggle-slider"></span>
-            </label>
+        <div id="ct-edu-settings" class="ce-row" style="display:none">
+          <label>學員招募狀態</label>
+          <div class="ct-edu-toggle-wrap">
+            <div class="ct-edu-toggle-row">
+              <span class="ct-edu-toggle-label">接受新學員報名</span>
+              <label class="toggle-switch" style="margin:0;transform:scale(.85)">
+                <input type="checkbox" id="ct-edu-accepting" checked>
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="ct-edu-toggle-hint">開啟後新學員可透過俱樂部頁面申請加入，關閉後將暫停招收新學員，已報名學員不受影響。</div>
           </div>
         </div>
         <div class="ce-row">
