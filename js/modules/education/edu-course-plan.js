@@ -43,6 +43,7 @@ Object.assign(App, {
 
     container.innerHTML = activePlans.map(p => {
       const typeLabel = p.planType === 'weekly' ? '固定週期' : '堂數制';
+      const typeClass = p.planType === 'weekly' ? 'edu-course-type-weekly' : 'edu-course-type-session';
       let scheduleInfo = '';
       if (p.planType === 'weekly') {
         const weekdayNames = (p.weekdays || []).map(d => '週' + this._weekdayLabel(d)).join('、');
@@ -63,7 +64,7 @@ Object.assign(App, {
       return '<div class="edu-course-card">' +
         '<div class="edu-course-header">' +
           '<span class="edu-course-name">' + escapeHTML(p.name) + '</span>' +
-          '<span class="edu-course-type">' + typeLabel + '</span>' +
+          '<span class="edu-course-type ' + typeClass + '">' + typeLabel + '</span>' +
         '</div>' +
         '<div class="edu-course-group">分組：' + escapeHTML(p.groupName || '未指定') + '</div>' +
         '<div class="edu-course-schedule">' + scheduleInfo + '</div>' +

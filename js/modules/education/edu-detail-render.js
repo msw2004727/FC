@@ -228,18 +228,24 @@ Object.assign(App, {
    * 學員變動 → 快取更新 → 重繪列表人數
    */
   _startEduTeamsStudentListeners(teams) {
-    // 先清掉舊的
     this._eduTeamsStudentUnsubs.forEach(fn => fn());
     this._eduTeamsStudentUnsubs = [];
 
     const eduTeams = teams.filter(t => t.type === 'education');
     for (const t of eduTeams) {
+      // ★ fallback fetch 保底（listener 連不上時也能拿到資料）
+      if (!this._eduStudentsCache[t.id]) {
+        this._loadEduStudents(t.id).then(() => {
+          if (this.currentPage === 'page-teams') this.renderTeamList();
+        });
+      }
       try {
+        const teamId = t.id;
         const unsub = firebase.firestore()
-          .collection('teams').doc(t.id).collection('students')
+          .collection('teams').doc(teamId).collection('students')
           .onSnapshot(
             snap => {
-              this._eduStudentsCache[t.id] = snap.docs.map(doc => ({ id: doc.id, ...doc.data(), _docId: doc.id }));
+              this._eduStudentsCache[teamId] = snap.docs.map(doc => ({ id: doc.id, ...doc.data(), _docId: doc.id }));
               if (this.currentPage === 'page-teams') {
                 this.renderTeamList();
               }

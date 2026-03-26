@@ -47,6 +47,14 @@ Object.assign(App, {
 
     const sorted = [...groups].filter(g => g.active !== false).sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
 
+    // ★ 渲染前自動計算分組人數
+    const students = this.getEduStudents(teamId);
+    sorted.forEach(g => {
+      g.memberCount = students.filter(s =>
+        s.enrollStatus === 'active' && (s.groupIds || []).includes(g.id)
+      ).length;
+    });
+
     container.innerHTML = sorted.map(g => {
       const ageRange = (g.ageMin != null || g.ageMax != null)
         ? '<span class="edu-group-age">' +
@@ -56,7 +64,7 @@ Object.assign(App, {
       const scheduleHtml = g.schedule
         ? '<div class="edu-group-schedule">' + escapeHTML(g.schedule) + '</div>'
         : '';
-      const countHtml = '<span class="edu-group-count">' + (g.memberCount || 0) + ' 人</span>';
+      const countHtml = '<span class="edu-group-count">' + g.memberCount + ' 人</span>';
 
       return '<div class="edu-group-card" onclick="App.showEduStudentList(\'' + teamId + '\',\'' + g.id + '\')">' +
         '<div class="edu-group-header">' +
