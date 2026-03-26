@@ -23,7 +23,7 @@
 </div>
 
 <!-- UID QR Code Popup -->
-<div id="uid-qr-modal" style="display:none;position:fixed;inset:0;z-index:1200;background:rgba(0,0,0,.5);backdrop-filter:blur(4px);align-items:center;justify-content:center" onclick="if(event.target===this)this.style.display='none'">
+<div id="uid-qr-modal" style="display:none;position:fixed;inset:0;z-index:1200;background:rgba(0,0,0,.35);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);align-items:center;justify-content:center" onclick="if(event.target===this)this.style.display='none'">
   <div style="background:var(--bg-card);border-radius:var(--radius-lg);max-width:320px;width:85%;padding:1.5rem;text-align:center;position:relative">
     <button style="position:absolute;top:.5rem;right:.7rem;background:none;border:none;font-size:1.2rem;cursor:pointer;color:var(--text-muted)" onclick="document.getElementById('uid-qr-modal').style.display='none'">✕</button>
     <div id="uid-qr-content"></div>
