@@ -22,11 +22,12 @@
     <button class="outline-btn" style="font-size:.72rem;padding:.28rem .5rem;flex-shrink:0" onclick="document.getElementById('msg-search-keyword').value='';document.getElementById('msg-filter-date').value='';App.filterInboxMessages()">清除</button>
   </div>
   <div class="card-list" id="message-list"></div>
-  <!-- 收件箱信件詳情彈窗 -->
-  <div id="msg-inbox-detail-modal" style="display:none;position:fixed;inset:0;z-index:1200;background:rgba(0,0,0,.45);backdrop-filter:blur(4px);align-items:center;justify-content:center" onclick="if(event.target===this)this.style.display='none'">
-    <div style="background:var(--bg-card);border-radius:var(--radius-lg);max-width:400px;width:90%;max-height:80vh;overflow-y:auto;padding:1.2rem;position:relative">
-      <button style="position:absolute;top:.6rem;right:.8rem;background:none;border:none;font-size:1.2rem;cursor:pointer;color:var(--text-muted)" onclick="document.getElementById('msg-inbox-detail-modal').style.display='none'">&#10005;</button>
-      <div id="msg-inbox-detail-content"></div>
-    </div>
-  </div>
 </section>
+
+<!-- 收件箱信件詳情彈窗（必須在 .page 外部，避免 transform 破壞 fixed 定位） -->
+<div id="msg-inbox-detail-modal" class="msg-detail-overlay" onclick="if(event.target===this)this.style.display='none'">
+  <div class="msg-detail-dialog">
+    <button class="msg-detail-close" onclick="document.getElementById('msg-inbox-detail-modal').style.display='none'">&#10005;</button>
+    <div id="msg-inbox-detail-content"></div>
+  </div>
+</div>
