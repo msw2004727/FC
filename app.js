@@ -251,7 +251,7 @@ const App = {
       this.bindImageUpload?.('banner-image', 'banner-preview', 2.2);
       this.bindImageUpload?.('floatad-image', 'floatad-preview', 1);
       this.bindImageUpload?.('popupad-image', 'popupad-preview', 16/9);
-      this.bindImageUpload?.('ct-team-image', 'ct-team-preview', 1);
+      this.bindImageUpload?.('ct-team-image', 'ct-team-preview', 8/3);
       this.bindImageUpload?.('theme-image', 'theme-preview', 0);
       this._bindAchBadgeUpload?.();
       this._populateAchConditionSelects?.();
@@ -437,7 +437,7 @@ const App = {
     this.bindImageUpload('banner-image',     'banner-preview',           2.2);
     this.bindImageUpload('floatad-image',    'floatad-preview',          1);
     this.bindImageUpload('popupad-image',    'popupad-preview',          16/9);
-    this.bindImageUpload('ct-team-image',    'ct-team-preview',          1);
+    this.bindImageUpload('ct-team-image',    'ct-team-preview',          8/3);
     this.bindImageUpload('theme-image',      'theme-preview',            0);
   },
 
