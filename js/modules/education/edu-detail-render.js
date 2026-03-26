@@ -77,7 +77,10 @@ Object.assign(App, {
 
     // ★ Phase 2：背景一次性 fetch（保底）+ onSnapshot 即時監聽（持續更新）
     this._loadEduStudents(teamId).then(() => {
-      if (this._eduDetailTeamId === teamId) this._renderEduMemberSection(teamId);
+      if (this._eduDetailTeamId === teamId) {
+        this._renderEduMemberSection(teamId);
+        this.renderEduGroupList(teamId);
+      }
     });
     this._startEduStudentsListener(teamId);
   },

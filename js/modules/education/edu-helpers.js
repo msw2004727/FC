@@ -47,6 +47,9 @@ Object.assign(App, {
       ? ApiService.getTeam(teamOrId)
       : teamOrId;
     if (!team) return false;
+    // 全域管理員視同俱樂部幹部
+    const curUser = ApiService.getCurrentUser?.();
+    if (curUser && (curUser.role === 'admin' || curUser.role === 'super_admin')) return true;
     return this._canManageTeamMembers(team);
   },
 
