@@ -315,6 +315,8 @@ Object.assign(App, {
         <div class="form-row"><label>內容</label><textarea data-tpl-key="${t.key}" data-tpl-field="body" rows="4" maxlength="300">${escapeHTML(t.body)}</textarea></div>
       </div>
     `).join('');
+    document.body.appendChild(modal);
+    modal.style.webkitBackdropFilter = 'blur(10px)';
     modal.style.display = 'flex';
   },
 

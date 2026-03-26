@@ -30,6 +30,8 @@ Object.assign(App, {
     if (teamDd) teamDd.classList.remove('open');
     this._msgMatchedUser = null;
     this._msgMatchedTeam = null;
+    document.body.appendChild(el);
+    el.style.webkitBackdropFilter = 'blur(10px)';
     el.style.display = 'flex';
   },
 

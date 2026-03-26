@@ -209,6 +209,8 @@ Object.assign(App, {
       <div style="font-size:.85rem;line-height:1.7;padding:.6rem;background:var(--bg-elevated);border-radius:var(--radius-sm);white-space:pre-wrap">${escapeHTML(msg.body)}</div>
       ${actionHtml}
     `;
+    document.body.appendChild(modal);
+    modal.style.webkitBackdropFilter = 'blur(10px)';
     modal.style.display = 'flex';
   },
 
