@@ -363,6 +363,12 @@
   outline: 2px solid var(--primary);
   outline-offset: -1px;
 }
+.edu-cal-course-day {
+  background: #fef3c7;
+}
+[data-theme="dark"] .edu-cal-course-day {
+  background: #451a03;
+}
 .edu-cal-dot {
   width: 5px;
   height: 5px;

@@ -1,23 +1,22 @@
 /* ================================================
    SportHub — Education: Calendar Core Logic
    ================================================
-   行事曆共用邏輯：資料取得、視圖切換
+   依方案類型自動選格式：週期制→月曆、堂數制→集點卡
+   多方案同時堆疊顯示
    ================================================ */
 
 Object.assign(App, {
 
   _eduCalendarTeamId: null,
   _eduCalendarStudentId: null,
-  _eduCalendarView: 'stamp', // 'stamp' | 'monthly'
-  _eduCalendarMonth: null, // for monthly view: 'YYYY-MM'
+  _eduCalendarMonth: null,
   _eduAttendanceCache: {},
 
   /**
-   * 顯示行事曆
+   * 顯示出席紀錄（多方案堆疊）
    */
   async showEduCalendar(teamId, studentId) {
     this._eduCalendarTeamId = teamId;
-    this._eduCalendarView = 'stamp';
 
     // 自動判斷學員
     if (!studentId) {
@@ -47,11 +46,15 @@ Object.assign(App, {
       if (titleEl && student) titleEl.textContent = student.name + ' — 出席紀錄';
     }
 
+    // 隱藏舊的切換按鈕（不再需要手動切換）
+    const toggleEl = document.getElementById('edu-calendar-toggle');
+    if (toggleEl) toggleEl.style.display = 'none';
+
     // 載入出席資料
     await this._loadEduAttendanceForCalendar(teamId, studentId);
 
-    // 渲染
-    this._renderEduCalendarView();
+    // 渲染所有方案
+    this._renderEduCalendarAll();
   },
 
   async _loadEduAttendanceForCalendar(teamId, studentId) {
@@ -74,37 +77,60 @@ Object.assign(App, {
   },
 
   /**
-   * 切換視圖
+   * 渲染所有方案（自動依類型選格式）
    */
-  switchEduCalendarView(view) {
-    this._eduCalendarView = view;
-    // 更新按鈕狀態
-    document.querySelectorAll('.edu-view-btn').forEach(btn => {
-      btn.classList.toggle('active', btn.dataset.view === view);
-    });
-    this._renderEduCalendarView();
-  },
+  _renderEduCalendarAll() {
+    const container = document.getElementById('edu-calendar-content');
+    if (!container) return;
 
-  _renderEduCalendarView() {
-    if (this._eduCalendarView === 'stamp') {
+    const teamId = this._eduCalendarTeamId;
+    const studentId = this._eduCalendarStudentId;
+    const allRecords = this._getEduAttendanceRecords();
+    const allPlans = this.getEduCoursePlans(teamId);
+    const studentData = studentId
+      ? this.getEduStudents(teamId).find(s => s.id === studentId)
+      : null;
+    const myGroupIds = (studentData && studentData.groupIds) || [];
+
+    // 篩選該學員所屬分組的方案
+    const myPlans = allPlans.filter(p =>
+      p.active !== false && myGroupIds.includes(p.groupId)
+    );
+
+    if (!myPlans.length) {
+      // 無方案 → 顯示總覽集點卡
       if (typeof this._renderEduStampCard === 'function') {
-        this._renderEduStampCard();
+        this._renderEduStampCard(container, allRecords, null);
       }
-    } else {
-      if (typeof this._renderEduMonthlyCalendar === 'function') {
-        this._renderEduMonthlyCalendar();
+      return;
+    }
+
+    // 每個方案一張卡片，堆疊顯示
+    let html = '';
+    for (const plan of myPlans) {
+      // 篩選此方案/分組的出席紀錄
+      const planRecords = allRecords.filter(r => r.groupId === plan.groupId);
+
+      if (plan.planType === 'weekly') {
+        // 固定週期制 → 月曆
+        html += this._buildWeeklyCalendarHtml(plan, planRecords);
+      } else {
+        // 堂數制 → 集點卡
+        html += this._buildSessionStampHtml(plan, planRecords);
       }
     }
+
+    container.innerHTML = html;
   },
 
   /**
-   * 月曆換月
+   * 月曆換月（重繪全部）
    */
   changeEduCalendarMonth(delta) {
     const [y, m] = this._eduCalendarMonth.split('-').map(Number);
     const d = new Date(y, m - 1 + delta, 1);
     this._eduCalendarMonth = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
-    this._renderEduCalendarView();
+    this._renderEduCalendarAll();
   },
 
 });
