@@ -220,14 +220,25 @@
             <span class="ce-time-separator">~</span>
             <input type="time" id="ce-time-end" class="ce-time-clock ce-time-end" step="1800">
           </div>
+          <div id="ce-multi-date-area" style="display:none">
+            <div id="ce-multi-date-tags" class="ce-multi-date-tags"></div>
+            <div id="ce-multi-date-count" class="ce-multi-date-count"></div>
+          </div>
         </div>
         <div class="ce-row">
           <label>開放報名時間 <span style="font-size:.68rem;color:var(--text-muted);font-weight:400">（未設定則立即開放）</span></label>
-          <div class="ce-reg-open-row">
+          <div id="ce-reg-open-absolute" class="ce-reg-open-row">
             <input type="date" id="ce-reg-open-date" class="ce-reg-open-date">
             <input type="time" id="ce-reg-open-clock" class="ce-reg-open-clock" step="1800">
           </div>
-          <div style="font-size:.68rem;color:var(--text-muted);margin-top:.2rem">報名時間未到將顯示「即將開放」，到達時間後自動變為「報名中」</div>
+          <div id="ce-reg-open-relative" class="ce-reg-open-relative" style="display:none">
+            <span class="ce-reg-rel-label">活動開始前</span>
+            <select id="ce-reg-rel-days" class="ce-reg-rel-select"></select>
+            <span>日</span>
+            <select id="ce-reg-rel-hours" class="ce-reg-rel-select"></select>
+            <span>時</span>
+          </div>
+          <div id="ce-reg-open-hint" style="font-size:.68rem;color:var(--text-muted);margin-top:.2rem">報名時間未到將顯示「即將開放」，到達時間後自動變為「報名中」</div>
         </div>
         <div class="ce-row ce-row-half">
           <div>

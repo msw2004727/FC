@@ -189,6 +189,8 @@ Object.assign(App, {
   },
 
   _getEventRegOpenTimeValue() {
+    // 多日期模式：跳過絕對時間驗證，由 _buildMultiDateEvents 個別計算
+    if (typeof this._isMultiDateMode === 'function' && this._isMultiDateMode()) return '';
     const { date, time } = this._getEventRegOpenNodes();
     const dateVal = date?.value || '';
     const timeVal = time?.value || '';

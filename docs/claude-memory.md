@@ -10,6 +10,11 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-27 — 多日期批次建立活動功能
+- **需求**：新建活動時可選擇多個日期（上限 30），一次產生多場獨立活動
+- **實作**：新增 `event-create-multidate.js`（日期膠囊 + 相對報名時間 + 批次產生），`event-create.js` 加分支，`event-create-options.js` 加多日期模式判斷
+- **教訓**：onclick 內嵌改用 data 屬性 + 事件委派避免 XSS 風險；`_multiDateBound` flag 必須在 reset 時清除，否則重開 modal 監聽器不會重新綁定
+
 ### 2026-03-26 — eduCheckin CF 無法找到俱樂部（CORS → not-found）
 - **問題**：課程批次簽到呼叫 Cloud Function 報 CORS 錯誤，部署後改報「俱樂部不存在」
 - **原因**：1) CF 未部署（CORS 錯誤）。2) 部署後，CF 用 `doc(teamId)` 查 Firestore，但 `teamId` 是資料的 `id` 欄位（自訂 ID），非 Firestore 文件 ID（`.add()` 自動生成）

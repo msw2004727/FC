@@ -1042,3 +1042,60 @@
 .ext-transit-actions .ext-transit-btn:first-child { flex: 1; }
 .ext-transit-btn-share { flex-shrink: 0; width: 42px; display: flex; align-items: center; justify-content: center; background: var(--bg-elevated, #f0f0f0); color: var(--text-secondary, #666); border-radius: var(--radius, 8px); border: none; cursor: pointer; transition: all .15s; padding: 0; }
 .ext-transit-btn-share:active { opacity: .7; transform: scale(.95); }
+
+/* ─── Multi-Date Capsules (Create Event) ─── */
+.ce-multi-date-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .3rem;
+  margin-top: .4rem;
+}
+.ce-date-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: .25rem;
+  background: var(--accent-bg, #e0f2fe);
+  color: var(--accent, #0d9488);
+  border-radius: 20px;
+  padding: .2rem .55rem;
+  font-size: .75rem;
+  font-weight: 600;
+}
+.ce-date-tag-x {
+  cursor: pointer;
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--accent, #0d9488);
+  color: #fff;
+  font-size: .6rem;
+  font-weight: 700;
+  line-height: 1;
+  transition: opacity .15s;
+}
+.ce-date-tag-x:hover { opacity: .7; }
+.ce-multi-date-count {
+  font-size: .68rem;
+  color: var(--text-muted);
+  margin-top: .25rem;
+}
+.ce-reg-open-relative {
+  display: flex;
+  align-items: center;
+  gap: .35rem;
+  flex-wrap: wrap;
+  font-size: .82rem;
+}
+.ce-reg-rel-label { font-weight: 600; }
+.ce-reg-rel-select {
+  width: 56px;
+  padding: .3rem .2rem;
+  font-size: .82rem;
+  border-radius: var(--radius-sm, 4px);
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  color: var(--text-primary);
+}

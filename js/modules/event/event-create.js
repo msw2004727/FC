@@ -123,6 +123,8 @@ Object.assign(App, {
     this.bindEventFeeToggle();
     this.bindGenderRestrictionToggle();
     this.bindPrivateEventToggle();
+    this._resetMultiDates();
+    this._initMultiDatePicker();
     this._initSportTagPicker('');
     this.showModal('create-event-modal');
     this._initDelegateSearch();
@@ -314,18 +316,38 @@ Object.assign(App, {
       };
       this._eventSubmitInFlight = true;
       this._setCreateEventSubmitting(true);
-      try {
-        await ApiService.createEvent(newEvent);
-      } catch (err) {
-        console.error('[handleCreateEvent:createEvent]', err);
-        this.showToast('建立活動失敗，請稍後再試');
-        this._eventSubmitInFlight = false;
-        this._setCreateEventSubmitting(false);
-        return;
+
+      // ★ 多日期模式：批次建立所有場次
+      let totalCreated = 1;
+      if (this._isMultiDateMode()) {
+        const allEvents = this._buildMultiDateEvents(newEvent, tStart, tEnd);
+        try {
+          for (const evt of allEvents) {
+            await ApiService.createEvent(evt);
+          }
+          totalCreated = allEvents.length;
+        } catch (err) {
+          console.error('[handleCreateEvent:multiDate]', err);
+          this.showToast('部分活動建立失敗，請檢查活動列表');
+          this._eventSubmitInFlight = false;
+          this._setCreateEventSubmitting(false);
+          return;
+        }
+      } else {
+        try {
+          await ApiService.createEvent(newEvent);
+        } catch (err) {
+          console.error('[handleCreateEvent:createEvent]', err);
+          this.showToast('建立活動失敗，請稍後再試');
+          this._eventSubmitInFlight = false;
+          this._setCreateEventSubmitting(false);
+          return;
+        }
       }
       // ── 建立成功：先完成關鍵收尾（closeModal + toast），再處理非關鍵操作 ──
       this.closeModal();
-      this.showToast(`活動「${title}」已建立！`);
+      const toastMsg = totalCreated > 1 ? '已建立 ' + totalCreated + ' 場「' + title + '」活動！' : '活動「' + title + '」已建立！';
+      this.showToast(toastMsg);
       this._eventSubmitInFlight = false;
       this._setCreateEventSubmitting(false);
       // 非關鍵操作：即使失敗也不影響用戶體驗
@@ -376,6 +398,7 @@ Object.assign(App, {
     if (ceTeamOnly) { ceTeamOnly.checked = false; this._updateTeamOnlyLabel(); }
     this._setGenderRestrictionState(false, '');
     this._setPrivateEventState(false);
+    this._resetMultiDates();
     const cePreview = document.getElementById('ce-upload-preview');
     if (cePreview) {
       cePreview.classList.remove('has-image');
