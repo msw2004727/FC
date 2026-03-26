@@ -127,23 +127,18 @@ Object.assign(App, {
   _buildCurrentTemplate(name, image) {
     const genderRestrictionEnabled = !!document.getElementById('ce-gender-restriction-enabled')?.checked;
     const feeEnabled = !!document.getElementById('ce-fee-enabled')?.checked;
-    const regOpenTime = this._getEventRegOpenTimeValue();
     return {
       id: 'tpl_' + Date.now(),
       name,
       title: document.getElementById('ce-title')?.value?.trim() || '',
       type: document.getElementById('ce-type')?.value || 'play',
       location: document.getElementById('ce-location')?.value?.trim() || '',
-      date: document.getElementById('ce-date')?.value || '',
-      timeStart: document.getElementById('ce-time-start')?.value || '14:00',
-      timeEnd: document.getElementById('ce-time-end')?.value || '16:00',
       fee: feeEnabled ? (parseInt(document.getElementById('ce-fee')?.value, 10) || 0) : 0,
       feeEnabled,
       max: parseInt(document.getElementById('ce-max')?.value) || 20,
       minAge: parseInt(document.getElementById('ce-min-age')?.value) || 0,
       notes: document.getElementById('ce-notes')?.value?.trim() || '',
       sportTag: getSportKeySafe(document.getElementById('ce-sport-tag')?.value || '') || '',
-      regOpenTime: typeof regOpenTime === 'string' ? regOpenTime : '',
       genderRestrictionEnabled,
       allowedGender: genderRestrictionEnabled ? this._getAllowedGenderValue() : '',
       privateEvent: !!document.getElementById('ce-private-event')?.checked,
@@ -222,16 +217,13 @@ Object.assign(App, {
     setVal('ce-title', tpl.title);
     setVal('ce-type', tpl.type);
     setVal('ce-location', tpl.location);
-    setVal('ce-date', tpl.date);
-    setVal('ce-time-start', tpl.timeStart);
-    setVal('ce-time-end', tpl.timeEnd);
+    // 活動時間與開放報名時間不從範本還原（一次性欄位）
     const feeEnabled = typeof tpl.feeEnabled === 'boolean' ? tpl.feeEnabled : Number(tpl.fee || 0) > 0;
     this._setEventFeeFormState(feeEnabled, Number(tpl.fee || 0) > 0 ? tpl.fee : 0);
     setVal('ce-max', tpl.max);
     setVal('ce-min-age', tpl.minAge);
     setVal('ce-notes', tpl.notes);
     this._initSportTagPicker(tpl.sportTag || '');
-    this._setEventRegOpenTimeValue(tpl.regOpenTime || '');
     this._setGenderRestrictionState(!!tpl.genderRestrictionEnabled, tpl.allowedGender || '');
     this._setPrivateEventState?.(!!tpl.privateEvent);
     if (tpl.image) {
