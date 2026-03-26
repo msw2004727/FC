@@ -282,6 +282,30 @@
   vertical-align: middle;
 }
 
+/* ── Education Ribbon (diagonal, bottom-right) ── */
+.tc-edu-ribbon {
+  position: absolute;
+  right: -22px;
+  bottom: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 96px;
+  padding: .14rem .25rem;
+  background: linear-gradient(135deg, #4ade80, #22c55e);
+  color: #fff;
+  font-size: .58rem;
+  font-weight: 800;
+  letter-spacing: .1em;
+  text-align: center;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, .15);
+  box-shadow: 0 3px 8px rgba(34, 197, 94, .28);
+  transform: rotate(-35deg);
+  transform-origin: center;
+  pointer-events: none;
+  z-index: 2;
+}
+
 /* Dark theme */
 [data-theme="dark"] .td-member-role.captain { background: rgba(251,191,36,.18); color: #fcd34d; }
 [data-theme="dark"] .td-member-role.coach { background: rgba(124,58,237,.18); color: #c4b5fd; }

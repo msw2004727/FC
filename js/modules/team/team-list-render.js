@@ -11,6 +11,7 @@ Object.assign(App, {
     const rank = this._getTeamRank(t.teamExp);
     const isEdu = t.type === 'education';
     const eduBadge = isEdu ? '<span class="tc-edu-badge">教學</span>' : '';
+    const eduRibbon = isEdu ? '<span class="tc-edu-ribbon">教學</span>' : '';
     const memberLabel = isEdu ? '學員' : I18N.t('team.memberLabel');
     const memberCount = isEdu
       ? ((this._eduStudentsCache && this._eduStudentsCache[t.id])
@@ -20,6 +21,7 @@ Object.assign(App, {
     return `
       <div class="tc-card${pinnedClass}" onclick="App.showTeamDetail('${t.id}')">
         ${t.pinned ? '<div class="tc-pin-badge">置頂</div>' : ''}
+        ${eduRibbon}
         ${t.image
           ? `<div style="position:relative;width:100%;aspect-ratio:1;overflow:hidden;border-radius:var(--radius) var(--radius) 0 0"><img src="${t.image}" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block"><span class="tc-rank-badge" style="color:${rank.color}"><span class="tc-rank-score">${(t.teamExp || 0).toLocaleString()}</span>${rank.rank}</span></div>`
           : `<div class="tc-img-placeholder" style="position:relative">俱樂部圖片<span class="tc-rank-badge" style="color:${rank.color}"><span class="tc-rank-score">${(t.teamExp || 0).toLocaleString()}</span>${rank.rank}</span></div>`}
