@@ -142,6 +142,16 @@
   padding-left: .3rem;
   border-left: 2px solid var(--border);
 }
+.edu-header-actions {
+  display: flex;
+  gap: .25rem;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+.edu-withdraw-btn {
+  color: var(--danger) !important;
+  border-color: var(--danger) !important;
+}
 .edu-student-actions {
   display: flex;
   gap: .3rem;

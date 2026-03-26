@@ -123,10 +123,14 @@ Object.assign(App, {
       const groupHtml = (s.groupNames && s.groupNames.length)
         ? '<div class="edu-student-groups">' + s.groupNames.map(n => '<span class="edu-group-tag">' + escapeHTML(n) + '</span>').join('') + '</div>'
         : '';
-      // 已通過的學員：卡片內顯示「出席紀錄」按鈕
-      const calendarBtn = (!isPending)
-        ? '<div style="margin-top:.3rem"><button class="outline-btn small" onclick="App.showEduCalendar(\'' + teamId + '\',\'' + s.id + '\')">出席紀錄</button></div>'
-        : '';
+      // 右側按鈕列
+      let actionBtns = '';
+      if (!isPending) {
+        actionBtns = '<button class="outline-btn small" onclick="App.showEduCalendar(\'' + teamId + '\',\'' + s.id + '\')">出席紀錄</button>'
+          + '<button class="outline-btn small edu-withdraw-btn" onclick="App._confirmEduWithdraw(\'' + teamId + '\',\'' + s.id + '\',this)" data-name="' + escapeHTML(s.name) + '">退學</button>';
+      } else {
+        actionBtns = '<button class="outline-btn small edu-withdraw-btn" onclick="App._confirmEduWithdraw(\'' + teamId + '\',\'' + s.id + '\',this)" data-name="' + escapeHTML(s.name) + '">取消申請</button>';
+      }
 
       return '<div class="edu-student-card">'
         + '<div class="edu-student-header">'
@@ -134,9 +138,9 @@ Object.assign(App, {
         + (genderIcon ? '<span class="edu-student-gender' + genderClass + '">' + genderIcon + '</span>' : '')
         + (ageLabel ? '<span class="edu-student-age">' + ageLabel + '</span>' : '')
         + statusHtml
+        + '<span class="edu-header-actions">' + actionBtns + '</span>'
         + '</div>'
         + groupHtml
-        + calendarBtn
         + '</div>';
     }).join('');
 
@@ -226,6 +230,80 @@ Object.assign(App, {
     if (this._eduTeamsUnsub) {
       this._eduTeamsUnsub();
       this._eduTeamsUnsub = null;
+    }
+  },
+
+  // ══════════════════════════════════
+  //  退學確認（含文字輸入驗證）
+  // ══════════════════════════════════
+
+  _confirmEduWithdraw(teamId, studentId, btnEl) {
+    const studentName = btnEl && btnEl.dataset ? btnEl.dataset.name : '';
+    // 建立毛玻璃彈窗
+    const overlay = document.createElement('div');
+    overlay.className = 'app-confirm-overlay open';
+    overlay.style.cssText = 'backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);background:rgba(0,0,0,.35)';
+
+    overlay.innerHTML = '<div class="app-confirm-box" style="border-radius:16px;box-shadow:0 8px 32px rgba(0,0,0,.15);max-width:320px;width:90%">'
+      + '<div class="app-confirm-msg" style="text-align:center">確定要將「' + escapeHTML(studentName) + '」退學嗎？<br><span style="font-size:.75rem;color:var(--text-muted)">此操作無法自行撤回</span></div>'
+      + '<div style="margin:.6rem 0"><input type="text" id="edu-withdraw-input" class="ce-input" placeholder="請輸入「我確定退學」" style="width:100%;text-align:center;font-size:.85rem"></div>'
+      + '<div class="app-confirm-btns">'
+      + '<button class="app-confirm-cancel" id="edu-withdraw-cancel">取消</button>'
+      + '<button class="app-confirm-ok" id="edu-withdraw-ok" disabled style="opacity:.5">確定</button>'
+      + '</div></div>';
+
+    document.body.appendChild(overlay);
+    document.body.classList.add('modal-open');
+
+    const input = document.getElementById('edu-withdraw-input');
+    const okBtn = document.getElementById('edu-withdraw-ok');
+    const cancelBtn = document.getElementById('edu-withdraw-cancel');
+
+    // 輸入匹配時啟用確定按鈕
+    input.addEventListener('input', () => {
+      const match = input.value.trim() === '我確定退學';
+      okBtn.disabled = !match;
+      okBtn.style.opacity = match ? '1' : '.5';
+    });
+
+    // 阻止背景穿透
+    overlay.addEventListener('touchmove', (e) => {
+      if (!e.target.closest('.app-confirm-box')) { e.preventDefault(); e.stopPropagation(); }
+    }, { passive: false });
+
+    const cleanup = () => {
+      overlay.remove();
+      document.body.classList.remove('modal-open');
+    };
+
+    cancelBtn.addEventListener('click', cleanup, { once: true });
+    okBtn.addEventListener('click', async () => {
+      if (input.value.trim() !== '我確定退學') return;
+      cleanup();
+      await this._executeEduWithdraw(teamId, studentId, studentName);
+    }, { once: true });
+
+    // 自動 focus
+    setTimeout(() => input.focus(), 100);
+  },
+
+  async _executeEduWithdraw(teamId, studentId, studentName) {
+    try {
+      await FirebaseService.updateEduStudent(teamId, studentId, {
+        enrollStatus: 'inactive',
+      });
+      const cached = this._eduStudentsCache[teamId];
+      if (cached) {
+        const s = cached.find(s => s.id === studentId);
+        if (s) s.enrollStatus = 'inactive';
+      }
+      this._updateGroupMemberCounts(teamId);
+      this.showToast('「' + studentName + '」已退學');
+      this._renderEduMemberSection(teamId);
+      this.renderEduGroupList(teamId);
+    } catch (err) {
+      console.error('[_executeEduWithdraw]', err);
+      this.showToast('操作失敗：' + (err.message || '請稍後再試'));
     }
   },
 
