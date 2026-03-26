@@ -91,6 +91,8 @@ Object.assign(App, {
         if (cached) cached.push(result);
         else this._eduGroupsCache[teamId] = [result];
         this.showToast('分組已建立');
+        // ★ 新建分組後自動匹配未分配的 pending 學員
+        await this._reassignUnmatchedStudents(teamId, data);
       }
       this.closeModal();
       await this.renderEduGroupList(teamId);

@@ -99,22 +99,85 @@ Object.assign(App, {
   },
 
   /**
-   * 根據年齡自動匹配分組
+   * 根據年齡+性別自動匹配分組（智慧匹配：性別優先 + 最接近 ageMax）
    * @param {number} age - 學員年齡
+   * @param {string} gender - 學員性別 'male'/'female'
    * @param {Array} groups - 分組列表
    * @returns {Array} 匹配的分組 ID 列表
    */
-  autoMatchGroups(age, groups) {
+  autoMatchGroups(age, gender, groups) {
     if (age == null || !Array.isArray(groups)) return [];
-    return groups
-      .filter(g => {
-        if (!g.active) return false;
-        if (g.ageMin == null && g.ageMax == null) return false;
-        if (g.ageMin != null && age < g.ageMin) return false;
-        if (g.ageMax != null && age > g.ageMax) return false;
-        return true;
-      })
-      .map(g => g.id);
+
+    // 1. 過濾 active + 性別匹配
+    const candidates = groups.filter(g =>
+      g.active !== false &&
+      (!g.gender || g.gender === 'all' || g.gender === gender)
+    );
+
+    // 2. 分池：有年齡條件 vs 無年齡條件
+    const noCondition = candidates.filter(g => g.ageMin == null && g.ageMax == null);
+    const hasCondition = candidates.filter(g => g.ageMin != null || g.ageMax != null);
+
+    // 3. 篩出年齡在範圍內的
+    const inRange = hasCondition.filter(g =>
+      (g.ageMin == null || age >= g.ageMin) &&
+      (g.ageMax == null || age <= g.ageMax)
+    );
+
+    // 4. 有限 ageMax 的中找最小值（最接近學員年齡的上限）
+    const withFiniteMax = inRange.filter(g => g.ageMax != null);
+    const openEnded = inRange.filter(g => g.ageMax == null);
+
+    let closestGroups = [];
+    if (withFiniteMax.length > 0) {
+      const minAgeMax = Math.min.apply(null, withFiniteMax.map(g => g.ageMax));
+      closestGroups = withFiniteMax.filter(g => g.ageMax === minAgeMax);
+    }
+
+    // 5. 結果：最接近的 + 開放上限的 + 無條件的
+    const result = [].concat(closestGroups, openEnded, noCondition);
+    return result.map(g => g.id);
+  },
+
+  /**
+   * 取得未匹配任何分組的 pending 學員（用於虛擬待審核名單）
+   */
+  getUnmatchedPendingStudents(teamId) {
+    const students = this.getEduStudents(teamId);
+    return students.filter(s =>
+      s.enrollStatus === 'pending' &&
+      (!s.groupIds || s.groupIds.length === 0)
+    );
+  },
+
+  /**
+   * 新建分組後，將未匹配的 pending 學員自動移入符合條件的分組
+   */
+  async _reassignUnmatchedStudents(teamId, newGroup) {
+    const unmatched = this.getUnmatchedPendingStudents(teamId);
+    if (!unmatched.length) return;
+
+    for (const s of unmatched) {
+      // 檢查性別
+      if (newGroup.gender && newGroup.gender !== 'all' && newGroup.gender !== s.gender) continue;
+      // 檢查年齡
+      const age = this.calcAge(s.birthday);
+      if (age != null) {
+        if (newGroup.ageMin != null && age < newGroup.ageMin) continue;
+        if (newGroup.ageMax != null && age > newGroup.ageMax) continue;
+      }
+      // 符合 → 加入此分組（仍為 pending）
+      const newGroupIds = [...(s.groupIds || []), newGroup.id];
+      const newGroupNames = [...(s.groupNames || []), newGroup.name];
+      try {
+        await FirebaseService.updateEduStudent(teamId, s.id, {
+          groupIds: newGroupIds,
+          groupNames: newGroupNames,
+        });
+        s.groupIds = newGroupIds;
+        s.groupNames = newGroupNames;
+      } catch (_) {}
+    }
   },
 
   // ══════════════════════════════════

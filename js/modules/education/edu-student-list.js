@@ -30,6 +30,11 @@ Object.assign(App, {
     await this.showPage('page-edu-students');
 
     const titleEl = document.getElementById('edu-students-title');
+    if (groupId === '__unmatched__') {
+      if (titleEl) titleEl.textContent = '待審核名單';
+      this._renderUnmatchedStudentList(teamId);
+      return;
+    }
     const groups = this.getEduGroups(teamId);
     const group = groups.find(g => g.id === groupId);
     if (titleEl) titleEl.textContent = group ? group.name + ' — 學員' : '學員列表';
@@ -137,6 +142,7 @@ Object.assign(App, {
    * 從快取渲染（不重新 fetch，供 onSnapshot 呼叫）
    */
   _renderEduStudentListFromCache(teamId, groupId) {
+    if (groupId === '__unmatched__') { this._renderUnmatchedStudentList(teamId); return; }
     const container = document.getElementById('edu-student-list');
     if (!container) return;
 
@@ -172,6 +178,82 @@ Object.assign(App, {
       html += '<div class="edu-empty-state">此分組尚無正式學員</div>';
     }
     container.innerHTML = html;
+  },
+
+  /**
+   * 渲染未匹配 pending 學員列表（虛擬分組）
+   */
+  _renderUnmatchedStudentList(teamId) {
+    const container = document.getElementById('edu-student-list');
+    if (!container) return;
+
+    const unmatched = this.getUnmatchedPendingStudents(teamId);
+    if (!unmatched.length) {
+      container.innerHTML = '<div class="edu-empty-state">目前沒有未分配的申請學員</div>';
+      return;
+    }
+
+    let html = '<div class="edu-section-label">以下學員不符合任何分組條件，請手動分配</div>';
+    html += '<table class="edu-ci-table"><thead><tr>'
+      + '<th class="edu-ci-th-name">姓名</th>'
+      + '<th style="width:3rem;text-align:center">性別</th>'
+      + '<th style="width:3rem;text-align:center">年齡</th>'
+      + '<th style="width:5rem;text-align:center">操作</th>'
+      + '</tr></thead><tbody>';
+
+    unmatched.forEach(s => {
+      const age = this.calcAge(s.birthday);
+      const ageLabel = age != null ? age : '-';
+      const genderIcon = s.gender === 'male' ? '♂' : s.gender === 'female' ? '♀' : '';
+      const genderClass = s.gender === 'male' ? ' edu-gender-male' : s.gender === 'female' ? ' edu-gender-female' : '';
+
+      html += '<tr>'
+        + '<td class="edu-ci-td-name">' + escapeHTML(s.name) + '</td>'
+        + '<td style="text-align:center"><span class="edu-student-gender' + genderClass + '">' + genderIcon + '</span></td>'
+        + '<td style="text-align:center;font-size:.78rem">' + ageLabel + '</td>'
+        + '<td style="text-align:center"><button class="primary-btn small" style="font-size:.68rem;padding:.15rem .5rem" onclick="App.showEduGroupPickerForStudent(\'' + teamId + '\',\'' + s.id + '\')">加入分組</button></td>'
+        + '</tr>';
+    });
+
+    html += '</tbody></table>';
+    container.innerHTML = html;
+  },
+
+  /**
+   * 為單一學員選擇要加入的分組（彈窗）
+   */
+  showEduGroupPickerForStudent(teamId, studentId) {
+    const groups = this.getEduGroups(teamId);
+    const activeGroups = groups.filter(g => g.active !== false);
+    const student = this.getEduStudents(teamId).find(s => s.id === studentId);
+    const titleEl = document.getElementById('edu-assign-modal-title');
+    if (titleEl) titleEl.textContent = student ? '為「' + student.name + '」選擇分組' : '選擇分組';
+
+    const container = document.getElementById('edu-assign-student-list');
+    if (!container) return;
+
+    if (!activeGroups.length) {
+      container.innerHTML = '<div class="edu-empty-state">尚未建立任何分組</div>';
+      this.showModal('edu-assign-student-modal');
+      return;
+    }
+
+    container.innerHTML = activeGroups.map(g => {
+      const ageRange = (g.ageMin != null || g.ageMax != null)
+        ? (g.ageMin != null ? g.ageMin : '?') + '-' + (g.ageMax != null ? g.ageMax : '?') + '歲'
+        : '不限年齡';
+      const genderText = g.gender === 'male' ? '限男' : g.gender === 'female' ? '限女' : '不限';
+
+      return '<div class="edu-assign-row">'
+        + '<div style="flex:1;min-width:0">'
+        + '<span class="edu-student-name">' + escapeHTML(g.name) + '</span>'
+        + '<span style="font-size:.68rem;color:var(--text-muted);margin-left:.3rem">' + ageRange + ' · ' + genderText + '</span>'
+        + '</div>'
+        + '<button class="primary-btn small" onclick="App._assignStudentToGroup(\'' + teamId + '\',\'' + studentId + '\',\'' + g.id + '\');App.closeModal()">加入</button>'
+        + '</div>';
+    }).join('');
+
+    this.showModal('edu-assign-student-modal');
   },
 
   async _approveFromList(teamId, studentId) {

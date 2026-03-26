@@ -53,6 +53,27 @@
   color: var(--primary);
   font-weight: 500;
 }
+.edu-group-gender-male {
+  font-size: .65rem;
+  padding: .06rem .3rem;
+  border-radius: var(--radius-full, 999px);
+  background: #dbeafe;
+  color: #3b82f6;
+  font-weight: 500;
+}
+.edu-group-gender-female {
+  font-size: .65rem;
+  padding: .06rem .3rem;
+  border-radius: var(--radius-full, 999px);
+  background: #fce7f3;
+  color: #ec4899;
+  font-weight: 500;
+}
+.edu-group-card-virtual {
+  border-style: dashed;
+  background: var(--bg-elevated);
+  opacity: .85;
+}
 .edu-group-count {
   font-size: .72rem;
   color: var(--text-muted);
@@ -230,6 +251,14 @@
 [data-theme="dark"] .edu-group-pending {
   background: #451a03;
   color: #fbbf24;
+}
+[data-theme="dark"] .edu-group-gender-male {
+  background: #1e3a5f;
+  color: #93c5fd;
+}
+[data-theme="dark"] .edu-group-gender-female {
+  background: #4a1942;
+  color: #f9a8d4;
 }
 .edu-student-actions {
   display: flex;

@@ -111,7 +111,7 @@ Object.assign(App, {
     if (data.birthday && groupIds.length === 0) {
       const age = this.calcAge(data.birthday);
       const groups = this.getEduGroups(teamId);
-      const autoGroupIds = this.autoMatchGroups(age, groups);
+      const autoGroupIds = this.autoMatchGroups(age, data.gender, groups);
       if (autoGroupIds.length > 0) {
         data.groupIds = autoGroupIds;
         data.groupNames = autoGroupIds.map(gid => {

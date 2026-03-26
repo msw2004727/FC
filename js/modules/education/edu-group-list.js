@@ -67,6 +67,11 @@ Object.assign(App, {
       const scheduleHtml = g.schedule
         ? '<div class="edu-group-schedule">' + escapeHTML(g.schedule) + '</div>'
         : '';
+      const genderLabel = g.gender === 'male'
+        ? '<span class="edu-group-gender-male">限男生</span>'
+        : g.gender === 'female'
+          ? '<span class="edu-group-gender-female">限女生</span>'
+          : '';
       const countHtml = '<span class="edu-group-count">' + g.memberCount + ' 人</span>';
       const pendingHtml = (isStaff && g.pendingCount > 0)
         ? '<span class="edu-group-pending">待審核 ' + g.pendingCount + ' 人</span>'
@@ -75,7 +80,7 @@ Object.assign(App, {
       return '<div class="edu-group-card" onclick="App.showEduStudentList(\'' + teamId + '\',\'' + g.id + '\')">' +
         '<div class="edu-group-header">' +
           '<span class="edu-group-name">' + escapeHTML(g.name) + '</span>' +
-          ageRange + countHtml + pendingHtml +
+          ageRange + genderLabel + countHtml + pendingHtml +
         '</div>' +
         scheduleHtml +
         (g.description ? '<div class="edu-group-desc">' + escapeHTML(g.description) + '</div>' : '') +
@@ -85,6 +90,20 @@ Object.assign(App, {
         '</div>' : '') +
       '</div>';
     }).join('');
+
+    // ★ 虛擬「待審核名單」卡片（職員可見，有未匹配 pending 學員時顯示）
+    if (isStaff) {
+      const unmatched = this.getUnmatchedPendingStudents(teamId);
+      if (unmatched.length > 0) {
+        container.innerHTML += '<div class="edu-group-card edu-group-card-virtual" onclick="App.showEduStudentList(\'' + teamId + '\',\'__unmatched__\')">'
+          + '<div class="edu-group-header">'
+          + '<span class="edu-group-name">待審核名單</span>'
+          + '<span class="edu-group-pending">' + unmatched.length + ' 人待分配</span>'
+          + '</div>'
+          + '<div class="edu-group-desc">不符合任何分組條件的申請學員</div>'
+          + '</div>';
+      }
+    }
   },
 
   /**
