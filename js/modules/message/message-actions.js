@@ -234,6 +234,9 @@ Object.assign(App, {
       return;
     }
 
+    // 確保教育模組已載入（approveEduStudent / rejectEduStudent 定義在 edu-student-join.js）
+    await ScriptLoader.ensureForPage('page-edu-student-apply');
+
     const curUser = ApiService.getCurrentUser();
     const reviewerName = curUser?.displayName || '審核人';
 

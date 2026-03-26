@@ -10,6 +10,12 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-26 — 站內信學員加入申請審核報錯 approveEduStudent is not a function
+- **問題**：站內信頁面點「同意」學員申請時，報錯 `this.approveEduStudent is not a function`
+- **原因**：`_handleEduApplyAction`（message-actions.js）呼叫 `approveEduStudent` / `rejectEduStudent`，但這兩個函式定義在 `edu-student-join.js`（education 群組），而 `page-messages` 只載入 `message` 群組，教育模組腳本未載入
+- **修復**：在 `_handleEduApplyAction` 呼叫前加 `await ScriptLoader.ensureForPage('page-edu-student-apply')` 確保教育模組已載入
+- **教訓**：跨模組呼叫前必須確保目標模組腳本已透過 ScriptLoader 載入，否則函式不存在
+
 ### [永久] 2026-03-26 — .page 內的 position:fixed 彈窗會定位偏移
 - **問題**：站內信詳情彈窗、撰寫站內信、通知腳本編輯器等 modal 位置偏移，需滾動才看到，不同瀏覽器表現不一
 - **原因**：modal 放在 `<section class="page">` 內部，而 `.page` 的 `animation: pageIn` 帶 `transform`，CSS 規範中 transform 會建立新的 containing block，使內部 `position:fixed` 失效
