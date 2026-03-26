@@ -117,9 +117,9 @@ Object.assign(App, {
     let actionBtns = '';
     if (isStaff) {
       const editBtn = isSelf
-        ? '<button class="outline-btn small" disabled style="opacity:.4;font-size:.68rem;padding:.15rem .4rem">編輯</button>'
-        : '<button class="outline-btn small" style="font-size:.68rem;padding:.15rem .4rem" onclick="App.showEduStudentForm(\'' + teamId + '\',\'' + s.id + '\')">編輯</button>';
-      const removeBtn = '<button class="outline-btn small" style="font-size:.68rem;padding:.15rem .4rem;color:var(--danger);border-color:var(--danger)" onclick="App._removeStudentFromGroup(\'' + teamId + '\',\'' + s.id + '\',\'' + (groupId || '') + '\',this)" data-name="' + escapeHTML(s.name) + '">移除</button>';
+        ? '<button class="outline-btn small" disabled style="opacity:.4;font-size:.68rem;padding:.15rem .8rem;min-width:3.2rem">編輯</button>'
+        : '<button class="outline-btn small" style="font-size:.68rem;padding:.15rem .8rem;min-width:3.2rem" onclick="App.showEduStudentForm(\'' + teamId + '\',\'' + s.id + '\')">編輯</button>';
+      const removeBtn = '<button class="outline-btn small" style="font-size:.68rem;padding:.15rem .4rem;min-width:1.6rem;color:var(--danger);border-color:var(--danger)" onclick="App._removeStudentFromGroup(\'' + teamId + '\',\'' + s.id + '\',\'' + (groupId || '') + '\',this)" data-name="' + escapeHTML(s.name) + '">移除</button>';
       actionBtns = '<span class="edu-header-actions">' + editBtn + removeBtn + '</span>';
     }
 
