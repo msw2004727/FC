@@ -199,6 +199,26 @@ Object.assign(App, {
   _eduTeamsUnsub: null,
   _eduTeamsStudentUnsubs: [],
 
+  /**
+   * page-teams 進入時的統一入口
+   * 確保先載入學員資料 → 再渲染 → 再啟動 listener
+   */
+  async _initEduTeamsPage() {
+    // 1. 先用快取渲染（可能顯示 0，但不會卡住）
+    this.renderTeamList();
+
+    // 2. 載入所有教育俱樂部學員（一次性 fetch，確保有資料）
+    const eduTeams = (ApiService.getActiveTeams() || []).filter(t => t.type === 'education');
+    if (eduTeams.length) {
+      await Promise.all(eduTeams.map(t => this._loadEduStudents(t.id).catch(() => {})));
+      // 3. 資料到齊後重繪
+      if (this.currentPage === 'page-teams') this.renderTeamList();
+    }
+
+    // 4. 啟動即時監聽（後續變動自動更新）
+    this._startEduTeamsListener();
+  },
+
   _startEduTeamsListener() {
     this._stopEduTeamsListener();
     if (ModeManager.isDemo()) return;
@@ -212,8 +232,7 @@ Object.assign(App, {
             const inactiveTeams = (FirebaseService._cache.teams || []).filter(t => !t.active);
             FirebaseService._cache.teams = [...freshTeams, ...inactiveTeams];
             FirebaseService._debouncedPersistCache();
-            // 為教育俱樂部啟動學員 subcollection 監聽
-            this._startEduTeamsStudentListeners(freshTeams);
+            this._ensureEduTeamsStudentListeners(freshTeams);
             if (this.currentPage === 'page-teams') {
               this.renderTeamList();
             }
@@ -224,21 +243,14 @@ Object.assign(App, {
   },
 
   /**
-   * 為列表頁的每個教育俱樂部監聽 students subcollection
-   * 學員變動 → 快取更新 → 重繪列表人數
+   * 確保每個教育俱樂部有 students listener（不重複建立）
    */
-  _startEduTeamsStudentListeners(teams) {
-    this._eduTeamsStudentUnsubs.forEach(fn => fn());
-    this._eduTeamsStudentUnsubs = [];
-
+  _ensureEduTeamsStudentListeners(teams) {
     const eduTeams = teams.filter(t => t.type === 'education');
+    const existingIds = new Set(this._eduTeamsStudentUnsubs.map(u => u._teamId));
+
     for (const t of eduTeams) {
-      // ★ fallback fetch 保底（listener 連不上時也能拿到資料）
-      if (!this._eduStudentsCache[t.id]) {
-        this._loadEduStudents(t.id).then(() => {
-          if (this.currentPage === 'page-teams') this.renderTeamList();
-        });
-      }
+      if (existingIds.has(t.id)) continue; // 已有 listener，不重建
       try {
         const teamId = t.id;
         const unsub = firebase.firestore()
@@ -250,8 +262,9 @@ Object.assign(App, {
                 this.renderTeamList();
               }
             },
-            () => {} // 靜默忽略錯誤
+            () => {}
           );
+        unsub._teamId = teamId; // 標記用於去重
         this._eduTeamsStudentUnsubs.push(unsub);
       } catch (_) {}
     }

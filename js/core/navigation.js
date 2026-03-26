@@ -606,8 +606,7 @@ Object.assign(App, {
     if (pageId === 'page-kick-game' && this.initKickGamePage) this.initKickGamePage();
     // 按需渲染：進入頁面時才渲染，減少啟動負擔
     if (pageId === 'page-teams') {
-      this.renderTeamList?.();
-      this._startEduTeamsListener?.();
+      this._initEduTeamsPage?.();
     }
     if (pageId === 'page-messages') this.renderMessageList();
     if (pageId === 'page-tournaments') { this.renderTournamentTimeline(); }
@@ -769,7 +768,7 @@ Object.assign(App, {
     // Re-render drawer menu & dashboard if visible
     this.renderDrawerMenu();
     // Re-render current page for i18n updates
-    if (this.currentPage === 'page-teams') this.renderTeamList();
+    if (this.currentPage === 'page-teams') this._initEduTeamsPage?.();
   },
 
   bindNotifBtn() {
