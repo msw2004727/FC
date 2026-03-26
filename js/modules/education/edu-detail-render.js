@@ -75,7 +75,10 @@ Object.assign(App, {
       this.renderEduCoursePlanList(teamId, isStaff);
     }
 
-    // ★ Phase 2：啟動 onSnapshot 即時監聽（listener 回來後自動重繪）
+    // ★ Phase 2：背景一次性 fetch（保底）+ onSnapshot 即時監聽（持續更新）
+    this._loadEduStudents(teamId).then(() => {
+      if (this._eduDetailTeamId === teamId) this._renderEduMemberSection(teamId);
+    });
     this._startEduStudentsListener(teamId);
   },
 
