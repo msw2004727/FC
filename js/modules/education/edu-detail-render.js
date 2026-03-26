@@ -199,25 +199,6 @@ Object.assign(App, {
   _eduTeamsUnsub: null,
   _eduTeamsStudentUnsubs: [],
 
-  /**
-   * page-teams 進入時的統一入口
-   * 確保先載入學員資料 → 再渲染 → 再啟動 listener
-   */
-  _initEduTeamsPage() {
-    // 1. 立即用快取渲染（不阻塞）
-    this.renderTeamList();
-
-    // 2. 背景 fetch 學員資料（不阻塞，完成後重繪）
-    const eduTeams = (ApiService.getActiveTeams() || []).filter(t => t.type === 'education');
-    if (eduTeams.length) {
-      Promise.all(eduTeams.map(t => this._loadEduStudents(t.id).catch(() => {}))).then(() => {
-        if (this.currentPage === 'page-teams') this.renderTeamList();
-      });
-    }
-
-    // 3. 同時啟動即時監聽（不等 fetch）
-    this._startEduTeamsListener();
-  },
 
   _startEduTeamsListener() {
     this._stopEduTeamsListener();

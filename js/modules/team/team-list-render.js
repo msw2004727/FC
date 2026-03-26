@@ -36,7 +36,6 @@ Object.assign(App, {
     if (!container) return;
     this._refreshTeamCreateButtons();
     let teams = ApiService.getActiveTeams();
-    // 套用當前 type tab 過濾
     const typeTab = this._currentTeamTypeTab || '';
     if (typeTab) {
       teams = teams.filter(t => (t.type || 'general') === typeTab);
@@ -46,6 +45,20 @@ Object.assign(App, {
       ? sorted.map(t => this._teamCardHTML(t)).join('')
       : '<div style="grid-column:1/-1;text-align:center;padding:2rem;color:var(--text-muted);font-size:.85rem">此類型尚無俱樂部</div>';
     this._markPageSnapshotReady?.('page-teams');
+
+    // ★ 背景載入缺少快取的教育俱樂部學員數，完成後重繪
+    const eduMissing = sorted.filter(t => t.type === 'education' && !this._eduStudentsCache?.[t.id]);
+    if (eduMissing.length) {
+      Promise.all(eduMissing.map(t => this._loadEduStudents?.(t.id).catch(() => {}))).then(() => {
+        if (this.currentPage === 'page-teams') {
+          const c = document.getElementById('team-list');
+          if (!c) return;
+          let ts = ApiService.getActiveTeams();
+          if (typeTab) ts = ts.filter(t => (t.type || 'general') === typeTab);
+          c.innerHTML = this._sortTeams(ts).map(t => this._teamCardHTML(t)).join('') || c.innerHTML;
+        }
+      });
+    }
   },
 
   // ══════════════════════════════════
