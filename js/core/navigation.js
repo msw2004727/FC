@@ -562,6 +562,13 @@ Object.assign(App, {
     if (this.currentPage === 'page-profile' && pageId !== 'page-profile') {
       this._destroyProfileScene?.();
     }
+    // 離開俱樂部相關頁面：清理教育即時監聽
+    if (this.currentPage === 'page-team-detail' && pageId !== 'page-team-detail') {
+      this._cleanupEduListeners?.();
+    }
+    if (this.currentPage === 'page-teams' && pageId !== 'page-teams') {
+      this._stopEduTeamsListener?.();
+    }
   },
 
   _pushPageHistory(pageId, options) {
@@ -598,7 +605,7 @@ Object.assign(App, {
     if (pageId === 'page-game' && this.initShotGamePage) this.initShotGamePage();
     if (pageId === 'page-kick-game' && this.initKickGamePage) this.initKickGamePage();
     // 按需渲染：進入頁面時才渲染，減少啟動負擔
-    if (pageId === 'page-teams') this.renderTeamList?.();
+    if (pageId === 'page-teams') { this.renderTeamList?.(); this._startEduTeamsListener?.(); }
     if (pageId === 'page-messages') this.renderMessageList();
     if (pageId === 'page-tournaments') { this.renderTournamentTimeline(); }
     if (pageId === 'page-profile') { this.renderUserCard(); this.renderProfileData(); this.renderProfileFavorites(); if (this.renderActivityRecords) this.renderActivityRecords('all', 1); this._initProfileScene?.(); }
@@ -642,6 +649,8 @@ Object.assign(App, {
     }
     if (this.pageHistory.length > 0) {
       const prev = this.pageHistory.pop();
+      // 清理當前頁面的資源（監聽器、動畫等）
+      this._cleanupBeforePageSwitch(prev);
       if (!ModeManager.isDemo()
         && typeof FirebaseService !== 'undefined'
         && typeof FirebaseService.ensureCollectionsForPage === 'function') {

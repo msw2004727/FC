@@ -10,6 +10,17 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-26 — 學員卡片改造 + 俱樂部/詳情頁即時監聽
+- **問題**：①出席紀錄只能查看一人 ②按鈕位置不在卡片內 ③俱樂部頁面無即時更新
+- **修復**：
+  - 「出席紀錄」按鈕移入每位 active 學員卡片內，傳遞 studentId 到 showEduCalendar
+  - 學員區塊抽為 `_renderEduMemberSection` 可獨立重繪
+  - 新增 `_startEduStudentsListener` onSnapshot 監聽 students subcollection → 即時更新學員卡片
+  - 新增 `_startEduTeamsListener` onSnapshot 監聽 teams collection (where active==true) → 即時更新列表
+  - `goBack()` 補 `_cleanupBeforePageSwitch` 呼叫（修正所有頁面離開時的監聽器洩漏）
+  - 性別符號加彩色（♂藍/♀粉）
+- **教訓**：`goBack()` 與 `showPage()` 是兩條獨立路徑，cleanup 必須兩邊都掛
+
 ### [永久] 2026-03-26 — 教育簽到安全強化：簽到走 CF + Firestore Rules 封鎖前端寫入
 - **問題**：`eduAttendance` 前端直寫，任何登入用戶都能偽造/篡改簽到紀錄；`students` create 可繞過審核直接寫入 `enrollStatus: 'active'`
 - **修復**：

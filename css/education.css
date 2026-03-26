@@ -95,6 +95,13 @@
 }
 .edu-student-gender {
   font-size: .82rem;
+  font-weight: 600;
+}
+.edu-gender-male {
+  color: #3b82f6;
+}
+.edu-gender-female {
+  color: #ec4899;
 }
 .edu-student-age {
   font-size: .72rem;
