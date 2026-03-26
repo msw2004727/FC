@@ -219,4 +219,57 @@ Object.assign(App, {
     }
   },
 
+  // ══════════════════════════════════
+  //  教學俱樂部學員申請審核
+  // ══════════════════════════════════
+
+  async _handleEduApplyAction(msgId, action) {
+    const messages = ApiService.getMessages();
+    const msg = messages.find(m => m.id === msgId);
+    if (!msg || !msg.meta) return;
+
+    const { teamId, studentId, studentName, teamName } = msg.meta;
+    if (!teamId || !studentId) {
+      this.showToast('訊息資料不完整，無法審核');
+      return;
+    }
+
+    const curUser = ApiService.getCurrentUser();
+    const reviewerName = curUser?.displayName || '審核人';
+
+    if (action === 'approve') {
+      await this.approveEduStudent(teamId, studentId);
+      // 通知申請者
+      const applicantUid = msg.meta.applicantUid;
+      if (applicantUid) {
+        this._deliverMessageWithLinePush(
+          '學員審核結果',
+          '恭喜！「' + (studentName || '') + '」已通過「' + (teamName || '') + '」的學員審核，審核人：' + reviewerName + '。',
+          'system', '系統', applicantUid, reviewerName, null,
+          { lineOptions: { source: 'edu_student_review:approve' } }
+        );
+      }
+    } else if (action === 'reject') {
+      await this.rejectEduStudent(teamId, studentId);
+      const applicantUid = msg.meta.applicantUid;
+      if (applicantUid) {
+        this._deliverMessageWithLinePush(
+          '學員審核結果',
+          '很抱歉，「' + (studentName || '') + '」未通過「' + (teamName || '') + '」的學員審核，審核人：' + reviewerName + '。如有疑問請聯繫教練。',
+          'system', '系統', applicantUid, reviewerName, null,
+          { lineOptions: { source: 'edu_student_review:reject' } }
+        );
+      }
+    }
+
+    const statusMap = { approve: 'approved', reject: 'rejected', ignore: 'ignored' };
+    msg.actionStatus = statusMap[action] || action;
+    msg.reviewerName = reviewerName;
+    const updatePayload = { actionStatus: msg.actionStatus, reviewerName };
+    ApiService.updateMessage(msgId, updatePayload);
+
+    document.getElementById('msg-inbox-detail-modal').style.display = 'none';
+    this.renderMessageList();
+  },
+
 });

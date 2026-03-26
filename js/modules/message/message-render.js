@@ -177,6 +177,26 @@ Object.assign(App, {
         const reviewerSuffix = msg.reviewerName ? `（${escapeHTML(msg.reviewerName)}）` : '';
         actionHtml = `<div class="msg-action-status" style="${style}">${label}${reviewerSuffix}</div>`;
       }
+    } else if (msg.actionType === 'edu_student_apply') {
+      const teamId = msg.meta?.teamId || '';
+      const studentId = msg.meta?.studentId || '';
+      if (msg.actionStatus === 'pending' && teamId && studentId) {
+        actionHtml = `
+          <div class="msg-action-btns">
+            <button class="msg-action-approve" onclick="App._handleEduApplyAction('${msg.id}','approve')">同意</button>
+            <button class="msg-action-reject" onclick="App._handleEduApplyAction('${msg.id}','reject')">拒絕</button>
+            <button class="msg-action-ignore" onclick="App._handleEduApplyAction('${msg.id}','ignore')">略過</button>
+          </div>`;
+      } else {
+        const statusLabels = {
+          approved: ['background:var(--success);color:#fff', '已同意'],
+          rejected: ['background:var(--danger);color:#fff', '已拒絕'],
+          ignored: ['background:var(--border);color:var(--text-secondary)', '已略過'],
+        };
+        const [style, label] = statusLabels[msg.actionStatus] || ['', msg.actionStatus];
+        const reviewerSuffix = msg.reviewerName ? `（${escapeHTML(msg.reviewerName)}）` : '';
+        actionHtml = `<div class="msg-action-status" style="${style}">${label}${reviewerSuffix}</div>`;
+      }
     }
 
     content.innerHTML = `
