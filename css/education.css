@@ -159,6 +159,38 @@
   border-color: #fecaca !important;
   opacity: .75;
 }
+.edu-pending-card {
+  border-color: #fbbf24;
+  background: #fffbeb;
+}
+[data-theme="dark"] .edu-pending-card {
+  border-color: #92400e;
+  background: #451a03;
+}
+.edu-pending-actions {
+  display: flex;
+  gap: .3rem;
+  margin-top: .3rem;
+}
+.edu-section-label {
+  font-size: .78rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  padding: .3rem 0;
+}
+.edu-group-pending {
+  font-size: .65rem;
+  padding: .06rem .3rem;
+  border-radius: 3px;
+  background: #fef3c7;
+  color: #92400e;
+  font-weight: 600;
+  margin-left: .2rem;
+}
+[data-theme="dark"] .edu-group-pending {
+  background: #451a03;
+  color: #fbbf24;
+}
 .edu-student-actions {
   display: flex;
   gap: .3rem;

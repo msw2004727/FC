@@ -53,6 +53,9 @@ Object.assign(App, {
       g.memberCount = students.filter(s =>
         s.enrollStatus === 'active' && (s.groupIds || []).includes(g.id)
       ).length;
+      g.pendingCount = students.filter(s =>
+        s.enrollStatus === 'pending' && (s.groupIds || []).includes(g.id)
+      ).length;
     });
 
     container.innerHTML = sorted.map(g => {
@@ -65,11 +68,14 @@ Object.assign(App, {
         ? '<div class="edu-group-schedule">' + escapeHTML(g.schedule) + '</div>'
         : '';
       const countHtml = '<span class="edu-group-count">' + g.memberCount + ' 人</span>';
+      const pendingHtml = (isStaff && g.pendingCount > 0)
+        ? '<span class="edu-group-pending">待審核 ' + g.pendingCount + ' 人</span>'
+        : '';
 
       return '<div class="edu-group-card" onclick="App.showEduStudentList(\'' + teamId + '\',\'' + g.id + '\')">' +
         '<div class="edu-group-header">' +
           '<span class="edu-group-name">' + escapeHTML(g.name) + '</span>' +
-          ageRange + countHtml +
+          ageRange + countHtml + pendingHtml +
         '</div>' +
         scheduleHtml +
         (g.description ? '<div class="edu-group-desc">' + escapeHTML(g.description) + '</div>' : '') +
