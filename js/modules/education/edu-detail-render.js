@@ -121,7 +121,7 @@ Object.assign(App, {
       // 右側按鈕列
       let actionBtns = '';
       if (!isPending) {
-        actionBtns = '<button class="outline-btn small" onclick="App.showEduCalendar(\'' + teamId + '\',\'' + s.id + '\')">出席紀錄</button>'
+        actionBtns = '<button class="outline-btn small edu-attendance-btn" onclick="App.showEduCalendar(\'' + teamId + '\',\'' + s.id + '\')">出席紀錄</button>'
           + '<button class="outline-btn small edu-withdraw-btn" onclick="App._confirmEduWithdraw(\'' + teamId + '\',\'' + s.id + '\',this)" data-name="' + escapeHTML(s.name) + '">退學</button>';
       } else {
         actionBtns = '<button class="outline-btn small edu-withdraw-btn" onclick="App._confirmEduWithdraw(\'' + teamId + '\',\'' + s.id + '\',this)" data-name="' + escapeHTML(s.name) + '">取消申請</button>';

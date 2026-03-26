@@ -148,9 +148,16 @@
   margin-left: auto;
   flex-shrink: 0;
 }
+.edu-attendance-btn {
+  background: #e0f2fe !important;
+  color: #0284c7 !important;
+  border-color: #7dd3fc !important;
+}
 .edu-withdraw-btn {
-  color: var(--danger) !important;
-  border-color: var(--danger) !important;
+  background: #fef2f2 !important;
+  color: #b91c1c !important;
+  border-color: #fecaca !important;
+  opacity: .75;
 }
 .edu-student-actions {
   display: flex;
@@ -443,6 +450,16 @@
 [data-theme="dark"] .edu-status-active {
   background: #064e3b;
   color: #6ee7b7;
+}
+[data-theme="dark"] .edu-attendance-btn {
+  background: #0c4a6e !important;
+  color: #7dd3fc !important;
+  border-color: #0369a1 !important;
+}
+[data-theme="dark"] .edu-withdraw-btn {
+  background: #450a0a !important;
+  color: #fca5a5 !important;
+  border-color: #7f1d1d !important;
 }
 [data-theme="dark"] .edu-course-type {
   background: #1e3a5f;
