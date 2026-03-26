@@ -19,15 +19,21 @@ Object.assign(App, {
     const titleEl = document.getElementById('edu-student-modal-title');
     const saveBtn = document.getElementById('edu-student-save-btn');
 
-    // 載入分組以供選擇
+    // 載入分組以供選擇（格子式，不斷行）
     const groups = await this._loadEduGroups(teamId);
     const groupSelect = document.getElementById('edu-stu-groups');
     if (groupSelect) {
-      groupSelect.innerHTML = groups
-        .filter(g => g.active !== false)
-        .map(g => '<label class="edu-checkbox-label"><input type="checkbox" value="' + g.id + '" data-name="' + escapeHTML(g.name) + '"> ' + escapeHTML(g.name) + '</label>')
-        .join('');
+      groupSelect.innerHTML = '<div class="edu-group-chip-grid">'
+        + groups.filter(g => g.active !== false).map(g =>
+          '<div class="edu-group-chip" data-gid="' + g.id + '" data-name="' + escapeHTML(g.name) + '" onclick="this.classList.toggle(\'edu-group-chip-on\')">'
+          + escapeHTML(g.name) + '</div>'
+        ).join('')
+        + '</div>';
     }
+
+    const nameEl = document.getElementById('edu-stu-name');
+    const birthdayEl = document.getElementById('edu-stu-birthday');
+    const genderEl = document.getElementById('edu-stu-gender');
 
     if (studentId) {
       titleEl.textContent = '編輯學員';
@@ -35,24 +41,38 @@ Object.assign(App, {
       const students = this.getEduStudents(teamId);
       const s = students.find(s => s.id === studentId);
       if (s) {
-        document.getElementById('edu-stu-name').value = s.name || '';
-        document.getElementById('edu-stu-birthday').value = s.birthday || '';
-        document.getElementById('edu-stu-gender').value = s.gender || 'male';
+        const isSelf = !!s.selfUid;
+        nameEl.value = s.name || '';
+        nameEl.readOnly = isSelf;
+        nameEl.style.opacity = isSelf ? '.5' : '1';
+        birthdayEl.value = s.birthday || '';
+        birthdayEl.disabled = isSelf;
+        birthdayEl.style.opacity = isSelf ? '.5' : '1';
+        genderEl.value = s.gender || 'male';
+        genderEl.disabled = isSelf;
+        genderEl.style.opacity = isSelf ? '.5' : '1';
         if (groupSelect && s.groupIds) {
-          groupSelect.querySelectorAll('input[type="checkbox"]').forEach(cb => {
-            cb.checked = s.groupIds.includes(cb.value);
+          groupSelect.querySelectorAll('.edu-group-chip').forEach(chip => {
+            if (s.groupIds.includes(chip.dataset.gid)) chip.classList.add('edu-group-chip-on');
           });
         }
       }
     } else {
       titleEl.textContent = '新增學員';
       saveBtn.textContent = '新增學員';
-      document.getElementById('edu-stu-name').value = '';
-      document.getElementById('edu-stu-birthday').value = '';
-      document.getElementById('edu-stu-gender').value = 'male';
+      nameEl.value = '';
+      nameEl.readOnly = false;
+      nameEl.style.opacity = '1';
+      birthdayEl.value = '';
+      birthdayEl.disabled = false;
+      birthdayEl.style.opacity = '1';
+      genderEl.value = 'male';
+      genderEl.disabled = false;
+      genderEl.style.opacity = '1';
       if (groupSelect) {
-        groupSelect.querySelectorAll('input[type="checkbox"]').forEach(cb => {
-          cb.checked = defaultGroupId ? cb.value === defaultGroupId : false;
+        groupSelect.querySelectorAll('.edu-group-chip').forEach(chip => {
+          if (defaultGroupId && chip.dataset.gid === defaultGroupId) chip.classList.add('edu-group-chip-on');
+          else chip.classList.remove('edu-group-chip-on');
         });
       }
     }
@@ -73,9 +93,9 @@ Object.assign(App, {
     const groupIds = [];
     const groupNames = [];
     if (groupSelect) {
-      groupSelect.querySelectorAll('input[type="checkbox"]:checked').forEach(cb => {
-        groupIds.push(cb.value);
-        groupNames.push(cb.dataset.name || cb.value);
+      groupSelect.querySelectorAll('.edu-group-chip-on').forEach(chip => {
+        groupIds.push(chip.dataset.gid);
+        groupNames.push(chip.dataset.name || chip.dataset.gid);
       });
     }
 
@@ -263,6 +283,10 @@ Object.assign(App, {
 
       this._updateGroupMemberCounts(teamId);
       this.showToast(student.name + ' 已加入分組');
+      // 同步更新背後的學員列表
+      if (this._eduCurrentGroupId) {
+        this.renderEduStudentList(teamId, this._eduCurrentGroupId);
+      }
     } catch (err) {
       console.error('[_assignStudentToGroup]', err);
       this.showToast('操作失敗：' + (err.message || '請稍後再試'));

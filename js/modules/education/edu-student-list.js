@@ -6,6 +6,7 @@ Object.assign(App, {
 
   _eduStudentsCache: {},
   _eduCurrentGroupId: null,
+  _eduCurrentTeamId: null,
 
   async _loadEduStudents(teamId) {
     if (!teamId) return [];
@@ -25,6 +26,7 @@ Object.assign(App, {
 
   async showEduStudentList(teamId, groupId) {
     this._eduCurrentGroupId = groupId;
+    this._eduCurrentTeamId = teamId;
     await this.showPage('page-edu-students');
 
     const titleEl = document.getElementById('edu-students-title');
@@ -42,7 +44,6 @@ Object.assign(App, {
     const isStaff = this.isEduClubStaff(teamId);
     const allStudents = await this._loadEduStudents(teamId);
 
-    // 分組篩選
     const inGroup = groupId
       ? allStudents.filter(s => s.enrollStatus !== 'inactive' && (s.groupIds || []).includes(groupId))
       : allStudents.filter(s => s.enrollStatus !== 'inactive');
@@ -62,7 +63,7 @@ Object.assign(App, {
     // ── 待審核區（職員可見，置頂）──
     if (isStaff && pendingStudents.length) {
       html += '<div class="edu-section-label">待審核（' + pendingStudents.length + '）</div>';
-      html += pendingStudents.map(s => this._renderPendingStudentCard(teamId, s)).join('');
+      html += pendingStudents.map(s => this._renderPendingStudentRow(teamId, groupId, s)).join('');
       html += '<hr style="border:none;border-top:1px solid var(--border);margin:.6rem 0">';
     }
 
@@ -73,24 +74,7 @@ Object.assign(App, {
 
     // ── 正式學員 ──
     if (activeStudents.length) {
-      html += activeStudents.map(s => {
-        const age = this.calcAge(s.birthday);
-        const ageLabel = age != null ? age + ' 歲' : '';
-        const genderIcon = s.gender === 'male' ? '♂' : s.gender === 'female' ? '♀' : '';
-        const genderClass = s.gender === 'male' ? ' edu-gender-male' : s.gender === 'female' ? ' edu-gender-female' : '';
-
-        return '<div class="edu-student-card">'
-          + '<div class="edu-student-header">'
-          + '<span class="edu-student-name">' + escapeHTML(s.name) + '</span>'
-          + (genderIcon ? '<span class="edu-student-gender' + genderClass + '">' + genderIcon + '</span>' : '')
-          + (ageLabel ? '<span class="edu-student-age">' + ageLabel + '</span>' : '')
-          + (s.groupNames && s.groupNames.length ? s.groupNames.map(n => '<span class="edu-group-tag">' + escapeHTML(n) + '</span>').join('') : '')
-          + '</div>'
-          + (isStaff ? '<div class="edu-student-actions">'
-            + '<button class="outline-btn" style="font-size:.72rem;padding:.2rem .5rem" onclick="App.showEduStudentForm(\'' + teamId + '\',\'' + s.id + '\')">編輯</button>'
-            + '</div>' : '')
-          + '</div>';
-      }).join('');
+      html += activeStudents.map(s => this._renderActiveStudentRow(teamId, groupId, s, isStaff)).join('');
     } else if (!pendingStudents.length) {
       html += '<div class="edu-empty-state">此分組尚無正式學員</div>';
     }
@@ -99,46 +83,102 @@ Object.assign(App, {
   },
 
   /**
-   * 渲染待審核學員卡片（含通過/拒絕按鈕）
+   * 待審核學員行（通過/拒絕 置右與姓名並行）
    */
-  _renderPendingStudentCard(teamId, s) {
+  _renderPendingStudentRow(teamId, groupId, s) {
     const age = this.calcAge(s.birthday);
     const ageLabel = age != null ? age + ' 歲' : '';
     const genderIcon = s.gender === 'male' ? '♂' : s.gender === 'female' ? '♀' : '';
     const genderClass = s.gender === 'male' ? ' edu-gender-male' : s.gender === 'female' ? ' edu-gender-female' : '';
 
-    return '<div class="edu-student-card edu-pending-card" id="edu-pending-' + s.id + '">'
+    return '<div class="edu-student-card edu-pending-card">'
       + '<div class="edu-student-header">'
       + '<span class="edu-student-name">' + escapeHTML(s.name) + '</span>'
       + (genderIcon ? '<span class="edu-student-gender' + genderClass + '">' + genderIcon + '</span>' : '')
       + (ageLabel ? '<span class="edu-student-age">' + ageLabel + '</span>' : '')
-      + '<span class="edu-status-pending">待審核</span>'
-      + '</div>'
-      + '<div class="edu-pending-actions">'
-      + '<button class="primary-btn small" onclick="App._approveFromList(\'' + teamId + '\',\'' + s.id + '\')">通過</button>'
-      + '<button class="outline-btn small" style="color:var(--danger);border-color:var(--danger)" onclick="App._rejectFromList(\'' + teamId + '\',\'' + s.id + '\',this)" data-name="' + escapeHTML(s.name) + '">拒絕</button>'
+      + '<span class="edu-header-actions">'
+      + '<button class="edu-approve-btn" onclick="App._approveFromList(\'' + teamId + '\',\'' + s.id + '\')">通過</button>'
+      + '<button class="edu-reject-btn" onclick="App._rejectFromList(\'' + teamId + '\',\'' + s.id + '\',this)" data-name="' + escapeHTML(s.name) + '">拒絕</button>'
+      + '</span>'
       + '</div>'
       + '</div>';
   },
 
   /**
-   * 從學員列表通過審核
+   * 正式學員行（編輯/移除 置右）
    */
+  _renderActiveStudentRow(teamId, groupId, s, isStaff) {
+    const age = this.calcAge(s.birthday);
+    const ageLabel = age != null ? age + ' 歲' : '';
+    const genderIcon = s.gender === 'male' ? '♂' : s.gender === 'female' ? '♀' : '';
+    const genderClass = s.gender === 'male' ? ' edu-gender-male' : s.gender === 'female' ? ' edu-gender-female' : '';
+    const isSelf = !!s.selfUid;
+
+    let actionBtns = '';
+    if (isStaff) {
+      const editBtn = isSelf
+        ? '<button class="outline-btn small" disabled style="opacity:.4;font-size:.68rem;padding:.15rem .4rem">編輯</button>'
+        : '<button class="outline-btn small" style="font-size:.68rem;padding:.15rem .4rem" onclick="App.showEduStudentForm(\'' + teamId + '\',\'' + s.id + '\')">編輯</button>';
+      const removeBtn = '<button class="outline-btn small" style="font-size:.68rem;padding:.15rem .4rem;color:var(--danger);border-color:var(--danger)" onclick="App._removeStudentFromGroup(\'' + teamId + '\',\'' + s.id + '\',\'' + (groupId || '') + '\',this)" data-name="' + escapeHTML(s.name) + '">移除</button>';
+      actionBtns = '<span class="edu-header-actions">' + editBtn + removeBtn + '</span>';
+    }
+
+    return '<div class="edu-student-card">'
+      + '<div class="edu-student-header">'
+      + '<span class="edu-student-name">' + escapeHTML(s.name) + '</span>'
+      + (genderIcon ? '<span class="edu-student-gender' + genderClass + '">' + genderIcon + '</span>' : '')
+      + (ageLabel ? '<span class="edu-student-age">' + ageLabel + '</span>' : '')
+      + actionBtns
+      + '</div>'
+      + '</div>';
+  },
+
   async _approveFromList(teamId, studentId) {
     await this.approveEduStudent(teamId, studentId);
     const groupId = this._eduCurrentGroupId;
     if (groupId) await this.renderEduStudentList(teamId, groupId);
   },
 
-  /**
-   * 從學員列表拒絕（刪除紀錄）
-   */
   async _rejectFromList(teamId, studentId, btnEl) {
     const name = btnEl && btnEl.dataset ? btnEl.dataset.name : '';
     if (!(await this.appConfirm('確定要拒絕「' + name + '」的申請嗎？'))) return;
     await this.rejectEduStudent(teamId, studentId);
     const groupId = this._eduCurrentGroupId;
     if (groupId) await this.renderEduStudentList(teamId, groupId);
+  },
+
+  /**
+   * 從分組中移除學員
+   */
+  async _removeStudentFromGroup(teamId, studentId, groupId, btnEl) {
+    const name = btnEl && btnEl.dataset ? btnEl.dataset.name : '';
+    if (!(await this.appConfirm('是否將「' + name + '」學員移除此分組？'))) return;
+
+    const students = this.getEduStudents(teamId);
+    const student = students.find(s => s.id === studentId);
+    if (!student) return;
+
+    const newGroupIds = (student.groupIds || []).filter(id => id !== groupId);
+    const groups = this.getEduGroups(teamId);
+    const newGroupNames = newGroupIds.map(id => {
+      const g = groups.find(g => g.id === id);
+      return g ? g.name : id;
+    });
+
+    try {
+      await FirebaseService.updateEduStudent(teamId, studentId, {
+        groupIds: newGroupIds,
+        groupNames: newGroupNames,
+      });
+      student.groupIds = newGroupIds;
+      student.groupNames = newGroupNames;
+      this._updateGroupMemberCounts(teamId);
+      this.showToast(name + ' 已移除此分組');
+      await this.renderEduStudentList(teamId, groupId);
+    } catch (err) {
+      console.error('[_removeStudentFromGroup]', err);
+      this.showToast('操作失敗');
+    }
   },
 
 });
