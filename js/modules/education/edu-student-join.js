@@ -179,22 +179,7 @@ Object.assign(App, {
       if (cached) cached.push(studentData);
       else this._eduStudentsCache[teamId] = [studentData];
 
-      // 通知俱樂部幹部
-      const staffUids = this._getTeamStaffUids(team);
-      staffUids.forEach(staffUid => {
-        this._deliverMessageWithLinePush(
-          '學員加入申請',
-          (curUser.displayName || curUser.name || '用戶') + ' 為「' + name + '」申請加入「' + team.name + '」教學班，請審核。',
-          'system', '系統', staffUid, (curUser.displayName || curUser.name || '用戶'),
-          {
-            actionType: 'edu_student_apply',
-            actionStatus: 'pending',
-            meta: { teamId, teamName: team.name, studentName: name, studentId: studentData.id, applicantUid: curUser.uid },
-          },
-          { lineOptions: { source: 'edu_student_apply' } }
-        );
-      });
-
+      // 教學俱樂部不發站內信（職員在分組內直接審核）
       this.showToast('申請已送出，請等待教練審核');
       this.goBack();
     } catch (err) {
