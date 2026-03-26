@@ -14,7 +14,7 @@ Object.assign(App, {
     const memberLabel = isEdu ? '學員' : I18N.t('team.memberLabel');
     const memberCount = isEdu
       ? ((this._eduStudentsCache && this._eduStudentsCache[t.id])
-        ? this._eduStudentsCache[t.id].filter(s => s.enrollStatus === 'active').length
+        ? this._eduStudentsCache[t.id].filter(s => s.enrollStatus !== 'inactive').length
         : 0)
       : this._calcTeamMemberCount(t.id);
     return `

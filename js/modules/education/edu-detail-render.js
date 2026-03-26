@@ -206,17 +206,37 @@ Object.assign(App, {
         .onSnapshot(
           snapshot => {
             const freshTeams = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), _docId: doc.id }));
-            // 合併：替換 active teams，保留 inactive（若有）
             const inactiveTeams = (FirebaseService._cache.teams || []).filter(t => !t.active);
             FirebaseService._cache.teams = [...freshTeams, ...inactiveTeams];
             FirebaseService._debouncedPersistCache();
             if (this.currentPage === 'page-teams') {
               this.renderTeamList();
+              // 背景載入教育俱樂部學員數（尚未快取的）
+              this._loadEduStudentCountsForList(freshTeams);
             }
           },
           err => { console.error('[edu-realtime] teams listener error:', err); }
         );
     } catch (e) { console.error('[edu-realtime] teams listener start failed:', e); }
+  },
+
+  /**
+   * 為列表頁上尚未快取學員的教育俱樂部載入學員資料
+   * 載入後重繪列表以更新人數
+   */
+  async _loadEduStudentCountsForList(teams) {
+    const eduTeams = teams.filter(t => t.type === 'education' && !this._eduStudentsCache[t.id]);
+    if (!eduTeams.length) return;
+    let changed = false;
+    for (const t of eduTeams) {
+      try {
+        await this._loadEduStudents(t.id);
+        changed = true;
+      } catch (_) {}
+    }
+    if (changed && this.currentPage === 'page-teams') {
+      this.renderTeamList();
+    }
   },
 
   _stopEduTeamsListener() {
