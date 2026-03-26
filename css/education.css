@@ -454,6 +454,53 @@
   background: var(--bg-card);
 }
 
+/* ── Weekday Grid (課程方案上課日選擇) ── */
+.edu-weekday-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: .3rem;
+}
+.edu-wd-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: .4rem .2rem;
+  border: 2px solid var(--border);
+  border-radius: var(--radius, 8px);
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  transition: border-color .15s, background .15s;
+  min-height: 2.8rem;
+}
+.edu-wd-cell:active { opacity: .7; }
+.edu-wd-sat { background: #ecfdf5; }
+.edu-wd-sun { background: #fef2f2; }
+.edu-wd-checked {
+  border-color: var(--primary);
+  background: var(--accent-bg, #ede9fe) !important;
+}
+.edu-wd-label {
+  font-size: .82rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.edu-wd-check {
+  font-size: .75rem;
+  color: var(--primary);
+  font-weight: 700;
+  min-height: 1rem;
+}
+.edu-cp-preview {
+  font-size: .8rem;
+  color: var(--text-secondary);
+  padding: .4rem 0;
+  text-align: center;
+}
+[data-theme="dark"] .edu-wd-sat { background: #064e3b; }
+[data-theme="dark"] .edu-wd-sun { background: #450a0a; }
+
 /* ── View Toggle ── */
 .edu-view-btn.active {
   background: var(--primary);
