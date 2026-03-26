@@ -20,6 +20,9 @@ Object.assign(App, {
     const isStaff = this.isEduClubStaff(teamId);
     const curUser = ApiService.getCurrentUser();
 
+    // ★ 先載入學員快取，確保後續判斷正確
+    await this._loadEduStudents(teamId);
+
     // ── 基本資訊卡 ──
     const infoCard = '<div class="td-card">'
       + '<div class="td-card-title">俱樂部資訊</div>'
@@ -51,51 +54,95 @@ Object.assign(App, {
       + '<button class="outline-btn" onclick="App.showEduCheckinScan(\'' + teamId + '\')">掃碼簽到</button>'
       + '</div></div>' : '';
 
-    // ── 課程方案（幹部專用）──
-    const courseSection = isStaff ? '<div class="td-card">'
+    // ── 課程方案（所有人可見，幹部可編輯）──
+    const courseSection = '<div class="td-card">'
       + '<div class="td-card-title td-card-title-row">'
       + '<span>課程方案</span>'
-      + '<button class="primary-btn small" onclick="App.showEduCoursePlanForm(\'' + teamId + '\')">＋ 新增</button>'
+      + (isStaff ? '<button class="primary-btn small" onclick="App.showEduCoursePlanForm(\'' + teamId + '\')">＋ 新增</button>' : '')
       + '</div>'
       + '<div id="edu-course-plan-list"></div>'
-      + '</div>' : '';
+      + '</div>';
 
-    // ── 申請加入（非幹部、非學員用）──
-    const isStudentOrParent = this._isEduStudentOrParent(teamId, curUser);
-    const applySection = (!isStaff && !isStudentOrParent)
-      ? '<div class="td-card" style="padding:.6rem .8rem">'
-        + '<button class="primary-btn" onclick="App.showEduStudentApply(\'' + teamId + '\')">申請加入（學員/家長）</button>'
-        + '</div>'
-      : '';
+    // ── 學員狀態區塊（非幹部用）──
+    const myStudents = this._getMyEduStudents(teamId, curUser);
+    const hasActive = myStudents.some(s => s.enrollStatus === 'active');
+    const hasPending = myStudents.some(s => s.enrollStatus === 'pending');
 
-    // ── 行事曆入口（學員/家長用）──
-    const calendarSection = isStudentOrParent
-      ? '<div class="td-card">'
-        + '<div class="td-card-title">出席紀錄</div>'
-        + '<button class="primary-btn" onclick="App.showEduCalendar(\'' + teamId + '\')">查看行事曆</button>'
-        + '</div>'
-      : '';
+    let memberSection = '';
+    if (!isStaff) {
+      if (myStudents.length === 0) {
+        // 尚未申請 → 顯示申請按鈕
+        memberSection = '<div class="td-card" style="padding:.6rem .8rem">'
+          + '<button class="primary-btn" style="width:100%" onclick="App.showEduStudentApply(\'' + teamId + '\')">申請加入（本人/代理）</button>'
+          + '</div>';
+      } else {
+        // 有學員紀錄 → 顯示狀態卡片
+        memberSection = '<div class="td-card">'
+          + '<div class="td-card-title">我的學員</div>';
 
-    bodyEl.innerHTML = infoCard + bioCard + groupSection + courseSection + checkinSection + calendarSection + applySection;
+        memberSection += myStudents.map(s => {
+          const age = this.calcAge(s.birthday);
+          const ageLabel = age != null ? age + ' 歲' : '';
+          const genderIcon = s.gender === 'male' ? '♂' : s.gender === 'female' ? '♀' : '';
+          const isPending = s.enrollStatus === 'pending';
+          const statusHtml = isPending
+            ? '<span class="edu-status-pending">待審核</span>'
+            : '<span class="edu-status-active">已通過</span>';
+          const groupHtml = (s.groupNames && s.groupNames.length)
+            ? '<div class="edu-student-groups">' + s.groupNames.map(n => '<span class="edu-group-tag">' + escapeHTML(n) + '</span>').join('') + '</div>'
+            : '';
+          return '<div class="edu-student-card">'
+            + '<div class="edu-student-header">'
+            + '<span class="edu-student-name">' + escapeHTML(s.name) + '</span>'
+            + (genderIcon ? '<span class="edu-student-gender">' + genderIcon + '</span>' : '')
+            + (ageLabel ? '<span class="edu-student-age">' + ageLabel + '</span>' : '')
+            + statusHtml
+            + '</div>'
+            + groupHtml
+            + '</div>';
+        }).join('');
+
+        // 已通過 → 可追加學員 + 查看行事曆
+        if (hasActive) {
+          memberSection += '<div style="display:flex;gap:.5rem;margin-top:.5rem;flex-wrap:wrap">'
+            + '<button class="primary-btn" onclick="App.showEduStudentApply(\'' + teamId + '\')">追加學員</button>'
+            + '<button class="outline-btn" onclick="App.showEduCalendar(\'' + teamId + '\')">查看出席紀錄</button>'
+            + '</div>';
+        } else if (hasPending) {
+          memberSection += '<div style="margin-top:.4rem;font-size:.78rem;color:var(--text-muted)">申請審核中，請等待教練審核</div>';
+        }
+
+        memberSection += '</div>';
+      }
+    }
+
+    bodyEl.innerHTML = infoCard + bioCard + groupSection + courseSection + checkinSection + memberSection;
 
     // 載入分組列表
     await this.renderEduGroupList(teamId);
-    // 載入課程方案
-    if (isStaff && typeof this.renderEduCoursePlanList === 'function') {
-      await this.renderEduCoursePlanList(teamId);
+    // 載入課程方案（所有人皆可看）
+    if (typeof this.renderEduCoursePlanList === 'function') {
+      await this.renderEduCoursePlanList(teamId, isStaff);
     }
+  },
+
+  /**
+   * 取得當前用戶在此俱樂部的所有學員紀錄（本人或代理）
+   */
+  _getMyEduStudents(teamId, curUser) {
+    if (!curUser) return [];
+    const students = this.getEduStudents(teamId);
+    return students.filter(s =>
+      s.enrollStatus !== 'inactive' &&
+      ((s.parentUid && s.parentUid === curUser.uid) || (s.selfUid && s.selfUid === curUser.uid))
+    );
   },
 
   /**
    * 檢查當前用戶是否為此俱樂部的學員或家長
    */
   _isEduStudentOrParent(teamId, curUser) {
-    if (!curUser) return false;
-    const students = this.getEduStudents(teamId);
-    return students.some(s =>
-      s.enrollStatus !== 'inactive' &&
-      ((s.parentUid && s.parentUid === curUser.uid) || (s.selfUid && s.selfUid === curUser.uid))
-    );
+    return this._getMyEduStudents(teamId, curUser).length > 0;
   },
 
 });

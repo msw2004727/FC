@@ -10,6 +10,18 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-26 — 教學俱樂部系統重大修正（快取未載入 + 重複申請 + 課程方案不可見）
+- **問題**：①申請加入後仍可重複申請 ②加入後看不到學員狀態 ③課程方案只有幹部可見
+- **原因**：`renderEduClubDetail` 未呼叫 `_loadEduStudents()`，導致 `_isEduStudentOrParent` 永遠讀到空快取回傳 false；`handleEduStudentApply` 無重複檢查；課程方案區塊包在 `isStaff ?` 條件中
+- **修復**：
+  - `edu-detail-render.js`：開頭 `await _loadEduStudents()`、新增 `_getMyEduStudents()` 顯示學員狀態卡片、按鈕邏輯改為「無學員→申請加入(本人/代理)、pending→審核中、active→追加學員+出席紀錄」
+  - `edu-student-join.js`：加入重複檢查（同 uid + 同姓名 + 同 team 阻擋）
+  - `edu-course-plan.js`：`renderEduCoursePlanList` 接受 isStaff 參數，非幹部唯讀
+  - `edu-student-list.js`：分組「新增學員」改為指派彈窗 `showEduAssignStudentModal`
+  - `edu-student-form.js`：新增指派彈窗（依年齡篩選候選學員 + 加入按鈕）、移除位置標籤與教練備註欄位
+  - `education.html`：表單身份改為「本人/代理」、新增指派彈窗 HTML
+- **教訓**：頁面渲染前必須確保所有依賴的快取已載入；非同步資料不能用同步 getter 做判斷
+
 ### 2026-03-26 — 站內信學員加入申請審核報錯 approveEduStudent is not a function
 - **問題**：站內信頁面點「同意」學員申請時，報錯 `this.approveEduStudent is not a function`
 - **原因**：`_handleEduApplyAction`（message-actions.js）呼叫 `approveEduStudent` / `rejectEduStudent`，但這兩個函式定義在 `edu-student-join.js`（education 群組），而 `page-messages` 只載入 `message` 群組，教育模組腳本未載入

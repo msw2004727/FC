@@ -58,13 +58,13 @@ Object.assign(App, {
 
     if (!students.length) {
       container.innerHTML = '<div class="edu-empty-state">此分組尚無學員' +
-        (isStaff ? '<br><button class="primary-btn small" style="margin-top:.5rem" onclick="App.showEduStudentForm(\'' + teamId + '\',null,\'' + (groupId || '') + '\')">新增學員</button>' : '') +
+        (isStaff ? '<br><button class="primary-btn small" style="margin-top:.5rem" onclick="App.showEduAssignStudentModal(\'' + teamId + '\',\'' + (groupId || '') + '\')">新增學員</button>' : '') +
         '</div>';
       return;
     }
 
     const addBtn = isStaff
-      ? '<div style="margin-bottom:.5rem"><button class="primary-btn small" onclick="App.showEduStudentForm(\'' + teamId + '\',null,\'' + (groupId || '') + '\')">＋ 新增學員</button></div>'
+      ? '<div style="margin-bottom:.5rem"><button class="primary-btn small" onclick="App.showEduAssignStudentModal(\'' + teamId + '\',\'' + (groupId || '') + '\')">＋ 新增學員</button></div>'
       : '';
 
     container.innerHTML = addBtn + students.map(s => {

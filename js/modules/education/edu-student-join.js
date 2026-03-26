@@ -20,7 +20,7 @@ Object.assign(App, {
     document.getElementById('edu-apply-name').value = '';
     document.getElementById('edu-apply-birthday').value = '';
     document.getElementById('edu-apply-gender').value = 'male';
-    document.getElementById('edu-apply-relation').value = 'parent';
+    document.getElementById('edu-apply-relation').value = 'self';
   },
 
   /**
@@ -47,6 +47,20 @@ Object.assign(App, {
 
     if (team.eduSettings && team.eduSettings.acceptingStudents === false) {
       this.showToast('此俱樂部目前未開放報名');
+      return;
+    }
+
+    // ★ 重複申請檢查：同 uid + 同學員姓名不可重複
+    const existingStudents = await this._loadEduStudents(teamId);
+    const uidField = relation === 'parent' ? 'parentUid' : 'selfUid';
+    const duplicate = existingStudents.find(s =>
+      s.enrollStatus !== 'inactive' &&
+      s[uidField] === curUser.uid &&
+      s.name.trim() === name
+    );
+    if (duplicate) {
+      const statusText = duplicate.enrollStatus === 'pending' ? '審核中' : '已通過';
+      this.showToast('「' + name + '」已申請過此俱樂部（' + statusText + '）');
       return;
     }
 

@@ -73,8 +73,8 @@
         <div class="ce-row">
           <label>您的身份</label>
           <select id="edu-apply-relation">
-            <option value="parent">我是家長（為孩子報名）</option>
-            <option value="self">我是學員本人</option>
+            <option value="self">本人</option>
+            <option value="parent">代理（為他人報名）</option>
           </select>
         </div>
         <div style="margin-top:1rem">
@@ -129,10 +129,10 @@
       </div>
     </div>
 
-    <!-- MODAL: Education Student Form -->
+    <!-- MODAL: Education Student Form (編輯用) -->
     <div class="modal" id="edu-student-modal">
       <div class="modal-header">
-        <h3 id="edu-student-modal-title">新增學員</h3>
+        <h3 id="edu-student-modal-title">編輯學員</h3>
         <button class="modal-close" onclick="App.closeModal()">✕</button>
       </div>
       <div class="modal-body">
@@ -156,18 +156,21 @@
             <label>分組（可多選）</label>
             <div id="edu-stu-groups" class="edu-checkbox-group"></div>
           </div>
-          <div class="ce-row">
-            <label>位置標籤（逗號分隔）</label>
-            <input type="text" id="edu-stu-tags" maxlength="100" placeholder="例：GK, CF, CB">
-          </div>
-          <div class="ce-row">
-            <label>教練備註（學員不可見）</label>
-            <textarea id="edu-stu-notes" maxlength="500" rows="3" placeholder="僅教練可見的內部備註"></textarea>
-          </div>
         </div>
       </div>
       <div class="modal-actions">
         <button class="outline-btn" onclick="App.closeModal()">取消</button>
-        <button class="primary-btn" id="edu-student-save-btn" onclick="App.handleSaveEduStudent()">新增學員</button>
+        <button class="primary-btn" id="edu-student-save-btn" onclick="App.handleSaveEduStudent()">儲存</button>
+      </div>
+    </div>
+
+    <!-- MODAL: Assign Student to Group (指派學員到分組) -->
+    <div class="modal" id="edu-assign-student-modal">
+      <div class="modal-header">
+        <h3 id="edu-assign-modal-title">指派學員到分組</h3>
+        <button class="modal-close" onclick="App.closeModal()">✕</button>
+      </div>
+      <div class="modal-body">
+        <div id="edu-assign-student-list"></div>
       </div>
     </div>

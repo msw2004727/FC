@@ -389,6 +389,18 @@
   padding: .5rem;
 }
 
+/* ── Assign Student Row ── */
+.edu-assign-row {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  padding: .5rem .6rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius, 8px);
+  margin-bottom: .4rem;
+  background: var(--bg-card);
+}
+
 /* ── View Toggle ── */
 .edu-view-btn.active {
   background: var(--primary);

@@ -26,9 +26,12 @@ Object.assign(App, {
     return this._eduCoursePlansCache[teamId] || [];
   },
 
-  async renderEduCoursePlanList(teamId) {
+  async renderEduCoursePlanList(teamId, isStaff) {
     const container = document.getElementById('edu-course-plan-list');
     if (!container) return;
+
+    // 若未傳入 isStaff，自動判斷
+    if (isStaff === undefined) isStaff = this.isEduClubStaff(teamId);
 
     const plans = await this._loadEduCoursePlans(teamId);
     const activePlans = plans.filter(p => p.active !== false);
@@ -50,6 +53,13 @@ Object.assign(App, {
         scheduleInfo = '共 ' + (p.totalSessions || 0) + ' 堂';
       }
 
+      const actionsHtml = isStaff
+        ? '<div class="edu-course-actions">'
+          + '<button class="outline-btn" style="font-size:.72rem;padding:.2rem .5rem" onclick="App.showEduCoursePlanForm(\'' + teamId + '\',\'' + p.id + '\')">編輯</button>'
+          + '<button class="outline-btn" style="font-size:.72rem;padding:.2rem .5rem;color:var(--danger)" onclick="App.deleteEduCoursePlan(\'' + teamId + '\',\'' + p.id + '\')">刪除</button>'
+          + '</div>'
+        : '';
+
       return '<div class="edu-course-card">' +
         '<div class="edu-course-header">' +
           '<span class="edu-course-name">' + escapeHTML(p.name) + '</span>' +
@@ -57,10 +67,7 @@ Object.assign(App, {
         '</div>' +
         '<div class="edu-course-group">分組：' + escapeHTML(p.groupName || '未指定') + '</div>' +
         '<div class="edu-course-schedule">' + scheduleInfo + '</div>' +
-        '<div class="edu-course-actions">' +
-          '<button class="outline-btn" style="font-size:.72rem;padding:.2rem .5rem" onclick="App.showEduCoursePlanForm(\'' + teamId + '\',\'' + p.id + '\')">編輯</button>' +
-          '<button class="outline-btn" style="font-size:.72rem;padding:.2rem .5rem;color:var(--danger)" onclick="App.deleteEduCoursePlan(\'' + teamId + '\',\'' + p.id + '\')">刪除</button>' +
-        '</div>' +
+        actionsHtml +
       '</div>';
     }).join('');
   },
