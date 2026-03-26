@@ -63,12 +63,9 @@ Object.assign(App, {
     const clampPosition = () => {
       const sW = state.imgW * state.scale;
       const sH = state.imgH * state.scale;
-      // Keep image within viewport bounds (don't drag fully out of view)
-      state.tx = Math.max(vpW - sW, Math.min(0, state.tx));
-      state.ty = Math.max(vpH - sH, Math.min(0, state.ty));
-      // If image smaller than viewport on an axis, center it
-      if (sW < vpW) state.tx = Math.round((vpW - sW) / 2);
-      if (sH < vpH) state.ty = Math.round((vpH - sH) / 2);
+      // Image must cover viewport: tx <= 0, tx >= vpW - sW
+      state.tx = Math.min(0, Math.max(vpW - sW, state.tx));
+      state.ty = Math.min(0, Math.max(vpH - sH, state.ty));
     };
 
     // Wait for image to load to compute fit scale
@@ -76,8 +73,8 @@ Object.assign(App, {
     imgEl.onload = () => {
       state.imgW = imgEl.width;
       state.imgH = imgEl.height;
-      // Contain: show full image, allow empty space (filled by theme bg)
-      const fitScale = Math.min(vpW / imgEl.width, vpH / imgEl.height);
+      // Fit: ensure image covers viewport at scale=1
+      const fitScale = Math.max(vpW / imgEl.width, vpH / imgEl.height);
       state.imgW = Math.round(imgEl.width * fitScale);
       state.imgH = Math.round(imgEl.height * fitScale);
       img.style.width = state.imgW + 'px';
@@ -225,11 +222,6 @@ Object.assign(App, {
     canvas.width = outputW;
     canvas.height = outputH;
     const ctx = canvas.getContext('2d');
-
-    // Fill background with theme color (for areas not covered by image)
-    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-    ctx.fillStyle = isDark ? '#181d27' : '#f0f2f5';
-    ctx.fillRect(0, 0, outputW, outputH);
 
     // Map viewport coords to canvas coords
     const ratioX = outputW / vpW;

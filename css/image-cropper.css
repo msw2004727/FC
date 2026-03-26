@@ -21,7 +21,7 @@
   overflow: hidden;
   border: 2px solid rgba(255, 255, 255, 0.5);
   border-radius: var(--radius-sm, 8px);
-  background: var(--bg-card, #181d27);
+  background: #111;
   max-width: 90vw;
   max-height: 65vh;
   touch-action: none;
