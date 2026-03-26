@@ -266,6 +266,8 @@ const ApiService = {
         App.showToast('操作失敗：權限不足，請重新登入或聯繫管理員');
       } else if (msg.includes('assertion') || msg.includes('internal')) {
         App.showToast('系統異常，請關閉所有分頁後重新開啟');
+      } else if (msg.includes('尚未準備就緒')) {
+        App.showToast('連線尚未就緒，請稍後再試');
       }
     }
   },

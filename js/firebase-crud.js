@@ -293,6 +293,10 @@ Object.assign(FirebaseService, {
   async updateEvent(id, updates) {
     const doc = this._cache.events.find(e => e.id === id);
     if (!doc || !doc._docId) return null;
+    if (typeof db === 'undefined' || !db) {
+      console.error('[updateEvent] db 尚未初始化');
+      throw new Error('Firebase 尚未準備就緒，請稍後再試');
+    }
     if (updates.image && typeof updates.image === 'string' && updates.image.startsWith('data:')) {
       const uploadedUrl = await this._uploadImage(updates.image, `events/${id}`);
       if (uploadedUrl) updates.image = uploadedUrl;
