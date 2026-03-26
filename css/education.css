@@ -423,6 +423,10 @@
   background: #451a03;
   color: #fbbf24;
 }
+[data-theme="dark"] .edu-status-active {
+  background: #064e3b;
+  color: #6ee7b7;
+}
 [data-theme="dark"] .edu-course-type {
   background: #1e3a5f;
   color: #93c5fd;

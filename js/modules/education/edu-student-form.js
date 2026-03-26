@@ -200,9 +200,14 @@ Object.assign(App, {
    * 將學員指派到指定分組
    */
   async _assignStudentToGroup(teamId, studentId, groupId) {
+    // 防連點：先停用該按鈕
+    const row = document.getElementById('edu-assign-row-' + studentId);
+    const btn = row && row.querySelector('button');
+    if (btn) { btn.disabled = true; btn.textContent = '處理中…'; }
+
     const students = this.getEduStudents(teamId);
     const student = students.find(s => s.id === studentId);
-    if (!student) { this.showToast('找不到學員'); return; }
+    if (!student) { this.showToast('找不到學員'); if (btn) { btn.disabled = false; btn.textContent = '加入'; } return; }
 
     const groups = this.getEduGroups(teamId);
     const group = groups.find(g => g.id === groupId);
@@ -233,10 +238,11 @@ Object.assign(App, {
       }
 
       this._updateGroupMemberCounts(teamId);
-      this.showToast(escapeHTML(student.name) + ' 已加入分組');
+      this.showToast(student.name + ' 已加入分組');
     } catch (err) {
       console.error('[_assignStudentToGroup]', err);
       this.showToast('操作失敗：' + (err.message || '請稍後再試'));
+      if (btn) { btn.disabled = false; btn.textContent = '加入'; }
     }
   },
 

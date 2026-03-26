@@ -6,8 +6,10 @@
 
 Object.assign(App, {
 
+  _eduApplySubmitting: false,
+
   /**
-   * 顯示學員申請頁面（家長或獨立帳號）
+   * 顯示學員申請頁面（本人或代理）
    */
   async showEduStudentApply(teamId) {
     await this.showPage('page-edu-student-apply');
@@ -27,6 +29,8 @@ Object.assign(App, {
    * 提交學員申請
    */
   async handleEduStudentApply() {
+    if (this._eduApplySubmitting) return;
+
     const teamId = document.getElementById('edu-apply-team-id').value;
     const name = document.getElementById('edu-apply-name').value.trim();
     const birthday = document.getElementById('edu-apply-birthday').value.trim();
@@ -50,12 +54,11 @@ Object.assign(App, {
       return;
     }
 
-    // ★ 重複申請檢查：同 uid + 同學員姓名不可重複
+    // ★ 重複申請檢查：同 uid（不分身份類型）+ 同學員姓名不可重複
     const existingStudents = await this._loadEduStudents(teamId);
-    const uidField = relation === 'parent' ? 'parentUid' : 'selfUid';
     const duplicate = existingStudents.find(s =>
       s.enrollStatus !== 'inactive' &&
-      s[uidField] === curUser.uid &&
+      (s.parentUid === curUser.uid || s.selfUid === curUser.uid) &&
       s.name.trim() === name
     );
     if (duplicate) {
@@ -63,6 +66,8 @@ Object.assign(App, {
       this.showToast('「' + name + '」已申請過此俱樂部（' + statusText + '）');
       return;
     }
+
+    this._eduApplySubmitting = true;
 
     // 建立待審核學員
     const studentData = {
@@ -97,6 +102,11 @@ Object.assign(App, {
     try {
       await FirebaseService.createEduStudent(teamId, studentData);
 
+      // ★ 同步更新本地快取，避免重複提交
+      const cached = this._eduStudentsCache[teamId];
+      if (cached) cached.push(studentData);
+      else this._eduStudentsCache[teamId] = [studentData];
+
       // 通知俱樂部幹部
       const staffUids = this._getTeamStaffUids(team);
       staffUids.forEach(staffUid => {
@@ -118,6 +128,8 @@ Object.assign(App, {
     } catch (err) {
       console.error('[handleEduStudentApply]', err);
       this.showToast('申請失敗：' + (err.message || '請稍後再試'));
+    } finally {
+      this._eduApplySubmitting = false;
     }
   },
 
