@@ -410,13 +410,40 @@
 .edu-checkin-form {
   padding: .5rem;
 }
-.edu-checkin-list {
-  border: 1px solid var(--border);
-  border-radius: var(--radius, 8px);
-  padding: .5rem;
-  margin-top: .3rem;
-  max-height: 60vh;
-  overflow-y: auto;
+.edu-ci-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: .82rem;
+  margin-top: .5rem;
+}
+.edu-ci-table thead {
+  background: var(--bg-elevated);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+.edu-ci-table th {
+  padding: .4rem .3rem;
+  font-weight: 600;
+  font-size: .75rem;
+  color: var(--text-muted);
+  text-align: left;
+  border-bottom: 2px solid var(--border);
+}
+.edu-ci-table td {
+  padding: .4rem .3rem;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+.edu-ci-th-check, .edu-ci-td-check { width: 2rem; text-align: center; }
+.edu-ci-th-name, .edu-ci-td-name { }
+.edu-ci-th-group, .edu-ci-td-group { font-size: .72rem; color: var(--text-secondary); }
+.edu-ci-th-status, .edu-ci-td-status { width: 4.5rem; text-align: center; }
+.edu-ci-row-done { opacity: .55; }
+.edu-ci-done-badge {
+  font-size: .68rem;
+  color: var(--success, #10b981);
+  font-weight: 600;
 }
 
 /* ── Scan ── */
