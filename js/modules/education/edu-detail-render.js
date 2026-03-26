@@ -209,9 +209,10 @@ Object.assign(App, {
             FirebaseService._cache.teams = [...freshTeams, ...inactiveTeams];
             FirebaseService._debouncedPersistCache();
             if (this.currentPage === 'page-teams') {
-              this.renderTeamList();
-              // 背景載入教育俱樂部學員數（尚未快取的）
-              this._loadEduStudentCountsForList(freshTeams);
+              // 先載入學員數，載完再渲染
+              this._loadEduStudentCountsForList(freshTeams).then(() => {
+                if (this.currentPage === 'page-teams') this.renderTeamList();
+              });
             }
           },
           err => { console.error('[edu-realtime] teams listener error:', err); }
@@ -224,7 +225,7 @@ Object.assign(App, {
    * 載入後重繪列表以更新人數
    */
   async _loadEduStudentCountsForList(teams) {
-    const eduTeams = teams.filter(t => t.type === 'education' && !this._eduStudentsCache[t.id]);
+    const eduTeams = teams.filter(t => t.type === 'education');
     if (!eduTeams.length) return;
     let changed = false;
     for (const t of eduTeams) {
