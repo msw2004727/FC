@@ -40,26 +40,16 @@ Object.assign(App, {
     // ── 學員分組卡 ──
     const groupSection = '<div class="td-card">'
       + '<div class="td-card-title td-card-title-row">'
-      + '<span>學員分組</span>'
-      + '<button class="edu-info-btn" onclick="App._showEduInfoPopup(\'group\')" title="說明">?</button>'
+      + '<span>學員分組<button class="edu-info-btn" onclick="App._showEduInfoPopup(\'group\')" title="說明">?</button></span>'
       + (isStaff ? '<button class="primary-btn small" onclick="App.showEduGroupForm(\'' + teamId + '\')">＋ 新增</button>' : '')
       + '</div>'
       + '<div id="edu-group-list"></div>'
       + '</div>';
 
-    // ── 簽到入口（幹部專用）──
-    const checkinSection = isStaff ? '<div class="td-card">'
-      + '<div class="td-card-title">簽到</div>'
-      + '<div style="display:flex;gap:.5rem;flex-wrap:wrap">'
-      + '<button class="primary-btn" onclick="App.showEduCheckin(\'' + teamId + '\')">批次簽到</button>'
-      + '<button class="outline-btn" onclick="App.showEduCheckinScan(\'' + teamId + '\')">掃碼簽到</button>'
-      + '</div></div>' : '';
-
     // ── 課程方案（所有人可見，幹部可編輯）──
     const courseSection = '<div class="td-card">'
       + '<div class="td-card-title td-card-title-row">'
-      + '<span>課程方案</span>'
-      + '<button class="edu-info-btn" onclick="App._showEduInfoPopup(\'course\')" title="說明">?</button>'
+      + '<span>課程方案<button class="edu-info-btn" onclick="App._showEduInfoPopup(\'course\')" title="說明">?</button></span>'
       + (isStaff ? '<button class="primary-btn small" onclick="App.showEduCoursePlanForm(\'' + teamId + '\')">＋ 新增</button>' : '')
       + '</div>'
       + '<div id="edu-course-plan-list"></div>'
@@ -68,7 +58,7 @@ Object.assign(App, {
     // ── 學員狀態區塊（即時渲染目標）──
     const memberSection = '<div id="edu-member-section"></div>';
 
-    bodyEl.innerHTML = infoCard + bioCard + groupSection + courseSection + checkinSection + memberSection;
+    bodyEl.innerHTML = infoCard + bioCard + groupSection + courseSection + memberSection;
 
     // ★ Phase 1：用快取立即渲染（可能為空或舊資料）
     this._renderEduMemberSection(teamId);
@@ -110,8 +100,7 @@ Object.assign(App, {
 
     let html = '<div class="td-card">'
       + '<div class="td-card-title td-card-title-row">'
-      + '<span>我已報名的學員</span>'
-      + '<button class="edu-info-btn" onclick="App._showEduInfoPopup(\'member\')" title="說明">?</button>'
+      + '<span>我已報名的學員<button class="edu-info-btn" onclick="App._showEduInfoPopup(\'member\')" title="說明">?</button></span>'
       + '</div>';
 
     html += myStudents.map(s => {

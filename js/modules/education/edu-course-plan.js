@@ -48,40 +48,41 @@ Object.assign(App, {
     container.innerHTML = activePlans.map(p => {
       const typeLabel = p.planType === 'weekly' ? '固定週期' : '堂數制';
       const typeClass = p.planType === 'weekly' ? 'edu-course-type-weekly' : 'edu-course-type-session';
-
-      // 摘要資訊
-      let summaryParts = [];
-      if (p.planType === 'session') summaryParts.push((p.totalSessions || 0) + '堂');
-      if (p.planType === 'weekly') {
-        const wdNames = (p.weekdays || []).map(d => '週' + this._weekdayLabel(d)).join('、');
-        summaryParts.push(wdNames + (p.timeSlot ? ' ' + escapeHTML(p.timeSlot) : ''));
-      }
-      if (p.price) summaryParts.push('$' + p.price.toLocaleString());
-      const countLabel = (p.currentCount || 0) + (p.maxCapacity ? '/' + p.maxCapacity : '') + ' 人';
-      summaryParts.push(countLabel);
-
       const statusBadge = p.allowSignup
         ? '<span class="edu-cp-status edu-cp-status-open">招生中</span>'
         : '<span class="edu-cp-status edu-cp-status-closed">未開放</span>';
 
-      // 日期範圍（weekly 才有）
-      const dateRange = p.planType === 'weekly' && p.startDate
-        ? '<div class="edu-cp-date">' + escapeHTML(p.startDate) + ' ~ ' + escapeHTML(p.endDate || '') + '</div>'
+      // 封面圖（正方形，右側）
+      const coverImg = p.coverImage
+        ? '<div class="edu-cp-cover"><img src="' + escapeHTML(p.coverImage) + '" alt=""></div>'
         : '';
 
-      // 職員操作列
-      let staffActions = '';
-      if (isStaff) {
-        staffActions = '<div class="edu-cp-actions">'
-          + '<button class="primary-btn small" onclick="App.showCourseEnrollmentList(\'' + teamId + '\',\'' + p.id + '\')">查看名單</button>'
-          + '<button class="primary-btn small" onclick="App.showEduCheckin(\'' + teamId + '\',\'' + p.id + '\')">批次簽到</button>'
-          + '<button class="outline-btn small" onclick="App.showEduCheckinScan(\'' + teamId + '\')">掃碼簽到</button>'
-          + '</div>'
-          + '<div class="edu-cp-manage">'
-          + '<button class="text-btn" style="font-size:.72rem" onclick="App.showEduCoursePlanForm(\'' + teamId + '\',\'' + p.id + '\')">編輯</button>'
-          + '<button class="text-btn" style="font-size:.72rem;color:var(--danger)" onclick="App.deleteEduCoursePlan(\'' + teamId + '\',\'' + p.id + '\')">刪除</button>'
-          + '</div>';
+      // 資訊 grid（類似活動詳情的統計卡片風格）
+      const infoItems = [];
+      if (p.planType === 'session') {
+        infoItems.push({ label: '堂數', value: (p.totalSessions || 0) + '堂' });
+      } else {
+        const wdNames = (p.weekdays || []).map(d => '週' + this._weekdayLabel(d)).join('、');
+        infoItems.push({ label: '上課日', value: wdNames });
+        if (p.timeSlot) infoItems.push({ label: '時段', value: escapeHTML(p.timeSlot) });
       }
+      if (p.price) infoItems.push({ label: '費用', value: '$' + p.price.toLocaleString() });
+      infoItems.push({ label: '人數', value: (p.currentCount || 0) + (p.maxCapacity ? '/' + p.maxCapacity : '') + ' 人' });
+      if (p.planType === 'weekly' && p.startDate) {
+        infoItems.push({ label: '期間', value: escapeHTML(p.startDate) + ' ~ ' + escapeHTML(p.endDate || '') });
+      }
+
+      const infoGrid = '<div class="edu-cp-info-grid">'
+        + infoItems.map(item => '<div class="edu-cp-info-item"><div class="edu-cp-info-value">' + item.value + '</div><div class="edu-cp-info-label">' + item.label + '</div></div>').join('')
+        + '</div>';
+
+      // 職員管理按鈕（左對齊，與學員分組一致）
+      const manageHtml = isStaff
+        ? '<div class="edu-cp-manage-left">'
+          + '<button class="outline-btn" style="font-size:.72rem;padding:.2rem .5rem" onclick="event.stopPropagation();App.showEduCoursePlanForm(\'' + teamId + '\',\'' + p.id + '\')">編輯</button>'
+          + '<button class="outline-btn" style="font-size:.72rem;padding:.2rem .5rem;color:var(--danger)" onclick="event.stopPropagation();App.deleteEduCoursePlan(\'' + teamId + '\',\'' + p.id + '\')">刪除</button>'
+          + '</div>'
+        : '';
 
       // 學員報名按鈕
       let signupBtn = '';
@@ -93,21 +94,30 @@ Object.assign(App, {
           const sClass = myEnrollment.status === 'approved' ? 'edu-cp-enrolled-ok' : 'edu-cp-enrolled-pending';
           signupBtn = '<div class="edu-cp-signup-status ' + sClass + '">' + sLabel + '</div>';
         } else if (isFull) {
-          signupBtn = '<button class="primary-btn" style="width:100%;opacity:.5" disabled>已額滿</button>';
+          signupBtn = '<div class="edu-cp-signup-status" style="color:var(--text-muted)">已額滿</div>';
         } else {
-          signupBtn = '<button class="primary-btn" style="width:100%" onclick="App.applyCourseEnrollment(\'' + teamId + '\',\'' + p.id + '\')">我要報名</button>';
+          signupBtn = '<button class="primary-btn" style="width:100%;margin-top:.4rem" onclick="event.stopPropagation();App.applyCourseEnrollment(\'' + teamId + '\',\'' + p.id + '\')">我要報名</button>';
         }
       }
 
-      return '<div class="edu-course-card edu-cp-card-v2">'
+      // 整張卡片可點擊進入名單（Fix 3）
+      const clickAction = isStaff
+        ? ' onclick="App.showCourseEnrollmentList(\'' + teamId + '\',\'' + p.id + '\')"'
+        : '';
+
+      return '<div class="edu-course-card edu-cp-card-v2"' + clickAction + '>'
+        + '<div class="edu-cp-body">'
+        + '<div class="edu-cp-left">'
         + '<div class="edu-cp-top">'
         + '<span class="edu-course-name">' + escapeHTML(p.name) + '</span>'
         + '<span class="edu-course-type ' + typeClass + '">' + typeLabel + '</span>'
         + statusBadge
         + '</div>'
-        + '<div class="edu-cp-summary">' + summaryParts.join(' ｜ ') + '</div>'
-        + dateRange
-        + staffActions
+        + infoGrid
+        + '</div>'
+        + coverImg
+        + '</div>'
+        + manageHtml
         + signupBtn
         + '</div>';
     }).join('');
@@ -134,10 +144,23 @@ Object.assign(App, {
     const isWeekly = plan ? plan.planType === 'weekly' : true;
 
     container.innerHTML = '<div class="ce-form" style="padding:.5rem">' +
+      // Fix 5: 開放報名開關最頂置左
+      '<div class="ce-row" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.8rem">' +
+        '<div><label style="margin:0;font-weight:700">開放學員報名</label><div style="font-size:.72rem;color:var(--text-muted);margin-top:.15rem">開啟後學員可在俱樂部頁面自助報名此方案</div></div>' +
+        '<label class="toggle-switch"><input type="checkbox" id="edu-cp-signup"' + (plan && plan.allowSignup ? ' checked' : '') + '><span class="toggle-slider"></span></label>' +
+      '</div>' +
       '<div class="ce-row"><label>方案名稱 <span class="required">*必填</span></label>' +
         '<input type="text" id="edu-cp-name" maxlength="30" placeholder="例：2026 春季班" value="' + escapeHTML(plan ? plan.name : '') + '"></div>' +
+      // Fix 4: 封面圖片
+      '<div class="ce-row"><label>封面圖片</label>' +
+        '<div style="display:flex;align-items:center;gap:.5rem">' +
+        '<div id="edu-cp-cover-preview" style="width:80px;height:80px;border-radius:var(--radius);border:1px dashed var(--border);overflow:hidden;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:var(--bg-base)">' +
+          (plan && plan.coverImage ? '<img src="' + escapeHTML(plan.coverImage) + '" style="width:100%;height:100%;object-fit:cover">' : '<span style="font-size:.72rem;color:var(--text-muted)">無封面</span>') +
+        '</div>' +
+        '<input type="file" id="edu-cp-cover-input" accept="image/*" style="font-size:.78rem" onchange="App._onEduCpCoverChange(this)">' +
+        '</div></div>' +
       '<div class="ce-row"><label>對應分組</label>' +
-        '<select id="edu-cp-group">' + groupOptions + '</select></div>' +
+        '<select id="edu-cp-group"><option value="">不綁定分組</option>' + groupOptions + '</select></div>' +
       '<div class="ce-row"><label>方案類型</label>' +
         '<select id="edu-cp-type" onchange="App._toggleCoursePlanType(this.value)">' +
           '<option value="weekly"' + (isWeekly ? ' selected' : '') + '>固定週期</option>' +
@@ -167,10 +190,6 @@ Object.assign(App, {
         '<div class="ce-row"><label>總堂數</label><input type="number" id="edu-cp-total" min="1" max="999" value="' + (plan && plan.totalSessions || '') + '"></div>' +
       '</div>' +
       '<hr style="border:none;border-top:1px solid var(--border);margin:.8rem 0">' +
-      '<div class="ce-row" style="display:flex;align-items:center;justify-content:space-between">' +
-        '<div><label style="margin:0">開放學員報名</label><div style="font-size:.72rem;color:var(--text-muted);margin-top:.15rem">開啟後學員可在俱樂部頁面自助報名此方案</div></div>' +
-        '<label class="toggle-switch"><input type="checkbox" id="edu-cp-signup"' + (plan && plan.allowSignup ? ' checked' : '') + '><span class="toggle-slider"></span></label>' +
-      '</div>' +
       '<div class="ce-row"><label>容納上限</label><input type="number" id="edu-cp-capacity" min="1" max="999" placeholder="不填則不限人數" value="' + (plan && plan.maxCapacity || '') + '">' +
         '<div style="font-size:.72rem;color:var(--text-muted);margin-top:.15rem">不填則不限制報名人數</div></div>' +
       '<div class="ce-row"><label>費用（元）</label><input type="number" id="edu-cp-price" min="0" placeholder="選填，僅供顯示" value="' + (plan && plan.price || '') + '">' +
@@ -180,6 +199,35 @@ Object.assign(App, {
         '<button class="primary-btn" id="edu-cp-save-btn" onclick="App.handleSaveEduCoursePlan()">' + (planId ? '儲存變更' : '建立方案') + '</button>' +
       '</div>' +
     '</div>';
+  },
+
+  _eduCpCoverDataUrl: null,
+
+  _onEduCpCoverChange(input) {
+    const file = input.files && input.files[0];
+    if (!file) return;
+    if (typeof this.showImageCropper === 'function') {
+      const reader = new FileReader();
+      reader.onload = () => {
+        this.showImageCropper(reader.result, {
+          aspectRatio: 1,
+          onConfirm: (croppedDataUrl) => {
+            this._eduCpCoverDataUrl = croppedDataUrl;
+            const preview = document.getElementById('edu-cp-cover-preview');
+            if (preview) preview.innerHTML = '<img src="' + croppedDataUrl + '" style="width:100%;height:100%;object-fit:cover">';
+          }
+        });
+      };
+      reader.readAsDataURL(file);
+    } else {
+      const reader = new FileReader();
+      reader.onload = () => {
+        this._eduCpCoverDataUrl = reader.result;
+        const preview = document.getElementById('edu-cp-cover-preview');
+        if (preview) preview.innerHTML = '<img src="' + reader.result + '" style="width:100%;height:100%;object-fit:cover">';
+      };
+      reader.readAsDataURL(file);
+    }
   },
 
   _toggleWeekdayCell(cell) {
@@ -215,10 +263,11 @@ Object.assign(App, {
   },
 
   async handleSaveEduCoursePlan() {
+    const _btnState = this._setEduBtnLoading('#edu-cp-save-btn');
     const teamId = this._eduCoursePlanEditTeamId;
     const planId = this._eduCoursePlanEditId;
     const name = document.getElementById('edu-cp-name').value.trim();
-    if (!name) { this.showToast('請輸入方案名稱'); return; }
+    if (!name) { _btnState.restore(); this.showToast('請輸入方案名稱'); return; }
 
     const groupSelect = document.getElementById('edu-cp-group');
     const groupId = groupSelect ? groupSelect.value : '';
@@ -249,16 +298,22 @@ Object.assign(App, {
       data.endDate = document.getElementById('edu-cp-end').value || '';
       data.timeSlot = document.getElementById('edu-cp-timeslot').value.trim();
       data.totalSessions = null;
-      if (!data.weekdays.length) { this.showToast('請選擇上課日'); return; }
-      if (!data.startDate || !data.endDate) { this.showToast('請設定開始和結束日期'); return; }
+      if (!data.weekdays.length) { _btnState.restore(); this.showToast('請選擇上課日'); return; }
+      if (!data.startDate || !data.endDate) { _btnState.restore(); this.showToast('請設定開始和結束日期'); return; }
     } else {
       const total = parseInt(document.getElementById('edu-cp-total').value, 10);
-      if (!total || total < 1) { this.showToast('請輸入有效堂數'); return; }
+      if (!total || total < 1) { _btnState.restore(); this.showToast('請輸入有效堂數'); return; }
       data.totalSessions = total;
       data.weekdays = null;
       data.startDate = null;
       data.endDate = null;
       data.timeSlot = null;
+    }
+
+    // 封面圖片上傳
+    if (this._eduCpCoverDataUrl) {
+      data.coverImage = this._eduCpCoverDataUrl;
+      this._eduCpCoverDataUrl = null;
     }
 
     try {
@@ -272,6 +327,7 @@ Object.assign(App, {
         this.showToast('課程方案已更新');
       } else {
         data.id = this._generateEduId('cp');
+        data.currentCount = 0;
         const result = await FirebaseService.createEduCoursePlan(teamId, data);
         const cached = this._eduCoursePlansCache[teamId];
         if (cached) cached.push(result);
@@ -282,11 +338,14 @@ Object.assign(App, {
     } catch (err) {
       console.error('[handleSaveEduCoursePlan]', err);
       this.showToast('儲存失敗：' + (err.message || '請稍後再試'));
+    } finally {
+      _btnState.restore();
     }
   },
 
   async deleteEduCoursePlan(teamId, planId) {
-    if (!(await this.appConfirm('確定要刪除此課程方案？'))) return;
+    const confirmText = prompt('此操作無法復原。請輸入「我確定刪除」以確認刪除：');
+    if (confirmText !== '我確定刪除') { if (confirmText !== null) this.showToast('輸入不正確，取消刪除'); return; }
     try {
       await FirebaseService.deleteEduCoursePlan(teamId, planId);
       const cached = this._eduCoursePlansCache[teamId];

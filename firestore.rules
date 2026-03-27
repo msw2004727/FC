@@ -668,10 +668,10 @@ service cloud.firestore {
       }
 
       // ── Education: Course Plans（課程方案）──
-      // 公開可讀；俱樂部幹部可 CUD
+      // 公開可讀；俱樂部幹部或管理員可 CUD
       match /coursePlans/{planId} {
         allow read: if true;
-        allow create, update, delete: if isCurrentUserTeamCaptainOrLeader(teamId);
+        allow create, update, delete: if isCurrentUserTeamCaptainOrLeader(teamId) || isAdmin();
 
         // ── 課程方案報名（學員可建立，幹部可讀/更新）──
         match /enrollments/{enrollId} {

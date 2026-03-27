@@ -30,16 +30,21 @@
 .edu-info-dialog-body b { color: var(--text-primary); }
 
 /* ── Course Plan Card v2 ── */
-.edu-cp-card-v2 { padding: .7rem .85rem; }
-.edu-cp-top { display: flex; align-items: center; gap: .4rem; flex-wrap: wrap; margin-bottom: .3rem; }
-.edu-cp-summary { font-size: .88rem; color: var(--text-secondary); margin-bottom: .2rem; font-weight: 500; }
-.edu-cp-date { font-size: .72rem; color: var(--text-muted); margin-bottom: .4rem; }
+.edu-cp-card-v2 { padding: .7rem .85rem; cursor: pointer; transition: border-color .15s; }
+.edu-cp-card-v2:hover { border-color: var(--accent); }
+.edu-cp-body { display: flex; gap: .7rem; }
+.edu-cp-left { flex: 1; min-width: 0; }
+.edu-cp-cover { width: 80px; height: 80px; border-radius: var(--radius); overflow: hidden; flex-shrink: 0; background: var(--bg-base); }
+.edu-cp-cover img { width: 100%; height: 100%; object-fit: cover; }
+.edu-cp-top { display: flex; align-items: center; gap: .4rem; flex-wrap: wrap; margin-bottom: .35rem; }
 .edu-cp-status { font-size: .65rem; padding: .1rem .4rem; border-radius: var(--radius-full); font-weight: 600; }
 .edu-cp-status-open { background: rgba(16,185,129,.15); color: #10b981; }
 .edu-cp-status-closed { background: rgba(148,163,184,.15); color: #94a3b8; }
-.edu-cp-actions { display: flex; gap: .4rem; flex-wrap: wrap; margin-top: .4rem; }
-.edu-cp-actions .primary-btn, .edu-cp-actions .outline-btn { font-size: .78rem; padding: .3rem .7rem; }
-.edu-cp-manage { display: flex; justify-content: flex-end; gap: .5rem; margin-top: .3rem; }
+.edu-cp-info-grid { display: flex; flex-wrap: wrap; gap: .1rem .6rem; }
+.edu-cp-info-item { text-align: center; min-width: 50px; }
+.edu-cp-info-value { font-size: .88rem; font-weight: 700; color: var(--text-primary); line-height: 1.3; }
+.edu-cp-info-label { font-size: .65rem; color: var(--text-muted); }
+.edu-cp-manage-left { display: flex; gap: .5rem; margin-top: .4rem; }
 .edu-cp-enrolled-pending { text-align: center; padding: .4rem; font-size: .82rem; color: var(--warning); font-weight: 600; }
 .edu-cp-enrolled-ok { text-align: center; padding: .4rem; font-size: .82rem; color: var(--success); font-weight: 600; }
 .edu-cp-signup-status { text-align: center; margin-top: .4rem; }
