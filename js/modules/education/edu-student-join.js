@@ -181,15 +181,18 @@ Object.assign(App, {
 
       // 教學俱樂部不發站內信（職員在分組內直接審核）
       this.showToast('申請已送出，請等待教練審核');
-      // 返回並即時刷新學員列表
       this.goBack();
-      if (this._eduCurrentTeamId) {
-        const gid = this._eduCurrentGroupId;
-        if (gid) {
-          this.renderEduStudentList?.(this._eduCurrentTeamId, gid);
-        } else {
-          this.renderEduGroupList?.(this._eduCurrentTeamId);
+      // 立即重繪：根據返回目標頁面決定要刷新什麼
+      // goBack 回到 team-detail → 重繪教育區塊（我的學員 + 分組列表）
+      if (this._eduDetailTeamId) {
+        this._renderEduMemberSection?.(this._eduDetailTeamId);
+        if (document.getElementById('edu-group-list')) {
+          this.renderEduGroupList?.(this._eduDetailTeamId);
         }
+      }
+      // goBack 回到 edu-students → 重繪分組學員列表
+      if (this._eduCurrentTeamId && this._eduCurrentGroupId) {
+        this.renderEduStudentList?.(this._eduCurrentTeamId, this._eduCurrentGroupId);
       }
     } catch (err) {
       console.error('[handleEduStudentApply]', err);

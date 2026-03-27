@@ -337,7 +337,8 @@
 // 20260327i: 教育學員頁即時刷新（提交後 + 導航回頁時重繪）
 // 20260327j: 修正學員申請後 listener 被停止 + team-detail 返回時重繪教育區塊
 // 20260327k: 修正非教育俱樂部 team-detail 頁觸發 TEAM_DOC_NOT_FOUND 報錯
-const CACHE_VERSION = '20260327k';
+// 20260327l: 學員申請後立即重繪 team-detail 教育區塊（用 _eduDetailTeamId）
+const CACHE_VERSION = '20260327l';
 
 // ─── 網路 / 設備偵測（用於 UI 降級）───
 const NetDevice = {
