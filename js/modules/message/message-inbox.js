@@ -12,10 +12,14 @@ Object.assign(App, {
 
   _msgInboxFilter: 'all',
 
-  // 判斷訊息對當前用戶是否未讀（per-user readBy 追蹤，向下相容舊 unread 欄位）
+  // Phase 3: per-user inbox — 未讀判斷（優先看 read 欄位，向下相容 readBy 和 unread）
   _isMessageUnread(msg) {
+    if (!msg) return false;
+    // inbox 文件有 read 欄位（per-user inbox 格式）
+    if (typeof msg.read === 'boolean') return !msg.read;
+    // 向下相容：舊格式用 readBy 陣列
     const myUid = ApiService.getCurrentUser()?.uid;
-    if (!myUid) return false; // 未登入 → 不顯示未讀
+    if (!myUid) return false;
     if (Array.isArray(msg.readBy)) return !msg.readBy.includes(myUid);
     return !!msg.unread;
   },

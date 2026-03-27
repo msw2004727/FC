@@ -331,7 +331,8 @@
 // 20260327c: 版本同步偵測 + UID正規化 + 競態防護 + 密碼雜湊 + LS配額強化
 // 20260327d: Level 1 i18n 安全範圍接線（profile 頁面 19 key + admin log tabs）
 // 20260327e: Phase 1 per-user inbox 雙寫（deliverToInbox CF + rules + 前端 CF wrapper）
-const CACHE_VERSION = '20260327e';
+// 20260327f: Phase 2-5 per-user inbox 完整遷移（切讀取路徑 + 停止舊寫入 + inbox listener）
+const CACHE_VERSION = '20260327f';
 
 // ─── 網路 / 設備偵測（用於 UI 降級）───
 const NetDevice = {

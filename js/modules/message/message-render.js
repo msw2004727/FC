@@ -8,7 +8,8 @@ Object.assign(App, {
   renderMessageList(filter) {
     const f = filter || this._msgInboxFilter || 'all';
     this._msgInboxFilter = f;
-    const allMessages = this._filterMyMessages(ApiService.getMessages());
+    // Phase 3: inbox 已是 per-user，不需 _filterMyMessages
+    const allMessages = ApiService.getMessages() || [];
     let messages = (f === 'all' ? allMessages : allMessages.filter(m => m.type === f))
       .sort((a, b) => (b.time || '').localeCompare(a.time || ''));
 
@@ -64,7 +65,8 @@ Object.assign(App, {
   },
 
   updateNotifBadge() {
-    const messages = this._filterMyMessages(ApiService.getMessages());
+    // Phase 3: inbox 已是 per-user，不需 _filterMyMessages
+    const messages = ApiService.getMessages() || [];
     const unreadCount = messages.filter(m => this._isMessageUnread(m)).length;
     const badge = document.getElementById('notif-badge');
     if (!badge) return;
@@ -76,7 +78,7 @@ Object.assign(App, {
     const bar = document.getElementById('storage-bar');
     if (!bar) return;
     const total = 50;
-    const used = this._filterMyMessages(ApiService.getMessages()).length;
+    const used = (ApiService.getMessages() || []).length;
     const remaining = Math.max(0, total - used);
     bar.innerHTML = `剩餘容量：<strong style="color:#111">${remaining}</strong>/${total}`;
   },
@@ -86,13 +88,13 @@ Object.assign(App, {
     const msg = messages.find(m => m.id === id);
     if (msg && this._isMessageUnread(msg)) {
       const myUid = ApiService.getCurrentUser()?.uid;
-      if (!Array.isArray(msg.readBy)) msg.readBy = [];
-      if (myUid && !msg.readBy.includes(myUid)) msg.readBy.push(myUid);
+      // Phase 3: 更新 per-user inbox 的 read 狀態
+      msg.read = true;
       msg.unread = false;
       if (!ModeManager.isDemo() && msg._docId && myUid) {
-        db.collection('messages').doc(msg._docId).update({
-          readBy: firebase.firestore.FieldValue.arrayUnion(myUid),
-          unread: false
+        db.collection('users').doc(myUid).collection('inbox').doc(msg._docId).update({
+          read: true,
+          readAt: firebase.firestore.FieldValue.serverTimestamp(),
         }).catch(err => console.error('[readMessage]', err));
       }
       el.classList.remove('msg-unread');

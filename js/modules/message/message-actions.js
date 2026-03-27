@@ -6,24 +6,21 @@
 
 Object.assign(App, {
 
+  // Phase 3: per-user inbox — 標記全部已讀
   markAllRead() {
-    const myMessages = this._filterMyMessages(ApiService.getMessages());
+    const myMessages = ApiService.getMessages() || [];
     const myUid = ApiService.getCurrentUser()?.uid;
     const unread = myMessages.filter(m => this._isMessageUnread(m));
     if (unread.length === 0) { this.showToast('沒有未讀訊息'); return; }
-    unread.forEach(m => {
-      if (!Array.isArray(m.readBy)) m.readBy = [];
-      if (myUid && !m.readBy.includes(myUid)) m.readBy.push(myUid);
-      m.unread = false;
-    });
+    unread.forEach(m => { m.read = true; m.unread = false; });
     if (!ModeManager.isDemo() && myUid) {
       const docsToUpdate = unread.filter(m => m._docId);
       if (docsToUpdate.length > 0) {
+        const fv = firebase.firestore.FieldValue;
         const batch = db.batch();
         docsToUpdate.forEach(m => {
-          batch.update(db.collection('messages').doc(m._docId), {
-            readBy: firebase.firestore.FieldValue.arrayUnion(myUid),
-            unread: false
+          batch.update(db.collection('users').doc(myUid).collection('inbox').doc(m._docId), {
+            read: true, readAt: fv.serverTimestamp(),
           });
         });
         batch.commit().catch(err => console.error('[markAllRead]', err));
@@ -34,42 +31,35 @@ Object.assign(App, {
     this.showToast(`已將 ${unread.length} 則訊息標為已讀`);
   },
 
+  // Phase 3: per-user inbox — 清空訊息（真刪除，審核訊息除外）
   async clearAllMessages() {
-    const myMessages = this._filterMyMessages(ApiService.getMessages());
+    const myMessages = ApiService.getMessages() || [];
     const myUid = ApiService.getCurrentUser()?.uid || null;
     if (!myMessages.length) { this.showToast('沒有訊息可清空'); return; }
-    if (!(await this.appConfirm(`確定要清空全部 ${myMessages.length} 則訊息？此操作無法恢復。`))) return;
+    // 過濾掉 pending 審核訊息（Rules 也會阻擋）
+    const deletable = myMessages.filter(m => !(m.actionType && m.actionStatus === 'pending'));
+    if (!(await this.appConfirm(`確定要清空 ${deletable.length} 則訊息？此操作無法恢復。`))) return;
     if (ModeManager.isDemo()) {
-      myMessages.forEach(m => {
+      deletable.forEach(m => {
         const idx = DemoData.messages.indexOf(m);
         if (idx >= 0) DemoData.messages.splice(idx, 1);
       });
     } else {
-      if (!myUid) {
-        this.showToast('Please login first');
-        return;
-      }
+      if (!myUid) { this.showToast('Please login first'); return; }
       try {
-        const toHide = myMessages.filter(m => m._docId);
-        const fv = firebase.firestore.FieldValue;
-        for (let i = 0; i < toHide.length; i += 450) {
-          const chunk = toHide.slice(i, i + 450);
+        const toDel = deletable.filter(m => m._docId);
+        for (let i = 0; i < toDel.length; i += 450) {
+          const chunk = toDel.slice(i, i + 450);
           const batch = db.batch();
           chunk.forEach(m => {
-            batch.update(db.collection('messages').doc(m._docId), {
-              hiddenBy: fv.arrayUnion(myUid),
-              readBy: fv.arrayUnion(myUid),
-              unread: false,
-            });
+            batch.delete(db.collection('users').doc(myUid).collection('inbox').doc(m._docId));
           });
           await batch.commit();
         }
-        myMessages.forEach(m => {
-          if (!Array.isArray(m.hiddenBy)) m.hiddenBy = [];
-          if (!m.hiddenBy.includes(myUid)) m.hiddenBy.push(myUid);
-          if (!Array.isArray(m.readBy)) m.readBy = [];
-          if (!m.readBy.includes(myUid)) m.readBy.push(myUid);
-          m.unread = false;
+        // 從本地快取移除已刪除的
+        deletable.forEach(m => {
+          const idx = (FirebaseService._cache.messages || []).indexOf(m);
+          if (idx >= 0) FirebaseService._cache.messages.splice(idx, 1);
         });
       } catch (err) {
         console.error('[clearAllMessages]', err);
@@ -86,26 +76,40 @@ Object.assign(App, {
     return String(msg?.meta?.messageGroupId || msg?.meta?.groupId || '').trim();
   },
 
+  // Phase 3: 更新自己 inbox + 呼叫 CF 同步其他幹部 inbox
   _syncTournamentMessageActionStatus(msgId, groupId, updates = {}, options = {}) {
     const { syncGroup = true } = options;
-    const messages = ApiService.getMessages();
+    const messages = ApiService.getMessages() || [];
     const safeGroupId = String(groupId || '').trim();
     const safeUpdates = { ...updates };
-    const applyUpdates = message => {
-      if (!message) return;
-      Object.assign(message, safeUpdates);
-      ApiService.updateMessage(message.id, safeUpdates);
-    };
 
-    applyUpdates(messages.find(message => message.id === msgId));
-    if (!syncGroup || !safeGroupId) return;
+    // 更新自己 inbox 裡的這則訊息
+    const myMsg = messages.find(message => message.id === msgId);
+    if (myMsg) {
+      Object.assign(myMsg, safeUpdates);
+      const myUid = ApiService.getCurrentUser()?.uid;
+      if (!ModeManager.isDemo() && myMsg._docId && myUid) {
+        db.collection('users').doc(myUid).collection('inbox').doc(myMsg._docId)
+          .update(safeUpdates).catch(err => console.error('[syncStatus:self]', err));
+      }
+    }
 
-    messages.forEach(message => {
-      if (message.id === msgId) return;
-      if (this._getTournamentMessageGroupId(message) !== safeGroupId) return;
-      if (String(message.actionStatus || '').trim().toLowerCase() !== 'pending') return;
-      applyUpdates(message);
-    });
+    // 呼叫 CF 同步其他幹部 inbox（跨用戶更新需 Admin SDK）
+    if (syncGroup && safeGroupId && !ModeManager.isDemo()) {
+      FirebaseService._syncGroupActionStatusCF?.(
+        safeGroupId, safeUpdates.actionStatus, safeUpdates.reviewerName
+      );
+    }
+
+    // 同步本地快取中同 groupId 的訊息（自己 inbox 內可能有多則）
+    if (syncGroup && safeGroupId) {
+      messages.forEach(message => {
+        if (message.id === msgId) return;
+        if (this._getTournamentMessageGroupId(message) !== safeGroupId) return;
+        if (String(message.actionStatus || '').trim().toLowerCase() !== 'pending') return;
+        Object.assign(message, safeUpdates);
+      });
+    }
   },
 
   async openFriendlyTournamentMessageReview(msgId) {

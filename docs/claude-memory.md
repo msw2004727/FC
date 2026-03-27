@@ -10,6 +10,18 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-27 — [永久] Phase 2-5 Per-User Inbox 完整遷移
+- **Phase 2**：遷移腳本 `scripts/migrate-inbox.js`（Admin SDK、幂等、dry-run、hiddenBy 跳過、readBy→read 轉換）
+- **Phase 3**：切換讀取路徑
+  - `firebase-service.js`：7+ 條 listener → 1 條 `users/{uid}/inbox` listener (orderBy createdAt desc, limit 200)
+  - `message-render.js`：移除 `_filterMyMessages` 依賴，readMessage 改寫 inbox 路徑
+  - `message-actions.js`：markAllRead/clearAllMessages 改用 inbox 路徑，clearAll 改真刪除（pending 審核除外）
+  - `message-actions.js`：`_syncTournamentMessageActionStatus` 改為更新自己 inbox + 呼叫 CF 同步
+  - `message-admin-list.js`：recallMsg 改刪 inbox + 舊 messages/ 向後相容
+  - `message-inbox.js`：`_isMessageUnread` 優先看 `msg.read` 布林值（向下相容 readBy/unread）
+- **Phase 4**：`message-notify.js` 移除 `FirebaseService.addMessage()` 舊路徑，只走 CF
+- **教訓**：遷移歷史必須在切讀取之前；跨 inbox 更新只能走 CF (Admin SDK)
+
 ### 2026-03-27 — [永久] Phase 1 Per-User Inbox 雙寫模式
 - **架構**：站內信遷移第一步，新訊息同時寫入 `messages/` 和 `users/{uid}/inbox/`
 - **CF 新增**：`deliverToInbox`（fan-out 寫入收件人 inbox）、`syncGroupActionStatus`（跨 inbox 審核同步）

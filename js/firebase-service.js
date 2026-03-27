@@ -1116,27 +1116,32 @@ const FirebaseService = {
   // ════════════════════════════════
 
   /** 啟動 messages 監聽器（需 Auth） */
+  // ── Phase 3: Per-user inbox — 單一 listener 取代 7+ 條 ──
   _startMessagesListener() {
     if (!auth?.currentUser) return;
-    const ctx = this._getMessageVisibilityContext();
-    if (!ctx.uid) return;
-    const nextKey = this._getMessageVisibilityKey(ctx);
-    if (this._realtimeListenerStarted.messages && this._messageVisibilityKey === nextKey) return;
+    const uid = auth.currentUser.uid;
+    if (!uid) return;
+    if (this._realtimeListenerStarted.messages && this._messageVisibilityKey === uid) return;
 
     this._stopMessagesListener();
     this._realtimeListenerStarted.messages = true;
-    this._messageVisibilityKey = nextKey;
+    this._messageVisibilityKey = uid;
 
-    this._getMessageQuerySpecs(ctx).forEach(spec => {
-      const unsub = spec.query.onSnapshot(
-        snapshot => {
-          this._messageListenerResults[spec.key] = snapshot.docs.map(doc => ({ ...doc.data(), _docId: doc.id }));
-          this._mergeVisibleMessagesFromListenerResults(ctx);
-        },
-        err => { console.warn(`[onSnapshot] messages/${spec.key} 監聽錯誤:`, err); }
-      );
-      this._messageListeners.push(unsub);
-    });
+    // 單一 listener：users/{uid}/inbox，按 createdAt 倒序取最新 200 筆
+    const query = db.collection('users').doc(uid).collection('inbox')
+      .orderBy('createdAt', 'desc').limit(200);
+    const unsub = query.onSnapshot(
+      snapshot => {
+        this._cache.messages = snapshot.docs.map(doc => ({ ...doc.data(), _docId: doc.id }));
+        this._snapshotReconnectAttempts.messages = 0;
+        this._debouncedPersistCache();
+        this._debouncedSnapshotRender('messages');
+      },
+      err => {
+        console.warn('[onSnapshot] inbox 監聽錯誤:', err);
+      }
+    );
+    this._messageListeners.push(unsub);
   },
 
   _stopMessagesListener() {

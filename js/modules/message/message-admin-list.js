@@ -136,6 +136,7 @@ Object.assign(App, {
   },
 
   // ── 回收信件（同時從用戶收件箱移除） ──
+  // Phase 3: 回收信件 — 從自己 inbox 移除 + 舊 messages/ 也嘗試刪除
   async recallMsg(id) {
     if (!(await this.appConfirm('確定要回收此信件？收件人信箱中的信件將被移除。'))) return;
     const adminMsg = ApiService.getAdminMessages().find(m => m.id === id);
@@ -152,11 +153,17 @@ Object.assign(App, {
       }
     }
     if (!ModeManager.isDemo()) {
+      const myUid = ApiService.getCurrentUser()?.uid;
       toRemove.forEach(m => {
         if (m._docId) {
-          db.collection('messages').doc(m._docId).delete().catch(err =>
-            console.error('[recallMsg] 刪除收件箱訊息失敗:', err)
-          );
+          // Phase 3: 刪除自己 inbox 裡的副本
+          if (myUid) {
+            db.collection('users').doc(myUid).collection('inbox').doc(m._docId).delete()
+              .catch(err => console.warn('[recallMsg] inbox delete:', err.message));
+          }
+          // 向後相容：也嘗試從舊 messages/ 刪除
+          db.collection('messages').doc(m._docId).delete()
+            .catch(() => {}); // 靜默失敗（可能已不存在）
         }
       });
     }

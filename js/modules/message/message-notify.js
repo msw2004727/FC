@@ -90,21 +90,20 @@ Object.assign(App, {
       dedupeKey,
       ...(extra || {}),
     };
+    // Phase 4: 只寫 per-user inbox（透過 CF），不再寫 messages/ 集合
     const source = ModeManager.isDemo() ? DemoData.messages : FirebaseService._cache.messages;
     source.unshift(newMsg);
     if (!ModeManager.isDemo()) {
-      FirebaseService.addMessage(newMsg).catch(err => {
+      FirebaseService._deliverToInboxCF?.(
+        newMsg, directTargetUid, targetTeamId, targetRoles, targetType
+      )?.catch(err => {
         const index = source.indexOf(newMsg);
         if (index !== -1) source.splice(index, 1);
         this._releaseRecentInboxDeliveryKey(dedupeKey);
         this.renderMessageList?.();
         this.updateNotifBadge?.();
-        console.error('[deliverMsg]', err);
+        console.error('[deliverMsg:inbox]', err);
       });
-      // Phase 1 雙寫：fire-and-forget 呼叫 CF 寫入 per-user inbox
-      FirebaseService._deliverToInboxCF?.(
-        newMsg, directTargetUid, targetTeamId, targetRoles, targetType
-      );
     }
     this.renderMessageList?.();
     this.updateNotifBadge?.();
