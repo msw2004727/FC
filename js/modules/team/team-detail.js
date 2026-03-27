@@ -152,7 +152,11 @@ Object.assign(App, {
       const canManageMembers = this._canManageTeamMembers(t);
       const memberEditMode = !!this._teamMemberEditModeByTeam[t.id];
       const staffIdentity = this._getTeamStaffIdentity(t);
-      nodes.title.textContent = t.name;
+      if (t.type === 'education') {
+        nodes.title.innerHTML = '<span class="edu-type-badge" style="margin-right:.35rem;vertical-align:middle">教學</span>' + escapeHTML(t.name);
+      } else {
+        nodes.title.textContent = t.name;
+      }
       nodes.nameEn.textContent = t.nameEn || '';
 
       const imgEl = nodes.image;
