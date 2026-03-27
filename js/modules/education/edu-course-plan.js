@@ -41,35 +41,75 @@ Object.assign(App, {
       return;
     }
 
+    // 取得當前用戶的報名狀態（用於學員視角按鈕）
+    const curUser = ApiService.getCurrentUser();
+    const myUid = curUser?.uid;
+
     container.innerHTML = activePlans.map(p => {
       const typeLabel = p.planType === 'weekly' ? '固定週期' : '堂數制';
       const typeClass = p.planType === 'weekly' ? 'edu-course-type-weekly' : 'edu-course-type-session';
-      let scheduleInfo = '';
-      if (p.planType === 'weekly') {
-        const weekdayNames = (p.weekdays || []).map(d => '週' + this._weekdayLabel(d)).join('、');
-        scheduleInfo = weekdayNames + (p.timeSlot ? ' ' + escapeHTML(p.timeSlot) : '') +
-          '<br><span style="font-size:.68rem;color:var(--text-muted)">' +
-          escapeHTML(p.startDate || '') + ' ~ ' + escapeHTML(p.endDate || '') + '</span>';
-      } else {
-        scheduleInfo = '共 ' + (p.totalSessions || 0) + ' 堂';
-      }
 
-      const actionsHtml = isStaff
-        ? '<div class="edu-course-actions">'
-          + '<button class="outline-btn" style="font-size:.72rem;padding:.2rem .5rem" onclick="App.showEduCoursePlanForm(\'' + teamId + '\',\'' + p.id + '\')">編輯</button>'
-          + '<button class="outline-btn" style="font-size:.72rem;padding:.2rem .5rem;color:var(--danger)" onclick="App.deleteEduCoursePlan(\'' + teamId + '\',\'' + p.id + '\')">刪除</button>'
-          + '</div>'
+      // 摘要資訊
+      let summaryParts = [];
+      if (p.planType === 'session') summaryParts.push((p.totalSessions || 0) + '堂');
+      if (p.planType === 'weekly') {
+        const wdNames = (p.weekdays || []).map(d => '週' + this._weekdayLabel(d)).join('、');
+        summaryParts.push(wdNames + (p.timeSlot ? ' ' + escapeHTML(p.timeSlot) : ''));
+      }
+      if (p.price) summaryParts.push('$' + p.price.toLocaleString());
+      const countLabel = (p.currentCount || 0) + (p.maxCapacity ? '/' + p.maxCapacity : '') + ' 人';
+      summaryParts.push(countLabel);
+
+      const statusBadge = p.allowSignup
+        ? '<span class="edu-cp-status edu-cp-status-open">招生中</span>'
+        : '<span class="edu-cp-status edu-cp-status-closed">未開放</span>';
+
+      // 日期範圍（weekly 才有）
+      const dateRange = p.planType === 'weekly' && p.startDate
+        ? '<div class="edu-cp-date">' + escapeHTML(p.startDate) + ' ~ ' + escapeHTML(p.endDate || '') + '</div>'
         : '';
 
-      return '<div class="edu-course-card">' +
-        '<div class="edu-course-header">' +
-          '<span class="edu-course-name">' + escapeHTML(p.name) + '</span>' +
-          '<span class="edu-course-type ' + typeClass + '">' + typeLabel + '</span>' +
-        '</div>' +
-        '<div class="edu-course-group">分組：' + escapeHTML(p.groupName || '未指定') + '</div>' +
-        '<div class="edu-course-schedule">' + scheduleInfo + '</div>' +
-        actionsHtml +
-      '</div>';
+      // 職員操作列
+      let staffActions = '';
+      if (isStaff) {
+        staffActions = '<div class="edu-cp-actions">'
+          + '<button class="primary-btn small" onclick="App.showCourseEnrollmentList(\'' + teamId + '\',\'' + p.id + '\')">查看名單</button>'
+          + '<button class="primary-btn small" onclick="App.showEduCheckin(\'' + teamId + '\',\'' + p.id + '\')">批次簽到</button>'
+          + '<button class="outline-btn small" onclick="App.showEduCheckinScan(\'' + teamId + '\')">掃碼簽到</button>'
+          + '</div>'
+          + '<div class="edu-cp-manage">'
+          + '<button class="text-btn" style="font-size:.72rem" onclick="App.showEduCoursePlanForm(\'' + teamId + '\',\'' + p.id + '\')">編輯</button>'
+          + '<button class="text-btn" style="font-size:.72rem;color:var(--danger)" onclick="App.deleteEduCoursePlan(\'' + teamId + '\',\'' + p.id + '\')">刪除</button>'
+          + '</div>';
+      }
+
+      // 學員報名按鈕
+      let signupBtn = '';
+      if (!isStaff && p.allowSignup) {
+        const isFull = p.maxCapacity && (p.currentCount || 0) >= p.maxCapacity;
+        const myEnrollment = (p._enrollments || []).find(e => e.selfUid === myUid || e.parentUid === myUid);
+        if (myEnrollment) {
+          const sLabel = myEnrollment.status === 'pending' ? '已報名（審核中）' : myEnrollment.status === 'approved' ? '已通過' : '已拒絕';
+          const sClass = myEnrollment.status === 'approved' ? 'edu-cp-enrolled-ok' : 'edu-cp-enrolled-pending';
+          signupBtn = '<div class="edu-cp-signup-status ' + sClass + '">' + sLabel + '</div>';
+        } else if (isFull) {
+          signupBtn = '<button class="primary-btn" style="width:100%;opacity:.5" disabled>已額滿</button>';
+        } else {
+          signupBtn = '<button class="primary-btn" style="width:100%" onclick="App.applyCourseEnrollment(\'' + teamId + '\',\'' + p.id + '\')">我要報名</button>';
+        }
+      }
+
+      return '<div class="edu-course-card edu-cp-card-v2">'
+        + '<div class="edu-cp-top">'
+        + '<span class="edu-course-name">' + escapeHTML(p.name) + '</span>'
+        + '<span class="edu-course-type ' + typeClass + '">' + typeLabel + '</span>'
+        + statusBadge
+        + '</div>'
+        + '<div class="edu-cp-summary">' + summaryParts.join(' ｜ ') + '</div>'
+        + dateRange
+        + staffActions
+        + signupBtn
+        + '</div>';
     }).join('');
   },
 
@@ -126,9 +166,18 @@ Object.assign(App, {
       '<div id="edu-cp-session"' + (!isWeekly ? '' : ' style="display:none"') + '>' +
         '<div class="ce-row"><label>總堂數</label><input type="number" id="edu-cp-total" min="1" max="999" value="' + (plan && plan.totalSessions || '') + '"></div>' +
       '</div>' +
+      '<hr style="border:none;border-top:1px solid var(--border);margin:.8rem 0">' +
+      '<div class="ce-row" style="display:flex;align-items:center;justify-content:space-between">' +
+        '<div><label style="margin:0">開放學員報名</label><div style="font-size:.72rem;color:var(--text-muted);margin-top:.15rem">開啟後學員可在俱樂部頁面自助報名此方案</div></div>' +
+        '<label class="toggle-switch"><input type="checkbox" id="edu-cp-signup"' + (plan && plan.allowSignup ? ' checked' : '') + '><span class="toggle-slider"></span></label>' +
+      '</div>' +
+      '<div class="ce-row"><label>容納上限</label><input type="number" id="edu-cp-capacity" min="1" max="999" placeholder="不填則不限人數" value="' + (plan && plan.maxCapacity || '') + '">' +
+        '<div style="font-size:.72rem;color:var(--text-muted);margin-top:.15rem">不填則不限制報名人數</div></div>' +
+      '<div class="ce-row"><label>費用（元）</label><input type="number" id="edu-cp-price" min="0" placeholder="選填，僅供顯示" value="' + (plan && plan.price || '') + '">' +
+        '<div style="font-size:.72rem;color:var(--text-muted);margin-top:.15rem">僅供顯示與繳費記錄，不含線上付款功能</div></div>' +
       '<div style="display:flex;gap:.5rem;margin-top:1rem">' +
         '<button class="outline-btn" onclick="App.goBack()">取消</button>' +
-        '<button class="primary-btn" onclick="App.handleSaveEduCoursePlan()">' + (planId ? '儲存變更' : '建立方案') + '</button>' +
+        '<button class="primary-btn" id="edu-cp-save-btn" onclick="App.handleSaveEduCoursePlan()">' + (planId ? '儲存變更' : '建立方案') + '</button>' +
       '</div>' +
     '</div>';
   },
@@ -176,12 +225,21 @@ Object.assign(App, {
     const groupName = groupSelect ? (groupSelect.selectedOptions[0]?.dataset?.name || '') : '';
     const planType = document.getElementById('edu-cp-type').value;
 
+    const allowSignup = document.getElementById('edu-cp-signup')?.checked || false;
+    const capRaw = document.getElementById('edu-cp-capacity')?.value;
+    const maxCapacity = capRaw ? parseInt(capRaw, 10) : null;
+    const priceRaw = document.getElementById('edu-cp-price')?.value;
+    const price = priceRaw ? parseInt(priceRaw, 10) : null;
+
     const data = {
       name,
       groupId,
       groupName,
       planType,
       active: true,
+      allowSignup,
+      maxCapacity,
+      price,
     };
 
     if (planType === 'weekly') {

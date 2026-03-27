@@ -564,7 +564,7 @@ Object.assign(App, {
     }
     // 離開俱樂部相關頁面：清理教育即時監聽
     // 教育子頁面（分組學員、簽到、行事曆等）保留 students listener
-    const eduSubPages = ['page-team-detail', 'page-edu-students', 'page-edu-checkin', 'page-edu-calendar', 'page-edu-course-plan', 'page-edu-groups', 'page-edu-student-apply'];
+    const eduSubPages = ['page-team-detail', 'page-edu-students', 'page-edu-checkin', 'page-edu-calendar', 'page-edu-course-plan', 'page-edu-course-enrollment', 'page-edu-groups', 'page-edu-student-apply'];
     if (eduSubPages.includes(this.currentPage) && !eduSubPages.includes(pageId)) {
       this._cleanupEduListeners?.();
     }

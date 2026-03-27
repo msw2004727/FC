@@ -2435,6 +2435,44 @@ Object.assign(FirebaseService, {
   },
 
   // ════════════════════════════════
+  //  Education: Course Enrollments CRUD
+  // ════════════════════════════════
+
+  async listCourseEnrollments(teamId, planId) {
+    const teamRef = await this._getTeamDocRefById(teamId);
+    const snapshot = await teamRef.collection('coursePlans').doc(planId)
+      .collection('enrollments').get();
+    return this._mapCollectionDocs(snapshot);
+  },
+
+  async createCourseEnrollment(teamId, planId, data) {
+    const authed = await this.ensureAuthReadyForWrite();
+    if (!authed) throw new Error('Firebase 登入失敗');
+    const teamRef = await this._getTeamDocRefById(teamId);
+    const collRef = teamRef.collection('coursePlans').doc(planId).collection('enrollments');
+    const docRef = data.id ? collRef.doc(data.id) : collRef.doc();
+    const payload = { ..._stripDocId(data), id: data.id || docRef.id };
+    await docRef.set({
+      ...payload,
+      appliedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    }, { merge: true });
+    payload._docId = docRef.id;
+    return payload;
+  },
+
+  async updateCourseEnrollment(teamId, planId, enrollId, updates) {
+    const authed = await this.ensureAuthReadyForWrite();
+    if (!authed) throw new Error('Firebase 登入失敗');
+    const teamRef = await this._getTeamDocRefById(teamId);
+    await teamRef.collection('coursePlans').doc(planId)
+      .collection('enrollments').doc(enrollId).update({
+        ..._stripDocId(updates),
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      });
+    return { id: enrollId, ...updates };
+  },
+
+  // ════════════════════════════════
   //  Education: Attendance (eduAttendance top-level)
   // ════════════════════════════════
 

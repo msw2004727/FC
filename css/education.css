@@ -29,6 +29,39 @@
 .edu-info-dialog-body li { margin-bottom: .3rem; }
 .edu-info-dialog-body b { color: var(--text-primary); }
 
+/* ── Course Plan Card v2 ── */
+.edu-cp-card-v2 { padding: .7rem .85rem; }
+.edu-cp-top { display: flex; align-items: center; gap: .4rem; flex-wrap: wrap; margin-bottom: .3rem; }
+.edu-cp-summary { font-size: .88rem; color: var(--text-secondary); margin-bottom: .2rem; font-weight: 500; }
+.edu-cp-date { font-size: .72rem; color: var(--text-muted); margin-bottom: .4rem; }
+.edu-cp-status { font-size: .65rem; padding: .1rem .4rem; border-radius: var(--radius-full); font-weight: 600; }
+.edu-cp-status-open { background: rgba(16,185,129,.15); color: #10b981; }
+.edu-cp-status-closed { background: rgba(148,163,184,.15); color: #94a3b8; }
+.edu-cp-actions { display: flex; gap: .4rem; flex-wrap: wrap; margin-top: .4rem; }
+.edu-cp-actions .primary-btn, .edu-cp-actions .outline-btn { font-size: .78rem; padding: .3rem .7rem; }
+.edu-cp-manage { display: flex; justify-content: flex-end; gap: .5rem; margin-top: .3rem; }
+.edu-cp-enrolled-pending { text-align: center; padding: .4rem; font-size: .82rem; color: var(--warning); font-weight: 600; }
+.edu-cp-enrolled-ok { text-align: center; padding: .4rem; font-size: .82rem; color: var(--success); font-weight: 600; }
+.edu-cp-signup-status { text-align: center; margin-top: .4rem; }
+
+/* ── Course Enrollment List ── */
+.edu-ce-section-label { font-size: .88rem; font-weight: 700; margin: .8rem 0 .4rem; padding-left: .2rem; }
+.edu-ce-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: .7rem .85rem; margin-bottom: .45rem; cursor: pointer; transition: border-color .15s; }
+.edu-ce-card:hover { border-color: var(--accent); }
+.edu-ce-card-pending { border-left: 3px solid var(--warning); }
+.edu-ce-card-top { display: flex; align-items: baseline; gap: .5rem; flex-wrap: wrap; }
+.edu-ce-name { font-size: .95rem; font-weight: 700; }
+.edu-ce-meta { font-size: .82rem; color: var(--text-muted); }
+.edu-ce-card-mid { display: flex; align-items: center; gap: .8rem; flex-wrap: wrap; margin-top: .25rem; }
+.edu-ce-attend { font-size: .82rem; font-weight: 600; color: var(--accent); }
+.edu-ce-paid { font-size: .78rem; cursor: pointer; }
+.edu-ce-paid-yes { color: var(--success); }
+.edu-ce-paid-no { color: var(--text-muted); }
+.edu-ce-card-actions { display: flex; gap: .4rem; margin-top: .4rem; }
+.edu-ce-expand { padding-top: .5rem; margin-top: .4rem; border-top: 1px solid var(--border); }
+.edu-ce-notes-label { font-size: .78rem; font-weight: 600; margin-bottom: .25rem; color: var(--text-secondary); }
+.edu-ce-notes { width: 100%; border: 1px solid var(--border); border-radius: var(--radius); padding: .4rem .6rem; font-size: .82rem; resize: vertical; background: var(--bg-base); color: var(--text-primary); }
+
 /* ── Type Badge ── */
 .edu-type-badge {
   display: inline-block;

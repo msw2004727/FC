@@ -672,6 +672,14 @@ service cloud.firestore {
       match /coursePlans/{planId} {
         allow read: if true;
         allow create, update, delete: if isCurrentUserTeamCaptainOrLeader(teamId);
+
+        // ── 課程方案報名（學員可建立，幹部可讀/更新）──
+        match /enrollments/{enrollId} {
+          allow read: if isAuth();
+          allow create: if isAuth();
+          allow update: if isCurrentUserTeamCaptainOrLeader(teamId) || isAdmin();
+          allow delete: if isCurrentUserTeamCaptainOrLeader(teamId) || isAdmin();
+        }
       }
 
       // ── Education: Students（學員）──
