@@ -199,6 +199,15 @@ Object.assign(App, {
       });
     }
 
+    // 載入出勤次數（per student）
+    this._courseAttendanceCount = {};
+    try {
+      const attendRecords = await FirebaseService.queryEduAttendance({ teamId, coursePlanId: planId });
+      attendRecords.forEach(r => {
+        this._courseAttendanceCount[r.studentId] = (this._courseAttendanceCount[r.studentId] || 0) + 1;
+      });
+    } catch (_) {}
+
     const pending = enrollments.filter(e => e.status === 'pending');
     const approved = enrollments.filter(e => e.status === 'approved');
 
