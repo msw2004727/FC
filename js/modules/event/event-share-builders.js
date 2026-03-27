@@ -34,8 +34,10 @@ Object.assign(App, {
       '\u65E5\u671F\uFF1A' + (event.date || ''),
       '\u5730\u9EDE\uFF1A' + (event.location || ''),
     ];
-    if (event.max) {
-      lines.push('\u4EBA\u6578\uFF1A' + (event.current || 0) + '/' + event.max + ' \u4EBA');
+    const _heat = this._calcHeatPrediction?.(event);
+    if (_heat) {
+      const _heatLabels = { hot: '極熱門 — 預計快速額滿', warm: '熱門 — 報名踴躍', normal: '一般 — 正常報名中', cold: '冷門 — 名額充裕' };
+      lines.push('熱度：' + (_heatLabels[_heat] || ''));
     }
     lines.push(liffUrl);
     let text = lines.join('\n');
@@ -101,8 +103,10 @@ Object.assign(App, {
     if (event.location) {
       infoContents.push(this._buildFlexInfoRow('\u5730\u9EDE', event.location));
     }
-    if (event.max) {
-      infoContents.push(this._buildFlexInfoRow('\u4EBA\u6578', (event.current || 0) + '/' + event.max + ' \u4EBA'));
+    const _flexHeat = this._calcHeatPrediction?.(event);
+    if (_flexHeat) {
+      const _flexHeatLabels = { hot: '極熱門 — 預計快速額滿', warm: '熱門 — 報名踴躍', normal: '一般 — 正常報名中', cold: '冷門 — 名額充裕' };
+      infoContents.push(this._buildFlexInfoRow('熱度', _flexHeatLabels[_flexHeat] || ''));
     }
     if (event.feeEnabled && event.fee > 0) {
       infoContents.push(this._buildFlexInfoRow('\u8CBB\u7528', '$' + event.fee));
