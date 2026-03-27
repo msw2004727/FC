@@ -142,13 +142,14 @@ Object.assign(App, {
         + '</div>';
     }).join('');
 
-    // 追加學員按鈕（有任一 active 時顯示）
-    if (hasActive) {
+    // 追加學員按鈕（有任一 active 或 pending 時顯示）
+    if (hasActive || hasPending) {
       html += '<div style="margin-top:.5rem">'
         + '<button class="primary-btn" onclick="App.showEduStudentApply(\'' + teamId + '\')">追加學員</button>'
         + '</div>';
-    } else if (hasPending) {
-      html += '<div style="margin-top:.4rem;font-size:.78rem;color:var(--text-muted)">申請審核中，請等待教練審核</div>';
+      if (!hasActive && hasPending) {
+        html += '<div style="margin-top:.4rem;font-size:.78rem;color:var(--text-muted)">申請審核中，請等待教練審核</div>';
+      }
     }
 
     html += '</div>';
