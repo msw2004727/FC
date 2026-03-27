@@ -69,8 +69,10 @@ Object.assign(App, {
     const overlay = document.createElement('div');
     overlay.className = 'edu-info-overlay';
     overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
-    let listHtml = myStudents.map(s => {
-      const existing = enrolledMap[s.id];
+    // 分成可報名 + 已報名，可報名排前面
+    const available = myStudents.filter(s => !enrolledMap[s.id]);
+    const enrolled = myStudents.filter(s => enrolledMap[s.id]);
+    const renderPickItem = (s) => {
       const age = s.birthday ? this.calcAge(s.birthday) : null;
       const gender = s.gender === 'male' ? '♂' : s.gender === 'female' ? '♀' : '';
       const genderClass = s.gender === 'male' ? ' edu-gender-male' : s.gender === 'female' ? ' edu-gender-female' : '';
@@ -80,26 +82,20 @@ Object.assign(App, {
         + (age != null ? age + '歲 ' : '')
         + '<span style="color:var(--text-muted)">' + escapeHTML(groupLabel) + '</span>'
         + '</span>';
-
+      const existing = enrolledMap[s.id];
       if (existing) {
-        const dateStr = (existing.appliedAt && typeof existing.appliedAt === 'string') ? existing.appliedAt.slice(0, 10) : '';
+        const rawDate = existing.appliedAt || '';
+        const dateStr = typeof rawDate === 'string' ? rawDate.slice(0, 10) : '';
         return '<label class="edu-ce-pick-item edu-ce-pick-disabled">'
-          + '<div class="edu-ce-pick-main">'
-          + '<span class="edu-ce-pick-name">' + escapeHTML(s.name) + '</span>'
-          + infoLine
-          + '</div>'
-          + '<span class="edu-ce-pick-hint">已於 ' + dateStr + ' 已報名</span>'
-          + '<input type="checkbox" disabled>'
-          + '</label>';
+          + '<div class="edu-ce-pick-main"><span class="edu-ce-pick-name">' + escapeHTML(s.name) + '</span>' + infoLine + '</div>'
+          + '<span class="edu-ce-pick-hint">已於 ' + dateStr + ' 報名</span>'
+          + '<input type="checkbox" disabled></label>';
       }
       return '<label class="edu-ce-pick-item">'
-        + '<div class="edu-ce-pick-main">'
-        + '<span class="edu-ce-pick-name">' + escapeHTML(s.name) + '</span>'
-        + infoLine
-        + '</div>'
-        + '<input type="checkbox" value="' + s.id + '" data-name="' + escapeHTML(s.name) + '">'
-        + '</label>';
-    }).join('');
+        + '<div class="edu-ce-pick-main"><span class="edu-ce-pick-name">' + escapeHTML(s.name) + '</span>' + infoLine + '</div>'
+        + '<input type="checkbox" value="' + s.id + '" data-name="' + escapeHTML(s.name) + '"></label>';
+    };
+    let listHtml = available.map(renderPickItem).join('') + enrolled.map(renderPickItem).join('');
 
     const count = myStudents.filter(s => !enrolledMap[s.id]).length;
     const unitPrice = plan.price || 0;
@@ -240,6 +236,9 @@ Object.assign(App, {
     const age = stu && stu.birthday ? this.calcAge(stu.birthday) : null;
     const gender = stu?.gender === 'male' ? '♂' : stu?.gender === 'female' ? '♀' : '';
     const groupNames = (stu?.groupNames || []).join('、') || '未分組';
+    // 報名日期（右上角）
+    const enrollDateRaw = e.appliedAt || e.reviewedAt || '';
+    const enrollDate = typeof enrollDateRaw === 'string' ? enrollDateRaw.slice(0, 10) : '';
 
     // 出勤計算
     const totalSessions = plan?.totalSessions || 0;
@@ -271,6 +270,7 @@ Object.assign(App, {
       + '<div class="edu-ce-card-top">'
       + '<span class="edu-ce-name">' + escapeHTML(e.studentName) + '</span>'
       + '<span class="edu-ce-meta">' + gender + (age != null ? ' ' + age + '歲' : '') + '  ' + escapeHTML(groupNames) + '</span>'
+      + (enrollDate ? '<span class="edu-ce-date">' + enrollDate + '</span>' : '')
       + '</div>'
       + '<div class="edu-ce-card-mid">'
       + attendHtml + paidHtml

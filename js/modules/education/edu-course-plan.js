@@ -108,11 +108,17 @@ Object.assign(App, {
         }
       }
 
-      // 管理按鈕（Fix 8: 放在報名按鈕之下，左對齊）
+      // 管理按鈕（報名按鈕之下，左對齊 + 右側排序按鈕）
+      const idx = activePlans.indexOf(p);
       const manageHtml = isStaff
         ? '<div class="edu-cp-manage-left">'
           + '<button class="outline-btn" style="font-size:.72rem;padding:.2rem .5rem" onclick="event.stopPropagation();App.showEduCoursePlanForm(\'' + teamId + '\',\'' + p.id + '\')">編輯</button>'
           + '<button class="outline-btn" style="font-size:.72rem;padding:.2rem .5rem;color:var(--danger)" onclick="event.stopPropagation();App.deleteEduCoursePlan(\'' + teamId + '\',\'' + p.id + '\')">刪除</button>'
+          + '<span style="margin-left:auto;display:flex;gap:.2rem">'
+          + (idx > 0 ? '<button class="outline-btn" style="font-size:.68rem;padding:.15rem .35rem" onclick="event.stopPropagation();App._moveCoursePlan(\'' + teamId + '\',\'' + p.id + '\',-1)" title="向上">▲</button>' : '')
+          + (idx < activePlans.length - 1 ? '<button class="outline-btn" style="font-size:.68rem;padding:.15rem .35rem" onclick="event.stopPropagation();App._moveCoursePlan(\'' + teamId + '\',\'' + p.id + '\',1)" title="向下">▼</button>' : '')
+          + '<button class="outline-btn" style="font-size:.68rem;padding:.15rem .35rem" onclick="event.stopPropagation();App._moveCoursePlan(\'' + teamId + '\',\'' + p.id + '\',0)" title="置頂">★</button>'
+          + '</span>'
           + '</div>'
         : '';
 
@@ -376,6 +382,75 @@ Object.assign(App, {
       console.error('[deleteEduCoursePlan]', err);
       this.showToast('刪除失敗');
     }
+  },
+
+  // ── 排序功能 ──
+  async _moveCoursePlan(teamId, planId, direction) {
+    const cached = this._eduCoursePlansCache[teamId];
+    if (!cached) return;
+    const active = cached.filter(p => p.active !== false);
+    const idx = active.findIndex(p => p.id === planId);
+    if (idx === -1) return;
+    if (direction === 0) {
+      // 置頂
+      active.forEach((p, i) => { p.sortOrder = (i === idx) ? -1 : i; });
+    } else {
+      // 上移(-1) 或下移(+1)
+      const targetIdx = idx + direction;
+      if (targetIdx < 0 || targetIdx >= active.length) return;
+      const tmp = active[idx].sortOrder;
+      active[idx].sortOrder = active[targetIdx].sortOrder;
+      active[targetIdx].sortOrder = tmp;
+    }
+    // 寫入 Firestore
+    for (const p of active) {
+      FirebaseService.updateEduCoursePlan(teamId, p.id, { sortOrder: p.sortOrder || 0 }).catch(() => {});
+    }
+    await this.renderEduCoursePlanList(teamId);
+  },
+
+  // ── 簽到資訊彈窗 ──
+  async _showCourseAttendanceInfo(teamId, planId) {
+    const plan = this.getEduCoursePlans(teamId).find(p => p.id === planId);
+    const today = new Date().toISOString().slice(0, 10);
+    let records = [];
+    try {
+      records = await FirebaseService.queryEduAttendance({ teamId, coursePlanId: planId, date: today });
+    } catch (_) {}
+    const students = this.getEduStudents(teamId);
+
+    let bodyHtml = '<div style="text-align:center;margin-bottom:.6rem">'
+      + '<div style="font-size:2rem;font-weight:700;color:var(--accent)">' + records.length + '</div>'
+      + '<div style="font-size:.82rem;color:var(--text-muted)">今日簽到人數</div></div>';
+
+    if (records.length > 0) {
+      bodyHtml += '<div style="max-height:250px;overflow-y:auto">';
+      bodyHtml += records.map(r => {
+        const stu = students.find(s => s.id === r.studentId);
+        const age = stu && stu.birthday ? this.calcAge(stu.birthday) : null;
+        const gender = stu?.gender === 'male' ? '♂' : stu?.gender === 'female' ? '♀' : '';
+        const groupLabel = (stu?.groupNames || []).join('、') || '未分組';
+        return '<div style="padding:.4rem .5rem;border-bottom:1px solid var(--border);font-size:.85rem;display:flex;align-items:center;gap:.4rem">'
+          + '<span style="font-weight:600">' + escapeHTML(r.studentName || '') + '</span>'
+          + '<span style="color:var(--text-muted);font-size:.78rem">' + gender + (age != null ? ' ' + age + '歲' : '') + '</span>'
+          + '<span style="color:var(--text-muted);font-size:.72rem;margin-left:auto">' + escapeHTML(groupLabel) + '</span>'
+          + '<span style="font-size:.72rem;color:var(--text-muted)">' + escapeHTML(r.time || '') + '</span>'
+          + '</div>';
+      }).join('');
+      bodyHtml += '</div>';
+    } else {
+      bodyHtml += '<div style="text-align:center;color:var(--text-muted);font-size:.82rem">今日尚無簽到紀錄</div>';
+    }
+
+    const overlay = document.createElement('div');
+    overlay.className = 'edu-info-overlay';
+    overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+    overlay.innerHTML = '<div class="edu-info-dialog">'
+      + '<div class="edu-info-dialog-title">' + escapeHTML(plan?.name || '簽到資訊') + '</div>'
+      + bodyHtml
+      + '<button class="primary-btn" style="width:100%;margin-top:.8rem" onclick="this.closest(\'.edu-info-overlay\').remove()">關閉</button>'
+      + '</div>';
+    document.body.appendChild(overlay);
   },
 
 });

@@ -32,9 +32,10 @@
         <h2 id="edu-ce-title">方案名單</h2>
       </div>
       <div id="edu-ce-subtitle" style="text-align:center;font-size:.82rem;color:var(--text-muted);margin-bottom:.5rem"></div>
-      <div style="display:flex;gap:.5rem;justify-content:center;margin-bottom:.8rem" id="edu-ce-staff-actions">
-        <button class="primary-btn" onclick="App.showEduCheckin(App._ceTeamId, App._cePlanId)">批次簽到</button>
-        <button class="outline-btn" onclick="App.showEduCheckinScan(App._ceTeamId)">掃碼簽到</button>
+      <div class="scan-mode-toggle" style="margin:0 .5rem .8rem" id="edu-ce-staff-actions">
+        <button class="scan-mode active" onclick="App.showEduCheckin(App._ceTeamId, App._cePlanId)">手動簽到</button>
+        <button class="scan-mode" disabled style="opacity:.45" title="功能建構中">現場簽到</button>
+        <button class="scan-mode" onclick="App._showCourseAttendanceInfo(App._ceTeamId, App._cePlanId)">簽到資訊</button>
       </div>
       <div id="edu-ce-list"></div>
     </section>

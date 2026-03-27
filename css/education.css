@@ -60,7 +60,8 @@
 .edu-ce-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: .7rem .85rem; margin-bottom: .45rem; cursor: pointer; transition: border-color .15s; }
 .edu-ce-card:hover { border-color: var(--accent); }
 .edu-ce-card-pending { border-left: 3px solid var(--warning); }
-.edu-ce-card-top { display: flex; align-items: baseline; gap: .5rem; flex-wrap: wrap; }
+.edu-ce-card-top { display: flex; align-items: baseline; gap: .5rem; flex-wrap: wrap; position: relative; }
+.edu-ce-date { font-size: .7rem; color: var(--text-muted); margin-left: auto; }
 .edu-ce-name { font-size: .95rem; font-weight: 700; }
 .edu-ce-meta { font-size: .82rem; color: var(--text-muted); }
 .edu-ce-card-mid { display: flex; align-items: center; gap: .8rem; flex-wrap: wrap; margin-top: .25rem; }
