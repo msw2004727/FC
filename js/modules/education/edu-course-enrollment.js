@@ -29,66 +29,104 @@ Object.assign(App, {
   // ══════════════════════════════════
 
   async applyCourseEnrollment(teamId, planId) {
-    const plans = this.getEduCoursePlans(teamId);
-    const plan = plans.find(p => p.id === planId);
+    const plan = this.getEduCoursePlans(teamId).find(p => p.id === planId);
     if (!plan) { this.showToast('找不到方案'); return; }
-
-    const priceText = plan.price ? '費用：$' + plan.price.toLocaleString() : '免費';
-    const typeText = plan.planType === 'session' ? plan.totalSessions + ' 堂' : '固定週期';
-    if (!(await this.appConfirm(
-      '確定報名「' + plan.name + '」？\n' + typeText + ' ｜ ' + priceText
-    ))) return;
-
     const curUser = ApiService.getCurrentUser();
     if (!curUser) { this.showToast('請先登入'); return; }
 
-    const _btnState = this._setEduBtnLoading('[onclick*="applyCourseEnrollment"]');
-    try {
-      // 若非俱樂部成員，自動建立學員資料
-      let students = this.getEduStudents(teamId);
-      let myStudent = students.find(s => s.selfUid === curUser.uid && s.enrollStatus !== 'inactive');
-      if (!myStudent) {
-        const stuData = {
-          id: this._generateEduId('stu'),
-          name: curUser.displayName || curUser.name || '',
-          birthday: curUser.birthday || null,
-          gender: curUser.gender === '男' ? 'male' : curUser.gender === '女' ? 'female' : 'male',
-          enrollStatus: 'pending',
-          selfUid: curUser.uid,
-          parentUid: null,
-          groupIds: [],
-          groupNames: [],
-          enrolledAt: new Date().toISOString(),
-        };
-        myStudent = await FirebaseService.createEduStudent(teamId, stuData);
-        const cached = this._eduStudentsCache[teamId];
-        if (cached) cached.push(myStudent);
-        else this._eduStudentsCache[teamId] = [myStudent];
-      }
+    // 載入該方案的報名紀錄（用於判斷已報名學員）
+    const enrollments = await this._loadCourseEnrollments(teamId, planId);
 
-      // 建立報名紀錄
-      const enrollment = {
-        id: this._generateEduId('enr'),
-        studentId: myStudent.id,
-        studentName: myStudent.name,
-        selfUid: curUser.uid,
-        parentUid: null,
-        status: 'pending',
-        paidAt: null,
-        coachNotes: '',
-        reviewerName: null,
-        reviewedAt: null,
+    // 取得用戶名下的學員
+    let students = this.getEduStudents(teamId);
+    let myStudents = students.filter(s =>
+      s.enrollStatus !== 'inactive' && (s.selfUid === curUser.uid || s.parentUid === curUser.uid)
+    );
+
+    // 若無學員，自動建立本人
+    if (!myStudents.length) {
+      const stuData = {
+        id: this._generateEduId('stu'),
+        name: curUser.displayName || curUser.name || '',
+        birthday: curUser.birthday || null,
+        gender: curUser.gender === '男' ? 'male' : curUser.gender === '女' ? 'female' : 'male',
+        enrollStatus: 'pending', selfUid: curUser.uid, parentUid: null,
+        groupIds: [], groupNames: [], enrolledAt: new Date().toISOString(),
       };
-      await FirebaseService.createCourseEnrollment(teamId, planId, enrollment);
-
-      this.showToast('報名已送出，請等待審核');
-      await this.renderEduCoursePlanList(teamId);
-    } catch (err) {
-      console.error('[applyCourseEnrollment]', err);
-      this.showToast('報名失敗：' + (err.message || '請稍後再試'));
-    } finally {
-      _btnState.restore();
+      const created = await FirebaseService.createEduStudent(teamId, stuData);
+      const cached = this._eduStudentsCache[teamId];
+      if (cached) cached.push(created); else this._eduStudentsCache[teamId] = [created];
+      myStudents = [created];
     }
+
+    // 標記已報名的學員
+    const enrolledMap = {};
+    enrollments.forEach(e => {
+      if (e.status !== 'rejected') enrolledMap[e.studentId] = e;
+    });
+
+    // 顯示學員選擇彈窗
+    const overlay = document.createElement('div');
+    overlay.className = 'edu-info-overlay';
+    overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+    let listHtml = myStudents.map(s => {
+      const existing = enrolledMap[s.id];
+      if (existing) {
+        const dateStr = (existing.appliedAt && typeof existing.appliedAt === 'string') ? existing.appliedAt.slice(0, 10) : '';
+        return '<label class="edu-ce-pick-item edu-ce-pick-disabled">'
+          + '<input type="checkbox" disabled>'
+          + '<span>' + escapeHTML(s.name) + '</span>'
+          + '<span class="edu-ce-pick-hint">已於 ' + dateStr + ' 已報名</span>'
+          + '</label>';
+      }
+      return '<label class="edu-ce-pick-item">'
+        + '<input type="checkbox" value="' + s.id + '" data-name="' + escapeHTML(s.name) + '" checked>'
+        + '<span>' + escapeHTML(s.name) + '</span>'
+        + '</label>';
+    }).join('');
+
+    const count = myStudents.filter(s => !enrolledMap[s.id]).length;
+    const unitPrice = plan.price || 0;
+    const totalPrice = unitPrice * count;
+    const typeText = plan.planType === 'session' ? '共計 ' + (plan.totalSessions || 0) + ' 堂' : '固定週期';
+    const priceLine = unitPrice
+      ? '\n費用：$' + unitPrice.toLocaleString() + ' × ' + count + '人 = $' + totalPrice.toLocaleString()
+      : '\n費用：免費';
+
+    overlay.innerHTML = '<div class="edu-info-dialog">'
+      + '<div class="edu-info-dialog-title">報名「' + escapeHTML(plan.name) + '」</div>'
+      + '<div style="font-size:.85rem;color:var(--text-secondary);margin-bottom:.6rem;white-space:pre-wrap">' + typeText + priceLine + '</div>'
+      + '<div style="font-size:.82rem;font-weight:600;margin-bottom:.3rem">選擇報名學員：</div>'
+      + '<div class="edu-ce-pick-list">' + listHtml + '</div>'
+      + '<div style="display:flex;gap:.5rem;margin-top:.8rem">'
+      + '<button class="outline-btn" style="flex:1" onclick="this.closest(\'.edu-info-overlay\').remove()">取消</button>'
+      + '<button class="primary-btn" style="flex:1" id="_eduEnrollConfirmBtn"' + (count === 0 ? ' disabled style="flex:1;opacity:.5"' : '') + '>確認報名</button>'
+      + '</div></div>';
+    document.body.appendChild(overlay);
+
+    document.getElementById('_eduEnrollConfirmBtn').onclick = async () => {
+      const checks = overlay.querySelectorAll('.edu-ce-pick-list input[type="checkbox"]:checked:not(:disabled)');
+      if (!checks.length) { this.showToast('請選擇至少一位學員'); return; }
+      overlay.remove();
+      const _btnState = this._setEduBtnLoading('[onclick*="applyCourseEnrollment"]');
+      try {
+        for (const cb of checks) {
+          const sid = cb.value;
+          const sname = cb.dataset.name || '';
+          const enrollment = {
+            id: this._generateEduId('enr'), studentId: sid, studentName: sname,
+            selfUid: curUser.uid, parentUid: null, status: 'pending',
+            paidAt: null, coachNotes: '', reviewerName: null, reviewedAt: null,
+          };
+          await FirebaseService.createCourseEnrollment(teamId, planId, enrollment);
+        }
+        this.showToast('報名已送出，請等待審核');
+        await this.renderEduCoursePlanList(teamId);
+      } catch (err) {
+        console.error('[applyCourseEnrollment]', err);
+        this.showToast('報名失敗：' + (err.message || '請稍後再試'));
+      } finally { _btnState.restore(); }
+    };
   },
 
   // ══════════════════════════════════
@@ -179,10 +217,16 @@ Object.assign(App, {
       attendHtml = '<span class="edu-ce-attend">出勤 ' + attendCount + '次</span>';
     }
 
-    // 繳費狀態
-    const paidHtml = e.paidAt
-      ? '<span class="edu-ce-paid edu-ce-paid-yes" onclick="event.stopPropagation();App._editEnrollPaidDate(\'' + teamId + '\',\'' + planId + '\',\'' + e.id + '\')">✅已繳費 ' + escapeHTML(e.paidAt) + '</span>'
-      : '<span class="edu-ce-paid edu-ce-paid-no" onclick="event.stopPropagation();App._markEnrollPaid(\'' + teamId + '\',\'' + planId + '\',\'' + e.id + '\')">⬜未繳費</span>';
+    // 繳費狀態（勾選框 + 可編輯日期）
+    const paidChecked = e.paidAt ? ' checked' : '';
+    const paidDateText = e.paidAt ? ' ' + escapeHTML(e.paidAt) : '';
+    const editDateBtn = e.paidAt
+      ? ' <span class="edu-ce-paid-edit" onclick="event.stopPropagation();App._editEnrollPaidDate(\'' + teamId + '\',\'' + planId + '\',\'' + e.id + '\')">✏️</span>'
+      : '';
+    const paidHtml = '<label class="edu-ce-paid-label" onclick="event.stopPropagation()">'
+      + '<input type="checkbox"' + paidChecked + ' onchange="App._toggleEnrollPaid(\'' + teamId + '\',\'' + planId + '\',\'' + e.id + '\')">'
+      + '<span class="' + (e.paidAt ? 'edu-ce-paid-yes' : 'edu-ce-paid-no') + '">已繳費' + paidDateText + '</span>'
+      + editDateBtn + '</label>';
 
     // 備註區
     const notesId = 'ce-notes-' + e.id;
@@ -259,25 +303,50 @@ Object.assign(App, {
     } finally { _b.restore(); }
   },
 
-  async _markEnrollPaid(teamId, planId, enrollId) {
-    const today = new Date().toISOString().slice(0, 10);
-    await FirebaseService.updateCourseEnrollment(teamId, planId, enrollId, { paidAt: today });
+  async _toggleEnrollPaid(teamId, planId, enrollId) {
     const key = this._getCourseEnrollCacheKey(teamId, planId);
     const enr = (this._courseEnrollCache[key] || []).find(e => e.id === enrollId);
-    if (enr) enr.paidAt = today;
+    if (!enr) return;
+    if (enr.paidAt) {
+      // 取消繳費
+      enr.paidAt = null;
+      await FirebaseService.updateCourseEnrollment(teamId, planId, enrollId, { paidAt: null });
+      this.showToast('已取消繳費標記');
+    } else {
+      // 標記繳費（帶入今天日期）
+      const today = new Date().toISOString().slice(0, 10);
+      enr.paidAt = today;
+      await FirebaseService.updateCourseEnrollment(teamId, planId, enrollId, { paidAt: today });
+      this.showToast('已標記繳費');
+    }
     await this._renderCourseEnrollmentList(teamId, planId);
-    this.showToast('已標記繳費');
   },
 
   async _editEnrollPaidDate(teamId, planId, enrollId) {
-    const newDate = prompt('修改繳費日期（YYYY-MM-DD）：');
-    if (!newDate) return;
-    await FirebaseService.updateCourseEnrollment(teamId, planId, enrollId, { paidAt: newDate });
     const key = this._getCourseEnrollCacheKey(teamId, planId);
     const enr = (this._courseEnrollCache[key] || []).find(e => e.id === enrollId);
-    if (enr) enr.paidAt = newDate;
-    await this._renderCourseEnrollmentList(teamId, planId);
-    this.showToast('繳費日期已更新');
+    const current = enr?.paidAt || new Date().toISOString().slice(0, 10);
+    // 用 date input 彈窗取代 prompt
+    const overlay = document.createElement('div');
+    overlay.className = 'edu-info-overlay';
+    overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+    overlay.innerHTML = '<div class="edu-info-dialog" style="max-width:300px">'
+      + '<div class="edu-info-dialog-title">編輯繳費日期</div>'
+      + '<input type="date" id="_eduPaidDateInput" value="' + current + '" style="width:100%;padding:.5rem;font-size:.9rem;border:1px solid var(--border);border-radius:var(--radius)">'
+      + '<div style="display:flex;gap:.5rem;margin-top:.8rem">'
+      + '<button class="outline-btn" style="flex:1" onclick="this.closest(\'.edu-info-overlay\').remove()">取消</button>'
+      + '<button class="primary-btn" style="flex:1" id="_eduPaidDateSave">儲存</button>'
+      + '</div></div>';
+    document.body.appendChild(overlay);
+    document.getElementById('_eduPaidDateSave').onclick = async () => {
+      const newDate = document.getElementById('_eduPaidDateInput').value;
+      if (!newDate) return;
+      overlay.remove();
+      if (enr) enr.paidAt = newDate;
+      await FirebaseService.updateCourseEnrollment(teamId, planId, enrollId, { paidAt: newDate });
+      await this._renderCourseEnrollmentList(teamId, planId);
+      this.showToast('繳費日期已更新');
+    };
   },
 
   async _saveEnrollNotes(teamId, planId, enrollId, textareaId) {

@@ -44,6 +44,19 @@ Object.assign(App, {
     // 取得當前用戶的報名狀態（用於學員視角按鈕）
     const curUser = ApiService.getCurrentUser();
     const myUid = curUser?.uid;
+    const students = this.getEduStudents(teamId);
+
+    // 載入各方案的報名紀錄（用於判斷已報名 + 人數）
+    for (const p of activePlans) {
+      try {
+        const key = this._getCourseEnrollCacheKey?.(teamId, p.id);
+        if (key && !this._courseEnrollCache?.[key]) {
+          p._enrollments = await this._loadCourseEnrollments?.(teamId, p.id) || [];
+        } else {
+          p._enrollments = (key && this._courseEnrollCache?.[key]) || [];
+        }
+      } catch (_) { p._enrollments = []; }
+    }
 
     container.innerHTML = activePlans.map(p => {
       const typeLabel = p.planType === 'weekly' ? '固定週期' : '堂數制';
@@ -73,29 +86,35 @@ Object.assign(App, {
       chips.push((p.currentCount || 0) + (p.maxCapacity ? '/' + p.maxCapacity : '') + ' 人');
       const infoHtml = '<div class="edu-cp-chips">' + chips.map(c => '<span class="edu-cp-chip">' + c + '</span>').join('') + '</div>';
 
-      // 管理按鈕（左，與分組一致）
-      const manageHtml = isStaff
-        ? '<div class="edu-cp-manage-left">'
-          + '<button class="outline-btn" style="font-size:.72rem;padding:.2rem .5rem" onclick="event.stopPropagation();App.showEduCoursePlanForm(\'' + teamId + '\',\'' + p.id + '\')">編輯</button>'
-          + '<button class="outline-btn" style="font-size:.72rem;padding:.2rem .5rem;color:var(--danger)" onclick="event.stopPropagation();App.deleteEduCoursePlan(\'' + teamId + '\',\'' + p.id + '\')">刪除</button>'
-          + '</div>'
-        : '';
-
-      // 學員報名（所有人看到，allowSignup 開啟時）
+      // 學員報名按鈕（Fix 7: 全部已報名則灰色）
       let signupBtn = '';
       if (p.allowSignup) {
         const isFull = p.maxCapacity && (p.currentCount || 0) >= p.maxCapacity;
-        const myEnrollment = (p._enrollments || []).find(e => e.selfUid === myUid || e.parentUid === myUid);
-        if (myEnrollment) {
-          const sLabel = myEnrollment.status === 'pending' ? '已報名（審核中）' : myEnrollment.status === 'approved' ? '已通過' : '已拒絕';
-          const sClass = myEnrollment.status === 'approved' ? 'edu-cp-enrolled-ok' : 'edu-cp-enrolled-pending';
-          signupBtn = '<div class="edu-cp-signup-status ' + sClass + '">' + sLabel + '</div>';
+        // 檢查用戶名下所有學員是否都已報名
+        const myStudents = students.filter(s =>
+          s.enrollStatus !== 'inactive' && (s.selfUid === myUid || s.parentUid === myUid)
+        );
+        const myEnrollments = (p._enrollments || []).filter(e => e.selfUid === myUid || e.parentUid === myUid);
+        const allEnrolled = myStudents.length > 0 && myStudents.every(s =>
+          myEnrollments.some(e => e.studentId === s.id && e.status !== 'rejected')
+        );
+
+        if (allEnrolled) {
+          signupBtn = '<div class="edu-cp-signup-status" style="color:var(--text-muted)">學員皆已報名</div>';
         } else if (isFull) {
           signupBtn = '<div class="edu-cp-signup-status" style="color:var(--text-muted)">已額滿</div>';
         } else {
           signupBtn = '<button class="primary-btn" style="width:100%;margin-top:.4rem" onclick="event.stopPropagation();App.applyCourseEnrollment(\'' + teamId + '\',\'' + p.id + '\')">我要報名</button>';
         }
       }
+
+      // 管理按鈕（Fix 8: 放在報名按鈕之下，左對齊）
+      const manageHtml = isStaff
+        ? '<div class="edu-cp-manage-left">'
+          + '<button class="outline-btn" style="font-size:.72rem;padding:.2rem .5rem" onclick="event.stopPropagation();App.showEduCoursePlanForm(\'' + teamId + '\',\'' + p.id + '\')">編輯</button>'
+          + '<button class="outline-btn" style="font-size:.72rem;padding:.2rem .5rem;color:var(--danger)" onclick="event.stopPropagation();App.deleteEduCoursePlan(\'' + teamId + '\',\'' + p.id + '\')">刪除</button>'
+          + '</div>'
+        : '';
 
       const clickAction = isStaff
         ? ' onclick="App.showCourseEnrollmentList(\'' + teamId + '\',\'' + p.id + '\')"'
@@ -113,8 +132,8 @@ Object.assign(App, {
         + '</div>'
         + coverHtml
         + '</div>'
-        + manageHtml
         + signupBtn
+        + manageHtml
         + '</div>';
     }).join('');
   },
