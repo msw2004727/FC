@@ -605,6 +605,19 @@ service cloud.firestore {
         allow delete: if isOwner(userId);
         allow update: if false;
       }
+
+      // ── Per-user 站內信收件匣（只有 Admin SDK/CF 可建立；擁有者可讀/更新已讀/刪除） ──
+      match /inbox/{msgId} {
+        allow create: if false;  // 所有寫入透過 Cloud Function (Admin SDK)
+        allow read: if isOwner(userId);
+        allow update: if (isOwner(userId)
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read', 'readAt']))
+          || isAdmin();
+        allow delete: if (isOwner(userId)
+            && !(resource.data.keys().hasAny(['actionType'])
+                 && resource.data.actionStatus == 'pending'))
+          || isAdmin();
+      }
     }
 
     // ═══════════════════════════════════════════

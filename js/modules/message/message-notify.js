@@ -101,6 +101,10 @@ Object.assign(App, {
         this.updateNotifBadge?.();
         console.error('[deliverMsg]', err);
       });
+      // Phase 1 雙寫：fire-and-forget 呼叫 CF 寫入 per-user inbox
+      FirebaseService._deliverToInboxCF?.(
+        newMsg, directTargetUid, targetTeamId, targetRoles, targetType
+      );
     }
     this.renderMessageList?.();
     this.updateNotifBadge?.();

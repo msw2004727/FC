@@ -4257,22 +4257,68 @@ async function writeAuditEntryInternal({ action, targetType, targetId, targetLab
   }
 }
 
-// ── 寫入 inbox 通知的內部 helper ──
+// ── 寫入 inbox 通知的內部 helper（雙寫：messages/ + users/{uid}/inbox/）──
 async function writeInboxNotification({ recipientUid, title, body, category, categoryLabel }) {
+  const safeTitle = String(title || "").slice(0, 200);
+  const safeBody = String(body || "").slice(0, 2000);
+  const msgId = `msg_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
   try {
+    // 舊路徑（向後相容）
     await db.collection("messages").add({
       recipientUid,
-      title: String(title || "").slice(0, 200),
-      body: String(body || "").slice(0, 2000),
+      title: safeTitle,
+      body: safeBody,
       category: category || "activity",
       categoryLabel: categoryLabel || "活動",
       senderName: "系統",
       read: false,
       createdAt: FieldValue.serverTimestamp(),
     });
+    // 新路徑（per-user inbox）
+    if (recipientUid) {
+      await db.collection("users").doc(recipientUid).collection("inbox").doc(msgId).set({
+        id: msgId,
+        title: safeTitle,
+        body: safeBody,
+        preview: safeBody.length > 40 ? safeBody.slice(0, 40) + "..." : safeBody,
+        type: category || "activity",
+        typeName: categoryLabel || "活動",
+        senderName: "系統",
+        fromUid: "system",
+        read: false,
+        readAt: null,
+        createdAt: FieldValue.serverTimestamp(),
+      });
+    }
   } catch (err) {
     console.error("[writeInboxNotification]", err);
   }
+}
+
+// ── Per-user inbox 寫入 helper（供 deliverToInbox CF 使用）──
+async function _writeToUserInbox(recipientUid, msgData) {
+  const docId = msgData.id || `msg_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+  const doc = {
+    id: docId,
+    title: String(msgData.title || "").slice(0, 200),
+    body: String(msgData.body || "").slice(0, 2000),
+    preview: String(msgData.preview || msgData.body || "").slice(0, 43),
+    type: msgData.type || "system",
+    typeName: msgData.typeName || "系統",
+    time: msgData.time || "",
+    senderName: msgData.senderName || "系統",
+    fromUid: msgData.fromUid || null,
+    read: false,
+    readAt: null,
+    actionType: msgData.actionType || null,
+    actionStatus: msgData.actionStatus || null,
+    reviewerName: msgData.reviewerName || null,
+    meta: msgData.meta || null,
+    ref: `messages/${docId}`,
+    createdAt: FieldValue.serverTimestamp(),
+  };
+  await db.collection("users").doc(recipientUid).collection("inbox").doc(docId).set(doc);
+  return docId;
 }
 
 // ── 驗證呼叫者是否為活動管理者 ──
@@ -5268,5 +5314,149 @@ exports.eduCheckin = onCall(
     }
 
     return { success: true, count: written.length, records: written };
+  }
+);
+
+// ═══════════════════════════════════════════════════════
+//  deliverToInbox — Per-user inbox fan-out 寫入
+//  前端呼叫此 CF，由 Admin SDK 寫入收件人的 inbox 子集合
+// ═══════════════════════════════════════════════════════
+exports.deliverToInbox = onCall(
+  { region: "asia-east1", timeoutSeconds: 60 },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Must be logged in");
+    }
+    const callerUid = request.auth.uid;
+    const { message, targetUid, targetTeamId, targetRoles, targetType } = request.data || {};
+
+    if (!message || !message.id || !message.body) {
+      throw new HttpsError("invalid-argument", "message with id and body is required");
+    }
+
+    // 確保 fromUid 與呼叫者一致（防偽造）
+    const safeMessage = { ...message, fromUid: message.fromUid || callerUid };
+
+    try {
+      const recipientUids = new Set();
+
+      // 1. 點對點
+      if (targetUid) {
+        recipientUids.add(targetUid);
+      }
+
+      // 2. 俱樂部廣播
+      if (targetTeamId && !targetUid) {
+        const usersSnap = await db.collection("users")
+          .where("teamId", "==", targetTeamId).get();
+        usersSnap.forEach(doc => recipientUids.add(doc.id));
+        // 也查 teamIds array-contains
+        const usersSnap2 = await db.collection("users")
+          .where("teamIds", "array-contains", targetTeamId).get();
+        usersSnap2.forEach(doc => recipientUids.add(doc.id));
+      }
+
+      // 3. 角色廣播
+      if (Array.isArray(targetRoles) && targetRoles.length > 0 && !targetUid && !targetTeamId) {
+        for (const role of targetRoles) {
+          const snap = await db.collection("users").where("role", "==", role).get();
+          snap.forEach(doc => recipientUids.add(doc.id));
+        }
+      }
+
+      // 4. 全體廣播
+      if (targetType === "all" && !targetUid && !targetTeamId && (!targetRoles || targetRoles.length === 0)) {
+        const allSnap = await db.collection("users").get();
+        allSnap.forEach(doc => recipientUids.add(doc.id));
+      }
+
+      // 如果展開後仍無收件人（targetUid 為空的點對點），直接 return
+      if (recipientUids.size === 0) {
+        return { success: true, delivered: 0 };
+      }
+
+      // 批次寫入，每 450 筆一個 batch
+      const uids = [...recipientUids];
+      let delivered = 0;
+      for (let i = 0; i < uids.length; i += 450) {
+        const chunk = uids.slice(i, i + 450);
+        const batch = db.batch();
+        for (const uid of chunk) {
+          const ref = db.collection("users").doc(uid).collection("inbox").doc(safeMessage.id);
+          batch.set(ref, {
+            id: safeMessage.id,
+            title: String(safeMessage.title || "").slice(0, 200),
+            body: String(safeMessage.body || "").slice(0, 2000),
+            preview: String(safeMessage.preview || "").slice(0, 43),
+            type: safeMessage.type || "system",
+            typeName: safeMessage.typeName || "系統",
+            time: safeMessage.time || "",
+            senderName: safeMessage.senderName || "",
+            fromUid: safeMessage.fromUid,
+            read: false,
+            readAt: null,
+            actionType: safeMessage.actionType || null,
+            actionStatus: safeMessage.actionStatus || null,
+            reviewerName: safeMessage.reviewerName || null,
+            meta: safeMessage.meta || null,
+            ref: `messages/${safeMessage.id}`,
+            createdAt: FieldValue.serverTimestamp(),
+          });
+        }
+        await batch.commit();
+        delivered += chunk.length;
+      }
+
+      return { success: true, delivered };
+    } catch (err) {
+      console.error("[deliverToInbox]", err);
+      throw new HttpsError("internal", "Failed to deliver to inbox");
+    }
+  }
+);
+
+// ═══════════════════════════════════════════════════════
+//  syncGroupActionStatus — 跨 inbox 審核狀態同步
+//  當幹部核准/拒絕團隊加入或賽事申請後，同步更新同群組其他幹部 inbox
+// ═══════════════════════════════════════════════════════
+exports.syncGroupActionStatus = onCall(
+  { region: "asia-east1", timeoutSeconds: 30 },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Must be logged in");
+    }
+    const { groupId, newStatus, reviewerName } = request.data || {};
+
+    if (!groupId || !newStatus) {
+      throw new HttpsError("invalid-argument", "groupId and newStatus are required");
+    }
+
+    try {
+      // 用 collection group query 查詢所有 inbox 中 meta.groupId 匹配的文件
+      const snapshot = await db.collectionGroup("inbox")
+        .where("meta.groupId", "==", groupId)
+        .where("actionStatus", "==", "pending")
+        .get();
+
+      if (snapshot.empty) {
+        return { success: true, updated: 0 };
+      }
+
+      const batch = db.batch();
+      let count = 0;
+      snapshot.forEach(doc => {
+        batch.update(doc.ref, {
+          actionStatus: newStatus,
+          reviewerName: reviewerName || "",
+        });
+        count++;
+      });
+      await batch.commit();
+
+      return { success: true, updated: count };
+    } catch (err) {
+      console.error("[syncGroupActionStatus]", err);
+      throw new HttpsError("internal", "Failed to sync group action status");
+    }
   }
 );

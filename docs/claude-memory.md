@@ -10,6 +10,13 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-27 — [永久] Phase 1 Per-User Inbox 雙寫模式
+- **架構**：站內信遷移第一步，新訊息同時寫入 `messages/` 和 `users/{uid}/inbox/`
+- **CF 新增**：`deliverToInbox`（fan-out 寫入收件人 inbox）、`syncGroupActionStatus`（跨 inbox 審核同步）
+- **Rules**：`users/{uid}/inbox/{msgId}` — create:false (只有 CF 可寫)、read:isOwner、update:只能改 read/readAt、delete:禁止刪除 pending 審核
+- **前端**：`_deliverToInboxCF` + `_syncGroupActionStatusCF` (fire-and-forget)，`_deliverMessageToInbox()` 末尾呼叫 CF
+- **教訓**：跨用戶 inbox 寫入必須透過 CF (Admin SDK)，前端直寫會被 Rules 擋住
+
 ### 2026-03-27 — Level 1 i18n 安全範圍接線（19 key）
 - **需求**：將已定義但未使用的 i18n key 接線到 HTML，讓 6 種語言切換生效
 - **做法**：

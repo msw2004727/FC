@@ -1688,6 +1688,29 @@ Object.assign(FirebaseService, {
     return doc;
   },
 
+  /** Phase 1 雙寫：呼叫 deliverToInbox CF 寫入 per-user inbox（fire-and-forget） */
+  async _deliverToInboxCF(message, targetUid, targetTeamId, targetRoles, targetType) {
+    if (typeof firebase === 'undefined' || !firebase.app) return;
+    try {
+      const fn = firebase.app().functions('asia-east1').httpsCallable('deliverToInbox');
+      await fn({ message, targetUid, targetTeamId, targetRoles, targetType });
+    } catch (err) {
+      // Phase 1: inbox 寫入失敗不影響主流程（舊 messages/ 已寫入）
+      console.warn('[deliverToInboxCF] inbox write failed (non-blocking):', err.message || err);
+    }
+  },
+
+  /** Phase 1 雙寫：呼叫 syncGroupActionStatus CF 同步跨 inbox 審核狀態 */
+  async _syncGroupActionStatusCF(groupId, newStatus, reviewerName) {
+    if (typeof firebase === 'undefined' || !firebase.app) return;
+    try {
+      const fn = firebase.app().functions('asia-east1').httpsCallable('syncGroupActionStatus');
+      await fn({ groupId, newStatus, reviewerName });
+    } catch (err) {
+      console.warn('[syncGroupActionStatusCF] sync failed (non-blocking):', err.message || err);
+    }
+  },
+
   async addMessage(data) {
     const authed = await this._ensureAuth();
     if (!authed || !auth?.currentUser) {
