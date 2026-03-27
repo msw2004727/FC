@@ -10,17 +10,19 @@
  * 或直接在專案 functions/ 目錄下執行（使用 Firebase Admin 預設認證）。
  */
 
-const { initializeApp, cert } = require('firebase-admin/app');
-const { getFirestore, FieldValue } = require('firebase-admin/firestore');
+const path = require('path');
+const admin = require(path.join(__dirname, '..', 'functions', 'node_modules', 'firebase-admin'));
 
-// ── 初始化 ──
+// ── 初始化（使用 Firebase Admin default credentials 或 service account）──
 const serviceAccountPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
 if (serviceAccountPath) {
-  initializeApp({ credential: cert(require(serviceAccountPath)) });
+  admin.initializeApp({ credential: admin.credential.cert(require(serviceAccountPath)) });
 } else {
-  initializeApp();
+  // 使用 projectId 直接初始化（適用於有 Firebase CLI 登入但無 service account 的情況）
+  admin.initializeApp({ projectId: 'fc-football-6c8dc' });
 }
-const db = getFirestore();
+const db = admin.firestore();
+const FieldValue = admin.firestore.FieldValue;
 const DRY_RUN = process.argv.includes('--dry-run');
 
 async function migrate() {
