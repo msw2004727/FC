@@ -48,10 +48,11 @@ Object.assign(App, {
    * 儲存分組
    */
   async handleSaveEduGroup() {
+    const _btnState = this._setEduBtnLoading('#edu-group-save-btn');
     const teamId = this._eduGroupEditTeamId;
     const groupId = this._eduGroupEditId;
     const name = document.getElementById('edu-grp-name').value.trim();
-    if (!name) { this.showToast('請輸入分組名稱'); return; }
+    if (!name) { _btnState.restore(); this.showToast('請輸入分組名稱'); return; }
 
     const ageMinRaw = document.getElementById('edu-grp-age-min').value.trim();
     const ageMaxRaw = document.getElementById('edu-grp-age-max').value.trim();
@@ -59,7 +60,7 @@ Object.assign(App, {
     const ageMax = ageMaxRaw ? parseInt(ageMaxRaw, 10) : null;
 
     if (ageMin != null && ageMax != null && ageMin > ageMax) {
-      this.showToast('最小年齡不能大於最大年齡');
+      _btnState.restore(); this.showToast('最小年齡不能大於最大年齡');
       return;
     }
 
@@ -99,6 +100,8 @@ Object.assign(App, {
     } catch (err) {
       console.error('[handleSaveEduGroup]', err);
       this.showToast('儲存失敗：' + (err.message || '請稍後再試'));
+    } finally {
+      _btnState.restore();
     }
   },
 

@@ -7,6 +7,35 @@
 Object.assign(App, {
 
   // ══════════════════════════════════
+  //  按鈕處理中狀態（防重複提交 + 用戶回饋）
+  // ══════════════════════════════════
+
+  /**
+   * 將按鈕設為「處理中」狀態（灰色 + 禁用 + 顯示處理中文字）
+   * @param {HTMLElement|string} btnOrSelector - 按鈕元素或 CSS selector
+   * @returns {{ restore: Function }} 呼叫 restore() 恢復原狀
+   */
+  _setEduBtnLoading(btnOrSelector) {
+    const btn = typeof btnOrSelector === 'string'
+      ? document.querySelector(btnOrSelector) : btnOrSelector;
+    if (!btn) return { restore() {} };
+    const origText = btn.textContent;
+    const origDisabled = btn.disabled;
+    btn.disabled = true;
+    btn.textContent = '處理中...';
+    btn.style.opacity = '0.55';
+    btn.style.pointerEvents = 'none';
+    return {
+      restore() {
+        btn.disabled = origDisabled;
+        btn.textContent = origText;
+        btn.style.opacity = '';
+        btn.style.pointerEvents = '';
+      }
+    };
+  },
+
+  // ══════════════════════════════════
   //  Type Detection
   // ══════════════════════════════════
 

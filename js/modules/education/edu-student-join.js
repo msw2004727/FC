@@ -74,6 +74,7 @@ Object.assign(App, {
    */
   async handleEduStudentApply() {
     if (this._eduApplySubmitting) return;
+    const _btnState = this._setEduBtnLoading('[onclick*="handleEduStudentApply"]');
 
     const teamId = document.getElementById('edu-apply-team-id').value;
     const name = document.getElementById('edu-apply-name').value.trim();
@@ -199,6 +200,7 @@ Object.assign(App, {
       this.showToast('申請失敗：' + (err.message || '請稍後再試'));
     } finally {
       this._eduApplySubmitting = false;
+      _btnState.restore();
     }
   },
 

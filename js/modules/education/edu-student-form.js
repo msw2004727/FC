@@ -84,10 +84,11 @@ Object.assign(App, {
    * 儲存學員（編輯 or 手動新增）
    */
   async handleSaveEduStudent() {
+    const _btnState = this._setEduBtnLoading('#edu-student-save-btn');
     const teamId = this._eduStudentEditTeamId;
     const studentId = this._eduStudentEditId;
     const name = document.getElementById('edu-stu-name').value.trim();
-    if (!name) { this.showToast('請輸入學員姓名'); return; }
+    if (!name) { _btnState.restore(); this.showToast('請輸入學員姓名'); return; }
 
     const groupSelect = document.getElementById('edu-stu-groups');
     const groupIds = [];
@@ -153,6 +154,8 @@ Object.assign(App, {
     } catch (err) {
       console.error('[handleSaveEduStudent]', err);
       this.showToast('儲存失敗：' + (err.message || '請稍後再試'));
+    } finally {
+      _btnState.restore();
     }
   },
 

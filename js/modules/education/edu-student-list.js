@@ -43,6 +43,12 @@ Object.assign(App, {
   },
 
   async renderEduStudentList(teamId, groupId) {
+    // 虛擬分組：委託專用渲染器
+    if (groupId === '__unmatched__') {
+      await this._loadEduStudents(teamId);
+      this._renderUnmatchedStudentList(teamId);
+      return;
+    }
     const container = document.getElementById('edu-student-list');
     if (!container) return;
 
@@ -102,7 +108,7 @@ Object.assign(App, {
       + (genderIcon ? '<span class="edu-student-gender' + genderClass + '">' + genderIcon + '</span>' : '')
       + (ageLabel ? '<span class="edu-student-age">' + ageLabel + '</span>' : '')
       + '<span class="edu-header-actions">'
-      + '<button class="edu-approve-btn" onclick="App._approveFromList(\'' + teamId + '\',\'' + s.id + '\')">通過</button>'
+      + '<button class="edu-approve-btn" onclick="App._approveFromList(\'' + teamId + '\',\'' + s.id + '\',this)">通過</button>'
       + '<button class="edu-reject-btn" onclick="App._rejectFromList(\'' + teamId + '\',\'' + s.id + '\',this)" data-name="' + escapeHTML(s.name) + '">拒絕</button>'
       + '</span>'
       + '</div>'
@@ -256,18 +262,24 @@ Object.assign(App, {
     this.showModal('edu-assign-student-modal');
   },
 
-  async _approveFromList(teamId, studentId) {
-    await this.approveEduStudent(teamId, studentId);
-    const groupId = this._eduCurrentGroupId;
-    if (groupId) await this.renderEduStudentList(teamId, groupId);
+  async _approveFromList(teamId, studentId, btnEl) {
+    const _btnState = this._setEduBtnLoading(btnEl);
+    try {
+      await this.approveEduStudent(teamId, studentId);
+      const groupId = this._eduCurrentGroupId;
+      if (groupId) await this.renderEduStudentList(teamId, groupId);
+    } finally { _btnState.restore(); }
   },
 
   async _rejectFromList(teamId, studentId, btnEl) {
     const name = btnEl && btnEl.dataset ? btnEl.dataset.name : '';
     if (!(await this.appConfirm('確定要拒絕「' + name + '」的申請嗎？'))) return;
-    await this.rejectEduStudent(teamId, studentId);
-    const groupId = this._eduCurrentGroupId;
-    if (groupId) await this.renderEduStudentList(teamId, groupId);
+    const _btnState = this._setEduBtnLoading(btnEl);
+    try {
+      await this.rejectEduStudent(teamId, studentId);
+      const groupId = this._eduCurrentGroupId;
+      if (groupId) await this.renderEduStudentList(teamId, groupId);
+    } finally { _btnState.restore(); }
   },
 
   /**
