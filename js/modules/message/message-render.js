@@ -36,8 +36,15 @@ Object.assign(App, {
     if (!container) return;
     container.innerHTML = messages.length ? messages.map(m => {
       const isUnread = this._isMessageUnread(m);
+      let ribbon = '';
+      if (m.actionType) {
+        ribbon = m.actionStatus === 'pending'
+          ? '<div class="msg-ribbon msg-ribbon-pending">待審核</div>'
+          : '<div class="msg-ribbon msg-ribbon-reviewed">已審核</div>';
+      }
       return `
       <div class="msg-card${isUnread ? ' msg-unread' : ''}" onclick="App.readMessage(this, '${m.id}')">
+        ${ribbon}
         <div class="msg-card-header">
           <span class="msg-dot ${isUnread ? 'unread' : 'read'}"></span>
           <span class="msg-type msg-type-${m.type}">${escapeHTML(m.typeName)}</span>

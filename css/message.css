@@ -33,6 +33,25 @@
 .msg-action-ignore { background: var(--border); color: var(--text-secondary); }
 .msg-action-status { display: inline-block; padding: .2rem .5rem; border-radius: var(--radius-full); font-size: .72rem; font-weight: 600; margin-top: .5rem; }
 
+/* ─── 審核緞帶（右下角斜角） ─── */
+.msg-card { position: relative; overflow: hidden; }
+.msg-ribbon {
+  position: absolute; right: -32px; bottom: 10px;
+  width: 130px; text-align: center;
+  padding: 5px 0; font-size: .72rem; font-weight: 700; letter-spacing: .5px;
+  transform: rotate(-35deg); transform-origin: center;
+  pointer-events: none; z-index: 1;
+  box-shadow: 0 1px 4px rgba(0,0,0,.15);
+}
+.msg-ribbon-pending {
+  background: linear-gradient(135deg, #f59e0b, #f97316);
+  color: #fff;
+}
+.msg-ribbon-reviewed {
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: #fff;
+}
+
 [data-theme="dark"] .msg-type-system { background: rgba(59,130,246,.18); }
 [data-theme="dark"] .msg-type-activity { background: rgba(16,185,129,.18); }
 [data-theme="dark"] .msg-type-trade { background: rgba(245,158,11,.18); }

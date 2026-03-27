@@ -333,7 +333,8 @@
 // 20260327e: Phase 1 per-user inbox 雙寫（deliverToInbox CF + rules + 前端 CF wrapper）
 // 20260327f: Phase 2-5 per-user inbox 完整遷移（切讀取路徑 + 停止舊寫入 + inbox listener）
 // 20260327g: 三方審核修正（updateMessage→CF、即時渲染、fromUid 強制、廣播權限、status 白名單）
-const CACHE_VERSION = '20260327g';
+// 20260327h: 站內信審核緞帶（待審核橘色/已審核綠色，右下角斜角）
+const CACHE_VERSION = '20260327h';
 
 // ─── 網路 / 設備偵測（用於 UI 降級）───
 const NetDevice = {
