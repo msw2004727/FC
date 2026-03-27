@@ -34,7 +34,8 @@ Object.assign(App, {
     if (isStaff === undefined) isStaff = this.isEduClubStaff(teamId);
 
     const plans = await this._loadEduCoursePlans(teamId);
-    const activePlans = plans.filter(p => p.active !== false);
+    const activePlans = plans.filter(p => p.active !== false)
+      .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
 
     if (!activePlans.length) {
       container.innerHTML = '<div class="edu-empty-state">尚未建立課程方案</div>';
@@ -46,7 +47,7 @@ Object.assign(App, {
     const myUid = curUser?.uid;
     const students = this.getEduStudents(teamId);
 
-    // 載入各方案的報名紀錄（用於判斷已報名 + 人數）
+    // 載入各方案的報名紀錄 + 計算含分組學員的實際人數
     for (const p of activePlans) {
       try {
         const key = this._getCourseEnrollCacheKey?.(teamId, p.id);
@@ -56,6 +57,13 @@ Object.assign(App, {
           p._enrollments = (key && this._courseEnrollCache?.[key]) || [];
         }
       } catch (_) { p._enrollments = []; }
+      // 計算實際人數：approved enrollments + 分組內 active 學員（不重複）
+      const enrolledIds = new Set(p._enrollments.filter(e => e.status === 'approved').map(e => e.studentId));
+      if (p.groupId) {
+        students.filter(s => s.enrollStatus === 'active' && (s.groupIds || []).includes(p.groupId))
+          .forEach(s => enrolledIds.add(s.id));
+      }
+      p._effectiveCount = enrolledIds.size;
     }
 
     container.innerHTML = activePlans.map(p => {
@@ -83,26 +91,31 @@ Object.assign(App, {
         chips.push('共 ' + (p.totalSessions || 0) + ' 堂');
       }
       if (p.price) chips.push('$' + p.price.toLocaleString());
-      chips.push((p.currentCount || 0) + (p.maxCapacity ? '/' + p.maxCapacity : '') + ' 人');
+      chips.push((p._effectiveCount || 0) + (p.maxCapacity ? '/' + p.maxCapacity : '') + ' 人');
       const infoHtml = '<div class="edu-cp-chips">' + chips.map(c => '<span class="edu-cp-chip">' + c + '</span>').join('') + '</div>';
 
-      // 學員報名按鈕（Fix 7: 全部已報名則灰色）
+      // 學員報名按鈕
       let signupBtn = '';
       if (p.allowSignup) {
-        const isFull = p.maxCapacity && (p.currentCount || 0) >= p.maxCapacity;
-        // 檢查用戶名下所有學員是否都已報名
+        const isFull = p.maxCapacity && (p._effectiveCount || 0) >= p.maxCapacity;
+        // 檢查用戶名下所有學員是否都已報名（含分組自動導入的）
         const myStudents = students.filter(s =>
           s.enrollStatus !== 'inactive' && (s.selfUid === myUid || s.parentUid === myUid)
         );
-        const myEnrollments = (p._enrollments || []).filter(e => e.selfUid === myUid || e.parentUid === myUid);
-        const allEnrolled = myStudents.length > 0 && myStudents.every(s =>
-          myEnrollments.some(e => e.studentId === s.id && e.status !== 'rejected')
+        // 分組學員也視為已報名
+        const enrolledStudentIds = new Set(
+          (p._enrollments || []).filter(e => e.status !== 'rejected').map(e => e.studentId)
         );
+        if (p.groupId) {
+          students.filter(s => s.enrollStatus === 'active' && (s.groupIds || []).includes(p.groupId))
+            .forEach(s => enrolledStudentIds.add(s.id));
+        }
+        const allEnrolled = myStudents.length > 0 && myStudents.every(s => enrolledStudentIds.has(s.id));
 
         if (allEnrolled) {
-          signupBtn = '<div class="edu-cp-signup-status" style="color:var(--text-muted)">學員皆已報名</div>';
+          signupBtn = '<button class="primary-btn" style="width:100%;margin-top:.4rem;opacity:.45" disabled>學員皆已報名</button>';
         } else if (isFull) {
-          signupBtn = '<div class="edu-cp-signup-status" style="color:var(--text-muted)">已額滿</div>';
+          signupBtn = '<button class="primary-btn" style="width:100%;margin-top:.4rem;opacity:.45" disabled>已額滿</button>';
         } else {
           signupBtn = '<button class="primary-btn" style="width:100%;margin-top:.4rem" onclick="event.stopPropagation();App.applyCourseEnrollment(\'' + teamId + '\',\'' + p.id + '\')">我要報名</button>';
         }
@@ -388,24 +401,30 @@ Object.assign(App, {
   async _moveCoursePlan(teamId, planId, direction) {
     const cached = this._eduCoursePlansCache[teamId];
     if (!cached) return;
-    const active = cached.filter(p => p.active !== false);
+    const active = cached.filter(p => p.active !== false)
+      .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+    // 確保每個項目都有 sortOrder
+    active.forEach((p, i) => { if (p.sortOrder == null) p.sortOrder = i * 10; });
     const idx = active.findIndex(p => p.id === planId);
     if (idx === -1) return;
+
     if (direction === 0) {
-      // 置頂
-      active.forEach((p, i) => { p.sortOrder = (i === idx) ? -1 : i; });
+      // 置頂：目標設為最小值 - 10，其餘不動
+      const minOrder = Math.min(...active.map(p => p.sortOrder || 0));
+      active[idx].sortOrder = minOrder - 10;
     } else {
-      // 上移(-1) 或下移(+1)
       const targetIdx = idx + direction;
       if (targetIdx < 0 || targetIdx >= active.length) return;
-      const tmp = active[idx].sortOrder;
+      // 交換 sortOrder
+      const tmpOrder = active[idx].sortOrder;
       active[idx].sortOrder = active[targetIdx].sortOrder;
-      active[targetIdx].sortOrder = tmp;
+      active[targetIdx].sortOrder = tmpOrder;
     }
     // 寫入 Firestore
     for (const p of active) {
-      FirebaseService.updateEduCoursePlan(teamId, p.id, { sortOrder: p.sortOrder || 0 }).catch(() => {});
+      FirebaseService.updateEduCoursePlan(teamId, p.id, { sortOrder: p.sortOrder }).catch(() => {});
     }
+    this.showToast(direction === 0 ? '已置頂' : '已排序');
     await this.renderEduCoursePlanList(teamId);
   },
 

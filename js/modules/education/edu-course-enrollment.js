@@ -85,7 +85,12 @@ Object.assign(App, {
       const existing = enrolledMap[s.id];
       if (existing) {
         const rawDate = existing.appliedAt || '';
-        const dateStr = typeof rawDate === 'string' ? rawDate.slice(0, 10) : '';
+        let dateStr = '';
+        if (rawDate) {
+          if (typeof rawDate === 'string') dateStr = rawDate.slice(0, 10);
+          else if (rawDate.toDate) dateStr = rawDate.toDate().toISOString().slice(0, 10);
+          else if (rawDate.seconds) dateStr = new Date(rawDate.seconds * 1000).toISOString().slice(0, 10);
+        }
         return '<label class="edu-ce-pick-item edu-ce-pick-disabled">'
           + '<div class="edu-ce-pick-main"><span class="edu-ce-pick-name">' + escapeHTML(s.name) + '</span>' + infoLine + '</div>'
           + '<span class="edu-ce-pick-hint">已於 ' + dateStr + ' 報名</span>'
@@ -236,9 +241,14 @@ Object.assign(App, {
     const age = stu && stu.birthday ? this.calcAge(stu.birthday) : null;
     const gender = stu?.gender === 'male' ? '♂' : stu?.gender === 'female' ? '♀' : '';
     const groupNames = (stu?.groupNames || []).join('、') || '未分組';
-    // 報名日期（右上角）
+    // 報名日期（右上角）— 處理 Firestore Timestamp / ISO string / Date
     const enrollDateRaw = e.appliedAt || e.reviewedAt || '';
-    const enrollDate = typeof enrollDateRaw === 'string' ? enrollDateRaw.slice(0, 10) : '';
+    let enrollDate = '';
+    if (enrollDateRaw) {
+      if (typeof enrollDateRaw === 'string') enrollDate = enrollDateRaw.slice(0, 10);
+      else if (enrollDateRaw.toDate) enrollDate = enrollDateRaw.toDate().toISOString().slice(0, 10);
+      else if (enrollDateRaw.seconds) enrollDate = new Date(enrollDateRaw.seconds * 1000).toISOString().slice(0, 10);
+    }
 
     // 出勤計算
     const totalSessions = plan?.totalSessions || 0;
