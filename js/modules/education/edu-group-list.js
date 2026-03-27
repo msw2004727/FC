@@ -39,9 +39,23 @@ Object.assign(App, {
     const groups = await this._loadEduGroups(teamId);
 
     if (!groups.length) {
-      container.innerHTML = '<div class="edu-empty-state">尚未建立分組' +
+      let emptyHtml = '<div class="edu-empty-state">尚未建立分組' +
         (isStaff ? '<br><button class="primary-btn small" style="margin-top:.5rem" onclick="App.showEduGroupForm(\'' + teamId + '\')">建立第一個分組</button>' : '') +
         '</div>';
+      // 即使沒有分組，也要顯示虛擬待審核名單（有未匹配 pending 學員時）
+      if (isStaff) {
+        const unmatched = this.getUnmatchedPendingStudents(teamId);
+        if (unmatched.length > 0) {
+          emptyHtml += '<div class="edu-group-card edu-group-card-virtual" style="margin-top:.5rem" onclick="App.showEduStudentList(\'' + teamId + '\',\'__unmatched__\')">'
+            + '<div class="edu-group-header">'
+            + '<span class="edu-group-name">待審核名單</span>'
+            + '<span class="edu-group-pending">' + unmatched.length + ' 人待分配</span>'
+            + '</div>'
+            + '<div class="edu-group-desc">不符合任何分組條件的申請學員</div>'
+            + '</div>';
+        }
+      }
+      container.innerHTML = emptyHtml;
       return;
     }
 

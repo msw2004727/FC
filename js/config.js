@@ -338,7 +338,8 @@
 // 20260327j: 修正學員申請後 listener 被停止 + team-detail 返回時重繪教育區塊
 // 20260327k: 修正非教育俱樂部 team-detail 頁觸發 TEAM_DOC_NOT_FOUND 報錯
 // 20260327l: 學員申請後立即重繪 team-detail 教育區塊（用 _eduDetailTeamId）
-const CACHE_VERSION = '20260327l';
+// 20260327m: 零分組時也顯示虛擬待審核名單
+const CACHE_VERSION = '20260327m';
 
 // ─── 網路 / 設備偵測（用於 UI 降級）───
 const NetDevice = {
