@@ -5334,8 +5334,27 @@ exports.deliverToInbox = onCall(
       throw new HttpsError("invalid-argument", "message with id and body is required");
     }
 
-    // 確保 fromUid 與呼叫者一致（防偽造）
-    const safeMessage = { ...message, fromUid: message.fromUid || callerUid };
+    // 強制 fromUid = 呼叫者（防偽造，三方審核修正）
+    const safeMessage = { ...message, fromUid: callerUid };
+
+    // 廣播權限檢查：只有 admin/super_admin 可用廣播功能（三方審核修正）
+    const isBroadcast = !targetUid && (targetTeamId || (Array.isArray(targetRoles) && targetRoles.length > 0) || targetType === "all");
+    if (isBroadcast) {
+      const callerDoc = await db.collection("users").doc(callerUid).get();
+      const callerRole = callerDoc.exists ? callerDoc.data().role : "user";
+      if (!["admin", "super_admin"].includes(callerRole)) {
+        // 非 admin 允許發送到自己所屬的俱樂部（團隊幹部通知用）
+        if (targetTeamId) {
+          const callerData = callerDoc.data() || {};
+          const myTeams = [callerData.teamId, ...(callerData.teamIds || [])].filter(Boolean);
+          if (!myTeams.includes(targetTeamId)) {
+            throw new HttpsError("permission-denied", "You can only broadcast to your own team");
+          }
+        } else {
+          throw new HttpsError("permission-denied", "Only admins can broadcast to roles or all users");
+        }
+      }
+    }
 
     try {
       const recipientUids = new Set();
@@ -5427,8 +5446,13 @@ exports.syncGroupActionStatus = onCall(
     }
     const { groupId, newStatus, reviewerName } = request.data || {};
 
+    // 白名單驗證 newStatus（三方審核修正）
+    const VALID_STATUSES = ["approved", "rejected", "ignored"];
     if (!groupId || !newStatus) {
       throw new HttpsError("invalid-argument", "groupId and newStatus are required");
+    }
+    if (!VALID_STATUSES.includes(newStatus)) {
+      throw new HttpsError("invalid-argument", `newStatus must be one of: ${VALID_STATUSES.join(", ")}`);
     }
 
     try {

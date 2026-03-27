@@ -76,32 +76,16 @@ Object.assign(App, {
     return String(msg?.meta?.messageGroupId || msg?.meta?.groupId || '').trim();
   },
 
-  // Phase 3: 更新自己 inbox + 呼叫 CF 同步其他幹部 inbox
+  // Phase 3 修正：所有 actionStatus 更新都透過 CF（Rules 只允許前端改 read/readAt）
   _syncTournamentMessageActionStatus(msgId, groupId, updates = {}, options = {}) {
     const { syncGroup = true } = options;
     const messages = ApiService.getMessages() || [];
     const safeGroupId = String(groupId || '').trim();
     const safeUpdates = { ...updates };
 
-    // 更新自己 inbox 裡的這則訊息
+    // 本地快取樂觀更新（自己這則 + 同 groupId 的）
     const myMsg = messages.find(message => message.id === msgId);
-    if (myMsg) {
-      Object.assign(myMsg, safeUpdates);
-      const myUid = ApiService.getCurrentUser()?.uid;
-      if (!ModeManager.isDemo() && myMsg._docId && myUid) {
-        db.collection('users').doc(myUid).collection('inbox').doc(myMsg._docId)
-          .update(safeUpdates).catch(err => console.error('[syncStatus:self]', err));
-      }
-    }
-
-    // 呼叫 CF 同步其他幹部 inbox（跨用戶更新需 Admin SDK）
-    if (syncGroup && safeGroupId && !ModeManager.isDemo()) {
-      FirebaseService._syncGroupActionStatusCF?.(
-        safeGroupId, safeUpdates.actionStatus, safeUpdates.reviewerName
-      );
-    }
-
-    // 同步本地快取中同 groupId 的訊息（自己 inbox 內可能有多則）
+    if (myMsg) Object.assign(myMsg, safeUpdates);
     if (syncGroup && safeGroupId) {
       messages.forEach(message => {
         if (message.id === msgId) return;
@@ -109,6 +93,13 @@ Object.assign(App, {
         if (String(message.actionStatus || '').trim().toLowerCase() !== 'pending') return;
         Object.assign(message, safeUpdates);
       });
+    }
+
+    // 透過 CF 統一更新所有 inbox（含自己的）— Rules 只允許前端改 read/readAt
+    if (syncGroup && safeGroupId && !ModeManager.isDemo()) {
+      FirebaseService._syncGroupActionStatusCF?.(
+        safeGroupId, safeUpdates.actionStatus, safeUpdates.reviewerName
+      );
     }
   },
 

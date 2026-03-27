@@ -128,6 +128,13 @@ const FirebaseService = {
     // attendance 變更不影響列表頁，跳過
     if (source === 'attendance') return;
 
+    // messages 變更：立即更新徽章 + 訊息列表
+    if (source === 'messages') {
+      App.updateNotifBadge?.();
+      if (page === 'page-messages') App.renderMessageList?.();
+      return;
+    }
+
     // 背景頁：500ms 防抖
     clearTimeout(this._snapshotRenderTimer);
     this._snapshotRenderTimer = setTimeout(() => {

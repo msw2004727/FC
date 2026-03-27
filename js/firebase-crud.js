@@ -1769,21 +1769,28 @@ Object.assign(FirebaseService, {
     return data;
   },
 
+  // Phase 3 修正：updateMessage 透過 CF 同步（actionStatus 等欄位不能前端直寫 inbox）
   async updateMessage(msgId, updates) {
     const doc = this._cache.messages.find(m => m.id === msgId);
     if (!doc || !doc._docId) return null;
-    await db.collection('messages').doc(doc._docId).update(updates);
+    // 本地快取先更新（樂觀更新）
+    Object.assign(doc, updates);
+    // 透過 syncGroupActionStatus CF 同步（含自己和其他幹部的 inbox）
+    if (updates.actionStatus && doc.meta?.groupId) {
+      this._syncGroupActionStatusCF?.(doc.meta.groupId, updates.actionStatus, updates.reviewerName);
+    }
     return doc;
   },
 
   async clearAllMessages() {
+    const myUid = auth?.currentUser?.uid;
+    if (!myUid) return;
     const msgs = this._cache.messages.filter(m => m._docId);
     if (!msgs.length) { this._cache.messages.length = 0; return; }
-    // Firestore batch 上限 500，分批刪除
     for (let i = 0; i < msgs.length; i += 450) {
       const chunk = msgs.slice(i, i + 450);
       const batch = db.batch();
-      chunk.forEach(m => batch.delete(db.collection('messages').doc(m._docId)));
+      chunk.forEach(m => batch.delete(db.collection('users').doc(myUid).collection('inbox').doc(m._docId)));
       await batch.commit();
     }
     this._cache.messages.length = 0;
@@ -1807,19 +1814,29 @@ Object.assign(FirebaseService, {
   //  Message Read Status（訊息已讀）
   // ════════════════════════════════
 
+  // Phase 3 修正：寫入 per-user inbox 路徑
   async updateMessageRead(msgId) {
+    const myUid = auth?.currentUser?.uid;
     const doc = this._cache.messages.find(m => m.id === msgId);
-    if (!doc || !doc._docId) return null;
-    await db.collection('messages').doc(doc._docId).update({ unread: false });
+    if (!doc || !doc._docId || !myUid) return null;
+    doc.read = true;
+    await db.collection('users').doc(myUid).collection('inbox').doc(doc._docId).update({
+      read: true, readAt: firebase.firestore.FieldValue.serverTimestamp(),
+    });
     return doc;
   },
 
   async markAllMessagesRead() {
-    const unread = this._cache.messages.filter(m => m.unread && m._docId);
+    const myUid = auth?.currentUser?.uid;
+    if (!myUid) return;
+    const unread = this._cache.messages.filter(m => !m.read && m._docId);
     if (unread.length === 0) return;
     const batch = db.batch();
     unread.forEach(m => {
-      batch.update(db.collection('messages').doc(m._docId), { unread: false });
+      m.read = true;
+      batch.update(db.collection('users').doc(myUid).collection('inbox').doc(m._docId), {
+        read: true, readAt: firebase.firestore.FieldValue.serverTimestamp(),
+      });
     });
     await batch.commit();
   },

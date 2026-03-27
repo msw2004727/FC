@@ -332,7 +332,8 @@
 // 20260327d: Level 1 i18n 安全範圍接線（profile 頁面 19 key + admin log tabs）
 // 20260327e: Phase 1 per-user inbox 雙寫（deliverToInbox CF + rules + 前端 CF wrapper）
 // 20260327f: Phase 2-5 per-user inbox 完整遷移（切讀取路徑 + 停止舊寫入 + inbox listener）
-const CACHE_VERSION = '20260327f';
+// 20260327g: 三方審核修正（updateMessage→CF、即時渲染、fromUid 強制、廣播權限、status 白名單）
+const CACHE_VERSION = '20260327g';
 
 // ─── 網路 / 設備偵測（用於 UI 降級）───
 const NetDevice = {
