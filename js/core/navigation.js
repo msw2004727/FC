@@ -564,7 +564,7 @@ Object.assign(App, {
     }
     // 離開俱樂部相關頁面：清理教育即時監聽
     // 教育子頁面（分組學員、簽到、行事曆等）保留 students listener
-    const eduSubPages = ['page-team-detail', 'page-edu-students', 'page-edu-checkin', 'page-edu-calendar', 'page-edu-course-plan', 'page-edu-groups'];
+    const eduSubPages = ['page-team-detail', 'page-edu-students', 'page-edu-checkin', 'page-edu-calendar', 'page-edu-course-plan', 'page-edu-groups', 'page-edu-student-apply'];
     if (eduSubPages.includes(this.currentPage) && !eduSubPages.includes(pageId)) {
       this._cleanupEduListeners?.();
     }
@@ -632,6 +632,10 @@ Object.assign(App, {
     if (pageId === 'page-admin-games') { this.renderGameManage(); if (this.renderGameLogViewer) this.renderGameLogViewer(); }
     if (pageId === 'page-admin-themes') this.renderThemeManage();
     // 教育頁面即時重繪
+    if (pageId === 'page-team-detail' && this._eduDetailTeamId) {
+      this._renderEduMemberSection?.(this._eduDetailTeamId);
+      this.renderEduGroupList?.(this._eduDetailTeamId);
+    }
     if (pageId === 'page-edu-groups' && this._eduCurrentTeamId) this.renderEduGroupList?.(this._eduCurrentTeamId);
     if (pageId === 'page-edu-students' && this._eduCurrentTeamId) {
       const gid = this._eduCurrentGroupId;
