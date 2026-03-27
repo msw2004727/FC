@@ -223,7 +223,7 @@ Object.assign(App, {
       const reader = new FileReader();
       reader.onload = () => {
         this.showImageCropper(reader.result, {
-          aspectRatio: 4/3,
+          aspectRatio: 8/3,
           onConfirm: (croppedDataUrl) => {
             this._eduCpCoverDataUrl = croppedDataUrl;
             const preview = document.getElementById('edu-cp-cover-preview');

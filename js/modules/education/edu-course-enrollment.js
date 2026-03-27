@@ -71,17 +71,33 @@ Object.assign(App, {
     overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
     let listHtml = myStudents.map(s => {
       const existing = enrolledMap[s.id];
+      const age = s.birthday ? this.calcAge(s.birthday) : null;
+      const gender = s.gender === 'male' ? '♂' : s.gender === 'female' ? '♀' : '';
+      const genderClass = s.gender === 'male' ? ' edu-gender-male' : s.gender === 'female' ? ' edu-gender-female' : '';
+      const groupLabel = (s.groupNames || []).join('、') || '未分組';
+      const infoLine = '<span class="edu-ce-pick-info">'
+        + (gender ? '<span class="edu-student-gender' + genderClass + '">' + gender + '</span> ' : '')
+        + (age != null ? age + '歲 ' : '')
+        + '<span style="color:var(--text-muted)">' + escapeHTML(groupLabel) + '</span>'
+        + '</span>';
+
       if (existing) {
         const dateStr = (existing.appliedAt && typeof existing.appliedAt === 'string') ? existing.appliedAt.slice(0, 10) : '';
         return '<label class="edu-ce-pick-item edu-ce-pick-disabled">'
-          + '<input type="checkbox" disabled>'
-          + '<span>' + escapeHTML(s.name) + '</span>'
+          + '<div class="edu-ce-pick-main">'
+          + '<span class="edu-ce-pick-name">' + escapeHTML(s.name) + '</span>'
+          + infoLine
+          + '</div>'
           + '<span class="edu-ce-pick-hint">已於 ' + dateStr + ' 已報名</span>'
+          + '<input type="checkbox" disabled>'
           + '</label>';
       }
       return '<label class="edu-ce-pick-item">'
-        + '<input type="checkbox" value="' + s.id + '" data-name="' + escapeHTML(s.name) + '" checked>'
-        + '<span>' + escapeHTML(s.name) + '</span>'
+        + '<div class="edu-ce-pick-main">'
+        + '<span class="edu-ce-pick-name">' + escapeHTML(s.name) + '</span>'
+        + infoLine
+        + '</div>'
+        + '<input type="checkbox" value="' + s.id + '" data-name="' + escapeHTML(s.name) + '">'
         + '</label>';
     }).join('');
 
@@ -136,6 +152,9 @@ Object.assign(App, {
   async showCourseEnrollmentList(teamId, planId) {
     this._ceTeamId = teamId;
     this._cePlanId = planId;
+    // Fix 3: 立即清空舊名單，避免一瞬間看到其他課程的學員
+    const listEl = document.getElementById('edu-ce-list');
+    if (listEl) listEl.innerHTML = '<div style="text-align:center;padding:1rem;color:var(--text-muted)">載入中...</div>';
     await this.showPage('page-edu-course-enrollment');
 
     const plan = this.getEduCoursePlans(teamId).find(p => p.id === planId);
@@ -160,8 +179,24 @@ Object.assign(App, {
 
     const enrollments = await this._loadCourseEnrollments(teamId, planId);
     const plan = this.getEduCoursePlans(teamId).find(p => p.id === planId);
-    const students = this.getEduStudents(teamId);
+    const allStudents = this.getEduStudents(teamId);
+    const students = allStudents;
     const isStaff = this.isEduClubStaff(teamId);
+
+    // 將對應分組的 active 學員自動視為已通過（即使沒有 enrollment 記錄）
+    const enrolledIds = new Set(enrollments.map(e => e.studentId));
+    if (plan?.groupId) {
+      const groupStudents = allStudents.filter(s =>
+        s.enrollStatus === 'active' && (s.groupIds || []).includes(plan.groupId) && !enrolledIds.has(s.id)
+      );
+      groupStudents.forEach(s => {
+        enrollments.push({
+          id: '_auto_' + s.id, studentId: s.id, studentName: s.name,
+          selfUid: s.selfUid, parentUid: s.parentUid, status: 'approved',
+          paidAt: null, coachNotes: '', reviewerName: null, reviewedAt: null,
+        });
+      });
+    }
 
     const pending = enrollments.filter(e => e.status === 'pending');
     const approved = enrollments.filter(e => e.status === 'approved');

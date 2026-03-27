@@ -339,8 +339,8 @@
 // 20260327k: 修正非教育俱樂部 team-detail 頁觸發 TEAM_DOC_NOT_FOUND 報錯
 // 20260327l: 學員申請後立即重繪 team-detail 教育區塊（用 _eduDetailTeamId）
 // 20260327m: 零分組時也顯示虛擬待審核名單
-// 20260327x: 教育按鈕處理中狀態 + 修正虛擬分組名單閃現消失
-const CACHE_VERSION = '20260327x';
+// 20260327y: 教育按鈕處理中狀態 + 修正虛擬分組名單閃現消失
+const CACHE_VERSION = '20260327y';
 
 // ─── 網路 / 設備偵測（用於 UI 降級）───
 const NetDevice = {
