@@ -631,6 +631,12 @@ Object.assign(App, {
     if (pageId === 'page-admin-announcements') this.renderAnnouncementManage();
     if (pageId === 'page-admin-games') { this.renderGameManage(); if (this.renderGameLogViewer) this.renderGameLogViewer(); }
     if (pageId === 'page-admin-themes') this.renderThemeManage();
+    // 教育頁面即時重繪
+    if (pageId === 'page-edu-groups' && this._eduCurrentTeamId) this.renderEduGroupList?.(this._eduCurrentTeamId);
+    if (pageId === 'page-edu-students' && this._eduCurrentTeamId) {
+      const gid = this._eduCurrentGroupId;
+      if (gid) this.renderEduStudentList?.(this._eduCurrentTeamId, gid);
+    }
     if (pageId === 'page-admin-logs' && this.renderAdminLogCenter) {
       this.renderAdminLogCenter(this._pendingAdminLogTab || this._adminLogActiveTab || 'operation');
     }

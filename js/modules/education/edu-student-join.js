@@ -181,7 +181,16 @@ Object.assign(App, {
 
       // 教學俱樂部不發站內信（職員在分組內直接審核）
       this.showToast('申請已送出，請等待教練審核');
+      // 返回並即時刷新學員列表
       this.goBack();
+      if (this._eduCurrentTeamId) {
+        const gid = this._eduCurrentGroupId;
+        if (gid) {
+          this.renderEduStudentList?.(this._eduCurrentTeamId, gid);
+        } else {
+          this.renderEduGroupList?.(this._eduCurrentTeamId);
+        }
+      }
     } catch (err) {
       console.error('[handleEduStudentApply]', err);
       this.showToast('申請失敗：' + (err.message || '請稍後再試'));
