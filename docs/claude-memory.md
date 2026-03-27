@@ -10,6 +10,12 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-28 — 教學俱樂部頁籤式 UI 改版
+- **變更**：教學俱樂部詳情頁從垂直堆疊改為頁籤式（課程 | 分組 | 我的），支援左右滑動切換
+- **修改檔案**：`edu-detail-render.js`（新增 `switchEduTab`、`_renderEduTabContent`）、`education.css`（`.edu-tab-content`）
+- **設計要點**：俱樂部資訊固定在 tab-bar 上方；預設頁籤為「課程」；「申請加入」放在「我的」頁籤空狀態；複用 `app.js:_bindSwipeTabs()` 滑動機制
+- **相容性**：realtime listener、子頁面導航、Phase 2 背景 fetch 均不受影響（各 render 函式已有容器存在性檢查）
+
 ### 2026-03-27 — 課程方案系統重新設計
 - **新功能**：學員報名流程（選擇學員彈窗 → 審核 → 繳費記錄 → 出勤追蹤 → 教練備註）
 - **資料結構**：coursePlans 新增 allowSignup/maxCapacity/price/currentCount + enrollments 子集合

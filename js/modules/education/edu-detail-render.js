@@ -9,6 +9,7 @@ Object.assign(App, {
 
   _eduDetailTeamId: null,
   _eduStudentsUnsub: null,
+  _eduActiveTab: 'course',
 
   /**
    * 為教育型俱樂部建構詳情頁 body HTML
@@ -21,7 +22,7 @@ Object.assign(App, {
     if (!team) return;
 
     this._eduDetailTeamId = teamId;
-    const isStaff = this.isEduClubStaff(teamId);
+    this._eduActiveTab = 'course';
 
     // ── 基本資訊卡 ──
     const acceptingStudents = team.eduSettings && team.eduSettings.acceptingStudents !== false;
@@ -37,44 +38,81 @@ Object.assign(App, {
 
     const bioCard = team.bio ? '<div class="td-card"><div class="td-card-title" style="text-align:center">簡介</div><div style="font-size:.82rem;color:var(--text-secondary);line-height:1.6;white-space:pre-wrap;word-break:break-word">' + escapeHTML(team.bio) + '</div></div>' : '';
 
-    // ── 學員分組卡 ──
-    const groupSection = '<div class="td-card">'
-      + '<div class="td-card-title td-card-title-row">'
-      + '<span>學員分組<button class="edu-info-btn" onclick="App._showEduInfoPopup(\'group\')" title="說明">?</button></span>'
-      + (isStaff ? '<button class="primary-btn small" onclick="App.showEduGroupForm(\'' + teamId + '\')">＋ 新增</button>' : '')
-      + '</div>'
-      + '<div id="edu-group-list"></div>'
+    // ── 頁籤列（課程 | 分組 | 我的）──
+    const tabBar = '<div class="tab-bar" id="edu-detail-tabs">'
+      + '<button class="tab active" data-edutab="course" onclick="App.switchEduTab(\'course\')">課程</button>'
+      + '<button class="tab" data-edutab="group" onclick="App.switchEduTab(\'group\')">分組</button>'
+      + '<button class="tab" data-edutab="mine" onclick="App.switchEduTab(\'mine\')">我的</button>'
       + '</div>';
 
-    // ── 課程方案（所有人可見，幹部可編輯）──
-    const courseSection = '<div class="td-card">'
-      + '<div class="td-card-title td-card-title-row">'
-      + '<span>課程方案<button class="edu-info-btn" onclick="App._showEduInfoPopup(\'course\')" title="說明">?</button></span>'
-      + (isStaff ? '<button class="primary-btn small" onclick="App.showEduCoursePlanForm(\'' + teamId + '\')">＋ 新增</button>' : '')
-      + '</div>'
-      + '<div id="edu-course-plan-list"></div>'
-      + '</div>';
+    bodyEl.innerHTML = infoCard + bioCard + tabBar
+      + '<div id="edu-detail-tab-content" class="edu-tab-content"></div>';
 
-    // ── 學員狀態區塊（即時渲染目標）──
-    const memberSection = '<div id="edu-member-section"></div>';
+    // ★ Phase 1：渲染預設頁籤（課程）
+    this._renderEduTabContent(teamId);
 
-    bodyEl.innerHTML = infoCard + bioCard + courseSection + groupSection + memberSection;
+    // ★ 綁定左右滑動切換
+    this._bindSwipeTabs('edu-detail-tab-content', 'edu-detail-tabs',
+      this.switchEduTab,
+      (btn) => btn.dataset.edutab
+    );
 
-    // ★ Phase 1：用快取立即渲染（可能為空或舊資料）
-    this._renderEduMemberSection(teamId);
-    this.renderEduGroupList(teamId);
-    if (typeof this.renderEduCoursePlanList === 'function') {
-      this.renderEduCoursePlanList(teamId, isStaff);
-    }
-
-    // ★ Phase 2：背景一次性 fetch（保底）+ onSnapshot 即時監聽（持續更新）
+    // ★ Phase 2：背景 fetch + 即時監聽
     this._loadEduStudents(teamId).then(() => {
       if (this._eduDetailTeamId === teamId) {
+        // 只重繪依賴學員資料的區塊（容器不存在時自動跳過）
         this._renderEduMemberSection(teamId);
         this.renderEduGroupList(teamId);
       }
     });
     this._startEduStudentsListener(teamId);
+  },
+
+  /**
+   * 切換教學俱樂部頁籤
+   */
+  switchEduTab(tab) {
+    this._eduActiveTab = tab;
+    document.querySelectorAll('#edu-detail-tabs .tab').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.edutab === tab);
+    });
+    this._renderEduTabContent(this._eduDetailTeamId);
+  },
+
+  /**
+   * 渲染當前頁籤內容
+   */
+  _renderEduTabContent(teamId) {
+    const container = document.getElementById('edu-detail-tab-content');
+    if (!container || !teamId) return;
+
+    const isStaff = this.isEduClubStaff(teamId);
+    const tab = this._eduActiveTab || 'course';
+
+    if (tab === 'course') {
+      container.innerHTML = '<div class="td-card">'
+        + '<div class="td-card-title td-card-title-row">'
+        + '<span>課程方案<button class="edu-info-btn" onclick="App._showEduInfoPopup(\'course\')" title="說明">?</button></span>'
+        + (isStaff ? '<button class="primary-btn small" onclick="App.showEduCoursePlanForm(\'' + teamId + '\')">＋ 新增</button>' : '')
+        + '</div>'
+        + '<div id="edu-course-plan-list"></div>'
+        + '</div>';
+      if (typeof this.renderEduCoursePlanList === 'function') {
+        this.renderEduCoursePlanList(teamId, isStaff);
+      }
+    } else if (tab === 'group') {
+      container.innerHTML = '<div class="td-card">'
+        + '<div class="td-card-title td-card-title-row">'
+        + '<span>學員分組<button class="edu-info-btn" onclick="App._showEduInfoPopup(\'group\')" title="說明">?</button></span>'
+        + (isStaff ? '<button class="primary-btn small" onclick="App.showEduGroupForm(\'' + teamId + '\')">＋ 新增</button>' : '')
+        + '</div>'
+        + '<div id="edu-group-list"></div>'
+        + '</div>';
+      this.renderEduGroupList(teamId);
+    } else if (tab === 'mine') {
+      container.innerHTML = '<div id="edu-member-section"></div>';
+      this._renderEduMemberSection(teamId);
+    }
   },
 
   /**

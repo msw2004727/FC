@@ -112,6 +112,13 @@
   font-weight: 600;
 }
 
+/* ── Tab Content Container ── */
+.edu-tab-content {
+  min-height: 40vh;
+  overflow: hidden;
+  width: 100%;
+}
+
 /* ── Empty State ── */
 .edu-empty-state {
   text-align: center;
