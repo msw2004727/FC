@@ -7,6 +7,59 @@
 Object.assign(App, {
 
   // ══════════════════════════════════
+  //  教育區塊說明彈窗
+  // ══════════════════════════════════
+
+  _showEduInfoPopup(type) {
+    const info = {
+      group: {
+        title: '學員分組說明',
+        body: '<p>學員分組用於將報名的學員依條件分類管理：</p>'
+          + '<ul>'
+          + '<li><b>自動分組</b> — 建立分組時可設定年齡範圍與性別條件，新學員申請加入後系統會自動將符合條件的學員歸入對應分組。</li>'
+          + '<li><b>手動分組</b> — 俱樂部職員也可以手動將學員指定到任意分組，不受條件限制。</li>'
+          + '<li><b>多元分組</b> — 可依照程度、年齡層、時段等需求建立不同分組，由職員自由分類管理。</li>'
+          + '</ul>'
+          + '<p style="color:var(--text-muted);font-size:.78rem;margin-top:.5rem">不符合任何分組條件的學員會自動歸入「待審核名單」，等待職員手動分配。</p>',
+      },
+      course: {
+        title: '課程方案說明',
+        body: '<p>課程方案分為兩種計費模式：</p>'
+          + '<div style="background:var(--accent-bg);border-radius:var(--radius);padding:.6rem .8rem;margin:.5rem 0">'
+          + '<b>堂數制</b>'
+          + '<p style="margin:.3rem 0 0;font-size:.82rem">購買固定堂數，在指定期間內自由安排上課時間，用完為止。適合時間不固定的學員，彈性較高。</p>'
+          + '<p style="margin:.2rem 0 0;font-size:.78rem;color:var(--text-muted)">例：購買 10 堂，3 個月內使用完畢。</p>'
+          + '</div>'
+          + '<div style="background:var(--accent-bg);border-radius:var(--radius);padding:.6rem .8rem;margin:.5rem 0">'
+          + '<b>固定週期制</b>'
+          + '<p style="margin:.3rem 0 0;font-size:.82rem">在指定期間內，每週固定星期上課。適合需要規律訓練節奏的學員，出席較穩定。</p>'
+          + '<p style="margin:.2rem 0 0;font-size:.78rem;color:var(--text-muted)">例：每週二、四上課，為期 3 個月。</p>'
+          + '</div>',
+      },
+      member: {
+        title: '我已報名的學員說明',
+        body: '<p>此區域顯示您透過本俱樂部報名的所有學員，包含：</p>'
+          + '<ul>'
+          + '<li><b>本人報名</b> — 您以自己的身分申請加入俱樂部。</li>'
+          + '<li><b>代理報名</b> — 您為家人或孩子代為申請加入。</li>'
+          + '</ul>'
+          + '<p style="margin-top:.5rem">學員在教練審核通過後即正式加入俱樂部，可參與課程與簽到。審核中的學員會顯示「待審核」狀態。</p>',
+      },
+    };
+    const item = info[type];
+    if (!item) return;
+    const overlay = document.createElement('div');
+    overlay.className = 'edu-info-overlay';
+    overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+    overlay.innerHTML = '<div class="edu-info-dialog">'
+      + '<div class="edu-info-dialog-title">' + item.title + '</div>'
+      + '<div class="edu-info-dialog-body">' + item.body + '</div>'
+      + '<button class="primary-btn" style="width:100%;margin-top:.8rem" onclick="this.closest(\'.edu-info-overlay\').remove()">了解</button>'
+      + '</div>';
+    document.body.appendChild(overlay);
+  },
+
+  // ══════════════════════════════════
   //  按鈕處理中狀態（防重複提交 + 用戶回饋）
   // ══════════════════════════════════
 

@@ -37,10 +37,11 @@ Object.assign(App, {
 
     const bioCard = team.bio ? '<div class="td-card"><div class="td-card-title" style="text-align:center">簡介</div><div style="font-size:.82rem;color:var(--text-secondary);line-height:1.6;white-space:pre-wrap;word-break:break-word">' + escapeHTML(team.bio) + '</div></div>' : '';
 
-    // ── 分組卡 ──
+    // ── 學員分組卡 ──
     const groupSection = '<div class="td-card">'
       + '<div class="td-card-title td-card-title-row">'
-      + '<span>分組</span>'
+      + '<span>學員分組</span>'
+      + '<button class="edu-info-btn" onclick="App._showEduInfoPopup(\'group\')" title="說明">?</button>'
       + (isStaff ? '<button class="primary-btn small" onclick="App.showEduGroupForm(\'' + teamId + '\')">＋ 新增</button>' : '')
       + '</div>'
       + '<div id="edu-group-list"></div>'
@@ -58,6 +59,7 @@ Object.assign(App, {
     const courseSection = '<div class="td-card">'
       + '<div class="td-card-title td-card-title-row">'
       + '<span>課程方案</span>'
+      + '<button class="edu-info-btn" onclick="App._showEduInfoPopup(\'course\')" title="說明">?</button>'
       + (isStaff ? '<button class="primary-btn small" onclick="App.showEduCoursePlanForm(\'' + teamId + '\')">＋ 新增</button>' : '')
       + '</div>'
       + '<div id="edu-course-plan-list"></div>'
@@ -107,7 +109,10 @@ Object.assign(App, {
     }
 
     let html = '<div class="td-card">'
-      + '<div class="td-card-title">我的學員</div>';
+      + '<div class="td-card-title td-card-title-row">'
+      + '<span>我已報名的學員</span>'
+      + '<button class="edu-info-btn" onclick="App._showEduInfoPopup(\'member\')" title="說明">?</button>'
+      + '</div>';
 
     html += myStudents.map(s => {
       const age = this.calcAge(s.birthday);

@@ -2,6 +2,33 @@
    SportHub — Education Module Styles
    ================================================ */
 
+/* ── 說明按鈕（圓形 ? 圖示）── */
+.edu-info-btn {
+  width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid var(--accent);
+  background: transparent; color: var(--accent); font-size: .75rem; font-weight: 700;
+  cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+  flex-shrink: 0; margin-left: .25rem; padding: 0; line-height: 1;
+}
+.edu-info-btn:hover { background: var(--accent); color: #fff; }
+
+/* ── 說明彈窗 ── */
+.edu-info-overlay {
+  position: fixed; inset: 0; z-index: 1200;
+  background: rgba(0,0,0,.35); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+  display: flex; align-items: center; justify-content: center; padding: 1rem;
+}
+.edu-info-dialog {
+  background: var(--bg-card); border-radius: 16px; padding: 1.2rem 1.4rem;
+  max-width: 420px; width: 100%; box-shadow: 0 8px 32px rgba(0,0,0,.15);
+}
+.edu-info-dialog-title {
+  font-size: 1rem; font-weight: 700; margin-bottom: .6rem; text-align: center;
+}
+.edu-info-dialog-body { font-size: .84rem; line-height: 1.65; color: var(--text-secondary); }
+.edu-info-dialog-body ul { padding-left: 1.2rem; margin: .4rem 0; }
+.edu-info-dialog-body li { margin-bottom: .3rem; }
+.edu-info-dialog-body b { color: var(--text-primary); }
+
 /* ── Type Badge ── */
 .edu-type-badge {
   display: inline-block;
