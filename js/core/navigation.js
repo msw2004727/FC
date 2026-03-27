@@ -583,6 +583,7 @@ Object.assign(App, {
 
   /** 根據頁面 ID 渲染對應內容 */
   _renderPageContent(pageId) {
+    if (this.currentPage !== pageId) return;
     if (pageId === 'page-home') {
       document.getElementById('page-home')?.classList.remove('home-paused');
       this.renderAll();

@@ -224,6 +224,24 @@ const App = {
   },
 
   init() {
+    // ── 版本同步偵測 ──
+    try {
+      const storedV = localStorage.getItem('sporthub_cache_ver');
+      if (storedV && storedV !== CACHE_VERSION) {
+        console.error(`[VERSION MISMATCH] index.html V="${storedV}" !== config.js CACHE_VERSION="${CACHE_VERSION}". 請同步更新 index.html 的 var V 及所有 ?v= 參數。`);
+      }
+      if ('caches' in window) {
+        caches.keys().then(keys => {
+          const swCache = keys.find(k => k.startsWith('sporthub-') && k !== 'sporthub-images-v2');
+          if (swCache) {
+            const swVer = swCache.replace('sporthub-', '');
+            if (swVer !== CACHE_VERSION) {
+              console.error(`[VERSION MISMATCH] sw.js CACHE_NAME="sporthub-${swVer}" !== config.js CACHE_VERSION="${CACHE_VERSION}". 請同步更新 sw.js。`);
+            }
+          }
+        }).catch(() => {});
+      }
+    } catch (_) {}
     // ── 核心 UI（硬呼叫，失敗代表致命問題）──
     this.bindSportPicker();
     this.bindNavigation();

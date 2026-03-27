@@ -181,7 +181,11 @@ const FirebaseService = {
         localStorage.setItem(this._getLSKey(name), json);
       } catch (e) {
         // quota exceeded — 嘗試淘汰非 boot 集合騰空間
-        const expendable = ['newsArticles', 'gameConfigs'];
+        const expendable = [
+          'newsArticles', 'gameConfigs',
+          'operationLogs', 'expLogs', 'teamExpLogs',
+          'errorLogs',
+        ];
         for (const lp of expendable) {
           if (lp === name) continue; // 不淘汰自己
           try {
@@ -191,7 +195,7 @@ const FirebaseService = {
             return;
           } catch (_) { continue; }
         }
-        console.warn(`[LS] quota exceeded for "${name}", eviction failed`);
+        console.warn(`[LS] quota exceeded for "${name}" (${(json.length / 1024).toFixed(1)}KB), eviction failed`);
       }
     } catch (e) { /* JSON.stringify 失敗 — 忽略，不中斷其他集合 */ }
   },
@@ -1322,7 +1326,12 @@ const FirebaseService = {
     const unsub = this._getRegistrationsListenerQuery(ctx)
       .onSnapshot(
         snapshot => {
-          this._cache.registrations = snapshot.docs.map(doc => ({ ...doc.data(), _docId: doc.id }));
+          this._cache.registrations = snapshot.docs.map(doc => {
+            const d = { ...doc.data(), _docId: doc.id };
+            if (d.userId && !d.uid) d.uid = d.userId;
+            if (d.uid && !d.userId) d.userId = d.uid;
+            return d;
+          });
           this._snapshotReconnectAttempts.registrations = 0; // RC4：成功時重置重連計數
           this._debouncedPersistCache();
           this._debouncedSnapshotRender('registrations');
@@ -2151,7 +2160,12 @@ const FirebaseService = {
 
     this._getRegistrationsListenerQuery(ctx).get().then(snapshot => {
       this._registrationsRevalidating = false;
-      const fresh = snapshot.docs.map(doc => ({ ...doc.data(), _docId: doc.id }));
+      const fresh = snapshot.docs.map(doc => {
+        const d = { ...doc.data(), _docId: doc.id };
+        if (d.userId && !d.uid) d.uid = d.userId;
+        if (d.uid && !d.userId) d.userId = d.uid;
+        return d;
+      });
       const oldCount = this._cache.registrations.length;
       this._cache.registrations = fresh;
       this._debouncedPersistCache();
@@ -2252,7 +2266,12 @@ const FirebaseService = {
 
     this._getRegistrationsListenerQuery(ctx).get().then(snapshot => {
       this._registrationsRevalidating = false;
-      const fresh = snapshot.docs.map(doc => ({ ...doc.data(), _docId: doc.id }));
+      const fresh = snapshot.docs.map(doc => {
+        const d = { ...doc.data(), _docId: doc.id };
+        if (d.userId && !d.uid) d.uid = d.userId;
+        if (d.uid && !d.userId) d.userId = d.uid;
+        return d;
+      });
       const oldLen = this._cache.registrations.length;
       this._cache.registrations = fresh;
       this._debouncedPersistCache();

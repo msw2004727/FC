@@ -10,6 +10,16 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-27 — Batch 1 防護型修正（5 項）
+- **問題**：全專案審閱發現 6 個已知風險（版本同步、UID 不一致、競態條件、密碼明文、LS 配額）
+- **修復**：
+  1. `app.js` — init() 加入版本同步偵測（config.js vs index.html vs sw.js），不一致時 console.error
+  2. `firebase-service.js` — registrations 載入時自動正規化 uid ↔ userId（3 個寫入點）
+  3. `navigation.js` — `_renderPageContent()` 開頭加 `currentPage !== pageId` guard 防止競態 render
+  4. `dashboard.js` — `clearAllData()` 密碼改用 SHA-256 雜湊比對，原始碼不再含明文
+  5. `firebase-service.js` — `_saveToLS()` 可淘汰清單從 2 個擴充至 6 個 + 失敗時顯示資料大小
+- **教訓**：防護型修正（只加 guard / 正規化 / 診斷）不改原有流程，回歸風險極低
+
 ### 2026-03-27 — 多日期批次建立活動功能
 - **需求**：新建活動時可選擇多個日期（上限 30），一次產生多場獨立活動
 - **實作**：新增 `event-create-multidate.js`（日期膠囊 + 相對報名時間 + 批次產生），`event-create.js` 加分支，`event-create-options.js` 加多日期模式判斷

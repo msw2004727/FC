@@ -119,9 +119,13 @@ Object.assign(App, {
     if ((ROLE_LEVEL_MAP[this.currentRole] || 0) < ROLE_LEVEL_MAP.super_admin) {
       this.showToast('權限不足'); return;
     }
-    // Step 1: Password prompt
-    const pwd = prompt('請輸入清除全部資料密碼（4位數）');
-    if (pwd !== '1121') {
+    // Step 1: Password prompt (SHA-256 hash comparison)
+    const pwd = prompt('請輸入清除全部資料密碼');
+    if (!pwd) { this.showToast('已取消'); return; }
+    const _cdMsgBuf = new TextEncoder().encode(pwd);
+    const _cdHashBuf = await crypto.subtle.digest('SHA-256', _cdMsgBuf);
+    const _cdHashHex = [...new Uint8Array(_cdHashBuf)].map(b => b.toString(16).padStart(2, '0')).join('');
+    if (_cdHashHex !== '3958de59a1ae60b4330e99d6a5b791897717cdd2347260d0f71df22d60b01062') {
       this.showToast('密碼錯誤');
       return;
     }
