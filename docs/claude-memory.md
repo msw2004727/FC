@@ -10,6 +10,43 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-27 — 課程方案系統重新設計
+- **新功能**：學員報名流程（選擇學員彈窗 → 審核 → 繳費記錄 → 出勤追蹤 → 教練備註）
+- **資料結構**：coursePlans 新增 allowSignup/maxCapacity/price/currentCount + enrollments 子集合
+- **卡片重設計**：底色依方案類型（青/紫漸層）、封面圖 8:3、資訊 chip 由上至下、招生狀態 badge
+- **修正**：封面裁切比例、分組學員自動導入名單、名單切換先清空防閃現、繳費用 checkbox toggle 取代 prompt
+
+### 2026-03-27 — 教學俱樂部多項 UI 修正
+- 簽到獨立區塊移除（併入課程方案名單頁）
+- 說明按鈕 ? 緊靠標題（學員分組<?> 課程方案<?> 我已報名的學員<?>）
+- 「教學」膠囊移到頁面標題左邊、類型欄位改招生狀態
+- 學員分組交錯底色（淡藍/淡綠）、人數+待審核+編輯刪除同行置右
+- 我已報名的學員加入時間（待審核=提交申請、已通過=加入俱樂部）
+- 追加學員按鈕在 pending 狀態也顯示
+
+### 2026-03-27 — [永久] 教育頁面即時渲染修正
+- **問題**：eduSubPages 沒有包含 page-edu-student-apply → 離開 team-detail 去申請頁時 listener 被停
+- **修正**：eduSubPages 加入 page-edu-student-apply + page-edu-course-enrollment
+- **問題**：_renderPageContent 沒有教育頁面 handler → goBack 後不重繪
+- **修正**：加入 page-team-detail / page-edu-groups / page-edu-students handler
+- **教訓**：新增教育子頁面時必須同步更新 eduSubPages 和 _renderPageContent
+
+### 2026-03-27 — 三方審核修正（站內信架構）
+- updateMessage/updateMessageRead/markAllMessagesRead 改寫 inbox 路徑（原寫 messages/ 舊路徑）
+- _debouncedSnapshotRender 新增 messages case（修正收件匣不即時更新）
+- deliverToInbox CF：fromUid 強制 callerUid + 廣播需 admin 角色
+- syncGroupActionStatus CF：newStatus 白名單驗證
+- 站內信審核緞帶：待審核（橘）/ 已審核（綠）右下角斜角
+
+### 2026-03-27 — [永久] Per-User Inbox 完整遷移（Phase 0-5）
+- 遷移結果：465 用戶、2744 則訊息 → 3334 inbox 寫入、519 隱藏跳過
+- 舊 messages/ + 所有 inbox 已清空重置（舊遷移資料有收件人展開錯誤）
+- Firestore Rules：inbox create:false（只有 CF 可寫）、delete 禁刪 pending 審核
+
+### 2026-03-27 — Batch 1 防護型修正 + Level 1 i18n
+- 版本同步偵測、UID 正規化、競態防護、密碼雜湊、LS 配額強化
+- i18n 安全範圍接線（profile 頁 19 key + admin log tabs）
+
 ### 2026-03-27 — [永久] Phase 2-5 Per-User Inbox 完整遷移
 - **Phase 2**：遷移腳本 `scripts/migrate-inbox.js`（Admin SDK、幂等、dry-run、hiddenBy 跳過、readBy→read 轉換）
 - **Phase 3**：切換讀取路徑
