@@ -72,19 +72,27 @@ Object.assign(App, {
       const cardBg = p.planType === 'weekly'
         ? 'background:linear-gradient(135deg,rgba(13,148,136,.08),rgba(13,148,136,.03))'
         : 'background:linear-gradient(135deg,rgba(124,58,237,.08),rgba(124,58,237,.03))';
-      const statusBadge = p.allowSignup
-        ? '<span class="edu-cp-status edu-cp-status-open">招生中</span>'
-        : '';
+      const todayCheck = new Date().toISOString().slice(0, 10);
+      const planEnded = p.endDate && p.endDate < todayCheck;
+      const statusBadge = planEnded
+        ? '<span class="edu-cp-status" style="background:rgba(148,163,184,.15);color:#94a3b8">已結束</span>'
+        : p.allowSignup
+          ? '<span class="edu-cp-status edu-cp-status-open">招生中</span>'
+          : '';
 
       // 封面圖（右側 1/3，寬圖比例 4:3）
       const coverHtml = '<div class="edu-cp-cover">'
         + (p.coverImage ? '<img src="' + escapeHTML(p.coverImage) + '" alt="">' : '<span style="font-size:.72rem;color:var(--text-muted)">無封面</span>')
         + '</div>';
 
-      // 資訊小卡片（由上至下：時間 > 週幾 > 費用 > 人數）
+      // 課程是否已結束
+      const today = new Date().toISOString().slice(0, 10);
+      const isEnded = p.endDate && p.endDate < today;
+
+      // 資訊小卡片（由上至下：日期 > 週幾/堂數 > 費用 > 人數）
       const chips = [];
+      if (p.startDate) chips.push(escapeHTML(p.startDate) + ' ~ ' + escapeHTML(p.endDate || ''));
       if (p.planType === 'weekly') {
-        if (p.startDate) chips.push(escapeHTML(p.startDate) + ' ~ ' + escapeHTML(p.endDate || ''));
         const wdNames = (p.weekdays || []).map(d => '週' + this._weekdayLabel(d)).join('、');
         chips.push(wdNames + (p.timeSlot ? ' ' + escapeHTML(p.timeSlot) : ''));
       } else {
@@ -97,6 +105,9 @@ Object.assign(App, {
       // 學員報名按鈕
       let signupBtn = '';
       if (p.allowSignup) {
+        if (isEnded) {
+          signupBtn = '<button class="primary-btn" style="width:100%;margin-top:.4rem;opacity:.45" disabled>課程已結束</button>';
+        } else {
         const isFull = p.maxCapacity && (p._effectiveCount || 0) >= p.maxCapacity;
         // 檢查用戶名下所有學員是否都已報名（含分組自動導入的）
         const myStudents = students.filter(s =>
@@ -119,6 +130,7 @@ Object.assign(App, {
         } else {
           signupBtn = '<button class="primary-btn" style="width:100%;margin-top:.4rem" onclick="event.stopPropagation();App.applyCourseEnrollment(\'' + teamId + '\',\'' + p.id + '\')">我要報名</button>';
         }
+        } // end else (not ended)
       }
 
       // 管理按鈕（報名按鈕之下，左對齊 + 右側排序按鈕）
@@ -211,15 +223,15 @@ Object.assign(App, {
                 + '</div>';
             }).join('') +
           '</div></div>' +
-        '<div class="ce-row" style="display:flex;gap:.5rem">' +
-          '<div style="flex:1"><label>開始日期</label><input type="date" id="edu-cp-start" value="' + (plan && plan.startDate || '') + '" onchange="App._updateCoursePlanPreview()"></div>' +
-          '<div style="flex:1"><label>結束日期</label><input type="date" id="edu-cp-end" value="' + (plan && plan.endDate || '') + '" onchange="App._updateCoursePlanPreview()"></div>' +
-        '</div>' +
         '<div class="ce-row"><label>時段</label><input type="text" id="edu-cp-timeslot" maxlength="20" placeholder="09:00-10:30" value="' + escapeHTML(plan && plan.timeSlot || '') + '"></div>' +
         '<div id="edu-cp-preview" class="edu-cp-preview"></div>' +
       '</div>' +
       '<div id="edu-cp-session"' + (!isWeekly ? '' : ' style="display:none"') + '>' +
         '<div class="ce-row"><label>總堂數</label><input type="number" id="edu-cp-total" min="1" max="999" value="' + (plan && plan.totalSessions || '') + '"></div>' +
+      '</div>' +
+      '<div class="ce-row" style="display:flex;gap:.5rem">' +
+        '<div style="flex:1"><label>課程開始日期</label><input type="date" id="edu-cp-start" value="' + (plan && plan.startDate || '') + '"></div>' +
+        '<div style="flex:1"><label>課程結束日期</label><input type="date" id="edu-cp-end" value="' + (plan && plan.endDate || '') + '"></div>' +
       '</div>' +
       '<hr style="border:none;border-top:1px solid var(--border);margin:.8rem 0">' +
       '<div class="ce-row"><label>容納上限</label><input type="number" id="edu-cp-capacity" min="1" max="999" placeholder="不填則不限人數" value="' + (plan && plan.maxCapacity || '') + '">' +
@@ -323,11 +335,13 @@ Object.assign(App, {
       price,
     };
 
+    // 共用日期欄位（兩種類型都有）
+    data.startDate = document.getElementById('edu-cp-start').value || '';
+    data.endDate = document.getElementById('edu-cp-end').value || '';
+
     if (planType === 'weekly') {
       const weekdayCells = document.querySelectorAll('#edu-cp-weekdays .edu-wd-checked');
       data.weekdays = Array.from(weekdayCells).map(c => parseInt(c.dataset.day, 10));
-      data.startDate = document.getElementById('edu-cp-start').value || '';
-      data.endDate = document.getElementById('edu-cp-end').value || '';
       data.timeSlot = document.getElementById('edu-cp-timeslot').value.trim();
       data.totalSessions = null;
       if (!data.weekdays.length) { _btnState.restore(); this.showToast('請選擇上課日'); return; }
@@ -337,8 +351,6 @@ Object.assign(App, {
       if (!total || total < 1) { _btnState.restore(); this.showToast('請輸入有效堂數'); return; }
       data.totalSessions = total;
       data.weekdays = null;
-      data.startDate = null;
-      data.endDate = null;
       data.timeSlot = null;
     }
 
