@@ -47,36 +47,32 @@ Object.assign(App, {
 
     container.innerHTML = activePlans.map(p => {
       const typeLabel = p.planType === 'weekly' ? '固定週期' : '堂數制';
-      const typeClass = p.planType === 'weekly' ? 'edu-course-type-weekly' : 'edu-course-type-session';
+      // 卡片底色依方案類型
+      const cardBg = p.planType === 'weekly'
+        ? 'background:linear-gradient(135deg,rgba(13,148,136,.08),rgba(13,148,136,.03))'
+        : 'background:linear-gradient(135deg,rgba(124,58,237,.08),rgba(124,58,237,.03))';
       const statusBadge = p.allowSignup
         ? '<span class="edu-cp-status edu-cp-status-open">招生中</span>'
-        : '<span class="edu-cp-status edu-cp-status-closed">未開放</span>';
-
-      // 封面圖（正方形，右側）
-      const coverImg = p.coverImage
-        ? '<div class="edu-cp-cover"><img src="' + escapeHTML(p.coverImage) + '" alt=""></div>'
         : '';
 
-      // 資訊 grid（類似活動詳情的統計卡片風格）
-      const infoItems = [];
-      if (p.planType === 'session') {
-        infoItems.push({ label: '堂數', value: (p.totalSessions || 0) + '堂' });
-      } else {
-        const wdNames = (p.weekdays || []).map(d => '週' + this._weekdayLabel(d)).join('、');
-        infoItems.push({ label: '上課日', value: wdNames });
-        if (p.timeSlot) infoItems.push({ label: '時段', value: escapeHTML(p.timeSlot) });
-      }
-      if (p.price) infoItems.push({ label: '費用', value: '$' + p.price.toLocaleString() });
-      infoItems.push({ label: '人數', value: (p.currentCount || 0) + (p.maxCapacity ? '/' + p.maxCapacity : '') + ' 人' });
-      if (p.planType === 'weekly' && p.startDate) {
-        infoItems.push({ label: '期間', value: escapeHTML(p.startDate) + ' ~ ' + escapeHTML(p.endDate || '') });
-      }
-
-      const infoGrid = '<div class="edu-cp-info-grid">'
-        + infoItems.map(item => '<div class="edu-cp-info-item"><div class="edu-cp-info-value">' + item.value + '</div><div class="edu-cp-info-label">' + item.label + '</div></div>').join('')
+      // 封面圖（右側 1/3，寬圖比例 4:3）
+      const coverHtml = '<div class="edu-cp-cover">'
+        + (p.coverImage ? '<img src="' + escapeHTML(p.coverImage) + '" alt="">' : '<span style="font-size:.72rem;color:var(--text-muted)">無封面</span>')
         + '</div>';
 
-      // 職員管理按鈕（左對齊，與學員分組一致）
+      // 資訊列（垂直排列，清晰易讀）
+      let infoHtml = '';
+      if (p.planType === 'weekly') {
+        const wdNames = (p.weekdays || []).map(d => '週' + this._weekdayLabel(d)).join('、');
+        infoHtml += '<div class="edu-cp-row"><span class="edu-cp-row-icon">📅</span>' + wdNames + (p.timeSlot ? ' ' + escapeHTML(p.timeSlot) : '') + '</div>';
+        if (p.startDate) infoHtml += '<div class="edu-cp-row"><span class="edu-cp-row-icon">📆</span>' + escapeHTML(p.startDate) + ' ~ ' + escapeHTML(p.endDate || '') + '</div>';
+      } else {
+        infoHtml += '<div class="edu-cp-row"><span class="edu-cp-row-icon">🎯</span>共 ' + (p.totalSessions || 0) + ' 堂</div>';
+      }
+      if (p.price) infoHtml += '<div class="edu-cp-row"><span class="edu-cp-row-icon">💰</span>$' + p.price.toLocaleString() + '</div>';
+      infoHtml += '<div class="edu-cp-row"><span class="edu-cp-row-icon">👥</span>' + (p.currentCount || 0) + (p.maxCapacity ? '/' + p.maxCapacity : '') + ' 人</div>';
+
+      // 管理按鈕（左，與分組一致）
       const manageHtml = isStaff
         ? '<div class="edu-cp-manage-left">'
           + '<button class="outline-btn" style="font-size:.72rem;padding:.2rem .5rem" onclick="event.stopPropagation();App.showEduCoursePlanForm(\'' + teamId + '\',\'' + p.id + '\')">編輯</button>'
@@ -84,7 +80,7 @@ Object.assign(App, {
           + '</div>'
         : '';
 
-      // 學員報名按鈕
+      // 學員報名
       let signupBtn = '';
       if (!isStaff && p.allowSignup) {
         const isFull = p.maxCapacity && (p.currentCount || 0) >= p.maxCapacity;
@@ -100,22 +96,21 @@ Object.assign(App, {
         }
       }
 
-      // 整張卡片可點擊進入名單（Fix 3）
       const clickAction = isStaff
         ? ' onclick="App.showCourseEnrollmentList(\'' + teamId + '\',\'' + p.id + '\')"'
         : '';
 
-      return '<div class="edu-course-card edu-cp-card-v2"' + clickAction + '>'
+      return '<div class="edu-course-card edu-cp-card-v2" style="' + cardBg + '"' + clickAction + '>'
         + '<div class="edu-cp-body">'
         + '<div class="edu-cp-left">'
         + '<div class="edu-cp-top">'
         + '<span class="edu-course-name">' + escapeHTML(p.name) + '</span>'
-        + '<span class="edu-course-type ' + typeClass + '">' + typeLabel + '</span>'
+        + '<span class="edu-cp-type-text ' + (p.planType === 'weekly' ? 'edu-cp-type-weekly' : 'edu-cp-type-session') + '">' + typeLabel + '</span>'
         + statusBadge
         + '</div>'
-        + infoGrid
+        + infoHtml
         + '</div>'
-        + coverImg
+        + coverHtml
         + '</div>'
         + manageHtml
         + signupBtn
@@ -151,13 +146,11 @@ Object.assign(App, {
       '</div>' +
       '<div class="ce-row"><label>方案名稱 <span class="required">*必填</span></label>' +
         '<input type="text" id="edu-cp-name" maxlength="30" placeholder="例：2026 春季班" value="' + escapeHTML(plan ? plan.name : '') + '"></div>' +
-      // Fix 4: 封面圖片
+      // 封面圖片（點擊上傳，寬圖比例 4:3）
       '<div class="ce-row"><label>封面圖片</label>' +
-        '<div style="display:flex;align-items:center;gap:.5rem">' +
-        '<div id="edu-cp-cover-preview" style="width:80px;height:80px;border-radius:var(--radius);border:1px dashed var(--border);overflow:hidden;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:var(--bg-base)">' +
-          (plan && plan.coverImage ? '<img src="' + escapeHTML(plan.coverImage) + '" style="width:100%;height:100%;object-fit:cover">' : '<span style="font-size:.72rem;color:var(--text-muted)">無封面</span>') +
-        '</div>' +
-        '<input type="file" id="edu-cp-cover-input" accept="image/*" style="font-size:.78rem" onchange="App._onEduCpCoverChange(this)">' +
+        '<input type="file" id="edu-cp-cover-input" accept="image/*" hidden onchange="App._onEduCpCoverChange(this)">' +
+        '<div id="edu-cp-cover-preview" class="edu-cp-cover-upload" onclick="document.getElementById(\'edu-cp-cover-input\').click()">' +
+          (plan && plan.coverImage ? '<img src="' + escapeHTML(plan.coverImage) + '">' : '<span>點擊上傳封面圖片</span>') +
         '</div></div>' +
       '<div class="ce-row"><label>對應分組</label>' +
         '<select id="edu-cp-group"><option value="">不綁定分組</option>' + groupOptions + '</select></div>' +
@@ -210,11 +203,11 @@ Object.assign(App, {
       const reader = new FileReader();
       reader.onload = () => {
         this.showImageCropper(reader.result, {
-          aspectRatio: 1,
+          aspectRatio: 4/3,
           onConfirm: (croppedDataUrl) => {
             this._eduCpCoverDataUrl = croppedDataUrl;
             const preview = document.getElementById('edu-cp-cover-preview');
-            if (preview) preview.innerHTML = '<img src="' + croppedDataUrl + '" style="width:100%;height:100%;object-fit:cover">';
+            if (preview) preview.innerHTML = '<img src="' + croppedDataUrl + '">';
           }
         });
       };
@@ -224,7 +217,7 @@ Object.assign(App, {
       reader.onload = () => {
         this._eduCpCoverDataUrl = reader.result;
         const preview = document.getElementById('edu-cp-cover-preview');
-        if (preview) preview.innerHTML = '<img src="' + reader.result + '" style="width:100%;height:100%;object-fit:cover">';
+        if (preview) preview.innerHTML = '<img src="' + reader.result + '">';
       };
       reader.readAsDataURL(file);
     }
