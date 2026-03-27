@@ -42,18 +42,18 @@
 .edu-cp-type-session { color: #7c3aed; }
 .edu-cp-status { font-size: .65rem; padding: .1rem .4rem; border-radius: var(--radius-full); font-weight: 600; }
 .edu-cp-status-open { background: rgba(16,185,129,.15); color: #10b981; }
-.edu-cp-chips { display: flex; flex-wrap: wrap; gap: .3rem; margin-top: .2rem; }
-.edu-cp-chip { font-size: .78rem; font-weight: 600; padding: .2rem .55rem; border-radius: 6px; background: var(--bg-base); color: var(--text-secondary); border: 1px solid var(--border); white-space: nowrap; }
+.edu-cp-chips { display: flex; flex-direction: column; gap: .25rem; margin-top: .25rem; }
+.edu-cp-chip { font-size: .78rem; font-weight: 500; padding: .2rem .6rem; border-radius: 6px; background: var(--bg-base); color: var(--text-secondary); border: 1px solid var(--border); display: inline-block; width: fit-content; }
 .edu-cp-manage-left { display: flex; gap: .5rem; margin-top: .4rem; }
 .edu-cp-enrolled-pending { text-align: center; padding: .4rem; font-size: .82rem; color: var(--warning); font-weight: 600; }
 .edu-cp-enrolled-ok { text-align: center; padding: .4rem; font-size: .82rem; color: var(--success); font-weight: 600; }
 .edu-cp-signup-status { text-align: center; margin-top: .4rem; }
 
 /* ── Cover Upload (form) ── */
-.edu-cp-cover-upload { width: 100%; aspect-ratio: 4/3; border: 2px dashed var(--border); border-radius: var(--radius); display: flex; align-items: center; justify-content: center; cursor: pointer; overflow: hidden; background: var(--bg-base); transition: border-color .15s; }
+.edu-cp-cover-upload { width: 100%; aspect-ratio: 4/3; border: 2px dashed var(--border); border-radius: var(--radius); display: flex; align-items: center; justify-content: center; cursor: pointer; overflow: hidden; background: var(--bg-base); transition: border-color .15s; position: relative; }
 .edu-cp-cover-upload:hover { border-color: var(--accent); }
 .edu-cp-cover-upload span { font-size: .82rem; color: var(--text-muted); }
-.edu-cp-cover-upload img { width: 100%; height: 100%; object-fit: cover; }
+.edu-cp-cover-upload img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 
 /* ── Course Enrollment List ── */
 .edu-ce-section-label { font-size: .88rem; font-weight: 700; margin: .8rem 0 .4rem; padding-left: .2rem; }

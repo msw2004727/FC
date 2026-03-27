@@ -112,6 +112,11 @@ Object.assign(App, {
       const statusHtml = isPending
         ? '<span class="edu-status-pending">待審核</span>'
         : '<span class="edu-status-active">已通過</span>';
+      // 加入時間
+      const timeRaw = s.enrolledAt || s.createdAt || '';
+      const timeLabel = isPending ? '提交申請' : '加入俱樂部';
+      const timeStr = typeof timeRaw === 'string' ? timeRaw.slice(0, 10) : '';
+      const timeHtml = timeStr ? '<div style="font-size:.72rem;color:var(--text-muted)">' + timeLabel + '：' + escapeHTML(timeStr) + '</div>' : '';
       const groupHtml = (s.groupNames && s.groupNames.length)
         ? '<div class="edu-student-groups">' + s.groupNames.map(n => '<span class="edu-group-tag">' + escapeHTML(n) + '</span>').join('') + '</div>'
         : '';
@@ -133,6 +138,7 @@ Object.assign(App, {
         + '<span class="edu-header-actions">' + actionBtns + '</span>'
         + '</div>'
         + groupHtml
+        + timeHtml
         + '</div>';
     }).join('');
 

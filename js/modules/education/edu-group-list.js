@@ -86,16 +86,19 @@ Object.assign(App, {
         : g.gender === 'female'
           ? '<span class="edu-group-gender-female">限女生</span>'
           : '';
-      const countHtml = '<span class="edu-group-count">' + g.memberCount + ' 人</span>';
-      // 待審核 + 編輯刪除（職員才看到，放在同一行置右）
-      let staffRight = '';
+      // 置右區域：人數 + 待審核 + 編輯刪除
+      let rightHtml = '';
       if (isStaff) {
         const pendingTag = g.pendingCount > 0
           ? '<span class="edu-group-pending">待審核 ' + g.pendingCount + '</span>' : '';
-        staffRight = '<span class="edu-grp-staff-right">' + pendingTag
+        rightHtml = '<span class="edu-grp-staff-right">'
+          + '<span class="edu-group-count">' + g.memberCount + ' 人</span>'
+          + pendingTag
           + '<button class="outline-btn" style="font-size:.68rem;padding:.15rem .4rem" onclick="event.stopPropagation();App.showEduGroupForm(\'' + teamId + '\',\'' + g.id + '\')">編輯</button>'
           + '<button class="outline-btn" style="font-size:.68rem;padding:.15rem .4rem;color:var(--danger)" onclick="event.stopPropagation();App.deleteEduGroup(\'' + teamId + '\',\'' + g.id + '\')">刪除</button>'
           + '</span>';
+      } else {
+        rightHtml = '<span class="edu-grp-staff-right"><span class="edu-group-count">' + g.memberCount + ' 人</span></span>';
       }
       // 交錯底色
       const altBg = idx % 2 === 0
@@ -105,8 +108,8 @@ Object.assign(App, {
       return '<div class="edu-group-card" style="' + altBg + '" onclick="App.showEduStudentList(\'' + teamId + '\',\'' + g.id + '\')">' +
         '<div class="edu-group-header">' +
           '<span class="edu-group-name">' + escapeHTML(g.name) + '</span>' +
-          ageRange + genderLabel + countHtml +
-          staffRight +
+          ageRange + genderLabel +
+          rightHtml +
         '</div>' +
         scheduleHtml +
         (g.description ? '<div class="edu-group-desc">' + escapeHTML(g.description) + '</div>' : '') +

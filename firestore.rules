@@ -693,12 +693,12 @@ service cloud.firestore {
             request.resource.data.enrollStatus == 'pending'
             || isCurrentUserTeamCaptainOrLeader(teamId)
           );
-        allow update: if isCurrentUserTeamCaptainOrLeader(teamId)
+        allow update: if isCurrentUserTeamCaptainOrLeader(teamId) || isAdmin()
           || (isAuth()
               && request.resource.data.enrollStatus == 'inactive'
               && (resource.data.selfUid == request.auth.uid
                   || resource.data.parentUid == request.auth.uid));
-        allow delete: if isCurrentUserTeamCaptainOrLeader(teamId);
+        allow delete: if isCurrentUserTeamCaptainOrLeader(teamId) || isAdmin();
       }
     }
 

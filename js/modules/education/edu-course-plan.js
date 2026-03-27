@@ -60,12 +60,12 @@ Object.assign(App, {
         + (p.coverImage ? '<img src="' + escapeHTML(p.coverImage) + '" alt="">' : '<span style="font-size:.72rem;color:var(--text-muted)">無封面</span>')
         + '</div>';
 
-      // 資訊小卡片（圓角 chip 風格）
+      // 資訊小卡片（由上至下：時間 > 週幾 > 費用 > 人數）
       const chips = [];
       if (p.planType === 'weekly') {
+        if (p.startDate) chips.push(escapeHTML(p.startDate) + ' ~ ' + escapeHTML(p.endDate || ''));
         const wdNames = (p.weekdays || []).map(d => '週' + this._weekdayLabel(d)).join('、');
         chips.push(wdNames + (p.timeSlot ? ' ' + escapeHTML(p.timeSlot) : ''));
-        if (p.startDate) chips.push(escapeHTML(p.startDate) + ' ~ ' + escapeHTML(p.endDate || ''));
       } else {
         chips.push('共 ' + (p.totalSessions || 0) + ' 堂');
       }
@@ -81,9 +81,9 @@ Object.assign(App, {
           + '</div>'
         : '';
 
-      // 學員報名
+      // 學員報名（所有人看到，allowSignup 開啟時）
       let signupBtn = '';
-      if (!isStaff && p.allowSignup) {
+      if (p.allowSignup) {
         const isFull = p.maxCapacity && (p.currentCount || 0) >= p.maxCapacity;
         const myEnrollment = (p._enrollments || []).find(e => e.selfUid === myUid || e.parentUid === myUid);
         if (myEnrollment) {
