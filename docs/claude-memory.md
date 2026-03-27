@@ -10,6 +10,15 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-27 — Level 1 i18n 安全範圍接線（19 key）
+- **需求**：將已定義但未使用的 i18n key 接線到 HTML，讓 6 種語言切換生效
+- **做法**：
+  - `pages/profile.html` 加 `data-i18n` 屬性（19 處：7 欄位標籤×2 + 區塊標題 + 統計 + 快捷按鈕 + 登入提示 + tab）
+  - `navigation.js` 加通用 `[data-i18n]` 掃描器（語言切換時 + 頁面渲染時非 zh-TW 觸發）
+  - `admin-log-tabs.js` 日誌 tab 標籤改用 `t()` + typeof 防護
+- **排除**：status.*、activity.register/cancel/waitlist/fee/location/time（邏輯/Firestore/LINE 相關）
+- **教訓**：i18n 接線前必須逐一比對 HTML 文字與 i18n key 值是否完全一致，不一致的跳過
+
 ### 2026-03-27 — Batch 1 防護型修正（5 項）
 - **問題**：全專案審閱發現 6 個已知風險（版本同步、UID 不一致、競態條件、密碼明文、LS 配額）
 - **修復**：

@@ -329,7 +329,8 @@
 // 20260323j: 雲端存檔 + 天氣系統 + 角色命名（第一期）
 // 20260323k: 雙開偵測（localStorage 心跳 + storage 事件搶佔）
 // 20260327c: 版本同步偵測 + UID正規化 + 競態防護 + 密碼雜湊 + LS配額強化
-const CACHE_VERSION = '20260327c';
+// 20260327d: Level 1 i18n 安全範圍接線（profile 頁面 19 key + admin log tabs）
+const CACHE_VERSION = '20260327d';
 
 // ─── 網路 / 設備偵測（用於 UI 降級）───
 const NetDevice = {

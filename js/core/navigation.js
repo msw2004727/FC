@@ -641,6 +641,12 @@ Object.assign(App, {
       this.renderAdminLogCenter('error');
     }
 
+    /* 非預設語系時套用 data-i18n 翻譯 */
+    if (typeof I18N !== 'undefined' && I18N.getLocale() !== 'zh-TW') {
+      document.querySelectorAll('[data-i18n]').forEach(el => {
+        el.textContent = t(el.dataset.i18n);
+      });
+    }
     /* 白屏卡住偵測：標記頁面內容已開始渲染 */
     window._contentReady = true;
     if (document.getElementById('content-stall-hint')) {
@@ -768,6 +774,11 @@ Object.assign(App, {
     if (teamRegion && teamRegion.options.length > 0) {
       teamRegion.options[0].textContent = t('teamPage.allRegions');
     }
+
+    // data-i18n 通用掃描器
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+      el.textContent = t(el.dataset.i18n);
+    });
 
     // Re-render drawer menu & dashboard if visible
     this.renderDrawerMenu();

@@ -4,7 +4,7 @@
       <div id="profile-login-prompt" class="profile-login-prompt" style="display:none">
         <div class="login-prompt-content">
           <div class="login-prompt-icon">👤</div>
-          <h3>尚未登入</h3>
+          <h3 data-i18n="profilePage.notLoggedIn">尚未登入</h3>
           <p>請先使用 LINE 帳號登入以查看個人資料</p>
           <button class="line-login-btn large" onclick="LineAuth.login()">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="#fff"><path d="M12 2C6.48 2 2 5.83 2 10.5c0 4.18 3.66 7.68 8.58 8.38.33.07.78.22.9.5.1.26.07.66.03.92l-.15.86c-.04.26-.2 1.01.88.55s5.88-3.47 8.03-5.93C22.08 13.79 22 12.18 22 10.5 22 5.83 17.52 2 12 2z"/></svg>
@@ -30,13 +30,13 @@
         <div class="profile-stats">
           <div class="stat-item"><span class="stat-num" id="profile-stat-total">0</span><span class="stat-label">應到場次</span></div>
           <div class="stat-item"><span class="stat-num" id="profile-stat-done">0</span><span class="stat-label">完成場次</span></div>
-          <div class="stat-item"><span class="stat-num" id="profile-stat-rate">0%</span><span class="stat-label">出席率</span></div>
-          <div class="stat-item"><span class="stat-num" id="profile-stat-badges">0</span><span class="stat-label">徽章</span></div>
+          <div class="stat-item"><span class="stat-num" id="profile-stat-rate">0%</span><span class="stat-label" data-i18n="profile.attendanceRate">出席率</span></div>
+          <div class="stat-item"><span class="stat-num" id="profile-stat-badges">0</span><span class="stat-label" data-i18n="profile.badges">徽章</span></div>
         </div>
         <div class="quick-grid">
-          <button class="quick-item" onclick="App.showPage('page-achievements')"><span>🏅</span>成就/徽章</button>
-          <button class="quick-item" onclick="App.showPage('page-titles')"><span>🎖️</span>稱號</button>
-          <button class="quick-item disabled" disabled style="opacity:.35;filter:grayscale(1)"><span>🎒</span>道具欄</button>
+          <button class="quick-item" onclick="App.showPage('page-achievements')"><span>🏅</span><span data-i18n="profile.achievements">成就/徽章</span></button>
+          <button class="quick-item" onclick="App.showPage('page-titles')"><span>🎖️</span><span data-i18n="profile.titles">稱號</span></button>
+          <button class="quick-item disabled" disabled style="opacity:.35;filter:grayscale(1)"><span>🎒</span><span data-i18n="profile.inventory">道具欄</span></button>
         </div>
         <!-- 社群連結按鈕列 -->
         <div class="social-grid" id="social-grid">
@@ -61,19 +61,19 @@
         </div>
         <div class="info-card" id="profile-info-card">
           <div class="info-title profile-collapse-toggle" onclick="App.toggleProfileSection(this,'profileInfo')">
-            <span>我的資料</span>
+            <span data-i18n="profile.myProfile">我的資料</span>
             <span class="profile-collapse-arrow">▶</span>
           </div>
           <div class="profile-collapse-content" style="display:none">
           <!-- 顯示模式 -->
           <div id="profile-info-display">
-            <div class="info-row"><span>性別</span><span id="profile-gender">-</span></div>
-            <div class="info-row"><span>生日</span><span id="profile-birthday">-</span></div>
-            <div class="info-row"><span>地區</span><span id="profile-region">-</span></div>
-            <div class="info-row"><span>運動類別</span><span id="profile-sports">-</span></div>
-            <div class="info-row"><span>所屬俱樂部</span><span id="profile-team">-</span></div>
-            <div class="info-row"><span>聯繫方式</span><span id="profile-phone">-</span></div>
-            <div class="info-row"><span>加入時間</span><span id="profile-join-date">-</span></div>
+            <div class="info-row"><span data-i18n="profile.gender">性別</span><span id="profile-gender">-</span></div>
+            <div class="info-row"><span data-i18n="profile.birthday">生日</span><span id="profile-birthday">-</span></div>
+            <div class="info-row"><span data-i18n="profile.region">地區</span><span id="profile-region">-</span></div>
+            <div class="info-row"><span data-i18n="profile.sports">運動類別</span><span id="profile-sports">-</span></div>
+            <div class="info-row"><span data-i18n="profile.team">所屬俱樂部</span><span id="profile-team">-</span></div>
+            <div class="info-row"><span data-i18n="profile.phone">聯繫方式</span><span id="profile-phone">-</span></div>
+            <div class="info-row"><span data-i18n="profile.joinDate">加入時間</span><span id="profile-join-date">-</span></div>
             <div style="display:flex;justify-content:flex-end;margin-top:.4rem">
               <button class="outline-btn" style="font-size:.7rem;padding:.2rem .6rem" id="profile-edit-btn" onclick="App.toggleProfileEdit()">編輯</button>
             </div>
@@ -81,7 +81,7 @@
           <!-- 編輯模式 -->
           <div id="profile-info-edit" style="display:none">
             <div class="info-row">
-              <span>性別</span>
+              <span data-i18n="profile.gender">性別</span>
               <select id="profile-edit-gender" class="profile-edit-input">
                 <option value="">請選擇</option>
                 <option value="男">男</option>
@@ -89,12 +89,12 @@
                 <option value="其他">其他</option>
               </select>
             </div>
-            <div class="info-row"><span>生日</span><input type="date" id="profile-edit-birthday" class="profile-edit-input"></div>
-            <div class="info-row"><span>地區</span><input type="text" id="profile-edit-region" class="profile-edit-input" placeholder="例：台北市"></div>
-            <div class="info-row"><span>運動類別</span><span id="profile-sports-display">-</span></div>
-            <div class="info-row"><span>所屬俱樂部</span><span id="profile-team-display">-</span></div>
-            <div class="info-row"><span>聯繫方式</span><input type="tel" id="profile-edit-phone" class="profile-edit-input" placeholder="例：0912-345-678"></div>
-            <div class="info-row"><span>加入時間</span><span id="profile-join-date-edit">-</span></div>
+            <div class="info-row"><span data-i18n="profile.birthday">生日</span><input type="date" id="profile-edit-birthday" class="profile-edit-input"></div>
+            <div class="info-row"><span data-i18n="profile.region">地區</span><input type="text" id="profile-edit-region" class="profile-edit-input" placeholder="例：台北市"></div>
+            <div class="info-row"><span data-i18n="profile.sports">運動類別</span><span id="profile-sports-display">-</span></div>
+            <div class="info-row"><span data-i18n="profile.team">所屬俱樂部</span><span id="profile-team-display">-</span></div>
+            <div class="info-row"><span data-i18n="profile.phone">聯繫方式</span><input type="tel" id="profile-edit-phone" class="profile-edit-input" placeholder="例：0912-345-678"></div>
+            <div class="info-row"><span data-i18n="profile.joinDate">加入時間</span><span id="profile-join-date-edit">-</span></div>
             <div style="display:flex;gap:.5rem;margin-top:.5rem;justify-content:flex-end">
               <button class="outline-btn" style="font-size:.75rem;padding:.3rem .8rem" onclick="App.toggleProfileEdit()">取消</button>
               <button class="primary-btn small" onclick="App.saveProfileInfo()">儲存</button>
@@ -105,7 +105,7 @@
         <!-- LINE 推播通知綁定 -->
         <div class="info-card" id="profile-line-notify">
           <div class="info-title profile-collapse-toggle" onclick="App.toggleProfileSection(this,'lineNotify')">
-            <span>LINE 推播通知 <span class="line-notify-status" id="line-notify-badge"></span></span>
+            <span><span data-i18n="profile.lineNotify">LINE 推播通知</span> <span class="line-notify-status" id="line-notify-badge"></span></span>
             <span class="profile-collapse-arrow">▶</span>
           </div>
           <div class="profile-collapse-content" style="display:none">
@@ -155,7 +155,7 @@
         <!-- 我的收藏 -->
         <div class="info-card" id="profile-favorites-card" style="display:none">
           <div class="info-title profile-collapse-toggle" onclick="App.toggleProfileSection(this,'favorites')">
-            <span>我的收藏 <span class="fav-count-badge" id="fav-count-badge">0</span></span>
+            <span><span data-i18n="profile.favorites">我的收藏</span> <span class="fav-count-badge" id="fav-count-badge">0</span></span>
             <span class="profile-collapse-arrow">▶</span>
           </div>
           <div class="profile-collapse-content" id="profile-favorites-list" style="display:none"></div>
@@ -180,12 +180,12 @@
         </div>
         <div class="info-card">
           <div class="info-title profile-collapse-toggle" onclick="App.toggleProfileSection(this,'records')">
-            <span>報名紀錄</span>
+            <span data-i18n="profile.activityRecords">報名紀錄</span>
             <span class="profile-collapse-arrow">▶</span>
           </div>
           <div class="profile-collapse-content" style="display:none">
             <div class="tab-bar compact" id="record-tabs">
-              <button class="tab" data-filter="all">全部</button>
+              <button class="tab" data-filter="all" data-i18n="profilePage.recordAll">全部</button>
               <button class="tab" data-filter="registered">報名</button>
               <button class="tab" data-filter="completed">完成</button>
               <button class="tab" data-filter="cancelled">取消</button>
