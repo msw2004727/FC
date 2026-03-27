@@ -98,9 +98,18 @@ Object.assign(App, {
       return;
     }
 
+    // 取得進行中的課程方案（用於標籤顯示）
+    const activePlans = this.getEduCoursePlans(teamId).filter(p => {
+      if (p.active === false) return false;
+      if (p.planType === 'weekly' && p.endDate && p.endDate < new Date().toISOString().slice(0, 10)) return false;
+      return true;
+    });
+    // 課程標籤顏色
+    const courseColors = ['#7c3aed', '#0d9488', '#ec4899', '#f59e0b', '#3b82f6', '#ef4444'];
+
     let html = '<div class="td-card">'
       + '<div class="td-card-title td-card-title-row">'
-      + '<span>我已報名的學員<button class="edu-info-btn" onclick="App._showEduInfoPopup(\'member\')" title="說明">?</button></span>'
+      + '<span>我們這一家<button class="edu-info-btn" onclick="App._showEduInfoPopup(\'member\')" title="說明">?</button></span>'
       + '</div>';
 
     html += myStudents.map(s => {
@@ -112,14 +121,37 @@ Object.assign(App, {
       const statusHtml = isPending
         ? '<span class="edu-status-pending">待審核</span>'
         : '<span class="edu-status-active">已通過</span>';
-      // 加入時間
-      const timeRaw = s.enrolledAt || s.createdAt || '';
+      // 加入時間（支援 Firestore Timestamp）
+      let timeRaw = s.enrolledAt || s.createdAt || '';
+      let timeStr = '';
+      if (timeRaw) {
+        if (typeof timeRaw === 'string') timeStr = timeRaw.slice(0, 10);
+        else if (timeRaw.toDate) timeStr = timeRaw.toDate().toISOString().slice(0, 10);
+        else if (timeRaw.seconds) timeStr = new Date(timeRaw.seconds * 1000).toISOString().slice(0, 10);
+      }
       const timeLabel = isPending ? '提交申請' : '加入俱樂部';
-      const timeStr = typeof timeRaw === 'string' ? timeRaw.slice(0, 10) : '';
       const timeHtml = timeStr ? '<div style="font-size:.72rem;color:var(--text-muted)">' + timeLabel + '：' + escapeHTML(timeStr) + '</div>' : '';
       const groupHtml = (s.groupNames && s.groupNames.length)
         ? '<div class="edu-student-groups">' + s.groupNames.map(n => '<span class="edu-group-tag">' + escapeHTML(n) + '</span>').join('') + '</div>'
         : '';
+      // 當前所屬課程標籤（條件：在課程名單內 + 課程尚未結束）
+      let courseTagsHtml = '';
+      if (!isPending) {
+        const myCourseTags = activePlans.filter(p => {
+          // 分組匹配
+          if (p.groupId && (s.groupIds || []).includes(p.groupId)) return true;
+          // enrollment 匹配（透過 _enrollments）
+          if (p._enrollments && p._enrollments.some(e => e.studentId === s.id && e.status === 'approved')) return true;
+          return false;
+        });
+        if (myCourseTags.length) {
+          courseTagsHtml = '<div style="display:flex;flex-wrap:wrap;gap:.25rem;margin-top:.2rem">'
+            + myCourseTags.map((cp, ci) => {
+              const color = courseColors[ci % courseColors.length];
+              return '<span style="font-size:.68rem;padding:.1rem .4rem;border-radius:var(--radius-full);background:' + color + '22;color:' + color + ';font-weight:600">' + escapeHTML(cp.name) + '</span>';
+            }).join('') + '</div>';
+        }
+      }
       // 右側按鈕列
       let actionBtns = '';
       if (!isPending) {
@@ -138,6 +170,7 @@ Object.assign(App, {
         + '<span class="edu-header-actions">' + actionBtns + '</span>'
         + '</div>'
         + groupHtml
+        + courseTagsHtml
         + timeHtml
         + '</div>';
     }).join('');

@@ -92,6 +92,15 @@
 .edu-ce-paid-label input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; }
 .edu-ce-paid-edit { cursor: pointer; font-size: .72rem; }
 
+/* ── Attend Info Calendar ── */
+.edu-attend-cal-cell { aspect-ratio: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; border-radius: 6px; padding: 2px; }
+.edu-attend-cal-has { background: var(--accent-bg); cursor: pointer; transition: background .15s; }
+.edu-attend-cal-has:hover { background: var(--accent); color: #fff; }
+.edu-attend-cal-has:hover .edu-attend-cal-day,
+.edu-attend-cal-has:hover .edu-attend-cal-count { color: #fff; }
+.edu-attend-cal-day { font-size: .78rem; font-weight: 600; line-height: 1.2; }
+.edu-attend-cal-count { font-size: .62rem; font-weight: 700; color: var(--accent); background: rgba(255,255,255,.8); border-radius: 50%; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; margin-top: 1px; }
+
 /* ── Type Badge ── */
 .edu-type-badge {
   display: inline-block;

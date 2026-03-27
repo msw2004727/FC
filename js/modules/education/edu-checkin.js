@@ -9,40 +9,121 @@ Object.assign(App, {
   _eduCheckinTeamId: null,
   _eduCheckinGroupId: null,
 
-  async showEduCheckin(teamId) {
+  async showEduCheckin(teamId, planId) {
     this._eduCheckinTeamId = teamId;
     this._eduCheckinGroupId = null;
+    this._eduCheckinPlanId = planId || null;
     await this.showPage('page-edu-checkin');
-    this._renderEduCheckinForm(teamId);
+    this._renderEduCheckinForm(teamId, planId);
   },
 
-  async _renderEduCheckinForm(teamId) {
+  async _renderEduCheckinForm(teamId, planId) {
     const container = document.getElementById('edu-checkin-container');
     if (!container) return;
 
-    const groups = await this._loadEduGroups(teamId);
-    if (!groups.length) {
-      container.innerHTML = '<div class="edu-empty-state">請先建立分組</div>';
+    const plan = planId ? this.getEduCoursePlans(teamId).find(p => p.id === planId) : null;
+
+    if (plan) {
+      // 從課程方案進入 — 不需選分組，直接顯示方案名 + 日期 + 學員名單
+      container.innerHTML = '<div class="edu-checkin-form">'
+        + '<div class="ce-row"><label>課程方案</label>'
+        + '<input type="text" value="' + escapeHTML(plan.name) + '" disabled style="opacity:.7"></div>'
+        + '<div class="ce-row"><label>簽到日期</label>'
+        + '<input type="date" id="edu-ci-date" value="' + this._todayStr() + '" onchange="App._loadPlanCheckinStudents()"></div>'
+        + '<div id="edu-ci-student-list">載入中...</div>'
+        + '<div id="edu-ci-actions" style="display:none;margin-top:.5rem">'
+        + '<button class="primary-btn" style="width:100%" id="edu-ci-confirm-btn" onclick="App.confirmEduCheckin()">確認簽到</button>'
+        + '</div></div>';
+      // 自動載入學員
+      await this._loadPlanCheckinStudents();
+    } else {
+      // 舊流程：選分組
+      const groups = await this._loadEduGroups(teamId);
+      if (!groups.length) {
+        container.innerHTML = '<div class="edu-empty-state">請先建立分組</div>';
+        return;
+      }
+      const groupOptions = groups.filter(g => g.active !== false)
+        .map(g => '<option value="' + g.id + '">' + escapeHTML(g.name) + '</option>').join('');
+      container.innerHTML = '<div class="edu-checkin-form">'
+        + '<div class="ce-row"><label>選擇分組</label>'
+        + '<select id="edu-ci-group" onchange="App._onEduCheckinGroupChange()">'
+        + '<option value="">請選擇分組</option>' + groupOptions + '</select></div>'
+        + '<div id="edu-ci-plan-row" class="ce-row" style="display:none"><label>課程方案</label>'
+        + '<select id="edu-ci-plan"></select></div>'
+        + '<div class="ce-row"><label>簽到日期</label>'
+        + '<input type="date" id="edu-ci-date" value="' + this._todayStr() + '" onchange="App._onEduCheckinGroupChange()"></div>'
+        + '<div id="edu-ci-student-list"></div>'
+        + '<div id="edu-ci-actions" style="display:none;margin-top:.5rem">'
+        + '<button class="primary-btn" style="width:100%" id="edu-ci-confirm-btn" onclick="App.confirmEduCheckin()">確認簽到</button>'
+        + '</div></div>';
+    }
+  },
+
+  async _loadPlanCheckinStudents() {
+    const teamId = this._eduCheckinTeamId;
+    const planId = this._eduCheckinPlanId;
+    const plan = this.getEduCoursePlans(teamId).find(p => p.id === planId);
+    const listEl = document.getElementById('edu-ci-student-list');
+    const actionsEl = document.getElementById('edu-ci-actions');
+    if (!listEl) return;
+
+    const allStudents = await this._loadEduStudents(teamId);
+    // 方案學員 = 分組內 active 學員 + enrollment approved 學員
+    const studentIds = new Set();
+    if (plan?.groupId) {
+      allStudents.filter(s => s.enrollStatus === 'active' && (s.groupIds || []).includes(plan.groupId))
+        .forEach(s => studentIds.add(s.id));
+    }
+    try {
+      const enrollments = await this._loadCourseEnrollments(teamId, planId);
+      enrollments.filter(e => e.status === 'approved').forEach(e => studentIds.add(e.studentId));
+    } catch (_) {}
+
+    const planStudents = allStudents.filter(s => studentIds.has(s.id));
+    if (!planStudents.length) {
+      listEl.innerHTML = '<div class="edu-empty-state">此方案沒有學員</div>';
+      if (actionsEl) actionsEl.style.display = 'none';
       return;
     }
 
-    const groupOptions = groups.filter(g => g.active !== false)
-      .map(g => '<option value="' + g.id + '">' + escapeHTML(g.name) + '</option>')
-      .join('');
+    // 查詢已簽到
+    const date = document.getElementById('edu-ci-date')?.value || this._todayStr();
+    let checkedIds = new Set();
+    try {
+      const existing = await FirebaseService.queryEduAttendance({ teamId, coursePlanId: planId, date });
+      existing.forEach(r => checkedIds.add(r.studentId));
+    } catch (_) {}
 
-    container.innerHTML = '<div class="edu-checkin-form">'
-      + '<div class="ce-row"><label>選擇分組</label>'
-      + '<select id="edu-ci-group" onchange="App._onEduCheckinGroupChange()">'
-      + '<option value="">請選擇分組</option>' + groupOptions
-      + '</select></div>'
-      + '<div id="edu-ci-plan-row" class="ce-row" style="display:none"><label>課程方案</label>'
-      + '<select id="edu-ci-plan"></select></div>'
-      + '<div class="ce-row"><label>簽到日期</label>'
-      + '<input type="date" id="edu-ci-date" value="' + this._todayStr() + '" onchange="App._onEduCheckinGroupChange()"></div>'
-      + '<div id="edu-ci-student-list"></div>'
-      + '<div id="edu-ci-actions" style="display:none;margin-top:.5rem">'
-      + '<button class="primary-btn" style="width:100%" onclick="App.confirmEduCheckin()">確認簽到</button>'
-      + '</div></div>';
+    // 設定 groupId（取第一個學員的分組）
+    this._eduCheckinGroupId = plan?.groupId || (planStudents[0]?.groupIds?.[0]) || '';
+
+    let tableHtml = '<table class="edu-ci-table">'
+      + '<thead><tr>'
+      + '<th class="edu-ci-th-check"><input type="checkbox" id="edu-ci-select-all" onchange="App._toggleEduCheckinAll(this.checked)"></th>'
+      + '<th class="edu-ci-th-name">姓名</th>'
+      + '<th class="edu-ci-th-group">組別</th>'
+      + '<th class="edu-ci-th-status">出席</th>'
+      + '</tr></thead><tbody>';
+
+    planStudents.forEach(s => {
+      const alreadyChecked = checkedIds.has(s.id);
+      const genderIcon = s.gender === 'male' ? '♂' : s.gender === 'female' ? '♀' : '';
+      const genderClass = s.gender === 'male' ? ' edu-gender-male' : s.gender === 'female' ? ' edu-gender-female' : '';
+      const groupName = (s.groupNames && s.groupNames[0]) || '';
+      const rowClass = alreadyChecked ? ' class="edu-ci-row-done"' : '';
+      tableHtml += '<tr' + rowClass + '>'
+        + '<td class="edu-ci-td-check"><input type="checkbox" value="' + s.id + '" data-name="' + escapeHTML(s.name) + '"'
+        + ' data-parent-uid="' + (s.parentUid || '') + '" data-self-uid="' + (s.selfUid || '') + '"'
+        + (alreadyChecked ? ' checked disabled' : '') + '></td>'
+        + '<td class="edu-ci-td-name">' + escapeHTML(s.name)
+        + (genderIcon ? ' <span class="edu-student-gender' + genderClass + '">' + genderIcon + '</span>' : '') + '</td>'
+        + '<td class="edu-ci-td-group">' + escapeHTML(groupName) + '</td>'
+        + '<td class="edu-ci-td-status">' + (alreadyChecked ? '<span class="edu-ci-done-badge">✓ 已簽到</span>' : '') + '</td></tr>';
+    });
+    tableHtml += '</tbody></table>';
+    listEl.innerHTML = tableHtml;
+    if (actionsEl) actionsEl.style.display = '';
   },
 
   async _onEduCheckinGroupChange() {
@@ -138,9 +219,10 @@ Object.assign(App, {
   },
 
   async confirmEduCheckin() {
+    const _btnState = this._setEduBtnLoading('#edu-ci-confirm-btn');
     const teamId = this._eduCheckinTeamId;
     const groupId = this._eduCheckinGroupId;
-    const coursePlanId = document.getElementById('edu-ci-plan')?.value || '';
+    const coursePlanId = this._eduCheckinPlanId || document.getElementById('edu-ci-plan')?.value || '';
     const date = document.getElementById('edu-ci-date')?.value || this._todayStr();
     const time = this._nowTimeStr();
 
@@ -174,10 +256,17 @@ Object.assign(App, {
         this._notifyEduCheckin(teamId, groupId, records);
       }
 
-      await this._onEduCheckinGroupChange();
+      // 重新載入學員列表
+      if (this._eduCheckinPlanId) {
+        await this._loadPlanCheckinStudents();
+      } else {
+        await this._onEduCheckinGroupChange();
+      }
     } catch (err) {
       console.error('[confirmEduCheckin]', err);
       this.showToast('簽到失敗：' + (err.message || '請稍後再試'));
+    } finally {
+      _btnState.restore();
     }
   },
 
