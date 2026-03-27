@@ -58,7 +58,7 @@ Object.assign(App, {
     // ── 學員狀態區塊（即時渲染目標）──
     const memberSection = '<div id="edu-member-section"></div>';
 
-    bodyEl.innerHTML = infoCard + bioCard + groupSection + courseSection + memberSection;
+    bodyEl.innerHTML = infoCard + bioCard + courseSection + groupSection + memberSection;
 
     // ★ Phase 1：用快取立即渲染（可能為空或舊資料）
     this._renderEduMemberSection(teamId);

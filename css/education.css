@@ -42,8 +42,8 @@
 .edu-cp-type-session { color: #7c3aed; }
 .edu-cp-status { font-size: .65rem; padding: .1rem .4rem; border-radius: var(--radius-full); font-weight: 600; }
 .edu-cp-status-open { background: rgba(16,185,129,.15); color: #10b981; }
-.edu-cp-row { font-size: .82rem; color: var(--text-secondary); line-height: 1.6; display: flex; align-items: center; gap: .3rem; }
-.edu-cp-row-icon { font-size: .78rem; width: 1.2em; text-align: center; flex-shrink: 0; }
+.edu-cp-chips { display: flex; flex-wrap: wrap; gap: .3rem; margin-top: .2rem; }
+.edu-cp-chip { font-size: .78rem; font-weight: 600; padding: .2rem .55rem; border-radius: 6px; background: var(--bg-base); color: var(--text-secondary); border: 1px solid var(--border); white-space: nowrap; }
 .edu-cp-manage-left { display: flex; gap: .5rem; margin-top: .4rem; }
 .edu-cp-enrolled-pending { text-align: center; padding: .4rem; font-size: .82rem; color: var(--warning); font-weight: 600; }
 .edu-cp-enrolled-ok { text-align: center; padding: .4rem; font-size: .82rem; color: var(--success); font-weight: 600; }
@@ -72,6 +72,9 @@
 .edu-ce-expand { padding-top: .5rem; margin-top: .4rem; border-top: 1px solid var(--border); }
 .edu-ce-notes-label { font-size: .78rem; font-weight: 600; margin-bottom: .25rem; color: var(--text-secondary); }
 .edu-ce-notes { width: 100%; border: 1px solid var(--border); border-radius: var(--radius); padding: .4rem .6rem; font-size: .82rem; resize: vertical; background: var(--bg-base); color: var(--text-primary); }
+
+/* ── Group Staff Right (待審核+編輯刪除 同行置右) ── */
+.edu-grp-staff-right { margin-left: auto; display: flex; align-items: center; gap: .3rem; flex-shrink: 0; }
 
 /* ── Type Badge ── */
 .edu-type-badge {

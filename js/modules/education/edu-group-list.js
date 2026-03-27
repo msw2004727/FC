@@ -72,7 +72,7 @@ Object.assign(App, {
       ).length;
     });
 
-    container.innerHTML = sorted.map(g => {
+    container.innerHTML = sorted.map((g, idx) => {
       const ageRange = (g.ageMin != null || g.ageMax != null)
         ? '<span class="edu-group-age">' +
           (g.ageMin != null ? g.ageMin : '?') + '-' +
@@ -87,21 +87,29 @@ Object.assign(App, {
           ? '<span class="edu-group-gender-female">限女生</span>'
           : '';
       const countHtml = '<span class="edu-group-count">' + g.memberCount + ' 人</span>';
-      const pendingHtml = (isStaff && g.pendingCount > 0)
-        ? '<span class="edu-group-pending">待審核 ' + g.pendingCount + ' 人</span>'
-        : '';
+      // 待審核 + 編輯刪除（職員才看到，放在同一行置右）
+      let staffRight = '';
+      if (isStaff) {
+        const pendingTag = g.pendingCount > 0
+          ? '<span class="edu-group-pending">待審核 ' + g.pendingCount + '</span>' : '';
+        staffRight = '<span class="edu-grp-staff-right">' + pendingTag
+          + '<button class="outline-btn" style="font-size:.68rem;padding:.15rem .4rem" onclick="event.stopPropagation();App.showEduGroupForm(\'' + teamId + '\',\'' + g.id + '\')">編輯</button>'
+          + '<button class="outline-btn" style="font-size:.68rem;padding:.15rem .4rem;color:var(--danger)" onclick="event.stopPropagation();App.deleteEduGroup(\'' + teamId + '\',\'' + g.id + '\')">刪除</button>'
+          + '</span>';
+      }
+      // 交錯底色
+      const altBg = idx % 2 === 0
+        ? 'background:rgba(59,130,246,.06)'
+        : 'background:rgba(16,185,129,.06)';
 
-      return '<div class="edu-group-card" onclick="App.showEduStudentList(\'' + teamId + '\',\'' + g.id + '\')">' +
+      return '<div class="edu-group-card" style="' + altBg + '" onclick="App.showEduStudentList(\'' + teamId + '\',\'' + g.id + '\')">' +
         '<div class="edu-group-header">' +
           '<span class="edu-group-name">' + escapeHTML(g.name) + '</span>' +
-          ageRange + genderLabel + countHtml + pendingHtml +
+          ageRange + genderLabel + countHtml +
+          staffRight +
         '</div>' +
         scheduleHtml +
         (g.description ? '<div class="edu-group-desc">' + escapeHTML(g.description) + '</div>' : '') +
-        (isStaff ? '<div class="edu-group-actions">' +
-          '<button class="outline-btn" style="font-size:.72rem;padding:.2rem .5rem" onclick="event.stopPropagation();App.showEduGroupForm(\'' + teamId + '\',\'' + g.id + '\')">編輯</button>' +
-          '<button class="outline-btn" style="font-size:.72rem;padding:.2rem .5rem;color:var(--danger)" onclick="event.stopPropagation();App.deleteEduGroup(\'' + teamId + '\',\'' + g.id + '\')">刪除</button>' +
-        '</div>' : '') +
       '</div>';
     }).join('');
 

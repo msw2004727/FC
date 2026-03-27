@@ -60,17 +60,18 @@ Object.assign(App, {
         + (p.coverImage ? '<img src="' + escapeHTML(p.coverImage) + '" alt="">' : '<span style="font-size:.72rem;color:var(--text-muted)">無封面</span>')
         + '</div>';
 
-      // 資訊列（垂直排列，清晰易讀）
-      let infoHtml = '';
+      // 資訊小卡片（圓角 chip 風格）
+      const chips = [];
       if (p.planType === 'weekly') {
         const wdNames = (p.weekdays || []).map(d => '週' + this._weekdayLabel(d)).join('、');
-        infoHtml += '<div class="edu-cp-row"><span class="edu-cp-row-icon">📅</span>' + wdNames + (p.timeSlot ? ' ' + escapeHTML(p.timeSlot) : '') + '</div>';
-        if (p.startDate) infoHtml += '<div class="edu-cp-row"><span class="edu-cp-row-icon">📆</span>' + escapeHTML(p.startDate) + ' ~ ' + escapeHTML(p.endDate || '') + '</div>';
+        chips.push(wdNames + (p.timeSlot ? ' ' + escapeHTML(p.timeSlot) : ''));
+        if (p.startDate) chips.push(escapeHTML(p.startDate) + ' ~ ' + escapeHTML(p.endDate || ''));
       } else {
-        infoHtml += '<div class="edu-cp-row"><span class="edu-cp-row-icon">🎯</span>共 ' + (p.totalSessions || 0) + ' 堂</div>';
+        chips.push('共 ' + (p.totalSessions || 0) + ' 堂');
       }
-      if (p.price) infoHtml += '<div class="edu-cp-row"><span class="edu-cp-row-icon">💰</span>$' + p.price.toLocaleString() + '</div>';
-      infoHtml += '<div class="edu-cp-row"><span class="edu-cp-row-icon">👥</span>' + (p.currentCount || 0) + (p.maxCapacity ? '/' + p.maxCapacity : '') + ' 人</div>';
+      if (p.price) chips.push('$' + p.price.toLocaleString());
+      chips.push((p.currentCount || 0) + (p.maxCapacity ? '/' + p.maxCapacity : '') + ' 人');
+      const infoHtml = '<div class="edu-cp-chips">' + chips.map(c => '<span class="edu-cp-chip">' + c + '</span>').join('') + '</div>';
 
       // 管理按鈕（左，與分組一致）
       const manageHtml = isStaff
@@ -328,6 +329,10 @@ Object.assign(App, {
         this.showToast('課程方案已建立');
       }
       this.goBack();
+      // 返回後即時重繪課程方案列表
+      if (this._eduDetailTeamId) {
+        this.renderEduCoursePlanList?.(this._eduDetailTeamId);
+      }
     } catch (err) {
       console.error('[handleSaveEduCoursePlan]', err);
       this.showToast('儲存失敗：' + (err.message || '請稍後再試'));
