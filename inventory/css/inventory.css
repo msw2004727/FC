@@ -1,0 +1,154 @@
+/* ===== CSS Variables ===== */
+:root {
+  --inv-primary: #0d9488;
+  --inv-primary-dark: #0a7a70;
+  --inv-primary-light: #ccfbf1;
+  --inv-danger: #dc2626;
+  --inv-danger-light: #fef2f2;
+  --inv-bg: #f8fafc;
+  --inv-card: #ffffff;
+  --inv-text: #1e293b;
+  --inv-text-light: #64748b;
+  --inv-border: #e2e8f0;
+  --inv-shadow: 0 1px 3px rgba(0,0,0,.08);
+  --inv-radius: 12px;
+}
+
+/* ===== Reset & Body ===== */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--inv-bg); color: var(--inv-text); line-height: 1.5; -webkit-tap-highlight-color: transparent; }
+button, .inv-btn, .inv-action-card, .inv-qty-btns button, .inv-discount-btns button { -webkit-user-select: none; user-select: none; }
+
+/* ===== Page Container ===== */
+.inv-page { position: absolute; inset: 0; display: none; overflow-y: auto; background: var(--inv-bg); }
+.inv-page.active { display: block; }
+
+/* ===== Header ===== */
+.inv-header { position: sticky; top: 0; z-index: 50; display: flex; align-items: center; gap: 8px; padding: 12px 16px; background: var(--inv-primary); color: #fff; }
+.inv-header h1 { font-size: 18px; font-weight: 600; flex: 1; }
+
+/* ===== Back Button ===== */
+.inv-back-btn { display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; border: none; border-radius: 8px; background: rgba(255,255,255,.15); color: #fff; font-size: 20px; cursor: pointer; flex-shrink: 0; }
+.inv-back-btn:active { background: rgba(255,255,255,.25); }
+
+/* ===== Buttons ===== */
+.inv-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; padding: 10px 20px; border: none; border-radius: 8px; font-size: 15px; font-weight: 500; cursor: pointer; transition: background .15s, opacity .15s; }
+.inv-btn:active { opacity: .85; }
+.inv-btn.primary { background: var(--inv-primary); color: #fff; }
+.inv-btn.primary:active { background: var(--inv-primary-dark); }
+.inv-btn.danger { background: var(--inv-danger); color: #fff; }
+.inv-btn.outline { background: transparent; border: 1.5px solid var(--inv-primary); color: var(--inv-primary); }
+.inv-btn:disabled { opacity: .45; pointer-events: none; }
+.inv-btn.full { width: 100%; }
+
+/* ===== Login ===== */
+.inv-login-wrap { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; padding: 24px; gap: 20px; }
+.inv-login-wrap .inv-card { width: 100%; max-width: 360px; }
+
+/* ===== Toast ===== */
+.inv-toast { position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%) translateY(20px); padding: 10px 24px; border-radius: 8px; background: #334155; color: #fff; font-size: 14px; opacity: 0; transition: opacity .25s, transform .25s; z-index: 200; white-space: nowrap; pointer-events: none; }
+.inv-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* ===== Card ===== */
+.inv-card { background: var(--inv-card); border-radius: var(--inv-radius); box-shadow: var(--inv-shadow); padding: 16px; }
+
+/* ===== Quick Actions (2x2) ===== */
+.inv-quick-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 16px; }
+
+/* ===== Action Card ===== */
+.inv-action-card { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; min-height: 100px; background: var(--inv-card); border-radius: var(--inv-radius); box-shadow: var(--inv-shadow); border: none; cursor: pointer; font-size: 14px; font-weight: 500; color: var(--inv-text); transition: box-shadow .15s; }
+.inv-action-card .icon { font-size: 28px; }
+.inv-action-card:active { box-shadow: 0 0 0 2px var(--inv-primary); }
+
+/* ===== Form ===== */
+.inv-form { display: flex; flex-direction: column; gap: 14px; padding: 16px; }
+.inv-form label { font-size: 13px; font-weight: 500; color: var(--inv-text-light); margin-bottom: 4px; }
+.inv-form .field { display: flex; flex-direction: column; gap: 4px; }
+
+/* ===== Input ===== */
+.inv-input { width: 100%; height: 44px; padding: 0 12px; font-size: 16px; border: 1.5px solid var(--inv-border); border-radius: 8px; background: #fff; color: var(--inv-text); outline: none; transition: border-color .15s; }
+.inv-input:focus { border-color: var(--inv-primary); }
+
+/* ===== Select ===== */
+.inv-select { width: 100%; height: 44px; padding: 0 12px; font-size: 16px; border: 1.5px solid var(--inv-border); border-radius: 8px; background: #fff; color: var(--inv-text); outline: none; appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2364748b' d='M6 8L1 3h10z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; }
+.inv-select:focus { border-color: var(--inv-primary); }
+
+/* ===== Scanner ===== */
+.inv-scanner-wrap { max-width: 400px; margin: 0 auto; padding: 16px; }
+.inv-scanner-wrap video { width: 100%; border-radius: var(--inv-radius); }
+
+/* ===== Barcode Input ===== */
+.inv-barcode-input { display: flex; gap: 8px; padding: 12px 16px; }
+.inv-barcode-input .inv-input { flex: 1; }
+
+/* ===== Product Card ===== */
+.inv-product-card { display: flex; align-items: center; gap: 12px; padding: 14px 16px; background: var(--inv-card); border-radius: var(--inv-radius); box-shadow: var(--inv-shadow); margin: 0 16px 10px; }
+.inv-product-card .info { flex: 1; }
+.inv-product-card .name { font-weight: 600; font-size: 15px; }
+.inv-product-card .price { font-size: 13px; color: var(--inv-text-light); margin-top: 2px; }
+
+/* ===== Stock Badge ===== */
+.inv-stock-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 36px; padding: 4px 10px; border-radius: 999px; font-size: 13px; font-weight: 600; }
+.inv-stock-badge.ok { background: #dcfce7; color: #16a34a; }
+.inv-stock-badge.low { background: #fef2f2; color: var(--inv-danger); }
+.inv-stock-badge.zero { background: #f1f5f9; color: #94a3b8; }
+
+/* ===== Cart Item ===== */
+.inv-cart-item { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--inv-border); }
+.inv-cart-item .name { flex: 1; font-size: 14px; font-weight: 500; }
+.inv-cart-item .qty { font-size: 13px; color: var(--inv-text-light); min-width: 40px; text-align: center; }
+.inv-cart-item .subtotal { font-size: 14px; font-weight: 600; min-width: 60px; text-align: right; }
+
+/* ===== Cart Bar ===== */
+.inv-cart-bar { position: fixed; bottom: 0; left: 0; right: 0; display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; background: var(--inv-card); border-top: 1px solid var(--inv-border); box-shadow: 0 -2px 8px rgba(0,0,0,.06); z-index: 100; }
+.inv-cart-bar .summary { font-size: 14px; color: var(--inv-text-light); }
+.inv-cart-bar .total { font-size: 18px; font-weight: 700; color: var(--inv-primary); }
+
+/* ===== Checkout Button ===== */
+.inv-checkout-btn { position: fixed; bottom: 0; left: 0; right: 0; height: 56px; display: flex; align-items: center; justify-content: center; gap: 8px; background: var(--inv-primary); color: #fff; font-size: 17px; font-weight: 600; border: none; cursor: pointer; z-index: 100; }
+.inv-checkout-btn:active { background: var(--inv-primary-dark); }
+.inv-checkout-btn:disabled { background: #94a3b8; }
+
+/* ===== Stat Card ===== */
+.inv-stat-card { background: var(--inv-card); border-radius: var(--inv-radius); box-shadow: var(--inv-shadow); padding: 16px; text-align: center; }
+.inv-stat-card .value { font-size: 28px; font-weight: 700; color: var(--inv-primary); }
+.inv-stat-card .label { font-size: 12px; color: var(--inv-text-light); margin-top: 4px; }
+
+/* ===== Alert Card ===== */
+.inv-alert-card { background: var(--inv-danger-light); border: 1.5px solid var(--inv-danger); border-radius: var(--inv-radius); padding: 14px 16px; display: flex; align-items: center; gap: 10px; }
+.inv-alert-card .alert-text { flex: 1; font-size: 14px; color: var(--inv-danger); font-weight: 500; }
+
+/* ===== Overlay ===== */
+.inv-overlay { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.5); z-index: 300; opacity: 0; pointer-events: none; transition: opacity .2s; }
+.inv-overlay.show { opacity: 1; pointer-events: auto; }
+
+/* ===== Success Overlay ===== */
+.inv-success-overlay { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; background: var(--inv-primary); color: #fff; z-index: 400; opacity: 0; pointer-events: none; transition: opacity .3s; }
+.inv-success-overlay.show { opacity: 1; pointer-events: auto; }
+.inv-success-overlay .icon { font-size: 64px; }
+.inv-success-overlay .msg { font-size: 22px; font-weight: 600; }
+
+/* ===== Qty Buttons ===== */
+.inv-qty-btns { display: flex; gap: 8px; }
+.inv-qty-btns button { min-width: 52px; min-height: 44px; border: 1.5px solid var(--inv-primary); border-radius: 8px; background: var(--inv-primary-light); color: var(--inv-primary-dark); font-size: 15px; font-weight: 600; cursor: pointer; }
+.inv-qty-btns button:active { background: var(--inv-primary); color: #fff; }
+
+/* ===== Discount Buttons ===== */
+.inv-discount-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+.inv-discount-btns button { min-height: 40px; padding: 6px 14px; border: 1.5px solid var(--inv-border); border-radius: 8px; background: #fff; font-size: 14px; color: var(--inv-text); cursor: pointer; }
+.inv-discount-btns button.active { border-color: var(--inv-primary); background: var(--inv-primary-light); color: var(--inv-primary-dark); font-weight: 600; }
+
+/* ===== Net Status ===== */
+.inv-net-status { position: fixed; top: 12px; right: 12px; width: 10px; height: 10px; border-radius: 50%; z-index: 500; box-shadow: 0 0 4px rgba(0,0,0,.15); }
+.inv-net-status.online { background: #22c55e; }
+.inv-net-status.slow { background: #eab308; }
+.inv-net-status.offline { background: var(--inv-danger); }
+
+/* ===== Empty State ===== */
+.inv-empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 48px 24px; color: var(--inv-text-light); text-align: center; gap: 8px; }
+.inv-empty-state .icon { font-size: 40px; opacity: .5; }
+.inv-empty-state .msg { font-size: 15px; }
+
+/* ===== Icon Button ===== */
+.inv-icon-btn { display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; border: none; border-radius: 8px; background: transparent; color: #fff; font-size: 20px; cursor: pointer; }
+.inv-icon-btn:active { background: rgba(255,255,255,.15); }

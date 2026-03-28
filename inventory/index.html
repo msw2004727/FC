@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#0d9488">
+  <title>ToosterX 庫存管理</title>
+  <link rel="stylesheet" href="css/inventory.css?v=1">
+</head>
+<body>
+  <!-- ═══ 登入頁 ═══ -->
+  <section class="inv-page active" id="page-login">
+    <div class="inv-login-wrap">
+      <h1 class="inv-login-title">ToosterX</h1>
+      <p class="inv-login-sub">庫存管理系統</p>
+      <button class="inv-btn inv-btn-primary inv-login-btn" id="inv-login-btn" onclick="InvAuth.login()">LINE 登入</button>
+      <div id="inv-login-status" class="inv-login-status"></div>
+    </div>
+  </section>
+
+  <!-- ═══ 無權限 ═══ -->
+  <section class="inv-page" id="page-unauthorized">
+    <div class="inv-login-wrap">
+      <h2>無操作權限</h2>
+      <p style="color:var(--inv-muted);margin-top:.5rem">此帳號未被授權使用庫存系統</p>
+    </div>
+  </section>
+
+  <!-- ═══ 儀表板 ═══ -->
+  <section class="inv-page" id="page-dashboard">
+    <div class="inv-header">
+      <span class="inv-header-title">庫存管理</span>
+      <button class="inv-icon-btn" onclick="InvApp.showPage('page-settings')">⚙️</button>
+    </div>
+    <div id="inv-dashboard-content"></div>
+    <div class="inv-quick-actions">
+      <button class="inv-action-card" onclick="InvApp.showPage('page-stock-in')">
+        <span class="inv-action-icon">📦</span><span>掃碼入庫</span>
+      </button>
+      <button class="inv-action-card" onclick="InvApp.showPage('page-sale')">
+        <span class="inv-action-icon">💰</span><span>掃碼銷售</span>
+      </button>
+      <button class="inv-action-card" onclick="InvApp.showPage('page-products')">
+        <span class="inv-action-icon">📋</span><span>商品管理</span>
+      </button>
+      <button class="inv-action-card" onclick="InvApp.showPage('page-transactions')">
+        <span class="inv-action-icon">📊</span><span>銷售紀錄</span>
+      </button>
+    </div>
+  </section>
+
+  <!-- ═══ 掃碼入庫 ═══ -->
+  <section class="inv-page" id="page-stock-in">
+    <div class="inv-header">
+      <button class="inv-back-btn" onclick="InvApp.goBack()">←</button>
+      <span class="inv-header-title">掃碼入庫</span>
+    </div>
+    <div id="inv-stockin-content"></div>
+  </section>
+
+  <!-- ═══ 掃碼銷售 ═══ -->
+  <section class="inv-page" id="page-sale">
+    <div class="inv-header">
+      <button class="inv-back-btn" onclick="InvApp.goBack()">←</button>
+      <span class="inv-header-title">掃碼銷售</span>
+    </div>
+    <div id="inv-sale-content"></div>
+    <div id="inv-cart-bar" class="inv-cart-bar" style="display:none"></div>
+  </section>
+
+  <!-- ═══ 商品管理 ═══ -->
+  <section class="inv-page" id="page-products">
+    <div class="inv-header">
+      <button class="inv-back-btn" onclick="InvApp.goBack()">←</button>
+      <span class="inv-header-title">商品管理</span>
+    </div>
+    <div id="inv-products-content"></div>
+  </section>
+
+  <!-- ═══ 商品詳情 ═══ -->
+  <section class="inv-page" id="page-product-detail">
+    <div class="inv-header">
+      <button class="inv-back-btn" onclick="InvApp.goBack()">←</button>
+      <span class="inv-header-title">商品詳情</span>
+    </div>
+    <div id="inv-product-detail-content"></div>
+  </section>
+
+  <!-- ═══ 銷售紀錄 ═══ -->
+  <section class="inv-page" id="page-transactions">
+    <div class="inv-header">
+      <button class="inv-back-btn" onclick="InvApp.goBack()">←</button>
+      <span class="inv-header-title">銷售紀錄</span>
+    </div>
+    <div id="inv-transactions-content"></div>
+  </section>
+
+  <!-- ═══ 設定 ═══ -->
+  <section class="inv-page" id="page-settings">
+    <div class="inv-header">
+      <button class="inv-back-btn" onclick="InvApp.goBack()">←</button>
+      <span class="inv-header-title">設定</span>
+    </div>
+    <div id="inv-settings-content"></div>
+  </section>
+
+  <!-- ═══ Toast ═══ -->
+  <div id="inv-toast" class="inv-toast"></div>
+
+  <!-- ═══ Scripts ═══ -->
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-functions-compat.js"></script>
+  <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js" defer></script>
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js" defer></script>
+  <script src="js/inv-config.js?v=1"></script>
+  <script src="js/inv-utils.js?v=1"></script>
+  <script src="js/inv-auth.js?v=1"></script>
+  <script src="js/inv-app.js?v=1"></script>
+  <script src="js/inv-scanner.js?v=1"></script>
+  <script src="js/inv-products.js?v=1"></script>
+  <script src="js/inv-stock-in.js?v=1"></script>
+  <script src="js/inv-cart.js?v=1"></script>
+  <script src="js/inv-sale.js?v=1"></script>
+  <script src="js/inv-dashboard.js?v=1"></script>
+</body>
+</html>
