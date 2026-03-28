@@ -24,11 +24,7 @@ Object.assign(App, {
 
     const subtitleEl = document.getElementById('edu-ce-subtitle');
     if (subtitleEl && plan) {
-      const parts = [];
-      parts.push(plan.planType === 'session' ? '堂數制 ' + (plan.totalSessions || 0) + '堂' : '固定週期');
-      if (plan.price) parts.push('$' + plan.price.toLocaleString());
-      parts.push((plan.currentCount || 0) + (plan.maxCapacity ? '/' + plan.maxCapacity : '') + ' 人');
-      subtitleEl.textContent = parts.join(' ｜ ');
+      this._updateEnrollSubtitle(subtitleEl, plan, teamId, planId);
     }
 
     await this._renderCourseEnrollmentList(teamId, planId);
@@ -103,6 +99,27 @@ Object.assign(App, {
     }
 
     container.innerHTML = html;
+
+    // 即時更新 subtitle 人數
+    var stEl = document.getElementById('edu-ce-subtitle');
+    if (stEl && plan) this._updateEnrollSubtitle(stEl, plan, teamId, planId);
+  },
+
+  _updateEnrollSubtitle(el, plan, teamId, planId) {
+    // 計算實際人數：approved enrollments + 分組內 active 學員（不重複）
+    var key = this._getCourseEnrollCacheKey(teamId, planId);
+    var enrollments = this._courseEnrollCache[key] || [];
+    var students = this.getEduStudents(teamId);
+    var ids = new Set(enrollments.filter(function (e) { return e.status === 'approved'; }).map(function (e) { return e.studentId; }));
+    if (plan.groupId) {
+      students.filter(function (s) { return s.enrollStatus === 'active' && (s.groupIds || []).includes(plan.groupId); })
+        .forEach(function (s) { ids.add(s.id); });
+    }
+    var parts = [];
+    parts.push(plan.planType === 'session' ? '堂數制 ' + (plan.totalSessions || 0) + '堂' : '固定週期');
+    if (plan.price) parts.push('$' + plan.price.toLocaleString());
+    parts.push(ids.size + (plan.maxCapacity ? '/' + plan.maxCapacity : '') + ' 人');
+    el.textContent = parts.join(' ｜ ');
   },
 
   _renderApprovedEnrollmentCard(e, plan, students, teamId, planId) {
