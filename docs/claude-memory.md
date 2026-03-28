@@ -10,6 +10,15 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-28 — 俱樂部系統三項優化（拆分+重構+快取）
+- **優化 5**：`team-detail-render.js` 的 `_buildTeamDetailBodyHtml` 拆為 5 個 helper 函式（290 行）
+- **優化 1**：3 個超標教育模組拆分 → 8 個檔案（全部 ≤ 300 行）
+  - `edu-course-plan.js` (566→300) + `edu-course-plan-render.js` (153) + `edu-course-plan-attendance.js` (132)
+  - `edu-course-enrollment.js` (416→261) + `edu-course-enrollment-render.js` (165)
+  - `edu-detail-render.js` (445→247) + `edu-detail-realtime.js` (129) + `edu-detail-withdraw.js` (92)
+- **優化 3**：`edu-checkin.js` 新增 300ms debounce + 30 秒 TTL 快取（20 條上限）+ 簽到後立即清除快取
+- **教訓**：拆分時 script-loader.js 載入順序很重要（被依賴的檔案要排前面）；快取失效時機必須在寫入成功後立即執行
+
 ### 2026-03-28 — edu-detail-render.js 拆分為三檔
 - **變更**：將 445 行的 `edu-detail-render.js` 拆為三個檔案（均 < 300 行）
 - **新檔案**：`edu-detail-realtime.js`（129 行，Firestore 即時監聽）、`edu-detail-withdraw.js`（92 行，退學流程）
