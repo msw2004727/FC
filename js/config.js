@@ -340,7 +340,8 @@
 // 20260327l: 學員申請後立即重繪 team-detail 教育區塊（用 _eduDetailTeamId）
 // 20260327m: 零分組時也顯示虛擬待審核名單
 // 20260328d: 教育按鈕處理中狀態 + 修正虛擬分組名單閃現消失
-const CACHE_VERSION = '20260328h';
+// 20260328i: Feed 留言板遷移到 subcollection（team-feed.js）
+const CACHE_VERSION = '20260328i';
 
 // ─── 網路 / 設備偵測（用於 UI 降級）───
 const NetDevice = {

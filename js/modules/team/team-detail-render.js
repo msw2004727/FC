@@ -59,7 +59,7 @@ Object.assign(App, {
   _renderTeamFeed(teamId) {
     const t = ApiService.getTeam(teamId);
     if (!t) return '';
-    const feed = t.feed || [];
+    const feed = (typeof this.getTeamFeed === 'function') ? this.getTeamFeed(teamId) : (t.feed || []);
     const isMember = this._isTeamMember(teamId);
     const user = ApiService.getCurrentUser?.();
     const myUid = user?.uid || '';

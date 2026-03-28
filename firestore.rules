@@ -660,6 +660,15 @@ service cloud.firestore {
         && (isTeamOwner() || hasPerm('team.manage_all') || isTeamMemberFieldsOnly());
       allow delete: if isAdmin() || isTeamOwner();
 
+      // ── Feed（留言板）──
+      // 登入可讀寫
+      match /feed/{postId} {
+        allow read: if request.auth != null;
+        allow create: if request.auth != null;
+        allow update: if request.auth != null;
+        allow delete: if request.auth != null;
+      }
+
       // ── Education: Groups（分組）──
       // 公開可讀；俱樂部幹部可 CUD
       match /groups/{groupId} {

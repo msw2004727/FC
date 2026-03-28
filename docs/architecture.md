@@ -151,6 +151,7 @@ flowchart TD
 | `team-list.js` | 俱樂部列表主模組 |
 | `team-list-render.js` | 俱樂部卡片渲染與列表顯示 |
 | `team-detail.js` | 俱樂部詳情主模組 |
+| `team-feed.js` | 俱樂部留言板 CRUD（subcollection：teams/{teamId}/feed） |
 | `team-detail-render.js` | 俱樂部詳情渲染（活動、動態牆、留言） |
 | `team-detail-members.js` | 俱樂部成員管理與邀請 |
 | `team-share.js` | 俱樂部分享（LINE Flex Message + 底部選單） |

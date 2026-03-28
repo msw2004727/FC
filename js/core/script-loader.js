@@ -138,6 +138,7 @@ const ScriptLoader = {
       'js/modules/team/team-list.js',
       'js/modules/team/team-list-render.js',
       'js/modules/team/team-detail.js',
+      'js/modules/team/team-feed.js',
       'js/modules/team/team-detail-render.js',
       'js/modules/team/team-detail-members.js',
       'js/modules/team/team-share.js',

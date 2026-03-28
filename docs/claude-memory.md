@@ -10,6 +10,18 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-28 — 俱樂部留言板遷移到 Firestore subcollection
+- **問題**：Feed 留言板存在 team.feed[] 陣列中，每次操作都整個覆寫 team document，不利擴展且有寫入衝突風險
+- **修復**：新建 `team-feed.js` 模組，將 Feed CRUD 遷移至 `teams/{teamId}/feed/{postId}` subcollection
+  - 新增 `_teamFeedCache` 快取機制，`_loadTeamFeed` 於 showTeamDetail 時預載
+  - Prod 模式用 subcollection CRUD（FieldValue.arrayUnion/arrayRemove 原子操作）
+  - Demo 模式完全不受影響，仍用 t.feed 陣列
+  - 從 `team-detail-members.js` 移除 8 個 feed 函式，改由 `team-feed.js` 提供
+  - `team-detail-render.js` 的 `_renderTeamFeed` 改為優先從 `getTeamFeed()` 讀取
+  - 更新 firestore.rules 加入 feed subcollection 規則
+  - 更新 script-loader.js 載入順序
+- **教訓**：subcollection 遷移時，確保 Demo/Prod 雙路徑都有完整的快取同步
+
 ### 2026-03-28 — 俱樂部系統清除 __legacy__ 相容碼
 - **問題**：俱樂部表單的領隊/經理/教練載入邏輯中，對無法匹配 UID 的名稱會產生 `__legacy__` 前綴的偽 UID，導致搜尋排除、tag 渲染、儲存驗證等多處需要特殊分支處理
 - **原因**：歷史遺留的相容設計，當時經理/領隊/教練可能無對應用戶。現在已確認所有俱樂部人員都有唯一匹配用戶

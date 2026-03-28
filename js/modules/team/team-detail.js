@@ -175,6 +175,10 @@ Object.assign(App, {
       if (t.type === 'education' && typeof this.renderEduClubDetail === 'function') {
         await this.renderEduClubDetail(id);
       } else {
+        // 非教育型：載入 feed subcollection 資料
+        if (typeof this._loadTeamFeed === 'function') {
+          await this._loadTeamFeed(id);
+        }
         nodes.body.innerHTML = this._buildTeamDetailBodyHtml(t, canManageMembers, memberEditMode, staffIdentity, totalGames, winRate);
       }
 
