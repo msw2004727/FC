@@ -80,7 +80,7 @@
 /* ─── Quick Grid ─── */
 .quick-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: .5rem; padding: .5rem; margin-bottom: .5rem; }
 .quick-item { display: flex; flex-direction: column; align-items: center; gap: .25rem; padding: .65rem .3rem; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); font-size: .73rem; font-weight: 500; color: var(--text-secondary); transition: all var(--transition); }
-.quick-item span { font-size: 1.3rem; }
+.quick-item span:first-child { font-size: 1.3rem; }
 .quick-item:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-bg); }
 .quick-item.disabled { opacity: 0.4; cursor: not-allowed; background: var(--bg-elevated); pointer-events: none; }
 .quick-item.disabled span { filter: grayscale(100%); }
