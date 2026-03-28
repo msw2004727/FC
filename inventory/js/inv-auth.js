@@ -92,7 +92,9 @@ const InvAuth = {
    */
   async checkPermission() {
     try {
-      const configDoc = await db.collection('inv_settings').doc('config').get();
+      var configPromise = db.collection('inv_settings').doc('config').get();
+      var timeoutPromise = new Promise(function(_, reject) { setTimeout(function() { reject(new Error('TIMEOUT')); }, 8000); });
+      var configDoc = await Promise.race([configPromise, timeoutPromise]);
       if (!configDoc.exists) {
         InvApp.showToast('系統設定不存在，請聯繫管理員');
         return;

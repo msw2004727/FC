@@ -19,4 +19,6 @@ if (!firebase.apps.length) {
   firebase.initializeApp(INV_CONFIG.FIREBASE);
 }
 const db = firebase.firestore();
+// LINE WebView 的 WebSocket 常被擋，強制用 Long Polling 確保連線穩定
+try { db.settings({ experimentalForceLongPolling: true, useFetchStreams: false }); } catch (_) {}
 const auth = firebase.auth();
