@@ -6,6 +6,8 @@ const InvSale = {
   _discountValue: 0,
   _paymentMethod: 'cash',
   _cashReceived: 0,
+  _isGift: false,
+  _isStaffPurchase: false,
 
   /** 渲染銷售頁面到 #inv-sale-content */
   render() {
@@ -15,6 +17,8 @@ const InvSale = {
     this._discountValue = 0;
     this._paymentMethod = 'cash';
     this._cashReceived = 0;
+    this._isGift = false;
+    this._isStaffPurchase = false;
     wrap.innerHTML =
       '<div id="inv-sale-scanner" style="position:sticky;top:0;z-index:10;' +
         'background:var(--inv-bg);max-height:35vh;overflow:hidden;padding:8px 0;"></div>' +
@@ -66,6 +70,7 @@ const InvSale = {
     html += '<div style="padding:12px 16px;border-top:1px solid var(--inv-border);">';
     html += this._renderDiscountSection();
     html += this._renderPaymentSection();
+    html += this._renderSaleFlags();
     html +=
       '<div style="text-align:right;font-size:18px;font-weight:700;color:var(--inv-primary);margin:12px 0;">' +
         '應收：NT$' + esc(this._calcTotal().toLocaleString('zh-TW')) + '</div>' +
@@ -194,6 +199,7 @@ const InvSale = {
     var saleGroupId = InvUtils.generateId('sale_');
     var receiptNo = InvUtils.generateReceiptNo();
     var total = this._calcTotal();
+    var isGift = this._isGift, isStaffPurchase = this._isStaffPurchase;
     var uid = InvAuth.getUid(), operatorName = InvAuth.getName() || '';
 
     try {
@@ -225,7 +231,8 @@ const InvSale = {
             saleGroupId: saleGroupId, receiptNo: receiptNo,
             paymentMethod: InvSale._paymentMethod,
             discountType: InvSale._discountType, discountValue: InvSale._discountValue,
-            totalAmount: total, uid: uid, operatorName: operatorName,
+            totalAmount: total, isGift: isGift, isStaffPurchase: isStaffPurchase,
+            uid: uid, operatorName: operatorName,
             createdAt: firebase.firestore.FieldValue.serverTimestamp(),
           });
         }
@@ -240,8 +247,23 @@ const InvSale = {
     }
   },
 
-  /** 折扣後應收金額 */
+  /** 贈品 / 員工內購 區段 HTML */
+  _renderSaleFlags() {
+    var giftCk = this._isGift ? ' checked' : '';
+    var staffCk = this._isStaffPurchase ? ' checked' : '';
+    return '<div style="margin-bottom:12px;display:flex;gap:16px;align-items:center;">' +
+      '<label style="display:flex;align-items:center;gap:6px;font-size:14px;cursor:pointer;">' +
+        '<input type="checkbox" onchange="InvSale.toggleGift(this.checked)"' + giftCk + ' /> 贈品出庫</label>' +
+      '<label style="display:flex;align-items:center;gap:6px;font-size:14px;cursor:pointer;">' +
+        '<input type="checkbox" onchange="InvSale.toggleStaff(this.checked)"' + staffCk + ' /> 員工內購</label>' +
+      '</div>';
+  },
+  toggleGift(v) { this._isGift = !!v; this.showCheckout(); },
+  toggleStaff(v) { this._isStaffPurchase = !!v; this.showCheckout(); },
+
+  /** 折扣後應收金額（贈品出庫時為 0） */
   _calcTotal() {
+    if (this._isGift) return 0;
     var sub = InvCart.getSubtotal();
     if (!this._discountType) return InvUtils.roundAmount(sub);
     var type = this._discountType === 'amount' ? 'fixed' : this._discountType;

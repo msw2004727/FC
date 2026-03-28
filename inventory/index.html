@@ -30,7 +30,7 @@
   <section class="inv-page" id="page-dashboard">
     <div class="inv-header">
       <span class="inv-header-title">庫存管理</span>
-      <button class="inv-icon-btn" onclick="InvApp.showPage('page-settings')">⚙️</button>
+      <button class="inv-icon-btn" onclick="InvApp.showPage('page-settings');InvSettings.render()">⚙️</button>
     </div>
     <div id="inv-dashboard-content"></div>
     <div class="inv-quick-actions">
@@ -123,6 +123,11 @@
   <script src="js/inv-stock-in.js?v=1"></script>
   <script src="js/inv-cart.js?v=1"></script>
   <script src="js/inv-sale.js?v=1"></script>
+  <script src="js/inv-sale-return.js?v=1"></script>
+  <script src="js/inv-transactions.js?v=1"></script>
+  <script src="js/inv-export.js?v=1"></script>
+  <script src="js/inv-stocktake.js?v=1"></script>
   <script src="js/inv-dashboard.js?v=1"></script>
+  <script src="js/inv-settings.js?v=1"></script>
 </body>
 </html>

@@ -518,25 +518,28 @@ inventory/
 - [x] 初始管理員 LINE userId 寫入 inv_settings/config
 - [x] Firestore Rules 部署（含 inv_ 集合 + catch-all 前置）
 - [x] Phase 1 MVP 全部功能實作 + QA 通過
+- [x] 條碼規格：混用（EAN-13 + Code 128 + QR Code，Html5Qrcode 全支援）
+- [x] 多店面支援：已預留 locationId 欄位
+- [x] 員工折扣/贈品：已在 Phase 2 實作（isGift + isStaffPurchase）
+- [x] Phase 2 全部完成 + QA 通過（2026-03-29）
+- [x] Phase 3 全部完成 + QA 通過（2026-03-29）
 
-### 待確認
+### Phase 2 已完成檔案
 
-- [ ] 條碼規格確認（EAN-13 / Code 128 / 混用）
-- [ ] 是否需要預留多店面支援（locationId）
-- [ ] 是否需要員工折扣/贈品功能（Phase 1 或 Phase 2）
+| 檔案 | 行數 | 說明 |
+|------|------|------|
+| `inv-transactions.js` | 258 | 銷售紀錄列表 + 日期/類型篩選 + 統計摘要 |
+| `inv-sale-return.js` | 154 | 退貨（關聯原始交易）+ 報廢功能 |
+| `inv-export.js` | 250 | CSV 匯出（UTF-8 BOM）+ 日/週/月銷售統計 |
+| `inv-sale.js`（更新） | 272 | 新增 isGift 贈品出庫 + isStaffPurchase 員工內購 |
 
-### Phase 2 待做
+### Phase 3 已完成檔案
 
-- [ ] 銷售紀錄頁 + 日期篩選
-- [ ] 退貨功能（含關聯原始交易）
-- [ ] 損耗報廢功能
-- [ ] 銷售統計（日/週/月報）
-- [ ] 匯出 CSV
+| 檔案 | 行數 | 說明 |
+|------|------|------|
+| `inv-stocktake.js` | 286 | 盤點單管理 + 掃碼盤點 + 差異報告 + 批次調整(≤50) |
+| `inv-settings.js` | 274 | 管理員白名單 UI + 分類管理 + 條碼列印 + 庫存重建 |
 
-### Phase 3 待做
+### 待做
 
-- [ ] 盤點單管理 + 差異報告
-- [ ] 條碼生成/列印
-- [ ] 管理員白名單管理 UI
-- [ ] 庫存重建工具
-- [ ] 每日自動備份 Cloud Function
+- [ ] 每日自動備份 Cloud Function（Phase 3+）
