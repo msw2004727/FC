@@ -278,23 +278,21 @@ Object.assign(App, {
     if (idx === -1) return;
 
     if (direction === 0) {
-      // 置頂：目標設為最小值 - 10，其餘不動
-      const minOrder = Math.min(...active.map(p => p.sortOrder || 0));
-      active[idx].sortOrder = minOrder - 10;
+      if (active[idx].pinned) {
+        active[idx].pinned = false;
+        active[idx].sortOrder = Math.max(...active.map(p => p.sortOrder || 0)) + 10;
+        FirebaseService.updateEduCoursePlan(teamId, planId, { pinned: false, sortOrder: active[idx].sortOrder }).catch(() => {});
+        this.showToast('已取消置頂'); await this.renderEduCoursePlanList(teamId); return;
+      }
+      active[idx].pinned = true;
+      active[idx].sortOrder = Math.min(...active.map(p => p.sortOrder || 0)) - 10;
     } else {
-      const targetIdx = idx + direction;
-      if (targetIdx < 0 || targetIdx >= active.length) return;
-      // 交換 sortOrder
-      const tmpOrder = active[idx].sortOrder;
-      active[idx].sortOrder = active[targetIdx].sortOrder;
-      active[targetIdx].sortOrder = tmpOrder;
+      const ti = idx + direction;
+      if (ti < 0 || ti >= active.length) return;
+      const tmp = active[idx].sortOrder; active[idx].sortOrder = active[ti].sortOrder; active[ti].sortOrder = tmp;
     }
-    // 寫入 Firestore
-    for (const p of active) {
-      FirebaseService.updateEduCoursePlan(teamId, p.id, { sortOrder: p.sortOrder }).catch(() => {});
-    }
+    for (const p of active) { var u = { sortOrder: p.sortOrder }; if (direction === 0) u.pinned = !!p.pinned; FirebaseService.updateEduCoursePlan(teamId, p.id, u).catch(() => {}); }
     this.showToast(direction === 0 ? '已置頂' : '已排序');
     await this.renderEduCoursePlanList(teamId);
   },
-  // ── 簽到資訊彈窗 → edu-course-plan-attendance.js ──
 });

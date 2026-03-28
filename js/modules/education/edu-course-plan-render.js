@@ -16,7 +16,11 @@ Object.assign(App, {
 
     const plans = await this._loadEduCoursePlans(teamId);
     const activePlans = plans.filter(p => p.active !== false)
-      .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+      .sort((a, b) => {
+        if (a.pinned && !b.pinned) return -1;
+        if (!a.pinned && b.pinned) return 1;
+        return (a.sortOrder || 0) - (b.sortOrder || 0);
+      });
 
     if (!activePlans.length) {
       container.innerHTML = '<div class="edu-empty-state">尚未建立課程方案</div>';
@@ -123,7 +127,7 @@ Object.assign(App, {
           + '<span style="margin-left:auto;display:flex;gap:.2rem">'
           + (idx > 0 ? '<button class="outline-btn" style="font-size:.68rem;padding:.15rem .35rem" onclick="event.stopPropagation();App._moveCoursePlan(\'' + teamId + '\',\'' + p.id + '\',-1)" title="向上">▲</button>' : '')
           + (idx < activePlans.length - 1 ? '<button class="outline-btn" style="font-size:.68rem;padding:.15rem .35rem" onclick="event.stopPropagation();App._moveCoursePlan(\'' + teamId + '\',\'' + p.id + '\',1)" title="向下">▼</button>' : '')
-          + '<button class="outline-btn" style="font-size:.68rem;padding:.15rem .35rem" onclick="event.stopPropagation();App._moveCoursePlan(\'' + teamId + '\',\'' + p.id + '\',0)" title="置頂">★</button>'
+          + '<button class="' + (p.pinned ? 'edu-cp-pin-active' : 'outline-btn') + '" style="font-size:.68rem;padding:.15rem .35rem" onclick="event.stopPropagation();App._moveCoursePlan(\'' + teamId + '\',\'' + p.id + '\',0)" title="' + (p.pinned ? '取消置頂' : '置頂') + '">★</button>'
           + '</span>'
           + '</div>'
         : '';
