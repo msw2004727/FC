@@ -100,6 +100,11 @@
 .edu-attend-cal-day { font-size: .78rem; font-weight: 600; line-height: 1.2; color: var(--text-muted); }
 .edu-attend-cal-badge { width: 37px; height: 37px; border-radius: 50%; background: #10b981; color: #fff; font-size: .72rem; font-weight: 700; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(16,185,129,.35); line-height: 1; }
 
+/* ── 我的頁籤 badge + 未繳費狀態 ── */
+.edu-tab-badge { display: none; min-width: 18px; height: 18px; border-radius: 50%; background: #10b981; color: #fff; font-size: .65rem; font-weight: 700; padding: 0 4px; margin-left: 4px; vertical-align: top; text-align: center; line-height: 18px; }
+.edu-mine-status { display: none; text-align: right; padding: 0 .5rem .3rem; }
+.edu-unpaid-hint { font-size: .75rem; color: var(--danger); font-weight: 600; }
+
 /* ── Type Badge ── */
 .edu-type-badge {
   display: inline-block;

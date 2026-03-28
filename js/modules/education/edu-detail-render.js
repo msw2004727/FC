@@ -42,8 +42,9 @@ Object.assign(App, {
     const tabBar = '<div class="tab-bar" id="edu-detail-tabs">'
       + '<button class="tab active" data-edutab="course" onclick="App.switchEduTab(\'course\')">課程</button>'
       + '<button class="tab" data-edutab="group" onclick="App.switchEduTab(\'group\')">分組</button>'
-      + '<button class="tab" data-edutab="mine" onclick="App.switchEduTab(\'mine\')">我的</button>'
-      + '</div>';
+      + '<button class="tab" data-edutab="mine" onclick="App.switchEduTab(\'mine\')">我的<span id="edu-mine-badge" class="edu-tab-badge"></span></button>'
+      + '</div>'
+      + '<div id="edu-mine-status" class="edu-mine-status"></div>';
 
     bodyEl.innerHTML = infoCard + bioCard + tabBar
       + '<div id="edu-detail-tab-content" class="edu-tab-content"></div>';
@@ -60,9 +61,9 @@ Object.assign(App, {
     // ★ Phase 2：背景 fetch + 即時監聽
     this._loadEduStudents(teamId).then(() => {
       if (this._eduDetailTeamId === teamId) {
-        // 只重繪依賴學員資料的區塊（容器不存在時自動跳過）
         this._renderEduMemberSection(teamId);
         this.renderEduGroupList(teamId);
+        this._updateEduMineBadge(teamId);
       }
     });
     this._startEduStudentsListener(teamId);
@@ -242,6 +243,50 @@ Object.assign(App, {
 
   _isEduStudentOrParent(teamId, curUser) {
     return this._getMyEduStudents(teamId, curUser).length > 0;
+  },
+
+  async _updateEduMineBadge(teamId) {
+    const curUser = ApiService.getCurrentUser();
+    const myStudents = this._getMyEduStudents(teamId, curUser).filter(s => s.enrollStatus === 'active');
+    // 綠圈：學員數
+    const badge = document.getElementById('edu-mine-badge');
+    if (badge) { badge.textContent = myStudents.length || ''; badge.style.display = myStudents.length ? '' : 'none'; }
+    // 未繳費統計
+    const statusEl = document.getElementById('edu-mine-status');
+    if (!statusEl || !myStudents.length) { if (statusEl) statusEl.style.display = 'none'; return; }
+    const plans = await this._loadEduCoursePlans(teamId);
+    const today = this._todayStr();
+    let unpaid = 0;
+    for (const s of myStudents) {
+      for (const p of plans) {
+        if (p.active === false) continue;
+        // 判斷學員是否在此方案內（enrollment 或分組）
+        var inPlan = false;
+        var enrollment = null;
+        var key = this._getCourseEnrollCacheKey?.(teamId, p.id);
+        var enrollments = (key && this._courseEnrollCache?.[key]) || [];
+        enrollment = enrollments.find(e => e.studentId === s.id && e.status === 'approved');
+        if (enrollment) inPlan = true;
+        if (!inPlan && p.groupId && (s.groupIds || []).includes(p.groupId)) { inPlan = true; }
+        if (!inPlan) continue;
+        // 已繳費則跳過
+        if (enrollment && enrollment.paidAt) continue;
+        // 判斷是否需繳費：課程未結束 OR 已結束但有簽到紀錄
+        var ended = p.endDate && p.endDate < today;
+        if (!ended) { unpaid++; continue; }
+        // 已結束：查簽到紀錄
+        try {
+          var records = await FirebaseService.queryEduAttendance({ teamId, coursePlanId: p.id, studentId: s.id });
+          if (records && records.length > 0) unpaid++;
+        } catch (_) {}
+      }
+    }
+    if (unpaid > 0) {
+      statusEl.innerHTML = '<span class="edu-unpaid-hint">' + unpaid + ' 筆課程尚未繳費</span>';
+      statusEl.style.display = '';
+    } else {
+      statusEl.style.display = 'none';
+    }
   },
 
 });
