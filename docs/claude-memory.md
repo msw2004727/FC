@@ -10,6 +10,13 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-28 — edu-detail-render.js 拆分為三檔
+- **變更**：將 445 行的 `edu-detail-render.js` 拆為三個檔案（均 < 300 行）
+- **新檔案**：`edu-detail-realtime.js`（129 行，Firestore 即時監聽）、`edu-detail-withdraw.js`（92 行，退學流程）
+- **保留檔案**：`edu-detail-render.js`（247 行，頁面框架 + 頁籤 + 成員渲染 + helpers）
+- **注意**：`_eduStudentsUnsub` 宣告移至 `edu-detail-realtime.js`（掛在 App 上，任何檔案可存取）
+- **載入順序**：`script-loader.js` 中 realtime → withdraw → render
+
 ### 2026-03-28 — 教學俱樂部頁籤式 UI 改版
 - **變更**：教學俱樂部詳情頁從垂直堆疊改為頁籤式（課程 | 分組 | 我的），支援左右滑動切換
 - **修改檔案**：`edu-detail-render.js`（新增 `switchEduTab`、`_renderEduTabContent`）、`education.css`（`.edu-tab-content`）

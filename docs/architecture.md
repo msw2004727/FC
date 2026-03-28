@@ -306,7 +306,9 @@ flowchart TD
 | `edu-student-list.js` | 學員列表、分組內學員卡片 |
 | `edu-student-form.js` | 學員資料表單（新增/編輯/自動歸組） |
 | `edu-student-join.js` | 學員/家長申請加入 + 教練審核 |
-| `edu-detail-render.js` | 教育型俱樂部詳情頁渲染 |
+| `edu-detail-render.js` | 教育型俱樂部詳情頁渲染（框架 + 頁籤 + 成員區塊） |
+| `edu-detail-realtime.js` | Firestore 即時監聽（students / teams） |
+| `edu-detail-withdraw.js` | 退學 / 取消申請流程 |
 | `edu-course-plan.js` | 課程方案 CRUD（週期制 + 堂數制） |
 | `edu-checkin.js` | 群組批次簽到 |
 | `edu-checkin-scan.js` | QR 掃碼簽到（掃到自動歸組） |
