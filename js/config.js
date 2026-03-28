@@ -341,7 +341,7 @@
 // 20260327m: 零分組時也顯示虛擬待審核名單
 // 20260328d: 教育按鈕處理中狀態 + 修正虛擬分組名單閃現消失
 // 20260328i: Feed 留言板遷移到 subcollection（team-feed.js）
-const CACHE_VERSION = '20260328u';
+const CACHE_VERSION = '20260328v';
 
 // ─── 網路 / 設備偵測（用於 UI 降級）───
 const NetDevice = {
