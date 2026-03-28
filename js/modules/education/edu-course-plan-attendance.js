@@ -77,8 +77,7 @@ Object.assign(App, {
       const count = dayRecords.length;
       if (count > 0) {
         html += '<div class="edu-attend-cal-cell edu-attend-cal-has" onclick="App._showAttendDayDetail(\'' + dateStr + '\')" title="' + count + '人簽到">'
-          + '<div class="edu-attend-cal-day">' + d + '</div>'
-          + '<div class="edu-attend-cal-count">' + count + '</div></div>';
+          + '<div class="edu-attend-cal-badge">' + count + '</div></div>';
       } else {
         html += '<div class="edu-attend-cal-cell"><div class="edu-attend-cal-day" style="color:var(--text-muted)">' + d + '</div></div>';
       }

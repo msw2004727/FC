@@ -93,13 +93,11 @@
 .edu-ce-paid-edit { cursor: pointer; font-size: .72rem; }
 
 /* ── Attend Info Calendar ── */
-.edu-attend-cal-cell { aspect-ratio: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; border-radius: 6px; padding: 2px; }
-.edu-attend-cal-has { background: var(--accent-bg); cursor: pointer; transition: background .15s; }
-.edu-attend-cal-has:hover { background: var(--accent); color: #fff; }
-.edu-attend-cal-has:hover .edu-attend-cal-day,
-.edu-attend-cal-has:hover .edu-attend-cal-count { color: #fff; }
-.edu-attend-cal-day { font-size: .78rem; font-weight: 600; line-height: 1.2; }
-.edu-attend-cal-count { font-size: .62rem; font-weight: 700; color: var(--accent); background: rgba(255,255,255,.8); border-radius: 50%; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; margin-top: 1px; }
+.edu-attend-cal-cell { aspect-ratio: 1; display: flex; align-items: center; justify-content: center; border-radius: 6px; padding: 2px; position: relative; }
+.edu-attend-cal-has { cursor: pointer; transition: transform .15s; }
+.edu-attend-cal-has:hover { transform: scale(1.1); }
+.edu-attend-cal-day { font-size: .78rem; font-weight: 600; line-height: 1.2; color: var(--text-muted); }
+.edu-attend-cal-badge { width: 32px; height: 32px; border-radius: 50%; background: #10b981; color: #fff; font-size: .82rem; font-weight: 700; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(16,185,129,.35); }
 
 /* ── Type Badge ── */
 .edu-type-badge {
