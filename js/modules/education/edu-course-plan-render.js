@@ -32,8 +32,8 @@ Object.assign(App, {
     const myUid = curUser?.uid;
     const students = this.getEduStudents(teamId);
 
-    // 載入各方案的報名紀錄 + 計算含分組學員的實際人數
-    for (const p of activePlans) {
+    // 平行載入各方案的報名紀錄（Promise.all 取代串行 for-await）
+    await Promise.all(activePlans.map(async (p) => {
       try {
         const key = this._getCourseEnrollCacheKey?.(teamId, p.id);
         if (key && !this._courseEnrollCache?.[key]) {
@@ -42,14 +42,13 @@ Object.assign(App, {
           p._enrollments = (key && this._courseEnrollCache?.[key]) || [];
         }
       } catch (_) { p._enrollments = []; }
-      // 計算實際人數：approved enrollments + 分組內 active 學員（不重複）
       const enrolledIds = new Set(p._enrollments.filter(e => e.status === 'approved').map(e => e.studentId));
       if (p.groupId) {
         students.filter(s => s.enrollStatus === 'active' && (s.groupIds || []).includes(p.groupId))
           .forEach(s => enrolledIds.add(s.id));
       }
       p._effectiveCount = enrolledIds.size;
-    }
+    }));
 
     container.innerHTML = activePlans.map(p => {
       const typeLabel = p.planType === 'weekly' ? '固定週期' : '堂數制';
