@@ -1117,12 +1117,12 @@ service cloud.firestore {
 
     // ═══════════════════════════════════════════
     //  Education Attendance（教育簽到）
-    //  認證可讀；寫入由 Cloud Function eduCheckin 執行
-    //  前端禁止直接寫入（防篡改）
+    //  認證可讀寫（前端 Batch Write，比照活動簽到）
     // ═══════════════════════════════════════════
     match /eduAttendance/{recordId} {
       allow read: if isAuth();
-      allow create, update, delete: if false;
+      allow create: if isAuth();
+      allow update, delete: if isAuth();
     }
 
     // ═══════════════════════════════════════════
