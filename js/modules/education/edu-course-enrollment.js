@@ -279,8 +279,6 @@ Object.assign(App, {
     }
     const notes = textarea.value.trim();
     await FirebaseService.updateCourseEnrollment(teamId, planId, enrollId, { coachNotes: notes });
-    const key = this._getCourseEnrollCacheKey(teamId, planId);
-    const enr = (this._courseEnrollCache[key] || []).find(e => e.id === enrollId);
     if (enr) enr.coachNotes = notes;
     this.showToast('備註已儲存');
   },
