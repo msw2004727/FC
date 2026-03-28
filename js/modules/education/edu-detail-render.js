@@ -95,7 +95,7 @@ Object.assign(App, {
         + '<span>課程方案<button class="edu-info-btn" onclick="App._showEduInfoPopup(\'course\')" title="說明">?</button></span>'
         + (isStaff ? '<button class="primary-btn small" onclick="App.showEduCoursePlanForm(\'' + teamId + '\')">＋ 新增</button>' : '')
         + '</div>'
-        + '<div id="edu-course-plan-list"></div>'
+        + '<div id="edu-course-plan-list"><div class="edu-loading"><div class="edu-loading-bar"><div class="edu-loading-fill"></div></div><div class="edu-loading-text">正在努力加載中請稍後</div></div></div>'
         + '</div>';
       if (typeof this.renderEduCoursePlanList === 'function') {
         this.renderEduCoursePlanList(teamId, isStaff);
@@ -106,7 +106,7 @@ Object.assign(App, {
         + '<span>學員分組<button class="edu-info-btn" onclick="App._showEduInfoPopup(\'group\')" title="說明">?</button></span>'
         + (isStaff ? '<button class="primary-btn small" onclick="App.showEduGroupForm(\'' + teamId + '\')">＋ 新增</button>' : '')
         + '</div>'
-        + '<div id="edu-group-list"></div>'
+        + '<div id="edu-group-list"><div class="edu-loading"><div class="edu-loading-bar"><div class="edu-loading-fill"></div></div><div class="edu-loading-text">正在努力加載中請稍後</div></div></div>'
         + '</div>';
       this.renderEduGroupList(teamId);
     } else if (tab === 'mine') {

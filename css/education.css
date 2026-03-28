@@ -799,3 +799,26 @@
   background: #450a0a;
   color: #fca5a5;
 }
+
+/* ── 加載動畫（課程/分組載入佔位）── */
+.edu-loading {
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; padding: 2rem 1rem; gap: .6rem;
+}
+.edu-loading-bar {
+  width: 60%; max-width: 220px; height: 6px; border-radius: 3px;
+  background: var(--border); overflow: hidden; position: relative;
+}
+.edu-loading-fill {
+  position: absolute; top: 0; left: -40%; width: 40%; height: 100%;
+  border-radius: 3px;
+  background: linear-gradient(90deg, var(--primary), var(--accent, #8b5cf6));
+  animation: edu-loading-slide 1.2s ease-in-out infinite;
+}
+@keyframes edu-loading-slide {
+  0% { left: -40%; }
+  100% { left: 100%; }
+}
+.edu-loading-text {
+  font-size: .78rem; color: var(--text-muted); letter-spacing: .02em;
+}
