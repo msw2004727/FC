@@ -57,20 +57,33 @@ const InvAuth = {
    */
   async authenticate() {
     try {
-      const accessToken = liff.getAccessToken();
+      var accessToken = liff.getAccessToken();
       if (!accessToken) {
-        InvApp.showToast('無法取得 LINE 存取權杖，請重新登入');
+        document.getElementById('inv-login-status').textContent = '錯誤：無法取得 LINE Access Token';
+        InvApp.showToast('請在 LINE 中開啟此頁面');
+        return;
+      }
+      document.getElementById('inv-login-status').textContent = '正在驗證身份...';
+
+      var fn = firebase.app().functions('asia-east1').httpsCallable('createCustomToken');
+      var result = await fn({ accessToken: accessToken });
+
+      if (!result.data || !result.data.customToken) {
+        document.getElementById('inv-login-status').textContent = '錯誤：Cloud Function 未回傳 Token';
         return;
       }
 
-      const fn = firebase.app().functions('asia-east1').httpsCallable('createCustomToken');
-      const { data } = await fn({ accessToken: accessToken });
-
-      await auth.signInWithCustomToken(data.customToken);
+      await auth.signInWithCustomToken(result.data.customToken);
+      document.getElementById('inv-login-status').textContent = '驗證成功，檢查權限中...';
       await this.checkPermission();
     } catch (e) {
       console.error('[InvAuth] authenticate failed:', e);
-      InvApp.showToast('驗證失敗，請重新整理頁面再試');
+      var msg = e.message || '';
+      if (msg.indexOf('internal') !== -1) msg = 'Cloud Function 內部錯誤';
+      else if (msg.indexOf('unauthenticated') !== -1) msg = 'LINE Token 無效，請重新開啟';
+      else if (msg.indexOf('not-found') !== -1) msg = 'Cloud Function 不存在';
+      document.getElementById('inv-login-status').textContent = '驗證失敗：' + msg;
+      InvApp.showToast('驗證失敗：' + msg);
     }
   },
 
