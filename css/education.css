@@ -104,7 +104,8 @@
 
 /* ── 頁籤行（tabs + badge + 未繳費）── */
 .edu-tab-row { display: flex; align-items: baseline; gap: .3rem; }
-.edu-tab-mine-wrap { position: relative; }
+.edu-tab-row .tab-bar { overflow: visible; }
+.edu-tab-mine-wrap { position: relative; z-index: 2; overflow: visible; }
 .edu-tab-badge { display: none; position: absolute; top: -6px; right: -8px; min-width: 16px; height: 16px; border-radius: 50%; background: #10b981; color: #fff; font-size: .58rem; font-weight: 700; padding: 0 3px; text-align: center; line-height: 16px; box-shadow: 0 1px 3px rgba(0,0,0,.15); z-index: 1; }
 .edu-mine-status { display: none; margin-left: auto; flex-shrink: 0; white-space: nowrap; }
 .edu-unpaid-hint { font-size: .7rem; color: var(--danger); font-weight: 600; }
