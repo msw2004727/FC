@@ -23,7 +23,7 @@ Object.assign(App, {
     overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
     const plan = this.getEduCoursePlans(teamId).find(p => p.id === planId);
     overlay.innerHTML = '<div class="edu-info-dialog" style="max-width:420px">'
-      + '<div class="edu-info-dialog-title">' + escapeHTML(plan?.name || '簽到資訊') + '</div>'
+      + '<div class="edu-info-dialog-title">' + escapeHTML(plan?.name || '') + ' 簽到資訊</div>'
       + '<div id="_eduAttendCalBody">載入中...</div>'
       + '<button class="primary-btn" style="width:100%;margin-top:.8rem" onclick="this.closest(\'.edu-info-overlay\').remove()">關閉</button>'
       + '</div>';
@@ -77,7 +77,7 @@ Object.assign(App, {
       const count = dayRecords.length;
       if (count > 0) {
         html += '<div class="edu-attend-cal-cell edu-attend-cal-has" onclick="App._showAttendDayDetail(\'' + dateStr + '\')" title="' + count + '人簽到">'
-          + '<div class="edu-attend-cal-badge">' + count + '</div></div>';
+          + '<div class="edu-attend-cal-badge">' + count + '人</div></div>';
       } else {
         html += '<div class="edu-attend-cal-cell"><div class="edu-attend-cal-day" style="color:var(--text-muted)">' + d + '</div></div>';
       }

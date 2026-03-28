@@ -94,11 +94,11 @@
 .edu-ce-paid-edit { cursor: pointer; font-size: .72rem; }
 
 /* ── Attend Info Calendar ── */
-.edu-attend-cal-cell { aspect-ratio: 1; display: flex; align-items: center; justify-content: center; border-radius: 6px; padding: 2px; position: relative; }
+.edu-attend-cal-cell { aspect-ratio: 1; display: flex; align-items: center; justify-content: center; border-radius: 6px; padding: 3px; position: relative; min-width: 40px; }
 .edu-attend-cal-has { cursor: pointer; transition: transform .15s; }
 .edu-attend-cal-has:hover { transform: scale(1.1); }
 .edu-attend-cal-day { font-size: .78rem; font-weight: 600; line-height: 1.2; color: var(--text-muted); }
-.edu-attend-cal-badge { width: 32px; height: 32px; border-radius: 50%; background: #10b981; color: #fff; font-size: .82rem; font-weight: 700; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(16,185,129,.35); }
+.edu-attend-cal-badge { width: 37px; height: 37px; border-radius: 50%; background: #10b981; color: #fff; font-size: .72rem; font-weight: 700; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(16,185,129,.35); line-height: 1; }
 
 /* ── Type Badge ── */
 .edu-type-badge {
