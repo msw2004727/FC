@@ -73,6 +73,8 @@ Object.assign(App, {
     const listEl = document.getElementById('edu-ci-student-list');
     const actionsEl = document.getElementById('edu-ci-actions');
     if (!listEl) return;
+    listEl.innerHTML = '<div class="edu-loading"><div class="edu-loading-bar"><div class="edu-loading-fill"></div></div><div class="edu-loading-text">資料正在更新中</div></div>';
+    if (actionsEl) actionsEl.style.display = 'none';
 
     const allStudents = await this._loadEduStudents(teamId);
     // 方案學員 = 分組內 active 學員 + enrollment approved 學員
@@ -147,6 +149,8 @@ Object.assign(App, {
       if (planRowEl) planRowEl.style.display = 'none';
       return;
     }
+    listEl.innerHTML = '<div class="edu-loading"><div class="edu-loading-bar"><div class="edu-loading-fill"></div></div><div class="edu-loading-text">資料正在更新中</div></div>';
+    if (actionsEl) actionsEl.style.display = 'none';
 
     const teamId = this._eduCheckinTeamId;
 
