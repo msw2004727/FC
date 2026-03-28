@@ -64,7 +64,7 @@ Object.assign(App, {
     };
     const addByUidLike = (uidLike) => {
       const raw = this._normalizeIdentityValue(uidLike);
-      if (!raw || raw.startsWith('__legacy__')) return;
+      if (!raw) return;
       const found = users.find(u =>
         this._normalizeIdentityValue(u.uid) === raw ||
         this._normalizeIdentityValue(u._docId) === raw

@@ -10,6 +10,16 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-28 — 俱樂部系統清除 __legacy__ 相容碼
+- **問題**：俱樂部表單的領隊/經理/教練載入邏輯中，對無法匹配 UID 的名稱會產生 `__legacy__` 前綴的偽 UID，導致搜尋排除、tag 渲染、儲存驗證等多處需要特殊分支處理
+- **原因**：歷史遺留的相容設計，當時經理/領隊/教練可能無對應用戶。現在已確認所有俱樂部人員都有唯一匹配用戶
+- **修復**：移除 4 個檔案中所有 `__legacy__` / `__legacy_` 相關邏輯：
+  - `team-form-init.js`：無法解析的 UID/名稱直接跳過不 push；captain 改為 null
+  - `team-form-search.js`：leader/coach tag 渲染移除 legacy 分支；搜尋排除簡化
+  - `team-form.js`：移除 13 處 legacy 判斷（驗證/解析/filter/通知/降級）
+  - `team-list.js`：`_buildTeamStaffIdentity` 移除 legacy 跳過邏輯
+- **教訓**：legacy 相容碼應在確認資料已遷移完成後及時清理，避免長期累積增加維護負擔
+
 ### 2026-03-28 — 俱樂部系統三項優化（拆分+重構+快取）
 - **優化 5**：`team-detail-render.js` 的 `_buildTeamDetailBodyHtml` 拆為 5 個 helper 函式（290 行）
 - **優化 1**：3 個超標教育模組拆分 → 8 個檔案（全部 ≤ 300 行）

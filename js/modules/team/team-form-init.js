@@ -144,14 +144,12 @@ Object.assign(App, {
         const found = users.find(u => u.uid === lUid || u._docId === lUid);
         if (found) {
           this._teamLeaderUids.push(found.uid);
-        } else if (lUid) {
-          this._teamLeaderUids.push('__legacy__' + lUid);
         }
       });
       // 若只有 leader 名稱無 uid，嘗試反查
       if (this._teamLeaderUids.length === 0 && t.leader) {
         const found = users.find(u => u.name === t.leader || u.displayName === t.leader);
-        this._teamLeaderUids.push(found ? found.uid : '__legacy__' + t.leader);
+        if (found) this._teamLeaderUids.push(found.uid);
       }
       this._renderLeaderTags();
 
@@ -172,7 +170,7 @@ Object.assign(App, {
       document.getElementById('ct-captain-selected').innerHTML = '';
       if (t.captain) {
         const found = users.find(u => u.name === t.captain);
-        this._teamCaptainUid = found ? found.uid : '__legacy__';
+        this._teamCaptainUid = found ? found.uid : null;
       }
 
       // Restore coaches
@@ -184,9 +182,6 @@ Object.assign(App, {
           const found = users.find(u => u.name === cName);
           if (found) {
             this.selectTeamCoach(found.uid);
-          } else {
-            this._teamCoachUids.push('__legacy_' + cName);
-            this._renderCoachTags();
           }
         });
       }

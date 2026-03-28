@@ -29,7 +29,7 @@ Object.assign(App, {
   searchTeamLeader() {
     const q = document.getElementById('ct-leader-search').value.trim();
     if (!q) { document.getElementById('ct-leader-suggest').classList.remove('show'); return; }
-    const exclude = this._teamLeaderUids.filter(uid => !uid.startsWith('__legacy__'));
+    const exclude = [...this._teamLeaderUids];
     const results = this._teamSearchUsers(q, exclude);
     this._renderSuggestList('ct-leader-suggest', results, 'selectTeamLeader');
   },
@@ -51,10 +51,6 @@ Object.assign(App, {
   _renderLeaderTags() {
     const users = ApiService.getAdminUsers();
     document.getElementById('ct-leaders-tags').innerHTML = this._teamLeaderUids.map(uid => {
-      if (uid.startsWith('__legacy__')) {
-        const legacyName = uid.replace('__legacy__', '');
-        return `<span class="team-tag">${escapeHTML(legacyName)}<span class="team-tag-x" onclick="App._removeLeader('${escapeHTML(uid)}')">×</span></span>`;
-      }
       const u = users.find(u => u.uid === uid);
       return u ? `<span class="team-tag">${escapeHTML(u.name)}<span class="team-tag-x" onclick="App._removeLeader('${escapeHTML(uid)}')">×</span></span>` : '';
     }).join('');
@@ -64,7 +60,7 @@ Object.assign(App, {
     const q = document.getElementById('ct-captain-search').value.trim();
     if (!q) { document.getElementById('ct-captain-suggest').classList.remove('show'); return; }
     const exclude = [];
-    if (this._teamCaptainUid && this._teamCaptainUid !== '__legacy__') exclude.push(this._teamCaptainUid);
+    if (this._teamCaptainUid) exclude.push(this._teamCaptainUid);
     const results = this._teamSearchUsers(q, exclude);
     this._renderSuggestList('ct-captain-suggest', results, 'selectTeamCaptain');
   },
@@ -89,7 +85,7 @@ Object.assign(App, {
       if (t && t.captain) {
         const users = ApiService.getAdminUsers();
         const found = users.find(u => u.name === t.captain);
-        this._teamCaptainUid = found ? found.uid : '__legacy__';
+        this._teamCaptainUid = found ? found.uid : null;
       } else {
         this._teamCaptainUid = null;
       }
@@ -125,10 +121,6 @@ Object.assign(App, {
   _renderCoachTags() {
     const users = ApiService.getAdminUsers();
     document.getElementById('ct-coach-tags').innerHTML = this._teamCoachUids.map(uid => {
-      if (uid.startsWith('__legacy_')) {
-        const legacyName = uid.replace('__legacy_', '');
-        return `<span class="team-tag">${escapeHTML(legacyName)}<span class="team-tag-x" onclick="App.removeTeamCoach('${escapeHTML(uid)}')">×</span></span>`;
-      }
       const u = users.find(u => u.uid === uid);
       return u ? `<span class="team-tag">${escapeHTML(u.name)}<span class="team-tag-x" onclick="App.removeTeamCoach('${escapeHTML(uid)}')">×</span></span>` : '';
     }).join('');

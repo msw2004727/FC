@@ -28,9 +28,7 @@ Object.assign(App, {
     if (this._teamEditId) {
       const oldTeam = ApiService.getTeam(this._teamEditId);
       if (oldTeam) {
-        oldCaptainUid = (oldTeam.captainUid && !String(oldTeam.captainUid).startsWith('__legacy__'))
-          ? oldTeam.captainUid
-          : null;
+        oldCaptainUid = oldTeam.captainUid || null;
         if (!oldCaptainUid && oldTeam.captain) {
           const capUser = ApiService.getAdminUsers().find(u => u.name === oldTeam.captain);
           oldCaptainUid = capUser ? capUser.uid : null;
@@ -51,7 +49,7 @@ Object.assign(App, {
       this.showToast('請選擇至少一位俱樂部領隊');
       return;
     }
-    const realLeaderUids = this._teamLeaderUids.filter(uid => !uid.startsWith('__legacy__'));
+    const realLeaderUids = [...this._teamLeaderUids];
     if (!this._teamEditId && realLeaderUids.length === 0) {
       this.showToast('俱樂部領隊必須為有效用戶，請重新選擇');
       return;
@@ -59,7 +57,6 @@ Object.assign(App, {
 
     // 解析領隊名稱
     const leaderNames = this._teamLeaderUids.map(uid => {
-      if (uid.startsWith('__legacy__')) return uid.replace('__legacy__', '');
       const u = users.find(u => u.uid === uid);
       return u ? u.name : '';
     }).filter(Boolean);
@@ -68,13 +65,8 @@ Object.assign(App, {
     let captain = '';
     let selectedCaptainUser = null;
     if (this._teamCaptainUid) {
-      if (this._teamCaptainUid === '__legacy__') {
-        const t = this._teamEditId ? ApiService.getTeam(this._teamEditId) : null;
-        captain = t ? t.captain : '';
-      } else {
-        selectedCaptainUser = users.find(u => u.uid === this._teamCaptainUid);
-        captain = selectedCaptainUser ? selectedCaptainUser.name : '';
-      }
+      selectedCaptainUser = users.find(u => u.uid === this._teamCaptainUid);
+      captain = selectedCaptainUser ? selectedCaptainUser.name : '';
     }
 
     if (!this._teamEditId) {
@@ -82,28 +74,25 @@ Object.assign(App, {
         this.showToast('請設定俱樂部經理（必填）');
         return;
       }
-      if (this._teamCaptainUid === '__legacy__' || !selectedCaptainUser) {
+      if (!selectedCaptainUser) {
         this.showToast('俱樂部經理必須為有效用戶，請重新選擇');
         return;
       }
-    } else if (this._teamCaptainUid && this._teamCaptainUid !== '__legacy__' && !selectedCaptainUser) {
+    } else if (this._teamCaptainUid && !selectedCaptainUser) {
       this.showToast('俱樂部經理資料無效，請重新選擇俱樂部經理');
       return;
     }
 
-    const captainUidForSave = (this._teamCaptainUid && this._teamCaptainUid !== '__legacy__')
-      ? this._teamCaptainUid
-      : null;
+    const captainUidForSave = this._teamCaptainUid || null;
 
     // Resolve coach names
     const coaches = this._teamCoachUids.map(uid => {
-      if (uid.startsWith('__legacy_')) return uid.replace('__legacy_', '');
       const u = users.find(u => u.uid === uid);
       return u ? u.name : '';
     }).filter(Boolean);
 
-    // 新教練 uid 集合（排除 legacy）
-    const newCoachUids = this._teamCoachUids.filter(uid => !uid.startsWith('__legacy_'));
+    // 新教練 uid 集合
+    const newCoachUids = [...this._teamCoachUids];
 
     // ── 降級確認（編輯模式：預覽被移除成員的角色變更）──
     if (this._teamEditId) {
@@ -295,7 +284,7 @@ Object.assign(App, {
 
     // ── 自動升級俱樂部經理/領隊/教練權限 + 發送通知 ──
     const allUsers = ApiService.getAdminUsers();
-    if (this._teamCaptainUid && this._teamCaptainUid !== '__legacy__') {
+    if (this._teamCaptainUid) {
       const capUser = allUsers.find(u => u.uid === this._teamCaptainUid);
       if (capUser && (ROLE_LEVEL_MAP[capUser.role] || 0) < ROLE_LEVEL_MAP['captain']) {
         const oldRole = capUser.role;
@@ -321,7 +310,6 @@ Object.assign(App, {
       }
     });
     this._teamCoachUids.forEach(uid => {
-      if (uid.startsWith('__legacy_')) return;
       const coachUser = allUsers.find(u => u.uid === uid);
       if (coachUser && (ROLE_LEVEL_MAP[coachUser.role] || 0) < ROLE_LEVEL_MAP['coach']) {
         const oldRole = coachUser.role;
@@ -334,7 +322,7 @@ Object.assign(App, {
     });
 
     // ── 俱樂部職位指派通知 ──
-    if (this._teamCaptainUid && this._teamCaptainUid !== '__legacy__') {
+    if (this._teamCaptainUid) {
       const isNewCaptain = !oldCaptainUid || oldCaptainUid !== this._teamCaptainUid;
       if (isNewCaptain) {
         this._deliverMessageWithLinePush(
@@ -368,7 +356,7 @@ Object.assign(App, {
 
     // ── 自動降級：被移除的俱樂部經理/領隊/教練 ──
     if (this._teamEditId) {
-      const newCaptainUid = (this._teamCaptainUid && this._teamCaptainUid !== '__legacy__') ? this._teamCaptainUid : oldCaptainUid;
+      const newCaptainUid = this._teamCaptainUid || oldCaptainUid;
       // 舊俱樂部經理不再是新俱樂部經理 → recalc
       if (oldCaptainUid && oldCaptainUid !== newCaptainUid) {
         this._applyRoleChange(ApiService._recalcUserRole(oldCaptainUid));
