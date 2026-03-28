@@ -3,7 +3,7 @@
  * Firebase + LIFF 設定
  */
 const INV_CONFIG = {
-  LIFF_ID: 'YOUR_LIFF_ID', // 待替換
+  LIFF_ID: '2009084941-vbH7G70A',
   FIREBASE: {
     apiKey: "AIzaSyA5TzRM_7XHaD8iQlrr3jZXrtXc-a5RXkE",
     authDomain: "fc-football-6c8dc.firebaseapp.com",
