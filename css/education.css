@@ -103,8 +103,9 @@
 .edu-attend-cal-badge-count { font-size: .62rem; font-weight: 700; color: #fff; line-height: 1; }
 
 /* ── 頁籤行（tabs + badge + 未繳費）── */
-.edu-tab-row { display: flex; align-items: center; gap: .3rem; }
-.edu-tab-badge { display: none; min-width: 16px; height: 16px; border-radius: 50%; background: #10b981; color: #fff; font-size: .6rem; font-weight: 700; padding: 0 3px; margin-left: 2px; vertical-align: middle; text-align: center; line-height: 16px; }
+.edu-tab-row { display: flex; align-items: baseline; gap: .3rem; }
+.edu-tab-mine-wrap { position: relative; }
+.edu-tab-badge { display: none; position: absolute; top: -6px; right: -8px; min-width: 16px; height: 16px; border-radius: 50%; background: #10b981; color: #fff; font-size: .58rem; font-weight: 700; padding: 0 3px; text-align: center; line-height: 16px; box-shadow: 0 1px 3px rgba(0,0,0,.15); z-index: 1; }
 .edu-mine-status { display: none; margin-left: auto; flex-shrink: 0; white-space: nowrap; }
 .edu-unpaid-hint { font-size: .7rem; color: var(--danger); font-weight: 600; }
 

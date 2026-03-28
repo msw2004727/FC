@@ -43,7 +43,7 @@ Object.assign(App, {
       + '<div class="tab-bar" id="edu-detail-tabs" style="flex:0 0 auto">'
       + '<button class="tab active" data-edutab="course" onclick="App.switchEduTab(\'course\')">課程</button>'
       + '<button class="tab" data-edutab="group" onclick="App.switchEduTab(\'group\')">分組</button>'
-      + '<button class="tab" data-edutab="mine" onclick="App.switchEduTab(\'mine\')">我的<span id="edu-mine-badge" class="edu-tab-badge"></span></button>'
+      + '<span class="edu-tab-mine-wrap"><button class="tab" data-edutab="mine" onclick="App.switchEduTab(\'mine\')">我的</button><span id="edu-mine-badge" class="edu-tab-badge"></span></span>'
       + '</div>'
       + '<span id="edu-mine-status" class="edu-mine-status"></span>'
       + '</div>';
