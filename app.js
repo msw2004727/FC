@@ -114,13 +114,15 @@ function _startContentStallCheck() {
       'box-shadow:0 4px 20px rgba(0,0,0,.3);'
     );
     el.innerHTML =
-      '<div style="margin-bottom:8px">加載卡住了，再給我一次加載機會</div>' +
+      '<div style="margin-bottom:8px">連線暫時不穩定</div>' +
       '<button id="stall-reload-btn" style="' +
         'background:#0d9488;color:#fff;border:none;padding:8px 24px;' +
         'border-radius:8px;font-size:14px;font-weight:600;cursor:pointer' +
-      '">重新整理</button>';
+      '">再試一次</button>' +
+      '<div style="margin-top:6px;font-size:11px;opacity:.7">或稍後再開啟 APP</div>';
     document.body.appendChild(el);
     document.getElementById('stall-reload-btn').addEventListener('click', function() {
+      if (typeof _markWsBlocked === 'function') _markWsBlocked();
       location.reload();
     });
   }, 6000);
@@ -311,12 +313,13 @@ const App = {
     if (!this._isHomePageActive()) return;
     this.renderHomeCritical();
     this._scheduleHomeDeferredRender();
-    /* 白屏卡住偵測：首頁關鍵區塊有實質內容才標記完成（防 partial loading 誤判）
-       - 有活動卡片 → 標記完成
-       - Cloud 已就緒（即使 0 筆活動）→ 標記完成（資料確實載完，不是 loading 問題） */
+    /* 白屏卡住偵測：有實際活動卡片 或 確認系統真的沒活動 才算完成 */
     var _hotEl = document.getElementById('hot-events');
-    var _hasContent = (_hotEl && _hotEl.querySelector('.h-card')) || this._cloudReady;
-    if (_hasContent) {
+    var _hasCards = _hotEl && _hotEl.querySelector('.h-card');
+    var _confirmedEmpty = this._cloudReady && typeof FirebaseService !== 'undefined'
+        && FirebaseService._initialized && FirebaseService._cache
+        && FirebaseService._cache.events && FirebaseService._cache.events.length === 0;
+    if (_hasCards || _confirmedEmpty) {
       window._contentReady = true;
       if (document.getElementById('content-stall-hint')) {
         document.getElementById('content-stall-hint').remove();

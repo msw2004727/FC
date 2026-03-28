@@ -95,8 +95,8 @@ const FirebaseService = {
   // ─── localStorage 快取設定 ───
   _LS_PREFIX: 'shub_c_',
   _LS_TS_KEY: 'shub_cache_ts',
-  _LS_TTL: 30 * 60 * 1000, // 預設 30 分鐘（admin/super_admin）
-  _LS_TTL_LONG: 120 * 60 * 1000, // 一般用戶 120 分鐘
+  _LS_TTL: 60 * 60 * 1000, // admin/super_admin 60 分鐘
+  _LS_TTL_LONG: 24 * 60 * 60 * 1000, // 一般用戶 24 小時（隔夜仍可恢復快取）
   _visibilityRefreshDebounce: null, // visibilitychange 防抖 timer
   _snapshotReconnectAttempts: {},   // onSnapshot 重連計數
   _reconnectTimers: {},             // onSnapshot 重連 setTimeout ID
@@ -277,10 +277,12 @@ const FirebaseService = {
           this._setLSUidPrefix(''); // 暫時用 legacy key 讀取
           console.log('[FirebaseService] UID-scoped 快取過期，回退 legacy key');
         } else {
-          return false;
+          // 快取已過期但仍恢復作為 Firestore 失敗的兜底（不 return false）
+          console.log('[FirebaseService] 快取已過期（' + Math.round((Date.now() - ts) / 60000) + '分鐘），仍恢復作為兜底');
         }
       } else {
-        return false;
+        // 快取已過期但仍恢復作為 Firestore 失敗的兜底
+        console.log('[FirebaseService] 快取已過期（' + Math.round((Date.now() - ts) / 60000) + '分鐘），仍恢復作為兜底');
       }
     }
 
@@ -1577,8 +1579,8 @@ const FirebaseService = {
       this._listeners.push(unsubAuthObserver);
     }
 
-    // Step 2.5: 若 localStorage 快取夠新（< 5 分鐘），直接用快取渲染，Firestore 背景更新
-    const _FRESH_CACHE_TTL = 5 * 60 * 1000;
+    // Step 2.5: 若 localStorage 快取夠新（< 15 分鐘），直接用快取渲染，Firestore 背景更新
+    const _FRESH_CACHE_TTL = 15 * 60 * 1000;
     const _cacheTs = parseInt(localStorage.getItem(this._getLSTsKey()) || '0', 10);
     const _cacheAge = Date.now() - _cacheTs;
     if (_cacheAge < _FRESH_CACHE_TTL && this._cache.events.length > 0) {
@@ -1631,13 +1633,13 @@ const FirebaseService = {
       }
     }
 
-    // 超時 → 用 localStorage 快取兜底，但背景繼續載入
+    // 超時 → 用 localStorage 快取兜底 + REST API fallback + 背景繼續載入
     if (timedOut) {
       this._initialized = true;
-      this._setupVisibilityRefresh(); // RC3
+      this._setupVisibilityRefresh();
       console.log('[FirebaseService] Init timed out; continue with localStorage cache.');
       this._startAuthDependentWork();
-      // 背景繼續等資料回來，完成後更新快取 + 觸發首頁重新渲染
+      this._fetchBootViaRest();
       this._continueLoadAfterTimeout();
       return;
     }
@@ -1692,9 +1694,11 @@ const FirebaseService = {
         });
         this._markCollectionsLoaded(this._bootCollections.filter((name, i) => bootResults[i]?.ok));
         this._persistCache();
-        // 觸發首頁重新渲染
-        if (typeof App !== 'undefined' && App.currentPage === 'page-home') {
+        // 觸發重新渲染（不限首頁）
+        if (typeof App !== 'undefined') {
+          App._cloudReady = true;
           App.renderAll?.();
+          if (App.currentPage !== 'page-home') App.showPage?.(App.currentPage);
         }
         console.log('[FirebaseService] Background reload after timeout complete');
         this._schedulePostInitWarmups();
@@ -1702,6 +1706,90 @@ const FirebaseService = {
         console.warn('[FirebaseService] Background reload after timeout failed:', err);
       }
     })();
+  },
+
+  /** REST API fallback：繞過 WebSocket，直接用 fetch 取 boot collections */
+  _fetchBootViaRest() {
+    var self = this;
+    var projectId = 'fc-football-6c8dc';
+    var apiKey = 'AIzaSyA5TzRM_7XHaD8iQlrr3jZXrtXc-a5RXkE';
+    var base = 'https://firestore.googleapis.com/v1/projects/' + projectId + '/databases/(default)/documents/';
+    var collections = this._bootCollections.slice();
+    collections.push('events');
+
+    (async function() {
+      try {
+        var results = await Promise.all(collections.map(function(name) {
+          return fetch(base + name + '?key=' + apiKey + '&pageSize=300')
+            .then(function(r) { return r.ok ? r.json() : null; })
+            .catch(function() { return null; });
+        }));
+        var updated = false;
+        results.forEach(function(json, i) {
+          if (!json || !json.documents) return;
+          var docs = json.documents.map(function(d) { return self._convertRestDoc(d); });
+          if (collections[i] === 'events') {
+            if (docs.length > 0 && (!self._cache.events || self._cache.events.length === 0)) {
+              self._cache.events = docs;
+              updated = true;
+            }
+          } else {
+            self._replaceCollectionCache(collections[i], docs);
+            updated = true;
+          }
+        });
+        if (updated) {
+          self._persistCache();
+          if (typeof App !== 'undefined') {
+            App._cloudReady = true;
+            App.renderAll?.();
+          }
+          console.log('[FirebaseService] REST API fallback: boot data loaded');
+        }
+      } catch (err) {
+        console.warn('[FirebaseService] REST API fallback failed:', err);
+      }
+    })();
+  },
+
+  /** Firestore REST API document → plain object 轉換 */
+  _convertRestDoc(restDoc) {
+    var obj = {};
+    if (restDoc.name) {
+      var parts = restDoc.name.split('/');
+      obj._docId = parts[parts.length - 1];
+      obj.id = obj._docId;
+    }
+    if (restDoc.fields) {
+      var keys = Object.keys(restDoc.fields);
+      for (var i = 0; i < keys.length; i++) {
+        obj[keys[i]] = this._convertRestValue(restDoc.fields[keys[i]]);
+      }
+    }
+    return obj;
+  },
+
+  _convertRestValue(v) {
+    if (!v) return null;
+    if ('stringValue' in v) return v.stringValue;
+    if ('integerValue' in v) return parseInt(v.integerValue, 10);
+    if ('doubleValue' in v) return v.doubleValue;
+    if ('booleanValue' in v) return v.booleanValue;
+    if ('nullValue' in v) return null;
+    if ('timestampValue' in v) return v.timestampValue;
+    if ('arrayValue' in v) {
+      return (v.arrayValue.values || []).map(this._convertRestValue.bind(this));
+    }
+    if ('mapValue' in v) {
+      var result = {};
+      var fields = v.mapValue.fields || {};
+      var mk = Object.keys(fields);
+      for (var j = 0; j < mk.length; j++) {
+        result[mk[j]] = this._convertRestValue(fields[mk[j]]);
+      }
+      return result;
+    }
+    return null;
   },
 
   /** 背景載入已結束/取消的活動（不阻塞啟動） */
