@@ -306,6 +306,8 @@ const ScriptLoader = {
       'js/modules/education/edu-student-form.js',
       'js/modules/education/edu-student-join.js',
       'js/modules/education/edu-course-plan.js',
+      'js/modules/education/edu-course-plan-render.js',
+      'js/modules/education/edu-course-plan-attendance.js',
       'js/modules/education/edu-course-enrollment.js',
       'js/modules/education/edu-course-enrollment-render.js',
       'js/modules/education/edu-checkin.js',

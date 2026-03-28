@@ -8,6 +8,12 @@ Object.assign(App, {
 
   _eduCheckinTeamId: null,
   _eduCheckinGroupId: null,
+  _ciDebounce: null, _ciCache: {},
+  _debouncedCheckinLoad() { clearTimeout(this._ciDebounce); this._ciDebounce = setTimeout(() => this._loadPlanCheckinStudents(), 300); },
+  _debouncedCheckinGroup() { clearTimeout(this._ciDebounce); this._ciDebounce = setTimeout(() => this._onEduCheckinGroupChange(), 300); },
+  _getCheckinCache(k) { const c = this._ciCache[k]; if (!c || Date.now() - c.t > 30000) { if (c) delete this._ciCache[k]; return null; } return c.d; },
+  _setCheckinCache(k, d) { const ks = Object.keys(this._ciCache); if (ks.length >= 20) delete this._ciCache[ks[0]]; this._ciCache[k] = { d, t: Date.now() }; },
+  _invalidateCheckinCache(teamId, idPart, date) { delete this._ciCache['ci:' + teamId + ':' + (idPart || '') + ':' + date]; },
 
   async showEduCheckin(teamId, planId) {
     this._eduCheckinTeamId = teamId;
@@ -29,7 +35,7 @@ Object.assign(App, {
         + '<div class="ce-row"><label>課程方案</label>'
         + '<input type="text" value="' + escapeHTML(plan.name) + '" disabled style="opacity:.7"></div>'
         + '<div class="ce-row"><label>簽到日期</label>'
-        + '<input type="date" id="edu-ci-date" value="' + this._todayStr() + '" onchange="App._loadPlanCheckinStudents()"></div>'
+        + '<input type="date" id="edu-ci-date" value="' + this._todayStr() + '" onchange="App._debouncedCheckinLoad()"></div>'
         + '<div id="edu-ci-student-list">載入中...</div>'
         + '<div id="edu-ci-actions" style="display:none;margin-top:.5rem">'
         + '<button class="primary-btn" style="width:100%" id="edu-ci-confirm-btn" onclick="App.confirmEduCheckin()">確認簽到</button>'
@@ -47,12 +53,12 @@ Object.assign(App, {
         .map(g => '<option value="' + g.id + '">' + escapeHTML(g.name) + '</option>').join('');
       container.innerHTML = '<div class="edu-checkin-form">'
         + '<div class="ce-row"><label>選擇分組</label>'
-        + '<select id="edu-ci-group" onchange="App._onEduCheckinGroupChange()">'
+        + '<select id="edu-ci-group" onchange="App._debouncedCheckinGroup()">'
         + '<option value="">請選擇分組</option>' + groupOptions + '</select></div>'
         + '<div id="edu-ci-plan-row" class="ce-row" style="display:none"><label>課程方案</label>'
         + '<select id="edu-ci-plan"></select></div>'
         + '<div class="ce-row"><label>簽到日期</label>'
-        + '<input type="date" id="edu-ci-date" value="' + this._todayStr() + '" onchange="App._onEduCheckinGroupChange()"></div>'
+        + '<input type="date" id="edu-ci-date" value="' + this._todayStr() + '" onchange="App._debouncedCheckinGroup()"></div>'
         + '<div id="edu-ci-student-list"></div>'
         + '<div id="edu-ci-actions" style="display:none;margin-top:.5rem">'
         + '<button class="primary-btn" style="width:100%" id="edu-ci-confirm-btn" onclick="App.confirmEduCheckin()">確認簽到</button>'
@@ -90,8 +96,11 @@ Object.assign(App, {
     // 查詢已簽到
     const date = document.getElementById('edu-ci-date')?.value || this._todayStr();
     let checkedIds = new Set();
+    const cacheKey = 'ci:' + teamId + ':' + (planId || '') + ':' + date;
     try {
-      const existing = await FirebaseService.queryEduAttendance({ teamId, coursePlanId: planId, date });
+      const cached = this._getCheckinCache(cacheKey);
+      const existing = cached || await FirebaseService.queryEduAttendance({ teamId, coursePlanId: planId, date });
+      if (!cached) this._setCheckinCache(cacheKey, existing);
       existing.forEach(r => checkedIds.add(r.studentId));
     } catch (_) {}
 
@@ -170,8 +179,11 @@ Object.assign(App, {
     // 查詢已簽到
     const date = document.getElementById('edu-ci-date').value || this._todayStr();
     let checkedIds = new Set();
+    const cacheKey = 'ci:' + teamId + ':' + (groupId || '') + ':' + date;
     try {
-      const existing = await FirebaseService.queryEduAttendance({ teamId, groupId, date });
+      const cached = this._getCheckinCache(cacheKey);
+      const existing = cached || await FirebaseService.queryEduAttendance({ teamId, groupId, date });
+      if (!cached) this._setCheckinCache(cacheKey, existing);
       existing.forEach(r => checkedIds.add(r.studentId));
     } catch (_) {}
 
@@ -251,6 +263,7 @@ Object.assign(App, {
       const count = res.data.count || records.length;
 
       this.showToast('已簽到 ' + count + ' 位學員');
+      this._invalidateCheckinCache(teamId, coursePlanId || groupId, date);
 
       if (typeof this._notifyEduCheckin === 'function') {
         this._notifyEduCheckin(teamId, groupId, records);

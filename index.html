@@ -232,7 +232,7 @@
   <!-- 偵測 clear=1 參數時清除 SW cache 與 LINE 登入狀態 -->
   <script>
   (function(){
-    var V='20260328f';
+    var V='20260328g';
     if(location.search.indexOf('clear=1')!==-1){
       if('caches' in window) caches.keys().then(function(k){k.forEach(function(n){caches.delete(n)})});
       if('serviceWorker' in navigator) navigator.serviceWorker.getRegistrations().then(function(r){r.forEach(function(w){w.unregister()})});
