@@ -38,13 +38,15 @@ Object.assign(App, {
 
     const bioCard = team.bio ? '<div class="td-card"><div class="td-card-title" style="text-align:center">簡介</div><div style="font-size:.82rem;color:var(--text-secondary);line-height:1.6;white-space:pre-wrap;word-break:break-word">' + escapeHTML(team.bio) + '</div></div>' : '';
 
-    // ── 頁籤列（課程 | 分組 | 我的）──
-    const tabBar = '<div class="tab-bar" id="edu-detail-tabs">'
+    // ── 頁籤列（課程 | 分組 | 我的 + badge + 未繳費提示）──
+    const tabBar = '<div class="edu-tab-row">'
+      + '<div class="tab-bar" id="edu-detail-tabs" style="flex:0 0 auto">'
       + '<button class="tab active" data-edutab="course" onclick="App.switchEduTab(\'course\')">課程</button>'
       + '<button class="tab" data-edutab="group" onclick="App.switchEduTab(\'group\')">分組</button>'
       + '<button class="tab" data-edutab="mine" onclick="App.switchEduTab(\'mine\')">我的<span id="edu-mine-badge" class="edu-tab-badge"></span></button>'
       + '</div>'
-      + '<div id="edu-mine-status" class="edu-mine-status"></div>';
+      + '<span id="edu-mine-status" class="edu-mine-status"></span>'
+      + '</div>';
 
     bodyEl.innerHTML = infoCard + bioCard + tabBar
       + '<div id="edu-detail-tab-content" class="edu-tab-content"></div>';
@@ -250,7 +252,7 @@ Object.assign(App, {
     const myStudents = this._getMyEduStudents(teamId, curUser).filter(s => s.enrollStatus === 'active');
     // 綠圈：學員數
     const badge = document.getElementById('edu-mine-badge');
-    if (badge) { badge.textContent = myStudents.length || ''; badge.style.display = myStudents.length ? '' : 'none'; }
+    if (badge) { badge.textContent = myStudents.length || ''; badge.style.display = myStudents.length ? 'inline-block' : 'none'; }
     // 未繳費統計
     const statusEl = document.getElementById('edu-mine-status');
     if (!statusEl || !myStudents.length) { if (statusEl) statusEl.style.display = 'none'; return; }
@@ -282,8 +284,8 @@ Object.assign(App, {
       }
     }
     if (unpaid > 0) {
-      statusEl.innerHTML = '<span class="edu-unpaid-hint">' + unpaid + ' 筆課程尚未繳費</span>';
-      statusEl.style.display = '';
+      statusEl.innerHTML = '<span class="edu-unpaid-hint">' + unpaid + ' 筆未繳費</span>';
+      statusEl.style.display = 'inline';
     } else {
       statusEl.style.display = 'none';
     }
