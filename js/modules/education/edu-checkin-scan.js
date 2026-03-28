@@ -147,8 +147,16 @@ Object.assign(App, {
         sessionNumber: null,
       };
 
-      const fn = firebase.app().functions('asia-east1').httpsCallable('eduCheckin');
-      await fn({ teamId, records: [record] });
+      // 前端直接寫入 Firestore（比照活動簽到）
+      const docRef = firebase.firestore().collection('eduAttendance').doc();
+      await docRef.set({
+        id: docRef.id, teamId, groupId: groupId || '', coursePlanId: null,
+        studentId, studentName: studentName || '',
+        parentUid: student?.parentUid || null, selfUid: student?.selfUid || null,
+        date, time, sessionNumber: null, status: 'active',
+        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      });
 
       if (resultEl) {
         resultEl.innerHTML = '<div class="edu-scan-success">' +

@@ -241,43 +241,50 @@ Object.assign(App, {
     const checkboxes = document.querySelectorAll('.edu-ci-table tbody input[type="checkbox"]:checked:not(:disabled)');
     if (!checkboxes.length) {
       this.showToast('請至少勾選一位學員');
+      _btnState.restore();
       return;
     }
 
     const records = Array.from(checkboxes).map(cb => ({
-      id: this._generateEduId('ea'),
       studentId: cb.value,
       studentName: cb.dataset.name || '',
       parentUid: cb.dataset.parentUid || null,
       selfUid: cb.dataset.selfUid || null,
-      groupId,
-      coursePlanId: coursePlanId || null,
-      date,
-      time,
-      sessionNumber: null,
     }));
 
     try {
-      const fn = firebase.app().functions('asia-east1').httpsCallable('eduCheckin');
-      const res = await fn({ teamId, records });
-      const count = res.data.count || records.length;
+      // 前端直接 Firestore Batch Write（比照活動簽到，原子操作）
+      const batch = firebase.firestore().batch();
+      for (const r of records) {
+        const docRef = firebase.firestore().collection('eduAttendance').doc();
+        batch.set(docRef, {
+          id: docRef.id, teamId, groupId: groupId || '', coursePlanId: coursePlanId || null,
+          studentId: r.studentId, studentName: r.studentName,
+          parentUid: r.parentUid, selfUid: r.selfUid,
+          date, time, sessionNumber: null, status: 'active',
+          createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        });
+      }
+      await batch.commit();
 
-      this.showToast('已簽到 ' + count + ' 位學員');
+      this.showToast('已簽到 ' + records.length + ' 位學員');
       this._invalidateCheckinCache(teamId, coursePlanId || groupId, date);
 
       if (typeof this._notifyEduCheckin === 'function') {
-        this._notifyEduCheckin(teamId, groupId, records);
+        this._notifyEduCheckin(teamId, groupId, records.map(r => Object.assign({}, r, { groupId, date, time })));
       }
 
-      // 重新載入學員列表
+      // 成功：重新載入學員列表（顯示已簽到狀態）
       if (this._eduCheckinPlanId) {
         await this._loadPlanCheckinStudents();
       } else {
         await this._onEduCheckinGroupChange();
       }
     } catch (err) {
-      console.error('[confirmEduCheckin]', err);
-      this.showToast('簽到失敗：' + (err.message || '請稍後再試'));
+      console.error('[confirmEduCheckin] batch failed:', err);
+      // 失敗：保留勾選狀態，讓用戶直接重試
+      this.showToast('簽到失敗，勾選已保留\n請再按一次「確認簽到」重試');
     } finally {
       _btnState.restore();
     }
