@@ -206,13 +206,21 @@ Object.assign(App, {
     const key = this._getCourseEnrollCacheKey(teamId, planId);
     const enr = (this._courseEnrollCache[key] || []).find(e => e.id === enrollId);
     if (!enr) return;
+    // 虛擬記錄（分組自動導入）→ 先建立真實 enrollment 文件
+    if (String(enrollId).startsWith('_auto_')) {
+      const realId = this._generateEduId('enr');
+      const doc = { id: realId, studentId: enr.studentId, studentName: enr.studentName,
+        selfUid: enr.selfUid || null, parentUid: enr.parentUid || null,
+        status: 'approved', paidAt: null, coachNotes: '', reviewerName: null, reviewedAt: null };
+      await FirebaseService.createCourseEnrollment(teamId, planId, doc);
+      enr.id = realId;
+      enrollId = realId;
+    }
     if (enr.paidAt) {
-      // 取消繳費
       enr.paidAt = null;
       await FirebaseService.updateCourseEnrollment(teamId, planId, enrollId, { paidAt: null });
       this.showToast('已取消繳費標記');
     } else {
-      // 標記繳費（帶入今天日期）
       const today = new Date().toISOString().slice(0, 10);
       enr.paidAt = today;
       await FirebaseService.updateCourseEnrollment(teamId, planId, enrollId, { paidAt: today });
@@ -224,6 +232,14 @@ Object.assign(App, {
   async _editEnrollPaidDate(teamId, planId, enrollId) {
     const key = this._getCourseEnrollCacheKey(teamId, planId);
     const enr = (this._courseEnrollCache[key] || []).find(e => e.id === enrollId);
+    if (enr && String(enrollId).startsWith('_auto_')) {
+      const realId = this._generateEduId('enr');
+      const doc = { id: realId, studentId: enr.studentId, studentName: enr.studentName,
+        selfUid: enr.selfUid || null, parentUid: enr.parentUid || null,
+        status: 'approved', paidAt: null, coachNotes: '', reviewerName: null, reviewedAt: null };
+      await FirebaseService.createCourseEnrollment(teamId, planId, doc);
+      enr.id = realId; enrollId = realId;
+    }
     const current = enr?.paidAt || new Date().toISOString().slice(0, 10);
     // 用 date input 彈窗取代 prompt
     const overlay = document.createElement('div');
@@ -251,6 +267,16 @@ Object.assign(App, {
   async _saveEnrollNotes(teamId, planId, enrollId, textareaId) {
     const textarea = document.getElementById(textareaId);
     if (!textarea) return;
+    const key = this._getCourseEnrollCacheKey(teamId, planId);
+    const enr = (this._courseEnrollCache[key] || []).find(e => e.id === enrollId);
+    if (enr && String(enrollId).startsWith('_auto_')) {
+      const realId = this._generateEduId('enr');
+      const doc = { id: realId, studentId: enr.studentId, studentName: enr.studentName,
+        selfUid: enr.selfUid || null, parentUid: enr.parentUid || null,
+        status: 'approved', paidAt: null, coachNotes: '', reviewerName: null, reviewedAt: null };
+      await FirebaseService.createCourseEnrollment(teamId, planId, doc);
+      enr.id = realId; enrollId = realId;
+    }
     const notes = textarea.value.trim();
     await FirebaseService.updateCourseEnrollment(teamId, planId, enrollId, { coachNotes: notes });
     const key = this._getCourseEnrollCacheKey(teamId, planId);
