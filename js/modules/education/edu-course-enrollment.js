@@ -229,6 +229,20 @@ Object.assign(App, {
     await this._renderCourseEnrollmentList(teamId, planId);
   },
 
+  _showPaidEditMenu(teamId, planId, enrollId) {
+    const overlay = document.createElement('div');
+    overlay.className = 'edu-info-overlay';
+    overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+    overlay.innerHTML = '<div class="edu-info-dialog" style="max-width:260px"><div class="edu-info-dialog-title">繳費管理</div>'
+      + '<div style="display:flex;flex-direction:column;gap:.5rem">'
+      + '<button class="primary-btn" id="_paidMenuDate">修改繳費日期</button>'
+      + '<button class="outline-btn" style="color:var(--danger);border-color:var(--danger)" id="_paidMenuCancel">取消繳費</button>'
+      + '<button class="outline-btn" onclick="this.closest(\'.edu-info-overlay\').remove()">關閉</button></div></div>';
+    document.body.appendChild(overlay);
+    document.getElementById('_paidMenuDate').onclick = () => { overlay.remove(); this._editEnrollPaidDate(teamId, planId, enrollId); };
+    document.getElementById('_paidMenuCancel').onclick = async () => { overlay.remove(); await this._toggleEnrollPaid(teamId, planId, enrollId); };
+  },
+
   async _editEnrollPaidDate(teamId, planId, enrollId) {
     const key = this._getCourseEnrollCacheKey(teamId, planId);
     const enr = (this._courseEnrollCache[key] || []).find(e => e.id === enrollId);

@@ -130,15 +130,12 @@ Object.assign(App, {
       attendHtml = '<span class="edu-ce-attend">出勤 ' + attendCount + '次</span>';
     }
 
-    // 繳費狀態（已繳費隱藏勾選防誤觸，點編輯才顯示）
+    // 繳費狀態（未繳費顯示勾選框；已繳費只顯示文字 + ✏️ 可改日期或取消）
     var paidHtml = '';
     if (e.paidAt) {
-      var paidCbId = 'ce-paid-cb-' + e.id;
       paidHtml = '<span class="edu-ce-paid-label" onclick="event.stopPropagation()">'
         + '<span class="edu-ce-paid-yes">已繳費 ' + escapeHTML(e.paidAt) + '</span>'
-        + ' <span class="edu-ce-paid-edit" onclick="event.stopPropagation();App._editEnrollPaidDate(\'' + teamId + '\',\'' + planId + '\',\'' + e.id + '\')">✏️</span>'
-        + ' <button class="outline-btn" style="font-size:.62rem;padding:.1rem .3rem;margin-left:.2rem" onclick="event.stopPropagation();var el=document.getElementById(\'' + paidCbId + '\');el.style.display=el.style.display===\'none\'?\'\':\'none\'">編輯</button>'
-        + '<span id="' + paidCbId + '" style="display:none;margin-left:.3rem"><input type="checkbox" checked onchange="App._toggleEnrollPaid(\'' + teamId + '\',\'' + planId + '\',\'' + e.id + '\')"></span>'
+        + ' <span class="edu-ce-paid-edit" onclick="event.stopPropagation();App._showPaidEditMenu(\'' + teamId + '\',\'' + planId + '\',\'' + e.id + '\')">✏️</span>'
         + '</span>';
     } else {
       paidHtml = '<label class="edu-ce-paid-label" onclick="event.stopPropagation()">'
