@@ -130,16 +130,22 @@ Object.assign(App, {
       attendHtml = '<span class="edu-ce-attend">出勤 ' + attendCount + '次</span>';
     }
 
-    // 繳費狀態（勾選框 + 可編輯日期）
-    const paidChecked = e.paidAt ? ' checked' : '';
-    const paidDateText = e.paidAt ? ' ' + escapeHTML(e.paidAt) : '';
-    const editDateBtn = e.paidAt
-      ? ' <span class="edu-ce-paid-edit" onclick="event.stopPropagation();App._editEnrollPaidDate(\'' + teamId + '\',\'' + planId + '\',\'' + e.id + '\')">✏️</span>'
-      : '';
-    const paidHtml = '<label class="edu-ce-paid-label" onclick="event.stopPropagation()">'
-      + '<input type="checkbox"' + paidChecked + ' onchange="App._toggleEnrollPaid(\'' + teamId + '\',\'' + planId + '\',\'' + e.id + '\')">'
-      + '<span class="' + (e.paidAt ? 'edu-ce-paid-yes' : 'edu-ce-paid-no') + '">已繳費' + paidDateText + '</span>'
-      + editDateBtn + '</label>';
+    // 繳費狀態（已繳費隱藏勾選防誤觸，點編輯才顯示）
+    var paidHtml = '';
+    if (e.paidAt) {
+      var paidCbId = 'ce-paid-cb-' + e.id;
+      paidHtml = '<span class="edu-ce-paid-label" onclick="event.stopPropagation()">'
+        + '<span class="edu-ce-paid-yes">已繳費 ' + escapeHTML(e.paidAt) + '</span>'
+        + ' <span class="edu-ce-paid-edit" onclick="event.stopPropagation();App._editEnrollPaidDate(\'' + teamId + '\',\'' + planId + '\',\'' + e.id + '\')">✏️</span>'
+        + ' <button class="outline-btn" style="font-size:.62rem;padding:.1rem .3rem;margin-left:.2rem" onclick="event.stopPropagation();var el=document.getElementById(\'' + paidCbId + '\');el.style.display=el.style.display===\'none\'?\'\':\'none\'">編輯</button>'
+        + '<span id="' + paidCbId + '" style="display:none;margin-left:.3rem"><input type="checkbox" checked onchange="App._toggleEnrollPaid(\'' + teamId + '\',\'' + planId + '\',\'' + e.id + '\')"></span>'
+        + '</span>';
+    } else {
+      paidHtml = '<label class="edu-ce-paid-label" onclick="event.stopPropagation()">'
+        + '<input type="checkbox" onchange="App._toggleEnrollPaid(\'' + teamId + '\',\'' + planId + '\',\'' + e.id + '\')">'
+        + '<span class="edu-ce-paid-no">未繳費</span>'
+        + '</label>';
+    }
 
     // 備註區
     const notesId = 'ce-notes-' + e.id;
