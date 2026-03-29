@@ -33,24 +33,25 @@ const InvSettings = {
       return;
     }
     var esc = InvApp.escapeHTML;
-    var h4 = function (t) { return '<h4 style="margin:0 0 10px;font-size:15px;color:#334155;">' + t + '</h4>'; };
-    // 店名 fallback：若有亂碼或空值一律顯示 ToosterX
+    var ib = function(k) { return ' <button class="inv-info-btn" onclick="InvSettings._showInfo(\'' + k + '\')">?</button>'; };
+    var h4 = function (t, k) { return '<h4 class="inv-section-head">' + t + (k ? ib(k) : '') + '</h4>'; };
+    // 店名 fallback
     var shopName = (cfg.shopName && /^[\x20-\x7E\u4e00-\u9fff]+$/.test(cfg.shopName)) ? cfg.shopName : 'ToosterX';
     c.innerHTML = '<div style="padding:16px;">' +
-      this._card(h4('店鋪資訊') +
+      this._card(h4('店鋪資訊', 'shop') +
         '<div id="inv-shop-name-area" style="display:flex;align-items:center;gap:8px">' +
           '<span style="font-size:14px;color:var(--text-secondary);flex-shrink:0">店名：</span>' +
           '<span id="inv-shop-name-display" style="flex:1;font-size:15px;font-weight:600;color:var(--text-primary)">' + esc(shopName) + '</span>' +
           '<button class="inv-btn outline sm" onclick="InvSettings._enableShopNameEdit()" style="font-size:12px;min-height:30px;padding:2px 12px">更名</button>' +
         '</div>') +
-      this._card(h4('管理員白名單') + '<div id="inv-admin-list"></div>') +
-      this._card(h4('商品分類管理') + '<div id="inv-category-list"></div>') +
-      this._card(h4('工具') +
+      this._card(h4('管理員白名單', 'admin') + '<div id="inv-admin-list"></div>') +
+      this._card(h4('商品分類管理', 'category') + '<div id="inv-category-list"></div>') +
+      this._card(h4('工具', 'tools') +
         '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">' +
           '<button class="inv-btn outline full sm" onclick="InvSettings._promptBarcodePrint()">條碼列印</button>' +
           '<button class="inv-btn outline full sm" onclick="InvSettings.rebuildStock()" style="color:var(--danger);border-color:var(--danger)">庫存重建</button>' +
         '</div>') +
-      this._card(h4('登入公告管理') + '<div id="inv-announcement-list"></div>') +
+      this._card(h4('登入公告管理', 'announcement') + '<div id="inv-announcement-list"></div>') +
       '</div>';
     this.renderAdminList(cfg.adminUids || []);
     this.renderAnnouncements();
@@ -484,5 +485,66 @@ const InvSettings = {
       InvApp.showToast('公告已刪除');
       this.renderAnnouncements();
     } catch (e) { InvApp.showToast('刪除失敗'); }
+  },
+
+  // ══════ 說明彈窗 ══════
+  _showInfo(key) {
+    var info = {
+      shop: {
+        title: '店鋪資訊說明',
+        body: '<p>設定你的店鋪名稱，此名稱會顯示在系統各處。</p>'
+          + '<div style="background:var(--accent-subtle);border-radius:var(--radius-sm);padding:10px 12px;margin:8px 0">'
+          + '<b>更名功能</b><p style="font-size:13px;margin:4px 0 0;color:var(--text-secondary)">點擊「更名」按鈕後可修改店名，修改完成後點「儲存」即生效。</p></div>'
+      },
+      admin: {
+        title: '管理員白名單說明',
+        body: '<p>控制誰可以登入並使用庫存系統。系統分為三種角色：</p>'
+          + '<div style="background:var(--accent-subtle);border-radius:var(--radius-sm);padding:10px 12px;margin:8px 0">'
+          + '<b>擁有者</b><p style="font-size:13px;margin:4px 0 0;color:var(--text-secondary)">系統最高權限，可管理所有人員，不可被移除。</p></div>'
+          + '<div style="background:var(--accent-subtle);border-radius:var(--radius-sm);padding:10px 12px;margin:8px 0">'
+          + '<b>超級管理員</b><p style="font-size:13px;margin:4px 0 0;color:var(--text-secondary)">由擁有者指派，擁有與擁有者相同的白名單管理權限（新增/移除管理員）。</p></div>'
+          + '<div style="background:var(--accent-subtle);border-radius:var(--radius-sm);padding:10px 12px;margin:8px 0">'
+          + '<b>管理員</b><p style="font-size:13px;margin:4px 0 0;color:var(--text-secondary)">可操作庫存系統的所有商品功能（入庫、銷售、盤點等），但無法管理白名單。</p></div>'
+          + '<p style="font-size:13px;color:var(--text-muted);margin-top:8px">新增管理員時需輸入對方的 LINE userId（U 開頭的 32 位字串）。</p>'
+      },
+      category: {
+        title: '商品分類管理說明',
+        body: '<p>管理商品的分類標籤，分類用於：</p>'
+          + '<ul style="padding-left:20px;font-size:14px;line-height:1.8;color:var(--text-secondary)">'
+          + '<li>入庫時快速選擇商品分類</li>'
+          + '<li>商品列表的篩選功能</li>'
+          + '<li>銷售統計的分類報表</li></ul>'
+          + '<p style="font-size:13px;color:var(--text-muted);margin-top:8px">可新增、刪除分類，也可用上下箭頭調整排序。</p>'
+      },
+      tools: {
+        title: '工具說明',
+        body: '<div style="background:var(--accent-subtle);border-radius:var(--radius-sm);padding:10px 12px;margin:8px 0">'
+          + '<b>條碼列印</b><p style="font-size:13px;margin:4px 0 0;color:var(--text-secondary)">輸入條碼編號，系統會生成條碼圖片並可直接列印標籤。適用於自有商品需要製作條碼吊牌的場景。</p></div>'
+          + '<div style="background:var(--danger-light);border-radius:var(--radius-sm);padding:10px 12px;margin:8px 0">'
+          + '<b>庫存重建</b><p style="font-size:13px;margin:4px 0 0;color:var(--text-secondary)">根據所有交易紀錄重新計算每個商品的正確庫存數量。僅在庫存數據異常時使用。</p>'
+          + '<p style="font-size:12px;margin:4px 0 0;color:var(--danger)">⚠ 此操作會覆蓋所有商品的現有庫存數量，請謹慎操作。</p></div>'
+      },
+      announcement: {
+        title: '登入公告管理說明',
+        body: '<p>管理用戶登入後看到的公告彈窗：</p>'
+          + '<ul style="padding-left:20px;font-size:14px;line-height:1.8;color:var(--text-secondary)">'
+          + '<li>最多可同時啟用 <b>3 則</b>公告</li>'
+          + '<li>公告分為三種類型：<span style="color:var(--accent)">一般</span>、<span style="color:var(--warning)">注意</span>、<span style="color:var(--danger)">緊急</span></li>'
+          + '<li>用戶看過公告並點「我知道了」後不會重複顯示</li>'
+          + '<li>停用的公告不會顯示給用戶，但會保留在列表中</li></ul>'
+          + '<p style="font-size:13px;color:var(--text-muted);margin-top:8px">公告標題最多 30 字，內容最多 200 字。</p>'
+      },
+    };
+    var item = info[key];
+    if (!item) return;
+    var overlay = document.createElement('div');
+    overlay.className = 'inv-overlay show';
+    overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+    overlay.innerHTML = '<div class="inv-modal">'
+      + '<div style="font-size:17px;font-weight:700;text-align:center;margin-bottom:12px">' + item.title + '</div>'
+      + '<div style="font-size:14px;color:var(--text-secondary);line-height:1.7">' + item.body + '</div>'
+      + '<button class="inv-btn primary full" style="margin-top:16px" onclick="this.closest(\'.inv-overlay\').remove()">了解</button>'
+      + '</div>';
+    document.body.appendChild(overlay);
   },
 };
