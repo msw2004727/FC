@@ -29,7 +29,7 @@ const InvApp = {
       case 'page-dashboard':
         if (typeof InvDashboard !== 'undefined') InvDashboard.render();
         var vt = document.getElementById('inv-version-tag');
-        if (vt) vt.textContent = 'v0.5';
+        if (vt) { var s = document.querySelector('link[href*="inventory.css"]'); var m = s && s.href.match(/[?&]v=(\d+)/); vt.textContent = 'v0.' + (m ? m[1] : '0'); }
         break;
       case 'page-stock-in': if (typeof InvStockIn !== 'undefined') InvStockIn.render(); break;
       case 'page-sale': if (typeof InvSale !== 'undefined') InvSale.render(); break;
