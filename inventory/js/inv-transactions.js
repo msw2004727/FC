@@ -43,16 +43,15 @@ const InvTransactions = {
             'style="flex:1;height:36px;font-size:13px;" />' +
         '</div>' +
         /* --- 2. 類型 tabs --- */
-        '<div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:8px;' +
-          '-webkit-overflow-scrolling:touch;">';
+        '<div style="display:flex;gap:5px;flex-wrap:wrap;padding-bottom:8px;">';
     for (var i = 0; i < types.length; i++) {
       var t = types[i];
       var active = this._type === t.key;
       html += '<button onclick="InvTransactions._setType(\'' + t.key + '\')" ' +
-        'style="flex-shrink:0;padding:5px 14px;border-radius:16px;border:1px solid ' +
-        (active ? 'var(--inv-primary)' : '#e2e8f0') + ';background:' +
-        (active ? 'var(--inv-primary)' : '#fff') + ';color:' +
-        (active ? '#fff' : '#64748b') + ';font-size:13px;cursor:pointer;">' +
+        'style="padding:4px 10px;border-radius:var(--radius-full);border:1px solid ' +
+        (active ? 'var(--accent)' : 'var(--border)') + ';background:' +
+        (active ? 'var(--accent)' : 'var(--bg-card)') + ';color:' +
+        (active ? '#fff' : 'var(--text-muted)') + ';font-size:12px;cursor:pointer;">' +
         esc(t.label) + '</button>';
     }
     html += '</div>' +
@@ -147,28 +146,24 @@ const InvTransactions = {
       var qty = Math.abs(Number(tx.quantity) || Number(tx.delta) || 0);
       var amt = Number(tx.totalAmount) || Number(tx.unitPrice) * qty || 0;
 
+      // 時間只取 MM/DD HH:MM 縮短
+      var shortTime = time.length > 6 ? time.slice(5) : time;
       html +=
-        '<div data-tx-id="' + esc(tx.id) + '" class="' + cls + '" ' +
-          'style="display:flex;align-items:center;gap:10px;padding:12px;background:#fff;' +
-          'border-radius:10px;margin-bottom:8px;box-shadow:0 1px 3px rgba(0,0,0,.06);cursor:pointer;">' +
-          /* 左側 icon */
-          '<div style="font-size:22px;width:36px;text-align:center;flex-shrink:0;">' + icon + '</div>' +
-          /* 中間資訊 */
-          '<div style="flex:1;min-width:0;">' +
-            '<div style="font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;' +
-              'text-overflow:ellipsis;">' + esc(tx.productName || '未知商品') + '</div>' +
-            '<div style="font-size:12px;color:#94a3b8;margin-top:2px;">' +
-              '<span style="margin-right:8px;">' + esc(label) + '</span>' +
-              'x' + qty + '　' + esc(time) + '</div>' +
+        '<div data-tx-id="' + esc(tx.id) + '" class="inv-tx-card ' + cls + '" style="cursor:pointer;padding:10px 12px;margin-bottom:6px">' +
+          '<div style="display:flex;align-items:center;gap:8px">' +
+            '<div style="font-size:18px;width:28px;text-align:center;flex-shrink:0">' + icon + '</div>' +
+            '<div style="flex:1;min-width:0">' +
+              '<div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(tx.productName || '未知商品') + '</div>' +
+              '<div style="font-size:11px;color:var(--text-muted);margin-top:1px">' +
+                esc(label) + ' x' + qty + ' · ' + esc(shortTime) + '</div>' +
+            '</div>' +
+            '<div style="font-weight:700;font-size:13px;white-space:nowrap;color:' +
+              (type === 'return' || type === 'waste' ? 'var(--danger)' : 'var(--text-primary)') + '">' +
+              (type === 'return' || type === 'waste' ? '-' : '') + InvApp.formatCurrency(amt) + '</div>' +
           '</div>' +
-          /* 右側金額 */
-          '<div style="font-weight:700;font-size:14px;white-space:nowrap;' +
-            'color:' + (type === 'return' || type === 'waste' ? '#dc2626' : '#334155') + ';">' +
-            (type === 'return' || type === 'waste' ? '-' : '') + InvApp.formatCurrency(amt) + '</div>' +
         '</div>' +
-        /* 展開詳情（預設隱藏） */
-        '<div class="inv-tx-detail" style="display:none;background:#f8fafc;border-radius:0 0 10px 10px;' +
-          'padding:10px 14px;margin-top:-8px;margin-bottom:8px;font-size:12px;color:#64748b;">' +
+        '<div class="inv-tx-detail" style="display:none;background:var(--bg-elevated);border-radius:0 0 10px 10px;' +
+          'padding:8px 12px;margin-top:-6px;margin-bottom:6px;font-size:11px;color:var(--text-muted)">' +
           (tx.receiptNo ? '<div>單號：' + esc(tx.receiptNo) + '</div>' : '') +
           (tx.paymentMethod ? '<div>付款：' + esc(tx.paymentMethod) + '</div>' : '') +
           (tx.operatorName ? '<div>操作人：' + esc(tx.operatorName) + '</div>' : '') +
@@ -194,9 +189,9 @@ const InvTransactions = {
     }
     var net = saleTotal - returnTotal;
     return (
-      '<div style="background:#f1f5f9;border-radius:12px;padding:14px;margin-top:12px;">' +
-        '<div style="font-size:13px;font-weight:600;color:#334155;margin-bottom:8px;">期間統計</div>' +
-        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:13px;">' +
+      '<div class="inv-card" style="margin-top:12px">' +
+        '<div style="font-size:13px;font-weight:600;color:var(--text-primary);margin-bottom:8px">期間統計</div>' +
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:13px">' +
           '<div>銷售 <b>' + saleCount + '</b> 筆</div>' +
           '<div style="text-align:right;color:#0d9488;font-weight:600;">' +
             InvApp.formatCurrency(saleTotal) + '</div>' +

@@ -34,8 +34,10 @@ const InvSettings = {
     }
     var esc = InvApp.escapeHTML;
     var h4 = function (t) { return '<h4 style="margin:0 0 10px;font-size:15px;color:#334155;">' + t + '</h4>'; };
+    // 店名 fallback：若有亂碼或空值一律顯示 ToosterX
+    var shopName = (cfg.shopName && /^[\x20-\x7E\u4e00-\u9fff]+$/.test(cfg.shopName)) ? cfg.shopName : 'ToosterX';
     c.innerHTML = '<div style="padding:16px;">' +
-      this._card(h4('店鋪資訊') + '<div style="font-size:14px;color:var(--text-secondary);">店名：<b>' + esc(cfg.shopName || 'ToosterX') + '</b></div>') +
+      this._card(h4('店鋪資訊') + '<div style="font-size:14px;color:var(--text-secondary);">店名：<b>' + esc(shopName) + '</b></div>') +
       this._card(h4('管理員白名單') + '<div id="inv-admin-list"></div>') +
       this._card(h4('商品分類管理') + '<div id="inv-category-list"></div>') +
       this._card(h4('工具') +
