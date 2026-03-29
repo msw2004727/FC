@@ -70,13 +70,13 @@ const InvSettings = {
     for (var i = 0; i < uids.length; i++) {
       var u = uids[i], isMe = u === myUid;
       if (isMe) {
-        html += '<div style="display:inline-flex;align-items:center;gap:6px;padding:6px 14px;margin:4px;border-radius:999px;background:var(--accent-light);border:1.5px solid var(--accent);font-size:13px;font-weight:600;color:var(--accent)">'
-          + esc(u.slice(0, 8)) + '...'
-          + '<span style="background:var(--accent);color:#fff;padding:1px 8px;border-radius:999px;font-size:11px">你</span></div>';
+        html += '<div style="display:flex;align-items:center;gap:8px;padding:8px 14px;margin-bottom:6px;border-radius:var(--radius-sm);background:var(--accent-light);border:1.5px solid var(--accent)">'
+          + '<span style="flex:1;font-size:12px;font-weight:600;color:var(--accent);word-break:break-all">' + esc(u) + '</span>'
+          + '<span style="flex-shrink:0;background:var(--accent);color:#fff;padding:2px 10px;border-radius:999px;font-size:11px;font-weight:600">你</span></div>';
       } else {
-        html += '<div style="display:inline-flex;align-items:center;gap:6px;padding:6px 14px;margin:4px;border-radius:999px;background:var(--bg-elevated);border:1px solid var(--border);font-size:13px;color:var(--text-secondary)">'
-          + esc(u.slice(0, 8)) + '...'
-          + '<button onclick="InvSettings.removeAdmin(\'' + esc(u) + '\')" style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:14px;padding:0 2px">✕</button></div>';
+        html += '<div style="display:flex;align-items:center;gap:8px;padding:8px 14px;margin-bottom:6px;border-radius:var(--radius-sm);background:var(--bg-elevated);border:1px solid var(--border)">'
+          + '<span style="flex:1;font-size:12px;color:var(--text-secondary);word-break:break-all">' + esc(u) + '</span>'
+          + '<button onclick="InvSettings.removeAdmin(\'' + esc(u) + '\')" style="flex-shrink:0;background:none;border:none;color:var(--danger);cursor:pointer;font-size:16px;padding:0 4px">✕</button></div>';
       }
     }
     html += '<div style="display:flex;gap:8px;margin-top:10px;">' +
