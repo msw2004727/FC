@@ -35,7 +35,7 @@ const InvSettings = {
     var esc = InvApp.escapeHTML;
     var h4 = function (t) { return '<h4 style="margin:0 0 10px;font-size:15px;color:#334155;">' + t + '</h4>'; };
     c.innerHTML = '<div style="padding:16px;">' +
-      this._card(h4('店鋪資訊') + '<div style="font-size:14px;color:#64748b;">店名：<b>' + esc(cfg.shopName || '未設定') + '</b></div>') +
+      this._card(h4('店鋪資訊') + '<div style="font-size:14px;color:var(--text-secondary);">店名：<b>' + esc(cfg.shopName || 'ToosterX') + '</b></div>') +
       this._card(h4('管理員白名單') + '<div id="inv-admin-list"></div>') +
       this._card(h4('商品分類管理') + '<div id="inv-category-list"></div>') +
       this._card(h4('工具') +
@@ -57,10 +57,15 @@ const InvSettings = {
     var esc = InvApp.escapeHTML, myUid = InvAuth.getUid(), html = '';
     for (var i = 0; i < uids.length; i++) {
       var u = uids[i], isMe = u === myUid;
-      html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f0f0f0;font-size:13px;">' +
-        '<span style="word-break:break-all;flex:1;color:#334155;">' + esc(u) + (isMe ? ' <span style="color:#0d9488;font-size:11px;">(你)</span>' : '') + '</span>' +
-        (isMe ? '' : '<button onclick="InvSettings.removeAdmin(\'' + esc(u) + '\')" style="flex-shrink:0;margin-left:8px;padding:4px 10px;border:1px solid #fca5a5;border-radius:6px;background:#fff;color:#dc2626;font-size:12px;cursor:pointer;">移除</button>') +
-        '</div>';
+      if (isMe) {
+        html += '<div style="display:inline-flex;align-items:center;gap:6px;padding:6px 14px;margin:4px;border-radius:999px;background:var(--accent-light);border:1.5px solid var(--accent);font-size:13px;font-weight:600;color:var(--accent)">'
+          + esc(u.slice(0, 8)) + '...'
+          + '<span style="background:var(--accent);color:#fff;padding:1px 8px;border-radius:999px;font-size:11px">你</span></div>';
+      } else {
+        html += '<div style="display:inline-flex;align-items:center;gap:6px;padding:6px 14px;margin:4px;border-radius:999px;background:var(--bg-elevated);border:1px solid var(--border);font-size:13px;color:var(--text-secondary)">'
+          + esc(u.slice(0, 8)) + '...'
+          + '<button onclick="InvSettings.removeAdmin(\'' + esc(u) + '\')" style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:14px;padding:0 2px">✕</button></div>';
+      }
     }
     html += '<div style="display:flex;gap:8px;margin-top:10px;">' +
       '<input id="inv-new-admin-uid" placeholder="輸入 LINE userId" style="flex:1;padding:8px;border:1px solid #ccc;border-radius:6px;font-size:13px;" />' +

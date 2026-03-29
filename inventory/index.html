@@ -33,7 +33,11 @@
 
   <!-- Top Bar -->
   <header class="inv-topbar" id="inv-topbar" style="display:none">
-    <span class="inv-topbar-title">庫存管理</span>
+    <div style="display:flex;align-items:center;gap:8px">
+      <img src="https://toosterx.com/assets/logo-light.png" alt="logo" style="height:28px" class="inv-logo-light">
+      <img src="https://toosterx.com/assets/logo-dark.png" alt="logo" style="height:28px;display:none" class="inv-logo-dark">
+      <span class="inv-topbar-title">庫存管理</span>
+    </div>
     <div class="inv-topbar-right">
       <div class="inv-toggle-switch" id="inv-theme-toggle" onclick="InvApp.toggleTheme()">
         <div class="inv-toggle-knob"></div>

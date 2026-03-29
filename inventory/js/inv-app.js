@@ -20,6 +20,20 @@ const InvApp = {
     if (titleEl) titleEl.textContent = this._pageTitles[pageId] || '庫存管理';
     document.querySelectorAll('.inv-tab').forEach(function(btn) { btn.classList.toggle('active', btn.dataset.page === pageId); });
     this._closeUserMenu(); window.scrollTo(0, 0);
+    // 頁面切換時觸發對應模組的 render
+    this._renderPage(pageId);
+  },
+
+  _renderPage(pageId) {
+    switch (pageId) {
+      case 'page-dashboard': if (typeof InvDashboard !== 'undefined') InvDashboard.render(); break;
+      case 'page-stock-in': if (typeof InvStockIn !== 'undefined') InvStockIn.render(); break;
+      case 'page-sale': if (typeof InvSale !== 'undefined') InvSale.render(); break;
+      case 'page-products': if (typeof InvProducts !== 'undefined') InvProducts.renderProductList('inv-products-content'); break;
+      case 'page-transactions': if (typeof InvTransactions !== 'undefined') InvTransactions.render(); break;
+      case 'page-stocktake': if (typeof InvStocktake !== 'undefined') InvStocktake.render(); break;
+      case 'page-settings': if (typeof InvSettings !== 'undefined') InvSettings.render(); break;
+    }
   },
 
   goBack() {

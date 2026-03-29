@@ -112,16 +112,15 @@ const InvDashboard = {
     return this._todayTxCache;
   },
 
-  /** 產生橫向捲動的統計卡片 HTML */
+  /** 產生 2x2 grid 統計卡片 HTML */
   _renderStatCards(stats) {
-    var html = '<div style="display:flex;gap:10px;overflow-x:auto;padding-bottom:6px;-webkit-overflow-scrolling:touch;">';
+    var html = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">';
     for (var i = 0; i < stats.length; i++) {
       var s = stats[i];
       html +=
-        '<div style="min-width:140px;flex-shrink:0;background:#fff;border-radius:12px;' +
-          'padding:14px;box-shadow:0 1px 3px rgba(0,0,0,.08);">' +
-          '<div style="font-size:12px;color:#64748b;">' + InvApp.escapeHTML(s.label) + '</div>' +
-          '<div style="font-size:20px;font-weight:700;color:' + s.color + ';margin-top:4px;">' +
+        '<div class="inv-stat-card">' +
+          '<div class="inv-stat-label">' + InvApp.escapeHTML(s.label) + '</div>' +
+          '<div class="inv-stat-value" style="color:' + s.color + '">' +
             InvApp.escapeHTML(s.value) + '</div>' +
         '</div>';
     }
