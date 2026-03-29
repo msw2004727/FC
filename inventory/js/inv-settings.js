@@ -5,13 +5,13 @@
 const InvSettings = {
   _cfgRef: function () { return db.collection('inv_settings').doc('config'); },
   _card: function (inner) {
-    return '<div style="background:#fff;border-radius:12px;padding:16px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,.08);">' + inner + '</div>';
+    return '<div style="background:var(--bg-card);border-radius:12px;padding:16px;margin-bottom:12px;box-shadow:var(--shadow);">' + inner + '</div>';
   },
   _overlay: function (id, inner) {
     var el = document.createElement('div');
     el.id = id;
     el.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;z-index:5000;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.35);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);';
-    el.innerHTML = '<div style="background:#fff;border-radius:16px;box-shadow:0 8px 32px rgba(0,0,0,.15);width:90%;max-width:360px;padding:20px;">' + inner + '</div>';
+    el.innerHTML = '<div style="background:var(--bg-card);border-radius:16px;box-shadow:var(--shadow-lg);width:90%;max-width:360px;padding:20px;">' + inner + '</div>';
     document.body.appendChild(el);
     el.addEventListener('touchmove', function (e) {
       if (!e.target.closest('[style*="border-radius:16px"]')) { e.preventDefault(); e.stopPropagation(); }
@@ -23,13 +23,13 @@ const InvSettings = {
   async render() {
     var c = document.getElementById('inv-settings-content');
     if (!c) return;
-    c.innerHTML = '<div style="text-align:center;padding:40px;color:#999;">載入中...</div>';
+    c.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted);">載入中...</div>';
     try {
       var doc = await this._cfgRef().get();
       var cfg = doc.exists ? doc.data() : {};
     } catch (e) {
       console.error('[InvSettings] render failed:', e);
-      c.innerHTML = '<div style="padding:40px;text-align:center;color:#f44336;">設定載入失敗</div>';
+      c.innerHTML = '<div style="padding:40px;text-align:center;color:var(--danger);">設定載入失敗</div>';
       return;
     }
     var esc = InvApp.escapeHTML;
@@ -202,19 +202,19 @@ const InvSettings = {
     var esc = InvApp.escapeHTML, html = '';
     for (var i = 0; i < cats.length; i++) {
       var c = cats[i];
-      html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f0f0f0;font-size:14px;">' +
+      html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:14px;">' +
         '<div style="display:flex;align-items:center;gap:8px;flex:1;">' +
-          '<span style="color:#64748b;font-size:12px;min-width:20px;">' + (i + 1) + '</span>' +
-          '<span style="color:#334155;">' + esc(c) + '</span></div>' +
+          '<span style="color:var(--text-secondary);font-size:12px;min-width:20px;">' + (i + 1) + '</span>' +
+          '<span style="color:var(--text-primary);">' + esc(c) + '</span></div>' +
         '<div style="display:flex;gap:4px;flex-shrink:0;">' +
-          (i > 0 ? '<button onclick="InvSettings._moveCategory(' + i + ',-1)" style="border:1px solid #e2e8f0;background:#fff;border-radius:4px;padding:2px 6px;cursor:pointer;font-size:12px;">&#9650;</button>' : '') +
-          (i < cats.length - 1 ? '<button onclick="InvSettings._moveCategory(' + i + ',1)" style="border:1px solid #e2e8f0;background:#fff;border-radius:4px;padding:2px 6px;cursor:pointer;font-size:12px;">&#9660;</button>' : '') +
-          '<button onclick="InvSettings.removeCategory(\'' + esc(c).replace(/'/g, "\\'") + '\')" style="border:1px solid #fca5a5;background:#fff;border-radius:4px;padding:2px 8px;cursor:pointer;font-size:12px;color:#dc2626;">&#10005;</button>' +
+          (i > 0 ? '<button onclick="InvSettings._moveCategory(' + i + ',-1)" style="border:1px solid var(--border);background:var(--bg-card);border-radius:4px;padding:2px 6px;cursor:pointer;font-size:12px;">&#9650;</button>' : '') +
+          (i < cats.length - 1 ? '<button onclick="InvSettings._moveCategory(' + i + ',1)" style="border:1px solid var(--border);background:var(--bg-card);border-radius:4px;padding:2px 6px;cursor:pointer;font-size:12px;">&#9660;</button>' : '') +
+          '<button onclick="InvSettings.removeCategory(\'' + esc(c).replace(/'/g, "\\'") + '\')" style="border:1px solid var(--danger);background:var(--bg-card);border-radius:4px;padding:2px 8px;cursor:pointer;font-size:12px;color:var(--danger);">&#10005;</button>' +
         '</div></div>';
     }
     html += '<div style="display:flex;gap:8px;margin-top:10px;">' +
-      '<input id="inv-new-category" placeholder="新分類名稱" style="flex:1;padding:8px;border:1px solid #ccc;border-radius:6px;font-size:13px;" />' +
-      '<button onclick="InvSettings.addCategory()" style="flex-shrink:0;padding:8px 14px;border:none;border-radius:6px;background:#0d9488;color:#fff;font-size:13px;cursor:pointer;">新增</button></div>';
+      '<input id="inv-new-category" placeholder="新分類名稱" style="flex:1;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;" />' +
+      '<button onclick="InvSettings.addCategory()" style="flex-shrink:0;padding:8px 14px;border:none;border-radius:6px;background:var(--accent);color:#fff;font-size:13px;cursor:pointer;">新增</button></div>';
     w.innerHTML = html;
   },
 
@@ -253,15 +253,15 @@ const InvSettings = {
 
   // ══════ 條碼生成/列印 ══════
   _promptBarcodePrint: function () {
-    var iS = 'width:100%;padding:8px;margin-bottom:10px;border:1px solid #ccc;border-radius:6px;box-sizing:border-box;';
+    var iS = 'width:100%;padding:8px;margin-bottom:10px;border:1px solid var(--border);border-radius:6px;box-sizing:border-box;';
     var ol = this._overlay('inv-barcode-prompt',
       '<h3 style="margin:0 0 14px;font-size:16px;">條碼列印</h3>' +
-      '<label style="font-size:13px;color:#666;">條碼</label><input id="bp-barcode" style="' + iS + '" placeholder="掃碼或手動輸入" />' +
-      '<label style="font-size:13px;color:#666;">品名</label><input id="bp-name" style="' + iS + '" placeholder="商品名稱" />' +
-      '<label style="font-size:13px;color:#666;">售價</label><input id="bp-price" type="number" style="' + iS.replace('10px','16px') + '" placeholder="0" />' +
+      '<label style="font-size:13px;color:var(--text-muted);">條碼</label><input id="bp-barcode" style="' + iS + '" placeholder="掃碼或手動輸入" />' +
+      '<label style="font-size:13px;color:var(--text-muted);">品名</label><input id="bp-name" style="' + iS + '" placeholder="商品名稱" />' +
+      '<label style="font-size:13px;color:var(--text-muted);">售價</label><input id="bp-price" type="number" style="' + iS.replace('10px','16px') + '" placeholder="0" />' +
       '<div style="display:flex;gap:8px;">' +
-        '<button id="bp-cancel" style="flex:1;padding:10px;border:1px solid #ccc;border-radius:8px;background:#fff;cursor:pointer;">取消</button>' +
-        '<button id="bp-ok" style="flex:1;padding:10px;border:none;border-radius:8px;background:#0d9488;color:#fff;cursor:pointer;">預覽</button></div>'
+        '<button id="bp-cancel" style="flex:1;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--bg-card);cursor:pointer;">取消</button>' +
+        '<button id="bp-ok" style="flex:1;padding:10px;border:none;border-radius:8px;background:var(--accent);color:#fff;cursor:pointer;">預覽</button></div>'
     );
     document.getElementById('bp-cancel').addEventListener('click', function () { ol.remove(); });
     document.getElementById('bp-ok').addEventListener('click', function () {
@@ -280,14 +280,14 @@ const InvSettings = {
       '<div id="bp-label" style="display:inline-block;border:1px dashed #ccc;padding:8px 12px;width:50mm;min-height:25mm;box-sizing:border-box;">' +
         '<div style="font-size:11px;font-weight:600;margin-bottom:4px;">' + esc(productName || '') + '</div>' +
         '<canvas id="bp-canvas" width="180" height="60" style="display:block;margin:0 auto;"></canvas>' +
-        '<div style="font-size:10px;color:#333;margin-top:2px;">' + esc(barcode) + '</div>' +
+        '<div style="font-size:10px;color:var(--text-primary);margin-top:2px;">' + esc(barcode) + '</div>' +
         (sellPrice ? '<div style="font-size:12px;font-weight:700;margin-top:2px;">NT$ ' + sellPrice + '</div>' : '') +
       '</div>';
     var ol = this._overlay('inv-barcode-print',
       '<div style="text-align:center;"><h3 style="margin:0 0 12px;font-size:16px;">條碼預覽</h3>' + labelHtml +
       '<div style="display:flex;gap:8px;margin-top:16px;">' +
-        '<button id="bp-close" style="flex:1;padding:10px;border:1px solid #ccc;border-radius:8px;background:#fff;cursor:pointer;">關閉</button>' +
-        '<button id="bp-print" style="flex:1;padding:10px;border:none;border-radius:8px;background:#0d9488;color:#fff;cursor:pointer;">列印</button></div></div>'
+        '<button id="bp-close" style="flex:1;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--bg-card);cursor:pointer;">關閉</button>' +
+        '<button id="bp-print" style="flex:1;padding:10px;border:none;border-radius:8px;background:var(--accent);color:#fff;cursor:pointer;">列印</button></div></div>'
     );
     this._drawBarcode(document.getElementById('bp-canvas'), barcode);
     document.getElementById('bp-close').addEventListener('click', function () { ol.remove(); });

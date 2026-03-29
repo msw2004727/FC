@@ -116,7 +116,7 @@ const InvProducts = {
     }
 
     if (list.length === 0) {
-      container.innerHTML = '<div style="text-align:center;color:#999;padding:40px 0;">目前沒有商品</div>';
+      container.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:40px 0;">目前沒有商品</div>';
       return;
     }
 
@@ -130,12 +130,12 @@ const InvProducts = {
       var meta = [p.color, p.size].filter(Boolean).map(esc).join(' / ');
       html +=
         '<div class="inv-product-card" data-barcode="' + esc(p.barcode) + '" ' +
-          'style="display:flex;align-items:center;gap:12px;padding:12px;border:1px solid #eee;border-radius:10px;margin-bottom:8px;cursor:pointer;background:#fff;">' +
+          'style="display:flex;align-items:center;gap:12px;padding:12px;border:1px solid var(--border);border-radius:10px;margin-bottom:8px;cursor:pointer;background:var(--bg-card);">' +
           '<div style="flex:1;min-width:0;">' +
             '<div style="font-weight:600;font-size:15px;">' + esc(p.name) + '</div>' +
-            (p.brand ? '<div style="font-size:13px;color:#666;">' + esc(p.brand) + '</div>' : '') +
-            (meta ? '<div style="font-size:12px;color:#999;">' + meta + '</div>' : '') +
-            '<div style="font-size:14px;color:#333;margin-top:2px;">' + InvApp.formatCurrency(p.price) + '</div>' +
+            (p.brand ? '<div style="font-size:13px;color:var(--text-muted);">' + esc(p.brand) + '</div>' : '') +
+            (meta ? '<div style="font-size:12px;color:var(--text-muted);">' + meta + '</div>' : '') +
+            '<div style="font-size:14px;color:var(--text-primary);margin-top:2px;">' + InvApp.formatCurrency(p.price) + '</div>' +
           '</div>' +
           '<div style="background:' + bc + ';color:#fff;padding:4px 10px;border-radius:12px;font-size:13px;font-weight:600;">' + bt + '</div>' +
         '</div>';
@@ -161,14 +161,14 @@ const InvProducts = {
 
     var p = this.getByBarcode(barcode);
     if (!p) {
-      container.innerHTML = '<div style="text-align:center;padding:40px;color:#999;">找不到商品</div>';
+      container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted);">找不到商品</div>';
       return;
     }
 
     var al = p.lowStockAlert || 5;
     var sc = p.stock > al ? '#4CAF50' : (p.stock > 0 ? '#f44336' : '#9e9e9e');
     var esc = InvApp.escapeHTML;
-    var row = function (label, val) { return '<div><span style="color:#999;">' + label + '</span><br>' + val + '</div>'; };
+    var row = function (label, val) { return '<div><span style="color:var(--text-muted);">' + label + '</span><br>' + val + '</div>'; };
     var html =
       '<div style="padding:16px;">' +
         '<h3 style="margin:0 0 12px;">' + esc(p.name) + '</h3>' +
@@ -176,12 +176,12 @@ const InvProducts = {
           row('\u689d\u78bc', esc(p.barcode)) + row('\u54c1\u724c', esc(p.brand || '-')) +
           row('\u5206\u985e', esc(p.category || '-')) + row('\u984f\u8272/\u5c3a\u5bf8', esc(p.color || '-') + ' / ' + esc(p.size || '-')) +
           row('\u9032\u8ca8\u50f9', InvApp.formatCurrency(p.costPrice)) + row('\u552e\u50f9', InvApp.formatCurrency(p.price)) +
-          '<div><span style="color:#999;">\u5eab\u5b58</span><br><span style="color:' + sc + ';font-weight:700;font-size:18px;">' +
-            (p.stock || 0) + '</span> <span style="font-size:12px;color:#999;">/ \u4f4e\u5eab\u5b58: ' + al + '</span></div>' +
+          '<div><span style="color:var(--text-muted);">\u5eab\u5b58</span><br><span style="color:' + sc + ';font-weight:700;font-size:18px;">' +
+            (p.stock || 0) + '</span> <span style="font-size:12px;color:var(--text-muted);">/ \u4f4e\u5eab\u5b58: ' + al + '</span></div>' +
         '</div>' +
-        '<button id="btn-edit-product" style="margin-top:16px;padding:10px 20px;border:none;border-radius:8px;background:#2196F3;color:#fff;font-size:15px;cursor:pointer;width:100%;">\u7de8\u8f2f\u5546\u54c1</button>' +
+        '<button id="btn-edit-product" style="margin-top:16px;padding:10px 20px;border:none;border-radius:8px;background:var(--accent);color:#fff;font-size:15px;cursor:pointer;width:100%;">\u7de8\u8f2f\u5546\u54c1</button>' +
         '<h4 style="margin:20px 0 8px;">\u7570\u52d5\u6b77\u53f2</h4>' +
-        '<div id="inv-product-tx-list" style="color:#999;font-size:14px;">\u8f09\u5165\u4e2d...</div>' +
+        '<div id="inv-product-tx-list" style="color:var(--text-muted);font-size:14px;">\u8f09\u5165\u4e2d...</div>' +
       '</div>';
     container.innerHTML = html;
 
@@ -209,7 +209,7 @@ const InvProducts = {
         .get();
 
       if (snap.empty) {
-        txContainer.innerHTML = '<div style="color:#999;">尚無異動紀錄</div>';
+        txContainer.innerHTML = '<div style="color:var(--text-muted);">尚無異動紀錄</div>';
         return;
       }
 
@@ -219,15 +219,15 @@ const InvProducts = {
         var sign = tx.delta > 0 ? '+' : '', color = tx.delta > 0 ? '#4CAF50' : '#f44336';
         var tl = tx.type === 'in' ? '\u5165\u5eab' : (tx.type === 'sale' ? '\u92b7\u552e' : (tx.type || '-'));
         var tm = tx.createdAt ? InvApp.formatDate(tx.createdAt.toDate()) : '-';
-        html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #f0f0f0;font-size:13px;">' +
-          '<div><span style="color:#666;">' + InvApp.escapeHTML(tl) + '</span><span style="color:#999;margin-left:8px;">' + tm + '</span></div>' +
+        html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px;">' +
+          '<div><span style="color:var(--text-muted);">' + InvApp.escapeHTML(tl) + '</span><span style="color:var(--text-muted);margin-left:8px;">' + tm + '</span></div>' +
           '<div><span style="color:' + color + ';font-weight:600;">' + sign + tx.delta + '</span>' +
-          '<span style="color:#999;margin-left:6px;">' + tx.beforeStock + ' \u2192 ' + tx.afterStock + '</span></div></div>';
+          '<span style="color:var(--text-muted);margin-left:6px;">' + tx.beforeStock + ' \u2192 ' + tx.afterStock + '</span></div></div>';
       });
       txContainer.innerHTML = html;
     } catch (e) {
       console.error('[InvProducts] _loadTransactions failed:', e);
-      txContainer.innerHTML = '<div style="color:#f44336;">異動紀錄載入失敗</div>';
+      txContainer.innerHTML = '<div style="color:var(--danger);">異動紀錄載入失敗</div>';
     }
   },
 

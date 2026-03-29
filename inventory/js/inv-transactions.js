@@ -132,7 +132,7 @@ const InvTransactions = {
    */
   renderList: function (transactions) {
     if (!transactions.length) {
-      return '<div style="text-align:center;padding:40px 0;color:#94a3b8;font-size:14px;">' +
+      return '<div style="text-align:center;padding:40px 0;color:var(--text-muted);font-size:14px;">' +
         '此期間無交易紀錄</div>';
     }
     var esc = InvApp.escapeHTML, html = '';
@@ -193,13 +193,13 @@ const InvTransactions = {
         '<div style="font-size:13px;font-weight:600;color:var(--text-primary);margin-bottom:8px">期間統計</div>' +
         '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:13px">' +
           '<div>銷售 <b>' + saleCount + '</b> 筆</div>' +
-          '<div style="text-align:right;color:#0d9488;font-weight:600;">' +
+          '<div style="text-align:right;color:var(--accent);font-weight:600;">' +
             InvApp.formatCurrency(saleTotal) + '</div>' +
           '<div>退貨 <b>' + returnCount + '</b> 筆</div>' +
-          '<div style="text-align:right;color:#f97316;font-weight:600;">-' +
+          '<div style="text-align:right;color:var(--warning);font-weight:600;">-' +
             InvApp.formatCurrency(returnTotal) + '</div>' +
-          '<div style="border-top:1px solid #cbd5e1;padding-top:6px;">淨收入</div>' +
-          '<div style="border-top:1px solid #cbd5e1;padding-top:6px;text-align:right;' +
+          '<div style="border-top:1px solid var(--border);padding-top:6px;">淨收入</div>' +
+          '<div style="border-top:1px solid var(--border);padding-top:6px;text-align:right;' +
             'font-weight:700;color:' + (net >= 0 ? '#16a34a' : '#dc2626') + ';">' +
             InvApp.formatCurrency(net) + '</div>' +
         '</div>' +

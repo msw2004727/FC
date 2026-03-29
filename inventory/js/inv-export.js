@@ -79,17 +79,17 @@ const InvExport = {
   async renderStats(containerId) {
     var c = document.getElementById(containerId);
     if (!c) return;
-    c.innerHTML = '<div style="text-align:center;padding:24px;color:#999;">統計載入中...</div>';
+    c.innerHTML = '<div style="text-align:center;padding:24px;color:var(--text-muted);">統計載入中...</div>';
     try {
       var h = '<div style="padding:16px;">' +
-        '<h4 style="margin:0 0 10px;font-size:15px;color:#334155;">今日報表</h4>' + await this._renderDailyReport() +
-        '<h4 style="margin:20px 0 10px;font-size:15px;color:#334155;">本週銷售趨勢</h4>' + await this._renderWeeklyChart() +
-        '<h4 style="margin:20px 0 10px;font-size:15px;color:#334155;">本月摘要</h4>' + await this._renderMonthlySummary() +
+        '<h4 style="margin:0 0 10px;font-size:15px;color:var(--text-primary);">今日報表</h4>' + await this._renderDailyReport() +
+        '<h4 style="margin:20px 0 10px;font-size:15px;color:var(--text-primary);">本週銷售趨勢</h4>' + await this._renderWeeklyChart() +
+        '<h4 style="margin:20px 0 10px;font-size:15px;color:var(--text-primary);">本月摘要</h4>' + await this._renderMonthlySummary() +
         '</div>';
       c.innerHTML = h;
     } catch (e) {
       console.error('[InvExport] renderStats failed:', e);
-      c.innerHTML = '<div style="text-align:center;padding:24px;color:#f44336;">統計載入失敗</div>';
+      c.innerHTML = '<div style="text-align:center;padding:24px;color:var(--danger);">統計載入失敗</div>';
     }
   },
 
@@ -106,14 +106,14 @@ const InvExport = {
       groups[label].amount += Number(t.totalAmount) || 0;
     });
     var keys = Object.keys(groups);
-    if (!keys.length) return '<div style="padding:12px;text-align:center;color:#999;font-size:14px;">今日尚無交易</div>';
+    if (!keys.length) return '<div style="padding:12px;text-align:center;color:var(--text-muted);font-size:14px;">今日尚無交易</div>';
     var html = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">';
     for (var j = 0; j < keys.length; j++) {
       var k = keys[j], g = groups[k];
-      html += '<div style="background:#fff;border-radius:10px;padding:12px;box-shadow:0 1px 3px rgba(0,0,0,.08);">' +
-        '<div style="font-size:12px;color:#64748b;">' + InvApp.escapeHTML(k) + '</div>' +
-        '<div style="font-size:16px;font-weight:700;color:#334155;">' + g.count + ' 筆</div>' +
-        '<div style="font-size:13px;color:#0d9488;">' + InvApp.formatCurrency(g.amount) + '</div></div>';
+      html += '<div style="background:var(--bg-card);border-radius:10px;padding:12px;box-shadow:var(--shadow);">' +
+        '<div style="font-size:12px;color:var(--text-secondary);">' + InvApp.escapeHTML(k) + '</div>' +
+        '<div style="font-size:16px;font-weight:700;color:var(--text-primary);">' + g.count + ' 筆</div>' +
+        '<div style="font-size:13px;color:var(--accent);">' + InvApp.formatCurrency(g.amount) + '</div></div>';
     }
     return html + '</div>';
   },
@@ -122,15 +122,15 @@ const InvExport = {
   async _renderWeeklyChart() {
     var data = await this._getWeeklyData(), max = 1;
     for (var i = 0; i < data.length; i++) if (data[i].amount > max) max = data[i].amount;
-    var html = '<div style="background:#fff;border-radius:12px;padding:14px;box-shadow:0 1px 3px rgba(0,0,0,.08);">';
+    var html = '<div style="background:var(--bg-card);border-radius:12px;padding:14px;box-shadow:var(--shadow);">';
     for (var j = 0; j < data.length; j++) {
       var d = data[j], pct = Math.round((d.amount / max) * 100);
       html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:13px;">' +
-        '<div style="width:42px;color:#64748b;text-align:right;">' + d.label + '</div>' +
-        '<div style="flex:1;background:#e2e8f0;border-radius:4px;height:20px;overflow:hidden;">' +
-        '<div style="width:' + pct + '%;height:100%;background:#0d9488;border-radius:4px;' +
+        '<div style="width:42px;color:var(--text-secondary);text-align:right;">' + d.label + '</div>' +
+        '<div style="flex:1;background:var(--bg-elevated);border-radius:4px;height:20px;overflow:hidden;">' +
+        '<div style="width:' + pct + '%;height:100%;background:var(--accent);border-radius:4px;' +
         'min-width:' + (d.amount > 0 ? '2px' : '0') + ';"></div></div>' +
-        '<div style="width:80px;text-align:right;color:#334155;font-weight:600;">' +
+        '<div style="width:80px;text-align:right;color:var(--text-primary);font-weight:600;">' +
         InvApp.formatCurrency(d.amount) + '</div></div>';
     }
     return html + '</div>';
@@ -164,37 +164,37 @@ const InvExport = {
 
     // 熱銷 TOP 5
     var top5 = Object.values(barcodeMap).sort(function (a, b) { return b.qty - a.qty; }).slice(0, 5);
-    html += '<div style="font-size:13px;color:#64748b;margin:12px 0 6px;">熱銷 TOP 5</div>';
+    html += '<div style="font-size:13px;color:var(--text-secondary);margin:12px 0 6px;">熱銷 TOP 5</div>';
     if (!top5.length) {
-      html += '<div style="padding:8px;color:#999;font-size:13px;">本月尚無銷售紀錄</div>';
+      html += '<div style="padding:8px;color:var(--text-muted);font-size:13px;">本月尚無銷售紀錄</div>';
     } else {
       for (var j = 0; j < top5.length; j++) {
         html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;' +
-          'background:#fff;border-radius:8px;margin-bottom:4px;font-size:14px;box-shadow:0 1px 2px rgba(0,0,0,.05);">' +
-          '<span style="color:#334155;"><b>' + (j + 1) + '.</b> ' + InvApp.escapeHTML(top5[j].name) + '</span>' +
-          '<span style="color:#0d9488;font-weight:600;">' + top5[j].qty + ' 件</span></div>';
+          'background:var(--bg-card);border-radius:8px;margin-bottom:4px;font-size:14px;box-shadow:var(--shadow-sm);">' +
+          '<span style="color:var(--text-primary);"><b>' + (j + 1) + '.</b> ' + InvApp.escapeHTML(top5[j].name) + '</span>' +
+          '<span style="color:var(--accent);font-weight:600;">' + top5[j].qty + ' 件</span></div>';
       }
     }
     // 滯銷提醒
     var stale = this._getStaleProducts();
-    html += '<div style="font-size:13px;color:#64748b;margin:16px 0 6px;">滯銷提醒（30 天未異動）</div>';
+    html += '<div style="font-size:13px;color:var(--text-secondary);margin:16px 0 6px;">滯銷提醒（30 天未異動）</div>';
     if (!stale.length) {
-      html += '<div style="padding:8px;color:#16a34a;font-size:13px;">目前無滯銷商品</div>';
+      html += '<div style="padding:8px;color:var(--success);font-size:13px;">目前無滯銷商品</div>';
     } else {
       for (var k = 0; k < stale.length; k++) {
         html += '<div style="display:flex;justify-content:space-between;padding:8px 12px;' +
-          'background:#fff7ed;border:1px solid #fdba74;border-radius:8px;margin-bottom:4px;font-size:13px;">' +
+          'background:var(--warning-light);border:1px solid var(--warning);border-radius:8px;margin-bottom:4px;font-size:13px;">' +
           '<span>' + InvApp.escapeHTML(stale[k].name) + '</span>' +
-          '<span style="color:#f97316;">庫存 ' + (stale[k].stock || 0) + '</span></div>';
+          '<span style="color:var(--warning);">庫存 ' + (stale[k].stock || 0) + '</span></div>';
       }
     }
     return html;
   },
 
   _statBox(label, value, color) {
-    return '<div style="background:#fff;border-radius:10px;padding:12px;text-align:center;' +
-      'box-shadow:0 1px 3px rgba(0,0,0,.08);">' +
-      '<div style="font-size:11px;color:#64748b;">' + InvApp.escapeHTML(label) + '</div>' +
+    return '<div style="background:var(--bg-card);border-radius:10px;padding:12px;text-align:center;' +
+      'box-shadow:var(--shadow);">' +
+      '<div style="font-size:11px;color:var(--text-secondary);">' + InvApp.escapeHTML(label) + '</div>' +
       '<div style="font-size:16px;font-weight:700;color:' + color + ';margin-top:4px;">' +
       InvApp.escapeHTML(String(value)) + '</div></div>';
   },

@@ -10,7 +10,7 @@ const InvDashboard = {
     var container = document.getElementById('inv-dashboard-content');
     if (!container) return;
 
-    container.innerHTML = '<div style="text-align:center;padding:40px;color:#999;">載入中...</div>';
+    container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted);">載入中...</div>';
 
     // 確保商品快取已載入
     if (!InvProducts._cache.length) {
@@ -132,8 +132,8 @@ const InvDashboard = {
   /** 產生低庫存警示列表 HTML */
   _renderLowStockAlerts(products) {
     if (!products.length) {
-      return '<div style="text-align:center;padding:20px;color:#16a34a;font-size:14px;' +
-        'background:#f0fdf4;border-radius:12px;">' +
+      return '<div style="text-align:center;padding:20px;color:var(--success);font-size:14px;' +
+        'background:var(--success-light);border-radius:12px;">' +
         '目前沒有低庫存商品 \u2713</div>';
     }
 
@@ -152,7 +152,7 @@ const InvDashboard = {
           'margin-bottom:8px;cursor:pointer;">' +
           '<div style="min-width:0;flex:1;">' +
             '<div style="font-weight:600;font-size:14px;">' + InvApp.escapeHTML(p.name) + '</div>' +
-            '<div style="font-size:12px;color:#64748b;margin-top:2px;">警示門檻: ' + alert + '</div>' +
+            '<div style="font-size:12px;color:var(--text-secondary);margin-top:2px;">警示門檻: ' + alert + '</div>' +
           '</div>' +
           '<div style="background:' + (stock === 0 ? '#dc2626' : '#f97316') + ';color:#fff;' +
             'padding:4px 10px;border-radius:12px;font-size:13px;font-weight:600;white-space:nowrap;">' +
@@ -176,9 +176,9 @@ const InvDashboard = {
     for (var i = 0; i < items.length; i++) {
       var it = items[i];
       html +=
-        '<div style="background:#fff;border-radius:10px;padding:12px;' +
-          'box-shadow:0 1px 3px rgba(0,0,0,.08);">' +
-          '<div style="font-size:12px;color:#64748b;">' + InvApp.escapeHTML(it.label) + '</div>' +
+        '<div style="background:var(--bg-card);border-radius:10px;padding:12px;' +
+          'box-shadow:var(--shadow);">' +
+          '<div style="font-size:12px;color:var(--text-secondary);">' + InvApp.escapeHTML(it.label) + '</div>' +
           '<div style="font-size:18px;font-weight:700;color:' + it.color + ';margin-top:4px;">' +
             InvApp.escapeHTML(String(it.value)) + '</div>' +
         '</div>';

@@ -19,9 +19,9 @@ const InvStocktake = {
     } catch (e) { console.error('[InvStocktake] check in_progress:', e); }
     container.innerHTML =
       '<div style="padding:16px;"><button id="btn-start-stocktake" style="width:100%;padding:14px;border:none;' +
-      'border-radius:10px;background:#FF9800;color:#fff;font-size:16px;font-weight:600;cursor:pointer;' +
+      'border-radius:10px;background:var(--warning);color:#fff;font-size:16px;font-weight:600;cursor:pointer;' +
       'margin-bottom:16px;">開始盤點</button><h4 style="margin:0 0 8px;">歷史盤點單</h4>' +
-      '<div id="stocktake-history" style="color:#999;font-size:14px;">載入中...</div></div>';
+      '<div id="stocktake-history" style="color:var(--text-muted);font-size:14px;">載入中...</div></div>';
     document.getElementById('btn-start-stocktake').addEventListener('click', this._showScopeDialog.bind(this));
     this._loadHistory();
   },
@@ -33,13 +33,13 @@ const InvStocktake = {
       'align-items:center;justify-content:center;background:rgba(0,0,0,.35);' +
       'backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);';
     overlay.innerHTML =
-      '<div style="background:#fff;border-radius:16px;box-shadow:0 8px 32px rgba(0,0,0,.15);' +
+      '<div style="background:var(--bg-card);border-radius:16px;box-shadow:var(--shadow-lg);' +
       'width:85%;max-width:360px;padding:20px;"><h3 style="margin:0 0 16px;">盤點範圍</h3>' +
       '<button class="st-scope" data-scope="all" style="width:100%;padding:12px;border:1px solid #FF9800;' +
-      'border-radius:8px;background:#fff;color:#FF9800;font-size:15px;font-weight:600;cursor:pointer;' +
+      'border-radius:8px;background:var(--bg-card);color:var(--warning);font-size:15px;font-weight:600;cursor:pointer;' +
       'margin-bottom:8px;">全部商品</button><div id="st-cat-list" style="max-height:40vh;overflow-y:auto;"></div>' +
-      '<button id="st-scope-cancel" style="width:100%;padding:10px;border:1px solid #ccc;border-radius:8px;' +
-      'background:#fff;margin-top:12px;cursor:pointer;">取消</button></div>';
+      '<button id="st-scope-cancel" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;' +
+      'background:var(--bg-card);margin-top:12px;cursor:pointer;">取消</button></div>';
     document.body.appendChild(overlay);
     overlay.addEventListener('touchmove', function (e) {
       if (!e.target.closest('[style*="overflow-y"]')) { e.preventDefault(); e.stopPropagation(); }
@@ -48,7 +48,7 @@ const InvStocktake = {
     InvProducts._cache.forEach(function (p) { if (p.category && cats.indexOf(p.category) === -1) cats.push(p.category); });
     for (var i = 0; i < cats.length; i++) {
       catHtml += '<button class="st-scope" data-scope="category" data-cat="' + esc(cats[i]) + '" style="width:100%;' +
-        'padding:10px;border:1px solid #eee;border-radius:8px;background:#fff;font-size:14px;cursor:pointer;' +
+        'padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--bg-card);font-size:14px;cursor:pointer;' +
         'margin-bottom:6px;text-align:left;">' + esc(cats[i]) + '</button>';
     }
     document.getElementById('st-cat-list').innerHTML = catHtml;
@@ -90,32 +90,32 @@ const InvStocktake = {
     var unconfirmed = items.filter(function (it) { return !it.confirmed; });
     var pct = items.length ? Math.round(confirmed.length / items.length * 100) : 0;
     var html = '<div style="padding:16px;">' +
-      '<div style="text-align:center;margin-bottom:12px;font-size:15px;font-weight:600;color:#FF9800;">' +
+      '<div style="text-align:center;margin-bottom:12px;font-size:15px;font-weight:600;color:var(--warning);">' +
       '盤點進度：' + confirmed.length + ' / ' + items.length + ' 品項</div>' +
-      '<div style="background:#eee;border-radius:6px;height:8px;margin-bottom:16px;">' +
-      '<div style="background:#FF9800;border-radius:6px;height:8px;width:' + pct + '%;"></div></div>' +
+      '<div style="background:var(--bg-elevated);border-radius:6px;height:8px;margin-bottom:16px;">' +
+      '<div style="background:var(--warning);border-radius:6px;height:8px;width:' + pct + '%;"></div></div>' +
       '<div id="st-scanner" style="margin-bottom:16px;"></div>';
     if (confirmed.length) {
       html += '<h4 style="margin:0 0 6px;">已盤 (' + confirmed.length + ')</h4>';
       for (var i = 0; i < confirmed.length; i++) {
         var c = confirmed[i], diff = c.actualStock - c.systemStock, dc = diff !== 0 ? '#f44336' : '#4CAF50';
         html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;' +
-          'border-bottom:1px solid #f0f0f0;font-size:13px;"><span>' + esc(c.productName) + '</span>' +
+          'border-bottom:1px solid var(--border);font-size:13px;"><span>' + esc(c.productName) + '</span>' +
           '<span style="color:' + dc + ';font-weight:600;">實 ' + c.actualStock + ' / 系 ' + c.systemStock +
           (diff !== 0 ? ' (' + (diff > 0 ? '+' : '') + diff + ')' : '') + '</span></div>';
       }
     }
     if (unconfirmed.length) {
-      html += '<h4 style="margin:12px 0 6px;color:#999;">未盤 (' + unconfirmed.length + ')</h4>';
+      html += '<h4 style="margin:12px 0 6px;color:var(--text-muted);">未盤 (' + unconfirmed.length + ')</h4>';
       for (var j = 0; j < unconfirmed.length; j++) {
-        html += '<div style="padding:6px 0;border-bottom:1px solid #f5f5f5;font-size:13px;color:#bbb;">' +
+        html += '<div style="padding:6px 0;border-bottom:1px solid var(--border);font-size:13px;color:var(--text-muted);">' +
           esc(unconfirmed[j].productName) + ' (系統 ' + unconfirmed[j].systemStock + ')</div>';
       }
     }
     html += '<div style="display:flex;gap:8px;margin-top:16px;">' +
-      '<button id="st-pause" style="flex:1;padding:12px;border:1px solid #ccc;border-radius:8px;' +
-      'background:#fff;font-size:15px;cursor:pointer;">暫停盤點</button>' +
-      '<button id="st-finish" style="flex:1;padding:12px;border:none;border-radius:8px;background:#FF9800;' +
+      '<button id="st-pause" style="flex:1;padding:12px;border:1px solid var(--border);border-radius:8px;' +
+      'background:var(--bg-card);font-size:15px;cursor:pointer;">暫停盤點</button>' +
+      '<button id="st-finish" style="flex:1;padding:12px;border:none;border-radius:8px;background:var(--warning);' +
       'color:#fff;font-size:15px;font-weight:600;cursor:pointer;">完成盤點</button></div></div>';
     container.innerHTML = html;
     InvScanner.renderScannerUI('st-scanner', this.onScanItem.bind(this));
@@ -155,9 +155,9 @@ const InvStocktake = {
     if (!container) return;
     container.innerHTML = '<div style="padding:16px;">' + this.renderDiffReport() +
       '<div style="display:flex;gap:8px;margin-top:16px;">' +
-      '<button id="st-back" style="flex:1;padding:12px;border:1px solid #ccc;border-radius:8px;' +
-      'background:#fff;font-size:15px;cursor:pointer;">返回盤點</button>' +
-      '<button id="st-apply" style="flex:1;padding:12px;border:none;border-radius:8px;background:#f44336;' +
+      '<button id="st-back" style="flex:1;padding:12px;border:1px solid var(--border);border-radius:8px;' +
+      'background:var(--bg-card);font-size:15px;cursor:pointer;">返回盤點</button>' +
+      '<button id="st-apply" style="flex:1;padding:12px;border:none;border-radius:8px;background:var(--danger);' +
       'color:#fff;font-size:15px;font-weight:600;cursor:pointer;">確認調整</button></div></div>';
     var self = this;
     document.getElementById('st-back').addEventListener('click', function () {
@@ -172,19 +172,19 @@ const InvStocktake = {
     var items = st.items || [], esc = InvApp.escapeHTML;
     var html = '<h3 style="margin:0 0 12px;">差異報告</h3>' +
       '<table style="width:100%;border-collapse:collapse;font-size:13px;">' +
-      '<tr style="background:#f5f5f5;"><th style="padding:8px 4px;text-align:left;">品名</th>' +
+      '<tr style="background:var(--bg-elevated);"><th style="padding:8px 4px;text-align:left;">品名</th>' +
       '<th style="padding:8px 4px;">系統</th><th style="padding:8px 4px;">實際</th>' +
       '<th style="padding:8px 4px;">差異</th><th style="padding:8px 4px;">狀態</th></tr>';
     for (var i = 0; i < items.length; i++) {
-      var it = items[i], diffCell, statusCell, dash = '<span style="color:#999;">\u2014</span>';
-      if (!it.confirmed) { diffCell = dash; statusCell = '<span style="color:#999;">未盤</span>'; }
+      var it = items[i], diffCell, statusCell, dash = '<span style="color:var(--text-muted);">\u2014</span>';
+      if (!it.confirmed) { diffCell = dash; statusCell = '<span style="color:var(--text-muted);">未盤</span>'; }
       else {
         var diff = it.actualStock - it.systemStock;
-        if (diff > 0) { diffCell = '<span style="color:#2196F3;">+' + diff + '</span>'; statusCell = '<span style="color:#2196F3;">盈餘</span>'; }
-        else if (diff < 0) { diffCell = '<span style="color:#f44336;">' + diff + '</span>'; statusCell = '<span style="color:#f44336;">短缺</span>'; }
-        else { diffCell = statusCell = '<span style="color:#4CAF50;">\u2713</span>'; }
+        if (diff > 0) { diffCell = '<span style="color:var(--info);">+' + diff + '</span>'; statusCell = '<span style="color:var(--info);">盈餘</span>'; }
+        else if (diff < 0) { diffCell = '<span style="color:var(--danger);">' + diff + '</span>'; statusCell = '<span style="color:var(--danger);">短缺</span>'; }
+        else { diffCell = statusCell = '<span style="color:var(--accent);">\u2713</span>'; }
       }
-      html += '<tr style="border-bottom:1px solid #f0f0f0;"><td style="padding:6px 4px;">' + esc(it.productName) + '</td>' +
+      html += '<tr style="border-bottom:1px solid var(--border);"><td style="padding:6px 4px;">' + esc(it.productName) + '</td>' +
         '<td style="padding:6px 4px;text-align:center;">' + it.systemStock + '</td>' +
         '<td style="padding:6px 4px;text-align:center;">' + (it.confirmed ? it.actualStock : dash) + '</td>' +
         '<td style="padding:6px 4px;text-align:center;">' + diffCell + '</td>' +
@@ -258,7 +258,7 @@ const InvStocktake = {
     if (!el) return;
     try {
       var snap = await db.collection('inv_stocktakes').orderBy('createdAt', 'desc').limit(10).get();
-      if (snap.empty) { el.innerHTML = '<div style="color:#999;">尚無盤點紀錄</div>'; return; }
+      if (snap.empty) { el.innerHTML = '<div style="color:var(--text-muted);">尚無盤點紀錄</div>'; return; }
       var html = '', self = this, esc = InvApp.escapeHTML;
       snap.docs.forEach(function (doc) {
         var d = doc.data(), items = d.items || [];
@@ -267,10 +267,10 @@ const InvStocktake = {
         var sc = d.status === 'completed' ? '#4CAF50' : '#FF9800';
         var sl = d.status === 'completed' ? '已完成' : '進行中';
         html += '<div class="st-hist" data-id="' + esc(doc.id) + '" data-status="' + d.status + '" ' +
-          'style="display:flex;justify-content:space-between;align-items:center;padding:10px;border:1px solid #eee;' +
-          'border-radius:8px;margin-bottom:6px;cursor:pointer;background:#fff;">' +
+          'style="display:flex;justify-content:space-between;align-items:center;padding:10px;border:1px solid var(--border);' +
+          'border-radius:8px;margin-bottom:6px;cursor:pointer;background:var(--bg-card);">' +
           '<div><div style="font-size:14px;font-weight:600;">' + tm + '</div>' +
-          '<div style="font-size:12px;color:#999;">已盤 ' + cnt + '/' + items.length + '</div></div>' +
+          '<div style="font-size:12px;color:var(--text-muted);">已盤 ' + cnt + '/' + items.length + '</div></div>' +
           '<span style="color:' + sc + ';font-size:13px;font-weight:600;">' + sl + '</span></div>';
       });
       el.innerHTML = html;
@@ -281,6 +281,6 @@ const InvStocktake = {
             self.resumeStocktake(this.getAttribute('data-id'));
         });
       }
-    } catch (e) { console.error('[InvStocktake] _loadHistory:', e); el.innerHTML = '<div style="color:#f44336;">載入失敗</div>'; }
+    } catch (e) { console.error('[InvStocktake] _loadHistory:', e); el.innerHTML = '<div style="color:var(--danger);">載入失敗</div>'; }
   }
 };
