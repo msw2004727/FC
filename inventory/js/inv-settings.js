@@ -47,10 +47,14 @@ const InvSettings = {
       this._card(h4('管理員白名單') + '<div id="inv-admin-list"></div>') +
       this._card(h4('商品分類管理') + '<div id="inv-category-list"></div>') +
       this._card(h4('工具') +
-        '<button class="inv-btn outline full" onclick="InvSettings._promptBarcodePrint()" style="margin-bottom:8px;">條碼列印</button>' +
-        '<button class="inv-btn outline full" onclick="InvSettings.rebuildStock()" style="color:#dc2626;border-color:#dc2626;">庫存重建</button>') +
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">' +
+          '<button class="inv-btn outline full sm" onclick="InvSettings._promptBarcodePrint()">條碼列印</button>' +
+          '<button class="inv-btn outline full sm" onclick="InvSettings.rebuildStock()" style="color:var(--danger);border-color:var(--danger)">庫存重建</button>' +
+        '</div>') +
+      this._card(h4('登入公告管理') + '<div id="inv-announcement-list"></div>') +
       '</div>';
     this.renderAdminList(cfg.adminUids || []);
+    this.renderAnnouncements();
     this.renderCategories(cfg.categories || []);
   },
 
@@ -294,5 +298,119 @@ const InvSettings = {
       console.error('[InvSettings] rebuildStock:', e);
       InvApp.showToast('庫存重建失敗：' + (e.message || ''));
     }
-  }
+  },
+
+  // ══════ 登入公告管理 ══════
+
+  async renderAnnouncements() {
+    var w = document.getElementById('inv-announcement-list');
+    if (!w) return;
+    var esc = InvApp.escapeHTML;
+    try {
+      var snap = await db.collection('inv_announcements').orderBy('createdAt', 'desc').limit(10).get();
+      var list = snap.docs.map(function(d) { return Object.assign({ _id: d.id }, d.data()); });
+    } catch (_) { var list = []; }
+
+    var html = '';
+    if (!list.length) {
+      html += '<div style="font-size:13px;color:var(--text-muted);padding:8px 0">目前沒有公告</div>';
+    }
+    for (var i = 0; i < list.length; i++) {
+      var a = list[i];
+      var typeLabel = a.type === 'urgent' ? '緊急' : a.type === 'warning' ? '注意' : '一般';
+      var typeColor = a.type === 'urgent' ? 'var(--danger)' : a.type === 'warning' ? 'var(--warning)' : 'var(--accent)';
+      var statusDot = a.active ? '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--success);margin-right:4px"></span>'
+        : '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--text-muted);margin-right:4px"></span>';
+      html += '<div style="padding:10px 0;border-bottom:1px solid var(--border)">' +
+        '<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">' +
+          statusDot +
+          '<span style="font-size:11px;padding:2px 8px;border-radius:var(--radius-full);background:' + typeColor + ';color:#fff;font-weight:600">' + typeLabel + '</span>' +
+          '<span style="font-weight:600;font-size:14px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(a.title || '') + '</span>' +
+        '</div>' +
+        '<div style="font-size:12px;color:var(--text-muted);margin-bottom:6px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">' + esc(a.content || '') + '</div>' +
+        '<div style="display:flex;gap:6px">' +
+          '<button class="inv-btn sm outline" onclick="InvSettings.editAnnouncement(\'' + a._id + '\')" style="font-size:11px;min-height:28px;padding:2px 10px">編輯</button>' +
+          '<button class="inv-btn sm outline" onclick="InvSettings.toggleAnnouncement(\'' + a._id + '\',' + !a.active + ')" style="font-size:11px;min-height:28px;padding:2px 10px">' + (a.active ? '停用' : '啟用') + '</button>' +
+          '<button class="inv-btn sm outline" onclick="InvSettings.deleteAnnouncement(\'' + a._id + '\')" style="font-size:11px;min-height:28px;padding:2px 10px;color:var(--danger);border-color:var(--danger)">刪除</button>' +
+        '</div></div>';
+    }
+    // 新增按鈕（最多 3 則）
+    var canAdd = list.filter(function(a) { return a.active; }).length < 3;
+    html += '<button class="inv-btn primary full" onclick="InvSettings.editAnnouncement(null)" style="margin-top:12px"' +
+      (canAdd ? '' : ' disabled title="最多 3 則啟用中的公告"') + '>新增公告</button>';
+    w.innerHTML = html;
+  },
+
+  editAnnouncement(id) {
+    var self = this;
+    var isEdit = !!id;
+    var loadAndShow = async function() {
+      var data = { title: '', content: '', type: 'info', active: true };
+      if (isEdit) {
+        try {
+          var doc = await db.collection('inv_announcements').doc(id).get();
+          if (doc.exists) data = doc.data();
+        } catch (_) {}
+      }
+      var esc = InvApp.escapeHTML;
+      var overlay = document.createElement('div');
+      overlay.className = 'inv-overlay show';
+      overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+      overlay.innerHTML = '<div class="inv-modal" style="max-width:380px;width:92%">' +
+        '<div style="font-size:17px;font-weight:700;text-align:center;margin-bottom:16px">' + (isEdit ? '編輯公告' : '新增公告') + '</div>' +
+        '<div class="inv-form-group"><label class="inv-label">類型</label>' +
+          '<select id="_ann-type" class="inv-select" style="height:40px">' +
+            '<option value="info"' + (data.type === 'info' ? ' selected' : '') + '>一般</option>' +
+            '<option value="warning"' + (data.type === 'warning' ? ' selected' : '') + '>注意</option>' +
+            '<option value="urgent"' + (data.type === 'urgent' ? ' selected' : '') + '>緊急</option>' +
+          '</select></div>' +
+        '<div class="inv-form-group"><label class="inv-label">標題</label>' +
+          '<input id="_ann-title" class="inv-input" value="' + esc(data.title || '') + '" placeholder="公告標題" maxlength="30" style="height:40px;font-size:14px" /></div>' +
+        '<div class="inv-form-group"><label class="inv-label">內容</label>' +
+          '<textarea id="_ann-content" class="inv-input" rows="4" placeholder="公告內容" maxlength="200" style="height:auto;min-height:80px;font-size:14px;resize:vertical">' + esc(data.content || '') + '</textarea></div>' +
+        '<div style="display:flex;gap:8px;margin-top:16px">' +
+          '<button class="inv-btn outline full" onclick="this.closest(\'.inv-overlay\').remove()">取消</button>' +
+          '<button class="inv-btn primary full" id="_ann-save">儲存</button>' +
+        '</div></div>';
+      document.body.appendChild(overlay);
+      document.getElementById('_ann-save').onclick = async function() {
+        var title = document.getElementById('_ann-title').value.trim();
+        var content = document.getElementById('_ann-content').value.trim();
+        var type = document.getElementById('_ann-type').value;
+        if (!title) { InvApp.showToast('請輸入標題'); return; }
+        if (!content) { InvApp.showToast('請輸入內容'); return; }
+        try {
+          var payload = { title: title, content: content, type: type, active: data.active !== false };
+          if (isEdit) {
+            await db.collection('inv_announcements').doc(id).update(payload);
+          } else {
+            payload.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+            payload.uid = InvAuth.getUid();
+            await db.collection('inv_announcements').add(payload);
+          }
+          overlay.remove();
+          InvApp.showToast(isEdit ? '公告已更新' : '公告已新增');
+          self.renderAnnouncements();
+        } catch (e) { InvApp.showToast('儲存失敗：' + (e.message || '')); }
+      };
+    };
+    loadAndShow();
+  },
+
+  async toggleAnnouncement(id, active) {
+    try {
+      await db.collection('inv_announcements').doc(id).update({ active: active });
+      InvApp.showToast(active ? '公告已啟用' : '公告已停用');
+      this.renderAnnouncements();
+    } catch (e) { InvApp.showToast('操作失敗'); }
+  },
+
+  async deleteAnnouncement(id) {
+    if (!confirm('確定刪除此公告？')) return;
+    try {
+      await db.collection('inv_announcements').doc(id).delete();
+      InvApp.showToast('公告已刪除');
+      this.renderAnnouncements();
+    } catch (e) { InvApp.showToast('刪除失敗'); }
+  },
 };

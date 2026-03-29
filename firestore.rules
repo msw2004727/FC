@@ -1164,6 +1164,10 @@ service cloud.firestore {
       allow list: if isInventoryAdmin();
       allow write: if isInventoryAdmin();
     }
+    match /inv_announcements/{docId} {
+      allow read: if request.auth != null;
+      allow create, update, delete: if isInventoryAdmin();
+    }
 
     // ═══════════════════════════════════════════
     //  Catch-all：未列出的集合一律拒絕
