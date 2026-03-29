@@ -26,7 +26,11 @@ const InvApp = {
 
   _renderPage(pageId) {
     switch (pageId) {
-      case 'page-dashboard': if (typeof InvDashboard !== 'undefined') InvDashboard.render(); break;
+      case 'page-dashboard':
+        if (typeof InvDashboard !== 'undefined') InvDashboard.render();
+        var vt = document.getElementById('inv-version-tag');
+        if (vt) vt.textContent = 'v0.5';
+        break;
       case 'page-stock-in': if (typeof InvStockIn !== 'undefined') InvStockIn.render(); break;
       case 'page-sale': if (typeof InvSale !== 'undefined') InvSale.render(); break;
       case 'page-products': if (typeof InvProducts !== 'undefined') InvProducts.renderProductList('inv-products-content'); break;

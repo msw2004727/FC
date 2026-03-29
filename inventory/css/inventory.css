@@ -62,6 +62,10 @@ body{font-family:var(--font);background:var(--bg-root);color:var(--text-primary)
 .inv-page{display:none}
 .inv-page.active{display:block;animation:pageIn .22s var(--ease)}
 
+/* ===== 6a. Version Tag ===== */
+.inv-version-tag{position:fixed;left:6px;bottom:calc(64px + env(safe-area-inset-bottom,0) + 2px);font-size:.7rem;
+  color:var(--text-muted);opacity:.55;letter-spacing:.02em;user-select:text;z-index:899;pointer-events:none}
+
 /* ===== 6b. Section Head + Info Button ===== */
 .inv-section-head{display:flex;align-items:center;gap:6px;margin:20px 0 10px;font-size:15px;font-weight:600;color:var(--text-primary)}
 .inv-section-head:first-child{margin-top:0}
