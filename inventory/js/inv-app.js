@@ -11,12 +11,12 @@ const InvApp = {
    * @param {string} pageId - 目標頁面的 DOM id
    */
   showPage(pageId) {
-    const pages = document.querySelectorAll('.inv-page');
-    pages.forEach(p => p.classList.add('hidden'));
+    var pages = document.querySelectorAll('.inv-page');
+    pages.forEach(function(p) { p.classList.remove('active'); });
 
-    const target = document.getElementById(pageId);
+    var target = document.getElementById(pageId);
     if (target) {
-      target.classList.remove('hidden');
+      target.classList.add('active');
     }
 
     if (this.currentPage && this.currentPage !== pageId) {
