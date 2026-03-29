@@ -67,13 +67,14 @@ const InvDashboard = {
     };
 
     // --- 組裝 HTML ---
+    var ib = function(key) { return '<button class="inv-info-btn" onclick="InvDashboard._showInfo(\'' + key + '\')">?</button>'; };
     var html =
       '<div style="padding:16px;">' +
-        '<h4 style="margin:0 0 10px;font-size:15px;color:#334155;">即時狀態</h4>' +
+        '<h4 class="inv-section-head">即時狀態' + ib('realtime') + '</h4>' +
         this._renderStatCards(stats) +
-        '<h4 style="margin:20px 0 10px;font-size:15px;color:#334155;">庫存健康</h4>' +
+        '<h4 class="inv-section-head">庫存健康' + ib('health') + '</h4>' +
         this._renderQuickStats(quickStats) +
-        '<h4 style="margin:20px 0 10px;font-size:15px;color:#334155;">低庫存警示</h4>' +
+        '<h4 class="inv-section-head">低庫存警示' + ib('lowstock') + '</h4>' +
         this._renderLowStockAlerts(allAlertList) +
       '</div>';
 
@@ -184,5 +185,50 @@ const InvDashboard = {
     }
     html += '</div>';
     return html;
-  }
+  },
+
+  _showInfo(key) {
+    var info = {
+      realtime: {
+        title: '即時狀態說明',
+        body: '<p>顯示今日（00:00 起）的營運數據：</p>'
+          + '<div style="background:var(--accent-subtle);border-radius:var(--radius-sm);padding:10px 12px;margin:8px 0">'
+          + '<b>今日銷售額</b><p style="font-size:13px;margin:4px 0 0;color:var(--text-secondary)">所有銷售交易的實收金額加總（不含退貨）</p></div>'
+          + '<div style="background:var(--accent-subtle);border-radius:var(--radius-sm);padding:10px 12px;margin:8px 0">'
+          + '<b>今日筆數</b><p style="font-size:13px;margin:4px 0 0;color:var(--text-secondary)">今日完成的銷售交易數量</p></div>'
+          + '<div style="background:var(--accent-subtle);border-radius:var(--radius-sm);padding:10px 12px;margin:8px 0">'
+          + '<b>今日毛利</b><p style="font-size:13px;margin:4px 0 0;color:var(--text-secondary)">銷售額 - 成本（進貨價 × 數量）</p></div>'
+          + '<div style="background:var(--accent-subtle);border-radius:var(--radius-sm);padding:10px 12px;margin:8px 0">'
+          + '<b>今日退貨</b><p style="font-size:13px;margin:4px 0 0;color:var(--text-secondary)">今日退貨交易的退款金額加總</p></div>',
+      },
+      health: {
+        title: '庫存健康說明',
+        body: '<p>顯示目前所有商品的庫存狀態：</p>'
+          + '<ul style="padding-left:20px;font-size:14px;line-height:1.8">'
+          + '<li><b>總 SKU</b> — 系統內的商品種類數</li>'
+          + '<li><b>總庫存</b> — 所有商品的庫存數量加總</li>'
+          + '<li><b>庫存成本</b> — 進貨價 × 庫存量的加總</li>'
+          + '<li><b>低庫存</b> — 庫存量 ≤ 警示門檻但 > 0 的商品數</li>'
+          + '<li><b>零庫存</b> — 庫存量 = 0 的商品數</li></ul>',
+      },
+      lowstock: {
+        title: '低庫存警示說明',
+        body: '<p>列出庫存量低於警示門檻的商品。</p>'
+          + '<p style="margin-top:8px">每個商品可在<b>商品詳情</b>中設定「低庫存門檻」（預設 5 件）。'
+          + '當庫存量 ≤ 門檻時會出現在此列表，提醒您及時補貨。</p>'
+          + '<p style="margin-top:8px;font-size:13px;color:var(--text-muted)">點擊警示卡片可直接跳到商品詳情頁。</p>',
+      },
+    };
+    var item = info[key];
+    if (!item) return;
+    var overlay = document.createElement('div');
+    overlay.className = 'inv-overlay show';
+    overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+    overlay.innerHTML = '<div class="inv-modal">'
+      + '<div style="font-size:17px;font-weight:700;text-align:center;margin-bottom:12px">' + item.title + '</div>'
+      + '<div style="font-size:14px;color:var(--text-secondary);line-height:1.7">' + item.body + '</div>'
+      + '<button class="inv-btn primary full" style="margin-top:16px" onclick="this.closest(\'.inv-overlay\').remove()">了解</button>'
+      + '</div>';
+    document.body.appendChild(overlay);
+  },
 };

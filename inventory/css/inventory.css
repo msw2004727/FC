@@ -62,6 +62,14 @@ body{font-family:var(--font);background:var(--bg-root);color:var(--text-primary)
 .inv-page{display:none}
 .inv-page.active{display:block;animation:pageIn .22s var(--ease)}
 
+/* ===== 6b. Section Head + Info Button ===== */
+.inv-section-head{display:flex;align-items:center;gap:6px;margin:20px 0 10px;font-size:15px;font-weight:600;color:var(--text-primary)}
+.inv-section-head:first-child{margin-top:0}
+.inv-info-btn{width:22px;height:22px;border-radius:50%;border:1.5px solid var(--accent);background:transparent;color:var(--accent);
+  font-size:12px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;
+  flex-shrink:0;padding:0;line-height:1;transition:background var(--ease),color var(--ease)}
+.inv-info-btn:hover{background:var(--accent);color:#fff}
+
 /* ===== 7. Card System ===== */
 .inv-card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-card);
   padding:.85rem;margin-bottom:.65rem;transition:box-shadow var(--ease),border-color var(--ease)}
