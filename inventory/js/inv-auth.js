@@ -92,16 +92,22 @@ const InvAuth = {
    */
   async checkPermission() {
     try {
-      var configPromise = db.collection('inv_settings').doc('config').get();
-      var timeoutPromise = new Promise(function(_, reject) { setTimeout(function() { reject(new Error('TIMEOUT')); }, 8000); });
-      var configDoc = await Promise.race([configPromise, timeoutPromise]);
-      if (!configDoc.exists) {
+      // 用 REST API 繞過 Firestore SDK 連線問題（LINE WebView WebSocket 常被擋）
+      var restUrl = 'https://firestore.googleapis.com/v1/projects/' + INV_CONFIG.FIREBASE.projectId
+        + '/databases/(default)/documents/inv_settings/config?key=' + INV_CONFIG.FIREBASE.apiKey;
+      var resp = await fetch(restUrl);
+      if (!resp.ok) {
+        document.getElementById('inv-login-status').textContent = '無法讀取系統設定（' + resp.status + '）';
+        return;
+      }
+      var json = await resp.json();
+      if (!json.fields) {
         InvApp.showToast('系統設定不存在，請聯繫管理員');
         return;
       }
-
-      const configData = configDoc.data();
-      const adminUids = configData.adminUids || [];
+      var adminUids = (json.fields.adminUids && json.fields.adminUids.arrayValue && json.fields.adminUids.arrayValue.values)
+        ? json.fields.adminUids.arrayValue.values.map(function(v) { return v.stringValue; })
+        : [];
       const uid = auth.currentUser.uid;
 
       if (adminUids.indexOf(uid) !== -1) {
