@@ -231,53 +231,75 @@ const InvProducts = {
     }
   },
 
-  /** 彈出編輯表單 */
-  _showEditForm(barcode) {
+  /** 彈出編輯表單（含分類） */
+  async _showEditForm(barcode) {
     var p = this.getByBarcode(barcode);
     if (!p) return;
     var esc = InvApp.escapeHTML;
-    var iStyle = 'width:100%;padding:8px;margin-bottom:10px;border:1px solid #ccc;border-radius:6px;box-sizing:border-box;';
+    // 讀取分類選項
+    var categories = [];
+    try {
+      var cfgDoc = await db.collection('inv_settings').doc('config').get();
+      if (cfgDoc.exists && cfgDoc.data().categories) categories = cfgDoc.data().categories;
+    } catch (_) {}
+    var catOptions = '<option value="">-- 未分類 --</option>';
+    for (var ci = 0; ci < categories.length; ci++) {
+      var sel = (p.category === categories[ci]) ? ' selected' : '';
+      catOptions += '<option value="' + esc(categories[ci]) + '"' + sel + '>' + esc(categories[ci]) + '</option>';
+    }
+    var ls = 'class="inv-label" style="margin-top:6px"';
     var overlay = document.createElement('div');
     overlay.id = 'inv-edit-overlay';
-    overlay.style.cssText =
-      'position:fixed;top:0;left:0;right:0;bottom:0;z-index:5000;display:flex;align-items:center;' +
-      'justify-content:center;background:rgba(0,0,0,.35);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);';
+    overlay.className = 'inv-overlay show';
     overlay.innerHTML =
-      '<div style="background:#fff;border-radius:16px;box-shadow:0 8px 32px rgba(0,0,0,.15);' +
-        'width:90%;max-width:400px;padding:20px;max-height:80vh;overflow-y:auto;">' +
-        '<h3 style="margin:0 0 16px;">\u7de8\u8f2f\u5546\u54c1</h3>' +
-        '<label style="font-size:13px;color:#666;">\u54c1\u540d</label>' +
-        '<input id="edit-name" value="' + esc(p.name) + '" style="' + iStyle + '" />' +
-        '<label style="font-size:13px;color:#666;">\u552e\u50f9</label>' +
-        '<input id="edit-price" type="number" value="' + (p.price || 0) + '" style="' + iStyle + '" />' +
-        '<label style="font-size:13px;color:#666;">\u9032\u8ca8\u50f9</label>' +
-        '<input id="edit-cost" type="number" value="' + (p.costPrice || 0) + '" style="' + iStyle + '" />' +
-        '<label style="font-size:13px;color:#666;">\u4f4e\u5eab\u5b58\u8b66\u793a</label>' +
-        '<input id="edit-alert" type="number" value="' + (p.lowStockAlert || 5) + '" style="' + iStyle.replace('10px','16px') + '" />' +
-        '<div style="display:flex;gap:8px;">' +
-          '<button id="edit-cancel" style="flex:1;padding:10px;border:1px solid #ccc;border-radius:8px;background:#fff;cursor:pointer;">\u53d6\u6d88</button>' +
-          '<button id="edit-save" style="flex:1;padding:10px;border:none;border-radius:8px;background:#4CAF50;color:#fff;cursor:pointer;">\u5132\u5b58</button>' +
+      '<div class="inv-modal" style="max-width:400px;width:92%;max-height:80vh;overflow-y:auto">' +
+        '<h3 style="margin:0 0 16px;font-size:17px;font-weight:700">編輯商品</h3>' +
+        '<label ' + ls + '>品名</label>' +
+        '<input id="edit-name" class="inv-input" value="' + esc(p.name) + '" style="height:40px;font-size:14px" />' +
+        '<label ' + ls + '>分類</label>' +
+        '<select id="edit-category" class="inv-select" style="height:40px;font-size:14px">' + catOptions + '</select>' +
+        '<label ' + ls + '>品牌</label>' +
+        '<input id="edit-brand" class="inv-input" value="' + esc(p.brand || '') + '" style="height:40px;font-size:14px" />' +
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">' +
+          '<div><label ' + ls + '>顏色</label><input id="edit-color" class="inv-input" value="' + esc(p.color || '') + '" style="height:40px;font-size:14px" /></div>' +
+          '<div><label ' + ls + '>尺寸</label><input id="edit-size" class="inv-input" value="' + esc(p.size || '') + '" style="height:40px;font-size:14px" /></div>' +
+        '</div>' +
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">' +
+          '<div><label ' + ls + '>售價</label><input id="edit-price" class="inv-input" type="number" value="' + (p.sellPrice || p.price || 0) + '" style="height:40px;font-size:14px" /></div>' +
+          '<div><label ' + ls + '>進貨價</label><input id="edit-cost" class="inv-input" type="number" value="' + (p.costPrice || 0) + '" style="height:40px;font-size:14px" /></div>' +
+        '</div>' +
+        '<label ' + ls + '>低庫存警示門檻</label>' +
+        '<input id="edit-alert" class="inv-input" type="number" value="' + (p.lowStockAlert || 5) + '" style="height:40px;font-size:14px;margin-bottom:16px" />' +
+        '<div style="display:flex;gap:8px">' +
+          '<button id="edit-cancel" class="inv-btn outline full">取消</button>' +
+          '<button id="edit-save" class="inv-btn primary full">儲存</button>' +
         '</div></div>';
     document.body.appendChild(overlay);
+    overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
     overlay.addEventListener('touchmove', function (e) {
-      if (!e.target.closest('[style*="overflow-y"]')) { e.preventDefault(); e.stopPropagation(); }
+      if (!e.target.closest('.inv-modal')) { e.preventDefault(); e.stopPropagation(); }
     }, { passive: false });
     var self = this;
     document.getElementById('edit-cancel').addEventListener('click', function () { overlay.remove(); });
     document.getElementById('edit-save').addEventListener('click', async function () {
       var updates = {
         name: document.getElementById('edit-name').value.trim(),
+        category: document.getElementById('edit-category').value,
+        brand: document.getElementById('edit-brand').value.trim(),
+        color: document.getElementById('edit-color').value.trim(),
+        size: document.getElementById('edit-size').value.trim(),
+        sellPrice: Number(document.getElementById('edit-price').value) || 0,
         price: Number(document.getElementById('edit-price').value) || 0,
         costPrice: Number(document.getElementById('edit-cost').value) || 0,
-        lowStockAlert: Number(document.getElementById('edit-alert').value) || 5
+        lowStockAlert: Number(document.getElementById('edit-alert').value) || 5,
       };
-      if (!updates.name) { InvApp.showToast('\u54c1\u540d\u4e0d\u53ef\u70ba\u7a7a'); return; }
+      if (!updates.name) { InvApp.showToast('品名不可為空'); return; }
       try {
         await self.update(barcode, updates);
-        InvApp.showToast('\u5546\u54c1\u5df2\u66f4\u65b0');
+        InvApp.showToast('商品已更新');
         overlay.remove();
         self.renderDetail(barcode);
-      } catch (err) { /* update \u5167\u5df2 toast */ }
+      } catch (err) { /* update 內已 toast */ }
     });
   },
 
