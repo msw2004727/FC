@@ -58,30 +58,61 @@ const InvSettings = {
     this.renderCategories(cfg.categories || []);
   },
 
-  // ══════ 管理員白名單 ══════
+  // ══════ 管理員白名單（ownerUid + superAdminUids + adminUids）══════
+  _OWNER_UID: 'U7774e1410479bafff4997f51b2c47b95',
+
+  _canManageAdmins() {
+    var uid = InvAuth.getUid();
+    return uid === this._OWNER_UID || (this._superAdmins || []).indexOf(uid) !== -1;
+  },
+
   async renderAdminList(uids) {
     if (!uids) {
       var doc = await this._cfgRef().get();
-      uids = doc.exists ? (doc.data().adminUids || []) : [];
+      var data = doc.exists ? doc.data() : {};
+      uids = data.adminUids || [];
+      this._superAdmins = data.superAdminUids || [];
     }
     var w = document.getElementById('inv-admin-list');
     if (!w) return;
-    var esc = InvApp.escapeHTML, myUid = InvAuth.getUid(), html = '';
+    var esc = InvApp.escapeHTML, myUid = InvAuth.getUid();
+    var isOwner = myUid === this._OWNER_UID;
+    var canManage = this._canManageAdmins();
+    var superAdmins = this._superAdmins || [];
+
+    var html = '';
     for (var i = 0; i < uids.length; i++) {
-      var u = uids[i], isMe = u === myUid;
-      if (isMe) {
-        html += '<div style="display:flex;align-items:center;gap:8px;padding:8px 14px;margin-bottom:6px;border-radius:var(--radius-sm);background:var(--accent-light);border:1.5px solid var(--accent)">'
-          + '<span style="flex:1;font-size:12px;font-weight:600;color:var(--accent);word-break:break-all">' + esc(u) + '</span>'
-          + '<span style="flex-shrink:0;background:var(--accent);color:#fff;padding:2px 10px;border-radius:999px;font-size:11px;font-weight:600">你</span></div>';
-      } else {
-        html += '<div style="display:flex;align-items:center;gap:8px;padding:8px 14px;margin-bottom:6px;border-radius:var(--radius-sm);background:var(--bg-elevated);border:1px solid var(--border)">'
-          + '<span style="flex:1;font-size:12px;color:var(--text-secondary);word-break:break-all">' + esc(u) + '</span>'
-          + '<button onclick="InvSettings.removeAdmin(\'' + esc(u) + '\')" style="flex-shrink:0;background:none;border:none;color:var(--danger);cursor:pointer;font-size:16px;padding:0 4px">✕</button></div>';
+      var u = uids[i], isMe = u === myUid, isUOwner = u === this._OWNER_UID;
+      var isSA = superAdmins.indexOf(u) !== -1;
+      // 角色標籤
+      var roleTag = isUOwner ? '<span style="flex-shrink:0;background:var(--accent);color:#fff;padding:2px 10px;border-radius:999px;font-size:10px;font-weight:600">擁有者</span>'
+        : isSA ? '<span style="flex-shrink:0;background:var(--warning);color:#fff;padding:2px 10px;border-radius:999px;font-size:10px;font-weight:600">超級管理</span>'
+        : '<span style="flex-shrink:0;background:var(--bg-elevated);color:var(--text-muted);padding:2px 10px;border-radius:999px;font-size:10px;font-weight:600">管理員</span>';
+      var meTag = isMe ? ' <span style="color:var(--accent);font-size:10px;font-weight:700">(你)</span>' : '';
+      // 操作按鈕
+      var actions = '';
+      if (canManage && !isUOwner && !isMe) {
+        actions += '<button onclick="InvSettings.removeAdmin(\'' + esc(u) + '\')" style="flex-shrink:0;background:none;border:none;color:var(--danger);cursor:pointer;font-size:16px;padding:0 4px" title="移除">✕</button>';
       }
+      if (isOwner && !isUOwner && !isSA) {
+        actions += '<button onclick="InvSettings.promoteSuperAdmin(\'' + esc(u) + '\')" style="flex-shrink:0;background:none;border:none;color:var(--warning);cursor:pointer;font-size:12px;padding:0 4px" title="升為超級管理">⬆</button>';
+      }
+      if (isOwner && isSA) {
+        actions += '<button onclick="InvSettings.demoteSuperAdmin(\'' + esc(u) + '\')" style="flex-shrink:0;background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:12px;padding:0 4px" title="取消超級管理">⬇</button>';
+      }
+      var border = isUOwner ? 'border:1.5px solid var(--accent)' : isSA ? 'border:1.5px solid var(--warning)' : 'border:1px solid var(--border)';
+      var bg = isUOwner ? 'background:var(--accent-light)' : 'background:var(--bg-elevated)';
+      html += '<div style="display:flex;align-items:center;gap:8px;padding:8px 14px;margin-bottom:6px;border-radius:var(--radius-sm);' + bg + ';' + border + '">'
+        + '<span style="flex:1;font-size:11px;color:var(--text-secondary);word-break:break-all">' + esc(u) + meTag + '</span>'
+        + roleTag + actions + '</div>';
     }
-    html += '<div style="display:flex;gap:8px;margin-top:10px;">' +
-      '<input id="inv-new-admin-uid" placeholder="輸入 LINE userId" style="flex:1;padding:8px;border:1px solid #ccc;border-radius:6px;font-size:13px;" />' +
-      '<button onclick="InvSettings.addAdmin()" style="flex-shrink:0;padding:8px 14px;border:none;border-radius:6px;background:#0d9488;color:#fff;font-size:13px;cursor:pointer;">新增</button></div>';
+    if (canManage) {
+      html += '<div style="display:flex;gap:8px;margin-top:10px">' +
+        '<input id="inv-new-admin-uid" class="inv-input" placeholder="輸入 LINE userId" style="flex:1;height:36px;font-size:13px" />' +
+        '<button class="inv-btn primary sm" onclick="InvSettings.addAdmin()">新增</button></div>';
+    } else {
+      html += '<div style="font-size:12px;color:var(--text-muted);margin-top:8px">僅擁有者與超級管理員可管理白名單</div>';
+    }
     w.innerHTML = html;
   },
 
@@ -97,6 +128,7 @@ const InvSettings = {
   },
 
   async addAdmin() {
+    if (!this._canManageAdmins()) { InvApp.showToast('僅擁有者或超級管理員可操作'); return; }
     var input = document.getElementById('inv-new-admin-uid');
     var uid = (input && input.value || '').trim();
     if (!uid) { InvApp.showToast('請輸入 LINE userId'); return; }
@@ -105,17 +137,40 @@ const InvSettings = {
       InvApp.showToast('已新增管理員');
       if (input) input.value = '';
       this.renderAdminList();
-    } catch (e) { console.error('[InvSettings] addAdmin:', e); InvApp.showToast('新增失敗'); }
+    } catch (e) { InvApp.showToast('新增失敗'); }
   },
 
   async removeAdmin(uid) {
+    if (!this._canManageAdmins()) { InvApp.showToast('無權限'); return; }
+    if (uid === this._OWNER_UID) { InvApp.showToast('不可移除擁有者'); return; }
     if (uid === InvAuth.getUid()) { InvApp.showToast('不可移除自己'); return; }
     if (!confirm('確定要移除此管理員？\n' + uid)) return;
     try {
-      await this._cfgRef().update({ adminUids: firebase.firestore.FieldValue.arrayRemove(uid) });
+      await this._cfgRef().update({
+        adminUids: firebase.firestore.FieldValue.arrayRemove(uid),
+        superAdminUids: firebase.firestore.FieldValue.arrayRemove(uid),
+      });
       InvApp.showToast('已移除管理員');
       this.renderAdminList();
-    } catch (e) { console.error('[InvSettings] removeAdmin:', e); InvApp.showToast('移除失敗'); }
+    } catch (e) { InvApp.showToast('移除失敗'); }
+  },
+
+  async promoteSuperAdmin(uid) {
+    if (InvAuth.getUid() !== this._OWNER_UID) { InvApp.showToast('僅擁有者可指派超級管理員'); return; }
+    try {
+      await this._cfgRef().update({ superAdminUids: firebase.firestore.FieldValue.arrayUnion(uid) });
+      InvApp.showToast('已升為超級管理員');
+      this.renderAdminList();
+    } catch (e) { InvApp.showToast('操作失敗'); }
+  },
+
+  async demoteSuperAdmin(uid) {
+    if (InvAuth.getUid() !== this._OWNER_UID) { InvApp.showToast('僅擁有者可操作'); return; }
+    try {
+      await this._cfgRef().update({ superAdminUids: firebase.firestore.FieldValue.arrayRemove(uid) });
+      InvApp.showToast('已取消超級管理員');
+      this.renderAdminList();
+    } catch (e) { InvApp.showToast('操作失敗'); }
   },
 
   // ══════ 分類管理 ══════
