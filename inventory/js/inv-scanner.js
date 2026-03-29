@@ -9,31 +9,27 @@ const InvScanner = {
   _containerId: null,
   _onScanCb: null,
 
-  _MODES: {
-    barcode: {
-      label: '橫式條碼',
-      qrbox: { width: 280, height: 100 },
-      formats: [
-        Html5QrcodeSupportedFormats.CODE_128,
-        Html5QrcodeSupportedFormats.CODE_39,
-        Html5QrcodeSupportedFormats.EAN_13,
-        Html5QrcodeSupportedFormats.EAN_8,
-        Html5QrcodeSupportedFormats.UPC_A,
-        Html5QrcodeSupportedFormats.UPC_E,
-        Html5QrcodeSupportedFormats.ITF,
-      ],
-      hint: '請靠近條碼，填滿掃描框，避免反光',
-    },
-    qrcode: {
-      label: '二維碼',
-      qrbox: { width: 220, height: 220 },
-      formats: [Html5QrcodeSupportedFormats.QR_CODE],
-      hint: '將 QR Code 對準掃描框',
-    },
+  _getMode(key) {
+    var F = typeof Html5QrcodeSupportedFormats !== 'undefined' ? Html5QrcodeSupportedFormats : {};
+    var modes = {
+      barcode: {
+        label: '橫式條碼',
+        qrbox: { width: 280, height: 100 },
+        formats: [F.CODE_128, F.CODE_39, F.EAN_13, F.EAN_8, F.UPC_A, F.UPC_E, F.ITF].filter(function(v) { return v != null; }),
+        hint: '請靠近條碼，填滿掃描框，避免反光',
+      },
+      qrcode: {
+        label: '二維碼',
+        qrbox: { width: 220, height: 220 },
+        formats: F.QR_CODE ? [F.QR_CODE] : [],
+        hint: '將 QR Code 對準掃描框',
+      },
+    };
+    return modes[key] || modes.barcode;
   },
 
   async start(containerId, onSuccess, mode) {
-    var cfg = this._MODES[mode || this._mode];
+    var cfg = this._getMode(mode || this._mode);
     try {
       this._scanner = new Html5Qrcode(containerId);
       await this._scanner.start(
@@ -63,7 +59,7 @@ const InvScanner = {
     this._onScanCb = onScan;
 
     var scannerId = containerId + '-qr';
-    var cfg = this._MODES[this._mode];
+    var cfg = this._getMode(this._mode);
     var isBarcode = this._mode === 'barcode';
 
     container.innerHTML =
