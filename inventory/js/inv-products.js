@@ -251,9 +251,15 @@ const InvProducts = {
     var overlay = document.createElement('div');
     overlay.id = 'inv-edit-overlay';
     overlay.className = 'inv-overlay show';
+    var hasImg = p.image || p.imageUrl;
     overlay.innerHTML =
       '<div class="inv-modal" style="max-width:400px;width:92%;max-height:80vh;overflow-y:auto">' +
         '<h3 style="margin:0 0 16px;font-size:17px;font-weight:700">編輯商品</h3>' +
+        '<label ' + ls + '>商品圖片</label>' +
+        '<input type="file" id="edit-image-input" accept="image/*" hidden />' +
+        '<div id="edit-image-preview" style="width:100%;aspect-ratio:4/3;border:2px dashed var(--border);border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center;cursor:pointer;overflow:hidden;background:var(--bg-elevated);position:relative;margin-bottom:10px;transition:border-color var(--ease)" onclick="document.getElementById(\'edit-image-input\').click()">' +
+          (hasImg ? '<img src="' + esc(hasImg) + '" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">' : '<span style="font-size:13px;color:var(--text-muted)">點擊上傳商品圖片</span>') +
+        '</div>' +
         '<label ' + ls + '>品名</label>' +
         '<input id="edit-name" class="inv-input" value="' + esc(p.name) + '" style="height:40px;font-size:14px" />' +
         '<label ' + ls + '>分類</label>' +
@@ -280,6 +286,20 @@ const InvProducts = {
       if (!e.target.closest('.inv-modal')) { e.preventDefault(); e.stopPropagation(); }
     }, { passive: false });
     var self = this;
+    var _editImageDataUrl = null;
+    // 圖片上傳處理
+    document.getElementById('edit-image-input').addEventListener('change', function () {
+      var file = this.files && this.files[0];
+      if (!file) return;
+      if (file.size > 2 * 1024 * 1024) { InvApp.showToast('圖片不可超過 2MB'); return; }
+      var reader = new FileReader();
+      reader.onload = function () {
+        _editImageDataUrl = reader.result;
+        var preview = document.getElementById('edit-image-preview');
+        if (preview) preview.innerHTML = '<img src="' + reader.result + '" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">';
+      };
+      reader.readAsDataURL(file);
+    });
     document.getElementById('edit-cancel').addEventListener('click', function () { overlay.remove(); });
     document.getElementById('edit-save').addEventListener('click', async function () {
       var updates = {
@@ -293,6 +313,7 @@ const InvProducts = {
         costPrice: Number(document.getElementById('edit-cost').value) || 0,
         lowStockAlert: Number(document.getElementById('edit-alert').value) || 5,
       };
+      if (_editImageDataUrl) updates.image = _editImageDataUrl;
       if (!updates.name) { InvApp.showToast('品名不可為空'); return; }
       try {
         await self.update(barcode, updates);
