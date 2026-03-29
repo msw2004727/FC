@@ -14,7 +14,7 @@ const InvStockIn = {
     container.innerHTML =
       '<div id="inv-stockin-scanner" style="margin-bottom:16px;"></div>' +
       '<div id="inv-stockin-form"></div>' +
-      '<div id="inv-stockin-batch" style="text-align:center;padding:12px;font-size:14px;color:#666;">' +
+      '<div id="inv-stockin-batch" style="text-align:center;padding:12px;font-size:14px;color:var(--text-muted);">' +
         this._batchLabel() +
       '</div>';
 
@@ -39,27 +39,27 @@ const InvStockIn = {
 
     var esc = InvApp.escapeHTML;
     formArea.innerHTML =
-      '<div style="background:#fff;border-radius:12px;padding:16px;border:1px solid #eee;">' +
+      '<div style="background:var(--bg-card);border-radius:12px;padding:16px;border:1px solid var(--border);">' +
         '<h4 style="margin:0 0 8px;">' + esc(product.name) + '</h4>' +
-        '<div style="font-size:14px;color:#666;margin-bottom:12px;">目前庫存：' +
-          '<span style="font-weight:700;color:#333;">' + (product.stock || 0) + '</span> 件</div>' +
-        '<label style="font-size:13px;color:#666;">入庫數量</label>' +
+        '<div style="font-size:14px;color:var(--text-muted);margin-bottom:12px;">目前庫存：' +
+          '<span style="font-weight:700;color:var(--text-primary);">' + (product.stock || 0) + '</span> 件</div>' +
+        '<label style="font-size:13px;color:var(--text-muted);">入庫數量</label>' +
         '<input id="restock-qty" type="number" inputmode="numeric" value="1" min="1" ' +
           'style="width:100%;padding:12px;font-size:24px;font-weight:700;text-align:center;' +
-          'border:1px solid #ccc;border-radius:8px;margin:8px 0;box-sizing:border-box;" />' +
+          'border:1px solid var(--border);border-radius:8px;margin:8px 0;box-sizing:border-box;" />' +
         '<div class="inv-qty-btns" style="display:flex;gap:8px;margin-bottom:16px;">' +
-          '<button data-add="1" style="flex:1;padding:10px;border:1px solid #4CAF50;border-radius:8px;' +
-            'background:#fff;color:#4CAF50;font-size:16px;font-weight:600;cursor:pointer;">+1</button>' +
-          '<button data-add="5" style="flex:1;padding:10px;border:1px solid #4CAF50;border-radius:8px;' +
-            'background:#fff;color:#4CAF50;font-size:16px;font-weight:600;cursor:pointer;">+5</button>' +
-          '<button data-add="10" style="flex:1;padding:10px;border:1px solid #4CAF50;border-radius:8px;' +
-            'background:#fff;color:#4CAF50;font-size:16px;font-weight:600;cursor:pointer;">+10</button>' +
+          '<button data-add="1" style="flex:1;padding:10px;border:1px solid var(--accent);border-radius:8px;' +
+            'background:var(--bg-card);color:var(--accent);font-size:16px;font-weight:600;cursor:pointer;">+1</button>' +
+          '<button data-add="5" style="flex:1;padding:10px;border:1px solid var(--accent);border-radius:8px;' +
+            'background:var(--bg-card);color:var(--accent);font-size:16px;font-weight:600;cursor:pointer;">+5</button>' +
+          '<button data-add="10" style="flex:1;padding:10px;border:1px solid var(--accent);border-radius:8px;' +
+            'background:var(--bg-card);color:var(--accent);font-size:16px;font-weight:600;cursor:pointer;">+10</button>' +
         '</div>' +
         '<div style="display:flex;gap:8px;">' +
-          '<button id="restock-cancel" style="flex:1;padding:12px;border:1px solid #ccc;border-radius:8px;' +
-            'background:#fff;font-size:15px;cursor:pointer;">取消</button>' +
+          '<button id="restock-cancel" style="flex:1;padding:12px;border:1px solid var(--border);border-radius:8px;' +
+            'background:var(--bg-card);font-size:15px;cursor:pointer;">取消</button>' +
           '<button id="restock-confirm" style="flex:1;padding:12px;border:none;border-radius:8px;' +
-            'background:#4CAF50;color:#fff;font-size:15px;font-weight:600;cursor:pointer;">確認入庫</button>' +
+            'background:var(--accent);color:#fff;font-size:15px;font-weight:600;cursor:pointer;">確認入庫</button>' +
         '</div>' +
       '</div>';
 
@@ -108,39 +108,39 @@ const InvStockIn = {
     }
 
     formArea.innerHTML =
-      '<div style="background:#fff;border-radius:12px;padding:16px;border:1px solid #eee;">' +
+      '<div style="background:var(--bg-card);border-radius:12px;padding:16px;border:1px solid var(--border);">' +
         '<h4 style="margin:0 0 12px;">新增商品</h4>' +
-        '<label style="font-size:13px;color:#666;">條碼</label>' +
+        '<label style="font-size:13px;color:var(--text-muted);">條碼</label>' +
         '<input value="' + InvApp.escapeHTML(barcode) + '" disabled ' +
-          'style="width:100%;padding:8px;margin-bottom:10px;border:1px solid #eee;border-radius:6px;' +
-          'background:#f5f5f5;box-sizing:border-box;" />' +
-        '<label style="font-size:13px;color:#666;">品名 <span style="color:#f44336;">*</span></label>' +
-        '<input id="new-name" style="width:100%;padding:8px;margin-bottom:10px;border:1px solid #ccc;border-radius:6px;box-sizing:border-box;" />' +
+          'style="width:100%;padding:8px;margin-bottom:10px;border:1px solid var(--border);border-radius:6px;' +
+          'background:var(--bg-elevated);box-sizing:border-box;" />' +
+        '<label style="font-size:13px;color:var(--text-muted);">品名 <span style="color:var(--danger);">*</span></label>' +
+        '<input id="new-name" style="width:100%;padding:8px;margin-bottom:10px;border:1px solid var(--border);border-radius:6px;box-sizing:border-box;" />' +
         '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">' +
-          '<div><label style="font-size:13px;color:#666;">進貨價 <span style="color:#f44336;">*</span></label>' +
-          '<input id="new-cost" type="number" inputmode="numeric" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:6px;box-sizing:border-box;" /></div>' +
-          '<div><label style="font-size:13px;color:#666;">售價 <span style="color:#f44336;">*</span></label>' +
-          '<input id="new-price" type="number" inputmode="numeric" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:6px;box-sizing:border-box;" /></div>' +
+          '<div><label style="font-size:13px;color:var(--text-muted);">進貨價 <span style="color:var(--danger);">*</span></label>' +
+          '<input id="new-cost" type="number" inputmode="numeric" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;box-sizing:border-box;" /></div>' +
+          '<div><label style="font-size:13px;color:var(--text-muted);">售價 <span style="color:var(--danger);">*</span></label>' +
+          '<input id="new-price" type="number" inputmode="numeric" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;box-sizing:border-box;" /></div>' +
         '</div>' +
-        '<label style="font-size:13px;color:#666;margin-top:10px;display:block;">數量 <span style="color:#f44336;">*</span></label>' +
+        '<label style="font-size:13px;color:var(--text-muted);margin-top:10px;display:block;">數量 <span style="color:var(--danger);">*</span></label>' +
         '<input id="new-qty" type="number" inputmode="numeric" value="1" min="1" ' +
-          'style="width:100%;padding:8px;margin-bottom:10px;border:1px solid #ccc;border-radius:6px;box-sizing:border-box;" />' +
-        '<label style="font-size:13px;color:#666;">品牌</label>' +
-        '<input id="new-brand" style="width:100%;padding:8px;margin-bottom:10px;border:1px solid #ccc;border-radius:6px;box-sizing:border-box;" />' +
-        '<label style="font-size:13px;color:#666;">分類</label>' +
-        '<select id="new-category" style="width:100%;padding:8px;margin-bottom:10px;border:1px solid #ccc;border-radius:6px;box-sizing:border-box;">' +
+          'style="width:100%;padding:8px;margin-bottom:10px;border:1px solid var(--border);border-radius:6px;box-sizing:border-box;" />' +
+        '<label style="font-size:13px;color:var(--text-muted);">品牌</label>' +
+        '<input id="new-brand" style="width:100%;padding:8px;margin-bottom:10px;border:1px solid var(--border);border-radius:6px;box-sizing:border-box;" />' +
+        '<label style="font-size:13px;color:var(--text-muted);">分類</label>' +
+        '<select id="new-category" style="width:100%;padding:8px;margin-bottom:10px;border:1px solid var(--border);border-radius:6px;box-sizing:border-box;">' +
           catOptions + '</select>' +
         '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px;">' +
-          '<div><label style="font-size:13px;color:#666;">顏色</label>' +
-          '<input id="new-color" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:6px;box-sizing:border-box;" /></div>' +
-          '<div><label style="font-size:13px;color:#666;">尺寸</label>' +
-          '<input id="new-size" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:6px;box-sizing:border-box;" /></div>' +
+          '<div><label style="font-size:13px;color:var(--text-muted);">顏色</label>' +
+          '<input id="new-color" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;box-sizing:border-box;" /></div>' +
+          '<div><label style="font-size:13px;color:var(--text-muted);">尺寸</label>' +
+          '<input id="new-size" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;box-sizing:border-box;" /></div>' +
         '</div>' +
         '<div style="display:flex;gap:8px;">' +
-          '<button id="new-cancel" style="flex:1;padding:12px;border:1px solid #ccc;border-radius:8px;' +
-            'background:#fff;font-size:15px;cursor:pointer;">取消</button>' +
+          '<button id="new-cancel" style="flex:1;padding:12px;border:1px solid var(--border);border-radius:8px;' +
+            'background:var(--bg-card);font-size:15px;cursor:pointer;">取消</button>' +
           '<button id="new-save" style="flex:1;padding:12px;border:none;border-radius:8px;' +
-            'background:#4CAF50;color:#fff;font-size:15px;font-weight:600;cursor:pointer;">建檔入庫</button>' +
+            'background:var(--accent);color:#fff;font-size:15px;font-weight:600;cursor:pointer;">建檔入庫</button>' +
         '</div>' +
       '</div>';
 
