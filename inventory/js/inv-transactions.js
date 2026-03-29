@@ -33,14 +33,14 @@ const InvTransactions = {
     var html =
       '<div style="padding:12px 16px;">' +
         /* --- 1. 日期篩選 --- */
-        '<div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;">' +
+        '<div style="display:flex;gap:6px;align-items:center;margin-bottom:10px;max-width:100%;overflow:hidden">' +
           '<input type="date" class="inv-input" value="' + esc(this._startDate) + '" ' +
             'onchange="InvTransactions._startDate=this.value;InvTransactions._reload()" ' +
-            'style="flex:1;height:36px;font-size:13px;" />' +
-          '<span style="color:#94a3b8;">~</span>' +
+            'style="flex:1;min-width:0;height:34px;font-size:12px;padding:4px 6px" />' +
+          '<span style="color:var(--text-muted);flex-shrink:0;font-size:12px">~</span>' +
           '<input type="date" class="inv-input" value="' + esc(this._endDate) + '" ' +
             'onchange="InvTransactions._endDate=this.value;InvTransactions._reload()" ' +
-            'style="flex:1;height:36px;font-size:13px;" />' +
+            'style="flex:1;min-width:0;height:34px;font-size:12px;padding:4px 6px" />' +
         '</div>' +
         /* --- 2. 類型 tabs --- */
         '<div style="display:flex;gap:5px;flex-wrap:wrap;padding-bottom:8px;">';
