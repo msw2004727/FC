@@ -83,12 +83,11 @@ const InvSettings = {
     for (var i = 0; i < uids.length; i++) {
       var u = uids[i], isMe = u === myUid, isUOwner = u === this._OWNER_UID;
       var isSA = superAdmins.indexOf(u) !== -1;
-      // 角色標籤
+      // 角色標籤（永遠顯示真實角色）
       var roleTag = isUOwner ? '<span style="flex-shrink:0;background:var(--accent);color:#fff;padding:2px 10px;border-radius:999px;font-size:10px;font-weight:600">擁有者</span>'
         : isSA ? '<span style="flex-shrink:0;background:var(--warning);color:#fff;padding:2px 10px;border-radius:999px;font-size:10px;font-weight:600">超級管理</span>'
         : '<span style="flex-shrink:0;background:var(--bg-elevated);color:var(--text-muted);padding:2px 10px;border-radius:999px;font-size:10px;font-weight:600">管理員</span>';
-      var meTag = isMe ? ' <span style="color:var(--accent);font-size:10px;font-weight:700">(你)</span>' : '';
-      // 操作按鈕
+      // 操作按鈕（擁有者/超管才看得到）
       var actions = '';
       if (canManage && !isUOwner && !isMe) {
         actions += '<button onclick="InvSettings.removeAdmin(\'' + esc(u) + '\')" style="flex-shrink:0;background:none;border:none;color:var(--danger);cursor:pointer;font-size:16px;padding:0 4px" title="移除">✕</button>';
@@ -99,10 +98,16 @@ const InvSettings = {
       if (isOwner && isSA) {
         actions += '<button onclick="InvSettings.demoteSuperAdmin(\'' + esc(u) + '\')" style="flex-shrink:0;background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:12px;padding:0 4px" title="取消超級管理">⬇</button>';
       }
-      var border = isUOwner ? 'border:1.5px solid var(--accent)' : isSA ? 'border:1.5px solid var(--warning)' : 'border:1px solid var(--border)';
-      var bg = isUOwner ? 'background:var(--accent-light)' : 'background:var(--bg-elevated)';
+      // 自己用底色高亮（accent-light + accent border），其他人依角色底色
+      var border = isMe ? 'border:1.5px solid var(--accent)'
+        : isUOwner ? 'border:1.5px solid var(--accent)'
+        : isSA ? 'border:1.5px solid var(--warning)'
+        : 'border:1px solid var(--border)';
+      var bg = isMe ? 'background:var(--accent-light)'
+        : 'background:var(--bg-elevated)';
+      var uidColor = isMe ? 'color:var(--accent);font-weight:600' : 'color:var(--text-secondary)';
       html += '<div style="display:flex;align-items:center;gap:8px;padding:8px 14px;margin-bottom:6px;border-radius:var(--radius-sm);' + bg + ';' + border + '">'
-        + '<span style="flex:1;font-size:11px;color:var(--text-secondary);word-break:break-all">' + esc(u) + meTag + '</span>'
+        + '<span style="flex:1;font-size:11px;' + uidColor + ';word-break:break-all">' + esc(u) + '</span>'
         + roleTag + actions + '</div>';
     }
     if (canManage) {
