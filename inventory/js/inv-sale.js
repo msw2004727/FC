@@ -20,9 +20,8 @@ const InvSale = {
     this._isGift = false;
     this._isStaffPurchase = false;
     wrap.innerHTML =
-      '<div id="inv-sale-scanner" style="position:sticky;top:0;z-index:10;' +
-        'background:var(--inv-bg);max-height:35vh;overflow:hidden;padding:8px 0;"></div>' +
-      '<div id="inv-cart-list" style="flex:1;overflow-y:auto;padding-bottom:140px;"></div>';
+      '<div id="inv-sale-scanner" style="padding:8px 0"></div>' +
+      '<div id="inv-cart-list" style="padding-bottom:80px"></div>';
     InvScanner.renderScannerUI('inv-sale-scanner', function (b) { InvSale.onScan(b); });
     InvCart.restore();
     InvCart.renderCartBar();
