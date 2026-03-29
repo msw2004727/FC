@@ -38,11 +38,10 @@ const InvSettings = {
     var shopName = (cfg.shopName && /^[\x20-\x7E\u4e00-\u9fff]+$/.test(cfg.shopName)) ? cfg.shopName : 'ToosterX';
     c.innerHTML = '<div style="padding:16px;">' +
       this._card(h4('店鋪資訊') +
-        '<div style="display:flex;align-items:center;gap:8px">' +
+        '<div id="inv-shop-name-area" style="display:flex;align-items:center;gap:8px">' +
           '<span style="font-size:14px;color:var(--text-secondary);flex-shrink:0">店名：</span>' +
-          '<input id="inv-shop-name" class="inv-input" value="' + esc(shopName) + '" ' +
-            'style="flex:1;height:36px;font-size:14px" placeholder="輸入店名" />' +
-          '<button class="inv-btn primary sm" onclick="InvSettings.saveShopName()">儲存</button>' +
+          '<span id="inv-shop-name-display" style="flex:1;font-size:15px;font-weight:600;color:var(--text-primary)">' + esc(shopName) + '</span>' +
+          '<button class="inv-btn outline sm" onclick="InvSettings._enableShopNameEdit()" style="font-size:12px;min-height:30px;padding:2px 12px">更名</button>' +
         '</div>') +
       this._card(h4('管理員白名單') + '<div id="inv-admin-list"></div>') +
       this._card(h4('商品分類管理') + '<div id="inv-category-list"></div>') +
@@ -116,14 +115,27 @@ const InvSettings = {
     w.innerHTML = html;
   },
 
+  _enableShopNameEdit() {
+    var area = document.getElementById('inv-shop-name-area');
+    if (!area) return;
+    var current = (document.getElementById('inv-shop-name-display') || {}).textContent || '';
+    area.innerHTML =
+      '<span style="font-size:14px;color:var(--text-secondary);flex-shrink:0">店名：</span>' +
+      '<input id="inv-shop-name-input" class="inv-input" value="' + InvApp.escapeHTML(current) + '" style="flex:1;height:36px;font-size:14px" />' +
+      '<button class="inv-btn primary sm" onclick="InvSettings.saveShopName()" style="font-size:12px;min-height:30px;padding:2px 12px">儲存</button>' +
+      '<button class="inv-btn outline sm" onclick="InvSettings.render()" style="font-size:12px;min-height:30px;padding:2px 8px">取消</button>';
+    document.getElementById('inv-shop-name-input').focus();
+  },
+
   async saveShopName() {
-    var input = document.getElementById('inv-shop-name');
+    var input = document.getElementById('inv-shop-name-input');
     if (!input) return;
     var name = input.value.trim();
     if (!name) { InvApp.showToast('請輸入店名'); return; }
     try {
       await this._cfgRef().update({ shopName: name });
       InvApp.showToast('店名已更新');
+      this.render();
     } catch (e) { InvApp.showToast('儲存失敗'); }
   },
 
