@@ -61,7 +61,7 @@ Object.assign(App, {
         if (_pickerPending) {
           this._addMultiDate(_pickerPending);
           _pickerPending = null;
-          dateInput.value = '';
+          // _addMultiDate 已根據日期數量設定 input 值，不再額外清空
         }
       }, 150);
     });
@@ -83,9 +83,9 @@ Object.assign(App, {
     }
     this._multiDates.push(dateStr);
     this._multiDates.sort();
-    // 清空 input（日期存在 _multiDates 陣列，input 僅作為選擇器觸發器）
+    // 單日期：顯示在 input（用戶需看到已選日期）；多日期：清空（由 capsules 顯示）
     const dateInput = document.getElementById('ce-date');
-    if (dateInput) dateInput.value = '';
+    if (dateInput) dateInput.value = this._multiDates.length === 1 ? this._multiDates[0] : '';
     this._renderMultiDateCapsules();
     if (this._multiDates.length >= 2) this._switchToRelativeRegOpen();
   },
