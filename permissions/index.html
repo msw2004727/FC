@@ -255,22 +255,23 @@ section{margin-bottom:3rem}
       <div class="role-card-head">
         <span class="role-badge" style="background:#2563eb">管理員</span>
         <span class="role-lv">Lv.4 · admin</span>
-        <div class="role-card-stats"><span class="stat-pill">多數權限</span></div>
+        <div class="role-card-stats"><span class="stat-pill">12 預設</span><span class="stat-pill red">35 可授予</span></div>
       </div>
       <div class="role-card-body">
-        <h4>預設擁有的權限（9 入口 + 3 額外）</h4>
+        <h4>預設擁有的權限（9 入口 + 3 額外操作）</h4>
         <ul class="perm-list">
-          <li class="on">活動管理、賽事管理、小遊戲、用戶管理</li>
-          <li class="on">廣告管理、二手商品、站內信、俱樂部管理、補正管理</li>
-          <li class="on">建立俱樂部 · 管理所有俱樂部 · 編輯所有活動</li>
+          <li class="on">入口：活動管理、賽事管理、小遊戲、用戶管理</li>
+          <li class="on">入口：廣告管理、二手商品、站內信、俱樂部管理、補正管理</li>
+          <li class="on">操作：建立俱樂部 · 管理所有俱樂部 · 編輯所有活動</li>
         </ul>
-        <h4>預設無、可由 super_admin 授予（8 項）</h4>
+        <h4>預設無、可由 super_admin 授予（8 入口 + 27 子權限）</h4>
         <ul class="perm-list">
-          <li class="off">儀表板 · 佈景主題 · 手動 EXP · 自動 EXP</li>
-          <li class="off">系統公告 · 成就/徽章 · 日誌中心 · 無效資料查詢</li>
+          <li class="off">入口 8 項：儀表板 · 佈景主題 · 手動 EXP · 自動 EXP · 系統公告 · 成就/徽章 · 日誌中心 · 無效資料查詢</li>
+          <li class="off">活動子權限 8 項（建立、編輯自己、刪除自己、刪除所有、上架/下架、掃碼、手動簽到、查看報名名單）</li>
+          <li class="off">賽事 3 · 俱樂部 5 · 用戶管理 3 · 站內信 2 · 補正 3 · 日誌 3</li>
         </ul>
         <div class="role-card-note">
-          管理員預設擁有 9 個入口權限 + 3 個操作權限。其餘 8 個 super_admin 級功能可由總管額外授予，前後端即時生效。
+          管理員預設擁有 9 個入口權限 + 3 個操作權限（team.create · team.manage_all · event.edit_all）。其餘 8 個 super_admin 級入口與所有模組子權限可由總管額外授予，前後端即時生效。
         </div>
       </div>
     </div>
@@ -321,21 +322,21 @@ section{margin-bottom:3rem}
         <!-- 活動管理 -->
         <tr class="cat-row"><td colspan="7"><span>活動管理</span></td></tr>
         <tr><td>活動管理入口</td><td class="icon-lock">✕</td><td class="icon-inherent">⚿</td><td class="icon-inherent">⚿</td><td class="icon-inherent">⚿</td><td class="icon-on">◉</td><td class="icon-lock">⚿</td></tr>
-        <tr><td>建立活動</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-on">◉</td><td class="icon-lock">⚿</td></tr>
-        <tr><td>編輯自己的活動</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-on">◉</td><td class="icon-lock">⚿</td></tr>
+        <tr><td>建立活動</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-lock">⚿</td></tr>
+        <tr><td>編輯自己的活動</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-lock">⚿</td></tr>
         <tr><td>編輯所有活動</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-on">◉</td><td class="icon-lock">⚿</td></tr>
-        <tr><td>刪除自己的活動</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-on">◉</td><td class="icon-lock">⚿</td></tr>
-        <tr><td>刪除所有活動</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-on">◉</td><td class="icon-lock">⚿</td></tr>
-        <tr><td>上架 / 下架活動</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-on">◉</td><td class="icon-lock">⚿</td></tr>
-        <tr><td>掃碼簽到 / 簽退</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-on">◉</td><td class="icon-lock">⚿</td></tr>
-        <tr><td>手動簽到 / 簽退</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-on">◉</td><td class="icon-lock">⚿</td></tr>
-        <tr><td>查看報名名單</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-on">◉</td><td class="icon-lock">⚿</td></tr>
+        <tr><td>刪除自己的活動</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-lock">⚿</td></tr>
+        <tr><td>刪除所有活動</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-lock">⚿</td></tr>
+        <tr><td>上架 / 下架活動</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-lock">⚿</td></tr>
+        <tr><td>掃碼簽到 / 簽退</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-lock">⚿</td></tr>
+        <tr><td>手動簽到 / 簽退</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-lock">⚿</td></tr>
+        <tr><td>查看報名名單</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-lock">⚿</td></tr>
         <!-- 賽事管理 -->
         <tr class="cat-row"><td colspan="7"><span>賽事管理</span></td></tr>
         <tr><td>賽事管理入口</td><td class="icon-lock">✕</td><td class="icon-inherent">⚿</td><td class="icon-inherent">⚿</td><td class="icon-inherent">⚿</td><td class="icon-on">◉</td><td class="icon-lock">⚿</td></tr>
-        <tr><td>建立賽事</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-on">◉</td><td class="icon-lock">⚿</td></tr>
-        <tr><td>管理所有賽事</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-on">◉</td><td class="icon-lock">⚿</td></tr>
-        <tr><td>審核參賽申請</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-on">◉</td><td class="icon-lock">⚿</td></tr>
+        <tr><td>建立賽事</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-lock">⚿</td></tr>
+        <tr><td>管理所有賽事</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-lock">⚿</td></tr>
+        <tr><td>審核參賽申請</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-lock">⚿</td></tr>
         <!-- 俱樂部管理 -->
         <tr class="cat-row"><td colspan="7"><span>俱樂部管理</span></td></tr>
         <tr><td>俱樂部管理入口</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-on">◉</td><td class="icon-lock">⚿</td></tr>
