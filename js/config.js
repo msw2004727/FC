@@ -575,6 +575,11 @@ const ADMIN_PAGE_EXTRA_PERMISSION_ITEMS = {
   'page-admin-teams': [
     { code: 'team.create', name: '建立俱樂部' },
     { code: 'team.manage_all', name: '管理所有俱樂部' },
+    { code: 'team.manage_self', name: '管理自己的俱樂部' },
+    { code: 'team.review_join', name: '審核入隊申請' },
+    { code: 'team.assign_coach', name: '指派俱樂部教練' },
+    { code: 'team.create_event', name: '建立俱樂部專屬活動' },
+    { code: 'team.toggle_event_visibility', name: '切換活動公開性' },
   ],
   'page-admin-users': [
     { code: 'admin.users.edit_profile', name: '編輯基本資料' },
