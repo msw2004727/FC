@@ -50,7 +50,7 @@
 範例：`20260211` → `20260211a` → `20260211b` → `20260212`
 
 > `page-loader.js` 的 fetch 會自動讀取 `CACHE_VERSION`，不需額外改。
-> `sw.js` 內的 `CACHE_NAME` 是 Service Worker 獨立快取識別名稱，**一般改版不需動**，只有在需要強制清除所有 SW 快取時才一併更新。
+> `sw.js` 內的 `CACHE_NAME` 是 Service Worker 快取群組名稱，**必須與 `CACHE_VERSION` / `var V` 同步**，否則舊快取不會被清除（詳見 CLAUDE.md 四點同步規則）。
 
 ---
 
@@ -72,7 +72,7 @@
 
 - 專案長期目標是逐步走向**功能模組化、資料夾化、責任邊界清楚**的架構；對於已明顯跨頁、跨責任、跨資料來源的功能，不應長期維持在單一大檔案中持續堆疊。
 - 重構既有功能時，預設採用「**保留舊入口、內部邏輯逐步抽離到新資料夾**」的方式進行；除非使用者明確要求，否則不要直接做一次性大搬家。
-- 已完成 12 個功能子資料夾化（achievement / tournament / user-admin / event / team / profile / message / scan / dashboard / kickball / ad-manage / shot-game），新增模組應放入對應子資料夾。
+- 已完成 14 個功能子資料夾化（achievement / tournament / user-admin / event / team / profile / message / scan / dashboard / kickball / ad-manage / shot-game / education / color-cat），新增模組應放入對應子資料夾。
 - 舊檔若仍承擔既有入口責任，應先轉為 facade / compatibility layer，再逐步瘦身，而不是在第一步就刪除。
 - 功能重構時，要明確區分「結構整理」與「業務邏輯改寫」兩種工作；若兩者同時進行會提高回歸風險，預設先做結構整理，再做邏輯重寫。
 - 每次完成資料夾化或模組拆分後，必須同步更新 `docs/architecture.md`，讓專案結構演進有文件可追。

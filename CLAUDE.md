@@ -42,7 +42,7 @@ FC-github/
 ├── index.html              # 主入口
 ├── app.js                  # App 核心物件
 ├── sw.js                   # Service Worker
-├── css/                    # 樣式（13 個 CSS）
+├── css/                    # 樣式（14 個 CSS）
 ├── js/
 │   ├── config.js           # 全域常數、ModeManager
 │   ├── i18n.js             # 多語系
@@ -52,21 +52,23 @@ FC-github/
 │   ├── api-service.js      # Demo / Prod 抽象層
 │   ├── line-auth.js        # LINE LIFF 登入
 │   ├── core/               # 基礎設施（4 個）
-│   └── modules/            # 功能模組（12 子資料夾 + 21 獨立檔案）
-│       ├── event/          # 活動系統（27）：列表、詳情、報名、建立、管理、分享
-│       ├── team/           # 俱樂部系統（10）：列表、詳情、表單、分享
+│   └── modules/            # 功能模組（14 子資料夾 + 24 獨立檔案）
+│       ├── event/          # 活動系統（30）：列表、詳情、報名、建立、管理、分享
+│       ├── team/           # 俱樂部系統（11）：列表、詳情、表單、動態牆、分享
 │       ├── tournament/     # 賽事系統（12）：渲染、詳情、管理、友誼賽
 │       ├── profile/        # 個人資料（9）：核心、資料、名片、分享
 │       ├── message/        # 訊息系統（9）：渲染、操作、收件匣、管理員
 │       ├── achievement/    # 成就系統（10）：registry / evaluator / badges 等
+│       ├── education/      # 教育型俱樂部（21）：分組、學員、課程、報名、簽到、行事曆
+│       ├── color-cat/      # 養成角色系統（45）：角色、戰鬥、敵人、場景、AI、MBTI、對話
 │       ├── shot-game/      # 射門遊戲（10）：引擎、物理、渲染、計分
 │       ├── kickball/       # 踢球遊戲（6）：物理、渲染、排行榜
 │       ├── scan/           # QR 掃描（5）：掃描、處理、家庭成員
-│       ├── dashboard/      # 儀表板（5）：管理員、個人、報表分享
-│       ├── ad-manage/      # 廣告管理（5）：輪播、浮動、贊助、小遊戲
+│       ├── dashboard/      # 儀表板（6）：管理員、個人、報表分享、用量
+│       ├── ad-manage/      # 廣告管理（6）：輪播、浮動、贊助、小遊戲、品牌開機
 │       ├── user-admin/     # 用戶後台（4）：列表、EXP、角色、補正
-│       └── [21 獨立模組]   # banner / shop / leaderboard / role 等
-├── pages/                  # HTML 片段（16 個）
+│       └── [24 獨立模組]   # banner / shop / leaderboard / role / pwa-install 等
+├── pages/                  # HTML 片段（18 個）
 ├── docs/                   # 專案文件
 └── functions/              # Cloud Functions
 ```
@@ -112,7 +114,7 @@ FC-github/
 
 - 專案長期目標是逐步走向**功能模組化、資料夾化、責任邊界清楚**的架構；對於已明顯跨頁、跨責任、跨資料來源的功能，不應長期維持在單一大檔案中持續堆疊。
 - 重構既有功能時，預設採用「**保留舊入口、內部邏輯逐步抽離到新資料夾**」的方式進行；除非使用者明確要求，否則不要直接做一次性大搬家。
-- 已完成 12 個功能子資料夾化（achievement / tournament / user-admin / event / team / profile / message / scan / dashboard / kickball / ad-manage / shot-game），新增模組應放入對應子資料夾。
+- 已完成 14 個功能子資料夾化（achievement / tournament / user-admin / event / team / profile / message / scan / dashboard / kickball / ad-manage / shot-game / education / color-cat），新增模組應放入對應子資料夾。
 - 舊檔若仍承擔既有入口責任，應先轉為 facade / compatibility layer，再逐步瘦身，而不是在第一步就刪除。
 - 功能重構時，要明確區分「結構整理」與「業務邏輯改寫」兩種工作；若兩者同時進行會提高回歸風險，預設先做結構整理，再做邏輯重寫。
 - 每次完成資料夾化或模組拆分後，必須同步更新 `docs/architecture.md`，讓專案結構演進有文件可追。

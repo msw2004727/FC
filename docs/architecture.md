@@ -39,9 +39,9 @@ flowchart TD
         NAV["core/navigation.js\n頁面路由 & Modal"]
         THEME["core/theme.js\n深色 / 淺色主題"]
 
-        subgraph MODS["modules/ — 12 功能子資料夾 + 21 獨立模組"]
-            EVT["event/ (27)\n活動系統"]
-            TEAM["team/ (10)\n俱樂部系統"]
+        subgraph MODS["modules/ — 14 功能子資料夾 + 24 獨立模組"]
+            EVT["event/ (30)\n活動系統"]
+            TEAM["team/ (11)\n俱樂部系統"]
             TOUR["tournament/ (12)\n賽事系統"]
             PROF["profile/ (9)\n個人資料"]
             MSG["message/ (9)\n訊息系統"]
@@ -49,11 +49,12 @@ flowchart TD
             SHOT["shot-game/ (10)\n射門遊戲"]
             KICK["kickball/ (6)\n踢球遊戲"]
             SCAN["scan/ (5)\nQR Code 掃描"]
-            DASH["dashboard/ (5)\n儀表板"]
-            ADMG["ad-manage/ (5)\n廣告管理"]
-            EDU["education/ (15)\n教育型俱樂部"]
+            DASH["dashboard/ (6)\n儀表板"]
+            ADMG["ad-manage/ (6)\n廣告管理"]
+            EDU["education/ (21)\n教育型俱樂部"]
+            CCAT["color-cat/ (45)\n養成角色系統"]
             UADM["user-admin/ (4)\n用戶管理後台"]
-            STANDALONE["21 個獨立模組\nbanner / shop / role / leaderboard\nachievement facade / news / favorites\nannouncement / popup-ad / auto-exp\nsite-theme / game-manage / data-sync\nimage-cropper / image-upload\nattendance-notify / registration-audit\nachievement-batch / admin-log-tabs\naudit-log / error-log"]
+            STANDALONE["24 個獨立模組\nbanner / shop / role / leaderboard\nachievement facade / news / favorites\nannouncement / popup-ad / auto-exp\nsite-theme / game-manage / data-sync\nimage-cropper / image-upload / pwa-install\nattendance-notify / registration-audit\nachievement-batch / admin-log-tabs\naudit-log / error-log / game-log-viewer"]
         end
     end
 
@@ -113,7 +114,7 @@ flowchart TD
 
 ## 功能子資料夾模組清單
 
-### event/ — 活動系統（27 個模組）
+### event/ — 活動系統（30 個模組）
 
 | 檔案 | 說明 |
 |------|------|
@@ -127,6 +128,8 @@ flowchart TD
 | `event-detail.js` | 活動詳情頁主模組 |
 | `event-detail-signup.js` | 活動報名 UI 入口（含 `handleSignup()`、`handleCancelSignup()`） |
 | `event-detail-companion.js` | 同行者報名 UI（含 `_confirmCompanionRegister()`、`_confirmCompanionCancel()`） |
+| `event-detail-calendar.js` | Google 日曆整合（一鍵加入行事曆、日期解析） |
+| `event-detail-notify-prompt.js` | 報名後 LINE 通知綁定提示（可關閉，localStorage 記憶） |
 | `event-create-input-history.js` | 建立活動表單輸入歷史（localStorage） |
 | `event-create-sport-picker.js` | 建立活動運動標籤選擇器 |
 | `event-create-delegates.js` | 建立活動代理人搜尋與管理 |
@@ -134,6 +137,7 @@ flowchart TD
 | `event-create-team-picker.js` | 建立活動俱樂部限定選擇器 |
 | `event-create-external.js` | 建立外部活動工作流 |
 | `event-create-template.js` | 建立活動範本管理（本地 + 雲端） |
+| `event-create-multidate.js` | 多日期批次建立活動（單表單產生多場獨立活動） |
 | `event-create-waitlist.js` | 建立活動候補自動遞補設定 |
 | `event-create.js` | 建立活動主模組 |
 | `event-manage-noshow.js` | 放鴿子統計（含鎖定函式 `_buildRawNoShowCountByUid()`、`_getNoShowDetailsByUid()`） |
@@ -143,8 +147,9 @@ flowchart TD
 | `event-manage-badges.js` | 活動管理徽章刷新 |
 | `event-manage-waitlist.js` | 候補名單管理表格 |
 | `event-manage.js` | 活動管理主模組（共用 helper） |
+| `event-external-transit.js` | 外部活動中繼卡片（YouTube 嵌入、連結跳轉、分享） |
 
-### team/ — 俱樂部系統（10 個模組）
+### team/ — 俱樂部系統（11 個模組）
 
 | 檔案 | 說明 |
 |------|------|
@@ -247,34 +252,56 @@ flowchart TD
 | `kickball-physics.js` | 踢球遊戲物理引擎 |
 | `kickball-game-page.js` | 開球王遊戲頁面（嵌入主站 kickball.html） |
 
-### color-cat/ — 養成角色系統（24 個模組）
+### color-cat/ — 養成角色系統（45 個模組，含 dialogue/ 子目錄）
 
 | 檔案 | 說明 |
 |------|------|
-| `color-cat-config.js` | 常數、皮膚定義、動作定義 |
+| `color-cat-config.js` | 常數、皮膚定義（貓×2 + 兔×2）、動作定義 |
 | `color-cat-stats.js` | 遊戲數值（體力、AI 權重、物理、粒子參數） |
-| `color-cat-sprite.js` | 精靈圖載入、繪製、剪影 |
+| `color-cat-sprite.js` | 精靈圖載入、繪製、剪影、2x 高解析支援 |
 | `color-cat-ball.js` | 球體物理、踢球煙塵、叼球模式 |
 | `color-cat-character.js` | 角色核心（共享狀態、初始化、更新迴圈、公開 API） |
 | `color-cat-character-stamina.js` | 體力消耗/恢復、虛弱等級觸發、體力條繪製 |
-| `color-cat-character-particles.js` | 跑步煙塵、虛弱喘氣粒子特效 |
+| `color-cat-character-particles.js` | 跑步煙塵、擊退爆發、呼吸動畫、愛心粒子 |
 | `color-cat-character-actions.js` | 動作啟動/停止、移動更新（追球、走向紙箱、短跑） |
+| `color-cat-character-actions-interact.js` | 互動動作：睡覺、醒來、賞花、攻擊花/草/蝴蝶/敵人 |
+| `color-cat-character-actions-special.js` | 特殊動作：必殺蓄力+釋放、擊退恢復、逃跑、喘氣返回 |
 | `color-cat-character-combo.js` | 連續動作序列（爬邊牆、爬紙箱、咬球跑） |
-| `color-cat-character-ai.js` | AI 行為選擇、追球/踢球/閒置更新 |
+| `color-cat-character-combat.js` | 戰鬥邏輯：受傷、瀕死倒數→重生、攻擊敵人、敵人 AI 互動 |
+| `color-cat-character-bubble.js` | 對話氣泡：依情緒×MBTI×皮膚取得台詞並顯示 |
+| `color-cat-character-ai.js` | AI 行為選擇（權重+MBTI+環境修正）、追球/踢球/閒置更新 |
+| `color-cat-mbti.js` | MBTI 16 型人格系統：對應行動權重乘數 |
+| `color-cat-damage-number.js` | 浮動傷害/經驗值數字（生成、上浮、淡出） |
+| `color-cat-enemy.js` | 敵人系統：10 種敵人×4 技能、生成、狀態機、AI 行為樹、精英 |
+| `color-cat-enemy-draw.js` | 敵人精靈渲染：幀推進、陰影、傷害數字、受驚效果 |
+| `color-cat-enemy-projectile.js` | 投射物系統：弓箭/魔法彈生成、物理更新、碰撞偵測 |
+| `color-cat-enemy-util.js` | 戰鬥工具：命中偵測、傷害套用、擊退軌跡、搜尋最近敵人 |
 | `color-cat-profile.js` | 角色資訊（名稱、等級、數值、個性、心情、裝備） |
 | `color-cat-scene.js` | 場景核心（共享狀態、主迴圈、初始化、點擊、App 掛載） |
-| `color-cat-scene-bg.js` | 背景繪製（天空漸層、草地、太陽/月亮） |
+| `color-cat-scene-bg.js` | 背景繪製（天空漸層、山丘、雲朵、日夜循環） |
 | `color-cat-scene-box.js` | 紙箱繪製（箱體、貓臉塗鴉、蓋子開合、Zzz） |
 | `color-cat-scene-flag.js` | 旗子繪製（飄揚動畫、旗上貓臉）+ 牆面影子 |
-| `color-cat-scene-flower.js` | 花朵系統（生長動畫、金花、採集 EXP、枯萎機制） |
+| `color-cat-scene-flower.js` | 花朵系統（4 階段成長、金花 1/6 機率、採集 EXP、枯萎） |
 | `color-cat-scene-grass.js` | 雜草系統（自動生長、離線補長、鋤草動畫、存檔） |
+| `color-cat-scene-butterfly.js` | 蝴蝶系統（懸停物理、隨機行走、玩家追逐觸發） |
+| `color-cat-scene-fog.js` | 濃霧事件（降低能見度、嚇退敵人 90% 休眠、視覺覆蓋） |
+| `color-cat-scene-grave.js` | 死亡墓碑（死亡位置生成、累積、點擊摧毀） |
 | `color-cat-scene-panel.js` | 右側抽屜面板（框架、把手、側邊頁籤、碰撞檢測） |
-| `color-cat-scene-panel-tab0.js` | 面板頁籤0：基本資料（頭像、名稱、五維數值） |
-| `color-cat-scene-panel-tab1.js` | 面板頁籤1：狀態（動作、體力、個性、心情） |
-| `color-cat-scene-panel-tab2.js` | 面板頁籤2：裝備（6 格裝備欄位） |
+| `color-cat-scene-panel-tab0.js` | 面板頁籤0：基本資料（頭像、名稱、等級、EXP、換膚） |
+| `color-cat-scene-panel-tab1.js` | 面板頁籤1：狀態（體力條、HP 條、虛弱顯示） |
+| `color-cat-scene-panel-tab2.js` | 面板頁籤2：裝備（6 格裝備欄位，預留擴充） |
+| `color-cat-scene-panel-modal.js` | 浮動統計 Modal（角色檔案、成就列表、數值明細） |
+| `color-cat-scene-signpost-modal.js` | 故事/提示 Modal（首次載入說明遊戲機制） |
+| `color-cat-scene-stats-modal.js` | 詳細數值 Modal（體力狀態、動作歷史、戰鬥統計、MBTI） |
 | `color-cat-scene-weather.js` | 天氣系統（晴/陰/雨/雷暴/雪/霧 + 粒子特效） |
 | `color-cat-naming.js` | 角色命名 UI overlay（LINE 暱稱帶入 + 自訂） |
-| `color-cat-cloud-save.js` | Firestore 雲端存讀檔 + localStorage 備援 |
+| `color-cat-cloud-save.js` | Firestore 雲端存讀檔 + localStorage 備援 + dirty flag |
+| **dialogue/ 子目錄** | |
+| `dialogue/color-cat-dialogue-data.js` | 基礎對話池：4 皮膚×4 情緒×10 台詞 |
+| `dialogue/color-cat-dialogue-mbti-analysts.js` | INTJ/INTP/ENTJ/ENTP 分析師型台詞 |
+| `dialogue/color-cat-dialogue-mbti-diplomats.js` | INFJ/INFP/ENFJ/ENFP 外交官型台詞 |
+| `dialogue/color-cat-dialogue-mbti-explorers.js` | ISTP/ISFP/ESTP/ESFP 探險家型台詞 |
+| `dialogue/color-cat-dialogue-mbti-sentinels.js` | ISTJ/ISFJ/ESTJ/ESFJ 守衛者型台詞 |
 
 ### scan/ — QR Code 掃描（5 個模組）
 
@@ -286,7 +313,7 @@ flowchart TD
 | `scan-process.js` | 掃描結果處理、出席標記、驗證 |
 | `scan-family.js` | 家庭成員批次簽到 Modal |
 
-### dashboard/ — 儀表板（5 個模組）
+### dashboard/ — 儀表板（6 個模組）
 
 | 檔案 | 說明 |
 |------|------|
@@ -297,7 +324,7 @@ flowchart TD
 | `dashboard-usage.js` | 雲端用量指標（Firestore/Functions 用量、免費額度百分比、7 天趨勢圖） |
 | `personal-dashboard.js` | 個人數據儀表板（參加場次、出席率、EXP 統計） |
 
-### education/ — 教育型俱樂部（15 個模組）
+### education/ — 教育型俱樂部（21 個模組）
 
 | 檔案 | 說明 |
 |------|------|
@@ -311,6 +338,10 @@ flowchart TD
 | `edu-detail-realtime.js` | Firestore 即時監聽（students / teams） |
 | `edu-detail-withdraw.js` | 退學 / 取消申請流程 |
 | `edu-course-plan.js` | 課程方案 CRUD（週期制 + 堂數制） |
+| `edu-course-plan-render.js` | 課程方案卡片渲染（排序、置頂、報名按鈕） |
+| `edu-course-plan-attendance.js` | 課程出勤月曆彈窗（按日期顯示出勤明細） |
+| `edu-course-enrollment.js` | 課程報名申請、教練審核、備註、繳費旗標 |
+| `edu-course-enrollment-render.js` | 報名名冊渲染（待審/已核准頁籤、繳費追蹤） |
 | `edu-checkin.js` | 群組批次簽到 |
 | `edu-checkin-scan.js` | QR 掃碼簽到（掃到自動歸組） |
 | `edu-calendar-core.js` | 行事曆共用邏輯、視圖切換 |
@@ -319,7 +350,7 @@ flowchart TD
 | `edu-parent-binding.js` | 家長-孩子綁定管理 |
 | `edu-notify.js` | 通知：簽到成功、課前提醒、出席報告 |
 
-### ad-manage/ — 廣告管理（5 個模組）
+### ad-manage/ — 廣告管理（6 個模組）
 
 | 檔案 | 說明 |
 |------|------|
@@ -328,6 +359,7 @@ flowchart TD
 | `ad-manage-float.js` | 浮動廣告管理 |
 | `ad-manage-popup-sponsor.js` | 贊助彈窗廣告管理 |
 | `ad-manage-shotgame.js` | 小遊戲廣告管理 |
+| `boot-brand-manage.js` | 品牌開機動畫管理 |
 
 ### user-admin/ — 用戶管理後台（4 個模組）
 
@@ -340,7 +372,7 @@ flowchart TD
 
 ---
 
-## 獨立模組清單（21 個）
+## 獨立模組清單（24 個）
 
 以下模組位於 `js/modules/` 根目錄，不屬於任何子資料夾：
 
@@ -358,12 +390,14 @@ flowchart TD
 | `data-sync.js` | 系統資料同步（俱樂部成員數重算、用戶俱樂部欄位驗證、孤兒記錄清理），含費用預估 |
 | `error-log.js` | 錯誤日誌查詢與嚴重度分類顯示 |
 | `favorites.js` | 用戶收藏活動 / 俱樂部管理 |
+| `game-log-viewer.js` | 遊戲歷史紀錄瀏覽器（篩選遊戲/日期、分頁、統計） |
 | `game-manage.js` | 小遊戲管理（首頁顯示開關，預留多款遊戲設定） |
 | `image-cropper.js` | 圖片裁切 Modal（拖拽定位 + 縮放 + Canvas 輸出） |
 | `image-upload.js` | 圖片上傳共用功能（Firebase Storage），整合 image-cropper 裁切 |
 | `leaderboard.js` | 用戶 EXP 排行榜 |
 | `news.js` | 首頁每日體育新聞渲染（卡片直瀑式），資料來自 Cloud Function 定時抓取 |
 | `popup-ad.js` | 首頁彈窗廣告顯示邏輯 |
+| `pwa-install.js` | PWA 安裝提示（Android/iOS 偵測、beforeinstallprompt、引導安裝） |
 | `registration-audit.js` | 報名資料審計與修復（`auditRegistrations()` 掃描差異、`repairRegistrations()` 回寫修正） |
 | `role.js` | 角色系統、抽屜選單渲染、自訂層級 runtime 等級計算、後台入口權限判斷 |
 | `shop.js` | 二手運動商品市集（刊登、購買、管理） |
@@ -432,8 +466,8 @@ ScriptLoader（`js/core/script-loader.js`）定義了以下頁面群組，按需
 | `adminDashboard` | `dashboard/*` (5，不含 personal-dashboard) | 管理員儀表板 |
 | `personalDashboard` | `dashboard/dashboard-widgets` + `dashboard/dashboard` + `dashboard/personal-dashboard` | 個人儀表板 |
 | `adminUsers` | `user-admin/*` (4) + `achievement-batch` + `data-sync` | 用戶管理 |
-| `education` | `education/*` (15) | 教育型俱樂部（分組、學員、課程、簽到、行事曆） |
-| `adminContent` | `ad-manage/*` (5) | 廣告管理 |
+| `education` | `education/*` (21) | 教育型俱樂部（分組、學員、課程、報名、簽到、行事曆） |
+| `adminContent` | `ad-manage/*` (6) | 廣告管理 |
 | `adminSystem` | `auto-exp` + `game-manage` + `admin-log-tabs` + `error-log` + `audit-log` | 系統管理 |
 
 ---
