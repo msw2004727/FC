@@ -142,10 +142,8 @@
 .perm-item-tag { display: inline-flex; align-items: center; padding: .12rem .4rem; border-radius: var(--radius-full); font-size: .62rem; font-weight: 700; color: #b91c1c; background: rgba(220, 38, 38, .1); }
 
 /* ── 權限說明按鈕（圓形 ? 圖示，參考 edu-info-btn）── */
-.perm-info-btn { width: 20px; height: 20px; border-radius: 50%; border: 1.5px solid var(--accent); background: transparent; color: var(--accent); font-size: .68rem; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; padding: 0; line-height: 1; }
+.perm-info-btn { width: 20px; height: 20px; border-radius: 50%; border: 1.5px solid var(--accent); background: transparent; color: var(--accent); font-size: .68rem; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; padding: 0; line-height: 1; margin-left: .3rem; vertical-align: middle; }
 .perm-info-btn:hover { background: var(--accent); color: #fff; }
-.perm-category-title .perm-info-btn { margin-left: .3rem; }
-.perm-item .perm-info-btn { margin-right: .15rem; }
 
 /* ── 權限說明彈窗 ── */
 .perm-info-overlay { position: fixed; inset: 0; z-index: 1200; background: rgba(0,0,0,.35); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); display: flex; align-items: center; justify-content: center; padding: 1rem; }

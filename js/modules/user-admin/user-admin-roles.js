@@ -356,8 +356,7 @@ Object.assign(App, {
         var isInherent = inherentPerms.has(p.code);
         var isDisabled = lockedRole || isInherent;
         return '<div class="perm-item ' + (lockedRole ? 'perm-item-locked' : '') + '">'
-          + '<span class="perm-item-label">' + escapeHTML(p.name) + (isInherent ? ' <span style="font-size:.6rem;color:var(--text-muted)">(固有)</span>' : '') + '</span>'
-          + '<button class="perm-info-btn" onclick="event.stopPropagation();App._showPermInfoPopup(\'' + p.code + '\')" title="說明">?</button>'
+          + '<span class="perm-item-label">' + escapeHTML(p.name) + (isInherent ? ' <span style="font-size:.6rem;color:var(--text-muted)">(固有)</span>' : '') + '<button class="perm-info-btn" onclick="event.stopPropagation();App._showPermInfoPopup(\'' + p.code + '\')" title="說明">?</button></span>'
           + '<label class="toggle-switch ' + (checked ? 'active' : '') + '"' + (isInherent ? ' title="此角色固有權限，無法關閉"' : '') + '>'
           + '<input type="checkbox" ' + (checked ? 'checked' : '') + ' ' + (isDisabled ? 'disabled' : '') + ' onchange="App.togglePermission(\'' + p.code + '\')">'
           + '<span class="toggle-slider"></span>'
@@ -365,15 +364,14 @@ Object.assign(App, {
           + '</div>';
       }).join('');
 
-      // 入口權限說明按鈕
+      // 入口權限說明按鈕（放在分類名稱內，緊鄰文字）
       var entryInfoHtml = cat.entryItem
         ? '<button class="perm-info-btn" onclick="event.stopPropagation();App._showPermInfoPopup(\'' + cat.entryItem.code + '\')" title="說明">?</button>'
         : '';
 
       return '<div class="perm-category ' + (hasSubItems ? '' : 'no-sub') + '">'
         + '<div class="perm-category-title" onclick="' + (hasSubItems ? "this.parentElement.classList.toggle(\'collapsed\')" : '') + '">'
-        + '<span class="perm-cat-name">' + escapeHTML(cat.cat) + '</span>'
-        + entryInfoHtml
+        + '<span class="perm-cat-name">' + escapeHTML(cat.cat) + entryInfoHtml + '</span>'
         + entryToggleHtml
         + '</div>'
         + (hasSubItems ? '<div class="perm-items">' + subHtml + '</div>' : '')
