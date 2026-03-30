@@ -182,7 +182,7 @@
       <div class="ce-form">
         <!-- 範本選擇器 -->
         <div class="ce-row" id="ce-template-area">
-          <label>從範本建立</label>
+          <label>從範本建立<button class="edu-info-btn" onclick="App._showCeInfo('template')" title="說明">?</button></label>
           <div id="ce-template-selector" style="display:flex;gap:.3rem;flex-wrap:wrap;align-items:center"></div>
         </div>
         <div class="ce-row">
@@ -197,11 +197,11 @@
           </div>
         </div>
         <div class="ce-row">
-          <label>活動名稱 <span class="required">*必填</span></label>
+          <label>活動名稱<button class="edu-info-btn" onclick="App._showCeInfo('title')" title="說明">?</button> <span class="required">*必填</span></label>
           <input type="text" id="ce-title" placeholder="例：週六足球友誼賽" maxlength="16">
         </div>
         <div class="ce-row">
-          <label>活動類型</label>
+          <label>活動類型<button class="edu-info-btn" onclick="App._showCeInfo('type')" title="說明">?</button></label>
           <select id="ce-type">
             <option value="play">PLAY</option>
             <option value="camp">教學</option>
@@ -209,11 +209,11 @@
           </select>
         </div>
         <div class="ce-row">
-          <label>地點 <span class="required">*必填</span></label>
+          <label>地點<button class="edu-info-btn" onclick="App._showCeInfo('location')" title="說明">?</button> <span class="required">*必填</span></label>
           <input type="text" id="ce-location" placeholder="例：台北市大安運動中心">
         </div>
         <div class="ce-row">
-          <label>活動時間 <span class="required">*必填</span></label>
+          <label>活動時間<button class="edu-info-btn" onclick="App._showCeInfo('time')" title="說明">?</button> <span class="required">*必填</span></label>
           <div class="ce-time-row">
             <input type="date" id="ce-date" class="ce-time-date" placeholder="選擇日期">
             <input type="time" id="ce-time-start" class="ce-time-clock ce-time-start" step="1800" placeholder="開始">
@@ -226,7 +226,7 @@
           </div>
         </div>
         <div class="ce-row">
-          <label>開放報名時間 <span style="font-size:.68rem;color:var(--text-muted);font-weight:400">（未設定則立即開放）</span></label>
+          <label>開放報名時間<button class="edu-info-btn" onclick="App._showCeInfo('regOpen')" title="說明">?</button> <span style="font-size:.68rem;color:var(--text-muted);font-weight:400">（未設定則立即開放）</span></label>
           <div id="ce-reg-open-absolute" class="ce-reg-open-row">
             <input type="date" id="ce-reg-open-date" class="ce-reg-open-date" placeholder="報名開放日期">
             <input type="time" id="ce-reg-open-clock" class="ce-reg-open-clock" step="1800" placeholder="報名開放時間">
@@ -244,7 +244,7 @@
           <div>
             <div class="ce-fee-toggle-wrap">
               <div class="ce-fee-toggle-header">
-                <label for="ce-fee-enabled" class="ce-fee-title">費用 ($)</label>
+                <label for="ce-fee-enabled" class="ce-fee-title">費用 ($)<button class="edu-info-btn" onclick="App._showCeInfo('fee')" title="說明">?</button></label>
                 <label class="toggle-switch" style="margin:0">
                   <input type="checkbox" id="ce-fee-enabled">
                   <span class="toggle-slider"></span>
@@ -256,17 +256,17 @@
             </div>
           </div>
           <div>
-            <label>人數上限 <span class="required">*必填</span></label>
+            <label>人數上限<button class="edu-info-btn" onclick="App._showCeInfo('max')" title="說明">?</button> <span class="required">*必填</span></label>
             <input type="number" id="ce-max" placeholder="20" value="20">
           </div>
         </div>
         <input type="hidden" id="ce-waitlist" value="0">
         <div class="ce-row">
-          <label>年齡限制（歲以上，0 為不限）</label>
+          <label>年齡限制<button class="edu-info-btn" onclick="App._showCeInfo('age')" title="說明">?</button>（歲以上，0 為不限）</label>
           <input type="number" id="ce-min-age" placeholder="0" value="0" min="0">
         </div>
         <div class="ce-row">
-          <label>俱樂部限定</label>
+          <label>俱樂部限定<button class="edu-info-btn" onclick="App._showCeInfo('teamOnly')" title="說明">?</button></label>
           <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
             <label class="toggle-switch" style="margin:0">
               <input type="checkbox" id="ce-team-only">
@@ -282,7 +282,7 @@
           </div>
         </div>
         <div class="ce-row">
-          <label>委託人（最多 3 人）</label>
+          <label>委託人<button class="edu-info-btn" onclick="App._showCeInfo('delegate')" title="說明">?</button>（最多 3 人）</label>
           <div class="ce-delegate-wrap">
             <div class="ce-delegate-tags" id="ce-delegate-tags"></div>
             <input type="text" id="ce-delegate-search" placeholder="搜尋 UID 或暱稱..." autocomplete="off">
@@ -290,11 +290,11 @@
           </div>
         </div>
         <div class="ce-row">
-          <label>注意事項（上限 500 字）</label>
+          <label>注意事項<button class="edu-info-btn" onclick="App._showCeInfo('notes')" title="說明">?</button>（上限 500 字）</label>
           <textarea id="ce-notes" rows="3" maxlength="500" placeholder="例如：請自備球鞋、飲用水，遲到15分鐘以上視為缺席..."></textarea>
         </div>
         <div class="ce-row">
-          <label>運動 / 場景標籤 <span class="required">*必選</span></label>
+          <label>運動 / 場景標籤<button class="edu-info-btn" onclick="App._showCeInfo('sport')" title="說明">?</button> <span class="required">*必選</span></label>
           <div class="ce-sport-picker" id="ce-sport-picker">
             <button type="button" class="ce-sport-selected" id="ce-sport-selected" aria-haspopup="listbox" aria-expanded="false">
               <span class="ce-sport-selected-inner" id="ce-sport-selected-inner">
@@ -315,7 +315,7 @@
           <div class="ce-sport-required-tip">* 必選，未選擇運動 / 場景標籤將無法儲存活動</div>
         </div>
         <div class="ce-row">
-          <label>性別限定</label>
+          <label>性別限定<button class="edu-info-btn" onclick="App._showCeInfo('gender')" title="說明">?</button></label>
           <div class="ce-gender-limit-wrap">
             <div class="ce-gender-limit-header">
               <label class="toggle-switch" style="margin:0">
@@ -333,7 +333,7 @@
           </div>
         </div>
         <div class="ce-row">
-          <label>私密活動</label>
+          <label>私密活動<button class="edu-info-btn" onclick="App._showCeInfo('private')" title="說明">?</button></label>
           <div style="display:flex;align-items:center;gap:.5rem">
             <label class="toggle-switch" style="margin:0">
               <input type="checkbox" id="ce-private-event">
@@ -344,7 +344,7 @@
           <div class="ce-gender-limit-tip">開啟後活動不會顯示在列表中，僅能透過分享連結查看</div>
         </div>
         <div class="ce-row" style="border-top:1px solid var(--border);padding-top:.6rem;margin-top:.3rem">
-          <label>儲存為範本</label>
+          <label>儲存為範本<button class="edu-info-btn" onclick="App._showCeInfo('saveTemplate')" title="說明">?</button></label>
           <div style="display:flex;gap:.3rem;align-items:center">
             <input type="text" id="ce-template-name" placeholder="範本名稱（例：週六友誼賽）" maxlength="20" style="flex:1;min-width:0;font-size:.78rem;padding:.3rem .5rem;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-card);color:var(--text-primary)">
             <button class="outline-btn" style="font-size:.72rem;padding:.28rem .5rem;flex-shrink:0" onclick="App._saveEventTemplate()">儲存</button>

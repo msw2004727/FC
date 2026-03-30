@@ -430,4 +430,89 @@ Object.assign(App, {
     }
   },
 
+  // ═══════════════════════════════
+  //  欄位說明彈窗
+  // ═══════════════════════════════
+
+  _ceInfoData: {
+    template: {
+      title: '從範本建立',
+      body: '載入之前儲存的活動設定，快速填入所有欄位。載入後仍可修改任何內容。',
+    },
+    title: {
+      title: '活動名稱',
+      body: '為活動取一個簡短好懂的名稱，上限 16 字。<p style="margin:.3rem 0 0;color:var(--text-muted);font-size:.8rem">例：「週三足球」、「假日友誼賽」</p>',
+    },
+    type: {
+      title: '活動類型',
+      body: '<b>PLAY</b> — 一般揪團踢球<br><b>教學</b> — 教練帶隊訓練<br><b>觀賽</b> — 觀看比賽<p style="margin:.4rem 0 0;color:var(--text-muted);font-size:.8rem">類型會影響統計分類與首頁顯示位置。</p>',
+    },
+    location: {
+      title: '活動地點',
+      body: '輸入場地名稱或地址。系統會記住最近使用的地點，下次可直接選取。',
+    },
+    time: {
+      title: '活動時間',
+      body: '選擇日期與開始 / 結束時間。<p style="margin:.4rem 0 0">選擇<b>多個日期</b>可一次建立多場活動（批次建立），每場獨立管理報名與出席。</p>',
+    },
+    regOpen: {
+      title: '開放報名時間',
+      body: '設定報名開始的日期與時間。<p style="margin:.3rem 0 0"><b>未設定</b>：活動建立後立即開放報名。</p><p style="margin:.3rem 0 0"><b>已設定</b>：時間未到前顯示「即將開放」。</p><p style="margin:.3rem 0 0;color:var(--text-muted);font-size:.8rem">多日期模式下可設「活動開始前 N 天 N 時」，系統會自動為每場計算各自的開放時間。</p>',
+    },
+    fee: {
+      title: '費用',
+      body: '開啟後輸入每人費用（新台幣）。金額會顯示在活動詳情頁，方便參加者提前準備。<p style="margin:.3rem 0 0;color:var(--text-muted);font-size:.8rem">關閉 = 免費活動。</p>',
+    },
+    max: {
+      title: '人數上限',
+      body: '設定最多可報名的人數。額滿後新報名者自動進入<b>候補名單</b>，有人取消時系統依報名順序自動遞補。',
+    },
+    age: {
+      title: '年齡限制',
+      body: '設定參加者的最低年齡。填 <b>0</b> 表示不限年齡。<p style="margin:.3rem 0 0;color:var(--text-muted);font-size:.8rem">年齡依個人資料中的生日計算。</p>',
+    },
+    teamOnly: {
+      title: '俱樂部限定',
+      body: '開啟後，只有指定俱樂部的成員可以報名。可選擇一個或多個俱樂部。<p style="margin:.3rem 0 0;color:var(--text-muted);font-size:.8rem">非成員會看到「球隊限定」無法報名。</p>',
+    },
+    delegate: {
+      title: '委託人',
+      body: '指定最多 3 位管理員協助管理此活動，包括出席確認、編輯活動與簽到掃碼。<p style="margin:.3rem 0 0;color:var(--text-muted);font-size:.8rem">被委託人會收到通知，並可在「我的活動」中看到此活動。</p>',
+    },
+    notes: {
+      title: '注意事項',
+      body: '填寫活動備註，例如場地規則、攜帶物品、付款方式等。上限 500 字，會顯示在活動詳情頁。',
+    },
+    sport: {
+      title: '運動 / 場景標籤',
+      body: '選擇活動的運動類別，用於分類與篩選。<p style="margin:.3rem 0 0;color:var(--text-muted);font-size:.8rem">目前支援足球，未來將開放更多運動項目。</p>',
+    },
+    gender: {
+      title: '性別限定',
+      body: '開啟後，僅限所選性別可報名。不符合的用戶會看到限制提示。<p style="margin:.3rem 0 0;color:var(--text-muted);font-size:.8rem">依個人資料中的性別欄位判斷；性別空白的用戶也無法報名。</p>',
+    },
+    'private': {
+      title: '私密活動',
+      body: '開啟後活動<b>不會</b>出現在公開列表中，只有透過分享連結才能查看。<p style="margin:.3rem 0 0;color:var(--text-muted);font-size:.8rem">適合內部活動或邀請制活動。</p>',
+    },
+    saveTemplate: {
+      title: '儲存為範本',
+      body: '將目前填寫的活動設定儲存為範本，下次建立類似活動可直接載入。<p style="margin:.3rem 0 0;color:var(--text-muted);font-size:.8rem">範本儲存在雲端，跨裝置可用，上限 30 個。</p>',
+    },
+  },
+
+  _showCeInfo(type) {
+    const item = this._ceInfoData[type];
+    if (!item) return;
+    const overlay = document.createElement('div');
+    overlay.className = 'edu-info-overlay';
+    overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+    overlay.innerHTML = '<div class="edu-info-dialog">'
+      + '<div class="edu-info-dialog-title">' + item.title + '</div>'
+      + '<div class="edu-info-dialog-body">' + item.body + '</div>'
+      + '<button class="primary-btn" style="width:100%;margin-top:.8rem" onclick="this.closest(\'.edu-info-overlay\').remove()">了解</button>'
+      + '</div>';
+    document.body.appendChild(overlay);
+  },
+
 });
