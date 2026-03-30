@@ -1082,6 +1082,14 @@
   color: var(--text-muted);
   margin-top: .25rem;
 }
+/* 日期/時間欄位空值提示（placeholder 在 date/time input 不生效，用偽元素模擬） */
+.ce-time-date:not(:focus):invalid,
+.ce-reg-open-date:not(:focus):invalid { color: var(--text-muted); }
+.ce-time-date[value=""]::-webkit-datetime-edit,
+.ce-reg-open-date[value=""]::-webkit-datetime-edit,
+.ce-time-clock[value=""]::-webkit-datetime-edit,
+.ce-reg-open-clock[value=""]::-webkit-datetime-edit { color: var(--text-muted); }
+
 .ce-reg-open-relative {
   display: flex;
   align-items: center;

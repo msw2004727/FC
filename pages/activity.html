@@ -215,10 +215,10 @@
         <div class="ce-row">
           <label>活動時間 <span class="required">*必填</span></label>
           <div class="ce-time-row">
-            <input type="date" id="ce-date" class="ce-time-date">
-            <input type="time" id="ce-time-start" class="ce-time-clock ce-time-start" step="1800">
+            <input type="date" id="ce-date" class="ce-time-date" placeholder="選擇日期">
+            <input type="time" id="ce-time-start" class="ce-time-clock ce-time-start" step="1800" placeholder="開始">
             <span class="ce-time-separator">~</span>
-            <input type="time" id="ce-time-end" class="ce-time-clock ce-time-end" step="1800">
+            <input type="time" id="ce-time-end" class="ce-time-clock ce-time-end" step="1800" placeholder="結束">
           </div>
           <div id="ce-multi-date-area" style="display:none">
             <div id="ce-multi-date-tags" class="ce-multi-date-tags"></div>
@@ -228,8 +228,8 @@
         <div class="ce-row">
           <label>開放報名時間 <span style="font-size:.68rem;color:var(--text-muted);font-weight:400">（未設定則立即開放）</span></label>
           <div id="ce-reg-open-absolute" class="ce-reg-open-row">
-            <input type="date" id="ce-reg-open-date" class="ce-reg-open-date">
-            <input type="time" id="ce-reg-open-clock" class="ce-reg-open-clock" step="1800">
+            <input type="date" id="ce-reg-open-date" class="ce-reg-open-date" placeholder="報名開放日期">
+            <input type="time" id="ce-reg-open-clock" class="ce-reg-open-clock" step="1800" placeholder="報名開放時間">
           </div>
           <div id="ce-reg-open-relative" class="ce-reg-open-relative" style="display:none">
             <span class="ce-reg-rel-label">活動開始前</span>
