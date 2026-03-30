@@ -296,6 +296,7 @@ Object.assign(App, {
   },
 
   async reviewFriendlyTournamentApplication(tournamentId, applicationId, action) {
+    if (!this.hasPermission('admin.tournaments.review') && !this.hasPermission('admin.tournaments.entry')) { this.showToast('權限不足'); return; }
     const busyKey = `${String(tournamentId || '').trim()}:${String(applicationId || '').trim()}:${String(action || '').trim().toLowerCase()}`;
     if (this._friendlyTournamentReviewBusyById[busyKey]) return;
     this._friendlyTournamentReviewBusyById[busyKey] = true;

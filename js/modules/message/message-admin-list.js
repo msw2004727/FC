@@ -175,6 +175,7 @@ Object.assign(App, {
 
   // ── 刪除信件（軟刪除，保留紀錄） ──
   async deleteMsg(id) {
+    if (!this.hasPermission('admin.messages.delete') && !this.hasPermission('admin.messages.entry')) { this.showToast('權限不足'); return; }
     if (!(await this.appConfirm('確定要刪除此信件？'))) return;
     ApiService.updateAdminMessage(id, { status: 'deleted' });
     this.renderMsgManage();

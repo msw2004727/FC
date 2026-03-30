@@ -131,6 +131,7 @@ Object.assign(App, {
   },
 
   async handleCreateTournament() {
+    if (!this.hasPermission('admin.tournaments.create') && !this.hasPermission('admin.tournaments.entry')) { this.showToast('權限不足'); return; }
     const createUser = ApiService.getCurrentUser?.();
     if (!this._canCreateFriendlyTournament(createUser)) {
       this.showToast('目前只有擁有俱樂部的領隊或經理可以建立友誼賽。');

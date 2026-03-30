@@ -147,7 +147,7 @@ Object.assign(App, {
       this.showToast('活動建立中，請勿重複送出');
       return;
     }
-    if (!this.hasPermission('activity.manage.entry')) {
+    if (!this.hasPermission('event.create') && !this.hasPermission('activity.manage.entry')) {
       this.showToast('權限不足'); return;
     }
     const title = document.getElementById('ce-title').value.trim();

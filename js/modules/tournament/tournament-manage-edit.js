@@ -3,6 +3,7 @@
 Object.assign(App, {
 
   showEditTournament(id) {
+    if (!this.hasPermission('admin.tournaments.manage_all') && !this.hasPermission('admin.tournaments.entry')) { this.showToast('權限不足'); return; }
     const editRecord = this.getFriendlyTournamentRecord?.(ApiService.getTournament(id));
     if (!editRecord) return;
     if (!this._canManageTournamentRecord(editRecord)) {
@@ -56,6 +57,7 @@ Object.assign(App, {
   },
 
   async handleSaveEditTournament() {
+    if (!this.hasPermission('admin.tournaments.manage_all') && !this.hasPermission('admin.tournaments.entry')) { this.showToast('權限不足'); return; }
     const editId = this._editTournamentId;
     const editTournament = this.getFriendlyTournamentRecord?.(ApiService.getTournament(editId));
     if (!editTournament) return;

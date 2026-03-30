@@ -360,6 +360,7 @@ Object.assign(App, {
 
   // ── 刪除活動 ──
   async deleteMyActivity(id) {
+    if (!this.hasPermission('event.delete') && !this.hasPermission('activity.manage.entry')) { this.showToast('權限不足'); return; }
     const e = ApiService.getEvent(id);
     if (e && !this._canManageEvent(e)) { this.showToast('您只能管理自己的活動'); return; }
     if (!(await this.appConfirm('確定要刪除此活動？刪除後無法恢復。'))) return;

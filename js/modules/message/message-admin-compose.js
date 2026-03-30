@@ -168,6 +168,7 @@ Object.assign(App, {
 
   // ── 發送信件（實裝） ──
   sendMessage() {
+    if (!this.hasPermission('admin.messages.compose') && !this.hasPermission('admin.messages.entry')) { this.showToast('權限不足'); return; }
     const title = document.getElementById('msg-title')?.value.trim();
     if (!title) { this.showToast('請輸入信件標題'); return; }
     if (title.length > 12) { this.showToast('標題不可超過 12 字'); return; }
