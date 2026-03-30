@@ -153,12 +153,27 @@ section{margin-bottom:3rem}
       <div class="role-card-head">
         <span class="role-badge" style="background:#6b7280">一般用戶</span>
         <span class="role-lv">Lv.0 · user</span>
-        <div class="role-card-stats"><span class="stat-pill red">0 權限</span></div>
+        <div class="role-card-stats"><span class="stat-pill red">0 後台權限</span><span class="stat-pill">11 基礎功能</span></div>
       </div>
       <div class="role-card-body">
         <div class="role-card-note" style="border-left:3px solid var(--danger)">
-          所有權限開關已鎖定為<b>全部關閉</b>，無法為此層級開啟任何後台功能。權限面板中的所有開關僅供參考，切換無效。
+          所有<b>後台</b>權限開關已鎖定為全部關閉，無法為此層級開啟任何後台功能。
         </div>
+        <h4>永久保障的基礎功能（11 項）</h4>
+        <ul class="perm-list">
+          <li class="on">瀏覽活動列表與詳情</li>
+          <li class="on">報名活動</li>
+          <li class="on">取消報名</li>
+          <li class="on">候補排隊</li>
+          <li class="on">取消候補</li>
+          <li class="on">瀏覽俱樂部與詳情</li>
+          <li class="on">申請加入俱樂部</li>
+          <li class="on">退出俱樂部</li>
+          <li class="on">管理個人檔案</li>
+          <li class="on">收發站內信</li>
+          <li class="on">查看個人出席紀錄與成就</li>
+        </ul>
+        <div class="role-card-note">這 11 項功能<b>不受任何權限碼控制</b>，前端不檢查 hasPermission、後端僅驗證身分（isAuth / isOwner），永遠不會被阻擋。詳見下方「<a href="#user-basics" style="color:var(--accent)">基礎功能保障</a>」章節。</div>
       </div>
     </div>
 
@@ -476,6 +491,82 @@ section{margin-bottom:3rem}
       <div class="affected-roles">
         <span class="role-badge" style="background:#dc2626">總管</span>
       </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ════ 5. User Basic Features ════ -->
+<section id="user-basics">
+  <h2 class="section-title">基礎功能保障（所有已登入用戶）</h2>
+  <p class="section-desc">以下 11 項功能不受權限系統控制，任何已登入用戶（包含一般用戶 Lv.0）永遠可以使用。前端不檢查 hasPermission()，後端僅驗證身分（isAuth / isOwner）。</p>
+
+  <div class="audit-grid">
+
+    <div class="audit-card">
+      <div class="audit-card-title"><span class="severity" style="background:var(--accent-bg);color:var(--accent)">活動</span>瀏覽活動列表與詳情</div>
+      <div class="audit-card-desc">所有活動列表與單一活動詳情頁為公開資料，任何人（含未登入訪客）皆可瀏覽。</div>
+      <div class="audit-card-meta"><span>前端：無權限檢查</span><span>Firestore：events read = true（公開）</span></div>
+    </div>
+
+    <div class="audit-card">
+      <div class="audit-card-title"><span class="severity" style="background:var(--accent-bg);color:var(--accent)">活動</span>報名活動</div>
+      <div class="audit-card-desc">任何已登入用戶可報名公開活動。系統僅驗證身分（userId === 登入者）與活動狀態（open/full）。</div>
+      <div class="audit-card-meta"><span>前端：無權限檢查</span><span>CF：registerForEvent — isAuth only</span><span>Firestore：registrations create = isRegistrationOwnerRequest</span></div>
+    </div>
+
+    <div class="audit-card">
+      <div class="audit-card-title"><span class="severity" style="background:var(--accent-bg);color:var(--accent)">活動</span>取消報名</div>
+      <div class="audit-card-desc">用戶可取消自己的報名。系統驗證 userId === 登入者，取消後自動觸發候補遞補。</div>
+      <div class="audit-card-meta"><span>前端：無權限檢查</span><span>CF：cancelRegistration — userId === callerUid</span><span>Firestore：registrations delete = isRegistrationOwnerResource</span></div>
+    </div>
+
+    <div class="audit-card">
+      <div class="audit-card-title"><span class="severity" style="background:var(--accent-bg);color:var(--accent)">活動</span>候補排隊</div>
+      <div class="audit-card-desc">活動額滿時自動進入候補。與報名使用同一個 registerForEvent 流程，系統自動判斷正取或候補。</div>
+      <div class="audit-card-meta"><span>前端：無權限檢查</span><span>CF：registerForEvent — 自動候補邏輯</span></div>
+    </div>
+
+    <div class="audit-card">
+      <div class="audit-card-title"><span class="severity" style="background:var(--accent-bg);color:var(--accent)">活動</span>取消候補</div>
+      <div class="audit-card-desc">候補中的用戶可取消候補。與取消報名使用同一個 cancelRegistration 流程。</div>
+      <div class="audit-card-meta"><span>前端：無權限檢查</span><span>CF：cancelRegistration — userId === callerUid</span></div>
+    </div>
+
+    <div class="audit-card">
+      <div class="audit-card-title"><span class="severity" style="background:var(--accent-bg);color:var(--accent)">俱樂部</span>瀏覽俱樂部與詳情</div>
+      <div class="audit-card-desc">所有俱樂部列表與詳情頁為公開資料，任何人皆可瀏覽。</div>
+      <div class="audit-card-meta"><span>前端：無權限檢查</span><span>Firestore：teams read = true（公開）</span></div>
+    </div>
+
+    <div class="audit-card">
+      <div class="audit-card-title"><span class="severity" style="background:var(--accent-bg);color:var(--accent)">俱樂部</span>申請加入俱樂部</div>
+      <div class="audit-card-desc">任何已登入用戶可提交入隊申請。系統發送站內信給俱樂部幹部審核，24 小時冷卻期防止重複申請。</div>
+      <div class="audit-card-meta"><span>前端：無權限檢查</span><span>CF：deliverToInbox — isAuth only</span><span>Firestore：messages create = isAuth + isMessageSenderRequest</span></div>
+    </div>
+
+    <div class="audit-card">
+      <div class="audit-card-title"><span class="severity" style="background:var(--accent-bg);color:var(--accent)">俱樂部</span>退出俱樂部</div>
+      <div class="audit-card-desc">一般成員可自行退出俱樂部（經理/領隊除外，需先轉讓）。系統僅驗證用戶為該俱樂部成員。</div>
+      <div class="audit-card-meta"><span>前端：無權限檢查</span><span>Firestore：users update = isOwner + isSafeTeamFieldUpdate</span></div>
+    </div>
+
+    <div class="audit-card">
+      <div class="audit-card-title"><span class="severity" style="background:var(--accent-bg);color:var(--accent)">個人</span>管理個人檔案</div>
+      <div class="audit-card-desc">用戶可編輯自己的暱稱、地區、性別、運動項目等個人資料。</div>
+      <div class="audit-card-meta"><span>前端：無權限檢查</span><span>Firestore：users/{uid} update = isOwner + isSafeSelfProfileUpdate</span></div>
+    </div>
+
+    <div class="audit-card">
+      <div class="audit-card-title"><span class="severity" style="background:var(--accent-bg);color:var(--accent)">個人</span>收發站內信</div>
+      <div class="audit-card-desc">用戶可閱讀自己的站內信收件匣，並對系統通知進行操作（同意/拒絕入隊申請等）。</div>
+      <div class="audit-card-meta"><span>前端：無權限檢查</span><span>Firestore：users/{uid}/inbox read = isOwner</span></div>
+    </div>
+
+    <div class="audit-card">
+      <div class="audit-card-title"><span class="severity" style="background:var(--accent-bg);color:var(--accent)">個人</span>查看個人出席紀錄與成就</div>
+      <div class="audit-card-desc">用戶可查看自己的活動參與紀錄、出席率、完成場次、以及已獲得的成就徽章。</div>
+      <div class="audit-card-meta"><span>前端：無權限檢查</span><span>Firestore：attendanceRecords/activityRecords read = isAuth</span><span>Firestore：users/{uid}/achievements read = isAuth</span></div>
     </div>
 
   </div>
