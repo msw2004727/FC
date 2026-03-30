@@ -2,7 +2,7 @@
 
 ## Summary
 
-This document evaluates when the current SportHub activity-data architecture should move from the current cache-first, client-side filtering model to pagination, historical split-flow, or archival.
+This document evaluates when the current ToosterX activity-data architecture should move from the current cache-first, client-side filtering model to pagination, historical split-flow, or archival.
 
 Current conclusion:
 

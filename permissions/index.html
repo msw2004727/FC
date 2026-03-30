@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>SportHub 權限系統參考文件</title>
-<meta name="description" content="SportHub 後台權限系統各層級權限對照、缺失與無效開關審計報告">
+<title>ToosterX 權限系統參考文件</title>
+<meta name="description" content="ToosterX 後台權限系統各層級權限對照、缺失與無效開關審計報告">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;600;700;900&family=Outfit:wght@400;600;700;900&display=swap" rel="stylesheet">
 <style>
@@ -88,6 +88,13 @@ section{margin-bottom:3rem}
 .matrix th:first-child{z-index:3}
 .matrix tr:last-child td{border-bottom:none}
 .matrix .cat-row td{background:var(--bg-elevated);font-weight:700;color:var(--accent);font-size:.75rem;letter-spacing:.03em}
+.matrix .cat-row td:first-child{position:sticky;left:0;z-index:1;background:var(--bg-elevated)}
+
+/* ── Swipe Hint ── */
+.swipe-hint{display:none;position:absolute;bottom:.7rem;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.55);color:#fff;font-size:.72rem;padding:.3rem .8rem;border-radius:var(--radius-full);pointer-events:none;animation:swipeAnim 2s ease-in-out infinite;z-index:5;white-space:nowrap}
+.matrix-wrap{position:relative}
+@keyframes swipeAnim{0%,100%{transform:translateX(-50%)}50%{transform:translateX(-30%)}}
+@media(max-width:900px){.swipe-hint{display:block}}
 .matrix .icon-on{color:var(--accent);font-weight:700}
 .matrix .icon-inherent{color:var(--warning);font-weight:700}
 .matrix .icon-lock{color:var(--danger);font-size:.7rem}
@@ -126,7 +133,7 @@ section{margin-bottom:3rem}
 
 <!-- ════ Header ════ -->
 <header class="hero">
-  <h1>SportHub 權限系統參考文件</h1>
+  <h1>ToosterX 權限系統參考文件</h1>
   <p>統一權限架構：前端 hasPermission() + 後端 Firestore Rules hasPerm() 雙層驗證</p>
   <span class="hero-date">最後更新：2026-03-30（Phase 1-4 重構完成 · 基礎功能保障章節已新增）</span>
 </header>
@@ -295,6 +302,7 @@ section{margin-bottom:3rem}
   <p class="section-desc">各層級對每項權限的實際效力。◉ 預設有 · ⚿ 固有 · — 無（可由 super_admin 授予）</p>
 
   <div class="matrix-wrap">
+    <span class="swipe-hint">👆 左右滑動查看更多</span>
     <table class="matrix">
       <thead>
         <tr>
@@ -575,7 +583,7 @@ section{margin-bottom:3rem}
 </main>
 
 <footer class="footer">
-  <p>SportHub Permission System Reference &middot; 僅供內部參考 &middot; 自動產生於 2026-03-30</p>
+  <p>ToosterX Permission System Reference &middot; 僅供內部參考 &middot; 自動產生於 2026-03-30</p>
 </footer>
 
 </body>

@@ -6,7 +6,7 @@
   - AGENTS.md                  ← 目錄結構指引（§ 目錄結構）
 -->
 
-# SportHub — 模組架構圖
+# ToosterX — 模組架構圖
 
 ## 模組關係圖
 

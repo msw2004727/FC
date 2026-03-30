@@ -9,7 +9,7 @@
 
 ## 一、系統定位
 
-獨立的運動商品庫存管理系統，部署在 `toosterx.com/inventory`，與現有 SportHub 完全隔離但共用 Firebase 專案。
+獨立的運動商品庫存管理系統，部署在 `toosterx.com/inventory`，與現有 ToosterX 完全隔離但共用 Firebase 專案。
 
 **核心流程**：
 - 入庫：掃條碼 → 辨識編號 → 輸入商品資訊 → 建檔
@@ -21,20 +21,20 @@
 
 | 項目 | 選型 | 說明 |
 |------|------|------|
-| 前端 | Vanilla JS + HTML + CSS | 與 SportHub 一致，無框架無 build |
+| 前端 | Vanilla JS + HTML + CSS | 與 ToosterX 一致，無框架無 build |
 | 資料庫 | Firebase Firestore（共用 `fc-football-6c8dc`） | Collection 前綴 `inv_` 隔離 |
 | 掃碼 | Html5Qrcode | 支援 EAN-13、Code 128、UPC-A、QR Code |
 | 登入 | LINE LIFF（新建獨立 LIFF App） | 共用 LINE Login Channel，獨立 endpoint |
 | 部署 | Cloudflare Pages | 共用現有 toosterx.com，子目錄 `/inventory` |
 | 離線 | Firestore 內建離線快取 | Transaction 離線時會失敗，UI 須明確提示 |
 
-### 與 SportHub 的隔離策略
+### 與 ToosterX 的隔離策略
 
 ```
 Firebase 專案：fc-football-6c8dc（共用）
-├── SportHub: events, teams, users, registrations...
+├── ToosterX: events, teams, users, registrations...
 └── 庫存系統: inv_products, inv_transactions, inv_settings, inv_stocktakes
-    └── Firestore Rules: 僅 inventoryAdmin 或 SportHub super_admin 可讀寫
+    └── Firestore Rules: 僅 inventoryAdmin 或 ToosterX super_admin 可讀寫
 ```
 
 ---
@@ -167,7 +167,7 @@ function isInventoryAdmin() {
   return request.auth != null
     && (
       get(/databases/$(database)/documents/inv_settings/config).data.adminUids.hasAny([request.auth.uid])
-      || isSuperAdmin()  // SportHub super_admin 緊急後門
+      || isSuperAdmin()  // ToosterX super_admin 緊急後門
     );
 }
 
@@ -360,7 +360,7 @@ async function processSale(items) {
 
 ### 9.1 API Key 風險
 
-Firebase API Key 暴露在前端（與 SportHub 相同），安全性由 Firestore Rules 強制執行。庫存資料（成本價等）只有 `isInventoryAdmin()` 通過才能讀取。
+Firebase API Key 暴露在前端（與 ToosterX 相同），安全性由 Firestore Rules 強制執行。庫存資料（成本價等）只有 `isInventoryAdmin()` 通過才能讀取。
 
 ### 9.2 備份策略
 
@@ -372,7 +372,7 @@ Firebase API Key 暴露在前端（與 SportHub 相同），安全性由 Firesto
 
 ### 9.3 庫存重建
 
-新增「庫存重建」工具：根據 `inv_transactions` 完整歷史紀錄重新計算所有商品的正確 stock 值（類似 SportHub 的 `_rebuildOccupancy`）。
+新增「庫存重建」工具：根據 `inv_transactions` 完整歷史紀錄重新計算所有商品的正確 stock 值（類似 ToosterX 的 `_rebuildOccupancy`）。
 
 ### 9.4 金額計算
 
@@ -499,7 +499,7 @@ inventory/
 
 | 項目 | 狀態 |
 |------|------|
-| SportHub 隔離性（無引用 App/ApiService 等） | ✅ |
+| ToosterX 隔離性（無引用 App/ApiService 等） | ✅ |
 | 命名空間無衝突（Inv* 前綴） | ✅ |
 | script 引用順序正確 | ✅ |
 | XSS 防護（escapeHTML 全覆蓋） | ✅ |

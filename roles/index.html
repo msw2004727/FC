@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>SportHub — 身分方案與功能介紹</title>
-<meta name="description" content="SportHub 運動平台身分方案：一般用戶、教練、領隊/球經、場主，從免費到進階一次了解。">
-<meta property="og:title" content="SportHub 身分方案與功能介紹">
+<title>ToosterX — 身分方案與功能介紹</title>
+<meta name="description" content="ToosterX 運動平台身分方案：一般用戶、教練、領隊/球經、場主，從免費到進階一次了解。">
+<meta property="og:title" content="ToosterX 身分方案與功能介紹">
 <meta property="og:description" content="從球場到雲端，選擇最適合你的身分方案。">
 <meta property="og:type" content="website">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -82,6 +82,13 @@ tr:last-child td{border-bottom:none}
 .t-price-row td{font-family:var(--font-d);font-weight:800;font-size:.95rem;background:var(--accent-bg);color:var(--accent)}
 .t-price-row td:first-child{color:var(--t1);background:var(--bg-card)}
 .t-cat td{background:var(--bg-el);font-weight:700;color:var(--accent);font-size:.78rem;letter-spacing:.03em}
+.t-cat td:first-child{position:sticky;left:0;z-index:1;background:var(--bg-el)}
+
+/* Swipe Hint */
+.swipe-hint{display:none;position:absolute;bottom:.7rem;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.55);color:#fff;font-size:.72rem;padding:.3rem .8rem;border-radius:var(--r-full);pointer-events:none;animation:swipeAnim 2s ease-in-out infinite;z-index:5;white-space:nowrap}
+.table-wrap{position:relative}
+@keyframes swipeAnim{0%,100%{transform:translateX(-50%)}50%{transform:translateX(-30%)}}
+@media(max-width:900px){.swipe-hint{display:block}}
 
 /* Popup */
 .overlay{display:none;position:fixed;inset:0;z-index:1200;background:rgba(0,0,0,.35);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);align-items:center;justify-content:center;padding:1rem}
@@ -109,7 +116,7 @@ tr:last-child td{border-bottom:none}
 
 <header class="hero">
   <h1>選擇你的<span>運動身分</span></h1>
-  <p>從球場到雲端，SportHub 為每一種運動角色打造專屬工具。找到最適合你的方案，開始你的運動旅程。</p>
+  <p>從球場到雲端，ToosterX 為每一種運動角色打造專屬工具。找到最適合你的方案，開始你的運動旅程。</p>
   <div class="hero-sub">費用方案未來可能調整 · 所有方案均含基礎功能</div>
 </header>
 
@@ -129,7 +136,7 @@ tr:last-child td{border-bottom:none}
     <span class="card-badge" style="background:#6b7280">Lv.0</span>
     <div class="card-name">一般用戶</div>
     <div class="card-price"><span class="free">免費</span></div>
-    <div class="card-desc">加入 SportHub 社群，探索你附近的運動活動。報名場次、加入球隊、累積個人數據 — 你的運動履歷從這裡開始。</div>
+    <div class="card-desc">加入 ToosterX 社群，探索你附近的運動活動。報名場次、加入球隊、累積個人數據 — 你的運動履歷從這裡開始。</div>
     <ul class="card-features">
       <li>瀏覽並報名所有公開活動</li>
       <li>加入俱樂部、參與團隊訓練</li>
@@ -226,6 +233,7 @@ tr:last-child td{border-bottom:none}
   <p>一目了然各身分方案的差異，選擇最適合你的角色</p>
 
   <div class="table-wrap">
+    <span class="swipe-hint">👆 左右滑動查看更多</span>
     <table>
       <thead>
         <tr>
@@ -278,13 +286,13 @@ tr:last-child td{border-bottom:none}
 <div class="overlay" id="coming-soon-overlay" onclick="if(event.target===this)closePop()">
   <div class="dialog">
     <h3>即將開放</h3>
-    <p>身分申請功能目前尚未開放，我們正在加緊準備中。<br>請關注 SportHub 官方帳號，第一時間獲得開放通知！</p>
+    <p>身分申請功能目前尚未開放，我們正在加緊準備中。<br>請關注 ToosterX 官方帳號，第一時間獲得開放通知！</p>
     <button class="btn btn-primary" onclick="closePop()">我知道了</button>
   </div>
 </div>
 
 <footer class="footer">
-  <p>SportHub &copy; 2026 &middot; 費用方案與功能內容可能隨版本更新調整</p>
+  <p>ToosterX &copy; 2026 &middot; 費用方案與功能內容可能隨版本更新調整</p>
 </footer>
 
 <script>

@@ -1,4 +1,4 @@
-# SportHub Audit Logs Implementation Plan
+# ToosterX Audit Logs Implementation Plan
 > Date: 2026-03-09
 > Target: 建立新的 `auditLogs` 稽核日誌系統，僅供 `super_admin` 查閱，採每日分桶、單日讀取、支援搜尋篩選、保留 180 日。
 > Status: All phases implemented. This document now serves as the implementation and specification record.

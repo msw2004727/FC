@@ -1,4 +1,4 @@
-# SportHub — Claude 修復日誌（濃縮版）
+# ToosterX — Claude 修復日誌（濃縮版）
 
 此檔案隨 git 版本控制，記錄歷次 bug 修復與重要技術決策，供跨設備、跨會話參考。
 

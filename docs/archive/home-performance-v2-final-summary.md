@@ -1,7 +1,7 @@
 # Home Performance Slimming V2 — Final Summary
 
 Date: 2026-03-06
-Project: SportHub
+Project: ToosterX
 
 ## Goal
 

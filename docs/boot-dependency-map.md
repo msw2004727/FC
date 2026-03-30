@@ -1,4 +1,4 @@
-# SportHub — 啟動依賴地圖
+# ToosterX — 啟動依賴地圖
 
 > 建立日期：2026-03-19（經三次驗證，第三次發現 event-external-transit.js 降級）
 > 最後修訂：2026-03-20（**Steps 1-8 全部完成**，文件狀態同步更新）
@@ -579,7 +579,7 @@ async init() {
 
 **原始碼位置**：`firebase-service.js:91-95`（TTL 設定）
 
-**問題**：一般瀏覽器 localStorage 配額約 5MB，但 **LINE WebView（iOS）可能只有 ~1MB**。SportHub 快取 30+ 個集合：
+**問題**：一般瀏覽器 localStorage 配額約 5MB，但 **LINE WebView（iOS）可能只有 ~1MB**。ToosterX 快取 30+ 個集合：
 - 大型集合（registrations、attendanceRecords）各可達 200-400KB
 - 兩三個大集合就會吃掉 LINE WebView 的全部配額
 - `_saveToLS()` 在 catch 中靜默失敗（見 5.4）
@@ -1412,7 +1412,7 @@ fetch(`pages/${name}.html?v=${CACHE_VERSION}`).then(r => {
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                     SportHub 四層快取架構                         │
+│                     ToosterX 四層快取架構                         │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                 │
 │  Layer 1: Cloudflare Edge Cache                                 │
