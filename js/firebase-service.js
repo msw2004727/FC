@@ -87,6 +87,7 @@ const FirebaseService = {
   _pageScopedRealtimeStartTimers: {},
   _collectionLoadedAt: {},
   _realtimeListenerStarted: {},  // 追蹤已啟動的延遲即時監聽器
+  _registrationsFirstSnapshotReceived: false, // Fix A: 首次 snapshot 到達旗標
   _authPromise: null,            // Auth 並行 Promise
   _userStatsCache: { uid: null, activityRecords: null, attendanceRecords: null },
   _userAchievementProgress: [],  // Per-user achievement progress from subcollection
@@ -1346,6 +1347,7 @@ const FirebaseService = {
             if (d.uid && !d.userId) d.userId = d.uid;
             return d;
           });
+          this._registrationsFirstSnapshotReceived = true; // Fix A
           this._snapshotReconnectAttempts.registrations = 0; // RC4：成功時重置重連計數
           this._debouncedPersistCache();
           this._debouncedSnapshotRender('registrations');
@@ -1384,6 +1386,7 @@ const FirebaseService = {
     this._realtimeListenerStarted.registrations = false;
     this._realtimeListenerStarted._pendingRegistrations = false;
     this._realtimeListenerStarted._retryNoUid = false;
+    this._registrationsFirstSnapshotReceived = false; // Fix A: 重設旗標
     clearTimeout(this._retryNoUidTimer);
     this._retryNoUidTimer = null;
   },
@@ -1472,6 +1475,13 @@ const FirebaseService = {
       this._startMessagesListener();
       this._startUsersListener();
 
+      // Fix 2：Auth 就緒後，若當前頁需要 registrations listener 則主動補啟動
+      if (typeof App !== 'undefined'
+        && this._getPageScopedRealtimeCollections(App?.currentPage).includes('registrations')
+        && !this._realtimeListenerStarted.registrations) {
+        this._startRegistrationsListener();
+      }
+
       // RC1：stale-while-revalidate — Auth 就緒後立即背景刷新 registrations
       // 不 await，不阻塞後續初始化；UI 已用 localStorage 快取渲染，刷新後自動覆蓋
       this._staleWhileRevalidateRegistrations(authUid);
@@ -1546,6 +1556,7 @@ const FirebaseService = {
     try {
     this._bootCollectionLoadFailed = {};
     this._realtimeListenerStarted = {};
+    this._registrationsFirstSnapshotReceived = false; // Fix A: init 時重設
     this._authDependentWorkPromise = null;
     this._authDependentWorkUid = null;
     this._postInitWarmupPromise = null;
@@ -2268,6 +2279,7 @@ const FirebaseService = {
       });
       const oldCount = this._cache.registrations.length;
       this._cache.registrations = fresh;
+      this._registrationsFirstSnapshotReceived = true; // Fix A: .get() 也視為新鮮資料
       this._debouncedPersistCache();
       if (oldCount !== fresh.length) {
         console.log(`[FirebaseService] RC1 stale-while-revalidate: registrations ${oldCount} → ${fresh.length}`);

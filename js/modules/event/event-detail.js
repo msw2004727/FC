@@ -213,6 +213,11 @@ Object.assign(App, {
       }
     }
     try {
+      // Fix 1：切換活動時重設重試計數，避免跨活動洩漏
+      if (this._currentDetailEventId !== id) {
+        this._regsLoadingRetryCount = 0;
+        clearTimeout(this._regsLoadingRetryTimer);
+      }
       const isGuestView = this._isGuestEventDetailView(options);
       let e = ApiService.getEvent(id);
       // stale-first：快取有活動資料時跳過登入擋板（報名按鈕已有「載入中」保護）
@@ -292,12 +297,12 @@ Object.assign(App, {
     const isEnded = e.status === 'ended' || e.status === 'cancelled';
     const isUpcoming = e.status === 'upcoming';
     const isMainFull = confirmedCount >= e.max;
-    // 防幽靈 UI 層：registrations 快取為空且即時監聽尚未啟動時，視為「載入中」
+    // Fix A+1：首次 snapshot 到達前視為「載入中」；9 秒（3 次重試）後強制解除
     const regsLoading = !isGuestView && !ModeManager.isDemo()
-      && FirebaseService._cache.registrations.length === 0
-      && !FirebaseService._realtimeListenerStarted?.registrations;
-    // 載入中按鈕卡住保護：3 秒後自動重繪（若 Auth/UID 已就緒則按鈕自動恢復，最多重試 3 次）
-    if (regsLoading && this._regsLoadingRetryCount < 3) {
+      && !FirebaseService._registrationsFirstSnapshotReceived
+      && this._regsLoadingRetryCount < 3;
+    // 載入中按鈕保護：3 秒後自動重繪，最多重試 3 次（9 秒兜底）
+    if (regsLoading) {
       clearTimeout(this._regsLoadingRetryTimer);
       const retryEventId = e.id;
       this._regsLoadingRetryTimer = setTimeout(() => {
@@ -308,7 +313,7 @@ Object.assign(App, {
           this.showEventDetail(retryEventId);
         }
       }, 3000);
-    } else if (!regsLoading) {
+    } else {
       clearTimeout(this._regsLoadingRetryTimer);
       this._regsLoadingRetryCount = 0;
     }
