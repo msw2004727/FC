@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [main]
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   unit-tests:
     runs-on: ubuntu-latest
@@ -26,6 +29,10 @@ jobs:
         with:
           node-version: '22'
           cache: 'npm'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
       - run: npm ci
       - run: npm install -g firebase-tools
-      - run: npm run test:rules:unit
+      - run: npm run test:rules
