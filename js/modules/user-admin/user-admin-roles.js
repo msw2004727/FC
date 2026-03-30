@@ -141,9 +141,11 @@ Object.assign(App, {
       const r = this._getRoleInfo(key);
       const isCustom = this._isCustomRole(key);
       const isSelected = this._permSelectedRole === key;
+      const permCount = (ApiService.getRolePermissions(key) || []).length;
       return `<div class="role-level-row ${isSelected ? 'role-level-selected' : ''}" onclick="App.selectRoleForPerms('${key}')" style="cursor:pointer">
         <span class="role-level-num">Lv.${i}</span>
         <span class="role-level-badge" style="background:${r.color}">${escapeHTML(r.label)}</span>
+        <span class="role-perm-count">${permCount}</span>
         <span class="role-level-key">${escapeHTML(key)}${isCustom ? ' <span style="font-size:.6rem;color:var(--accent)">(自訂)</span>' : ''}</span>
         ${isCustom ? `<button class="role-delete-btn" onclick="event.stopPropagation();App.confirmDeleteCustomRole('${key}')" title="刪除此層級">✕</button>` : ''}
       </div>`;
@@ -209,6 +211,7 @@ Object.assign(App, {
       }
     }
     this.renderPermissions(role);
+    this.renderRoleHierarchy();
     const info = this._getRoleInfo(role);
     this.showToast(`「${info.label}」權限已復原為預設值`);
   },
@@ -413,6 +416,7 @@ Object.assign(App, {
       }
     }
     this.renderPermissions(this._permSelectedRole);
+    this.renderRoleHierarchy();
   },
 
   // ─── Role Editor (新增自訂層級) ───

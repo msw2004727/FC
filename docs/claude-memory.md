@@ -10,6 +10,11 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-30 — 層級架構顯示當前權限數量
+- **問題**：管理權限頁面的層級架構列表無法一目了然各層級擁有多少權限
+- **修復**：在 `renderRoleHierarchy()` 中透過 `ApiService.getRolePermissions(key).length` 取得權限數量，以圓形徽章 `(N)` 顯示在角色標籤後方；新增 `.role-perm-count` CSS 樣式；toggle/reset 權限後同步刷新層級列表數字
+- **檔案**：`js/modules/user-admin/user-admin-roles.js`、`css/admin.css`
+
 ### 2026-03-30 — 權限面板重新分類 + Firestore permissions 集合清理
 - **問題**：權限管理頁面出現重複分類（如「賽事管理」和「賽事相關」同時顯示「建立賽事」）
 - **原因**：`getMergedPermissionCatalog()` 合併內建定義 + Firestore `permissions` 集合的遠端資料。遠端有舊分類（perm_0~perm_5），碼名不同但顯示名稱相同，導致看起來重複
