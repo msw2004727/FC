@@ -66,7 +66,7 @@ FC-github/
 │       ├── scan/           # QR 掃描（5）：掃描、處理、家庭成員
 │       ├── dashboard/      # 儀表板（6）：管理員、個人、報表分享、用量
 │       ├── ad-manage/      # 廣告管理（6）：輪播、浮動、贊助、小遊戲、品牌開機
-│       ├── user-admin/     # 用戶後台（4）：列表、EXP、角色、補正
+│       ├── user-admin/     # 用戶後台（5）：列表、EXP、角色、補正、權限說明
 │       └── [24 獨立模組]   # banner / shop / leaderboard / role / pwa-install 等
 ├── pages/                  # HTML 片段（18 個）
 ├── docs/                   # 專案文件
@@ -130,6 +130,11 @@ FC-github/
 5. 若功能已明顯超出單檔可維護範圍，優先建立功能資料夾，不要繼續把新責任疊加在既有大檔上
 6. 功能搬移若涉及既有頁面入口，預設先保留舊入口檔案作為相容層，再逐步轉接到新資料夾
 7. 若變更涉及模組新增、搬移或刪除，必須同步更新結構文件（見檔案頂部交叉引用清單）
+8. **權限系統同步維護（強制）**：當新增或變更任何後台功能時，必須同步評估並執行以下事項：
+   - **新增權限開關**：若該功能需要依層級控制存取，必須在 `js/config.js` 的 `ADMIN_PAGE_EXTRA_PERMISSION_ITEMS` 或 `DRAWER_MENUS` 中新增對應的權限碼（permission code），並在 `getDefaultRolePermissions()` 中設定各層級的預設值。
+   - **新增或更新權限說明**：必須在 `js/modules/user-admin/user-admin-perm-info.js` 的 `_PERM_INFO` 對照表中，為新權限碼新增 `{ title, body }` 說明內容，或更新既有權限的說明文字以反映功能變更。說明內容應以白話描述該權限的用途與影響範圍。
+   - **不確定是否需要新增權限時**：應先向用戶說明該功能的存取需求，並建議適合的權限碼命名與層級配置，由用戶決定是否新增。
+   - **權限碼命名規則**：入口權限以 `.entry` 結尾（如 `admin.xxx.entry`），子權限以動作命名（如 `xxx.create`、`xxx.edit_all`、`xxx.delete`）。
 
 ---
 

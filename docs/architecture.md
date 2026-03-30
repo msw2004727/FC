@@ -53,7 +53,7 @@ flowchart TD
             ADMG["ad-manage/ (6)\n廣告管理"]
             EDU["education/ (21)\n教育型俱樂部"]
             CCAT["color-cat/ (45)\n養成角色系統"]
-            UADM["user-admin/ (4)\n用戶管理後台"]
+            UADM["user-admin/ (5)\n用戶管理後台"]
             STANDALONE["24 個獨立模組\nbanner / shop / role / leaderboard\nachievement facade / news / favorites\nannouncement / popup-ad / auto-exp\nsite-theme / game-manage / data-sync\nimage-cropper / image-upload / pwa-install\nattendance-notify / registration-audit\nachievement-batch / admin-log-tabs\naudit-log / error-log / game-log-viewer"]
         end
     end
@@ -361,13 +361,14 @@ flowchart TD
 | `ad-manage-shotgame.js` | 小遊戲廣告管理 |
 | `boot-brand-manage.js` | 品牌開機動畫管理 |
 
-### user-admin/ — 用戶管理後台（4 個模組）
+### user-admin/ — 用戶管理後台（5 個模組）
 
 | 檔案 | 說明 |
 |------|------|
 | `user-admin-list.js` | 用戶列表與搜尋 |
 | `user-admin-exp.js` | 用戶 EXP 管理 |
 | `user-admin-roles.js` | 角色權限管理（自訂層級、權限面板、儲存預設） |
+| `user-admin-perm-info.js` | 權限說明彈窗（每個權限開關旁的「?」按鈕與說明內容） |
 | `user-admin-corrections.js` | 用戶補正管理 |
 
 ---
@@ -465,7 +466,7 @@ ScriptLoader（`js/core/script-loader.js`）定義了以下頁面群組，按需
 | `messageAdmin` | `message/message-admin-*` (3) | 管理員訊息 |
 | `adminDashboard` | `dashboard/*` (5，不含 personal-dashboard) | 管理員儀表板 |
 | `personalDashboard` | `dashboard/dashboard-widgets` + `dashboard/dashboard` + `dashboard/personal-dashboard` | 個人儀表板 |
-| `adminUsers` | `user-admin/*` (4) + `achievement-batch` + `data-sync` | 用戶管理 |
+| `adminUsers` | `user-admin/*` (5) + `achievement-batch` + `data-sync` | 用戶管理 |
 | `education` | `education/*` (21) | 教育型俱樂部（分組、學員、課程、報名、簽到、行事曆） |
 | `adminContent` | `ad-manage/*` (6) | 廣告管理 |
 | `adminSystem` | `auto-exp` + `game-manage` + `admin-log-tabs` + `error-log` + `audit-log` | 系統管理 |

@@ -279,6 +279,7 @@ const ScriptLoader = {
       'js/modules/user-admin/user-admin-list.js',
       'js/modules/user-admin/user-admin-exp.js',
       'js/modules/user-admin/user-admin-roles.js',
+      'js/modules/user-admin/user-admin-perm-info.js',
       'js/modules/user-admin/user-admin-corrections.js',
       'js/modules/achievement-batch.js',
       'js/modules/data-sync.js',

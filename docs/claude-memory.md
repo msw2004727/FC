@@ -10,6 +10,12 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-30 — 權限開關說明按鈕 + CLAUDE.md 權限維護規則
+- **需求**：每個後台權限開關旁加入「?」說明按鈕，點擊顯示該權限的用途說明
+- **設計**：參考教學俱樂部 `_showEduInfoPopup` 的圓形按鈕 + 毛玻璃彈窗模式
+- **修復**：新增 `user-admin-perm-info.js`（`_PERM_INFO` 對照表 + `_showPermInfoPopup`）、修改 `renderPermissions()` 在入口權限與子權限旁插入按鈕、新增 `.perm-info-btn` / `.perm-info-overlay` CSS
+- **CLAUDE.md**：新增規則 #8「權限系統同步維護」——新增或變更後台功能時必須同步評估權限開關與說明
+
 ### 2026-03-30 — 層級架構顯示當前權限數量
 - **問題**：管理權限頁面的層級架構列表無法一目了然各層級擁有多少權限
 - **修復**：在 `renderRoleHierarchy()` 中透過 `ApiService.getRolePermissions(key).length` 取得權限數量，以圓形徽章 `(N)` 顯示在角色標籤後方；新增 `.role-perm-count` CSS 樣式；toggle/reset 權限後同步刷新層級列表數字
