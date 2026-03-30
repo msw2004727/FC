@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SportHub — 身分方案與功能介紹</title>
+<meta name="description" content="SportHub 運動平台身分方案：一般用戶、教練、領隊/球經、場主，從免費到進階一次了解。">
+<meta property="og:title" content="SportHub 身分方案與功能介紹">
+<meta property="og:description" content="從球場到雲端，選擇最適合你的身分方案。">
+<meta property="og:type" content="website">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;900&family=Outfit:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --font-d:'Outfit','Noto Sans TC',sans-serif;
+  --font-b:'Noto Sans TC','Outfit',sans-serif;
+  --r:16px;--r-sm:10px;--r-full:999px;
+  --bg:#f6f7fb;--bg-card:#fff;--bg-el:#f0f2f5;--border:#e2e5ec;
+  --t1:#111827;--t2:#4b5563;--t3:#9ca3af;
+  --accent:#0d9488;--accent-bg:rgba(13,148,136,.08);
+  --danger:#dc2626;--warn:#d97706;--info:#2563eb;
+  --shadow:0 2px 16px rgba(0,0,0,.07);--shadow-lg:0 12px 40px rgba(0,0,0,.12);
+}
+@media(prefers-color-scheme:dark){:root{
+  --bg:#0b0f19;--bg-card:#151b28;--bg-el:#1e2536;--border:#2a3348;
+  --t1:#f1f5f9;--t2:#cbd5e1;--t3:#64748b;
+  --accent:#34d399;--accent-bg:rgba(52,211,153,.12);
+  --danger:#f87171;--warn:#fbbf24;--info:#60a5fa;
+  --shadow:0 2px 16px rgba(0,0,0,.25);--shadow-lg:0 12px 40px rgba(0,0,0,.4);
+}}
+html{scroll-behavior:smooth}
+body{font-family:var(--font-b);background:var(--bg);color:var(--t1);line-height:1.7;-webkit-font-smoothing:antialiased}
+a{color:var(--accent);text-decoration:none}
+
+/* Layout */
+.wrap{max-width:1120px;margin:0 auto;padding:0 1.2rem}
+
+/* Hero */
+.hero{text-align:center;padding:4rem 1rem 2.5rem}
+.hero h1{font-family:var(--font-d);font-size:clamp(1.8rem,5vw,2.8rem);font-weight:900;letter-spacing:-.03em;line-height:1.2;margin-bottom:.6rem}
+.hero h1 span{color:var(--accent)}
+.hero p{color:var(--t2);font-size:1rem;max-width:520px;margin:0 auto .8rem}
+.hero-sub{color:var(--t3);font-size:.82rem}
+
+/* Role Cards */
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:1.2rem;margin-bottom:3.5rem}
+.card{background:var(--bg-card);border:1.5px solid var(--border);border-radius:var(--r);padding:1.6rem 1.3rem 1.4rem;display:flex;flex-direction:column;align-items:center;text-align:center;transition:transform .2s,box-shadow .2s}
+.card:hover{transform:translateY(-4px);box-shadow:var(--shadow-lg)}
+.card.featured{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent),var(--shadow)}
+.card-icon{width:72px;height:72px;margin-bottom:1rem}
+.card-badge{display:inline-block;padding:.2rem .7rem;border-radius:var(--r-full);color:#fff;font-size:.72rem;font-weight:700;margin-bottom:.5rem}
+.card-name{font-family:var(--font-d);font-size:1.15rem;font-weight:800;margin-bottom:.15rem}
+.card-price{font-family:var(--font-d);margin-bottom:.8rem}
+.card-price .amount{font-size:1.8rem;font-weight:900;letter-spacing:-.02em}
+.card-price .unit{font-size:.78rem;color:var(--t3);font-weight:500}
+.card-price .free{font-size:1.4rem;font-weight:800;color:var(--accent)}
+.card-desc{font-size:.84rem;color:var(--t2);line-height:1.65;margin-bottom:1rem;flex:1}
+.card-features{width:100%;text-align:left;margin-bottom:1.2rem}
+.card-features li{display:flex;align-items:flex-start;gap:.45rem;font-size:.82rem;padding:.3rem 0;color:var(--t2)}
+.card-features li::before{content:'';width:18px;height:18px;flex-shrink:0;margin-top:2px;background:var(--accent);mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='currentColor'%3E%3Cpath fill-rule='evenodd' d='M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z'/%3E%3C/svg%3E") center/contain no-repeat;-webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='currentColor'%3E%3Cpath fill-rule='evenodd' d='M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z'/%3E%3C/svg%3E") center/contain no-repeat}
+.btn{display:inline-flex;align-items:center;justify-content:center;width:100%;padding:.7rem 1.2rem;border-radius:var(--r-sm);font-size:.88rem;font-weight:700;border:none;cursor:pointer;transition:all .15s}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-primary:hover{filter:brightness(1.1)}
+.btn-outline{background:transparent;color:var(--accent);border:1.5px solid var(--accent)}
+.btn-outline:hover{background:var(--accent-bg)}
+
+/* Comparison Table */
+.compare-section{margin-bottom:3.5rem}
+.compare-section h2{font-family:var(--font-d);font-size:1.4rem;font-weight:900;text-align:center;margin-bottom:.4rem}
+.compare-section p{text-align:center;color:var(--t2);font-size:.88rem;margin-bottom:1.5rem}
+.table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;border:1.5px solid var(--border);border-radius:var(--r);background:var(--bg-card)}
+table{width:100%;border-collapse:collapse;font-size:.82rem}
+th,td{padding:.65rem .8rem;border-bottom:1px solid var(--border);text-align:center;white-space:nowrap}
+th{background:var(--bg-el);font-weight:700;position:sticky;top:0;z-index:2}
+th:first-child,td:first-child{text-align:left;position:sticky;left:0;z-index:1;background:var(--bg-card);font-weight:600;min-width:150px}
+th:first-child{z-index:3;background:var(--bg-el)}
+tr:last-child td{border-bottom:none}
+.t-check{color:var(--accent);font-weight:700;font-size:1rem}
+.t-dash{color:var(--t3)}
+.t-head-badge{display:inline-block;padding:.12rem .45rem;border-radius:var(--r-full);color:#fff;font-size:.65rem;font-weight:700}
+.t-price-row td{font-family:var(--font-d);font-weight:800;font-size:.95rem;background:var(--accent-bg);color:var(--accent)}
+.t-price-row td:first-child{color:var(--t1);background:var(--bg-card)}
+.t-cat td{background:var(--bg-el);font-weight:700;color:var(--accent);font-size:.78rem;letter-spacing:.03em}
+
+/* Popup */
+.overlay{display:none;position:fixed;inset:0;z-index:1200;background:rgba(0,0,0,.35);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);align-items:center;justify-content:center;padding:1rem}
+.overlay.open{display:flex}
+.dialog{background:var(--bg-card);border-radius:var(--r);padding:1.8rem 1.6rem;max-width:380px;width:100%;box-shadow:var(--shadow-lg);text-align:center}
+.dialog h3{font-family:var(--font-d);font-size:1.1rem;font-weight:800;margin-bottom:.5rem}
+.dialog p{color:var(--t2);font-size:.88rem;margin-bottom:1.2rem;line-height:1.6}
+.dialog .btn{width:auto;padding:.55rem 2rem}
+
+/* Footer */
+.footer{text-align:center;padding:2rem 1rem;font-size:.75rem;color:var(--t3);border-top:1px solid var(--border)}
+
+/* Responsive */
+@media(max-width:640px){
+  .cards{grid-template-columns:1fr}
+  .hero{padding:3rem 1rem 2rem}
+  th,td{padding:.5rem .55rem;font-size:.75rem}
+}
+@media(min-width:900px){
+  .cards{grid-template-columns:repeat(4,1fr)}
+}
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <h1>選擇你的<span>運動身分</span></h1>
+  <p>從球場到雲端，SportHub 為每一種運動角色打造專屬工具。找到最適合你的方案，開始你的運動旅程。</p>
+  <div class="hero-sub">費用方案未來可能調整 · 所有方案均含基礎功能</div>
+</header>
+
+<main class="wrap">
+
+<!-- ════ Role Cards ════ -->
+<div class="cards">
+
+  <!-- 一般用戶 -->
+  <div class="card">
+    <svg class="card-icon" viewBox="0 0 72 72" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="36" cy="36" r="34" fill="#6b7280" opacity=".1"/>
+      <circle cx="36" cy="26" r="10" fill="#6b7280"/>
+      <path d="M18 56c0-9.941 8.059-18 18-18s18 8.059 18 18" stroke="#6b7280" stroke-width="3" stroke-linecap="round" fill="none"/>
+      <circle cx="36" cy="36" r="34" stroke="#6b7280" stroke-width="2" fill="none" opacity=".3"/>
+    </svg>
+    <span class="card-badge" style="background:#6b7280">Lv.0</span>
+    <div class="card-name">一般用戶</div>
+    <div class="card-price"><span class="free">免費</span></div>
+    <div class="card-desc">加入 SportHub 社群，探索你附近的運動活動。報名場次、加入球隊、累積個人數據 — 你的運動履歷從這裡開始。</div>
+    <ul class="card-features">
+      <li>瀏覽並報名所有公開活動</li>
+      <li>加入俱樂部、參與團隊訓練</li>
+      <li>QR Code 簽到、自動出席統計</li>
+      <li>個人經驗值、等級與成就徽章</li>
+      <li>候補自動遞補、站內信通知</li>
+    </ul>
+    <button class="btn btn-outline" onclick="showComingSoon()">立即加入</button>
+  </div>
+
+  <!-- 教練 -->
+  <div class="card">
+    <svg class="card-icon" viewBox="0 0 72 72" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="36" cy="36" r="34" fill="#0d9488" opacity=".1"/>
+      <circle cx="36" cy="22" r="8" fill="#0d9488"/>
+      <path d="M20 52c0-8.837 7.163-16 16-16s16 7.163 16 16" stroke="#0d9488" stroke-width="3" stroke-linecap="round" fill="none"/>
+      <rect x="44" y="14" width="16" height="12" rx="2" fill="#0d9488" opacity=".85"/>
+      <path d="M48 18h8M48 22h5" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/>
+      <circle cx="36" cy="36" r="34" stroke="#0d9488" stroke-width="2" fill="none" opacity=".3"/>
+    </svg>
+    <span class="card-badge" style="background:#0d9488">Lv.1</span>
+    <div class="card-name">教練</div>
+    <div class="card-price"><span class="free">免費</span></div>
+    <div class="card-desc">帶領基層選手成長的第一線指導者。開設教學課程、舉辦公開或俱樂部專屬活動，用數據追蹤每位學員的進步軌跡。</div>
+    <ul class="card-features">
+      <li>建立與管理公開 / 俱樂部專屬活動</li>
+      <li>開設教學課程與 PLAY 場次</li>
+      <li>QR Code 掃碼簽到、出席管理</li>
+      <li>舉辦俱樂部友誼賽</li>
+      <li>學員分組與訓練進度追蹤</li>
+      <li>含一般用戶所有功能</li>
+    </ul>
+    <button class="btn btn-outline" onclick="showComingSoon()">申請成為教練</button>
+  </div>
+
+  <!-- 領隊 / 球經 -->
+  <div class="card featured">
+    <svg class="card-icon" viewBox="0 0 72 72" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="36" cy="36" r="34" fill="#7c3aed" opacity=".1"/>
+      <path d="M36 12l6 12 13 2-9.5 9 2.5 13L36 42l-12 6 2.5-13L17 26l13-2z" fill="#7c3aed" opacity=".25"/>
+      <circle cx="36" cy="30" r="8" fill="#7c3aed"/>
+      <path d="M22 54c0-7.732 6.268-14 14-14s14 6.268 14 14" stroke="#7c3aed" stroke-width="3" stroke-linecap="round" fill="none"/>
+      <circle cx="20" cy="42" r="5" fill="#7c3aed" opacity=".5"/>
+      <circle cx="52" cy="42" r="5" fill="#7c3aed" opacity=".5"/>
+      <circle cx="36" cy="36" r="34" stroke="#7c3aed" stroke-width="2" fill="none" opacity=".3"/>
+    </svg>
+    <span class="card-badge" style="background:#7c3aed">Lv.2 · 熱門</span>
+    <div class="card-name">領隊 / 球經</div>
+    <div class="card-price"><span class="amount">$399</span> <span class="unit">/ 月</span></div>
+    <div class="card-desc">球隊的最高決策者與營運核心。經營你的俱樂部、管理旗下教練團隊，代表俱樂部征戰友誼賽、盃賽與循環賽，打造屬於你的運動品牌。</div>
+    <ul class="card-features">
+      <li>俱樂部最高管理權限</li>
+      <li>管理與指派教練團隊</li>
+      <li>代表俱樂部報名友誼賽、盃賽、循環賽</li>
+      <li>審核入隊申請、管理球員名單</li>
+      <li>俱樂部動態牆與成員溝通</li>
+      <li>含教練所有功能</li>
+    </ul>
+    <button class="btn btn-primary" onclick="showComingSoon()">立即訂閱</button>
+  </div>
+
+  <!-- 場主 -->
+  <div class="card">
+    <svg class="card-icon" viewBox="0 0 72 72" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="36" cy="36" r="34" fill="#d97706" opacity=".1"/>
+      <rect x="14" y="28" width="44" height="24" rx="3" fill="#d97706" opacity=".2"/>
+      <rect x="18" y="32" width="36" height="16" rx="2" stroke="#d97706" stroke-width="2" fill="none"/>
+      <line x1="36" y1="32" x2="36" y2="48" stroke="#d97706" stroke-width="1.5" opacity=".5"/>
+      <line x1="18" y1="40" x2="54" y2="40" stroke="#d97706" stroke-width="1.5" opacity=".5"/>
+      <path d="M30 18h12l3 10H27z" fill="#d97706"/>
+      <rect x="33" y="12" width="6" height="8" rx="1" fill="#d97706" opacity=".6"/>
+      <circle cx="36" cy="36" r="34" stroke="#d97706" stroke-width="2" fill="none" opacity=".3"/>
+    </svg>
+    <span class="card-badge" style="background:#d97706">Lv.3</span>
+    <div class="card-name">場主</div>
+    <div class="card-price"><span class="amount">$599</span> <span class="unit">/ 月</span></div>
+    <div class="card-desc">場地擁有者的專屬身分。在你的主場經營俱樂部、舉辦賽事、吸引球隊預約場地 — 讓你的場館成為在地運動社群的核心據點。</div>
+    <ul class="card-features">
+      <li>專屬場地標籤與場館展示</li>
+      <li>經營主場俱樂部</li>
+      <li>含領隊 / 球經所有功能</li>
+      <li>管理教練團隊與球員</li>
+      <li>代表俱樂部參與各級賽事</li>
+      <li>場地活動優先曝光（規劃中）</li>
+    </ul>
+    <button class="btn btn-primary" onclick="showComingSoon()">立即訂閱</button>
+  </div>
+
+</div>
+
+<!-- ════ Comparison Table ════ -->
+<section class="compare-section">
+  <h2>方案功能比較</h2>
+  <p>一目了然各身分方案的差異，選擇最適合你的角色</p>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th></th>
+          <th><span class="t-head-badge" style="background:#6b7280">用戶</span></th>
+          <th><span class="t-head-badge" style="background:#0d9488">教練</span></th>
+          <th><span class="t-head-badge" style="background:#7c3aed">領隊/球經</span></th>
+          <th><span class="t-head-badge" style="background:#d97706">場主</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="t-price-row">
+          <td>月費</td>
+          <td>免費</td>
+          <td>免費</td>
+          <td>$399</td>
+          <td>$599</td>
+        </tr>
+        <tr class="t-cat"><td colspan="5">基礎功能</td></tr>
+        <tr><td>瀏覽與報名活動</td><td class="t-check">&#10003;</td><td class="t-check">&#10003;</td><td class="t-check">&#10003;</td><td class="t-check">&#10003;</td></tr>
+        <tr><td>加入俱樂部</td><td class="t-check">&#10003;</td><td class="t-check">&#10003;</td><td class="t-check">&#10003;</td><td class="t-check">&#10003;</td></tr>
+        <tr><td>QR Code 簽到</td><td class="t-check">&#10003;</td><td class="t-check">&#10003;</td><td class="t-check">&#10003;</td><td class="t-check">&#10003;</td></tr>
+        <tr><td>經驗值與成就系統</td><td class="t-check">&#10003;</td><td class="t-check">&#10003;</td><td class="t-check">&#10003;</td><td class="t-check">&#10003;</td></tr>
+        <tr><td>個人數據統計</td><td class="t-check">&#10003;</td><td class="t-check">&#10003;</td><td class="t-check">&#10003;</td><td class="t-check">&#10003;</td></tr>
+        <tr class="t-cat"><td colspan="5">活動管理</td></tr>
+        <tr><td>建立公開活動</td><td class="t-dash">-</td><td class="t-check">&#10003;</td><td class="t-check">&#10003;</td><td class="t-check">&#10003;</td></tr>
+        <tr><td>建立俱樂部專屬活動</td><td class="t-dash">-</td><td class="t-check">&#10003;</td><td class="t-check">&#10003;</td><td class="t-check">&#10003;</td></tr>
+        <tr><td>開設教學課程</td><td class="t-dash">-</td><td class="t-check">&#10003;</td><td class="t-check">&#10003;</td><td class="t-check">&#10003;</td></tr>
+        <tr><td>掃碼簽到 / 出席管理</td><td class="t-dash">-</td><td class="t-check">&#10003;</td><td class="t-check">&#10003;</td><td class="t-check">&#10003;</td></tr>
+        <tr class="t-cat"><td colspan="5">俱樂部經營</td></tr>
+        <tr><td>建立俱樂部</td><td class="t-dash">-</td><td class="t-dash">-</td><td class="t-check">&#10003;</td><td class="t-check">&#10003;</td></tr>
+        <tr><td>管理教練團隊</td><td class="t-dash">-</td><td class="t-dash">-</td><td class="t-check">&#10003;</td><td class="t-check">&#10003;</td></tr>
+        <tr><td>審核入隊申請</td><td class="t-dash">-</td><td class="t-dash">-</td><td class="t-check">&#10003;</td><td class="t-check">&#10003;</td></tr>
+        <tr><td>俱樂部動態牆</td><td class="t-dash">-</td><td class="t-dash">-</td><td class="t-check">&#10003;</td><td class="t-check">&#10003;</td></tr>
+        <tr class="t-cat"><td colspan="5">賽事系統</td></tr>
+        <tr><td>舉辦俱樂部友誼賽</td><td class="t-dash">-</td><td class="t-check">&#10003;</td><td class="t-check">&#10003;</td><td class="t-check">&#10003;</td></tr>
+        <tr><td>代表俱樂部報名盃賽 / 循環賽</td><td class="t-dash">-</td><td class="t-dash">-</td><td class="t-check">&#10003;</td><td class="t-check">&#10003;</td></tr>
+        <tr class="t-cat"><td colspan="5">場地專屬</td></tr>
+        <tr><td>專屬場地標籤</td><td class="t-dash">-</td><td class="t-dash">-</td><td class="t-dash">-</td><td class="t-check">&#10003;</td></tr>
+        <tr><td>經營主場俱樂部</td><td class="t-dash">-</td><td class="t-dash">-</td><td class="t-dash">-</td><td class="t-check">&#10003;</td></tr>
+        <tr><td>場地活動優先曝光</td><td class="t-dash">-</td><td class="t-dash">-</td><td class="t-dash">-</td><td style="color:var(--warn);font-size:.72rem">規劃中</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+</main>
+
+<!-- ════ Popup ════ -->
+<div class="overlay" id="coming-soon-overlay" onclick="if(event.target===this)closePop()">
+  <div class="dialog">
+    <h3>即將開放</h3>
+    <p>身分申請功能目前尚未開放，我們正在加緊準備中。<br>請關注 SportHub 官方帳號，第一時間獲得開放通知！</p>
+    <button class="btn btn-primary" onclick="closePop()">我知道了</button>
+  </div>
+</div>
+
+<footer class="footer">
+  <p>SportHub &copy; 2026 &middot; 費用方案與功能內容可能隨版本更新調整</p>
+</footer>
+
+<script>
+function showComingSoon(){
+  var o=document.getElementById('coming-soon-overlay');
+  o.classList.add('open');
+  o.addEventListener('touchmove',function(e){
+    if(!e.target.closest('.dialog')){e.preventDefault();e.stopPropagation();}
+  },{passive:false});
+}
+function closePop(){document.getElementById('coming-soon-overlay').classList.remove('open');}
+</script>
+</body>
+</html>
