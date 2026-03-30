@@ -245,7 +245,7 @@ Object.assign(App, {
           : item.action === 'share'
           ? `App._copyShareUrl()`
           : item.action === 'apply-role'
-          ? `App._showApplyRoleModal()`
+          ? `window.open('https://toosterx.com/roles/','_blank');App.closeDrawer()`
           : item.action === 'coming-soon'
           ? `App.showToast('功能尚未開放'); App.closeDrawer()`
           : `App.openDrawerPage('${item.page}')`;
@@ -338,13 +338,13 @@ Object.assign(App, {
     overlay.innerHTML = '<div class="edu-info-dialog" style="max-width:280px;text-align:center">'
       + '<div class="edu-info-dialog-title">我要申請</div>'
       + '<div style="display:flex;flex-direction:column;gap:.6rem;margin-top:.8rem">'
-      + '<button class="apply-role-btn" onclick="App._handleApplyRole(\'captain\');this.closest(\'.edu-info-overlay\').remove()">'
+      + '<button class="apply-role-btn" style="background:rgba(124,58,237,.1);border-color:rgba(124,58,237,.3);color:#7c3aed" onclick="App._handleApplyRole(\'captain\');this.closest(\'.edu-info-overlay\').remove()">'
       + '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>'
       + '<span>俱樂部</span></button>'
-      + '<button class="apply-role-btn" onclick="App._handleApplyRole(\'venue_owner\');this.closest(\'.edu-info-overlay\').remove()">'
+      + '<button class="apply-role-btn" style="background:rgba(217,119,6,.1);border-color:rgba(217,119,6,.3);color:#d97706" onclick="App._handleApplyRole(\'venue_owner\');this.closest(\'.edu-info-overlay\').remove()">'
       + '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>'
       + '<span>場主</span></button>'
-      + '<button class="apply-role-btn" onclick="App._handleApplyRole(\'coach\');this.closest(\'.edu-info-overlay\').remove()">'
+      + '<button class="apply-role-btn" style="background:rgba(13,148,136,.1);border-color:rgba(13,148,136,.3);color:#0d9488" onclick="App._handleApplyRole(\'coach\');this.closest(\'.edu-info-overlay\').remove()">'
       + '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 00-16 0"/><path d="M12 3v2"/><path d="M12 13v2"/></svg>'
       + '<span>教練</span></button>'
       + '</div>'

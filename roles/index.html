@@ -81,13 +81,12 @@ tr:last-child td{border-bottom:none}
 .t-head-badge{display:inline-block;padding:.12rem .45rem;border-radius:var(--r-full);color:#fff;font-size:.65rem;font-weight:700}
 .t-price-row td{font-family:var(--font-d);font-weight:800;font-size:.95rem;background:var(--accent-bg);color:var(--accent)}
 .t-price-row td:first-child{color:var(--t1);background:var(--bg-card)}
-.t-cat td{background:var(--bg-el);font-weight:700;color:var(--accent);font-size:.78rem;letter-spacing:.03em}
-.t-cat td:first-child{position:sticky;left:0;z-index:1;background:var(--bg-el)}
+.t-cat td{background:var(--bg-el);font-weight:700;color:var(--accent);font-size:.78rem;letter-spacing:.03em;position:sticky;left:0;z-index:1}
 
 /* Swipe Hint */
-.swipe-hint{display:none;position:absolute;bottom:.7rem;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.55);color:#fff;font-size:.72rem;padding:.3rem .8rem;border-radius:var(--r-full);pointer-events:none;animation:swipeAnim 2s ease-in-out infinite;z-index:5;white-space:nowrap}
-.table-wrap{position:relative}
-@keyframes swipeAnim{0%,100%{transform:translateX(-50%)}50%{transform:translateX(-30%)}}
+.swipe-hint{display:none;text-align:center;font-size:.76rem;color:var(--t3);padding:.4rem 0;animation:swipeAnim 2s ease-in-out infinite}
+.swipe-hint span{display:inline-block;background:var(--bg-el);padding:.25rem .8rem;border-radius:var(--r-full);font-weight:500}
+@keyframes swipeAnim{0%,100%{transform:translateX(0)}50%{transform:translateX(8px)}}
 @media(max-width:900px){.swipe-hint{display:block}}
 
 /* Popup */
@@ -144,7 +143,7 @@ tr:last-child td{border-bottom:none}
       <li>個人經驗值、等級與成就徽章</li>
       <li>候補自動遞補、站內信通知</li>
     </ul>
-    <button class="btn btn-outline" onclick="showComingSoon()">立即加入</button>
+    <a class="btn btn-outline" href="https://toosterx.com/" target="_blank">立即加入</a>
   </div>
 
   <!-- 教練 -->
@@ -169,7 +168,7 @@ tr:last-child td{border-bottom:none}
       <li>學員分組與訓練進度追蹤</li>
       <li>含一般用戶所有功能</li>
     </ul>
-    <button class="btn btn-outline" onclick="showComingSoon()">申請成為教練</button>
+    <a class="btn btn-outline" href="https://line.me/R/ti/p/%40830utvza" target="_blank">申請成為教練</a>
   </div>
 
   <!-- 領隊 / 球經 -->
@@ -184,8 +183,8 @@ tr:last-child td{border-bottom:none}
       <circle cx="36" cy="36" r="34" stroke="#7c3aed" stroke-width="2" fill="none" opacity=".3"/>
     </svg>
     <span class="card-badge" style="background:#7c3aed">Lv.2 · 熱門</span>
-    <div class="card-name">領隊 / 球經</div>
-    <div class="card-price"><span class="amount">$399</span> <span class="unit">/ 月</span></div>
+    <div class="card-name">俱樂部</div>
+    <div class="card-price"><span class="free" style="font-size:1.1rem">限時優惠中</span></div>
     <div class="card-desc">球隊的最高決策者與營運核心。經營你的俱樂部、管理旗下教練團隊，代表俱樂部征戰友誼賽、盃賽與循環賽，打造屬於你的運動品牌。</div>
     <ul class="card-features">
       <li>俱樂部最高管理權限</li>
@@ -195,7 +194,7 @@ tr:last-child td{border-bottom:none}
       <li>俱樂部動態牆與成員溝通</li>
       <li>含教練所有功能</li>
     </ul>
-    <button class="btn btn-primary" onclick="showComingSoon()">立即訂閱</button>
+    <a class="btn btn-primary" href="https://line.me/R/ti/p/%40830utvza" target="_blank">立即申請</a>
   </div>
 
   <!-- 場主 -->
@@ -212,17 +211,17 @@ tr:last-child td{border-bottom:none}
     </svg>
     <span class="card-badge" style="background:#d97706">Lv.3</span>
     <div class="card-name">場主</div>
-    <div class="card-price"><span class="amount">$599</span> <span class="unit">/ 月</span></div>
+    <div class="card-price"><span class="free" style="font-size:1.1rem">限時優惠中</span></div>
     <div class="card-desc">場地擁有者的專屬身分。在你的主場經營俱樂部、舉辦賽事、吸引球隊預約場地 — 讓你的場館成為在地運動社群的核心據點。</div>
     <ul class="card-features">
       <li>專屬場地標籤與場館展示</li>
       <li>經營主場俱樂部</li>
-      <li>含領隊 / 球經所有功能</li>
+      <li>含俱樂部方案所有功能</li>
       <li>管理教練團隊與球員</li>
       <li>代表俱樂部參與各級賽事</li>
       <li>場地活動優先曝光（規劃中）</li>
     </ul>
-    <button class="btn btn-primary" onclick="showComingSoon()">立即訂閱</button>
+    <a class="btn btn-primary" href="https://line.me/R/ti/p/%40830utvza" target="_blank">立即申請</a>
   </div>
 
 </div>
@@ -232,15 +231,15 @@ tr:last-child td{border-bottom:none}
   <h2>方案功能比較</h2>
   <p>一目了然各身分方案的差異，選擇最適合你的角色</p>
 
+  <div class="swipe-hint"><span>👆 左右滑動查看更多</span></div>
   <div class="table-wrap">
-    <span class="swipe-hint">👆 左右滑動查看更多</span>
     <table>
       <thead>
         <tr>
           <th></th>
           <th><span class="t-head-badge" style="background:#6b7280">用戶</span></th>
           <th><span class="t-head-badge" style="background:#0d9488">教練</span></th>
-          <th><span class="t-head-badge" style="background:#7c3aed">領隊/球經</span></th>
+          <th><span class="t-head-badge" style="background:#7c3aed">俱樂部</span></th>
           <th><span class="t-head-badge" style="background:#d97706">場主</span></th>
         </tr>
       </thead>
@@ -249,8 +248,8 @@ tr:last-child td{border-bottom:none}
           <td>月費</td>
           <td>免費</td>
           <td>免費</td>
-          <td>$399</td>
-          <td>$599</td>
+          <td>優惠中</td>
+          <td>優惠中</td>
         </tr>
         <tr class="t-cat"><td colspan="5">基礎功能</td></tr>
         <tr><td>瀏覽與報名活動</td><td class="t-check">&#10003;</td><td class="t-check">&#10003;</td><td class="t-check">&#10003;</td><td class="t-check">&#10003;</td></tr>
