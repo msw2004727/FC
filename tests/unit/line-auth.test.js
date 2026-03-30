@@ -87,6 +87,7 @@ describe('_withTimeout (line-auth.js:100-119)', () => {
   });
 
   test('timeout error has code "timeout"', async () => {
+    expect.assertions(1);
     const slowPromise = new Promise(() => {});
     try {
       await _withTimeout(slowPromise, 50, 'test');

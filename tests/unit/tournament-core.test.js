@@ -133,6 +133,17 @@ function _isTournamentCaptainForTeam(team, user) {
 }
 
 // ---------------------------------------------------------------------------
+// Extracted from tournament-core.js:258-264
+// ---------------------------------------------------------------------------
+function _buildFriendlyTournamentRosterMemberRecord(data = {}) {
+  return {
+    uid: String(data.uid || '').trim(),
+    name: String(data.name || data.displayName || '').trim(),
+    joinedAt: data.joinedAt || null,
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Extracted from tournament-core.js:238-256
 // ---------------------------------------------------------------------------
 function _buildFriendlyTournamentApplicationRecord(data = {}) {
@@ -550,5 +561,25 @@ describe('_buildFriendlyTournamentApplicationRecord', () => {
   test('falls back to creatorUid for requestedByUid', () => {
     const result = _buildFriendlyTournamentApplicationRecord({ creatorUid: 'cu1' });
     expect(result.requestedByUid).toBe('cu1');
+  });
+});
+
+describe('_buildFriendlyTournamentRosterMemberRecord', () => {
+  test('extracts uid and name', () => {
+    const result = _buildFriendlyTournamentRosterMemberRecord({ uid: 'u1', name: 'Alice' });
+    expect(result.uid).toBe('u1');
+    expect(result.name).toBe('Alice');
+  });
+
+  test('falls back to displayName', () => {
+    const result = _buildFriendlyTournamentRosterMemberRecord({ uid: 'u1', displayName: 'Bob' });
+    expect(result.name).toBe('Bob');
+  });
+
+  test('empty → empty strings with null joinedAt', () => {
+    const result = _buildFriendlyTournamentRosterMemberRecord({});
+    expect(result.uid).toBe('');
+    expect(result.name).toBe('');
+    expect(result.joinedAt).toBeNull();
   });
 });
