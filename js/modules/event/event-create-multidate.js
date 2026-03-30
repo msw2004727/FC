@@ -40,6 +40,8 @@ Object.assign(App, {
       if (!val) return;
       if (this._editEventId) return;
       this._addMultiDate(val);
+      // 清空 input，防止手機原生日期選擇器開啟時自動填入今天觸發重複 change
+      dateInput.value = '';
     });
   },
 
@@ -59,20 +61,18 @@ Object.assign(App, {
     }
     this._multiDates.push(dateStr);
     this._multiDates.sort();
-    // 讓 date input 保持為最早日期
+    // 清空 input（日期存在 _multiDates 陣列，input 僅作為選擇器觸發器）
     const dateInput = document.getElementById('ce-date');
-    if (dateInput) dateInput.value = this._multiDates[0];
+    if (dateInput) dateInput.value = '';
     this._renderMultiDateCapsules();
     if (this._multiDates.length >= 2) this._switchToRelativeRegOpen();
   },
 
   _removeMultiDate(dateStr) {
     this._multiDates = this._multiDates.filter(d => d !== dateStr);
-    // 更新 date input 為最早日期
+    // 清空 input（日期由 _multiDates 陣列管理）
     const dateInput = document.getElementById('ce-date');
-    if (dateInput && this._multiDates.length > 0) {
-      dateInput.value = this._multiDates[0];
-    }
+    if (dateInput) dateInput.value = this._multiDates.length === 1 ? this._multiDates[0] : '';
     this._renderMultiDateCapsules();
     if (this._multiDates.length < 2) this._switchToAbsoluteRegOpen();
   },

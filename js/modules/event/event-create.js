@@ -153,7 +153,8 @@ Object.assign(App, {
     const title = document.getElementById('ce-title').value.trim();
     const type = document.getElementById('ce-type').value;
     const location = document.getElementById('ce-location').value.trim();
-    const dateVal = document.getElementById('ce-date').value;
+    const dateVal = document.getElementById('ce-date').value
+      || (this._multiDates && this._multiDates.length ? this._multiDates[0] : '');
     const tStart = document.getElementById('ce-time-start').value;
     const tEnd = document.getElementById('ce-time-end').value;
     const timeVal = (tStart && tEnd) ? `${tStart}~${tEnd}` : '';
