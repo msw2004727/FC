@@ -35,13 +35,35 @@ Object.assign(App, {
       }
     }
 
+    // ── 手機原生日期選擇器相容 ──
+    // iOS/Android 開啟空的 input[type=date] 時會立即將值設為今天並觸發 change，
+    // 然後用戶選完日期後再觸發第二次 change。
+    // 解法：用 focus/change/blur 追蹤 picker session，只取最後一個 change 值，
+    // 在 picker 關閉（blur）後才真正加入日期。
+    let _pickerPending = null;
+    let _blurCommitTimer = null;
+
+    dateInput.addEventListener('focus', () => {
+      clearTimeout(_blurCommitTimer);
+      _pickerPending = null; // 開始新一輪 session
+    });
+
     dateInput.addEventListener('change', () => {
       const val = dateInput.value;
-      if (!val) return;
+      if (!val) { _pickerPending = null; return; } // iOS 取消時清空 pending
       if (this._editEventId) return;
-      this._addMultiDate(val);
-      // 清空 input，防止手機原生日期選擇器開啟時自動填入今天觸發重複 change
-      dateInput.value = '';
+      _pickerPending = val; // 只記錄，不立即加入
+    });
+
+    dateInput.addEventListener('blur', () => {
+      // 延遲提交：部分瀏覽器 blur→focus 會連續觸發（picker 切換焦點）
+      _blurCommitTimer = setTimeout(() => {
+        if (_pickerPending) {
+          this._addMultiDate(_pickerPending);
+          _pickerPending = null;
+          dateInput.value = '';
+        }
+      }, 150);
     });
   },
 
