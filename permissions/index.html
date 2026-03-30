@@ -88,7 +88,7 @@ section{margin-bottom:3rem}
 .matrix th:first-child{z-index:3}
 .matrix tr:last-child td{border-bottom:none}
 .matrix .cat-row td{background:var(--bg-elevated);font-weight:700;color:var(--accent);font-size:.75rem;letter-spacing:.03em}
-.matrix .cat-row td:first-child{position:sticky;left:0;z-index:1;background:var(--bg-elevated)}
+.matrix .cat-row td span{position:sticky;left:.8rem;display:inline-block}
 
 /* ── Swipe Hint ── */
 .swipe-hint{display:none;text-align:center;font-size:.76rem;color:var(--text-muted);padding:.4rem 0;animation:swipeAnim 2s ease-in-out infinite}
@@ -317,7 +317,7 @@ section{margin-bottom:3rem}
       </thead>
       <tbody>
         <!-- 活動管理 -->
-        <tr class="cat-row"><td colspan="7">活動管理</td></tr>
+        <tr class="cat-row"><td colspan="7"><span>活動管理</span></td></tr>
         <tr><td>活動管理入口</td><td class="icon-lock">✕</td><td class="icon-inherent">⚿</td><td class="icon-inherent">⚿</td><td class="icon-inherent">⚿</td><td class="icon-on">◉</td><td class="icon-lock">⚿</td></tr>
         <tr><td>建立活動</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-on">◉</td><td class="icon-lock">⚿</td></tr>
         <tr><td>編輯自己的活動</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-on">◉</td><td class="icon-lock">⚿</td></tr>
@@ -329,13 +329,13 @@ section{margin-bottom:3rem}
         <tr><td>手動簽到 / 簽退</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-on">◉</td><td class="icon-lock">⚿</td></tr>
         <tr><td>查看報名名單</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-on">◉</td><td class="icon-lock">⚿</td></tr>
         <!-- 賽事管理 -->
-        <tr class="cat-row"><td colspan="7">賽事管理</td></tr>
+        <tr class="cat-row"><td colspan="7"><span>賽事管理</span></td></tr>
         <tr><td>賽事管理入口</td><td class="icon-lock">✕</td><td class="icon-inherent">⚿</td><td class="icon-inherent">⚿</td><td class="icon-inherent">⚿</td><td class="icon-on">◉</td><td class="icon-lock">⚿</td></tr>
         <tr><td>建立賽事</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-on">◉</td><td class="icon-lock">⚿</td></tr>
         <tr><td>管理所有賽事</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-on">◉</td><td class="icon-lock">⚿</td></tr>
         <tr><td>審核參賽申請</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-on">◉</td><td class="icon-lock">⚿</td></tr>
         <!-- 俱樂部管理 -->
-        <tr class="cat-row"><td colspan="7">俱樂部管理</td></tr>
+        <tr class="cat-row"><td colspan="7"><span>俱樂部管理</span></td></tr>
         <tr><td>俱樂部管理入口</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-on">◉</td><td class="icon-lock">⚿</td></tr>
         <tr><td>建立俱樂部</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-on">◉</td><td class="icon-lock">⚿</td></tr>
         <tr><td>管理所有俱樂部</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-on">◉</td><td class="icon-lock">⚿</td></tr>
@@ -345,30 +345,30 @@ section{margin-bottom:3rem}
         <tr><td>建立俱樂部專屬活動</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-lock">⚿</td></tr>
         <tr><td>切換活動公開性</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-lock">⚿</td></tr>
         <!-- 用戶管理 -->
-        <tr class="cat-row"><td colspan="7">用戶管理</td></tr>
+        <tr class="cat-row"><td colspan="7"><span>用戶管理</span></td></tr>
         <tr><td>用戶管理入口</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-on">◉</td><td class="icon-lock">⚿</td></tr>
         <tr><td>編輯基本資料</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-lock">⚿</td></tr>
         <tr><td>修改用戶身分</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-lock">⚿</td></tr>
         <tr><td>限制 / 解除限制</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-lock">⚿</td></tr>
         <!-- 站內信管理 -->
-        <tr class="cat-row"><td colspan="7">站內信管理</td></tr>
+        <tr class="cat-row"><td colspan="7"><span>站內信管理</span></td></tr>
         <tr><td>站內信管理入口</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-on">◉</td><td class="icon-lock">⚿</td></tr>
         <tr><td>撰寫廣播</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-lock">⚿</td></tr>
         <tr><td>刪除站內信</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-lock">⚿</td></tr>
         <!-- 用戶補正 -->
-        <tr class="cat-row"><td colspan="7">用戶補正管理</td></tr>
+        <tr class="cat-row"><td colspan="7"><span>用戶補正管理</span></td></tr>
         <tr><td>補正管理入口</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-on">◉</td><td class="icon-lock">⚿</td></tr>
         <tr><td>歷史入隊補正</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-lock">⚿</td></tr>
         <tr><td>放鴿子修改</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-lock">⚿</td></tr>
         <tr><td>系統資料同步</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-lock">⚿</td></tr>
         <!-- 日誌中心 -->
-        <tr class="cat-row"><td colspan="7">日誌中心</td></tr>
+        <tr class="cat-row"><td colspan="7"><span>日誌中心</span></td></tr>
         <tr><td>日誌中心入口</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-lock">⚿</td></tr>
         <tr><td>錯誤日誌讀取</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-lock">⚿</td></tr>
         <tr><td>錯誤日誌清除</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-lock">⚿</td></tr>
         <tr><td>稽核日誌讀取</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-lock">⚿</td></tr>
         <!-- 入口權限 -->
-        <tr class="cat-row"><td colspan="7">其他後台入口</td></tr>
+        <tr class="cat-row"><td colspan="7"><span>其他後台入口</span></td></tr>
         <tr><td>小遊戲管理</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-on">◉</td><td class="icon-lock">⚿</td></tr>
         <tr><td>二手商品管理</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-on">◉</td><td class="icon-lock">⚿</td></tr>
         <tr><td>廣告管理</td><td class="icon-lock">✕</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-off">—</td><td class="icon-on">◉</td><td class="icon-lock">⚿</td></tr>
