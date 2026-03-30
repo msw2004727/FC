@@ -379,10 +379,11 @@ service cloud.firestore {
 
       allow read: if true;
       allow create: if isAuth()
-        && hasString('title');
+        && hasString('title')
+        && (isCoachPlus() || hasPerm('event.create'));
       allow update: if isAuth()
         && (isEventOwner() || hasPerm('event.edit_all') || isSignupFieldsOnly());
-      allow delete: if isAdmin();
+      allow delete: if isAdmin() || hasPerm('event.delete');
     }
 
     match /eventTemplates/{templateId} {
@@ -757,7 +758,8 @@ service cloud.firestore {
 
       allow read: if true;
       allow create: if hasString('name')
-        && canCreateTournamentRoot();
+        && canCreateTournamentRoot()
+        && (hasPerm('admin.tournaments.create') || hasPerm('admin.tournaments.entry') || isAdmin());
       allow update: if isAdmin()
         || (tournamentExists()
           && canManageTournamentScope()
@@ -827,7 +829,8 @@ service cloud.firestore {
       allow update: if isAdmin()
         || canMessageParticipantUpdate();
       allow delete: if isAdmin()
-        || isMessageSenderResource();
+        || isMessageSenderResource()
+        || hasPerm('admin.messages.delete');
     }
     // ═══════════════════════════════════════════
     //  Activity Records（活動紀錄）
