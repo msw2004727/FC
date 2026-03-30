@@ -10,6 +10,47 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### [永久] 2026-03-30 — 手機日期選擇器 auto-fill 陷阱（picker session 模式）
+- **問題**：手機建立活動選日期時，會同時加入今天 + 選取的日期
+- **原因**：iOS Safari / Android Chrome 開啟空的 `input[type=date]` 時，系統自動將值設為今天並觸發 `change`；用戶選完再觸發第二次 `change`。桌機 F12 模擬不會復現（Chrome 內建 picker 不 auto-fill）
+- **v1 修正（失敗）**：在 `change` handler 中 `_addMultiDate(val)` 後清空 input → 無效，因今天已被加入
+- **v2 修正（成功）**：改用 focus/change/blur 三段式 picker session 追蹤
+  - `focus`：重設 `_pickerPending = null`
+  - `change`：只記錄最新值，不呼叫 `_addMultiDate`；空值時清空 pending（iOS 取消按鈕）
+  - `blur`：150ms 延遲後提交 `_pickerPending`（只取最後一個值）
+- **教訓**：`input[type=date]` 的 `change` 在手機上可能觸發多次（auto-fill + 用戶選取），絕不能在 `change` 中直接執行不可逆操作。需用 blur 確認最終值。F12 模擬無法測試此類 bug，必須真機驗證。
+- **檔案**：`event-create-multidate.js`（picker session）、`event-create.js`（dateVal fallback）
+
+### [永久] 2026-03-30 — 活動報名按鈕「載入中」卡住 + 已報名卻顯示「立即報名」
+- **問題 A**：報名按鈕永久卡在「載入中…」（需關閉重開）
+- **問題 B**：已報名用戶看到「立即報名」按鈕（1-5 秒後自動修正但造成困惑）
+- **原因 A**：Auth 完成但 registrations listener 啟動失敗（`_authPromise` 已 resolve 但 `auth.currentUser` 仍為 null），3 次重繪重試後放棄，按鈕永久卡住
+- **原因 B**：localStorage 恢復的舊 registrations 快取不含新報名，`regsLoading` 判定為 false（因快取不為空），直接用舊快取渲染錯誤按鈕
+- **修復（三層縱深防禦）**：
+  - Fix A：新增 `_registrationsFirstSnapshotReceived` flag，首次 snapshot 到達前一律顯示「載入中…」
+  - Fix 1：3 次重繪（9 秒）後強制解除載入狀態，按鈕可點（Transaction 層有重複偵測保障安全）
+  - Fix 2：`_startAuthDependentWork` 中 Auth 完成後主動補啟動 registrations listener
+- **regsLoading 新條件**：`!firstSnapshotReceived && retryCount < 3`（取代舊的 `length===0 && !listenerStarted`）
+- **教訓**：cache-first 架構中，舊快取不能被信任用於判斷「已報名」狀態。必須區分「尚未載入」和「載入完成但為空」。
+- **檔案**：`firebase-service.js`（flag 5 處）、`event-detail.js`（regsLoading 條件 + retry 重設）
+
+### 2026-03-30 — Cloudflare Pages 部署失敗（package-lock.json npm 版本不相容）
+- **問題**：9c662fa 到 417ce9e 連續多次部署失敗，`npm ci` 報 `Missing: picomatch@4.0.4 from lock file`
+- **原因**：本地 npm 11.6.2 產生的 lock file 格式與 Cloudflare 的 npm 10.9.2 有依賴解析差異
+- **修復**：用 `npx npm@10 install` 重新生成 lock file + 新增 `.node-version` 指定 Node 22
+- **教訓**：安裝 devDependency 後必須確保 lock file 與部署環境的 npm 版本相容。`.node-version` 檔案跟著 repo 走，換設備自動生效。
+
+### 2026-03-30 — 測試基礎設施改善（4 批，+470 測試）
+- **新增測試**：source-drift.test.js、waitlist-sort.test.js、registration-transaction.test.js、event-detail-render.test.js（jsdom）、cloud-functions.test.js、data-contracts.test.js、firestore-rules-extended.test.js（252 測試 / 45 集合 / hasPerm 12 碼）、tests/e2e/example.spec.js（Playwright）
+- **修正**：line-auth.test.js 假陽性（加 expect.assertions）、tournament 重複測試合併
+- **CI/CD**：.github/workflows/test.yml（push/PR 自動跑 unit + rules）
+- **教訓**：copy-paste 測試模式有漂移風險，source-drift.test.js 可偵測但無法根治；長期需遷移 ES Module
+
+### 2026-03-30 — 結構導航文件同步 + 廢棄代碼清理 + docs 整理
+- **結構文件**：4 檔交叉同步（architecture.md / structure-guide.md / CLAUDE.md / AGENTS.md），修正 33 個未記錄檔案 + 14 處計數差異（12→14 子資料夾，含 education + color-cat）
+- **廢棄清理**：歸檔 6 個已完成腳本 + config.js 339 行變更日誌移除
+- **docs 整理**：specs/ 11→5（6 個完成計畫歸檔）、tournament-refactor/ 整個歸檔、root 7→6
+
 ### 2026-03-28 — 俱樂部留言板遷移到 Firestore subcollection
 - **問題**：Feed 留言板存在 team.feed[] 陣列中，每次操作都整個覆寫 team document，不利擴展且有寫入衝突風險
 - **修復**：新建 `team-feed.js` 模組，將 Feed CRUD 遷移至 `teams/{teamId}/feed/{postId}` subcollection
