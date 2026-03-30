@@ -273,6 +273,9 @@ Object.assign(App, {
     const roleKey = this._permSelectedRole;
     const lockedRole = this._isLockedPermissionRole(roleKey);
     const currentPerms = Array.from(new Set(ApiService.getRolePermissions(roleKey)));
+    // 區分固有權限（inherent）與儲存的權限（stored），固有權限不可關閉
+    const inherentPerms = typeof getInherentRolePermissions === 'function'
+      ? new Set(getInherentRolePermissions(roleKey)) : new Set();
     this._syncPermissionPanelControls(roleKey);
 
     var categories = ApiService.getPermissions()
@@ -330,19 +333,24 @@ Object.assign(App, {
       var entryToggleHtml = '';
       if (cat.entryItem) {
         var entryChecked = currentPerms.indexOf(cat.entryItem.code) >= 0;
-        entryToggleHtml = '<label class="toggle-switch ' + (entryChecked ? 'active' : '') + '" onclick="event.stopPropagation()">'
-          + '<input type="checkbox" ' + (entryChecked ? 'checked' : '') + ' ' + (lockedRole ? 'disabled' : '') + ' onchange="App.togglePermission(\'' + cat.entryItem.code + '\')">'
+        var entryInherent = inherentPerms.has(cat.entryItem.code);
+        var entryDisabled = lockedRole || entryInherent;
+        entryToggleHtml = '<label class="toggle-switch ' + (entryChecked ? 'active' : '') + '" onclick="event.stopPropagation()"' + (entryInherent ? ' title="此角色固有權限，無法關閉"' : '') + '>'
+          + '<input type="checkbox" ' + (entryChecked ? 'checked' : '') + ' ' + (entryDisabled ? 'disabled' : '') + ' onchange="App.togglePermission(\'' + cat.entryItem.code + '\')">'
           + '<span class="toggle-slider"></span>'
+          + (entryInherent ? '<span style="font-size:.6rem;color:var(--text-muted);margin-left:.3rem">固有</span>' : '')
           + '</label>';
       }
 
       // 子權限列表
       var subHtml = cat.subItems.map(function(p) {
         var checked = currentPerms.indexOf(p.code) >= 0;
+        var isInherent = inherentPerms.has(p.code);
+        var isDisabled = lockedRole || isInherent;
         return '<div class="perm-item ' + (lockedRole ? 'perm-item-locked' : '') + '">'
-          + '<span class="perm-item-label">' + escapeHTML(p.name) + '</span>'
-          + '<label class="toggle-switch ' + (checked ? 'active' : '') + '">'
-          + '<input type="checkbox" ' + (checked ? 'checked' : '') + ' ' + (lockedRole ? 'disabled' : '') + ' onchange="App.togglePermission(\'' + p.code + '\')">'
+          + '<span class="perm-item-label">' + escapeHTML(p.name) + (isInherent ? ' <span style="font-size:.6rem;color:var(--text-muted)">(固有)</span>' : '') + '</span>'
+          + '<label class="toggle-switch ' + (checked ? 'active' : '') + '"' + (isInherent ? ' title="此角色固有權限，無法關閉"' : '') + '>'
+          + '<input type="checkbox" ' + (checked ? 'checked' : '') + ' ' + (isDisabled ? 'disabled' : '') + ' onchange="App.togglePermission(\'' + p.code + '\')">'
           + '<span class="toggle-slider"></span>'
           + '</label>'
           + '</div>';
@@ -370,6 +378,14 @@ Object.assign(App, {
     }
     if (this._isLockedPermissionRole(this._permSelectedRole)) {
       this.showToast('總管權限固定開啟');
+      return;
+    }
+    // 固有權限不可關閉
+    const inherent = typeof getInherentRolePermissions === 'function'
+      ? getInherentRolePermissions(this._permSelectedRole) : [];
+    if (inherent.includes(code)) {
+      this.showToast('此為該角色的固有權限，無法關閉');
+      this.renderPermissions(this._permSelectedRole);
       return;
     }
     const source = this._getRolePermissionSource();
