@@ -135,7 +135,7 @@ section{margin-bottom:3rem}
 <header class="hero">
   <h1>ToosterX 權限系統參考文件</h1>
   <p>統一權限架構：前端 hasPermission() + 後端 Firestore Rules hasPerm() 雙層驗證</p>
-  <span class="hero-date">最後更新：2026-03-30（Phase 1-4 重構完成 · 基礎功能保障章節已新增）</span>
+  <span class="hero-date">最後更新：2026-03-30（Phase 1-4 重構完成 · 對照表已與 config.js 同步驗證）</span>
 </header>
 
 <main class="container">
@@ -258,17 +258,19 @@ section{margin-bottom:3rem}
         <div class="role-card-stats"><span class="stat-pill">多數權限</span></div>
       </div>
       <div class="role-card-body">
-        <h4>預設擁有的權限</h4>
+        <h4>預設擁有的權限（9 入口 + 3 額外）</h4>
         <ul class="perm-list">
-          <li class="on">所有入口權限（活動、賽事、用戶、廣告、商品、站內信、俱樂部、補正）</li>
-          <li class="on">team.create · team.manage_all · event.edit_all</li>
+          <li class="on">活動管理、賽事管理、小遊戲、用戶管理</li>
+          <li class="on">廣告管理、二手商品、站內信、俱樂部管理、補正管理</li>
+          <li class="on">建立俱樂部 · 管理所有俱樂部 · 編輯所有活動</li>
         </ul>
-        <h4>可由 super_admin 額外授予</h4>
+        <h4>預設無、可由 super_admin 授予（8 項）</h4>
         <ul class="perm-list">
-          <li class="off">儀表板 / 主題 / 手動 EXP / 自動 EXP / 公告 / 成就 / 日誌 / 無效資料</li>
+          <li class="off">儀表板 · 佈景主題 · 手動 EXP · 自動 EXP</li>
+          <li class="off">系統公告 · 成就/徽章 · 日誌中心 · 無效資料查詢</li>
         </ul>
         <div class="role-card-note">
-          Phase 1 重構後，<b>頁面鎖定已移除</b>。管理員預設擁有大部分權限；super_admin 可額外授予原本僅限 super_admin 的功能。
+          管理員預設擁有 9 個入口權限 + 3 個操作權限。其餘 8 個 super_admin 級功能可由總管額外授予，前後端即時生效。
         </div>
       </div>
     </div>
