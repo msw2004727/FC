@@ -212,8 +212,7 @@ Object.assign(App, {
   _canCreateFriendlyTournament(user = null) {
     const currentUser = user || ApiService.getCurrentUser?.();
     if (!currentUser) return false;
-    const roleLevel = ROLE_LEVEL_MAP[currentUser.role] || 0;
-    if (roleLevel >= ROLE_LEVEL_MAP.admin) return true;
+    if (this.hasPermission('admin.tournaments.manage_all')) return true;
     return this._getFriendlyResponsibleTeams(currentUser).length > 0;
   },
 
@@ -227,8 +226,7 @@ Object.assign(App, {
   _canManageTournamentRecord(tournament, user = null) {
     const currentUser = user || ApiService.getCurrentUser?.();
     if (!tournament || !currentUser) return false;
-    const roleLevel = ROLE_LEVEL_MAP[currentUser.role] || 0;
-    if (roleLevel >= ROLE_LEVEL_MAP.admin) return true;
+    if (this.hasPermission('admin.tournaments.manage_all')) return true;
     if (this._isTournamentDelegate(tournament, currentUser)) return true;
     const hostTeamId = String(tournament.hostTeamId || '').trim();
     if (!hostTeamId) return false;

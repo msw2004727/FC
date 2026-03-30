@@ -213,8 +213,7 @@ Object.assign(App, {
     if (!e) return false;
     if (!e.teamOnly) return true;
     if (this._isEventOwner(e)) return true;
-    const myLevel = ROLE_LEVEL_MAP[this.currentRole] || 0;
-    if (myLevel >= ROLE_LEVEL_MAP.admin) return true;
+    if (this.hasPermission('event.edit_all')) return true;
     const eventTeamIds = this._getEventLimitedTeamIds(e);
     const myTeamIds = this._getVisibleTeamIdsForLimitedEvents();
     if (eventTeamIds.some(id => myTeamIds.has(id))) return true;
@@ -223,8 +222,6 @@ Object.assign(App, {
 
   _canToggleEventPublic(e) {
     if (!e || !e.teamOnly) return false;
-    const myLevel = ROLE_LEVEL_MAP[this.currentRole] || 0;
-    if (myLevel >= ROLE_LEVEL_MAP.admin) return true;
     if (this.hasPermission('event.edit_all')) return true;
     if (this.hasPermission('team.toggle_event_visibility')) return true;
     const eventTeamIds = this._getEventLimitedTeamIds(e);
@@ -251,8 +248,6 @@ Object.assign(App, {
 
   /** 場主(含)以下只能管理自己的活動或受委託的活動，admin+ 可管理全部 */
   _canManageEvent(e) {
-    const myLevel = ROLE_LEVEL_MAP[this.currentRole] || 0;
-    if (myLevel >= ROLE_LEVEL_MAP.admin) return true; // admin, super_admin
     if (this.hasPermission('event.edit_all')) return true;
     return this._isEventOwner(e) || this._isEventDelegate(e);
   },

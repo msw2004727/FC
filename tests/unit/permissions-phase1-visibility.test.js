@@ -146,23 +146,21 @@ describe('Phase 1 post-check: HTML files (run after implementation)', () => {
     expect(migratedPages.length).toBeGreaterThan(0);
   });
 
-  // NOTE: This test will FAIL until Phase 1 is implemented.
-  // Uncomment after Phase 1 implementation:
-  //
-  // test('no data-min-role on migrated page elements', () => {
-  //   const htmlFiles = fs.readdirSync(pagesDir).filter(f => f.endsWith('.html'));
-  //   const violations = [];
-  //   htmlFiles.forEach(file => {
-  //     const content = fs.readFileSync(path.join(pagesDir, file), 'utf8');
-  //     migratedPages.forEach(pageId => {
-  //       const pattern = new RegExp(`id="${pageId}"[^>]*data-min-role`);
-  //       if (pattern.test(content)) {
-  //         violations.push(`${file}: ${pageId} still has data-min-role`);
-  //       }
-  //     });
-  //   });
-  //   expect(violations).toEqual([]);
-  // });
+  // Phase 1 implemented — verify migrated pages no longer have data-min-role
+  test('no data-min-role on migrated page elements', () => {
+    const htmlFiles = fs.readdirSync(pagesDir).filter(f => f.endsWith('.html'));
+    const violations = [];
+    htmlFiles.forEach(file => {
+      const content = fs.readFileSync(path.join(pagesDir, file), 'utf8');
+      migratedPages.forEach(pageId => {
+        const pattern = new RegExp(`id="${pageId}"[^>]*data-min-role`);
+        if (pattern.test(content)) {
+          violations.push(`${file}: ${pageId} still has data-min-role`);
+        }
+      });
+    });
+    expect(violations).toEqual([]);
+  });
 });
 
 // =========================================================================

@@ -45,10 +45,7 @@ Object.assign(App, {
     if (!gameConfig) return false;
     if (gameConfig.enabled === false) return false;
 
-    const minRole = 'user';
-    const minLevel = ROLE_LEVEL_MAP[minRole] || 0;
-    const currentLevel = ROLE_LEVEL_MAP[this.currentRole] || 0;
-    if (currentLevel < minLevel) return false;
+    if (!this.hasPermission('activity.manage.entry')) return false;
 
     // Firestore gameConfigs 可覆蓋 preset 的 homeVisible 設定
     if (typeof ApiService !== 'undefined' && typeof ApiService.isHomeGameVisible === 'function') {

@@ -20,8 +20,7 @@ Object.assign(App, {
     const tab = this._tmActiveTab || 'active';
     this._refreshTournamentCenterCreateButton();
     const currentUser = ApiService.getCurrentUser?.();
-    const roleLevel = ROLE_LEVEL_MAP[this.currentRole] || 0;
-    const isAdmin = roleLevel >= ROLE_LEVEL_MAP.admin;
+    const isAdmin = this.hasPermission('admin.tournaments.manage_all');
     const all = (ApiService.getTournaments() || [])
       .map(t => this.getFriendlyTournamentRecord?.(t) || t)
       .filter(t => isAdmin || this._canManageTournamentRecord(t, currentUser));

@@ -41,8 +41,7 @@ Object.assign(App, {
       });
 
       // Step 3：管理員額外做即時計算（有完整資料可評估其他用戶成就）
-      const myLevel = ROLE_LEVEL_MAP[this.currentRole] || 0;
-      if (myLevel >= ROLE_LEVEL_MAP.admin) {
+      if (this.hasPermission('event.edit_all')) {
         let ab = this._getAchievementBadges?.();
         if (!ab) {
           for (let i = 0; i < 10; i++) {

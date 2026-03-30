@@ -155,7 +155,7 @@ Object.assign(App, {
 
       // 編輯模式：俱樂部經理欄位，僅經理本人或 admin 可轉移
       const me = ApiService.getCurrentUser();
-      const isAdmin = me && (ROLE_LEVEL_MAP[me.role] || 0) >= ROLE_LEVEL_MAP['admin'];
+      const isAdmin = this.hasPermission('team.manage_all');
       const canTransferCaptain = isAdmin || (me && me.uid === t.captainUid);
       captainDisplay.style.display = '';
       captainDisplay.innerHTML = `目前俱樂部經理：<span style="color:var(--accent)">${escapeHTML(t.captain || '（未設定）')}</span>`;

@@ -1980,3 +1980,139 @@ describe("/rolePermissions/{roleKey}", () => {
     );
   });
 });
+
+// ═══════════════════════════════════════════════════════════════
+// Phase 4: hasPerm() 權限碼授予 → 存取控制矩陣
+// ═══════════════════════════════════════════════════════════════
+
+describe("Phase 4: hasPerm() permission-grant access control", () => {
+  // --- errorLogs: requires admin.logs.error_read ---
+  describe("errorLogs — hasPerm('admin.logs.error_read')", () => {
+    test("coach with admin.logs.error_read can read errorLogs", async () => {
+      await seedRolePermissions("coach", ["admin.logs.error_read"]);
+      await seedDoc("errorLogs", "log1", { message: "test error", createdAt: new Date() });
+      await assertSucceeds(getDoc(doc(coach(), "errorLogs", "log1")));
+    });
+
+    test("coach without admin.logs.error_read cannot read errorLogs", async () => {
+      await seedRolePermissions("coach", []);
+      await assertFails(getDoc(doc(coach(), "errorLogs", "log1")));
+    });
+
+    test("superAdmin always reads errorLogs (bypasses hasPerm)", async () => {
+      await assertSucceeds(getDoc(doc(superAdmin(), "errorLogs", "log1")));
+    });
+
+    test("user cannot read errorLogs even with permission in doc", async () => {
+      await seedRolePermissions("user", ["admin.logs.error_read"]);
+      await assertFails(getDoc(doc(user(), "errorLogs", "log1")));
+    });
+  });
+
+  // --- errorLogs delete: requires admin.logs.error_delete ---
+  describe("errorLogs delete — hasPerm('admin.logs.error_delete')", () => {
+    test("admin with admin.logs.error_delete can delete", async () => {
+      await seedRolePermissions("admin", ["admin.logs.error_delete"]);
+      await seedDoc("errorLogs", "log_del", { message: "to delete" });
+      await assertSucceeds(deleteDoc(doc(admin(), "errorLogs", "log_del")));
+    });
+
+    test("admin without admin.logs.error_delete cannot delete", async () => {
+      await seedRolePermissions("admin", []);
+      await seedDoc("errorLogs", "log_del2", { message: "to delete" });
+      await assertFails(deleteDoc(doc(admin(), "errorLogs", "log_del2")));
+    });
+  });
+
+  // --- announcements: requires admin.announcements.entry ---
+  describe("announcements — hasPerm('admin.announcements.entry')", () => {
+    test("coach with perm can create announcement", async () => {
+      await seedRolePermissions("coach", ["admin.announcements.entry"]);
+      await assertSucceeds(
+        setDoc(doc(coach(), "announcements", "ann1"), {
+          title: "Test", body: "Hello", createdAt: new Date(),
+        })
+      );
+    });
+
+    test("coach without perm cannot create announcement", async () => {
+      await seedRolePermissions("coach", []);
+      await assertFails(
+        setDoc(doc(coach(), "announcements", "ann2"), {
+          title: "Test", body: "Hello", createdAt: new Date(),
+        })
+      );
+    });
+  });
+
+  // --- Permission revoke takes effect immediately ---
+  describe("real-time permission revoke", () => {
+    test("grant perm → access OK → revoke → access denied", async () => {
+      await seedRolePermissions("coach", ["admin.logs.error_read"]);
+      await seedDoc("errorLogs", "log_rt", { message: "realtime test" });
+      await assertSucceeds(getDoc(doc(coach(), "errorLogs", "log_rt")));
+
+      // Revoke
+      await seedRolePermissions("coach", []);
+      await assertFails(getDoc(doc(coach(), "errorLogs", "log_rt")));
+    });
+  });
+
+  // --- rolePermissions missing doc → fail closed ---
+  describe("missing rolePermissions document → fail closed", () => {
+    test("venue_owner with no rolePermissions doc cannot read errorLogs", async () => {
+      // Do NOT seed rolePermissions for venue_owner
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await deleteDoc(doc(ctx.firestore(), "rolePermissions", "venue_owner")).catch(() => {});
+      });
+      await assertFails(getDoc(doc(venueOwner(), "errorLogs", "log1")));
+    });
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════
+// Phase 4: User basic features NOT blocked by permissions
+// ═══════════════════════════════════════════════════════════════
+
+describe("Phase 4: user basic features always allowed (no perm required)", () => {
+  test("user can read events (public)", async () => {
+    await seedDoc("events", "evt1", { title: "Test Event", status: "open" });
+    await assertSucceeds(getDoc(doc(user(), "events", "evt1")));
+  });
+
+  test("user can create own registration", async () => {
+    await assertSucceeds(
+      setDoc(doc(user(), "registrations", "reg1"), {
+        eventId: "evt1", userId: "uidUser", uid: "uidUser",
+        status: "confirmed", registeredAt: new Date(),
+      })
+    );
+  });
+
+  test("user can read teams (public)", async () => {
+    await seedDoc("teams", "team1", { name: "Test Team", active: true });
+    await assertSucceeds(getDoc(doc(user(), "teams", "team1")));
+  });
+
+  test("user can read own profile", async () => {
+    await seedUserDoc("uidUser");
+    await assertSucceeds(getDoc(doc(user(), "users", "uidUser")));
+  });
+
+  test("user can read own inbox", async () => {
+    await seedPath(["users", "uidUser", "inbox", "msg1"], {
+      body: "test", from: "system", to: "uidUser",
+    });
+    await assertSucceeds(
+      getDoc(doc(user(), "users", "uidUser", "inbox", "msg1"))
+    );
+  });
+
+  test("guest can read events (public)", async () => {
+    await assertSucceeds(getDoc(doc(guest(), "events", "evt1")));
+  });
+
+  test("guest can read teams (public)", async () => {
+    await assertSucceeds(getDoc(doc(guest(), "teams", "team1")));
+  });
+});

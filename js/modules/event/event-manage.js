@@ -175,8 +175,7 @@ Object.assign(App, {
     const f = filter || this._myActivityFilter || 'all';
     this._myActivityFilter = f;
 
-    const myLevel = ROLE_LEVEL_MAP[this.currentRole] || 0;
-    const isAdmin = myLevel >= ROLE_LEVEL_MAP.admin;
+    const isAdmin = this.hasPermission('event.edit_all');
 
     // 場主(含)以下只看自己的活動或受委託的活動
     let allEvents = ApiService.getEvents();

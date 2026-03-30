@@ -30,9 +30,8 @@ Object.assign(App, {
 
   _getTournamentSelectableHostTeams(selectedId = '') {
     const currentUser = ApiService.getCurrentUser?.();
-    const roleLevel = ROLE_LEVEL_MAP[currentUser?.role] || 0;
     const allTeams = ApiService.getTeams?.() || [];
-    const source = roleLevel >= ROLE_LEVEL_MAP.admin
+    const source = this.hasPermission('admin.tournaments.manage_all')
       ? allTeams
       : this._getFriendlyResponsibleTeams(currentUser);
     const teams = [];

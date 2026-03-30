@@ -57,14 +57,31 @@ Object.assign(App, {
   },
 
   _canAccessPage(pageId, role) {
+    // 1. 在 DRAWER_MENUS 中的頁面：由 permissionCode 控制
     const drawerItem = this._findDrawerMenuItem(pageId);
     if (drawerItem) return this._canAccessDrawerItem(drawerItem, role);
+
+    // 2. 不在 DRAWER_MENUS 中的特殊頁面：硬編碼存取規則
+    // page-admin-roles: admin.roles.entry 已停用，僅 super_admin 可進入
+    if (pageId === 'page-admin-roles') return this._getEffectiveRoleKey(role) === 'super_admin';
+    // page-scan: delegate 例外 + 教練以上
+    if (pageId === 'page-scan') {
+      if (this._getEffectiveRoleLevel(role) >= (ROLE_LEVEL_MAP.coach || 0)) return true;
+      if (typeof this._isAnyActiveEventDelegate === 'function' && this._isAnyActiveEventDelegate()) return true;
+      return false;
+    }
+    // page-team-manage: 領隊以上
+    if (pageId === 'page-team-manage') return this._getEffectiveRoleLevel(role) >= (ROLE_LEVEL_MAP.captain || 0);
+    // 日誌子頁面：由入口權限控制
+    if (pageId === 'page-admin-audit-logs') return this.hasPermission('admin.logs.audit_read', role);
+    if (pageId === 'page-admin-error-logs') return this.hasPermission('admin.logs.error_read', role);
+
+    // 3. 保留 data-min-role 回退（供尚未遷移的元素使用）
     const pageEl = document.getElementById(pageId);
-    if (!pageEl?.dataset?.minRole) return true;
-    if (this._getEffectiveRoleLevel(role) >= (ROLE_LEVEL_MAP[pageEl.dataset.minRole] || 0)) return true;
-    // delegate 例外：被委託管理活動的 user 可存取掃碼頁
-    if (pageId === 'page-scan' && typeof this._isAnyActiveEventDelegate === 'function' && this._isAnyActiveEventDelegate()) return true;
-    return false;
+    if (pageEl?.dataset?.minRole) {
+      return this._getEffectiveRoleLevel(role) >= (ROLE_LEVEL_MAP[pageEl.dataset.minRole] || 0);
+    }
+    return true;
   },
 
   /** 檢查當前用戶是否為任何可簽到活動的委託人 */

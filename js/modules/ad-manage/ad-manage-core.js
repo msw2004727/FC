@@ -19,8 +19,7 @@ Object.assign(App, {
 
   // 自動下架已過期廣告
   _autoExpireAds() {
-    const currentRoleLevel = ROLE_LEVEL_MAP[this.currentRole] || 0;
-    if (!ModeManager.isDemo() && currentRoleLevel < ROLE_LEVEL_MAP.admin) return;
+    if (!ModeManager.isDemo() && !this.hasPermission('admin.banners.entry')) return;
     const now = new Date();
     const check = (items, updateFn) => {
       items.forEach(ad => {

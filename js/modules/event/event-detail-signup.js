@@ -14,7 +14,7 @@ Object.assign(App, {
   _removeCancelRecordOnResignup(eventId, uid) {
     const source = ApiService._src('activityRecords');
     const canDelete = !ModeManager.isDemo()
-      && (ROLE_LEVEL_MAP[this.currentRole] || 0) >= ROLE_LEVEL_MAP.admin;
+      && this.hasPermission('event.edit_all');
     for (let i = source.length - 1; i >= 0; i--) {
       if (source[i].eventId === eventId && source[i].uid === uid && source[i].status === 'cancelled') {
         if (canDelete && source[i]._docId) {

@@ -10,6 +10,12 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-30 — [永久] 權限系統統一重構（Phase 1-4）
+- **問題**：系統有 9 種不同的存取控制機制互相矛盾（data-min-role、ROLE_LEVEL_MAP、hasPermission、Firestore Rules 等），權限開關對教練/領隊/場主實際無效
+- **修復**：Phase 1 移除 17 個頁面的 data-min-role（改由 DRAWER_MENUS permissionCode 控制）；Phase 2 替換 22 處 ROLE_LEVEL_MAP 硬檢查為 hasPermission()；Phase 3 驗證 CF 不動；Phase 4 擴充 Firestore Rules 測試
+- **架構**：前端 hasPermission() + 後端 Firestore Rules hasPerm() 雙層驗證；super_admin 永遠全權限；user 永遠零權限；基礎功能（報名/取消/入隊/退隊）不受影響
+- **教訓**：role.js _canAccessPage() 現在有 5 個硬編碼特殊頁面（admin-roles、scan、team-manage、audit-logs、error-logs）必須在此函式中維護；新增後台頁面時必須先加入 DRAWER_MENUS 的 permissionCode
+
 ### 2026-03-30 — 層級架構顯示用戶數量 + 說明按鈕
 - **需求**：層級架構列表中顯示各角色的用戶人數（紅字），並在標題右側加入「?」說明按鈕解釋兩個數字的意義
 - **修復**：`renderRoleHierarchy()` 統計 `ApiService.getAdminUsers()` 各角色人數，以紅色數字顯示在英文名稱右方；標題列加入 `_showPermInfoPopup('_hierarchy')` 說明彈窗
