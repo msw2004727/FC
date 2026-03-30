@@ -10,6 +10,15 @@ Object.assign(App, {
   // ── 權限說明對照表 ──
 
   _PERM_INFO: {
+    // ─ 層級架構說明 ─
+    '_hierarchy': {
+      title: '層級架構數字說明',
+      body: '<p>每個層級行顯示兩個數字：</p>'
+        + '<div style="display:flex;align-items:center;gap:.5rem;margin:.6rem 0"><span style="display:inline-flex;align-items:center;justify-content:center;min-width:1.25rem;height:1.25rem;padding:0 .25rem;border-radius:50%;background:var(--accent-bg);color:var(--accent);font-size:.62rem;font-weight:700;border:1px solid var(--accent)">13</span><span>該層級目前擁有的<b>後台權限數量</b></span></div>'
+        + '<div style="display:flex;align-items:center;gap:.5rem;margin:.6rem 0"><span style="font-size:.65rem;font-weight:700;color:#dc2626">5</span><span>目前屬於該層級的<b>用戶人數</b></span></div>'
+        + '<p style="color:var(--text-muted);font-size:.78rem;margin-top:.5rem">權限數量會隨開關切換即時更新；用戶人數依據用戶管理資料統計。</p>',
+    },
+
     // ─ 活動管理 ─
     'activity.manage.entry': {
       title: '活動管理（入口）',

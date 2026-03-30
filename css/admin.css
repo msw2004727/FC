@@ -96,12 +96,13 @@
 .permissions-list { max-height: 350px; overflow-y: auto; }
 /* ─── Role Hierarchy Management ─── */
 .role-hierarchy-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: .85rem; margin-bottom: .65rem; }
-.role-hierarchy-title { font-weight: 700; font-size: .85rem; margin-bottom: .6rem; padding-bottom: .4rem; border-bottom: 1px solid var(--border); }
+.role-hierarchy-title { font-weight: 700; font-size: .85rem; margin-bottom: .6rem; padding-bottom: .4rem; border-bottom: 1px solid var(--border); display: flex; align-items: center; }
 .role-level-row { display: flex; align-items: center; gap: .5rem; padding: .45rem .3rem; border-bottom: 1px solid var(--border); }
 .role-level-row:last-child { border-bottom: none; }
 .role-level-num { font-family: var(--font-display); font-size: .7rem; font-weight: 700; color: var(--text-muted); min-width: 2rem; }
 .role-level-badge { display: inline-block; padding: .15rem .5rem; border-radius: var(--radius-full); color: #fff; font-size: .72rem; font-weight: 600; min-width: 3rem; text-align: center; }
 .role-perm-count { display: inline-flex; align-items: center; justify-content: center; min-width: 1.25rem; height: 1.25rem; padding: 0 .25rem; border-radius: 50%; background: var(--accent-bg); color: var(--accent); font-size: .62rem; font-weight: 700; font-family: var(--font-display); flex-shrink: 0; border: 1px solid var(--accent); line-height: 1; }
+.role-user-count { font-size: .65rem; font-weight: 700; color: #dc2626; font-family: var(--font-display); }
 .role-level-key { font-size: .68rem; color: var(--text-muted); font-family: monospace; flex: 1; }
 .role-level-row:hover { background: var(--accent-bg); }
 .role-level-row.role-level-selected { background: var(--accent-bg); border-color: var(--accent); }

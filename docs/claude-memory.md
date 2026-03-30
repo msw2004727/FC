@@ -10,6 +10,11 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-30 — 層級架構顯示用戶數量 + 說明按鈕
+- **需求**：層級架構列表中顯示各角色的用戶人數（紅字），並在標題右側加入「?」說明按鈕解釋兩個數字的意義
+- **修復**：`renderRoleHierarchy()` 統計 `ApiService.getAdminUsers()` 各角色人數，以紅色數字顯示在英文名稱右方；標題列加入 `_showPermInfoPopup('_hierarchy')` 說明彈窗
+- **檔案**：`user-admin-roles.js`、`user-admin-perm-info.js`、`admin-system.html`、`admin.css`
+
 ### 2026-03-30 — 權限開關說明按鈕 + CLAUDE.md 權限維護規則
 - **需求**：每個後台權限開關旁加入「?」說明按鈕，點擊顯示該權限的用途說明
 - **設計**：參考教學俱樂部 `_showEduInfoPopup` 的圓形按鈕 + 毛玻璃彈窗模式

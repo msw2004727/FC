@@ -137,16 +137,21 @@ Object.assign(App, {
     const container = document.getElementById('role-hierarchy-list');
     if (!container) return;
     const allKeys = this._getAllRoleKeys();
+    // 統計各角色用戶數量
+    const users = (ApiService.getAdminUsers ? ApiService.getAdminUsers() : []) || [];
+    const roleUserCount = {};
+    users.forEach(u => { const rk = u.role || 'user'; roleUserCount[rk] = (roleUserCount[rk] || 0) + 1; });
     container.innerHTML = allKeys.map((key, i) => {
       const r = this._getRoleInfo(key);
       const isCustom = this._isCustomRole(key);
       const isSelected = this._permSelectedRole === key;
       const permCount = (ApiService.getRolePermissions(key) || []).length;
+      const userCount = roleUserCount[key] || 0;
       return `<div class="role-level-row ${isSelected ? 'role-level-selected' : ''}" onclick="App.selectRoleForPerms('${key}')" style="cursor:pointer">
         <span class="role-level-num">Lv.${i}</span>
         <span class="role-level-badge" style="background:${r.color}">${escapeHTML(r.label)}</span>
         <span class="role-perm-count">${permCount}</span>
-        <span class="role-level-key">${escapeHTML(key)}${isCustom ? ' <span style="font-size:.6rem;color:var(--accent)">(自訂)</span>' : ''}</span>
+        <span class="role-level-key">${escapeHTML(key)} <span class="role-user-count">${userCount}</span>${isCustom ? ' <span style="font-size:.6rem;color:var(--accent)">(自訂)</span>' : ''}</span>
         ${isCustom ? `<button class="role-delete-btn" onclick="event.stopPropagation();App.confirmDeleteCustomRole('${key}')" title="刪除此層級">✕</button>` : ''}
       </div>`;
     }).join('');
