@@ -97,6 +97,7 @@ Object.assign(App, {
   },
 
   searchTeamCoach() {
+    if (this.hasPermission && !this.hasPermission('team.assign_coach') && !this.hasPermission('team.manage_all') && !this.hasPermission('admin.teams.entry')) { this.showToast('權限不足'); return; }
     const q = document.getElementById('ct-coach-search').value.trim();
     if (!q) { document.getElementById('ct-coach-suggest').classList.remove('show'); return; }
     const exclude = [...this._teamCoachUids];

@@ -188,6 +188,9 @@ Object.assign(App, {
     if (genderRestrictionEnabled && !allowedGender) { this.showToast('請選擇限定性別'); return; }
     // 俱樂部限定：決定 teamId / teamName
     let resolvedTeamId = null, resolvedTeamName = null;
+    if (teamOnly && !this.hasPermission('team.create_event') && !this.hasPermission('activity.manage.entry')) {
+      this.showToast('權限不足：無法建立俱樂部限定活動'); return;
+    }
     if (teamOnly) {
       const team = this._getEventCreatorTeam();
       if (team.teamId) {

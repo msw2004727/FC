@@ -7,6 +7,7 @@
 Object.assign(App, {
 
   async handleTeamJoinAction(msgId, action) {
+    if (this.hasPermission && !this.hasPermission('team.review_join') && !this.hasPermission('admin.teams.entry')) { this.showToast('權限不足'); return; }
     const messages = ApiService.getMessages();
     const msg = messages.find(m => m.id === msgId);
     if (!msg || !msg.meta) return;

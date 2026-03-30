@@ -3,42 +3,104 @@
 > 調整方式：修改 `js/config.js` 中 `DRAWER_MENUS` 陣列順序，權限面板會自動跟著變。
 > 子權限定義在同檔案的 `ADMIN_PAGE_EXTRA_PERMISSION_ITEMS`。
 > 固有權限定義在 `INHERENT_ROLE_PERMISSIONS`（不可關閉）。
+> Firestore `permissions` 集合已清空，所有定義由程式碼內建管理。
 
 ---
 
 ## 目前排列順序
 
-| # | 分類 | 權限碼 | 開關名稱 | 最低角色 | 固有 |
-|---|------|--------|----------|----------|:---:|
-| 1 | **活動管理** | `activity.manage.entry` | 顯示入口 | coach | ✔ |
-| 2 | | `event.edit_all` | 編輯所有活動 | coach | |
-| 3 | **賽事管理** | `admin.tournaments.entry` | 顯示入口 | coach | ✔ |
-| 4 | **小遊戲管理** | `admin.games.entry` | 顯示入口 | admin | |
-| 5 | **用戶管理** | `admin.users.entry` | 顯示入口 | admin | |
-| 6 | | `admin.users.edit_profile` | 編輯基本資料 | admin | |
-| 7 | | `admin.users.change_role` | 修改用戶身分 | admin | |
-| 8 | | `admin.users.restrict` | 限制 / 解除限制 | admin | |
-| 9 | **廣告管理** | `admin.banners.entry` | 顯示入口 | admin | |
-| 10 | **二手商品管理** | `admin.shop.entry` | 顯示入口 | admin | |
-| 11 | **站內信管理** | `admin.messages.entry` | 顯示入口 | admin | |
-| 12 | **俱樂部管理** | `admin.teams.entry` | 顯示入口 | admin | |
-| 13 | | `team.create` | 建立俱樂部 | admin | |
-| 14 | | `team.manage_all` | 管理所有俱樂部 | admin | |
-| 15 | **數據儀表板** | `admin.dashboard.entry` | 顯示入口 | super_admin | |
-| 16 | **佈景主題** | `admin.themes.entry` | 顯示入口 | super_admin | |
-| 17 | **手動 EXP 管理** | `admin.exp.entry` | 顯示入口 | super_admin | |
-| 18 | **自動 EXP 管理** | `admin.auto_exp.entry` | 顯示入口 | super_admin | |
-| 19 | **系統公告管理** | `admin.announcements.entry` | 顯示入口 | super_admin | |
-| 20 | **成就/徽章管理** | `admin.achievements.entry` | 顯示入口 | super_admin | |
-| 21 | **日誌中心** | `admin.logs.entry` | 顯示入口 | super_admin | |
-| 22 | | `admin.logs.error_read` | 錯誤日誌讀取 | super_admin | |
-| 23 | | `admin.logs.error_delete` | 錯誤日誌清除 | super_admin | |
-| 24 | | `admin.logs.audit_read` | 稽核日誌讀取 | super_admin | |
-| 25 | **用戶補正管理** | `admin.repair.entry` | 顯示入口 | admin | |
-| 26 | | `admin.repair.team_join_repair` | 歷史入隊補正 | admin | |
-| 27 | | `admin.repair.no_show_adjust` | 放鴿子修改 | admin | |
-| 28 | | `admin.repair.data_sync` | 系統資料同步 | admin | |
-| 29 | **無效資料查詢** | `admin.inactive.entry` | 顯示入口 | super_admin | |
+```
+活動管理
+    ├ 顯示入口              activity.manage.entry       (固有: coach+)   ✅ 已接線
+    ├ 建立活動              event.create                                 ✅ 已接線
+    ├ 編輯自己的活動         event.edit_self                              ✅ 已接線
+    ├ 編輯所有活動           event.edit_all                               ✅ 已接線
+    ├ 刪除自己的活動         event.delete_self                            ✅ 已接線
+    ├ 刪除所有活動           event.delete                                 ✅ 已接線
+    ├ 上架 / 下架活動        event.publish                                ✅ 已接線
+    ├ 掃碼簽到 / 簽退        event.scan                                   ✅ 已接線
+    ├ 手動簽到 / 簽退        event.manual_checkin                         ✅ 已接線
+    └ 查看報名名單           event.view_registrations                     ✅ 已接線
+
+賽事管理
+    ├ 顯示入口              admin.tournaments.entry     (固有: coach+)   ✅ 已接線
+    ├ 建立賽事              admin.tournaments.create                     ✅ 已接線
+    ├ 管理所有賽事           admin.tournaments.manage_all                 ✅ 已接線
+    └ 審核參賽申請           admin.tournaments.review                     ✅ 已接線
+
+小遊戲管理
+    └ 顯示入口              admin.games.entry                            ✅ Rules 接線
+
+用戶管理
+    ├ 顯示入口              admin.users.entry                            🔗 抽屜入口
+    ├ 編輯基本資料           admin.users.edit_profile                     ✅ CF 接線
+    ├ 修改用戶身分           admin.users.change_role                      ✅ CF 接線
+    └ 限制 / 解除限制        admin.users.restrict                         ✅ CF 接線
+
+廣告管理
+    └ 顯示入口              admin.banners.entry                          ✅ 已接線
+
+二手商品管理
+    └ 顯示入口              admin.shop.entry                             ✅ Rules 接線
+
+站內信管理
+    ├ 顯示入口              admin.messages.entry                         ✅ Rules 接線
+    ├ 撰寫廣播              admin.messages.compose                       ✅ 已接線
+    └ 刪除站內信            admin.messages.delete                        ✅ 已接線
+
+俱樂部管理
+    ├ 顯示入口              admin.teams.entry                            🔗 抽屜入口
+    ├ 建立俱樂部             team.create                                  ✅ 已接線
+    ├ 管理所有俱樂部         team.manage_all                               ✅ 已接線
+    ├ 管理自己的俱樂部       team.manage_self                              ✅ 已接線
+    ├ 審核入隊申請           team.review_join                              ✅ 已接線
+    ├ 指派俱樂部教練         team.assign_coach                             ✅ 已接線
+    ├ 建立俱樂部專屬活動     team.create_event                             ✅ 已接線
+    └ 切換活動公開性         team.toggle_event_visibility                  ✅ 已接線
+
+數據儀表板
+    └ 顯示入口              admin.dashboard.entry                        🔗 抽屜入口
+
+佈景主題
+    └ 顯示入口              admin.themes.entry                           ✅ 已接線
+
+手動 EXP 管理
+    └ 顯示入口              admin.exp.entry                              ✅ 已接線
+
+自動 EXP 管理
+    └ 顯示入口              admin.auto_exp.entry                         ✅ 已接線
+
+系統公告管理
+    └ 顯示入口              admin.announcements.entry                    ✅ 已接線
+
+成就 / 徽章管理
+    └ 顯示入口              admin.achievements.entry                     ✅ Rules 接線
+
+日誌中心
+    ├ 顯示入口              admin.logs.entry                             🔗 抽屜入口
+    ├ 錯誤日誌讀取           admin.logs.error_read                        ✅ Rules 接線
+    ├ 錯誤日誌清除           admin.logs.error_delete                      ✅ Rules 接線
+    └ 稽核日誌讀取           admin.logs.audit_read                        ✅ Rules 接線
+
+用戶補正管理
+    ├ 顯示入口              admin.repair.entry                           🔗 抽屜入口
+    ├ 歷史入隊補正           admin.repair.team_join_repair                ✅ 已接線
+    ├ 放鴿子修改             admin.repair.no_show_adjust                  ✅ 已接線
+    └ 系統資料同步           admin.repair.data_sync                       ✅ 已接線
+
+無效資料查詢
+    └ 顯示入口              admin.inactive.entry                         🔗 抽屜入口
+```
+
+---
+
+## 接線狀態圖例
+
+| 標記 | 含義 |
+|:---:|------|
+| ✅ | 前端 hasPermission / Firestore Rules hasPerm / Cloud Functions 已接線 |
+| 🔗 | 控制抽屜入口顯隱（間接接線） |
+| ○ | UI 預留開關（尚未接入前端守衛） |
 
 ---
 
@@ -46,16 +108,15 @@
 
 | 權限碼 | 原因 |
 |--------|------|
-| `admin.roles.entry` | 權限管理頁固定由 super_admin 控制，不開放切換 |
+| `admin.roles.entry` | 權限管理頁固定由 super_admin 控制 |
 
 ---
 
-## 固有權限說明
+## 固有權限
 
-標記 ✔ 的權限為 coach / captain / venue_owner 的**固有權限**，取得該角色即自動擁有，無法在面板中關閉。
+coach / captain / venue_owner 固有，不可在面板中關閉：
 
 ```javascript
-// js/config.js
 INHERENT_ROLE_PERMISSIONS = {
   coach:       ['activity.manage.entry', 'admin.tournaments.entry'],
   captain:     ['activity.manage.entry', 'admin.tournaments.entry'],
@@ -75,12 +136,3 @@ INHERENT_ROLE_PERMISSIONS = {
 | 3 | venue_owner | 場主 |
 | 4 | admin | 管理員 |
 | 5 | super_admin | 總管（所有開關鎖定開啟） |
-
----
-
-## 如何調整
-
-- **調整分類順序**：移動 `DRAWER_MENUS` 陣列中的物件位置
-- **新增子權限**：在 `ADMIN_PAGE_EXTRA_PERMISSION_ITEMS` 對應的 page key 中加入項目
-- **新增固有權限**：在 `INHERENT_ROLE_PERMISSIONS` 中加入權限碼
-- **停用權限碼**：在 `DISABLED_PERMISSION_CODES` Set 中加入

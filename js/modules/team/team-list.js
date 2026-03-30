@@ -203,7 +203,7 @@ Object.assign(App, {
 
   _canEditTeamByRoleOrCaptain(team) {
     if (!team) return false;
-    return this._isTeamCaptainUser(team) || this._hasRolePermission('team.manage_all');
+    return this._isTeamCaptainUser(team) || this._hasRolePermission('team.manage_all') || this._hasRolePermission('team.manage_self');
   },
 
   _canCreateTeamByPermission() {

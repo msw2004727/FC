@@ -10,6 +10,24 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-30 — 權限面板重新分類 + Firestore permissions 集合清理
+- **問題**：權限管理頁面出現重複分類（如「賽事管理」和「賽事相關」同時顯示「建立賽事」）
+- **原因**：`getMergedPermissionCatalog()` 合併內建定義 + Firestore `permissions` 集合的遠端資料。遠端有舊分類（perm_0~perm_5），碼名不同但顯示名稱相同，導致看起來重複
+- **修復**：用戶在 Firebase Console 刪除 `permissions` 集合的 6 個舊文件。程式碼內建定義已涵蓋所有需要的分類
+- **教訓**：`permissions` 集合是遠端擴充用，當內建定義完整後應清空避免衝突。每次新增權限碼只需改 `ADMIN_PAGE_EXTRA_PERMISSION_ITEMS`，不需寫 Firestore
+- **新增子權限**：活動管理 9 項、賽事管理 3 項、俱樂部管理 7 項、站內信管理 2 項（部分為 UI 預留）
+- **已接線守衛**（OR fallback 模式）：event.create, event.delete, admin.tournaments.create/manage_all/review, admin.messages.compose/delete（共 7 個）
+- **固有權限 bug 修復**：coach/captain/venue_owner 的 activity.manage.entry 和 admin.tournaments.entry 開關無法關閉 → 改為 disabled + 標記「固有」
+
+### 2026-03-30 — CI/CD pipeline 修正
+- **問題**：GitHub Actions firestore-rules-tests 持續失敗
+- **原因 1**：`test:rules:unit` 路徑用 Windows 反斜線（Linux 上黏在一起）
+- **原因 2**：直接跑 `test:rules:unit` 沒有啟動 Emulator
+- **原因 3**：tournament immutable 測試用 admin 身份（admin 繞過 immutable 檢查）
+- **原因 4**：seedDoc 函式名寫錯為 seed
+- **修復**：路徑改正斜線、改用 `test:rules`（含 Emulator）、加 setup-java、測試改用 delegate 身份、修正函式名
+- **教訓**：Windows 開發 + Linux CI 時，package.json scripts 路徑一律用正斜線
+
 ### [永久] 2026-03-30 — 手機日期選擇器 auto-fill 陷阱（picker session 模式）
 - **問題**：手機建立活動選日期時，會同時加入今天 + 選取的日期
 - **原因**：iOS Safari / Android Chrome 開啟空的 `input[type=date]` 時，系統自動將值設為今天並觸發 `change`；用戶選完再觸發第二次 `change`。桌機 F12 模擬不會復現（Chrome 內建 picker 不 auto-fill）

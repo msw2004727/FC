@@ -21,6 +21,7 @@ Object.assign(App, {
   // ══════════════════════════════════
 
   renderScanPage() {
+    if (!this.hasPermission('event.scan') && !this.hasPermission('activity.manage.entry')) { this.showToast('權限不足'); return; }
     const select = document.getElementById('scan-event-select');
     if (!select) return;
 

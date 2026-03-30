@@ -14,6 +14,7 @@ Object.assign(App, {
   },
 
   editMyActivity(id) {
+    if (!this.hasPermission('event.edit_self') && !this.hasPermission('event.edit_all') && !this.hasPermission('activity.manage.entry')) { this.showToast('權限不足'); return; }
     const e = ApiService.getEvent(id);
     if (!e) return;
     if (!this._canManageEvent(e)) { this.showToast('您只能編輯自己的活動'); return; }
@@ -88,6 +89,7 @@ Object.assign(App, {
 
   // ── 結束活動 ──
   async closeMyActivity(id) {
+    if (!this.hasPermission('event.publish') && !this.hasPermission('activity.manage.entry')) { this.showToast('權限不足'); return; }
     const e = ApiService.getEvent(id);
     if (e && !this._canManageEvent(e)) { this.showToast('您只能管理自己的活動'); return; }
     if (!await this.appConfirm('確定要結束此活動？')) return;
@@ -133,6 +135,7 @@ Object.assign(App, {
 
   // ── 重新開放（已取消 → open/full） ──
   async reopenMyActivity(id) {
+    if (!this.hasPermission('event.publish') && !this.hasPermission('activity.manage.entry')) { this.showToast('權限不足'); return; }
     const e = ApiService.getEvent(id);
     if (!e) return;
     if (!this._canManageEvent(e)) { this.showToast('您只能管理自己的活動'); return; }
@@ -157,6 +160,7 @@ Object.assign(App, {
 
   // ── 重新上架（已結束 → open/full） ──
   async relistMyActivity(id) {
+    if (!this.hasPermission('event.publish') && !this.hasPermission('activity.manage.entry')) { this.showToast('權限不足'); return; }
     const e = ApiService.getEvent(id);
     if (!e) return;
     if (!this._canManageEvent(e)) { this.showToast('您只能管理自己的活動'); return; }
@@ -360,7 +364,7 @@ Object.assign(App, {
 
   // ── 刪除活動 ──
   async deleteMyActivity(id) {
-    if (!this.hasPermission('event.delete') && !this.hasPermission('activity.manage.entry')) { this.showToast('權限不足'); return; }
+    if (!this.hasPermission('event.delete') && !this.hasPermission('event.delete_self') && !this.hasPermission('activity.manage.entry')) { this.showToast('權限不足'); return; }
     const e = ApiService.getEvent(id);
     if (e && !this._canManageEvent(e)) { this.showToast('您只能管理自己的活動'); return; }
     if (!(await this.appConfirm('確定要刪除此活動？刪除後無法恢復。'))) return;
