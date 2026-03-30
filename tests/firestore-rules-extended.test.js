@@ -1143,10 +1143,16 @@ describe("/tournaments/{tournamentId}", () => {
     );
   });
 
-  test("update: cannot change immutable fields (hostTeamId)", async () => {
+  test("update: non-admin delegate cannot change immutable fields", async () => {
+    // admin bypasses immutable check by design; use delegate to test field lock
+    const delegateDb = testEnv.authenticatedContext("uidDelegate", { role: "coach" }).firestore();
+    await seed("tournaments/tourA", {
+      name: "Cup", hostTeamId: "teamA", creatorUid: "uidCaptain", mode: "friendly",
+      delegateUids: ["uidDelegate"],
+    });
     await assertFails(
-      updateDoc(doc(admin(), "tournaments", "tourA"), {
-        name: "Changed Host",
+      updateDoc(doc(delegateDb, "tournaments", "tourA"), {
+        name: "Changed",
         hostTeamId: "teamB",
         creatorUid: "uidCaptain",
         mode: "knockout",

@@ -379,8 +379,7 @@ service cloud.firestore {
 
       allow read: if true;
       allow create: if isAuth()
-        && hasString('title')
-        && (isCoachPlus() || hasPerm('event.create'));
+        && hasString('title');
       allow update: if isAuth()
         && (isEventOwner() || hasPerm('event.edit_all') || isSignupFieldsOnly());
       allow delete: if isAdmin() || hasPerm('event.delete');
@@ -758,8 +757,7 @@ service cloud.firestore {
 
       allow read: if true;
       allow create: if hasString('name')
-        && canCreateTournamentRoot()
-        && (hasPerm('admin.tournaments.create') || hasPerm('admin.tournaments.entry') || isAdmin());
+        && canCreateTournamentRoot();
       allow update: if isAdmin()
         || (tournamentExists()
           && canManageTournamentScope()
