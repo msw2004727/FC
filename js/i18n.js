@@ -157,7 +157,7 @@ I18N.register('zh-TW', {
   'drawer.shop': '二手商品區',
   'drawer.leaderboard': '排行榜',
   'drawer.share': '分享網頁',
-  'drawer.applyRole': '申請（球隊/場主/教練）',
+  'drawer.applyRole': '申請（俱樂部/場主/教練）',
   'drawer.activityManage': '活動管理',
   'drawer.tournamentManage': '賽事管理',
   'drawer.scan': '掃碼簽到/簽退',
