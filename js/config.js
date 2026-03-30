@@ -4,7 +4,7 @@
 
 // ─── Cache Version（更新此值以清除瀏覽器快取）───
 // 變更日誌已移除，請用 git log 查閱歷史部署記錄。
-const CACHE_VERSION = '20260330i';
+const CACHE_VERSION = '20260330j';
 
 // ─── 網路 / 設備偵測（用於 UI 降級）───
 const NetDevice = {
@@ -530,7 +530,8 @@ const DRAWER_MENUS = [
   { icon: '', label: '俱樂部管理', i18nKey: 'admin.teamManage', page: 'page-admin-teams', minRole: 'admin', permissionCode: 'admin.teams.entry' },
   { icon: '', label: '數據儀表板', i18nKey: 'admin.dashboard', page: 'page-admin-dashboard', minRole: 'super_admin', permissionCode: 'admin.dashboard.entry' },
   { icon: '', label: '佈景主題', i18nKey: 'admin.themes', page: 'page-admin-themes', minRole: 'super_admin', permissionCode: 'admin.themes.entry' },
-  { icon: '', label: 'EXP 管理', i18nKey: 'admin.expManage', page: 'page-admin-exp', minRole: 'super_admin', permissionCode: 'admin.exp.entry' },
+  { icon: '', label: '手動 EXP 管理', i18nKey: 'admin.expManage', page: 'page-admin-exp', minRole: 'super_admin', permissionCode: 'admin.exp.entry' },
+  { icon: '', label: '自動 EXP 管理', i18nKey: 'drawer.autoExpManage', page: 'page-admin-auto-exp', minRole: 'super_admin', permissionCode: 'admin.auto_exp.entry' },
   { icon: '', label: '系統公告管理', i18nKey: 'admin.announcements', page: 'page-admin-announcements', minRole: 'super_admin', permissionCode: 'admin.announcements.entry' },
   { icon: '', label: '成就/徽章管理', i18nKey: 'admin.achievements', page: 'page-admin-achievements', minRole: 'super_admin', permissionCode: 'admin.achievements.entry' },
   { icon: '', label: '權限管理', i18nKey: 'admin.roles', page: 'page-admin-roles', minRole: 'super_admin' },
@@ -556,9 +557,15 @@ function sanitizePermissionCodeList(codes) {
 
 const ADMIN_PAGE_EXTRA_PERMISSION_ITEMS = {
   'page-my-activities': [
-    { code: 'event.edit_all', name: '編輯所有活動' },
     { code: 'event.create', name: '建立活動' },
-    { code: 'event.delete', name: '刪除活動' },
+    { code: 'event.edit_self', name: '編輯自己的活動' },
+    { code: 'event.edit_all', name: '編輯所有活動' },
+    { code: 'event.delete_self', name: '刪除自己的活動' },
+    { code: 'event.delete', name: '刪除所有活動' },
+    { code: 'event.publish', name: '上架 / 下架活動' },
+    { code: 'event.scan', name: '掃碼簽到 / 簽退' },
+    { code: 'event.manual_checkin', name: '手動簽到 / 簽退' },
+    { code: 'event.view_registrations', name: '查看報名名單' },
   ],
   'page-admin-tournaments': [
     { code: 'admin.tournaments.create', name: '建立賽事' },
@@ -577,9 +584,6 @@ const ADMIN_PAGE_EXTRA_PERMISSION_ITEMS = {
   'page-admin-messages': [
     { code: 'admin.messages.compose', name: '撰寫廣播' },
     { code: 'admin.messages.delete', name: '刪除站內信' },
-  ],
-  'page-admin-exp': [
-    { code: 'admin.auto_exp.entry', name: '自動 EXP 管理' },
   ],
   'page-admin-repair': [
     { code: 'admin.repair.team_join_repair', name: '歷史入隊補正' },
