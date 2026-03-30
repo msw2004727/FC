@@ -268,6 +268,8 @@ describe('Eager scripts — no unguarded calls to dynamic-only functions', () =>
   // 2. Guarded with ?.
   // 3. Known exceptions (callbacks that run after page navigation)
   const KNOWN_SAFE_PATTERNS = [
+    // DOM APIs that appear in inline onclick handlers (not App methods)
+    'closest', 'remove', 'querySelector', 'getElementById',
     // Functions called inside handlers that run after ScriptLoader.ensureForPage
     // These are inside renderPageContent which runs AFTER ensureForPage
     'renderUserCard',

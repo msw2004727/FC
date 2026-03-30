@@ -227,6 +227,8 @@ Object.assign(App, {
           ? `App.showToast('功能尚未開放'); App.closeDrawer()`
           : item.action === 'share'
           ? `App._copyShareUrl()`
+          : item.action === 'apply-role'
+          ? `App._showApplyRoleModal()`
           : item.action === 'coming-soon'
           ? `App.showToast('功能尚未開放'); App.closeDrawer()`
           : `App.openDrawerPage('${item.page}')`;
@@ -305,6 +307,39 @@ Object.assign(App, {
       : false;
     this.showToast(ok ? '已複製分享連結！' : '複製失敗，請手動複製');
     this.closeDrawer();
+  },
+
+  // ═══════════════════════════════
+  //  申請角色彈窗
+  // ═══════════════════════════════
+
+  _showApplyRoleModal() {
+    this.closeDrawer();
+    const overlay = document.createElement('div');
+    overlay.className = 'edu-info-overlay';
+    overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+    overlay.innerHTML = '<div class="edu-info-dialog" style="max-width:280px;text-align:center">'
+      + '<div class="edu-info-dialog-title">我要申請</div>'
+      + '<div style="display:flex;flex-direction:column;gap:.6rem;margin-top:.8rem">'
+      + '<button class="apply-role-btn" onclick="App._handleApplyRole(\'captain\');this.closest(\'.edu-info-overlay\').remove()">'
+      + '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>'
+      + '<span>球隊</span></button>'
+      + '<button class="apply-role-btn" onclick="App._handleApplyRole(\'venue_owner\');this.closest(\'.edu-info-overlay\').remove()">'
+      + '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>'
+      + '<span>場主</span></button>'
+      + '<button class="apply-role-btn" onclick="App._handleApplyRole(\'coach\');this.closest(\'.edu-info-overlay\').remove()">'
+      + '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 00-16 0"/><path d="M12 3v2"/><path d="M12 13v2"/></svg>'
+      + '<span>教練</span></button>'
+      + '</div>'
+      + '<button class="outline-btn" style="width:100%;margin-top:.8rem" onclick="this.closest(\'.edu-info-overlay\').remove()">取消</button>'
+      + '</div>';
+    document.body.appendChild(overlay);
+  },
+
+  _handleApplyRole(role) {
+    // TODO: 接入實際申請流程（送出申請到管理員審核）
+    const labels = { captain: '球隊', venue_owner: '場主', coach: '教練' };
+    this.showToast('「' + (labels[role] || role) + '」申請功能即將開放');
   },
 
 });

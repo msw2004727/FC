@@ -339,6 +339,11 @@
 .drawer-clear-btn:hover { border-color: #ef4444; color: #ef4444; background: rgba(239,68,68,.08); }
 .drawer-clear-btn:hover svg { opacity: 1; stroke: #ef4444; }
 .drawer-clear-btn:active { background: rgba(239,68,68,.15); }
+/* ─── Apply Role Buttons (Modal) ─── */
+.apply-role-btn { display: flex; align-items: center; justify-content: center; gap: .5rem; padding: .65rem 1rem; border-radius: var(--radius); border: 1.5px solid var(--border); background: var(--bg-elevated); color: var(--text-primary); font-size: .88rem; font-weight: 600; cursor: pointer; transition: all .2s; }
+.apply-role-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-bg, rgba(13,148,136,.06)); }
+.apply-role-btn:active { transform: scale(.97); }
+.apply-role-btn svg { flex-shrink: 0; stroke: currentColor; }
 .drawer-font-btn { flex-shrink: 0; width: 30px; height: 30px; border-radius: 50%; border: 2px solid var(--border); background: var(--bg-elevated); color: var(--text-secondary); font-weight: 900; font-size: .85rem; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all var(--transition); }
 .drawer-font-btn:hover { border-color: var(--accent); color: var(--accent); }
 .drawer-font-btn.font-m { font-size: .95rem; border-color: var(--accent); color: var(--accent); }
