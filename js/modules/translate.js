@@ -135,9 +135,26 @@ Object.assign(App, {
     this._translateObserver.observe(main, { childList: true, subtree: true });
   },
 
+  // 建立用戶名排除清單（從 ApiService 快取收集所有已知用戶名）
+  _buildUserNameSet() {
+    const names = new Set();
+    try {
+      const users = typeof ApiService !== 'undefined' ? ApiService.getAdminUsers() : [];
+      for (const u of users) {
+        if (u.name) names.add(u.name.trim());
+        if (u.displayName) names.add(u.displayName.trim());
+      }
+      const cur = typeof ApiService !== 'undefined' && ApiService.getCurrentUser ? ApiService.getCurrentUser() : null;
+      if (cur?.name) names.add(cur.name.trim());
+      if (cur?.displayName) names.add(cur.displayName.trim());
+    } catch (_) {}
+    return names;
+  },
+
   async _translateVisibleContent() {
     if (!this._translateActive || !this._translateLang) return;
     const lang = this._translateLang;
+    const userNames = this._buildUserNameSet();
 
     const main = document.getElementById('main-content') || document.body;
     const walker = document.createTreeWalker(main, NodeFilter.SHOW_TEXT, {
@@ -147,11 +164,17 @@ Object.assign(App, {
         if (node.parentNode?.closest?.('[data-no-translate]')) return NodeFilter.FILTER_REJECT;
         if (node.parentNode?.closest?.('[data-i18n]')) return NodeFilter.FILTER_REJECT;
         if (node.parentNode?.closest?.('input,textarea,select')) return NodeFilter.FILTER_REJECT;
-        // 跳過用戶名（向上搜尋祖先，匹配 -name class 或 user-capsule）
+        // 跳過用戶名（雙重策略：DOM class + 用戶名清單比對）
         const nameAncestor = node.parentNode?.closest?.(
           '[class*="-name"], .user-capsule, .ce-delegate-tag, .exp-log-operator'
         );
         if (nameAncestor) return NodeFilter.FILTER_REJECT;
+        // 檢查文字是否包含已知用戶名（完全匹配或子字串匹配）
+        const trimmed = node.nodeValue.trim();
+        if (userNames.has(trimmed)) return NodeFilter.FILTER_REJECT;
+        for (const uName of userNames) {
+          if (uName.length >= 2 && trimmed.includes(uName)) return NodeFilter.FILTER_REJECT;
+        }
         if (node._translatedLang === lang) return NodeFilter.FILTER_REJECT;
         if (/^\s*[\d\s\-\/\.:,+%$#@!?=()（）【】「」]+\s*$/.test(node.nodeValue)) return NodeFilter.FILTER_REJECT;
         if (!/[\u4e00-\u9fff]/.test(node.nodeValue)) return NodeFilter.FILTER_REJECT;
