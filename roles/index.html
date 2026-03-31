@@ -114,8 +114,8 @@ tr:last-child td{border-bottom:none}
 .scroll-hint-overlay.visible{display:flex}
 .scroll-hint-overlay.fade-out{opacity:0;pointer-events:none}
 .scroll-hint-hand{
-  width:56px;height:56px;
-  animation:scrollHandMove 1.6s ease-in-out infinite;
+  width:72px;height:92px;
+  animation:scrollHandMove 1.8s ease-in-out infinite;
   filter:drop-shadow(0 2px 8px rgba(0,0,0,.3));
 }
 .scroll-hint-text{
@@ -124,8 +124,8 @@ tr:last-child td{border-bottom:none}
   text-shadow:0 1px 4px rgba(0,0,0,.4);
 }
 @keyframes scrollHandMove{
-  0%,100%{transform:translateY(-18px)}
-  50%{transform:translateY(18px)}
+  0%,100%{transform:translateY(-12px)}
+  50%{transform:translateY(12px)}
 }
 
 /* Responsive */
@@ -320,14 +320,13 @@ tr:last-child td{border-bottom:none}
 
 <!-- ════ Scroll Hint (Mobile) ════ -->
 <div class="scroll-hint-overlay" id="scroll-hint" onclick="dismissScrollHint()">
-  <svg class="scroll-hint-hand" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <path d="M32 8 L26 18 L29 18 L29 46 L26 46 L32 56 L38 46 L35 46 L35 18 L38 18 Z" fill="#fff" opacity=".9"/>
-    <circle cx="32" cy="32" r="5" fill="#fff" opacity=".7"/>
-    <path d="M28 28c-2-4-1-8 1-10s6-2 8 0" stroke="#fff" stroke-width="2" stroke-linecap="round" fill="none" opacity=".6"/>
-    <path d="M24 24c0-6 4-10 8-10s8 4 8 10" stroke="#fff" stroke-width="2" stroke-linecap="round" fill="none" opacity=".4"/>
-    <!-- finger shape -->
-    <path d="M26 32c0-4 2.5-7 6-7s6 3 6 7v8c0 3-2 5-6 5s-6-2-6-5z" fill="#fff" opacity=".85"/>
-    <ellipse cx="32" cy="30" rx="4" ry="5" fill="#e2e5ec" opacity=".5"/>
+  <svg class="scroll-hint-hand" viewBox="0 0 72 96" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <path d="M36 10l-8 9h5v11h6V19h5z" fill="#fff" opacity=".94"/>
+    <path d="M36 86l8-9h-5V66h-6v11h-5z" fill="#fff" opacity=".94"/>
+    <path d="M36 21v54" stroke="#fff" stroke-width="3" stroke-linecap="round" opacity=".24"/>
+    <rect x="24" y="30" width="24" height="34" rx="12" fill="#fff" opacity=".9"/>
+    <ellipse cx="36" cy="40" rx="8" ry="9" fill="#dbeafe" opacity=".45"/>
+    <path d="M30 53c1.7 2.1 4 3.2 6 3.2s4.3-1.1 6-3.2" stroke="#d1d5db" stroke-width="2" stroke-linecap="round" opacity=".55"/>
   </svg>
   <div class="scroll-hint-text">上下滑動瀏覽更多</div>
 </div>
