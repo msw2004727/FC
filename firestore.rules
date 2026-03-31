@@ -1190,6 +1190,15 @@ service cloud.firestore {
     }
 
     // ═══════════════════════════════════════════
+    //  Translate Usage（翻譯 API 用量追蹤）
+    //  僅 super_admin 可讀；寫入由 Cloud Function 執行（client 禁寫）
+    // ═══════════════════════════════════════════
+    match /translateUsage/{monthKey} {
+      allow read: if isSuperAdmin();
+      allow write: if false;
+    }
+
+    // ═══════════════════════════════════════════
     //  Inventory System（庫存管理系統，inv_ 前綴）
     //  獨立於 SportHub，共用 Firebase 專案
     // ═══════════════════════════════════════════
