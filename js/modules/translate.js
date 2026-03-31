@@ -192,6 +192,15 @@ Object.assign(App, {
           });
         }
       } catch (err) {
+        if (err.code === 'functions/resource-exhausted'
+            || (err.message && err.message.indexOf('TRANSLATE_QUOTA_EXCEEDED') !== -1)) {
+          this._translateActive = false;
+          if (this._translateObserver) this._translateObserver.disconnect();
+          if (typeof App !== 'undefined' && App.showToast) {
+            App.showToast('翻譯服務本月額度已用盡，暫時無法翻譯');
+          }
+          return;
+        }
         console.warn('[Translate] API failed:', err);
         return;
       }

@@ -1776,5 +1776,10 @@
 - **修復**：(A) `color-cat-character-stamina.js` — 移除所有動作體力消耗（chase/kick/dash/biteBall/combo/test），僅保留被攻擊扣血和恢復邏輯；(B) `color-cat-character-actions-special.js` — 大絕招結束不再扣體力/觸發虛弱，直接回 idle；(C) 三個檔案（actions-interact/actions-special/combat）加入 `_wakeIfSleeping()` helper，6 個動作函式移除 sleeping 封鎖改為自動醒來；(D) `color-cat-scene-stats-modal.js` — modal 加 `touch-action:none` CSS，overlay 加 touchmove preventDefault + touchstart stopPropagation
 - **教訓**：角色狀態機中「封鎖動作」vs「自動轉換狀態」是不同策略，後者互動性更好；彈窗觸控穿透需 CSS + JS 雙重阻擋
 
+### 2026-03-31 — 翻譯 API 月度配額上限 + 認證檢查
+- **問題**：`translateTexts` Cloud Function 無認證檢查、無用量上限，任何人可無限呼叫產生 Google Translate 費用
+- **修復**：(1) `functions/index.js` — 新增 `TRANSLATE_QUOTA` 常數（500 萬字/月、80% 警告）；新增 `_notifyTranslateQuotaWarning()` helper 透過 Firestore batch 同時寫入站內信 + linePushQueue 通知所有 admin/super_admin；`translateTexts` 加 `req.auth` 認證檢查 + 翻譯前讀取 `translateUsage/{monthKey}` 檢查上限 + 超過 80% 時 fire-and-forget 通知管理員（每天最多一次）。(2) `js/modules/translate.js` — catch 區塊判斷 `resource-exhausted` 錯誤碼，顯示 toast 並停用翻譯 Observer
+- **教訓**：所有 Cloud Function 的 `onCall` 都應檢查 `req.auth`；對外部付費 API 的呼叫必須有月度帳單上限保護；配額常數用 `Object.freeze` 集中管理便於未來調整
+
 *最後濃縮日期：2026-03-15*
 *原始檔案：314 條目 / 2475 行 → 濃縮後約 50 條永久教訓*

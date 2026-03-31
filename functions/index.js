@@ -83,6 +83,12 @@ const ALLOWED_AUDIT_META_KEYS = new Set([
 ]);
 const AUDIT_RETENTION_DAYS = 180;
 const CHANGE_WATCH_RETENTION_DAYS = 180;
+
+// ── 翻譯配額設定（調整上限只需改這裡，重新 deploy 即可）──
+const TRANSLATE_QUOTA = Object.freeze({
+  MONTHLY_CHAR_LIMIT: 5_000_000,   // 每月上限字元數（500 萬）
+  WARNING_THRESHOLD:  0.8,          // 警告閾值（80%）
+});
 const CHANGE_WATCH_FUNCTION_OPTIONS = Object.freeze({
   region: "asia-east1",
   timeoutSeconds: 15,
@@ -5561,8 +5567,77 @@ exports.syncGroupActionStatus = onCall(
 );
 
 // ═══════════════════════════════════════════════════════════════
+//  翻譯配額警告通知 — 站內信 + LINE 推播給 admin / super_admin
+// ═══════════════════════════════════════════════════════════════
+async function _notifyTranslateQuotaWarning(currentChars) {
+  const limit = TRANSLATE_QUOTA.MONTHLY_CHAR_LIMIT;
+  const usedWan = (currentChars / 10000).toFixed(1);
+  const limitWan = (limit / 10000).toFixed(0);
+  const estCost = (currentChars / 1_000_000 * 20).toFixed(1);
+  const pct = Math.round(currentChars / limit * 100);
+
+  const title = "\u26A0 \u7FFB\u8B6F\u7528\u91CF\u8B66\u544A";
+  const body = `\u672C\u6708\u7FFB\u8B6F\u5DF2\u4F7F\u7528 ${usedWan} \u842C\u5B57\u5143\uFF08\u4E0A\u9650 ${limitWan} \u842C\uFF0C${pct}%\uFF09\n\u9810\u4F30\u8CBB\u7528\uFF1A$${estCost} USD\n\u8ACB\u81F3\u5F8C\u53F0\u5100\u8868\u677F\u67E5\u770B\u660E\u7D30`;
+
+  const adminSnap = await db.collection("users")
+    .where("role", "in", ["admin", "super_admin"]).get();
+  if (adminSnap.empty) return;
+
+  // 使用 UTC+8（台灣時間）
+  const now = new Date();
+  const twOffset = 8 * 60 * 60 * 1000;
+  const tw = new Date(now.getTime() + twOffset);
+  const timeStr = `${tw.getUTCFullYear()}/${String(tw.getUTCMonth() + 1).padStart(2, "0")}/${String(tw.getUTCDate()).padStart(2, "0")} ${String(tw.getUTCHours()).padStart(2, "0")}:${String(tw.getUTCMinutes()).padStart(2, "0")}`;
+  const batch = db.batch();
+
+  for (const userDoc of adminSnap.docs) {
+    const uid = userDoc.id;
+    const msgId = `sys_tq_${Date.now()}_${uid.slice(-4)}`;
+
+    // 站內信（欄位對齊 _writeToUserInbox schema）
+    batch.set(db.collection("users").doc(uid).collection("inbox").doc(msgId), {
+      id: msgId,
+      title,
+      body,
+      preview: body.slice(0, 43),
+      type: "system",
+      typeName: "\u7CFB\u7D71",
+      time: timeStr,
+      senderName: "\u7CFB\u7D71",
+      fromUid: "system",
+      read: false,
+      readAt: null,
+      createdAt: FieldValue.serverTimestamp(),
+      actionType: null,
+      actionStatus: null,
+      reviewerName: null,
+      ref: `messages/${msgId}`,
+      meta: { source: "translate_quota_warning", pct },
+    });
+
+    // LINE 推播（source: "target:admin" 繞過所有通知開關）
+    batch.set(db.collection("linePushQueue").doc(), {
+      uid,
+      targetDocId: uid,
+      title,
+      body,
+      category: "system",
+      status: "pending",
+      createdAt: FieldValue.serverTimestamp(),
+      source: "target:admin",
+      requestedByUid: "system",
+      requestedByRole: "system",
+    });
+  }
+
+  await batch.commit();
+  console.log(`[translateTexts] quota warning sent to ${adminSnap.size} admin(s), ${pct}%`);
+}
+
+// ═══════════════════════════════════════════════════════════════
 //  translateTexts — 批次翻譯文字（供前端原地翻譯使用）
 //  安全：限制單次最多 128 段、每段最多 500 字元
+//  配額：月上限 TRANSLATE_QUOTA.MONTHLY_CHAR_LIMIT，80% 時通知管理員
 // ═══════════════════════════════════════════════════════════════
 let _translateClient;
 function getTranslateClient() {
@@ -5576,6 +5651,11 @@ function getTranslateClient() {
 exports.translateTexts = onCall(
   { region: "asia-east1", maxInstances: 5 },
   async (req) => {
+    // ── 認證檢查 ──
+    if (!req.auth) {
+      throw new HttpsError("unauthenticated", "Login required");
+    }
+
     const { texts, targetLang } = req.data || {};
     const SUPPORTED_LANGS = ["en", "ja", "ko", "vi", "th"];
     if (!Array.isArray(texts) || !texts.length) {
@@ -5593,13 +5673,32 @@ exports.translateTexts = onCall(
     // 計算總字元數（用於用量追蹤）
     const totalChars = trimmed.reduce((sum, t) => sum + t.length, 0);
 
+    // ── 月度配額檢查 ──
+    const now = new Date();
+    const monthKey = `translate_${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}`;
+    let prevTotalChars = 0;
+    let warningNotifiedDate = null;
+    try {
+      const usageSnap = await db.doc(`translateUsage/${monthKey}`).get();
+      if (usageSnap.exists) {
+        const usageData = usageSnap.data() || {};
+        prevTotalChars = usageData.totalChars || 0;
+        warningNotifiedDate = usageData.warningNotifiedDate || null;
+      }
+    } catch (e) {
+      // 用量讀取失敗不阻塞翻譯，僅記錄警告
+      console.warn("[translateTexts] usage read failed, skipping quota check:", e);
+    }
+
+    if (prevTotalChars >= TRANSLATE_QUOTA.MONTHLY_CHAR_LIMIT) {
+      throw new HttpsError("resource-exhausted", "TRANSLATE_QUOTA_EXCEEDED");
+    }
+
     try {
       const client = getTranslateClient();
       const [translations] = await client.translate(trimmed, { from: "zh-TW", to: targetLang });
 
       // 記錄用量到 Firestore（fire-and-forget，不影響回傳速度）
-      const now = new Date();
-      const monthKey = `translate_${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}`;
       db.doc(`translateUsage/${monthKey}`).set({
         totalChars: FieldValue.increment(totalChars),
         totalCalls: FieldValue.increment(1),
@@ -5607,8 +5706,25 @@ exports.translateTexts = onCall(
         lastUpdated: FieldValue.serverTimestamp(),
       }, { merge: true }).catch(e => console.warn("[translateTexts] usage log failed:", e));
 
+      // ── 80% 警告通知（跨越閾值時觸發，每天最多一次，台灣時區）──
+      const warningLimit = TRANSLATE_QUOTA.MONTHLY_CHAR_LIMIT * TRANSLATE_QUOTA.WARNING_THRESHOLD;
+      const newTotal = prevTotalChars + totalChars;
+      const twNow = new Date(now.getTime() + 8 * 60 * 60 * 1000);
+      const todayStr = `${twNow.getUTCFullYear()}-${String(twNow.getUTCMonth() + 1).padStart(2, "0")}-${String(twNow.getUTCDate()).padStart(2, "0")}`;
+      if (newTotal >= warningLimit && warningNotifiedDate !== todayStr) {
+        try {
+          await _notifyTranslateQuotaWarning(newTotal);
+          await db.doc(`translateUsage/${monthKey}`).set(
+            { warningNotifiedDate: todayStr }, { merge: true }
+          );
+        } catch (e) {
+          console.warn("[translateTexts] quota warning failed:", e);
+        }
+      }
+
       return { translations: Array.isArray(translations) ? translations : [translations] };
     } catch (err) {
+      if (err instanceof HttpsError) throw err;
       console.error("[translateTexts]", err);
       throw new HttpsError("internal", "Translation failed");
     }
