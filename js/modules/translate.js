@@ -28,12 +28,10 @@ Object.assign(App, {
 
   // ─── 初始化（由 script 載入時自動呼叫）───
   initTranslate() {
-    const dismissed = localStorage.getItem(this._TRANSLATE_DISMISS_KEY);
-    if (dismissed) return;
-
     // URL 參數後門（測試用）: ?lang=ko
     const urlLang = new URLSearchParams(location.search).get('lang');
     const saved = localStorage.getItem(this._TRANSLATE_LS_KEY);
+    const dismissed = localStorage.getItem(this._TRANSLATE_DISMISS_KEY);
     const deviceLang = (navigator.language || '').slice(0, 2);
 
     // 決定目標語言
@@ -45,12 +43,12 @@ Object.assign(App, {
       this._translateActive = true;
       this._startTranslation();
       this._renderTranslateFab(true);
-    } else if (targetLang && !deviceLang.startsWith('zh')) {
-      // 偵測到非中文設備 → 顯示提示條
+    } else if (!dismissed && targetLang && !deviceLang.startsWith('zh')) {
+      // 偵測到非中文設備且未關閉提示 → 顯示提示條
       this._showTranslateBanner(targetLang);
       this._renderTranslateFab(false);
     } else {
-      // 中文設備 → 只顯示浮動按鈕（摺疊狀態）
+      // 中文設備或已關閉提示 → 只顯示浮動按鈕
       this._renderTranslateFab(false);
     }
   },
@@ -88,7 +86,7 @@ Object.assign(App, {
     const fab = document.createElement('button');
     fab.id = 'translate-fab';
     fab.title = '翻譯 / Translate';
-    fab.style.cssText = 'position:fixed;bottom:4.5rem;right:1rem;z-index:1000;width:40px;height:40px;border-radius:50%;border:1.5px solid var(--border,#e5e7eb);background:var(--bg-card,#fff);box-shadow:0 2px 8px rgba(0,0,0,.1);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:1.2rem;transition:background .15s,box-shadow .15s;';
+    fab.style.cssText = 'position:fixed;bottom:calc(var(--bottombar-h,56px) + env(safe-area-inset-bottom,0px) + 18px);left:8px;z-index:1000;width:36px;height:36px;border-radius:50%;border:1.5px solid var(--border,#e5e7eb);background:var(--bg-card,#fff);box-shadow:0 2px 8px rgba(0,0,0,.1);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:1.1rem;transition:background .15s,box-shadow .15s;';
     fab.textContent = '🌐';
     if (active) fab.style.background = 'var(--accent-bg,rgba(13,148,136,.08))';
     document.body.appendChild(fab);
@@ -109,7 +107,7 @@ Object.assign(App, {
 
     const menu = document.createElement('div');
     menu.id = 'translate-menu';
-    menu.style.cssText = 'position:fixed;bottom:7.5rem;right:1rem;z-index:1001;background:var(--bg-card,#fff);border:1px solid var(--border,#e5e7eb);border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,.12);padding:.5rem 0;min-width:160px;';
+    menu.style.cssText = 'position:fixed;bottom:calc(var(--bottombar-h,56px) + env(safe-area-inset-bottom,0px) + 58px);left:8px;z-index:1001;background:var(--bg-card,#fff);border:1px solid var(--border,#e5e7eb);border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,.12);padding:.5rem 0;min-width:160px;';
 
     // 中文選項（關閉翻譯）
     const zhItem = '<div class="translate-menu-item' + (!this._translateActive ? ' active' : '') + '" data-lang="zh" style="padding:.55rem 1rem;cursor:pointer;font-size:.85rem;display:flex;align-items:center;gap:.5rem;">繁體中文（原文）</div>';
@@ -175,13 +173,7 @@ Object.assign(App, {
       this._translateObserver.disconnect();
       this._translateObserver = null;
     }
-    // 還原所有已翻譯的文字
-    document.querySelectorAll('[data-original-text]').forEach(node => {
-      if (node.nodeType === 3) {
-        node.nodeValue = node._originalText || node.nodeValue;
-      }
-    });
-    // 更簡單的做法：重新渲染當前頁面
+    // 重新渲染當前頁面（JS 變數中的原文會重新寫入 DOM）
     if (typeof App !== 'undefined' && App._renderPageContent && App.currentPage) {
       App._renderPageContent(App.currentPage);
     }
