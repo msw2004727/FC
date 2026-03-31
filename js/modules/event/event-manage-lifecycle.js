@@ -92,7 +92,37 @@ Object.assign(App, {
     if (!this.hasPermission('event.publish') && !this.hasPermission('activity.manage.entry')) { this.showToast('權限不足'); return; }
     const e = ApiService.getEvent(id);
     if (e && !this._canManageEvent(e)) { this.showToast('您只能管理自己的活動'); return; }
-    if (!await this.appConfirm('確定要結束此活動？')) return;
+
+    const startDate = this._parseEventStartDate?.(e.date);
+    const notStarted = startDate && startDate > new Date();
+
+    if (notStarted) {
+      const msgEl = document.getElementById('app-confirm-msg');
+      const modal = document.getElementById('app-confirm-modal');
+      msgEl.innerHTML = '<div class="app-confirm-warning">⚠ 注意</div>'
+        + '此活動尚未開始，提前結束將導致已報名用戶被記錄為<b>「未到場」</b>。<br><br>'
+        + '若您只是不舉辦了，請改用<b>「取消活動」</b>功能，已報名用戶將不會產生未到場紀錄。';
+      modal.classList.add('open');
+      document.body.classList.add('modal-open');
+      const ok = document.getElementById('app-confirm-ok');
+      const cancel = document.getElementById('app-confirm-cancel');
+      const yes = await new Promise(resolve => {
+        const cleanup = (result) => {
+          modal.classList.remove('open');
+          document.body.classList.remove('modal-open');
+          msgEl.innerHTML = '';
+          ok.replaceWith(ok.cloneNode(true));
+          cancel.replaceWith(cancel.cloneNode(true));
+          resolve(result);
+        };
+        ok.addEventListener('click', () => cleanup(true), { once: true });
+        cancel.addEventListener('click', () => cleanup(false), { once: true });
+      });
+      if (!yes) return;
+    } else {
+      if (!await this.appConfirm('確定要結束此活動？')) return;
+    }
+
     ApiService.updateEvent(id, { status: 'ended' });
     ApiService._writeOpLog('event_end', '結束活動', `結束「${e.title}」`);
     this.renderMyActivities();
