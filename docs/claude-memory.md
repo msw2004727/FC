@@ -10,6 +10,12 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-31 — 推播通知開關落地並補齊最小權限與冷快取保護
+- **問題**：通知開關功能需要正式落地到後台，且必須避免 `siteConfig` 共用集合出現權限過大，還要避免 `featureFlags` 尚未載入時誤送推播或用預設值覆寫既有設定。
+- **原因**：通知設定和 Auto-EXP 都落在 `siteConfig`，若規則只看集合層級就容易讓委派權限旁通；同時通知設定頁與送推播流程都依賴 `featureFlags`，冷快取時若直接用空值會造成誤判。
+- **修復**：新增 `pages/admin-notif.html` 與 `js/modules/message/notif-settings.js`，把通知設定頁掛進管理抽屜與權限說明；在 `firestore.rules` 將 `admin.notif.toggle` 限縮為只能寫 `siteConfig/featureFlags.notificationToggles`，並把 `admin.auto_exp.entry` 收斂為只能寫 `siteConfig/autoExpRules`；在 `message-line-push.js` 補上冷快取時先預載 `featureFlags` 再判斷 toggle；在 `firebase-service.js` 封裝 `setNotificationTogglesCache()`；補齊 `tests/firestore-rules-extended.test.js`、`tests/unit/notif-toggle.test.js` 與權限鏡像測試；同步更新 `js/config.js`、`index.html`、`sw.js` 快取版本到 `20260331e`。
+- **教訓**：只要多個功能共用同一個設定集合，規則一定要以「文件 + 欄位」雙層收斂；凡是依賴設定值的管理頁或送訊流程，在冷快取情境下都要先明確補載或阻止儲存，不能直接用預設值硬跑。
+
 ### 2026-03-31 — [永久] Demo 死代碼全面移除（方案 C）
 - **問題**：ModeManager.isDemo() 早已改為 stub（永遠回傳 false），但 247 處死代碼殘留在 61 個 JS 檔案中，導致每次新功能設計都被 AI 考量 Demo 分支，增加不必要的複雜度（推播計畫書 v1.0-v1.3 就是活例子）
 - **原因**：過去被告知「移除有風險」，但三方審計確認所有 Demo 分支都是確定的死代碼（isDemo 永遠 false），移除不改變任何運行時行為

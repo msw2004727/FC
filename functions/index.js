@@ -190,6 +190,22 @@ const ALLOWED_LINE_NOTIFICATION_CATEGORIES = new Set([
   "tournament",
   "private",
 ]);
+const LINE_NOTIFICATION_FORCED_SOURCES = Object.freeze([
+  "template:waitlist_promoted",
+  "template:event_cancelled",
+  "template:event_changed",
+]);
+const LINE_NOTIFICATION_TOGGLE_ALLOWED_KEYS = new Set([
+  "category_activity",
+  "category_system",
+  "category_tournament",
+  "type_signup_success",
+  "type_cancel_signup",
+  "type_waitlist_demoted",
+  "type_event_relisted",
+  "type_role_upgrade",
+  "type_welcome",
+]);
 const DEFAULT_NOTIFICATION_TEMPLATES = Object.freeze([
   {
     key: "welcome",
@@ -675,6 +691,48 @@ function sanitizeAuditMeta(rawMeta) {
 
 function getLineNotificationSettingsKey(category) {
   return category === "private" ? "system" : category;
+}
+
+function isForcedLineNotificationSource(source) {
+  const safeSource = String(source || "").trim();
+  return LINE_NOTIFICATION_FORCED_SOURCES.some((prefix) => safeSource.startsWith(prefix))
+    || safeSource.startsWith("target:");
+}
+
+function normalizeNotificationToggles(rawToggles) {
+  if (!rawToggles || typeof rawToggles !== "object" || Array.isArray(rawToggles)) {
+    return {};
+  }
+
+  const next = {};
+  Object.entries(rawToggles).forEach(([key, value]) => {
+    if (!LINE_NOTIFICATION_TOGGLE_ALLOWED_KEYS.has(key)) return;
+    if (typeof value !== "boolean") return;
+    next[key] = value;
+  });
+  return next;
+}
+
+function shouldSkipLineNotificationByToggles(category, source, toggles) {
+  if (isForcedLineNotificationSource(source)) return false;
+
+  const safeToggles = toggles || {};
+  const categoryKey = `category_${getLineNotificationSettingsKey(category)}`;
+  if (safeToggles[categoryKey] === false) return true;
+
+  const safeSource = String(source || "").trim();
+  if (safeSource.startsWith("template:")) {
+    const typeKey = `type_${safeSource.slice("template:".length)}`;
+    if (safeToggles[typeKey] === false) return true;
+  }
+
+  return false;
+}
+
+async function getNotificationTogglesFromFeatureFlags() {
+  const snapshot = await db.collection("siteConfig").doc("featureFlags").get();
+  if (!snapshot.exists) return {};
+  return normalizeNotificationToggles(snapshot.data()?.notificationToggles);
 }
 
 function getLineHttpStatus(err) {
@@ -1514,6 +1572,11 @@ exports.enqueuePrivilegedLineNotification = onCall(
     }
     if (!settings[settingsKey]) {
       return { queued: false, skipped: true, reason: "category_disabled" };
+    }
+
+    const notificationToggles = await getNotificationTogglesFromFeatureFlags();
+    if (shouldSkipLineNotificationByToggles(category, source, notificationToggles)) {
+      return { queued: false, skipped: true, reason: "notification_toggle_disabled" };
     }
 
     const targetUid = getLineRecipientUidFromUserDoc(found, uid);

@@ -5,6 +5,7 @@
  *   js/modules/message/message-line-push.js
  *   js/modules/message/notif-settings.js
  *   js/firebase-service.js
+ *   functions/index.js
  */
 
 // ---------------------------------------------------------------------------
@@ -144,7 +145,8 @@ async function queueLinePushPure(input, deps) {
     try {
       await deps.ensureFeatureFlagsLoaded();
     } catch (err) {
-      // Falls back to current cache/default behavior when preload fails.
+      deps.onPreloadError?.(err);
+      return 'blocked';
     }
   }
 
@@ -345,6 +347,7 @@ describe('queueLinePushPure', () => {
       ensureFeatureFlagsLoaded: jest.fn().mockResolvedValue(undefined),
       getNotificationToggles: jest.fn(() => ({})),
       dispatch: jest.fn(),
+      onPreloadError: jest.fn(),
       ...overrides,
     };
   }
@@ -381,5 +384,22 @@ describe('queueLinePushPure', () => {
     expect(deps.ensureFeatureFlagsLoaded).not.toHaveBeenCalled();
     expect(deps.dispatch).toHaveBeenCalledTimes(1);
     expect(result).toBe('queued');
+  });
+
+  test('preload failure blocks queue instead of failing open', async () => {
+    const deps = createQueueDeps({
+      ensureFeatureFlagsLoaded: jest.fn().mockRejectedValue(new Error('load_failed')),
+    });
+
+    const result = await queueLinePushPure({
+      category: 'activity',
+      source: 'template:signup_success',
+      hasCachedFeatureFlags: false,
+      isDemo: false,
+    }, deps);
+
+    expect(deps.dispatch).not.toHaveBeenCalled();
+    expect(deps.onPreloadError).toHaveBeenCalledTimes(1);
+    expect(result).toBe('blocked');
   });
 });

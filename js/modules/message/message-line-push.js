@@ -151,11 +151,11 @@ Object.assign(App, {
 
     if (shouldPreloadToggles) {
       FirebaseService.ensureSingleDocLoaded('siteConfig', 'featureFlags')
+        .then(() => {
+          finalizeQueue();
+        })
         .catch(err => {
           console.warn('[LINE Push] featureFlags preload failed:', err);
-        })
-        .finally(() => {
-          finalizeQueue();
         });
       return;
     }

@@ -34,6 +34,22 @@ const ALLOWED_AUDIT_TARGET_TYPES = new Set([
 ]);
 const ALLOWED_AUDIT_RESULTS = new Set(["success", "failure"]);
 const ALLOWED_AUDIT_SOURCES = new Set(["web", "liff", "system", "cloud_function"]);
+const LINE_NOTIFICATION_FORCED_SOURCES = [
+  "template:waitlist_promoted",
+  "template:event_cancelled",
+  "template:event_changed",
+];
+const LINE_NOTIFICATION_TOGGLE_ALLOWED_KEYS = new Set([
+  "category_activity",
+  "category_system",
+  "category_tournament",
+  "type_signup_success",
+  "type_cancel_signup",
+  "type_waitlist_demoted",
+  "type_event_relisted",
+  "type_role_upgrade",
+  "type_welcome",
+]);
 
 // ===========================================================================
 // Extracted validation logic
@@ -103,6 +119,46 @@ function cfDuplicateCheck(existingRegs, userId) {
 /** registerForEvent CF: status assignment */
 function cfAssignStatus(confirmedCount, maxCapacity) {
   return confirmedCount >= maxCapacity ? 'waitlisted' : 'confirmed';
+}
+
+function getLineNotificationSettingsKey(category) {
+  return category === "private" ? "system" : category;
+}
+
+function isForcedLineNotificationSource(source) {
+  const safeSource = String(source || "").trim();
+  return LINE_NOTIFICATION_FORCED_SOURCES.some((prefix) => safeSource.startsWith(prefix))
+    || safeSource.startsWith("target:");
+}
+
+function normalizeNotificationToggles(rawToggles) {
+  if (!rawToggles || typeof rawToggles !== "object" || Array.isArray(rawToggles)) {
+    return {};
+  }
+
+  const next = {};
+  Object.entries(rawToggles).forEach(([key, value]) => {
+    if (!LINE_NOTIFICATION_TOGGLE_ALLOWED_KEYS.has(key)) return;
+    if (typeof value !== "boolean") return;
+    next[key] = value;
+  });
+  return next;
+}
+
+function shouldSkipLineNotificationByToggles(category, source, toggles) {
+  if (isForcedLineNotificationSource(source)) return false;
+
+  const safeToggles = toggles || {};
+  const categoryKey = `category_${getLineNotificationSettingsKey(category)}`;
+  if (safeToggles[categoryKey] === false) return true;
+
+  const safeSource = String(source || "").trim();
+  if (safeSource.startsWith("template:")) {
+    const typeKey = `type_${safeSource.slice("template:".length)}`;
+    if (safeToggles[typeKey] === false) return true;
+  }
+
+  return false;
 }
 
 // ===========================================================================
@@ -229,6 +285,37 @@ describe('adjustExp validation', () => {
 
   test('accepts zero amount', () => {
     expect(validateAdjustExp({ uid: 'u1', amount: 0 })).toBeNull();
+  });
+});
+
+describe('privileged LINE notification toggles', () => {
+  test('blocks disabled category on server queue path', () => {
+    const toggles = normalizeNotificationToggles({ category_activity: false });
+    expect(shouldSkipLineNotificationByToggles("activity", "template:signup_success", toggles)).toBe(true);
+  });
+
+  test('blocks disabled template type on server queue path', () => {
+    const toggles = normalizeNotificationToggles({ type_signup_success: false });
+    expect(shouldSkipLineNotificationByToggles("activity", "template:signup_success", toggles)).toBe(true);
+  });
+
+  test('forced sources bypass server-side toggles', () => {
+    const toggles = normalizeNotificationToggles({
+      category_activity: false,
+      type_waitlist_promoted: false,
+    });
+    expect(shouldSkipLineNotificationByToggles("activity", "template:waitlist_promoted", toggles)).toBe(false);
+    expect(shouldSkipLineNotificationByToggles("system", "target:all", toggles)).toBe(false);
+  });
+
+  test('normalization drops unknown keys and non-boolean values', () => {
+    expect(normalizeNotificationToggles({
+      category_activity: false,
+      debug_mode: true,
+      type_signup_success: "false",
+    })).toEqual({
+      category_activity: false,
+    });
   });
 });
 
