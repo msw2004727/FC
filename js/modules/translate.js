@@ -93,23 +93,29 @@ Object.assign(App, {
     const bar = document.createElement('div');
     bar.id = 'translate-banner';
     bar.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:1100;background:var(--bg-card,#fff);border-top:1px solid var(--border,#e5e7eb);padding:.7rem 1rem;display:flex;align-items:center;gap:.6rem;box-shadow:0 -2px 12px rgba(0,0,0,.08);font-size:.88rem;';
-    bar.innerHTML = '<span style="font-size:1.2rem">🌐</span>'
-      + '<span style="flex:1;color:var(--text-primary,#111)">' + escapeHTML(info.label) + '?</span>'
-      + '<button id="translate-banner-btn" style="padding:.4rem 1rem;border-radius:8px;background:var(--accent,#0d9488);color:#fff;border:none;font-weight:700;font-size:.85rem;cursor:pointer">' + escapeHTML(info.btn) + '</button>'
-      + '<button id="translate-banner-close" style="background:none;border:none;color:var(--text-muted,#9ca3af);font-size:1.2rem;cursor:pointer;padding:.2rem .4rem">✕</button>';
-    document.body.appendChild(bar);
-
-    document.getElementById('translate-banner-btn').onclick = () => {
+    const btnTranslate = document.createElement('button');
+    btnTranslate.style.cssText = 'padding:.4rem 1rem;border-radius:8px;background:var(--accent,#0d9488);color:#fff;border:none;font-weight:700;font-size:.85rem;cursor:pointer';
+    btnTranslate.textContent = info.btn;
+    btnTranslate.onclick = () => {
       bar.remove();
-      // 切換 i18n 語言（會觸發 switchLanguage → _onLanguageChanged）
       this.switchLanguage(lang);
       const sel = document.getElementById('lang-select');
       if (sel) sel.value = lang;
     };
-    document.getElementById('translate-banner-close').onclick = () => {
+
+    const btnClose = document.createElement('button');
+    btnClose.style.cssText = 'background:none;border:none;color:var(--text-muted,#9ca3af);font-size:1.2rem;cursor:pointer;padding:.2rem .4rem';
+    btnClose.textContent = '✕';
+    btnClose.onclick = () => {
       bar.remove();
       localStorage.setItem(this._TRANSLATE_DISMISS_KEY, '1');
     };
+
+    bar.innerHTML = '<span style="font-size:1.2rem">🌐</span>'
+      + '<span style="flex:1;color:var(--text-primary,#111)">' + escapeHTML(info.label) + '?</span>';
+    bar.appendChild(btnTranslate);
+    bar.appendChild(btnClose);
+    document.body.appendChild(bar);
   },
 
   // ─── 翻譯核心 ───
