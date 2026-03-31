@@ -4,7 +4,7 @@
 
 // ─── Cache Version（更新此值以清除瀏覽器快取）───
 // 變更日誌已移除，請用 git log 查閱歷史部署記錄。
-const CACHE_VERSION = '20260331c';
+const CACHE_VERSION = '20260331e';
 
 // ─── 網路 / 設備偵測（用於 UI 降級）───
 const NetDevice = {
@@ -32,7 +32,6 @@ const NetDevice = {
 // 判斷是否走 Cloud Functions 報名流程（Wave 1）
 function shouldUseServerRegistration() {
   // 僅 Production 模式才走 CF
-  if (typeof ModeManager !== 'undefined' && ModeManager.isDemo()) return false;
   // 讀取 Firestore featureFlags（在 boot collections 時已快取）
   const flags = (typeof FirebaseService !== 'undefined' && typeof FirebaseService.getCachedDoc === 'function')
     ? FirebaseService.getCachedDoc('siteConfig', 'featureFlags')
@@ -85,6 +84,7 @@ const PAGE_STRATEGY = {
   'page-admin-themes':       'stale-first',
   'page-admin-exp':          'stale-first',
   'page-admin-auto-exp':     'stale-first',
+  'page-admin-notif':        'fresh-first',
   'page-admin-announcements':'stale-first',
   'page-admin-achievements': 'stale-first',
   'page-admin-roles':        'stale-first',
@@ -122,6 +122,7 @@ const PAGE_DATA_CONTRACT = {
   'page-admin-themes':       { required: [], optional: ['siteThemes'], realtime: [] },
   'page-admin-exp':          { required: [], optional: ['expLogs', 'teamExpLogs'], realtime: [] },
   'page-admin-auto-exp':     { required: [], optional: ['expLogs'], realtime: [] },
+  'page-admin-notif':        { required: [], optional: [], realtime: [] },
   'page-admin-announcements':{ required: [], optional: ['announcements'], realtime: [] },
   'page-admin-achievements': { required: [], optional: ['achievements', 'badges'], realtime: [] },
   'page-admin-roles':        { required: [], optional: ['permissions', 'customRoles'], realtime: [] },
@@ -176,8 +177,8 @@ const ACHIEVEMENT_CONDITIONS = {
   ],
 };
 
-// ─── Mode Manager（stub — Demo 模式已移除，永遠回傳 production）───
-const ModeManager = { isDemo() { return false; }, getMode() { return 'production'; } };
+// ─── Mode Manager ───
+const ModeManager = { getMode() { return 'production'; } };
 
 const PROD_HOSTS = Array.isArray(window.__SPORTHUB_PROD_HOSTS__)
   ? [...window.__SPORTHUB_PROD_HOSTS__]
@@ -225,12 +226,6 @@ function _getRuntimeCustomRolesSource() {
       && FirebaseService._cache
       && Array.isArray(FirebaseService._cache.customRoles)) {
       return FirebaseService._cache.customRoles;
-    }
-  } catch (_) {}
-
-  try {
-    if (typeof DemoData !== 'undefined' && Array.isArray(DemoData.customRoles)) {
-      return DemoData.customRoles;
     }
   } catch (_) {}
 
@@ -532,6 +527,7 @@ const DRAWER_MENUS = [
   { icon: '', label: '佈景主題', i18nKey: 'admin.themes', page: 'page-admin-themes', minRole: 'super_admin', permissionCode: 'admin.themes.entry' },
   { icon: '', label: '手動 EXP 管理', i18nKey: 'admin.expManage', page: 'page-admin-exp', minRole: 'super_admin', permissionCode: 'admin.exp.entry' },
   { icon: '', label: '自動 EXP 管理', i18nKey: 'drawer.autoExpManage', page: 'page-admin-auto-exp', minRole: 'super_admin', permissionCode: 'admin.auto_exp.entry' },
+  { icon: '', label: '推播通知設定', page: 'page-admin-notif', minRole: 'super_admin', permissionCode: 'admin.notif.entry' },
   { icon: '', label: '系統公告管理', i18nKey: 'admin.announcements', page: 'page-admin-announcements', minRole: 'super_admin', permissionCode: 'admin.announcements.entry' },
   { icon: '', label: '成就/徽章管理', i18nKey: 'admin.achievements', page: 'page-admin-achievements', minRole: 'super_admin', permissionCode: 'admin.achievements.entry' },
   { icon: '', label: '權限管理', i18nKey: 'admin.roles', page: 'page-admin-roles', minRole: 'super_admin' },
@@ -540,7 +536,7 @@ const DRAWER_MENUS = [
   { icon: '', label: '無效資料查詢', i18nKey: 'admin.inactive', page: 'page-admin-inactive', minRole: 'super_admin', permissionCode: 'admin.inactive.entry' },
 ];
 
-const ROLE_PERMISSION_CATALOG_VERSION = '20260317a';
+const ROLE_PERMISSION_CATALOG_VERSION = '20260331e';
 const DISABLED_PERMISSION_CODES = new Set(['admin.roles.entry']);
 
 function isPermissionCodeEnabled(code) {
@@ -599,6 +595,9 @@ const ADMIN_PAGE_EXTRA_PERMISSION_ITEMS = {
     { code: 'admin.logs.error_read', name: '錯誤日誌讀取' },
     { code: 'admin.logs.error_delete', name: '錯誤日誌清除' },
     { code: 'admin.logs.audit_read', name: '稽核日誌讀取' },
+  ],
+  'page-admin-notif': [
+    { code: 'admin.notif.toggle', name: '修改推播開關' },
   ],
 };
 
@@ -698,6 +697,10 @@ function getDefaultRolePermissions(roleKey) {
 
   if (roleLevel >= getRuntimeRoleLevel('admin')) {
     defaults.push('team.create', 'team.manage_all', 'event.edit_all');
+  }
+
+  if (roleLevel >= getRuntimeRoleLevel('super_admin')) {
+    defaults.push('admin.notif.toggle');
   }
 
   return Array.from(new Set(defaults));

@@ -222,7 +222,7 @@
       var gameSection = document.getElementById('kg-game-section');
       var loadingEl = document.getElementById('kg-main-loading');
 
-      if (!ModeManager.isDemo() && !currentUser) {
+      if (!currentUser) {
         if (loginCard) loginCard.style.display = 'none';
         if (gameSection) gameSection.style.display = 'none';
         if (loadingEl) loadingEl.style.display = 'none';

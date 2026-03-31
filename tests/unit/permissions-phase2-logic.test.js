@@ -74,6 +74,16 @@ describe('getDefaultRolePermissions', () => {
     });
   });
 
+  test('super_admin gets admin.notif.toggle by default', () => {
+    const perms = getDefaultRolePermissions('super_admin');
+    expect(perms).toContain('admin.notif.toggle');
+  });
+
+  test('admin does not get admin.notif.toggle by default', () => {
+    const perms = getDefaultRolePermissions('admin');
+    expect(perms).not.toContain('admin.notif.toggle');
+  });
+
   test('returns null for unknown role keys', () => {
     expect(getDefaultRolePermissions('custom_123')).toBeNull();
     expect(getDefaultRolePermissions('unknown')).toBeNull();

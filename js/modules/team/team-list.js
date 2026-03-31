@@ -116,9 +116,6 @@ Object.assign(App, {
   },
 
   _isTeamOwner(t) {
-    if (ModeManager.isDemo()) {
-      return t.id === this._userTeam;
-    }
     const user = ApiService.getCurrentUser();
     return !!(user && this._isUserInTeam(user, t.id));
   },
@@ -181,11 +178,6 @@ Object.assign(App, {
 
   _isTeamCaptainUser(team) {
     if (!team) return false;
-    if (ModeManager.isDemo()) {
-      const cap = this._resolveTeamCaptainUser(team);
-      if (!cap) return false;
-      return cap.uid === DemoData.currentUser?.uid;
-    }
 
     const currentUser = ApiService.getCurrentUser?.();
     if (!currentUser) return false;

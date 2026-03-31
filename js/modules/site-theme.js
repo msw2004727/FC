@@ -122,7 +122,7 @@ Object.assign(App, {
     let image = img.src;
 
     // 正式版：上傳至 Firebase Storage 取得公開 URL
-    if (image.startsWith('data:') && !ModeManager.isDemo()) {
+    if (image.startsWith('data:')) {
       this.showToast('圖片上傳中...');
       const url = await FirebaseService._uploadImage(image, `siteThemes/${this._themeEditId}`);
       if (!url) { this.showToast('圖片上傳失敗，請重試'); return; }

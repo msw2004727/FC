@@ -304,22 +304,9 @@ Object.assign(App, {
       // Safety: _teamCardHTML returns pre-escaped markup
       container.innerHTML = `<div class="team-grid" style="padding:.5rem .4rem">${registered.map(tm => this._teamCardHTML({...tm, pinned: false})).join('')}</div>`;
     } else if (tab === 'schedule') {
-      if (!ModeManager.isDemo()) {
-        container.innerHTML = '<div style="padding:3rem 1rem;text-align:center;color:var(--text-muted);font-size:.92rem">功能開發中</div>';
-      } else {
-        const isCup = t && !t.type.includes('聯賽');
-        container.innerHTML = isCup ? this.renderBracket() : this.renderLeagueSchedule();
-      }
+      container.innerHTML = '<div style="padding:3rem 1rem;text-align:center;color:var(--text-muted);font-size:.92rem">功能開發中</div>';
     } else if (tab === 'stats') {
-      if (!ModeManager.isDemo()) {
-        container.innerHTML = '<div style="padding:3rem 1rem;text-align:center;color:var(--text-muted);font-size:.92rem">功能開發中</div>';
-      } else {
-        // Safety: standings data from ApiService, rendered as table cells
-        container.innerHTML = `<table class="standings-table">
-          <tr><th>#</th><th>隊名</th><th>勝</th><th>平</th><th>負</th><th>積分</th></tr>
-          ${ApiService.getStandings().map(s => `<tr><td>${s.rank}</td><td>${s.name}</td><td>${s.w}</td><td>${s.d}</td><td>${s.l}</td><td><strong>${s.pts}</strong></td></tr>`).join('')}
-        </table>`;
-      }
+      container.innerHTML = '<div style="padding:3rem 1rem;text-align:center;color:var(--text-muted);font-size:.92rem">功能開發中</div>';
     }
   },
 
@@ -327,7 +314,7 @@ Object.assign(App, {
     const teams = ApiService.getTeams();
     const matches = ApiService.getMatches();
 
-    // Safety: all team/match data from ApiService; used in demo mode only
+    // Safety: all team/match data from ApiService
     let html = '<div style="font-size:.78rem;font-weight:700;color:var(--text-muted);margin-bottom:.4rem">賽程</div>';
     matches.forEach(m => {
       const homeTeam = teams.find(t => t.name === m.home);
@@ -389,7 +376,7 @@ Object.assign(App, {
       ]},
     ];
 
-    // Safety: bracketData is hardcoded demo data
+    // Safety: bracketData is hardcoded
     let html = '<div class="bracket-container"><div class="bracket">';
     bracketData.forEach((round, ri) => {
       html += `<div class="bracket-round">

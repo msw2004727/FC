@@ -1796,10 +1796,99 @@ describe("/siteConfig/{docId}", () => {
     await assertFails(deleteDoc(doc(superAdmin(), "siteConfig", "cfg_del")));
   });
 
-  test("hasPerm(admin.auto_exp.entry) can create/update", async () => {
+  test("hasPerm(admin.auto_exp.entry) can create/update only autoExpRules", async () => {
     await seedRolePermissions("content_manager", ["admin.auto_exp.entry"]);
     await assertSucceeds(
-      setDoc(doc(contentManager(), "siteConfig", "cfg_cm"), { setting: true })
+      setDoc(doc(contentManager(), "siteConfig", "autoExpRules"), { setting: true })
+    );
+    await assertSucceeds(
+      updateDoc(doc(contentManager(), "siteConfig", "autoExpRules"), { setting: false })
+    );
+  });
+
+  test("hasPerm(admin.auto_exp.entry) cannot write featureFlags or other siteConfig docs", async () => {
+    await seedRolePermissions("content_manager", ["admin.auto_exp.entry"]);
+    await assertFails(
+      setDoc(doc(contentManager(), "siteConfig", "featureFlags"), {
+        notificationToggles: { category_activity: false },
+      })
+    );
+    await assertFails(
+      setDoc(doc(contentManager(), "siteConfig", "bootBrand"), { setting: true })
+    );
+  });
+
+  test("hasPerm(admin.notif.toggle) can create featureFlags.notificationToggles only", async () => {
+    await seedRolePermissions("content_manager", ["admin.notif.toggle"]);
+    await assertSucceeds(
+      setDoc(
+        doc(contentManager(), "siteConfig", "featureFlags"),
+        { notificationToggles: { category_activity: false, type_signup_success: true } },
+        { merge: true }
+      )
+    );
+  });
+
+  test("hasPerm(admin.notif.toggle) can update only notificationToggles on featureFlags", async () => {
+    await seedRolePermissions("content_manager", ["admin.notif.toggle"]);
+    await seedDoc("siteConfig", "featureFlags", {
+      useServerRegistration: true,
+      notificationToggles: { category_activity: true },
+    });
+    await assertSucceeds(
+      updateDoc(doc(contentManager(), "siteConfig", "featureFlags"), {
+        notificationToggles: { category_activity: false, type_welcome: false },
+      })
+    );
+  });
+
+  test("hasPerm(admin.notif.toggle) cannot write other siteConfig docs", async () => {
+    await seedRolePermissions("content_manager", ["admin.notif.toggle"]);
+    await assertFails(
+      setDoc(doc(contentManager(), "siteConfig", "bootBrand"), {
+        notificationToggles: { category_activity: false },
+      })
+    );
+  });
+
+  test("hasPerm(admin.notif.toggle) cannot create featureFlags with extra fields", async () => {
+    await seedRolePermissions("content_manager", ["admin.notif.toggle"]);
+    await assertFails(
+      setDoc(doc(contentManager(), "siteConfig", "featureFlags"), {
+        notificationToggles: { category_activity: false },
+        useServerRegistration: true,
+      })
+    );
+  });
+
+  test("hasPerm(admin.notif.toggle) cannot update other fields on featureFlags", async () => {
+    await seedRolePermissions("content_manager", ["admin.notif.toggle"]);
+    await seedDoc("siteConfig", "featureFlags", {
+      useServerRegistration: true,
+      notificationToggles: { category_activity: true },
+    });
+    await assertFails(
+      updateDoc(doc(contentManager(), "siteConfig", "featureFlags"), {
+        useServerRegistration: false,
+      })
+    );
+  });
+
+  test("hasPerm(admin.notif.toggle) rejects unknown notification toggle keys", async () => {
+    await seedRolePermissions("content_manager", ["admin.notif.toggle"]);
+    await assertFails(
+      setDoc(doc(contentManager(), "siteConfig", "featureFlags"), {
+        notificationToggles: { debug_mode: true },
+      })
+    );
+  });
+
+  test("hasPerm(admin.notif.toggle) rejects non-boolean notification toggle values", async () => {
+    await seedRolePermissions("content_manager", ["admin.notif.toggle"]);
+    await assertFails(
+      setDoc(doc(contentManager(), "siteConfig", "featureFlags"), {
+        notificationToggles: { category_activity: "false" },
+      })
     );
   });
 });
@@ -3112,15 +3201,41 @@ describe("hasPerm() permission codes integration", () => {
     );
   });
 
-  test("content_manager with admin.auto_exp.entry can write siteConfig but NOT siteThemes", async () => {
+  test("content_manager with admin.auto_exp.entry can write only autoExpRules but NOT other siteConfig docs or siteThemes", async () => {
     await seedRolePermissions("content_manager", ["admin.auto_exp.entry"]);
 
     await assertSucceeds(
-      setDoc(doc(contentManager(), "siteConfig", "cfg_perm"), {
+      setDoc(doc(contentManager(), "siteConfig", "autoExpRules"), {
         setting: true,
       })
     );
 
+    await assertFails(
+      setDoc(doc(contentManager(), "siteConfig", "featureFlags"), {
+        notificationToggles: { category_system: false },
+      })
+    );
+    await assertFails(
+      setDoc(doc(contentManager(), "siteConfig", "bootBrand"), { setting: true })
+    );
+
+    await assertFails(
+      setDoc(doc(contentManager(), "siteThemes", "theme_no"), { name: "No" })
+    );
+  });
+
+  test("content_manager with admin.notif.toggle can write only featureFlags.notificationToggles", async () => {
+    await seedRolePermissions("content_manager", ["admin.notif.toggle"]);
+
+    await assertSucceeds(
+      setDoc(doc(contentManager(), "siteConfig", "featureFlags"), {
+        notificationToggles: { category_system: false, type_welcome: false },
+      })
+    );
+
+    await assertFails(
+      setDoc(doc(contentManager(), "siteConfig", "cfg_no"), { setting: true })
+    );
     await assertFails(
       setDoc(doc(contentManager(), "siteThemes", "theme_no"), { name: "No" })
     );

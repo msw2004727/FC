@@ -3,7 +3,7 @@
    ================================================
    策略：
    1. init() 按需載入 Firestore 集合到 _cache
-   2. _cache 結構與 DemoData 完全相同 → render 方法零修改
+   2. _cache 結構與 render 方法一致
    3. 寫入操作：先更新 cache（同步），再寫 Firestore（背景）
    4. onSnapshot 監聽器即時同步遠端更新
    5. localStorage 持久化快取：returning user 秒開
@@ -20,7 +20,7 @@ function _stripDocId(obj) {
 
 const FirebaseService = {
 
-  // ─── 記憶體快取（與 DemoData 結構一致）───
+  // ─── 記憶體快取 ───
   _cache: {
     events: [],
     eventTemplates: [],
@@ -543,7 +543,6 @@ const FirebaseService = {
   },
 
   schedulePageScopedRealtimeForPage(pageId, options = {}) {
-    if (ModeManager.isDemo()) return;
     const needed = this._getPageScopedRealtimeCollections(pageId);
     if (!needed.length) return;
 
@@ -574,7 +573,6 @@ const FirebaseService = {
 
   /** 根據頁面 ID 懶載入對應的集合 */
   async ensureCollectionsForPage(pageId, options = {}) {
-    if (ModeManager.isDemo()) return [];
     if (!this._initialized) return [];
     const needed = this._collectionPageMap[pageId];
     if (!needed) return [];
@@ -617,7 +615,7 @@ const FirebaseService = {
    * 結果存入 _userStatsCache，供統計函式優先使用
    */
   async ensureUserStatsLoaded(uid) {
-    if (!uid || ModeManager.isDemo()) return;
+    if (!uid) return;
     if (this._userStatsCache.uid === uid && this._userStatsCache.activityRecords !== null) return;
 
     try {
@@ -642,7 +640,6 @@ const FirebaseService = {
   },
 
   async ensureStaticCollectionsLoaded(names) {
-    if (ModeManager.isDemo()) return Array.isArray(names) ? names.filter(Boolean) : [];
     if (!this._initialized) return [];
 
     const requested = [...new Set((names || []).filter(Boolean))];
@@ -659,7 +656,6 @@ const FirebaseService = {
   },
 
   async refreshCollectionsForPage(pageId) {
-    if (ModeManager.isDemo()) return [];
     if (!this._initialized) return [];
     const needed = this._collectionPageMap[pageId];
     if (!needed || !needed.length) return [];
@@ -694,7 +690,6 @@ const FirebaseService = {
   },
 
   _schedulePostInitWarmups() {
-    if (ModeManager.isDemo()) return;
     if (!this._initialized) return;
     if (this._postInitWarmupPromise) return;
 
@@ -781,8 +776,6 @@ const FirebaseService = {
   },
 
   _syncCurrentUserFromUsersSnapshot() {
-    if (ModeManager.isDemo()) return;
-
     const authUid = (typeof auth !== 'undefined' && auth?.currentUser?.uid)
       ? auth.currentUser.uid
       : (this._cache.currentUser?.uid || null);
@@ -911,14 +904,8 @@ const FirebaseService = {
     });
   },
 
-  /** 根據 Demo / Prod 模式選擇適當的 Firebase Auth 登入方式 */
+  /** Firebase Auth 登入方式 */
   async _signInWithAppropriateMethod(expectedUid = null) {
-    if (ModeManager.isDemo()) {
-      const cred = await auth.signInAnonymously();
-      console.log('[FirebaseService] 匿名登入（Demo 模式）, uid:', cred.user?.uid);
-      return;
-    }
-
     // 先等待 Auth 狀態恢復——若先前已登入成功且有 persistence，不需重新走 LINE 驗證
     if (typeof _firebaseAuthReadyPromise !== 'undefined' && !_firebaseAuthReady) {
       try {
@@ -1005,6 +992,43 @@ const FirebaseService = {
    */
   getCachedDoc(collection, docId) {
     return this._singleDocCache[collection + '/' + docId] || null;
+  },
+
+  async ensureSingleDocLoaded(collection, docId) {
+    const cacheKey = collection + '/' + docId;
+    if (this._singleDocCache[cacheKey]) {
+      return this._singleDocCache[cacheKey];
+    }
+
+    if (typeof db === 'undefined') {
+      return null;
+    }
+
+    const snap = await db.collection(collection).doc(docId).get();
+    if (snap.exists) {
+      const current = this._singleDocCache[cacheKey] || {};
+      this._singleDocCache[cacheKey] = { ...current, ...snap.data() };
+      return this._singleDocCache[cacheKey];
+    }
+
+    return null;
+  },
+
+  getNotificationToggles() {
+    const doc = this.getCachedDoc('siteConfig', 'featureFlags') || {};
+    return (doc.notificationToggles && typeof doc.notificationToggles === 'object' && !Array.isArray(doc.notificationToggles))
+      ? doc.notificationToggles
+      : {};
+  },
+
+  setNotificationTogglesCache(toggles) {
+    const cacheKey = 'siteConfig/featureFlags';
+    const current = this._singleDocCache[cacheKey] || {};
+    this._singleDocCache[cacheKey] = {
+      ...current,
+      notificationToggles: { ...(toggles || {}) },
+    };
+    return this._singleDocCache[cacheKey];
   },
 
   /**
@@ -2259,7 +2283,6 @@ const FirebaseService = {
   //  RC1：stale-while-revalidate（背景刷新 registrations）
   // ════════════════════════════════
   _staleWhileRevalidateRegistrations(authUid) {
-    if (ModeManager.isDemo()) return; // Issue 9：防禦 demo 模式
     // 如果 registrations listener 已啟動（例如用戶直接進活動頁），不重複查詢
     if (this._realtimeListenerStarted.registrations) return;
     // Issue 1：防止並行 revalidation 競爭
@@ -2334,7 +2357,6 @@ const FirebaseService = {
     if (this._visibilityRefreshBound) return;
     this._visibilityRefreshBound = true;
     this._visibilityRefreshHandler = () => {
-      if (ModeManager.isDemo()) return;
       // 分頁進入背景 → 卸載 listeners 省頻寬
       if (document.visibilityState === 'hidden') {
         this._suspendListeners();

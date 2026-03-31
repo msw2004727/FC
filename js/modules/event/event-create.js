@@ -413,7 +413,7 @@ Object.assign(App, {
 
   /** 同步活動計數至 Firebase */
   async _syncEventToFirebase(event) {
-    if (!ModeManager.isDemo() && event._docId) {
+    if (event._docId) {
       try {
         await db.collection('events').doc(event._docId).update({
           current: event.current,

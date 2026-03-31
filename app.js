@@ -1015,8 +1015,6 @@ const App = {
    * 用於 _resumePendingAuthAction，確保 ApiService.getEvent 能找到活動。
    */
   async _waitForEventsLoaded() {
-    // Demo 模式不需等待
-    if (ModeManager.isDemo()) return;
     // 已有資料直接返回
     if (typeof FirebaseService !== 'undefined' && FirebaseService._cache.events.length > 0) return;
     // 等待 events 集合首次填充
@@ -1036,12 +1034,10 @@ const App = {
   },
 
   _isAuthenticatedForProtectedAction() {
-    if (ModeManager.isDemo()) return true;
     return typeof LineAuth !== 'undefined' && LineAuth.isLoggedIn();
   },
 
   _requestLoginForAction(action, options = {}) {
-    if (ModeManager.isDemo()) return false;
     const pending = this._setPendingAuthAction(action);
     if (!pending) return false;
 
@@ -1579,8 +1575,7 @@ const App = {
           }
         }
 
-        if (!ModeManager.isDemo()
-          && typeof FirebaseService !== 'undefined'
+        if (typeof FirebaseService !== 'undefined'
           && typeof FirebaseService._startAuthDependentWork === 'function') {
           try {
             await Promise.race([
@@ -1982,9 +1977,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 檢查首頁是否有實際內容（localStorage 快取命中）
     var _homeHasContent = false;
     try {
-      if (typeof ModeManager !== 'undefined' && ModeManager.isDemo()) {
-        _homeHasContent = true;
-      } else if (typeof FirebaseService !== 'undefined' && FirebaseService._cache) {
+      if (typeof FirebaseService !== 'undefined' && FirebaseService._cache) {
         _homeHasContent = FirebaseService._cache.events.length > 0;
       }
     } catch (_) {}

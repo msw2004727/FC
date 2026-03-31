@@ -19,7 +19,6 @@ Object.assign(App, {
   },
 
   _isTeamMember(teamId) {
-    if (ModeManager.isDemo()) return this._userTeam === teamId;
     const user = ApiService.getCurrentUser();
     if (user && typeof this._isUserInTeam === 'function' && this._isUserInTeam(user, teamId)) return true;
     if (user && user.teamId === teamId) return true;
@@ -251,7 +250,7 @@ Object.assign(App, {
       ? { teamId: nextTeamIds[0], teamName: nextTeamNames[0] || '', teamIds: nextTeamIds, teamNames: nextTeamNames }
       : { teamId: null, teamName: null, teamIds: [], teamNames: [] };
 
-    if (!ModeManager.isDemo() && member._docId) {
+    if (member._docId) {
       try {
         if (typeof FirebaseService._ensureAuth === 'function') {
           const authed = await FirebaseService._ensureAuth();

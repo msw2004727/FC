@@ -102,7 +102,7 @@ Object.assign(App, {
 
     const renderTitlePage = () => {
       const user = ApiService.getCurrentUser?.();
-      const lineProfile = (!ModeManager.isDemo() && typeof LineAuth !== 'undefined' && LineAuth.isLoggedIn())
+      const lineProfile = (typeof LineAuth !== 'undefined' && LineAuth.isLoggedIn())
         ? LineAuth.getProfile()
         : null;
       const lineName = lineProfile ? lineProfile.displayName : (user ? user.displayName : '-');

@@ -104,7 +104,7 @@ Object.assign(App, {
     }
     const previewImg = document.querySelector('#popupad-preview img');
     let image = previewImg ? previewImg.src : (ApiService.getPopupAds().find(a => a.id === this._popupAdEditId)?.image || null);
-    if (image && image.startsWith('data:') && !ModeManager.isDemo()) {
+    if (image && image.startsWith('data:')) {
       this.showToast('圖片上傳中...');
       const url = await FirebaseService._uploadImage(image, `popupAds/${this._popupAdEditId}`);
       if (!url) { this.showToast('圖片上傳失敗，請重試'); return; }
@@ -209,7 +209,7 @@ Object.assign(App, {
     }
 
     // Firebase 模式上傳 base64
-    if (image.startsWith('data:') && !ModeManager.isDemo()) {
+    if (image.startsWith('data:')) {
       this.showToast('圖片上傳中...');
       const url = await FirebaseService._uploadImage(image, `sponsors/${id}`);
       if (!url) { this.showToast('圖片上傳失敗，請重試'); return; }

@@ -27,7 +27,6 @@ Object.assign(App, {
 
   // ── 操作者名稱 ──
   _getExpOperatorLabel() {
-    if (ApiService._demoMode) return ROLES[this.currentRole]?.label || '管理員';
     const cur = ApiService.getCurrentUser();
     return cur?.displayName || ROLES[this.currentRole]?.label || '管理員';
   },

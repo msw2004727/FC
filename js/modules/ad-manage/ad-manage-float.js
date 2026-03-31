@@ -99,7 +99,7 @@ Object.assign(App, {
     }
     const previewImg = document.querySelector('#floatad-preview img');
     let image = previewImg ? previewImg.src : (ApiService.getFloatingAds().find(a => a.id === this._floatAdEditId)?.image || null);
-    if (image && image.startsWith('data:') && !ModeManager.isDemo()) {
+    if (image && image.startsWith('data:')) {
       this.showToast('圖片上傳中...');
       const url = await FirebaseService._uploadImage(image, `floatingAds/${this._floatAdEditId}`);
       if (!url) { this.showToast('圖片上傳失敗，請重試'); return; }

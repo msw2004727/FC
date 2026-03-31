@@ -225,6 +225,14 @@ Object.assign(App, {
       title: '成就 / 徽章管理',
       body: '允許進入成就與徽章管理功能，可建立、編輯成就條件、設定獎勵徽章與自動發放規則。',
     },
+    'admin.notif.entry': {
+      title: '推播通知設定',
+      body: '允許進入推播通知設定頁面，查看目前的分類與通知類型開關。這個入口本身不代表可修改設定，若要儲存仍需另外具備「修改推播開關」權限。',
+    },
+    'admin.notif.toggle': {
+      title: '修改推播開關',
+      body: '允許修改 LINE 推播通知的分類開關與指定模板開關。此權限只應影響 siteConfig/featureFlags 的 notificationToggles 欄位，不會擴及其他站台設定文件。',
+    },
     'admin.inactive.entry': {
       title: '無效資料查詢',
       body: '允許進入無效資料查詢功能，可查看已解散的俱樂部與長期未活動用戶的清單。',

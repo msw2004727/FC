@@ -91,20 +91,18 @@ Object.assign(App, {
       ...(extra || {}),
     };
     // Phase 4: 只寫 per-user inbox（透過 CF），不再寫 messages/ 集合
-    const source = ModeManager.isDemo() ? DemoData.messages : FirebaseService._cache.messages;
+    const source = FirebaseService._cache.messages;
     source.unshift(newMsg);
-    if (!ModeManager.isDemo()) {
-      FirebaseService._deliverToInboxCF?.(
-        newMsg, directTargetUid, targetTeamId, targetRoles, targetType
-      )?.catch(err => {
-        const index = source.indexOf(newMsg);
-        if (index !== -1) source.splice(index, 1);
-        this._releaseRecentInboxDeliveryKey(dedupeKey);
-        this.renderMessageList?.();
-        this.updateNotifBadge?.();
-        console.error('[deliverMsg:inbox]', err);
-      });
-    }
+    FirebaseService._deliverToInboxCF?.(
+      newMsg, directTargetUid, targetTeamId, targetRoles, targetType
+    )?.catch(err => {
+      const index = source.indexOf(newMsg);
+      if (index !== -1) source.splice(index, 1);
+      this._releaseRecentInboxDeliveryKey(dedupeKey);
+      this.renderMessageList?.();
+      this.updateNotifBadge?.();
+      console.error('[deliverMsg:inbox]', err);
+    });
     this.renderMessageList?.();
     this.updateNotifBadge?.();
     return newMsg;
@@ -181,7 +179,6 @@ Object.assign(App, {
   },
 
   _ensureNotifTemplatesBackfilled() {
-    if (ModeManager.isDemo()) return Promise.resolve();
     if (this._notifTemplateEnsurePromise) return this._notifTemplateEnsurePromise;
     const callable = firebase.app().functions('asia-east1').httpsCallable('ensureNotificationTemplates');
     this._notifTemplateEnsurePromise = callable({})
@@ -282,7 +279,7 @@ Object.assign(App, {
     if (!list) return;
 
     // 確保模板編輯器能顯示完整模板（舊資料會自動補齊缺漏 key）
-    if (!ModeManager.isDemo() && FirebaseService._seedNotifTemplates) {
+    if (FirebaseService._seedNotifTemplates) {
       try {
         await FirebaseService._seedNotifTemplates();
       } catch (err) {

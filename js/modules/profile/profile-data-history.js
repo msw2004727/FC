@@ -33,7 +33,7 @@ Object.assign(App, {
 
   _getMyLatestTeamApplications() {
     const user = ApiService.getCurrentUser();
-    const uid = user?.uid || user?.lineUserId || (ModeManager.isDemo() ? 'demo-user' : null);
+    const uid = user?.uid || user?.lineUserId || null;
     if (!uid) return [];
     const currentTeamIds = (typeof this._getUserTeamIds === 'function')
       ? this._getUserTeamIds(user)

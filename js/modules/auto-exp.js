@@ -49,7 +49,7 @@ Object.assign(App, {
 
   /** 從 Firestore 載入 Auto-EXP 規則（背景呼叫，不阻塞） */
   async _loadAutoExpRulesFromFirestore() {
-    if (ModeManager.isDemo() || typeof db === 'undefined') return;
+    if (typeof db === 'undefined') return;
     try {
       var doc = await db.collection('siteConfig').doc('autoExpRules').get();
       if (doc.exists) {
@@ -129,7 +129,7 @@ Object.assign(App, {
     // 同時寫入 Firestore + localStorage
     localStorage.setItem(this._autoExpKey(), JSON.stringify(data));
     this._autoExpFirestoreCache = data;
-    if (!ModeManager.isDemo() && typeof db !== 'undefined') {
+    if (typeof db !== 'undefined') {
       try {
         await db.collection('siteConfig').doc('autoExpRules').set(data, { merge: true });
       } catch (err) {
@@ -202,7 +202,7 @@ Object.assign(App, {
 
   async _loadBackfillLogs() {
     var container = document.getElementById('auto-exp-backfill-log-list');
-    if (!container || ModeManager.isDemo() || typeof db === 'undefined') return;
+    if (!container || typeof db === 'undefined') return;
     container.innerHTML = '<div style="font-size:.82rem;color:var(--text-muted);padding:.5rem 0">載入中…</div>';
     try {
       var snap = await db.collection('expLogs')
@@ -252,8 +252,8 @@ Object.assign(App, {
   async _renderAutoExpLogs() {
     var container = document.getElementById('auto-exp-log-list');
     if (!container) return;
-    if (ModeManager.isDemo() || typeof db === 'undefined') {
-      container.innerHTML = '<div style="font-size:.82rem;color:var(--text-muted);padding:.5rem 0">Demo 模式無操作紀錄</div>';
+    if (typeof db === 'undefined') {
+      container.innerHTML = '<div style="font-size:.82rem;color:var(--text-muted);padding:.5rem 0">無操作紀錄</div>';
       return;
     }
     container.innerHTML = '<div style="font-size:.82rem;color:var(--text-muted);padding:.5rem 0">載入中…</div>';

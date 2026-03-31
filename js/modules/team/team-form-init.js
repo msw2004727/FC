@@ -73,13 +73,11 @@ Object.assign(App, {
   },
 
   _getCurrentUserName() {
-    if (ModeManager.isDemo()) return DemoData.currentUser.displayName;
     const user = ApiService.getCurrentUser();
     return user ? user.displayName : '';
   },
 
   _getCurrentUserUid() {
-    if (ModeManager.isDemo()) return DemoData.currentUser.uid;
     const user = ApiService.getCurrentUser();
     return user ? user.uid : '';
   },

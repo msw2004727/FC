@@ -250,7 +250,7 @@
       const loginCard = document.getElementById('sg-login-required');
       const gameSection = document.getElementById('game-section');
       const loadingEl = document.getElementById('sg-main-loading');
-      if (!ModeManager.isDemo() && !currentUser) {
+      if (!currentUser) {
         if (loginCard) loginCard.style.display = 'none';
         if (gameSection) gameSection.style.display = 'none';
         if (loadingEl) loadingEl.style.display = 'none';

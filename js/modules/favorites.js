@@ -21,7 +21,7 @@ Object.assign(App, {
     const events = Array.isArray(favs.events) ? favs.events : [];
     const tournaments = Array.isArray(favs.tournaments) ? favs.tournaments : [];
 
-    if (!ModeManager.isDemo() && typeof FirebaseService !== 'undefined' && !FirebaseService._initialized) {
+    if (typeof FirebaseService !== 'undefined' && !FirebaseService._initialized) {
       return { events, tournaments };
     }
 
@@ -66,7 +66,7 @@ Object.assign(App, {
   _getFavoriteEventBadge(eventId, eventStatus) {
     const fallback = STATUS_CONFIG[eventStatus] || STATUS_CONFIG.open;
     const user = ApiService.getCurrentUser?.();
-    const uid = user?.uid || user?.lineUserId || (ModeManager.isDemo() ? 'demo-user' : null);
+    const uid = user?.uid || user?.lineUserId || null;
     if (!uid) return { css: fallback.css, label: fallback.label };
 
     const regs = (typeof ApiService._src === 'function' ? ApiService._src('registrations') : [])
@@ -244,7 +244,7 @@ Object.assign(App, {
   _processEventReminders() {
     const user = ApiService.getCurrentUser();
     if (!user) return;
-    const uid = user.uid || user.lineUserId || (ModeManager.isDemo() ? 'demo-user' : null);
+    const uid = user.uid || user.lineUserId || null;
     if (!uid) return;
 
     // 用 registrations（權威來源）判斷用戶是否仍有效報名

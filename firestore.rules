@@ -99,6 +99,55 @@ service cloud.firestore {
       return isSuperAdmin() || hasPerm('admin.repair.no_show_adjust');
     }
 
+    function notificationToggleAllowedKeys() {
+      return [
+        'category_activity',
+        'category_system',
+        'category_tournament',
+        'type_signup_success',
+        'type_cancel_signup',
+        'type_waitlist_demoted',
+        'type_event_relisted',
+        'type_role_upgrade',
+        'type_welcome'
+      ];
+    }
+
+    function isValidNotificationTogglesMap(mapData) {
+      return mapData is map
+        && mapData.keys().hasOnly(notificationToggleAllowedKeys())
+        && (!mapData.keys().hasAny(['category_activity']) || mapData.category_activity is bool)
+        && (!mapData.keys().hasAny(['category_system']) || mapData.category_system is bool)
+        && (!mapData.keys().hasAny(['category_tournament']) || mapData.category_tournament is bool)
+        && (!mapData.keys().hasAny(['type_signup_success']) || mapData.type_signup_success is bool)
+        && (!mapData.keys().hasAny(['type_cancel_signup']) || mapData.type_cancel_signup is bool)
+        && (!mapData.keys().hasAny(['type_waitlist_demoted']) || mapData.type_waitlist_demoted is bool)
+        && (!mapData.keys().hasAny(['type_event_relisted']) || mapData.type_event_relisted is bool)
+        && (!mapData.keys().hasAny(['type_role_upgrade']) || mapData.type_role_upgrade is bool)
+        && (!mapData.keys().hasAny(['type_welcome']) || mapData.type_welcome is bool);
+    }
+
+    function canCreateNotificationFeatureFlags(docId) {
+      return hasPerm('admin.notif.toggle')
+        && docId == 'featureFlags'
+        && request.resource.data.keys().hasOnly(['notificationToggles'])
+        && ('notificationToggles' in request.resource.data)
+        && isValidNotificationTogglesMap(request.resource.data.notificationToggles);
+    }
+
+    function canUpdateNotificationFeatureFlags(docId) {
+      return hasPerm('admin.notif.toggle')
+        && docId == 'featureFlags'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['notificationToggles'])
+        && ('notificationToggles' in request.resource.data)
+        && isValidNotificationTogglesMap(request.resource.data.notificationToggles);
+    }
+
+    function canManageAutoExpSiteConfig(docId) {
+      return hasPerm('admin.auto_exp.entry')
+        && docId == 'autoExpRules';
+    }
+
     function isCoachPlus() {
       return request.auth != null
         && authRole() in ['coach', 'captain', 'venue_owner', 'admin', 'super_admin'];
@@ -950,12 +999,17 @@ service cloud.firestore {
       allow delete: if false;
     }
     // ═══════════════════════════════════════════
-    //  Site Config（站台設定，含 Auto-EXP 規則）
-    //  登入可讀；admin 或持有 admin.auto_exp.entry 可寫
+    //  Site Config（站台設定，含 Auto-EXP / 推播開關）
+    //  登入可讀；admin、受限的 admin.auto_exp.entry 或 admin.notif.toggle 可寫
     // ═══════════════════════════════════════════
     match /siteConfig/{docId} {
       allow read: if isAuth();
-      allow create, update: if isAdmin() || hasPerm('admin.auto_exp.entry');
+      allow create: if isAdmin()
+        || canManageAutoExpSiteConfig(docId)
+        || canCreateNotificationFeatureFlags(docId);
+      allow update: if isAdmin()
+        || canManageAutoExpSiteConfig(docId)
+        || canUpdateNotificationFeatureFlags(docId);
       allow delete: if false;
     }
 

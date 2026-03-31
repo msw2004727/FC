@@ -342,16 +342,6 @@ const LineAuth = {
   },
 
   login() {
-    if (ModeManager.isDemo()) {
-      App.showToast('DEMO 模式無需 LINE 登入');
-      return;
-    }
-    if (this.isLocalhost()) {
-      ModeManager.setMode('demo');
-      App.showToast('本機環境切換為 Demo 模式');
-      location.reload();
-      return;
-    }
     if (!this._ready) {
       App.showToast('LINE 登入服務尚未準備完成');
       return;

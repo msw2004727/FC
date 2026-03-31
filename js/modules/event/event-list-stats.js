@@ -270,7 +270,7 @@ Object.assign(App, {
     const uid = user.uid || '';
     const name = user.displayName || user.name || '';
 
-    // 優先查 registrations（demo + production 通用）
+    // 優先查 registrations
     const regs = ApiService.getRegistrationsByEvent?.(e.id) || [];
     if (regs.some(r => r.userId === uid && r.status !== 'cancelled' && r.status !== 'removed')) return true;
 
@@ -287,7 +287,7 @@ Object.assign(App, {
     const uid = user.uid || '';
     const name = user.displayName || user.name || '';
 
-    // 優先查 registrations（demo + production 通用）
+    // 優先查 registrations
     const regs = ApiService.getRegistrationsByEvent?.(e.id) || [];
     if (regs.some(r => r.userId === uid && r.status === 'waitlisted')) return true;
 

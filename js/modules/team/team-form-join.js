@@ -19,23 +19,15 @@ Object.assign(App, {
 
   handleJoinTeam(teamId) {
     // 1. Already in this team -> no need to re-apply.
-    if (ModeManager.isDemo()) {
-      if (this._userTeam === teamId) {
-        const sameTeam = ApiService.getTeam(teamId);
-        this.showToast(`您已是「${sameTeam ? sameTeam.name : '俱樂部'}」隊員，無需重複申請`);
-        return;
-      }
-    } else {
-      const user = ApiService.getCurrentUser();
-      const alreadyInTeam = user && (
-        (typeof this._isUserInTeam === 'function' ? this._isUserInTeam(user, teamId) : false) ||
-        user.teamId === teamId
-      );
-      if (alreadyInTeam) {
-        const sameTeam = ApiService.getTeam(teamId);
-        this.showToast(`您已是「${sameTeam ? sameTeam.name : '俱樂部'}」隊員，無需重複申請`);
-        return;
-      }
+    const user = ApiService.getCurrentUser();
+    const alreadyInTeam = user && (
+      (typeof this._isUserInTeam === 'function' ? this._isUserInTeam(user, teamId) : false) ||
+      user.teamId === teamId
+    );
+    if (alreadyInTeam) {
+      const sameTeam = ApiService.getTeam(teamId);
+      this.showToast(`您已是「${sameTeam ? sameTeam.name : '俱樂部'}」隊員，無需重複申請`);
+      return;
     }
 
     // 2. Get target team
@@ -50,8 +42,8 @@ Object.assign(App, {
 
     // 3. Get current user info
     const curUser = ApiService.getCurrentUser();
-    const applicantUid = curUser?.uid || (ModeManager.isDemo() ? DemoData.currentUser.uid : null);
-    const applicantName = curUser?.displayName || (ModeManager.isDemo() ? DemoData.currentUser.displayName : '未知');
+    const applicantUid = curUser?.uid || null;
+    const applicantName = curUser?.displayName || '未知';
     if (!applicantUid) { this.showToast('請先登入'); return; }
 
     // Extra safety: avoid duplicate requests from members already in this team.
@@ -178,8 +170,8 @@ Object.assign(App, {
     if (!(await this.appConfirm(`確定要退出「${t.name}」俱樂部？此操作無法自行撤回。`))) return;
 
     const curUser = ApiService.getCurrentUser();
-    const userName = curUser?.displayName || (ModeManager.isDemo() ? DemoData.currentUser.displayName : '');
-    const uid = curUser?.uid || (ModeManager.isDemo() ? DemoData.currentUser.uid : null);
+    const userName = curUser?.displayName || '';
+    const uid = curUser?.uid || null;
 
     // 經理不能退出（優先用 UID 比對，fallback 用 name）
     if ((t.captainUid && t.captainUid === uid) || (!t.captainUid && t.captain && (t.captain === userName || t.captain === curUser?.name))) {
@@ -203,9 +195,7 @@ Object.assign(App, {
     }
 
     // 清除用戶俱樂部資料
-    const baseUser = ModeManager.isDemo()
-      ? (DemoData.currentUser || null)
-      : (ApiService.getCurrentUser() || null);
+    const baseUser = ApiService.getCurrentUser() || null;
     const teamIds = (typeof this._getUserTeamIds === 'function')
       ? this._getUserTeamIds(baseUser)
       : (() => {
@@ -230,18 +220,13 @@ Object.assign(App, {
       ? { teamId: nextTeamIds[0], teamName: nextTeamNames[0] || '', teamIds: nextTeamIds, teamNames: nextTeamNames }
       : { teamId: null, teamName: null, teamIds: [], teamNames: [] };
 
-    if (ModeManager.isDemo()) {
-      Object.assign(DemoData.currentUser, userTeamUpdates);
-      this._userTeam = userTeamUpdates.teamId || null;
-    } else {
-      ApiService.updateCurrentUser(userTeamUpdates);
-    }
+    ApiService.updateCurrentUser(userTeamUpdates);
     // 同步 adminUsers
     const users = ApiService.getAdminUsers();
     const adminUser = users.find(u => u.uid === uid);
     if (adminUser) {
       Object.assign(adminUser, userTeamUpdates);
-      if (!ModeManager.isDemo() && adminUser._docId) {
+      if (adminUser._docId) {
         FirebaseService.updateUser(adminUser._docId, userTeamUpdates).catch(err => { console.error('[leaveTeam]', err); ApiService._writeErrorLog({ fn: 'handleLeaveTeam', teamId }, err); });
       }
     }
@@ -267,15 +252,11 @@ Object.assign(App, {
   },
 
   goMyTeam() {
-    let teamId = this._userTeam;
-    if (!ModeManager.isDemo()) {
-      const user = ApiService.getCurrentUser();
-      if (user) {
-        const teamIds = (typeof this._getUserTeamIds === 'function') ? this._getUserTeamIds(user) : (user.teamId ? [user.teamId] : []);
-        teamId = teamIds[0] || null;
-      } else {
-        teamId = null;
-      }
+    let teamId = null;
+    const user = ApiService.getCurrentUser();
+    if (user) {
+      const teamIds = (typeof this._getUserTeamIds === 'function') ? this._getUserTeamIds(user) : (user.teamId ? [user.teamId] : []);
+      teamId = teamIds[0] || null;
     }
     if (teamId) {
       this.showTeamDetail(teamId);

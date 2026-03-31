@@ -10,6 +10,27 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-31 — [永久] Demo 死代碼全面移除（方案 C）
+- **問題**：ModeManager.isDemo() 早已改為 stub（永遠回傳 false），但 247 處死代碼殘留在 61 個 JS 檔案中，導致每次新功能設計都被 AI 考量 Demo 分支，增加不必要的複雜度（推播計畫書 v1.0-v1.3 就是活例子）
+- **原因**：過去被告知「移除有風險」，但三方審計確認所有 Demo 分支都是確定的死代碼（isDemo 永遠 false），移除不改變任何運行時行為
+- **修復**：
+  - 移除 ModeManager.isDemo()，僅保留 getMode()（11 處 localStorage key 仍使用）
+  - 清理 api-service.js（85+ 處，減少 231 行）、navigation.js（15 處）、firebase-service.js（10 處）、app.js（5 處）+ 55 個模組檔案
+  - 清理 CSS（demo-role-menu、mode-badge）、移除 role.js 的 Demo UI 函式
+  - 移除 `demo-user` 硬編碼 fallback UID
+- **驗收**：三方 AI 審核（架構師 × QA × 安全工程師）全票通過。36 套件 1860 測試全綠。JS 目錄 isDemo/DemoData/_demoMode 零殘留
+- **教訓**：
+  - 死代碼的「風險」來自操作失誤（手滑刪錯 else 分支），不是邏輯風險。分批處理 + 語法檢查可有效控制
+  - `if (!isDemo()) { prod }` 和 `if (isDemo()) { demo } else { prod }` 是兩種不同的刪除模式，不能混用同一種刪法
+  - 殘留的 `demo`/`Demo` 字串多為業務邏輯（waitlist_demoted = 候補降級、demotionInfo = 角色降級），不是 Demo 模式代碼
+- **殘留**：JS 0 處 Demo 模式代碼。tests/ 中有 isDemo 測試參數（純函式輸入，不影響生產）。CLAUDE.md 和 docs/ 的歷史描述文字待後續更新
+
+### 2026-03-31 — 後台推播通知開關完成最小權限落地
+- **問題**：需要新增後台推播通知開關頁，讓具備指定權限的管理者可以控制部分通知類型，但不能放大到整個站台設定寫入權限，也不能破壞既有推播流程。
+- **原因**：通知設定牽涉 `siteConfig` 集合、前端權限選單、推播佇列守衛與 Firestore Rules，若直接疊加在既有管理邏輯上，容易造成權限過寬或設定未生效。
+- **修復**：新增 `pages/admin-notif.html` 與 `js/modules/message/notif-settings.js`，將通知設定固定寫入 `siteConfig/featureFlags.notificationToggles`；在 `message-line-push.js` 入口套用分類與類型守衛，並保留候補遞補、活動取消、活動異動與主動廣播為強制送出；同步補上 `admin.notif.entry`、`admin.notif.toggle` 權限映射、Firestore Rules create/update 限縮與單元測試 / 規則測試。
+- **教訓**：這類「可調設定」功能若共用既有設定集合，必須先把文件目標、schema、create/update 規則與測試一次收斂好，再接 UI，否則最容易出現權限放大或表面可存但實際未套用的問題。
+
 ### 2026-03-31 — 角色頁身分代表圖回退為原始版本
 - **問題**：上一版將 `roles/index.html` 的三個身分代表圖改為新 SVG 後，不符合本次想保留的原本視覺。
 - **原因**：圖示重繪方向雖然更強調語意，但和頁面原始風格不一致，因此需要回退。

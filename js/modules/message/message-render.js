@@ -98,7 +98,7 @@ Object.assign(App, {
       // Phase 3: 更新 per-user inbox 的 read 狀態
       msg.read = true;
       msg.unread = false;
-      if (!ModeManager.isDemo() && msg._docId && myUid) {
+      if (msg._docId && myUid) {
         db.collection('users').doc(myUid).collection('inbox').doc(msg._docId).update({
           read: true,
           readAt: firebase.firestore.FieldValue.serverTimestamp(),

@@ -141,7 +141,7 @@ Object.assign(App, {
     if (!(await this.appConfirm('確定要回收此信件？收件人信箱中的信件將被移除。'))) return;
     const adminMsg = ApiService.getAdminMessages().find(m => m.id === id);
     ApiService.updateAdminMessage(id, { status: 'recalled' });
-    const source = ModeManager.isDemo() ? DemoData.messages : FirebaseService._cache.messages;
+    const source = FirebaseService._cache.messages;
     const toRemove = [];
     for (let i = source.length - 1; i >= 0; i--) {
       const m = source[i];
@@ -152,21 +152,19 @@ Object.assign(App, {
         source.splice(i, 1);
       }
     }
-    if (!ModeManager.isDemo()) {
-      const myUid = ApiService.getCurrentUser()?.uid;
-      toRemove.forEach(m => {
-        if (m._docId) {
-          // Phase 3: 刪除自己 inbox 裡的副本
-          if (myUid) {
-            db.collection('users').doc(myUid).collection('inbox').doc(m._docId).delete()
-              .catch(err => console.warn('[recallMsg] inbox delete:', err.message));
-          }
-          // 向後相容：也嘗試從舊 messages/ 刪除
-          db.collection('messages').doc(m._docId).delete()
-            .catch(() => {}); // 靜默失敗（可能已不存在）
+    const myUid = ApiService.getCurrentUser()?.uid;
+    toRemove.forEach(m => {
+      if (m._docId) {
+        // Phase 3: 刪除自己 inbox 裡的副本
+        if (myUid) {
+          db.collection('users').doc(myUid).collection('inbox').doc(m._docId).delete()
+            .catch(err => console.warn('[recallMsg] inbox delete:', err.message));
         }
-      });
-    }
+        // 向後相容：也嘗試從舊 messages/ 刪除
+        db.collection('messages').doc(m._docId).delete()
+          .catch(() => {}); // 靜默失敗（可能已不存在）
+      }
+    });
     this.renderMessageList();
     this.updateNotifBadge();
     this.renderMsgManage('sent');

@@ -54,7 +54,6 @@ Object.assign(App, {
   },
 
   async _ensureActivityRecordsReady({ required = false } = {}) {
-    if (ModeManager.isDemo()) return true;
     if (typeof FirebaseService === 'undefined' || typeof FirebaseService.ensureStaticCollectionsLoaded !== 'function') {
       return true;
     }

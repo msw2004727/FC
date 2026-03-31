@@ -5,7 +5,7 @@
 Object.assign(App, {
 
   async bindLineLogin() {
-    if (!ModeManager.isDemo() && typeof LineAuth !== 'undefined') {
+    if (typeof LineAuth !== 'undefined') {
       // LIFF SDK 尚未載入（CDN 背景載入中）→ 跳過，等背景載入完成後再呼叫
       if (typeof liff === 'undefined') {
         console.log('[App] bindLineLogin: LIFF SDK 尚未載入，稍後再試');
@@ -24,8 +24,7 @@ Object.assign(App, {
 
       console.log('[App] bindLineLogin: LIFF ready=', LineAuth._ready,
         'loggedIn=', LineAuth.isLoggedIn(),
-        'initError=', LineAuth._initError?.message || 'none',
-        'isDemo=', ModeManager.isDemo());
+        'initError=', LineAuth._initError?.message || 'none');
 
       // 如果 LIFF 初始化有錯誤且用戶尚未登入，顯示提示
       if (LineAuth._initError && !LineAuth.isLoggedIn()) {

@@ -84,11 +84,7 @@ Object.assign(App, {
     input.disabled = true;
     try {
       e.isPublic = nextVal;
-      if (ModeManager.isDemo()) {
-        // demo: local cache update only
-      } else {
-        await FirebaseService.updateEvent(e.id, { isPublic: nextVal });
-      }
+      await FirebaseService.updateEvent(e.id, { isPublic: nextVal });
       this.showToast(nextVal ? '已開啟活動公開' : '已關閉活動公開');
       this.showEventDetail(e.id);
       this.renderActivityList?.();
@@ -298,7 +294,7 @@ Object.assign(App, {
     const isUpcoming = e.status === 'upcoming';
     const isMainFull = confirmedCount >= e.max;
     // Fix A+1：首次 snapshot 到達前視為「載入中」；9 秒（3 次重試）後強制解除
-    const regsLoading = !isGuestView && !ModeManager.isDemo()
+    const regsLoading = !isGuestView
       && !FirebaseService._registrationsFirstSnapshotReceived
       && this._regsLoadingRetryCount < 3;
     // 載入中按鈕保護：3 秒後自動重繪，最多重試 3 次（9 秒兜底）
@@ -683,7 +679,7 @@ Object.assign(App, {
     if (btn) { btn.disabled = true; btn.classList.add('spinning'); }
     try {
       // 從 Firestore 直接讀取最新 event 資料
-      if (!ModeManager.isDemo() && typeof db !== 'undefined') {
+      if (typeof db !== 'undefined') {
         const docId = (ApiService.getEvent(id) || {})?._docId;
         if (docId) {
           const doc = await db.collection('events').doc(docId).get();
@@ -737,7 +733,7 @@ Object.assign(App, {
     body.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:1.5rem;font-size:.82rem">\u8f09\u5165\u4e2d\u2026</div>';
 
     var allRegs;
-    if (!ModeManager.isDemo() && typeof db !== 'undefined') {
+    if (typeof db !== 'undefined') {
       try {
         var snap = await db.collection('registrations').where('eventId', '==', eventId).get();
         allRegs = [];

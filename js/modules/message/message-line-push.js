@@ -5,6 +5,33 @@
 
 Object.assign(App, {
 
+  _LINE_PUSH_FORCED_ON_SOURCES: [
+    'template:waitlist_promoted',
+    'template:event_cancelled',
+    'template:event_changed',
+  ],
+
+  _isForcedLinePushSource(source) {
+    const safeSource = String(source || '').trim();
+    return this._LINE_PUSH_FORCED_ON_SOURCES.some(prefix => safeSource.startsWith(prefix))
+      || safeSource.startsWith('target:');
+  },
+
+  _shouldSkipLinePushByToggles(category, source, toggles) {
+    if (this._isForcedLinePushSource(source)) return false;
+
+    const safeToggles = toggles || {};
+    const categoryKey = 'category_' + this._linePushCategoryKey(category);
+    if (safeToggles[categoryKey] === false) return true;
+
+    if (String(source || '').startsWith('template:')) {
+      const typeKey = 'type_' + String(source || '').slice('template:'.length);
+      if (safeToggles[typeKey] === false) return true;
+    }
+
+    return false;
+  },
+
   _queueLinePushByTarget(targetType, targetUid, category, title, body, teamId, options = {}) {
     const baseOptions = { ...options, source: options.source || `target:${targetType}` };
     if (targetType === 'individual') {
@@ -90,29 +117,50 @@ Object.assign(App, {
       });
   },
 
+  _dispatchLinePush(uid, category, title, body, options = {}) {
+    if (this._canCurrentUserUsePrivilegedLineQueue()) {
+      this._enqueuePrivilegedLinePush(uid, category, title, body, options)
+        .catch(err => console.error('[LINE Push] callable enqueue failed:', err));
+      return;
+    }
+
+    db.collection('linePushQueue').add({
+      uid,
+      title,
+      body,
+      category,
+      status: 'pending',
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    }).catch(err => console.error('[LINE Push] 寫入失敗:', err));
+  },
+
   _queueLinePush(uid, category, title, body, options = {}) {
     if (!uid || !category || !title || !body) return;
-    // 查找目標用戶的 lineNotify 設定
+    const source = String(options?.source || '').trim();
+    const hasCachedFeatureFlags = !!FirebaseService.getCachedDoc?.('siteConfig', 'featureFlags');
+    const shouldPreloadToggles = !this._isForcedLinePushSource(source)
+      && !hasCachedFeatureFlags
+      && typeof FirebaseService.ensureSingleDocLoaded === 'function'
+      && typeof db !== 'undefined';
 
-    if (ModeManager.isDemo()) {
-      console.log('[LINE Push]', { uid, category, title, body });
-      this.showToast('LINE 推播已排入佇列（Demo）');
-    } else {
-      if (this._canCurrentUserUsePrivilegedLineQueue()) {
-        this._enqueuePrivilegedLinePush(uid, category, title, body, options)
-          .catch(err => console.error('[LINE Push] callable enqueue failed:', err));
-        return;
-      }
+    const finalizeQueue = () => {
+      const toggles = FirebaseService.getNotificationToggles?.() || {};
+      if (this._shouldSkipLinePushByToggles(category, source, toggles)) return;
+      this._dispatchLinePush(uid, category, title, body, options);
+    };
 
-      db.collection('linePushQueue').add({
-        uid,
-        title,
-        body,
-        category,
-        status: 'pending',
-        createdAt: firebase.firestore.FieldValue.serverTimestamp()
-      }).catch(err => console.error('[LINE Push] 寫入失敗:', err));
+    if (shouldPreloadToggles) {
+      FirebaseService.ensureSingleDocLoaded('siteConfig', 'featureFlags')
+        .catch(err => {
+          console.warn('[LINE Push] featureFlags preload failed:', err);
+        })
+        .finally(() => {
+          finalizeQueue();
+        });
+      return;
     }
+
+    finalizeQueue();
   },
 
 });

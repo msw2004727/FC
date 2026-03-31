@@ -73,8 +73,6 @@ Object.assign(App, {
     // 取得最近 7 天的 usageMetrics
     let docs = [];
     try {
-      // Demo 模式或 db 未就緒時跳過
-      if (typeof ApiService !== 'undefined' && ApiService._demoMode) return;
       if (typeof db === 'undefined') return;
       const snap = await db.collection('usageMetrics')
         .orderBy('dateKey', 'desc')

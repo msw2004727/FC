@@ -18,7 +18,7 @@ Object.assign(App, {
 
   _startEduStudentsListener(teamId) {
     this._stopEduStudentsListener();
-    if (!teamId || ModeManager.isDemo()) return;
+    if (!teamId) return;
     try {
       const ref = firebase.firestore()
         .collection('teams').doc(teamId).collection('students');
@@ -68,7 +68,6 @@ Object.assign(App, {
 
   _startEduTeamsListener() {
     this._stopEduTeamsListener();
-    if (ModeManager.isDemo()) return;
     try {
       this._eduTeamsUnsub = firebase.firestore()
         .collection('teams')

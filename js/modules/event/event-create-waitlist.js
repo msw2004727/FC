@@ -59,7 +59,7 @@ Object.assign(App, {
 
     const useCF = typeof shouldUseServerRegistration === 'function' && shouldUseServerRegistration();
 
-    if (useCF && !ModeManager.isDemo() && newMax !== oldMax) {
+    if (useCF && newMax !== oldMax) {
       // ═══ CF 路徑：容量變更的遞補/降級由 cancelRegistration(reason='capacity_change') 處理 ═══
       // 容量變更不需要取消任何報名，只需要調整候補狀態
       // CF cancelRegistration 的 capacity_change 模式會在 transaction 內重建 occupancy
@@ -69,7 +69,7 @@ Object.assign(App, {
     }
 
     // ═══ 原有路徑（包含 CF 模式下的容量變更）═══
-    if (!ModeManager.isDemo() && typeof db !== 'undefined') {
+    if (typeof db !== 'undefined') {
       try {
         const snap = await db.collection('registrations')
           .where('eventId', '==', eventId)
@@ -108,7 +108,7 @@ Object.assign(App, {
       let slotsAvailable = newMax - confirmedCount;
       if (slotsAvailable <= 0) return;
 
-      const batch = (!ModeManager.isDemo() && typeof db !== 'undefined') ? db.batch() : null;
+      const batch = (typeof db !== 'undefined') ? db.batch() : null;
       const promotedList = [];
 
       while (slotsAvailable > 0) {
@@ -167,7 +167,7 @@ Object.assign(App, {
       const excess = confirmedRegs.length - newMax;
       if (excess <= 0) return;
 
-      const batch = (!ModeManager.isDemo() && typeof db !== 'undefined') ? db.batch() : null;
+      const batch = (typeof db !== 'undefined') ? db.batch() : null;
       let demoted = 0;
 
       for (const reg of confirmedRegs) {

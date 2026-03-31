@@ -87,7 +87,7 @@ Object.assign(App, {
       return true;
     };
 
-    if (ModeManager.isDemo() || !msg._docId) {
+    if (!msg._docId) {
       return markLocalProcessing();
     }
 
@@ -113,7 +113,7 @@ Object.assign(App, {
 
   async _markScheduledMessageSent(msg) {
     if (!msg) return;
-    if (!ModeManager.isDemo() && msg._docId) {
+    if (msg._docId) {
       const fv = firebase.firestore.FieldValue;
       await db.collection('adminMessages').doc(msg._docId).update({
         status: 'sent',
@@ -136,7 +136,7 @@ Object.assign(App, {
     if (!msg) return;
     const errorText = err?.message ? String(err.message).slice(0, 300) : 'schedule_send_failed';
     let writeErr = null;
-    if (!ModeManager.isDemo() && msg._docId) {
+    if (msg._docId) {
       const fv = firebase.firestore.FieldValue;
       try {
         await db.collection('adminMessages').doc(msg._docId).update({

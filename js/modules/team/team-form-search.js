@@ -157,8 +157,6 @@ Object.assign(App, {
       this.showToast('刪除俱樂部失敗，請稍後再試');
       return;
     }
-    // Demo 模式：同步清除 _userTeam
-    if (ModeManager.isDemo() && this._userTeam === id) this._userTeam = null;
     ApiService._writeOpLog('team_delete', '刪除俱樂部', `刪除「${tName}」`);
 
     // 刪隊後逐一重新計算角色

@@ -138,7 +138,7 @@ Object.assign(App, {
 
       if (!dryRun) {
         FirebaseService._applyRebuildOccupancy(event, occupancy);
-        if (!ModeManager.isDemo() && event._docId) {
+        if (event._docId) {
           try {
             await db.collection('events').doc(event._docId).update({
               current: occupancy.current,

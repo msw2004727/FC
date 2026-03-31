@@ -198,7 +198,7 @@ Object.assign(App, {
     const source = ApiService._src('activityRecords');
     for (let i = source.length - 1; i >= 0; i--) {
       if (source[i].eventId === eventId && source[i].status === 'cancelled') {
-        if (!ModeManager.isDemo() && source[i]._docId) {
+        if (source[i]._docId) {
           db.collection('activityRecords').doc(source[i]._docId).delete()
             .catch(err => console.error('[cleanupCancelledRecords]', err));
         }
@@ -216,7 +216,7 @@ Object.assign(App, {
 
     const useCF = typeof shouldUseServerRegistration === 'function' && shouldUseServerRegistration();
 
-    if (useCF && !ModeManager.isDemo()) {
+    if (useCF) {
       // ═══ CF 路徑：呼叫 cancelRegistration（reason='manager_remove'）═══
       try {
         // 找到對應的 registration ID
@@ -271,7 +271,7 @@ Object.assign(App, {
       if (!isCompanion && !await this._ensureActivityRecordsReady({ required: true })) return;
 
       const allRegs = ApiService._src('registrations');
-      const batch = (!ModeManager.isDemo() && typeof db !== 'undefined') ? db.batch() : null;
+      const batch = (typeof db !== 'undefined') ? db.batch() : null;
 
       let reg;
       if (isCompanion) {

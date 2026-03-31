@@ -151,7 +151,6 @@ Object.assign(App, {
   /** 讀取 Firestore 設定 */
   async _loadBootBrandConfig() {
     try {
-      if (ModeManager.isDemo()) return {};
       const db = firebase.firestore();
       const doc = await db.collection('siteConfig').doc('bootBrand').get();
       return doc.exists ? doc.data() : {};
@@ -182,7 +181,7 @@ Object.assign(App, {
 
     // 檢查是否有新上傳圖片（base64）
     const uploadImg = uploadArea ? uploadArea.querySelector('img') : null;
-    if (uploadImg && uploadImg.src && uploadImg.src.startsWith('data:') && !ModeManager.isDemo()) {
+    if (uploadImg && uploadImg.src && uploadImg.src.startsWith('data:')) {
       const url = await FirebaseService._uploadImage(uploadImg.src, 'boot-brand/logo');
       if (!url) {
         this.showToast('圖片上傳失敗，請重試'); return;
@@ -200,10 +199,8 @@ Object.assign(App, {
     };
 
     try {
-      if (!ModeManager.isDemo()) {
-        const db = firebase.firestore();
-        await db.collection('siteConfig').doc('bootBrand').set(config, { merge: true });
-      }
+      const db = firebase.firestore();
+      await db.collection('siteConfig').doc('bootBrand').set(config, { merge: true });
 
       // 寫入 localStorage（開機時讀取）
       localStorage.setItem('_bootBrand', JSON.stringify(config));
@@ -219,7 +216,6 @@ Object.assign(App, {
   /** 背景同步：App 啟動後從 Firestore 更新 localStorage 快取 */
   async _syncBootBrandToLocal() {
     try {
-      if (ModeManager.isDemo()) return;
       const config = await this._loadBootBrandConfig();
       if (config && config.imageUrl) {
         localStorage.setItem('_bootBrand', JSON.stringify(config));

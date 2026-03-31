@@ -16,14 +16,14 @@ Object.assign(App, {
 
     // 1. Permission check: current user must be team staff (captain/leader/coach) or admin
     let team = ApiService.getTeam(teamId);
-    if (!team && !ModeManager.isDemo()) {
+    if (!team) {
       // teams 可能尚未載入（訊息頁不觸發 teams 集合載入）
       try { await FirebaseService.ensureCollectionsForPage('page-teams', { skipRealtimeStart: true }); } catch (_) {}
       team = ApiService.getTeam(teamId);
     }
     if (!team) { this.showToast('找不到此俱樂部'); return; }
     const curUser = ApiService.getCurrentUser();
-    const curUid = curUser?.uid || (ModeManager.isDemo() ? DemoData.currentUser?.uid : null);
+    const curUid = curUser?.uid || null;
     const myNames = new Set([curUser?.name, curUser?.displayName].filter(Boolean));
     const teamLeaderUids = team.leaderUids || (team.leaderUid ? [team.leaderUid] : []);
     const isTeamStaff =
@@ -56,7 +56,7 @@ Object.assign(App, {
       }
     }
 
-    const reviewerName = curUser?.displayName || (ModeManager.isDemo() ? DemoData.currentUser?.displayName : '審核人');
+    const reviewerName = curUser?.displayName || '審核人';
 
     if (action === 'approve') {
       const users = ApiService.getAdminUsers();
@@ -95,7 +95,7 @@ Object.assign(App, {
         membership.ids.push(targetTeamId);
         membership.names.push(targetTeamName || targetTeamId);
       }
-      if (!ModeManager.isDemo() && applicant._docId) {
+      if (applicant._docId) {
         try {
           const authed = await FirebaseService._ensureAuth();
           if (!authed) {

@@ -12,7 +12,7 @@ Object.assign(App, {
     const existing = ApiService.getShotGameAd();
     if (existing) return existing;
 
-    // Use ApiService source first so demo/production read paths stay consistent.
+    // Use ApiService source first for consistent read paths.
     let source = null;
     if (typeof ApiService !== 'undefined' && typeof ApiService._src === 'function') {
       source = ApiService._src('banners');
@@ -40,7 +40,6 @@ Object.assign(App, {
   },
 
   async _ensureShotGameAdSlot() {
-    if (ModeManager.isDemo()) return;
     if (this._sgAdEnsuringSlot) return;
     if (typeof FirebaseService === 'undefined' || typeof FirebaseService._ensureSga1Slot !== 'function') return;
     this._sgAdEnsuringSlot = true;
@@ -70,7 +69,7 @@ Object.assign(App, {
       });
       return;
     }
-    if (!ModeManager.isDemo()) this._ensureShotGameAdSlot();
+    this._ensureShotGameAdSlot();
 
     const isEmpty = b.status === 'empty';
     const isActive = b.status === 'active';
@@ -170,7 +169,7 @@ Object.assign(App, {
     }
     const previewImg = document.querySelector('#sgad-preview img');
     let image = previewImg ? previewImg.src : (ApiService.getShotGameAd()?.image || null);
-    if (image && image.startsWith('data:') && !ModeManager.isDemo()) {
+    if (image && image.startsWith('data:')) {
       this.showToast('圖片上傳中...');
       const url = await FirebaseService._uploadImage(image, `banners/${this._sgAdEditId}`);
       if (!url) { this.showToast('圖片上傳失敗，請重試'); return; }

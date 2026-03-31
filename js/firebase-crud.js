@@ -1309,7 +1309,7 @@ Object.assign(FirebaseService, {
 
           if (this._onUserChanged) {
             this._onUserChanged();
-          } else if (typeof App !== 'undefined' && !ModeManager.isDemo()) {
+          } else if (typeof App !== 'undefined') {
             try {
               if (roleChanged && typeof App.applyRole === 'function') {
                 App.applyRole(next.role || 'user', true);

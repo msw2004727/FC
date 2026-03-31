@@ -85,6 +85,7 @@ const DRAWER_MENUS = [
   { icon: '', label: '\u4f48\u666f\u4e3b\u984c', page: 'page-admin-themes', minRole: 'super_admin', permissionCode: 'admin.themes.entry' },
   { icon: '', label: '\u624b\u52d5 EXP \u7ba1\u7406', page: 'page-admin-exp', minRole: 'super_admin', permissionCode: 'admin.exp.entry' },
   { icon: '', label: '\u81ea\u52d5 EXP \u7ba1\u7406', page: 'page-admin-auto-exp', minRole: 'super_admin', permissionCode: 'admin.auto_exp.entry' },
+  { icon: '', label: '\u63a8\u64ad\u901a\u77e5\u8a2d\u5b9a', page: 'page-admin-notif', minRole: 'super_admin', permissionCode: 'admin.notif.entry' },
   { icon: '', label: '\u7cfb\u7d71\u516c\u544a\u7ba1\u7406', page: 'page-admin-announcements', minRole: 'super_admin', permissionCode: 'admin.announcements.entry' },
   { icon: '', label: '\u6210\u5c31/\u5fbd\u7ae0\u7ba1\u7406', page: 'page-admin-achievements', minRole: 'super_admin', permissionCode: 'admin.achievements.entry' },
   { icon: '', label: '\u6b0a\u9650\u7ba1\u7406', page: 'page-admin-roles', minRole: 'super_admin' },
@@ -115,6 +116,9 @@ const ADMIN_PAGE_EXTRA_PERMISSION_ITEMS = {
     { code: 'admin.logs.error_read', name: 'Error Log Read' },
     { code: 'admin.logs.error_delete', name: 'Error Log Delete' },
     { code: 'admin.logs.audit_read', name: 'Audit Log Read' },
+  ],
+  'page-admin-notif': [
+    { code: 'admin.notif.toggle', name: 'Toggle Notifications' },
   ],
 };
 
@@ -319,6 +323,10 @@ function getDefaultRolePermissions(roleKey) {
 
   if (roleLevel >= getRuntimeRoleLevel('admin')) {
     defaults.push('team.create', 'team.manage_all', 'event.edit_all');
+  }
+
+  if (roleLevel >= getRuntimeRoleLevel('super_admin')) {
+    defaults.push('admin.notif.toggle');
   }
 
   return Array.from(new Set(defaults));
@@ -653,6 +661,7 @@ describe('Permission System', () => {
       expect(codes).toContain('activity.manage.entry');
       expect(codes).toContain('admin.users.entry');
       expect(codes).toContain('admin.dashboard.entry');
+      expect(codes).toContain('admin.notif.entry');
     });
 
     test('does not include disabled permission codes', () => {
@@ -674,6 +683,7 @@ describe('Permission System', () => {
       expect(getAdminPagePermissionCode('page-admin-users')).toBe('admin.users.entry');
       expect(getAdminPagePermissionCode('page-admin-dashboard')).toBe('admin.dashboard.entry');
       expect(getAdminPagePermissionCode('page-my-activities')).toBe('activity.manage.entry');
+      expect(getAdminPagePermissionCode('page-admin-notif')).toBe('admin.notif.entry');
     });
 
     test('returns empty string for page without permission', () => {
@@ -711,6 +721,15 @@ describe('Permission System', () => {
       expect(codes).toContain('admin.users.entry');
       expect(codes).toContain('admin.users.edit_profile');
       expect(codes).toContain('admin.users.change_role');
+    });
+
+    test('includes notification toggle sub-permission under notification page', () => {
+      const catalog = getMergedPermissionCatalog();
+      const notifCat = catalog.find(c => c.items.some(i => i.code === 'admin.notif.entry'));
+      expect(notifCat).toBeDefined();
+      const codes = notifCat.items.map(i => i.code);
+      expect(codes).toContain('admin.notif.entry');
+      expect(codes).toContain('admin.notif.toggle');
     });
 
     test('merges remote categories without duplicating built-in codes', () => {
@@ -787,6 +806,8 @@ describe('Permission System', () => {
       expect(codes).toContain('admin.users.entry');
       expect(codes).toContain('admin.users.edit_profile');
       expect(codes).toContain('team.create');
+      expect(codes).toContain('admin.notif.entry');
+      expect(codes).toContain('admin.notif.toggle');
     });
 
     test('does not include disabled codes', () => {
@@ -842,6 +863,11 @@ describe('Permission System', () => {
       });
     });
 
+    test('super_admin gets admin.notif.toggle by default', () => {
+      const perms = getDefaultRolePermissions('super_admin');
+      expect(perms).toContain('admin.notif.toggle');
+    });
+
     test('returns no duplicates', () => {
       const perms = getDefaultRolePermissions('super_admin');
       const unique = [...new Set(perms)];
@@ -853,6 +879,12 @@ describe('Permission System', () => {
       expect(perms).not.toContain('team.create');
       expect(perms).not.toContain('team.manage_all');
       expect(perms).not.toContain('admin.users.entry');
+    });
+
+    test('admin does not get notification settings permissions by default', () => {
+      const perms = getDefaultRolePermissions('admin');
+      expect(perms).not.toContain('admin.notif.entry');
+      expect(perms).not.toContain('admin.notif.toggle');
     });
   });
 });

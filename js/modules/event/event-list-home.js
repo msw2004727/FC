@@ -81,8 +81,6 @@ Object.assign(App, {
   // ══════════════════════════════════
 
   _shouldShowHomeEventLoadingHint() {
-    if (ModeManager.isDemo()) return false;
-
     const lineAuth = typeof LineAuth !== 'undefined' ? LineAuth : null;
     const isLoggedIn = !!lineAuth?.isLoggedIn?.();
     const hasSession = !!lineAuth?.hasLiffSession?.();

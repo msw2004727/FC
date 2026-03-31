@@ -107,7 +107,7 @@ Object.assign(App, {
     }
     const previewImg = document.querySelector('#banner-preview img');
     let image = previewImg ? previewImg.src : (ApiService.getBanners().find(b => b.id === this._bannerEditId)?.image || null);
-    if (image && image.startsWith('data:') && !ModeManager.isDemo()) {
+    if (image && image.startsWith('data:')) {
       this.showToast('圖片上傳中...');
       const url = await FirebaseService._uploadImage(image, `banners/${this._bannerEditId}`);
       if (!url) { this.showToast('圖片上傳失敗，請重試'); return; }

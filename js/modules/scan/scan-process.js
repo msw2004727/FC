@@ -210,10 +210,6 @@ Object.assign(App, {
     // 彈跳結果視窗（相機掃碼 + 手動輸入皆觸發）
     this._showScanResultPopup(resultClass, resultMsg, userName);
 
-    // Demo 模式：模擬被掃方收到通知
-    if (resultClass === 'success' && ModeManager.isDemo() && typeof this._simulateAttendanceNotify === 'function') {
-      this._simulateAttendanceNotify(this._scanSelectedEventId, mode);
-    }
   },
 
   _showScanResultPopup(cls, msg, userName) {

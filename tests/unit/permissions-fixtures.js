@@ -37,6 +37,7 @@ const ENTRY_PERMISSION_CODES = [
   'admin.themes.entry',
   'admin.exp.entry',
   'admin.auto_exp.entry',
+  'admin.notif.entry',
   'admin.announcements.entry',
   'admin.achievements.entry',
   'admin.logs.entry',
@@ -56,6 +57,7 @@ const SUB_PERMISSION_CODES = [
   'admin.messages.compose', 'admin.messages.delete',
   'admin.repair.team_join_repair', 'admin.repair.no_show_adjust', 'admin.repair.data_sync',
   'admin.logs.error_read', 'admin.logs.error_delete', 'admin.logs.audit_read',
+  'admin.notif.toggle',
 ];
 
 const ALL_PERMISSION_CODES = [...ENTRY_PERMISSION_CODES, ...SUB_PERMISSION_CODES];
@@ -74,6 +76,7 @@ const DRAWER_PAGE_ENTRIES = [
   { page: 'page-admin-themes',         minRole: 'super_admin', permissionCode: 'admin.themes.entry' },
   { page: 'page-admin-exp',            minRole: 'super_admin', permissionCode: 'admin.exp.entry' },
   { page: 'page-admin-auto-exp',       minRole: 'super_admin', permissionCode: 'admin.auto_exp.entry' },
+  { page: 'page-admin-notif',          minRole: 'super_admin', permissionCode: 'admin.notif.entry' },
   { page: 'page-admin-announcements',  minRole: 'super_admin', permissionCode: 'admin.announcements.entry' },
   { page: 'page-admin-achievements',   minRole: 'super_admin', permissionCode: 'admin.achievements.entry' },
   { page: 'page-admin-logs',           minRole: 'super_admin', permissionCode: 'admin.logs.entry' },
@@ -170,6 +173,10 @@ function getDefaultRolePermissions(roleKey) {
   // Admin+ gets additional team/event codes
   if (roleLevel >= ROLE_LEVEL_MAP.admin) {
     defaults.push('team.create', 'team.manage_all', 'event.edit_all');
+  }
+
+  if (roleLevel >= ROLE_LEVEL_MAP.super_admin) {
+    defaults.push('admin.notif.toggle');
   }
 
   return Array.from(new Set(defaults));

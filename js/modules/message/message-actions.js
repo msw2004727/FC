@@ -13,7 +13,7 @@ Object.assign(App, {
     const unread = myMessages.filter(m => this._isMessageUnread(m));
     if (unread.length === 0) { this.showToast('沒有未讀訊息'); return; }
     unread.forEach(m => { m.read = true; m.unread = false; });
-    if (!ModeManager.isDemo() && myUid) {
+    if (myUid) {
       const docsToUpdate = unread.filter(m => m._docId);
       if (docsToUpdate.length > 0) {
         const fv = firebase.firestore.FieldValue;
@@ -39,33 +39,26 @@ Object.assign(App, {
     // 過濾掉 pending 審核訊息（Rules 也會阻擋）
     const deletable = myMessages.filter(m => !(m.actionType && m.actionStatus === 'pending'));
     if (!(await this.appConfirm(`確定要清空 ${deletable.length} 則訊息？此操作無法恢復。`))) return;
-    if (ModeManager.isDemo()) {
-      deletable.forEach(m => {
-        const idx = DemoData.messages.indexOf(m);
-        if (idx >= 0) DemoData.messages.splice(idx, 1);
-      });
-    } else {
-      if (!myUid) { this.showToast('Please login first'); return; }
-      try {
-        const toDel = deletable.filter(m => m._docId);
-        for (let i = 0; i < toDel.length; i += 450) {
-          const chunk = toDel.slice(i, i + 450);
-          const batch = db.batch();
-          chunk.forEach(m => {
-            batch.delete(db.collection('users').doc(myUid).collection('inbox').doc(m._docId));
-          });
-          await batch.commit();
-        }
-        // 從本地快取移除已刪除的
-        deletable.forEach(m => {
-          const idx = (FirebaseService._cache.messages || []).indexOf(m);
-          if (idx >= 0) FirebaseService._cache.messages.splice(idx, 1);
+    if (!myUid) { this.showToast('Please login first'); return; }
+    try {
+      const toDel = deletable.filter(m => m._docId);
+      for (let i = 0; i < toDel.length; i += 450) {
+        const chunk = toDel.slice(i, i + 450);
+        const batch = db.batch();
+        chunk.forEach(m => {
+          batch.delete(db.collection('users').doc(myUid).collection('inbox').doc(m._docId));
         });
-      } catch (err) {
-        console.error('[clearAllMessages]', err);
-        this.showToast('清空失敗，請重試');
-        return;
+        await batch.commit();
       }
+      // 從本地快取移除已刪除的
+      deletable.forEach(m => {
+        const idx = (FirebaseService._cache.messages || []).indexOf(m);
+        if (idx >= 0) FirebaseService._cache.messages.splice(idx, 1);
+      });
+    } catch (err) {
+      console.error('[clearAllMessages]', err);
+      this.showToast('清空失敗，請重試');
+      return;
     }
     this.renderMessageList();
     this.updateNotifBadge();
@@ -96,7 +89,7 @@ Object.assign(App, {
     }
 
     // 透過 CF 統一更新所有 inbox（含自己的）— Rules 只允許前端改 read/readAt
-    if (syncGroup && safeGroupId && !ModeManager.isDemo()) {
+    if (syncGroup && safeGroupId) {
       FirebaseService._syncGroupActionStatusCF?.(
         safeGroupId, safeUpdates.actionStatus, safeUpdates.reviewerName
       );

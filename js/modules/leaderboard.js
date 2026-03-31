@@ -205,7 +205,7 @@ Object.assign(App, {
     this._recordPage = p;
 
     const user = ApiService.getCurrentUser();
-    const uid = user?.uid || 'demo-user';
+    const uid = user?.uid || '';
     const filtered = this._getFilteredRecords(uid, f, false);
     container.innerHTML = this._renderRecordListHtml(filtered, p, 'renderActivityRecords', f);
 

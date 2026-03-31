@@ -14,6 +14,7 @@ const PageLoader = {
   _deferredPages: [
     'scan', 'tournament', 'shop',
     'admin-users', 'admin-content', 'admin-system',
+    'admin-notif',
     'admin-dashboard', 'admin-auto-exp', 'personal-dashboard',
     'game',
     'kickball',
@@ -57,6 +58,7 @@ const PageLoader = {
     'page-admin-shop':         'shop',
     'page-admin-users':        'admin-users',
     'page-admin-exp':          'admin-users',
+    'page-admin-notif':        'admin-notif',
     'page-admin-roles':        'admin-system',
     'page-admin-logs':         'admin-system',
     'page-admin-audit-logs':   'admin-system',

@@ -68,7 +68,7 @@ Object.assign(App, {
   // ── Tracking Storage (Firestore: users/{uid}/autoExpTracking/{ruleKey}) ──
 
   async _getAutoExpTracking(uid, ruleKey) {
-    if (ModeManager.isDemo() || typeof db === 'undefined') {
+    if (typeof db === 'undefined') {
       try {
         return Number(JSON.parse(localStorage.getItem('autoExpTrack_' + uid + '_' + ruleKey)) || 0);
       } catch (_) { return 0; }
@@ -84,7 +84,7 @@ Object.assign(App, {
   },
 
   async _setAutoExpTracking(uid, ruleKey, applied) {
-    if (ModeManager.isDemo() || typeof db === 'undefined') {
+    if (typeof db === 'undefined') {
       localStorage.setItem('autoExpTrack_' + uid + '_' + ruleKey, JSON.stringify(applied));
       return;
     }

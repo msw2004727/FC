@@ -1,19 +1,13 @@
 /* ================================================
    SportHub — API Service 抽象層
    ================================================
-   ModeManager.isDemo() = true  → 讀取 DemoData（Demo 演示）
-   ModeManager.isDemo() = false → 讀取 FirebaseService._cache（正式版）
-
-   切換方式：透過 ModeManager 統一管理
+   讀取 FirebaseService._cache（正式版）
    App 層的渲染邏輯完全不需要改動。
    ================================================ */
 
 const ApiService = {
 
-  get _demoMode() { return ModeManager.isDemo(); },
-
   _isCurrentUserRestricted() {
-    if (this._demoMode) return false;
     const user = this.getCurrentUser ? this.getCurrentUser() : null;
     return !!(user && user.isRestricted === true);
   },
@@ -85,7 +79,6 @@ const ApiService = {
 
   async _ensureFirebaseWriteAuth(options = {}) {
     const { forceRefreshToken = false, forceReauth = false } = options;
-    if (this._demoMode) return true;
 
     if (!forceReauth && await this._hasFreshFirebaseUser(forceRefreshToken)) {
       return true;
@@ -159,8 +152,6 @@ const ApiService = {
   },
 
   async _runAttendanceWriteWithAuthRetry(writeFn, label) {
-    if (this._demoMode) return await writeFn();
-
     // forceRefreshToken:false = 讀取本地快取 token（毫秒級），Firebase SDK 自動在背景維持 token 有效性
     // 只有 retry 路徑才強制刷新，避免每筆寫入都多一次 HTTP round-trip
     const authed = await this._ensureFirebaseWriteAuth({ forceRefreshToken: false });
@@ -194,14 +185,11 @@ const ApiService = {
   },
 
   // ════════════════════════════════
-  //  通用工具方法（消除重複的 demo/production 分支）
+  //  通用工具方法
   // ════════════════════════════════
 
-  /** 取得資料來源陣列（安全：DemoData 未載入時降級為空陣列） */
+  /** 取得資料來源陣列 */
   _src(key) {
-    if (this._demoMode) {
-      return (typeof DemoData !== 'undefined' && DemoData[key]) ? DemoData[key] : [];
-    }
     return FirebaseService._cache[key] || [];
   },
 
@@ -218,19 +206,12 @@ const ApiService = {
     return merged;
   },
 
-  _getDemoTournamentFriendlyArray(tournamentId, field) {
-    const tournament = this.getTournament(tournamentId);
-    if (!tournament) throw new Error('TOURNAMENT_NOT_FOUND');
-    if (!Array.isArray(tournament[field])) tournament[field] = [];
-    return tournament[field];
-  },
-
   /** 通用新增：寫入快取 + 非同步寫入 Firebase */
   _create(key, data, firebaseMethod, label, prepend) {
     if (this._handleRestrictedAction()) return null;
     const source = this._src(key);
     if (prepend !== false) { source.unshift(data); } else { source.push(data); }
-    if (!this._demoMode && firebaseMethod) {
+    if (firebaseMethod) {
       FirebaseService.ensureAuthReadyForWrite()
         .then(() => firebaseMethod.call(FirebaseService, data))
         .catch(err => console.error(`[${label}]`, err));
@@ -242,7 +223,7 @@ const ApiService = {
     if (this._handleRestrictedAction()) return null;
     const source = this._src(key);
     if (prepend !== false) { source.unshift(data); } else { source.push(data); }
-    if (!this._demoMode && firebaseMethod) {
+    if (firebaseMethod) {
       try {
         await FirebaseService.ensureAuthReadyForWrite();
         await firebaseMethod.call(FirebaseService, data);
@@ -277,7 +258,7 @@ const ApiService = {
     if (this._handleRestrictedAction()) return null;
     const item = this._findById(key, id);
     if (item) Object.assign(item, updates);
-    if (!this._demoMode && firebaseMethod) {
+    if (firebaseMethod) {
       FirebaseService.ensureAuthReadyForWrite()
         .then(() => firebaseMethod.call(FirebaseService, id, updates))
         .catch(err => {
@@ -295,7 +276,7 @@ const ApiService = {
 
     const snapshot = JSON.parse(JSON.stringify(item));
     Object.assign(item, updates);
-    if (!this._demoMode && firebaseMethod) {
+    if (firebaseMethod) {
       try {
         await FirebaseService.ensureAuthReadyForWrite();
         await firebaseMethod.call(FirebaseService, id, updates);
@@ -315,7 +296,7 @@ const ApiService = {
     if (this._handleRestrictedAction()) return false;
     const source = this._src(key);
     // 必須先呼叫 Firebase 刪除（需要從 cache 中找到 _docId），再 splice
-    if (!this._demoMode && firebaseMethod) {
+    if (firebaseMethod) {
       FirebaseService.ensureAuthReadyForWrite()
         .then(() => firebaseMethod.call(FirebaseService, id))
         .catch(err => {
@@ -326,9 +307,7 @@ const ApiService = {
     const idx = source.findIndex(item => item.id === id);
     if (idx >= 0) source.splice(idx, 1);
     // Persist updated cache to localStorage so deleted items don't reappear on refresh
-    if (!this._demoMode) {
-      FirebaseService._saveToLS(key, source);
-    }
+    FirebaseService._saveToLS(key, source);
     return true;
   },
 
@@ -336,7 +315,7 @@ const ApiService = {
     if (this._handleRestrictedAction()) return false;
     const source = this._src(key);
     const idx = source.findIndex(item => item.id === id);
-    if (!this._demoMode && firebaseMethod) {
+    if (firebaseMethod) {
       try {
         await FirebaseService.ensureAuthReadyForWrite();
         const deleted = await firebaseMethod.call(FirebaseService, id);
@@ -348,10 +327,8 @@ const ApiService = {
       }
     }
     if (idx >= 0) source.splice(idx, 1);
-    if (!this._demoMode) {
-      FirebaseService._saveToLS(key, source);
-    }
-    return idx >= 0 || this._demoMode;
+    FirebaseService._saveToLS(key, source);
+    return idx >= 0;
   },
 
   // ════════════════════════════════
@@ -387,7 +364,6 @@ const ApiService = {
   deleteEvent(id)           { return this._deleteAwaitWrite('events', id, FirebaseService.deleteEvent, 'deleteEvent'); },
 
   async loadMyEventTemplates(ownerUid) {
-    if (this._demoMode) return this._src('eventTemplates');
     const data = await FirebaseService.loadMyEventTemplates(ownerUid);
     return Array.isArray(data) ? data : [];
   },
@@ -398,30 +374,26 @@ const ApiService = {
     if (this._handleRestrictedAction()) return null;
     const source = this._src('eventTemplates');
     source.unshift(data);
-    if (!this._demoMode) {
-      try {
-        await FirebaseService.addEventTemplate(data);
-      } catch (err) {
-        console.error('[createEventTemplate]', err);
-        const idx = source.indexOf(data);
-        if (idx >= 0) source.splice(idx, 1);
-        FirebaseService._saveToLS('eventTemplates', source);
-        throw err;
-      }
+    try {
+      await FirebaseService.addEventTemplate(data);
+    } catch (err) {
+      console.error('[createEventTemplate]', err);
+      const idx = source.indexOf(data);
+      if (idx >= 0) source.splice(idx, 1);
       FirebaseService._saveToLS('eventTemplates', source);
+      throw err;
     }
+    FirebaseService._saveToLS('eventTemplates', source);
     return data;
   },
 
   async deleteEventTemplate(id) {
     if (this._handleRestrictedAction()) return false;
-    if (!this._demoMode) {
-      await FirebaseService.deleteEventTemplate(id);
-    }
+    await FirebaseService.deleteEventTemplate(id);
     const source = this._src('eventTemplates');
     const idx = source.findIndex(item => item.id === id || item._docId === id);
     if (idx >= 0) source.splice(idx, 1);
-    if (!this._demoMode) FirebaseService._saveToLS('eventTemplates', source);
+    FirebaseService._saveToLS('eventTemplates', source);
     return true;
   },
 
@@ -467,10 +439,6 @@ const ApiService = {
   },
 
   async listTournamentApplications(tournamentId) {
-    if (this._demoMode) {
-      return this._getDemoTournamentFriendlyArray(tournamentId, 'teamApplications')
-        .map(item => ({ ...item }));
-    }
     return await FirebaseService.listTournamentApplications(tournamentId);
   },
 
@@ -478,34 +446,16 @@ const ApiService = {
     const payload = (typeof App !== 'undefined' && typeof App._buildFriendlyTournamentApplicationRecord === 'function')
       ? App._buildFriendlyTournamentApplicationRecord(data)
       : { ...data };
-    if (this._demoMode) {
-      const store = this._getDemoTournamentFriendlyArray(tournamentId, 'teamApplications');
-      const idx = store.findIndex(item => item.id === payload.id || item.teamId === payload.teamId);
-      if (idx >= 0) store[idx] = { ...store[idx], ...payload };
-      else store.push(payload);
-      return payload;
-    }
     if (!(await FirebaseService.ensureAuthReadyForWrite())) throw new Error('AUTH_NOT_READY');
     return await FirebaseService.createTournamentApplication(tournamentId, payload);
   },
 
   async updateTournamentApplication(tournamentId, applicationId, updates) {
-    if (this._demoMode) {
-      const store = this._getDemoTournamentFriendlyArray(tournamentId, 'teamApplications');
-      const idx = store.findIndex(item => item.id === applicationId);
-      if (idx === -1) return null;
-      store[idx] = { ...store[idx], ...updates };
-      return store[idx];
-    }
     if (!(await FirebaseService.ensureAuthReadyForWrite())) throw new Error('AUTH_NOT_READY');
     return await FirebaseService.updateTournamentApplication(tournamentId, applicationId, updates);
   },
 
   async listTournamentEntries(tournamentId) {
-    if (this._demoMode) {
-      return this._getDemoTournamentFriendlyArray(tournamentId, 'teamEntries')
-        .map(item => ({ ...item }));
-    }
     return await FirebaseService.listTournamentEntries(tournamentId);
   },
 
@@ -513,23 +463,11 @@ const ApiService = {
     const payload = (typeof App !== 'undefined' && typeof App._buildFriendlyTournamentEntryRecord === 'function')
       ? App._buildFriendlyTournamentEntryRecord({ ...data, teamId: teamId || data?.teamId })
       : { ...data, teamId: teamId || data?.teamId };
-    if (this._demoMode) {
-      const store = this._getDemoTournamentFriendlyArray(tournamentId, 'teamEntries');
-      const idx = store.findIndex(item => item.teamId === payload.teamId);
-      if (idx >= 0) store[idx] = { ...store[idx], ...payload };
-      else store.push(payload);
-      return payload;
-    }
     if (!(await FirebaseService.ensureAuthReadyForWrite())) throw new Error('AUTH_NOT_READY');
     return await FirebaseService.upsertTournamentEntry(tournamentId, teamId, payload);
   },
 
   async listTournamentEntryMembers(tournamentId, teamId) {
-    if (this._demoMode) {
-      const entry = this._getDemoTournamentFriendlyArray(tournamentId, 'teamEntries')
-        .find(item => item.teamId === teamId);
-      return Array.isArray(entry?.memberRoster) ? entry.memberRoster.map(item => ({ ...item })) : [];
-    }
     return await FirebaseService.listTournamentEntryMembers(tournamentId, teamId);
   },
 
@@ -537,28 +475,11 @@ const ApiService = {
     const payload = (typeof App !== 'undefined' && typeof App._buildFriendlyTournamentRosterMemberRecord === 'function')
       ? App._buildFriendlyTournamentRosterMemberRecord(member)
       : { ...member };
-    if (this._demoMode) {
-      const store = this._getDemoTournamentFriendlyArray(tournamentId, 'teamEntries');
-      const entry = store.find(item => item.teamId === teamId);
-      if (!entry) return null;
-      if (!Array.isArray(entry.memberRoster)) entry.memberRoster = [];
-      const idx = entry.memberRoster.findIndex(item => item.uid === payload.uid);
-      if (idx >= 0) entry.memberRoster[idx] = { ...entry.memberRoster[idx], ...payload };
-      else entry.memberRoster.push(payload);
-      return payload;
-    }
     if (!(await FirebaseService.ensureAuthReadyForWrite())) throw new Error('AUTH_NOT_READY');
     return await FirebaseService.upsertTournamentEntryMember(tournamentId, teamId, payload);
   },
 
   async removeTournamentEntryMember(tournamentId, teamId, memberUid) {
-    if (this._demoMode) {
-      const store = this._getDemoTournamentFriendlyArray(tournamentId, 'teamEntries');
-      const entry = store.find(item => item.teamId === teamId);
-      if (!entry || !Array.isArray(entry.memberRoster)) return false;
-      entry.memberRoster = entry.memberRoster.filter(item => item.uid !== memberUid);
-      return true;
-    }
     if (!(await FirebaseService.ensureAuthReadyForWrite())) throw new Error('AUTH_NOT_READY');
     return await FirebaseService.removeTournamentEntryMember(tournamentId, teamId, memberUid);
   },
@@ -568,34 +489,32 @@ const ApiService = {
     const idx = source.findIndex(t => t.id === id);
     if (idx === -1) return;
     const removed = source.splice(idx, 1)[0];
-    if (!this._demoMode) {
-      if (removed._docId) {
-        FirebaseService.ensureAuthReadyForWrite()
-          .then(async () => {
-            const docRef = db.collection('tournaments').doc(removed._docId);
-            // 清理 subcollections: applications, entries (含 members)
-            const subs = ['applications', 'entries'];
-            for (const sub of subs) {
-              const snap = await docRef.collection(sub).get();
-              if (!snap.empty) {
-                const batch = db.batch();
-                for (const doc of snap.docs) {
-                  // entries 底下可能有 members subcollection
-                  if (sub === 'entries') {
-                    const membersSnap = await doc.ref.collection('members').get();
-                    membersSnap.docs.forEach(m => batch.delete(m.ref));
-                  }
-                  batch.delete(doc.ref);
+    if (removed._docId) {
+      FirebaseService.ensureAuthReadyForWrite()
+        .then(async () => {
+          const docRef = db.collection('tournaments').doc(removed._docId);
+          // 清理 subcollections: applications, entries (含 members)
+          const subs = ['applications', 'entries'];
+          for (const sub of subs) {
+            const snap = await docRef.collection(sub).get();
+            if (!snap.empty) {
+              const batch = db.batch();
+              for (const doc of snap.docs) {
+                // entries 底下可能有 members subcollection
+                if (sub === 'entries') {
+                  const membersSnap = await doc.ref.collection('members').get();
+                  membersSnap.docs.forEach(m => batch.delete(m.ref));
                 }
-                await batch.commit();
+                batch.delete(doc.ref);
               }
+              await batch.commit();
             }
-            await docRef.delete();
-          })
-          .catch(err => console.error('[deleteTournament]', err));
-      }
-      FirebaseService._saveToLS('tournaments', source);
+          }
+          await docRef.delete();
+        })
+        .catch(err => console.error('[deleteTournament]', err));
     }
+    FirebaseService._saveToLS('tournaments', source);
   },
 
   // ════════════════════════════════
@@ -612,20 +531,18 @@ const ApiService = {
   async deleteTeam(id) {
     const source = this._src('teams');
 
-    // 正式版：先取得 _docId 再刪 Firestore，最後才從快取移除
-    if (!this._demoMode) {
-      const doc = source.find(t => t.id === id);
-      if (doc && doc._docId) {
-        await FirebaseService.deleteTeam(id);
-      } else {
-        throw new Error('TEAM_DOC_NOT_FOUND');
-      }
+    // 先取得 _docId 再刪 Firestore，最後才從快取移除
+    const doc = source.find(t => t.id === id);
+    if (doc && doc._docId) {
+      await FirebaseService.deleteTeam(id);
+    } else {
+      throw new Error('TEAM_DOC_NOT_FOUND');
     }
 
     // 從快取移除
     const idx = source.findIndex(t => t.id === id);
     if (idx >= 0) source.splice(idx, 1);
-    if (!this._demoMode) FirebaseService._saveToLS('teams', source);
+    FirebaseService._saveToLS('teams', source);
 
     const buildNextMembership = (user) => {
       const ids = [];
@@ -687,7 +604,7 @@ const ApiService = {
       if (!updates) return;
 
       Object.assign(u, updates);
-      if (!this._demoMode && u._docId && !writtenDocIds.has(u._docId)) {
+      if (u._docId && !writtenDocIds.has(u._docId)) {
         writtenDocIds.add(u._docId);
         pendingWrites.push(
           FirebaseService.updateUser(u._docId, updates)
@@ -701,7 +618,7 @@ const ApiService = {
     const currentUserUpdates = buildNextMembership(cur);
     if (cur && currentUserUpdates) {
       Object.assign(cur, currentUserUpdates);
-      if (!this._demoMode && cur._docId && !writtenDocIds.has(cur._docId)) {
+      if (cur._docId && !writtenDocIds.has(cur._docId)) {
         writtenDocIds.add(cur._docId);
         pendingWrites.push(
           FirebaseService.updateUser(cur._docId, currentUserUpdates)
@@ -755,22 +672,20 @@ const ApiService = {
 
     if (idx >= 0) source[idx] = nextDoc;
     else source.push(nextDoc);
-    if (!this._demoMode && typeof FirebaseService !== 'undefined' && typeof FirebaseService._saveToLS === 'function') {
+    if (typeof FirebaseService !== 'undefined' && typeof FirebaseService._saveToLS === 'function') {
       FirebaseService._saveToLS('userCorrections', source);
     }
 
-    if (!this._demoMode) {
-      try {
-        await FirebaseService.saveUserCorrection(safeUid, nextDoc);
-      } catch (err) {
-        if (idx >= 0 && prevDoc) source[idx] = prevDoc;
-        else if (idx < 0) source.pop();
-        if (typeof FirebaseService !== 'undefined' && typeof FirebaseService._saveToLS === 'function') {
-          FirebaseService._saveToLS('userCorrections', source);
-        }
-        console.error('[saveUserNoShowCorrection]', err);
-        throw err;
+    try {
+      await FirebaseService.saveUserCorrection(safeUid, nextDoc);
+    } catch (err) {
+      if (idx >= 0 && prevDoc) source[idx] = prevDoc;
+      else if (idx < 0) source.pop();
+      if (typeof FirebaseService !== 'undefined' && typeof FirebaseService._saveToLS === 'function') {
+        FirebaseService._saveToLS('userCorrections', source);
       }
+      console.error('[saveUserNoShowCorrection]', err);
+      throw err;
     }
 
     return nextDoc;
@@ -785,35 +700,25 @@ const ApiService = {
     if (idx < 0) return false;
     const prevDoc = { ...source[idx], noShow: source[idx]?.noShow ? { ...source[idx].noShow } : null };
     source.splice(idx, 1);
-    if (!this._demoMode && typeof FirebaseService !== 'undefined' && typeof FirebaseService._saveToLS === 'function') {
+    if (typeof FirebaseService !== 'undefined' && typeof FirebaseService._saveToLS === 'function') {
       FirebaseService._saveToLS('userCorrections', source);
     }
 
-    if (!this._demoMode) {
-      try {
-        await FirebaseService.deleteUserCorrection(safeUid);
-      } catch (err) {
-        source.splice(Math.max(0, idx), 0, prevDoc);
-        if (typeof FirebaseService !== 'undefined' && typeof FirebaseService._saveToLS === 'function') {
-          FirebaseService._saveToLS('userCorrections', source);
-        }
-        console.error('[clearUserNoShowCorrection]', err);
-        throw err;
+    try {
+      await FirebaseService.deleteUserCorrection(safeUid);
+    } catch (err) {
+      source.splice(Math.max(0, idx), 0, prevDoc);
+      if (typeof FirebaseService !== 'undefined' && typeof FirebaseService._saveToLS === 'function') {
+        FirebaseService._saveToLS('userCorrections', source);
       }
+      console.error('[clearUserNoShowCorrection]', err);
+      throw err;
     }
 
     return true;
   },
 
   getUserRole(name) {
-    if (this._demoMode) {
-      if (DEMO_USERS[name]) return DEMO_USERS[name];
-      if (typeof DemoData !== 'undefined') {
-        const u = DemoData.adminUsers.find(u => u.name === name);
-        return u ? u.role : 'user';
-      }
-      return 'user';
-    }
     const user = FirebaseService._cache.adminUsers.find(u => u.name === name);
     return user ? user.role : 'user';
   },
@@ -823,7 +728,7 @@ const ApiService = {
     if (!user) return null;
     const rollback = { ...user };
     Object.assign(user, updates);
-    if (!this._demoMode && user._docId) {
+    if (user._docId) {
       try {
         await FirebaseService.manageAdminUser(user._docId, updates);
       } catch (err) {
@@ -840,13 +745,9 @@ const ApiService = {
       return [];
     }
 
-    const hasStoredRolePermissions = this._demoMode
-      ? !!(typeof DemoData !== 'undefined' && DemoData.rolePermissions && Object.prototype.hasOwnProperty.call(DemoData.rolePermissions, role))
-      : !!(FirebaseService._cache.rolePermissions && Object.prototype.hasOwnProperty.call(FirebaseService._cache.rolePermissions, role));
+    const hasStoredRolePermissions = !!(FirebaseService._cache.rolePermissions && Object.prototype.hasOwnProperty.call(FirebaseService._cache.rolePermissions, role));
 
-    const stored = this._demoMode
-      ? ((typeof DemoData !== 'undefined' && DemoData.rolePermissions) ? (DemoData.rolePermissions[role] || []) : [])
-      : ((FirebaseService._cache.rolePermissions || {})[role] || []);
+    const stored = ((FirebaseService._cache.rolePermissions || {})[role] || []);
 
     const resolved = sanitizePermissionCodeList(hasStoredRolePermissions
       ? stored
@@ -872,9 +773,7 @@ const ApiService = {
       return [];
     }
 
-    const meta = this._demoMode
-      ? ((typeof DemoData !== 'undefined' && DemoData.rolePermissionMeta) ? DemoData.rolePermissionMeta : {})
-      : (FirebaseService._cache.rolePermissionMeta || {});
+    const meta = (FirebaseService._cache.rolePermissionMeta || {});
     const savedDefaults = meta?.[role]?.defaultPermissions;
     if (Array.isArray(savedDefaults)) return [...savedDefaults];
     const builtInDefaults = getDefaultRolePermissions(role);
@@ -909,17 +808,13 @@ const ApiService = {
     if (this._handleRestrictedAction()) return;
     const msg = this._findById('messages', msgId);
     if (msg) msg.unread = false;
-    if (!this._demoMode) {
-      FirebaseService.updateMessageRead(msgId).catch(err => console.error('[markMessageRead]', err));
-    }
+    FirebaseService.updateMessageRead(msgId).catch(err => console.error('[markMessageRead]', err));
   },
 
   markAllMessagesRead() {
     if (this._handleRestrictedAction()) return;
     this._src('messages').forEach(m => { m.unread = false; });
-    if (!this._demoMode) {
-      FirebaseService.markAllMessagesRead().catch(err => console.error('[markAllMessagesRead]', err));
-    }
+    FirebaseService.markAllMessagesRead().catch(err => console.error('[markAllMessagesRead]', err));
   },
 
   // ════════════════════════════════
@@ -929,7 +824,7 @@ const ApiService = {
   getLeaderboard() { return this._src('leaderboard'); },
 
   getActivityRecords(uid) {
-    if (uid && !this._demoMode) {
+    if (uid) {
       const usc = FirebaseService.getUserStatsCache?.();
       if (usc && usc.uid === uid && usc.activityRecords !== null) {
         return usc.activityRecords.filter(r => r.uid === uid);
@@ -968,7 +863,7 @@ const ApiService = {
 
   /** 取得指定用戶的簽到簽退紀錄（優先使用 user-specific cache，無 limit 截斷） */
   getUserAttendanceRecords(uid) {
-    if (uid && !this._demoMode) {
+    if (uid) {
       const usc = FirebaseService.getUserStatsCache?.();
       if (usc && usc.uid === uid && usc.attendanceRecords !== null) {
         return usc.attendanceRecords.filter(r => r.status !== 'removed' && r.status !== 'cancelled');
@@ -980,26 +875,21 @@ const ApiService = {
   async addAttendanceRecord(record) {
     if (this._handleRestrictedAction()) return null;
     const normalized = { ...record, status: record.status || 'active' };
-    if (
-      !this._demoMode
-      && (typeof normalized.eventId !== 'string' || !normalized.eventId || typeof normalized.uid !== 'string' || !normalized.uid)
-    ) {
+    if (typeof normalized.eventId !== 'string' || !normalized.eventId || typeof normalized.uid !== 'string' || !normalized.uid) {
       throw new Error('missing required fields: eventId/uid');
     }
     const source = this._src('attendanceRecords');
     source.push(normalized);
-    if (!this._demoMode) {
-      try {
-        await this._runAttendanceWriteWithAuthRetry(async () => {
-          await FirebaseService.addAttendanceRecord(normalized);
-          FirebaseService._saveToLS('attendanceRecords', FirebaseService._cache.attendanceRecords);
-        }, 'addAttendanceRecord');
-      } catch (err) {
-        const idx = source.findIndex(r => r.id === normalized.id);
-        if (idx !== -1) source.splice(idx, 1);
-        console.error('[addAttendanceRecord]', err);
-        throw new Error(this._mapAttendanceWriteError(err));
-      }
+    try {
+      await this._runAttendanceWriteWithAuthRetry(async () => {
+        await FirebaseService.addAttendanceRecord(normalized);
+        FirebaseService._saveToLS('attendanceRecords', FirebaseService._cache.attendanceRecords);
+      }, 'addAttendanceRecord');
+    } catch (err) {
+      const idx = source.findIndex(r => r.id === normalized.id);
+      if (idx !== -1) source.splice(idx, 1);
+      console.error('[addAttendanceRecord]', err);
+      throw new Error(this._mapAttendanceWriteError(err));
     }
     return normalized;
   },
@@ -1014,16 +904,14 @@ const ApiService = {
       target.status = 'removed';
       target.removedAt = new Date().toISOString();
     }
-    if (!this._demoMode) {
-      try {
-        await this._runAttendanceWriteWithAuthRetry(async () => {
-          await FirebaseService.removeAttendanceRecord(target || record);
-        }, 'removeAttendanceRecord');
-      } catch (err) {
-        if (target && prev) Object.assign(target, prev);
-        console.error('[removeAttendanceRecord]', err);
-        throw new Error(this._mapAttendanceWriteError(err));
-      }
+    try {
+      await this._runAttendanceWriteWithAuthRetry(async () => {
+        await FirebaseService.removeAttendanceRecord(target || record);
+      }, 'removeAttendanceRecord');
+    } catch (err) {
+      if (target && prev) Object.assign(target, prev);
+      console.error('[removeAttendanceRecord]', err);
+      throw new Error(this._mapAttendanceWriteError(err));
     }
     return target;
   },
@@ -1037,18 +925,9 @@ const ApiService = {
     if (this._handleRestrictedAction()) return;
     for (const record of adds) {
       record.status = record.status || 'active';
-      if (!this._demoMode && (typeof record.eventId !== 'string' || !record.eventId || typeof record.uid !== 'string' || !record.uid)) {
+      if (typeof record.eventId !== 'string' || !record.eventId || typeof record.uid !== 'string' || !record.uid) {
         throw new Error('missing required fields: eventId/uid');
       }
-    }
-    if (this._demoMode) {
-      const source = this._src('attendanceRecords');
-      for (const record of removes) {
-        const target = source.find(r => r.id === record.id);
-        if (target) { target.status = 'removed'; target.removedAt = new Date().toISOString(); }
-      }
-      for (const record of adds) source.push(record);
-      return;
     }
     try {
       await this._runAttendanceWriteWithAuthRetry(async () => {
@@ -1083,7 +962,6 @@ const ApiService = {
 
   _writeErrorLog(context, err) {
     try {
-      if (ModeManager.isDemo()) return;
       const curUser = this.getCurrentUser();
       if (!curUser?.uid) return;
 
@@ -1139,9 +1017,7 @@ const ApiService = {
       content,
     };
     this._src('operationLogs').unshift(opLog);
-    if (!this._demoMode) {
-      FirebaseService.addOperationLog(opLog).catch(err => console.error('[opLog]', err));
-    }
+    FirebaseService.addOperationLog(opLog).catch(err => console.error('[opLog]', err));
   },
 
   // ════════════════════════════════
@@ -1181,7 +1057,7 @@ const ApiService = {
       Object.assign(item, updates);
       // Normalize id so subsequent generic _update paths can resolve this record.
       if (!item.id && item._docId) item.id = item._docId;
-      if (!this._demoMode && typeof FirebaseService !== 'undefined' && FirebaseService.updateBanner) {
+      if (typeof FirebaseService !== 'undefined' && FirebaseService.updateBanner) {
         const writeId = item.id || item._docId || 'sga1';
         FirebaseService.ensureAuthReadyForWrite()
           .then(() => FirebaseService.updateBanner.call(FirebaseService, writeId, updates))
@@ -1191,7 +1067,7 @@ const ApiService = {
     }
 
     // If sga1 slot is missing in cache, try creating it once and retry update.
-    if (!this._demoMode && typeof FirebaseService !== 'undefined' && typeof FirebaseService._ensureSga1Slot === 'function') {
+    if (typeof FirebaseService !== 'undefined' && typeof FirebaseService._ensureSga1Slot === 'function') {
       Promise.resolve(FirebaseService._ensureSga1Slot())
         .then(() => {
           const created = this.getShotGameAd();
@@ -1262,7 +1138,7 @@ const ApiService = {
       if (!item.id) item.id = configId;
     }
 
-    if (!this._demoMode && FirebaseService.upsertGameConfig) {
+    if (FirebaseService.upsertGameConfig) {
       FirebaseService.ensureAuthReadyForWrite()
         .then(() => FirebaseService.upsertGameConfig.call(FirebaseService, configId, updates))
         .catch(err => console.error('[upsertGameConfig]', err));
@@ -1326,9 +1202,7 @@ const ApiService = {
   updateNotifTemplate(key, updates) {
     const t = this._src('notifTemplates').find(t => t.key === key);
     if (t) Object.assign(t, updates);
-    if (!this._demoMode) {
-      FirebaseService.updateNotifTemplate(key, updates).catch(err => console.error('[updateNotifTemplate]', err));
-    }
+    FirebaseService.updateNotifTemplate(key, updates).catch(err => console.error('[updateNotifTemplate]', err));
     return t;
   },
 
@@ -1338,9 +1212,7 @@ const ApiService = {
   deleteAdminMessage(id) {
     const source = this._src('adminMessages');
     // 先呼叫 Firebase 刪除（需要從 cache 中找到 _docId），再 splice
-    if (!this._demoMode) {
-      FirebaseService.deleteAdminMessage(id).catch(err => console.error('[deleteAdminMessage]', err));
-    }
+    FirebaseService.deleteAdminMessage(id).catch(err => console.error('[deleteAdminMessage]', err));
     const idx = source.findIndex(m => m.id === id);
     if (idx >= 0) source.splice(idx, 1);
   },
@@ -1350,7 +1222,6 @@ const ApiService = {
   // ════════════════════════════════
 
   getSponsors() {
-    if (this._demoMode) return (typeof DemoData !== 'undefined' && DemoData.sponsors) ? DemoData.sponsors : [];
     return (FirebaseService._cache.sponsors || []).filter(s => s.slot != null && s.slot <= 6);
   },
 
@@ -1359,12 +1230,10 @@ const ApiService = {
   },
 
   updateSponsor(id, updates) {
-    const source = this._demoMode ? ((typeof DemoData !== 'undefined' && DemoData.sponsors) ? DemoData.sponsors : []) : (FirebaseService._cache.sponsors || []);
+    const source = (FirebaseService._cache.sponsors || []);
     const item = source.find(s => s.id === id);
     if (item) Object.assign(item, updates);
-    if (!this._demoMode) {
-      FirebaseService.updateSponsor(id, updates).catch(err => console.error('[updateSponsor]', err));
-    }
+    FirebaseService.updateSponsor(id, updates).catch(err => console.error('[updateSponsor]', err));
     return item;
   },
 
@@ -1376,7 +1245,7 @@ const ApiService = {
     const user = this._src('adminUsers').find(u => u.name === name);
     if (user) {
       user.role = newRole;
-      if (!this._demoMode && user._docId) {
+      if (user._docId) {
         FirebaseService.updateUserRole(user._docId, newRole).catch(err => console.error('[promoteUser]', err));
       }
     }
@@ -1424,7 +1293,7 @@ const ApiService = {
 
     // 更新角色
     user.role = newRole;
-    if (!this._demoMode && user._docId) {
+    if (user._docId) {
       FirebaseService.updateUserRole(user._docId, newRole).catch(err => console.error('[_recalcUserRole]', err));
     }
     return { uid, oldRole, newRole, userName: user.name };
@@ -1457,22 +1326,20 @@ const ApiService = {
     this._src('expLogs').unshift(log);
     const _expLogLabel = mode === 'auto' ? '自動EXP' : '手動EXP';
     this._writeOpLog('exp', _expLogLabel, `${user.name} ${log.amount}「${reason}」`);
-    if (!this._demoMode) {
-      const targetId = user._docId || user.uid || user.lineUserId;
-      if (targetId) {
-        const payload = { mode, targets: [targetId], amount, reason, operatorLabel: operatorLabel || '管理員' };
-        if (requestId) payload.requestId = requestId;
-        if (ruleKey) payload.ruleKey = ruleKey;
-        this._callAdjustExpCF(payload).catch(err => {
-          console.error('[adjustUserExp CF]', err);
-          // CF 失敗 → rollback 樂觀更新
-          user.exp = Math.max(0, (user.exp || 0) - amount);
-          const _cur = this.getCurrentUser();
-          if (_cur && _cur !== user && (_cur.uid === (user.uid || user.lineUserId) || _cur.lineUserId === (user.uid || user.lineUserId))) {
-            _cur.exp = user.exp;
-          }
-        });
-      }
+    const targetId = user._docId || user.uid || user.lineUserId;
+    if (targetId) {
+      const payload = { mode, targets: [targetId], amount, reason, operatorLabel: operatorLabel || '管理員' };
+      if (requestId) payload.requestId = requestId;
+      if (ruleKey) payload.ruleKey = ruleKey;
+      this._callAdjustExpCF(payload).catch(err => {
+        console.error('[adjustUserExp CF]', err);
+        // CF 失敗 → rollback 樂觀更新
+        user.exp = Math.max(0, (user.exp || 0) - amount);
+        const _cur = this.getCurrentUser();
+        if (_cur && _cur !== user && (_cur.uid === (user.uid || user.lineUserId) || _cur.lineUserId === (user.uid || user.lineUserId))) {
+          _cur.exp = user.exp;
+        }
+      });
     }
     return user;
   },
@@ -1492,14 +1359,12 @@ const ApiService = {
     this._src('expLogs').unshift(log);
     const _expLogLabel2 = mode === 'auto' ? '自動EXP' : '手動EXP';
     this._writeOpLog('exp', _expLogLabel2, `${user.name} ${log.amount}「${reason}」`);
-    if (!this._demoMode) {
-      const targetId = user._docId || user.uid || user.lineUserId;
-      if (targetId) {
-        const payload = { mode, targets: [targetId], amount, reason, operatorLabel: operatorLabel || '管理員' };
-        if (requestId) payload.requestId = requestId;
-        if (ruleKey) payload.ruleKey = ruleKey;
-        await this._callAdjustExpCF(payload);
-      }
+    const targetId = user._docId || user.uid || user.lineUserId;
+    if (targetId) {
+      const payload = { mode, targets: [targetId], amount, reason, operatorLabel: operatorLabel || '管理員' };
+      if (requestId) payload.requestId = requestId;
+      if (ruleKey) payload.ruleKey = ruleKey;
+      await this._callAdjustExpCF(payload);
     }
     return user;
   },
@@ -1522,7 +1387,7 @@ const ApiService = {
     if (results.length > 0) {
       this._writeOpLog('exp', '批次EXP', `${results.length} 人 ${amount > 0 ? '+' : ''}${amount}「${reason}」`);
     }
-    if (!this._demoMode && targetIds.length > 0) {
+    if (targetIds.length > 0) {
       await this._callAdjustExpCF({
         mode: 'batch', targets: targetIds, amount, reason, operatorLabel: operatorLabel || '管理員',
       });
@@ -1540,11 +1405,9 @@ const ApiService = {
     const log = { time: timeStr, target: team.name, targetId: teamId, amount: (amount > 0 ? '+' : '') + amount, reason, operator: operatorLabel || '管理員', operatorUid: auth?.currentUser?.uid || null };
     this._src('teamExpLogs').unshift(log);
     this._writeOpLog('team_exp', '俱樂部積分', `${team.name} ${log.amount}「${reason}」`);
-    if (!this._demoMode) {
-      this._callAdjustExpCF({
-        mode: 'teamExp', teamId, amount, reason, operatorLabel: operatorLabel || '管理員',
-      }).catch(err => console.error('[adjustTeamExp CF]', err));
-    }
+    this._callAdjustExpCF({
+      mode: 'teamExp', teamId, amount, reason, operatorLabel: operatorLabel || '管理員',
+    }).catch(err => console.error('[adjustTeamExp CF]', err));
     return team;
   },
 
@@ -1557,11 +1420,9 @@ const ApiService = {
     const log = { time: timeStr, target: team.name, targetId: teamId, amount: (amount > 0 ? '+' : '') + amount, reason, operator: operatorLabel || '管理員', operatorUid: auth?.currentUser?.uid || null };
     this._src('teamExpLogs').unshift(log);
     this._writeOpLog('team_exp', '俱樂部積分', `${team.name} ${log.amount}「${reason}」`);
-    if (!this._demoMode) {
-      await this._callAdjustExpCF({
-        mode: 'teamExp', teamId, amount, reason, operatorLabel: operatorLabel || '管理員',
-      });
-    }
+    await this._callAdjustExpCF({
+      mode: 'teamExp', teamId, amount, reason, operatorLabel: operatorLabel || '管理員',
+    });
     return team;
   },
 
@@ -1580,7 +1441,7 @@ const ApiService = {
     if (!user) return null;
     if (!user.companions) user.companions = [];
     user.companions.push(data);
-    if (!this._demoMode && user._docId) {
+    if (user._docId) {
       FirebaseService.updateUserCompanions(user._docId, user.companions)
         .catch(err => console.error('[addCompanion]', err));
     }
@@ -1594,7 +1455,7 @@ const ApiService = {
     const comp = user.companions.find(c => c.id === companionId);
     if (!comp) return null;
     Object.assign(comp, updates);
-    if (!this._demoMode && user._docId) {
+    if (user._docId) {
       FirebaseService.updateUserCompanions(user._docId, user.companions)
         .catch(err => console.error('[updateCompanion]', err));
     }
@@ -1608,7 +1469,7 @@ const ApiService = {
     const idx = user.companions.findIndex(c => c.id === companionId);
     if (idx < 0) return false;
     user.companions.splice(idx, 1);
-    if (!this._demoMode && user._docId) {
+    if (user._docId) {
       FirebaseService.updateUserCompanions(user._docId, user.companions)
         .catch(err => console.error('[deleteCompanion]', err));
     }
@@ -1628,7 +1489,7 @@ const ApiService = {
     if (!user) return null;
     if (!user.eduChildren) user.eduChildren = [];
     user.eduChildren.push(data);
-    if (!this._demoMode && user._docId) {
+    if (user._docId) {
       FirebaseService.updateUserEduChildren(user._docId, user.eduChildren)
         .catch(err => console.error('[addEduChild]', err));
     }
@@ -1642,7 +1503,7 @@ const ApiService = {
     const idx = user.eduChildren.findIndex(c => c.id === childId);
     if (idx < 0) return false;
     user.eduChildren.splice(idx, 1);
-    if (!this._demoMode && user._docId) {
+    if (user._docId) {
       FirebaseService.updateUserEduChildren(user._docId, user.eduChildren)
         .catch(err => console.error('[removeEduChild]', err));
     }
@@ -1670,48 +1531,6 @@ const ApiService = {
     const userId = user?.uid || 'unknown';
     const userName = user?.displayName || user?.name || '用戶';
 
-    if (this._demoMode) {
-      const registrations = [];
-      let confirmed = 0, waitlisted = 0;
-      let promotionIdx = 0;
-      for (const p of participantList) {
-        // 重複檢查：跳過已報名的相同人員
-        const dupKey = p.companionId ? `${userId}_${p.companionId}` : userId;
-        const existing = this._src('registrations').find(r => {
-          if (r.eventId !== eventId || r.status === 'cancelled' || r.status === 'removed') return false;
-          const rKey = r.companionId ? `${r.userId}_${r.companionId}` : r.userId;
-          return rKey === dupKey;
-        });
-        if (existing) { promotionIdx++; continue; }
-
-        const isWaitlist = e.current >= e.max;
-        if (isWaitlist) {
-          e.waitlist = (e.waitlist || 0) + 1;
-          waitlisted++;
-        } else {
-          e.current++;
-          confirmed++;
-        }
-        const reg = {
-          id: 'reg_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5),
-          eventId,
-          userId,
-          userName,
-          participantType: p.type,
-          companionId: p.companionId || null,
-          companionName: p.companionName || null,
-          status: isWaitlist ? 'waitlisted' : 'confirmed',
-          promotionOrder: promotionIdx,
-          registeredAt: new Date().toISOString(),
-        };
-        promotionIdx++;
-        this._src('registrations').push(reg);
-        registrations.push(reg);
-        if (e.current >= e.max) e.status = 'full';
-      }
-      return { registrations, confirmed, waitlisted };
-    }
-
     const entries = participantList.map(p => ({
       userId,
       userName,
@@ -1728,12 +1547,10 @@ const ApiService = {
 
   /**
    * 呼叫 Cloud Function 提交射門分數。
-   * Demo 模式下靜默成功（不實際寫入）。
    * @param {{ score, shots, streak, durationMs, displayName }} payload
    * @returns {Promise<{ success, isNewBest, bucket }|null>}
    */
   async submitShotGameScore(payload) {
-    if (this._demoMode) return { success: true, isNewBest: false, bucket: 'demo' };
     if (!auth?.currentUser) return null;
     try {
       const fn = firebase.app().functions('asia-east1').httpsCallable('submitShotGameScore');
@@ -1758,15 +1575,6 @@ const ApiService = {
     const cacheKey = bucket;
     const cached = this._shotGameLeaderboardCache[cacheKey];
     if (cached && Date.now() - cached.ts < 5 * 60 * 1000) return cached.data;
-
-    if (this._demoMode) {
-      const demo = [
-        { uid: 'demo1', displayName: '示範玩家 A', bestScore: 850, bestStreak: 5, bestAt: null },
-        { uid: 'demo2', displayName: '示範玩家 B', bestScore: 720, bestStreak: 3, bestAt: null },
-      ];
-      this._shotGameLeaderboardCache[cacheKey] = { ts: Date.now(), data: demo };
-      return demo;
-    }
 
     try {
       const snap = await db
@@ -1794,7 +1602,6 @@ const ApiService = {
 
   async writeAuditLog(payload = {}) {
     try {
-      if (this._demoMode) return null;
       const authed = await this._ensureFirebaseWriteAuth({ forceRefreshToken: false });
       if (!authed) return null;
 
@@ -1820,9 +1627,6 @@ const ApiService = {
 
   async backfillAuditActorNames(dayKey = '') {
     try {
-      if (this._demoMode) {
-        return { success: true, dayKey: '', scanned: 0, updated: 0 };
-      }
       const authed = await this._ensureFirebaseWriteAuth({ forceRefreshToken: true });
       if (!authed) return null;
 
@@ -1842,10 +1646,6 @@ const ApiService = {
   },
 
   async getAuditLogsByDay(dayKey, options = {}) {
-    if (this._demoMode) {
-      return { items: [], lastDoc: null, hasMore: false };
-    }
-
     const safeDayKey = String(dayKey || '').replace(/\D/g, '').slice(0, 8);
     if (safeDayKey.length !== 8) {
       return { items: [], lastDoc: null, hasMore: false };
@@ -2030,20 +1830,6 @@ const ApiService = {
       throw new Error('單次查詢日期區間不可超過 365 天');
     }
 
-    if (this._demoMode) {
-      const demoEvents = this.getEvents().filter(event => {
-        const eventStart = this._parseEventParticipantDate(event.date);
-        return eventStart && eventStart >= start && eventStart <= new Date(`${endDate}T23:59:59`);
-      });
-      return this._collectEventParticipantStats({
-        keyword,
-        startDate,
-        endDate,
-        events: demoEvents,
-        attendanceRecords: this._src('attendanceRecords'),
-      });
-    }
-
     const currentUser = this.getCurrentUser();
     if (!currentUser || !['admin', 'super_admin'].includes(String(currentUser.role || ''))) {
       throw new Error('只有管理者可以使用此查詢');
@@ -2145,10 +1931,6 @@ const ApiService = {
   },
 
   async createParticipantQueryShare(result, options = {}) {
-    if (this._demoMode) {
-      throw new Error('Demo 模式不支援臨時查詢報表');
-    }
-
     this._assertAdminParticipantQueryShareAccess();
     const normalized = this._normalizeParticipantQueryShareResult(result);
     if (!normalized.keyword || !normalized.startDate || !normalized.endDate) {
@@ -2216,10 +1998,6 @@ const ApiService = {
   },
 
   async getParticipantQueryShare(shareId) {
-    if (this._demoMode) {
-      throw new Error('Demo 模式不支援臨時查詢報表');
-    }
-
     const safeShareId = String(shareId || '').trim();
     if (!safeShareId) {
       throw new Error('缺少報表識別碼');
@@ -2292,24 +2070,15 @@ const ApiService = {
   },
 
   getCurrentUser() {
-    if (this._demoMode) return (typeof DemoData !== 'undefined') ? DemoData.currentUser : null;
     return FirebaseService._cache.currentUser || null;
   },
 
   async loginUser(lineProfile) {
-    if (this._demoMode) return (typeof DemoData !== 'undefined') ? DemoData.currentUser : null;
     return await FirebaseService.createOrUpdateUser(lineProfile);
   },
 
   updateCurrentUser(updates) {
     if (this._handleRestrictedAction()) return null;
-    if (this._demoMode) {
-      if (typeof DemoData !== 'undefined' && DemoData.currentUser) {
-        Object.assign(DemoData.currentUser, updates);
-        return DemoData.currentUser;
-      }
-      return null;
-    }
     const user = FirebaseService._cache.currentUser;
     if (user) {
       Object.assign(user, updates);

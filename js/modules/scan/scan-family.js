@@ -123,9 +123,6 @@ Object.assign(App, {
     this._renderAttendanceSections();
     this._showScanResultPopup('success', `${userName} 等 ${checked.length} 人${modeLabel}成功`, userName);
 
-    if (ModeManager.isDemo() && typeof this._simulateAttendanceNotify === 'function') {
-      this._simulateAttendanceNotify(eventId, mode);
-    }
   },
 
 });

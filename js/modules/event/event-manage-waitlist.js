@@ -206,35 +206,33 @@ Object.assign(App, {
       };
     }
 
-    if (!ModeManager.isDemo()) {
-      try {
-        const eventDocId = String(e._docId || '').trim();
-        if (!eventDocId) throw new Error('EVENT_DOC_ID_MISSING');
-        const batch = db.batch();
-        for (const reg of userWaitlisted) {
-          if (reg._docId) {
-            batch.update(db.collection('registrations').doc(reg._docId), { status: 'confirmed' });
-          }
+    try {
+      const eventDocId = String(e._docId || '').trim();
+      if (!eventDocId) throw new Error('EVENT_DOC_ID_MISSING');
+      const batch = db.batch();
+      for (const reg of userWaitlisted) {
+        if (reg._docId) {
+          batch.update(db.collection('registrations').doc(reg._docId), { status: 'confirmed' });
         }
-        [...new Set(arRecords.map(record => record._docId).filter(Boolean))].forEach(docId => {
-          batch.update(db.collection('activityRecords').doc(docId), { status: 'registered' });
-        });
-        batch.update(db.collection('events').doc(eventDocId), {
-          current: occupancy.current,
-          waitlist: occupancy.waitlist,
-          participants: occupancy.participants,
-          waitlistNames: occupancy.waitlistNames,
-          status: occupancy.status,
-        });
-        await batch.commit();
-      } catch (err) {
-        console.error('[forcePromote]', err);
-        // rollback local changes
-        userWaitlisted.forEach(reg => { reg.status = 'waitlisted'; });
-        arRecords.forEach(record => { record.status = 'waitlisted'; });
-        this.showToast('儲存失敗，請重試');
-        return;
       }
+      [...new Set(arRecords.map(record => record._docId).filter(Boolean))].forEach(docId => {
+        batch.update(db.collection('activityRecords').doc(docId), { status: 'registered' });
+      });
+      batch.update(db.collection('events').doc(eventDocId), {
+        current: occupancy.current,
+        waitlist: occupancy.waitlist,
+        participants: occupancy.participants,
+        waitlistNames: occupancy.waitlistNames,
+        status: occupancy.status,
+      });
+      await batch.commit();
+    } catch (err) {
+      console.error('[forcePromote]', err);
+      // rollback local changes
+      userWaitlisted.forEach(reg => { reg.status = 'waitlisted'; });
+      arRecords.forEach(record => { record.status = 'waitlisted'; });
+      this.showToast('儲存失敗，請重試');
+      return;
     }
 
     // 套用投影到本地快取
@@ -244,7 +242,7 @@ Object.assign(App, {
     e.waitlistNames = occupancy.waitlistNames;
     e.status = occupancy.status;
 
-    if (!ModeManager.isDemo() && typeof FirebaseService !== 'undefined' && typeof FirebaseService._saveToLS === 'function') {
+    if (typeof FirebaseService !== 'undefined' && typeof FirebaseService._saveToLS === 'function') {
       FirebaseService._saveToLS('registrations', FirebaseService._cache.registrations);
       FirebaseService._saveToLS('activityRecords', FirebaseService._cache.activityRecords);
       FirebaseService._saveToLS('events', FirebaseService._cache.events);

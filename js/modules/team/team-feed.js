@@ -1,7 +1,7 @@
 /* ================================================
    SportHub — Team Feed: Subcollection CRUD
    Feed 留言板遷移到 teams/{teamId}/feed/{postId}
-   subcollection。Demo 模式仍使用 t.feed 陣列。
+   subcollection。
    Dynamic HTML uses escapeHTML() per CLAUDE.md.
    ================================================ */
 
@@ -12,11 +12,6 @@ Object.assign(App, {
   /* ── Load Feed ── */
 
   async _loadTeamFeed(teamId) {
-    if (ModeManager.isDemo()) {
-      var t = ApiService.getTeam(teamId);
-      this._teamFeedCache[teamId] = (t && t.feed) ? t.feed : [];
-      return;
-    }
     try {
       var collRef = await FirebaseService._getTeamSubcollectionRef(teamId, 'feed');
       var snapshot = await collRef.orderBy('createdAt', 'desc').get();
@@ -62,23 +57,16 @@ Object.assign(App, {
       comments: [], createdAt: now.toISOString()
     };
 
-    if (ModeManager.isDemo()) {
-      if (!t.feed) t.feed = [];
-      t.feed.push(post);
-      ApiService.updateTeam(teamId, { feed: t.feed });
-      this._teamFeedCache[teamId] = t.feed;
-    } else {
-      try {
-        var collRef = await FirebaseService._getTeamSubcollectionRef(teamId, 'feed');
-        var payload = Object.assign({}, post);
-        payload.createdAt = firebase.firestore.FieldValue.serverTimestamp();
-        await collRef.doc(post.id).set(payload);
-        await this._loadTeamFeed(teamId);
-      } catch (err) {
-        console.error('[TeamFeed] submitTeamPost failed:', err);
-        this.showToast('\u767c\u4f48\u5931\u6557\uff0c\u8acb\u7a0d\u5f8c\u518d\u8a66');
-        return;
-      }
+    try {
+      var collRef = await FirebaseService._getTeamSubcollectionRef(teamId, 'feed');
+      var payload = Object.assign({}, post);
+      payload.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+      await collRef.doc(post.id).set(payload);
+      await this._loadTeamFeed(teamId);
+    } catch (err) {
+      console.error('[TeamFeed] submitTeamPost failed:', err);
+      this.showToast('\u767c\u4f48\u5931\u6557\uff0c\u8acb\u7a0d\u5f8c\u518d\u8a66');
+      return;
     }
     this._teamFeedPage[teamId] = 1;
     if (uid) this._grantAutoExp?.(uid, 'post_team_feed', content.slice(0, 20));
@@ -89,23 +77,15 @@ Object.assign(App, {
   /* ── Delete Post ── */
 
   async deleteTeamPost(teamId, postId) {
-    if (ModeManager.isDemo()) {
-      var t = ApiService.getTeam(teamId);
-      if (!t || !t.feed) return;
-      t.feed = t.feed.filter(function (p) { return p.id !== postId; });
-      ApiService.updateTeam(teamId, { feed: t.feed });
-      this._teamFeedCache[teamId] = t.feed;
-    } else {
-      try {
-        var collRef = await FirebaseService._getTeamSubcollectionRef(teamId, 'feed');
-        await collRef.doc(postId).delete();
-        var cache = this._teamFeedCache[teamId] || [];
-        this._teamFeedCache[teamId] = cache.filter(function (p) { return p.id !== postId; });
-      } catch (err) {
-        console.error('[TeamFeed] deleteTeamPost failed:', err);
-        this.showToast('\u522a\u9664\u5931\u6557');
-        return;
-      }
+    try {
+      var collRef = await FirebaseService._getTeamSubcollectionRef(teamId, 'feed');
+      await collRef.doc(postId).delete();
+      var cache = this._teamFeedCache[teamId] || [];
+      this._teamFeedCache[teamId] = cache.filter(function (p) { return p.id !== postId; });
+    } catch (err) {
+      console.error('[TeamFeed] deleteTeamPost failed:', err);
+      this.showToast('\u522a\u9664\u5931\u6557');
+      return;
     }
     this.showToast('\u52d5\u614b\u5df2\u522a\u9664');
     this._refreshTeamDetailFeed(teamId);
@@ -114,46 +94,27 @@ Object.assign(App, {
   /* ── Pin / Unpin Post ── */
 
   async pinTeamPost(teamId, postId) {
-    if (ModeManager.isDemo()) {
-      var t = ApiService.getTeam(teamId);
-      if (!t || !t.feed) return;
-      var post = t.feed.find(function (p) { return p.id === postId; });
-      if (!post) return;
-      if (!post.pinned) {
-        var pinnedCount = t.feed.filter(function (p) { return p.pinned; }).length;
-        if (pinnedCount >= this._MAX_PINNED) {
-          this.showToast('\u6700\u591a\u53ea\u80fd\u7f6e\u9802 ' + this._MAX_PINNED + ' \u5247');
-          return;
-        }
-      }
-      post.pinned = !post.pinned;
-      ApiService.updateTeam(teamId, { feed: t.feed });
-      this._teamFeedCache[teamId] = t.feed;
-    } else {
-      var cache = this._teamFeedCache[teamId] || [];
-      var cached = cache.find(function (p) { return p.id === postId; });
-      if (!cached) return;
-      var newPinned = !cached.pinned;
-      if (newPinned) {
-        var pinCount = cache.filter(function (p) { return p.pinned; }).length;
-        if (pinCount >= this._MAX_PINNED) {
-          this.showToast('\u6700\u591a\u53ea\u80fd\u7f6e\u9802 ' + this._MAX_PINNED + ' \u5247');
-          return;
-        }
-      }
-      try {
-        var collRef = await FirebaseService._getTeamSubcollectionRef(teamId, 'feed');
-        await collRef.doc(postId).update({ pinned: newPinned });
-        cached.pinned = newPinned;
-      } catch (err) {
-        console.error('[TeamFeed] pinTeamPost failed:', err);
-        this.showToast('\u64cd\u4f5c\u5931\u6557');
+    var cache = this._teamFeedCache[teamId] || [];
+    var cached = cache.find(function (p) { return p.id === postId; });
+    if (!cached) return;
+    var newPinned = !cached.pinned;
+    if (newPinned) {
+      var pinCount = cache.filter(function (p) { return p.pinned; }).length;
+      if (pinCount >= this._MAX_PINNED) {
+        this.showToast('\u6700\u591a\u53ea\u80fd\u7f6e\u9802 ' + this._MAX_PINNED + ' \u5247');
         return;
       }
     }
-    var isPinned = ModeManager.isDemo()
-      ? (((ApiService.getTeam(teamId) || {}).feed || []).find(function (p) { return p.id === postId; }) || {}).pinned
-      : ((this._teamFeedCache[teamId] || []).find(function (p) { return p.id === postId; }) || {}).pinned;
+    try {
+      var collRef = await FirebaseService._getTeamSubcollectionRef(teamId, 'feed');
+      await collRef.doc(postId).update({ pinned: newPinned });
+      cached.pinned = newPinned;
+    } catch (err) {
+      console.error('[TeamFeed] pinTeamPost failed:', err);
+      this.showToast('\u64cd\u4f5c\u5931\u6557');
+      return;
+    }
+    var isPinned = ((this._teamFeedCache[teamId] || []).find(function (p) { return p.id === postId; }) || {}).pinned;
     this.showToast(isPinned ? '\u5df2\u7f6e\u9802' : '\u5df2\u53d6\u6d88\u7f6e\u9802');
     this._refreshTeamDetailFeed(teamId);
   },
@@ -164,38 +125,24 @@ Object.assign(App, {
     var user = ApiService.getCurrentUser ? ApiService.getCurrentUser() : null;
     var uid = (user && user.uid) ? user.uid : '';
     if (!uid) return;
-    if (ModeManager.isDemo()) {
-      var t = ApiService.getTeam(teamId);
-      if (!t || !t.feed) return;
-      var post = t.feed.find(function (p) { return p.id === postId; });
-      if (!post) return;
-      if (!post.reactions) post.reactions = { like: [], heart: [], cheer: [] };
-      var arr = post.reactions[key] || [];
-      var idx = arr.indexOf(uid);
-      if (idx >= 0) arr.splice(idx, 1); else arr.push(uid);
-      post.reactions[key] = arr;
-      ApiService.updateTeam(teamId, { feed: t.feed });
-      this._teamFeedCache[teamId] = t.feed;
-    } else {
-      var cache = this._teamFeedCache[teamId] || [];
-      var cached = cache.find(function (p) { return p.id === postId; });
-      if (!cached) return;
-      if (!cached.reactions) cached.reactions = { like: [], heart: [], cheer: [] };
-      var cArr = cached.reactions[key] || [];
-      var cIdx = cArr.indexOf(uid);
-      var adding = cIdx < 0;
-      try {
-        var collRef = await FirebaseService._getTeamSubcollectionRef(teamId, 'feed');
-        var updateObj = {};
-        updateObj['reactions.' + key] = adding
-          ? firebase.firestore.FieldValue.arrayUnion(uid)
-          : firebase.firestore.FieldValue.arrayRemove(uid);
-        await collRef.doc(postId).update(updateObj);
-        if (adding) cArr.push(uid); else cArr.splice(cIdx, 1);
-        cached.reactions[key] = cArr;
-      } catch (err) {
-        console.error('[TeamFeed] toggleFeedReaction failed:', err);
-      }
+    var cache = this._teamFeedCache[teamId] || [];
+    var cached = cache.find(function (p) { return p.id === postId; });
+    if (!cached) return;
+    if (!cached.reactions) cached.reactions = { like: [], heart: [], cheer: [] };
+    var cArr = cached.reactions[key] || [];
+    var cIdx = cArr.indexOf(uid);
+    var adding = cIdx < 0;
+    try {
+      var collRef = await FirebaseService._getTeamSubcollectionRef(teamId, 'feed');
+      var updateObj = {};
+      updateObj['reactions.' + key] = adding
+        ? firebase.firestore.FieldValue.arrayUnion(uid)
+        : firebase.firestore.FieldValue.arrayRemove(uid);
+      await collRef.doc(postId).update(updateObj);
+      if (adding) cArr.push(uid); else cArr.splice(cIdx, 1);
+      cached.reactions[key] = cArr;
+    } catch (err) {
+      console.error('[TeamFeed] toggleFeedReaction failed:', err);
     }
     this._refreshTeamDetailFeed(teamId);
   },
@@ -214,59 +161,38 @@ Object.assign(App, {
     var timeStr = App._formatDateTime(now);
     var comment = { id: 'c_' + Date.now(), uid: uid, name: name, text: text, time: timeStr };
 
-    if (ModeManager.isDemo()) {
-      var t = ApiService.getTeam(teamId);
-      if (!t || !t.feed) return;
-      var post = t.feed.find(function (p) { return p.id === postId; });
-      if (!post) return;
-      if (!post.comments) post.comments = [];
-      post.comments.push(comment);
-      ApiService.updateTeam(teamId, { feed: t.feed });
-      this._teamFeedCache[teamId] = t.feed;
-    } else {
-      var cache = this._teamFeedCache[teamId] || [];
-      var cached = cache.find(function (p) { return p.id === postId; });
-      if (!cached) return;
-      try {
-        var collRef = await FirebaseService._getTeamSubcollectionRef(teamId, 'feed');
-        await collRef.doc(postId).update({
-          comments: firebase.firestore.FieldValue.arrayUnion(comment)
-        });
-        await this._loadTeamFeed(teamId);
-      } catch (err) {
-        console.error('[TeamFeed] submitFeedComment failed:', err);
-        this.showToast('\u7559\u8a00\u5931\u6557');
-        return;
-      }
+    var cache = this._teamFeedCache[teamId] || [];
+    var cached = cache.find(function (p) { return p.id === postId; });
+    if (!cached) return;
+    try {
+      var collRef = await FirebaseService._getTeamSubcollectionRef(teamId, 'feed');
+      await collRef.doc(postId).update({
+        comments: firebase.firestore.FieldValue.arrayUnion(comment)
+      });
+      await this._loadTeamFeed(teamId);
+    } catch (err) {
+      console.error('[TeamFeed] submitFeedComment failed:', err);
+      this.showToast('\u7559\u8a00\u5931\u6557');
+      return;
     }
     this._refreshTeamDetailFeed(teamId);
   },
 
   async deleteFeedComment(teamId, postId, commentId) {
-    if (ModeManager.isDemo()) {
-      var t = ApiService.getTeam(teamId);
-      if (!t || !t.feed) return;
-      var post = t.feed.find(function (p) { return p.id === postId; });
-      if (!post || !post.comments) return;
-      post.comments = post.comments.filter(function (c) { return c.id !== commentId; });
-      ApiService.updateTeam(teamId, { feed: t.feed });
-      this._teamFeedCache[teamId] = t.feed;
-    } else {
-      var cache = this._teamFeedCache[teamId] || [];
-      var cached = cache.find(function (p) { return p.id === postId; });
-      if (!cached || !cached.comments) return;
-      try {
-        var collRef = await FirebaseService._getTeamSubcollectionRef(teamId, 'feed');
-        var docSnap = await collRef.doc(postId).get();
-        if (!docSnap.exists) return;
-        var filtered = (docSnap.data().comments || []).filter(function (c) { return c.id !== commentId; });
-        await collRef.doc(postId).update({ comments: filtered });
-        cached.comments = cached.comments.filter(function (c) { return c.id !== commentId; });
-      } catch (err) {
-        console.error('[TeamFeed] deleteFeedComment failed:', err);
-        this.showToast('\u522a\u9664\u7559\u8a00\u5931\u6557');
-        return;
-      }
+    var cache = this._teamFeedCache[teamId] || [];
+    var cached = cache.find(function (p) { return p.id === postId; });
+    if (!cached || !cached.comments) return;
+    try {
+      var collRef = await FirebaseService._getTeamSubcollectionRef(teamId, 'feed');
+      var docSnap = await collRef.doc(postId).get();
+      if (!docSnap.exists) return;
+      var filtered = (docSnap.data().comments || []).filter(function (c) { return c.id !== commentId; });
+      await collRef.doc(postId).update({ comments: filtered });
+      cached.comments = cached.comments.filter(function (c) { return c.id !== commentId; });
+    } catch (err) {
+      console.error('[TeamFeed] deleteFeedComment failed:', err);
+      this.showToast('\u522a\u9664\u7559\u8a00\u5931\u6557');
+      return;
     }
     this._refreshTeamDetailFeed(teamId);
   },

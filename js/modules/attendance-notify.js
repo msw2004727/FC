@@ -1,8 +1,7 @@
 /* ================================================
    SportHub — Attendance Notification Module
    被掃方即時通知：偵測到簽到/簽退紀錄時彈出全螢幕通知
-   Production: Firestore onSnapshot
-   Demo: 掃碼後直接觸發
+   透過 Firestore onSnapshot 偵測
    ================================================ */
 
 Object.assign(App, {
@@ -13,7 +12,7 @@ Object.assign(App, {
   // ── Production: Firestore onSnapshot ──
   startAttendanceListener() {
     const user = ApiService.getCurrentUser?.();
-    if (!user?.uid || ModeManager.isDemo()) return;
+    if (!user?.uid) return;
     if (this._attendanceListenerUnsub) return;
 
     const uid = user.uid;
@@ -45,7 +44,7 @@ Object.assign(App, {
     }
   },
 
-  // ── Demo: 掃碼後直接觸發 ──
+  // ── 手動觸發出席通知（測試用）──
   _simulateAttendanceNotify(eventId, type) {
     const e = ApiService.getEvent(eventId);
     setTimeout(() => {

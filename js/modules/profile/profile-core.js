@@ -93,7 +93,7 @@ Object.assign(App, {
     // 確保 profile 群組（profile-data-render / profile-data-stats / profile-card 等）已載入
     await ScriptLoader.ensureForPage('page-user-card');
     // 判斷是否為當前用戶（比對 displayName / name）
-    const isLoggedIn = (!ModeManager.isDemo() && typeof LineAuth !== 'undefined' && LineAuth.isLoggedIn());
+    const isLoggedIn = (typeof LineAuth !== 'undefined' && LineAuth.isLoggedIn());
     const currentUser = isLoggedIn ? ApiService.getCurrentUser() : null;
     const lineProfile = isLoggedIn ? LineAuth.getProfile() : null;
     const currentName = (lineProfile && lineProfile.displayName) || (currentUser && currentUser.displayName) || '';

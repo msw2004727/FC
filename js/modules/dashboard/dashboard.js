@@ -138,17 +138,8 @@ Object.assign(App, {
     if (overlay) overlay.style.display = '';
 
     try {
-      if (ModeManager.isDemo()) {
-        // Demo mode: clear in-memory arrays and objects
-        const keys = Object.keys(DemoData).filter(k => k !== 'users' && k !== 'currentUser');
-        keys.forEach(k => {
-          if (Array.isArray(DemoData[k])) { DemoData[k].length = 0; }
-          else if (typeof DemoData[k] === 'object' && DemoData[k] !== null) {
-            Object.keys(DemoData[k]).forEach(sub => delete DemoData[k][sub]);
-          }
-        });
-      } else {
-        // Production: clear Firestore collections (except users)
+      {
+        // Clear Firestore collections (except users)
         const collections = [
           'events', 'tournaments', 'teams', 'registrations',
           'attendanceRecords', 'activityRecords', 'matches', 'standings',

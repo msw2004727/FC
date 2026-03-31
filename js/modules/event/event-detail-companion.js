@@ -215,12 +215,10 @@ Object.assign(App, {
             status: isWl ? 'waitlisted' : 'registered', uid: userId, eventType: e.type,
           };
           ApiService.addActivityRecord(arRecord);
-          if (!ModeManager.isDemo()) {
-            db.collection('activityRecords').add({
-              ...arRecord, createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-            }).then(ref => { arRecord._docId = ref.id; })
-              .catch(err => console.error('[companionRegAR]', err));
-          }
+          db.collection('activityRecords').add({
+            ...arRecord, createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+          }).then(ref => { arRecord._docId = ref.id; })
+            .catch(err => console.error('[companionRegAR]', err));
           if (!isWl) this._grantAutoExp?.(userId, 'register_activity', e.title);
         }
       }
@@ -308,52 +306,6 @@ Object.assign(App, {
 
     const user = ApiService.getCurrentUser();
     const userId = user?.uid || 'unknown';
-
-    if (ApiService._demoMode) {
-      const e = ApiService.getEvent(eventId);
-      if (e) {
-        const regsToCancel = this._companionCancelRegs.filter(r => checked.includes(r.id));
-        regsToCancel.forEach(r => {
-          // 更新 demo registrations 狀態（以 registration 為計數主源）
-          const reg = ApiService._src('registrations').find(reg => reg.id === r.id);
-          if (reg && reg.status !== 'cancelled') {
-            const wasWaitlisted = reg.status === 'waitlisted';
-            reg.status = 'cancelled';
-            reg.cancelledAt = new Date().toISOString();
-            if (wasWaitlisted) {
-              e.waitlist = Math.max(0, e.waitlist - 1);
-            } else {
-              e.current = Math.max(0, e.current - 1);
-            }
-          } else {
-            // Fallback: 舊資料用 participants/waitlistNames
-            const displayName = r.companionName || r.userName;
-            const pi = (e.participants || []).indexOf(displayName);
-            if (pi >= 0) { e.participants.splice(pi, 1); e.current = Math.max(0, e.current - 1); }
-            const wi = (e.waitlistNames || []).indexOf(displayName);
-            if (wi >= 0) { e.waitlistNames.splice(wi, 1); e.waitlist = Math.max(0, e.waitlist - 1); }
-          }
-        });
-        e.status = e.current >= e.max ? 'full' : 'open';
-        const hasSelfCancel = regsToCancel.some(r => !r.companionId);
-        if (hasSelfCancel) {
-          const dateParts = e.date.split(' ')[0].split('/');
-          const dateStr = `${dateParts[1]}/${dateParts[2]}`;
-          const records = ApiService.getActivityRecords();
-          for (let i = records.length - 1; i >= 0; i--) {
-            if (records[i].eventId === eventId && records[i].uid === userId && records[i].status !== 'cancelled') {
-              records.splice(i, 1);
-            }
-          }
-          ApiService.addActivityRecord({ eventId, name: e.title, date: dateStr, status: 'cancelled', uid: userId });
-          this._grantAutoExp?.(userId, 'cancel_registration', e.title);
-          this._notifySignupCancelledInboxFromTemplate(e, userId, false);
-        }
-      }
-      this.showToast(`已取消 ${checked.length} 筆報名`);
-      this.showEventDetail(eventId);
-      return;
-    }
 
     const hasSelfCancel = this._companionCancelRegs.filter(r => checked.includes(r.id)).some(r => !r.companionId);
     const useCF = typeof shouldUseServerRegistration === 'function' && shouldUseServerRegistration();

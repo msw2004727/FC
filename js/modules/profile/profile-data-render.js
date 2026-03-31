@@ -50,7 +50,7 @@ Object.assign(App, {
     const user = ApiService.getCurrentUser();
     if (!user) return;
 
-    const lineProfile = (!ModeManager.isDemo() && typeof LineAuth !== 'undefined' && LineAuth.isLoggedIn()) ? LineAuth.getProfile() : null;
+    const lineProfile = (typeof LineAuth !== 'undefined' && LineAuth.isLoggedIn()) ? LineAuth.getProfile() : null;
     const lineName = (lineProfile && lineProfile.displayName) || user.displayName;
     const avatarCandidates = this._getAvatarCandidateUrls(lineProfile && lineProfile.pictureUrl, user.pictureUrl);
     const pic = avatarCandidates[0] || null;
@@ -94,7 +94,7 @@ Object.assign(App, {
 
     // 統計數據（方向 B：以掃碼紀錄為依據）
     if (this._calcScanStats) {
-      const _uid = user.uid || user.lineUserId || 'demo-user';
+      const _uid = user.uid || user.lineUserId || '';
       const { expectedCount, completedCount, attendRate } = this._calcScanStats(_uid);
       if (el('profile-stat-total')) el('profile-stat-total').textContent = expectedCount;
       if (el('profile-stat-done')) el('profile-stat-done').textContent = completedCount;

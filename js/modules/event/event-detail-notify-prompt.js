@@ -7,10 +7,9 @@ Object.assign(App, {
 
   /**
    * 報名成功後判斷是否顯示 LINE 推播綁定引導
-   * 條件：未綁定 + 未永久關閉 + 非 Demo
+   * 條件：未綁定 + 未永久關閉
    */
   _maybeShowLineNotifyPrompt() {
-    if (ModeManager.isDemo()) return;
     const user = ApiService.getCurrentUser?.();
     if (!user) return;
     if (user.lineNotify?.bound === true) return;

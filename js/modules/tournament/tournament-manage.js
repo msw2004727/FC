@@ -167,7 +167,7 @@ Object.assign(App, {
     const createContentImage = createContentPreview?.querySelector('img')?.src || null;
     const createCreatorName = createUser?.displayName || createUser?.name || '使用者';
     const createCreatorUid = createUser?.uid || '';
-    if (!createCreatorUid && !ModeManager.isDemo()) {
+    if (!createCreatorUid) {
       this.showToast('請先登入後再建立賽事。'); return;
     }
     const hostEntry = this._buildTournamentHostEntry(hostTeam, createUser);

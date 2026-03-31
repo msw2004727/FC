@@ -13,7 +13,6 @@ Object.assign(App, {
   _templatesLoadedUid: null,
 
   _isCloudTemplateEnabled() {
-    if (ModeManager.isDemo()) return false;
     const uid = this._getEventCreatorUid?.();
     return !!uid && uid !== 'unknown';
   },

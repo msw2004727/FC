@@ -232,19 +232,17 @@ Object.assign(App, {
     const isEdit = !!this._shopEditId;
     const itemId = isEdit ? this._shopEditId : 'cs_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
 
-    // 正式版：上傳新的 base64 圖片到 Storage
-    if (!ModeManager.isDemo()) {
-      let hasNewUpload = false;
-      for (let i = 0; i < images.length; i++) {
-        if (images[i] && images[i].startsWith('data:')) {
-          if (!hasNewUpload) { this.showToast('圖片上傳中...'); hasNewUpload = true; }
-          const url = await FirebaseService._uploadImage(images[i], `shopItems/${itemId}_${i}`);
-          if (url) {
-            images[i] = url;
-          } else {
-            this.showToast('圖片上傳失敗，請重試');
-            return;
-          }
+    // 上傳新的 base64 圖片到 Storage
+    let hasNewUpload = false;
+    for (let i = 0; i < images.length; i++) {
+      if (images[i] && images[i].startsWith('data:')) {
+        if (!hasNewUpload) { this.showToast('圖片上傳中...'); hasNewUpload = true; }
+        const url = await FirebaseService._uploadImage(images[i], `shopItems/${itemId}_${i}`);
+        if (url) {
+          images[i] = url;
+        } else {
+          this.showToast('圖片上傳失敗，請重試');
+          return;
         }
       }
     }
@@ -252,18 +250,13 @@ Object.assign(App, {
     if (isEdit) {
       // 更新既有商品
       const updates = { name, price, condition, size, desc: desc || '賣家未提供描述。', images };
-      if (!ModeManager.isDemo()) {
-        try {
-          await FirebaseService.updateShopItem(this._shopEditId, updates);
-        } catch (err) {
-          console.error('[updateShopItem]', err);
-          this.showToast('商品更新失敗，請重試');
-          ApiService._writeErrorLog({ fn: 'handleSaveShopItem', itemId: this._shopEditId }, err);
-          return;
-        }
-      } else {
-        const item = DemoData.shopItems.find(s => s.id === this._shopEditId);
-        if (item) Object.assign(item, updates);
+      try {
+        await FirebaseService.updateShopItem(this._shopEditId, updates);
+      } catch (err) {
+        console.error('[updateShopItem]', err);
+        this.showToast('商品更新失敗，請重試');
+        ApiService._writeErrorLog({ fn: 'handleSaveShopItem', itemId: this._shopEditId }, err);
+        return;
       }
       ApiService._writeOpLog('shop_edit', '商品編輯', `編輯商品「${name}」`);
       this.showToast(`商品「${name}」已更新！`);
@@ -276,17 +269,13 @@ Object.assign(App, {
         images,
         status: 'on_sale',
       };
-      if (!ModeManager.isDemo()) {
-        try {
-          await FirebaseService.addShopItem(newItem);
-        } catch (err) {
-          console.error('[addShopItem]', err);
-          this.showToast('商品建立失敗，請重試');
-          ApiService._writeErrorLog({ fn: 'handleSaveShopItem' }, err);
-          return;
-        }
-      } else {
-        DemoData.shopItems.unshift(newItem);
+      try {
+        await FirebaseService.addShopItem(newItem);
+      } catch (err) {
+        console.error('[addShopItem]', err);
+        this.showToast('商品建立失敗，請重試');
+        ApiService._writeErrorLog({ fn: 'handleSaveShopItem' }, err);
+        return;
       }
       ApiService._writeOpLog('shop_create', '商品上架', `上架商品「${name}」`);
       this.showToast(`商品「${name}」已上架！`);
@@ -305,12 +294,8 @@ Object.assign(App, {
   async delistShopItem(id) {
     const s = ApiService.getShopItem(id);
     if (!s) return;
-    if (!ModeManager.isDemo()) {
-      try { await FirebaseService.updateShopItem(id, { status: 'delisted' }); }
-      catch (err) { console.error('[delistShopItem]', err); this.showToast('下架失敗'); ApiService._writeErrorLog({ fn: 'delistShopItem', itemId: id }, err); return; }
-    } else {
-      s.status = 'delisted';
-    }
+    try { await FirebaseService.updateShopItem(id, { status: 'delisted' }); }
+    catch (err) { console.error('[delistShopItem]', err); this.showToast('下架失敗'); ApiService._writeErrorLog({ fn: 'delistShopItem', itemId: id }, err); return; }
     ApiService._writeOpLog('shop_delist', '商品下架', `下架商品「${s.name}」`);
     this.renderShop();
     this.renderShopManage();
@@ -320,12 +305,8 @@ Object.assign(App, {
   async relistShopItem(id) {
     const s = ApiService.getShopItem(id);
     if (!s) return;
-    if (!ModeManager.isDemo()) {
-      try { await FirebaseService.updateShopItem(id, { status: 'on_sale' }); }
-      catch (err) { console.error('[relistShopItem]', err); this.showToast('上架失敗'); ApiService._writeErrorLog({ fn: 'relistShopItem', itemId: id }, err); return; }
-    } else {
-      s.status = 'on_sale';
-    }
+    try { await FirebaseService.updateShopItem(id, { status: 'on_sale' }); }
+    catch (err) { console.error('[relistShopItem]', err); this.showToast('上架失敗'); ApiService._writeErrorLog({ fn: 'relistShopItem', itemId: id }, err); return; }
     ApiService._writeOpLog('shop_relist', '商品重新上架', `重新上架商品「${s.name}」`);
     this.renderShop();
     this.renderShopManage();
@@ -336,13 +317,8 @@ Object.assign(App, {
     const s = ApiService.getShopItem(id);
     if (!s) return;
     if (!(await this.appConfirm(`確定要刪除「${s.name}」？此操作無法復原。`))) return;
-    if (!ModeManager.isDemo()) {
-      try { await FirebaseService.deleteShopItem(id); }
-      catch (err) { console.error('[removeShopItem]', err); this.showToast('刪除失敗'); ApiService._writeErrorLog({ fn: 'removeShopItem', itemId: id }, err); return; }
-    } else {
-      const idx = DemoData.shopItems.findIndex(si => si.id === id);
-      if (idx >= 0) DemoData.shopItems.splice(idx, 1);
-    }
+    try { await FirebaseService.deleteShopItem(id); }
+    catch (err) { console.error('[removeShopItem]', err); this.showToast('刪除失敗'); ApiService._writeErrorLog({ fn: 'removeShopItem', itemId: id }, err); return; }
     ApiService._writeOpLog('shop_delete', '商品刪除', `刪除商品「${s.name}」`);
     this.renderShop();
     this.renderShopManage();

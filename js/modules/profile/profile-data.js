@@ -40,7 +40,7 @@ Object.assign(App, {
   async bindLineNotify() {
     const user = ApiService.getCurrentUser();
     if (!user) {
-      if (!ModeManager.isDemo() && typeof LineAuth !== 'undefined' && !LineAuth.isLoggedIn()) {
+      if (typeof LineAuth !== 'undefined' && !LineAuth.isLoggedIn()) {
         this.showToast('請先使用 LINE 登入');
         LineAuth.login();
         return;
@@ -49,12 +49,6 @@ Object.assign(App, {
       return;
     }
     const btn = document.querySelector('.line-login-btn');
-
-    // Demo 模式 → 直接綁定
-    if (ModeManager.isDemo()) {
-      this._completeLineBinding(btn);
-      return;
-    }
 
     // 開啟加好友頁面（確保用戶已加官方帳號好友）
     // LINE 內建瀏覽器用 line.me/R/ti/p 可直接開啟；外部/PC 瀏覽器則開網頁版

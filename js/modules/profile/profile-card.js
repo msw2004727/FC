@@ -8,7 +8,7 @@ Object.assign(App, {
     if (!container) return;
 
     const user = ApiService.getCurrentUser();
-    const lineProfile = (!ModeManager.isDemo() && typeof LineAuth !== 'undefined' && LineAuth.isLoggedIn()) ? LineAuth.getProfile() : null;
+    const lineProfile = (typeof LineAuth !== 'undefined' && LineAuth.isLoggedIn()) ? LineAuth.getProfile() : null;
 
     const displayName = (lineProfile && lineProfile.displayName) ? lineProfile.displayName : (user ? user.displayName : '-');
     const achievementProfile = this._getAchievementProfile?.();

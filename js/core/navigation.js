@@ -75,7 +75,6 @@ Object.assign(App, {
   _hasCachedDataForPage(pageId) {
     if (this._hasPageSnapshotReady?.(pageId)) return true;
     if (!document.getElementById(pageId)) return false;
-    if (ModeManager.isDemo()) return false;
     const contract = typeof PAGE_DATA_CONTRACT !== 'undefined' && PAGE_DATA_CONTRACT[pageId];
     if (!contract) return false;
     if (!contract.required || contract.required.length === 0) return true;
@@ -88,7 +87,7 @@ Object.assign(App, {
 
   _canUseStaleNavigation(pageId, options = {}) {
     const { authPending = false } = options;
-    if (ModeManager.isDemo() || authPending) return false;
+    if (authPending) return false;
     if (pageId === this.currentPage) return false;
     const strategy = this._getPageStrategy(pageId);
     if (strategy !== 'stale-first' && strategy !== 'stale-confirm') return false;
@@ -103,8 +102,7 @@ Object.assign(App, {
     target.classList.add('active');
     this.currentPage = pageId;
 
-    if (!ModeManager.isDemo()
-      && typeof FirebaseService !== 'undefined'
+    if (typeof FirebaseService !== 'undefined'
       && typeof FirebaseService.finalizePageScopedRealtimeForPage === 'function') {
       FirebaseService.finalizePageScopedRealtimeForPage(pageId);
     }
@@ -118,8 +116,7 @@ Object.assign(App, {
     requestAnimationFrame(() => { if (this._positionFloatingAds) this._positionFloatingAds(); });
 
     if (options.render !== false) this._renderPageContent(pageId);
-    if (!ModeManager.isDemo()
-      && typeof FirebaseService !== 'undefined'
+    if (typeof FirebaseService !== 'undefined'
       && typeof FirebaseService.schedulePageScopedRealtimeForPage === 'function') {
       const contract = typeof PAGE_DATA_CONTRACT !== 'undefined' && PAGE_DATA_CONTRACT[pageId];
       if (contract && contract.realtime && contract.realtime.length > 0) {
@@ -187,11 +184,10 @@ Object.assign(App, {
 
   _pageNeedsCloud(pageId) {
     if (this._instantDeepLinkMode) return false;
-    return !ModeManager.isDemo() && pageId !== 'page-home';
+    return pageId !== 'page-home';
   },
 
   async _freshCheckBeforeAction(collection, docId, cachedData) {
-    if (ModeManager.isDemo()) return { ok: true, changed: false, freshData: cachedData };
     if (typeof db === 'undefined') return { ok: false, reason: 'OFFLINE' };
     try {
       const doc = await Promise.race([
@@ -224,7 +220,6 @@ Object.assign(App, {
   },
 
   _isCurrentUserRestricted() {
-    if (ModeManager.isDemo()) return false;
     if (typeof ApiService === 'undefined' || typeof ApiService.getCurrentUser !== 'function') return false;
     const user = ApiService.getCurrentUser();
     return !!(user && user.isRestricted === true);
@@ -250,7 +245,6 @@ Object.assign(App, {
 
   /** 正式版未登入時擋住並提示，回傳 true 代表被擋 */
   _requireLogin() {
-    if (ModeManager.isDemo()) return false;
     if (typeof LineAuth !== 'undefined' && LineAuth.isLoggedIn()) return false;
     if (typeof LineAuth !== 'undefined'
       && typeof LineAuth.isPendingLogin === 'function'
@@ -272,7 +266,6 @@ Object.assign(App, {
   },
 
   _isLoginRequired() {
-    if (ModeManager.isDemo()) return false;
     if (typeof LineAuth !== 'undefined' && LineAuth.isLoggedIn()) return false;
     return true;
   },
@@ -301,8 +294,7 @@ Object.assign(App, {
 
   async _ensurePageEntryReady(pageId) {
     // stale-first 快取捷徑：有快取時只載 HTML + JS，跳過 cloud + data 等待
-    const canStale = !ModeManager.isDemo()
-      && this._getPageStrategy(pageId) === 'stale-first'
+    const canStale = this._getPageStrategy(pageId) === 'stale-first'
       && this._hasCachedDataForPage(pageId);
 
     if (!canStale && this._pageNeedsCloud(pageId) && typeof this.ensureCloudReady === 'function') {
@@ -328,8 +320,7 @@ Object.assign(App, {
     if (canStale) {
       // 背景刷新：不阻塞頁面渲染
       void this._refreshStalePage(pageId, this._pageTransitionSeq);
-    } else if (!ModeManager.isDemo()
-      && !this._instantDeepLinkMode
+    } else if (!this._instantDeepLinkMode
       && typeof FirebaseService !== 'undefined'
       && FirebaseService.ensureCollectionsForPage) {
       const contract = typeof PAGE_DATA_CONTRACT !== 'undefined' && PAGE_DATA_CONTRACT[pageId];
@@ -392,8 +383,7 @@ Object.assign(App, {
     }
 
     const guardedPages = ['page-profile', 'page-teams', 'page-tournaments', 'page-messages', 'page-activities'];
-    const authPending = !ModeManager.isDemo()
-      && typeof LineAuth !== 'undefined'
+    const authPending = typeof LineAuth !== 'undefined'
       && (
         (typeof LineAuth.isPendingLogin === 'function' && LineAuth.isPendingLogin())
         || (typeof LineAuth.hasLiffSession === 'function' && LineAuth.hasLiffSession() && !LineAuth._ready)
@@ -496,7 +486,7 @@ Object.assign(App, {
       if (transitionSeq !== this._pageTransitionSeq) return { ok: false, reason: 'stale_transition' };
 
       // 載入必要集合（instant deep link 模式跳過，避免未認證時 Firestore 權限錯誤）
-      if (!ModeManager.isDemo() && !this._instantDeepLinkMode && typeof FirebaseService !== 'undefined' && FirebaseService.ensureCollectionsForPage) {
+      if (!this._instantDeepLinkMode && typeof FirebaseService !== 'undefined' && FirebaseService.ensureCollectionsForPage) {
         await FirebaseService.ensureCollectionsForPage(pageId, { skipRealtimeStart: true });
       }
       if (transitionSeq !== this._pageTransitionSeq) return { ok: false, reason: 'stale_transition' };
@@ -621,6 +611,7 @@ Object.assign(App, {
     if (pageId === 'page-admin-banners') { this.renderBannerManage(); this.renderFloatingAdManage(); this.renderPopupAdManage(); this.renderSponsorManage(); this.renderShotGameAdManage(); this.renderBootBrandManage?.(); this.renderNewsToggle(); }
     if (pageId === 'page-admin-shop') this.renderShopManage();
     if (pageId === 'page-admin-messages') this.renderMsgManage();
+    if (pageId === 'page-admin-notif') this.renderNotifSettings?.();
     if (pageId === 'page-admin-tournaments') this.renderTournamentManage();
     if (pageId === 'page-admin-teams') this.renderAdminTeams();
     if (pageId === 'page-admin-achievements') this.renderAdminAchievements();
@@ -673,16 +664,14 @@ Object.assign(App, {
       const prev = this.pageHistory.pop();
       // 清理當前頁面的資源（監聽器、動畫等）
       this._cleanupBeforePageSwitch(prev);
-      if (!ModeManager.isDemo()
-        && typeof FirebaseService !== 'undefined'
+      if (typeof FirebaseService !== 'undefined'
         && typeof FirebaseService.ensureCollectionsForPage === 'function') {
         await FirebaseService.ensureCollectionsForPage(prev);
       }
       document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
       document.getElementById(prev).classList.add('active');
       this.currentPage = prev;
-      if (!ModeManager.isDemo()
-        && typeof FirebaseService !== 'undefined'
+      if (typeof FirebaseService !== 'undefined'
         && typeof FirebaseService.finalizePageScopedRealtimeForPage === 'function') {
         FirebaseService.finalizePageScopedRealtimeForPage(prev);
       }

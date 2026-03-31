@@ -164,11 +164,6 @@ Object.assign(App, {
     if (typeof this._syncStealthFromUser === 'function') this._syncStealthFromUser();
     const roleInfo = this._getEffectiveRoleInfo(role);
 
-    // Demo 模式同步 currentUser.role，讓個人資料頁膠囊正確顯示
-    if (ModeManager.isDemo() && typeof DemoData !== 'undefined' && DemoData.currentUser) {
-      DemoData.currentUser.role = role;
-    }
-
     const drawerRoleTag = document.getElementById('drawer-role-tag');
     if (drawerRoleTag) {
       drawerRoleTag.textContent = roleInfo.label;
@@ -285,35 +280,6 @@ Object.assign(App, {
     }
     void this.showPage(safePageId);
     this.closeDrawer();
-  },
-
-  toggleDemoRoleMenu() {
-    const menu = document.getElementById('demo-role-dropdown');
-    if (!menu) return;
-    const isOpen = menu.style.display !== 'none';
-    menu.style.display = isOpen ? 'none' : '';
-    if (!isOpen) {
-      setTimeout(() => {
-        const close = (e) => {
-          if (!menu.contains(e.target) && e.target.id !== 'demo-avatar-btn') {
-            menu.style.display = 'none';
-            document.removeEventListener('click', close);
-          }
-        };
-        document.addEventListener('click', close);
-      }, 0);
-    }
-  },
-
-  selectDemoRole(role) {
-    const menu = document.getElementById('demo-role-dropdown');
-    if (menu) {
-      menu.querySelectorAll('.demo-role-item').forEach(i => i.classList.remove('active'));
-      const selected = menu.querySelector(`[data-role="${role}"]`);
-      if (selected) selected.classList.add('active');
-      menu.style.display = 'none';
-    }
-    this.applyRole(role);
   },
 
   async _copyShareUrl() {

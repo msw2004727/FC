@@ -19,7 +19,7 @@ Object.assign(App, {
 
   // 自動下架已過期廣告
   _autoExpireAds() {
-    if (!ModeManager.isDemo() && !this.hasPermission('admin.banners.entry')) return;
+    if (!this.hasPermission('admin.banners.entry')) return;
     const now = new Date();
     const check = (items, updateFn) => {
       items.forEach(ad => {
