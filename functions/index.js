@@ -5590,9 +5590,23 @@ exports.translateTexts = onCall(
       typeof t === "string" ? t.slice(0, MAX_CHARS) : ""
     );
 
+    // 計算總字元數（用於用量追蹤）
+    const totalChars = trimmed.reduce((sum, t) => sum + t.length, 0);
+
     try {
       const client = getTranslateClient();
       const [translations] = await client.translate(trimmed, { from: "zh-TW", to: targetLang });
+
+      // 記錄用量到 Firestore（fire-and-forget，不影響回傳速度）
+      const now = new Date();
+      const monthKey = `translate_${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}`;
+      db.doc(`translateUsage/${monthKey}`).set({
+        totalChars: FieldValue.increment(totalChars),
+        totalCalls: FieldValue.increment(1),
+        [`byLang.${targetLang}`]: FieldValue.increment(totalChars),
+        lastUpdated: FieldValue.serverTimestamp(),
+      }, { merge: true }).catch(e => console.warn("[translateTexts] usage log failed:", e));
+
       return { translations: Array.isArray(translations) ? translations : [translations] };
     } catch (err) {
       console.error("[translateTexts]", err);

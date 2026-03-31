@@ -387,4 +387,73 @@ Object.assign(App, {
       lx += ctx.measureText(s.label).width + 28;
     }
   },
+
+  // ═══════════════════════════════════════════════════
+  //  翻譯 API 用量卡片
+  // ═══════════════════════════════════════════════════
+
+  _TRANSLATE_FREE_CHARS: 500000,
+
+  async renderTranslateUsage(container) {
+    if (!container) return;
+    if (document.getElementById('translate-usage-card')) return;
+    if (this.currentRole !== 'super_admin') return;
+
+    const now = new Date();
+    const monthKey = 'translate_' + now.getFullYear() + String(now.getMonth() + 1).padStart(2, '0');
+    let data = null;
+    try {
+      if (typeof db === 'undefined') return;
+      const snap = await db.doc('translateUsage/' + monthKey).get();
+      if (snap.exists) data = snap.data();
+    } catch (err) {
+      console.warn('[dashboard] translateUsage 讀取失敗:', err);
+    }
+
+    const chars = data?.totalChars || 0;
+    const calls = data?.totalCalls || 0;
+    const byLang = data?.byLang || {};
+    const free = this._TRANSLATE_FREE_CHARS;
+    const pct = this._usagePct(chars, free);
+    const color = this._usageBarColor(pct);
+    const cost = chars <= free ? 0 : (chars - free) * 0.00002;
+    const costColor = cost > 0 ? '#ef4444' : '#10b981';
+    const monthLabel = now.getFullYear() + '/' + (now.getMonth() + 1);
+
+    // 語言分佈
+    const langEntries = Object.entries(byLang).sort((a, b) => b[1] - a[1]);
+    const langHtml = langEntries.length > 0
+      ? langEntries.map(([lang, c]) => escapeHTML(lang) + ' ' + this._fmtUsageNum(c)).join(' · ')
+      : '尚無資料';
+
+    const html = '<div class="info-card" id="translate-usage-card">'
+      + '<div class="info-title">翻譯 API 用量（' + escapeHTML(monthLabel) + '）</div>'
+      + '<div class="dash-usage-grid">'
+      + '<div class="dash-usage-card">'
+      + '  <div class="dash-usage-label">已用字元</div>'
+      + '  <div class="dash-usage-num">' + escapeHTML(this._fmtUsageNum(chars)) + '</div>'
+      + '  <div class="dash-usage-bar-track"><div class="dash-usage-bar-fill" style="width:' + pct + '%;background:' + color + '"></div></div>'
+      + '  <div class="dash-usage-sub">' + pct + '% of ' + this._fmtUsageNum(free) + '/月</div>'
+      + '</div>'
+      + '<div class="dash-usage-card">'
+      + '  <div class="dash-usage-label">翻譯次數</div>'
+      + '  <div class="dash-usage-num">' + escapeHTML(String(calls)) + '</div>'
+      + '  <div class="dash-usage-sub">Cloud Function 呼叫</div>'
+      + '</div>'
+      + '<div class="dash-usage-card">'
+      + '  <div class="dash-usage-label">估算費用</div>'
+      + '  <div class="dash-usage-num" style="color:' + costColor + '">$' + cost.toFixed(2) + '</div>'
+      + '  <div class="dash-usage-sub">' + (cost > 0 ? '超出免費額度' : '免費額度內') + '</div>'
+      + '</div>'
+      + '<div class="dash-usage-card">'
+      + '  <div class="dash-usage-label">語言分佈</div>'
+      + '  <div class="dash-usage-num" style="font-size:.78rem">' + langHtml + '</div>'
+      + '  <div class="dash-usage-sub">依字元數排序</div>'
+      + '</div>'
+      + '</div></div>';
+
+    const wrapper = document.createElement('div');
+    wrapper.innerHTML = html;
+    container.appendChild(wrapper);
+  },
 });

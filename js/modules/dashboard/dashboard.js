@@ -111,6 +111,13 @@ Object.assign(App, {
       });
     }
 
+    // ── 翻譯 API 用量（非同步） ──
+    if (typeof this.renderTranslateUsage === 'function') {
+      this.renderTranslateUsage(container).catch(err => {
+        console.warn('[dashboard] renderTranslateUsage 失敗:', err);
+      });
+    }
+
     this._markPageSnapshotReady?.('page-admin-dashboard');
   },
 
