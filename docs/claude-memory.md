@@ -10,6 +10,25 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-31 — [永久] 權限架構安全審查：四項評估結果
+
+完整審查了現有權限架構設計，結論如下：
+
+**1. users 文件欄位層級白名單 → 無漏洞**
+- 擔憂：用戶可能直接對 Firestore 寫入 `role` 欄位自我提升角色
+- 確認：`firestore.rules` 第 562 行的 `allow update` 每條路徑都必須通過欄位白名單函式（`isSafeSelfProfileUpdate` 等），`isSafeSelfProfileUpdate` 明確封鎖 `role/exp/level/claims/isAdmin/manualRole`，無法繞過。`isOwner` 單獨不夠，必須同時符合欄位限制。
+
+**2. hasPerm() 在 Firestore Rules 的讀取成本 → 無需計畫**
+- 評估：每次觸發 `hasPerm()` 的操作最多 +2 次讀取（`users/{uid}` + `rolePermissions/{role}`）；同一請求評估內 Firestore 快取，不會疊乘；`user` 角色因短路不觸發；`admin/super_admin` 因 `isAdmin()` 先通過也幾乎不觸發；實際付費者只有 coach/captain/venue_owner 的寫操作。現有規模下完全在免費額度內，若改用 Custom Claims 消除此成本，代價是失去即時生效優勢，不值得。
+
+**3. INHERENT_ROLE_PERMISSIONS 兩地定義 → 已修復（注釋 + 規則）**
+- 評估：`js/config.js` 與 `functions/index.js` 各自定義同名常數，無 build process 故無法共用，屬於維護地雷而非當前 bug。
+- 修復（commit 93574d6）：在兩個檔案的常數上方各加 `⚠️ 同步規則` 注釋，並在 `CLAUDE.md` 權限維護規範新增強制同步條目，說明靜默分歧後果。
+
+**4. 前端 role 快取與 Firestore 即時狀態不一致 → 無需計畫**
+- 擔憂：App.currentRole 在登入後不更新，導致角色變更要等重整才生效
+- 確認：系統已有兩條即時監聽器全程運作：`users` 集合 onSnapshot（偵測到 roleChanged 後強制刷新 token 並呼叫 `applyRole`）、`rolePermissions` 集合 onSnapshot（權限變動後呼叫 `_onRolePermissionsUpdated`）。角色或權限變更後 UI 在毫秒內自動更新，無需重整。Safari PWA 凍結恢復場景也有 `_resumeListeners()` 處理。
+
 ### 2026-03-30 — [永久] 權限系統統一重構（Phase 1-4）
 - **問題**：系統有 9 種不同的存取控制機制互相矛盾（data-min-role、ROLE_LEVEL_MAP、hasPermission、Firestore Rules 等），權限開關對教練/領隊/場主實際無效
 - **修復**：Phase 1 移除 17 個頁面的 data-min-role（改由 DRAWER_MENUS permissionCode 控制）；Phase 2 替換 22 處 ROLE_LEVEL_MAP 硬檢查為 hasPermission()；Phase 3 驗證 CF 不動；Phase 4 擴充 Firestore Rules 測試
