@@ -526,6 +526,8 @@
 .page-header { display: flex; align-items: center; justify-content: space-between; padding: .6rem .2rem; gap: .5rem; }
 .page-header h2 { font-family: var(--font-display); font-size: 1.15rem; font-weight: 800; flex: 1; }
 .page-header .back-btn { position: static; background: var(--bg-elevated); color: var(--text-primary); flex-shrink: 0; }
+.page-header-doc-btn { display:flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:50%;background:var(--bg-elevated);color:var(--text-secondary);border:1px solid var(--border);flex-shrink:0;transition:background .15s,color .15s; }
+.page-header-doc-btn:hover { background:var(--accent-bg);color:var(--accent); }
 
 /* ─── Filter Bar ─── */
 .filter-bar { display: none; gap: .4rem; padding: .4rem .2rem .8rem; width: 100%; }

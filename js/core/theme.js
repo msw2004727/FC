@@ -6,11 +6,11 @@ Object.assign(App, {
 
   bindTheme() {
     const saved = localStorage.getItem('sporthub_theme');
-    if (saved) {
-      document.documentElement.dataset.theme = saved;
-      const toggle = document.querySelector('#theme-toggle .toggle-switch');
-      if (saved === 'dark' && toggle) toggle.classList.add('active');
-    }
+    const theme = saved
+      || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    document.documentElement.dataset.theme = theme;
+    const initToggle = document.querySelector('#theme-toggle .toggle-switch');
+    if (theme === 'dark' && initToggle) initToggle.classList.add('active');
 
     document.getElementById('theme-toggle').addEventListener('click', () => {
       const html = document.documentElement;

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-Hant">
+<html lang="zh-Hant" data-theme="light">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -23,13 +23,32 @@
   --danger:#dc2626;--warn:#d97706;--info:#2563eb;
   --shadow:0 2px 16px rgba(0,0,0,.07);--shadow-lg:0 12px 40px rgba(0,0,0,.12);
 }
-@media(prefers-color-scheme:dark){:root{
+[data-theme="dark"]{
   --bg:#0b0f19;--bg-card:#151b28;--bg-el:#1e2536;--border:#2a3348;
   --t1:#f1f5f9;--t2:#cbd5e1;--t3:#64748b;
   --accent:#34d399;--accent-bg:rgba(52,211,153,.12);
   --danger:#f87171;--warn:#fbbf24;--info:#60a5fa;
   --shadow:0 2px 16px rgba(0,0,0,.25);--shadow-lg:0 12px 40px rgba(0,0,0,.4);
-}}
+}
+/* Theme Toggle Button */
+.theme-fab{
+  position:fixed;bottom:1.5rem;right:1.5rem;z-index:900;
+  width:46px;height:46px;border-radius:50%;border:1.5px solid var(--border);
+  background:var(--bg-card);box-shadow:var(--shadow);cursor:pointer;
+  display:flex;align-items:center;justify-content:center;overflow:hidden;
+  transition:background .25s,border-color .25s,box-shadow .25s;
+}
+.theme-fab:hover{box-shadow:var(--shadow-lg)}
+.theme-fab .icon-sun,.theme-fab .icon-moon{
+  position:absolute;transition:transform .35s cubic-bezier(.4,0,.2,1),opacity .25s;
+  font-size:1.3rem;line-height:1;
+}
+/* 淺色：太陽顯示，月亮藏下方 */
+.theme-fab .icon-sun{opacity:1;transform:translateY(0) rotate(0deg)}
+.theme-fab .icon-moon{opacity:0;transform:translateY(14px) rotate(-30deg)}
+/* 深色：月亮顯示，太陽藏上方 */
+[data-theme="dark"] .theme-fab .icon-sun{opacity:0;transform:translateY(-14px) rotate(30deg)}
+[data-theme="dark"] .theme-fab .icon-moon{opacity:1;transform:translateY(0) rotate(0deg)}
 html{scroll-behavior:smooth}
 body{font-family:var(--font-b);background:var(--bg);color:var(--t1);line-height:1.7;-webkit-font-smoothing:antialiased}
 a{color:var(--accent);text-decoration:none}
@@ -92,7 +111,7 @@ tr:last-child td{border-bottom:none}
   transform:translateX(-50%);font-size:.76rem;color:var(--t3);pointer-events:none
 }
 .swipe-hint span{
-  display:inline-block;background:rgba(240,242,245,.94);padding:.25rem .8rem;
+  display:inline-block;background:var(--bg-el);padding:.25rem .8rem;
   border-radius:var(--r-full);font-weight:500;white-space:nowrap;box-shadow:var(--shadow);
   animation:swipeAnim 2s ease-in-out infinite
 }
@@ -341,6 +360,11 @@ tr:last-child td{border-bottom:none}
   <div class="scroll-hint-text">上下滑動瀏覽更多</div>
 </div>
 
+<button class="theme-fab" id="theme-fab" aria-label="切換深淺色模式">
+  <span class="icon-sun">&#9728;&#65039;</span>
+  <span class="icon-moon">&#127769;</span>
+</button>
+
 <footer class="footer">
   <p>ToosterX &copy; 2026 &middot; 費用方案與功能內容可能隨版本更新調整</p>
 </footer>
@@ -390,6 +414,22 @@ tr:last-child td{border-bottom:none}
   window.addEventListener('scroll',dismiss,{once:true});
   window.addEventListener('touchmove',dismiss,{once:true});
   setTimeout(dismiss,4000);
+})();
+
+/* Theme Toggle — 同步主站 localStorage */
+(function(){
+  var KEY='sporthub_theme';
+  var html=document.documentElement;
+  var saved=localStorage.getItem(KEY);
+  var theme=saved||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');
+  html.dataset.theme=theme;
+
+  var fab=document.getElementById('theme-fab');
+  if(fab) fab.addEventListener('click',function(){
+    var isDark=html.dataset.theme==='dark';
+    html.dataset.theme=isDark?'light':'dark';
+    localStorage.setItem(KEY,html.dataset.theme);
+  });
 })();
 
 function showComingSoon(){
