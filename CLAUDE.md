@@ -83,7 +83,7 @@ FC-github/
 |---|------|------|------|
 | 1 | `js/config.js` | `CACHE_VERSION` 常數 | 動態載入的 pages/*.html 和 js 模組用此值做 cache busting |
 | 2 | `index.html` | 所有 `?v=` 參數（約 62 處） | CSS + JS 靜態資源的 cache busting |
-| 3 | `index.html` | 第 96 行 `var V='...'` | **快取自動清除觸發器**——版本號變更時自動清除所有 SW 快取並重新下載 |
+| 3 | `index.html` | 第 235 行 `var V='...'` | **快取自動清除觸發器**——版本號變更時自動清除所有 SW 快取並重新下載 |
 | 4 | `sw.js` | 第 9 行 `CACHE_NAME` | Service Worker 快取群組名稱，必須與 `var V` 同步，否則舊快取不會被清除 |
 
 **四個值必須完全一致**（同一個版本號字串）。
