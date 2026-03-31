@@ -70,6 +70,7 @@ a{color:var(--accent);text-decoration:none}
 .compare-section{margin-bottom:3.5rem}
 .compare-section h2{font-family:var(--font-d);font-size:1.4rem;font-weight:900;text-align:center;margin-bottom:.4rem}
 .compare-section p{text-align:center;color:var(--t2);font-size:.88rem;margin-bottom:1.5rem}
+.table-shell{position:relative}
 .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;border:1.5px solid var(--border);border-radius:var(--r);background:var(--bg-card)}
 table{width:100%;border-collapse:collapse;font-size:.82rem}
 th,td{padding:.65rem .8rem;border-bottom:1px solid var(--border);text-align:center;white-space:nowrap}
@@ -86,8 +87,15 @@ tr:last-child td{border-bottom:none}
 .t-cat td span{position:sticky;left:.8rem;display:inline-block}
 
 /* Swipe Hint */
-.swipe-hint{display:none;text-align:center;font-size:.76rem;color:var(--t3);padding:.4rem 0;animation:swipeAnim 2s ease-in-out infinite}
-.swipe-hint span{display:inline-block;background:var(--bg-el);padding:.25rem .8rem;border-radius:var(--r-full);font-weight:500}
+.swipe-hint{
+  display:none;position:absolute;left:50%;top:0;z-index:5;
+  transform:translateX(-50%);font-size:.76rem;color:var(--t3);pointer-events:none
+}
+.swipe-hint span{
+  display:inline-block;background:rgba(240,242,245,.94);padding:.25rem .8rem;
+  border-radius:var(--r-full);font-weight:500;white-space:nowrap;box-shadow:var(--shadow);
+  animation:swipeAnim 2s ease-in-out infinite
+}
 @keyframes swipeAnim{0%,100%{transform:translateX(0)}50%{transform:translateX(8px)}}
 @media(max-width:900px){.swipe-hint{display:block}}
 
@@ -259,8 +267,9 @@ tr:last-child td{border-bottom:none}
   <h2>方案功能比較</h2>
   <p>一目了然各身分方案的差異，選擇最適合你的角色</p>
 
-  <div class="swipe-hint"><span>👆 左右滑動查看更多</span></div>
-  <div class="table-wrap">
+  <div class="table-shell" id="compare-table-shell">
+    <div class="swipe-hint" id="compare-swipe-hint"><span>👆 左右滑動查看更多</span></div>
+    <div class="table-wrap">
     <table>
       <thead>
         <tr>
@@ -279,7 +288,7 @@ tr:last-child td{border-bottom:none}
           <td>優惠中</td>
           <td>優惠中</td>
         </tr>
-        <tr class="t-cat"><td colspan="5"><span>基礎功能</span></td></tr>
+        <tr class="t-cat" id="base-feature-row"><td colspan="5"><span>基礎功能</span></td></tr>
         <tr><td>瀏覽與報名活動</td><td class="t-check">&#10003;</td><td class="t-check">&#10003;</td><td class="t-check">&#10003;</td><td class="t-check">&#10003;</td></tr>
         <tr><td>加入俱樂部</td><td class="t-check">&#10003;</td><td class="t-check">&#10003;</td><td class="t-check">&#10003;</td><td class="t-check">&#10003;</td></tr>
         <tr><td>QR Code 簽到</td><td class="t-check">&#10003;</td><td class="t-check">&#10003;</td><td class="t-check">&#10003;</td><td class="t-check">&#10003;</td></tr>
@@ -304,6 +313,7 @@ tr:last-child td{border-bottom:none}
         <tr><td>場地活動優先曝光</td><td class="t-dash">-</td><td class="t-dash">-</td><td class="t-dash">-</td><td style="color:var(--warn);font-size:.72rem">規劃中</td></tr>
       </tbody>
     </table>
+    </div>
   </div>
 </section>
 
@@ -336,6 +346,33 @@ tr:last-child td{border-bottom:none}
 </footer>
 
 <script>
+/* Swipe Hint — align with 基礎功能 row on mobile */
+(function(){
+  var hint=document.getElementById('compare-swipe-hint');
+  var shell=document.getElementById('compare-table-shell');
+  var anchor=document.getElementById('base-feature-row');
+  if(!hint||!shell||!anchor) return;
+
+  function positionSwipeHint(){
+    if(window.innerWidth>900){
+      hint.style.removeProperty('top');
+      return;
+    }
+    var shellRect=shell.getBoundingClientRect();
+    var anchorRect=anchor.getBoundingClientRect();
+    var hintHeight=hint.offsetHeight||0;
+    var top=anchorRect.top-shellRect.top+((anchorRect.height-hintHeight)/2);
+    hint.style.top=Math.max(0,top)+'px';
+  }
+
+  window.addEventListener('load',positionSwipeHint);
+  window.addEventListener('resize',positionSwipeHint);
+  if(document.fonts&&document.fonts.ready&&typeof document.fonts.ready.then==='function'){
+    document.fonts.ready.then(positionSwipeHint);
+  }
+  setTimeout(positionSwipeHint,0);
+})();
+
 /* Scroll Hint — mobile only */
 (function(){
   if(window.innerWidth>640) return;
