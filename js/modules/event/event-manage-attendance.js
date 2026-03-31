@@ -319,14 +319,14 @@ Object.assign(App, {
       if (tableEditing) {
         return `<tr style="border-bottom:1px solid var(--border)">
           <td style="padding:.35rem .2rem;text-align:center"><button style="${kickStyle}" ${disabledAttr} onclick="App._removeUnregUser('${escapeHTML(eventId)}','${safeUid}','${safeName}')">踢掉</button></td>
-          <td style="padding:.35rem .3rem;text-align:left">${nameHtml}</td>
+          <td style="padding:.35rem .3rem;text-align:left" data-no-translate>${nameHtml}</td>
           <td style="padding:.35rem .2rem;text-align:center">${_attCb('unreg-checkin-' + safeUid, hasCheckin)}</td>
           <td style="padding:.35rem .2rem;text-align:center">${_attCb('unreg-checkout-' + safeUid, hasCheckout)}</td>
           <td style="padding:.35rem .3rem"><input type="text" maxlength="20" value="${escapeHTML(noteText)}" id="unreg-note-${safeUid}" placeholder="備註" ${disabledAttr} style="${noteInputStyle}"></td>
         </tr>`;
       }
       return `<tr style="border-bottom:1px solid var(--border)">
-        <td style="padding:.35rem .3rem;text-align:left">${nameHtml}</td>
+        <td style="padding:.35rem .3rem;text-align:left" data-no-translate>${nameHtml}</td>
         <td style="padding:.35rem .2rem;text-align:center">${hasCheckin ? '<span style="color:var(--success);font-size:1rem">✓</span>' : ''}</td>
         <td style="padding:.35rem .2rem;text-align:center">${hasCheckout ? '<span style="color:var(--success);font-size:1rem">✓</span>' : ''}</td>
         <td style="padding:.35rem .3rem;font-size:.72rem;color:var(--text-muted)">${escapeHTML(combinedNote)}</td>

@@ -96,7 +96,7 @@ Object.assign(App, {
     const exact = users.find(u => u.uid === input || u.name === input);
     if (exact) {
       this._msgMatchedUser = exact;
-      result.innerHTML = `<span style="color:var(--success)">&#10003; 找到：${escapeHTML(exact.name)}（${escapeHTML(exact.uid)}）・ ${escapeHTML(exact.role)}</span>`;
+      result.innerHTML = `<span style="color:var(--success)" data-no-translate>&#10003; 找到：${escapeHTML(exact.name)}（${escapeHTML(exact.uid)}）・ ${escapeHTML(exact.role)}</span>`;
     } else {
       this._msgMatchedUser = null;
       result.textContent = '';
@@ -113,7 +113,7 @@ Object.assign(App, {
     const dropdown = document.getElementById('msg-user-dropdown');
     if (dropdown) dropdown.classList.remove('open');
     const result = document.getElementById('msg-target-result');
-    if (result) result.innerHTML = `<span style="color:var(--success)">&#10003; 已選取：${escapeHTML(match.name)}（${escapeHTML(match.uid)}）・ ${escapeHTML(match.role)}</span>`;
+    if (result) result.innerHTML = `<span style="color:var(--success)" data-no-translate>&#10003; 已選取：${escapeHTML(match.name)}（${escapeHTML(match.uid)}）・ ${escapeHTML(match.role)}</span>`;
   },
 
   // ── 搜尋俱樂部（模糊搜尋 + 下拉選單）──

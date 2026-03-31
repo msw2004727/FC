@@ -10,6 +10,24 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-03-31 — 原地翻譯功能上線（Cloud Translation API + MutationObserver）
+- **問題**：外籍用戶從 LINE 開啟 Mini App 時整頁中文，LINE WebView 無內建翻譯，需要主動提供翻譯入口
+- **方案**：Cloud Function `translateTexts` + 前端 `translate.js` 模組。與 I18N 語言選單整合，非中文設備自動顯示母語提示條。MutationObserver 監聽 DOM 變化自動翻譯新內容
+- **用戶名排除**：歷經三輪迭代：(1) `-name` class 正則 → 漏掉裸 `<td>`/`<span>`；(2) 用戶名清單比對 → 依賴資料載入時序且有誤殺風險；(3) **最終方案**：在 16 個檔案 34 處渲染用戶名的 DOM 元素加上 `data-no-translate` 屬性，TreeWalker 的 `closest('[data-no-translate]')` 一行排除，100% 可靠無誤殺
+- **教訓**：
+  - 翻譯排除不能靠啟發式規則（class 匹配、名字清單），要在源頭標記
+  - `data-no-translate` 是純 HTML 屬性，不影響任何 JS/CSS，加了沒風險
+  - 翻譯功能的「乾淨邊界」設計正確：移除 index.html 的 script 標籤即完全關閉
+
+### 2026-03-31 — 主題自動跟隨系統偏好 + roles 頁切換按鈕
+- **問題**：主題預設鎖定淺色，用戶需手動切換
+- **修復**：theme.js bindTheme() 初始化改為 localStorage → 系統 prefers-color-scheme → 預設淺色。roles/index.html 新增太陽/月亮浮動切換按鈕
+
+### 2026-03-31 — [永久] Demo 死代碼全面移除（方案 C）
+- **問題**：ModeManager.isDemo() 早已改為 stub（永遠回傳 false），但 247 處死代碼殘留在 61 個 JS 檔案中，導致每次新功能設計都被 AI 考量 Demo 分支
+- **修復**：移除所有 isDemo/DemoData/_demoMode 引用。api-service.js 減少 231 行。三方 AI 驗收通過
+- **教訓**：死代碼的「風險」來自操作失誤（手滑刪錯 else 分支），不是邏輯風險。`if (!isDemo()) { prod }` 和 `if (isDemo()) { demo } else { prod }` 是兩種不同的刪除模式
+
 ### 2026-03-31 — 推播通知開關落地並補齊最小權限與冷快取保護
 - **問題**：通知開關功能需要正式落地到後台，且必須避免 `siteConfig` 共用集合出現權限過大，還要避免 `featureFlags` 尚未載入時誤送推播或用預設值覆寫既有設定。
 - **原因**：通知設定和 Auto-EXP 都落在 `siteConfig`，若規則只看集合層級就容易讓委派權限旁通；同時通知設定頁與送推播流程都依賴 `featureFlags`，冷快取時若直接用空值會造成誤判。

@@ -126,7 +126,7 @@ Object.assign(App, {
              onclick="App.viewGameLog(${i})">
           <div style="display:flex;align-items:center;gap:.5rem;width:100%">
             <div style="flex:1">
-              <div style="font-weight:700;font-size:.85rem">${name} ${sub}</div>
+              <div style="font-weight:700;font-size:.85rem" data-no-translate>${name} ${sub}</div>
               <div style="font-size:.72rem;color:var(--text-muted)">Lv.${m.level} · ${escapeHTML(m.skin)} · 最後上線：${lastOn}</div>
             </div>
             <span style="color:var(--text-muted);font-size:.8rem">&rarr;</span>
@@ -211,7 +211,7 @@ Object.assign(App, {
       </div>
 
       <div class="banner-manage-card" style="flex-direction:column;gap:.5rem;margin-bottom:.6rem">
-        <div style="font-weight:800;font-size:1rem">${name}</div>
+        <div style="font-weight:800;font-size:1rem" data-no-translate>${name}</div>
         <div style="font-size:.72rem;color:var(--text-muted)">UID: ${escapeHTML(profile.uid)}</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:.3rem .8rem;font-size:.78rem">
           <div>皮膚：${escapeHTML(ch.skin || profile.skin || '-')}</div>

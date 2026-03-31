@@ -78,7 +78,7 @@ Object.assign(App, {
     const role = this._stealthRole(name, rawRole);
     const user = this._findUserByName(name);
     const lvl = this._calcLevelFromExp((user && user.exp) || 0).level;
-    return `<span class="user-capsule uc-${role}" onclick="App.showUserProfile('${escapeHTML(name)}')" title="${ROLES[role]?.label || '一般用戶'}"><span class="uc-lv">Lv${lvl}</span>${escapeHTML(name)}</span>`;
+    return `<span class="user-capsule uc-${role}" data-no-translate onclick="App.showUserProfile('${escapeHTML(name)}')" title="${ROLES[role]?.label || '一般用戶'}"><span class="uc-lv">Lv${lvl}</span>${escapeHTML(name)}</span>`;
   },
 
   _findUserByName(name) {
@@ -143,7 +143,7 @@ Object.assign(App, {
     document.getElementById('user-card-full').innerHTML = `
       <div class="uc-header">
         <div class="uc-avatar-circle" style="margin:0 auto .6rem">${avatarHtml}</div>
-        <div class="profile-title">${titleHtml}</div>
+        <div class="profile-title" data-no-translate>${titleHtml}</div>
         <div style="margin-top:.3rem"><span class="uc-role-tag" style="background:${roleInfo.color}22;color:${roleInfo.color}">${roleInfo.label}</span></div>
         <div class="profile-level">
           <span>Lv.${level}</span>

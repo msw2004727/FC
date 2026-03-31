@@ -124,7 +124,7 @@ Object.assign(App, {
     const safeStatus = String(actionStatus || '').trim().toLowerCase();
     const [style, label] = statusLabels[safeStatus] || ['', safeStatus];
     const reviewerSuffix = reviewerName ? `（${escapeHTML(reviewerName)}）` : '';
-    return `<div class="msg-action-status" style="${style}">${escapeHTML(label)}${reviewerSuffix}</div>`;
+    return `<div class="msg-action-status" style="${style}" data-no-translate>${escapeHTML(label)}${reviewerSuffix}</div>`;
   },
 
   showMessageDetail(id) {
@@ -184,7 +184,7 @@ Object.assign(App, {
         };
         const [style, label] = statusLabels[msg.actionStatus] || ['', msg.actionStatus];
         const reviewerSuffix = msg.reviewerName ? `（${escapeHTML(msg.reviewerName)}）` : '';
-        actionHtml = `<div class="msg-action-status" style="${style}">${label}${reviewerSuffix}</div>`;
+        actionHtml = `<div class="msg-action-status" style="${style}" data-no-translate>${label}${reviewerSuffix}</div>`;
       }
     } else if (msg.actionType === 'edu_student_apply') {
       const teamId = msg.meta?.teamId || '';
@@ -204,7 +204,7 @@ Object.assign(App, {
         };
         const [style, label] = statusLabels[msg.actionStatus] || ['', msg.actionStatus];
         const reviewerSuffix = msg.reviewerName ? `（${escapeHTML(msg.reviewerName)}）` : '';
-        actionHtml = `<div class="msg-action-status" style="${style}">${label}${reviewerSuffix}</div>`;
+        actionHtml = `<div class="msg-action-status" style="${style}" data-no-translate>${label}${reviewerSuffix}</div>`;
       }
     }
 
@@ -213,7 +213,7 @@ Object.assign(App, {
       <div style="font-size:.75rem;color:var(--text-muted);margin-bottom:.5rem">
         <span class="msg-type msg-type-${msg.type}">${escapeHTML(msg.typeName)}</span>
         <span style="margin-left:.4rem">${escapeHTML(msg.time)}</span>
-        ${msg.senderName ? `<span style="margin-left:.4rem">來自 ${escapeHTML(msg.senderName)}</span>` : ''}
+        ${msg.senderName ? `<span style="margin-left:.4rem" data-no-translate>來自 ${escapeHTML(msg.senderName)}</span>` : ''}
       </div>
       <div style="font-size:.85rem;line-height:1.7;padding:.6rem;background:var(--bg-elevated);border-radius:var(--radius-sm);white-space:pre-wrap">${escapeHTML(msg.body)}</div>
       ${actionHtml}

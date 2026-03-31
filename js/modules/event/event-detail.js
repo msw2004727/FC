@@ -581,7 +581,7 @@ Object.assign(App, {
           const cName = typeof c === 'string' ? c : c.name;
           rows += `<tr style="border-bottom:1px solid var(--border)">
             <td></td>
-            <td style="padding:.3rem .3rem;text-align:left;padding-left:1.2rem"><span style="color:var(--text-secondary)">↳ ${escapeHTML(cName)}</span></td>
+            <td style="padding:.3rem .3rem;text-align:left;padding-left:1.2rem" data-no-translate><span style="color:var(--text-secondary)">↳ ${escapeHTML(cName)}</span></td>
             <td></td>
           </tr>`;
         });
@@ -610,14 +610,14 @@ Object.assign(App, {
       let h = `<div style="padding:.35rem 0"><div style="display:flex;align-items:center;gap:.3rem">
         <span class="wl-pos">${idx + 1}</span>${this._userTag(item.name)}</div>`;
       if (item.selfOrphanInfo) {
-        h += `<div style="padding:.1rem 0 0 1.8rem;font-size:.72rem;color:var(--text-muted)">↳ 報名人：${escapeHTML(item.selfOrphanInfo)}（<span style="color:var(--success)">已正取</span>）</div>`;
+        h += `<div style="padding:.1rem 0 0 1.8rem;font-size:.72rem;color:var(--text-muted)" data-no-translate>↳ 報名人：${escapeHTML(item.selfOrphanInfo)}（<span style="color:var(--success)">已正取</span>）</div>`;
       }
       item.companions.forEach(c => {
         const cName = typeof c === 'string' ? c : c.name;
         const orphan = typeof c === 'object' ? c.orphanInfo : null;
-        h += `<div style="padding:.15rem 0 0 1.8rem;font-size:.78rem;color:var(--text-secondary)">↳ ${escapeHTML(cName)}</div>`;
+        h += `<div style="padding:.15rem 0 0 1.8rem;font-size:.78rem;color:var(--text-secondary)" data-no-translate>↳ ${escapeHTML(cName)}</div>`;
         if (orphan) {
-          h += `<div style="padding:.1rem 0 0 2.4rem;font-size:.72rem;color:var(--text-muted)">↳ 報名人：${escapeHTML(orphan)}（<span style="color:var(--success)">已正取</span>）</div>`;
+          h += `<div style="padding:.1rem 0 0 2.4rem;font-size:.72rem;color:var(--text-muted)" data-no-translate>↳ 報名人：${escapeHTML(orphan)}（<span style="color:var(--success)">已正取</span>）</div>`;
         }
       });
       h += '</div>';
@@ -771,7 +771,7 @@ Object.assign(App, {
         var actionLabel = e.action === 'cancel' ? '\u53d6\u6d88' : '\u5831\u540d';
         return '<div class="event-reg-log-item">' +
           '<span class="event-reg-log-time">' + timeStr + '</span>' +
-          '<span class="event-reg-log-user">' + escapeHTML(e.userName) + '</span>' +
+          '<span class="event-reg-log-user" data-no-translate>' + escapeHTML(e.userName) + '</span>' +
           '<span class="event-reg-log-action ' + actionCls + '">' + actionLabel + '</span>' +
           '</div>';
       }).join('');

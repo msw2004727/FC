@@ -46,7 +46,7 @@ Object.assign(App, {
     container.innerHTML = `
       <div class="uc-header">
         <div class="uc-avatar-circle" style="margin:0 auto .6rem">${avatarHtml}</div>
-        <div class="profile-title">${titleHtml}</div>
+        <div class="profile-title" data-no-translate>${titleHtml}</div>
         <div style="margin-top:.3rem"><span class="uc-role-tag" style="background:${roleInfo.color}22;color:${roleInfo.color}">${roleInfo.label}</span></div>
         <div class="profile-level">
           <span>Lv.${level}</span>

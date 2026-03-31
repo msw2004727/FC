@@ -15,7 +15,7 @@ Object.assign(App, {
   _MAX_PINNED: 5,
 
   _teamLeaderTag(name) {
-    return '<span class="user-capsule uc-team-leader" onclick="App.showUserProfile(\'' + escapeHTML(name) + '\')" title="\u7403\u968a\u9818\u968a">' + escapeHTML(name) + '</span>';
+    return '<span class="user-capsule uc-team-leader" data-no-translate onclick="App.showUserProfile(\'' + escapeHTML(name) + '\')" title="\u7403\u968a\u9818\u968a">' + escapeHTML(name) + '</span>';
   },
 
   _isTeamMember(teamId) {

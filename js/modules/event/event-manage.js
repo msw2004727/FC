@@ -423,7 +423,7 @@ Object.assign(App, {
     // ── 簽到/簽退/未報名紀錄 helper ──
     const recRow = (v) =>
       `<div style="display:flex;align-items:center;gap:.4rem;padding:.25rem 0;border-bottom:1px solid var(--border)">
-        <span style="font-size:.82rem;flex:1">${escapeHTML(v.name)}</span>
+        <span style="font-size:.82rem;flex:1" data-no-translate>${escapeHTML(v.name)}</span>
         <span style="font-size:.68rem;color:var(--text-muted)">${escapeHTML(v.time || '')}</span>
       </div>`;
 
@@ -453,7 +453,7 @@ Object.assign(App, {
     const metaParts = [];
     if (feeEnabled || fee > 0) metaParts.push(`費用：${fee > 0 ? 'NT$' + fee : '免費'}`);
     metaParts.push(`狀態：${statusConf.label}`);
-    metaParts.push(`主辦：${escapeHTML(e.creator)}`);
+    metaParts.push(`主辦：<span data-no-translate>${escapeHTML(e.creator)}</span>`);
 
     /* innerHTML — safe: all dynamic values pass through escapeHTML() */
     content.innerHTML = `

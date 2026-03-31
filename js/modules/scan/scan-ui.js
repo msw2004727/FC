@@ -165,7 +165,7 @@ Object.assign(App, {
       if (r.type === 'checkin')  { cls = 'success'; msg = `${name} 簽到成功`; }
       else if (r.type === 'checkout') { cls = 'success'; msg = `${name} 簽退成功`; }
       else { cls = 'error'; msg = `${name} 未報名此活動`; }
-      return `<div class="scan-result ${cls}">${escapeHTML(msg)}</div>`;
+      return `<div class="scan-result ${cls}" data-no-translate>${escapeHTML(msg)}</div>`;
     }).join('');
   },
 
@@ -236,7 +236,7 @@ Object.assign(App, {
       }
       const checksHtml = checks ? `<span class="scan-tag-checks">${checks}</span>` : '';
       const tagCls = checks ? 'scan-user-tag has-checks' : 'scan-user-tag';
-      return `<span class="${tagCls}">${escapeHTML(person.name)}${suffix}${checksHtml}</span>`;
+      return `<span class="${tagCls}" data-no-translate>${escapeHTML(person.name)}${suffix}${checksHtml}</span>`;
     };
 
     // 已報名：按主 uid 分組顯示，合併勾勾狀態

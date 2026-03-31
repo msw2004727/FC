@@ -271,7 +271,7 @@ Object.assign(App, {
       comments.forEach(c => {
         const canDel = c.uid === myUid;
         html += `<div style="font-size:.75rem;margin-bottom:.25rem;display:flex;align-items:baseline;gap:.3rem;flex-wrap:wrap">
-          <span style="font-weight:600;color:var(--text-primary)">${escapeHTML(c.name)}</span>
+          <span style="font-weight:600;color:var(--text-primary)" data-no-translate>${escapeHTML(c.name)}</span>
           <span style="color:var(--text-secondary);word-break:break-word">${escapeHTML(c.text)}</span>
           <span style="font-size:.62rem;color:var(--text-muted);margin-left:auto;flex-shrink:0">${escapeHTML(c.time)}${canDel ? ` <span style="color:var(--danger);cursor:pointer" onclick="event.stopPropagation();App.deleteFeedComment('${teamId}','${post.id}','${c.id}')">\u2715</span>` : ''}</span>
         </div>`;

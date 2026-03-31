@@ -110,7 +110,7 @@ Object.assign(App, {
         <td style="padding:.35rem .3rem;text-align:left">${this._userTag(item.name)}</td>
       </tr>`;
       if (item.selfOrphanInfo) {
-        rows += `<tr><td colspan="${colCount - 1}"></td><td style="padding:.1rem .3rem;padding-left:1.2rem;font-size:.72rem;color:var(--text-muted)">↳ 報名人：${escapeHTML(item.selfOrphanInfo)}（<span style="color:var(--success)">已正取</span>）</td></tr>`;
+        rows += `<tr><td colspan="${colCount - 1}"></td><td style="padding:.1rem .3rem;padding-left:1.2rem;font-size:.72rem;color:var(--text-muted)" data-no-translate>↳ 報名人：${escapeHTML(item.selfOrphanInfo)}（<span style="color:var(--success)">已正取</span>）</td></tr>`;
       }
       item.companions.forEach(c => {
         const cName = typeof c === 'string' ? c : c.name;
@@ -118,10 +118,10 @@ Object.assign(App, {
         rows += `<tr style="border-bottom:1px solid var(--border)">
           ${tableEditing ? '<td></td>' : ''}
           <td style="padding:.3rem .3rem"></td>
-          <td style="padding:.3rem .3rem;text-align:left;padding-left:1.2rem"><span style="color:var(--text-secondary)">↳ ${escapeHTML(cName)}</span></td>
+          <td style="padding:.3rem .3rem;text-align:left;padding-left:1.2rem" data-no-translate><span style="color:var(--text-secondary)">↳ ${escapeHTML(cName)}</span></td>
         </tr>`;
         if (orphan) {
-          rows += `<tr><td colspan="${colCount - 1}"></td><td style="padding:.1rem .3rem;padding-left:1.8rem;font-size:.72rem;color:var(--text-muted)">↳ 報名人：${escapeHTML(orphan)}（<span style="color:var(--success)">已正取</span>）</td></tr>`;
+          rows += `<tr><td colspan="${colCount - 1}"></td><td style="padding:.1rem .3rem;padding-left:1.8rem;font-size:.72rem;color:var(--text-muted)" data-no-translate>↳ 報名人：${escapeHTML(orphan)}（<span style="color:var(--success)">已正取</span>）</td></tr>`;
         }
       });
     });

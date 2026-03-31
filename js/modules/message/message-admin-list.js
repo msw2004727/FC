@@ -31,7 +31,7 @@ Object.assign(App, {
       const targetLabel = m.targetUid
         ? `${m.targetName || m.targetUid}（${m.targetUid}）`
         : m.target;
-      const senderLabel = m.senderName ? `發送人：${escapeHTML(m.senderName)}` : '';
+      const senderLabel = m.senderName ? `<span data-no-translate>發送人：${escapeHTML(m.senderName)}</span>` : '';
       const s = 'font-size:.72rem;padding:.2rem .5rem';
       let btns = '';
       let scheduleInfo = '';
@@ -124,7 +124,7 @@ Object.assign(App, {
         ${m.categoryName ? `<div>類別：${escapeHTML(m.categoryName)}</div>` : ''}
         <div>對象：${escapeHTML(targetLabel)}</div>
         <div>時間：${escapeHTML(m.time)}</div>
-        ${m.senderName ? `<div>發送人：${escapeHTML(m.senderName)}</div>` : ''}
+        ${m.senderName ? `<div data-no-translate>發送人：${escapeHTML(m.senderName)}</div>` : ''}
         ${schedHtml}
         <div>狀態：${statusMap[m.status] || m.status}</div>
       </div>

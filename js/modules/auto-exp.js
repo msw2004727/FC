@@ -237,7 +237,7 @@ Object.assign(App, {
         var color = String(amt).indexOf('-') === 0 ? 'var(--danger)' : 'var(--success)';
         html += '<tr style="border-bottom:1px solid var(--border)">'
           + '<td style="padding:.25rem .4rem;font-size:.75rem;color:var(--text-muted);white-space:nowrap">' + escapeHTML(time) + '</td>'
-          + '<td style="padding:.25rem .4rem;font-size:.75rem;font-weight:600">' + escapeHTML(d.target || d.uid || '') + '</td>'
+          + '<td style="padding:.25rem .4rem;font-size:.75rem;font-weight:600" data-no-translate>' + escapeHTML(d.target || d.uid || '') + '</td>'
           + '<td style="padding:.25rem .4rem;font-size:.75rem;color:var(--text-secondary)">' + escapeHTML(d.reason || '') + '</td>'
           + '<td style="padding:.25rem .4rem;font-size:.75rem;font-weight:700;text-align:right;color:' + color + '">' + escapeHTML(String(amt)) + '</td>'
           + '</tr>';
@@ -282,7 +282,7 @@ Object.assign(App, {
         html += '<div style="padding:.5rem .6rem;margin-bottom:.4rem;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-card)">'
           // 第一行：時間 + 操作者
           + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.3rem">'
-          + '<span style="font-size:.78rem;font-weight:600;color:var(--text-primary)">' + escapeHTML(d.operator || '-') + '</span>'
+          + '<span style="font-size:.78rem;font-weight:600;color:var(--text-primary)" data-no-translate>' + escapeHTML(d.operator || '-') + '</span>'
           + '<span style="font-size:.7rem;color:var(--text-muted)">' + escapeHTML(time) + '</span>'
           + '</div>'
           // 第二行：統計數據或 fallback 文字

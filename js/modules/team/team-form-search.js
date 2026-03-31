@@ -52,7 +52,7 @@ Object.assign(App, {
     const users = ApiService.getAdminUsers();
     document.getElementById('ct-leaders-tags').innerHTML = this._teamLeaderUids.map(uid => {
       const u = users.find(u => u.uid === uid);
-      return u ? `<span class="team-tag">${escapeHTML(u.name)}<span class="team-tag-x" onclick="App._removeLeader('${escapeHTML(uid)}')">×</span></span>` : '';
+      return u ? `<span class="team-tag" data-no-translate>${escapeHTML(u.name)}<span class="team-tag-x" onclick="App._removeLeader('${escapeHTML(uid)}')">×</span></span>` : '';
     }).join('');
   },
 
@@ -75,7 +75,7 @@ Object.assign(App, {
     document.getElementById('ct-captain-suggest').classList.remove('show');
     const prefix = this._teamEditId ? '轉移至：' : '';
     document.getElementById('ct-captain-selected').innerHTML =
-      `<span class="team-tag">${prefix}${user.name}<span class="team-tag-x" onclick="App.clearTeamCaptain()">×</span></span>`;
+      `<span class="team-tag" data-no-translate>${prefix}${user.name}<span class="team-tag-x" onclick="App.clearTeamCaptain()">×</span></span>`;
   },
 
   clearTeamCaptain() {
@@ -123,7 +123,7 @@ Object.assign(App, {
     const users = ApiService.getAdminUsers();
     document.getElementById('ct-coach-tags').innerHTML = this._teamCoachUids.map(uid => {
       const u = users.find(u => u.uid === uid);
-      return u ? `<span class="team-tag">${escapeHTML(u.name)}<span class="team-tag-x" onclick="App.removeTeamCoach('${escapeHTML(uid)}')">×</span></span>` : '';
+      return u ? `<span class="team-tag" data-no-translate>${escapeHTML(u.name)}<span class="team-tag-x" onclick="App.removeTeamCoach('${escapeHTML(uid)}')">×</span></span>` : '';
     }).join('');
   },
 
