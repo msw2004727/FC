@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>分隊色衣預覽 — 活動詳情頁模擬</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f3f4f6; }
+  :root {
+    --bg: #f3f4f6; --bg-card: #fff; --bg-elevated: #f9fafb;
+    --text: #111827; --text-secondary: #6b7280; --text-muted: #9ca3af;
+    --border: #e5e7eb; --accent: #7c3aed; --success: #10b981; --danger: #ef4444;
+    --radius: 8px; --radius-sm: 4px; --radius-full: 999px;
+  }
+
+  /* ─── 手機外框 ─── */
+  .phone-frame {
+    max-width: 390px; margin: 1rem auto; background: var(--bg-card);
+    border-radius: 16px; box-shadow: 0 4px 24px rgba(0,0,0,.12);
+    overflow: hidden; padding-bottom: 1rem;
+  }
+  .detail-header {
+    display: flex; align-items: center; padding: .8rem 1rem;
+    border-bottom: 1px solid var(--border); gap: .5rem;
+  }
+  .detail-header .back { font-size: 1.1rem; cursor: pointer; color: var(--text-secondary); }
+  .detail-header .title { font-size: .95rem; font-weight: 700; flex: 1; }
+  .detail-cover {
+    height: 120px; background: linear-gradient(135deg, #7c3aed 0%, #2563eb 100%);
+    display: flex; align-items: flex-end; padding: .8rem 1rem; position: relative;
+  }
+  .detail-cover-title { color: #fff; font-size: 1.1rem; font-weight: 700; text-shadow: 0 1px 4px rgba(0,0,0,.3); }
+  .detail-cover-ribbon {
+    position: absolute; top: .6rem; right: .6rem;
+    background: rgba(255,255,255,.2); backdrop-filter: blur(8px);
+    padding: .2rem .6rem; border-radius: var(--radius-full);
+    font-size: .68rem; font-weight: 600; color: #fff;
+  }
+  .detail-body { padding: 0 1rem; }
+
+  /* ─── detail-grid ─── */
+  .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .4rem; margin: .8rem 0; }
+  .detail-cell { background: var(--bg-elevated); border-radius: var(--radius); padding: .45rem .6rem; font-size: .78rem; }
+  .detail-label { font-weight: 600; color: var(--text-secondary); margin-right: .3rem; }
+  .detail-value { color: var(--text); }
+
+  .team-stat-card {
+    background: var(--bg-elevated); border-radius: var(--radius);
+    padding: .45rem .6rem; font-size: .78rem;
+    display: flex; align-items: center; gap: .4rem;
+  }
+  .team-stat-text { font-weight: 600; }
+  .team-stat-text span { font-weight: 400; color: var(--text-secondary); }
+
+  .batch-actions { display: flex; gap: .3rem; margin-top: .1rem; grid-column: span 1; }
+  .batch-btn {
+    flex: 1 1 0; text-align: center;
+    font-size: .65rem; padding: .28rem 0;
+    border: 1px solid var(--border); border-radius: var(--radius-sm);
+    background: var(--bg-card); cursor: pointer; color: var(--text-secondary); white-space: nowrap;
+  }
+  .batch-btn:hover { background: var(--bg-elevated); }
+
+  /* ─── Action Zone（模擬既有按鈕區） ─── */
+  .action-zone { margin: .8rem 0 1.2rem; }
+  .action-toolbar { display: flex; justify-content: center; gap: .35rem; }
+  .toolbar-btn {
+    flex: 1 1 0; display: flex; align-items: center; justify-content: center;
+    padding: .45rem .25rem; border: 1.5px solid var(--border);
+    border-radius: var(--radius-sm); background: none; cursor: pointer;
+    font-size: .75rem; color: var(--text-secondary); font-weight: 500;
+  }
+  .toolbar-btn:hover { background: var(--bg-elevated); }
+  .action-primary { margin-top: .6rem; }
+  .signup-btn {
+    display: block; width: 100%; padding: .65rem; border: none;
+    border-radius: var(--radius); background: var(--accent); color: #fff;
+    font-size: .9rem; font-weight: 600; cursor: pointer; text-align: center;
+  }
+  .signup-btn:hover { filter: brightness(.92); }
+
+  /* ─── 膠囊 ─── */
+  .user-capsule {
+    position: relative; display: inline-block;
+    padding: .25rem .65rem; border-radius: var(--radius-full);
+    font-size: .82rem; font-weight: 500; cursor: pointer;
+    transition: all .15s; border: 1px solid transparent; line-height: 1.4;
+    margin-top: 10px;
+  }
+  .user-capsule:hover { filter: brightness(0.92); transform: translateY(-1px); box-shadow: 0 2px 6px rgba(0,0,0,.1); }
+  .uc-user { background: var(--bg-elevated); color: var(--text-secondary); border-color: var(--border); }
+  .uc-coach { background: #fef3c7; color: #92400e; border-color: #fde68a; }
+  .uc-captain { background: #ede9fe; color: #5b21b6; border-color: #ddd6fe; }
+
+  .uc-lv {
+    position: absolute; top: -8px; left: -2px;
+    font-size: .5rem; font-weight: 700; line-height: 1;
+    padding: .12rem .28rem; border-radius: 4px;
+    background: #e5e7eb; color: #6b7280;
+    pointer-events: none; white-space: nowrap; z-index: 2;
+  }
+  .uc-team-jersey {
+    position: absolute; top: -8px; right: -3px;
+    width: 16px; height: 14px;
+    pointer-events: none; z-index: 2;
+    filter: drop-shadow(0 1px 1px rgba(0,0,0,.15));
+  }
+  .uc-team-jersey.clickable { pointer-events: auto; cursor: pointer; position: absolute; }
+  .uc-team-jersey.clickable:hover { transform: scale(1.3); filter: drop-shadow(0 2px 3px rgba(0,0,0,.25)); }
+  /* 擴大色衣點擊範圍（視覺不變，手指更好點） */
+  .uc-team-jersey.clickable::before {
+    content: ''; position: absolute;
+    top: -6px; right: -6px; bottom: -6px; left: -6px;
+  }
+
+  /* ─── 色票選擇器（從色衣位置向右滑出） ─── */
+  .jersey-picker-anchor { position: absolute; top: -10px; right: -3px; z-index: 10; }
+  .jersey-picker {
+    position: absolute;
+    left: 100%;              /* 從錨點（色衣）右邊開始 */
+    top: 50%;
+    display: flex; align-items: center; gap: 3px;
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: var(--radius-full); padding: 3px 6px;
+    box-shadow: 0 4px 12px rgba(0,0,0,.15);
+    white-space: nowrap;
+    margin-left: 4px;
+    transform-origin: left center;  /* 從左邊緣向右展開 */
+    opacity: 0;
+    transform: scaleX(0) translateY(-50%);
+    transition: opacity .2s ease, transform .25s cubic-bezier(.34,1.56,.64,1);
+    pointer-events: none;
+  }
+  .jersey-picker.open {
+    opacity: 1;
+    transform: scaleX(1) translateY(-50%);
+    pointer-events: auto;
+  }
+  .jersey-pick-item {
+    width: 20px; height: 18px; cursor: pointer;
+    transition: transform .12s; flex-shrink: 0;
+    filter: drop-shadow(0 1px 1px rgba(0,0,0,.1));
+  }
+  .jersey-pick-item:hover { transform: scale(1.3); }
+
+  /* ─── 表格 ─── */
+  .section-title {
+    font-weight: 700; font-size: .85rem; margin: .8rem 0 .4rem;
+    border-bottom: 1px solid var(--border); padding-bottom: .3rem;
+    display: flex; align-items: center; gap: .4rem;
+  }
+  .att-table { width: 100%; border-collapse: collapse; }
+  .att-table th { text-align: left; padding: .4rem .3rem; font-weight: 600; font-size: .75rem; border-bottom: 2px solid var(--border); color: var(--text-secondary); }
+  .att-table td { padding: .5rem .3rem; border-bottom: 1px solid #f3f4f6; font-size: .82rem; vertical-align: middle; }
+  .att-table tr:last-child td { border-bottom: none; }
+
+  .toggle-btn {
+    font-size: .72rem; padding: .2rem .45rem;
+    border: 1px solid #d1d5db; border-radius: var(--radius-sm);
+    background: var(--bg-card); cursor: pointer; color: var(--text-secondary);
+    margin-left: auto; transition: all .15s;
+  }
+  .toggle-btn:hover { background: var(--bg-elevated); }
+  .toggle-btn.active { background: #ede9fe; color: var(--accent); border-color: #c4b5fd; }
+  .toggle-btn.disabled { opacity: .4; cursor: not-allowed; pointer-events: none; }
+
+  .action-btn {
+    font-size: .72rem; padding: .25rem .55rem; border: none; border-radius: var(--radius-sm);
+    cursor: pointer; color: #fff; white-space: nowrap;
+  }
+  .action-btn.blue { background: #1565c0; }
+  .action-btn.green { background: #2e7d32; }
+
+  .section-note {
+    font-size: .72rem; color: var(--text-muted); padding: .6rem 0; margin-top: .3rem;
+    text-align: center; font-style: italic;
+  }
+
+  /* ─── 深色模式 ─── */
+  body.dark { --bg: #111827; --bg-card: #1f2937; --bg-elevated: #374151; --text: #e5e7eb; --text-secondary: #9ca3af; --text-muted: #6b7280; --border: #374151; }
+  body.dark .phone-frame { box-shadow: 0 4px 24px rgba(0,0,0,.4); }
+  body.dark .uc-lv { background: #4b5563; color: #9ca3af; }
+  body.dark .uc-user { background: #374151; color: #9ca3af; border-color: #4b5563; }
+  body.dark .uc-coach { background: rgba(251,191,36,.20); color: #fcd34d; border-color: rgba(251,191,36,.4); }
+  body.dark .uc-captain { background: rgba(139,92,246,.20); color: #c4b5fd; border-color: rgba(139,92,246,.4); }
+  body.dark .jersey-picker { background: #374151; border-color: #4b5563; }
+  body.dark .batch-btn { background: #1f2937; border-color: #4b5563; color: #9ca3af; }
+  body.dark .toolbar-btn { border-color: #4b5563; color: #9ca3af; }
+  body.dark .att-table td { border-bottom-color: #1f2937; }
+
+  .theme-toggle {
+    position: fixed; top: .6rem; right: .6rem; padding: .35rem .7rem;
+    border-radius: 6px; border: 1px solid #d1d5db; background: #fff;
+    cursor: pointer; font-size: .75rem; z-index: 100;
+  }
+  body.dark .theme-toggle { background: #374151; border-color: #4b5563; color: #e5e7eb; }
+
+  .view-label {
+    text-align: center; font-size: .68rem; color: var(--text-muted);
+    padding: .6rem .5rem; margin-top: .5rem; border-top: 1px dashed var(--border);
+    line-height: 1.5;
+  }
+
+  .separator { height: 1px; background: var(--border); margin: .6rem 0; }
+</style>
+</head>
+<body>
+
+<button class="theme-toggle" onclick="document.body.classList.toggle('dark')">深色模式</button>
+
+<!-- ========================================== -->
+<!-- 主辦/委託人視角                              -->
+<!-- ========================================== -->
+<div class="phone-frame">
+  <div class="detail-header">
+    <span class="back">‹</span>
+    <span class="title">活動詳情</span>
+  </div>
+  <div class="detail-cover">
+    <div class="detail-cover-ribbon">PLAY</div>
+    <div class="detail-cover-title">週六足球揪團</div>
+  </div>
+  <div class="detail-body">
+    <div style="padding:.6rem 0;font-size:.8rem;color:var(--text-secondary);line-height:1.8">
+      <div><span class="detail-label">地點</span>台大足球場</div>
+      <div><span class="detail-label">時間</span>2026/04/05 14:00~16:00</div>
+    </div>
+
+    <!-- detail-grid -->
+    <div class="detail-grid">
+      <div class="detail-cell"><span class="detail-label">人數</span><span class="detail-value">已報 15/20</span></div>
+      <div class="detail-cell"><span class="detail-label">倒數</span><span class="detail-value" style="color:var(--accent);font-weight:600">5 天</span></div>
+      <div class="detail-cell"><span class="detail-label">熱度</span><span class="detail-value" style="color:#ea580c;font-weight:600">熱門</span></div>
+      <div class="detail-cell"><span class="detail-label">費用</span><span class="detail-value">$100</span></div>
+      <div class="team-stat-card" id="ts-A"></div>
+      <div class="team-stat-card" id="ts-B"></div>
+      <div class="batch-actions" id="batch-bar">
+        <button class="batch-btn" onclick="batchRandom()">隨機</button>
+        <button class="batch-btn" onclick="batchBalance()">補齊</button>
+        <button class="batch-btn" onclick="batchReset()">重置</button>
+      </div>
+    </div>
+
+    <!-- action-zone（模擬既有按鈕） -->
+    <div class="action-zone">
+      <div class="action-toolbar">
+        <button class="toolbar-btn">聯繫主辦</button>
+        <button class="toolbar-btn">分享活動</button>
+        <button class="toolbar-btn">加入行事曆</button>
+      </div>
+      <div class="action-primary"><button class="signup-btn">立即報名</button></div>
+    </div>
+
+    <!-- 報名名單 -->
+    <div class="section-title">
+      <span id="list-title">正取名單（15/20）</span>
+      <button class="toggle-btn" id="sort-btn" onclick="toggleSort()">👕</button>
+      <button class="action-btn blue" id="edit-btn" onclick="toggleEdit()">手簽</button>
+    </div>
+    <table class="att-table">
+      <thead id="att-thead"></thead>
+      <tbody id="att-body"></tbody>
+    </table>
+
+    <div class="view-label">主辦人/委託人視角<br>點擊膠囊右上色衣 → 滑出換隊色票（排除目前顏色）</div>
+  </div>
+</div>
+
+<!-- ========================================== -->
+<!-- 一般用戶視角                                -->
+<!-- ========================================== -->
+<div class="phone-frame">
+  <div class="detail-header">
+    <span class="back">‹</span>
+    <span class="title">活動詳情（一般用戶視角）</span>
+  </div>
+  <div class="detail-cover">
+    <div class="detail-cover-ribbon">PLAY</div>
+    <div class="detail-cover-title">週六足球揪團</div>
+  </div>
+  <div class="detail-body">
+    <div style="padding:.6rem 0;font-size:.8rem;color:var(--text-secondary);line-height:1.8">
+      <div><span class="detail-label">地點</span>台大足球場</div>
+      <div><span class="detail-label">時間</span>2026/04/05 14:00~16:00</div>
+    </div>
+    <div class="detail-grid">
+      <div class="detail-cell"><span class="detail-label">人數</span><span class="detail-value">已報 15/20</span></div>
+      <div class="detail-cell"><span class="detail-label">倒數</span><span class="detail-value" style="color:var(--accent);font-weight:600">5 天</span></div>
+      <div class="detail-cell"><span class="detail-label">熱度</span><span class="detail-value" style="color:#ea580c;font-weight:600">熱門</span></div>
+      <div class="detail-cell"><span class="detail-label">費用</span><span class="detail-value">$100</span></div>
+      <div class="team-stat-card" id="ts-A2"></div>
+      <div class="team-stat-card" id="ts-B2"></div>
+    </div>
+    <div class="action-zone">
+      <div class="action-toolbar">
+        <button class="toolbar-btn">聯繫主辦</button>
+        <button class="toolbar-btn">分享活動</button>
+        <button class="toolbar-btn">加入行事曆</button>
+      </div>
+      <div class="action-primary"><button class="signup-btn">立即報名</button></div>
+    </div>
+    <div class="section-title">
+      <span>正取名單（15/20）</span>
+      <button class="toggle-btn" id="sort-btn2" onclick="toggleSort2()">👕</button>
+    </div>
+    <table class="att-table">
+      <thead><tr><th>姓名</th><th style="text-align:center;width:2.5rem">簽到</th><th style="text-align:center;width:2.5rem">簽退</th></tr></thead>
+      <tbody id="att-body-user"></tbody>
+    </table>
+    <div class="view-label">一般用戶視角<br>色衣不可點擊、無手簽按鈕、無批次操作</div>
+  </div>
+</div>
+
+<script>
+const JP = 'M10 1L1 6.5L4.5 9L5 25C5 26.1 5.9 27 7 27H25C26.1 27 27 26.1 27 25V9L30.5 6.5L22 1C22 1 20 5 16 5C12 5 10 1 10 1Z';
+const TEAMS = [
+  { key: 'A', color: '#EF4444', stroke: '#DC2626' },
+  { key: 'B', color: '#3B82F6', stroke: '#2563EB' },
+];
+
+function jSvg(fill, stroke, cls, onclickAttr) {
+  const u = !fill || fill === 'transparent';
+  const oc = onclickAttr ? ` ${onclickAttr}` : '';
+  return `<svg class="uc-team-jersey${cls ? ' ' + cls : ''}" viewBox="0 0 32 28" fill="none"${oc}><path d="${JP}" fill="${u ? 'transparent' : fill}" stroke="${u ? '#9CA3AF' : stroke}" stroke-width="${u ? 1.5 : 1}"${u ? ' stroke-dasharray="2 1.5"' : ''}/></svg>`;
+}
+function jBig(fill, stroke, w) {
+  const u = !fill;
+  return `<svg style="width:${w||20}px;height:${(w||20)*0.875}px;flex-shrink:0;filter:drop-shadow(0 1px 1px rgba(0,0,0,.12))" viewBox="0 0 32 28" fill="none"><path d="${JP}" fill="${u?'transparent':fill}" stroke="${u?'#9CA3AF':stroke}" stroke-width="${u?1.5:1}"${u?' stroke-dasharray="2 1.5"':''}/></svg>`;
+}
+function jPick(fill, stroke) {
+  const u = !fill;
+  return `<svg class="jersey-pick-item" viewBox="0 0 32 28" fill="none"><path d="${JP}" fill="${u?'transparent':fill}" stroke="${u?'#9CA3AF':stroke}" stroke-width="${u?1.5:1}"${u?' stroke-dasharray="2 1.5"':''}/></svg>`;
+}
+
+let people = [
+  { name: '小明',  lv: 3,  role: 'user',    team: 'A' },
+  { name: '阿華',  lv: 5,  role: 'user',    team: 'B' },
+  { name: '教練王', lv: 8,  role: 'coach',   team: 'A' },
+  { name: '小花',  lv: 2,  role: 'user',    team: 'B' },
+  { name: '大毛',  lv: 4,  role: 'user',    team: 'A' },
+  { name: '阿強',  lv: 6,  role: 'user',    team: 'B' },
+  { name: '美美',  lv: 3,  role: 'user',    team: 'A' },
+  { name: '小黑',  lv: 7,  role: 'user',    team: 'B' },
+  { name: '新人',  lv: 1,  role: 'user',    team: null },
+  { name: '領隊陳', lv: 12, role: 'captain', team: 'A' },
+  { name: '菜鳥',  lv: 1,  role: 'user',    team: null },
+  { name: '阿國',  lv: 2,  role: 'user',    team: 'B' },
+  { name: '大雄',  lv: 4,  role: 'user',    team: 'A' },
+  { name: '靜香',  lv: 3,  role: 'user',    team: 'B' },
+  { name: '胖虎',  lv: 6,  role: 'user',    team: 'A' },
+];
+
+function getT(p) { return TEAMS.find(t => t.key === p.team); }
+let sorted = false, sorted2 = false, editing = false, openIdx = -1;
+
+function cnt(key) { return people.filter(p => p.team === key).length; }
+function maxPerTeam() { return Math.ceil(people.length / TEAMS.length); }
+
+function renderStats() {
+  TEAMS.forEach(t => {
+    ['ts-' + t.key, 'ts-' + t.key + '2'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.innerHTML = `${jBig(t.color, t.stroke, 20)} <span class="team-stat-text">${cnt(t.key)}/${maxPerTeam()} <span>人</span></span>`;
+    });
+  });
+}
+
+function getList() {
+  const list = [...people];
+  if (!sorted) return list;
+  const ord = {}; TEAMS.forEach((t, i) => ord[t.key] = i);
+  return list.sort((a, b) => {
+    const ta = a.team ? (ord[a.team] ?? 99) : 999;
+    const tb = b.team ? (ord[b.team] ?? 99) : 999;
+    return ta - tb;
+  });
+}
+
+function buildPicker(origIdx) {
+  const p = people[origIdx];
+  // 排除目前顏色，只顯示其他隊伍 + 取消分配
+  let items = TEAMS
+    .filter(t => t.key !== p.team)
+    .map(t => `<div onclick="assign(event,${origIdx},'${t.key}')">${jPick(t.color, t.stroke)}</div>`)
+    .join('');
+  // 如果已有隊伍，加上取消分配選項
+  if (p.team) {
+    items += `<div onclick="assign(event,${origIdx},'')">${jPick(null, null)}</div>`;
+  }
+  return items;
+}
+
+function renderTable() {
+  const list = getList();
+  const noShowTh = '<th style="text-align:center;width:2.5rem">🕊</th>';
+  const thead = document.getElementById('att-thead');
+  thead.innerHTML = editing
+    ? `<tr><th style="width:2.5rem">踢掉</th><th>姓名</th>${noShowTh}<th style="text-align:center;width:2.5rem">簽到</th><th style="text-align:center;width:2.5rem">簽退</th><th style="width:3rem">備註</th></tr>`
+    : `<tr><th>姓名</th>${noShowTh}<th style="text-align:center;width:2.5rem">簽到</th><th style="text-align:center;width:2.5rem">簽退</th><th style="width:3rem">備註</th></tr>`;
+
+  document.getElementById('att-body').innerHTML = list.map(p => {
+    const idx = people.indexOf(p);
+    const t = getT(p);
+    const jerseyClick = !editing ? `onclick="togglePk(event,${idx})"` : '';
+    const jersey = jSvg(t?.color, t?.stroke, editing ? '' : 'clickable', jerseyClick);
+    const isOpen = openIdx === idx;
+    const pickerHtml = (!editing) ? `<div class="jersey-picker-anchor"><div class="jersey-picker${isOpen ? ' open' : ''}">${buildPicker(idx)}</div></div>` : '';
+    const ci = p.team ? '✓' : '';
+    const kickTd = editing ? `<td style="text-align:center"><button style="font-size:.63rem;padding:.15rem .3rem;border:1px solid var(--danger);color:var(--danger);background:transparent;border-radius:3px;cursor:pointer">踢掉</button></td>` : '';
+    return `<tr>
+      <td style="position:relative">
+        <span class="user-capsule uc-${p.role}" onclick="showProfile('${p.name}')">
+          <span class="uc-lv">Lv${p.lv}</span>${jersey}${p.name}
+        </span>
+        ${pickerHtml}
+      </td>
+      ${kickTd}
+      <td style="text-align:center;font-size:.85rem;color:${ci ? 'var(--success)' : 'var(--text-muted)'}">${ci || ''}</td>
+      <td style="text-align:center;font-size:.85rem;color:var(--text-muted)"></td>
+      <td style="font-size:.72rem;color:var(--text-muted)"></td>
+    </tr>`;
+  }).join('');
+
+  const sortBtn = document.getElementById('sort-btn');
+  sortBtn.textContent = sorted ? '⏱' : '👕';
+  sortBtn.className = 'toggle-btn' + (sorted ? ' active' : '') + (editing ? ' disabled' : '');
+}
+
+function showProfile(name) { /* 模擬：正式版會呼叫 App.showUserProfile(name) */ }
+function togglePk(e, idx) { e.stopPropagation(); openIdx = openIdx === idx ? -1 : idx; renderTable(); }
+function assign(e, idx, key) {
+  e.stopPropagation();
+  people[idx].team = key || null;
+  openIdx = -1;
+  renderAll();
+}
+function toggleSort() { if (editing) return; sorted = !sorted; openIdx = -1; renderAll(); }
+function toggleEdit() {
+  editing = !editing; openIdx = -1;
+  const btn = document.getElementById('edit-btn');
+  btn.textContent = editing ? '完成簽到' : '手簽';
+  btn.className = 'action-btn ' + (editing ? 'green' : 'blue');
+  renderTable();
+}
+
+function batchRandom() {
+  if (!confirm('確定要隨機全部重分？')) return;
+  const s = [...people].sort(() => Math.random() - .5);
+  s.forEach((p, i) => { p.team = TEAMS[i % TEAMS.length].key; });
+  openIdx = -1; renderAll();
+}
+function batchBalance() {
+  const u = people.filter(p => !p.team);
+  if (!u.length) { alert('沒有未分配的人'); return; }
+  u.forEach(p => {
+    const counts = TEAMS.map(t => ({ key: t.key, c: cnt(t.key) })).sort((a, b) => a.c - b.c);
+    p.team = counts[0].key;
+  });
+  openIdx = -1; renderAll();
+}
+function batchReset() {
+  if (!confirm('確定要重置所有分隊？')) return;
+  people.forEach(p => { p.team = null; });
+  openIdx = -1; renderAll();
+}
+
+// ─── 用戶視角 ───
+function renderUserTable() {
+  const list = sorted2 ? getList() : [...people];
+  document.getElementById('att-body-user').innerHTML = list.map(p => {
+    const t = getT(p);
+    const ci = p.team ? '✓' : '';
+    return `<tr>
+      <td><span class="user-capsule uc-${p.role}"><span class="uc-lv">Lv${p.lv}</span>${jSvg(t?.color, t?.stroke, '')}${p.name}</span></td>
+      <td style="text-align:center;font-size:.85rem;color:${ci ? 'var(--success)' : 'var(--text-muted)'}">${ci}</td>
+      <td style="text-align:center;font-size:.85rem;color:var(--text-muted)"></td>
+    </tr>`;
+  }).join('');
+}
+function toggleSort2() {
+  sorted2 = !sorted2;
+  const btn = document.getElementById('sort-btn2');
+  btn.textContent = sorted2 ? '⏱' : '👕';
+  btn.className = 'toggle-btn' + (sorted2 ? ' active' : '');
+  renderUserTable();
+}
+
+function renderAll() { renderStats(); renderTable(); renderUserTable(); }
+
+document.addEventListener('click', () => { if (openIdx >= 0) { openIdx = -1; renderTable(); } });
+renderAll();
+</script>
+</body>
+</html>
