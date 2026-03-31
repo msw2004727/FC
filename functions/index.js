@@ -5559,3 +5559,44 @@ exports.syncGroupActionStatus = onCall(
     }
   }
 );
+
+// ═══════════════════════════════════════════════════════════════
+//  translateTexts — 批次翻譯文字（供前端原地翻譯使用）
+//  安全：限制單次最多 128 段、每段最多 500 字元
+// ═══════════════════════════════════════════════════════════════
+let _translateClient;
+function getTranslateClient() {
+  if (!_translateClient) {
+    const { Translate } = require("@google-cloud/translate").v2;
+    _translateClient = new Translate({ projectId: "fc-football-6c8dc" });
+  }
+  return _translateClient;
+}
+
+exports.translateTexts = onCall(
+  { region: "asia-east1", maxInstances: 5 },
+  async (req) => {
+    const { texts, targetLang } = req.data || {};
+    const SUPPORTED_LANGS = ["en", "ja", "ko", "vi", "th"];
+    if (!Array.isArray(texts) || !texts.length) {
+      throw new HttpsError("invalid-argument", "texts must be a non-empty array");
+    }
+    if (!SUPPORTED_LANGS.includes(targetLang)) {
+      throw new HttpsError("invalid-argument", "Unsupported language: " + targetLang);
+    }
+    const MAX_ITEMS = 128;
+    const MAX_CHARS = 500;
+    const trimmed = texts.slice(0, MAX_ITEMS).map(t =>
+      typeof t === "string" ? t.slice(0, MAX_CHARS) : ""
+    );
+
+    try {
+      const client = getTranslateClient();
+      const [translations] = await client.translate(trimmed, { from: "zh-TW", to: targetLang });
+      return { translations: Array.isArray(translations) ? translations : [translations] };
+    } catch (err) {
+      console.error("[translateTexts]", err);
+      throw new HttpsError("internal", "Translation failed");
+    }
+  }
+);
