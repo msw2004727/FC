@@ -1,8 +1,10 @@
 /* ================================================
    SportHub — In-Page Translation Module
    ================================================
-   乾淨邊界設計：移除 index.html 的 <script> 標籤即完全關閉。
-   不修改任何現有模組，純增量功能。
+   與 I18N 語言選單整合：
+   - 用戶從抽屜語言下拉切換語言 → I18N 翻譯 data-i18n + Cloud API 翻譯其餘中文
+   - 非中文設備自動顯示提示條，點擊後切換 i18n 語言
+   - 乾淨邊界：移除 index.html 的 <script> 標籤即完全關閉
    ================================================ */
 
 Object.assign(App, {
@@ -15,7 +17,6 @@ Object.assign(App, {
     vi: { label: 'Tiếng Việt', btn: 'Dịch' },
     th: { label: 'ภาษาไทย', btn: 'แปล' },
   },
-  _TRANSLATE_LS_KEY: 'sporthub_translate_lang',
   _TRANSLATE_DISMISS_KEY: 'sporthub_translate_dismiss',
   _TRANSLATE_SKIP_TAGS: new Set(['SCRIPT', 'STYLE', 'OPTION', 'NOSCRIPT', 'CODE', 'PRE', 'SVG']),
 
@@ -26,35 +27,66 @@ Object.assign(App, {
   _translateLang: null,
   _translateDebounceTimer: null,
 
-  // ─── 初始化（由 script 載入時自動呼叫）───
+  // ─── 初始化 ───
   initTranslate() {
+    // Hook 進現有語言切換（覆寫 switchLanguage）
+    const origFn = typeof this.switchLanguage === 'function' ? this.switchLanguage.bind(this) : null;
+    this.switchLanguage = (locale) => {
+      if (origFn) origFn(locale);
+      this._onLanguageChanged(locale);
+    };
+
     // URL 參數後門（測試用）: ?lang=ko
     const urlLang = new URLSearchParams(location.search).get('lang');
-    const saved = localStorage.getItem(this._TRANSLATE_LS_KEY);
+    if (urlLang && this._TRANSLATE_SUPPORTED[urlLang]) {
+      this.switchLanguage(urlLang);
+      const sel = document.getElementById('lang-select');
+      if (sel) sel.value = urlLang;
+      return;
+    }
+
+    // 已有 i18n 語言偏好且非中文 → 自動觸發翻譯
+    const currentLocale = typeof I18N !== 'undefined' ? I18N.getLocale() : 'zh-TW';
+    if (currentLocale !== 'zh-TW' && this._TRANSLATE_SUPPORTED[currentLocale]) {
+      this._onLanguageChanged(currentLocale);
+      return;
+    }
+
+    // 偵測非中文設備 → 顯示提示條
     const dismissed = localStorage.getItem(this._TRANSLATE_DISMISS_KEY);
-    const deviceLang = (navigator.language || '').slice(0, 2);
-
-    // 決定目標語言
-    const targetLang = urlLang || saved || (this._TRANSLATE_SUPPORTED[deviceLang] ? deviceLang : null);
-
-    if (saved || urlLang) {
-      // 已有偏好 → 自動翻譯
-      this._translateLang = targetLang;
-      this._translateActive = true;
-      this._syncI18nLocale(targetLang);
-      this._startTranslation();
-      this._renderTranslateFab(true);
-    } else if (!dismissed && targetLang && !deviceLang.startsWith('zh')) {
-      // 偵測到非中文設備且未關閉提示 → 顯示提示條
-      this._showTranslateBanner(targetLang);
-      this._renderTranslateFab(false);
-    } else {
-      // 中文設備或已關閉提示 → 只顯示浮動按鈕
-      this._renderTranslateFab(false);
+    if (!dismissed) {
+      const deviceLang = (navigator.language || '').slice(0, 2);
+      if (!deviceLang.startsWith('zh') && this._TRANSLATE_SUPPORTED[deviceLang]) {
+        this._showTranslateBanner(deviceLang);
+      }
     }
   },
 
-  // ─── 提示條（非中文設備自動顯示）───
+  // ─── 語言切換回調（i18n 切換後觸發）───
+  _onLanguageChanged(locale) {
+    // 先停止舊翻譯
+    if (this._translateObserver) this._translateObserver.disconnect();
+    this._translateActive = false;
+
+    if (locale === 'zh-TW' || !this._TRANSLATE_SUPPORTED[locale]) {
+      // 切回中文 → 停止翻譯，重新渲染原文
+      this._translateLang = null;
+      if (this._renderPageContent && this.currentPage) {
+        this._renderPageContent(this.currentPage);
+      }
+      return;
+    }
+
+    // 非中文 → 重新渲染頁面（清除舊翻譯殘留）再翻譯
+    this._translateLang = locale;
+    if (this._renderPageContent && this.currentPage) {
+      this._renderPageContent(this.currentPage);
+    }
+    this._translateActive = true;
+    setTimeout(() => this._startTranslation(), 150);
+  },
+
+  // ─── 提示條（非中文設備自動顯示，點擊切換 i18n 語言）───
   _showTranslateBanner(lang) {
     const info = this._TRANSLATE_SUPPORTED[lang];
     if (!info) return;
@@ -69,12 +101,10 @@ Object.assign(App, {
 
     document.getElementById('translate-banner-btn').onclick = () => {
       bar.remove();
-      localStorage.setItem(this._TRANSLATE_LS_KEY, lang);
-      this._translateLang = lang;
-      this._translateActive = true;
-      this._syncI18nLocale(lang);
-      this._startTranslation();
-      this._updateTranslateFab(true);
+      // 切換 i18n 語言（會觸發 switchLanguage → _onLanguageChanged）
+      this.switchLanguage(lang);
+      const sel = document.getElementById('lang-select');
+      if (sel) sel.value = lang;
     };
     document.getElementById('translate-banner-close').onclick = () => {
       bar.remove();
@@ -82,122 +112,10 @@ Object.assign(App, {
     };
   },
 
-  // ─── 浮動按鈕（地球圖示）───
-  _renderTranslateFab(active) {
-    if (document.getElementById('translate-fab')) return;
-    const fab = document.createElement('button');
-    fab.id = 'translate-fab';
-    fab.title = '翻譯 / Translate';
-    fab.style.cssText = 'position:fixed;bottom:calc(var(--bottombar-h,56px) + env(safe-area-inset-bottom,0px) + 18px);left:8px;z-index:1000;width:36px;height:36px;border-radius:50%;border:1.5px solid var(--border,#e5e7eb);background:var(--bg-card,#fff);box-shadow:0 2px 8px rgba(0,0,0,.1);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:1.1rem;transition:background .15s,box-shadow .15s;';
-    fab.textContent = '🌐';
-    if (active) fab.style.background = 'var(--accent-bg,rgba(13,148,136,.08))';
-    document.body.appendChild(fab);
-
-    fab.onclick = () => this._toggleTranslateMenu();
-  },
-
-  _updateTranslateFab(active) {
-    const fab = document.getElementById('translate-fab');
-    if (!fab) return;
-    fab.style.background = active ? 'var(--accent-bg,rgba(13,148,136,.08))' : 'var(--bg-card,#fff)';
-  },
-
-  // ─── 語言選單 ───
-  _toggleTranslateMenu() {
-    const existing = document.getElementById('translate-menu');
-    if (existing) { existing.remove(); return; }
-
-    const menu = document.createElement('div');
-    menu.id = 'translate-menu';
-    menu.style.cssText = 'position:fixed;bottom:calc(var(--bottombar-h,56px) + env(safe-area-inset-bottom,0px) + 58px);left:8px;z-index:1001;background:var(--bg-card,#fff);border:1px solid var(--border,#e5e7eb);border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,.12);padding:.5rem 0;min-width:160px;';
-
-    // 中文選項（關閉翻譯）
-    const zhItem = '<div class="translate-menu-item' + (!this._translateActive ? ' active' : '') + '" data-lang="zh" style="padding:.55rem 1rem;cursor:pointer;font-size:.85rem;display:flex;align-items:center;gap:.5rem;">繁體中文（原文）</div>';
-
-    const langItems = Object.entries(this._TRANSLATE_SUPPORTED).map(([code, info]) => {
-      const isActive = this._translateActive && this._translateLang === code;
-      return '<div class="translate-menu-item' + (isActive ? ' active' : '') + '" data-lang="' + code + '" style="padding:.55rem 1rem;cursor:pointer;font-size:.85rem;display:flex;align-items:center;gap:.5rem;">' + escapeHTML(info.label) + '</div>';
-    }).join('');
-
-    menu.innerHTML = zhItem + langItems;
-    document.body.appendChild(menu);
-
-    // 選中狀態樣式
-    menu.querySelectorAll('.translate-menu-item').forEach(item => {
-      if (item.classList.contains('active')) item.style.cssText += 'color:var(--accent,#0d9488);font-weight:700;background:var(--accent-bg,rgba(13,148,136,.08));';
-      item.onmouseenter = () => { if (!item.classList.contains('active')) item.style.background = 'var(--bg-elevated,#f3f4f6)'; };
-      item.onmouseleave = () => { if (!item.classList.contains('active')) item.style.background = ''; };
-    });
-
-    menu.onclick = (e) => {
-      const item = e.target.closest('[data-lang]');
-      if (!item) return;
-      const lang = item.dataset.lang;
-      menu.remove();
-
-      if (lang === 'zh') {
-        this._stopTranslation();
-        localStorage.removeItem(this._TRANSLATE_LS_KEY);
-        this._updateTranslateFab(false);
-        this._syncI18nLocale('zh-TW');
-      } else {
-        // 先還原為中文（清除舊語言殘留）再翻譯新語言
-        if (this._translateObserver) this._translateObserver.disconnect();
-        if (typeof App !== 'undefined' && App._renderPageContent && App.currentPage) {
-          App._renderPageContent(App.currentPage);
-        }
-        localStorage.setItem(this._TRANSLATE_LS_KEY, lang);
-        this._translateLang = lang;
-        this._translateActive = true;
-        this._syncI18nLocale(lang);
-        // 等 DOM 重新渲染完成後再翻譯
-        setTimeout(() => this._startTranslation(), 100);
-        this._updateTranslateFab(true);
-      }
-    };
-
-    // 點外面關閉
-    setTimeout(() => {
-      const close = (e) => {
-        if (!menu.contains(e.target) && e.target.id !== 'translate-fab') {
-          menu.remove();
-          document.removeEventListener('click', close);
-        }
-      };
-      document.addEventListener('click', close);
-    }, 0);
-  },
-
-  // ─── i18n 連動（切換 I18N locale + 重新套用 data-i18n 翻譯）───
-  _syncI18nLocale(lang) {
-    if (typeof I18N === 'undefined' || typeof I18N.setLocale !== 'function') return;
-    I18N.setLocale(lang);
-    // 重新套用 data-i18n 標記的元素
-    document.querySelectorAll('[data-i18n]').forEach(el => {
-      const key = el.dataset.i18n;
-      if (key) el.textContent = typeof t === 'function' ? t(key) : key;
-    });
-  },
-
   // ─── 翻譯核心 ───
   async _startTranslation() {
-    // 翻譯當前可見內容
     await this._translateVisibleContent();
-    // 啟動 MutationObserver 監聽新內容
     this._startTranslateObserver();
-  },
-
-  _stopTranslation() {
-    this._translateActive = false;
-    this._translateLang = null;
-    if (this._translateObserver) {
-      this._translateObserver.disconnect();
-      this._translateObserver = null;
-    }
-    // 重新渲染當前頁面（JS 變數中的原文會重新寫入 DOM）
-    if (typeof App !== 'undefined' && App._renderPageContent && App.currentPage) {
-      App._renderPageContent(App.currentPage);
-    }
   },
 
   _startTranslateObserver() {
@@ -215,7 +133,6 @@ Object.assign(App, {
     if (!this._translateActive || !this._translateLang) return;
     const lang = this._translateLang;
 
-    // 收集需要翻譯的 TextNode
     const main = document.getElementById('main-content') || document.body;
     const walker = document.createTreeWalker(main, NodeFilter.SHOW_TEXT, {
       acceptNode: (node) => {
@@ -224,11 +141,8 @@ Object.assign(App, {
         if (node.parentNode?.closest?.('[data-no-translate]')) return NodeFilter.FILTER_REJECT;
         if (node.parentNode?.closest?.('[data-i18n]')) return NodeFilter.FILTER_REJECT;
         if (node.parentNode?.closest?.('input,textarea,select')) return NodeFilter.FILTER_REJECT;
-        // 已翻譯的跳過
         if (node._translatedLang === lang) return NodeFilter.FILTER_REJECT;
-        // 純數字/符號跳過
         if (/^\s*[\d\s\-\/\.:,+%$#@!?=()（）【】「」]+\s*$/.test(node.nodeValue)) return NodeFilter.FILTER_REJECT;
-        // 沒有中文字元的跳過
         if (!/[\u4e00-\u9fff]/.test(node.nodeValue)) return NodeFilter.FILTER_REJECT;
         return NodeFilter.FILTER_ACCEPT;
       }
@@ -237,18 +151,15 @@ Object.assign(App, {
     const nodes = [];
     const texts = [];
     while (walker.nextNode()) {
-      const text = walker.currentNode.nodeValue.trim();
       nodes.push(walker.currentNode);
-      texts.push(text);
+      texts.push(walker.currentNode.nodeValue.trim());
     }
-
     if (!texts.length) return;
 
-    // 分批：查快取 vs 需要 API
+    // 快取查詢
     const needApi = [];
     const needApiIdx = [];
     const results = new Array(texts.length);
-
     texts.forEach((t, i) => {
       const cacheKey = lang + ':' + t;
       if (this._translateCache.has(cacheKey)) {
@@ -259,11 +170,10 @@ Object.assign(App, {
       }
     });
 
-    // 呼叫 Cloud Function 翻譯未快取的文字
+    // Cloud Function 翻譯
     if (needApi.length > 0) {
       try {
         const fn = firebase.app().functions('asia-east1').httpsCallable('translateTexts');
-        // 分批：每批最多 128 段
         for (let start = 0; start < needApi.length; start += 128) {
           const batch = needApi.slice(start, start + 128);
           const batchIdx = needApiIdx.slice(start, start + 128);
@@ -277,13 +187,12 @@ Object.assign(App, {
         }
       } catch (err) {
         console.warn('[Translate] API failed:', err);
-        return; // 翻譯失敗不影響正常功能
+        return;
       }
     }
 
-    // 暫停 Observer → 替換文字 → 恢復 Observer
+    // 暫停 Observer → 替換 → 恢復
     if (this._translateObserver) this._translateObserver.disconnect();
-
     results.forEach((translated, i) => {
       if (!translated || !nodes[i]) return;
       const node = nodes[i];
@@ -291,8 +200,6 @@ Object.assign(App, {
       node.nodeValue = node.nodeValue.replace(texts[i], translated);
       node._translatedLang = lang;
     });
-
-    // 恢復 Observer
     if (this._translateActive) this._startTranslateObserver();
   },
 
@@ -300,7 +207,6 @@ Object.assign(App, {
 
 // ─── 自動初始化 ───
 if (typeof App !== 'undefined') {
-  // 等頁面基本載入完成後再初始化翻譯
   if (document.readyState === 'complete') {
     setTimeout(() => App.initTranslate(), 1000);
   } else {
