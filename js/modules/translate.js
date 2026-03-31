@@ -41,6 +41,7 @@ Object.assign(App, {
       // 已有偏好 → 自動翻譯
       this._translateLang = targetLang;
       this._translateActive = true;
+      this._syncI18nLocale(targetLang);
       this._startTranslation();
       this._renderTranslateFab(true);
     } else if (!dismissed && targetLang && !deviceLang.startsWith('zh')) {
@@ -71,6 +72,7 @@ Object.assign(App, {
       localStorage.setItem(this._TRANSLATE_LS_KEY, lang);
       this._translateLang = lang;
       this._translateActive = true;
+      this._syncI18nLocale(lang);
       this._startTranslation();
       this._updateTranslateFab(true);
     };
@@ -137,11 +139,19 @@ Object.assign(App, {
         this._stopTranslation();
         localStorage.removeItem(this._TRANSLATE_LS_KEY);
         this._updateTranslateFab(false);
+        this._syncI18nLocale('zh-TW');
       } else {
+        // 先還原為中文（清除舊語言殘留）再翻譯新語言
+        if (this._translateObserver) this._translateObserver.disconnect();
+        if (typeof App !== 'undefined' && App._renderPageContent && App.currentPage) {
+          App._renderPageContent(App.currentPage);
+        }
         localStorage.setItem(this._TRANSLATE_LS_KEY, lang);
         this._translateLang = lang;
         this._translateActive = true;
-        this._startTranslation();
+        this._syncI18nLocale(lang);
+        // 等 DOM 重新渲染完成後再翻譯
+        setTimeout(() => this._startTranslation(), 100);
         this._updateTranslateFab(true);
       }
     };
@@ -156,6 +166,17 @@ Object.assign(App, {
       };
       document.addEventListener('click', close);
     }, 0);
+  },
+
+  // ─── i18n 連動（切換 I18N locale + 重新套用 data-i18n 翻譯）───
+  _syncI18nLocale(lang) {
+    if (typeof I18N === 'undefined' || typeof I18N.setLocale !== 'function') return;
+    I18N.setLocale(lang);
+    // 重新套用 data-i18n 標記的元素
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+      const key = el.dataset.i18n;
+      if (key) el.textContent = typeof t === 'function' ? t(key) : key;
+    });
   },
 
   // ─── 翻譯核心 ───
@@ -201,6 +222,7 @@ Object.assign(App, {
         if (!node.nodeValue || !node.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
         if (this._TRANSLATE_SKIP_TAGS.has(node.parentNode?.tagName)) return NodeFilter.FILTER_REJECT;
         if (node.parentNode?.closest?.('[data-no-translate]')) return NodeFilter.FILTER_REJECT;
+        if (node.parentNode?.closest?.('[data-i18n]')) return NodeFilter.FILTER_REJECT;
         if (node.parentNode?.closest?.('input,textarea,select')) return NodeFilter.FILTER_REJECT;
         // 已翻譯的跳過
         if (node._translatedLang === lang) return NodeFilter.FILTER_REJECT;
