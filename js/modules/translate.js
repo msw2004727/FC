@@ -147,9 +147,11 @@ Object.assign(App, {
         if (node.parentNode?.closest?.('[data-no-translate]')) return NodeFilter.FILTER_REJECT;
         if (node.parentNode?.closest?.('[data-i18n]')) return NodeFilter.FILTER_REJECT;
         if (node.parentNode?.closest?.('input,textarea,select')) return NodeFilter.FILTER_REJECT;
-        // 跳過用戶名（class 含 -name 的元素，如 user-name、reg-name-text、edu-student-name）
-        const parentCls = node.parentNode?.className || '';
-        if (typeof parentCls === 'string' && /-name/.test(parentCls)) return NodeFilter.FILTER_REJECT;
+        // 跳過用戶名（向上搜尋祖先，匹配 -name class 或 user-capsule）
+        const nameAncestor = node.parentNode?.closest?.(
+          '[class*="-name"], .user-capsule, .ce-delegate-tag, .exp-log-operator'
+        );
+        if (nameAncestor) return NodeFilter.FILTER_REJECT;
         if (node._translatedLang === lang) return NodeFilter.FILTER_REJECT;
         if (/^\s*[\d\s\-\/\.:,+%$#@!?=()（）【】「」]+\s*$/.test(node.nodeValue)) return NodeFilter.FILTER_REJECT;
         if (!/[\u4e00-\u9fff]/.test(node.nodeValue)) return NodeFilter.FILTER_REJECT;
