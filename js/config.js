@@ -605,6 +605,7 @@ const ADMIN_PAGE_EXTRA_PERMISSION_ITEMS = {
 // ─── 身分不可剝奪權限（取得身分即自動擁有，不受 rolePermissions 覆蓋）───
 // coach/captain/venue_owner 的活動管理與賽事為身分核心功能，不可拔除
 // admin 以上的所有權限由 super_admin 在權限管理 UI 自由啟閉
+// ⚠️ 同步規則：修改此常數時必須同步更新 functions/index.js 中的同名常數 INHERENT_ROLE_PERMISSIONS
 const INHERENT_ROLE_PERMISSIONS = Object.freeze({
   coach:       ['activity.manage.entry', 'admin.tournaments.entry'],
   captain:     ['activity.manage.entry', 'admin.tournaments.entry'],

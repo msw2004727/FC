@@ -46,6 +46,7 @@ const ADMIN_MANAGED_USER_PROFILE_FIELDS = Object.freeze([
 const ROLE_LEVELS = Object.freeze({
   user: 0, coach: 1, captain: 2, venue_owner: 3, admin: 4, super_admin: 5,
 });
+// ⚠️ 同步規則：修改此常數時必須同步更新 js/config.js 中的同名常數 INHERENT_ROLE_PERMISSIONS
 const INHERENT_ROLE_PERMISSIONS = Object.freeze({
   coach:       ["activity.manage.entry", "admin.tournaments.entry"],
   captain:     ["activity.manage.entry", "admin.tournaments.entry"],

@@ -135,6 +135,7 @@ FC-github/
    - **新增或更新權限說明**：必須在 `js/modules/user-admin/user-admin-perm-info.js` 的 `_PERM_INFO` 對照表中，為新權限碼新增 `{ title, body }` 說明內容，或更新既有權限的說明文字以反映功能變更。說明內容應以白話描述該權限的用途與影響範圍。
    - **不確定是否需要新增權限時**：應先向用戶說明該功能的存取需求，並建議適合的權限碼命名與層級配置，由用戶決定是否新增。
    - **權限碼命名規則**：入口權限以 `.entry` 結尾（如 `admin.xxx.entry`），子權限以動作命名（如 `xxx.create`、`xxx.edit_all`、`xxx.delete`）。
+   - **`INHERENT_ROLE_PERMISSIONS` 兩地同步（強制）**：此常數同時定義於 `js/config.js` 與 `functions/index.js`（無 build process 故無法共用）。修改任一邊時**必須同步更新另一邊**，否則前端 UI 顯示與後端驗證行為將出現無錯誤訊息的靜默分歧。
 
 ---
 
