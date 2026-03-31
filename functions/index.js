@@ -735,6 +735,17 @@ async function getNotificationTogglesFromFeatureFlags() {
   return normalizeNotificationToggles(snapshot.data()?.notificationToggles);
 }
 
+async function getNotificationTogglesWithFallback(source) {
+  if (isForcedLineNotificationSource(source)) return {};
+
+  try {
+    return await getNotificationTogglesFromFeatureFlags();
+  } catch (err) {
+    console.warn("[LINE Notify] featureFlags load failed, fallback to allow:", err);
+    return {};
+  }
+}
+
 function getLineHttpStatus(err) {
   const candidates = [
     err?.statusCode,
@@ -1574,7 +1585,7 @@ exports.enqueuePrivilegedLineNotification = onCall(
       return { queued: false, skipped: true, reason: "category_disabled" };
     }
 
-    const notificationToggles = await getNotificationTogglesFromFeatureFlags();
+    const notificationToggles = await getNotificationTogglesWithFallback(source);
     if (shouldSkipLineNotificationByToggles(category, source, notificationToggles)) {
       return { queued: false, skipped: true, reason: "notification_toggle_disabled" };
     }

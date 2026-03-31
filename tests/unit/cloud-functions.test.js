@@ -161,6 +161,17 @@ function shouldSkipLineNotificationByToggles(category, source, toggles) {
   return false;
 }
 
+async function getNotificationTogglesWithFallback(source, deps = {}) {
+  if (isForcedLineNotificationSource(source)) return {};
+
+  try {
+    return await deps.load();
+  } catch (err) {
+    deps.onWarn?.(err);
+    return {};
+  }
+}
+
 // ===========================================================================
 // TESTS
 // ===========================================================================
@@ -316,6 +327,28 @@ describe('privileged LINE notification toggles', () => {
     })).toEqual({
       category_activity: false,
     });
+  });
+
+  test('forced sources bypass featureFlags loading entirely', async () => {
+    const load = jest.fn().mockRejectedValue(new Error('should_not_load'));
+
+    const toggles = await getNotificationTogglesWithFallback("template:event_changed", { load });
+
+    expect(load).not.toHaveBeenCalled();
+    expect(toggles).toEqual({});
+    expect(shouldSkipLineNotificationByToggles("activity", "template:event_changed", toggles)).toBe(false);
+  });
+
+  test('featureFlags load failure falls back to allow instead of dropping queue', async () => {
+    const load = jest.fn().mockRejectedValue(new Error('load_failed'));
+    const onWarn = jest.fn();
+
+    const toggles = await getNotificationTogglesWithFallback("template:signup_success", { load, onWarn });
+
+    expect(load).toHaveBeenCalledTimes(1);
+    expect(onWarn).toHaveBeenCalledTimes(1);
+    expect(toggles).toEqual({});
+    expect(shouldSkipLineNotificationByToggles("activity", "template:signup_success", toggles)).toBe(false);
   });
 });
 

@@ -146,7 +146,6 @@ async function queueLinePushPure(input, deps) {
       await deps.ensureFeatureFlagsLoaded();
     } catch (err) {
       deps.onPreloadError?.(err);
-      return 'blocked';
     }
   }
 
@@ -386,7 +385,7 @@ describe('queueLinePushPure', () => {
     expect(result).toBe('queued');
   });
 
-  test('preload failure blocks queue instead of failing open', async () => {
+  test('preload failure falls back to allow and still queues', async () => {
     const deps = createQueueDeps({
       ensureFeatureFlagsLoaded: jest.fn().mockRejectedValue(new Error('load_failed')),
     });
@@ -398,8 +397,8 @@ describe('queueLinePushPure', () => {
       isDemo: false,
     }, deps);
 
-    expect(deps.dispatch).not.toHaveBeenCalled();
+    expect(deps.dispatch).toHaveBeenCalledTimes(1);
     expect(deps.onPreloadError).toHaveBeenCalledTimes(1);
-    expect(result).toBe('blocked');
+    expect(result).toBe('queued');
   });
 });

@@ -156,6 +156,7 @@ Object.assign(App, {
         })
         .catch(err => {
           console.warn('[LINE Push] featureFlags preload failed:', err);
+          finalizeQueue();
         });
       return;
     }
