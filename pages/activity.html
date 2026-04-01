@@ -354,8 +354,8 @@
             <span id="ce-team-split-label" style="font-size:.78rem;color:var(--text-muted)">關閉</span>
           </div>
           <div id="ce-team-split-options" style="display:none;margin-top:.5rem;background:var(--bg-elevated);border-radius:8px;padding:.55rem .6rem;font-size:.78rem">
-            <!-- 隊伍數量 + 色衣（同行緊湊） -->
-            <div style="display:flex;align-items:center;gap:.35rem;margin-bottom:.45rem">
+            <!-- 隊伍數量 + 色衣 + 均分（全部同行） -->
+            <div style="display:flex;align-items:center;gap:.35rem;margin-bottom:.45rem;flex-wrap:wrap">
               <select id="ce-team-split-count" style="font-size:.78rem;padding:.2rem .25rem;border:1px solid var(--border);border-radius:4px;background:var(--bg-card);color:var(--text-primary);width:4.5rem;text-align:center">
                 <option value="2" selected>2</option>
                 <option value="3">3</option>
@@ -364,6 +364,11 @@
               <span style="color:var(--text-muted)">隊</span>
               <div id="ce-team-split-colors" style="display:flex;gap:.25rem;align-items:center"></div>
               <span style="font-size:.62rem;color:var(--text-muted);white-space:nowrap">點擊換色</span>
+              <label id="ce-team-split-balance-card" onclick="this.querySelector('input').click()" style="display:flex;align-items:center;gap:.3rem;padding:.2rem .5rem;border-radius:6px;border:1.5px solid var(--accent);background:rgba(13,148,136,.08);cursor:pointer;white-space:nowrap;margin-left:auto;transition:all .15s">
+                <input type="checkbox" id="ce-team-split-balance" checked style="display:none">
+                <span id="ce-team-split-balance-icon" style="font-size:.85rem;line-height:1">✅</span>
+                <span style="font-size:.7rem;font-weight:600;color:var(--accent)">均分</span>
+              </label>
             </div>
             <!-- 分隊方式 -->
             <div style="margin-bottom:.45rem">
@@ -374,10 +379,6 @@
                 <button type="button" class="ce-gender-chip" data-value="manual" onclick="App._tsSetMode('manual')">📋 主辦</button>
               </div>
             </div>
-            <!-- 均分（同行不斷行） -->
-            <label style="display:flex;align-items:center;gap:.25rem;margin-bottom:.35rem;white-space:nowrap">
-              <input type="checkbox" id="ce-team-split-balance" checked> <span>各隊人數均分</span>
-            </label>
             <!-- 自選鎖定（同行緊湊） -->
             <div id="ce-team-split-lock-wrap" style="display:none">
               <div style="display:flex;align-items:center;gap:.25rem;white-space:nowrap">

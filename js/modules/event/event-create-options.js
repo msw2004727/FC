@@ -206,6 +206,10 @@ Object.assign(App, {
     { hex: '#3B82F6', stroke: '#2563EB', name: '藍隊' },
     { hex: '#10B981', stroke: '#059669', name: '綠隊' },
     { hex: '#FBBF24', stroke: '#D97706', name: '黃隊' },
+    { hex: '#FFFFFF', stroke: '#D1D5DB', name: '白隊' },
+    { hex: '#1F2937', stroke: '#9CA3AF', name: '黑隊' },
+    { hex: '#F97316', stroke: '#EA580C', name: '橙隊' },
+    { hex: '#8B5CF6', stroke: '#7C3AED', name: '紫隊' },
   ],
 
   _updateTeamSplitUI() {
@@ -278,7 +282,23 @@ Object.assign(App, {
       countSel.dataset.bound = '1';
       countSel.addEventListener('change', () => this._tsRenderColorChips());
     }
+    const balanceCb = document.getElementById('ce-team-split-balance');
+    if (balanceCb && !balanceCb.dataset.bound) {
+      balanceCb.dataset.bound = '1';
+      balanceCb.addEventListener('change', () => this._tsUpdateBalanceCard());
+    }
     this._updateTeamSplitUI();
+  },
+
+  _tsUpdateBalanceCard() {
+    const cb = document.getElementById('ce-team-split-balance');
+    const icon = document.getElementById('ce-team-split-balance-icon');
+    const card = document.getElementById('ce-team-split-balance-card');
+    if (!cb || !icon || !card) return;
+    const on = cb.checked;
+    icon.textContent = on ? '✅' : '⬜';
+    card.style.borderColor = on ? 'var(--accent)' : 'var(--border)';
+    card.style.background = on ? 'rgba(13,148,136,.08)' : 'transparent';
   },
 
   _tsGetFormData() {
