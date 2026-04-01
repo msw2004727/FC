@@ -91,7 +91,8 @@
               </select>
             </div>
             <div class="info-row"><span data-i18n="profile.birthday">生日</span><input type="date" id="profile-edit-birthday" class="profile-edit-input"></div>
-            <div class="info-row" style="position:relative"><span data-i18n="profile.region">地區</span><input type="text" id="profile-edit-region" class="profile-edit-input" placeholder="輸入搜尋縣市..." autocomplete="off" oninput="App._filterProfileRegion()" onfocus="App._filterProfileRegion()"><div id="profile-region-dropdown" class="ce-delegate-dropdown" style="min-width:120px;right:0;left:auto"></div></div>
+            <div class="info-row"><span data-i18n="profile.region">地區</span><input type="text" id="profile-edit-region" class="profile-edit-input" placeholder="輸入搜尋縣市..." autocomplete="off" oninput="App._filterProfileRegion(this.value)"></div>
+            <div id="profile-region-list" onclick="App._selectProfileRegion(event)" style="max-height:120px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-card);display:none"></div>
             <div class="info-row"><span data-i18n="profile.sports">運動類別</span><span id="profile-sports-display">-</span></div>
             <div class="info-row"><span data-i18n="profile.team">所屬俱樂部</span><span id="profile-team-display">-</span></div>
             <div class="info-row"><span data-i18n="profile.phone">聯繫方式</span><input type="tel" id="profile-edit-phone" class="profile-edit-input" placeholder="例：0912-345-678"></div>

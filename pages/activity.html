@@ -219,11 +219,9 @@
             <span id="ce-region-lock-label" style="font-size:.78rem;color:var(--text-muted)">關閉 — 所有地區可見</span>
           </div>
           <div id="ce-region-lock-options" style="display:none;margin-top:.4rem">
-            <div style="position:relative">
-              <input type="text" id="ce-region-search" placeholder="輸入縣市名稱搜尋..." autocomplete="off" style="font-size:.78rem;padding:.3rem .5rem;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-card);color:var(--text-primary);width:100%;box-sizing:border-box">
-              <div id="ce-region-dropdown" class="ce-delegate-dropdown" style="min-width:100%"></div>
-            </div>
-            <div id="ce-region-chips" style="display:flex;flex-wrap:wrap;gap:.25rem;margin-top:.35rem"></div>
+            <div id="ce-region-chips" style="display:flex;flex-wrap:wrap;gap:.25rem;margin-bottom:.35rem"></div>
+            <input type="text" id="ce-region-search" placeholder="輸入縣市名稱搜尋..." autocomplete="off" oninput="App._rlRenderList(this.value)" style="font-size:.78rem;padding:.3rem .5rem;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-card);color:var(--text-primary);width:100%;box-sizing:border-box">
+            <div id="ce-region-list" onclick="App._rlSelectFromList(event)" style="max-height:120px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-card);margin-top:.25rem"></div>
           </div>
         </div>
         <div class="ce-row">

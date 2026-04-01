@@ -177,23 +177,36 @@ Object.assign(App, {
     }
   },
 
-  _filterProfileRegion() {
-    const input = document.getElementById('profile-edit-region');
-    const dropdown = document.getElementById('profile-region-dropdown');
-    if (!input || !dropdown) return;
-    const q = input.value.trim();
-    const regions = typeof TW_REGIONS !== 'undefined' ? TW_REGIONS : [];
-    if (!q) { dropdown.innerHTML = ''; return; }
-    const matches = regions.filter(r => r.includes(q));
-    if (!matches.length) { dropdown.innerHTML = ''; return; }
-    dropdown.innerHTML = matches.map(r =>
-      `<div class="ce-delegate-item" onmousedown="document.getElementById('profile-edit-region').value='${escapeHTML(r)}';document.getElementById('profile-region-dropdown').innerHTML=''" style="padding:.35rem .6rem;font-size:.78rem;cursor:pointer">${escapeHTML(r)}</div>`
-    ).join('');
-    // 失焦時關閉下拉
-    if (!input.dataset.blurBound) {
-      input.dataset.blurBound = '1';
-      input.addEventListener('blur', () => setTimeout(() => { if (dropdown) dropdown.innerHTML = ''; }, 200));
+  /** 個人資料地區模糊搜尋（DOM + event delegation，相容 LINE WebView） */
+  _filterProfileRegion(keyword) {
+    var list = document.getElementById('profile-region-list');
+    if (!list) return;
+    var q = String(keyword || '').trim().replace(/\u81FA/g, '\u53F0');
+    var regions = typeof TW_REGIONS !== 'undefined' ? TW_REGIONS : [];
+    if (!q) { list.style.display = 'none'; list.innerHTML = ''; return; }
+    var matched = regions.filter(function(r) { return r.indexOf(q) !== -1; });
+    list.innerHTML = '';
+    if (!matched.length) {
+      list.style.display = 'none';
+      return;
     }
+    matched.forEach(function(name) {
+      var item = document.createElement('div');
+      item.textContent = name;
+      item.setAttribute('data-region', name);
+      item.style.cssText = 'padding:6px 10px;font-size:.78rem;border-bottom:1px solid var(--border);cursor:pointer';
+      list.appendChild(item);
+    });
+    list.style.display = '';
+  },
+
+  _selectProfileRegion(e) {
+    var region = e.target.getAttribute('data-region');
+    if (!region) return;
+    var input = document.getElementById('profile-edit-region');
+    if (input) input.value = region;
+    var list = document.getElementById('profile-region-list');
+    if (list) { list.innerHTML = ''; list.style.display = 'none'; }
   },
 
   saveProfileInfo() {

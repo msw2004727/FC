@@ -199,22 +199,17 @@ Object.assign(App, {
     return `${dateVal}T${timeVal}`;
   },
 
-  // ── Region Lock（地區鎖）──
+  // ── Region Lock（地區鎖）── 採 DOM 元素 + event delegation（相容 LINE WebView）
 
   _rlSelectedRegions: [],
+
+  _rlNormalize(v) { return String(v || '').trim().replace(/\u81FA/g, '\u53F0').replace(/\s+/g, ''); },
 
   bindRegionLockToggle() {
     const toggle = document.getElementById('ce-region-lock');
     if (toggle && !toggle.dataset.bound) {
       toggle.dataset.bound = '1';
       toggle.addEventListener('change', () => this._updateRegionLockUI());
-    }
-    const searchInput = document.getElementById('ce-region-search');
-    if (searchInput && !searchInput.dataset.bound) {
-      searchInput.dataset.bound = '1';
-      searchInput.addEventListener('input', () => this._rlFilterDropdown());
-      searchInput.addEventListener('focus', () => this._rlFilterDropdown());
-      searchInput.addEventListener('blur', () => setTimeout(() => { const dd = document.getElementById('ce-region-dropdown'); if (dd) dd.innerHTML = ''; }, 200));
     }
     this._updateRegionLockUI();
   },
@@ -227,45 +222,67 @@ Object.assign(App, {
     const enabled = toggle.checked;
     options.style.display = enabled ? '' : 'none';
     if (label) label.textContent = enabled ? '開啟 — 限定地區可見' : '關閉 — 所有地區可見';
-    if (enabled) this._rlRenderChips();
+    if (enabled) { this._rlRenderChips(); this._rlRenderList(''); }
   },
 
-  _rlFilterDropdown() {
-    const input = document.getElementById('ce-region-search');
-    const dropdown = document.getElementById('ce-region-dropdown');
-    if (!input || !dropdown) return;
-    const q = input.value.trim();
-    if (!q) { dropdown.innerHTML = ''; return; }
+  /** 常駐列表渲染（排除已選） */
+  _rlRenderList(keyword) {
+    const list = document.getElementById('ce-region-list');
+    if (!list) return;
+    const q = this._rlNormalize(keyword);
     const regions = typeof TW_REGIONS !== 'undefined' ? TW_REGIONS : [];
     const selected = new Set(this._rlSelectedRegions);
-    const matches = regions.filter(r => !selected.has(r) && r.includes(q));
-    if (!matches.length) { dropdown.innerHTML = '<div style="padding:.4rem .6rem;font-size:.75rem;color:var(--text-muted)">無符合結果</div>'; return; }
-    dropdown.innerHTML = matches.map(r =>
-      `<div class="ce-delegate-item" onmousedown="App._rlAddRegion('${escapeHTML(r)}')" style="padding:.35rem .6rem;font-size:.78rem;cursor:pointer">${escapeHTML(r)}</div>`
-    ).join('');
+    const matched = regions.filter(r => !selected.has(r) && (!q || this._rlNormalize(r).indexOf(q) !== -1));
+    list.innerHTML = '';
+    if (!matched.length) {
+      var empty = document.createElement('div');
+      empty.textContent = q ? '無符合結果' : '已全部選取';
+      empty.style.cssText = 'padding:6px 10px;color:var(--text-muted);font-size:.75rem';
+      list.appendChild(empty);
+      return;
+    }
+    matched.forEach(function(name) {
+      var item = document.createElement('div');
+      item.textContent = name;
+      item.setAttribute('data-region', name);
+      item.style.cssText = 'padding:6px 10px;font-size:.78rem;border-bottom:1px solid var(--border);cursor:pointer';
+      list.appendChild(item);
+    });
   },
 
-  _rlAddRegion(region) {
+  /** 列表點擊（event delegation） */
+  _rlSelectFromList(e) {
+    var region = e.target.getAttribute('data-region');
     if (!region || this._rlSelectedRegions.includes(region)) return;
     this._rlSelectedRegions.push(region);
-    const input = document.getElementById('ce-region-search');
+    var input = document.getElementById('ce-region-search');
     if (input) input.value = '';
-    const dropdown = document.getElementById('ce-region-dropdown');
-    if (dropdown) dropdown.innerHTML = '';
     this._rlRenderChips();
+    this._rlRenderList('');
   },
 
   _rlRemoveRegion(region) {
     this._rlSelectedRegions = this._rlSelectedRegions.filter(r => r !== region);
     this._rlRenderChips();
+    this._rlRenderList(document.getElementById('ce-region-search')?.value || '');
   },
 
   _rlRenderChips() {
     const container = document.getElementById('ce-region-chips');
     if (!container) return;
-    container.innerHTML = this._rlSelectedRegions.map(r =>
-      `<span style="display:inline-flex;align-items:center;gap:.2rem;padding:.15rem .45rem;border-radius:var(--radius-full);background:var(--accent-bg);color:var(--accent);font-size:.72rem;font-weight:600">${escapeHTML(r)}<span onclick="App._rlRemoveRegion('${escapeHTML(r)}')" style="cursor:pointer;font-size:.8rem;line-height:1;margin-left:.1rem">✕</span></span>`
-    ).join('');
+    container.innerHTML = '';
+    this._rlSelectedRegions.forEach(r => {
+      const chip = document.createElement('span');
+      chip.style.cssText = 'display:inline-flex;align-items:center;gap:.2rem;padding:.15rem .45rem;border-radius:var(--radius-full);background:var(--accent-bg);color:var(--accent);font-size:.72rem;font-weight:600';
+      chip.textContent = r;
+      const x = document.createElement('span');
+      x.textContent = '\u2715';
+      x.style.cssText = 'cursor:pointer;font-size:.8rem;line-height:1;margin-left:.15rem';
+      x.setAttribute('data-remove', r);
+      x.addEventListener('click', () => this._rlRemoveRegion(r));
+      chip.appendChild(x);
+      container.appendChild(chip);
+    });
   },
 
   _rlGetFormData() {
