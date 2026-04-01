@@ -122,6 +122,7 @@ const ScriptLoader = {
       'js/modules/event/event-create-waitlist.js',
       'js/modules/event/event-create-multidate.js',
       'js/modules/event/event-create.js',
+      'js/modules/event/event-team-split.js',
       'js/modules/event/event-manage-noshow.js',
       'js/modules/event/event-manage-attendance.js',
       'js/modules/event/event-manage-confirm.js',
