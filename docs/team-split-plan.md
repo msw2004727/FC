@@ -358,12 +358,47 @@ function _recalcTeamSplitTimestamps(event) {
 | 3 | `firebase-crud.js` | `addEvent()` | 確保寫入包含 delegateUids |
 | 4 | `firebase-crud.js` | `updateEvent()` | 若含 delegates 則同步計算 |
 
-#### 前置：registration update 欄位白名單（修補既有漏洞）
+#### 前置：registration update 欄位白名單（先決條件 — 修補既有安全漏洞）
+
+> **必須在 team-split 上線前獨立完成**，與分隊功能無關的安全修補。
+
+**現有漏洞**：`firestore.rules` 的 registration update 規則（L687-689）允許 owner 修改**任意欄位**（`status`、`registeredAt`、`eventId` 等），無欄位白名單。owner 可繞過前端直接呼叫 Firestore API 竄改報名資料。
+
+**修正方案**：在既有 owner update 路徑加入白名單限制，同時為 team-split 預留 `teamKey` 欄位：
 
 ```javascript
-function isRegistrationSafeFieldsOnly() {
+// 既有 owner update 白名單（修補漏洞）
+// ⚠️ 必須包含 displayBadges：報名成功後前端會即時寫入徽章資料
+//    若遺漏，以下 3 條路徑將全部失敗：
+//    - firebase-crud.js:682  _writeDisplayBadgesToReg()（報名後自動寫入）
+//    - achievement-batch.js:305（管理員批次更新）
+//    - event-manage-badges.js:93（活動管理者刷新徽章）
+function isRegistrationOwnerSafeUpdate() {
+  let changed = request.resource.data.diff(resource.data).affectedKeys();
+  return changed.hasOnly(['status', 'updatedAt', 'displayBadges'])
+    && request.resource.data.userId == resource.data.userId;  // 禁止改 userId
+}
+
+// team-split 專用白名單
+function isTeamKeyOnlyUpdate() {
   return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['teamKey', 'updatedAt']);
 }
+
+// 徽章更新（非 owner 的活動管理者也可能觸發）
+function isBadgeOnlyUpdate() {
+  return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayBadges']);
+}
+
+// 完整 registration update 規則（取代現有）
+allow update: if
+  isAdmin()
+  || (isRegistrationOwnerResource() && isRegistrationOwnerRequest() && isRegistrationOwnerSafeUpdate())
+  || (isAuth() && isWaitlistPromotion())
+  || (isAuth() && isBadgeOnlyUpdate())     // 徽章寫入（任何登入用戶）
+  || isEventManagerTeamKeyUpdate()          // team-split 新增
+  || isSelfSelectTeamKeyUpdate();           // team-split 新增
+
+// 注意：Cloud Functions 使用 Admin SDK，繞過 Rules，promotedAt/cancelledAt 等時間戳寫入不受影響
 ```
 
 取消報名用 `delete`，不受 update 規則影響。
@@ -400,15 +435,13 @@ match /registrations/{regId} {
       && request.time < eventData.startTimestamp;
   }
 
-  function isTeamKeyOnlyUpdate() {
-    return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['teamKey', 'updatedAt']);
-  }
+  // isTeamKeyOnlyUpdate() 定義見前置區塊，此處省略避免重複
 
   allow update: if
     isAdmin()
     || isEventManagerTeamKeyUpdate()
     || isSelfSelectTeamKeyUpdate()
-    || ...existing rules...
+    || ...existing rules（含 isRegistrationOwnerSafeUpdate、isWaitlistPromotion）...
 }
 ```
 
@@ -422,20 +455,32 @@ get() 配額：路徑 2/3 各 1 次，加上既有 role 判斷 1-2 次，總計 
 
 | 模式 | 遞補行為 |
 |------|----------|
-| 自選 | 保留候補時的自選 |
+| 自選 | **優先保留**候補時的自選；若該隊已達 `balanceCap` 則 fallback 到平衡分配（最少人的隊） |
 | 隨機 | 呼叫 `_assignTeamKeyForPromotion` 分到人數最少的隊 |
 | 主辦分配 | `teamKey: null`，等主辦處理 |
 
+> **自選遞補 balanceCap 檢查（第三輪審計修正）**：候補用戶在候補時選了 A 隊，但等到遞補時 A 隊可能已滿。若直接保留會繞過硬性均分上限。`_assignTeamKeyForPromotion` 統一處理此邏輯：
+>
+> ```javascript
+> // 自選模式遞補：先驗證保留是否可行
+> if (mode === 'self-select' && candidate.teamKey) {
+>   const cap = Math.ceil(event.max / teams.length);
+>   const load = simRegs.filter(r => r.status === 'confirmed' && r.teamKey === candidate.teamKey).length;
+>   if (load < cap) return candidate.teamKey;  // 保留成功
+>   // 保留失敗 → fallback 到平衡分配
+> }
+> ```
+
 **4 條遞補路徑都必須處理 teamKey**：
 
-| # | 函式 | 檔案 |
-|---|------|------|
-| 1 | `cancelRegistration()` | `firebase-crud.js` |
-| 2 | `cancelCompanionRegistrations()` | `firebase-crud.js` |
-| 3 | `_adjustWaitlistOnCapacityChange()` | `event-create-waitlist.js` |
-| 4 | `_promoteSingleCandidateLocal()` | `event-create-waitlist.js` |
+| # | 函式 | 檔案 | 插入位置 |
+|---|------|------|----------|
+| 1 | `cancelRegistration()` | `firebase-crud.js` | L872 status=confirmed 後，batch.update 前 |
+| 2 | `cancelCompanionRegistrations()` | `firebase-crud.js` | L2113 status=confirmed 後，batch.update 前 |
+| 3 | `_adjustWaitlistOnCapacityChange()` | `event-create-waitlist.js` | L117 promoteSingleCandidate 呼叫處 |
+| 4 | `_promoteSingleCandidateLocal()` | `event-create-waitlist.js` | 接受 teamKey 參數，由 caller 傳入 |
 
-封裝純函式 `_assignTeamKeyForPromotion(event, simRegs, candidate)`，放在 `firebase-crud.js`，4 條路徑統一呼叫。
+封裝純函式 `_assignTeamKeyForPromotion(event, simRegs, candidate)`，放在 `firebase-crud.js`，4 條路徑統一呼叫。此函式同時處理三種模式的遞補邏輯（含自選 balanceCap 驗證）。
 
 ### 同行者（Companion）
 
@@ -459,6 +504,27 @@ get() 配額：路徑 2/3 各 1 次，加上既有 role 判斷 1-2 次，總計 
 
 取消者從隊伍移除，不觸發自動重新平衡。主辦可用「補齊」手動處理。
 
+### 活動容量變更時的分隊影響
+
+`event.max` 修改後 `balanceCap` 隨之變動（`Math.ceil(newMax / teamCount)`），但**不自動移動已分配的人**。
+
+| 情境 | 處理 |
+|------|------|
+| 新 cap > 舊 cap | 無影響，各隊有更多空間 |
+| 新 cap < 舊 cap 且有隊超標 | 前端 detail-grid 顯示黃色警告「A 隊 (7) 超過均分上限 (5)」 |
+| 新報名者選超標隊（自選） | 仍被硬性拒絕（cap 基於最新 max 計算） |
+
+不自動移人的理由：自動換隊會造成 UX 混亂（「我明明選了 A 為什麼變 B」），且需要通知機制。主辦可用「隨機」或「補齊」手動處理。
+
+### 活動已有報名後修改分隊設定
+
+| 操作 | 處理 |
+|------|------|
+| 隊數增加（2→3） | 新隊人數=0，既有分配不動。提示「新隊伍尚無人員，可用『補齊』重新分配」 |
+| 隊數減少（3→2） | **阻擋**，若被刪除的隊有人。提示「C 隊仍有 N 人，請先移至其他隊伍」 |
+| 模式切換（self-select→random） | 保留既有 teamKey，確認彈窗「已選隊伍將保留，未選隊者將隨機分配。確定？」 |
+| 關閉分隊 | 確認彈窗「關閉後分隊資訊仍保留在報名資料中，重新開啟可恢復。確定？」 |
+
 ### 競態條件
 
 - 兩管理者同時批次操作：後寫覆蓋，最終一致可接受
@@ -476,9 +542,11 @@ get() 配額：路徑 2/3 各 1 次，加上既有 role 判斷 1-2 次，總計 
 
 ---
 
-## Cloud Function 同步改動
+## Cloud Function 同步改動（先決條件 — 必須與前端同步上線）
 
-`functions/index.js` 的 `registerForEvent` CF 需同步支援分隊。CF 與客戶端走不同報名路徑，若 CF 不同步，LINE 通知直接報名的用戶將缺少 `teamKey`。
+> **硬性阻擋**：CF 與客戶端走不同報名路徑。若 CF 不同步上線，LINE 推播直接報名的用戶 registration 將缺少 `teamKey`，導致前端隊伍人數統計錯誤、自選模式用戶無法選隊。**禁止前端先上、CF 延後**。
+
+`functions/index.js` 的 `registerForEvent` CF 需同步支援分隊。
 
 ### 改動範圍
 
@@ -493,6 +561,9 @@ get() 配額：路徑 2/3 各 1 次，加上既有 role 判斷 1-2 次，總計 
 ### `_resolveTeamKey` 共用純函式
 
 客戶端放 `event-team-split.js`，CF 端放 `functions/index.js` 內聯。演算法必須完全一致，修改時兩端同步更新。
+
+> **CLAUDE.md 同步規則（上線時新增）**：與 `INHERENT_ROLE_PERMISSIONS` 並列，在 CLAUDE.md「權限系統同步維護」區塊新增：
+> - `_resolveTeamKey` 兩地同步（強制）：此函式同時定義於 `js/modules/event/event-team-split.js` 與 `functions/index.js`。修改任一邊時**必須同步更新另一邊**。
 
 ```javascript
 function _resolveTeamKey(event, allEventRegs, options = {}) {
@@ -625,6 +696,32 @@ registration.teamKey = 'A' | 'B' | 'C' | 'D' | null
 
 不建立。客戶端過濾（< 50 人），`where('eventId', '==', id)` 單欄位索引已足夠。
 
+### 與既有功能整合注意事項
+
+#### `registerForEvent()` LOCKED 函式簽名限制
+
+`firebase-crud.js` 的 `registerForEvent(eventId, userId, userName)` 是 CLAUDE.md 鎖定函式，**簽名不可變更**（需用戶明確授權）。teamKey 注入方案：
+
+| 方案 | 說明 | 原子性 | 需授權 |
+|------|------|--------|--------|
+| **A. 修改簽名（推薦）** | 加第 4 參數 `teamKey = null`，既有呼叫不受影響 | ✅ 同一 transaction | ✅ 需要 |
+| B. 兩步驟 | 先建 registration，成功後再 update teamKey | ❌ 非原子 | 不需要 |
+| C. App 暫存屬性 | 寫入前設 `App._pendingTeamKey`，函式內讀取 | ✅ | 不需要 |
+
+**推薦方案 A**：新增可選參數 `teamKey = null` 是最小改動且保持原子性，但需在施作時向用戶確認授權。方案 B 有窗口風險（registration 存在但無 teamKey）；方案 C 不直觀且有競態風險。
+
+#### `_buildConfirmedParticipantSummary()` 需擴充
+
+`event-manage-noshow.js` 的 `_buildConfirmedParticipantSummary()` 回傳的 people 物件不含 `teamKey`，出席表無法顯示色衣 badge。需在回傳物件加入 `teamKey: mainReg.teamKey || null`。
+
+#### Demo 模式安全
+
+Demo 種子資料的 event 物件不含 `teamSplit` 欄位。所有存取 `event.teamSplit` 的程式碼**必須使用 optional chaining（`?.`）**，否則 Demo 模式會 crash。範例：`event.teamSplit?.enabled`、`event.teamSplit?.mode`。
+
+#### 活動模板（初版限制）
+
+`event-create-template.js` 的 `_buildCurrentTemplate()` 不讀取 teamSplit 欄位。初版不處理（計畫書 L591 已標明），從模板建立的活動不會帶入分隊設定。
+
 ### 模組與函式歸屬
 
 | 函式/模組 | 位置 |
@@ -655,21 +752,36 @@ registration.teamKey = 'A' | 'B' | 'C' | 'D' | null
 - [x] 第二輪五方審計（UX 7 / Firestore 7.5 / 前端 8 / 報名 7 / 無障礙 5）
 - [x] 第二輪審計問題全面修進計畫書（含 CF 同步、i18n、Rules 重構、對比度、鍵盤導航）
 - [x] 設計原型預覽 (docs/team-split-preview.html)
+- [x] 第三輪深度審計（2026-04-01，交叉驗證現有程式碼 × 計畫書，含擴大影響分析）
 
-### 待進行
+### 第三輪審計發現與修正
 
-- [ ] 第三輪審計（換設備後）
-- [ ] Firestore Rules 實作與測試
-- [ ] delegateUids 同步維護（4 處路徑）
-- [ ] registration update 欄位白名單修補
-- [ ] Cloud Function registerForEvent 同步改動
-- [ ] 前端模組開發 (event-team-split.js)
-- [ ] _userTag 改造（第三參數 options）
-- [ ] i18n 鍵值新增（~30 keys）
-- [ ] CSS 新增 (profile.css + activity.css)
-- [ ] 4 條遞補路徑加入 teamKey 處理
-- [ ] 整合測試
-- [ ] 版本號更新與部署
+| # | 問題 | 嚴重度 | 處置 |
+|---|------|--------|------|
+| 1 | Registration Rules update 無欄位白名單（既有安全漏洞） | 高 | 已加入計畫書，標為先決條件 |
+| 2 | 候補遞補 self-select 保留 teamKey 可能超過 balanceCap | 高 | 已修正：遞補時驗證 cap，超標則 fallback 平衡分配 |
+| 3 | CF registerForEvent 必須同步上線 | 高 | 已標為硬性阻擋，禁止前端先上 CF 延後 |
+| 4 | delegateUids 4 處同步點未實作 | 高 | 已在計畫中，確認位置正確 |
+| 5 | 自選併發超額（Rules 無法 count） | 中 | 設計取捨，已承認為 known limitation |
+| 6 | 容量變更後 balanceCap 動態影響 | 中 | 已加入「活動容量變更」邊界情境章節 |
+| 7 | `_resolveTeamKey` 前後端雙份同步 | 低 | 已加入 CLAUDE.md 同步規則提醒 |
+| 8 | `_adjustWaitlistOnCapacityChange` 既有 batch 混入 event 寫入 | 低 | 既有問題，非 team-split 引入，不在此次範圍 |
+| 9 | Rules 白名單漏 `displayBadges` → 徽章寫入全部失敗（3 條路徑） | **高** | 已加入白名單 + 獨立 `isBadgeOnlyUpdate` 規則 |
+| 10 | `registerForEvent()` LOCKED 簽名無法傳入 teamKey | **高** | 已列 3 方案比較，推薦方案 A（需用戶授權） |
+| 11 | `_buildConfirmedParticipantSummary()` 缺 teamKey → 出席表無法顯示色衣 | 中 | 已加入擴充需求 |
+| 12 | Demo 模式 `event.teamSplit` undefined crash | 中 | 已加入 optional chaining 強制規範 |
+| 13 | CF 使用 Admin SDK 繞過 Rules（`promotedAt` 等無影響） | — | 確認為誤報，已標注 |
+
+### 待進行（施作順序）
+
+1. [ ] **Step 0**：Firestore Rules — registration update 欄位白名單修補（先決，與 team-split 無關）
+2. [ ] **Step 1**：delegateUids 同步維護（4 處路徑）
+3. [ ] **Step 2**：Firestore Rules — team-split 相關函式（依賴 Step 1）
+4. [ ] **Step 3**：前端模組開發 (event-team-split.js)，含 `_resolveTeamKey`
+5. [ ] **Step 4**：_userTag 改造（第三參數 options）+ CSS + i18n（~30 keys）
+6. [ ] **Step 5**：4 條遞補路徑加入 teamKey 處理（LOCKED 函式，需審慎）
+7. [ ] **Step 6**：Cloud Function registerForEvent 同步改動（必須與前端同步上線）
+8. [ ] **Step 7**：整合測試 + 版本號更新與部署
 
 ---
 
@@ -681,4 +793,4 @@ registration.teamKey = 'A' | 'B' | 'C' | 'D' | null
 
 *計畫建立日期：2026-03-31*
 *最後更新：2026-04-01*
-*狀態：第二輪審計修正完成，待第三輪審計*
+*狀態：第三輪審計完成，準備進入施作階段*
