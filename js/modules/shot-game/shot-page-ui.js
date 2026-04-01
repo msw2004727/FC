@@ -128,6 +128,10 @@
     var month = String(t.getUTCMonth() + 1).padStart(2, '0');
     var day = String(t.getUTCDate()).padStart(2, '0');
     if (period === 'monthly') return 'monthly_' + year + '-' + month;
+    if (period === 'monthly-prev') {
+      var prev = new Date(Date.UTC(year, t.getUTCMonth() - 1, 1));
+      return 'monthly_' + prev.getUTCFullYear() + '-' + String(prev.getUTCMonth() + 1).padStart(2, '0');
+    }
     if (period === 'weekly') {
       var d = new Date(Date.UTC(year, t.getUTCMonth(), t.getUTCDate()));
       var dow = d.getUTCDay() || 7;

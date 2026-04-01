@@ -539,6 +539,23 @@
   color: #062037;
   border-color: rgba(11, 75, 111, 0.2);
 }
+#page-game .sg-lb-prev-month-row {
+  padding: 0 16px 4px;
+  text-align: right;
+}
+#page-game .sg-lb-prev-month-btn {
+  background: none;
+  border: none;
+  color: var(--text-link, #2d8fc7);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+#page-game .sg-lb-prev-month-btn:active {
+  background: rgba(0,0,0,0.06);
+}
 #page-game .sg-lb-table-wrap {
   overflow: auto;
   padding: 0 16px 14px;

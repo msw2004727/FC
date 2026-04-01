@@ -104,28 +104,50 @@
   let _billboardAdImageUrl = '';
 
   /* ── Leaderboard ── */
+  let _lbShowingPrevMonth = false;
+
+  function _syncPrevMonthBtn(activeKey) {
+    const row = document.getElementById('sg-lb-prev-month-row');
+    const btn = document.getElementById('sg-lb-prev-month-btn');
+    if (!row || !btn) return;
+    if (activeKey === 'monthly' || activeKey === 'monthly-prev') {
+      row.style.display = '';
+      if (_lbShowingPrevMonth) { btn.textContent = '→ 返回本月'; }
+      else { btn.textContent = '← 上月回顧'; }
+    } else {
+      row.style.display = 'none';
+      _lbShowingPrevMonth = false;
+    }
+  }
+
   async function _renderLeaderboard(period) {
-    const key = period in UI.LEADERBOARD_PERIOD_LABELS ? period : 'daily';
+    const isPrev = period === 'monthly-prev';
+    const key = isPrev ? 'monthly' : (period in UI.LEADERBOARD_PERIOD_LABELS ? period : 'daily');
+    const queryKey = isPrev ? 'monthly-prev' : key;
     _lbPeriod = key;
+    _lbShowingPrevMonth = isPrev;
     const rangeEl = document.getElementById('sg-leaderboard-range');
     const bodyEl = document.getElementById('sg-leaderboard-body');
     const playerRowEl = document.getElementById('sg-leaderboard-player-row');
     const tabs = document.querySelectorAll('#sg-leaderboard-modal .sg-lb-tab');
-    if (rangeEl) rangeEl.textContent = `${UI.LEADERBOARD_PERIOD_LABELS[key]}排行前 ${UI.LEADERBOARD_TOP_SIZE} 名`;
+    const label = isPrev ? '上月' : UI.LEADERBOARD_PERIOD_LABELS[key];
+    if (rangeEl) rangeEl.textContent = `${label}排行前 ${UI.LEADERBOARD_TOP_SIZE} 名`;
     tabs.forEach(tab => { const a = tab.getAttribute('data-lb-period') === key; tab.classList.toggle('is-active', a); tab.setAttribute('aria-selected', a ? 'true' : 'false'); });
+    _syncPrevMonthBtn(queryKey);
     if (!bodyEl) return;
     bodyEl.textContent = '';
     UI.appendStatusRow(bodyEl, '載入中…');
     if (playerRowEl) { playerRowEl.classList.add('is-hidden'); playerRowEl.textContent = ''; }
     let rows = [];
     try {
-      const bucket = UI.getTaipeiDateBucket(key);
+      const bucket = UI.getTaipeiDateBucket(queryKey);
       const snap = await firebase.firestore().collection('shotGameRankings').doc(bucket).collection('entries').orderBy('bestScore', 'desc').limit(50).get();
       rows = snap.docs.map(d => UI.normalizeLeaderboardRow(d.id, d.data())).filter(r => !UI.isAnonymousLeaderboardRow(r));
     } catch (_) { bodyEl.textContent = ''; UI.appendStatusRow(bodyEl, '讀取失敗，請稍後再試'); return; }
     rows = UI.dedupeLeaderboardRows(rows);
-    const { topRows, extraPlayerRow } = UI.buildLeaderboardView(rows, _bestSession, _lbSubmitPending);
-    if (topRows.length === 0) { bodyEl.textContent = ''; UI.appendStatusRow(bodyEl, '尚無排行資料'); return; }
+    const skipLocal = isPrev;
+    const { topRows, extraPlayerRow } = UI.buildLeaderboardView(rows, skipLocal ? null : _bestSession, skipLocal ? false : _lbSubmitPending);
+    if (topRows.length === 0) { bodyEl.textContent = ''; UI.appendStatusRow(bodyEl, isPrev ? '上月尚無排行資料' : '尚無排行資料'); return; }
     bodyEl.textContent = '';
     topRows.forEach(row => UI.appendLeaderboardRow(bodyEl, row));
     if (!playerRowEl) return;
@@ -201,7 +223,9 @@
     if (lbClose) lbClose.addEventListener('click', _closeLeaderboard);
     const lbModal = $('sg-leaderboard-modal');
     if (lbModal) lbModal.addEventListener('click', e => { if (e.target === lbModal) _closeLeaderboard(); });
-    document.querySelectorAll('#sg-leaderboard-modal .sg-lb-tab').forEach(tab => { tab.addEventListener('click', () => _renderLeaderboard(tab.getAttribute('data-lb-period') || 'daily')); });
+    document.querySelectorAll('#sg-leaderboard-modal .sg-lb-tab').forEach(tab => { tab.addEventListener('click', () => { _lbShowingPrevMonth = false; _renderLeaderboard(tab.getAttribute('data-lb-period') || 'daily'); }); });
+    const prevBtn = $('sg-lb-prev-month-btn');
+    if (prevBtn) prevBtn.addEventListener('click', () => _renderLeaderboard(_lbShowingPrevMonth ? 'monthly' : 'monthly-prev'));
     const introStart = $('sg-intro-start');
     if (introStart) introStart.addEventListener('click', _closeIntro);
     window.addEventListener('keydown', e => { if (e.key === 'Escape' && _lbOpen) _closeLeaderboard(); });

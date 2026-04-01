@@ -10,6 +10,11 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-04-01 — 射手榜新增「上月回顧」按鈕
+- **功能**：每月 tab 下顯示「← 上月回顧」按鈕，點擊查看上月月榜，可切換回本月
+- **修改**：shot-page-ui.js（`monthly-prev` bucket）、shot-game-page.js（toggle 邏輯）、game.html（按鈕 DOM）、game.css（樣式）
+- **教訓**：`getTaipeiDateBucket` 用 `Date.UTC(year, month-1, 1)` 處理跨年（1月→12月）自動正確
+
 ### 2026-04-01 — 分隊功能 Step 0-7 全部施作完成
 - **範圍**：Firestore Rules 白名單 + delegateUids + teamKey Rules + event-team-split.js 核心模組 + _userTag 改造 + CSS + LOCKED 函式 teamKey 注入 + CF 同步
 - **測試**：2325 tests（1903 unit + 422 Rules），每個 Step 獨立驗收後部署
