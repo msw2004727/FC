@@ -10,6 +10,12 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-04-01 — 開球王遊戲底部按鈕被下方導航列遮擋
+- **問題**：「重新開始」、「開球榜」按鈕及擊球按鈕被 App 底部 Tab Bar 遮住
+- **原因**：遊戲容器高度 calc 未扣除 `env(safe-area-inset-bottom)`，導致容器底部延伸到底部導航列後方；按鈕 `bottom` 值過小
+- **修復**：(1) game.css 容器高度加入 `env(safe-area-inset-bottom, 0)` (2) kickball-ui.js 底部按鈕 bottom 從 8px→14px、擊球球 12%→16%、提示文字 12%→16%、射擊日誌 68→78px、重啟按鈕 70→80px
+- **教訓**：任何全屏遊戲容器的高度 calc 都必須同時扣除 `--bottombar-h` 和 `env(safe-area-inset-bottom)`，否則 iPhone 等有 safe area 的裝置會被遮擋
+
 ### 2026-04-01 — 分隊功能修補：編輯模式 + 均分按鈕 + 說明彈窗 + i18n 快取
 - **問題**：(1) 編輯活動時分隊開關不顯示 (2) 均分上限勾選無反應 (3) i18n key 顯示為原始字串 (4) 說明彈窗均分區塊不夠醒目
 - **原因**：(1) `editMyActivity()` 漏呼叫 `bindTeamSplitToggle` 和 `_tsSetFormData` (2) checkbox `display:none` 導致 LINE WebView label-for 失效，且 `_tsUpdateBalanceCard()` 從未被同步呼叫 (3) `I18N.t()` 在 key 找不到時回傳 key 本身（truthy），`|| fallback` 不觸發；加上快取版號未同步 (4) 快取服務舊版 JS

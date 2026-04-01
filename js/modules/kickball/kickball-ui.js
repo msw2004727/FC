@@ -56,7 +56,7 @@ window._KickballUI = (function () {
       { id: 'kg-impact-ring', style: 'position:absolute;width:80px;height:80px;margin-left:-40px;margin-top:-40px;border:3px solid rgba(255,255,255,.7);border-radius:50%;opacity:0;transform:scale(.35);pointer-events:none;z-index:45;transition:transform .22s ease-out,opacity .22s ease-out' },
       { id: 'kg-grade-pop', style: 'position:absolute;left:50%;top:24%;transform:translate(-50%,-50%) scale(.9);color:#fff;font-weight:900;text-shadow:0 3px 12px rgba(0,0,0,.72);opacity:0;pointer-events:none;transition:opacity .16s ease-out,transform .22s ease-out;z-index:85;font-size:clamp(30px,5.5vw,52px)' },
       { id: 'kg-shot-type-pop', style: 'position:absolute;left:50%;top:33%;transform:translate(-50%,-50%) scale(.9);color:#fff;font-weight:900;text-shadow:0 3px 12px rgba(0,0,0,.72);opacity:0;pointer-events:none;transition:opacity .16s ease-out,transform .22s ease-out;z-index:70;font-size:clamp(22px,4.2vw,36px)' },
-      { id: 'kg-first-tip', style: 'position:absolute;left:50%;bottom:calc(12% + clamp(52px,13vw,72px) + 1.2em);transform:translateX(-50%);color:rgba(255,236,170,.94);font-size:clamp(18px,3.5vw,28px);font-weight:800;text-shadow:0 2px 10px rgba(0,0,0,.75);opacity:0;pointer-events:none;z-index:65;transition:opacity .2s ease-out;white-space:nowrap', text: '\u9EDE\u7403\u9577\u6309\u958B\u59CB' },
+      { id: 'kg-first-tip', style: 'position:absolute;left:50%;bottom:calc(16% + clamp(52px,13vw,72px) + 1.2em);transform:translateX(-50%);color:rgba(255,236,170,.94);font-size:clamp(18px,3.5vw,28px);font-weight:800;text-shadow:0 2px 10px rgba(0,0,0,.75);opacity:0;pointer-events:none;z-index:65;transition:opacity .2s ease-out;white-space:nowrap', text: '\u9EDE\u7403\u9577\u6309\u958B\u59CB' },
     ];
     containerEl.textContent = '';
     uiParts.forEach(function (p) {
@@ -127,25 +127,25 @@ window._KickballUI = (function () {
     msgDiv.style.cssText = 'position:absolute;left:50%;top:40%;transform:translate(-50%,-50%);color:#fff;font-size:clamp(18px,4.2vw,28px);font-weight:bold;text-shadow:0 2px 10px rgba(0,0,0,.9);text-align:center;opacity:0;transition:opacity .22s;white-space:nowrap;z-index:10;pointer-events:none';
     containerEl.appendChild(msgDiv);
     var restartWrap = document.createElement('div');
-    restartWrap.style.cssText = 'position:absolute;bottom:70px;left:50%;transform:translateX(-50%);z-index:10';
+    restartWrap.style.cssText = 'position:absolute;bottom:80px;left:50%;transform:translateX(-50%);z-index:10';
     var restartB = document.createElement('button'); restartB.id = 'kg-restart';
     restartB.style.cssText = 'display:none;border:0;border-radius:8px;padding:12px 29px;background:#e53935;color:#fff;font-weight:bold;font-size:16px;cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,.25)';
     restartB.textContent = '\u91CD\u65B0\u6311\u6230';
     restartWrap.appendChild(restartB); containerEl.appendChild(restartWrap);
     var vBall = document.createElement('div'); vBall.id = 'kg-virtual-ball';
-    vBall.style.cssText = 'position:absolute;left:50%;bottom:12%;transform:translateX(-50%);width:clamp(52px,13vw,72px);height:clamp(52px,13vw,72px);border-radius:50%;background:radial-gradient(circle at 38% 36%,rgba(255,255,255,.38),rgba(255,255,255,.08) 55%,rgba(0,0,0,.12));border:2.5px solid rgba(255,255,255,.45);box-shadow:0 0 18px rgba(0,180,255,.25),inset 0 -3px 8px rgba(0,0,0,.18);cursor:pointer;z-index:18;pointer-events:auto;transition:opacity .18s;display:flex;align-items:center;justify-content:center;font-size:clamp(46px,12vw,66px);line-height:0;user-select:none;overflow:hidden;padding-bottom:2px';
+    vBall.style.cssText = 'position:absolute;left:50%;bottom:16%;transform:translateX(-50%);width:clamp(52px,13vw,72px);height:clamp(52px,13vw,72px);border-radius:50%;background:radial-gradient(circle at 38% 36%,rgba(255,255,255,.38),rgba(255,255,255,.08) 55%,rgba(0,0,0,.12));border:2.5px solid rgba(255,255,255,.45);box-shadow:0 0 18px rgba(0,180,255,.25),inset 0 -3px 8px rgba(0,0,0,.18);cursor:pointer;z-index:18;pointer-events:auto;transition:opacity .18s;display:flex;align-items:center;justify-content:center;font-size:clamp(46px,12vw,66px);line-height:0;user-select:none;overflow:hidden;padding-bottom:2px';
     vBall.textContent = '\u26BD'; containerEl.appendChild(vBall);
     var shotLog = document.createElement('div'); shotLog.id = 'kg-shot-log';
-    shotLog.style.cssText = 'position:absolute;left:10px;bottom:68px;z-index:15;display:none;font-size:11px;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.7);line-height:1.5';
+    shotLog.style.cssText = 'position:absolute;left:10px;bottom:78px;z-index:15;display:none;font-size:11px;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.7);line-height:1.5';
     containerEl.appendChild(shotLog);
     var leftWrap = document.createElement('div');
-    leftWrap.style.cssText = 'position:absolute;left:10px;bottom:8px;z-index:15';
+    leftWrap.style.cssText = 'position:absolute;left:10px;bottom:14px;z-index:15';
     var inlineBtn = document.createElement('button'); inlineBtn.id = 'kg-restart-inline';
     inlineBtn.className = 'kg-lb-btn kg-restart-bottom-btn'; inlineBtn.type = 'button';
     inlineBtn.textContent = '\u91CD\u65B0\u958B\u59CB';
     leftWrap.appendChild(inlineBtn); containerEl.appendChild(leftWrap);
     var rightWrap = document.createElement('div');
-    rightWrap.style.cssText = 'position:absolute;right:10px;bottom:8px;z-index:15';
+    rightWrap.style.cssText = 'position:absolute;right:10px;bottom:14px;z-index:15';
     var lbBtn = document.createElement('button'); lbBtn.id = 'kg-leaderboard-btn-inner';
     lbBtn.className = 'kg-lb-btn'; lbBtn.type = 'button';
     lbBtn.textContent = '\u958B\u7403\u699C';

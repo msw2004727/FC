@@ -791,8 +791,8 @@
 /* ─── Game Container ─── */
 #page-kick-game #kick-game-container {
   position: relative;
-  height: calc(100vh - var(--topbar-h) - var(--bottombar-h) - 52px);
-  height: calc(100dvh - var(--topbar-h) - var(--bottombar-h) - 52px);
+  height: calc(100vh - var(--topbar-h) - var(--bottombar-h) - 52px - env(safe-area-inset-bottom, 0));
+  height: calc(100dvh - var(--topbar-h) - var(--bottombar-h) - 52px - env(safe-area-inset-bottom, 0));
   min-height: 380px;
   background: #8bc5e0;
   touch-action: none;
