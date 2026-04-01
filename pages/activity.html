@@ -345,12 +345,13 @@
           <div class="ce-gender-limit-tip">開啟後活動不會顯示在列表中，僅能透過分享連結查看</div>
         </div>
         <div class="ce-row">
-          <div style="display:flex;align-items:center;justify-content:space-between">
-            <span style="font-weight:600;display:flex;align-items:center;gap:.3rem">👕 分隊功能 <button type="button" class="edu-info-btn" onclick="event.stopPropagation();App._showCeInfo('teamSplit')" title="說明">?</button></span>
+          <label>分隊功能<button type="button" class="edu-info-btn" onclick="event.stopPropagation();App._showCeInfo('teamSplit')" title="說明">?</button></label>
+          <div style="display:flex;align-items:center;gap:.5rem">
             <label class="toggle-switch" style="margin:0">
               <input type="checkbox" id="ce-team-split-enabled">
               <span class="toggle-slider"></span>
             </label>
+            <span id="ce-team-split-label" style="font-size:.78rem;color:var(--text-muted)">關閉</span>
           </div>
           <div id="ce-team-split-options" style="display:none;margin-top:.5rem;background:var(--bg-elevated);border-radius:8px;padding:.65rem .7rem">
             <!-- 隊伍數量 + 色衣 -->

@@ -70,8 +70,9 @@ Object.assign(App, {
     const circleEl = (!empty && !isLight) ? `<circle cx="16" cy="17" r="7" fill="rgba(0,0,0,0.35)"/>` : '';
     const ariaLabel = options.ariaLabel || (letter ? `${letter} 隊` : '未分配');
 
+    const inlinePos = options.inline ? 'position:relative;top:0;right:0;' : '';
     return `<svg class="uc-team-jersey${clickable}${cls ? ' ' + cls : ''}" `
-      + `style="width:${w}px;height:${h}px" viewBox="0 0 32 28" fill="none" `
+      + `style="${inlinePos}width:${w}px;height:${h}px" viewBox="0 0 32 28" fill="none" `
       + `role="${clickable ? 'button' : 'img'}" `
       + `${clickable ? 'tabindex="0" ' : ''}`
       + `aria-label="${ariaLabel}"${onclickAttr}>`
@@ -99,7 +100,7 @@ Object.assign(App, {
     return teams.map(t => {
       const c = counts[t.key] || 0;
       const overCap = cap && c > cap;
-      const svg = this._tsJerseySvg(t.color, null, t.key, { width: 20 });
+      const svg = this._tsJerseySvg(t.color, null, t.key, { width: 20, inline: true });
       const capStr = cap ? `/${cap}` : '';
       const warn = overCap ? ` style="color:var(--warning);font-weight:700"` : '';
       return `<div class="team-stat-card">${svg} <span class="team-stat-text"${warn}>${c}${capStr} <span>${I18N?.t?.('common.person') || '人'}</span></span></div>`;
@@ -255,7 +256,7 @@ Object.assign(App, {
       const c = counts[t.key] || 0;
       const isFull = cap && c >= cap;
       const isSelected = selectedKey === t.key;
-      const svg = this._tsJerseySvg(t.color, null, t.key, { width: 32 });
+      const svg = this._tsJerseySvg(t.color, null, t.key, { width: 32, inline: true });
       const capStr = cap ? `/${cap}` : '';
       const cls = `team-select-card${isSelected ? ' selected' : ''}${isFull ? ' full' : ''}`;
       const onclick = isFull

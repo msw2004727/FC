@@ -230,7 +230,7 @@ Object.assign(App, {
     container.innerHTML = keys.map((key, i) => {
       const cIdx = this._tsTeamColorIdx[i] ?? i;
       const c = this._tsDefaultColors[cIdx] || this._tsDefaultColors[0];
-      const svg = this._tsJerseySvg?.(c.hex, c.stroke, key, { width: 26 }) || `<span>${key}</span>`;
+      const svg = this._tsJerseySvg?.(c.hex, c.stroke, key, { width: 26, inline: true }) || `<span style="font-size:.8rem;font-weight:700">${key}</span>`;
       return `<div onclick="App._tsCycleColor(${i})" style="cursor:pointer;padding:.1rem" title="點擊換色：${c.name}">${svg}</div>`;
     }).join('');
   },
