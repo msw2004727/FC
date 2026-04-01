@@ -474,6 +474,18 @@
           </div>
         </div>
         <div class="form-card" style="margin-bottom:.6rem">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:.5rem">
+            <div style="flex:1;min-width:0">
+              <div style="font-weight:600;font-size:.82rem">⑥ 用戶地區掃描</div>
+              <div style="font-size:.72rem;color:var(--text-muted);line-height:1.5;margin-top:.15rem">
+                掃描所有用戶的地區欄位，列出未填地區與非法地區值（不在 22 縣市內）。<br>
+                僅讀取不修改，可安全重複執行。
+              </div>
+            </div>
+            <button class="outline-btn" style="flex-shrink:0;font-size:.75rem" onclick="App._scanUserRegions()">掃描</button>
+          </div>
+        </div>
+        <div class="form-card" style="margin-bottom:.6rem">
           <button id="data-sync-full-btn" class="primary-btn full-width" onclick="App.runDataSyncOp('all')">一鍵同步 ①②③</button>
         </div>
         <div class="form-card">

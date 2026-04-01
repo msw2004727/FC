@@ -434,4 +434,41 @@ Object.assign(App, {
     await this._syncUserTeamFields(ui);
   },
 
+  // ── ⑥ 用戶地區掃描 ──
+  async _scanUserRegions() {
+    var regions = typeof TW_REGIONS !== 'undefined' ? TW_REGIONS : [];
+    if (!regions.length) { this.showToast('TW_REGIONS 未定義'); return; }
+    this.showToast('正在掃描...');
+    try {
+      var snap = await db.collection('users').get();
+      var empty = [], invalid = [], valid = [];
+      snap.forEach(function(doc) {
+        var d = doc.data();
+        var name = d.displayName || d.name || doc.id;
+        var region = (d.region || '').trim();
+        if (!region) empty.push(name);
+        else if (regions.indexOf(region) === -1) invalid.push(name + ' \u2192 ' + region);
+        else valid.push(name);
+      });
+      var lines = [];
+      lines.push('\u7E3D\u7528\u6236\uFF1A' + snap.size);
+      lines.push('\u6709\u6548\u5730\u5340\uFF1A' + valid.length);
+      lines.push('\u672A\u586B\u5730\u5340\uFF1A' + empty.length);
+      if (empty.length) lines.push(empty.join('\u3001'));
+      lines.push('\u975E\u6CD5\u5730\u5340\uFF1A' + invalid.length);
+      if (invalid.length) invalid.forEach(function(s) { lines.push(s); });
+      var overlay = document.createElement('div');
+      overlay.className = 'edu-info-overlay';
+      overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+      overlay.innerHTML = '<div class="edu-info-dialog" style="max-width:400px">'
+        + '<div class="edu-info-dialog-title">\u7528\u6236\u5730\u5340\u6383\u63CF\u7D50\u679C</div>'
+        + '<div class="edu-info-dialog-body"><pre style="white-space:pre-wrap;font-size:.78rem;line-height:1.6;margin:0">' + escapeHTML(lines.join('\n')) + '</pre></div>'
+        + '<button class="primary-btn" style="width:100%;margin-top:.8rem;flex-shrink:0" onclick="this.closest(\'.edu-info-overlay\').remove()">\u95DC\u9589</button>'
+        + '</div>';
+      document.body.appendChild(overlay);
+    } catch (err) {
+      this.showToast('\u6383\u63CF\u5931\u6557\uFF1A' + (err.message || err));
+    }
+  },
+
 });
