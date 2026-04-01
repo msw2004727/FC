@@ -844,14 +844,14 @@ Demo 種子資料的 event 物件不含 `teamSplit` 欄位。所有存取 `event
 
 ### 待進行（施作順序）
 
-1. [ ] **Step 0**：Firestore Rules — registration update 欄位白名單修補（先決，與 team-split 無關）
-2. [ ] **Step 1**：delegateUids 同步維護（4 處路徑）
-3. [ ] **Step 2**：Firestore Rules — team-split 相關函式（依賴 Step 1）
-4. [ ] **Step 3**：前端模組開發 (event-team-split.js)，含 `_resolveTeamKey`
-5. [ ] **Step 4**：_userTag 改造（第三參數 options）+ CSS + i18n（~30 keys）
-6. [ ] **Step 5**：4 條遞補路徑加入 teamKey 處理（LOCKED 函式，需審慎）
-7. [ ] **Step 6**：Cloud Function registerForEvent 同步改動（必須與前端同步上線）
-8. [ ] **Step 7**：整合測試 + 版本號更新與部署
+1. [x] **Step 0**：Firestore Rules — registration update 欄位白名單修補（commit ea94eee）
+2. [x] **Step 1**：delegateUids 同步維護 4 處路徑（commit c0ae817）
+3. [x] **Step 2**：Firestore Rules — team-split 5 個函式（commit cfa79ba）
+4. [x] **Step 3**：前端模組 event-team-split.js 230 行（commit 9e5379a）
+5. [x] **Step 4**：_userTag 色衣 badge + CSS 樣式（commit 7a9031a）
+6. [x] **Step 5**：LOCKED 函式 teamKey 注入 + 遞補分配（commit 8006852）
+7. [x] **Step 6**：Cloud Function registerForEvent 同步 teamKey（commit 3853898）
+8. [x] **Step 7**：整合測試 + 版本號 20260401c + 三方專家驗收
 
 ---
 
@@ -863,4 +863,4 @@ Demo 種子資料的 event 物件不含 `teamSplit` 欄位。所有存取 `event
 
 *計畫建立日期：2026-03-31*
 *最後更新：2026-04-01*
-*狀態：第五輪審計完成（teamKey 值驗證 + 徽章權限收斂），準備進入施作階段*
+*狀態：Step 0-7 全部完成，2325 tests 通過，三方專家驗收（Rules/Frontend/CF），已部署*

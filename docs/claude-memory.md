@@ -10,6 +10,13 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-04-01 — 分隊功能 Step 0-7 全部施作完成
+- **範圍**：Firestore Rules 白名單 + delegateUids + teamKey Rules + event-team-split.js 核心模組 + _userTag 改造 + CSS + LOCKED 函式 teamKey 注入 + CF 同步
+- **測試**：2325 tests（1903 unit + 422 Rules），每個 Step 獨立驗收後部署
+- **專家驗收**：Firestore Rules 專家 / 前端架構專家 / CF 同步專家 三方審查
+- **已知設計取捨**：`isAuth() && isWaitlistPromotion()` 允許任何登入者升級候補→正取，這是既有設計（cancel batch 需要 non-admin 升級他人），改為 isAdmin 會壞取消流程
+- **回滾點**：`e1d0eff`（施作前最後 commit）
+
 ### 2026-04-01 — 分隊計畫書第五輪審計 + 測試框架建立
 - **問題**：外部專家指出 3 項 Firestore Rules 缺口：(1) `teamKey` 值未驗證，惡意 client 可寫入任意字串造成 UI 壞掉且不自愈；(2) `isBadgeOnlyUpdate` 允許任意登入者偽造別人徽章；(3) `isWaitlistPromotion` 不支援 `{status, teamKey}` 組合寫入，遞補時會被擋
 - **修復**：計畫書加入 `isTeamKeyOnlyUpdate` 值驗證 `in [null,'A'..'D']` + `isActiveRegistration` 排除已取消報名 + `isBadgeOnlyUpdate` 限縮為 owner/admin + `isWaitlistPromotion` 擴展支援組合寫入 + `_resolveTeamKey` 與前端 render 加 `validKeys` 防禦性過濾
