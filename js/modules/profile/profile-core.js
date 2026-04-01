@@ -89,7 +89,7 @@ Object.assign(App, {
         svg = this._tsJerseySvg?.(null, null, '?', { width: 20 }) || '';
       }
       if (options.canPickTeam) {
-        const _oc = `event.stopPropagation();App._tsToggleJerseyPicker(event,${JSON.stringify(options.regDocId || '')},${JSON.stringify(options.eventId || '')})`;
+        const _oc = `event.stopPropagation();App._tsToggleJerseyPicker(event,'${escapeHTML(options.regDocId || '')}','${escapeHTML(options.eventId || '')}')`;
         jerseyHtml = `<span class="uc-jersey-tap" onclick="${_oc}">${svg}</span>`;
       } else {
         jerseyHtml = svg;
@@ -97,7 +97,7 @@ Object.assign(App, {
     } else if (options && options.showEmptyJersey) {
       const svg = this._tsJerseySvg?.(null, null, '?', { width: 20 }) || '';
       if (options.canPickTeam) {
-        const _oc = `event.stopPropagation();App._tsToggleJerseyPicker(event,${JSON.stringify(options.regDocId || '')},${JSON.stringify(options.eventId || '')})`;
+        const _oc = `event.stopPropagation();App._tsToggleJerseyPicker(event,'${escapeHTML(options.regDocId || '')}','${escapeHTML(options.eventId || '')}')`;
         jerseyHtml = `<span class="uc-jersey-tap" onclick="${_oc}">${svg}</span>`;
       } else {
         jerseyHtml = svg;
