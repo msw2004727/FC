@@ -701,12 +701,59 @@ service cloud.firestore {
         return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayBadges']);
       }
 
+      // ── team-split Rules ──
+
+      // teamKey 欄位白名單 + 值驗證
+      function isTeamKeyOnlyUpdate() {
+        let changed = request.resource.data.diff(resource.data).affectedKeys();
+        return changed.hasOnly(['teamKey', 'updatedAt'])
+          && (request.resource.data.teamKey == null
+              || request.resource.data.teamKey in ['A', 'B', 'C', 'D']);
+      }
+
+      // 僅 active 報名可被修改 teamKey
+      function isActiveRegistration() {
+        return resource.data.status in ['confirmed', 'waitlisted'];
+      }
+
+      // 讀取關聯 event（供 team-split 判斷）
+      function getRegEventData() {
+        return resource.data.eventId is string
+          ? get(/databases/$(database)/documents/events/$(resource.data.eventId)).data
+          : null;
+      }
+
+      // 主辦/委託人改 teamKey
+      function isEventManagerTeamKeyUpdate() {
+        let eventData = getRegEventData();
+        return eventData != null
+          && isAuth()
+          && isTeamKeyOnlyUpdate()
+          && (eventData.creatorUid == request.auth.uid
+              || (eventData.delegateUids is list && request.auth.uid in eventData.delegateUids));
+      }
+
+      // 用戶自選隊伍（self-select 模式 + 未鎖定）
+      function isSelfSelectTeamKeyUpdate() {
+        let eventData = getRegEventData();
+        return eventData != null
+          && isRegistrationOwnerResource()
+          && isTeamKeyOnlyUpdate()
+          && eventData.teamSplit is map
+          && eventData.teamSplit.mode == 'self-select'
+          && (eventData.teamSplit.lockAt == null || request.time < eventData.teamSplit.lockAt)
+          && eventData.startTimestamp is timestamp
+          && request.time < eventData.startTimestamp;
+      }
+
       allow read: if isAuth();
       allow create: if isAdmin() || isRegistrationOwnerRequest();
       allow update: if isAdmin()
         || (isRegistrationOwnerResource() && isRegistrationOwnerRequest() && isRegistrationOwnerSafeUpdate())
         || (isAuth() && isWaitlistPromotion())
-        || (isRegistrationOwnerResource() && isBadgeOnlyUpdate());
+        || (isRegistrationOwnerResource() && isBadgeOnlyUpdate())
+        || (isActiveRegistration() && isEventManagerTeamKeyUpdate())
+        || (isActiveRegistration() && isSelfSelectTeamKeyUpdate());
       allow delete: if isAdmin() || isRegistrationOwnerResource();
     }
 
