@@ -10,6 +10,20 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### [永久] 2026-04-02 — LINE Mini App 首次登入彈窗不顯示（嚴重用戶流失）
+- **問題**：透過 LINE 開啟 Mini App 的全新用戶，首次登入後「完善個人資料」彈窗不會跳出，導致用戶沒填性別、生日、地區就直接進入首頁。Chrome / Safari 手動登入的用戶不受影響
+- **原因**：App 啟動時 `PageLoader.loadAll()`（載入 profile.html）是**非同步背景**執行，而 `App.init()` **不等它完成**就立刻呼叫 `bindLineLogin()`。LINE Mini App 的 LIFF 已預先驗證，`loginUser()` 瞬間完成 → `_pendingFirstLogin = true` → `showModal('first-login-modal')` → 但此時 profile.html 還沒載完 → `getElementById` 回傳 `null` → `toggleModal` 的 `if(!modal) return` 靜默失敗。Chrome/Safari 沒有 LIFF session 所以 `bindLineLogin` 不會立刻登入，等用戶手動登入時 HTML 早就載好了
+- **修復**：新增 `_showFirstLoginWhenReady()`，若 DOM 不存在則每 300ms 重試（最多 10 次 = 3 秒），等 profile.html 載完再顯示彈窗
+- **影響範圍**：所有透過 LINE 開啟 Mini App 的全新用戶（佔用戶群 90%+）。這些用戶的個人資料（性別/生日/地區）永遠留空，導致：(1) 地區鎖活動對他們不可見 (2) 性別限定活動無法篩選 (3) 統計數據不完整
+- **教訓**：`showModal()` 在 DOM 不存在時靜默失敗（`if(!modal) return`），沒有 console.warn 或任何提示，極難被察覺。任何依賴動態載入 HTML 的 `showModal` 呼叫都必須加 DOM 存在性檢查 + 重試機制，不能假設 HTML 一定已載入
+
+### 2026-04-02 — 地區鎖 + 生日改三段 select + 個人資料地區限定 22 縣市 + 說明按鈕排版
+- **地區鎖**：新增活動表單加入地區鎖 toggle，開啟後模糊多選 22 縣市，鎖上必填至少一個地區，新增時彈窗警告。活動列表 `_getVisibleEvents` 過濾 regionLock（方案 A：未設地區不可見）。範本存取包含。編輯還原包含
+- **生日**：`<input type="date">` 改為三段 `<select>`（年/月/日），避免 iOS/LINE WebView date picker 選完年月自動關閉跳過日期。首次登入 + 個人資料編輯共用 `_populateBirthdaySelects`
+- **地區欄位**：自由輸入改為 TW_REGIONS 模糊搜尋 + event delegation（修復 LINE WebView 的 onmousedown/blur 時序問題）
+- **說明按鈕**：從 label 內搬出防誤觸 + `ce-label-row` 包裹同行 + `order:99 margin-left:auto` 置右
+- **掃描補正**：用戶補正管理 > 系統資料同步 ⑥ 掃描 + 批次補正按鈕
+
 ### 2026-04-01 — 活動管理頁統計彈窗（權限感知）
 - **功能**：標題右側新增書本 SVG 按鈕，點擊彈出 6 卡片統計（總活動/即將開放/報名中/已額滿/已結束/已取消），移除原灰字統計
 - **權限**：`event.edit_all` 看所有活動統計，否則只看自己管理的
