@@ -353,31 +353,40 @@
             </label>
             <span id="ce-team-split-label" style="font-size:.78rem;color:var(--text-muted)">關閉</span>
           </div>
-          <div id="ce-team-split-options" style="display:none;margin-top:.4rem">
-            <div style="display:flex;gap:.4rem;align-items:center;margin-bottom:.4rem">
-              <span style="font-size:.78rem;white-space:nowrap">隊伍</span>
-              <select id="ce-team-split-count" style="font-size:.78rem;padding:.2rem .3rem;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-card);color:var(--text-primary);min-width:0">
-                <option value="2" selected>2</option>
-                <option value="3">3</option>
-                <option value="4">4</option>
-              </select>
-            </div>
-            <div id="ce-team-split-colors" style="display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:.4rem"></div>
-            <div style="margin-bottom:.4rem">
-              <span style="font-size:.78rem">報名時用戶可以：</span>
-              <div id="ce-team-split-mode" style="display:flex;gap:.3rem;margin-top:.2rem">
-                <button type="button" class="ce-gender-chip active" data-value="random" onclick="App._tsSetMode('random')">隨機分配</button>
-                <button type="button" class="ce-gender-chip" data-value="self-select" onclick="App._tsSetMode('self-select')">自選隊伍</button>
-                <button type="button" class="ce-gender-chip" data-value="manual" onclick="App._tsSetMode('manual')">主辦分配</button>
+          <div id="ce-team-split-options" style="display:none;margin-top:.5rem;background:var(--bg-elevated);border-radius:var(--radius-sm,4px);padding:.6rem">
+            <!-- 分隊模式 -->
+            <div style="margin-bottom:.5rem">
+              <div style="font-size:.72rem;color:var(--text-muted);margin-bottom:.25rem">分隊方式</div>
+              <div id="ce-team-split-mode" style="display:flex;gap:.25rem">
+                <button type="button" class="ce-gender-chip active" data-value="random" onclick="App._tsSetMode('random')">🎲 隨機</button>
+                <button type="button" class="ce-gender-chip" data-value="self-select" onclick="App._tsSetMode('self-select')">👆 自選</button>
+                <button type="button" class="ce-gender-chip" data-value="manual" onclick="App._tsSetMode('manual')">📋 主辦</button>
               </div>
             </div>
-            <div id="ce-team-split-lock-wrap" style="display:none;margin-bottom:.3rem">
-              <span style="font-size:.78rem">開始前</span>
-              <select id="ce-team-split-lock-hours" style="font-size:.78rem;padding:.2rem .3rem;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-card);color:var(--text-primary)">
-                <option value="1">1</option><option value="2" selected>2</option><option value="3">3</option><option value="6">6</option><option value="12">12</option><option value="24">24</option>
-              </select>
-              <span style="font-size:.78rem">小時鎖定</span>
+            <!-- 隊伍設定 -->
+            <div style="margin-bottom:.5rem">
+              <div style="font-size:.72rem;color:var(--text-muted);margin-bottom:.25rem">隊伍設定</div>
+              <div style="display:flex;gap:.5rem;align-items:center">
+                <select id="ce-team-split-count" style="font-size:.78rem;padding:.25rem .35rem;border:1px solid var(--border);border-radius:var(--radius-sm,4px);background:var(--bg-card);color:var(--text-primary)">
+                  <option value="2" selected>2 隊</option>
+                  <option value="3">3 隊</option>
+                  <option value="4">4 隊</option>
+                </select>
+                <div id="ce-team-split-colors" style="display:flex;gap:.35rem;flex-wrap:wrap"></div>
+              </div>
             </div>
+            <!-- 自選鎖定（僅自選模式顯示） -->
+            <div id="ce-team-split-lock-wrap" style="display:none;margin-bottom:.4rem">
+              <div style="font-size:.72rem;color:var(--text-muted);margin-bottom:.2rem">自選鎖定</div>
+              <div style="display:flex;align-items:center;gap:.3rem;font-size:.78rem">
+                <span>活動開始前</span>
+                <select id="ce-team-split-lock-hours" style="font-size:.78rem;padding:.2rem .3rem;border:1px solid var(--border);border-radius:var(--radius-sm,4px);background:var(--bg-card);color:var(--text-primary)">
+                  <option value="1">1</option><option value="2" selected>2</option><option value="3">3</option><option value="6">6</option><option value="12">12</option><option value="24">24</option>
+                </select>
+                <span>小時鎖定選擇</span>
+              </div>
+            </div>
+            <!-- 均分 -->
             <label style="font-size:.78rem;display:flex;align-items:center;gap:.3rem">
               <input type="checkbox" id="ce-team-split-balance" checked> 各隊人數上限均分
             </label>

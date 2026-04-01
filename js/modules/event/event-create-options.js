@@ -219,16 +219,39 @@ Object.assign(App, {
     if (enabled) this._tsRenderColorChips();
   },
 
+  // 每隊目前選的顏色索引（0-based，對應 _tsDefaultColors）
+  _tsTeamColorIdx: [0, 1, 2, 3],
+
   _tsRenderColorChips() {
     const container = document.getElementById('ce-team-split-colors');
     if (!container) return;
     const count = parseInt(document.getElementById('ce-team-split-count')?.value, 10) || 2;
     const keys = ['A', 'B', 'C', 'D'].slice(0, count);
     container.innerHTML = keys.map((key, i) => {
-      const c = this._tsDefaultColors[i] || this._tsDefaultColors[0];
-      const svg = this._tsJerseySvg?.(c.hex, c.stroke, key, { width: 24 }) || `<span style="font-size:.8rem">${key}</span>`;
-      return `<div style="display:flex;align-items:center;gap:.2rem">${svg}<span style="font-size:.72rem">${c.name}</span></div>`;
+      const cIdx = this._tsTeamColorIdx[i] ?? i;
+      const c = this._tsDefaultColors[cIdx] || this._tsDefaultColors[0];
+      const svg = this._tsJerseySvg?.(c.hex, c.stroke, key, { width: 26 }) || `<span>${key}</span>`;
+      return `<div onclick="App._tsCycleColor(${i})" style="cursor:pointer;padding:.1rem" title="點擊換色：${c.name}">${svg}</div>`;
     }).join('');
+  },
+
+  _tsCycleColor(teamIdx) {
+    const presets = this._tsDefaultColors;
+    const current = this._tsTeamColorIdx[teamIdx] ?? teamIdx;
+    // 循環到下一個顏色，跳過已被其他隊使用的
+    const count = parseInt(document.getElementById('ce-team-split-count')?.value, 10) || 2;
+    const usedIdx = new Set();
+    for (let i = 0; i < count; i++) {
+      if (i !== teamIdx) usedIdx.add(this._tsTeamColorIdx[i] ?? i);
+    }
+    let next = (current + 1) % presets.length;
+    let attempts = 0;
+    while (usedIdx.has(next) && attempts < presets.length) {
+      next = (next + 1) % presets.length;
+      attempts++;
+    }
+    this._tsTeamColorIdx[teamIdx] = next;
+    this._tsRenderColorChips();
   },
 
   _tsSetMode(mode) {
@@ -266,11 +289,11 @@ Object.assign(App, {
     const balanceCap = !!document.getElementById('ce-team-split-balance')?.checked;
     const lockHours = mode === 'self-select' ? parseInt(document.getElementById('ce-team-split-lock-hours')?.value, 10) || 2 : 0;
     const keys = ['A', 'B', 'C', 'D'].slice(0, count);
-    const teams = keys.map((key, i) => ({
-      key,
-      color: this._tsDefaultColors[i]?.hex || '#999999',
-      name: this._tsDefaultColors[i]?.name || `${key} 隊`,
-    }));
+    const teams = keys.map((key, i) => {
+      const cIdx = this._tsTeamColorIdx[i] ?? i;
+      const c = this._tsDefaultColors[cIdx] || this._tsDefaultColors[0];
+      return { key, color: c.hex, name: c.name + '隊' };
+    });
     return { enabled: true, mode, balanceCap, selfSelectLockHours: lockHours, lockAt: null, teams };
   },
 
