@@ -388,13 +388,44 @@ function isRegistrationOwnerSafeUpdate() {
 }
 
 // team-split 專用白名單
+// ⚠️ teamKey 必須驗值：只接受 null 或 'A'-'D'，否則惡意 client 可寫入任意字串
+//    造成色衣 badge 渲染壞掉、隊伍人數不一致、排序異常，且批次操作（隨機/補齊）不會自動清除非法值
 function isTeamKeyOnlyUpdate() {
-  return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['teamKey', 'updatedAt']);
+  let changed = request.resource.data.diff(resource.data).affectedKeys();
+  return changed.hasOnly(['teamKey', 'updatedAt'])
+    && (request.resource.data.teamKey == null
+        || request.resource.data.teamKey in ['A', 'B', 'C', 'D']);
 }
 
-// 徽章更新（非 owner 的活動管理者也可能觸發）
+// ⚠️ teamKey 寫入須排除已取消的報名（防止對 cancelled/removed 報名做無意義的資料污染）
+function isActiveRegistration() {
+  return resource.data.status in ['confirmed', 'waitlisted'];
+}
+
+// 徽章更新
+// ⚠️ 限制為「自己的報名 OR 管理員」，禁止任意登入者改別人的徽章
+//    雖然 displayBadges 是純視覺不影響邏輯，但開放 isAuth() 會讓任何人偽造他人徽章
+//    三條寫入路徑：
+//    - firebase-crud.js:682  _writeDisplayBadgesToReg()  → 自己報名後寫入（owner 路徑已涵蓋）
+//    - achievement-batch.js:305  → admin 批次更新（isAdmin 路徑已涵蓋）
+//    - event-manage-badges.js:93 → 活動管理者刷新（需 isAdmin 路徑）
 function isBadgeOnlyUpdate() {
   return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayBadges']);
+}
+
+// ⚠️ isWaitlistPromotion 必須擴展：遞補時 batch.update 同時寫入 status + teamKey
+//    原版只允許 changed.hasOnly(['status'])，會擋掉 {status:'confirmed', teamKey:'A'} 的組合寫入
+//    擴展後允許 ['status'] 或 ['status', 'teamKey']，teamKey 值仍受合法性驗證
+function isWaitlistPromotion() {
+  let changed = request.resource.data.diff(resource.data).affectedKeys();
+  let baseValid = resource.data.status == 'waitlisted'
+    && request.resource.data.status == 'confirmed';
+  if (!baseValid) return false;
+  // 純 status 變更（既有行為）或 status + teamKey（team-split 遞補）
+  return changed.hasOnly(['status'])
+    || (changed.hasOnly(['status', 'teamKey'])
+        && (request.resource.data.teamKey == null
+            || request.resource.data.teamKey in ['A', 'B', 'C', 'D']));
 }
 
 // 完整 registration update 規則（取代現有）
@@ -402,9 +433,9 @@ allow update: if
   isAdmin()
   || (isRegistrationOwnerResource() && isRegistrationOwnerRequest() && isRegistrationOwnerSafeUpdate())
   || (isAuth() && isWaitlistPromotion())
-  || (isAuth() && isBadgeOnlyUpdate())     // 徽章寫入（任何登入用戶）
-  || isEventManagerTeamKeyUpdate()          // team-split 新增
-  || isSelfSelectTeamKeyUpdate();           // team-split 新增
+  || (isRegistrationOwnerResource() && isBadgeOnlyUpdate())  // 自己的報名可更新徽章
+  || (isActiveRegistration() && isEventManagerTeamKeyUpdate())   // team-split 新增（僅 active 報名）
+  || (isActiveRegistration() && isSelfSelectTeamKeyUpdate());    // team-split 新增（僅 active 報名）
 
 // 注意：Cloud Functions 使用 Admin SDK，繞過 Rules，promotedAt/cancelledAt 等時間戳寫入不受影響
 ```
@@ -577,12 +608,14 @@ function _resolveTeamKey(event, allEventRegs, options = {}) {
   if (event.teamSplit.mode === 'self-select') return options.userSelectedTeamKey || null;
   if (event.teamSplit.mode === 'manual') return null;
   // random：平衡分配到人數最少的隊
-  const counts = {};
-  event.teamSplit.teams.forEach(t => { counts[t.key] = 0; });
-  allEventRegs.filter(r => r.status === 'confirmed' && r.teamKey)
-    .forEach(r => { counts[r.teamKey] = (counts[r.teamKey] || 0) + 1; });
   const teams = event.teamSplit.teams;
   if (!teams.length) return null;
+  const validKeys = new Set(teams.map(t => t.key));
+  const counts = {};
+  teams.forEach(t => { counts[t.key] = 0; });
+  // ⚠️ 只計入合法 teamKey，忽略被污染的非法值（防禦性過濾）
+  allEventRegs.filter(r => r.status === 'confirmed' && r.teamKey && validKeys.has(r.teamKey))
+    .forEach(r => { counts[r.teamKey] = (counts[r.teamKey] || 0) + 1; });
   return teams.reduce((min, t) =>
     (counts[t.key] || 0) < (counts[min.key] || 0) ? t : min
   ).key;
@@ -732,6 +765,17 @@ registration.teamKey = 'A' | 'B' | 'C' | 'D' | null
 
 `event-manage-noshow.js` 的 `_buildConfirmedParticipantSummary()` 回傳的 people 物件不含 `teamKey`，出席表無法顯示色衣 badge。需在回傳物件加入 `teamKey: mainReg.teamKey || null`。
 
+#### 前端防禦性渲染（teamKey 資料污染防護）
+
+所有讀取 `registration.teamKey` 的 render 程式碼必須做合法性檢查，忽略不在 `event.teamSplit.teams` 裡的值：
+
+```javascript
+const validKeys = new Set((event.teamSplit?.teams || []).map(t => t.key));
+const safeTeamKey = (reg.teamKey && validKeys.has(reg.teamKey)) ? reg.teamKey : null;
+```
+
+此防禦確保即使 Firestore 中存在被污染的非法 teamKey，前端也不會出現 undefined 色衣、幽靈隊伍卡片或排序異常。`_resolveTeamKey` 的計數邏輯已同步加入 `validKeys` 過濾。
+
 #### Demo 模式安全
 
 Demo 種子資料的 event 物件不含 `teamSplit` 欄位。所有存取 `event.teamSplit` 的程式碼**必須使用 optional chaining（`?.`）**，否則 Demo 模式會 crash。範例：`event.teamSplit?.enabled`、`event.teamSplit?.mode`。
@@ -772,6 +816,7 @@ Demo 種子資料的 event 物件不含 `teamSplit` 欄位。所有存取 `event
 - [x] 設計原型預覽 (docs/team-split-preview.html)
 - [x] 第三輪深度審計（2026-04-01，交叉驗證現有程式碼 × 計畫書，含擴大影響分析）
 - [x] 第四輪審計（2026-04-01，Firestore Rules 白名單安全驗證 — 發現 3 項高嚴重度瑕疵並修正）
+- [x] 第五輪審計（2026-04-01，teamKey 值驗證 + isBadgeOnlyUpdate 權限收斂 — 深度調查 3 項外部專家指摘）
 
 ### 第三輪審計發現與修正
 
@@ -793,6 +838,9 @@ Demo 種子資料的 event 物件不含 `teamSplit` 欄位。所有存取 `event
 | 14 | `isRegistrationOwnerSafeUpdate` 白名單漏 `cancelledAt` → 取消報名 3 條路徑全部失敗 | **高** | 已修正：白名單加入 `cancelledAt`（第四輪審計） |
 | 15 | `isRegistrationOwnerSafeUpdate` 的 `status` 無值約束 → 候補可自行升正取 | **高** | 已修正：加入 `status == 'cancelled'` 值約束（第四輪審計） |
 | 16 | L404 誤述「取消報名用 delete」→ 實際用 `batch.update`，此誤認是 #14 的根因 | 高 | 已修正描述（第四輪審計） |
+| 17 | `teamKey` Rules 只驗欄位名稱不驗值 → 惡意 client 可寫入非法字串，造成 UI 壞掉且不自愈 | **高** | 已修正：`isTeamKeyOnlyUpdate` 加值驗證 `in [null, 'A'..'D']` + `isActiveRegistration` 排除已取消報名 + `_resolveTeamKey` 加 `validKeys` 防禦性過濾 + 前端 render 加合法性檢查（第五輪審計） |
+| 18 | `isBadgeOnlyUpdate` 允許任意登入者改別人徽章 → 偽造視覺徽章 | 中 | 已修正：限縮為 `isRegistrationOwnerResource` \|\| `isAdmin`（第五輪審計） |
+| 19 | `isWaitlistPromotion` 只允許 `['status']` → 遞補時 `{status, teamKey}` 組合寫入被擋 | **高** | 已修正：擴展為允許 `['status']` 或 `['status', 'teamKey']` + teamKey 值驗證（第五輪 QA） |
 
 ### 待進行（施作順序）
 
@@ -815,4 +863,4 @@ Demo 種子資料的 event 物件不含 `teamSplit` 欄位。所有存取 `event
 
 *計畫建立日期：2026-03-31*
 *最後更新：2026-04-01*
-*狀態：第四輪審計完成（Firestore Rules 安全修正），準備進入施作階段*
+*狀態：第五輪審計完成（teamKey 值驗證 + 徽章權限收斂），準備進入施作階段*
