@@ -14,6 +14,41 @@ Object.assign(App, {
   // ══════════════════════════════════
 
   _myActivityFilter: 'all',
+
+  // ── 活動統計彈窗 ──
+  _showActivityStatsModal() {
+    const isAdmin = this.hasPermission('event.edit_all');
+    let events = ApiService.getEvents() || [];
+    if (!isAdmin) {
+      events = events.filter(e => this._isEventOwner(e) || this._isEventDelegate(e));
+    }
+    const counts = events.reduce((acc, e) => { acc[e.status] = (acc[e.status] || 0) + 1; return acc; }, {});
+    const scope = isAdmin ? '所有活動' : '我管理的活動';
+    const items = [
+      { label: '總活動', count: events.length, color: '#0d9488', bg: 'rgba(13,148,136,.1)' },
+      { label: '即將開放', count: counts.upcoming || 0, color: '#6366f1', bg: 'rgba(99,102,241,.1)' },
+      { label: '報名中', count: counts.open || 0, color: '#10b981', bg: 'rgba(16,185,129,.1)' },
+      { label: '已額滿', count: counts.full || 0, color: '#f59e0b', bg: 'rgba(245,158,11,.1)' },
+      { label: '已結束', count: counts.ended || 0, color: '#6b7280', bg: 'rgba(107,114,128,.1)' },
+      { label: '已取消', count: counts.cancelled || 0, color: '#ef4444', bg: 'rgba(239,68,68,.1)' },
+    ];
+    const cards = items.map(it =>
+      `<div style="background:${it.bg};border-radius:10px;padding:.6rem .7rem;text-align:center">`
+      + `<div style="font-size:1.4rem;font-weight:800;color:${it.color}">${it.count}</div>`
+      + `<div style="font-size:.72rem;color:var(--text-secondary);margin-top:.15rem">${it.label}</div>`
+      + `</div>`
+    ).join('');
+    const overlay = document.createElement('div');
+    overlay.className = 'edu-info-overlay';
+    overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+    overlay.innerHTML = '<div class="edu-info-dialog" style="max-width:360px">'
+      + '<div class="edu-info-dialog-title">活動統計</div>'
+      + `<div style="font-size:.72rem;color:var(--text-muted);text-align:center;margin-bottom:.6rem">統計範圍：${scope}</div>`
+      + `<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:.45rem">${cards}</div>`
+      + '<button class="primary-btn" style="width:100%;margin-top:.8rem;flex-shrink:0" onclick="this.closest(\'.edu-info-overlay\').remove()">關閉</button>'
+      + '</div>';
+    document.body.appendChild(overlay);
+  },
   _myActivityCreatorFilter: '',
   _manualEditingUid: null,
   _manualEditingEventId: null,
@@ -215,20 +250,7 @@ Object.assign(App, {
       });
     }
 
-    // 統計（單次 reduce 取代 5 次 filter）
-    const statsEl = document.getElementById('my-activity-stats');
-    if (statsEl) {
-      const counts = allEvents.reduce((acc, e) => {
-        acc[e.status] = (acc[e.status] || 0) + 1;
-        return acc;
-      }, {});
-      const upcomingCount = counts.upcoming || 0;
-      const openCount = counts.open || 0;
-      const fullCount = counts.full || 0;
-      const endedCount = counts.ended || 0;
-      const cancelledCount = counts.cancelled || 0;
-      statsEl.textContent = `共 ${allEvents.length} 場${upcomingCount ? ' ・ 即將開放 ' + upcomingCount : ''} ・ 報名中 ${openCount} ・ 已額滿 ${fullCount} ・ 已結束 ${endedCount} ・ 已取消 ${cancelledCount}`;
-    }
+    // 統計已移至彈窗 _showActivityStatsModal
 
     // 預計算出席紀錄 Map（避免每筆活動重新 filter 全部出席紀錄）
     const isSuperAdmin = (ROLE_LEVEL_MAP[this.currentRole] || 0) >= ROLE_LEVEL_MAP.super_admin;

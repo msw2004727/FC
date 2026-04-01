@@ -64,7 +64,7 @@
     <section class="page" id="page-my-activities">
       <div class="page-header">
         <button class="back-btn" onclick="App.goBack()">←</button>
-        <h2>活動管理</h2>
+        <h2>活動管理</h2><button type="button" class="edu-info-btn" onclick="event.stopPropagation();App._showActivityStatsModal()" title="活動統計" style="margin-left:.3rem"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/><line x1="12" y1="6" x2="12" y2="13"/><line x1="9" y1="10" x2="15" y2="10"/></svg></button>
         <div id="my-activity-creator-wrap" style="display:none;position:relative">
           <input type="text" id="my-activity-creator-input" placeholder="篩選主辦人..." autocomplete="off" oninput="App.searchCreatorFilter()" style="font-size:.72rem;padding:.25rem 1.4rem .25rem .4rem;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-card);color:var(--text-primary);width:110px">
           <span id="my-activity-creator-clear" onclick="App.clearCreatorFilter()" style="display:none;position:absolute;right:4px;top:50%;transform:translateY(-50%);cursor:pointer;font-size:.7rem;color:var(--text-muted);line-height:1">✕</span>
@@ -72,7 +72,7 @@
         </div>
         <button class="primary-btn small" onclick="App.openCreateEventModal()">＋ 新增</button>
       </div>
-      <div id="my-activity-stats" style="font-size:.75rem;color:var(--text-muted);padding:0 .5rem .3rem;text-align:right"></div>
+      <!-- stats moved to modal: _showActivityStatsModal -->
       <div class="tab-bar" id="my-activity-tabs">
         <button class="tab active" data-afilter="all" onclick="App.switchMyActivityTab('all')">全部</button>
         <button class="tab" data-afilter="upcoming" onclick="App.switchMyActivityTab('upcoming')">即將開放</button>

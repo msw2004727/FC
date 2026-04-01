@@ -4,7 +4,7 @@
 
 // ─── Cache Version（更新此值以清除瀏覽器快取）───
 // 變更日誌已移除，請用 git log 查閱歷史部署記錄。
-const CACHE_VERSION = '20260401u';
+const CACHE_VERSION = '20260401v';
 
 // ─── 網路 / 設備偵測（用於 UI 降級）───
 const NetDevice = {
