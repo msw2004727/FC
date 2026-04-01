@@ -45,9 +45,46 @@ Object.assign(App, {
       + '<div class="edu-info-dialog-title">活動統計</div>'
       + `<div style="font-size:.72rem;color:var(--text-muted);text-align:center;margin-bottom:.6rem">統計範圍：${scope}</div>`
       + `<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:.45rem">${cards}</div>`
-      + '<button class="primary-btn" style="width:100%;margin-top:.8rem;flex-shrink:0" onclick="this.closest(\'.edu-info-overlay\').remove()">關閉</button>'
+      + (isAdmin ? '<button class="outline-btn" style="width:100%;margin-top:.6rem;font-size:.75rem" onclick="App._scanUserRegions()">掃描用戶地區</button>' : '')
+      + '<button class="primary-btn" style="width:100%;margin-top:.4rem;flex-shrink:0" onclick="this.closest(\'.edu-info-overlay\').remove()">關閉</button>'
       + '</div>';
     document.body.appendChild(overlay);
+  },
+
+  async _scanUserRegions() {
+    var regions = typeof TW_REGIONS !== 'undefined' ? TW_REGIONS : [];
+    if (!regions.length) { this.showToast('TW_REGIONS 未定義'); return; }
+    this.showToast('正在掃描...');
+    try {
+      var snap = await db.collection('users').get();
+      var empty = [], invalid = [], valid = [];
+      snap.forEach(function(doc) {
+        var d = doc.data();
+        var name = d.displayName || d.name || doc.id;
+        var region = (d.region || '').trim();
+        if (!region) empty.push(name);
+        else if (regions.indexOf(region) === -1) invalid.push(name + ' \u2192 ' + region);
+        else valid.push(name);
+      });
+      var msg = '\u7E3D\u7528\u6236\uFF1A' + snap.size
+        + '\n\u6709\u6548\u5730\u5340\uFF1A' + valid.length
+        + '\n\u672A\u586B\u5730\u5340\uFF1A' + empty.length;
+      if (empty.length) msg += '\n' + empty.join('\u3001');
+      msg += '\n\u975E\u6CD5\u5730\u5340\uFF1A' + invalid.length;
+      if (invalid.length) msg += '\n' + invalid.join('\n');
+      // 用 edu-info 彈窗顯示
+      var overlay = document.createElement('div');
+      overlay.className = 'edu-info-overlay';
+      overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+      overlay.innerHTML = '<div class="edu-info-dialog" style="max-width:400px">'
+        + '<div class="edu-info-dialog-title">\u7528\u6236\u5730\u5340\u6383\u63CF\u7D50\u679C</div>'
+        + '<div class="edu-info-dialog-body"><pre style="white-space:pre-wrap;font-size:.78rem;line-height:1.6;margin:0">' + escapeHTML(msg) + '</pre></div>'
+        + '<button class="primary-btn" style="width:100%;margin-top:.8rem;flex-shrink:0" onclick="this.closest(\'.edu-info-overlay\').remove()">\u95DC\u9589</button>'
+        + '</div>';
+      document.body.appendChild(overlay);
+    } catch (err) {
+      this.showToast('\u6383\u63CF\u5931\u6557\uFF1A' + (err.message || err));
+    }
   },
   _myActivityCreatorFilter: '',
   _manualEditingUid: null,
