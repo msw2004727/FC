@@ -3152,7 +3152,7 @@ exports.submitKickGameScore = onCall(
 
     // 5. 稽核 flags — 超出物理合理值直接拒絕
     const flags = [];
-    if (safeDistance > 150) flags.push("extreme_distance");
+    if (safeDistance > 500) flags.push("extreme_distance");
     if (safeDurationMs < 5000) flags.push("fast_game");
     if (safeMaxSpeed > 250) flags.push("extreme_speed");
     // 交叉驗證：低速不可能遠距
