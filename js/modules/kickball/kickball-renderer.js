@@ -52,24 +52,24 @@ window._KickballRenderer = (function () {
   }
   function generateTerrainBumps(G) {
     G.terrainBumps = [];
-    for (var i = 0; i < 8; i++) G.terrainBumps.push({ x: (Math.random() - 0.5) * 200, z: -(30 + Math.random() * 270) * G.unitsPerMeter, radius: 8 + Math.random() * 14, height: 0.18 + Math.random() * 0.22 });
+    for (var i = 0; i < 14; i++) G.terrainBumps.push({ x: (Math.random() - 0.5) * 200, z: -(30 + Math.random() * 560) * G.unitsPerMeter, radius: 8 + Math.random() * 14, height: 0.18 + Math.random() * 0.22 });
   }
 
   /* ── Build Scene ── */
   function buildField(G, THREE) {
     G.ground = new THREE.Mesh(
-      new THREE.PlaneGeometry(4000, (10 + 350) * G.unitsPerMeter, 120, 120),
+      new THREE.PlaneGeometry(4000, (10 + 600) * G.unitsPerMeter, 120, 120),
       new THREE.MeshLambertMaterial({ map: createGrassTexture(THREE), polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 })
     );
     G.ground.rotation.x = -Math.PI / 2;
-    G.ground.position.z = -((350 * G.unitsPerMeter) / 2) + (10 * G.unitsPerMeter) / 2;
+    G.ground.position.z = -((600 * G.unitsPerMeter) / 2) + (10 * G.unitsPerMeter) / 2;
     G.ground.receiveShadow = true;
     G.scene.add(G.ground);
     var sl = new THREE.Mesh(new THREE.PlaneGeometry(4000, 1.2), new THREE.MeshBasicMaterial({ color: 0xfff38a, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, depthWrite: false }));
     sl.rotation.x = -Math.PI / 2; sl.position.set(0, 0.04, 0); G.scene.add(sl);
     var cm = new THREE.Mesh(new THREE.CircleGeometry(1.3, 32), new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, depthWrite: false }));
     cm.rotation.x = -Math.PI / 2; cm.position.set(0, 0.05, 0); G.scene.add(cm);
-    for (var m = 25; m <= 350; m += 25) {
+    for (var m = 25; m <= 600; m += 25) {
       var z = -m * G.unitsPerMeter, nc = document.createElement('canvas'); nc.width = 2048; nc.height = 512;
       var nctx = nc.getContext('2d'); nctx.fillStyle = 'rgba(255,255,255,0.98)'; nctx.font = 'bold 420px Arial'; nctx.textAlign = 'center'; nctx.textBaseline = 'middle'; nctx.fillText(String(m), 1024, 256);
       var tex = new THREE.CanvasTexture(nc), mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, depthWrite: false });
