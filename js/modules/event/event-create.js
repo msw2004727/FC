@@ -111,6 +111,7 @@ Object.assign(App, {
     this._setGenderRestrictionState(false, '');
     this._setPrivateEventState(false);
     this._tsSetFormData?.(null);
+    this._rlSetFormData?.(false, []);
     const cePreview = document.getElementById('ce-upload-preview');
     if (cePreview) {
       cePreview.classList.remove('has-image');
@@ -125,6 +126,7 @@ Object.assign(App, {
     this.bindGenderRestrictionToggle();
     this.bindPrivateEventToggle();
     this.bindTeamSplitToggle?.();
+    this.bindRegionLockToggle?.();
     this._resetMultiDates();
     this._initMultiDatePicker();
     this._initSportTagPicker('');
@@ -172,6 +174,7 @@ Object.assign(App, {
     const allowedGender = genderRestrictionEnabled ? this._getAllowedGenderValue() : '';
     const privateEvent = !!document.getElementById('ce-private-event')?.checked;
     const teamSplitData = this._tsGetFormData?.() || null;
+    const rlData = this._rlGetFormData?.() || { regionLock: false, allowedRegions: [] };
 
     if (!title) { this.showToast('請輸入活動名稱'); return; }
     if (title.length > 16) { this.showToast('活動名稱不可超過 16 字'); return; }
@@ -189,6 +192,12 @@ Object.assign(App, {
     if (notes.length > 500) { this.showToast('注意事項不可超過 500 字'); return; }
     if (!sportTag) { this.showToast('請先選擇運動 / 場景標籤（必選）'); return; }
     if (genderRestrictionEnabled && !allowedGender) { this.showToast('請選擇限定性別'); return; }
+    if (rlData.regionLock && (!rlData.allowedRegions || !rlData.allowedRegions.length)) { this.showToast('地區鎖已開啟，請至少選擇一個地區'); return; }
+    // 地區鎖警告確認（僅新增時）
+    if (rlData.regionLock && !this._editEventId) {
+      const regionNames = rlData.allowedRegions.join('、');
+      if (!await this.appConfirm(`地區鎖已開啟，僅限「${regionNames}」地區的用戶可看到此活動。\n\n其他地區及未設定地區的用戶將完全看不到這場活動，確定要繼續嗎？`)) return;
+    }
     // 俱樂部限定：決定 teamId / teamName
     let resolvedTeamId = null, resolvedTeamName = null;
     if (teamOnly && !this.hasPermission('team.create_event') && !this.hasPermission('activity.manage.entry')) {
@@ -254,6 +263,8 @@ Object.assign(App, {
         genderRestrictionEnabled,
         allowedGender,
         privateEvent,
+        regionLock: rlData.regionLock,
+        allowedRegions: rlData.allowedRegions,
         creatorTeamId: teamOnly ? resolvedTeamId : null,
         creatorTeamName: teamOnly ? resolvedTeamName : null,
         creatorTeamIds: teamOnly ? [...resolvedTeamIds] : [],
@@ -320,6 +331,8 @@ Object.assign(App, {
         genderRestrictionEnabled,
         allowedGender,
         privateEvent,
+        regionLock: rlData.regionLock,
+        allowedRegions: rlData.allowedRegions,
         creatorTeamId: teamOnly ? resolvedTeamId : null,
         creatorTeamName: teamOnly ? resolvedTeamName : null,
         creatorTeamIds: teamOnly ? [...resolvedTeamIds] : [],
@@ -462,6 +475,19 @@ Object.assign(App, {
     type: {
       title: '活動類型',
       body: '<b>PLAY</b> — 一般揪團踢球<br><b>教學</b> — 教練帶隊訓練<br><b>觀賽</b> — 觀看比賽<p style="margin:.4rem 0 0;color:var(--text-muted);font-size:.8rem">類型會影響統計分類與首頁顯示位置。</p>',
+    },
+    regionLock: {
+      title: '地區鎖',
+      body: '開啟後，只有<b>個人資料地區符合</b>的用戶才能在活動列表中看到這場活動。'
+        + '<p style="margin:.4rem 0 .15rem;font-weight:600">使用場景</p>'
+        + '• 限定特定城市的在地揪團<br>'
+        + '• 避免跨縣市用戶誤報名<br>'
+        + '• 可複選多個縣市（例如雙北）'
+        + '<p style="margin:.4rem 0 .15rem;font-weight:600">注意事項</p>'
+        + '• 尚未設定地區的用戶<b>看不到</b>鎖定的活動<br>'
+        + '• 主辦人與委託人不受地區鎖限制<br>'
+        + '• 關閉後所有地區的用戶都能看到'
+        + '<p style="margin:.4rem 0 0;font-size:.78rem;color:var(--text-muted)">預設關閉，適合大多數公開活動。</p>',
     },
     location: {
       title: '活動地點',

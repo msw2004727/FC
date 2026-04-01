@@ -4,7 +4,7 @@
 
 // ─── Cache Version（更新此值以清除瀏覽器快取）───
 // 變更日誌已移除，請用 git log 查閱歷史部署記錄。
-const CACHE_VERSION = '20260401w';
+const CACHE_VERSION = '20260401x';
 
 // ─── 網路 / 設備偵測（用於 UI 降級）───
 const NetDevice = {
@@ -490,6 +490,14 @@ const HOME_GAME_PRESETS = [
     enabled: true,
     homeVisible: false,
   },
+];
+
+// ─── 台灣 22 縣市（地區鎖 + 個人資料地區選擇）───
+const TW_REGIONS = [
+  '台北市','新北市','基隆市','桃園市','新竹市','新竹縣',
+  '苗栗縣','台中市','彰化縣','南投縣','雲林縣',
+  '嘉義市','嘉義縣','台南市','高雄市','屏東縣',
+  '宜蘭縣','花蓮縣','台東縣','澎湖縣','金門縣','連江縣',
 ];
 
 const TEAM_RANK_CONFIG = [

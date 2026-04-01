@@ -141,6 +141,8 @@ Object.assign(App, {
       genderRestrictionEnabled,
       allowedGender: genderRestrictionEnabled ? this._getAllowedGenderValue() : '',
       privateEvent: !!document.getElementById('ce-private-event')?.checked,
+      regionLock: !!document.getElementById('ce-region-lock')?.checked,
+      allowedRegions: this._rlSelectedRegions ? [...this._rlSelectedRegions] : [],
       image: image || null,
       updatedAt: new Date().toISOString(),
     };
@@ -225,6 +227,7 @@ Object.assign(App, {
     this._initSportTagPicker(tpl.sportTag || '');
     this._setGenderRestrictionState(!!tpl.genderRestrictionEnabled, tpl.allowedGender || '');
     this._setPrivateEventState?.(!!tpl.privateEvent);
+    this._rlSetFormData?.(!!tpl.regionLock, tpl.allowedRegions || []);
     if (tpl.image) {
       const preview = document.getElementById('ce-upload-preview');
       if (preview) {

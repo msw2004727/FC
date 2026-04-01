@@ -199,6 +199,88 @@ Object.assign(App, {
     return `${dateVal}T${timeVal}`;
   },
 
+  // ── Region Lock（地區鎖）──
+
+  _rlSelectedRegions: [],
+
+  bindRegionLockToggle() {
+    const toggle = document.getElementById('ce-region-lock');
+    if (toggle && !toggle.dataset.bound) {
+      toggle.dataset.bound = '1';
+      toggle.addEventListener('change', () => this._updateRegionLockUI());
+    }
+    const searchInput = document.getElementById('ce-region-search');
+    if (searchInput && !searchInput.dataset.bound) {
+      searchInput.dataset.bound = '1';
+      searchInput.addEventListener('input', () => this._rlFilterDropdown());
+      searchInput.addEventListener('focus', () => this._rlFilterDropdown());
+      searchInput.addEventListener('blur', () => setTimeout(() => { const dd = document.getElementById('ce-region-dropdown'); if (dd) dd.innerHTML = ''; }, 200));
+    }
+    this._updateRegionLockUI();
+  },
+
+  _updateRegionLockUI() {
+    const toggle = document.getElementById('ce-region-lock');
+    const label = document.getElementById('ce-region-lock-label');
+    const options = document.getElementById('ce-region-lock-options');
+    if (!toggle || !options) return;
+    const enabled = toggle.checked;
+    options.style.display = enabled ? '' : 'none';
+    if (label) label.textContent = enabled ? '開啟 — 限定地區可見' : '關閉 — 所有地區可見';
+    if (enabled) this._rlRenderChips();
+  },
+
+  _rlFilterDropdown() {
+    const input = document.getElementById('ce-region-search');
+    const dropdown = document.getElementById('ce-region-dropdown');
+    if (!input || !dropdown) return;
+    const q = input.value.trim();
+    if (!q) { dropdown.innerHTML = ''; return; }
+    const regions = typeof TW_REGIONS !== 'undefined' ? TW_REGIONS : [];
+    const selected = new Set(this._rlSelectedRegions);
+    const matches = regions.filter(r => !selected.has(r) && r.includes(q));
+    if (!matches.length) { dropdown.innerHTML = '<div style="padding:.4rem .6rem;font-size:.75rem;color:var(--text-muted)">無符合結果</div>'; return; }
+    dropdown.innerHTML = matches.map(r =>
+      `<div class="ce-delegate-item" onmousedown="App._rlAddRegion('${escapeHTML(r)}')" style="padding:.35rem .6rem;font-size:.78rem;cursor:pointer">${escapeHTML(r)}</div>`
+    ).join('');
+  },
+
+  _rlAddRegion(region) {
+    if (!region || this._rlSelectedRegions.includes(region)) return;
+    this._rlSelectedRegions.push(region);
+    const input = document.getElementById('ce-region-search');
+    if (input) input.value = '';
+    const dropdown = document.getElementById('ce-region-dropdown');
+    if (dropdown) dropdown.innerHTML = '';
+    this._rlRenderChips();
+  },
+
+  _rlRemoveRegion(region) {
+    this._rlSelectedRegions = this._rlSelectedRegions.filter(r => r !== region);
+    this._rlRenderChips();
+  },
+
+  _rlRenderChips() {
+    const container = document.getElementById('ce-region-chips');
+    if (!container) return;
+    container.innerHTML = this._rlSelectedRegions.map(r =>
+      `<span style="display:inline-flex;align-items:center;gap:.2rem;padding:.15rem .45rem;border-radius:var(--radius-full);background:var(--accent-bg);color:var(--accent);font-size:.72rem;font-weight:600">${escapeHTML(r)}<span onclick="App._rlRemoveRegion('${escapeHTML(r)}')" style="cursor:pointer;font-size:.8rem;line-height:1;margin-left:.1rem">✕</span></span>`
+    ).join('');
+  },
+
+  _rlGetFormData() {
+    const enabled = !!document.getElementById('ce-region-lock')?.checked;
+    if (!enabled) return { regionLock: false, allowedRegions: [] };
+    return { regionLock: true, allowedRegions: [...this._rlSelectedRegions] };
+  },
+
+  _rlSetFormData(regionLock, allowedRegions) {
+    const toggle = document.getElementById('ce-region-lock');
+    if (toggle) toggle.checked = !!regionLock;
+    this._rlSelectedRegions = Array.isArray(allowedRegions) ? [...allowedRegions] : [];
+    this._updateRegionLockUI();
+  },
+
   // ── Team Split ──
 
   _tsDefaultColors: [

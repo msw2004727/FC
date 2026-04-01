@@ -252,13 +252,18 @@ Object.assign(App, {
     return this._isEventOwner(e) || this._isEventDelegate(e);
   },
 
-  /** 取得當前用戶可見的活動列表（過濾俱樂部限定 + 私密活動） */
+  /** 取得當前用戶可見的活動列表（過濾俱樂部限定 + 私密活動 + 地區鎖） */
   _getVisibleEvents() {
     const all = ApiService.getEvents();
     return all.filter(e => {
       if (!this._canViewEventByTeamScope(e)) return false;
       // 私密活動：僅建立者/委託人/管理員可在列表中看到
       if (e.privateEvent && !this._canManageEvent(e)) return false;
+      // 地區鎖：用戶地區需在 allowedRegions 內（主辦/委託/管理員不受限）
+      if (e.regionLock && !this._canManageEvent(e)) {
+        const userRegion = ApiService.getCurrentUser?.()?.region || '';
+        if (!userRegion || !Array.isArray(e.allowedRegions) || !e.allowedRegions.includes(userRegion)) return false;
+      }
       return true;
     });
   },

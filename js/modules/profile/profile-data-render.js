@@ -177,18 +177,43 @@ Object.assign(App, {
     }
   },
 
+  _filterProfileRegion() {
+    const input = document.getElementById('profile-edit-region');
+    const dropdown = document.getElementById('profile-region-dropdown');
+    if (!input || !dropdown) return;
+    const q = input.value.trim();
+    const regions = typeof TW_REGIONS !== 'undefined' ? TW_REGIONS : [];
+    if (!q) { dropdown.innerHTML = ''; return; }
+    const matches = regions.filter(r => r.includes(q));
+    if (!matches.length) { dropdown.innerHTML = ''; return; }
+    dropdown.innerHTML = matches.map(r =>
+      `<div class="ce-delegate-item" onmousedown="document.getElementById('profile-edit-region').value='${escapeHTML(r)}';document.getElementById('profile-region-dropdown').innerHTML=''" style="padding:.35rem .6rem;font-size:.78rem;cursor:pointer">${escapeHTML(r)}</div>`
+    ).join('');
+    // 失焦時關閉下拉
+    if (!input.dataset.blurBound) {
+      input.dataset.blurBound = '1';
+      input.addEventListener('blur', () => setTimeout(() => { if (dropdown) dropdown.innerHTML = ''; }, 200));
+    }
+  },
+
   saveProfileInfo() {
     const genderInput = document.getElementById('profile-edit-gender');
     const bdInput = document.getElementById('profile-edit-birthday');
     const regionInput = document.getElementById('profile-edit-region');
     const phoneInput = document.getElementById('profile-edit-phone');
+    const regions = typeof TW_REGIONS !== 'undefined' ? TW_REGIONS : [];
     const updates = {};
     if (genderInput) updates.gender = genderInput.value || null;
     if (bdInput && bdInput.value) {
       // 轉換 yyyy-MM-dd → yyyy/MM/dd
       updates.birthday = bdInput.value.replace(/-/g, '/');
     }
-    if (regionInput) updates.region = regionInput.value.trim() || null;
+    const regionVal = regionInput ? regionInput.value.trim() : '';
+    if (regionVal && regions.length && !regions.includes(regionVal)) {
+      this.showToast('請從 22 縣市中選擇有效地區');
+      return;
+    }
+    if (regionInput) updates.region = regionVal || null;
     if (phoneInput) updates.phone = phoneInput.value.trim() || null;
     ApiService.updateCurrentUser(updates);
     this.toggleProfileEdit();

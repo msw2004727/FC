@@ -210,6 +210,23 @@
           </select>
         </div>
         <div class="ce-row">
+          <label>地區鎖<button type="button" class="edu-info-btn" onclick="event.stopPropagation();App._showCeInfo('regionLock')" title="說明">?</button></label>
+          <div style="display:flex;align-items:center;gap:.5rem">
+            <label class="toggle-switch" style="margin:0">
+              <input type="checkbox" id="ce-region-lock">
+              <span class="toggle-slider"></span>
+            </label>
+            <span id="ce-region-lock-label" style="font-size:.78rem;color:var(--text-muted)">關閉 — 所有地區可見</span>
+          </div>
+          <div id="ce-region-lock-options" style="display:none;margin-top:.4rem">
+            <div style="position:relative">
+              <input type="text" id="ce-region-search" placeholder="輸入縣市名稱搜尋..." autocomplete="off" style="font-size:.78rem;padding:.3rem .5rem;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-card);color:var(--text-primary);width:100%;box-sizing:border-box">
+              <div id="ce-region-dropdown" class="ce-delegate-dropdown" style="min-width:100%"></div>
+            </div>
+            <div id="ce-region-chips" style="display:flex;flex-wrap:wrap;gap:.25rem;margin-top:.35rem"></div>
+          </div>
+        </div>
+        <div class="ce-row">
           <label>地點<button class="edu-info-btn" onclick="App._showCeInfo('location')" title="說明">?</button> <span class="required">*必填</span></label>
           <input type="text" id="ce-location" placeholder="例：台北市大安運動中心">
         </div>
