@@ -10,6 +10,14 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-04-01 — 分隊計畫書第五輪審計 + 測試框架建立
+- **問題**：外部專家指出 3 項 Firestore Rules 缺口：(1) `teamKey` 值未驗證，惡意 client 可寫入任意字串造成 UI 壞掉且不自愈；(2) `isBadgeOnlyUpdate` 允許任意登入者偽造別人徽章；(3) `isWaitlistPromotion` 不支援 `{status, teamKey}` 組合寫入，遞補時會被擋
+- **修復**：計畫書加入 `isTeamKeyOnlyUpdate` 值驗證 `in [null,'A'..'D']` + `isActiveRegistration` 排除已取消報名 + `isBadgeOnlyUpdate` 限縮為 owner/admin + `isWaitlistPromotion` 擴展支援組合寫入 + `_resolveTeamKey` 與前端 render 加 `validKeys` 防禦性過濾
+- **測試框架**：新增 2 個測試檔案為施作安全網：
+  - `tests/unit/team-split-resolve.test.js`（27 tests 全過）：`_resolveTeamKey` 三模式均分驗證 + `_assignTeamKeyForPromotion` 遞補邏輯 + invalid teamKey 防禦
+  - `tests/team-split-rules.test.js`（Rules 框架，待 Step 0/2 部署後啟用）：owner 白名單、teamKey 值驗證、manager/self-select 權限、promotion 組合寫入
+- **教訓**：Firestore Rules 驗欄位名稱不夠，必須同時驗值；純函式先寫測試再實作，遞補路徑的 Rules 覆蓋要包含組合寫入場景
+
 ### [永久] 權限守衛新增規則 — 必須驗證所有角色 × 所有入口的實際行為
 - **起因**：2026-03-30 commit `6bf9bde` 一次新增 11 個權限守衛，其中 `event.view_registrations` 守衛直接讓所有一般 `user` 看不到報名名單。後續 `a6751cf` 補了 delegate fallback 但仍未解決一般參加者的問題，直到 4/1 才發現並移除
 - **根本原因**：新增守衛時只用管理者帳號（coach/admin）測試，沒有用純 `user` 帳號驗證
