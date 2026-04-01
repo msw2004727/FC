@@ -141,17 +141,30 @@ Object.assign(App, {
       var self = this;
       (async function() {
         try {
+          // 等 modals.html 載完（確保 DOM 存在）
+          if (typeof PageLoader !== 'undefined' && PageLoader._loadAllPromise) {
+            await PageLoader._loadAllPromise;
+          }
+          // 等 profile JS 載完（確保函式存在）
           if (typeof ScriptLoader !== 'undefined' && ScriptLoader.ensureForPage) {
             await ScriptLoader.ensureForPage('page-profile');
           }
         } catch (err) {
-          console.error('[bindLineLogin] profile JS load failed:', err);
+          console.error('[bindLineLogin] first-login load failed:', err);
+          self._firstLoginShowing = false;
+          return;
+        }
+        if (!document.getElementById('first-login-modal')) {
+          console.warn('[bindLineLogin] first-login-modal DOM not found after await');
           self._firstLoginShowing = false;
           return;
         }
         self.initFirstLoginRegionPicker?.();
         self._populateBirthdaySelects?.('fl-birthday-y', 'fl-birthday-m', 'fl-birthday-d');
         self.showModal('first-login-modal');
+        // 鎖定 modal-overlay 不可點擊關閉（首次登入為必填）
+        var overlay = document.getElementById('modal-overlay');
+        if (overlay) overlay.dataset.locked = '1';
       })();
     }
   },
@@ -396,6 +409,9 @@ Object.assign(App, {
     }
     this._pendingFirstLogin = false;
     this._firstLoginShowing = false;
+    // 解鎖 overlay（允許關閉）
+    var overlay = document.getElementById('modal-overlay');
+    if (overlay) delete overlay.dataset.locked;
     var input = document.getElementById('fl-region-input');
     if (input) input.value = '';
     this.closeModal();

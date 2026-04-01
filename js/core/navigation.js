@@ -722,8 +722,11 @@ Object.assign(App, {
   },
 
   closeModal() {
+    // 首次登入彈窗鎖定時不可關閉
+    const overlay = document.getElementById('modal-overlay');
+    if (overlay && overlay.dataset.locked === '1') return;
     document.querySelectorAll('.modal.open').forEach(m => m.classList.remove('open'));
-    document.getElementById('modal-overlay').classList.remove('open');
+    overlay.classList.remove('open');
   },
 
   // ── Language Switcher ──
