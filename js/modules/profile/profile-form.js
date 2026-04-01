@@ -138,6 +138,7 @@ Object.assign(App, {
     this.renderProfileFavorites?.();
     if (this._pendingFirstLogin && !this._isCurrentUserRestricted?.()) {
       this.initFirstLoginRegionPicker?.();
+      this._populateBirthdaySelects?.('fl-birthday-y', 'fl-birthday-m', 'fl-birthday-d');
       this.showModal('first-login-modal');
     }
   },
@@ -295,12 +296,72 @@ Object.assign(App, {
     this.flRenderList('');
   },
 
+  /** 填充年/月/日三個 select（首次登入 + 個人資料編輯共用） */
+  _populateBirthdaySelects: function(yId, mId, dId, presetValue) {
+    var yEl = document.getElementById(yId);
+    var mEl = document.getElementById(mId);
+    var dEl = document.getElementById(dId);
+    if (!yEl || !mEl || !dEl) return;
+    var now = new Date();
+    var curY = now.getFullYear();
+    // 年：1930 ~ 今年
+    if (yEl.options.length <= 1) {
+      for (var y = curY; y >= 1930; y--) {
+        var o = document.createElement('option');
+        o.value = String(y); o.textContent = y + '\u5E74';
+        yEl.appendChild(o);
+      }
+    }
+    // 月：1~12
+    if (mEl.options.length <= 1) {
+      for (var m = 1; m <= 12; m++) {
+        var o = document.createElement('option');
+        o.value = String(m).padStart(2, '0'); o.textContent = m + '\u6708';
+        mEl.appendChild(o);
+      }
+    }
+    // 日：預設 1~31，月份變更時動態調整
+    var fillDays = function() {
+      var selY = parseInt(yEl.value, 10) || curY;
+      var selM = parseInt(mEl.value, 10) || 1;
+      var maxD = new Date(selY, selM, 0).getDate();
+      var curD = dEl.value;
+      dEl.innerHTML = '<option value="">\u65E5</option>';
+      for (var d = 1; d <= maxD; d++) {
+        var o = document.createElement('option');
+        o.value = String(d).padStart(2, '0'); o.textContent = d + '\u65E5';
+        dEl.appendChild(o);
+      }
+      if (curD && parseInt(curD, 10) <= maxD) dEl.value = curD;
+    };
+    yEl.onchange = fillDays;
+    mEl.onchange = fillDays;
+    fillDays();
+    // 預填
+    if (presetValue) {
+      var parts = String(presetValue).replace(/\//g, '-').split('-');
+      if (parts.length === 3) {
+        yEl.value = parts[0];
+        mEl.value = parts[1].padStart(2, '0');
+        fillDays();
+        dEl.value = parts[2].padStart(2, '0');
+      }
+    }
+  },
+
+  _getBirthdayFromSelects: function(yId, mId, dId) {
+    var y = document.getElementById(yId)?.value || '';
+    var m = document.getElementById(mId)?.value || '';
+    var d = document.getElementById(dId)?.value || '';
+    if (!y || !m || !d) return '';
+    return y + '/' + m + '/' + d;
+  },
+
   saveFirstLoginProfile: function() {
     var genderEl = document.getElementById('fl-gender');
-    var birthdayEl = document.getElementById('fl-birthday');
     var regionEl = document.getElementById('fl-region-input');
     var gender = genderEl ? genderEl.value : '';
-    var birthday = birthdayEl ? birthdayEl.value : '';
+    var birthday = this._getBirthdayFromSelects('fl-birthday-y', 'fl-birthday-m', 'fl-birthday-d');
     var region = regionEl ? regionEl.value.trim() : '';
     var errEl = document.getElementById('fl-error-msg');
     var self = this;

@@ -161,14 +161,10 @@ Object.assign(App, {
       // 開啟編輯，預填現有值
       const user = ApiService.getCurrentUser();
       const genderInput = document.getElementById('profile-edit-gender');
-      const bdInput = document.getElementById('profile-edit-birthday');
       const regionInput = document.getElementById('profile-edit-region');
       const phoneInput = document.getElementById('profile-edit-phone');
       if (genderInput) genderInput.value = (user && user.gender) || '';
-      if (bdInput && user && user.birthday) {
-        // 轉換 yyyy/MM/dd → yyyy-MM-dd（date input 格式）
-        bdInput.value = user.birthday.replace(/\//g, '-');
-      }
+      this._populateBirthdaySelects?.('profile-edit-birthday-y', 'profile-edit-birthday-m', 'profile-edit-birthday-d', user?.birthday || '');
       if (regionInput) regionInput.value = (user && user.region) || '';
       if (phoneInput) phoneInput.value = (user && user.phone) || '';
       display.style.display = 'none';
@@ -211,15 +207,14 @@ Object.assign(App, {
 
   saveProfileInfo() {
     const genderInput = document.getElementById('profile-edit-gender');
-    const bdInput = document.getElementById('profile-edit-birthday');
     const regionInput = document.getElementById('profile-edit-region');
     const phoneInput = document.getElementById('profile-edit-phone');
     const regions = typeof TW_REGIONS !== 'undefined' ? TW_REGIONS : [];
     const updates = {};
     if (genderInput) updates.gender = genderInput.value || null;
-    if (bdInput && bdInput.value) {
-      // 轉換 yyyy-MM-dd → yyyy/MM/dd
-      updates.birthday = bdInput.value.replace(/-/g, '/');
+    const bdVal = this._getBirthdayFromSelects?.('profile-edit-birthday-y', 'profile-edit-birthday-m', 'profile-edit-birthday-d') || '';
+    if (bdVal) {
+      updates.birthday = bdVal;
     }
     const regionVal = regionInput ? regionInput.value.trim() : '';
     if (regionVal && regions.length && !regions.includes(regionVal)) {

@@ -239,6 +239,7 @@ body.modal-open { overflow: hidden; }
 /* ─── Create Event / Tournament Form ─── */
 .ce-form { display: flex; flex-direction: column; gap: .75rem; }
 .ce-row { display: flex; flex-direction: column; gap: .3rem; }
+.ce-row input, .ce-row select { width: 100%; box-sizing: border-box; }
 .ce-row label { font-size: .78rem; font-weight: 600; color: var(--text-secondary); }
 .ce-label-row { display: flex; align-items: center; gap: .3rem; }
 .ce-label-row > .edu-info-btn { order: 99; margin-left: auto; flex-shrink: 0; }

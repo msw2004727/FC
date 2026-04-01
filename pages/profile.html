@@ -90,7 +90,7 @@
                 <option value="其他">其他</option>
               </select>
             </div>
-            <div class="info-row"><span data-i18n="profile.birthday">生日</span><input type="date" id="profile-edit-birthday" class="profile-edit-input"></div>
+            <div class="info-row"><span data-i18n="profile.birthday">生日</span><div style="display:flex;gap:.2rem;flex:1"><select id="profile-edit-birthday-y" class="profile-edit-input" style="flex:1.2"><option value="">年</option></select><select id="profile-edit-birthday-m" class="profile-edit-input" style="flex:1"><option value="">月</option></select><select id="profile-edit-birthday-d" class="profile-edit-input" style="flex:1"><option value="">日</option></select></div></div>
             <div class="info-row"><span data-i18n="profile.region">地區</span><input type="text" id="profile-edit-region" class="profile-edit-input" placeholder="輸入搜尋縣市..." autocomplete="off" oninput="App._filterProfileRegion(this.value)"></div>
             <div id="profile-region-list" onclick="App._selectProfileRegion(event)" style="max-height:120px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-card);display:none"></div>
             <div class="info-row"><span data-i18n="profile.sports">運動類別</span><span id="profile-sports-display">-</span></div>
@@ -269,7 +269,11 @@
         </div>
         <div class="ce-row">
           <label>生日 <span class="required">*必填</span></label>
-          <input type="date" id="fl-birthday">
+          <div style="display:flex;gap:.3rem">
+            <select id="fl-birthday-y" style="flex:1.2;font-size:.82rem;padding:.4rem .2rem;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-card);color:var(--text-primary)"><option value="">年</option></select>
+            <select id="fl-birthday-m" style="flex:1;font-size:.82rem;padding:.4rem .2rem;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-card);color:var(--text-primary)"><option value="">月</option></select>
+            <select id="fl-birthday-d" style="flex:1;font-size:.82rem;padding:.4rem .2rem;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-card);color:var(--text-primary)"><option value="">日</option></select>
+          </div>
         </div>
         <div class="ce-row">
           <label>地區 <span class="required">*必填</span></label>
