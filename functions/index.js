@@ -4594,6 +4594,34 @@ exports.registerForEvent = onCall(
         const isWaitlist = confirmedCount >= maxCount;
         const status = isWaitlist ? "waitlisted" : "confirmed";
 
+        // team-split: resolve teamKey
+        let teamKey = undefined;
+        if (ed.teamSplit && ed.teamSplit.enabled) {
+          const tsMode = ed.teamSplit.mode;
+          const tsTeams = Array.isArray(ed.teamSplit.teams) ? ed.teamSplit.teams : [];
+          if (tsMode === "self-select") {
+            // self-select: 從 request body 讀取用戶選擇（僅第一人=self，同行者跟隨）
+            const userSelected = idx === 0
+              ? (typeof request.data.teamKey === "string" ? request.data.teamKey : null)
+              : (typeof request.data.teamKey === "string" ? request.data.teamKey : null);
+            teamKey = userSelected && ["A","B","C","D"].includes(userSelected) ? userSelected : null;
+          } else if (tsMode === "random" && tsTeams.length > 0) {
+            // random: 平衡分配（與前端 _resolveTeamKey 演算法一致）
+            // ⚠️ 修改此邏輯時必須同步 js/modules/event/event-team-split.js _resolveTeamKey
+            const validKeys = new Set(tsTeams.map(t => t.key));
+            const counts = {};
+            tsTeams.forEach(t => { counts[t.key] = 0; });
+            [...firestoreActiveRegs, ...registrations]
+              .filter(r => r.status === "confirmed" && r.teamKey && validKeys.has(r.teamKey))
+              .forEach(r => { counts[r.teamKey] = (counts[r.teamKey] || 0) + 1; });
+            teamKey = tsTeams.reduce((min, t) =>
+              (counts[t.key] || 0) < (counts[min.key] || 0) ? t : min
+            ).key;
+          } else if (tsMode === "manual") {
+            teamKey = null;
+          }
+        }
+
         const reg = {
           id: "reg_" + Date.now() + "_" + Math.random().toString(36).slice(2, 5),
           eventId,
@@ -4606,6 +4634,7 @@ exports.registerForEvent = onCall(
           promotionOrder: idx,
           registeredAt: nowTimestamp,
         };
+        if (teamKey !== undefined) reg.teamKey = teamKey;
 
         transaction.set(regDocRefs[idx], reg);
         // 儲存帶有統一時間源的副本供 rebuildOccupancy 使用
