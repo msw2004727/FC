@@ -123,6 +123,7 @@ Object.assign(App, {
     this.bindEventFeeToggle();
     this.bindGenderRestrictionToggle();
     this.bindPrivateEventToggle();
+    this.bindTeamSplitToggle?.();
     this._resetMultiDates();
     this._initMultiDatePicker();
     this._initSportTagPicker('');
@@ -169,6 +170,7 @@ Object.assign(App, {
     const genderRestrictionEnabled = !!document.getElementById('ce-gender-restriction-enabled')?.checked;
     const allowedGender = genderRestrictionEnabled ? this._getAllowedGenderValue() : '';
     const privateEvent = !!document.getElementById('ce-private-event')?.checked;
+    const teamSplitData = this._tsGetFormData?.() || null;
 
     if (!title) { this.showToast('請輸入活動名稱'); return; }
     if (title.length > 16) { this.showToast('活動名稱不可超過 16 字'); return; }
@@ -258,6 +260,10 @@ Object.assign(App, {
         delegates: [...this._delegates],
         delegateUids: this._delegates.map(d => String(d.uid || '').trim()).filter(Boolean),
       };
+      if (teamSplitData) {
+        updates.teamSplit = teamSplitData;
+        this._recalcTeamSplitTimestamps?.(updates);
+      }
       // 已結束/已取消的活動編輯時不改變狀態
       if (existingEvent && (existingEvent.status === 'ended' || existingEvent.status === 'cancelled')) {
         // 保持原狀態，不做任何改變
@@ -320,6 +326,10 @@ Object.assign(App, {
         delegates: [...this._delegates],
         delegateUids: this._delegates.map(d => String(d.uid || '').trim()).filter(Boolean),
       };
+      if (teamSplitData) {
+        newEvent.teamSplit = teamSplitData;
+        this._recalcTeamSplitTimestamps?.(newEvent);
+      }
       this._eventSubmitInFlight = true;
       this._setCreateEventSubmitting(true);
 

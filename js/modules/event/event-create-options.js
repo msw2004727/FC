@@ -199,4 +199,94 @@ Object.assign(App, {
     return `${dateVal}T${timeVal}`;
   },
 
+  // ── Team Split ──
+
+  _tsDefaultColors: [
+    { hex: '#EF4444', stroke: '#DC2626', name: '紅隊' },
+    { hex: '#3B82F6', stroke: '#2563EB', name: '藍隊' },
+    { hex: '#10B981', stroke: '#059669', name: '綠隊' },
+    { hex: '#FBBF24', stroke: '#D97706', name: '黃隊' },
+  ],
+
+  _updateTeamSplitUI() {
+    const toggle = document.getElementById('ce-team-split-enabled');
+    const label = document.getElementById('ce-team-split-label');
+    const options = document.getElementById('ce-team-split-options');
+    if (!toggle || !options) return;
+    const enabled = toggle.checked;
+    options.style.display = enabled ? '' : 'none';
+    if (label) label.textContent = enabled ? '開啟' : '關閉';
+    if (enabled) this._tsRenderColorChips();
+  },
+
+  _tsRenderColorChips() {
+    const container = document.getElementById('ce-team-split-colors');
+    if (!container) return;
+    const count = parseInt(document.getElementById('ce-team-split-count')?.value, 10) || 2;
+    const keys = ['A', 'B', 'C', 'D'].slice(0, count);
+    container.innerHTML = keys.map((key, i) => {
+      const c = this._tsDefaultColors[i] || this._tsDefaultColors[0];
+      const svg = this._tsJerseySvg?.(c.hex, c.stroke, key, { width: 24 }) || `<span style="font-size:.8rem">${key}</span>`;
+      return `<div style="display:flex;align-items:center;gap:.2rem">${svg}<span style="font-size:.72rem">${c.name}</span></div>`;
+    }).join('');
+  },
+
+  _tsSetMode(mode) {
+    document.querySelectorAll('#ce-team-split-mode .ce-gender-chip').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.value === mode);
+    });
+    const lockWrap = document.getElementById('ce-team-split-lock-wrap');
+    if (lockWrap) lockWrap.style.display = mode === 'self-select' ? '' : 'none';
+  },
+
+  _tsGetMode() {
+    const active = document.querySelector('#ce-team-split-mode .ce-gender-chip.active');
+    return active?.dataset?.value || 'random';
+  },
+
+  bindTeamSplitToggle() {
+    const toggle = document.getElementById('ce-team-split-enabled');
+    if (toggle && !toggle.dataset.bound) {
+      toggle.dataset.bound = '1';
+      toggle.addEventListener('change', () => this._updateTeamSplitUI());
+    }
+    const countSel = document.getElementById('ce-team-split-count');
+    if (countSel && !countSel.dataset.bound) {
+      countSel.dataset.bound = '1';
+      countSel.addEventListener('change', () => this._tsRenderColorChips());
+    }
+    this._updateTeamSplitUI();
+  },
+
+  _tsGetFormData() {
+    const enabled = !!document.getElementById('ce-team-split-enabled')?.checked;
+    if (!enabled) return null;
+    const count = parseInt(document.getElementById('ce-team-split-count')?.value, 10) || 2;
+    const mode = this._tsGetMode();
+    const balanceCap = !!document.getElementById('ce-team-split-balance')?.checked;
+    const lockHours = mode === 'self-select' ? parseInt(document.getElementById('ce-team-split-lock-hours')?.value, 10) || 2 : 0;
+    const keys = ['A', 'B', 'C', 'D'].slice(0, count);
+    const teams = keys.map((key, i) => ({
+      key,
+      color: this._tsDefaultColors[i]?.hex || '#999999',
+      name: this._tsDefaultColors[i]?.name || `${key} 隊`,
+    }));
+    return { enabled: true, mode, balanceCap, selfSelectLockHours: lockHours, lockAt: null, teams };
+  },
+
+  _tsSetFormData(teamSplit) {
+    const toggle = document.getElementById('ce-team-split-enabled');
+    if (toggle) toggle.checked = !!teamSplit?.enabled;
+    if (teamSplit?.teams?.length) {
+      const countSel = document.getElementById('ce-team-split-count');
+      if (countSel) countSel.value = String(teamSplit.teams.length);
+    }
+    if (teamSplit?.mode) this._tsSetMode(teamSplit.mode);
+    const balance = document.getElementById('ce-team-split-balance');
+    if (balance) balance.checked = teamSplit?.balanceCap !== false;
+    const lockHours = document.getElementById('ce-team-split-lock-hours');
+    if (lockHours && teamSplit?.selfSelectLockHours) lockHours.value = String(teamSplit.selfSelectLockHours);
+    this._updateTeamSplitUI();
+  },
+
 });

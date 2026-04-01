@@ -344,6 +344,45 @@
           </div>
           <div class="ce-gender-limit-tip">開啟後活動不會顯示在列表中，僅能透過分享連結查看</div>
         </div>
+        <div class="ce-row">
+          <label>👕 分隊功能<button class="edu-info-btn" onclick="App._showCeInfo('teamSplit')" title="說明">?</button></label>
+          <div style="display:flex;align-items:center;gap:.5rem">
+            <label class="toggle-switch" style="margin:0">
+              <input type="checkbox" id="ce-team-split-enabled">
+              <span class="toggle-slider"></span>
+            </label>
+            <span id="ce-team-split-label" style="font-size:.78rem;color:var(--text-muted)">關閉</span>
+          </div>
+          <div id="ce-team-split-options" style="display:none;margin-top:.4rem">
+            <div style="display:flex;gap:.5rem;align-items:center;margin-bottom:.4rem">
+              <span style="font-size:.78rem">隊伍數量</span>
+              <select id="ce-team-split-count" style="font-size:.78rem;padding:.2rem .4rem;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-card);color:var(--text-primary)">
+                <option value="2" selected>2 隊</option>
+                <option value="3">3 隊</option>
+                <option value="4">4 隊</option>
+              </select>
+            </div>
+            <div id="ce-team-split-colors" style="display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:.4rem"></div>
+            <div style="margin-bottom:.4rem">
+              <span style="font-size:.78rem">報名時用戶可以：</span>
+              <div id="ce-team-split-mode" style="display:flex;gap:.3rem;margin-top:.2rem">
+                <button type="button" class="ce-gender-chip active" data-value="random" onclick="App._tsSetMode('random')">隨機分配</button>
+                <button type="button" class="ce-gender-chip" data-value="self-select" onclick="App._tsSetMode('self-select')">自選隊伍</button>
+                <button type="button" class="ce-gender-chip" data-value="manual" onclick="App._tsSetMode('manual')">主辦分配</button>
+              </div>
+            </div>
+            <div id="ce-team-split-lock-wrap" style="display:none;margin-bottom:.3rem">
+              <span style="font-size:.78rem">開始前</span>
+              <select id="ce-team-split-lock-hours" style="font-size:.78rem;padding:.2rem .3rem;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-card);color:var(--text-primary)">
+                <option value="1">1</option><option value="2" selected>2</option><option value="3">3</option><option value="6">6</option><option value="12">12</option><option value="24">24</option>
+              </select>
+              <span style="font-size:.78rem">小時鎖定</span>
+            </div>
+            <label style="font-size:.78rem;display:flex;align-items:center;gap:.3rem">
+              <input type="checkbox" id="ce-team-split-balance" checked> 各隊人數上限均分
+            </label>
+          </div>
+        </div>
         <div class="ce-row" style="border-top:1px solid var(--border);padding-top:.6rem;margin-top:.3rem">
           <label>儲存為範本<button class="edu-info-btn" onclick="App._showCeInfo('saveTemplate')" title="說明">?</button></label>
           <div style="display:flex;gap:.3rem;align-items:center">

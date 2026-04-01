@@ -396,6 +396,11 @@ Object.assign(App, {
       if (_heatHtml) _shortCells.push(_heatHtml);
       if (ageTag) _shortCells.push(ageTag);
       if (genderTag) _shortCells.push(genderTag);
+      // team-split: 隊伍資訊卡 + 批次操作按鈕
+      const _teamInfoHtml = this._tsRenderTeamInfoCards?.(e) || '';
+      const _teamBatchHtml = this._tsRenderBatchButtons?.(e) || '';
+      if (_teamInfoHtml) _shortCells.push(_teamInfoHtml);
+      if (_teamBatchHtml) _shortCells.push(_teamBatchHtml);
 
       nodes.body.innerHTML = `
       <div class="detail-row detail-row-wide"><span class="detail-label">\u5730\u9EDE</span>${locationHtml}</div>

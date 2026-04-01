@@ -150,11 +150,16 @@ Object.assign(App, {
           ).join('') + '</span>'
         : '';
 
+      // team-split: 傳遞 teamKey 給 _userTag 渲染色衣 badge
+      const _tsTeams = e.teamSplit?.enabled ? e.teamSplit.teams : null;
+      const _safeTeamKey = _tsTeams ? (this._tsSafeTeamKey?.(p.teamKey, e) || null) : null;
+      const _tagOpts = _tsTeams ? { teamKey: _safeTeamKey, teams: _tsTeams, showEmptyJersey: e.teamSplit?.enabled, canPickTeam: canManage && !tableEditing } : undefined;
+
       let nameInner;
       if (p.isCompanion) {
         nameInner = `<span class="reg-name-text" style="padding-left:1.2rem;color:var(--text-secondary)">↳ ${escapeHTML(p.displayName)}</span>`;
       } else if (p.hasSelfReg) {
-        nameInner = `<span class="reg-name-text">${this._userTag(p.displayName)}</span>`;
+        nameInner = `<span class="reg-name-text">${this._userTag(p.displayName, null, _tagOpts)}</span>`;
       } else {
         nameInner = `<span class="reg-name-text">${escapeHTML(p.displayName)}</span>`;
       }
