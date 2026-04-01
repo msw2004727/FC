@@ -240,8 +240,8 @@ body.modal-open { overflow: hidden; }
 .ce-form { display: flex; flex-direction: column; gap: .75rem; }
 .ce-row { display: flex; flex-direction: column; gap: .3rem; }
 .ce-row label { font-size: .78rem; font-weight: 600; color: var(--text-secondary); }
-.ce-label-row { display: flex; align-items: center; gap: .3rem; flex-wrap: wrap; }
-.ce-label-row > .edu-info-btn { order: 99; margin-left: auto; }
+.ce-label-row { display: flex; align-items: center; gap: .3rem; }
+.ce-label-row > .edu-info-btn { order: 99; margin-left: auto; flex-shrink: 0; }
 .ce-time-row {
   display: grid;
   grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) auto minmax(0, 1fr);
