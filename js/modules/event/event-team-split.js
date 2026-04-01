@@ -269,7 +269,7 @@ Object.assign(App, {
         + `</div>`;
     }).join('');
 
-    const title = I18N?.t?.('teamSplit.select.title') || '選擇你的隊伍 👕';
+    const title = I18N?.t?.('teamSplit.select.title') || '選擇你的隊伍';
     return `<div class="team-select-zone"><div class="team-select-title">${title}</div><div class="team-select-cards">${cards}</div></div>`;
   },
 

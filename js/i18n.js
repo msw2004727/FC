@@ -261,7 +261,7 @@ I18N.register('zh-TW', {
   'drawer.backendManage': '後台管理',
   // Team Split
   'common.person': '人',
-  'teamSplit.select.title': '選擇你的隊伍 👕',
+  'teamSplit.select.title': '選擇你的隊伍',
   'teamSplit.select.required': '請先選擇隊伍',
   'teamSplit.batch.random': '隨機',
   'teamSplit.batch.fill': '補齊',
@@ -485,7 +485,7 @@ I18N.register('en', {
   'drawer.backendManage': 'Admin Panel',
   // Team Split
   'common.person': '',
-  'teamSplit.select.title': 'Choose your team 👕',
+  'teamSplit.select.title': 'Choose your team',
   'teamSplit.select.required': 'Please select a team first',
   'teamSplit.batch.random': 'Shuffle',
   'teamSplit.batch.fill': 'Fill',
@@ -709,7 +709,7 @@ I18N.register('ja', {
   'drawer.backendManage': '管理パネル',
   // Team Split
   'common.person': '人',
-  'teamSplit.select.title': 'チームを選択 👕',
+  'teamSplit.select.title': 'チームを選択',
   'teamSplit.select.required': '先にチームを選んでください',
   'teamSplit.batch.random': 'シャッフル',
   'teamSplit.batch.fill': '補充',
