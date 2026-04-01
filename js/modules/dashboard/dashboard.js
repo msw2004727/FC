@@ -63,6 +63,11 @@ Object.assign(App, {
         <div class="dash-card"><div class="dash-num">${attendRate}%</div><div class="dash-label">${t('dash.attendRate')}</div></div>
       </div>
 
+      <div class="info-card">
+        <div class="info-title">用戶成長趨勢（近 12 個月）</div>
+        <canvas id="dash-chart-user-growth" style="width:100%;display:block"></canvas>
+      </div>
+
       ${this._renderDashboardParticipantSearchCard ? this._renderDashboardParticipantSearchCard() : ''}
 
       <div class="info-card">
@@ -98,8 +103,28 @@ Object.assign(App, {
       </div>
     `;
 
+    // ── 用戶成長趨勢（近 12 個月註冊數） ──
+    const userGrowthData = (() => {
+      const now = new Date();
+      const months = [];
+      for (let i = 11; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        months.push({ y: d.getFullYear(), m: d.getMonth(), label: (d.getMonth() + 1) + '月', count: 0 });
+      }
+      users.forEach(u => {
+        const raw = u.createdAt || u.joinDate || '';
+        if (!raw) return;
+        const d = new Date(typeof raw === 'object' && raw.toDate ? raw.toDate() : raw);
+        if (isNaN(d.getTime())) return;
+        const slot = months.find(s => s.y === d.getFullYear() && s.m === d.getMonth());
+        if (slot) slot.count++;
+      });
+      return months.map(s => ({ label: s.label, value: s.count }));
+    })();
+
     // ── 繪製 Canvas 圖表（需等 DOM 完成） ──
     requestAnimationFrame(() => {
+      this._drawLineChart('dash-chart-user-growth', userGrowthData);
       this._drawDonutChart('dash-chart-type', typeCounts, totalEvents);
       this._drawBarChart('dash-chart-month', monthCounts);
     });
