@@ -259,6 +259,15 @@ I18N.register('zh-TW', {
   'drawer.personalData': '個人數據',
   'drawer.autoExpManage': '自動 EXP 管理',
   'drawer.backendManage': '後台管理',
+  // Team Split
+  'common.person': '人',
+  'teamSplit.select.title': '選擇你的隊伍 👕',
+  'teamSplit.select.required': '請先選擇隊伍',
+  'teamSplit.batch.random': '隨機',
+  'teamSplit.batch.fill': '補齊',
+  'teamSplit.batch.reset': '重置',
+  'teamSplit.batch.confirmRandom': '重新分隊不會通知參加者，確認繼續？',
+  'teamSplit.batch.confirmReset': '確定清除所有隊伍分配？',
 });
 
 // ─── English ───
@@ -474,6 +483,15 @@ I18N.register('en', {
   'drawer.personalData': 'Personal Stats',
   'drawer.autoExpManage': 'Auto EXP Mgmt',
   'drawer.backendManage': 'Admin Panel',
+  // Team Split
+  'common.person': '',
+  'teamSplit.select.title': 'Choose your team 👕',
+  'teamSplit.select.required': 'Please select a team first',
+  'teamSplit.batch.random': 'Shuffle',
+  'teamSplit.batch.fill': 'Fill',
+  'teamSplit.batch.reset': 'Reset',
+  'teamSplit.batch.confirmRandom': 'Reshuffle won\'t notify participants. Continue?',
+  'teamSplit.batch.confirmReset': 'Clear all team assignments?',
 });
 
 // ─── Japanese ───
@@ -689,6 +707,15 @@ I18N.register('ja', {
   'drawer.personalData': '個人データ',
   'drawer.autoExpManage': '自動EXP管理',
   'drawer.backendManage': '管理パネル',
+  // Team Split
+  'common.person': '人',
+  'teamSplit.select.title': 'チームを選択 👕',
+  'teamSplit.select.required': '先にチームを選んでください',
+  'teamSplit.batch.random': 'シャッフル',
+  'teamSplit.batch.fill': '補充',
+  'teamSplit.batch.reset': 'リセット',
+  'teamSplit.batch.confirmRandom': 'チームを再分配します。参加者には通知されません。続行しますか？',
+  'teamSplit.batch.confirmReset': 'すべてのチーム分配をクリアしますか？',
 });
 
 // Auto-generated locale pack (ko)
@@ -887,7 +914,15 @@ I18N.register('ko', {
   "profilePage.recordCancelled": "취소됨",
   "drawer.personalData": "개인 통계",
   "drawer.autoExpManage": "자동 EXP 관리",
-  "drawer.backendManage": "관리자 패널"
+  "drawer.backendManage": "관리자 패널",
+  "common.person": "명",
+  "teamSplit.select.title": "팀을 선택하세요 👕",
+  "teamSplit.select.required": "먼저 팀을 선택해주세요",
+  "teamSplit.batch.random": "셔플",
+  "teamSplit.batch.fill": "채우기",
+  "teamSplit.batch.reset": "초기화",
+  "teamSplit.batch.confirmRandom": "팀을 다시 배정합니다. 참가자에게 알림이 가지 않습니다. 계속하시겠습니까?",
+  "teamSplit.batch.confirmReset": "모든 팀 배정을 초기화하시겠습니까?"
 });
 
 I18N.register('th', {
@@ -1085,7 +1120,15 @@ I18N.register('th', {
   "profilePage.recordCancelled": "ยกเลิกแล้ว",
   "drawer.personalData": "สถิติส่วนตัว",
   "drawer.autoExpManage": "การจัดการ EXP อัตโนมัติ",
-  "drawer.backendManage": "แผงผู้ดูแลระบบ"
+  "drawer.backendManage": "แผงผู้ดูแลระบบ",
+  "common.person": "คน",
+  "teamSplit.select.title": "เลือกทีมของคุณ 👕",
+  "teamSplit.select.required": "กรุณาเลือกทีมก่อน",
+  "teamSplit.batch.random": "สุ่ม",
+  "teamSplit.batch.fill": "เติม",
+  "teamSplit.batch.reset": "รีเซ็ต",
+  "teamSplit.batch.confirmRandom": "สลับทีมใหม่ ผู้เข้าร่วมจะไม่ได้รับการแจ้งเตือน ดำเนินการต่อ?",
+  "teamSplit.batch.confirmReset": "ล้างการจัดทีมทั้งหมด?"
 });
 
 I18N.register('vi', {
@@ -1283,7 +1326,15 @@ I18N.register('vi', {
   "profilePage.recordCancelled": "Đã hủy",
   "drawer.personalData": "Chỉ số cá nhân",
   "drawer.autoExpManage": "Auto EXP Mgmt",
-  "drawer.backendManage": "Bảng quản trị"
+  "drawer.backendManage": "Bảng quản trị",
+  "common.person": "",
+  "teamSplit.select.title": "Chọn đội của bạn 👕",
+  "teamSplit.select.required": "Vui lòng chọn đội trước",
+  "teamSplit.batch.random": "Xáo trộn",
+  "teamSplit.batch.fill": "Bổ sung",
+  "teamSplit.batch.reset": "Đặt lại",
+  "teamSplit.batch.confirmRandom": "Xáo trộn lại đội. Người tham gia sẽ không được thông báo. Tiếp tục?",
+  "teamSplit.batch.confirmReset": "Xóa tất cả phân đội?"
 });
 
 I18N.init();

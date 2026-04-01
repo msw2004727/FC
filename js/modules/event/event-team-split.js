@@ -103,7 +103,7 @@ Object.assign(App, {
       const svg = this._tsJerseySvg(t.color, null, t.key, { width: 20, inline: true });
       const capStr = cap ? `/${cap}` : '';
       const warn = overCap ? ` style="color:var(--warning);font-weight:700"` : '';
-      return `<div class="team-stat-card">${svg} <span class="team-stat-text"${warn}>${c}${capStr} <span>${'人'}</span></span></div>`;
+      return `<div class="team-stat-card">${svg} <span class="team-stat-text"${warn}>${c}${capStr} <span>${I18N?.t?.('common.person') || '人'}</span></span></div>`;
     }).join('');
   },
 
@@ -115,8 +115,8 @@ Object.assign(App, {
     if (!canManage) return '';
     const eid = event.id;
     return `<div class="team-batch-actions">`
-      + `<button class="batch-btn" onclick="App._tsBatchRandom('${eid}')">${'隨機'}</button>`
-      + `<button class="batch-btn" onclick="App._tsBatchFill('${eid}')">${'補齊'}</button>`
+      + `<button class="batch-btn" onclick="App._tsBatchRandom('${eid}')">${I18N?.t?.('teamSplit.batch.random') || '隨機'}</button>`
+      + `<button class="batch-btn" onclick="App._tsBatchFill('${eid}')">${I18N?.t?.('teamSplit.batch.fill') || '補齊'}</button>`
       + `<button class="batch-btn" onclick="App._tsBatchReset('${eid}')">${I18N?.t?.('teamSplit.batch.reset') || '重置'}</button>`
       + `</div>`;
   },
@@ -124,7 +124,7 @@ Object.assign(App, {
   // ── 批次操作實作 ──
 
   async _tsBatchRandom(eventId) {
-    if (!await this.appConfirm('重新分隊不會通知參加者，確認繼續？')) return;
+    if (!await this.appConfirm(I18N?.t?.('teamSplit.batch.confirmRandom') || '重新分隊不會通知參加者，確認繼續？')) return;
     const event = ApiService.getEvent(eventId);
     if (!event?.teamSplit?.enabled) return;
     const regs = (ApiService.getRegistrationsByEvent?.(eventId) || [])
@@ -172,7 +172,7 @@ Object.assign(App, {
   },
 
   async _tsBatchReset(eventId) {
-    if (!await this.appConfirm('確定清除所有隊伍分配？')) return;
+    if (!await this.appConfirm(I18N?.t?.('teamSplit.batch.confirmReset') || '確定清除所有隊伍分配？')) return;
     const regs = (ApiService.getRegistrationsByEvent?.(eventId) || [])
       .filter(r => r.status === 'confirmed' || r.status === 'waitlisted');
     if (!regs.length) return;
@@ -265,11 +265,11 @@ Object.assign(App, {
       return `<div class="${cls}" onclick="${onclick}">`
         + svg
         + `<div class="team-select-name">${escapeHTML(t.name || t.key + ' 隊')}</div>`
-        + `<div class="team-select-count">${c}${capStr}${'人'}</div>`
+        + `<div class="team-select-count">${c}${capStr}${I18N?.t?.('common.person') || '人'}</div>`
         + `</div>`;
     }).join('');
 
-    const title = '選擇你的隊伍 👕';
+    const title = I18N?.t?.('teamSplit.select.title') || '選擇你的隊伍 👕';
     return `<div class="team-select-zone"><div class="team-select-title">${title}</div><div class="team-select-cards">${cards}</div></div>`;
   },
 
