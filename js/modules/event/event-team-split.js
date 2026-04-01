@@ -305,7 +305,7 @@ Object.assign(App, {
     if (!event?.teamSplit?.enabled) return;
     const teams = event.teamSplit.teams || [];
     if (!teams.length) return;
-    const jerseyEl = evt.currentTarget || evt.target.closest('.uc-team-jersey');
+    const jerseyEl = evt.currentTarget || evt.target.closest('.uc-jersey-tap') || evt.target.closest('.uc-team-jersey');
     if (!jerseyEl) return;
     const capsule = jerseyEl.closest('.user-capsule');
     if (!capsule) return;

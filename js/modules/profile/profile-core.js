@@ -82,20 +82,26 @@ Object.assign(App, {
     let jerseyHtml = '';
     if (options && options.teamKey && options.teams) {
       const team = options.teams.find(t => t.key === options.teamKey);
-      const _pickClick = options.canPickTeam ? `event.stopPropagation();App._tsToggleJerseyPicker(event,${JSON.stringify(options.regDocId || '')},${JSON.stringify(options.eventId || '')})` : '';
+      let svg = '';
       if (team) {
-        jerseyHtml = this._tsJerseySvg?.(team.color, null, team.key, {
-          width: 20,
-          clickable: !!options.canPickTeam,
-          onclick: _pickClick,
-          ariaLabel: `${team.key} 隊 - ${team.name || ''}`,
-        }) || '';
+        svg = this._tsJerseySvg?.(team.color, null, team.key, { width: 20, ariaLabel: `${team.key} 隊 - ${team.name || ''}` }) || '';
       } else {
-        jerseyHtml = this._tsJerseySvg?.(null, null, '?', { width: 20, clickable: !!options.canPickTeam, onclick: _pickClick }) || '';
+        svg = this._tsJerseySvg?.(null, null, '?', { width: 20 }) || '';
+      }
+      if (options.canPickTeam) {
+        const _oc = `event.stopPropagation();App._tsToggleJerseyPicker(event,${JSON.stringify(options.regDocId || '')},${JSON.stringify(options.eventId || '')})`;
+        jerseyHtml = `<span class="uc-jersey-tap" onclick="${_oc}">${svg}</span>`;
+      } else {
+        jerseyHtml = svg;
       }
     } else if (options && options.showEmptyJersey) {
-      const _pickClick = options.canPickTeam ? `event.stopPropagation();App._tsToggleJerseyPicker(event,${JSON.stringify(options.regDocId || '')},${JSON.stringify(options.eventId || '')})` : '';
-      jerseyHtml = this._tsJerseySvg?.(null, null, '?', { width: 20, clickable: !!options.canPickTeam, onclick: _pickClick }) || '';
+      const svg = this._tsJerseySvg?.(null, null, '?', { width: 20 }) || '';
+      if (options.canPickTeam) {
+        const _oc = `event.stopPropagation();App._tsToggleJerseyPicker(event,${JSON.stringify(options.regDocId || '')},${JSON.stringify(options.eventId || '')})`;
+        jerseyHtml = `<span class="uc-jersey-tap" onclick="${_oc}">${svg}</span>`;
+      } else {
+        jerseyHtml = svg;
+      }
     }
     return `<span class="user-capsule uc-${role}" data-no-translate onclick="App.showUserProfile('${escapeHTML(name)}')" title="${ROLES[role]?.label || '一般用戶'}"><span class="uc-lv">Lv${lvl}</span>${jerseyHtml}${escapeHTML(name)}</span>`;
   },

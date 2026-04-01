@@ -53,6 +53,11 @@
 .uc-team-jersey.clickable { pointer-events: auto; cursor: pointer; }
 .uc-team-jersey.clickable:hover { transform: scale(1.3); filter: drop-shadow(0 2px 3px rgba(0,0,0,.25)); }
 .uc-team-jersey.clickable::before { content: ''; position: absolute; top: -8px; right: -15px; bottom: -8px; left: -15px; }
+/* 色衣 HTML 點擊包裹層（::before 在 SVG 上不生效，改用 HTML span） */
+.uc-jersey-tap { position: absolute; top: -8px; right: -3px; z-index: 3; cursor: pointer; }
+.uc-jersey-tap::before { content: ''; position: absolute; top: -8px; right: -15px; bottom: -8px; left: -15px; }
+.uc-jersey-tap:hover > .uc-team-jersey { transform: scale(1.3); filter: drop-shadow(0 2px 3px rgba(0,0,0,.25)); }
+.uc-jersey-tap > .uc-team-jersey { position: static; transition: transform .15s, filter .15s; }
 /* Capsule inside leaderboard / admin - smaller variant */
 .lb-name .user-capsule, .admin-user-name .user-capsule { font-size: .75rem; padding: .15rem .5rem; }
 .td-member-name .user-capsule { font-size: .75rem; padding: .15rem .5rem; }
