@@ -460,9 +460,9 @@ Object.assign(App, {
       var overlay = document.createElement('div');
       overlay.className = 'edu-info-overlay';
       overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
-      overlay.innerHTML = '<div class="edu-info-dialog" style="max-width:400px">'
-        + '<div class="edu-info-dialog-title">\u7528\u6236\u5730\u5340\u6383\u63CF\u7D50\u679C</div>'
-        + '<div class="edu-info-dialog-body"><pre style="white-space:pre-wrap;font-size:.78rem;line-height:1.6;margin:0">' + escapeHTML(lines.join('\n')) + '</pre></div>'
+      overlay.innerHTML = '<div class="edu-info-dialog" style="max-width:400px;max-height:calc(100vh - 2rem);display:flex;flex-direction:column">'
+        + '<div class="edu-info-dialog-title" style="flex-shrink:0">\u7528\u6236\u5730\u5340\u6383\u63CF\u7D50\u679C</div>'
+        + '<div class="edu-info-dialog-body" style="overflow-y:auto;-webkit-overflow-scrolling:touch;flex:1;min-height:0"><pre style="white-space:pre-wrap;font-size:.78rem;line-height:1.6;margin:0">' + escapeHTML(lines.join('\n')) + '</pre></div>'
         + '<button class="primary-btn" style="width:100%;margin-top:.8rem;flex-shrink:0" onclick="this.closest(\'.edu-info-overlay\').remove()">\u95DC\u9589</button>'
         + '</div>';
       document.body.appendChild(overlay);
