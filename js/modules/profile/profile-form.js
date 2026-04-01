@@ -136,25 +136,23 @@ Object.assign(App, {
     this._handleRestrictedStateChange?.();
     this.renderProfileData?.();
     this.renderProfileFavorites?.();
-    if (this._pendingFirstLogin && !this._isCurrentUserRestricted?.()) {
-      this._showFirstLoginWhenReady();
-    }
-  },
-
-  /** 等 profile.html 載完再顯示首次登入彈窗（LINE Mini App 時序修正） */
-  _showFirstLoginWhenReady(attempt) {
-    var self = this;
-    var n = attempt || 0;
-    var modal = document.getElementById('first-login-modal');
-    if (modal) {
-      self.initFirstLoginRegionPicker?.();
-      self._populateBirthdaySelects?.('fl-birthday-y', 'fl-birthday-m', 'fl-birthday-d');
-      self.showModal('first-login-modal');
-      return;
-    }
-    // DOM 還沒載完，等 300ms 重試（最多 10 次 = 3 秒）
-    if (n < 10) {
-      setTimeout(function() { self._showFirstLoginWhenReady(n + 1); }, 300);
+    if (this._pendingFirstLogin && !this._isCurrentUserRestricted?.() && !this._firstLoginShowing) {
+      this._firstLoginShowing = true;
+      var self = this;
+      (async function() {
+        try {
+          if (typeof ScriptLoader !== 'undefined' && ScriptLoader.ensureForPage) {
+            await ScriptLoader.ensureForPage('page-profile');
+          }
+        } catch (err) {
+          console.error('[bindLineLogin] profile JS load failed:', err);
+          self._firstLoginShowing = false;
+          return;
+        }
+        self.initFirstLoginRegionPicker?.();
+        self._populateBirthdaySelects?.('fl-birthday-y', 'fl-birthday-m', 'fl-birthday-d');
+        self.showModal('first-login-modal');
+      })();
     }
   },
 
@@ -397,6 +395,7 @@ Object.assign(App, {
       return;
     }
     this._pendingFirstLogin = false;
+    this._firstLoginShowing = false;
     var input = document.getElementById('fl-region-input');
     if (input) input.value = '';
     this.closeModal();

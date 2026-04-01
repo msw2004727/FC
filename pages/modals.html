@@ -92,6 +92,37 @@
   </div>
 </div>
 
+<!-- ============ FIRST LOGIN MODAL（從 profile.html 搬入，確保 DOM 永遠存在） ============ -->
+<div class="modal" id="first-login-modal">
+  <div class="modal-header"><h3>完善個人資料</h3></div>
+  <div class="modal-body">
+    <p class="fl-hint">首次登入，請填寫以下基本資料</p>
+    <div class="ce-form">
+      <div class="ce-row">
+        <label>性別 <span class="required">*必填</span></label>
+        <select id="fl-gender"><option value="">請選擇</option><option value="男">男</option><option value="女">女</option><option value="其他">其他</option></select>
+      </div>
+      <div class="ce-row">
+        <label>生日 <span class="required">*必填</span></label>
+        <div style="display:flex;gap:.3rem">
+          <select id="fl-birthday-y" style="flex:1.2;font-size:.82rem;padding:.4rem .2rem;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-card);color:var(--text-primary)"><option value="">年</option></select>
+          <select id="fl-birthday-m" style="flex:1;font-size:.82rem;padding:.4rem .2rem;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-card);color:var(--text-primary)"><option value="">月</option></select>
+          <select id="fl-birthday-d" style="flex:1;font-size:.82rem;padding:.4rem .2rem;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-card);color:var(--text-primary)"><option value="">日</option></select>
+        </div>
+      </div>
+      <div class="ce-row">
+        <label>地區 <span class="required">*必填</span></label>
+        <input type="text" id="fl-region-input" placeholder="輸入縣市名稱" autocomplete="off" oninput="App.flRenderList(this.value)" style="width:100%;box-sizing:border-box;padding:.45rem .35rem;font-size:.82rem;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg-card);color:var(--text-primary)">
+        <div id="fl-region-list" onclick="App.flSelectRegion(event)" style="max-height:140px;overflow-y:auto;border:1px solid var(--border,#ddd);border-radius:var(--radius,8px);background:var(--bg-card,#fff);margin-top:4px"></div>
+      </div>
+    </div>
+  </div>
+  <div id="fl-error-msg" style="display:none;color:var(--danger);font-size:.8rem;padding:.3rem .5rem;border-radius:var(--radius-sm);background:rgba(239,68,68,.08);margin:.4rem 1.2rem 0"></div>
+  <div class="modal-actions">
+    <button class="primary-btn" onclick="App.saveFirstLoginProfile()">確認送出</button>
+  </div>
+</div>
+
 <!-- ============ MODAL OVERLAY ============ -->
 <div class="modal-overlay" id="modal-overlay" onclick="if(event.target===this)App.closeModal()"></div>
 
