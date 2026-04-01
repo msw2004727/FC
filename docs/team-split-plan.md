@@ -339,7 +339,7 @@ function _recalcTeamSplitTimestamps(event) {
   if (event.teamSplit?.enabled && event.teamSplit.mode === 'self-select') {
     const lockHours = event.teamSplit.selfSelectLockHours || 2;
     event.teamSplit.lockAt = new Date(eventStart.getTime() - lockHours * 3600000);
-  } else {
+  } else if (event.teamSplit) {
     event.teamSplit.lockAt = null;
   }
 }
@@ -496,7 +496,7 @@ get() 配額：路徑 2/3 各 1 次，加上既有 role 判斷 1-2 次，總計 
 
 - **自選模式**：硬性限制，transaction 內拒絕 → 錯誤碼 `TEAM_FULL`：「該隊已額滿，請選擇其他隊伍」
 - **隨機模式**：軟性允許（同行者同隊優先），記錄警告但不阻擋
-- **已知限制**：自選併發下可能短暫超額 1-2 人，前端 onSnapshot 即時顯示滿隊可降低機率
+- **已知限制（用戶 2026-04-01 確認接受）**：自選併發下可能短暫超額 1-2 人，前端 onSnapshot 即時顯示滿隊可降低機率。Firestore Rules 無法 count 文件數，100% 防堵需改用 Cloud Function 處理自選寫入（增加 1-2 秒延遲）。用戶判斷此情境機率極低（需兩人同秒操作同隊），接受現狀，主辦可手動調整
 
 ### 取消報名
 
@@ -525,7 +525,7 @@ get() 配額：路徑 2/3 各 1 次，加上既有 role 判斷 1-2 次，總計 
 
 ### 競態條件
 
-- 兩管理者同時批次操作：後寫覆蓋，最終一致可接受
+- 兩管理者同時批次操作：後寫覆蓋，最終一致（用戶 2026-04-01 確認接受：此情境機率極低，不加樂觀鎖偵測，初版維持現狀）
 - 鎖定邊界：`request.time` 伺服器端判斷，正確拒絕
 - 用戶自選 + 主辦同時改：後寫覆蓋，站內信可緩解
 
@@ -573,7 +573,9 @@ function _resolveTeamKey(event, allEventRegs, options = {}) {
   event.teamSplit.teams.forEach(t => { counts[t.key] = 0; });
   allEventRegs.filter(r => r.status === 'confirmed' && r.teamKey)
     .forEach(r => { counts[r.teamKey] = (counts[r.teamKey] || 0) + 1; });
-  return event.teamSplit.teams.reduce((min, t) =>
+  const teams = event.teamSplit.teams;
+  if (!teams.length) return null;
+  return teams.reduce((min, t) =>
     (counts[t.key] || 0) < (counts[min.key] || 0) ? t : min
   ).key;
 }
@@ -638,6 +640,16 @@ function _resolveTeamKey(event, allEventRegs, options = {}) {
 | `teamSplit.batch.confirmReset` | 確定清除所有隊伍分配？ | Clear all assignments? |
 | `teamSplit.unassigned` | 未分配 | Unassigned |
 | `teamSplit.picker.unassign` | 取消分配 | Remove assignment |
+
+### 管理操作
+
+| key | 中文 | 英文 |
+|-----|------|------|
+| `teamSplit.warn.overCap` | {team}（{count}）超過均分上限（{cap}） | {team} ({count}) exceeds cap ({cap}) |
+| `teamSplit.edit.newTeamHint` | 新隊伍尚無人員，可用「補齊」重新分配 | New team is empty. Use "Fill" to redistribute |
+| `teamSplit.edit.teamNotEmpty` | {team} 仍有 {count} 人，請先移至其他隊伍 | {team} has {count} members. Move them first |
+| `teamSplit.edit.confirmModeSwitch` | 已選隊伍將保留，未選隊者將隨機分配。確定？ | Existing picks kept, unassigned will be shuffled. Continue? |
+| `teamSplit.edit.confirmDisable` | 關閉後分隊資訊仍保留在報名資料中，重新開啟可恢復。確定？ | Team data will be preserved. Re-enable to restore. Continue? |
 
 ### 通知與錯誤
 
@@ -706,7 +718,7 @@ registration.teamKey = 'A' | 'B' | 'C' | 'D' | null
 | B. 兩步驟 | 先建 registration，成功後再 update teamKey | ❌ 非原子 | 不需要 |
 | C. App 暫存屬性 | 寫入前設 `App._pendingTeamKey`，函式內讀取 | ✅ | 不需要 |
 
-**推薦方案 A**：新增可選參數 `teamKey = null` 是最小改動且保持原子性，但需在施作時向用戶確認授權。方案 B 有窗口風險（registration 存在但無 teamKey）；方案 C 不直觀且有競態風險。
+**決定：採用方案 A**（用戶於 2026-04-01 授權）。新增可選參數 `teamKey = null`，既有 3 處呼叫不傳此參數則行為完全不變。施作時直接修改 LOCKED 函式簽名，無需再次確認。
 
 #### `_buildConfirmedParticipantSummary()` 需擴充
 
