@@ -82,7 +82,7 @@ FC-github/
 | # | 檔案 | 位置 | 說明 |
 |---|------|------|------|
 | 1 | `js/config.js` | `CACHE_VERSION` 常數 | 動態載入的 pages/*.html 和 js 模組用此值做 cache busting |
-| 2 | `index.html` | 所有 `?v=` 參數（約 62 處） | CSS + JS 靜態資源的 cache busting |
+| 2 | `index.html` | 所有 `?v=` 參數（約 66 處） | CSS + JS 靜態資源的 cache busting |
 | 3 | `index.html` | 第 235 行 `var V='...'` | **快取自動清除觸發器**——版本號變更時自動清除所有 SW 快取並重新下載 |
 | 4 | `sw.js` | 第 9 行 `CACHE_NAME` | Service Worker 快取群組名稱，必須與 `var V` 同步，否則舊快取不會被清除 |
 
@@ -93,6 +93,19 @@ FC-github/
 範例：`20260211` → `20260211a` → `20260211b` → `20260212`
 
 > `page-loader.js` 的 fetch 會自動讀取 `CACHE_VERSION`，不需額外改。
+
+**快速更新指令**（假設舊版號 `OLD`，新版號 `NEW`）：
+```bash
+# 1. config.js — 手動改 CACHE_VERSION
+# 2. sw.js — 手動改 CACHE_NAME
+# 3+4. index.html — var V + 全部 ?v= 一次替換：
+sed -i "s/?v=OLD/?v=NEW/g" index.html
+# 然後手動改 var V='NEW'（sed 可能漏改，建議用 Edit 工具）
+```
+
+**注意**：`game-lab.html`、`GrowthGames.html`、`inventory/index.html` 是獨立頁面，使用各自的版號系統，**只在修改它們自己的 JS/CSS 時才需要更新**，不需要跟主站同步。
+
+**版號更新時機（強制）**：每次 commit 包含 JS、HTML 或 CSS 的修改，都**必須在同一個 commit 內**同步更新版號。禁止先 commit 程式碼再另開 commit 補版號——這會導致用戶端在兩個 commit 之間跑舊快取的 JS 搭配新的 HTML（或反過來），造成功能異常。
 
 ---
 
