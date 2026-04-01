@@ -511,6 +511,28 @@ Object.assign(App, {
       title: '私密活動',
       body: '開啟後活動<b>不會</b>出現在公開列表中，只有透過分享連結才能查看。<p style="margin:.3rem 0 0;color:var(--text-muted);font-size:.8rem">適合內部活動或邀請制活動。</p>',
     },
+    teamSplit: {
+      title: '分隊功能（色衣分組）',
+      body: '開啟後系統會在報名流程中加入<b>隊伍分配機制</b>，讓參加者到場前就知道自己穿什麼顏色背心。'
+        + '<p style="margin:.5rem 0 .2rem;font-weight:600">三種模式</p>'
+        + '<b>隨機分配</b> — 報名時系統自動平衡分配，適合彼此不認識的揪團。<br>'
+        + '<b>自選隊伍</b> — 報名時用戶自己挑隊，適合朋友約好要同隊。<br>'
+        + '<b>主辦分配</b> — 報名時不分隊，由主辦在報名名單手動安排。'
+        + '<p style="margin:.5rem 0 .2rem;font-weight:600">隊伍數量</p>'
+        + '支援 2～4 隊，預設 2 隊（紅 vs 藍）。每隊以字母 A/B/C/D 加顏色識別，色盲用戶可透過字母辨別。'
+        + '<p style="margin:.5rem 0 .2rem;font-weight:600">均分上限</p>'
+        + '勾選後系統自動計算每隊人數上限（= 活動上限 ÷ 隊數），自選模式下滿隊無法再選，隨機模式自動平衡。'
+        + '<p style="margin:.5rem 0 .2rem;font-weight:600">鎖定時間（僅自選模式）</p>'
+        + '活動開始前 N 小時鎖定，用戶不能再更改隊伍。主辦隨時可調。'
+        + '<p style="margin:.5rem 0 .2rem;font-weight:600">同行者</p>'
+        + '同行者預設跟主報名人同隊，不需額外操作。'
+        + '<p style="margin:.5rem 0 .2rem;font-weight:600">管理操作</p>'
+        + '主辦/委託人可在活動詳情頁使用三個批次按鈕：<br>'
+        + '• <b>隨機</b> — 全部重新洗牌分隊<br>'
+        + '• <b>補齊</b> — 只分配還沒有隊的人<br>'
+        + '• <b>重置</b> — 清除所有隊伍分配'
+        + '<p style="margin:.4rem 0 0;color:var(--text-muted);font-size:.8rem">不管選哪種模式，主辦隨時可在報名名單點擊色衣圖示手動調整。未開啟分隊的活動一切與現在完全相同。</p>',
+    },
     saveTemplate: {
       title: '儲存為範本',
       body: '將目前填寫的活動設定儲存為範本，下次建立類似活動可直接載入。<p style="margin:.3rem 0 0;color:var(--text-muted);font-size:.8rem">範本儲存在雲端，跨裝置可用，上限 30 個。</p>',
