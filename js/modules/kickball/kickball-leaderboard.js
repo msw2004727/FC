@@ -213,7 +213,15 @@ window._KickballLeaderboard = (function () {
       kicks: payload.kicks || 3,
       durationMs: payload.durationMs,
       displayName: H.getPreferredPlayerDisplayName(user),
-    }).catch(function () {}).finally(function () {
+    }).then(function (result) {
+      console.log('[kickball] 成績提交成功', result && result.data);
+    }).catch(function (err) {
+      console.error('[kickball] 成績提交失敗', err && err.code, err && err.message);
+      if (typeof App !== 'undefined' && App.showToast) {
+        var msg = (err && err.message) || '成績提交失敗';
+        App.showToast(msg);
+      }
+    }).finally(function () {
       _lbSubmitPending = false;
       if (_lbOpen) _renderLeaderboard(_lbPeriod);
       if (gameInstance && gameInstance.refreshMarkers) gameInstance.refreshMarkers();

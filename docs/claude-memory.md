@@ -10,6 +10,12 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-04-01 — 開球王成績提交靜默失敗，所有用戶無法留下紀錄
+- **問題**：所有層級用戶（含 admin）玩開球王後成績不會出現在排行榜
+- **原因**：`kickball-leaderboard.js` 的 `_submitScore` 使用 `.catch(function () {})` 靜默吃掉 Cloud Function 所有錯誤，導致提交失敗時用戶無任何提示也無法診斷
+- **修復**：`.catch()` 改為輸出 `console.error` 並呼叫 `App.showToast()` 顯示錯誤訊息；`.then()` 補 `console.log` 確認成功
+- **教訓**：[永久] Cloud Function 呼叫的 `.catch()` 絕不可以用空函式靜默吞錯，至少要有 `console.error` + 用戶提示（toast）。射門遊戲 `shot-game-page.js` 也有相同問題待修
+
 ### 2026-04-01 — 開球王遊戲底部按鈕被下方導航列遮擋
 - **問題**：「重新開始」、「開球榜」按鈕及擊球按鈕被 App 底部 Tab Bar 遮住
 - **原因**：遊戲容器高度 calc 未扣除 `env(safe-area-inset-bottom)`，導致容器底部延伸到底部導航列後方；按鈕 `bottom` 值過小
