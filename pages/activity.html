@@ -345,7 +345,10 @@
           <div class="ce-gender-limit-tip">開啟後活動不會顯示在列表中，僅能透過分享連結查看</div>
         </div>
         <div class="ce-row">
-          <label>👕 分隊功能<button class="edu-info-btn" onclick="App._showCeInfo('teamSplit')" title="說明">?</button></label>
+          <div style="display:flex;align-items:center;gap:.3rem">
+            <span style="font-weight:600">👕 分隊功能</span>
+            <button type="button" class="edu-info-btn" onclick="event.stopPropagation();App._showCeInfo('teamSplit')" title="說明">?</button>
+          </div>
           <div style="display:flex;align-items:center;gap:.5rem">
             <label class="toggle-switch" style="margin:0">
               <input type="checkbox" id="ce-team-split-enabled">
