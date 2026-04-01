@@ -60,6 +60,12 @@ Object.assign(App, {
   renderHomeGameShortcut() {
     const shotCard = document.getElementById('home-game-card-shot');
     const kickCard = document.getElementById('home-game-card-kick');
+
+    // Firestore gameConfigs 尚未載入前不渲染，避免 preset 預設值造成閃爍
+    // _handleWarmLoadedCollections 載入後會再次呼叫 renderAll → renderHotEvents → 本函式
+    const cfgs = typeof ApiService !== 'undefined' ? (ApiService.getGameConfigs?.() || []) : [];
+    if (!cfgs.length) return;
+
     const shotAvailable = this._isHomeGameVisible('shot-game');
     const kickAvailable = this._isHomeGameVisible('kick-game');
     const anyVisible = shotAvailable || kickAvailable;
