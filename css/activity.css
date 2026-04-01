@@ -1107,3 +1107,72 @@
   background: var(--bg-card);
   color: var(--text-primary);
 }
+
+/* ── Team Split (分隊色衣) ── */
+
+/* detail-grid 隊伍資訊卡 */
+.team-stat-card {
+  background: var(--bg-elevated); border-radius: var(--radius, 8px);
+  padding: .45rem .6rem; font-size: .78rem;
+  display: flex; align-items: center; gap: .4rem;
+}
+.team-stat-text { font-weight: 600; }
+.team-stat-text span { font-weight: 400; color: var(--text-secondary); }
+
+/* 批次操作 */
+.team-batch-actions { display: flex; gap: .3rem; grid-column: span 1; }
+.batch-btn {
+  flex: 1 1 0; text-align: center; font-size: .65rem; padding: .28rem 0;
+  border: 1px solid var(--border); border-radius: var(--radius-sm, 4px);
+  background: var(--bg-card); cursor: pointer; color: var(--text-secondary); white-space: nowrap;
+}
+.batch-btn:hover { background: var(--bg-elevated); }
+[data-theme="dark"] .batch-btn { background: var(--bg-card); border-color: var(--border); color: var(--text-secondary); }
+
+/* 自選隊伍區塊 */
+.team-select-zone { margin: .6rem 0; padding: .5rem 0; }
+.team-select-title { font-size: .85rem; font-weight: 700; text-align: center; margin-bottom: .4rem; }
+.team-select-cards { display: flex; justify-content: center; gap: .5rem; flex-wrap: wrap; }
+.team-select-card {
+  display: flex; flex-direction: column; align-items: center; gap: .25rem;
+  padding: .5rem .8rem; border-radius: var(--radius, 8px);
+  border: 2px solid var(--border); cursor: pointer;
+  transition: border .15s, transform .15s;
+}
+.team-select-card:hover { border-color: var(--accent); }
+.team-select-card.selected { border-color: var(--accent); transform: scale(1.05); box-shadow: 0 2px 8px rgba(0,0,0,.12); }
+.team-select-card.full { opacity: .5; cursor: not-allowed; }
+.team-select-name { font-size: .75rem; font-weight: 600; }
+.team-select-count { font-size: .68rem; color: var(--text-secondary); }
+@keyframes shake { 0%,100%{transform:translateX(0)} 20%,60%{transform:translateX(-4px)} 40%,80%{transform:translateX(4px)} }
+.team-select-card.shake { animation: shake .3s; }
+[data-theme="dark"] .team-select-card { border-color: var(--border); }
+[data-theme="dark"] .team-select-card.selected { border-color: var(--accent); }
+
+/* 色票選擇器（膠囊右側滑出） */
+.jersey-picker-anchor { position: absolute; top: -10px; right: -3px; z-index: 10; }
+.jersey-picker {
+  position: absolute; left: 100%; top: 50%;
+  display: flex; align-items: center; gap: 3px;
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: 999px; padding: 3px 6px;
+  box-shadow: 0 4px 12px rgba(0,0,0,.15);
+  white-space: nowrap; margin-left: 4px;
+  transform-origin: left center;
+  opacity: 0; transform: scaleX(0) translateY(-50%);
+  transition: opacity .2s ease, transform .25s cubic-bezier(.34,1.56,.64,1);
+  pointer-events: none;
+}
+.jersey-picker.open { opacity: 1; transform: scaleX(1) translateY(-50%); pointer-events: auto; }
+.jersey-picker.flip { left: auto; right: 100%; transform-origin: right center; transform: scaleX(0) translateY(-50%); margin-left: 0; margin-right: 4px; }
+.jersey-picker.flip.open { transform: scaleX(1) translateY(-50%); }
+.jersey-pick-item { width: 20px; height: 18px; cursor: pointer; transition: transform .12s; flex-shrink: 0; filter: drop-shadow(0 1px 1px rgba(0,0,0,.1)); }
+.jersey-pick-item:hover { transform: scale(1.3); }
+[data-theme="dark"] .jersey-picker { background: var(--bg-elevated); border-color: var(--border); }
+
+/* 鎖定提示 */
+.team-lock-banner {
+  font-size: .75rem; color: var(--text-muted); padding: .35rem .6rem;
+  background: var(--bg-elevated); border-radius: var(--radius-sm, 4px);
+  text-align: center; margin-bottom: .4rem;
+}

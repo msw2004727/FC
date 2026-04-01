@@ -73,12 +73,29 @@ Object.assign(App, {
     el.textContent = exp.toLocaleString();
   },
 
-  _userTag(name, forceRole) {
+  _userTag(name, forceRole, options) {
     const rawRole = forceRole || ApiService.getUserRole(name);
     const role = this._stealthRole(name, rawRole);
     const user = this._findUserByName(name);
     const lvl = this._calcLevelFromExp((user && user.exp) || 0).level;
-    return `<span class="user-capsule uc-${role}" data-no-translate onclick="App.showUserProfile('${escapeHTML(name)}')" title="${ROLES[role]?.label || '一般用戶'}"><span class="uc-lv">Lv${lvl}</span>${escapeHTML(name)}</span>`;
+    // team-split: 右上角色衣 badge（可選，_tsJerseySvg 由動態模組提供）
+    let jerseyHtml = '';
+    if (options && options.teamKey && options.teams) {
+      const team = options.teams.find(t => t.key === options.teamKey);
+      if (team) {
+        jerseyHtml = this._tsJerseySvg?.(team.color, null, team.key, {
+          width: 20,
+          clickable: !!options.canPickTeam,
+          onclick: options.canPickTeam ? `event.stopPropagation();App._tsToggleJerseyPicker?.(event,${JSON.stringify(options.regIdx || 0)})` : '',
+          ariaLabel: `${team.key} 隊 - ${team.name || ''}`,
+        }) || '';
+      } else {
+        jerseyHtml = this._tsJerseySvg?.(null, null, '?', { width: 20 }) || '';
+      }
+    } else if (options && options.showEmptyJersey) {
+      jerseyHtml = this._tsJerseySvg?.(null, null, '?', { width: 20 }) || '';
+    }
+    return `<span class="user-capsule uc-${role}" data-no-translate onclick="App.showUserProfile('${escapeHTML(name)}')" title="${ROLES[role]?.label || '一般用戶'}"><span class="uc-lv">Lv${lvl}</span>${jerseyHtml}${escapeHTML(name)}</span>`;
   },
 
   _findUserByName(name) {

@@ -48,6 +48,11 @@
   z-index: 2;
 }
 [data-theme="dark"] .uc-lv { background: #374151; color: #9ca3af; }
+/* Team jersey badge (right-top, symmetric with uc-lv) */
+.uc-team-jersey { position: absolute; top: -8px; right: -3px; pointer-events: none; z-index: 2; filter: drop-shadow(0 1px 1px rgba(0,0,0,.15)); }
+.uc-team-jersey.clickable { pointer-events: auto; cursor: pointer; }
+.uc-team-jersey.clickable:hover { transform: scale(1.3); filter: drop-shadow(0 2px 3px rgba(0,0,0,.25)); }
+.uc-team-jersey.clickable::before { content: ''; position: absolute; top: -8px; right: -15px; bottom: -8px; left: -15px; }
 /* Capsule inside leaderboard / admin - smaller variant */
 .lb-name .user-capsule, .admin-user-name .user-capsule { font-size: .75rem; padding: .15rem .5rem; }
 .td-member-name .user-capsule { font-size: .75rem; padding: .15rem .5rem; }
