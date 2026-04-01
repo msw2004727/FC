@@ -62,8 +62,7 @@
         </div>
         <div class="info-card" id="profile-info-card">
           <div class="info-title profile-collapse-toggle" onclick="App.toggleProfileSection(this,'profileInfo')">
-            <button class="edu-info-btn" onclick="event.stopPropagation();App._showProfileInfo('myProfile')" title="說明">?</button>
-            <span data-i18n="profile.myProfile">我的資料</span>
+            <span style="display:flex;align-items:center;gap:.35rem"><button class="edu-info-btn" onclick="event.stopPropagation();App._showProfileInfo('myProfile')" title="說明">?</button><span data-i18n="profile.myProfile">我的資料</span></span>
             <span class="profile-collapse-arrow">▶</span>
           </div>
           <div class="profile-collapse-content" style="display:none">
@@ -107,8 +106,7 @@
         <!-- LINE 推播通知綁定 -->
         <div class="info-card" id="profile-line-notify">
           <div class="info-title profile-collapse-toggle" onclick="App.toggleProfileSection(this,'lineNotify')">
-            <button class="edu-info-btn" onclick="event.stopPropagation();App._showProfileInfo('lineNotify')" title="說明">?</button>
-            <span><span data-i18n="profile.lineNotify">LINE 推播通知</span> <span class="line-notify-status" id="line-notify-badge"></span></span>
+            <span style="display:flex;align-items:center;gap:.35rem"><button class="edu-info-btn" onclick="event.stopPropagation();App._showProfileInfo('lineNotify')" title="說明">?</button><span data-i18n="profile.lineNotify">LINE 推播通知</span> <span class="line-notify-status" id="line-notify-badge"></span></span>
             <span class="profile-collapse-arrow">▶</span>
           </div>
           <div class="profile-collapse-content" style="display:none">
@@ -158,8 +156,7 @@
         <!-- 我的收藏 -->
         <div class="info-card" id="profile-favorites-card" style="display:none">
           <div class="info-title profile-collapse-toggle" onclick="App.toggleProfileSection(this,'favorites')">
-            <button class="edu-info-btn" onclick="event.stopPropagation();App._showProfileInfo('favorites')" title="說明">?</button>
-            <span><span data-i18n="profile.favorites">我的收藏</span> <span class="fav-count-badge" id="fav-count-badge">0</span></span>
+            <span style="display:flex;align-items:center;gap:.35rem"><button class="edu-info-btn" onclick="event.stopPropagation();App._showProfileInfo('favorites')" title="說明">?</button><span data-i18n="profile.favorites">我的收藏</span> <span class="fav-count-badge" id="fav-count-badge">0</span></span>
             <span class="profile-collapse-arrow">▶</span>
           </div>
           <div class="profile-collapse-content" id="profile-favorites-list" style="display:none"></div>
@@ -174,8 +171,7 @@
         <!-- 我的同行者 -->
         <div class="info-card" id="my-companions-card">
           <div class="info-title profile-collapse-toggle" onclick="App.toggleCompanionsSection(this)">
-            <button class="edu-info-btn" onclick="event.stopPropagation();App._showProfileInfo('companions')" title="說明">?</button>
-            <span>我的同行者 <span class="fav-count-badge" id="companions-count">0</span></span>
+            <span style="display:flex;align-items:center;gap:.35rem"><button class="edu-info-btn" onclick="event.stopPropagation();App._showProfileInfo('companions')" title="說明">?</button><span>我的同行者</span> <span class="fav-count-badge" id="companions-count">0</span></span>
             <span class="profile-collapse-arrow">▶</span>
           </div>
           <div class="profile-collapse-content" id="companions-list" style="display:none">
@@ -185,8 +181,7 @@
         </div>
         <div class="info-card">
           <div class="info-title profile-collapse-toggle" onclick="App.toggleProfileSection(this,'records')">
-            <button class="edu-info-btn" onclick="event.stopPropagation();App._showProfileInfo('records')" title="說明">?</button>
-            <span data-i18n="profile.activityRecords">報名紀錄</span>
+            <span style="display:flex;align-items:center;gap:.35rem"><button class="edu-info-btn" onclick="event.stopPropagation();App._showProfileInfo('records')" title="說明">?</button><span data-i18n="profile.activityRecords">報名紀錄</span></span>
             <span class="profile-collapse-arrow">▶</span>
           </div>
           <div class="profile-collapse-content" style="display:none">
