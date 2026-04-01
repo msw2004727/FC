@@ -10,6 +10,13 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-04-01 — 移除報名名單過嚴權限守衛 + 分隊計畫書第四輪審計
+- **問題 1**：3/30 新增的 `event.view_registrations` 權限守衛（`_renderAttendanceTable` L95-98）過於嚴格，純 `user` 角色的一般參加者看不到活動詳情頁的報名名單。4/1 雖補了 `_canManageEvent` fallback 讓主辦/委託能看，但一般參加者仍被擋
+- **修復 1**：移除整段權限守衛。所有登入用戶恢復可見報名名單（管理操作仍由 `canManage` 獨立控制）
+- **問題 2**：分隊計畫書 `isRegistrationOwnerSafeUpdate()` 白名單有 3 項高嚴重度瑕疵：(a) 漏掉 `cancelledAt` → 取消報名 3 條路徑全壞；(b) `status` 無值約束 → 候補可自行升正取；(c) L404 誤述「取消用 delete」
+- **修復 2**：白名單加入 `cancelledAt`、status 加值約束 `== 'cancelled'`、修正描述
+- **教訓**：新增權限守衛時必須同步驗證所有角色的實際體驗，不能只測管理者帳號。Firestore Rules 白名單要逐一比對所有 client-side 寫入路徑的實際欄位
+
 ### 2026-04-01 — 修復委託人(delegate)權限缺口：一般 user 可掃碼/手動簽到
 - **問題**：一般 user 被指定為活動委託人後，可看到「現場簽到」按鈕並進入掃碼頁，但 `renderScanPage()` 和 `_startTableEdit()` 的 `hasPermission()` 檢查會阻擋（user 角色無權限），導致「看得到按鈕但功能不能用」的不一致體驗
 - **原因**：按鈕顯示（`_canManageEvent`）和頁面進入（`_isAnyActiveEventDelegate`）都有 delegate 例外，但功能執行層的 `hasPermission` 檢查缺少對應的 delegate fallback
