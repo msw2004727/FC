@@ -259,7 +259,14 @@ Object.assign(App, {
       btn.classList.toggle('active', btn.dataset.value === mode);
     });
     const lockWrap = document.getElementById('ce-team-split-lock-wrap');
-    if (lockWrap) lockWrap.style.display = mode === 'self-select' ? '' : 'none';
+    if (lockWrap) {
+      if (mode === 'self-select') {
+        lockWrap.style.display = 'flex';
+        lockWrap.style.cssText = 'display:flex;align-items:center;gap:.3rem;flex-wrap:wrap;font-size:.78rem;margin-top:.3rem';
+      } else {
+        lockWrap.style.display = 'none';
+      }
+    }
   },
 
   _tsGetMode() {
