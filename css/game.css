@@ -1034,7 +1034,7 @@
 #page-kick-game .kg-lb-overlay {
   position: fixed;
   inset: 0;
-  z-index: 60;
+  z-index: 90;
   display: none;
   align-items: center;
   justify-content: center;
