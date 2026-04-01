@@ -10,6 +10,23 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-04-01 — 活動管理頁統計彈窗（權限感知）
+- **功能**：標題右側新增書本 SVG 按鈕，點擊彈出 6 卡片統計（總活動/即將開放/報名中/已額滿/已結束/已取消），移除原灰字統計
+- **權限**：`event.edit_all` 看所有活動統計，否則只看自己管理的
+- **修改**：activity.html、event-manage.js
+
+### 2026-04-01 — 分隊功能多項修補（編輯模式/均分按鈕/jersey picker/i18n）
+- **問題**：(1) 編輯活動時分隊開關不顯示 (2) 均分上限勾選無反應 (3) i18n key 顯示原始字串 (4) 說明彈窗均分區塊不夠醒目 (5) 隊名「綠隊隊」重複 (6) 主辦點球衣無法分隊
+- **原因**：(1) `editMyActivity` 漏呼叫 bind/set (2) `display:none` checkbox 在 LINE WebView label-for 失效 (3) `I18N.t()` 回傳 key 本身(truthy) + 快取版號未同步 (4) 快取舊版 (5) `_tsGetFormData` 多加了 `+ '隊'` (6) jersey picker 未實作 + onclick 用 `JSON.stringify` 雙引號破壞 HTML 屬性 + SVG `::before` 觸控區無效
+- **修復**：event-manage-lifecycle.js 補 bind + setFormData；event-create-options.js 對卡片綁 click + 補 `_tsUpdateBalanceCard`；event-create.js 均分說明全框線；event-create-options.js 移除 `+ '隊'`；實作 `_tsToggleJerseyPicker` / `_tsPickTeam`；profile-core.js 改用 `<span class="uc-jersey-tap">` HTML 包裹層解決觸控；onclick 改用單引號
+- **教訓**：(1) checkbox `display:none` + `<label for>` 在 LINE WebView 不可靠 (2) `JSON.stringify` 產生雙引號會破壞 `onclick="..."` 屬性 (3) CSS `::before` 在 SVG 元素上不生效，需用 HTML 包裹層 (4) 快取版號必須與程式碼同 commit 更新
+
+### 2026-04-01 — 小遊戲首頁入口被過嚴權限擋住 + 閃爍修復
+- **問題**：(1) user 角色在首頁看不到小遊戲 (2) admin 切換 A/B 遊戲後首頁先閃 A 再切 B
+- **原因**：(1) `_isHomeGameVisible` 要求 `activity.manage.entry`（僅 coach+ 有）(2) HTML 預設 A 卡片可見 + Firestore 未載入前用 preset fallback
+- **修復**：(1) 移除權限檢查 (2) 兩張卡片 + 標題預設 `display:none`，`renderHomeGameShortcut` 在 `gameConfigs` 為空時 return
+- **教訓**：小遊戲可見性應由 `gameConfigs` + `HOME_GAME_PRESETS.enabled` 控制，不應綁活動管理權限。HTML 預設狀態應配合 JS 動態渲染的「最終正確態」，避免 flash-of-wrong-content
+
 ### 2026-04-01 — 開球王成績提交靜默失敗，所有用戶無法留下紀錄
 - **問題**：所有層級用戶（含 admin）玩開球王後成績不會出現在排行榜
 - **原因**：`kickball-leaderboard.js` 的 `_submitScore` 使用 `.catch(function () {})` 靜默吃掉 Cloud Function 所有錯誤，導致提交失敗時用戶無任何提示也無法診斷
