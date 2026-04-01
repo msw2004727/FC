@@ -256,6 +256,7 @@ Object.assign(App, {
         creatorTeamIds: teamOnly ? [...resolvedTeamIds] : [],
         creatorTeamNames: teamOnly ? [...resolvedTeamNames] : [],
         delegates: [...this._delegates],
+        delegateUids: this._delegates.map(d => String(d.uid || '').trim()).filter(Boolean),
       };
       // 已結束/已取消的活動編輯時不改變狀態
       if (existingEvent && (existingEvent.status === 'ended' || existingEvent.status === 'cancelled')) {
@@ -317,6 +318,7 @@ Object.assign(App, {
         creatorTeamIds: teamOnly ? [...resolvedTeamIds] : [],
         creatorTeamNames: teamOnly ? [...resolvedTeamNames] : [],
         delegates: [...this._delegates],
+        delegateUids: this._delegates.map(d => String(d.uid || '').trim()).filter(Boolean),
       };
       this._eventSubmitInFlight = true;
       this._setCreateEventSubmitting(true);

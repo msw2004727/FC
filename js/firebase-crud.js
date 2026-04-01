@@ -281,6 +281,10 @@ Object.assign(FirebaseService, {
     if (eventData.image && eventData.image.startsWith('data:')) {
       eventData.image = await this._uploadImage(eventData.image, `events/${eventData.id}`);
     }
+    // delegateUids 同步：確保 delegates → delegateUids 一致（team-split Rules 依賴此欄位）
+    if (Array.isArray(eventData.delegates) && !eventData.delegateUids) {
+      eventData.delegateUids = eventData.delegates.map(d => String(d.uid || '').trim()).filter(Boolean);
+    }
     const docRef = await db.collection('events').add({
       ..._stripDocId(eventData),
       createdAt: firebase.firestore.FieldValue.serverTimestamp(),
@@ -301,6 +305,10 @@ Object.assign(FirebaseService, {
       const uploadedUrl = await this._uploadImage(updates.image, `events/${id}`);
       if (uploadedUrl) updates.image = uploadedUrl;
       else delete updates.image;
+    }
+    // delegateUids 同步：若 delegates 被更新，同步計算 delegateUids
+    if (Array.isArray(updates.delegates)) {
+      updates.delegateUids = updates.delegates.map(d => String(d.uid || '').trim()).filter(Boolean);
     }
     updates.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
     await db.collection('events').doc(doc._docId).update(updates);
