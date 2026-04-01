@@ -121,8 +121,17 @@ describe("Step 0: Registration owner update whitelist", () => {
       );
     });
 
-    test("owner CANNOT set status to confirmed (self-promote)", async () => {
-      await seedReg("reg1", { userId: "uidA", status: "waitlisted" });
+    test("owner CANNOT set status to arbitrary value (e.g. 'hacked')", async () => {
+      await seedReg("reg1", { userId: "uidA", status: "confirmed" });
+      await assertFails(
+        updateDoc(doc(authed("uidA"), "registrations", "reg1"), {
+          status: "hacked",
+        })
+      );
+    });
+
+    test("owner CANNOT set cancelled registration back to confirmed", async () => {
+      await seedReg("reg1", { userId: "uidA", status: "cancelled" });
       await assertFails(
         updateDoc(doc(authed("uidA"), "registrations", "reg1"), {
           status: "confirmed",

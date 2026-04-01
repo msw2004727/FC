@@ -675,18 +675,38 @@ service cloud.firestore {
     //  候補遞補：取消正取時需同 batch 更新他人的 waitlisted→confirmed
     // ═══════════════════════════════════════════
     match /registrations/{regId} {
+      // 候補遞補：waitlisted→confirmed（純 status 或 status+teamKey 組合寫入）
       function isWaitlistPromotion() {
         let changed = request.resource.data.diff(resource.data).affectedKeys();
-        return changed.hasOnly(['status'])
-          && resource.data.status == 'waitlisted'
+        let baseValid = resource.data.status == 'waitlisted'
           && request.resource.data.status == 'confirmed';
+        return baseValid && (
+          changed.hasOnly(['status'])
+          || (changed.hasOnly(['status', 'teamKey'])
+              && (request.resource.data.teamKey == null
+                  || request.resource.data.teamKey in ['A', 'B', 'C', 'D']))
+        );
+      }
+
+      // owner 更新白名單：只允許取消報名 + 徽章更新
+      function isRegistrationOwnerSafeUpdate() {
+        let changed = request.resource.data.diff(resource.data).affectedKeys();
+        return changed.hasOnly(['status', 'cancelledAt', 'updatedAt', 'displayBadges'])
+          && request.resource.data.userId == resource.data.userId
+          && (!changed.hasAny(['status']) || request.resource.data.status == 'cancelled');
+      }
+
+      // 徽章更新（僅限自己的報名）
+      function isBadgeOnlyUpdate() {
+        return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayBadges']);
       }
 
       allow read: if isAuth();
       allow create: if isAdmin() || isRegistrationOwnerRequest();
       allow update: if isAdmin()
-        || (isRegistrationOwnerResource() && isRegistrationOwnerRequest())
-        || (isAuth() && isWaitlistPromotion());
+        || (isRegistrationOwnerResource() && isRegistrationOwnerRequest() && isRegistrationOwnerSafeUpdate())
+        || (isAuth() && isWaitlistPromotion())
+        || (isRegistrationOwnerResource() && isBadgeOnlyUpdate());
       allow delete: if isAdmin() || isRegistrationOwnerResource();
     }
 
