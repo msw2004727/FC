@@ -325,7 +325,7 @@ Object.assign(App, {
     const teams = keys.map((key, i) => {
       const cIdx = this._tsTeamColorIdx[i] ?? i;
       const c = this._tsDefaultColors[cIdx] || this._tsDefaultColors[0];
-      return { key, color: c.hex, name: c.name + '隊' };
+      return { key, color: c.hex, name: c.name };
     });
     return { enabled: true, mode, balanceCap, selfSelectLockHours: lockHours, lockAt: null, teams };
   },

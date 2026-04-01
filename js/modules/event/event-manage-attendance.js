@@ -153,7 +153,7 @@ Object.assign(App, {
       // team-split: 傳遞 teamKey 給 _userTag 渲染色衣 badge
       const _tsTeams = e.teamSplit?.enabled ? e.teamSplit.teams : null;
       const _safeTeamKey = _tsTeams ? (this._tsSafeTeamKey?.(p.teamKey, e) || null) : null;
-      const _tagOpts = _tsTeams ? { teamKey: _safeTeamKey, teams: _tsTeams, showEmptyJersey: e.teamSplit?.enabled, canPickTeam: canManage && !tableEditing } : undefined;
+      const _tagOpts = _tsTeams ? { teamKey: _safeTeamKey, teams: _tsTeams, showEmptyJersey: e.teamSplit?.enabled, canPickTeam: canManage && !tableEditing, regDocId: p.regDocId, eventId: eventId } : undefined;
 
       let nameInner;
       if (p.isCompanion) {

@@ -293,6 +293,76 @@ Object.assign(App, {
     }
   },
 
+  // ── 色票選擇器（膠囊右側滑出） ──
+
+  _jerseyPickerEl: null,
+  _jerseyPickerCloseHandler: null,
+
+  _tsToggleJerseyPicker(evt, regDocId, eventId) {
+    this._tsCloseJerseyPicker();
+    if (!regDocId || !eventId) return;
+    const event = ApiService.getEvent(eventId);
+    if (!event?.teamSplit?.enabled) return;
+    const teams = event.teamSplit.teams || [];
+    if (!teams.length) return;
+    const jerseyEl = evt.currentTarget || evt.target.closest('.uc-team-jersey');
+    if (!jerseyEl) return;
+    const capsule = jerseyEl.closest('.user-capsule');
+    if (!capsule) return;
+
+    const rdId = escapeHTML(regDocId);
+    const evId = escapeHTML(eventId);
+    const items = teams.map(t => {
+      const svg = this._tsJerseySvg(t.color, null, t.key, { width: 20, inline: true });
+      return `<div class="jersey-pick-item" onclick="event.stopPropagation();App._tsPickTeam('${rdId}','${evId}','${t.key}')" title="${escapeHTML(t.name || t.key)}">${svg}</div>`;
+    }).join('');
+    const cancelSvg = this._tsJerseySvg(null, null, '✕', { width: 20, inline: true });
+    const cancelHtml = `<div class="jersey-pick-item" onclick="event.stopPropagation();App._tsPickTeam('${rdId}','${evId}','')" title="取消分配">${cancelSvg}</div>`;
+
+    const anchor = document.createElement('div');
+    anchor.className = 'jersey-picker-anchor';
+    const picker = document.createElement('div');
+    picker.className = 'jersey-picker';
+    picker.innerHTML = items + cancelHtml;
+    anchor.appendChild(picker);
+    capsule.style.position = 'relative';
+    capsule.appendChild(anchor);
+
+    requestAnimationFrame(() => {
+      const rect = picker.getBoundingClientRect();
+      if (rect.right > window.innerWidth - 8) picker.classList.add('flip');
+      picker.classList.add('open');
+    });
+
+    this._jerseyPickerEl = anchor;
+    const closeHandler = (e) => {
+      if (!anchor.contains(e.target) && !jerseyEl.contains(e.target)) this._tsCloseJerseyPicker();
+    };
+    this._jerseyPickerCloseHandler = closeHandler;
+    setTimeout(() => document.addEventListener('click', closeHandler), 0);
+  },
+
+  _tsCloseJerseyPicker() {
+    if (this._jerseyPickerEl) { this._jerseyPickerEl.remove(); this._jerseyPickerEl = null; }
+    if (this._jerseyPickerCloseHandler) { document.removeEventListener('click', this._jerseyPickerCloseHandler); this._jerseyPickerCloseHandler = null; }
+  },
+
+  async _tsPickTeam(regDocId, eventId, teamKey) {
+    this._tsCloseJerseyPicker();
+    if (!regDocId) return;
+    const newKey = teamKey || null;
+    try {
+      await db.collection('registrations').doc(regDocId).update({ teamKey: newKey });
+      const regs = ApiService.getRegistrationsByEvent?.(eventId) || [];
+      const reg = regs.find(r => (r._docId || r.id) === regDocId);
+      if (reg) reg.teamKey = newKey;
+      this._saveToLS?.('registrations', FirebaseService?._cache?.registrations);
+      this._renderAttendanceTable?.(eventId, 'detail-attendance-table');
+    } catch (err) {
+      this.showToast?.('分隊失敗，請稍後再試');
+    }
+  },
+
   // ── 防禦性 teamKey 清洗 ──
 
   _tsSafeTeamKey(teamKey, event) {

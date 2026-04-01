@@ -82,18 +82,20 @@ Object.assign(App, {
     let jerseyHtml = '';
     if (options && options.teamKey && options.teams) {
       const team = options.teams.find(t => t.key === options.teamKey);
+      const _pickClick = options.canPickTeam ? `event.stopPropagation();App._tsToggleJerseyPicker(event,${JSON.stringify(options.regDocId || '')},${JSON.stringify(options.eventId || '')})` : '';
       if (team) {
         jerseyHtml = this._tsJerseySvg?.(team.color, null, team.key, {
           width: 20,
           clickable: !!options.canPickTeam,
-          onclick: options.canPickTeam ? `event.stopPropagation();App._tsToggleJerseyPicker?.(event,${JSON.stringify(options.regIdx || 0)})` : '',
+          onclick: _pickClick,
           ariaLabel: `${team.key} 隊 - ${team.name || ''}`,
         }) || '';
       } else {
-        jerseyHtml = this._tsJerseySvg?.(null, null, '?', { width: 20 }) || '';
+        jerseyHtml = this._tsJerseySvg?.(null, null, '?', { width: 20, clickable: !!options.canPickTeam, onclick: _pickClick }) || '';
       }
     } else if (options && options.showEmptyJersey) {
-      jerseyHtml = this._tsJerseySvg?.(null, null, '?', { width: 20 }) || '';
+      const _pickClick = options.canPickTeam ? `event.stopPropagation();App._tsToggleJerseyPicker(event,${JSON.stringify(options.regDocId || '')},${JSON.stringify(options.eventId || '')})` : '';
+      jerseyHtml = this._tsJerseySvg?.(null, null, '?', { width: 20, clickable: !!options.canPickTeam, onclick: _pickClick }) || '';
     }
     return `<span class="user-capsule uc-${role}" data-no-translate onclick="App.showUserProfile('${escapeHTML(name)}')" title="${ROLES[role]?.label || '一般用戶'}"><span class="uc-lv">Lv${lvl}</span>${jerseyHtml}${escapeHTML(name)}</span>`;
   },
