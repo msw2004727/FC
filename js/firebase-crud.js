@@ -696,7 +696,7 @@ Object.assign(FirebaseService, {
     }
   },
 
-  async registerForEvent(eventId, userId, userName) {
+  async registerForEvent(eventId, userId, userName, teamKey = null) {
     if (!userId || userId === 'unknown') throw new Error('用戶資料載入中，請稍候再試');
 
     // 模組層 busy lock（防止同一活動同時多次報名）
@@ -706,13 +706,13 @@ Object.assign(FirebaseService, {
     this._signupBusyMap[busyKey] = true;
 
     try {
-      return await this._doRegisterForEvent(eventId, userId, userName);
+      return await this._doRegisterForEvent(eventId, userId, userName, teamKey);
     } finally {
       delete this._signupBusyMap[busyKey];
     }
   },
 
-  async _doRegisterForEvent(eventId, userId, userName) {
+  async _doRegisterForEvent(eventId, userId, userName, teamKey) {
     // 確保 Firebase Auth 已登入
     const authed = await this._ensureAuth();
     if (!authed) {
@@ -776,6 +776,15 @@ Object.assign(FirebaseService, {
       const isWaitlist = confirmedCount >= maxCount;
       const status = isWaitlist ? 'waitlisted' : 'confirmed';
       registration.status = status;
+
+      // team-split: 解析 teamKey（random 模式在此分配）
+      let resolvedTeamKey = teamKey;
+      if (resolvedTeamKey === null && ed.teamSplit?.enabled && ed.teamSplit?.mode === 'random') {
+        resolvedTeamKey = typeof App !== 'undefined' && App._resolveTeamKey
+          ? App._resolveTeamKey({ teamSplit: ed.teamSplit, max: maxCount }, allEventRegs)
+          : null;
+      }
+      if (resolvedTeamKey !== undefined) registration.teamKey = resolvedTeamKey;
 
       transaction.set(regDocRef, {
         ..._stripDocId(registration),
@@ -900,10 +909,19 @@ Object.assign(FirebaseService, {
       cancelledAt: firebase.firestore.FieldValue.serverTimestamp(),
     });
 
-    // 2. 遞補候補者
+    // 2. 遞補候補者（含 team-split teamKey 分配）
     for (const candidate of promotedCandidates) {
       if (candidate._docId) {
-        batch.update(db.collection('registrations').doc(candidate._docId), { status: 'confirmed' });
+        const promoUpdate = { status: 'confirmed' };
+        // team-split: 遞補時分配隊伍
+        if (event?.teamSplit?.enabled && typeof App !== 'undefined' && App._assignTeamKeyForPromotion) {
+          const assignedKey = App._assignTeamKeyForPromotion(event, simRegs, candidate);
+          if (assignedKey !== undefined) {
+            promoUpdate.teamKey = assignedKey;
+            candidate.teamKey = assignedKey;
+          }
+        }
+        batch.update(db.collection('registrations').doc(candidate._docId), promoUpdate);
       }
     }
 
@@ -2147,10 +2165,20 @@ Object.assign(FirebaseService, {
       });
     }
 
-    // 2. 遞補候補者
+    // 2. 遞補候補者（含 team-split teamKey 分配）
     for (const candidate of promotedCandidates) {
       if (candidate._docId) {
-        batch.update(db.collection('registrations').doc(candidate._docId), { status: 'confirmed' });
+        const promoUpdate = { status: 'confirmed' };
+        const candEvent = this._cache.events.find(e => e.id === candidate.eventId);
+        if (candEvent?.teamSplit?.enabled && typeof App !== 'undefined' && App._assignTeamKeyForPromotion) {
+          const simR = (simRegsByEvent?.[candidate.eventId] || []);
+          const assignedKey = App._assignTeamKeyForPromotion(candEvent, simR, candidate);
+          if (assignedKey !== undefined) {
+            promoUpdate.teamKey = assignedKey;
+            candidate.teamKey = assignedKey;
+          }
+        }
+        batch.update(db.collection('registrations').doc(candidate._docId), promoUpdate);
       }
     }
 

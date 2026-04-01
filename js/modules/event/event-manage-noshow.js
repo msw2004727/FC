@@ -44,13 +44,13 @@ Object.assign(App, {
         const mainUid = regs[0].userId;
         const proxyOnly = !selfReg;
         const mainReg = selfReg || regs[0];
-        people.push({ name: mainName, uid: mainUid, isCompanion: false, displayName: mainName, hasSelfReg: !proxyOnly, proxyOnly, displayBadges: mainReg.displayBadges || [] });
+        people.push({ name: mainName, uid: mainUid, isCompanion: false, displayName: mainName, hasSelfReg: !proxyOnly, proxyOnly, displayBadges: mainReg.displayBadges || [], teamKey: mainReg.teamKey || null });
         addedUids.add(mainUid);
         addedNames.add(mainName);
         companions.forEach(c => {
           const cName = c.companionName || c.userName;
           const cUid = c.companionId || (mainUid + '_' + c.companionName);
-          people.push({ name: cName, uid: cUid, isCompanion: true, displayName: cName, hasSelfReg: false, proxyOnly: false });
+          people.push({ name: cName, uid: cUid, isCompanion: true, displayName: cName, hasSelfReg: false, proxyOnly: false, teamKey: c.teamKey || null });
           addedUids.add(cUid);
           addedNames.add(cName);
         });
