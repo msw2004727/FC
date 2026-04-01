@@ -419,8 +419,6 @@ match /registrations/{regId} {
       && isAuth()
       && isTeamKeyOnlyUpdate()
       && (eventData.creatorUid == request.auth.uid
-          || eventData.captainUid == request.auth.uid
-          || eventData.ownerUid == request.auth.uid
           || (eventData.delegateUids is list && request.auth.uid in eventData.delegateUids));
   }
 
@@ -428,7 +426,7 @@ match /registrations/{regId} {
     let eventData = getEventData();
     return eventData != null
       && isRegistrationOwnerResource()
-      && isRegistrationSafeFieldsOnly()
+      && isTeamKeyOnlyUpdate()
       && eventData.teamSplit is map
       && eventData.teamSplit.mode == 'self-select'
       && (eventData.teamSplit.lockAt == null || request.time < eventData.teamSplit.lockAt)
