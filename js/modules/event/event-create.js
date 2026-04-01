@@ -110,6 +110,7 @@ Object.assign(App, {
     if (ceTeamOnly) { ceTeamOnly.checked = false; this._updateTeamOnlyLabel(); }
     this._setGenderRestrictionState(false, '');
     this._setPrivateEventState(false);
+    this._tsSetFormData?.(null);
     const cePreview = document.getElementById('ce-upload-preview');
     if (cePreview) {
       cePreview.classList.remove('has-image');

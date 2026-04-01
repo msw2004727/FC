@@ -141,9 +141,22 @@ Object.assign(App, {
     }
     if (e.status === 'upcoming') { this.showToast('報名尚未開放，請稍後再試'); return; }
 
+    // team-split: 自選模式需先選隊
+    const _tsEnabled = e.teamSplit?.enabled;
+    const _tsMode = e.teamSplit?.mode;
+    let _tsTeamKey = null;
+    if (_tsEnabled && _tsMode === 'self-select') {
+      _tsTeamKey = this._tsSelectedTeamKey || null;
+      if (!_tsTeamKey) {
+        this.showToast(I18N?.t?.('teamSplit.select.required') || '請先選擇隊伍');
+        return;
+      }
+    }
+
     // 有同行者 → 顯示選人 Modal
     const companions = ApiService.getCompanions();
     if (companions.length > 0) {
+      if (_tsEnabled) this._tsPendingTeamKey = _tsTeamKey;
       this._openCompanionSelectModal(id);
       return;
     }
@@ -191,12 +204,14 @@ Object.assign(App, {
       const useCF = typeof shouldUseServerRegistration === 'function' && shouldUseServerRegistration();
       if (useCF) {
         // ═══ CF 路徑：呼叫 Cloud Function ═══
+        const cfPayload = {
+          eventId: id,
+          participants: [{ userId, userName }],
+          requestId: `${userId}_${id}_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`,
+        };
+        if (_tsTeamKey) cfPayload.teamKey = _tsTeamKey;
         const cfResult = await Promise.race([
-          firebase.app().functions('asia-east1').httpsCallable('registerForEvent')({
-            eventId: id,
-            participants: [{ userId, userName }],
-            requestId: `${userId}_${id}_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`,
-          }),
+          firebase.app().functions('asia-east1').httpsCallable('registerForEvent')(cfPayload),
           _signupTimeout,
         ]);
         const data = cfResult.data;
@@ -219,14 +234,20 @@ Object.assign(App, {
       } else {
         // ═══ 原有路徑：前端 Firestore Transaction（fallback）═══
         result = await Promise.race([
-          FirebaseService.registerForEvent(id, userId, userName),
+          FirebaseService.registerForEvent(id, userId, userName, _tsTeamKey),
           _signupTimeout,
         ]);
       }
 
       // ── 即時回饋：翻牌動畫 + toast ──
       const isWL = result.status === 'waitlisted';
-      this.showToast(isWL ? '已加入候補名單' : '報名成功！');
+      let toastMsg = isWL ? '已加入候補名單' : '報名成功！';
+      // team-split: random 模式顯示分配結果
+      if (!isWL && _tsEnabled && _tsMode === 'random' && result.registration?.teamKey) {
+        const _assignedTeam = e.teamSplit?.teams?.find(t => t.key === result.registration.teamKey);
+        if (_assignedTeam) toastMsg += ` 你被分配到 ${_assignedTeam.name || _assignedTeam.key + ' 隊'}`;
+      }
+      this.showToast(toastMsg);
       if (glowWrap) {
         glowWrap.classList.remove('loading');
         const flipper = glowWrap.querySelector('.signup-flipper');

@@ -111,6 +111,17 @@ Object.assign(App, {
     if (event.feeEnabled && event.fee > 0) {
       infoContents.push(this._buildFlexInfoRow('\u8CBB\u7528', '$' + event.fee));
     }
+    // team-split: 隊伍組成
+    if (event.teamSplit?.enabled && Array.isArray(event.teamSplit.teams)) {
+      const _tsRegs = ApiService.getRegistrationsByEvent?.(event.id) || [];
+      const _tsValidKeys = new Set(event.teamSplit.teams.map(t => t.key));
+      const _tsCounts = {};
+      event.teamSplit.teams.forEach(t => { _tsCounts[t.key] = 0; });
+      _tsRegs.filter(r => r.status === 'confirmed' && r.teamKey && _tsValidKeys.has(r.teamKey))
+        .forEach(r => { _tsCounts[r.teamKey]++; });
+      const _tsStr = event.teamSplit.teams.map(t => `${t.name || t.key} ${_tsCounts[t.key] || 0}`).join(' vs ');
+      infoContents.push(this._buildFlexInfoRow('\u5206\u968A', _tsStr));
+    }
     if (infoContents.length > 0) {
       bodyContents.push({
         type: 'box', layout: 'vertical', contents: infoContents,

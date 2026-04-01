@@ -175,12 +175,16 @@ Object.assign(App, {
         });
         const _cfTimeout = new Promise((_, reject) =>
           setTimeout(() => reject(new Error('報名操作逾時，請重新整理後再試')), 15000));
+        const cfPayload = {
+          eventId,
+          participants: cfParticipants,
+          requestId: `${userId}_${eventId}_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`,
+        };
+        // team-split: 傳入自選 teamKey（同行者跟主報名人同隊）
+        const _pendingTk = this._tsPendingTeamKey;
+        if (_pendingTk) { cfPayload.teamKey = _pendingTk; this._tsPendingTeamKey = null; }
         const cfResult = await Promise.race([
-          firebase.app().functions('asia-east1').httpsCallable('registerForEvent')({
-            eventId,
-            participants: cfParticipants,
-            requestId: `${userId}_${eventId}_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`,
-          }),
+          firebase.app().functions('asia-east1').httpsCallable('registerForEvent')(cfPayload),
           _cfTimeout,
         ]);
         const data = cfResult.data;

@@ -424,6 +424,7 @@ Object.assign(App, {
           <button class="detail-toolbar-btn" onclick="App.addEventToCalendar('${e.id}')">\u52A0\u5165\u884C\u4E8B\u66C6</button>
           ${canScan ? `<button class="detail-toolbar-btn" onclick="App.goToScanForEvent('${e.id}')">\u73FE\u5834\u7C3D\u5230</button>` : ''}
         </div>
+        ${(this._tsRenderTeamSelectUI?.(e, this._tsSelectedTeamKey) || '')}
         <div class="detail-action-primary">${signupBtn}</div>
       </div>
       <div class="detail-section">
