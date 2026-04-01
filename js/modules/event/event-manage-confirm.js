@@ -12,7 +12,10 @@ Object.assign(App, {
   _unregPendingStateByUid: null,
 
   _startTableEdit(eventId) {
-    if (!this.hasPermission('event.manual_checkin') && !this.hasPermission('activity.manage.entry')) { this.showToast('權限不足'); return; }
+    if (!this.hasPermission('event.manual_checkin') && !this.hasPermission('activity.manage.entry')) {
+      const _e = eventId && ApiService.getEvent(eventId);
+      if (!_e || !this._canManageEvent(_e)) { this.showToast('權限不足'); return; }
+    }
     this._attendanceEditingEventId = eventId;
     this._renderAttendanceTable(eventId, this._manualEditingContainerId);
   },

@@ -10,6 +10,15 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-04-01 — 修復委託人(delegate)權限缺口：一般 user 可掃碼/手動簽到
+- **問題**：一般 user 被指定為活動委託人後，可看到「現場簽到」按鈕並進入掃碼頁，但 `renderScanPage()` 和 `_startTableEdit()` 的 `hasPermission()` 檢查會阻擋（user 角色無權限），導致「看得到按鈕但功能不能用」的不一致體驗
+- **原因**：按鈕顯示（`_canManageEvent`）和頁面進入（`_isAnyActiveEventDelegate`）都有 delegate 例外，但功能執行層的 `hasPermission` 檢查缺少對應的 delegate fallback
+- **修復**：在 3 個 guard point 加入 delegate 例外：
+  - `scan.js:24` — 加 `|| this._isAnyActiveEventDelegate()`
+  - `event-manage-confirm.js:15` — 若無權限則 fallback 到 `_canManageEvent(event)` 判斷
+  - `event-manage-attendance.js:95` — 同上，允許 delegate 查看報名名單
+- **教訓**：權限系統的多層設計（按鈕→頁面→功能→後端）每一層都需要一致的 delegate 例外，漏任何一層都會造成 UX 不一致
+
 ### 2026-03-31 — 原地翻譯功能上線（Cloud Translation API + MutationObserver）
 - **問題**：外籍用戶從 LINE 開啟 Mini App 時整頁中文，LINE WebView 無內建翻譯，需要主動提供翻譯入口
 - **方案**：Cloud Function `translateTexts` + 前端 `translate.js` 模組。與 I18N 語言選單整合，非中文設備自動顯示母語提示條。MutationObserver 監聽 DOM 變化自動翻譯新內容

@@ -92,7 +92,10 @@ Object.assign(App, {
   },
 
   _renderAttendanceTable(eventId, containerId) {
-    if (this.hasPermission && !this.hasPermission('event.view_registrations') && !this.hasPermission('activity.manage.entry')) return;
+    if (this.hasPermission && !this.hasPermission('event.view_registrations') && !this.hasPermission('activity.manage.entry')) {
+      const _e = eventId && ApiService.getEvent(eventId);
+      if (!_e || !this._canManageEvent(_e)) return;
+    }
     const cId = containerId || 'attendance-table-container';
     const container = document.getElementById(cId);
     if (!container) return;
