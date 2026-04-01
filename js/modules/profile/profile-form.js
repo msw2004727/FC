@@ -137,9 +137,24 @@ Object.assign(App, {
     this.renderProfileData?.();
     this.renderProfileFavorites?.();
     if (this._pendingFirstLogin && !this._isCurrentUserRestricted?.()) {
-      this.initFirstLoginRegionPicker?.();
-      this._populateBirthdaySelects?.('fl-birthday-y', 'fl-birthday-m', 'fl-birthday-d');
-      this.showModal('first-login-modal');
+      this._showFirstLoginWhenReady();
+    }
+  },
+
+  /** 等 profile.html 載完再顯示首次登入彈窗（LINE Mini App 時序修正） */
+  _showFirstLoginWhenReady(attempt) {
+    var self = this;
+    var n = attempt || 0;
+    var modal = document.getElementById('first-login-modal');
+    if (modal) {
+      self.initFirstLoginRegionPicker?.();
+      self._populateBirthdaySelects?.('fl-birthday-y', 'fl-birthday-m', 'fl-birthday-d');
+      self.showModal('first-login-modal');
+      return;
+    }
+    // DOM 還沒載完，等 300ms 重試（最多 10 次 = 3 秒）
+    if (n < 10) {
+      setTimeout(function() { self._showFirstLoginWhenReady(n + 1); }, 300);
     }
   },
 
