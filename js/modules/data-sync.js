@@ -493,7 +493,26 @@ Object.assign(App, {
         return;
       }
       var names = targets.map(function(t) { return t.name + '(' + t.oldRegion + ')'; });
-      if (!await this.appConfirm('\u5373\u5C07\u5C07 ' + targets.length + ' \u4F4D\u7528\u6236\u7684\u5730\u5340\u88DC\u6B63\u70BA\u300C' + defaultRegion + '\u300D\uFF1A\n\n' + names.join('\u3001') + '\n\n\u78BA\u5B9A\u57F7\u884C\uFF1F')) return;
+      // 用可滾動彈窗取代 appConfirm（名單可能上百人）
+      var confirmed = await new Promise(function(resolve) {
+        var ov = document.createElement('div');
+        ov.className = 'edu-info-overlay';
+        ov.onclick = function(e) { if (e.target === ov) { ov.remove(); resolve(false); } };
+        ov.innerHTML = '<div class="edu-info-dialog" style="max-width:400px;max-height:calc(100vh - 2rem);display:flex;flex-direction:column">'
+          + '<div class="edu-info-dialog-title" style="flex-shrink:0">\u5730\u5340\u88DC\u6B63\u78BA\u8A8D</div>'
+          + '<div class="edu-info-dialog-body" style="overflow-y:auto;-webkit-overflow-scrolling:touch;flex:1;min-height:0">'
+          + '<div style="font-size:.8rem;margin-bottom:.4rem">\u5373\u5C07\u5C07 <b>' + targets.length + '</b> \u4F4D\u7528\u6236\u7684\u5730\u5340\u88DC\u6B63\u70BA\u300C<b>' + escapeHTML(defaultRegion) + '</b>\u300D\uFF1A</div>'
+          + '<pre style="white-space:pre-wrap;font-size:.72rem;line-height:1.5;margin:0;color:var(--text-secondary)">' + escapeHTML(names.join('\n')) + '</pre>'
+          + '</div>'
+          + '<div style="display:flex;gap:.5rem;margin-top:.6rem;flex-shrink:0">'
+          + '<button class="outline-btn" style="flex:1" onclick="this.closest(\'.edu-info-overlay\').remove();App._fixRegionResolve&&App._fixRegionResolve(false)">\u53D6\u6D88</button>'
+          + '<button class="primary-btn" style="flex:1" onclick="this.closest(\'.edu-info-overlay\').remove();App._fixRegionResolve&&App._fixRegionResolve(true)">\u78BA\u5B9A\u88DC\u6B63</button>'
+          + '</div></div>';
+        App._fixRegionResolve = resolve;
+        document.body.appendChild(ov);
+      });
+      delete App._fixRegionResolve;
+      if (!confirmed) return;
       // 執行補正
       var batch = db.batch();
       var count = 0;
