@@ -10,6 +10,12 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-04-01 — 分隊功能修補：編輯模式 + 均分按鈕 + 說明彈窗 + i18n 快取
+- **問題**：(1) 編輯活動時分隊開關不顯示 (2) 均分上限勾選無反應 (3) i18n key 顯示為原始字串 (4) 說明彈窗均分區塊不夠醒目
+- **原因**：(1) `editMyActivity()` 漏呼叫 `bindTeamSplitToggle` 和 `_tsSetFormData` (2) checkbox `display:none` 導致 LINE WebView label-for 失效，且 `_tsUpdateBalanceCard()` 從未被同步呼叫 (3) `I18N.t()` 在 key 找不到時回傳 key 本身（truthy），`|| fallback` 不觸發；加上快取版號未同步 (4) 快取服務舊版 JS
+- **修復**：event-manage-lifecycle.js 加入 bind + setFormData；event-create-options.js 對卡片直接綁 click（`e.preventDefault` 避免 double-toggle），並在 `_updateTeamSplitUI` 和 `_tsSetFormData` 補呼叫 `_tsUpdateBalanceCard`；event-create.js 均分說明改為全框線 + 範例獨立區塊；同步更新快取版號
+- **教訓**：checkbox 用 `display:none` 搭配 `<label for>` 在 LINE WebView 不可靠，應直接綁 click + preventDefault。`I18N.t()` 回傳 key 的設計會讓 `|| fallback` 失效，快取版號必須與程式碼同 commit 更新
+
 ### 2026-04-01 — 分隊功能 UI 整合（建立表單 + 詳情頁 + 報名流程 + 分享）
 - **範圍**：建立活動表單分隊開關、隊伍色衣選色、模式選擇、均分上限卡片、詳情頁隊伍資訊卡+批次操作、報名流程 teamKey 傳入（CF+fallback）、同行者同隊、LINE 分享隊伍組成
 - **修改檔案**：activity.html、event-create-options.js、event-create.js、event-detail.js、event-detail-signup.js、event-detail-companion.js、event-manage-attendance.js、event-share-builders.js、event-team-split.js

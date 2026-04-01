@@ -27,6 +27,7 @@ Object.assign(App, {
     this.bindEventFeeToggle?.();
     this.bindGenderRestrictionToggle?.();
     this.bindPrivateEventToggle?.();
+    this.bindTeamSplitToggle?.();
     this.showModal('create-event-modal');
     this._eventSubmitInFlight = false;
     this._setCreateEventSubmitIdleLabel('儲存修改');
@@ -85,6 +86,8 @@ Object.assign(App, {
     // 委託人預填
     this._delegates = Array.isArray(e.delegates) ? [...e.delegates] : [];
     this._initDelegateSearch();
+    // 分隊設定還原
+    this._tsSetFormData?.(e.teamSplit || null);
   },
 
   // ── 結束活動 ──

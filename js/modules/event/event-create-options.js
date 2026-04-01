@@ -220,7 +220,10 @@ Object.assign(App, {
     const enabled = toggle.checked;
     options.style.display = enabled ? '' : 'none';
     if (label) label.textContent = enabled ? '開啟' : '關閉';
-    if (enabled) this._tsRenderColorChips();
+    if (enabled) {
+      this._tsRenderColorChips();
+      this._tsUpdateBalanceCard();
+    }
   },
 
   // 每隊目前選的顏色索引（0-based，對應 _tsDefaultColors）
@@ -287,6 +290,16 @@ Object.assign(App, {
       balanceCb.dataset.bound = '1';
       balanceCb.addEventListener('change', () => this._tsUpdateBalanceCard());
     }
+    // 直接綁定卡片點擊，避免 display:none 的 checkbox 在 LINE WebView 無法觸發 label-for
+    const balanceCard = document.getElementById('ce-team-split-balance-card');
+    if (balanceCard && !balanceCard.dataset.bound) {
+      balanceCard.dataset.bound = '1';
+      balanceCard.addEventListener('click', (e) => {
+        e.preventDefault();
+        const cb = document.getElementById('ce-team-split-balance');
+        if (cb) { cb.checked = !cb.checked; this._tsUpdateBalanceCard(); }
+      });
+    }
     this._updateTeamSplitUI();
   },
 
@@ -323,6 +336,11 @@ Object.assign(App, {
     if (teamSplit?.teams?.length) {
       const countSel = document.getElementById('ce-team-split-count');
       if (countSel) countSel.value = String(teamSplit.teams.length);
+      // 還原色票索引
+      teamSplit.teams.forEach((team, i) => {
+        const idx = (this._tsDefaultColors || []).findIndex(c => c.hex === team.color);
+        if (idx >= 0) this._tsTeamColorIdx[i] = idx;
+      });
     }
     if (teamSplit?.mode) this._tsSetMode(teamSplit.mode);
     const balance = document.getElementById('ce-team-split-balance');
@@ -330,6 +348,7 @@ Object.assign(App, {
     const lockHours = document.getElementById('ce-team-split-lock-hours');
     if (lockHours && teamSplit?.selfSelectLockHours) lockHours.value = String(teamSplit.selfSelectLockHours);
     this._updateTeamSplitUI();
+    this._tsUpdateBalanceCard();
   },
 
 });
