@@ -10,6 +10,16 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-04-01 — 分隊功能 UI 整合（建立表單 + 詳情頁 + 報名流程 + 分享）
+- **範圍**：建立活動表單分隊開關、隊伍色衣選色、模式選擇、均分上限卡片、詳情頁隊伍資訊卡+批次操作、報名流程 teamKey 傳入（CF+fallback）、同行者同隊、LINE 分享隊伍組成
+- **修改檔案**：activity.html、event-create-options.js、event-create.js、event-detail.js、event-detail-signup.js、event-detail-companion.js、event-manage-attendance.js、event-share-builders.js、event-team-split.js
+- **關鍵修復**：
+  - SVG 色衣在表單中因 `.uc-team-jersey` 的 `position:absolute` 飛走 → 新增 `inline` 選項覆蓋為 `position:relative`
+  - 均分按鈕 `<label onclick="...click()">` 觸發兩次 → 改用 `<label for="">` 原生關聯
+  - 說明按鈕在 `<label>` 內被事件吞掉 → 改用 `<div>+<span>` 包裝
+  - 版號未同 commit 更新導致舊快取 → CLAUDE.md 新增「同 commit 強制規則」
+- **教訓**：CSS class 設計給特定場景（capsule badge）的定位屬性不能直接用在其他場景（表單 flex），需要用 inline style 覆蓋或獨立 class
+
 ### 2026-04-01 — 射手榜新增「上月回顧」按鈕
 - **功能**：每月 tab 下顯示「← 上月回顧」按鈕，點擊查看上月月榜，可切換回本月
 - **修改**：shot-page-ui.js（`monthly-prev` bucket）、shot-game-page.js（toggle 邏輯）、game.html（按鈕 DOM）、game.css（樣式）
