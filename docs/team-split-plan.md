@@ -373,10 +373,18 @@ function _recalcTeamSplitTimestamps(event) {
 //    - firebase-crud.js:682  _writeDisplayBadgesToReg()（報名後自動寫入）
 //    - achievement-batch.js:305（管理員批次更新）
 //    - event-manage-badges.js:93（活動管理者刷新徽章）
+// ⚠️ 必須包含 cancelledAt：取消報名時 client-side batch 同時寫入 status + cancelledAt
+//    若遺漏，以下 3 條取消路徑將全部失敗：
+//    - firebase-crud.js:890   cancelRegistration()
+//    - firebase-crud.js:2136  cancelCompanionRegistrations()
+//    - event-detail-signup.js:412  重複報名自動清除（dedup cancel）
+// ⚠️ status 必須加值約束（只允許改為 cancelled）：
+//    若不限制，候補用戶可直接呼叫 Firestore API 將自己從 waitlisted 改為 confirmed，繞過排隊
 function isRegistrationOwnerSafeUpdate() {
   let changed = request.resource.data.diff(resource.data).affectedKeys();
-  return changed.hasOnly(['status', 'updatedAt', 'displayBadges'])
-    && request.resource.data.userId == resource.data.userId;  // 禁止改 userId
+  return changed.hasOnly(['status', 'cancelledAt', 'updatedAt', 'displayBadges'])
+    && request.resource.data.userId == resource.data.userId  // 禁止改 userId
+    && (!changed.hasAny(['status']) || request.resource.data.status == 'cancelled');  // status 只能改為 cancelled
 }
 
 // team-split 專用白名單
@@ -401,7 +409,7 @@ allow update: if
 // 注意：Cloud Functions 使用 Admin SDK，繞過 Rules，promotedAt/cancelledAt 等時間戳寫入不受影響
 ```
 
-取消報名用 `delete`，不受 update 規則影響。
+取消報名用 `batch.update({ status: 'cancelled', cancelledAt: serverTimestamp })`，受 update 規則影響，因此 `isRegistrationOwnerSafeUpdate` 白名單必須包含 `cancelledAt` 且 `status` 值約束為 `cancelled`。
 
 #### registration.teamKey 寫入規則
 
@@ -763,6 +771,7 @@ Demo 種子資料的 event 物件不含 `teamSplit` 欄位。所有存取 `event
 - [x] 第二輪審計問題全面修進計畫書（含 CF 同步、i18n、Rules 重構、對比度、鍵盤導航）
 - [x] 設計原型預覽 (docs/team-split-preview.html)
 - [x] 第三輪深度審計（2026-04-01，交叉驗證現有程式碼 × 計畫書，含擴大影響分析）
+- [x] 第四輪審計（2026-04-01，Firestore Rules 白名單安全驗證 — 發現 3 項高嚴重度瑕疵並修正）
 
 ### 第三輪審計發現與修正
 
@@ -781,6 +790,9 @@ Demo 種子資料的 event 物件不含 `teamSplit` 欄位。所有存取 `event
 | 11 | `_buildConfirmedParticipantSummary()` 缺 teamKey → 出席表無法顯示色衣 | 中 | 已加入擴充需求 |
 | 12 | Demo 模式 `event.teamSplit` undefined crash | 中 | 已加入 optional chaining 強制規範 |
 | 13 | CF 使用 Admin SDK 繞過 Rules（`promotedAt` 等無影響） | — | 確認為誤報，已標注 |
+| 14 | `isRegistrationOwnerSafeUpdate` 白名單漏 `cancelledAt` → 取消報名 3 條路徑全部失敗 | **高** | 已修正：白名單加入 `cancelledAt`（第四輪審計） |
+| 15 | `isRegistrationOwnerSafeUpdate` 的 `status` 無值約束 → 候補可自行升正取 | **高** | 已修正：加入 `status == 'cancelled'` 值約束（第四輪審計） |
+| 16 | L404 誤述「取消報名用 delete」→ 實際用 `batch.update`，此誤認是 #14 的根因 | 高 | 已修正描述（第四輪審計） |
 
 ### 待進行（施作順序）
 
@@ -803,4 +815,4 @@ Demo 種子資料的 event 物件不含 `teamSplit` 欄位。所有存取 `event
 
 *計畫建立日期：2026-03-31*
 *最後更新：2026-04-01*
-*狀態：第三輪審計完成，準備進入施作階段*
+*狀態：第四輪審計完成（Firestore Rules 安全修正），準備進入施作階段*
