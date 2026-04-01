@@ -45,8 +45,6 @@ Object.assign(App, {
     if (!gameConfig) return false;
     if (gameConfig.enabled === false) return false;
 
-    if (!this.hasPermission('activity.manage.entry')) return false;
-
     // Firestore gameConfigs 可覆蓋 preset 的 homeVisible 設定
     if (typeof ApiService !== 'undefined' && typeof ApiService.isHomeGameVisible === 'function') {
       return ApiService.isHomeGameVisible(gameKey);
