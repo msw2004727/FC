@@ -148,7 +148,7 @@ Object.assign(App, {
     if (_tsEnabled && _tsMode === 'self-select') {
       _tsTeamKey = this._tsSelectedTeamKey || null;
       if (!_tsTeamKey) {
-        this.showToast(I18N?.t?.('teamSplit.select.required') || '請先選擇隊伍');
+        this.showToast('請先選擇隊伍');
         return;
       }
     }
