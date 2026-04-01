@@ -136,6 +136,12 @@ FC-github/
    - **不確定是否需要新增權限時**：應先向用戶說明該功能的存取需求，並建議適合的權限碼命名與層級配置，由用戶決定是否新增。
    - **權限碼命名規則**：入口權限以 `.entry` 結尾（如 `admin.xxx.entry`），子權限以動作命名（如 `xxx.create`、`xxx.edit_all`、`xxx.delete`）。
    - **`INHERENT_ROLE_PERMISSIONS` 兩地同步（強制）**：此常數同時定義於 `js/config.js` 與 `functions/index.js`（無 build process 故無法共用）。修改任一邊時**必須同步更新另一邊**，否則前端 UI 顯示與後端驗證行為將出現無錯誤訊息的靜默分歧。
+   - **`hasPermission` 守衛新增規則（強制，歷史教訓）**：新增 `hasPermission()` 前端守衛時，**禁止**使用 `if (!hasPermission(...)) return` 直接擋回的寫法。必須遵守以下規則：
+     - **「查看」類功能不加守衛**：報名名單（`_renderAttendanceTable`）、活動詳情等查看類渲染函式，預設所有登入用戶可見，不加權限守衛。管理操作（編輯/刪除/簽到）才需要守衛。
+     - **管理操作守衛必須有 fallback**：格式為 `if (!hasPermission('xxx') && !hasPermission('activity.manage.entry')) { if (!_canManageEvent(e)) { showToast('權限不足'); return; } }`。確保主辦/委託人即使沒有顯式權限碼也能操作自己管理的活動。
+     - **按鈕與功能一致性**：若 `canManage`（`_canManageEvent`）決定了按鈕顯示，對應的函式守衛必須包含同等的 `_canManageEvent` fallback，否則會出現「看得到按鈕但點不動」的 UX 缺陷。
+     - **測試覆蓋**：新增守衛後必須用 `user`（一般用戶）、`coach`、`captain`、以及「一般 user 但為委託人」四種身分驗證行為。
+     - **委託人功能範圍**：委託人只需要手動簽到（`_startTableEdit`）+ 現場掃碼（`renderScanPage`），不需要編輯/結束/刪除活動的權限。
 
 ---
 

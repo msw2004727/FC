@@ -10,6 +10,16 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### [永久] 權限守衛新增規則 — 必須驗證所有角色 × 所有入口的實際行為
+- **起因**：2026-03-30 commit `6bf9bde` 一次新增 11 個權限守衛，其中 `event.view_registrations` 守衛直接讓所有一般 `user` 看不到報名名單。後續 `a6751cf` 補了 delegate fallback 但仍未解決一般參加者的問題，直到 4/1 才發現並移除
+- **根本原因**：新增守衛時只用管理者帳號（coach/admin）測試，沒有用純 `user` 帳號驗證
+- **強制規則（新增 `hasPermission` 守衛時必做）**：
+  1. **列出所有受影響角色**：不只測 admin，必須確認 user / coach / captain / delegate 各角色的行為
+  2. **檢查按鈕可見性與功能是否一致**：如果 `canManage` 顯示了按鈕，對應的函式不能被權限守衛擋回
+  3. **「查看」類功能預設開放**：報名名單、活動詳情等查看類功能不加權限守衛，管理操作（編輯/刪除/簽到）才需要
+  4. **守衛必須有 `_canManageEvent` fallback**：純權限檢查 `if (!hasPermission) return` 禁止使用，必須加 `|| _canManageEvent(e)` fallback 讓主辦/委託人通過
+  5. **delegate 功能範圍**：委託人只需要手動簽到 + 現場掃碼，不需要編輯/結束/刪除活動的權限
+
 ### 2026-04-01 — 移除報名名單過嚴權限守衛 + 分隊計畫書第四輪審計
 - **問題 1**：3/30 新增的 `event.view_registrations` 權限守衛（`_renderAttendanceTable` L95-98）過於嚴格，純 `user` 角色的一般參加者看不到活動詳情頁的報名名單。4/1 雖補了 `_canManageEvent` fallback 讓主辦/委託能看，但一般參加者仍被擋
 - **修復 1**：移除整段權限守衛。所有登入用戶恢復可見報名名單（管理操作仍由 `canManage` 獨立控制）
