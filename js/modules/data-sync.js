@@ -471,4 +471,54 @@ Object.assign(App, {
     }
   },
 
+  // ── ⑥ 用戶地區強制補正 ──
+  async _fixUserRegions() {
+    var regions = typeof TW_REGIONS !== 'undefined' ? TW_REGIONS : [];
+    if (!regions.length) { this.showToast('TW_REGIONS \u672A\u5B9A\u7FA9'); return; }
+    var defaultRegion = '\u53F0\u4E2D\u5E02'; // 台中市
+    // 先掃描確認數量
+    this.showToast('\u6B63\u5728\u6383\u63CF...');
+    try {
+      var snap = await db.collection('users').get();
+      var targets = [];
+      snap.forEach(function(doc) {
+        var d = doc.data();
+        var region = (d.region || '').trim();
+        if (!region || regions.indexOf(region) === -1) {
+          targets.push({ id: doc.id, name: d.displayName || d.name || doc.id, oldRegion: region || '(\u672A\u586B)' });
+        }
+      });
+      if (!targets.length) {
+        this.showToast('\u6240\u6709\u7528\u6236\u5730\u5340\u5747\u5DF2\u6709\u6548\uFF0C\u7121\u9700\u88DC\u6B63');
+        return;
+      }
+      var names = targets.map(function(t) { return t.name + '(' + t.oldRegion + ')'; });
+      if (!await this.appConfirm('\u5373\u5C07\u5C07 ' + targets.length + ' \u4F4D\u7528\u6236\u7684\u5730\u5340\u88DC\u6B63\u70BA\u300C' + defaultRegion + '\u300D\uFF1A\n\n' + names.join('\u3001') + '\n\n\u78BA\u5B9A\u57F7\u884C\uFF1F')) return;
+      // 執行補正
+      var batch = db.batch();
+      var count = 0;
+      targets.forEach(function(t) {
+        batch.update(db.collection('users').doc(t.id), { region: defaultRegion });
+        count++;
+        // Firestore batch 上限 500
+        if (count >= 490) return;
+      });
+      await batch.commit();
+      // 同步本地快取
+      var adminUsers = ApiService.getAdminUsers ? ApiService.getAdminUsers() : [];
+      targets.forEach(function(t) {
+        var u = adminUsers.find(function(u) { return u._docId === t.id || u.uid === t.id; });
+        if (u) u.region = defaultRegion;
+      });
+      var currentUser = ApiService.getCurrentUser ? ApiService.getCurrentUser() : null;
+      if (currentUser) {
+        var isTarget = targets.some(function(t) { return t.id === currentUser.uid || t.id === currentUser.lineUserId; });
+        if (isTarget) currentUser.region = defaultRegion;
+      }
+      this.showToast('\u5DF2\u5C07 ' + count + ' \u4F4D\u7528\u6236\u5730\u5340\u88DC\u6B63\u70BA ' + defaultRegion);
+    } catch (err) {
+      this.showToast('\u88DC\u6B63\u5931\u6557\uFF1A' + (err.message || err));
+    }
+  },
+
 });

@@ -476,13 +476,16 @@
         <div class="form-card" style="margin-bottom:.6rem">
           <div style="display:flex;align-items:center;justify-content:space-between;gap:.5rem">
             <div style="flex:1;min-width:0">
-              <div style="font-weight:600;font-size:.82rem">⑥ 用戶地區掃描</div>
+              <div style="font-weight:600;font-size:.82rem">⑥ 用戶地區掃描 + 補正</div>
               <div style="font-size:.72rem;color:var(--text-muted);line-height:1.5;margin-top:.15rem">
-                掃描所有用戶的地區欄位，列出未填地區與非法地區值（不在 22 縣市內）。<br>
-                僅讀取不修改，可安全重複執行。
+                掃描所有用戶的地區欄位，列出未填地區與非法地區值。<br>
+                補正功能會將所有未填或非法地區的用戶統一修正為指定縣市。
               </div>
             </div>
-            <button class="outline-btn" style="flex-shrink:0;font-size:.75rem" onclick="App._scanUserRegions()">掃描</button>
+            <div style="display:flex;flex-direction:column;gap:.3rem;flex-shrink:0">
+              <button class="outline-btn" style="font-size:.75rem" onclick="App._scanUserRegions()">掃描</button>
+              <button class="outline-btn" style="font-size:.75rem;color:var(--warning);border-color:var(--warning)" onclick="App._fixUserRegions()">補正</button>
+            </div>
           </div>
         </div>
         <div class="form-card" style="margin-bottom:.6rem">
