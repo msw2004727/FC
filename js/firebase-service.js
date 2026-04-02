@@ -1,6 +1,21 @@
 /* ================================================
    SportHub — Firebase Service (Cache-First Pattern)
    ================================================
+
+   === Function Index ===
+   L151:  _mapUserDoc(data, docId) — 用戶文件正規化
+   L166:  _getLSKey / _setLSUidPrefix — localStorage key 管理
+   L183:  _saveToLS / _loadFromLS — 快取持久化
+   L248:  _getEffectiveTTL / _restoreCache — TTL + 快取還原
+   L432:  _buildCollectionQuery — Firestore 查詢建構
+   L525:  _startPageScopedRealtimeForPage — 頁面即時監聽
+   L638:  getUserStatsCache / ensureUserStatsLoaded — [LOCKED] 用戶統計
+   L696:  _schedulePostInitWarmups — 初始化後預熱
+   L782:  _syncCurrentUserFromUsersSnapshot — 當前用戶同步
+   L849:  _watchRolePermissionsRealtime — 權限即時監聽
+   L997:  getCachedDoc — 依 ID 取快取文件
+   ================================================
+
    策略：
    1. init() 按需載入 Firestore 集合到 _cache
    2. _cache 結構與 render 方法一致

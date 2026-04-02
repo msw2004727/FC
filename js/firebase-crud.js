@@ -2,6 +2,39 @@
    SportHub — Firebase Service: CRUD Operations
    ================================================
    所有 Firestore 讀寫操作（Object.assign 擴充 FirebaseService）
+   ================================================
+
+   === Function Index ===
+   L13:   _ensureAuth(expectedUid)
+   L66:   saveRolePermissions / saveRolePermissionDefaults
+   L86:   saveUserCorrection(uid, data)
+   L105:  addCustomRole / addCustomRoleWithPermissions
+   L155:  _getTournamentDocRefById / _getTournamentSubcollectionRef
+   L172:  listTournamentApplications / createTournamentApplication
+   L194:  updateTournamentApplication
+   L204:  listTournamentEntries / upsertTournamentEntry
+   L234:  listTournamentEntryMembers / upsertTournamentEntryMember / removeTournamentEntryMember
+   L279:  addEvent(eventData) — 新增活動
+   L297:  updateEvent(id, updates) — 更新活動
+   L407:  addAttendanceRecord / removeAttendanceRecord / batchWriteAttendance
+   L514:  _rebuildOccupancy(event, regs) — [LOCKED] 佔位重建純函式
+   L563:  _applyRebuildOccupancy — 寫入快取
+   L699:  registerForEvent(eventId, userId, userName) — [LOCKED] 單人報名
+   L826:  cancelRegistration(registrationId) — [LOCKED] 取消報名+候補遞補
+   L987:  addTournament / updateTournament
+   L1026: addTeam / updateTeam / removeTeam
+   L1615: addAchievement / updateAchievement / addBadge / updateBadge
+   L1694: addAdminMessage / updateAdminMessage
+   L1740: addMessage / updateMessage / clearAllMessages
+   L1829: updateUserRole
+   L1874: addOperationLog / addErrorLog
+   L1922: batchRegisterForEvent(eventId, entries) — [LOCKED] 批次報名
+   L2041: cancelCompanionRegistrations(regIds) — [LOCKED] 取消同行者
+   L2296: saveUserAchievementProgress / loadUserAchievementProgress
+   L2346: listEduGroups / createEduGroup / updateEduGroup
+   L2390: listEduStudents / createEduStudent / updateEduStudent
+   L2433: listEduCoursePlans / createEduCoursePlan / updateEduCoursePlan
+   L2515: addEduAttendance / queryEduAttendance
    ================================================ */
 
 Object.assign(FirebaseService, {
@@ -696,6 +729,13 @@ Object.assign(FirebaseService, {
     }
   },
 
+  /**
+   * [LOCKED] 單人報名 — Firestore transaction 原子操作
+   * @param {string} eventId - 活動 ID
+   * @param {string} userId - 報名者 LINE userId
+   * @param {string} userName - 報名者顯示名稱
+   * @param {string|null} teamKey - 分隊 key（分隊模式時）
+   */
   async registerForEvent(eventId, userId, userName, teamKey = null) {
     if (!userId || userId === 'unknown') throw new Error('用戶資料載入中，請稍候再試');
 
@@ -823,6 +863,10 @@ Object.assign(FirebaseService, {
     return { registration, status: result.status };
   },
 
+  /**
+   * [LOCKED] 取消報名 + 候補遞補 — 模擬模式先算再 commit
+   * @param {string} registrationId - registration doc ID
+   */
   async cancelRegistration(registrationId) {
     const authed = await this._ensureAuth();
     if (!authed) {
