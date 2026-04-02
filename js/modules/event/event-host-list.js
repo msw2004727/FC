@@ -63,7 +63,7 @@ Object.assign(App, {
         if (!uid) return;
         if (e.type === 'external') return; // 外部活動不列入
         if (!hostMap[uid]) {
-          hostMap[uid] = { uid: uid, avatar: '', eventCount: 0, totalRegistrations: 0, attendanceRate: 0, subscriberCount: 0 };
+          hostMap[uid] = { uid: uid, name: e.creator || '', avatar: '', eventCount: 0, totalRegistrations: 0, attendanceRate: 0, subscriberCount: 0 };
         }
         hostMap[uid].eventCount++;
         hostMap[uid].totalRegistrations += (parseInt(e.current) || 0);
@@ -81,6 +81,7 @@ Object.assign(App, {
             var data = doc.data();
             if (hostMap[doc.id]) {
               hostMap[doc.id].avatar = data.pictureUrl || data.avatar || '';
+              hostMap[doc.id].name = data.displayName || data.name || hostMap[doc.id].name;
             }
           });
         } catch (_) {}
@@ -145,8 +146,8 @@ Object.assign(App, {
 
     sorted.forEach(function(h) {
       var avatarHtml = h.avatar
-        ? '<img src="' + escapeHTML(h.avatar) + '" class="hl-avatar" loading="lazy" onclick="event.stopPropagation();App.showProfileCard(\'' + h.uid + '\')">'
-        : '<div class="hl-avatar hl-avatar-fallback" onclick="event.stopPropagation();App.showProfileCard(\'' + h.uid + '\')">?</div>';
+        ? '<img src="' + escapeHTML(h.avatar) + '" class="hl-avatar" loading="lazy" onclick="event.stopPropagation();App.showUserProfile(\'' + escapeHTML(h.name) + '\')">'
+        : '<div class="hl-avatar hl-avatar-fallback" onclick="event.stopPropagation();App.showUserProfile(\'' + escapeHTML(h.name) + '\')">?</div>';
       html += '<tr>'
         + '<td>' + avatarHtml + '</td>'
         + '<td style="text-align:center;font-weight:600">' + h.eventCount + '</td>'

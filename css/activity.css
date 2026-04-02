@@ -1199,7 +1199,7 @@
 .hl-th{cursor:pointer;-webkit-user-select:none;user-select:none}
 .hl-th:hover{color:var(--accent)}
 .hl-th-active{color:var(--accent)}
-.hl-avatar{width:32px;height:32px;border-radius:50%;object-fit:cover;cursor:pointer;display:block}
-.hl-avatar-fallback{width:32px;height:32px;border-radius:50%;background:var(--bg-elevated);display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:.75rem;cursor:pointer}
+.hl-avatar{width:32px;height:32px;min-width:32px;min-height:32px;border-radius:50%;object-fit:cover;cursor:pointer;display:block;aspect-ratio:1/1;overflow:hidden}
+.hl-avatar-fallback{width:32px;height:32px;min-width:32px;min-height:32px;border-radius:50%;background:var(--bg-elevated);display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:.75rem;cursor:pointer;aspect-ratio:1/1}
 .host-subscribe-btn{font-size:.68rem;padding:.2rem .45rem;border-radius:6px;border:1px solid var(--accent);color:var(--accent);background:transparent;cursor:pointer;font-weight:600;white-space:nowrap}
 .host-subscribe-btn:hover{background:var(--accent);color:#fff}
