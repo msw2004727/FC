@@ -1,7 +1,8 @@
 /**
  * backfill-region.js
  *
- * 為所有尚未設定 region 欄位的活動設定 regionEnabled: true, region: '中部'。
+ * 將所有活動（不分狀態）設定為 regionEnabled: true, region: '中部',
+ * cities: ['台中市','苗栗縣','彰化縣','南投縣','雲林縣']（中部全選）。
  * 使用 Firestore REST API + Service Account OAuth。
  *
  * 使用方式：
@@ -110,24 +111,34 @@ async function main() {
   const docs = await firestoreList(token, 'events');
   console.log(`Found ${docs.length} events total.\n`);
 
+  const CENTRAL_CITIES = ['台中市', '苗栗縣', '彰化縣', '南投縣', '雲林縣'];
+  const citiesValue = { arrayValue: { values: CENTRAL_CITIES.map(c => ({ stringValue: c })) } };
+
   let updated = 0;
+  let skipped = 0;
   for (const doc of docs) {
     const fields = doc.fields || {};
-    // Skip if region field already exists
-    if (fields.region && fields.region.stringValue) continue;
+    // 檢查是否已經是中部全選，跳過不需更新的
+    const curRegion = fields.region?.stringValue || '';
+    const curEnabled = fields.regionEnabled?.booleanValue;
+    const curCities = (fields.cities?.arrayValue?.values || []).map(v => v.stringValue).sort().join(',');
+    const targetCities = [...CENTRAL_CITIES].sort().join(',');
+    if (curEnabled === true && curRegion === '中部' && curCities === targetCities) {
+      skipped++;
+      continue;
+    }
 
-    // Set regionEnabled: true, region: '中部'
     await firestorePatch(token, doc.name, {
       regionEnabled: { booleanValue: true },
       region: { stringValue: '中部' },
-      cities: { arrayValue: { values: [] } },
+      cities: citiesValue,
     });
     updated++;
     const docId = doc.name.split('/').pop();
     console.log(`  Updated: ${docId}`);
   }
 
-  console.log(`\nDone. Updated ${updated} events (set regionEnabled=true, region='中部').`);
+  console.log(`\nDone. Updated ${updated} events, skipped ${skipped} (already correct).`);
 }
 
 main().catch(err => { console.error('FATAL:', err); process.exit(1); });
