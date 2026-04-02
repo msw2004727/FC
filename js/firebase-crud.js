@@ -5,36 +5,36 @@
    ================================================
 
    === Function Index ===
-   L13:   _ensureAuth(expectedUid)
-   L66:   saveRolePermissions / saveRolePermissionDefaults
-   L86:   saveUserCorrection(uid, data)
-   L105:  addCustomRole / addCustomRoleWithPermissions
-   L155:  _getTournamentDocRefById / _getTournamentSubcollectionRef
-   L172:  listTournamentApplications / createTournamentApplication
-   L194:  updateTournamentApplication
-   L204:  listTournamentEntries / upsertTournamentEntry
-   L234:  listTournamentEntryMembers / upsertTournamentEntryMember / removeTournamentEntryMember
-   L279:  addEvent(eventData) — 新增活動
-   L297:  updateEvent(id, updates) — 更新活動
-   L407:  addAttendanceRecord / removeAttendanceRecord / batchWriteAttendance
-   L514:  _rebuildOccupancy(event, regs) — [LOCKED] 佔位重建純函式
-   L563:  _applyRebuildOccupancy — 寫入快取
-   L699:  registerForEvent(eventId, userId, userName) — [LOCKED] 單人報名
-   L826:  cancelRegistration(registrationId) — [LOCKED] 取消報名+候補遞補
-   L987:  addTournament / updateTournament
-   L1026: addTeam / updateTeam / removeTeam
-   L1615: addAchievement / updateAchievement / addBadge / updateBadge
-   L1694: addAdminMessage / updateAdminMessage
-   L1740: addMessage / updateMessage / clearAllMessages
-   L1829: updateUserRole
-   L1874: addOperationLog / addErrorLog
-   L1922: batchRegisterForEvent(eventId, entries) — [LOCKED] 批次報名
-   L2041: cancelCompanionRegistrations(regIds) — [LOCKED] 取消同行者
-   L2296: saveUserAchievementProgress / loadUserAchievementProgress
-   L2346: listEduGroups / createEduGroup / updateEduGroup
-   L2390: listEduStudents / createEduStudent / updateEduStudent
-   L2433: listEduCoursePlans / createEduCoursePlan / updateEduCoursePlan
-   L2515: addEduAttendance / queryEduAttendance
+   L46:   _ensureAuth(expectedUid)
+   L99:   saveRolePermissions / saveRolePermissionDefaults
+   L119:  saveUserCorrection(uid, data)
+   L138:  addCustomRole / addCustomRoleWithPermissions
+   L188:  _getTournamentDocRefById / _getTournamentSubcollectionRef
+   L205:  listTournamentApplications / createTournamentApplication
+   L227:  updateTournamentApplication
+   L237:  listTournamentEntries / upsertTournamentEntry
+   L267:  listTournamentEntryMembers / upsertTournamentEntryMember / removeTournamentEntryMember
+   L312:  addEvent(eventData) — 新增活動
+   L330:  updateEvent(id, updates) — 更新活動
+   L440:  addAttendanceRecord / removeAttendanceRecord / batchWriteAttendance
+   L547:  _rebuildOccupancy(event, regs) — [LOCKED] 佔位重建純函式
+   L596:  _applyRebuildOccupancy — 寫入快取
+   L739:  registerForEvent(eventId, userId, userName) — [LOCKED] 單人報名
+   L870:  cancelRegistration(registrationId) — [LOCKED] 取消報名+候補遞補
+   L1031: addTournament / updateTournament
+   L1070: addTeam / updateTeam
+   L1659: addAchievement / updateAchievement / addBadge / updateBadge
+   L1738: addAdminMessage / updateAdminMessage
+   L1784: addMessage / updateMessage / clearAllMessages
+   L1873: updateUserRole
+   L1918: addOperationLog / addErrorLog
+   L1966: batchRegisterForEvent(eventId, entries) — [LOCKED] 批次報名
+   L2085: cancelCompanionRegistrations(regIds) — [LOCKED] 取消同行者
+   L2340: saveUserAchievementProgress / loadUserAchievementProgress
+   L2390: listEduGroups / createEduGroup / updateEduGroup
+   L2434: listEduStudents / createEduStudent / updateEduStudent
+   L2477: listEduCoursePlans / createEduCoursePlan / updateEduCoursePlan
+   L2559: addEduAttendance / queryEduAttendance
    ================================================ */
 
 Object.assign(FirebaseService, {

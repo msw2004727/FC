@@ -5,18 +5,18 @@
    App 層的渲染邏輯完全不需要改動。
 
    === Function Index ===
-   L192:  _src(key) — 取得快取資料來源
-   L197:  _findById(key, id) — 依 ID 查找
-   L210:  _create / _update — 通用 CRUD
-   L341:  getActiveEvents / getHotEvents
-   L410:  getFriendlyTournamentRecord
-   L421:  createTournament / updateTournament / deleteTournament
-   L654:  getUserCorrection
-   L721:  getUserRole
-   L743:  getRolePermissions / getRolePermissionDefaults — 權限查詢
-   L787:  getRegistrationsByUser / getRegistrationsByEvent
-   L826:  getActivityRecords / addActivityRecord / removeActivityRecord
-   L857:  getAttendanceRecords / getUserAttendanceRecords
+   L207:  _src(key) — 取得快取資料來源
+   L212:  _findById(key, id) — 依 ID 查找
+   L225:  _create / L272: _update — 通用 CRUD
+   L356:  getActiveEvents / getHotEvents
+   L425:  getFriendlyTournamentRecord
+   L436:  createTournament / updateTournament / L502: deleteTournament
+   L669:  getUserCorrection
+   L736:  getUserRole
+   L758:  getRolePermissions / L786: getRolePermissionDefaults — 權限查詢
+   L802:  getRegistrationsByUser / getRegistrationsByEvent
+   L841:  getActivityRecords / addActivityRecord / removeActivityRecord
+   L872:  getAttendanceRecords / getUserAttendanceRecords
    ================================================
    ================================================ */
 

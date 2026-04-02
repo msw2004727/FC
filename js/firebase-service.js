@@ -3,17 +3,17 @@
    ================================================
 
    === Function Index ===
-   L151:  _mapUserDoc(data, docId) — 用戶文件正規化
-   L166:  _getLSKey / _setLSUidPrefix — localStorage key 管理
-   L183:  _saveToLS / _loadFromLS — 快取持久化
-   L248:  _getEffectiveTTL / _restoreCache — TTL + 快取還原
-   L432:  _buildCollectionQuery — Firestore 查詢建構
-   L525:  _startPageScopedRealtimeForPage — 頁面即時監聽
-   L638:  getUserStatsCache / ensureUserStatsLoaded — [LOCKED] 用戶統計
-   L696:  _schedulePostInitWarmups — 初始化後預熱
-   L782:  _syncCurrentUserFromUsersSnapshot — 當前用戶同步
-   L849:  _watchRolePermissionsRealtime — 權限即時監聽
-   L997:  getCachedDoc — 依 ID 取快取文件
+   L166:  _mapUserDoc(data, docId) — 用戶文件正規化
+   L181:  _getLSKey / _setLSUidPrefix — localStorage key 管理
+   L198:  _saveToLS / L227: _loadFromLS — 快取持久化
+   L263:  _getEffectiveTTL / L273: _restoreCache — TTL + 快取還原
+   L447:  _buildCollectionQuery — Firestore 查詢建構
+   L540:  _startPageScopedRealtimeForPage — 頁面即時監聯
+   L632:  ensureUserStatsLoaded / L653: getUserStatsCache — [LOCKED] 用戶統計
+   L711:  _schedulePostInitWarmups — 初始化後預熱
+   L797:  _syncCurrentUserFromUsersSnapshot — 當前用戶同步
+   L864:  _watchRolePermissionsRealtime — 權限即時監聽
+   L1012: getCachedDoc — 依 ID 取快取文件
    ================================================
 
    策略：

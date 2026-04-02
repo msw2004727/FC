@@ -42,23 +42,19 @@ function incrementVersion(ver) {
 
   if (!suffix) return date + 'a';
 
-  // 遞增最後一個字元，z 進位
+  // 遞增：a→b, y→z, z→za, zz→zza（全 z 時延伸一位）
   const chars = suffix.split('');
   let i = chars.length - 1;
-  while (i >= 0) {
-    if (chars[i] === 'z') {
-      chars[i] = 'a';
-      i--;
-    } else {
-      chars[i] = String.fromCharCode(chars[i].charCodeAt(0) + 1);
-      break;
-    }
-  }
-  if (i < 0) chars.unshift('a'); // 全部進位：zz → aza? 不對，應該是 zz → aaa
-  // 修正：全部 z 進位 = 多一位 a
-  if (i < 0) return date + 'a'.repeat(chars.length);
+  while (i >= 0 && chars[i] === 'z') i--;
 
-  return date + chars.join('');
+  if (i >= 0) {
+    // 找到非 z 字元，遞增它，後面的 z 全變 a
+    chars[i] = String.fromCharCode(chars[i].charCodeAt(0) + 1);
+    for (let j = i + 1; j < chars.length; j++) chars[j] = 'a';
+    return date + chars.join('');
+  }
+  // 全部是 z → 延伸一位：z→za, zz→zza
+  return date + suffix + 'a';
 }
 
 // 主流程

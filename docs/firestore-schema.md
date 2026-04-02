@@ -33,7 +33,7 @@
 | waitlist | number | 候補人數 |
 | participants | array\<string\> | 正取者名字陣列 |
 | waitlistNames | array\<string\> | 候補者名字陣列 |
-| status | string | open / full / ended / cancelled |
+| status | string | upcoming / open / full / ended / cancelled |
 | creatorUid | string | 建立者 LINE userId |
 | creatorName | string | 建立者顯示名稱 |
 | delegates | array\<{uid,name}\> | 委託人 |
@@ -78,7 +78,7 @@
 | uid | string | **主報名者** LINE userId（同行者也記主報名者） |
 | userName | string | 名稱 |
 | participantType | string | self / companion |
-| companionId | string\|null | 同行者：`mainUid_companionName`；本人：null |
+| companionId | string\|null | 同行者：優先 `comp_xxx`（registration 的 companionId），fallback `mainUid_companionName`；本人：null |
 | companionName | string\|null | 同行者名稱 |
 | type | string | checkin / checkout / note / unreg |
 | time | string | 格式 "2026/04/02 15:30" |
@@ -141,8 +141,8 @@
 | maxTeams | number | 隊伍上限 |
 | feeEnabled | boolean | 是否收費 |
 | fee | number | 報名費 |
-| teamApplications | array\<object\> | 報名申請 {teamId, teamName, status, requestedByUid, appliedAt} |
-| teamEntries | array\<object\> | 已核准隊伍 {teamId, teamName, entryStatus, memberRoster[]} |
+| teamApplications | array\<object\> | 報名申請 {id, teamId, teamName, teamImage, status, requestedByUid, requestedByName, appliedAt, reviewedAt, reviewedByUid, reviewedByName, messageGroupId} |
+| teamEntries | array\<object\> | 已核准隊伍 {teamId, teamName, teamImage, entryStatus, approvedAt, approvedByUid, approvedByName, memberRoster[]} |
 | registeredTeams | array\<string\> | 已核准隊伍 ID |
 | friendlyConfig | object | {teamLimit, allowMemberSelfJoin, pendingVisibleToThirdParty} |
 | ended | boolean | 是否已結束 |
@@ -176,12 +176,14 @@
 | 欄位 | 型別 | 說明 |
 |------|------|------|
 | uid | string | 使用者 LINE userId |
-| rule | string | 規則 key（complete_activity / register_activity 等） |
+| target | string | 目標用戶名稱 |
+| ruleKey | string | 規則 key（complete_activity / register_activity 等） |
 | amount | number | EXP 數量（可為負） |
 | reason | string | 原因說明 |
-| source | string | 來源（系統 / auto） |
-| requestId | string | 冪等 key |
+| operator | string | 操作者名稱 |
+| operatorUid | string | 操作者 LINE userId |
 | time | string | 時間 |
+| createdAt | Timestamp | 建立時間 |
 
 ---
 
