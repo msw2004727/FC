@@ -224,6 +224,7 @@ Object.assign(App, {
         if (e.target.name === 'ce-region') {
           var regionMap = typeof REGION_MAP !== 'undefined' ? REGION_MAP : {};
           this._regionSelectedCities = regionMap[e.target.value] ? [...regionMap[e.target.value]] : [];
+          this._updateRegionCardStyles();
           this._updateCityCheckboxes();
         }
       });
@@ -274,6 +275,19 @@ Object.assign(App, {
     this._updateCityCheckboxes();
   },
 
+  _updateRegionCardStyles() {
+    var container = document.getElementById('ce-region-radios');
+    if (!container) return;
+    var labels = container.querySelectorAll('label');
+    labels.forEach(function(label) {
+      var radio = label.querySelector('input[type="radio"]');
+      if (!radio) return;
+      var checked = radio.checked;
+      label.style.borderColor = checked ? 'var(--accent)' : 'var(--border)';
+      label.style.background = checked ? 'var(--accent-bg,rgba(13,148,136,.08))' : 'var(--bg-card)';
+    });
+  },
+
   _updateCityCheckboxes() {
     const citiesContainer = document.getElementById('ce-region-cities');
     if (!citiesContainer) return;
@@ -288,18 +302,22 @@ Object.assign(App, {
     wrap.style.cssText = 'display:flex;flex-wrap:wrap;gap:.35rem';
     citiesContainer.appendChild(wrap);
     var self = this;
+    var checkedStyle = 'display:inline-flex;flex-direction:row;align-items:center;gap:.25rem;font-size:.78rem;cursor:pointer;padding:.25rem .5rem;border-radius:6px;border:1px solid rgba(139,92,246,.4);background:rgba(139,92,246,.1);white-space:nowrap';
+    var uncheckedStyle = 'display:inline-flex;flex-direction:row;align-items:center;gap:.25rem;font-size:.78rem;cursor:pointer;padding:.25rem .5rem;border-radius:6px;border:1px solid var(--border);background:transparent;white-space:nowrap';
     cities.forEach(city => {
       const label = document.createElement('label');
-      label.style.cssText = 'display:inline-flex;flex-direction:row;align-items:center;gap:.25rem;font-size:.78rem;cursor:pointer;padding:.25rem .5rem;border-radius:6px;border:1px solid var(--border);white-space:nowrap';
+      var isChecked = this._regionSelectedCities.indexOf(city) !== -1;
+      label.style.cssText = isChecked ? checkedStyle : uncheckedStyle;
       const cb = document.createElement('input');
       cb.type = 'checkbox';
       cb.style.cssText = 'margin:0;flex-shrink:0;width:14px;height:14px';
       cb.value = city;
       cb.name = 'ce-region-city';
-      if (this._regionSelectedCities.indexOf(city) !== -1) cb.checked = true;
+      if (isChecked) cb.checked = true;
       cb.addEventListener('change', () => {
         if (cb.checked) {
           if (self._regionSelectedCities.indexOf(city) === -1) self._regionSelectedCities.push(city);
+          label.style.cssText = checkedStyle;
         } else {
           // 至少保留一個勾選
           if (self._regionSelectedCities.length <= 1) {
@@ -313,6 +331,7 @@ Object.assign(App, {
             return;
           }
           self._regionSelectedCities = self._regionSelectedCities.filter(c => c !== city);
+          label.style.cssText = uncheckedStyle;
         }
       });
       const text = document.createElement('span');
