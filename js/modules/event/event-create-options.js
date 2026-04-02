@@ -199,103 +199,135 @@ Object.assign(App, {
     return `${dateVal}T${timeVal}`;
   },
 
-  // ── Region Lock（地區鎖）── 採 DOM 元素 + event delegation（相容 LINE WebView）
+  // ── 活動地區（Region Selector）──
 
-  _rlSelectedRegions: [],
+  _regionSelectedCities: [],
 
-  _rlNormalize(v) { return String(v || '').trim().replace(/\u81FA/g, '\u53F0').replace(/\s+/g, ''); },
-
-  bindRegionLockToggle() {
-    const toggle = document.getElementById('ce-region-lock');
-    if (toggle && !toggle.dataset.bound) {
+  bindRegionToggle() {
+    const toggle = document.getElementById('ce-region-enabled');
+    if (!toggle) return;
+    // 管理員判定：非管理員隱藏 toggle，強制開啟（this === App，已掛載 hasPermission）
+    const isAdmin = this.hasPermission && (this.hasPermission('admin.users.entry') || this.hasPermission('admin.entry'));
+    const toggleRow = document.getElementById('ce-region-toggle-row');
+    if (!isAdmin && toggleRow) toggleRow.style.display = 'none';
+    if (!isAdmin) toggle.checked = true;
+    if (!toggle.dataset.bound) {
       toggle.dataset.bound = '1';
-      toggle.addEventListener('change', () => this._updateRegionLockUI());
+      toggle.addEventListener('change', () => this._updateRegionUI());
     }
-    this._updateRegionLockUI();
+    this._updateRegionUI();
+    // 綁定 radio change
+    const radiosContainer = document.getElementById('ce-region-radios');
+    if (radiosContainer && !radiosContainer.dataset.bound) {
+      radiosContainer.dataset.bound = '1';
+      radiosContainer.addEventListener('change', (e) => {
+        if (e.target.name === 'ce-region') {
+          this._regionSelectedCities = [];
+          this._updateCityCheckboxes();
+        }
+      });
+    }
   },
 
-  _updateRegionLockUI() {
-    const toggle = document.getElementById('ce-region-lock');
-    const label = document.getElementById('ce-region-lock-label');
-    const options = document.getElementById('ce-region-lock-options');
+  _updateRegionUI() {
+    const toggle = document.getElementById('ce-region-enabled');
+    const label = document.getElementById('ce-region-enabled-label');
+    const options = document.getElementById('ce-region-options');
     if (!toggle || !options) return;
     const enabled = toggle.checked;
     options.style.display = enabled ? '' : 'none';
-    if (label) label.textContent = enabled ? '開啟 — 限定地區可見' : '關閉 — 所有地區可見';
-    if (enabled) { this._rlRenderChips(); this._rlRenderList(''); }
+    if (label) label.textContent = enabled ? '開啟 — 指定活動地區' : '關閉 — 所有地區頁籤都顯示';
+    if (enabled) this._renderRegionRadios();
   },
 
-  /** 常駐列表渲染（排除已選） */
-  _rlRenderList(keyword) {
-    const list = document.getElementById('ce-region-list');
-    if (!list) return;
-    const q = this._rlNormalize(keyword);
-    const regions = typeof TW_REGIONS !== 'undefined' ? TW_REGIONS : [];
-    const selected = new Set(this._rlSelectedRegions);
-    const matched = regions.filter(r => !selected.has(r) && (!q || this._rlNormalize(r).indexOf(q) !== -1));
-    list.innerHTML = '';
-    if (!matched.length) {
-      var empty = document.createElement('div');
-      empty.textContent = q ? '無符合結果' : '已全部選取';
-      empty.style.cssText = 'padding:6px 10px;color:var(--text-muted);font-size:.75rem';
-      list.appendChild(empty);
-      return;
-    }
-    matched.forEach(function(name) {
-      var item = document.createElement('div');
-      item.textContent = name;
-      item.setAttribute('data-region', name);
-      item.style.cssText = 'padding:6px 10px;font-size:.78rem;border-bottom:1px solid var(--border);cursor:pointer';
-      list.appendChild(item);
-    });
-  },
-
-  /** 列表點擊（event delegation） */
-  _rlSelectFromList(e) {
-    var region = e.target.getAttribute('data-region');
-    if (!region || this._rlSelectedRegions.includes(region)) return;
-    this._rlSelectedRegions.push(region);
-    var input = document.getElementById('ce-region-search');
-    if (input) input.value = '';
-    this._rlRenderChips();
-    this._rlRenderList('');
-  },
-
-  _rlRemoveRegion(region) {
-    this._rlSelectedRegions = this._rlSelectedRegions.filter(r => r !== region);
-    this._rlRenderChips();
-    this._rlRenderList(document.getElementById('ce-region-search')?.value || '');
-  },
-
-  _rlRenderChips() {
-    const container = document.getElementById('ce-region-chips');
+  _renderRegionRadios() {
+    const container = document.getElementById('ce-region-radios');
     if (!container) return;
+    const regionMap = typeof REGION_MAP !== 'undefined' ? REGION_MAP : {};
+    const hints = {
+      '中部': '苗中彰投雲',
+      '北部': '北北基桃竹宜',
+      '南部': '嘉南高屏',
+      '東部&外島': '花東澎金馬',
+    };
+    const currentVal = container.querySelector('input[name="ce-region"]:checked')?.value || '';
     container.innerHTML = '';
-    this._rlSelectedRegions.forEach(r => {
-      const chip = document.createElement('span');
-      chip.style.cssText = 'display:inline-flex;align-items:center;gap:.2rem;padding:.15rem .45rem;border-radius:var(--radius-full);background:var(--accent-bg);color:var(--accent);font-size:.72rem;font-weight:600';
-      chip.textContent = r;
-      const x = document.createElement('span');
-      x.textContent = '\u2715';
-      x.style.cssText = 'cursor:pointer;font-size:.8rem;line-height:1;margin-left:.15rem';
-      x.setAttribute('data-remove', r);
-      x.addEventListener('click', () => this._rlRemoveRegion(r));
-      chip.appendChild(x);
-      container.appendChild(chip);
+    Object.keys(regionMap).forEach(key => {
+      const id = 'ce-region-' + key.replace(/[&]/g, '_');
+      const label = document.createElement('label');
+      label.style.cssText = 'display:flex;align-items:center;gap:.4rem;font-size:.82rem;cursor:pointer';
+      const radio = document.createElement('input');
+      radio.type = 'radio';
+      radio.name = 'ce-region';
+      radio.value = key;
+      if (key === currentVal) radio.checked = true;
+      const text = document.createElement('span');
+      text.textContent = key;
+      const hint = document.createElement('span');
+      hint.style.cssText = 'font-size:.7rem;color:var(--text-muted)';
+      hint.textContent = hints[key] ? '（' + hints[key] + '）' : '';
+      label.appendChild(radio);
+      label.appendChild(text);
+      label.appendChild(hint);
+      container.appendChild(label);
+    });
+    this._updateCityCheckboxes();
+  },
+
+  _updateCityCheckboxes() {
+    const citiesContainer = document.getElementById('ce-region-cities');
+    if (!citiesContainer) return;
+    const radiosContainer = document.getElementById('ce-region-radios');
+    const selectedRegion = radiosContainer?.querySelector('input[name="ce-region"]:checked')?.value || '';
+    const regionMap = typeof REGION_MAP !== 'undefined' ? REGION_MAP : {};
+    const cities = regionMap[selectedRegion] || [];
+    citiesContainer.innerHTML = '';
+    if (!cities.length) return;
+    cities.forEach(city => {
+      const label = document.createElement('label');
+      label.style.cssText = 'display:inline-flex;align-items:center;gap:.25rem;font-size:.76rem;cursor:pointer;padding:.15rem .3rem;border-radius:var(--radius-sm);background:var(--bg-card);border:1px solid var(--border)';
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.value = city;
+      cb.name = 'ce-region-city';
+      if (this._regionSelectedCities.indexOf(city) !== -1) cb.checked = true;
+      cb.addEventListener('change', () => {
+        if (cb.checked) {
+          if (this._regionSelectedCities.indexOf(city) === -1) this._regionSelectedCities.push(city);
+        } else {
+          this._regionSelectedCities = this._regionSelectedCities.filter(c => c !== city);
+        }
+      });
+      const text = document.createElement('span');
+      text.textContent = city;
+      label.appendChild(cb);
+      label.appendChild(text);
+      citiesContainer.appendChild(label);
     });
   },
 
-  _rlGetFormData() {
-    const enabled = !!document.getElementById('ce-region-lock')?.checked;
-    if (!enabled) return { regionLock: false, allowedRegions: [] };
-    return { regionLock: true, allowedRegions: [...this._rlSelectedRegions] };
+  _regionGetFormData() {
+    const enabled = !!document.getElementById('ce-region-enabled')?.checked;
+    if (!enabled) return { regionEnabled: false, region: '', cities: [] };
+    const radiosContainer = document.getElementById('ce-region-radios');
+    const region = radiosContainer?.querySelector('input[name="ce-region"]:checked')?.value || '';
+    return { regionEnabled: true, region, cities: [...this._regionSelectedCities] };
   },
 
-  _rlSetFormData(regionLock, allowedRegions) {
-    const toggle = document.getElementById('ce-region-lock');
-    if (toggle) toggle.checked = !!regionLock;
-    this._rlSelectedRegions = Array.isArray(allowedRegions) ? [...allowedRegions] : [];
-    this._updateRegionLockUI();
+  _regionSetFormData(regionEnabled, region, cities) {
+    const toggle = document.getElementById('ce-region-enabled');
+    if (toggle) toggle.checked = !!regionEnabled;
+    this._regionSelectedCities = Array.isArray(cities) ? [...cities] : [];
+    this._updateRegionUI();
+    // 選中對應 radio
+    if (region) {
+      const radiosContainer = document.getElementById('ce-region-radios');
+      if (radiosContainer) {
+        const radios = radiosContainer.querySelectorAll('input[name="ce-region"]');
+        radios.forEach(r => { r.checked = (r.value === region); });
+        this._updateCityCheckboxes();
+      }
+    }
   },
 
   // ── Team Split ──

@@ -252,20 +252,44 @@ Object.assign(App, {
     return this._isEventOwner(e) || this._isEventDelegate(e);
   },
 
-  /** 取得當前用戶可見的活動列表（過濾俱樂部限定 + 私密活動 + 地區鎖） */
+  /** 取得當前用戶可見的活動列表（過濾俱樂部限定 + 私密活動） */
   _getVisibleEvents() {
     const all = ApiService.getEvents();
     return all.filter(e => {
       if (!this._canViewEventByTeamScope(e)) return false;
-      // 私密活動：僅建立者/委託人/管理員可在列表中看到
       if (e.privateEvent && !this._canManageEvent(e)) return false;
-      // 地區鎖：用戶地區需在 allowedRegions 內（主辦/委託/管理員不受限）
-      if (e.regionLock && !this._canManageEvent(e)) {
-        const userRegion = ApiService.getCurrentUser?.()?.region || '';
-        if (!userRegion || !Array.isArray(e.allowedRegions) || !e.allowedRegions.includes(userRegion)) return false;
-      }
       return true;
     });
+  },
+
+  /** 依地區頁籤過濾活動 */
+  _filterByRegionTab(events) {
+    const tab = this._activeRegionTab || '中部';
+    if (tab === '全部') return events;
+    return events.filter(e => {
+      // 舊活動或未設定地區 → 所有 tab 都顯示
+      if (!e.regionEnabled && !e.region) return true;
+      // regionEnabled: false（admin 關閉）→ 所有 tab 都顯示
+      if (e.regionEnabled === false) return true;
+      // regionEnabled: true → 比對 region
+      return e.region === tab;
+    });
+  },
+
+  _activeRegionTab: '中部',
+
+  switchRegionTab(region) {
+    // HTML entity decode（onclick 傳入的 &amp; 需還原為 &）
+    var decoded = region.replace(/&amp;/g, '&');
+    this._activeRegionTab = decoded;
+    // 同步所有地區頁籤 UI（首頁 + 活動頁）
+    document.querySelectorAll('.region-tab').forEach(function(btn) {
+      var btnRegion = (btn.getAttribute('data-region') || '').replace(/&amp;/g, '&');
+      btn.classList.toggle('active', btnRegion === decoded);
+    });
+    // 重新渲染（頁面未載入時靜默跳過）
+    try { this.renderHotEvents(); } catch (_) {}
+    try { this.renderActivityList(); } catch (_) {}
   },
 
 });

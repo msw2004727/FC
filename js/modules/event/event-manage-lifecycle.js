@@ -28,7 +28,7 @@ Object.assign(App, {
     this.bindGenderRestrictionToggle?.();
     this.bindPrivateEventToggle?.();
     this.bindTeamSplitToggle?.();
-    this.bindRegionLockToggle?.();
+    this.bindRegionToggle?.();
     this.showModal('create-event-modal');
     this._eventSubmitInFlight = false;
     this._setCreateEventSubmitIdleLabel('儲存修改');
@@ -89,8 +89,8 @@ Object.assign(App, {
     this._initDelegateSearch();
     // 分隊設定還原
     this._tsSetFormData?.(e.teamSplit || null);
-    // 地區鎖還原
-    this._rlSetFormData?.(!!e.regionLock, e.allowedRegions || []);
+    // 活動地區還原
+    this._regionSetFormData?.(e.regionEnabled !== false, e.region || '', e.cities || []);
   },
 
   // ── 結束活動 ──

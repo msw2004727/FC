@@ -77,7 +77,7 @@ Object.assign(App, {
     const container = document.getElementById('hot-events');
     if (!container) return;
     // 顯示最近 10 場未結束活動（依日期排序）
-    const visible = this._getVisibleEvents()
+    const visible = this._filterByRegionTab(this._getVisibleEvents())
       .filter(e => e.status !== 'ended' && e.status !== 'cancelled')
       .sort((a, b) => {
         const ap = a?.pinned ? 1 : 0;

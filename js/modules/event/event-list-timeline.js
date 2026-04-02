@@ -140,6 +140,7 @@ Object.assign(App, {
     const filterKw = (document.getElementById('activity-filter-keyword')?.value || '').trim().toLowerCase();
 
     let events = this._getVisibleEvents();
+    events = this._filterByRegionTab(events);
 
     // 頁簽篩選：一般 = 非已結束/已取消，已結束 = ended/cancelled
     const activeTab = this._activityActiveTab || 'normal';

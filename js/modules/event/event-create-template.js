@@ -141,8 +141,9 @@ Object.assign(App, {
       genderRestrictionEnabled,
       allowedGender: genderRestrictionEnabled ? this._getAllowedGenderValue() : '',
       privateEvent: !!document.getElementById('ce-private-event')?.checked,
-      regionLock: !!document.getElementById('ce-region-lock')?.checked,
-      allowedRegions: this._rlSelectedRegions ? [...this._rlSelectedRegions] : [],
+      regionEnabled: !!document.getElementById('ce-region-enabled')?.checked,
+      region: document.getElementById('ce-region-radios')?.querySelector('input[name="ce-region"]:checked')?.value || '',
+      cities: this._regionSelectedCities ? [...this._regionSelectedCities] : [],
       image: image || null,
       updatedAt: new Date().toISOString(),
     };
@@ -227,7 +228,7 @@ Object.assign(App, {
     this._initSportTagPicker(tpl.sportTag || '');
     this._setGenderRestrictionState(!!tpl.genderRestrictionEnabled, tpl.allowedGender || '');
     this._setPrivateEventState?.(!!tpl.privateEvent);
-    this._rlSetFormData?.(!!tpl.regionLock, tpl.allowedRegions || []);
+    this._regionSetFormData?.(tpl.regionEnabled !== false, tpl.region || '', tpl.cities || []);
     if (tpl.image) {
       const preview = document.getElementById('ce-upload-preview');
       if (preview) {
