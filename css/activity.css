@@ -1178,7 +1178,7 @@
 }
 
 /* ─── Region Tabs ─── */
-.region-tabs{display:flex;gap:0;padding:0 1rem;margin:0;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.region-tabs{display:flex;justify-content:center;gap:0;padding:0 1rem;margin:0;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
 .region-tabs::-webkit-scrollbar{display:none}
 .region-tab{flex-shrink:0;padding:.45rem .8rem;font-size:.8rem;font-weight:500;color:var(--text-secondary);background:none;border:none;border-bottom:2px solid transparent;cursor:pointer;white-space:nowrap;transition:color .2s,border-color .2s}
 .region-tab.active{color:var(--accent);border-bottom-color:var(--accent);font-weight:700}

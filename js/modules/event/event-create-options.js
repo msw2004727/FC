@@ -236,7 +236,7 @@ Object.assign(App, {
     if (!toggle || !options) return;
     const enabled = toggle.checked;
     options.style.display = enabled ? '' : 'none';
-    if (label) label.textContent = enabled ? '開啟 — 指定活動地區' : '關閉 — 所有地區頁籤都顯示';
+    if (label) label.textContent = enabled ? '開啟' : '關閉';
     if (enabled) this._renderRegionRadios();
   },
 
@@ -252,19 +252,21 @@ Object.assign(App, {
     };
     const currentVal = container.querySelector('input[name="ce-region"]:checked')?.value || '';
     container.innerHTML = '';
+    container.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:.4rem .8rem';
     Object.keys(regionMap).forEach(key => {
-      const id = 'ce-region-' + key.replace(/[&]/g, '_');
       const label = document.createElement('label');
-      label.style.cssText = 'display:flex;align-items:center;gap:.4rem;font-size:.82rem;cursor:pointer';
+      label.style.cssText = 'display:flex;align-items:center;gap:.35rem;font-size:.82rem;cursor:pointer;padding:.3rem .1rem';
       const radio = document.createElement('input');
       radio.type = 'radio';
       radio.name = 'ce-region';
       radio.value = key;
+      radio.style.cssText = 'margin:0;flex-shrink:0';
       if (key === currentVal) radio.checked = true;
       const text = document.createElement('span');
+      text.style.fontWeight = '500';
       text.textContent = key;
       const hint = document.createElement('span');
-      hint.style.cssText = 'font-size:.7rem;color:var(--text-muted)';
+      hint.style.cssText = 'font-size:.68rem;color:var(--text-muted)';
       hint.textContent = hints[key] ? '（' + hints[key] + '）' : '';
       label.appendChild(radio);
       label.appendChild(text);
@@ -282,10 +284,15 @@ Object.assign(App, {
     const regionMap = typeof REGION_MAP !== 'undefined' ? REGION_MAP : {};
     const cities = regionMap[selectedRegion] || [];
     citiesContainer.innerHTML = '';
+    citiesContainer.style.cssText = 'display:flex;flex-wrap:wrap;gap:.35rem';
     if (!cities.length) return;
+    var hintEl = document.createElement('div');
+    hintEl.style.cssText = 'width:100%;font-size:.7rem;color:var(--text-muted);margin-bottom:.1rem';
+    hintEl.textContent = '選填：可指定縣市（不選則代表整個分區）';
+    citiesContainer.appendChild(hintEl);
     cities.forEach(city => {
       const label = document.createElement('label');
-      label.style.cssText = 'display:inline-flex;align-items:center;gap:.25rem;font-size:.76rem;cursor:pointer;padding:.15rem .3rem;border-radius:var(--radius-sm);background:var(--bg-card);border:1px solid var(--border)';
+      label.style.cssText = 'display:inline-flex;align-items:center;gap:.2rem;font-size:.78rem;cursor:pointer;padding:.25rem .5rem;border-radius:6px;background:var(--bg-card);border:1px solid var(--border)';
       const cb = document.createElement('input');
       cb.type = 'checkbox';
       cb.value = city;

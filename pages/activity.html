@@ -218,17 +218,19 @@
         </div>
         <!-- 活動地區 -->
         <div class="ce-row" id="ce-region-row">
-          <label class="ce-label">
-            <span class="ce-label-text">活動地區</span>
-            <span class="edu-info-btn" onclick="App._showCeInfo('region')" title="說明">?</span>
-          </label>
-          <div class="ce-toggle-row" id="ce-region-toggle-row">
-            <input type="checkbox" id="ce-region-enabled" checked>
-            <label for="ce-region-enabled" class="ce-toggle-label" id="ce-region-enabled-label">開啟 — 指定活動地區</label>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:.5rem">
+            <div class="ce-label-row"><button class="edu-info-btn" onclick="App._showCeInfo('region')" title="說明">?</button><label>活動地區</label></div>
+            <div id="ce-region-toggle-row" style="display:flex;align-items:center;gap:.5rem">
+              <label class="toggle-switch" style="margin:0">
+                <input type="checkbox" id="ce-region-enabled" checked>
+                <span class="toggle-slider"></span>
+              </label>
+              <span id="ce-region-enabled-label" style="font-size:.78rem;color:var(--text-muted)">開啟</span>
+            </div>
           </div>
-          <div id="ce-region-options" style="margin-top:.5rem">
-            <div id="ce-region-radios" style="display:flex;flex-direction:column;gap:.4rem"></div>
-            <div id="ce-region-cities" style="display:flex;flex-wrap:wrap;gap:.3rem;margin-top:.5rem"></div>
+          <div id="ce-region-options" style="margin-top:.6rem">
+            <div id="ce-region-radios"></div>
+            <div id="ce-region-cities" style="margin-top:.5rem"></div>
           </div>
         </div>
         <div class="ce-row">
