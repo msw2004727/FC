@@ -15,7 +15,7 @@
 
 const https = require('https');
 
-const SITE_URL = 'https://toosterx.com/';
+const SITE_URL = 'sc-domain:toosterx.com';
 const SITEMAP_URL = 'https://toosterx.com/sitemap.xml';
 const SCOPE = 'https://www.googleapis.com/auth/webmasters';
 
