@@ -13,6 +13,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 
 const PROJECT_ROOT = path.resolve(__dirname, '../..');
 const JS_DIR = path.join(PROJECT_ROOT, 'js');
@@ -77,6 +78,76 @@ function findExtractionAnnotations(testFilePath) {
   return results;
 }
 
+/**
+ * Normalize source text for comparison: strip comments,
+ * collapse whitespace, remove non-logic characters.
+ */
+function normalizeSource(text) {
+  return text
+    .replace(/\/\/.*$/gm, '')        // strip single-line comments
+    .replace(/\/\*[\s\S]*?\*\//g, '') // strip block comments
+    .replace(/\s+/g, ' ')            // collapse whitespace
+    .trim();
+}
+
+/**
+ * Extract key logic tokens from normalized source for fuzzy matching.
+ * Pulls out identifiers, operators, keywords — strips string literals
+ * and punctuation to focus on structural logic.
+ */
+function extractLogicSignature(text) {
+  const normalized = normalizeSource(text);
+  // Remove string literals to focus on logic structure
+  const noStrings = normalized
+    .replace(/'[^']*'/g, "'_'")
+    .replace(/"[^"]*"/g, '"_"')
+    .replace(/`[^`]*`/g, '`_`');
+  // Extract identifier-like tokens and operators
+  const tokens = noStrings.match(/[a-zA-Z_$][a-zA-Z0-9_$]*|[!=<>]+|&&|\|\||\?\./g);
+  return (tokens || []).join(' ');
+}
+
+/**
+ * Extract the function/const block from a test file that follows the
+ * annotation. Scans forward from the annotation line, skipping comment
+ * lines, and captures everything from the first code line until the next
+ * extraction annotation section or top-level test block.
+ */
+function extractTestBlock(testFilePath, annotationLineIdx) {
+  const lines = readLines(testFilePath);
+  if (!lines) return null;
+
+  const annotationPattern = /Extracted from\s+[\w/.:\-]+?:\d+-\d+/;
+  const sectionSeparator = /^\/\/\s*[-=]{3,}/;
+
+  // Scan forward to find start of actual code (skip comments/blank lines)
+  let codeStart = -1;
+  for (let i = annotationLineIdx + 1; i < lines.length; i++) {
+    const trimmed = lines[i].trim();
+    if (!trimmed) continue;
+    if (trimmed.startsWith('//')) continue;
+    if (trimmed.startsWith('/*') || trimmed.startsWith('*')) continue;
+    codeStart = i;
+    break;
+  }
+  if (codeStart === -1) return null;
+
+  // Collect code lines until we hit the next section
+  const bodyLines = [];
+  for (let i = codeStart; i < lines.length; i++) {
+    // Stop at next extraction annotation or section separator (but not the first line)
+    if (i > codeStart) {
+      if (annotationPattern.test(lines[i])) break;
+      if (sectionSeparator.test(lines[i])) break;
+      // Stop at describe/test blocks (test section start)
+      if (/^describe\s*\(/.test(lines[i].trim())) break;
+      if (/^test\s*\(/.test(lines[i].trim())) break;
+    }
+    bodyLines.push(lines[i]);
+  }
+  return bodyLines.join('\n');
+}
+
 // ===========================================================================
 // TESTS
 // ===========================================================================
@@ -136,6 +207,97 @@ describe('Source-Test Drift Detection', () => {
     // This test passes — drift is a warning, not a blocker
     // The key protection is the file existence check above
     expect(true).toBe(true);
+  });
+
+  test('extracted functions match current source content', () => {
+    const mismatches = [];
+    const staleAnnotations = [];
+
+    allAnnotations.forEach(a => {
+      const resolved = resolveSourceFile(a.sourceFile);
+      if (!resolved) return; // caught by existence test
+      const sourceLines = readLines(resolved);
+      if (!sourceLines) return;
+      // Skip if line range is out of bounds (informational only)
+      if (a.startLine < 1 || a.endLine > sourceLines.length || a.startLine > a.endLine) return;
+
+      // Extract source content at annotated line range
+      const sourceSlice = sourceLines.slice(a.startLine - 1, a.endLine).join('\n');
+      const sourceSig = extractLogicSignature(sourceSlice);
+      // Need meaningful source content to compare
+      if (sourceSig.split(' ').length < 3) return;
+
+      // Extract the function block from the test file after the annotation
+      const testBlock = extractTestBlock(a.testFile, a.testLine - 1);
+      if (!testBlock || testBlock.trim().length === 0) return;
+      const testSig = extractLogicSignature(testBlock);
+      if (testSig.split(' ').length < 3) return;
+
+      // Identify the primary function/const name from the test block
+      const testNameMatch = testBlock.match(/(?:function\s+|const\s+)([a-zA-Z_$][a-zA-Z0-9_$]*)/);
+      const testFuncName = testNameMatch ? testNameMatch[1] : null;
+
+      // Check if the source at annotated lines contains the same function name.
+      // If not, the annotation line numbers have shifted — the source at those
+      // lines is a completely different function. This is a stale annotation
+      // (warning), not a content mismatch (hard fail).
+      if (testFuncName && !sourceSlice.includes(testFuncName)) {
+        staleAnnotations.push({
+          ...a,
+          resolvedFile: resolved,
+          testFuncName,
+        });
+        return; // skip — line numbers shifted, not actual content drift
+      }
+
+      // Compare logic signatures — source tokens must appear in test block
+      const sourceTokens = sourceSig.split(' ');
+      const testTokenSet = new Set(testSig.split(' '));
+
+      let matched = 0;
+      for (const token of sourceTokens) {
+        if (testTokenSet.has(token)) matched++;
+      }
+      const matchRatio = matched / sourceTokens.length;
+
+      // Require at least 50% token overlap to consider it a match.
+      // This threshold is lenient enough to allow adaptations
+      // (removing `this.`, renaming params, omitting DOM refs) but catches
+      // major drift (missing logic branches, wrong function body).
+      if (matchRatio < 0.5) {
+        mismatches.push({
+          ...a,
+          resolvedFile: resolved,
+          matchRatio: Math.round(matchRatio * 100),
+          sourcePreview: normalizeSource(sourceSlice).slice(0, 100),
+          testPreview: normalizeSource(testBlock).slice(0, 100),
+        });
+      }
+    });
+
+    // Log stale annotations as warnings (line numbers shifted)
+    if (staleAnnotations.length > 0) {
+      const details = staleAnnotations.map(s =>
+        `  ${path.basename(s.testFile)}:${s.testLine} -> ${s.resolvedFile}:${s.startLine}-${s.endLine} (looking for '${s.testFuncName}')`
+      ).join('\n');
+      console.warn(
+        `\n[WARN] ${staleAnnotations.length} annotation(s) have stale line ranges ` +
+        `(source at annotated lines contains different function):\n${details}\n`
+      );
+    }
+
+    // Hard fail only on confirmed content mismatches
+    if (mismatches.length > 0) {
+      const details = mismatches.map(m =>
+        `  ${path.basename(m.testFile)}:${m.testLine} -> ${m.resolvedFile}:${m.startLine}-${m.endLine} (${m.matchRatio}% match)\n` +
+        `    Source: ${m.sourcePreview}...\n` +
+        `    Test:   ${m.testPreview}...`
+      ).join('\n');
+      throw new Error(
+        `${mismatches.length} extracted function(s) have drifted from source:\n${details}\n\n` +
+        'Update the test file copies to match current source code.'
+      );
+    }
   });
 
   test('annotation coverage summary', () => {

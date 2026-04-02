@@ -261,10 +261,19 @@ function getActiveAchievements(achievements) {
 }
 
 // ---------------------------------------------------------------------------
-// Extracted from js/modules/achievement/stats.js:28-30
+// Extracted from js/modules/achievement/stats.js:28-38
+// Note: registry/actionMeta is null in test context (no App global),
+// so reverseComparison is always falsy → normal comparison path.
 // ---------------------------------------------------------------------------
 function isCompleted(achievement) {
-  return Number(achievement?.current || 0) >= Number(getThreshold(achievement));
+  const registry = null; // App._getAchievementRegistry not available in test
+  const actionMeta = registry?.findActionMeta?.(achievement?.condition?.action);
+  const threshold = Number(getThreshold(achievement));
+  const safeThreshold = actionMeta?.reverseComparison ? threshold : Math.max(1, threshold);
+  const current = Number(achievement?.current || 0);
+  return actionMeta?.reverseComparison
+    ? current <= safeThreshold
+    : current >= safeThreshold;
 }
 
 // ---------------------------------------------------------------------------
@@ -979,8 +988,12 @@ describe('stats.js — isCompleted', () => {
     expect(isCompleted(null)).toBe(false);
   });
 
-  test('threshold 0 means always completed', () => {
-    expect(isCompleted({ current: 0, condition: { threshold: 0 } })).toBe(true);
+  test('threshold 0 with safeThreshold clamped to 1 (non-reverse)', () => {
+    // Without registry, safeThreshold = Math.max(1, 0) = 1
+    // So current=0 is NOT completed (0 >= 1 = false)
+    expect(isCompleted({ current: 0, condition: { threshold: 0 } })).toBe(false);
+    // current=1 IS completed (1 >= 1 = true)
+    expect(isCompleted({ current: 1, condition: { threshold: 0 } })).toBe(true);
   });
 });
 

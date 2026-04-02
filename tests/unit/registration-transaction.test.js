@@ -16,7 +16,7 @@
  */
 
 // ===========================================================================
-// Extracted pure logic: _rebuildOccupancy (firebase-crud.js:506-549)
+// Extracted pure logic: _rebuildOccupancy (firebase-crud.js:514-558)
 // ===========================================================================
 function _rebuildOccupancy(event, registrations) {
   const confirmed = registrations.filter(r => r.status === 'confirmed');
@@ -25,6 +25,7 @@ function _rebuildOccupancy(event, registrations) {
   const _regSortTime = (r) => {
     const v = r && r.registeredAt;
     if (!v) return Number.POSITIVE_INFINITY;
+    if (typeof v.toMillis === 'function') { try { return v.toMillis(); } catch (_e) {} }
     if (typeof v === 'object' && typeof v.seconds === 'number')
       return (v.seconds * 1000) + Math.floor((v.nanoseconds || 0) / 1000000);
     const t = new Date(v).getTime();

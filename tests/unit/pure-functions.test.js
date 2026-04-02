@@ -7,12 +7,29 @@
  */
 
 // ---------------------------------------------------------------------------
-// Extracted from js/firebase-crud.js:442-468
+// Extracted from js/firebase-crud.js:514-558
 // Pure function: computes occupancy from event config + registration list
 // ---------------------------------------------------------------------------
 function _rebuildOccupancy(event, registrations) {
   const confirmed = registrations.filter(r => r.status === 'confirmed');
   const waitlisted = registrations.filter(r => r.status === 'waitlisted');
+
+  const _regSortTime = (r) => {
+    const v = r && r.registeredAt;
+    if (!v) return Number.POSITIVE_INFINITY;
+    if (typeof v.toMillis === 'function') { try { return v.toMillis(); } catch (_e) {} }
+    if (typeof v === 'object' && typeof v.seconds === 'number')
+      return (v.seconds * 1000) + Math.floor((v.nanoseconds || 0) / 1000000);
+    const t = new Date(v).getTime();
+    return Number.isFinite(t) ? t : Number.POSITIVE_INFINITY;
+  };
+  const _regSort = (a, b) => {
+    const ta = _regSortTime(a), tb = _regSortTime(b);
+    if (ta !== tb) return ta - tb;
+    return String(a._docId || a.id || '').localeCompare(String(b._docId || b.id || ''));
+  };
+  confirmed.sort(_regSort);
+  waitlisted.sort(_regSort);
 
   const participants = confirmed.map(r =>
     r.participantType === 'companion'
@@ -107,7 +124,7 @@ function _categorizeScanEvents(events, { now, parseDate }) {
 // TESTS
 // ===========================================================================
 
-describe('_rebuildOccupancy (js/firebase-crud.js:442-468)', () => {
+describe('_rebuildOccupancy (js/firebase-crud.js:514-558)', () => {
   test('empty registrations → current=0, waitlist=0, status=open', () => {
     const result = _rebuildOccupancy({ max: 10, status: 'open' }, []);
     expect(result.current).toBe(0);

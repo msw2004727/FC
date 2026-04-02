@@ -963,3 +963,76 @@ describe('_normalizeRuntimeCustomRoles', () => {
     expect(result[0].label).toBe('myRole');
   });
 });
+
+// --- Group 5: Cross-system sync checks ---
+
+describe('INHERENT_ROLE_PERMISSIONS cross-system sync (CLAUDE.md mandatory)', () => {
+  const fs = require('fs');
+  const path = require('path');
+  const PROJECT_ROOT = path.resolve(__dirname, '../..');
+
+  /**
+   * Extract the INHERENT_ROLE_PERMISSIONS object literal from a source file.
+   * Returns a normalized JSON string for comparison.
+   */
+  function extractInherentRolePermissions(filePath) {
+    const fullPath = path.join(PROJECT_ROOT, filePath);
+    if (!fs.existsSync(fullPath)) {
+      throw new Error(`Source file not found: ${fullPath}`);
+    }
+    const content = fs.readFileSync(fullPath, 'utf-8');
+
+    // Match the Object.freeze({...}) block after INHERENT_ROLE_PERMISSIONS
+    const pattern = /INHERENT_ROLE_PERMISSIONS\s*=\s*Object\.freeze\(\s*(\{[\s\S]*?\})\s*\)/;
+    const match = content.match(pattern);
+    if (!match) {
+      throw new Error(`INHERENT_ROLE_PERMISSIONS not found in ${filePath}`);
+    }
+
+    // Normalize the object literal:
+    // - Replace single quotes with double quotes
+    // - Remove trailing commas before }
+    // - Normalize whitespace
+    let objStr = match[1]
+      .replace(/'/g, '"')
+      .replace(/,\s*\}/g, '}')
+      .replace(/,\s*\]/g, ']')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    // Parse and re-stringify for canonical form
+    // Use Function constructor to safely evaluate the JS object literal
+    // eslint-disable-next-line no-new-func
+    const obj = (new Function('return (' + objStr + ')'))();
+    return JSON.stringify(obj, Object.keys(obj).sort(), 2);
+  }
+
+  test('js/config.js and functions/index.js have identical INHERENT_ROLE_PERMISSIONS', () => {
+    const configPerms = extractInherentRolePermissions('js/config.js');
+    const functionsPerms = extractInherentRolePermissions('functions/index.js');
+
+    if (configPerms !== functionsPerms) {
+      throw new Error(
+        'INHERENT_ROLE_PERMISSIONS is out of sync between js/config.js and functions/index.js!\n' +
+        'Per CLAUDE.md rules, these must be identical.\n\n' +
+        'js/config.js:\n' + configPerms + '\n\n' +
+        'functions/index.js:\n' + functionsPerms
+      );
+    }
+
+    expect(configPerms).toBe(functionsPerms);
+  });
+
+  test('test file copy matches js/config.js definition', () => {
+    // Compare the INHERENT_ROLE_PERMISSIONS defined at the top of this test file
+    // with what is in the actual source
+    const configPerms = extractInherentRolePermissions('js/config.js');
+    const testCopy = JSON.stringify(INHERENT_ROLE_PERMISSIONS, Object.keys(INHERENT_ROLE_PERMISSIONS).sort(), 2);
+
+    // Parse the config version for comparison (it was stringified with sorted keys)
+    const configObj = JSON.parse(configPerms);
+    const testObj = JSON.parse(testCopy);
+
+    expect(testObj).toEqual(configObj);
+  });
+});
