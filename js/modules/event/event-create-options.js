@@ -281,13 +281,15 @@ Object.assign(App, {
     const regionMap = typeof REGION_MAP !== 'undefined' ? REGION_MAP : {};
     const cities = regionMap[selectedRegion] || [];
     citiesContainer.innerHTML = '';
-    citiesContainer.style.cssText = 'display:flex;flex-wrap:wrap;gap:.35rem;align-items:center;margin-top:.5rem';
+    citiesContainer.style.cssText = 'margin-top:.5rem';
     if (!cities.length) return;
-    var hintEl = document.createElement('span');
-    hintEl.style.cssText = 'font-size:.72rem;color:var(--text-muted);margin-right:.1rem';
+    var hintEl = document.createElement('div');
+    hintEl.style.cssText = 'font-size:.72rem;color:var(--text-muted);margin-bottom:.35rem';
     hintEl.textContent = '選填：';
     citiesContainer.appendChild(hintEl);
-    var wrap = citiesContainer;
+    var wrap = document.createElement('div');
+    wrap.style.cssText = 'display:flex;flex-wrap:wrap;gap:.35rem';
+    citiesContainer.appendChild(wrap);
     cities.forEach(city => {
       const label = document.createElement('label');
       label.style.cssText = 'display:inline-flex;flex-direction:row;align-items:center;gap:.25rem;font-size:.78rem;cursor:pointer;padding:.25rem .5rem;border-radius:6px;background:var(--bg-card);border:1px solid var(--border);white-space:nowrap';
