@@ -96,7 +96,8 @@ function objectToFirestoreFields(obj) {
 
 // --- Git log ---
 function getGitLog() {
-  const log = execSync('git log --all --format="%ad|%s" --date=short --reverse', {
+  // 不加 --reverse，git log 預設最新在前
+  const log = execSync('git log --all --format="%ad|%s" --date=short', {
     encoding: 'utf8', maxBuffer: 4 * 1024 * 1024
   });
   const grouped = {};
@@ -108,7 +109,7 @@ function getGitLog() {
     const ym = date.substring(0, 7);
     if (!grouped[ym]) grouped[ym] = {};
     if (!grouped[ym][date]) grouped[ym][date] = [];
-    grouped[ym][date].push(msg);
+    grouped[ym][date].push(msg); // 最新 commit 在最前面
   });
   return grouped;
 }
