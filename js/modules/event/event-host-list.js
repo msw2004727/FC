@@ -56,11 +56,31 @@ Object.assign(App, {
     body.innerHTML = '<div style="text-align:center;padding:2.5rem;color:var(--text-muted)"><div style="width:24px;height:24px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 1rem"></div>載入中...</div>';
   },
 
+  _loadHostListCache() {
+    try {
+      var raw = sessionStorage.getItem('hostListCache');
+      if (!raw) return false;
+      var cache = JSON.parse(raw);
+      if (!cache || !cache.ts || (Date.now() - cache.ts) >= this._HOST_LIST_TTL) return false;
+      this._hostListData = cache.data;
+      this._hostListDataTs = cache.ts;
+      return true;
+    } catch (_) { return false; }
+  },
+
+  _saveHostListCache() {
+    try {
+      sessionStorage.setItem('hostListCache', JSON.stringify({ data: this._hostListData, ts: this._hostListDataTs }));
+    } catch (_) {}
+  },
+
   async _loadHostListData() {
-    // 24 小時內重複開啟直接用快取，不重新查 Firestore
+    // 記憶體快取
     if (this._hostListData && this._hostListData.length > 0 && (Date.now() - this._hostListDataTs) < this._HOST_LIST_TTL) {
       return;
     }
+    // sessionStorage 快取（頁面重載後仍有效）
+    if (this._loadHostListCache()) return;
     try {
       var events = ApiService.getEvents() || [];
       var hostMap = {};
@@ -130,6 +150,7 @@ Object.assign(App, {
 
       this._hostListData = Object.values(hostMap);
       this._hostListDataTs = Date.now();
+      this._saveHostListCache();
     } catch (err) {
       console.warn('[HostList] load error:', err);
       this._hostListData = [];
