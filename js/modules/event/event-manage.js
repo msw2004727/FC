@@ -400,11 +400,14 @@ Object.assign(App, {
     );
   },
 
-  // ── 活動置頂 ──
+  // ── 活動置頂（僅 admin 以上）──
   toggleMyActivityPin(id) {
     const e = ApiService.getEvent(id);
     if (!e) return;
-    if (!this._canManageEvent(e)) { this.showToast('您只能管理自己的活動'); return; }
+    if (!this.hasPermission('admin.users.entry') && !this.hasPermission('admin.entry')) {
+      this.showToast('請聯繫管理員');
+      return;
+    }
 
     const nextPinned = !e.pinned;
     const updates = nextPinned
