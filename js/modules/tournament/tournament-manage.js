@@ -255,6 +255,7 @@ Object.assign(App, {
     }
     const t = ApiService.getTournament(id);
     if (!t) return;
+    if (t.ended) { this.showToast('此賽事已結束'); return; }
     if (!(await this.appConfirm(`確定要結束賽事「${t.name}」？`))) return;
     try {
       await ApiService.updateTournamentAwait(id, { ended: true });
@@ -273,6 +274,7 @@ Object.assign(App, {
     }
     const t = ApiService.getTournament(id);
     if (!t) return;
+    if (!t.ended) { this.showToast('此賽事尚未結束'); return; }
     if (!(await this.appConfirm(`確定要重新開放賽事「${t.name}」？`))) return;
     try {
       await ApiService.updateTournamentAwait(id, { ended: false });

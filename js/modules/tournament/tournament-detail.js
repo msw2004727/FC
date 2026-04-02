@@ -304,9 +304,9 @@ Object.assign(App, {
       // Safety: _teamCardHTML returns pre-escaped markup
       container.innerHTML = `<div class="team-grid" style="padding:.5rem .4rem">${registered.map(tm => this._teamCardHTML({...tm, pinned: false})).join('')}</div>`;
     } else if (tab === 'schedule') {
-      container.innerHTML = '<div style="padding:3rem 1rem;text-align:center;color:var(--text-muted);font-size:.92rem">功能開發中</div>';
+      container.innerHTML = '<div style="padding:3rem 1rem;text-align:center;color:var(--text-muted)"><div style="font-size:1.5rem;margin-bottom:.5rem">\uD83D\uDCCB</div><div style="font-size:.85rem">\u5373\u5C07\u63A8\u51FA</div></div>';
     } else if (tab === 'stats') {
-      container.innerHTML = '<div style="padding:3rem 1rem;text-align:center;color:var(--text-muted);font-size:.92rem">功能開發中</div>';
+      container.innerHTML = '<div style="padding:3rem 1rem;text-align:center;color:var(--text-muted)"><div style="font-size:1.5rem;margin-bottom:.5rem">\uD83D\uDCCA</div><div style="font-size:.85rem">\u5373\u5C07\u63A8\u51FA</div></div>';
     }
   },
 

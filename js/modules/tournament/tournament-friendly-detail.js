@@ -326,9 +326,11 @@ Object.assign(App, {
     };
 
     if (action === 'approve') {
-      const approvedCount = (state.entries || []).filter(entry => entry.entryStatus === 'host' || entry.entryStatus === 'approved').length;
+      const freshState = await this._loadFriendlyTournamentDetailState(tournamentId);
+      const freshEntries = freshState?.entries || state.entries || [];
+      const approvedCount = freshEntries.filter(entry => entry.entryStatus === 'host' || entry.entryStatus === 'approved').length;
       const teamLimit = this._getFriendlyTournamentTeamLimit?.(tournament) || 4;
-      if (!(state.entries || []).some(entry => entry.teamId === application.teamId) && approvedCount >= teamLimit) {
+      if (!freshEntries.some(entry => entry.teamId === application.teamId) && approvedCount >= teamLimit) {
         this.showToast('隊伍名額已滿，無法再核准更多俱樂部。');
         return;
       }

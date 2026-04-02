@@ -143,11 +143,17 @@
   gap: .75rem;
 }
 .tfd-team-row-pending {
-  background: color-mix(in srgb, var(--bg-card) 82%, #94a3b8 18%);
+  background: rgba(148, 163, 184, 0.08);
   border-style: dashed;
 }
 .tfd-team-row-rejected {
-  background: color-mix(in srgb, var(--bg-card) 84%, #fecaca 16%);
+  background: rgba(254, 202, 202, 0.08);
+}
+[data-theme="dark"] .tfd-team-row-pending {
+  background: rgba(148, 163, 184, 0.12);
+}
+[data-theme="dark"] .tfd-team-row-rejected {
+  background: rgba(254, 202, 202, 0.10);
 }
 .tfd-team-row-slot {
   border-style: dashed;
@@ -473,3 +479,8 @@
 
 [data-theme="dark"] .trade-status.success { background: rgba(52,211,153,.20); }
 [data-theme="dark"] .trade-status.pending { background: rgba(251,191,36,.20); }
+
+/* Dark theme overrides */
+[data-theme="dark"] .td-info-label { color: var(--text-muted); }
+[data-theme="dark"] .td-edit-btn { background: #166534; }
+[data-theme="dark"] .td-edit-btn:hover { background: #15803d; }

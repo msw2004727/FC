@@ -1891,5 +1891,10 @@
 - **修復**：(1) `functions/index.js` — 新增 `TRANSLATE_QUOTA` 常數（500 萬字/月、80% 警告）；新增 `_notifyTranslateQuotaWarning()` helper 透過 Firestore batch 同時寫入站內信 + linePushQueue 通知所有 admin/super_admin；`translateTexts` 加 `req.auth` 認證檢查 + 翻譯前讀取 `translateUsage/{monthKey}` 檢查上限 + 超過 80% 時 fire-and-forget 通知管理員（每天最多一次）。(2) `js/modules/translate.js` — catch 區塊判斷 `resource-exhausted` 錯誤碼，顯示 toast 並停用翻譯 Observer
 - **教訓**：所有 Cloud Function 的 `onCall` 都應檢查 `req.auth`；對外部付費 API 的呼叫必須有月度帳單上限保護；配額常數用 `Object.freeze` 集中管理便於未來調整
 
+### 2026-04-02 — Tournament P0-P2 production fixes
+- **問題**：(1) `color-mix()` CSS 在 LINE WebView 不支援導致 pending/rejected 行無背景色；(2) 友誼賽審核有 race condition，兩位管理員可能同時核准超過隊伍上限；(3) end/reopen 缺狀態守衛，可重複結束或重開未結束的賽事；(4) schedule/stats tab 顯示「功能開發中」不夠美觀；(5) dark theme 下編輯按鈕顏色過亮
+- **修復**：`css/tournament.css` — color-mix 改為 rgba fallback + dark theme overrides；`tournament-friendly-detail.js` — approve 前 re-fetch state 做 quota check；`tournament-manage.js` — end/reopen 加 t.ended 狀態守衛；`tournament-detail.js` — placeholder 改為 emoji + 即將推出；dark theme 加 td-edit-btn 深綠色
+- **教訓**：`color-mix()` 瀏覽器支援不足（Safari 15-、LINE WebView），用 rgba 透明度疊加更安全；涉及配額的寫入操作應在寫入前即時重讀最新狀態
+
 *最後濃縮日期：2026-03-15*
 *原始檔案：314 條目 / 2475 行 → 濃縮後約 50 條永久教訓*
