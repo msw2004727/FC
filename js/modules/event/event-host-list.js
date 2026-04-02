@@ -22,6 +22,7 @@ Object.assign(App, {
       '<div class="host-list-modal">' +
         '<div class="host-list-header">' +
           '<h3>主辦方排行</h3>' +
+          '<span id="host-list-updated" style="font-size:.65rem;color:#94a3b8;position:absolute;top:.55rem;right:2.5rem;white-space:nowrap"></span>' +
           '<button class="modal-close" onclick="App.closeHostList()">✕</button>' +
         '</div>' +
         '<div class="host-list-body" id="host-list-body"></div>' +
@@ -186,6 +187,14 @@ Object.assign(App, {
 
     html += '</tbody></table></div>';
     body.innerHTML = html;
+
+    // 右上角灰色小字顯示最後更新時間
+    var updEl = document.getElementById('host-list-updated');
+    if (updEl && this._hostListDataTs) {
+      var d = new Date(this._hostListDataTs);
+      var pad = function(n) { return n < 10 ? '0' + n : n; };
+      updEl.textContent = pad(d.getMonth() + 1) + '/' + pad(d.getDate()) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + ' 更新';
+    }
   },
 
   _toggleHostListSort(key) {

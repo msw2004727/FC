@@ -1189,7 +1189,7 @@
 .host-list-overlay.open{display:flex}
 .host-list-modal{background:var(--bg-card);width:100%;max-width:500px;max-height:80vh;border-radius:16px;display:flex;flex-direction:column;opacity:0;transform:scale(.95);transition:opacity .2s ease,transform .2s ease;box-shadow:0 8px 32px rgba(0,0,0,.15)}
 .host-list-modal.open{opacity:1;transform:scale(1)}
-.host-list-header{display:flex;align-items:center;justify-content:space-between;padding:.8rem 1.2rem;border-bottom:1px solid var(--border)}
+.host-list-header{display:flex;align-items:center;justify-content:space-between;padding:.8rem 1.2rem;border-bottom:1px solid var(--border);position:relative}
 .host-list-header h3{font-size:1rem;font-weight:700;color:var(--text-primary)}
 .host-list-header .modal-close{background:none;border:none;font-size:1.2rem;color:var(--text-muted);cursor:pointer;padding:.2rem}
 .host-list-body{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:.5rem}
