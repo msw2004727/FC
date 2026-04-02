@@ -1266,6 +1266,15 @@ service cloud.firestore {
     }
 
     // ═══════════════════════════════════════════
+    //  Changelog（更新日誌）
+    //  admin 以上可讀；寫入由 sync-changelog.js（Admin SDK）執行
+    // ═══════════════════════════════════════════
+    match /changelog/{docId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    // ═══════════════════════════════════════════
     //  Inventory System（庫存管理系統，inv_ 前綴）
     //  獨立於 SportHub，共用 Firebase 專案
     // ═══════════════════════════════════════════

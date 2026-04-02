@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex, nofollow">
+  <title>更新日誌 — ToosterX</title>
+  <style>
+    :root{--bg:#0f172a;--card:#1e293b;--border:#334155;--text:#e2e8f0;--muted:#94a3b8;--accent:#0d9488;--accent-light:#14b8a6;--tag-feat:#22d3ee;--tag-fix:#f87171;--tag-chore:#a78bfa;--tag-docs:#fbbf24;--tag-test:#34d399;--tag-refactor:#fb923c;--tag-other:#94a3b8}
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:-apple-system,BlinkMacSystemFont,'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+    .auth-gate{display:flex;align-items:center;justify-content:center;min-height:100vh;text-align:center;padding:2rem}
+    .auth-gate .lock-icon{font-size:3rem;margin-bottom:1rem}
+    .auth-gate p{color:var(--muted);font-size:1rem}
+    .spinner{width:24px;height:24px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;margin:1rem auto}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    header{background:var(--card);border-bottom:1px solid var(--border);padding:1rem 1.5rem;position:sticky;top:0;z-index:10}
+    .header-row{max-width:900px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap}
+    .header-row h1{font-size:1.2rem;color:var(--accent-light);white-space:nowrap}
+    .header-row h1 span{color:var(--muted);font-weight:400;font-size:.85rem;margin-left:.5rem}
+    .filter-row{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap}
+    .filter-row select,.filter-row input{background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:.4rem .6rem;font-size:.85rem;outline:none}
+    .filter-row select:focus,.filter-row input:focus{border-color:var(--accent)}
+    .filter-row input[type=text]{width:160px}
+    .container{max-width:900px;margin:0 auto;padding:1.5rem 1rem 4rem}
+    .day-section{margin-bottom:2rem}
+    .day-header{display:flex;align-items:center;gap:.8rem;margin-bottom:.8rem;padding-bottom:.4rem;border-bottom:1px solid var(--border)}
+    .day-date{font-size:1.1rem;font-weight:700;color:var(--accent-light)}
+    .day-count{font-size:.75rem;color:var(--muted);background:var(--card);padding:.15rem .5rem;border-radius:4px}
+    .card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:.7rem 1rem;margin-bottom:.5rem;font-size:.88rem;line-height:1.5;display:flex;align-items:flex-start;gap:.6rem;transition:border-color .2s}
+    .card:hover{border-color:var(--accent)}
+    .tag{font-size:.65rem;font-weight:700;padding:.15rem .4rem;border-radius:4px;white-space:nowrap;flex-shrink:0;text-transform:uppercase;margin-top:.15rem}
+    .tag-feat{background:rgba(34,211,238,.15);color:var(--tag-feat)}
+    .tag-fix{background:rgba(248,113,113,.15);color:var(--tag-fix)}
+    .tag-chore{background:rgba(167,139,250,.15);color:var(--tag-chore)}
+    .tag-docs{background:rgba(251,191,36,.15);color:var(--tag-docs)}
+    .tag-test{background:rgba(52,211,153,.15);color:var(--tag-test)}
+    .tag-refactor{background:rgba(251,146,60,.15);color:var(--tag-refactor)}
+    .tag-other{background:rgba(148,163,184,.1);color:var(--tag-other)}
+    .card-msg{color:var(--text);word-break:break-word}
+    .no-results{text-align:center;color:var(--muted);padding:3rem 1rem;font-size:1rem}
+    .loading-bar{text-align:center;padding:2rem;color:var(--muted)}
+    .stats{text-align:center;color:var(--muted);font-size:.78rem;padding:1rem 0;border-top:1px solid var(--border)}
+    @media(max-width:480px){.header-row{flex-direction:column;align-items:stretch}.header-row h1{text-align:center}.filter-row{justify-content:center}.filter-row input[type=text]{width:120px}.card{font-size:.82rem}}
+  </style>
+</head>
+<body>
+  <div id="auth-gate" class="auth-gate">
+    <div>
+      <div class="lock-icon">&#128274;</div>
+      <p id="auth-msg">驗證身分中...</p>
+      <div class="spinner" id="auth-spinner"></div>
+    </div>
+  </div>
+
+  <div id="app" style="display:none">
+    <header>
+      <div class="header-row">
+        <h1>ToosterX 更新日誌</h1>
+        <div class="filter-row">
+          <select id="filter-year"></select>
+          <select id="filter-month"></select>
+          <input type="text" id="filter-search" placeholder="搜尋關鍵字...">
+        </div>
+      </div>
+    </header>
+    <div class="container" id="content">
+      <div class="loading-bar"><div class="spinner"></div><p>載入中...</p></div>
+    </div>
+  </div>
+
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+  <script>
+  (function(){
+    firebase.initializeApp({
+      apiKey:"AIzaSyA5TzRM_7XHaD8iQlrr3jZXrtXc-a5RXkE",
+      authDomain:"fc-football-6c8dc.firebaseapp.com",
+      projectId:"fc-football-6c8dc",
+      storageBucket:"fc-football-6c8dc.firebasestorage.app",
+      messagingSenderId:"468419387978",
+      appId:"1:468419387978:web:7975c83c9ce7eb60d2bcb3"
+    });
+    firebase.auth().setPersistence(firebase.auth.Auth.Persistence.LOCAL);
+
+    var db = firebase.firestore();
+    var ADMIN_ROLES = ['admin','super_admin'];
+    var cache = {}; // { "2026-04": { "2026-04-02": [...], ... } }
+
+    // --- Tag classifier ---
+    function classifyTag(msg) {
+      if (/^feat[:(]/.test(msg)) return {t:'FEAT',c:'tag-feat'};
+      if (/^fix[:(]/.test(msg)) return {t:'FIX',c:'tag-fix'};
+      if (/^chore[:(]/.test(msg)) return {t:'CHORE',c:'tag-chore'};
+      if (/^docs[:(]/.test(msg)) return {t:'DOCS',c:'tag-docs'};
+      if (/^test[:(]/.test(msg)) return {t:'TEST',c:'tag-test'};
+      if (/^refactor[:(]/.test(msg)) return {t:'REFAC',c:'tag-refactor'};
+      if (/修復|修正|fix/i.test(msg)) return {t:'FIX',c:'tag-fix'};
+      if (/新增|feat|加入/i.test(msg)) return {t:'FEAT',c:'tag-feat'};
+      if (/版號|版本/i.test(msg)) return {t:'CHORE',c:'tag-chore'};
+      if (/docs:|文件|日誌/i.test(msg)) return {t:'DOCS',c:'tag-docs'};
+      if (/test:|測試/i.test(msg)) return {t:'TEST',c:'tag-test'};
+      if (/refactor:|重構/i.test(msg)) return {t:'REFAC',c:'tag-refactor'};
+      return {t:'OTHER',c:'tag-other'};
+    }
+
+    function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+
+    // --- Render entries for current month ---
+    function renderMonth(monthData, searchTerm) {
+      if (!monthData) { document.getElementById('content').innerHTML='<div class="no-results">此月份無更新紀錄</div>'; return; }
+      var dates = Object.keys(monthData).sort().reverse();
+      var html = '', totalEntries = 0, totalDays = 0;
+
+      dates.forEach(function(date){
+        var entries = monthData[date];
+        if (searchTerm) entries = entries.filter(function(e){return e.toLowerCase().indexOf(searchTerm.toLowerCase()) !== -1});
+        if (entries.length === 0) return;
+        totalDays++; totalEntries += entries.length;
+        html += '<div class="day-section"><div class="day-header"><span class="day-date">' + date + '</span><span class="day-count">' + entries.length + ' 筆更新</span></div>';
+        entries.forEach(function(msg){
+          var t = classifyTag(msg);
+          html += '<div class="card"><span class="tag ' + t.c + '">' + t.t + '</span><span class="card-msg">' + esc(msg) + '</span></div>';
+        });
+        html += '</div>';
+      });
+
+      if (!html) html = '<div class="no-results">沒有符合條件的紀錄</div>';
+      document.getElementById('content').innerHTML = html + '<div class="stats">' + totalDays + ' 天 / ' + totalEntries + ' 筆更新紀錄</div>';
+    }
+
+    // --- Load month data from Firestore (1 read per month) ---
+    async function loadMonth(yearMonth) {
+      if (cache[yearMonth]) return cache[yearMonth];
+      document.getElementById('content').innerHTML = '<div class="loading-bar"><div class="spinner"></div><p>載入 ' + yearMonth + ' 資料...</p></div>';
+      try {
+        var doc = await db.collection('changelog').doc(yearMonth).get();
+        if (doc.exists) {
+          cache[yearMonth] = doc.data().days || {};
+        } else {
+          cache[yearMonth] = {};
+        }
+      } catch(e) {
+        cache[yearMonth] = {};
+        console.error('loadMonth error:', e);
+      }
+      return cache[yearMonth];
+    }
+
+    // --- Filter change handler ---
+    async function onFilterChange() {
+      var y = document.getElementById('filter-year').value;
+      var m = document.getElementById('filter-month').value;
+      var search = document.getElementById('filter-search').value.trim();
+      var yearMonth = y + '-' + m;
+      var data = await loadMonth(yearMonth);
+      renderMonth(data, search);
+    }
+
+    // --- Init filters from Firestore index doc ---
+    async function initApp() {
+      // Read index doc: changelog/_index { months: ["2026-04","2026-03",...] }
+      var indexDoc = await db.collection('changelog').doc('_index').get();
+      var months = (indexDoc.exists && indexDoc.data().months) ? indexDoc.data().months : [];
+      months.sort().reverse();
+
+      if (months.length === 0) {
+        document.getElementById('content').innerHTML = '<div class="no-results">尚無更新紀錄，請先執行資料匯入腳本</div>';
+        return;
+      }
+
+      var years = {};
+      months.forEach(function(ym){ years[ym.substring(0,4)] = true; });
+
+      var yearSel = document.getElementById('filter-year');
+      yearSel.innerHTML = '';
+      Object.keys(years).sort().reverse().forEach(function(y){
+        var o = document.createElement('option'); o.value = y; o.textContent = y + '年'; yearSel.appendChild(o);
+      });
+
+      var monthSel = document.getElementById('filter-month');
+
+      function populateMonths() {
+        var selYear = yearSel.value;
+        monthSel.innerHTML = '';
+        months.filter(function(ym){return ym.startsWith(selYear)}).forEach(function(ym){
+          var mm = ym.substring(5,7);
+          var o = document.createElement('option'); o.value = mm; o.textContent = parseInt(mm) + '月'; monthSel.appendChild(o);
+        });
+      }
+
+      yearSel.addEventListener('change', function(){ populateMonths(); onFilterChange(); });
+      monthSel.addEventListener('change', onFilterChange);
+      var searchTimer;
+      document.getElementById('filter-search').addEventListener('input', function(){
+        clearTimeout(searchTimer); searchTimer = setTimeout(onFilterChange, 300);
+      });
+
+      populateMonths();
+      onFilterChange();
+    }
+
+    // --- Auth gate ---
+    firebase.auth().onAuthStateChanged(function(user){
+      if (!user) {
+        document.getElementById('auth-spinner').style.display = 'none';
+        document.getElementById('auth-msg').textContent = '請先在主站登入後再訪問此頁面';
+        return;
+      }
+      db.collection('users').doc(user.uid).get().then(function(doc){
+        var role = (doc.exists && doc.data().role) ? doc.data().role : 'user';
+        if (ADMIN_ROLES.indexOf(role) === -1) {
+          document.getElementById('auth-spinner').style.display = 'none';
+          document.getElementById('auth-msg').textContent = '權限不足：僅限管理員以上層級瀏覽';
+          return;
+        }
+        document.getElementById('auth-gate').style.display = 'none';
+        document.getElementById('app').style.display = 'block';
+        initApp();
+      }).catch(function(err){
+        document.getElementById('auth-spinner').style.display = 'none';
+        document.getElementById('auth-msg').textContent = '驗證失敗：' + err.message;
+      });
+    });
+  })();
+  </script>
+</body>
+</html>

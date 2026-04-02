@@ -10,6 +10,7 @@ Disallow: /pages/
 # 禁止爬取內部管理工具
 Disallow: /inventory/
 Disallow: /permissions/
+Disallow: /changelog/
 Disallow: /functions/
 
 # 禁止爬取開發/測試檔案
