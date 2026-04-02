@@ -10,6 +10,21 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-04-02 — SEO 全面優化 + 自動化 + 更新日誌頁面
+- **問題**：網站搜尋「台中踢球」「新手踢球」等關鍵字完全找不到；SEO 基礎建設不足（無 hreflang、無 Breadcrumb、著陸頁互相孤立）
+- **修復**：
+  1. SEO 基礎：Twitter Card 升級、hreflang、BreadcrumbList JSON-LD、著陸頁互相連結、sitemap 加 lastmod、品牌統一 ToosterX、privacy/terms 加 OG 標籤
+  2. index.html：hidden div 改 noscript 連結（消除 Google 可疑隱藏內容判定）
+  3. 新增 seo/football-taichung.html 台中足球專頁（1800+ 字、9 場地卡）
+  4. 新增 seo/nantun-football-park.html 南屯足球園區專題報導（AFC 認證、4 座球場規格、工程時程、交通指南）
+  5. 結構化資料修正：SportsEvent → Thing（消除 GSC startDate 錯誤）
+  6. Cloudflare：www 301 重導向 + Crawler Hints（IndexNow）
+  7. GitHub Actions 自動化：push 含 SEO 檔案變更時自動提交 sitemap 給 Google（scripts/submit-sitemap.js）
+  8. 更新日誌頁面 /changelog/：Firestore 按月讀取、admin 限定、GitHub Actions 每次 push 自動同步（scripts/sync-changelog.js）
+  9. 數據儀表板右上角加入 changelog 入口按鈕（扳手 SVG）
+  10. 新增 docs/seo-log.md SEO 日誌 + CLAUDE.md 加入 SEO 日誌維護規則
+- **教訓**：Google Indexing API 僅限 JobPosting/BroadcastEvent，用於其他類型會導致流量永久下降，已放棄。SEO 著陸頁不要用 SportsEvent（需 startDate），介紹頁用 Thing 即可。GSC 網域資源的 API site URL 格式是 `sc-domain:toosterx.com` 而非 `https://toosterx.com/`
+
 ### 2026-04-02 — 賽事系統 i18n 常數遷移 + 賽程/統計頁簽實作
 - **問題**：賽事狀態字串（報名中、已截止報名等）在 11+ 處以中文字串字面量做 `===` 比對，不利於 i18n 且容易打錯字。賽程/統計頁簽僅顯示「即將推出」佔位符
 - **原因**：早期實作直接用中文字串做邏輯比對，沒有抽出常數
