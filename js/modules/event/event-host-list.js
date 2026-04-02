@@ -99,7 +99,8 @@ Object.assign(App, {
         hostEndedStats[uid].eventIds.push(e.id);
       });
 
-      // 取得所有簽到紀錄（type=checkin），按 eventId 分組去重
+      // 取得所有簽到紀錄（type=checkin），按 eventId 分組
+      // 去重 key = uid + companionId（同行者的 uid 是主報名者，需用 companionId 區分）
       var checkinByEvent = {};
       try {
         var arSnap = await db.collection('attendanceRecords').where('type', '==', 'checkin').get();
@@ -108,7 +109,8 @@ Object.assign(App, {
           var eid = d.eventId;
           if (!eid) return;
           if (!checkinByEvent[eid]) checkinByEvent[eid] = new Set();
-          checkinByEvent[eid].add(d.uid);
+          var personKey = d.companionId ? (d.uid + ':' + d.companionId) : d.uid;
+          checkinByEvent[eid].add(personKey);
         });
       } catch (_) {}
 
@@ -119,7 +121,7 @@ Object.assign(App, {
         stats.eventIds.forEach(function(eid) {
           totalCheckin += (checkinByEvent[eid] ? checkinByEvent[eid].size : 0);
         });
-        hostMap[uid].attendanceRate = Math.min(100, Math.round((totalCheckin / stats.totalParticipants) * 100));
+        hostMap[uid].attendanceRate = Math.round((totalCheckin / stats.totalParticipants) * 100);
       });
 
       this._hostListData = Object.values(hostMap);
