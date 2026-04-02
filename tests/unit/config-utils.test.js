@@ -133,7 +133,7 @@ const INHERENT_ROLE_PERMISSIONS = Object.freeze({
 // =========================================================================
 
 // ---------------------------------------------------------------------------
-// Extracted from js/config.js:604-612 — escapeHTML
+// Extracted from js/config.js:444-452 — escapeHTML
 // Escapes &, <, >, ", ' for XSS prevention
 // ---------------------------------------------------------------------------
 function escapeHTML(str) {
@@ -147,7 +147,7 @@ function escapeHTML(str) {
 }
 
 // ---------------------------------------------------------------------------
-// Extracted from js/config.js:614-616 — generateId
+// Extracted from js/config.js:454-456 — generateId
 // Creates unique IDs with optional prefix
 // ---------------------------------------------------------------------------
 function generateId(prefix) {
@@ -155,7 +155,7 @@ function generateId(prefix) {
 }
 
 // ---------------------------------------------------------------------------
-// Extracted from js/config.js:571-574 — getSportKeySafe
+// Extracted from js/config.js:411-414 — getSportKeySafe
 // Validates sport key exists in EVENT_SPORT_MAP
 // ---------------------------------------------------------------------------
 function getSportKeySafe(key) {
@@ -164,7 +164,7 @@ function getSportKeySafe(key) {
 }
 
 // ---------------------------------------------------------------------------
-// Extracted from js/config.js:576-579 — getSportLabelByKey
+// Extracted from js/config.js:416-419 — getSportLabelByKey
 // Gets label for sport key, defaults to football
 // ---------------------------------------------------------------------------
 function getSportLabelByKey(key) {
@@ -173,7 +173,7 @@ function getSportLabelByKey(key) {
 }
 
 // ---------------------------------------------------------------------------
-// Extracted from js/config.js:581-586 — getSportIconSvg
+// Extracted from js/config.js:421-426 — getSportIconSvg
 // Gets emoji HTML span for sport key
 // ---------------------------------------------------------------------------
 function getSportIconSvg(key, className = '') {
@@ -184,7 +184,7 @@ function getSportIconSvg(key, className = '') {
 }
 
 // ---------------------------------------------------------------------------
-// Extracted from js/config.js:700-704 — isPermissionCodeEnabled
+// Extracted from js/config.js:559-563 — isPermissionCodeEnabled
 // Checks if permission code is active (not in disabled set)
 // ---------------------------------------------------------------------------
 function isPermissionCodeEnabled(code) {
@@ -194,7 +194,7 @@ function isPermissionCodeEnabled(code) {
 }
 
 // ---------------------------------------------------------------------------
-// Extracted from js/config.js:706-710 — sanitizePermissionCodeList
+// Extracted from js/config.js:565-569 — sanitizePermissionCodeList
 // Removes duplicates & disabled codes from a list
 // ---------------------------------------------------------------------------
 function sanitizePermissionCodeList(codes) {
@@ -204,7 +204,7 @@ function sanitizePermissionCodeList(codes) {
 }
 
 // ---------------------------------------------------------------------------
-// Extracted from js/config.js:746-748 — getInherentRolePermissions
+// Extracted from js/config.js:631-633 — getInherentRolePermissions
 // Gets non-removable permissions for a role
 // ---------------------------------------------------------------------------
 function getInherentRolePermissions(roleKey) {
@@ -212,7 +212,7 @@ function getInherentRolePermissions(roleKey) {
 }
 
 // ---------------------------------------------------------------------------
-// Extracted from js/config.js:750-763 — getAdminDrawerPermissionDefinitions
+// Extracted from js/config.js:635-648 — getAdminDrawerPermissionDefinitions
 // Internal helper: builds permission definitions from drawer menus
 // ---------------------------------------------------------------------------
 function getAdminDrawerPermissionDefinitions() {
@@ -231,7 +231,7 @@ function getAdminDrawerPermissionDefinitions() {
 }
 
 // ---------------------------------------------------------------------------
-// Extracted from js/config.js:765-767 — getAdminDrawerPermissionCodes
+// Extracted from js/config.js:650-652 — getAdminDrawerPermissionCodes
 // Extracts all admin permission entry codes from drawer menus
 // ---------------------------------------------------------------------------
 function getAdminDrawerPermissionCodes() {
@@ -239,7 +239,7 @@ function getAdminDrawerPermissionCodes() {
 }
 
 // ---------------------------------------------------------------------------
-// Extracted from js/config.js:769-772 — getAdminPagePermissionCode
+// Extracted from js/config.js:654-657 — getAdminPagePermissionCode
 // Maps page ID to its permission code
 // ---------------------------------------------------------------------------
 function getAdminPagePermissionCode(pageId) {
@@ -248,7 +248,7 @@ function getAdminPagePermissionCode(pageId) {
 }
 
 // ---------------------------------------------------------------------------
-// Extracted from js/config.js:774-809 — getMergedPermissionCatalog
+// Extracted from js/config.js:659-694 — getMergedPermissionCatalog
 // Merges built-in + remote permission categories
 // ---------------------------------------------------------------------------
 function getMergedPermissionCatalog(remoteCategories = []) {
@@ -289,7 +289,7 @@ function getMergedPermissionCatalog(remoteCategories = []) {
 }
 
 // ---------------------------------------------------------------------------
-// Extracted from js/config.js:811-816 — getAllPermissionCodes
+// Extracted from js/config.js:696-701 — getAllPermissionCodes
 // Flattens all permission codes from merged catalog
 // ---------------------------------------------------------------------------
 function getAllPermissionCodes(remoteCategories = []) {
@@ -300,7 +300,7 @@ function getAllPermissionCodes(remoteCategories = []) {
 }
 
 // ---------------------------------------------------------------------------
-// Extracted from js/config.js:818-835 — getDefaultRolePermissions
+// Extracted from js/config.js:703-724 — getDefaultRolePermissions
 // Default permissions by role. Uses _BASE_ROLE_LEVEL_MAP directly since
 // runtime custom role system is not available in test context.
 // ---------------------------------------------------------------------------
@@ -333,7 +333,7 @@ function getDefaultRolePermissions(roleKey) {
 }
 
 // ---------------------------------------------------------------------------
-// Extracted from js/config.js:395-404 — _normalizeRuntimeCustomRoles
+// Extracted from js/config.js:235-244 — _normalizeRuntimeCustomRoles
 // Normalizes custom role definitions
 // ---------------------------------------------------------------------------
 function _normalizeRuntimeCustomRoles(customRoles) {
