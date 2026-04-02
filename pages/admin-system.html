@@ -489,6 +489,17 @@
           </div>
         </div>
         <div class="form-card" style="margin-bottom:.6rem">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:.5rem">
+            <div style="flex:1;min-width:0">
+              <div style="font-weight:600;font-size:.82rem">⑦ 活動地區批次設定</div>
+              <div style="font-size:.72rem;color:var(--text-muted);line-height:1.5;margin-top:.15rem">
+                將所有活動（不分狀態）的地區統一設定為「中部」，並勾選全部中部縣市（台中市、苗栗縣、彰化縣、南投縣、雲林縣）。
+              </div>
+            </div>
+            <button class="outline-btn" style="flex-shrink:0;font-size:.75rem" onclick="App._backfillEventRegion()">執行</button>
+          </div>
+        </div>
+        <div class="form-card" style="margin-bottom:.6rem">
           <button id="data-sync-full-btn" class="primary-btn full-width" onclick="App.runDataSyncOp('all')">一鍵同步 ①②③</button>
         </div>
         <div class="form-card">

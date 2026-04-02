@@ -434,6 +434,86 @@ Object.assign(App, {
     await this._syncUserTeamFields(ui);
   },
 
+  // ── ⑦ 活動地區批次設定（全部設為中部 + 縣市全選）──
+  async _backfillEventRegion() {
+    if (!this.hasPermission?.('admin.repair.data_sync')) {
+      this.showToast('權限不足');
+      return;
+    }
+    if (this._dataSyncRunning) {
+      this.showToast('同步作業正在執行中');
+      return;
+    }
+
+    var CENTRAL_CITIES = ['台中市', '苗栗縣', '彰化縣', '南投縣', '雲林縣'];
+    var ok = await this.appConfirm(
+      '確定要將所有活動（不分狀態）的地區設定為「中部」，並勾選全部中部縣市嗎？\n\n' +
+      '縣市：' + CENTRAL_CITIES.join('、') + '\n\n' +
+      '此操作會覆寫所有活動現有的地區設定。'
+    );
+    if (!ok) return;
+
+    this._dataSyncRunning = true;
+    var ui = this._dataSyncUI();
+    ui.show();
+    ui.log('開始活動地區批次設定...');
+    var startTime = Date.now();
+
+    try {
+      ui.log('從 Firestore 載入所有活動...');
+      var snap = await db.collection('events').get();
+      ui.log('共 ' + snap.size + ' 筆活動');
+
+      var updated = 0;
+      var skipped = 0;
+      var docs = snap.docs;
+      for (var i = 0; i < docs.length; i++) {
+        var doc = docs[i];
+        var data = doc.data();
+        var curRegion = (data.region || '').trim();
+        var curEnabled = data.regionEnabled;
+        var curCities = Array.isArray(data.cities) ? data.cities.slice().sort().join(',') : '';
+        var targetCities = CENTRAL_CITIES.slice().sort().join(',');
+
+        if (curEnabled === true && curRegion === '中部' && curCities === targetCities) {
+          skipped++;
+        } else {
+          await db.collection('events').doc(doc.id).update({
+            regionEnabled: true,
+            region: '中部',
+            cities: CENTRAL_CITIES,
+          });
+          updated++;
+          ui.log('已更新：' + (data.title || data.name || doc.id));
+        }
+        ui.setProgress(i + 1, docs.length);
+        if (i % 10 === 0) await new Promise(function(r) { setTimeout(r, 0); });
+      }
+
+      var elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+      ui.log('\n=== 活動地區批次設定完成（' + elapsed + ' 秒）===');
+      ui.log('已更新 ' + updated + ' 筆，跳過 ' + skipped + ' 筆（已正確）');
+      this.showToast('活動地區設定完成：更新 ' + updated + ' 筆');
+
+      if (updated > 0) {
+        ApiService._writeOpLog?.('data_sync', '活動地區批次設定', '全部設為中部+縣市全選，更新 ' + updated + '/' + docs.length + ' 筆');
+      }
+
+      // 同步本地快取
+      var cachedEvents = ApiService.getEvents?.() || [];
+      cachedEvents.forEach(function(e) {
+        e.regionEnabled = true;
+        e.region = '中部';
+        e.cities = CENTRAL_CITIES.slice();
+      });
+    } catch (err) {
+      ui.log('錯誤：' + (err.message || err));
+      this.showToast('活動地區設定失敗');
+    } finally {
+      this._dataSyncRunning = false;
+    }
+  },
+
   // ── ⑥ 用戶地區掃描 ──
   async _scanUserRegions() {
     var regions = typeof TW_REGIONS !== 'undefined' ? TW_REGIONS : [];
