@@ -87,41 +87,39 @@ Object.assign(App, {
         } catch (_) {}
       }
 
-      // 查出席率：主辦方建立的已結束活動中，參加者的整體出席率
-      // 分母 = event.current 加總（正取人數，與 participants 陣列一致）
-      // 分子 = attendanceRecords type=checkin 的不重複 uid 數
+      // 出席率 = (正取人數 - 放鴿子次數) / 正取人數 × 100
+      // 正取人數 = 各已結束活動的 event.current 加總
+      // 放鴿子 = 正取人數 - 簽到人數（每場獨立計算，下限 0）
       var endedEvents = events.filter(function(e) { return e.status === 'ended' && e.creatorUid; });
-      var hostEndedStats = {};
+      var hostEndedMap = {};
       endedEvents.forEach(function(e) {
         var uid = e.creatorUid;
-        if (!hostEndedStats[uid]) hostEndedStats[uid] = { totalParticipants: 0, eventIds: [] };
-        hostEndedStats[uid].totalParticipants += (parseInt(e.current) || 0);
-        hostEndedStats[uid].eventIds.push(e.id);
+        if (!hostEndedMap[uid]) hostEndedMap[uid] = [];
+        hostEndedMap[uid].push({ id: e.id, current: parseInt(e.current) || 0 });
       });
 
-      // 取得所有簽到紀錄（type=checkin），按 eventId 分組
-      // 去重 key = uid + companionId（同行者的 uid 是主報名者，需用 companionId 區分）
-      var checkinByEvent = {};
+      // 每場活動的簽到文件數（不去重，每筆 = 1 人簽到）
+      var checkinCountByEvent = {};
       try {
         var arSnap = await db.collection('attendanceRecords').where('type', '==', 'checkin').get();
         arSnap.forEach(function(doc) {
-          var d = doc.data();
-          var eid = d.eventId;
-          if (!eid) return;
-          if (!checkinByEvent[eid]) checkinByEvent[eid] = new Set();
-          var personKey = d.companionId ? (d.uid + ':' + d.companionId) : d.uid;
-          checkinByEvent[eid].add(personKey);
+          var eid = doc.data().eventId;
+          if (eid) checkinCountByEvent[eid] = (checkinCountByEvent[eid] || 0) + 1;
         });
       } catch (_) {}
 
       uids.forEach(function(uid) {
-        var stats = hostEndedStats[uid];
-        if (!stats || stats.totalParticipants === 0) { hostMap[uid].attendanceRate = 0; return; }
-        var totalCheckin = 0;
-        stats.eventIds.forEach(function(eid) {
-          totalCheckin += (checkinByEvent[eid] ? checkinByEvent[eid].size : 0);
+        var evts = hostEndedMap[uid] || [];
+        var totalConfirmed = 0, totalNoShow = 0;
+        evts.forEach(function(evt) {
+          var checkedIn = checkinCountByEvent[evt.id] || 0;
+          var noShow = Math.max(0, evt.current - checkedIn);
+          totalConfirmed += evt.current;
+          totalNoShow += noShow;
         });
-        hostMap[uid].attendanceRate = Math.round((totalCheckin / stats.totalParticipants) * 100);
+        hostMap[uid].attendanceRate = totalConfirmed > 0
+          ? Math.round(((totalConfirmed - totalNoShow) / totalConfirmed) * 100)
+          : 0;
       });
 
       this._hostListData = Object.values(hostMap);
