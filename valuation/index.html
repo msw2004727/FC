@@ -10,10 +10,14 @@
     body{font-family:-apple-system,BlinkMacSystemFont,'Noto Sans TC','Helvetica Neue',Arial,sans-serif;color:#1a1a1a;line-height:1.8;background:#f8fafc}
     header{background:#fff;border-bottom:1px solid #e2e8f0;padding:1.2rem 1.5rem;position:sticky;top:0;z-index:10}
     .header-inner{max-width:860px;margin:0 auto}
-    .header-inner h1{font-size:1.15rem;color:#0f172a;margin-bottom:.3rem}
-    .header-meta{display:flex;flex-direction:column;gap:.2rem}
+    .header-title-row{display:flex;align-items:baseline;justify-content:space-between;gap:.8rem;flex-wrap:wrap}
+    .header-inner h1{font-size:1.15rem;color:#0f172a;margin:0}
+    .header-badge{font-size:.72rem;color:#0d9488;font-weight:600;border:1px solid #0d9488;border-radius:20px;padding:.15rem .6rem;white-space:nowrap}
+    .header-meta{margin-top:.3rem}
     .header-meta span{font-size:.78rem;color:#64748b}
     .container{max-width:860px;margin:0 auto;padding:2rem 1.2rem 4rem}
+    .logo-wrap{text-align:center;padding:1.5rem 0 .5rem}
+    .logo-wrap img{max-width:220px;height:auto}
     h2{font-size:1.2rem;color:#0f172a;margin:2.5rem 0 .8rem;padding-bottom:.4rem;border-bottom:2px solid #e2e8f0}
     h3{font-size:1.05rem;color:#334155;margin:1.5rem 0 .5rem}
     p{margin-bottom:1rem;color:#334155}
@@ -46,15 +50,21 @@
 <body>
   <header>
     <div class="header-inner">
-      <h1>ToosterX 專案估值報告</h1>
+      <div class="header-title-row">
+        <h1>ToosterX 專案估值報告</h1>
+        <span class="header-badge">保守估值版本</span>
+      </div>
       <div class="header-meta">
-        <span>保守估計</span>
         <span>最後更新：2026-04-02</span>
       </div>
     </div>
   </header>
 
   <div class="container">
+
+    <div class="logo-wrap">
+      <img src="../assets/logo-black.png" alt="ToosterX">
+    </div>
 
     <h2>專案概覽</h2>
     <p>ToosterX 是台灣領先的運動揪團報名平台，透過 LINE Mini App 提供活動報名、俱樂部管理、賽事系統、QR Code 簽到、成就系統等完整功能。以下為基於程式碼資產重置成本法的保守估值。</p>
