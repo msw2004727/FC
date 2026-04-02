@@ -667,6 +667,11 @@ Object.assign(App, {
       this._handleRestrictedStateChange();
       return;
     }
+    // 首次登入守衛：缺少必填資料時攔截返回導航
+    if (this._pendingFirstLogin) {
+      this._tryShowFirstLoginModal();
+      return;
+    }
     if (this.pageHistory.length > 0) {
       const prev = this.pageHistory.pop();
       // 清理當前頁面的資源（監聽器、動畫等）
