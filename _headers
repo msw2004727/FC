@@ -26,6 +26,10 @@
   Cache-Control: public, max-age=0, must-revalidate
   X-Robots-Tag: noindex, nofollow, noarchive
 
+/valuation/*
+  Cache-Control: public, max-age=0, must-revalidate
+  X-Robots-Tag: noindex, nofollow, noarchive
+
 # SEO landing pages
 /seo/*
   Cache-Control: public, max-age=86400
