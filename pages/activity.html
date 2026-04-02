@@ -218,15 +218,13 @@
         </div>
         <!-- 活動地區 -->
         <div class="ce-row" id="ce-region-row">
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:.5rem">
-            <div class="ce-label-row"><button class="edu-info-btn" onclick="App._showCeInfo('region')" title="說明">?</button><label>活動地區</label></div>
-            <div id="ce-region-toggle-row" style="display:flex;align-items:center;gap:.5rem">
-              <label class="toggle-switch" style="margin:0">
-                <input type="checkbox" id="ce-region-enabled" checked>
-                <span class="toggle-slider"></span>
-              </label>
-              <span id="ce-region-enabled-label" style="font-size:.78rem;color:var(--text-muted)">開啟</span>
-            </div>
+          <div class="ce-label-row"><button class="edu-info-btn" onclick="App._showCeInfo('region')" title="說明">?</button><label>活動地區</label></div>
+          <div id="ce-region-toggle-row" style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
+            <label class="toggle-switch" style="margin:0">
+              <input type="checkbox" id="ce-region-enabled" checked>
+              <span class="toggle-slider"></span>
+            </label>
+            <span id="ce-region-enabled-label" style="font-size:.78rem;color:var(--text-muted)">開啟 — 指定活動地區</span>
           </div>
           <div id="ce-region-options" style="margin-top:.6rem">
             <div id="ce-region-radios"></div>

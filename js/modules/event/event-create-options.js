@@ -236,7 +236,7 @@ Object.assign(App, {
     if (!toggle || !options) return;
     const enabled = toggle.checked;
     options.style.display = enabled ? '' : 'none';
-    if (label) label.textContent = enabled ? '開啟' : '關閉';
+    if (label) label.textContent = enabled ? '開啟 — 指定活動地區' : '關閉 — 所有地區頁籤都顯示';
     if (enabled) this._renderRegionRadios();
   },
 
