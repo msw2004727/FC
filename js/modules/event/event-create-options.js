@@ -252,32 +252,25 @@ Object.assign(App, {
     };
     const currentVal = container.querySelector('input[name="ce-region"]:checked')?.value || '';
     container.innerHTML = '';
-    container.style.cssText = 'display:flex;flex-direction:column;gap:.35rem';
+    container.style.cssText = 'display:flex;flex-wrap:wrap;gap:.4rem';
     Object.keys(regionMap).forEach(key => {
-      const cities = regionMap[key];
       const label = document.createElement('label');
-      label.style.cssText = 'display:flex;align-items:flex-start;gap:.35rem;font-size:.82rem;cursor:pointer;padding:.2rem 0;line-height:1.5';
+      const isChecked = key === currentVal;
+      label.style.cssText = 'display:flex;align-items:center;gap:.3rem;font-size:.8rem;cursor:pointer;padding:.35rem .6rem;border-radius:8px;border:1px solid ' + (isChecked ? 'var(--accent)' : 'var(--border)') + ';background:' + (isChecked ? 'var(--accent-bg,rgba(13,148,136,.08))' : 'var(--bg-card)') + ';white-space:nowrap';
       const radio = document.createElement('input');
       radio.type = 'radio';
       radio.name = 'ce-region';
       radio.value = key;
-      radio.style.cssText = 'margin:.25rem 0 0;flex-shrink:0;width:15px;height:15px';
-      if (key === currentVal) radio.checked = true;
-      const textWrap = document.createElement('span');
-      const bold = document.createElement('strong');
-      bold.textContent = key;
-      bold.style.cssText = 'color:var(--text-primary)';
-      var desc = document.createTextNode('：包括' + cities.join('、') + '。');
-      textWrap.appendChild(bold);
-      textWrap.appendChild(desc);
-      textWrap.style.cssText = 'color:var(--text-secondary);font-size:.8rem';
+      radio.style.cssText = 'margin:0;flex-shrink:0;width:14px;height:14px';
+      if (isChecked) radio.checked = true;
+      const text = document.createElement('span');
+      text.style.cssText = 'font-weight:500';
+      text.textContent = key;
       label.appendChild(radio);
-      label.appendChild(textWrap);
+      label.appendChild(text);
       container.appendChild(label);
     });
-    // 不再需要獨立的縣市 checkbox，城市已顯示在 radio 描述中
-    var citiesContainer = document.getElementById('ce-region-cities');
-    if (citiesContainer) citiesContainer.innerHTML = '';
+    this._updateCityCheckboxes();
   },
 
   _updateCityCheckboxes() {
