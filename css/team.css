@@ -8,8 +8,8 @@
 .team-search-bar input { flex: 2; }
 .team-search-bar select { flex: 1; }
 
-/* ─── Team Grid (vertical cards — 4 per row) ─── */
-.team-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: .45rem; padding-bottom: 1rem; }
+/* ─── Team Grid (vertical cards — 3 per row) ─── */
+.team-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: .55rem; padding-bottom: 1rem; }
 .tc-card {
   background: var(--bg-card);
   border-radius: var(--radius);
@@ -187,30 +187,43 @@
 /* ── Team Type Tabs ── */
 .team-type-tabs {
   display: flex;
-  gap: .3rem;
-  margin: .5rem 0;
+  gap: 0;
+  margin: .5rem 0 .65rem;
+  border-bottom: 2px solid var(--border);
 }
 .team-type-tab {
   flex: 1;
-  padding: .4rem .5rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius, 8px);
-  background: var(--bg-card);
-  color: var(--text-secondary);
-  font-size: .82rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: .2rem;
+  padding: .55rem .4rem .5rem;
+  border: none;
+  border-bottom: 2.5px solid transparent;
+  margin-bottom: -2px;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: .78rem;
   font-weight: 500;
   cursor: pointer;
-  transition: all .15s;
+  transition: color .2s, border-color .2s;
   text-align: center;
 }
+.team-tab-icon {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  transition: color .2s;
+}
 .team-type-tab:hover {
-  border-color: var(--primary);
   color: var(--primary);
 }
 .team-type-tab.active {
-  background: var(--primary);
-  color: #fff;
-  border-color: var(--primary);
+  color: var(--primary);
+  font-weight: 700;
+  border-bottom-color: var(--primary);
+  background: transparent;
 }
 
 /* ── Education Toggle in Form ── */

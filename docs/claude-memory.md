@@ -17,6 +17,11 @@
 - **影響範圍**：所有透過 LINE 開啟 Mini App 的全新用戶（佔用戶群 90%+）。這些用戶的個人資料（性別/生日/地區）永遠留空，導致：(1) 地區鎖活動對他們不可見 (2) 性別限定活動無法篩選 (3) 統計數據不完整
 - **教訓**：`showModal()` 在 DOM 不存在時靜默失敗（`if(!modal) return`），沒有 console.warn 或任何提示，極難被察覺。任何依賴動態載入 HTML 的 `showModal` 呼叫都必須加 DOM 存在性檢查 + 重試機制，不能假設 HTML 一定已載入
 
+### 2026-04-02 — 俱樂部頁籤 SVG 圖示化 + 卡片 3 欄
+- **變更**：俱樂部列表頁 team-type-tabs 從填滿式按鈕改為底線指示器頁籤，每個 tab 加上 SVG 圖示（全部=九宮格、運動=足球、教學=書本）。卡片 grid 從 4 欄改 3 欄（gap 0.45→0.55rem）
+- **檔案**：pages/team.html、css/team.css
+- **教訓**：tab 使用 CSS 變數（--primary、--text-muted、--border），dark theme 自動適配無需額外覆寫
+
 ### 2026-04-02 — 地區鎖 + 生日改三段 select + 個人資料地區限定 22 縣市 + 說明按鈕排版
 - **地區鎖**：新增活動表單加入地區鎖 toggle，開啟後模糊多選 22 縣市，鎖上必填至少一個地區，新增時彈窗警告。活動列表 `_getVisibleEvents` 過濾 regionLock（方案 A：未設地區不可見）。範本存取包含。編輯還原包含
 - **生日**：`<input type="date">` 改為三段 `<select>`（年/月/日），避免 iOS/LINE WebView date picker 選完年月自動關閉跳過日期。首次登入 + 個人資料編輯共用 `_populateBirthdaySelects`
