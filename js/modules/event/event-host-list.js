@@ -22,8 +22,7 @@ Object.assign(App, {
       '<div class="host-list-modal">' +
         '<div class="host-list-header">' +
           '<h3>主辦方排行</h3>' +
-          '<span id="host-list-updated" style="font-size:.65rem;color:#94a3b8;position:absolute;top:.55rem;right:2.5rem;white-space:nowrap"></span>' +
-          '<button class="modal-close" onclick="App.closeHostList()">✕</button>' +
+          '<span id="host-list-updated" style="font-size:.65rem;color:#94a3b8;white-space:nowrap"></span>' +
         '</div>' +
         '<div class="host-list-body" id="host-list-body"></div>' +
       '</div>';
