@@ -1,7 +1,7 @@
 {
-  "name": "SportHub — ToosterX",
-  "short_name": "SportHub",
-  "description": "運動活動報名與管理平台",
+  "name": "ToosterX",
+  "short_name": "ToosterX",
+  "description": "台灣運動揪團報名平台",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

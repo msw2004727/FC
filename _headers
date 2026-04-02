@@ -22,6 +22,16 @@
   Cache-Control: public, max-age=0, must-revalidate
   X-Robots-Tag: noindex, nofollow, noarchive
 
+# SEO landing pages
+/seo/*
+  Cache-Control: public, max-age=86400
+
+# Privacy & Terms
+/privacy.html
+  Cache-Control: public, max-age=86400
+/terms.html
+  Cache-Control: public, max-age=86400
+
 # Service Worker
 /sw.js
   Cache-Control: public, max-age=0, must-revalidate

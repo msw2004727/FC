@@ -4,6 +4,7 @@
   <!-- 首頁（主入口） -->
   <url>
     <loc>https://toosterx.com/</loc>
+    <lastmod>2026-04-02</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
   </url>
@@ -11,6 +12,7 @@
   <!-- 身分方案介紹 -->
   <url>
     <loc>https://toosterx.com/roles/</loc>
+    <lastmod>2026-03-19</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -18,6 +20,7 @@
   <!-- 隱私權政策 -->
   <url>
     <loc>https://toosterx.com/privacy.html</loc>
+    <lastmod>2026-03-19</lastmod>
     <changefreq>yearly</changefreq>
     <priority>0.3</priority>
   </url>
@@ -25,6 +28,7 @@
   <!-- 服務條款 -->
   <url>
     <loc>https://toosterx.com/terms.html</loc>
+    <lastmod>2026-03-19</lastmod>
     <changefreq>yearly</changefreq>
     <priority>0.3</priority>
   </url>
@@ -32,21 +36,32 @@
   <!-- SEO 著陸頁 — 運動項目 -->
   <url>
     <loc>https://toosterx.com/seo/football.html</loc>
+    <lastmod>2026-04-02</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
     <loc>https://toosterx.com/seo/running.html</loc>
+    <lastmod>2026-04-02</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
     <loc>https://toosterx.com/seo/hiking.html</loc>
+    <lastmod>2026-04-02</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
     <loc>https://toosterx.com/seo/pickleball.html</loc>
+    <lastmod>2026-04-02</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+
+  <url>
+    <loc>https://toosterx.com/seo/football-taichung.html</loc>
+    <lastmod>2026-04-02</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
