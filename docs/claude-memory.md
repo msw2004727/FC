@@ -14,6 +14,13 @@
 - **問題**：活動沒有地區分類，用戶無法按地區篩選活動；舊地區鎖功能是限制用戶可見性而非分類活動
 - **修復**：
   1. 新增 `REGION_MAP`（北/中/南/東部&外島）+ `REGION_TABS` 常數
+### 2026-04-02 — AI 輔助開發 DX 改善 + 自動化測試升級 + 賽事系統修復
+- **自動化測試**：38→48 suites, 1903→2122 tests。source-drift 改為內容雜湊比對。_rebuildOccupancy 漂移修復。新增 9 個 test suite（batch-registration / waitlist-capacity / attendance-confirm / event-lifecycle / education-enrollment / perm-sync / tournament-regression / tournament-permissions / tournament-crud）
+- **DX 工具**：`scripts/bump-version.js` 版號一鍵更新 4 處、`docs/firestore-schema.md` Firestore 欄位定義、大檔案函式索引（firebase-crud/api-service/firebase-service）、關鍵函式 JSDoc
+- **賽事系統**：color-mix→rgba 修復、審核競態條件修復、Modal 去重（ct-/et-→tf-）、i18n TOURNAMENT_STATUS 常數化、賽程/統計頁籤實作、表單欄位級驗證、建立賽事按鈕移至 eager 模組
+- **主辦方出席率**：修正為（正取-放鴿子）/正取算法、24h sessionStorage 快取、右上角更新時間
+- **教訓**：函式索引行號要在插入索引後重新計算；bump script 的 z 進位需要延伸而非 reset
+
   2. 地區鎖 → 活動地區選擇器：分區 radio 卡片 + 縣市複選（選填），admin 可關閉（不分區），其他角色強制開啟
   3. 首頁近期活動上方 + 活動行事曆新增地區 tab（中部|北部|南部|東部&外島|全部），置中顯示
   4. `_getVisibleEvents()` 移除舊 regionLock 過濾，新增 `_filterByRegionTab()` + `switchRegionTab()`
