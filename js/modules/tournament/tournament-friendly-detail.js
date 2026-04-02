@@ -246,7 +246,7 @@ Object.assign(App, {
     const approvedCount = (state.entries || []).filter(entry => entry.entryStatus === 'host' || entry.entryStatus === 'approved').length;
     const teamLimit = this._getFriendlyTournamentTeamLimit?.(latestTournament) || 4;
 
-    if (this.getTournamentStatus(latestTournament) !== '報名中') {
+    if (this.getTournamentStatus(latestTournament) !== TOURNAMENT_STATUS.REG_OPEN) {
       this.showToast('目前尚未開放報名');
       return;
     }

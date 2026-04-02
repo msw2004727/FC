@@ -25,9 +25,9 @@ Object.assign(App, {
     const status = this.getTournamentStatus(tournament);
 
     let primaryHtml = '';
-    if (status === '即將開始') {
+    if (status === TOURNAMENT_STATUS.PREPARING) {
       primaryHtml = `<button class="primary-btn full-width" disabled>報名尚未開始</button>`;
-    } else if (status === '已截止報名' || this.isTournamentEnded?.(tournament)) {
+    } else if (status === TOURNAMENT_STATUS.REG_CLOSED || this.isTournamentEnded?.(tournament)) {
       primaryHtml = `<button class="primary-btn full-width" disabled>報名已截止</button>`;
     } else if (approvedCount >= teamLimit && ctx.approvedTeams.length > 0) {
       primaryHtml = `<button class="primary-btn full-width" disabled>俱樂部已通過審核</button>`;

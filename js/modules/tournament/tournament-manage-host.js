@@ -53,7 +53,7 @@ Object.assign(App, {
   },
 
   _ensureTournamentHostRow(prefix) {
-    const p = prefix || 'ct';
+    const p = prefix || 'tf';
     let select = document.getElementById(`${p}-host-team`);
     if (select) return select;
 
@@ -76,7 +76,7 @@ Object.assign(App, {
   },
 
   _renderTournamentHostTeamOptions(prefix, selectedId = '', options = {}) {
-    const p = prefix || 'ct';
+    const p = prefix || 'tf';
     const { locked = false } = options;
     const select = this._ensureTournamentHostRow(p);
     if (!select) return;
@@ -101,7 +101,7 @@ Object.assign(App, {
   },
 
   _updateTournamentHostTeamSummary(prefix, options = {}) {
-    const p = prefix || 'ct';
+    const p = prefix || 'tf';
     const { locked = false } = options;
     const select = document.getElementById(`${p}-host-team`);
     const summary = document.getElementById(`${p}-host-team-summary`);
@@ -126,9 +126,8 @@ Object.assign(App, {
   // ══════════════════════════════════
 
   _ensureTournamentFormLayout(prefix) {
-    const p = prefix || 'ct';
-    const modalId = p === 'ct' ? 'create-tournament-modal' : 'edit-tournament-modal';
-    const form = document.querySelector(`#${modalId} .ce-form`);
+    const p = prefix || 'tf';
+    const form = document.querySelector('#tournament-form-modal .ce-form');
     if (!form) return;
 
     this._refreshTournamentCenterCreateButton();

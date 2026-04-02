@@ -112,28 +112,26 @@ Object.assign(App, {
     };
 
     const statusBgMap = {
-      '報名中':  { bg: 'rgba(52,211,153,.07)', border: '#10b981', darkBg: 'rgba(52,211,153,.15)' },
-      '截止報名': { bg: 'rgba(251,191,36,.07)', border: '#f59e0b', darkBg: 'rgba(251,191,36,.15)' },
-      '已截止報名': { bg: 'rgba(251,191,36,.07)', border: '#f59e0b', darkBg: 'rgba(251,191,36,.15)' },
-      '準備中':  { bg: 'rgba(96,165,250,.07)', border: '#60a5fa', darkBg: 'rgba(96,165,250,.15)' },
-      '即將開始':  { bg: 'rgba(96,165,250,.07)', border: '#60a5fa', darkBg: 'rgba(96,165,250,.15)' },
-      '已結束':  { bg: 'rgba(107,114,128,.07)', border: '#6b7280', darkBg: 'rgba(107,114,128,.15)' },
+      [TOURNAMENT_STATUS.REG_OPEN]:  { bg: 'rgba(52,211,153,.07)', border: '#10b981', darkBg: 'rgba(52,211,153,.15)' },
+      [TOURNAMENT_STATUS.REG_CLOSED_ALT]: { bg: 'rgba(251,191,36,.07)', border: '#f59e0b', darkBg: 'rgba(251,191,36,.15)' },
+      [TOURNAMENT_STATUS.REG_CLOSED]: { bg: 'rgba(251,191,36,.07)', border: '#f59e0b', darkBg: 'rgba(251,191,36,.15)' },
+      [TOURNAMENT_STATUS.PREPARING]:  { bg: 'rgba(96,165,250,.07)', border: '#60a5fa', darkBg: 'rgba(96,165,250,.15)' },
+      [TOURNAMENT_STATUS.ENDED]:  { bg: 'rgba(107,114,128,.07)', border: '#6b7280', darkBg: 'rgba(107,114,128,.15)' },
     };
     const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
 
     container.innerHTML = tournaments.map(t => {
       const isEnded = this.isTournamentEnded(t);
-      const status = isEnded ? '已結束' : this.getTournamentStatus(t);
+      const status = isEnded ? TOURNAMENT_STATUS.ENDED : this.getTournamentStatus(t);
       const statusMap = {
-        '報名中': 'open',
-        '截止報名': 'full',
-        '已截止報名': 'full',
-        '準備中': 'upcoming',
-        '即將開始': 'upcoming',
-        '已結束': 'ended',
+        [TOURNAMENT_STATUS.REG_OPEN]: 'open',
+        [TOURNAMENT_STATUS.REG_CLOSED_ALT]: 'full',
+        [TOURNAMENT_STATUS.REG_CLOSED]: 'full',
+        [TOURNAMENT_STATUS.PREPARING]: 'upcoming',
+        [TOURNAMENT_STATUS.ENDED]: 'ended',
       };
       const css = statusMap[status] || 'open';
-      const sBg = statusBgMap[status] || statusBgMap['已結束'];
+      const sBg = statusBgMap[status] || statusBgMap[TOURNAMENT_STATUS.ENDED];
 
       const registered = t.registeredTeams || [];
       const maxTeams = t.maxTeams || '?';

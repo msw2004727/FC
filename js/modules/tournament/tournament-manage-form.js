@@ -1,46 +1,42 @@
 /* === SportHub — Tournament Form Utilities & Helpers === */
 Object.assign(App, {
 
-  // ── Venue Management (Create & Edit) ──
-  _ctVenues: [],
-  _etVenues: [],
+  // ── Venue Management ──
+  _tfVenues: [],
   addTournamentVenue(prefix) {
-    const p = prefix || 'ct';
+    const p = prefix || 'tf';
     const input = document.getElementById(`${p}-venue-input`);
     if (!input) return;
     const val = input.value.trim();
     if (!val) return;
-    const arr = p === 'et' ? this._etVenues : this._ctVenues;
-    if (arr.includes(val)) { this.showToast('此場地已存在'); return; }
-    arr.push(val);
+    if (this._tfVenues.includes(val)) { this.showToast('此場地已存在'); return; }
+    this._tfVenues.push(val);
     input.value = '';
     this._renderVenueTags(p);
   },
   removeTournamentVenue(prefix, idx) {
-    const arr = prefix === 'et' ? this._etVenues : this._ctVenues;
-    arr.splice(idx, 1);
-    this._renderVenueTags(prefix);
+    this._tfVenues.splice(idx, 1);
+    this._renderVenueTags(prefix || 'tf');
   },
   _renderVenueTags(prefix) {
-    const container = document.getElementById(`${prefix}-venue-tags`);
+    const p = prefix || 'tf';
+    const container = document.getElementById(`${p}-venue-tags`);
     if (!container) return;
-    const arr = prefix === 'et' ? this._etVenues : this._ctVenues;
     // Note: innerHTML usage is safe — all user content passes through escapeHTML()
-    container.innerHTML = arr.map((v, i) => {
+    container.innerHTML = this._tfVenues.map((v, i) => {
       const mapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(v)}`;
       return `<span style="display:inline-flex;align-items:center;gap:.25rem;font-size:.72rem;padding:.2rem .5rem;border-radius:20px;background:var(--surface-alt);border:1px solid var(--border)">
         <a href="${mapUrl}" target="sporthub_map" rel="noopener" style="color:var(--primary);text-decoration:none">${escapeHTML(v)} 📍</a>
-        <span style="cursor:pointer;color:var(--text-muted)" onclick="App.removeTournamentVenue('${prefix}',${i})">✕</span>
+        <span style="cursor:pointer;color:var(--text-muted)" onclick="App.removeTournamentVenue('${p}',${i})">✕</span>
       </span>`;
     }).join('');
   },
 
-  // ── Delegate Management (Create & Edit) ──
-  _ctDelegates: [],
-  _etDelegates: [],
-  _tournamentDelegateSearchBound: { ct: false, et: false },
+  // ── Delegate Management ──
+  _tfDelegates: [],
+  _tournamentDelegateSearchBound: { tf: false },
   _initTournamentDelegateSearch(prefix) {
-    const p = prefix || 'ct';
+    const p = prefix || 'tf';
     const input = document.getElementById(`${p}-delegate-search`);
     const dropdown = document.getElementById(`${p}-delegate-dropdown`);
     if (!input || !dropdown) return;
@@ -70,12 +66,11 @@ Object.assign(App, {
   },
 
   _searchTournamentDelegates(query, prefix) {
-    const p = prefix || 'ct';
+    const p = prefix || 'tf';
     const dropdown = document.getElementById(`${p}-delegate-dropdown`);
     if (!dropdown) return;
     const q = query.toLowerCase();
-    const delegates = p === 'et' ? this._etDelegates : this._ctDelegates;
-    const selectedUids = delegates.map(d => d.uid);
+    const selectedUids = this._tfDelegates.map(d => d.uid);
 
     const allUsers = ApiService.getAdminUsers?.() || [];
     const results = allUsers.filter(u => {
@@ -109,83 +104,73 @@ Object.assign(App, {
     dropdown.classList.add('open');
   },
   _addTournamentDelegate(uid, name, prefix) {
-    const p = prefix || 'ct';
-    const delegates = p === 'et' ? this._etDelegates : this._ctDelegates;
-    if (delegates.length >= 10) return;
-    if (delegates.some(d => d.uid === uid)) return;
-    delegates.push({ uid, name });
+    if (this._tfDelegates.length >= 10) return;
+    if (this._tfDelegates.some(d => d.uid === uid)) return;
+    this._tfDelegates.push({ uid, name });
+    const p = prefix || 'tf';
     this._renderTournamentDelegateTags(p);
     this._updateTournamentDelegateInput(p);
   },
   _removeTournamentDelegate(uid, prefix) {
-    const p = prefix || 'ct';
-    if (p === 'et') {
-      this._etDelegates = this._etDelegates.filter(d => d.uid !== uid);
-    } else {
-      this._ctDelegates = this._ctDelegates.filter(d => d.uid !== uid);
-    }
+    this._tfDelegates = this._tfDelegates.filter(d => d.uid !== uid);
+    const p = prefix || 'tf';
     this._renderTournamentDelegateTags(p);
     this._updateTournamentDelegateInput(p);
   },
   _renderTournamentDelegateTags(prefix) {
-    const p = prefix || 'ct';
+    const p = prefix || 'tf';
     const container = document.getElementById(`${p}-delegate-tags`);
     if (!container) return;
-    const delegates = p === 'et' ? this._etDelegates : this._ctDelegates;
     const users = ApiService.getAdminUsers?.() || [];
     // Note: innerHTML usage is safe — all user content passes through escapeHTML()
-    container.innerHTML = delegates.map(d => {
+    container.innerHTML = this._tfDelegates.map(d => {
       const u = users.find(u => u.uid === d.uid);
       const role = u?.role || 'user';
       return `<span class="ce-delegate-tag">${this._userTag(d.name, role)}<span class="ce-delegate-remove" onclick="App._removeTournamentDelegate('${d.uid}','${p}')">✕</span></span>`;
     }).join('');
   },
   _updateTournamentDelegateInput(prefix) {
-    const p = prefix || 'ct';
+    const p = prefix || 'tf';
     const input = document.getElementById(`${p}-delegate-search`);
     if (!input) return;
-    const delegates = p === 'et' ? this._etDelegates : this._ctDelegates;
-    input.disabled = delegates.length >= 10;
-    input.placeholder = delegates.length >= 10 ? '已達上限 10 人' : '搜尋 UID 或暱稱...';
+    input.disabled = this._tfDelegates.length >= 10;
+    input.placeholder = this._tfDelegates.length >= 10 ? '已達上限 10 人' : '搜尋 UID 或暱稱...';
   },
 
   // ── Match Dates ──
-  _ctMatchDates: [],
-  _etMatchDates: [],
+  _tfMatchDates: [],
 
   addMatchDate(val) {
-    if (!val || this._ctMatchDates.includes(val)) return;
-    this._ctMatchDates.push(val);
-    this._ctMatchDates.sort();
-    this._renderMatchDateTags('ct');
-    document.getElementById('ct-match-date-picker').value = '';
+    if (!val || this._tfMatchDates.includes(val)) return;
+    this._tfMatchDates.push(val);
+    this._tfMatchDates.sort();
+    this._renderMatchDateTags('tf');
+    document.getElementById('tf-match-date-picker').value = '';
   },
   removeMatchDate(val) {
-    this._ctMatchDates = this._ctMatchDates.filter(d => d !== val);
-    this._renderMatchDateTags('ct');
+    this._tfMatchDates = this._tfMatchDates.filter(d => d !== val);
+    this._renderMatchDateTags('tf');
   },
   addEditMatchDate(val) {
-    if (!val || this._etMatchDates.includes(val)) return;
-    this._etMatchDates.push(val);
-    this._etMatchDates.sort();
-    this._renderMatchDateTags('et');
-    document.getElementById('et-match-date-picker').value = '';
+    if (!val || this._tfMatchDates.includes(val)) return;
+    this._tfMatchDates.push(val);
+    this._tfMatchDates.sort();
+    this._renderMatchDateTags('tf');
+    document.getElementById('tf-match-date-picker').value = '';
   },
   removeEditMatchDate(val) {
-    this._etMatchDates = this._etMatchDates.filter(d => d !== val);
-    this._renderMatchDateTags('et');
+    this._tfMatchDates = this._tfMatchDates.filter(d => d !== val);
+    this._renderMatchDateTags('tf');
   },
   _renderMatchDateTags(prefix) {
-    const p = prefix || 'ct';
+    const p = prefix || 'tf';
     const wrap = document.getElementById(`${p}-match-dates-wrap`);
     if (!wrap) return;
-    const dates = p === 'et' ? this._etMatchDates : this._ctMatchDates;
-    const removeFn = p === 'et' ? 'removeEditMatchDate' : 'removeMatchDate';
     // Note: innerHTML usage is safe — all user content passes through escapeHTML()
-    wrap.innerHTML = dates.map(d => {
+    wrap.innerHTML = this._tfMatchDates.map(d => {
       const parts = d.split('-');
       const label = `${parseInt(parts[1])}/${parseInt(parts[2])}`;
-      return `<span style="display:inline-flex;align-items:center;gap:.2rem;font-size:.72rem;padding:.2rem .5rem;border-radius:20px;background:var(--accent);color:#fff">${label}<span style="cursor:pointer;margin-left:.1rem" onclick="App.${removeFn}('${d}')">✕</span></span>`;
+      return `<span style="display:inline-flex;align-items:center;gap:.2rem;font-size:.72rem;padding:.2rem .5rem;border-radius:20px;background:var(--accent);color:#fff">${label}<span style="cursor:pointer;margin-left:.1rem" onclick="App.removeMatchDate('${d}')">✕</span></span>`;
     }).join('');
   },
 
@@ -202,7 +187,7 @@ Object.assign(App, {
     return note;
   },
   _getTournamentFeeFormNodes(prefix) {
-    const p = prefix || 'ct';
+    const p = prefix || 'tf';
     return {
       row: document.getElementById(`${p}-fee`)?.closest('.ce-row') || null,
       toggle: document.getElementById(`${p}-fee-enabled`),
@@ -211,7 +196,7 @@ Object.assign(App, {
     };
   },
   _updateTournamentFeeToggle(prefix) {
-    const { toggle, wrap, input } = this._getTournamentFeeFormNodes(prefix);
+    const { toggle, wrap, input } = this._getTournamentFeeFormNodes(prefix || 'tf');
     if (!toggle || !wrap || !input) return;
     const enabled = !!toggle.checked;
     if (enabled) {
@@ -224,13 +209,14 @@ Object.assign(App, {
     input.disabled = true;
   },
   _setTournamentFeeFormState(prefix, enabled, feeValue = '300') {
-    const { toggle, input } = this._getTournamentFeeFormNodes(prefix);
+    const p = prefix || 'tf';
+    const { toggle, input } = this._getTournamentFeeFormNodes(p);
     if (toggle) toggle.checked = !!enabled;
     if (input) {
       const normalized = Number(feeValue);
       input.value = Number.isFinite(normalized) && normalized > 0 ? String(Math.floor(normalized)) : '300';
     }
-    this._updateTournamentFeeToggle(prefix);
+    this._updateTournamentFeeToggle(p);
   },
   _getTournamentImmediateRegStartValue(rawValue = '') {
     const safeValue = String(rawValue || '').trim();
@@ -240,11 +226,12 @@ Object.assign(App, {
     return localNow.toISOString().slice(0, 16);
   },
   _getTournamentTeamLimitValue(prefix, fallback = 4) {
-    const rawValue = document.getElementById(`${prefix}-teams`)?.value;
+    const p = prefix || 'tf';
+    const rawValue = document.getElementById(`${p}-teams`)?.value;
     return this._sanitizeFriendlyTournamentTeamLimit?.(rawValue, fallback) ?? fallback;
   },
   _ensureTournamentFeeToggle(prefix) {
-    const p = prefix || 'ct';
+    const p = prefix || 'tf';
     const row = document.getElementById(`${p}-fee`)?.closest('.ce-row');
     if (!row || row.querySelector(`#${p}-fee-enabled`)) return;
 
@@ -270,7 +257,8 @@ Object.assign(App, {
   },
 
   _resetTournamentImagePreview(prefix, content = false) {
-    const preview = document.getElementById(content ? `${prefix}-content-upload-preview` : `${prefix}-upload-preview`);
+    const p = prefix || 'tf';
+    const preview = document.getElementById(content ? `${p}-content-upload-preview` : `${p}-upload-preview`);
     if (!preview) return;
     preview.classList.remove('has-image');
     // Note: innerHTML usage is safe — no user content in this template

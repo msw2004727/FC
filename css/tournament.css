@@ -484,3 +484,20 @@
 [data-theme="dark"] .td-info-label { color: var(--text-muted); }
 [data-theme="dark"] .td-edit-btn { background: #166534; }
 [data-theme="dark"] .td-edit-btn:hover { background: #15803d; }
+
+/* ─── Form validation error state ─── */
+.ce-row.tf-field-error input,
+.ce-row.tf-field-error select,
+.ce-row.tf-field-error textarea {
+  border-color: var(--danger, #dc2626) !important;
+  box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.15);
+}
+.tf-error-msg {
+  font-size: .72rem;
+  color: var(--danger, #dc2626);
+  margin-top: .2rem;
+  display: none;
+}
+.ce-row.tf-field-error .tf-error-msg {
+  display: block;
+}

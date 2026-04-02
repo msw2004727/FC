@@ -6,6 +6,9 @@ Object.assign(App, {
   // ══════════════════════════════════
   _tmActiveTab: 'active',
   _editTournamentId: null,
+  _tournamentFormMode: 'create',
+  _tournamentFormEditId: null,
+
   switchTournamentManageTab(tab) {
     this._tmActiveTab = tab;
     document.querySelectorAll('#tm-tabs .tab').forEach(el => {
@@ -37,12 +40,12 @@ Object.assign(App, {
     container.innerHTML = filtered.map(t => {
       const status = this.getTournamentStatus(t);
       const isEnded = this.isTournamentEnded(t);
-      const statusLabel = isEnded ? '已結束' : status;
+      const statusLabel = isEnded ? TOURNAMENT_STATUS.ENDED : status;
       const statusColorMap = {
-        '即將開始': '#6b7280',
-        '報名中': '#10b981',
-        '已截止報名': '#f59e0b',
-        '已結束': '#6b7280',
+        [TOURNAMENT_STATUS.PREPARING]: '#6b7280',
+        [TOURNAMENT_STATUS.REG_OPEN]: '#10b981',
+        [TOURNAMENT_STATUS.REG_CLOSED]: '#f59e0b',
+        [TOURNAMENT_STATUS.ENDED]: '#6b7280',
       };
       const statusColor = statusColorMap[statusLabel] || '#6b7280';
       const registered = Array.isArray(t.registeredTeams) ? t.registeredTeams : [];
@@ -91,6 +94,68 @@ Object.assign(App, {
   },
 
   // ══════════════════════════════════
+  //  Mode-Switching (unified modal)
+  // ══════════════════════════════════
+  _openTournamentFormModal(mode, tournamentId) {
+    const title = document.getElementById('tf-modal-title');
+    const btn = document.getElementById('tf-save-btn');
+    if (mode === 'create') {
+      if (title) title.textContent = '新增賽事';
+      if (btn) { btn.textContent = '建立賽事'; btn.onclick = () => App.handleCreateTournament(); }
+      this._tournamentFormMode = 'create';
+      this._tournamentFormEditId = null;
+    } else {
+      if (title) title.textContent = '編輯賽事';
+      if (btn) { btn.textContent = '儲存變更'; btn.onclick = () => App.handleSaveEditTournament(); }
+      this._tournamentFormMode = 'edit';
+      this._tournamentFormEditId = tournamentId;
+    }
+    // Clear errors and bind focus-to-clear-error listeners
+    this._tfClearErrors();
+    document.querySelectorAll('#tournament-form-modal input, #tournament-form-modal select, #tournament-form-modal textarea').forEach(el => {
+      el.addEventListener('focus', function() {
+        var row = this.closest('.ce-row');
+        if (row) row.classList.remove('tf-field-error');
+      }, { once: false });
+    });
+    this.showModal('tournament-form-modal');
+  },
+
+  // ══════════════════════════════════
+  //  Unified save dispatcher
+  // ══════════════════════════════════
+  handleSaveTournament() {
+    if (this._tournamentFormMode === 'edit') {
+      this.handleSaveEditTournament();
+    } else {
+      this.handleCreateTournament();
+    }
+  },
+
+  // ══════════════════════════════════
+  //  Validation helpers (field-level)
+  // ══════════════════════════════════
+  _tfClearErrors() {
+    document.querySelectorAll('#tournament-form-modal .tf-field-error').forEach(el => el.classList.remove('tf-field-error'));
+  },
+  _tfSetError(inputId, message) {
+    var input = document.getElementById(inputId);
+    if (!input) return;
+    var row = input.closest('.ce-row');
+    if (row) {
+      row.classList.add('tf-field-error');
+      var msg = row.querySelector('.tf-error-msg');
+      if (!msg) {
+        msg = document.createElement('div');
+        msg.className = 'tf-error-msg';
+        row.appendChild(msg);
+      }
+      msg.textContent = message;
+      msg.style.display = '';
+    }
+  },
+
+  // ══════════════════════════════════
   //  Create Tournament
   // ══════════════════════════════════
   openCreateTournamentModal() {
@@ -98,35 +163,35 @@ Object.assign(App, {
       this.showToast('目前只有擁有俱樂部的領隊或經理可以建立友誼賽。');
       return;
     }
-    this._ensureTournamentFormLayout('ct');
+    this._ensureTournamentFormLayout('tf');
     const hostTeams = this._getTournamentSelectableHostTeams();
     if (hostTeams.length === 0) {
       this.showToast('目前沒有可代表建立賽事的主辦俱樂部。');
       return;
     }
-    this._ctDelegates = [];
-    this._ctVenues = [];
-    this._ctMatchDates = [];
-    document.getElementById('ct-name').value = '';
-    document.getElementById('ct-region').value = '';
-    document.getElementById('ct-reg-start').value = '';
-    document.getElementById('ct-reg-end').value = '';
-    document.getElementById('ct-desc').value = '';
-    document.getElementById('ct-desc-count').textContent = '0/500';
-    document.getElementById('ct-teams').value = '4';
-    document.getElementById('ct-match-date-picker').value = '';
-    document.getElementById('ct-venue-input').value = '';
-    document.getElementById('ct-delegate-search').value = '';
-    this._renderTournamentHostTeamOptions('ct', hostTeams[0]?.id || '');
-    this._setTournamentFeeFormState('ct', false, 300);
-    this._renderVenueTags('ct');
-    this._renderMatchDateTags('ct');
-    this._renderTournamentDelegateTags('ct');
-    this._updateTournamentDelegateInput('ct');
-    this._resetTournamentImagePreview('ct');
-    this._resetTournamentImagePreview('ct', true);
-    this._initTournamentDelegateSearch('ct');
-    this.showModal('create-tournament-modal');
+    this._tfDelegates = [];
+    this._tfVenues = [];
+    this._tfMatchDates = [];
+    document.getElementById('tf-name').value = '';
+    document.getElementById('tf-region').value = '';
+    document.getElementById('tf-reg-start').value = '';
+    document.getElementById('tf-reg-end').value = '';
+    document.getElementById('tf-desc').value = '';
+    document.getElementById('tf-desc-count').textContent = '0/500';
+    document.getElementById('tf-teams').value = '4';
+    document.getElementById('tf-match-date-picker').value = '';
+    document.getElementById('tf-venue-input').value = '';
+    document.getElementById('tf-delegate-search').value = '';
+    this._renderTournamentHostTeamOptions('tf', hostTeams[0]?.id || '');
+    this._setTournamentFeeFormState('tf', false, 300);
+    this._renderVenueTags('tf');
+    this._renderMatchDateTags('tf');
+    this._renderTournamentDelegateTags('tf');
+    this._updateTournamentDelegateInput('tf');
+    this._resetTournamentImagePreview('tf');
+    this._resetTournamentImagePreview('tf', true);
+    this._initTournamentDelegateSearch('tf');
+    this._openTournamentFormModal('create');
   },
 
   async handleCreateTournament() {
@@ -136,34 +201,38 @@ Object.assign(App, {
       this.showToast('目前只有擁有俱樂部的領隊或經理可以建立友誼賽。');
       return;
     }
-    const createName = document.getElementById('ct-name').value.trim();
-    const createRegStartInput = document.getElementById('ct-reg-start').value || '';
-    const createRegEnd = document.getElementById('ct-reg-end').value || null;
-    const createDesc = document.getElementById('ct-desc').value.trim();
-    const createRegion = document.getElementById('ct-region').value.trim();
-    const createFeeEnabled = !!document.getElementById('ct-fee-enabled')?.checked;
-    const createFeeInput = parseInt(document.getElementById('ct-fee').value, 10) || 0;
+    this._tfClearErrors();
+    const createName = document.getElementById('tf-name').value.trim();
+    const createRegStartInput = document.getElementById('tf-reg-start').value || '';
+    const createRegEnd = document.getElementById('tf-reg-end').value || null;
+    const createDesc = document.getElementById('tf-desc').value.trim();
+    const createRegion = document.getElementById('tf-region').value.trim();
+    const createFeeEnabled = !!document.getElementById('tf-fee-enabled')?.checked;
+    const createFeeInput = parseInt(document.getElementById('tf-fee').value, 10) || 0;
     const createFee = createFeeEnabled ? Math.max(0, createFeeInput) : 0;
-    const createTeamLimitRaw = Number(document.getElementById('ct-teams')?.value);
-    const createTeamLimit = this._getTournamentTeamLimitValue('ct', 4);
-    const hostTeamId = document.getElementById('ct-host-team')?.value || '';
+    const createTeamLimitRaw = Number(document.getElementById('tf-teams')?.value);
+    const createTeamLimit = this._getTournamentTeamLimitValue('tf', 4);
+    const hostTeamId = document.getElementById('tf-host-team')?.value || '';
     const hostTeam = ApiService.getTeam?.(hostTeamId);
-    const createMatchDates = [...this._ctMatchDates];
-    const createVenues = [...this._ctVenues];
-    const createDelegates = [...this._ctDelegates];
-    if (!createName) { this.showToast('請輸入賽事名稱。'); return; }
-    if (!hostTeam) { this.showToast('請先選擇主辦俱樂部。'); return; }
+    const createMatchDates = [...this._tfMatchDates];
+    const createVenues = [...this._tfVenues];
+    const createDelegates = [...this._tfDelegates];
+    let hasError = false;
+    if (!createName) { this._tfSetError('tf-name', '請輸入賽事名稱。'); hasError = true; }
+    if (!hostTeam) { this._tfSetError('tf-host-team', '請先選擇主辦俱樂部。'); hasError = true; }
     if (!Number.isFinite(createTeamLimitRaw) || createTeamLimitRaw < 2 || createTeamLimitRaw > 4) {
-      this.showToast('參賽隊伍數需介於 2 到 4 隊。'); return;
+      this._tfSetError('tf-teams', '參賽隊伍數需介於 2 到 4 隊。'); hasError = true;
     }
-    if (!createRegEnd) { this.showToast('請填寫報名截止時間。'); return; }
+    if (!createRegEnd) { this._tfSetError('tf-reg-end', '請填寫報名截止時間。'); hasError = true; }
+    if (hasError) { this.showToast('請修正標記欄位。'); return; }
     const createRegStart = this._getTournamentImmediateRegStartValue(createRegStartInput);
     if (new Date(createRegStart) >= new Date(createRegEnd)) {
+      this._tfSetError('tf-reg-start', '報名開始時間不能晚於或等於截止時間。');
       this.showToast('報名開始時間不能晚於或等於截止時間。'); return;
     }
-    const createCoverPreview = document.getElementById('ct-upload-preview');
+    const createCoverPreview = document.getElementById('tf-upload-preview');
     const createCoverImage = createCoverPreview?.querySelector('img')?.src || null;
-    const createContentPreview = document.getElementById('ct-content-upload-preview');
+    const createContentPreview = document.getElementById('tf-content-upload-preview');
     const createContentImage = createContentPreview?.querySelector('img')?.src || null;
     const createCreatorName = createUser?.displayName || createUser?.name || '使用者';
     const createCreatorUid = createUser?.uid || '';
@@ -223,27 +292,27 @@ Object.assign(App, {
     this.renderTournamentManage();
     this.closeModal();
     this.showToast(`賽事「${createName}」已建立。`);
-    document.getElementById('ct-name').value = '';
-    document.getElementById('ct-region').value = '';
-    document.getElementById('ct-reg-start').value = '';
-    document.getElementById('ct-reg-end').value = '';
-    document.getElementById('ct-desc').value = '';
-    document.getElementById('ct-desc-count').textContent = '0/500';
-    document.getElementById('ct-teams').value = '4';
-    document.getElementById('ct-match-date-picker').value = '';
-    document.getElementById('ct-venue-input').value = '';
-    document.getElementById('ct-delegate-search').value = '';
-    this._ctMatchDates = [];
-    this._ctVenues = [];
-    this._ctDelegates = [];
-    this._renderMatchDateTags('ct');
-    this._renderVenueTags('ct');
-    this._renderTournamentDelegateTags('ct');
-    this._updateTournamentDelegateInput('ct');
-    this._renderTournamentHostTeamOptions('ct');
-    this._setTournamentFeeFormState('ct', false, 300);
-    this._resetTournamentImagePreview('ct');
-    this._resetTournamentImagePreview('ct', true);
+    document.getElementById('tf-name').value = '';
+    document.getElementById('tf-region').value = '';
+    document.getElementById('tf-reg-start').value = '';
+    document.getElementById('tf-reg-end').value = '';
+    document.getElementById('tf-desc').value = '';
+    document.getElementById('tf-desc-count').textContent = '0/500';
+    document.getElementById('tf-teams').value = '4';
+    document.getElementById('tf-match-date-picker').value = '';
+    document.getElementById('tf-venue-input').value = '';
+    document.getElementById('tf-delegate-search').value = '';
+    this._tfMatchDates = [];
+    this._tfVenues = [];
+    this._tfDelegates = [];
+    this._renderMatchDateTags('tf');
+    this._renderVenueTags('tf');
+    this._renderTournamentDelegateTags('tf');
+    this._updateTournamentDelegateInput('tf');
+    this._renderTournamentHostTeamOptions('tf');
+    this._setTournamentFeeFormState('tf', false, 300);
+    this._resetTournamentImagePreview('tf');
+    this._resetTournamentImagePreview('tf', true);
   },
 
   // ══════════════════════════════════

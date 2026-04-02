@@ -10,6 +10,12 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-04-02 — 賽事系統 i18n 常數遷移 + 賽程/統計頁簽實作
+- **問題**：賽事狀態字串（報名中、已截止報名等）在 11+ 處以中文字串字面量做 `===` 比對，不利於 i18n 且容易打錯字。賽程/統計頁簽僅顯示「即將推出」佔位符
+- **原因**：早期實作直接用中文字串做邏輯比對，沒有抽出常數
+- **修復**：(1) 在 `tournament-core.js` 頂部新增 `TOURNAMENT_STATUS` 常數物件（PREPARING/REG_OPEN/REG_CLOSED/ENDED/REG_CLOSED_ALT），(2) `getTournamentStatus()` 改用常數回傳，(3) 跨 5 個檔案共 16 處 `===`/`!==` 比較改用常數，(4) 狀態 map 物件改用計算屬性鍵，(5) i18n.js 新增 28 個 `tournament.*` 鍵（6 語言包），(6) 按鈕/空白狀態文字改用 `I18N.t()`，(7) 賽程頁簽顯示比賽日程 + 比賽結果，(8) 統計頁簽顯示參賽/待審/總球員數三格概覽
+- **教訓**：狀態字串只要用於邏輯比較就必須抽常數，顯示文字才走 i18n。`TOURNAMENT_STATUS` 值不可改（向後相容），常數名稱才是 i18n 安全的比較方式
+
 ### [永久] 2026-04-02 — LINE Mini App 首次登入彈窗不顯示（嚴重用戶流失）
 - **問題**：透過 LINE 開啟 Mini App 的全新用戶，首次登入後「完善個人資料」彈窗不會跳出，導致用戶沒填性別、生日、地區就直接進入首頁。Chrome / Safari 手動登入的用戶不受影響
 - **原因**：App 啟動時 `PageLoader.loadAll()`（載入 profile.html）是**非同步背景**執行，而 `App.init()` **不等它完成**就立刻呼叫 `bindLineLogin()`。LINE Mini App 的 LIFF 已預先驗證，`loginUser()` 瞬間完成 → `_pendingFirstLogin = true` → `showModal('first-login-modal')` → 但此時 profile.html 還沒載完 → `getElementById` 回傳 `null` → `toggleModal` 的 `if(!modal) return` 靜默失敗。Chrome/Safari 沒有 LIFF session 所以 `bindLineLogin` 不會立刻登入，等用戶手動登入時 HTML 早就載好了

@@ -117,23 +117,23 @@ Object.assign(App, {
 
     let btnHTML = '';
     if (alreadyRegistered) {
-      btnHTML = `<button class="primary-btn" style="width:100%" onclick="App.contactTournamentOrganizer('${t.id}')">聯繫主辦人</button>`;
+      btnHTML = `<button class="primary-btn" style="width:100%" onclick="App.contactTournamentOrganizer('${t.id}')">${I18N.t('tournament.contactHost')}</button>`;
     } else if (hasPendingRequest) {
-      btnHTML = `<button class="primary-btn" style="width:100%;opacity:.6;cursor:not-allowed" disabled>等待審核中</button>`;
-    } else if ((status === '截止報名' || status === '已截止報名') && isFull) {
-      btnHTML = `<button class="primary-btn" style="width:100%;opacity:.5;cursor:not-allowed" disabled>報名已滿</button>`;
-    } else if (status === '截止報名' || status === '已截止報名') {
-      btnHTML = `<button class="primary-btn" style="width:100%;opacity:.5;cursor:not-allowed" disabled>報名已截止</button>`;
-    } else if (status === '報名中' && isFull) {
-      btnHTML = `<button class="primary-btn" style="width:100%;opacity:.5;cursor:not-allowed" disabled>報名已滿</button>`;
-    } else if (status === '報名中') {
+      btnHTML = `<button class="primary-btn" style="width:100%;opacity:.6;cursor:not-allowed" disabled>${I18N.t('tournament.waitingReview')}</button>`;
+    } else if ((status === TOURNAMENT_STATUS.REG_CLOSED_ALT || status === TOURNAMENT_STATUS.REG_CLOSED) && isFull) {
+      btnHTML = `<button class="primary-btn" style="width:100%;opacity:.5;cursor:not-allowed" disabled>${I18N.t('tournament.regFull')}</button>`;
+    } else if (status === TOURNAMENT_STATUS.REG_CLOSED_ALT || status === TOURNAMENT_STATUS.REG_CLOSED) {
+      btnHTML = `<button class="primary-btn" style="width:100%;opacity:.5;cursor:not-allowed" disabled>${I18N.t('tournament.regClosed')}</button>`;
+    } else if (status === TOURNAMENT_STATUS.REG_OPEN && isFull) {
+      btnHTML = `<button class="primary-btn" style="width:100%;opacity:.5;cursor:not-allowed" disabled>${I18N.t('tournament.regFull')}</button>`;
+    } else if (status === TOURNAMENT_STATUS.REG_OPEN) {
       if (canRegister) {
-        btnHTML = `<button class="primary-btn" style="width:100%" onclick="App.registerTournament('${t.id}')">報名比賽</button>`;
+        btnHTML = `<button class="primary-btn" style="width:100%" onclick="App.registerTournament('${t.id}')">${I18N.t('tournament.register')}</button>`;
       } else {
-        btnHTML = `<button class="primary-btn" style="width:100%" onclick="App.showToast('請聯繫俱樂部管理人員進行報名')">報名比賽</button>`;
+        btnHTML = `<button class="primary-btn" style="width:100%" onclick="App.showToast('請聯繫俱樂部管理人員進行報名')">${I18N.t('tournament.register')}</button>`;
       }
-    } else if (status === '準備中' || status === '即將開始') {
-      btnHTML = `<button class="primary-btn" style="width:100%;opacity:.5;cursor:not-allowed" disabled>尚未開放報名</button>`;
+    } else if (status === TOURNAMENT_STATUS.PREPARING) {
+      btnHTML = `<button class="primary-btn" style="width:100%;opacity:.5;cursor:not-allowed" disabled>${I18N.t('tournament.notYetOpen')}</button>`;
     }
 
     // Safety: registered.length and maxTeams are numbers
@@ -292,11 +292,11 @@ Object.assign(App, {
       const contentImgHTML = t.contentImage ? `<div style="padding:0 .8rem .8rem"><img src="${t.contentImage}" alt="賽事內容圖片" style="width:100%;border-radius:var(--radius);display:block"></div>` : '';
       container.innerHTML = desc
         ? `<div style="padding:.8rem;font-size:.88rem;line-height:1.7;white-space:pre-wrap;color:var(--text-primary)">${escapeHTML(desc)}</div>${contentImgHTML}`
-        : `<div style="padding:2rem;text-align:center;color:var(--text-muted);font-size:.85rem">暫無說明</div>${contentImgHTML}`;
+        : `<div style="padding:2rem;text-align:center;color:var(--text-muted);font-size:.85rem">${I18N.t('tournament.noDescription')}</div>${contentImgHTML}`;
     } else if (tab === 'teams') {
       const teamIds = t.registeredTeams || [];
       if (teamIds.length === 0) {
-        container.innerHTML = '<div style="padding:2rem;text-align:center;color:var(--text-muted);font-size:.85rem">尚無俱樂部報名</div>';
+        container.innerHTML = '<div style="padding:2rem;text-align:center;color:var(--text-muted);font-size:.85rem">' + I18N.t('tournament.noTeams') + '</div>';
         return;
       }
       const allTeams = ApiService.getTeams();
@@ -304,9 +304,53 @@ Object.assign(App, {
       // Safety: _teamCardHTML returns pre-escaped markup
       container.innerHTML = `<div class="team-grid" style="padding:.5rem .4rem">${registered.map(tm => this._teamCardHTML({...tm, pinned: false})).join('')}</div>`;
     } else if (tab === 'schedule') {
-      container.innerHTML = '<div style="padding:3rem 1rem;text-align:center;color:var(--text-muted)"><div style="font-size:1.5rem;margin-bottom:.5rem">\uD83D\uDCCB</div><div style="font-size:.85rem">\u5373\u5C07\u63A8\u51FA</div></div>';
+      const ft = this.getFriendlyTournamentRecord?.(t) || t;
+      const matchDates = ft.matchDates || [];
+      const matches = ApiService.getMatches?.() || [];
+      const tournamentMatches = matches.filter(function (m) { return m.tournamentId === ft.id; });
+      if (matchDates.length === 0 && tournamentMatches.length === 0) {
+        container.innerHTML = '<div style="padding:2rem;text-align:center;color:var(--text-muted);font-size:.85rem">' + I18N.t('tournament.noSchedule') + '</div>';
+        return;
+      }
+      let schedHtml = '<div style="padding:.6rem">';
+      if (matchDates.length > 0) {
+        schedHtml += '<div class="td-card"><div class="td-card-title">' + I18N.t('tournament.matchDays') + '</div>';
+        matchDates.forEach(function (date, i) {
+          schedHtml += '<div class="td-info-row"><span class="td-info-label">Day ' + (i + 1) + '</span><span class="td-info-value">' + escapeHTML(date) + '</span></div>';
+        });
+        schedHtml += '</div>';
+      }
+      if (tournamentMatches.length > 0) {
+        schedHtml += '<div class="td-card"><div class="td-card-title">' + I18N.t('tournament.matchResults') + '</div>';
+        tournamentMatches.forEach(function (m) {
+          var scoreH = m.scoreH != null ? m.scoreH : '-';
+          var scoreA = m.scoreA != null ? m.scoreA : '-';
+          schedHtml += '<div class="td-history-row"><span class="td-history-name">' + escapeHTML(m.home || '') + '</span><span class="td-history-result">' + scoreH + ' : ' + scoreA + '</span><span class="td-history-name" style="text-align:right">' + escapeHTML(m.away || '') + '</span></div>';
+        });
+        schedHtml += '</div>';
+      }
+      schedHtml += '</div>';
+      container.innerHTML = schedHtml;
     } else if (tab === 'stats') {
-      container.innerHTML = '<div style="padding:3rem 1rem;text-align:center;color:var(--text-muted)"><div style="font-size:1.5rem;margin-bottom:.5rem">\uD83D\uDCCA</div><div style="font-size:.85rem">\u5373\u5C07\u63A8\u51FA</div></div>';
+      const ft2 = this.getFriendlyTournamentRecord?.(t) || t;
+      const entries = ft2.teamEntries || [];
+      const applications = ft2.teamApplications || [];
+      if (entries.length === 0 && applications.length === 0) {
+        container.innerHTML = '<div style="padding:2rem;text-align:center;color:var(--text-muted);font-size:.85rem">' + I18N.t('tournament.noStats') + '</div>';
+        return;
+      }
+      var approved = entries.filter(function (e) { return e.entryStatus === 'approved' || e.entryStatus === 'host'; }).length;
+      var pending = applications.filter(function (a) { return a.status === 'pending'; }).length;
+      var rosterTotal = entries.reduce(function (sum, e) { return sum + (e.memberRoster ? e.memberRoster.length : 0); }, 0);
+      let statsHtml = '<div style="padding:.6rem">';
+      statsHtml += '<div class="td-card"><div class="td-card-title">' + I18N.t('tournament.statsSummary') + '</div>';
+      statsHtml += '<div class="td-stats-row">';
+      statsHtml += '<div class="td-stat"><div class="td-stat-num">' + approved + '</div><div class="td-stat-label">' + I18N.t('tournament.approvedTeams') + '</div></div>';
+      statsHtml += '<div class="td-stat"><div class="td-stat-num">' + pending + '</div><div class="td-stat-label">' + I18N.t('tournament.pendingTeams') + '</div></div>';
+      statsHtml += '<div class="td-stat"><div class="td-stat-num">' + rosterTotal + '</div><div class="td-stat-label">' + I18N.t('tournament.totalPlayers') + '</div></div>';
+      statsHtml += '</div></div>';
+      statsHtml += '</div>';
+      container.innerHTML = statsHtml;
     }
   },
 

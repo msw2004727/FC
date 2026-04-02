@@ -4,16 +4,25 @@
    the upcoming friendly/cup/league refactor.
    ================================================ */
 
+// Tournament status constants (used for logic comparisons — do NOT i18n these)
+const TOURNAMENT_STATUS = {
+  PREPARING: '\u5373\u5c07\u958b\u59cb',
+  REG_OPEN: '\u5831\u540d\u4e2d',
+  REG_CLOSED: '\u5df2\u622a\u6b62\u5831\u540d',
+  ENDED: '\u5df2\u7d50\u675f',
+  REG_CLOSED_ALT: '\u622a\u6b62\u5831\u540d',
+};
+
 Object.assign(App, {
 
   getTournamentStatus(t) {
-    if (!t || !t.regStart || !t.regEnd) return (t && t.status) || '\u5373\u5c07\u958b\u59cb';
+    if (!t || !t.regStart || !t.regEnd) return (t && t.status) || TOURNAMENT_STATUS.PREPARING;
     const now = new Date();
     const start = new Date(t.regStart);
     const end = new Date(t.regEnd);
-    if (now < start) return '\u5373\u5c07\u958b\u59cb';
-    if (now >= start && now <= end) return '\u5831\u540d\u4e2d';
-    return '\u5df2\u622a\u6b62\u5831\u540d';
+    if (now < start) return TOURNAMENT_STATUS.PREPARING;
+    if (now >= start && now <= end) return TOURNAMENT_STATUS.REG_OPEN;
+    return TOURNAMENT_STATUS.REG_CLOSED;
   },
 
   isTournamentEnded(t) {
