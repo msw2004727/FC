@@ -150,7 +150,7 @@ Object.assign(App, {
             </div>
             <div class="admin-user-actions">
               ${u.role !== 'super_admin' ? `<button class="au-btn au-btn-edit" onclick="App.showUserEditModal('${safeName}')">編輯</button>` : ''}
-              <button class="au-btn au-btn-view" onclick="App.showUserProfile('${safeName}')">查看</button>
+              <button class="au-btn au-btn-view" onclick="App.showUserProfile('${safeName}',{uid:'${escapeHTML(u.uid || '')}'})">查看</button>
               ${restrictBtnHtml}
             </div>
           </div>

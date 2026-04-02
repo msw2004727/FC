@@ -171,7 +171,7 @@ Object.assign(App, {
     }
     container.innerHTML = `
       <div style="display:flex;flex-wrap:wrap;gap:.4rem">
-        ${people.map(person => `<span class="user-capsule uc-user" onclick="App.showUserProfile('${escapeHTML(person.displayName)}')">${escapeHTML(person.displayName)}</span>`).join('')}
+        ${people.map(person => `<span class="user-capsule uc-user" onclick="App.showUserProfile('${escapeHTML(person.displayName)}',{uid:'${escapeHTML(person.userId || person.uid || '')}'})"> ${escapeHTML(person.displayName)}</span>`).join('')}
       </div>`;
   },
 
@@ -192,7 +192,7 @@ Object.assign(App, {
       <div class="detail-section">
         <div class="detail-section-title">\u5019\u88dc\u540d\u55ae (${people.length})</div>
         <div style="display:flex;flex-wrap:wrap;gap:.4rem">
-          ${people.map(person => `<span class="user-capsule uc-user" onclick="App.showUserProfile('${escapeHTML(person.displayName)}')">${escapeHTML(person.displayName)}</span>`).join('')}
+          ${people.map(person => `<span class="user-capsule uc-user" onclick="App.showUserProfile('${escapeHTML(person.displayName)}',{uid:'${escapeHTML(person.userId || person.uid || '')}'})"> ${escapeHTML(person.displayName)}</span>`).join('')}
         </div>
       </div>`;
   },

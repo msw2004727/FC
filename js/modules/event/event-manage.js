@@ -383,7 +383,7 @@ Object.assign(App, {
         <div style="display:flex;align-items:center;gap:.4rem;margin-bottom:.2rem">
           <span class="msg-manage-title" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHTML(e.title)}${teamBadge}</span>
           ${pinBadge}
-          ${this._userTag(e.creator, ApiService.getUserRole(e.creator))}
+          ${this._userTag(e.creator, ApiService.getUserRole(e.creator), { uid: e.creatorUid })}
           <span class="banner-manage-status status-${statusConf.css}">${statusConf.label}</span>
         </div>
         <div style="font-size:.75rem;color:var(--text-muted)">${escapeHTML(e.location || '')} ・ ${escapeHTML(e.date)}</div>

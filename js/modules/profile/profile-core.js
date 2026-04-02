@@ -103,7 +103,11 @@ Object.assign(App, {
         jerseyHtml = svg;
       }
     }
-    return `<span class="user-capsule uc-${role}" data-no-translate onclick="App.showUserProfile('${escapeHTML(name)}')" title="${ROLES[role]?.label || '一般用戶'}"><span class="uc-lv">Lv${lvl}</span>${jerseyHtml}${escapeHTML(name)}</span>`;
+    const _uid = options && options.uid ? options.uid : '';
+    const _onclick = _uid
+      ? `App.showUserProfile('${escapeHTML(name)}',{uid:'${escapeHTML(_uid)}'})`
+      : `App.showUserProfile('${escapeHTML(name)}')`;
+    return `<span class="user-capsule uc-${role}" data-no-translate onclick="${_onclick}" title="${ROLES[role]?.label || '一般用戶'}"><span class="uc-lv">Lv${lvl}</span>${jerseyHtml}${escapeHTML(name)}</span>`;
   },
 
   _findUserByName(name) {
@@ -111,21 +115,35 @@ Object.assign(App, {
     return users.find(u => u.name === name) || null;
   },
 
+  _findUserByUid(uid) {
+    if (!uid) return null;
+    const users = ApiService.getAdminUsers();
+    return users.find(u => u.uid === uid || u.lineUserId === uid) || null;
+  },
+
   async showUserProfile(name, options = {}) {
     if (!options.allowGuest && this._requireProtectedActionLogin({ type: 'showUserProfile', name }, { suppressToast: true })) {
       return;
     }
+    // UID 優先查找：options.uid 存在時先用 UID 查找，找不到再 fallback 到 name
+    const uidHint = options.uid || null;
+
     // 確保 profile 群組（profile-data-render / profile-data-stats / profile-card 等）已載入
     await ScriptLoader.ensureForPage('page-user-card');
-    // 判斷是否為當前用戶（比對 displayName / name）
+    // 判斷是否為當前用戶（比對 UID / displayName / name）
     const isLoggedIn = (typeof LineAuth !== 'undefined' && LineAuth.isLoggedIn());
     const currentUser = isLoggedIn ? ApiService.getCurrentUser() : null;
     const lineProfile = isLoggedIn ? LineAuth.getProfile() : null;
     const currentName = (lineProfile && lineProfile.displayName) || (currentUser && currentUser.displayName) || '';
-    const isSelf = currentUser && (name === currentName || name === currentUser.displayName || name === currentUser.name);
+    const isSelf = currentUser && (
+      (uidHint && (uidHint === currentUser.uid || uidHint === currentUser.lineUserId)) ||
+      name === currentName || name === currentUser.displayName || name === currentUser.name
+    );
 
-    // 如果是自己，優先用 currentUser + LINE 資料；否則從 adminUsers 查
-    const user = isSelf ? currentUser : this._findUserByName(name);
+    // 如果是自己，優先用 currentUser + LINE 資料；否則 UID 查找 → name 查找
+    const user = isSelf
+      ? currentUser
+      : (this._findUserByUid(uidHint) || this._findUserByName(name));
     const rawRole = user ? user.role : ApiService.getUserRole(name);
     const role = this._stealthRole(name, rawRole);
     const roleInfo = ROLES[role] || ROLES.user;
