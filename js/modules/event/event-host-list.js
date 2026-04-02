@@ -87,22 +87,51 @@ Object.assign(App, {
         } catch (_) {}
       }
 
-      // 查出席率
-      for (var j = 0; j < uids.length; j++) {
-        var uid = uids[j];
-        try {
-          var arSnap = await db.collection('activityRecords').where('uid', '==', uid).get();
-          var total = 0, attended = 0;
-          arSnap.forEach(function(doc) {
-            var d = doc.data();
-            total++;
-            if (d.status === 'registered' || d.status === 'attended') attended++;
-          });
-          hostMap[uid].attendanceRate = total > 0 ? Math.round((attended / total) * 100) : 0;
-        } catch (_) {
-          hostMap[uid].attendanceRate = 0;
-        }
-      }
+      // 查出席率：主辦方建立的活動中，參加者的整體出席率
+      // 分母 = 該主辦所有已結束活動的正取報名數加總
+      // 分子 = 該主辦所有已結束活動中實際簽到的人數加總
+      var endedEvents = events.filter(function(e) { return e.status === 'ended' && e.creatorUid; });
+      var hostEventIds = {};
+      endedEvents.forEach(function(e) {
+        if (!hostEventIds[e.creatorUid]) hostEventIds[e.creatorUid] = [];
+        hostEventIds[e.creatorUid].push(e.id);
+      });
+
+      // 取得所有簽到紀錄（type=checkin）
+      var checkinByEvent = {};
+      try {
+        var arSnap = await db.collection('attendanceRecords').where('type', '==', 'checkin').get();
+        arSnap.forEach(function(doc) {
+          var d = doc.data();
+          var eid = d.eventId;
+          if (!eid) return;
+          if (!checkinByEvent[eid]) checkinByEvent[eid] = new Set();
+          checkinByEvent[eid].add(d.uid);
+        });
+      } catch (_) {}
+
+      // 取得所有正取報名（confirmed）
+      var regByEvent = {};
+      try {
+        var regSnap = await db.collection('registrations').where('status', '==', 'confirmed').get();
+        regSnap.forEach(function(doc) {
+          var d = doc.data();
+          var eid = d.eventId;
+          if (!eid) return;
+          if (!regByEvent[eid]) regByEvent[eid] = 0;
+          regByEvent[eid]++;
+        });
+      } catch (_) {}
+
+      uids.forEach(function(uid) {
+        var eids = hostEventIds[uid] || [];
+        var totalReg = 0, totalCheckin = 0;
+        eids.forEach(function(eid) {
+          totalReg += (regByEvent[eid] || 0);
+          totalCheckin += (checkinByEvent[eid] ? checkinByEvent[eid].size : 0);
+        });
+        hostMap[uid].attendanceRate = totalReg > 0 ? Math.round((totalCheckin / totalReg) * 100) : 0;
+      });
 
       this._hostListData = Object.values(hostMap);
     } catch (err) {
