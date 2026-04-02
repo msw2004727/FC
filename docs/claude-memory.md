@@ -10,6 +10,23 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-04-02 — 活動地區功能（取代地區鎖）
+- **問題**：活動沒有地區分類，用戶無法按地區篩選活動；舊地區鎖功能是限制用戶可見性而非分類活動
+- **修復**：
+  1. 新增 `REGION_MAP`（北/中/南/東部&外島）+ `REGION_TABS` 常數
+  2. 地區鎖 → 活動地區選擇器：分區 radio 卡片 + 縣市複選（選填），admin 可關閉（不分區），其他角色強制開啟
+  3. 首頁近期活動上方 + 活動行事曆新增地區 tab（中部|北部|南部|東部&外島|全部），置中顯示
+  4. `_getVisibleEvents()` 移除舊 regionLock 過濾，新增 `_filterByRegionTab()` + `switchRegionTab()`
+  5. 60 個舊活動 backfill 為 `region: '中部'`
+  6. QA 修復：HTML entity decode（東部&外島）、防禦性過濾邏輯、permission race condition
+  7. source-drift 測試行號註解更新（config.js 偏移）
+- **教訓**：`SportsEvent` 在 onclick HTML 屬性中 `&` 會被編碼為 `&amp;`，JS 收到後需 decode 才能跟 Firestore 資料比對。非 admin 的 toggle 隱藏要用 `this.hasPermission` 而非 `App.hasPermission`（確保已掛載）
+
+### 2026-04-02 — 專案估值報告 + 更新日誌頁面
+- **變更**：新增 `/valuation/`（專案估值報告，一頁式淺色 RWD）、`/changelog/`（更新日誌，admin 限定，Firestore 按月讀取）
+- **自動化**：GitHub Actions `sync-changelog.yml` 每次 push 自動同步當月 git log 至 Firestore
+- **設定**：GCP Service Account 需 Cloud Datastore 擁有者角色才能透過 REST API 寫入 Firestore（Security Rules `allow write: if false` 不擋 Admin API）
+
 ### 2026-04-02 — SEO 全面優化 + 自動化 + 更新日誌頁面
 - **問題**：網站搜尋「台中踢球」「新手踢球」等關鍵字完全找不到；SEO 基礎建設不足（無 hreflang、無 Breadcrumb、著陸頁互相孤立）
 - **修復**：

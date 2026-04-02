@@ -55,6 +55,8 @@
 | `/index.html`、`/` | `public, max-age=0, must-revalidate` |
 | `/sw.js` | `public, max-age=0, must-revalidate` |
 | `/game-lab.html` | `noindex, nofollow, noarchive` |
+| `/changelog/*` | `noindex, nofollow, noarchive` |
+| `/valuation/*` | `noindex, nofollow, noarchive` |
 
 ### robots.txt
 ```
@@ -63,6 +65,8 @@ Allow: /
 Disallow: /pages/
 Disallow: /inventory/
 Disallow: /permissions/
+Disallow: /changelog/
+Disallow: /valuation/
 Disallow: /functions/
 Disallow: /test-
 Disallow: /GrowthGames.html
