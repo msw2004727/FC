@@ -118,9 +118,15 @@ async function main() {
   console.log('=== Changelog 同步至 Firestore ===\n');
 
   // Load service account
-  const keyPath = process.env.GCP_KEY_FILE;
-  if (!keyPath) { console.error('請設定 GCP_KEY_FILE 環境變數'); process.exit(1); }
-  const sa = JSON.parse(fs.readFileSync(keyPath, 'utf8'));
+  let sa;
+  if (process.env.GCP_SERVICE_ACCOUNT_JSON) {
+    sa = JSON.parse(process.env.GCP_SERVICE_ACCOUNT_JSON);
+  } else if (process.env.GCP_KEY_FILE) {
+    sa = JSON.parse(fs.readFileSync(process.env.GCP_KEY_FILE, 'utf8'));
+  } else {
+    console.error('請設定 GCP_SERVICE_ACCOUNT_JSON 或 GCP_KEY_FILE 環境變數');
+    process.exit(1);
+  }
   console.log(`SA: ${sa.client_email}`);
 
   // Get token

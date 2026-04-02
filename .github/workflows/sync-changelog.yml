@@ -1,0 +1,30 @@
+name: Sync Changelog to Firestore
+
+on:
+  push:
+    branches: [main]
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  sync-changelog:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # 需要完整 git 歷史
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Sync current month changelog to Firestore
+        env:
+          GCP_SERVICE_ACCOUNT_JSON: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
+        run: |
+          if [ -z "$GCP_SERVICE_ACCOUNT_JSON" ]; then
+            echo "⚠ GCP_SERVICE_ACCOUNT_JSON secret 未設定，跳過同步"
+            exit 0
+          fi
+          CURRENT_MONTH=$(date -u +%Y-%m)
+          echo "同步月份: $CURRENT_MONTH"
+          node scripts/sync-changelog.js "$CURRENT_MONTH"
