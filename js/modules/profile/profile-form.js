@@ -139,30 +139,38 @@ Object.assign(App, {
     if (this._pendingFirstLogin && !this._isCurrentUserRestricted?.() && !this._firstLoginShowing) {
       this._firstLoginShowing = true;
       var self = this;
-      (async function() {
+      var MAX_RETRY = 3;
+      var attempt = 0;
+      (async function _tryShow() {
+        attempt++;
         try {
-          // 等 modals.html 載完（確保 DOM 存在）
           if (typeof PageLoader !== 'undefined' && PageLoader._loadAllPromise) {
             await PageLoader._loadAllPromise;
           }
-          // 等 profile JS 載完（確保函式存在）
           if (typeof ScriptLoader !== 'undefined' && ScriptLoader.ensureForPage) {
             await ScriptLoader.ensureForPage('page-profile');
           }
         } catch (err) {
-          console.error('[bindLineLogin] first-login load failed:', err);
+          console.error('[bindLineLogin] first-login load failed (attempt ' + attempt + '):', err);
+          if (attempt < MAX_RETRY) {
+            await new Promise(function(r) { setTimeout(r, 1500); });
+            return _tryShow();
+          }
           self._firstLoginShowing = false;
           return;
         }
         if (!document.getElementById('first-login-modal')) {
-          console.warn('[bindLineLogin] first-login-modal DOM not found after await');
+          console.warn('[bindLineLogin] first-login-modal DOM not found (attempt ' + attempt + ')');
+          if (attempt < MAX_RETRY) {
+            await new Promise(function(r) { setTimeout(r, 1500); });
+            return _tryShow();
+          }
           self._firstLoginShowing = false;
           return;
         }
         self.initFirstLoginRegionPicker?.();
         self._populateBirthdaySelects?.('fl-birthday-y', 'fl-birthday-m', 'fl-birthday-d');
         self.showModal('first-login-modal');
-        // 鎖定 modal-overlay 不可點擊關閉（首次登入為必填）
         var overlay = document.getElementById('modal-overlay');
         if (overlay) overlay.dataset.locked = '1';
       })();

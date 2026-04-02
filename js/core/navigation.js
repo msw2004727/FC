@@ -435,6 +435,13 @@ Object.assign(App, {
         return { ok: false, reason: 'login_required' };
       }
       if (guardedPages.includes(pageId) && this._requireLogin()) return { ok: false, reason: 'login_required' };
+
+      // ── 首次登入守衛：缺少必填資料時攔截導航，強制彈出首次登入 modal ──
+      if (this._pendingFirstLogin && !options.bypassFirstLoginGuard) {
+        this._tryShowFirstLoginModal();
+        return { ok: false, reason: 'first_login_pending' };
+      }
+
       if (typeof this._canAccessPage === 'function' && !this._canAccessPage(pageId)) {
         if (options.suppressAccessDeniedToast) return { ok: false, reason: 'forbidden' };
         this.showToast('權限不足');
@@ -701,6 +708,41 @@ Object.assign(App, {
     document.getElementById('drawer-overlay').classList.remove('open');
   },
 
+  // ── 首次登入 modal 重試顯示（供 showPage 守衛呼叫）──
+  _tryShowFirstLoginModal() {
+    if (this._firstLoginShowing) return;
+    var modal = document.getElementById('first-login-modal');
+    if (modal) {
+      this._firstLoginShowing = true;
+      this.initFirstLoginRegionPicker?.();
+      this._populateBirthdaySelects?.('fl-birthday-y', 'fl-birthday-m', 'fl-birthday-d');
+      this.showModal('first-login-modal');
+      var overlay = document.getElementById('modal-overlay');
+      if (overlay) overlay.dataset.locked = '1';
+      return;
+    }
+    // DOM 不存在：等 PageLoader 完成後重試一次
+    var self = this;
+    this._firstLoginShowing = true;
+    (async function() {
+      try {
+        if (typeof PageLoader !== 'undefined' && PageLoader._loadAllPromise) {
+          await PageLoader._loadAllPromise;
+        }
+        if (typeof ScriptLoader !== 'undefined' && ScriptLoader.ensureForPage) {
+          await ScriptLoader.ensureForPage('page-profile');
+        }
+      } catch (_) {}
+      var el = document.getElementById('first-login-modal');
+      if (!el) { self._firstLoginShowing = false; return; }
+      self.initFirstLoginRegionPicker?.();
+      self._populateBirthdaySelects?.('fl-birthday-y', 'fl-birthday-m', 'fl-birthday-d');
+      self.showModal('first-login-modal');
+      var ov = document.getElementById('modal-overlay');
+      if (ov) ov.dataset.locked = '1';
+    })();
+  },
+
   showModal(id) { this.toggleModal(id); },
 
   toggleModal(id) {
@@ -709,9 +751,14 @@ Object.assign(App, {
     if (!modal) return;
     const isOpen = modal.classList.contains('open');
     if (isOpen) {
+      // 鎖定中的 modal 不允許被 toggle 關閉
+      if (overlay && overlay.dataset.locked === '1') return;
       modal.classList.remove('open');
       overlay.classList.remove('open');
     } else {
+      // 開啟新 modal 時，不關閉帶有 locked 旗標的 modal
+      var lockedOverlay = overlay && overlay.dataset.locked === '1';
+      if (lockedOverlay) return;
       document.querySelectorAll('.modal.open').forEach(m => m.classList.remove('open'));
       modal.classList.add('open');
       overlay.classList.add('open');

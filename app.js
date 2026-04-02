@@ -2087,6 +2087,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         && (document.getElementById(pageId)
           || (typeof PageLoader !== 'undefined' && PageLoader._pageFileMap && PageLoader._pageFileMap[pageId]));
       if (canResolvePage && pageId !== App.currentPage) {
+        // 首次登入守衛：缺少必填資料時攔截 hash 導航
+        if (App._pendingFirstLogin) {
+          App._tryShowFirstLoginModal?.();
+          return;
+        }
         App.showPage(pageId);
       }
     });

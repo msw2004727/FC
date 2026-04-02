@@ -1949,3 +1949,9 @@
 
 *最後濃縮日期：2026-03-15*
 *原始檔案：314 條目 / 2475 行 → 濃縮後約 50 條永久教訓*
+
+### 2026-04-02 — 首次登入 modal 繞過漏洞修復（4 項）
+- **問題**：新用戶可以不填地區就建檔成功，用戶地區掃描發現多筆 region 為空
+- **原因**：(1) createOrUpdateUser 在 region 驗證前就寫入 Firestore (2) _pendingFirstLogin 只檢查一次無重試 (3) ScriptLoader/DOM 載入失敗時靜默放棄 (4) toggleModal 開新 modal 時不檢查 locked 旗標會關閉首次登入 modal (5) hashchange 導航無守衛
+- **修復**：navigation.js showPage() 加入 _pendingFirstLogin 守衛攔截所有頁面切換 + _tryShowFirstLoginModal 重試函式；profile-form.js async IIFE 加入最多 3 次重試（1.5 秒間隔）；toggleModal() 雙向 locked 檢查；app.js hashchange handler 加入首次登入守衛
+- **教訓**：關鍵用戶資料驗證不能只靠前端 modal 一次性攔截，必須在導航層做持續守衛；modal locked 機制必須在 toggleModal/showModal/closeModal 三處一致檢查
