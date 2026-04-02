@@ -281,12 +281,14 @@ Object.assign(App, {
     const regionMap = typeof REGION_MAP !== 'undefined' ? REGION_MAP : {};
     const cities = regionMap[selectedRegion] || [];
     citiesContainer.innerHTML = '';
-    citiesContainer.style.cssText = 'display:flex;flex-wrap:wrap;gap:.35rem;align-items:center';
     if (!cities.length) return;
-    var hintEl = document.createElement('span');
-    hintEl.style.cssText = 'font-size:.7rem;color:var(--text-muted);margin-right:.2rem';
+    var hintEl = document.createElement('div');
+    hintEl.style.cssText = 'font-size:.72rem;color:var(--text-muted);margin-bottom:.3rem';
     hintEl.textContent = '選填：';
     citiesContainer.appendChild(hintEl);
+    var wrap = document.createElement('div');
+    wrap.style.cssText = 'display:flex;flex-wrap:wrap;gap:.35rem';
+    citiesContainer.appendChild(wrap);
     cities.forEach(city => {
       const label = document.createElement('label');
       label.style.cssText = 'display:inline-flex;align-items:center;gap:.2rem;font-size:.78rem;cursor:pointer;padding:.25rem .5rem;border-radius:6px;background:var(--bg-card);border:1px solid var(--border)';
@@ -306,7 +308,7 @@ Object.assign(App, {
       text.textContent = city;
       label.appendChild(cb);
       label.appendChild(text);
-      citiesContainer.appendChild(label);
+      wrap.appendChild(label);
     });
   },
 
