@@ -684,6 +684,10 @@ const FirebaseService = {
       if (shouldRefreshHome) {
         App.renderAll?.();
       }
+      // teams 載入後刷新賽事中心建立按鈕（解決首次進入時按鈕不顯示的時序問題）
+      if (loaded.has('teams') && App.currentPage === 'page-tournaments') {
+        App._refreshTournamentCenterCreateButton?.();
+      }
     } catch (err) {
       console.warn('[FirebaseService] warm collection UI refresh failed:', err);
     }

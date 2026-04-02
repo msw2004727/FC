@@ -111,7 +111,7 @@ Object.assign(App, {
     this._setGenderRestrictionState(false, '');
     this._setPrivateEventState(false);
     this._tsSetFormData?.(null);
-    this._regionSetFormData?.(true, '', []);
+    this._regionSetFormData?.(true, '中部', typeof REGION_MAP !== 'undefined' && REGION_MAP['中部'] ? [...REGION_MAP['中部']] : []);
     const cePreview = document.getElementById('ce-upload-preview');
     if (cePreview) {
       cePreview.classList.remove('has-image');
@@ -475,7 +475,7 @@ Object.assign(App, {
     },
     region: {
       title: '活動地區',
-      body: '選擇活動所在的地區分區。用戶可透過地區頁籤快速找到該區域的活動。<br><br>• <b>北部</b>：台北、新北、基隆、桃園、新竹、宜蘭<br>• <b>中部</b>：苗栗、台中、彰化、南投、雲林<br>• <b>南部</b>：嘉義、台南、高雄、屏東<br>• <b>東部&外島</b>：花蓮、台東、澎湖、金門、連江<br><br>管理員可關閉此選項，讓活動在所有地區頁籤都顯示。'
+      body: '選擇活動所在的地區分區。用戶可透過地區頁籤快速找到該區域的活動。<br><br>• <b>北部</b>：台北、新北、基隆、桃園、新竹、宜蘭<br>• <b>中部</b>：苗栗、台中、彰化、南投、雲林<br>• <b>南部</b>：嘉義、台南、高雄、屏東<br>• <b>東部&amp;外島</b>：花蓮、台東、澎湖、金門、連江<br><br>選擇分區後，<b>至少須勾選一個縣市</b>，不可全部取消。<br><br>管理員可關閉此選項，讓活動在所有地區頁籤都顯示。'
     },
     location: {
       title: '活動地點',
