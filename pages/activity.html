@@ -3,6 +3,9 @@
     <section class="page" id="page-activities">
       <div class="page-header">
         <h2>活動行事曆</h2>
+        <button class="page-header-doc-btn" onclick="App.openHostList()" title="主辦方排行">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89L17 22l-5-3-5 3 1.523-9.11"/></svg>
+        </button>
         <button class="filter-btn" id="filter-toggle">篩選 ▾</button>
       </div>
       <div class="filter-bar" id="filter-bar">
@@ -38,6 +41,22 @@
         <div class="skeleton skeleton-line"></div>
         <div class="skeleton skeleton-line"></div>
         <div class="skeleton skeleton-line"></div>
+      </div>
+
+      <!-- Host List Modal -->
+      <div class="host-list-overlay" id="host-list-overlay" onclick="if(event.target===this)App.closeHostList()">
+        <div class="host-list-modal">
+          <div class="host-list-header">
+            <h3>主辦方排行</h3>
+            <button class="modal-close" onclick="App.closeHostList()">✕</button>
+          </div>
+          <div class="host-list-sort-bar">
+            <span class="hl-sort active" data-sort="eventCount" data-label="活動數" onclick="App._toggleHostListSort('eventCount')">活動數 ▼</span>
+            <span class="hl-sort" data-sort="totalRegistrations" data-label="報名人次" onclick="App._toggleHostListSort('totalRegistrations')">報名人次</span>
+            <span class="hl-sort" data-sort="attendanceRate" data-label="出席率" onclick="App._toggleHostListSort('attendanceRate')">出席率</span>
+          </div>
+          <div class="host-list-cards" id="host-list-cards"></div>
+        </div>
       </div>
     </section>
 
