@@ -222,7 +222,8 @@ Object.assign(App, {
       radiosContainer.dataset.bound = '1';
       radiosContainer.addEventListener('change', (e) => {
         if (e.target.name === 'ce-region') {
-          this._regionSelectedCities = [];
+          var regionMap = typeof REGION_MAP !== 'undefined' ? REGION_MAP : {};
+          this._regionSelectedCities = regionMap[e.target.value] ? [...regionMap[e.target.value]] : [];
           this._updateCityCheckboxes();
         }
       });
