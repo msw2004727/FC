@@ -5,13 +5,30 @@ Object.assign(App, {
   _hostListData: null,
   _hostListSort: { key: 'eventCount', desc: true },
 
+  _ensureHostListOverlay() {
+    var overlay = document.getElementById('host-list-overlay');
+    if (overlay) return overlay;
+    // 動態建立並插入 body（避免被 page section 的 CSS 截斷）
+    overlay = document.createElement('div');
+    overlay.id = 'host-list-overlay';
+    overlay.className = 'host-list-overlay';
+    overlay.onclick = function(e) { if (e.target === overlay) App.closeHostList(); };
+    overlay.innerHTML = '<div class="host-list-modal">'
+      + '<div class="host-list-header"><h3>主辦方排行</h3><button class="modal-close" onclick="App.closeHostList()">✕</button></div>'
+      + '<div class="host-list-sort-bar">'
+      + '<span class="hl-sort active" data-sort="eventCount" data-label="活動數" onclick="App._toggleHostListSort(\'eventCount\')">活動數 ▼</span>'
+      + '<span class="hl-sort" data-sort="totalRegistrations" data-label="報名人次" onclick="App._toggleHostListSort(\'totalRegistrations\')">報名人次</span>'
+      + '<span class="hl-sort" data-sort="attendanceRate" data-label="出席率" onclick="App._toggleHostListSort(\'attendanceRate\')">出席率</span>'
+      + '</div>'
+      + '<div class="host-list-cards" id="host-list-cards"></div>'
+      + '</div>';
+    document.body.appendChild(overlay);
+    return overlay;
+  },
+
   async openHostList() {
-    const overlay = document.getElementById('host-list-overlay');
-    if (!overlay) return;
+    var overlay = this._ensureHostListOverlay();
     overlay.classList.add('open');
-    const modal = overlay.querySelector('.host-list-modal');
-    if (modal) modal.classList.add('open');
-    // 阻止背景滾動
     document.body.style.overflow = 'hidden';
     this._renderHostListLoading();
     await this._loadHostListData();
@@ -19,11 +36,9 @@ Object.assign(App, {
   },
 
   closeHostList() {
-    const overlay = document.getElementById('host-list-overlay');
+    var overlay = document.getElementById('host-list-overlay');
     if (!overlay) return;
     overlay.classList.remove('open');
-    const modal = overlay.querySelector('.host-list-modal');
-    if (modal) modal.classList.remove('open');
     document.body.style.overflow = '';
   },
 
