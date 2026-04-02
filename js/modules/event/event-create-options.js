@@ -353,7 +353,13 @@ Object.assign(App, {
   _regionSetFormData(regionEnabled, region, cities) {
     const toggle = document.getElementById('ce-region-enabled');
     if (toggle) toggle.checked = !!regionEnabled;
-    this._regionSelectedCities = Array.isArray(cities) ? [...cities] : [];
+    var citiesArr = Array.isArray(cities) ? [...cities] : [];
+    // 有指定地區但沒有縣市時，預設全選該地區所有縣市
+    if (region && citiesArr.length === 0) {
+      var regionMap = typeof REGION_MAP !== 'undefined' ? REGION_MAP : {};
+      if (regionMap[region]) citiesArr = [...regionMap[region]];
+    }
+    this._regionSelectedCities = citiesArr;
     this._updateRegionUI();
     // 選中對應 radio
     if (region) {

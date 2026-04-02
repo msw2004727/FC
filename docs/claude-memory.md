@@ -10,6 +10,12 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-04-02 — 編輯活動時活動地區縣市未預選
+- **問題**：舊有活動開啟編輯，啟用活動地區時，地區 radio 正確預選「中部」但所有縣市 checkbox 都沒勾選
+- **原因**：`_regionSetFormData` 接收 `e.cities || []`，若舊活動未儲存 cities 欄位，傳入空陣列導致 `_regionSelectedCities` 為空，city checkbox 全部 unchecked
+- **修復**：在 `event-create-options.js` 的 `_regionSetFormData` 中，若 region 有值但 cities 為空，自動從 `REGION_MAP[region]` 填入該地區所有縣市
+- **教訓**：新增功能欄位時，要考慮舊資料沒有該欄位的 fallback 行為
+
 ### 2026-04-02 — 活動地區功能（取代地區鎖）
 - **問題**：活動沒有地區分類，用戶無法按地區篩選活動；舊地區鎖功能是限制用戶可見性而非分類活動
 - **修復**：
