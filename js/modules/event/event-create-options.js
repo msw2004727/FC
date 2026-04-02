@@ -282,18 +282,15 @@ Object.assign(App, {
     const regionMap = typeof REGION_MAP !== 'undefined' ? REGION_MAP : {};
     const cities = regionMap[selectedRegion] || [];
     citiesContainer.innerHTML = '';
-    citiesContainer.style.cssText = 'margin-top:.5rem';
     if (!cities.length) return;
-    var hintEl = document.createElement('div');
-    hintEl.style.cssText = 'font-size:.72rem;color:var(--text-muted);margin-bottom:.35rem';
-    hintEl.textContent = '選填：';
-    citiesContainer.appendChild(hintEl);
+    citiesContainer.style.cssText = 'margin-top:.5rem;border:1px solid var(--border);border-radius:8px;padding:.5rem .6rem;background:var(--bg-card)';
     var wrap = document.createElement('div');
     wrap.style.cssText = 'display:flex;flex-wrap:wrap;gap:.35rem';
     citiesContainer.appendChild(wrap);
+    var self = this;
     cities.forEach(city => {
       const label = document.createElement('label');
-      label.style.cssText = 'display:inline-flex;flex-direction:row;align-items:center;gap:.25rem;font-size:.78rem;cursor:pointer;padding:.25rem .5rem;border-radius:6px;background:var(--bg-card);border:1px solid var(--border);white-space:nowrap';
+      label.style.cssText = 'display:inline-flex;flex-direction:row;align-items:center;gap:.25rem;font-size:.78rem;cursor:pointer;padding:.25rem .5rem;border-radius:6px;border:1px solid var(--border);white-space:nowrap';
       const cb = document.createElement('input');
       cb.type = 'checkbox';
       cb.style.cssText = 'margin:0;flex-shrink:0;width:14px;height:14px';
@@ -302,9 +299,14 @@ Object.assign(App, {
       if (this._regionSelectedCities.indexOf(city) !== -1) cb.checked = true;
       cb.addEventListener('change', () => {
         if (cb.checked) {
-          if (this._regionSelectedCities.indexOf(city) === -1) this._regionSelectedCities.push(city);
+          if (self._regionSelectedCities.indexOf(city) === -1) self._regionSelectedCities.push(city);
         } else {
-          this._regionSelectedCities = this._regionSelectedCities.filter(c => c !== city);
+          // 至少保留一個勾選
+          if (self._regionSelectedCities.length <= 1) {
+            cb.checked = true;
+            return;
+          }
+          self._regionSelectedCities = self._regionSelectedCities.filter(c => c !== city);
         }
       });
       const text = document.createElement('span');
