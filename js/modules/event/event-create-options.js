@@ -290,9 +290,10 @@ Object.assign(App, {
     var wrap = citiesContainer;
     cities.forEach(city => {
       const label = document.createElement('label');
-      label.style.cssText = 'display:inline-flex;align-items:center;gap:.2rem;font-size:.78rem;cursor:pointer;padding:.25rem .5rem;border-radius:6px;background:var(--bg-card);border:1px solid var(--border)';
+      label.style.cssText = 'display:inline-flex;flex-direction:row;align-items:center;gap:.25rem;font-size:.78rem;cursor:pointer;padding:.25rem .5rem;border-radius:6px;background:var(--bg-card);border:1px solid var(--border);white-space:nowrap';
       const cb = document.createElement('input');
       cb.type = 'checkbox';
+      cb.style.cssText = 'margin:0;flex-shrink:0;width:14px;height:14px';
       cb.value = city;
       cb.name = 'ce-region-city';
       if (this._regionSelectedCities.indexOf(city) !== -1) cb.checked = true;
