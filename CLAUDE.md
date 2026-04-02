@@ -377,6 +377,34 @@ https://miniapp.line.me/2009525300-AuPGQ0sh?{deepLinkParam}={id}
 - 若無法安全修復（例如來源不明或風險過高），必須在回覆中明確標註檔案與區段、說明風險，並提出可執行的修復方案。
 - 若需修復歷史紀錄檔的編碼，必須以 `docs/claude-memory.md` 為唯一目標檔，先標準化為 UTF-8，再沿用原檔續寫，不得改寫到其他替代檔案。
 
+## SEO 日誌規則（每次 SEO 相關變更必做）
+
+每次執行 SEO 相關工作後，**必須**在 `docs/seo-log.md` 新增或更新記錄。SEO 相關工作包括但不限於：
+
+- 新增或修改 `seo/*.html` 著陸頁
+- 修改 `sitemap.xml`、`robots.txt`、`_headers`
+- 修改任何 meta 標籤（title、description、OG、hreflang、canonical）
+- 修改結構化資料（JSON-LD）
+- 修改 Cloudflare SEO 相關設定（重導向、Crawler Hints 等）
+- 新增或修改 SEO 自動化腳本
+
+**記錄格式**：
+
+```markdown
+### YYYY-MM-DD — 標題（簡短描述）
+**問題 / 目標**：為什麼要做這個變更
+**執行項目**：
+1. 具體做了什麼（列出修改的檔案和內容）
+2. ...
+**關鍵決策**：如果有取捨或放棄的方案，記錄原因
+```
+
+**同步維護**：修改 SEO 架構（新增頁面、變更 schema、調整 sitemap）後，必須同步更新日誌頂部的「SEO 架構總覽」區塊，確保總覽與實際狀態一致。
+
+> `docs/seo-log.md` 是唯一指定的 SEO 日誌檔，禁止另建平行日誌分流記錄。
+
+---
+
 ## 防亂碼編碼規範（新增）
 - 所有新增與修改的 repo 檔案一律以 UTF-8 保存；不得混用 ANSI、Big5、CP950、UTF-8 BOM 或其他不一致編碼。
 - 只要檔案含中文內容，預設優先使用 diff-based 修補（如 Edit / apply_patch）修改；除非有明確必要，禁止以 Write 整檔覆寫或以 shell 讀出整檔再整段覆寫回 repo 檔案。
