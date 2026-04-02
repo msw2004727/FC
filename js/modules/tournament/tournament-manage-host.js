@@ -2,27 +2,7 @@
 
 Object.assign(App, {
 
-  // ══════════════════════════════════
-  //  Create Button
-  // ══════════════════════════════════
-
-  _refreshTournamentCenterCreateButton() {
-    const header = document.querySelector('#page-tournaments .page-header');
-    if (!header) return;
-
-    let button = document.getElementById('tournament-open-create-btn');
-    if (!button) {
-      button = document.createElement('button');
-      button.id = 'tournament-open-create-btn';
-      button.className = 'primary-btn small';
-      button.textContent = '＋ 新增賽事';
-      button.onclick = () => this.openCreateTournamentModal();
-      button.textContent = '建立賽事';
-      header.appendChild(button);
-    }
-
-    button.style.display = this._canCreateFriendlyTournament() ? '' : 'none';
-  },
+  // Create Button 已移至 tournament-core.js（eager 載入）
 
   // ══════════════════════════════════
   //  Host Team Selection

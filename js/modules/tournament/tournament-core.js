@@ -345,4 +345,20 @@ Object.assign(App, {
       registeredTeams,
     };
   },
+
+  // 賽事中心「建立賽事」按鈕（需在 eager 模組，不能放 tournamentAdmin 群組）
+  _refreshTournamentCenterCreateButton() {
+    const header = document.querySelector('#page-tournaments .page-header');
+    if (!header) return;
+    let button = document.getElementById('tournament-open-create-btn');
+    if (!button) {
+      button = document.createElement('button');
+      button.id = 'tournament-open-create-btn';
+      button.className = 'primary-btn small';
+      button.textContent = '建立賽事';
+      button.onclick = () => this.openCreateTournamentModal?.();
+      header.appendChild(button);
+    }
+    button.style.display = this._canCreateFriendlyTournament() ? '' : 'none';
+  },
 });
