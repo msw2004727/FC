@@ -9,10 +9,10 @@
     *{box-sizing:border-box;margin:0;padding:0}
     body{font-family:-apple-system,BlinkMacSystemFont,'Noto Sans TC','Helvetica Neue',Arial,sans-serif;color:#1a1a1a;line-height:1.8;background:#f8fafc}
     header{background:#fff;border-bottom:1px solid #e2e8f0;padding:1.2rem 1.5rem;position:sticky;top:0;z-index:10}
-    .header-inner{max-width:860px;margin:0 auto;display:flex;align-items:center;justify-content:space-between}
-    .header-inner h1{font-size:1.15rem;color:#0f172a}
-    .header-inner h1 span{color:#64748b;font-weight:400;font-size:.82rem;margin-left:.5rem}
-    .update-badge{font-size:.72rem;color:#64748b;background:#f1f5f9;padding:.2rem .6rem;border-radius:4px}
+    .header-inner{max-width:860px;margin:0 auto}
+    .header-inner h1{font-size:1.15rem;color:#0f172a;margin-bottom:.3rem}
+    .header-meta{display:flex;flex-direction:column;gap:.2rem}
+    .header-meta span{font-size:.78rem;color:#64748b}
     .container{max-width:860px;margin:0 auto;padding:2rem 1.2rem 4rem}
     h2{font-size:1.2rem;color:#0f172a;margin:2.5rem 0 .8rem;padding-bottom:.4rem;border-bottom:2px solid #e2e8f0}
     h3{font-size:1.05rem;color:#334155;margin:1.5rem 0 .5rem}
@@ -46,8 +46,11 @@
 <body>
   <header>
     <div class="header-inner">
-      <h1>ToosterX 專案估值報告<span>保守估計</span></h1>
-      <div class="update-badge">最後更新：2026-04-02</div>
+      <h1>ToosterX 專案估值報告</h1>
+      <div class="header-meta">
+        <span>保守估計</span>
+        <span>最後更新：2026-04-02</span>
+      </div>
     </div>
   </header>
 
