@@ -3,6 +3,8 @@
 Object.assign(App, {
 
   _hostListData: null,
+  _hostListDataTs: 0,
+  _HOST_LIST_TTL: 24 * 60 * 60 * 1000, // 24 小時快取
   _hostListSort: { key: 'eventCount', desc: true },
 
   _ensureHostListOverlay() {
@@ -55,6 +57,10 @@ Object.assign(App, {
   },
 
   async _loadHostListData() {
+    // 24 小時內重複開啟直接用快取，不重新查 Firestore
+    if (this._hostListData && this._hostListData.length > 0 && (Date.now() - this._hostListDataTs) < this._HOST_LIST_TTL) {
+      return;
+    }
     try {
       var events = ApiService.getEvents() || [];
       var hostMap = {};
@@ -123,6 +129,7 @@ Object.assign(App, {
       });
 
       this._hostListData = Object.values(hostMap);
+      this._hostListDataTs = Date.now();
     } catch (err) {
       console.warn('[HostList] load error:', err);
       this._hostListData = [];
