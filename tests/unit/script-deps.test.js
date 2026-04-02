@@ -116,6 +116,12 @@ function extractDefinedFunctions(filePath) {
       fns.add(m[1]);
     }
 
+    // Pattern 3: funcName: function(  (old-style function property)
+    const fnPropRe = /^\s+(\w+):\s*function\s*\(/gm;
+    while ((m = fnPropRe.exec(src)) !== null) {
+      fns.add(m[1]);
+    }
+
     return fns;
   } catch {
     return new Set();
@@ -336,6 +342,9 @@ describe('Eager scripts — no unguarded calls to dynamic-only functions', () =>
     '_getEventEffectiveStatus',    // event module internal
     '_syncEventEffectiveStatus',   // event module internal
     '_renderEventCapacityBadge',   // event module internal
+    // profile-core.js builds onclick string for jersey picker; only rendered when
+    // options.canPickTeam is true on activity pages where 'activity' group is loaded
+    '_tsToggleJerseyPicker',
   ];
 
   test('no unguarded calls to undefined functions in eager scripts', () => {
