@@ -8,11 +8,12 @@ on:
       - 'seo/**'
       - 'index.html'
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   submit-sitemap:
     runs-on: ubuntu-latest
-    # 只在 GCP_SERVICE_ACCOUNT_JSON secret 存在時執行
-    if: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON != '' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -21,4 +22,9 @@ jobs:
       - name: Submit sitemap to Google Search Console
         env:
           GCP_SERVICE_ACCOUNT_JSON: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
-        run: node scripts/submit-sitemap.js
+        run: |
+          if [ -z "$GCP_SERVICE_ACCOUNT_JSON" ]; then
+            echo "⚠ GCP_SERVICE_ACCOUNT_JSON secret 未設定，跳過提交"
+            exit 0
+          fi
+          node scripts/submit-sitemap.js
