@@ -252,25 +252,22 @@ Object.assign(App, {
     };
     const currentVal = container.querySelector('input[name="ce-region"]:checked')?.value || '';
     container.innerHTML = '';
-    container.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:.4rem .8rem';
+    container.style.cssText = 'display:flex;flex-wrap:wrap;gap:.4rem';
     Object.keys(regionMap).forEach(key => {
       const label = document.createElement('label');
-      label.style.cssText = 'display:flex;align-items:center;gap:.35rem;font-size:.82rem;cursor:pointer;padding:.3rem .1rem';
+      const isChecked = key === currentVal;
+      label.style.cssText = 'display:flex;align-items:center;gap:.3rem;font-size:.8rem;cursor:pointer;padding:.35rem .6rem;border-radius:8px;border:1px solid ' + (isChecked ? 'var(--accent)' : 'var(--border)') + ';background:' + (isChecked ? 'var(--accent-bg,rgba(13,148,136,.08))' : 'var(--bg-card)') + ';white-space:nowrap';
       const radio = document.createElement('input');
       radio.type = 'radio';
       radio.name = 'ce-region';
       radio.value = key;
-      radio.style.cssText = 'margin:0;flex-shrink:0';
-      if (key === currentVal) radio.checked = true;
+      radio.style.cssText = 'margin:0;flex-shrink:0;width:14px;height:14px';
+      if (isChecked) radio.checked = true;
       const text = document.createElement('span');
-      text.style.fontWeight = '500';
+      text.style.cssText = 'font-weight:500';
       text.textContent = key;
-      const hint = document.createElement('span');
-      hint.style.cssText = 'font-size:.68rem;color:var(--text-muted)';
-      hint.textContent = hints[key] ? '（' + hints[key] + '）' : '';
       label.appendChild(radio);
       label.appendChild(text);
-      label.appendChild(hint);
       container.appendChild(label);
     });
     this._updateCityCheckboxes();
@@ -284,11 +281,11 @@ Object.assign(App, {
     const regionMap = typeof REGION_MAP !== 'undefined' ? REGION_MAP : {};
     const cities = regionMap[selectedRegion] || [];
     citiesContainer.innerHTML = '';
-    citiesContainer.style.cssText = 'display:flex;flex-wrap:wrap;gap:.35rem';
+    citiesContainer.style.cssText = 'display:flex;flex-wrap:wrap;gap:.35rem;align-items:center';
     if (!cities.length) return;
-    var hintEl = document.createElement('div');
-    hintEl.style.cssText = 'width:100%;font-size:.7rem;color:var(--text-muted);margin-bottom:.1rem';
-    hintEl.textContent = '選填：可指定縣市（不選則代表整個分區）';
+    var hintEl = document.createElement('span');
+    hintEl.style.cssText = 'font-size:.7rem;color:var(--text-muted);margin-right:.2rem';
+    hintEl.textContent = '選填：';
     citiesContainer.appendChild(hintEl);
     cities.forEach(city => {
       const label = document.createElement('label');
