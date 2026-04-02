@@ -304,6 +304,12 @@ Object.assign(App, {
           // 至少保留一個勾選
           if (self._regionSelectedCities.length <= 1) {
             cb.checked = true;
+            var container = document.getElementById('ce-region-cities');
+            if (container) {
+              container.style.animation = 'none';
+              void container.offsetWidth;
+              container.style.animation = 'region-shake .4s ease';
+            }
             return;
           }
           self._regionSelectedCities = self._regionSelectedCities.filter(c => c !== city);

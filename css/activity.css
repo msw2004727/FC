@@ -1182,3 +1182,4 @@
 .region-tabs::-webkit-scrollbar{display:none}
 .region-tab{flex-shrink:0;padding:.45rem .8rem;font-size:.8rem;font-weight:500;color:var(--text-secondary);background:none;border:none;border-bottom:2px solid transparent;cursor:pointer;white-space:nowrap;transition:color .2s,border-color .2s}
 .region-tab.active{color:var(--accent);border-bottom-color:var(--accent);font-weight:700}
+@keyframes region-shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-4px)}40%{transform:translateX(4px)}60%{transform:translateX(-3px)}80%{transform:translateX(2px)}}
