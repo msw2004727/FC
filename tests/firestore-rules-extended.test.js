@@ -2419,12 +2419,22 @@ describe("/inv_transactions/{docId}", () => {
     );
   });
 
-  test("create: inventory admin with valid data", async () => {
+  test("create: inventory admin with valid data (uid + delta)", async () => {
     await assertSucceeds(
       setDoc(doc(invAdmin(), "inv_transactions", "txn_new"), {
         type: "in",
-        quantity: 10,
-        operatorUid: "uidInvAdmin",
+        delta: 10,
+        uid: "uidInvAdmin",
+      })
+    );
+  });
+
+  test("create: inventory admin with valid data (uid + quantity)", async () => {
+    await assertSucceeds(
+      setDoc(doc(invAdmin(), "inv_transactions", "txn_new_q"), {
+        type: "out",
+        quantity: 5,
+        uid: "uidInvAdmin",
       })
     );
   });
@@ -2435,8 +2445,8 @@ describe("/inv_transactions/{docId}", () => {
       await assertSucceeds(
         setDoc(doc(invAdmin(), "inv_transactions", `txn_${t}`), {
           type: t,
-          quantity: 1,
-          operatorUid: "uidInvAdmin",
+          delta: 1,
+          uid: "uidInvAdmin",
         })
       );
     }
@@ -2446,28 +2456,28 @@ describe("/inv_transactions/{docId}", () => {
     await assertFails(
       setDoc(doc(invAdmin(), "inv_transactions", "txn_bad_type"), {
         type: "invalid",
-        quantity: 1,
-        operatorUid: "uidInvAdmin",
+        delta: 1,
+        uid: "uidInvAdmin",
       })
     );
   });
 
-  test("create: rejected with wrong operatorUid", async () => {
+  test("create: rejected with wrong uid", async () => {
     await assertFails(
       setDoc(doc(invAdmin(), "inv_transactions", "txn_bad_op"), {
         type: "in",
-        quantity: 1,
-        operatorUid: "uidOther",
+        delta: 1,
+        uid: "uidOther",
       })
     );
   });
 
-  test("create: rejected with non-int quantity", async () => {
+  test("create: rejected with non-int delta", async () => {
     await assertFails(
       setDoc(doc(invAdmin(), "inv_transactions", "txn_bad_qty"), {
         type: "in",
-        quantity: 1.5,
-        operatorUid: "uidInvAdmin",
+        delta: 1.5,
+        uid: "uidInvAdmin",
       })
     );
   });
