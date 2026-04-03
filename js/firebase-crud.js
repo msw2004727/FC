@@ -885,7 +885,14 @@ Object.assign(FirebaseService, {
         const snap = await db.collection('registrations')
           .where('eventId', '==', event.id)
           .get();
-        firestoreRegs = snap.docs.map(d => ({ ...d.data(), _docId: d.id }));
+        firestoreRegs = snap.docs.map(d => {
+          const data = d.data();
+          return {
+            ...data,
+            _docId: d.id,
+            registeredAt: data.registeredAt?.toDate?.()?.toISOString?.() || data.registeredAt,
+          };
+        });
       } catch (err) {
         console.warn('[cancelRegistration] Firestore 查詢失敗，fallback 用快取:', err);
         firestoreRegs = this._cache.registrations.filter(r => r.eventId === event.id);

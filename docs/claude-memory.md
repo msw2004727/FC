@@ -303,3 +303,10 @@
 
 *最後清理日期：2026-04-03*
 *原始檔案：1984 行 → 清理後 305 行*
+
+### 2026-04-04 — [永久] 候補遞補排序失效（cancelRegistration Timestamp 未轉換）
+- **問題**：正取取消觸發候補遞補時，候補 3 比候補 1、2 優先入正取
+- **原因**：firebase-crud.js cancelRegistration() 第 888 行從 Firestore 讀取 registrations 時，未將 registeredAt Timestamp 轉換為 ISO 字串。new Date(Timestamp) 回傳 NaN，NaN !== NaN 為 true，排序完全失效變成隨機順序
+- **修復**：第 888 行加入 data.registeredAt?.toDate?.()?.toISOString?.() || data.registeredAt 轉換
+- **審計**：全面掃描所有讀取 registrations 並用於排序的路徑，確認其他位置（event-create-waitlist.js、functions/index.js、cancelCompanionRegistrations）皆已有正確轉換，僅此一處遺漏
+- **教訓**：Firestore Timestamp 轉換必須在每個查詢結果的 .docs.map() 中執行，不能只在部分路徑做。此類 bug 不會報錯，只會靜默產生錯誤排序，極難偵測
