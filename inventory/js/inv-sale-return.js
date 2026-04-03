@@ -5,11 +5,15 @@ Object.assign(InvSale, {
 
   // ══════ 退貨 ══════
 
-  /** 顯示退貨表單 */
+  _closeFormOverlay() {
+    var ov = document.getElementById('inv-return-overlay');
+    if (ov) ov.remove();
+  },
+
+  /** 顯示退貨表單（overlay，可從任何頁面呼叫） */
   async showReturnForm(barcode) {
     var p = InvProducts.getByBarcode(barcode);
     if (!p) { InvApp.showToast('找不到此商品'); return; }
-    // 查該商品最近 10 筆銷售紀錄
     var txSnap = await db.collection('inv_transactions')
       .where('barcode', '==', barcode).where('type', '==', 'out')
       .orderBy('createdAt', 'desc').limit(10).get();
@@ -22,14 +26,18 @@ Object.assign(InvSale, {
     txList.forEach(function (t) {
       var dt = t.createdAt && t.createdAt.toDate ? t.createdAt.toDate().toLocaleDateString('zh-TW') : '';
       opts += '<option value="' + esc(t._id) + '">' +
-        esc((t.receiptNo || '無單號') + ' / ' + dt + ' / 數量 ' + t.quantity) + '</option>';
+        esc((t.receiptNo || '無單號') + ' / ' + dt + ' / 數量 ' + (t.quantity || t.delta || 0)) + '</option>';
     });
-    var wrap = document.getElementById('inv-sale-content') || document.getElementById('inv-cart-list');
-    if (!wrap) return;
-    wrap.innerHTML =
-      '<div style="padding:16px;">' +
-        '<h3 style="margin:0 0 12px;">退貨 — ' + esc(p.name) + '</h3>' +
-        '<div style="font-size:13px;color:var(--inv-text-light);margin-bottom:12px;">目前庫存：' + (p.stock || 0) + '</div>' +
+    this._closeFormOverlay();
+    var overlay = document.createElement('div');
+    overlay.id = 'inv-return-overlay';
+    overlay.className = 'inv-overlay show';
+    overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+    overlay.addEventListener('touchmove', function(e) { if (!e.target.closest('.inv-modal')) { e.preventDefault(); e.stopPropagation(); } }, { passive: false });
+    overlay.innerHTML =
+      '<div class="inv-modal" style="max-width:400px;width:92%;max-height:80vh;overflow-y:auto">' +
+        '<h3 style="margin:0 0 12px;font-size:17px;font-weight:700">退貨 — ' + esc(p.name) + '</h3>' +
+        '<div style="font-size:13px;color:var(--text-muted);margin-bottom:12px;">目前庫存：' + (p.stock || 0) + '</div>' +
         '<label style="font-size:13px;">關聯原始交易</label>' +
         '<select id="inv-ret-tx" class="inv-input" style="margin-bottom:8px;">' + opts + '</select>' +
         '<label style="font-size:13px;">退貨數量</label>' +
@@ -46,8 +54,9 @@ Object.assign(InvSale, {
           '<option value="stock">退回庫存</option><option value="waste">報廢</option></select>' +
         '<button class="inv-btn primary full" onclick="InvSale.handleReturn(\'' +
           esc(barcode) + '\')">確認退貨</button>' +
-        '<button class="inv-btn outline full" onclick="InvSale.render()" style="margin-top:8px;">取消</button>' +
+        '<button class="inv-btn outline full" onclick="InvSale._closeFormOverlay()" style="margin-top:8px;">取消</button>' +
       '</div>';
+    document.body.appendChild(overlay);
   },
 
   /** 執行退貨 */
@@ -81,8 +90,9 @@ Object.assign(InvSale, {
         });
       });
       InvApp.showToast('退貨完成');
+      this._closeFormOverlay();
       await InvProducts.loadAll();
-      InvSale.render();
+      if (typeof InvProducts.renderDetail === 'function') InvProducts.renderDetail(barcode);
     } catch (e) {
       console.error('[InvSale] handleReturn error:', e);
       InvApp.showToast(e.message || '退貨失敗');
@@ -91,17 +101,21 @@ Object.assign(InvSale, {
 
   // ══════ 報廢 ══════
 
-  /** 顯示報廢表單 */
+  /** 顯示報廢表單（overlay，可從任何頁面呼叫） */
   async showWasteForm(barcode) {
     var p = InvProducts.getByBarcode(barcode);
     if (!p) { InvApp.showToast('找不到此商品'); return; }
     var esc = InvApp.escapeHTML;
-    var wrap = document.getElementById('inv-sale-content') || document.getElementById('inv-cart-list');
-    if (!wrap) return;
-    wrap.innerHTML =
-      '<div style="padding:16px;">' +
-        '<h3 style="margin:0 0 12px;">報廢 — ' + esc(p.name) + '</h3>' +
-        '<div style="font-size:13px;color:var(--inv-text-light);margin-bottom:12px;">目前庫存：' + (p.stock || 0) + '</div>' +
+    this._closeFormOverlay();
+    var overlay = document.createElement('div');
+    overlay.id = 'inv-return-overlay';
+    overlay.className = 'inv-overlay show';
+    overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+    overlay.addEventListener('touchmove', function(e) { if (!e.target.closest('.inv-modal')) { e.preventDefault(); e.stopPropagation(); } }, { passive: false });
+    overlay.innerHTML =
+      '<div class="inv-modal" style="max-width:400px;width:92%;max-height:80vh;overflow-y:auto">' +
+        '<h3 style="margin:0 0 12px;font-size:17px;font-weight:700">報廢 — ' + esc(p.name) + '</h3>' +
+        '<div style="font-size:13px;color:var(--text-muted);margin-bottom:12px;">目前庫存：' + (p.stock || 0) + '</div>' +
         '<label style="font-size:13px;">報廢數量</label>' +
         '<input id="inv-waste-qty" class="inv-input" type="number" min="1" value="1" style="margin-bottom:8px;" />' +
         '<label style="font-size:13px;">報廢原因</label>' +
@@ -111,8 +125,9 @@ Object.assign(InvSale, {
           '<option value="other">其他</option></select>' +
         '<button class="inv-btn primary full" onclick="InvSale.handleWaste(\'' +
           esc(barcode) + '\')">確認報廢</button>' +
-        '<button class="inv-btn outline full" onclick="InvSale.render()" style="margin-top:8px;">取消</button>' +
+        '<button class="inv-btn outline full" onclick="InvSale._closeFormOverlay()" style="margin-top:8px;">取消</button>' +
       '</div>';
+    document.body.appendChild(overlay);
   },
 
   /** 執行報廢 */
@@ -144,8 +159,9 @@ Object.assign(InvSale, {
         });
       });
       InvApp.showToast('報廢完成');
+      this._closeFormOverlay();
       await InvProducts.loadAll();
-      InvSale.render();
+      if (typeof InvProducts.renderDetail === 'function') InvProducts.renderDetail(barcode);
     } catch (e) {
       console.error('[InvSale] handleWaste error:', e);
       InvApp.showToast(e.message || '報廢失敗');
