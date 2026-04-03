@@ -30,8 +30,10 @@ const InvTransactions = {
       { key: 'waste', label: '報廢' }, { key: 'adjust', label: '調整' },
     ];
 
+    var ib = '<button class="inv-info-btn" onclick="InvTransactions._showInfo()" title="說明">?</button>';
     var html =
       '<div style="padding:12px 16px;">' +
+        '<div style="display:flex;align-items:center;gap:6px;margin-bottom:10px"><h4 style="margin:0;font-size:15px;font-weight:600">交易紀錄</h4>' + ib + '</div>' +
         /* --- 1. 日期篩選 --- */
         '<div style="display:flex;gap:6px;align-items:center;margin-bottom:10px;max-width:100%;overflow:hidden">' +
           '<input type="date" class="inv-input" value="' + esc(this._startDate) + '" ' +
@@ -249,5 +251,28 @@ const InvTransactions = {
     a.click();
     URL.revokeObjectURL(url);
     InvApp.showToast('CSV 已下載');
+  },
+
+  /** 說明彈窗 */
+  _showInfo() {
+    var existing = document.getElementById('inv-tx-info-overlay');
+    if (existing) existing.remove();
+    var ov = document.createElement('div');
+    ov.id = 'inv-tx-info-overlay';
+    ov.className = 'inv-overlay show';
+    ov.onclick = function(e) { if (e.target === ov) ov.remove(); };
+    ov.addEventListener('touchmove', function(e) { if (!e.target.closest('.inv-modal')) { e.preventDefault(); e.stopPropagation(); } }, { passive: false });
+    var s = 'background:var(--accent-subtle);border-radius:var(--radius-sm);padding:10px 12px;margin:8px 0';
+    ov.innerHTML =
+      '<div class="inv-modal" style="max-width:380px;width:90%;max-height:80vh;overflow-y:auto">' +
+        '<h3 style="margin:0 0 12px;font-size:17px;font-weight:700">交易紀錄說明</h3>' +
+        '<div style="' + s + '"><b>日期篩選</b><p style="font-size:13px;margin:4px 0 0;color:var(--text-secondary)">選擇起始與結束日期，查看指定時間範圍內的交易。預設顯示本月。</p></div>' +
+        '<div style="' + s + '"><b>類型篩選</b><p style="font-size:13px;margin:4px 0 0;color:var(--text-secondary)">快速切換：全部 / 銷售 / 入庫 / 退貨 / 報廢 / 調整，只顯示對應類型的交易。</p></div>' +
+        '<div style="' + s + '"><b>交易卡片</b><p style="font-size:13px;margin:4px 0 0;color:var(--text-secondary)">每筆交易顯示商品名、數量、金額與時間。點擊卡片可展開查看詳細資訊（操作者、庫存變化等）。</p></div>' +
+        '<div style="' + s + '"><b>統計摘要</b><p style="font-size:13px;margin:4px 0 0;color:var(--text-secondary)">列表下方顯示所選範圍的筆數加總與金額統計。</p></div>' +
+        '<div style="' + s + '"><b>匯出 CSV</b><p style="font-size:13px;margin:4px 0 0;color:var(--text-secondary)">將當前篩選結果匯出為 CSV 檔案，可用 Excel 開啟進行進一步分析。</p></div>' +
+        '<button class="inv-btn primary full" style="margin-top:12px" onclick="this.closest(\'.inv-overlay\').remove()">我知道了</button>' +
+      '</div>';
+    document.body.appendChild(ov);
   },
 };
