@@ -56,7 +56,10 @@ const InvSettings = {
       this._card(h4('工具', 'tools') +
         '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">' +
           '<button class="inv-btn outline full sm" onclick="InvSettings._promptBarcodePrint()">條碼列印</button>' +
-          '<button class="inv-btn outline full sm" onclick="InvSettings.rebuildStock()" style="color:var(--danger);border-color:var(--danger)">庫存重建</button>' +
+          '<div style="display:flex;gap:4px">' +
+            '<button class="inv-btn outline full sm" onclick="InvSettings.rebuildStock()" style="color:var(--danger);border-color:var(--danger)">庫存重建</button>' +
+            '<button class="inv-info-btn" onclick="InvSettings._showInfo(\'rebuild\')" style="flex-shrink:0">?</button>' +
+          '</div>' +
         '</div>') +
       this._card(h4('登入公告管理', 'announcement') + '<div id="inv-announcement-list"></div>') +
       '</div>';
@@ -641,8 +644,25 @@ const InvSettings = {
         body: '<div style="background:var(--accent-subtle);border-radius:var(--radius-sm);padding:10px 12px;margin:8px 0">'
           + '<b>條碼列印</b><p style="font-size:13px;margin:4px 0 0;color:var(--text-secondary)">輸入條碼編號，系統會生成條碼圖片並可直接列印標籤。適用於自有商品需要製作條碼吊牌的場景。</p></div>'
           + '<div style="background:var(--danger-light);border-radius:var(--radius-sm);padding:10px 12px;margin:8px 0">'
-          + '<b>庫存重建</b><p style="font-size:13px;margin:4px 0 0;color:var(--text-secondary)">根據所有交易紀錄重新計算每個商品的正確庫存數量。僅在庫存數據異常時使用。</p>'
-          + '<p style="font-size:12px;margin:4px 0 0;color:var(--danger)">⚠ 此操作會覆蓋所有商品的現有庫存數量，請謹慎操作。</p></div>'
+          + '<b>庫存重建</b><p style="font-size:13px;margin:4px 0 0;color:var(--text-secondary)">根據交易紀錄重算正確庫存（詳情請點庫存重建旁的 ? 按鈕）。</p></div>'
+      },
+      rebuild: {
+        title: '庫存重建說明',
+        body: '<div style="background:var(--accent-subtle);border-radius:var(--radius-sm);padding:10px 12px;margin:8px 0">'
+          + '<b>什麼時候用？</b><p style="font-size:13px;margin:4px 0 0;color:var(--text-secondary)">庫存數字「不對」的時候。例如商品顯示庫存 5 件，但你覺得跟實際不符。正常操作下不需要使用。</p></div>'
+          + '<div style="background:var(--accent-subtle);border-radius:var(--radius-sm);padding:10px 12px;margin:8px 0">'
+          + '<b>它怎麼算？</b><p style="font-size:13px;margin:4px 0 0;color:var(--text-secondary)">把每個商品的所有交易紀錄從頭到尾加減一遍。<br>例如：入庫 +10 → 賣掉 -3 → 退貨 +1 → 報廢 -1 = 理論庫存應該是 7。</p></div>'
+          + '<div style="background:var(--accent-subtle);border-radius:var(--radius-sm);padding:10px 12px;margin:8px 0">'
+          + '<b>操作流程</b>'
+          + '<ol style="font-size:13px;margin:4px 0 0;padding-left:18px;color:var(--text-secondary);line-height:1.7">'
+          + '<li>按「庫存重建」→ 確認要執行</li>'
+          + '<li>系統掃描全部交易紀錄，算出每個商品「應該有幾件」</li>'
+          + '<li>跟目前庫存比對，列出有差異的商品</li>'
+          + '<li>顯示差異（例如：球衣A 目前 5 → 應該是 8）→ 再次確認</li>'
+          + '<li>確認後把庫存數字改成計算出來的值</li></ol></div>'
+          + '<div style="background:var(--danger-light);border-radius:var(--radius-sm);padding:10px 12px;margin:8px 0">'
+          + '<b>注意事項</b>'
+          + '<p style="font-size:13px;margin:4px 0 0;color:var(--danger)">此操作會直接覆蓋所有商品的庫存數字，請確認後再執行。如果庫存沒有異常，不需要使用此功能。</p></div>'
       },
       announcement: {
         title: '登入公告管理說明',
