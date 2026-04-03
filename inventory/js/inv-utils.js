@@ -90,4 +90,38 @@ const InvUtils = {
     if (!code || typeof code !== 'string') return false;
     return /^[A-Za-z0-9]+$/.test(code.trim());
   },
+
+  /**
+   * 圖片裁切壓縮 — 選擇正方形區域，輸出指定尺寸的 JPEG base64
+   * @param {File} file
+   * @param {object} opts  { maxSize: 400, quality: 0.8 }
+   * @returns {Promise<string>} base64 dataURL
+   */
+  cropImageSquare(file, opts) {
+    opts = opts || {};
+    var maxSize = opts.maxSize || 400;
+    var quality = opts.quality || 0.8;
+    return new Promise(function(resolve, reject) {
+      var reader = new FileReader();
+      reader.onerror = function() { reject(new Error('讀取圖片失敗')); };
+      reader.onload = function() {
+        var img = new Image();
+        img.onerror = function() { reject(new Error('圖片格式無效')); };
+        img.onload = function() {
+          var w = img.width, h = img.height;
+          var side = Math.min(w, h);
+          var sx = (w - side) / 2, sy = (h - side) / 2;
+          var outSize = Math.min(side, maxSize);
+          var canvas = document.createElement('canvas');
+          canvas.width = outSize;
+          canvas.height = outSize;
+          var ctx = canvas.getContext('2d');
+          ctx.drawImage(img, sx, sy, side, side, 0, 0, outSize, outSize);
+          resolve(canvas.toDataURL('image/jpeg', quality));
+        };
+        img.src = reader.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  },
 };

@@ -129,20 +129,36 @@ const InvProducts = {
     var html = '';
     for (var i = 0; i < list.length; i++) {
       var p = list[i];
-      var alert = p.lowStockAlert || 5;
-      var bc = p.stock > alert ? '#4CAF50' : (p.stock > 0 ? '#f44336' : '#9e9e9e');
-      var bt = p.stock > 0 ? p.stock : '\u7f3a\u8ca8';
-      var meta = [p.color, p.size].filter(Boolean).map(esc).join(' / ');
+      var al = p.lowStockAlert || 5;
+      var stockBg = p.stock > al ? 'var(--success)' : (p.stock > 0 ? 'var(--danger)' : 'var(--text-muted)');
+      var stockTxt = p.stock > 0 ? p.stock : '缺貨';
+      var thumb = p.image || p.imageUrl || '';
+      var thumbHtml = thumb
+        ? '<img src="' + esc(thumb) + '" style="width:48px;height:48px;object-fit:cover;border-radius:var(--radius-sm);flex-shrink:0">'
+        : '<div style="width:48px;height:48px;border-radius:var(--radius-sm);background:var(--bg-elevated);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:18px;color:var(--text-muted)">📦</div>';
+      // 膠囊標籤
+      var pills = [];
+      if (p.brand) pills.push(esc(p.brand));
+      if (p.category) pills.push(esc(p.category));
+      if (p.color) pills.push(esc(p.color));
+      if (p.size) pills.push(esc(p.size));
+      var pillsHtml = pills.length
+        ? '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:3px">' +
+          pills.map(function(t) { return '<span style="font-size:11px;padding:1px 7px;border-radius:var(--radius-full);background:var(--bg-elevated);color:var(--text-secondary);white-space:nowrap">' + t + '</span>'; }).join('') +
+          '</div>'
+        : '';
       html +=
         '<div class="inv-product-card" data-barcode="' + esc(p.barcode) + '" ' +
-          'style="display:flex;align-items:center;gap:12px;padding:12px;border:1px solid var(--border);border-radius:10px;margin-bottom:8px;cursor:pointer;background:var(--bg-card);">' +
-          '<div style="flex:1;min-width:0;">' +
-            '<div style="font-weight:600;font-size:15px;">' + esc(p.name) + '</div>' +
-            (p.brand ? '<div style="font-size:13px;color:var(--text-muted);">' + esc(p.brand) + '</div>' : '') +
-            (meta ? '<div style="font-size:12px;color:var(--text-muted);">' + meta + '</div>' : '') +
-            '<div style="font-size:14px;color:var(--text-primary);margin-top:2px;">' + InvApp.formatCurrency(p.price) + '</div>' +
+          'style="display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:6px;cursor:pointer;background:var(--bg-card)">' +
+          thumbHtml +
+          '<div style="flex:1;min-width:0;overflow:hidden">' +
+            '<div style="display:flex;align-items:center;gap:6px">' +
+              '<span style="font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(p.name) + '</span>' +
+              '<span style="font-size:13px;font-weight:600;color:var(--accent);white-space:nowrap">' + InvApp.formatCurrency(p.price) + '</span>' +
+            '</div>' +
+            pillsHtml +
           '</div>' +
-          '<div style="background:' + bc + ';color:#fff;padding:4px 10px;border-radius:12px;font-size:13px;font-weight:600;">' + bt + '</div>' +
+          '<div style="background:' + stockBg + ';color:#fff;padding:2px 8px;border-radius:var(--radius-full);font-size:12px;font-weight:600;white-space:nowrap;flex-shrink:0">' + stockTxt + '</div>' +
         '</div>';
     }
     container.innerHTML = html;
@@ -282,7 +298,7 @@ const InvProducts = {
         '<div style="font-size:11px;color:var(--text-muted);margin-bottom:10px">修改編號會建立新文件並刪除舊文件，歷史交易紀錄仍保留原編號。</div>' +
         '<label ' + ls + '>商品圖片</label>' +
         '<input type="file" id="edit-image-input" accept="image/*" hidden />' +
-        '<div id="edit-image-preview" style="width:100%;aspect-ratio:4/3;border:2px dashed var(--border);border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center;cursor:pointer;overflow:hidden;background:var(--bg-elevated);position:relative;margin-bottom:10px;transition:border-color var(--ease)" onclick="document.getElementById(\'edit-image-input\').click()">' +
+        '<div id="edit-image-preview" style="width:120px;height:120px;margin:0 auto 10px;border:2px dashed var(--border);border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center;cursor:pointer;overflow:hidden;background:var(--bg-elevated);position:relative;transition:border-color var(--ease)" onclick="document.getElementById(\'edit-image-input\').click()">' +
           (hasImg ? '<img src="' + esc(hasImg) + '" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">' : '<span style="font-size:13px;color:var(--text-muted)">點擊上傳商品圖片</span>') +
         '</div>' +
         '<label ' + ls + '>品名</label>' +
@@ -313,17 +329,18 @@ const InvProducts = {
     var self = this;
     var _editImageDataUrl = null;
     // 圖片上傳處理
-    document.getElementById('edit-image-input').addEventListener('change', function () {
+    document.getElementById('edit-image-input').addEventListener('change', async function () {
       var file = this.files && this.files[0];
       if (!file) return;
-      if (file.size > 750 * 1024) { InvApp.showToast('圖片不可超過 750KB（Firestore 文件限制）'); return; }
-      var reader = new FileReader();
-      reader.onload = function () {
-        _editImageDataUrl = reader.result;
+      if (file.size > 5 * 1024 * 1024) { InvApp.showToast('原始圖片不可超過 5MB'); return; }
+      try {
+        var dataUrl = await InvUtils.cropImageSquare(file, { maxSize: 400, quality: 0.75 });
+        _editImageDataUrl = dataUrl;
         var preview = document.getElementById('edit-image-preview');
-        if (preview) preview.innerHTML = '<img src="' + reader.result + '" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">';
-      };
-      reader.readAsDataURL(file);
+        if (preview) preview.innerHTML = '<img src="' + dataUrl + '" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">';
+      } catch (e) {
+        InvApp.showToast('圖片處理失敗：' + (e.message || ''));
+      }
     });
     document.getElementById('edit-cancel').addEventListener('click', function () { overlay.remove(); });
     document.getElementById('edit-save').addEventListener('click', async function () {
