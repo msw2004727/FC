@@ -97,6 +97,12 @@ const InvSettings = {
         '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">' + toolBtns + '</div>');
     }
 
+    // Log viewer card (owner + manager)
+    if (_hp('settings.logs') || InvAuth.getRole() === 'owner' || InvAuth.getRole() === 'manager') {
+      sections += this._card(h4('操作紀錄', 'logs') +
+        '<button class="inv-btn outline full" onclick="InvSettings._showLogViewer()">查詢 LOG</button>');
+    }
+
     // Announcements card
     if (_hp('settings.announcements')) {
       sections += this._card(h4('登入公告管理', 'announcement') + '<div id="inv-announcement-list"></div>');
@@ -276,6 +282,7 @@ const InvSettings = {
     if (!name) { InvApp.showToast('請輸入店名'); return; }
     try {
       await this._cfgRef().update({ shopName: name });
+      InvUtils.writeLog('setting_shop_name', name);
       InvApp.showToast('店名已更新');
       this.render();
     } catch (e) { InvApp.showToast('儲存失敗'); }
@@ -299,6 +306,7 @@ const InvSettings = {
         await this._cfgRef().update(add);
       }
       var roleName = (this._ROLE_META[role] || {}).label || '店長';
+      InvUtils.writeLog('setting_admin_add', roleName + ' ' + uid);
       InvApp.showToast('已新增' + roleName);
       if (input) input.value = '';
       this.renderAdminList();
@@ -317,6 +325,7 @@ const InvSettings = {
         staffUids: firebase.firestore.FieldValue.arrayRemove(uid),
         partTimeUids: firebase.firestore.FieldValue.arrayRemove(uid),
       });
+      InvUtils.writeLog('setting_admin_remove', uid);
       InvApp.showToast('已移除人員');
       this.renderAdminList();
     } catch (e) { InvApp.showToast('移除失敗'); }
@@ -410,6 +419,7 @@ const InvSettings = {
     }
     try {
       await this._cfgRef().update({ barcodePrefix: val });
+      InvUtils.writeLog('setting_barcode_prefix', val);
       InvApp.showToast('前綴已儲存：' + val);
     } catch (e) {
       InvApp.showToast('儲存失敗：' + (e.message || ''));
@@ -812,6 +822,15 @@ const InvSettings = {
           + '<b>注意事項</b>'
           + '<p style="font-size:13px;margin:4px 0 0;color:var(--danger)">此操作會直接覆蓋所有商品的庫存數字，請確認後再執行。如果庫存沒有異常，不需要使用此功能。</p></div>'
       },
+      logs: {
+        title: '操作紀錄說明',
+        body: '<p>記錄所有人員在庫存系統中的操作行為：</p>'
+          + '<div style="background:var(--accent-subtle);border-radius:var(--radius-sm);padding:10px 12px;margin:8px 0">'
+          + '<b>記錄範圍</b><p style="font-size:13px;margin:4px 0 0;color:var(--text-secondary)">登入/登出、入庫、銷售、退貨、報廢、商品編輯、盤點調整、人員管理、設定變更等所有操作。</p></div>'
+          + '<div style="background:var(--accent-subtle);border-radius:var(--radius-sm);padding:10px 12px;margin:8px 0">'
+          + '<b>篩選功能</b><p style="font-size:13px;margin:4px 0 0;color:var(--text-secondary)">可依時間範圍、行為類型、人員暱稱篩選，快速找到特定操作紀錄。</p></div>'
+          + '<p style="font-size:13px;color:var(--text-muted);margin-top:8px">紀錄為不可修改、不可刪除，確保稽核完整性。</p>'
+      },
       announcement: {
         title: '登入公告管理說明',
         body: '<p>管理用戶登入後看到的公告彈窗：</p>'
@@ -834,5 +853,107 @@ const InvSettings = {
       + '<button class="inv-btn primary full" style="margin-top:16px" onclick="this.closest(\'.inv-overlay\').remove()">了解</button>'
       + '</div>';
     document.body.appendChild(overlay);
+  },
+
+  // ══════ 操作紀錄查詢 ══════
+  _logData: [],
+  async _showLogViewer() {
+    var existing = document.getElementById('inv-log-viewer');
+    if (existing) existing.remove();
+
+    var ov = document.createElement('div');
+    ov.id = 'inv-log-viewer';
+    ov.className = 'inv-overlay show';
+    ov.onclick = function(e) { if (e.target === ov) ov.remove(); };
+    ov.addEventListener('touchmove', function(e) { if (!e.target.closest('.inv-modal')) { e.preventDefault(); e.stopPropagation(); } }, { passive: false });
+
+    var labels = InvUtils.LOG_LABELS || {};
+    var actionOpts = '<option value="">全部行為</option>';
+    Object.keys(labels).forEach(function(k) { actionOpts += '<option value="' + k + '">' + InvApp.escapeHTML(labels[k]) + '</option>'; });
+
+    var now = new Date();
+    var pad = function(n) { return String(n).padStart(2, '0'); };
+    var today = now.getFullYear() + '-' + pad(now.getMonth() + 1) + '-' + pad(now.getDate());
+    var weekAgo = new Date(now.getTime() - 7 * 86400000);
+    var startDef = weekAgo.getFullYear() + '-' + pad(weekAgo.getMonth() + 1) + '-' + pad(weekAgo.getDate());
+
+    ov.innerHTML =
+      '<div class="inv-modal" style="max-width:480px;width:95%;max-height:88vh;display:flex;flex-direction:column">' +
+        '<div style="flex-shrink:0;padding-bottom:10px;border-bottom:1px solid var(--border)">' +
+          '<h3 style="margin:0 0 10px;font-size:17px;font-weight:700">操作紀錄</h3>' +
+          '<div style="display:flex;gap:6px;flex-wrap:wrap">' +
+            '<input type="date" id="log-start" class="inv-input" value="' + startDef + '" style="flex:1;min-width:110px;height:34px;font-size:12px;padding:4px 6px" />' +
+            '<input type="date" id="log-end" class="inv-input" value="' + today + '" style="flex:1;min-width:110px;height:34px;font-size:12px;padding:4px 6px" />' +
+          '</div>' +
+          '<div style="display:flex;gap:6px;margin-top:6px">' +
+            '<select id="log-action" class="inv-select" style="flex:1;height:34px;font-size:12px">' + actionOpts + '</select>' +
+            '<input type="text" id="log-name" class="inv-input" placeholder="暱稱篩選" style="flex:1;height:34px;font-size:12px" />' +
+            '<button id="log-search" class="inv-btn primary sm" style="flex-shrink:0;height:34px;font-size:12px;padding:0 12px">查詢</button>' +
+          '</div>' +
+        '</div>' +
+        '<div id="log-list" style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-top:8px">' +
+          '<div style="text-align:center;padding:30px;color:var(--text-muted);font-size:13px">點擊「查詢」載入紀錄</div>' +
+        '</div>' +
+        '<button class="inv-btn outline full" style="flex-shrink:0;margin-top:8px" onclick="this.closest(\'.inv-overlay\').remove()">關閉</button>' +
+      '</div>';
+    document.body.appendChild(ov);
+
+    var self = this;
+    document.getElementById('log-search').addEventListener('click', function() { self._loadLogs(); });
+  },
+
+  async _loadLogs() {
+    var wrap = document.getElementById('log-list');
+    if (!wrap) return;
+    wrap.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-muted)">載入中...</div>';
+
+    var startVal = document.getElementById('log-start').value;
+    var endVal = document.getElementById('log-end').value;
+    var actionFilter = document.getElementById('log-action').value;
+    var nameFilter = (document.getElementById('log-name').value || '').trim().toLowerCase();
+
+    var startTs = startVal ? firebase.firestore.Timestamp.fromDate(new Date(startVal + 'T00:00:00')) : null;
+    var endDate = endVal ? new Date(endVal + 'T23:59:59') : new Date();
+    var endTs = firebase.firestore.Timestamp.fromDate(endDate);
+
+    try {
+      var q = db.collection('inv_logs').orderBy('createdAt', 'desc');
+      if (startTs) q = q.where('createdAt', '>=', startTs);
+      q = q.where('createdAt', '<=', endTs);
+      var snap = await q.limit(500).get();
+
+      var logs = [];
+      snap.forEach(function(d) { logs.push(d.data()); });
+
+      // 前端篩選 action + name
+      if (actionFilter) logs = logs.filter(function(l) { return l.action === actionFilter; });
+      if (nameFilter) logs = logs.filter(function(l) { return (l.name || '').toLowerCase().indexOf(nameFilter) !== -1; });
+
+      if (!logs.length) {
+        wrap.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text-muted);font-size:13px">無符合條件的紀錄</div>';
+        return;
+      }
+
+      var labels = InvUtils.LOG_LABELS || {};
+      var esc = InvApp.escapeHTML;
+      var html = '';
+      for (var i = 0; i < logs.length; i++) {
+        var l = logs[i];
+        var dt = l.createdAt && l.createdAt.toDate ? l.createdAt.toDate() : null;
+        var timeStr = dt ? dt.getFullYear() + '/' + String(dt.getMonth() + 1).padStart(2, '0') + '/' + String(dt.getDate()).padStart(2, '0') + ' ' + String(dt.getHours()).padStart(2, '0') + ':' + String(dt.getMinutes()).padStart(2, '0') : '-';
+        var actionLabel = labels[l.action] || l.action || '-';
+        html +=
+          '<div style="display:flex;align-items:flex-start;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px">' +
+            '<span style="font-weight:600;color:var(--text-primary);white-space:nowrap;min-width:48px">' + esc(l.name || '?') + '</span>' +
+            '<span style="color:var(--text-muted);white-space:nowrap;min-width:100px">' + timeStr + '</span>' +
+            '<span style="padding:1px 6px;border-radius:var(--radius-full);background:var(--accent-subtle);color:var(--accent);font-size:11px;white-space:nowrap;flex-shrink:0">' + esc(actionLabel) + '</span>' +
+            '<span style="color:var(--text-secondary);flex:1;min-width:0;word-break:break-all">' + esc(l.detail || '') + '</span>' +
+          '</div>';
+      }
+      wrap.innerHTML = '<div style="font-size:11px;color:var(--text-muted);margin-bottom:6px">共 ' + logs.length + ' 筆</div>' + html;
+    } catch (e) {
+      console.error('[InvSettings] _loadLogs failed:', e);
+      wrap.innerHTML = '<div style="color:var(--danger);padding:20px;text-align:center">載入失敗：' + (e.message || '') + '</div>';
+    }
   },
 };

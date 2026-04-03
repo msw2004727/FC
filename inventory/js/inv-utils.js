@@ -92,6 +92,39 @@ const InvUtils = {
   },
 
   /**
+   * 寫入操作紀錄到 inv_logs
+   * @param {string} action 行為代碼
+   * @param {string} detail 詳情文字
+   */
+  writeLog(action, detail) {
+    try {
+      var uid = typeof InvAuth !== 'undefined' ? InvAuth.getUid() : null;
+      var name = typeof InvAuth !== 'undefined' ? (InvAuth.getName() || '') : '';
+      if (!uid) return;
+      db.collection('inv_logs').add({
+        uid: uid,
+        name: name,
+        action: action,
+        detail: detail || '',
+        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      });
+    } catch (_) {}
+  },
+
+  /** 行為代碼 → 中文 */
+  LOG_LABELS: {
+    login: '登入', logout: '登出',
+    product_create: '新增商品', product_edit: '編輯商品', product_barcode_rename: '條碼變更',
+    stock_in: '入庫', stock_in_csv: 'CSV批次入庫', quick_restock: '快速補貨',
+    sale: '銷售結帳', sale_return: '退貨', sale_waste: '報廢',
+    stocktake_start: '開始盤點', stocktake_apply: '盤點調整',
+    setting_shop_name: '修改店名', setting_admin_add: '新增人員', setting_admin_remove: '移除人員',
+    setting_admin_role: '變更角色', setting_category: '分類管理', setting_barcode_prefix: '條碼前綴',
+    announcement_create: '新增公告', announcement_edit: '編輯公告', announcement_delete: '刪除公告',
+    barcode_print: '條碼列印', stock_rebuild: '庫存重建',
+  },
+
+  /**
    * 圖片裁切壓縮 — 選擇正方形區域，輸出指定尺寸的 JPEG base64
    * @param {File} file
    * @param {object} opts  { maxSize: 400, quality: 0.8 }

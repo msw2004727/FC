@@ -1308,6 +1308,12 @@ service cloud.firestore {
       allow read: if request.auth != null;
       allow create, update, delete: if isInventoryAdmin();
     }
+    match /inv_logs/{docId} {
+      allow read: if isInventoryAdmin();
+      allow create: if isInventoryAdmin()
+        && request.resource.data.uid == request.auth.uid;
+      allow update, delete: if false;
+    }
 
     // ═══════════════════════════════════════════
     //  Catch-all：未列出的集合一律拒絕

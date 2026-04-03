@@ -90,6 +90,7 @@ Object.assign(InvSale, {
         });
       });
       InvApp.showToast('退貨完成');
+      InvUtils.writeLog('sale_return', (p.name || barcode) + ' x' + qty + ' 退款' + refund);
       this._closeFormOverlay();
       await InvProducts.loadAll();
       if (typeof InvProducts.renderDetail === 'function') InvProducts.renderDetail(barcode);
@@ -159,6 +160,7 @@ Object.assign(InvSale, {
         });
       });
       InvApp.showToast('報廢完成');
+      InvUtils.writeLog('sale_waste', (p.name || barcode) + ' x' + qty + ' ' + reason);
       this._closeFormOverlay();
       await InvProducts.loadAll();
       if (typeof InvProducts.renderDetail === 'function') InvProducts.renderDetail(barcode);

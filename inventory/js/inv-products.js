@@ -455,6 +455,7 @@ const InvProducts = {
             type: 'in', note: '快速補貨', uid: InvAuth.getUid() || '',
             operatorName: InvAuth.getName() || '',
           });
+          InvUtils.writeLog('quick_restock', (p.name || barcode) + ' +' + qty + ' 庫存' + result.afterStock);
           InvApp.showToast('入庫成功 +' + qty + '，目前庫存 ' + result.afterStock);
           self.renderDetail(barcode);
         } catch (e) {
@@ -673,12 +674,13 @@ const InvProducts = {
           if (idx !== -1) {
             Object.assign(self._cache[idx], updates, { barcode: newBarcode, id: newBarcode });
           }
+          InvUtils.writeLog('product_barcode_rename', updates.name + ' ' + barcode + ' → ' + newBarcode);
           InvApp.showToast('商品已更新（編號已變更）');
           overlay.remove();
           self.renderDetail(newBarcode);
         } else {
           await self.update(barcode, updates);
-          InvApp.showToast('商品已更新');
+          InvUtils.writeLog('product_edit', updates.name + ' (' + barcode + ')');
           overlay.remove();
           self.renderDetail(barcode);
         }

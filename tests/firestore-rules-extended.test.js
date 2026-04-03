@@ -2613,6 +2613,58 @@ describe("/inv_announcements/{docId}", () => {
   });
 });
 
+describe("/inv_logs/{docId}", () => {
+  test("create: inventory admin with valid uid", async () => {
+    await assertSucceeds(
+      setDoc(doc(invAdmin(), "inv_logs", "log1"), {
+        uid: "uidInvAdmin",
+        name: "TestAdmin",
+        action: "login",
+        detail: "test",
+      })
+    );
+  });
+
+  test("create: rejected with wrong uid", async () => {
+    await assertFails(
+      setDoc(doc(invAdmin(), "inv_logs", "log_bad"), {
+        uid: "uidOther",
+        name: "Other",
+        action: "login",
+      })
+    );
+  });
+
+  test("create: non-inventory user cannot", async () => {
+    await assertFails(
+      setDoc(doc(user(), "inv_logs", "log_user"), {
+        uid: "uidUser",
+        action: "login",
+      })
+    );
+  });
+
+  test("read: inventory admin can", async () => {
+    await seedDoc("inv_logs", "log_read", { uid: "uidInvAdmin", action: "sale" });
+    await assertSucceeds(getDoc(doc(invAdmin(), "inv_logs", "log_read")));
+  });
+
+  test("read: non-inventory user cannot", async () => {
+    await seedDoc("inv_logs", "log_secret", { uid: "uidInvAdmin", action: "sale" });
+    await assertFails(getDoc(doc(user(), "inv_logs", "log_secret")));
+  });
+
+  test("update: always denied", async () => {
+    await seedDoc("inv_logs", "log_upd", { uid: "uidInvAdmin", action: "sale" });
+    await assertFails(updateDoc(doc(invAdmin(), "inv_logs", "log_upd"), { action: "hack" }));
+  });
+
+  test("delete: always denied", async () => {
+    await seedDoc("inv_logs", "log_del", { uid: "uidInvAdmin", action: "sale" });
+    await assertFails(deleteDoc(doc(invAdmin(), "inv_logs", "log_del")));
+  });
+});
+
 // ═══════════════════════════════════════════════════════════════
 //  Inventory — Extended coverage
 // ═══════════════════════════════════════════════════════════════

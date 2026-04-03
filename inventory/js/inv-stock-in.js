@@ -284,6 +284,7 @@ const InvStockIn = {
       });
       var product = InvProducts.getByBarcode(barcode);
       var pName = product ? product.name : barcode;
+      InvUtils.writeLog('stock_in', pName + ' +' + quantity + ' 庫存' + result.afterStock);
       this._batchCount++;
       this._batchItems += quantity;
       this._showSuccessOverlay(pName, quantity, result.afterStock);
@@ -313,6 +314,7 @@ const InvStockIn = {
       });
       await batch.commit();
       InvProducts._cache.push(Object.assign({ id: formData.barcode }, formData));
+      InvUtils.writeLog('product_create', formData.name + ' (' + formData.barcode + ') x' + formData.stock);
 
       this._batchCount++;
       this._batchItems += formData.stock;

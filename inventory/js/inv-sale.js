@@ -242,6 +242,7 @@ const InvSale = {
         }
       });
       InvCart.clear();
+      InvUtils.writeLog('sale', receiptNo + ' ' + itemList.length + '項 ' + InvApp.formatCurrency(totalAmount));
       InvApp.showToast('結帳完成 — ' + receiptNo);
       this.render();
     } catch (e) {

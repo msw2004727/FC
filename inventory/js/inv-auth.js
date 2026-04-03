@@ -86,6 +86,7 @@ const InvAuth = {
   },
 
   async logout() {
+    InvUtils.writeLog('logout', '');
     try { liff.logout(); } catch (_) {}
     try { await auth.signOut(); } catch (_) {}
     this.currentUser = null;
@@ -143,6 +144,7 @@ const InvAuth = {
         if (typeof InvPermissions !== 'undefined') await InvPermissions.loadCustomPerms();
         if (this.currentUser) this.currentUser.uid = uid;
         InvApp.updateUserUI(this.currentUser);
+        InvUtils.writeLog('login', this.getRoleName() + ' ' + (this.currentUser.name || uid));
         InvApp.showPage('page-dashboard');
         if (typeof InvDashboard !== 'undefined') InvDashboard.render();
         InvApp.checkAnnouncements();
