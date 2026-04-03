@@ -133,7 +133,7 @@ const InvSettings = {
       var bg = isMe ? 'background:var(--accent-light)' : 'background:var(--bg-elevated)';
       var uidColor = isMe ? 'color:var(--accent);font-weight:600' : 'color:var(--text-secondary)';
       html += '<div style="display:flex;align-items:center;gap:8px;padding:8px 14px;margin-bottom:6px;border-radius:var(--radius-sm);' + bg + ';' + border + '">'
-        + '<span style="flex:1;font-size:11px;' + uidColor + ';word-break:break-all">' + esc(u) + '</span>'
+        + '<span style="flex:1;font-size:11px;' + uidColor + ';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0">' + esc(u) + '</span>'
         + roleTag + actions + '</div>';
     }
     if (canManage) {
