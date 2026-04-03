@@ -158,7 +158,10 @@ const InvProducts = {
             '</div>' +
             pillsHtml +
           '</div>' +
-          '<div style="background:' + stockBg + ';color:#fff;padding:2px 8px;border-radius:var(--radius-full);font-size:12px;font-weight:600;white-space:nowrap;flex-shrink:0">' + stockTxt + '</div>' +
+          '<div style="display:flex;align-items:center;gap:6px;flex-shrink:0">' +
+            '<div style="background:' + stockBg + ';color:#fff;padding:2px 8px;border-radius:var(--radius-full);font-size:12px;font-weight:600;white-space:nowrap">' + stockTxt + '</div>' +
+            '<button class="inv-list-restock-btn" data-bc="' + esc(p.barcode) + '" style="width:28px;height:28px;border:1px solid var(--accent);border-radius:6px;background:var(--bg-card);color:var(--accent);font-size:16px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0" title="快速入庫">+</button>' +
+          '</div>' +
         '</div>';
     }
     container.innerHTML = html;
@@ -167,12 +170,21 @@ const InvProducts = {
     var self = this;
     var cards = container.querySelectorAll('.inv-product-card');
     for (var j = 0; j < cards.length; j++) {
-      cards[j].addEventListener('click', function () {
+      cards[j].addEventListener('click', function (e) {
+        if (e.target.closest('.inv-list-restock-btn')) return; // 讓 restock 按鈕自己處理
         var bc = this.getAttribute('data-barcode');
         InvApp.showPage('page-product-detail');
         self.renderDetail(bc);
       });
     }
+    // 列表快速入庫按鈕
+    container.querySelectorAll('.inv-list-restock-btn').forEach(function(btn) {
+      btn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        var bc = this.getAttribute('data-bc');
+        self._showQuickRestockPopup(bc);
+      });
+    });
   },
 
   /** 渲染商品詳情頁 */
@@ -223,6 +235,21 @@ const InvProducts = {
               '<span style="font-size:11px;font-weight:400;color:var(--text-muted);margin-left:2px">/ ' + al + '</span></div>' +
           '</div>' +
         '</div>' +
+        '<div id="inv-quick-restock" style="margin-bottom:12px;padding:12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-card)">' +
+          '<div style="font-size:13px;color:var(--text-muted);margin-bottom:8px">快速補貨</div>' +
+          '<div style="display:flex;align-items:center;gap:8px">' +
+            '<button class="inv-qr-btn" data-delta="-1" style="width:36px;height:36px;border:1px solid var(--border);border-radius:8px;background:var(--bg-elevated);font-size:18px;cursor:pointer;color:var(--text-primary)">−</button>' +
+            '<input id="inv-quick-qty" type="number" inputmode="numeric" value="1" min="1" style="flex:1;text-align:center;font-size:20px;font-weight:700;border:1px solid var(--border);border-radius:8px;padding:6px;height:36px;box-sizing:border-box" />' +
+            '<button class="inv-qr-btn" data-delta="1" style="width:36px;height:36px;border:1px solid var(--border);border-radius:8px;background:var(--bg-elevated);font-size:18px;cursor:pointer;color:var(--text-primary)">+</button>' +
+            '<button id="inv-quick-restock-btn" style="padding:6px 16px;border:none;border-radius:8px;background:var(--accent);color:#fff;font-size:14px;font-weight:600;cursor:pointer;height:36px;white-space:nowrap">入庫</button>' +
+          '</div>' +
+          '<div style="display:flex;gap:6px;margin-top:6px">' +
+            '<button class="inv-qr-preset" data-set="5" style="flex:1;padding:4px;border:1px solid var(--accent);border-radius:6px;background:var(--bg-card);color:var(--accent);font-size:13px;cursor:pointer">+5</button>' +
+            '<button class="inv-qr-preset" data-set="10" style="flex:1;padding:4px;border:1px solid var(--accent);border-radius:6px;background:var(--bg-card);color:var(--accent);font-size:13px;cursor:pointer">+10</button>' +
+            '<button class="inv-qr-preset" data-set="20" style="flex:1;padding:4px;border:1px solid var(--accent);border-radius:6px;background:var(--bg-card);color:var(--accent);font-size:13px;cursor:pointer">+20</button>' +
+            '<button class="inv-qr-preset" data-set="50" style="flex:1;padding:4px;border:1px solid var(--accent);border-radius:6px;background:var(--bg-card);color:var(--accent);font-size:13px;cursor:pointer">+50</button>' +
+          '</div>' +
+        '</div>' +
         '<button id="btn-edit-product" style="padding:10px 20px;border:none;border-radius:8px;background:var(--accent);color:#fff;font-size:15px;cursor:pointer;width:100%">編輯商品</button>' +
         '<div style="display:flex;gap:8px;margin-top:8px">' +
           '<button id="btn-return-product" style="flex:1;padding:10px;border:1px solid var(--accent);border-radius:8px;background:var(--bg-card);color:var(--accent);font-size:14px;cursor:pointer">退貨</button>' +
@@ -233,10 +260,46 @@ const InvProducts = {
       '</div>';
     container.innerHTML = html;
 
+    var self = this;
+
+    // 快速補貨
+    var qtyInput = document.getElementById('inv-quick-qty');
+    var restockArea = document.getElementById('inv-quick-restock');
+    if (restockArea && qtyInput) {
+      restockArea.querySelectorAll('.inv-qr-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          var d = Number(this.getAttribute('data-delta'));
+          qtyInput.value = Math.max(1, (Number(qtyInput.value) || 1) + d);
+        });
+      });
+      restockArea.querySelectorAll('.inv-qr-preset').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          qtyInput.value = Number(this.getAttribute('data-set'));
+        });
+      });
+      document.getElementById('inv-quick-restock-btn').addEventListener('click', async function() {
+        var qty = parseInt(qtyInput.value, 10);
+        if (!qty || qty < 1) { InvApp.showToast('請輸入有效數量'); return; }
+        this.disabled = true;
+        this.textContent = '處理中...';
+        try {
+          var result = await InvProducts.adjustStock(barcode, qty, {
+            type: 'in', note: '快速補貨', uid: InvAuth.getUid() || '',
+            operatorName: InvAuth.getName() || '',
+          });
+          InvApp.showToast('入庫成功 +' + qty + '，目前庫存 ' + result.afterStock);
+          self.renderDetail(barcode);
+        } catch (e) {
+          InvApp.showToast('入庫失敗：' + (e.message || ''));
+          this.disabled = false;
+          this.textContent = '入庫';
+        }
+      });
+    }
+
     // 編輯按鈕
     var editBtn = document.getElementById('btn-edit-product');
     if (editBtn) {
-      var self = this;
       editBtn.addEventListener('click', function () { self._showEditForm(barcode); });
     }
     // 退貨 / 報廢按鈕
@@ -440,6 +503,62 @@ const InvProducts = {
       } catch (err) {
         console.error('[InvProducts] edit save failed:', err);
         InvApp.showToast('儲存失敗：' + (err.message || '未知錯誤'));
+      }
+    });
+  },
+
+  /** 列表快速入庫彈窗 */
+  _showQuickRestockPopup(barcode) {
+    var p = this.getByBarcode(barcode);
+    if (!p) { InvApp.showToast('找不到商品'); return; }
+    var esc = InvApp.escapeHTML;
+    var overlay = document.createElement('div');
+    overlay.className = 'inv-overlay show';
+    overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+    overlay.addEventListener('touchmove', function(e) { if (!e.target.closest('.inv-modal')) { e.preventDefault(); e.stopPropagation(); } }, { passive: false });
+    overlay.innerHTML =
+      '<div class="inv-modal" style="max-width:320px;width:85%">' +
+        '<h3 style="margin:0 0 4px;font-size:16px">' + esc(p.name) + '</h3>' +
+        '<div style="font-size:13px;color:var(--text-muted);margin-bottom:12px">目前庫存：<b>' + (p.stock || 0) + '</b></div>' +
+        '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">' +
+          '<button id="qr-pop-minus" style="width:36px;height:36px;border:1px solid var(--border);border-radius:8px;background:var(--bg-elevated);font-size:18px;cursor:pointer">−</button>' +
+          '<input id="qr-pop-qty" type="number" inputmode="numeric" value="1" min="1" style="flex:1;text-align:center;font-size:22px;font-weight:700;border:1px solid var(--border);border-radius:8px;padding:6px;height:40px;box-sizing:border-box" />' +
+          '<button id="qr-pop-plus" style="width:36px;height:36px;border:1px solid var(--border);border-radius:8px;background:var(--bg-elevated);font-size:18px;cursor:pointer">+</button>' +
+        '</div>' +
+        '<div style="display:flex;gap:6px;margin-bottom:12px">' +
+          '<button class="qr-pop-pre" data-v="5" style="flex:1;padding:5px;border:1px solid var(--accent);border-radius:6px;background:var(--bg-card);color:var(--accent);font-size:13px;cursor:pointer">+5</button>' +
+          '<button class="qr-pop-pre" data-v="10" style="flex:1;padding:5px;border:1px solid var(--accent);border-radius:6px;background:var(--bg-card);color:var(--accent);font-size:13px;cursor:pointer">+10</button>' +
+          '<button class="qr-pop-pre" data-v="20" style="flex:1;padding:5px;border:1px solid var(--accent);border-radius:6px;background:var(--bg-card);color:var(--accent);font-size:13px;cursor:pointer">+20</button>' +
+        '</div>' +
+        '<div style="display:flex;gap:8px">' +
+          '<button id="qr-pop-cancel" class="inv-btn outline full">取消</button>' +
+          '<button id="qr-pop-ok" class="inv-btn primary full">確認入庫</button>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(overlay);
+    var qi = document.getElementById('qr-pop-qty');
+    document.getElementById('qr-pop-minus').addEventListener('click', function() { qi.value = Math.max(1, (Number(qi.value) || 1) - 1); });
+    document.getElementById('qr-pop-plus').addEventListener('click', function() { qi.value = (Number(qi.value) || 0) + 1; });
+    overlay.querySelectorAll('.qr-pop-pre').forEach(function(b) {
+      b.addEventListener('click', function() { qi.value = Number(this.getAttribute('data-v')); });
+    });
+    document.getElementById('qr-pop-cancel').addEventListener('click', function() { overlay.remove(); });
+    var self = this;
+    document.getElementById('qr-pop-ok').addEventListener('click', async function() {
+      var qty = parseInt(qi.value, 10);
+      if (!qty || qty < 1) { InvApp.showToast('請輸入有效數量'); return; }
+      this.disabled = true; this.textContent = '處理中...';
+      try {
+        var result = await InvProducts.adjustStock(barcode, qty, {
+          type: 'in', note: '快速補貨', uid: InvAuth.getUid() || '',
+          operatorName: InvAuth.getName() || '',
+        });
+        overlay.remove();
+        InvApp.showToast(esc(p.name) + ' 入庫 +' + qty + '，庫存 ' + result.afterStock);
+        self.renderProductList('inv-products-content');
+      } catch (e) {
+        InvApp.showToast('入庫失敗：' + (e.message || ''));
+        this.disabled = false; this.textContent = '確認入庫';
       }
     });
   },

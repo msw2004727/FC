@@ -16,9 +16,32 @@ const InvStockIn = {
       '<div id="inv-stockin-form"></div>' +
       '<div id="inv-stockin-batch" style="text-align:center;padding:12px;font-size:14px;color:var(--text-muted);">' +
         this._batchLabel() +
+      '</div>' +
+      '<div style="padding:0 16px 16px;border-top:1px solid var(--border);margin-top:8px">' +
+        '<div style="font-size:14px;font-weight:600;margin:12px 0 8px">CSV 批次入庫</div>' +
+        '<div style="font-size:12px;color:var(--text-muted);margin-bottom:8px">格式：每行一筆，條碼,數量（如 <code>4710088</code>,<code>10</code>）<br>第一行若為標題行會自動跳過</div>' +
+        '<input type="file" id="inv-csv-upload" accept=".csv,.txt" hidden />' +
+        '<div style="display:flex;gap:8px">' +
+          '<button id="inv-csv-btn" class="inv-btn outline full" style="font-size:14px">選擇 CSV 檔案</button>' +
+          '<button id="inv-csv-tpl" class="inv-btn outline" style="font-size:12px;white-space:nowrap;color:var(--text-muted)">下載範本</button>' +
+        '</div>' +
+        '<div id="inv-csv-result" style="margin-top:8px"></div>' +
       '</div>';
 
     InvScanner.renderScannerUI('inv-stockin-scanner', this.onScan.bind(this));
+
+    var self = this;
+    document.getElementById('inv-csv-btn').addEventListener('click', function() {
+      document.getElementById('inv-csv-upload').click();
+    });
+    document.getElementById('inv-csv-upload').addEventListener('change', function() {
+      var file = this.files && this.files[0];
+      if (file) self._handleCSVImport(file);
+      this.value = '';
+    });
+    document.getElementById('inv-csv-tpl').addEventListener('click', function() {
+      self._downloadCSVTemplate();
+    });
   },
 
   /** 掃碼回呼 */
@@ -279,5 +302,112 @@ const InvStockIn = {
     this._batchCount = 0;
     this._batchItems = 0;
     this._updateBatchLabel();
-  }
+  },
+
+  // ══════ CSV 批次入庫 ══════
+
+  /** 下載 CSV 範本 */
+  _downloadCSVTemplate() {
+    var csv = '\uFEFF' + '條碼,數量\n4710088001234,10\nABC-001,5\n';
+    var blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url; a.download = '入庫範本.csv'; a.click();
+    URL.revokeObjectURL(url);
+  },
+
+  /** 解析 CSV 並執行批次入庫 */
+  async _handleCSVImport(file) {
+    var resultEl = document.getElementById('inv-csv-result');
+    if (!resultEl) return;
+    resultEl.innerHTML = '<div style="color:var(--text-muted);font-size:13px">解析中...</div>';
+
+    var text;
+    try { text = await file.text(); } catch (e) {
+      resultEl.innerHTML = '<div style="color:var(--danger)">無法讀取檔案</div>';
+      return;
+    }
+
+    var lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n').filter(function(l) { return l.trim(); });
+    if (!lines.length) { resultEl.innerHTML = '<div style="color:var(--danger)">檔案內容為空</div>'; return; }
+
+    // 跳過標題行
+    var first = lines[0].toLowerCase();
+    if (first.indexOf('條碼') !== -1 || first.indexOf('barcode') !== -1 || first.indexOf('數量') !== -1) {
+      lines.shift();
+    }
+
+    var items = [], errors = [];
+    for (var i = 0; i < lines.length; i++) {
+      var parts = lines[i].split(',');
+      var barcode = (parts[0] || '').trim();
+      var qty = parseInt((parts[1] || '').trim(), 10);
+      if (!barcode) { errors.push('第 ' + (i + 1) + ' 行：缺少條碼'); continue; }
+      if (!qty || qty < 1) { errors.push('第 ' + (i + 1) + ' 行：數量無效 (' + InvApp.escapeHTML(parts[1] || '') + ')'); continue; }
+      items.push({ barcode: barcode, quantity: qty });
+    }
+
+    if (!items.length) {
+      resultEl.innerHTML = '<div style="color:var(--danger)">無有效資料</div>' +
+        (errors.length ? '<div style="font-size:12px;color:var(--danger);margin-top:4px">' + errors.join('<br>') + '</div>' : '');
+      return;
+    }
+
+    // 預覽確認
+    var esc = InvApp.escapeHTML;
+    var previewHtml = '<div style="font-size:13px;margin-bottom:8px">即將匯入 <b>' + items.length + '</b> 筆：</div>' +
+      '<div style="max-height:200px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:8px;font-size:12px;margin-bottom:8px">';
+    for (var j = 0; j < items.length; j++) {
+      var it = items[j], prod = InvProducts.getByBarcode(it.barcode);
+      var statusHtml = prod
+        ? '<span style="color:var(--accent)">' + esc(prod.name) + ' (庫存 ' + (prod.stock || 0) + ' → ' + ((prod.stock || 0) + it.quantity) + ')</span>'
+        : '<span style="color:var(--warning)">新條碼（需先建檔）</span>';
+      previewHtml += '<div style="padding:3px 0;border-bottom:1px solid var(--border)">' + esc(it.barcode) + ' × ' + it.quantity + ' — ' + statusHtml + '</div>';
+    }
+    previewHtml += '</div>';
+    if (errors.length) {
+      previewHtml += '<div style="font-size:12px;color:var(--danger);margin-bottom:8px">跳過 ' + errors.length + ' 筆錯誤行</div>';
+    }
+    previewHtml += '<div style="display:flex;gap:8px">' +
+      '<button id="inv-csv-cancel" class="inv-btn outline full">取消</button>' +
+      '<button id="inv-csv-confirm" class="inv-btn primary full">確認入庫</button></div>';
+    resultEl.innerHTML = previewHtml;
+
+    var self = this;
+    document.getElementById('inv-csv-cancel').addEventListener('click', function() { resultEl.innerHTML = ''; });
+    document.getElementById('inv-csv-confirm').addEventListener('click', async function() {
+      this.disabled = true; this.textContent = '處理中...';
+      await self._executeCSVImport(items, resultEl);
+    });
+  },
+
+  /** 執行 CSV 批次入庫 */
+  async _executeCSVImport(items, resultEl) {
+    var success = 0, failed = 0, skipped = 0, logs = [];
+    for (var i = 0; i < items.length; i++) {
+      var it = items[i];
+      var prod = InvProducts.getByBarcode(it.barcode);
+      if (!prod) { skipped++; logs.push(it.barcode + ': 跳過（商品不存在）'); continue; }
+      try {
+        var result = await InvProducts.adjustStock(it.barcode, it.quantity, {
+          type: 'in', note: 'CSV 批次入庫', uid: InvAuth.getUid() || '',
+          operatorName: InvAuth.getName() || '',
+        });
+        success++;
+        this._batchCount++;
+        this._batchItems += it.quantity;
+        logs.push(InvApp.escapeHTML(prod.name) + ': +' + it.quantity + ' (庫存 ' + result.afterStock + ')');
+      } catch (e) {
+        failed++;
+        logs.push(InvApp.escapeHTML(it.barcode) + ': 失敗 — ' + InvApp.escapeHTML(e.message || ''));
+      }
+    }
+    this._updateBatchLabel();
+    var color = failed ? 'var(--warning)' : 'var(--success)';
+    resultEl.innerHTML =
+      '<div style="padding:10px;border-radius:8px;border:1px solid ' + color + ';background:var(--bg-elevated);font-size:13px">' +
+        '<div style="font-weight:600;margin-bottom:6px;color:' + color + '">匯入完成：成功 ' + success + ' / 失敗 ' + failed + ' / 跳過 ' + skipped + '</div>' +
+        '<div style="max-height:150px;overflow-y:auto;font-size:12px;color:var(--text-secondary)">' + logs.join('<br>') + '</div>' +
+      '</div>';
+  },
 };
