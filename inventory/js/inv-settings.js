@@ -608,11 +608,9 @@ const InvSettings = {
       },
       admin: {
         title: '人員管理說明',
-        body: '<p>控制誰可以登入並使用庫存系統。系統分為五個層級：</p>'
+        body: '<p>控制誰可以登入並使用庫存系統。系統分為四個層級：</p>'
           + '<div style="background:var(--accent-subtle);border-radius:var(--radius-sm);padding:10px 12px;margin:8px 0">'
-          + '<b>工程師</b><p style="font-size:13px;margin:4px 0 0;color:var(--text-secondary)">系統最高權限，可管理所有人員與設定，可查看進貨價與成本，不可被移除。</p></div>'
-          + '<div style="background:var(--accent-subtle);border-radius:var(--radius-sm);padding:10px 12px;margin:8px 0">'
-          + '<b>負責人</b><p style="font-size:13px;margin:4px 0 0;color:var(--text-secondary)">由工程師指派，擁有人員管理權限（新增/移除/變更角色），可查看進貨價與成本。</p></div>'
+          + '<b>負責人</b><p style="font-size:13px;margin:4px 0 0;color:var(--text-secondary)">最高負責人，擁有人員管理權限（新增/移除/變更角色），可查看進貨價與成本。</p></div>'
           + '<div style="background:var(--accent-subtle);border-radius:var(--radius-sm);padding:10px 12px;margin:8px 0">'
           + '<b>店長</b><p style="font-size:13px;margin:4px 0 0;color:var(--text-secondary)">可操作所有商品功能（入庫、銷售、盤點、退貨、報廢等），但無法查看進貨價與成本，也無法管理人員。</p></div>'
           + '<div style="background:var(--accent-subtle);border-radius:var(--radius-sm);padding:10px 12px;margin:8px 0">'
