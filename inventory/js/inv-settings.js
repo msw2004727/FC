@@ -176,37 +176,45 @@ const InvSettings = {
     var isOwner = myUid === this._OWNER_UID;
     var canManage = this._canManageAdmins();
 
-    var html = '';
+    var nameMap = cfg.adminNames || {};
+    var html = '<div style="display:flex;flex-wrap:wrap;gap:8px">';
     for (var i = 0; i < uids.length; i++) {
       var u = uids[i], isMe = u === myUid, isUOwner = u === this._OWNER_UID;
       var role = this._getUserRole(u, cfg);
       var meta = this._ROLE_META[role] || this._ROLE_META.leader;
       var tagColor = meta.textColor || '#fff';
-      var roleTag = '<span style="flex-shrink:0;background:' + meta.bg + ';color:' + tagColor + ';padding:2px 10px;border-radius:999px;font-size:10px;font-weight:600">' + meta.label + '</span>';
+      var displayName = nameMap[u] || u.substring(0, 8) + '…';
+      var border = isMe ? 'border:2px solid var(--accent)' : 'border:1px solid ' + meta.border;
+      var bg = isMe ? 'background:var(--accent-light)' : 'background:var(--bg-elevated)';
 
-      // 操作按鈕（僅編輯模式顯示）
+      // 操作按鈕（僅編輯模式）
       var actions = '';
       if (canManage && !isUOwner && !isMe && this._adminEditMode) {
-        actions += '<button onclick="InvSettings._showRolePicker(\'' + esc(u) + '\')" style="flex-shrink:0;background:none;border:none;color:var(--accent);cursor:pointer;font-size:12px;padding:0 4px" title="變更角色">✎</button>';
-        actions += '<button onclick="InvSettings.removeAdmin(\'' + esc(u) + '\')" style="flex-shrink:0;background:none;border:none;color:var(--danger);cursor:pointer;font-size:16px;padding:0 4px" title="移除">✕</button>';
+        actions =
+          '<div style="display:flex;gap:2px;margin-top:4px">' +
+            '<button onclick="InvSettings._showRolePicker(\'' + esc(u) + '\')" style="flex:1;padding:3px;border:1px solid var(--accent);border-radius:4px;background:var(--bg-card);color:var(--accent);font-size:10px;cursor:pointer">✎ 角色</button>' +
+            '<button onclick="InvSettings.removeAdmin(\'' + esc(u) + '\')" style="flex:1;padding:3px;border:1px solid var(--danger);border-radius:4px;background:var(--bg-card);color:var(--danger);font-size:10px;cursor:pointer">✕ 移除</button>' +
+          '</div>';
       }
-      var border = isMe ? 'border:1.5px solid var(--accent)' : 'border:1px solid ' + meta.border;
-      var bg = isMe ? 'background:var(--accent-light)' : 'background:var(--bg-elevated)';
-      var uidColor = isMe ? 'color:var(--accent);font-weight:600' : 'color:var(--text-secondary)';
-      html += '<div style="display:flex;align-items:center;gap:8px;padding:8px 14px;margin-bottom:6px;border-radius:var(--radius-sm);' + bg + ';' + border + '">'
-        + '<span style="flex:1;font-size:11px;' + uidColor + ';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0">' + esc(u) + '</span>'
-        + roleTag + actions + '</div>';
+
+      html +=
+        '<div style="width:calc(50% - 4px);box-sizing:border-box;padding:10px;border-radius:var(--radius-sm);' + bg + ';' + border + ';text-align:center">' +
+          '<div style="font-size:14px;font-weight:600;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="' + esc(u) + '">' + esc(displayName) + '</div>' +
+          '<span style="display:inline-block;margin-top:4px;background:' + meta.bg + ';color:' + tagColor + ';padding:2px 10px;border-radius:999px;font-size:11px;font-weight:600">' + meta.label + '</span>' +
+          actions +
+        '</div>';
     }
+    html += '</div>';
     if (canManage && this._adminEditMode) {
       html += '<div style="display:flex;gap:8px;margin-top:10px">' +
         '<input id="inv-new-admin-uid" class="inv-input" placeholder="輸入 LINE userId" style="flex:1;min-width:0;height:36px;font-size:13px" />' +
-        '<select id="inv-new-admin-role" class="inv-select" style="width:auto;height:36px;font-size:13px;flex-shrink:0;padding:0 4px">' +
+        '<select id="inv-new-admin-role" class="inv-select" style="min-width:72px;height:36px;font-size:13px;flex-shrink:0;padding:0 4px">' +
           '<option value="leader">店長</option><option value="staff">店員</option><option value="part">工讀</option>' +
           (isOwner ? '<option value="manager">負責人</option>' : '') +
         '</select>' +
         '<button class="inv-btn primary sm" style="flex-shrink:0" onclick="InvSettings.addAdmin()">新增</button></div>';
     } else if (!canManage) {
-      html += '<div style="font-size:12px;color:var(--text-muted);margin-top:8px">僅工程師與負責人可管理人員</div>';
+      html += '<div style="font-size:12px;color:var(--text-muted);margin-top:8px">僅負責人可管理人員</div>';
     }
     w.innerHTML = html;
   },

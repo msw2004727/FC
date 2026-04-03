@@ -145,6 +145,12 @@ const InvAuth = {
         if (this.currentUser) this.currentUser.uid = uid;
         InvApp.updateUserUI(this.currentUser);
         InvUtils.writeLog('login', this.getRoleName() + ' ' + (this.currentUser.name || uid));
+        // 自動儲存暱稱到 adminNames map
+        if (this.currentUser.name) {
+          var nameUpdate = {};
+          nameUpdate['adminNames.' + uid] = this.currentUser.name;
+          try { db.collection('inv_settings').doc('config').update(nameUpdate); } catch(_) {}
+        }
         InvApp.showPage('page-dashboard');
         if (typeof InvDashboard !== 'undefined') InvDashboard.render();
         InvApp.checkAnnouncements();
