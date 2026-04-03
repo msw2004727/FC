@@ -194,34 +194,40 @@ const InvStockIn = {
         InvApp.escapeHTML(categories[i]) + '</option>';
     }
 
+    // 讀取歷史輸入值
+    var hist = this._getFieldHistory();
+    var dlBrand = this._buildDatalist('dl-brand', hist.brand);
+    var dlColor = this._buildDatalist('dl-color', hist.color);
+    var dlSize = this._buildDatalist('dl-size', hist.size);
+    var iS = 'width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;box-sizing:border-box;';
+
     formArea.innerHTML =
       '<div style="background:var(--bg-card);border-radius:12px;padding:16px;border:1px solid var(--border);">' +
+        dlBrand + dlColor + dlSize +
         '<h4 style="margin:0 0 12px;">新增商品</h4>' +
         '<label style="font-size:13px;color:var(--text-muted);">條碼</label>' +
         '<input value="' + InvApp.escapeHTML(barcode) + '" disabled ' +
-          'style="width:100%;padding:8px;margin-bottom:10px;border:1px solid var(--border);border-radius:6px;' +
-          'background:var(--bg-elevated);box-sizing:border-box;" />' +
+          'style="' + iS + 'margin-bottom:10px;background:var(--bg-elevated);" />' +
         '<label style="font-size:13px;color:var(--text-muted);">品名 <span style="color:var(--danger);">*</span></label>' +
-        '<input id="new-name" style="width:100%;padding:8px;margin-bottom:10px;border:1px solid var(--border);border-radius:6px;box-sizing:border-box;" />' +
+        '<input id="new-name" style="' + iS + 'margin-bottom:10px;" />' +
         '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">' +
           '<div><label style="font-size:13px;color:var(--text-muted);">進貨價' + (InvAuth.canSeeCost() ? ' <span style="color:var(--danger);">*</span>' : '') + '</label>' +
-          '<input id="new-cost" type="' + (InvAuth.canSeeCost() ? 'number' : 'text') + '"' + (InvAuth.canSeeCost() ? ' inputmode="numeric"' : ' value="***" disabled') + ' style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;box-sizing:border-box;" /></div>' +
+          '<input id="new-cost" type="' + (InvAuth.canSeeCost() ? 'number' : 'text') + '"' + (InvAuth.canSeeCost() ? ' inputmode="numeric"' : ' value="***" disabled') + ' style="' + iS + '" /></div>' +
           '<div><label style="font-size:13px;color:var(--text-muted);">售價 <span style="color:var(--danger);">*</span></label>' +
-          '<input id="new-price" type="number" inputmode="numeric" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;box-sizing:border-box;" /></div>' +
+          '<input id="new-price" type="number" inputmode="numeric" style="' + iS + '" /></div>' +
         '</div>' +
         '<label style="font-size:13px;color:var(--text-muted);margin-top:10px;display:block;">數量 <span style="color:var(--danger);">*</span></label>' +
-        '<input id="new-qty" type="number" inputmode="numeric" value="1" min="1" ' +
-          'style="width:100%;padding:8px;margin-bottom:10px;border:1px solid var(--border);border-radius:6px;box-sizing:border-box;" />' +
+        '<input id="new-qty" type="number" inputmode="numeric" value="1" min="1" style="' + iS + 'margin-bottom:10px;" />' +
         '<label style="font-size:13px;color:var(--text-muted);">品牌</label>' +
-        '<input id="new-brand" style="width:100%;padding:8px;margin-bottom:10px;border:1px solid var(--border);border-radius:6px;box-sizing:border-box;" />' +
+        '<input id="new-brand" list="dl-brand" style="' + iS + 'margin-bottom:10px;" />' +
         '<label style="font-size:13px;color:var(--text-muted);">分類</label>' +
-        '<select id="new-category" style="width:100%;padding:8px;margin-bottom:10px;border:1px solid var(--border);border-radius:6px;box-sizing:border-box;">' +
+        '<select id="new-category" style="' + iS + 'margin-bottom:10px;">' +
           catOptions + '</select>' +
         '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px;">' +
           '<div><label style="font-size:13px;color:var(--text-muted);">顏色</label>' +
-          '<input id="new-color" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;box-sizing:border-box;" /></div>' +
+          '<input id="new-color" list="dl-color" style="' + iS + '" /></div>' +
           '<div><label style="font-size:13px;color:var(--text-muted);">尺寸</label>' +
-          '<input id="new-size" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;box-sizing:border-box;" /></div>' +
+          '<input id="new-size" list="dl-size" style="' + iS + '" /></div>' +
         '</div>' +
         '<div style="display:flex;gap:8px;">' +
           '<button id="new-cancel" style="flex:1;padding:12px;border:1px solid var(--border);border-radius:8px;' +
@@ -246,16 +252,21 @@ const InvStockIn = {
       if (!price) { InvApp.showToast('請輸入售價'); return; }
       if (!qty || qty < 1) { InvApp.showToast('請輸入有效數量'); return; }
 
+      var brand = document.getElementById('new-brand').value.trim();
+      var color = document.getElementById('new-color').value.trim();
+      var size = document.getElementById('new-size').value.trim();
+      // 記憶輸入值
+      self._saveFieldHistory({ brand: brand, color: color, size: size });
       self.handleNewProduct({
         barcode: barcode,
         name: name,
         costPrice: costPrice,
         price: price,
         stock: qty,
-        brand: document.getElementById('new-brand').value.trim(),
+        brand: brand,
         category: document.getElementById('new-category').value,
-        color: document.getElementById('new-color').value.trim(),
-        size: document.getElementById('new-size').value.trim(),
+        color: color,
+        size: size,
         lowStockAlert: 5,
         createdAt: firebase.firestore.FieldValue.serverTimestamp(),
         uid: InvAuth.getUid() || ''
@@ -366,6 +377,46 @@ const InvStockIn = {
     this._batchCount = 0;
     this._batchItems = 0;
     this._updateBatchLabel();
+  },
+
+  // ══════ 欄位歷史記憶 ══════
+
+  _HISTORY_KEY: 'inv_field_history',
+  _HISTORY_MAX: 30,
+
+  /** 讀取所有欄位的歷史值 */
+  _getFieldHistory() {
+    try {
+      var raw = localStorage.getItem(this._HISTORY_KEY);
+      return raw ? JSON.parse(raw) : { brand: [], color: [], size: [] };
+    } catch (_) { return { brand: [], color: [], size: [] }; }
+  },
+
+  /** 儲存新的欄位值到歷史（去重、限制數量） */
+  _saveFieldHistory(values) {
+    var hist = this._getFieldHistory();
+    var fields = ['brand', 'color', 'size'];
+    for (var i = 0; i < fields.length; i++) {
+      var f = fields[i], v = (values[f] || '').trim();
+      if (!v) continue;
+      var arr = hist[f] || [];
+      var idx = arr.indexOf(v);
+      if (idx !== -1) arr.splice(idx, 1); // 移到最前
+      arr.unshift(v);
+      if (arr.length > this._HISTORY_MAX) arr.length = this._HISTORY_MAX;
+      hist[f] = arr;
+    }
+    try { localStorage.setItem(this._HISTORY_KEY, JSON.stringify(hist)); } catch (_) {}
+  },
+
+  /** 產生 datalist HTML */
+  _buildDatalist(id, values) {
+    if (!values || !values.length) return '<datalist id="' + id + '"></datalist>';
+    var html = '<datalist id="' + id + '">';
+    for (var i = 0; i < values.length; i++) {
+      html += '<option value="' + InvApp.escapeHTML(values[i]) + '">';
+    }
+    return html + '</datalist>';
   },
 
   // ══════ CSV 批次入庫 ══════
