@@ -61,15 +61,22 @@ Object.assign(InvSale, {
 
   /** 執行退貨 */
   async handleReturn(barcode) {
+    // 防連點
+    var btn = document.querySelector('[onclick*="handleReturn"]');
+    if (btn && btn.disabled) return;
+    if (btn) { btn.disabled = true; btn.textContent = '處理中...'; }
+
     var qty = parseInt(document.getElementById('inv-ret-qty').value, 10) || 0;
-    if (qty < 1) { InvApp.showToast('請輸入有效數量'); return; }
+    if (qty < 1) { InvApp.showToast('請輸入有效數量'); if (btn) { btn.disabled = false; btn.textContent = '確認退貨'; } return; }
     var reason = document.getElementById('inv-ret-reason').value;
     var refund = parseFloat(document.getElementById('inv-ret-refund').value) || 0;
+    if (refund < 0) { InvApp.showToast('退款金額不可為負數'); if (btn) { btn.disabled = false; btn.textContent = '確認退貨'; } return; }
     var origTx = document.getElementById('inv-ret-tx').value || null;
     var returnToStock = document.getElementById('inv-ret-dest').value === 'stock';
     var p = InvProducts.getByBarcode(barcode);
-    if (!p) { InvApp.showToast('商品不存在'); return; }
+    if (!p) { InvApp.showToast('商品不存在'); if (btn) { btn.disabled = false; btn.textContent = '確認退貨'; } return; }
     var uid = InvAuth.getUid(), opName = InvAuth.getName() || '';
+    var costPrice = Number(p.costPrice) || 0;
     try {
       var ref = db.collection('inv_products').doc(p.id || barcode);
       await db.runTransaction(async function (tx) {
@@ -78,25 +85,40 @@ Object.assign(InvSale, {
         var cur = Number(snap.data().stock) || 0;
         var after = returnToStock ? cur + qty : cur;
         tx.update(ref, { stock: after });
+        // 退貨紀錄
         tx.set(db.collection('inv_transactions').doc(), {
           type: 'return', barcode: barcode,
           productId: p.id || barcode, productName: p.name,
-          quantity: qty, refundAmount: refund,
+          quantity: qty, refundAmount: refund, costPrice: costPrice,
           reason: reason, returnToStock: returnToStock,
           originalTransactionId: origTx,
           beforeStock: cur, afterStock: after,
           uid: uid, operatorName: opName,
           createdAt: firebase.firestore.FieldValue.serverTimestamp(),
         });
+        // 退貨選「報廢」→ 補寫一筆 waste 紀錄（讓報廢統計完整）
+        if (!returnToStock) {
+          tx.set(db.collection('inv_transactions').doc(), {
+            type: 'waste', barcode: barcode,
+            productId: p.id || barcode, productName: p.name,
+            quantity: qty, costPrice: costPrice,
+            wasteLossAmount: qty * costPrice,
+            reason: 'return_to_waste_' + reason,
+            beforeStock: after, afterStock: after,
+            uid: uid, operatorName: opName,
+            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+          });
+        }
       });
       InvApp.showToast('退貨完成');
-      InvUtils.writeLog('sale_return', (p.name || barcode) + ' x' + qty + ' 退款' + refund);
+      InvUtils.writeLog('sale_return', (p.name || barcode) + ' x' + qty + ' 退款' + refund + (returnToStock ? ' 退回庫存' : ' 報廢'));
       this._closeFormOverlay();
       await InvProducts.loadAll();
       if (typeof InvProducts.renderDetail === 'function') InvProducts.renderDetail(barcode);
     } catch (e) {
       console.error('[InvSale] handleReturn error:', e);
       InvApp.showToast(e.message || '退貨失敗');
+      if (btn) { btn.disabled = false; btn.textContent = '確認退貨'; }
     }
   },
 
@@ -133,14 +155,18 @@ Object.assign(InvSale, {
 
   /** 執行報廢 */
   async handleWaste(barcode) {
+    // 防連點
+    var btn = document.querySelector('[onclick*="handleWaste"]');
+    if (btn && btn.disabled) return;
+    if (btn) { btn.disabled = true; btn.textContent = '處理中...'; }
+
     var qty = parseInt(document.getElementById('inv-waste-qty').value, 10) || 0;
-    if (qty < 1) { InvApp.showToast('請輸入有效數量'); return; }
+    if (qty < 1) { InvApp.showToast('請輸入有效數量'); if (btn) { btn.disabled = false; btn.textContent = '確認報廢'; } return; }
     var reason = document.getElementById('inv-waste-reason').value;
     var p = InvProducts.getByBarcode(barcode);
-    if (!p) { InvApp.showToast('商品不存在'); return; }
-    var stock = Number(p.stock) || 0;
-    if (qty > stock) { InvApp.showToast('報廢數量不可超過庫存（' + stock + '）'); return; }
+    if (!p) { InvApp.showToast('商品不存在'); if (btn) { btn.disabled = false; btn.textContent = '確認報廢'; } return; }
     var uid = InvAuth.getUid(), opName = InvAuth.getName() || '';
+    var costPrice = Number(p.costPrice) || 0;
     try {
       var ref = db.collection('inv_products').doc(p.id || barcode);
       await db.runTransaction(async function (tx) {
@@ -153,20 +179,23 @@ Object.assign(InvSale, {
         tx.set(db.collection('inv_transactions').doc(), {
           type: 'waste', barcode: barcode,
           productId: p.id || barcode, productName: p.name,
-          quantity: qty, reason: reason,
+          quantity: qty, costPrice: costPrice,
+          wasteLossAmount: qty * costPrice,
+          reason: reason,
           beforeStock: cur, afterStock: after,
           uid: uid, operatorName: opName,
           createdAt: firebase.firestore.FieldValue.serverTimestamp(),
         });
       });
       InvApp.showToast('報廢完成');
-      InvUtils.writeLog('sale_waste', (p.name || barcode) + ' x' + qty + ' ' + reason);
+      InvUtils.writeLog('sale_waste', (p.name || barcode) + ' x' + qty + ' ' + reason + ' 損失' + (qty * costPrice));
       this._closeFormOverlay();
       await InvProducts.loadAll();
       if (typeof InvProducts.renderDetail === 'function') InvProducts.renderDetail(barcode);
     } catch (e) {
       console.error('[InvSale] handleWaste error:', e);
       InvApp.showToast(e.message || '報廢失敗');
+      if (btn) { btn.disabled = false; btn.textContent = '確認報廢'; }
     }
   },
 });
