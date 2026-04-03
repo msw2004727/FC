@@ -2614,6 +2614,198 @@ describe("/inv_announcements/{docId}", () => {
 });
 
 // ═══════════════════════════════════════════════════════════════
+//  Inventory — Extended coverage
+// ═══════════════════════════════════════════════════════════════
+
+describe("/inv_transactions — extended", () => {
+  test("create: rejected when neither delta nor quantity present", async () => {
+    await assertFails(
+      setDoc(doc(invAdmin(), "inv_transactions", "txn_no_qty"), {
+        type: "in",
+        uid: "uidInvAdmin",
+      })
+    );
+  });
+
+  test("create: rejected with non-int quantity (float)", async () => {
+    await assertFails(
+      setDoc(doc(invAdmin(), "inv_transactions", "txn_float_q"), {
+        type: "out",
+        quantity: 2.5,
+        uid: "uidInvAdmin",
+      })
+    );
+  });
+
+  test("create: rejected without uid field", async () => {
+    await assertFails(
+      setDoc(doc(invAdmin(), "inv_transactions", "txn_no_uid"), {
+        type: "in",
+        delta: 5,
+      })
+    );
+  });
+
+  test("create: non-inventory user cannot create", async () => {
+    await assertFails(
+      setDoc(doc(user(), "inv_transactions", "txn_user"), {
+        type: "in",
+        delta: 1,
+        uid: "uidUser",
+      })
+    );
+  });
+
+  test("create: admin (non-inventory) cannot create", async () => {
+    await assertFails(
+      setDoc(doc(admin(), "inv_transactions", "txn_admin"), {
+        type: "in",
+        delta: 1,
+        uid: "uidAdmin",
+      })
+    );
+  });
+
+  test("read: non-inventory user cannot read", async () => {
+    await seedDoc("inv_transactions", "txn_secret", {
+      type: "in", delta: 1, uid: "uidInvAdmin",
+    });
+    await assertFails(getDoc(doc(user(), "inv_transactions", "txn_secret")));
+  });
+
+  test("read: super_admin can read", async () => {
+    await seedDoc("inv_transactions", "txn_sa_read", {
+      type: "in", delta: 1, uid: "uidInvAdmin",
+    });
+    await assertSucceeds(getDoc(doc(superAdmin(), "inv_transactions", "txn_sa_read")));
+  });
+
+  test("create: super_admin can create with valid data", async () => {
+    await assertSucceeds(
+      setDoc(doc(superAdmin(), "inv_transactions", "txn_sa_create"), {
+        type: "in",
+        delta: 3,
+        uid: "uidSA",
+      })
+    );
+  });
+
+  test("create: delta=0 is valid (adjustment)", async () => {
+    await assertSucceeds(
+      setDoc(doc(invAdmin(), "inv_transactions", "txn_zero"), {
+        type: "adjust",
+        delta: 0,
+        uid: "uidInvAdmin",
+      })
+    );
+  });
+
+  test("create: negative delta is valid (out)", async () => {
+    await assertSucceeds(
+      setDoc(doc(invAdmin(), "inv_transactions", "txn_neg"), {
+        type: "out",
+        delta: -5,
+        uid: "uidInvAdmin",
+      })
+    );
+  });
+});
+
+describe("/inv_products — extended", () => {
+  test("delete: non-inventory user cannot delete", async () => {
+    await seedDoc("inv_products", "prod_del_test", { name: "DelTest" });
+    await assertFails(deleteDoc(doc(user(), "inv_products", "prod_del_test")));
+  });
+
+  test("delete: super_admin can delete", async () => {
+    await seedDoc("inv_products", "prod_sa_del", { name: "SADel" });
+    await assertSucceeds(deleteDoc(doc(superAdmin(), "inv_products", "prod_sa_del")));
+  });
+
+  test("read: guest cannot read", async () => {
+    await seedDoc("inv_products", "prod_guest", { name: "Guest" });
+    await assertFails(getDoc(doc(guest(), "inv_products", "prod_guest")));
+  });
+});
+
+describe("/inv_stocktakes — extended", () => {
+  test("read/write: super_admin can", async () => {
+    await assertSucceeds(
+      setDoc(doc(superAdmin(), "inv_stocktakes", "stk_sa"), {
+        date: "2026-04-03", items: [],
+      })
+    );
+    await assertSucceeds(getDoc(doc(superAdmin(), "inv_stocktakes", "stk_sa")));
+  });
+
+  test("read/write: admin (non-inventory) cannot", async () => {
+    await seedDoc("inv_stocktakes", "stk_admin_test", { date: "2026-04-03" });
+    await assertFails(getDoc(doc(admin(), "inv_stocktakes", "stk_admin_test")));
+    await assertFails(
+      setDoc(doc(admin(), "inv_stocktakes", "stk_admin_w"), { date: "x" })
+    );
+  });
+
+  test("read/write: guest cannot", async () => {
+    await seedDoc("inv_stocktakes", "stk_guest", { date: "2026-04-03" });
+    await assertFails(getDoc(doc(guest(), "inv_stocktakes", "stk_guest")));
+  });
+});
+
+describe("/inv_settings — extended", () => {
+  test("list: inventory admin can list", async () => {
+    const { getDocs, collection } = require("firebase/firestore");
+    await assertSucceeds(getDocs(collection(invAdmin(), "inv_settings")));
+  });
+
+  test("list: non-inventory user cannot list", async () => {
+    const { getDocs, collection } = require("firebase/firestore");
+    await assertFails(getDocs(collection(user(), "inv_settings")));
+  });
+
+  test("list: guest cannot list", async () => {
+    const { getDocs, collection } = require("firebase/firestore");
+    await assertFails(getDocs(collection(guest(), "inv_settings")));
+  });
+
+  test("write: super_admin can write", async () => {
+    await assertSucceeds(
+      setDoc(doc(superAdmin(), "inv_settings", "sa_prefs"), { theme: "dark" })
+    );
+  });
+
+  test("get: admin (non-inventory) can get config", async () => {
+    await assertSucceeds(getDoc(doc(admin(), "inv_settings", "config")));
+  });
+
+  test("write: admin (non-inventory) cannot write", async () => {
+    await assertFails(
+      setDoc(doc(admin(), "inv_settings", "admin_prefs"), { theme: "hack" })
+    );
+  });
+});
+
+describe("/inv_announcements — extended", () => {
+  test("CUD: super_admin can", async () => {
+    await assertSucceeds(
+      setDoc(doc(superAdmin(), "inv_announcements", "ia_sa"), { title: "SA" })
+    );
+    await assertSucceeds(
+      updateDoc(doc(superAdmin(), "inv_announcements", "ia_sa"), { title: "SA2" })
+    );
+    await assertSucceeds(
+      deleteDoc(doc(superAdmin(), "inv_announcements", "ia_sa"))
+    );
+  });
+
+  test("CUD: admin (non-inventory) cannot", async () => {
+    await assertFails(
+      setDoc(doc(admin(), "inv_announcements", "ia_admin"), { title: "Admin" })
+    );
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════
 //  teams/{teamId}/feed
 // ═══════════════════════════════════════════════════════════════
 describe("/teams/{teamId}/feed/{postId}", () => {
