@@ -138,12 +138,12 @@ const InvSettings = {
     }
     if (canManage) {
       html += '<div style="display:flex;gap:8px;margin-top:10px">' +
-        '<input id="inv-new-admin-uid" class="inv-input" placeholder="輸入 LINE userId" style="flex:1;height:36px;font-size:13px" />' +
-        '<select id="inv-new-admin-role" class="inv-select" style="width:auto;height:36px;font-size:13px">' +
+        '<input id="inv-new-admin-uid" class="inv-input" placeholder="輸入 LINE userId" style="flex:1;min-width:0;height:36px;font-size:13px" />' +
+        '<select id="inv-new-admin-role" class="inv-select" style="min-width:72px;height:36px;font-size:13px;flex-shrink:0;padding:0 4px">' +
           '<option value="leader">店長</option><option value="staff">店員</option><option value="part">工讀</option>' +
           (isOwner ? '<option value="manager">負責人</option>' : '') +
         '</select>' +
-        '<button class="inv-btn primary sm" onclick="InvSettings.addAdmin()">新增</button></div>';
+        '<button class="inv-btn primary sm" style="flex-shrink:0" onclick="InvSettings.addAdmin()">新增</button></div>';
     } else {
       html += '<div style="font-size:12px;color:var(--text-muted);margin-top:8px">僅工程師與負責人可管理人員</div>';
     }
