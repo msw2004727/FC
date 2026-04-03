@@ -27,6 +27,8 @@
 
 /* ===== 2. Reset ===== */
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{touch-action:manipulation}
+body{touch-action:pan-x pan-y;-ms-touch-action:pan-x pan-y;overscroll-behavior:none}
 img{max-width:100%;display:block}
 button{cursor:pointer;border:none;background:none;font:inherit;color:inherit;-webkit-user-select:none;user-select:none}
 input,select,textarea{font:inherit;color:inherit}
