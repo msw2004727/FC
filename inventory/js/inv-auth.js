@@ -30,6 +30,11 @@ const InvAuth = {
           this.currentUser.name = profile.displayName;
           this.currentUser.pictureUrl = profile.pictureUrl || '';
           InvApp.updateUserUI(this.currentUser);
+          // 儲存暱稱到 adminNames（persistence 恢復路徑）
+          if (profile.displayName && auth.currentUser) {
+            var nu = {}; nu['adminNames.' + auth.currentUser.uid] = profile.displayName;
+            try { db.collection('inv_settings').doc('config').update(nu); } catch(_) {}
+          }
         }
       } catch (_) {}
       // 刷新 token 確保仍有效
