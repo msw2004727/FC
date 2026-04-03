@@ -34,16 +34,57 @@ const InvScanner = {
       this._scanner = new Html5Qrcode(containerId);
       await this._scanner.start(
         { facingMode: 'environment' },
-        { fps: 10, qrbox: cfg.qrbox, formatsToSupport: cfg.formats },
+        {
+          fps: 15,
+          qrbox: cfg.qrbox,
+          formatsToSupport: cfg.formats,
+          videoConstraints: {
+            facingMode: 'environment',
+            width: { ideal: 1920 },
+            height: { ideal: 1080 },
+          },
+        },
         onSuccess,
         function () {}
       );
       this._active = true;
+      // 啟動後嘗試優化對焦（各瀏覽器盡力而為）
+      this._applyFocusOptimization();
     } catch (e) {
       console.error('[InvScanner] start failed:', e);
       this._active = false;
       InvApp.showToast('無法啟動相機，請手動輸入條碼');
     }
+  },
+
+  /** 嘗試套用持續對焦 + 補光（不支援的瀏覽器會靜默忽略） */
+  _applyFocusOptimization() {
+    try {
+      if (!this._scanner) return;
+      // Html5Qrcode 內部的 video element
+      var video = document.querySelector('#' + this._containerId + '-qr video');
+      if (!video || !video.srcObject) return;
+      var track = video.srcObject.getVideoTracks()[0];
+      if (!track) return;
+      var caps = typeof track.getCapabilities === 'function' ? track.getCapabilities() : {};
+      var constraints = {};
+      // 持續自動對焦（Chrome Android 支援）
+      if (caps.focusMode && caps.focusMode.indexOf('continuous') !== -1) {
+        constraints.focusMode = 'continuous';
+      }
+      // 嘗試近距離對焦（部分裝置支援）
+      if (caps.focusDistance && caps.focusDistance.min != null) {
+        constraints.focusDistance = caps.focusDistance.min + (caps.focusDistance.max - caps.focusDistance.min) * 0.15;
+      }
+      // 嘗試放大（靠近條碼效果更好）
+      if (caps.zoom && caps.zoom.max > 1) {
+        constraints.zoom = Math.min(caps.zoom.max, 2.0);
+      }
+      if (Object.keys(constraints).length > 0) {
+        track.applyConstraints({ advanced: [constraints] }).catch(function () {});
+        console.log('[InvScanner] focus optimization applied:', constraints);
+      }
+    } catch (_) {}
   },
 
   stop() {
