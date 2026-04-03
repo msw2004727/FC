@@ -894,15 +894,14 @@ const InvSettings = {
             '<input type="date" id="log-end" class="inv-input" value="' + today + '" style="flex:1;min-width:110px;height:34px;font-size:12px;padding:4px 6px" />' +
           '</div>' +
           '<div style="display:flex;gap:6px;margin-top:6px">' +
-            '<select id="log-action" class="inv-select" style="flex:1;height:34px;font-size:12px">' + actionOpts + '</select>' +
-            '<input type="text" id="log-name" class="inv-input" placeholder="暱稱篩選" style="flex:1;height:34px;font-size:12px" />' +
+            '<select id="log-action" class="inv-select" style="flex:1;min-width:0;height:34px;font-size:13px;padding:0 4px">' + actionOpts + '</select>' +
+            '<input type="text" id="log-name" class="inv-input" placeholder="暱稱" style="width:70px;flex-shrink:0;height:34px;font-size:12px" />' +
             '<button id="log-search" class="inv-btn primary sm" style="flex-shrink:0;height:34px;font-size:12px;padding:0 12px">查詢</button>' +
           '</div>' +
         '</div>' +
         '<div id="log-list" style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-top:8px">' +
           '<div style="text-align:center;padding:30px;color:var(--text-muted);font-size:13px">點擊「查詢」載入紀錄</div>' +
         '</div>' +
-        '<button class="inv-btn outline full" style="flex-shrink:0;margin-top:8px" onclick="this.closest(\'.inv-overlay\').remove()">關閉</button>' +
       '</div>';
     document.body.appendChild(ov);
 
