@@ -1955,3 +1955,29 @@
 - **原因**：(1) createOrUpdateUser 在 region 驗證前就寫入 Firestore (2) _pendingFirstLogin 只檢查一次無重試 (3) ScriptLoader/DOM 載入失敗時靜默放棄 (4) toggleModal 開新 modal 時不檢查 locked 旗標會關閉首次登入 modal (5) hashchange 導航無守衛
 - **修復**：navigation.js showPage() 加入 _pendingFirstLogin 守衛攔截所有頁面切換 + _tryShowFirstLoginModal 重試函式；profile-form.js async IIFE 加入最多 3 次重試（1.5 秒間隔）；toggleModal() 雙向 locked 檢查；app.js hashchange handler 加入首次登入守衛
 - **教訓**：關鍵用戶資料驗證不能只靠前端 modal 一次性攔截，必須在導航層做持續守衛；modal locked 機制必須在 toggleModal/showModal/closeModal 三處一致檢查
+
+### 2026-04-02 — 隱藏活動行事曆主辦方排行按鈕
+- **問題**：需暫時隱藏主辦方排行入口
+- **修復**：pages/activity.html 按鈕加 display:none
+- **教訓**：無，純 UI 隱藏
+
+### 2026-04-02 — 活動地區批次設定按鈕（系統資料同步 ⑦）
+- **問題**：需要一鍵將所有活動地區設為中部且縣市全選
+- **修復**：pages/admin-system.html 新增第七項按鈕；data-sync.js 新增 _backfillEventRegion()，含確認提示、進度條、即時日誌，已正確的活動自動跳過
+- **教訓**：批次寫入操作應先比對現有值再決定是否寫入，避免無謂的 Firestore 費用
+
+### 2026-04-02 — 補修 goBack() 首次登入守衛
+- **問題**：深度測試發現 goBack() 缺少 _pendingFirstLogin 守衛，瀏覽器返回鍵可繞過首次登入 modal
+- **修復**：navigation.js goBack() 加入 _pendingFirstLogin 檢查
+- **教訓**：導航守衛必須覆蓋所有路徑：showPage / goBack / hashchange，遺漏任一路徑都是繞過漏洞
+
+### 2026-04-03 — 庫存系統 inv_transactions 權限錯誤修復
+- **問題**：toosterx.com/inventory 加庫存數字時報 Missing or insufficient permissions
+- **原因**：firestore.rules 的 inv_transactions create 規則檢查 quantity 和 operatorUid，但程式碼實際寫入的是 delta 和 uid，欄位名稱不一致導致規則拒絕
+- **修復**：firestore.rules 改為 delta is int + uid == request.auth.uid，並執行 firebase deploy --only firestore:rules
+- **教訓**：Firestore 安全規則的欄位名必須與程式碼寫入的欄位完全一致；新增安全規則後應立即測試寫入操作
+
+### 2026-04-03 — 庫存系統支援修改產品編號
+- **問題**：無法修改產品編號（條碼），因為條碼作為 Firestore 文件 ID，編輯表單沒有條碼欄位
+- **修復**：inv-products.js 編輯表單新增產品編號輸入欄位；編號變更時建立新文件→刪除舊文件→更新快取；含重複編號檢查
+- **教訓**：Firestore 不支援重命名文件 ID，變更 doc ID 的唯一方式是 create new → delete old
