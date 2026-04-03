@@ -58,7 +58,7 @@ const InvSettings = {
     this.renderCategories(cfg.categories || []);
   },
 
-  // ══════ 人員白名單（老闆/負責人/店長/店員/工讀）══════
+  // ══════ 人員白名單（工程師/負責人/店長/店員/工讀）══════
   _OWNER_UID: 'U7774e1410479bafff4997f51b2c47b95',
 
   _canManageAdmins() {
@@ -76,14 +76,14 @@ const InvSettings = {
   },
 
   _ROLE_META: {
-    owner:   { label: '老闆',   bg: 'var(--accent)',      border: 'var(--accent)' },
+    owner:   { label: '工程師', bg: 'var(--accent)',      border: 'var(--accent)' },
     manager: { label: '負責人', bg: 'var(--warning)',      border: 'var(--warning)' },
     leader:  { label: '店長',   bg: 'var(--info,#2563eb)', border: 'var(--info,#2563eb)' },
     staff:   { label: '店員',   bg: 'var(--bg-elevated)',  border: 'var(--border)', textColor: 'var(--text-muted)' },
     part:    { label: '工讀',   bg: 'var(--bg-elevated)',  border: 'var(--border)', textColor: 'var(--text-muted)' },
   },
 
-  /** 可指派的角色選項（排除老闆） */
+  /** 可指派的角色選項（排除工程師） */
   _ROLE_OPTIONS: [
     { key: 'manager', field: 'superAdminUids', label: '負責人' },
     { key: 'leader',  field: null,             label: '店長' },
@@ -138,7 +138,7 @@ const InvSettings = {
         '</select>' +
         '<button class="inv-btn primary sm" onclick="InvSettings.addAdmin()">新增</button></div>';
     } else {
-      html += '<div style="font-size:12px;color:var(--text-muted);margin-top:8px">僅老闆與負責人可管理人員</div>';
+      html += '<div style="font-size:12px;color:var(--text-muted);margin-top:8px">僅工程師與負責人可管理人員</div>';
     }
     w.innerHTML = html;
   },
@@ -220,7 +220,7 @@ const InvSettings = {
   },
 
   async addAdmin() {
-    if (!this._canManageAdmins()) { InvApp.showToast('僅老闆或負責人可操作'); return; }
+    if (!this._canManageAdmins()) { InvApp.showToast('僅工程師或負責人可操作'); return; }
     var input = document.getElementById('inv-new-admin-uid');
     var roleSelect = document.getElementById('inv-new-admin-role');
     var uid = (input && input.value || '').trim();
@@ -245,7 +245,7 @@ const InvSettings = {
 
   async removeAdmin(uid) {
     if (!this._canManageAdmins()) { InvApp.showToast('無權限'); return; }
-    if (uid === this._OWNER_UID) { InvApp.showToast('不可移除老闆'); return; }
+    if (uid === this._OWNER_UID) { InvApp.showToast('不可移除工程師'); return; }
     if (uid === InvAuth.getUid()) { InvApp.showToast('不可移除自己'); return; }
     if (!confirm('確定要移除此人員？\n' + uid)) return;
     try {
@@ -584,15 +584,19 @@ const InvSettings = {
           + '<b>更名功能</b><p style="font-size:13px;margin:4px 0 0;color:var(--text-secondary)">點擊「更名」按鈕後可修改店名，修改完成後點「儲存」即生效。</p></div>'
       },
       admin: {
-        title: '管理員白名單說明',
-        body: '<p>控制誰可以登入並使用庫存系統。系統分為三種角色：</p>'
+        title: '人員管理說明',
+        body: '<p>控制誰可以登入並使用庫存系統。系統分為五個層級：</p>'
           + '<div style="background:var(--accent-subtle);border-radius:var(--radius-sm);padding:10px 12px;margin:8px 0">'
-          + '<b>擁有者</b><p style="font-size:13px;margin:4px 0 0;color:var(--text-secondary)">系統最高權限，可管理所有人員，不可被移除。</p></div>'
+          + '<b>工程師</b><p style="font-size:13px;margin:4px 0 0;color:var(--text-secondary)">系統最高權限，可管理所有人員與設定，可查看進貨價與成本，不可被移除。</p></div>'
           + '<div style="background:var(--accent-subtle);border-radius:var(--radius-sm);padding:10px 12px;margin:8px 0">'
-          + '<b>超級管理員</b><p style="font-size:13px;margin:4px 0 0;color:var(--text-secondary)">由擁有者指派，擁有與擁有者相同的白名單管理權限（新增/移除管理員）。</p></div>'
+          + '<b>負責人</b><p style="font-size:13px;margin:4px 0 0;color:var(--text-secondary)">由工程師指派，擁有人員管理權限（新增/移除/變更角色），可查看進貨價與成本。</p></div>'
           + '<div style="background:var(--accent-subtle);border-radius:var(--radius-sm);padding:10px 12px;margin:8px 0">'
-          + '<b>管理員</b><p style="font-size:13px;margin:4px 0 0;color:var(--text-secondary)">可操作庫存系統的所有商品功能（入庫、銷售、盤點等），但無法管理白名單。</p></div>'
-          + '<p style="font-size:13px;color:var(--text-muted);margin-top:8px">新增管理員時需輸入對方的 LINE userId（U 開頭的 32 位字串）。</p>'
+          + '<b>店長</b><p style="font-size:13px;margin:4px 0 0;color:var(--text-secondary)">可操作所有商品功能（入庫、銷售、盤點、退貨、報廢等），但無法查看進貨價與成本，也無法管理人員。</p></div>'
+          + '<div style="background:var(--accent-subtle);border-radius:var(--radius-sm);padding:10px 12px;margin:8px 0">'
+          + '<b>店員</b><p style="font-size:13px;margin:4px 0 0;color:var(--text-secondary)">權限同店長，適用於正職員工。後續可依需求調整為較限縮的權限。</p></div>'
+          + '<div style="background:var(--accent-subtle);border-radius:var(--radius-sm);padding:10px 12px;margin:8px 0">'
+          + '<b>工讀</b><p style="font-size:13px;margin:4px 0 0;color:var(--text-secondary)">權限同店長，適用於兼職人員。後續可依需求調整為較限縮的權限。</p></div>'
+          + '<p style="font-size:13px;color:var(--text-muted);margin-top:8px">新增人員時需輸入對方的 LINE userId（U 開頭的 32 位字串），並選擇角色層級。點擊人員旁的 ✎ 按鈕可隨時變更角色。</p>'
       },
       category: {
         title: '商品分類管理說明',

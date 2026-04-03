@@ -6,7 +6,7 @@ const InvAuth = {
   isAdmin: false,
 
   // ── 角色常數 ──
-  ROLE_OWNER: 'owner',       // 老闆
+  ROLE_OWNER: 'owner',       // 工程師
   ROLE_MANAGER: 'manager',   // 負責人
   ROLE_LEADER: 'leader',     // 店長
   ROLE_STAFF: 'staff',       // 店員
@@ -171,11 +171,11 @@ const InvAuth = {
 
   /** 角色顯示名稱 */
   getRoleName() {
-    var map = { owner: '老闆', manager: '負責人', leader: '店長', staff: '店員', part: '工讀' };
+    var map = { owner: '工程師', manager: '負責人', leader: '店長', staff: '店員', part: '工讀' };
     return map[this._role] || '店長';
   },
 
-  /** 是否可看進貨價（老闆 + 負責人） */
+  /** 是否可看進貨價（工程師 + 負責人） */
   canSeeCost() {
     return this._role === this.ROLE_OWNER || this._role === this.ROLE_MANAGER;
   },
