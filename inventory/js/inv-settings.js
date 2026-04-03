@@ -52,8 +52,19 @@ const InvSettings = {
 
     // People management card with wrench button
     if (_hp('settings.people')) {
-      var wrenchBtn = ' <button onclick="InvSettings._showPermConfigModal()" style="width:22px;height:22px;border-radius:50%;border:1.5px solid var(--accent);background:var(--bg-card);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;padding:0;margin-left:4px;vertical-align:middle" title="權限設定"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></button>';
-      sections += this._card('<h4 class="inv-section-head">人員管理' + ib('admin') + wrenchBtn + '</h4>' + '<div id="inv-admin-list"></div>');
+      var wrenchBtn = '<button onclick="InvSettings._showPermConfigModal()" style="width:22px;height:22px;border-radius:50%;border:1.5px solid var(--accent);background:var(--bg-card);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;padding:0;vertical-align:middle" title="權限設定"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></button>';
+      var editBtnLabel = this._adminEditMode ? '完成' : '編輯';
+      var editBtnStyle = this._adminEditMode
+        ? 'background:var(--success,#16a34a);color:#fff;border:none'
+        : 'background:var(--accent);color:#fff;border:none';
+      var editBtn = '<button onclick="InvSettings._toggleAdminEditMode()" style="' + editBtnStyle + ';border-radius:6px;cursor:pointer;font-size:11px;padding:3px 10px;font-weight:600;margin-left:auto;flex-shrink:0">' + editBtnLabel + '</button>';
+      sections += this._card(
+        '<div style="display:flex;align-items:center;gap:6px">' +
+          '<h4 class="inv-section-head" style="margin:0;flex-shrink:0">人員管理</h4>' +
+          ib('admin') + wrenchBtn + editBtn +
+        '</div>' +
+        '<div id="inv-admin-list"></div>'
+      );
     }
 
     // Category card
@@ -99,6 +110,12 @@ const InvSettings = {
 
   // ══════ 人員白名單（工程師/負責人/店長/店員/工讀）══════
   _OWNER_UID: 'U7774e1410479bafff4997f51b2c47b95',
+  _adminEditMode: false,
+
+  _toggleAdminEditMode() {
+    this._adminEditMode = !this._adminEditMode;
+    this.render();
+  },
 
   _canManageAdmins() {
     var uid = InvAuth.getUid();
@@ -155,11 +172,11 @@ const InvSettings = {
       var tagColor = meta.textColor || '#fff';
       var roleTag = '<span style="flex-shrink:0;background:' + meta.bg + ';color:' + tagColor + ';padding:2px 10px;border-radius:999px;font-size:10px;font-weight:600">' + meta.label + '</span>';
 
-      // 操作按鈕
+      // 操作按鈕（僅編輯模式顯示）
       var actions = '';
-      if (canManage && !isUOwner && !isMe) {
-        actions += '<button onclick="InvSettings.removeAdmin(\'' + esc(u) + '\')" style="flex-shrink:0;background:none;border:none;color:var(--danger);cursor:pointer;font-size:16px;padding:0 4px" title="移除">✕</button>';
+      if (canManage && !isUOwner && !isMe && this._adminEditMode) {
         actions += '<button onclick="InvSettings._showRolePicker(\'' + esc(u) + '\')" style="flex-shrink:0;background:none;border:none;color:var(--accent);cursor:pointer;font-size:12px;padding:0 4px" title="變更角色">✎</button>';
+        actions += '<button onclick="InvSettings.removeAdmin(\'' + esc(u) + '\')" style="flex-shrink:0;background:none;border:none;color:var(--danger);cursor:pointer;font-size:16px;padding:0 4px" title="移除">✕</button>';
       }
       var border = isMe ? 'border:1.5px solid var(--accent)' : 'border:1px solid ' + meta.border;
       var bg = isMe ? 'background:var(--accent-light)' : 'background:var(--bg-elevated)';
@@ -168,7 +185,7 @@ const InvSettings = {
         + '<span style="flex:1;font-size:11px;' + uidColor + ';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0">' + esc(u) + '</span>'
         + roleTag + actions + '</div>';
     }
-    if (canManage) {
+    if (canManage && this._adminEditMode) {
       html += '<div style="display:flex;gap:8px;margin-top:10px">' +
         '<input id="inv-new-admin-uid" class="inv-input" placeholder="輸入 LINE userId" style="flex:1;min-width:0;height:36px;font-size:13px" />' +
         '<select id="inv-new-admin-role" class="inv-select" style="width:auto;height:36px;font-size:13px;flex-shrink:0;padding:0 4px">' +
@@ -176,7 +193,7 @@ const InvSettings = {
           (isOwner ? '<option value="manager">負責人</option>' : '') +
         '</select>' +
         '<button class="inv-btn primary sm" style="flex-shrink:0" onclick="InvSettings.addAdmin()">新增</button></div>';
-    } else {
+    } else if (!canManage) {
       html += '<div style="font-size:12px;color:var(--text-muted);margin-top:8px">僅工程師與負責人可管理人員</div>';
     }
     w.innerHTML = html;
