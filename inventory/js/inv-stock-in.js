@@ -180,8 +180,8 @@ const InvStockIn = {
         '<label style="font-size:13px;color:var(--text-muted);">品名 <span style="color:var(--danger);">*</span></label>' +
         '<input id="new-name" style="width:100%;padding:8px;margin-bottom:10px;border:1px solid var(--border);border-radius:6px;box-sizing:border-box;" />' +
         '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">' +
-          '<div><label style="font-size:13px;color:var(--text-muted);">進貨價 <span style="color:var(--danger);">*</span></label>' +
-          '<input id="new-cost" type="number" inputmode="numeric" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;box-sizing:border-box;" /></div>' +
+          '<div><label style="font-size:13px;color:var(--text-muted);">進貨價' + (InvAuth.canSeeCost() ? ' <span style="color:var(--danger);">*</span>' : '') + '</label>' +
+          '<input id="new-cost" type="' + (InvAuth.canSeeCost() ? 'number' : 'text') + '"' + (InvAuth.canSeeCost() ? ' inputmode="numeric"' : ' value="***" disabled') + ' style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;box-sizing:border-box;" /></div>' +
           '<div><label style="font-size:13px;color:var(--text-muted);">售價 <span style="color:var(--danger);">*</span></label>' +
           '<input id="new-price" type="number" inputmode="numeric" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;box-sizing:border-box;" /></div>' +
         '</div>' +
@@ -213,12 +213,12 @@ const InvStockIn = {
     });
     document.getElementById('new-save').addEventListener('click', function () {
       var name = document.getElementById('new-name').value.trim();
-      var costPrice = Number(document.getElementById('new-cost').value);
+      var costPrice = InvAuth.canSeeCost() ? Number(document.getElementById('new-cost').value) : 0;
       var price = Number(document.getElementById('new-price').value);
       var qty = parseInt(document.getElementById('new-qty').value, 10);
 
       if (!name) { InvApp.showToast('請輸入品名'); return; }
-      if (!costPrice && costPrice !== 0) { InvApp.showToast('請輸入進貨價'); return; }
+      if (InvAuth.canSeeCost() && !costPrice && costPrice !== 0) { InvApp.showToast('請輸入進貨價'); return; }
       if (!price) { InvApp.showToast('請輸入售價'); return; }
       if (!qty || qty < 1) { InvApp.showToast('請輸入有效數量'); return; }
 

@@ -338,7 +338,7 @@ const InvProducts = {
           '</div>' +
           '<div style="flex:1;padding:10px;border-radius:var(--radius-sm);background:var(--bg-elevated);text-align:center">' +
             '<div style="font-size:11px;color:var(--text-muted)">進貨價</div>' +
-            '<div style="font-size:16px;font-weight:700">' + InvApp.formatCurrency(p.costPrice) + '</div>' +
+            '<div style="font-size:16px;font-weight:700">' + (InvAuth.canSeeCost() ? InvApp.formatCurrency(p.costPrice) : '***') + '</div>' +
           '</div>' +
           '<div style="flex:1;padding:10px;border-radius:var(--radius-sm);background:var(--bg-elevated);text-align:center">' +
             '<div style="font-size:11px;color:var(--text-muted)">庫存</div>' +
@@ -535,7 +535,7 @@ const InvProducts = {
         '</div>' +
         '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">' +
           '<div><label ' + ls + '>售價</label><input id="edit-price" class="inv-input" type="number" value="' + (p.sellPrice || p.price || 0) + '" style="height:40px;font-size:14px" /></div>' +
-          '<div><label ' + ls + '>進貨價</label><input id="edit-cost" class="inv-input" type="number" value="' + (p.costPrice || 0) + '" style="height:40px;font-size:14px" /></div>' +
+          '<div><label ' + ls + '>進貨價</label><input id="edit-cost" class="inv-input" type="' + (InvAuth.canSeeCost() ? 'number' : 'text') + '" value="' + (InvAuth.canSeeCost() ? (p.costPrice || 0) : '***') + '"' + (InvAuth.canSeeCost() ? '' : ' disabled') + ' style="height:40px;font-size:14px" /></div>' +
         '</div>' +
         '<label ' + ls + '>低庫存警示門檻</label>' +
         '<input id="edit-alert" class="inv-input" type="number" value="' + (p.lowStockAlert || 5) + '" style="height:40px;font-size:14px;margin-bottom:16px" />' +
@@ -576,9 +576,12 @@ const InvProducts = {
         size: document.getElementById('edit-size').value.trim(),
         sellPrice: Number(document.getElementById('edit-price').value) || 0,
         price: Number(document.getElementById('edit-price').value) || 0,
-        costPrice: Number(document.getElementById('edit-cost').value) || 0,
         lowStockAlert: Number(document.getElementById('edit-alert').value) || 5,
       };
+      // 只有可看進貨價的角色才能修改
+      if (InvAuth.canSeeCost()) {
+        updates.costPrice = Number(document.getElementById('edit-cost').value) || 0;
+      }
       if (_editImageDataUrl) updates.image = _editImageDataUrl;
       if (!updates.name) { InvApp.showToast('品名不可為空'); return; }
       try {

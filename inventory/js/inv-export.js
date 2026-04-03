@@ -18,7 +18,8 @@ const InvExport = {
 
   /** 匯出銷售紀錄 CSV */
   exportTransactions(transactions) {
-    var rows = ['交易日期,類型,收據號,商品名稱,條碼,數量,單價,成本價,優惠金額,實收金額,毛利,收款方式,操作人'];
+    var cc = typeof InvAuth !== 'undefined' && InvAuth.canSeeCost();
+    var rows = [cc ? '交易日期,類型,收據號,商品名稱,條碼,數量,單價,成本價,優惠金額,實收金額,毛利,收款方式,操作人' : '交易日期,類型,收據號,商品名稱,條碼,數量,單價,優惠金額,實收金額,收款方式,操作人'];
     var dMin = null, dMax = null;
     for (var i = 0; i < transactions.length; i++) {
       var tx = transactions[i];
@@ -31,10 +32,12 @@ const InvExport = {
       var up = Number(tx.unitPrice) || 0, cp = Number(tx.costPrice) || 0;
       var total = Number(tx.totalAmount) || 0;
       var disc = Math.max(qty * up - total, 0);
-      rows.push([d ? InvApp.formatDate(d) : '', this._typeMap[tx.type] || tx.type || '',
-        tx.receiptNo || '', tx.productName || tx.name || '', tx.barcode || '',
-        qty, up, cp, disc, total, total - cp * qty,
-        tx.paymentMethod || '', tx.operatorName || ''].map(this._escapeCSV).join(','));
+      var row = [d ? InvApp.formatDate(d) : '', this._typeMap[tx.type] || tx.type || '',
+        tx.receiptNo || '', tx.productName || tx.name || '', tx.barcode || '', qty, up];
+      if (cc) row.push(cp, disc, total, total - cp * qty);
+      else row.push(disc, total);
+      row.push(tx.paymentMethod || '', tx.operatorName || '');
+      rows.push(row.map(this._escapeCSV).join(','));
     }
     var now = new Date();
     var from = dMin ? this._fmtD(dMin) : this._fmtD(now);
@@ -45,13 +48,16 @@ const InvExport = {
   /** 匯出庫存清單 CSV */
   exportProducts() {
     var products = InvProducts._cache || [];
-    var rows = ['條碼,商品名稱,品牌,分類,顏色,尺寸,進貨成本,售價,目前庫存,庫存成本小計,低庫存門檻,建檔日期'];
+    var cc2 = typeof InvAuth !== 'undefined' && InvAuth.canSeeCost();
+    var rows = [cc2 ? '條碼,商品名稱,品牌,分類,顏色,尺寸,進貨成本,售價,目前庫存,庫存成本小計,低庫存門檻,建檔日期' : '條碼,商品名稱,品牌,分類,顏色,尺寸,售價,目前庫存,低庫存門檻,建檔日期'];
     for (var i = 0; i < products.length; i++) {
       var p = products[i], stk = Number(p.stock) || 0, cp = Number(p.costPrice) || 0;
       var ca = this._toDate(p.createdAt);
-      rows.push([p.barcode || '', p.name || '', p.brand || '', p.category || '',
-        p.color || '', p.size || '', cp, Number(p.price) || 0, stk, cp * stk,
-        p.lowStockAlert || 5, ca ? InvApp.formatDate(ca) : ''].map(this._escapeCSV).join(','));
+      var row2 = [p.barcode || '', p.name || '', p.brand || '', p.category || '', p.color || '', p.size || ''];
+      if (cc2) row2.push(cp, Number(p.price) || 0, stk, cp * stk, p.lowStockAlert || 5);
+      else row2.push(Number(p.price) || 0, stk, p.lowStockAlert || 5);
+      row2.push(ca ? InvApp.formatDate(ca) : '');
+      rows.push(row2.map(this._escapeCSV).join(','));
     }
     this._downloadCSV(rows.join('\n'), '庫存清單_' + this._fmtD(new Date()) + '.csv');
   },
@@ -157,10 +163,11 @@ const InvExport = {
       }
     }
     var gm = totalSales > 0 ? ((totalSales - totalCost) / totalSales * 100).toFixed(1) : '0.0';
+    var cc3 = typeof InvAuth !== 'undefined' && InvAuth.canSeeCost();
     var html = '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px;">' +
       this._statBox('總銷售額', InvApp.formatCurrency(totalSales), '#0d9488') +
-      this._statBox('總成本', InvApp.formatCurrency(totalCost), '#2563eb') +
-      this._statBox('毛利率', gm + '%', Number(gm) >= 0 ? '#16a34a' : '#dc2626') + '</div>';
+      this._statBox('總成本', cc3 ? InvApp.formatCurrency(totalCost) : '***', '#2563eb') +
+      this._statBox('毛利率', cc3 ? gm + '%' : '***', Number(gm) >= 0 ? '#16a34a' : '#dc2626') + '</div>';
 
     // 熱銷 TOP 5
     var top5 = Object.values(barcodeMap).sort(function (a, b) { return b.qty - a.qty; }).slice(0, 5);

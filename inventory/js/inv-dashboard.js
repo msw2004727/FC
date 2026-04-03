@@ -40,10 +40,11 @@ const InvDashboard = {
     var todayProfit = todaySales - todayCost;
     var todayReturn = returnTx.reduce(function (s, t) { return s + (Number(t.totalAmount) || 0); }, 0);
 
+    var canCost = typeof InvAuth !== 'undefined' && InvAuth.canSeeCost();
     var stats = [
       { label: '今日銷售額', value: InvApp.formatCurrency(todaySales), color: '#0d9488' },
       { label: '今日筆數', value: todayCount + ' 筆', color: '#2563eb' },
-      { label: '今日毛利', value: InvApp.formatCurrency(todayProfit), color: todayProfit >= 0 ? '#16a34a' : '#dc2626' },
+      { label: '今日毛利', value: canCost ? InvApp.formatCurrency(todayProfit) : '***', color: todayProfit >= 0 ? '#16a34a' : '#dc2626' },
       { label: '今日退貨額', value: InvApp.formatCurrency(todayReturn), color: '#f59e0b' }
     ];
 
@@ -174,7 +175,7 @@ const InvDashboard = {
     var items = [
       { label: '總 SKU 數', value: data.totalSKU, color: '#334155' },
       { label: '總庫存件數', value: data.totalStock, color: '#0d9488' },
-      { label: '庫存總成本', value: InvApp.formatCurrency(data.totalCost), color: '#2563eb' },
+      { label: '庫存總成本', value: (typeof InvAuth !== 'undefined' && InvAuth.canSeeCost()) ? InvApp.formatCurrency(data.totalCost) : '***', color: '#2563eb' },
       { label: '低庫存商品', value: data.lowCount, color: data.lowCount > 0 ? '#f97316' : '#16a34a' },
       { label: '零庫存商品', value: data.zeroCount, color: data.zeroCount > 0 ? '#dc2626' : '#16a34a' }
     ];

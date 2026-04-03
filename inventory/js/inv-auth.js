@@ -5,6 +5,15 @@ const InvAuth = {
   currentUser: null,
   isAdmin: false,
 
+  // ── 角色常數 ──
+  ROLE_OWNER: 'owner',       // 老闆
+  ROLE_MANAGER: 'manager',   // 負責人
+  ROLE_LEADER: 'leader',     // 店長
+  ROLE_STAFF: 'staff',       // 店員
+  ROLE_PART: 'part',         // 工讀
+  _role: '',
+  _OWNER_UID: 'U7774e1410479bafff4997f51b2c47b95',
+
   async init() {
     // Step 1: 等待 Firebase Auth 從 IndexedDB 恢復（最多 3 秒）
     var authRestored = await this._waitAuthRestore();
@@ -124,10 +133,12 @@ const InvAuth = {
         document.getElementById('inv-login-status').textContent = '設定檔案不存在';
         return;
       }
-      var adminUids = configDoc.data().adminUids || [];
+      var cfg = configDoc.data();
+      var adminUids = cfg.adminUids || [];
       var uid = auth.currentUser.uid;
       if (adminUids.indexOf(uid) !== -1) {
         this.isAdmin = true;
+        this._resolveRole(uid, cfg);
         if (this.currentUser) this.currentUser.uid = uid;
         InvApp.updateUserUI(this.currentUser);
         InvApp.showPage('page-dashboard');
@@ -142,6 +153,30 @@ const InvAuth = {
     }
   },
 
+  /** 根據 config 判定角色 */
+  _resolveRole(uid, cfg) {
+    var superAdmins = cfg.superAdminUids || [];
+    var staffUids = cfg.staffUids || [];
+    var partTimeUids = cfg.partTimeUids || [];
+    if (uid === this._OWNER_UID) { this._role = this.ROLE_OWNER; }
+    else if (superAdmins.indexOf(uid) !== -1) { this._role = this.ROLE_MANAGER; }
+    else if (staffUids.indexOf(uid) !== -1) { this._role = this.ROLE_STAFF; }
+    else if (partTimeUids.indexOf(uid) !== -1) { this._role = this.ROLE_PART; }
+    else { this._role = this.ROLE_LEADER; } // 預設店長
+  },
+
   getUid() { return auth.currentUser ? auth.currentUser.uid : null; },
   getName() { return this.currentUser ? this.currentUser.name : null; },
+  getRole() { return this._role; },
+
+  /** 角色顯示名稱 */
+  getRoleName() {
+    var map = { owner: '老闆', manager: '負責人', leader: '店長', staff: '店員', part: '工讀' };
+    return map[this._role] || '店長';
+  },
+
+  /** 是否可看進貨價（老闆 + 負責人） */
+  canSeeCost() {
+    return this._role === this.ROLE_OWNER || this._role === this.ROLE_MANAGER;
+  },
 };

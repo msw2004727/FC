@@ -44,7 +44,7 @@ const InvSettings = {
           '<span id="inv-shop-name-display" style="flex:1;font-size:15px;font-weight:600;color:var(--text-primary)">' + esc(shopName) + '</span>' +
           '<button class="inv-btn outline sm" onclick="InvSettings._enableShopNameEdit()" style="font-size:12px;min-height:30px;padding:2px 12px">更名</button>' +
         '</div>') +
-      this._card(h4('管理員白名單', 'admin') + '<div id="inv-admin-list"></div>') +
+      this._card(h4('人員管理', 'admin') + '<div id="inv-admin-list"></div>') +
       this._card(h4('商品分類管理', 'category') + '<div id="inv-category-list"></div>') +
       this._card(h4('工具', 'tools') +
         '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">' +
@@ -58,7 +58,7 @@ const InvSettings = {
     this.renderCategories(cfg.categories || []);
   },
 
-  // ══════ 管理員白名單（ownerUid + superAdminUids + adminUids）══════
+  // ══════ 人員白名單（老闆/負責人/店長/店員/工讀）══════
   _OWNER_UID: 'U7774e1410479bafff4997f51b2c47b95',
 
   _canManageAdmins() {
@@ -66,46 +66,64 @@ const InvSettings = {
     return uid === this._OWNER_UID || (this._superAdmins || []).indexOf(uid) !== -1;
   },
 
+  /** 判定指定 UID 的角色 */
+  _getUserRole(uid, cfg) {
+    if (uid === this._OWNER_UID) return 'owner';
+    if ((cfg.superAdminUids || []).indexOf(uid) !== -1) return 'manager';
+    if ((cfg.staffUids || []).indexOf(uid) !== -1) return 'staff';
+    if ((cfg.partTimeUids || []).indexOf(uid) !== -1) return 'part';
+    return 'leader';
+  },
+
+  _ROLE_META: {
+    owner:   { label: '老闆',   bg: 'var(--accent)',      border: 'var(--accent)' },
+    manager: { label: '負責人', bg: 'var(--warning)',      border: 'var(--warning)' },
+    leader:  { label: '店長',   bg: 'var(--info,#2563eb)', border: 'var(--info,#2563eb)' },
+    staff:   { label: '店員',   bg: 'var(--bg-elevated)',  border: 'var(--border)', textColor: 'var(--text-muted)' },
+    part:    { label: '工讀',   bg: 'var(--bg-elevated)',  border: 'var(--border)', textColor: 'var(--text-muted)' },
+  },
+
+  /** 可指派的角色選項（排除老闆） */
+  _ROLE_OPTIONS: [
+    { key: 'manager', field: 'superAdminUids', label: '負責人' },
+    { key: 'leader',  field: null,             label: '店長' },
+    { key: 'staff',   field: 'staffUids',      label: '店員' },
+    { key: 'part',    field: 'partTimeUids',    label: '工讀' },
+  ],
+
   async renderAdminList(uids) {
+    var cfg;
     if (!uids) {
       var doc = await this._cfgRef().get();
-      var data = doc.exists ? doc.data() : {};
-      uids = data.adminUids || [];
-      this._superAdmins = data.superAdminUids || [];
+      cfg = doc.exists ? doc.data() : {};
+      uids = cfg.adminUids || [];
+    } else {
+      try { var d2 = await this._cfgRef().get(); cfg = d2.exists ? d2.data() : {}; } catch(_) { cfg = {}; }
     }
+    this._superAdmins = cfg.superAdminUids || [];
+    this._cfg = cfg;
     var w = document.getElementById('inv-admin-list');
     if (!w) return;
     var esc = InvApp.escapeHTML, myUid = InvAuth.getUid();
     var isOwner = myUid === this._OWNER_UID;
     var canManage = this._canManageAdmins();
-    var superAdmins = this._superAdmins || [];
 
     var html = '';
     for (var i = 0; i < uids.length; i++) {
       var u = uids[i], isMe = u === myUid, isUOwner = u === this._OWNER_UID;
-      var isSA = superAdmins.indexOf(u) !== -1;
-      // 角色標籤（永遠顯示真實角色）
-      var roleTag = isUOwner ? '<span style="flex-shrink:0;background:var(--accent);color:#fff;padding:2px 10px;border-radius:999px;font-size:10px;font-weight:600">擁有者</span>'
-        : isSA ? '<span style="flex-shrink:0;background:var(--warning);color:#fff;padding:2px 10px;border-radius:999px;font-size:10px;font-weight:600">超級管理</span>'
-        : '<span style="flex-shrink:0;background:var(--bg-elevated);color:var(--text-muted);padding:2px 10px;border-radius:999px;font-size:10px;font-weight:600">管理員</span>';
-      // 操作按鈕（擁有者/超管才看得到）
+      var role = this._getUserRole(u, cfg);
+      var meta = this._ROLE_META[role] || this._ROLE_META.leader;
+      var tagColor = meta.textColor || '#fff';
+      var roleTag = '<span style="flex-shrink:0;background:' + meta.bg + ';color:' + tagColor + ';padding:2px 10px;border-radius:999px;font-size:10px;font-weight:600">' + meta.label + '</span>';
+
+      // 操作按鈕
       var actions = '';
       if (canManage && !isUOwner && !isMe) {
         actions += '<button onclick="InvSettings.removeAdmin(\'' + esc(u) + '\')" style="flex-shrink:0;background:none;border:none;color:var(--danger);cursor:pointer;font-size:16px;padding:0 4px" title="移除">✕</button>';
+        actions += '<button onclick="InvSettings._showRolePicker(\'' + esc(u) + '\')" style="flex-shrink:0;background:none;border:none;color:var(--accent);cursor:pointer;font-size:12px;padding:0 4px" title="變更角色">✎</button>';
       }
-      if (isOwner && !isUOwner && !isSA) {
-        actions += '<button onclick="InvSettings.promoteSuperAdmin(\'' + esc(u) + '\')" style="flex-shrink:0;background:none;border:none;color:var(--warning);cursor:pointer;font-size:12px;padding:0 4px" title="升為超級管理">⬆</button>';
-      }
-      if (isOwner && isSA) {
-        actions += '<button onclick="InvSettings.demoteSuperAdmin(\'' + esc(u) + '\')" style="flex-shrink:0;background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:12px;padding:0 4px" title="取消超級管理">⬇</button>';
-      }
-      // 自己用底色高亮（accent-light + accent border），其他人依角色底色
-      var border = isMe ? 'border:1.5px solid var(--accent)'
-        : isUOwner ? 'border:1.5px solid var(--accent)'
-        : isSA ? 'border:1.5px solid var(--warning)'
-        : 'border:1px solid var(--border)';
-      var bg = isMe ? 'background:var(--accent-light)'
-        : 'background:var(--bg-elevated)';
+      var border = isMe ? 'border:1.5px solid var(--accent)' : 'border:1px solid ' + meta.border;
+      var bg = isMe ? 'background:var(--accent-light)' : 'background:var(--bg-elevated)';
       var uidColor = isMe ? 'color:var(--accent);font-weight:600' : 'color:var(--text-secondary)';
       html += '<div style="display:flex;align-items:center;gap:8px;padding:8px 14px;margin-bottom:6px;border-radius:var(--radius-sm);' + bg + ';' + border + '">'
         + '<span style="flex:1;font-size:11px;' + uidColor + ';word-break:break-all">' + esc(u) + '</span>'
@@ -114,11 +132,67 @@ const InvSettings = {
     if (canManage) {
       html += '<div style="display:flex;gap:8px;margin-top:10px">' +
         '<input id="inv-new-admin-uid" class="inv-input" placeholder="輸入 LINE userId" style="flex:1;height:36px;font-size:13px" />' +
+        '<select id="inv-new-admin-role" class="inv-select" style="width:auto;height:36px;font-size:13px">' +
+          '<option value="leader">店長</option><option value="staff">店員</option><option value="part">工讀</option>' +
+          (isOwner ? '<option value="manager">負責人</option>' : '') +
+        '</select>' +
         '<button class="inv-btn primary sm" onclick="InvSettings.addAdmin()">新增</button></div>';
     } else {
-      html += '<div style="font-size:12px;color:var(--text-muted);margin-top:8px">僅擁有者與超級管理員可管理白名單</div>';
+      html += '<div style="font-size:12px;color:var(--text-muted);margin-top:8px">僅老闆與負責人可管理人員</div>';
     }
     w.innerHTML = html;
+  },
+
+  /** 角色選擇彈窗 */
+  _showRolePicker(uid) {
+    var isOwner = InvAuth.getUid() === this._OWNER_UID;
+    var cfg = this._cfg || {};
+    var currentRole = this._getUserRole(uid, cfg);
+    var esc = InvApp.escapeHTML;
+    var overlay = document.createElement('div');
+    overlay.className = 'inv-overlay show';
+    overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+    var btns = '';
+    for (var i = 0; i < this._ROLE_OPTIONS.length; i++) {
+      var opt = this._ROLE_OPTIONS[i];
+      if (opt.key === 'manager' && !isOwner) continue;
+      var active = currentRole === opt.key;
+      btns += '<button class="inv-role-opt" data-role="' + opt.key + '" style="width:100%;padding:10px;margin-bottom:6px;border:1px solid ' + (active ? 'var(--accent)' : 'var(--border)') + ';border-radius:8px;background:' + (active ? 'var(--accent)' : 'var(--bg-card)') + ';color:' + (active ? '#fff' : 'var(--text-primary)') + ';font-size:14px;cursor:pointer">' + esc(opt.label) + (active ? ' (目前)' : '') + '</button>';
+    }
+    overlay.innerHTML = '<div class="inv-modal" style="max-width:300px;width:85%"><h3 style="margin:0 0 12px;font-size:16px">變更角色</h3>' + btns +
+      '<button class="inv-btn outline full" style="margin-top:4px" onclick="this.closest(\'.inv-overlay\').remove()">取消</button></div>';
+    document.body.appendChild(overlay);
+    var self = this;
+    overlay.querySelectorAll('.inv-role-opt').forEach(function(btn) {
+      btn.addEventListener('click', async function() {
+        var newRole = this.getAttribute('data-role');
+        if (newRole === currentRole) { overlay.remove(); return; }
+        overlay.remove();
+        await self._changeUserRole(uid, newRole);
+      });
+    });
+  },
+
+  /** 變更用戶角色 */
+  async _changeUserRole(uid, newRole) {
+    try {
+      // 先從所有角色陣列移除
+      var updates = {
+        superAdminUids: firebase.firestore.FieldValue.arrayRemove(uid),
+        staffUids: firebase.firestore.FieldValue.arrayRemove(uid),
+        partTimeUids: firebase.firestore.FieldValue.arrayRemove(uid),
+      };
+      await this._cfgRef().update(updates);
+      // 加入對應陣列（店長不需要，因為預設就是店長）
+      var fieldMap = { manager: 'superAdminUids', staff: 'staffUids', part: 'partTimeUids' };
+      if (fieldMap[newRole]) {
+        var add = {};
+        add[fieldMap[newRole]] = firebase.firestore.FieldValue.arrayUnion(uid);
+        await this._cfgRef().update(add);
+      }
+      InvApp.showToast('角色已變更');
+      this.renderAdminList();
+    } catch (e) { InvApp.showToast('變更失敗'); }
   },
 
   _enableShopNameEdit() {
@@ -146,13 +220,24 @@ const InvSettings = {
   },
 
   async addAdmin() {
-    if (!this._canManageAdmins()) { InvApp.showToast('僅擁有者或超級管理員可操作'); return; }
+    if (!this._canManageAdmins()) { InvApp.showToast('僅老闆或負責人可操作'); return; }
     var input = document.getElementById('inv-new-admin-uid');
+    var roleSelect = document.getElementById('inv-new-admin-role');
     var uid = (input && input.value || '').trim();
+    var role = roleSelect ? roleSelect.value : 'leader';
     if (!uid) { InvApp.showToast('請輸入 LINE userId'); return; }
     try {
+      // 加入白名單
       await this._cfgRef().update({ adminUids: firebase.firestore.FieldValue.arrayUnion(uid) });
-      InvApp.showToast('已新增管理員');
+      // 設定角色
+      var fieldMap = { manager: 'superAdminUids', staff: 'staffUids', part: 'partTimeUids' };
+      if (fieldMap[role]) {
+        var add = {};
+        add[fieldMap[role]] = firebase.firestore.FieldValue.arrayUnion(uid);
+        await this._cfgRef().update(add);
+      }
+      var roleName = (this._ROLE_META[role] || {}).label || '店長';
+      InvApp.showToast('已新增' + roleName);
       if (input) input.value = '';
       this.renderAdminList();
     } catch (e) { InvApp.showToast('新增失敗'); }
@@ -160,15 +245,17 @@ const InvSettings = {
 
   async removeAdmin(uid) {
     if (!this._canManageAdmins()) { InvApp.showToast('無權限'); return; }
-    if (uid === this._OWNER_UID) { InvApp.showToast('不可移除擁有者'); return; }
+    if (uid === this._OWNER_UID) { InvApp.showToast('不可移除老闆'); return; }
     if (uid === InvAuth.getUid()) { InvApp.showToast('不可移除自己'); return; }
-    if (!confirm('確定要移除此管理員？\n' + uid)) return;
+    if (!confirm('確定要移除此人員？\n' + uid)) return;
     try {
       await this._cfgRef().update({
         adminUids: firebase.firestore.FieldValue.arrayRemove(uid),
         superAdminUids: firebase.firestore.FieldValue.arrayRemove(uid),
+        staffUids: firebase.firestore.FieldValue.arrayRemove(uid),
+        partTimeUids: firebase.firestore.FieldValue.arrayRemove(uid),
       });
-      InvApp.showToast('已移除管理員');
+      InvApp.showToast('已移除人員');
       this.renderAdminList();
     } catch (e) { InvApp.showToast('移除失敗'); }
   },
