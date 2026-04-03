@@ -61,39 +61,39 @@ const InvStockIn = {
     if (!formArea) return;
 
     var esc = InvApp.escapeHTML;
+    var qb = 'border:1px solid var(--accent);border-radius:8px;background:var(--bg-card);color:var(--accent);font-size:14px;font-weight:700;cursor:pointer;min-width:40px;padding:8px 0;text-align:center';
     formArea.innerHTML =
-      '<div style="background:var(--bg-card);border-radius:12px;padding:16px;border:1px solid var(--border);">' +
-        '<h4 style="margin:0 0 8px;">' + esc(product.name) + '</h4>' +
-        '<div style="font-size:14px;color:var(--text-muted);margin-bottom:12px;">目前庫存：' +
-          '<span style="font-weight:700;color:var(--text-primary);">' + (product.stock || 0) + '</span> 件</div>' +
-        '<label style="font-size:13px;color:var(--text-muted);">入庫數量</label>' +
-        '<input id="restock-qty" type="number" inputmode="numeric" value="1" min="1" ' +
-          'style="width:100%;padding:12px;font-size:24px;font-weight:700;text-align:center;' +
-          'border:1px solid var(--border);border-radius:8px;margin:8px 0;box-sizing:border-box;" />' +
-        '<div class="inv-qty-btns" style="display:flex;gap:8px;margin-bottom:16px;">' +
-          '<button data-add="1" style="flex:1;padding:10px;border:1px solid var(--accent);border-radius:8px;' +
-            'background:var(--bg-card);color:var(--accent);font-size:16px;font-weight:600;cursor:pointer;">+1</button>' +
-          '<button data-add="5" style="flex:1;padding:10px;border:1px solid var(--accent);border-radius:8px;' +
-            'background:var(--bg-card);color:var(--accent);font-size:16px;font-weight:600;cursor:pointer;">+5</button>' +
-          '<button data-add="10" style="flex:1;padding:10px;border:1px solid var(--accent);border-radius:8px;' +
-            'background:var(--bg-card);color:var(--accent);font-size:16px;font-weight:600;cursor:pointer;">+10</button>' +
+      '<div style="background:var(--bg-card);border-radius:12px;padding:14px;border:1px solid var(--border);box-sizing:border-box;max-width:100%;overflow:hidden">' +
+        '<h4 style="margin:0 0 6px;font-size:15px">' + esc(product.name) + '</h4>' +
+        '<div style="font-size:13px;color:var(--text-muted);margin-bottom:10px">目前庫存：' +
+          '<span style="font-weight:700;color:var(--text-primary)">' + (product.stock || 0) + '</span> 件</div>' +
+        '<label style="font-size:12px;color:var(--text-muted)">入庫數量</label>' +
+        '<div style="display:flex;align-items:center;gap:6px;margin:6px 0 10px">' +
+          '<button data-add="-1" style="' + qb + '">-1</button>' +
+          '<button data-add="-5" style="' + qb + '">-5</button>' +
+          '<input id="restock-qty" type="number" inputmode="numeric" value="1" min="1" ' +
+            'style="flex:1;min-width:0;padding:8px 4px;font-size:20px;font-weight:700;text-align:center;' +
+            'border:1px solid var(--border);border-radius:8px;box-sizing:border-box" />' +
+          '<button data-add="5" style="' + qb + '">+5</button>' +
+          '<button data-add="10" style="' + qb + '">+10</button>' +
         '</div>' +
-        '<div style="display:flex;gap:8px;">' +
-          '<button id="restock-cancel" style="flex:1;padding:12px;border:1px solid var(--border);border-radius:8px;' +
-            'background:var(--bg-card);font-size:15px;cursor:pointer;">取消</button>' +
-          '<button id="restock-confirm" style="flex:1;padding:12px;border:none;border-radius:8px;' +
-            'background:var(--accent);color:#fff;font-size:15px;font-weight:600;cursor:pointer;">確認入庫</button>' +
+        '<div style="display:flex;gap:8px">' +
+          '<button id="restock-cancel" style="flex:1;padding:10px;border:1px solid var(--border);border-radius:8px;' +
+            'background:var(--bg-card);font-size:14px;cursor:pointer">取消</button>' +
+          '<button id="restock-confirm" style="flex:1;padding:10px;border:none;border-radius:8px;' +
+            'background:var(--accent);color:#fff;font-size:14px;font-weight:600;cursor:pointer">確認入庫</button>' +
         '</div>' +
       '</div>';
 
     var qtyInput = document.getElementById('restock-qty');
 
-    // 快捷加量按鈕
+    // 快捷加減量按鈕
     var btns = formArea.querySelectorAll('[data-add]');
     for (var i = 0; i < btns.length; i++) {
       btns[i].addEventListener('click', function () {
         var add = Number(this.getAttribute('data-add'));
-        qtyInput.value = Number(qtyInput.value || 0) + add;
+        var val = Math.max(1, Number(qtyInput.value || 0) + add);
+        qtyInput.value = val;
       });
     }
 
