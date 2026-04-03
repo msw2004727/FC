@@ -70,26 +70,43 @@ const InvSale = {
     }
   },
 
-  /** 掃碼後查商品、檢查庫存、加入購物車 */
+  /** 掃碼後查商品、檢查庫存、加入購物車，完成後重啟掃碼器 */
   async onScan(barcode) {
     if (!barcode) return;
     try {
       var snap = await db.collection('inv_products').where('barcode', '==', barcode).limit(1).get();
-      if (snap.empty) { InvApp.showToast('找不到此條碼的商品'); return; }
+      if (snap.empty) { InvApp.showToast('找不到此條碼的商品'); this._restartScanner(); return; }
       var doc = snap.docs[0], data = doc.data(), stock = Number(data.stock) || 0;
-      if (stock <= 0) { InvApp.showToast('庫存不足，無法加入'); return; }
+      if (stock <= 0) { InvApp.showToast('庫存不足，無法加入'); this._restartScanner(); return; }
       var existing = InvCart.items.find(function (it) { return it.barcode === barcode; });
       var qtyInCart = existing ? existing.quantity : 0;
-      if (qtyInCart + 1 > stock) { InvApp.showToast('庫存僅剩 ' + stock + ' 件，購物車已達上限'); return; }
+      if (qtyInCart + 1 > stock) { InvApp.showToast('庫存僅剩 ' + stock + ' 件，購物車已達上限'); this._restartScanner(); return; }
       if (stock <= 3) InvApp.showToast('提醒：此商品庫存僅剩 ' + stock + ' 件');
       InvCart.add({
         barcode: data.barcode, productId: doc.id,
         name: data.name || '未命名商品',
         unitPrice: Number(data.price) || 0, costPrice: Number(data.costPrice) || 0,
       });
+      InvCart.renderCartList('inv-cart-list');
     } catch (e) {
       console.error('[InvSale] onScan error:', e);
       InvApp.showToast('查詢商品失敗，請重試');
+    }
+    this._restartScanner();
+  },
+
+  /** 重啟掃碼器（銷售模式連續掃碼用） */
+  _restartScanner() {
+    if (InvScanner._containerId && InvScanner._onScanCb) {
+      var id = InvScanner._containerId;
+      var scannerId = id + '-qr';
+      var el = document.getElementById(scannerId);
+      if (el) {
+        InvScanner.start(scannerId, function(decoded) {
+          InvScanner.stop();
+          InvSale._onModeScan(decoded);
+        }, InvScanner._mode);
+      }
     }
   },
 
