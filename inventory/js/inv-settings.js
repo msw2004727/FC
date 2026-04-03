@@ -46,6 +46,13 @@ const InvSettings = {
         '</div>') +
       this._card(h4('人員管理', 'admin') + '<div id="inv-admin-list"></div>') +
       this._card(h4('商品分類管理', 'category') + '<div id="inv-category-list"></div>') +
+      this._card(h4('條碼設定', 'barcode') +
+        '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">' +
+          '<span style="font-size:13px;color:var(--text-secondary);flex-shrink:0">自動編號前綴：</span>' +
+          '<input id="inv-barcode-prefix" class="inv-input" value="' + esc(cfg.barcodePrefix || 'TX') + '" maxlength="4" style="width:70px;height:34px;font-size:14px;font-weight:600;text-align:center" />' +
+          '<span style="font-size:12px;color:var(--text-muted)">下一號：' + ((cfg.nextBarcode || 0) + 1) + '</span>' +
+          '<button class="inv-btn primary sm" onclick="InvSettings._saveBarcodePrefix()" style="font-size:12px;min-height:30px;padding:2px 12px">儲存</button>' +
+        '</div>') +
       this._card(h4('工具', 'tools') +
         '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">' +
           '<button class="inv-btn outline full sm" onclick="InvSettings._promptBarcodePrint()">條碼列印</button>' +
@@ -338,6 +345,22 @@ const InvSettings = {
     } catch (e) { console.error('[InvSettings] _moveCategory:', e); InvApp.showToast('排序失敗'); }
   },
 
+  // ══════ 條碼前綴設定 ══════
+  async _saveBarcodePrefix() {
+    var input = document.getElementById('inv-barcode-prefix');
+    var val = (input ? input.value : '').trim().toUpperCase();
+    if (!val || !/^[A-Z]{1,4}$/.test(val)) {
+      InvApp.showToast('前綴需為 1-4 位英文字母');
+      return;
+    }
+    try {
+      await this._cfgRef().update({ barcodePrefix: val });
+      InvApp.showToast('前綴已儲存：' + val);
+    } catch (e) {
+      InvApp.showToast('儲存失敗：' + (e.message || ''));
+    }
+  },
+
   // ══════ 條碼生成/列印 ══════
   _promptBarcodePrint: function () {
     var iS = 'width:100%;padding:8px;margin-bottom:10px;border:1px solid var(--border);border-radius:6px;box-sizing:border-box;';
@@ -606,6 +629,14 @@ const InvSettings = {
           + '<li>商品列表的篩選功能</li>'
           + '<li>銷售統計的分類報表</li></ul>'
           + '<p style="font-size:13px;color:var(--text-muted);margin-top:8px">可新增、刪除分類，也可用上下箭頭調整排序。</p>'
+      },
+      barcode: {
+        title: '條碼設定說明',
+        body: '<div style="background:var(--accent-subtle);border-radius:var(--radius-sm);padding:10px 12px;margin:8px 0">'
+          + '<b>自動編號前綴</b><p style="font-size:13px;margin:4px 0 0;color:var(--text-secondary)">自有商品使用「自動產生」條碼時的前綴（預設 TX）。例如前綴 TX → 產生 TX000001、TX000002…</p></div>'
+          + '<div style="background:var(--accent-subtle);border-radius:var(--radius-sm);padding:10px 12px;margin:8px 0">'
+          + '<b>下一號</b><p style="font-size:13px;margin:4px 0 0;color:var(--text-secondary)">下次自動產生時會使用的流水號。每次產生會自動遞增，不會重複。</p></div>'
+          + '<p style="font-size:13px;color:var(--text-muted);margin-top:8px">有原廠條碼的商品直接掃碼入庫即可，無需使用自動編號。自動編號適用於自製商品、散裝品或遺失條碼的商品。</p>'
       },
       tools: {
         title: '工具說明',

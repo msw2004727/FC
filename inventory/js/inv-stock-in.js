@@ -65,7 +65,10 @@ const InvStockIn = {
       '<div style="background:var(--bg-card);border-radius:12px;padding:14px;border:1px solid var(--border);box-sizing:border-box">' +
         '<h4 style="margin:0 0 10px;font-size:15px">手動添加商品</h4>' +
         '<label style="font-size:12px;color:var(--text-muted)">產品編號（條碼）<span style="color:var(--danger)">*</span></label>' +
-        '<input id="manual-barcode" class="inv-input" placeholder="輸入或自訂編號" style="height:40px;font-size:14px;margin-bottom:8px" />' +
+        '<div style="display:flex;gap:6px;margin-bottom:8px">' +
+          '<input id="manual-barcode" class="inv-input" placeholder="輸入或自訂編號" style="flex:1;height:40px;font-size:14px" />' +
+          '<button id="manual-auto" class="inv-btn outline" style="font-size:12px;white-space:nowrap;height:40px;padding:0 12px;flex-shrink:0">自動產生</button>' +
+        '</div>' +
         '<div style="display:flex;gap:8px">' +
           '<button id="manual-cancel" class="inv-btn outline full" style="font-size:14px">取消</button>' +
           '<button id="manual-next" class="inv-btn primary full" style="font-size:14px">下一步</button>' +
@@ -87,6 +90,16 @@ const InvStockIn = {
     });
     document.getElementById('manual-barcode').addEventListener('keydown', function (e) {
       if (e.key === 'Enter') document.getElementById('manual-next').click();
+    });
+    document.getElementById('manual-auto').addEventListener('click', async function () {
+      this.disabled = true; this.textContent = '產生中...';
+      try {
+        var code = await InvUtils.generateBarcode();
+        document.getElementById('manual-barcode').value = code;
+      } catch (e) {
+        InvApp.showToast('產生失敗：' + (e.message || ''));
+      }
+      this.disabled = false; this.textContent = '自動產生';
     });
     document.getElementById('manual-barcode').focus();
   },

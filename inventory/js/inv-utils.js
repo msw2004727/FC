@@ -97,6 +97,24 @@ const InvUtils = {
    * @param {object} opts  { maxSize: 400, quality: 0.8 }
    * @returns {Promise<string>} base64 dataURL
    */
+  /**
+   * 自動產生不重複條碼編號（Firestore transaction 遞增）
+   * 格式：prefix + 6 位數字（如 TX000001）
+   * @returns {Promise<string>}
+   */
+  async generateBarcode() {
+    var cfgRef = db.collection('inv_settings').doc('config');
+    var result = await db.runTransaction(async function(tx) {
+      var doc = await tx.get(cfgRef);
+      var data = doc.exists ? doc.data() : {};
+      var prefix = data.barcodePrefix || 'TX';
+      var next = (data.nextBarcode || 0) + 1;
+      tx.update(cfgRef, { nextBarcode: next });
+      return prefix + String(next).padStart(6, '0');
+    });
+    return result;
+  },
+
   cropImageSquare(file, opts) {
     opts = opts || {};
     var maxSize = opts.maxSize || 400;
