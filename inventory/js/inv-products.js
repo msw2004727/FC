@@ -187,26 +187,49 @@ const InvProducts = {
     }
 
     var al = p.lowStockAlert || 5;
-    var sc = p.stock > al ? '#4CAF50' : (p.stock > 0 ? '#f44336' : '#9e9e9e');
+    var sc = p.stock > al ? 'var(--success)' : (p.stock > 0 ? 'var(--danger)' : 'var(--text-muted)');
     var esc = InvApp.escapeHTML;
-    var row = function (label, val) { return '<div><span style="color:var(--text-muted);">' + label + '</span><br>' + val + '</div>'; };
+    var ib = '<button class="inv-info-btn" onclick="InvProducts._showProductInfo()" title="說明">?</button>';
+    var hasImg = p.image || p.imageUrl;
+    var imgHtml = hasImg
+      ? '<div style="text-align:center;margin-bottom:12px"><img src="' + esc(hasImg) + '" style="width:120px;height:120px;object-fit:cover;border-radius:var(--radius-sm);border:1px solid var(--border)"></div>'
+      : '';
+    var pill = function(label, val) {
+      if (!val || val === '-') return '';
+      return '<span style="display:inline-flex;align-items:center;gap:4px;font-size:12px;padding:3px 10px;border-radius:var(--radius-full);background:var(--bg-elevated);color:var(--text-secondary);margin:2px">'
+        + '<span style="color:var(--text-muted);font-size:11px">' + label + '</span>' + esc(val) + '</span>';
+    };
+    var pills = pill('條碼', p.barcode) + pill('品牌', p.brand) + pill('分類', p.category)
+      + pill('顏色', p.color) + pill('尺寸', p.size);
     var html =
       '<div style="padding:16px;">' +
-        '<h3 style="margin:0 0 12px;">' + esc(p.name) + '</h3>' +
-        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:14px;">' +
-          row('\u689d\u78bc', esc(p.barcode)) + row('\u54c1\u724c', esc(p.brand || '-')) +
-          row('\u5206\u985e', esc(p.category || '-')) + row('\u984f\u8272/\u5c3a\u5bf8', esc(p.color || '-') + ' / ' + esc(p.size || '-')) +
-          row('\u9032\u8ca8\u50f9', InvApp.formatCurrency(p.costPrice)) + row('\u552e\u50f9', InvApp.formatCurrency(p.price)) +
-          '<div><span style="color:var(--text-muted);">\u5eab\u5b58</span><br><span style="color:' + sc + ';font-weight:700;font-size:18px;">' +
-            (p.stock || 0) + '</span> <span style="font-size:12px;color:var(--text-muted);">/ \u4f4e\u5eab\u5b58: ' + al + '</span></div>' +
+        '<div style="display:flex;align-items:center;gap:6px;margin-bottom:12px">' +
+          '<h3 style="margin:0;flex:1">' + esc(p.name) + '</h3>' + ib +
         '</div>' +
-        '<button id="btn-edit-product" style="margin-top:16px;padding:10px 20px;border:none;border-radius:8px;background:var(--accent);color:#fff;font-size:15px;cursor:pointer;width:100%;">\u7de8\u8f2f\u5546\u54c1</button>' +
-        '<div style="display:flex;gap:8px;margin-top:8px;">' +
-          '<button id="btn-return-product" style="flex:1;padding:10px;border:1px solid var(--accent);border-radius:8px;background:var(--bg-card);color:var(--accent);font-size:14px;cursor:pointer;">\u9000\u8ca8</button>' +
-          '<button id="btn-waste-product" style="flex:1;padding:10px;border:1px solid var(--danger);border-radius:8px;background:var(--bg-card);color:var(--danger);font-size:14px;cursor:pointer;">\u5831\u5ee2</button>' +
+        imgHtml +
+        '<div style="display:flex;flex-wrap:wrap;gap:0;margin-bottom:10px">' + pills + '</div>' +
+        '<div style="display:flex;gap:8px;margin-bottom:12px">' +
+          '<div style="flex:1;padding:10px;border-radius:var(--radius-sm);background:var(--bg-elevated);text-align:center">' +
+            '<div style="font-size:11px;color:var(--text-muted)">售價</div>' +
+            '<div style="font-size:16px;font-weight:700;color:var(--accent)">' + InvApp.formatCurrency(p.price) + '</div>' +
+          '</div>' +
+          '<div style="flex:1;padding:10px;border-radius:var(--radius-sm);background:var(--bg-elevated);text-align:center">' +
+            '<div style="font-size:11px;color:var(--text-muted)">進貨價</div>' +
+            '<div style="font-size:16px;font-weight:700">' + InvApp.formatCurrency(p.costPrice) + '</div>' +
+          '</div>' +
+          '<div style="flex:1;padding:10px;border-radius:var(--radius-sm);background:var(--bg-elevated);text-align:center">' +
+            '<div style="font-size:11px;color:var(--text-muted)">庫存</div>' +
+            '<div style="font-size:16px;font-weight:700;color:' + sc + '">' + (p.stock || 0) +
+              '<span style="font-size:11px;font-weight:400;color:var(--text-muted);margin-left:2px">/ ' + al + '</span></div>' +
+          '</div>' +
         '</div>' +
-        '<h4 style="margin:20px 0 8px;">\u7570\u52d5\u6b77\u53f2</h4>' +
-        '<div id="inv-product-tx-list" style="color:var(--text-muted);font-size:14px;">\u8f09\u5165\u4e2d...</div>' +
+        '<button id="btn-edit-product" style="padding:10px 20px;border:none;border-radius:8px;background:var(--accent);color:#fff;font-size:15px;cursor:pointer;width:100%">編輯商品</button>' +
+        '<div style="display:flex;gap:8px;margin-top:8px">' +
+          '<button id="btn-return-product" style="flex:1;padding:10px;border:1px solid var(--accent);border-radius:8px;background:var(--bg-card);color:var(--accent);font-size:14px;cursor:pointer">退貨</button>' +
+          '<button id="btn-waste-product" style="flex:1;padding:10px;border:1px solid var(--danger);border-radius:8px;background:var(--bg-card);color:var(--danger);font-size:14px;cursor:pointer">報廢</button>' +
+        '</div>' +
+        '<h4 style="margin:20px 0 8px">異動歷史</h4>' +
+        '<div id="inv-product-tx-list" style="color:var(--text-muted);font-size:14px;">載入中...</div>' +
       '</div>';
     container.innerHTML = html;
 
@@ -267,6 +290,31 @@ const InvProducts = {
       console.error('[InvProducts] _loadTransactions failed:', e);
       txContainer.innerHTML = '<div style="color:var(--danger);">異動紀錄載入失敗</div>';
     }
+  },
+
+  /** 商品詳情說明彈窗（圓形 ? 按鈕） */
+  _showProductInfo() {
+    var existing = document.getElementById('inv-product-info-overlay');
+    if (existing) existing.remove();
+    var ov = document.createElement('div');
+    ov.id = 'inv-product-info-overlay';
+    ov.className = 'inv-overlay show';
+    ov.onclick = function(e) { if (e.target === ov) ov.remove(); };
+    ov.addEventListener('touchmove', function(e) { if (!e.target.closest('.inv-modal')) { e.preventDefault(); e.stopPropagation(); } }, { passive: false });
+    var s = 'background:var(--accent-subtle);border-radius:var(--radius-sm);padding:10px 12px;margin:8px 0';
+    ov.innerHTML =
+      '<div class="inv-modal" style="max-width:380px;width:90%;max-height:80vh;overflow-y:auto">' +
+        '<h3 style="margin:0 0 12px;font-size:17px;font-weight:700">商品詳情說明</h3>' +
+        '<div style="' + s + '"><b>條碼</b><p style="font-size:13px;margin:4px 0 0;color:var(--text-secondary)">商品的唯一識別編號，用於掃碼入庫、銷售、退貨等操作。</p></div>' +
+        '<div style="' + s + '"><b>售價 / 進貨價</b><p style="font-size:13px;margin:4px 0 0;color:var(--text-secondary)">售價為對外銷售價格，進貨價為成本價。兩者差額為毛利。</p></div>' +
+        '<div style="' + s + '"><b>庫存 / 低庫存門檻</b><p style="font-size:13px;margin:4px 0 0;color:var(--text-secondary)">當前庫存量。右側數字為低庫存警示門檻，低於此值時儀表板會顯示警示。</p></div>' +
+        '<div style="' + s + '"><b>編輯商品</b><p style="font-size:13px;margin:4px 0 0;color:var(--text-secondary)">修改品名、售價、進貨價、分類、圖片等資訊，也可更改產品編號。</p></div>' +
+        '<div style="' + s + '"><b>退貨</b><p style="font-size:13px;margin:4px 0 0;color:var(--text-secondary)">處理顧客退貨，可選擇退回庫存或直接報廢。會產生退貨交易紀錄。</p></div>' +
+        '<div style="' + s + '"><b>報廢</b><p style="font-size:13px;margin:4px 0 0;color:var(--text-secondary)">標記損壞、過期或遺失的商品，庫存會相應減少。</p></div>' +
+        '<div style="' + s + '"><b>異動歷史</b><p style="font-size:13px;margin:4px 0 0;color:var(--text-secondary)">顯示此商品最近 20 筆入庫、銷售、退貨、調整等紀錄，綠色為入庫、紅色為出庫。</p></div>' +
+        '<button class="inv-btn primary full" style="margin-top:12px" onclick="this.closest(\'.inv-overlay\').remove()">我知道了</button>' +
+      '</div>';
+    document.body.appendChild(ov);
   },
 
   /** 彈出編輯表單（含分類） */
