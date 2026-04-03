@@ -9,6 +9,8 @@ const InvProducts = {
   _filterCategory: '',
   _filterSort: '',
   _filterStock: '',
+  _filterGroup: '',
+  GROUP_TABS: ['商品', '活動', '器材', '其他'],
 
   /** 從 Firestore 載入所有商品到 _cache */
   async loadAll() {
@@ -89,33 +91,42 @@ const InvProducts = {
     return result;
   },
 
-  /** 渲染商品頁面（篩選列 + 列表） */
+  /** 渲染庫存頁面（頁籤 + 篩選列 + 列表） */
   async renderProductPage(containerId) {
     var container = document.getElementById(containerId);
     if (!container) return;
 
-    // 確保快取已載入
     if (!this._cache.length && !this._loaded) {
       container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted)">載入中...</div>';
       await this.loadAll();
     }
 
-    // 收集分類
+    // 收集分類（只取有商品的）
     var cats = [];
     this._cache.forEach(function(p) { if (p.category && cats.indexOf(p.category) === -1) cats.push(p.category); });
 
     var esc = InvApp.escapeHTML;
-    var fc = this._filterCategory;
-    // 合併排序+庫存為單一下拉值（sortKey 格式: sort_xxx 或 stock_xxx）
+    var fg = this._filterGroup, fc = this._filterCategory;
     var combinedVal = this._filterStock ? 'stock_' + this._filterStock : 'sort_' + (this._filterSort || '');
+    var tabs = this.GROUP_TABS;
 
-    // 分類下拉選項
-    var catOpts = '<option value=""' + (!fc ? ' selected' : '') + '>全部分類</option>';
+    // ── 頁籤列 ──
+    var tabHtml = '<div style="display:flex;border-bottom:2px solid var(--border);margin-bottom:6px">';
+    var allActive = !fg;
+    tabHtml += '<button class="inv-group-tab" data-group="" style="flex:1;padding:8px 0;border:none;background:none;font-size:13px;font-weight:' + (allActive ? '700' : '400') + ';color:' + (allActive ? 'var(--accent)' : 'var(--text-muted)') + ';cursor:pointer;border-bottom:2px solid ' + (allActive ? 'var(--accent)' : 'transparent') + ';margin-bottom:-2px">全部</button>';
+    for (var ti = 0; ti < tabs.length; ti++) {
+      var ta = fg === tabs[ti];
+      // 計算該 group 的商品數
+      var gc = this._cache.filter(function(p) { return (p.group || '商品') === tabs[ti]; }).length;
+      tabHtml += '<button class="inv-group-tab" data-group="' + esc(tabs[ti]) + '" style="flex:1;padding:8px 0;border:none;background:none;font-size:13px;font-weight:' + (ta ? '700' : '400') + ';color:' + (ta ? 'var(--accent)' : 'var(--text-muted)') + ';cursor:pointer;border-bottom:2px solid ' + (ta ? 'var(--accent)' : 'transparent') + ';margin-bottom:-2px">' + esc(tabs[ti]) + '<span style="font-size:10px;color:var(--text-muted);margin-left:2px">' + gc + '</span></button>';
+    }
+    tabHtml += '</div>';
+
+    // ── 篩選列 ──
+    var catOpts = '<option value="">全部分類</option>';
     for (var i = 0; i < cats.length; i++) {
       catOpts += '<option value="' + esc(cats[i]) + '"' + (fc === cats[i] ? ' selected' : '') + '>' + esc(cats[i]) + '</option>';
     }
-
-    // 排序下拉選項（排序 + 庫存狀態合併在一個下拉）
     var sortItems = [
       { val: 'sort_',           label: '最新' },
       { val: 'sort_name',       label: '名稱' },
@@ -130,22 +141,30 @@ const InvProducts = {
       var s = sortItems[si];
       sortOpts += '<option value="' + s.val + '"' + (combinedVal === s.val ? ' selected' : '') + '>' + esc(s.label) + '</option>';
     }
-
     var ss = 'height:34px;font-size:12px;border:1px solid var(--border);border-radius:8px;background:var(--bg-card);color:var(--text-primary);padding:0 6px;min-width:0';
+
     var html =
-      '<div style="padding:8px 10px 4px">' +
-        '<div style="display:flex;gap:6px;align-items:center">' +
+      '<div style="padding:0 10px">' + tabHtml +
+        '<div style="display:flex;gap:6px;align-items:center;margin-bottom:4px">' +
           '<input id="inv-prod-search" class="inv-input" type="search" placeholder="搜尋品名/品牌/條碼" value="' + esc(this._filterKeyword) + '" style="flex:1;min-width:0;height:34px;font-size:12px" />' +
           '<select id="inv-prod-cat" style="' + ss + ';flex-shrink:0;max-width:30%">' + catOpts + '</select>' +
           '<select id="inv-prod-sort" style="' + ss + ';flex-shrink:0;max-width:30%">' + sortOpts + '</select>' +
         '</div>' +
-        '<div id="inv-prod-count" style="font-size:11px;color:var(--text-muted);margin-top:4px;margin-bottom:2px"></div>' +
+        '<div id="inv-prod-count" style="font-size:11px;color:var(--text-muted);margin-bottom:2px"></div>' +
       '</div>' +
       '<div id="inv-prod-list" style="padding:0 10px 80px"></div>';
     container.innerHTML = html;
 
-    // 綁定事件
+    // ── 綁定事件 ──
     var self = this;
+    // 頁籤
+    container.querySelectorAll('.inv-group-tab').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        self._filterGroup = this.getAttribute('data-group');
+        self.renderProductPage(containerId);
+      });
+    });
+    // 搜尋
     var searchInput = document.getElementById('inv-prod-search');
     var _searchTimer = null;
     searchInput.addEventListener('input', function() {
@@ -171,7 +190,6 @@ const InvProducts = {
       self._refreshProductList();
     });
 
-    // 渲染列表
     this._refreshProductList();
   },
 
@@ -182,6 +200,7 @@ const InvProducts = {
       category: this._filterCategory,
       sort: this._filterSort,
       stockFilter: this._filterStock,
+      group: this._filterGroup,
     });
   },
 
@@ -197,6 +216,12 @@ const InvProducts = {
 
     var opts = options || {};
     var list = this._cache.slice();
+
+    // 群組篩選（頁籤）
+    if (opts.group) {
+      var g = opts.group;
+      list = list.filter(function (p) { return (p.group || '商品') === g; });
+    }
 
     // 搜尋篩選
     if (opts.keyword) {
@@ -271,9 +296,12 @@ const InvProducts = {
             '</div>' +
             pillsHtml +
           '</div>' +
-          '<div style="display:flex;align-items:center;gap:6px;flex-shrink:0">' +
+          '<div style="display:flex;align-items:center;gap:4px;flex-shrink:0">' +
             '<div style="background:' + stockBg + ';color:#fff;padding:2px 8px;border-radius:var(--radius-full);font-size:12px;font-weight:600;white-space:nowrap">' + stockTxt + '</div>' +
-            '<button class="inv-list-restock-btn" data-bc="' + esc(p.barcode) + '" style="width:28px;height:28px;border:1px solid var(--accent);border-radius:6px;background:var(--bg-card);color:var(--accent);font-size:16px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0" title="快速入庫">+</button>' +
+            '<button class="inv-list-restock-btn" data-bc="' + esc(p.barcode) + '" style="width:26px;height:26px;border:1px solid var(--accent);border-radius:6px;background:var(--bg-card);color:var(--accent);font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0" title="快速入庫">+</button>' +
+            '<select class="inv-list-group-sel" data-bc="' + esc(p.barcode) + '" style="height:26px;font-size:10px;border:1px solid var(--border);border-radius:6px;background:var(--bg-card);color:var(--text-secondary);padding:0 2px;min-width:0;max-width:48px;flex-shrink:0" title="分類標籤">' +
+              this._buildGroupOptions(p.group || '商品') +
+            '</select>' +
           '</div>' +
         '</div>';
     }
@@ -296,6 +324,15 @@ const InvProducts = {
         e.stopPropagation();
         var bc = this.getAttribute('data-bc');
         self._showQuickRestockPopup(bc);
+      });
+    });
+    // 群組下拉選單
+    container.querySelectorAll('.inv-list-group-sel').forEach(function(sel) {
+      sel.addEventListener('click', function(e) { e.stopPropagation(); });
+      sel.addEventListener('change', function(e) {
+        e.stopPropagation();
+        var bc = this.getAttribute('data-bc');
+        self._changeProductGroup(bc, this.value);
       });
     });
   },
@@ -631,6 +668,27 @@ const InvProducts = {
         InvApp.showToast('儲存失敗：' + (err.message || '未知錯誤'));
       }
     });
+  },
+
+  /** 產生群組下拉選項 HTML */
+  _buildGroupOptions(current) {
+    var tabs = this.GROUP_TABS;
+    var html = '';
+    for (var i = 0; i < tabs.length; i++) {
+      html += '<option value="' + InvApp.escapeHTML(tabs[i]) + '"' + (current === tabs[i] ? ' selected' : '') + '>' + InvApp.escapeHTML(tabs[i]) + '</option>';
+    }
+    return html;
+  },
+
+  /** 變更商品群組（寫 Firestore + 更新快取） */
+  async _changeProductGroup(barcode, newGroup) {
+    try {
+      await this.update(barcode, { group: newGroup });
+      InvApp.showToast('已移至「' + InvApp.escapeHTML(newGroup) + '」');
+      this._refreshProductList();
+    } catch (e) {
+      InvApp.showToast('分類變更失敗');
+    }
   },
 
   /** 列表快速入庫彈窗 */

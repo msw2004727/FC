@@ -1,7 +1,7 @@
 /** inv-app.js — routing, theme, icons, user menu, toast, announcements (SportHub topbar+bottombar) */
 const InvApp = {
   currentPage: 'page-login', pageHistory: [], _toastTimer: null,
-  _pageTitles: { 'page-dashboard':'庫存管理','page-stock-in':'掃碼入庫','page-sale':'掃碼銷售','page-products':'商品管理','page-product-detail':'商品詳情','page-transactions':'銷售紀錄','page-stocktake':'盤點','page-settings':'設定' },
+  _pageTitles: { 'page-dashboard':'庫存管理','page-stock-in':'掃碼入庫','page-sale':'掃碼銷售','page-products':'庫存','page-product-detail':'庫存詳情','page-transactions':'銷售紀錄','page-stocktake':'盤點','page-settings':'設定' },
 
   showPage(pageId) {
     if (pageId !== 'page-login' && pageId !== 'page-unauthorized' && !InvAuth.isAdmin) return;
