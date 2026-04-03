@@ -630,7 +630,7 @@ const InvProducts = {
         var preview = document.getElementById('edit-image-preview');
         if (preview) preview.innerHTML = '<img src="' + dataUrl + '" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">';
       } catch (e) {
-        InvApp.showToast('圖片處理失敗：' + (e.message || ''));
+        if (e && e.message !== 'cancelled') InvApp.showToast('圖片處理失敗：' + (e.message || ''));
       }
     });
     document.getElementById('edit-cancel').addEventListener('click', function () { overlay.remove(); });

@@ -148,10 +148,16 @@ const InvUtils = {
     return result;
   },
 
+  /**
+   * 互動式圖片裁切器 — 拖曳移動 + 滑桿縮放 + 正方形裁切框
+   * @param {File} file
+   * @param {object} opts  { maxSize: 400, quality: 0.75 }
+   * @returns {Promise<string>} base64 dataURL（用戶確認後 resolve，取消 reject）
+   */
   cropImageSquare(file, opts) {
     opts = opts || {};
     var maxSize = opts.maxSize || 400;
-    var quality = opts.quality || 0.8;
+    var quality = opts.quality || 0.75;
     return new Promise(function(resolve, reject) {
       var reader = new FileReader();
       reader.onerror = function() { reject(new Error('讀取圖片失敗')); };
@@ -159,16 +165,92 @@ const InvUtils = {
         var img = new Image();
         img.onerror = function() { reject(new Error('圖片格式無效')); };
         img.onload = function() {
-          var w = img.width, h = img.height;
-          var side = Math.min(w, h);
-          var sx = (w - side) / 2, sy = (h - side) / 2;
-          var outSize = Math.min(side, maxSize);
-          var canvas = document.createElement('canvas');
-          canvas.width = outSize;
-          canvas.height = outSize;
+          // 裁切器狀態
+          var viewSize = Math.min(window.innerWidth - 48, 320);
+          var scale = 1, ox = 0, oy = 0;
+          var minScale = viewSize / Math.max(img.width, img.height);
+          var fitScale = viewSize / Math.min(img.width, img.height);
+          scale = fitScale;
+          ox = (viewSize - img.width * scale) / 2;
+          oy = (viewSize - img.height * scale) / 2;
+
+          // Overlay
+          var ov = document.createElement('div');
+          ov.className = 'inv-overlay show';
+          ov.style.cssText = 'z-index:7000';
+          ov.innerHTML =
+            '<div style="background:var(--bg-card);border-radius:var(--radius);padding:16px;max-width:' + (viewSize + 32) + 'px;width:92%;margin:auto">' +
+              '<h3 style="margin:0 0 10px;font-size:16px;font-weight:700;text-align:center">裁切圖片</h3>' +
+              '<div id="crop-area" style="position:relative;width:' + viewSize + 'px;height:' + viewSize + 'px;margin:0 auto;overflow:hidden;background:#111;border-radius:8px;touch-action:none">' +
+                '<canvas id="crop-canvas" width="' + viewSize + '" height="' + viewSize + '" style="width:100%;height:100%"></canvas>' +
+                '<div style="position:absolute;inset:0;border:2px solid var(--accent);border-radius:8px;pointer-events:none;box-shadow:0 0 0 2000px rgba(0,0,0,.45)"></div>' +
+              '</div>' +
+              '<div style="display:flex;align-items:center;gap:8px;margin:10px 0">' +
+                '<span style="font-size:18px">🔍</span>' +
+                '<input id="crop-zoom" type="range" min="10" max="300" value="100" style="flex:1;height:4px;accent-color:var(--accent)">' +
+              '</div>' +
+              '<div style="display:flex;gap:8px">' +
+                '<button id="crop-cancel" class="inv-btn outline full">取消</button>' +
+                '<button id="crop-ok" class="inv-btn primary full">確認裁切</button>' +
+              '</div>' +
+            '</div>';
+          document.body.appendChild(ov);
+
+          var canvas = document.getElementById('crop-canvas');
           var ctx = canvas.getContext('2d');
-          ctx.drawImage(img, sx, sy, side, side, 0, 0, outSize, outSize);
-          resolve(canvas.toDataURL('image/jpeg', quality));
+          var zoomInput = document.getElementById('crop-zoom');
+          zoomInput.min = Math.round(minScale * 100);
+          zoomInput.max = Math.round(Math.max(fitScale * 3, minScale * 5) * 100);
+          zoomInput.value = Math.round(scale * 100);
+
+          function draw() {
+            ctx.clearRect(0, 0, viewSize, viewSize);
+            ctx.drawImage(img, ox, oy, img.width * scale, img.height * scale);
+          }
+          draw();
+
+          // 拖曳
+          var dragging = false, startX, startY, startOx, startOy;
+          canvas.addEventListener('pointerdown', function(e) {
+            dragging = true; startX = e.clientX; startY = e.clientY;
+            startOx = ox; startOy = oy;
+            canvas.setPointerCapture(e.pointerId);
+          });
+          canvas.addEventListener('pointermove', function(e) {
+            if (!dragging) return;
+            ox = startOx + (e.clientX - startX);
+            oy = startOy + (e.clientY - startY);
+            draw();
+          });
+          canvas.addEventListener('pointerup', function() { dragging = false; });
+          canvas.addEventListener('pointercancel', function() { dragging = false; });
+
+          // 縮放滑桿
+          zoomInput.addEventListener('input', function() {
+            var newScale = Number(this.value) / 100;
+            var cx = viewSize / 2, cy = viewSize / 2;
+            ox = cx - (cx - ox) * (newScale / scale);
+            oy = cy - (cy - oy) * (newScale / scale);
+            scale = newScale;
+            draw();
+          });
+
+          // 確認
+          document.getElementById('crop-ok').addEventListener('click', function() {
+            var out = document.createElement('canvas');
+            var outSize = Math.min(maxSize, viewSize);
+            out.width = outSize; out.height = outSize;
+            var octx = out.getContext('2d');
+            var ratio = outSize / viewSize;
+            octx.drawImage(img, ox * ratio, oy * ratio, img.width * scale * ratio, img.height * scale * ratio);
+            var dataUrl = out.toDataURL('image/jpeg', quality);
+            ov.remove();
+            resolve(dataUrl);
+          });
+          document.getElementById('crop-cancel').addEventListener('click', function() {
+            ov.remove();
+            reject(new Error('cancelled'));
+          });
         };
         img.src = reader.result;
       };
