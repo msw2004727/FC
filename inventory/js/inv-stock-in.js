@@ -28,9 +28,9 @@ const InvStockIn = {
         '<div id="inv-csv-result" style="margin-top:8px"></div>' +
       '</div>';
 
-    InvScanner.renderScannerUI('inv-stockin-scanner', this.onScan.bind(this));
-
     var self = this;
+    InvScanner._onManualAdd = function () { self.showManualAddForm(); };
+    InvScanner.renderScannerUI('inv-stockin-scanner', this.onScan.bind(this));
     document.getElementById('inv-csv-btn').addEventListener('click', function() {
       document.getElementById('inv-csv-upload').click();
     });
@@ -53,6 +53,42 @@ const InvStockIn = {
     } else {
       this.showNewProductForm(barcode);
     }
+  },
+
+  /** 手動添加表單（不掃碼，直接填寫條碼 + 商品資訊） */
+  showManualAddForm() {
+    InvScanner.stop();
+    var formArea = document.getElementById('inv-stockin-form');
+    if (!formArea) return;
+    var esc = InvApp.escapeHTML;
+    formArea.innerHTML =
+      '<div style="background:var(--bg-card);border-radius:12px;padding:14px;border:1px solid var(--border);box-sizing:border-box">' +
+        '<h4 style="margin:0 0 10px;font-size:15px">手動添加商品</h4>' +
+        '<label style="font-size:12px;color:var(--text-muted)">產品編號（條碼）<span style="color:var(--danger)">*</span></label>' +
+        '<input id="manual-barcode" class="inv-input" placeholder="輸入或自訂編號" style="height:40px;font-size:14px;margin-bottom:8px" />' +
+        '<div style="display:flex;gap:8px">' +
+          '<button id="manual-cancel" class="inv-btn outline full" style="font-size:14px">取消</button>' +
+          '<button id="manual-next" class="inv-btn primary full" style="font-size:14px">下一步</button>' +
+        '</div>' +
+      '</div>';
+    var self = this;
+    document.getElementById('manual-cancel').addEventListener('click', function () {
+      self._backToScan();
+    });
+    document.getElementById('manual-next').addEventListener('click', function () {
+      var barcode = (document.getElementById('manual-barcode').value || '').trim();
+      if (!barcode) { InvApp.showToast('請輸入產品編號'); return; }
+      var existing = InvProducts.getByBarcode(barcode);
+      if (existing) {
+        self.showRestockForm(existing);
+      } else {
+        self.showNewProductForm(barcode);
+      }
+    });
+    document.getElementById('manual-barcode').addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') document.getElementById('manual-next').click();
+    });
+    document.getElementById('manual-barcode').focus();
   },
 
   /** 補貨表單 */
