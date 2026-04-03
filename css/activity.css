@@ -133,6 +133,56 @@
   pointer-events: none;
   z-index: 3;
 }
+.tl-stamp-confirmed {
+  position: absolute;
+  right: 6%;
+  bottom: -10px;
+  width: 46px;
+  height: 46px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2.5px solid rgba(37,99,235,.72);
+  color: rgba(37,99,235,.72);
+  border-radius: 50%;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 2px;
+  text-indent: 2px;
+  transform: rotate(-12deg);
+  mix-blend-mode: multiply;
+  user-select: none;
+  pointer-events: none;
+  z-index: 3;
+}
+.tl-stamp-waitlisted {
+  position: absolute;
+  right: 6%;
+  bottom: -10px;
+  width: 46px;
+  height: 46px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2.5px solid rgba(139,92,246,.72);
+  color: rgba(139,92,246,.72);
+  border-radius: 50%;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 2px;
+  text-indent: 2px;
+  transform: rotate(-12deg);
+  mix-blend-mode: multiply;
+  user-select: none;
+  pointer-events: none;
+  z-index: 3;
+}
+/* 不公開章與報名章同時出現時，不公開往左讓位 */
+.tl-stamp-private + .tl-stamp-confirmed,
+.tl-stamp-private + .tl-stamp-waitlisted { /* stamp 本身不用調，private 要讓位 */ }
+.tl-stamp-private.tl-has-reg-stamp {
+  right: 38%;
+}
 .tl-event-gender-ribbon {
   position: absolute;
   top: 8px;

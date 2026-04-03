@@ -240,19 +240,37 @@ Object.assign(App, {
           const favHeart = this._favHeartHtml(this.isEventFavorited(e.id), 'Event', e.id);
           const iconStack = `<div class="tl-event-icons">${favHeart}${sportIcon}</div>`;
 
-          const privateStamp = e.privateEvent ? '<span class="tl-stamp-private">不公開</span>' : '';
+          // 報名狀態章
+          const isSignedUp = !isExternal && this._isUserSignedUp(e);
+          const isWaitlist = isSignedUp && this._isUserOnWaitlist(e);
+          let regStamp = '';
+          if (isWaitlist) regStamp = '<span class="tl-stamp-waitlisted">候補</span>';
+          else if (isSignedUp) regStamp = '<span class="tl-stamp-confirmed">正取</span>';
+          const privateStamp = e.privateEvent ? '<span class="tl-stamp-private' + (regStamp ? ' tl-has-reg-stamp' : '') + '">不公開</span>' : '';
+
+          // 人數計量條
+          let progressHtml = '';
+          if (!isExternal && !isEnded) {
+            const _ps = this._getEventParticipantStats(e);
+            const _pPct = _ps.maxCount > 0 ? Math.min(100, Math.round(_ps.confirmedCount / _ps.maxCount * 100)) : 0;
+            const _pClr = _pPct >= 100 ? 'var(--danger)' : _pPct >= 70 ? 'var(--warning)' : 'var(--success)';
+            const _wTag = _ps.waitlistCount > 0 ? ` · 候補 ${_ps.waitlistCount}` : '';
+            progressHtml = `<div style="display:flex;align-items:center;gap:.4rem;margin-top:.2rem"><div style="flex:1;height:5px;background:var(--border);border-radius:3px;overflow:hidden"><div style="width:${_pPct}%;height:100%;background:${_pClr};border-radius:3px"></div></div><span style="font-size:.65rem;color:var(--text-muted);white-space:nowrap">${_ps.confirmedCount}/${_ps.maxCount}人${_wTag}</span></div>`;
+          }
+
           html += `
             <div class="tl-event-row ${rowClass}${isEnded ? ' tl-past' : ''}" style="${e.pinned ? 'border:1px solid var(--warning);box-shadow:0 0 0 1px rgba(245,158,11,.12)' : ''}" onclick="App.openTimelineEventDetail('${e.id}', this)">
               ${genderRibbon}
               ${e.image ? `<div class="tl-event-thumb"><img src="${e.image}" loading="lazy"></div>` : ''}
               <div class="tl-event-info">
                 <div class="tl-event-title-row"><div class="tl-event-title">${e.pinned ? '<span style="font-size:.62rem;padding:.08rem .35rem;border-radius:999px;border:1px solid var(--warning);color:var(--warning);font-weight:700;margin-right:.3rem">置頂</span>' : ''}${escapeHTML(e.title)}${teamBadge}</div></div>
+                ${progressHtml}
                 <div class="tl-event-meta">${metaText}</div>
               </div>
               <span class="tl-event-status ${statusCss}">${statusLabel}</span>
               ${iconStack}
               <span class="tl-event-arrow">›</span>
-              ${privateStamp}
+              ${privateStamp}${regStamp}
             </div>`;
         });
 
