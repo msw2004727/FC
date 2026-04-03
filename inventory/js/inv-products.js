@@ -235,19 +235,19 @@ const InvProducts = {
               '<span style="font-size:11px;font-weight:400;color:var(--text-muted);margin-left:2px">/ ' + al + '</span></div>' +
           '</div>' +
         '</div>' +
-        '<div id="inv-quick-restock" style="margin-bottom:12px;padding:12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-card)">' +
-          '<div style="font-size:13px;color:var(--text-muted);margin-bottom:8px">快速補貨</div>' +
-          '<div style="display:flex;align-items:center;gap:8px">' +
-            '<button class="inv-qr-btn" data-delta="-1" style="width:36px;height:36px;border:1px solid var(--border);border-radius:8px;background:var(--bg-elevated);font-size:18px;cursor:pointer;color:var(--text-primary)">−</button>' +
-            '<input id="inv-quick-qty" type="number" inputmode="numeric" value="1" min="1" style="flex:1;text-align:center;font-size:20px;font-weight:700;border:1px solid var(--border);border-radius:8px;padding:6px;height:36px;box-sizing:border-box" />' +
-            '<button class="inv-qr-btn" data-delta="1" style="width:36px;height:36px;border:1px solid var(--border);border-radius:8px;background:var(--bg-elevated);font-size:18px;cursor:pointer;color:var(--text-primary)">+</button>' +
-            '<button id="inv-quick-restock-btn" style="padding:6px 16px;border:none;border-radius:8px;background:var(--accent);color:#fff;font-size:14px;font-weight:600;cursor:pointer;height:36px;white-space:nowrap">入庫</button>' +
+        '<div id="inv-quick-restock" style="margin-bottom:12px;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-card)">' +
+          '<div style="font-size:12px;color:var(--text-muted);margin-bottom:6px">快速補貨</div>' +
+          '<div style="display:flex;align-items:center;gap:0">' +
+            '<button class="inv-qr-btn" data-delta="-1" style="width:44px;height:40px;border:1px solid var(--border);border-radius:8px 0 0 8px;background:var(--bg-elevated);font-size:20px;font-weight:700;cursor:pointer;color:var(--text-primary);flex-shrink:0">−</button>' +
+            '<input id="inv-quick-qty" type="number" inputmode="numeric" value="1" min="1" class="inv-hide-spin" style="width:56px;height:40px;text-align:center;font-size:18px;font-weight:700;border-top:1px solid var(--border);border-bottom:1px solid var(--border);border-left:none;border-right:none;padding:0;box-sizing:border-box;background:var(--bg-card);color:var(--text-primary);-moz-appearance:textfield" />' +
+            '<button class="inv-qr-btn" data-delta="1" style="width:44px;height:40px;border:1px solid var(--border);border-radius:0 8px 8px 0;background:var(--bg-elevated);font-size:20px;font-weight:700;cursor:pointer;color:var(--text-primary);flex-shrink:0">+</button>' +
+            '<button id="inv-quick-restock-btn" style="margin-left:8px;padding:0 14px;border:none;border-radius:8px;background:var(--accent);color:#fff;font-size:14px;font-weight:600;cursor:pointer;height:40px;white-space:nowrap;flex-shrink:0">入庫</button>' +
           '</div>' +
           '<div style="display:flex;gap:6px;margin-top:6px">' +
-            '<button class="inv-qr-preset" data-set="5" style="flex:1;padding:4px;border:1px solid var(--accent);border-radius:6px;background:var(--bg-card);color:var(--accent);font-size:13px;cursor:pointer">+5</button>' +
-            '<button class="inv-qr-preset" data-set="10" style="flex:1;padding:4px;border:1px solid var(--accent);border-radius:6px;background:var(--bg-card);color:var(--accent);font-size:13px;cursor:pointer">+10</button>' +
-            '<button class="inv-qr-preset" data-set="20" style="flex:1;padding:4px;border:1px solid var(--accent);border-radius:6px;background:var(--bg-card);color:var(--accent);font-size:13px;cursor:pointer">+20</button>' +
-            '<button class="inv-qr-preset" data-set="50" style="flex:1;padding:4px;border:1px solid var(--accent);border-radius:6px;background:var(--bg-card);color:var(--accent);font-size:13px;cursor:pointer">+50</button>' +
+            '<button class="inv-qr-preset" data-set="5" style="flex:1;padding:5px 0;border:1px solid var(--accent);border-radius:var(--radius-full);background:var(--bg-card);color:var(--accent);font-size:12px;font-weight:600;cursor:pointer">+5</button>' +
+            '<button class="inv-qr-preset" data-set="10" style="flex:1;padding:5px 0;border:1px solid var(--accent);border-radius:var(--radius-full);background:var(--bg-card);color:var(--accent);font-size:12px;font-weight:600;cursor:pointer">+10</button>' +
+            '<button class="inv-qr-preset" data-set="20" style="flex:1;padding:5px 0;border:1px solid var(--accent);border-radius:var(--radius-full);background:var(--bg-card);color:var(--accent);font-size:12px;font-weight:600;cursor:pointer">+20</button>' +
+            '<button class="inv-qr-preset" data-set="50" style="flex:1;padding:5px 0;border:1px solid var(--accent);border-radius:var(--radius-full);background:var(--bg-card);color:var(--accent);font-size:12px;font-weight:600;cursor:pointer">+50</button>' +
           '</div>' +
         '</div>' +
         '<button id="btn-edit-product" style="padding:10px 20px;border:none;border-radius:8px;background:var(--accent);color:#fff;font-size:15px;cursor:pointer;width:100%">編輯商品</button>' +

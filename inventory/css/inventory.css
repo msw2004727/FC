@@ -30,6 +30,8 @@
 img{max-width:100%;display:block}
 button{cursor:pointer;border:none;background:none;font:inherit;color:inherit;-webkit-user-select:none;user-select:none}
 input,select,textarea{font:inherit;color:inherit}
+.inv-hide-spin::-webkit-outer-spin-button,.inv-hide-spin::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.inv-hide-spin{-moz-appearance:textfield}
 
 /* ===== 3. Body ===== */
 body{font-family:var(--font);background:var(--bg-root);color:var(--text-primary);font-size:16px;line-height:1.6;

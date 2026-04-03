@@ -61,21 +61,25 @@ const InvStockIn = {
     if (!formArea) return;
 
     var esc = InvApp.escapeHTML;
-    var qb = 'border:1px solid var(--accent);border-radius:8px;background:var(--bg-card);color:var(--accent);font-size:14px;font-weight:700;cursor:pointer;min-width:40px;padding:8px 0;text-align:center';
     formArea.innerHTML =
       '<div style="background:var(--bg-card);border-radius:12px;padding:14px;border:1px solid var(--border);box-sizing:border-box;max-width:100%;overflow:hidden">' +
         '<h4 style="margin:0 0 6px;font-size:15px">' + esc(product.name) + '</h4>' +
         '<div style="font-size:13px;color:var(--text-muted);margin-bottom:10px">目前庫存：' +
           '<span style="font-weight:700;color:var(--text-primary)">' + (product.stock || 0) + '</span> 件</div>' +
         '<label style="font-size:12px;color:var(--text-muted)">入庫數量</label>' +
-        '<div style="display:flex;align-items:center;gap:6px;margin:6px 0 10px">' +
-          '<button data-add="-1" style="' + qb + '">-1</button>' +
-          '<button data-add="-5" style="' + qb + '">-5</button>' +
+        '<div style="display:flex;align-items:center;gap:0;margin:6px 0 10px">' +
+          '<button data-add="-1" style="width:44px;height:40px;border:1px solid var(--border);border-radius:8px 0 0 8px;background:var(--bg-elevated);font-size:20px;font-weight:700;cursor:pointer;color:var(--text-primary);flex-shrink:0">−</button>' +
           '<input id="restock-qty" type="number" inputmode="numeric" value="1" min="1" ' +
-            'style="flex:1;min-width:0;padding:8px 4px;font-size:20px;font-weight:700;text-align:center;' +
-            'border:1px solid var(--border);border-radius:8px;box-sizing:border-box" />' +
-          '<button data-add="5" style="' + qb + '">+5</button>' +
-          '<button data-add="10" style="' + qb + '">+10</button>' +
+            'class="inv-hide-spin" style="width:60px;height:40px;text-align:center;font-size:18px;font-weight:700;' +
+            'border-top:1px solid var(--border);border-bottom:1px solid var(--border);border-left:none;border-right:none;' +
+            'padding:0;box-sizing:border-box;background:var(--bg-card);color:var(--text-primary);-moz-appearance:textfield" />' +
+          '<button data-add="1" style="width:44px;height:40px;border:1px solid var(--border);border-radius:0 8px 8px 0;background:var(--bg-elevated);font-size:20px;font-weight:700;cursor:pointer;color:var(--text-primary);flex-shrink:0">+</button>' +
+        '</div>' +
+        '<div style="display:flex;gap:6px;margin-bottom:12px">' +
+          '<button data-add="5" style="flex:1;padding:5px 0;border:1px solid var(--accent);border-radius:var(--radius-full);background:var(--bg-card);color:var(--accent);font-size:12px;font-weight:600;cursor:pointer">+5</button>' +
+          '<button data-add="10" style="flex:1;padding:5px 0;border:1px solid var(--accent);border-radius:var(--radius-full);background:var(--bg-card);color:var(--accent);font-size:12px;font-weight:600;cursor:pointer">+10</button>' +
+          '<button data-add="20" style="flex:1;padding:5px 0;border:1px solid var(--accent);border-radius:var(--radius-full);background:var(--bg-card);color:var(--accent);font-size:12px;font-weight:600;cursor:pointer">+20</button>' +
+          '<button data-add="50" style="flex:1;padding:5px 0;border:1px solid var(--accent);border-radius:var(--radius-full);background:var(--bg-card);color:var(--accent);font-size:12px;font-weight:600;cursor:pointer">+50</button>' +
         '</div>' +
         '<div style="display:flex;gap:8px">' +
           '<button id="restock-cancel" style="flex:1;padding:10px;border:1px solid var(--border);border-radius:8px;' +
