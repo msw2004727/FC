@@ -367,6 +367,7 @@ const InvProducts = {
         '<div style="display:flex;gap:8px;margin-top:8px">' +
           '<button id="btn-return-product" style="flex:1;padding:10px;border:1px solid var(--accent);border-radius:8px;background:var(--bg-card);color:var(--accent);font-size:14px;cursor:pointer">退貨</button>' +
           '<button id="btn-waste-product" style="flex:1;padding:10px;border:1px solid var(--danger);border-radius:8px;background:var(--bg-card);color:var(--danger);font-size:14px;cursor:pointer">報廢</button>' +
+          '<button id="btn-print-barcode" style="flex:1;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--bg-card);color:var(--text-secondary);font-size:14px;cursor:pointer">列印條碼</button>' +
         '</div>' +
         '<h4 style="margin:20px 0 8px">異動歷史</h4>' +
         '<div id="inv-product-tx-list" style="color:var(--text-muted);font-size:14px;">載入中...</div>' +
@@ -425,6 +426,15 @@ const InvProducts = {
     if (wasteBtn) wasteBtn.addEventListener('click', function () {
       if (typeof InvSale !== 'undefined' && InvSale.showWasteForm) InvSale.showWasteForm(barcode);
       else InvApp.showToast('報廢模組未載入');
+    });
+    // 列印條碼按鈕
+    var printBtn = document.getElementById('btn-print-barcode');
+    if (printBtn) printBtn.addEventListener('click', function () {
+      if (typeof InvSettings !== 'undefined' && InvSettings.showBarcodePrint) {
+        InvSettings.showBarcodePrint(barcode, p.name, p.sellPrice || p.price || 0);
+      } else {
+        InvApp.showToast('列印模組未載入');
+      }
     });
 
     // 載入異動歷史
