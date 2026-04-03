@@ -5,6 +5,10 @@
 const InvProducts = {
   _cache: [],
   _loaded: false,
+  _filterKeyword: '',
+  _filterCategory: '',
+  _filterSort: '',
+  _filterStock: '',
 
   /** 從 Firestore 載入所有商品到 _cache */
   async loadAll() {
@@ -85,6 +89,102 @@ const InvProducts = {
     return result;
   },
 
+  /** 渲染商品頁面（篩選列 + 列表） */
+  async renderProductPage(containerId) {
+    var container = document.getElementById(containerId);
+    if (!container) return;
+
+    // 確保快取已載入
+    if (!this._cache.length && !this._loaded) {
+      container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted)">載入中...</div>';
+      await this.loadAll();
+    }
+
+    // 收集分類
+    var cats = [];
+    this._cache.forEach(function(p) { if (p.category && cats.indexOf(p.category) === -1) cats.push(p.category); });
+
+    var esc = InvApp.escapeHTML;
+    var fk = this._filterKeyword, fc = this._filterCategory, fs = this._filterSort, fst = this._filterStock;
+
+    var html = '<div style="padding:8px 10px 4px">';
+    // 搜尋框
+    html += '<input id="inv-prod-search" class="inv-input" type="search" placeholder="搜尋品名 / 品牌 / 條碼" value="' + esc(fk) + '" style="height:36px;font-size:13px;margin-bottom:8px" />';
+    // 分類膠囊
+    if (cats.length) {
+      html += '<div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:8px">';
+      var allActive = !fc ? ' inv-pill-active' : '';
+      html += '<button class="inv-filter-cat' + allActive + '" data-cat="" style="padding:3px 10px;border-radius:var(--radius-full);border:1px solid ' + (!fc ? 'var(--accent)' : 'var(--border)') + ';background:' + (!fc ? 'var(--accent)' : 'var(--bg-card)') + ';color:' + (!fc ? '#fff' : 'var(--text-muted)') + ';font-size:12px;cursor:pointer">全部</button>';
+      for (var i = 0; i < cats.length; i++) {
+        var active = fc === cats[i];
+        html += '<button class="inv-filter-cat" data-cat="' + esc(cats[i]) + '" style="padding:3px 10px;border-radius:var(--radius-full);border:1px solid ' + (active ? 'var(--accent)' : 'var(--border)') + ';background:' + (active ? 'var(--accent)' : 'var(--bg-card)') + ';color:' + (active ? '#fff' : 'var(--text-muted)') + ';font-size:12px;cursor:pointer">' + esc(cats[i]) + '</button>';
+      }
+      html += '</div>';
+    }
+    // 排序 + 庫存篩選
+    html += '<div style="display:flex;gap:6px;margin-bottom:8px">';
+    var sorts = [['', '最新'], ['name', '名稱'], ['stock', '庫存少→多']];
+    for (var si = 0; si < sorts.length; si++) {
+      var sk = sorts[si][0], sl = sorts[si][1], sa = fs === sk;
+      html += '<button class="inv-filter-sort" data-sort="' + sk + '" style="padding:3px 8px;border-radius:var(--radius-full);border:1px solid ' + (sa ? 'var(--accent)' : 'var(--border)') + ';background:' + (sa ? 'var(--accent)' : 'var(--bg-card)') + ';color:' + (sa ? '#fff' : 'var(--text-muted)') + ';font-size:11px;cursor:pointer">' + sl + '</button>';
+    }
+    html += '<div style="flex:1"></div>';
+    var stocks = [['', '全部'], ['low', '低庫存'], ['zero', '缺貨'], ['ok', '充足']];
+    for (var sti = 0; sti < stocks.length; sti++) {
+      var stk = stocks[sti][0], stl = stocks[sti][1], sta = fst === stk;
+      html += '<button class="inv-filter-stock" data-stock="' + stk + '" style="padding:3px 8px;border-radius:var(--radius-full);border:1px solid ' + (sta ? 'var(--warning)' : 'var(--border)') + ';background:' + (sta ? 'var(--warning)' : 'var(--bg-card)') + ';color:' + (sta ? '#fff' : 'var(--text-muted)') + ';font-size:11px;cursor:pointer">' + stl + '</button>';
+    }
+    html += '</div>';
+    // 結果計數 + 列表容器
+    html += '<div id="inv-prod-count" style="font-size:12px;color:var(--text-muted);margin-bottom:4px"></div>';
+    html += '</div>';
+    html += '<div id="inv-prod-list" style="padding:0 10px 80px"></div>';
+    container.innerHTML = html;
+
+    // 綁定事件
+    var self = this;
+    var searchInput = document.getElementById('inv-prod-search');
+    var _searchTimer = null;
+    searchInput.addEventListener('input', function() {
+      clearTimeout(_searchTimer);
+      _searchTimer = setTimeout(function() {
+        self._filterKeyword = searchInput.value.trim();
+        self._refreshProductList();
+      }, 250);
+    });
+    container.querySelectorAll('.inv-filter-cat').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        self._filterCategory = this.getAttribute('data-cat');
+        self.renderProductPage(containerId);
+      });
+    });
+    container.querySelectorAll('.inv-filter-sort').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        self._filterSort = this.getAttribute('data-sort');
+        self.renderProductPage(containerId);
+      });
+    });
+    container.querySelectorAll('.inv-filter-stock').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        self._filterStock = this.getAttribute('data-stock');
+        self.renderProductPage(containerId);
+      });
+    });
+
+    // 渲染列表
+    this._refreshProductList();
+  },
+
+  /** 根據當前篩選條件刷新商品列表 */
+  _refreshProductList() {
+    this.renderProductList('inv-prod-list', {
+      keyword: this._filterKeyword,
+      category: this._filterCategory,
+      sort: this._filterSort,
+      stockFilter: this._filterStock,
+    });
+  },
+
   /** 渲染商品列表 */
   async renderProductList(containerId, options) {
     var container = document.getElementById(containerId);
@@ -110,6 +210,17 @@ const InvProducts = {
     if (opts.category) {
       list = list.filter(function (p) { return p.category === opts.category; });
     }
+    if (opts.stockFilter === 'low') {
+      list = list.filter(function (p) { var a = p.lowStockAlert || 5; return (p.stock || 0) > 0 && (p.stock || 0) <= a; });
+    } else if (opts.stockFilter === 'zero') {
+      list = list.filter(function (p) { return (p.stock || 0) === 0; });
+    } else if (opts.stockFilter === 'ok') {
+      list = list.filter(function (p) { var a = p.lowStockAlert || 5; return (p.stock || 0) > a; });
+    }
+
+    // 更新計數
+    var countEl = document.getElementById('inv-prod-count');
+    if (countEl) countEl.textContent = '共 ' + list.length + ' 件商品' + (list.length !== this._cache.length ? '（篩選自 ' + this._cache.length + ' 件）' : '');
 
     // 排序
     if (opts.sort === 'name') {
