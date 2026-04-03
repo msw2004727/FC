@@ -13,6 +13,12 @@ const InvTransactions = {
     var container = document.getElementById('inv-transactions-content');
     if (!container) return;
 
+    var _hp = typeof InvAuth !== 'undefined' && InvAuth.hasPerm ? InvAuth.hasPerm.bind(InvAuth) : function() { return true; };
+    if (!_hp('transactions.view')) {
+      container.innerHTML = '<div style="text-align:center;padding:60px 16px;color:var(--text-muted);font-size:15px;">無權限查看交易紀錄</div>';
+      return;
+    }
+
     // 預設本月起迄
     var now = new Date();
     var pad = function (n) { return String(n).padStart(2, '0'); };
@@ -70,9 +76,12 @@ const InvTransactions = {
     this._list = await this.loadTransactions(this._startDate, this._endDate, this._type);
     var wrap = document.getElementById('inv-tx-list');
     if (!wrap) return;
-    wrap.innerHTML = this.renderList(this._list) + this.renderSummary(this._list) +
-      '<button class="inv-btn outline full" onclick="InvTransactions._exportCSV()" ' +
-        'style="margin:12px 0 24px;">匯出 CSV</button>';
+    var _hp = typeof InvAuth !== 'undefined' && InvAuth.hasPerm ? InvAuth.hasPerm.bind(InvAuth) : function() { return true; };
+    var summaryHtml = _hp('transactions.reports') ? this.renderSummary(this._list) : '';
+    var exportHtml = _hp('transactions.export')
+      ? '<button class="inv-btn outline full" onclick="InvTransactions._exportCSV()" style="margin:12px 0 24px;">匯出 CSV</button>'
+      : '';
+    wrap.innerHTML = this.renderList(this._list) + summaryHtml + exportHtml;
     // 綁定展開詳情
     var cards = wrap.querySelectorAll('[data-tx-id]');
     for (var i = 0; i < cards.length; i++) {

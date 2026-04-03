@@ -264,6 +264,9 @@ const InvProducts = {
     }
 
     var esc = InvApp.escapeHTML;
+    var _hp = typeof InvAuth !== 'undefined' && InvAuth.hasPerm ? InvAuth.hasPerm.bind(InvAuth) : function() { return true; };
+    var canRestock = _hp('inventory.quick_restock');
+    var canChangeGroup = _hp('inventory.change_group');
     var html = '';
     for (var i = 0; i < list.length; i++) {
       var p = list[i];
@@ -285,6 +288,15 @@ const InvProducts = {
           pills.map(function(t) { return '<span style="font-size:11px;padding:1px 7px;border-radius:var(--radius-full);background:var(--bg-elevated);color:var(--text-secondary);white-space:nowrap">' + t + '</span>'; }).join('') +
           '</div>'
         : '';
+      var actionBtns = '<div style="background:' + stockBg + ';color:#fff;padding:2px 8px;border-radius:var(--radius-full);font-size:12px;font-weight:600;white-space:nowrap">' + stockTxt + '</div>';
+      if (canRestock) {
+        actionBtns += '<button class="inv-list-restock-btn" data-bc="' + esc(p.barcode) + '" style="width:26px;height:26px;border:1px solid var(--accent);border-radius:6px;background:var(--bg-card);color:var(--accent);font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0" title="快速入庫">+</button>';
+      }
+      if (canChangeGroup) {
+        actionBtns += '<select class="inv-list-group-sel" data-bc="' + esc(p.barcode) + '" style="height:26px;font-size:10px;border:1px solid var(--border);border-radius:6px;background:var(--bg-card);color:var(--text-secondary);padding:0 2px;min-width:0;max-width:48px;flex-shrink:0" title="分類標籤">' +
+              this._buildGroupOptions(p.group || '商品') +
+            '</select>';
+      }
       html +=
         '<div class="inv-product-card" data-barcode="' + esc(p.barcode) + '" ' +
           'style="display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:6px;cursor:pointer;background:var(--bg-card)">' +
@@ -297,11 +309,7 @@ const InvProducts = {
             pillsHtml +
           '</div>' +
           '<div style="display:flex;align-items:center;gap:4px;flex-shrink:0">' +
-            '<div style="background:' + stockBg + ';color:#fff;padding:2px 8px;border-radius:var(--radius-full);font-size:12px;font-weight:600;white-space:nowrap">' + stockTxt + '</div>' +
-            '<button class="inv-list-restock-btn" data-bc="' + esc(p.barcode) + '" style="width:26px;height:26px;border:1px solid var(--accent);border-radius:6px;background:var(--bg-card);color:var(--accent);font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0" title="快速入庫">+</button>' +
-            '<select class="inv-list-group-sel" data-bc="' + esc(p.barcode) + '" style="height:26px;font-size:10px;border:1px solid var(--border);border-radius:6px;background:var(--bg-card);color:var(--text-secondary);padding:0 2px;min-width:0;max-width:48px;flex-shrink:0" title="分類標籤">' +
-              this._buildGroupOptions(p.group || '商品') +
-            '</select>' +
+            actionBtns +
           '</div>' +
         '</div>';
     }
@@ -384,7 +392,11 @@ const InvProducts = {
             '<div style="font-size:16px;font-weight:700;color:' + sc + '">' + (p.stock || 0) +
               '<span style="font-size:11px;font-weight:400;color:var(--text-muted);margin-left:2px">/ ' + al + '</span></div>' +
           '</div>' +
-        '</div>' +
+        '</div>';
+    var _hp = typeof InvAuth !== 'undefined' && InvAuth.hasPerm ? InvAuth.hasPerm.bind(InvAuth) : function() { return true; };
+    var quickRestockHtml = '';
+    if (_hp('inventory.quick_restock')) {
+      quickRestockHtml =
         '<div id="inv-quick-restock" style="margin-bottom:12px;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-card)">' +
           '<div style="font-size:12px;color:var(--text-muted);margin-bottom:6px">快速補貨</div>' +
           '<div style="display:flex;align-items:center;gap:0">' +
@@ -399,13 +411,18 @@ const InvProducts = {
             '<button class="inv-qr-preset" data-set="20" style="flex:1;padding:5px 0;border:1px solid var(--accent);border-radius:var(--radius-full);background:var(--bg-card);color:var(--accent);font-size:12px;font-weight:600;cursor:pointer">+20</button>' +
             '<button class="inv-qr-preset" data-set="50" style="flex:1;padding:5px 0;border:1px solid var(--accent);border-radius:var(--radius-full);background:var(--bg-card);color:var(--accent);font-size:12px;font-weight:600;cursor:pointer">+50</button>' +
           '</div>' +
-        '</div>' +
-        '<button id="btn-edit-product" style="padding:10px 20px;border:none;border-radius:8px;background:var(--accent);color:#fff;font-size:15px;cursor:pointer;width:100%">編輯商品</button>' +
-        '<div style="display:flex;gap:8px;margin-top:8px">' +
-          '<button id="btn-return-product" style="flex:1;padding:10px;border:1px solid var(--accent);border-radius:8px;background:var(--bg-card);color:var(--accent);font-size:14px;cursor:pointer">退貨</button>' +
-          '<button id="btn-waste-product" style="flex:1;padding:10px;border:1px solid var(--danger);border-radius:8px;background:var(--bg-card);color:var(--danger);font-size:14px;cursor:pointer">報廢</button>' +
-          '<button id="btn-print-barcode" style="flex:1;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--bg-card);color:var(--text-secondary);font-size:14px;cursor:pointer">列印條碼</button>' +
-        '</div>' +
+        '</div>';
+    }
+    html += quickRestockHtml;
+    var editBtnHtml = _hp('inventory.edit')
+      ? '<button id="btn-edit-product" style="padding:10px 20px;border:none;border-radius:8px;background:var(--accent);color:#fff;font-size:15px;cursor:pointer;width:100%">編輯商品</button>'
+      : '';
+    var actionRow = '';
+    if (_hp('inventory.return')) actionRow += '<button id="btn-return-product" style="flex:1;padding:10px;border:1px solid var(--accent);border-radius:8px;background:var(--bg-card);color:var(--accent);font-size:14px;cursor:pointer">退貨</button>';
+    if (_hp('inventory.waste')) actionRow += '<button id="btn-waste-product" style="flex:1;padding:10px;border:1px solid var(--danger);border-radius:8px;background:var(--bg-card);color:var(--danger);font-size:14px;cursor:pointer">報廢</button>';
+    actionRow += '<button id="btn-print-barcode" style="flex:1;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--bg-card);color:var(--text-secondary);font-size:14px;cursor:pointer">列印條碼</button>';
+    html += editBtnHtml +
+        '<div style="display:flex;gap:8px;margin-top:8px">' + actionRow + '</div>' +
         '<h4 style="margin:20px 0 8px">異動歷史</h4>' +
         '<div id="inv-product-tx-list" style="color:var(--text-muted);font-size:14px;">載入中...</div>' +
       '</div>';
@@ -542,6 +559,8 @@ const InvProducts = {
 
   /** 彈出編輯表單（含分類） */
   async _showEditForm(barcode) {
+    var _hp = typeof InvAuth !== 'undefined' && InvAuth.hasPerm ? InvAuth.hasPerm.bind(InvAuth) : function() { return true; };
+    if (!_hp('inventory.edit')) { InvApp.showToast('權限不足'); return; }
     var p = this.getByBarcode(barcode);
     if (!p) return;
     var esc = InvApp.escapeHTML;
@@ -565,7 +584,7 @@ const InvProducts = {
       '<div class="inv-modal" style="max-width:400px;width:92%;max-height:80vh;overflow-y:auto">' +
         '<h3 style="margin:0 0 16px;font-size:17px;font-weight:700">編輯商品</h3>' +
         '<label ' + ls + '>產品編號（條碼）</label>' +
-        '<input id="edit-barcode" class="inv-input" value="' + esc(barcode) + '" style="height:40px;font-size:14px;margin-bottom:4px" />' +
+        '<input id="edit-barcode" class="inv-input" value="' + esc(barcode) + '"' + (_hp('inventory.edit_barcode') ? '' : ' readonly style="height:40px;font-size:14px;margin-bottom:4px;opacity:0.6;cursor:not-allowed"') + (_hp('inventory.edit_barcode') ? ' style="height:40px;font-size:14px;margin-bottom:4px"' : '') + ' />' +
         '<div style="font-size:11px;color:var(--text-muted);margin-bottom:10px">修改編號會建立新文件並刪除舊文件，歷史交易紀錄仍保留原編號。</div>' +
         '<label ' + ls + '>商品圖片</label>' +
         '<input type="file" id="edit-image-input" accept="image/*" hidden />' +
@@ -739,7 +758,7 @@ const InvProducts = {
         });
         overlay.remove();
         InvApp.showToast(esc(p.name) + ' 入庫 +' + qty + '，庫存 ' + result.afterStock);
-        self.renderProductList('inv-products-content');
+        self._refreshProductList();
       } catch (e) {
         InvApp.showToast('入庫失敗：' + (e.message || ''));
         this.disabled = false; this.textContent = '確認入庫';

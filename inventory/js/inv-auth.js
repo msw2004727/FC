@@ -139,6 +139,8 @@ const InvAuth = {
       if (adminUids.indexOf(uid) !== -1) {
         this.isAdmin = true;
         this._resolveRole(uid, cfg);
+        // Load custom role permissions
+        if (typeof InvPermissions !== 'undefined') await InvPermissions.loadCustomPerms();
         if (this.currentUser) this.currentUser.uid = uid;
         InvApp.updateUserUI(this.currentUser);
         InvApp.showPage('page-dashboard');
@@ -178,5 +180,11 @@ const InvAuth = {
   /** 是否可看進貨價（工程師 + 負責人） */
   canSeeCost() {
     return this._role === this.ROLE_OWNER || this._role === this.ROLE_MANAGER;
+  },
+
+  /** 權限檢查便捷方法 */
+  hasPerm(code) {
+    if (this._role === this.ROLE_OWNER) return true;
+    return typeof InvPermissions !== 'undefined' ? InvPermissions.hasPerm(code) : true;
   },
 };

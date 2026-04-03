@@ -11,46 +11,54 @@ const InvStockIn = {
     var container = document.getElementById('inv-stockin-content');
     if (!container) return;
 
+    var _hp = typeof InvAuth !== 'undefined' && InvAuth.hasPerm ? InvAuth.hasPerm.bind(InvAuth) : function() { return true; };
+    var csvSectionHtml = '';
+    if (_hp('stockin.csv')) {
+      csvSectionHtml =
+        '<div style="padding:0 16px 16px;border-top:1px solid var(--border);margin-top:8px">' +
+          '<div style="font-size:14px;font-weight:600;margin:12px 0 8px">CSV 批次入庫</div>' +
+          '<div style="font-size:12px;color:var(--text-muted);margin-bottom:8px">格式：每行一筆，條碼,數量（如 <code>4710088</code>,<code>10</code>）<br>第一行若為標題行會自動跳過</div>' +
+          '<input type="file" id="inv-csv-upload" accept=".csv,.txt" hidden />' +
+          '<div style="display:flex;gap:8px">' +
+            '<button id="inv-csv-btn" class="inv-btn outline full" style="font-size:14px">選擇 CSV 檔案</button>' +
+            '<button id="inv-csv-tpl" class="inv-btn outline" style="font-size:12px;white-space:nowrap;color:var(--text-muted)">下載範本</button>' +
+          '</div>' +
+          '<div id="inv-csv-result" style="margin-top:8px"></div>' +
+        '</div>';
+    }
     container.innerHTML =
       '<div id="inv-stockin-scanner" style="margin-bottom:16px;"></div>' +
       '<div id="inv-stockin-form"></div>' +
       '<div id="inv-stockin-batch" style="text-align:center;padding:12px;font-size:14px;color:var(--text-muted);">' +
         this._batchLabel() +
       '</div>' +
-      '<div style="padding:0 16px 16px;border-top:1px solid var(--border);margin-top:8px">' +
-        '<div style="font-size:14px;font-weight:600;margin:12px 0 8px">CSV 批次入庫</div>' +
-        '<div style="font-size:12px;color:var(--text-muted);margin-bottom:8px">格式：每行一筆，條碼,數量（如 <code>4710088</code>,<code>10</code>）<br>第一行若為標題行會自動跳過</div>' +
-        '<input type="file" id="inv-csv-upload" accept=".csv,.txt" hidden />' +
-        '<div style="display:flex;gap:8px">' +
-          '<button id="inv-csv-btn" class="inv-btn outline full" style="font-size:14px">選擇 CSV 檔案</button>' +
-          '<button id="inv-csv-tpl" class="inv-btn outline" style="font-size:12px;white-space:nowrap;color:var(--text-muted)">下載範本</button>' +
-        '</div>' +
-        '<div id="inv-csv-result" style="margin-top:8px"></div>' +
-      '</div>';
+      csvSectionHtml;
 
     var self = this;
     InvScanner._onManualAdd = function () { self.showManualAddForm(); };
     InvScanner.renderScannerUI('inv-stockin-scanner', this.onScan.bind(this));
-    document.getElementById('inv-csv-btn').addEventListener('click', function() {
-      document.getElementById('inv-csv-upload').click();
-    });
-    document.getElementById('inv-csv-upload').addEventListener('change', function() {
+    var csvBtn = document.getElementById('inv-csv-btn');
+    var csvUpload = document.getElementById('inv-csv-upload');
+    var csvTpl = document.getElementById('inv-csv-tpl');
+    if (csvBtn) csvBtn.addEventListener('click', function() { csvUpload.click(); });
+    if (csvUpload) csvUpload.addEventListener('change', function() {
       var file = this.files && this.files[0];
       if (file) self._handleCSVImport(file);
       this.value = '';
     });
-    document.getElementById('inv-csv-tpl').addEventListener('click', function() {
-      self._downloadCSVTemplate();
-    });
+    if (csvTpl) csvTpl.addEventListener('click', function() { self._downloadCSVTemplate(); });
   },
 
   /** 掃碼回呼 */
   async onScan(barcode) {
     InvScanner.stop();
+    var _hp = typeof InvAuth !== 'undefined' && InvAuth.hasPerm ? InvAuth.hasPerm.bind(InvAuth) : function() { return true; };
     var product = InvProducts.getByBarcode(barcode);
     if (product) {
+      if (!_hp('stockin.restock')) { InvApp.showToast('權限不足'); this._backToScan(); return; }
       this.showRestockForm(product);
     } else {
+      if (!_hp('stockin.create')) { InvApp.showToast('權限不足'); this._backToScan(); return; }
       this.showNewProductForm(barcode);
     }
   },
@@ -81,10 +89,13 @@ const InvStockIn = {
     document.getElementById('manual-next').addEventListener('click', function () {
       var barcode = (document.getElementById('manual-barcode').value || '').trim();
       if (!barcode) { InvApp.showToast('請輸入產品編號'); return; }
+      var _hp2 = typeof InvAuth !== 'undefined' && InvAuth.hasPerm ? InvAuth.hasPerm.bind(InvAuth) : function() { return true; };
       var existing = InvProducts.getByBarcode(barcode);
       if (existing) {
+        if (!_hp2('stockin.restock')) { InvApp.showToast('權限不足'); return; }
         self.showRestockForm(existing);
       } else {
+        if (!_hp2('stockin.create')) { InvApp.showToast('權限不足'); return; }
         self.showNewProductForm(barcode);
       }
     });

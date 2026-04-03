@@ -5,6 +5,12 @@ const InvApp = {
 
   showPage(pageId) {
     if (pageId !== 'page-login' && pageId !== 'page-unauthorized' && !InvAuth.isAdmin) return;
+    // Permission checks for page navigation
+    var _hp = typeof InvAuth !== 'undefined' && InvAuth.hasPerm ? InvAuth.hasPerm.bind(InvAuth) : function() { return true; };
+    if (pageId === 'page-stock-in' && !_hp('nav.stockin')) { this.showToast('權限不足'); return; }
+    if (pageId === 'page-transactions' && !_hp('nav.transactions')) { this.showToast('權限不足'); return; }
+    if (pageId === 'page-settings' && !_hp('settings.entry')) { this.showToast('權限不足'); return; }
+    if (pageId === 'page-stocktake' && !_hp('stocktake.start') && !_hp('stocktake.scan')) { this.showToast('權限不足'); return; }
     document.querySelectorAll('.inv-page').forEach(function(p) { p.classList.remove('active'); });
     var target = document.getElementById(pageId);
     if (target) target.classList.add('active');
@@ -12,6 +18,15 @@ const InvApp = {
     var tb = document.getElementById('inv-topbar'), bb = document.getElementById('inv-bottombar');
     if (tb) tb.style.display = isChrome ? 'none' : '';
     if (bb) bb.style.display = isChrome ? 'none' : '';
+    // Hide/show bottom tabs based on permissions
+    if (!isChrome && bb) {
+      var tabs = bb.querySelectorAll('.inv-tab');
+      tabs.forEach(function(tab) {
+        var page = tab.getAttribute('data-page');
+        if (page === 'page-stock-in') tab.style.display = _hp('nav.stockin') ? '' : 'none';
+        else if (page === 'page-transactions') tab.style.display = _hp('nav.transactions') ? '' : 'none';
+      });
+    }
     document.body.style.paddingTop = isChrome ? '0' : '56px';
     document.body.style.paddingBottom = isChrome ? '0' : '64px';
     if (this.currentPage && this.currentPage !== pageId) this.pageHistory.push(this.currentPage);

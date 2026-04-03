@@ -99,8 +99,11 @@ const InvSale = {
       html += '<button class="' + cls + '" onclick="InvSale.setDiscount(\'' +
         p.type + '\',' + p.value + ')">' + esc(p.label) + '</button>';
     }
-    var amtCls = this._discountType === 'amount' ? ' active' : '';
-    html += '<button class="' + amtCls + '" onclick="InvSale.promptCustomDiscount()">自訂金額</button>';
+    var _hp = typeof InvAuth !== 'undefined' && InvAuth.hasPerm ? InvAuth.hasPerm.bind(InvAuth) : function() { return true; };
+    if (_hp('sale.custom_discount')) {
+      var amtCls = this._discountType === 'amount' ? ' active' : '';
+      html += '<button class="' + amtCls + '" onclick="InvSale.promptCustomDiscount()">自訂金額</button>';
+    }
     html += '</div>';
     if (this._discountType) {
       var saved = InvCart.getSubtotal() - this._calcTotal();
@@ -183,6 +186,8 @@ const InvSale = {
 
   /** Firestore Transaction 結帳 */
   async checkout() {
+    var _hp = typeof InvAuth !== 'undefined' && InvAuth.hasPerm ? InvAuth.hasPerm.bind(InvAuth) : function() { return true; };
+    if (!_hp('sale.checkout')) { InvApp.showToast('權限不足'); return; }
     if (InvCart.items.length === 0) { InvApp.showToast('購物車是空的'); return; }
     if (!navigator.onLine) { InvApp.showToast('無網路連線，無法結帳'); return; }
     var btn = document.getElementById('inv-checkout-confirm');
@@ -248,14 +253,20 @@ const InvSale = {
 
   /** 贈品 / 員工內購 區段 HTML */
   _renderSaleFlags() {
+    var _hp = typeof InvAuth !== 'undefined' && InvAuth.hasPerm ? InvAuth.hasPerm.bind(InvAuth) : function() { return true; };
     var giftCk = this._isGift ? ' checked' : '';
     var staffCk = this._isStaffPurchase ? ' checked' : '';
-    return '<div style="margin-bottom:12px;display:flex;gap:16px;align-items:center;">' +
-      '<label style="display:flex;align-items:center;gap:6px;font-size:14px;cursor:pointer;">' +
-        '<input type="checkbox" onchange="InvSale.toggleGift(this.checked)"' + giftCk + ' /> 贈品出庫</label>' +
-      '<label style="display:flex;align-items:center;gap:6px;font-size:14px;cursor:pointer;">' +
-        '<input type="checkbox" onchange="InvSale.toggleStaff(this.checked)"' + staffCk + ' /> 員工內購</label>' +
-      '</div>';
+    var flagsHtml = '';
+    if (_hp('sale.gift')) {
+      flagsHtml += '<label style="display:flex;align-items:center;gap:6px;font-size:14px;cursor:pointer;">' +
+        '<input type="checkbox" onchange="InvSale.toggleGift(this.checked)"' + giftCk + ' /> 贈品出庫</label>';
+    }
+    if (_hp('sale.staff_purchase')) {
+      flagsHtml += '<label style="display:flex;align-items:center;gap:6px;font-size:14px;cursor:pointer;">' +
+        '<input type="checkbox" onchange="InvSale.toggleStaff(this.checked)"' + staffCk + ' /> 員工內購</label>';
+    }
+    if (!flagsHtml) return '';
+    return '<div style="margin-bottom:12px;display:flex;gap:16px;align-items:center;">' + flagsHtml + '</div>';
   },
   toggleGift(v) { this._isGift = !!v; this.showCheckout(); },
   toggleStaff(v) { this._isStaffPurchase = !!v; this.showCheckout(); },

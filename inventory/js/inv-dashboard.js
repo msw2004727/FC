@@ -74,14 +74,19 @@ const InvDashboard = {
 
     // --- 組裝 HTML ---
     var ib = function(key) { return '<button class="inv-info-btn" onclick="InvDashboard._showInfo(\'' + key + '\')">?</button>'; };
+    var _hp = typeof InvAuth !== 'undefined' && InvAuth.hasPerm ? InvAuth.hasPerm.bind(InvAuth) : function() { return true; };
+    var lowStockHtml = '';
+    if (_hp('dashboard.low_stock')) {
+      lowStockHtml = '<h4 class="inv-section-head">低庫存警示' + ib('lowstock') + '</h4>' +
+        this._renderLowStockAlerts(allAlertList);
+    }
     var html =
       '<div style="padding:16px;">' +
         '<h4 class="inv-section-head">即時狀態' + ib('realtime') + '</h4>' +
         this._renderStatCards(stats) +
         '<h4 class="inv-section-head">庫存健康' + ib('health') + '</h4>' +
         this._renderQuickStats(quickStats) +
-        '<h4 class="inv-section-head">低庫存警示' + ib('lowstock') + '</h4>' +
-        this._renderLowStockAlerts(allAlertList) +
+        lowStockHtml +
       '</div>';
 
     container.innerHTML = html;

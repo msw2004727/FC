@@ -17,13 +17,17 @@ const InvStocktake = {
         this.renderStocktakeUI(container); return;
       }
     } catch (e) { console.error('[InvStocktake] check in_progress:', e); }
-    container.innerHTML =
-      '<div style="padding:16px;"><button id="btn-start-stocktake" style="width:100%;padding:14px;border:none;' +
-      'border-radius:10px;background:var(--warning);color:#fff;font-size:16px;font-weight:600;cursor:pointer;' +
-      'margin-bottom:16px;">開始盤點</button><h4 style="margin:0 0 8px;">歷史盤點單</h4>' +
-      '<div id="stocktake-history" style="color:var(--text-muted);font-size:14px;">載入中...</div></div>';
-    document.getElementById('btn-start-stocktake').addEventListener('click', this._showScopeDialog.bind(this));
-    this._loadHistory();
+    var _hp = typeof InvAuth !== 'undefined' && InvAuth.hasPerm ? InvAuth.hasPerm.bind(InvAuth) : function() { return true; };
+    var startBtnHtml = _hp('stocktake.start')
+      ? '<button id="btn-start-stocktake" style="width:100%;padding:14px;border:none;border-radius:10px;background:var(--warning);color:#fff;font-size:16px;font-weight:600;cursor:pointer;margin-bottom:16px;">開始盤點</button>'
+      : '';
+    var historyHtml = _hp('stocktake.history')
+      ? '<h4 style="margin:0 0 8px;">歷史盤點單</h4><div id="stocktake-history" style="color:var(--text-muted);font-size:14px;">載入中...</div>'
+      : '';
+    container.innerHTML = '<div style="padding:16px;">' + startBtnHtml + historyHtml + '</div>';
+    var startBtn = document.getElementById('btn-start-stocktake');
+    if (startBtn) startBtn.addEventListener('click', this._showScopeDialog.bind(this));
+    if (_hp('stocktake.history')) this._loadHistory();
   },
 
   _showScopeDialog() {
@@ -126,6 +130,8 @@ const InvStocktake = {
 
   async onScanItem(barcode) {
     InvScanner.stop();
+    var _hp = typeof InvAuth !== 'undefined' && InvAuth.hasPerm ? InvAuth.hasPerm.bind(InvAuth) : function() { return true; };
+    if (!_hp('stocktake.scan')) { InvApp.showToast('權限不足'); this._resumeScan(); return; }
     var st = this._current; if (!st) return;
     var items = st.items || [], idx = -1;
     for (var i = 0; i < items.length; i++) { if (items[i].barcode === barcode) { idx = i; break; } }
@@ -153,18 +159,22 @@ const InvStocktake = {
     var st = this._current; if (!st) return;
     var container = document.getElementById('inv-stocktake-content');
     if (!container) return;
+    var _hp = typeof InvAuth !== 'undefined' && InvAuth.hasPerm ? InvAuth.hasPerm.bind(InvAuth) : function() { return true; };
+    var applyBtnHtml = _hp('stocktake.apply')
+      ? '<button id="st-apply" style="flex:1;padding:12px;border:none;border-radius:8px;background:var(--danger);color:#fff;font-size:15px;font-weight:600;cursor:pointer;">確認調整</button>'
+      : '';
     container.innerHTML = '<div style="padding:16px;">' + this.renderDiffReport() +
       '<div style="display:flex;gap:8px;margin-top:16px;">' +
       '<button id="st-back" style="flex:1;padding:12px;border:1px solid var(--border);border-radius:8px;' +
       'background:var(--bg-card);font-size:15px;cursor:pointer;">返回盤點</button>' +
-      '<button id="st-apply" style="flex:1;padding:12px;border:none;border-radius:8px;background:var(--danger);' +
-      'color:#fff;font-size:15px;font-weight:600;cursor:pointer;">確認調整</button></div></div>';
+      applyBtnHtml + '</div></div>';
     var self = this;
     document.getElementById('st-back').addEventListener('click', function () {
       var c = document.getElementById('inv-stocktake-content');
       if (c) self.renderStocktakeUI(c);
     });
-    document.getElementById('st-apply').addEventListener('click', function () { self.applyAdjustments(); });
+    var applyBtn = document.getElementById('st-apply');
+    if (applyBtn) applyBtn.addEventListener('click', function () { self.applyAdjustments(); });
   },
 
   renderDiffReport() {

@@ -33,39 +33,68 @@ const InvSettings = {
       return;
     }
     var esc = InvApp.escapeHTML;
+    var _hp = typeof InvAuth !== 'undefined' && InvAuth.hasPerm ? InvAuth.hasPerm.bind(InvAuth) : function() { return true; };
     var ib = function(k) { return ' <button class="inv-info-btn" onclick="InvSettings._showInfo(\'' + k + '\')">?</button>'; };
     var h4 = function (t, k) { return '<h4 class="inv-section-head">' + t + (k ? ib(k) : '') + '</h4>'; };
     // 店名 fallback
     var shopName = (cfg.shopName && /^[\x20-\x7E\u4e00-\u9fff]+$/.test(cfg.shopName)) ? cfg.shopName : 'ToosterX';
-    c.innerHTML = '<div style="padding:16px;">' +
-      this._card(h4('店鋪資訊', 'shop') +
+    var sections = '';
+
+    // Shop name card
+    if (_hp('settings.shop')) {
+      sections += this._card(h4('店鋪資訊', 'shop') +
         '<div id="inv-shop-name-area" style="display:flex;align-items:center;gap:8px">' +
           '<span style="font-size:14px;color:var(--text-secondary);flex-shrink:0">店名：</span>' +
           '<span id="inv-shop-name-display" style="flex:1;font-size:15px;font-weight:600;color:var(--text-primary)">' + esc(shopName) + '</span>' +
           '<button class="inv-btn outline sm" onclick="InvSettings._enableShopNameEdit()" style="font-size:12px;min-height:30px;padding:2px 12px">更名</button>' +
-        '</div>') +
-      this._card(h4('人員管理', 'admin') + '<div id="inv-admin-list"></div>') +
-      this._card(h4('商品分類管理', 'category') + '<div id="inv-category-list"></div>') +
-      this._card(h4('條碼設定', 'barcode') +
-        '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">' +
-          '<span style="font-size:13px;color:var(--text-secondary);flex-shrink:0">自動編號前綴：</span>' +
-          '<input id="inv-barcode-prefix" class="inv-input" value="' + esc(cfg.barcodePrefix || 'TX') + '" maxlength="4" style="width:70px;height:34px;font-size:14px;font-weight:600;text-align:center" />' +
-          '<span style="font-size:12px;color:var(--text-muted)">下一號：' + ((cfg.nextBarcode || 0) + 1) + '</span>' +
-          '<button class="inv-btn primary sm" onclick="InvSettings._saveBarcodePrefix()" style="font-size:12px;min-height:30px;padding:2px 12px">儲存</button>' +
-        '</div>') +
-      this._card(h4('工具', 'tools') +
-        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">' +
-          '<button class="inv-btn outline full sm" onclick="InvSettings._promptBarcodePrint()">條碼列印</button>' +
-          '<div style="display:flex;gap:4px">' +
-            '<button class="inv-btn outline full sm" onclick="InvSettings.rebuildStock()" style="color:var(--danger);border-color:var(--danger)">庫存重建</button>' +
-            '<button class="inv-info-btn" onclick="InvSettings._showInfo(\'rebuild\')" style="flex-shrink:0">?</button>' +
-          '</div>' +
-        '</div>') +
-      this._card(h4('登入公告管理', 'announcement') + '<div id="inv-announcement-list"></div>') +
-      '</div>';
-    this.renderAdminList(cfg.adminUids || []);
-    this.renderAnnouncements();
-    this.renderCategories(cfg.categories || []);
+        '</div>');
+    }
+
+    // People management card with wrench button
+    if (_hp('settings.people')) {
+      var wrenchBtn = ' <button onclick="InvSettings._showPermConfigModal()" style="background:none;border:none;cursor:pointer;font-size:14px;padding:2px 4px;color:var(--text-muted)" title="權限設定">\uD83D\uDD27</button>';
+      sections += this._card('<h4 class="inv-section-head">人員管理' + ib('admin') + wrenchBtn + '</h4>' + '<div id="inv-admin-list"></div>');
+    }
+
+    // Category card
+    if (_hp('settings.categories')) {
+      sections += this._card(h4('商品分類管理', 'category') + '<div id="inv-category-list"></div>');
+    }
+
+    // Barcode prefix card (always shown if settings.entry)
+    sections += this._card(h4('條碼設定', 'barcode') +
+      '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">' +
+        '<span style="font-size:13px;color:var(--text-secondary);flex-shrink:0">自動編號前綴：</span>' +
+        '<input id="inv-barcode-prefix" class="inv-input" value="' + esc(cfg.barcodePrefix || 'TX') + '" maxlength="4" style="width:70px;height:34px;font-size:14px;font-weight:600;text-align:center" />' +
+        '<span style="font-size:12px;color:var(--text-muted)">下一號：' + ((cfg.nextBarcode || 0) + 1) + '</span>' +
+        '<button class="inv-btn primary sm" onclick="InvSettings._saveBarcodePrefix()" style="font-size:12px;min-height:30px;padding:2px 12px">儲存</button>' +
+      '</div>');
+
+    // Tools card
+    if (_hp('settings.barcode_print') || _hp('settings.rebuild')) {
+      var toolBtns = '';
+      if (_hp('settings.barcode_print')) {
+        toolBtns += '<button class="inv-btn outline full sm" onclick="InvSettings._promptBarcodePrint()">條碼列印</button>';
+      }
+      if (_hp('settings.rebuild')) {
+        toolBtns += '<div style="display:flex;gap:4px">' +
+          '<button class="inv-btn outline full sm" onclick="InvSettings.rebuildStock()" style="color:var(--danger);border-color:var(--danger)">庫存重建</button>' +
+          '<button class="inv-info-btn" onclick="InvSettings._showInfo(\'rebuild\')" style="flex-shrink:0">?</button>' +
+        '</div>';
+      }
+      sections += this._card(h4('工具', 'tools') +
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">' + toolBtns + '</div>');
+    }
+
+    // Announcements card
+    if (_hp('settings.announcements')) {
+      sections += this._card(h4('登入公告管理', 'announcement') + '<div id="inv-announcement-list"></div>');
+    }
+
+    c.innerHTML = '<div style="padding:16px;">' + sections + '</div>';
+    if (_hp('settings.people')) this.renderAdminList(cfg.adminUids || []);
+    if (_hp('settings.announcements')) this.renderAnnouncements();
+    if (_hp('settings.categories')) this.renderCategories(cfg.categories || []);
   },
 
   // ══════ 人員白名單（工程師/負責人/店長/店員/工讀）══════
@@ -598,6 +627,102 @@ const InvSettings = {
       InvApp.showToast('公告已刪除');
       this.renderAnnouncements();
     } catch (e) { InvApp.showToast('刪除失敗'); }
+  },
+
+  // ══════ 權限設定 Modal ══════
+  _showPermConfigModal() {
+    if (!this._canManageAdmins()) { InvApp.showToast('權限不足'); return; }
+    if (typeof InvPermissions === 'undefined') { InvApp.showToast('權限模組未載入'); return; }
+    var existing = document.getElementById('inv-perm-config-overlay');
+    if (existing) existing.remove();
+
+    var overlay = document.createElement('div');
+    overlay.id = 'inv-perm-config-overlay';
+    overlay.className = 'inv-overlay show';
+    overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+    overlay.addEventListener('touchmove', function(e) {
+      if (!e.target.closest('.inv-modal')) { e.preventDefault(); e.stopPropagation(); }
+    }, { passive: false });
+
+    var roleOpts = [
+      { key: 'manager', label: '負責人' },
+      { key: 'leader', label: '店長' },
+      { key: 'staff', label: '店員' },
+      { key: 'part', label: '工讀' },
+    ];
+    var selectHtml = '<select id="inv-perm-role-sel" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;font-size:14px;margin-bottom:12px;background:var(--bg-card);color:var(--text-primary)">';
+    for (var ri = 0; ri < roleOpts.length; ri++) {
+      selectHtml += '<option value="' + roleOpts[ri].key + '">' + InvApp.escapeHTML(roleOpts[ri].label) + '</option>';
+    }
+    selectHtml += '</select>';
+
+    overlay.innerHTML =
+      '<div class="inv-modal" style="max-width:420px;width:92%;max-height:80vh;overflow-y:auto">' +
+        '<h3 style="margin:0 0 12px;font-size:17px;font-weight:700;text-align:center">權限設定</h3>' +
+        selectHtml +
+        '<div id="inv-perm-toggles"></div>' +
+        '<button class="inv-btn primary full" style="margin-top:12px" onclick="document.getElementById(\'inv-perm-config-overlay\').remove()">完成</button>' +
+      '</div>';
+    document.body.appendChild(overlay);
+
+    var self = this;
+    var sel = document.getElementById('inv-perm-role-sel');
+    self._renderPermToggles(sel.value);
+    sel.addEventListener('change', function() {
+      self._renderPermToggles(this.value);
+    });
+  },
+
+  _renderPermToggles(role) {
+    var wrap = document.getElementById('inv-perm-toggles');
+    if (!wrap || typeof InvPermissions === 'undefined') return;
+    var merged = InvPermissions.getMergedPerms(role);
+    var catalog = InvPermissions.CATALOG;
+    var esc = InvApp.escapeHTML;
+    var html = '';
+    for (var gi = 0; gi < catalog.length; gi++) {
+      var group = catalog[gi];
+      html += '<div style="font-size:13px;font-weight:700;color:var(--text-primary);margin:10px 0 4px;padding:4px 0;border-bottom:2px solid var(--accent)">' + esc(group.group) + '</div>';
+      for (var ii = 0; ii < group.items.length; ii++) {
+        var item = group.items[ii];
+        var checked = merged[item.code] ? ' checked' : '';
+        html +=
+          '<label style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border)">' +
+            '<input type="checkbox" data-code="' + esc(item.code) + '" data-role="' + esc(role) + '"' + checked + ' style="width:18px;height:18px;flex-shrink:0" />' +
+            '<span style="flex:1;font-size:13px">' + esc(item.label) + '</span>' +
+            '<button class="inv-info-btn" onclick="event.preventDefault();event.stopPropagation();InvSettings._showPermDesc(\'' + esc(item.code) + '\')" style="flex-shrink:0">?</button>' +
+          '</label>';
+      }
+    }
+    wrap.innerHTML = html;
+    // Bind toggle events
+    var checkboxes = wrap.querySelectorAll('input[type="checkbox"]');
+    for (var ci = 0; ci < checkboxes.length; ci++) {
+      checkboxes[ci].addEventListener('change', function() {
+        var code = this.getAttribute('data-code');
+        var r = this.getAttribute('data-role');
+        var val = this.checked;
+        InvPermissions.savePerm(r, code, val).catch(function() { InvApp.showToast('儲存失敗'); });
+      });
+    }
+  },
+
+  _showPermDesc(code) {
+    if (typeof InvPermissions === 'undefined') return;
+    var catalog = InvPermissions.CATALOG;
+    var desc = '';
+    var label = '';
+    for (var gi = 0; gi < catalog.length; gi++) {
+      for (var ii = 0; ii < catalog[gi].items.length; ii++) {
+        if (catalog[gi].items[ii].code === code) {
+          desc = catalog[gi].items[ii].desc;
+          label = catalog[gi].items[ii].label;
+          break;
+        }
+      }
+    }
+    if (!desc) return;
+    InvApp.showToast(label + '：' + desc, 4000);
   },
 
   // ══════ 說明彈窗 ══════
