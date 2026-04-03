@@ -246,7 +246,7 @@ Object.assign(App, {
           let regStamp = '';
           if (isWaitlist) regStamp = '<span class="tl-stamp-waitlisted">候補</span>';
           else if (isSignedUp) regStamp = '<span class="tl-stamp-confirmed">正取</span>';
-          const privateStamp = e.privateEvent ? '<span class="tl-stamp-private' + (regStamp ? ' tl-has-reg-stamp' : '') + '">不公開</span>' : '';
+          const privateStamp = e.privateEvent ? '<span class="tl-stamp-private">不公開</span>' : '';
 
           // 人數計量條
           let progressHtml = '';

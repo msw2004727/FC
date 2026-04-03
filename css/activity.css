@@ -177,10 +177,9 @@
   pointer-events: none;
   z-index: 3;
 }
-/* 不公開章與報名章同時出現時，不公開往左讓位 */
-.tl-stamp-private + .tl-stamp-confirmed,
-.tl-stamp-private + .tl-stamp-waitlisted { /* stamp 本身不用調，private 要讓位 */ }
-.tl-stamp-private.tl-has-reg-stamp {
+/* 不公開章與報名章同時出現時，報名章往左避開 */
+.tl-stamp-private ~ .tl-stamp-confirmed,
+.tl-stamp-private ~ .tl-stamp-waitlisted {
   right: 38%;
 }
 .tl-event-gender-ribbon {
