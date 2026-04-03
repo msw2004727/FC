@@ -71,8 +71,8 @@ const InvScanner = {
         '<button class="inv-btn sm ' + (!isBarcode ? 'primary' : 'outline') + '" ' +
           'onclick="InvScanner.switchMode(\'qrcode\')" style="font-size:12px;min-height:32px;padding:4px 14px">' +
           (typeof InvIcons !== 'undefined' ? InvIcons.scan(16) + ' ' : '') + 'QR Code</button>' +
-        '<button class="inv-btn sm outline" id="' + containerId + '-manual-add" ' +
-          'style="font-size:12px;min-height:32px;padding:4px 14px">✏️ 手動添加</button>' +
+        (this._onManualAdd ? '<button class="inv-btn sm outline" id="' + containerId + '-manual-add" ' +
+          'style="font-size:12px;min-height:32px;padding:4px 14px">✏️ 手動添加</button>' : '') +
       '</div>' +
       // 提示文字
       '<div style="text-align:center;font-size:11px;color:var(--text-muted);margin-bottom:6px">' +

@@ -9,6 +9,8 @@ const InvSale = {
   _isGift: false,
   _isStaffPurchase: false,
 
+  _saleMode: 'sale',
+
   /** 渲染銷售頁面到 #inv-sale-content */
   render() {
     var wrap = document.getElementById('inv-sale-content');
@@ -19,13 +21,53 @@ const InvSale = {
     this._cashReceived = 0;
     this._isGift = false;
     this._isStaffPurchase = false;
-    wrap.innerHTML =
-      '<div id="inv-sale-scanner" style="padding:8px 0"></div>' +
+
+    var modes = [
+      { key: 'sale', label: '銷售' },
+      { key: 'return', label: '退貨' },
+      { key: 'waste', label: '報廢' },
+    ];
+    var tabsHtml = '<div style="display:flex;gap:6px;justify-content:center;margin-bottom:8px">';
+    for (var i = 0; i < modes.length; i++) {
+      var m = modes[i], active = this._saleMode === m.key;
+      var bg = active ? (m.key === 'waste' ? 'var(--danger)' : 'var(--accent)') : 'var(--bg-card)';
+      var color = active ? '#fff' : 'var(--text-muted)';
+      var border = active ? 'transparent' : 'var(--border)';
+      tabsHtml += '<button onclick="InvSale.switchSaleMode(\'' + m.key + '\')" ' +
+        'style="flex:1;padding:8px 0;border:1px solid ' + border + ';border-radius:var(--radius-full);' +
+        'background:' + bg + ';color:' + color + ';font-size:13px;font-weight:600;cursor:pointer">' +
+        m.label + '</button>';
+    }
+    tabsHtml += '</div>';
+
+    wrap.innerHTML = tabsHtml +
+      '<div id="inv-sale-scanner" style="padding:0 0 8px"></div>' +
       '<div id="inv-cart-list" style="padding-bottom:80px"></div>';
-    InvScanner.renderScannerUI('inv-sale-scanner', function (b) { InvSale.onScan(b); });
-    InvCart.restore();
-    InvCart.renderCartBar();
-    InvCart.renderCartList('inv-cart-list');
+    InvScanner._onManualAdd = null; // 銷售頁不需要手動添加
+    InvScanner.renderScannerUI('inv-sale-scanner', function (b) { InvSale._onModeScan(b); });
+    if (this._saleMode === 'sale') {
+      InvCart.restore();
+      InvCart.renderCartBar();
+      InvCart.renderCartList('inv-cart-list');
+    }
+  },
+
+  switchSaleMode(mode) {
+    this._saleMode = mode;
+    this.render();
+  },
+
+  /** 根據模式路由掃碼結果 */
+  _onModeScan(barcode) {
+    if (this._saleMode === 'return') {
+      InvScanner.stop();
+      this.showReturnForm(barcode);
+    } else if (this._saleMode === 'waste') {
+      InvScanner.stop();
+      this.showWasteForm(barcode);
+    } else {
+      this.onScan(barcode);
+    }
   },
 
   /** 掃碼後查商品、檢查庫存、加入購物車 */
