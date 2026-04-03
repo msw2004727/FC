@@ -255,6 +255,9 @@ const InvProducts = {
     overlay.innerHTML =
       '<div class="inv-modal" style="max-width:400px;width:92%;max-height:80vh;overflow-y:auto">' +
         '<h3 style="margin:0 0 16px;font-size:17px;font-weight:700">編輯商品</h3>' +
+        '<label ' + ls + '>產品編號（條碼）</label>' +
+        '<input id="edit-barcode" class="inv-input" value="' + esc(barcode) + '" style="height:40px;font-size:14px;margin-bottom:4px" />' +
+        '<div style="font-size:11px;color:var(--text-muted);margin-bottom:10px">修改編號會建立新文件並刪除舊文件，歷史交易紀錄仍保留原編號。</div>' +
         '<label ' + ls + '>商品圖片</label>' +
         '<input type="file" id="edit-image-input" accept="image/*" hidden />' +
         '<div id="edit-image-preview" style="width:100%;aspect-ratio:4/3;border:2px dashed var(--border);border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center;cursor:pointer;overflow:hidden;background:var(--bg-elevated);position:relative;margin-bottom:10px;transition:border-color var(--ease)" onclick="document.getElementById(\'edit-image-input\').click()">' +
@@ -302,6 +305,8 @@ const InvProducts = {
     });
     document.getElementById('edit-cancel').addEventListener('click', function () { overlay.remove(); });
     document.getElementById('edit-save').addEventListener('click', async function () {
+      var newBarcode = (document.getElementById('edit-barcode').value || '').trim();
+      if (!newBarcode) { InvApp.showToast('產品編號不可為空'); return; }
       var updates = {
         name: document.getElementById('edit-name').value.trim(),
         category: document.getElementById('edit-category').value,
@@ -316,11 +321,35 @@ const InvProducts = {
       if (_editImageDataUrl) updates.image = _editImageDataUrl;
       if (!updates.name) { InvApp.showToast('品名不可為空'); return; }
       try {
-        await self.update(barcode, updates);
-        InvApp.showToast('商品已更新');
-        overlay.remove();
-        self.renderDetail(barcode);
-      } catch (err) { /* update 內已 toast */ }
+        if (newBarcode !== barcode) {
+          // 編號變更：建立新文件 → 刪除舊文件
+          var existing = self.getByBarcode(newBarcode);
+          if (existing) { InvApp.showToast('此編號已被其他商品使用'); return; }
+          var oldDoc = await db.collection('inv_products').doc(barcode).get();
+          if (!oldDoc.exists) { InvApp.showToast('原商品不存在'); return; }
+          var fullData = Object.assign({}, oldDoc.data(), updates, { barcode: newBarcode });
+          delete fullData.updatedAt;
+          fullData.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
+          await db.collection('inv_products').doc(newBarcode).set(fullData);
+          await db.collection('inv_products').doc(barcode).delete();
+          // 更新本地快取
+          var idx = self._cache.findIndex(function(p) { return p.barcode === barcode; });
+          if (idx !== -1) {
+            Object.assign(self._cache[idx], updates, { barcode: newBarcode, id: newBarcode });
+          }
+          InvApp.showToast('商品已更新（編號已變更）');
+          overlay.remove();
+          self.renderDetail(newBarcode);
+        } else {
+          await self.update(barcode, updates);
+          InvApp.showToast('商品已更新');
+          overlay.remove();
+          self.renderDetail(barcode);
+        }
+      } catch (err) {
+        console.error('[InvProducts] edit save failed:', err);
+        InvApp.showToast('儲存失敗：' + (err.message || '未知錯誤'));
+      }
     });
   },
 
