@@ -81,7 +81,7 @@ Object.assign(InvSale, {
         });
       });
       InvApp.showToast('退貨完成');
-      await InvProducts.load();
+      await InvProducts.loadAll();
       InvSale.render();
     } catch (e) {
       console.error('[InvSale] handleReturn error:', e);
@@ -144,7 +144,7 @@ Object.assign(InvSale, {
         });
       });
       InvApp.showToast('報廢完成');
-      await InvProducts.load();
+      await InvProducts.loadAll();
       InvSale.render();
     } catch (e) {
       console.error('[InvSale] handleWaste error:', e);

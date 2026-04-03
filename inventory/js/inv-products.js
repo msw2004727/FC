@@ -86,9 +86,14 @@ const InvProducts = {
   },
 
   /** 渲染商品列表 */
-  renderProductList(containerId, options) {
+  async renderProductList(containerId, options) {
     var container = document.getElementById(containerId);
     if (!container) return;
+
+    if (!this._cache.length && !this._loaded) {
+      container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted);">載入中...</div>';
+      await this.loadAll();
+    }
 
     var opts = options || {};
     var list = this._cache.slice();
@@ -180,6 +185,10 @@ const InvProducts = {
             (p.stock || 0) + '</span> <span style="font-size:12px;color:var(--text-muted);">/ \u4f4e\u5eab\u5b58: ' + al + '</span></div>' +
         '</div>' +
         '<button id="btn-edit-product" style="margin-top:16px;padding:10px 20px;border:none;border-radius:8px;background:var(--accent);color:#fff;font-size:15px;cursor:pointer;width:100%;">\u7de8\u8f2f\u5546\u54c1</button>' +
+        '<div style="display:flex;gap:8px;margin-top:8px;">' +
+          '<button id="btn-return-product" style="flex:1;padding:10px;border:1px solid var(--accent);border-radius:8px;background:var(--bg-card);color:var(--accent);font-size:14px;cursor:pointer;">\u9000\u8ca8</button>' +
+          '<button id="btn-waste-product" style="flex:1;padding:10px;border:1px solid var(--danger);border-radius:8px;background:var(--bg-card);color:var(--danger);font-size:14px;cursor:pointer;">\u5831\u5ee2</button>' +
+        '</div>' +
         '<h4 style="margin:20px 0 8px;">\u7570\u52d5\u6b77\u53f2</h4>' +
         '<div id="inv-product-tx-list" style="color:var(--text-muted);font-size:14px;">\u8f09\u5165\u4e2d...</div>' +
       '</div>';
@@ -191,6 +200,17 @@ const InvProducts = {
       var self = this;
       editBtn.addEventListener('click', function () { self._showEditForm(barcode); });
     }
+    // 退貨 / 報廢按鈕
+    var returnBtn = document.getElementById('btn-return-product');
+    if (returnBtn) returnBtn.addEventListener('click', function () {
+      if (typeof InvSale !== 'undefined' && InvSale.showReturnForm) InvSale.showReturnForm(barcode);
+      else InvApp.showToast('退貨模組未載入');
+    });
+    var wasteBtn = document.getElementById('btn-waste-product');
+    if (wasteBtn) wasteBtn.addEventListener('click', function () {
+      if (typeof InvSale !== 'undefined' && InvSale.showWasteForm) InvSale.showWasteForm(barcode);
+      else InvApp.showToast('報廢模組未載入');
+    });
 
     // 載入異動歷史
     this._loadTransactions(barcode);
@@ -216,12 +236,14 @@ const InvProducts = {
       var html = '';
       snap.docs.forEach(function (doc) {
         var tx = doc.data();
-        var sign = tx.delta > 0 ? '+' : '', color = tx.delta > 0 ? '#4CAF50' : '#f44336';
-        var tl = tx.type === 'in' ? '\u5165\u5eab' : (tx.type === 'sale' ? '\u92b7\u552e' : (tx.type || '-'));
+        var qty = Number(tx.delta) || Number(tx.quantity) || 0;
+        if (tx.type === 'out' || tx.type === 'sale' || tx.type === 'waste') qty = -Math.abs(qty);
+        var sign = qty > 0 ? '+' : '', color = qty > 0 ? '#4CAF50' : '#f44336';
+        var tl = tx.type === 'in' ? '\u5165\u5eab' : (tx.type === 'out' || tx.type === 'sale' ? '\u92b7\u552e' : (tx.type === 'return' ? '\u9000\u8ca8' : (tx.type === 'waste' ? '\u5831\u5ee2' : (tx.type === 'adjust' ? '\u8abf\u6574' : (tx.type || '-')))));
         var tm = tx.createdAt ? InvApp.formatDate(tx.createdAt.toDate()) : '-';
         html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px;">' +
           '<div><span style="color:var(--text-muted);">' + InvApp.escapeHTML(tl) + '</span><span style="color:var(--text-muted);margin-left:8px;">' + tm + '</span></div>' +
-          '<div><span style="color:' + color + ';font-weight:600;">' + sign + tx.delta + '</span>' +
+          '<div><span style="color:' + color + ';font-weight:600;">' + sign + qty + '</span>' +
           '<span style="color:var(--text-muted);margin-left:6px;">' + tx.beforeStock + ' \u2192 ' + tx.afterStock + '</span></div></div>';
       });
       txContainer.innerHTML = html;
@@ -294,7 +316,7 @@ const InvProducts = {
     document.getElementById('edit-image-input').addEventListener('change', function () {
       var file = this.files && this.files[0];
       if (!file) return;
-      if (file.size > 2 * 1024 * 1024) { InvApp.showToast('圖片不可超過 2MB'); return; }
+      if (file.size > 750 * 1024) { InvApp.showToast('圖片不可超過 750KB（Firestore 文件限制）'); return; }
       var reader = new FileReader();
       reader.onload = function () {
         _editImageDataUrl = reader.result;

@@ -119,19 +119,12 @@ const InvAuth = {
 
   async checkPermission() {
     try {
-      var idToken = await auth.currentUser.getIdToken();
-      var restUrl = 'https://firestore.googleapis.com/v1/projects/' + INV_CONFIG.FIREBASE.projectId
-        + '/databases/(default)/documents/inv_settings/config';
-      var resp = await fetch(restUrl, { headers: { 'Authorization': 'Bearer ' + idToken } });
-      if (!resp.ok) {
-        document.getElementById('inv-login-status').textContent = '權限檢查失敗（' + resp.status + '）';
+      var configDoc = await db.collection('inv_settings').doc('config').get();
+      if (!configDoc.exists) {
+        document.getElementById('inv-login-status').textContent = '設定檔案不存在';
         return;
       }
-      var json = await resp.json();
-      var adminUids = [];
-      if (json.fields && json.fields.adminUids && json.fields.adminUids.arrayValue && json.fields.adminUids.arrayValue.values) {
-        adminUids = json.fields.adminUids.arrayValue.values.map(function(v) { return v.stringValue; });
-      }
+      var adminUids = configDoc.data().adminUids || [];
       var uid = auth.currentUser.uid;
       if (adminUids.indexOf(uid) !== -1) {
         this.isAdmin = true;

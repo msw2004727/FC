@@ -199,10 +199,11 @@ const InvStockIn = {
   /** 處理新商品建檔 */
   async handleNewProduct(formData) {
     try {
-      await InvProducts.create(formData);
-
-      // 寫入入庫 transaction
-      await db.collection('inv_transactions').add({
+      var batch = db.batch();
+      var productRef = db.collection('inv_products').doc(formData.barcode);
+      var txRef = db.collection('inv_transactions').doc();
+      batch.set(productRef, formData);
+      batch.set(txRef, {
         barcode: formData.barcode,
         type: 'in',
         delta: formData.stock,
@@ -212,6 +213,8 @@ const InvStockIn = {
         uid: InvAuth.getUid() || '',
         createdAt: firebase.firestore.FieldValue.serverTimestamp()
       });
+      await batch.commit();
+      InvProducts._cache.push(Object.assign({ id: formData.barcode }, formData));
 
       this._batchCount++;
       this._batchItems += formData.stock;

@@ -4,6 +4,8 @@
  */
 const InvDashboard = {
   _todayTxCache: null,
+  _todayTxCacheTime: 0,
+  _CACHE_TTL: 30000,
 
   /** 渲染儀表板到 #inv-dashboard-content */
   async render() {
@@ -17,8 +19,11 @@ const InvDashboard = {
       await InvProducts.loadAll();
     }
 
-    // 清除今日快取（每次 render 重新查詢）
-    this._todayTxCache = null;
+    // 30 秒內重複 render 使用快取，避免每次切頁都重查 Firestore
+    var now = Date.now();
+    if (!this._todayTxCache || (now - this._todayTxCacheTime) > this._CACHE_TTL) {
+      this._todayTxCache = null;
+    }
 
     var txList = await this._getTodayTransactions();
     var products = InvProducts._cache;
@@ -106,6 +111,7 @@ const InvDashboard = {
       this._todayTxCache = snap.docs.map(function (doc) {
         return Object.assign({ id: doc.id }, doc.data());
       });
+      this._todayTxCacheTime = Date.now();
     } catch (e) {
       console.error('[InvDashboard] _getTodayTransactions failed:', e);
       this._todayTxCache = [];

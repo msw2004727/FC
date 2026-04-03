@@ -33,7 +33,7 @@ const InvApp = {
         break;
       case 'page-stock-in': if (typeof InvStockIn !== 'undefined') InvStockIn.render(); break;
       case 'page-sale': if (typeof InvSale !== 'undefined') InvSale.render(); break;
-      case 'page-products': if (typeof InvProducts !== 'undefined') InvProducts.renderProductList('inv-products-content'); break;
+      case 'page-products': if (typeof InvProducts !== 'undefined') InvProducts.renderProductList('inv-products-content').catch(function(e) { console.error('[InvApp] renderProductList failed:', e); }); break;
       case 'page-transactions': if (typeof InvTransactions !== 'undefined') InvTransactions.render(); break;
       case 'page-stocktake': if (typeof InvStocktake !== 'undefined') InvStocktake.render(); break;
       case 'page-settings': if (typeof InvSettings !== 'undefined') InvSettings.render(); break;
