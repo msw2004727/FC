@@ -52,7 +52,7 @@ const InvSettings = {
 
     // People management card with wrench button
     if (_hp('settings.people')) {
-      var wrenchBtn = ' <button onclick="InvSettings._showPermConfigModal()" style="background:none;border:none;cursor:pointer;font-size:14px;padding:2px 4px;color:var(--text-muted)" title="權限設定">\uD83D\uDD27</button>';
+      var wrenchBtn = ' <button onclick="InvSettings._showPermConfigModal()" style="background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;padding:4px 10px;margin-left:4px;font-weight:600" title="權限設定">權限設定</button>';
       sections += this._card('<h4 class="inv-section-head">人員管理' + ib('admin') + wrenchBtn + '</h4>' + '<div id="inv-admin-list"></div>');
     }
 
