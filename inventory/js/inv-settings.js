@@ -114,7 +114,13 @@ const InvSettings = {
 
   _toggleAdminEditMode() {
     this._adminEditMode = !this._adminEditMode;
-    this.render();
+    // 只更新按鈕文字 + 重渲染人員列表，不重建整頁
+    var btn = document.querySelector('[onclick*="_toggleAdminEditMode"]');
+    if (btn) {
+      btn.textContent = this._adminEditMode ? '完成' : '編輯';
+      btn.style.background = this._adminEditMode ? 'var(--success,#16a34a)' : 'var(--accent)';
+    }
+    this.renderAdminList();
   },
 
   _canManageAdmins() {
