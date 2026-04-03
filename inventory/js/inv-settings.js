@@ -63,7 +63,7 @@ const InvSettings = {
           '<h4 class="inv-section-head" style="margin:0;flex-shrink:0">人員管理</h4>' +
           ib('admin') + wrenchBtn + editBtn +
         '</div>' +
-        '<div id="inv-admin-list"></div>'
+        '<div id="inv-admin-list" style="margin-top:12px"></div>'
       );
     }
 
