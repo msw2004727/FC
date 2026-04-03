@@ -138,33 +138,34 @@ const InvDashboard = {
   /** 產生低庫存警示列表 HTML */
   _renderLowStockAlerts(products) {
     if (!products.length) {
-      return '<div style="text-align:center;padding:20px;color:var(--success);font-size:14px;' +
-        'background:var(--success-light);border-radius:12px;">' +
-        '目前沒有低庫存商品 \u2713</div>';
+      return '<div style="text-align:center;padding:12px;color:var(--success);font-size:13px;' +
+        'background:var(--success-light);border-radius:var(--radius-sm);">' +
+        '目前沒有低庫存商品 ✓</div>';
     }
-
-    var html = '';
+    var esc = InvApp.escapeHTML;
+    var html = '<div style="display:flex;flex-direction:column;gap:4px">';
     for (var i = 0; i < products.length; i++) {
       var p = products[i];
-      var alert = p.lowStockAlert || 5;
+      var al = p.lowStockAlert || 5;
       var stock = p.stock || 0;
-      var bgColor = stock === 0 ? '#fef2f2' : '#fff7ed';
-      var borderColor = stock === 0 ? '#fca5a5' : '#fdba74';
-
+      var isZero = stock === 0;
+      var stockBg = isZero ? 'var(--danger)' : 'var(--warning)';
+      var rowBg = isZero ? 'var(--danger-light)' : 'var(--warning-light)';
+      var thumb = p.image || p.imageUrl || '';
+      var thumbHtml = thumb
+        ? '<img src="' + esc(thumb) + '" style="width:32px;height:32px;object-fit:cover;border-radius:6px;flex-shrink:0">'
+        : '<div style="width:32px;height:32px;border-radius:6px;background:var(--bg-elevated);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:14px;color:var(--text-muted)">📦</div>';
       html +=
-        '<div data-low-barcode="' + InvApp.escapeHTML(p.barcode) + '" ' +
-          'style="display:flex;align-items:center;justify-content:space-between;padding:12px;' +
-          'background:' + bgColor + ';border:1px solid ' + borderColor + ';border-radius:10px;' +
-          'margin-bottom:8px;cursor:pointer;">' +
-          '<div style="min-width:0;flex:1;">' +
-            '<div style="font-weight:600;font-size:14px;">' + InvApp.escapeHTML(p.name) + '</div>' +
-            '<div style="font-size:12px;color:var(--text-secondary);margin-top:2px;">警示門檻: ' + alert + '</div>' +
-          '</div>' +
-          '<div style="background:' + (stock === 0 ? '#dc2626' : '#f97316') + ';color:#fff;' +
-            'padding:4px 10px;border-radius:12px;font-size:13px;font-weight:600;white-space:nowrap;">' +
-            '庫存 ' + stock + '</div>' +
+        '<div data-low-barcode="' + esc(p.barcode) + '" ' +
+          'style="display:flex;align-items:center;gap:8px;padding:6px 8px;' +
+          'background:' + rowBg + ';border-radius:var(--radius-sm);cursor:pointer">' +
+          thumbHtml +
+          '<span style="flex:1;min-width:0;font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(p.name) + '</span>' +
+          '<span style="font-size:11px;color:var(--text-muted);flex-shrink:0">/' + al + '</span>' +
+          '<span style="background:' + stockBg + ';color:#fff;padding:1px 7px;border-radius:var(--radius-full);font-size:11px;font-weight:700;flex-shrink:0">' + stock + '</span>' +
         '</div>';
     }
+    html += '</div>';
     return html;
   },
 
