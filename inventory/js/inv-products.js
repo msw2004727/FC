@@ -322,16 +322,20 @@ const InvProducts = {
       if (!updates.name) { InvApp.showToast('品名不可為空'); return; }
       try {
         if (newBarcode !== barcode) {
-          // 編號變更：建立新文件 → 刪除舊文件
-          var existing = self.getByBarcode(newBarcode);
-          if (existing) { InvApp.showToast('此編號已被其他商品使用'); return; }
-          var oldDoc = await db.collection('inv_products').doc(barcode).get();
-          if (!oldDoc.exists) { InvApp.showToast('原商品不存在'); return; }
-          var fullData = Object.assign({}, oldDoc.data(), updates, { barcode: newBarcode });
-          delete fullData.updatedAt;
-          fullData.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
-          await db.collection('inv_products').doc(newBarcode).set(fullData);
-          await db.collection('inv_products').doc(barcode).delete();
+          // 編號變更：用 transaction 確保原子性（create + delete 不可分割）
+          var newRef = db.collection('inv_products').doc(newBarcode);
+          var oldRef = db.collection('inv_products').doc(barcode);
+          await db.runTransaction(async function(transaction) {
+            var existingNew = await transaction.get(newRef);
+            if (existingNew.exists) throw new Error('此編號已被其他商品使用');
+            var oldDoc = await transaction.get(oldRef);
+            if (!oldDoc.exists) throw new Error('原商品不存在');
+            var fullData = Object.assign({}, oldDoc.data(), updates, { barcode: newBarcode });
+            delete fullData.updatedAt;
+            fullData.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
+            transaction.set(newRef, fullData);
+            transaction.delete(oldRef);
+          });
           // 更新本地快取
           var idx = self._cache.findIndex(function(p) { return p.barcode === barcode; });
           if (idx !== -1) {
