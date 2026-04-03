@@ -105,40 +105,43 @@ const InvProducts = {
     this._cache.forEach(function(p) { if (p.category && cats.indexOf(p.category) === -1) cats.push(p.category); });
 
     var esc = InvApp.escapeHTML;
-    var fk = this._filterKeyword, fc = this._filterCategory, fs = this._filterSort, fst = this._filterStock;
+    var fc = this._filterCategory;
+    // 合併排序+庫存為單一下拉值（sortKey 格式: sort_xxx 或 stock_xxx）
+    var combinedVal = this._filterStock ? 'stock_' + this._filterStock : 'sort_' + (this._filterSort || '');
 
-    var html = '<div style="padding:8px 10px 4px">';
-    // 搜尋框
-    html += '<input id="inv-prod-search" class="inv-input" type="search" placeholder="搜尋品名 / 品牌 / 條碼" value="' + esc(fk) + '" style="height:36px;font-size:13px;margin-bottom:8px" />';
-    // 分類膠囊
-    if (cats.length) {
-      html += '<div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:8px">';
-      var allActive = !fc ? ' inv-pill-active' : '';
-      html += '<button class="inv-filter-cat' + allActive + '" data-cat="" style="padding:3px 10px;border-radius:var(--radius-full);border:1px solid ' + (!fc ? 'var(--accent)' : 'var(--border)') + ';background:' + (!fc ? 'var(--accent)' : 'var(--bg-card)') + ';color:' + (!fc ? '#fff' : 'var(--text-muted)') + ';font-size:12px;cursor:pointer">全部</button>';
-      for (var i = 0; i < cats.length; i++) {
-        var active = fc === cats[i];
-        html += '<button class="inv-filter-cat" data-cat="' + esc(cats[i]) + '" style="padding:3px 10px;border-radius:var(--radius-full);border:1px solid ' + (active ? 'var(--accent)' : 'var(--border)') + ';background:' + (active ? 'var(--accent)' : 'var(--bg-card)') + ';color:' + (active ? '#fff' : 'var(--text-muted)') + ';font-size:12px;cursor:pointer">' + esc(cats[i]) + '</button>';
-      }
-      html += '</div>';
+    // 分類下拉選項
+    var catOpts = '<option value=""' + (!fc ? ' selected' : '') + '>全部分類</option>';
+    for (var i = 0; i < cats.length; i++) {
+      catOpts += '<option value="' + esc(cats[i]) + '"' + (fc === cats[i] ? ' selected' : '') + '>' + esc(cats[i]) + '</option>';
     }
-    // 排序 + 庫存篩選
-    html += '<div style="display:flex;gap:6px;margin-bottom:8px">';
-    var sorts = [['', '最新'], ['name', '名稱'], ['stock', '庫存少→多']];
-    for (var si = 0; si < sorts.length; si++) {
-      var sk = sorts[si][0], sl = sorts[si][1], sa = fs === sk;
-      html += '<button class="inv-filter-sort" data-sort="' + sk + '" style="padding:3px 8px;border-radius:var(--radius-full);border:1px solid ' + (sa ? 'var(--accent)' : 'var(--border)') + ';background:' + (sa ? 'var(--accent)' : 'var(--bg-card)') + ';color:' + (sa ? '#fff' : 'var(--text-muted)') + ';font-size:11px;cursor:pointer">' + sl + '</button>';
+
+    // 排序下拉選項（排序 + 庫存狀態合併在一個下拉）
+    var sortItems = [
+      { val: 'sort_',           label: '最新' },
+      { val: 'sort_name',       label: '名稱' },
+      { val: 'sort_stock',      label: '庫存少→多' },
+      { val: 'sort_stock_desc', label: '庫存多→少' },
+      { val: 'stock_low',       label: '低庫存' },
+      { val: 'stock_zero',      label: '缺貨' },
+      { val: 'stock_ok',        label: '充足' },
+    ];
+    var sortOpts = '';
+    for (var si = 0; si < sortItems.length; si++) {
+      var s = sortItems[si];
+      sortOpts += '<option value="' + s.val + '"' + (combinedVal === s.val ? ' selected' : '') + '>' + esc(s.label) + '</option>';
     }
-    html += '<div style="flex:1"></div>';
-    var stocks = [['', '全部'], ['low', '低庫存'], ['zero', '缺貨'], ['ok', '充足']];
-    for (var sti = 0; sti < stocks.length; sti++) {
-      var stk = stocks[sti][0], stl = stocks[sti][1], sta = fst === stk;
-      html += '<button class="inv-filter-stock" data-stock="' + stk + '" style="padding:3px 8px;border-radius:var(--radius-full);border:1px solid ' + (sta ? 'var(--warning)' : 'var(--border)') + ';background:' + (sta ? 'var(--warning)' : 'var(--bg-card)') + ';color:' + (sta ? '#fff' : 'var(--text-muted)') + ';font-size:11px;cursor:pointer">' + stl + '</button>';
-    }
-    html += '</div>';
-    // 結果計數 + 列表容器
-    html += '<div id="inv-prod-count" style="font-size:12px;color:var(--text-muted);margin-bottom:4px"></div>';
-    html += '</div>';
-    html += '<div id="inv-prod-list" style="padding:0 10px 80px"></div>';
+
+    var ss = 'height:34px;font-size:12px;border:1px solid var(--border);border-radius:8px;background:var(--bg-card);color:var(--text-primary);padding:0 6px;min-width:0';
+    var html =
+      '<div style="padding:8px 10px 4px">' +
+        '<div style="display:flex;gap:6px;align-items:center">' +
+          '<input id="inv-prod-search" class="inv-input" type="search" placeholder="搜尋品名/品牌/條碼" value="' + esc(this._filterKeyword) + '" style="flex:1;min-width:0;height:34px;font-size:12px" />' +
+          '<select id="inv-prod-cat" style="' + ss + ';flex-shrink:0;max-width:30%">' + catOpts + '</select>' +
+          '<select id="inv-prod-sort" style="' + ss + ';flex-shrink:0;max-width:30%">' + sortOpts + '</select>' +
+        '</div>' +
+        '<div id="inv-prod-count" style="font-size:11px;color:var(--text-muted);margin-top:4px;margin-bottom:2px"></div>' +
+      '</div>' +
+      '<div id="inv-prod-list" style="padding:0 10px 80px"></div>';
     container.innerHTML = html;
 
     // 綁定事件
@@ -152,23 +155,20 @@ const InvProducts = {
         self._refreshProductList();
       }, 250);
     });
-    container.querySelectorAll('.inv-filter-cat').forEach(function(btn) {
-      btn.addEventListener('click', function() {
-        self._filterCategory = this.getAttribute('data-cat');
-        self.renderProductPage(containerId);
-      });
+    document.getElementById('inv-prod-cat').addEventListener('change', function() {
+      self._filterCategory = this.value;
+      self._refreshProductList();
     });
-    container.querySelectorAll('.inv-filter-sort').forEach(function(btn) {
-      btn.addEventListener('click', function() {
-        self._filterSort = this.getAttribute('data-sort');
-        self.renderProductPage(containerId);
-      });
-    });
-    container.querySelectorAll('.inv-filter-stock').forEach(function(btn) {
-      btn.addEventListener('click', function() {
-        self._filterStock = this.getAttribute('data-stock');
-        self.renderProductPage(containerId);
-      });
+    document.getElementById('inv-prod-sort').addEventListener('change', function() {
+      var v = this.value;
+      if (v.indexOf('stock_') === 0) {
+        self._filterStock = v.replace('stock_', '');
+        self._filterSort = '';
+      } else {
+        self._filterSort = v.replace('sort_', '');
+        self._filterStock = '';
+      }
+      self._refreshProductList();
     });
 
     // 渲染列表
@@ -227,6 +227,8 @@ const InvProducts = {
       list.sort(function (a, b) { return (a.name || '').localeCompare(b.name || ''); });
     } else if (opts.sort === 'stock') {
       list.sort(function (a, b) { return (a.stock || 0) - (b.stock || 0); });
+    } else if (opts.sort === 'stock_desc') {
+      list.sort(function (a, b) { return (b.stock || 0) - (a.stock || 0); });
     } else {
       list.sort(function (a, b) { return (b.createdAt || 0) - (a.createdAt || 0); });
     }
