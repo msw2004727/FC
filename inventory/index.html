@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#0d9488">
   <meta name="robots" content="noindex, nofollow">
   <title>ToosterX 庫存管理</title>
-  <link rel="stylesheet" href="css/inventory.css?v=21">
+  <link rel="stylesheet" href="css/inventory.css?v=22">
 </head>
 <body>
 
@@ -19,7 +19,7 @@
         <img id="inv-login-avatar" class="inv-avatar inv-avatar-lg" alt="avatar">
         <span id="inv-login-name" style="display:block;text-align:center;margin-top:8px;font-weight:600"></span>
       </div>
-      <button class="inv-btn-line full" id="inv-login-btn" onclick="InvAuth.login()">LINE 登入</button>
+      <button class="inv-btn-line full" id="inv-login-btn" onclick="if(typeof InvAuth!=='undefined')InvAuth.login();else this.textContent='載入中...'">LINE 登入</button>
       <div id="inv-login-status" class="inv-login-status"></div>
     </div>
   </section>
@@ -40,16 +40,16 @@
       <span class="inv-topbar-title">庫存管理</span>
     </div>
     <div class="inv-topbar-right">
-      <div class="inv-toggle-switch" id="inv-theme-toggle" onclick="InvApp.toggleTheme()">
+      <div class="inv-toggle-switch" id="inv-theme-toggle" onclick="if(typeof InvApp!=='undefined')InvApp.toggleTheme()">
         <div class="inv-toggle-knob"></div>
       </div>
       <div class="inv-user-menu-wrap">
-        <img class="inv-avatar inv-avatar-sm" id="inv-topbar-avatar" alt="user" onclick="InvApp.toggleUserMenu()">
+        <img class="inv-avatar inv-avatar-sm" id="inv-topbar-avatar" alt="user" onclick="if(typeof InvApp!=='undefined')InvApp.toggleUserMenu()">
         <div class="inv-user-menu" id="inv-user-menu" style="display:none">
           <div class="inv-user-menu-name" id="inv-menu-name"></div>
           <div class="inv-user-menu-divider"></div>
-          <button class="inv-user-menu-item" onclick="InvApp.showPage('page-settings');if(typeof InvSettings!=='undefined')InvSettings.render()">設定</button>
-          <button class="inv-user-menu-item inv-user-menu-logout" onclick="InvAuth.logout()">登出</button>
+          <button class="inv-user-menu-item" onclick="if(typeof InvApp!=='undefined'){InvApp.showPage('page-settings');if(typeof InvSettings!=='undefined')InvSettings.render()}">設定</button>
+          <button class="inv-user-menu-item inv-user-menu-logout" onclick="if(typeof InvAuth!=='undefined')InvAuth.logout()">登出</button>
         </div>
       </div>
     </div>
@@ -60,16 +60,16 @@
     <section class="inv-page" id="page-dashboard">
       <div id="inv-dashboard-content"></div>
       <div class="inv-quick-actions">
-        <button class="inv-action-card" onclick="InvApp.showPage('page-stock-in')">
+        <button class="inv-action-card" onclick="if(typeof InvApp!=='undefined')InvApp.showPage('page-stock-in')">
           <span class="inv-action-icon" data-icon="package"></span><span>掃碼入庫</span>
         </button>
-        <button class="inv-action-card" onclick="InvApp.showPage('page-sale')">
+        <button class="inv-action-card" onclick="if(typeof InvApp!=='undefined')InvApp.showPage('page-sale')">
           <span class="inv-action-icon" data-icon="dollar"></span><span>掃碼銷售</span>
         </button>
-        <button class="inv-action-card" onclick="InvApp.showPage('page-products')">
+        <button class="inv-action-card" onclick="if(typeof InvApp!=='undefined')InvApp.showPage('page-products')">
           <span class="inv-action-icon" data-icon="clipboard"></span><span>商品管理</span>
         </button>
-        <button class="inv-action-card" onclick="InvApp.showPage('page-transactions')">
+        <button class="inv-action-card" onclick="if(typeof InvApp!=='undefined')InvApp.showPage('page-transactions')">
           <span class="inv-action-icon" data-icon="stats"></span><span>銷售紀錄</span>
         </button>
       </div>
@@ -108,19 +108,19 @@
 
   <!-- Bottom Tab Bar -->
   <nav class="inv-bottombar" id="inv-bottombar" style="display:none">
-    <button class="inv-tab active" data-page="page-dashboard" onclick="InvApp.showPage('page-dashboard')">
+    <button class="inv-tab active" data-page="page-dashboard" onclick="if(typeof InvApp!=='undefined')InvApp.showPage('page-dashboard')">
       <span class="inv-tab-icon" data-icon="chart"></span><span>儀表板</span>
     </button>
-    <button class="inv-tab" data-page="page-stock-in" onclick="InvApp.showPage('page-stock-in')">
+    <button class="inv-tab" data-page="page-stock-in" onclick="if(typeof InvApp!=='undefined')InvApp.showPage('page-stock-in')">
       <span class="inv-tab-icon" data-icon="package"></span><span>入庫</span>
     </button>
-    <button class="inv-tab" data-page="page-sale" onclick="InvApp.showPage('page-sale')">
+    <button class="inv-tab" data-page="page-sale" onclick="if(typeof InvApp!=='undefined')InvApp.showPage('page-sale')">
       <span class="inv-tab-icon" data-icon="dollar"></span><span>銷售</span>
     </button>
-    <button class="inv-tab" data-page="page-products" onclick="InvApp.showPage('page-products')">
+    <button class="inv-tab" data-page="page-products" onclick="if(typeof InvApp!=='undefined')InvApp.showPage('page-products')">
       <span class="inv-tab-icon" data-icon="clipboard"></span><span>商品</span>
     </button>
-    <button class="inv-tab" data-page="page-transactions" onclick="InvApp.showPage('page-transactions')">
+    <button class="inv-tab" data-page="page-transactions" onclick="if(typeof InvApp!=='undefined')InvApp.showPage('page-transactions')">
       <span class="inv-tab-icon" data-icon="stats"></span><span>更多</span>
     </button>
   </nav>
@@ -138,21 +138,21 @@
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-functions-compat.js"></script>
   <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js" defer></script>
-  <script src="js/inv-config.js?v=21"></script>
-  <script src="js/inv-icons.js?v=21"></script>
-  <script src="js/inv-utils.js?v=21"></script>
-  <script src="js/inv-auth.js?v=21"></script>
-  <script src="js/inv-app.js?v=21"></script>
-  <script src="js/inv-scanner.js?v=21"></script>
-  <script src="js/inv-products.js?v=21"></script>
-  <script src="js/inv-stock-in.js?v=21"></script>
-  <script src="js/inv-cart.js?v=21"></script>
-  <script src="js/inv-sale.js?v=21"></script>
-  <script src="js/inv-sale-return.js?v=21"></script>
-  <script src="js/inv-transactions.js?v=21"></script>
-  <script src="js/inv-export.js?v=21"></script>
-  <script src="js/inv-stocktake.js?v=21"></script>
-  <script src="js/inv-dashboard.js?v=21"></script>
-  <script src="js/inv-settings.js?v=21"></script>
+  <script src="js/inv-config.js?v=22"></script>
+  <script src="js/inv-icons.js?v=22"></script>
+  <script src="js/inv-utils.js?v=22"></script>
+  <script src="js/inv-auth.js?v=22"></script>
+  <script src="js/inv-app.js?v=22"></script>
+  <script src="js/inv-scanner.js?v=22"></script>
+  <script src="js/inv-products.js?v=22"></script>
+  <script src="js/inv-stock-in.js?v=22"></script>
+  <script src="js/inv-cart.js?v=22"></script>
+  <script src="js/inv-sale.js?v=22"></script>
+  <script src="js/inv-sale-return.js?v=22"></script>
+  <script src="js/inv-transactions.js?v=22"></script>
+  <script src="js/inv-export.js?v=22"></script>
+  <script src="js/inv-stocktake.js?v=22"></script>
+  <script src="js/inv-dashboard.js?v=22"></script>
+  <script src="js/inv-settings.js?v=22"></script>
 </body>
 </html>
