@@ -7,12 +7,25 @@
  */
 
 // ---------------------------------------------------------------------------
-// Extracted from js/firebase-crud.js:514-558
+// Extracted from js/firebase-crud.js:547-603
 // Pure function: computes occupancy from event config + registration list
 // ---------------------------------------------------------------------------
 function _rebuildOccupancy(event, registrations) {
-  const confirmed = registrations.filter(r => r.status === 'confirmed');
-  const waitlisted = registrations.filter(r => r.status === 'waitlisted');
+  // 去重：同一 (userId, participantType, companionId) 只保留最早報名的那筆
+  const _dedupRegs = (regs) => {
+    const seen = new Set();
+    return regs.filter(r => {
+      const key = r.participantType === 'companion'
+        ? `${r.userId}_companion_${r.companionId || ''}`
+        : `${r.userId}_self`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  };
+
+  const confirmed = _dedupRegs(registrations.filter(r => r.status === 'confirmed'));
+  const waitlisted = _dedupRegs(registrations.filter(r => r.status === 'waitlisted'));
 
   const _regSortTime = (r) => {
     const v = r && r.registeredAt;
@@ -136,8 +149,8 @@ describe('_rebuildOccupancy (js/firebase-crud.js:514-558)', () => {
 
   test('all confirmed, under max → correct count, status=open', () => {
     const regs = [
-      { status: 'confirmed', userName: 'Alice' },
-      { status: 'confirmed', userName: 'Bob' },
+      { status: 'confirmed', userName: 'Alice', userId: 'u1' },
+      { status: 'confirmed', userName: 'Bob', userId: 'u2' },
     ];
     const result = _rebuildOccupancy({ max: 5, status: 'open' }, regs);
     expect(result.current).toBe(2);
@@ -147,9 +160,9 @@ describe('_rebuildOccupancy (js/firebase-crud.js:514-558)', () => {
 
   test('all confirmed, at max → status=full', () => {
     const regs = [
-      { status: 'confirmed', userName: 'A' },
-      { status: 'confirmed', userName: 'B' },
-      { status: 'confirmed', userName: 'C' },
+      { status: 'confirmed', userName: 'A', userId: 'u1' },
+      { status: 'confirmed', userName: 'B', userId: 'u2' },
+      { status: 'confirmed', userName: 'C', userId: 'u3' },
     ];
     const result = _rebuildOccupancy({ max: 3, status: 'open' }, regs);
     expect(result.current).toBe(3);
@@ -158,10 +171,10 @@ describe('_rebuildOccupancy (js/firebase-crud.js:514-558)', () => {
 
   test('mix confirmed + waitlisted → correct counts', () => {
     const regs = [
-      { status: 'confirmed', userName: 'A' },
-      { status: 'confirmed', userName: 'B' },
-      { status: 'waitlisted', userName: 'C' },
-      { status: 'waitlisted', userName: 'D' },
+      { status: 'confirmed', userName: 'A', userId: 'u1' },
+      { status: 'confirmed', userName: 'B', userId: 'u2' },
+      { status: 'waitlisted', userName: 'C', userId: 'u3' },
+      { status: 'waitlisted', userName: 'D', userId: 'u4' },
     ];
     const result = _rebuildOccupancy({ max: 5, status: 'open' }, regs);
     expect(result.current).toBe(2);
@@ -172,9 +185,9 @@ describe('_rebuildOccupancy (js/firebase-crud.js:514-558)', () => {
 
   test('companion registrations → companionName used when present', () => {
     const regs = [
-      { status: 'confirmed', participantType: 'companion', companionName: 'CompanionA', userName: 'OwnerA' },
-      { status: 'confirmed', participantType: 'companion', companionName: '', userName: 'OwnerB' },
-      { status: 'confirmed', userName: 'NormalUser' },
+      { status: 'confirmed', participantType: 'companion', companionName: 'CompanionA', userName: 'OwnerA', userId: 'u1', companionId: 'c1' },
+      { status: 'confirmed', participantType: 'companion', companionName: '', userName: 'OwnerB', userId: 'u2', companionId: 'c2' },
+      { status: 'confirmed', userName: 'NormalUser', userId: 'u3' },
     ];
     const result = _rebuildOccupancy({ max: 10, status: 'open' }, regs);
     // First companion: companionName is 'CompanionA'
@@ -195,8 +208,8 @@ describe('_rebuildOccupancy (js/firebase-crud.js:514-558)', () => {
 
   test('event status cancelled → stays cancelled', () => {
     const regs = [
-      { status: 'confirmed', userName: 'A' },
-      { status: 'confirmed', userName: 'B' },
+      { status: 'confirmed', userName: 'A', userId: 'u1' },
+      { status: 'confirmed', userName: 'B', userId: 'u2' },
     ];
     const result = _rebuildOccupancy({ max: 2, status: 'cancelled' }, regs);
     expect(result.status).toBe('cancelled');
@@ -205,10 +218,10 @@ describe('_rebuildOccupancy (js/firebase-crud.js:514-558)', () => {
 
   test('registrations with blank/missing userName → filtered out', () => {
     const regs = [
-      { status: 'confirmed', userName: '' },
-      { status: 'confirmed', userName: '   ' },
-      { status: 'confirmed' },  // userName undefined
-      { status: 'confirmed', userName: 'Valid' },
+      { status: 'confirmed', userName: '', userId: 'u1' },
+      { status: 'confirmed', userName: '   ', userId: 'u2' },
+      { status: 'confirmed', userId: 'u3' },  // userName undefined
+      { status: 'confirmed', userName: 'Valid', userId: 'u4' },
     ];
     const result = _rebuildOccupancy({ max: 10, status: 'open' }, regs);
     expect(result.current).toBe(1);
