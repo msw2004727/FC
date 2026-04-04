@@ -124,7 +124,10 @@ Object.assign(App, {
     let html = `<div class="info-card" id="usage-metrics-card">
       <div class="info-title" style="display:flex;justify-content:space-between;align-items:center">
         <span>雲端用量 Blaze（${escapeHTML(_mLabel)}累計，${escapeHTML(String(_monthDays))} 天）</span>
-        <button class="btn-sm" id="btn-refresh-usage" style="font-size:.72rem;padding:.2rem .5rem">重新抓取</button>
+        <div style="display:flex;gap:.4rem;align-items:center">
+          <button class="edu-info-btn" onclick="App._showUsageInfoPopup()" title="用量說明">?</button>
+          <button class="btn-sm" id="btn-refresh-usage" style="font-size:.72rem;padding:.2rem .5rem">重新抓取</button>
+        </div>
       </div>`;
 
     if (!latest) {
@@ -507,5 +510,56 @@ Object.assign(App, {
     const wrapper = document.createElement('div');
     wrapper.innerHTML = html;
     container.appendChild(wrapper);
+  },
+
+  // ── 雲端用量說明彈窗（樣式參考教學俱樂部 edu-info-popup）──
+  _showUsageInfoPopup() {
+    const body = ''
+      + '<p style="margin-bottom:.6rem">此區塊顯示 Firebase Blaze 方案的雲端資源使用狀況，數據由排程或手動抓取自 Google Cloud Monitoring API。</p>'
+
+      + '<div style="font-weight:700;margin:.7rem 0 .3rem">Firestore</div>'
+      + '<ul>'
+      + '<li><b>讀取</b> — 每次查詢或載入資料都算一次讀取，例如用戶打開活動清單、查報名紀錄。</li>'
+      + '<li><b>寫入</b> — 每次新增或修改資料都算一次寫入，例如報名、取消報名、編輯活動。</li>'
+      + '<li><b>刪除</b> — 每次移除資料都算一次刪除，例如刪除過期快取、移除取消的報名。</li>'
+      + '</ul>'
+
+      + '<div style="font-weight:700;margin:.7rem 0 .3rem">Cloud Functions</div>'
+      + '<ul>'
+      + '<li><b>呼叫次數</b> — 後端函式被觸發的次數，包含報名、取消報名、推播通知等。</li>'
+      + '<li><b>Cloud Run 請求</b> — 每次函式執行時 Cloud Run 處理的 HTTP 請求數量。</li>'
+      + '<li><b>運算時間</b> — 函式實際執行花費的秒數，反映後端的運算負載。</li>'
+      + '</ul>'
+
+      + '<div style="font-weight:700;margin:.7rem 0 .3rem">Cloud Storage</div>'
+      + '<ul>'
+      + '<li><b>API 請求</b> — 上傳、下載、列出檔案等操作的次數。</li>'
+      + '<li><b>下載流量</b> — 用戶從 Storage 下載圖片或檔案的傳輸量（例如活動封面圖）。</li>'
+      + '<li><b>上傳流量</b> — 上傳圖片或檔案到 Storage 的傳輸量。</li>'
+      + '</ul>'
+
+      + '<div style="font-weight:700;margin:.7rem 0 .3rem">App Engine</div>'
+      + '<ul>'
+      + '<li><b>請求數</b> — App Engine 處理的 HTTP 請求數量。</li>'
+      + '</ul>'
+
+      + '<div style="font-weight:700;margin:.7rem 0 .3rem">進度條顏色</div>'
+      + '<ul>'
+      + '<li><span style="color:#10b981;font-weight:700">綠色</span> — 低於 50% 免費額度，安全。</li>'
+      + '<li><span style="color:#f59e0b;font-weight:700">橘色</span> — 50%～80%，需注意。</li>'
+      + '<li><span style="color:#ef4444;font-weight:700">紅色</span> — 超過 80%，接近上限，超過將產生費用。</li>'
+      + '</ul>'
+
+      + '<p style="color:var(--text-muted);font-size:.78rem;margin-top:.6rem">Blaze 方案每日有免費額度，超出部分才會計費。「月累計」是將每日額度乘以已收集天數計算。</p>';
+
+    const overlay = document.createElement('div');
+    overlay.className = 'edu-info-overlay';
+    overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+    overlay.innerHTML = '<div class="edu-info-dialog">'
+      + '<div class="edu-info-dialog-title">雲端用量說明</div>'
+      + '<div class="edu-info-dialog-body">' + body + '</div>'
+      + '<button class="primary-btn" style="width:100%;margin-top:.8rem" onclick="this.closest(\'.edu-info-overlay\').remove()">了解</button>'
+      + '</div>';
+    document.body.appendChild(overlay);
   },
 });
