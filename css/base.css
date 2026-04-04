@@ -1124,3 +1124,20 @@ body.modal-open { overflow: hidden; }
 @keyframes deep-link-spin {
   to { transform: rotate(360deg); }
 }
+
+/* ─── SWR 進度條 + 骨架佔位（即時快取 + 背景更新）─── */
+.swr-bar {
+  position: fixed; top: 0; left: 0; right: 0; height: 2px; z-index: 9999;
+  background: linear-gradient(90deg, transparent, var(--primary), transparent);
+  animation: swr-slide 1.5s ease-in-out infinite;
+  opacity: 0; transition: opacity .3s; pointer-events: none;
+}
+.swr-bar.active { opacity: 1; }
+@keyframes swr-slide { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
+
+.skel-card {
+  height: 72px; border-radius: var(--radius-sm, 8px); margin-bottom: 8px;
+  background: linear-gradient(90deg, var(--bg-elevated, #f0f2f5) 25%, var(--bg-card, #fff) 50%, var(--bg-elevated, #f0f2f5) 75%);
+  background-size: 200% 100%; animation: skel-shimmer 1.5s ease-in-out infinite;
+}
+@keyframes skel-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }

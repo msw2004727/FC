@@ -100,10 +100,13 @@ function _dismissBootOverlay(reason) {
  */
 function _startContentStallCheck() {
   if (window._contentStallTimer) return;
+  // SWR 模式下延長至 15 秒（骨架顯示中不急著報警）
+  var stallMs = (typeof App !== 'undefined' && App._cloudReady) ? 6000 : 15000;
   window._contentStallTimer = setTimeout(function() {
     window._contentStallTimer = null;
     if (window._contentReady) return;
-    console.warn('[Stall] 頁面內容未在 6 秒內渲染完成，顯示重整提示');
+    if (typeof App !== 'undefined' && App._cloudReady) return;
+    console.warn('[Stall] 頁面內容未在 ' + (stallMs / 1000) + ' 秒內渲染完成，顯示重整提示');
     var el = document.createElement('div');
     el.id = 'content-stall-hint';
     el.setAttribute('role', 'alert');
@@ -1694,6 +1697,9 @@ const App = {
 
       try { this.renderAll(); } catch (_) {}
       _dismissBootOverlay('Cloud ready');
+      // SWR 進度條：SDK 就緒，隱藏進度條
+      try { var _sb = document.getElementById('swr-bar'); if (_sb) _sb.classList.remove('active'); } catch (_) {}
+      window._contentReady = true;
       try {
         if (typeof this.bindLineLogin === 'function') {
           await this.bindLineLogin();
@@ -1777,6 +1783,11 @@ const App = {
       this._cloudReadyError = err;
       console.error(`[Cloud] ensureCloudReady failed (${reason}):`, err?.message || err);
       _dismissBootOverlay('Cloud init failed');
+      // SWR：雲端啟動失敗，進度條改為離線指示
+      try {
+        var _sb = document.getElementById('swr-bar');
+        if (_sb) { _sb.classList.remove('active'); }
+      } catch (_) {}
       try { this.showToast('Cloud init failed. Please retry.'); } catch (_) {}
       try {
         if (typeof this.bindLineLogin === 'function') {
@@ -1984,12 +1995,22 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     if (_homeHasContent) {
       _dismissBootOverlay('Phase 3 快取命中');
+      // SWR 進度條：顯示背景仍在更新
+      var _swrBar = document.getElementById('swr-bar');
+      if (_swrBar) _swrBar.classList.add('active');
     } else {
-      // 快取未命中：保留 overlay，等 Phase 4 cloud boot 完成再隱藏
-      var _sub = document.querySelector('#loading-overlay .boot-loading__sub');
-      if (_sub) _sub.textContent = '載入資料中..';
-      console.log('[Boot] 快取未命中，保留載入畫面等待 Cloud ready');
-      // 20 秒 safety timeout 繼續生效（index.html 已設置）
+      // 快取未命中：顯示骨架佔位取代阻塞式 overlay
+      _dismissBootOverlay('Phase 3 骨架模式');
+      var _swrBar2 = document.getElementById('swr-bar');
+      if (_swrBar2) _swrBar2.classList.add('active');
+      // 在首頁活動列表區域注入骨架佔位
+      try {
+        var _hotEl = document.getElementById('hot-events');
+        if (_hotEl && !_hotEl.children.length) {
+          _hotEl.innerHTML = '<div class="skel-card"></div><div class="skel-card"></div><div class="skel-card"></div>';
+        }
+      } catch (_) {}
+      console.log('[Boot] 快取未命中，顯示骨架佔位，背景載入中');
     }
     console.log('[Boot] Phase 3 完成');
   } catch (e) {

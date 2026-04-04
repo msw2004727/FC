@@ -237,6 +237,53 @@ const FirebaseService = {
     this._persistDebounceTimer = setTimeout(() => this._persistCache(), 30000);
   },
 
+  /**
+   * 快取更新通知機制（SWR 核心）
+   * 每當集合資料從 Firestore 到達並寫入 _cache 後呼叫此函式，
+   * 觸發：(1) 延遲持久化 localStorage (2) 選擇性 UI 重渲染
+   */
+  _notifyCacheUpdated(collectionName) {
+    this._debouncedPersistCache();
+    // 選擇性重渲染：根據集合名稱只更新相關 UI
+    clearTimeout(this._cacheUpdateRenderTimers?.[collectionName]);
+    if (!this._cacheUpdateRenderTimers) this._cacheUpdateRenderTimers = {};
+    this._cacheUpdateRenderTimers[collectionName] = setTimeout(() => {
+      if (typeof App === 'undefined') return;
+      try {
+        switch (collectionName) {
+          case 'events':
+            App.renderHotEvents?.(); App.renderActivityList?.(); App.renderMyActivities?.();
+            break;
+          case 'banners':
+            App.renderBannerCarousel?.();
+            break;
+          case 'announcements':
+            App.renderAnnouncement?.();
+            break;
+          case 'teams':
+            if (App.currentPage === 'page-teams') App.renderTeamList?.();
+            break;
+          case 'tournaments':
+          case 'standings':
+          case 'matches':
+            if (App.currentPage === 'page-tournaments') App.renderTournamentList?.();
+            break;
+          case 'shopItems':
+            if (App.currentPage === 'page-shop') App.renderShopItems?.();
+            break;
+          case 'registrations':
+          case 'attendanceRecords':
+          case 'activityRecords':
+            // 這些由 page-scoped realtime 處理，不在此做全頁重渲染
+            break;
+          default:
+            // 其他集合：僅在對應頁面時靜默刷新
+            break;
+        }
+      } catch (e) { console.warn('[SWR] render for', collectionName, 'failed:', e); }
+    }, 300); // 300ms debounce 避免連續到達時重複渲染
+  },
+
   /** 儲存全部快取到 localStorage */
   _persistCache() {
     const toSave = [
@@ -490,6 +537,8 @@ const FirebaseService = {
       seen.add(doc.id);
       return true;
     });
+    // SWR：通知 UI 此集合已更新（僅在 init 完成後，避免啟動時連發）
+    if (this._initialized) this._notifyCacheUpdated(name);
   },
 
   async _loadEventsStatic() {

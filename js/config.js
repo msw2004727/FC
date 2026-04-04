@@ -4,7 +4,7 @@
 
 // ─── Cache Version（更新此值以清除瀏覽器快取）───
 // 變更日誌已移除，請用 git log 查閱歷史部署記錄。
-const CACHE_VERSION = '20260404c';
+const CACHE_VERSION = '20260404d';
 
 // ─── 網路 / 設備偵測（用於 UI 降級）───
 const NetDevice = {
@@ -91,6 +91,22 @@ const PAGE_STRATEGY = {
   'page-admin-logs':         'stale-first',
   'page-admin-repair':       'stale-first',
   'page-admin-inactive':     'stale-first',
+
+  // 教育俱樂部（SWR 補齊）
+  'page-edu-groups':              'stale-first',
+  'page-edu-students':            'stale-first',
+  'page-edu-checkin':             'stale-first',
+  'page-edu-calendar':            'stale-first',
+  'page-edu-course-plan':         'stale-first',
+  'page-edu-course-enrollment':   'stale-first',
+
+  // 遊戲
+  'page-game':               'stale-first',
+  'page-kick-game':          'stale-first',
+
+  // 成就 / 稱號
+  'page-achievements':       'stale-first',
+  'page-titles':             'stale-first',
 };
 
 // ─── Page Data Contract ───
@@ -129,6 +145,20 @@ const PAGE_DATA_CONTRACT = {
   'page-admin-logs':         { required: [], optional: ['operationLogs', 'errorLogs'], realtime: [] },
   'page-admin-repair':       { required: [], optional: ['events', 'attendanceRecords', 'activityRecords', 'userCorrections', 'teams'], realtime: [] },
   'page-admin-inactive':     { required: [], optional: ['attendanceRecords', 'activityRecords', 'operationLogs'], realtime: [] },
+
+  // 教育俱樂部（SWR 補齊）
+  'page-edu-groups':              { required: [], optional: ['teams'], realtime: [] },
+  'page-edu-students':            { required: [], optional: ['teams'], realtime: [] },
+  'page-edu-checkin':             { required: [], optional: ['events', 'attendanceRecords'], realtime: [] },
+  'page-edu-calendar':            { required: [], optional: ['events'], realtime: [] },
+  'page-edu-course-plan':         { required: [], optional: ['teams'], realtime: [] },
+  'page-edu-course-enrollment':   { required: [], optional: ['teams'], realtime: [] },
+
+  // 遊戲 + 成就
+  'page-game':               { required: [], optional: [], realtime: [] },
+  'page-kick-game':          { required: [], optional: [], realtime: [] },
+  'page-achievements':       { required: [], optional: ['achievements'], realtime: [] },
+  'page-titles':             { required: [], optional: [], realtime: [] },
 };
 
 // ─── Achievement Condition Config ───
