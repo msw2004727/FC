@@ -16,11 +16,24 @@
  */
 
 // ===========================================================================
-// Extracted pure logic: _rebuildOccupancy (firebase-crud.js:514-558)
+// Extracted pure logic: _rebuildOccupancy (firebase-crud.js:547-602)
+// Includes _dedupRegs (2026-04-04 fix: 三元組去重防止重複報名灌水計數)
 // ===========================================================================
+function _dedupRegs(regs) {
+  const seen = new Set();
+  return regs.filter(r => {
+    const key = r.participantType === 'companion'
+      ? `${r.userId}_companion_${r.companionId || ''}`
+      : `${r.userId}_self`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 function _rebuildOccupancy(event, registrations) {
-  const confirmed = registrations.filter(r => r.status === 'confirmed');
-  const waitlisted = registrations.filter(r => r.status === 'waitlisted');
+  const confirmed = _dedupRegs(registrations.filter(r => r.status === 'confirmed'));
+  const waitlisted = _dedupRegs(registrations.filter(r => r.status === 'waitlisted'));
 
   const _regSortTime = (r) => {
     const v = r && r.registeredAt;
@@ -365,5 +378,122 @@ describe('hasActiveDuplicate', () => {
 
   test('empty array → no duplicate', () => {
     expect(hasActiveDuplicate([], 'u1')).toBe(false);
+  });
+});
+
+// ===========================================================================
+// _dedupRegs — 三元組去重 (2026-04-04 fix)
+// ===========================================================================
+describe('_dedupRegs — registration deduplication', () => {
+  test('removes duplicate self registration for same userId', () => {
+    const regs = [
+      { userId: 'u1', participantType: 'self', userName: 'Alice', registeredAt: '2026-04-01T01:00:00Z' },
+      { userId: 'u1', participantType: 'self', userName: 'Alice', registeredAt: '2026-04-01T03:00:00Z' },
+    ];
+    const result = _dedupRegs(regs);
+    expect(result).toHaveLength(1);
+    expect(result[0].registeredAt).toBe('2026-04-01T01:00:00Z');
+  });
+
+  test('keeps different users with same name', () => {
+    const regs = [
+      { userId: 'u1', participantType: 'self', userName: 'Alice' },
+      { userId: 'u2', participantType: 'self', userName: 'Alice' },
+    ];
+    expect(_dedupRegs(regs)).toHaveLength(2);
+  });
+
+  test('keeps self + companion for same userId', () => {
+    const regs = [
+      { userId: 'u1', participantType: 'self', userName: 'Alice' },
+      { userId: 'u1', participantType: 'companion', companionId: 'c1', companionName: 'Bob' },
+    ];
+    expect(_dedupRegs(regs)).toHaveLength(2);
+  });
+
+  test('keeps different companions for same userId', () => {
+    const regs = [
+      { userId: 'u1', participantType: 'companion', companionId: 'c1', companionName: 'Bob' },
+      { userId: 'u1', participantType: 'companion', companionId: 'c2', companionName: 'Carol' },
+    ];
+    expect(_dedupRegs(regs)).toHaveLength(2);
+  });
+
+  test('removes duplicate companion with same companionId', () => {
+    const regs = [
+      { userId: 'u1', participantType: 'companion', companionId: 'c1', companionName: 'Bob' },
+      { userId: 'u1', participantType: 'companion', companionId: 'c1', companionName: 'Bob' },
+    ];
+    expect(_dedupRegs(regs)).toHaveLength(1);
+  });
+
+  test('empty array returns empty', () => {
+    expect(_dedupRegs([])).toHaveLength(0);
+  });
+
+  test('no duplicates passes through unchanged', () => {
+    const regs = [
+      { userId: 'u1', participantType: 'self', userName: 'Alice' },
+      { userId: 'u2', participantType: 'self', userName: 'Bob' },
+      { userId: 'u3', participantType: 'self', userName: 'Carol' },
+    ];
+    expect(_dedupRegs(regs)).toHaveLength(3);
+  });
+});
+
+// ===========================================================================
+// _rebuildOccupancy with dedup — integration (2026-04-04 fix)
+// ===========================================================================
+describe('_rebuildOccupancy — dedup integration', () => {
+  test('duplicate confirmed self does NOT inflate current count', () => {
+    const event = { max: 27, status: 'open' };
+    const regs = [];
+    // 26 unique users
+    for (let i = 1; i <= 26; i++) {
+      regs.push({ userId: `u${i}`, userName: `User${i}`, participantType: 'self', status: 'confirmed', registeredAt: `2026-04-01T0${String(i).padStart(2,'0')}:00:00Z` });
+    }
+    // duplicate: same userId as u1
+    regs.push({ userId: 'u1', userName: 'User1', participantType: 'self', status: 'confirmed', registeredAt: '2026-04-01T99:00:00Z' });
+
+    const result = _rebuildOccupancy(event, regs);
+    expect(result.current).toBe(26);
+    expect(result.status).toBe('open');
+    expect(result.participants.filter(n => n === 'User1')).toHaveLength(1);
+  });
+
+  test('duplicate confirmed self: event stays open instead of false full', () => {
+    const event = { max: 3, status: 'open' };
+    const regs = [
+      { userId: 'u1', userName: 'Alice', participantType: 'self', status: 'confirmed', registeredAt: '2026-04-01T01:00:00Z' },
+      { userId: 'u2', userName: 'Bob', participantType: 'self', status: 'confirmed', registeredAt: '2026-04-01T02:00:00Z' },
+      { userId: 'u1', userName: 'Alice', participantType: 'self', status: 'confirmed', registeredAt: '2026-04-01T03:00:00Z' },
+    ];
+    const result = _rebuildOccupancy(event, regs);
+    expect(result.current).toBe(2);
+    expect(result.status).toBe('open');
+  });
+
+  test('duplicate waitlisted self does NOT inflate waitlist count', () => {
+    const event = { max: 1, status: 'full' };
+    const regs = [
+      { userId: 'u1', userName: 'Alice', participantType: 'self', status: 'confirmed', registeredAt: '2026-04-01T01:00:00Z' },
+      { userId: 'u2', userName: 'Bob', participantType: 'self', status: 'waitlisted', registeredAt: '2026-04-01T02:00:00Z' },
+      { userId: 'u2', userName: 'Bob', participantType: 'self', status: 'waitlisted', registeredAt: '2026-04-01T03:00:00Z' },
+    ];
+    const result = _rebuildOccupancy(event, regs);
+    expect(result.current).toBe(1);
+    expect(result.waitlist).toBe(1);
+    expect(result.waitlistNames).toEqual(['Bob']);
+  });
+
+  test('companion + self for same user are both counted (not deduped)', () => {
+    const event = { max: 10, status: 'open' };
+    const regs = [
+      { userId: 'u1', userName: 'Alice', participantType: 'self', status: 'confirmed', registeredAt: '2026-04-01T01:00:00Z' },
+      { userId: 'u1', userName: 'Alice', participantType: 'companion', companionId: 'c1', companionName: 'Bob', status: 'confirmed', registeredAt: '2026-04-01T01:00:00Z' },
+    ];
+    const result = _rebuildOccupancy(event, regs);
+    expect(result.current).toBe(2);
+    expect(result.participants).toEqual(['Alice', 'Bob']);
   });
 });
