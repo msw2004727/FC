@@ -149,8 +149,19 @@ Object.assign(App, {
         </div>
       `; }).join('');
 
+    // 方案 B：資料未變時跳過 re-render
+    var _fp = visible.map(function(e){ return e.id + '|' + (e.current||0) + '|' + (e.waitlist||0) + '|' + e.status + '|' + (e.pinned?1:0); }).join(',');
+    if (this._hotEventsLastFp === _fp && container.children.length > 0) return;
+    this._hotEventsLastFp = _fp;
+
+    // 方案 A：存 scrollTop
+    var _prevWinScroll = window.scrollY || window.pageYOffset || 0;
+
     container.textContent = '';
     container.insertAdjacentHTML('beforeend', cards);
+
+    // 方案 A：還原 scrollTop
+    if (_prevWinScroll > 0) window.scrollTo(0, _prevWinScroll);
 
     // Restore loading bar if a card was being loaded when DOM was rebuilt
     const loadState = this._homeCardLoadingState;

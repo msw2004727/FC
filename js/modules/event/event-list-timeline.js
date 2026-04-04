@@ -280,6 +280,16 @@ Object.assign(App, {
       html += `</div>`;
     });
 
+    // 方案 B：資料未變時跳過 re-render
+    var _fp = events.map(function(e){ return e.id + '|' + e.status + '|' + (e.current||0) + '|' + (e.waitlist||0) + '|' + (e.pinned?1:0) + '|' + (e.title||''); }).join(',') + '|f:' + filterType + '|k:' + filterKw;
+    if (this._activityListLastFp === _fp && container.children.length > 0) return;
+    this._activityListLastFp = _fp;
+
+    // 方案 A：存 scrollTop
+    var _page = document.getElementById('page-activities');
+    var _prevScroll = _page ? _page.scrollTop : 0;
+    var _prevWinScroll = window.scrollY || window.pageYOffset || 0;
+
     container.textContent = '';
     if (html) {
       container.insertAdjacentHTML('beforeend', html);
@@ -289,6 +299,11 @@ Object.assign(App, {
       emptyDiv.textContent = t('activity.noMatch');
       container.appendChild(emptyDiv);
     }
+
+    // 方案 A：還原 scrollTop
+    if (_prevScroll > 0 && _page) _page.scrollTop = _prevScroll;
+    if (_prevWinScroll > 0) window.scrollTo(0, _prevWinScroll);
+
     this._markPageSnapshotReady?.('page-activities');
 
     // 綁定左右滑動切換頁籤

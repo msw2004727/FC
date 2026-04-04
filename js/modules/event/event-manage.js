@@ -272,6 +272,16 @@ Object.assign(App, {
     }
 
     const s = 'font-size:.72rem;padding:.2rem .5rem';
+    // 方案 B：資料未變時跳過 re-render
+    var _fp = filtered.map(function(e){ return e.id + '|' + e.status + '|' + (e.current||0) + '|' + (e.waitlist||0) + '|' + (e.pinned?1:0); }).join(',') + '|f:' + f + '|c:' + (creatorFilter||'');
+    if (this._myActivitiesLastFp === _fp && container.children.length > 0) return;
+    this._myActivitiesLastFp = _fp;
+
+    // 方案 A：存 scrollTop
+    var _page = document.getElementById('page-my-activities');
+    var _prevScroll = _page ? _page.scrollTop : 0;
+    var _prevWinScroll = window.scrollY || window.pageYOffset || 0;
+
     /* innerHTML — safe: all dynamic values pass through escapeHTML() */
     container.innerHTML = filtered.length > 0
       ? filtered.map(e => {
@@ -392,6 +402,10 @@ Object.assign(App, {
       </div>`;
       }).join('')
       : '<div style="padding:1rem;font-size:.82rem;color:var(--text-muted);text-align:center">此分類沒有活動</div>';
+
+    // 方案 A：還原 scrollTop
+    if (_prevScroll > 0 && _page) _page.scrollTop = _prevScroll;
+    if (_prevWinScroll > 0) window.scrollTo(0, _prevWinScroll);
 
     // 綁定左右滑動切換頁籤
     this._bindSwipeTabs('my-activity-list', 'my-activity-tabs',

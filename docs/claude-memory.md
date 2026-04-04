@@ -326,3 +326,9 @@
 - **功能**：管理員可在報名名單編輯模式中，將正取用戶（含同行者）強制下放至候補
 - **設計**：方案 A（自然排序），下放後位置依原始報名時間排列，不做優先插入
 - **實作**：`_forceDemoteToWaitlist` 加在 `event-manage-waitlist.js`（與 `_forcePromoteWaitlist` 互為反操作），紫色按鈕僅顯示在非同行者行且 event.max > 0 時
+
+### 2026-04-04 — 活動頁面背景 re-render 跳回頂部修復
+- **問題**：瀏覽活動列表時頁面反覆跳回頂部
+- **原因**：`renderActivityList`/`renderHotEvents`/`renderMyActivities` 用 `container.textContent=''` 全清 DOM 再重建，背景 onSnapshot/SWR/visibilitychange 每隔數秒觸發一次
+- **修復**：(A) re-render 前後存還原 scrollTop + window.scrollY；(B) 資料指紋比對（id+status+current+waitlist+pinned+title+filter），未變則跳過
+- **教訓**：SPA 中任何 `innerHTML=''` 或 `textContent=''` 全清式渲染都必須考慮捲動位置保留
