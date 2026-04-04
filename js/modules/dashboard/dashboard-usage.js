@@ -77,11 +77,13 @@ Object.assign(App, {
   async renderUsageMetrics(container) {
     if (!container) return;
 
-    // 防止重複渲染
+    // 防止重複渲染 + async race
     if (document.getElementById('usage-metrics-card')) return;
+    if (this._renderingUsageMetrics) return;
+    this._renderingUsageMetrics = true;
 
     // 僅 super_admin 可見
-    if (this.currentRole !== 'super_admin') return;
+    if (this.currentRole !== 'super_admin') { this._renderingUsageMetrics = false; return; }
 
     // 取得當月 1 號至今的 usageMetrics
     let docs = [];
@@ -217,10 +219,12 @@ Object.assign(App, {
 
     html += `</div>`; // info-card end
 
-    // 插入到 container
+    // 插入前再次檢查（防 async race）
+    if (document.getElementById('usage-metrics-card')) { this._renderingUsageMetrics = false; return; }
     const wrapper = document.createElement('div');
     wrapper.innerHTML = html;
     container.appendChild(wrapper);
+    this._renderingUsageMetrics = false;
 
     // 綁定重新抓取按鈕
     const btn = document.getElementById('btn-refresh-usage');
@@ -452,7 +456,9 @@ Object.assign(App, {
   async renderTranslateUsage(container) {
     if (!container) return;
     if (document.getElementById('translate-usage-card')) return;
-    if (this.currentRole !== 'super_admin') return;
+    if (this._renderingTranslateUsage) return;
+    this._renderingTranslateUsage = true;
+    if (this.currentRole !== 'super_admin') { this._renderingTranslateUsage = false; return; }
 
     const now = new Date();
     const monthKey = 'translate_' + now.getFullYear() + String(now.getMonth() + 1).padStart(2, '0');
@@ -507,9 +513,13 @@ Object.assign(App, {
       + '</div>'
       + '</div></div>';
 
-    const wrapper = document.createElement('div');
-    wrapper.innerHTML = html;
-    container.appendChild(wrapper);
+    // 插入前再次檢查（防 async race）
+    if (!document.getElementById('translate-usage-card')) {
+      const wrapper = document.createElement('div');
+      wrapper.innerHTML = html;
+      container.appendChild(wrapper);
+    }
+    this._renderingTranslateUsage = false;
   },
 
   // ── 雲端用量說明彈窗（樣式參考教學俱樂部 edu-info-popup）──
