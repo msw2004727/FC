@@ -1507,11 +1507,13 @@ const FirebaseService = {
     }
     this._realtimeListenerStarted.attendanceRecords = true;
     this._lazyLoaded.attendanceRecords = true;
+    this._attendanceSnapshotReady = false;
     const unsub = db.collection('attendanceRecords')
       .orderBy('createdAt', 'desc')
       .onSnapshot(
         snapshot => {
           this._cache.attendanceRecords = snapshot.docs.map(doc => ({ ...doc.data(), _docId: doc.id }));
+          this._attendanceSnapshotReady = true;
           this._snapshotReconnectAttempts.attendanceRecords = 0; // RC4：成功時重置重連計數
           this._debouncedPersistCache();
           this._debouncedSnapshotRender('attendance');
@@ -1528,6 +1530,7 @@ const FirebaseService = {
     }
     this._realtimeListenerStarted.attendanceRecords = false;
     this._realtimeListenerStarted._pendingAttendance = false;
+    this._attendanceSnapshotReady = false;
   },
 
   /** Auth 完成後啟動需驗證的監聽器 + seed（背景執行，不阻塞首頁） */

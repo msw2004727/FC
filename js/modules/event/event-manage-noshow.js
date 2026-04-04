@@ -139,6 +139,8 @@ Object.assign(App, {
   },
 
   _buildNoShowCountByUid() {
+    // 等 Firestore onSnapshot 回傳最新資料後再計算，避免用過期快取顯示錯誤數字
+    if (typeof FirebaseService !== 'undefined' && !FirebaseService._attendanceSnapshotReady) return null;
     const rawCountByUid = this._buildRawNoShowCountByUid();
     const effectiveCountByUid = new Map(rawCountByUid);
     const corrections = typeof ApiService?.getUserCorrections === 'function'
@@ -166,7 +168,9 @@ Object.assign(App, {
   _getEffectiveNoShowCount(uid) {
     const safeUid = String(uid || '').trim();
     if (!safeUid) return 0;
-    return this._buildNoShowCountByUid().get(safeUid) || 0;
+    const map = this._buildNoShowCountByUid();
+    if (!map) return 0;
+    return map.get(safeUid) || 0;
   },
 
   _getNoShowDetailsByUid(uid) {
