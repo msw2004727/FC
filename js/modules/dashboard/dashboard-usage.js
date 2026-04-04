@@ -70,13 +70,15 @@ Object.assign(App, {
     // 僅 super_admin 可見
     if (this.currentRole !== 'super_admin') return;
 
-    // 取得最近 7 天的 usageMetrics
+    // 取得當月 1 號至今的 usageMetrics
     let docs = [];
     try {
       if (typeof db === 'undefined') return;
+      var _now = new Date();
+      var _monthStartKey = String(_now.getFullYear()) + String(_now.getMonth() + 1).padStart(2, '0') + '01';
       const snap = await db.collection('usageMetrics')
+        .where('dateKey', '>=', _monthStartKey)
         .orderBy('dateKey', 'desc')
-        .limit(7)
         .get();
       snap.forEach(d => docs.push({ id: d.id, ...d.data() }));
     } catch (err) {
@@ -154,10 +156,10 @@ Object.assign(App, {
       }
     }
 
-    // 7 天趨勢
+    // 當月趨勢
     if (docs.length >= 2) {
       html += `<div style="margin-top:1rem">
-        <div style="font-size:.82rem;font-weight:600;margin-bottom:.5rem">近 7 天趨勢</div>
+        <div style="font-size:.82rem;font-weight:600;margin-bottom:.5rem">當月趨勢</div>
         <canvas id="dash-usage-trend" style="width:100%;display:block"></canvas>
       </div>`;
     }
@@ -242,9 +244,11 @@ Object.assign(App, {
     const recentEst = this._calcRecentEstimated(docs);
 
     if (recentEst) {
+      var _mNow = new Date();
+      var _mLabel = _mNow.getFullYear() + '/' + (_mNow.getMonth() + 1);
       const mColor = recentEst.totalCost > 0 ? '#f59e0b' : '#10b981';
       html += `<div class="dash-cost-row" style="margin-top:.4rem">
-        <span class="dash-cost-label">近 ${escapeHTML(String(recentEst.days))} 天超額估算</span>
+        <span class="dash-cost-label">${escapeHTML(_mLabel)} 月超額估算（${escapeHTML(String(recentEst.days))} 天資料）</span>
         <span class="dash-cost-val" style="color:${mColor}">${escapeHTML(this._fmtCurrency(recentEst.totalCost, 'USD'))}</span>
       </div>`;
       if (recentEst.breakdown) {
