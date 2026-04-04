@@ -521,6 +521,7 @@
 }
 @media (max-width: 480px) {
   .dash-usage-grid { grid-template-columns: repeat(2, 1fr); }
+  .dash-usage-grid .dash-usage-card:last-child:nth-child(odd) { grid-column: 1 / -1; }
 }
 .dash-usage-card {
   background: var(--card-bg, #fff);
