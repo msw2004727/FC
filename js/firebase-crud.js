@@ -1019,10 +1019,14 @@ Object.assign(FirebaseService, {
       this._applyRebuildOccupancy(event, occupancy);
     }
 
-    // 記錄遞補資訊供呼叫端使用
+    // 記錄遞補資訊供呼叫端使用 + 寫入操作日誌
     if (promotedCandidates.length > 0) {
       reg._promotedUserId = promotedCandidates[0].userId;
       reg._promotedUserIds = promotedCandidates.map(c => c.userId);
+      var _pNames = promotedCandidates.map(function(c) { return c.participantType === 'companion' ? (c.companionName || c.userName) : c.userName; }).filter(Boolean);
+      if (_pNames.length > 0 && typeof ApiService !== 'undefined' && ApiService._writeOpLog) {
+        ApiService._writeOpLog('auto_promote', '自動遞補', '活動「' + (event?.title || eventId) + '」候補 ' + _pNames.join('、') + ' 自動遞補為正取');
+      }
     }
 
     // 立即寫入 localStorage

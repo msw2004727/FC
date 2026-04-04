@@ -259,6 +259,9 @@ Object.assign(App, {
       }, reg.userId, 'activity', '活動');
     });
 
+    var _promotedNames = userWaitlisted.map(function(r) { return r.participantType === 'companion' ? (r.companionName || r.userName) : r.userName; }).filter(Boolean);
+    ApiService._writeOpLog('force_promote', '手動正取', `活動「${e.title}」將 ${_promotedNames.join('、')} 從候補升為正取`);
+
     // Re-render both possible containers (one will be absent = no-op)
     this._renderWaitlistSection(eventId, 'waitlist-table-container');
     this._renderGroupedWaitlistSection(eventId, 'detail-waitlist-container');
