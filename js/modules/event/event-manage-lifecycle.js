@@ -148,15 +148,21 @@ Object.assign(App, {
     try {
       if (!await this.appConfirm('確定要取消此活動？')) return;
 
-      // Trigger 4：活動取消通知 — 通知所有報名者與候補者
+      try {
+        await ApiService._updateAwaitWrite('events', id, ApiService._normalizeEventUpdates({ status: 'cancelled' }), FirebaseService.updateEvent, 'cancelMyActivity');
+      } catch (writeErr) {
+        console.error('[cancelMyActivity] Firestore write failed:', writeErr);
+        this.showToast('取消失敗，請重試');
+        return;
+      }
+
+      // Trigger 4：活動取消通知 — 寫入成功後才通知所有報名者與候補者
       const notifyUids = this._collectEventNotifyRecipientUids(e, id);
       notifyUids.forEach(uid => {
         this._sendNotifFromTemplate('event_cancelled', {
           eventName: e.title, date: e.date, location: e.location,
         }, uid, 'activity', '活動');
       });
-
-      ApiService.updateEvent(id, { status: 'cancelled' });
       // 活動被取消 → 刪除所有個人取消紀錄
       await this._cleanupCancelledRecords(id);
       ApiService._writeOpLog('event_cancel', '取消活動', `取消「${e.title}」`);

@@ -683,7 +683,7 @@ Object.assign(FirebaseService, {
 
     const startDate = this._getEventStartDate(eventData);
     if (startDate && startDate <= now) {
-      if (eventData.status !== 'ended') {
+      if (eventData.status !== 'ended' && eventData.status !== 'cancelled') {
         eventData.status = 'ended';
         eventData.feeEnabled = false;
         if (eventData._docId) {
