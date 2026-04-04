@@ -151,10 +151,18 @@ const FirebaseService = {
       return;
     }
 
-    // 背景頁：500ms 防抖
+    // 背景頁：500ms 防抖 + 滑動延後
     clearTimeout(this._snapshotRenderTimer);
     this._snapshotRenderTimer = setTimeout(() => {
       if (typeof App === 'undefined') return;
+      // 用戶正在滑動時延後 re-render，避免圖片閃爍
+      if (App._lastScrollTime && Date.now() - App._lastScrollTime < 3000) {
+        App._pendingBgRender = true;
+        clearTimeout(this._scrollDeferTimer);
+        this._scrollDeferTimer = setTimeout(() => { this._debouncedSnapshotRender(source); }, 3000);
+        return;
+      }
+      App._pendingBgRender = false;
       const p = App.currentPage;
       if (p === 'page-home') App.renderHotEvents?.();
       if (p === 'page-activities') App.renderActivityList?.();
@@ -249,6 +257,14 @@ const FirebaseService = {
     if (!this._cacheUpdateRenderTimers) this._cacheUpdateRenderTimers = {};
     this._cacheUpdateRenderTimers[collectionName] = setTimeout(() => {
       if (typeof App === 'undefined') return;
+      // 滑動延後：用戶正在瀏覽時不打斷
+      if (App._lastScrollTime && Date.now() - App._lastScrollTime < 3000) {
+        App._pendingBgRender = true;
+        clearTimeout(this._swrScrollDeferTimers?.[collectionName]);
+        if (!this._swrScrollDeferTimers) this._swrScrollDeferTimers = {};
+        this._swrScrollDeferTimers[collectionName] = setTimeout(() => { this._notifyCacheUpdated(collectionName); }, 3000);
+        return;
+      }
       try {
         switch (collectionName) {
           case 'events':
@@ -746,6 +762,13 @@ const FirebaseService = {
         && ['banners', 'announcements', 'events', 'floatingAds', 'popupAds', 'sponsors', 'tournaments', 'gameConfigs']
           .some(name => loaded.has(name));
       if (shouldRefreshHome) {
+        // 滑動延後
+        if (App._lastScrollTime && Date.now() - App._lastScrollTime < 3000) {
+          App._pendingBgRender = true;
+          clearTimeout(this._warmDeferTimer);
+          this._warmDeferTimer = setTimeout(() => { this._handleWarmLoadedCollections(loadedNames); }, 3000);
+          return;
+        }
         App.renderAll?.();
       }
       // teams 載入後刷新賽事中心建立按鈕（解決首次進入時按鈕不顯示的時序問題）
