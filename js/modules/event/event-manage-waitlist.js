@@ -268,4 +268,121 @@ Object.assign(App, {
     this.showToast('已正取');
   },
 
+  /** 強制將正取用戶下放至候補（含同行者），方案 A：自然排序 */
+  async _forceDemoteToWaitlist(eventId, userId, userName, isCompanion) {
+    // 同行者不能單獨下放，必須從主報名者操作
+    if (isCompanion) { this.showToast('請從主報名者操作下放'); return; }
+    const e = ApiService.getEvent(eventId);
+    if (!e) return;
+    if (!e.max || e.max <= 0) { this.showToast('此活動無名額上限，無法下放候補'); return; }
+
+    const allRegs = ApiService.getRegistrationsByEvent(eventId);
+    const userConfirmed = allRegs.filter(r => r.userId === userId && r.status === 'confirmed');
+    if (userConfirmed.length === 0) { this.showToast('找不到正取紀錄'); return; }
+
+    const companionCount = userConfirmed.filter(r => r.participantType === 'companion').length;
+    const confirmMsg = companionCount > 0
+      ? `確定將 ${userName}（含 ${companionCount} 位同行者）下放到候補嗎？`
+      : `確定將 ${userName} 下放到候補嗎？`;
+    if (!await this.appConfirm(confirmMsg)) return;
+
+    if (!await this._ensureActivityRecordsReady({ required: true })) return;
+
+    // 蒐集 activityRecord（非同行者才有）
+    const arSource = ApiService._src('activityRecords');
+    const arRecords = [];
+    for (const reg of userConfirmed) {
+      if (reg.participantType !== 'companion') {
+        const ar = arSource.find(a => a.eventId === eventId && a.uid === reg.userId && a.status === 'registered');
+        if (ar && ar._docId) arRecords.push(ar);
+      }
+    }
+
+    // 模擬模式：先在副本上計算，commit 成功後才寫快取
+    const prevRegStates = userConfirmed.map(r => ({ ref: r, prev: r.status }));
+    const prevArStates = arRecords.map(r => ({ ref: r, prev: r.status }));
+    userConfirmed.forEach(r => { r.status = 'waitlisted'; });
+    arRecords.forEach(r => { r.status = 'waitlisted'; });
+
+    const activeAfter = (ApiService._src('registrations') || []).filter(
+      r => r.eventId === eventId && (r.status === 'confirmed' || r.status === 'waitlisted')
+    );
+    var occupancy;
+    if (typeof FirebaseService !== 'undefined' && typeof FirebaseService._rebuildOccupancy === 'function') {
+      occupancy = FirebaseService._rebuildOccupancy(e, activeAfter);
+    } else {
+      var confirmed = activeAfter.filter(r => r.status === 'confirmed');
+      var waitlisted = activeAfter.filter(r => r.status === 'waitlisted');
+      occupancy = {
+        participants: confirmed.map(r => this._getRegistrationParticipantName(r)).filter(Boolean),
+        waitlistNames: waitlisted.map(r => this._getRegistrationParticipantName(r)).filter(Boolean),
+        current: confirmed.length,
+        waitlist: waitlisted.length,
+        status: confirmed.length >= (e.max || 0) ? 'full' : 'open',
+      };
+    }
+
+    try {
+      var eventDocId = String(e._docId || '').trim();
+      if (!eventDocId) throw new Error('EVENT_DOC_ID_MISSING');
+      var batch = db.batch();
+      for (var i = 0; i < userConfirmed.length; i++) {
+        if (userConfirmed[i]._docId) {
+          batch.update(db.collection('registrations').doc(userConfirmed[i]._docId), { status: 'waitlisted' });
+        }
+      }
+      var arDocIds = new Set();
+      arRecords.forEach(function (r) {
+        if (r._docId && !arDocIds.has(r._docId)) {
+          arDocIds.add(r._docId);
+          batch.update(db.collection('activityRecords').doc(r._docId), { status: 'waitlisted' });
+        }
+      });
+      batch.update(db.collection('events').doc(eventDocId), {
+        current: occupancy.current,
+        waitlist: occupancy.waitlist,
+        participants: occupancy.participants,
+        waitlistNames: occupancy.waitlistNames,
+        status: occupancy.status,
+      });
+      await batch.commit();
+    } catch (err) {
+      console.error('[forceDemote]', err);
+      // rollback
+      prevRegStates.forEach(function (s) { s.ref.status = s.prev; });
+      prevArStates.forEach(function (s) { s.ref.status = s.prev; });
+      this.showToast('儲存失敗，請重試');
+      return;
+    }
+
+    // commit 成功 → 套用投影
+    e.current = occupancy.current;
+    e.waitlist = occupancy.waitlist;
+    e.participants = occupancy.participants;
+    e.waitlistNames = occupancy.waitlistNames;
+    e.status = occupancy.status;
+
+    if (typeof FirebaseService !== 'undefined' && typeof FirebaseService._saveToLS === 'function') {
+      FirebaseService._saveToLS('registrations', FirebaseService._cache.registrations);
+      FirebaseService._saveToLS('activityRecords', FirebaseService._cache.activityRecords);
+      FirebaseService._saveToLS('events', FirebaseService._cache.events);
+    }
+
+    // 通知被下放的用戶
+    this._sendNotifFromTemplate('waitlist_demoted', {
+      eventName: e.title,
+      date: e.date,
+      location: e.location,
+    }, userId, 'activity', '活動');
+
+    ApiService._writeOpLog('force_demote', '下放候補', `活動「${e.title}」將 ${userName} 下放至候補`);
+
+    // 重新渲染
+    this._renderWaitlistSection(eventId, 'waitlist-table-container');
+    this._renderGroupedWaitlistSection(eventId, 'detail-waitlist-container');
+    this._renderAttendanceTable(eventId, this._manualEditingContainerId || 'attendance-table-container');
+    this._renderAttendanceTable(eventId, 'detail-attendance-table');
+    this.showToast(`已將 ${userName} 下放至候補`);
+  },
+
 });

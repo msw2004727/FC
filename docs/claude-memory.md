@@ -321,3 +321,8 @@
 - **原因**：(1) `app.js:291` `applyRole('user')` 無條件覆蓋 cache 中的正確角色，且後續 `_syncCurrentUserFromUsersSnapshot` 因 roleChanged=false 不會修正；(2) `firebase-service.js:907` token refresh 失敗時 `.catch` 不呼叫 `applyRole`，角色永遠不更新
 - **修復**：(1) 改為讀 `FirebaseService._cache?.currentUser?.role || 'user'`；(2) `.catch` 裡也呼叫 `applyRole(next.role, true)`
 - **教訓**：前端角色設定有多條非同步路徑競爭，任何路徑的 fallback 都不應硬編碼 'user'，應優先讀快取。安全靠 Firestore Rules，不靠 client-side role
+
+### 2026-04-04 — 編輯簽到新增「候補」下放按鈕
+- **功能**：管理員可在報名名單編輯模式中，將正取用戶（含同行者）強制下放至候補
+- **設計**：方案 A（自然排序），下放後位置依原始報名時間排列，不做優先插入
+- **實作**：`_forceDemoteToWaitlist` 加在 `event-manage-waitlist.js`（與 `_forcePromoteWaitlist` 互為反操作），紫色按鈕僅顯示在非同行者行且 event.max > 0 時
