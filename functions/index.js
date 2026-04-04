@@ -81,6 +81,9 @@ const ALLOWED_AUDIT_META_KEYS = new Set([
   "reasonCode",
   "statusFrom",
   "statusTo",
+  "reason",
+  "cancelledCount",
+  "promotedCount",
 ]);
 const AUDIT_RETENTION_DAYS = 180;
 const CHANGE_WATCH_RETENTION_DAYS = 180;
@@ -5050,6 +5053,23 @@ exports.cancelRegistration = onCall(
         actorUid: callerUid,
       })
     );
+
+    // P5: 遞補者 operationLog（與前端 firebase-crud.js auto_promote 一致）
+    for (const promoted of result.promoted) {
+      const now = new Date();
+      const timeStr = `${String(now.getMonth() + 1).padStart(2, "0")}/${String(now.getDate()).padStart(2, "0")} ${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+      postOps.push(
+        db.collection("operationLogs").add({
+          type: "auto_promote",
+          typeName: "自動遞補",
+          content: `活動「${result.eventData.title}」候補 ${promoted.userName || "?"} 自動遞補為正取`,
+          operator: "系統",
+          actorUid: callerUid,
+          time: timeStr,
+          createdAt: FieldValue.serverTimestamp(),
+        })
+      );
+    }
 
     Promise.allSettled(postOps).catch((err) => console.error("[cancelRegistration postOps]", err));
 
