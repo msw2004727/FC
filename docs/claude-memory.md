@@ -315,3 +315,9 @@
 - **問題**：手動簽到需勾選 20~30 人後一次送出，若 batch 失敗或頁面離開，全部重勾
 - **修復**：新增 `event-manage-instant-save.js`，checkbox 勾選後 300ms debounce 自動寫入 Firestore，per-UID sequential queue 防止同一人重複寫入。失敗自動還原 checkbox + 閃紅提示。「完成簽到」按鈕改為處理備註 + 收尾（flush → batch notes → EXP → no-show reconciliation）
 - **教訓**：事件代理綁定 handler 時，eventId 不可用 closure 綁死，必須讀 `_attendanceEditingEventId` 支援容器復用不同活動
+
+### 2026-04-04 — [永久] 角色卡在 user 的根因修復
+- **問題**：總管登入後角色常卡在 user，需反覆登出登入才恢復
+- **原因**：(1) `app.js:291` `applyRole('user')` 無條件覆蓋 cache 中的正確角色，且後續 `_syncCurrentUserFromUsersSnapshot` 因 roleChanged=false 不會修正；(2) `firebase-service.js:907` token refresh 失敗時 `.catch` 不呼叫 `applyRole`，角色永遠不更新
+- **修復**：(1) 改為讀 `FirebaseService._cache?.currentUser?.role || 'user'`；(2) `.catch` 裡也呼叫 `applyRole(next.role, true)`
+- **教訓**：前端角色設定有多條非同步路徑競爭，任何路徑的 fallback 都不應硬編碼 'user'，應優先讀快取。安全靠 Firestore Rules，不靠 client-side role

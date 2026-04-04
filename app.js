@@ -288,7 +288,8 @@ const App = {
     // ── 核心渲染（不受上方錯誤影響）──
     this._applyI18nToUI();
     this.renderAll();
-    this.applyRole('user', true);
+    var _cachedRole = (typeof FirebaseService !== 'undefined' && FirebaseService._cache?.currentUser?.role) || 'user';
+    this.applyRole(_cachedRole, true);
     // 清除開機看門狗（清快取後的自動重載保護）
     try { clearTimeout(window._bootWatchdogTimer); sessionStorage.removeItem('_bootWatchdog'); } catch(_){}
   },

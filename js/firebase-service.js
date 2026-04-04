@@ -906,6 +906,9 @@ const FirebaseService = {
         }
       }).catch(err => {
         console.warn('[FirebaseService] Token refresh after role change failed:', err);
+        if (typeof App !== 'undefined' && typeof App.applyRole === 'function') {
+          App.applyRole(next.role, true);
+        }
       });
     }
   },
