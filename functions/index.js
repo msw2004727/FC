@@ -5204,7 +5204,6 @@ async function collectUsageMetrics() {
     const [rows] = await bq.query({
       query,
       params: { invoiceMonth, projectId: USAGE_PROJECT_ID },
-      location: "US",
     });
 
     if (rows && rows.length > 0) {
