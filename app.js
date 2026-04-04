@@ -285,16 +285,8 @@ const App = {
     } catch (e) {
       console.error('[App] 非核心模組初始化失敗:', e.message);
     }
-    // ── 滑動偵測：背景 re-render 延後機制 ──
+    // ── 滑動偵測（供背景 re-render 參考）──
     this._lastScrollTime = 0;
-    this._pendingBgRender = false;
-    var _scrollSelf = this;
-    window.addEventListener('scroll', function() {
-      _scrollSelf._lastScrollTime = Date.now();
-    }, { passive: true });
-    document.addEventListener('touchmove', function() {
-      _scrollSelf._lastScrollTime = Date.now();
-    }, { passive: true });
 
     // ── 核心渲染（不受上方錯誤影響）──
     this._applyI18nToUI();

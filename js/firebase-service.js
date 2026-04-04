@@ -151,22 +151,16 @@ const FirebaseService = {
       return;
     }
 
-    // 背景頁：500ms 防抖 + 滑動延後
+    // 背景頁：500ms 防抖 + 頂層 scrollTop 保護
     clearTimeout(this._snapshotRenderTimer);
     this._snapshotRenderTimer = setTimeout(() => {
       if (typeof App === 'undefined') return;
-      // 用戶正在滑動時延後 re-render，避免圖片閃爍
-      if (App._lastScrollTime && Date.now() - App._lastScrollTime < 3000) {
-        App._pendingBgRender = true;
-        clearTimeout(this._scrollDeferTimer);
-        this._scrollDeferTimer = setTimeout(() => { this._debouncedSnapshotRender(source); }, 3000);
-        return;
-      }
-      App._pendingBgRender = false;
-      const p = App.currentPage;
+      var _s = window.scrollY || window.pageYOffset || 0;
+      var p = App.currentPage;
       if (p === 'page-home') App.renderHotEvents?.();
       if (p === 'page-activities') App.renderActivityList?.();
       if (p === 'page-my-activities') App.renderMyActivities?.();
+      if (_s > 0) requestAnimationFrame(function() { window.scrollTo(0, _s); });
     }, 500);
   },
 
@@ -257,14 +251,7 @@ const FirebaseService = {
     if (!this._cacheUpdateRenderTimers) this._cacheUpdateRenderTimers = {};
     this._cacheUpdateRenderTimers[collectionName] = setTimeout(() => {
       if (typeof App === 'undefined') return;
-      // 滑動延後：用戶正在瀏覽時不打斷
-      if (App._lastScrollTime && Date.now() - App._lastScrollTime < 3000) {
-        App._pendingBgRender = true;
-        clearTimeout(this._swrScrollDeferTimers?.[collectionName]);
-        if (!this._swrScrollDeferTimers) this._swrScrollDeferTimers = {};
-        this._swrScrollDeferTimers[collectionName] = setTimeout(() => { this._notifyCacheUpdated(collectionName); }, 3000);
-        return;
-      }
+      var _s = window.scrollY || window.pageYOffset || 0;
       try {
         switch (collectionName) {
           case 'events':
@@ -290,14 +277,13 @@ const FirebaseService = {
           case 'registrations':
           case 'attendanceRecords':
           case 'activityRecords':
-            // 這些由 page-scoped realtime 處理，不在此做全頁重渲染
             break;
           default:
-            // 其他集合：僅在對應頁面時靜默刷新
             break;
         }
       } catch (e) { console.warn('[SWR] render for', collectionName, 'failed:', e); }
-    }, 300); // 300ms debounce 避免連續到達時重複渲染
+      if (_s > 0) requestAnimationFrame(function() { window.scrollTo(0, _s); });
+    }, 300);
   },
 
   /** 儲存全部快取到 localStorage */
@@ -762,14 +748,9 @@ const FirebaseService = {
         && ['banners', 'announcements', 'events', 'floatingAds', 'popupAds', 'sponsors', 'tournaments', 'gameConfigs']
           .some(name => loaded.has(name));
       if (shouldRefreshHome) {
-        // 滑動延後
-        if (App._lastScrollTime && Date.now() - App._lastScrollTime < 3000) {
-          App._pendingBgRender = true;
-          clearTimeout(this._warmDeferTimer);
-          this._warmDeferTimer = setTimeout(() => { this._handleWarmLoadedCollections(loadedNames); }, 3000);
-          return;
-        }
+        var _s = window.scrollY || window.pageYOffset || 0;
         App.renderAll?.();
+        if (_s > 0) requestAnimationFrame(function() { window.scrollTo(0, _s); });
       }
       // teams 載入後刷新賽事中心建立按鈕（解決首次進入時按鈕不顯示的時序問題）
       if (loaded.has('teams') && App.currentPage === 'page-tournaments') {
@@ -2401,11 +2382,13 @@ const FirebaseService = {
       if (oldCount !== fresh.length) {
         console.log(`[FirebaseService] RC1 stale-while-revalidate: registrations ${oldCount} → ${fresh.length}`);
       }
-      // 若用戶正在活動相關頁面，觸發 UI 更新
+      // 若用戶正在活動相關頁面，觸發 UI 更新（保留捲動位置）
       if (typeof App !== 'undefined') {
+        var _s2 = window.scrollY || window.pageYOffset || 0;
         if (App.currentPage === 'page-activity-detail') App.showEventDetail?.(App._currentDetailEventId);
         if (App.currentPage === 'page-activities') App.renderActivityList?.();
         if (App.currentPage === 'page-my-activities') App.renderMyActivities?.();
+        if (_s2 > 0) requestAnimationFrame(function() { window.scrollTo(0, _s2); });
       }
     }).catch(err => {
       this._registrationsRevalidating = false;
@@ -2506,11 +2489,13 @@ const FirebaseService = {
       if (fresh.length !== oldLen) {
         console.log(`[FirebaseService] registrations 刷新: ${oldLen} → ${fresh.length}`);
       }
-      // 觸發當前頁面 UI 更新
+      // 觸發當前頁面 UI 更新（保留捲動位置）
       if (typeof App !== 'undefined') {
+        var _s3 = window.scrollY || window.pageYOffset || 0;
         if (App.currentPage === 'page-activity-detail') App.showEventDetail?.(App._currentDetailEventId);
         if (App.currentPage === 'page-activities') App.renderActivityList?.();
         if (App.currentPage === 'page-my-activities') App.renderMyActivities?.();
+        if (_s3 > 0) requestAnimationFrame(function() { window.scrollTo(0, _s3); });
       }
     }).catch(err => {
       this._registrationsRevalidating = false;
@@ -2524,11 +2509,13 @@ const FirebaseService = {
     this._eventsRevalidating = true;
     this._loadEventsStatic().then(() => {
       this._eventsRevalidating = false;
-      // 觸發首頁重新渲染
+      // 觸發首頁重新渲染（保留捲動位置）
       if (typeof App !== 'undefined') {
+        var _s4 = window.scrollY || window.pageYOffset || 0;
         if (App.currentPage === 'page-home') App.renderHotEvents?.();
         if (App.currentPage === 'page-activities') App.renderActivityList?.();
         if (App.currentPage === 'page-my-activities') App.renderMyActivities?.();
+        if (_s4 > 0) requestAnimationFrame(function() { window.scrollTo(0, _s4); });
       }
       console.log('[FirebaseService] events 恢復刷新完成');
     }).catch(err => {
