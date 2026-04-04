@@ -5204,7 +5204,8 @@ async function collectUsageMetrics() {
       SELECT
         service.description AS service_name,
         SUM(cost) AS cost,
-        SUM(IFNULL((SELECT SUM(c.amount) FROM UNNEST(credits) c), 0)) AS credits
+        SUM(IFNULL((SELECT SUM(c.amount) FROM UNNEST(credits) c), 0)) AS credits,
+        ANY_VALUE(currency) AS currency
       FROM \`${USAGE_PROJECT_ID}.billing_export.gcp_billing_export_v1_017F3E_4F4035_320E24\`
       WHERE invoice.month = @invoiceMonth
         AND project.id = @projectId
@@ -5228,6 +5229,7 @@ async function collectUsageMetrics() {
         costByService[svc] = Math.round((cost + credits) * 100) / 100;
         totalCost += cost;
         totalCredits += credits;
+        if (row.currency) billingData.currency = row.currency;
       }
       billingData.totalCost = Math.round((totalCost + totalCredits) * 100) / 100;
       billingData.costByService = costByService;

@@ -256,7 +256,7 @@ Object.assign(App, {
     if (val == null) return '--';
     const num = Number(val);
     if (isNaN(num)) return '--';
-    const sym = currency === 'USD' ? '$' : currency + ' ';
+    const sym = currency === 'TWD' ? 'NT$' : currency === 'USD' ? 'US$' : (currency || '') + ' ';
     return sym + num.toFixed(2);
   },
 
