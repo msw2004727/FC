@@ -112,7 +112,7 @@ Object.assign(App, {
       return;
     }
 
-    // 整表編輯模式（手動簽到）
+    // 整表編輯模式（編輯簽到）
     const tableEditing = canManage && this._attendanceEditingEventId === eventId;
     const isSubmitting = canManage && this._attendanceSubmittingEventId === eventId;
     const pendingStateByUid = (isSubmitting || this._attendancePendingStateByUid) ? (this._attendancePendingStateByUid || Object.create(null)) : null;
@@ -190,7 +190,7 @@ Object.assign(App, {
       </tr>`;
     }).join('');
 
-    // 手動簽到 / 完成簽到 按鈕（右上角，僅管理員）
+    // 編輯 / 完成簽到 按鈕（右上角，僅管理員）
     const topBtn = canManage ? (tableEditing
       ? `<button style="font-size:.75rem;padding:.25rem .6rem;background:#2e7d32;color:#fff;border:none;border-radius:var(--radius-sm);${isSubmitting ? 'cursor:not-allowed;opacity:.72' : 'cursor:pointer'}" ${isSubmitting ? 'disabled' : ''} onclick="App._confirmAllAttendance('${escapeHTML(eventId)}')">${isSubmitting ? '儲存中...' : '完成簽到'}</button>`
       : `<button style="font-size:.75rem;padding:.25rem .6rem;background:#1565c0;color:#fff;border:none;border-radius:var(--radius-sm);cursor:pointer" onclick="App._startTableEdit('${escapeHTML(eventId)}')">編輯</button>`
@@ -340,7 +340,7 @@ Object.assign(App, {
       </tr>`;
     }).join('');
 
-    // 手動簽到 / 完成簽到 按鈕（放在表頭「未報名單」右側）
+    // 編輯 / 完成簽到 按鈕（放在表頭「未報名單」右側）
     const topBtn = canManage ? (tableEditing
       ? `<button style="font-size:.75rem;padding:.25rem .6rem;background:#2e7d32;color:#fff;border:none;border-radius:var(--radius-sm);${isSubmitting ? 'cursor:not-allowed;opacity:.72' : 'cursor:pointer'}" ${isSubmitting ? 'disabled' : ''} onclick="App._confirmAllUnregAttendance('${escapeHTML(eventId)}')">${isSubmitting ? '儲存中...' : '完成簽到'}</button>`
       : `<button style="font-size:.75rem;padding:.25rem .6rem;background:#1565c0;color:#fff;border:none;border-radius:var(--radius-sm);cursor:pointer" onclick="App._startUnregTableEdit('${escapeHTML(eventId)}')">編輯</button>`

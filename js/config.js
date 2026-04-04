@@ -4,7 +4,7 @@
 
 // ─── Cache Version（更新此值以清除瀏覽器快取）───
 // 變更日誌已移除，請用 git log 查閱歷史部署記錄。
-const CACHE_VERSION = '20260404h';
+const CACHE_VERSION = '20260404i';
 
 // ─── 網路 / 設備偵測（用於 UI 降級）───
 const NetDevice = {
@@ -607,7 +607,7 @@ const ADMIN_PAGE_EXTRA_PERMISSION_ITEMS = {
     { code: 'event.delete', name: '刪除所有活動' },
     { code: 'event.publish', name: '上架 / 下架活動' },
     { code: 'event.scan', name: '掃碼簽到 / 簽退' },
-    { code: 'event.manual_checkin', name: '手動簽到 / 簽退' },
+    { code: 'event.manual_checkin', name: '編輯簽到 / 簽退' },
     { code: 'event.view_registrations', name: '查看報名名單' },
   ],
   'page-admin-tournaments': [

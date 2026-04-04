@@ -56,8 +56,8 @@ Object.assign(App, {
       body: '允許使用 QR Code 掃碼功能，為活動參加者執行簽到與簽退操作。',
     },
     'event.manual_checkin': {
-      title: '手動簽到 / 簽退',
-      body: '允許不透過 QR Code，直接在管理介面手動為參加者標記簽到或簽退。'
+      title: '編輯簽到 / 簽退',
+      body: '允許不透過 QR Code，直接在管理介面編輯參加者的簽到或簽退狀態。'
         + '<p style="color:var(--text-muted);font-size:.78rem;margin-top:.4rem">適用於忘帶手機或設備故障等情況。</p>',
     },
     'event.view_registrations': {

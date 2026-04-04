@@ -471,7 +471,7 @@ Object.assign(App, {
       ? `<div style="font-size:.85rem;font-weight:700;margin:.6rem 0 .3rem;color:var(--danger)">⚠️ 未報名掃碼（${unregList.length}）</div>${unregList.map(recRow).join('')}`
       : '';
 
-    // ── 費用摘要（使用獨立容器，供手動簽到後即時刷新）──
+    // ── 費用摘要（使用獨立容器，供編輯簽到後即時刷新）──
     const isSuperAdmin = (ROLE_LEVEL_MAP[this.currentRole] || 0) >= ROLE_LEVEL_MAP.super_admin;
     const feeSection = isSuperAdmin ? `<div id="detail-fee-summary"></div>` : '';
 
@@ -502,7 +502,7 @@ Object.assign(App, {
     modal.style.display = 'flex';
   },
 
-  /** 費用摘要即時渲染（獨立函式，供手動簽到後刷新） */
+  /** 費用摘要即時渲染（獨立函式，供編輯簽到後刷新） */
   _renderDetailFeeSummary(eventId) {
     const container = document.getElementById('detail-fee-summary');
     if (!container) return;
