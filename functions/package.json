@@ -10,6 +10,7 @@
     "test:rules": "firebase emulators:exec --config ../firebase.json --only firestore --project demo-rules-test \"npm run test:rules:unit\""
   },
   "dependencies": {
+    "@google-cloud/bigquery": "^8.1.1",
     "@google-cloud/translate": "^9.3.0",
     "@line/bot-sdk": "^10.6.0",
     "firebase-admin": "^13.7.0",

@@ -5179,50 +5179,51 @@ async function collectUsageMetrics() {
     metrics.firestoreStorageBytes = null;
   }
 
-  // ── Cloud Billing API：取得本月實際費用 ──
+  // ── BigQuery Billing Export：取得本月實際費用 ──
   const billingData = { totalCost: null, costByService: null, currency: "USD", billingPeriod: null };
   try {
-    const { GoogleAuth: BillingGAuth } = require("google-auth-library");
+    const { BigQuery } = require("@google-cloud/bigquery");
+    const bq = new BigQuery({ projectId: USAGE_PROJECT_ID });
 
-    // 取當月起迄（UTC）
     const billingNow = new Date();
-    const monthStart = new Date(Date.UTC(billingNow.getUTCFullYear(), billingNow.getUTCMonth(), 1));
-    billingData.billingPeriod = `${monthStart.toISOString().slice(0, 7)}`;
+    const invoiceMonth = String(billingNow.getUTCFullYear()) + String(billingNow.getUTCMonth() + 1).padStart(2, "0");
+    billingData.billingPeriod = invoiceMonth.slice(0, 4) + "-" + invoiceMonth.slice(4);
 
-    // 使用 Cloud Monitoring 的 billing/cost metric（最輕量方式，不需 BigQuery Export）
-    const billingFilter = `metric.type="billing.googleapis.com/billing/cost" AND resource.labels.project_id="${USAGE_PROJECT_ID}"`;
-    const billingUrl = `https://monitoring.googleapis.com/v3/projects/${USAGE_PROJECT_ID}/timeSeries`
-      + `?filter=${encodeURIComponent(billingFilter)}`
-      + `&interval.startTime=${monthStart.toISOString()}`
-      + `&interval.endTime=${billingNow.toISOString()}`
-      + `&aggregation.alignmentPeriod=${Math.max(1, Math.floor((billingNow - monthStart) / 1000))}s`
-      + `&aggregation.perSeriesAligner=ALIGN_SUM`;
+    const query = `
+      SELECT
+        service.description AS service_name,
+        SUM(cost) AS cost,
+        SUM(IFNULL((SELECT SUM(c.amount) FROM UNNEST(credits) c), 0)) AS credits
+      FROM \`${USAGE_PROJECT_ID}.billing_export.gcp_billing_export_v1_017F3E_4F4035_320E24\`
+      WHERE invoice.month = @invoiceMonth
+        AND project.id = @projectId
+      GROUP BY service_name
+      ORDER BY cost DESC
+    `;
 
-    const monAuth = new BillingGAuth({ scopes: ["https://www.googleapis.com/auth/monitoring.read"] });
-    const monClient = await monAuth.getClient();
-    const billingRes = await monClient.request({ url: billingUrl, method: "GET" });
+    const [rows] = await bq.query({
+      query,
+      params: { invoiceMonth, projectId: USAGE_PROJECT_ID },
+      location: "US",
+    });
 
-    if (billingRes.data && billingRes.data.timeSeries) {
+    if (rows && rows.length > 0) {
       const costByService = {};
-      let total = 0;
-      for (const series of billingRes.data.timeSeries) {
-        const serviceName = (series.resource && series.resource.labels && series.resource.labels.service)
-          || (series.metric && series.metric.labels && series.metric.labels.service)
-          || "other";
-        let seriesCost = 0;
-        for (const point of (series.points || [])) {
-          const v = point.value;
-          seriesCost += v.doubleValue || (v.int64Value ? parseInt(v.int64Value) : 0);
-        }
-        costByService[serviceName] = (costByService[serviceName] || 0) + seriesCost;
-        total += seriesCost;
+      let totalCost = 0;
+      let totalCredits = 0;
+      for (const row of rows) {
+        const svc = row.service_name || "other";
+        const cost = Number(row.cost) || 0;
+        const credits = Number(row.credits) || 0;
+        costByService[svc] = Math.round((cost + credits) * 100) / 100;
+        totalCost += cost;
+        totalCredits += credits;
       }
-      billingData.totalCost = Math.round(total * 100) / 100;
+      billingData.totalCost = Math.round((totalCost + totalCredits) * 100) / 100;
       billingData.costByService = costByService;
     }
   } catch (err) {
-    // Billing metric 可能不存在（需要 Billing Export 啟用），靜默失敗
-    console.warn("[fetchUsageMetrics] billing cost fetch failed (expected if billing export not enabled):", err.message || err);
+    console.warn("[fetchUsageMetrics] BigQuery billing fetch failed:", err.message || err);
     billingData.totalCost = null;
   }
 

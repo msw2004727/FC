@@ -236,7 +236,7 @@ Object.assign(App, {
       }
     } else {
       html += `<div style="font-size:.75rem;color:var(--text-secondary);margin-bottom:.3rem">
-        Billing API 無資料（需啟用 Billing Export 或等待數據同步）
+        帳單資料同步中（請點「重新抓取」更新）
       </div>`;
     }
 
