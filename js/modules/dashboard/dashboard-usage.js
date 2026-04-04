@@ -4,7 +4,7 @@
    ================================================ */
 Object.assign(App, {
 
-  /** Spark 免費額度定義（每日） */
+  /** Blaze 方案每日免費額度（超過部分依 pay-as-you-go 計費） */
   _USAGE_FREE_TIER: {
     firestoreReads:   50000,   // 50K reads/day
     firestoreWrites:  20000,   // 20K writes/day
@@ -56,7 +56,7 @@ Object.assign(App, {
       <div class="dash-usage-bar-track">
         <div class="dash-usage-bar-fill" style="width:${pct}%;background:${color}"></div>
       </div>
-      <div class="dash-usage-sub">${escapeHTML(String(pct))}% of ${escapeHTML(displayLimit)}/日</div>
+      <div class="dash-usage-sub">${escapeHTML(String(pct))}% 免費額度（${escapeHTML(displayLimit)}/日）</div>
     </div>`;
   },
 
@@ -89,7 +89,7 @@ Object.assign(App, {
     // 構建 HTML
     let html = `<div class="info-card" id="usage-metrics-card">
       <div class="info-title" style="display:flex;justify-content:space-between;align-items:center">
-        <span>雲端用量（過去 24 小時）</span>
+        <span>雲端用量 Blaze（過去 24 小時）</span>
         <button class="btn-sm" id="btn-refresh-usage" style="font-size:.72rem;padding:.2rem .5rem">重新抓取</button>
       </div>`;
 
@@ -111,7 +111,7 @@ Object.assign(App, {
 
       if (alertItems.length > 0) {
         html += `<div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:.5rem .75rem;margin-bottom:.75rem;font-size:.78rem;color:#991b1b">
-          ⚠ 接近免費額度上限：${escapeHTML(alertItems.join('、'))}
+          ⚠ 接近免費額度上限，超過將產生費用：${escapeHTML(alertItems.join('、'))}
         </div>`;
       }
 
@@ -132,7 +132,7 @@ Object.assign(App, {
         html += `<div class="dash-usage-card">
           <div class="dash-usage-label">Firestore 儲存</div>
           <div class="dash-usage-num" style="font-size:.82rem;color:var(--text-secondary)">指標不適用</div>
-          <div class="dash-usage-sub">Spark 方案無此資料</div>
+          <div class="dash-usage-sub">此指標暫無資料</div>
         </div>`;
       }
       // Functions 延遲
