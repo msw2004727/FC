@@ -69,7 +69,7 @@ Object.assign(App, {
       <div class="dash-usage-bar-track">
         <div class="dash-usage-bar-fill" style="width:${pct}%;background:${color}"></div>
       </div>
-      <div class="dash-usage-sub">${escapeHTML(String(pct))}% 免費額度（${escapeHTML(displayLimit)}/日）</div>
+      <div class="dash-usage-sub">${escapeHTML(String(pct))}% 免費額度（${escapeHTML(displayLimit)}/月累計）</div>
     </div>`;
   },
 
@@ -101,10 +101,29 @@ Object.assign(App, {
     const latest = docs.length > 0 ? docs[0] : null;
     const ft = this._USAGE_FREE_TIER;
 
+    // 當月累計：加總所有天的用量
+    var _sumKey = function(key) {
+      var total = 0;
+      for (var i = 0; i < docs.length; i++) {
+        if (docs[i][key] != null) total += Number(docs[i][key]) || 0;
+      }
+      return total;
+    };
+    var _sumHasData = function(key) {
+      for (var i = 0; i < docs.length; i++) { if (docs[i][key] != null) return true; }
+      return false;
+    };
+    // 當月免費額度 = 每日額度 × 天數
+    var _monthDays = docs.length || 1;
+    var ftMonth = {};
+    for (var _fk in ft) { ftMonth[_fk] = ft[_fk] * _monthDays; }
+
     // 構建 HTML
+    var _mNow = new Date();
+    var _mLabel = _mNow.getFullYear() + '/' + (_mNow.getMonth() + 1) + ' 月';
     let html = `<div class="info-card" id="usage-metrics-card">
       <div class="info-title" style="display:flex;justify-content:space-between;align-items:center">
-        <span>雲端用量 Blaze（過去 24 小時）</span>
+        <span>雲端用量 Blaze（${escapeHTML(_mLabel)}累計，${escapeHTML(String(_monthDays))} 天）</span>
         <button class="btn-sm" id="btn-refresh-usage" style="font-size:.72rem;padding:.2rem .5rem">重新抓取</button>
       </div>`;
 
@@ -114,7 +133,7 @@ Object.assign(App, {
         <span style="font-size:.75rem">請先點「重新抓取」或等待排程自動收集</span>
       </div>`;
     } else {
-      // 警示橫幅
+      // 警示橫幅（用今日資料判斷是否接近每日上限）
       const alertItems = [];
       const checkAlert = (key, label) => {
         const pct = this._usagePct(latest[key], ft[key]);
@@ -126,54 +145,51 @@ Object.assign(App, {
 
       if (alertItems.length > 0) {
         html += `<div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:.5rem .75rem;margin-bottom:.75rem;font-size:.78rem;color:#991b1b">
-          ⚠ 接近免費額度上限，超過將產生費用：${escapeHTML(alertItems.join('、'))}
+          ⚠ 今日接近免費額度上限，超過將產生費用：${escapeHTML(alertItems.join('、'))}
         </div>`;
       }
 
-      // 收集時間
+      // 最新收集時間
       const collectedAt = latest.collectedAt?.toDate?.() || latest.collectedAt;
       const timeStr = collectedAt ? new Date(collectedAt).toLocaleString('zh-TW', { hour12: false }) : latest.dateKey;
-      html += `<div style="font-size:.72rem;color:var(--text-secondary);margin-bottom:.5rem">截至 ${escapeHTML(timeStr)}</div>`;
+      html += `<div style="font-size:.72rem;color:var(--text-secondary);margin-bottom:.5rem">最新資料：${escapeHTML(timeStr)}</div>`;
 
       // ── Firestore ──
       html += `<div style="font-size:.75rem;font-weight:600;color:var(--text-secondary);margin-bottom:.3rem">Firestore</div>`;
       html += `<div class="dash-usage-grid">`;
-      html += this._renderUsageCard('讀取', latest.firestoreReads, ft.firestoreReads);
-      html += this._renderUsageCard('寫入', latest.firestoreWrites, ft.firestoreWrites);
-      html += this._renderUsageCard('刪除', latest.firestoreDeletes, ft.firestoreDeletes);
-      if (latest.firestoreStorageBytes != null) {
-        html += this._renderUsageCard('儲存', latest.firestoreStorageBytes, ft.firestoreStorageBytes, this._fmtBytes.bind(this));
-      }
+      html += this._renderUsageCard('讀取', _sumKey('firestoreReads'), ftMonth.firestoreReads);
+      html += this._renderUsageCard('寫入', _sumKey('firestoreWrites'), ftMonth.firestoreWrites);
+      html += this._renderUsageCard('刪除', _sumKey('firestoreDeletes'), ftMonth.firestoreDeletes);
       html += `</div>`;
 
       // ── Cloud Functions / Cloud Run ──
       html += `<div style="font-size:.75rem;font-weight:600;color:var(--text-secondary);margin:.6rem 0 .3rem">Cloud Functions</div>`;
       html += `<div class="dash-usage-grid">`;
-      html += this._renderUsageCard('呼叫次數', latest.functionsInvocations, ft.functionsInvocations);
-      if (latest.cloudRunRequests != null) {
-        html += this._renderUsageNumCard('Cloud Run 請求', latest.cloudRunRequests);
+      html += this._renderUsageCard('呼叫次數', _sumKey('functionsInvocations'), ftMonth.functionsInvocations);
+      if (_sumHasData('cloudRunRequests')) {
+        html += this._renderUsageNumCard('Cloud Run 請求', _sumKey('cloudRunRequests'));
       }
-      if (latest.cloudRunInstanceTime != null) {
-        html += this._renderUsageNumCard('運算時間', latest.cloudRunInstanceTime, 's');
+      if (_sumHasData('cloudRunInstanceTime')) {
+        html += this._renderUsageNumCard('運算時間', Math.round(_sumKey('cloudRunInstanceTime')), 's');
       }
       html += `</div>`;
 
       // ── Cloud Storage ──
-      var _hasStorage = latest.storageApiRequests != null || latest.storageBytesReceived != null || latest.storageBytesSent != null;
+      var _hasStorage = _sumHasData('storageApiRequests') || _sumHasData('storageBytesReceived') || _sumHasData('storageBytesSent');
       if (_hasStorage) {
         html += `<div style="font-size:.75rem;font-weight:600;color:var(--text-secondary);margin:.6rem 0 .3rem">Cloud Storage</div>`;
         html += `<div class="dash-usage-grid">`;
-        if (latest.storageApiRequests != null) html += this._renderUsageNumCard('API 請求', latest.storageApiRequests);
-        if (latest.storageBytesSent != null) html += this._renderUsageNumCard('下載流量', latest.storageBytesSent, 'bytes');
-        if (latest.storageBytesReceived != null) html += this._renderUsageNumCard('上傳流量', latest.storageBytesReceived, 'bytes');
+        if (_sumHasData('storageApiRequests')) html += this._renderUsageNumCard('API 請求', _sumKey('storageApiRequests'));
+        if (_sumHasData('storageBytesSent')) html += this._renderUsageNumCard('下載流量', _sumKey('storageBytesSent'), 'bytes');
+        if (_sumHasData('storageBytesReceived')) html += this._renderUsageNumCard('上傳流量', _sumKey('storageBytesReceived'), 'bytes');
         html += `</div>`;
       }
 
       // ── App Engine ──
-      if (latest.appEngineRequests != null) {
+      if (_sumHasData('appEngineRequests')) {
         html += `<div style="font-size:.75rem;font-weight:600;color:var(--text-secondary);margin:.6rem 0 .3rem">App Engine</div>`;
         html += `<div class="dash-usage-grid">`;
-        html += this._renderUsageNumCard('請求數', latest.appEngineRequests);
+        html += this._renderUsageNumCard('請求數', _sumKey('appEngineRequests'));
         html += `</div>`;
       }
 
