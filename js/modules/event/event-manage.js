@@ -403,6 +403,20 @@ Object.assign(App, {
       }).join('')
       : '<div style="padding:1rem;font-size:.82rem;color:var(--text-muted);text-align:center">此分類沒有活動</div>';
 
+    // 「載入更多歷史活動」按鈕（已結束/已取消/全部 tab，且尚未全部載完）
+    var _showLoadMore = (f === 'ended' || f === 'cancelled' || f === 'all')
+      && typeof FirebaseService !== 'undefined'
+      && !FirebaseService._terminalAllLoaded
+      && FirebaseService._terminalLastDoc;
+    if (_showLoadMore) {
+      container.insertAdjacentHTML('beforeend',
+        '<div style="text-align:center;padding:.8rem 0">'
+        + '<div style="font-size:.68rem;color:var(--text-muted);margin-bottom:.4rem">目前顯示近 ' + filtered.length + ' 場活動</div>'
+        + '<button class="outline-btn" style="font-size:.78rem;padding:.4rem 1.2rem" onclick="App._loadMoreHistoryEvents()">載入更多歷史活動</button>'
+        + '</div>'
+      );
+    }
+
     // 方案 A：還原 scrollTop
     if (_prevScroll > 0 && _page) _page.scrollTop = _prevScroll;
     if (_prevWinScroll > 0) window.scrollTo(0, _prevWinScroll);
@@ -589,6 +603,27 @@ Object.assign(App, {
     if (input) input.value = '';
     this._myActivityCreatorFilter = '';
     this.renderMyActivities();
+  },
+
+  async _loadMoreHistoryEvents() {
+    var btn = document.querySelector('#my-activity-list .outline-btn[onclick*="loadMore"]');
+    if (btn) { btn.disabled = true; btn.textContent = '載入中…'; }
+    try {
+      var count = await FirebaseService.loadMoreTerminalEvents();
+      if (count < 0) return;
+      // 指紋重置，強制 re-render
+      this._myActivitiesLastFp = '';
+      this.renderMyActivities();
+      if (count === 0) {
+        this.showToast('已載入全部歷史活動');
+      } else {
+        this.showToast('已載入 ' + count + ' 場歷史活動');
+      }
+    } catch (err) {
+      console.error('[_loadMoreHistoryEvents]', err);
+      this.showToast('載入失敗，請稍後再試');
+      if (btn) { btn.disabled = false; btn.textContent = '載入更多歷史活動'; }
+    }
   },
 
 });

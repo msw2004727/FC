@@ -555,7 +555,7 @@ const FirebaseService = {
         'events:terminal',
         db.collection('events')
           .where('status', 'in', ['ended', 'cancelled'])
-          .limit(200)
+          .limit(100)
       ),
     ]);
 
@@ -566,10 +566,45 @@ const FirebaseService = {
 
     this._eventSlices.active = (activeResult.docs || []).map(doc => ({ ...doc.data(), _docId: doc.id }));
     this._eventSlices.terminal = (terminalResult.docs || []).map(doc => ({ ...doc.data(), _docId: doc.id }));
+    // 記錄 terminal 最後一筆 doc snapshot，供分頁用
+    this._terminalLastDoc = (terminalResult.docs && terminalResult.docs.length > 0)
+      ? terminalResult.docs[terminalResult.docs.length - 1] : null;
+    this._terminalAllLoaded = !terminalResult.docs || terminalResult.docs.length < 100;
     this._mergeRealtimeEventSlices(false);
     this._markCollectionsLoaded(['events']);
     this._saveToLS('events', this._cache.events);
     return ['events'];
+  },
+
+  /**
+   * 分頁載入更多已結束/已取消活動（startAfter 上一批最後一筆）
+   * @returns {number} 本次載入的筆數（0 = 已全部載完）
+   */
+  async loadMoreTerminalEvents() {
+    if (this._terminalAllLoaded || !this._terminalLastDoc) return 0;
+    if (this._loadingMoreTerminal) return -1;
+    this._loadingMoreTerminal = true;
+    try {
+      var query = db.collection('events')
+        .where('status', 'in', ['ended', 'cancelled'])
+        .startAfter(this._terminalLastDoc)
+        .limit(100);
+      var snap = await query.get();
+      var newDocs = snap.docs.map(function(doc) { return Object.assign({}, doc.data(), { _docId: doc.id }); });
+      if (newDocs.length > 0) {
+        this._eventSlices.terminal = this._eventSlices.terminal.concat(newDocs);
+        this._terminalLastDoc = snap.docs[snap.docs.length - 1];
+        this._mergeRealtimeEventSlices(false);
+        this._saveToLS('events', this._cache.events);
+      }
+      if (newDocs.length < 100) this._terminalAllLoaded = true;
+      return newDocs.length;
+    } catch (err) {
+      console.error('[loadMoreTerminalEvents]', err);
+      throw err;
+    } finally {
+      this._loadingMoreTerminal = false;
+    }
   },
 
   async _loadCollectionsByName(names) {
