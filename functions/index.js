@@ -1,3 +1,4 @@
+// 2026-04-04: 修復 eventId 查詢 + rebuildOccupancy 去重
 const {
   onDocumentCreated,
   onDocumentWrittenWithAuthContext,
