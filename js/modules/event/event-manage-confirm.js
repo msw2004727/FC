@@ -197,7 +197,7 @@ Object.assign(App, {
     const totalOps = allAdds.length + allRemoves.length;
     ApiService._writeOpLog('manual_attendance', '編輯簽到', `活動 ${e.title} 已套用編輯簽到（共 ${people.length} 人，${totalOps} 筆操作）${failed ? '，批次寫入失敗' : ''}`);
     this._renderDetailFeeSummary(eventId);
-    this.showToast(failed ? '儲存失敗，勾選已保留\n請再按一次「完成簽到」重試' : '儲存完成');
+    this.showToast(failed ? '儲存失敗，勾選已保留\n請再按一次「完成」重試' : '儲存完成');
 
     // 放鴿子 EXP 對帳：對本活動所有正取報名者進行 no-show reconciliation
     if (!failed && typeof this._reconcileNoShowExp === 'function') {
@@ -306,7 +306,7 @@ Object.assign(App, {
     }
 
     this._renderDetailFeeSummary(eventId);
-    this.showToast(failed ? '儲存失敗，勾選已保留\n請再按一次「完成簽到」重試' : '儲存完成');
+    this.showToast(failed ? '儲存失敗，勾選已保留\n請再按一次「完成」重試' : '儲存完成');
   },
 
 });
