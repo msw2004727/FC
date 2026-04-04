@@ -2140,11 +2140,6 @@ async function getChangeWatchEventOwnerIds(eventIdentifier) {
       .get();
     if (!querySnap.empty) {
       ownerIds = getEventOwnerIdsFromData(querySnap.docs[0].data() || {});
-    } else {
-      const directSnap = await db.collection("events").doc(safeEventIdentifier).get();
-      if (directSnap.exists) {
-        ownerIds = getEventOwnerIdsFromData(directSnap.data() || {});
-      }
     }
   } catch (err) {
     console.warn("[changeWatch] failed to resolve event owners:", safeEventIdentifier, err?.message || err);
@@ -3009,8 +3004,9 @@ function buildEventShareHtml({ ogTitle, ogDescription, ogImage, ogUrl, redirectU
 
 async function getEventById(eventId) {
   if (!eventId) return null;
-  const snap = await db.collection("events").doc(eventId).get();
-  if (snap.exists) return snap.data() || {};
+  // 用 id 欄位查詢，因 eventId 是邏輯 ID 非 Firestore doc ID
+  const snap = await db.collection("events").where("id", "==", eventId).limit(1).get();
+  if (!snap.empty) return snap.docs[0].data() || {};
   return null;
 }
 
@@ -4226,8 +4222,21 @@ exports.backfillAutoExp = onCall(
 
 // ── 純函式：重建活動佔位投影（與前端 firebase-crud.js _rebuildOccupancy 邏輯一致）──
 function rebuildOccupancy(event, registrations) {
-  const confirmed = registrations.filter((r) => r.status === "confirmed");
-  const waitlisted = registrations.filter((r) => r.status === "waitlisted");
+  // 去重：同一 (userId, participantType, companionId) 只保留最早報名的那筆
+  const _dedupRegs = (regs) => {
+    const seen = new Set();
+    return regs.filter((r) => {
+      const key = r.participantType === "companion"
+        ? `${r.userId}_companion_${r.companionId || ""}`
+        : `${r.userId}_self`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  };
+
+  const confirmed = _dedupRegs(registrations.filter((r) => r.status === "confirmed"));
+  const waitlisted = _dedupRegs(registrations.filter((r) => r.status === "waitlisted"));
 
   const regSortTime = (r) => {
     const v = r && r.registeredAt;
@@ -4486,12 +4495,15 @@ exports.registerForEvent = onCall(
     const regDocRefs = sanitizedParticipants.map(() => db.collection("registrations").doc());
 
     const result = await db.runTransaction(async (transaction) => {
-      // T1: 讀取活動
-      const eventRef = db.collection("events").doc(eventId);
-      const eventDoc = await transaction.get(eventRef);
-      if (!eventDoc.exists) {
+      // T1: 讀取活動（用 id 欄位查詢，因 eventId 是邏輯 ID 非 Firestore doc ID）
+      const eventQuerySnap = await transaction.get(
+        db.collection("events").where("id", "==", eventId).limit(1)
+      );
+      if (eventQuerySnap.empty) {
         throw new HttpsError("not-found", "EVENT_NOT_FOUND");
       }
+      const eventDoc = eventQuerySnap.docs[0];
+      const eventRef = eventDoc.ref;
       const ed = eventDoc.data();
       const maxCount = ed.max || 0;
 
@@ -4808,12 +4820,15 @@ exports.cancelRegistration = onCall(
 
     // ── Firestore Transaction ──
     const result = await db.runTransaction(async (transaction) => {
-      // T1: 讀取活動
-      const eventRef = db.collection("events").doc(eventId);
-      const eventDoc = await transaction.get(eventRef);
-      if (!eventDoc.exists) {
+      // T1: 讀取活動（用 id 欄位查詢，因 eventId 是邏輯 ID 非 Firestore doc ID）
+      const eventQuerySnap = await transaction.get(
+        db.collection("events").where("id", "==", eventId).limit(1)
+      );
+      if (eventQuerySnap.empty) {
         throw new HttpsError("not-found", "EVENT_NOT_FOUND");
       }
+      const eventDoc = eventQuerySnap.docs[0];
+      const eventRef = eventDoc.ref;
       const ed = eventDoc.data();
 
       // T2: 查詢所有報名（在 Transaction 內查詢，確保一致性）

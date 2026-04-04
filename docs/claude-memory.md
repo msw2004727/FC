@@ -10,6 +10,22 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### [永久] 2026-04-04 — 重複報名導致假額滿（三層防線修復）
+- **問題**：活動「週日早8-10西屯踢球團」上限 27 人但實際 26 人卻顯示額滿。同一用戶 Asanda Mthembu 有兩筆 confirmed self registration（間隔 2.5 小時）
+- **原因**：三道防線同時失效：
+  1. **CF `registerForEvent` 壞了**：`functions/index.js` 的 `db.collection("events").doc(eventId)` 把邏輯 ID（`ce_...`）當成 Firestore doc ID，永遠找不到文件。全站 65 場活動都受影響，CF 報名上線以來從未成功過
+  2. **前端 Transaction 重複檢查被離線快取騙**：`firebase-crud.js` 內 `.get()` 在 `enablePersistence` 環境下可能回傳過期的 IndexedDB 快取，漏掉已存在的報名紀錄
+  3. **`_rebuildOccupancy` 不去重**：直接把所有 registration 算入人數，重複報名 = 灌水計數
+- **修復**：
+  - CF 4 處 `doc(eventId)` → `.where("id","==",eventId).limit(1)` 查詢（functions/index.js:4490, 4812, 3012, 2144）
+  - 前端 2 處 `.get()` → `.get({ source: 'server' })` 強制走伺服器（firebase-crud.js registerForEvent + batchRegisterForEvent）
+  - `_rebuildOccupancy` 加 `(userId, participantType, companionId)` 三元組去重（前端 + CF 同步）
+  - 資料修復：刪除重複 registration/activityRecord/expLog，扣回 EXP，遞補候補第一位
+- **教訓**：
+  1. event.id（邏輯 ID）≠ Firestore doc ID（_docId），CF 查事件必須用 `.where("id",...)` 查詢
+  2. `enablePersistence` 環境下，Transaction 內的非事務 `.get()` 必須加 `{ source: 'server' }`
+  3. `_rebuildOccupancy` 作為計數核心必須內建去重防禦，不能假設輸入無重複
+
 ### 2026-04-03 — 庫存系統 inv_transactions 權限錯誤修復
 - **問題**：inventory 加庫存時報 Missing or insufficient permissions
 - **原因**：firestore.rules 欄位名（quantity/operatorUid）與程式碼實際寫入（delta/uid）不一致

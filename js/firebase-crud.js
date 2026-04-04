@@ -545,8 +545,21 @@ Object.assign(FirebaseService, {
    * @returns {Object} { participants, waitlistNames, current, waitlist, status }
    */
   _rebuildOccupancy(event, registrations) {
-    const confirmed = registrations.filter(r => r.status === 'confirmed');
-    const waitlisted = registrations.filter(r => r.status === 'waitlisted');
+    // 去重：同一 (userId, participantType, companionId) 只保留最早報名的那筆
+    const _dedupRegs = (regs) => {
+      const seen = new Set();
+      return regs.filter(r => {
+        const key = r.participantType === 'companion'
+          ? `${r.userId}_companion_${r.companionId || ''}`
+          : `${r.userId}_self`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+    };
+
+    const confirmed = _dedupRegs(registrations.filter(r => r.status === 'confirmed'));
+    const waitlisted = _dedupRegs(registrations.filter(r => r.status === 'waitlisted'));
 
     // 排序：確保 participants / waitlistNames 順序一致（registeredAt ASC → docId ASC）
     const _regSortTime = (r) => {
@@ -793,10 +806,10 @@ Object.assign(FirebaseService, {
       const ed = eventDoc.data();
       const maxCount = ed.max || 0;
 
-      // 每次 transaction 嘗試都重新查詢 registrations（防止重試時用到舊資料）
+      // 每次 transaction 嘗試都重新查詢 registrations（強制走伺服器，防止離線快取導致重複報名）
       const allRegsSnap = await db.collection('registrations')
         .where('eventId', '==', eventId)
-        .get();
+        .get({ source: 'server' });
       const allEventRegs = allRegsSnap.docs.map(d => ({ ...d.data(), _docId: d.id }));
 
       // 防幽靈：在 transaction 內再次檢查重複報名
@@ -1985,7 +1998,7 @@ Object.assign(FirebaseService, {
 
     const allRegsSnap = await db.collection('registrations')
       .where('eventId', '==', eventId)
-      .get();
+      .get({ source: 'server' });
     const allEventRegs = allRegsSnap.docs.map(d => ({ ...d.data(), _docId: d.id }));
 
     // 防幽靈：用 Firestore 真實資料檢查重複報名
