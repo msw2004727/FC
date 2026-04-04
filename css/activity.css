@@ -584,6 +584,8 @@
 }
 .event-reg-log-action.reg { color: var(--success, #34d399); }
 .event-reg-log-action.cancel { color: var(--danger, #f87171); }
+.event-reg-log-action.promote { color: #8b5cf6; }
+.event-reg-log-action.demote { color: var(--warning, #f59e0b); }
 
 /* ─── Share Action Sheet ─── */
 .share-action-sheet {

@@ -765,6 +765,26 @@ Object.assign(App, {
       }
     });
 
+    // 從操作日誌中撈取候補/正取相關紀錄
+    var _opLogActions = { 'force_promote': 'promote', 'auto_promote': 'promote', 'force_demote': 'demote', 'capacity_demote': 'demote' };
+    var _opLogLabels = { 'force_promote': '\u624b\u52d5\u6b63\u53d6', 'auto_promote': '\u81ea\u52d5\u905e\u88dc', 'force_demote': '\u4e0b\u653e\u5019\u88dc', 'capacity_demote': '\u5bb9\u91cf\u964d\u7d1a' };
+    var _eventTitle = (ApiService.getEvent(eventId) || {}).title || '';
+    (ApiService.getOperationLogs ? ApiService.getOperationLogs() : []).forEach(function(log) {
+      if (!_opLogActions[log.action]) return;
+      if (!log.detail || log.detail.indexOf(_eventTitle) === -1) return;
+      var logMs = self._regLogToMs(log.time || log.createdAt);
+      if (!logMs) return;
+      // 從 detail 提取人名（去掉活動名稱前綴）
+      var _detail = String(log.detail || '');
+      var _nameStart = _detail.indexOf('\u5019\u88dc ');  // "候補 "
+      var _nameStart2 = _detail.indexOf('\u5c07 ');       // "將 "
+      var _extractedName = '';
+      if (_nameStart >= 0) _extractedName = _detail.slice(_nameStart + 3).replace(/\s*\u81ea\u52d5\u905e\u88dc.*/, '').replace(/\s*\u964d\u70ba.*/, '').trim();
+      else if (_nameStart2 >= 0) _extractedName = _detail.slice(_nameStart2 + 2).replace(/\s*\u5f9e\u5019\u88dc.*/, '').replace(/\s*\u4e0b\u653e.*/, '').trim();
+      else _extractedName = _detail;
+      entries.push({ time: log.time || log.createdAt, ms: logMs, userName: _extractedName || _detail, action: _opLogActions[log.action], label: _opLogLabels[log.action] });
+    });
+
     entries.sort(function(a, b) { return b.ms - a.ms; });
 
     if (entries.length === 0) {
@@ -773,8 +793,8 @@ Object.assign(App, {
       body.innerHTML = entries.map(function(e) {
         var d = new Date(e.ms);
         var timeStr = String(d.getMonth() + 1).padStart(2, '0') + '/' + String(d.getDate()).padStart(2, '0') + ' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
-        var actionCls = e.action === 'cancel' ? 'cancel' : 'reg';
-        var actionLabel = e.action === 'cancel' ? '\u53d6\u6d88' : '\u5831\u540d';
+        var actionCls = e.action === 'cancel' ? 'cancel' : e.action === 'promote' ? 'promote' : e.action === 'demote' ? 'demote' : 'reg';
+        var actionLabel = e.label || (e.action === 'cancel' ? '\u53d6\u6d88' : '\u5831\u540d');
         return '<div class="event-reg-log-item">' +
           '<span class="event-reg-log-time">' + timeStr + '</span>' +
           '<span class="event-reg-log-user" data-no-translate>' + escapeHTML(e.userName) + '</span>' +
