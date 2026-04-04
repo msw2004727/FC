@@ -5134,11 +5134,22 @@ async function collectUsageMetrics() {
 
   // 定義要抓的指標
   const metricQueries = [
+    // Firestore
     { key: "firestoreReads",   metric: "firestore.googleapis.com/document/read_count",   extractor: extractMetricSum },
     { key: "firestoreWrites",  metric: "firestore.googleapis.com/document/write_count",  extractor: extractMetricSum },
     { key: "firestoreDeletes", metric: "firestore.googleapis.com/document/delete_count", extractor: extractMetricSum },
+    // Cloud Functions
     { key: "functionsInvocations", metric: "cloudfunctions.googleapis.com/function/execution_count", extractor: extractMetricSum },
     { key: "functionsLatency", metric: "cloudfunctions.googleapis.com/function/execution_times", extractor: extractDistributionCount },
+    // Cloud Run（Gen 2 Functions 底層）
+    { key: "cloudRunRequests",       metric: "run.googleapis.com/request_count",                     extractor: extractMetricSum, optional: true },
+    { key: "cloudRunInstanceTime",   metric: "run.googleapis.com/container/billable_instance_time",  extractor: extractMetricSum, optional: true },
+    // Cloud Storage
+    { key: "storageApiRequests",     metric: "storage.googleapis.com/api/request_count",             extractor: extractMetricSum, optional: true },
+    { key: "storageBytesReceived",   metric: "storage.googleapis.com/network/received_bytes_count",  extractor: extractMetricSum, optional: true },
+    { key: "storageBytesSent",       metric: "storage.googleapis.com/network/sent_bytes_count",      extractor: extractMetricSum, optional: true },
+    // App Engine
+    { key: "appEngineRequests",      metric: "appengine.googleapis.com/http/server/response_count",  extractor: extractMetricSum, optional: true },
   ];
 
   for (const q of metricQueries) {
@@ -5146,7 +5157,7 @@ async function collectUsageMetrics() {
       const data = await queryMonitoringMetric(q.metric, 24);
       metrics[q.key] = q.extractor(data);
     } catch (err) {
-      errors.push(`${q.key}: ${err.message || err}`);
+      if (!q.optional) errors.push(`${q.key}: ${err.message || err}`);
       metrics[q.key] = null;
     }
   }

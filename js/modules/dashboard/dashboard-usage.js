@@ -43,6 +43,19 @@ Object.assign(App, {
     return '#10b981'; // green
   },
 
+  /** 渲染純數字卡片（無免費額度對比） */
+  _renderUsageNumCard(label, value, unit) {
+    var displayVal;
+    if (unit === 'bytes') displayVal = this._fmtBytes(value);
+    else if (unit === 's') displayVal = this._fmtUsageNum(value) + 's';
+    else displayVal = this._fmtUsageNum(value);
+    return `<div class="dash-usage-card">
+      <div class="dash-usage-label">${escapeHTML(label)}</div>
+      <div class="dash-usage-num">${escapeHTML(displayVal)}</div>
+      <div class="dash-usage-sub">過去 24 小時</div>
+    </div>`;
+  },
+
   /** 渲染單張用量卡片 */
   _renderUsageCard(label, value, freeLimit, formatter) {
     const fmt = formatter || this._fmtUsageNum.bind(this);
@@ -122,28 +135,47 @@ Object.assign(App, {
       const timeStr = collectedAt ? new Date(collectedAt).toLocaleString('zh-TW', { hour12: false }) : latest.dateKey;
       html += `<div style="font-size:.72rem;color:var(--text-secondary);margin-bottom:.5rem">截至 ${escapeHTML(timeStr)}</div>`;
 
-      // 用量卡片 grid
+      // ── Firestore ──
+      html += `<div style="font-size:.75rem;font-weight:600;color:var(--text-secondary);margin-bottom:.3rem">Firestore</div>`;
       html += `<div class="dash-usage-grid">`;
-      html += this._renderUsageCard('Firestore 讀取', latest.firestoreReads, ft.firestoreReads);
-      html += this._renderUsageCard('Firestore 寫入', latest.firestoreWrites, ft.firestoreWrites);
-      html += this._renderUsageCard('Firestore 刪除', latest.firestoreDeletes, ft.firestoreDeletes);
-      html += this._renderUsageCard('Functions 呼叫', latest.functionsInvocations, ft.functionsInvocations);
+      html += this._renderUsageCard('讀取', latest.firestoreReads, ft.firestoreReads);
+      html += this._renderUsageCard('寫入', latest.firestoreWrites, ft.firestoreWrites);
+      html += this._renderUsageCard('刪除', latest.firestoreDeletes, ft.firestoreDeletes);
       if (latest.firestoreStorageBytes != null) {
-        html += this._renderUsageCard('Firestore 儲存', latest.firestoreStorageBytes, ft.firestoreStorageBytes, this._fmtBytes.bind(this));
-      } else {
-        html += `<div class="dash-usage-card">
-          <div class="dash-usage-label">Firestore 儲存</div>
-          <div class="dash-usage-num" style="font-size:.82rem;color:var(--text-secondary)">指標不適用</div>
-          <div class="dash-usage-sub">此指標暫無資料</div>
-        </div>`;
+        html += this._renderUsageCard('儲存', latest.firestoreStorageBytes, ft.firestoreStorageBytes, this._fmtBytes.bind(this));
       }
-      // Functions 延遲
-      html += `<div class="dash-usage-card">
-        <div class="dash-usage-label">Functions 延遲</div>
-        <div class="dash-usage-num">${escapeHTML(this._fmtUsageNum(latest.functionsLatency))}</div>
-        <div class="dash-usage-sub">執行次數 (含延遲採樣)</div>
-      </div>`;
-      html += `</div>`; // grid end
+      html += `</div>`;
+
+      // ── Cloud Functions / Cloud Run ──
+      html += `<div style="font-size:.75rem;font-weight:600;color:var(--text-secondary);margin:.6rem 0 .3rem">Cloud Functions</div>`;
+      html += `<div class="dash-usage-grid">`;
+      html += this._renderUsageCard('呼叫次數', latest.functionsInvocations, ft.functionsInvocations);
+      if (latest.cloudRunRequests != null) {
+        html += this._renderUsageNumCard('Cloud Run 請求', latest.cloudRunRequests);
+      }
+      if (latest.cloudRunInstanceTime != null) {
+        html += this._renderUsageNumCard('運算時間', latest.cloudRunInstanceTime, 's');
+      }
+      html += `</div>`;
+
+      // ── Cloud Storage ──
+      var _hasStorage = latest.storageApiRequests != null || latest.storageBytesReceived != null || latest.storageBytesSent != null;
+      if (_hasStorage) {
+        html += `<div style="font-size:.75rem;font-weight:600;color:var(--text-secondary);margin:.6rem 0 .3rem">Cloud Storage</div>`;
+        html += `<div class="dash-usage-grid">`;
+        if (latest.storageApiRequests != null) html += this._renderUsageNumCard('API 請求', latest.storageApiRequests);
+        if (latest.storageBytesSent != null) html += this._renderUsageNumCard('下載流量', latest.storageBytesSent, 'bytes');
+        if (latest.storageBytesReceived != null) html += this._renderUsageNumCard('上傳流量', latest.storageBytesReceived, 'bytes');
+        html += `</div>`;
+      }
+
+      // ── App Engine ──
+      if (latest.appEngineRequests != null) {
+        html += `<div style="font-size:.75rem;font-weight:600;color:var(--text-secondary);margin:.6rem 0 .3rem">App Engine</div>`;
+        html += `<div class="dash-usage-grid">`;
+        html += this._renderUsageNumCard('請求數', latest.appEngineRequests);
+        html += `</div>`;
+      }
 
       // ── 費用區塊（傳入所有 docs 以累計當月估算） ──
       html += this._renderCostSection(latest, docs);
