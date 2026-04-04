@@ -172,7 +172,7 @@ Object.assign(App, {
 
       if (tableEditing) {
         const kickTd = `<td style="padding:.35rem .2rem;text-align:center"><button style="${kickStyle}" ${disabledAttr} onclick="App._removeParticipant('${escapeHTML(eventId)}','${safeUid}','${safeName}',${p.isCompanion})">踢掉</button></td>`;
-        return `<tr style="border-bottom:1px solid var(--border)">
+        return `<tr data-uid="${safeUid}" style="border-bottom:1px solid var(--border)">
           ${kickTd}
           <td style="padding:.35rem .3rem;text-align:left">${nameHtml}</td>
           ${noShowCell}
@@ -192,7 +192,7 @@ Object.assign(App, {
 
     // 手動簽到 / 完成簽到 按鈕（右上角，僅管理員）
     const topBtn = canManage ? (tableEditing
-      ? `<button style="font-size:.75rem;padding:.25rem .6rem;background:#2e7d32;color:#fff;border:none;border-radius:var(--radius-sm);${isSubmitting ? 'cursor:not-allowed;opacity:.72' : 'cursor:pointer'}" ${isSubmitting ? 'disabled' : ''} onclick="App._confirmAllAttendance('${escapeHTML(eventId)}')">${isSubmitting ? '儲存中...' : '完成簽到'}</button>`
+      ? `<button style="font-size:.75rem;padding:.25rem .6rem;background:#2e7d32;color:#fff;border:none;border-radius:var(--radius-sm);${isSubmitting ? 'cursor:not-allowed;opacity:.72' : 'cursor:pointer'}" ${isSubmitting ? 'disabled' : ''} onclick="App._confirmAllAttendance('${escapeHTML(eventId)}')">${isSubmitting ? '儲存中...' : '完成簽到'}</button><span style="font-size:.6rem;color:var(--text-muted);margin-left:.3rem">勾選即時儲存</span>`
       : `<button style="font-size:.75rem;padding:.25rem .6rem;background:#1565c0;color:#fff;border:none;border-radius:var(--radius-sm);cursor:pointer" onclick="App._startTableEdit('${escapeHTML(eventId)}')">手動簽到</button>`
     ) : '';
 
@@ -228,6 +228,9 @@ Object.assign(App, {
       </table>
     </div>`;
     this._bindAttendanceCheckboxLink(container, 'manual-checkin-', 'manual-checkout-');
+    if (tableEditing && typeof this._bindInstantSaveHandler === 'function') {
+      this._bindInstantSaveHandler(container, eventId, 'reg');
+    }
     this._bindBadgeRowSnapBack(container);
     this._markBadgeRowOverflow(container);
   },
@@ -321,7 +324,7 @@ Object.assign(App, {
       const safeName = escapeHTML(p.name);
 
       if (tableEditing) {
-        return `<tr style="border-bottom:1px solid var(--border)">
+        return `<tr data-uid="${safeUid}" style="border-bottom:1px solid var(--border)">
           <td style="padding:.35rem .2rem;text-align:center"><button style="${kickStyle}" ${disabledAttr} onclick="App._removeUnregUser('${escapeHTML(eventId)}','${safeUid}','${safeName}')">踢掉</button></td>
           <td style="padding:.35rem .3rem;text-align:left" data-no-translate>${nameHtml}</td>
           <td style="padding:.35rem .2rem;text-align:center">${_attCb('unreg-checkin-' + safeUid, hasCheckin)}</td>
@@ -339,7 +342,7 @@ Object.assign(App, {
 
     // 手動簽到 / 完成簽到 按鈕（放在表頭「未報名單」右側）
     const topBtn = canManage ? (tableEditing
-      ? `<button style="font-size:.75rem;padding:.25rem .6rem;background:#2e7d32;color:#fff;border:none;border-radius:var(--radius-sm);${isSubmitting ? 'cursor:not-allowed;opacity:.72' : 'cursor:pointer'}" ${isSubmitting ? 'disabled' : ''} onclick="App._confirmAllUnregAttendance('${escapeHTML(eventId)}')">${isSubmitting ? '儲存中...' : '完成簽到'}</button>`
+      ? `<button style="font-size:.75rem;padding:.25rem .6rem;background:#2e7d32;color:#fff;border:none;border-radius:var(--radius-sm);${isSubmitting ? 'cursor:not-allowed;opacity:.72' : 'cursor:pointer'}" ${isSubmitting ? 'disabled' : ''} onclick="App._confirmAllUnregAttendance('${escapeHTML(eventId)}')">${isSubmitting ? '儲存中...' : '完成簽到'}</button><span style="font-size:.6rem;color:var(--text-muted);margin-left:.3rem">勾選即時儲存</span>`
       : `<button style="font-size:.75rem;padding:.25rem .6rem;background:#1565c0;color:#fff;border:none;border-radius:var(--radius-sm);cursor:pointer" onclick="App._startUnregTableEdit('${escapeHTML(eventId)}')">手動簽到</button>`
     ) : '';
 
@@ -369,6 +372,9 @@ Object.assign(App, {
       </table>
     </div>`;
     this._bindAttendanceCheckboxLink(container, 'unreg-checkin-', 'unreg-checkout-');
+    if (tableEditing && typeof this._bindInstantSaveHandler === 'function') {
+      this._bindInstantSaveHandler(container, eventId, 'unreg');
+    }
   },
 
 });

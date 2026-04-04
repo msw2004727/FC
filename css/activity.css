@@ -893,6 +893,18 @@
 .att-cb:disabled + .att-lbl .att-box {
   border-color: var(--border, #555);
 }
+/* 即時儲存：成功閃綠 */
+tr.att-row-saved { animation: att-flash-ok .6s ease-out; }
+@keyframes att-flash-ok {
+  0% { background: rgba(46,125,50,.18); }
+  100% { background: transparent; }
+}
+/* 即時儲存：失敗閃紅 */
+tr.att-row-failed { animation: att-flash-err 1.2s ease-out; }
+@keyframes att-flash-err {
+  0%,30% { background: rgba(211,47,47,.15); }
+  100% { background: transparent; }
+}
 
 /* ── 活動管理：空列表載入提示（純 CSS） ── */
 #my-activity-list:empty {

@@ -125,6 +125,7 @@ const ScriptLoader = {
       'js/modules/event/event-team-split.js',
       'js/modules/event/event-manage-noshow.js',
       'js/modules/event/event-manage-attendance.js',
+      'js/modules/event/event-manage-instant-save.js',
       'js/modules/event/event-manage-confirm.js',
       'js/modules/event/event-manage-lifecycle.js',
       'js/modules/event/event-manage-badges.js',

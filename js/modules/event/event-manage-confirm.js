@@ -1,7 +1,8 @@
-/* === SportHub — Attendance confirmation (batch write) ===
+/* === SportHub — Attendance confirmation (batch write + instant save) ===
    Contains LOCKED function per CLAUDE.md — do not modify _confirmAllAttendance
    依賴：event-manage-attendance.js (rendering), event-manage.js (shared helpers)
-   優化：使用 Firestore batch 原子寫入取代逐筆 await，大幅減少 round trips
+         event-manage-instant-save.js (即時儲存 checkbox 變更)
+   優化：Checkbox 勾選即時寫入（debounce 300ms），「完成簽到」只處理備註 + 收尾
    ============================================ */
 
 Object.assign(App, {
@@ -17,6 +18,7 @@ Object.assign(App, {
       if (!_e || !this._canManageEvent(_e)) { this.showToast('權限不足'); return; }
     }
     this._attendanceEditingEventId = eventId;
+    if (typeof this._initInstantSave === 'function') this._initInstantSave(eventId);
     this._renderAttendanceTable(eventId, this._manualEditingContainerId);
   },
 
@@ -68,6 +70,8 @@ Object.assign(App, {
   },
 
   async _confirmAllAttendance(eventId) {
+    // 先 flush 所有即時儲存中的 checkbox 寫入
+    if (typeof this._flushInstantSaves === 'function') await this._flushInstantSaves(eventId);
     if (this._attendanceSubmittingEventId) return;
     const e = ApiService.getEvent(eventId);
     if (!e) return;
@@ -178,6 +182,7 @@ Object.assign(App, {
       } else {
         this._attendancePendingStateByUid = null;
         this._attendanceEditingEventId = null;
+        if (typeof this._cleanupInstantSave === 'function') this._cleanupInstantSave();
         this._renderAttendanceTable(eventId, containerId);
       }
     }
@@ -209,6 +214,7 @@ Object.assign(App, {
 
   _startUnregTableEdit(eventId) {
     this._unregEditingEventId = eventId;
+    if (typeof this._initUnregInstantSave === 'function') this._initUnregInstantSave(eventId);
     this._renderUnregTable(eventId, 'detail-unreg-table');
   },
 
@@ -228,6 +234,7 @@ Object.assign(App, {
   },
 
   async _confirmAllUnregAttendance(eventId) {
+    if (typeof this._flushUnregInstantSaves === 'function') await this._flushUnregInstantSaves(eventId);
     if (this._unregSubmittingEventId) return;
     const e = ApiService.getEvent(eventId);
     if (!e) return;
@@ -293,6 +300,7 @@ Object.assign(App, {
       } else {
         this._unregPendingStateByUid = null;
         this._unregEditingEventId = null;
+        if (typeof this._cleanupUnregInstantSave === 'function') this._cleanupUnregInstantSave();
         this._renderUnregTable(eventId, 'detail-unreg-table');
       }
     }

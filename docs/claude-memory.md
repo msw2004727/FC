@@ -310,3 +310,8 @@
 - **修復**：第 888 行加入 data.registeredAt?.toDate?.()?.toISOString?.() || data.registeredAt 轉換
 - **審計**：全面掃描所有讀取 registrations 並用於排序的路徑，確認其他位置（event-create-waitlist.js、functions/index.js、cancelCompanionRegistrations）皆已有正確轉換，僅此一處遺漏
 - **教訓**：Firestore Timestamp 轉換必須在每個查詢結果的 .docs.map() 中執行，不能只在部分路徑做。此類 bug 不會報錯，只會靜默產生錯誤排序，極難偵測
+
+### 2026-04-04 — 手動簽到即時儲存（Instant Save）
+- **問題**：手動簽到需勾選 20~30 人後一次送出，若 batch 失敗或頁面離開，全部重勾
+- **修復**：新增 `event-manage-instant-save.js`，checkbox 勾選後 300ms debounce 自動寫入 Firestore，per-UID sequential queue 防止同一人重複寫入。失敗自動還原 checkbox + 閃紅提示。「完成簽到」按鈕改為處理備註 + 收尾（flush → batch notes → EXP → no-show reconciliation）
+- **教訓**：事件代理綁定 handler 時，eventId 不可用 closure 綁死，必須讀 `_attendanceEditingEventId` 支援容器復用不同活動

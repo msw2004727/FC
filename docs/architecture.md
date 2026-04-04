@@ -142,7 +142,8 @@ flowchart TD
 | `event-create.js` | 建立活動主模組 |
 | `event-manage-noshow.js` | 放鴿子統計（含鎖定函式 `_buildRawNoShowCountByUid()`、`_getNoShowDetailsByUid()`） |
 | `event-manage-attendance.js` | 出席表格渲染與 helper |
-| `event-manage-confirm.js` | 批次確認出席（含鎖定函式 `_confirmAllAttendance()`） |
+| `event-manage-instant-save.js` | 即時儲存：checkbox 勾選後 300ms debounce 自動寫入 Firestore |
+| `event-manage-confirm.js` | 批次確認出席（含鎖定函式 `_confirmAllAttendance()`），現主要處理備註 + 收尾 |
 | `event-manage-lifecycle.js` | 活動 CRUD 操作（複製、刪除、狀態切換） |
 | `event-manage-badges.js` | 活動管理徽章刷新 |
 | `event-manage-waitlist.js` | 候補名單管理表格 |
