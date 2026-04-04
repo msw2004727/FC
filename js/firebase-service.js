@@ -429,7 +429,7 @@ const FirebaseService = {
     'page-shop':              ['shopItems', 'trades'],
     'page-shop-detail':       ['shopItems', 'trades'],
     'page-activities':        ['events', 'attendanceRecords', 'activityRecords', 'registrations'],
-    'page-activity-detail':   ['events', 'registrations', 'attendanceRecords', 'activityRecords', 'userCorrections'],
+    'page-activity-detail':   ['events', 'registrations', 'attendanceRecords', 'activityRecords', 'userCorrections', 'operationLogs'],
     'page-my-activities':     ['events', 'attendanceRecords', 'registrations'],
     'page-scan':              ['attendanceRecords', 'registrations'],
     'page-admin-dashboard':   ['expLogs', 'teamExpLogs', 'operationLogs', 'attendanceRecords', 'activityRecords'],
