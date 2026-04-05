@@ -92,6 +92,7 @@ const InvSettings = {
           '<button class="inv-btn outline full sm" onclick="InvSettings.rebuildStock()" style="color:var(--danger);border-color:var(--danger)">庫存重建</button>' +
           '<button class="inv-info-btn" onclick="InvSettings._showInfo(\'rebuild\')" style="flex-shrink:0">?</button>' +
         '</div>';
+        toolBtns += '<button class="inv-btn outline full sm" onclick="InvSettings.backfillTxProductNames()">交易名稱修復</button>';
       }
       sections += this._card(h4('工具', 'tools') +
         '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">' + toolBtns + '</div>');
@@ -553,6 +554,45 @@ const InvSettings = {
     } catch (e) {
       console.error('[InvSettings] rebuildStock:', e);
       InvApp.showToast('庫存重建失敗：' + (e.message || ''));
+    }
+  },
+
+  /** 回填交易紀錄缺少的 productName（從 inv_products 對照 barcode） */
+  async backfillTxProductNames() {
+    if (!confirm('此操作將修復交易紀錄中缺少商品名稱的項目，確定嗎？')) return;
+    InvApp.showToast('正在掃描交易紀錄...');
+    try {
+      if (!InvProducts._loaded) await InvProducts.loadAll();
+      var snap = await db.collection('inv_transactions').get();
+      var toFix = [];
+      snap.forEach(function(doc) {
+        var data = doc.data();
+        if (!data.productName && data.barcode) {
+          var product = InvProducts.getByBarcode(data.barcode);
+          if (product && product.name) {
+            toFix.push({ docId: doc.id, productName: product.name });
+          }
+        }
+      });
+      if (toFix.length === 0) {
+        InvApp.showToast('所有交易紀錄都已有商品名稱');
+        return;
+      }
+      if (!confirm('找到 ' + toFix.length + ' 筆缺少商品名稱的交易紀錄，確定修復？')) return;
+      // 每批 500 筆（Firestore batch 上限）
+      for (var start = 0; start < toFix.length; start += 500) {
+        var chunk = toFix.slice(start, start + 500);
+        var batch = db.batch();
+        for (var i = 0; i < chunk.length; i++) {
+          batch.update(db.collection('inv_transactions').doc(chunk[i].docId), { productName: chunk[i].productName });
+        }
+        await batch.commit();
+      }
+      InvApp.showToast('已修復 ' + toFix.length + ' 筆交易紀錄的商品名稱');
+      InvUtils.writeLog('backfill_tx_names', '修復 ' + toFix.length + ' 筆交易紀錄商品名稱');
+    } catch (e) {
+      console.error('[InvSettings] backfillTxProductNames:', e);
+      InvApp.showToast('修復失敗：' + (e.message || ''));
     }
   },
 
