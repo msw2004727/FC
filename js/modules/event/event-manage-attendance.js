@@ -95,6 +95,9 @@ Object.assign(App, {
     const cId = containerId || 'attendance-table-container';
     const container = document.getElementById(cId);
     if (!container) return;
+    // 保存捲動位置（避免 innerHTML 替換後跳頂）
+    const _scrollEl = document.scrollingElement || document.documentElement;
+    const _savedScrollY = _scrollEl.scrollTop;
     // 記住 containerId，供編輯流程重新渲染用
     this._manualEditingContainerId = cId;
     const e = ApiService.getEvent(eventId);
@@ -109,6 +112,7 @@ Object.assign(App, {
 
     if (people.length === 0) {
       container.innerHTML = '<div style="font-size:.8rem;color:var(--text-muted);padding:.3rem 0">尚無報名</div>';
+      _scrollEl.scrollTop = _savedScrollY;
       return;
     }
 
@@ -235,6 +239,7 @@ Object.assign(App, {
         <tbody>${rows}</tbody>
       </table>
     </div>`;
+    _scrollEl.scrollTop = _savedScrollY;
     this._bindAttendanceCheckboxLink(container, 'manual-checkin-', 'manual-checkout-');
     if (tableEditing && typeof this._bindInstantSaveHandler === 'function') {
       this._bindInstantSaveHandler(container, eventId, 'reg');

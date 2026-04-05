@@ -138,7 +138,6 @@ const FirebaseService = {
         App._refreshRegistrationBadges?.(App._currentDetailEventId, 'detail-attendance-table')?.catch?.(() => {});
       } else {
         App.showEventDetail?.(App._currentDetailEventId);
-        App._renderAttendanceTable?.(App._currentDetailEventId, 'detail-attendance-table');
       }
       return;
     }
