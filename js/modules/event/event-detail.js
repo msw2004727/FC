@@ -458,7 +458,9 @@ Object.assign(App, {
       this._refreshRegistrationBadges?.(id, 'detail-attendance-table')?.catch?.(() => {});
     }
       // ── 內容已渲染就緒，切換顯示頁面（避免空白模板閃現）──
-      await this.showPage('page-activity-detail');
+      // 同一活動的資料刷新不重置捲動位置（僅首次導航或切換活動時才重置）
+      const _isReRender = this.currentPage === 'page-activity-detail' && this._currentDetailEventId === id;
+      await this.showPage('page-activity-detail', _isReRender ? { resetScroll: false } : undefined);
       if (requestSeq !== this._eventDetailRequestSeq || this.currentPage !== 'page-activity-detail') {
         return { ok: false, reason: 'stale' };
       }
