@@ -116,6 +116,18 @@ Object.assign(App, {
       return;
     }
 
+    // 分隊活動：依球衣顏色排序（toggle）
+    const _tsEnabled = e.teamSplit?.enabled && Array.isArray(e.teamSplit.teams) && e.teamSplit.teams.length > 0;
+    if (_tsEnabled && this._attendanceSortByTeam) {
+      const teamOrder = {};
+      e.teamSplit.teams.forEach((t, i) => { teamOrder[t.key] = i; });
+      people.sort((a, b) => {
+        const ta = teamOrder[a.teamKey] ?? 999;
+        const tb = teamOrder[b.teamKey] ?? 999;
+        return ta - tb;
+      });
+    }
+
     // 整表編輯模式（編輯簽到）
     const tableEditing = canManage && this._attendanceEditingEventId === eventId;
     const isSubmitting = canManage && this._attendanceSubmittingEventId === eventId;
@@ -206,11 +218,14 @@ Object.assign(App, {
       : `<button style="font-size:.75rem;padding:.25rem .6rem;background:#1565c0;color:#fff;border:none;border-radius:var(--radius-sm);cursor:pointer" onclick="App._startTableEdit('${escapeHTML(eventId)}')">編輯</button>`
     ) : '';
 
+    // 分隊排序按鈕（僅分隊活動顯示）
+    const _sortBtnSvg = _tsEnabled
+      ? `<button class="att-team-sort-btn${this._attendanceSortByTeam ? ' active' : ''}" onclick="event.stopPropagation();App._toggleAttendanceSortByTeam('${escapeHTML(eventId)}','${escapeHTML(cId)}')" title="依球衣顏色排序"><svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="${this._attendanceSortByTeam ? '#fff' : 'var(--text-secondary)'}" stroke-width="2" stroke-linecap="round"><path d="M6 4v12M6 4l-3 3M6 4l3 3"/><path d="M14 16V4M14 16l-3-3M14 16l3-3"/></svg></button>`
+      : '';
+
     // 表頭：「報名名單（人數/上限）」欄含操作按鈕；編輯模式多「踢掉」欄
     const regCountText = `報名名單（${summary.count}/${e.max}）`;
-    const nameThContent = topBtn
-      ? `<div style="display:flex;align-items:center;gap:.4rem;white-space:nowrap">${regCountText}${topBtn}</div>`
-      : regCountText;
+    const nameThContent = `<div style="display:flex;align-items:center;gap:.4rem;white-space:nowrap">${_sortBtnSvg}${regCountText}${topBtn}</div>`;
     const noShowTh = showNoShowColumn
       ? `<th style="text-align:center;padding:.4rem .2rem;font-weight:600;width:3rem" title="放鴿子次數（已結束、正式報名且未完成簽到）">🕊</th>`
       : '';
@@ -246,6 +261,14 @@ Object.assign(App, {
     }
     this._bindBadgeRowSnapBack(container);
     this._markBadgeRowOverflow(container);
+  },
+
+  // ── 分隊排序 toggle ──
+  _attendanceSortByTeam: false,
+
+  _toggleAttendanceSortByTeam(eventId, containerId) {
+    this._attendanceSortByTeam = !this._attendanceSortByTeam;
+    this._renderAttendanceTable(eventId, containerId);
   },
 
   /** 徽章行滑動彈回：放手後 scrollLeft 彈回 0 */

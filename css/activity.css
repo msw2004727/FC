@@ -824,6 +824,19 @@
   transition: transform .12s;
 }
 
+/* ─── 分隊排序按鈕（報名名單表頭）─── */
+.att-team-sort-btn {
+  width: 22px; height: 22px; border-radius: 50%;
+  border: 1.5px solid var(--text-secondary); background: transparent;
+  cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+  flex-shrink: 0; padding: 0; line-height: 1; transition: all .15s;
+}
+.att-team-sort-btn:hover { border-color: var(--accent); }
+.att-team-sort-btn:hover svg { stroke: var(--accent); }
+.att-team-sort-btn.active {
+  background: var(--accent); border-color: var(--accent);
+}
+
 /* ─── Fancy Attendance Checkbox（手動簽到動畫勾選框）─── */
 .att-cb {
   position: absolute;
