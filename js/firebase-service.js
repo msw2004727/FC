@@ -131,8 +131,15 @@ const FirebaseService = {
 
     // 用戶操作頁：立即渲染
     if (page === 'page-activity-detail') {
-      App.showEventDetail?.(App._currentDetailEventId);
-      App._renderAttendanceTable?.(App._currentDetailEventId, 'detail-attendance-table');
+      if (source === 'attendance') {
+        // 簽到簽退只影響出席表格，不需整頁重渲染（避免 showPage 重置捲動位置）
+        App._renderAttendanceTable?.(App._currentDetailEventId, 'detail-attendance-table');
+        App._renderUnregTable?.(App._currentDetailEventId, 'detail-unreg-table');
+        App._refreshRegistrationBadges?.(App._currentDetailEventId, 'detail-attendance-table')?.catch?.(() => {});
+      } else {
+        App.showEventDetail?.(App._currentDetailEventId);
+        App._renderAttendanceTable?.(App._currentDetailEventId, 'detail-attendance-table');
+      }
       return;
     }
     if (page === 'page-scan' && source === 'attendance') {

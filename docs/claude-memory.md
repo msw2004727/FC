@@ -10,6 +10,12 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-04-05 — 簽到簽退後畫面跳回頂部
+- **問題**：在活動詳情頁進行簽到/簽退操作後，頁面捲動位置被重置回頂部
+- **原因**：`_debouncedSnapshotRender('attendance')` 觸發 `showEventDetail()` 整頁重渲染，其中 `showPage()` → `_resetPageScroll()` 無條件執行 `window.scrollTo(0, 0)`
+- **修復**：`firebase-service.js` 的 `_debouncedSnapshotRender()` 中，當 `source === 'attendance'` 且頁面為 detail 時，只更新出席表格（`_renderAttendanceTable` + `_renderUnregTable` + `_refreshRegistrationBadges`），不呼叫 `showEventDetail()`
+- **教訓**：即時資料更新（onSnapshot）不應等同於頁面導航，需區分「資料刷新」與「頁面切換」兩種場景
+
 ### [永久] 2026-04-04 — 重複報名導致假額滿（三層防線修復）
 - **問題**：活動「週日早8-10西屯踢球團」上限 27 人但實際 26 人卻顯示額滿。同一用戶 Asanda Mthembu 有兩筆 confirmed self registration（間隔 2.5 小時）
 - **原因**：三道防線同時失效：
