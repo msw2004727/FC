@@ -120,11 +120,9 @@ Object.assign(App, {
     const initialSport = savedSport !== null ? savedSport : 'all';
     App._activeSport = initialSport;
 
-    const _allSportSvg = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:middle">'
-      + '<circle cx="7" cy="7" r="4.2"/><path d="M5.2 5.2l3.6 3.6M8.8 5.2L5.2 8.8"/>'
-      + '<rect x="14" y="3.5" width="7" height="7" rx="1.2"/><line x1="17.5" y1="3.5" x2="17.5" y2="10.5"/><line x1="14" y1="7" x2="21" y2="7"/>'
-      + '<path d="M3 17.5c0-2 2-4 4-4s4 2 4 4"/><ellipse cx="7" cy="20" rx="4" ry="2"/>'
-      + '<path d="M17.5 14l3.2 3.2M17.5 14l-3.2 3.2M17.5 14v5"/>'
+    const _allSportSvg = '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" style="vertical-align:middle">'
+      + '<circle cx="12" cy="12" r="10" fill="none" stroke="#ef4444" stroke-width="2"/>'
+      + '<circle cx="12" cy="12" r="5" fill="#ef4444"/>'
       + '</svg>';
     const _sportIcon = (key) => key === 'all'
       ? _allSportSvg
