@@ -92,7 +92,6 @@ const InvSettings = {
           '<button class="inv-btn outline full sm" onclick="InvSettings.rebuildStock()" style="color:var(--danger);border-color:var(--danger)">庫存重建</button>' +
           '<button class="inv-info-btn" onclick="InvSettings._showInfo(\'rebuild\')" style="flex-shrink:0">?</button>' +
         '</div>';
-        toolBtns += '<button class="inv-btn outline full sm" onclick="InvSettings.backfillTxProductNames()">交易名稱修復</button>';
       }
       sections += this._card(h4('工具', 'tools') +
         '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">' + toolBtns + '</div>');
