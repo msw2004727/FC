@@ -1294,7 +1294,9 @@ service cloud.firestore {
         && request.resource.data.type in ['in', 'out', 'return', 'adjust', 'void', 'waste', 'gift']
         && (request.resource.data.delta is int || request.resource.data.quantity is int)
         && request.resource.data.uid == request.auth.uid;
-      allow update, delete: if false;
+      allow update: if isInventoryAdmin()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['productName']);
+      allow delete: if false;
     }
     match /inv_stocktakes/{docId} {
       allow read, write: if isInventoryAdmin();
