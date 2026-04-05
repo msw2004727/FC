@@ -139,7 +139,7 @@ const InvApp = {
     if (!user) return;
     // Topbar avatar
     var ta = document.getElementById('inv-topbar-avatar');
-    if (ta) { ta.src = user.pictureUrl || ''; ta.style.display = user.pictureUrl ? '' : 'none'; }
+    if (ta) { ta.src = user.pictureUrl || 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><circle cx="20" cy="20" r="20" fill="%23ccc"/><text x="20" y="26" text-anchor="middle" font-size="18" fill="%23fff">?</text></svg>'; ta.style.display = ''; }
     // Menu name
     var mn = document.getElementById('inv-menu-name');
     if (mn) mn.textContent = user.name || '';
