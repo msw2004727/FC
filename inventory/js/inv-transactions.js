@@ -92,7 +92,19 @@ const InvTransactions = {
     }
   },
 
-  _setType: function (type) { this._type = type; this._reload(); },
+  _setType: function (type) {
+    this._type = type;
+    // 更新頁籤按鈕 active 狀態
+    var btns = document.querySelectorAll('[onclick^="InvTransactions._setType"]');
+    for (var i = 0; i < btns.length; i++) {
+      var key = btns[i].getAttribute('onclick').replace("InvTransactions._setType('", '').replace("')", '');
+      var active = key === type;
+      btns[i].style.borderColor = active ? 'var(--accent)' : 'var(--border)';
+      btns[i].style.background = active ? 'var(--accent)' : 'var(--bg-card)';
+      btns[i].style.color = active ? '#fff' : 'var(--text-muted)';
+    }
+    this._reload();
+  },
 
   /**
    * 查詢 inv_transactions
