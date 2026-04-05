@@ -220,7 +220,8 @@ const InvStocktake = {
           batch.update(db.collection('inv_products').doc(it.barcode),
             { stock: it.actualStock, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
           batch.set(db.collection('inv_transactions').doc(), {
-            barcode: it.barcode, type: 'adjust', delta: it.actualStock - it.systemStock,
+            barcode: it.barcode, productName: it.productName || '',
+            type: 'adjust', delta: it.actualStock - it.systemStock,
             beforeStock: it.systemStock, afterStock: it.actualStock,
             note: '盤點調整', uid: InvAuth.getUid() || '',
             createdAt: firebase.firestore.FieldValue.serverTimestamp()

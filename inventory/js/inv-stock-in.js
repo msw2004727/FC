@@ -277,13 +277,14 @@ const InvStockIn = {
   /** 處理補貨 */
   async handleRestock(barcode, quantity) {
     try {
+      var product = InvProducts.getByBarcode(barcode);
+      var pName = product ? product.name : barcode;
       var result = await InvProducts.adjustStock(barcode, quantity, {
         type: 'in',
+        productName: pName,
         note: '掃碼入庫',
         uid: InvAuth.getUid() || ''
       });
-      var product = InvProducts.getByBarcode(barcode);
-      var pName = product ? product.name : barcode;
       InvUtils.writeLog('stock_in', pName + ' +' + quantity + ' 庫存' + result.afterStock);
       this._batchCount++;
       this._batchItems += quantity;
@@ -304,6 +305,7 @@ const InvStockIn = {
       batch.set(productRef, formData);
       batch.set(txRef, {
         barcode: formData.barcode,
+        productName: formData.name || '',
         type: 'in',
         delta: formData.stock,
         beforeStock: 0,
