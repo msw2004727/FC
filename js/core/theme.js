@@ -112,31 +112,39 @@ Object.assign(App, {
       ? EVENT_SPORT_OPTIONS
       : [{ key: 'football', label: '足球' }];
 
-    const isUnlocked = (sportKey) => sportKey === 'football';
-    listHost.innerHTML = sportOptions.map(item => {
-      const locked = !isUnlocked(item.key);
-      const lockPart = locked ? `<span class="sp-lock">${getLockIconSvg()}</span>` : '';
-      return `<button class="sport-picker-item${item.key === 'football' ? ' active' : ''}${locked ? ' locked' : ''}" data-sport="${escapeHTML(item.key)}"${locked ? ' disabled' : ''}>
-        <span class="sp-icon">${getSportIconSvg(item.key)}</span>
+    // 頂部選單專用：prepend「全部運動」（不動 EVENT_SPORT_OPTIONS，避免汙染建立活動表單）
+    const pickerOptions = [{ key: 'all', label: '全部運動' }, ...sportOptions];
+
+    // 從 localStorage 還原上次選擇（預設 all）
+    const savedSport = localStorage.getItem('sporthub_active_sport');
+    const initialSport = savedSport !== null ? savedSport : 'all';
+    App._activeSport = initialSport;
+
+    const _sportIcon = (key) => key === 'all'
+      ? '<span class="sport-emoji" aria-hidden="true">\u{1F3C5}</span>'
+      : getSportIconSvg(key);
+
+    listHost.innerHTML = pickerOptions.map(item => {
+      return `<button class="sport-picker-item${item.key === initialSport ? ' active' : ''}" data-sport="${escapeHTML(item.key)}">
+        <span class="sp-icon">${_sportIcon(item.key)}</span>
         <span>${escapeHTML(item.label)}</span>
-        ${lockPart}
       </button>`;
     }).join('');
 
     const setActiveSport = (sportKey) => {
-      const safeKey = getSportKeySafe(sportKey) || 'football';
+      const safeKey = sportKey === 'all' ? 'all' : (getSportKeySafe(sportKey) || 'football');
+      App._activeSport = safeKey;
+      try { localStorage.setItem('sporthub_active_sport', safeKey); } catch (_) {}
       listHost.querySelectorAll('.sport-picker-item').forEach(item => {
         item.classList.toggle('active', item.dataset.sport === safeKey);
       });
-      iconEl.innerHTML = getSportIconSvg(safeKey);
-
-      // Keep category pills in sync if those modules are enabled in future pages.
+      iconEl.innerHTML = _sportIcon(safeKey);
       document.querySelectorAll('.cat-item[data-sport]').forEach(item => {
         item.classList.toggle('active', item.dataset.sport === safeKey);
       });
     };
 
-    setActiveSport('football');
+    setActiveSport(initialSport);
 
     btn.addEventListener('click', (e) => {
       e.preventDefault();
@@ -153,17 +161,16 @@ Object.assign(App, {
       if (!item) return;
       e.stopPropagation();
 
-      if (item.classList.contains('locked')) {
-        this.showToast('目前僅開放足球');
-        return;
-      }
-
       const sportKey = item.dataset.sport;
       setActiveSport(sportKey);
       btn.classList.remove('open');
       dropdown.classList.remove('open');
-      const label = item.querySelector('span:nth-child(2)')?.textContent || '足球';
+      const label = item.querySelector('span:nth-child(2)')?.textContent || '全部運動';
       this.showToast(`已切換為 ${label}`);
+
+      // 觸發事件列表重繪
+      try { this.renderHotEvents(); } catch (_) {}
+      try { this.renderActivityList(); } catch (_) {}
     });
 
     document.addEventListener('click', (e) => {

@@ -77,7 +77,7 @@ Object.assign(App, {
     const container = document.getElementById('hot-events');
     if (!container) return;
     // 顯示最近 10 場未結束活動（依日期排序）
-    const visible = this._filterByRegionTab(this._getVisibleEvents())
+    const visible = this._filterBySportTag(this._filterByRegionTab(this._getVisibleEvents()))
       .filter(e => e.status !== 'ended' && e.status !== 'cancelled')
       .sort((a, b) => {
         const ap = a?.pinned ? 1 : 0;
@@ -98,6 +98,11 @@ Object.assign(App, {
         // Cloud 尚未就緒 — 顯示 loading 提示，保持 section 可見
         this._setHomeSectionVisibility(container, true);
         container.innerHTML = '<div style="text-align:center;padding:1.5rem 0;color:var(--text-secondary);font-size:.8rem">載入中…</div>';
+      } else if (App._activeSport && App._activeSport !== 'all') {
+        // 運動篩選後無活動 — 顯示提示，保持 section 可見
+        const sportLabel = (typeof EVENT_SPORT_OPTIONS !== 'undefined' ? EVENT_SPORT_OPTIONS : []).find(o => o.key === App._activeSport)?.label || App._activeSport;
+        this._setHomeSectionVisibility(container, true);
+        container.innerHTML = `<div style="text-align:center;padding:1.5rem 0;color:var(--text-secondary);font-size:.82rem">目前沒有${escapeHTML(sportLabel)}相關活動</div>`;
       } else {
         // 確實無活動
         this._setHomeSectionVisibility(container, false);
@@ -150,7 +155,7 @@ Object.assign(App, {
       `; }).join('');
 
     // 方案 B：資料未變時跳過 re-render
-    var _fp = visible.map(function(e){ return e.id + '|' + (e.current||0) + '|' + (e.waitlist||0) + '|' + e.status + '|' + (e.pinned?1:0); }).join(',');
+    var _fp = visible.map(function(e){ return e.id + '|' + (e.current||0) + '|' + (e.waitlist||0) + '|' + e.status + '|' + (e.pinned?1:0); }).join(',') + '|s:' + (App._activeSport || 'all');
     if (this._hotEventsLastFp === _fp && container.children.length > 0) return;
     this._hotEventsLastFp = _fp;
 

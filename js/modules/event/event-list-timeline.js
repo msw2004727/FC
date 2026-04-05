@@ -141,6 +141,7 @@ Object.assign(App, {
 
     let events = this._getVisibleEvents();
     events = this._filterByRegionTab(events);
+    events = this._filterBySportTag(events);
 
     // 頁簽篩選：一般 = 非已結束/已取消，已結束 = ended/cancelled
     const activeTab = this._activityActiveTab || 'normal';
@@ -281,7 +282,7 @@ Object.assign(App, {
     });
 
     // 方案 B：資料未變時跳過 re-render
-    var _fp = events.map(function(e){ return e.id + '|' + e.status + '|' + (e.current||0) + '|' + (e.waitlist||0) + '|' + (e.pinned?1:0) + '|' + (e.title||''); }).join(',') + '|f:' + filterType + '|k:' + filterKw;
+    var _fp = events.map(function(e){ return e.id + '|' + e.status + '|' + (e.current||0) + '|' + (e.waitlist||0) + '|' + (e.pinned?1:0) + '|' + (e.title||''); }).join(',') + '|f:' + filterType + '|k:' + filterKw + '|s:' + (App._activeSport || 'all');
     if (this._activityListLastFp === _fp && container.children.length > 0) return;
     this._activityListLastFp = _fp;
 

@@ -276,6 +276,13 @@ Object.assign(App, {
     });
   },
 
+  /** 依運動項目過濾活動（'all' = 不過濾；無 sportTag 的舊活動預設歸類為 football） */
+  _filterBySportTag(events) {
+    const tag = (typeof App !== 'undefined' && App._activeSport) || 'all';
+    if (tag === 'all') return events;
+    return events.filter(e => (e.sportTag || 'football') === tag);
+  },
+
   _activeRegionTab: '中部',
 
   switchRegionTab(region) {
