@@ -132,7 +132,8 @@ const FirebaseService = {
     // 用戶操作頁：立即渲染
     if (page === 'page-activity-detail') {
       if (source === 'attendance') {
-        // 簽到簽退只影響出席表格，不需整頁重渲染（避免 showPage 重置捲動位置）
+        // 編輯模式中：跳過背景重建，避免摧毀正在輸入的 input
+        if (App._attendanceEditingEventId || App._unregEditingEventId) return;
         App._renderAttendanceTable?.(App._currentDetailEventId, 'detail-attendance-table');
         App._renderUnregTable?.(App._currentDetailEventId, 'detail-unreg-table');
         App._refreshRegistrationBadges?.(App._currentDetailEventId, 'detail-attendance-table')?.catch?.(() => {});
