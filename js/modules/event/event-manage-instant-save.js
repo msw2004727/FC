@@ -63,15 +63,12 @@ Object.assign(App, {
     const checkoutBox = document.getElementById('manual-checkout-' + uid);
     if (!checkinBox) return;
 
+    const noteInput = document.getElementById('manual-note-' + uid);
     const wanted = this._normalizeAttendanceSelection({
       checkin: !!checkinBox.checked,
       checkout: !!checkoutBox?.checked,
-      note: '',
+      note: (noteInput?.value || '').trim().slice(0, 20),
     });
-    // 備註由「完成簽到」統一處理，此處保持現有備註不變
-    const currentRecords = ApiService.getAttendanceRecords(eventId);
-    const existingNote = this._getLatestAttendanceRecord(currentRecords, person, 'note');
-    wanted.note = (existingNote?.note || '').trim();
 
     const allActiveRegs = ApiService.getRegistrationsByEvent(eventId);
     const timeStr = App._formatDateTime(new Date());
@@ -137,12 +134,21 @@ Object.assign(App, {
 
   /** 「完成簽到」前呼叫：flush 所有 pending debounce + 等待 in-flight */
   async _flushInstantSaves(eventId) {
-    // 立即觸發所有 debounce 中的寫入
+    // 立即觸發所有 debounce 中的寫入（checkbox + note）
     var pending = [];
     for (var uid of Object.keys(this._iSaveTimers)) {
       clearTimeout(this._iSaveTimers[uid]);
       delete this._iSaveTimers[uid];
       pending.push(this._writeInstantAttendance(eventId, uid));
+    }
+    if (this._iSaveNoteTimers) {
+      for (var k of Object.keys(this._iSaveNoteTimers)) {
+        if (k.indexOf('reg_') !== 0) continue;
+        clearTimeout(this._iSaveNoteTimers[k]);
+        delete this._iSaveNoteTimers[k];
+        var noteUid = k.slice(4);
+        if (noteUid) pending.push(this._writeInstantAttendance(eventId, noteUid));
+      }
     }
     if (pending.length) await Promise.allSettled(pending);
     // 等待所有 in-flight 寫入完成（最多 5 秒）
@@ -188,14 +194,12 @@ Object.assign(App, {
     const checkoutBox = document.getElementById('unreg-checkout-' + uid);
     if (!checkinBox) return;
 
+    const noteInput = document.getElementById('unreg-note-' + uid);
     const wanted = this._normalizeAttendanceSelection({
       checkin: !!checkinBox.checked,
       checkout: !!checkoutBox?.checked,
-      note: '',
+      note: (noteInput?.value || '').trim().slice(0, 20),
     });
-    const currentRecords = ApiService.getAttendanceRecords(eventId);
-    const existingNote = this._getLatestAttendanceRecord(currentRecords, { uid: person.uid, name: person.name, isCompanion: false }, 'note');
-    wanted.note = (existingNote?.note || '').trim();
 
     const timeStr = App._formatDateTime(new Date());
     const baseRecord = { eventId, uid: person.uid, userName: person.name, participantType: 'self', companionId: null, companionName: null };
@@ -247,6 +251,15 @@ Object.assign(App, {
       delete this._iSaveUnregTimers[uid];
       pending.push(this._writeInstantUnregAttendance(eventId, uid));
     }
+    if (this._iSaveNoteTimers) {
+      for (var k of Object.keys(this._iSaveNoteTimers)) {
+        if (k.indexOf('unreg_') !== 0) continue;
+        clearTimeout(this._iSaveNoteTimers[k]);
+        delete this._iSaveNoteTimers[k];
+        var noteUid = k.slice(6);
+        if (noteUid) pending.push(this._writeInstantUnregAttendance(eventId, noteUid));
+      }
+    }
     if (pending.length) await Promise.allSettled(pending);
     var start = Date.now();
     while (Object.keys(this._iSaveUnregInFlight).length > 0 && Date.now() - start < 5000) {
@@ -267,14 +280,16 @@ Object.assign(App, {
     return null;
   },
 
-  /** 綁定 checkbox change 事件，觸發即時儲存（事件代理） */
+  /** 綁定 checkbox change + note input 事件，觸發即時儲存（事件代理） */
   _bindInstantSaveHandler(container, eventId, type) {
     if (!container || container.dataset.instantSaveBound === '1') return;
     container.dataset.instantSaveBound = '1';
     var prefix = type === 'reg' ? 'manual-' : 'unreg-';
     var ciPrefix = prefix + 'checkin-';
     var coPrefix = prefix + 'checkout-';
+    var notePrefix = prefix + 'note-';
     var self = this;
+    // Checkbox change → 300ms debounce
     container.addEventListener('change', function (e) {
       var target = e.target;
       if (!target || target.tagName !== 'INPUT' || target.type !== 'checkbox') return;
@@ -283,7 +298,6 @@ Object.assign(App, {
       if (id.indexOf(ciPrefix) === 0) uid = id.slice(ciPrefix.length);
       else if (id.indexOf(coPrefix) === 0) uid = id.slice(coPrefix.length);
       if (!uid) return;
-      // 使用當前編輯中的 eventId（非閉包），支援容器復用不同活動
       var curEvtId = type === 'reg' ? self._attendanceEditingEventId : self._unregEditingEventId;
       if (!curEvtId) return;
       if (type === 'reg') {
@@ -291,6 +305,28 @@ Object.assign(App, {
       } else {
         self._onUnregCheckboxChange(curEvtId, uid);
       }
+    });
+    // Note input → 1000ms debounce
+    if (!self._iSaveNoteTimers) self._iSaveNoteTimers = Object.create(null);
+    container.addEventListener('input', function (e) {
+      var target = e.target;
+      if (!target || target.tagName !== 'INPUT' || target.type !== 'text') return;
+      var id = String(target.id || '');
+      if (id.indexOf(notePrefix) !== 0) return;
+      var uid = id.slice(notePrefix.length);
+      if (!uid) return;
+      var curEvtId = type === 'reg' ? self._attendanceEditingEventId : self._unregEditingEventId;
+      if (!curEvtId) return;
+      var timerKey = type + '_' + uid;
+      if (self._iSaveNoteTimers[timerKey]) clearTimeout(self._iSaveNoteTimers[timerKey]);
+      self._iSaveNoteTimers[timerKey] = setTimeout(function() {
+        delete self._iSaveNoteTimers[timerKey];
+        if (type === 'reg') {
+          self._onAttendanceCheckboxChange(curEvtId, uid);
+        } else {
+          self._onUnregCheckboxChange(curEvtId, uid);
+        }
+      }, 1000);
     });
   },
 
@@ -301,6 +337,10 @@ Object.assign(App, {
     this._iSavePeople = null;
     this._iSaveInFlight = Object.create(null);
     this._iSaveQueued = Object.create(null);
+    if (this._iSaveNoteTimers) {
+      for (var k of Object.keys(this._iSaveNoteTimers)) clearTimeout(this._iSaveNoteTimers[k]);
+      this._iSaveNoteTimers = Object.create(null);
+    }
   },
 
   _cleanupUnregInstantSave() {
@@ -309,6 +349,11 @@ Object.assign(App, {
     this._iSaveUnregPeople = null;
     this._iSaveUnregInFlight = Object.create(null);
     this._iSaveUnregQueued = Object.create(null);
+    if (this._iSaveNoteTimers) {
+      for (var k of Object.keys(this._iSaveNoteTimers)) {
+        if (k.indexOf('unreg_') === 0) { clearTimeout(this._iSaveNoteTimers[k]); delete this._iSaveNoteTimers[k]; }
+      }
+    }
   },
 
 });
