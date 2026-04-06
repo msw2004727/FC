@@ -756,14 +756,26 @@ Object.assign(App, {
       allRegs = ApiService._src('registrations').filter(function(r) { return r.eventId === eventId; });
     }
 
+    // 內聯時間解析（避免 this/self 綁定問題）
+    var _toMs = function(v) {
+      if (!v) return 0;
+      if (typeof v === 'number') return v;
+      if (typeof v.toMillis === 'function') { try { return v.toMillis(); } catch(_) {} }
+      if (typeof v.toDate === 'function') { try { return v.toDate().getTime(); } catch(_) {} }
+      if (typeof v === 'object' && typeof (v.seconds || v._seconds) === 'number') {
+        return ((v.seconds || v._seconds) * 1000) + Math.floor(((v.nanoseconds || v._nanoseconds || 0) / 1000000));
+      }
+      var t = new Date(v).getTime();
+      return Number.isFinite(t) ? t : 0;
+    };
     var entries = [];
     allRegs.forEach(function(r) {
       var name = r.companionName || r.userName || '\u672a\u77e5';
       if (r.registeredAt) {
-        entries.push({ time: r.registeredAt, ms: self._regLogToMs(r.registeredAt), userName: name, action: 'register' });
+        entries.push({ time: r.registeredAt, ms: _toMs(r.registeredAt), userName: name, action: 'register' });
       }
       if (r.status === 'cancelled' && r.cancelledAt) {
-        entries.push({ time: r.cancelledAt, ms: self._regLogToMs(r.cancelledAt), userName: name, action: 'cancel' });
+        entries.push({ time: r.cancelledAt, ms: _toMs(r.cancelledAt), userName: name, action: 'cancel' });
       }
     });
 
