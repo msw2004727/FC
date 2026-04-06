@@ -779,32 +779,42 @@ Object.assign(App, {
       }
     });
 
-    // 從 Firestore 查詢操作日誌（不用 orderBy，避免需要複合索引）
+    // 從 Firestore 查詢操作日誌：優先用 eventId 精確查，0 筆則 fallback 到 title 比對（相容舊日誌）
     var _opLogActions = { 'force_promote': 'promote', 'auto_promote': 'promote', 'force_demote': 'demote', 'capacity_demote': 'demote' };
     var _opLogLabels = { 'force_promote': '\u624b\u52d5\u6b63\u53d6', 'auto_promote': '\u81ea\u52d5\u905e\u88dc', 'force_demote': '\u4e0b\u653e\u5019\u88dc', 'capacity_demote': '\u5bb9\u91cf\u964d\u7d1a' };
     var _eventTitle = (ApiService.getEvent(eventId) || {}).title || '';
+    var _addOpLogEntries = function(snap) {
+      snap.forEach(function(doc) {
+        var log = doc.data();
+        if (!_opLogActions[log.type]) return;
+        if (!log.content || log.content.indexOf(_eventTitle) === -1) return;
+        var logMs = _toMs(log.createdAt);
+        if (!logMs) {
+          var _m = String(doc.id).match(/op_(\d{13,})/);
+          if (_m) logMs = Number(_m[1]);
+        }
+        if (!logMs) return;
+        var _detail = String(log.content || '');
+        var _nameStart = _detail.indexOf('\u5019\u88dc ');
+        var _nameStart2 = _detail.indexOf('\u5c07 ');
+        var _extractedName = '';
+        if (_nameStart >= 0) _extractedName = _detail.slice(_nameStart + 3).replace(/\s*\u81ea\u52d5\u905e\u88dc.*/, '').replace(/\s*\u964d\u70ba.*/, '').trim();
+        else if (_nameStart2 >= 0) _extractedName = _detail.slice(_nameStart2 + 2).replace(/\s*\u5f9e\u5019\u88dc.*/, '').replace(/\s*\u4e0b\u653e.*/, '').trim();
+        else _extractedName = _detail;
+        entries.push({ time: log.time || log.createdAt, ms: logMs, userName: _extractedName || _detail, action: _opLogActions[log.type], label: _opLogLabels[log.type] });
+      });
+    };
     if (typeof db !== 'undefined' && _eventTitle) {
       var opTypes = Object.keys(_opLogActions);
       try {
-        var opSnap = await db.collection('operationLogs').where('type', 'in', opTypes).limit(500).get();
-        opSnap.forEach(function(doc) {
-          var log = doc.data();
-          if (!log.content || log.content.indexOf(_eventTitle) === -1) return;
-          var logMs = _toMs(log.createdAt);
-          if (!logMs) {
-            var _m = String(doc.id).match(/op_(\d{13,})/);
-            if (_m) logMs = Number(_m[1]);
-          }
-          if (!logMs) return;
-          var _detail = String(log.content || '');
-          var _nameStart = _detail.indexOf('\u5019\u88dc ');
-          var _nameStart2 = _detail.indexOf('\u5c07 ');
-          var _extractedName = '';
-          if (_nameStart >= 0) _extractedName = _detail.slice(_nameStart + 3).replace(/\s*\u81ea\u52d5\u905e\u88dc.*/, '').replace(/\s*\u964d\u70ba.*/, '').trim();
-          else if (_nameStart2 >= 0) _extractedName = _detail.slice(_nameStart2 + 2).replace(/\s*\u5f9e\u5019\u88dc.*/, '').replace(/\s*\u4e0b\u653e.*/, '').trim();
-          else _extractedName = _detail;
-          entries.push({ time: log.time || log.createdAt, ms: logMs, userName: _extractedName || _detail, action: _opLogActions[log.type], label: _opLogLabels[log.type] });
-        });
+        // 精確查詢：有 eventId 的新日誌
+        var opSnap = await db.collection('operationLogs').where('type', 'in', opTypes).where('eventId', '==', eventId).get();
+        _addOpLogEntries(opSnap);
+        // Fallback：0 筆時用舊方式（相容沒有 eventId 的歷史日誌）
+        if (opSnap.empty) {
+          var fallbackSnap = await db.collection('operationLogs').where('type', 'in', opTypes).limit(500).get();
+          _addOpLogEntries(fallbackSnap);
+        }
       } catch (err) {
         console.warn('[openEventRegLogModal] opLog query failed:', err);
       }

@@ -39,7 +39,7 @@ Object.assign(App, {
     }, reg.userId, 'activity', '活動');
 
     var _pName = reg.participantType === 'companion' ? (reg.companionName || reg.userName) : reg.userName;
-    ApiService._writeOpLog('auto_promote', '自動遞補', `活動「${event.title}」候補 ${_pName || '未知'} 自動遞補為正取`);
+    ApiService._writeOpLog('auto_promote', '自動遞補', `活動「${event.title}」候補 ${_pName || '未知'} 自動遞補為正取`, event.id);
 
     return true;
   },
@@ -223,7 +223,7 @@ Object.assign(App, {
 
       if (demoted > 0) {
         console.log(`[adjustWaitlist] 容量減少，已降級 ${demoted} 位正取者到候補`);
-        ApiService._writeOpLog('capacity_demote', '容量降級', `活動「${event.title}」因名額調整，${demoted} 位正取者降為候補`);
+        ApiService._writeOpLog('capacity_demote', '容量降級', `活動「${event.title}」因名額調整，${demoted} 位正取者降為候補`, eventId);
       }
     }
   },

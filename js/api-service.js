@@ -1016,7 +1016,8 @@ const ApiService = {
   //  Operation Log（統一日誌工具）
   // ════════════════════════════════
 
-  _writeOpLog(type, typeName, content) {
+  // eventId: optional，promote/demote 類型應傳入以支援精確查詢
+  _writeOpLog(type, typeName, content, eventId) {
     const now = new Date();
     const timeStr = `${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
     const curUser = this.getCurrentUser();
@@ -1031,6 +1032,7 @@ const ApiService = {
       typeName,
       content,
     };
+    if (eventId) opLog.eventId = eventId;
     this._src('operationLogs').unshift(opLog);
     FirebaseService.addOperationLog(opLog).catch(err => console.error('[opLog]', err));
   },

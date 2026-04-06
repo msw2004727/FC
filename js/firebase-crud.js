@@ -1025,7 +1025,7 @@ Object.assign(FirebaseService, {
       reg._promotedUserIds = promotedCandidates.map(c => c.userId);
       var _pNames = promotedCandidates.map(function(c) { return c.participantType === 'companion' ? (c.companionName || c.userName) : c.userName; }).filter(Boolean);
       if (_pNames.length > 0 && typeof ApiService !== 'undefined' && ApiService._writeOpLog) {
-        ApiService._writeOpLog('auto_promote', '自動遞補', '活動「' + (event?.title || eventId) + '」候補 ' + _pNames.join('、') + ' 自動遞補為正取');
+        ApiService._writeOpLog('auto_promote', '自動遞補', '活動「' + (event?.title || reg.eventId) + '」候補 ' + _pNames.join('、') + ' 自動遞補為正取', reg.eventId);
       }
     }
 
