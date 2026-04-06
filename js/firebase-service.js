@@ -836,7 +836,9 @@ const FirebaseService = {
       } else if (App.currentPage === 'page-team-manage') {
         App.renderTeamManage?.();
       } else if (App.currentPage === 'page-team-detail' && App._teamDetailId) {
+        var _tdS = window.scrollY || window.pageYOffset || 0;
         App.showTeamDetail?.(App._teamDetailId);
+        if (_tdS > 0) requestAnimationFrame(function() { window.scrollTo(0, _tdS); });
       } else if (App.currentPage === 'page-admin-roles') {
         App.renderRoleHierarchy?.();
         if (App._permSelectedRole) App.renderPermissions?.(App._permSelectedRole);
@@ -861,7 +863,9 @@ const FirebaseService = {
       } else if (App.currentPage === 'page-admin-teams') {
         App.renderAdminTeams?.();
       } else if (App.currentPage === 'page-team-detail' && App._teamDetailId) {
+        var _tdS2 = window.scrollY || window.pageYOffset || 0;
         App.showTeamDetail?.(App._teamDetailId);
+        if (_tdS2 > 0) requestAnimationFrame(function() { window.scrollTo(0, _tdS2); });
       }
     } catch (err) {
       console.warn('[FirebaseService] teams UI refresh failed:', err);
@@ -1852,7 +1856,11 @@ const FirebaseService = {
         if (typeof App !== 'undefined') {
           App._cloudReady = true;
           App.renderAll?.();
-          if (App.currentPage !== 'page-home') App.showPage?.(App.currentPage);
+          if (App.currentPage !== 'page-home') {
+            var _tS = window.scrollY || window.pageYOffset || 0;
+            App.showPage?.(App.currentPage);
+            if (_tS > 0) requestAnimationFrame(function() { window.scrollTo(0, _tS); });
+          }
         }
         console.log('[FirebaseService] Background reload after timeout complete');
         this._schedulePostInitWarmups();

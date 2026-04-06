@@ -42,9 +42,12 @@ Object.assign(App, {
       teams = teams.filter(t => (t.type || 'general') === typeTab);
     }
     const sorted = this._sortTeams(teams);
+    var _tlScrollEl = document.scrollingElement || document.documentElement;
+    var _tlSavedScroll = _tlScrollEl.scrollTop;
     container.innerHTML = sorted.length > 0
       ? sorted.map(t => this._teamCardHTML(t)).join('')
       : '<div style="grid-column:1/-1;text-align:center;padding:2rem;color:var(--text-muted);font-size:.85rem">此類型尚無俱樂部</div>';
+    _tlScrollEl.scrollTop = _tlSavedScroll;
     this._markPageSnapshotReady?.('page-teams');
 
     // ★ 背景載入所有教育俱樂部學員數，完成後重繪
@@ -54,9 +57,11 @@ Object.assign(App, {
         if (this.currentPage === 'page-teams') {
           const c = document.getElementById('team-list');
           if (!c) return;
+          var _s2 = _tlScrollEl.scrollTop;
           let ts = ApiService.getActiveTeams();
           if (typeTab) ts = ts.filter(t => (t.type || 'general') === typeTab);
           c.innerHTML = this._sortTeams(ts).map(t => this._teamCardHTML(t)).join('') || c.innerHTML;
+          _tlScrollEl.scrollTop = _s2;
         }
       });
     }

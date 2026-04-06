@@ -9,8 +9,10 @@ Object.assign(App, {
   _renderWaitlistSection(eventId, containerId) {
     const container = document.getElementById(containerId);
     if (!container) return;
+    var _wsScrollEl = document.scrollingElement || document.documentElement;
+    var _wsSavedScroll = _wsScrollEl.scrollTop;
     const e = ApiService.getEvent(eventId);
-    if (!e) { container.innerHTML = ''; return; }
+    if (!e) { container.innerHTML = ''; _wsScrollEl.scrollTop = _wsSavedScroll; return; }
 
     const canManage = this._canManageEvent(e);
     const tableEditing = this._waitlistEditingEventId === eventId;
@@ -81,7 +83,7 @@ Object.assign(App, {
       });
     }
 
-    if (items.length === 0) { container.innerHTML = ''; return; }
+    if (items.length === 0) { container.innerHTML = ''; _wsScrollEl.scrollTop = _wsSavedScroll; return; }
 
     const totalCount = items.reduce((sum, it) => sum + 1 + it.companions.length, 0);
     const safeEId = escapeHTML(eventId);
@@ -144,6 +146,7 @@ Object.assign(App, {
           <tbody>${rows}</tbody>
         </table>
       </div>`;
+    _wsScrollEl.scrollTop = _wsSavedScroll;
   },
 
   _startWaitlistEdit(eventId, containerId) {

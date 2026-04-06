@@ -34,6 +34,8 @@ Object.assign(App, {
 
     const container = document.getElementById('message-list');
     if (!container) return;
+    var _msgScrollEl = document.scrollingElement || document.documentElement;
+    var _msgSavedScroll = _msgScrollEl.scrollTop;
     container.innerHTML = messages.length ? messages.map(m => {
       const isUnread = this._isMessageUnread(m);
       let ribbon = '';
@@ -54,6 +56,7 @@ Object.assign(App, {
         <div class="msg-time">${escapeHTML(m.time)}</div>
       </div>`;
     }).join('') : '<div style="text-align:center;padding:1.5rem;color:var(--text-muted);font-size:.82rem">此分類沒有訊息</div>';
+    _msgScrollEl.scrollTop = _msgSavedScroll;
     this.updateNotifBadge();
     this.updateStorageBar();
 

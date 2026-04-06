@@ -402,6 +402,7 @@ Object.assign(App, {
       if (_teamInfoHtml) _shortCells.push(_teamInfoHtml);
       if (_teamBatchHtml) _shortCells.push(_teamBatchHtml);
 
+      var _savedScroll = (document.scrollingElement || document.documentElement).scrollTop;
       nodes.body.innerHTML = `
       <div class="detail-row detail-row-wide"><span class="detail-label">\u5730\u9EDE</span>${locationHtml}</div>
       <div class="detail-row detail-row-wide"><span class="detail-label">\u6642\u9593</span>${escapeHTML(e.date)}</div>
@@ -435,6 +436,7 @@ Object.assign(App, {
       </div>
       <div id="detail-waitlist-container"></div>
     `;
+    (document.scrollingElement || document.documentElement).scrollTop = _savedScroll;
     const feeLabelEl = Array.from(nodes.body.querySelectorAll('.detail-label'))
       .find(el => String(el.textContent || '').trim() === '費用');
     const feeRowEl = feeLabelEl?.closest('.detail-row');
@@ -480,8 +482,10 @@ Object.assign(App, {
   _renderGroupedWaitlistSection(eventId, containerId) {
     const container = document.getElementById(containerId);
     if (!container) return;
+    var _wlScrollEl = document.scrollingElement || document.documentElement;
+    var _wlSavedScroll = _wlScrollEl.scrollTop;
     const e = ApiService.getEvent(eventId);
-    if (!e) { container.innerHTML = ''; return; }
+    if (!e) { container.innerHTML = ''; _wlScrollEl.scrollTop = _wlSavedScroll; return; }
 
     const canManage = this._canManageEvent(e);
     const tableEditing = this._waitlistEditingEventId === eventId;
@@ -557,7 +561,7 @@ Object.assign(App, {
       });
     }
 
-    if (items.length === 0) { container.innerHTML = ''; return; }
+    if (items.length === 0) { container.innerHTML = ''; _wlScrollEl.scrollTop = _wlSavedScroll; return; }
 
     const totalCount = items.reduce((sum, it) => sum + 1 + it.companions.length, 0);
     const safeEId = escapeHTML(eventId);
@@ -607,6 +611,7 @@ Object.assign(App, {
           </table>
         </div>
       </div>`;
+      _wlScrollEl.scrollTop = _wlSavedScroll;
       return;
     }
 
@@ -648,6 +653,7 @@ Object.assign(App, {
       </div>
       ${expandBtn}
     </div>`;
+    _wlScrollEl.scrollTop = _wlSavedScroll;
   },
 
   _expandWaitlistGrid(gridId) {

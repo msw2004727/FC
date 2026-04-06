@@ -305,6 +305,8 @@ Object.assign(App, {
     const cId = containerId || 'detail-unreg-table';
     const container = document.getElementById(cId);
     if (!container) return;
+    const _scrollEl = document.scrollingElement || document.documentElement;
+    const _savedScrollY = _scrollEl.scrollTop;
     const e = ApiService.getEvent(eventId);
     if (!e) return;
 
@@ -407,6 +409,7 @@ Object.assign(App, {
         <tbody>${rows}</tbody>
       </table>
     </div>`;
+    _scrollEl.scrollTop = _savedScrollY;
     this._bindAttendanceCheckboxLink(container, 'unreg-checkin-', 'unreg-checkout-');
     if (tableEditing && typeof this._bindInstantSaveHandler === 'function') {
       this._bindInstantSaveHandler(container, eventId, 'unreg');
