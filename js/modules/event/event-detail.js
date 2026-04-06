@@ -813,6 +813,7 @@ Object.assign(App, {
           '<span class="event-reg-log-time">' + timeStr + '</span>' +
           '<span class="event-reg-log-user" data-no-translate>' + escapeHTML(e.userName) + '</span>' +
           '<span class="event-reg-log-action ' + actionCls + '">' + actionLabel + '</span>' +
+          '<span style="font-size:9px;color:#999;display:block">' + e.ms + '</span>' +
           '</div>';
       }).join('');
     }
