@@ -948,17 +948,16 @@ const FirebaseService = {
     if (this._onUserChanged) this._onUserChanged();
 
     if (roleChanged && auth?.currentUser) {
+      // role 在 Firestore 中真的變了 → 刷新 token（確保 custom claims 同步）
       auth.currentUser.getIdToken(true).then(() => {
         console.log('[FirebaseService] Role changed to', next.role, '— token refreshed');
-        if (typeof App !== 'undefined' && typeof App.applyRole === 'function') {
-          App.applyRole(next.role, true);
-        }
       }).catch(err => {
         console.warn('[FirebaseService] Token refresh after role change failed:', err);
-        if (typeof App !== 'undefined' && typeof App.applyRole === 'function') {
-          App.applyRole(next.role, true);
-        }
       });
+    }
+    // 防禦性修正：UI 角色與 Firestore 不一致時強制同步（不依賴 roleChanged）
+    if (typeof App !== 'undefined' && typeof App.applyRole === 'function' && App.currentRole !== next.role) {
+      App.applyRole(next.role, true);
     }
   },
 
@@ -1641,12 +1640,13 @@ const FirebaseService = {
       if (!BUILTIN_ROLE_KEYS.includes(authRole)) {
         try {
           await this._loadCollectionsByName(['customRoles']);
-          if (typeof App !== 'undefined' && App.currentRole === authRole) {
-            App.applyRole?.(authRole, true);
-          }
         } catch (err) {
           console.warn('[FirebaseService] customRoles 載入失敗:', err);
         }
+      }
+      // 一律套用權威角色（不限自訂角色），確保 boot 後 UI 與 auth 一致
+      if (typeof App !== 'undefined' && typeof App.applyRole === 'function') {
+        App.applyRole(authRole, true);
       }
       const canAdminSeed = this._roleLevel(authRole) >= this._roleLevel('admin');
       const canSuperAdminSeed = this._roleLevel(authRole) >= this._roleLevel('super_admin');

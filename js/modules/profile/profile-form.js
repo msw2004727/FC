@@ -215,8 +215,8 @@ Object.assign(App, {
         : (promptText.dataset.defaultText || promptText.textContent);
       if (drawerAvatar) { drawerAvatar.className = 'drawer-avatar'; drawerAvatar.innerHTML = '?'; }
       if (drawerName) drawerName.textContent = isLoginPending ? '登入確認中...' : '未登入';
-      // 未登入也套用一般用戶抽屜選單
-      this.currentRole = 'user';
+      // currentRole 不在此處重設 — 由 applyRole() 從權威來源管理
+      // 直接賦值會在 LIFF session 瞬間失效時覆蓋已驗證的角色
       const roleTag = document.getElementById('drawer-role-tag');
       if (roleTag) {
         roleTag.textContent = isLoginPending ? '確認中' : '未登入';
