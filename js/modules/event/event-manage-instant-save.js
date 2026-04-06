@@ -70,6 +70,7 @@ Object.assign(App, {
       note: (noteInput?.value || '').trim().slice(0, 20),
     });
 
+    const currentRecords = ApiService.getAttendanceRecords(eventId);
     const allActiveRegs = ApiService.getRegistrationsByEvent(eventId);
     const timeStr = App._formatDateTime(new Date());
     let recordUid = person.uid, recordUserName = person.name;
@@ -201,6 +202,7 @@ Object.assign(App, {
       note: (noteInput?.value || '').trim().slice(0, 20),
     });
 
+    const currentRecords = ApiService.getAttendanceRecords(eventId);
     const timeStr = App._formatDateTime(new Date());
     const baseRecord = { eventId, uid: person.uid, userName: person.name, participantType: 'self', companionId: null, companionName: null };
     const personObj = { uid: person.uid, name: person.name, isCompanion: false };
