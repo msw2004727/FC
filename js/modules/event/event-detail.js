@@ -814,9 +814,9 @@ Object.assign(App, {
     if (entries.length === 0) {
       body.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:1.5rem;font-size:.82rem">\u5c1a\u7121\u5831\u540d\u7d00\u9304</div>';
     } else {
-      body.innerHTML = '<div style="font-size:10px;color:#999;text-align:right">LOG-V2</div>' + entries.map(function(e) {
+      body.innerHTML = '<div style="font-size:10px;color:#999;text-align:right">LOG-V3</div>' + entries.map(function(e) {
         var d = new Date(e.ms);
-        var timeStr = String(d.getMonth() + 1).padStart(2, '0') + '/' + String(d.getDate()).padStart(2, '0') + ' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+        var timeStr = String(d.getMonth() + 1).padStart(2, '0') + '/' + String(d.getDate()).padStart(2, '0') + ' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0') + ' [' + e.ms + ']';
         var actionCls = e.action === 'cancel' ? 'cancel' : e.action === 'promote' ? 'promote' : e.action === 'demote' ? 'demote' : 'reg';
         var actionLabel = e.label || (e.action === 'cancel' ? '\u53d6\u6d88' : '\u5831\u540d');
         return '<div class="event-reg-log-item" data-ms="' + e.ms + '">' +
