@@ -70,9 +70,13 @@ Object.assign(App, {
   },
 
   async _confirmAllAttendance(eventId) {
-    // 先 flush 所有即時儲存中的 checkbox 寫入
-    if (typeof this._flushInstantSaves === 'function') await this._flushInstantSaves(eventId);
     if (this._attendanceSubmittingEventId) return;
+    // 立即顯示「儲存中...」，讓用戶知道按鈕有反應
+    this._attendanceSubmittingEventId = eventId;
+    var _cId = this._manualEditingContainerId || 'attendance-table-container';
+    this._renderAttendanceTable(eventId, _cId);
+    // flush 所有即時儲存中的 checkbox + 備註寫入
+    if (typeof this._flushInstantSaves === 'function') await this._flushInstantSaves(eventId);
     const e = ApiService.getEvent(eventId);
     if (!e) return;
     const containerId = this._manualEditingContainerId || 'attendance-table-container';
@@ -130,9 +134,7 @@ Object.assign(App, {
       });
     }
 
-    this._attendanceSubmittingEventId = eventId;
     this._attendancePendingStateByUid = desiredStateByUid;
-    this._renderAttendanceTable(eventId, containerId);
 
     const timeStr = App._formatDateTime(new Date());
     const currentRecords = ApiService.getAttendanceRecords(eventId);
@@ -234,8 +236,11 @@ Object.assign(App, {
   },
 
   async _confirmAllUnregAttendance(eventId) {
-    if (typeof this._flushUnregInstantSaves === 'function') await this._flushUnregInstantSaves(eventId);
     if (this._unregSubmittingEventId) return;
+    // 立即顯示「儲存中...」
+    this._unregSubmittingEventId = eventId;
+    this._renderUnregTable(eventId, 'detail-unreg-table');
+    if (typeof this._flushUnregInstantSaves === 'function') await this._flushUnregInstantSaves(eventId);
     const e = ApiService.getEvent(eventId);
     if (!e) return;
 
@@ -262,9 +267,7 @@ Object.assign(App, {
       });
     }
 
-    this._unregSubmittingEventId = eventId;
     this._unregPendingStateByUid = desiredStateByUid;
-    this._renderUnregTable(eventId, 'detail-unreg-table');
 
     const timeStr = App._formatDateTime(new Date());
     const currentRecords = ApiService.getAttendanceRecords(eventId);

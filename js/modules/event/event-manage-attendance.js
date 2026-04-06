@@ -190,9 +190,9 @@ Object.assign(App, {
       const safeName = escapeHTML(p.name);
 
       if (tableEditing) {
-        const kickTd = `<td style="padding:.35rem .2rem;text-align:center"><button style="${kickStyle}" ${disabledAttr} onclick="App._removeParticipant('${escapeHTML(eventId)}','${safeUid}','${safeName}',${p.isCompanion})">踢掉</button></td>`;
+        const kickTd = `<td style="padding:.35rem .2rem;text-align:center"><button style="${kickStyle}" ${disabledAttr} onclick="App._removeParticipant('${escapeHTML(eventId)}','${safeUid}','${safeName}',${p.isCompanion})">踢</button></td>`;
         const demoteTd = hasDemote && !p.isCompanion
-          ? `<td style="padding:.35rem .2rem;text-align:center"><button style="${demoteStyle}" ${disabledAttr} onclick="App._forceDemoteToWaitlist('${escapeHTML(eventId)}','${safeUid}','${safeName}',${p.isCompanion})">候補</button></td>`
+          ? `<td style="padding:.35rem .2rem;text-align:center"><button style="${demoteStyle}" ${disabledAttr} onclick="App._forceDemoteToWaitlist('${escapeHTML(eventId)}','${safeUid}','${safeName}',${p.isCompanion})">候</button></td>`
           : (hasDemote ? `<td style="padding:.35rem .2rem"></td>` : '');
         return `<tr data-uid="${safeUid}" style="border-bottom:1px solid var(--border)">
           ${kickTd}${demoteTd}
@@ -229,10 +229,10 @@ Object.assign(App, {
     const noShowTh = showNoShowColumn
       ? `<th style="text-align:center;padding:.4rem .2rem;font-weight:600;width:3rem" title="放鴿子次數（已結束、正式報名且未完成簽到）">🕊</th>`
       : '';
-    const demoteTh = hasDemote ? '<th style="text-align:center;padding:.4rem .2rem;font-weight:600;width:3rem">候補</th>' : '';
+    const demoteTh = hasDemote ? '<th style="text-align:center;padding:.4rem .2rem;font-weight:600;width:2rem">候</th>' : '';
     const thead = tableEditing
       ? `<tr style="border-bottom:2px solid var(--border)">
-          <th style="text-align:center;padding:.4rem .2rem;font-weight:600;width:3rem">踢掉</th>
+          <th style="text-align:center;padding:.4rem .2rem;font-weight:600;width:2rem">踢</th>
           ${demoteTh}
           <th style="text-align:left;padding:.4rem .3rem;font-weight:600">${nameThContent}</th>
           ${noShowTh}
@@ -390,7 +390,7 @@ Object.assign(App, {
 
     const thead = tableEditing
       ? `<tr style="border-bottom:2px solid var(--border)">
-          <th style="text-align:center;padding:.4rem .2rem;font-weight:600;width:3rem">踢掉</th>
+          <th style="text-align:center;padding:.4rem .2rem;font-weight:600;width:2rem">踢</th>
           <th style="text-align:left;padding:.4rem .3rem;font-weight:600">${nameThContent}</th>
           <th style="text-align:center;padding:.4rem .2rem;font-weight:600;width:2.5rem">簽到</th>
           <th style="text-align:center;padding:.4rem .2rem;font-weight:600;width:2.5rem">簽退</th>
