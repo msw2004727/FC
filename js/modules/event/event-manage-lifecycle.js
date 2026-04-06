@@ -325,79 +325,96 @@ Object.assign(App, {
         return;
       }
     } else {
-      // ═══ 原有路徑（fallback）═══
+      // ═══ 原有路徑（fallback）— 模擬先行（Rule #10）═══
       if (!isCompanion && !await this._ensureActivityRecordsReady({ required: true })) return;
 
-      const allRegs = ApiService._src('registrations');
-      const batch = (typeof db !== 'undefined') ? db.batch() : null;
-
-      let reg;
-      if (isCompanion) {
-        reg = allRegs.find(r => r.eventId === eventId && r.companionId === uid && r.status !== 'cancelled' && r.status !== 'removed');
-      } else {
-        reg = allRegs.find(r => r.eventId === eventId && r.userId === uid && r.participantType !== 'companion' && r.status !== 'cancelled' && r.status !== 'removed');
-      }
-
-      const wasConfirmed = reg ? reg.status === 'confirmed' : false;
-
-      if (reg) {
-        reg.status = 'removed';
-        reg.removedAt = new Date().toISOString();
-        if (batch && reg._docId) {
-          batch.update(db.collection('registrations').doc(reg._docId), {
-            status: 'removed',
-            removedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      // Firestore refresh：取得最新 registrations（修正 10：H4 也加入 refresh step）
+      let firestoreRegs = [];
+      if (typeof db !== 'undefined') {
+        try {
+          const snap = await db.collection('registrations').where('eventId', '==', eventId).get();
+          firestoreRegs = snap.docs.map(d => {
+            const data = d.data();
+            return { ...data, _docId: d.id, registeredAt: data.registeredAt?.toDate?.()?.toISOString?.() || data.registeredAt };
           });
+        } catch (err) {
+          console.warn('[removeParticipant] Firestore refresh failed, using cache:', err);
+          firestoreRegs = (ApiService._src('registrations') || []).filter(r => r.eventId === eventId);
         }
+      } else {
+        firestoreRegs = (ApiService._src('registrations') || []).filter(r => r.eventId === eventId);
       }
 
+      // 1. 建立副本
+      const simRegs = firestoreRegs.map(r => ({ ...r }));
+      const arSource = ApiService._src('activityRecords') || [];
+      const batch = (typeof db !== 'undefined') ? db.batch() : null;
+      const promotedSim = [];
+      const arPromoteUpdates = [];
+      let arRemoveDocId = null;
+
+      // 2. 模擬移除
+      let simTarget;
+      if (isCompanion) {
+        simTarget = simRegs.find(r => r.companionId === uid && r.status !== 'cancelled' && r.status !== 'removed');
+      } else {
+        simTarget = simRegs.find(r => r.userId === uid && r.participantType !== 'companion' && r.status !== 'cancelled' && r.status !== 'removed');
+      }
+      const wasConfirmed = simTarget ? simTarget.status === 'confirmed' : false;
+      if (simTarget) simTarget.status = 'removed';
+
+      // 3. 模擬 AR 移除
       if (!isCompanion) {
-        const arSource = ApiService._src('activityRecords');
         const ar = arSource.find(a => a.eventId === eventId && a.uid === uid && a.status !== 'cancelled' && a.status !== 'removed');
-        if (ar) {
-          ar.status = 'removed';
-          if (batch && ar._docId) {
-            batch.update(db.collection('activityRecords').doc(ar._docId), { status: 'removed' });
-          }
-        }
+        if (ar && ar._docId) arRemoveDocId = ar._docId;
       }
 
+      // 4. 模擬遞補（Rule #7 排序，從 clone 找候補者）
       if (wasConfirmed) {
-        const activeRegs = allRegs.filter(
-          r => r.eventId === eventId && (r.status === 'confirmed' || r.status === 'waitlisted')
-        );
-        const confirmedCount = activeRegs.filter(r => r.status === 'confirmed').length;
+        const confirmedCount = simRegs.filter(r => r.status === 'confirmed').length;
         let slotsAvailable = (event.max || 0) - confirmedCount;
+        const _sortTime = (r) => { const t = new Date(r.registeredAt).getTime(); return Number.isFinite(t) ? t : Number.POSITIVE_INFINITY; };
 
         while (slotsAvailable > 0) {
-          const candidate = this._getNextWaitlistCandidate(eventId);
+          const candidate = simRegs
+            .filter(r => r.status === 'waitlisted')
+            .sort((a, b) => { const d = _sortTime(a) - _sortTime(b); return d !== 0 ? d : (a.promotionOrder || 0) - (b.promotionOrder || 0); })[0];
           if (!candidate) break;
-          this._promoteSingleCandidateLocal(event, candidate);
-          if (batch && candidate._docId) {
-            batch.update(db.collection('registrations').doc(candidate._docId), { status: 'confirmed' });
-          }
-          const arDocIds = this._getPromotedArDocIds(event, candidate);
-          if (batch) {
-            arDocIds.forEach(docId => batch.update(db.collection('activityRecords').doc(docId), { status: 'registered' }));
+          candidate.status = 'confirmed';
+          promotedSim.push(candidate);
+          if (candidate.participantType !== 'companion') {
+            const ar = arSource.find(a => a.eventId === eventId && a.uid === candidate.userId && a.status === 'waitlisted');
+            if (ar && ar._docId) arPromoteUpdates.push({ docId: ar._docId, uid: candidate.userId });
           }
           slotsAvailable--;
         }
       }
 
-      const activeAfterRemoval = allRegs.filter(
-        r => r.eventId === eventId && (r.status === 'confirmed' || r.status === 'waitlisted')
-      );
-      if (typeof FirebaseService !== 'undefined' && typeof FirebaseService._rebuildOccupancy === 'function') {
-        const occupancy = FirebaseService._rebuildOccupancy(event, activeAfterRemoval);
-        FirebaseService._applyRebuildOccupancy(event, occupancy);
-      }
+      // 5. 用副本計算 occupancy
+      const simActive = simRegs.filter(r => r.status === 'confirmed' || r.status === 'waitlisted');
+      const occupancy = (typeof FirebaseService !== 'undefined' && typeof FirebaseService._rebuildOccupancy === 'function')
+        ? FirebaseService._rebuildOccupancy(event, simActive)
+        : null;
 
-      if (batch && event._docId) {
-        batch.update(db.collection('events').doc(event._docId), {
-          current: event.current, waitlist: event.waitlist,
-          participants: event.participants || [], waitlistNames: event.waitlistNames || [],
-          status: event.status,
+      // 6. 建 batch
+      if (batch) {
+        if (simTarget && simTarget._docId) {
+          batch.update(db.collection('registrations').doc(simTarget._docId), { status: 'removed', removedAt: firebase.firestore.FieldValue.serverTimestamp() });
+        }
+        if (arRemoveDocId) {
+          batch.update(db.collection('activityRecords').doc(arRemoveDocId), { status: 'removed' });
+        }
+        promotedSim.forEach(sim => {
+          if (sim._docId) batch.update(db.collection('registrations').doc(sim._docId), { status: 'confirmed' });
         });
+        arPromoteUpdates.forEach(au => batch.update(db.collection('activityRecords').doc(au.docId), { status: 'registered' }));
+        if (event._docId && occupancy) {
+          batch.update(db.collection('events').doc(event._docId), {
+            current: occupancy.current, waitlist: occupancy.waitlist,
+            participants: occupancy.participants, waitlistNames: occupancy.waitlistNames,
+            status: occupancy.status,
+          });
+        }
         try {
           await batch.commit();
         } catch (err) {
@@ -406,6 +423,34 @@ Object.assign(App, {
           return;
         }
       }
+
+      // 7. commit 成功 → 寫入 live cache（重新查詢 live array，防 onSnapshot 替換）
+      const liveRegs = ApiService._src('registrations') || [];
+      if (simTarget) {
+        const liveTarget = liveRegs.find(r => r._docId === simTarget._docId || r.id === simTarget.id);
+        if (liveTarget) { liveTarget.status = 'removed'; liveTarget.removedAt = new Date().toISOString(); }
+      }
+      if (arRemoveDocId) {
+        const liveAr = arSource.find(a => a._docId === arRemoveDocId);
+        if (liveAr) liveAr.status = 'removed';
+      }
+      for (const sim of promotedSim) {
+        const live = liveRegs.find(r => r._docId === sim._docId || r.id === sim.id);
+        if (live) live.status = 'confirmed';
+      }
+      for (const au of arPromoteUpdates) {
+        const liveAr = arSource.find(a => a._docId === au.docId);
+        if (liveAr) liveAr.status = 'registered';
+      }
+      if (occupancy) FirebaseService._applyRebuildOccupancy(event, occupancy);
+
+      // 8. commit 成功 → 發通知 + 寫 opLog
+      for (const sim of promotedSim) {
+        this._sendNotifFromTemplate('waitlist_promoted', { eventName: event.title, date: event.date, location: event.location }, sim.userId, 'activity', '活動');
+        const _pName = sim.participantType === 'companion' ? (sim.companionName || sim.userName) : sim.userName;
+        ApiService._writeOpLog('auto_promote', '自動遞補', `活動「${event.title}」候補 ${_pName || '未知'} 自動遞補為正取`, eventId);
+      }
+
       if (typeof FirebaseService !== 'undefined' && typeof FirebaseService._saveToLS === 'function') {
         FirebaseService._saveToLS('registrations', FirebaseService._cache.registrations);
         FirebaseService._saveToLS('events', FirebaseService._cache.events);

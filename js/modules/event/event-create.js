@@ -300,7 +300,7 @@ Object.assign(App, {
       this._editEventId = null;
       // 非關鍵操作：即使失敗也不影響用戶體驗
       try {
-        this._adjustWaitlistOnCapacityChange(editedId, oldMax, max);
+        await this._adjustWaitlistOnCapacityChange(editedId, oldMax, max);
         notifyUids.forEach(uid => {
           this._sendNotifFromTemplate('event_changed', {
             eventName: title, date: fullDate, location,
