@@ -219,8 +219,8 @@ Object.assign(App, {
     // 關鍵寫入：用戶退出俱樂部（await 確保成功才繼續）
     try {
       await ApiService.updateCurrentUserAwait(userTeamUpdates);
-    } catch (_) {
-      this.showToast('退出俱樂部失敗，請重試');
+    } catch (err) {
+      if (!err?._toasted) this.showToast('退出俱樂部失敗，請重試');
       return;
     }
 

@@ -286,10 +286,10 @@ Object.assign(App, {
       this._eventSubmitInFlight = true;
       try {
         await ApiService.updateEventAwait(this._editEventId, updates);
-      } catch (_) {
+      } catch (err) {
         this._eventSubmitInFlight = false;
         this._setCreateEventSubmitting?.(false);
-        this.showToast('活動更新失敗，請重試');
+        if (!err?._toasted) this.showToast('活動更新失敗，請重試');
         return;
       }
       this._eventSubmitInFlight = false;

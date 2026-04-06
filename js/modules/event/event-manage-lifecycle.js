@@ -194,7 +194,7 @@ Object.assign(App, {
     const newStatus = this._isEventTrulyFull(e) ? 'full' : 'open';
     try {
       await ApiService.updateEventAwait(id, { status: newStatus });
-    } catch (_) { this.showToast('重新開放失敗，請重試'); return; }
+    } catch (err) { if (!err?._toasted) this.showToast('重新開放失敗，請重試'); return; }
     ApiService._writeOpLog('event_reopen', '重開活動', `重開「${e.title}」`);
     this.renderMyActivities();
     this.renderActivityList();
@@ -221,7 +221,7 @@ Object.assign(App, {
     const newStatus = this._isEventTrulyFull(e) ? 'full' : 'open';
     try {
       await ApiService.updateEventAwait(id, { status: newStatus });
-    } catch (_) { this.showToast('重新上架失敗，請重試'); return; }
+    } catch (err) { if (!err?._toasted) this.showToast('重新上架失敗，請重試'); return; }
     ApiService._writeOpLog('event_relist', '重新上架', `重新上架「${e.title}」`);
 
     // 通知已報名的用戶

@@ -253,19 +253,23 @@ const ApiService = {
     return data;
   },
 
-  /** Firestore 寫入失敗統一處理：permission-denied / assertion 給用戶提示 */
+  /** Firestore 寫入失敗統一處理：permission-denied / assertion 給用戶提示。回傳 true 表示已顯示 toast */
   _handleFirestoreWriteError(err, label) {
     const code = (err?.code || '').toLowerCase();
     const msg = (err?.message || '').toLowerCase();
     if (typeof App !== 'undefined' && App.showToast) {
       if (code === 'permission-denied') {
         App.showToast('操作失敗：權限不足，請重新登入或聯繫管理員');
+        return true;
       } else if (msg.includes('assertion') || msg.includes('internal')) {
         App.showToast('系統異常，請關閉所有分頁後重新開啟');
+        return true;
       } else if (msg.includes('尚未準備就緒')) {
         App.showToast('連線尚未就緒，請稍後再試');
+        return true;
       }
     }
+    return false;
   },
 
   /** 通用更新：快取 Object.assign + 非同步寫入 Firebase */
@@ -301,8 +305,9 @@ const ApiService = {
         Object.keys(item).forEach(keyName => delete item[keyName]);
         Object.assign(item, snapshot);
         console.error(`[${label}]`, err);
-        this._handleFirestoreWriteError(err, label);
+        const toasted = this._handleFirestoreWriteError(err, label);
         if (typeof App !== 'undefined') App._setSyncState?.('error', { text: '同步失敗' });
+        err._toasted = toasted;
         throw err;
       }
     }
@@ -342,8 +347,9 @@ const ApiService = {
         if (typeof App !== 'undefined') App._setSyncState?.('done');
       } catch (err) {
         console.error(`[${label}]`, err);
-        this._handleFirestoreWriteError(err, label);
+        const toasted = this._handleFirestoreWriteError(err, label);
         if (typeof App !== 'undefined') App._setSyncState?.('error', { text: '同步失敗' });
+        err._toasted = toasted;
         throw err;
       }
     }
@@ -515,31 +521,36 @@ const ApiService = {
     const source = this._src('tournaments');
     const idx = source.findIndex(t => t.id === id);
     if (idx === -1) return;
-    const removed = source[idx]; // 不先 splice，等 Firestore 成功
+    const removed = source[idx];
     if (removed._docId) {
       await FirebaseService.ensureAuthReadyForWrite();
       if (typeof App !== 'undefined') App._setSyncState?.('syncing');
       try {
         const docRef = db.collection('tournaments').doc(removed._docId);
+        // 子集合清理：每個獨立 try/catch，部分失敗不阻止刪除主文件
         const subs = ['applications', 'entries'];
         for (const sub of subs) {
-          const snap = await docRef.collection(sub).get();
-          if (snap.empty) continue;
-          const ops = [];
-          for (const doc of snap.docs) {
-            if (sub === 'entries') {
-              const membersSnap = await doc.ref.collection('members').get();
-              membersSnap.docs.forEach(m => ops.push(m.ref));
+          try {
+            const snap = await docRef.collection(sub).get();
+            if (snap.empty) continue;
+            const ops = [];
+            for (const doc of snap.docs) {
+              if (sub === 'entries') {
+                try {
+                  const membersSnap = await doc.ref.collection('members').get();
+                  membersSnap.docs.forEach(m => ops.push(m.ref));
+                } catch (memberErr) { console.warn(`[deleteTournament] members cleanup failed for ${doc.id}:`, memberErr); }
+              }
+              ops.push(doc.ref);
             }
-            ops.push(doc.ref);
-          }
-          // 分批刪除（每批 450 筆，留緩衝不超 500）
-          for (let i = 0; i < ops.length; i += 450) {
-            const batch = db.batch();
-            ops.slice(i, i + 450).forEach(ref => batch.delete(ref));
-            await batch.commit();
-          }
+            for (let i = 0; i < ops.length; i += 450) {
+              const batch = db.batch();
+              ops.slice(i, i + 450).forEach(ref => batch.delete(ref));
+              await batch.commit();
+            }
+          } catch (subErr) { console.warn(`[deleteTournament] ${sub} cleanup failed:`, subErr); }
         }
+        // 主文件刪除（這是唯一必須成功的操作）
         await docRef.delete();
         if (typeof App !== 'undefined') App._setSyncState?.('done');
       } catch (err) {
@@ -547,7 +558,6 @@ const ApiService = {
         throw err;
       }
     }
-    // Firestore 成功後才 splice cache
     const spliceIdx = source.findIndex(t => t.id === id);
     if (spliceIdx >= 0) source.splice(spliceIdx, 1);
     FirebaseService._saveToLS('tournaments', source);

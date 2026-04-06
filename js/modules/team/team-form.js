@@ -212,8 +212,8 @@ Object.assign(App, {
         if (image) updates.image = image;
         try {
           await ApiService.updateTeamAwait(this._teamEditId, updates);
-        } catch (_) {
-          this.showToast('俱樂部更新失敗，請重試');
+        } catch (err) {
+          if (!err?._toasted) this.showToast('俱樂部更新失敗，請重試');
           return;
         }
         ApiService._writeOpLog('team_edit', '編輯俱樂部', `編輯「${name}」`);

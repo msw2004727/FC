@@ -367,7 +367,7 @@ Object.assign(App, {
     const tName = t.name;
     try {
       await ApiService.deleteTournamentAwait(id);
-    } catch (_) { this.showToast('刪除賽事失敗，請重試'); return; }
+    } catch (err) { if (!err?._toasted) this.showToast('刪除賽事失敗，請重試'); return; }
     ApiService._writeOpLog('tourn_delete', '刪除賽事', `刪除「${tName}」`);
     this.renderTournamentTimeline();
     this.renderOngoingTournaments();

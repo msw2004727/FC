@@ -8,6 +8,7 @@ Object.assign(App, {
   _syncBarState: 'idle',
   _syncBarDoneTimer: null,
   _syncBarRetryFn: null,
+  _syncPendingCount: 0,
 
   /**
    * @param {'idle'|'syncing'|'done'|'error'|'offline'} state
@@ -21,6 +22,15 @@ Object.assign(App, {
     const textEl = bar.querySelector('.sync-bar__text');
     const retryBtn = bar.querySelector('.sync-bar__retry');
     opts = opts || {};
+
+    // pending counter 追蹤並行寫入
+    if (state === 'syncing') {
+      this._syncPendingCount++;
+    } else if (state === 'done' || state === 'error') {
+      this._syncPendingCount = Math.max(0, this._syncPendingCount - 1);
+      // 還有其他寫入進行中 → 維持 syncing，不切 done
+      if (state === 'done' && this._syncPendingCount > 0) return;
+    }
 
     clearTimeout(this._syncBarDoneTimer);
     bar.classList.remove('sync-bar--syncing', 'sync-bar--done', 'sync-bar--error', 'sync-bar--offline');
@@ -63,7 +73,10 @@ Object.assign(App, {
     window.addEventListener('online', () => {
       if (this._syncBarState === 'offline') {
         this._setSyncState('syncing');
-        setTimeout(() => { if (this._syncBarState === 'syncing') this._setSyncState('done'); }, 2000);
+        setTimeout(() => {
+          // 只在沒有真正寫入進行中時才自動 done
+          if (this._syncBarState === 'syncing' && this._syncPendingCount <= 1) this._setSyncState('done');
+        }, 2000);
       }
     });
   },
