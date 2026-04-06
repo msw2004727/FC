@@ -775,12 +775,20 @@ Object.assign(App, {
     (ApiService.getOperationLogs ? ApiService.getOperationLogs() : []).forEach(function(log) {
       if (!_opLogActions[log.type]) return;
       if (!log.content || log.content.indexOf(_eventTitle) === -1) return;
-      // 優先用 createdAt（Firestore serverTimestamp，與 registeredAt 同型態）
-      var logMs = self._regLogToMs(log.createdAt);
-      // fallback：從 _docId 提取 timestamp（op_1712345678901_xxx）
-      if (!logMs && log._docId) {
-        var _m = String(log._docId).match(/^op_(\d{13,})/);
+      // 從 _docId 提取 timestamp（op_1712345678901_xxx — 最可靠）
+      var logMs = 0;
+      if (log._docId) {
+        var _m = String(log._docId).match(/op_(\d{13,})/);
         if (_m) logMs = Number(_m[1]);
+      }
+      // fallback：createdAt
+      if (!logMs) {
+        var _ca = log.createdAt;
+        if (_ca) {
+          if (typeof _ca.toMillis === 'function') { try { logMs = _ca.toMillis(); } catch(_){} }
+          else if (typeof _ca === 'object' && (_ca.seconds || _ca._seconds)) logMs = ((_ca.seconds || _ca._seconds) * 1000) + Math.floor(((_ca.nanoseconds || _ca._nanoseconds || 0) / 1000000));
+          else { var _t = new Date(_ca).getTime(); if (Number.isFinite(_t)) logMs = _t; }
+        }
       }
       // fallback：手動解析 "MM/DD HH:MM"
       if (!logMs && typeof (log.time || '') === 'string') {
@@ -813,7 +821,6 @@ Object.assign(App, {
           '<span class="event-reg-log-time">' + timeStr + '</span>' +
           '<span class="event-reg-log-user" data-no-translate>' + escapeHTML(e.userName) + '</span>' +
           '<span class="event-reg-log-action ' + actionCls + '">' + actionLabel + '</span>' +
-          '<span style="font-size:9px;color:#999;display:block">' + e.ms + '</span>' +
           '</div>';
       }).join('');
     }
