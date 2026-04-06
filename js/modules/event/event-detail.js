@@ -815,7 +815,7 @@ Object.assign(App, {
         var timeStr = String(d.getMonth() + 1).padStart(2, '0') + '/' + String(d.getDate()).padStart(2, '0') + ' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
         var actionCls = e.action === 'cancel' ? 'cancel' : e.action === 'promote' ? 'promote' : e.action === 'demote' ? 'demote' : 'reg';
         var actionLabel = e.label || (e.action === 'cancel' ? '\u53d6\u6d88' : '\u5831\u540d');
-        return '<div class="event-reg-log-item">' +
+        return '<div class="event-reg-log-item" data-ms="' + e.ms + '">' +
           '<span class="event-reg-log-time">' + timeStr + '</span>' +
           '<span class="event-reg-log-user" data-no-translate>' + escapeHTML(e.userName) + '</span>' +
           '<span class="event-reg-log-action ' + actionCls + '">' + actionLabel + '</span>' +
