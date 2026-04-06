@@ -775,18 +775,18 @@ Object.assign(App, {
     (ApiService.getOperationLogs ? ApiService.getOperationLogs() : []).forEach(function(log) {
       if (!_opLogActions[log.type]) return;
       if (!log.content || log.content.indexOf(_eventTitle) === -1) return;
-      var logMs = 0;
-      // 優先從 _docId 提取 timestamp（op_1712345678901_xxx → 1712345678901）
-      if (log._docId) {
+      // 優先用 createdAt（Firestore serverTimestamp，與 registeredAt 同型態）
+      var logMs = self._regLogToMs(log.createdAt);
+      // fallback：從 _docId 提取 timestamp（op_1712345678901_xxx）
+      if (!logMs && log._docId) {
         var _m = String(log._docId).match(/^op_(\d{13,})/);
         if (_m) logMs = Number(_m[1]);
       }
-      // fallback：手動解析 "MM/DD HH:MM" 格式
+      // fallback：手動解析 "MM/DD HH:MM"
       if (!logMs && typeof (log.time || '') === 'string') {
         var _tp = String(log.time).match(/^(\d{1,2})\/(\d{1,2})\s+(\d{1,2}):(\d{2})/);
         if (_tp) logMs = new Date(_thisYear, Number(_tp[1]) - 1, Number(_tp[2]), Number(_tp[3]), Number(_tp[4])).getTime();
       }
-      if (!logMs) logMs = self._regLogToMs(log.time || log.createdAt);
       if (!logMs) return;
       // 從 content 提取人名（去掉活動名稱前綴）
       var _detail = String(log.content || '');
