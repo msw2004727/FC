@@ -10,6 +10,24 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### [永久] 2026-04-06 — Log 彈窗操作日誌排序修復（跨 7 次迭代）
+- **問題**：活動 Log 彈窗中，自動遞補/手動正取紀錄永遠排在最底部，不與報名/取消紀錄混合排序
+- **根因鏈**（經 7 次迭代才釐清）：
+  1. `ApiService.getOperationLogs()` 從本地快取讀取 → 快取載入時機不確定 → 開彈窗時可能為空
+  2. 改為 `await ensureStaticCollectionsLoaded` → 載入不穩定，有時有資料有時沒有
+  3. 改為直接查 Firestore + `orderBy('createdAt')` → 需要複合索引 → 靜默失敗
+  4. `self._regLogToMs()` 的 `this` 綁定問題 → 所有 ms 值為 null → 排序失效
+- **最終修復**：
+  - 操作日誌改為 `await db.collection('operationLogs').where('type','in',[...]).limit(500).get()`（不加 orderBy，不需索引）
+  - 時間解析改為閉包內的 `_toMs` 函式（避免 this/self 綁定）
+  - 用 `createdAt.toMillis()` 或 `_docId` 的 Unix timestamp 提取 ms
+  - 統一 `entries.sort(b.ms - a.ms)` 降序排列
+- **教訓**：
+  1. 本地快取的載入時機不可靠，async modal 中若需要資料，必須 await 確保到齊或直接查 Firestore
+  2. Firestore 複合查詢（where + orderBy 不同欄位）需要手動建索引，缺索引時查詢靜默回傳空結果
+  3. `self._method()` 在深層 forEach 回調中可能有 this 綁定問題，用閉包內定義的函式更安全
+  4. debug 時善用 `data-` 屬性或 inline 顯示確認實際值，不要只靠推理
+
 ### 2026-04-05 — 簽到簽退後畫面跳回頂部
 - **問題**：在活動詳情頁進行簽到/簽退操作後，頁面捲動位置被重置回頂部
 - **原因**：`_debouncedSnapshotRender('attendance')` 觸發 `showEventDetail()` 整頁重渲染，其中 `showPage()` → `_resetPageScroll()` 無條件執行 `window.scrollTo(0, 0)`
