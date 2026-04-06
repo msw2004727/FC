@@ -10,6 +10,36 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### [永久] 2026-04-07 — 寫入安全重構 Phase 1-5 + 同步指示器
+- **問題**：8 項高風險 + 9 項中風險的 Firestore 寫入操作使用 fire-and-forget 模式（`_update()`），失敗時 cache 被汙染、用戶看到假成功。H4/H6/H7 鎖定函式在 `batch.commit()` 前修改 live cache，違反 CLAUDE.md Rule #10
+- **修復**：
+  - **Phase 1**：新增 `updateEventAwait`、`updateTeamAwait`、`updateCurrentUserAwait`（snapshot + await + 失敗回滾）；全域同步指示器（syncing/done/error/offline + pending counter）
+  - **Phase 2**：reopenMyActivity / relistMyActivity / handleCreateEvent 編輯 → updateEventAwait + try/catch
+  - **Phase 3**：handleLeaveTeam → updateCurrentUserAwait（含 adminUsers 雙 cache 回滾）；handleSaveTeam 編輯 → updateTeamAwait
+  - **Phase 4**：_cleanupCancelledRecords → batch 化（450/批）；updateNotifTemplate → snapshot/restore；_persistFriendlyTournamentCompatState → async + updateTournamentAwait；deleteTournamentAwait → 分批 + 子集合獨立容錯
+  - **Phase 5（鎖定函式）**：H6 遞補 / H7 降級 / H4 移除參加者 → clone → simulate → commit → apply（模擬先行）；通知 + opLog 延遲到 commit 後；H4 新增 Firestore refresh step；event-create.js 加 await
+  - **額外**：雙重 toast 防護（`err._toasted`）、sync pending counter、賽事刪除子集合獨立容錯
+- **教訓**：
+  1. `_update()` fire-and-forget 是系統性債務，所有關鍵寫入應改 `_updateAwaitWrite` 模式
+  2. Rule #10（禁止 commit 前改 cache）適用於所有 batch/transaction 路徑，不只 cancelRegistration
+  3. 模擬先行的 post-commit 寫回必須重新查詢 `ApiService._src()` live array（防 onSnapshot 替換 stale reference）
+
+### 2026-04-06 — 運動項目切換選單解鎖
+- **問題**：頂部運動選單鎖定只開放足球
+- **修復**：移除鎖門、局部 prepend「全部運動」（不動 EVENT_SPORT_OPTIONS 避免汙染建立表單）、App._activeSport + localStorage 持久化、_filterBySportTag 串入過濾管線 + fingerprint
+- **教訓**：「全部」用 `'all'` 字串不用空字串（避免 `getSportKeySafe('')` 衝突）；建立表單的 picker 與頂部 picker 完全隔離
+
+### 2026-04-05 — 簽到簽退頁面跳頂修復（根因：onSnapshot 連鎖觸發）
+- **問題**：勾選簽到/簽退 checkbox 後頁面跳回頂部
+- **原因**：attendance onSnapshot → `_debouncedSnapshotRender` → `showEventDetail()` 整頁重渲染 → `scrollTo(0,0)`。且 Firestore SDK 寫入 attendanceRecords 時會連鎖觸發 events/registrations snapshot
+- **修復**：(1) attendance source 只更新表格不重繪整頁 (2) showEventDetail 偵測同一活動重渲染時傳 `{ resetScroll: false }` (3) _renderAttendanceTable 保存/恢復 scrollTop
+- **教訓**：onSnapshot 資料刷新不等於頁面導航，需區分兩種場景
+
+### 2026-04-05 — 放鴿子次數 race condition + opLog 欄位名修正 + 活動管理按鈕精簡
+- **放鴿子**：_buildNoShowCountByUid 在 attendance onSnapshot 未到達前用過期快取計算 → 加 `_attendanceSnapshotReady` 旗標，未就緒時回傳 null（UI 顯示 —）
+- **opLog**：event-detail.js 讀 `log.action`/`log.detail` 但 operationLogs 存 `log.type`/`log.content` → 修正欄位名；page-activity-detail 加載 operationLogs collection；CF cancelRegistration 加寫 auto_promote opLog
+- **按鈕**：隱藏活動管理卡片的「查看名單」與「結束」按鈕（功能保留）
+
 ### [永久] 2026-04-06 — 角色卡在 user 第二輪修復（三位專家共識，5 層防護完成）
 - **問題**：總管開啟 LINE 瀏覽器後角色偶爾卡在 user，第一輪修復（04/04：init 讀 cache + catch 也 apply）後仍偶發，必須完全關閉 LINE 重開才能恢復
 - **重現條件**：LINE 放背景一段時間 → LIFF access token 過期但 Firebase Auth persistence 存活 → 回到 app 時觸發退化路徑
