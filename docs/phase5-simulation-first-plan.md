@@ -404,3 +404,39 @@ H4 不同：它讀 live cache（可能有 Timestamp 物件）。但 `_rebuildOcc
 4. **H4（移除參加者）**——最複雜，結合移除 + 遞補
 5. **更新 CLAUDE.md Rule #10**——將 H4/H6/H7 加入模擬模式強制範圍
 6. **全量測試**——npm test + 手動測試矩陣
+
+---
+
+## 12. 第一次審計修正項目（2026-04-07）
+
+> 以下為計畫書第一次審計時發現的瑕疵與建議，已補充至計畫書中。
+
+### 修正 1（中）：H6 虛擬碼補遞減邏輯
+
+Section 6 H6 AFTER 虛擬碼的 `while slotsAvailable > 0` 迴圈缺少遞減計數器。
+實作時必須在每次迴圈末尾加 `slotsAvailable--` 或 `promoted++`，否則會無限迴圈。
+
+### 修正 2（中）：行號可能已偏移
+
+Section 3 標示的行號（H4: 327-412、H6: 109-157、H7: 161-228）因近期多次修改已偏移。
+實作時應以**函式名 + 關鍵字搜尋**定位，不依賴行號：
+- H4: 搜尋 `_removeParticipant` 的 `wasConfirmed` fallback 區塊
+- H6: 搜尋 `_adjustWaitlistOnCapacityChange` 的 `newMax > oldMax` 分支
+- H7: 搜尋 `_adjustWaitlistOnCapacityChange` 的 `newMax < oldMax` 分支
+
+### 修正 3（低）：AR 搜尋條件應排除同行者
+
+Section 6 H6 虛擬碼的 AR 搜尋：
+```
+ar = arSource.find(a => a.eventId === event.id && a.uid === sim.userId && a.status === 'waitlisted');
+```
+應加上 `&& sim.participantType !== 'companion'` 外層判斷，因為同行者沒有 activityRecord。
+Section 9 測試矩陣已包含此情境（「companion 不更新 activityRecord」），但虛擬碼漏標。
+
+### 修正 4（低）：函式名筆誤
+
+Section 4 阻塞 1 最後一段提到 `_forcePromoteWaitlistItem`，正確名稱為 `_forcePromoteWaitlist`。
+
+### 修正 5（低）：Clone 策略補充 _dedupRegs
+
+Section 7 應補充：近期的重複報名修復在 `_rebuildOccupancy` 內新增了 `_dedupRegs`（以 `userId + participantType + companionId` 三元組去重）。clone 後的 simRegs 傳入 `_rebuildOccupancy` 時會自動去重，不影響模擬邏輯，但實作者應知曉此機制存在。
