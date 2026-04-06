@@ -10,6 +10,27 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### [永久] 2026-04-06 — 全站捲動跳頂問題修復（8 處高+中優先）
+- **問題**：活動詳情、候補名單、未報名單、訊息列表、俱樂部列表等頁面，背景 onSnapshot/SWR 觸發 re-render 時捲動位置被重置到頂部
+- **根因**：`container.innerHTML = ...` 全清式渲染破壞捲動位置，且多處 early-return 路徑漏掉 scrollTop 還原
+- **修復**：8 處加 `scrollingElement.scrollTop` save/restore 或 `rAF scrollTo`
+  - showEventDetail body / _renderUnregTable / _renderGroupedWaitlistSection（高優先）
+  - _renderWaitlistSection / renderMessageList / renderTeamList / showTeamDetail 背景 ×2 / showPage timeout（中優先）
+- **教訓**：每次加 scrollTop 保護時，必須檢查所有 early-return 路徑是否也有還原；用 QA agent 逐一驗證
+
+### 2026-04-06 — 備註即時儲存
+- **問題**：備註只在按「完成」時儲存，忘按就丟失（簽到/簽退有即時儲存但備註沒有）
+- **修復**：note input 加 1 秒 debounce 即時儲存（與 checkbox 300ms 分開），flush/cleanup 同步支援 reg + unreg 路徑
+
+### 2026-04-06 — 操作日誌加 eventId 精確查詢
+- **問題**：Log 彈窗每次讀 500 筆操作日誌再前端篩選，浪費 Firestore reads
+- **修復**：`_writeOpLog` 加 optional `eventId` 參數，5 個 promote/demote call site 補傳；Log 彈窗先用 `where('eventId','==',xxx)` 精確查，0 筆 fallback 舊方式（相容歷史日誌）
+
+### 2026-04-06 — 運動項目切換後畫面不更新
+- **問題**：切換到無活動的運動項目後切回「全部」，畫面卡在上一個運動
+- **根因**：指紋快取（Plan B）在 `visible.length === 0` 時未更新指紋，切回時指紋匹配跳過 re-render
+- **修復**：空結果時 `_hotEventsLastFp = ''` / `_activityListLastFp = ''` 重置
+
 ### [永久] 2026-04-06 — Log 彈窗操作日誌排序修復（跨 7 次迭代）
 - **問題**：活動 Log 彈窗中，自動遞補/手動正取紀錄永遠排在最底部，不與報名/取消紀錄混合排序
 - **根因鏈**（經 7 次迭代才釐清）：
