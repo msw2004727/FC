@@ -517,3 +517,43 @@ simRegs = firestoreRegs.map(r => ({...r}))  // 直接 clone Firestore 結果
 **問題**：H6/H7 有 Firestore refresh step 確保資料新鮮，但 H4 直接讀 live cache（可能過期）。
 
 **解法**：H4 也加入 Firestore 查詢步驟（與 H6/H7 一致），直接從查詢結果 clone。這是增量改善，不是新 bug。
+
+---
+
+## 14. 第三次審計修正項目（2026-04-07）
+
+> 計畫書經兩次審計修正後的第三輪檢查。以下 3 項為虛擬碼遺漏，不影響實際程式碼（現有程式碼已有正確檢查），但虛擬碼應反映完整邏輯以避免實作時遺漏。
+
+### 修正 11（中）：H7 虛擬碼 AR 搜尋缺同行者排除
+
+Section 6 H7 AFTER 虛擬碼 line 269：
+```
+ar = arSource.find(registered for this user)
+```
+缺少同行者排除。H6 在修正 3 後已加上 `if candidate.participantType !== 'companion'`，但 H7 未同步。現有程式碼 `event-create-waitlist.js` 的 H7 路徑**已有**此檢查（`if (reg.participantType !== 'companion')`），虛擬碼應改為：
+```
+if sim.participantType !== 'companion':
+  ar = arSource.find(registered for this user)
+  if ar: arDemoteUpdates.push({ docId, uid })
+```
+
+### 修正 12（低）：H7 虛擬碼缺 break 防護
+
+Section 6 H7 的 `for i in 0..excess` 迴圈，如果 `sortedForDemote` 長度小於 `excess`（理論上不應發生但防禦性需要），`sortedForDemote[i]` 會是 `undefined`。建議加防護：
+```
+for i in 0..excess:
+  sim = sortedForDemote[i]
+  if !sim: break                  // 防禦性中斷
+  sim.status = 'waitlisted'
+  ...
+```
+
+### 修正 13（低，建議）：測試矩陣補充 batch 上限邊界
+
+Section 9 單元測試矩陣建議新增：
+
+| 場景 | 驗證 |
+|------|------|
+| 大量遞補（接近 Firestore batch 500 筆上限） | batch 操作不超過 500 筆，或有分割機制 |
+
+H4 的「移除 + 遞補」路徑中，每個 promoted candidate 需要 1-2 筆 batch 操作（reg update + AR update）。以目前活動規模（<50 人）不會遇到，但長期應考慮在實作中加 batch 分割或至少加 batch size 檢查。
