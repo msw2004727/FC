@@ -114,7 +114,7 @@ for (const p of promotedList) {
 }
 ```
 
-`_promoteSingleCandidateLocal` 函式本身不修改不刪除——其他呼叫者（如 `_forcePromoteWaitlistItem`）仍使用它。
+`_promoteSingleCandidateLocal` 函式本身不修改不刪除——其他呼叫者（如 `_forcePromoteWaitlist`）仍使用它。
 
 ### 阻塞 2：`_getNextWaitlistCandidate` 讀 live cache
 
@@ -139,8 +139,11 @@ const nextCandidate = simRegs
 
 ```
 // 模擬階段（commit 前，AR 還是 waitlisted）
-const ar = arSource.find(a => a.eventId === event.id && a.uid === sim.userId && a.status === 'waitlisted');
-if (ar && ar._docId) arUpdates.push({ docId: ar._docId, uid: sim.userId });
+// 注意：同行者（companion）沒有 activityRecord，必須排除
+if (sim.participantType !== 'companion') {
+  const ar = arSource.find(a => a.eventId === event.id && a.uid === sim.userId && a.status === 'waitlisted');
+  if (ar && ar._docId) arUpdates.push({ docId: ar._docId, uid: sim.userId });
+}
 ```
 
 ---
@@ -166,7 +169,7 @@ if (ar && ar._docId) arUpdates.push({ docId: ar._docId, uid: sim.userId });
 
 | 函式 | 原因 |
 |------|------|
-| `_promoteSingleCandidateLocal` | 其他呼叫者（`_forcePromoteWaitlistItem`）仍使用它。不刪除、不修改 |
+| `_promoteSingleCandidateLocal` | 其他呼叫者（`_forcePromoteWaitlist`）仍使用它。不刪除、不修改 |
 | `_getNextWaitlistCandidate` | 其他呼叫者可能使用。不修改 |
 | `_getPromotedArDocIds` | 同上。不修改 |
 | `_rebuildOccupancy` | 純函式，已正確。不修改 |
@@ -208,10 +211,13 @@ arUpdates = []
 // 模擬階段（只動 clone）
 while slotsAvailable > 0:
   candidate = simRegs.filter(waitlisted).sort(Rule #7)[0]  // 從 clone 找
+  if !candidate: break
   candidate.status = 'confirmed'                             // 改 clone
   promotedSim.push(candidate)
-  ar = arSource.find(waitlisted for this user)               // 從 live cache 找（還是 waitlisted）
-  if ar: arUpdates.push({ docId: ar._docId, uid })
+  if candidate.participantType !== 'companion':              // 同行者沒有 AR
+    ar = arSource.find(waitlisted for this user)             // 從 live cache 找（還是 waitlisted）
+    if ar: arUpdates.push({ docId: ar._docId, uid })
+  slotsAvailable--                                           // 遞減計數器
 
 simActive = simRegs.filter(confirmed or waitlisted)
 occupancy = _rebuildOccupancy(event, simActive)              // 純函式，用 clone
@@ -296,10 +302,13 @@ if arRemove: arRemoveUpdate = arRemove._docId
 // 遞補迴圈（在 clone 上）
 while slotsAvailable > 0:
   candidate = simRegs.filter(waitlisted).sort(Rule #7)[0]
+  if !candidate: break
   candidate.status = 'confirmed'
   promotedSim.push(candidate)
-  ar = arSource.find(waitlisted for this user)
-  if ar: arUpdates.push({ docId, uid })
+  if candidate.participantType !== 'companion':
+    ar = arSource.find(waitlisted for this user)
+    if ar: arUpdates.push({ docId, uid })
+  slotsAvailable--
 
 simActive = simRegs.filter(confirmed or waitlisted)
 occupancy = _rebuildOccupancy(event, simActive)
@@ -309,9 +318,21 @@ batch: reg → removed, AR → removed, promoted regs → confirmed, promoted AR
 try await batch.commit()
 catch: showToast + return（live cache 不動）
 
-// commit 成功 → live cache
-apply all to live regs, ARs, event
-// 發通知 + opLog
+// commit 成功 → 寫入 live cache
+liveTarget = cacheRegs.find(target)
+liveTarget.status = 'removed'
+liveTarget.removedAt = ...
+if arRemoveUpdate:
+  liveArRemove = arSource.find(a => a._docId === arRemoveUpdate)
+  liveArRemove.status = 'removed'                             // ← 修正：原虛擬碼漏了 AR removed 寫回
+for sim in promotedSim:
+  live = cacheRegs.find(r => r._docId === sim._docId)
+  live.status = 'confirmed'
+for au in arUpdates:
+  liveAr = arSource.find(a => a._docId === au.docId)
+  liveAr.status = 'registered'
+_applyRebuildOccupancy(event, occupancy)
+// 發通知 + opLog（commit 後才發）
 _saveToLS()
 ```
 
@@ -329,6 +350,8 @@ const simRegs = allRegs.map(r => ({ ...r }));
 - H6/H7 已有 Firestore refresh step（lines 74-102）將 `registeredAt` 轉為 ISO 字串，所以 clone 內不會有 Timestamp 物件
 
 H4 不同：它讀 live cache（可能有 Timestamp 物件）。但 `_rebuildOccupancy._regSortTime` 已處理所有 format。
+
+**注意**：`_rebuildOccupancy` 內部有 `_dedupRegs`（2026-04-04 加入，以 `userId + participantType + companionId` 三元組去重）。clone 後的 simRegs 傳入時會自動去重，不影響模擬邏輯，但實作者應知曉此機制存在。
 
 ---
 
@@ -407,9 +430,9 @@ H4 不同：它讀 live cache（可能有 Timestamp 物件）。但 `_rebuildOcc
 
 ---
 
-## 12. 第一次審計修正項目（2026-04-07）
+## 12. 第一次審計修正項目（2026-04-07）— 全部已修正
 
-> 以下為計畫書第一次審計時發現的瑕疵與建議，已補充至計畫書中。
+> 以下 5 項為外部專家審計發現，第 6 項為內部複查補充。全部已修正至計畫書對應章節。
 
 ### 修正 1（中）：H6 虛擬碼補遞減邏輯
 
@@ -440,3 +463,57 @@ Section 4 阻塞 1 最後一段提到 `_forcePromoteWaitlistItem`，正確名稱
 ### 修正 5（低）：Clone 策略補充 _dedupRegs
 
 Section 7 應補充：近期的重複報名修復在 `_rebuildOccupancy` 內新增了 `_dedupRegs`（以 `userId + participantType + companionId` 三元組去重）。clone 後的 simRegs 傳入 `_rebuildOccupancy` 時會自動去重，不影響模擬邏輯，但實作者應知曉此機制存在。
+
+### 修正 6（中）：H4 虛擬碼遺漏 AR removed 寫回
+
+Section 6 H4 AFTER 的 post-commit 段落原本只寫了 promoted ARs 的 `'registered'` 寫回，漏了被移除者的 AR `'removed'` 寫回。已補充：
+```
+if arRemoveUpdate:
+  liveArRemove = arSource.find(a => a._docId === arRemoveUpdate)
+  liveArRemove.status = 'removed'
+```
+
+---
+
+## 13. 第二次審計修正項目（2026-04-07）— 三角度深度審計
+
+> 資料完整性、並發競態、CLAUDE.md 規則合規三個角度同時審計。
+> CLAUDE.md 規則 1-12 全部 PASS，無違規。以下為發現的功能性問題。
+
+### 修正 7（中）：Post-commit 寫回必須重新查詢 live cache array
+
+**問題**：計畫書 Section 6 的 post-commit 寫回使用 `allRegs.find(...)`，但 `allRegs` 是 commit 前捕獲的引用。如果 onSnapshot 在 commit 後替換了 `_cache.registrations`（整個 array reference 被換掉），`allRegs` 變成 dangling pointer，寫回會寫到已被丟棄的舊物件。
+
+**解法**：post-commit 寫回改用 `ApiService._src('registrations').find(r => r._docId === sim._docId)` 重新查詢 live cache，不依賴 commit 前的引用。gold standard 的 `cancelRegistration` 在 line 1017 也是這樣做的。
+
+**影響範圍**：H4、H6、H7 三個路徑的 post-commit 段落全部需要修改。
+
+### 修正 8（中）：`_adjustWaitlistOnCapacityChange` 呼叫端缺少 await
+
+**問題**：`event-create.js` 約 line 303 呼叫 `_adjustWaitlistOnCapacityChange` 時**沒有 await**：
+```js
+this._adjustWaitlistOnCapacityChange(editedId, oldMax, max);  // 沒有 await！
+```
+這個 async 函式的 Promise 被丟棄。如果內部 batch.commit 失敗，caller 的 try/catch 接不到錯誤。此時 `updateEventAwait` 已經把新 max 寫入 Firestore，但候補調整失敗 → event.max 已更新但 waitlist 狀態不一致。
+
+**解法**：在 `event-create.js` 的呼叫處加 `await`：
+```js
+await this._adjustWaitlistOnCapacityChange(editedId, oldMax, max);
+```
+
+### 修正 9（中）：Firestore refresh step 的 pre-commit cache mutation 應消除
+
+**問題**：H6/H7 的 Firestore refresh step（lines 74-102）在查詢 Firestore 後**直接修改 live cache**（`cached.status = fsReg.status` 等）。這本身是 commit 前的 cache mutation，與 Rule #10 精神衝突。而且如果 onSnapshot 在 `.get()` await 期間替換了 `_cache.registrations`，refresh loop 會寫到已被丟棄的舊陣列。
+
+**解法**：改為直接從 Firestore 查詢結果建立 clone：
+```
+firestoreRegs = (await db.collection('registrations').where(...).get()).docs.map(...)
+simRegs = firestoreRegs.map(r => ({...r}))  // 直接 clone Firestore 結果
+```
+移除 lines 88-99 的 cache sync step。Cache 同步延遲到 post-commit writeback。
+
+### 修正 10（低，建議）：H4 加入 Firestore refresh step
+
+**問題**：H6/H7 有 Firestore refresh step 確保資料新鮮，但 H4 直接讀 live cache（可能過期）。
+
+**解法**：H4 也加入 Firestore 查詢步驟（與 H6/H7 一致），直接從查詢結果 clone。這是增量改善，不是新 bug。
