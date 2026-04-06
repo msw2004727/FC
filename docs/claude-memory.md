@@ -10,6 +10,29 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### [永久] 2026-04-06 — 角色卡在 user 第二輪修復（三位專家共識，5 層防護完成）
+- **問題**：總管開啟 LINE 瀏覽器後角色偶爾卡在 user，第一輪修復（04/04：init 讀 cache + catch 也 apply）後仍偶發，必須完全關閉 LINE 重開才能恢復
+- **重現條件**：LINE 放背景一段時間 → LIFF access token 過期但 Firebase Auth persistence 存活 → 回到 app 時觸發退化路徑
+- **根因鏈**（第二輪深度調查，經三位專家獨立審查）：
+  1. **renderLoginUI 直接賦值**（profile-form.js:219）：`this.currentRole = 'user'` 不走 `applyRole()`，在 `isLoggedIn()` 瞬間回傳 false 時靜默覆蓋已驗證角色。但專家 3 指出此場景中 Tier 2 的 `isLoggedIn()` 實際回傳 true，此路徑非主因但仍是潛在風險
+  2. **_startAuthDependentWork 跳過內建角色**（firebase-service.js:1641）：`_resolveCurrentAuthRole()` 正確解析出 `super_admin`，但 `if (!BUILTIN_ROLE_KEYS.includes(authRole))` 條件導致內建角色不呼叫 `applyRole`。**三位專家一致認定此為根因** — auth 解析完成後唯一的 `applyRole` 呼叫點被條件跳過，角色修正完全依賴 snapshot timing
+  3. **_syncCurrentUserFromUsersSnapshot 不修正已損壞的 currentRole**（firebase-service.js:950）：`roleChanged = prev.role !== next.role` 只在 Firestore 資料層角色改變時觸發，如果 `App.currentRole` 已被其他路徑覆寫為 `'user'` 但 cache.role 正確，此函式看到「role 沒變」→ 不修正 UI
+- **修復（5 層防護）**：
+  - **第 1 層**（04/04）：`App.init()` 從 cache 讀角色，不硬編碼 `'user'`
+  - **第 2 層**（04/04）：token refresh `.catch` 裡也呼叫 `applyRole`
+  - **第 3 層**（04/06）：移除 `renderLoginUI` 的 `currentRole = 'user'` 直接賦值，改為註解說明
+  - **第 4 層**（04/06，根因修復）：`_startAuthDependentWork` 移除 `BUILTIN_ROLE_KEYS` 條件，`_resolveCurrentAuthRole()` 完成後一律 `applyRole(authRole, true)`，保留 `customRoles` 載入
+  - **第 5 層**（04/06，防禦性）：`_syncCurrentUserFromUsersSnapshot` 新增 `App.currentRole !== next.role` 時 `applyRole(next.role, true)`，不依賴 `roleChanged`；`roleChanged` 區塊簡化為只做 token refresh（移除重複的 applyRole）
+- **專家審查結論**：
+  - 專家 1（前端 Auth）：line 219 賦值對未登入用戶冗餘，對已登入用戶有害。APPROVE 移除
+  - 專家 2（Firebase Auth）：BUILTIN_ROLE_KEYS 條件是最初僅為自訂角色設計，內建角色被意外排除。APPROVE 移除條件 + 簡化 roleChanged 區塊
+  - 專家 3（QA 回歸）：5 個場景（首次訪問/正常登入/LIFF 過期/角色降級/快速連呼叫）全部驗證通過。Fix 2 最關鍵，Fix 1 + 3 為防禦性
+- **教訓**：
+  1. 角色設定不應用 `this.currentRole = 'user'` 直接賦值，必須走 `applyRole()` 統一入口
+  2. 權威角色解析（Custom Claims / Firestore）完成後必須無條件套用，不能用 `includes()` 條件限制特定角色類型
+  3. snapshot 的 `roleChanged` 判斷只看資料層變化，無法偵測 UI 層的角色損壞，需要額外比對 `App.currentRole`
+  4. 多層防護架構的價值：任何單一路徑的 race condition 都會被後續層修正
+
 ### [永久] 2026-04-06 — 全站捲動跳頂問題修復（8 處高+中優先）
 - **問題**：活動詳情、候補名單、未報名單、訊息列表、俱樂部列表等頁面，背景 onSnapshot/SWR 觸發 re-render 時捲動位置被重置到頂部
 - **根因**：`container.innerHTML = ...` 全清式渲染破壞捲動位置，且多處 early-return 路徑漏掉 scrollTop 還原
