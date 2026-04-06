@@ -3,6 +3,27 @@
    Top Bar, Side Drawer, Bottom Tabs, Navigation
    ================================================ */
 
+/* ─── Sync Status Bar（同步指示條）─── */
+.sync-bar { position:fixed; top:var(--topbar-h); left:0; right:0; z-index:899; height:0; overflow:hidden; transition:height .25s ease; pointer-events:none; }
+.sync-bar__track { position:absolute; top:0; left:0; width:100%; height:3px; background:linear-gradient(90deg,var(--accent) 0%,#60a5fa 50%,var(--accent) 100%); background-size:200% 100%; animation:sync-bar-slide 1.8s linear infinite; opacity:0; transition:opacity .2s ease; }
+.sync-bar__msg { display:flex; align-items:center; justify-content:center; gap:.5rem; height:28px; font-size:.72rem; font-weight:500; opacity:0; transition:opacity .2s ease; padding:0 .75rem; }
+.sync-bar__text { color:var(--text-primary); }
+.sync-bar__retry { background:transparent; border:1px solid var(--danger); color:var(--danger); padding:.15rem .5rem; border-radius:var(--radius-full); font-size:.68rem; font-weight:600; cursor:pointer; pointer-events:auto; }
+.sync-bar__retry:active { opacity:.7; }
+.sync-bar--syncing { height:3px; }
+.sync-bar--syncing .sync-bar__track { opacity:1; }
+.sync-bar--done { height:3px; }
+.sync-bar--done .sync-bar__track { opacity:1; animation:none; background:var(--success,#10b981); }
+.sync-bar--error { height:28px; pointer-events:auto; background:var(--bg-card); border-bottom:1px solid var(--danger); }
+.sync-bar--error .sync-bar__track { opacity:0; }
+.sync-bar--error .sync-bar__msg { opacity:1; }
+.sync-bar--error .sync-bar__text { color:var(--danger); }
+.sync-bar--offline { height:28px; pointer-events:none; background:var(--bg-card); border-bottom:1px solid var(--warning,#f59e0b); }
+.sync-bar--offline .sync-bar__track { opacity:0; }
+.sync-bar--offline .sync-bar__msg { opacity:1; }
+.sync-bar--offline .sync-bar__text { color:var(--warning,#f59e0b); }
+@keyframes sync-bar-slide { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+
 /* ─── Role Switcher ─── */
 #role-switcher {
   display: none;

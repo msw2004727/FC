@@ -192,7 +192,9 @@ Object.assign(App, {
     if (!await this.appConfirm('確定要重新開放此活動？')) return;
 
     const newStatus = this._isEventTrulyFull(e) ? 'full' : 'open';
-    ApiService.updateEvent(id, { status: newStatus });
+    try {
+      await ApiService.updateEventAwait(id, { status: newStatus });
+    } catch (_) { this.showToast('重新開放失敗，請重試'); return; }
     ApiService._writeOpLog('event_reopen', '重開活動', `重開「${e.title}」`);
     this.renderMyActivities();
     this.renderActivityList();
@@ -217,7 +219,9 @@ Object.assign(App, {
     if (!await this.appConfirm('確定要重新上架此活動？\n報名名單與候補名單將會保留。')) return;
 
     const newStatus = this._isEventTrulyFull(e) ? 'full' : 'open';
-    ApiService.updateEvent(id, { status: newStatus });
+    try {
+      await ApiService.updateEventAwait(id, { status: newStatus });
+    } catch (_) { this.showToast('重新上架失敗，請重試'); return; }
     ApiService._writeOpLog('event_relist', '重新上架', `重新上架「${e.title}」`);
 
     // 通知已報名的用戶
@@ -238,15 +242,27 @@ Object.assign(App, {
   async _cleanupCancelledRecords(eventId) {
     if (!await this._ensureActivityRecordsReady()) return;
     const source = ApiService._src('activityRecords');
+    const toRemove = [];
     for (let i = source.length - 1; i >= 0; i--) {
       if (source[i].eventId === eventId && source[i].status === 'cancelled') {
-        if (source[i]._docId) {
-          db.collection('activityRecords').doc(source[i]._docId).delete()
-            .catch(err => console.error('[cleanupCancelledRecords]', err));
-        }
-        source.splice(i, 1);
+        toRemove.push({ idx: i, docId: source[i]._docId });
       }
     }
+    if (toRemove.length === 0) return;
+    // batch 刪除 Firestore（每 500 筆一批）
+    if (typeof db !== 'undefined') {
+      for (let start = 0; start < toRemove.length; start += 450) {
+        const chunk = toRemove.slice(start, start + 450);
+        const batch = db.batch();
+        chunk.forEach(item => { if (item.docId) batch.delete(db.collection('activityRecords').doc(item.docId)); });
+        try { await batch.commit(); } catch (err) { console.error('[cleanupCancelledRecords] batch failed:', err); return; }
+      }
+    }
+    // commit 成功後才從 cache splice
+    toRemove.forEach(item => {
+      const idx = source.findIndex((r, i) => i === item.idx && r._docId === item.docId);
+      if (idx >= 0) source.splice(idx, 1);
+    });
   },
 
   // ── 管理者移除參加者 ──

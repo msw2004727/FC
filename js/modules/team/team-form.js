@@ -210,7 +210,12 @@ Object.assign(App, {
         if (eduSettings) updates.eduSettings = eduSettings;
         else updates.eduSettings = firebase.firestore.FieldValue.delete();
         if (image) updates.image = image;
-        ApiService.updateTeam(this._teamEditId, updates);
+        try {
+          await ApiService.updateTeamAwait(this._teamEditId, updates);
+        } catch (_) {
+          this.showToast('俱樂部更新失敗，請重試');
+          return;
+        }
         ApiService._writeOpLog('team_edit', '編輯俱樂部', `編輯「${name}」`);
         // ── 俱樂部職位變更日誌 ──
         const newCapUid = captainUidForSave;

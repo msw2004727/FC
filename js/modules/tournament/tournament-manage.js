@@ -365,7 +365,9 @@ Object.assign(App, {
     }
     if (!(await this.appConfirm(`確定要永久刪除賽事「${t.name}」？此操作無法復原。`))) return;
     const tName = t.name;
-    ApiService.deleteTournament(id);
+    try {
+      await ApiService.deleteTournamentAwait(id);
+    } catch (_) { this.showToast('刪除賽事失敗，請重試'); return; }
     ApiService._writeOpLog('tourn_delete', '刪除賽事', `刪除「${tName}」`);
     this.renderTournamentTimeline();
     this.renderOngoingTournaments();

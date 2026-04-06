@@ -186,13 +186,9 @@ Object.assign(App, {
       return;
     }
 
-    // 如果用戶是教練，從俱樂部 coaches 移除（用 name 比對 coaches 陣列，同時比對 displayName 和 name）
+    // 判斷是否教練（退隊後需更新 coaches 陣列）
     const myNames = new Set([curUser?.name, curUser?.displayName].filter(Boolean));
     const wasCoach = (t.coaches || []).some(c => myNames.has(c));
-    if (wasCoach) {
-      const newCoaches = t.coaches.filter(c => !myNames.has(c));
-      ApiService.updateTeam(teamId, { coaches: newCoaches });
-    }
 
     // 清除用戶俱樂部資料
     const baseUser = ApiService.getCurrentUser() || null;
@@ -220,18 +216,19 @@ Object.assign(App, {
       ? { teamId: nextTeamIds[0], teamName: nextTeamNames[0] || '', teamIds: nextTeamIds, teamNames: nextTeamNames }
       : { teamId: null, teamName: null, teamIds: [], teamNames: [] };
 
-    ApiService.updateCurrentUser(userTeamUpdates);
-    // 同步 adminUsers
-    const users = ApiService.getAdminUsers();
-    const adminUser = users.find(u => u.uid === uid);
-    if (adminUser) {
-      Object.assign(adminUser, userTeamUpdates);
-      if (adminUser._docId) {
-        FirebaseService.updateUser(adminUser._docId, userTeamUpdates).catch(err => { console.error('[leaveTeam]', err); ApiService._writeErrorLog({ fn: 'handleLeaveTeam', teamId }, err); });
-      }
+    // 關鍵寫入：用戶退出俱樂部（await 確保成功才繼續）
+    try {
+      await ApiService.updateCurrentUserAwait(userTeamUpdates);
+    } catch (_) {
+      this.showToast('退出俱樂部失敗，請重試');
+      return;
     }
 
-    // 俱樂部人數 -1
+    // 俱樂部人數 -1（非關鍵，fire-and-forget 可接受）
+    if (wasCoach) {
+      const newCoaches = (t.coaches || []).filter(c => !myNames.has(c));
+      ApiService.updateTeam(teamId, { coaches: newCoaches });
+    }
     const memberCount = (typeof this._calcTeamMemberCount === 'function')
       ? this._calcTeamMemberCount(teamId)
       : Math.max(0, (t.members || 1) - 1);

@@ -283,7 +283,16 @@ Object.assign(App, {
         updates.status = this._isEventTrulyFull(existingEvent) ? 'full' : 'open';
       }
       const oldMax = existingEvent ? existingEvent.max : max;
-      ApiService.updateEvent(this._editEventId, updates);
+      this._eventSubmitInFlight = true;
+      try {
+        await ApiService.updateEventAwait(this._editEventId, updates);
+      } catch (_) {
+        this._eventSubmitInFlight = false;
+        this._setCreateEventSubmitting?.(false);
+        this.showToast('活動更新失敗，請重試');
+        return;
+      }
+      this._eventSubmitInFlight = false;
       // ── 編輯成功：先完成關鍵收尾 ──
       this.closeModal();
       this.showToast(`活動「${title}」已更新！`);

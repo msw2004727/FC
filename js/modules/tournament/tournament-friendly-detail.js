@@ -49,7 +49,7 @@ Object.assign(App, {
       .map(entry => entry.teamId);
   },
 
-  _persistFriendlyTournamentCompatState(tournamentId, state = null) {
+  async _persistFriendlyTournamentCompatState(tournamentId, state = null) {
     const currentState = state || this._getFriendlyTournamentState?.(tournamentId);
     const tournament = currentState?.tournament;
     if (!tournament || !this._isFriendlyTournamentRecord(tournament)) return currentState;
@@ -65,11 +65,15 @@ Object.assign(App, {
       .filter(entry => entry.entryStatus === 'host' || entry.entryStatus === 'approved')
       .map(entry => entry.teamId);
 
-    ApiService.updateTournament(tournamentId, {
-      teamApplications,
-      teamEntries,
-      registeredTeams,
-    });
+    try {
+      await ApiService.updateTournamentAwait(tournamentId, {
+        teamApplications,
+        teamEntries,
+        registeredTeams,
+      });
+    } catch (err) {
+      console.warn('[persistFriendlyTournamentCompatState] sync failed:', err);
+    }
 
     const nextState = {
       ...currentState,
@@ -347,7 +351,7 @@ Object.assign(App, {
 
     await ApiService.updateTournamentApplication(tournamentId, applicationId, reviewMeta);
     const nextState = await this._loadFriendlyTournamentDetailState(tournamentId);
-    const syncedState = this._persistFriendlyTournamentCompatState(tournamentId, nextState);
+    const syncedState = await this._persistFriendlyTournamentCompatState(tournamentId, nextState);
     this.renderRegisterButton(syncedState?.tournament || tournament);
     this.renderTournamentTab('teams');
     this.showToast(action === 'approve' ? `已確認「${application.teamName}」參賽。` : `已拒絕「${application.teamName}」的申請。`);

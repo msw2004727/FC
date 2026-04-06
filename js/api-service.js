@@ -292,14 +292,17 @@ const ApiService = {
     const snapshot = JSON.parse(JSON.stringify(item));
     Object.assign(item, updates);
     if (firebaseMethod) {
+      if (typeof App !== 'undefined') App._setSyncState?.('syncing');
       try {
         await FirebaseService.ensureAuthReadyForWrite();
         await firebaseMethod.call(FirebaseService, id, updates);
+        if (typeof App !== 'undefined') App._setSyncState?.('done');
       } catch (err) {
         Object.keys(item).forEach(keyName => delete item[keyName]);
         Object.assign(item, snapshot);
         console.error(`[${label}]`, err);
         this._handleFirestoreWriteError(err, label);
+        if (typeof App !== 'undefined') App._setSyncState?.('error', { text: '同步失敗' });
         throw err;
       }
     }
@@ -331,13 +334,16 @@ const ApiService = {
     const source = this._src(key);
     const idx = source.findIndex(item => item.id === id);
     if (firebaseMethod) {
+      if (typeof App !== 'undefined') App._setSyncState?.('syncing');
       try {
         await FirebaseService.ensureAuthReadyForWrite();
         const deleted = await firebaseMethod.call(FirebaseService, id);
-        if (!deleted) return false;
+        if (!deleted) { if (typeof App !== 'undefined') App._setSyncState?.('idle'); return false; }
+        if (typeof App !== 'undefined') App._setSyncState?.('done');
       } catch (err) {
         console.error(`[${label}]`, err);
         this._handleFirestoreWriteError(err, label);
+        if (typeof App !== 'undefined') App._setSyncState?.('error', { text: '同步失敗' });
         throw err;
       }
     }
@@ -376,6 +382,7 @@ const ApiService = {
 
   createEvent(data)         { return this._createAwaitWrite('events', data, FirebaseService.addEvent, 'createEvent'); },
   updateEvent(id, updates)  { return this._update('events', id, this._normalizeEventUpdates(updates), FirebaseService.updateEvent, 'updateEvent'); },
+  async updateEventAwait(id, updates) { return await this._updateAwaitWrite('events', id, this._normalizeEventUpdates(updates), FirebaseService.updateEvent, 'updateEvent'); },
   deleteEvent(id)           { return this._deleteAwaitWrite('events', id, FirebaseService.deleteEvent, 'deleteEvent'); },
 
   async loadMyEventTemplates(ownerUid) {
@@ -500,35 +507,49 @@ const ApiService = {
   },
 
   deleteTournament(id) {
+    // 保留舊 API 向後相容（fire-and-forget）
+    this.deleteTournamentAwait(id).catch(err => console.error('[deleteTournament]', err));
+  },
+
+  async deleteTournamentAwait(id) {
     const source = this._src('tournaments');
     const idx = source.findIndex(t => t.id === id);
     if (idx === -1) return;
-    const removed = source.splice(idx, 1)[0];
+    const removed = source[idx]; // 不先 splice，等 Firestore 成功
     if (removed._docId) {
-      FirebaseService.ensureAuthReadyForWrite()
-        .then(async () => {
-          const docRef = db.collection('tournaments').doc(removed._docId);
-          // 清理 subcollections: applications, entries (含 members)
-          const subs = ['applications', 'entries'];
-          for (const sub of subs) {
-            const snap = await docRef.collection(sub).get();
-            if (!snap.empty) {
-              const batch = db.batch();
-              for (const doc of snap.docs) {
-                // entries 底下可能有 members subcollection
-                if (sub === 'entries') {
-                  const membersSnap = await doc.ref.collection('members').get();
-                  membersSnap.docs.forEach(m => batch.delete(m.ref));
-                }
-                batch.delete(doc.ref);
-              }
-              await batch.commit();
+      await FirebaseService.ensureAuthReadyForWrite();
+      if (typeof App !== 'undefined') App._setSyncState?.('syncing');
+      try {
+        const docRef = db.collection('tournaments').doc(removed._docId);
+        const subs = ['applications', 'entries'];
+        for (const sub of subs) {
+          const snap = await docRef.collection(sub).get();
+          if (snap.empty) continue;
+          const ops = [];
+          for (const doc of snap.docs) {
+            if (sub === 'entries') {
+              const membersSnap = await doc.ref.collection('members').get();
+              membersSnap.docs.forEach(m => ops.push(m.ref));
             }
+            ops.push(doc.ref);
           }
-          await docRef.delete();
-        })
-        .catch(err => console.error('[deleteTournament]', err));
+          // 分批刪除（每批 450 筆，留緩衝不超 500）
+          for (let i = 0; i < ops.length; i += 450) {
+            const batch = db.batch();
+            ops.slice(i, i + 450).forEach(ref => batch.delete(ref));
+            await batch.commit();
+          }
+        }
+        await docRef.delete();
+        if (typeof App !== 'undefined') App._setSyncState?.('done');
+      } catch (err) {
+        if (typeof App !== 'undefined') App._setSyncState?.('error', { text: '刪除失敗' });
+        throw err;
+      }
     }
+    // Firestore 成功後才 splice cache
+    const spliceIdx = source.findIndex(t => t.id === id);
+    if (spliceIdx >= 0) source.splice(spliceIdx, 1);
     FirebaseService._saveToLS('tournaments', source);
   },
 
@@ -542,6 +563,7 @@ const ApiService = {
 
   createTeam(data)        { return this._create('teams', data, FirebaseService.addTeam, 'createTeam'); },
   updateTeam(id, updates) { return this._update('teams', id, updates, FirebaseService.updateTeam, 'updateTeam'); },
+  async updateTeamAwait(id, updates) { return await this._updateAwaitWrite('teams', id, updates, FirebaseService.updateTeam, 'updateTeam'); },
 
   async deleteTeam(id) {
     const source = this._src('teams');
@@ -2101,6 +2123,36 @@ const ApiService = {
       Object.assign(user, updates);
       if (user._docId) {
         FirebaseService.updateUser(user._docId, updates).catch(err => console.error('[updateCurrentUser]', err));
+      }
+    }
+    return user;
+  },
+
+  async updateCurrentUserAwait(updates) {
+    if (this._handleRestrictedAction()) return null;
+    const user = FirebaseService._cache.currentUser;
+    if (!user) return null;
+    const snapshot = JSON.parse(JSON.stringify(user));
+    Object.assign(user, updates);
+    // 同步 adminUsers cache（與 handleLeaveTeam 原有邏輯一致）
+    const adminUser = (FirebaseService._cache.adminUsers || []).find(u => u.uid === user.uid || u._docId === user._docId);
+    const adminSnapshot = adminUser ? JSON.parse(JSON.stringify(adminUser)) : null;
+    if (adminUser) Object.assign(adminUser, updates);
+    if (user._docId) {
+      try {
+        await FirebaseService.ensureAuthReadyForWrite();
+        await FirebaseService.updateUser(user._docId, updates);
+      } catch (err) {
+        // 回滾 currentUser
+        Object.keys(user).forEach(k => delete user[k]);
+        Object.assign(user, snapshot);
+        // 回滾 adminUser
+        if (adminUser && adminSnapshot) {
+          Object.keys(adminUser).forEach(k => delete adminUser[k]);
+          Object.assign(adminUser, adminSnapshot);
+        }
+        console.error('[updateCurrentUserAwait]', err);
+        throw err;
       }
     }
     return user;

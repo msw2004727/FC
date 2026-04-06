@@ -169,13 +169,17 @@ Object.assign(FirebaseService, {
 
   async updateNotifTemplate(key, updates) {
     const doc = this._cache.notifTemplates.find(t => t.key === key);
-    if (doc) Object.assign(doc, updates);
+    if (!doc) return null;
+    const snapshot = JSON.parse(JSON.stringify(doc));
+    Object.assign(doc, updates);
     try {
       await db.collection('notifTemplates').doc(key).update({
         ...updates,
         updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
       });
     } catch (err) {
+      Object.keys(doc).forEach(k => delete doc[k]);
+      Object.assign(doc, snapshot);
       console.error('[updateNotifTemplate]', err);
     }
     return doc;

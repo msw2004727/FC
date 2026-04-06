@@ -249,6 +249,7 @@ const App = {
     } catch (_) {}
     // ── 核心 UI（硬呼叫，失敗代表致命問題）──
     this.bindSportPicker();
+    if (typeof this._initSyncBar === 'function') this._initSyncBar();
     this.bindNavigation();
     this.bindDrawer();
     this.bindTheme();
