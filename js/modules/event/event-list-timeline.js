@@ -295,6 +295,7 @@ Object.assign(App, {
     if (html) {
       container.insertAdjacentHTML('beforeend', html);
     } else {
+      this._activityListLastFp = '';
       const emptyDiv = document.createElement('div');
       emptyDiv.style.cssText = 'padding:1.5rem;font-size:.82rem;color:var(--text-muted);text-align:center';
       emptyDiv.textContent = t('activity.noMatch');

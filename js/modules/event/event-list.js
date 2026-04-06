@@ -94,17 +94,15 @@ Object.assign(App, {
       })
       .slice(0, (typeof NetDevice !== 'undefined' && NetDevice.shouldDegrade()) ? 6 : 10);
     if (visible.length === 0) {
+      this._hotEventsLastFp = '';
       if (!this._cloudReady) {
-        // Cloud 尚未就緒 — 顯示 loading 提示，保持 section 可見
         this._setHomeSectionVisibility(container, true);
         container.innerHTML = '<div style="text-align:center;padding:1.5rem 0;color:var(--text-secondary);font-size:.8rem">載入中…</div>';
       } else if (App._activeSport && App._activeSport !== 'all') {
-        // 運動篩選後無活動 — 顯示提示，保持 section 可見
         const sportLabel = (typeof EVENT_SPORT_OPTIONS !== 'undefined' ? EVENT_SPORT_OPTIONS : []).find(o => o.key === App._activeSport)?.label || App._activeSport;
         this._setHomeSectionVisibility(container, true);
         container.innerHTML = `<div style="text-align:center;padding:1.5rem 0;color:var(--text-secondary);font-size:.82rem">目前沒有${escapeHTML(sportLabel)}相關活動</div>`;
       } else {
-        // 確實無活動
         this._setHomeSectionVisibility(container, false);
         container.textContent = '';
       }
