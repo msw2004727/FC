@@ -156,8 +156,6 @@
   display: flex; align-items: center; justify-content: space-between;
   gap: .75rem;
   padding: 0 1rem;
-  -webkit-backdrop-filter: blur(8px);
-  backdrop-filter: blur(8px);
   transition: background var(--transition);
 }
 .top-bar-right {
