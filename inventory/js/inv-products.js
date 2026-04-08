@@ -15,7 +15,7 @@ const InvProducts = {
   /** 從 Firestore 載入所有商品到 _cache */
   async loadAll() {
     try {
-      const snap = await db.collection('inv_products').get();
+      const snap = await InvStore.col('products').get();
       this._cache = snap.docs.map(function (doc) {
         return Object.assign({ id: doc.id }, doc.data());
       });
@@ -41,7 +41,7 @@ const InvProducts = {
   /** 新增商品（以 barcode 作為 doc ID） */
   async create(data) {
     try {
-      await db.collection('inv_products').doc(data.barcode).set(data);
+      await InvStore.col('products').doc(data.barcode).set(data);
       this._cache.push(Object.assign({ id: data.barcode }, data));
       return data;
     } catch (e) {
@@ -55,7 +55,7 @@ const InvProducts = {
   async update(barcode, updates) {
     try {
       updates.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
-      await db.collection('inv_products').doc(barcode).update(updates);
+      await InvStore.col('products').doc(barcode).update(updates);
       var idx = this._cache.findIndex(function (p) { return p.barcode === barcode; });
       if (idx !== -1) {
         Object.assign(this._cache[idx], updates);
@@ -69,8 +69,8 @@ const InvProducts = {
 
   /** 庫存異動（Transaction），delta 正數入庫、負數出庫 */
   async adjustStock(barcode, delta, txData) {
-    var ref = db.collection('inv_products').doc(barcode);
-    var txRef = db.collection('inv_transactions');
+    var ref = InvStore.col('products').doc(barcode);
+    var txRef = InvStore.col('transactions');
     var result = await db.runTransaction(async function (transaction) {
       var doc = await transaction.get(ref);
       if (!doc.exists) throw new Error('\u5546\u54c1\u4e0d\u5b58\u5728: ' + barcode);
@@ -94,8 +94,8 @@ const InvProducts = {
   /** 庫存修正（Transaction），直接將庫存設為指定數量 */
   async correctStock(barcode, newStock, txData) {
     if (newStock < 0) throw new Error('庫存不可為負數');
-    var ref = db.collection('inv_products').doc(barcode);
-    var txRef = db.collection('inv_transactions');
+    var ref = InvStore.col('products').doc(barcode);
+    var txRef = InvStore.col('transactions');
     var result = await db.runTransaction(async function (transaction) {
       var doc = await transaction.get(ref);
       if (!doc.exists) throw new Error('商品不存在: ' + barcode);
@@ -589,7 +589,7 @@ const InvProducts = {
     if (!txContainer) return;
 
     try {
-      var snap = await db.collection('inv_transactions')
+      var snap = await InvStore.col('transactions')
         .where('barcode', '==', barcode)
         .orderBy('createdAt', 'desc')
         .limit(20)
@@ -655,7 +655,7 @@ const InvProducts = {
     // 讀取分類選項
     var categories = [];
     try {
-      var cfgDoc = await db.collection('inv_settings').doc('config').get();
+      var cfgDoc = await InvStore.storeRef().get();
       if (cfgDoc.exists && cfgDoc.data().categories) categories = cfgDoc.data().categories;
     } catch (_) {}
     var catOptions = '<option value="">-- 未分類 --</option>';
@@ -743,8 +743,8 @@ const InvProducts = {
       try {
         if (newBarcode !== barcode) {
           // 編號變更：用 transaction 確保原子性（create + delete 不可分割）
-          var newRef = db.collection('inv_products').doc(newBarcode);
-          var oldRef = db.collection('inv_products').doc(barcode);
+          var newRef = InvStore.col('products').doc(newBarcode);
+          var oldRef = InvStore.col('products').doc(barcode);
           await db.runTransaction(async function(transaction) {
             var existingNew = await transaction.get(newRef);
             if (existingNew.exists) throw new Error('此編號已被其他商品使用');

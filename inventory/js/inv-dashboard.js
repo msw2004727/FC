@@ -111,7 +111,7 @@ const InvDashboard = {
     var ts = firebase.firestore.Timestamp.fromDate(todayStart);
 
     try {
-      var snap = await db.collection('inv_transactions')
+      var snap = await InvStore.col('transactions')
         .where('createdAt', '>=', ts)
         .get();
       this._todayTxCache = snap.docs.map(function (doc) {

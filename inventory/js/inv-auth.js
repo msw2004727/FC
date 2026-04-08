@@ -145,20 +145,30 @@ const InvAuth = {
       if (adminUids.indexOf(uid) !== -1) {
         this.isAdmin = true;
         this._resolveRole(uid, cfg);
-        // Load custom role permissions
+        // Load custom role permissions + store assignments
         if (typeof InvPermissions !== 'undefined') await InvPermissions.loadCustomPerms();
+        if (typeof InvStore !== 'undefined') await InvStore.loadAssignments(cfg);
         if (this.currentUser) this.currentUser.uid = uid;
         InvApp.updateUserUI(this.currentUser);
-        InvUtils.writeLog('login', this.getRoleName() + ' ' + (this.currentUser.name || uid));
         // 自動儲存暱稱到 adminNames map
         if (this.currentUser.name) {
           var nameUpdate = {};
           nameUpdate['adminNames.' + uid] = this.currentUser.name;
           try { db.collection('inv_settings').doc('config').update(nameUpdate); } catch(_) {}
         }
-        InvApp.showPage('page-dashboard');
-        if (typeof InvDashboard !== 'undefined') InvDashboard.render();
-        InvApp.checkAnnouncements();
+        // 顯示庫存選擇器，選取後再進入 dashboard
+        if (typeof InvStore !== 'undefined') {
+          InvStore.showSelector(function () {
+            InvUtils.writeLog('login', InvAuth.getRoleName() + ' ' + (InvAuth.currentUser.name || uid));
+            InvApp.showPage('page-dashboard');
+            if (typeof InvDashboard !== 'undefined') InvDashboard.render();
+            InvApp.checkAnnouncements();
+          });
+        } else {
+          InvApp.showPage('page-dashboard');
+          if (typeof InvDashboard !== 'undefined') InvDashboard.render();
+          InvApp.checkAnnouncements();
+        }
       } else {
         InvApp.showPage('page-unauthorized');
       }

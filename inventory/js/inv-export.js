@@ -103,7 +103,7 @@ const InvExport = {
   async _renderDailyReport() {
     var now = new Date();
     var ts = firebase.firestore.Timestamp.fromDate(new Date(now.getFullYear(), now.getMonth(), now.getDate()));
-    var snap = await db.collection('inv_transactions').where('createdAt', '>=', ts).get();
+    var snap = await InvStore.col('transactions').where('createdAt', '>=', ts).get();
     var groups = {};
     snap.docs.forEach(function (doc) {
       var t = doc.data(), label = InvExport._typeMap[t.type] || t.type || '其他';
@@ -146,7 +146,7 @@ const InvExport = {
   async _renderMonthlySummary() {
     var now = new Date();
     var ts = firebase.firestore.Timestamp.fromDate(new Date(now.getFullYear(), now.getMonth(), 1));
-    var snap = await db.collection('inv_transactions')
+    var snap = await InvStore.col('transactions')
       .where('type', '==', 'out').where('createdAt', '>=', ts).get();
     var txList = snap.docs.map(function (doc) { return doc.data(); });
 
@@ -210,7 +210,7 @@ const InvExport = {
   async _getWeeklyData() {
     var now = new Date(), p = this._pad;
     var weekAgo = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6);
-    var snap = await db.collection('inv_transactions')
+    var snap = await InvStore.col('transactions')
       .where('type', '==', 'out')
       .where('createdAt', '>=', firebase.firestore.Timestamp.fromDate(weekAgo)).get();
     var dayMap = {}, result = [];
@@ -232,7 +232,7 @@ const InvExport = {
   /** 查本月 inv_transactions(type='out')，按 barcode 分組取 TOP 5 */
   async _getMonthlyTopSellers() {
     var now = new Date();
-    var snap = await db.collection('inv_transactions').where('type', '==', 'out')
+    var snap = await InvStore.col('transactions').where('type', '==', 'out')
       .where('createdAt', '>=', firebase.firestore.Timestamp.fromDate(
         new Date(now.getFullYear(), now.getMonth(), 1))).get();
     var map = {};

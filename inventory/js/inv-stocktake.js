@@ -11,7 +11,7 @@ const InvStocktake = {
     var container = document.getElementById('inv-stocktake-content');
     if (!container) return;
     try {
-      var snap = await db.collection('inv_stocktakes').where('status', '==', 'in_progress').limit(1).get();
+      var snap = await InvStore.col('stocktakes').where('status', '==', 'in_progress').limit(1).get();
       if (!snap.empty) {
         this._current = Object.assign({ id: snap.docs[0].id }, snap.docs[0].data());
         this.renderStocktakeUI(container); return;
@@ -78,7 +78,7 @@ const InvStocktake = {
     var doc = { status: 'in_progress', scope: scope, scopeCategory: scopeCategory || '',
       items: items, createdAt: firebase.firestore.FieldValue.serverTimestamp(), uid: InvAuth.getUid() || '' };
     try {
-      var ref = await db.collection('inv_stocktakes').add(doc);
+      var ref = await InvStore.col('stocktakes').add(doc);
       this._current = Object.assign({ id: ref.id }, doc);
       var c = document.getElementById('inv-stocktake-content');
       if (c) this.renderStocktakeUI(c);
@@ -145,7 +145,7 @@ const InvStocktake = {
     if (isNaN(qty) || qty < 0) { InvApp.showToast('請輸入有效數量'); this._resumeScan(); return; }
     item.actualStock = qty; item.confirmed = true;
     if (navigator.vibrate) navigator.vibrate(100);
-    try { await db.collection('inv_stocktakes').doc(st.id).update({ items: items }); }
+    try { await InvStore.col('stocktakes').doc(st.id).update({ items: items }); }
     catch (e) { console.error('[InvStocktake] update item:', e); }
     var container = document.getElementById('inv-stocktake-content');
     if (container) this.renderStocktakeUI(container);
@@ -217,9 +217,9 @@ const InvStocktake = {
         var chunk = toAdjust.slice(start, start + 50), batch = db.batch();
         for (var i = 0; i < chunk.length; i++) {
           var it = chunk[i];
-          batch.update(db.collection('inv_products').doc(it.barcode),
+          batch.update(InvStore.col('products').doc(it.barcode),
             { stock: it.actualStock, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
-          batch.set(db.collection('inv_transactions').doc(), {
+          batch.set(InvStore.col('transactions').doc(), {
             barcode: it.barcode, productName: it.productName || '',
             type: 'adjust', delta: it.actualStock - it.systemStock,
             beforeStock: it.systemStock, afterStock: it.actualStock,
@@ -229,7 +229,7 @@ const InvStocktake = {
         }
         await batch.commit();
       }
-      await db.collection('inv_stocktakes').doc(st.id).update({
+      await InvStore.col('stocktakes').doc(st.id).update({
         status: 'completed', completedAt: firebase.firestore.FieldValue.serverTimestamp() });
       for (var k = 0; k < toAdjust.length; k++) {
         var p = InvProducts.getByBarcode(toAdjust[k].barcode);
@@ -246,7 +246,7 @@ const InvStocktake = {
 
   async pauseStocktake() {
     var st = this._current; if (!st) return;
-    try { await db.collection('inv_stocktakes').doc(st.id).update({ items: st.items }); }
+    try { await InvStore.col('stocktakes').doc(st.id).update({ items: st.items }); }
     catch (e) { console.error('[InvStocktake] pause save:', e); }
     this._current = null;
     InvApp.showToast('盤點已暫停，可稍後繼續');
@@ -255,7 +255,7 @@ const InvStocktake = {
 
   async resumeStocktake(stocktakeId) {
     try {
-      var doc = await db.collection('inv_stocktakes').doc(stocktakeId).get();
+      var doc = await InvStore.col('stocktakes').doc(stocktakeId).get();
       if (!doc.exists) { InvApp.showToast('盤點單不存在'); return; }
       this._current = Object.assign({ id: doc.id }, doc.data());
       if (this._current.status !== 'in_progress') { InvApp.showToast('此盤點已完成'); return; }
@@ -268,7 +268,7 @@ const InvStocktake = {
     var el = document.getElementById('stocktake-history');
     if (!el) return;
     try {
-      var snap = await db.collection('inv_stocktakes').orderBy('createdAt', 'desc').limit(10).get();
+      var snap = await InvStore.col('stocktakes').orderBy('createdAt', 'desc').limit(10).get();
       if (snap.empty) { el.innerHTML = '<div style="color:var(--text-muted);">尚無盤點紀錄</div>'; return; }
       var html = '', self = this, esc = InvApp.escapeHTML;
       snap.docs.forEach(function (doc) {

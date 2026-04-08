@@ -14,7 +14,7 @@ Object.assign(InvSale, {
   async showReturnForm(barcode) {
     var p = InvProducts.getByBarcode(barcode);
     if (!p) { InvApp.showToast('找不到此商品'); return; }
-    var txSnap = await db.collection('inv_transactions')
+    var txSnap = await InvStore.col('transactions')
       .where('barcode', '==', barcode).where('type', '==', 'out')
       .orderBy('createdAt', 'desc').limit(10).get();
     var txList = [];
@@ -78,7 +78,7 @@ Object.assign(InvSale, {
     var uid = InvAuth.getUid(), opName = InvAuth.getName() || '';
     var costPrice = Number(p.costPrice) || 0;
     try {
-      var ref = db.collection('inv_products').doc(p.id || barcode);
+      var ref = InvStore.col('products').doc(p.id || barcode);
       await db.runTransaction(async function (tx) {
         var snap = await tx.get(ref);
         if (!snap.exists) throw new Error('商品不存在');
@@ -86,7 +86,7 @@ Object.assign(InvSale, {
         var after = returnToStock ? cur + qty : cur;
         tx.update(ref, { stock: after });
         // 退貨紀錄
-        tx.set(db.collection('inv_transactions').doc(), {
+        tx.set(InvStore.col('transactions').doc(), {
           type: 'return', barcode: barcode,
           productId: p.id || barcode, productName: p.name,
           quantity: qty, refundAmount: refund, costPrice: costPrice,
@@ -98,7 +98,7 @@ Object.assign(InvSale, {
         });
         // 退貨選「報廢」→ 補寫一筆 waste 紀錄（讓報廢統計完整）
         if (!returnToStock) {
-          tx.set(db.collection('inv_transactions').doc(), {
+          tx.set(InvStore.col('transactions').doc(), {
             type: 'waste', barcode: barcode,
             productId: p.id || barcode, productName: p.name,
             quantity: qty, costPrice: costPrice,
@@ -168,7 +168,7 @@ Object.assign(InvSale, {
     var uid = InvAuth.getUid(), opName = InvAuth.getName() || '';
     var costPrice = Number(p.costPrice) || 0;
     try {
-      var ref = db.collection('inv_products').doc(p.id || barcode);
+      var ref = InvStore.col('products').doc(p.id || barcode);
       await db.runTransaction(async function (tx) {
         var snap = await tx.get(ref);
         if (!snap.exists) throw new Error('商品不存在');
@@ -176,7 +176,7 @@ Object.assign(InvSale, {
         if (qty > cur) throw new Error('庫存不足（剩 ' + cur + '）');
         var after = cur - qty;
         tx.update(ref, { stock: after });
-        tx.set(db.collection('inv_transactions').doc(), {
+        tx.set(InvStore.col('transactions').doc(), {
           type: 'waste', barcode: barcode,
           productId: p.id || barcode, productName: p.name,
           quantity: qty, costPrice: costPrice,

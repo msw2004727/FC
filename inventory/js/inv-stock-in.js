@@ -180,7 +180,7 @@ const InvStockIn = {
     // 讀取分類選項
     var categories = [];
     try {
-      var configDoc = await db.collection('inv_settings').doc('config').get();
+      var configDoc = await InvStore.storeRef().get();
       if (configDoc.exists && configDoc.data().categories) {
         categories = configDoc.data().categories;
       }
@@ -300,8 +300,8 @@ const InvStockIn = {
   async handleNewProduct(formData) {
     try {
       var batch = db.batch();
-      var productRef = db.collection('inv_products').doc(formData.barcode);
-      var txRef = db.collection('inv_transactions').doc();
+      var productRef = InvStore.col('products').doc(formData.barcode);
+      var txRef = InvStore.col('transactions').doc();
       batch.set(productRef, formData);
       batch.set(txRef, {
         barcode: formData.barcode,

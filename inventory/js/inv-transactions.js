@@ -122,14 +122,14 @@ const InvTransactions = {
       var tsStart = firebase.firestore.Timestamp.fromDate(sd);
       var tsEnd = firebase.firestore.Timestamp.fromDate(ed);
 
-      var q = db.collection('inv_transactions')
+      var q = InvStore.col('transactions')
         .where('createdAt', '>=', tsStart)
         .where('createdAt', '<=', tsEnd)
         .orderBy('createdAt', 'desc')
         .limit(200);
 
       if (type && type !== 'all') {
-        q = db.collection('inv_transactions')
+        q = InvStore.col('transactions')
           .where('type', '==', type)
           .where('createdAt', '>=', tsStart)
           .where('createdAt', '<=', tsEnd)

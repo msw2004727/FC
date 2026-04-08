@@ -31,8 +31,13 @@ const InvApp = {
     document.body.style.paddingBottom = isChrome ? '0' : '64px';
     if (this.currentPage && this.currentPage !== pageId) this.pageHistory.push(this.currentPage);
     this.currentPage = pageId;
-    var titleEl = document.querySelector('.inv-topbar-title');
-    if (titleEl) titleEl.textContent = this._pageTitles[pageId] || '庫存管理';
+    var pageTitle = this._pageTitles[pageId] || '庫存管理';
+    if (typeof InvStore !== 'undefined' && InvStore.getName()) {
+      InvStore.updateTopbarTitle(pageTitle);
+    } else {
+      var titleEl = document.querySelector('.inv-topbar-title');
+      if (titleEl) titleEl.textContent = pageTitle;
+    }
     document.querySelectorAll('.inv-tab').forEach(function(btn) { btn.classList.toggle('active', btn.dataset.page === pageId); });
     this._closeUserMenu(); window.scrollTo(0, 0);
     // 頁面切換時觸發對應模組的 render
@@ -155,7 +160,7 @@ const InvApp = {
   // ── Announcements ──
   async checkAnnouncements() {
     try {
-      var snap = await db.collection('inv_announcements')
+      var snap = await InvStore.col('announcements')
         .where('active', '==', true).orderBy('createdAt', 'desc').limit(5).get();
       if (snap.empty) return;
       var read = [];

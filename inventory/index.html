@@ -48,6 +48,7 @@
         <div class="inv-user-menu" id="inv-user-menu" style="display:none">
           <div class="inv-user-menu-name" id="inv-menu-name"></div>
           <div class="inv-user-menu-divider"></div>
+          <button class="inv-user-menu-item" onclick="if(typeof InvStore!=='undefined')InvStore.showSelector(function(){InvApp.showPage('page-dashboard')})">切換庫存</button>
           <button class="inv-user-menu-item" onclick="if(typeof InvApp!=='undefined'){InvApp.showPage('page-settings');if(typeof InvSettings!=='undefined')InvSettings.render()}">設定</button>
           <button class="inv-user-menu-item inv-user-menu-logout" onclick="if(typeof InvAuth!=='undefined')InvAuth.logout()">登出</button>
         </div>

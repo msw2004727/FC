@@ -101,7 +101,7 @@ const InvUtils = {
       var uid = typeof InvAuth !== 'undefined' ? InvAuth.getUid() : null;
       var name = typeof InvAuth !== 'undefined' ? (InvAuth.getName() || '') : '';
       if (!uid) return;
-      db.collection('inv_logs').add({
+      InvStore.col('logs').add({
         uid: uid,
         name: name,
         action: action,
@@ -136,13 +136,13 @@ const InvUtils = {
    * @returns {Promise<string>}
    */
   async generateBarcode() {
-    var cfgRef = db.collection('inv_settings').doc('config');
+    var storeRef = InvStore.storeRef();
     var result = await db.runTransaction(async function(tx) {
-      var doc = await tx.get(cfgRef);
+      var doc = await tx.get(storeRef);
       var data = doc.exists ? doc.data() : {};
       var prefix = data.barcodePrefix || 'TX';
       var next = (data.nextBarcode || 0) + 1;
-      tx.update(cfgRef, { nextBarcode: next });
+      tx.set(storeRef, { nextBarcode: next }, { merge: true });
       return prefix + String(next).padStart(6, '0');
     });
     return result;

@@ -115,7 +115,7 @@ const InvSettings = {
     c.innerHTML = '<div style="padding:16px;">' + sections + '</div>';
     if (_hp('settings.people')) this.renderAdminList(cfg.adminUids || []);
     if (_hp('settings.announcements')) this.renderAnnouncements();
-    if (_hp('settings.categories')) this.renderCategories(cfg.categories || []);
+    if (_hp('settings.categories')) this.renderCategories(storeCfg.categories || null);
   },
 
   // ══════ 人員白名單（工程師/負責人/店長/店員/工讀）══════

@@ -74,7 +74,7 @@ const InvSale = {
   async onScan(barcode) {
     if (!barcode) return;
     try {
-      var snap = await db.collection('inv_products').where('barcode', '==', barcode).limit(1).get();
+      var snap = await InvStore.col('products').where('barcode', '==', barcode).limit(1).get();
       if (snap.empty) { InvApp.showToast('找不到此條碼的商品'); this._restartScanner(); return; }
       var doc = snap.docs[0], data = doc.data(), stock = Number(data.stock) || 0;
       if (stock <= 0) { InvApp.showToast('庫存不足，無法加入'); this._restartScanner(); return; }
@@ -269,7 +269,7 @@ const InvSale = {
       await db.runTransaction(async function (tx) {
         var refs = [], snaps = [];
         for (var i = 0; i < itemList.length; i++) {
-          var ref = db.collection('inv_products').doc(itemList[i].productId);
+          var ref = InvStore.col('products').doc(itemList[i].productId);
           refs.push(ref);
           snaps.push(await tx.get(ref));
         }
@@ -286,7 +286,7 @@ const InvSale = {
           var before = Number(snaps[k].data().stock) || 0;
           var after = before - item.quantity;
           tx.update(refs[k], { stock: after });
-          tx.set(db.collection('inv_transactions').doc(), {
+          tx.set(InvStore.col('transactions').doc(), {
             type: 'out', barcode: item.barcode,
             productId: item.productId, productName: item.name,
             quantity: item.quantity, unitPrice: item.unitPrice, costPrice: item.costPrice,
