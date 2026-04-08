@@ -63,17 +63,30 @@ const InvStore = {
     this._assignedStores = assignments[uid] || null;
   },
 
-  /** 顯示庫存選擇器彈窗 */
-  showSelector: function (callback) {
-    // 移除之前的選擇器（切換庫存時可能重複開啟）
+  /** 顯示庫存選擇器彈窗（先從 Firestore 讀取各庫存顯示名稱） */
+  showSelector: async function (callback) {
+    // 移除之前的選擇器
     var prev = document.getElementById('inv-store-selector');
     if (prev) prev.remove();
 
     var stores = this.getAccessibleStores();
     console.log('[InvStore] showSelector stores:', stores.length, 'role:', (typeof InvAuth !== 'undefined' ? InvAuth.getRole() : 'N/A'));
+
+    // 讀取各庫存的顯示名稱（shopName）
+    var displayNames = {};
+    try {
+      var promises = stores.map(function (s) {
+        return db.collection('inv_stores').doc(s.id).get().then(function (doc) {
+          if (doc.exists && doc.data().shopName) displayNames[s.id] = doc.data().shopName;
+        });
+      });
+      await Promise.all(promises);
+    } catch (_) {}
+
     // 只有一個庫存時自動選取，跳過選擇器
     if (stores.length === 1) {
       this.setStore(stores[0].id);
+      this._name = displayNames[stores[0].id] || this._name;
       if (callback) callback();
       return;
     }
@@ -84,7 +97,6 @@ const InvStore = {
     var overlay = document.createElement('div');
     overlay.id = 'inv-store-selector';
     overlay.className = 'inv-overlay show';
-    // 強制內聯樣式確保在任何頁面狀態下都可見
     overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.35);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);opacity:1;pointer-events:auto';
     overlay.addEventListener('touchmove', function (e) {
       if (!e.target.closest('.inv-modal')) { e.preventDefault(); e.stopPropagation(); }
@@ -93,14 +105,15 @@ const InvStore = {
     var btnsHtml = '';
     for (var i = 0; i < stores.length; i++) {
       var s = stores[i];
+      var displayName = displayNames[s.id] || s.name;
       var isCurrent = s.id === lastStore;
       var borderStyle = isCurrent
         ? 'border:2px solid var(--accent);background:var(--accent-subtle)'
         : 'border:1px solid var(--border);background:var(--bg-card)';
       var labelExtra = isCurrent ? '<div style="font-size:11px;color:var(--accent);margin-top:2px">上次使用</div>' : '';
       btnsHtml +=
-        '<button class="inv-store-btn" data-store="' + esc(s.id) + '" style="flex:1;min-width:calc(50% - 6px);padding:18px 12px;border-radius:12px;' + borderStyle + ';cursor:pointer;text-align:center">' +
-          '<div style="font-size:16px;font-weight:700;color:var(--text-primary)">' + esc(s.name) + '</div>' +
+        '<button class="inv-store-btn" data-store="' + esc(s.id) + '" data-display="' + esc(displayName) + '" style="flex:1;min-width:calc(50% - 6px);padding:18px 12px;border-radius:12px;' + borderStyle + ';cursor:pointer;text-align:center">' +
+          '<div style="font-size:16px;font-weight:700;color:var(--text-primary)">' + esc(displayName) + '</div>' +
           labelExtra +
         '</button>';
     }
@@ -109,10 +122,10 @@ const InvStore = {
     var logoSrc = isDark ? '../LOGO/logowhite.png' : '../LOGO/logoblack.png';
 
     overlay.innerHTML =
-      '<div class="inv-modal" style="max-width:360px;width:88%">' +
-        '<div style="text-align:center;margin-bottom:16px">' +
-          '<img src="' + logoSrc + '" alt="ToosterX" style="height:32px;margin-bottom:8px">' +
-          '<div style="font-size:16px;font-weight:700;color:var(--text-primary)">庫存系統</div>' +
+      '<div class="inv-modal" style="max-width:360px;width:88%;padding:28px 24px">' +
+        '<div style="display:flex;flex-direction:column;align-items:center;margin-bottom:20px">' +
+          '<img src="' + logoSrc + '" alt="ToosterX" style="height:28px;margin-bottom:6px">' +
+          '<div style="font-size:14px;font-weight:600;color:var(--text-secondary)">庫存系統</div>' +
         '</div>' +
         '<div style="display:flex;flex-wrap:wrap;gap:10px">' + btnsHtml + '</div>' +
       '</div>';
@@ -122,7 +135,9 @@ const InvStore = {
     overlay.querySelectorAll('.inv-store-btn').forEach(function (btn) {
       btn.addEventListener('click', function () {
         var storeId = this.getAttribute('data-store');
+        var name = this.getAttribute('data-display');
         self.setStore(storeId);
+        self._name = name || self._name;
         overlay.remove();
         if (callback) callback();
       });
