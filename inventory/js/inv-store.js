@@ -123,9 +123,11 @@ const InvStore = {
 
     overlay.innerHTML =
       '<div class="inv-modal" style="max-width:360px;width:88%;padding:28px 24px">' +
-        '<div style="display:flex;flex-direction:column;align-items:center;margin-bottom:20px">' +
-          '<img src="' + logoSrc + '" alt="ToosterX" style="width:75%;max-width:260px;margin-bottom:10px">' +
-          '<div style="font-size:15px;font-weight:600;color:var(--text-secondary);letter-spacing:2px">庫存系統</div>' +
+        '<div style="display:flex;flex-direction:column;align-items:center;margin-bottom:16px;overflow:hidden">' +
+          '<div style="width:75%;max-width:260px;height:48px;overflow:hidden;display:flex;align-items:center;justify-content:center">' +
+            '<img src="' + logoSrc + '" alt="ToosterX" style="width:100%;object-fit:contain">' +
+          '</div>' +
+          '<div style="font-size:15px;font-weight:600;color:var(--text-secondary);letter-spacing:2px;margin-top:2px">庫存系統</div>' +
         '</div>' +
         '<div style="display:flex;flex-wrap:wrap;gap:10px">' + btnsHtml + '</div>' +
       '</div>';
