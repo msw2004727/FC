@@ -4,6 +4,7 @@
  */
 const InvSettings = {
   _cfgRef: function () { return db.collection('inv_settings').doc('config'); },
+  _storeRef: function () { return InvStore.storeRef(); },
   _card: function (inner) {
     return '<div style="background:var(--bg-card);border-radius:12px;padding:16px;margin-bottom:12px;box-shadow:var(--shadow);">' + inner + '</div>';
   },
@@ -27,6 +28,9 @@ const InvSettings = {
     try {
       var doc = await this._cfgRef().get();
       var cfg = doc.exists ? doc.data() : {};
+      // 讀取 per-store 設定（shopName, categories, barcodePrefix...）
+      var storeDoc = await this._storeRef().get();
+      var storeCfg = storeDoc.exists ? storeDoc.data() : {};
     } catch (e) {
       console.error('[InvSettings] render failed:', e);
       c.innerHTML = '<div style="padding:40px;text-align:center;color:var(--danger);">設定載入失敗</div>';
@@ -36,8 +40,8 @@ const InvSettings = {
     var _hp = typeof InvAuth !== 'undefined' && InvAuth.hasPerm ? InvAuth.hasPerm.bind(InvAuth) : function() { return true; };
     var ib = function(k) { return ' <button class="inv-info-btn" onclick="InvSettings._showInfo(\'' + k + '\')">?</button>'; };
     var h4 = function (t, k) { return '<h4 class="inv-section-head">' + t + (k ? ib(k) : '') + '</h4>'; };
-    // 店名 fallback
-    var shopName = (cfg.shopName && /^[\x20-\x7E\u4e00-\u9fff]+$/.test(cfg.shopName)) ? cfg.shopName : 'ToosterX';
+    // 店名 fallback（優先讀 per-store，再讀 global）
+    var shopName = (storeCfg.shopName && /^[\x20-\x7E\u4e00-\u9fff]+$/.test(storeCfg.shopName)) ? storeCfg.shopName : (cfg.shopName || 'ToosterX');
     var sections = '';
 
     // Shop name card
@@ -76,8 +80,8 @@ const InvSettings = {
     sections += this._card(h4('條碼設定', 'barcode') +
       '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">' +
         '<span style="font-size:13px;color:var(--text-secondary);flex-shrink:0">自動編號前綴：</span>' +
-        '<input id="inv-barcode-prefix" class="inv-input" value="' + esc(cfg.barcodePrefix || 'TX') + '" maxlength="4" style="width:70px;height:34px;font-size:14px;font-weight:600;text-align:center" />' +
-        '<span style="font-size:12px;color:var(--text-muted)">下一號：' + ((cfg.nextBarcode || 0) + 1) + '</span>' +
+        '<input id="inv-barcode-prefix" class="inv-input" value="' + esc(storeCfg.barcodePrefix || cfg.barcodePrefix || 'TX') + '" maxlength="4" style="width:70px;height:34px;font-size:14px;font-weight:600;text-align:center" />' +
+        '<span style="font-size:12px;color:var(--text-muted)">下一號：' + ((storeCfg.nextBarcode || cfg.nextBarcode || 0) + 1) + '</span>' +
         '<button class="inv-btn primary sm" onclick="InvSettings._saveBarcodePrefix()" style="font-size:12px;min-height:30px;padding:2px 12px">儲存</button>' +
       '</div>');
 
@@ -289,7 +293,7 @@ const InvSettings = {
     var name = input.value.trim();
     if (!name) { InvApp.showToast('請輸入店名'); return; }
     try {
-      await this._cfgRef().update({ shopName: name });
+      await this._storeRef().set({ shopName: name }, { merge: true });
       InvUtils.writeLog('setting_shop_name', name);
       InvApp.showToast('店名已更新');
       this.render();
@@ -360,7 +364,7 @@ const InvSettings = {
   // ══════ 分類管理 ══════
   async renderCategories(cats) {
     if (!cats) {
-      var doc = await this._cfgRef().get();
+      var doc = await this._storeRef().get();
       cats = doc.exists ? (doc.data().categories || []) : [];
     }
     var w = document.getElementById('inv-category-list');
@@ -389,7 +393,7 @@ const InvSettings = {
     var name = (input && input.value || '').trim();
     if (!name) { InvApp.showToast('請輸入分類名稱'); return; }
     try {
-      await this._cfgRef().update({ categories: firebase.firestore.FieldValue.arrayUnion(name) });
+      await this._storeRef().set({ categories: firebase.firestore.FieldValue.arrayUnion(name) }, { merge: true });
       InvApp.showToast('已新增分類');
       if (input) input.value = '';
       this.renderCategories();
@@ -399,7 +403,7 @@ const InvSettings = {
   async removeCategory(name) {
     if (!confirm('確定要移除分類「' + name + '」？')) return;
     try {
-      await this._cfgRef().update({ categories: firebase.firestore.FieldValue.arrayRemove(name) });
+      await this._storeRef().set({ categories: firebase.firestore.FieldValue.arrayRemove(name) }, { merge: true });
       InvApp.showToast('已移除分類');
       this.renderCategories();
     } catch (e) { console.error('[InvSettings] removeCategory:', e); InvApp.showToast('移除失敗'); }
@@ -407,12 +411,12 @@ const InvSettings = {
 
   async _moveCategory(idx, dir) {
     try {
-      var doc = await this._cfgRef().get();
+      var doc = await this._storeRef().get();
       var cats = doc.exists ? (doc.data().categories || []).slice() : [];
       var ni = idx + dir;
       if (ni < 0 || ni >= cats.length) return;
       var tmp = cats[idx]; cats[idx] = cats[ni]; cats[ni] = tmp;
-      await this._cfgRef().update({ categories: cats });
+      await this._storeRef().set({ categories: cats }, { merge: true });
       this.renderCategories(cats);
     } catch (e) { console.error('[InvSettings] _moveCategory:', e); InvApp.showToast('排序失敗'); }
   },
@@ -426,7 +430,7 @@ const InvSettings = {
       return;
     }
     try {
-      await this._cfgRef().update({ barcodePrefix: val });
+      await this._storeRef().set({ barcodePrefix: val }, { merge: true });
       InvUtils.writeLog('setting_barcode_prefix', val);
       InvApp.showToast('前綴已儲存：' + val);
     } catch (e) {
@@ -505,7 +509,7 @@ const InvSettings = {
     if (!confirm('此操作將根據交易紀錄重新計算所有商品庫存，確定嗎？')) return;
     InvApp.showToast('正在重建庫存...');
     try {
-      var snap = await db.collection('inv_transactions').get();
+      var snap = await InvStore.col('transactions').get();
       var txList = snap.docs.map(function (d) { return d.data(); });
       // 按 barcode 分組計算淨庫存
       var sm = {};
@@ -541,7 +545,7 @@ const InvSettings = {
       // 批次更新
       var batch = db.batch();
       for (var n = 0; n < diffs.length; n++) {
-        batch.update(db.collection('inv_products').doc(diffs[n].barcode),
+        batch.update(InvStore.col('products').doc(diffs[n].barcode),
           { stock: diffs[n].calculated, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
       }
       await batch.commit();
@@ -562,7 +566,7 @@ const InvSettings = {
     InvApp.showToast('正在掃描交易紀錄...');
     try {
       if (!InvProducts._loaded) await InvProducts.loadAll();
-      var snap = await db.collection('inv_transactions').get();
+      var snap = await InvStore.col('transactions').get();
       var toFix = [];
       snap.forEach(function(doc) {
         var data = doc.data();
@@ -583,7 +587,7 @@ const InvSettings = {
         var chunk = toFix.slice(start, start + 500);
         var batch = db.batch();
         for (var i = 0; i < chunk.length; i++) {
-          batch.update(db.collection('inv_transactions').doc(chunk[i].docId), { productName: chunk[i].productName });
+          batch.update(InvStore.col('transactions').doc(chunk[i].docId), { productName: chunk[i].productName });
         }
         await batch.commit();
       }
@@ -602,7 +606,7 @@ const InvSettings = {
     if (!w) return;
     var esc = InvApp.escapeHTML;
     try {
-      var snap = await db.collection('inv_announcements').orderBy('createdAt', 'desc').limit(10).get();
+      var snap = await InvStore.col('announcements').orderBy('createdAt', 'desc').limit(10).get();
       var list = snap.docs.map(function(d) { return Object.assign({ _id: d.id }, d.data()); });
     } catch (_) { var list = []; }
 
@@ -643,7 +647,7 @@ const InvSettings = {
       var data = { title: '', content: '', type: 'info', active: true };
       if (isEdit) {
         try {
-          var doc = await db.collection('inv_announcements').doc(id).get();
+          var doc = await InvStore.col('announcements').doc(id).get();
           if (doc.exists) data = doc.data();
         } catch (_) {}
       }
@@ -677,11 +681,11 @@ const InvSettings = {
         try {
           var payload = { title: title, content: content, type: type, active: data.active !== false };
           if (isEdit) {
-            await db.collection('inv_announcements').doc(id).update(payload);
+            await InvStore.col('announcements').doc(id).update(payload);
           } else {
             payload.createdAt = firebase.firestore.FieldValue.serverTimestamp();
             payload.uid = InvAuth.getUid();
-            await db.collection('inv_announcements').add(payload);
+            await InvStore.col('announcements').add(payload);
           }
           overlay.remove();
           InvApp.showToast(isEdit ? '公告已更新' : '公告已新增');
@@ -694,7 +698,7 @@ const InvSettings = {
 
   async toggleAnnouncement(id, active) {
     try {
-      await db.collection('inv_announcements').doc(id).update({ active: active });
+      await InvStore.col('announcements').doc(id).update({ active: active });
       InvApp.showToast(active ? '公告已啟用' : '公告已停用');
       this.renderAnnouncements();
     } catch (e) { InvApp.showToast('操作失敗'); }
@@ -703,7 +707,7 @@ const InvSettings = {
   async deleteAnnouncement(id) {
     if (!confirm('確定刪除此公告？')) return;
     try {
-      await db.collection('inv_announcements').doc(id).delete();
+      await InvStore.col('announcements').doc(id).delete();
       InvApp.showToast('公告已刪除');
       this.renderAnnouncements();
     } catch (e) { InvApp.showToast('刪除失敗'); }
@@ -802,7 +806,20 @@ const InvSettings = {
       }
     }
     if (!desc) return;
-    InvApp.showToast(label + '：' + desc, 4000);
+    var esc = InvApp.escapeHTML;
+    var overlay = document.createElement('div');
+    overlay.className = 'inv-overlay show';
+    overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+    overlay.addEventListener('touchmove', function(e) {
+      if (!e.target.closest('.inv-modal')) { e.preventDefault(); e.stopPropagation(); }
+    }, { passive: false });
+    overlay.innerHTML = '<div class="inv-modal" style="max-width:360px;width:88%">'
+      + '<div style="font-size:17px;font-weight:700;text-align:center;margin-bottom:12px">' + esc(label) + '</div>'
+      + '<div style="font-size:14px;color:var(--text-secondary);line-height:1.7;padding:0 4px">' + esc(desc) + '</div>'
+      + '<div style="margin-top:10px;padding:8px 10px;border-radius:var(--radius-sm);background:var(--accent-subtle);font-size:12px;color:var(--text-muted)">權限碼：<code style="font-size:11px">' + esc(code) + '</code></div>'
+      + '<button class="inv-btn primary full" style="margin-top:16px" onclick="this.closest(\'.inv-overlay\').remove()">了解</button>'
+      + '</div>';
+    document.body.appendChild(overlay);
   },
 
   // ══════ 說明彈窗 ══════
@@ -963,7 +980,7 @@ const InvSettings = {
     var endTs = firebase.firestore.Timestamp.fromDate(endDate);
 
     try {
-      var q = db.collection('inv_logs').orderBy('createdAt', 'desc');
+      var q = InvStore.col('logs').orderBy('createdAt', 'desc');
       if (startTs) q = q.where('createdAt', '>=', startTs);
       q = q.where('createdAt', '<=', endTs);
       var snap = await q.limit(500).get();
