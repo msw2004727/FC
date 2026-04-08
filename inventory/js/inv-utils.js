@@ -115,7 +115,7 @@ const InvUtils = {
   LOG_LABELS: {
     login: '登入', logout: '登出',
     product_create: '新增商品', product_edit: '編輯商品', product_barcode_rename: '條碼變更',
-    stock_in: '入庫', stock_in_csv: 'CSV批次入庫', quick_restock: '快速補貨',
+    stock_in: '入庫', stock_in_csv: 'CSV批次入庫', quick_restock: '快速補貨', quick_correction: '快速修正',
     sale: '銷售結帳', sale_return: '退貨', sale_waste: '報廢',
     stocktake_start: '開始盤點', stocktake_apply: '盤點調整',
     setting_shop_name: '修改店名', setting_admin_add: '新增人員', setting_admin_remove: '移除人員',

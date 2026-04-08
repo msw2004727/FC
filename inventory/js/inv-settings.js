@@ -986,14 +986,16 @@ const InvSettings = {
       for (var i = 0; i < logs.length; i++) {
         var l = logs[i];
         var dt = l.createdAt && l.createdAt.toDate ? l.createdAt.toDate() : null;
-        var timeStr = dt ? dt.getFullYear() + '/' + String(dt.getMonth() + 1).padStart(2, '0') + '/' + String(dt.getDate()).padStart(2, '0') + ' ' + String(dt.getHours()).padStart(2, '0') + ':' + String(dt.getMinutes()).padStart(2, '0') : '-';
         var actionLabel = labels[l.action] || l.action || '-';
+        var shortTime = dt ? String(dt.getMonth() + 1).padStart(2, '0') + '/' + String(dt.getDate()).padStart(2, '0') + ' ' + String(dt.getHours()).padStart(2, '0') + ':' + String(dt.getMinutes()).padStart(2, '0') : '-';
         html +=
-          '<div style="display:flex;align-items:flex-start;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px">' +
-            '<span style="font-weight:600;color:var(--text-primary);white-space:nowrap;min-width:48px">' + esc(l.name || '?') + '</span>' +
-            '<span style="color:var(--text-muted);white-space:nowrap;min-width:100px">' + timeStr + '</span>' +
-            '<span style="padding:1px 6px;border-radius:var(--radius-full);background:var(--accent-subtle);color:var(--accent);font-size:11px;white-space:nowrap;flex-shrink:0">' + esc(actionLabel) + '</span>' +
-            '<span style="color:var(--text-secondary);flex:1;min-width:0;word-break:break-all">' + esc(l.detail || '') + '</span>' +
+          '<div style="padding:8px 0;border-bottom:1px solid var(--border);font-size:12px">' +
+            '<div style="display:flex;align-items:center;gap:6px;flex-wrap:nowrap">' +
+              '<span style="font-weight:600;color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100px">' + esc(l.name || '?') + '</span>' +
+              '<span style="color:var(--text-muted);white-space:nowrap;font-size:11px;flex-shrink:0">' + shortTime + '</span>' +
+              '<span style="padding:1px 6px;border-radius:var(--radius-full);background:var(--accent-subtle);color:var(--accent);font-size:11px;white-space:nowrap;flex-shrink:0">' + esc(actionLabel) + '</span>' +
+            '</div>' +
+            (l.detail ? '<div style="color:var(--text-secondary);margin-top:3px;line-height:1.4;word-break:break-word">' + esc(l.detail) + '</div>' : '') +
           '</div>';
       }
       wrap.innerHTML = '<div style="font-size:11px;color:var(--text-muted);margin-bottom:6px">共 ' + logs.length + ' 筆</div>' + html;
