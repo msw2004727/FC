@@ -65,7 +65,12 @@ const InvStore = {
 
   /** 顯示庫存選擇器彈窗 */
   showSelector: function (callback) {
+    // 移除之前的選擇器（切換庫存時可能重複開啟）
+    var prev = document.getElementById('inv-store-selector');
+    if (prev) prev.remove();
+
     var stores = this.getAccessibleStores();
+    console.log('[InvStore] showSelector stores:', stores.length, 'role:', (typeof InvAuth !== 'undefined' ? InvAuth.getRole() : 'N/A'));
     // 只有一個庫存時自動選取，跳過選擇器
     if (stores.length === 1) {
       this.setStore(stores[0].id);
@@ -79,6 +84,8 @@ const InvStore = {
     var overlay = document.createElement('div');
     overlay.id = 'inv-store-selector';
     overlay.className = 'inv-overlay show';
+    // 強制內聯樣式確保在任何頁面狀態下都可見
+    overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.35);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);opacity:1;pointer-events:auto';
     overlay.addEventListener('touchmove', function (e) {
       if (!e.target.closest('.inv-modal')) { e.preventDefault(); e.stopPropagation(); }
     }, { passive: false });
