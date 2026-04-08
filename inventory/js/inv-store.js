@@ -105,9 +105,15 @@ const InvStore = {
         '</button>';
     }
 
+    var isDark = document.documentElement.getAttribute('data-inv-theme') === 'dark';
+    var logoSrc = isDark ? '../LOGO/logowhite.png' : '../LOGO/logoblack.png';
+
     overlay.innerHTML =
       '<div class="inv-modal" style="max-width:360px;width:88%">' +
-        '<h3 style="margin:0 0 16px;font-size:18px;font-weight:700;text-align:center">選擇庫存</h3>' +
+        '<div style="text-align:center;margin-bottom:16px">' +
+          '<img src="' + logoSrc + '" alt="ToosterX" style="height:32px;margin-bottom:8px">' +
+          '<div style="font-size:16px;font-weight:700;color:var(--text-primary)">庫存系統</div>' +
+        '</div>' +
         '<div style="display:flex;flex-wrap:wrap;gap:10px">' + btnsHtml + '</div>' +
       '</div>';
     document.body.appendChild(overlay);
