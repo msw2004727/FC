@@ -129,11 +129,11 @@ const InvStore = {
     });
   },
 
-  /** 更新 topbar 標題（加上庫存名稱） */
+  /** 更新 topbar 小字標題（LOGO 左下角） */
   updateTopbarTitle: function (pageTitle) {
     var titleEl = document.querySelector('.inv-topbar-title');
     if (!titleEl) return;
     var suffix = this._name ? '（' + this._name + '）' : '';
-    titleEl.textContent = (pageTitle || '庫存管理') + suffix;
+    titleEl.textContent = (pageTitle || '') + suffix;
   },
 };

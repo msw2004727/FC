@@ -46,9 +46,9 @@ const InvSettings = {
 
     // Shop name card
     if (_hp('settings.shop')) {
-      sections += this._card(h4('店鋪資訊', 'shop') +
+      sections += this._card(h4('庫存資訊', 'shop') +
         '<div id="inv-shop-name-area" style="display:flex;align-items:center;gap:8px">' +
-          '<span style="font-size:14px;color:var(--text-secondary);flex-shrink:0">店名：</span>' +
+          '<span style="font-size:14px;color:var(--text-secondary);flex-shrink:0">顯示：</span>' +
           '<span id="inv-shop-name-display" style="flex:1;font-size:15px;font-weight:600;color:var(--text-primary)">' + esc(shopName) + '</span>' +
           '<button class="inv-btn outline sm" onclick="InvSettings._enableShopNameEdit()" style="font-size:12px;min-height:30px;padding:2px 12px">更名</button>' +
         '</div>');
@@ -280,7 +280,7 @@ const InvSettings = {
     if (!area) return;
     var current = (document.getElementById('inv-shop-name-display') || {}).textContent || '';
     area.innerHTML =
-      '<span style="font-size:14px;color:var(--text-secondary);flex-shrink:0">店名：</span>' +
+      '<span style="font-size:14px;color:var(--text-secondary);flex-shrink:0">顯示：</span>' +
       '<input id="inv-shop-name-input" class="inv-input" value="' + InvApp.escapeHTML(current) + '" style="flex:1;height:36px;font-size:14px" />' +
       '<button class="inv-btn primary sm" onclick="InvSettings.saveShopName()" style="font-size:12px;min-height:30px;padding:2px 12px">儲存</button>' +
       '<button class="inv-btn outline sm" onclick="InvSettings.render()" style="font-size:12px;min-height:30px;padding:2px 8px">取消</button>';
@@ -291,11 +291,11 @@ const InvSettings = {
     var input = document.getElementById('inv-shop-name-input');
     if (!input) return;
     var name = input.value.trim();
-    if (!name) { InvApp.showToast('請輸入店名'); return; }
+    if (!name) { InvApp.showToast('請輸入名稱'); return; }
     try {
       await this._storeRef().set({ shopName: name }, { merge: true });
       InvUtils.writeLog('setting_shop_name', name);
-      InvApp.showToast('店名已更新');
+      InvApp.showToast('名稱已更新');
       this.render();
     } catch (e) { InvApp.showToast('儲存失敗'); }
   },
@@ -826,10 +826,10 @@ const InvSettings = {
   _showInfo(key) {
     var info = {
       shop: {
-        title: '店鋪資訊說明',
-        body: '<p>設定你的店鋪名稱，此名稱會顯示在系統各處。</p>'
+        title: '庫存資訊說明',
+        body: '<p>設定此庫存的顯示名稱，此名稱會顯示在系統各處。</p>'
           + '<div style="background:var(--accent-subtle);border-radius:var(--radius-sm);padding:10px 12px;margin:8px 0">'
-          + '<b>更名功能</b><p style="font-size:13px;margin:4px 0 0;color:var(--text-secondary)">點擊「更名」按鈕後可修改店名，修改完成後點「儲存」即生效。</p></div>'
+          + '<b>更名功能</b><p style="font-size:13px;margin:4px 0 0;color:var(--text-secondary)">點擊「更名」按鈕後可修改顯示名稱，修改完成後點「儲存」即生效。</p></div>'
       },
       admin: {
         title: '人員管理說明',
