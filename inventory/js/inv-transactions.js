@@ -233,17 +233,17 @@ const InvTransactions = {
   // ── helpers ──────────────────────────────
 
   _getTypeIcon: function (type) {
-    var map = { out: '\uD83D\uDCB0', in: '\uD83D\uDCE6', return: '\u21A9\uFE0F', waste: '\uD83D\uDDD1\uFE0F', adjust: '\uD83D\uDD27', void: '\u274C', gift: '\uD83C\uDF81' };
+    var map = { out: '\uD83D\uDCB0', in: '\uD83D\uDCE6', return: '\u21A9\uFE0F', waste: '\uD83D\uDDD1\uFE0F', adjust: '\uD83D\uDD27', void: '\u274C', gift: '\uD83C\uDF81', correction: '\u270F\uFE0F' };
     return map[type] || '\uD83D\uDCB0';
   },
 
   _getTypeLabel: function (type) {
-    var map = { out: '銷售', in: '入庫', return: '退貨', waste: '報廢', adjust: '調整', void: '作廢', gift: '贈品' };
+    var map = { out: '銷售', in: '入庫', return: '退貨', waste: '報廢', adjust: '調整', void: '作廢', gift: '贈品', correction: '修正' };
     return map[type] || '銷售';
   },
 
   _getTypeClass: function (type) {
-    var map = { out: 'inv-tx-sale', in: 'inv-tx-in', return: 'inv-tx-return', waste: 'inv-tx-waste', adjust: 'inv-tx-adjust', void: 'inv-tx-adjust', gift: 'inv-tx-gift' };
+    var map = { out: 'inv-tx-sale', in: 'inv-tx-in', return: 'inv-tx-return', waste: 'inv-tx-waste', adjust: 'inv-tx-adjust', void: 'inv-tx-adjust', gift: 'inv-tx-gift', correction: 'inv-tx-adjust' };
     return map[type] || 'inv-tx-sale';
   },
 

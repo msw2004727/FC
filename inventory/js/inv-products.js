@@ -91,6 +91,28 @@ const InvProducts = {
     return result;
   },
 
+  /** 庫存修正（Transaction），直接將庫存設為指定數量 */
+  async correctStock(barcode, newStock, txData) {
+    if (newStock < 0) throw new Error('庫存不可為負數');
+    var ref = db.collection('inv_products').doc(barcode);
+    var txRef = db.collection('inv_transactions');
+    var result = await db.runTransaction(async function (transaction) {
+      var doc = await transaction.get(ref);
+      if (!doc.exists) throw new Error('商品不存在: ' + barcode);
+      var currentStock = doc.data().stock || 0;
+      var delta = newStock - currentStock;
+      transaction.update(ref, { stock: newStock, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
+      transaction.set(txRef.doc(), Object.assign({
+        barcode: barcode, delta: delta, beforeStock: currentStock, afterStock: newStock,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      }, txData || {}));
+      return { beforeStock: currentStock, afterStock: newStock };
+    });
+    var idx = this._cache.findIndex(function (p) { return p.barcode === barcode; });
+    if (idx !== -1) this._cache[idx].stock = result.afterStock;
+    return result;
+  },
+
   /** 渲染庫存頁面（頁籤 + 篩選列 + 列表） */
   async renderProductPage(containerId) {
     var container = document.getElementById(containerId);
@@ -414,6 +436,29 @@ const InvProducts = {
         '</div>';
     }
     html += quickRestockHtml;
+    var quickCorrectionHtml = '';
+    if (_hp('inventory.quick_correction')) {
+      quickCorrectionHtml =
+        '<div id="inv-quick-correction" style="margin-bottom:12px;padding:10px 12px;border:1px solid var(--warning);border-radius:var(--radius-sm);background:var(--bg-card)">' +
+          '<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">' +
+            '<div style="font-size:12px;color:var(--warning);font-weight:600">快速修正</div>' +
+            '<div style="font-size:11px;color:var(--text-muted)">直接設定庫存數量</div>' +
+          '</div>' +
+          '<div style="display:flex;align-items:center;gap:0">' +
+            '<button class="inv-qc-btn" data-delta="-1" style="width:44px;height:40px;border:1px solid var(--border);border-radius:8px 0 0 8px;background:var(--bg-elevated);font-size:20px;font-weight:700;cursor:pointer;color:var(--text-primary);flex-shrink:0">\u2212</button>' +
+            '<input id="inv-quick-correction-qty" type="number" inputmode="numeric" value="' + (p.stock || 0) + '" min="0" class="inv-hide-spin" style="width:56px;height:40px;text-align:center;font-size:18px;font-weight:700;border-top:1px solid var(--border);border-bottom:1px solid var(--border);border-left:none;border-right:none;padding:0;box-sizing:border-box;background:var(--bg-card);color:var(--text-primary);-moz-appearance:textfield" />' +
+            '<button class="inv-qc-btn" data-delta="1" style="width:44px;height:40px;border:1px solid var(--border);border-radius:0 8px 8px 0;background:var(--bg-elevated);font-size:20px;font-weight:700;cursor:pointer;color:var(--text-primary);flex-shrink:0">+</button>' +
+            '<button id="inv-quick-correction-btn" style="margin-left:8px;padding:0 14px;border:none;border-radius:8px;background:var(--warning);color:#fff;font-size:14px;font-weight:600;cursor:pointer;height:40px;white-space:nowrap;flex-shrink:0">修正</button>' +
+          '</div>' +
+          '<div style="display:flex;gap:6px;margin-top:6px">' +
+            '<button class="inv-qc-preset" data-set="0" style="flex:1;padding:5px 0;border:1px solid var(--warning);border-radius:var(--radius-full);background:var(--bg-card);color:var(--warning);font-size:12px;font-weight:600;cursor:pointer">0</button>' +
+            '<button class="inv-qc-preset" data-set="5" style="flex:1;padding:5px 0;border:1px solid var(--warning);border-radius:var(--radius-full);background:var(--bg-card);color:var(--warning);font-size:12px;font-weight:600;cursor:pointer">5</button>' +
+            '<button class="inv-qc-preset" data-set="10" style="flex:1;padding:5px 0;border:1px solid var(--warning);border-radius:var(--radius-full);background:var(--bg-card);color:var(--warning);font-size:12px;font-weight:600;cursor:pointer">10</button>' +
+            '<button class="inv-qc-preset" data-set="20" style="flex:1;padding:5px 0;border:1px solid var(--warning);border-radius:var(--radius-full);background:var(--bg-card);color:var(--warning);font-size:12px;font-weight:600;cursor:pointer">20</button>' +
+          '</div>' +
+        '</div>';
+    }
+    html += quickCorrectionHtml;
     var editBtnHtml = _hp('inventory.edit')
       ? '<button id="btn-edit-product" style="padding:10px 20px;border:none;border-radius:8px;background:var(--accent);color:#fff;font-size:15px;cursor:pointer;width:100%">編輯商品</button>'
       : '';
@@ -462,6 +507,48 @@ const InvProducts = {
           InvApp.showToast('入庫失敗：' + (e.message || ''));
           this.disabled = false;
           this.textContent = '入庫';
+        }
+      });
+    }
+
+    // 快速修正
+    var corrQtyInput = document.getElementById('inv-quick-correction-qty');
+    var corrArea = document.getElementById('inv-quick-correction');
+    if (corrArea && corrQtyInput) {
+      corrArea.querySelectorAll('.inv-qc-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          var d = Number(this.getAttribute('data-delta'));
+          corrQtyInput.value = Math.max(0, (Number(corrQtyInput.value) || 0) + d);
+        });
+      });
+      corrArea.querySelectorAll('.inv-qc-preset').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          corrQtyInput.value = Number(this.getAttribute('data-set'));
+        });
+      });
+      document.getElementById('inv-quick-correction-btn').addEventListener('click', async function() {
+        var newStock = parseInt(corrQtyInput.value, 10);
+        if (isNaN(newStock) || newStock < 0) { InvApp.showToast('請輸入有效數量'); return; }
+        var currentStock = p.stock || 0;
+        if (newStock === currentStock) { InvApp.showToast('數量未變更'); return; }
+        var confirmMsg = '確定要將「' + (p.name || barcode) + '」庫存從 ' + currentStock + ' 修正為 ' + newStock + '？';
+        if (!confirm(confirmMsg)) return;
+        this.disabled = true;
+        this.textContent = '處理中...';
+        try {
+          var result = await InvProducts.correctStock(barcode, newStock, {
+            type: 'correction', note: '快速修正（' + (InvAuth.getName() || '') + '）',
+            uid: InvAuth.getUid() || '',
+            operatorName: InvAuth.getName() || '',
+            productName: p.name || barcode,
+          });
+          InvUtils.writeLog('quick_correction', (p.name || barcode) + ' ' + result.beforeStock + '→' + result.afterStock + '（' + (InvAuth.getName() || '') + '）');
+          InvApp.showToast('庫存已修正 ' + result.beforeStock + ' → ' + result.afterStock);
+          self.renderDetail(barcode);
+        } catch (e) {
+          InvApp.showToast('修正失敗：' + (e.message || ''));
+          this.disabled = false;
+          this.textContent = '修正';
         }
       });
     }
@@ -519,7 +606,7 @@ const InvProducts = {
         var qty = Number(tx.delta) || Number(tx.quantity) || 0;
         if (tx.type === 'out' || tx.type === 'sale' || tx.type === 'waste') qty = -Math.abs(qty);
         var sign = qty > 0 ? '+' : '', color = qty > 0 ? '#4CAF50' : '#f44336';
-        var tl = tx.type === 'in' ? '\u5165\u5eab' : (tx.type === 'out' || tx.type === 'sale' ? '\u92b7\u552e' : (tx.type === 'return' ? '\u9000\u8ca8' : (tx.type === 'waste' ? '\u5831\u5ee2' : (tx.type === 'adjust' ? '\u8abf\u6574' : (tx.type || '-')))));
+        var tl = tx.type === 'in' ? '\u5165\u5eab' : (tx.type === 'out' || tx.type === 'sale' ? '\u92b7\u552e' : (tx.type === 'return' ? '\u9000\u8ca8' : (tx.type === 'waste' ? '\u5831\u5ee2' : (tx.type === 'adjust' ? '\u8abf\u6574' : (tx.type === 'correction' ? '\u4fee\u6b63' : (tx.type || '-'))))));
         var tm = tx.createdAt ? InvApp.formatDate(tx.createdAt.toDate()) : '-';
         html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px;">' +
           '<div><span style="color:var(--text-muted);">' + InvApp.escapeHTML(tl) + '</span><span style="color:var(--text-muted);margin-left:8px;">' + tm + '</span></div>' +
