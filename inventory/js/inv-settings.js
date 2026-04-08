@@ -1008,9 +1008,9 @@ const InvSettings = {
         html +=
           '<div style="padding:8px 0;border-bottom:1px solid var(--border);font-size:12px">' +
             '<div style="display:flex;align-items:center;gap:6px;flex-wrap:nowrap">' +
-              '<span style="font-weight:600;color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100px">' + esc(l.name || '?') + '</span>' +
               '<span style="color:var(--text-muted);white-space:nowrap;font-size:11px;flex-shrink:0">' + shortTime + '</span>' +
               '<span style="padding:1px 6px;border-radius:var(--radius-full);background:var(--accent-subtle);color:var(--accent);font-size:11px;white-space:nowrap;flex-shrink:0">' + esc(actionLabel) + '</span>' +
+              '<span style="font-weight:600;color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0">' + esc(l.name || '?') + '</span>' +
             '</div>' +
             (l.detail ? '<div style="color:var(--text-secondary);margin-top:3px;line-height:1.4;word-break:break-word">' + esc(l.detail) + '</div>' : '') +
           '</div>';
