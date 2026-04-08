@@ -1291,7 +1291,7 @@ service cloud.firestore {
     match /inv_transactions/{docId} {
       allow read: if isInventoryAdmin();
       allow create: if isInventoryAdmin()
-        && request.resource.data.type in ['in', 'out', 'return', 'adjust', 'void', 'waste', 'gift']
+        && request.resource.data.type in ['in', 'out', 'return', 'adjust', 'void', 'waste', 'gift', 'correction']
         && (request.resource.data.delta is int || request.resource.data.quantity is int)
         && request.resource.data.uid == request.auth.uid;
       allow update: if isInventoryAdmin()
