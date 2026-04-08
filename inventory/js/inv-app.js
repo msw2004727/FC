@@ -31,12 +31,14 @@ const InvApp = {
     document.body.style.paddingBottom = isChrome ? '0' : '64px';
     if (this.currentPage && this.currentPage !== pageId) this.pageHistory.push(this.currentPage);
     this.currentPage = pageId;
-    var pageTitle = this._pageTitles[pageId] || '庫存管理';
+    var pageTitle = this._pageTitles[pageId] || '';
     if (typeof InvStore !== 'undefined' && InvStore.getName()) {
       InvStore.updateTopbarTitle(pageTitle);
     } else {
       var titleEl = document.querySelector('.inv-topbar-title');
-      if (titleEl) titleEl.textContent = pageTitle;
+      if (titleEl) titleEl.textContent = '庫存管理';
+      var labelEl = document.getElementById('inv-page-label');
+      if (labelEl) labelEl.textContent = pageTitle;
     }
     document.querySelectorAll('.inv-tab').forEach(function(btn) { btn.classList.toggle('active', btn.dataset.page === pageId); });
     this._closeUserMenu(); window.scrollTo(0, 0);

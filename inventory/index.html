@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#0d9488">
   <meta name="robots" content="noindex, nofollow">
   <title>ToosterX 庫存管理</title>
-  <link rel="stylesheet" href="css/inventory.css?v=66">
+  <link rel="stylesheet" href="css/inventory.css?v=67">
 </head>
 <body>
 
@@ -34,10 +34,11 @@
 
   <!-- Top Bar -->
   <header class="inv-topbar" id="inv-topbar" style="display:none">
-    <div style="display:flex;align-items:center;gap:8px">
+    <div style="display:flex;align-items:center;gap:8px;position:relative">
+      <span id="inv-page-label" style="position:absolute;left:0;top:50%;transform:translateY(-50%);font-size:20px;font-weight:800;color:var(--text-primary);opacity:.12;pointer-events:none;white-space:nowrap;z-index:1"></span>
       <img src="../assets/logo-black.png" alt="logo" style="height:28px" class="inv-logo-light">
       <img src="../assets/logo-white.png" alt="logo" style="height:28px;display:none" class="inv-logo-dark">
-      <span class="inv-topbar-title" style="font-size:10px;color:var(--text-muted);line-height:1;position:absolute;left:44px;bottom:6px">庫存管理</span>
+      <span class="inv-topbar-title" style="font-size:15px;font-weight:700;color:var(--text-primary)">庫存管理</span>
     </div>
     <div class="inv-topbar-right">
       <div class="inv-toggle-switch" id="inv-theme-toggle" onclick="if(typeof InvApp!=='undefined')InvApp.toggleTheme()">
@@ -140,23 +141,23 @@
   <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js" defer></script>
-  <script src="js/inv-config.js?v=66"></script>
-  <script src="js/inv-store.js?v=66"></script>
-  <script src="js/inv-icons.js?v=66"></script>
-  <script src="js/inv-utils.js?v=66"></script>
-  <script src="js/inv-auth.js?v=66"></script>
-  <script src="js/inv-permissions.js?v=66"></script>
-  <script src="js/inv-app.js?v=66"></script>
-  <script src="js/inv-scanner.js?v=66"></script>
-  <script src="js/inv-products.js?v=66"></script>
-  <script src="js/inv-stock-in.js?v=66"></script>
-  <script src="js/inv-cart.js?v=66"></script>
-  <script src="js/inv-sale.js?v=66"></script>
-  <script src="js/inv-sale-return.js?v=66"></script>
-  <script src="js/inv-transactions.js?v=66"></script>
-  <script src="js/inv-export.js?v=66"></script>
-  <script src="js/inv-stocktake.js?v=66"></script>
-  <script src="js/inv-dashboard.js?v=66"></script>
-  <script src="js/inv-settings.js?v=66"></script>
+  <script src="js/inv-config.js?v=67"></script>
+  <script src="js/inv-store.js?v=67"></script>
+  <script src="js/inv-icons.js?v=67"></script>
+  <script src="js/inv-utils.js?v=67"></script>
+  <script src="js/inv-auth.js?v=67"></script>
+  <script src="js/inv-permissions.js?v=67"></script>
+  <script src="js/inv-app.js?v=67"></script>
+  <script src="js/inv-scanner.js?v=67"></script>
+  <script src="js/inv-products.js?v=67"></script>
+  <script src="js/inv-stock-in.js?v=67"></script>
+  <script src="js/inv-cart.js?v=67"></script>
+  <script src="js/inv-sale.js?v=67"></script>
+  <script src="js/inv-sale-return.js?v=67"></script>
+  <script src="js/inv-transactions.js?v=67"></script>
+  <script src="js/inv-export.js?v=67"></script>
+  <script src="js/inv-stocktake.js?v=67"></script>
+  <script src="js/inv-dashboard.js?v=67"></script>
+  <script src="js/inv-settings.js?v=67"></script>
 </body>
 </html>

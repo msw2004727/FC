@@ -144,11 +144,13 @@ const InvStore = {
     });
   },
 
-  /** 更新 topbar 小字標題（LOGO 左下角） */
+  /** 更新 topbar 標題：庫存名稱 + 頁籤浮水印 */
   updateTopbarTitle: function (pageTitle) {
+    // 庫存名稱（logo 右邊正常顯示）
     var titleEl = document.querySelector('.inv-topbar-title');
-    if (!titleEl) return;
-    var suffix = this._name ? '（' + this._name + '）' : '';
-    titleEl.textContent = (pageTitle || '') + suffix;
+    if (titleEl) titleEl.textContent = this._name || '庫存管理';
+    // 頁籤名稱（大字半透明疊在 logo 前）
+    var labelEl = document.getElementById('inv-page-label');
+    if (labelEl) labelEl.textContent = pageTitle || '';
   },
 };
