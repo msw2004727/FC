@@ -320,12 +320,12 @@ const InvProducts = {
             '</select>';
       }
       html +=
-        '<div class="inv-product-card" data-barcode="' + esc(p.barcode) + '" ' +
-          'style="display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:6px;cursor:pointer;background:var(--bg-card)">' +
+        '<div class="inv-product-card" data-barcode="' + esc(p.barcode) + '" data-id="' + esc(p.id) + '" ' +
+          'style="display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:6px;cursor:pointer;background:var(--bg-card)' + (p.isSplitChild ? ';border-left:3px solid #7c3aed' : '') + '">' +
           thumbHtml +
           '<div style="flex:1;min-width:0;overflow:hidden">' +
             '<div style="display:flex;align-items:center;gap:6px">' +
-              '<span style="font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(p.name) + '</span>' +
+              '<span style="font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(p.name) + (p.isSplitChild ? ' <span style="font-size:10px;color:#7c3aed;font-weight:400">[拆分]</span>' : '') + '</span>' +
               '<span style="font-size:13px;font-weight:600;color:var(--accent);white-space:nowrap">' + InvApp.formatCurrency(p.price) + '</span>' +
             '</div>' +
             pillsHtml +
@@ -343,9 +343,9 @@ const InvProducts = {
     for (var j = 0; j < cards.length; j++) {
       cards[j].addEventListener('click', function (e) {
         if (e.target.closest('.inv-list-restock-btn')) return; // 讓 restock 按鈕自己處理
-        var bc = this.getAttribute('data-barcode');
+        var docId = this.getAttribute('data-id');
         InvApp.showPage('page-product-detail');
-        self.renderDetail(bc);
+        self.renderDetail(docId);
       });
     }
     // 列表快速入庫按鈕
@@ -367,16 +367,17 @@ const InvProducts = {
     });
   },
 
-  /** 渲染商品詳情頁 */
-  async renderDetail(barcode) {
+  /** 渲染商品詳情頁（支援 barcode 或 doc ID） */
+  async renderDetail(idOrBarcode) {
     var container = document.getElementById('inv-product-detail-content');
     if (!container) return;
 
-    var p = this.getByBarcode(barcode);
+    var p = this.getById(idOrBarcode) || this.getByBarcode(idOrBarcode);
     if (!p) {
       container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted);">找不到商品</div>';
       return;
     }
+    var barcode = p.barcode; // 確保後續用的是實際 barcode
 
     var al = p.lowStockAlert || 5;
     var sc = p.stock > al ? 'var(--success)' : (p.stock > 0 ? 'var(--danger)' : 'var(--text-muted)');
@@ -396,7 +397,7 @@ const InvProducts = {
     var html =
       '<div style="padding:16px;">' +
         '<div style="display:flex;align-items:center;gap:6px;margin-bottom:12px">' +
-          '<h3 style="margin:0;flex:1">' + esc(p.name) + '</h3>' + ib +
+          '<h3 style="margin:0;flex:1">' + esc(p.name) + (p.isSplitChild ? ' <span style="font-size:12px;color:#7c3aed;font-weight:400">[拆分自 ' + esc(p.group || '') + ']</span>' : '') + '</h3>' + ib +
         '</div>' +
         imgHtml +
         '<div style="display:flex;flex-wrap:wrap;gap:0;margin-bottom:10px">' + pills + '</div>' +
@@ -466,6 +467,14 @@ const InvProducts = {
     if (_hp('inventory.return')) actionRow += '<button id="btn-return-product" style="flex:1;padding:10px;border:1px solid var(--accent);border-radius:8px;background:var(--bg-card);color:var(--accent);font-size:14px;cursor:pointer">退貨</button>';
     if (_hp('inventory.waste')) actionRow += '<button id="btn-waste-product" style="flex:1;padding:10px;border:1px solid var(--danger);border-radius:8px;background:var(--bg-card);color:var(--danger);font-size:14px;cursor:pointer">報廢</button>';
     actionRow += '<button id="btn-print-barcode" style="flex:1;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--bg-card);color:var(--text-secondary);font-size:14px;cursor:pointer">列印條碼</button>';
+    // 拆分按鈕（非拆分品 + 庫存 >= 2 + 有權限）
+    if (!p.isSplitChild && (p.stock || 0) >= 2 && _hp('inventory.change_group')) {
+      actionRow += '<button id="btn-split-product" style="flex:1;padding:10px;border:1px solid #7c3aed;border-radius:8px;background:var(--bg-card);color:#7c3aed;font-size:14px;cursor:pointer">拆分</button>';
+    }
+    // 合併按鈕（僅拆分品顯示）
+    if (p.isSplitChild && p.splitFrom && _hp('inventory.change_group')) {
+      actionRow += '<button id="btn-merge-product" style="flex:1;padding:10px;border:1px solid #7c3aed;border-radius:8px;background:var(--bg-card);color:#7c3aed;font-size:14px;cursor:pointer">合併</button>';
+    }
     html += editBtnHtml +
         '<div style="display:flex;gap:8px;margin-top:8px">' + actionRow + '</div>' +
         '<h4 style="margin:20px 0 8px">異動歷史</h4>' +
@@ -579,6 +588,12 @@ const InvProducts = {
       }
     });
 
+    // 拆分 / 合併按鈕
+    var splitBtn = document.getElementById('btn-split-product');
+    if (splitBtn) splitBtn.addEventListener('click', function () { self._showSplitDialog(barcode); });
+    var mergeBtn = document.getElementById('btn-merge-product');
+    if (mergeBtn) mergeBtn.addEventListener('click', function () { self._showMergeDialog(p.id); });
+
     // 載入異動歷史
     this._loadTransactions(barcode);
   },
@@ -613,7 +628,8 @@ const InvProducts = {
         var qty = Number(tx.delta) || Number(tx.quantity) || 0;
         if (tx.type === 'out' || tx.type === 'sale' || tx.type === 'waste') qty = -Math.abs(qty);
         var sign = qty > 0 ? '+' : '', color = qty > 0 ? '#4CAF50' : '#f44336';
-        var tl = tx.type === 'in' ? '\u5165\u5eab' : (tx.type === 'out' || tx.type === 'sale' ? '\u92b7\u552e' : (tx.type === 'return' ? '\u9000\u8ca8' : (tx.type === 'waste' ? '\u5831\u5ee2' : (tx.type === 'adjust' ? '\u8abf\u6574' : (tx.type === 'correction' ? '\u4fee\u6b63' : (tx.type || '-'))))));
+        var _typeMap = { in: '入庫', out: '銷售', sale: '銷售', return: '退貨', waste: '報廢', adjust: '調整', correction: '修正', split_out: '拆出', split_in: '拆入', merge: '合併' };
+        var tl = _typeMap[tx.type] || tx.type || '-';
         var tm = tx.createdAt ? InvApp.formatDate(tx.createdAt.toDate()) : '-';
         html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px;">' +
           '<div><span style="color:var(--text-muted);">' + InvApp.escapeHTML(tl) + '</span><span style="color:var(--text-muted);margin-left:8px;">' + tm + '</span></div>' +
@@ -867,6 +883,299 @@ const InvProducts = {
     return this._cache.filter(function (p) {
       var alert = p.lowStockAlert || 5;
       return (p.stock || 0) <= alert;
+    });
+  },
+
+  // ══════════════════════════════════════════
+  //  拆分移動 / 合併（Split / Merge）
+  // ══════════════════════════════════════════
+
+  /** 取得同一條碼的所有商品（含拆分品） */
+  getAllByBarcode(barcode) {
+    return this._cache.filter(function (p) { return p.barcode === barcode; });
+  },
+
+  /** 拆分彈窗 — 選擇目標頁籤 + 數量 */
+  _showSplitDialog(barcode) {
+    var p = this.getByBarcode(barcode);
+    if (!p) { InvApp.showToast('找不到商品'); return; }
+    if (p.isSplitChild) { InvApp.showToast('拆分品不可再次拆分'); return; }
+    if ((p.stock || 0) < 2) { InvApp.showToast('庫存不足，至少需要 2 件才能拆分'); return; }
+
+    var esc = InvApp.escapeHTML;
+    var tabs = this.GROUP_TABS;
+    var currentGroup = p.group || '商品';
+    var maxQty = (p.stock || 0) - 1; // 原商品至少保留 1 件
+
+    var overlay = document.createElement('div');
+    overlay.className = 'inv-overlay show';
+    overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+    overlay.addEventListener('touchmove', function(e) { if (!e.target.closest('.inv-modal')) { e.preventDefault(); e.stopPropagation(); } }, { passive: false });
+
+    var groupOpts = '';
+    for (var i = 0; i < tabs.length; i++) {
+      if (tabs[i] !== currentGroup) {
+        groupOpts += '<option value="' + esc(tabs[i]) + '">' + esc(tabs[i]) + '</option>';
+      }
+    }
+
+    overlay.innerHTML =
+      '<div class="inv-modal" style="max-width:340px;width:88%">' +
+        '<h3 style="margin:0 0 4px;font-size:16px">拆分庫存</h3>' +
+        '<div style="font-size:13px;color:var(--text-muted);margin-bottom:10px">' + esc(p.name) +
+          ' <span style="font-weight:600;color:var(--text-primary)">（庫存 ' + p.stock + '）</span></div>' +
+        '<label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px">目標頁籤</label>' +
+        '<select id="split-target-group" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:14px;margin-bottom:10px;background:var(--bg-card);color:var(--text-primary)">' + groupOpts + '</select>' +
+        '<label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px">拆分數量 <span style="font-size:11px">(1 ~ ' + maxQty + ')</span></label>' +
+        '<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">' +
+          '<button id="split-minus" style="width:36px;height:36px;border:1px solid var(--border);border-radius:8px;background:var(--bg-elevated);font-size:18px;cursor:pointer">−</button>' +
+          '<input id="split-qty" type="number" inputmode="numeric" value="1" min="1" max="' + maxQty + '" style="flex:1;text-align:center;font-size:22px;font-weight:700;border:1px solid var(--border);border-radius:8px;padding:6px;height:40px;box-sizing:border-box;background:var(--bg-card);color:var(--text-primary)" />' +
+          '<button id="split-plus" style="width:36px;height:36px;border:1px solid var(--border);border-radius:8px;background:var(--bg-elevated);font-size:18px;cursor:pointer">+</button>' +
+        '</div>' +
+        '<div style="font-size:12px;color:var(--text-muted);margin-bottom:12px;padding:8px;background:var(--bg-elevated);border-radius:6px">' +
+          '拆分後：原商品保留 <b id="split-remain">' + (p.stock - 1) + '</b> 件（' + esc(currentGroup) + '），' +
+          '新拆分 <b id="split-move">1</b> 件移至 <b id="split-dest">' + esc(groupOpts ? tabs.find(function(t){ return t !== currentGroup; }) || '' : '') + '</b>' +
+        '</div>' +
+        '<div style="display:flex;gap:8px">' +
+          '<button id="split-cancel" class="inv-btn outline full">取消</button>' +
+          '<button id="split-ok" class="inv-btn primary full">確認拆分</button>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(overlay);
+
+    var qi = document.getElementById('split-qty');
+    var remainEl = document.getElementById('split-remain');
+    var moveEl = document.getElementById('split-move');
+    var destEl = document.getElementById('split-dest');
+    var groupSel = document.getElementById('split-target-group');
+    var stock = p.stock;
+
+    var updatePreview = function() {
+      var v = Math.max(1, Math.min(maxQty, parseInt(qi.value, 10) || 1));
+      remainEl.textContent = stock - v;
+      moveEl.textContent = v;
+      destEl.textContent = groupSel.value;
+    };
+
+    document.getElementById('split-minus').addEventListener('click', function() {
+      qi.value = Math.max(1, (parseInt(qi.value, 10) || 1) - 1); updatePreview();
+    });
+    document.getElementById('split-plus').addEventListener('click', function() {
+      qi.value = Math.min(maxQty, (parseInt(qi.value, 10) || 0) + 1); updatePreview();
+    });
+    qi.addEventListener('input', updatePreview);
+    groupSel.addEventListener('change', updatePreview);
+    document.getElementById('split-cancel').addEventListener('click', function() { overlay.remove(); });
+
+    var self = this;
+    document.getElementById('split-ok').addEventListener('click', async function() {
+      var qty = parseInt(qi.value, 10);
+      if (!qty || qty < 1 || qty > maxQty) { InvApp.showToast('數量無效'); return; }
+      var targetGroup = groupSel.value;
+      if (!targetGroup) { InvApp.showToast('請選擇目標頁籤'); return; }
+      this.disabled = true; this.textContent = '處理中...';
+      try {
+        await self._executeSplit(p, targetGroup, qty);
+        overlay.remove();
+        InvApp.showToast('已拆分 ' + qty + ' 件至「' + targetGroup + '」');
+        self._refreshProductList();
+      } catch (e) {
+        InvApp.showToast('拆分失敗：' + (e.message || ''));
+        this.disabled = false; this.textContent = '確認拆分';
+      }
+    });
+  },
+
+  /** 執行拆分（Firestore Transaction） */
+  async _executeSplit(sourceProduct, targetGroup, qty) {
+    var srcBarcode = sourceProduct.barcode;
+    var srcRef = InvStore.col('products').doc(sourceProduct.id);
+    // 為拆分品產生唯一 doc ID（同條碼不同 doc）
+    var splitDocId = srcBarcode + '_' + targetGroup.replace(/[^a-zA-Z0-9\u4e00-\u9fff]/g, '') + '_' + Date.now().toString(36);
+    var splitRef = InvStore.col('products').doc(splitDocId);
+    var txCol = InvStore.col('transactions');
+    var uid = (typeof InvAuth !== 'undefined' && InvAuth.getUid()) || '';
+    var operatorName = (typeof InvAuth !== 'undefined' && InvAuth.getName()) || '';
+
+    await db.runTransaction(async function(transaction) {
+      var srcDoc = await transaction.get(srcRef);
+      if (!srcDoc.exists) throw new Error('來源商品不存在');
+      var srcData = srcDoc.data();
+      var currentStock = srcData.stock || 0;
+      if (qty >= currentStock) throw new Error('拆分數量不可大於等於現有庫存 (' + currentStock + ')');
+
+      // 1. 扣減來源庫存
+      transaction.update(srcRef, {
+        stock: currentStock - qty,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+
+      // 2. 建立拆分品（共用 barcode，不同 doc ID）
+      var splitData = {
+        barcode: srcBarcode,
+        name: srcData.name || '',
+        price: srcData.price || 0,
+        costPrice: srcData.costPrice || 0,
+        stock: qty,
+        group: targetGroup,
+        brand: srcData.brand || '',
+        category: srcData.category || '',
+        color: srcData.color || '',
+        size: srcData.size || '',
+        image: srcData.image || '',
+        imageUrl: srcData.imageUrl || '',
+        lowStockAlert: srcData.lowStockAlert || 5,
+        isSplitChild: true,
+        splitFrom: sourceProduct.id,
+        familyRoot: srcData.familyRoot || sourceProduct.id,
+        splitAt: firebase.firestore.FieldValue.serverTimestamp(),
+        splitBy: uid,
+        splitQty: qty,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      };
+      transaction.set(splitRef, splitData);
+
+      // 3. 交易紀錄
+      transaction.set(txCol.doc(), {
+        type: 'split_out', barcode: srcBarcode, productId: sourceProduct.id,
+        productName: srcData.name || '', delta: -qty,
+        beforeStock: currentStock, afterStock: currentStock - qty,
+        targetGroup: targetGroup, splitDocId: splitDocId,
+        uid: uid, operatorName: operatorName,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+      transaction.set(txCol.doc(), {
+        type: 'split_in', barcode: srcBarcode, productId: splitDocId,
+        productName: srcData.name || '', delta: qty,
+        beforeStock: 0, afterStock: qty,
+        sourceGroup: srcData.group || '商品', splitDocId: splitDocId,
+        uid: uid, operatorName: operatorName,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+    });
+
+    // 更新本地快取
+    await this.loadAll();
+  },
+
+  /** 合併彈窗 */
+  _showMergeDialog(splitDocId) {
+    var splitProduct = this._cache.find(function(p) { return p.id === splitDocId; });
+    if (!splitProduct) { InvApp.showToast('找不到拆分品'); return; }
+    var parentId = splitProduct.splitFrom;
+    var parent = this._cache.find(function(p) { return p.id === parentId; });
+    if (!parent) { InvApp.showToast('找不到原始商品，無法合併'); return; }
+
+    var esc = InvApp.escapeHTML;
+    var overlay = document.createElement('div');
+    overlay.className = 'inv-overlay show';
+    overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+    overlay.addEventListener('touchmove', function(e) { if (!e.target.closest('.inv-modal')) { e.preventDefault(); e.stopPropagation(); } }, { passive: false });
+    overlay.innerHTML =
+      '<div class="inv-modal" style="max-width:340px;width:88%">' +
+        '<h3 style="margin:0 0 8px;font-size:16px">合併回原商品</h3>' +
+        '<div style="font-size:13px;margin-bottom:6px">' + esc(splitProduct.name) + ' <span style="color:var(--text-muted)">[' + esc(splitProduct.group) + ']</span></div>' +
+        '<div style="padding:10px;background:var(--bg-elevated);border-radius:8px;margin-bottom:12px;font-size:13px">' +
+          '<div>拆分品庫存：<b>' + (splitProduct.stock || 0) + '</b> 件 → 合併回</div>' +
+          '<div style="margin-top:4px">原商品（' + esc(parent.group || '商品') + '）庫存：<b>' + (parent.stock || 0) + '</b> → <b>' + ((parent.stock || 0) + (splitProduct.stock || 0)) + '</b></div>' +
+        '</div>' +
+        '<div style="display:flex;gap:8px">' +
+          '<button id="merge-cancel" class="inv-btn outline full">取消</button>' +
+          '<button id="merge-ok" class="inv-btn primary full">確認合併</button>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(overlay);
+    document.getElementById('merge-cancel').addEventListener('click', function() { overlay.remove(); });
+
+    var self = this;
+    document.getElementById('merge-ok').addEventListener('click', async function() {
+      this.disabled = true; this.textContent = '處理中...';
+      try {
+        await self._executeMerge(splitProduct, parent);
+        overlay.remove();
+        InvApp.showToast('已合併回「' + esc(parent.group || '商品') + '」');
+        self._refreshProductList();
+      } catch (e) {
+        InvApp.showToast('合併失敗：' + (e.message || ''));
+        this.disabled = false; this.textContent = '確認合併';
+      }
+    });
+  },
+
+  /** 執行合併（Firestore Transaction） */
+  async _executeMerge(splitProduct, parentProduct) {
+    var splitRef = InvStore.col('products').doc(splitProduct.id);
+    var parentRef = InvStore.col('products').doc(parentProduct.id);
+    var txCol = InvStore.col('transactions');
+    var uid = (typeof InvAuth !== 'undefined' && InvAuth.getUid()) || '';
+    var operatorName = (typeof InvAuth !== 'undefined' && InvAuth.getName()) || '';
+
+    await db.runTransaction(async function(transaction) {
+      var splitDoc = await transaction.get(splitRef);
+      var parentDoc = await transaction.get(parentRef);
+      if (!splitDoc.exists) throw new Error('拆分品不存在');
+      if (!parentDoc.exists) throw new Error('原始商品不存在');
+
+      var splitStock = splitDoc.data().stock || 0;
+      var parentStock = parentDoc.data().stock || 0;
+
+      // 1. 原商品加回庫存
+      transaction.update(parentRef, {
+        stock: parentStock + splitStock,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+
+      // 2. 刪除拆分品
+      transaction.delete(splitRef);
+
+      // 3. 交易紀錄
+      transaction.set(txCol.doc(), {
+        type: 'merge', barcode: splitProduct.barcode,
+        productId: parentProduct.id, productName: splitProduct.name || '',
+        delta: splitStock, beforeStock: parentStock, afterStock: parentStock + splitStock,
+        mergedFrom: splitProduct.id, mergedGroup: splitProduct.group || '',
+        uid: uid, operatorName: operatorName,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+    });
+
+    // 更新本地快取
+    await this.loadAll();
+  },
+
+  /** 掃碼時若同條碼有多筆商品，顯示選擇彈窗 */
+  showBarcodeGroupPicker(barcode, matches, onSelect) {
+    var esc = InvApp.escapeHTML;
+    var overlay = document.createElement('div');
+    overlay.className = 'inv-overlay show';
+    overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+    overlay.addEventListener('touchmove', function(e) { if (!e.target.closest('.inv-modal')) { e.preventDefault(); e.stopPropagation(); } }, { passive: false });
+
+    var listHtml = '';
+    for (var i = 0; i < matches.length; i++) {
+      var m = matches[i];
+      var tag = m.isSplitChild ? ' <span style="font-size:11px;color:var(--accent)">[拆分]</span>' : '';
+      listHtml +=
+        '<button class="pick-group-btn" data-idx="' + i + '" style="width:100%;padding:12px;border:1px solid var(--border);border-radius:8px;background:var(--bg-card);cursor:pointer;text-align:left;margin-bottom:6px">' +
+          '<div style="font-weight:600;font-size:14px">' + esc(m.group || '商品') + tag + '</div>' +
+          '<div style="font-size:12px;color:var(--text-muted);margin-top:2px">庫存：' + (m.stock || 0) + ' 件 · ' + esc(m.name) + '</div>' +
+        '</button>';
+    }
+
+    overlay.innerHTML =
+      '<div class="inv-modal" style="max-width:320px;width:85%">' +
+        '<h3 style="margin:0 0 8px;font-size:16px">選擇頁籤</h3>' +
+        '<div style="font-size:13px;color:var(--text-muted);margin-bottom:10px">此條碼有多個分組，請選擇：</div>' +
+        listHtml +
+      '</div>';
+    document.body.appendChild(overlay);
+
+    overlay.querySelectorAll('.pick-group-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var idx = parseInt(this.getAttribute('data-idx'), 10);
+        overlay.remove();
+        if (onSelect) onSelect(matches[idx]);
+      });
     });
   }
 };

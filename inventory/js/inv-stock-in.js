@@ -53,10 +53,17 @@ const InvStockIn = {
   async onScan(barcode) {
     InvScanner.stop();
     var _hp = typeof InvAuth !== 'undefined' && InvAuth.hasPerm ? InvAuth.hasPerm.bind(InvAuth) : function() { return true; };
-    var product = InvProducts.getByBarcode(barcode);
-    if (product) {
+    var matches = InvProducts.getAllByBarcode(barcode);
+    if (matches.length > 1) {
+      // 共用條碼 → 彈窗選擇補貨對象
       if (!_hp('stockin.restock')) { InvApp.showToast('權限不足'); this._backToScan(); return; }
-      this.showRestockForm(product);
+      var self = this;
+      InvProducts.showBarcodeGroupPicker(barcode, matches, function(selected) {
+        self.showRestockForm(selected);
+      });
+    } else if (matches.length === 1) {
+      if (!_hp('stockin.restock')) { InvApp.showToast('權限不足'); this._backToScan(); return; }
+      this.showRestockForm(matches[0]);
     } else {
       if (!_hp('stockin.create')) { InvApp.showToast('權限不足'); this._backToScan(); return; }
       this.showNewProductForm(barcode);

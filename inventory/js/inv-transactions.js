@@ -34,6 +34,7 @@ const InvTransactions = {
       { key: 'all', label: '全部' }, { key: 'out', label: '銷售' },
       { key: 'in', label: '入庫' }, { key: 'return', label: '退貨' },
       { key: 'waste', label: '報廢' }, { key: 'adjust', label: '調整' },
+      { key: 'split', label: '拆分' },
     ];
 
     var ib = '<button class="inv-info-btn" onclick="InvTransactions._showInfo()" title="說明">?</button>';
@@ -129,8 +130,10 @@ const InvTransactions = {
         .limit(200);
 
       if (type && type !== 'all') {
+        // 拆分篩選包含 split_out / split_in / merge
+        var typeValues = type === 'split' ? ['split_out', 'split_in', 'merge'] : [type];
         q = InvStore.col('transactions')
-          .where('type', '==', type)
+          .where('type', 'in', typeValues)
           .where('createdAt', '>=', tsStart)
           .where('createdAt', '<=', tsEnd)
           .orderBy('createdAt', 'desc')
@@ -238,7 +241,7 @@ const InvTransactions = {
   },
 
   _getTypeLabel: function (type) {
-    var map = { out: '銷售', in: '入庫', return: '退貨', waste: '報廢', adjust: '調整', void: '作廢', gift: '贈品', correction: '修正' };
+    var map = { out: '銷售', in: '入庫', return: '退貨', waste: '報廢', adjust: '調整', void: '作廢', gift: '贈品', correction: '修正', split_out: '拆出', split_in: '拆入', merge: '合併' };
     return map[type] || '銷售';
   },
 
