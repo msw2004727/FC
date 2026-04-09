@@ -85,8 +85,12 @@ Object.assign(App, {
 
     // ─ 俱樂部管理 ─
     'admin.teams.entry': {
+      title: '俱樂部管理（入口）[已棄用]',
+      body: '已由 team.manage.entry 取代。',
+    },
+    'team.manage.entry': {
       title: '俱樂部管理（入口）',
-      body: '控制是否能在側邊選單中看到並進入「俱樂部管理」功能區。<br>關閉後該角色將無法存取任何俱樂部管理功能。',
+      body: '控制是否能在側邊選單中看到並進入「俱樂部管理」功能區。<br>俱樂部職員（captain+）看到自己管理的俱樂部，admin 看到全部俱樂部。<br>關閉後該角色將無法存取俱樂部管理功能。',
     },
     'team.create': {
       title: '建立俱樂部',

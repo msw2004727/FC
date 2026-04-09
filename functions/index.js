@@ -50,8 +50,8 @@ const ROLE_LEVELS = Object.freeze({
 // ⚠️ 同步規則：修改此常數時必須同步更新 js/config.js 中的同名常數 INHERENT_ROLE_PERMISSIONS
 const INHERENT_ROLE_PERMISSIONS = Object.freeze({
   coach:       ["activity.manage.entry", "admin.tournaments.entry"],
-  captain:     ["activity.manage.entry", "admin.tournaments.entry"],
-  venue_owner: ["activity.manage.entry", "admin.tournaments.entry"],
+  captain:     ["activity.manage.entry", "admin.tournaments.entry", "team.manage.entry"],
+  venue_owner: ["activity.manage.entry", "admin.tournaments.entry", "team.manage.entry"],
 });
 const ALLOWED_AUDIT_ACTIONS = new Set([
   "login_success",

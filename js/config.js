@@ -564,7 +564,7 @@ const DRAWER_MENUS = [
   { divider: true },
   { icon: '', label: '活動管理', i18nKey: 'drawer.activityManage', page: 'page-my-activities', minRole: 'coach', permissionCode: 'activity.manage.entry' },
   { icon: '', label: '賽事管理', i18nKey: 'drawer.tournamentManage', page: 'page-admin-tournaments', minRole: 'coach', permissionCode: 'admin.tournaments.entry' },
-  { icon: '', label: '俱樂部管理', page: 'page-team-manage', minRole: 'captain' },
+  { icon: '', label: '俱樂部管理', page: 'page-team-manage', minRole: 'captain', permissionCode: 'team.manage.entry' },
   { divider: true, minRole: 'admin' },
   { sectionLabel: '後台管理', i18nKey: 'drawer.backendManage', minRole: 'admin' },
   { icon: '', label: '小遊戲管理', page: 'page-admin-games', minRole: 'admin', permissionCode: 'admin.games.entry' },
@@ -656,8 +656,8 @@ const ADMIN_PAGE_EXTRA_PERMISSION_ITEMS = {
 // ⚠️ 同步規則：修改此常數時必須同步更新 functions/index.js 中的同名常數 INHERENT_ROLE_PERMISSIONS
 const INHERENT_ROLE_PERMISSIONS = Object.freeze({
   coach:       ['activity.manage.entry', 'admin.tournaments.entry'],
-  captain:     ['activity.manage.entry', 'admin.tournaments.entry'],
-  venue_owner: ['activity.manage.entry', 'admin.tournaments.entry'],
+  captain:     ['activity.manage.entry', 'admin.tournaments.entry', 'team.manage.entry'],
+  venue_owner: ['activity.manage.entry', 'admin.tournaments.entry', 'team.manage.entry'],
 });
 
 function getInherentRolePermissions(roleKey) {
