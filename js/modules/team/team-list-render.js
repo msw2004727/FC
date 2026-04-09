@@ -13,7 +13,7 @@ Object.assign(App, {
     const eduBadge = isEdu ? '<span class="tc-edu-badge">教學</span>' : '';
     const eduRibbon = isEdu ? '<span class="tc-edu-ribbon">教學</span>' : '';
     const sportEmoji = t.sportTag && typeof SPORT_ICON_EMOJI !== 'undefined' ? (SPORT_ICON_EMOJI[t.sportTag] || '') : '';
-    const sportBadge = sportEmoji ? `<span style="position:absolute;top:6px;left:6px;z-index:2;background:rgba(0,0,0,.55);border-radius:6px;padding:2px 7px;font-size:1.1rem;line-height:1.3;pointer-events:none">${sportEmoji}</span>` : '';
+    const sportBadge = sportEmoji ? `<span class="tc-sport-badge">${sportEmoji}</span>` : '';
     const memberLabel = isEdu ? '學員' : I18N.t('team.memberLabel');
     const memberCount = isEdu
       ? ((this._eduStudentsCache && this._eduStudentsCache[t.id])
