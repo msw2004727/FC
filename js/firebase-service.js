@@ -861,8 +861,6 @@ const FirebaseService = {
         App.renderTeamList?.();
       } else if (App.currentPage === 'page-team-manage') {
         App.renderTeamManage?.();
-      } else if (App.currentPage === 'page-admin-teams') {
-        App.renderAdminTeams?.();
       } else if (App.currentPage === 'page-team-detail' && App._teamDetailId) {
         var _tdS2 = window.scrollY || window.pageYOffset || 0;
         App.showTeamDetail?.(App._teamDetailId);

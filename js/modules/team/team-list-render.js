@@ -95,14 +95,22 @@ Object.assign(App, {
       });
     }
 
-    const currentFilter = filter || tabs?.querySelector('.tab.active')?.dataset.tab || 'my-teams';
     const isAdmin = this.hasPermission('team.manage_all');
 
+    // admin 顯示兩個 tab，非 admin 只顯示「我的俱樂部」
+    if (tabs) {
+      tabs.querySelectorAll('.tab').forEach(tab => {
+        if (tab.dataset.tab === 'all-teams') tab.style.display = isAdmin ? '' : 'none';
+      });
+    }
+
+    const currentFilter = filter || tabs?.querySelector('.tab.active')?.dataset.tab || 'my-teams';
+
     let teams;
-    if (currentFilter === 'my-teams' && !isAdmin) {
-      teams = ApiService.getTeams().filter(t => this._isTeamOwner(t));
-    } else {
+    if (currentFilter === 'all-teams' && isAdmin) {
       teams = ApiService.getTeams();
+    } else {
+      teams = ApiService.getTeams().filter(t => this._isTeamOwner(t));
     }
 
     if (!teams.length) {
@@ -121,7 +129,10 @@ Object.assign(App, {
         <div class="event-card-body">
           <div style="display:flex;justify-content:space-between;align-items:center">
             <div class="event-card-title">${mSportEmoji ? mSportEmoji + ' ' : ''}${escapeHTML(t.name)} <span style="font-size:.72rem;color:var(--text-muted)">${escapeHTML(t.nameEn || '')}</span></div>
-            <span style="font-size:.72rem;color:${t.active ? 'var(--success)' : 'var(--danger)'}">${t.active ? '上架中' : '已下架'}</span>
+            <div style="display:flex;gap:.4rem;align-items:center">
+              ${isAdmin && t.pinned ? '<span style="font-size:.72rem;color:var(--warning);font-weight:600">置頂</span>' : ''}
+              <span style="font-size:.72rem;color:${t.active ? 'var(--success)' : 'var(--danger)'}">${t.active ? '上架中' : '已下架'}</span>
+            </div>
           </div>
           <div class="event-meta">
             <span class="event-meta-item">領隊 ${escapeHTML(t.leader || '未設定')}</span>
@@ -131,6 +142,8 @@ Object.assign(App, {
           </div>
           <div style="display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.5rem" onclick="event.stopPropagation()">
             ${canEdit ? `<button class="primary-btn small" onclick="App.showTeamForm('${t.id}')">編輯</button>` : ''}
+            ${isAdmin ? `<button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem" onclick="App.toggleTeamPin('${t.id}')">${t.pinned ? '取消置頂' : '置頂'}</button>` : ''}
+            ${isAdmin ? `<button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem" onclick="App.toggleTeamActive('${t.id}')">${t.active ? '下架' : '上架'}</button>` : ''}
             ${canEdit ? `<button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem;color:var(--danger)" onclick="App.removeTeam('${t.id}')">刪除</button>` : ''}
           </div>
         </div>
