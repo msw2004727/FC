@@ -20,6 +20,7 @@ Object.assign(App, {
     const bio = document.getElementById('ct-team-bio').value.trim();
 
     if (!name) { this.showToast('請輸入俱樂部名稱'); return; }
+    if (!document.getElementById('ct-team-sport-tag')?.value) { this.showToast('請選擇運動類型'); return; }
 
     // ── 記錄舊職位（編輯模式用於降級檢查）──
     let oldCaptainUid = null;
