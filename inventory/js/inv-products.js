@@ -488,18 +488,16 @@ const InvProducts = {
     if (_hp('inventory.return')) actionRow += '<button id="btn-return-product" style="flex:1;padding:10px;border:1px solid var(--accent);border-radius:8px;background:var(--bg-card);color:var(--accent);font-size:14px;cursor:pointer">退貨</button>';
     if (_hp('inventory.waste')) actionRow += '<button id="btn-waste-product" style="flex:1;padding:10px;border:1px solid var(--danger);border-radius:8px;background:var(--bg-card);color:var(--danger);font-size:14px;cursor:pointer">報廢</button>';
     actionRow += '<button id="btn-print-barcode" style="flex:1;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--bg-card);color:var(--text-secondary);font-size:14px;cursor:pointer">列印條碼</button>';
-    // 拆分按鈕（非拆分品 + 庫存 >= 2 + 有權限）
-    if (!p.isSplitChild && (p.stock || 0) >= 2 && _hp('inventory.change_group')) {
+    // 拆分按鈕（非拆分品 + 庫存 >= 2 + 有拆分權限）
+    if (!p.isSplitChild && (p.stock || 0) >= 2 && _hp('inventory.split')) {
       actionRow += '<button id="btn-split-product" style="flex:1;padding:10px;border:1px solid #7c3aed;border-radius:8px;background:var(--bg-card);color:#7c3aed;font-size:14px;cursor:pointer">拆分</button>';
     }
-    // 合併按鈕（僅拆分品顯示）
-    if (p.isSplitChild && p.splitFrom && _hp('inventory.change_group')) {
+    // 合併按鈕（僅拆分品 + 有拆分權限）
+    if (p.isSplitChild && p.splitFrom && _hp('inventory.split')) {
       actionRow += '<button id="btn-merge-product" style="flex:1;padding:10px;border:1px solid #7c3aed;border-radius:8px;background:var(--bg-card);color:#7c3aed;font-size:14px;cursor:pointer">合併</button>';
     }
-    // 調撥按鈕（owner/manager + 庫存 > 0 + 有多個可存取的倉庫）
-    var _role = typeof InvAuth !== 'undefined' ? InvAuth.getRole() : '';
-    var _canTransfer = (_role === 'owner' || _role === 'manager') && (p.stock || 0) > 0 && InvStore.getAccessibleStores().length > 1;
-    if (_canTransfer) {
+    // 調撥按鈕（有調撥權限 + 庫存 > 0 + 有多個可存取的倉庫）
+    if (_hp('inventory.transfer') && (p.stock || 0) > 0 && InvStore.getAccessibleStores().length > 1) {
       actionRow += '<button id="btn-transfer-product" style="flex:1;padding:10px;border:1px solid #2563eb;border-radius:8px;background:var(--bg-card);color:#2563eb;font-size:14px;cursor:pointer">調撥</button>';
     }
     // 刪除按鈕（缺貨商品 + 有編輯權限）

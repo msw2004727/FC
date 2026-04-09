@@ -201,9 +201,10 @@ const InvAuth = {
     return map[this._role] || '店長';
   },
 
-  /** 是否可看進貨價（工程師 + 負責人） */
+  /** 是否可看進貨價（透過權限系統控制） */
   canSeeCost() {
-    return this._role === this.ROLE_OWNER || this._role === this.ROLE_MANAGER;
+    if (this._role === this.ROLE_OWNER) return true;
+    return this.hasPerm('inventory.see_cost');
   },
 
   /** 權限檢查便捷方法 */
