@@ -481,8 +481,14 @@ const InvProducts = {
     if (_canTransfer) {
       actionRow += '<button id="btn-transfer-product" style="flex:1;padding:10px;border:1px solid #2563eb;border-radius:8px;background:var(--bg-card);color:#2563eb;font-size:14px;cursor:pointer">調撥</button>';
     }
+    // 刪除按鈕（缺貨商品 + 有編輯權限）
+    var deleteRow = '';
+    if ((p.stock || 0) <= 0 && _hp('inventory.edit')) {
+      deleteRow = '<button id="btn-delete-product" style="width:100%;padding:10px;border:1px solid var(--danger);border-radius:8px;background:var(--bg-card);color:var(--danger);font-size:14px;cursor:pointer;margin-top:8px">刪除商品</button>';
+    }
     html += editBtnHtml +
         '<div style="display:flex;gap:8px;margin-top:8px">' + actionRow + '</div>' +
+        deleteRow +
         '<h4 style="margin:20px 0 8px">異動歷史</h4>' +
         '<div id="inv-product-tx-list" style="color:var(--text-muted);font-size:14px;">載入中...</div>' +
       '</div>';
@@ -601,6 +607,10 @@ const InvProducts = {
     if (mergeBtn) mergeBtn.addEventListener('click', function () { self._showMergeDialog(p.id); });
     var transferBtn = document.getElementById('btn-transfer-product');
     if (transferBtn) transferBtn.addEventListener('click', function () { self._showTransferDialog(p); });
+
+    // 刪除按鈕
+    var deleteBtn = document.getElementById('btn-delete-product');
+    if (deleteBtn) deleteBtn.addEventListener('click', function () { self._confirmDeleteProduct(p); });
 
     // 載入異動歷史
     this._loadTransactions(barcode);
@@ -1492,6 +1502,46 @@ const InvProducts = {
         uid: uid, operatorName: operatorName,
         createdAt: firebase.firestore.FieldValue.serverTimestamp()
       });
+    });
+  },
+
+  /** 刪除商品確認彈窗 */
+  _confirmDeleteProduct(product) {
+    var esc = InvApp.escapeHTML;
+    var overlay = document.createElement('div');
+    overlay.className = 'inv-overlay show';
+    overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+    overlay.addEventListener('touchmove', function(e) { if (!e.target.closest('.inv-modal')) { e.preventDefault(); e.stopPropagation(); } }, { passive: false });
+    overlay.innerHTML =
+      '<div class="inv-modal" style="max-width:340px;width:88%">' +
+        '<h3 style="margin:0 0 8px;font-size:16px;color:var(--danger)">確認刪除商品</h3>' +
+        '<div style="padding:12px;background:var(--bg-elevated);border-radius:8px;margin-bottom:12px;font-size:13px;line-height:1.7">' +
+          '<div>商品：<b>' + esc(product.name) + '</b></div>' +
+          '<div>條碼：' + esc(product.barcode) + '</div>' +
+          '<div>庫存：' + (product.stock || 0) + ' 件</div>' +
+        '</div>' +
+        '<div style="font-size:12px;color:var(--danger);margin-bottom:12px">此操作無法復原，商品資料將被永久刪除。</div>' +
+        '<div style="display:flex;gap:8px">' +
+          '<button id="del-cancel" class="inv-btn outline" style="flex:1;padding:10px;font-size:15px">取消</button>' +
+          '<button id="del-ok" style="flex:1;padding:10px;border:none;border-radius:8px;background:var(--danger);color:#fff;font-size:15px;font-weight:600;cursor:pointer">確認刪除</button>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(overlay);
+    document.getElementById('del-cancel').addEventListener('click', function() { overlay.remove(); });
+    var self = this;
+    document.getElementById('del-ok').addEventListener('click', async function() {
+      this.disabled = true; this.textContent = '刪除中...';
+      try {
+        await InvStore.col('products').doc(product.id).delete();
+        // 移除本地快取
+        self._cache = self._cache.filter(function(p) { return p.id !== product.id; });
+        overlay.remove();
+        InvApp.showToast('已刪除「' + esc(product.name) + '」');
+        InvApp.showPage('page-products');
+      } catch (e) {
+        InvApp.showToast('刪除失敗：' + (e.message || ''));
+        this.disabled = false; this.textContent = '確認刪除';
+      }
     });
   },
 
