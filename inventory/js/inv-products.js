@@ -475,6 +475,12 @@ const InvProducts = {
     if (p.isSplitChild && p.splitFrom && _hp('inventory.change_group')) {
       actionRow += '<button id="btn-merge-product" style="flex:1;padding:10px;border:1px solid #7c3aed;border-radius:8px;background:var(--bg-card);color:#7c3aed;font-size:14px;cursor:pointer">合併</button>';
     }
+    // 調撥按鈕（owner/manager + 庫存 > 0 + 有多個可存取的倉庫）
+    var _role = typeof InvAuth !== 'undefined' ? InvAuth.getRole() : '';
+    var _canTransfer = (_role === 'owner' || _role === 'manager') && (p.stock || 0) > 0 && InvStore.getAccessibleStores().length > 1;
+    if (_canTransfer) {
+      actionRow += '<button id="btn-transfer-product" style="flex:1;padding:10px;border:1px solid #2563eb;border-radius:8px;background:var(--bg-card);color:#2563eb;font-size:14px;cursor:pointer">調撥</button>';
+    }
     html += editBtnHtml +
         '<div style="display:flex;gap:8px;margin-top:8px">' + actionRow + '</div>' +
         '<h4 style="margin:20px 0 8px">異動歷史</h4>' +
@@ -588,11 +594,13 @@ const InvProducts = {
       }
     });
 
-    // 拆分 / 合併按鈕
+    // 拆分 / 合併 / 調撥按鈕
     var splitBtn = document.getElementById('btn-split-product');
     if (splitBtn) splitBtn.addEventListener('click', function () { self._showSplitDialog(barcode); });
     var mergeBtn = document.getElementById('btn-merge-product');
     if (mergeBtn) mergeBtn.addEventListener('click', function () { self._showMergeDialog(p.id); });
+    var transferBtn = document.getElementById('btn-transfer-product');
+    if (transferBtn) transferBtn.addEventListener('click', function () { self._showTransferDialog(p); });
 
     // 載入異動歷史
     this._loadTransactions(barcode);
@@ -626,9 +634,9 @@ const InvProducts = {
       var html = '';
       sorted.forEach(function (tx) {
         var qty = Number(tx.delta) || Number(tx.quantity) || 0;
-        if (tx.type === 'out' || tx.type === 'sale' || tx.type === 'waste') qty = -Math.abs(qty);
+        if (tx.type === 'out' || tx.type === 'sale' || tx.type === 'waste' || tx.type === 'transfer_out' || tx.type === 'split_out') qty = -Math.abs(qty);
         var sign = qty > 0 ? '+' : '', color = qty > 0 ? '#4CAF50' : '#f44336';
-        var _typeMap = { in: '入庫', out: '銷售', sale: '銷售', return: '退貨', waste: '報廢', adjust: '調整', correction: '修正', split_out: '拆出', split_in: '拆入', merge: '合併' };
+        var _typeMap = { in: '入庫', out: '銷售', sale: '銷售', return: '退貨', waste: '報廢', adjust: '調整', correction: '修正', split_out: '拆出', split_in: '拆入', merge: '合併', transfer_out: '調出', transfer_in: '調入' };
         var tl = _typeMap[tx.type] || tx.type || '-';
         var tm = tx.createdAt ? InvApp.formatDate(tx.createdAt.toDate()) : '-';
         html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px;">' +
@@ -1141,6 +1149,343 @@ const InvProducts = {
 
     // 更新本地快取
     await this.loadAll();
+  },
+
+  // ══════════════════════════════════════════
+  //  跨倉庫調撥（Transfer）
+  // ══════════════════════════════════════════
+
+  /** 調撥彈窗入口 — 多步驟 wizard */
+  async _showTransferDialog(product) {
+    var esc = InvApp.escapeHTML;
+    var srcStoreId = InvStore.getId();
+    var srcStoreName = InvStore.getName() || srcStoreId;
+    var allStores = InvStore.getAccessibleStores();
+    var destStores = allStores.filter(function(s) { return s.id !== srcStoreId; });
+    if (destStores.length === 0) { InvApp.showToast('沒有其他可調撥的倉庫'); return; }
+    if ((product.stock || 0) <= 0) { InvApp.showToast('庫存為 0，無法調撥'); return; }
+
+    // 讀取各目標倉庫的同條碼商品庫存 + 顯示名稱
+    var destInfo = {};
+    try {
+      var promises = destStores.map(function(s) {
+        return Promise.all([
+          db.collection('inv_stores').doc(s.id).get(),
+          db.collection('inv_stores').doc(s.id).collection('products').doc(product.barcode).get()
+        ]).then(function(results) {
+          var storeDoc = results[0], prodDoc = results[1];
+          destInfo[s.id] = {
+            displayName: (storeDoc.exists && storeDoc.data().shopName) || s.name,
+            existingStock: prodDoc.exists ? (prodDoc.data().stock || 0) : null,
+            existingPrice: prodDoc.exists ? (prodDoc.data().price || 0) : null,
+            exists: prodDoc.exists
+          };
+        });
+      });
+      await Promise.all(promises);
+    } catch (_) {}
+
+    // Step 1: 選擇目標倉庫
+    this._showTransferStep1(product, srcStoreId, srcStoreName, destStores, destInfo);
+  },
+
+  _showTransferStep1(product, srcStoreId, srcStoreName, destStores, destInfo) {
+    var esc = InvApp.escapeHTML;
+    var overlay = document.createElement('div');
+    overlay.className = 'inv-overlay show';
+    overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+    overlay.addEventListener('touchmove', function(e) { if (!e.target.closest('.inv-modal')) { e.preventDefault(); e.stopPropagation(); } }, { passive: false });
+
+    var btnsHtml = '';
+    for (var i = 0; i < destStores.length; i++) {
+      var s = destStores[i];
+      var info = destInfo[s.id] || {};
+      var stockLabel = info.exists ? '現有庫存：' + info.existingStock : '尚無此商品';
+      btnsHtml +=
+        '<button class="xfr-dest-btn" data-store="' + esc(s.id) + '" style="width:100%;padding:14px;border:1px solid var(--border);border-radius:8px;background:var(--bg-card);cursor:pointer;text-align:left;margin-bottom:6px">' +
+          '<div style="font-weight:600;font-size:15px">' + esc(info.displayName || s.name) + '</div>' +
+          '<div style="font-size:12px;color:var(--text-muted);margin-top:2px">' + stockLabel + '</div>' +
+        '</button>';
+    }
+
+    overlay.innerHTML =
+      '<div class="inv-modal" style="max-width:360px;width:88%">' +
+        '<h3 style="margin:0 0 4px;font-size:16px">調撥商品</h3>' +
+        '<div style="font-size:13px;color:var(--text-muted);margin-bottom:10px">' + esc(product.name) + ' · 從 <b>' + esc(srcStoreName) + '</b>（庫存 ' + product.stock + '）</div>' +
+        '<div style="font-size:12px;color:var(--text-muted);margin-bottom:6px">調撥至：</div>' +
+        btnsHtml +
+        '<button id="xfr-cancel" class="inv-btn outline full" style="margin-top:4px">取消</button>' +
+      '</div>';
+    document.body.appendChild(overlay);
+
+    document.getElementById('xfr-cancel').addEventListener('click', function() { overlay.remove(); });
+    var self = this;
+    overlay.querySelectorAll('.xfr-dest-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var destId = this.getAttribute('data-store');
+        overlay.remove();
+        self._showTransferStep2(product, srcStoreId, srcStoreName, destId, destInfo);
+      });
+    });
+  },
+
+  _showTransferStep2(product, srcStoreId, srcStoreName, destStoreId, destInfo) {
+    var esc = InvApp.escapeHTML;
+    var info = destInfo[destStoreId] || {};
+    var destName = info.displayName || destStoreId;
+    var maxQty = product.stock || 0;
+
+    var overlay = document.createElement('div');
+    overlay.className = 'inv-overlay show';
+    overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+    overlay.addEventListener('touchmove', function(e) { if (!e.target.closest('.inv-modal')) { e.preventDefault(); e.stopPropagation(); } }, { passive: false });
+
+    overlay.innerHTML =
+      '<div class="inv-modal" style="max-width:360px;width:88%">' +
+        '<h3 style="margin:0 0 4px;font-size:16px">調撥至 ' + esc(destName) + '</h3>' +
+        '<div style="font-size:13px;color:var(--text-muted);margin-bottom:10px">' + esc(product.name) + '</div>' +
+        '<label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px">調撥數量 <span style="font-size:11px">(1 ~ ' + maxQty + ')</span></label>' +
+        '<div style="display:flex;align-items:center;gap:0;margin-bottom:8px">' +
+          '<button id="xfr-minus" style="width:44px;height:40px;border:1px solid var(--border);border-radius:8px 0 0 8px;background:var(--bg-elevated);font-size:20px;font-weight:700;cursor:pointer;flex-shrink:0;color:var(--text-primary)">−</button>' +
+          '<input id="xfr-qty" type="number" inputmode="numeric" value="1" min="1" max="' + maxQty + '" class="inv-hide-spin" style="flex:1;min-width:0;text-align:center;font-size:22px;font-weight:700;border-top:1px solid var(--border);border-bottom:1px solid var(--border);border-left:none;border-right:none;padding:0;height:40px;box-sizing:border-box;background:var(--bg-card);color:var(--text-primary);-moz-appearance:textfield" />' +
+          '<button id="xfr-plus" style="width:44px;height:40px;border:1px solid var(--border);border-radius:0 8px 8px 0;background:var(--bg-elevated);font-size:20px;font-weight:700;cursor:pointer;flex-shrink:0;color:var(--text-primary)">+</button>' +
+        '</div>' +
+        '<div style="font-size:12px;color:var(--text-muted);padding:8px;background:var(--bg-elevated);border-radius:6px;margin-bottom:12px">' +
+          '調撥後：<b>' + esc(srcStoreName) + '</b> ' + maxQty + ' → <b id="xfr-src-after">' + (maxQty - 1) + '</b>' +
+          ' · <b>' + esc(destName) + '</b> ' + (info.existingStock || 0) + ' → <b id="xfr-dst-after">' + ((info.existingStock || 0) + 1) + '</b>' +
+        '</div>' +
+        '<div style="display:flex;gap:8px">' +
+          '<button id="xfr-back" class="inv-btn outline full">上一步</button>' +
+          '<button id="xfr-next" class="inv-btn primary full">下一步</button>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(overlay);
+
+    var qi = document.getElementById('xfr-qty');
+    var srcAfterEl = document.getElementById('xfr-src-after');
+    var dstAfterEl = document.getElementById('xfr-dst-after');
+    var dstStock = info.existingStock || 0;
+
+    var updatePreview = function() {
+      var v = Math.max(1, Math.min(maxQty, parseInt(qi.value, 10) || 1));
+      srcAfterEl.textContent = maxQty - v;
+      dstAfterEl.textContent = dstStock + v;
+    };
+    document.getElementById('xfr-minus').addEventListener('click', function() {
+      qi.value = Math.max(1, (parseInt(qi.value, 10) || 1) - 1); updatePreview();
+    });
+    document.getElementById('xfr-plus').addEventListener('click', function() {
+      qi.value = Math.min(maxQty, (parseInt(qi.value, 10) || 0) + 1); updatePreview();
+    });
+    qi.addEventListener('input', updatePreview);
+
+    document.getElementById('xfr-back').addEventListener('click', function() {
+      overlay.remove();
+      // 回到 Step 1 需要 destStores，從 destInfo 反推
+      var destStores = InvStore.getAccessibleStores().filter(function(s) { return s.id !== srcStoreId; });
+      InvProducts._showTransferStep1(product, srcStoreId, srcStoreName, destStores, destInfo);
+    });
+
+    var self = this;
+    document.getElementById('xfr-next').addEventListener('click', function() {
+      var qty = parseInt(qi.value, 10);
+      if (!qty || qty < 1 || qty > maxQty) { InvApp.showToast('數量無效'); return; }
+      overlay.remove();
+      // 價格不同且目標已有商品 → Step 3，否則跳到確認
+      if (info.exists && info.existingPrice !== null && info.existingPrice !== (product.price || 0)) {
+        self._showTransferStep3(product, srcStoreId, srcStoreName, destStoreId, destName, qty, info, destInfo);
+      } else {
+        self._showTransferConfirm(product, srcStoreId, srcStoreName, destStoreId, destName, qty, null, info, destInfo);
+      }
+    });
+  },
+
+  /** Step 3: 價格衝突確認（僅在兩邊價格不同時出現） */
+  _showTransferStep3(product, srcStoreId, srcStoreName, destStoreId, destName, qty, info, destInfo) {
+    var esc = InvApp.escapeHTML;
+    var overlay = document.createElement('div');
+    overlay.className = 'inv-overlay show';
+    overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+    overlay.addEventListener('touchmove', function(e) { if (!e.target.closest('.inv-modal')) { e.preventDefault(); e.stopPropagation(); } }, { passive: false });
+
+    overlay.innerHTML =
+      '<div class="inv-modal" style="max-width:360px;width:88%">' +
+        '<h3 style="margin:0 0 8px;font-size:16px">\u26a0 價格不同</h3>' +
+        '<div style="padding:10px;background:var(--bg-elevated);border-radius:8px;margin-bottom:12px;font-size:13px">' +
+          '<div>' + esc(srcStoreName) + ' 售價：<b>$' + (product.price || 0) + '</b></div>' +
+          '<div style="margin-top:4px">' + esc(destName) + ' 售價：<b>$' + (info.existingPrice || 0) + '</b></div>' +
+        '</div>' +
+        '<div style="font-size:13px;color:var(--text-muted);margin-bottom:8px">調撥後商品售價：</div>' +
+        '<label style="display:flex;align-items:center;gap:8px;padding:10px;border:2px solid var(--accent);border-radius:8px;margin-bottom:6px;cursor:pointer;background:var(--bg-card)">' +
+          '<input type="radio" name="xfr-price" value="dest" checked style="accent-color:var(--accent)"> <span>沿用 ' + esc(destName) + ' 現有價格 <b>$' + (info.existingPrice || 0) + '</b></span>' +
+        '</label>' +
+        '<label style="display:flex;align-items:center;gap:8px;padding:10px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px;cursor:pointer;background:var(--bg-card)">' +
+          '<input type="radio" name="xfr-price" value="source" style="accent-color:var(--accent)"> <span>帶入 ' + esc(srcStoreName) + ' 價格 <b>$' + (product.price || 0) + '</b></span>' +
+        '</label>' +
+        '<div style="display:flex;gap:8px;margin-top:12px">' +
+          '<button id="xfr3-back" class="inv-btn outline full">上一步</button>' +
+          '<button id="xfr3-next" class="inv-btn primary full">下一步</button>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(overlay);
+
+    // radio 點擊切換邊框
+    overlay.querySelectorAll('label').forEach(function(lbl) {
+      lbl.addEventListener('click', function() {
+        overlay.querySelectorAll('label').forEach(function(l) { l.style.border = '1px solid var(--border)'; });
+        this.style.border = '2px solid var(--accent)';
+      });
+    });
+
+    var self = this;
+    document.getElementById('xfr3-back').addEventListener('click', function() {
+      overlay.remove();
+      self._showTransferStep2(product, srcStoreId, srcStoreName, destStoreId, destInfo);
+    });
+    document.getElementById('xfr3-next').addEventListener('click', function() {
+      var sel = overlay.querySelector('input[name="xfr-price"]:checked');
+      var priceOverride = sel && sel.value === 'source' ? product.price : null;
+      overlay.remove();
+      self._showTransferConfirm(product, srcStoreId, srcStoreName, destStoreId, destName, qty, priceOverride, info, destInfo);
+    });
+  },
+
+  /** Step 4: 確認總覽 */
+  _showTransferConfirm(product, srcStoreId, srcStoreName, destStoreId, destName, qty, priceOverride, info, destInfo) {
+    var esc = InvApp.escapeHTML;
+    var srcAfter = (product.stock || 0) - qty;
+    var dstBefore = info.existingStock || 0;
+    var dstAfter = dstBefore + qty;
+    var priceLabel = priceOverride !== null ? '$' + priceOverride + '（來源價格）' : (info.exists ? '$' + (info.existingPrice || 0) + '（目標價格）' : '$' + (product.price || 0) + '（複製來源）');
+
+    var overlay = document.createElement('div');
+    overlay.className = 'inv-overlay show';
+    overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+    overlay.addEventListener('touchmove', function(e) { if (!e.target.closest('.inv-modal')) { e.preventDefault(); e.stopPropagation(); } }, { passive: false });
+
+    overlay.innerHTML =
+      '<div class="inv-modal" style="max-width:360px;width:88%">' +
+        '<h3 style="margin:0 0 10px;font-size:16px">確認調撥</h3>' +
+        '<div style="padding:12px;background:var(--bg-elevated);border-radius:8px;margin-bottom:12px;font-size:13px;line-height:1.8">' +
+          '<div>商品：<b>' + esc(product.name) + '</b></div>' +
+          '<div>數量：<b>' + qty + ' 件</b></div>' +
+          '<div>路線：<b>' + esc(srcStoreName) + '</b> → <b>' + esc(destName) + '</b></div>' +
+          '<div>售價：' + priceLabel + '</div>' +
+          '<div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border)">' +
+            esc(srcStoreName) + '：' + (product.stock || 0) + ' → <b>' + srcAfter + '</b>' +
+          '</div>' +
+          '<div>' + esc(destName) + '：' + dstBefore + ' → <b>' + dstAfter + '</b></div>' +
+        '</div>' +
+        '<div style="display:flex;gap:8px">' +
+          '<button id="xfr-conf-cancel" class="inv-btn outline full">取消</button>' +
+          '<button id="xfr-conf-ok" style="flex:1;padding:10px;border:none;border-radius:8px;background:#2563eb;color:#fff;font-size:15px;font-weight:600;cursor:pointer">確認調撥</button>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(overlay);
+
+    document.getElementById('xfr-conf-cancel').addEventListener('click', function() { overlay.remove(); });
+    var self = this;
+    document.getElementById('xfr-conf-ok').addEventListener('click', async function() {
+      this.disabled = true; this.textContent = '處理中...';
+      try {
+        await self._executeTransfer(product, srcStoreId, destStoreId, qty, priceOverride);
+        overlay.remove();
+        InvApp.showToast('已調撥 ' + qty + ' 件至 ' + esc(destName));
+        // 重新載入當前倉庫商品並返回列表
+        await InvProducts.loadAll();
+        self._refreshProductList();
+      } catch (e) {
+        InvApp.showToast('調撥失敗：' + (e.message || ''));
+        this.disabled = false; this.textContent = '確認調撥';
+      }
+    });
+  },
+
+  /** 執行跨倉庫調撥（Firestore Transaction 寫 5 個文件） */
+  async _executeTransfer(product, srcStoreId, destStoreId, qty, priceOverride) {
+    var srcProductRef = db.collection('inv_stores').doc(srcStoreId).collection('products').doc(product.id);
+    var destProductRef = db.collection('inv_stores').doc(destStoreId).collection('products').doc(product.barcode);
+    var srcTxCol = db.collection('inv_stores').doc(srcStoreId).collection('transactions');
+    var destTxCol = db.collection('inv_stores').doc(destStoreId).collection('transactions');
+    var transferId = 'xfr_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6);
+    var transferRef = db.collection('inv_transfers').doc(transferId);
+    var uid = (typeof InvAuth !== 'undefined' && InvAuth.getUid()) || '';
+    var operatorName = (typeof InvAuth !== 'undefined' && InvAuth.getName()) || '';
+
+    await db.runTransaction(async function(transaction) {
+      // Reads first
+      var srcSnap = await transaction.get(srcProductRef);
+      var destSnap = await transaction.get(destProductRef);
+
+      if (!srcSnap.exists) throw new Error('來源商品不存在');
+      var srcData = srcSnap.data();
+      var srcStock = srcData.stock || 0;
+      if (srcStock < qty) throw new Error('庫存不足（剩 ' + srcStock + '）');
+
+      var destExists = destSnap.exists;
+      var destStock = destExists ? (destSnap.data().stock || 0) : 0;
+      var srcAfter = srcStock - qty;
+      var destAfter = destStock + qty;
+
+      var productSnapshot = {
+        name: srcData.name || '', price: srcData.price || 0, costPrice: srcData.costPrice || 0,
+        group: srcData.group || '商品', brand: srcData.brand || '', category: srcData.category || ''
+      };
+
+      // 1. 扣減來源庫存
+      transaction.update(srcProductRef, {
+        stock: srcAfter,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+
+      // 2. 目標：存在則加庫存，不存在則建立
+      if (destExists) {
+        var destUpdate = { stock: destAfter, updatedAt: firebase.firestore.FieldValue.serverTimestamp() };
+        if (priceOverride !== null && priceOverride !== undefined) destUpdate.price = priceOverride;
+        transaction.update(destProductRef, destUpdate);
+      } else {
+        transaction.set(destProductRef, {
+          barcode: product.barcode, name: srcData.name || '', price: priceOverride !== null && priceOverride !== undefined ? priceOverride : (srcData.price || 0),
+          costPrice: srcData.costPrice || 0, stock: qty, group: srcData.group || '商品',
+          brand: srcData.brand || '', category: srcData.category || '', color: srcData.color || '',
+          size: srcData.size || '', image: srcData.image || '', imageUrl: srcData.imageUrl || '',
+          lowStockAlert: srcData.lowStockAlert || 5,
+          createdViaTransfer: true, sourceTransferId: transferId,
+          createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+      }
+
+      // 3. 來源交易紀錄
+      transaction.set(srcTxCol.doc(), {
+        type: 'transfer_out', barcode: product.barcode, productName: srcData.name || '',
+        delta: -qty, beforeStock: srcStock, afterStock: srcAfter,
+        transferId: transferId, destStoreId: destStoreId,
+        uid: uid, operatorName: operatorName,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+
+      // 4. 目標交易紀錄
+      transaction.set(destTxCol.doc(), {
+        type: 'transfer_in', barcode: product.barcode, productName: srcData.name || '',
+        delta: qty, beforeStock: destStock, afterStock: destAfter,
+        transferId: transferId, sourceStoreId: srcStoreId,
+        uid: uid, operatorName: operatorName,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+
+      // 5. 調撥主記錄
+      transaction.set(transferRef, {
+        transferId: transferId, status: 'completed',
+        sourceStoreId: srcStoreId, destStoreId: destStoreId,
+        storeIds: [srcStoreId, destStoreId],
+        barcode: product.barcode, productName: srcData.name || '',
+        transferType: srcAfter === 0 ? 'full' : 'partial', qty: qty,
+        sourceBefore: srcStock, sourceAfter: srcAfter, destBefore: destStock, destAfter: destAfter,
+        productSnapshot: productSnapshot,
+        uid: uid, operatorName: operatorName,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+    });
   },
 
   /** 掃碼時若同條碼有多筆商品，顯示選擇彈窗 */
