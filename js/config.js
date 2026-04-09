@@ -617,7 +617,7 @@ const ADMIN_PAGE_EXTRA_PERMISSION_ITEMS = {
     { code: 'admin.tournaments.manage_all', name: '管理所有賽事' },
     { code: 'admin.tournaments.review', name: '審核參賽申請' },
   ],
-  'page-admin-teams': [
+  'page-team-manage': [
     { code: 'team.create', name: '建立俱樂部' },
     { code: 'team.manage_all', name: '管理所有俱樂部' },
     { code: 'team.manage_self', name: '管理自己的俱樂部' },
