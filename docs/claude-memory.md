@@ -10,6 +10,12 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-04-10 — 庫存系統頁籤管理功能（顯示名稱映射）
+- **需求**：讓用戶自訂庫存頁面群組頁籤的顯示名稱（商品/活動/器材/其他）
+- **設計決策**：採用「顯示名稱映射」方案，而非「重新命名 group 欄位」。內部 group 值永不改變，僅在 Firestore `inv_stores/{storeId}.groupTabNames` 存映射表。此設計消滅了 8/15 個潛在 Bug（含批次更新失敗、資料一致性、快取同步等致命問題），且單筆 Firestore 文件寫入天然原子。
+- **修改範圍**：`inv-products.js`（新增 `_groupTabNames`、`loadGroupTabs()`、`_groupLabel()` + 15 處顯示點套用）、`inv-store.js`（切換倉庫重置映射）、`inv-auth.js`（登入後載入映射）、`inv-permissions.js`（新增 `settings.group_tabs` 權限碼）、`inv-settings.js`（頁籤管理卡片 + 改名彈窗 + 還原功能）、`inv-sale.js`（購物車拆分品名稱映射）、`inv-utils.js`（log label）、`index.html`（切換庫存按鈕 + 版號 82）
+- **教訓**：當需要「重新命名」一個被多處引用的值時，優先考慮「映射/別名」方案而非「批量替換原始值」，可大幅降低資料一致性風險
+
 ### [永久] 2026-04-09 — _isUserSignedUp displayName fallback 同名碰撞 bug
 - **問題**：兩個不同用戶同名 "Lucas"，`_isUserSignedUp` 的 displayName fallback 用名字比對 `event.participants`，導致未報名的用戶被誤判為已報名，看到「取消報名」按鈕但無法取消（`getMyRegistrationsByEvent` 正確用 UID 查不到報名紀錄）
 - **原因**：`event.participants` 存的是 displayName（非 UID），fallback 用 `p === name` 比對，同名即中招

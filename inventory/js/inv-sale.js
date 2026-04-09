@@ -90,7 +90,7 @@ const InvSale = {
         if (stock <= 3) InvApp.showToast('提醒：此商品庫存僅剩 ' + stock + ' 件');
         InvCart.add({
           barcode: data.barcode, productId: doc.id,
-          name: (data.name || '未命名商品') + (data.isSplitChild ? ' [' + (data.group || '') + ']' : ''),
+          name: (data.name || '未命名商品') + (data.isSplitChild ? ' [' + (typeof InvProducts !== 'undefined' ? InvProducts._groupLabel(data.group || '') : (data.group || '')) + ']' : ''),
           unitPrice: Number(data.price) || 0, costPrice: Number(data.costPrice) || 0,
         });
         InvCart.renderCartList('inv-cart-list');

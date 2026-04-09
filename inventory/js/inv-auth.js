@@ -158,7 +158,8 @@ const InvAuth = {
         }
         // 顯示庫存選擇器，選取後再進入 dashboard
         if (typeof InvStore !== 'undefined') {
-          InvStore.showSelector(function () {
+          InvStore.showSelector(async function () {
+            if (typeof InvProducts !== 'undefined') await InvProducts.loadGroupTabs();
             InvUtils.writeLog('login', InvAuth.getRoleName() + ' ' + (InvAuth.currentUser.name || uid));
             InvApp.showPage('page-dashboard');
             if (typeof InvDashboard !== 'undefined') InvDashboard.render();

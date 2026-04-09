@@ -76,6 +76,11 @@ const InvSettings = {
       sections += this._card(h4('商品分類管理', 'category') + '<div id="inv-category-list"></div>');
     }
 
+    // Group tabs card
+    if (_hp('settings.group_tabs')) {
+      sections += this._card(h4('頁籤管理', 'grouptabs') + '<div id="inv-group-tabs-list"></div>');
+    }
+
     // Barcode prefix card (always shown if settings.entry)
     sections += this._card(h4('條碼設定', 'barcode') +
       '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">' +
@@ -116,6 +121,7 @@ const InvSettings = {
     if (_hp('settings.people')) this.renderAdminList(cfg.adminUids || []);
     if (_hp('settings.announcements')) this.renderAnnouncements();
     if (_hp('settings.categories')) this.renderCategories(storeCfg.categories || null);
+    if (_hp('settings.group_tabs')) this._renderGroupTabs();
   },
 
   // ══════ 人員白名單（工程師/負責人/店長/店員/工讀）══════
@@ -435,6 +441,118 @@ const InvSettings = {
       InvApp.showToast('前綴已儲存：' + val);
     } catch (e) {
       InvApp.showToast('儲存失敗：' + (e.message || ''));
+    }
+  },
+
+  // ══════ 頁籤管理 ══════
+
+  _renderGroupTabs() {
+    var w = document.getElementById('inv-group-tabs-list');
+    if (!w) return;
+    var tabs = InvProducts.GROUP_TABS;
+    var esc = InvApp.escapeHTML;
+    var html = '<div style="display:flex;flex-wrap:wrap;gap:8px">';
+    for (var i = 0; i < tabs.length; i++) {
+      var internal = tabs[i];
+      var display = InvProducts._groupLabel(internal);
+      var isCustom = display !== internal;
+      html +=
+        '<div style="flex:1;min-width:calc(50% - 4px);box-sizing:border-box;padding:10px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--bg-elevated);text-align:center">' +
+          '<div style="font-size:15px;font-weight:600;color:var(--text-primary)">' + esc(display) + '</div>' +
+          (isCustom ? '<div style="font-size:11px;color:var(--text-muted);margin-top:2px">原名：' + esc(internal) + '</div>' : '') +
+          '<button onclick="InvSettings._showGroupTabRenameModal(\'' + esc(internal) + '\')" style="margin-top:6px;padding:3px 14px;border:1px solid var(--accent);border-radius:6px;background:var(--bg-card);color:var(--accent);font-size:12px;cursor:pointer">改名</button>' +
+          (isCustom ? ' <button onclick="InvSettings._resetGroupTabName(\'' + esc(internal) + '\')" style="margin-top:6px;padding:3px 10px;border:1px solid var(--text-muted);border-radius:6px;background:var(--bg-card);color:var(--text-muted);font-size:12px;cursor:pointer">還原</button>' : '') +
+        '</div>';
+    }
+    html += '</div>';
+    w.innerHTML = html;
+  },
+
+  _showGroupTabRenameModal(internalName) {
+    if (!InvAuth.hasPerm('settings.group_tabs')) { InvApp.showToast('權限不足'); return; }
+    var esc = InvApp.escapeHTML;
+    var currentDisplay = InvProducts._groupLabel(internalName);
+    var existing = document.getElementById('inv-grouptab-rename-overlay');
+    if (existing) existing.remove();
+
+    var overlay = document.createElement('div');
+    overlay.id = 'inv-grouptab-rename-overlay';
+    overlay.className = 'inv-overlay show';
+    overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+    overlay.addEventListener('touchmove', function(e) {
+      if (!e.target.closest('.inv-modal')) { e.preventDefault(); e.stopPropagation(); }
+    }, { passive: false });
+    overlay.innerHTML =
+      '<div class="inv-modal" style="max-width:340px;width:88%">' +
+        '<h3 style="margin:0 0 12px;font-size:17px;font-weight:700;text-align:center">修改頁籤名稱</h3>' +
+        '<div style="font-size:13px;color:var(--text-muted);margin-bottom:12px;text-align:center">倉庫：<b style="color:var(--text-primary)">' + esc(InvStore.getName() || '') + '</b></div>' +
+        '<label style="font-size:13px;color:var(--text-muted);display:block;margin-bottom:4px">原始名稱</label>' +
+        '<input class="inv-input" value="' + esc(internalName) + '" disabled style="height:40px;font-size:14px;margin-bottom:10px;opacity:.6" />' +
+        '<label style="font-size:13px;color:var(--text-muted);display:block;margin-bottom:4px">目前顯示名稱</label>' +
+        '<input class="inv-input" value="' + esc(currentDisplay) + '" disabled style="height:40px;font-size:14px;margin-bottom:10px;opacity:.6" />' +
+        '<label style="font-size:13px;color:var(--text-muted);display:block;margin-bottom:4px">新顯示名稱</label>' +
+        '<input id="gt-new-name" class="inv-input" value="' + esc(currentDisplay) + '" maxlength="10" style="height:40px;font-size:14px;margin-bottom:4px" />' +
+        '<div style="font-size:11px;color:var(--text-muted);margin-bottom:12px">僅修改顯示名稱，不影響商品資料。最多 10 字。</div>' +
+        '<div style="display:flex;gap:8px">' +
+          '<button id="gt-cancel" class="inv-btn outline full">取消</button>' +
+          '<button id="gt-confirm" class="inv-btn primary full">確認修改</button>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(overlay);
+
+    document.getElementById('gt-cancel').addEventListener('click', function() { overlay.remove(); });
+    document.getElementById('gt-new-name').focus();
+    var self = this;
+    document.getElementById('gt-confirm').addEventListener('click', async function() {
+      var newName = (document.getElementById('gt-new-name').value || '').trim();
+      // 驗證
+      if (!newName) { InvApp.showToast('名稱不可為空'); return; }
+      if (newName.length > 10) { InvApp.showToast('名稱不可超過 10 字'); return; }
+      if (newName === currentDisplay) { InvApp.showToast('名稱未變更'); return; }
+      // 檢查重複（與其他頁籤的顯示名稱比較）
+      var tabs = InvProducts.GROUP_TABS;
+      for (var i = 0; i < tabs.length; i++) {
+        if (tabs[i] === internalName) continue;
+        if (InvProducts._groupLabel(tabs[i]) === newName) {
+          InvApp.showToast('此名稱已被其他頁籤使用');
+          return;
+        }
+      }
+      // 離線檢查
+      if (!navigator.onLine) { InvApp.showToast('無網路連線，無法修改'); return; }
+
+      this.disabled = true; this.textContent = '儲存中...';
+      try {
+        // 寫入 Firestore
+        var newMap = Object.assign({}, InvProducts._groupTabNames || {});
+        newMap[internalName] = newName;
+        await InvStore.storeRef().set({ groupTabNames: newMap }, { merge: true });
+        // 更新本地映射
+        InvProducts._groupTabNames[internalName] = newName;
+        InvUtils.writeLog('setting_group_tab', internalName + ' → ' + newName);
+        InvApp.showToast('頁籤「' + InvApp.escapeHTML(newName) + '」已更新');
+        overlay.remove();
+        self._renderGroupTabs();
+      } catch (e) {
+        InvApp.showToast('儲存失敗：' + (e.message || ''));
+        this.disabled = false; this.textContent = '確認修改';
+      }
+    });
+  },
+
+  async _resetGroupTabName(internalName) {
+    if (!InvAuth.hasPerm('settings.group_tabs')) { InvApp.showToast('權限不足'); return; }
+    if (!navigator.onLine) { InvApp.showToast('無網路連線'); return; }
+    try {
+      var newMap = Object.assign({}, InvProducts._groupTabNames || {});
+      delete newMap[internalName];
+      await InvStore.storeRef().set({ groupTabNames: newMap }, { merge: true });
+      InvProducts._groupTabNames = newMap;
+      InvUtils.writeLog('setting_group_tab', internalName + ' 還原為預設');
+      InvApp.showToast('已還原為「' + InvApp.escapeHTML(internalName) + '」');
+      this._renderGroupTabs();
+    } catch (e) {
+      InvApp.showToast('還原失敗：' + (e.message || ''));
     }
   },
 
@@ -894,6 +1012,15 @@ const InvSettings = {
           + '<div style="background:var(--accent-subtle);border-radius:var(--radius-sm);padding:10px 12px;margin:8px 0">'
           + '<b>篩選功能</b><p style="font-size:13px;margin:4px 0 0;color:var(--text-secondary)">可依時間範圍、行為類型、人員暱稱篩選，快速找到特定操作紀錄。</p></div>'
           + '<p style="font-size:13px;color:var(--text-muted);margin-top:8px">紀錄為不可修改、不可刪除，確保稽核完整性。</p>'
+      },
+      grouptabs: {
+        title: '頁籤管理說明',
+        body: '<p>自訂庫存頁面的群組頁籤顯示名稱：</p>'
+          + '<div style="background:var(--accent-subtle);border-radius:var(--radius-sm);padding:10px 12px;margin:8px 0">'
+          + '<b>僅修改顯示名稱</b><p style="font-size:13px;margin:4px 0 0;color:var(--text-secondary)">頁籤改名只影響畫面上的顯示文字，不會修改任何商品資料。安全無副作用。</p></div>'
+          + '<div style="background:var(--accent-subtle);border-radius:var(--radius-sm);padding:10px 12px;margin:8px 0">'
+          + '<b>各倉庫獨立</b><p style="font-size:13px;margin:4px 0 0;color:var(--text-secondary)">每個倉庫可以有不同的頁籤名稱。修改只影響目前選擇的倉庫。</p></div>'
+          + '<p style="font-size:13px;color:var(--text-muted);margin-top:8px">點擊頁籤旁的「改名」按鈕即可修改。名稱不可為空、不可重複、最多 10 字。</p>'
       },
       announcement: {
         title: '登入公告管理說明',

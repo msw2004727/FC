@@ -37,7 +37,7 @@ const InvStore = {
     this._name = store.name;
     localStorage.setItem('inv_current_store', storeId);
     // 切換庫存時清除模組快取，確保重新載入該庫存資料
-    if (typeof InvProducts !== 'undefined') { InvProducts._cache = []; InvProducts._loaded = false; }
+    if (typeof InvProducts !== 'undefined') { InvProducts._cache = []; InvProducts._loaded = false; InvProducts._groupTabNames = {}; }
   },
 
   getId: function () { return this._id; },

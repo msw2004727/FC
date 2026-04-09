@@ -121,7 +121,7 @@ const InvUtils = {
     setting_shop_name: '修改店名', setting_admin_add: '新增人員', setting_admin_remove: '移除人員',
     setting_admin_role: '變更角色', setting_category: '分類管理', setting_barcode_prefix: '條碼前綴',
     announcement_create: '新增公告', announcement_edit: '編輯公告', announcement_delete: '刪除公告',
-    barcode_print: '條碼列印', stock_rebuild: '庫存重建',
+    barcode_print: '條碼列印', stock_rebuild: '庫存重建', setting_group_tab: '頁籤改名',
   },
 
   /**

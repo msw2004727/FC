@@ -860,7 +860,7 @@ const InvProducts = {
   async _changeProductGroup(barcode, newGroup) {
     try {
       await this.update(barcode, { group: newGroup });
-      InvApp.showToast('已移至「' + InvApp.escapeHTML(newGroup) + '」');
+      InvApp.showToast('已移至「' + InvApp.escapeHTML(this._groupLabel(newGroup)) + '」');
       this._refreshProductList();
     } catch (e) {
       InvApp.showToast('分類變更失敗');
@@ -1013,7 +1013,6 @@ const InvProducts = {
     groupSel.addEventListener('change', updatePreview);
     document.getElementById('split-cancel').addEventListener('click', function() { overlay.remove(); });
 
-    var self = this;
     document.getElementById('split-ok').addEventListener('click', async function() {
       var qty = parseInt(qi.value, 10);
       if (!qty || qty < 1 || qty > maxQty) { InvApp.showToast('數量無效'); return; }

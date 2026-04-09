@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#0d9488">
   <meta name="robots" content="noindex, nofollow">
   <title>ToosterX 庫存管理</title>
-  <link rel="stylesheet" href="css/inventory.css?v=81">
+  <link rel="stylesheet" href="css/inventory.css?v=82">
 </head>
 <body>
 
@@ -51,7 +51,7 @@
         <div class="inv-user-menu" id="inv-user-menu" style="display:none">
           <div class="inv-user-menu-name" id="inv-menu-name"></div>
           <div class="inv-user-menu-divider"></div>
-          <button class="inv-user-menu-item" onclick="if(typeof InvStore!=='undefined')InvStore.showSelector(function(){InvApp.showPage('page-dashboard')})">切換庫存</button>
+          <button class="inv-user-menu-item" onclick="if(typeof InvStore!=='undefined')InvStore.showSelector(async function(){if(typeof InvProducts!=='undefined')await InvProducts.loadGroupTabs();InvApp.showPage('page-dashboard')})">切換庫存</button>
           <button class="inv-user-menu-item" onclick="if(typeof InvApp!=='undefined'){InvApp.showPage('page-settings');if(typeof InvSettings!=='undefined')InvSettings.render()}">設定</button>
           <button class="inv-user-menu-item inv-user-menu-logout" onclick="if(typeof InvAuth!=='undefined')InvAuth.logout()">登出</button>
         </div>
@@ -143,23 +143,23 @@
   <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js" defer></script>
-  <script src="js/inv-config.js?v=81"></script>
-  <script src="js/inv-store.js?v=81"></script>
-  <script src="js/inv-icons.js?v=81"></script>
-  <script src="js/inv-utils.js?v=81"></script>
-  <script src="js/inv-auth.js?v=81"></script>
-  <script src="js/inv-permissions.js?v=81"></script>
-  <script src="js/inv-app.js?v=81"></script>
-  <script src="js/inv-scanner.js?v=81"></script>
-  <script src="js/inv-products.js?v=81"></script>
-  <script src="js/inv-stock-in.js?v=81"></script>
-  <script src="js/inv-cart.js?v=81"></script>
-  <script src="js/inv-sale.js?v=81"></script>
-  <script src="js/inv-sale-return.js?v=81"></script>
-  <script src="js/inv-transactions.js?v=81"></script>
-  <script src="js/inv-export.js?v=81"></script>
-  <script src="js/inv-stocktake.js?v=81"></script>
-  <script src="js/inv-dashboard.js?v=81"></script>
-  <script src="js/inv-settings.js?v=81"></script>
+  <script src="js/inv-config.js?v=82"></script>
+  <script src="js/inv-store.js?v=82"></script>
+  <script src="js/inv-icons.js?v=82"></script>
+  <script src="js/inv-utils.js?v=82"></script>
+  <script src="js/inv-auth.js?v=82"></script>
+  <script src="js/inv-permissions.js?v=82"></script>
+  <script src="js/inv-app.js?v=82"></script>
+  <script src="js/inv-scanner.js?v=82"></script>
+  <script src="js/inv-products.js?v=82"></script>
+  <script src="js/inv-stock-in.js?v=82"></script>
+  <script src="js/inv-cart.js?v=82"></script>
+  <script src="js/inv-sale.js?v=82"></script>
+  <script src="js/inv-sale-return.js?v=82"></script>
+  <script src="js/inv-transactions.js?v=82"></script>
+  <script src="js/inv-export.js?v=82"></script>
+  <script src="js/inv-stocktake.js?v=82"></script>
+  <script src="js/inv-dashboard.js?v=82"></script>
+  <script src="js/inv-settings.js?v=82"></script>
 </body>
 </html>
