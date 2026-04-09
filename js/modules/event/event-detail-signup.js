@@ -345,6 +345,37 @@ Object.assign(App, {
     const currentUserId = currentUser?.uid || 'unknown';
     let myRegs = ApiService.getMyRegistrationsByEvent(id);
 
+    // 快取無紀錄但用戶已報名（CF 寫入後快取未同步）→ 即時從 Firestore 補查
+    if (myRegs.length === 0 && currentUserId !== 'unknown') {
+      try {
+        const snap = await firebase.firestore().collection('registrations')
+          .where('eventId', '==', id)
+          .where('userId', '==', currentUserId)
+          .get();
+        const fetched = [];
+        snap.forEach(doc => {
+          const d = doc.data();
+          fetched.push({
+            ...d, _docId: doc.id, id: doc.id,
+            registeredAt: d.registeredAt?.toDate?.()?.toISOString?.() || d.registeredAt,
+          });
+        });
+        const active = fetched.filter(r => r.status !== 'cancelled' && r.status !== 'removed');
+        if (active.length > 0) {
+          // 補回快取
+          const cache = FirebaseService._cache?.registrations;
+          if (Array.isArray(cache)) {
+            active.forEach(r => {
+              if (!cache.some(c => c._docId === r._docId)) cache.push(r);
+            });
+          }
+          myRegs = active;
+        }
+      } catch (err) {
+        console.warn('[cancelSignup] fallback query failed', err);
+      }
+    }
+
     // 有真正的同行者報名（companionId 存在）→ 顯示多選取消 Modal
     // 若只是本人報名出現重複（資料競態窗口），不誤觸同行者 modal
     const hasRealCompanions = myRegs.some(r => r.participantType === 'companion' || r.companionId);
