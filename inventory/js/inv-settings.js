@@ -451,17 +451,18 @@ const InvSettings = {
     if (!w) return;
     var tabs = InvProducts.GROUP_TABS;
     var esc = InvApp.escapeHTML;
-    var html = '<div style="display:flex;flex-wrap:wrap;gap:8px">';
+    var html = '<div style="display:flex;flex-direction:column;gap:6px">';
     for (var i = 0; i < tabs.length; i++) {
       var internal = tabs[i];
       var display = InvProducts._groupLabel(internal);
       var isCustom = display !== internal;
       html +=
-        '<div style="flex:1;min-width:calc(50% - 4px);box-sizing:border-box;padding:10px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--bg-elevated);text-align:center">' +
-          '<div style="font-size:15px;font-weight:600;color:var(--text-primary)">' + esc(display) + '</div>' +
-          (isCustom ? '<div style="font-size:11px;color:var(--text-muted);margin-top:2px">原名：' + esc(internal) + '</div>' : '') +
-          '<button onclick="InvSettings._showGroupTabRenameModal(\'' + esc(internal) + '\')" style="margin-top:6px;padding:3px 14px;border:1px solid var(--accent);border-radius:6px;background:var(--bg-card);color:var(--accent);font-size:12px;cursor:pointer">改名</button>' +
-          (isCustom ? ' <button onclick="InvSettings._resetGroupTabName(\'' + esc(internal) + '\')" style="margin-top:6px;padding:3px 10px;border:1px solid var(--text-muted);border-radius:6px;background:var(--bg-card);color:var(--text-muted);font-size:12px;cursor:pointer">還原</button>' : '') +
+        '<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--bg-elevated)">' +
+          '<span style="font-size:14px;font-weight:600;color:var(--text-primary);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(display) +
+            (isCustom ? ' <span style="font-size:11px;color:var(--text-muted);font-weight:400">(' + esc(internal) + ')</span>' : '') +
+          '</span>' +
+          '<button onclick="InvSettings._showGroupTabRenameModal(\'' + esc(internal) + '\')" style="padding:3px 12px;border:1px solid var(--accent);border-radius:6px;background:var(--bg-card);color:var(--accent);font-size:12px;cursor:pointer;flex-shrink:0">改名</button>' +
+          (isCustom ? '<button onclick="InvSettings._resetGroupTabName(\'' + esc(internal) + '\')" style="padding:3px 8px;border:1px solid var(--text-muted);border-radius:6px;background:var(--bg-card);color:var(--text-muted);font-size:12px;cursor:pointer;flex-shrink:0">還原</button>' : '') +
         '</div>';
     }
     html += '</div>';
