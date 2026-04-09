@@ -10,6 +10,12 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### [永久] 2026-04-09 — _isUserSignedUp displayName fallback 同名碰撞 bug
+- **問題**：兩個不同用戶同名 "Lucas"，`_isUserSignedUp` 的 displayName fallback 用名字比對 `event.participants`，導致未報名的用戶被誤判為已報名，看到「取消報名」按鈕但無法取消（`getMyRegistrationsByEvent` 正確用 UID 查不到報名紀錄）
+- **原因**：`event.participants` 存的是 displayName（非 UID），fallback 用 `p === name` 比對，同名即中招
+- **修復**：移除 `_isUserSignedUp` 和 `_isUserOnWaitlist` 中的 displayName fallback，僅保留 UID 比對 registrations 快取。經驗證全部 49 個活動都有 registration 文件，fallback 無存在必要
+- **教訓**：`event.participants` 是顯示用快取，不可用於身份判斷。所有身份相關判斷必須基於 UID，displayName 是用戶可任意修改的欄位
+
 ### 2026-04-09 — 球隊限定活動報名：後端未檢查職員身分
 - **問題**：前端 `_getVisibleTeamIdsForLimitedEvents()` 會掃描 teams 集合，將 captain/leader/coach 也納入可報名範圍；但後端 Cloud Function `getUserTeamIds()` 只查用戶文件的 `teamIds`/`teamId`，不查 teams 集合的職員欄位。導致職員看到報名按鈕但實際報名被 `TEAM_RESTRICTED` 擋回。
 - **修復**：`functions/index.js` 的 `submitShotGameScore` 旁的 `submitRegistration` Transaction 內，當 `teamIds` 比對失敗後補查 teams 集合的 `captainUid`/`leaderUid`/`captain`/`leader`/`coaches` 欄位，與前端邏輯對齊。

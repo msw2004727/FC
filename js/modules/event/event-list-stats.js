@@ -263,36 +263,20 @@ Object.assign(App, {
   //  User Signup Check
   // ══════════════════════════════════
 
-  /** 判斷當前用戶是否已報名 */
+  /** 判斷當前用戶是否已報名（僅用 UID 比對 registrations，不 fallback displayName） */
   _isUserSignedUp(e) {
-    const user = ApiService.getCurrentUser?.();
-    if (!user) return false;
-    const uid = user.uid || '';
-    const name = user.displayName || user.name || '';
-
-    // 優先查 registrations
+    const uid = ApiService.getCurrentUser?.()?.uid;
+    if (!uid) return false;
     const regs = ApiService.getRegistrationsByEvent?.(e.id) || [];
-    if (regs.some(r => r.userId === uid && r.status !== 'cancelled' && r.status !== 'removed')) return true;
-
-    // Fallback: 舊資料用 participants/waitlistNames
-    const inParticipants = (e.participants || []).some(p => p === name || p === uid);
-    const inWaitlist = (e.waitlistNames || []).some(p => p === name || p === uid);
-    return inParticipants || inWaitlist;
+    return regs.some(r => r.userId === uid && r.status !== 'cancelled' && r.status !== 'removed');
   },
 
-  /** 判斷當前用戶是否在候補名單中 */
+  /** 判斷當前用戶是否在候補名單中（僅用 UID 比對 registrations） */
   _isUserOnWaitlist(e) {
-    const user = ApiService.getCurrentUser?.();
-    if (!user) return false;
-    const uid = user.uid || '';
-    const name = user.displayName || user.name || '';
-
-    // 優先查 registrations
+    const uid = ApiService.getCurrentUser?.()?.uid;
+    if (!uid) return false;
     const regs = ApiService.getRegistrationsByEvent?.(e.id) || [];
-    if (regs.some(r => r.userId === uid && r.status === 'waitlisted')) return true;
-
-    // Fallback: 舊資料
-    return (e.waitlistNames || []).some(p => p === name || p === uid);
+    return regs.some(r => r.userId === uid && r.status === 'waitlisted');
   },
 
 });

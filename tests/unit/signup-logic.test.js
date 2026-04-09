@@ -16,27 +16,17 @@
 // ═══════════════════════════════════════════════════════
 
 function _isUserSignedUp(e, { user, getRegistrationsByEvent }) {
-  if (!user) return false;
-  const uid = user.uid || '';
-  const name = user.displayName || user.name || '';
-
+  const uid = user?.uid;
+  if (!uid) return false;
   const regs = getRegistrationsByEvent?.(e.id) || [];
-  if (regs.some(r => r.userId === uid && r.status !== 'cancelled' && r.status !== 'removed')) return true;
-
-  const inParticipants = (e.participants || []).some(p => p === name || p === uid);
-  const inWaitlist = (e.waitlistNames || []).some(p => p === name || p === uid);
-  return inParticipants || inWaitlist;
+  return regs.some(r => r.userId === uid && r.status !== 'cancelled' && r.status !== 'removed');
 }
 
 function _isUserOnWaitlist(e, { user, getRegistrationsByEvent }) {
-  if (!user) return false;
-  const uid = user.uid || '';
-  const name = user.displayName || user.name || '';
-
+  const uid = user?.uid;
+  if (!uid) return false;
   const regs = getRegistrationsByEvent?.(e.id) || [];
-  if (regs.some(r => r.userId === uid && r.status === 'waitlisted')) return true;
-
-  return (e.waitlistNames || []).some(p => p === name || p === uid);
+  return regs.some(r => r.userId === uid && r.status === 'waitlisted');
 }
 
 // ═══════════════════════════════════════════════════════
@@ -131,32 +121,18 @@ describe('_isUserSignedUp (event-list-stats.js:261-275)', () => {
     expect(_isUserSignedUp({ id: 'e1' }, deps(regs))).toBe(false);
   });
 
-  test('fallback: uid in participants → true', () => {
+  test('participants array ignored — only registrations matter', () => {
     expect(_isUserSignedUp(
-      { id: 'e1', participants: ['U123'] },
+      { id: 'e1', participants: ['Alice', 'U123'] },
       { user: USER, getRegistrationsByEvent: () => [] }
-    )).toBe(true);
+    )).toBe(false);
   });
 
-  test('fallback: displayName in participants → true', () => {
+  test('waitlistNames array ignored — only registrations matter', () => {
     expect(_isUserSignedUp(
-      { id: 'e1', participants: ['Alice'] },
+      { id: 'e1', waitlistNames: ['Alice', 'U123'] },
       { user: USER, getRegistrationsByEvent: () => [] }
-    )).toBe(true);
-  });
-
-  test('fallback: uid in waitlistNames → true', () => {
-    expect(_isUserSignedUp(
-      { id: 'e1', waitlistNames: ['U123'] },
-      { user: USER, getRegistrationsByEvent: () => [] }
-    )).toBe(true);
-  });
-
-  test('fallback: name in waitlistNames → true', () => {
-    expect(_isUserSignedUp(
-      { id: 'e1', waitlistNames: ['Alice'] },
-      { user: USER, getRegistrationsByEvent: () => [] }
-    )).toBe(true);
+    )).toBe(false);
   });
 
   test('no match anywhere → false', () => {
@@ -166,25 +142,32 @@ describe('_isUserSignedUp (event-list-stats.js:261-275)', () => {
     )).toBe(false);
   });
 
-  test('getRegistrationsByEvent is undefined → graceful fallback', () => {
+  test('getRegistrationsByEvent is undefined → false (no fallback)', () => {
     expect(_isUserSignedUp(
       { id: 'e1', participants: ['Alice'] },
       { user: USER, getRegistrationsByEvent: undefined }
-    )).toBe(true);
+    )).toBe(false);
   });
 
-  test('mixed: cancelled in regs but name in participants → true (fallback)', () => {
+  test('cancelled in regs, name in participants → false (no displayName fallback)', () => {
     const regs = [mkReg('U123', 'e1', 'cancelled')];
     expect(_isUserSignedUp(
       { id: 'e1', participants: ['Alice'] },
       { user: USER, getRegistrationsByEvent: () => regs }
-    )).toBe(true);
+    )).toBe(false);
   });
 
-  test('user with empty uid and empty name → false', () => {
+  test('user with empty uid → false', () => {
     expect(_isUserSignedUp(
       { id: 'e1' },
-      { user: { uid: '', displayName: '' }, getRegistrationsByEvent: () => [] }
+      { user: { uid: '', displayName: 'Alice' }, getRegistrationsByEvent: () => [] }
+    )).toBe(false);
+  });
+
+  test('name collision: different user same name in participants → false', () => {
+    expect(_isUserSignedUp(
+      { id: 'e1', participants: ['Alice'] },
+      { user: { uid: 'U999', displayName: 'Alice' }, getRegistrationsByEvent: () => [] }
     )).toBe(false);
   });
 });
@@ -220,18 +203,11 @@ describe('_isUserOnWaitlist (event-list-stats.js:278-290)', () => {
     expect(_isUserOnWaitlist({ id: 'e1' }, deps(regs))).toBe(false);
   });
 
-  test('fallback: uid in waitlistNames → true', () => {
+  test('waitlistNames array ignored — only registrations matter', () => {
     expect(_isUserOnWaitlist(
-      { id: 'e1', waitlistNames: ['U123'] },
+      { id: 'e1', waitlistNames: ['Alice', 'U123'] },
       { user: USER, getRegistrationsByEvent: () => [] }
-    )).toBe(true);
-  });
-
-  test('fallback: displayName in waitlistNames → true', () => {
-    expect(_isUserOnWaitlist(
-      { id: 'e1', waitlistNames: ['Alice'] },
-      { user: USER, getRegistrationsByEvent: () => [] }
-    )).toBe(true);
+    )).toBe(false);
   });
 
   test('name in participants but not waitlistNames → false', () => {
@@ -241,11 +217,11 @@ describe('_isUserOnWaitlist (event-list-stats.js:278-290)', () => {
     )).toBe(false);
   });
 
-  test('getRegistrationsByEvent undefined → graceful fallback', () => {
+  test('getRegistrationsByEvent undefined → false (no fallback)', () => {
     expect(_isUserOnWaitlist(
       { id: 'e1', waitlistNames: ['Alice'] },
       { user: USER, getRegistrationsByEvent: undefined }
-    )).toBe(true);
+    )).toBe(false);
   });
 });
 
