@@ -233,6 +233,10 @@ Object.assign(App, {
     const container = document.getElementById('team-list');
 
     this._initTeamListSportFilter?.();
+    // 同步右上角運動篩選到下拉選單
+    const sportSel = document.getElementById('team-sport-filter');
+    const globalSportSync = (typeof App !== 'undefined' && App._activeSport && App._activeSport !== 'all') ? App._activeSport : '';
+    if (sportSel && globalSportSync && !sport) sportSel.value = globalSportSync;
 
     let filtered = ApiService.getActiveTeams();
     if (query) {
@@ -246,8 +250,10 @@ Object.assign(App, {
     if (region) {
       filtered = filtered.filter(t => t.region === region);
     }
-    if (sport) {
-      filtered = filtered.filter(t => t.sportTag === sport);
+    const globalSport = (typeof App !== 'undefined' && App._activeSport && App._activeSport !== 'all') ? App._activeSport : '';
+    const effectiveSport = sport || globalSport;
+    if (effectiveSport) {
+      filtered = filtered.filter(t => t.sportTag === effectiveSport);
     }
     if (typeTab) {
       filtered = filtered.filter(t => {

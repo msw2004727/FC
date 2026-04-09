@@ -175,6 +175,8 @@ Object.assign(App, {
       // 觸發事件列表重繪
       try { this.renderHotEvents(); } catch (_) {}
       try { this.renderActivityList(); } catch (_) {}
+      // 觸發俱樂部列表重繪
+      try { this.filterTeams(); } catch (_) {}
     });
 
     document.addEventListener('click', (e) => {

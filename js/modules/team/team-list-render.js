@@ -44,6 +44,10 @@ Object.assign(App, {
     if (typeTab) {
       teams = teams.filter(t => (t.type || 'general') === typeTab);
     }
+    const activeGlobalSport = (typeof App !== 'undefined' && App._activeSport && App._activeSport !== 'all') ? App._activeSport : '';
+    if (activeGlobalSport) {
+      teams = teams.filter(t => t.sportTag === activeGlobalSport);
+    }
     const sorted = this._sortTeams(teams);
     var _tlScrollEl = document.scrollingElement || document.documentElement;
     var _tlSavedScroll = _tlScrollEl.scrollTop;
