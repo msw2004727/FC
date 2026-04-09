@@ -12,6 +12,8 @@ Object.assign(App, {
     const isEdu = t.type === 'education';
     const eduBadge = isEdu ? '<span class="tc-edu-badge">教學</span>' : '';
     const eduRibbon = isEdu ? '<span class="tc-edu-ribbon">教學</span>' : '';
+    const sportEmoji = t.sportTag && typeof SPORT_ICON_EMOJI !== 'undefined' ? (SPORT_ICON_EMOJI[t.sportTag] || '') : '';
+    const sportBadge = sportEmoji ? `<span style="position:absolute;top:6px;left:6px;z-index:2;background:rgba(0,0,0,.55);border-radius:6px;padding:2px 7px;font-size:1.1rem;line-height:1.3;pointer-events:none">${sportEmoji}</span>` : '';
     const memberLabel = isEdu ? '學員' : I18N.t('team.memberLabel');
     const memberCount = isEdu
       ? ((this._eduStudentsCache && this._eduStudentsCache[t.id])
@@ -22,8 +24,8 @@ Object.assign(App, {
       <div class="tc-card${pinnedClass}" onclick="App.showTeamDetail('${t.id}')">
         ${t.pinned ? '<div class="tc-pin-badge">置頂</div>' : ''}
         ${t.image
-          ? `<div style="position:relative;width:100%;aspect-ratio:1;overflow:hidden;border-radius:var(--radius) var(--radius) 0 0"><img src="${t.image}" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block"><span class="tc-rank-badge" style="color:${rank.color}"><span class="tc-rank-score">${(t.teamExp || 0).toLocaleString()}</span>${rank.rank}</span>${eduRibbon}</div>`
-          : `<div class="tc-img-placeholder" style="position:relative">俱樂部圖片<span class="tc-rank-badge" style="color:${rank.color}"><span class="tc-rank-score">${(t.teamExp || 0).toLocaleString()}</span>${rank.rank}</span>${eduRibbon}</div>`}
+          ? `<div style="position:relative;width:100%;aspect-ratio:1;overflow:hidden;border-radius:var(--radius) var(--radius) 0 0">${sportBadge}<img src="${t.image}" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block"><span class="tc-rank-badge" style="color:${rank.color}"><span class="tc-rank-score">${(t.teamExp || 0).toLocaleString()}</span>${rank.rank}</span>${eduRibbon}</div>`
+          : `<div class="tc-img-placeholder" style="position:relative">${sportBadge}俱樂部圖片<span class="tc-rank-badge" style="color:${rank.color}"><span class="tc-rank-score">${(t.teamExp || 0).toLocaleString()}</span>${rank.rank}</span>${eduRibbon}</div>`}
         <div class="tc-body">
           <div class="tc-name">${escapeHTML(t.name)}${eduBadge}</div>
           <div class="tc-info-row"><span class="tc-label">${memberLabel}</span><span>${memberCount} ${I18N.t('team.personUnit')}</span></div>
@@ -35,6 +37,7 @@ Object.assign(App, {
   renderTeamList() {
     const container = document.getElementById('team-list');
     if (!container) return;
+    this._initTeamListSportFilter?.();
     this._refreshTeamCreateButtons();
     let teams = ApiService.getActiveTeams();
     const typeTab = this._currentTeamTypeTab || '';
@@ -108,11 +111,12 @@ Object.assign(App, {
     const renderCard = (t) => {
       const canEdit = isAdmin || this._isTeamOwner(t);
       const dim = !t.active ? ' team-inactive' : '';
+      const mSportEmoji = t.sportTag && typeof SPORT_ICON_EMOJI !== 'undefined' ? (SPORT_ICON_EMOJI[t.sportTag] || '') : '';
       return `
       <div class="event-card${dim}">
         <div class="event-card-body">
           <div style="display:flex;justify-content:space-between;align-items:center">
-            <div class="event-card-title">${escapeHTML(t.name)} <span style="font-size:.72rem;color:var(--text-muted)">${escapeHTML(t.nameEn || '')}</span></div>
+            <div class="event-card-title">${mSportEmoji ? mSportEmoji + ' ' : ''}${escapeHTML(t.name)} <span style="font-size:.72rem;color:var(--text-muted)">${escapeHTML(t.nameEn || '')}</span></div>
             <span style="font-size:.72rem;color:${t.active ? 'var(--success)' : 'var(--danger)'}">${t.active ? '上架中' : '已下架'}</span>
           </div>
           <div class="event-meta">
@@ -161,11 +165,12 @@ Object.assign(App, {
     const inactiveT = teams.filter(t => !t.active);
     const adminCard = (t) => {
       const dim = !t.active ? ' team-inactive' : '';
+      const aSportEmoji = t.sportTag && typeof SPORT_ICON_EMOJI !== 'undefined' ? (SPORT_ICON_EMOJI[t.sportTag] || '') : '';
       return `
       <div class="event-card${dim}">
         <div class="event-card-body">
           <div style="display:flex;justify-content:space-between;align-items:center">
-            <div class="event-card-title">${escapeHTML(t.name)} <span style="font-size:.72rem;color:var(--text-muted)">${escapeHTML(t.nameEn || '')}</span></div>
+            <div class="event-card-title">${aSportEmoji ? aSportEmoji + ' ' : ''}${escapeHTML(t.name)} <span style="font-size:.72rem;color:var(--text-muted)">${escapeHTML(t.nameEn || '')}</span></div>
             ${t.pinned ? '<span style="font-size:.72rem;color:var(--warning);font-weight:600">置頂</span>' : ''}
           </div>
           <div class="event-meta">

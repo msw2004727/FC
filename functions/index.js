@@ -3275,6 +3275,7 @@ const SPORT_TAG_KEYWORDS = {
   martial_arts: ["格鬥", "拳擊", "UFC", "MMA", "柔道", "跆拳"],
   yoga: ["瑜伽"],
   hiking: ["登山"],
+  dodgeball: ["躲避球", "美式躲避球", "dodgeball"],
 };
 
 function matchSportTag(title, description) {

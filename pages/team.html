@@ -12,6 +12,9 @@
       </div>
       <div class="team-search-bar">
         <input type="text" id="team-search" placeholder="搜尋俱樂部名稱..." oninput="App.filterTeams()">
+        <select id="team-sport-filter" onchange="App.filterTeams()">
+          <option value="">全部運動</option>
+        </select>
         <select id="team-region-filter" onchange="App.filterTeams()">
           <option value="">全部地區</option>
           <option value="台北市">台北市</option>
@@ -133,6 +136,12 @@
             </div>
             <div class="ct-edu-toggle-hint">開啟後新學員可透過俱樂部頁面申請加入，關閉後將暫停招收新學員，已報名學員不受影響。</div>
           </div>
+        </div>
+        <div class="ce-row">
+          <label>運動類型</label>
+          <select id="ct-team-sport-tag" style="width:100%;padding:.45rem .6rem;border:1px solid var(--border);border-radius:var(--radius);font-size:.85rem;background:var(--surface);color:var(--text-primary)">
+            <option value="">未指定</option>
+          </select>
         </div>
         <div class="ce-row">
           <label>俱樂部名稱（最多 15 字） <span class="required">*必填</span></label>

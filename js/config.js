@@ -4,7 +4,7 @@
 
 // ─── Cache Version（更新此值以清除瀏覽器快取）───
 // 變更日誌已移除，請用 git log 查閱歷史部署記錄。
-const CACHE_VERSION = '20260407c';
+const CACHE_VERSION = '20260409a';
 
 // ─── 網路 / 設備偵測（用於 UI 降級）───
 const NetDevice = {
@@ -411,6 +411,7 @@ const EVENT_SPORT_OPTIONS = [
   { key: 'martial_arts', label: '武術' },
   { key: 'restaurant', label: '餐廳(觀賽)' },
   { key: 'pickleball', label: '匹克球' },
+  { key: 'dodgeball', label: '美式躲避球' },
 ];
 
 const SPORT_ICON_EMOJI = {
@@ -431,6 +432,7 @@ const SPORT_ICON_EMOJI = {
   martial_arts: '🥋',
   restaurant: '🍽️',
   pickleball: '🏓',
+  dodgeball: '🤾',
 };
 
 const EVENT_SPORT_MAP = EVENT_SPORT_OPTIONS.reduce((acc, item) => {

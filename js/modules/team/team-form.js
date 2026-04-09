@@ -178,6 +178,8 @@ Object.assign(App, {
       ? this._calcTeamMemberCountByTeam(teamForMemberCount, users)
       : 0;
 
+    // ── 運動類型 ──
+    const sportTag = document.getElementById('ct-team-sport-tag')?.value || '';
     // ── 俱樂部類型 ──
     const teamType = document.getElementById('ct-team-type')?.value || 'general';
     const eduSettings = teamType === 'education' ? {
@@ -205,7 +207,7 @@ Object.assign(App, {
           leaders: leaderNames, leaderUids: realLeaderUids,
           captain, captainUid: captainUidForSave,
           coaches, members,
-          type: teamType,
+          type: teamType, sportTag,
         };
         if (eduSettings) updates.eduSettings = eduSettings;
         else updates.eduSettings = firebase.firestore.FieldValue.delete();
@@ -263,7 +265,7 @@ Object.assign(App, {
           active: true, pinned: false, pinOrder: 0,
           wins: 0, draws: 0, losses: 0, gf: 0, ga: 0,
           history: [],
-          type: teamType,
+          type: teamType, sportTag,
         };
         if (eduSettings) data.eduSettings = eduSettings;
         ApiService.createTeam(data);

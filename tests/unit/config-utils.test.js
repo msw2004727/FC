@@ -30,6 +30,7 @@ const EVENT_SPORT_OPTIONS = [
   { key: 'martial_arts', label: '\u6b66\u8853' },
   { key: 'restaurant', label: '\u9910\u5ef3(\u89c0\u8cfd)' },
   { key: 'pickleball', label: '\u5339\u514b\u7403' },
+  { key: 'dodgeball', label: '\u7f8e\u5f0f\u8eb2\u907f\u7403' },
 ];
 
 const SPORT_ICON_EMOJI = {
@@ -50,6 +51,7 @@ const SPORT_ICON_EMOJI = {
   martial_arts: '\ud83e\udd4b',
   restaurant: '\ud83c\udf7d\ufe0f',
   pickleball: '\ud83c\udfd3',
+  dodgeball: '\ud83e\udd3e',
 };
 
 const EVENT_SPORT_MAP = EVENT_SPORT_OPTIONS.reduce((acc, item) => {

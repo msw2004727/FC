@@ -27,6 +27,7 @@ const EVENT_SPORT_OPTIONS = [
   { key: 'martial_arts', label: '武術' },
   { key: 'restaurant', label: '餐廳(觀賽)' },
   { key: 'pickleball', label: '匹克球' },
+  { key: 'dodgeball', label: '美式躲避球' },
 ];
 
 const EVENT_SPORT_MAP = EVENT_SPORT_OPTIONS.reduce((acc, item) => {

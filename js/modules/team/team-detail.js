@@ -160,11 +160,13 @@ Object.assign(App, {
 
       const imgEl = nodes.image;
       const detailRank = this._getTeamRank(t.teamExp);
+      const detailSportEmoji = t.sportTag && typeof SPORT_ICON_EMOJI !== 'undefined' ? (SPORT_ICON_EMOJI[t.sportTag] || '') : '';
+      const detailSportBadge = detailSportEmoji ? '<span style="position:absolute;top:8px;left:8px;z-index:2;background:rgba(0,0,0,.55);border-radius:8px;padding:3px 9px;font-size:1.3rem;line-height:1.3;pointer-events:none">' + detailSportEmoji + '</span>' : '';
       imgEl.style.position = 'relative';
       if (t.image) {
-        imgEl.innerHTML = '<img src="' + t.image + '" loading="lazy" style="width:100%;height:100%;object-fit:cover"><span class="tc-rank-badge tc-rank-badge-lg" style="color:' + detailRank.color + '"><span class="tc-rank-score">' + (t.teamExp || 0).toLocaleString() + '</span>' + detailRank.rank + '</span>';
+        imgEl.innerHTML = detailSportBadge + '<img src="' + t.image + '" loading="lazy" style="width:100%;height:100%;object-fit:cover"><span class="tc-rank-badge tc-rank-badge-lg" style="color:' + detailRank.color + '"><span class="tc-rank-score">' + (t.teamExp || 0).toLocaleString() + '</span>' + detailRank.rank + '</span>';
       } else {
-        imgEl.innerHTML = '\u7403\u968a\u5c01\u9762 800 \u00d7 300<span class="tc-rank-badge tc-rank-badge-lg" style="color:' + detailRank.color + '"><span class="tc-rank-score">' + (t.teamExp || 0).toLocaleString() + '</span>' + detailRank.rank + '</span>';
+        imgEl.innerHTML = detailSportBadge + '\u7403\u968a\u5c01\u9762 800 \u00d7 300<span class="tc-rank-badge tc-rank-badge-lg" style="color:' + detailRank.color + '"><span class="tc-rank-score">' + (t.teamExp || 0).toLocaleString() + '</span>' + detailRank.rank + '</span>';
       }
 
       const totalGames = (t.wins || 0) + (t.draws || 0) + (t.losses || 0);

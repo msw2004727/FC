@@ -228,8 +228,11 @@ Object.assign(App, {
   filterTeams() {
     const query = (document.getElementById('team-search')?.value || '').trim().toLowerCase();
     const region = document.getElementById('team-region-filter')?.value || '';
+    const sport = document.getElementById('team-sport-filter')?.value || '';
     const typeTab = this._currentTeamTypeTab || '';
     const container = document.getElementById('team-list');
+
+    this._initTeamListSportFilter?.();
 
     let filtered = ApiService.getActiveTeams();
     if (query) {
@@ -242,6 +245,9 @@ Object.assign(App, {
     }
     if (region) {
       filtered = filtered.filter(t => t.region === region);
+    }
+    if (sport) {
+      filtered = filtered.filter(t => t.sportTag === sport);
     }
     if (typeTab) {
       filtered = filtered.filter(t => {

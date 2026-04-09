@@ -30,6 +30,9 @@ Object.assign(App, {
     this._teamLeaderUids = [];
     this._teamCaptainUid = null;
     this._teamCoachUids = [];
+    // 運動類型重置
+    const sportSelect = document.getElementById('ct-team-sport-tag');
+    if (sportSelect) sportSelect.value = '';
     // 俱樂部類型重置
     const typeSelect = document.getElementById('ct-team-type');
     if (typeSelect) typeSelect.value = 'general';
@@ -82,6 +85,32 @@ Object.assign(App, {
     return user ? user.uid : '';
   },
 
+  _initTeamSportOptions() {
+    const sel = document.getElementById('ct-team-sport-tag');
+    if (!sel || sel.dataset.inited) return;
+    sel.dataset.inited = '1';
+    (Array.isArray(EVENT_SPORT_OPTIONS) ? EVENT_SPORT_OPTIONS : []).forEach(item => {
+      const emoji = (typeof SPORT_ICON_EMOJI !== 'undefined' ? SPORT_ICON_EMOJI[item.key] : '') || '';
+      const opt = document.createElement('option');
+      opt.value = item.key;
+      opt.textContent = emoji ? emoji + ' ' + item.label : item.label;
+      sel.appendChild(opt);
+    });
+  },
+
+  _initTeamListSportFilter() {
+    const sel = document.getElementById('team-sport-filter');
+    if (!sel || sel.dataset.inited) return;
+    sel.dataset.inited = '1';
+    (Array.isArray(EVENT_SPORT_OPTIONS) ? EVENT_SPORT_OPTIONS : []).forEach(item => {
+      const emoji = (typeof SPORT_ICON_EMOJI !== 'undefined' ? SPORT_ICON_EMOJI[item.key] : '') || '';
+      const opt = document.createElement('option');
+      opt.value = item.key;
+      opt.textContent = emoji ? emoji + ' ' + item.label : item.label;
+      sel.appendChild(opt);
+    });
+  },
+
   showTeamForm(id) {
     if (!id && typeof this._canCreateTeamByPermission === 'function' && !this._canCreateTeamByPermission()) {
       this.showToast('目前未開啟建立俱樂部權限');
@@ -96,6 +125,7 @@ Object.assign(App, {
       }
     }
     this._teamEditId = id || null;
+    this._initTeamSportOptions();
     const titleEl = document.getElementById('ct-team-modal-title');
     const saveBtn = document.getElementById('ct-team-save-btn');
     const captainDisplay = document.getElementById('ct-captain-display');
@@ -114,6 +144,9 @@ Object.assign(App, {
       document.getElementById('ct-team-contact').value = t.contact || '';
       document.getElementById('ct-team-bio').value = t.bio || '';
 
+      // 編輯模式：載入運動類型
+      const sportSel = document.getElementById('ct-team-sport-tag');
+      if (sportSel) sportSel.value = t.sportTag || '';
       // 編輯模式：載入俱樂部類型（隱藏欄位 + 顯示標籤）
       const typeInput = document.getElementById('ct-team-type');
       if (typeInput) typeInput.value = t.type || 'general';
