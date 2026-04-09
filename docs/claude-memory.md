@@ -10,6 +10,11 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-04-09 — 球隊限定活動報名：後端未檢查職員身分
+- **問題**：前端 `_getVisibleTeamIdsForLimitedEvents()` 會掃描 teams 集合，將 captain/leader/coach 也納入可報名範圍；但後端 Cloud Function `getUserTeamIds()` 只查用戶文件的 `teamIds`/`teamId`，不查 teams 集合的職員欄位。導致職員看到報名按鈕但實際報名被 `TEAM_RESTRICTED` 擋回。
+- **修復**：`functions/index.js` 的 `submitShotGameScore` 旁的 `submitRegistration` Transaction 內，當 `teamIds` 比對失敗後補查 teams 集合的 `captainUid`/`leaderUid`/`captain`/`leader`/`coaches` 欄位，與前端邏輯對齊。
+- **教訓**：前後端的權限/資格判定邏輯必須同步維護，前端新增判定路徑時要檢查後端是否也需要對應更新。
+
 ### [永久] 2026-04-07 — 寫入安全重構 Phase 1-5 + 同步指示器
 - **問題**：8 項高風險 + 9 項中風險 Firestore 寫入用 fire-and-forget（`_update()`），失敗時 cache 汙染。鎖定函式在 `batch.commit()` 前改 live cache，違反 Rule #10
 - **修復**：

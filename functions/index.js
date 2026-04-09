@@ -4575,7 +4575,25 @@ exports.registerForEvent = onCall(
       }
       if (ed.teamOnly && eventLimitedTeamIds.length > 0) {
         const callerTeamIds = getUserTeamIds(callerUserDoc?.data);
-        const isMember = eventLimitedTeamIds.some((tid) => callerTeamIds.includes(tid));
+        let isMember = eventLimitedTeamIds.some((tid) => callerTeamIds.includes(tid));
+        // 補充檢查：球隊職員（隊長/領隊/教練）也視為球隊成員
+        if (!isMember && callerUserDoc) {
+          const callerDocId = callerUserDoc.docId || "";
+          const callerNames = [callerUserDoc.data?.name, callerUserDoc.data?.displayName].filter(Boolean);
+          const uidCandidates = [callerUid, callerDocId].filter(Boolean);
+          for (const tid of eventLimitedTeamIds) {
+            const teamSnap = await transaction.get(db.collection("teams").doc(tid));
+            const td = teamSnap.exists ? teamSnap.data() : null;
+            if (!td) continue;
+            const isStaff =
+              (td.captainUid && uidCandidates.includes(td.captainUid)) ||
+              (td.leaderUid && uidCandidates.includes(td.leaderUid)) ||
+              (td.captain && callerNames.includes(td.captain)) ||
+              (td.leader && callerNames.includes(td.leader)) ||
+              (Array.isArray(td.coaches) && callerNames.some((n) => td.coaches.includes(n)));
+            if (isStaff) { isMember = true; break; }
+          }
+        }
         if (!isMember) {
           throw new HttpsError("failed-precondition", "TEAM_RESTRICTED");
         }
