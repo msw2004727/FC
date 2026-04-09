@@ -126,8 +126,8 @@ const ADMIN_PAGE_EXTRA_PERMISSION_ITEMS = {
 
 const INHERENT_ROLE_PERMISSIONS = Object.freeze({
   coach:       ['activity.manage.entry', 'admin.tournaments.entry'],
-  captain:     ['activity.manage.entry', 'admin.tournaments.entry'],
-  venue_owner: ['activity.manage.entry', 'admin.tournaments.entry'],
+  captain:     ['activity.manage.entry', 'admin.tournaments.entry', 'team.manage.entry'],
+  venue_owner: ['activity.manage.entry', 'admin.tournaments.entry', 'team.manage.entry'],
 });
 
 // =========================================================================
@@ -624,12 +624,12 @@ describe('Permission System', () => {
 
     test('returns permissions for captain', () => {
       const perms = getInherentRolePermissions('captain');
-      expect(perms).toEqual(['activity.manage.entry', 'admin.tournaments.entry']);
+      expect(perms).toEqual(['activity.manage.entry', 'admin.tournaments.entry', 'team.manage.entry']);
     });
 
     test('returns permissions for venue_owner', () => {
       const perms = getInherentRolePermissions('venue_owner');
-      expect(perms).toEqual(['activity.manage.entry', 'admin.tournaments.entry']);
+      expect(perms).toEqual(['activity.manage.entry', 'admin.tournaments.entry', 'team.manage.entry']);
     });
 
     test('returns empty array for user role', () => {
