@@ -175,7 +175,7 @@ Object.assign(App, {
       // 觸發列表重繪
       try { this.renderHotEvents(); } catch (_) {}
       try { this.renderActivityList(); } catch (_) {}
-      try { this.renderTeamList(); } catch (_) {}
+      try { this.renderTeamList?.(); } catch (_) {}
       // 同步俱樂部頁的運動下拉選單
       try {
         const tSel = document.getElementById('team-sport-filter');
