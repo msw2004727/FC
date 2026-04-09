@@ -78,36 +78,15 @@ Object.assign(App, {
   //  Team Manage Page (Captain+)
   // ══════════════════════════════════
 
-  renderTeamManage(filter) {
+  renderTeamManage() {
     const container = document.getElementById('team-manage-list');
     if (!container) return;
     this._refreshTeamCreateButtons();
 
-    const tabs = document.getElementById('team-manage-tabs');
-    if (tabs && !tabs.dataset.bound) {
-      tabs.dataset.bound = '1';
-      tabs.querySelectorAll('.tab').forEach(tab => {
-        tab.addEventListener('click', () => {
-          tabs.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-          tab.classList.add('active');
-          this.renderTeamManage(tab.dataset.tab);
-        });
-      });
-    }
-
     const isAdmin = this.hasPermission('team.manage_all');
 
-    // admin 顯示兩個 tab，非 admin 只顯示「我的俱樂部」
-    if (tabs) {
-      tabs.querySelectorAll('.tab').forEach(tab => {
-        if (tab.dataset.tab === 'all-teams') tab.style.display = isAdmin ? '' : 'none';
-      });
-    }
-
-    const currentFilter = filter || tabs?.querySelector('.tab.active')?.dataset.tab || 'my-teams';
-
     let teams;
-    if (currentFilter === 'all-teams' && isAdmin) {
+    if (isAdmin) {
       teams = ApiService.getTeams();
     } else {
       teams = ApiService.getTeams().filter(t => this._isTeamOwner(t));
