@@ -1102,7 +1102,9 @@ const InvProducts = {
         await self._executeMerge(splitProduct, parent);
         overlay.remove();
         InvApp.showToast('已合併回「' + esc(parent.group || '商品') + '」');
-        self._refreshProductList();
+        // 拆分品已刪除，自動返回列表頁
+        await InvProducts.loadAll();
+        InvApp.showPage('page-products');
       } catch (e) {
         InvApp.showToast('合併失敗：' + (e.message || ''));
         this.disabled = false; this.textContent = '確認合併';
@@ -1390,10 +1392,15 @@ const InvProducts = {
       try {
         await self._executeTransfer(product, srcStoreId, destStoreId, qty, priceOverride);
         overlay.remove();
-        InvApp.showToast('已調撥 ' + qty + ' 件至 ' + esc(destName));
-        // 重新載入當前倉庫商品並返回列表
+        var srcAfter = (product.stock || 0) - qty;
+        InvApp.showToast('已調撥 ' + qty + ' 件至 ' + esc(destName) + (srcAfter <= 0 ? '，庫存已歸零' : ''));
         await InvProducts.loadAll();
-        self._refreshProductList();
+        // 庫存歸零 → 自動返回列表頁，避免誤操作
+        if (srcAfter <= 0) {
+          InvApp.showPage('page-products');
+        } else {
+          self._refreshProductList();
+        }
       } catch (e) {
         InvApp.showToast('調撥失敗：' + (e.message || ''));
         this.disabled = false; this.textContent = '確認調撥';
