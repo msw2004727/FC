@@ -1377,7 +1377,7 @@ const InvProducts = {
           '<div>' + esc(destName) + '：' + dstBefore + ' → <b>' + dstAfter + '</b></div>' +
         '</div>' +
         '<div style="display:flex;gap:8px">' +
-          '<button id="xfr-conf-cancel" class="inv-btn outline full">取消</button>' +
+          '<button id="xfr-conf-cancel" class="inv-btn outline" style="flex:1;padding:10px;font-size:15px">取消</button>' +
           '<button id="xfr-conf-ok" style="flex:1;padding:10px;border:none;border-radius:8px;background:#2563eb;color:#fff;font-size:15px;font-weight:600;cursor:pointer">確認調撥</button>' +
         '</div>' +
       '</div>';
