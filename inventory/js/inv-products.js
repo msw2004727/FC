@@ -835,10 +835,10 @@ const InvProducts = {
       '<div class="inv-modal" style="max-width:320px;width:85%">' +
         '<h3 style="margin:0 0 4px;font-size:16px">' + esc(p.name) + '</h3>' +
         '<div style="font-size:13px;color:var(--text-muted);margin-bottom:12px">目前庫存：<b>' + (p.stock || 0) + '</b></div>' +
-        '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">' +
-          '<button id="qr-pop-minus" style="width:36px;height:36px;border:1px solid var(--border);border-radius:8px;background:var(--bg-elevated);font-size:18px;cursor:pointer">−</button>' +
-          '<input id="qr-pop-qty" type="number" inputmode="numeric" value="1" min="1" style="flex:1;text-align:center;font-size:22px;font-weight:700;border:1px solid var(--border);border-radius:8px;padding:6px;height:40px;box-sizing:border-box" />' +
-          '<button id="qr-pop-plus" style="width:36px;height:36px;border:1px solid var(--border);border-radius:8px;background:var(--bg-elevated);font-size:18px;cursor:pointer">+</button>' +
+        '<div style="display:flex;align-items:center;gap:0;margin-bottom:8px">' +
+          '<button id="qr-pop-minus" style="width:44px;height:40px;border:1px solid var(--border);border-radius:8px 0 0 8px;background:var(--bg-elevated);font-size:20px;font-weight:700;cursor:pointer;flex-shrink:0;color:var(--text-primary)">−</button>' +
+          '<input id="qr-pop-qty" type="number" inputmode="numeric" value="1" min="1" class="inv-hide-spin" style="flex:1;min-width:0;text-align:center;font-size:22px;font-weight:700;border-top:1px solid var(--border);border-bottom:1px solid var(--border);border-left:none;border-right:none;padding:0;height:40px;box-sizing:border-box;background:var(--bg-card);color:var(--text-primary);-moz-appearance:textfield" />' +
+          '<button id="qr-pop-plus" style="width:44px;height:40px;border:1px solid var(--border);border-radius:0 8px 8px 0;background:var(--bg-elevated);font-size:20px;font-weight:700;cursor:pointer;flex-shrink:0;color:var(--text-primary)">+</button>' +
         '</div>' +
         '<div style="display:flex;gap:6px;margin-bottom:12px">' +
           '<button class="qr-pop-pre" data-v="5" style="flex:1;padding:5px;border:1px solid var(--accent);border-radius:6px;background:var(--bg-card);color:var(--accent);font-size:13px;cursor:pointer">+5</button>' +
