@@ -11,6 +11,27 @@ const InvProducts = {
   _filterStock: '',
   _filterGroup: '',
   GROUP_TABS: ['商品', '活動', '器材', '其他'],
+  _groupTabNames: {},
+
+  /** 從 Firestore 載入自訂頁籤顯示名稱映射 */
+  async loadGroupTabs() {
+    try {
+      var doc = await InvStore.storeRef().get();
+      if (doc.exists && doc.data().groupTabNames && typeof doc.data().groupTabNames === 'object') {
+        this._groupTabNames = doc.data().groupTabNames;
+      } else {
+        this._groupTabNames = {};
+      }
+    } catch (_) {
+      this._groupTabNames = {};
+    }
+  },
+
+  /** 內部 group 名稱 → 用戶看到的顯示名稱 */
+  _groupLabel: function(internalName) {
+    var map = this._groupTabNames || {};
+    return map[internalName] || internalName;
+  },
 
   /** 從 Firestore 載入所有商品到 _cache */
   async loadAll() {
@@ -128,6 +149,7 @@ const InvProducts = {
     this._cache.forEach(function(p) { if (p.category && cats.indexOf(p.category) === -1) cats.push(p.category); });
 
     var esc = InvApp.escapeHTML;
+    var self = this;
     var fg = this._filterGroup, fc = this._filterCategory;
     var combinedVal = this._filterStock ? 'stock_' + this._filterStock : 'sort_' + (this._filterSort || '');
     var tabs = this.GROUP_TABS;
@@ -140,7 +162,7 @@ const InvProducts = {
       var ta = fg === tabs[ti];
       // 計算該 group 的商品數
       var gc = this._cache.filter(function(p) { return (p.group || '商品') === tabs[ti]; }).length;
-      tabHtml += '<button class="inv-group-tab" data-group="' + esc(tabs[ti]) + '" style="flex:1;padding:8px 0;border:none;background:none;font-size:13px;font-weight:' + (ta ? '700' : '400') + ';color:' + (ta ? 'var(--accent)' : 'var(--text-muted)') + ';cursor:pointer;border-bottom:2px solid ' + (ta ? 'var(--accent)' : 'transparent') + ';margin-bottom:-2px">' + esc(tabs[ti]) + '<span style="font-size:10px;color:var(--text-muted);margin-left:2px">' + gc + '</span></button>';
+      tabHtml += '<button class="inv-group-tab" data-group="' + esc(tabs[ti]) + '" style="flex:1;padding:8px 0;border:none;background:none;font-size:13px;font-weight:' + (ta ? '700' : '400') + ';color:' + (ta ? 'var(--accent)' : 'var(--text-muted)') + ';cursor:pointer;border-bottom:2px solid ' + (ta ? 'var(--accent)' : 'transparent') + ';margin-bottom:-2px">' + esc(self._groupLabel(tabs[ti])) + '<span style="font-size:10px;color:var(--text-muted);margin-left:2px">' + gc + '</span></button>';
     }
     tabHtml += '</div>';
 
@@ -178,7 +200,6 @@ const InvProducts = {
     container.innerHTML = html;
 
     // ── 綁定事件 ──
-    var self = this;
     // 頁籤
     container.querySelectorAll('.inv-group-tab').forEach(function(btn) {
       btn.addEventListener('click', function() {
@@ -397,7 +418,7 @@ const InvProducts = {
     var html =
       '<div style="padding:16px;">' +
         '<div style="display:flex;align-items:center;gap:6px;margin-bottom:12px">' +
-          '<h3 style="margin:0;flex:1">' + esc(p.name) + (p.isSplitChild ? ' <span style="font-size:12px;color:#7c3aed;font-weight:400">[拆分自 ' + esc(p.group || '') + ']</span>' : '') + '</h3>' + ib +
+          '<h3 style="margin:0;flex:1">' + esc(p.name) + (p.isSplitChild ? ' <span style="font-size:12px;color:#7c3aed;font-weight:400">[拆分自 ' + esc(this._groupLabel(p.group || '')) + ']</span>' : '') + '</h3>' + ib +
         '</div>' +
         imgHtml +
         '<div style="display:flex;flex-wrap:wrap;gap:0;margin-bottom:10px">' + pills + '</div>' +
@@ -675,12 +696,18 @@ const InvProducts = {
       '<div class="inv-modal" style="max-width:380px;width:90%;max-height:80vh;overflow-y:auto">' +
         '<h3 style="margin:0 0 12px;font-size:17px;font-weight:700">商品詳情說明</h3>' +
         '<div style="' + s + '"><b>條碼</b><p style="font-size:13px;margin:4px 0 0;color:var(--text-secondary)">商品的唯一識別編號，用於掃碼入庫、銷售、退貨等操作。</p></div>' +
-        '<div style="' + s + '"><b>售價 / 進貨價</b><p style="font-size:13px;margin:4px 0 0;color:var(--text-secondary)">售價為對外銷售價格，進貨價為成本價。兩者差額為毛利。</p></div>' +
+        '<div style="' + s + '"><b>售價 / 進貨價</b><p style="font-size:13px;margin:4px 0 0;color:var(--text-secondary)">售價為對外銷售價格，進貨價為成本價（僅管理員可見）。兩者差額為毛利。</p></div>' +
         '<div style="' + s + '"><b>庫存 / 低庫存門檻</b><p style="font-size:13px;margin:4px 0 0;color:var(--text-secondary)">當前庫存量。右側數字為低庫存警示門檻，低於此值時儀表板會顯示警示。</p></div>' +
+        '<div style="' + s + '"><b>快速補貨</b><p style="font-size:13px;margin:4px 0 0;color:var(--text-secondary)">直接在商品詳情頁輸入數量入庫，支援 +5/+10/+20/+50 快捷按鈕。</p></div>' +
+        '<div style="' + s + '"><b>快速修正</b><p style="font-size:13px;margin:4px 0 0;color:var(--text-secondary)">直接將庫存設為指定數量（非增減），用於盤點後修正實際庫存。</p></div>' +
         '<div style="' + s + '"><b>編輯商品</b><p style="font-size:13px;margin:4px 0 0;color:var(--text-secondary)">修改品名、售價、進貨價、分類、圖片等資訊，也可更改產品編號。</p></div>' +
         '<div style="' + s + '"><b>退貨</b><p style="font-size:13px;margin:4px 0 0;color:var(--text-secondary)">處理顧客退貨，可選擇退回庫存或直接報廢。會產生退貨交易紀錄。</p></div>' +
         '<div style="' + s + '"><b>報廢</b><p style="font-size:13px;margin:4px 0 0;color:var(--text-secondary)">標記損壞、過期或遺失的商品，庫存會相應減少。</p></div>' +
-        '<div style="' + s + '"><b>異動歷史</b><p style="font-size:13px;margin:4px 0 0;color:var(--text-secondary)">顯示此商品最近 20 筆入庫、銷售、退貨、調整等紀錄，綠色為入庫、紅色為出庫。</p></div>' +
+        '<div style="' + s + '"><b>列印條碼</b><p style="font-size:13px;margin:4px 0 0;color:var(--text-secondary)">產生可列印的條碼標籤，含商品名稱與售價。</p></div>' +
+        '<div style="' + s + '"><b>拆分</b><p style="font-size:13px;margin:4px 0 0;color:var(--text-secondary)">將部分庫存拆分到其他頁籤（商品/活動/器材/其他），拆分後共用條碼、各自獨立管理庫存。可隨時合併回原商品。</p></div>' +
+        '<div style="' + s + '"><b>調撥</b><p style="font-size:13px;margin:4px 0 0;color:var(--text-secondary)">將庫存從當前倉庫轉移到其他倉庫（僅管理員可用）。支援全部或部分轉移，目標倉庫已有同商品會自動合併庫存。</p></div>' +
+        '<div style="' + s + '"><b>刪除商品</b><p style="font-size:13px;margin:4px 0 0;color:var(--text-secondary)">庫存為 0 時可刪除商品資料。此操作不可復原，刪除前會要求二次確認。</p></div>' +
+        '<div style="' + s + '"><b>異動歷史</b><p style="font-size:13px;margin:4px 0 0;color:var(--text-secondary)">顯示此商品最近 20 筆入庫、銷售、退貨、拆分、調撥等紀錄。綠色為入庫方向、紅色為出庫方向。</p></div>' +
         '<button class="inv-btn primary full" style="margin-top:12px" onclick="this.closest(\'.inv-overlay\').remove()">我知道了</button>' +
       '</div>';
     document.body.appendChild(ov);
@@ -824,7 +851,7 @@ const InvProducts = {
     var tabs = this.GROUP_TABS;
     var html = '';
     for (var i = 0; i < tabs.length; i++) {
-      html += '<option value="' + InvApp.escapeHTML(tabs[i]) + '"' + (current === tabs[i] ? ' selected' : '') + '>' + InvApp.escapeHTML(tabs[i]) + '</option>';
+      html += '<option value="' + InvApp.escapeHTML(tabs[i]) + '"' + (current === tabs[i] ? ' selected' : '') + '>' + InvApp.escapeHTML(this._groupLabel(tabs[i])) + '</option>';
     }
     return html;
   },
@@ -921,6 +948,7 @@ const InvProducts = {
     if ((p.stock || 0) < 2) { InvApp.showToast('庫存不足，至少需要 2 件才能拆分'); return; }
 
     var esc = InvApp.escapeHTML;
+    var self = this;
     var tabs = this.GROUP_TABS;
     var currentGroup = p.group || '商品';
     var maxQty = (p.stock || 0) - 1; // 原商品至少保留 1 件
@@ -933,7 +961,7 @@ const InvProducts = {
     var groupOpts = '';
     for (var i = 0; i < tabs.length; i++) {
       if (tabs[i] !== currentGroup) {
-        groupOpts += '<option value="' + esc(tabs[i]) + '">' + esc(tabs[i]) + '</option>';
+        groupOpts += '<option value="' + esc(tabs[i]) + '">' + esc(self._groupLabel(tabs[i])) + '</option>';
       }
     }
 
@@ -951,8 +979,8 @@ const InvProducts = {
           '<button id="split-plus" style="width:36px;height:36px;border:1px solid var(--border);border-radius:8px;background:var(--bg-elevated);font-size:18px;cursor:pointer">+</button>' +
         '</div>' +
         '<div style="font-size:12px;color:var(--text-muted);margin-bottom:12px;padding:8px;background:var(--bg-elevated);border-radius:6px">' +
-          '拆分後：原商品保留 <b id="split-remain">' + (p.stock - 1) + '</b> 件（' + esc(currentGroup) + '），' +
-          '新拆分 <b id="split-move">1</b> 件移至 <b id="split-dest">' + esc(groupOpts ? tabs.find(function(t){ return t !== currentGroup; }) || '' : '') + '</b>' +
+          '拆分後：原商品保留 <b id="split-remain">' + (p.stock - 1) + '</b> 件（' + esc(self._groupLabel(currentGroup)) + '），' +
+          '新拆分 <b id="split-move">1</b> 件移至 <b id="split-dest">' + esc(groupOpts ? self._groupLabel(tabs.find(function(t){ return t !== currentGroup; }) || '') : '') + '</b>' +
         '</div>' +
         '<div style="display:flex;gap:8px">' +
           '<button id="split-cancel" class="inv-btn outline full">取消</button>' +
@@ -972,7 +1000,7 @@ const InvProducts = {
       var v = Math.max(1, Math.min(maxQty, parseInt(qi.value, 10) || 1));
       remainEl.textContent = stock - v;
       moveEl.textContent = v;
-      destEl.textContent = groupSel.value;
+      destEl.textContent = self._groupLabel(groupSel.value);
     };
 
     document.getElementById('split-minus').addEventListener('click', function() {
@@ -995,7 +1023,7 @@ const InvProducts = {
       try {
         await self._executeSplit(p, targetGroup, qty);
         overlay.remove();
-        InvApp.showToast('已拆分 ' + qty + ' 件至「' + targetGroup + '」');
+        InvApp.showToast('已拆分 ' + qty + ' 件至「' + self._groupLabel(targetGroup) + '」');
         self._refreshProductList();
       } catch (e) {
         InvApp.showToast('拆分失敗：' + (e.message || ''));
@@ -1078,6 +1106,7 @@ const InvProducts = {
 
   /** 合併彈窗 */
   _showMergeDialog(splitDocId) {
+    var self = this;
     var splitProduct = this._cache.find(function(p) { return p.id === splitDocId; });
     if (!splitProduct) { InvApp.showToast('找不到拆分品'); return; }
     var parentId = splitProduct.splitFrom;
@@ -1092,10 +1121,10 @@ const InvProducts = {
     overlay.innerHTML =
       '<div class="inv-modal" style="max-width:340px;width:88%">' +
         '<h3 style="margin:0 0 8px;font-size:16px">合併回原商品</h3>' +
-        '<div style="font-size:13px;margin-bottom:6px">' + esc(splitProduct.name) + ' <span style="color:var(--text-muted)">[' + esc(splitProduct.group) + ']</span></div>' +
+        '<div style="font-size:13px;margin-bottom:6px">' + esc(splitProduct.name) + ' <span style="color:var(--text-muted)">[' + esc(self._groupLabel(splitProduct.group)) + ']</span></div>' +
         '<div style="padding:10px;background:var(--bg-elevated);border-radius:8px;margin-bottom:12px;font-size:13px">' +
           '<div>拆分品庫存：<b>' + (splitProduct.stock || 0) + '</b> 件 → 合併回</div>' +
-          '<div style="margin-top:4px">原商品（' + esc(parent.group || '商品') + '）庫存：<b>' + (parent.stock || 0) + '</b> → <b>' + ((parent.stock || 0) + (splitProduct.stock || 0)) + '</b></div>' +
+          '<div style="margin-top:4px">原商品（' + esc(self._groupLabel(parent.group || '商品')) + '）庫存：<b>' + (parent.stock || 0) + '</b> → <b>' + ((parent.stock || 0) + (splitProduct.stock || 0)) + '</b></div>' +
         '</div>' +
         '<div style="display:flex;gap:8px">' +
           '<button id="merge-cancel" class="inv-btn outline full">取消</button>' +
@@ -1105,13 +1134,12 @@ const InvProducts = {
     document.body.appendChild(overlay);
     document.getElementById('merge-cancel').addEventListener('click', function() { overlay.remove(); });
 
-    var self = this;
     document.getElementById('merge-ok').addEventListener('click', async function() {
       this.disabled = true; this.textContent = '處理中...';
       try {
         await self._executeMerge(splitProduct, parent);
         overlay.remove();
-        InvApp.showToast('已合併回「' + esc(parent.group || '商品') + '」');
+        InvApp.showToast('已合併回「' + InvApp.escapeHTML(self._groupLabel(parent.group || '商品')) + '」');
         // 拆分品已刪除，自動返回列表頁
         await InvProducts.loadAll();
         InvApp.showPage('page-products');
@@ -1559,7 +1587,7 @@ const InvProducts = {
       var tag = m.isSplitChild ? ' <span style="font-size:11px;color:var(--accent)">[拆分]</span>' : '';
       listHtml +=
         '<button class="pick-group-btn" data-idx="' + i + '" style="width:100%;padding:12px;border:1px solid var(--border);border-radius:8px;background:var(--bg-card);cursor:pointer;text-align:left;margin-bottom:6px">' +
-          '<div style="font-weight:600;font-size:14px">' + esc(m.group || '商品') + tag + '</div>' +
+          '<div style="font-weight:600;font-size:14px">' + esc(InvProducts._groupLabel(m.group || '商品')) + tag + '</div>' +
           '<div style="font-size:12px;color:var(--text-muted);margin-top:2px">庫存：' + (m.stock || 0) + ' 件 · ' + esc(m.name) + '</div>' +
         '</button>';
     }
