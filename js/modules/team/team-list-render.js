@@ -117,7 +117,7 @@ Object.assign(App, {
       const dim = !t.active ? ' team-inactive' : '';
       const mSportEmoji = t.sportTag && typeof SPORT_ICON_EMOJI !== 'undefined' ? (SPORT_ICON_EMOJI[t.sportTag] || '') : '';
       return `
-      <div class="event-card${dim}">
+      <div class="event-card${dim}" onclick="App.showTeamDetail('${t.id}')" style="cursor:pointer">
         <div class="event-card-body">
           <div style="display:flex;justify-content:space-between;align-items:center">
             <div class="event-card-title">${mSportEmoji ? mSportEmoji + ' ' : ''}${escapeHTML(t.name)} <span style="font-size:.72rem;color:var(--text-muted)">${escapeHTML(t.nameEn || '')}</span></div>
@@ -129,9 +129,8 @@ Object.assign(App, {
             <span class="event-meta-item">${this._calcTeamMemberCount(t.id)}人</span>
             <span class="event-meta-item">${escapeHTML(t.region)}</span>
           </div>
-          <div style="display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.5rem">
+          <div style="display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.5rem" onclick="event.stopPropagation()">
             ${canEdit ? `<button class="primary-btn small" onclick="App.showTeamForm('${t.id}')">編輯</button>` : ''}
-            <button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem" onclick="App.showTeamDetail('${t.id}')">查看</button>
             ${canEdit ? `<button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem;color:var(--danger)" onclick="App.removeTeam('${t.id}')">刪除</button>` : ''}
           </div>
         </div>
@@ -171,7 +170,7 @@ Object.assign(App, {
       const dim = !t.active ? ' team-inactive' : '';
       const aSportEmoji = t.sportTag && typeof SPORT_ICON_EMOJI !== 'undefined' ? (SPORT_ICON_EMOJI[t.sportTag] || '') : '';
       return `
-      <div class="event-card${dim}">
+      <div class="event-card${dim}" onclick="App.showTeamDetail('${t.id}')" style="cursor:pointer">
         <div class="event-card-body">
           <div style="display:flex;justify-content:space-between;align-items:center">
             <div class="event-card-title">${aSportEmoji ? aSportEmoji + ' ' : ''}${escapeHTML(t.name)} <span style="font-size:.72rem;color:var(--text-muted)">${escapeHTML(t.nameEn || '')}</span></div>
@@ -184,7 +183,7 @@ Object.assign(App, {
             <span class="event-meta-item">${escapeHTML(t.region)}</span>
             <span class="event-meta-item" style="color:${t.active ? 'var(--success)' : 'var(--danger)'}">${t.active ? '上架中' : '已下架'}</span>
           </div>
-          <div style="display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.5rem">
+          <div style="display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.5rem" onclick="event.stopPropagation()">
             <button class="primary-btn small" onclick="App.showTeamForm('${t.id}')">編輯</button>
             <button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem" onclick="App.toggleTeamPin('${t.id}')">${t.pinned ? '取消置頂' : '置頂'}</button>
             <button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem" onclick="App.toggleTeamActive('${t.id}')">${t.active ? '下架' : '上架'}</button>
