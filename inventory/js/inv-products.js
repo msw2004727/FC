@@ -591,8 +591,6 @@ const InvProducts = {
     try {
       var snap = await InvStore.col('transactions')
         .where('barcode', '==', barcode)
-        .orderBy('createdAt', 'desc')
-        .limit(20)
         .get();
 
       if (snap.empty) {
@@ -600,9 +598,18 @@ const InvProducts = {
         return;
       }
 
+      // 前端排序 + 截取最近 20 筆（避免需要 barcode+createdAt 複合索引）
+      var sorted = snap.docs
+        .map(function (doc) { return doc.data(); })
+        .sort(function (a, b) {
+          var ta = a.createdAt ? a.createdAt.toMillis() : 0;
+          var tb = b.createdAt ? b.createdAt.toMillis() : 0;
+          return tb - ta;
+        })
+        .slice(0, 20);
+
       var html = '';
-      snap.docs.forEach(function (doc) {
-        var tx = doc.data();
+      sorted.forEach(function (tx) {
         var qty = Number(tx.delta) || Number(tx.quantity) || 0;
         if (tx.type === 'out' || tx.type === 'sale' || tx.type === 'waste') qty = -Math.abs(qty);
         var sign = qty > 0 ? '+' : '', color = qty > 0 ? '#4CAF50' : '#f44336';
