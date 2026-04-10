@@ -10,6 +10,21 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-04-10 — 簽到紀錄因 onSnapshot limit 部分遺漏 — 改用 per-event 直接查詢
+- **問題**：部分活動的簽到簽退紀錄在管理頁面看不到，有些有、有些沒有，不分新舊
+- **原因**：同日稍早的費用優化加上 `attendanceRecords` onSnapshot `.limit(1500)`，全站簽到紀錄超過此上限時，部分活動的紀錄被排除在前端快取外。調到 3000 仍有遺漏
+- **修復**：
+  - `FirebaseService.fetchEventAttendanceRecords(eventId)` — 按 eventId 直接 `.where().get()`，繞過全域 limit
+  - `ApiService.fetchAttendanceRecordsForEvent(eventId)` — per-event cache + 並發去重 + Demo fallback
+  - `getAttendanceRecords(eventId)` — 優先讀 per-event cache，無則 fallback 全域快取
+  - `_renderAttendanceTable` 改為 async，渲染前先 `await fetchAttendanceRecordsForEvent`
+  - 寫入路徑（add/remove/batch）成功後同步更新 per-event cache
+  - onSnapshot 觸發時清除 per-event cache，確保遠端寫入可見
+- **教訓**：
+  - 全域 onSnapshot limit 適合即時列表，但特定資源的完整查詢必須走獨立 `.get()`
+  - 快取分層：全域快取（有 limit，供列表）+ per-event cache（無 limit，供詳情頁）
+  - 寫入後必須同步更新 per-event cache，否則同步讀取會落回不完整的全域快取
+
 ### 2026-04-10 — Firestore 費用優化：onSnapshot limit + Functions 降頻 + 儀表板可調
 - **問題**：10 天費用 ~500 TWD。Firestore 每日 177 萬次讀取（onSnapshot 無 limit 監聽全集合）、Cloud Run 92,973 秒/天（autoEndStartedEvents 每分鐘 + createCustomToken minInstances:1）
 - **原因**：attendanceRecords / registrations / events 的 onSnapshot 無 .limit()，每次資料變動重讀全集合；autoEndStartedEvents 每分鐘跑但幾乎 0 更新；fetchUsageMetrics 每小時跑

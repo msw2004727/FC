@@ -1566,6 +1566,20 @@ const FirebaseService = {
     this._retryNoUidTimer = null;
   },
 
+  // ── 按 eventId 直接查詢 attendanceRecords（繞過 onSnapshot limit）──
+  async fetchEventAttendanceRecords(eventId) {
+    if (!eventId) return [];
+    try {
+      const snapshot = await db.collection('attendanceRecords')
+        .where('eventId', '==', eventId)
+        .get();
+      return snapshot.docs.map(doc => ({ ...doc.data(), _docId: doc.id }));
+    } catch (err) {
+      console.warn('[fetchEventAttendanceRecords] 查詢失敗，fallback 到全域快取:', err);
+      return (this._cache.attendanceRecords || []).filter(r => r.eventId === eventId);
+    }
+  },
+
   /** 啟動 attendanceRecords 監聽器（需 Auth，進入掃描/管理頁時觸發） */
   _startAttendanceRecordsListener() {
     if (this._realtimeListenerStarted.attendanceRecords) return;
@@ -1590,6 +1604,7 @@ const FirebaseService = {
       .onSnapshot(
         snapshot => {
           this._cache.attendanceRecords = snapshot.docs.map(doc => ({ ...doc.data(), _docId: doc.id }));
+          if (typeof ApiService !== 'undefined') ApiService._eventAttendanceMap = {}; // 清除 per-event cache，下次渲染會重新查詢
           this._attendanceSnapshotReady = true;
           this._snapshotReconnectAttempts.attendanceRecords = 0; // RC4：成功時重置重連計數
           this._debouncedPersistCache();

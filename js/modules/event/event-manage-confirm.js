@@ -12,14 +12,14 @@ Object.assign(App, {
   _unregSubmittingEventId: null,
   _unregPendingStateByUid: null,
 
-  _startTableEdit(eventId) {
+  async _startTableEdit(eventId) {
     if (!this.hasPermission('event.manual_checkin') && !this.hasPermission('activity.manage.entry')) {
       const _e = eventId && ApiService.getEvent(eventId);
       if (!_e || !this._canManageEvent(_e)) { this.showToast('權限不足'); return; }
     }
     this._attendanceEditingEventId = eventId;
     if (typeof this._initInstantSave === 'function') this._initInstantSave(eventId);
-    this._renderAttendanceTable(eventId, this._manualEditingContainerId);
+    await this._renderAttendanceTable(eventId, this._manualEditingContainerId);
   },
 
   /**
@@ -74,7 +74,7 @@ Object.assign(App, {
     // 立即顯示「儲存中...」，讓用戶知道按鈕有反應
     this._attendanceSubmittingEventId = eventId;
     var _cId = this._manualEditingContainerId || 'attendance-table-container';
-    this._renderAttendanceTable(eventId, _cId);
+    await this._renderAttendanceTable(eventId, _cId);
     // flush 所有即時儲存中的 checkbox + 備註寫入
     if (typeof this._flushInstantSaves === 'function') await this._flushInstantSaves(eventId);
     const e = ApiService.getEvent(eventId);
@@ -180,12 +180,12 @@ Object.assign(App, {
       this._attendanceSubmittingEventId = null;
       if (failed) {
         // 失敗：保留編輯狀態與勾選，讓用戶可直接重試
-        this._renderAttendanceTable(eventId, containerId);
+        await this._renderAttendanceTable(eventId, containerId);
       } else {
         this._attendancePendingStateByUid = null;
         this._attendanceEditingEventId = null;
         if (typeof this._cleanupInstantSave === 'function') this._cleanupInstantSave();
-        this._renderAttendanceTable(eventId, containerId);
+        await this._renderAttendanceTable(eventId, containerId);
       }
     }
 

@@ -91,7 +91,7 @@ Object.assign(App, {
     return latest;
   },
 
-  _renderAttendanceTable(eventId, containerId) {
+  async _renderAttendanceTable(eventId, containerId) {
     const cId = containerId || 'attendance-table-container';
     const container = document.getElementById(cId);
     if (!container) return;
@@ -102,6 +102,9 @@ Object.assign(App, {
     this._manualEditingContainerId = cId;
     const e = ApiService.getEvent(eventId);
     if (!e) return;
+
+    // 確保此活動的完整簽到紀錄已載入（繞過全域 onSnapshot limit）
+    await ApiService.fetchAttendanceRecordsForEvent(eventId);
 
     const canManage = this._canManageEvent(e);
     const records = ApiService.getAttendanceRecords(eventId);

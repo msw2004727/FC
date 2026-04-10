@@ -453,7 +453,7 @@ Object.assign(App, {
       this._renderGuestAttendanceTable(id, 'detail-attendance-table');
       this._renderGuestWaitlistSection(id, 'detail-waitlist-container');
     } else {
-      this._renderAttendanceTable(id, 'detail-attendance-table');
+      await this._renderAttendanceTable(id, 'detail-attendance-table');
       this._renderUnregTable(id, 'detail-unreg-table');
       this._renderGroupedWaitlistSection(id, 'detail-waitlist-container');
       // 背景更新報名者徽章（不阻塞頁面渲染）
