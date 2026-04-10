@@ -5324,7 +5324,7 @@ exports.fetchUsageMetrics = onSchedule(
   }
 );
 
-// 手動觸發（super_admin only）
+// 手動觸發（admin 以上）
 exports.fetchUsageMetricsManual = onCall(
   { region: "asia-east1", timeoutSeconds: 120 },
   async (request) => {
@@ -5332,8 +5332,9 @@ exports.fetchUsageMetricsManual = onCall(
     const callerUid = request.auth.uid;
     const callerDoc = await db.collection("users").doc(callerUid).get();
     const callerRole = callerDoc.exists ? callerDoc.data().role : "user";
-    if (callerRole !== "super_admin") {
-      throw new HttpsError("permission-denied", "僅限超級管理員");
+    const allowedRoles = ["super_admin", "admin"];
+    if (!allowedRoles.includes(callerRole)) {
+      throw new HttpsError("permission-denied", "僅限管理員以上");
     }
     const result = await collectUsageMetrics();
     return { success: true, ...result };

@@ -82,8 +82,8 @@ Object.assign(App, {
     if (this._renderingUsageMetrics) return;
     this._renderingUsageMetrics = true;
 
-    // 僅 super_admin 可見
-    if (this.currentRole !== 'super_admin') { this._renderingUsageMetrics = false; return; }
+    // admin 以上可見
+    if ((ROLE_LEVEL_MAP[this.currentRole] || 0) < ROLE_LEVEL_MAP.admin) { this._renderingUsageMetrics = false; return; }
 
     // 取得當月 1 號至今的 usageMetrics
     let docs = [];
@@ -458,7 +458,7 @@ Object.assign(App, {
     if (document.getElementById('translate-usage-card')) return;
     if (this._renderingTranslateUsage) return;
     this._renderingTranslateUsage = true;
-    if (this.currentRole !== 'super_admin') { this._renderingTranslateUsage = false; return; }
+    if ((ROLE_LEVEL_MAP[this.currentRole] || 0) < ROLE_LEVEL_MAP.admin) { this._renderingTranslateUsage = false; return; }
 
     const now = new Date();
     const monthKey = 'translate_' + now.getFullYear() + String(now.getMonth() + 1).padStart(2, '0');
