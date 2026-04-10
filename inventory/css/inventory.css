@@ -32,8 +32,10 @@ body{touch-action:pan-x pan-y;-ms-touch-action:pan-x pan-y;overscroll-behavior:n
 img{max-width:100%;display:block}
 button{cursor:pointer;border:none;background:none;font:inherit;color:inherit;-webkit-user-select:none;user-select:none}
 input,select,textarea{font:inherit;color:inherit}
-[data-inv-theme="light"] input,[data-inv-theme="light"] select,[data-inv-theme="light"] textarea{background-color:var(--bg-card);color:var(--text-primary)}
-[data-inv-theme="dark"] input,[data-inv-theme="dark"] select,[data-inv-theme="dark"] textarea{background-color:var(--bg-card);color:var(--text-primary);border-color:var(--border)}
+[data-inv-theme="light"] input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]),
+[data-inv-theme="light"] select,[data-inv-theme="light"] textarea{background-color:var(--bg-card);color:var(--text-primary)}
+[data-inv-theme="dark"] input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]),
+[data-inv-theme="dark"] select,[data-inv-theme="dark"] textarea{background-color:var(--bg-card);color:var(--text-primary);border-color:var(--border)}
 .inv-hide-spin::-webkit-outer-spin-button,.inv-hide-spin::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
 .inv-hide-spin{-moz-appearance:textfield}
 
