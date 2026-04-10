@@ -583,21 +583,32 @@ Object.assign(App, {
 
     const section = document.getElementById('page-admin-inactive');
     const tabs = section?.querySelector('.tab-bar');
-    if (tabs && !tabs.dataset.bound) {
-      tabs.dataset.bound = '1';
+    if (tabs) {
       const tabBtns = tabs.querySelectorAll('.tab');
-      tabBtns.forEach((btn, i) => {
-        btn.addEventListener('click', () => {
-          tabBtns.forEach(b => b.classList.remove('active'));
+      const self = this;
+      const handlers = [
+        function() { self._renderInactiveTeams(container); },
+        function() { self._renderInactiveEvents(container); },
+        function() { self._renderUserStatusCheck(container); },
+      ];
+      tabBtns.forEach(function(btn, i) {
+        btn.onclick = function() {
+          tabBtns.forEach(function(b) { b.classList.remove('active'); });
           btn.classList.add('active');
-          if (i === 0) this._renderInactiveTeams(container);
-          else if (i === 1) this._renderInactiveEvents(container);
-          else if (i === 2) this._renderUserStatusCheck(container);
-        });
+          if (handlers[i]) handlers[i]();
+        };
       });
     }
 
-    this._renderInactiveTeams(container);
+    // 依照當前 active tab 渲染對應內容
+    var activeIdx = 0;
+    if (tabs) {
+      var btns = tabs.querySelectorAll('.tab');
+      btns.forEach(function(b, i) { if (b.classList.contains('active')) activeIdx = i; });
+    }
+    if (activeIdx === 1) this._renderInactiveEvents(container);
+    else if (activeIdx === 2) this._renderUserStatusCheck(container);
+    else this._renderInactiveTeams(container);
   },
 
   _renderInactiveTeams(container) {
