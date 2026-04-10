@@ -914,12 +914,6 @@ const ApiService = {
     var self = this;
     this._eventAttendancePending[eventId] = (async function () {
       try {
-        if (typeof ModeManager !== 'undefined' && ModeManager.getMode() === 'demo') {
-          var all = self._src('attendanceRecords');
-          var result = all.filter(function (r) { return r.eventId === eventId && r.status !== 'removed' && r.status !== 'cancelled'; });
-          self._eventAttendanceMap[eventId] = result;
-          return result;
-        }
         var records = await FirebaseService.fetchEventAttendanceRecords(eventId);
         var active = records.filter(function (r) { return r.status !== 'removed' && r.status !== 'cancelled'; });
         self._eventAttendanceMap[eventId] = active;
