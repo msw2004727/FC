@@ -5840,10 +5840,12 @@ exports.translateTexts = onCall(
 async function calcNoShowCountsBatch({ batchSize = 400 } = {}) {
   const today = new Date().toISOString().slice(0, 10);
 
-  // Step 1: 取得所有已結束活動（只需 status + date）
+  // Step 1: 取得所有已結束活動
+  // ⚠️ 必須用 data.id（活動自訂 ID），不可用 doc.id（Firestore 文件 ID）
+  //    registrations.eventId / attendanceRecords.eventId 存的是 data.id
   const eventsSnap = await db.collection("events")
     .where("status", "==", "ended")
-    .select("status", "date")
+    .select("id", "status", "date")
     .get();
 
   const endedEventIds = new Set();
@@ -5851,7 +5853,7 @@ async function calcNoShowCountsBatch({ batchSize = 400 } = {}) {
     const data = doc.data();
     const eventDate = String(data.date || "").split(" ")[0].replace(/\//g, "-");
     if (eventDate && eventDate < today) {
-      endedEventIds.add(doc.id);
+      endedEventIds.add(data.id || doc.id);
     }
   });
 
