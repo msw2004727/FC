@@ -585,6 +585,7 @@ Object.assign(App, {
     var defaults = (typeof REALTIME_LIMIT_DEFAULTS !== 'undefined') ? REALTIME_LIMIT_DEFAULTS
       : { attendanceLimit: 1500, registrationLimit: 3000, eventLimit: 100 };
     var current = Object.assign({}, defaults);
+    var noShowFrequency = 24; // 預設每小時（24次/天）
     try {
       var snap = await db.collection('siteConfig').doc('realtimeConfig').get();
       if (snap.exists) {
@@ -592,6 +593,7 @@ Object.assign(App, {
         if (d.attendanceLimit) current.attendanceLimit = d.attendanceLimit;
         if (d.registrationLimit) current.registrationLimit = d.registrationLimit;
         if (d.eventLimit) current.eventLimit = d.eventLimit;
+        if (d.noShowFrequency) noShowFrequency = Number(d.noShowFrequency) || 24;
       }
     } catch (e) {
       console.warn('[dashboard] realtimeConfig read failed:', e);
@@ -625,6 +627,16 @@ Object.assign(App, {
       + '    <div style="font-size:.7rem;color:var(--text-secondary)">建議：預期最大同時活躍活動數 × 2</div></div>'
       + '    <input id="rl-event" type="number" inputmode="numeric" min="100" max="10000" value="' + current.eventLimit + '" style="' + inputStyle + '" />'
       + '  </div>'
+      + '  <div style="display:flex;align-items:center;justify-content:space-between;border-top:1px solid var(--border);padding-top:10px;margin-top:4px">'
+      + '    <div><div style="font-size:.82rem;font-weight:600">放鴿子統計頻率</div>'
+      + '    <div style="font-size:.7rem;color:var(--text-secondary)">Cloud Function 每天計算幾次</div></div>'
+      + '    <select id="rl-noshow-freq" style="' + inputStyle + ';width:auto;min-width:90px;padding-right:24px">'
+      + [1,2,3,4,6,8,12,24].map(function(n) {
+          var label = n === 24 ? '24（每小時）' : n === 1 ? '1（每天凌晨）' : n + '（每' + (24/n) + '小時）';
+          return '<option value="' + n + '"' + (n === noShowFrequency ? ' selected' : '') + '>' + label + '</option>';
+        }).join('')
+      + '    </select>'
+      + '  </div>'
       + '</div>'
       + '<button id="rl-save-btn" class="btn-sm" style="margin-top:.75rem;width:100%;padding:10px;font-size:.88rem;font-weight:600">'
       + '儲存設定</button>'
@@ -643,6 +655,7 @@ Object.assign(App, {
         var att = parseInt(document.getElementById('rl-attendance').value, 10);
         var reg = parseInt(document.getElementById('rl-registration').value, 10);
         var evt = parseInt(document.getElementById('rl-event').value, 10);
+        var freq = parseInt(document.getElementById('rl-noshow-freq').value, 10) || 24;
         // 驗證
         var errors = [];
         if (!att || att < 100 || att > 10000) errors.push('簽到紀錄需在 100~10000 之間');
@@ -659,6 +672,7 @@ Object.assign(App, {
             attendanceLimit: att,
             registrationLimit: reg,
             eventLimit: evt,
+            noShowFrequency: freq,
             updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
             updatedBy: (typeof App !== 'undefined' && App.currentUser) ? App.currentUser.uid : '',
           }, { merge: true });

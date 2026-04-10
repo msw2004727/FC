@@ -2665,6 +2665,7 @@ const FirebaseService = {
     this._lazyLoaded.events = true;
     const unsub = db.collection('events')
       .where('status', 'in', ['open', 'full', 'upcoming'])
+      .orderBy('createdAt', 'desc')
       .limit(this._getRealtimeLimit('eventLimit'))
       .onSnapshot(
         snapshot => {

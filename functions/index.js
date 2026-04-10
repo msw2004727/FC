@@ -5940,6 +5940,16 @@ exports.calcNoShowCounts = onSchedule(
     maxInstances: 1,
   },
   async () => {
+    // 讀取儀表板設定的頻率（每天幾次），預設 24（每小時）
+    const configDoc = await db.collection("siteConfig").doc("realtimeConfig").get();
+    const freq = Number((configDoc.exists && configDoc.data().noShowFrequency) || 24);
+    const interval = Math.max(1, Math.round(24 / freq)); // 幾小時跑一次
+    const taipeiHour = new Date().toLocaleString("en-US", { timeZone: "Asia/Taipei", hour: "numeric", hour12: false });
+    const hour = Number(taipeiHour);
+    if (hour % interval !== 0) {
+      console.log("[calcNoShowCounts] skip — hour=" + hour + " interval=" + interval + "h freq=" + freq + "/day");
+      return;
+    }
     const result = await calcNoShowCountsBatch();
     console.log("[calcNoShowCounts]", result);
   },
