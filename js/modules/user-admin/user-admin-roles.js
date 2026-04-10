@@ -665,23 +665,51 @@ Object.assign(App, {
   },
 
   _renderInactiveEvents(container) {
-    const events = ApiService.getEvents().filter(e => e.status === 'ended' || e.status === 'cancelled');
+    var html = '';
 
-    if (events.length === 0) {
-      container.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--text-muted)">沒有已結束/取消的賽事</div>';
-      return;
+    // ── 已結束/取消的活動 ──
+    var events = ApiService.getEvents().filter(function(e) { return e.status === 'ended' || e.status === 'cancelled'; });
+    html += '<div style="font-weight:700;margin-bottom:.5rem;color:var(--text-secondary)">已結束活動（' + events.length + '）</div>';
+    if (events.length > 0) {
+      html += events.map(function(e) {
+        var statusLabel = e.status === 'ended' ? '已結束' : '已取消';
+        return '<div class="inactive-card">'
+          + '<div style="font-weight:700">' + escapeHTML(e.title) + ' <span style="font-weight:400;font-size:.78rem;color:var(--text-muted)">' + statusLabel + '</span></div>'
+          + '<div style="font-size:.78rem;color:var(--text-muted);margin-top:.3rem">' + escapeHTML(e.date || '') + ' ・ ' + escapeHTML(e.location || '') + '</div>'
+          + '<div style="font-size:.78rem;color:var(--text-muted)">建立者：' + escapeHTML(e.creator || '') + ' ・ 參加：' + (e.current || 0) + '/' + (e.max || 0) + '</div>'
+          + '</div>';
+      }).join('');
+    } else {
+      html += '<div style="text-align:center;padding:1rem;color:var(--text-muted)">沒有已結束的活動</div>';
     }
 
-    container.innerHTML = events.map(e => {
-      const statusLabel = e.status === 'ended' ? '已結束' : '已取消';
-      return `
-        <div class="inactive-card">
-          <div style="font-weight:700">${escapeHTML(e.title)} <span style="font-weight:400;font-size:.78rem;color:var(--text-muted)">${statusLabel}</span></div>
-          <div style="font-size:.78rem;color:var(--text-muted);margin-top:.3rem">${escapeHTML(e.date)} ・ ${escapeHTML(e.location)}</div>
-          <div style="font-size:.78rem;color:var(--text-muted)">建立者：${escapeHTML(e.creator)} ・ 參加：${e.current}/${e.max}</div>
-        </div>
-      `;
-    }).join('');
+    // ── 已結束的賽事 ──
+    var tournaments = ApiService.getTournaments();
+    var endedTournaments = tournaments.filter(function(t) {
+      if (t.ended === true) return true;
+      var dates = Array.isArray(t.matchDates) ? t.matchDates : [];
+      if (dates.length === 0) return false;
+      var lastDate = new Date(dates[dates.length - 1]);
+      if (isNaN(lastDate.getTime())) return false;
+      lastDate.setHours(lastDate.getHours() + 24);
+      return new Date() > lastDate;
+    });
+    html += '<div style="font-weight:700;margin:.8rem 0 .5rem;color:var(--text-secondary)">已結束賽事（' + endedTournaments.length + '）</div>';
+    if (endedTournaments.length > 0) {
+      html += endedTournaments.map(function(t) {
+        var matchDates = Array.isArray(t.matchDates) ? t.matchDates.join('、') : '';
+        var registered = Array.isArray(t.registeredTeams) ? t.registeredTeams.length : 0;
+        return '<div class="inactive-card">'
+          + '<div style="font-weight:700">' + escapeHTML(t.name || t.title || '') + ' <span style="font-weight:400;font-size:.78rem;color:var(--text-muted)">已結束</span></div>'
+          + '<div style="font-size:.78rem;color:var(--text-muted);margin-top:.3rem">比賽日期：' + escapeHTML(matchDates || '未定') + '</div>'
+          + '<div style="font-size:.78rem;color:var(--text-muted)">參賽隊伍：' + registered + '/' + (t.maxTeams || '?') + ' ・ ' + escapeHTML(t.region || '') + '</div>'
+          + '</div>';
+      }).join('');
+    } else {
+      html += '<div style="text-align:center;padding:1rem;color:var(--text-muted)">沒有已結束的賽事</div>';
+    }
+
+    container.innerHTML = html;
   },
 
   // ─── 用戶狀態檢查（長期未登入 + 頭像失效） ───
