@@ -589,6 +589,7 @@ Object.assign(App, {
       const handlers = [
         function() { self._renderInactiveTeams(container); },
         function() { self._renderInactiveEvents(container); },
+        function() { self._renderInactiveTournaments(container); },
         function() { self._renderUserStatusCheck(container); },
       ];
       tabBtns.forEach(function(btn, i) {
@@ -607,85 +608,49 @@ Object.assign(App, {
       btns.forEach(function(b, i) { if (b.classList.contains('active')) activeIdx = i; });
     }
     if (activeIdx === 1) this._renderInactiveEvents(container);
-    else if (activeIdx === 2) this._renderUserStatusCheck(container);
+    else if (activeIdx === 2) this._renderInactiveTournaments(container);
+    else if (activeIdx === 3) this._renderUserStatusCheck(container);
     else this._renderInactiveTeams(container);
   },
 
   _renderInactiveTeams(container) {
-    const teams = ApiService.getTeams().filter(t => t.active === false);
+    var teams = ApiService.getTeams().filter(function(t) { return t.active === false; });
 
-    // 也找沒有俱樂部或長期未活動的用戶
-    const users = ApiService.getAdminUsers();
-    const inactiveUsers = users.filter(u => {
-      if (!u.lastActive) return true;
-      // lastActive 可能是字串（"2026/02/10"）或 Firestore Timestamp 物件
-      let last;
-      if (typeof u.lastActive === 'string') {
-        last = new Date(u.lastActive.replace(/\//g, '-'));
-      } else if (u.lastActive?.toDate) {
-        last = u.lastActive.toDate();
-      } else if (u.lastActive?.seconds) {
-        last = new Date(u.lastActive.seconds * 1000);
-      } else {
-        return true;
-      }
-      const daysSince = (Date.now() - last.getTime()) / (1000 * 60 * 60 * 24);
-      return daysSince > 60;
-    });
-
-    let html = '';
-
-    if (teams.length > 0) {
-      html += '<div style="font-weight:700;margin-bottom:.5rem;color:var(--text-secondary)">已解散俱樂部</div>';
-      html += teams.map(t => `
-        <div class="inactive-card">
-          <div style="font-weight:700">${escapeHTML(t.name)}</div>
-          <div style="font-size:.78rem;color:var(--text-muted);margin-top:.3rem">原領隊：${escapeHTML(t.captain || '—')} ・ 原成員：${t.members || 0} 人</div>
-          <div style="font-size:.78rem;color:var(--text-muted)">${escapeHTML(t.region || '—')}</div>
-        </div>
-      `).join('');
-    } else {
-      html += '<div style="text-align:center;padding:1.5rem;color:var(--text-muted)">目前沒有已解散俱樂部</div>';
+    if (teams.length === 0) {
+      container.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--text-muted)">目前沒有已解散俱樂部</div>';
+      return;
     }
 
-    if (inactiveUsers.length > 0) {
-      html += '<div style="font-weight:700;margin:.8rem 0 .5rem;color:var(--text-secondary)">長期未活動用戶（60天以上）</div>';
-      html += inactiveUsers.map(u => `
-        <div class="inactive-card">
-          <div style="font-weight:700">${escapeHTML(u.name)} <span style="font-weight:400;font-size:.78rem;color:var(--text-muted)">${ROLES[u.role]?.label || u.role}</span></div>
-          <div style="font-size:.78rem;color:var(--text-muted);margin-top:.3rem">UID: ${escapeHTML(u.uid)} ・ Lv.${App._calcLevelFromExp(u.exp || 0).level} ・ ${escapeHTML(u.region)}</div>
-          <div style="font-size:.78rem;color:var(--text-muted)">最後活動：${escapeHTML(u.lastActive || '未知')} ・ 俱樂部：${escapeHTML(u.teamName || '無')}</div>
-        </div>
-      `).join('');
-    } else {
-      html += '<div style="text-align:center;padding:1rem;color:var(--text-muted)">沒有長期未活動的用戶</div>';
-    }
-
-    container.innerHTML = html;
+    container.innerHTML = teams.map(function(t) {
+      return '<div class="inactive-card">'
+        + '<div style="font-weight:700">' + escapeHTML(t.name) + '</div>'
+        + '<div style="font-size:.78rem;color:var(--text-muted);margin-top:.3rem">原領隊：' + escapeHTML(t.captain || '—') + ' ・ 原成員：' + (t.members || 0) + ' 人</div>'
+        + '<div style="font-size:.78rem;color:var(--text-muted)">' + escapeHTML(t.region || '—') + '</div>'
+        + '</div>';
+    }).join('');
   },
 
   _renderInactiveEvents(container) {
-    var html = '';
-
-    // ── 已結束/取消的活動 ──
     var events = ApiService.getEvents().filter(function(e) { return e.status === 'ended' || e.status === 'cancelled'; });
-    html += '<div style="font-weight:700;margin-bottom:.5rem;color:var(--text-secondary)">已結束活動（' + events.length + '）</div>';
-    if (events.length > 0) {
-      html += events.map(function(e) {
-        var statusLabel = e.status === 'ended' ? '已結束' : '已取消';
-        return '<div class="inactive-card">'
-          + '<div style="font-weight:700">' + escapeHTML(e.title) + ' <span style="font-weight:400;font-size:.78rem;color:var(--text-muted)">' + statusLabel + '</span></div>'
-          + '<div style="font-size:.78rem;color:var(--text-muted);margin-top:.3rem">' + escapeHTML(e.date || '') + ' ・ ' + escapeHTML(e.location || '') + '</div>'
-          + '<div style="font-size:.78rem;color:var(--text-muted)">建立者：' + escapeHTML(e.creator || '') + ' ・ 參加：' + (e.current || 0) + '/' + (e.max || 0) + '</div>'
-          + '</div>';
-      }).join('');
-    } else {
-      html += '<div style="text-align:center;padding:1rem;color:var(--text-muted)">沒有已結束的活動</div>';
+
+    if (events.length === 0) {
+      container.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--text-muted)">沒有已結束的活動</div>';
+      return;
     }
 
-    // ── 已結束的賽事 ──
+    container.innerHTML = events.map(function(e) {
+      var statusLabel = e.status === 'ended' ? '已結束' : '已取消';
+      return '<div class="inactive-card">'
+        + '<div style="font-weight:700">' + escapeHTML(e.title) + ' <span style="font-weight:400;font-size:.78rem;color:var(--text-muted)">' + statusLabel + '</span></div>'
+        + '<div style="font-size:.78rem;color:var(--text-muted);margin-top:.3rem">' + escapeHTML(e.date || '') + ' ・ ' + escapeHTML(e.location || '') + '</div>'
+        + '<div style="font-size:.78rem;color:var(--text-muted)">建立者：' + escapeHTML(e.creator || '') + ' ・ 參加：' + (e.current || 0) + '/' + (e.max || 0) + '</div>'
+        + '</div>';
+    }).join('');
+  },
+
+  _renderInactiveTournaments(container) {
     var tournaments = ApiService.getTournaments();
-    var endedTournaments = tournaments.filter(function(t) {
+    var ended = tournaments.filter(function(t) {
       if (t.ended === true) return true;
       var dates = Array.isArray(t.matchDates) ? t.matchDates : [];
       if (dates.length === 0) return false;
@@ -694,22 +659,21 @@ Object.assign(App, {
       lastDate.setHours(lastDate.getHours() + 24);
       return new Date() > lastDate;
     });
-    html += '<div style="font-weight:700;margin:.8rem 0 .5rem;color:var(--text-secondary)">已結束賽事（' + endedTournaments.length + '）</div>';
-    if (endedTournaments.length > 0) {
-      html += endedTournaments.map(function(t) {
-        var matchDates = Array.isArray(t.matchDates) ? t.matchDates.join('、') : '';
-        var registered = Array.isArray(t.registeredTeams) ? t.registeredTeams.length : 0;
-        return '<div class="inactive-card">'
-          + '<div style="font-weight:700">' + escapeHTML(t.name || t.title || '') + ' <span style="font-weight:400;font-size:.78rem;color:var(--text-muted)">已結束</span></div>'
-          + '<div style="font-size:.78rem;color:var(--text-muted);margin-top:.3rem">比賽日期：' + escapeHTML(matchDates || '未定') + '</div>'
-          + '<div style="font-size:.78rem;color:var(--text-muted)">參賽隊伍：' + registered + '/' + (t.maxTeams || '?') + ' ・ ' + escapeHTML(t.region || '') + '</div>'
-          + '</div>';
-      }).join('');
-    } else {
-      html += '<div style="text-align:center;padding:1rem;color:var(--text-muted)">沒有已結束的賽事</div>';
+
+    if (ended.length === 0) {
+      container.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--text-muted)">沒有已結束的賽事</div>';
+      return;
     }
 
-    container.innerHTML = html;
+    container.innerHTML = ended.map(function(t) {
+      var matchDates = Array.isArray(t.matchDates) ? t.matchDates.join('、') : '';
+      var registered = Array.isArray(t.registeredTeams) ? t.registeredTeams.length : 0;
+      return '<div class="inactive-card">'
+        + '<div style="font-weight:700">' + escapeHTML(t.name || t.title || '') + ' <span style="font-weight:400;font-size:.78rem;color:var(--text-muted)">已結束</span></div>'
+        + '<div style="font-size:.78rem;color:var(--text-muted);margin-top:.3rem">比賽日期：' + escapeHTML(matchDates || '未定') + '</div>'
+        + '<div style="font-size:.78rem;color:var(--text-muted)">參賽隊伍：' + registered + '/' + (t.maxTeams || '?') + ' ・ ' + escapeHTML(t.region || '') + '</div>'
+        + '</div>';
+    }).join('');
   },
 
   // ─── 用戶狀態檢查（長期未登入 + 頭像失效） ───
