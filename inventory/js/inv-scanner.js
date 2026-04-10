@@ -88,7 +88,10 @@ const InvScanner = {
   },
 
   stop() {
-    if (this._scanner) this._scanner.stop().catch(function () {});
+    if (this._scanner && this._active) {
+      this._active = false;
+      this._scanner.stop().catch(function () {});
+    }
     this._scanner = null;
     this._active = false;
   },
