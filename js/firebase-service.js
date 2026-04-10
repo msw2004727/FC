@@ -130,20 +130,22 @@ const FirebaseService = {
     if (typeof App === 'undefined') return;
     const page = App.currentPage;
 
-    // 用戶操作頁：立即渲染
+    // 用戶操作頁：立即渲染（執行前再確認 currentPage，防止切頁後被拉回）
     if (page === 'page-activity-detail') {
       if (source === 'attendance') {
-        // 編輯模式中：跳過背景重建，避免摧毀正在輸入的 input
         if (App._attendanceEditingEventId || App._unregEditingEventId) return;
+        if (App.currentPage !== 'page-activity-detail') return;
         App._renderAttendanceTable?.(App._currentDetailEventId, 'detail-attendance-table');
         App._renderUnregTable?.(App._currentDetailEventId, 'detail-unreg-table');
         App._refreshRegistrationBadges?.(App._currentDetailEventId, 'detail-attendance-table')?.catch?.(() => {});
       } else {
+        if (App.currentPage !== 'page-activity-detail') return;
         App.showEventDetail?.(App._currentDetailEventId);
       }
       return;
     }
     if (page === 'page-scan' && source === 'attendance') {
+      if (App.currentPage !== 'page-scan') return;
       App._renderScanResults?.();
       App._renderAttendanceSections?.();
       return;

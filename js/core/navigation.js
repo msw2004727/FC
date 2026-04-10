@@ -538,6 +538,8 @@ Object.assign(App, {
   },
 
   _cleanupBeforePageSwitch(pageId) {
+    // 清除待執行的 snapshot 背景渲染 timer，防止切頁後舊頁面渲染仍觸發
+    if (typeof FirebaseService !== 'undefined') clearTimeout(FirebaseService._snapshotRenderTimer);
     // F4：離開活動詳情頁時強制清除翻牌動畫鎖，防止 _flipAnimating 卡死導致後續導航失效
     if (this.currentPage === 'page-activity-detail' && pageId !== 'page-activity-detail') {
       this._flipAnimating = false;
@@ -587,7 +589,7 @@ Object.assign(App, {
       this.resetHomeHotEventsScroll?.();
     }
     if (pageId === 'page-activities') {
-      this.resetActivityTab?.({ render: false });
+      // 不重設頁籤 — 保留用戶離開前的 _activityActiveTab（如「已結束」）
       this.renderActivityList?.();
     }
     if (pageId === 'page-achievements') this.renderAchievements();
