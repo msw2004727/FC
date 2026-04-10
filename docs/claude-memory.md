@@ -10,6 +10,12 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-04-11 — [永久] calcNoShowCounts doc.id vs data.id 錯配 — 全站放鴿子算出 0
+- **問題**：Cloud Function `calcNoShowCounts` 部署後計算出全站 0 次放鴿子，users 文件的 `noShowCount` 始終為 undefined
+- **原因**：events 集合的 Firestore 文件 ID（`doc.id`，如 `ga0CqtaPpjRwimUGEZfU`）與活動自訂 ID（`data.id`，如 `ce_1774920121549_j63p`）**不同**。CF 用 `doc.id` 建 `endedEventIds`，但 `registrations.eventId` 存的是 `data.id`，`endedEventIds.has(reg.eventId)` 永遠 false → 所有報名都被 skip → 0 次放鴿子
+- **修復**：`endedEventIds.add(data.id || doc.id)` + `.select()` 加入 `"id"` 欄位
+- **教訓**：見下方 [永久] events 雙 ID 地雷
+
 ### 2026-04-10 — [永久] 放鴿子統計改為後端預算（Cloud Function calcNoShowCounts）
 - **問題**：放鴿子次數在前端即時計算，依賴全域 attendanceRecords 快取（有 onSnapshot limit），超出 limit 的舊活動 checkin 紀錄被截斷，導致有簽到的用戶仍被誤判為放鴿子
 - **原因**：`_buildRawNoShowCountByUid()` 呼叫 `getAttendanceRecords()` 無 eventId，走全域快取，受 limit 截斷
