@@ -591,7 +591,8 @@ Object.assign(App, {
           tabBtns.forEach(b => b.classList.remove('active'));
           btn.classList.add('active');
           if (i === 0) this._renderInactiveTeams(container);
-          else this._renderInactiveEvents(container);
+          else if (i === 1) this._renderInactiveEvents(container);
+          else if (i === 2) this._renderUserStatusCheck(container);
         });
       });
     }
@@ -670,6 +671,201 @@ Object.assign(App, {
         </div>
       `;
     }).join('');
+  },
+
+  // ─── 用戶狀態檢查（長期未登入 + 頭像失效） ───
+
+  _renderUserStatusCheck(container) {
+    var users = ApiService.getAdminUsers();
+    var now = Date.now();
+    var cardBg = 'background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:10px';
+
+    // ── 解析 lastLogin 天數 ──
+    var _parseDays = function(u) {
+      var ts = u.lastLogin || u.lastActive;
+      if (!ts) return 9999;
+      var d;
+      if (typeof ts === 'string') d = new Date(ts.replace(/\//g, '-'));
+      else if (ts.toDate) d = ts.toDate();
+      else if (ts.seconds) d = new Date(ts.seconds * 1000);
+      else if (ts.toMillis) d = new Date(ts.toMillis());
+      else return 9999;
+      if (isNaN(d.getTime())) return 9999;
+      return Math.floor((now - d.getTime()) / (1000 * 60 * 60 * 24));
+    };
+
+    var _fmtDate = function(u) {
+      var ts = u.lastLogin || u.lastActive;
+      if (!ts) return '從未登入';
+      var d;
+      if (typeof ts === 'string') d = new Date(ts.replace(/\//g, '-'));
+      else if (ts.toDate) d = ts.toDate();
+      else if (ts.seconds) d = new Date(ts.seconds * 1000);
+      else if (ts.toMillis) d = new Date(ts.toMillis());
+      else return '未知';
+      if (isNaN(d.getTime())) return '未知';
+      return d.getFullYear() + '/' + (d.getMonth() + 1) + '/' + d.getDate();
+    };
+
+    // ── 分組 ──
+    var over90 = [], over30 = [], active = [];
+    for (var i = 0; i < users.length; i++) {
+      var days = _parseDays(users[i]);
+      users[i]._daysSince = days;
+      users[i]._lastLoginStr = _fmtDate(users[i]);
+      if (days > 90) over90.push(users[i]);
+      else if (days > 30) over30.push(users[i]);
+      else active.push(users[i]);
+    }
+    over90.sort(function(a, b) { return b._daysSince - a._daysSince; });
+    over30.sort(function(a, b) { return b._daysSince - a._daysSince; });
+
+    // ── 統計摘要卡片 ──
+    var html = '<div style="' + cardBg + '">'
+      + '<div style="font-size:.88rem;font-weight:700;color:var(--text-primary);margin-bottom:10px">用戶登入統計</div>'
+      + '<div style="display:flex;gap:8px;text-align:center">'
+      + '  <div style="flex:1;padding:10px 0;border-radius:8px;background:var(--bg-elevated)">'
+      + '    <div style="font-size:1.3rem;font-weight:700;color:var(--success)">' + active.length + '</div>'
+      + '    <div style="font-size:.7rem;color:var(--text-muted)">30 天內活躍</div>'
+      + '  </div>'
+      + '  <div style="flex:1;padding:10px 0;border-radius:8px;background:var(--bg-elevated)">'
+      + '    <div style="font-size:1.3rem;font-weight:700;color:var(--warning)">' + over30.length + '</div>'
+      + '    <div style="font-size:.7rem;color:var(--text-muted)">30~90 天未登入</div>'
+      + '  </div>'
+      + '  <div style="flex:1;padding:10px 0;border-radius:8px;background:var(--bg-elevated)">'
+      + '    <div style="font-size:1.3rem;font-weight:700;color:var(--danger)">' + over90.length + '</div>'
+      + '    <div style="font-size:.7rem;color:var(--text-muted)">超過 90 天</div>'
+      + '  </div>'
+      + '</div>'
+      + '</div>';
+
+    // ── 頭像失效檢測卡片（非同步） ──
+    html += '<div id="avatar-check-card" style="' + cardBg + '">'
+      + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">'
+      + '  <div style="font-size:.88rem;font-weight:700;color:var(--text-primary)">頭像失效檢測</div>'
+      + '  <button id="avatar-check-btn" class="btn-sm" style="font-size:.75rem;padding:4px 12px">開始檢測</button>'
+      + '</div>'
+      + '<div id="avatar-check-result" style="font-size:.78rem;color:var(--text-muted)">點擊按鈕檢測所有用戶的 LINE 頭像是否仍有效</div>'
+      + '</div>';
+
+    // ── 超過 90 天未登入名單 ──
+    if (over90.length > 0) {
+      html += '<div style="' + cardBg + '">'
+        + '<div style="font-size:.88rem;font-weight:700;color:var(--danger);margin-bottom:8px">超過 90 天未登入（' + over90.length + ' 人）</div>';
+      for (var j = 0; j < over90.length; j++) {
+        var u = over90[j];
+        html += this._renderUserStatusRow(u);
+      }
+      html += '</div>';
+    }
+
+    // ── 30~90 天未登入名單 ──
+    if (over30.length > 0) {
+      html += '<div style="' + cardBg + '">'
+        + '<div style="font-size:.88rem;font-weight:700;color:var(--warning);margin-bottom:8px">30~90 天未登入（' + over30.length + ' 人）</div>';
+      for (var k = 0; k < over30.length; k++) {
+        html += this._renderUserStatusRow(over30[k]);
+      }
+      html += '</div>';
+    }
+
+    if (over90.length === 0 && over30.length === 0) {
+      html += '<div style="text-align:center;padding:1.5rem;color:var(--text-muted)">所有用戶都在 30 天內有登入記錄</div>';
+    }
+
+    container.innerHTML = html;
+
+    // ── 綁定頭像檢測按鈕 ──
+    var checkBtn = document.getElementById('avatar-check-btn');
+    if (checkBtn) {
+      var self = this;
+      checkBtn.addEventListener('click', function() {
+        checkBtn.disabled = true;
+        checkBtn.textContent = '檢測中...';
+        self._runAvatarCheck(users);
+      });
+    }
+  },
+
+  /** 用戶行渲染（帶頭像預留位） */
+  _renderUserStatusRow(u) {
+    var esc = escapeHTML;
+    var name = u.displayName || u.name || u.uid || '未知';
+    var role = (typeof ROLES !== 'undefined' && ROLES[u.role]) ? ROLES[u.role].label : (u.role || 'user');
+    var avatarSrc = u.pictureUrl || '';
+    var avatarHtml = avatarSrc
+      ? '<img src="' + esc(avatarSrc) + '" style="width:32px;height:32px;border-radius:50%;object-fit:cover;flex-shrink:0;background:var(--bg-elevated)" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\'">'
+        + '<div style="width:32px;height:32px;border-radius:50%;background:var(--bg-elevated);display:none;align-items:center;justify-content:center;flex-shrink:0;font-size:14px;color:var(--text-muted)">👤</div>'
+      : '<div style="width:32px;height:32px;border-radius:50%;background:var(--bg-elevated);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:14px;color:var(--text-muted)">👤</div>';
+    return '<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--border)" data-uid="' + esc(u.uid || '') + '">'
+      + avatarHtml
+      + '<div style="flex:1;min-width:0;overflow:hidden">'
+      + '  <div style="font-size:.82rem;font-weight:600;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(name) + ' <span style="font-weight:400;font-size:.72rem;color:var(--text-muted)">' + esc(role) + '</span></div>'
+      + '  <div style="font-size:.72rem;color:var(--text-muted)">最後登入：' + esc(u._lastLoginStr) + '（' + u._daysSince + ' 天前）</div>'
+      + '</div>'
+      + '</div>';
+  },
+
+  /** 批次檢測頭像 URL 是否有效（每批 20 個並行） */
+  async _runAvatarCheck(users) {
+    var resultEl = document.getElementById('avatar-check-result');
+    var btn = document.getElementById('avatar-check-btn');
+    var withAvatar = users.filter(function(u) { return u.pictureUrl; });
+    if (withAvatar.length === 0) {
+      if (resultEl) resultEl.innerHTML = '<span style="color:var(--text-muted)">沒有用戶設有頭像</span>';
+      if (btn) { btn.disabled = false; btn.textContent = '開始檢測'; }
+      return;
+    }
+
+    var total = withAvatar.length;
+    var checked = 0;
+    var broken = [];
+    var BATCH = 20;
+
+    var checkOne = function(u) {
+      return new Promise(function(resolve) {
+        var img = new Image();
+        var timer = setTimeout(function() { img.src = ''; resolve(false); }, 8000);
+        img.onload = function() { clearTimeout(timer); resolve(true); };
+        img.onerror = function() { clearTimeout(timer); resolve(false); };
+        img.src = u.pictureUrl;
+      });
+    };
+
+    for (var i = 0; i < withAvatar.length; i += BATCH) {
+      var batch = withAvatar.slice(i, i + BATCH);
+      var results = await Promise.all(batch.map(function(u) {
+        return checkOne(u).then(function(ok) { return { user: u, ok: ok }; });
+      }));
+      for (var j = 0; j < results.length; j++) {
+        if (!results[j].ok) broken.push(results[j].user);
+      }
+      checked += batch.length;
+      if (resultEl) resultEl.innerHTML = '檢測進度：' + checked + ' / ' + total + '（發現 <b style="color:var(--danger)">' + broken.length + '</b> 個失效）';
+    }
+
+    // ── 顯示結果 ──
+    var cardBg = 'background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:10px';
+    var summaryColor = broken.length > 0 ? 'var(--danger)' : 'var(--success)';
+    var summaryText = broken.length > 0
+      ? '共 ' + total + ' 位有頭像用戶，<b style="color:var(--danger)">' + broken.length + ' 位頭像已失效</b>（佔 ' + Math.round(broken.length / total * 100) + '%）'
+      : '共 ' + total + ' 位有頭像用戶，<b style="color:var(--success)">全部頭像正常</b>';
+
+    var html = '<div style="font-size:.82rem;color:var(--text-primary);margin-bottom:8px">' + summaryText + '</div>';
+
+    if (broken.length > 0) {
+      html += '<div style="font-size:.78rem;color:var(--text-muted);margin-bottom:6px">這些用戶的 LINE 頭像 URL 已失效（用戶重新登入 App 後會自動修復）</div>';
+      var self = this;
+      for (var k = 0; k < broken.length; k++) {
+        var bu = broken[k];
+        bu._daysSince = bu._daysSince || 0;
+        bu._lastLoginStr = bu._lastLoginStr || '未知';
+        html += self._renderUserStatusRow(bu);
+      }
+    }
+
+    if (resultEl) resultEl.innerHTML = html;
+    if (btn) { btn.disabled = false; btn.textContent = '重新檢測'; }
   },
 
 });
