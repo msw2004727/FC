@@ -120,6 +120,7 @@ body{font-family:var(--font);background:var(--bg-root);color:var(--text-primary)
 .inv-btn.primary:hover{background:var(--accent-hover)}
 .inv-btn.secondary{background:var(--bg-elevated);color:var(--text-primary)}
 .inv-btn.outline{background:transparent;border:1.5px solid var(--accent);color:var(--accent)}
+.inv-btn.outline:active{background:var(--accent);color:#fff}
 .inv-btn.danger{background:var(--danger);color:#fff}
 .inv-btn.ghost{background:transparent;color:var(--text-secondary)}
 .inv-btn.full{width:100%}
