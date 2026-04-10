@@ -5828,3 +5828,132 @@ exports.translateTexts = onCall(
     }
   }
 );
+
+// ════════════════════════════════════════════════════════════════
+//  No-Show Count — 放鴿子統計（排程 + 手動觸發）
+// ════════════════════════════════════════════════════════════════
+
+/**
+ * 計算全站每位用戶的放鴿子次數（noShowCount）並寫回 users 文件。
+ * 判定條件：已結束活動 + 正式報名(confirmed) + 非同行者 + 活動日期已過 + 無 checkin 紀錄
+ */
+async function calcNoShowCountsBatch({ batchSize = 400 } = {}) {
+  const today = new Date().toISOString().slice(0, 10);
+
+  // Step 1: 取得所有已結束活動（只需 status + date）
+  const eventsSnap = await db.collection("events")
+    .where("status", "==", "ended")
+    .select("status", "date")
+    .get();
+
+  const endedEventIds = new Set();
+  eventsSnap.docs.forEach(doc => {
+    const data = doc.data();
+    const eventDate = String(data.date || "").split(" ")[0].replace(/\//g, "-");
+    if (eventDate && eventDate < today) {
+      endedEventIds.add(doc.id);
+    }
+  });
+
+  if (endedEventIds.size === 0) {
+    return { scannedEvents: 0, totalRegs: 0, totalCheckins: 0, updatedUsers: 0 };
+  }
+
+  // Step 2: 取得所有正取報名（confirmed）
+  const regsSnap = await db.collection("registrations")
+    .where("status", "==", "confirmed")
+    .select("userId", "eventId", "participantType")
+    .get();
+
+  // Step 3: 取得所有 checkin 紀錄
+  const checkinsSnap = await db.collection("attendanceRecords")
+    .where("type", "==", "checkin")
+    .select("uid", "eventId", "status")
+    .get();
+
+  const checkinKeys = new Set();
+  checkinsSnap.docs.forEach(doc => {
+    const d = doc.data();
+    const uid = String(d.uid || "").trim();
+    const eventId = String(d.eventId || "").trim();
+    const status = String(d.status || "").trim();
+    if (uid && eventId && status !== "removed" && status !== "cancelled") {
+      checkinKeys.add(uid + "::" + eventId);
+    }
+  });
+
+  // Step 4: 計算每位用戶的放鴿子次數
+  const countByUid = {};
+  const seenRegKeys = new Set();
+
+  regsSnap.docs.forEach(doc => {
+    const reg = doc.data();
+    const uid = String(reg.userId || "").trim();
+    const eventId = String(reg.eventId || "").trim();
+    if (!uid || !eventId) return;
+    if (!endedEventIds.has(eventId)) return;
+    if (reg.participantType === "companion") return;
+
+    const key = uid + "::" + eventId;
+    if (seenRegKeys.has(key)) return;
+    seenRegKeys.add(key);
+
+    if (checkinKeys.has(key)) return;
+    countByUid[uid] = (countByUid[uid] || 0) + 1;
+  });
+
+  // Step 5: 比對 users 文件，只更新有差異的
+  const usersSnap = await db.collection("users").select("noShowCount").get();
+  const updates = [];
+  usersSnap.docs.forEach(doc => {
+    const current = Number(doc.data().noShowCount || 0);
+    const expected = countByUid[doc.id] || 0;
+    if (current !== expected) {
+      updates.push({ ref: doc.ref, noShowCount: expected });
+    }
+  });
+
+  let updatedCount = 0;
+  for (let i = 0; i < updates.length; i += batchSize) {
+    const batch = db.batch();
+    const chunk = updates.slice(i, i + batchSize);
+    chunk.forEach(u => batch.update(u.ref, { noShowCount: u.noShowCount }));
+    await batch.commit();
+    updatedCount += chunk.length;
+  }
+
+  return {
+    scannedEvents: endedEventIds.size,
+    totalRegs: regsSnap.size,
+    totalCheckins: checkinsSnap.size,
+    updatedUsers: updatedCount,
+  };
+}
+
+exports.calcNoShowCounts = onSchedule(
+  {
+    region: "asia-east1",
+    schedule: "0 * * * *",
+    timeZone: "Asia/Taipei",
+    timeoutSeconds: 120,
+    memory: "256MiB",
+    maxInstances: 1,
+  },
+  async () => {
+    const result = await calcNoShowCountsBatch();
+    console.log("[calcNoShowCounts]", result);
+  },
+);
+
+exports.calcNoShowCountsManual = onCall(
+  { region: "asia-east1", timeoutSeconds: 120 },
+  async (request) => {
+    if (!request.auth) throw new HttpsError("unauthenticated", "未登入");
+    const access = await getCallerAccessContext(request);
+    if (!access.hasPermission("admin.repair.data_sync")) {
+      throw new HttpsError("permission-denied", "權限不足");
+    }
+    const result = await calcNoShowCountsBatch();
+    return { success: true, ...result };
+  },
+);

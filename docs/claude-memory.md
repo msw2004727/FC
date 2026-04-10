@@ -10,6 +10,20 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-04-10 — [永久] 放鴿子統計改為後端預算（Cloud Function calcNoShowCounts）
+- **問題**：放鴿子次數在前端即時計算，依賴全域 attendanceRecords 快取（有 onSnapshot limit），超出 limit 的舊活動 checkin 紀錄被截斷，導致有簽到的用戶仍被誤判為放鴿子
+- **原因**：`_buildRawNoShowCountByUid()` 呼叫 `getAttendanceRecords()` 無 eventId，走全域快取，受 limit 截斷
+- **修復**：
+  - Cloud Function `calcNoShowCounts`（排程每小時正點）+ `calcNoShowCountsManual`（callable 手動觸發）
+  - 後端直接查 Firestore（無 limit）：已結束活動 + confirmed 報名 + 無 checkin → 計為放鴿子
+  - 結果寫入 users 文件的 `noShowCount` 欄位
+  - 前端 `_buildRawNoShowCountByUid` 改為從 users 快取讀取，不再跨集合即時算
+  - 管理後台「系統資料同步」新增「⑧ 放鴿子次數重算」按鈕
+- **教訓**：
+  - 跨集合的全域統計不適合在前端即時計算，資料量增長後必然撞到 limit 天花板
+  - 正確架構：後端定時算 → 結果掛在實體文件上 → 前端只讀
+  - 補正系統（correction）與原始計數分離，改了計數來源不影響補正邏輯
+
 ### 2026-04-10 — 簽到紀錄因 onSnapshot limit 部分遺漏 — 改用 per-event 直接查詢
 - **問題**：部分活動的簽到簽退紀錄在管理頁面看不到，有些有、有些沒有，不分新舊
 - **原因**：同日稍早的費用優化加上 `attendanceRecords` onSnapshot `.limit(1500)`，全站簽到紀錄超過此上限時，部分活動的紀錄被排除在前端快取外。調到 3000 仍有遺漏

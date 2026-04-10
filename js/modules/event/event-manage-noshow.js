@@ -75,55 +75,17 @@ Object.assign(App, {
   },
 
   _buildRawNoShowCountByUid() {
-    // 改用 registrations（權威資料，transaction 保障）取代 activityRecords（衍生資料）
-    const allRegistrations = ApiService._src('registrations');
-    // 全域快取已移除 limit，直接使用全域資料（不再合併 userStatsCache，避免切換用戶時汙染其他人的統計）
-    const attendanceRecords = ApiService.getAttendanceRecords();
-    const checkinKeys = new Set();
+    // 讀取 Cloud Function calcNoShowCounts 預先計算並寫入 users 文件的 noShowCount
+    // 不再前端即時跨集合計算（避免 onSnapshot limit 截斷導致誤判）
+    const users = ApiService.getAdminUsers() || [];
     const countByUid = new Map();
-    const seenRegKeys = new Set();
-    const today = new Date().toISOString().slice(0, 10); // "YYYY-MM-DD"
-
-    // Step 1: 建立簽到索引
-    (attendanceRecords || []).forEach(record => {
-      const uid = String(record?.uid || '').trim();
-      const eventId = String(record?.eventId || '').trim();
-      const type = String(record?.type || '').trim();
-      const status = String(record?.status || '').trim();
-      if (!uid || !eventId) return;
-      if (status === 'removed' || status === 'cancelled') return;
-      if (type === 'checkin') {
-        checkinKeys.add(`${uid}::${eventId}`);
+    users.forEach(function (u) {
+      var uid = String(u.uid || u.lineUserId || u._docId || '').trim();
+      var count = Number(u.noShowCount || 0);
+      if (uid && count > 0) {
+        countByUid.set(uid, count);
       }
     });
-
-    // Step 2: 遍歷 registrations，僅計算本人（非同行者）的正式報名
-    (allRegistrations || []).forEach(reg => {
-      const uid = String(reg?.userId || '').trim();
-      const eventId = String(reg?.eventId || '').trim();
-      const status = String(reg?.status || '').trim();
-      if (!uid || !eventId) return;
-      // 只計算正取報名（confirmed）；候補（waitlisted）未被遞補不算放鴿子
-      if (status !== 'confirmed') return;
-      // 同行者不計算放鴿子
-      if (reg.participantType === 'companion') return;
-
-      const key = `${uid}::${eventId}`;
-      if (seenRegKeys.has(key)) return;
-      seenRegKeys.add(key);
-
-      const event = ApiService.getEvent(eventId);
-      if (!event || event.status !== 'ended') return;
-      // 活動當天不計入放鴿子，隔天 00:00 後才算
-      const eventDate = String(event.date || '').split(' ')[0].replace(/\//g, '-');
-      if (!eventDate || eventDate >= today) return;
-
-      // 有簽到紀錄就不算放鴿子
-      if (checkinKeys.has(key)) return;
-
-      countByUid.set(uid, (countByUid.get(uid) || 0) + 1);
-    });
-
     return countByUid;
   },
 
@@ -139,8 +101,6 @@ Object.assign(App, {
   },
 
   _buildNoShowCountByUid() {
-    // 等 Firestore onSnapshot 回傳最新資料後再計算，避免用過期快取顯示錯誤數字
-    if (typeof FirebaseService !== 'undefined' && !FirebaseService._attendanceSnapshotReady) return null;
     const rawCountByUid = this._buildRawNoShowCountByUid();
     const effectiveCountByUid = new Map(rawCountByUid);
     const corrections = typeof ApiService?.getUserCorrections === 'function'

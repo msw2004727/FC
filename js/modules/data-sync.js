@@ -46,6 +46,10 @@ Object.assign(App, {
       return this.runAchievementBatchUpdate();
     }
 
+    if (op === 'noShowCount') {
+      return this._syncNoShowCount();
+    }
+
     const opMap = {
       teamMembers: { label: '俱樂部成員數重算', fn: '_syncTeamMembers' },
       userTeam: { label: '用戶俱樂部欄位驗證', fn: '_syncUserTeamFields' },
@@ -617,6 +621,51 @@ Object.assign(App, {
       this.showToast('\u5DF2\u5C07 ' + count + ' \u4F4D\u7528\u6236\u5730\u5340\u88DC\u6B63\u70BA ' + defaultRegion);
     } catch (err) {
       this.showToast('\u88DC\u6B63\u5931\u6557\uFF1A' + (err.message || err));
+    }
+  },
+
+  // ── ⑧ 放鴿子次數重算（呼叫 Cloud Function）──
+  async _syncNoShowCount() {
+    if (this._dataSyncRunning) {
+      this.showToast('同步作業正在執行中');
+      return;
+    }
+    if (!this.hasPermission?.('admin.repair.data_sync')) {
+      this.showToast('權限不足');
+      return;
+    }
+    var ok = await this.appConfirm(
+      '確定要重算全站放鴿子次數嗎？\n\n' +
+      '將呼叫 Cloud Function 重新掃描所有已結束活動的報名與簽到紀錄，\n' +
+      '計算結果會直接寫回每位用戶的文件。\n\n' +
+      '預估耗時：數秒至十數秒'
+    );
+    if (!ok) return;
+
+    this._dataSyncRunning = true;
+    var ui = this._dataSyncUI();
+    ui.show();
+    ui.log('呼叫 Cloud Function calcNoShowCountsManual ...');
+    var startTime = Date.now();
+
+    try {
+      var fn = firebase.app().functions('asia-east1');
+      var callable = fn.httpsCallable('calcNoShowCountsManual');
+      var resp = await callable();
+      var r = resp.data || {};
+      var elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+      ui.log('掃描活動：' + (r.scannedEvents || 0) + ' 個已結束活動');
+      ui.log('報名紀錄：' + (r.totalRegs || 0) + ' 筆');
+      ui.log('簽到紀錄：' + (r.totalCheckins || 0) + ' 筆');
+      ui.log('更新用戶：' + (r.updatedUsers || 0) + ' 位');
+      ui.log('\n=== 放鴿子次數重算完成（' + elapsed + ' 秒）===');
+      this.showToast('放鴿子重算完成，更新 ' + (r.updatedUsers || 0) + ' 位用戶');
+    } catch (err) {
+      ui.log('錯誤：' + (err.message || err));
+      console.error('[_syncNoShowCount]', err);
+      this.showToast('放鴿子重算失敗');
+    } finally {
+      this._dataSyncRunning = false;
     }
   },
 
