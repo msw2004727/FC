@@ -143,6 +143,14 @@ Object.assign(App, {
       });
     }
 
+    // ── 即時監聽範圍設定（admin 以上） ──
+    if (typeof this._renderRealtimeLimitCard === 'function'
+        && (ROLE_LEVEL_MAP[this.currentRole] || 0) >= ROLE_LEVEL_MAP.admin) {
+      this._renderRealtimeLimitCard(container).catch(err => {
+        console.warn('[dashboard] renderRealtimeLimitCard 失敗:', err);
+      });
+    }
+
     this._markPageSnapshotReady?.('page-admin-dashboard');
   },
 

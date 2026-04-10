@@ -4,7 +4,14 @@
 
 // ─── Cache Version（更新此值以清除瀏覽器快取）───
 // 變更日誌已移除，請用 git log 查閱歷史部署記錄。
-const CACHE_VERSION = '20260410a';
+const CACHE_VERSION = '20260410b';
+
+// ─── 即時監聽 limit 預設值（可在儀表板動態調整，存於 siteConfig/realtimeConfig）───
+const REALTIME_LIMIT_DEFAULTS = {
+  attendanceLimit: 1500,
+  registrationLimit: 3000,
+  eventLimit: 100,
+};
 
 // ─── 網路 / 設備偵測（用於 UI 降級）───
 const NetDevice = {

@@ -10,6 +10,22 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-04-10 — Firestore 費用優化：onSnapshot limit + Functions 降頻 + 儀表板可調
+- **問題**：10 天費用 ~500 TWD。Firestore 每日 177 萬次讀取（onSnapshot 無 limit 監聽全集合）、Cloud Run 92,973 秒/天（autoEndStartedEvents 每分鐘 + createCustomToken minInstances:1）
+- **原因**：attendanceRecords / registrations / events 的 onSnapshot 無 .limit()，每次資料變動重讀全集合；autoEndStartedEvents 每分鐘跑但幾乎 0 更新；fetchUsageMetrics 每小時跑
+- **修復**：
+  - 第一刀（前端）：三個監聽器加 .limit()，值可在儀表板動態調整（存 siteConfig/realtimeConfig）
+    - attendanceRecords: .orderBy('createdAt','desc').limit(1500)
+    - registrations admin: .orderBy('registeredAt','desc').limit(3000)
+    - events: .where(...).limit(100)
+  - 第二刀（後端）：autoEndStartedEvents `*/5` + 128MiB；fetchUsageMetrics 每 6 小時
+  - 儀表板設定卡片：admin 以上可即時調整三個 limit 值（100~10000），用戶切頁/重開生效
+- **教訓**：
+  - onSnapshot 無 limit = 費用隨歷史資料永遠增長，必須加上限封頂
+  - 統計查詢用獨立 .get()（不走監聽器），limit 不影響統計正確性
+  - 排程函式只能預熱自己，不能幫其他函式預熱
+  - createCustomToken 是登入關鍵路徑，不應降記憶體
+
 ### 2026-04-10 — 庫存系統頁籤管理功能（顯示名稱映射）
 - **需求**：讓用戶自訂庫存頁面群組頁籤的顯示名稱（商品/活動/器材/其他）
 - **設計決策**：採用「顯示名稱映射」方案，而非「重新命名 group 欄位」。內部 group 值永不改變，僅在 Firestore `inv_stores/{storeId}.groupTabNames` 存映射表。此設計消滅了 8/15 個潛在 Bug（含批次更新失敗、資料一致性、快取同步等致命問題），且單筆 Firestore 文件寫入天然原子。

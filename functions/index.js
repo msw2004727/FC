@@ -2667,10 +2667,10 @@ async function processChangeWatchEvent(event, collectionName, classifyChange) {
 exports.autoEndStartedEvents = onSchedule(
   {
     region: "asia-east1",
-    schedule: "* * * * *",
+    schedule: "*/5 * * * *",
     timeZone: "Asia/Taipei",
     timeoutSeconds: 60,
-    memory: "256MiB",
+    memory: "128MiB",
     maxInstances: 1,
   },
   async () => {
@@ -5316,9 +5316,9 @@ async function collectUsageMetrics() {
   return { dateKey, metrics, billing: billingData, estimated, errors };
 }
 
-// 定時排程：每小時執行
+// 定時排程：每 6 小時執行
 exports.fetchUsageMetrics = onSchedule(
-  { schedule: "every 1 hours", region: "asia-east1", timeoutSeconds: 120 },
+  { schedule: "every 6 hours", region: "asia-east1", timeoutSeconds: 120 },
   async () => {
     await collectUsageMetrics();
   }

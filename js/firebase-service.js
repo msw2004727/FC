@@ -116,6 +116,7 @@ const FirebaseService = {
   _visibilityRefreshDebounce: null, // visibilitychange 防抖 timer
   _snapshotReconnectAttempts: {},   // onSnapshot 重連計數
   _reconnectTimers: {},             // onSnapshot 重連 setTimeout ID
+  _realtimeLimits: null,            // 從 siteConfig/realtimeConfig 讀取，null 表示尚未載入
   _registrationsRevalidating: false, // 防止並行 revalidation 競爭
   _snapshotRenderTimer: null, // onSnapshot 渲染防抖 timer
 
@@ -1165,6 +1166,36 @@ const FirebaseService = {
     }
   },
 
+  /** 從 siteConfig/realtimeConfig 載入即時監聽 limit 設定，失敗時用預設值 */
+  async _loadRealtimeLimits() {
+    var defaults = (typeof REALTIME_LIMIT_DEFAULTS !== 'undefined') ? REALTIME_LIMIT_DEFAULTS
+      : { attendanceLimit: 1500, registrationLimit: 3000, eventLimit: 100 };
+    try {
+      var snap = await db.collection('siteConfig').doc('realtimeConfig').get();
+      if (snap.exists) {
+        var d = snap.data();
+        var safe = function(v, def) { var n = parseInt(v, 10); return (n >= 100 && n <= 10000) ? n : def; };
+        this._realtimeLimits = {
+          attendanceLimit: safe(d.attendanceLimit, defaults.attendanceLimit),
+          registrationLimit: safe(d.registrationLimit, defaults.registrationLimit),
+          eventLimit: safe(d.eventLimit, defaults.eventLimit),
+        };
+        return;
+      }
+    } catch (e) {
+      console.warn('[FirebaseService] realtimeConfig load failed, using defaults');
+    }
+    this._realtimeLimits = Object.assign({}, defaults);
+  },
+
+  /** 取得即時監聽 limit（未載入則回傳預設值） */
+  _getRealtimeLimit(key) {
+    var defaults = (typeof REALTIME_LIMIT_DEFAULTS !== 'undefined') ? REALTIME_LIMIT_DEFAULTS
+      : { attendanceLimit: 1500, registrationLimit: 3000, eventLimit: 100 };
+    if (this._realtimeLimits && this._realtimeLimits[key]) return this._realtimeLimits[key];
+    return defaults[key] || 1000;
+  },
+
   _roleLevel(role) {
     if (typeof ROLE_LEVEL_MAP === 'undefined') return 0;
     return ROLE_LEVEL_MAP[role] || 0;
@@ -1513,7 +1544,9 @@ const FirebaseService = {
 
   _getRegistrationsListenerQuery(ctx) {
     if (ctx.canReadAll) {
-      return db.collection('registrations');
+      return db.collection('registrations')
+        .orderBy('registeredAt', 'desc')
+        .limit(this._getRealtimeLimit('registrationLimit'));
     }
     return db.collection('registrations')
       .where('userId', '==', ctx.uid);
@@ -1553,6 +1586,7 @@ const FirebaseService = {
     this._attendanceSnapshotReady = false;
     const unsub = db.collection('attendanceRecords')
       .orderBy('createdAt', 'desc')
+      .limit(this._getRealtimeLimit('attendanceLimit'))
       .onSnapshot(
         snapshot => {
           this._cache.attendanceRecords = snapshot.docs.map(doc => ({ ...doc.data(), _docId: doc.id }));
@@ -1744,6 +1778,7 @@ const FirebaseService = {
       this._initialized = true;
       this._setupVisibilityRefresh();
       console.log(`[FirebaseService] Fresh cache hit (${Math.round(_cacheAge / 1000)}s old) — skip boot wait`);
+      this._loadRealtimeLimits().catch(function() {}); // 背景載入，不阻塞快取路徑
       this._startAuthDependentWork();
       this._schedulePostInitWarmups();
       this._continueLoadAfterTimeout(); // 背景靜默更新 Firestore 資料
@@ -1764,6 +1799,7 @@ const FirebaseService = {
         const [bootSnapshots] = await Promise.all([
           Promise.all(this._bootCollections.map(name => this._fetchCollectionSnapshot(name, 200))),
           this._fetchSingleDoc('siteConfig', 'featureFlags'),
+          this._loadRealtimeLimits(),
         ]);
         return [bootSnapshots];
       })();
@@ -2614,6 +2650,7 @@ const FirebaseService = {
     this._lazyLoaded.events = true;
     const unsub = db.collection('events')
       .where('status', 'in', ['open', 'full', 'upcoming'])
+      .limit(this._getRealtimeLimit('eventLimit'))
       .onSnapshot(
         snapshot => {
           this._eventSlices.active = snapshot.docs.map(doc => ({ ...doc.data(), _docId: doc.id }));

@@ -572,4 +572,139 @@ Object.assign(App, {
       + '</div>';
     document.body.appendChild(overlay);
   },
+
+  // ═══════════════════════════════════════════════════
+  //  即時監聽範圍設定卡片
+  // ═══════════════════════════════════════════════════
+
+  async _renderRealtimeLimitCard(container) {
+    if (!container) return;
+    if (document.getElementById('realtime-limit-card')) return;
+
+    // 讀取目前設定
+    var defaults = (typeof REALTIME_LIMIT_DEFAULTS !== 'undefined') ? REALTIME_LIMIT_DEFAULTS
+      : { attendanceLimit: 1500, registrationLimit: 3000, eventLimit: 100 };
+    var current = Object.assign({}, defaults);
+    try {
+      var snap = await db.collection('siteConfig').doc('realtimeConfig').get();
+      if (snap.exists) {
+        var d = snap.data();
+        if (d.attendanceLimit) current.attendanceLimit = d.attendanceLimit;
+        if (d.registrationLimit) current.registrationLimit = d.registrationLimit;
+        if (d.eventLimit) current.eventLimit = d.eventLimit;
+      }
+    } catch (e) {
+      console.warn('[dashboard] realtimeConfig read failed:', e);
+    }
+
+    var esc = escapeHTML;
+    var inputStyle = 'width:80px;padding:6px 8px;border:1.5px solid var(--border);border-radius:8px;'
+      + 'font-size:14px;font-weight:600;text-align:center;background:var(--bg-input,var(--card-bg,#fff));'
+      + 'color:var(--text-primary);outline:none';
+
+    var html = '<div class="info-card" id="realtime-limit-card">'
+      + '<div class="info-title" style="display:flex;align-items:center;gap:6px">'
+      + '  <span>即時監聽範圍設定</span>'
+      + '  <button class="edu-info-btn" onclick="App._showRealtimeLimitInfo()" title="說明">?</button>'
+      + '</div>'
+      + '<div style="font-size:.75rem;color:var(--text-secondary);margin-bottom:.75rem">'
+      + '調整即時監聽器的最大文件數。數值越大即時範圍越廣但費用越高。用戶切頁或重開 App 後生效。</div>'
+      + '<div style="display:flex;flex-direction:column;gap:10px">'
+      + '  <div style="display:flex;align-items:center;justify-content:space-between">'
+      + '    <div><div style="font-size:.82rem;font-weight:600">簽到紀錄</div>'
+      + '    <div style="font-size:.7rem;color:var(--text-secondary)">建議：活躍活動數 × 25</div></div>'
+      + '    <input id="rl-attendance" type="number" inputmode="numeric" min="100" max="10000" value="' + current.attendanceLimit + '" style="' + inputStyle + '" />'
+      + '  </div>'
+      + '  <div style="display:flex;align-items:center;justify-content:space-between">'
+      + '    <div><div style="font-size:.82rem;font-weight:600">報名紀錄（管理員）</div>'
+      + '    <div style="font-size:.7rem;color:var(--text-secondary)">建議：活躍活動數 × 50</div></div>'
+      + '    <input id="rl-registration" type="number" inputmode="numeric" min="100" max="10000" value="' + current.registrationLimit + '" style="' + inputStyle + '" />'
+      + '  </div>'
+      + '  <div style="display:flex;align-items:center;justify-content:space-between">'
+      + '    <div><div style="font-size:.82rem;font-weight:600">活動列表</div>'
+      + '    <div style="font-size:.7rem;color:var(--text-secondary)">建議：預期最大同時活躍活動數 × 2</div></div>'
+      + '    <input id="rl-event" type="number" inputmode="numeric" min="100" max="10000" value="' + current.eventLimit + '" style="' + inputStyle + '" />'
+      + '  </div>'
+      + '</div>'
+      + '<button id="rl-save-btn" class="btn-sm" style="margin-top:.75rem;width:100%;padding:10px;font-size:.88rem;font-weight:600">'
+      + '儲存設定</button>'
+      + '<div id="rl-status" style="font-size:.72rem;color:var(--text-secondary);margin-top:.4rem;text-align:center"></div>'
+      + '</div>';
+
+    var wrapper = document.createElement('div');
+    wrapper.innerHTML = html;
+    container.appendChild(wrapper);
+
+    // 綁定儲存
+    var saveBtn = document.getElementById('rl-save-btn');
+    var statusEl = document.getElementById('rl-status');
+    if (saveBtn) {
+      saveBtn.addEventListener('click', async function() {
+        var att = parseInt(document.getElementById('rl-attendance').value, 10);
+        var reg = parseInt(document.getElementById('rl-registration').value, 10);
+        var evt = parseInt(document.getElementById('rl-event').value, 10);
+        // 驗證
+        var errors = [];
+        if (!att || att < 100 || att > 10000) errors.push('簽到紀錄需在 100~10000 之間');
+        if (!reg || reg < 100 || reg > 10000) errors.push('報名紀錄需在 100~10000 之間');
+        if (!evt || evt < 100 || evt > 10000) errors.push('活動列表需在 100~10000 之間');
+        if (errors.length > 0) {
+          if (statusEl) { statusEl.style.color = 'var(--danger,#dc2626)'; statusEl.textContent = errors.join('；'); }
+          return;
+        }
+        saveBtn.disabled = true;
+        saveBtn.textContent = '儲存中...';
+        try {
+          await db.collection('siteConfig').doc('realtimeConfig').set({
+            attendanceLimit: att,
+            registrationLimit: reg,
+            eventLimit: evt,
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+            updatedBy: (typeof App !== 'undefined' && App.currentUser) ? App.currentUser.uid : '',
+          }, { merge: true });
+          // 同步更新本地
+          if (typeof FirebaseService !== 'undefined' && FirebaseService._realtimeLimits) {
+            FirebaseService._realtimeLimits = { attendanceLimit: att, registrationLimit: reg, eventLimit: evt };
+          }
+          if (statusEl) { statusEl.style.color = 'var(--success,#16a34a)'; statusEl.textContent = '已儲存，用戶切頁或重開 App 後生效'; }
+          if (typeof App !== 'undefined' && App.showToast) App.showToast('即時監聽設定已儲存');
+        } catch (e) {
+          console.error('[dashboard] realtimeConfig save failed:', e);
+          if (statusEl) { statusEl.style.color = 'var(--danger,#dc2626)'; statusEl.textContent = '儲存失敗：' + (e.message || ''); }
+        }
+        saveBtn.disabled = false;
+        saveBtn.textContent = '儲存設定';
+      });
+    }
+  },
+
+  /** 即時監聽範圍說明彈窗 */
+  _showRealtimeLimitInfo() {
+    var body = ''
+      + '<p style="margin-bottom:.6rem">此設定控制 Firestore 即時監聽器（onSnapshot）的最大文件數量。'
+      + '數值越大，即時更新的資料範圍越廣，但 Firestore 讀取費用也越高。</p>'
+      + '<div style="font-weight:700;margin:.7rem 0 .3rem">各欄位說明</div>'
+      + '<ul>'
+      + '<li><b>簽到紀錄</b> — 即時監聽最新 N 筆簽到紀錄，用於掃碼簽到頁面的即時顯示。'
+      + '建議值：活躍活動數 × 每場平均出席人數。統計數據（出席率、完成場次）不受此限制影響。</li>'
+      + '<li><b>報名紀錄（管理員）</b> — 管理員模式下即時監聽最新 N 筆報名。'
+      + '一般用戶只看自己的報名，不受此設定影響。歷史報名可在活動詳情頁單獨查詢。</li>'
+      + '<li><b>活動列表</b> — 即時監聽「開放中 / 已滿 / 即將開始」的活動數量上限。'
+      + '僅作為安全防護，目前活動數通常遠小於此值。</li>'
+      + '</ul>'
+      + '<div style="font-weight:700;margin:.7rem 0 .3rem">什麼時候生效？</div>'
+      + '<p>儲存後，用戶<b>下次切頁或重新開啟 App</b> 時會套用新設定。正在使用中的頁面不會中途改變。</p>'
+      + '<div style="font-weight:700;margin:.7rem 0 .3rem">會影響統計數據嗎？</div>'
+      + '<p><b>不會。</b>出席率、完成場次、放鴿子統計使用獨立查詢，不受此限制。</p>';
+
+    var overlay = document.createElement('div');
+    overlay.className = 'edu-info-overlay';
+    overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+    overlay.innerHTML = '<div class="edu-info-dialog">'
+      + '<div class="edu-info-dialog-title">即時監聽範圍說明</div>'
+      + '<div class="edu-info-dialog-body">' + body + '</div>'
+      + '<button class="primary-btn" style="width:100%;margin-top:.8rem" onclick="this.closest(\'.edu-info-overlay\').remove()">了解</button>'
+      + '</div>';
+    document.body.appendChild(overlay);
+  },
 });
