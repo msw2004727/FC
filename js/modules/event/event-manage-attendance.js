@@ -91,7 +91,23 @@ Object.assign(App, {
     return latest;
   },
 
+  _attRenderTimers: {},
+
   async _renderAttendanceTable(eventId, containerId) {
+    // 防抖：多條路徑（onSnapshot / showEventDetail / instant-save）可能連續觸發
+    // 100ms 內同一 containerId 只執行最後一次，避免 DOM 連續替換導致名單閃現
+    // 不同 containerId 的呼叫互不影響（waitlist 操作後需同時更新兩個容器）
+    var self = this;
+    var key = containerId || 'attendance-table-container';
+    return new Promise(function (resolve) {
+      clearTimeout(self._attRenderTimers[key]);
+      self._attRenderTimers[key] = setTimeout(function () {
+        self._doRenderAttendanceTable(eventId, key).then(resolve);
+      }, 100);
+    });
+  },
+
+  async _doRenderAttendanceTable(eventId, containerId) {
     const cId = containerId || 'attendance-table-container';
     const container = document.getElementById(cId);
     if (!container) return;

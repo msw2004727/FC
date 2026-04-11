@@ -59,10 +59,14 @@ Object.assign(App, {
 
     // fallback：從 event.participants 字串陣列補齊（非管理員只有自己的 registrations）
     // Phase 1b fix: 標記 uidResolved 以區分 UID 是否成功解析
+    // 效能優化：先建 displayName → user Map，避免對每位參加者做 O(n) 線性搜尋
+    const _allUsers = ApiService.getAdminUsers() || [];
+    const _userByName = new Map();
+    _allUsers.forEach(function (u) { var n = u.displayName || u.name; if (n) _userByName.set(n, u); });
     const badgeCache = this._eventBadgeCache?.[eventId] || {};
     (e.participants || []).forEach(p => {
       if (addedNames.has(p)) return;
-      const userDoc = (ApiService.getAdminUsers() || []).find(u => (u.displayName || u.name) === p);
+      const userDoc = _userByName.get(p) || null;
       const resolvedUid = (userDoc && (userDoc.uid || userDoc.lineUserId)) || p;
       if (addedUids.has(resolvedUid)) return;
       const uidResolved = resolvedUid !== p;

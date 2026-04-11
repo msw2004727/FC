@@ -453,20 +453,20 @@ Object.assign(App, {
       this._renderGuestAttendanceTable(id, 'detail-attendance-table');
       this._renderGuestWaitlistSection(id, 'detail-waitlist-container');
     } else {
-      await this._renderAttendanceTable(id, 'detail-attendance-table');
       this._renderUnregTable(id, 'detail-unreg-table');
       this._renderGroupedWaitlistSection(id, 'detail-waitlist-container');
-      // 背景更新報名者徽章（不阻塞頁面渲染）
-      this._refreshRegistrationBadges?.(id, 'detail-attendance-table')?.catch?.(() => {});
     }
-      // ── 內容已渲染就緒，切換顯示頁面（避免空白模板閃現）──
-      // 同一活動的資料刷新不重置捲動位置（僅首次導航或切換活動時才重置）
+      // ── 先切換頁面，讓用戶立即看到活動資訊 ──
       const _isReRender = this.currentPage === 'page-activity-detail' && this._currentDetailEventId === id;
       await this.showPage('page-activity-detail', _isReRender ? { resetScroll: false } : undefined);
       if (requestSeq !== this._eventDetailRequestSeq || this.currentPage !== 'page-activity-detail') {
         return { ok: false, reason: 'stale' };
       }
-      // 頁面可見後偵測徽章溢出（hidden 時 scrollWidth=0 無法偵測）
+      // ── 頁面可見後，背景載入簽到表格（不阻塞頁面顯示）──
+      if (!isGuestView) {
+        await this._renderAttendanceTable(id, 'detail-attendance-table');
+        this._refreshRegistrationBadges?.(id, 'detail-attendance-table')?.catch?.(() => {});
+      }
       const attTable = document.getElementById('detail-attendance-table');
       this._markBadgeRowOverflow?.(attTable);
       this._markPageSnapshotReady?.('page-activity-detail');
