@@ -1,5 +1,7 @@
 # ToosterX Firestore 資料架構遷移：全域集合 → 活動子集合
 
+> **📍 進度摘要**：Phase 0~4b **全部完成並部署上線**（2026-04-12）。遷移功能已完全生效——讀寫都走子集合。**唯一剩餘項是 Phase 4c（可選的清潔工作：刪除根集合殘留資料 + 移除去重過濾 + 鎖定 rules）**。不執行 4c 不影響任何功能。詳見下方「執行進度」和「Phase 4c 執行指引」。
+
 ## Context
 
 `registrations`、`attendanceRecords`、`activityRecords` 三個全域集合混存所有活動資料。初始嘗試用 onSnapshot `.limit()` 降費，但 limit 截斷導致簽到消失、放鴿子統計歸零等連鎖問題。目前 workaround 已移除 limit（`_buildCollectionQuery` L517-519 回退為無 limit），並加上 per-event cache（`ApiService._eventAttendanceMap`）和 `fetchAttendanceRecordsForEvent` 墊底。
@@ -77,9 +79,9 @@ Phase 0 → Phase 1 (高風險) → Phase 2 → Phase 3a → Phase 3b (高風險
 | 3b | ✅ 完成 | 2026-04-12 | 同上 | 監聽器 collectionGroup + 去重 17 處 |
 | 3c | ✅ 完成 | 2026-04-12 | 同上 | _eventAttendanceMap workaround 移除 |
 | 4a | ✅ 完成 | 2026-04-12 | `513f524f` | CF 觸發器改為子集合路徑 |
-| 4b | ✅ 完成 | 2026-04-12 | 同上 | 寫入路徑翻轉（-502 行），根集合不再被寫入 |
-| **4c** | **⏸ 待執行** | — | — | **刪除根集合資料 + 移除去重 + 鎖定 rules（不可逆）** |
-| 4d | ⏸ 待 4c | — | — | 文件更新 + 版號 |
+| 4b | ✅ 完成 | 2026-04-12 | 同上 | 寫入路徑翻轉（-502 行），根集合不再被寫入。版號已同步更新（原 4d 部分完成） |
+| **4c** | **⏸ 唯一待執行項** | — | — | **刪除根集合資料 + 移除去重 + 鎖定 rules（不可逆，見下方完整指引）** |
+| 4d | ✅ 版號已完成 | 2026-04-12 | 含在 4b commit | 版號已更新。`docs/architecture.md` 更新併入 4c 一起做 |
 
 **目前系統狀態**：
 - 寫入：只寫子集合 ✅
@@ -496,7 +498,9 @@ Phase 3c 完成後，進入觀察期。期間：
 
 ### Phase 4 — 移除雙寫 + 遷移觸發器 + 清理
 
-**4a — 遷移 Cloud Function 觸發器：**
+> **⚠️ 閱讀注意（給 AI）**：以下 4a 和 4b 段落是**原始設計文件**，描述的改動**已全部完成並部署**（commit `513f524f`，2026-04-12）。保留此段落是為了記錄「做了什麼」和「為什麼這樣做」。**唯一未完成的是 4c**，其完整執行指引在上方「Phase 4c 執行指引」區塊。
+
+**4a — 遷移 Cloud Function 觸發器：** ✅ 已完成
 
 | 觸發器 | 檔案:行 | 改法 |
 |--------|---------|------|
@@ -505,7 +509,7 @@ Phase 3c 完成後，進入觀察期。期間：
 
 > **關鍵**：這兩個是 `onDocumentWrittenWithAuthContext` 審計日誌觸發器。若不遷移，Phase 4 移除全域寫入後觸發器將永久沉默，審計日誌功能中斷。
 
-**4b — 寫入路徑翻轉：子集合變唯一目標**
+**4b — 寫入路徑翻轉：子集合變唯一目標** ✅ 已完成
 
 > **⚠️ 注意**：Phase 1 定義「全域=主、子集合=副」。Phase 4 要做的是**反過來**：移除全域（原主），保留子集合（原副），讓子集合成為唯一寫入目標。
 
@@ -521,7 +525,7 @@ Phase 3c 完成後，進入觀察期。期間：
 3. **移除 Phase 1 新增的雙寫邏輯**（try-catch 包裹、`_getEventDocId` 呼叫、secondary write 行）
 4. 去重過濾**暫時保留**（根集合資料仍存在，待 4c 刪除後才移除）
 
-**4c — 清理根集合殘留資料 + 鎖定：**
+**4c — 清理根集合殘留資料 + 鎖定：** ⏸ 唯一待執行項（完整指引見上方「Phase 4c 執行指引」區塊）
 
 - 執行 Cloud Function 刪除根集合 `registrations`、`attendanceRecords`、`activityRecords` 的所有文件（Admin SDK 不受 rules 限制）
 - 刪除完成後，移除 collectionGroup 查詢中的 `doc.ref.parent.parent !== null` 去重過濾（不再需要）
@@ -529,10 +533,10 @@ Phase 3c 完成後，進入觀察期。期間：
 
 > **⚠️ 安全規則注意**：`/{path=**}/registrations/{regId} { allow read }` 的 wildcard 規則會 OR 覆蓋根集合的 `if false`。因此**必須先刪除根集合資料**再鎖定，否則鎖定形同虛設（Firestore 規則 OR 運算：任一匹配規則允許即通過）。
 
-**4d — 文件更新 + 版號：**
+**4d — 文件更新 + 版號：** ✅ 版號已在 4b commit 完成，docs 更新併入 4c
 
-- 更新 `docs/architecture.md`、`docs/claude-memory.md`
-- 版號更新（CACHE_VERSION + index.html `?v=` + `var V` + sw.js CACHE_NAME）
+- ~~版號更新~~ → 已在 4b commit 中同步完成
+- `docs/architecture.md`、`docs/claude-memory.md` 更新 → 併入 4c 一起做
 
 **回退策略**：若 Phase 4 部署後發現問題：
 1. 恢復全域寫入路徑（git revert Phase 4b commit — 恢復雙寫）
@@ -597,6 +601,7 @@ Phase 3c 完成後，進入觀察期。期間：
 | 2026-04-12 | v4 | 87 處全域搜尋交叉比對：修正 F1-F3 架構級缺陷 |
 | 2026-04-12 | v5 | Firestore 引擎行為語義審計：修正 G1-G5 引擎級缺陷 |
 | 2026-04-12 | v6 | 新增執行進度追蹤表 + Phase 4c 完整執行指引（6 步驟 + 腳本 + 注意事項） |
+| 2026-04-12 | v7 | 消除 AI 誤判：頂部加進度摘要、Phase 4 本文加完成標記 + AI 閱讀注意、4d 狀態修正（版號已在 4b 完成） |
 
 ### v2 修訂內容
 
