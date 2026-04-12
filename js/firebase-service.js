@@ -1115,6 +1115,37 @@ const FirebaseService = {
     return this._singleDocCache[collection + '/' + docId] || null;
   },
 
+  // ═══════════════════════════════════════════
+  //  [Migration] Subcollection 路徑工具
+  //  Phase 0 新增，供 Phase 1 雙寫使用
+  // ═══════════════════════════════════════════
+
+  /**
+   * 同步版：從快取查找 event 的 Firestore doc.id（_docId）
+   * @param {string} eventId — 活動自訂 ID（data.id，如 ce_1774920121549_j63p）
+   * @returns {string|null} — Firestore doc.id（如 ga0CqtaPpjRwimUGEZfU），快取未命中時回 null
+   */
+  _getEventDocId(eventId) {
+    if (!eventId) return null;
+    var ev = this._cache.events.find(function(e) { return e.id === eventId; });
+    if (ev && ev._docId) return ev._docId;
+    return null;
+  },
+
+  /**
+   * 非同步版：快取未命中時 fallback 到 Firestore 查詢
+   * 非 transaction 場景的雙寫必須使用此版本，確保 docId 可取得
+   * @param {string} eventId — 活動自訂 ID
+   * @returns {Promise<string|null>}
+   */
+  async _getEventDocIdAsync(eventId) {
+    var cached = this._getEventDocId(eventId);
+    if (cached) return cached;
+    if (typeof db === 'undefined') return null;
+    var snap = await db.collection('events').where('id', '==', eventId).limit(1).get();
+    return snap.empty ? null : snap.docs[0].id;
+  },
+
   async ensureSingleDocLoaded(collection, docId) {
     const cacheKey = collection + '/' + docId;
     if (this._singleDocCache[cacheKey]) {

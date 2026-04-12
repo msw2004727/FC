@@ -3641,6 +3641,105 @@ exports.migrateUidFields = onCall(
 );
 
 // ═══════════════════════════════════════════════════
+//  migrateToSubcollections — 全域集合 → 活動子集合遷移
+//  將 registrations / attendanceRecords / activityRecords
+//  複製到 events/{docId}/ 子集合（保留原 doc ID，set() 冪等）
+// ═══════════════════════════════════════════════════
+exports.migrateToSubcollections = onCall(
+  { region: "asia-east1", timeoutSeconds: 540, memory: "1GiB", maxInstances: 1 },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Authentication required");
+    }
+    const access = await getCallerAccessContext(request);
+    if (access.role !== "super_admin") {
+      throw new HttpsError("permission-denied", "super_admin only");
+    }
+
+    const { dryRun = true, batchSize = 400 } = request.data || {};
+    const collections = ["registrations", "attendanceRecords", "activityRecords"];
+
+    // Step 1: 建立 event data.id → doc.id 映射
+    const eventsSnap = await db.collection("events").get();
+    const eventMap = new Map(); // data.id → doc.id
+    eventsSnap.docs.forEach((doc) => {
+      const dataId = (doc.data() || {}).id;
+      if (dataId) eventMap.set(dataId, doc.id);
+    });
+
+    const stats = {
+      totalEvents: eventsSnap.size,
+      mappedEvents: eventMap.size,
+      collections: {},
+    };
+
+    // Step 2: 逐集合遷移
+    for (const col of collections) {
+      const colStats = { total: 0, migrated: 0, skipped: 0, orphan: 0, errors: 0 };
+
+      const snap = await db.collection(col).get();
+      colStats.total = snap.size;
+
+      // 分批處理
+      const docs = snap.docs;
+      for (let i = 0; i < docs.length; i += batchSize) {
+        const chunk = docs.slice(i, i + batchSize);
+        const batch = db.batch();
+        let opsInBatch = 0;
+
+        for (const rootDoc of chunk) {
+          const data = rootDoc.data();
+          const eventId = data ? data.eventId : null;
+
+          if (!eventId) {
+            colStats.orphan++;
+            continue;
+          }
+
+          const eventDocId = eventMap.get(eventId);
+          if (!eventDocId) {
+            colStats.orphan++;
+            continue;
+          }
+
+          // 子集合路徑：events/{eventDocId}/{col}/{原 doc ID}
+          const subRef = db.collection("events").doc(eventDocId).collection(col).doc(rootDoc.id);
+
+          if (!dryRun) {
+            // set() 覆寫語義 — 冪等，Phase 1 雙寫已建立的文件不會重複
+            batch.set(subRef, data);
+            opsInBatch++;
+          } else {
+            colStats.migrated++;
+          }
+        }
+
+        if (!dryRun && opsInBatch > 0) {
+          try {
+            await batch.commit();
+            colStats.migrated += opsInBatch;
+          } catch (err) {
+            colStats.errors++;
+            console.error(`[migrateToSubcollections] batch commit error for ${col}:`, err.message);
+          }
+        }
+      }
+
+      stats.collections[col] = colStats;
+    }
+
+    return {
+      success: true,
+      dryRun,
+      stats,
+      message: dryRun
+        ? "DRY RUN 完成 — 未寫入任何資料，以上為預計遷移數量"
+        : "遷移完成",
+    };
+  }
+);
+
+// ═══════════════════════════════════════════════════
 //  backfillAutoExp — 回推補發歷史 Auto-EXP（模式 A：補差額）
 //  掃描 registrations / attendanceRecords / events，比對 expLogs，
 //  只補發從未發放過的 Auto-EXP，不重新計算已發放的歷史紀錄。
