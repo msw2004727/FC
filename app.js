@@ -35,20 +35,11 @@ window._scanAR = async function(fix) {
     if (fix && issues.length > 0) {
       for (var i = 0; i < issues.length; i++) {
         var docId = issues[i].split('|')[0];
-        await db.collection('activityRecords').doc(docId).update({ status: 'cancelled' });
-        // [dual-write] activityRecords 子集合
-        try {
-          var _dwAr = arSnap.docs.find(function(d) { return d.id === docId; });
-          var _dwEventId = _dwAr ? _dwAr.data().eventId : null;
-          if (_dwEventId) {
-            var _dwDocId = await FirebaseService._getEventDocIdAsync(_dwEventId);
-            if (_dwDocId) {
-              await db.collection('events').doc(_dwDocId).collection('activityRecords').doc(docId).update({ status: 'cancelled' });
-            } else {
-              console.error('[dual-write] missing eventDocId for:', _dwEventId);
-            }
-          }
-        } catch (_e) { console.error('[dual-write] scanAR:', _e); }
+        var ar = arSnap.docs.find(function(d) { return d.id === docId; });
+        var arEventId = ar ? ar.data().eventId : null;
+        var eventDocId = arEventId ? await FirebaseService._getEventDocIdAsync(arEventId) : null;
+        if (!eventDocId) throw new Error('無法取得活動文件 ID: ' + arEventId);
+        await db.collection('events').doc(eventDocId).collection('activityRecords').doc(docId).update({ status: 'cancelled' });
       }
       alert('fixed ' + issues.length);
     }

@@ -133,18 +133,14 @@ Object.assign(App, {
     const teams = event.teamSplit.teams;
     // 洗牌後依序分配
     const shuffled = [...regs].sort(() => Math.random() - 0.5);
-    // [dual-write] resolve eventDocId before batch
-    var _dwEventDocId = await FirebaseService._getEventDocIdAsync(eventId);
-    if (!_dwEventDocId) console.error('[dual-write] missing eventDocId for:', eventId);
+    // 解析 eventDocId（子集合寫入必要）
+    var _eventDocId = await FirebaseService._getEventDocIdAsync(eventId);
+    if (!_eventDocId) throw new Error('無法取得活動文件 ID: ' + eventId);
     const batch = db.batch();
     shuffled.forEach((r, i) => {
       if (!r._docId) return;
       const key = teams[i % teams.length].key;
-      batch.update(db.collection('registrations').doc(r._docId), { teamKey: key });
-      // [dual-write] registrations 子集合
-      if (_dwEventDocId) {
-        batch.update(db.collection('events').doc(_dwEventDocId).collection('registrations').doc(r._docId), { teamKey: key });
-      }
+      batch.update(db.collection('events').doc(_eventDocId).collection('registrations').doc(r._docId), { teamKey: key });
       r.teamKey = key;
     });
     await batch.commit();
@@ -165,18 +161,14 @@ Object.assign(App, {
     teams.forEach(t => { counts[t.key] = 0; });
     regs.filter(r => r.teamKey && validKeys.has(r.teamKey))
       .forEach(r => { counts[r.teamKey]++; });
-    // [dual-write] resolve eventDocId before batch
-    var _dwEventDocId = await FirebaseService._getEventDocIdAsync(eventId);
-    if (!_dwEventDocId) console.error('[dual-write] missing eventDocId for:', eventId);
+    // 解析 eventDocId（子集合寫入必要）
+    var _eventDocId = await FirebaseService._getEventDocIdAsync(eventId);
+    if (!_eventDocId) throw new Error('無法取得活動文件 ID: ' + eventId);
     const batch = db.batch();
     unassigned.forEach(r => {
       if (!r._docId) return;
       const minKey = teams.reduce((min, t) => (counts[t.key] || 0) < (counts[min.key] || 0) ? t : min).key;
-      batch.update(db.collection('registrations').doc(r._docId), { teamKey: minKey });
-      // [dual-write] registrations 子集合
-      if (_dwEventDocId) {
-        batch.update(db.collection('events').doc(_dwEventDocId).collection('registrations').doc(r._docId), { teamKey: minKey });
-      }
+      batch.update(db.collection('events').doc(_eventDocId).collection('registrations').doc(r._docId), { teamKey: minKey });
       r.teamKey = minKey;
       counts[minKey]++;
     });
@@ -190,17 +182,13 @@ Object.assign(App, {
     const regs = (ApiService.getRegistrationsByEvent?.(eventId) || [])
       .filter(r => r.status === 'confirmed' || r.status === 'waitlisted');
     if (!regs.length) return;
-    // [dual-write] resolve eventDocId before batch
-    var _dwEventDocId = await FirebaseService._getEventDocIdAsync(eventId);
-    if (!_dwEventDocId) console.error('[dual-write] missing eventDocId for:', eventId);
+    // 解析 eventDocId（子集合寫入必要）
+    var _eventDocId = await FirebaseService._getEventDocIdAsync(eventId);
+    if (!_eventDocId) throw new Error('無法取得活動文件 ID: ' + eventId);
     const batch = db.batch();
     regs.forEach(r => {
       if (!r._docId) return;
-      batch.update(db.collection('registrations').doc(r._docId), { teamKey: null });
-      // [dual-write] registrations 子集合
-      if (_dwEventDocId) {
-        batch.update(db.collection('events').doc(_dwEventDocId).collection('registrations').doc(r._docId), { teamKey: null });
-      }
+      batch.update(db.collection('events').doc(_eventDocId).collection('registrations').doc(r._docId), { teamKey: null });
       r.teamKey = null;
     });
     await batch.commit();
@@ -373,16 +361,9 @@ Object.assign(App, {
     if (!regDocId) return;
     const newKey = teamKey || null;
     try {
-      await db.collection('registrations').doc(regDocId).update({ teamKey: newKey });
-      // [dual-write] registrations 子集合
-      try {
-        var _dwDocId = await FirebaseService._getEventDocIdAsync(eventId);
-        if (_dwDocId) {
-          await db.collection('events').doc(_dwDocId).collection('registrations').doc(regDocId).update({ teamKey: newKey });
-        } else {
-          console.error('[dual-write] missing eventDocId for:', eventId);
-        }
-      } catch (_e) { console.error('[dual-write] _tsPickTeam:', _e); }
+      var _dwDocId = await FirebaseService._getEventDocIdAsync(eventId);
+      if (!_dwDocId) { console.error('[_tsPickTeam] missing eventDocId for:', eventId); throw new Error('eventDocId missing'); }
+      await db.collection('events').doc(_dwDocId).collection('registrations').doc(regDocId).update({ teamKey: newKey });
       const regs = ApiService.getRegistrationsByEvent?.(eventId) || [];
       const reg = regs.find(r => (r._docId || r.id) === regDocId);
       if (reg) reg.teamKey = newKey;

@@ -92,19 +92,7 @@ Object.assign(App, {
 
             try {
               if (reg._docId) {
-                await db.collection('registrations').doc(reg._docId).update({ displayBadges: newBadges });
-                // [dual-write] registrations subcollection
-                try {
-                  var _dwEventDocId = null;
-                  if (typeof FirebaseService !== 'undefined' && typeof FirebaseService._getEventDocIdAsync === 'function') {
-                    _dwEventDocId = await FirebaseService._getEventDocIdAsync(eventId);
-                  }
-                  if (_dwEventDocId) {
-                    await db.collection('events').doc(_dwEventDocId).collection('registrations').doc(reg._docId).update({ displayBadges: newBadges });
-                  } else {
-                    console.error('[dual-write] missing eventDocId for:', eventId);
-                  }
-                } catch (_dwErr) { console.error('[dual-write]:', _dwErr); }
+                await db.collection('events').doc(_eventDocId).collection('registrations').doc(reg._docId).update({ displayBadges: newBadges });
               }
               badgeMap[uid] = newBadges;
               const rName = String(reg.userName || '').trim();

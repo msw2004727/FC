@@ -212,29 +212,21 @@ Object.assign(App, {
     try {
       const eventDocId = String(e._docId || '').trim();
       if (!eventDocId) throw new Error('EVENT_DOC_ID_MISSING');
-      // [dual-write] resolve eventDocId before batch
-      var _dwEventDocId = null;
+      // 解析 eventDocId（子集合寫入必要）
+      var _eventDocId = null;
       if (typeof FirebaseService !== 'undefined' && typeof FirebaseService._getEventDocIdAsync === 'function') {
-        try { _dwEventDocId = await FirebaseService._getEventDocIdAsync(e.id); } catch (_e) {}
+        _eventDocId = await FirebaseService._getEventDocIdAsync(e.id);
       }
-      if (!_dwEventDocId) console.error('[dual-write] missing eventDocId for:', e.id);
+      if (!_eventDocId) throw new Error('無法取得活動文件 ID: ' + e.id);
 
       const batch = db.batch();
       for (const reg of userWaitlisted) {
         if (reg._docId) {
-          batch.update(db.collection('registrations').doc(reg._docId), { status: 'confirmed' });
-          // [dual-write] registrations subcollection
-          if (_dwEventDocId) {
-            batch.update(db.collection('events').doc(_dwEventDocId).collection('registrations').doc(reg._docId), { status: 'confirmed' });
-          }
+          batch.update(db.collection('events').doc(_eventDocId).collection('registrations').doc(reg._docId), { status: 'confirmed' });
         }
       }
       [...new Set(arRecords.map(record => record._docId).filter(Boolean))].forEach(docId => {
-        batch.update(db.collection('activityRecords').doc(docId), { status: 'registered' });
-        // [dual-write] activityRecords subcollection
-        if (_dwEventDocId) {
-          batch.update(db.collection('events').doc(_dwEventDocId).collection('activityRecords').doc(docId), { status: 'registered' });
-        }
+        batch.update(db.collection('events').doc(_eventDocId).collection('activityRecords').doc(docId), { status: 'registered' });
       });
       batch.update(db.collection('events').doc(eventDocId), {
         current: occupancy.current,
@@ -346,32 +338,24 @@ Object.assign(App, {
     try {
       var eventDocId = String(e._docId || '').trim();
       if (!eventDocId) throw new Error('EVENT_DOC_ID_MISSING');
-      // [dual-write] resolve eventDocId before batch
-      var _dwEventDocId2 = null;
+      // 解析 eventDocId（子集合寫入必要）
+      var _eventDocId2 = null;
       if (typeof FirebaseService !== 'undefined' && typeof FirebaseService._getEventDocIdAsync === 'function') {
-        try { _dwEventDocId2 = await FirebaseService._getEventDocIdAsync(e.id); } catch (_e) {}
+        _eventDocId2 = await FirebaseService._getEventDocIdAsync(e.id);
       }
-      if (!_dwEventDocId2) console.error('[dual-write] missing eventDocId for:', e.id);
+      if (!_eventDocId2) throw new Error('無法取得活動文件 ID: ' + e.id);
 
       var batch = db.batch();
       for (var i = 0; i < userConfirmed.length; i++) {
         if (userConfirmed[i]._docId) {
-          batch.update(db.collection('registrations').doc(userConfirmed[i]._docId), { status: 'waitlisted' });
-          // [dual-write] registrations subcollection
-          if (_dwEventDocId2) {
-            batch.update(db.collection('events').doc(_dwEventDocId2).collection('registrations').doc(userConfirmed[i]._docId), { status: 'waitlisted' });
-          }
+          batch.update(db.collection('events').doc(_eventDocId2).collection('registrations').doc(userConfirmed[i]._docId), { status: 'waitlisted' });
         }
       }
       var arDocIds = new Set();
       arRecords.forEach(function (r) {
         if (r._docId && !arDocIds.has(r._docId)) {
           arDocIds.add(r._docId);
-          batch.update(db.collection('activityRecords').doc(r._docId), { status: 'waitlisted' });
-          // [dual-write] activityRecords subcollection
-          if (_dwEventDocId2) {
-            batch.update(db.collection('events').doc(_dwEventDocId2).collection('activityRecords').doc(r._docId), { status: 'waitlisted' });
-          }
+          batch.update(db.collection('events').doc(_eventDocId2).collection('activityRecords').doc(r._docId), { status: 'waitlisted' });
         }
       });
       batch.update(db.collection('events').doc(eventDocId), {

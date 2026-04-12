@@ -249,12 +249,12 @@ Object.assign(App, {
       }
     }
     if (toRemove.length === 0) return;
-    // [dual-write] resolve eventDocId before batch loops
-    var _dwEventDocId = null;
+    // 解析 eventDocId（子集合寫入必要）
+    var _eventDocId = null;
     if (typeof FirebaseService !== 'undefined' && typeof FirebaseService._getEventDocIdAsync === 'function') {
-      try { _dwEventDocId = await FirebaseService._getEventDocIdAsync(eventId); } catch (_e) {}
+      _eventDocId = await FirebaseService._getEventDocIdAsync(eventId);
     }
-    if (!_dwEventDocId) console.error('[dual-write] missing eventDocId for:', eventId);
+    if (!_eventDocId) throw new Error('無法取得活動文件 ID: ' + eventId);
 
     // batch 刪除 Firestore（每 500 筆一批）
     if (typeof db !== 'undefined') {
@@ -263,11 +263,7 @@ Object.assign(App, {
         const batch = db.batch();
         chunk.forEach(item => {
           if (item.docId) {
-            batch.delete(db.collection('activityRecords').doc(item.docId));
-            // [dual-write] activityRecords subcollection
-            if (_dwEventDocId) {
-              batch.delete(db.collection('events').doc(_dwEventDocId).collection('activityRecords').doc(item.docId));
-            }
+            batch.delete(db.collection('events').doc(_eventDocId).collection('activityRecords').doc(item.docId));
           }
         });
         try { await batch.commit(); } catch (err) { console.error('[cleanupCancelledRecords] batch failed:', err); return; }
@@ -413,44 +409,28 @@ Object.assign(App, {
         ? FirebaseService._rebuildOccupancy(event, simActive)
         : null;
 
-      // [dual-write] resolve eventDocId before batch
-      var _dwEventDocId2 = null;
+      // 解析 eventDocId（子集合寫入必要）
+      var _eventDocId2 = null;
       if (typeof FirebaseService !== 'undefined' && typeof FirebaseService._getEventDocIdAsync === 'function') {
-        try { _dwEventDocId2 = await FirebaseService._getEventDocIdAsync(eventId); } catch (_e) {}
+        _eventDocId2 = await FirebaseService._getEventDocIdAsync(eventId);
       }
-      if (!_dwEventDocId2) console.error('[dual-write] missing eventDocId for:', eventId);
+      if (!_eventDocId2) throw new Error('無法取得活動文件 ID: ' + eventId);
 
       // 6. 建 batch
       if (batch) {
         if (simTarget && simTarget._docId) {
-          batch.update(db.collection('registrations').doc(simTarget._docId), { status: 'removed', removedAt: firebase.firestore.FieldValue.serverTimestamp() });
-          // [dual-write] registrations subcollection
-          if (_dwEventDocId2) {
-            batch.update(db.collection('events').doc(_dwEventDocId2).collection('registrations').doc(simTarget._docId), { status: 'removed', removedAt: firebase.firestore.FieldValue.serverTimestamp() });
-          }
+          batch.update(db.collection('events').doc(_eventDocId2).collection('registrations').doc(simTarget._docId), { status: 'removed', removedAt: firebase.firestore.FieldValue.serverTimestamp() });
         }
         if (arRemoveDocId) {
-          batch.update(db.collection('activityRecords').doc(arRemoveDocId), { status: 'removed' });
-          // [dual-write] activityRecords subcollection
-          if (_dwEventDocId2) {
-            batch.update(db.collection('events').doc(_dwEventDocId2).collection('activityRecords').doc(arRemoveDocId), { status: 'removed' });
-          }
+          batch.update(db.collection('events').doc(_eventDocId2).collection('activityRecords').doc(arRemoveDocId), { status: 'removed' });
         }
         promotedSim.forEach(sim => {
           if (sim._docId) {
-            batch.update(db.collection('registrations').doc(sim._docId), { status: 'confirmed' });
-            // [dual-write] registrations subcollection
-            if (_dwEventDocId2) {
-              batch.update(db.collection('events').doc(_dwEventDocId2).collection('registrations').doc(sim._docId), { status: 'confirmed' });
-            }
+            batch.update(db.collection('events').doc(_eventDocId2).collection('registrations').doc(sim._docId), { status: 'confirmed' });
           }
         });
         arPromoteUpdates.forEach(au => {
-          batch.update(db.collection('activityRecords').doc(au.docId), { status: 'registered' });
-          // [dual-write] activityRecords subcollection
-          if (_dwEventDocId2) {
-            batch.update(db.collection('events').doc(_dwEventDocId2).collection('activityRecords').doc(au.docId), { status: 'registered' });
-          }
+          batch.update(db.collection('events').doc(_eventDocId2).collection('activityRecords').doc(au.docId), { status: 'registered' });
         });
         if (event._docId && occupancy) {
           batch.update(db.collection('events').doc(event._docId), {

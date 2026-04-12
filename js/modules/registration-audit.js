@@ -260,20 +260,16 @@ Object.assign(App, {
       };
 
       if (!dryRun) {
-        // [dual-write] resolve eventDocId before batch
-        var _dwEventDocId = await FirebaseService._getEventDocIdAsync(event.id);
-        if (!_dwEventDocId) console.error('[dual-write] missing eventDocId for:', event.id);
+        // 解析 eventDocId（子集合寫入必要）
+        var eventDocId = await FirebaseService._getEventDocIdAsync(event.id);
+        if (!eventDocId) throw new Error('無法取得活動文件 ID: ' + event.id);
         const batch = db.batch();
 
         // 遞補：waitlisted → confirmed
         for (const reg of toPromote) {
           reg.status = 'confirmed';
           if (reg._docId) {
-            batch.update(db.collection('registrations').doc(reg._docId), { status: 'confirmed' });
-            // [dual-write] registrations 子集合
-            if (_dwEventDocId) {
-              batch.update(db.collection('events').doc(_dwEventDocId).collection('registrations').doc(reg._docId), { status: 'confirmed' });
-            }
+            batch.update(db.collection('events').doc(eventDocId).collection('registrations').doc(reg._docId), { status: 'confirmed' });
           }
         }
 
@@ -281,11 +277,7 @@ Object.assign(App, {
         for (const reg of toDemote) {
           reg.status = 'waitlisted';
           if (reg._docId) {
-            batch.update(db.collection('registrations').doc(reg._docId), { status: 'waitlisted' });
-            // [dual-write] registrations 子集合
-            if (_dwEventDocId) {
-              batch.update(db.collection('events').doc(_dwEventDocId).collection('registrations').doc(reg._docId), { status: 'waitlisted' });
-            }
+            batch.update(db.collection('events').doc(eventDocId).collection('registrations').doc(reg._docId), { status: 'waitlisted' });
           }
         }
 

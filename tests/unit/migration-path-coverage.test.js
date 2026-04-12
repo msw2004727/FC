@@ -31,35 +31,35 @@ const PROJECT_ROOT = path.resolve(__dirname, '../..');
 //  that the migration plan doesn't cover.
 // ═══════════════════════════════════════════════════════════════
 const KNOWN_REFERENCES = {
-  'js/firebase-crud.js': { registrations: 18, attendanceRecords: 8, activityRecords: 0 },
-  'js/firebase-service.js': { registrations: 0, attendanceRecords: 0, activityRecords: 0 }, // Phase 3b/3c: 監聽器改 collectionGroup + fetchEventAttendanceRecords 移除
+  'js/firebase-crud.js': { registrations: 11, attendanceRecords: 4, activityRecords: 0 }, // Phase 4b: 全部改為子集合路徑（regex 仍匹配 .collection('registrations') in subcollection chain）
+  'js/firebase-service.js': { registrations: 0, attendanceRecords: 0, activityRecords: 0 },
   'js/api-service.js': { registrations: 0, attendanceRecords: 1, activityRecords: 0 },
-  'js/modules/achievement-batch.js': { registrations: 2, attendanceRecords: 0, activityRecords: 0 }, // Phase 3b: 查詢改 collectionGroup，僅剩寫入
-  'js/modules/event/event-create-waitlist.js': { registrations: 5, attendanceRecords: 0, activityRecords: 4 },
-  'js/modules/event/event-detail-signup.js': { registrations: 4, attendanceRecords: 0, activityRecords: 10 },
-  'js/modules/event/event-detail-companion.js': { registrations: 0, attendanceRecords: 0, activityRecords: 8 },
+  'js/modules/achievement-batch.js': { registrations: 1, attendanceRecords: 0, activityRecords: 0 }, // Phase 4b: 寫入改子集合
+  'js/modules/event/event-create-waitlist.js': { registrations: 3, attendanceRecords: 0, activityRecords: 2 }, // Phase 4b: 寫入改子集合
+  'js/modules/event/event-detail-signup.js': { registrations: 3, attendanceRecords: 0, activityRecords: 5 }, // Phase 4b: 寫入改子集合
+  'js/modules/event/event-detail-companion.js': { registrations: 0, attendanceRecords: 0, activityRecords: 4 }, // Phase 4b: 寫入改子集合
   'js/modules/event/event-detail.js': { registrations: 1, attendanceRecords: 0, activityRecords: 0 },
-  'js/modules/event/event-manage-badges.js': { registrations: 3, attendanceRecords: 0, activityRecords: 0 },
-  'js/modules/event/event-manage-lifecycle.js': { registrations: 5, attendanceRecords: 0, activityRecords: 6 },
-  'js/modules/event/event-manage-waitlist.js': { registrations: 4, attendanceRecords: 0, activityRecords: 4 },
-  'js/modules/event/event-team-split.js': { registrations: 8, attendanceRecords: 0, activityRecords: 0 },
-  'js/modules/event/event-host-list.js': { registrations: 0, attendanceRecords: 0, activityRecords: 0 }, // Phase 3b: 改 collectionGroup
-  'js/modules/registration-audit.js': { registrations: 4, attendanceRecords: 0, activityRecords: 0 },
-  'js/modules/attendance-notify.js': { registrations: 0, attendanceRecords: 0, activityRecords: 0 }, // Phase 3b: 改 collectionGroup
-  'app.js': { registrations: 0, attendanceRecords: 0, activityRecords: 2 }, // Phase 3b: 查詢改 collectionGroup，僅剩寫入
+  'js/modules/event/event-manage-badges.js': { registrations: 2, attendanceRecords: 0, activityRecords: 0 }, // Phase 4b: 寫入改子集合
+  'js/modules/event/event-manage-lifecycle.js': { registrations: 3, attendanceRecords: 0, activityRecords: 3 }, // Phase 4b: 寫入改子集合
+  'js/modules/event/event-manage-waitlist.js': { registrations: 2, attendanceRecords: 0, activityRecords: 2 }, // Phase 4b: 寫入改子集合
+  'js/modules/event/event-team-split.js': { registrations: 4, attendanceRecords: 0, activityRecords: 0 }, // Phase 4b: 寫入改子集合
+  'js/modules/event/event-host-list.js': { registrations: 0, attendanceRecords: 0, activityRecords: 0 },
+  'js/modules/registration-audit.js': { registrations: 2, attendanceRecords: 0, activityRecords: 0 }, // Phase 4b: 寫入改子集合
+  'js/modules/attendance-notify.js': { registrations: 0, attendanceRecords: 0, activityRecords: 0 },
+  'app.js': { registrations: 0, attendanceRecords: 0, activityRecords: 1 }, // Phase 4b: 寫入改子集合
 };
 
 // Cloud Functions — uses double quotes
 const KNOWN_CF_REFERENCES = {
-  'functions/index.js': { registrations: 9, attendanceRecords: 0, activityRecords: 7 }, // Phase 3b: calcNoShowCountsBatch+backfillAutoExp 改 collectionGroup
+  'functions/index.js': { registrations: 6, attendanceRecords: 0, activityRecords: 4 }, // Phase 4b: 寫入改子集合（regex 仍匹配子集合鏈）
 };
 
 // CF triggers — document path references (not db.collection)
 const KNOWN_CF_TRIGGERS = {
   'functions/index.js': {
     triggers: [
-      'registrations/{regId}',
-      'attendanceRecords/{recordId}',
+      'events/{eventId}/registrations/{regId}',
+      'events/{eventId}/attendanceRecords/{recordId}',
     ],
   },
 };

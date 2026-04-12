@@ -10,6 +10,16 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-04-12 — Phase 4a+4b 完成：CF 觸發器遷移 + 寫入路徑翻轉
+- **問題**：Phase 3 完成後，讀取已切到子集合，但寫入仍雙寫（根+子集合），CF 觸發器仍監聽根集合
+- **修復**：
+  - Phase 4a：`watchRegistrationsChanges` / `watchAttendanceChanges` document path 改為子集合路徑
+  - Phase 4b 步驟 1：LOCKED 函式（`_doRegisterForEvent`、`batchRegisterForEvent`、`cancelRegistration`、`cancelCompanionRegistrations`）+ CF `registerForEvent` / `cancelRegistration` 的根集合 ref 改為子集合 ref
+  - Phase 4b 步驟 2：所有一般寫入（`addAttendanceRecord`、`removeAttendanceRecord`、`batchWriteAttendance`、`displayBadges` 等 15 個檔案）根集合 ref 改為子集合 ref
+  - Phase 4b 步驟 3：移除所有 `[dual-write]` 區塊（38 個雙寫區塊）；`_getEventDocIdAsync` 從 try-catch 提升為主路徑必要呼叫，null 時 throw
+  - 測試：`KNOWN_REFERENCES` / `KNOWN_CF_REFERENCES` / `KNOWN_CF_TRIGGERS` 全部更新；4330 tests passed
+- **教訓**：regex `.collection('registrations')` 會同時匹配根集合和子集合鏈中的引用，更新 allowlist 時需用實際計數
+
 ### 2026-04-12 — Phase 3 完成：子集合讀取路徑切換
 - **問題**：Phase 0-2 完成後，讀取仍走根集合。需切換全部讀取路徑到子集合/collectionGroup
 - **修復**：

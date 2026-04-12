@@ -2703,7 +2703,7 @@ exports.watchEventsChanges = onDocumentWrittenWithAuthContext(
 exports.watchRegistrationsChanges = onDocumentWrittenWithAuthContext(
   {
     ...CHANGE_WATCH_FUNCTION_OPTIONS,
-    document: "registrations/{regId}",
+    document: "events/{eventId}/registrations/{regId}",
   },
   async (event) => processChangeWatchEvent(event, "registrations", classifyRegistrationsChange),
 );
@@ -2711,7 +2711,7 @@ exports.watchRegistrationsChanges = onDocumentWrittenWithAuthContext(
 exports.watchAttendanceChanges = onDocumentWrittenWithAuthContext(
   {
     ...CHANGE_WATCH_FUNCTION_OPTIONS,
-    document: "attendanceRecords/{recordId}",
+    document: "events/{eventId}/attendanceRecords/{recordId}",
   },
   async (event) => processChangeWatchEvent(event, "attendanceRecords", classifyAttendanceChange),
 );
@@ -4598,8 +4598,6 @@ exports.registerForEvent = onCall(
     const callerUserDoc = await findUserDocByUidOrLineUserId(callerUid);
 
     // ── Firestore Transaction ──
-    const regDocRefs = sanitizedParticipants.map(() => db.collection("registrations").doc());
-
     const result = await db.runTransaction(async (transaction) => {
       // T1: 讀取活動（用 id 欄位查詢，因 eventId 是邏輯 ID 非 Firestore doc ID）
       const eventQuerySnap = await transaction.get(
@@ -4610,6 +4608,7 @@ exports.registerForEvent = onCall(
       }
       const eventDoc = eventQuerySnap.docs[0];
       const eventRef = eventDoc.ref;
+      const regDocRefs = sanitizedParticipants.map(() => eventDoc.ref.collection("registrations").doc());
       const ed = eventDoc.data();
       const maxCount = ed.max || 0;
 
@@ -4773,11 +4772,6 @@ exports.registerForEvent = onCall(
         if (teamKey !== undefined) reg.teamKey = teamKey;
 
         transaction.set(regDocRefs[idx], reg);
-        // [dual-write] registrations 子集合
-        transaction.set(
-          db.collection("events").doc(eventDoc.id).collection("registrations").doc(regDocRefs[idx].id),
-          reg
-        );
         // 儲存帶有統一時間源的副本供 rebuildOccupancy 使用
         registrations.push({ ...reg, _docId: regDocRefs[idx].id, registeredAt: nowISOString });
 
@@ -4795,7 +4789,7 @@ exports.registerForEvent = onCall(
       if (selfReg) {
         const dateParts = (ed.date || "").split(" ")[0].split("/");
         const dateStr = dateParts.length >= 3 ? `${dateParts[1]}/${dateParts[2]}` : "";
-        const arRef = db.collection("activityRecords").doc();
+        const arRef = eventDoc.ref.collection("activityRecords").doc();
         const arData = {
           eventId,
           name: ed.title || "",
@@ -4806,11 +4800,6 @@ exports.registerForEvent = onCall(
           createdAt: FieldValue.serverTimestamp(),
         };
         transaction.set(arRef, arData);
-        // [dual-write] activityRecords 子集合
-        transaction.set(
-          db.collection("events").doc(eventDoc.id).collection("activityRecords").doc(arRef.id),
-          arData
-        );
         activityRecordDocId = arRef.id;
       }
 
@@ -5025,15 +5014,10 @@ exports.cancelRegistration = onCall(
 
       // 寫入 Firestore
       for (const reg of targetRegs) {
-        transaction.update(db.collection("registrations").doc(reg._docId), {
+        transaction.update(eventDoc.ref.collection("registrations").doc(reg._docId), {
           status: newStatus,
           [`${newStatus}At`]: FieldValue.serverTimestamp(),
         });
-        // [dual-write] registrations 子集合
-        transaction.update(
-          db.collection("events").doc(eventDoc.id).collection("registrations").doc(reg._docId),
-          { status: newStatus, [`${newStatus}At`]: FieldValue.serverTimestamp() }
-        );
       }
 
       // T5: 候補遞補
@@ -5060,15 +5044,10 @@ exports.cancelRegistration = onCall(
             if (slotsAvailable <= 0) break;
             candidate.status = "confirmed";
             promotedCandidates.push(candidate);
-            transaction.update(db.collection("registrations").doc(candidate._docId), {
+            transaction.update(eventDoc.ref.collection("registrations").doc(candidate._docId), {
               status: "confirmed",
               promotedAt: FieldValue.serverTimestamp(),
             });
-            // [dual-write] registrations 子集合
-            transaction.update(
-              db.collection("events").doc(eventDoc.id).collection("registrations").doc(candidate._docId),
-              { status: "confirmed", promotedAt: FieldValue.serverTimestamp() }
-            );
             slotsAvailable--;
           }
         }
@@ -5085,12 +5064,7 @@ exports.cancelRegistration = onCall(
         if (reg.participantType === "companion") continue;
         const ar = allArs.find((a) => a.uid === reg.userId && a.status !== "cancelled" && a.status !== "removed");
         if (ar) {
-          transaction.update(db.collection("activityRecords").doc(ar._docId), { status: newStatus });
-          // [dual-write] activityRecords 子集合
-          transaction.update(
-            db.collection("events").doc(eventDoc.id).collection("activityRecords").doc(ar._docId),
-            { status: newStatus }
-          );
+          transaction.update(eventDoc.ref.collection("activityRecords").doc(ar._docId), { status: newStatus });
         }
       }
 
@@ -5099,12 +5073,7 @@ exports.cancelRegistration = onCall(
         if (candidate.participantType === "companion") continue;
         const ar = allArs.find((a) => a.uid === candidate.userId && a.status === "waitlisted");
         if (ar) {
-          transaction.update(db.collection("activityRecords").doc(ar._docId), { status: "registered" });
-          // [dual-write] activityRecords 子集合
-          transaction.update(
-            db.collection("events").doc(eventDoc.id).collection("activityRecords").doc(ar._docId),
-            { status: "registered" }
-          );
+          transaction.update(eventDoc.ref.collection("activityRecords").doc(ar._docId), { status: "registered" });
         }
       }
 

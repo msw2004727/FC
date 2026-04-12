@@ -219,19 +219,15 @@ Object.assign(App, {
             status: isWl ? 'waitlisted' : 'registered', uid: userId, eventType: e.type,
           };
           ApiService.addActivityRecord(arRecord);
-          db.collection('activityRecords').add({
-            ...arRecord, createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-          }).then(function(ref) {
-            arRecord._docId = ref.id;
-            // [dual-write] activityRecords 子集合
-            try {
-              FirebaseService._getEventDocIdAsync(e.id).then(function(_dwId) {
-                if (_dwId) db.collection('events').doc(_dwId).collection('activityRecords').doc(ref.id).set({
-                  ...arRecord, createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-                });
-              }).catch(function(_e) { console.error('[dual-write]:', _e); });
-            } catch (_e) { console.error('[dual-write]:', _e); }
-          }).catch(err => console.error('[companionRegAR]', err));
+          FirebaseService._getEventDocIdAsync(e.id).then(function(_edId) {
+            if (!_edId) { console.error('[companionRegAR] eventDocId not found:', e.id); return; }
+            var newDocRef = db.collection('events').doc(_edId).collection('activityRecords').doc();
+            newDocRef.set({
+              ...arRecord, createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+            }).then(function() {
+              arRecord._docId = newDocRef.id;
+            }).catch(function(err) { console.error('[companionRegAR]', err); });
+          }).catch(function(err) { console.error('[companionRegAR eventDocId]', err); });
           if (!isWl) this._grantAutoExp?.(userId, 'register_activity', e.title);
         }
       }
@@ -368,34 +364,26 @@ Object.assign(App, {
             if (existingAR) {
               existingAR.status = 'cancelled';
               if (existingAR._docId) {
-                db.collection('activityRecords').doc(existingAR._docId).update({ status: 'cancelled' })
-                  .catch(err => console.error('[companionCancelAR]', err));
-                // [dual-write] activityRecords 子集合
-                try {
-                  var _dwCancelDocId = existingAR._docId;
-                  FirebaseService._getEventDocIdAsync(eventId).then(function(_dwId) {
-                    if (_dwId) db.collection('events').doc(_dwId).collection('activityRecords').doc(_dwCancelDocId).update({ status: 'cancelled' });
-                  }).catch(function(_e) { console.error('[dual-write]:', _e); });
-                } catch (_e) { console.error('[dual-write]:', _e); }
+                FirebaseService._getEventDocIdAsync(eventId).then(function(_edId) {
+                  if (!_edId) { console.error('[companionCancelAR] eventDocId not found:', eventId); return; }
+                  db.collection('events').doc(_edId).collection('activityRecords').doc(existingAR._docId).update({ status: 'cancelled' })
+                    .catch(function(err) { console.error('[companionCancelAR]', err); });
+                }).catch(function(err) { console.error('[companionCancelAR eventDocId]', err); });
               }
             } else if (!arSource.some(a => a.eventId === eventId && a.uid === userId && a.status === 'cancelled')) {
               const dp = e.date.split(' ')[0].split('/');
               const dateStr = `${dp[1]}/${dp[2]}`;
               const arCancel = { eventId, name: e.title, date: dateStr, status: 'cancelled', uid: userId };
               ApiService.addActivityRecord(arCancel);
-              db.collection('activityRecords').add({
-                ...arCancel, createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-              }).then(function(ref) {
-                arCancel._docId = ref.id;
-                // [dual-write] activityRecords 子集合
-                try {
-                  FirebaseService._getEventDocIdAsync(eventId).then(function(_dwId) {
-                    if (_dwId) db.collection('events').doc(_dwId).collection('activityRecords').doc(ref.id).set({
-                      ...arCancel, createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-                    });
-                  }).catch(function(_e) { console.error('[dual-write]:', _e); });
-                } catch (_e) { console.error('[dual-write]:', _e); }
-              }).catch(err => console.error('[companionCancelAR]', err));
+              FirebaseService._getEventDocIdAsync(eventId).then(function(_edId) {
+                if (!_edId) { console.error('[companionCancelAR] eventDocId not found:', eventId); return; }
+                var newDocRef = db.collection('events').doc(_edId).collection('activityRecords').doc();
+                newDocRef.set({
+                  ...arCancel, createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                }).then(function() {
+                  arCancel._docId = newDocRef.id;
+                }).catch(function(err) { console.error('[companionCancelAR]', err); });
+              }).catch(function(err) { console.error('[companionCancelAR eventDocId]', err); });
             }
             FirebaseService._getEventDocIdAsync(eventId).then(function(_edId) {
               if (!_edId) { console.error('[companionCancelAR] eventDocId not found:', eventId); return; }
@@ -404,10 +392,6 @@ Object.assign(App, {
                 .get().then(function(snap) {
                   snap.forEach(function(doc) {
                     if (doc.data().status !== 'cancelled') {
-                      // [dual-write] 根集合
-                      db.collection('activityRecords').doc(doc.id).update({ status: 'cancelled' })
-                        .catch(function(err) { console.error('[companionCancelAR-fallback]', err); });
-                      // 子集合（doc.ref 已指向子集合）
                       doc.ref.update({ status: 'cancelled' })
                         .catch(function(err) { console.error('[companionCancelAR-sub]', err); });
                     }

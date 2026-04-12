@@ -142,30 +142,22 @@ Object.assign(App, {
         : null;
 
       // 3. 建 batch + commit
-      // [dual-write] resolve eventDocId before batch
-      var _dwEventDocId = null;
+      // 解析 eventDocId（子集合寫入必要）
+      var eventDocId = null;
       if (typeof FirebaseService !== 'undefined' && typeof FirebaseService._getEventDocIdAsync === 'function') {
-        try { _dwEventDocId = await FirebaseService._getEventDocIdAsync(eventId); } catch (_e) {}
+        eventDocId = await FirebaseService._getEventDocIdAsync(eventId);
       }
-      if (!_dwEventDocId) console.error('[dual-write] missing eventDocId for:', eventId);
+      if (!eventDocId) throw new Error('無法取得活動文件 ID: ' + eventId);
 
       const batch = (typeof db !== 'undefined') ? db.batch() : null;
       if (batch) {
         promotedSim.forEach(sim => {
           if (sim._docId) {
-            batch.update(db.collection('registrations').doc(sim._docId), { status: 'confirmed' });
-            // [dual-write] registrations subcollection
-            if (_dwEventDocId) {
-              batch.update(db.collection('events').doc(_dwEventDocId).collection('registrations').doc(sim._docId), { status: 'confirmed' });
-            }
+            batch.update(db.collection('events').doc(eventDocId).collection('registrations').doc(sim._docId), { status: 'confirmed' });
           }
         });
         arUpdates.forEach(au => {
-          batch.update(db.collection('activityRecords').doc(au.docId), { status: 'registered' });
-          // [dual-write] activityRecords subcollection
-          if (_dwEventDocId) {
-            batch.update(db.collection('events').doc(_dwEventDocId).collection('activityRecords').doc(au.docId), { status: 'registered' });
-          }
+          batch.update(db.collection('events').doc(eventDocId).collection('activityRecords').doc(au.docId), { status: 'registered' });
         });
         if (event._docId && occupancy) {
           batch.update(db.collection('events').doc(event._docId), {
@@ -248,30 +240,22 @@ Object.assign(App, {
         : null;
 
       // 3. 建 batch + commit
-      // [dual-write] resolve eventDocId before batch
-      var _dwEventDocId2 = null;
+      // 解析 eventDocId（子集合寫入必要）
+      var eventDocId2 = null;
       if (typeof FirebaseService !== 'undefined' && typeof FirebaseService._getEventDocIdAsync === 'function') {
-        try { _dwEventDocId2 = await FirebaseService._getEventDocIdAsync(eventId); } catch (_e) {}
+        eventDocId2 = await FirebaseService._getEventDocIdAsync(eventId);
       }
-      if (!_dwEventDocId2) console.error('[dual-write] missing eventDocId for:', eventId);
+      if (!eventDocId2) throw new Error('無法取得活動文件 ID: ' + eventId);
 
       const batch = (typeof db !== 'undefined') ? db.batch() : null;
       if (batch) {
         demotedSim.forEach(sim => {
           if (sim._docId) {
-            batch.update(db.collection('registrations').doc(sim._docId), { status: 'waitlisted' });
-            // [dual-write] registrations subcollection
-            if (_dwEventDocId2) {
-              batch.update(db.collection('events').doc(_dwEventDocId2).collection('registrations').doc(sim._docId), { status: 'waitlisted' });
-            }
+            batch.update(db.collection('events').doc(eventDocId2).collection('registrations').doc(sim._docId), { status: 'waitlisted' });
           }
         });
         arDemoteUpdates.forEach(au => {
-          batch.update(db.collection('activityRecords').doc(au.docId), { status: 'waitlisted' });
-          // [dual-write] activityRecords subcollection
-          if (_dwEventDocId2) {
-            batch.update(db.collection('events').doc(_dwEventDocId2).collection('activityRecords').doc(au.docId), { status: 'waitlisted' });
-          }
+          batch.update(db.collection('events').doc(eventDocId2).collection('activityRecords').doc(au.docId), { status: 'waitlisted' });
         });
         if (event._docId && occupancy) {
           batch.update(db.collection('events').doc(event._docId), {
