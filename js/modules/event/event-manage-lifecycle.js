@@ -249,12 +249,27 @@ Object.assign(App, {
       }
     }
     if (toRemove.length === 0) return;
+    // [dual-write] resolve eventDocId before batch loops
+    var _dwEventDocId = null;
+    if (typeof FirebaseService !== 'undefined' && typeof FirebaseService._getEventDocIdAsync === 'function') {
+      try { _dwEventDocId = await FirebaseService._getEventDocIdAsync(eventId); } catch (_e) {}
+    }
+    if (!_dwEventDocId) console.error('[dual-write] missing eventDocId for:', eventId);
+
     // batch 刪除 Firestore（每 500 筆一批）
     if (typeof db !== 'undefined') {
       for (let start = 0; start < toRemove.length; start += 450) {
         const chunk = toRemove.slice(start, start + 450);
         const batch = db.batch();
-        chunk.forEach(item => { if (item.docId) batch.delete(db.collection('activityRecords').doc(item.docId)); });
+        chunk.forEach(item => {
+          if (item.docId) {
+            batch.delete(db.collection('activityRecords').doc(item.docId));
+            // [dual-write] activityRecords subcollection
+            if (_dwEventDocId) {
+              batch.delete(db.collection('events').doc(_dwEventDocId).collection('activityRecords').doc(item.docId));
+            }
+          }
+        });
         try { await batch.commit(); } catch (err) { console.error('[cleanupCancelledRecords] batch failed:', err); return; }
       }
     }
@@ -396,18 +411,45 @@ Object.assign(App, {
         ? FirebaseService._rebuildOccupancy(event, simActive)
         : null;
 
+      // [dual-write] resolve eventDocId before batch
+      var _dwEventDocId2 = null;
+      if (typeof FirebaseService !== 'undefined' && typeof FirebaseService._getEventDocIdAsync === 'function') {
+        try { _dwEventDocId2 = await FirebaseService._getEventDocIdAsync(eventId); } catch (_e) {}
+      }
+      if (!_dwEventDocId2) console.error('[dual-write] missing eventDocId for:', eventId);
+
       // 6. 建 batch
       if (batch) {
         if (simTarget && simTarget._docId) {
           batch.update(db.collection('registrations').doc(simTarget._docId), { status: 'removed', removedAt: firebase.firestore.FieldValue.serverTimestamp() });
+          // [dual-write] registrations subcollection
+          if (_dwEventDocId2) {
+            batch.update(db.collection('events').doc(_dwEventDocId2).collection('registrations').doc(simTarget._docId), { status: 'removed', removedAt: firebase.firestore.FieldValue.serverTimestamp() });
+          }
         }
         if (arRemoveDocId) {
           batch.update(db.collection('activityRecords').doc(arRemoveDocId), { status: 'removed' });
+          // [dual-write] activityRecords subcollection
+          if (_dwEventDocId2) {
+            batch.update(db.collection('events').doc(_dwEventDocId2).collection('activityRecords').doc(arRemoveDocId), { status: 'removed' });
+          }
         }
         promotedSim.forEach(sim => {
-          if (sim._docId) batch.update(db.collection('registrations').doc(sim._docId), { status: 'confirmed' });
+          if (sim._docId) {
+            batch.update(db.collection('registrations').doc(sim._docId), { status: 'confirmed' });
+            // [dual-write] registrations subcollection
+            if (_dwEventDocId2) {
+              batch.update(db.collection('events').doc(_dwEventDocId2).collection('registrations').doc(sim._docId), { status: 'confirmed' });
+            }
+          }
         });
-        arPromoteUpdates.forEach(au => batch.update(db.collection('activityRecords').doc(au.docId), { status: 'registered' }));
+        arPromoteUpdates.forEach(au => {
+          batch.update(db.collection('activityRecords').doc(au.docId), { status: 'registered' });
+          // [dual-write] activityRecords subcollection
+          if (_dwEventDocId2) {
+            batch.update(db.collection('events').doc(_dwEventDocId2).collection('activityRecords').doc(au.docId), { status: 'registered' });
+          }
+        });
         if (event._docId && occupancy) {
           batch.update(db.collection('events').doc(event._docId), {
             current: occupancy.current, waitlist: occupancy.waitlist,

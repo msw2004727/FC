@@ -221,8 +221,17 @@ Object.assign(App, {
           ApiService.addActivityRecord(arRecord);
           db.collection('activityRecords').add({
             ...arRecord, createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-          }).then(ref => { arRecord._docId = ref.id; })
-            .catch(err => console.error('[companionRegAR]', err));
+          }).then(function(ref) {
+            arRecord._docId = ref.id;
+            // [dual-write] activityRecords 子集合
+            try {
+              FirebaseService._getEventDocIdAsync(e.id).then(function(_dwId) {
+                if (_dwId) db.collection('events').doc(_dwId).collection('activityRecords').doc(ref.id).set({
+                  ...arRecord, createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                });
+              }).catch(function(_e) { console.error('[dual-write]:', _e); });
+            } catch (_e) { console.error('[dual-write]:', _e); }
+          }).catch(err => console.error('[companionRegAR]', err));
           if (!isWl) this._grantAutoExp?.(userId, 'register_activity', e.title);
         }
       }
@@ -361,6 +370,13 @@ Object.assign(App, {
               if (existingAR._docId) {
                 db.collection('activityRecords').doc(existingAR._docId).update({ status: 'cancelled' })
                   .catch(err => console.error('[companionCancelAR]', err));
+                // [dual-write] activityRecords 子集合
+                try {
+                  var _dwCancelDocId = existingAR._docId;
+                  FirebaseService._getEventDocIdAsync(eventId).then(function(_dwId) {
+                    if (_dwId) db.collection('events').doc(_dwId).collection('activityRecords').doc(_dwCancelDocId).update({ status: 'cancelled' });
+                  }).catch(function(_e) { console.error('[dual-write]:', _e); });
+                } catch (_e) { console.error('[dual-write]:', _e); }
               }
             } else if (!arSource.some(a => a.eventId === eventId && a.uid === userId && a.status === 'cancelled')) {
               const dp = e.date.split(' ')[0].split('/');
@@ -369,19 +385,35 @@ Object.assign(App, {
               ApiService.addActivityRecord(arCancel);
               db.collection('activityRecords').add({
                 ...arCancel, createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-              }).then(ref => { arCancel._docId = ref.id; })
-                .catch(err => console.error('[companionCancelAR]', err));
+              }).then(function(ref) {
+                arCancel._docId = ref.id;
+                // [dual-write] activityRecords 子集合
+                try {
+                  FirebaseService._getEventDocIdAsync(eventId).then(function(_dwId) {
+                    if (_dwId) db.collection('events').doc(_dwId).collection('activityRecords').doc(ref.id).set({
+                      ...arCancel, createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    });
+                  }).catch(function(_e) { console.error('[dual-write]:', _e); });
+                } catch (_e) { console.error('[dual-write]:', _e); }
+              }).catch(err => console.error('[companionCancelAR]', err));
             }
             db.collection('activityRecords')
               .where('uid', '==', userId).where('eventId', '==', eventId)
-              .get().then(snap => {
-                snap.forEach(doc => {
+              .get().then(function(snap) {
+                snap.forEach(function(doc) {
                   if (doc.data().status !== 'cancelled') {
                     doc.ref.update({ status: 'cancelled' })
-                      .catch(err => console.error('[companionCancelAR-fallback]', err));
+                      .catch(function(err) { console.error('[companionCancelAR-fallback]', err); });
+                    // [dual-write] activityRecords 子集合
+                    try {
+                      var _dwSweepDocId = doc.id;
+                      FirebaseService._getEventDocIdAsync(eventId).then(function(_dwId) {
+                        if (_dwId) db.collection('events').doc(_dwId).collection('activityRecords').doc(_dwSweepDocId).update({ status: 'cancelled' });
+                      }).catch(function(_e) { console.error('[dual-write]:', _e); });
+                    } catch (_e) { console.error('[dual-write]:', _e); }
                   }
                 });
-              }).catch(err => console.error('[companionCancelAR-fallback query]', err));
+              }).catch(function(err) { console.error('[companionCancelAR-fallback query]', err); });
             this._grantAutoExp?.(userId, 'cancel_registration', e.title);
             this._notifySignupCancelledInboxFromTemplate(e, userId, false);
           }

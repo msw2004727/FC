@@ -303,6 +303,15 @@ Object.assign(App, {
 
       try {
         await db.collection('registrations').doc(docId).update({ displayBadges: newDisplayBadges });
+        // [dual-write] registrations 子集合
+        try {
+          var _dwDocId = await FirebaseService._getEventDocIdAsync(reg.eventId);
+          if (_dwDocId) {
+            await db.collection('events').doc(_dwDocId).collection('registrations').doc(docId).update({ displayBadges: newDisplayBadges });
+          } else {
+            console.error('[dual-write] missing eventDocId for:', reg.eventId);
+          }
+        } catch (_e) { console.error('[dual-write] achBatch displayBadges:', _e); }
         regWritten++;
       } catch (err) {
         console.warn('[AchBatch] displayBadges update failed:', docId, err);

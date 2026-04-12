@@ -19,6 +19,11 @@ Object.assign(App, {
         if (canDelete && source[i]._docId) {
           db.collection('activityRecords').doc(source[i]._docId).delete()
             .catch(err => console.error('[removeCancelRecord]', err));
+          // [dual-write] activityRecords 子集合
+          var _dwDocId = source[i]._docId;
+          FirebaseService._getEventDocIdAsync(eventId).then(function(_dwId) {
+            if (_dwId) db.collection('events').doc(_dwId).collection('activityRecords').doc(_dwDocId).delete();
+          }).catch(function(_e) { console.error('[dual-write]:', _e); });
         }
         source.splice(i, 1);
       }
@@ -281,8 +286,15 @@ Object.assign(App, {
         ApiService.addActivityRecord(arRecord);
         db.collection('activityRecords').add({
           ...arRecord, createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-        }).then(ref => { arRecord._docId = ref.id; })
-          .catch(err => console.error('[activityRecord]', err));
+        }).then(function(ref) {
+          arRecord._docId = ref.id;
+          // [dual-write] activityRecords 子集合
+          FirebaseService._getEventDocIdAsync(e.id).then(function(_dwId) {
+            if (_dwId) db.collection('events').doc(_dwId).collection('activityRecords').doc(ref.id).set({
+              ...arRecord, createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+            });
+          }).catch(function(_e) { console.error('[dual-write]:', _e); });
+        }).catch(err => console.error('[activityRecord]', err));
         void ApiService.writeAuditLog({
           action: 'event_signup',
           targetType: 'event',
@@ -461,10 +473,18 @@ Object.assign(App, {
     for (const extra of extraRegs) {
       extra.status = 'cancelled';
       extra.cancelledAt = new Date().toISOString();
+      var _dwDedupRegDocId = extra._docId;
       db.collection('registrations').doc(extra._docId).update({
         status: 'cancelled',
         cancelledAt: firebase.firestore.FieldValue.serverTimestamp(),
       }).catch(err => console.error('[cancelSignup dedup]', err));
+      // [dual-write] registrations 子集合
+      FirebaseService._getEventDocIdAsync(id).then(function(_dwId) {
+        if (_dwId) db.collection('events').doc(_dwId).collection('registrations').doc(_dwDedupRegDocId).update({
+          status: 'cancelled',
+          cancelledAt: firebase.firestore.FieldValue.serverTimestamp(),
+        });
+      }).catch(function(_e) { console.error('[dual-write]:', _e); });
     }
     if (reg) {
       try {
@@ -556,10 +576,20 @@ Object.assign(App, {
               if (records[i]._docId) {
                 db.collection('activityRecords').doc(records[i]._docId).update({ status: 'cancelled' })
                   .catch(err => console.error('[activityRecord cancel]', err));
+                // [dual-write] activityRecords 子集合
+                var _dwArCancelDocId = records[i]._docId;
+                FirebaseService._getEventDocIdAsync(id).then(function(_dwId) {
+                  if (_dwId) db.collection('events').doc(_dwId).collection('activityRecords').doc(_dwArCancelDocId).update({ status: 'cancelled' });
+                }).catch(function(_e) { console.error('[dual-write]:', _e); });
               }
               if (hasCancelRec) {
                 if (records[i]._docId) {
                   db.collection('activityRecords').doc(records[i]._docId).delete().catch(err => console.error('[activityRecord dedup]', err));
+                  // [dual-write] activityRecords 子集合
+                  var _dwArDedupDocId = records[i]._docId;
+                  FirebaseService._getEventDocIdAsync(id).then(function(_dwId) {
+                    if (_dwId) db.collection('events').doc(_dwId).collection('activityRecords').doc(_dwArDedupDocId).delete();
+                  }).catch(function(_e) { console.error('[dual-write]:', _e); });
                 }
                 records.splice(i, 1);
               } else {
@@ -569,14 +599,19 @@ Object.assign(App, {
           }
           db.collection('activityRecords')
             .where('uid', '==', userId).where('eventId', '==', id)
-            .get().then(snap => {
-              snap.forEach(doc => {
+            .get().then(function(snap) {
+              snap.forEach(function(doc) {
                 if (doc.data().status !== 'cancelled') {
                   doc.ref.update({ status: 'cancelled' })
-                    .catch(err => console.error('[activityRecord cancel-fallback]', err));
+                    .catch(function(err) { console.error('[activityRecord cancel-fallback]', err); });
+                  // [dual-write] activityRecords 子集合
+                  var _dwSweepDocId = doc.id;
+                  FirebaseService._getEventDocIdAsync(id).then(function(_dwId) {
+                    if (_dwId) db.collection('events').doc(_dwId).collection('activityRecords').doc(_dwSweepDocId).update({ status: 'cancelled' });
+                  }).catch(function(_e) { console.error('[dual-write]:', _e); });
                 }
               });
-            }).catch(err => console.error('[activityRecord cancel-fallback query]', err));
+            }).catch(function(err) { console.error('[activityRecord cancel-fallback query]', err); });
           if (!hasCancelRec && !records.some(r => r.eventId === id && r.uid === userId && r.status === 'cancelled')) {
             const ev = ApiService.getEvent(id);
             if (ev) {

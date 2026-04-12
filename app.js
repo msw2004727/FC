@@ -35,6 +35,19 @@ window._scanAR = async function(fix) {
       for (var i = 0; i < issues.length; i++) {
         var docId = issues[i].split('|')[0];
         await db.collection('activityRecords').doc(docId).update({ status: 'cancelled' });
+        // [dual-write] activityRecords 子集合
+        try {
+          var _dwAr = arSnap.docs.find(function(d) { return d.id === docId; });
+          var _dwEventId = _dwAr ? _dwAr.data().eventId : null;
+          if (_dwEventId) {
+            var _dwDocId = await FirebaseService._getEventDocIdAsync(_dwEventId);
+            if (_dwDocId) {
+              await db.collection('events').doc(_dwDocId).collection('activityRecords').doc(docId).update({ status: 'cancelled' });
+            } else {
+              console.error('[dual-write] missing eventDocId for:', _dwEventId);
+            }
+          }
+        } catch (_e) { console.error('[dual-write] scanAR:', _e); }
       }
       alert('fixed ' + issues.length);
     }

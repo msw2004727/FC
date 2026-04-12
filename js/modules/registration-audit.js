@@ -260,6 +260,9 @@ Object.assign(App, {
       };
 
       if (!dryRun) {
+        // [dual-write] resolve eventDocId before batch
+        var _dwEventDocId = await FirebaseService._getEventDocIdAsync(event.id);
+        if (!_dwEventDocId) console.error('[dual-write] missing eventDocId for:', event.id);
         const batch = db.batch();
 
         // 遞補：waitlisted → confirmed
@@ -267,6 +270,10 @@ Object.assign(App, {
           reg.status = 'confirmed';
           if (reg._docId) {
             batch.update(db.collection('registrations').doc(reg._docId), { status: 'confirmed' });
+            // [dual-write] registrations 子集合
+            if (_dwEventDocId) {
+              batch.update(db.collection('events').doc(_dwEventDocId).collection('registrations').doc(reg._docId), { status: 'confirmed' });
+            }
           }
         }
 
@@ -275,6 +282,10 @@ Object.assign(App, {
           reg.status = 'waitlisted';
           if (reg._docId) {
             batch.update(db.collection('registrations').doc(reg._docId), { status: 'waitlisted' });
+            // [dual-write] registrations 子集合
+            if (_dwEventDocId) {
+              batch.update(db.collection('events').doc(_dwEventDocId).collection('registrations').doc(reg._docId), { status: 'waitlisted' });
+            }
           }
         }
 

@@ -448,6 +448,19 @@ Object.assign(FirebaseService, {
       createdAt: firebase.firestore.FieldValue.serverTimestamp(),
     });
     data._docId = docRef.id;
+    // [dual-write] attendanceRecords 子集合
+    try {
+      var _dwDocId = await this._getEventDocIdAsync(data.eventId);
+      if (_dwDocId) {
+        await db.collection('events').doc(_dwDocId).collection('attendanceRecords').doc(docRef.id).set({
+          ..._stripDocId(data),
+          status: data.status || 'active',
+          createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+        });
+      } else {
+        console.error('[dual-write] missing eventDocId for:', data.eventId);
+      }
+    } catch (_e) { console.error('[dual-write] addAttendanceRecord:', _e); }
     return data;
   },
 
@@ -463,6 +476,15 @@ Object.assign(FirebaseService, {
         updates.removedByUid = auth.currentUser.uid;
       }
       await db.collection('attendanceRecords').doc(target._docId).update(updates);
+      // [dual-write] attendanceRecords 子集合
+      try {
+        var _dwDocId = await this._getEventDocIdAsync(target.eventId || record.eventId);
+        if (_dwDocId) {
+          await db.collection('events').doc(_dwDocId).collection('attendanceRecords').doc(target._docId).update(updates);
+        } else {
+          console.error('[dual-write] missing eventDocId for:', target.eventId || record.eventId);
+        }
+      } catch (_e) { console.error('[dual-write] removeAttendanceRecord:', _e); }
     }
 
     if (inCache) {
@@ -484,6 +506,22 @@ Object.assign(FirebaseService, {
    * @param {Array} removes - 要軟刪除的紀錄陣列（需有 id，有 _docId 才寫 Firestore）
    */
   async batchWriteAttendance(adds, removes) {
+    // [dual-write] 預先解析 eventDocIds
+    var _dwMap = {};
+    for (var _r of adds) {
+      if (_r.eventId && !(_r.eventId in _dwMap)) {
+        _dwMap[_r.eventId] = await this._getEventDocIdAsync(_r.eventId);
+        if (!_dwMap[_r.eventId]) console.error('[dual-write] missing eventDocId for:', _r.eventId);
+      }
+    }
+    for (var _r of removes) {
+      var _eid = _r.eventId || (this._cache.attendanceRecords.find(function(x) { return x.id === _r.id; }) || {}).eventId;
+      if (_eid && !(_eid in _dwMap)) {
+        _dwMap[_eid] = await this._getEventDocIdAsync(_eid);
+        if (!_dwMap[_eid]) console.error('[dual-write] missing eventDocId for:', _eid);
+      }
+    }
+
     const batch = db.batch();
 
     // 新增紀錄：預先產生 docId
@@ -495,6 +533,15 @@ Object.assign(FirebaseService, {
         status: record.status || 'active',
         createdAt: firebase.firestore.FieldValue.serverTimestamp(),
       });
+      // [dual-write] attendanceRecords 子集合
+      var _dwId = _dwMap[record.eventId];
+      if (_dwId) {
+        batch.set(db.collection('events').doc(_dwId).collection('attendanceRecords').doc(docRef.id), {
+          ..._stripDocId(record),
+          status: record.status || 'active',
+          createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+        });
+      }
     }
 
     // 軟刪除紀錄：update status='removed'
@@ -515,6 +562,15 @@ Object.assign(FirebaseService, {
           db.collection('attendanceRecords').doc(target._docId),
           removeUpdates
         );
+        // [dual-write] attendanceRecords 子集合
+        var _eid2 = target.eventId || record.eventId || (inCache || {}).eventId;
+        var _dwId2 = _dwMap[_eid2];
+        if (_dwId2) {
+          batch.update(
+            db.collection('events').doc(_dwId2).collection('attendanceRecords').doc(target._docId),
+            removeUpdates
+          );
+        }
       } else if (!target?._docId) {
         console.warn('[batchWriteAttendance] record missing _docId, skipping remove:', record.id);
       }
@@ -738,6 +794,16 @@ Object.assign(FirebaseService, {
       })).filter(b => b.image);
       if (!displayBadges.length) return;
       await db.collection('registrations').doc(regDocId).update({ displayBadges });
+      // [dual-write] registrations 子集合
+      try {
+        var _dwReg = this._cache.registrations.find(function(r) { return r._docId === regDocId; });
+        if (_dwReg && _dwReg.eventId) {
+          var _dwDocId = await this._getEventDocIdAsync(_dwReg.eventId);
+          if (_dwDocId) {
+            await db.collection('events').doc(_dwDocId).collection('registrations').doc(regDocId).update({ displayBadges });
+          }
+        }
+      } catch (_e) { console.error('[dual-write] _writeDisplayBadgesToReg:', _e); }
       // 同步本地快取
       const cached = this._cache.registrations.find(r => r._docId === regDocId);
       if (cached) cached.displayBadges = displayBadges;
@@ -847,8 +913,17 @@ Object.assign(FirebaseService, {
         ..._stripDocId(registration),
         registeredAt: firebase.firestore.FieldValue.serverTimestamp(),
       });
+      // [dual-write] registrations 子集合
+      if (event._docId) {
+        transaction.set(
+          db.collection('events').doc(event._docId).collection('registrations').doc(regDocRef.id),
+          { ..._stripDocId(registration), registeredAt: firebase.firestore.FieldValue.serverTimestamp() }
+        );
+      } else {
+        console.error('[dual-write tx] missing event._docId for:', eventId);
+      }
 
-      // 用 Firestore 真實資料 + 新報名重建投影
+      // 用 Firestore 真��資料 + 新報名重建投影
       const allRegsForRebuild = [...firestoreActiveRegs, registration];
       const occupancy = this._rebuildOccupancy({ max: maxCount, status: ed.status }, allRegsForRebuild);
 
@@ -968,6 +1043,10 @@ Object.assign(FirebaseService, {
       occupancy = this._rebuildOccupancy(event, allActive);
     }
 
+    // [dual-write] 解析 eventDocId
+    var _dwEventDocId = await this._getEventDocIdAsync(reg.eventId);
+    if (!_dwEventDocId) console.error('[dual-write] missing eventDocId for:', reg.eventId);
+
     // ── 所有 Firestore 寫入合併到同一個 batch ──
     const batch = db.batch();
 
@@ -976,6 +1055,13 @@ Object.assign(FirebaseService, {
       status: 'cancelled',
       cancelledAt: firebase.firestore.FieldValue.serverTimestamp(),
     });
+    // [dual-write] registrations 子集合
+    if (_dwEventDocId) {
+      batch.update(db.collection('events').doc(_dwEventDocId).collection('registrations').doc(reg._docId), {
+        status: 'cancelled',
+        cancelledAt: firebase.firestore.FieldValue.serverTimestamp(),
+      });
+    }
 
     // 2. 遞補候補者（含 team-split teamKey 分配）
     for (const candidate of promotedCandidates) {
@@ -990,6 +1076,10 @@ Object.assign(FirebaseService, {
           }
         }
         batch.update(db.collection('registrations').doc(candidate._docId), promoUpdate);
+        // [dual-write] registrations 子集合
+        if (_dwEventDocId) {
+          batch.update(db.collection('events').doc(_dwEventDocId).collection('registrations').doc(candidate._docId), promoUpdate);
+        }
       }
     }
 
@@ -2066,6 +2156,15 @@ Object.assign(FirebaseService, {
 
         const docRef = regDocRefs[refIdx];
         transaction.set(docRef, { ..._stripDocId(reg), registeredAt: firebase.firestore.FieldValue.serverTimestamp() });
+        // [dual-write] registrations 子集合
+        if (event._docId) {
+          transaction.set(
+            db.collection('events').doc(event._docId).collection('registrations').doc(docRef.id),
+            { ..._stripDocId(reg), registeredAt: firebase.firestore.FieldValue.serverTimestamp() }
+          );
+        } else {
+          console.error('[dual-write tx] missing event._docId for:', eventId);
+        }
         reg._docId = docRef.id;
         registrations.push(reg);
 
@@ -2226,6 +2325,13 @@ Object.assign(FirebaseService, {
       occupancyByEvent[eventId] = this._rebuildOccupancy(event, allActive);
     }
 
+    // [dual-write] 解析所有受影響活動的 eventDocId
+    var _dwEventDocIds = {};
+    for (var _evId of affectedEventIds) {
+      _dwEventDocIds[_evId] = await this._getEventDocIdAsync(_evId);
+      if (!_dwEventDocIds[_evId]) console.error('[dual-write] missing eventDocId for:', _evId);
+    }
+
     // ── 階段 4：所有 Firestore 寫入合併到同一個 batch ──
     const batch = db.batch();
 
@@ -2235,6 +2341,14 @@ Object.assign(FirebaseService, {
         status: 'cancelled',
         cancelledAt: firebase.firestore.FieldValue.serverTimestamp(),
       });
+      // [dual-write] registrations 子集合
+      var _dwEid = _dwEventDocIds[reg.eventId];
+      if (_dwEid) {
+        batch.update(db.collection('events').doc(_dwEid).collection('registrations').doc(reg._docId), {
+          status: 'cancelled',
+          cancelledAt: firebase.firestore.FieldValue.serverTimestamp(),
+        });
+      }
     }
 
     // 2. 遞補候補者（含 team-split teamKey 分配）
@@ -2251,6 +2365,11 @@ Object.assign(FirebaseService, {
           }
         }
         batch.update(db.collection('registrations').doc(candidate._docId), promoUpdate);
+        // [dual-write] registrations 子集合
+        var _dwEid2 = _dwEventDocIds[candidate.eventId];
+        if (_dwEid2) {
+          batch.update(db.collection('events').doc(_dwEid2).collection('registrations').doc(candidate._docId), promoUpdate);
+        }
       }
     }
 
