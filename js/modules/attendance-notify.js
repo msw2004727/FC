@@ -19,12 +19,13 @@ Object.assign(App, {
     this._lastKnownAttRecordCount = (FirebaseService._cache.attendanceRecords || [])
       .filter(r => r.uid === uid).length;
 
-    this._attendanceListenerUnsub = db.collection('attendanceRecords')
+    this._attendanceListenerUnsub = db.collectionGroup('attendanceRecords')
       .where('uid', '==', uid)
       .orderBy('createdAt', 'desc')
       .limit(5)
       .onSnapshot(snapshot => {
         snapshot.docChanges().forEach(change => {
+          if (change.doc.ref.parent.parent === null) return; // Phase 3b: collectionGroup 去重
           if (change.type === 'added') {
             const data = change.doc.data();
             if (this._lastKnownAttRecordCount > 0) {

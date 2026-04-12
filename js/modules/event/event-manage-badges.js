@@ -16,8 +16,10 @@ Object.assign(App, {
       if (typeof db === 'undefined') return;
 
       // Step 1：直接查 Firestore 取得該活動所有報名（isAuth 可讀）
-      const snap = await db.collection('registrations')
-        .where('eventId', '==', eventId)
+      const _eventDocId = await FirebaseService._getEventDocIdAsync(eventId);
+      if (!_eventDocId) return;
+      const snap = await db.collection('events').doc(_eventDocId)
+        .collection('registrations')
         .get();
       const allDocs = snap.docs.map(d => ({ ...d.data(), _docId: d.id }));
       const confirmedSelf = allDocs.filter(

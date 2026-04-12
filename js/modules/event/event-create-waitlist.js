@@ -74,8 +74,10 @@ Object.assign(App, {
     // ═══ 原有路徑（包含 CF 模式下的容量變更）═══
     if (typeof db !== 'undefined') {
       try {
-        const snap = await db.collection('registrations')
-          .where('eventId', '==', eventId)
+        const _eventDocId = event._docId || await FirebaseService._getEventDocIdAsync(eventId);
+        if (!_eventDocId) throw new Error('[waitlist] eventDocId not found for ' + eventId);
+        const snap = await db.collection('events').doc(_eventDocId)
+          .collection('registrations')
           .get();
         const firestoreRegs = snap.docs.map(d => {
           const data = d.data();

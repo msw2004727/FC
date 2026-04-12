@@ -10,6 +10,15 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-04-12 — Phase 3 完成：子集合讀取路徑切換
+- **問題**：Phase 0-2 完成後，讀取仍走根集合。需切換全部讀取路徑到子集合/collectionGroup
+- **修復**：
+  - Phase 3a（16 處）：per-event 查詢改子集合直接查詢（firebase-crud.js 4 處、6 個 event modules、api-service.js、CF 3 處）
+  - Phase 3b（12+ 處）：監聽器改 collectionGroup + 去重過濾、跨活動查詢改 collectionGroup（firebase-service.js 7 處、achievement-batch/attendance-notify/event-host-list/app.js、CF calcNoShowCountsBatch+backfillAutoExp 7 處）
+  - Phase 3c：移除 per-event cache workaround（_eventAttendanceMap/fetchAttendanceRecordsForEvent）
+- **教訓**：collectionGroup 去重（`doc.ref.parent.parent !== null`）是 Phase 3b 最關鍵步驟，漏加會導致資料 2x。CF 用 Admin SDK 需改用 `d.ref.path.split('/').length > 2`
+- **下一步**：觀察期 3-7 天，確認無異常後進 Phase 4（移除雙寫 + 遷移觸發器）
+
 ### 2026-04-12 — Phase 1 完成：子集合雙寫層（49 個寫入點）
 - **問題**：Phase 0 基礎設施已部署，需實作雙寫層讓所有寫入同時寫全域集合 + 子集合
 - **修復**：16 個檔案新增雙寫邏輯（firebase-crud.js 11 點、8 個 event modules 30 點、achievement-batch+app 2 點、CF registerForEvent+cancelRegistration 6 點）

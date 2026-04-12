@@ -119,9 +119,6 @@ Object.assign(App, {
     const e = ApiService.getEvent(eventId);
     if (!e) return;
 
-    // 確保此活動的完整簽到紀錄已載入（繞過全域 onSnapshot limit）
-    await ApiService.fetchAttendanceRecordsForEvent(eventId);
-
     const canManage = this._canManageEvent(e);
     const records = ApiService.getAttendanceRecords(eventId);
     const summary = this._buildConfirmedParticipantSummary(eventId);

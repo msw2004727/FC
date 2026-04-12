@@ -3852,10 +3852,10 @@ exports.backfillAutoExp = onCall(
     // ── 1. register_activity：registrations where status='confirmed' ──
     const registerAmount = typeof rules.register_activity === "number" ? rules.register_activity : 0;
     if (registerAmount !== 0) {
-      const regSnap = await db.collection("registrations")
+      const regSnap = await db.collectionGroup("registrations")
         .where("status", "==", "confirmed")
         .get();
-      for (const doc of regSnap.docs) {
+      for (const doc of regSnap.docs.filter(d => d.ref.path.split("/").length > 2)) {
         const data = doc.data() || {};
         const uid = data.userId;
         const eventId = data.eventId || doc.id;
@@ -3882,10 +3882,10 @@ exports.backfillAutoExp = onCall(
     // ── 2. cancel_registration：registrations where status='cancelled' ──
     const cancelAmount = typeof rules.cancel_registration === "number" ? rules.cancel_registration : 0;
     if (cancelAmount !== 0) {
-      const cancelSnap = await db.collection("registrations")
+      const cancelSnap = await db.collectionGroup("registrations")
         .where("status", "==", "cancelled")
         .get();
-      for (const doc of cancelSnap.docs) {
+      for (const doc of cancelSnap.docs.filter(d => d.ref.path.split("/").length > 2)) {
         const data = doc.data() || {};
         const uid = data.userId;
         const eventId = data.eventId || doc.id;
@@ -3912,10 +3912,10 @@ exports.backfillAutoExp = onCall(
     // ── 3. complete_activity：attendanceRecords（checkin + checkout 同時存在） ──
     const completeAmount = typeof rules.complete_activity === "number" ? rules.complete_activity : 0;
     if (completeAmount !== 0) {
-      const attendSnap = await db.collection("attendanceRecords").get();
+      const attendSnap = await db.collectionGroup("attendanceRecords").get();
       // 分組：eventId+uid → { hasCheckin, hasCheckout }
       const attendMap = new Map();
-      for (const doc of attendSnap.docs) {
+      for (const doc of attendSnap.docs.filter(d => d.ref.path.split("/").length > 2)) {
         const data = doc.data() || {};
         const uid = data.uid;
         const eventId = data.eventId;
@@ -4016,8 +4016,8 @@ exports.backfillAutoExp = onCall(
     const noshowAmount = typeof rules.noshow_penalty === "number" ? rules.noshow_penalty : 0;
     if (noshowAmount !== 0) {
       // 載入所有 registrations 與 attendanceRecords 計算放鴿子次數
-      const allRegsSnap = await db.collection("registrations").get();
-      const allAttendSnap = await db.collection("attendanceRecords").get();
+      const allRegsSnap = await db.collectionGroup("registrations").get();
+      const allAttendSnap = await db.collectionGroup("attendanceRecords").get();
       // 載入 userCorrections 補正值
       const correctionsSnap = await db.collection("userCorrections").get();
       const correctionMap = new Map();
@@ -4027,9 +4027,11 @@ exports.backfillAutoExp = onCall(
         if (Number.isFinite(adj) && adj !== 0) correctionMap.set(doc.id, Math.trunc(adj));
       });
 
-      // 建立簽到索引
+      // 建立簽到索引（collectionGroup 去重）
+      const _allAttendDocs = allAttendSnap.docs.filter(d => d.ref.path.split("/").length > 2);
+      const _allRegsDocs = allRegsSnap.docs.filter(d => d.ref.path.split("/").length > 2);
       const checkinKeys = new Set();
-      allAttendSnap.docs.forEach((doc) => {
+      _allAttendDocs.forEach((doc) => {
         const d = doc.data() || {};
         const uid = String(d.uid || "").trim();
         const eventId = String(d.eventId || "").trim();
@@ -4044,7 +4046,7 @@ exports.backfillAutoExp = onCall(
       const today = new Date().toISOString().slice(0, 10);
       const noshowCountByUid = new Map();
       const seenRegKeys = new Set();
-      allRegsSnap.docs.forEach((doc) => {
+      _allRegsDocs.forEach((doc) => {
         const d = doc.data() || {};
         const uid = String(d.userId || "").trim();
         const eventId = String(d.eventId || "").trim();
@@ -4632,9 +4634,9 @@ exports.registerForEvent = onCall(
         }
       }
 
-      // T2: 查詢所有報名（在 Transaction 內查詢，確保一致性）
+      // T2: 查詢所有報名（子集合直接查詢，Transaction 內確保一致性）
       const allRegsSnap = await transaction.get(
-        db.collection("registrations").where("eventId", "==", eventId)
+        eventDoc.ref.collection("registrations")
       );
       const allEventRegs = allRegsSnap.docs.map((d) => {
         const data = d.data();
@@ -4964,9 +4966,9 @@ exports.cancelRegistration = onCall(
       const eventRef = eventDoc.ref;
       const ed = eventDoc.data();
 
-      // T2: 查詢所有報名（在 Transaction 內查詢，確保一致性）
+      // T2: 查詢所有報名（子集合直接查詢，Transaction 內確保一致性）
       const allRegsSnap = await transaction.get(
-        db.collection("registrations").where("eventId", "==", eventId)
+        eventDoc.ref.collection("registrations")
       );
       const allEventRegs = allRegsSnap.docs.map((d) => {
         const data = d.data();
@@ -5072,10 +5074,10 @@ exports.cancelRegistration = onCall(
         }
       }
 
-      // T6: 更新 activityRecords（在 Transaction 內查詢，確保一致性）
+      // T6: 更新 activityRecords（子集合直接查詢，Transaction 內確保一致性）
       // 取消者的 activityRecord → cancelled/removed
       const arSnap = await transaction.get(
-        db.collection("activityRecords").where("eventId", "==", eventId)
+        eventDoc.ref.collection("activityRecords")
       );
       const allArs = arSnap.docs.map((d) => ({ ...d.data(), _docId: d.id }));
 
@@ -5992,19 +5994,21 @@ async function calcNoShowCountsBatch({ batchSize = 400 } = {}) {
   }
 
   // Step 2: 取得所有正取報名（confirmed）
-  const regsSnap = await db.collection("registrations")
+  const regsSnap = await db.collectionGroup("registrations")
     .where("status", "==", "confirmed")
     .select("userId", "eventId", "participantType")
     .get();
+  const regsDocs = regsSnap.docs.filter(d => d.ref.path.split("/").length > 2);
 
   // Step 3: 取得所有 checkin 紀錄
-  const checkinsSnap = await db.collection("attendanceRecords")
+  const checkinsSnap = await db.collectionGroup("attendanceRecords")
     .where("type", "==", "checkin")
     .select("uid", "eventId", "status")
     .get();
+  const checkinsDocs = checkinsSnap.docs.filter(d => d.ref.path.split("/").length > 2);
 
   const checkinKeys = new Set();
-  checkinsSnap.docs.forEach(doc => {
+  checkinsDocs.forEach(doc => {
     const d = doc.data();
     const uid = String(d.uid || "").trim();
     const eventId = String(d.eventId || "").trim();
@@ -6018,7 +6022,7 @@ async function calcNoShowCountsBatch({ batchSize = 400 } = {}) {
   const countByUid = {};
   const seenRegKeys = new Set();
 
-  regsSnap.docs.forEach(doc => {
+  regsDocs.forEach(doc => {
     const reg = doc.data();
     const uid = String(reg.userId || "").trim();
     const eventId = String(reg.eventId || "").trim();

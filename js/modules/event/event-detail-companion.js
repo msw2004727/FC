@@ -397,23 +397,23 @@ Object.assign(App, {
                 } catch (_e) { console.error('[dual-write]:', _e); }
               }).catch(err => console.error('[companionCancelAR]', err));
             }
-            db.collection('activityRecords')
-              .where('uid', '==', userId).where('eventId', '==', eventId)
-              .get().then(function(snap) {
-                snap.forEach(function(doc) {
-                  if (doc.data().status !== 'cancelled') {
-                    doc.ref.update({ status: 'cancelled' })
-                      .catch(function(err) { console.error('[companionCancelAR-fallback]', err); });
-                    // [dual-write] activityRecords 子集合
-                    try {
-                      var _dwSweepDocId = doc.id;
-                      FirebaseService._getEventDocIdAsync(eventId).then(function(_dwId) {
-                        if (_dwId) db.collection('events').doc(_dwId).collection('activityRecords').doc(_dwSweepDocId).update({ status: 'cancelled' });
-                      }).catch(function(_e) { console.error('[dual-write]:', _e); });
-                    } catch (_e) { console.error('[dual-write]:', _e); }
-                  }
-                });
-              }).catch(function(err) { console.error('[companionCancelAR-fallback query]', err); });
+            FirebaseService._getEventDocIdAsync(eventId).then(function(_edId) {
+              if (!_edId) { console.error('[companionCancelAR] eventDocId not found:', eventId); return; }
+              db.collection('events').doc(_edId).collection('activityRecords')
+                .where('uid', '==', userId)
+                .get().then(function(snap) {
+                  snap.forEach(function(doc) {
+                    if (doc.data().status !== 'cancelled') {
+                      // [dual-write] 根集合
+                      db.collection('activityRecords').doc(doc.id).update({ status: 'cancelled' })
+                        .catch(function(err) { console.error('[companionCancelAR-fallback]', err); });
+                      // 子集合（doc.ref 已指向子集合）
+                      doc.ref.update({ status: 'cancelled' })
+                        .catch(function(err) { console.error('[companionCancelAR-sub]', err); });
+                    }
+                  });
+                }).catch(function(err) { console.error('[companionCancelAR-fallback query]', err); });
+            }).catch(function(err) { console.error('[companionCancelAR eventDocId]', err); });
             this._grantAutoExp?.(userId, 'cancel_registration', e.title);
             this._notifySignupCancelledInboxFromTemplate(e, userId, false);
           }

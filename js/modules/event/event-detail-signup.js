@@ -90,8 +90,10 @@ Object.assign(App, {
       await FirebaseService.ensureAuthReadyForWrite?.();
       if (!auth?.currentUser) return ApiService.getMyRegistrationsByEvent(eventId);
 
-      const snapshot = await db.collection('registrations')
-        .where('eventId', '==', eventId)
+      const _eventDocId = await FirebaseService._getEventDocIdAsync(eventId);
+      if (!_eventDocId) return ApiService.getMyRegistrationsByEvent(eventId);
+      const snapshot = await db.collection('events').doc(_eventDocId)
+        .collection('registrations')
         .where('userId', '==', userId)
         .get();
 
@@ -360,8 +362,10 @@ Object.assign(App, {
     // 快取無紀錄但用戶已報名（CF 寫入後快取未同步）→ 即時從 Firestore 補查
     if (myRegs.length === 0 && currentUserId !== 'unknown') {
       try {
-        const snap = await firebase.firestore().collection('registrations')
-          .where('eventId', '==', id)
+        const _eventDocId2 = await FirebaseService._getEventDocIdAsync(id);
+        if (!_eventDocId2) throw new Error('eventDocId not found');
+        const snap = await db.collection('events').doc(_eventDocId2)
+          .collection('registrations')
           .where('userId', '==', currentUserId)
           .get();
         const fetched = [];
@@ -597,21 +601,23 @@ Object.assign(App, {
               }
             }
           }
-          db.collection('activityRecords')
-            .where('uid', '==', userId).where('eventId', '==', id)
-            .get().then(function(snap) {
-              snap.forEach(function(doc) {
-                if (doc.data().status !== 'cancelled') {
-                  doc.ref.update({ status: 'cancelled' })
-                    .catch(function(err) { console.error('[activityRecord cancel-fallback]', err); });
-                  // [dual-write] activityRecords 子集合
-                  var _dwSweepDocId = doc.id;
-                  FirebaseService._getEventDocIdAsync(id).then(function(_dwId) {
-                    if (_dwId) db.collection('events').doc(_dwId).collection('activityRecords').doc(_dwSweepDocId).update({ status: 'cancelled' });
-                  }).catch(function(_e) { console.error('[dual-write]:', _e); });
-                }
-              });
-            }).catch(function(err) { console.error('[activityRecord cancel-fallback query]', err); });
+          FirebaseService._getEventDocIdAsync(id).then(function(_edId) {
+            if (!_edId) { console.error('[activityRecord] eventDocId not found:', id); return; }
+            db.collection('events').doc(_edId).collection('activityRecords')
+              .where('uid', '==', userId)
+              .get().then(function(snap) {
+                snap.forEach(function(doc) {
+                  if (doc.data().status !== 'cancelled') {
+                    // [dual-write] 根集合
+                    db.collection('activityRecords').doc(doc.id).update({ status: 'cancelled' })
+                      .catch(function(err) { console.error('[activityRecord cancel-fallback]', err); });
+                    // 子集合（doc.ref 已指向子集合）
+                    doc.ref.update({ status: 'cancelled' })
+                      .catch(function(err) { console.error('[activityRecord cancel-sub]', err); });
+                  }
+                });
+              }).catch(function(err) { console.error('[activityRecord cancel-fallback query]', err); });
+          }).catch(function(err) { console.error('[activityRecord eventDocId]', err); });
           if (!hasCancelRec && !records.some(r => r.eventId === id && r.uid === userId && r.status === 'cancelled')) {
             const ev = ApiService.getEvent(id);
             if (ev) {

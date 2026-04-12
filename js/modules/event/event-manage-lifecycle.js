@@ -347,7 +347,9 @@ Object.assign(App, {
       let firestoreRegs = [];
       if (typeof db !== 'undefined') {
         try {
-          const snap = await db.collection('registrations').where('eventId', '==', eventId).get();
+          const _eventDocId = event._docId || await FirebaseService._getEventDocIdAsync(eventId);
+          if (!_eventDocId) throw new Error('eventDocId not found for ' + eventId);
+          const snap = await db.collection('events').doc(_eventDocId).collection('registrations').get();
           firestoreRegs = snap.docs.map(d => {
             const data = d.data();
             return { ...data, _docId: d.id, registeredAt: data.registeredAt?.toDate?.()?.toISOString?.() || data.registeredAt };

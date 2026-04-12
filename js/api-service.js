@@ -901,35 +901,7 @@ const ApiService = {
   //  Attendance Records（簽到/簽退）
   // ════════════════════════════════
 
-  // ── per-event attendance cache（繞過全域 onSnapshot limit）──
-  _eventAttendanceMap: {},
-  _eventAttendancePending: {}, // 去重：避免同一 eventId 並發查詢
-
-  /** 非同步：查詢特定活動的完整簽到紀錄（無 limit），結果快取供同步讀取 */
-  async fetchAttendanceRecordsForEvent(eventId) {
-    if (!eventId) return [];
-    if (this._eventAttendanceMap[eventId]) return this._eventAttendanceMap[eventId];
-    // 去重：若已有相同 eventId 的查詢在飛行中，等待其完成
-    if (this._eventAttendancePending[eventId]) return this._eventAttendancePending[eventId];
-    var self = this;
-    this._eventAttendancePending[eventId] = (async function () {
-      try {
-        var records = await FirebaseService.fetchEventAttendanceRecords(eventId);
-        var active = records.filter(function (r) { return r.status !== 'removed' && r.status !== 'cancelled'; });
-        self._eventAttendanceMap[eventId] = active;
-        return active;
-      } finally {
-        delete self._eventAttendancePending[eventId];
-      }
-    })();
-    return this._eventAttendancePending[eventId];
-  },
-
   getAttendanceRecords(eventId) {
-    // 優先使用 per-event cache（由 fetchAttendanceRecordsForEvent 填充，無 limit 截斷）
-    if (eventId && this._eventAttendanceMap[eventId]) {
-      return this._eventAttendanceMap[eventId];
-    }
     const source = this._src('attendanceRecords');
     const active = source.filter(r => r.status !== 'removed' && r.status !== 'cancelled');
     if (eventId) return active.filter(r => r.eventId === eventId);
@@ -960,10 +932,6 @@ const ApiService = {
         await FirebaseService.addAttendanceRecord(normalized);
         FirebaseService._saveToLS('attendanceRecords', FirebaseService._cache.attendanceRecords);
       }, 'addAttendanceRecord');
-      // 寫入成功：同步更新 per-event cache（避免 sync 讀取落回不完整的全域快取）
-      if (this._eventAttendanceMap[normalized.eventId]) {
-        this._eventAttendanceMap[normalized.eventId].push(normalized);
-      }
     } catch (err) {
       const idx = source.findIndex(r => r.id === normalized.id);
       if (idx !== -1) source.splice(idx, 1);
@@ -987,12 +955,6 @@ const ApiService = {
       await this._runAttendanceWriteWithAuthRetry(async () => {
         await FirebaseService.removeAttendanceRecord(target || record);
       }, 'removeAttendanceRecord');
-      // 寫入成功：從 per-event cache 移除（軟刪除的紀錄不應出現在 active 清單）
-      var _eid = (target || record).eventId;
-      if (_eid && this._eventAttendanceMap[_eid]) {
-        var _rid = (target || record).id;
-        this._eventAttendanceMap[_eid] = this._eventAttendanceMap[_eid].filter(function (r) { return r.id !== _rid; });
-      }
     } catch (err) {
       if (target && prev) Object.assign(target, prev);
       console.error('[removeAttendanceRecord]', err);
@@ -1018,18 +980,6 @@ const ApiService = {
       await this._runAttendanceWriteWithAuthRetry(async () => {
         await FirebaseService.batchWriteAttendance(adds, removes);
       }, 'batchWriteAttendance');
-      // 寫入成功：同步更新 per-event cache（push adds / filter removes）
-      var self = this;
-      adds.forEach(function (r) {
-        if (r.eventId && self._eventAttendanceMap[r.eventId]) {
-          self._eventAttendanceMap[r.eventId].push(r);
-        }
-      });
-      removes.forEach(function (r) {
-        if (r.eventId && self._eventAttendanceMap[r.eventId]) {
-          self._eventAttendanceMap[r.eventId] = self._eventAttendanceMap[r.eventId].filter(function (c) { return c.id !== r.id; });
-        }
-      });
     } catch (err) {
       console.error('[batchWriteAttendance]', err);
       throw new Error(this._mapAttendanceWriteError(err));
@@ -1975,10 +1925,15 @@ const ApiService = {
 
     for (const chunk of eventIdChunks) {
       if (!chunk.length) continue;
-      const snap = await db.collection('attendanceRecords')
-        .where('eventId', 'in', chunk)
-        .get({ source: 'server' });
-      snap.docs.forEach(doc => attendanceRecords.push({ ...doc.data(), _docId: doc.id }));
+      const _chunkResults = await Promise.all(chunk.map(async (eid) => {
+        const _eventDocId = await FirebaseService._getEventDocIdAsync(eid);
+        if (!_eventDocId) return [];
+        const snap = await db.collection('events').doc(_eventDocId)
+          .collection('attendanceRecords')
+          .get({ source: 'server' });
+        return snap.docs.map(doc => ({ ...doc.data(), _docId: doc.id }));
+      }));
+      _chunkResults.forEach(docs => attendanceRecords.push(...docs));
     }
 
     return this._collectEventParticipantStats({

@@ -514,9 +514,13 @@ const FirebaseService = {
         .orderBy('publishedAt', 'desc')
         .limit(8);
     }
-    // 統計關鍵集合不設 limit，避免截斷導致放鴿子/出席率計算錯誤
-    if (name === 'attendanceRecords' || name === 'registrations' || name === 'activityRecords') {
-      return db.collection(name);
+    // Phase 3b: registrations/attendanceRecords 由專用監聽器接手，不需初始載入
+    if (name === 'registrations' || name === 'attendanceRecords') {
+      return null;
+    }
+    // Phase 3b: activityRecords 無專用監聽器，改用 collectionGroup（去重在 _loadStaticCollections）
+    if (name === 'activityRecords') {
+      return db.collectionGroup('activityRecords');
     }
     return db.collection(name).limit(limitCount);
   },
@@ -731,14 +735,18 @@ const FirebaseService = {
 
     try {
       const [actSnap, attSnap] = await Promise.all([
-        db.collection('activityRecords').where('uid', '==', uid).get(),
-        db.collection('attendanceRecords').where('uid', '==', uid).get(),
+        db.collectionGroup('activityRecords').where('uid', '==', uid).get(),
+        db.collectionGroup('attendanceRecords').where('uid', '==', uid).get(),
       ]);
-      const attDocs = attSnap.docs.map(doc => ({ ...doc.data(), _docId: doc.id }));
+      const attDocs = attSnap.docs
+        .filter(doc => doc.ref.parent.parent !== null)
+        .map(doc => ({ ...doc.data(), _docId: doc.id }));
 
       this._userStatsCache = {
         uid,
-        activityRecords: actSnap.docs.map(doc => ({ ...doc.data(), _docId: doc.id })),
+        activityRecords: actSnap.docs
+          .filter(doc => doc.ref.parent.parent !== null)
+          .map(doc => ({ ...doc.data(), _docId: doc.id })),
         attendanceRecords: attDocs,
       };
     } catch (err) {
@@ -1285,7 +1293,12 @@ const FirebaseService = {
         console.warn(`[FirebaseService] Skip cache overwrite for "${name}" due to load failure.`);
         return;
       }
-      const docs = result.docs.map(doc => ({ ...doc.data(), _docId: doc.id }));
+      // Phase 3b: collectionGroup 去重 — activityRecords 僅保留子集合文件
+      let rawDocs = result.docs;
+      if (name === 'activityRecords') {
+        rawDocs = rawDocs.filter(doc => doc.ref.parent.parent !== null);
+      }
+      const docs = rawDocs.map(doc => ({ ...doc.data(), _docId: doc.id }));
       this._replaceCollectionCache(name, docs);
       loadedNames.push(name);
     });
@@ -1293,6 +1306,7 @@ const FirebaseService = {
   },
 
   async _fetchQuerySnapshot(label, query) {
+    if (!query) return { ok: true, docs: [] }; // Phase 3b: 監聽器接管的集合不需初始載入
     try {
       const snapshot = await query.get();
       return { ok: true, docs: snapshot.docs };
@@ -1547,12 +1561,14 @@ const FirebaseService = {
     const unsub = this._getRegistrationsListenerQuery(ctx)
       .onSnapshot(
         snapshot => {
-          this._cache.registrations = snapshot.docs.map(doc => {
-            const d = { ...doc.data(), _docId: doc.id };
-            if (d.userId && !d.uid) d.uid = d.userId;
-            if (d.uid && !d.userId) d.userId = d.uid;
-            return d;
-          });
+          this._cache.registrations = snapshot.docs
+            .filter(doc => doc.ref.parent.parent !== null) // Phase 3b: collectionGroup 去重
+            .map(doc => {
+              const d = { ...doc.data(), _docId: doc.id };
+              if (d.userId && !d.uid) d.uid = d.userId;
+              if (d.uid && !d.userId) d.userId = d.uid;
+              return d;
+            });
           this._registrationsFirstSnapshotReceived = true; // Fix A
           this._snapshotReconnectAttempts.registrations = 0; // RC4：成功時重置重連計數
           this._debouncedPersistCache();
@@ -1577,11 +1593,11 @@ const FirebaseService = {
 
   _getRegistrationsListenerQuery(ctx) {
     if (ctx.canReadAll) {
-      return db.collection('registrations')
+      return db.collectionGroup('registrations')
         .orderBy('registeredAt', 'desc')
         .limit(this._getRealtimeLimit('registrationLimit'));
     }
-    return db.collection('registrations')
+    return db.collectionGroup('registrations')
       .where('userId', '==', ctx.uid);
   },
 
@@ -1599,19 +1615,7 @@ const FirebaseService = {
     this._retryNoUidTimer = null;
   },
 
-  // ── 按 eventId 直接查詢 attendanceRecords（繞過 onSnapshot limit）──
-  async fetchEventAttendanceRecords(eventId) {
-    if (!eventId) return [];
-    try {
-      const snapshot = await db.collection('attendanceRecords')
-        .where('eventId', '==', eventId)
-        .get();
-      return snapshot.docs.map(doc => ({ ...doc.data(), _docId: doc.id }));
-    } catch (err) {
-      console.warn('[fetchEventAttendanceRecords] 查詢失敗，fallback 到全域快取:', err);
-      return (this._cache.attendanceRecords || []).filter(r => r.eventId === eventId);
-    }
-  },
+  // Phase 3c: fetchEventAttendanceRecords 已移除（子集合遷移後不再需要 per-event cache workaround）
 
   /** 啟動 attendanceRecords 監聽器（需 Auth，進入掃描/管理頁時觸發） */
   _startAttendanceRecordsListener() {
@@ -1631,13 +1635,15 @@ const FirebaseService = {
     this._realtimeListenerStarted.attendanceRecords = true;
     this._lazyLoaded.attendanceRecords = true;
     this._attendanceSnapshotReady = false;
-    const unsub = db.collection('attendanceRecords')
+    const unsub = db.collectionGroup('attendanceRecords')
       .orderBy('createdAt', 'desc')
       .limit(this._getRealtimeLimit('attendanceLimit'))
       .onSnapshot(
         snapshot => {
-          this._cache.attendanceRecords = snapshot.docs.map(doc => ({ ...doc.data(), _docId: doc.id }));
-          if (typeof ApiService !== 'undefined') ApiService._eventAttendanceMap = {}; // 清除 per-event cache，下次渲染會重新查詢
+          this._cache.attendanceRecords = snapshot.docs
+            .filter(doc => doc.ref.parent.parent !== null) // Phase 3b: collectionGroup 去重
+            .map(doc => ({ ...doc.data(), _docId: doc.id }));
+          // Phase 3c: per-event cache workaround 已移除
           this._attendanceSnapshotReady = true;
           this._snapshotReconnectAttempts.attendanceRecords = 0; // RC4：成功時重置重連計數
           this._debouncedPersistCache();

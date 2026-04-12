@@ -127,11 +127,13 @@ Object.assign(App, {
       // 每場活動的簽到文件數（不去重，每筆 = 1 人簽到）
       var checkinCountByEvent = {};
       try {
-        var arSnap = await db.collection('attendanceRecords').where('type', '==', 'checkin').get();
-        arSnap.forEach(function(doc) {
-          var eid = doc.data().eventId;
-          if (eid) checkinCountByEvent[eid] = (checkinCountByEvent[eid] || 0) + 1;
-        });
+        var arSnap = await db.collectionGroup('attendanceRecords').where('type', '==', 'checkin').get();
+        arSnap.docs
+          .filter(function(doc) { return doc.ref.parent.parent !== null; })
+          .forEach(function(doc) {
+            var eid = doc.data().eventId;
+            if (eid) checkinCountByEvent[eid] = (checkinCountByEvent[eid] || 0) + 1;
+          });
       } catch (_) {}
 
       uids.forEach(function(uid) {

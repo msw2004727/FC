@@ -749,7 +749,9 @@ Object.assign(App, {
     var allRegs;
     if (typeof db !== 'undefined') {
       try {
-        var snap = await db.collection('registrations').where('eventId', '==', eventId).get();
+        var _eventDocId = await FirebaseService._getEventDocIdAsync(eventId);
+        if (!_eventDocId) throw new Error('eventDocId not found');
+        var snap = await db.collection('events').doc(_eventDocId).collection('registrations').get();
         allRegs = [];
         snap.forEach(function(doc) {
           allRegs.push(Object.assign({ _docId: doc.id, id: doc.id }, doc.data()));

@@ -8,17 +8,18 @@
 window._scanAR = async function(fix) {
   try {
     alert('scanning...');
-    var arSnap = await db.collection('activityRecords').where('status', '==', 'registered').get();
-    alert('found ' + arSnap.size + ' registered records, checking...');
-    var regSnap = await db.collection('registrations').where('status', '==', 'cancelled').get();
+    var arSnap = await db.collectionGroup('activityRecords').where('status', '==', 'registered').get();
+    var arDocs = arSnap.docs.filter(function(d) { return d.ref.parent.parent !== null; });
+    alert('found ' + arDocs.length + ' registered records, checking...');
+    var regSnap = await db.collectionGroup('registrations').where('status', '==', 'cancelled').get();
     var cancelledMap = {};
-    regSnap.forEach(function(rd) {
+    regSnap.docs.filter(function(d) { return d.ref.parent.parent !== null; }).forEach(function(rd) {
       var r = rd.data();
       var key = (r.userId || '') + '|' + (r.eventId || '');
       cancelledMap[key] = true;
     });
     var issues = [];
-    arSnap.forEach(function(doc) {
+    arDocs.forEach(function(doc) {
       var ar = doc.data();
       if (!ar.uid || !ar.eventId) return;
       var key = ar.uid + '|' + ar.eventId;

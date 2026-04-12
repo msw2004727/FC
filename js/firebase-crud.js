@@ -876,9 +876,9 @@ Object.assign(FirebaseService, {
       const ed = eventDoc.data();
       const maxCount = ed.max || 0;
 
-      // 每次 transaction 嘗試都重新查詢 registrations（強制走伺服器，防止離線快取導致重複報名）
-      const allRegsSnap = await db.collection('registrations')
-        .where('eventId', '==', eventId)
+      // 每次 transaction 嘗試都重新查詢 registrations（子集合直接查詢，強制走伺服器）
+      const allRegsSnap = await db.collection('events').doc(event._docId)
+        .collection('registrations')
         .get({ source: 'server' });
       const allEventRegs = allRegsSnap.docs.map(d => ({ ...d.data(), _docId: d.id }));
 
@@ -974,8 +974,8 @@ Object.assign(FirebaseService, {
     let firestoreRegs = [];
     if (event) {
       try {
-        const snap = await db.collection('registrations')
-          .where('eventId', '==', event.id)
+        const snap = await db.collection('events').doc(event._docId)
+          .collection('registrations')
           .get();
         firestoreRegs = snap.docs.map(d => {
           const data = d.data();
@@ -2094,8 +2094,8 @@ Object.assign(FirebaseService, {
     // 從 Firestore 查詢該活動所有報名紀錄（不依賴快取，避免快取不完整導致覆蓋正確計數）
     await this._assertEventSignupOpen(event);
 
-    const allRegsSnap = await db.collection('registrations')
-      .where('eventId', '==', eventId)
+    const allRegsSnap = await db.collection('events').doc(event._docId)
+      .collection('registrations')
       .get({ source: 'server' });
     const allEventRegs = allRegsSnap.docs.map(d => ({ ...d.data(), _docId: d.id }));
 
@@ -2234,8 +2234,11 @@ Object.assign(FirebaseService, {
     const firestoreRegsByEvent = {};
     for (const eventId of affectedEventIds) {
       try {
-        const snap = await db.collection('registrations')
-          .where('eventId', '==', eventId)
+        const _ev = this._cache.events.find(e => e.id === eventId);
+        const _eventDocId = _ev?._docId || await FirebaseService._getEventDocIdAsync(eventId);
+        if (!_eventDocId) throw new Error('eventDocId not found for ' + eventId);
+        const snap = await db.collection('events').doc(_eventDocId)
+          .collection('registrations')
           .get();
         firestoreRegsByEvent[eventId] = snap.docs.map(d => {
           const data = d.data();

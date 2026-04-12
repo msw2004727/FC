@@ -178,25 +178,33 @@ Object.assign(App, {
 
     // Step A: 從 Firestore 查詢該用戶的完整資料
     const [regSnap, actSnap, attSnap] = await Promise.all([
-      db.collection('registrations').where('userId', '==', uid).get(),
-      db.collection('activityRecords').where('uid', '==', uid).get(),
-      db.collection('attendanceRecords').where('uid', '==', uid).get(),
+      db.collectionGroup('registrations').where('userId', '==', uid).get(),
+      db.collectionGroup('activityRecords').where('uid', '==', uid).get(),
+      db.collectionGroup('attendanceRecords').where('uid', '==', uid).get(),
     ]);
 
-    let registrations = regSnap.docs.map(doc => ({ ...doc.data(), _docId: doc.id }));
-    let activityRecords = actSnap.docs.map(doc => ({ ...doc.data(), _docId: doc.id }));
-    let attendanceRecords = attSnap.docs.map(doc => ({ ...doc.data(), _docId: doc.id }));
+    let registrations = regSnap.docs
+      .filter(doc => doc.ref.parent.parent !== null)
+      .map(doc => ({ ...doc.data(), _docId: doc.id }));
+    let activityRecords = actSnap.docs
+      .filter(doc => doc.ref.parent.parent !== null)
+      .map(doc => ({ ...doc.data(), _docId: doc.id }));
+    let attendanceRecords = attSnap.docs
+      .filter(doc => doc.ref.parent.parent !== null)
+      .map(doc => ({ ...doc.data(), _docId: doc.id }));
 
     // 歷史修正：displayName fallback for attendanceRecords
     if (attendanceRecords.length === 0) {
       const displayName = user.displayName || user.name;
       if (displayName) {
-        const attByNameSnap = await db.collection('attendanceRecords')
+        const attByNameSnap = await db.collectionGroup('attendanceRecords')
           .where('userName', '==', displayName).get();
-        attendanceRecords = attByNameSnap.docs.map(doc => {
-          const data = doc.data();
-          return { ...data, uid, _docId: doc.id };
-        });
+        attendanceRecords = attByNameSnap.docs
+          .filter(doc => doc.ref.parent.parent !== null)
+          .map(doc => {
+            const data = doc.data();
+            return { ...data, uid, _docId: doc.id };
+          });
       }
     }
 
