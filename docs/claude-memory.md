@@ -10,6 +10,11 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-04-12 — 子集合遷移計劃書 v5 + 自動化測試安全網
+- **問題**：Firestore 全域集合遷移到子集合的計劃書經 5 輪審計（33 處修正），需在實作前建立測試安全網
+- **修復**：新增 4 個測試檔 + 1 個驗證腳本（migration-path-coverage 6 tests、subcollection-utils 22 tests、subcollection-rules 16 tests、migration-verify.js 4 階段驗證）
+- **教訓**：遷移路徑覆蓋率測試可自動偵測新增的 db.collection() 引用是否在遷移計劃涵蓋範圍內；Emulator 測試必須顯示 skip 而非靜默 pass
+
 ### 2026-04-11 — [永久] calcNoShowCounts doc.id vs data.id 錯配 — 全站放鴿子算出 0
 - **問題**：Cloud Function `calcNoShowCounts` 部署後計算出全站 0 次放鴿子，users 文件的 `noShowCount` 始終為 undefined
 - **原因**：events 集合的 Firestore 文件 ID（`doc.id`，如 `ga0CqtaPpjRwimUGEZfU`）與活動自訂 ID（`data.id`，如 `ce_1774920121549_j63p`）**不同**。CF 用 `doc.id` 建 `endedEventIds`，但 `registrations.eventId` 存的是 `data.id`，`endedEventIds.has(reg.eventId)` 永遠 false → 所有報名都被 skip → 0 次放鴿子
