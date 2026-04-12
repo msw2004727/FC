@@ -55,7 +55,22 @@ function initFirebase() {
   }
 
   if (!admin.apps.length) {
-    admin.initializeApp();
+    // Read project ID from .firebaserc (ensures correct Firestore project)
+    const fs = require("fs");
+    const rcPath = path.resolve(__dirname, "../.firebaserc");
+    let projectId = null;
+    try {
+      const rc = JSON.parse(fs.readFileSync(rcPath, "utf-8"));
+      projectId = rc.projects && rc.projects.default;
+    } catch (_) { /* ignore */ }
+
+    if (projectId) {
+      admin.initializeApp({ projectId });
+      console.log(`  ℹ️  Using Firebase project: ${projectId}\n`);
+    } else {
+      admin.initializeApp();
+      console.warn("  ⚠️  No .firebaserc found, using default project\n");
+    }
   }
   db = admin.firestore();
 }

@@ -1,0 +1,40 @@
+{
+  "timestamp": "2026-04-12T06:09:19.068Z",
+  "collections": {
+    "registrations": 1331,
+    "attendanceRecords": 2576,
+    "activityRecords": 1261
+  },
+  "sampleUsers": [
+    {
+      "uid": "U6c1288d31addb8c237bf7fdfa4c52cd9",
+      "registrations": 2,
+      "attendanceRecords": 4,
+      "activityRecords": 2
+    },
+    {
+      "uid": "Uf3ce0452c27fa0e05a38c77c4b7a3756",
+      "registrations": 11,
+      "attendanceRecords": 31,
+      "activityRecords": 11
+    },
+    {
+      "uid": "Ud45160cfc94ea4e166368252da3b9ddc",
+      "registrations": 2,
+      "attendanceRecords": 7,
+      "activityRecords": 2
+    },
+    {
+      "uid": "Uc44ce7fd3e1cb674e10c1c6ccfb10933",
+      "registrations": 11,
+      "attendanceRecords": 24,
+      "activityRecords": 11
+    },
+    {
+      "uid": "Ub1e5e5ae2530f675945cdb532c7c95d0",
+      "registrations": 7,
+      "attendanceRecords": 16,
+      "activityRecords": 7
+    }
+  ]
+}
