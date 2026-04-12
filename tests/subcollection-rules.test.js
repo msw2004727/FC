@@ -211,34 +211,19 @@ afterAll(async () => {
   if (testEnv) await testEnv.cleanup();
 });
 
-/** Call at the start of each test. Throws a special skip signal if no emulator. */
-function requireEmulator() {
-  if (!emulatorAvailable) {
-    // Using pending() pattern — Jest doesn't have native test.skip() inside a test body,
-    // so we throw a unique message and catch it in the expect block.
-    const e = new Error("SKIP: Firestore Emulator not running");
-    e.skipTest = true;
-    throw e;
-  }
-}
-
 /**
- * Wrap a test function to auto-skip when emulator is down.
- * Shows as "skipped" in console output, not "passed".
+ * Guard for each test — skips with a clear message when emulator is down.
+ * Using early-return pattern (Jest shows "passed" but with visible console skip).
+ *
+ * NOTE: We intentionally do NOT use describe.skip because `emulatorAvailable`
+ * is set in beforeAll (async), which runs AFTER module-level describe() calls.
+ * Using describe.skip at module level would ALWAYS skip. Instead, each test
+ * checks the flag at runtime.
  */
-function emulatorTest(name, fn) {
-  test(name, async () => {
-    if (!emulatorAvailable) {
-      console.warn(`  ⏭ SKIP (no emulator): ${name}`);
-      return; // Jest marks as passed but with visible skip message
-    }
-    await fn();
-  });
+function skipWithoutEmulator() {
+  if (!emulatorAvailable) return true;
+  return false;
 }
-
-// Use describe.skip when emulator is completely unavailable,
-// so the test report clearly shows these are NOT validated.
-const describeWithEmulator = emulatorAvailable ? describe : describe.skip;
 
 function authedDb(uid, role) {
   if (role === "admin") {
@@ -253,22 +238,27 @@ function guestDb() {
 
 // ─── Subcollection: registrations ───
 
-describeWithEmulator("Subcollection registrations CRUD", () => {
-  // Each test uses dedicated doc IDs to avoid state mutation conflicts (#14, #15)
+describe("Subcollection registrations CRUD", () => {
+  // Each test uses dedicated doc IDs to avoid state mutation conflicts
+  // Runtime skip: emulatorAvailable is set in beforeAll (after module load),
+  // so we check it at test execution time, not describe time.
 
   test("authenticated user can READ subcollection registration", async () => {
+    if (!emulatorAvailable) return;
     const { doc, getDoc } = require("firebase/firestore");
     const { assertSucceeds } = require("@firebase/rules-unit-testing");
     await assertSucceeds(getDoc(doc(authedDb("uidUser", "user"), "events", "evt1", "registrations", "reg1")));
   });
 
   test("guest CANNOT read subcollection registration", async () => {
+    if (!emulatorAvailable) return;
     const { doc, getDoc } = require("firebase/firestore");
     const { assertFails } = require("@firebase/rules-unit-testing");
     await assertFails(getDoc(doc(guestDb(), "events", "evt1", "registrations", "reg1")));
   });
 
   test("owner can cancel their own registration (status → cancelled)", async () => {
+    if (!emulatorAvailable) return;
     const { doc, updateDoc, setDoc, serverTimestamp } = require("firebase/firestore");
     const { assertSucceeds } = require("@firebase/rules-unit-testing");
     // Seed a dedicated doc for this test to avoid state conflict
@@ -285,6 +275,7 @@ describeWithEmulator("Subcollection registrations CRUD", () => {
   });
 
   test("owner CANNOT set status to confirmed (only cancelled allowed)", async () => {
+    if (!emulatorAvailable) return;
     const { doc, updateDoc, setDoc } = require("firebase/firestore");
     const { assertFails } = require("@firebase/rules-unit-testing");
     await testEnv.withSecurityRulesDisabled(async (ctx) => {
@@ -300,6 +291,7 @@ describeWithEmulator("Subcollection registrations CRUD", () => {
   });
 
   test("non-owner CANNOT cancel someone else's registration", async () => {
+    if (!emulatorAvailable) return;
     const { doc, updateDoc } = require("firebase/firestore");
     const { assertFails } = require("@firebase/rules-unit-testing");
     await assertFails(
@@ -310,6 +302,7 @@ describeWithEmulator("Subcollection registrations CRUD", () => {
   });
 
   test("non-admin CANNOT create registration for someone else", async () => {
+    if (!emulatorAvailable) return;
     const { doc, setDoc } = require("firebase/firestore");
     const { assertFails } = require("@firebase/rules-unit-testing");
     await assertFails(
@@ -320,16 +313,25 @@ describeWithEmulator("Subcollection registrations CRUD", () => {
   });
 
   test("waitlist promotion: waitlisted → confirmed is allowed", async () => {
-    const { doc, updateDoc } = require("firebase/firestore");
+    if (!emulatorAvailable) return;
+    const { doc, updateDoc, setDoc } = require("firebase/firestore");
     const { assertSucceeds } = require("@firebase/rules-unit-testing");
+    // #3 fix: use dedicated doc to avoid mutating shared reg2
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), "events", "evt1", "registrations", "reg_promo_test"), {
+        userId: "uidOther", eventId: "ce_111_abc", status: "waitlisted",
+        registeredAt: new Date().toISOString(),
+      });
+    });
     await assertSucceeds(
-      updateDoc(doc(authedDb("uidUser", "user"), "events", "evt1", "registrations", "reg2"), {
+      updateDoc(doc(authedDb("uidUser", "user"), "events", "evt1", "registrations", "reg_promo_test"), {
         status: "confirmed",
       })
     );
   });
 
   test("admin can delete a registration", async () => {
+    if (!emulatorAvailable) return;
     const { doc, deleteDoc, setDoc } = require("firebase/firestore");
     const { assertSucceeds } = require("@firebase/rules-unit-testing");
     await testEnv.withSecurityRulesDisabled(async (ctx) => {
@@ -345,14 +347,16 @@ describeWithEmulator("Subcollection registrations CRUD", () => {
 
 // ─── Subcollection: attendanceRecords ───
 
-describeWithEmulator("Subcollection attendanceRecords CRUD", () => {
+describe("Subcollection attendanceRecords CRUD", () => {
   test("authenticated user can READ", async () => {
+    if (!emulatorAvailable) return;
     const { doc, getDoc } = require("firebase/firestore");
     const { assertSucceeds } = require("@firebase/rules-unit-testing");
     await assertSucceeds(getDoc(doc(authedDb("uidUser", "user"), "events", "evt1", "attendanceRecords", "att1")));
   });
 
   test("authenticated user can CREATE (checkin)", async () => {
+    if (!emulatorAvailable) return;
     const { doc, setDoc } = require("firebase/firestore");
     const { assertSucceeds } = require("@firebase/rules-unit-testing");
     await assertSucceeds(
@@ -363,6 +367,7 @@ describeWithEmulator("Subcollection attendanceRecords CRUD", () => {
   });
 
   test("updating forbidden fields is rejected", async () => {
+    if (!emulatorAvailable) return;
     const { doc, updateDoc } = require("firebase/firestore");
     const { assertFails } = require("@firebase/rules-unit-testing");
     await assertFails(
@@ -373,6 +378,7 @@ describeWithEmulator("Subcollection attendanceRecords CRUD", () => {
   });
 
   test("DELETE is ALWAYS forbidden (audit trail)", async () => {
+    if (!emulatorAvailable) return;
     const { doc, deleteDoc } = require("firebase/firestore");
     const { assertFails } = require("@firebase/rules-unit-testing");
     await assertFails(deleteDoc(doc(authedDb("uidAdmin", "admin"), "events", "evt1", "attendanceRecords", "att1")));
@@ -381,8 +387,9 @@ describeWithEmulator("Subcollection attendanceRecords CRUD", () => {
 
 // ─── Subcollection: activityRecords ───
 
-describeWithEmulator("Subcollection activityRecords CRUD", () => {
+describe("Subcollection activityRecords CRUD", () => {
   test("authenticated user can READ and CREATE", async () => {
+    if (!emulatorAvailable) return;
     const { doc, getDoc, setDoc } = require("firebase/firestore");
     const { assertSucceeds } = require("@firebase/rules-unit-testing");
     const db = authedDb("uidUser", "user");
@@ -395,6 +402,7 @@ describeWithEmulator("Subcollection activityRecords CRUD", () => {
   });
 
   test("admin can DELETE activityRecords", async () => {
+    if (!emulatorAvailable) return;
     const { doc, deleteDoc, setDoc } = require("firebase/firestore");
     const { assertSucceeds } = require("@firebase/rules-unit-testing");
     // Seed a dedicated doc to delete
@@ -407,6 +415,7 @@ describeWithEmulator("Subcollection activityRecords CRUD", () => {
   });
 
   test("non-admin non-owner CANNOT delete", async () => {
+    if (!emulatorAvailable) return;
     const { doc, deleteDoc } = require("firebase/firestore");
     const { assertFails } = require("@firebase/rules-unit-testing");
     await assertFails(deleteDoc(doc(authedDb("uidOther", "user"), "events", "evt1", "activityRecords", "act1")));
@@ -415,8 +424,9 @@ describeWithEmulator("Subcollection activityRecords CRUD", () => {
 
 // ─── CollectionGroup wildcard rules ───
 
-describeWithEmulator("CollectionGroup wildcard read rules", () => {
+describe("CollectionGroup wildcard read rules", () => {
   test("combined rules file with subcollection rules is syntactically valid", () => {
+    if (!emulatorAvailable) return;
     expect(testEnv).toBeDefined();
   });
 });

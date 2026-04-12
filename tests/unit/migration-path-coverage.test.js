@@ -224,6 +224,11 @@ describe('Migration Path Coverage — Frontend JS', () => {
 });
 
 describe('Migration Path Coverage — Cloud Functions', () => {
+  test('functions/index.js exists (required for CF coverage validation)', () => {
+    const fullPath = path.join(PROJECT_ROOT, 'functions/index.js');
+    expect(fs.existsSync(fullPath)).toBe(true);
+  });
+
   test('all CF db.collection() references match the migration plan allowlist', () => {
     const unexpected = [];
     const countMismatch = [];
@@ -273,23 +278,30 @@ describe('Migration Path Coverage — Cloud Functions', () => {
 });
 
 describe('Migration Path Coverage — Total Count Sanity', () => {
-  test('total reference count matches expected ~87', () => {
-    let total = 0;
+  test('actual scanned total matches allowlist total (no hidden drift)', () => {
+    // Sum ACTUAL scanned counts across all known files
+    let actualTotal = 0;
+    let allowlistTotal = 0;
 
-    for (const counts of Object.values(KNOWN_REFERENCES)) {
-      total += counts.registrations + counts.attendanceRecords + counts.activityRecords;
+    for (const [file, known] of Object.entries(KNOWN_REFERENCES)) {
+      const counts = countCollectionRefs(file);
+      if (!counts) continue;
+      for (const col of COLLECTIONS) {
+        actualTotal += counts[col];
+        allowlistTotal += known[col];
+      }
     }
-    for (const counts of Object.values(KNOWN_CF_REFERENCES)) {
-      total += counts.registrations + counts.attendanceRecords + counts.activityRecords;
+    for (const [file, known] of Object.entries(KNOWN_CF_REFERENCES)) {
+      const counts = countCollectionRefs(file);
+      if (!counts) continue;
+      for (const col of COLLECTIONS) {
+        actualTotal += counts[col];
+        allowlistTotal += known[col];
+      }
     }
-    // +1 for firebase.firestore().collection variant in event-detail-signup.js:351
-    // (counted in the registrations count for that file)
-    // +2 for CF triggers
-    total += KNOWN_CF_TRIGGERS['functions/index.js'].triggers.length;
 
-    // Plan v5 identified 87 db.collection() references + 2 triggers = 89 total tracked items
-    // Allow ±5 tolerance for counting methodology differences
-    expect(total).toBeGreaterThanOrEqual(80);
-    expect(total).toBeLessThanOrEqual(95);
+    // Actual should exactly match allowlist (per-file tests catch individual drift,
+    // this catches the case where increases and decreases cancel out)
+    expect(actualTotal).toBe(allowlistTotal);
   });
 });

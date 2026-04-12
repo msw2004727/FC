@@ -185,7 +185,7 @@ async function runPhase1() {
         continue;
       }
 
-      // Compare key fields
+      // Compare key fields (including UID field name presence check)
       const subData = subDoc.data();
       const fieldsToCompare = ["status", "eventId", uidField].filter(f => data[f] !== undefined);
       for (const field of fieldsToCompare) {
@@ -196,10 +196,41 @@ async function runPhase1() {
           }
         }
       }
+
+      // Verify UID field name exists (catch userId vs uid migration bugs)
+      if (uidField && data[uidField] && !subData[uidField]) {
+        totalMismatch++;
+        if (totalMismatch <= 5) {
+          fail(`${col}/${rootDoc.id}: uid field "${uidField}" exists in root but MISSING in subcollection`);
+        }
+      }
     }
   }
 
-  info(`Checked ${totalChecked} documents`);
+  // Reverse check: sample subcollection docs and verify root counterpart exists
+  info("\nReverse check: subcollection → root...");
+  let reverseChecked = 0;
+  let reverseMissing = 0;
+  const sampleEvents = [...eventMap.entries()].slice(0, 5);
+  for (const [, eventDocId] of sampleEvents) {
+    for (const col of COLLECTIONS) {
+      const subSnap = await db.collection("events").doc(eventDocId).collection(col).limit(10).get();
+      for (const subDoc of subSnap.docs) {
+        reverseChecked++;
+        const rootDoc = await db.collection(col).doc(subDoc.id).get();
+        if (!rootDoc.exists) {
+          reverseMissing++;
+          if (reverseMissing <= 3) {
+            warn(`${col}/${subDoc.id} exists in subcollection but NOT in root (orphan subcollection doc)`);
+          }
+        }
+      }
+    }
+  }
+  if (reverseMissing === 0 && reverseChecked > 0) pass(`Reverse check: ${reverseChecked} subcollection docs all have root counterparts`);
+  else if (reverseMissing > 0) warn(`Reverse check: ${reverseMissing}/${reverseChecked} subcollection docs missing from root`);
+
+  info(`\nForward check: ${totalChecked} documents`);
   if (totalMissing === 0) pass("All root documents have matching subcollection documents");
   else fail(`${totalMissing} documents missing from subcollections`);
   if (totalMismatch === 0) pass("All compared fields match between root and subcollection");
@@ -223,27 +254,45 @@ async function runPhase2() {
   for (const col of COLLECTIONS) {
     info(`\nChecking ${col}...`);
 
-    const rootSnap = await db.collection(col).select("eventId").get();
+    const uidField = col === "registrations" ? "userId" : "uid";
+    const rootSnap = await db.collection(col).get();
     let missing = 0;
     let orphan = 0;
     let matched = 0;
+    let fieldMismatch = 0;
 
     for (const rootDoc of rootSnap.docs) {
-      const eventId = rootDoc.data().eventId;
+      const rootData = rootDoc.data();
+      const eventId = rootData.eventId;
       if (!eventId) { orphan++; continue; }
 
       const eventDocId = eventMap.get(eventId);
       if (!eventDocId) { orphan++; continue; }
 
       const subDoc = await db.collection("events").doc(eventDocId).collection(col).doc(rootDoc.id).get();
-      if (subDoc.exists) matched++;
-      else missing++;
+      if (!subDoc.exists) { missing++; continue; }
+
+      matched++;
+
+      // Field-level verification (catch migration script bugs)
+      const subData = subDoc.data();
+      const criticalFields = ["status", "eventId", uidField].filter(f => rootData[f] !== undefined);
+      for (const f of criticalFields) {
+        if (String(rootData[f]) !== String(subData[f])) {
+          fieldMismatch++;
+          if (fieldMismatch <= 3) {
+            fail(`${col}/${rootDoc.id}: field "${f}" — root="${rootData[f]}" vs sub="${subData[f]}"`);
+          }
+        }
+      }
     }
 
-    info(`  Total root: ${rootSnap.size} | Matched: ${matched} | Missing: ${missing} | Orphan (no event): ${orphan}`);
+    info(`  Total: ${rootSnap.size} | Matched: ${matched} | Missing: ${missing} | Orphan: ${orphan} | Field mismatch: ${fieldMismatch}`);
 
     if (missing === 0) pass(`${col}: all non-orphan documents migrated`);
     else fail(`${col}: ${missing} documents NOT migrated`);
+    if (fieldMismatch === 0 && matched > 0) pass(`${col}: all ${matched} matched documents have correct field values`);
+    else if (fieldMismatch > 0) fail(`${col}: ${fieldMismatch} field mismatches in migrated data`);
 
     if (orphan > 0) warn(`${col}: ${orphan} orphan documents (eventId has no matching event)`);
   }
@@ -344,8 +393,10 @@ async function runPhase3() {
 
     if (currentCount < baselineCount) {
       fail(`${col}: current count (${currentCount}) LESS than baseline (${baselineCount}) — possible data loss!`);
+    } else if (currentCount > baselineCount * 2.5) {
+      fail(`${col}: current count (${currentCount}) is ${(currentCount / baselineCount).toFixed(1)}x baseline (${baselineCount}) — possible duplicate data! Expected ~1x (after Phase 4c) or ~2x (during dual-write)`);
     } else {
-      pass(`${col}: no data loss (current >= baseline)`);
+      pass(`${col}: count OK — current=${currentCount}, baseline=${baselineCount}, ratio=${(currentCount / baselineCount).toFixed(1)}x`);
     }
   }
 
