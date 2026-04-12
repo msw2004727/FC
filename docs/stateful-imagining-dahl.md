@@ -64,6 +64,143 @@ Phase 0 → Phase 1 (高風險) → Phase 2 → Phase 3a → Phase 3b (高風險
 
 ---
 
+## 執行進度（即時狀態）
+
+> **最後更新：2026-04-12**
+
+| Phase | 狀態 | 完成日期 | commit | 備註 |
+|-------|------|----------|--------|------|
+| 0 | ✅ 完成 | 2026-04-12 | `7875c6f6` | 8 個索引 + rules + _getEventDocId + migrateToSubcollections CF |
+| 1 | ✅ 完成 | 2026-04-12 | `ea6420cc` | 49 個寫入點雙寫（16 個檔案，+507 行） |
+| 2 | ✅ 完成 | 2026-04-12 | （資料操作） | 5,094 筆遷移，0 missing / 0 field mismatch / 78 孤兒 |
+| 3a | ✅ 完成 | 2026-04-12 | `c4c87618` | 16 處 per-event 查詢切到子集合 |
+| 3b | ✅ 完成 | 2026-04-12 | 同上 | 監聽器 collectionGroup + 去重 17 處 |
+| 3c | ✅ 完成 | 2026-04-12 | 同上 | _eventAttendanceMap workaround 移除 |
+| 4a | ✅ 完成 | 2026-04-12 | `513f524f` | CF 觸發器改為子集合路徑 |
+| 4b | ✅ 完成 | 2026-04-12 | 同上 | 寫入路徑翻轉（-502 行），根集合不再被寫入 |
+| **4c** | **⏸ 待執行** | — | — | **刪除根集合資料 + 移除去重 + 鎖定 rules（不可逆）** |
+| 4d | ⏸ 待 4c | — | — | 文件更新 + 版號 |
+
+**目前系統狀態**：
+- 寫入：只寫子集合 ✅
+- 讀取：只讀子集合/collectionGroup ✅
+- 根集合：已凍結（無人讀寫），資料仍存在作為回退保險
+- 去重過濾（`doc.ref.parent.parent !== null`）：仍在程式碼中（17 處），等 4c 刪根資料後移除
+- **不做 4c 也不影響任何功能**——僅為清潔工作（刪垃圾、掃地、鎖門）
+
+---
+
+## Phase 4c 執行指引（未來新對話用）
+
+> **前提條件**：Phase 4b 已穩定運行 3+ 天，無功能異常回報。
+> **不可逆警告**：4c 執行後根集合資料永久刪除，回退需從子集合反向複製（成本高）。
+
+### 步驟 1：刪除根集合資料（Admin SDK）
+
+在專案根目錄執行，或在新對話中請 AI 撰寫並執行：
+
+```bash
+node -e "
+const admin = require('./functions/node_modules/firebase-admin');
+admin.initializeApp({ projectId: 'fc-football-6c8dc' });
+const db = admin.firestore();
+
+async function deleteRootCollection(col) {
+  const snap = await db.collection(col).get();
+  console.log(col + ': ' + snap.size + ' docs to delete');
+  const BATCH_SIZE = 400;
+  for (let i = 0; i < snap.docs.length; i += BATCH_SIZE) {
+    const batch = db.batch();
+    snap.docs.slice(i, i + BATCH_SIZE).forEach(doc => batch.delete(doc.ref));
+    await batch.commit();
+    console.log('  deleted batch ' + Math.floor(i / BATCH_SIZE + 1));
+  }
+  console.log(col + ': done');
+}
+
+(async () => {
+  await deleteRootCollection('registrations');
+  await deleteRootCollection('attendanceRecords');
+  await deleteRootCollection('activityRecords');
+  console.log('All root collections cleared.');
+})().then(() => process.exit(0)).catch(e => { console.error(e); process.exit(1); });
+"
+```
+
+需要 Firebase ADC 認證（`gcloud auth application-default login`）。
+
+### 步驟 2：移除去重過濾（程式碼修改）
+
+搜尋並移除以下 pattern：
+
+**前端（js/ 目錄，10 處）**：
+```js
+.filter(doc => doc.ref.parent.parent !== null)
+```
+搜尋：`parent.parent !== null`
+
+**attendance-notify.js（1 處）**：
+```js
+if (change.doc.ref.parent.parent === null) return;
+```
+
+**Cloud Functions（functions/index.js，7 處）**：
+```js
+.filter(d => d.ref.path.split("/").length > 2)
+```
+搜尋：`split("/").length > 2`
+
+**總計 18 處**（前端 11 + CF 7）。
+
+### 步驟 3：鎖定根集合 Security Rules
+
+在 `firestore.rules` 中，將根集合的 3 個 match 區塊改為：
+
+```
+match /registrations/{regId} {
+  allow read, write: if false;
+}
+match /attendanceRecords/{recordId} {
+  allow read, write: if false;
+}
+match /activityRecords/{recordId} {
+  allow read, write: if false;
+}
+```
+
+原本的 helper functions（`isWaitlistPromotion` 等）可以整段刪除。
+
+**注意**：`/{path=**}/registrations/{regId}` 的 collectionGroup wildcard rules 不要動——它們是子集合 collectionGroup 查詢所需的。
+
+### 步驟 4：移除 collectionGroup wildcard read rules（可選）
+
+根集合資料刪除後，collectionGroup 查詢不再返回根文件。但 wildcard rules 仍會 OR 覆蓋根集合的 `if false`。如果要完全鎖死：
+
+- 刪除 `match /{path=**}/registrations/{regId}` 等 3 個 wildcard 區塊
+- collectionGroup 查詢會改為使用子集合規則 `match /events/{eventId}/registrations/{regId}` 授權
+
+**此步驟可選**——根資料已刪，wildcard 覆蓋也讀不到東西。
+
+### 步驟 5：部署 + 驗收
+
+```bash
+firebase deploy --only firestore:rules
+firebase deploy --only functions
+npx jest tests/unit/ tests/subcollection-rules.test.js  # 全套測試
+node scripts/migration-verify.js phase3                  # 驗證根集合已空
+```
+
+更新 `migration-path-coverage.test.js` 的 KNOWN_REFERENCES（去重移除後計數會變）。
+版號更新（CACHE_VERSION + index.html ?v= + var V + sw.js CACHE_NAME）。
+更新 `docs/architecture.md` 和 `docs/claude-memory.md`。
+commit + push。
+
+### 步驟 6：更新本計劃書進度表
+
+將上方進度表的 4c 和 4d 標為 ✅ 完成。
+
+---
+
 ### Phase 0 — 索引 + 路徑工具 + 安全規則 + 遷移腳本
 
 **檔案：**
@@ -458,7 +595,8 @@ Phase 3c 完成後，進入觀察期。期間：
 | 2026-04-12 | v2 | 多領域專家審查修訂：修正 C1-C5 致命缺陷 + H1-H6 高風險缺陷 + M1-M4 中風險缺陷 |
 | 2026-04-12 | v3 | 逐檔逐行深度審計：修正 S1-S10 遺漏路徑 + L1-L5 標籤錯誤 |
 | 2026-04-12 | v4 | 87 處全域搜尋交叉比對：修正 F1-F3 架構級缺陷 |
-| 2026-04-12 | v5 | Firestore 引擎行為語義審計：修正 G1-G5 引擎級缺陷（詳見下方） |
+| 2026-04-12 | v5 | Firestore 引擎行為語義審計：修正 G1-G5 引擎級缺陷 |
+| 2026-04-12 | v6 | 新增執行進度追蹤表 + Phase 4c 完整執行指引（6 步驟 + 腳本 + 注意事項） |
 
 ### v2 修訂內容
 
