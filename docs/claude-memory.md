@@ -10,6 +10,12 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-04-12 — Phase 1 完成：子集合雙寫層（49 個寫入點）
+- **問題**：Phase 0 基礎設施已部署，需實作雙寫層讓所有寫入同時寫全域集合 + 子集合
+- **修復**：16 個檔案新增雙寫邏輯（firebase-crud.js 11 點、8 個 event modules 30 點、achievement-batch+app 2 點、CF registerForEvent+cancelRegistration 6 點）
+- **關鍵修正**：計劃書原稱 KNOWN_REFERENCES 不需更新，但 migration-path-coverage 的 regex 會匹配子集合鏈中的 `.collection('registrations')`，所有計數必須同步更新
+- **教訓**：CF 行號因 Phase 0 新增 migrateToSubcollections 而偏移 ~300 行，實作時需以程式碼搜尋為準而非計劃書行號
+
 ### 2026-04-12 — 子集合遷移計劃書 v5 + 自動化測試安全網
 - **問題**：Firestore 全域集合遷移到子集合的計劃書經 5 輪審計（33 處修正），需在實作前建立測試安全網
 - **修復**：新增 4 個測試檔 + 1 個驗證腳本（migration-path-coverage 6 tests、subcollection-utils 22 tests、subcollection-rules 16 tests、migration-verify.js 4 階段驗證）
