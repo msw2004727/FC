@@ -272,7 +272,7 @@ Object.assign(App, {
       this._flipAnimating = false;
       this._flipAnimatingAt = 0;
       // 局部更新：只換按鈕和名單，不做全頁重繪（避免跳頂）
-      this._patchDetailAfterSignup(id, result.status === 'waitlisted');
+      this._patchDetailAfterSignup(id);
       this._maybeShowLineNotifyPrompt?.();
 
       // ── 背景 post-ops（僅 fallback 路徑需要，CF 路徑已在伺服器完成）──
@@ -658,64 +658,107 @@ Object.assign(App, {
   //  局部 DOM 更新（報名/取消後不做全頁重繪，避免跳頂）
   // ════════════════════════════════
 
-  /** 報名成功後：按鈕換成「取消報名/取消候補」+ 更新名單 */
-  _patchDetailAfterSignup(eventId, isWaitlist) {
-    var actionZone = document.querySelector('.detail-action-primary');
-    if (actionZone) {
-      var cancelLabel = isWaitlist ? '取消候補' : '取消報名';
-      var bgColor = isWaitlist ? '#7c3aed' : '#dc2626';
-      actionZone.innerHTML =
-        '<div class="signup-glow-wrap" style="--glow-c:' + bgColor + ';--glow-c-light:' + bgColor + '">' +
-        '<div class="signup-glow-border"></div><div class="signup-glow-shadow"></div>' +
-        '<div class="signup-flipper"><button style="background:' + bgColor + ';color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:pointer" ' +
-        'onclick="App.handleCancelSignup(\'' + eventId + '\')">' + cancelLabel + '</button></div>' +
-        '<div class="signup-loading-hint"><div class="mini-spinner"></div><span class="mini-text">正在取消</span></div></div>';
-    }
+  /** 報名成功後：更新按鈕 + 名單 + 人數 */
+  _patchDetailAfterSignup(eventId) {
+    this._refreshSignupButton(eventId);
     this._patchDetailTables(eventId);
   },
 
-  /** 取消成功後：按鈕換成「報名」+ 更新名單 */
+  /** 取消成功後：更新按鈕 + 名單 + 人數 */
   _patchDetailAfterCancel(eventId) {
-    var e = ApiService.getEvent(eventId);
-    var isMainFull = e && (e.current || 0) >= (e.max || 0);
-    var actionZone = document.querySelector('.detail-action-primary');
-    if (actionZone) {
-      if (isMainFull) {
-        actionZone.innerHTML =
-          '<div class="signup-glow-wrap" style="--glow-c:#7c3aed;--glow-c-light:#a78bfa">' +
-          '<div class="signup-glow-border"></div><div class="signup-glow-shadow"></div>' +
-          '<div class="signup-flipper"><button style="background:#7c3aed;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:pointer" ' +
-          'onclick="App.handleSignup(\'' + eventId + '\')">報名候補</button></div>' +
-          '<div class="signup-loading-hint"><div class="mini-spinner"></div><span class="mini-text">報名候補中</span></div></div>';
-      } else {
-        actionZone.innerHTML =
-          '<div class="signup-glow-wrap" style="--glow-c:var(--accent);--glow-c-light:var(--accent-hover)">' +
-          '<div class="signup-glow-border"></div><div class="signup-glow-shadow"></div>' +
-          '<div class="signup-flipper"><button class="primary-btn" onclick="App.handleSignup(\'' + eventId + '\')">立即報名</button></div>' +
-          '<div class="signup-loading-hint"><div class="mini-spinner"></div><span class="mini-text">報名中</span></div></div>';
-      }
-    }
+    this._refreshSignupButton(eventId);
     this._patchDetailTables(eventId);
   },
 
-  /** snapshot 觸發時重新判斷按鈕狀態（不做全頁重繪） */
+  /**
+   * snapshot 觸發時重新判斷按鈕狀態（不做全頁重繪）。
+   * 必須涵蓋 showEventDetail 中所有按鈕分支，否則會回歸。
+   */
   _refreshSignupButton(eventId) {
+    if (this._flipAnimating) return; // 翻牌動畫中不干擾
     var e = ApiService.getEvent(eventId);
     if (!e) return;
+    var actionZone = document.querySelector('.detail-action-primary');
+    if (!actionZone) return;
+
     var isEnded = e.status === 'ended' || e.status === 'cancelled';
-    if (isEnded) return; // 已結束不需更新按鈕
+    var isUpcoming = e.status === 'upcoming';
     var isSignedUp = this._isUserSignedUp(e);
     var isOnWaitlist = isSignedUp && this._isUserOnWaitlist(e);
-    if (isOnWaitlist) {
-      this._patchDetailAfterSignup(eventId, true);
+    var confirmedCount = (typeof this._buildConfirmedParticipantSummary === 'function')
+      ? this._buildConfirmedParticipantSummary(eventId).count
+      : Number(e.current || 0);
+    var isMainFull = confirmedCount >= (e.max || 0);
+
+    // 性別限定
+    var genderState = (typeof this._getEventGenderSignupState === 'function')
+      ? this._getEventGenderSignupState(e, ApiService.getCurrentUser?.() || null)
+      : { restricted: false, canSignup: true, requiresLogin: false, reason: '' };
+    var genderBlocked = genderState.restricted && !genderState.requiresLogin && !genderState.canSignup;
+    var genderMsg = (typeof this._getEventGenderRestrictionMessage === 'function')
+      ? this._getEventGenderRestrictionMessage(e, genderState.reason) : '';
+
+    // 球隊限定
+    var teamBlocked = e.teamOnly && (typeof this._canSignupTeamOnlyEvent === 'function') && !this._canSignupTeamOnlyEvent(e);
+
+    var _gw = function(inner, c, cl, hint) {
+      return '<div class="signup-glow-wrap" style="--glow-c:' + c + ';--glow-c-light:' + cl + '">' +
+        '<div class="signup-glow-border"></div><div class="signup-glow-shadow"></div>' +
+        '<div class="signup-flipper">' + inner + '</div>' +
+        '<div class="signup-loading-hint"><div class="mini-spinner"></div><span class="mini-text">' + (hint || '') + '</span></div></div>';
+    };
+    var _btn = function(bg, label, onclick, disabled) {
+      return '<button style="background:' + bg + ';color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:' +
+        (disabled ? 'not-allowed' : 'pointer') + (disabled ? ';opacity:.7' : '') + '"' +
+        (disabled ? ' disabled' : '') +
+        (onclick ? ' onclick="' + onclick + '"' : '') + '>' + label + '</button>';
+    };
+
+    var html = '';
+    if (isUpcoming) {
+      html = _btn('#64748b', '報名尚未開放', '', true);
+    } else if (isEnded) {
+      html = _btn('#333', '已結束', '', true);
+    } else if (isOnWaitlist) {
+      html = _gw(_btn('#7c3aed', '取消候補', "App.handleCancelSignup('" + eventId + "')"), '#7c3aed', '#a78bfa', '正在取消候補');
     } else if (isSignedUp) {
-      this._patchDetailAfterSignup(eventId, false);
+      html = _gw(_btn('#dc2626', '取消報名', "App.handleCancelSignup('" + eventId + "')"), '#dc2626', '#f87171', '正在取消報名');
+    } else if (teamBlocked) {
+      html = _btn('#64748b', '球隊限定', '', true);
+    } else if (genderBlocked) {
+      html = '<button style="background:#dc2626;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:pointer;opacity:.95" onclick=\'App.showToast(' +
+        JSON.stringify(genderMsg) + ')\'>' + escapeHTML(this._getEventGenderRibbonText?.(e) || '性別限定') + '</button>';
+    } else if (isMainFull) {
+      html = _gw(_btn('#7c3aed', '報名候補', "App.handleSignup('" + eventId + "')"), '#7c3aed', '#a78bfa', '報名候補中');
     } else {
-      this._patchDetailAfterCancel(eventId);
+      html = _gw('<button class="primary-btn" onclick="App.handleSignup(\'' + eventId + '\')">立即報名</button>', 'var(--accent)', 'var(--accent-hover)', '報名中');
+    }
+    actionZone.innerHTML = html;
+  },
+
+  /** 更新人數顯示（不重繪整頁） */
+  _patchDetailCount(eventId) {
+    var e = ApiService.getEvent(eventId);
+    if (!e) return;
+    var confirmedCount = (typeof this._buildConfirmedParticipantSummary === 'function')
+      ? this._buildConfirmedParticipantSummary(eventId).count
+      : Number(e.current || 0);
+    var waitlistCount = (typeof this._getEventWaitlistDisplayCount === 'function')
+      ? this._getEventWaitlistDisplayCount(eventId, e)
+      : Number(e.waitlist || 0);
+    var labels = document.querySelectorAll('.detail-grid .detail-label');
+    for (var i = 0; i < labels.length; i++) {
+      if ((labels[i].textContent || '').trim() === '人數') {
+        var valueEl = labels[i].nextElementSibling || labels[i].parentElement?.querySelector('span:not(.detail-label)');
+        if (valueEl) {
+          valueEl.textContent = '已報 ' + confirmedCount + '/' + (e.max || 0) + (waitlistCount > 0 ? '\u3000候補 ' + waitlistCount : '');
+        }
+        break;
+      }
     }
   },
 
-  /** 更新報名名單 + 候補名單（不重繪整頁） */
+  /** 更新報名名單 + 候補名單 + 人數（不重繪整頁） */
   _patchDetailTables(eventId) {
     if (typeof this._renderAttendanceTable === 'function') {
       this._renderAttendanceTable(eventId, 'detail-attendance-table');
@@ -726,6 +769,7 @@ Object.assign(App, {
     if (typeof this._renderGroupedWaitlistSection === 'function') {
       this._renderGroupedWaitlistSection(eventId, 'detail-waitlist-container');
     }
+    this._patchDetailCount(eventId);
   },
 
 });

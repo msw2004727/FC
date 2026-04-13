@@ -133,6 +133,7 @@ const FirebaseService = {
     // 用戶操作頁：局部更新（不做全頁重繪，避免跳頂）
     if (page === 'page-activity-detail') {
       if (App.currentPage !== 'page-activity-detail') return;
+      if (App._flipAnimating) return; // 翻牌動畫中不干擾
       var _eid = App._currentDetailEventId;
       if (source === 'attendance') {
         if (App._attendanceEditingEventId || App._unregEditingEventId) return;
@@ -140,12 +141,12 @@ const FirebaseService = {
         App._renderUnregTable?.(_eid, 'detail-unreg-table');
         App._refreshRegistrationBadges?.(_eid, 'detail-attendance-table')?.catch?.(() => {});
       } else {
-        // registrations/events 變更：局部更新名單 + 按鈕
+        // registrations/events 變更：局部更新名單 + 按鈕 + 人數
         App._renderAttendanceTable?.(_eid, 'detail-attendance-table');
         App._renderUnregTable?.(_eid, 'detail-unreg-table');
         App._renderGroupedWaitlistSection?.(_eid, 'detail-waitlist-container');
-        // 按鈕狀態需要重新判斷（snapshot 帶來的資料可能改變報名狀態）
         App._refreshSignupButton?.(_eid);
+        App._patchDetailCount?.(_eid);
       }
       return;
     }
