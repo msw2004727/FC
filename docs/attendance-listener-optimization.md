@@ -1,6 +1,6 @@
-# 簽到監聽器優化：全站大杯子 → 按需小杯子（v2）
+# 簽到監聽器優化：全站大杯子 → 按需小杯子（v3）
 
-> **📍 狀態**：計劃書 v2（5 位專家審計後修訂，4 個 MUST FIX 已納入）
+> **📍 狀態**：計劃書 v3（兩輪專家審計，v2 的 4 個 + v3 的 3 個 MUST FIX 已納入）
 
 ## 問題
 
@@ -41,10 +41,12 @@
 
 ### Phase A：新增 per-event 子集合監聽器
 
-**新增位置**：`js/firebase-service.js`
+**新增位置**：`js/firebase-service.js`（`FirebaseService` 物件字面量內部，與 `_realtimeListenerStarted` 等 state 欄位同區塊）
+
+**掛載方式**：直接加在 `FirebaseService` 物件字面量中（非 `Object.assign`），因為 `finalizePageScopedRealtimeForPage` 已在同一物件內，需要透過 `this` 呼叫 `_stopEventAttendanceListener`。
 
 ```js
-// ═══ 新增 state fields（初始化區塊）═══
+// ═══ 新增 state fields（與 _realtimeListenerStarted 同區塊）═══
 _eventAttendanceListenerId: null,      // 目前監聽的 eventDocId（Firestore doc.id）
 _eventAttendanceEventId: null,         // 對應的 data.id（供 getAttendanceRecords 比對）
 _eventAttendanceCache: null,           // per-event snapshot 資料
@@ -153,6 +155,26 @@ if (FirebaseService._eventAttendanceCache) {
 
 **v2 新增**：v1 完全沒有這段，會導致掃碼後 100-500ms 簽到紀錄「消失再出現」的回歸。
 
+`batchWriteAttendance` 也必須同步（管理員批次確認出席 `_confirmAllAttendance`、即時存檔 `_instantSaveRow` 使用）：
+
+```js
+// batchWriteAttendance 中，FirebaseService.batchWriteAttendance 成功後加：
+if (FirebaseService._eventAttendanceCache) {
+  adds.forEach(function(r) {
+    if (r.eventId && FirebaseService._eventAttendanceEventId === r.eventId) {
+      FirebaseService._eventAttendanceCache.push(r);
+    }
+  });
+  removes.forEach(function(r) {
+    if (!FirebaseService._eventAttendanceCache) return;
+    var peRec = FirebaseService._eventAttendanceCache.find(function(c) { return c.id === r.id; });
+    if (peRec) { peRec.status = 'removed'; }
+  });
+}
+```
+
+**v3 新增**：v2 遺漏了 `batchWriteAttendance`，管理員批次確認出席會出現「記錄消失再出現」回歸。
+
 ---
 
 ### Phase B：啟動 / 停止時機
@@ -187,6 +209,27 @@ if (!needed.has('attendanceRecords')) {
 ```
 
 **v2 修正**：掃碼頁明確使用 `ApiService.getEvent()` 查找 `_docId`（v1 未指定）。
+
+**掃碼頁補充**：以下三個路徑都可能在無用戶互動下設定 `_scanSelectedEventId`，必須在各路徑後啟動監聽器：
+1. `renderScanPage` 的 preset 模式（`goToScanForEvent` 傳入的 `_scanPresetEventId`）
+2. `_populateScanSelect` 自動選取唯一活動
+3. `_scanSelectedEventId` 從上次訪問保留
+
+在 `renderScanPage` 結尾（`_updateScanControls()` 前）統一加一次 listener start 即可覆蓋三者。
+
+**v3 新增：避免雙重監聽器 + 雙重渲染**
+
+從 `_pageScopedRealtimeMap` 中移除 `page-activity-detail` 和 `page-scan` 的 `'attendanceRecords'`，讓這兩個頁面完全由 per-event 監聽器負責：
+
+```js
+// firebase-service.js _pageScopedRealtimeMap 修改：
+'page-activity-detail': ['registrations', 'events'],  // 移除 'attendanceRecords'
+'page-scan':            ['registrations'],              // 移除 'attendanceRecords'
+```
+
+這樣全站監聽器在詳情/掃碼頁不會啟動，避免：
+- 雙重 Firestore 讀取（500 全站 + ~20 per-event = 520 → 降為僅 ~20）
+- 雙重渲染（兩個監聽器同時觸發 `_debouncedSnapshotRender`）
 
 ---
 
@@ -237,16 +280,15 @@ if (FirebaseService._eventAttendanceEventId === eventId
 
 | 檔案 | 改動 | 風險 |
 |------|------|------|
-| `js/firebase-service.js` | 新增 `_startEventAttendanceListener` / `_stopEventAttendanceListener` + `finalizePageScopedRealtimeForPage` 加停止 | 低（新增函式 + 一行修改） |
-| `js/api-service.js` | `getAttendanceRecords` 加 per-event 判斷 + `addAttendanceRecord` / `removeAttendanceRecord` 樂觀寫入同步 | 中（修改既有函式，但 fallback 保留原邏輯） |
-| `js/modules/event/event-detail.js` | `showEventDetail` 中呼叫 `_startEventAttendanceListener` | 低（一行新增） |
-| `js/modules/scan/scan-ui.js` + `scan.js` | 選擇活動後呼叫 `_startEventAttendanceListener` | 低（2-3 行新增） |
-| `js/config.js` | `attendanceLimit: 1500 → 500`（fallback 預設值） | 低 |
+| `js/firebase-service.js` | 新增 listener 函式 + state fields（物件字面量內）+ `finalizePageScopedRealtimeForPage` 加停止 + **`_pageScopedRealtimeMap` 移除 detail/scan 的 `attendanceRecords`** | 低-中 |
+| `js/api-service.js` | `getAttendanceRecords` 加 per-event 判斷 + `addAttendanceRecord` / `removeAttendanceRecord` / **`batchWriteAttendance`** 樂觀寫入同步 | 中 |
+| `js/modules/event/event-detail.js` | `showEventDetail` 中呼叫 `_startEventAttendanceListener` | 低 |
+| `js/modules/scan/scan-ui.js` + `scan.js` | `renderScanPage` 結尾 + change handler + **`_applyScanDateFilter` 後**啟動/停止 | 低 |
+| `js/config.js` | `attendanceLimit: 1500 → 500` | 低 |
 | `js/modules/event/event-manage-attendance.js` | （可選）載入中提示 | 低 |
 
 **不需要改的**：
-- `_renderAttendanceTable` — 不動渲染邏輯（仍讀 `ApiService.getAttendanceRecords`）
-- `_debouncedSnapshotRender` — 不動（per-event 監聽器呼叫同一函式）
+- `_renderAttendanceTable` — 不動渲染邏輯
 - `ensureUserStatsLoaded` — 不動（per-user 路徑已正常）
 - Cloud Functions — 不動
 
@@ -256,7 +298,7 @@ if (FirebaseService._eventAttendanceEventId === eventId
 
 | 指標 | 現在 | 優化後 |
 |------|------|--------|
-| 用戶開活動詳情頁 Firestore 讀取 | 1500 筆 | **~20 筆**（該活動的簽到） |
+| 用戶開活動詳情頁 Firestore 讀取 | 1500 筆（全站） | **~20 筆**（僅該活動，大型賽事可達 200+） |
 | 舊活動看得到簽到紀錄 | ❌ 被截斷 | ✅ 完整（子集合無 limit） |
 | 即時更新（掃碼後立刻反映） | ✅ | ✅ |
 | 全站監聽器讀取 | 1500 筆 | **500 筆**（預設，可從儀表板調整） |
@@ -302,6 +344,17 @@ if (FirebaseService._eventAttendanceEventId === eventId
 | 5 | SHOULD FIX | 首次 snapshot 前顯示空表格 | 新增 `_eventAttendanceSnapshotReady` 旗標 + Phase D 載入提示 |
 | 6 | SHOULD FIX | 掃碼頁 hook 點未指定 + 需要 `_docId` 查找 | Phase B 明確寫出 `ApiService.getEvent()` 查找 |
 | 7 | SHOULD FIX | 快速切頁的讀取浪費 | 可加 debounce（文件建議但非必要） |
+
+### v2 → v3 修訂（第二輪專家審計）
+
+| # | 嚴重度 | 問題 | 修正 |
+|---|--------|------|------|
+| 8 | **MUST FIX** | `batchWriteAttendance`（批次確認/即時存檔）未同步 per-event 快取 → 管理員操作後「記錄消失再出現」 | Phase A 新增 `batchWriteAttendance` 樂觀同步段落 |
+| 9 | **MUST FIX** | 全站 + per-event 監聽器在詳情/掃碼頁同時運行 → 雙重 Firestore 讀取 + 雙重渲染 | Phase B 新增：從 `_pageScopedRealtimeMap` 移除 detail/scan 的 `attendanceRecords` |
+| 10 | **MUST FIX** | state fields 和 method 掛載方式未明確 → 實作時可能放錯位置 | Phase A 明確指定：物件字面量內部，非 `Object.assign` |
+| 11 | SHOULD FIX | 掃碼頁 `_applyScanDateFilter` → `_populateScanSelect` 可能靜默切換活動但不啟動監聽器 | Phase B 補充三個 pre-selection 路徑 + `renderScanPage` 結尾統一啟動 |
+| 12 | SHOULD FIX | per-event 監聽器無 limit，大型賽事可能有 200+ 筆 → 效果對比表 "~20 筆" 可能低估 | 效果對比表加註「大型賽事可達 200+」 |
+| 13 | SHOULD FIX | 雙重 render（兩個 listener 同時觸發 `_debouncedSnapshotRender`）| 已透過 #9（移除雙重監聽器）根治 |
 
 ---
 
