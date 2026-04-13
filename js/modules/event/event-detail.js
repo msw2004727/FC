@@ -483,8 +483,9 @@ Object.assign(App, {
     if (_savedScroll > 0) {
       window.scrollTo(0, _savedScroll);
       requestAnimationFrame(function() { window.scrollTo(0, _savedScroll); });
-      setTimeout(function() { window.scrollTo(0, _savedScroll); }, 50);
-      setTimeout(function() { window.scrollTo(0, _savedScroll); }, 150);
+      var _self = this;
+      setTimeout(function() { if (_self.currentPage === 'page-activity-detail') window.scrollTo(0, _savedScroll); }, 50);
+      setTimeout(function() { if (_self.currentPage === 'page-activity-detail') window.scrollTo(0, _savedScroll); }, 150);
     }
     const feeLabelEl = Array.from(nodes.body.querySelectorAll('.detail-label'))
       .find(el => String(el.textContent || '').trim() === '費用');

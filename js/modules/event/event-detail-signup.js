@@ -271,8 +271,7 @@ Object.assign(App, {
       }
       this._flipAnimating = false;
       this._flipAnimatingAt = 0;
-      // 局部更新：只換按鈕和人數，不做全頁重繪（避免跳頂）
-      this._signupRenderSuppressUntil = Date.now() + 2000;
+      // 局部更新：只換按鈕和名單，不做全頁重繪（避免跳頂）
       this._patchDetailAfterSignup(id, result.status === 'waitlisted');
       this._maybeShowLineNotifyPrompt?.();
 
@@ -560,8 +559,7 @@ Object.assign(App, {
           }
           this._flipAnimating = false;
         }
-        // 局部更新：只換按鈕和人數，不做全頁重繪（避免跳頂）
-        this._signupRenderSuppressUntil = Date.now() + 2000;
+        // 局部更新：只換按鈕和名單，不做全頁重繪（避免跳頂）
         this._patchDetailAfterCancel(id);
 
         // ── 背景 post-ops（僅 fallback 路徑，CF 已在伺服器完成）──
