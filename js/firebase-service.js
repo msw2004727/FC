@@ -132,6 +132,10 @@ const FirebaseService = {
 
     // 用戶操作頁：立即渲染（執行前再確認 currentPage，防止切頁後被拉回）
     if (page === 'page-activity-detail') {
+      // 報名/取消完成後 500ms 內抑制 snapshot re-render
+      if (App._signupRenderSuppressUntil && Date.now() < App._signupRenderSuppressUntil) return;
+      // 全局 scroll 保護：snapshot re-render 前保存，render 後恢復
+      var _snapScroll = window.scrollY || window.pageYOffset || 0;
       if (source === 'attendance') {
         if (App._attendanceEditingEventId || App._unregEditingEventId) return;
         if (App.currentPage !== 'page-activity-detail') return;
@@ -140,9 +144,13 @@ const FirebaseService = {
         App._refreshRegistrationBadges?.(App._currentDetailEventId, 'detail-attendance-table')?.catch?.(() => {});
       } else {
         if (App.currentPage !== 'page-activity-detail') return;
-        // 報名/取消完成後 500ms 內抑制 snapshot re-render，防止跳頂
-        if (App._signupRenderSuppressUntil && Date.now() < App._signupRenderSuppressUntil) return;
         App.showEventDetail?.(App._currentDetailEventId);
+      }
+      // 恢復 scroll（覆蓋 render 過程中任何跳頂）
+      if (_snapScroll > 0) {
+        window.scrollTo(0, _snapScroll);
+        requestAnimationFrame(function() { window.scrollTo(0, _snapScroll); });
+        setTimeout(function() { window.scrollTo(0, _snapScroll); }, 100);
       }
       return;
     }

@@ -438,9 +438,11 @@ Object.assign(App, {
       if (_teamInfoHtml) _shortCells.push(_teamInfoHtml);
       if (_teamBatchHtml) _shortCells.push(_teamBatchHtml);
 
-      // 保存捲動位置（含多個滾動容器 fallback）
-      var _scrollEl = document.scrollingElement || document.documentElement;
-      var _savedScroll = _scrollEl.scrollTop || window.scrollY || window.pageYOffset || 0;
+      // ── 防跳頂：鎖定容器高度 + 保存 scroll ──
+      var _savedScroll = window.scrollY || window.pageYOffset || (document.scrollingElement || document.documentElement).scrollTop || 0;
+      // 鎖住容器高度，防止 innerHTML 清空時頁面高度塌縮導致 scroll 被 clamp
+      var _lockH = nodes.body.offsetHeight;
+      if (_lockH > 0) nodes.body.style.minHeight = _lockH + 'px';
       nodes.body.innerHTML = `
       <div class="detail-row detail-row-wide"><span class="detail-label">\u5730\u9EDE</span>${locationHtml}</div>
       <div class="detail-row detail-row-wide"><span class="detail-label">\u6642\u9593</span>${escapeHTML(e.date)}</div>
@@ -474,11 +476,15 @@ Object.assign(App, {
       </div>
       <div id="detail-waitlist-container"></div>
     `;
-    // 恢復捲動位置（innerHTML 替換可能瞬間歸零，需強制恢復）
+    // ── 防跳頂：解鎖高度 + 多重 scroll 恢復 ──
+    // 內容已填入，解鎖 minHeight
+    requestAnimationFrame(function() { nodes.body.style.minHeight = ''; });
+    // 多重恢復（覆蓋各瀏覽器/WebView 的不同 reflow 時機）
     if (_savedScroll > 0) {
-      _scrollEl.scrollTop = _savedScroll;
-      // 雙保險：rAF 後再恢復一次（防止瀏覽器在 layout 後重設）
-      requestAnimationFrame(function() { _scrollEl.scrollTop = _savedScroll; });
+      window.scrollTo(0, _savedScroll);
+      requestAnimationFrame(function() { window.scrollTo(0, _savedScroll); });
+      setTimeout(function() { window.scrollTo(0, _savedScroll); }, 50);
+      setTimeout(function() { window.scrollTo(0, _savedScroll); }, 150);
     }
     const feeLabelEl = Array.from(nodes.body.querySelectorAll('.detail-label'))
       .find(el => String(el.textContent || '').trim() === '費用');
