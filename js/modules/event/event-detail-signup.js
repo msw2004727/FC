@@ -234,6 +234,16 @@ Object.assign(App, {
           e.status = data.event.status;
           FirebaseService._saveToLS?.('events', FirebaseService._cache?.events);
         }
+        // 樂觀補入 registration 到快取（防止 _refreshSignupButton 在 snapshot 到達前讀到空快取閃回「報名」）
+        var _regCache = FirebaseService._cache.registrations || [];
+        if (!_regCache.some(function(r) { return r.eventId === id && r.userId === userId && r.status !== 'cancelled' && r.status !== 'removed'; })) {
+          _regCache.push({
+            eventId: id, userId: userId, userName: userName,
+            status: inferredStatus, participantType: 'self',
+            registeredAt: new Date().toISOString(),
+            _docId: selfReg?._docId || selfReg?.id || ('reg_optimistic_' + Date.now()),
+          });
+        }
         // CF 已完成 activityRecord / auditLog / EXP / 通知，前端不需要再做
       } else {
         // ═══ 原有路徑：前端 Firestore Transaction（fallback）═══
