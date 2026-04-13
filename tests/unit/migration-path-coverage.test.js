@@ -33,7 +33,7 @@ const PROJECT_ROOT = path.resolve(__dirname, '../..');
 const KNOWN_REFERENCES = {
   'js/firebase-crud.js': { registrations: 11, attendanceRecords: 4, activityRecords: 0 }, // Phase 4b: 全部改為子集合路徑（regex 仍匹配 .collection('registrations') in subcollection chain）
   'js/firebase-service.js': { registrations: 0, attendanceRecords: 0, activityRecords: 0 },
-  'js/api-service.js': { registrations: 0, attendanceRecords: 1, activityRecords: 0 },
+  'js/api-service.js': { registrations: 0, attendanceRecords: 2, activityRecords: 0 }, // +1: fetchAttendanceIfMissing subcollection fallback
   'js/modules/achievement-batch.js': { registrations: 1, attendanceRecords: 0, activityRecords: 0 }, // Phase 4b: 寫入改子集合
   'js/modules/event/event-create-waitlist.js': { registrations: 3, attendanceRecords: 0, activityRecords: 2 }, // Phase 4b: 寫入改子集合
   'js/modules/event/event-detail-signup.js': { registrations: 3, attendanceRecords: 0, activityRecords: 5 }, // Phase 4b: 寫入改子集合

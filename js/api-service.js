@@ -908,6 +908,28 @@ const ApiService = {
     return active;
   },
 
+  /**
+   * 快取中找不到該活動的簽到紀錄時，從子集合一次性補查。
+   * 用於舊活動超出全站監聽器 limit 範圍的情境。
+   */
+  async fetchAttendanceIfMissing(eventId) {
+    if (!eventId || typeof db === 'undefined') return;
+    var cached = this.getAttendanceRecords(eventId);
+    if (cached.length > 0) return; // 快取已有，不需補查
+    var ev = this._findById('events', eventId);
+    if (!ev || !ev._docId) return;
+    try {
+      var snap = await db.collection('events').doc(ev._docId)
+        .collection('attendanceRecords').get();
+      var records = snap.docs.map(function(d) { return Object.assign({}, d.data(), { _docId: d.id }); });
+      var source = FirebaseService._cache.attendanceRecords || [];
+      var existing = new Set(source.map(function(r) { return r._docId; }));
+      records.forEach(function(r) { if (!existing.has(r._docId)) source.push(r); });
+    } catch (err) {
+      console.warn('[fetchAttendanceIfMissing]', err);
+    }
+  },
+
   /** 取得指定用戶的簽到簽退紀錄（優先使用 user-specific cache，無 limit 截斷） */
   getUserAttendanceRecords(uid) {
     if (uid) {
