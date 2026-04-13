@@ -843,6 +843,28 @@ const ApiService = {
     );
   },
 
+  /**
+   * 快取中找不到該活動的報名紀錄時，從子集合一次性補查。
+   * 用於管理員查看舊活動超出全站監聽器 limit 範圍的情境。
+   */
+  async fetchRegistrationsIfMissing(eventId) {
+    if (!eventId || typeof db === 'undefined') return;
+    var cached = this.getRegistrationsByEvent(eventId);
+    if (cached.length > 0) return;
+    var ev = this._findById('events', eventId);
+    if (!ev || !ev._docId) return;
+    try {
+      var snap = await db.collection('events').doc(ev._docId)
+        .collection('registrations').get();
+      var records = snap.docs.map(function(d) { return Object.assign({}, d.data(), { _docId: d.id }); });
+      var source = FirebaseService._cache.registrations || [];
+      var existing = new Set(source.map(function(r) { return r._docId; }));
+      records.forEach(function(r) { if (!existing.has(r._docId)) source.push(r); });
+    } catch (err) {
+      console.warn('[fetchRegistrationsIfMissing]', err);
+    }
+  },
+
   // ════════════════════════════════
   //  Messages（站內信）
   // ════════════════════════════════

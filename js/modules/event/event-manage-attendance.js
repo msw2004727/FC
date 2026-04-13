@@ -120,7 +120,10 @@ Object.assign(App, {
     if (!e) return;
 
     // 舊活動可能超出全站監聽器 limit → 一次性從子集合補查
-    await ApiService.fetchAttendanceIfMissing(eventId);
+    await Promise.all([
+      ApiService.fetchAttendanceIfMissing(eventId),
+      ApiService.fetchRegistrationsIfMissing(eventId),
+    ]);
 
     const canManage = this._canManageEvent(e);
     const records = ApiService.getAttendanceRecords(eventId);
