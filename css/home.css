@@ -236,11 +236,6 @@
   line-height: 1;
   display: inline-block;
 }
-.h-card-sport-chip .sport-icon-svg {
-  width: 14px;
-  height: 14px;
-  display: block;
-}
 
 @media (max-width: 640px) {
   .h-card-type-ribbon {

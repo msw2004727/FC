@@ -10,16 +10,7 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
-### 2026-04-13 — 運動圖示全面改用 SVG 取代 Emoji
-- **問題**：運動項目切換選單（頂部 sport picker）及所有運動圖示使用 emoji，跨平台顯示不一致
-- **修復**：
-  - `js/config.js`：新增 `SPORT_ICON_SVG` 物件（19 組 SVG：all + 18 運動），`getSportIconSvg()` 改為回傳 inline SVG（class `sport-icon-svg`），保留 `SPORT_ICON_EMOJI` 供分享文字用
-  - `js/core/theme.js`：移除 `_allSportSvg` 硬編碼，`_sportIcon` 改為統一呼叫 `getSportIconSvg()`
-  - CSS 四檔（layout / base / activity / home）：新增 `.sport-icon-svg` 尺寸規則（13~18px 各場景）
-  - 測試：`config-utils.test.js` 同步更新函式副本與斷言
-- **教訓**：SVG class 注入用 `replace('<svg ', ...)` 方式，需確保 SVG 字串以 `<svg ` 開頭
-
-### 2026-04-13 — 舊活動簽到/報名紀錄不顯示 — 全站監聯器 limit 截斷 + 極簡補查
+### 2026-04-13 — 舊活動簽到/報名紀錄不顯示 — 全站監聽器 limit 截斷 + 極簡補查
 - **問題**：全站監聽器 `collectionGroup.limit(1500)` + dedup 後實際只有 ~750 筆快取，舊活動的簽到/報名紀錄被截斷，詳情頁顯示空白
 - **調查過程**：經四輪專家審計（13 個 MUST FIX）設計出 per-event listener + Feature Flag 完整方案（v5），但第五輪極簡挑戰 + 7 位專家 7-0 投票後決定採用極簡方案
 - **修復**：`fetchAttendanceIfMissing` + `fetchRegistrationsIfMissing` — 快取有資料直接 return（零成本），沒有就從子集合查一次 merge 進快取。15 行 / 2 檔案

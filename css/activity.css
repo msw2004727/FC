@@ -320,11 +320,6 @@
   line-height: 1;
   display: inline-block;
 }
-.tl-event-sport-corner .sport-icon-svg {
-  width: 13px;
-  height: 13px;
-  display: block;
-}
 .my-event-sport-icon {
   width: 22px;
   height: 22px;
@@ -341,11 +336,6 @@
   font-size: 14px;
   line-height: 1;
   display: inline-block;
-}
-.my-event-sport-icon .sport-icon-svg {
-  width: 14px;
-  height: 14px;
-  display: block;
 }
 .tl-event-title {
   font-weight: 600;
