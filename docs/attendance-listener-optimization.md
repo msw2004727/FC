@@ -1,6 +1,6 @@
-# 簽到監聯器優化：全站大杯子 → 按需小杯子（v4）
+# 簽到監聽器優化：全站大杯子 → 按需小杯子（v5）
 
-> **📍 狀態**：計劃書 v4（三輪專家審計，累計 10 個 MUST FIX 全部納入）
+> **📍 狀態**：計劃書 v5（四輪專家審計，Feature Flag 架構，累計 13 個 MUST FIX 全部納入）
 
 ## 問題
 
@@ -11,77 +11,91 @@
 
 ## 核心思路
 
-子集合遷移完成後，可以精準監聽**單場活動**的簽到子集合，不需要全站撈：
+子集合遷移完成後，可以精準監聽**單場活動**的簽到子集合，不需要全站撈。並以 **Feature Flag** 控制新舊方案切換，出問題時從儀表板 1 秒回退。
 
 ```
-遷移前（根集合）：只能監聽全站 → 必須用 limit 控制成本 → 舊資料被截斷
-遷移後（子集合）：可以只監聽一場 → 零浪費 → 所有活動都有完整資料
+Feature Flag ON（新方案）：
+  活動詳情/掃碼頁 → per-event 子集合監聽器（~20 筆，完整、即時）
+  其他頁面 → 全站監聽器（limit 500，列表用）
+
+Feature Flag OFF（舊方案，等同目前行為）：
+  所有頁面 → 全站監聽器（limit 由儀表板設定）
 ```
+
+---
+
+## Feature Flag 設計
+
+**Firestore 路徑**：`siteConfig/featureFlags`
+**欄位**：`usePerEventAttendanceListener`（布林）
+
+| 值 | 行為 |
+|---|------|
+| `true` | 活動詳情 / 掃碼頁用 per-event 監聽器，全站監聽器在這兩頁不啟動 |
+| `false` 或不存在 | 完全走舊邏輯，所有新程式碼被跳過 |
+
+**回退方式**：Firebase Console 設 `usePerEventAttendanceListener: false` → 下次用戶開啟 App 立即生效，不需改程式碼。
+
+**讀取方式**：`FirebaseService._featureFlags` 在 App 啟動時已從 `siteConfig/featureFlags` 載入（既有機制，零額外成本）。
 
 ---
 
 ## 消費者清查
 
-| 消費者 | 頁面 | 需要範圍 | 需要即時更新 | 方案 |
-|--------|------|----------|-------------|------|
-| `_renderAttendanceTable` | page-activity-detail | 單場活動 | ✅ 掃碼後立刻更新 | **Per-event 子集合監聽器** |
-| `_renderScanResults` | page-scan | 單場活動 | ✅ 掃碼後立刻更新 | **Per-event 子集合監聽器** |
+| 消費者 | 頁面 | 需要範圍 | 需要即時更新 | 方案（Flag ON） |
+|--------|------|----------|-------------|----------------|
+| `_renderAttendanceTable` | page-activity-detail | 單場活動 | ✅ | Per-event 監聽器 |
+| `_renderScanResults` | page-scan | 單場活動 | ✅ | Per-event 監聽器 |
 | `_renderAttendanceSections` | page-scan | 單場活動 | ✅ | 同上 |
 | `scan-process.js` | page-scan | 單場活動 | ✅ | 同上 |
 | `scan-family.js` | page-scan | 單場活動 | ✅ | 同上 |
-| `event-manage.js:460,536` | page-activity-detail | 單場活動 | ✅ | 同上 |
-| `leaderboard.js` | page-leaderboard | 單一用戶全部 | ❌ 一次性 | `ensureUserStatsLoaded`（已存在，per-user 無 limit） |
-| `achievement/evaluator.js` | page-profile | 單一用戶全部 | ❌ | 同上 |
-| `event-manage.js:262` | page-activities（僅管理員） | 全站 | ❌ | 保留全站監聽器（大幅縮小 limit） |
+| `event-manage.js:460,536` | page-activity-detail | 單場活動 | ✅ | 同上（透過 `getAttendanceRecords` 自動切換） |
+| `leaderboard.js` | page-leaderboard | 單一用戶 | ❌ | `ensureUserStatsLoaded`（不受影響） |
+| `achievement/evaluator.js` | page-profile | 單一用戶 | ❌ | 同上 |
+| `event-manage.js:262` | page-activities（僅管理員） | 全站 | ❌ | 全站監聽器（不受影響） |
 | `event-manage-noshow.js:146` | page-activity-detail（僅管理員） | 全站 | ❌ | 同上 |
 
 ---
 
 ## 實作方案
 
-### Phase A：新增 per-event 子集合監聽器
+### Phase A：per-event 監聽器（含 error callback + reconnect）
 
-**新增位置**：`js/firebase-service.js`（`FirebaseService` 物件字面量內部，與 `_realtimeListenerStarted` 等 state 欄位同區塊）
-
-**掛載方式**：直接加在 `FirebaseService` 物件字面量中（非 `Object.assign`），因為 `finalizePageScopedRealtimeForPage` 已在同一物件內，需要透過 `this` 呼叫 `_stopEventAttendanceListener`。
+**新增位置**：`js/firebase-service.js`，`FirebaseService` 物件字面量內部（與 `_realtimeListenerStarted` 同區塊，約 line 104 附近）。
 
 ```js
-// ═══ 新增 state fields（與 _realtimeListenerStarted 同區塊）═══
+// ═══ 新增 state fields ═══
 _eventAttendanceListenerId: null,      // 目前監聽的 eventDocId（Firestore doc.id）
 _eventAttendanceEventId: null,         // 對應的 data.id（供 getAttendanceRecords 比對）
 _eventAttendanceCache: null,           // per-event snapshot 資料
 _eventAttendanceUnsub: null,           // unsubscribe 函式
 _eventAttendanceSnapshotReady: false,  // 首次 snapshot 到達旗標
+_eventAttendanceReconnectAttempts: 0,  // 錯誤重連計數
 
 // ═══ 啟動 ═══
 _startEventAttendanceListener(eventDocId, eventId) {
-  // 已在監聯同一活動 → 跳過
   if (this._eventAttendanceListenerId === eventDocId) return;
   this._stopEventAttendanceListener();
 
   this._eventAttendanceListenerId = eventDocId;
-  this._eventAttendanceEventId = eventId;  // 追蹤雙 ID
+  this._eventAttendanceEventId = eventId;
   this._eventAttendanceSnapshotReady = false;
 
-  // closure 捕獲 — 防止 stale callback 寫入錯誤資料
-  var targetDocId = eventDocId;
+  var targetDocId = eventDocId; // closure guard
 
   this._eventAttendanceUnsub = db.collection('events').doc(eventDocId)
     .collection('attendanceRecords')
     .onSnapshot(
       function(snapshot) {
-        // Guard：用戶已切換到其他活動 → 丟棄 stale callback
         if (this._eventAttendanceListenerId !== targetDocId) return;
-
         this._eventAttendanceCache = snapshot.docs.map(function(doc) {
           return Object.assign({}, doc.data(), { _docId: doc.id });
         });
         this._eventAttendanceSnapshotReady = true;
-        this._eventAttendanceReconnectAttempts = 0; // 成功時重置重連計數
+        this._eventAttendanceReconnectAttempts = 0;
         this._debouncedSnapshotRender('attendance');
       }.bind(this),
       function(err) {
-        // Guard：丟棄已切換活動的 stale error
         if (this._eventAttendanceListenerId !== targetDocId) return;
         this._reconnectEventAttendanceListener(err, targetDocId, eventId);
       }.bind(this)
@@ -101,21 +115,18 @@ _stopEventAttendanceListener() {
   this._eventAttendanceReconnectAttempts = 0;
 },
 
-// ═══ 錯誤重連（同 RC4 exponential backoff 模式）═══
-_eventAttendanceReconnectAttempts: 0,
-
+// ═══ 錯誤重連（exponential backoff，max 5 次）═══
 _reconnectEventAttendanceListener(err, targetDocId, eventId) {
-  console.warn('[EventAttendance] listener error, attempting reconnect:', err?.message || err);
+  console.warn('[EventAttendance] listener error:', err?.message || err);
   if (this._eventAttendanceReconnectAttempts >= 5) {
-    console.error('[EventAttendance] max reconnect attempts reached');
+    console.error('[EventAttendance] max reconnect reached');
     return;
   }
   this._eventAttendanceReconnectAttempts++;
   var delay = Math.min(1000 * Math.pow(2, this._eventAttendanceReconnectAttempts - 1), 30000);
-  delay += Math.random() * 1000; // jitter
+  delay += Math.random() * 1000;
   var self = this;
   setTimeout(function() {
-    // 確認仍在同一活動頁面才重連
     if (self._eventAttendanceListenerId !== targetDocId) return;
     var page = typeof App !== 'undefined' ? App.currentPage : '';
     if (page !== 'page-activity-detail' && page !== 'page-scan') return;
@@ -124,21 +135,17 @@ _reconnectEventAttendanceListener(err, targetDocId, eventId) {
 },
 ```
 
-**v2 修正（vs v1）**：
-- 接受雙 ID（`eventDocId` + `eventId`）— 解決 doc.id vs data.id 不匹配問題
-- closure guard `targetDocId` — 防止快速切換活動時 stale callback 覆蓋新資料
-- `_eventAttendanceSnapshotReady` 旗標 — 防止首次 snapshot 前顯示空表格
-
 ---
 
-### Phase A（續）：修改 `getAttendanceRecords`
+### Phase A（續）：`getAttendanceRecords` 加 Feature Flag 判斷
 
-**修改位置**：`js/api-service.js`
+**修改位置**：`js/api-service.js`（約 line 904 `getAttendanceRecords`）
 
 ```js
 getAttendanceRecords(eventId) {
-  // Per-event 快取：監聽器 active + 是同一場活動 + 首次 snapshot 已到達
-  if (eventId
+  // Feature Flag ON + per-event 監聽器 active + snapshot 已到
+  var usePerEvent = FirebaseService._featureFlags?.usePerEventAttendanceListener;
+  if (usePerEvent && eventId
       && FirebaseService._eventAttendanceEventId === eventId
       && FirebaseService._eventAttendanceSnapshotReady) {
     var cache = FirebaseService._eventAttendanceCache || [];
@@ -146,7 +153,7 @@ getAttendanceRecords(eventId) {
       return r.status !== 'removed' && r.status !== 'cancelled';
     });
   }
-  // Fallback：全站快取（可能被 limit 截斷）
+  // Flag OFF 或 fallback：全站快取（完全等同現有行為）
   var source = this._src('attendanceRecords');
   var active = source.filter(function(r) {
     return r.status !== 'removed' && r.status !== 'cancelled';
@@ -156,20 +163,16 @@ getAttendanceRecords(eventId) {
 },
 ```
 
-**v2 修正（vs v1）**：
-- 比對 `_eventAttendanceEventId`（data.id）而非檢查記錄內容 — 解決空快取 `some()` 失敗問題
-- 加入 `_eventAttendanceSnapshotReady` 檢查 — snapshot 未到前使用全站快取（避免空表格閃爍）
+**關鍵**：Flag OFF 時整段 per-event 邏輯被跳過，走完全不變的舊路徑。
 
 ---
 
-### Phase A（續）：樂觀寫入同步到 per-event 快取
+### Phase A（續）：樂觀寫入同步
 
-**修改位置**：`js/api-service.js`
-
-`addAttendanceRecord` 和 `removeAttendanceRecord` 的樂觀更新必須**同時寫入全站快取和 per-event 快取**，否則掃碼後 per-event 快取優先返回舊資料 → 新簽到暫時看不到。
+`addAttendanceRecord`、`removeAttendanceRecord`、`batchWriteAttendance` 三者在既有全站快取更新後，**額外同步到 per-event 快取**（僅在 Flag ON 且監聽器 active 時）：
 
 ```js
-// addAttendanceRecord 中，push 到全站快取之後加：
+// addAttendanceRecord 中，push 全站快取之後加：
 if (FirebaseService._eventAttendanceEventId === normalized.eventId
     && FirebaseService._eventAttendanceCache) {
   FirebaseService._eventAttendanceCache.push(normalized);
@@ -177,18 +180,10 @@ if (FirebaseService._eventAttendanceEventId === normalized.eventId
 
 // removeAttendanceRecord 中，設 status='removed' 之後加：
 if (FirebaseService._eventAttendanceCache) {
-  var peRec = FirebaseService._eventAttendanceCache.find(function(r) {
-    return r.id === record.id;
-  });
+  var peRec = FirebaseService._eventAttendanceCache.find(function(r) { return r.id === record.id; });
   if (peRec) { peRec.status = 'removed'; }
 }
-```
 
-**v2 新增**：v1 完全沒有這段，會導致掃碼後 100-500ms 簽到紀錄「消失再出現」的回歸。
-
-`batchWriteAttendance` 也必須同步（管理員批次確認出席 `_confirmAllAttendance`、即時存檔 `_instantSaveRow` 使用）：
-
-```js
 // batchWriteAttendance 中，FirebaseService.batchWriteAttendance 成功後加：
 if (FirebaseService._eventAttendanceCache) {
   adds.forEach(function(r) {
@@ -204,99 +199,87 @@ if (FirebaseService._eventAttendanceCache) {
 }
 ```
 
-**v3 新增**：v2 遺漏了 `batchWriteAttendance`，管理員批次確認出席會出現「記錄消失再出現」回歸。
-
 ---
 
-### Phase B：啟動 / 停止時機
+### Phase B：啟動 / 停止時機（全部 Feature Flag 守衛）
 
-**活動詳情頁**（`showEventDetail`，在取得 event 物件後）：
+所有啟動/停止呼叫都加 Flag 檢查，Flag OFF 時完全不觸發：
+
+**活動詳情頁**（`showEventDetail`，取得 event 物件後，約 line 265 附近）：
 
 ```js
-if (e._docId) {
+if (FirebaseService._featureFlags?.usePerEventAttendanceListener && e._docId) {
   FirebaseService._startEventAttendanceListener(e._docId, e.id);
 }
 ```
 
-**掃碼頁**（`_bindScanEvents` change handler + `renderScanPage` preset）：
+**掃碼頁**——三個啟動點：
 
 ```js
-// 選擇活動時
-var ev = ApiService.getEvent(this._scanSelectedEventId);
-if (ev && ev._docId) {
-  FirebaseService._startEventAttendanceListener(ev._docId, ev.id);
-} else {
-  FirebaseService._stopEventAttendanceListener();
+// 統一 helper（可放在 scan-ui.js 頂部或 App 物件上）
+function _startScanEventListener() {
+  if (!FirebaseService._featureFlags?.usePerEventAttendanceListener) return;
+  var id = App._scanSelectedEventId;
+  if (!id) { FirebaseService._stopEventAttendanceListener(); return; }
+  var ev = ApiService.getEvent(id);
+  if (ev && ev._docId) FirebaseService._startEventAttendanceListener(ev._docId, ev.id);
 }
+
+// 1. renderScanPage 結尾（_updateScanControls() 前）
+_startScanEventListener();
+
+// 2. _bindScanEvents select change handler 中
+_startScanEventListener();
+
+// 3. _applyScanDateFilter → _populateScanSelect 之後
+_startScanEventListener();
 ```
 
-**離開頁面時**（`finalizePageScopedRealtimeForPage`）：
+**離開頁面**（`finalizePageScopedRealtimeForPage`，約 line 687）：
 
 ```js
-if (!needed.has('attendanceRecords')) {
-  this._stopAttendanceRecordsListener();     // 停止全站監聽器
-  this._stopEventAttendanceListener();       // 停止 per-event 監聽器
-}
+// 既有 if (!needed.has('attendanceRecords')) 區塊內加一行：
+this._stopEventAttendanceListener();
 ```
 
-**v2 修正**：掃碼頁明確使用 `ApiService.getEvent()` 查找 `_docId`（v1 未指定）。
-
-**掃碼頁補充**：以下三個路徑都可能在無用戶互動下設定 `_scanSelectedEventId`，必須在各路徑後啟動監聽器：
-1. `renderScanPage` 的 preset 模式（`goToScanForEvent` 傳入的 `_scanPresetEventId`）
-2. `_populateScanSelect` 自動選取唯一活動
-3. `_scanSelectedEventId` 從上次訪問保留
-
-在 `renderScanPage` 結尾（`_updateScanControls()` 前）統一加一次 listener start 即可覆蓋三者。
-
-**v4 新增：App 前後台（visibility change）suspend/resume 處理**
+**前後台 suspend/resume**（`_suspendListeners` 約 line 2552，`_resumeListeners` 約 line 2565）：
 
 ```js
-// _suspendListeners() 中加：
+// _suspendListeners() 末尾加：
 this._stopEventAttendanceListener();
 
-// _resumeListeners() 或 _handleVisibilityResume() 中加：
-var page = typeof App !== 'undefined' ? App.currentPage : '';
-if (page === 'page-activity-detail' && App._currentDetailEventId) {
-  var ev = ApiService.getEvent(App._currentDetailEventId);
-  if (ev && ev._docId) this._startEventAttendanceListener(ev._docId, ev.id);
-}
-if (page === 'page-scan' && App._scanSelectedEventId) {
-  var ev = ApiService.getEvent(App._scanSelectedEventId);
-  if (ev && ev._docId) this._startEventAttendanceListener(ev._docId, ev.id);
+// _resumeListeners() 末尾加（在 schedulePageScopedRealtimeForPage 之後）：
+if (FirebaseService._featureFlags?.usePerEventAttendanceListener) {
+  var _page = typeof App !== 'undefined' ? App.currentPage : '';
+  if (_page === 'page-activity-detail' && App._currentDetailEventId) {
+    var _ev = ApiService.getEvent(App._currentDetailEventId);
+    if (_ev && _ev._docId) this._startEventAttendanceListener(_ev._docId, _ev.id);
+  }
+  if (_page === 'page-scan' && App._scanSelectedEventId) {
+    var _ev2 = ApiService.getEvent(App._scanSelectedEventId);
+    if (_ev2 && _ev2._docId) this._startEventAttendanceListener(_ev2._docId, _ev2.id);
+  }
 }
 ```
 
-**v4 新增：`_collectionPageMap` 同步移除（防止 deep-link 快取覆寫）**
+**Feature Flag 對監聽器的 runtime 抑制**（`_startPageScopedRealtimeForPage`，約 line 645）：
 
 ```js
-// firebase-service.js _collectionPageMap 修改：
-'page-activity-detail': ['events', 'registrations', 'activityRecords', 'userCorrections', 'operationLogs'],
-  // ↑ 移除 'attendanceRecords'（由 per-event listener 負責）
-'page-scan': ['registrations'],
-  // ↑ 移除 'attendanceRecords'
+// 在 if (needed.has('attendanceRecords')) this._startAttendanceRecordsListener(); 前加：
+if (needed.has('attendanceRecords')
+    && FirebaseService._featureFlags?.usePerEventAttendanceListener
+    && (pageId === 'page-activity-detail' || pageId === 'page-scan')) {
+  // Flag ON + 詳情/掃碼頁 → 跳過全站監聽器，由 per-event 負責
+} else if (needed.has('attendanceRecords')) {
+  this._startAttendanceRecordsListener();
+}
 ```
 
-不移除的話，deep-link 首次進入詳情頁時 `_buildCollectionQuery('attendanceRecords')` 返回 null → `_replaceCollectionCache` 覆寫全站快取為空陣列。
-
-**v3 新增：避免雙重監聽器 + 雙重渲染**
-
-從 `_pageScopedRealtimeMap` 中移除 `page-activity-detail` 和 `page-scan` 的 `'attendanceRecords'`，讓這兩個頁面完全由 per-event 監聽器負責：
-
-```js
-// firebase-service.js _pageScopedRealtimeMap 修改：
-'page-activity-detail': ['registrations', 'events'],  // 移除 'attendanceRecords'
-'page-scan':            ['registrations'],              // 移除 'attendanceRecords'
-```
-
-這樣全站監聽器在詳情/掃碼頁不會啟動，避免：
-- 雙重 Firestore 讀取（500 全站 + ~20 per-event = 520 → 降為僅 ~20）
-- 雙重渲染（兩個監聽器同時觸發 `_debouncedSnapshotRender`）
+> **為什麼不靜態移除 map 條目？** 因為 map 條目是**全局配置**，靜態移除後如果 Flag OFF（回退），這兩頁就完全沒有 attendance 監聽器了。用 runtime 判斷，Flag OFF 時全站監聽器照常啟動。
 
 ---
 
 ### Phase C：縮小全站監聽器 limit + 儀表板可調
-
-**程式碼預設值**：
 
 ```js
 // config.js — fallback 預設值
@@ -315,20 +298,17 @@ Firestore 路徑：siteConfig/realtimeConfig
 
 設定優先級：
 1. siteConfig/realtimeConfig.attendanceLimit ← 儀表板設的值（最高優先）
-2. config.js REALTIME_LIMIT_DEFAULTS.attendanceLimit ← 程式碼預設 500（fallback）
-
-想恢復原本 → 儀表板設 1500（不需改程式碼）
+2. config.js REALTIME_LIMIT_DEFAULTS ← 程式碼預設 500（fallback）
 ```
 
 ---
 
 ### Phase D（可選）：載入中提示
 
-per-event 監聽器啟動但首次 snapshot 未到達時，顯示載入提示：
-
 ```js
-// _renderAttendanceTable 開頭加
-if (FirebaseService._eventAttendanceEventId === eventId
+// _renderAttendanceTable（event-manage-attendance.js 約 line 96）開頭加：
+if (FirebaseService._featureFlags?.usePerEventAttendanceListener
+    && FirebaseService._eventAttendanceEventId === eventId
     && !FirebaseService._eventAttendanceSnapshotReady) {
   container.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:1rem;font-size:.82rem">載入簽到紀錄中...</div>';
   return;
@@ -341,30 +321,47 @@ if (FirebaseService._eventAttendanceEventId === eventId
 
 | 檔案 | 改動 | 風險 |
 |------|------|------|
-| `js/firebase-service.js` | 新增 listener 函式（含 error callback + reconnect）+ state fields + `finalizePageScopedRealtimeForPage` 加停止 + `_pageScopedRealtimeMap` 移除 + **`_collectionPageMap` 移除** + **`_suspendListeners`/`_resumeListeners` 加 per-event 處理** | 中 |
-| `js/api-service.js` | `getAttendanceRecords` 加 per-event 判斷 + `addAttendanceRecord` / `removeAttendanceRecord` / **`batchWriteAttendance`** 樂觀寫入同步 | 中 |
-| `js/modules/event/event-detail.js` | `showEventDetail` 中呼叫 `_startEventAttendanceListener` | 低 |
-| `js/modules/scan/scan-ui.js` + `scan.js` | `renderScanPage` 結尾 + change handler + **`_applyScanDateFilter` 後**啟動/停止 | 低 |
+| `js/firebase-service.js` | 新增 listener 函式（含 error + reconnect）+ state fields + `finalizePageScopedRealtimeForPage` 加停止 + `_startPageScopedRealtimeForPage` 加 Flag runtime 抑制 + `_suspendListeners`/`_resumeListeners` 加 per-event 處理 | 中 |
+| `js/api-service.js` | `getAttendanceRecords` 加 Flag + per-event 判斷 + `addAttendanceRecord`/`removeAttendanceRecord`/`batchWriteAttendance` 樂觀同步 | 中 |
+| `js/modules/event/event-detail.js` | `showEventDetail` 加 Flag-guarded listener start（1 行） | 低 |
+| `js/modules/scan/scan-ui.js` + `scan.js` | `renderScanPage` 結尾 + change handler + `_applyScanDateFilter` 後 + helper 函式 | 低 |
 | `js/config.js` | `attendanceLimit: 1500 → 500` | 低 |
-| `js/modules/event/event-manage-attendance.js` | （可選）載入中提示 | 低 |
+| `js/modules/event/event-manage-attendance.js` | （可選）Phase D 載入提示 | 低 |
 
-**不需要改的**：
+**不需要改的**（v5 關鍵差異）：
+- `_pageScopedRealtimeMap` — **不動**（Flag 控制 runtime 行為，不改配置）
+- `_collectionPageMap` — **不動**（同上）
 - `_renderAttendanceTable` — 不動渲染邏輯
-- `ensureUserStatsLoaded` — 不動（per-user 路徑已正常）
+- `ensureUserStatsLoaded` — 不動
 - Cloud Functions — 不動
+
+---
+
+## 回退方式
+
+| 情境 | 操作 | 生效時間 |
+|------|------|----------|
+| 新方案有 bug | Firebase Console 設 `usePerEventAttendanceListener: false` | 用戶下次開啟 App |
+| 想恢復舊 limit | Firebase Console 設 `attendanceLimit: 1500` | 同上 |
+| 完全移除新程式碼 | git revert（安全——map 未修改，不會靜默故障） | 部署後 |
+
+**v5 vs v4 的關鍵安全差異**：
+- v4：靜態移除 map 條目 → 部分回退會造成靜默數據消失
+- **v5：map 完全不動 → 無論怎麼回退都安全（最壞情況 = 回到舊行為）**
 
 ---
 
 ## 效果對比
 
-| 指標 | 現在 | 優化後 |
-|------|------|--------|
-| 用戶開活動詳情頁 Firestore 讀取 | 1500 筆（全站） | **~20 筆**（僅該活動，大型賽事可達 200+） |
-| 舊活動看得到簽到紀錄 | ❌ 被截斷 | ✅ 完整（子集合無 limit） |
-| 即時更新（掃碼後立刻反映） | ✅ | ✅ |
-| 全站監聽器讀取 | 1500 筆 | **500 筆**（預設，可從儀表板調整） |
-| Firestore 每月讀取成本 | ~$3-8 | **~$1-3**（估計省 50-70%） |
-| 記憶體 | 1500 筆快取 | ~520 筆（500 全站 + ~20 當前活動） |
+| 指標 | 現在 | Flag ON |
+|------|------|---------|
+| 活動詳情頁讀取 | 1500 筆（全站） | **~20 筆**（僅該活動，大型賽事可達 200+） |
+| 舊活動簽到紀錄 | ❌ 被截斷 | ✅ 完整 |
+| 即時更新 | ✅ | ✅ |
+| 全站監聽器讀取 | 1500 筆 | **500 筆**（詳情/掃碼頁不啟動全站監聽器） |
+| 記憶體（詳情/掃碼頁） | 1500 筆 | **~20 筆**（僅 per-event） |
+| 記憶體（列表/管理頁） | 1500 筆 | **500 筆** |
+| 回退方式 | git revert | **儀表板 1 秒** |
 
 ---
 
@@ -372,12 +369,11 @@ if (FirebaseService._eventAttendanceEventId === eventId
 
 | 評估項目 | 內容 |
 |----------|------|
-| **做了會怎樣（好處）** | 舊活動簽到紀錄完整顯示 + Firestore 讀取省 50-70% + 記憶體減少 65% |
-| **不做會怎樣** | 舊活動持續看不到簽到紀錄，資料越多越嚴重 |
-| **最壞情況** | per-event 監聽器的 stale callback 寫入錯誤資料 → closure guard 防護 |
-| **影響範圍** | 6 個檔案、~60 行改動 |
-| **回退難度** | 秒回退 — 儀表板 `attendanceLimit` 改回 1500 + 移除 per-event 監聽器呼叫 |
-| **歷史教訓** | Phase 3c 移除 per-event 快取假設子集合遷移解決了 limit 問題但沒有。本方案用監聽器（非快取）+ closure guard + 雙 ID 追蹤避免舊方案的缺陷 |
+| **做了會怎樣** | 舊活動簽到完整 + 省 50-70% 讀取 + 1 秒回退能力 |
+| **不做會怎樣** | 舊活動持續看不到簽到，資料增長會更嚴重 |
+| **最壞情況** | Feature Flag ON 時 per-event listener 有 bug → 儀表板關掉 Flag → 1 秒恢復舊行為 |
+| **影響範圍** | 6 個檔案，~80 行改動 |
+| **回退難度** | **零風險** — Flag OFF = 所有新程式碼被跳過，map 未修改 |
 
 ---
 
@@ -385,51 +381,56 @@ if (FirebaseService._eventAttendanceEventId === eventId
 
 | Phase | 內容 | 預估 |
 |-------|------|------|
-| A | per-event 監聽器 + getAttendanceRecords 改動 + 樂觀寫入同步 | 40 分鐘 |
-| B | 啟動/停止時機（detail + scan + 離開） | 15 分鐘 |
+| A | per-event 監聽器 + reconnect + getAttendanceRecords Flag 判斷 + 樂觀寫入同步 | 45 分鐘 |
+| B | 啟動/停止時機（detail + scan 3 點 + 離開 + suspend/resume + runtime 抑制） | 25 分鐘 |
 | C | 縮小全站 limit | 1 分鐘 |
-| D | （可選）載入中提示 | 10 分鐘 |
-| 測試 + QA | 全套驗收 | 15 分鐘 |
-| **合計** | | **~1.5 小時** |
+| D | （可選）載入提示 | 10 分鐘 |
+| 測試 + QA | 全套驗收 | 20 分鐘 |
+| **合計** | | **~2 小時** |
 
 ---
 
-## v1 → v2 修訂紀錄（專家審計修正）
+## 部署步驟
 
-| # | 嚴重度 | 問題 | 修正 |
-|---|--------|------|------|
-| 1 | **MUST FIX** | 樂觀寫入只更新全站快取，per-event 快取看不到新簽到 → 掃碼後紀錄「消失再出現」 | 新增 Phase A 樂觀寫入同步段落 |
-| 2 | **MUST FIX** | `getAttendanceRecords` 用 `some()` 檢查記錄內容，空快取會失敗 | 改為比對 `_eventAttendanceEventId`（data.id） |
-| 3 | **MUST FIX** | 快速切換活動時 stale callback 覆蓋新活動資料 | 監聽器 callback 加 closure guard `targetDocId` |
-| 4 | **MUST FIX** | `_eventAttendanceListenerId` 存 doc.id，`getAttendanceRecords` 收 data.id，不匹配 | 新增 `_eventAttendanceEventId` 追蹤雙 ID |
-| 5 | SHOULD FIX | 首次 snapshot 前顯示空表格 | 新增 `_eventAttendanceSnapshotReady` 旗標 + Phase D 載入提示 |
-| 6 | SHOULD FIX | 掃碼頁 hook 點未指定 + 需要 `_docId` 查找 | Phase B 明確寫出 `ApiService.getEvent()` 查找 |
-| 7 | SHOULD FIX | 快速切頁的讀取浪費 | 可加 debounce（文件建議但非必要） |
-
-### v2 → v3 修訂（第二輪專家審計）
-
-| # | 嚴重度 | 問題 | 修正 |
-|---|--------|------|------|
-| 8 | **MUST FIX** | `batchWriteAttendance`（批次確認/即時存檔）未同步 per-event 快取 → 管理員操作後「記錄消失再出現」 | Phase A 新增 `batchWriteAttendance` 樂觀同步段落 |
-| 9 | **MUST FIX** | 全站 + per-event 監聽器在詳情/掃碼頁同時運行 → 雙重 Firestore 讀取 + 雙重渲染 | Phase B 新增：從 `_pageScopedRealtimeMap` 移除 detail/scan 的 `attendanceRecords` |
-| 10 | **MUST FIX** | state fields 和 method 掛載方式未明確 → 實作時可能放錯位置 | Phase A 明確指定：物件字面量內部，非 `Object.assign` |
-| 11 | SHOULD FIX | 掃碼頁 `_applyScanDateFilter` → `_populateScanSelect` 可能靜默切換活動但不啟動監聽器 | Phase B 補充三個 pre-selection 路徑 + `renderScanPage` 結尾統一啟動 |
-| 12 | SHOULD FIX | per-event 監聽器無 limit，大型賽事可能有 200+ 筆 → 效果對比表 "~20 筆" 可能低估 | 效果對比表加註「大型賽事可達 200+」 |
-| 13 | SHOULD FIX | 雙重 render（兩個 listener 同時觸發 `_debouncedSnapshotRender`）| 已透過 #9（移除雙重監聽器）根治 |
-
-### v3 → v4 修訂（第三輪專家審計 — 對抗性 + SDK 內部 + 事故模擬）
-
-| # | 嚴重度 | 問題 | 修正 |
-|---|--------|------|------|
-| 14 | **MUST FIX** | per-event `onSnapshot` 無 error callback → 監聽器靜默死亡，無重連，無 fallback（全站監聽器已移除） | 新增 error callback + `_reconnectEventAttendanceListener`（exponential backoff，max 5 次） |
-| 15 | **MUST FIX** | App 前後台（`_suspendListeners`/`_resumeListeners`）不處理 per-event 監聽器 → 手機鎖屏解鎖後成為殭屍 | `_suspendListeners` 加 stop + `_resumeListeners` 加 restart（偵測 detail/scan 頁面） |
-| 16 | **MUST FIX** | `_collectionPageMap` 仍列 `attendanceRecords` → deep-link 首次進入詳情頁會觸發 `_replaceCollectionCache` 覆寫全站快取為空 | `_collectionPageMap` 同步移除 detail/scan 的 `attendanceRecords` |
-| 17 | SHOULD FIX | error callback 也需要 closure guard（`targetDocId`）防止 stale error 干擾新監聽器 | error callback 已加入 `targetDocId` 比對 |
+1. 部署程式碼（Feature Flag 預設為 OFF → 不影響任何現有行為）
+2. 在 Firebase Console `siteConfig/featureFlags` 新增 `usePerEventAttendanceListener: true`
+3. 測試驗收（詳情頁、掃碼頁、前後台切換、簽到/取消）
+4. 確認無問題 → 完成
+5. 有問題 → 設 `usePerEventAttendanceListener: false` → 1 秒恢復
 
 ---
 
-## 與 Phase 4c / 其他方案的關係
+## 修訂紀錄
 
-- **Phase 4c（刪根資料）**完成後：全站 limit 500 有效快取從 ~250 提升到 500，per-event 不受影響
-- **此優化不依賴 Phase 4c，可以獨立執行**
-- 與之前 Phase 3c 移除的 per-event 快取的差異：舊方案用一次性 `.get()` + 手動快取管理（容易失效），本方案用 `onSnapshot` 監聽器 + closure guard + 雙 ID 追蹤（自動管理、即時更新）
+### v1 → v2（第一輪審計）
+| # | 嚴重度 | 修正 |
+|---|--------|------|
+| 1 | MUST FIX | 樂觀寫入同步（add/remove） |
+| 2 | MUST FIX | getAttendanceRecords 用 `_eventAttendanceEventId` 比對 |
+| 3 | MUST FIX | closure guard 防 stale callback |
+| 4 | MUST FIX | 雙 ID 追蹤（eventDocId + eventId） |
+
+### v2 → v3（第二輪審計）
+| # | 嚴重度 | 修正 |
+|---|--------|------|
+| 8 | MUST FIX | `batchWriteAttendance` 樂觀同步 |
+| 9 | MUST FIX | 移除雙重監聽器（`_pageScopedRealtimeMap`） |
+| 10 | MUST FIX | state fields/method 掛載明確化 |
+
+### v3 → v4（第三輪審計 — 對抗性 + SDK + 事故模擬）
+| # | 嚴重度 | 修正 |
+|---|--------|------|
+| 14 | MUST FIX | onSnapshot error callback + reconnect |
+| 15 | MUST FIX | suspend/resume 處理 per-event listener |
+| 16 | MUST FIX | `_collectionPageMap` deep-link 快取覆寫 |
+
+### v4 → v5（第四輪審計 — LINE LIFF + 文件完整性 + 回退安全）
+| # | 嚴重度 | 修正 |
+|---|--------|------|
+| 18 | **CRITICAL** | 部分回退造成靜默數據消失 → **改為 Feature Flag 架構** |
+| 19 | MUST FIX | 不再靜態移除 map 條目 → runtime Flag 判斷 |
+| 20 | MUST FIX | `_startPageScopedRealtimeForPage` 加 Flag runtime 抑制 |
+| 21 | HIGH | `_applyScanDateFilter` 補充程式碼（統一 helper） |
+| 22 | HIGH | suspend/resume 放置位置明確化（`_resumeListeners` 末尾） |
+| 23 | MEDIUM | 工時上調至 2 小時 |
+| 24 | MEDIUM | 記憶體估算修正（詳情頁 ~20 筆 vs 列表頁 500 筆） |
