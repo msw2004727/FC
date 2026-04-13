@@ -4,7 +4,7 @@
 
 // ─── Cache Version（更新此值以清除瀏覽器快取）───
 // 變更日誌已移除，請用 git log 查閱歷史部署記錄。
-const CACHE_VERSION = '20260413t';
+const CACHE_VERSION = '20260413u';
 
 // ─── 即時監聽 limit 預設值（可在儀表板動態調整，存於 siteConfig/realtimeConfig）───
 const REALTIME_LIMIT_DEFAULTS = {
@@ -442,6 +442,29 @@ const SPORT_ICON_EMOJI = {
   dodgeball: '🤾',
 };
 
+/* SVG 運動小圖（取代 emoji，所有運動 picker / 列表統一使用） */
+const SPORT_ICON_SVG = {
+  all:              '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="none" stroke="#ef4444" stroke-width="2"/><circle cx="12" cy="12" r="5" fill="#ef4444"/></svg>',
+  football:         '<svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="#374151" stroke-width="2"/><polygon points="12,7 15,9.2 14,12.8 10,12.8 9,9.2" fill="#374151"/></svg>',
+  basketball:       '<svg viewBox="0 0 24 24" fill="none" stroke="#ea580c" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 2v20M2 12h20"/><path d="M6 4c3 4 3 12 0 16M18 4c-3 4-3 12 0 16"/></svg>',
+  baseball_softball:'<svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="#6b7280" stroke-width="2"/><path d="M8 3c-2 6-2 12 0 18M16 3c2 6 2 12 0 18" stroke="#dc2626" stroke-width="2"/></svg>',
+  volleyball:       '<svg viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 2c0 7 4 8 10 10M12 2c0 7-4 8-10 10M3 19c5-5 13-5 18 0"/></svg>',
+  table_tennis:     '<svg viewBox="0 0 24 24" fill="none"><circle cx="10" cy="9" r="7" fill="#dc2626" stroke="#991b1b" stroke-width="1.5"/><rect x="8.5" y="16" width="3" height="6" rx="1.5" fill="#78350f"/><circle cx="19" cy="5" r="3.5" fill="#fef9c3" stroke="#a16207" stroke-width="1.5"/></svg>',
+  tennis:           '<svg viewBox="0 0 24 24" fill="none" stroke="#65a30d" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M7 3c-3 6-3 12 0 18M17 3c3 6 3 12 0 18"/></svg>',
+  badminton:        '<svg viewBox="0 0 24 24" fill="none" stroke="#0891b2" stroke-width="2" stroke-linecap="round"><path d="M8 2c0 6 1 10 4 12M16 2c0 6-1 10-4 12"/><circle cx="12" cy="16.5" r="3" fill="#0891b2"/><line x1="12" y1="19.5" x2="12" y2="23"/></svg>',
+  hiking:           '<svg viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20l5-10 3 4 5-11 5 17"/></svg>',
+  running:          '<svg viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="14" cy="4" r="2.5" fill="#7c3aed" stroke="none"/><path d="M10.5 9l3-2 3 2M13 7v4M10 13l3-2 3 4M6 22l4.5-9M13 15l4 7"/></svg>',
+  cycling:          '<svg viewBox="0 0 24 24" fill="none" stroke="#0284c7" stroke-width="2"><circle cx="6" cy="17" r="4"/><circle cx="18" cy="17" r="4"/><path d="M6 17l4-8h5l3 8" stroke-linejoin="round"/><path d="M10 9l2-4" stroke-linecap="round"/></svg>',
+  motorcycle:       '<svg viewBox="0 0 24 24" fill="none" stroke="#374151" stroke-width="2"><circle cx="5" cy="17" r="3.5"/><circle cx="19" cy="17" r="3.5"/><path d="M8.5 17l2-6h5l3.5 6M10.5 11l-2 2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  skateboard:       '<svg viewBox="0 0 24 24" fill="none"><path d="M4 13c2-2 5-3 8-3s6 1 8 3" stroke="#d97706" stroke-width="2.5" stroke-linecap="round"/><circle cx="8" cy="17" r="2" fill="#d97706"/><circle cx="16" cy="17" r="2" fill="#d97706"/></svg>',
+  dance:            '<svg viewBox="0 0 24 24" fill="none" stroke="#ec4899" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="14" cy="4" r="2.5" fill="#ec4899" stroke="none"/><path d="M14 7v5M14 12l-4 8M14 12l3 8M14 9l4-2M14 9l-5 1"/></svg>',
+  yoga:             '<svg viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="5" r="2.5" fill="#8b5cf6" stroke="none"/><path d="M12 8v5M4 15l8-2 8 2M8 22l4-7 4 7"/></svg>',
+  martial_arts:     '<svg viewBox="0 0 24 24" fill="none"><path d="M8 4h8v7c0 3-1.8 5-4 5s-4-2-4-5V4z" stroke="#1f2937" stroke-width="2"/><line x1="8" y1="10" x2="16" y2="10" stroke="#1f2937" stroke-width="2"/><rect x="7" y="17" width="10" height="3" rx="1" fill="#1f2937"/></svg>',
+  restaurant:       '<svg viewBox="0 0 24 24" fill="none" stroke="#9333ea" stroke-width="2" stroke-linecap="round"><path d="M7 3v18M7 3c0 3 2.5 4 2.5 7H4.5C4.5 7 7 6 7 3z"/><path d="M17 3v7M15 3v7M19 3v7M17 10v11"/></svg>',
+  pickleball:       '<svg viewBox="0 0 24 24" fill="none"><circle cx="10" cy="10" r="8" stroke="#059669" stroke-width="2"/><circle cx="7" cy="8" r="1.2" fill="#059669"/><circle cx="11" cy="7" r="1.2" fill="#059669"/><circle cx="9" cy="12" r="1.2" fill="#059669"/><circle cx="13" cy="11" r="1.2" fill="#059669"/><line x1="14" y1="17" x2="17" y2="22" stroke="#059669" stroke-width="2.5" stroke-linecap="round"/><circle cx="20" cy="5" r="3" stroke="#059669" stroke-width="1.5"/></svg>',
+  dodgeball:        '<svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8" stroke="#e11d48" stroke-width="2"/><path d="M6 8.5c4 1.5 8 1.5 12 0M6 15.5c4-1.5 8-1.5 12 0" stroke="#e11d48" stroke-width="1.5"/></svg>',
+};
+
 const EVENT_SPORT_MAP = EVENT_SPORT_OPTIONS.reduce((acc, item) => {
   acc[item.key] = item;
   return acc;
@@ -458,10 +481,10 @@ function getSportLabelByKey(key) {
 }
 
 function getSportIconSvg(key, className = '') {
-  const safeKey = getSportKeySafe(key) || 'football';
-  const emoji = SPORT_ICON_EMOJI[safeKey] || SPORT_ICON_EMOJI.football;
-  const klass = className ? ` ${className}` : '';
-  return `<span class="sport-emoji${klass}" aria-hidden="true">${emoji}</span>`;
+  const safeKey = key === 'all' ? 'all' : (getSportKeySafe(key) || 'football');
+  const svg = SPORT_ICON_SVG[safeKey] || SPORT_ICON_SVG.football;
+  const klass = 'sport-icon-svg' + (className ? ' ' + className : '');
+  return svg.replace('<svg ', '<svg class="' + klass + '" aria-hidden="true" ');
 }
 
 function getLockIconSvg(className = '') {

@@ -468,6 +468,12 @@ body.modal-open { overflow: hidden; }
   color: var(--text-primary);
   font-weight: 600;
 }
+.ce-sport-value .sport-icon-svg {
+  width: 16px;
+  height: 16px;
+  display: block;
+  flex-shrink: 0;
+}
 .ce-sport-value .sport-emoji {
   font-size: 16px;
   line-height: 1;
@@ -601,6 +607,12 @@ body.modal-open { overflow: hidden; }
   background: var(--accent-bg);
   color: var(--accent);
   font-weight: 700;
+}
+.ce-sport-option .sport-icon-svg {
+  width: 16px;
+  height: 16px;
+  display: block;
+  flex-shrink: 0;
 }
 .ce-sport-option .sport-emoji {
   font-size: 16px;

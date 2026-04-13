@@ -211,6 +211,15 @@
 #notif-btn:hover { background: var(--bg-elevated); }
 .notif-badge { position: absolute; top: 2px; right: 2px; width: 16px; height: 16px; border-radius: 50%; background: var(--danger); color: #fff; font-size: .6rem; font-weight: 700; display: flex; align-items: center; justify-content: center; }
 
+/* ─── Sport Icon SVG base ─── */
+.sport-icon-svg {
+  width: 16px;
+  height: 16px;
+  display: inline-block;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
 /* ─── Sport Picker (Top Bar) ─── */
 .sport-picker-wrapper {
   position: relative;
@@ -236,6 +245,11 @@
   font-size: 18px;
   line-height: 1;
   display: inline-block;
+}
+.sport-picker-icon .sport-icon-svg {
+  width: 18px;
+  height: 18px;
+  display: block;
 }
 .sport-picker-btn:hover {
   background: var(--accent-bg);
@@ -315,6 +329,11 @@
   font-size: 16px;
   line-height: 1;
   display: inline-block;
+}
+.sport-picker-item .sp-icon .sport-icon-svg {
+  width: 16px;
+  height: 16px;
+  display: block;
 }
 .sport-picker-item .sp-lock {
   margin-left: auto;

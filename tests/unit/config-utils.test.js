@@ -54,6 +54,12 @@ const SPORT_ICON_EMOJI = {
   dodgeball: '\ud83e\udd3e',
 };
 
+const SPORT_ICON_SVG = {
+  all:              '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="none" stroke="#ef4444" stroke-width="2"/><circle cx="12" cy="12" r="5" fill="#ef4444"/></svg>',
+  football:         '<svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="#374151" stroke-width="2"/><polygon points="12,7 15,9.2 14,12.8 10,12.8 9,9.2" fill="#374151"/></svg>',
+  basketball:       '<svg viewBox="0 0 24 24" fill="none" stroke="#ea580c" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 2v20M2 12h20"/><path d="M6 4c3 4 3 12 0 16M18 4c-3 4-3 12 0 16"/></svg>',
+};
+
 const EVENT_SPORT_MAP = EVENT_SPORT_OPTIONS.reduce((acc, item) => {
   acc[item.key] = item;
   return acc;
@@ -175,14 +181,14 @@ function getSportLabelByKey(key) {
 }
 
 // ---------------------------------------------------------------------------
-// Extracted from js/config.js:421-426 — getSportIconSvg
-// Gets emoji HTML span for sport key
+// Extracted from js/config.js — getSportIconSvg
+// Returns inline SVG for sport key
 // ---------------------------------------------------------------------------
 function getSportIconSvg(key, className = '') {
-  const safeKey = getSportKeySafe(key) || 'football';
-  const emoji = SPORT_ICON_EMOJI[safeKey] || SPORT_ICON_EMOJI.football;
-  const klass = className ? ` ${className}` : '';
-  return `<span class="sport-emoji${klass}" aria-hidden="true">${emoji}</span>`;
+  const safeKey = key === 'all' ? 'all' : (getSportKeySafe(key) || 'football');
+  const svg = SPORT_ICON_SVG[safeKey] || SPORT_ICON_SVG.football;
+  const klass = 'sport-icon-svg' + (className ? ' ' + className : '');
+  return svg.replace('<svg ', '<svg class="' + klass + '" aria-hidden="true" ');
 }
 
 // ---------------------------------------------------------------------------
@@ -514,35 +520,40 @@ describe('Sport Config Lookup', () => {
   });
 
   describe('getSportIconSvg', () => {
-    test('returns emoji span for valid key', () => {
+    test('returns SVG with sport-icon-svg class for valid key', () => {
       const result = getSportIconSvg('football');
-      expect(result).toBe('<span class="sport-emoji" aria-hidden="true">\u26bd</span>');
+      expect(result).toContain('class="sport-icon-svg"');
+      expect(result).toContain('aria-hidden="true"');
+      expect(result).toContain('<svg ');
+      expect(result).toContain('</svg>');
     });
 
     test('includes className when provided', () => {
       const result = getSportIconSvg('basketball', 'large');
-      expect(result).toBe('<span class="sport-emoji large" aria-hidden="true">\ud83c\udfc0</span>');
+      expect(result).toContain('class="sport-icon-svg large"');
+      expect(result).toContain('aria-hidden="true"');
     });
 
-    test('defaults to football emoji for invalid key', () => {
+    test('defaults to football SVG for invalid key', () => {
       const result = getSportIconSvg('invalid');
-      expect(result).toContain('\u26bd');
-      expect(result).toContain('sport-emoji');
+      expect(result).toContain('sport-icon-svg');
+      expect(result).toContain('#374151');
     });
 
-    test('defaults to football emoji for null/undefined', () => {
+    test('defaults to football SVG for null/undefined', () => {
       const result = getSportIconSvg(null);
-      expect(result).toContain('\u26bd');
+      expect(result).toContain('#374151');
     });
 
     test('no extra space in class when className is empty', () => {
       const result = getSportIconSvg('football', '');
-      expect(result).toBe('<span class="sport-emoji" aria-hidden="true">\u26bd</span>');
+      expect(result).toContain('class="sport-icon-svg"');
     });
 
-    test('returns correct emoji for each sport', () => {
-      expect(getSportIconSvg('tennis')).toContain('\ud83c\udfbe');
-      expect(getSportIconSvg('yoga')).toContain('\ud83e\uddd8');
+    test('returns "all" SVG for key all', () => {
+      const result = getSportIconSvg('all');
+      expect(result).toContain('#ef4444');
+      expect(result).toContain('sport-icon-svg');
     });
   });
 });
