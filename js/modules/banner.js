@@ -20,7 +20,8 @@ Object.assign(App, {
           ? `onclick="App.trackAdClick('banner','${escapeHTML(b.id)}');window.open('${safeUrl}','sporthub_ad')" style="cursor:pointer"`
           : '';
         if (b.image) {
-          return `<div class="banner-slide" style="background-image:url('${b.image}');background-size:cover;background-position:center" ${clickHandler}>
+          // 先不設 background-image，等預載+解碼完成後再淡入
+          return `<div class="banner-slide banner-slide--loading" data-bg-src="${escapeHTML(b.image)}" ${clickHandler}>
             <div class="banner-content"><div class="banner-tag">${escapeHTML(b.slotName || '廣告位 ' + b.slot)}</div><h2>${escapeHTML(b.title || '')}</h2></div>
           </div>`;
         }
@@ -29,6 +30,25 @@ Object.assign(App, {
           <div class="banner-content"><div class="banner-tag">${escapeHTML(b.slotName || '廣告位 ' + b.slot)}</div><h2>${escapeHTML(b.title || '')}</h2></div>
         </div>`;
       }).join('');
+      // 預載 banner 圖片：背景載入+解碼完成後才設 background-image 並淡入
+      track.querySelectorAll('.banner-slide--loading').forEach(function(slide) {
+        var url = slide.getAttribute('data-bg-src');
+        if (!url) return;
+        var img = new Image();
+        img.src = url;
+        var _show = function() {
+          slide.style.backgroundImage = "url('" + url + "')";
+          slide.style.backgroundSize = 'cover';
+          slide.style.backgroundPosition = 'center';
+          slide.classList.remove('banner-slide--loading');
+        };
+        if (typeof img.decode === 'function') {
+          img.decode().then(_show).catch(_show);
+        } else {
+          img.onload = _show;
+          img.onerror = _show;
+        }
+      });
     }
     this.bannerIndex = 0;
     this.bannerCount = track.querySelectorAll('.banner-slide').length;

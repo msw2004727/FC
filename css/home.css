@@ -6,7 +6,8 @@
 /* ─── Banner Carousel ─── */
 .banner-carousel { position: relative; border-radius: var(--radius); overflow: hidden; margin-bottom: 1rem; box-shadow: var(--banner-shadow); }
 .banner-track { display: flex; transition: transform .5s cubic-bezier(.4,0,.2,1); will-change: transform; }
-.banner-slide { min-width: 100%; aspect-ratio: 2.2/1; display: flex; align-items: flex-end; padding: 1.2rem; position: relative; }
+.banner-slide { min-width: 100%; aspect-ratio: 2.2/1; display: flex; align-items: flex-end; padding: 1.2rem; position: relative; transition: background-image 0s, opacity .3s ease; }
+.banner-slide--loading { opacity: .15; }
 .banner-slide.banner-placeholder { background: var(--bg-elevated) !important; border: 2px dashed var(--border); }
 .banner-slide.skeleton-slide { padding: 0; }
 .banner-slide.skeleton-slide::after { display: none; }
