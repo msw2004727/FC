@@ -313,8 +313,44 @@ Object.assign(App, {
       clearTimeout(this._regsLoadingRetryTimer);
       this._regsLoadingRetryCount = 0;
     }
-    const isSignedUp = isGuestView ? false : (regsLoading ? false : this._isUserSignedUp(e));
-    const isOnWaitlist = isSignedUp && this._isUserOnWaitlist(e);
+    var isSignedUp = isGuestView ? false : (regsLoading ? false : this._isUserSignedUp(e));
+    var isOnWaitlist = isSignedUp && this._isUserOnWaitlist(e);
+
+    // Phase 3 安全網：快取說「未報名」但可能是監聽器尚未同步。
+    // 對子集合做一次即時查詢確認，若實際已報名則立刻重新渲染。
+    if (!isGuestView && !regsLoading && !isSignedUp && !isEnded && e._docId) {
+      var _safetyUid = ApiService.getCurrentUser?.()?.uid;
+      if (_safetyUid && typeof db !== 'undefined') {
+        var _self = this;
+        var _safetyEventId = e.id;
+        db.collection('events').doc(e._docId).collection('registrations')
+          .where('userId', '==', _safetyUid)
+          .limit(1)
+          .get({ source: 'server' })
+          .then(function(snap) {
+            var active = snap.docs.filter(function(d) {
+              var s = d.data().status;
+              return s !== 'cancelled' && s !== 'removed';
+            });
+            if (active.length > 0
+              && _self.currentPage === 'page-activity-detail'
+              && _self._currentDetailEventId === _safetyEventId
+              && !_self._flipAnimating) {
+              // 快取確實落後 — 補入快取並重新渲染
+              active.forEach(function(d) {
+                var reg = Object.assign({}, d.data(), { _docId: d.id });
+                if (reg.userId && !reg.uid) reg.uid = reg.userId;
+                var cache = FirebaseService._cache.registrations || [];
+                if (!cache.some(function(r) { return r._docId === d.id; })) {
+                  cache.push(reg);
+                }
+              });
+              _self.showEventDetail(_safetyEventId);
+            }
+          })
+          .catch(function() { /* 查詢失敗不影響主流程 */ });
+      }
+    }
     const canTeamOnlySignup = isGuestView
       ? true
       : ((typeof this._canSignupTeamOnlyEvent === 'function') ? this._canSignupTeamOnlyEvent(e) : true);

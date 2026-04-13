@@ -38,7 +38,7 @@ const KNOWN_REFERENCES = {
   'js/modules/event/event-create-waitlist.js': { registrations: 3, attendanceRecords: 0, activityRecords: 2 }, // Phase 4b: 寫入改子集合
   'js/modules/event/event-detail-signup.js': { registrations: 3, attendanceRecords: 0, activityRecords: 5 }, // Phase 4b: 寫入改子集合
   'js/modules/event/event-detail-companion.js': { registrations: 0, attendanceRecords: 0, activityRecords: 4 }, // Phase 4b: 寫入改子集合
-  'js/modules/event/event-detail.js': { registrations: 1, attendanceRecords: 0, activityRecords: 0 },
+  'js/modules/event/event-detail.js': { registrations: 2, attendanceRecords: 0, activityRecords: 0 }, // +1: Phase 3 安全網 subcollection fallback query
   'js/modules/event/event-manage-badges.js': { registrations: 2, attendanceRecords: 0, activityRecords: 0 }, // Phase 4b: 寫入改子集合
   'js/modules/event/event-manage-lifecycle.js': { registrations: 3, attendanceRecords: 0, activityRecords: 3 }, // Phase 4b: 寫入改子集合
   'js/modules/event/event-manage-waitlist.js': { registrations: 2, attendanceRecords: 0, activityRecords: 2 }, // Phase 4b: 寫入改子集合
