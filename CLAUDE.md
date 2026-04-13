@@ -14,7 +14,7 @@
 
 - **部署平台**：自有域名 `toosterx.com`（Cloudflare Pages）、GitHub Pages（`msw2004727.github.io`）
 - **使用者驗證**：LINE LIFF 登入
-- **Demo 模式**：無需登入，使用靜態假資料瀏覽全功能
+- **Firestore 架構**：子集合（`events/{docId}/registrations` 等），2026-04-12 遷移完成
 
 ---
 
@@ -23,7 +23,7 @@
 | 類別 | 技術 |
 |------|------|
 | 前端 | Vanilla JS (ES6+)、HTML5、CSS3，**無框架、無 build 流程** |
-| 資料庫 | Firebase Firestore |
+| 資料庫 | Firebase Firestore（子集合架構：`events/{docId}/registrations` 等，2026-04-12 Phase 4b 完成） |
 | 儲存 / 驗證 | Firebase Storage + LINE LIFF SDK |
 | 推播 / 後端 | LINE Messaging API + Firebase Cloud Functions (Node.js 22) |
 | 離線支援 | Service Worker（sw.js） |
@@ -273,6 +273,28 @@ https://miniapp.line.me/2009525300-AuPGQ0sh?{deepLinkParam}={id}
 11. **Firestore 查詢結果的 Timestamp 必須轉換**：從 Firestore 讀取的 `registeredAt` 是 Timestamp 物件，必須透過 `data.registeredAt?.toDate?.()?.toISOString?.() || data.registeredAt` 轉換為 ISO 字串後才能用於排序。未轉換的 Timestamp 會導致 `new Date()` 回傳 NaN，遞補排序失效。
 12. **`_adjustWaitlistOnCapacityChange` 必須先查詢 Firestore**：函式開頭必須先從 Firestore 查詢最新報名資料並同步到快取，不得直接使用可能過時的快取資料進行遞補/降級判斷。
 
+### 子集合遷移後的查詢路徑（2026-04-12 Phase 4b 完成後強制）
+
+所有報名/簽到/活動紀錄查詢**必須使用子集合路徑**，禁止查詢已凍結的根集合：
+
+| 場景 | 正確路徑 ✅ | 禁止路徑 ❌ |
+|------|------------|------------|
+| 單一活動報名 | `db.collection('events').doc(eventDocId).collection('registrations')` | `db.collection('registrations').where('eventId','==',id)` |
+| 跨活動查詢 | `db.collectionGroup('registrations')` + 去重 | `db.collection('registrations').where('userId','==',uid)` |
+| CF 查詢 | `admin.firestore().collectionGroup('registrations')` + `path.split('/').length > 2` | `db.collection('registrations')` |
+
+**去重過濾**（Phase 4c 刪除根資料前必須保留）：
+- 前端：`doc.ref.parent.parent !== null`
+- CF：`d.ref.path.split('/').length > 2`
+
+### 活動詳情頁局部更新規則（2026-04-13 新增）
+
+報名/取消/候補操作後**禁止呼叫 `showEventDetail()` 做全頁重繪**（會導致頁面跳頂）。必須使用局部 DOM 更新：
+- `_refreshSignupButton(eventId)` — 更新按鈕（涵蓋所有 8 種狀態）
+- `_patchDetailCount(eventId)` — 更新人數文字
+- `_patchDetailTables(eventId)` — 更新報名/候補/簽到表格
+- `_debouncedSnapshotRender` 的 `page-activity-detail` 分支也必須走局部更新
+
 ---
 
 ## 統計系統保護規則（UID 比對鎖定）
@@ -341,12 +363,11 @@ https://miniapp.line.me/2009525300-AuPGQ0sh?{deepLinkParam}={id}
 
 ---
 
-## Demo / Production 優先順序
+## 環境說明
 
-- **正式版（Production）永遠優先**：除非用戶主動要求更新或修正 Demo 版本，否則一律以正式版為優先開發與修復目標
-- **用戶回報的所有問題與需求一律以正式版（Production）為前提**，除非用戶特別指明是 Demo 版，否則不要假設問題來自 Demo 模式
-- 若修改的程式碼同時涵蓋 Demo 與 Production（例如共用函式），則兩者一起更新即可，無先後之分
-- 當需要有先後順序時（例如時間有限或分批實作），**一律先完成正式版，再處理 Demo 版**
+- **僅有 Production 環境**（Demo 模式已於 2026-04 移除，`ModeManager.getMode()` 硬編碼返回 `'production'`）
+- 用戶回報的所有問題與需求一律以正式版為前提
+- 不存在 Demo 分支邏輯，`ApiService` 直接讀取 `FirebaseService._cache`
 
 ## 完成後自動部署規範
 

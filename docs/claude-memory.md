@@ -10,6 +10,14 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-04-13 — 活動詳情頁局部更新機制 + 跳頂修復 + 回歸修正
+- **問題 1（跳頂）**：報名/取消後頁面跳回頂部。經 6 次嘗試，前 5 次（scroll 保護、showPage 跳過、高度鎖定等）全部無效
+- **根因**：`showEventDetail` 的 `innerHTML` 全頁替換無論如何都會丟失 scroll
+- **修復**：改為局部 DOM 更新——`_refreshSignupButton`（按鈕）+ `_patchDetailCount`（人數）+ `_patchDetailTables`（名單），不做全頁重繪
+- **問題 2（被拉回）**：刷新後切頁會被拉回原頁。根因是 `showEventDetail` async 函式在 await 期間用戶已離開，但 `showPage` 仍執行。修復：在 `showPage` 前加 `requestSeq` stale 檢查
+- **問題 3（回歸）**：局部更新遺漏性別限定按鈕 + 人數不更新。修復：`_refreshSignupButton` 涵蓋全部 8 種按鈕狀態；`_patchDetailCount` 修正 DOM 選取（text node 非 span）
+- **教訓**：全頁 innerHTML 替換在 SPA 中必然丟失 scroll，局部 DOM patch 是唯一可靠解法。局部更新函式必須覆蓋原始全頁渲染的所有分支，否則產生回歸
+
 ### 2026-04-13 — 活動詳情頁報名狀態偶發性錯誤 — collectionGroup 監聽器首次 snapshot 競態
 - **問題**：用戶已報名成功但開啟活動頁面偶爾顯示「報名/候補」按鈕。原因是 Phase 3 切換到 collectionGroup 監聽器後，首次 snapshot 到達前快取為空，頁面依空快取渲染為未報名
 - **修復**：`event-detail.js showEventDetail()` 新增安全網——當快取判定「未報名」時，直接對子集合做 `get({source:'server'})` 查詢確認，若已報名則補入快取並重新渲染

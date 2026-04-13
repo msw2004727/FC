@@ -97,18 +97,51 @@ flowchart TD
 
 | 模組 | 說明 |
 |------|------|
-| `config.js` | 全域常數（`ROLES`、`TYPE_CONFIG`、`CACHE_VERSION` 等）與 `ModeManager` 單例，控制 Demo / Prod 模式 |
+| `config.js` | 全域常數（`ROLES`、`TYPE_CONFIG`、`CACHE_VERSION` 等）；`ModeManager` 已硬編碼為 production |
 | `i18n.js` | 多語系翻譯字串，無外部依賴，最先載入 |
 | `firebase-config.js` | 初始化 Firebase SDK，向外暴露 `db`、`storage`、`auth` 全域物件 |
-| `firebase-service.js` | **快取優先**資料層；以 `_cache` 記憶體物件映射 Firestore，透過 `onSnapshot` 即時同步，並持久化至 localStorage |
+| `firebase-service.js` | **快取優先**資料層；以 `_cache` 記憶體物件映射 Firestore 子集合（`events/{docId}/registrations` 等），透過 `collectionGroup` 監聽器即時同步並持久化至 localStorage。提供 `_getEventDocId()` / `_getEventDocIdAsync()` 子集合路徑工具 |
 | `firebase-crud.js` | 透過 `Object.assign` 擴充 `FirebaseService`，提供各集合的新增 / 更新 / 刪除 / 圖片上傳操作。包含 `_rebuildOccupancy()` 統一佔位重建函式，所有報名/取消/遞補流程共用 |
-| `api-service.js` | **抽象層**；根據 `ModeManager.isDemo()` 決定從 `DemoData` 或 `FirebaseService._cache` 取資料，隔離所有 UI 模組與 Demo / Prod 切換邏輯 |
+| `api-service.js` | **抽象層**；從 `FirebaseService._cache` 取資料，提供 `getRegistrationsByEvent()`、`getAttendanceRecords()` 等統一讀取介面 |
 | `line-auth.js` | LINE LIFF SDK 封裝；在 Demo 模式或 localhost 時停用，提供登入 / 登出 / 取得個人資料 |
 | `page-loader.js` | 按需非同步載入 `pages/*.html` 片段，快取版本由 `CACHE_VERSION` 控制。延遲載入（`_loadDeferred`）與按需載入（`ensurePage`）完成後自動呼叫 `App._bindPageElements()` 重新綁定事件 |
 | `script-loader.js` | 定義頁面群組與模組映射；目前所有模組已在 `index.html` 以 `<script defer>` 靜態載入，ScriptLoader 作為保底機制確保頁面切換時模組可用 |
 | `app.js` | `App` 主物件；定義 4 階段初始化流程、`renderAll()`、`showToast()`、`appConfirm()` |
 | `core/navigation.js` | `showPage()` 策略分派頁面路由（stale-first / stale-confirm / prepare-first / fresh-first），Modal 管理、Drawer 開關，`_freshCheckBeforeAction()` 操作前確認，透過 `Object.assign` 擴充 App。策略由 `config.js` 的 `PAGE_STRATEGY` registry 定義 |
 | `core/theme.js` | 深色 / 淺色主題切換，偏好儲存於 localStorage |
+
+---
+
+## Firestore 架構演進（2026-04-12 完成 Phase 4b）
+
+### 子集合遷移完成狀態
+
+`registrations`、`attendanceRecords`、`activityRecords` 三個集合已從根集合遷移至 `events/{docId}/` 子集合。完整計劃書見 `docs/stateful-imagining-dahl.md`。
+
+| 項目 | 狀態 | 說明 |
+|------|------|------|
+| Phase 0-4b | ✅ 全部完成 | 索引 + rules + 雙寫 + 遷移 + 讀取切換 + 寫入翻轉 |
+| Phase 4c | ⏸ 待執行 | 刪除根集合殘留資料 + 移除去重 + 鎖定 rules（不可逆，不影響功能） |
+
+### 查詢路徑（已切換）
+
+```
+單一活動查詢：db.collection('events').doc(eventDocId).collection('registrations')
+跨活動查詢：  db.collectionGroup('registrations') + 去重（doc.ref.parent.parent !== null）
+CF 查詢：     admin.firestore().collectionGroup('registrations') + 去重（path.split('/').length > 2）
+```
+
+### 寫入路徑（已切換）
+
+所有寫入只走子集合。根集合已凍結（無人讀寫），保留作為 Phase 4c 前的回退保險。
+
+### 活動詳情頁局部更新機制（2026-04-13）
+
+報名/取消/候補等操作後，活動詳情頁**不做全頁重繪**，改為局部 DOM 更新：
+- `_refreshSignupButton()` — 按鈕狀態（含性別限定、球隊限定等 8 種分支）
+- `_patchDetailCount()` — 人數文字更新
+- `_patchDetailTables()` — 報名名單 + 候補名單 + 簽到表
+- Firestore `onSnapshot` 觸發時也走局部更新路徑（`_debouncedSnapshotRender`）
 
 ---
 
