@@ -508,8 +508,10 @@ Object.assign(App, {
     }
       // ── 先切換頁面，讓用戶立即看到活動資訊 ──
       const _isReRender = this.currentPage === 'page-activity-detail' && this._currentDetailEventId === id;
-      // re-render 同一活動時跳過 showPage（避免導航系統的 display:none→block 轉換丟失 scroll）
+      // re-render 同一活動時跳過 showPage（避免跳頂）
       if (!_isReRender) {
+        // stale 檢查：用戶可能在 await 期間已導航到其他頁面，不可再拉回
+        if (requestSeq !== this._eventDetailRequestSeq) return { ok: false, reason: 'stale' };
         await this.showPage('page-activity-detail');
       }
       if (requestSeq !== this._eventDetailRequestSeq || this.currentPage !== 'page-activity-detail') {
