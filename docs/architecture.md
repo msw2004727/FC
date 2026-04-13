@@ -143,6 +143,23 @@ CF 查詢：     admin.firestore().collectionGroup('registrations') + 去重（p
 - `_patchDetailTables()` — 報名名單 + 候補名單 + 簽到表
 - Firestore `onSnapshot` 觸發時也走局部更新路徑（`_debouncedSnapshotRender`）
 
+### 舊活動資料補查機制（2026-04-13）
+
+全站 `onSnapshot` 監聽器有 limit（`siteConfig/realtimeConfig` 可調），超出 limit 的舊活動資料不在快取中。以下兩個函式在快取 miss 時從子集合一次性補查：
+
+- `ApiService.fetchAttendanceIfMissing(eventId)` — 簽到紀錄
+- `ApiService.fetchRegistrationsIfMissing(eventId)` — 報名紀錄
+
+兩者在 `_doRenderAttendanceTable` 開頭以 `Promise.all` 平行執行。快取有資料時瞬間 return（零成本），沒有才查一次子集合 merge 進全站快取。
+
+活動列表本身已有「載入更多歷史活動」手動分頁按鈕（`loadMoreTerminalEvents`，每次 100 場）。
+
+### 圖片載入優化（2026-04-13）
+
+- 全站 `<img>` 淡入：`opacity:0` → `load` 事件 → `img.decode()` 預解碼 → `.img-loaded` 淡入
+- 輪播 Banner（CSS `background-image`）：`new Image().decode()` 預載後才設背景
+- 開機品牌圖：1536×1535 PNG 1198KB → 512×512 WebP 49KB（-96%）
+
 ---
 
 ## 功能子資料夾模組清單

@@ -10,6 +10,22 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-04-13 — 舊活動簽到/報名紀錄不顯示 — 全站監聽器 limit 截斷 + 極簡補查
+- **問題**：全站監聽器 `collectionGroup.limit(1500)` + dedup 後實際只有 ~750 筆快取，舊活動的簽到/報名紀錄被截斷，詳情頁顯示空白
+- **調查過程**：經四輪專家審計（13 個 MUST FIX）設計出 per-event listener + Feature Flag 完整方案（v5），但第五輪極簡挑戰 + 7 位專家 7-0 投票後決定採用極簡方案
+- **修復**：`fetchAttendanceIfMissing` + `fetchRegistrationsIfMissing` — 快取有資料直接 return（零成本），沒有就從子集合查一次 merge 進快取。15 行 / 2 檔案
+- **教訓**：舊活動資料是凍結的靜態資料，不需要即時監聽。用 80 行 + Feature Flag 解決 15 行能解決的問題是過度工程。完整方案保留在 `docs/attendance-listener-optimization.md` 作為決策參考
+
+### 2026-04-13 — 圖片載入優化（淡入 + 預解碼 + 品牌圖壓縮 + Banner 預載）
+- **問題**：圖片從「無」到「有」的閃現衝擊
+- **修復**：`img { opacity:0 }` + `img.decode()` 預解碼後才淡入 + 開機品牌圖壓縮 96%（1198KB→49KB WebP）+ 輪播 Banner `new Image().decode()` 預載
+- **教訓**：`img.decode()` 在 load 事件後呼叫確保完全解碼；`.img-loaded` 不可加 `transition:none`（會取消淡入）；開機 LOGO 需覆寫全局 `opacity:0`
+
+### 2026-04-13 — CF 報名成功後按鈕閃爍 — 樂觀補入 registration
+- **問題**：CF 路徑報名成功後，翻牌動畫結束時 `_refreshSignupButton` 讀到空快取，按鈕短暫閃回「報名」
+- **修復**：CF 成功後立即 push 一筆樂觀 registration 到 `_cache.registrations`，snapshot 到達後整批覆蓋
+- **教訓**：CF 路徑的樂觀更新只更新 event 欄位，必須同時更新 registration 快取
+
 ### 2026-04-13 — 活動詳情頁局部更新機制 + 跳頂修復 + 回歸修正
 - **問題 1（跳頂）**：報名/取消後頁面跳回頂部。經 6 次嘗試，前 5 次（scroll 保護、showPage 跳過、高度鎖定等）全部無效
 - **根因**：`showEventDetail` 的 `innerHTML` 全頁替換無論如何都會丟失 scroll
