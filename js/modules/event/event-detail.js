@@ -501,7 +501,10 @@ Object.assign(App, {
     }
       // ── 先切換頁面，讓用戶立即看到活動資訊 ──
       const _isReRender = this.currentPage === 'page-activity-detail' && this._currentDetailEventId === id;
-      await this.showPage('page-activity-detail', _isReRender ? { resetScroll: false } : undefined);
+      // re-render 同一活動時跳過 showPage（避免導航系統的 display:none→block 轉換丟失 scroll）
+      if (!_isReRender) {
+        await this.showPage('page-activity-detail');
+      }
       if (requestSeq !== this._eventDetailRequestSeq || this.currentPage !== 'page-activity-detail') {
         return { ok: false, reason: 'stale' };
       }
