@@ -401,7 +401,7 @@
 .detail-row .icon { font-size: 1rem; width: 22px; text-align: center; }
 .detail-label { font-size: .75rem; font-weight: 600; color: var(--text-muted); min-width: 2.5em; flex-shrink: 0; }
 /* ─── Detail Grid（短欄位雙欄佈局） ─── */
-.detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 .5rem; margin: .2rem 0; }
+.detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .35rem .5rem; margin: .2rem 0; }
 .detail-grid .detail-row { padding: .35rem .4rem; border-radius: var(--radius-sm, 6px); background: var(--bg-elevated, #f8f9fa); }
 .detail-grid .detail-row:last-child:nth-child(odd) { grid-column: span 2; }
 [data-theme="dark"] .detail-grid .detail-row { background: var(--bg-elevated, #1e1e1e); }
