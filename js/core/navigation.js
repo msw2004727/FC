@@ -98,8 +98,11 @@ Object.assign(App, {
     const target = document.getElementById(pageId);
     if (!target) return null;
 
-    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-    target.classList.add('active');
+    // 如果目標頁面已經 active，跳過 class toggle 避免 display:none→block 瞬間丟失捲動位置
+    if (!target.classList.contains('active')) {
+      document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+      target.classList.add('active');
+    }
     this.currentPage = pageId;
 
     if (typeof FirebaseService !== 'undefined'
