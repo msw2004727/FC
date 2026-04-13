@@ -1,6 +1,6 @@
-# 簽到監聽器優化：全站大杯子 → 按需小杯子（v3）
+# 簽到監聯器優化：全站大杯子 → 按需小杯子（v4）
 
-> **📍 狀態**：計劃書 v3（兩輪專家審計，v2 的 4 個 + v3 的 3 個 MUST FIX 已納入）
+> **📍 狀態**：計劃書 v4（三輪專家審計，累計 10 個 MUST FIX 全部納入）
 
 ## 問題
 
@@ -68,16 +68,24 @@ _startEventAttendanceListener(eventDocId, eventId) {
 
   this._eventAttendanceUnsub = db.collection('events').doc(eventDocId)
     .collection('attendanceRecords')
-    .onSnapshot(function(snapshot) {
-      // Guard：用戶已切換到其他活動 → 丟棄此 callback
-      if (this._eventAttendanceListenerId !== targetDocId) return;
+    .onSnapshot(
+      function(snapshot) {
+        // Guard：用戶已切換到其他活動 → 丟棄 stale callback
+        if (this._eventAttendanceListenerId !== targetDocId) return;
 
-      this._eventAttendanceCache = snapshot.docs.map(function(doc) {
-        return Object.assign({}, doc.data(), { _docId: doc.id });
-      });
-      this._eventAttendanceSnapshotReady = true;
-      this._debouncedSnapshotRender('attendance');
-    }.bind(this));
+        this._eventAttendanceCache = snapshot.docs.map(function(doc) {
+          return Object.assign({}, doc.data(), { _docId: doc.id });
+        });
+        this._eventAttendanceSnapshotReady = true;
+        this._eventAttendanceReconnectAttempts = 0; // 成功時重置重連計數
+        this._debouncedSnapshotRender('attendance');
+      }.bind(this),
+      function(err) {
+        // Guard：丟棄已切換活動的 stale error
+        if (this._eventAttendanceListenerId !== targetDocId) return;
+        this._reconnectEventAttendanceListener(err, targetDocId, eventId);
+      }.bind(this)
+    );
 },
 
 // ═══ 停止 ═══
@@ -90,6 +98,29 @@ _stopEventAttendanceListener() {
   this._eventAttendanceEventId = null;
   this._eventAttendanceCache = null;
   this._eventAttendanceSnapshotReady = false;
+  this._eventAttendanceReconnectAttempts = 0;
+},
+
+// ═══ 錯誤重連（同 RC4 exponential backoff 模式）═══
+_eventAttendanceReconnectAttempts: 0,
+
+_reconnectEventAttendanceListener(err, targetDocId, eventId) {
+  console.warn('[EventAttendance] listener error, attempting reconnect:', err?.message || err);
+  if (this._eventAttendanceReconnectAttempts >= 5) {
+    console.error('[EventAttendance] max reconnect attempts reached');
+    return;
+  }
+  this._eventAttendanceReconnectAttempts++;
+  var delay = Math.min(1000 * Math.pow(2, this._eventAttendanceReconnectAttempts - 1), 30000);
+  delay += Math.random() * 1000; // jitter
+  var self = this;
+  setTimeout(function() {
+    // 確認仍在同一活動頁面才重連
+    if (self._eventAttendanceListenerId !== targetDocId) return;
+    var page = typeof App !== 'undefined' ? App.currentPage : '';
+    if (page !== 'page-activity-detail' && page !== 'page-scan') return;
+    self._startEventAttendanceListener(targetDocId, eventId);
+  }, delay);
 },
 ```
 
@@ -217,6 +248,36 @@ if (!needed.has('attendanceRecords')) {
 
 在 `renderScanPage` 結尾（`_updateScanControls()` 前）統一加一次 listener start 即可覆蓋三者。
 
+**v4 新增：App 前後台（visibility change）suspend/resume 處理**
+
+```js
+// _suspendListeners() 中加：
+this._stopEventAttendanceListener();
+
+// _resumeListeners() 或 _handleVisibilityResume() 中加：
+var page = typeof App !== 'undefined' ? App.currentPage : '';
+if (page === 'page-activity-detail' && App._currentDetailEventId) {
+  var ev = ApiService.getEvent(App._currentDetailEventId);
+  if (ev && ev._docId) this._startEventAttendanceListener(ev._docId, ev.id);
+}
+if (page === 'page-scan' && App._scanSelectedEventId) {
+  var ev = ApiService.getEvent(App._scanSelectedEventId);
+  if (ev && ev._docId) this._startEventAttendanceListener(ev._docId, ev.id);
+}
+```
+
+**v4 新增：`_collectionPageMap` 同步移除（防止 deep-link 快取覆寫）**
+
+```js
+// firebase-service.js _collectionPageMap 修改：
+'page-activity-detail': ['events', 'registrations', 'activityRecords', 'userCorrections', 'operationLogs'],
+  // ↑ 移除 'attendanceRecords'（由 per-event listener 負責）
+'page-scan': ['registrations'],
+  // ↑ 移除 'attendanceRecords'
+```
+
+不移除的話，deep-link 首次進入詳情頁時 `_buildCollectionQuery('attendanceRecords')` 返回 null → `_replaceCollectionCache` 覆寫全站快取為空陣列。
+
 **v3 新增：避免雙重監聽器 + 雙重渲染**
 
 從 `_pageScopedRealtimeMap` 中移除 `page-activity-detail` 和 `page-scan` 的 `'attendanceRecords'`，讓這兩個頁面完全由 per-event 監聽器負責：
@@ -280,7 +341,7 @@ if (FirebaseService._eventAttendanceEventId === eventId
 
 | 檔案 | 改動 | 風險 |
 |------|------|------|
-| `js/firebase-service.js` | 新增 listener 函式 + state fields（物件字面量內）+ `finalizePageScopedRealtimeForPage` 加停止 + **`_pageScopedRealtimeMap` 移除 detail/scan 的 `attendanceRecords`** | 低-中 |
+| `js/firebase-service.js` | 新增 listener 函式（含 error callback + reconnect）+ state fields + `finalizePageScopedRealtimeForPage` 加停止 + `_pageScopedRealtimeMap` 移除 + **`_collectionPageMap` 移除** + **`_suspendListeners`/`_resumeListeners` 加 per-event 處理** | 中 |
 | `js/api-service.js` | `getAttendanceRecords` 加 per-event 判斷 + `addAttendanceRecord` / `removeAttendanceRecord` / **`batchWriteAttendance`** 樂觀寫入同步 | 中 |
 | `js/modules/event/event-detail.js` | `showEventDetail` 中呼叫 `_startEventAttendanceListener` | 低 |
 | `js/modules/scan/scan-ui.js` + `scan.js` | `renderScanPage` 結尾 + change handler + **`_applyScanDateFilter` 後**啟動/停止 | 低 |
@@ -355,6 +416,15 @@ if (FirebaseService._eventAttendanceEventId === eventId
 | 11 | SHOULD FIX | 掃碼頁 `_applyScanDateFilter` → `_populateScanSelect` 可能靜默切換活動但不啟動監聽器 | Phase B 補充三個 pre-selection 路徑 + `renderScanPage` 結尾統一啟動 |
 | 12 | SHOULD FIX | per-event 監聽器無 limit，大型賽事可能有 200+ 筆 → 效果對比表 "~20 筆" 可能低估 | 效果對比表加註「大型賽事可達 200+」 |
 | 13 | SHOULD FIX | 雙重 render（兩個 listener 同時觸發 `_debouncedSnapshotRender`）| 已透過 #9（移除雙重監聽器）根治 |
+
+### v3 → v4 修訂（第三輪專家審計 — 對抗性 + SDK 內部 + 事故模擬）
+
+| # | 嚴重度 | 問題 | 修正 |
+|---|--------|------|------|
+| 14 | **MUST FIX** | per-event `onSnapshot` 無 error callback → 監聽器靜默死亡，無重連，無 fallback（全站監聽器已移除） | 新增 error callback + `_reconnectEventAttendanceListener`（exponential backoff，max 5 次） |
+| 15 | **MUST FIX** | App 前後台（`_suspendListeners`/`_resumeListeners`）不處理 per-event 監聽器 → 手機鎖屏解鎖後成為殭屍 | `_suspendListeners` 加 stop + `_resumeListeners` 加 restart（偵測 detail/scan 頁面） |
+| 16 | **MUST FIX** | `_collectionPageMap` 仍列 `attendanceRecords` → deep-link 首次進入詳情頁會觸發 `_replaceCollectionCache` 覆寫全站快取為空 | `_collectionPageMap` 同步移除 detail/scan 的 `attendanceRecords` |
+| 17 | SHOULD FIX | error callback 也需要 closure guard（`targetDocId`）防止 stale error 干擾新監聽器 | error callback 已加入 `targetDocId` 比對 |
 
 ---
 
