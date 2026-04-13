@@ -130,27 +130,22 @@ const FirebaseService = {
     if (typeof App === 'undefined') return;
     const page = App.currentPage;
 
-    // 用戶操作頁：立即渲染（執行前再確認 currentPage，防止切頁後被拉回）
+    // 用戶操作頁：局部更新（不做全頁重繪，避免跳頂）
     if (page === 'page-activity-detail') {
-      // 報名/取消完成後 500ms 內抑制 snapshot re-render
-      if (App._signupRenderSuppressUntil && Date.now() < App._signupRenderSuppressUntil) return;
-      // 全局 scroll 保護：snapshot re-render 前保存，render 後恢復
-      var _snapScroll = window.scrollY || window.pageYOffset || 0;
+      if (App.currentPage !== 'page-activity-detail') return;
+      var _eid = App._currentDetailEventId;
       if (source === 'attendance') {
         if (App._attendanceEditingEventId || App._unregEditingEventId) return;
-        if (App.currentPage !== 'page-activity-detail') return;
-        App._renderAttendanceTable?.(App._currentDetailEventId, 'detail-attendance-table');
-        App._renderUnregTable?.(App._currentDetailEventId, 'detail-unreg-table');
-        App._refreshRegistrationBadges?.(App._currentDetailEventId, 'detail-attendance-table')?.catch?.(() => {});
+        App._renderAttendanceTable?.(_eid, 'detail-attendance-table');
+        App._renderUnregTable?.(_eid, 'detail-unreg-table');
+        App._refreshRegistrationBadges?.(_eid, 'detail-attendance-table')?.catch?.(() => {});
       } else {
-        if (App.currentPage !== 'page-activity-detail') return;
-        App.showEventDetail?.(App._currentDetailEventId);
-      }
-      // 恢復 scroll（覆蓋 render 過程中任何跳頂）
-      if (_snapScroll > 0) {
-        window.scrollTo(0, _snapScroll);
-        requestAnimationFrame(function() { window.scrollTo(0, _snapScroll); });
-        setTimeout(function() { window.scrollTo(0, _snapScroll); }, 100);
+        // registrations/events 變更：局部更新名單 + 按鈕
+        App._renderAttendanceTable?.(_eid, 'detail-attendance-table');
+        App._renderUnregTable?.(_eid, 'detail-unreg-table');
+        App._renderGroupedWaitlistSection?.(_eid, 'detail-waitlist-container');
+        // 按鈕狀態需要重新判斷（snapshot 帶來的資料可能改變報名狀態）
+        App._refreshSignupButton?.(_eid);
       }
       return;
     }

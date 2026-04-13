@@ -271,9 +271,9 @@ Object.assign(App, {
       }
       this._flipAnimating = false;
       this._flipAnimatingAt = 0;
-      // 抑制 snapshot re-render 500ms，防止報名完成後立即觸發第二次重繪導致跳頂
-      this._signupRenderSuppressUntil = Date.now() + 500;
-      this.showEventDetail(id);
+      // 局部更新：只換按鈕和人數，不做全頁重繪（避免跳頂）
+      this._signupRenderSuppressUntil = Date.now() + 2000;
+      this._patchDetailAfterSignup(id, result.status === 'waitlisted');
       this._maybeShowLineNotifyPrompt?.();
 
       // ── 背景 post-ops（僅 fallback 路徑需要，CF 路徑已在伺服器完成）──
@@ -560,9 +560,9 @@ Object.assign(App, {
           }
           this._flipAnimating = false;
         }
-        // 抑制 snapshot re-render 500ms，防止取消完成後立即觸發第二次重繪導致跳頂
-        this._signupRenderSuppressUntil = Date.now() + 500;
-        this.showEventDetail(id);
+        // 局部更新：只換按鈕和人數，不做全頁重繪（避免跳頂）
+        this._signupRenderSuppressUntil = Date.now() + 2000;
+        this._patchDetailAfterCancel(id);
 
         // ── 背景 post-ops（僅 fallback 路徑，CF 已在伺服器完成）──
         if (!useCF) {
@@ -653,6 +653,80 @@ Object.assign(App, {
       _restoreCancelUI();
       this.showToast('找不到有效的報名紀錄，請重新整理後再試');
       this.showEventDetail(id);
+    }
+  },
+
+  // ════════════════════════════════
+  //  局部 DOM 更新（報名/取消後不做全頁重繪，避免跳頂）
+  // ════════════════════════════════
+
+  /** 報名成功後：按鈕換成「取消報名/取消候補」+ 更新名單 */
+  _patchDetailAfterSignup(eventId, isWaitlist) {
+    var actionZone = document.querySelector('.detail-action-primary');
+    if (actionZone) {
+      var cancelLabel = isWaitlist ? '取消候補' : '取消報名';
+      var bgColor = isWaitlist ? '#7c3aed' : '#dc2626';
+      actionZone.innerHTML =
+        '<div class="signup-glow-wrap" style="--glow-c:' + bgColor + ';--glow-c-light:' + bgColor + '">' +
+        '<div class="signup-glow-border"></div><div class="signup-glow-shadow"></div>' +
+        '<div class="signup-flipper"><button style="background:' + bgColor + ';color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:pointer" ' +
+        'onclick="App.handleCancelSignup(\'' + eventId + '\')">' + cancelLabel + '</button></div>' +
+        '<div class="signup-loading-hint"><div class="mini-spinner"></div><span class="mini-text">正在取消</span></div></div>';
+    }
+    this._patchDetailTables(eventId);
+  },
+
+  /** 取消成功後：按鈕換成「報名」+ 更新名單 */
+  _patchDetailAfterCancel(eventId) {
+    var e = ApiService.getEvent(eventId);
+    var isMainFull = e && (e.current || 0) >= (e.max || 0);
+    var actionZone = document.querySelector('.detail-action-primary');
+    if (actionZone) {
+      if (isMainFull) {
+        actionZone.innerHTML =
+          '<div class="signup-glow-wrap" style="--glow-c:#7c3aed;--glow-c-light:#a78bfa">' +
+          '<div class="signup-glow-border"></div><div class="signup-glow-shadow"></div>' +
+          '<div class="signup-flipper"><button style="background:#7c3aed;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:pointer" ' +
+          'onclick="App.handleSignup(\'' + eventId + '\')">報名候補</button></div>' +
+          '<div class="signup-loading-hint"><div class="mini-spinner"></div><span class="mini-text">報名候補中</span></div></div>';
+      } else {
+        actionZone.innerHTML =
+          '<div class="signup-glow-wrap" style="--glow-c:var(--accent);--glow-c-light:var(--accent-hover)">' +
+          '<div class="signup-glow-border"></div><div class="signup-glow-shadow"></div>' +
+          '<div class="signup-flipper"><button class="primary-btn" onclick="App.handleSignup(\'' + eventId + '\')">立即報名</button></div>' +
+          '<div class="signup-loading-hint"><div class="mini-spinner"></div><span class="mini-text">報名中</span></div></div>';
+      }
+    }
+    this._patchDetailTables(eventId);
+  },
+
+  /** snapshot 觸發時重新判斷按鈕狀態（不做全頁重繪） */
+  _refreshSignupButton(eventId) {
+    var e = ApiService.getEvent(eventId);
+    if (!e) return;
+    var isEnded = e.status === 'ended' || e.status === 'cancelled';
+    if (isEnded) return; // 已結束不需更新按鈕
+    var isSignedUp = this._isUserSignedUp(e);
+    var isOnWaitlist = isSignedUp && this._isUserOnWaitlist(e);
+    if (isOnWaitlist) {
+      this._patchDetailAfterSignup(eventId, true);
+    } else if (isSignedUp) {
+      this._patchDetailAfterSignup(eventId, false);
+    } else {
+      this._patchDetailAfterCancel(eventId);
+    }
+  },
+
+  /** 更新報名名單 + 候補名單（不重繪整頁） */
+  _patchDetailTables(eventId) {
+    if (typeof this._renderAttendanceTable === 'function') {
+      this._renderAttendanceTable(eventId, 'detail-attendance-table');
+    }
+    if (typeof this._renderUnregTable === 'function') {
+      this._renderUnregTable(eventId, 'detail-unreg-table');
+    }
+    if (typeof this._renderGroupedWaitlistSection === 'function') {
+      this._renderGroupedWaitlistSection(eventId, 'detail-waitlist-container');
     }
   },
 
