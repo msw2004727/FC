@@ -316,6 +316,13 @@
   line-height: 1;
   display: inline-block;
 }
+.sp-all-label {
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--accent, #2563eb);
+  letter-spacing: -.02em;
+}
 .sport-picker-item .sp-lock {
   margin-left: auto;
   width: 14px;

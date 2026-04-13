@@ -120,12 +120,9 @@ Object.assign(App, {
     const initialSport = savedSport !== null ? savedSport : 'all';
     App._activeSport = initialSport;
 
-    const _allSportSvg = '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" style="vertical-align:middle">'
-      + '<circle cx="12" cy="12" r="10" fill="none" stroke="#ef4444" stroke-width="2"/>'
-      + '<circle cx="12" cy="12" r="5" fill="#ef4444"/>'
-      + '</svg>';
+    const _allSportLabel = '<span class="sp-all-label" aria-hidden="true">All</span>';
     const _sportIcon = (key) => key === 'all'
-      ? _allSportSvg
+      ? _allSportLabel
       : getSportIconSvg(key);
 
     listHost.innerHTML = pickerOptions.map(item => {
