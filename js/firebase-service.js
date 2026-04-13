@@ -140,6 +140,7 @@ const FirebaseService = {
         App._refreshRegistrationBadges?.(App._currentDetailEventId, 'detail-attendance-table')?.catch?.(() => {});
       } else {
         if (App.currentPage !== 'page-activity-detail') return;
+        // snapshot re-render 不應重設捲動位置
         App.showEventDetail?.(App._currentDetailEventId);
       }
       return;

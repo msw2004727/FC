@@ -438,7 +438,9 @@ Object.assign(App, {
       if (_teamInfoHtml) _shortCells.push(_teamInfoHtml);
       if (_teamBatchHtml) _shortCells.push(_teamBatchHtml);
 
-      var _savedScroll = (document.scrollingElement || document.documentElement).scrollTop;
+      // 保存捲動位置（含多個滾動容器 fallback）
+      var _scrollEl = document.scrollingElement || document.documentElement;
+      var _savedScroll = _scrollEl.scrollTop || window.scrollY || window.pageYOffset || 0;
       nodes.body.innerHTML = `
       <div class="detail-row detail-row-wide"><span class="detail-label">\u5730\u9EDE</span>${locationHtml}</div>
       <div class="detail-row detail-row-wide"><span class="detail-label">\u6642\u9593</span>${escapeHTML(e.date)}</div>
@@ -472,7 +474,12 @@ Object.assign(App, {
       </div>
       <div id="detail-waitlist-container"></div>
     `;
-    (document.scrollingElement || document.documentElement).scrollTop = _savedScroll;
+    // 恢復捲動位置（innerHTML 替換可能瞬間歸零，需強制恢復）
+    if (_savedScroll > 0) {
+      _scrollEl.scrollTop = _savedScroll;
+      // 雙保險：rAF 後再恢復一次（防止瀏覽器在 layout 後重設）
+      requestAnimationFrame(function() { _scrollEl.scrollTop = _savedScroll; });
+    }
     const feeLabelEl = Array.from(nodes.body.querySelectorAll('.detail-label'))
       .find(el => String(el.textContent || '').trim() === '費用');
     const feeRowEl = feeLabelEl?.closest('.detail-row');
