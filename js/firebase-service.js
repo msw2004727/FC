@@ -140,7 +140,8 @@ const FirebaseService = {
         App._refreshRegistrationBadges?.(App._currentDetailEventId, 'detail-attendance-table')?.catch?.(() => {});
       } else {
         if (App.currentPage !== 'page-activity-detail') return;
-        // snapshot re-render 不應重設捲動位置
+        // 報名/取消完成後 500ms 內抑制 snapshot re-render，防止跳頂
+        if (App._signupRenderSuppressUntil && Date.now() < App._signupRenderSuppressUntil) return;
         App.showEventDetail?.(App._currentDetailEventId);
       }
       return;

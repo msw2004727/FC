@@ -271,6 +271,8 @@ Object.assign(App, {
       }
       this._flipAnimating = false;
       this._flipAnimatingAt = 0;
+      // 抑制 snapshot re-render 500ms，防止報名完成後立即觸發第二次重繪導致跳頂
+      this._signupRenderSuppressUntil = Date.now() + 500;
       this.showEventDetail(id);
       this._maybeShowLineNotifyPrompt?.();
 
@@ -558,6 +560,8 @@ Object.assign(App, {
           }
           this._flipAnimating = false;
         }
+        // 抑制 snapshot re-render 500ms，防止取消完成後立即觸發第二次重繪導致跳頂
+        this._signupRenderSuppressUntil = Date.now() + 500;
         this.showEventDetail(id);
 
         // ── 背景 post-ops（僅 fallback 路徑，CF 已在伺服器完成）──
