@@ -218,4 +218,68 @@ Object.assign(App, {
     });
   },
 
+  // ══════════════════════════════════
+  //  §8.2D Loading Progress Bar
+  // ══════════════════════════════════
+  _teamCardLoadingState: null,
+
+  _markTeamCardPending(cardEl) {
+    if (!cardEl || !cardEl.classList) return;
+    cardEl.classList.add('is-pending');
+    cardEl.setAttribute('aria-busy', 'true');
+    // Inject bar into first child (image area)
+    var imgArea = cardEl.querySelector('[style*="aspect-ratio"]') || cardEl.querySelector('.tc-img-placeholder');
+    if (imgArea && !imgArea.querySelector('.tc-loading-bar')) {
+      var bar = document.createElement('div');
+      bar.className = 'tc-loading-bar';
+      var fill = document.createElement('div');
+      fill.className = 'tc-loading-fill';
+      bar.appendChild(fill);
+      imgArea.appendChild(bar);
+    }
+    // Start simulated progress
+    var teamId = cardEl.getAttribute('onclick')?.match(/'([^']+)'/)?.[1] || '';
+    if (!this._teamCardLoadingState || this._teamCardLoadingState.teamId !== teamId) {
+      clearInterval(this._teamCardLoadingState?.interval);
+      var state = { teamId: teamId, progress: 0, startedAt: Date.now(), interval: null };
+      state.interval = setInterval(function () {
+        var p = state.progress;
+        var inc = p < 30 ? 4 : p < 60 ? 2 : p < 80 ? 0.5 : 0.15;
+        state.progress = Math.min(p + inc, 85);
+        if (cardEl) {
+          var f = cardEl.querySelector('.tc-loading-fill');
+          if (f) f.style.width = state.progress + '%';
+        }
+      }, 100);
+      this._teamCardLoadingState = state;
+    }
+  },
+
+  _clearTeamCardPending(cardEl, minVisibleMs) {
+    var state = this._teamCardLoadingState;
+    if (!state) return;
+    clearInterval(state.interval);
+    state.interval = null;
+    var elapsed = Date.now() - state.startedAt;
+    var waitMs = Math.max(0, (minVisibleMs || 0) - elapsed);
+    var self = this;
+    setTimeout(function () {
+      if (!cardEl) { self._teamCardLoadingState = null; return; }
+      var fill = cardEl.querySelector('.tc-loading-fill');
+      if (fill) fill.style.width = '100%';
+      setTimeout(function () {
+        if (cardEl) cardEl.classList.add('is-loaded');
+        setTimeout(function () {
+          if (cardEl) {
+            cardEl.classList.remove('is-pending', 'is-loaded');
+            cardEl.removeAttribute('aria-busy');
+            var bar = cardEl.querySelector('.tc-loading-bar');
+            if (bar) bar.remove();
+          }
+          self._teamCardLoadingState = null;
+        }, 400);
+      }, 350);
+    }, waitMs);
+  },
+
 });

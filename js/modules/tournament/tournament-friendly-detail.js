@@ -26,14 +26,14 @@ Object.assign(App, {
     return id ? (this._friendlyTournamentDetailStateById[id] || null) : null;
   },
 
-  async showTournamentDetail(id) {
+  async showTournamentDetail(id, options) {
     let base = ApiService.getTournament?.(id);
     // 快取 miss → 單筆查詢 Firestore（Phase 2A §7.4）
     if (!base) base = await ApiService.getTournamentAsync?.(id);
     if (!base || !this._isFriendlyTournamentRecord(base)) {
-      return await _tournamentFriendlyDetailLegacy.showTournamentDetail.call(this, id);
+      return await _tournamentFriendlyDetailLegacy.showTournamentDetail.call(this, id, options);
     }
-    if (this._requireLogin()) return;
+    if (!(options && options.allowGuest) && this._requireLogin()) return;
 
     const seq = ++this._friendlyTournamentDetailSeq;
     const statePromise = this._loadFriendlyTournamentDetailState(id);

@@ -3,8 +3,8 @@
    ============================================ */
 Object.assign(App, {
 
-  async showTournamentDetail(id) {
-    if (this._requireLogin()) return;
+  async showTournamentDetail(id, options) {
+    if (!(options && options.allowGuest) && this._requireLogin()) return;
     this.currentTournament = id;
     let t = ApiService.getTournament(id);
     if (!t) {

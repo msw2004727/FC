@@ -2075,24 +2075,18 @@ Phase 3 內部子排序（強制）：
 
 ## 待補項目
 
-### 待補 1：載入進度條（§8.2D）
-- **優先度**：LOW（UX 增強，不影響功能）
-- **內容**：複製 `event-list-home.js:135-194` 的 loading bar 狀態機到俱樂部/賽事列表卡片
-- **進度條邏輯**：progress 0→85% 漸進（4/2/0.5/0.15 遞減增量）+ 完成後 snap to 100% + 400ms 淡出
-- **適用時機**：點擊卡片進入詳情頁時的等待動畫
+### ~~待補 1：載入進度條（§8.2D）~~ ✅ 2026-04-14 完成
+- team-list-render.js 新增 `_markTeamCardPending` / `_clearTeamCardPending`（狀態機 + 漸進進度條）
+- css/team.css 新增 `.tc-card.is-pending` + `.tc-loading-bar` + `.tc-loading-fill` 樣式
 
-### 待補 2：深連結 Pre-auth REST 快速預覽（§7.10）
-- **優先度**：LOW（上線後依用戶反饋決定是否實作）
-- **內容**：新增 `_fetchTeamViaRest` / `_fetchTournamentViaRest`，用 Firestore REST API + API key 在 LIFF 登入前取得單筆資料
-- **效果**：深連結從 3-8 秒（等 LIFF 登入）降到 ~1 秒（即時預覽）
-- **參考**：活動模組的 `_fetchEventViaRest`（app.js:1265-1336）
+### ~~待補 2：深連結 Pre-auth REST 快速預覽（§7.10）~~ ✅ 2026-04-14 完成
+- app.js 新增 `_fetchTeamViaRest` / `_fetchTournamentViaRest`（Firestore REST API + API key）
+- 深連結 handler 支援未登入用戶透過 REST 快速預覽（`_instantDeepLinkMode`）
+- `_startDeepLinkGuard` 和 `_tryOpenPendingDeepLink` 允許 team/tournament 類型不等 LIFF 登入
 
-### 待補 3：Firestore Rules 測試檔新建
-- **優先度**：MEDIUM（確保 Rules 修改的回歸安全網）
-- **內容**：
-  - `tests/firestore-rules/team-feed-rules.test.js`（6 案例）
-  - `tests/firestore-rules/tournament-member-rules.test.js`（6 案例）
-- **測試案例**：見 §14.1 Phase 0 段落
+### ~~待補 3：Firestore Rules 測試檔新建~~ ✅ 2026-04-14 完成
+- `tests/firestore-rules/team-feed-rules.test.js`（6 案例）
+- `tests/firestore-rules/tournament-member-rules.test.js`（6 案例 + 額外 1 個不可變欄位交叉測試）
 
 ### ~~待補 4：遷移腳本實際執行~~ ✅ 2026-04-14 完成
 - **執行結果**：5 個俱樂部全部遷移成功，0 未匹配、0 模糊匹配

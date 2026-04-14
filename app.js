@@ -1337,6 +1337,67 @@ const App = {
     }
   },
 
+  // §7.10 Phase 待補：Pre-auth REST 快速預覽（俱樂部/賽事）
+  async _fetchTeamViaRest(teamId) {
+    try {
+      var pid = typeof firebaseConfig !== 'undefined' && firebaseConfig.projectId;
+      var key = typeof firebaseConfig !== 'undefined' && firebaseConfig.apiKey;
+      if (!pid || !key) return null;
+      // 先以 teamId 作為 doc path（ID 統一後 doc.id === data.id）
+      var directUrl = 'https://firestore.googleapis.com/v1/projects/' + pid + '/databases/(default)/documents/teams/' + encodeURIComponent(teamId) + '?key=' + encodeURIComponent(key);
+      var directResp = await fetch(directUrl);
+      if (directResp.ok) {
+        var doc = await directResp.json();
+        if (doc && doc.fields) return this._convertFirestoreRestDoc(doc, teamId);
+      }
+      // fallback：where 查詢（舊資料 doc.id ≠ data.id）
+      var queryUrl = 'https://firestore.googleapis.com/v1/projects/' + pid + '/databases/(default)/documents:runQuery?key=' + encodeURIComponent(key);
+      var queryResp = await fetch(queryUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ structuredQuery: { from: [{ collectionId: 'teams' }], where: { fieldFilter: { field: { fieldPath: 'id' }, op: 'EQUAL', value: { stringValue: teamId } } }, limit: 1 } })
+      });
+      if (!queryResp.ok) return null;
+      var results = await queryResp.json();
+      if (Array.isArray(results) && results.length > 0 && results[0].document) {
+        return this._convertFirestoreRestDoc(results[0].document, teamId);
+      }
+      return null;
+    } catch (err) {
+      console.warn('[DeepLink] REST team fetch failed:', err);
+      return null;
+    }
+  },
+
+  async _fetchTournamentViaRest(tournamentId) {
+    try {
+      var pid = typeof firebaseConfig !== 'undefined' && firebaseConfig.projectId;
+      var key = typeof firebaseConfig !== 'undefined' && firebaseConfig.apiKey;
+      if (!pid || !key) return null;
+      var directUrl = 'https://firestore.googleapis.com/v1/projects/' + pid + '/databases/(default)/documents/tournaments/' + encodeURIComponent(tournamentId) + '?key=' + encodeURIComponent(key);
+      var directResp = await fetch(directUrl);
+      if (directResp.ok) {
+        var doc = await directResp.json();
+        if (doc && doc.fields) return this._convertFirestoreRestDoc(doc, tournamentId);
+      }
+      var queryUrl = 'https://firestore.googleapis.com/v1/projects/' + pid + '/databases/(default)/documents:runQuery?key=' + encodeURIComponent(key);
+      var queryResp = await fetch(queryUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ structuredQuery: { from: [{ collectionId: 'tournaments' }], where: { fieldFilter: { field: { fieldPath: 'id' }, op: 'EQUAL', value: { stringValue: tournamentId } } }, limit: 1 } })
+      });
+      if (!queryResp.ok) return null;
+      var results = await queryResp.json();
+      if (Array.isArray(results) && results.length > 0 && results[0].document) {
+        return this._convertFirestoreRestDoc(results[0].document, tournamentId);
+      }
+      return null;
+    } catch (err) {
+      console.warn('[DeepLink] REST tournament fetch failed:', err);
+      return null;
+    }
+  },
+
   _startDeepLinkGuard() {
     const pending = this._getPendingDeepLink();
     if (!pending) return;
@@ -1348,8 +1409,8 @@ const App = {
     this._bootDeepLinkTimer = setTimeout(() => {
       if (!this._getPendingDeepLink()) return;
       const isAuthedNow = (typeof LineAuth !== 'undefined' && LineAuth.isLoggedIn());
-      if (!isAuthedNow && pending.type !== 'event') {
-        // For unauthenticated deep links, prioritize LINE login redirect.
+      if (!isAuthedNow && pending.type !== 'event' && pending.type !== 'team' && pending.type !== 'tournament') {
+        // For unauthenticated deep links (except event/team/tournament which have REST fallback), prioritize LINE login redirect.
         this._tryStartDeepLinkLogin();
         this._bootDeepLinkTimer = setTimeout(() => {
           if (!this._getPendingDeepLink()) return;
@@ -1392,7 +1453,7 @@ const App = {
       }
 
       const isAuthed = (typeof LineAuth !== 'undefined' && LineAuth.isLoggedIn());
-      if (!isAuthed && pending.type !== 'event') {
+      if (!isAuthed && pending.type !== 'event' && pending.type !== 'team' && pending.type !== 'tournament') {
         this._tryStartDeepLinkLogin();
         return false;
       }
@@ -1445,15 +1506,30 @@ const App = {
         if (pending.type === 'team') {
           let team = ApiService.getTeam?.(pending.id);
           if (!team) {
-            // 集合還沒載完？直接查 1 筆，不等全集合（Phase 2A §7.5）
-            team = await FirebaseService.fetchTeamIfMissing(pending.id);
+            // Phase 2A §7.5：快取未命中 → 單筆查詢
+            if (isAuthed) {
+              team = await FirebaseService.fetchTeamIfMissing(pending.id);
+            } else {
+              // §7.10 Pre-auth REST：未登入也能透過 API key 取得俱樂部資料
+              team = await this._fetchTeamViaRest(pending.id);
+              if (team && typeof FirebaseService !== 'undefined' && FirebaseService._cache) {
+                if (!FirebaseService._cache.teams.find(function(t) { return t.id === team.id; })) {
+                  FirebaseService._cache.teams.push(team);
+                }
+              }
+            }
           }
           if (!team) return false;
 
-          const result = await this.showTeamDetail(pending.id);
-          if (result?.ok && this.currentPage === 'page-team-detail' && this._teamDetailId === pending.id) {
-            this._completeDeepLinkSuccess();
-            return true;
+          if (!isAuthed) this._instantDeepLinkMode = true;
+          try {
+            const result = await this.showTeamDetail(pending.id, { allowGuest: !isAuthed });
+            if (result?.ok && this.currentPage === 'page-team-detail' && this._teamDetailId === pending.id) {
+              this._completeDeepLinkSuccess();
+              return true;
+            }
+          } finally {
+            if (!isAuthed) this._instantDeepLinkMode = false;
           }
           return false;
         }
@@ -1461,16 +1537,30 @@ const App = {
         if (pending.type === 'tournament') {
           let tournament = ApiService.getTournament?.(pending.id);
           if (!tournament) {
-            // 集合還沒載完？直接查 1 筆，不等全集合（Phase 2A §7.5）
-            tournament = await FirebaseService.fetchTournamentIfMissing(pending.id);
+            if (isAuthed) {
+              tournament = await FirebaseService.fetchTournamentIfMissing(pending.id);
+            } else {
+              // §7.10 Pre-auth REST
+              tournament = await this._fetchTournamentViaRest(pending.id);
+              if (tournament && typeof FirebaseService !== 'undefined' && FirebaseService._cache) {
+                if (!FirebaseService._cache.tournaments.find(function(t) { return t.id === tournament.id; })) {
+                  FirebaseService._cache.tournaments.push(tournament);
+                }
+              }
+            }
           }
           if (!tournament) return false;
 
-          await ScriptLoader.ensureForPage('page-tournament-detail');
-          await this.showTournamentDetail(pending.id);
-          if (this.currentPage === 'page-tournament-detail' && this.currentTournament === pending.id) {
-            this._completeDeepLinkSuccess();
-            return true;
+          if (!isAuthed) this._instantDeepLinkMode = true;
+          try {
+            await ScriptLoader.ensureForPage('page-tournament-detail');
+            await this.showTournamentDetail(pending.id, { allowGuest: !isAuthed });
+            if (this.currentPage === 'page-tournament-detail' && this.currentTournament === pending.id) {
+              this._completeDeepLinkSuccess();
+              return true;
+            }
+          } finally {
+            if (!isAuthed) this._instantDeepLinkMode = false;
           }
           return false;
         }
