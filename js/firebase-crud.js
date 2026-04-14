@@ -2473,6 +2473,88 @@ Object.assign(FirebaseService, {
   },
 
   // ════════════════════════════════
+  //  Phase 2B: Team Feed CRUD
+  // ════════════════════════════════
+
+  async listTeamFeed(teamId) {
+    var collRef = await this._getTeamSubcollectionRef(teamId, 'feed');
+    var snapshot = await collRef.orderBy('createdAt', 'desc').get();
+    return snapshot.docs.map(function(doc) {
+      var data = doc.data();
+      data._docId = doc.id;
+      if (data.createdAt && typeof data.createdAt.toDate === 'function') {
+        data.createdAt = data.createdAt.toDate().toISOString();
+      }
+      return data;
+    });
+  },
+
+  async createTeamPost(teamId, post) {
+    var authed = await this.ensureAuthReadyForWrite();
+    if (!authed) throw new Error('Firebase 登入失敗');
+    var collRef = await this._getTeamSubcollectionRef(teamId, 'feed');
+    var payload = Object.assign({}, post);
+    payload.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+    await collRef.doc(post.id).set(payload);
+    // audit log 由 ApiService 層處理
+    return post;
+  },
+
+  async deleteTeamPost(teamId, postId) {
+    var authed = await this.ensureAuthReadyForWrite();
+    if (!authed) throw new Error('Firebase 登入失敗');
+    var collRef = await this._getTeamSubcollectionRef(teamId, 'feed');
+    await collRef.doc(postId).delete();
+    // audit log 由 ApiService 層處理
+  },
+
+  async updateTeamPost(teamId, postId, updates) {
+    var authed = await this.ensureAuthReadyForWrite();
+    if (!authed) throw new Error('Firebase 登入失敗');
+    var collRef = await this._getTeamSubcollectionRef(teamId, 'feed');
+    await collRef.doc(postId).update(updates);
+    // audit log 由 ApiService 層處理
+  },
+
+  async pinTeamPost(teamId, postId, pinned) {
+    var authed = await this.ensureAuthReadyForWrite();
+    if (!authed) throw new Error('Firebase 登入失敗');
+    var collRef = await this._getTeamSubcollectionRef(teamId, 'feed');
+    await collRef.doc(postId).update({ pinned: pinned });
+    // audit log 由 ApiService 層處理
+  },
+
+  async toggleTeamFeedReaction(teamId, postId, reactionKey, uid, adding) {
+    var collRef = await this._getTeamSubcollectionRef(teamId, 'feed');
+    var updateObj = {};
+    updateObj['reactions.' + reactionKey] = adding
+      ? firebase.firestore.FieldValue.arrayUnion(uid)
+      : firebase.firestore.FieldValue.arrayRemove(uid);
+    await collRef.doc(postId).update(updateObj);
+  },
+
+  async addTeamFeedComment(teamId, postId, comment) {
+    var authed = await this.ensureAuthReadyForWrite();
+    if (!authed) throw new Error('Firebase 登入失敗');
+    var collRef = await this._getTeamSubcollectionRef(teamId, 'feed');
+    await collRef.doc(postId).update({
+      comments: firebase.firestore.FieldValue.arrayUnion(comment)
+    });
+    // audit log 由 ApiService 層處理
+  },
+
+  async deleteTeamFeedComment(teamId, postId, commentId) {
+    var authed = await this.ensureAuthReadyForWrite();
+    if (!authed) throw new Error('Firebase 登入失敗');
+    var collRef = await this._getTeamSubcollectionRef(teamId, 'feed');
+    var docSnap = await collRef.doc(postId).get();
+    if (!docSnap.exists) return;
+    var filtered = (docSnap.data().comments || []).filter(function(c) { return c.id !== commentId; });
+    await collRef.doc(postId).update({ comments: filtered });
+    // audit log 由 ApiService 層處理
+  },
+
+  // ════════════════════════════════
   //  Education: Groups CRUD
   // ════════════════════════════════
 

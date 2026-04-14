@@ -31,6 +31,8 @@ Object.assign(App, {
       </div>`;
   },
 
+  _teamListLastFp: '',
+
   renderTeamList() {
     const container = document.getElementById('team-list');
     if (!container) return;
@@ -46,6 +48,14 @@ Object.assign(App, {
       teams = teams.filter(t => t.sportTag === activeGlobalSport);
     }
     const sorted = this._sortTeams(teams);
+
+    // Phase 2B §8.2B：指紋跳過重繪
+    var fp = sorted.map(function(t) {
+      return t.id + '|' + (t.name || '') + '|' + (t.active ? 1 : 0) + '|' + (t.pinned ? 1 : 0) + '|' + (t.teamExp || 0);
+    }).join(',');
+    if (this._teamListLastFp === fp && container.children.length > 0) return;
+    this._teamListLastFp = fp;
+
     var _tlScrollEl = document.scrollingElement || document.documentElement;
     var _tlSavedScroll = _tlScrollEl.scrollTop;
     container.innerHTML = sorted.length > 0
@@ -64,6 +74,8 @@ Object.assign(App, {
           var _s2 = _tlScrollEl.scrollTop;
           let ts = ApiService.getActiveTeams();
           if (typeTab) ts = ts.filter(t => (t.type || 'general') === typeTab);
+          // 強制清除指紋，讓教育俱樂部學員數更新後能重繪
+          this._teamListLastFp = '';
           c.innerHTML = this._sortTeams(ts).map(t => this._teamCardHTML(t)).join('') || c.innerHTML;
           _tlScrollEl.scrollTop = _s2;
         }

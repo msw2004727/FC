@@ -690,6 +690,49 @@ const ApiService = {
   },
 
   // ════════════════════════════════
+  //  Phase 2B: Team Feed（動態牆）
+  // ════════════════════════════════
+
+  async getTeamFeed(teamId) {
+    return await FirebaseService.listTeamFeed(teamId);
+  },
+
+  async createTeamFeedPost(teamId, post) {
+    var result = await FirebaseService.createTeamPost(teamId, post);
+    this._writeOpLog('team_feed', '動態牆發文', '俱樂部「' + teamId + '」新增動態');
+    return result;
+  },
+
+  async deleteTeamFeedPost(teamId, postId) {
+    await FirebaseService.deleteTeamPost(teamId, postId);
+    this._writeOpLog('team_feed', '動態牆刪文', '俱樂部「' + teamId + '」刪除動態 ' + postId);
+  },
+
+  async updateTeamFeedPost(teamId, postId, updates) {
+    await FirebaseService.updateTeamPost(teamId, postId, updates);
+    this._writeOpLog('team_feed', '動態牆更新', '俱樂部「' + teamId + '」更新動態 ' + postId);
+  },
+
+  async pinTeamFeedPost(teamId, postId, pinned) {
+    await FirebaseService.pinTeamPost(teamId, postId, pinned);
+    this._writeOpLog('team_feed', '動態牆置頂', '俱樂部「' + teamId + '」' + (pinned ? '置頂' : '取消置頂') + ' ' + postId);
+  },
+
+  async toggleTeamFeedReaction(teamId, postId, reactionKey, uid, adding) {
+    await FirebaseService.toggleTeamFeedReaction(teamId, postId, reactionKey, uid, adding);
+  },
+
+  async addTeamFeedComment(teamId, postId, comment) {
+    await FirebaseService.addTeamFeedComment(teamId, postId, comment);
+    this._writeOpLog('team_feed', '動態牆留言', '俱樂部「' + teamId + '」動態 ' + postId + ' 新增留言');
+  },
+
+  async deleteTeamFeedComment(teamId, postId, commentId) {
+    await FirebaseService.deleteTeamFeedComment(teamId, postId, commentId);
+    this._writeOpLog('team_feed', '動態牆刪留言', '俱樂部「' + teamId + '」動態 ' + postId + ' 刪除留言 ' + commentId);
+  },
+
+  // ════════════════════════════════
   //  Shop（二手商品）
   // ════════════════════════════════
 

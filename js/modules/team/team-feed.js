@@ -1,28 +1,57 @@
 /* ================================================
-   SportHub — Team Feed: Subcollection CRUD
-   Feed 留言板遷移到 teams/{teamId}/feed/{postId}
-   subcollection。
+   SportHub — Team Feed: ApiService 封裝 + 權限守衛
+   Phase 2B §8.4 + §12.4B：
+   - 所有 CRUD 操作走 ApiService（不直接呼叫 Firebase）
+   - per-team 角色 + 管理員 override 雙層權限守衛
    Dynamic HTML uses escapeHTML() per CLAUDE.md.
    ================================================ */
 
 Object.assign(App, {
 
   _teamFeedCache: {},
+  _MAX_PINNED: 3,
 
-  /* ── Load Feed ── */
+  /* ═══════════════════════════════
+     §12.4B 權限守衛
+     ═══════════════════════════════ */
+
+  /** 是否能刪除動態牆貼文（自己的 or 幹部 or 管理員） */
+  _canDeleteTeamFeedPost(team, post) {
+    var myUid = (ApiService.getCurrentUser?.() || {}).uid;
+    // 層 1：自己的貼文 → 任何成員可刪
+    if (post.uid === myUid) return true;
+    // 層 2：全域管理員 override
+    if (this.hasPermission('team.manage_all')) return true;
+    // 層 3：team-local 角色（幹部可刪）
+    return this._canManageTeamMembers(team);
+  },
+
+  /** 是否能置頂貼文（幹部 or 管理員） */
+  _canPinTeamFeedPost(team) {
+    if (this.hasPermission('team.manage_all')) return true;
+    return this._canManageTeamMembers(team);
+  },
+
+  /** 是否能發動態牆貼文（成員） */
+  _canPostTeamFeed(teamId) {
+    return this._isTeamMember(teamId);
+  },
+
+  /** 是否能刪除留言（留言作者 or 幹部 or 管理員） */
+  _canDeleteTeamFeedComment(team, comment) {
+    var myUid = (ApiService.getCurrentUser?.() || {}).uid;
+    if (comment.uid === myUid) return true;
+    if (this.hasPermission('team.manage_all')) return true;
+    return this._canManageTeamMembers(team);
+  },
+
+  /* ═══════════════════════════════
+     Load Feed
+     ═══════════════════════════════ */
 
   async _loadTeamFeed(teamId) {
     try {
-      var collRef = await FirebaseService._getTeamSubcollectionRef(teamId, 'feed');
-      var snapshot = await collRef.orderBy('createdAt', 'desc').get();
-      this._teamFeedCache[teamId] = snapshot.docs.map(function (doc) {
-        var data = doc.data();
-        data._docId = doc.id;
-        if (data.createdAt && typeof data.createdAt.toDate === 'function') {
-          data.createdAt = data.createdAt.toDate().toISOString();
-        }
-        return data;
-      });
+      this._teamFeedCache[teamId] = await ApiService.getTeamFeed(teamId);
     } catch (err) {
       console.error('[TeamFeed] _loadTeamFeed failed:', err);
       this._teamFeedCache[teamId] = [];
@@ -33,13 +62,19 @@ Object.assign(App, {
     return this._teamFeedCache[teamId] || [];
   },
 
-  /* ── Submit Post ── */
+  /* ═══════════════════════════════
+     Submit Post
+     ═══════════════════════════════ */
 
   async submitTeamPost(teamId) {
+    if (!this._canPostTeamFeed(teamId)) {
+      this.showToast('僅俱樂部成員可發文');
+      return;
+    }
     var input = document.getElementById('team-feed-input');
     var content = (input ? input.value : '').trim();
-    if (!content) { this.showToast('\u8acb\u8f38\u5165\u5167\u5bb9'); return; }
-    if (content.length > 200) { this.showToast('\u5167\u5bb9\u4e0d\u53ef\u8d85\u904e 200 \u5b57'); return; }
+    if (!content) { this.showToast('請輸入內容'); return; }
+    if (content.length > 200) { this.showToast('內容不可超過 200 字'); return; }
     var t = ApiService.getTeam(teamId);
     if (!t) return;
     var user = ApiService.getCurrentUser ? ApiService.getCurrentUser() : null;
@@ -58,87 +93,94 @@ Object.assign(App, {
     };
 
     try {
-      var collRef = await FirebaseService._getTeamSubcollectionRef(teamId, 'feed');
-      var payload = Object.assign({}, post);
-      payload.createdAt = firebase.firestore.FieldValue.serverTimestamp();
-      await collRef.doc(post.id).set(payload);
+      await ApiService.createTeamFeedPost(teamId, post);
       await this._loadTeamFeed(teamId);
     } catch (err) {
       console.error('[TeamFeed] submitTeamPost failed:', err);
-      this.showToast('\u767c\u4f48\u5931\u6557\uff0c\u8acb\u7a0d\u5f8c\u518d\u8a66');
+      this.showToast('發佈失敗，請稍後再試');
       return;
     }
     this._teamFeedPage[teamId] = 1;
     if (uid) this._grantAutoExp?.(uid, 'post_team_feed', content.slice(0, 20));
-    this.showToast('\u52d5\u614b\u5df2\u767c\u4f48');
+    this.showToast('動態已發佈');
     this._refreshTeamDetailFeed(teamId);
   },
 
-  /* ── Delete Post ── */
+  /* ═══════════════════════════════
+     Delete Post
+     ═══════════════════════════════ */
 
   async deleteTeamPost(teamId, postId) {
-    try {
-      var collRef = await FirebaseService._getTeamSubcollectionRef(teamId, 'feed');
-      await collRef.doc(postId).delete();
-      var cache = this._teamFeedCache[teamId] || [];
-      this._teamFeedCache[teamId] = cache.filter(function (p) { return p.id !== postId; });
-    } catch (err) {
-      console.error('[TeamFeed] deleteTeamPost failed:', err);
-      this.showToast('\u522a\u9664\u5931\u6557');
+    var team = ApiService.getTeam(teamId);
+    var post = (this._teamFeedCache[teamId] || []).find(function(p) { return p.id === postId; });
+    if (!team || !post) return;
+    if (!this._canDeleteTeamFeedPost(team, post)) {
+      this.showToast('權限不足');
       return;
     }
-    this.showToast('\u52d5\u614b\u5df2\u522a\u9664');
+    try {
+      await ApiService.deleteTeamFeedPost(teamId, postId);
+      var cache = this._teamFeedCache[teamId] || [];
+      this._teamFeedCache[teamId] = cache.filter(function(p) { return p.id !== postId; });
+    } catch (err) {
+      console.error('[TeamFeed] deleteTeamPost failed:', err);
+      this.showToast('刪除失敗');
+      return;
+    }
+    this.showToast('動態已刪除');
     this._refreshTeamDetailFeed(teamId);
   },
 
-  /* ── Pin / Unpin Post ── */
+  /* ═══════════════════════════════
+     Pin / Unpin Post
+     ═══════════════════════════════ */
 
   async pinTeamPost(teamId, postId) {
+    var team = ApiService.getTeam(teamId);
+    if (!team || !this._canPinTeamFeedPost(team)) {
+      this.showToast('權限不足');
+      return;
+    }
     var cache = this._teamFeedCache[teamId] || [];
-    var cached = cache.find(function (p) { return p.id === postId; });
+    var cached = cache.find(function(p) { return p.id === postId; });
     if (!cached) return;
     var newPinned = !cached.pinned;
     if (newPinned) {
-      var pinCount = cache.filter(function (p) { return p.pinned; }).length;
+      var pinCount = cache.filter(function(p) { return p.pinned; }).length;
       if (pinCount >= this._MAX_PINNED) {
-        this.showToast('\u6700\u591a\u53ea\u80fd\u7f6e\u9802 ' + this._MAX_PINNED + ' \u5247');
+        this.showToast('最多只能置頂 ' + this._MAX_PINNED + ' 則');
         return;
       }
     }
     try {
-      var collRef = await FirebaseService._getTeamSubcollectionRef(teamId, 'feed');
-      await collRef.doc(postId).update({ pinned: newPinned });
+      await ApiService.pinTeamFeedPost(teamId, postId, newPinned);
       cached.pinned = newPinned;
     } catch (err) {
       console.error('[TeamFeed] pinTeamPost failed:', err);
-      this.showToast('\u64cd\u4f5c\u5931\u6557');
+      this.showToast('操作失敗');
       return;
     }
-    var isPinned = ((this._teamFeedCache[teamId] || []).find(function (p) { return p.id === postId; }) || {}).pinned;
-    this.showToast(isPinned ? '\u5df2\u7f6e\u9802' : '\u5df2\u53d6\u6d88\u7f6e\u9802');
+    this.showToast(newPinned ? '已置頂' : '已取消置頂');
     this._refreshTeamDetailFeed(teamId);
   },
 
-  /* ── Reactions ── */
+  /* ═══════════════════════════════
+     Reactions
+     ═══════════════════════════════ */
 
   async toggleFeedReaction(teamId, postId, key) {
     var user = ApiService.getCurrentUser ? ApiService.getCurrentUser() : null;
     var uid = (user && user.uid) ? user.uid : '';
     if (!uid) return;
     var cache = this._teamFeedCache[teamId] || [];
-    var cached = cache.find(function (p) { return p.id === postId; });
+    var cached = cache.find(function(p) { return p.id === postId; });
     if (!cached) return;
     if (!cached.reactions) cached.reactions = { like: [], heart: [], cheer: [] };
     var cArr = cached.reactions[key] || [];
     var cIdx = cArr.indexOf(uid);
     var adding = cIdx < 0;
     try {
-      var collRef = await FirebaseService._getTeamSubcollectionRef(teamId, 'feed');
-      var updateObj = {};
-      updateObj['reactions.' + key] = adding
-        ? firebase.firestore.FieldValue.arrayUnion(uid)
-        : firebase.firestore.FieldValue.arrayRemove(uid);
-      await collRef.doc(postId).update(updateObj);
+      await ApiService.toggleTeamFeedReaction(teamId, postId, key, uid, adding);
       if (adding) cArr.push(uid); else cArr.splice(cIdx, 1);
       cached.reactions[key] = cArr;
     } catch (err) {
@@ -147,13 +189,15 @@ Object.assign(App, {
     this._refreshTeamDetailFeed(teamId);
   },
 
-  /* ── Comments ── */
+  /* ═══════════════════════════════
+     Comments
+     ═══════════════════════════════ */
 
   async submitFeedComment(teamId, postId) {
     var input = document.getElementById('fc-' + postId);
     var text = (input ? input.value : '').trim();
     if (!text) return;
-    if (text.length > 100) { this.showToast('\u7559\u8a00\u4e0d\u53ef\u8d85\u904e 100 \u5b57'); return; }
+    if (text.length > 100) { this.showToast('留言不可超過 100 字'); return; }
     var user = ApiService.getCurrentUser ? ApiService.getCurrentUser() : null;
     var uid = (user && user.uid) ? user.uid : '';
     var name = (user && (user.displayName || user.name)) || '';
@@ -162,42 +206,45 @@ Object.assign(App, {
     var comment = { id: generateId('fc_'), uid: uid, name: name, text: text, time: timeStr };
 
     var cache = this._teamFeedCache[teamId] || [];
-    var cached = cache.find(function (p) { return p.id === postId; });
+    var cached = cache.find(function(p) { return p.id === postId; });
     if (!cached) return;
     try {
-      var collRef = await FirebaseService._getTeamSubcollectionRef(teamId, 'feed');
-      await collRef.doc(postId).update({
-        comments: firebase.firestore.FieldValue.arrayUnion(comment)
-      });
+      await ApiService.addTeamFeedComment(teamId, postId, comment);
       await this._loadTeamFeed(teamId);
     } catch (err) {
       console.error('[TeamFeed] submitFeedComment failed:', err);
-      this.showToast('\u7559\u8a00\u5931\u6557');
+      this.showToast('留言失敗');
       return;
     }
     this._refreshTeamDetailFeed(teamId);
   },
 
   async deleteFeedComment(teamId, postId, commentId) {
-    var cache = this._teamFeedCache[teamId] || [];
-    var cached = cache.find(function (p) { return p.id === postId; });
-    if (!cached || !cached.comments) return;
+    var team = ApiService.getTeam(teamId);
+    var post = (this._teamFeedCache[teamId] || []).find(function(p) { return p.id === postId; });
+    var comment = post && post.comments ? post.comments.find(function(c) { return c.id === commentId; }) : null;
+    if (!team || !post || !comment) return;
+    if (!this._canDeleteTeamFeedComment(team, comment)) {
+      this.showToast('權限不足');
+      return;
+    }
     try {
-      var collRef = await FirebaseService._getTeamSubcollectionRef(teamId, 'feed');
-      var docSnap = await collRef.doc(postId).get();
-      if (!docSnap.exists) return;
-      var filtered = (docSnap.data().comments || []).filter(function (c) { return c.id !== commentId; });
-      await collRef.doc(postId).update({ comments: filtered });
-      cached.comments = cached.comments.filter(function (c) { return c.id !== commentId; });
+      await ApiService.deleteTeamFeedComment(teamId, postId, commentId);
+      var cached = (this._teamFeedCache[teamId] || []).find(function(p) { return p.id === postId; });
+      if (cached && cached.comments) {
+        cached.comments = cached.comments.filter(function(c) { return c.id !== commentId; });
+      }
     } catch (err) {
       console.error('[TeamFeed] deleteFeedComment failed:', err);
-      this.showToast('\u522a\u9664\u7559\u8a00\u5931\u6557');
+      this.showToast('刪除留言失敗');
       return;
     }
     this._refreshTeamDetailFeed(teamId);
   },
 
-  /* ── Refresh & Pagination ── */
+  /* ═══════════════════════════════
+     Refresh & Pagination
+     ═══════════════════════════════ */
 
   _refreshTeamDetailFeed(teamId) {
     var section = document.getElementById('team-feed-section');

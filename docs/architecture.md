@@ -101,8 +101,8 @@ flowchart TD
 | `i18n.js` | 多語系翻譯字串，無外部依賴，最先載入 |
 | `firebase-config.js` | 初始化 Firebase SDK，向外暴露 `db`、`storage`、`auth` 全域物件 |
 | `firebase-service.js` | **快取優先**資料層；以 `_cache` 記憶體物件映射 Firestore 子集合（`events/{docId}/registrations` 等），透過 `collectionGroup` 監聯器即時同步並持久化至 localStorage。提供 `_getEventDocId()` / `_getEventDocIdAsync()` 子集合路徑工具。Phase 2A 新增 `fetchTeamIfMissing()` / `fetchTournamentIfMissing()` 單筆補查（cache-first → Firestore fallback），搭配 `_teamSlices.injected` / `_tournamentSlices.injected` 追蹤注入來源 |
-| `firebase-crud.js` | 透過 `Object.assign` 擴充 `FirebaseService`，提供各集合的新增 / 更新 / 刪除 / 圖片上傳操作。包含 `_rebuildOccupancy()` 統一佔位重建函式，所有報名/取消/遞補流程共用。Phase 2A 起 `addTeam` / `addTournament` 改用 `.doc(customId).set()` 消除雙軌 ID（`data.id === data._docId`） |
-| `api-service.js` | **抽象層**；從 `FirebaseService._cache` 取資料，提供 `getRegistrationsByEvent()`、`getAttendanceRecords()` 等統一讀取介面。Phase 2A 新增 `getTeamAsync()` / `getTournamentAsync()` 非同步版本（cache miss 時 fallback 至 Firestore 單筆查詢） |
+| `firebase-crud.js` | 透過 `Object.assign` 擴充 `FirebaseService`，提供各集合的新增 / 更新 / 刪除 / 圖片上傳操作。包含 `_rebuildOccupancy()` 統一佔位重建函式，所有報名/取消/遞補流程共用。Phase 2A 起 `addTeam` / `addTournament` 改用 `.doc(customId).set()` 消除雙軌 ID。Phase 2B 新增 Team Feed CRUD（`listTeamFeed` / `createTeamPost` / `deleteTeamPost` / `updateTeamPost` / `pinTeamPost` / `toggleTeamFeedReaction` / `addTeamFeedComment` / `deleteTeamFeedComment`） |
+| `api-service.js` | **抽象層**；從 `FirebaseService._cache` 取資料，提供統一讀取介面。Phase 2A 新增 `getTeamAsync()` / `getTournamentAsync()` 非同步版本。Phase 2B 新增 Team Feed 封裝（`getTeamFeed` / `createTeamFeedPost` / `deleteTeamFeedPost` 等 8 個方法 + audit log） |
 | `line-auth.js` | LINE LIFF SDK 封裝；在 Demo 模式或 localhost 時停用，提供登入 / 登出 / 取得個人資料 |
 | `page-loader.js` | 按需非同步載入 `pages/*.html` 片段，快取版本由 `CACHE_VERSION` 控制。延遲載入（`_loadDeferred`）與按需載入（`ensurePage`）完成後自動呼叫 `App._bindPageElements()` 重新綁定事件 |
 | `script-loader.js` | 定義頁面群組與模組映射；目前所有模組已在 `index.html` 以 `<script defer>` 靜態載入，ScriptLoader 作為保底機制確保頁面切換時模組可用 |
@@ -206,10 +206,10 @@ CF 查詢：     admin.firestore().collectionGroup('registrations') + 去重（p
 |------|------|
 | `team-list-helpers.js` | 身分解析、權限判斷、type handler 等純工具函式（Phase 1a 抽出 + Phase 4 §10.2 教育解耦） |
 | `team-list-stats.js` | 成員計數、排名、排序等純計算函式（Phase 1a 從 team-list.js 抽出） |
-| `team-list.js` | 俱樂部列表篩選、置頂、管理操作膠水 |
-| `team-list-render.js` | 俱樂部卡片渲染與列表顯示 |
+| `team-list.js` | 俱樂部列表篩選、置頂、管理操作膠水（Phase 2B：搜尋防抖 300ms + searchTeamsFromServer） |
+| `team-list-render.js` | 俱樂部卡片渲染與列表顯示（Phase 2B：指紋跳過重繪） |
 | `team-detail.js` | 俱樂部詳情主模組 |
-| `team-feed.js` | 俱樂部留言板 CRUD（subcollection：teams/{teamId}/feed） |
+| `team-feed.js` | 俱樂部動態牆 — ApiService 封裝 + per-team 權限守衛（Phase 2B §8.4 + §12.4B） |
 | `team-detail-render.js` | 俱樂部詳情渲染（活動、動態牆、留言） |
 | `team-detail-invite.js` | 俱樂部邀請 QR Code 與連結分享（原 team-detail-members.js） |
 | `team-share-builders.js` | 分享用純建構函式：URL / AltText / Flex Message（Phase 1a 從 team-share.js 抽出） |
@@ -229,7 +229,7 @@ CF 查詢：     admin.firestore().collectionGroup('registrations') + 去重（p
 | `tournament-core.js` | 賽事共用核心 helper（狀態判斷、主辦顯示） |
 | `tournament-helpers.js` | 純工具函式（權限判斷、委託人正規化、主辦人解析等 9 個 helper） |
 | `tournament-detail.js` | 賽事詳情頁主模組（Phase 1b 移除 renderLeagueSchedule / renderBracket 死碼） |
-| `tournament-render.js` | 公開賽事頁與詳情頁 renderer |
+| `tournament-render.js` | 公開賽事頁與詳情頁 renderer（Phase 2B：搜尋防抖 + 指紋跳過 + 捲動保存） |
 | `tournament-manage.js` | 賽事管理入口與管理列表權限過濾 |
 | `tournament-manage-form.js` | 賽事表單工具與 helper（場地管理等） |
 | `tournament-manage-host.js` | 賽事主辦俱樂部選擇與表單布局 |

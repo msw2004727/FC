@@ -10,6 +10,16 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-04-14 — 俱樂部×賽事重構 Phase 2B：列表效能優化
+- **目標**：俱樂部/賽事列表頁效能優化 + 動態牆走 ApiService + 前端權限守衛
+- **執行內容**：
+  - §8.1 分頁機制：`firebase-service.js` 擴充 `_teamSlices: { active:[], injected:[] }`（原 Phase 2A 的 `{ injected: new Set() }`），`_buildCollectionQuery` teams/tournaments 改 `orderBy('createdAt','desc').limit(50/100)`，新增 `loadMoreTeams()` / `loadMoreTournaments()` cursor-based 分頁，`_loadStaticCollections` 新增 cursor 捕捉
+  - §8.2 渲染優化：`team-list.js` 搜尋防抖 300ms + `searchTeamsFromServer()` 全集合搜尋按鈕，`team-list-render.js` 指紋跳過重繪（`_teamListLastFp`），`tournament-render.js` 搜尋防抖 + 指紋跳過（`_tournamentListLastFp`）+ 捲動保存 + `searchTournamentsFromServer()`
+  - §8.3 即時監聽：`config.js` 新增 `teamLimit:50` / `tournamentLimit:100`，`PAGE_DATA_CONTRACT` page-teams/page-tournaments 加入 `realtime`，`firebase-service.js` 新增 `_startTeamsRealtimeListener` / `_startTournamentsRealtimeListener` + stop/reconnect，`_mergeTeamSlices` / `_mergeTournamentSlices` 合併 active + injected（防 onSnapshot 洗掉冷門俱樂部），`fetchTeamIfMissing` 改為 push 完整 team 物件到 `injected[]`（原 Set.add(id)），整合 `_startPageScopedRealtimeForPage` / `finalizePageScopedRealtimeForPage` / `destroy`
+  - §8.4 team-feed.js 走 ApiService：`firebase-crud.js` 新增 8 個 Team Feed CRUD 函式，`api-service.js` 新增對應封裝 + audit log，`team-feed.js` 全面改用 ApiService
+  - §12.4B Feed 前端權限守衛：`team-feed.js` 新增 `_canDeleteTeamFeedPost` / `_canPinTeamFeedPost` / `_canPostTeamFeed` / `_canDeleteTeamFeedComment`，per-team 角色 + `team.manage_all` 管理員 override 雙層模式
+- **教訓**：`_teamSlices.injected` 從 `Set<id>` 改為 `Array<object>` 是必要的，因為 onSnapshot 替換 active 後需要完整物件才能合併回 `_cache.teams`。loadMore 結果也放入 injected 桶保護，避免下次 onSnapshot 洗掉。
+
 ### 2026-04-14 — 俱樂部×賽事重構 Phase 4：表單拆分 + 教育解耦
 - **目標**：降低 team-form.js / tournament-friendly-detail.js 的單檔複雜度，解耦教育型俱樂部的 if 散落
 - **執行內容**：

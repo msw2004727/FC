@@ -55,11 +55,15 @@ Object.assign(App, {
     this.renderTournamentTimeline();
   },
 
+  _tcFilterTimer: null,
+
   filterTournamentCenter() {
-    this.renderTournamentTimeline();
+    clearTimeout(this._tcFilterTimer);
+    this._tcFilterTimer = setTimeout(() => this.renderTournamentTimeline(), 300);
   },
 
   _tournamentsRenderSeq: 0,
+  _tournamentListLastFp: '',
 
   renderTournamentTimeline() {
     const container = document.getElementById('tournament-timeline');
@@ -97,8 +101,21 @@ Object.assign(App, {
 
     if (tournaments.length === 0) {
       container.innerHTML = `<div style="text-align:center;padding:2rem;color:var(--text-muted);font-size:.85rem">${tab === 'ended' ? t('tournament.noEnded') : t('tournament.noActive')}</div>`;
+      // Phase 2B §8.2A：快取不完整且搜尋無結果 → 搜尋所有賽事
+      if (query && !FirebaseService._tournamentAllLoaded) {
+        container.insertAdjacentHTML('beforeend',
+          '<div style="text-align:center;padding:1rem">' +
+          '<button class="outline-btn" style="font-size:.8rem;padding:.4rem 1rem" ' +
+          'onclick="App.searchTournamentsFromServer()">找不到？搜尋所有賽事</button></div>');
+      }
+      this._tournamentListLastFp = '';
       return;
     }
+
+    // Phase 2B §8.2B：指紋跳過重繪
+    var fp = tournaments.map(function(t) { return t.id + '|' + (t.name || '') + '|' + (t.status || ''); }).join(',');
+    if (this._tournamentListLastFp === fp && container.children.length > 0) return;
+    this._tournamentListLastFp = fp;
 
     const fmtDate = d => {
       if (!d) return '';
@@ -119,6 +136,10 @@ Object.assign(App, {
       [TOURNAMENT_STATUS.ENDED]:  { bg: 'rgba(107,114,128,.07)', border: '#6b7280', darkBg: 'rgba(107,114,128,.15)' },
     };
     const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+
+    // Phase 2B §8.2C：捲動保存
+    var scrollEl = document.scrollingElement || document.documentElement;
+    var savedScroll = scrollEl.scrollTop;
 
     container.innerHTML = tournaments.map(t => {
       const isEnded = this.isTournamentEnded(t);
@@ -156,7 +177,20 @@ Object.assign(App, {
           </div>
         </div>`;
     }).join('');
+    scrollEl.scrollTop = savedScroll;
     this._markPageSnapshotReady?.('page-tournaments');
+  },
+
+  /** Phase 2B §8.2A：server-side 全集合搜尋 */
+  async searchTournamentsFromServer() {
+    var query = (document.getElementById('tc-search')?.value || '').trim();
+    if (!query) return;
+    this.showToast('搜尋中...');
+    while (!FirebaseService._tournamentAllLoaded) {
+      var loaded = await FirebaseService.loadMoreTournaments();
+      if (loaded <= 0) break;
+    }
+    this.renderTournamentTimeline();
   },
 
 });

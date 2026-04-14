@@ -89,8 +89,14 @@ const FirebaseService = {
   _bootCollectionLoadFailed: {},
   _persistDebounceTimer: null,
   _eventSlices: { active: [], terminal: [] },
-  _teamSlices: { injected: new Set() },      // Phase 2A：fetchIfMissing 注入追蹤（Phase 2B onSnapshot 保護用）
-  _tournamentSlices: { injected: new Set() },
+  _teamSlices: { active: [], injected: [] },       // Phase 2B：active=onSnapshot, injected=fetchIfMissing 注入（防洗掉）
+  _tournamentSlices: { active: [], injected: [] },
+  _teamLastDoc: null,
+  _teamAllLoaded: false,
+  _loadingMoreTeams: false,
+  _tournamentLastDoc: null,
+  _tournamentAllLoaded: false,
+  _loadingMoreTournaments: false,
   _authDependentWorkPromise: null,
   _authDependentWorkUid: null,
   _lastLoginAuditAtByUid: {},
@@ -100,6 +106,8 @@ const FirebaseService = {
     registrations: null,
     attendanceRecords: null,
     events: null,
+    teams: null,
+    tournaments: null,
   },
   _pageScopedRealtimeStartTimers: {},
   _collectionLoadedAt: {},
@@ -166,6 +174,17 @@ const FirebaseService = {
     if (source === 'messages') {
       App.updateNotifBadge?.();
       if (page === 'page-messages') App.renderMessageList?.();
+      return;
+    }
+
+    // Phase 2B：teams / tournaments onSnapshot 更新
+    if (source === 'teams') {
+      this._onTeamsUpdated();
+      return;
+    }
+    if (source === 'tournaments') {
+      if (page === 'page-tournaments') App.renderTournamentTimeline?.();
+      if (page === 'page-home') App.renderOngoingTournaments?.();
       return;
     }
 
@@ -479,6 +498,8 @@ const FirebaseService = {
     'page-activity-detail': ['registrations', 'attendanceRecords', 'events'],
     'page-my-activities':   ['registrations', 'attendanceRecords'],
     'page-scan':            ['attendanceRecords', 'registrations'],
+    'page-teams':           ['teams'],
+    'page-tournaments':     ['tournaments'],
   },
 
   _staticReloadMaxAgeMs: {
@@ -526,9 +547,16 @@ const FirebaseService = {
     if (name === 'registrations' || name === 'attendanceRecords') {
       return null;
     }
-    // Phase 3b: activityRecords 無專用監聽器，改用 collectionGroup（去重在 _loadStaticCollections）
+    // Phase 3b: activityRecords 無專用監聯器，改用 collectionGroup（去重在 _loadStaticCollections）
     if (name === 'activityRecords') {
       return db.collectionGroup('activityRecords');
+    }
+    // Phase 2B：teams / tournaments 分頁（cursor-based，首批 50/100）
+    if (name === 'teams') {
+      return db.collection('teams').orderBy('createdAt', 'desc').limit(50);
+    }
+    if (name === 'tournaments') {
+      return db.collection('tournaments').orderBy('createdAt', 'desc').limit(100);
     }
     return db.collection(name).limit(limitCount);
   },
@@ -629,6 +657,69 @@ const FirebaseService = {
     }
   },
 
+  // ─── Phase 2B：teams / tournaments 分頁載入 ───
+
+  /**
+   * 分頁載入更多俱樂部（cursor-based，startAfter 上一批最後一筆）
+   * @returns {number} 本次載入的筆數（0 = 已全部載完, -1 = 載入中）
+   */
+  async loadMoreTeams() {
+    if (this._teamAllLoaded || !this._teamLastDoc) return 0;
+    if (this._loadingMoreTeams) return -1;
+    this._loadingMoreTeams = true;
+    try {
+      var query = db.collection('teams')
+        .orderBy('createdAt', 'desc')
+        .startAfter(this._teamLastDoc)
+        .limit(50);
+      var snap = await query.get();
+      var newDocs = snap.docs.map(function(doc) { return Object.assign({}, doc.data(), { _docId: doc.id }); });
+      if (newDocs.length > 0) {
+        this._teamLastDoc = snap.docs[snap.docs.length - 1];
+        // 加入 injected 桶保護（防 onSnapshot 洗掉）
+        this._teamSlices.injected = this._teamSlices.injected.concat(newDocs);
+        this._mergeTeamSlices(false);
+      }
+      if (newDocs.length < 50) this._teamAllLoaded = true;
+      return newDocs.length;
+    } catch (err) {
+      console.error('[loadMoreTeams]', err);
+      throw err;
+    } finally {
+      this._loadingMoreTeams = false;
+    }
+  },
+
+  /**
+   * 分頁載入更多賽事
+   * @returns {number} 本次載入的筆數
+   */
+  async loadMoreTournaments() {
+    if (this._tournamentAllLoaded || !this._tournamentLastDoc) return 0;
+    if (this._loadingMoreTournaments) return -1;
+    this._loadingMoreTournaments = true;
+    try {
+      var query = db.collection('tournaments')
+        .orderBy('createdAt', 'desc')
+        .startAfter(this._tournamentLastDoc)
+        .limit(100);
+      var snap = await query.get();
+      var newDocs = snap.docs.map(function(doc) { return Object.assign({}, doc.data(), { _docId: doc.id }); });
+      if (newDocs.length > 0) {
+        this._tournamentLastDoc = snap.docs[snap.docs.length - 1];
+        this._tournamentSlices.injected = this._tournamentSlices.injected.concat(newDocs);
+        this._mergeTournamentSlices(false);
+      }
+      if (newDocs.length < 100) this._tournamentAllLoaded = true;
+      return newDocs.length;
+    } catch (err) {
+      console.error('[loadMoreTournaments]', err);
+      throw err;
+    } finally {
+      this._loadingMoreTournaments = false;
+    }
+  },
+
   async _loadCollectionsByName(names) {
     const uniqueNames = [...new Set((names || []).filter(Boolean))];
     if (!uniqueNames.length) return [];
@@ -650,6 +741,8 @@ const FirebaseService = {
     if (needed.has('registrations')) this._startRegistrationsListener();
     if (needed.has('attendanceRecords')) this._startAttendanceRecordsListener();
     if (needed.has('events')) this._startEventsRealtimeListener();
+    if (needed.has('teams')) this._startTeamsRealtimeListener();
+    if (needed.has('tournaments')) this._startTournamentsRealtimeListener();
   },
 
   _cancelDeferredPageScopedRealtimeStart(pageId) {
@@ -692,6 +785,8 @@ const FirebaseService = {
     if (!needed.has('registrations')) this._stopRegistrationsListener();
     if (!needed.has('attendanceRecords')) this._stopAttendanceRecordsListener();
     if (!needed.has('events')) this._stopEventsRealtimeListener();
+    if (!needed.has('teams')) this._stopTeamsRealtimeListener();
+    if (!needed.has('tournaments')) this._stopTournamentsRealtimeListener();
   },
 
   /** 根據頁面 ID 懶載入對應的集合 */
@@ -764,8 +859,10 @@ const FirebaseService = {
       } else {
         this._cache.teams.push(team);
       }
-      // 標記為 injected（Phase 2B onSnapshot 保護用）
-      this._teamSlices.injected.add(safeId);
+      // Phase 2B：同時寫入 injected 桶（防 onSnapshot 洗掉冷門俱樂部）
+      var injIdx = this._teamSlices.injected.findIndex(function(t) { return t.id === safeId; });
+      if (injIdx >= 0) { this._teamSlices.injected[injIdx] = team; }
+      else { this._teamSlices.injected.push(team); }
       return team;
     } catch (err) {
       console.warn('[fetchTeamIfMissing]', err);
@@ -800,7 +897,10 @@ const FirebaseService = {
       } else {
         this._cache.tournaments.push(tournament);
       }
-      this._tournamentSlices.injected.add(safeId);
+      // Phase 2B：同時寫入 injected 桶
+      var tInjIdx = this._tournamentSlices.injected.findIndex(function(t) { return t.id === safeId; });
+      if (tInjIdx >= 0) { this._tournamentSlices.injected[tInjIdx] = tournament; }
+      else { this._tournamentSlices.injected.push(tournament); }
       return tournament;
     } catch (err) {
       console.warn('[fetchTournamentIfMissing]', err);
@@ -983,6 +1083,46 @@ const FirebaseService = {
 
     if (!shouldRefreshUI) return;
     this._debouncedSnapshotRender('events');
+  },
+
+  // ─── Phase 2B：teams / tournaments 分桶合併 ───
+
+  _mergeTeamSlices(shouldRefreshUI) {
+    var merged = [];
+    var seen = new Set();
+    // 1. active（onSnapshot 結果）優先
+    (this._teamSlices.active || []).forEach(function(doc) {
+      if (!doc || !doc._docId || seen.has(doc._docId)) return;
+      seen.add(doc._docId);
+      merged.push(doc);
+    });
+    // 2. injected（fetchIfMissing + loadMore 注入）補上不在 active 中的項目
+    (this._teamSlices.injected || []).forEach(function(doc) {
+      if (!doc || !doc._docId || seen.has(doc._docId)) return;
+      seen.add(doc._docId);
+      merged.push(doc);
+    });
+    this._cache.teams = merged;
+    this._debouncedPersistCache();
+    if (shouldRefreshUI) this._debouncedSnapshotRender('teams');
+  },
+
+  _mergeTournamentSlices(shouldRefreshUI) {
+    var merged = [];
+    var seen = new Set();
+    (this._tournamentSlices.active || []).forEach(function(doc) {
+      if (!doc || !doc._docId || seen.has(doc._docId)) return;
+      seen.add(doc._docId);
+      merged.push(doc);
+    });
+    (this._tournamentSlices.injected || []).forEach(function(doc) {
+      if (!doc || !doc._docId || seen.has(doc._docId)) return;
+      seen.add(doc._docId);
+      merged.push(doc);
+    });
+    this._cache.tournaments = merged;
+    this._debouncedPersistCache();
+    if (shouldRefreshUI) this._debouncedSnapshotRender('tournaments');
   },
 
   _syncCurrentUserFromUsersSnapshot() {
@@ -1383,6 +1523,15 @@ const FirebaseService = {
       }
       const docs = rawDocs.map(doc => ({ ...doc.data(), _docId: doc.id }));
       this._replaceCollectionCache(name, docs);
+      // Phase 2B：teams / tournaments 分頁 cursor 捕捉
+      if (name === 'teams') {
+        this._teamLastDoc = rawDocs.length > 0 ? rawDocs[rawDocs.length - 1] : null;
+        this._teamAllLoaded = rawDocs.length < 50;
+      }
+      if (name === 'tournaments') {
+        this._tournamentLastDoc = rawDocs.length > 0 ? rawDocs[rawDocs.length - 1] : null;
+        this._tournamentAllLoaded = rawDocs.length < 100;
+      }
       loadedNames.push(name);
     });
     return loadedNames;
@@ -2858,6 +3007,120 @@ const FirebaseService = {
     }, delay);
   },
 
+  // ════════════════════════════════
+  //  Phase 2B：Teams 即時監聽
+  // ════════════════════════════════
+
+  _startTeamsRealtimeListener() {
+    if (this._realtimeListenerStarted.teams) return;
+    this._realtimeListenerStarted.teams = true;
+    this._lazyLoaded.teams = true;
+    var self = this;
+    var unsub = db.collection('teams')
+      .orderBy('updatedAt', 'desc')
+      .limit(this._getRealtimeLimit('teamLimit'))
+      .onSnapshot(
+        function(snapshot) {
+          self._teamSlices.active = snapshot.docs.map(function(doc) {
+            return Object.assign({}, doc.data(), { _docId: doc.id });
+          });
+          self._mergeTeamSlices(true);
+          self._snapshotReconnectAttempts.teams = 0;
+        },
+        function(err) { self._reconnectTeamsListener(err); }
+      );
+    this._pageScopedRealtimeListeners.teams = unsub;
+  },
+
+  _stopTeamsRealtimeListener() {
+    if (this._pageScopedRealtimeListeners.teams) {
+      this._pageScopedRealtimeListeners.teams();
+      this._pageScopedRealtimeListeners.teams = null;
+    }
+    this._realtimeListenerStarted.teams = false;
+  },
+
+  _reconnectTeamsListener(err) {
+    console.warn('[onSnapshot] teams 監聽錯誤:', err);
+    this._pageScopedRealtimeListeners.teams = null;
+    this._realtimeListenerStarted.teams = false;
+    var key = 'teams';
+    var attempts = (this._snapshotReconnectAttempts[key] || 0) + 1;
+    this._snapshotReconnectAttempts[key] = attempts;
+    if (attempts > 5) {
+      console.warn('[onSnapshot] teams 重連已達上限 (' + attempts + ' 次)，停止重試');
+      return;
+    }
+    var baseDelay = Math.min(1000 * Math.pow(2, attempts - 1), 30000);
+    var delay = Math.round(baseDelay + baseDelay * Math.random() * 0.3);
+    console.log('[onSnapshot] teams 將在 ' + delay + 'ms 後重連 (第 ' + attempts + ' 次)');
+    var self = this;
+    this._reconnectTimers.teams = setTimeout(function() {
+      delete self._reconnectTimers.teams;
+      var pageId = typeof App !== 'undefined' ? App.currentPage : '';
+      if (self._getPageScopedRealtimeCollections(pageId).includes('teams')) {
+        self._startTeamsRealtimeListener();
+      }
+    }, delay);
+  },
+
+  // ════════════════════════════════
+  //  Phase 2B：Tournaments 即時監聽
+  // ════════════════════════════════
+
+  _startTournamentsRealtimeListener() {
+    if (this._realtimeListenerStarted.tournaments) return;
+    this._realtimeListenerStarted.tournaments = true;
+    this._lazyLoaded.tournaments = true;
+    var self = this;
+    var unsub = db.collection('tournaments')
+      .orderBy('updatedAt', 'desc')
+      .limit(this._getRealtimeLimit('tournamentLimit'))
+      .onSnapshot(
+        function(snapshot) {
+          self._tournamentSlices.active = snapshot.docs.map(function(doc) {
+            return Object.assign({}, doc.data(), { _docId: doc.id });
+          });
+          self._mergeTournamentSlices(true);
+          self._snapshotReconnectAttempts.tournaments = 0;
+        },
+        function(err) { self._reconnectTournamentsListener(err); }
+      );
+    this._pageScopedRealtimeListeners.tournaments = unsub;
+  },
+
+  _stopTournamentsRealtimeListener() {
+    if (this._pageScopedRealtimeListeners.tournaments) {
+      this._pageScopedRealtimeListeners.tournaments();
+      this._pageScopedRealtimeListeners.tournaments = null;
+    }
+    this._realtimeListenerStarted.tournaments = false;
+  },
+
+  _reconnectTournamentsListener(err) {
+    console.warn('[onSnapshot] tournaments 監聽錯誤:', err);
+    this._pageScopedRealtimeListeners.tournaments = null;
+    this._realtimeListenerStarted.tournaments = false;
+    var key = 'tournaments';
+    var attempts = (this._snapshotReconnectAttempts[key] || 0) + 1;
+    this._snapshotReconnectAttempts[key] = attempts;
+    if (attempts > 5) {
+      console.warn('[onSnapshot] tournaments 重連已達上限 (' + attempts + ' 次)，停止重試');
+      return;
+    }
+    var baseDelay = Math.min(1000 * Math.pow(2, attempts - 1), 30000);
+    var delay = Math.round(baseDelay + baseDelay * Math.random() * 0.3);
+    console.log('[onSnapshot] tournaments 將在 ' + delay + 'ms 後重連 (第 ' + attempts + ' 次)');
+    var self = this;
+    this._reconnectTimers.tournaments = setTimeout(function() {
+      delete self._reconnectTimers.tournaments;
+      var pageId = typeof App !== 'undefined' ? App.currentPage : '';
+      if (self._getPageScopedRealtimeCollections(pageId).includes('tournaments')) {
+        self._startTournamentsRealtimeListener();
+      }
+    }, delay);
+  },
+
   destroy() {
     this._listeners.forEach(unsub => unsub());
     this._listeners = [];
@@ -2867,6 +3130,8 @@ const FirebaseService = {
     this._stopRegistrationsListener();
     this._stopAttendanceRecordsListener();
     this._stopEventsRealtimeListener();
+    this._stopTeamsRealtimeListener();
+    this._stopTournamentsRealtimeListener();
     if (this._userListener) {
       this._userListener();
       this._userListener = null;

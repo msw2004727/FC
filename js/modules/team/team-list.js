@@ -50,7 +50,14 @@ Object.assign(App, {
     this.filterTeams();
   },
 
+  _teamFilterTimer: null,
+
   filterTeams() {
+    clearTimeout(this._teamFilterTimer);
+    this._teamFilterTimer = setTimeout(() => this._doFilterTeams(), 300);
+  },
+
+  _doFilterTeams() {
     const query = (document.getElementById('team-search')?.value || '').trim().toLowerCase();
     const region = document.getElementById('team-region-filter')?.value || '';
     const sport = document.getElementById('team-sport-filter')?.value || '';
@@ -58,7 +65,6 @@ Object.assign(App, {
     const container = document.getElementById('team-list');
 
     this._initTeamListSportFilter?.();
-    // 同步右上角運動篩選到下拉選單
     const sportSel = document.getElementById('team-sport-filter');
     const globalSportSync = (typeof App !== 'undefined' && App._activeSport && App._activeSport !== 'all') ? App._activeSport : '';
     if (sportSel && globalSportSync && !sport) sportSel.value = globalSportSync;
@@ -91,6 +97,26 @@ Object.assign(App, {
     container.innerHTML = sorted.length > 0
       ? sorted.map(t => this._teamCardHTML(t)).join('')
       : `<div style="grid-column:1/-1;text-align:center;padding:2rem;color:var(--text-muted);font-size:.85rem">${t('team.noMatch')}</div>`;
+
+    // Phase 2B §8.2A：快取不完整且搜尋無結果 → 顯示「搜尋所有俱樂部」按鈕
+    if (query && sorted.length === 0 && !FirebaseService._teamAllLoaded) {
+      container.insertAdjacentHTML('beforeend',
+        '<div style="grid-column:1/-1;text-align:center;padding:1rem">' +
+        '<button class="outline-btn" style="font-size:.8rem;padding:.4rem 1rem" ' +
+        'onclick="App.searchTeamsFromServer()">找不到？搜尋所有俱樂部</button></div>');
+    }
+  },
+
+  /** Phase 2B §8.2A：server-side 全集合搜尋（載入所有尚未載入的俱樂部） */
+  async searchTeamsFromServer() {
+    var query = (document.getElementById('team-search')?.value || '').trim();
+    if (!query) return;
+    this.showToast('搜尋中...');
+    while (!FirebaseService._teamAllLoaded) {
+      var loaded = await FirebaseService.loadMoreTeams();
+      if (loaded <= 0) break;
+    }
+    this._doFilterTeams();
   },
 
   _pinCounter: 100,
