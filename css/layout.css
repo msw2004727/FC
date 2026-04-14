@@ -665,7 +665,6 @@
   .sync-bar { max-width: 640px; width: 100%; left: 50%; right: auto; transform: translateX(-50%); }
   .swr-bar { max-width: 640px; width: 100%; left: 50%; right: auto; transform: translateX(-50%); }
   #translate-banner { max-width: 640px; width: 100%; left: 50% !important; right: auto !important; transform: translateX(-50%); }
-  .home-version-tag { left: calc(50% - 320px + 6px); }
 }
 
 /* ─── 早期隱藏 ─── */

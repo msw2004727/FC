@@ -561,3 +561,8 @@
   color: var(--text-muted);
   animation: skeleton-pulse 1.5s ease-in-out infinite;
 }
+
+/* ─── Desktop: 版號對齊內容區域 ─── */
+@media (min-width: 800px) {
+  .home-version-tag { left: calc(50% - 320px + 6px); }
+}
