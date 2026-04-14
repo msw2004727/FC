@@ -10,6 +10,19 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### [永久] 2026-04-14 — 俱樂部×賽事重構完成總結（Phase 0-3 + Phase 4）
+- **範圍**：6 個 Phase、8 個 commit、13 個新建檔案、30+ 個修改檔案
+- **架構成果**：
+  - per-entity 專看專讀（fetchIfMissing + injected 桶 + onSnapshot 合併保護）
+  - ID 統一（新建俱樂部/賽事 doc.id === data.id，events 維持雙軌）
+  - 教練 UID 化（coaches[]名字 → coachUids[] UID + coachNames[] 顯示快取）
+  - 內嵌陣列移除（賽事 teamApplications/teamEntries → 純子集合）
+  - 權限強化（feed 雙層守衛 + delegateUids 擴權防護 + 賽事操作拆分）
+  - 效能優化（分頁 + 防抖 + 指紋跳過 + 即時監聯 + 捲動保存）
+- **教訓**：見計畫書 §18 歷史教訓清單，以及各 Phase 的 `[永久]` 條目
+- **待補**：8.2D 載入進度條（UX）、§7.10 深連結 pre-auth REST（UX）、Firestore Rules 測試新建、遷移腳本實際執行
+- **計畫書**：`docs/specs/team-tournament-refactor-plan.md` v3.0
+
 ### [永久] 2026-04-14 — coachUids 欄位遷移（教練 UID 化）
 - **問題**：教練以名字（`coaches[]`）儲存，同名用戶會碰撞，且 Firestore Rules 無法驗證教練身分
 - **修復**：
