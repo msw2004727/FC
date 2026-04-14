@@ -2094,8 +2094,8 @@ Phase 3 內部子排序（強制）：
   - `tests/firestore-rules/tournament-member-rules.test.js`（6 案例）
 - **測試案例**：見 §14.1 Phase 0 段落
 
-### 待補 4：遷移腳本實際執行
-- **優先度**：HIGH（功能正式上線前必須完成）
-- **內容**：在 Firestore production 上執行 `scripts/migrate-team-uids.js`
-- **前置條件**：確認所有既有俱樂部的教練名字都能匹配到 UID
-- **驗證**：未匹配教練 = 0 → 才可確認 Phase 3-coach-d 前端已安全
+### ~~待補 4：遷移腳本實際執行~~ ✅ 2026-04-14 完成
+- **執行結果**：5 個俱樂部全部遷移成功，0 未匹配、0 模糊匹配
+- **新增欄位**：`coachUids`、`coachNames`、`captainName`、`leaderNames` 已寫入全部 5 個 team 文件
+- **冪等驗證**：第二次 dry-run 顯示 5 skipped / 0 updated ✅
+- **Phase 3-coach-d 前置條件**：已滿足（未匹配教練 = 0）
