@@ -1017,6 +1017,12 @@ body.modal-open { overflow: hidden; }
 @media (min-width: 800px) {
   .shop-grid { grid-template-columns: repeat(4, 1fr); }
   #main-content { max-width: 640px; }
+  #top-bar { max-width: 640px; left: 50%; right: auto; transform: translateX(-50%); border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+  #bottom-tabs { max-width: 640px; left: 50%; right: auto; transform: translateX(-50%); }
+  #bottom-tabs::before { display: none; }
+  .modal { max-width: 640px; left: 50%; right: auto; transform: translateX(-50%) translateY(100%); }
+  .modal.open { transform: translateX(-50%) translateY(0); }
+  .sync-bar { max-width: 640px; left: 50%; right: auto; transform: translateX(-50%); }
 }
 
 /* ─── Skeleton Screen ─── */
