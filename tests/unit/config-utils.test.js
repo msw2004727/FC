@@ -15,6 +15,8 @@
 const EVENT_SPORT_OPTIONS = [
   { key: 'football', label: '\u8db3\u7403' },
   { key: 'basketball', label: '\u7c43\u7403' },
+  { key: 'dodgeball', label: '\u7f8e\u5f0f\u8eb2\u907f\u7403' },
+  { key: 'restaurant', label: '\u9910\u5ef3(\u89c0\u8cfd)' },
   { key: 'baseball_softball', label: '\u68d2\u58d8\u7403' },
   { key: 'volleyball', label: '\u6392\u7403' },
   { key: 'table_tennis', label: '\u684c\u7403' },
@@ -28,9 +30,7 @@ const EVENT_SPORT_OPTIONS = [
   { key: 'dance', label: '\u821e\u8e48' },
   { key: 'yoga', label: '\u7c84\u4f3d' },
   { key: 'martial_arts', label: '\u6b66\u8853' },
-  { key: 'restaurant', label: '\u9910\u5ef3(\u89c0\u8cfd)' },
   { key: 'pickleball', label: '\u5339\u514b\u7403' },
-  { key: 'dodgeball', label: '\u7f8e\u5f0f\u8eb2\u907f\u7403' },
 ];
 
 const SPORT_ICON_EMOJI = {

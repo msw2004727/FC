@@ -4,7 +4,7 @@
 
 // ─── Cache Version（更新此值以清除瀏覽器快取）───
 // 變更日誌已移除，請用 git log 查閱歷史部署記錄。
-const CACHE_VERSION = '20260414f';
+const CACHE_VERSION = '20260414g';
 
 // ─── 即時監聽 limit 預設值（可在儀表板動態調整，存於 siteConfig/realtimeConfig）───
 const REALTIME_LIMIT_DEFAULTS = {
@@ -405,6 +405,8 @@ const TYPE_CONFIG = {
 const EVENT_SPORT_OPTIONS = [
   { key: 'football', label: '足球' },
   { key: 'basketball', label: '籃球' },
+  { key: 'dodgeball', label: '美式躲避球' },
+  { key: 'restaurant', label: '餐廳(觀賽)' },
   { key: 'baseball_softball', label: '棒壘球' },
   { key: 'volleyball', label: '排球' },
   { key: 'table_tennis', label: '桌球' },
@@ -418,9 +420,7 @@ const EVENT_SPORT_OPTIONS = [
   { key: 'dance', label: '舞蹈' },
   { key: 'yoga', label: '瑜伽' },
   { key: 'martial_arts', label: '武術' },
-  { key: 'restaurant', label: '餐廳(觀賽)' },
   { key: 'pickleball', label: '匹克球' },
-  { key: 'dodgeball', label: '美式躲避球' },
 ];
 
 const SPORT_ICON_EMOJI = {
