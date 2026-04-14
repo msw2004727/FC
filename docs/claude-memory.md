@@ -10,7 +10,18 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
-### 2026-04-13 — 舊活動簽到/報名紀錄不顯示 — 全站監聽器 limit 截斷 + 極簡補查
+### [永久] 2026-04-14 — 俱樂部×賽事重構 Phase 0：安全性修復（Firestore Rules + 索引）
+- **問題**：三處安全漏洞 — (1) 賽事 entries/members 公開讀取（未登入可讀取所有參賽者 UID/姓名）(2) 動態牆任何登入用戶可刪改他人貼文 (3) 賽事委託人可自我擴權（修改 delegateUids 新增其他委託人）
+- **修復**：
+  - `firestore.rules` entries/members `allow read: if true` → `if isAuth()`
+  - `firestore.rules` feed update/delete 加 `uid == auth.uid || isCurrentUserTeamCaptainOrLeader`（create 暫不收緊，等 Phase 3 ID 統一後再處理）
+  - 新增 `delegateUidsUnchangedOrCreator()` 函式 — 只有建立者（`creatorUid`）和管理員可修改 `delegateUids`
+  - `firestore.indexes.json` 新增 teams + tournaments 的 `creatorUid + createdAt` 複合索引
+- **教訓**：
+  - feed create 不能用 `isCurrentUserInTeam(teamId)` 收緊 — `teamId` 來自 Firestore 路徑是 doc.id，但 `users.teamIds` 存的是自訂 ID，對舊俱樂部（doc.id ≠ data.id）會擋住合法成員
+  - `delegateUids` 不能設為完全不可變（immutable），因為賽事建立者通常是隊長而非管理員，需要能管理自己的委託人
+
+### 2026-04-13 — 舊活動簽到/報名紀錄不顯示 — 全站監聯器 limit 截斷 + 極簡補查
 - **問題**：全站監聽器 `collectionGroup.limit(1500)` + dedup 後實際只有 ~750 筆快取，舊活動的簽到/報名紀錄被截斷，詳情頁顯示空白
 - **調查過程**：經四輪專家審計（13 個 MUST FIX）設計出 per-event listener + Feature Flag 完整方案（v5），但第五輪極簡挑戰 + 7 位專家 7-0 投票後決定採用極簡方案
 - **修復**：`fetchAttendanceIfMissing` + `fetchRegistrationsIfMissing` — 快取有資料直接 return（零成本），沒有就從子集合查一次 merge 進快取。15 行 / 2 檔案

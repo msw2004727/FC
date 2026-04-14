@@ -777,12 +777,17 @@ service cloud.firestore {
       allow delete: if isAdmin() || isTeamOwner();
 
       // ── Feed（留言板）──
-      // 登入可讀寫
+      // Phase 0: read/create 維持認證即可；update/delete 限作者本人或俱樂部幹部
+      // Phase 3 再收緊 create（需等 ID 統一後 isCurrentUserInTeam 才能正確比對）
       match /feed/{postId} {
         allow read: if request.auth != null;
         allow create: if request.auth != null;
-        allow update: if request.auth != null;
-        allow delete: if request.auth != null;
+        allow update: if request.auth != null
+          && (resource.data.uid == request.auth.uid
+              || isCurrentUserTeamCaptainOrLeader(teamId));
+        allow delete: if request.auth != null
+          && (resource.data.uid == request.auth.uid
+              || isCurrentUserTeamCaptainOrLeader(teamId));
       }
 
       // ── Education: Groups（分組）──
@@ -849,6 +854,12 @@ service cloud.firestore {
           && request.resource.data.mode == resource.data.mode;
       }
 
+      // Phase 0: delegateUids 只允許建立者或管理員修改（防委託人自我擴權）
+      function delegateUidsUnchangedOrCreator() {
+        return request.resource.data.delegateUids == resource.data.delegateUids
+          || resource.data.creatorUid == request.auth.uid;
+      }
+
       function isTournamentDelegate() {
         return isAuth()
           && tournamentExists()
@@ -877,7 +888,8 @@ service cloud.firestore {
       allow update: if isAdmin()
         || (tournamentExists()
           && canManageTournamentScope()
-          && tournamentRootImmutableFieldsSafe());
+          && tournamentRootImmutableFieldsSafe()
+          && delegateUidsUnchangedOrCreator());
       allow delete: if isAdmin();
 
       match /applications/{applicationId} {
@@ -892,13 +904,13 @@ service cloud.firestore {
       }
 
       match /entries/{teamId} {
-        allow read: if true;
+        allow read: if isAuth();
         allow create: if tournamentExists() && canManageTournamentScope();
         allow update: if tournamentExists() && canManageTournamentScope();
         allow delete: if tournamentExists() && canManageTournamentScope();
 
         match /members/{memberUid} {
-          allow read: if true;
+          allow read: if isAuth();
           allow create: if tournamentExists()
             && (canManageTournamentScope()
             || (isAuth()
