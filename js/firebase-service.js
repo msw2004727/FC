@@ -89,6 +89,8 @@ const FirebaseService = {
   _bootCollectionLoadFailed: {},
   _persistDebounceTimer: null,
   _eventSlices: { active: [], terminal: [] },
+  _teamSlices: { injected: new Set() },      // Phase 2A：fetchIfMissing 注入追蹤（Phase 2B onSnapshot 保護用）
+  _tournamentSlices: { injected: new Set() },
   _authDependentWorkPromise: null,
   _authDependentWorkUid: null,
   _lastLoginAuditAtByUid: {},
@@ -729,6 +731,81 @@ const FirebaseService = {
     // 持久化新載入的集合
     this._persistCache();
     return loaded;
+  },
+
+  // ─── 俱樂部單筆補查（Phase 2A §7.2） ───
+  async fetchTeamIfMissing(teamId) {
+    const safeId = String(teamId || '').trim();
+    if (!safeId) return null;
+
+    // 1. 先查集合快取
+    const cached = this._cache.teams.find(t => t.id === safeId);
+    if (cached) return cached;
+
+    // 2. Cache miss → 查 Firestore 單筆
+    try {
+      let doc;
+      const directSnap = await db.collection('teams').doc(safeId).get();
+      if (directSnap.exists) {
+        doc = directSnap;
+      } else {
+        // fallback：既有資料的 doc ID 可能不等於自訂 ID
+        const querySnap = await db.collection('teams')
+          .where('id', '==', safeId).limit(1).get();
+        if (querySnap.empty) return null;
+        doc = querySnap.docs[0];
+      }
+      const team = { ...doc.data(), _docId: doc.id };
+
+      // 3. 注入集合快取（避免重複）
+      const idx = this._cache.teams.findIndex(t => t.id === safeId);
+      if (idx >= 0) {
+        this._cache.teams[idx] = team;
+      } else {
+        this._cache.teams.push(team);
+      }
+      // 標記為 injected（Phase 2B onSnapshot 保護用）
+      this._teamSlices.injected.add(safeId);
+      return team;
+    } catch (err) {
+      console.warn('[fetchTeamIfMissing]', err);
+      return null;
+    }
+  },
+
+  // ─── 賽事單筆補查（Phase 2A §7.2） ───
+  async fetchTournamentIfMissing(tournamentId) {
+    const safeId = String(tournamentId || '').trim();
+    if (!safeId) return null;
+
+    const cached = this._cache.tournaments.find(t => t.id === safeId);
+    if (cached) return cached;
+
+    try {
+      let doc;
+      const directSnap = await db.collection('tournaments').doc(safeId).get();
+      if (directSnap.exists) {
+        doc = directSnap;
+      } else {
+        const querySnap = await db.collection('tournaments')
+          .where('id', '==', safeId).limit(1).get();
+        if (querySnap.empty) return null;
+        doc = querySnap.docs[0];
+      }
+      const tournament = { ...doc.data(), _docId: doc.id };
+
+      const idx = this._cache.tournaments.findIndex(t => t.id === safeId);
+      if (idx >= 0) {
+        this._cache.tournaments[idx] = tournament;
+      } else {
+        this._cache.tournaments.push(tournament);
+      }
+      this._tournamentSlices.injected.add(safeId);
+      return tournament;
+    } catch (err) {
+      console.warn('[fetchTournamentIfMissing]', err);
+      return null;
+    }
   },
 
   /**
@@ -1807,6 +1884,8 @@ const FirebaseService = {
 
     // ── Step 2: 並行啟動 — 公開資料 + Auth ──
     this._eventSlices = { active: [], terminal: [] };
+    this._teamSlices = { injected: new Set() };
+    this._tournamentSlices = { injected: new Set() };
 
     // 2a. Boot collections（全部公開讀取，不需 Auth）
     // 2b. 公開即時監聽器（events active + teams，不需 Auth）

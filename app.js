@@ -1443,7 +1443,11 @@ const App = {
         }
 
         if (pending.type === 'team') {
-          const team = ApiService.getTeam?.(pending.id);
+          let team = ApiService.getTeam?.(pending.id);
+          if (!team) {
+            // 集合還沒載完？直接查 1 筆，不等全集合（Phase 2A §7.5）
+            team = await FirebaseService.fetchTeamIfMissing(pending.id);
+          }
           if (!team) return false;
 
           const result = await this.showTeamDetail(pending.id);
@@ -1455,7 +1459,11 @@ const App = {
         }
 
         if (pending.type === 'tournament') {
-          const tournament = ApiService.getTournament?.(pending.id);
+          let tournament = ApiService.getTournament?.(pending.id);
+          if (!tournament) {
+            // 集合還沒載完？直接查 1 筆，不等全集合（Phase 2A §7.5）
+            tournament = await FirebaseService.fetchTournamentIfMissing(pending.id);
+          }
           if (!tournament) return false;
 
           await ScriptLoader.ensureForPage('page-tournament-detail');

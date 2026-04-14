@@ -10,6 +10,22 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### [永久] 2026-04-14 — 俱樂部×賽事重構 Phase 2A：專看專讀 per-entity 架構 + ID 統一建立流程
+- **目標**：深連結看 1 個俱樂部/賽事從 200-600 reads 降至 1 read；消除俱樂部/賽事的雙軌 ID
+- **執行內容**：
+  - `firebase-service.js` 新增 `fetchTeamIfMissing()` / `fetchTournamentIfMissing()`（cache-first → `.doc().get()` → `.where('id','==').limit(1)` 三層 fallback），注入快取時寫 `_teamSlices.injected` / `_tournamentSlices.injected`（Phase 2B onSnapshot 保護用）
+  - `api-service.js` 新增 `getTeamAsync()` / `getTournamentAsync()`（同步快取 + Firestore fallback）
+  - `team-detail.js` / `tournament-detail.js` / `tournament-friendly-detail.js` 詳情頁接入 async fallback
+  - `app.js` 深連結 team/tournament 區塊改為 cache miss 時直接查 1 筆，不等全集合
+  - `config.js` `PAGE_DATA_CONTRACT` 詳情頁 required → optional（不阻塞等全集合）
+  - `firebase-crud.js` `_getTournamentDocRefById` fallback 成功時注入快取
+  - `firebase-crud.js` `addTeam` / `addTournament` 改用 `.doc(customId).set()`（`data.id === data._docId`，消除雙軌 ID）
+  - `tournament-manage.js` 賽事操作拆分：`handleEndTournament` 用 `admin.tournaments.end` + `_canManageTournamentRecord` fallback，`handleReopenTournament` / `handleDeleteTournament` 各用獨立權限碼（僅管理員）
+- **教訓**：
+  - 俱樂部/賽事新建後 `data.id === data._docId`（單軌），但既有歷史資料仍可能 `id ≠ _docId`，所以 `fetchIfMissing` 必須保留 `.where('id','==')` fallback
+  - `_teamSlices.injected` 在 init 時需重設為空 Set，避免跨會話殘留
+  - 活動（events）的 `addEvent` 不動（歷史資料量大 + 子集合遷移剛完成）
+
 ### 2026-04-14 — 俱樂部×賽事重構 Phase 1a：俱樂部結構整理
 - **目標**：拆分過大的 team-list.js（305→179 行）與 team-share.js（190→84 行），建立唯一真相來源
 - **執行內容**：

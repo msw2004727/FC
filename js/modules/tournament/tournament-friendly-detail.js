@@ -180,7 +180,9 @@ Object.assign(App, {
   },
 
   async showTournamentDetail(id) {
-    const base = ApiService.getTournament?.(id);
+    let base = ApiService.getTournament?.(id);
+    // 快取 miss → 單筆查詢 Firestore（Phase 2A §7.4）
+    if (!base) base = await ApiService.getTournamentAsync?.(id);
     if (!base || !this._isFriendlyTournamentRecord(base)) {
       return await _tournamentFriendlyDetailLegacy.showTournamentDetail.call(this, id);
     }

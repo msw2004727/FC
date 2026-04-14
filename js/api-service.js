@@ -431,6 +431,11 @@ const ApiService = {
 
   getTournaments()    { return this._src('tournaments'); },
   getTournament(id)   { return this._findById('tournaments', id); },
+  async getTournamentAsync(id) {
+    const cached = this._findById('tournaments', id);
+    if (cached) return cached;
+    return FirebaseService.fetchTournamentIfMissing(id);
+  },
   getStandings()      { return this._src('standings'); },
   getMatches()        { return this._src('matches'); },
   getTrades()         { return this._src('trades'); },
@@ -569,6 +574,11 @@ const ApiService = {
 
   getTeams()        { return this._src('teams'); },
   getTeam(id)       { return this._findById('teams', id); },
+  async getTeamAsync(id) {
+    const cached = this._findById('teams', id);
+    if (cached) return cached;
+    return FirebaseService.fetchTeamIfMissing(id);
+  },
   getActiveTeams()  { return this._src('teams').filter(t => t.active); },
 
   createTeam(data)        { return this._create('teams', data, FirebaseService.addTeam, 'createTeam'); },

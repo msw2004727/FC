@@ -108,7 +108,11 @@ Object.assign(App, {
     }
     try {
       let t = ApiService.getTeam(id);
-      if (!t) return { ok: false, reason: 'missing' };
+      if (!t) {
+        // 快取 miss → 單筆查詢 Firestore（Phase 2A §7.4）
+        t = await ApiService.getTeamAsync(id);
+        if (!t) return { ok: false, reason: 'missing' };
+      }
       const requestSeq = ++this._teamDetailRequestSeq;
 
       // ── 確保頁面 HTML + Script 已載入（不切換顯示），避免空白模板閃現 ──

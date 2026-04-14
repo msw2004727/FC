@@ -6,8 +6,12 @@ Object.assign(App, {
   async showTournamentDetail(id) {
     if (this._requireLogin()) return;
     this.currentTournament = id;
-    const t = ApiService.getTournament(id);
-    if (!t) return;
+    let t = ApiService.getTournament(id);
+    if (!t) {
+      // 快取 miss → 單筆查詢 Firestore（Phase 2A §7.4）
+      t = await ApiService.getTournamentAsync(id);
+      if (!t) return;
+    }
     await this.showPage('page-tournament-detail');
     if (!document.getElementById('td-title')) return;
 

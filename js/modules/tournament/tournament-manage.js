@@ -318,12 +318,14 @@ Object.assign(App, {
   // ══════════════════════════════════
   //  End / Reopen / Delete Tournament
   // ══════════════════════════════════
+  // Phase 2A §12.4：賽事操作拆分 — entry → end/reopen/delete 獨立權限守衛
   async handleEndTournament(id) {
-    if (!this.hasPermission('admin.tournaments.entry')) {
-      this.showToast('權限不足'); return;
-    }
     const t = ApiService.getTournament(id);
     if (!t) return;
+    // 全域權限 or 委託人/主辦隊長 fallback
+    if (!this.hasPermission('admin.tournaments.end') && !this._canManageTournamentRecord(t)) {
+      this.showToast('權限不足'); return;
+    }
     if (t.ended) { this.showToast('此賽事已結束'); return; }
     if (!(await this.appConfirm(`確定要結束賽事「${t.name}」？`))) return;
     try {
@@ -338,7 +340,8 @@ Object.assign(App, {
     this.showToast(`賽事「${t.name}」已結束`);
   },
   async handleReopenTournament(id) {
-    if (!this.hasPermission('admin.tournaments.entry')) {
+    // 重開賽事 — 僅全域權限（管理員）
+    if (!this.hasPermission('admin.tournaments.reopen')) {
       this.showToast('權限不足'); return;
     }
     const t = ApiService.getTournament(id);
@@ -360,7 +363,8 @@ Object.assign(App, {
   async handleDeleteTournament(id) {
     const t = ApiService.getTournament(id);
     if (!t) return;
-    if (!this.hasPermission('admin.tournaments.entry')) {
+    // 刪除賽事 — 僅全域權限（管理員）
+    if (!this.hasPermission('admin.tournaments.delete')) {
       this.showToast('僅管理員可刪除賽事'); return;
     }
     if (!(await this.appConfirm(`確定要永久刪除賽事「${t.name}」？此操作無法復原。`))) return;

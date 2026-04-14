@@ -198,7 +198,12 @@ Object.assign(FirebaseService, {
 
     const snapshot = await db.collection('tournaments').where('id', '==', safeTournamentId).limit(1).get();
     if (snapshot.empty) throw new Error('TOURNAMENT_DOC_NOT_FOUND');
-    return snapshot.docs[0].ref;
+    const doc = snapshot.docs[0];
+    // Phase 2A §7.7：fallback 成功時注入快取，後續查詢不再需要 Firestore
+    if (!this._cache.tournaments.find(t => t.id === safeTournamentId)) {
+      this._cache.tournaments.push({ ...doc.data(), _docId: doc.id });
+    }
+    return doc.ref;
   },
 
   async _getTournamentSubcollectionRef(tournamentId, subcollectionName) {
@@ -1089,20 +1094,24 @@ Object.assign(FirebaseService, {
   // ════════════════════════════════
 
   async addTournament(data) {
+    // Phase 2A §11.2②：自訂 ID = Firestore doc ID，消除雙軌制
+    const tournamentId = data.id || generateId('ct_');
+    data.id = tournamentId;
     if (typeof App !== 'undefined' && typeof App._buildFriendlyTournamentRecord === 'function') {
       Object.assign(data, App._buildFriendlyTournamentRecord(data));
     }
     if (data.image && data.image.startsWith('data:')) {
-      data.image = await this._uploadImage(data.image, `tournaments/${data.id}`);
+      data.image = await this._uploadImage(data.image, `tournaments/${tournamentId}`);
     }
     if (data.contentImage && data.contentImage.startsWith('data:')) {
-      data.contentImage = await this._uploadImage(data.contentImage, `tournaments/${data.id}_content`);
+      data.contentImage = await this._uploadImage(data.contentImage, `tournaments/${tournamentId}_content`);
     }
-    const docRef = await db.collection('tournaments').add({
+    const docRef = db.collection('tournaments').doc(tournamentId);
+    await docRef.set({
       ..._stripDocId(data),
       createdAt: firebase.firestore.FieldValue.serverTimestamp(),
     });
-    data._docId = docRef.id;
+    data._docId = tournamentId;  // 單軌：data.id === data._docId
     return data;
   },
 
@@ -1128,15 +1137,19 @@ Object.assign(FirebaseService, {
   // ════════════════════════════════
 
   async addTeam(data) {
+    // Phase 2A §11.2②：自訂 ID = Firestore doc ID，消除雙軌制
+    const teamId = data.id || generateId('tm_');
+    data.id = teamId;
     if (data.image && data.image.startsWith('data:')) {
-      data.image = await this._uploadImage(data.image, `teams/${data.id}`);
+      data.image = await this._uploadImage(data.image, `teams/${teamId}`);
     }
-    const docRef = await db.collection('teams').add({
+    const docRef = db.collection('teams').doc(teamId);
+    await docRef.set({
       ..._stripDocId(data),
       createdAt: firebase.firestore.FieldValue.serverTimestamp(),
       updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
     });
-    data._docId = docRef.id;
+    data._docId = teamId;  // 單軌：data.id === data._docId
     return data;
   },
 
