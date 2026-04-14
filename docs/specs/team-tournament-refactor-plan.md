@@ -108,6 +108,34 @@
 - [x] 5.2 補完 — feed `create` 收緊為 `isCurrentUserInTeam`，update/delete 升級為 `isCurrentUserTeamStaff`
 - [x] 16.3 — 版號 `20260414e` + architecture.md + claude-memory.md（`[永久]`）
 - **驗證結果**：內嵌陣列移除、CF v2 級聯、教練 UID 化、feed 全面收緊、9 函式純 UID — 全部通過
+- **部署紀錄**：
+  - 遷移腳本 `migrate-team-uids.js` 已執行：5 俱樂部全部 coachUids 已就位，0 未匹配、0 模糊
+  - Firestore Rules 已部署：`isCurrentUserTeamStaff` + feed create 收緊 + coursePlans/students 升級
+  - Cloud Functions 已部署：`onTeamUpdate`（新建 asia-east1）+ `eduCheckin`（更新 coachUids 比對）
+  - 前端版號 `20260414f`
+- **額外修改**：計畫列 9 個前端函式，實際修改 17 個（api-service.js、message-actions-team.js、event-list-helpers.js、team-detail.js、team-form-roles.js、team-form-join.js、team-form.js、team-form-validate.js 中也有名字比對需同步遷移）
+
+---
+
+## 全計畫結案摘要（2026-04-14）
+
+全部 6 個 Phase 已完成並部署。計畫書 v3.0，預估 23-31 天，實際 1 天完成（因 AI 輔助）。
+
+### 遺留事項與定時清理
+| 項目 | 到期日 | 動作 |
+|------|--------|------|
+| 賽事內嵌陣列 fallback 讀取路徑 | 2026-05-14 | 移除 tournament-friendly-state.js L70-71、tournament-friendly-roster.js L81、tournament-detail.js L340-341、tournament-friendly-detail-view.js L144、tournament-friendly-roster.js L318 中的 `teamApplications`/`teamEntries` fallback |
+| Firestore 舊賽事文件中的 `teamApplications`/`teamEntries` 欄位 | 2026-05-14 | 可用一次性腳本清理（非 blocking，不影響功能） |
+| `coaches[]` 舊名字陣列 | 無期限 | 保留做顯示 fallback，未來可選擇性清除 |
+| 8.2D 載入進度條 | 無期限 | UX 增強，非 blocking |
+| §7.10 深連結 pre-auth REST | 無期限 | UX 增強，非 blocking |
+
+### 最終 Firestore Rules 權限對照
+| Rules 函式 | 適用場景 | 含教練 |
+|-----------|---------|--------|
+| `isCurrentUserInTeam` | feed create | — |
+| `isCurrentUserTeamCaptainOrLeader` | groups CRUD、tournaments create、tournaments/applications create | ❌ |
+| `isCurrentUserTeamStaff` | feed update/delete、coursePlans CRUD + enrollments、students CUD | ✅ |
 
 ---
 

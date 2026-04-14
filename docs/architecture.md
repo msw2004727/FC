@@ -753,17 +753,33 @@ flowchart LR
 - 舊資料的 fallback 讀取路徑保留 30 天（`base.teamApplications`/`base.teamEntries`）
 
 ### Cloud Function onTeamUpdate (§9.2)
-- 新增 `functions/index.js` → `exports.onTeamUpdate`
+- 新增 `functions/index.js` → `exports.onTeamUpdate`（已部署 asia-east1）
 - 使用 v2 API `onDocumentWrittenWithAuthContext('teams/{teamId}')`
 - 當 `team.name` 或 `team.image` 變更時，批次更新所有 `hostTeamId == teamId` 的賽事
+- 設定：`timeoutSeconds: 30`, `memory: 256MiB`
+- 注意：僅更新賽事根文件的 `hostTeamName`/`hostTeamImage`，不更新 entries 子集合中的 `teamName`/`teamImage`
 
 ### 教練 UID 化遷移 (§11.4-11.6)
-- 新增遷移腳本 `scripts/migrate-team-uids.js`（教練名字→UID）
-- 新增 Firestore Rules 函式 `isCurrentUserTeamStaff`（隊長+領隊+教練超集）
+- 新增遷移腳本 `scripts/migrate-team-uids.js`（教練名字→UID，支援 `--dry-run`）
+- 新增 Firestore Rules 函式 `isCurrentUserTeamStaff`（隊長+領隊+教練超集，含 `coachUids is list` 防護）
 - Feed create 規則收緊為 `isCurrentUserInTeam(teamId)`
 - Feed update/delete 改用 `isCurrentUserTeamStaff`（含教練）
 - `coursePlans` / `students` 子集合規則改用 `isCurrentUserTeamStaff`
+- `groups` 子集合維持 `isCurrentUserTeamCaptainOrLeader`（教練不應管理分組）
 - 前端 17 個函式移除名字 fallback，改用純 UID 比對（`coachUids`）
 - Cloud Function `eduCheckin` / `registerForEvent` 改用 `coachUids` UID 比對
 - Team form 儲存時同步寫入 `coachUids`/`coachNames`/`captainName`/`leaderNames`
+
+### 俱樂部×賽事重構計畫完成狀態（2026-04-14 全部結案）
+
+| Phase | 內容 | Commit | 版號 |
+|-------|------|--------|------|
+| Phase 0 | 安全性修復 + delegateUids 不可變 | `d01c2e2a` | — |
+| Phase 1 | 結構整理 + 權限碼定義 + generateId | `35345ed8` + `14e055f6` | 20260414a |
+| Phase 2A | 專看專讀 + ID 統一建立流程 | `bf746b7b` + `44725091` | 20260414b |
+| Phase 4 | 表單拆分 + 教育解耦 | `be901eaa` | 20260414c |
+| Phase 2B | 列表效能 + Feed ApiService + 權限守衛 | `5e4bd8ae` | 20260414d |
+| Phase 3 | 資料架構遷移 + coachUids + feed 收緊 | `37107c20` | 20260414e |
+
+Cloud Functions 總數：31 個 exports（含新增 `onTeamUpdate`）
 5. **ScriptLoader 群組變更**：同步更新 `js/core/script-loader.js` 的 `_groups` 定義與本文件的群組表
