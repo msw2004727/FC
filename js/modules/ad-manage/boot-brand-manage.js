@@ -34,7 +34,7 @@ Object.assign(App, {
             background:${bgMode === 'light' ? bgColor : bgMode === 'dark' ? '#1e1e2e' : 'var(--bg-card)'}
           ">
             <img id="boot-brand-preview-img" class="boot-loading__image" src="${escapeHTML(imgUrl)}" alt="" style="
-              transform:scale(${imgHeight / 100});object-position:center ${50 - marginTop}%
+              transform:scale(${imgHeight / 100}) translateY(${-marginTop}%)
             ">
           </div>
         </div>
@@ -132,8 +132,7 @@ Object.assign(App, {
     document.getElementById('boot-brand-height-val').textContent = h + '%';
     document.getElementById('boot-brand-margin-val').textContent = m + '%';
 
-    previewImg.style.transform = 'scale(' + (h / 100) + ')';
-    previewImg.style.objectPosition = 'center ' + (50 - m) + '%';
+    previewImg.style.transform = 'scale(' + (h / 100) + ') translateY(' + (-m) + '%)';
 
     // 背景色
     if (mode === 'auto') {
