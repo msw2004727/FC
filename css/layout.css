@@ -640,12 +640,14 @@
 .fl-hint { font-size: .82rem; color: var(--text-secondary); margin-bottom: .8rem; text-align: center; }
 #first-login-modal .modal-header { justify-content: center; }
 
-/* ─── Desktop: 限寬置中（top-bar / bottom-tabs / sync-bar）─── */
+/* ─── Desktop: 限寬置中（top-bar / bottom-tabs / sync-bar / swr-bar / translate-banner）─── */
 @media (min-width: 800px) {
   #top-bar { max-width: 640px; width: 100%; left: 50%; right: auto; transform: translateX(-50%); }
   #bottom-tabs { max-width: 640px; width: 100%; left: 50%; right: auto; transform: translateX(-50%); }
   #bottom-tabs::before { display: none; }
   .sync-bar { max-width: 640px; width: 100%; left: 50%; right: auto; transform: translateX(-50%); }
+  .swr-bar { max-width: 640px; width: 100%; left: 50%; right: auto; transform: translateX(-50%); }
+  #translate-banner { max-width: 640px; width: 100%; left: 50% !important; right: auto !important; transform: translateX(-50%); }
 }
 
 /* ─── 早期隱藏 ─── */
