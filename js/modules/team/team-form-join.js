@@ -21,9 +21,10 @@ Object.assign(App, {
     const t = ApiService.getTeam(teamId);
     if (!t) { this.showToast('找不到此俱樂部'); return; }
 
-    // 教育型俱樂部導向學員申請流程
-    if (t.type === 'education' && typeof this.showEduStudentApply === 'function') {
-      this.showEduStudentApply(teamId);
+    // 特殊類型俱樂部導向專屬申請流程（Phase 4 §10.2 type handler）
+    const typeHandler = this._getTeamTypeHandler(t.type);
+    if (typeHandler.joinHandler) {
+      typeHandler.joinHandler(teamId);
       return;
     }
 

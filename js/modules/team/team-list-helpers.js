@@ -161,6 +161,32 @@ Object.assign(App, {
     return false;
   },
 
+  // ── 教育型俱樂部學員計數（Phase 4 §10.2）──
+
+  _getEduStudentCount(teamId) {
+    if (!this._eduStudentsCache || !this._eduStudentsCache[teamId]) return 0;
+    return this._eduStudentsCache[teamId].filter(s => s.enrollStatus === 'active').length;
+  },
+
+  /**
+   * 依俱樂部類型回傳對應的 handler（Phase 4 §10.2 type handler pattern）。
+   * 新增俱樂部類型時只需在此擴充，無需到各處加 if。
+   */
+  _getTeamTypeHandler(type) {
+    if (type === 'education') return {
+      memberCount: (teamId) => this._getEduStudentCount(teamId),
+      detailRenderer: (teamId) => this.renderEduClubDetail(teamId),
+      joinHandler: (teamId) => this.showEduStudentApply(teamId),
+      showEduSettings: true,
+    };
+    return {
+      memberCount: (teamId) => this._calcTeamMemberCount(teamId),
+      detailRenderer: null,
+      joinHandler: null,
+      showEduSettings: false,
+    };
+  },
+
   // ── 從 team-form-join.js 搬入 ──
 
   _applyRoleChange(result) {

@@ -1,6 +1,8 @@
 /* ================================================
    SportHub — Team: Form Save (handleSaveTeam)
-   依賴：team-form-join.js, team-form-init.js, team-form-search.js
+   Phase 4 §10.1 瘦身：驗證→team-form-validate.js、角色→team-form-roles.js
+   依賴：team-form-validate.js, team-form-roles.js,
+         team-form-join.js, team-form-init.js, team-form-search.js
    ================================================ */
 
 Object.assign(App, {
@@ -14,154 +16,17 @@ Object.assign(App, {
   },
 
   async handleSaveTeam() {
-    const name = document.getElementById('ct-team-name').value.trim();
-    const nameEn = document.getElementById('ct-team-name-en').value.trim();
-    const nationality = document.getElementById('ct-team-nationality').value;
-    const region = document.getElementById('ct-team-region').value;
-    const founded = document.getElementById('ct-team-founded').value;
-    const contact = document.getElementById('ct-team-contact').value.trim();
-    const bio = document.getElementById('ct-team-bio').value.trim();
+    const vals = this._extractTeamFormValues();
+    if (!vals) return;
 
-    if (!name) { this.showToast('請輸入俱樂部名稱'); return; }
-    if (!document.getElementById('ct-team-sport-tag')?.value) { this.showToast('請選擇運動類型'); return; }
+    const { name, nameEn, nationality, region, founded, contact, bio,
+            oldCaptainUid, oldCoachUids, oldLeaderUids,
+            realLeaderUids, leaderNames, captain, captainUidForSave,
+            coaches, newCoachUids, users } = vals;
 
-    // ── 記錄舊職位（編輯模式用於降級檢查）──
-    let oldCaptainUid = null;
-    let oldCoachUids = [];
-    let oldLeaderUids = [];
+    // ── 降級確認（編輯模式）──
     if (this._teamFormState.editId) {
-      const oldTeam = ApiService.getTeam(this._teamFormState.editId);
-      if (oldTeam) {
-        oldCaptainUid = oldTeam.captainUid || null;
-        if (!oldCaptainUid && oldTeam.captain) {
-          const capUser = ApiService.getAdminUsers().find(u => u.name === oldTeam.captain);
-          oldCaptainUid = capUser ? capUser.uid : null;
-        }
-        (oldTeam.coaches || []).forEach(cName => {
-          const cUser = ApiService.getAdminUsers().find(u => u.name === cName);
-          if (cUser) oldCoachUids.push(cUser.uid);
-        });
-        // 舊領隊 uid 陣列
-        oldLeaderUids = (oldTeam.leaderUids || (oldTeam.leaderUid ? [oldTeam.leaderUid] : [])).filter(Boolean);
-      }
-    }
-
-    const users = ApiService.getAdminUsers();
-
-    // 驗證領隊（新建：至少一位且非 legacy；編輯：允許保留）
-    if (!this._teamFormState.editId && this._teamFormState.leaders.length === 0) {
-      this.showToast('請選擇至少一位俱樂部領隊');
-      return;
-    }
-    const realLeaderUids = [...this._teamFormState.leaders];
-    if (!this._teamFormState.editId && realLeaderUids.length === 0) {
-      this.showToast('俱樂部領隊必須為有效用戶，請重新選擇');
-      return;
-    }
-
-    // 解析領隊名稱
-    const leaderNames = this._teamFormState.leaders.map(uid => {
-      const u = users.find(u => u.uid === uid);
-      return u ? u.name : '';
-    }).filter(Boolean);
-
-    // Resolve team manager (captain) name
-    let captain = '';
-    let selectedCaptainUser = null;
-    if (this._teamFormState.captain) {
-      selectedCaptainUser = users.find(u => u.uid === this._teamFormState.captain);
-      captain = selectedCaptainUser ? selectedCaptainUser.name : '';
-    }
-
-    if (!this._teamFormState.editId) {
-      if (!this._teamFormState.captain) {
-        this.showToast('請設定俱樂部經理（必填）');
-        return;
-      }
-      if (!selectedCaptainUser) {
-        this.showToast('俱樂部經理必須為有效用戶，請重新選擇');
-        return;
-      }
-    } else if (this._teamFormState.captain && !selectedCaptainUser) {
-      this.showToast('俱樂部經理資料無效，請重新選擇俱樂部經理');
-      return;
-    }
-
-    const captainUidForSave = this._teamFormState.captain || null;
-
-    // Resolve coach names
-    const coaches = this._teamFormState.coaches.map(uid => {
-      const u = users.find(u => u.uid === uid);
-      return u ? u.name : '';
-    }).filter(Boolean);
-
-    // 新教練 uid 集合
-    const newCoachUids = [...this._teamFormState.coaches];
-
-    // ── 降級確認（編輯模式：預覽被移除成員的角色變更）──
-    if (this._teamFormState.editId) {
-      const newCaptainUidCheck = captainUidForSave || oldCaptainUid;
-      // 預覽移除職位後的新角色（不實際修改）
-      const previewNewRole = (uid) => {
-        const u = users.find(u => u.uid === uid);
-        if (!u) return null;
-        if ((ROLE_LEVEL_MAP[u.role] || 0) >= ROLE_LEVEL_MAP['venue_owner']) return null;
-        let highestTeamLevel = 0;
-        ApiService.getTeams().forEach(t => {
-          if (t.id === this._teamFormState.editId) return; // 排除正在編輯的俱樂部
-          if (t.captainUid === uid || t.captain === u.name) {
-            highestTeamLevel = Math.max(highestTeamLevel, ROLE_LEVEL_MAP['captain']);
-          }
-          if ((t.coaches || []).includes(u.name)) {
-            highestTeamLevel = Math.max(highestTeamLevel, ROLE_LEVEL_MAP['coach']);
-          }
-          const tLeaderUids = t.leaderUids || (t.leaderUid ? [t.leaderUid] : []);
-          if (tLeaderUids.includes(uid)) {
-            highestTeamLevel = Math.max(highestTeamLevel, ROLE_LEVEL_MAP['coach']);
-          }
-        });
-        const manualLevel = ROLE_LEVEL_MAP[u.manualRole] || 0;
-        const targetLevel = Math.max(highestTeamLevel, manualLevel);
-        const levelToRole = Object.entries(ROLE_LEVEL_MAP).reduce((m, [k, v]) => { m[v] = k; return m; }, {});
-        return levelToRole[targetLevel] || 'user';
-      };
-      const demotionInfo = [];
-      if (oldCaptainUid && oldCaptainUid !== newCaptainUidCheck) {
-        const u = users.find(u => u.uid === oldCaptainUid);
-        if (u) {
-          const newRole = previewNewRole(oldCaptainUid);
-          if (newRole && newRole !== u.role) {
-            demotionInfo.push({ name: u.name, oldLabel: ROLES[u.role]?.label || u.role, newLabel: ROLES[newRole]?.label || newRole });
-          }
-        }
-      }
-      oldCoachUids.forEach(uid => {
-        if (!newCoachUids.includes(uid)) {
-          const u = users.find(u => u.uid === uid);
-          if (u) {
-            const newRole = previewNewRole(uid);
-            if (newRole && newRole !== u.role) {
-              demotionInfo.push({ name: u.name, oldLabel: ROLES[u.role]?.label || u.role, newLabel: ROLES[newRole]?.label || newRole });
-            }
-          }
-        }
-      });
-      // 被移除的領隊
-      oldLeaderUids.forEach(uid => {
-        if (!realLeaderUids.includes(uid)) {
-          const u = users.find(u => u.uid === uid);
-          if (u) {
-            const newRole = previewNewRole(uid);
-            if (newRole && newRole !== u.role) {
-              demotionInfo.push({ name: u.name, oldLabel: ROLES[u.role]?.label || u.role, newLabel: ROLES[newRole]?.label || newRole });
-            }
-          }
-        }
-      });
-      if (demotionInfo.length > 0) {
-        const table = demotionInfo.map(d => `  ${d.name}：${d.oldLabel} → ${d.newLabel}`).join('\n');
-        if (!(await this.appConfirm(`以下成員將被移除職位，角色將自動調整：\n\n${table}\n\n確定要儲存？`))) return;
-      }
+      if (!(await this._confirmTeamRoleDemotions(vals))) return;
     }
 
     const leaderUidCompat = realLeaderUids[0] || null;
@@ -293,98 +158,8 @@ Object.assign(App, {
       return;
     }
 
-    // ── 自動升級俱樂部經理/領隊/教練權限 + 發送通知 ──
-    const allUsers = ApiService.getAdminUsers();
-    if (this._teamFormState.captain) {
-      const capUser = allUsers.find(u => u.uid === this._teamFormState.captain);
-      if (capUser && (ROLE_LEVEL_MAP[capUser.role] || 0) < ROLE_LEVEL_MAP['captain']) {
-        const oldRole = capUser.role;
-        ApiService.promoteUser(capUser.name, 'captain');
-        this._sendNotifFromTemplate('role_upgrade', {
-          userName: capUser.name, roleName: ROLES['captain'].label,
-        }, capUser.uid, 'private', '私訊');
-        ApiService._writeOpLog('role', '角色變更', `${capUser.name} 自動晉升為「${ROLES['captain'].label}」（原：${ROLES[oldRole]?.label || oldRole}）`);
-      }
-    }
-    // 新領隊自動升至 coach 等級
-    realLeaderUids.forEach(uid => {
-      if (!oldLeaderUids.includes(uid)) {
-        const leaderUser = allUsers.find(u => u.uid === uid);
-        if (leaderUser && (ROLE_LEVEL_MAP[leaderUser.role] || 0) < ROLE_LEVEL_MAP['coach']) {
-          const oldRole = leaderUser.role;
-          ApiService.promoteUser(leaderUser.name, 'coach');
-          this._sendNotifFromTemplate('role_upgrade', {
-            userName: leaderUser.name, roleName: ROLES['coach'].label,
-          }, leaderUser.uid, 'private', '私訊');
-          ApiService._writeOpLog('role', '角色變更', `${leaderUser.name} 自動晉升為「${ROLES['coach'].label}」（原：${ROLES[oldRole]?.label || oldRole}）`);
-        }
-      }
-    });
-    this._teamFormState.coaches.forEach(uid => {
-      const coachUser = allUsers.find(u => u.uid === uid);
-      if (coachUser && (ROLE_LEVEL_MAP[coachUser.role] || 0) < ROLE_LEVEL_MAP['coach']) {
-        const oldRole = coachUser.role;
-        ApiService.promoteUser(coachUser.name, 'coach');
-        this._sendNotifFromTemplate('role_upgrade', {
-          userName: coachUser.name, roleName: ROLES['coach'].label,
-        }, coachUser.uid, 'private', '私訊');
-        ApiService._writeOpLog('role', '角色變更', `${coachUser.name} 自動晉升為「${ROLES['coach'].label}」（原：${ROLES[oldRole]?.label || oldRole}）`);
-      }
-    });
-
-    // ── 俱樂部職位指派通知 ──
-    if (this._teamFormState.captain) {
-      const isNewCaptain = !oldCaptainUid || oldCaptainUid !== this._teamFormState.captain;
-      if (isNewCaptain) {
-        this._deliverMessageWithLinePush(
-          '俱樂部職位指派',
-          `您已被設為「${name}」的俱樂部經理。`,
-          'system', '系統', this._teamFormState.captain, '系統', null,
-          { lineOptions: { source: 'team_role_assignment:captain' } }
-        );
-      }
-    }
-    realLeaderUids.forEach(uid => {
-      if (!oldLeaderUids.includes(uid)) {
-        this._deliverMessageWithLinePush(
-          '俱樂部職位指派',
-          `您已被設為「${name}」的領隊。`,
-          'system', '系統', uid, '系統', null,
-          { lineOptions: { source: 'team_role_assignment:leader' } }
-        );
-      }
-    });
-    newCoachUids.forEach(uid => {
-      if (!oldCoachUids.includes(uid)) {
-        this._deliverMessageWithLinePush(
-          '俱樂部職位指派',
-          `您已被設為「${name}」的教練。`,
-          'system', '系統', uid, '系統', null,
-          { lineOptions: { source: 'team_role_assignment:coach' } }
-        );
-      }
-    });
-
-    // ── 自動降級：被移除的俱樂部經理/領隊/教練 ──
-    if (this._teamFormState.editId) {
-      const newCaptainUid = this._teamFormState.captain || oldCaptainUid;
-      // 舊俱樂部經理不再是新俱樂部經理 → recalc
-      if (oldCaptainUid && oldCaptainUid !== newCaptainUid) {
-        this._applyRoleChange(ApiService._recalcUserRole(oldCaptainUid));
-      }
-      // 被移除的教練 → recalc
-      oldCoachUids.forEach(uid => {
-        if (!newCoachUids.includes(uid)) {
-          this._applyRoleChange(ApiService._recalcUserRole(uid));
-        }
-      });
-      // 被移除的領隊 → recalc
-      oldLeaderUids.forEach(uid => {
-        if (!realLeaderUids.includes(uid)) {
-          this._applyRoleChange(ApiService._recalcUserRole(uid));
-        }
-      });
-    }
+    // ── 自動升降級 + 職位通知（委派 team-form-roles.js）──
+    this._applyTeamRoleChangesAfterSave(vals, name);
 
     this.closeModal();
     this._teamFormState.editId = null;

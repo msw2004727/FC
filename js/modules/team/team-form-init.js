@@ -49,9 +49,10 @@ Object.assign(App, {
    * 俱樂部類型切換時顯示/隱藏教育型專屬欄位
    */
   _onTeamTypeChange(type) {
+    const handler = this._getTeamTypeHandler(type);
     const eduSection = document.getElementById('ct-edu-settings');
     if (eduSection) {
-      eduSection.style.display = type === 'education' ? '' : 'none';
+      eduSection.style.display = handler.showEduSettings ? '' : 'none';
     }
   },
 

@@ -77,11 +77,11 @@
 - [ ] 16.3 — 快取版號 + `architecture.md` + `claude-memory.md`（ID 統一標 `[永久]`）
 - [ ] 驗證：深連結 `?team=xxx` 在空快取下可正常渲染（需 LIFF 登入後 ≤3 秒；pre-auth REST 快速預覽為未來增強項，見 §7.10）
 
-### Phase 4（3-4 天，可與 2A 平行）— 表單拆分
-- [ ] 10.1 — `team-form.js` 拆為 validate + roles + 瘦身後的 form
-- [ ] 10.2 — 教育模組解耦（type handler pattern）
-- [ ] 10.3 — `tournament-friendly-detail.js` 拆出 `tournament-friendly-state.js`
-- [ ] 16.3 — 快取版號 + `architecture.md` + `claude-memory.md`
+### Phase 4（3-4 天，可與 2A 平行）— 表單拆分 ✅ 2026-04-14 完成
+- [x] 10.1 — `team-form.js` 拆為 validate + roles + 瘦身後的 form
+- [x] 10.2 — 教育模組解耦（type handler pattern）
+- [x] 10.3 — `tournament-friendly-detail.js` 拆出 `tournament-friendly-state.js`
+- [x] 16.3 — 快取版號 + `architecture.md` + `claude-memory.md`
 - [ ] 驗證：俱樂部建立/編輯/角色升降級功能正常
 
 ### Phase 2B（3-5 天）— 列表效能

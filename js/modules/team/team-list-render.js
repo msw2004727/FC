@@ -14,12 +14,9 @@ Object.assign(App, {
     const eduRibbon = isEdu ? '<span class="tc-edu-ribbon">教學</span>' : '';
     const sportEmoji = t.sportTag && typeof SPORT_ICON_EMOJI !== 'undefined' ? (SPORT_ICON_EMOJI[t.sportTag] || '') : '';
     const sportBadge = sportEmoji ? `<span class="tc-sport-badge">${sportEmoji}</span>` : '';
+    const typeHandler = this._getTeamTypeHandler(t.type);
     const memberLabel = isEdu ? '學員' : I18N.t('team.memberLabel');
-    const memberCount = isEdu
-      ? ((this._eduStudentsCache && this._eduStudentsCache[t.id])
-        ? this._eduStudentsCache[t.id].filter(s => s.enrollStatus === 'active').length
-        : 0)
-      : this._calcTeamMemberCount(t.id);
+    const memberCount = typeHandler.memberCount(t.id);
     return `
       <div class="tc-card${pinnedClass}" onclick="App.showTeamDetail('${t.id}')">
         ${t.pinned ? '<div class="tc-pin-badge">置頂</div>' : ''}

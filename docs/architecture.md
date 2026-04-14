@@ -41,8 +41,8 @@ flowchart TD
 
         subgraph MODS["modules/ — 14 功能子資料夾 + 24 獨立模組"]
             EVT["event/ (30)\n活動系統"]
-            TEAM["team/ (11)\n俱樂部系統"]
-            TOUR["tournament/ (14)\n賽事系統"]
+            TEAM["team/ (16)\n俱樂部系統"]
+            TOUR["tournament/ (15)\n賽事系統"]
             PROF["profile/ (9)\n個人資料"]
             MSG["message/ (9)\n訊息系統"]
             ACH["achievement/ (10)\n成就系統"]
@@ -200,11 +200,11 @@ CF 查詢：     admin.firestore().collectionGroup('registrations') + 去重（p
 | `event-manage.js` | 活動管理主模組（共用 helper） |
 | `event-external-transit.js` | 外部活動中繼卡片（YouTube 嵌入、連結跳轉、分享） |
 
-### team/ — 俱樂部系統（14 個模組）
+### team/ — 俱樂部系統（16 個模組）
 
 | 檔案 | 說明 |
 |------|------|
-| `team-list-helpers.js` | 身分解析、權限判斷等純工具函式（Phase 1a 從 team-list.js 抽出） |
+| `team-list-helpers.js` | 身分解析、權限判斷、type handler 等純工具函式（Phase 1a 抽出 + Phase 4 §10.2 教育解耦） |
 | `team-list-stats.js` | 成員計數、排名、排序等純計算函式（Phase 1a 從 team-list.js 抽出） |
 | `team-list.js` | 俱樂部列表篩選、置頂、管理操作膠水 |
 | `team-list-render.js` | 俱樂部卡片渲染與列表顯示 |
@@ -217,9 +217,11 @@ CF 查詢：     admin.firestore().collectionGroup('registrations') + 去重（p
 | `team-form-join.js` | 加入/退出俱樂部 |
 | `team-form-search.js` | 俱樂部表單搜尋 UI（隊長/副隊長/教練） |
 | `team-form-init.js` | 俱樂部表單初始化與顯示 |
-| `team-form.js` | 俱樂部表單主模組（建立/編輯） |
+| `team-form-validate.js` | 表單驗證與欄位值提取（Phase 4 §10.1 從 team-form.js 抽出） |
+| `team-form-roles.js` | 角色降級預覽 + 儲存後自動升降級/通知（Phase 4 §10.1 從 team-form.js 抽出） |
+| `team-form.js` | 俱樂部表單主模組 — 資料組裝 + 儲存 + 日誌（Phase 4 §10.1 瘦身） |
 
-### tournament/ — 賽事系統（14 個模組 + README）
+### tournament/ — 賽事系統（15 個模組 + README）
 
 | 檔案 | 說明 |
 |------|------|
@@ -234,7 +236,8 @@ CF 查詢：     admin.firestore().collectionGroup('registrations') + 去重（p
 | `tournament-manage-edit.js` | 賽事編輯 Modal 與儲存處理 |
 | `tournament-share.js` | 賽事分享（LINE Flex Message） |
 | `tournament-share-builders.js` | 分享用 Flex Message / URL / altText 建構函式（3 個 builder） |
-| `tournament-friendly-detail.js` | 友誼賽詳情頁（俱樂部申請、主辦審核、聯繫主辦人） |
+| `tournament-friendly-state.js` | 友誼賽狀態管理 — 載入、快取同步、可見性、申請上下文（Phase 4 §10.3 從 detail 抽出） |
+| `tournament-friendly-detail.js` | 友誼賽詳情頁 — 渲染 + 使用者操作（Phase 4 §10.3 瘦身） |
 | `tournament-friendly-detail-view.js` | 友誼賽詳情頁渲染（參加按鈕、俱樂部列表、待審列） |
 | `tournament-friendly-roster.js` | 友誼賽 roster（球員名單、加入/退出、多隊身份選擇） |
 | `tournament-friendly-notify.js` | 友誼賽通知（建賽、俱樂部申請、主辦審核推播） |

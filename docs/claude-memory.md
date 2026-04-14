@@ -10,6 +10,16 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-04-14 — 俱樂部×賽事重構 Phase 4：表單拆分 + 教育解耦
+- **目標**：降低 team-form.js / tournament-friendly-detail.js 的單檔複雜度，解耦教育型俱樂部的 if 散落
+- **執行內容**：
+  - §10.1 `team-form.js`（393→155 行）拆分為 `team-form-validate.js`（表單驗證 + 值提取）+ `team-form-roles.js`（降級預覽 + 自動升降級/通知）+ 瘦身後的 `team-form.js`（資料組裝 + 儲存 + 日誌）
+  - §10.2 教育解耦：`team-list-helpers.js` 新增 `_getTeamTypeHandler(type)` + `_getEduStudentCount(teamId)`，4 處 `if (type === 'education')` 改為呼叫 handler（team-detail.js / team-form-join.js / team-list-render.js / team-form-init.js）
+  - §10.3 `tournament-friendly-detail.js`（368→216 行）拆出 `tournament-friendly-state.js`（5 個狀態管理函式 + _isTournamentViewerInTeam），detail 只留 3 個渲染/操作函式
+  - `script-loader.js` 新增 3 個檔案載入（validate/roles 在 form 之前、state 在 detail 之前）
+  - `docs/architecture.md` 更新模組數（team 14→16、tournament 14→15）
+- **教訓**：Object.assign 載入順序很重要 — validate/roles 必須在 form 之前載入，否則 handleSaveTeam 呼叫時函式尚未掛載
+
 ### [永久] 2026-04-14 — 俱樂部×賽事重構 Phase 2A：專看專讀 per-entity 架構 + ID 統一建立流程
 - **目標**：深連結看 1 個俱樂部/賽事從 200-600 reads 降至 1 read；消除俱樂部/賽事的雙軌 ID
 - **執行內容**：

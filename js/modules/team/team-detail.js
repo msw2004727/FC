@@ -163,9 +163,10 @@ Object.assign(App, {
       const totalGames = (t.wins || 0) + (t.draws || 0) + (t.losses || 0);
       const winRate = totalGames > 0 ? Math.round((t.wins || 0) / totalGames * 100) : 0;
 
-      // 教育型俱樂部委派 edu-detail-render.js 渲染
-      if (t.type === 'education' && typeof this.renderEduClubDetail === 'function') {
-        await this.renderEduClubDetail(id);
+      // 教育型俱樂部委派 edu-detail-render.js 渲染（Phase 4 §10.2 type handler）
+      const typeHandler = this._getTeamTypeHandler(t.type);
+      if (typeHandler.detailRenderer) {
+        await typeHandler.detailRenderer(id);
       } else {
         // 非教育型：載入 feed subcollection 資料
         if (typeof this._loadTeamFeed === 'function') {

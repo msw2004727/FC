@@ -150,6 +150,8 @@ const ScriptLoader = {
       'js/modules/team/team-form-join.js',
       'js/modules/team/team-form-search.js',
       'js/modules/team/team-form-init.js',
+      'js/modules/team/team-form-validate.js',
+      'js/modules/team/team-form-roles.js',
       'js/modules/team/team-form.js',
     ],
     profile: [
@@ -244,6 +246,7 @@ const ScriptLoader = {
       'js/modules/tournament/tournament-render.js',
       'js/modules/tournament/tournament-share-builders.js',
       'js/modules/tournament/tournament-detail.js',
+      'js/modules/tournament/tournament-friendly-state.js',
       'js/modules/tournament/tournament-friendly-detail.js',
       'js/modules/tournament/tournament-friendly-detail-view.js',
       'js/modules/tournament/tournament-share.js',
