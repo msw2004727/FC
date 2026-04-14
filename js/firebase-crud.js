@@ -789,6 +789,12 @@ Object.assign(FirebaseService, {
   async registerForEvent(eventId, userId, userName, teamKey = null) {
     if (!userId || userId === 'unknown') throw new Error('用戶資料載入中，請稍候再試');
 
+    // Plan C：個人資料完整度前置檢查（⚠️ 鎖定函式 pre-check：不觸碰 transaction/佔位邏輯）
+    var _cu = typeof ApiService !== 'undefined' && ApiService.getCurrentUser?.();
+    if (_cu && (!_cu.gender || !_cu.birthday || !_cu.region)) {
+      throw new Error('PROFILE_INCOMPLETE');
+    }
+
     // 模組層 busy lock（防止同一活動同時多次報名）
     this._signupBusyMap = this._signupBusyMap || {};
     const busyKey = eventId + '_' + userId;
@@ -2037,6 +2043,12 @@ Object.assign(FirebaseService, {
   // ════════════════════════════════
 
   async batchRegisterForEvent(eventId, entries) {
+    // Plan C：個人資料完整度前置檢查（⚠️ 鎖定函式 pre-check）
+    var _cu2 = typeof ApiService !== 'undefined' && ApiService.getCurrentUser?.();
+    if (_cu2 && (!_cu2.gender || !_cu2.birthday || !_cu2.region)) {
+      throw new Error('PROFILE_INCOMPLETE');
+    }
+
     const authed = await this.ensureAuthReadyForWrite();
     if (!authed) {
       throw new Error('Firebase 登入失敗\n請清除瀏覽器緩存後重新登入\n若仍異常請聯繫管理員');

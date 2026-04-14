@@ -136,40 +136,25 @@ Object.assign(App, {
     this._handleRestrictedStateChange?.();
     this.renderProfileData?.();
     this.renderProfileFavorites?.();
+    // Plan B：首登表單已內聯到 index.html，不再依賴 ScriptLoader（48 script）
     if (this._pendingFirstLogin && !this._isCurrentUserRestricted?.() && !this._firstLoginShowing) {
       this._firstLoginShowing = true;
       var self = this;
-      var MAX_RETRY = 3;
-      var attempt = 0;
-      (async function _tryShow() {
-        attempt++;
+      // 等 modal-overlay 載入（PageLoader 會載入 modals.html 中的 overlay）
+      (async function() {
         try {
           if (typeof PageLoader !== 'undefined' && PageLoader._loadAllPromise) {
             await PageLoader._loadAllPromise;
           }
-          if (typeof ScriptLoader !== 'undefined' && ScriptLoader.ensureForPage) {
-            await ScriptLoader.ensureForPage('page-profile');
-          }
-        } catch (err) {
-          console.error('[bindLineLogin] first-login load failed (attempt ' + attempt + '):', err);
-          if (attempt < MAX_RETRY) {
-            await new Promise(function(r) { setTimeout(r, 1500); });
-            return _tryShow();
-          }
-          self._firstLoginShowing = false;
-          return;
+        } catch (_) {}
+        var modal = document.getElementById('first-login-modal');
+        if (!modal) { self._firstLoginShowing = false; return; }
+        try {
+          self.initFirstLoginRegionPicker?.();
+          self._populateBirthdaySelects?.('fl-birthday-y', 'fl-birthday-m', 'fl-birthday-d');
+        } catch (initErr) {
+          console.warn('[bindLineLogin] first-login init error:', initErr);
         }
-        if (!document.getElementById('first-login-modal')) {
-          console.warn('[bindLineLogin] first-login-modal DOM not found (attempt ' + attempt + ')');
-          if (attempt < MAX_RETRY) {
-            await new Promise(function(r) { setTimeout(r, 1500); });
-            return _tryShow();
-          }
-          self._firstLoginShowing = false;
-          return;
-        }
-        self.initFirstLoginRegionPicker?.();
-        self._populateBirthdaySelects?.('fl-birthday-y', 'fl-birthday-m', 'fl-birthday-d');
         self.showModal('first-login-modal');
         var overlay = document.getElementById('modal-overlay');
         if (overlay) overlay.dataset.locked = '1';
@@ -391,7 +376,8 @@ Object.assign(App, {
     return y + '/' + m + '/' + d;
   },
 
-  saveFirstLoginProfile: function() {
+  // Plan B+C：改用 await 確保存檔完成才關 modal（修正 fire-and-forget bug）
+  async saveFirstLoginProfile() {
     var genderEl = document.getElementById('fl-gender');
     var regionEl = document.getElementById('fl-region-input');
     var gender = genderEl ? genderEl.value : '';
@@ -408,16 +394,20 @@ Object.assign(App, {
       showErr('請填寫所有必填欄位（性別、生日、地區）');
       return;
     }
+    // 禁用按鈕防連點
+    var btn = document.querySelector('#first-login-modal .primary-btn');
+    if (btn) { btn.disabled = true; btn.textContent = '儲存中...'; }
     try {
-      ApiService.updateCurrentUser({ gender: gender, birthday: birthday, region: region });
+      await ApiService.updateCurrentUserAwait({ gender: gender, birthday: birthday, region: region });
     } catch (err) {
       console.error('[saveFirstLoginProfile]', err);
-      showErr('儲存失敗：' + (err.message || '請稍後再試'));
-      return;
+      showErr('儲存失敗，請檢查網路後重試');
+      if (btn) { btn.disabled = false; btn.textContent = '確認送出'; }
+      return;  // 不關 modal，讓用戶重試
     }
+    if (btn) { btn.disabled = false; btn.textContent = '確認送出'; }
     this._pendingFirstLogin = false;
     this._firstLoginShowing = false;
-    // 解鎖 overlay（允許關閉）
     var overlay = document.getElementById('modal-overlay');
     if (overlay) delete overlay.dataset.locked;
     var input = document.getElementById('fl-region-input');

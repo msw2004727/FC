@@ -10,6 +10,20 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### [永久] 2026-04-14 — 首次登入個人資料強制填寫修復（Plan B + Plan C）
+- **問題**：18.7% 用戶（127/678）資料不完整。根因：首登表單依賴 ScriptLoader 載入 48 個不相關 script，網路差時 3 次重試全失敗後靜默放棄
+- **修復**：
+  - Plan B：首登表單 HTML 內聯到 index.html，完全移除 ScriptLoader 依賴。表單從 modals.html 移除避免重複 DOM
+  - Plan B：`saveFirstLoginProfile` 改用 `updateCurrentUserAwait`（async await），存檔失敗不關 modal 讓用戶重試
+  - Plan B：`navigation.js _tryShowFirstLoginModal` 同步簡化（移除 ScriptLoader）
+  - Plan C：`functions/index.js registerForEvent` 加入 `PROFILE_INCOMPLETE` 前置檢查（gender + birthday + region 三欄一致）
+  - Plan C：`firebase-crud.js registerForEvent / batchRegisterForEvent` 前端 pre-check（鎖定函式，僅 pre-check 不觸碰 transaction）
+  - Plan C：`event-detail-signup.js / event-detail-companion.js` 攔截 PROFILE_INCOMPLETE 錯誤 → 自動彈出首登表單
+- **教訓**：
+  - `updateCurrentUser` 是 fire-and-forget，關鍵資料存檔必須用 `updateCurrentUserAwait`
+  - 首登表單只需 ~160 行 JS + ~30 行 HTML，不應該依賴 48 script 的 ScriptLoader 鏈
+  - CF 路徑目前 0% 流量（feature flag 關閉），前端 pre-check 才是實際有效的防線
+
 ### [永久] 2026-04-14 — 俱樂部×賽事重構完成總結（Phase 0-3 + Phase 4）— 全計畫結案
 - **範圍**：6 個 Phase、9 個 commit、14 個新建檔案、30+ 個修改檔案
 - **架構成果**：

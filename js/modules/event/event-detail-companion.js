@@ -245,8 +245,16 @@ Object.assign(App, {
         REG_NOT_OPEN: '報名尚未開放，請稍後再試',
         GENDER_RESTRICTED: '此活動不符合目前性別限制',
         TEAM_RESTRICTED: '俱樂部限定活動，僅限該隊成員報名',
+        PROFILE_INCOMPLETE: '請先完善個人資料後再報名',
       };
       const errCode = err?.details || err?.message || '';
+      // Plan C：PROFILE_INCOMPLETE → 自動彈出首登表單
+      if (errCode === 'PROFILE_INCOMPLETE') {
+        this._pendingFirstLogin = true;
+        this._firstLoginShowing = false;
+        this._tryShowFirstLoginModal?.();
+        return;
+      }
       const isNetworkOrTimeout = /timeout|network|fetch|ECONNREFUSED|逾時/i.test(err?.message || '');
       this.showToast(cfMsg[errCode] || (isNetworkOrTimeout ? '連線逾時，請檢查網路後重新整理再試' : err.message || '報名失敗，請稍後再試'));
     }

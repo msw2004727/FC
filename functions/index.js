@@ -4636,6 +4636,12 @@ exports.registerForEvent = onCall(
     // ── 預先查詢呼叫者資料（在 Transaction 外，避免 Transaction 內做非交易讀取）──
     const callerUserDoc = await findUserDocByUidOrLineUserId(callerUid);
 
+    // ── Plan C：個人資料完整度檢查（gender + birthday + region 三欄一致）──
+    const _profileData = callerUserDoc?.data;
+    if (_profileData && (!_profileData.gender || !_profileData.birthday || !_profileData.region)) {
+      throw new HttpsError("failed-precondition", "PROFILE_INCOMPLETE");
+    }
+
     // ── Firestore Transaction ──
     const result = await db.runTransaction(async (transaction) => {
       // T1: 讀取活動（用 id 欄位查詢，因 eventId 是邏輯 ID 非 Firestore doc ID）

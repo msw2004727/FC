@@ -717,39 +717,21 @@ Object.assign(App, {
     document.getElementById('drawer-overlay').classList.remove('open');
   },
 
-  // ── 首次登入 modal 重試顯示（供 showPage 守衛呼叫）──
+  // ── 首次登入 modal 顯示（Plan B：內聯到 index.html，不依賴 ScriptLoader）──
   _tryShowFirstLoginModal() {
     if (this._firstLoginShowing) return;
     var modal = document.getElementById('first-login-modal');
-    if (modal) {
-      this._firstLoginShowing = true;
+    if (!modal) { return; }  // 內聯後理論上永遠存在
+    this._firstLoginShowing = true;
+    try {
       this.initFirstLoginRegionPicker?.();
       this._populateBirthdaySelects?.('fl-birthday-y', 'fl-birthday-m', 'fl-birthday-d');
-      this.showModal('first-login-modal');
-      var overlay = document.getElementById('modal-overlay');
-      if (overlay) overlay.dataset.locked = '1';
-      return;
+    } catch (e) {
+      console.warn('[_tryShowFirstLoginModal] init error:', e);
     }
-    // DOM 不存在：等 PageLoader 完成後重試一次
-    var self = this;
-    this._firstLoginShowing = true;
-    (async function() {
-      try {
-        if (typeof PageLoader !== 'undefined' && PageLoader._loadAllPromise) {
-          await PageLoader._loadAllPromise;
-        }
-        if (typeof ScriptLoader !== 'undefined' && ScriptLoader.ensureForPage) {
-          await ScriptLoader.ensureForPage('page-profile');
-        }
-      } catch (_) {}
-      var el = document.getElementById('first-login-modal');
-      if (!el) { self._firstLoginShowing = false; return; }
-      self.initFirstLoginRegionPicker?.();
-      self._populateBirthdaySelects?.('fl-birthday-y', 'fl-birthday-m', 'fl-birthday-d');
-      self.showModal('first-login-modal');
-      var ov = document.getElementById('modal-overlay');
-      if (ov) ov.dataset.locked = '1';
-    })();
+    this.showModal('first-login-modal');
+    var overlay = document.getElementById('modal-overlay');
+    if (overlay) overlay.dataset.locked = '1';
   },
 
   showModal(id) { this.toggleModal(id); },
