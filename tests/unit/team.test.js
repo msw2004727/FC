@@ -4,7 +4,7 @@
  * Source files:
  *   js/modules/team/team-list.js
  *   js/modules/team/team-form-join.js
- *   js/modules/team/team-detail-members.js
+ *   js/modules/team/team-detail-invite.js
  */
 
 // ---------------------------------------------------------------------------
@@ -27,7 +27,7 @@ function _getUserTeamIds(user) {
 }
 
 // ---------------------------------------------------------------------------
-// Extracted from js/modules/team/team-list.js:28-30
+// Extracted from js/modules/team/team-list-helpers.js:11-13
 // _normalizeIdentityValue
 // ---------------------------------------------------------------------------
 function _normalizeIdentityValue(value) {
@@ -35,7 +35,7 @@ function _normalizeIdentityValue(value) {
 }
 
 // ---------------------------------------------------------------------------
-// Extracted from js/modules/team/team-list.js:126-133
+// Extracted from js/modules/team/team-list-stats.js:33-40
 // _getTeamRank — maps EXP to rank tier
 // ---------------------------------------------------------------------------
 const TEAM_RANK_CONFIG = [
@@ -61,7 +61,7 @@ function _getTeamRank(teamExp) {
 }
 
 // ---------------------------------------------------------------------------
-// Extracted from js/modules/team/team-list.js:135-142
+// Extracted from js/modules/team/team-list-stats.js:42-49
 // _sortTeams — pinned first, then by pinOrder
 // ---------------------------------------------------------------------------
 function _sortTeams(teams) {
@@ -86,7 +86,7 @@ function _parseTimeStr(str) {
 }
 
 // ---------------------------------------------------------------------------
-// Extracted from js/modules/team/team-detail-members.js:19-23
+// Extracted from js/modules/team/team-detail-invite.js:19-23
 // _buildTeamInviteShareText — builds invite text
 // ---------------------------------------------------------------------------
 function _buildTeamInviteShareText(teamName, shareUrl) {
@@ -136,7 +136,7 @@ describe('_getUserTeamIds (team-list.js:8-21)', () => {
   });
 });
 
-describe('_normalizeIdentityValue (team-list.js:28-30)', () => {
+describe('_normalizeIdentityValue (team-list-helpers.js:11-13)', () => {
   test('trims whitespace', () => {
     expect(_normalizeIdentityValue('  hello  ')).toBe('hello');
   });
@@ -151,7 +151,7 @@ describe('_normalizeIdentityValue (team-list.js:28-30)', () => {
   });
 });
 
-describe('_getTeamRank (team-list.js:126-133)', () => {
+describe('_getTeamRank (team-list-stats.js:33-40)', () => {
   test('0 EXP → rank E', () => {
     expect(_getTeamRank(0)).toEqual({ rank: 'E', color: '#6b7280' });
   });
@@ -179,7 +179,7 @@ describe('_getTeamRank (team-list.js:126-133)', () => {
   });
 });
 
-describe('_sortTeams (team-list.js:135-142)', () => {
+describe('_sortTeams (team-list-stats.js:42-49)', () => {
   test('pinned teams come first', () => {
     const teams = [
       { id: 'a', pinned: false },
@@ -240,7 +240,7 @@ describe('_parseTimeStr (team-form-join.js:73-79)', () => {
   });
 });
 
-describe('_buildTeamInviteShareText (team-detail-members.js:19-23)', () => {
+describe('_buildTeamInviteShareText (team-detail-invite.js:19-23)', () => {
   test('includes team name and URL', () => {
     const text = _buildTeamInviteShareText('FC Warriors', 'https://example.com/invite');
     expect(text).toContain('FC Warriors');

@@ -200,18 +200,21 @@ CF 查詢：     admin.firestore().collectionGroup('registrations') + 去重（p
 | `event-manage.js` | 活動管理主模組（共用 helper） |
 | `event-external-transit.js` | 外部活動中繼卡片（YouTube 嵌入、連結跳轉、分享） |
 
-### team/ — 俱樂部系統（11 個模組）
+### team/ — 俱樂部系統（14 個模組）
 
 | 檔案 | 說明 |
 |------|------|
-| `team-list.js` | 俱樂部列表主模組 |
+| `team-list-helpers.js` | 身分解析、權限判斷等純工具函式（Phase 1a 從 team-list.js 抽出） |
+| `team-list-stats.js` | 成員計數、排名、排序等純計算函式（Phase 1a 從 team-list.js 抽出） |
+| `team-list.js` | 俱樂部列表篩選、置頂、管理操作膠水 |
 | `team-list-render.js` | 俱樂部卡片渲染與列表顯示 |
 | `team-detail.js` | 俱樂部詳情主模組 |
 | `team-feed.js` | 俱樂部留言板 CRUD（subcollection：teams/{teamId}/feed） |
 | `team-detail-render.js` | 俱樂部詳情渲染（活動、動態牆、留言） |
-| `team-detail-members.js` | 俱樂部成員管理與邀請 |
-| `team-share.js` | 俱樂部分享（LINE Flex Message + 底部選單） |
-| `team-form-join.js` | 加入/退出俱樂部與角色變更 |
+| `team-detail-invite.js` | 俱樂部邀請 QR Code 與連結分享（原 team-detail-members.js） |
+| `team-share-builders.js` | 分享用純建構函式：URL / AltText / Flex Message（Phase 1a 從 team-share.js 抽出） |
+| `team-share.js` | 俱樂部分享 UI 操作（LINE Flex Message + 底部選單） |
+| `team-form-join.js` | 加入/退出俱樂部 |
 | `team-form-search.js` | 俱樂部表單搜尋 UI（隊長/副隊長/教練） |
 | `team-form-init.js` | 俱樂部表單初始化與顯示 |
 | `team-form.js` | 俱樂部表單主模組（建立/編輯） |

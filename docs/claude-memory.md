@@ -10,6 +10,19 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-04-14 — 俱樂部×賽事重構 Phase 1a：俱樂部結構整理
+- **目標**：拆分過大的 team-list.js（305→179 行）與 team-share.js（190→84 行），建立唯一真相來源
+- **執行內容**：
+  - 新建 `team-list-helpers.js`（178 行）— 12 個身分解析/權限函式 + `_canManageTeamMembers`（從 team-detail.js）+ `_applyRoleChange`（從 team-form-join.js）
+  - 新建 `team-list-stats.js`（50 行）— `_calcTeamMemberCountByTeam` / `_calcTeamMemberCount` / `_getTeamRank` / `_sortTeams`
+  - 新建 `team-share-builders.js`（102 行）— `_buildTeamLiffUrl` / `_buildTeamShareAltText` / `_buildTeamFlexMessage`
+  - 改名 `team-detail-members.js` → `team-detail-invite.js`
+  - 搬移錯放函式：`removeTeam` → team-list.js / `_applyRoleChange` → team-list-helpers.js / `_initTeamListSportFilter` → team-list-render.js
+  - 刪除 2 處 inline fallback（team-detail.js / team-form-join.js），改為呼叫 `_calcTeamMemberCount`
+  - 更新 script-loader.js 載入順序：helpers → stats → list → render
+  - 更新測試引用 + source-drift 註解
+- **教訓**：§6.0C 的 ≤80 行目標未考慮 `removeTeam`（46 行）搬入 team-list.js，實際結果 179 行但已達到結構分離目的
+
 ### [永久] 2026-04-14 — 俱樂部×賽事重構 Phase 0：安全性修復（Firestore Rules + 索引）
 - **問題**：三處安全漏洞 — (1) 賽事 entries/members 公開讀取（未登入可讀取所有參賽者 UID/姓名）(2) 動態牆任何登入用戶可刪改他人貼文 (3) 賽事委託人可自我擴權（修改 delegateUids 新增其他委託人）
 - **修復**：

@@ -194,4 +194,19 @@ Object.assign(App, {
     this._markPageSnapshotReady?.('page-admin-teams');
   },
 
+  // ── 從 team-form-init.js 搬入（渲染時初始化篩選器）──
+
+  _initTeamListSportFilter() {
+    const sel = document.getElementById('team-sport-filter');
+    if (!sel || sel.dataset.inited) return;
+    sel.dataset.inited = '1';
+    (Array.isArray(EVENT_SPORT_OPTIONS) ? EVENT_SPORT_OPTIONS : []).forEach(item => {
+      const emoji = (typeof SPORT_ICON_EMOJI !== 'undefined' ? SPORT_ICON_EMOJI[item.key] : '') || '';
+      const opt = document.createElement('option');
+      opt.value = item.key;
+      opt.textContent = emoji ? emoji + ' ' + item.label : item.label;
+      sel.appendChild(opt);
+    });
+  },
+
 });

@@ -1,6 +1,8 @@
 /* ================================================
-   SportHub — Team: Search, Filter, Identity & Admin Actions
-   依賴：config.js, api-service.js
+   SportHub — Team: Filter, Tab, Pin & Admin Actions
+   純函式已抽至 team-list-helpers.js / team-list-stats.js。
+   本檔只留 DOM 操作膠水 + 管理操作。
+   依賴：team-list-helpers.js, team-list-stats.js, api-service.js
    ================================================ */
 
 Object.assign(App, {
@@ -23,183 +25,6 @@ Object.assign(App, {
   _isUserInTeam(user, teamId) {
     if (!user || !teamId) return false;
     return this._getUserTeamIds(user).includes(String(teamId));
-  },
-
-  _normalizeIdentityValue(value) {
-    return String(value || '').trim();
-  },
-
-  _toNameIdentityKey(name) {
-    const normalized = this._normalizeIdentityValue(name).toLowerCase();
-    return normalized ? `name:${normalized}` : null;
-  },
-
-  _getUserIdentityKey(user) {
-    if (!user) return null;
-    const uid = this._normalizeIdentityValue(user.uid);
-    if (uid) return `uid:${uid}`;
-    const docId = this._normalizeIdentityValue(user._docId);
-    if (docId) return `doc:${docId}`;
-    return this._toNameIdentityKey(user.name || user.displayName);
-  },
-
-  _resolveUserIdentityKeyByName(name, users = ApiService.getAdminUsers() || []) {
-    const target = this._normalizeIdentityValue(name);
-    if (!target) return null;
-    const found = users.find(u => {
-      const userName = this._normalizeIdentityValue(u.name);
-      const displayName = this._normalizeIdentityValue(u.displayName);
-      return userName === target || displayName === target;
-    });
-    return this._getUserIdentityKey(found);
-  },
-
-  _buildTeamStaffIdentity(team, users = ApiService.getAdminUsers() || []) {
-    const keys = new Set();
-    const names = new Set();
-    if (!team) return { keys, names };
-
-    const addKey = (key) => {
-      if (key) keys.add(key);
-    };
-    const addByUidLike = (uidLike) => {
-      const raw = this._normalizeIdentityValue(uidLike);
-      if (!raw) return;
-      const found = users.find(u =>
-        this._normalizeIdentityValue(u.uid) === raw ||
-        this._normalizeIdentityValue(u._docId) === raw
-      );
-      addKey(found ? this._getUserIdentityKey(found) : `uid:${raw}`);
-    };
-    const addByName = (name) => {
-      const rawName = this._normalizeIdentityValue(name);
-      if (!rawName) return;
-      names.add(rawName.toLowerCase());
-      const resolvedKey = this._resolveUserIdentityKeyByName(rawName, users);
-      addKey(resolvedKey || this._toNameIdentityKey(rawName));
-    };
-
-    addByUidLike(team.captainUid);
-    addByName(team.captain);
-
-    const leaderUids = team.leaderUids || (team.leaderUid ? [team.leaderUid] : []);
-    leaderUids.forEach(addByUidLike);
-
-    const leaderNames = team.leaders || (team.leader ? [team.leader] : []);
-    leaderNames.forEach(addByName);
-
-    (team.coaches || []).forEach(addByName);
-
-    return { keys, names };
-  },
-
-  _calcTeamMemberCountByTeam(team, users = ApiService.getAdminUsers() || []) {
-    if (!team || !team.id) return 0;
-    const uniqueIdentities = new Set();
-    const staffIdentity = this._buildTeamStaffIdentity(team, users);
-    staffIdentity.keys.forEach(key => uniqueIdentities.add(key));
-
-    users.forEach(user => {
-      if (!this._isUserInTeam(user, team.id)) return;
-      const key = this._getUserIdentityKey(user);
-      if (key) uniqueIdentities.add(key);
-    });
-
-    return uniqueIdentities.size;
-  },
-
-  _calcTeamMemberCount(teamId) {
-    const team = ApiService.getTeam(teamId);
-    if (!team) return 0;
-    const users = ApiService.getAdminUsers() || [];
-    return this._calcTeamMemberCountByTeam(team, users);
-  },
-
-  _isTeamOwner(t) {
-    const user = ApiService.getCurrentUser();
-    return !!(user && this._isUserInTeam(user, t.id));
-  },
-
-  _getTeamRank(teamExp) {
-    const exp = teamExp || 0;
-    for (let i = TEAM_RANK_CONFIG.length - 1; i >= 0; i--) {
-      const cfg = TEAM_RANK_CONFIG[i];
-      if (exp >= cfg.min) return { rank: cfg.rank, color: cfg.color };
-    }
-    return { rank: 'E', color: '#6b7280' };
-  },
-
-  _sortTeams(teams) {
-    return [...teams].sort((a, b) => {
-      if (a.pinned && !b.pinned) return -1;
-      if (!a.pinned && b.pinned) return 1;
-      if (a.pinned && b.pinned) return (a.pinOrder || 0) - (b.pinOrder || 0);
-      return (a.name || '').localeCompare(b.name || '');
-    });
-  },
-
-  _hasRolePermission(code) {
-    if (!code) return false;
-    const role = (this.currentRole || ApiService.getCurrentUser?.()?.role || 'user');
-    const perms = ApiService.getRolePermissions(role) || [];
-    return perms.includes(code);
-  },
-
-  _findUserByUidOrDocId(uidOrDocId) {
-    if (!uidOrDocId) return null;
-    const users = ApiService.getAdminUsers() || [];
-    return users.find(u => u.uid === uidOrDocId || u._docId === uidOrDocId) || null;
-  },
-
-  _resolveTeamCaptainUser(team) {
-    if (!team) return null;
-    const users = ApiService.getAdminUsers() || [];
-
-    if (team.captainUid) {
-      const byUid = this._findUserByUidOrDocId(team.captainUid);
-      if (byUid) return byUid;
-    }
-
-    if (team.captain) {
-      const byName = users.find(u =>
-        u.name === team.captain || u.displayName === team.captain
-      );
-      if (byName) return byName;
-    }
-
-    if (team.id) {
-      const teamUsers = users.filter(u => this._isUserInTeam(u, team.id));
-      const captainUser = teamUsers.find(u => u.role === 'captain' || u.manualRole === 'captain');
-      if (captainUser) return captainUser;
-    }
-
-    return null;
-  },
-
-  _isTeamCaptainUser(team) {
-    if (!team) return false;
-
-    const currentUser = ApiService.getCurrentUser?.();
-    if (!currentUser) return false;
-
-    if (team.captainUid && (team.captainUid === currentUser.uid || team.captainUid === currentUser._docId)) {
-      return true;
-    }
-
-    const currentNames = new Set([currentUser.name, currentUser.displayName].filter(Boolean));
-    if (team.captain && currentNames.has(team.captain)) return true;
-
-    const captainUser = this._resolveTeamCaptainUser(team);
-    return !!(captainUser && currentUser.uid && captainUser.uid === currentUser.uid);
-  },
-
-  _canEditTeamByRoleOrCaptain(team) {
-    if (!team) return false;
-    return this._isTeamCaptainUser(team) || this._hasRolePermission('team.manage_all') || this._hasRolePermission('team.manage_self');
-  },
-
-  _canCreateTeamByPermission() {
-    return this._hasRolePermission('team.create');
   },
 
   _refreshTeamCreateButtons() {
@@ -300,6 +125,55 @@ Object.assign(App, {
     this.renderTeamList();
     this.renderTeamManage();
     this.showToast(t.active ? `已上架「${t.name}」` : `已下架「${t.name}」`);
+  },
+
+  // ── 從 team-form-search.js 搬入（與 toggleTeamPin/toggleTeamActive 同級）──
+
+  async removeTeam(id) {
+    const t = ApiService.getTeam(id);
+    if (!t) return;
+    if (!(await this.appConfirm(`確定要刪除「${t.name}」？此操作無法復原。`))) return;
+    const tName = t.name;
+
+    // 刪隊前收集俱樂部經理 + 領隊 + 教練 uid，用於刪隊後降級檢查
+    const affectedUids = [];
+    const allUsers = ApiService.getAdminUsers();
+    if (t.captainUid) {
+      affectedUids.push(t.captainUid);
+    } else if (t.captain) {
+      const capUser = allUsers.find(u => u.name === t.captain);
+      if (capUser) affectedUids.push(capUser.uid);
+    }
+    (t.leaderUids || (t.leaderUid ? [t.leaderUid] : [])).forEach(lUid => {
+      if (lUid && !affectedUids.includes(lUid)) affectedUids.push(lUid);
+    });
+    (t.coaches || []).forEach(cName => {
+      const cUser = allUsers.find(u => u.name === cName);
+      if (cUser && !affectedUids.includes(cUser.uid)) affectedUids.push(cUser.uid);
+    });
+
+    try {
+      await ApiService.deleteTeam(id);
+    } catch (err) {
+      console.error('[removeTeam] delete failed:', err);
+      this.showToast('刪除俱樂部失敗，請稍後再試');
+      return;
+    }
+    ApiService._writeOpLog('team_delete', '刪除俱樂部', `刪除「${tName}」`);
+
+    // 刪隊後逐一重新計算角色
+    affectedUids.forEach(uid => {
+      this._applyRoleChange(ApiService._recalcUserRole(uid));
+    });
+
+    this.showToast(`已刪除「${tName}」`);
+    this.showPage('page-teams');
+    this.renderTeamList();
+    this.renderAdminTeams();
+    this.renderTeamManage();
+    this.renderProfileData();
+    this.renderHotEvents();
+    this.renderActivityList();
   },
 
 });

@@ -1,6 +1,6 @@
 /* ================================================
    SportHub — Team: Detail View Core
-   Split into: team-detail-render.js, team-detail-members.js
+   Split into: team-detail-render.js, team-detail-invite.js
    This file: state, helpers, showTeamDetail, member ops.
    Dynamic HTML uses escapeHTML() per project rules.
    ================================================ */
@@ -39,20 +39,7 @@ Object.assign(App, {
     btn.style.display = this._canEditTeamByRoleOrCaptain?.(team) ? '' : 'none';
   },
 
-  _canManageTeamMembers(team) {
-    const curUser = ApiService.getCurrentUser?.();
-    if (!team || !curUser) return false;
-    const myUid = curUser.uid || null;
-    const myNames = new Set([curUser.name, curUser.displayName].filter(Boolean));
-    if (team.captainUid && myUid && team.captainUid === myUid) return true;
-    if (!team.captainUid && team.captain && myNames.has(team.captain)) return true;
-    const leaderUids = team.leaderUids || (team.leaderUid ? [team.leaderUid] : []);
-    if (myUid && leaderUids.includes(myUid)) return true;
-    const leaderNames = team.leaders || (team.leader ? [team.leader] : []);
-    if (leaderNames.some(name => myNames.has(name))) return true;
-    if ((team.coaches || []).some(name => myNames.has(name))) return true;
-    return false;
-  },
+  // _canManageTeamMembers → 已搬至 team-list-helpers.js
 
   _getTeamStaffIdentity(team) {
     const users = ApiService.getAdminUsers() || [];
@@ -287,9 +274,7 @@ Object.assign(App, {
       ApiService.updateCurrentUser(updates);
     }
 
-    const memberCount = (typeof this._calcTeamMemberCount === 'function')
-      ? this._calcTeamMemberCount(teamId)
-      : (ApiService.getAdminUsers() || []).filter(u => u.teamId === teamId || (Array.isArray(u.teamIds) && u.teamIds.includes(teamId))).length;
+    const memberCount = this._calcTeamMemberCount(teamId);
     ApiService.updateTeam(teamId, { members: memberCount });
 
     const actorName = currentUser?.displayName || currentUser?.name || '\u8077\u54e1';

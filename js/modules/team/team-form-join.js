@@ -2,20 +2,7 @@
 
 Object.assign(App, {
 
-  /**
-   * 接收 _recalcUserRole 結果，發送站內信 + 寫操作日誌
-   */
-  _applyRoleChange(result) {
-    if (!result) return;
-    const { uid, oldRole, newRole, userName } = result;
-    const isUpgrade = (ROLE_LEVEL_MAP[newRole] || 0) > (ROLE_LEVEL_MAP[oldRole] || 0);
-    const roleName = ROLES[newRole]?.label || newRole;
-    const action = isUpgrade ? '晉升' : '調整';
-    this._sendNotifFromTemplate('role_upgrade', {
-      userName, roleName,
-    }, uid, 'private', '私訊');
-    ApiService._writeOpLog('role', '角色變更', `${userName} 自動${action}為「${roleName}」（原：${ROLES[oldRole]?.label || oldRole}）`);
-  },
+  // _applyRoleChange → 已搬至 team-list-helpers.js
 
   handleJoinTeam(teamId) {
     // 1. Already in this team -> no need to re-apply.
@@ -229,9 +216,7 @@ Object.assign(App, {
       const newCoaches = (t.coaches || []).filter(c => !myNames.has(c));
       ApiService.updateTeam(teamId, { coaches: newCoaches });
     }
-    const memberCount = (typeof this._calcTeamMemberCount === 'function')
-      ? this._calcTeamMemberCount(teamId)
-      : Math.max(0, (t.members || 1) - 1);
+    const memberCount = this._calcTeamMemberCount(teamId);
     ApiService.updateTeam(teamId, { members: memberCount });
 
     // 退隊後重新計算角色（教練退隊可能需降級）

@@ -98,18 +98,7 @@ Object.assign(App, {
     });
   },
 
-  _initTeamListSportFilter() {
-    const sel = document.getElementById('team-sport-filter');
-    if (!sel || sel.dataset.inited) return;
-    sel.dataset.inited = '1';
-    (Array.isArray(EVENT_SPORT_OPTIONS) ? EVENT_SPORT_OPTIONS : []).forEach(item => {
-      const emoji = (typeof SPORT_ICON_EMOJI !== 'undefined' ? SPORT_ICON_EMOJI[item.key] : '') || '';
-      const opt = document.createElement('option');
-      opt.value = item.key;
-      opt.textContent = emoji ? emoji + ' ' + item.label : item.label;
-      sel.appendChild(opt);
-    });
-  },
+  // _initTeamListSportFilter → 已搬至 team-list-render.js
 
   showTeamForm(id) {
     if (!id && typeof this._canCreateTeamByPermission === 'function' && !this._canCreateTeamByPermission()) {

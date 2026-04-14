@@ -127,51 +127,6 @@ Object.assign(App, {
     }).join('');
   },
 
-  async removeTeam(id) {
-    const t = ApiService.getTeam(id);
-    if (!t) return;
-    if (!(await this.appConfirm(`確定要刪除「${t.name}」？此操作無法復原。`))) return;
-    const tName = t.name;
-
-    // 刪隊前收集俱樂部經理 + 領隊 + 教練 uid，用於刪隊後降級檢查
-    const affectedUids = [];
-    const allUsers = ApiService.getAdminUsers();
-    if (t.captainUid) {
-      affectedUids.push(t.captainUid);
-    } else if (t.captain) {
-      const capUser = allUsers.find(u => u.name === t.captain);
-      if (capUser) affectedUids.push(capUser.uid);
-    }
-    (t.leaderUids || (t.leaderUid ? [t.leaderUid] : [])).forEach(lUid => {
-      if (lUid && !affectedUids.includes(lUid)) affectedUids.push(lUid);
-    });
-    (t.coaches || []).forEach(cName => {
-      const cUser = allUsers.find(u => u.name === cName);
-      if (cUser && !affectedUids.includes(cUser.uid)) affectedUids.push(cUser.uid);
-    });
-
-    try {
-      await ApiService.deleteTeam(id);
-    } catch (err) {
-      console.error('[removeTeam] delete failed:', err);
-      this.showToast('刪除俱樂部失敗，請稍後再試');
-      return;
-    }
-    ApiService._writeOpLog('team_delete', '刪除俱樂部', `刪除「${tName}」`);
-
-    // 刪隊後逐一重新計算角色
-    affectedUids.forEach(uid => {
-      this._applyRoleChange(ApiService._recalcUserRole(uid));
-    });
-
-    this.showToast(`已刪除「${tName}」`);
-    this.showPage('page-teams');
-    this.renderTeamList();
-    this.renderAdminTeams();
-    this.renderTeamManage();
-    this.renderProfileData();
-    this.renderHotEvents();
-    this.renderActivityList();
-  },
+  // removeTeam → 已搬至 team-list.js
 
 });
