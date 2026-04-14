@@ -745,14 +745,14 @@ Object.assign(App, {
       // 鎖定中的 modal 不允許被 toggle 關閉
       if (overlay && overlay.dataset.locked === '1') return;
       modal.classList.remove('open');
-      overlay.classList.remove('open');
+      if (overlay) overlay.classList.remove('open');
     } else {
       // 開啟新 modal 時，不關閉帶有 locked 旗標的 modal
       var lockedOverlay = overlay && overlay.dataset.locked === '1';
       if (lockedOverlay) return;
       document.querySelectorAll('.modal.open').forEach(m => m.classList.remove('open'));
       modal.classList.add('open');
-      overlay.classList.add('open');
+      if (overlay) overlay.classList.add('open');
       modal.scrollTop = 0;
       const modalBody = modal.querySelector('.modal-body');
       if (modalBody) modalBody.scrollTop = 0;

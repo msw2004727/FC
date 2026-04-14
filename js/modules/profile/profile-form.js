@@ -401,9 +401,9 @@ Object.assign(App, {
       await ApiService.updateCurrentUserAwait({ gender: gender, birthday: birthday, region: region });
     } catch (err) {
       console.error('[saveFirstLoginProfile]', err);
-      showErr('儲存失敗，請檢查網路後重試');
+      showErr('儲存失敗，請檢查網路後重試。若持續失敗可重新整理頁面。');
       if (btn) { btn.disabled = false; btn.textContent = '確認送出'; }
-      return;  // 不關 modal，讓用戶重試
+      return;  // 不關 modal，overlay 保持 locked 讓用戶重試（重整頁面可重置狀態）
     }
     if (btn) { btn.disabled = false; btn.textContent = '確認送出'; }
     this._pendingFirstLogin = false;
