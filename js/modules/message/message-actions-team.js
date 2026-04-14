@@ -24,14 +24,11 @@ Object.assign(App, {
     if (!team) { this.showToast('找不到此俱樂部'); return; }
     const curUser = ApiService.getCurrentUser();
     const curUid = curUser?.uid || null;
-    const myNames = new Set([curUser?.name, curUser?.displayName].filter(Boolean));
     const teamLeaderUids = team.leaderUids || (team.leaderUid ? [team.leaderUid] : []);
     const isTeamStaff =
       (team.captainUid && team.captainUid === curUid) ||
-      (!team.captainUid && team.captain && myNames.has(team.captain)) ||
-      teamLeaderUids.includes(curUid) ||
-      (!team.leaderUids && !team.leaderUid && team.leader && myNames.has(team.leader)) ||
-      (team.coaches || []).some(c => myNames.has(c)) ||
+      (curUid && teamLeaderUids.includes(curUid)) ||
+      (curUid && Array.isArray(team.coachUids) && team.coachUids.includes(curUid)) ||
       ['admin', 'super_admin'].includes(curUser?.role);
     if (!isTeamStaff) { this.showToast('您沒有審核此申請的權限'); return; }
 

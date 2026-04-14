@@ -30,14 +30,7 @@ Object.assign(App, {
       const oldTeam = ApiService.getTeam(this._teamFormState.editId);
       if (oldTeam) {
         oldCaptainUid = oldTeam.captainUid || null;
-        if (!oldCaptainUid && oldTeam.captain) {
-          const capUser = ApiService.getAdminUsers().find(u => u.name === oldTeam.captain);
-          oldCaptainUid = capUser ? capUser.uid : null;
-        }
-        (oldTeam.coaches || []).forEach(cName => {
-          const cUser = ApiService.getAdminUsers().find(u => u.name === cName);
-          if (cUser) oldCoachUids.push(cUser.uid);
-        });
+        oldCoachUids = (Array.isArray(oldTeam.coachUids) ? oldTeam.coachUids : []).filter(Boolean);
         oldLeaderUids = (oldTeam.leaderUids || (oldTeam.leaderUid ? [oldTeam.leaderUid] : [])).filter(Boolean);
       }
     }

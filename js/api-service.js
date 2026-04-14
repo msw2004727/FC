@@ -1414,10 +1414,10 @@ const ApiService = {
     let highestTeamLevel = 0;
     const teams = this._src('teams');
     teams.forEach(t => {
-      if (t.captainUid === uid || t.captain === user.name) {
+      if (t.captainUid === uid) {
         highestTeamLevel = Math.max(highestTeamLevel, ROLE_LEVEL_MAP['captain']);
       }
-      if ((t.coaches || []).includes(user.name)) {
+      if (Array.isArray(t.coachUids) && t.coachUids.includes(uid)) {
         highestTeamLevel = Math.max(highestTeamLevel, ROLE_LEVEL_MAP['coach']);
       }
       // 領隊 → coach 等級

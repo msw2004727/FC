@@ -28,7 +28,7 @@ Object.assign(App, {
       const inTeam = (typeof this._isUserInTeam === 'function' && this._isUserInTeam(user, safeTeamId))
         || this._isTournamentCaptainForTeam?.(team, user)
         || this._isTournamentLeaderForTeam?.(team, user)
-        || (!!team && Array.isArray(team.coaches) && team.coaches.includes(userName));
+        || (!!team && Array.isArray(team.coachUids) && team.coachUids.includes(uid));
       if (inTeam) recipients.add(uid);
     });
     return [...recipients];

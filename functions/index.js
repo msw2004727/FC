@@ -2716,6 +2716,45 @@ exports.watchAttendanceChanges = onDocumentWrittenWithAuthContext(
   async (event) => processChangeWatchEvent(event, "attendanceRecords", classifyAttendanceChange),
 );
 
+// Phase 3 §9.2: 俱樂部名稱/圖片變更時級聯更新引用此 teamId 的賽事
+exports.onTeamUpdate = onDocumentWrittenWithAuthContext(
+  {
+    region: "asia-east1",
+    document: "teams/{teamId}",
+    timeoutSeconds: 30,
+    memory: "256MiB",
+    cpu: "gcf_gen1",
+  },
+  async (event) => {
+    const before = event.data?.before?.data();
+    const after = event.data?.after?.data();
+    if (!before || !after) return; // 刪除或建立，不處理
+    const nameChanged = before.name !== after.name;
+    const imageChanged = before.image !== after.image;
+    if (!nameChanged && !imageChanged) return;
+
+    const teamId = event.params.teamId;
+    const updates = {};
+    if (nameChanged) updates.hostTeamName = after.name || "";
+    if (imageChanged) updates.hostTeamImage = after.image || "";
+
+    // 查詢所有使用此 teamId 作為 hostTeamId 的賽事
+    const tournamentsSnap = await db
+      .collection("tournaments")
+      .where("hostTeamId", "==", teamId)
+      .get();
+
+    if (tournamentsSnap.empty) return;
+
+    const batch = db.batch();
+    tournamentsSnap.docs.forEach((doc) => {
+      batch.update(doc.ref, updates);
+    });
+    await batch.commit();
+    console.log(`[onTeamUpdate] Updated ${tournamentsSnap.size} tournament(s) for team ${teamId}: ${JSON.stringify(updates)}`);
+  },
+);
+
 exports.submitShotGameScore = onCall(
   { region: "asia-east1", timeoutSeconds: 30 },
   async (request) => {
@@ -4686,12 +4725,12 @@ exports.registerForEvent = onCall(
             const teamSnap = await transaction.get(db.collection("teams").doc(tid));
             const td = teamSnap.exists ? teamSnap.data() : null;
             if (!td) continue;
+            const leaderUids = Array.isArray(td.leaderUids) ? td.leaderUids : (td.leaderUid ? [td.leaderUid] : []);
+            const coachUids = Array.isArray(td.coachUids) ? td.coachUids : [];
             const isStaff =
               (td.captainUid && uidCandidates.includes(td.captainUid)) ||
-              (td.leaderUid && uidCandidates.includes(td.leaderUid)) ||
-              (td.captain && callerNames.includes(td.captain)) ||
-              (td.leader && callerNames.includes(td.leader)) ||
-              (Array.isArray(td.coaches) && callerNames.some((n) => td.coaches.includes(n)));
+              leaderUids.some((u) => uidCandidates.includes(u)) ||
+              coachUids.some((u) => uidCandidates.includes(u));
             if (isStaff) { isMember = true; break; }
           }
         }
@@ -5444,7 +5483,7 @@ exports.fetchUsageMetricsManual = onCall(
 
 // ═══════════════════════════════════════════
 //  Education: Secure Check-in（教育簽到 — 後端驗證）
-//  僅俱樂部幹部（captainUid / leaderUids / coaches）可執行簽到
+//  僅俱樂部幹部（captainUid / leaderUids / coachUids）可執行簽到
 // ═══════════════════════════════════════════
 exports.eduCheckin = onCall(
   { region: "asia-east1", timeoutSeconds: 30 },
@@ -5476,29 +5515,15 @@ exports.eduCheckin = onCall(
     }
     const team = teamSnap.docs[0].data();
 
-    const isStaff = (() => {
-      if (team.captainUid === callerUid) return true;
-      if (team.creatorUid === callerUid) return true;
-      if (team.ownerUid === callerUid) return true;
-      if (team.leaderUid === callerUid) return true;
-      if (Array.isArray(team.leaderUids) && team.leaderUids.includes(callerUid)) return true;
-      // coaches 是名稱陣列，需要透過 uid 查找
-      // 先用 callerUid 查 users 集合取得名稱
-      return false;
-    })();
+    const isStaff =
+      team.captainUid === callerUid ||
+      team.creatorUid === callerUid ||
+      team.ownerUid === callerUid ||
+      team.leaderUid === callerUid ||
+      (Array.isArray(team.leaderUids) && team.leaderUids.includes(callerUid)) ||
+      (Array.isArray(team.coachUids) && team.coachUids.includes(callerUid));
 
-    // 若非直接 UID 匹配，檢查 coaches 名稱匹配
-    let isCoachMatch = false;
-    if (!isStaff && Array.isArray(team.coaches) && team.coaches.length > 0) {
-      const callerUserDoc = await db.collection("users").doc(callerUid).get();
-      if (callerUserDoc.exists) {
-        const callerData = callerUserDoc.data();
-        const callerNames = [callerData.displayName, callerData.name].filter(Boolean);
-        isCoachMatch = team.coaches.some((c) => callerNames.includes(c));
-      }
-    }
-
-    if (!isStaff && !isCoachMatch) {
+    if (!isStaff) {
       throw new HttpsError("permission-denied", "僅俱樂部幹部可執行簽到");
     }
 

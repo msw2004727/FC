@@ -281,6 +281,18 @@ service cloud.firestore {
         );
     }
 
+    // Phase 3: 幹部超集（隊長 + 領隊 + 教練），用於 feed 管理等教練可參與的操作
+    // 不改名 isCurrentUserTeamCaptainOrLeader（11 處引用不變，教練不應獲得賽事建立等權限）
+    function isCurrentUserTeamStaff(teamId) {
+      return isCurrentUserTeamCaptainOrLeader(teamId)
+        || (isAuth()
+          && teamId is string
+          && exists(/databases/$(database)/documents/teams/$(teamId))
+          && (get(/databases/$(database)/documents/teams/$(teamId)).data.coachUids is list)
+          && request.auth.uid in get(/databases/$(database)/documents/teams/$(teamId)).data.coachUids
+        );
+    }
+
     function isMessageSenderResource() {
       return isAuth()
         && (
@@ -777,17 +789,16 @@ service cloud.firestore {
       allow delete: if isAdmin() || isTeamOwner();
 
       // ── Feed（留言板）──
-      // Phase 0: read/create 維持認證即可；update/delete 限作者本人或俱樂部幹部
-      // Phase 3 再收緊 create（需等 ID 統一後 isCurrentUserInTeam 才能正確比對）
+      // Phase 3: create 收緊為成員才可發文；update/delete 限作者本人或幹部（含教練）
       match /feed/{postId} {
         allow read: if request.auth != null;
-        allow create: if request.auth != null;
+        allow create: if request.auth != null && isCurrentUserInTeam(teamId);
         allow update: if request.auth != null
           && (resource.data.uid == request.auth.uid
-              || isCurrentUserTeamCaptainOrLeader(teamId));
+              || isCurrentUserTeamStaff(teamId));
         allow delete: if request.auth != null
           && (resource.data.uid == request.auth.uid
-              || isCurrentUserTeamCaptainOrLeader(teamId));
+              || isCurrentUserTeamStaff(teamId));
       }
 
       // ── Education: Groups（分組）──
@@ -798,22 +809,22 @@ service cloud.firestore {
       }
 
       // ── Education: Course Plans（課程方案）──
-      // 公開可讀；俱樂部幹部或管理員可 CUD
+      // 公開可讀；俱樂部幹部（含教練）或管理員可 CUD
       match /coursePlans/{planId} {
         allow read: if true;
-        allow create, update, delete: if isCurrentUserTeamCaptainOrLeader(teamId) || isAdmin();
+        allow create, update, delete: if isCurrentUserTeamStaff(teamId) || isAdmin();
 
         // ── 課程方案報名（學員可建立，幹部可讀/更新）──
         match /enrollments/{enrollId} {
           allow read: if isAuth();
           allow create: if isAuth();
-          allow update: if isCurrentUserTeamCaptainOrLeader(teamId) || isAdmin();
-          allow delete: if isCurrentUserTeamCaptainOrLeader(teamId) || isAdmin();
+          allow update: if isCurrentUserTeamStaff(teamId) || isAdmin();
+          allow delete: if isCurrentUserTeamStaff(teamId) || isAdmin();
         }
       }
 
       // ── Education: Students（學員）──
-      // 認證可讀；一般用戶只能建 pending 學員；幹部可建任意狀態+改刪
+      // 認證可讀；一般用戶只能建 pending 學員；幹部（含教練）可建任意狀態+改刪
       // 學員本人/代理人可退學（僅限 enrollStatus → inactive）
       match /students/{studentId} {
         allow read: if isAuth();
@@ -821,14 +832,14 @@ service cloud.firestore {
           && hasString('name')
           && (
             request.resource.data.enrollStatus == 'pending'
-            || isCurrentUserTeamCaptainOrLeader(teamId)
+            || isCurrentUserTeamStaff(teamId)
           );
-        allow update: if isCurrentUserTeamCaptainOrLeader(teamId) || isAdmin()
+        allow update: if isCurrentUserTeamStaff(teamId) || isAdmin()
           || (isAuth()
               && request.resource.data.enrollStatus == 'inactive'
               && (resource.data.selfUid == request.auth.uid
                   || resource.data.parentUid == request.auth.uid));
-        allow delete: if isCurrentUserTeamCaptainOrLeader(teamId) || isAdmin();
+        allow delete: if isCurrentUserTeamStaff(teamId) || isAdmin();
       }
     }
 

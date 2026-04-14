@@ -270,8 +270,6 @@ Object.assign(App, {
       hostTeamImage: hostTeam.image || '',
       organizerDisplay: this._buildTournamentOrganizerDisplay(hostTeam.name, createCreatorName),
       registeredTeams: hostEntry ? [hostTeam.id] : [],
-      teamEntries: hostEntry ? [hostEntry] : [],
-      teamApplications: [],
       friendlyConfig: {
         teamLimit: createTeamLimit,
         allowMemberSelfJoin: true,
@@ -283,6 +281,11 @@ Object.assign(App, {
     createData.status = this.getTournamentStatus(createData);
     try {
       await ApiService.createTournamentAwait(createData);
+      if (hostEntry) {
+        await ApiService.upsertTournamentEntry(createData.id, hostTeam.id, hostEntry).catch(err =>
+          console.warn('[createTournament] host entry subcollection write failed:', err)
+        );
+      }
     } catch (err) {
       this._showTournamentActionError?.('建立賽事', err); return;
     }

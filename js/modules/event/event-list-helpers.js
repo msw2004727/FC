@@ -70,13 +70,10 @@ Object.assign(App, {
 
     teams.forEach(t => {
       if (!t || !t.id) return;
-      const isManager =
-        !!(t.captainUid && [myUid, myDocId].filter(Boolean).includes(t.captainUid)) ||
-        !!(t.captain && myNames.has(t.captain));
-      const isLeader =
-        !!(t.leaderUid && [myUid, myDocId].filter(Boolean).includes(t.leaderUid)) ||
-        !!(t.leader && myNames.has(t.leader));
-      const isCoach = (t.coaches || []).some(name => myNames.has(name));
+      const isManager = !!(t.captainUid && t.captainUid === myUid);
+      const leaderUids = Array.isArray(t.leaderUids) ? t.leaderUids : (t.leaderUid ? [t.leaderUid] : []);
+      const isLeader = !!(myUid && leaderUids.includes(myUid));
+      const isCoach = !!(myUid && Array.isArray(t.coachUids) && t.coachUids.includes(myUid));
       if (isManager || isLeader || isCoach) ids.add(t.id);
     });
 
@@ -86,21 +83,15 @@ Object.assign(App, {
   _isCurrentUserTeamStaff(teamId) {
     if (!teamId) return false;
     const user = ApiService.getCurrentUser?.() || null;
-    if (!user) return false;
+    if (!user || !user.uid) return false;
     const team = ApiService.getTeam?.(teamId);
     if (!team) return false;
 
-    const myUid = user.uid || '';
-    const myDocId = user._docId || '';
-    const myNames = new Set([user.name, user.displayName].filter(Boolean));
-
-    const isLeader =
-      !!(team.leaderUid && [myUid, myDocId].filter(Boolean).includes(team.leaderUid)) ||
-      !!(team.leader && myNames.has(team.leader));
-    const isManager =
-      !!(team.captainUid && [myUid, myDocId].filter(Boolean).includes(team.captainUid)) ||
-      !!(team.captain && myNames.has(team.captain));
-    const isCoach = (team.coaches || []).some(name => myNames.has(name));
+    const myUid = user.uid;
+    const isManager = !!(team.captainUid && team.captainUid === myUid);
+    const leaderUids = Array.isArray(team.leaderUids) ? team.leaderUids : (team.leaderUid ? [team.leaderUid] : []);
+    const isLeader = leaderUids.includes(myUid);
+    const isCoach = Array.isArray(team.coachUids) && team.coachUids.includes(myUid);
 
     return isLeader || isManager || isCoach;
   },

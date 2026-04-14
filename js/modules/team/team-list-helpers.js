@@ -62,15 +62,12 @@ Object.assign(App, {
     };
 
     addByUidLike(team.captainUid);
-    addByName(team.captain);
 
     const leaderUids = team.leaderUids || (team.leaderUid ? [team.leaderUid] : []);
     leaderUids.forEach(addByUidLike);
 
-    const leaderNames = team.leaders || (team.leader ? [team.leader] : []);
-    leaderNames.forEach(addByName);
-
-    (team.coaches || []).forEach(addByName);
+    const coachUids = Array.isArray(team.coachUids) ? team.coachUids : [];
+    coachUids.forEach(addByUidLike);
 
     return { keys, names };
   },
@@ -95,44 +92,17 @@ Object.assign(App, {
 
   _resolveTeamCaptainUser(team) {
     if (!team) return null;
-    const users = ApiService.getAdminUsers() || [];
-
     if (team.captainUid) {
-      const byUid = this._findUserByUidOrDocId(team.captainUid);
-      if (byUid) return byUid;
+      return this._findUserByUidOrDocId(team.captainUid) || null;
     }
-
-    if (team.captain) {
-      const byName = users.find(u =>
-        u.name === team.captain || u.displayName === team.captain
-      );
-      if (byName) return byName;
-    }
-
-    if (team.id) {
-      const teamUsers = users.filter(u => this._isUserInTeam(u, team.id));
-      const captainUser = teamUsers.find(u => u.role === 'captain' || u.manualRole === 'captain');
-      if (captainUser) return captainUser;
-    }
-
     return null;
   },
 
   _isTeamCaptainUser(team) {
     if (!team) return false;
-
     const currentUser = ApiService.getCurrentUser?.();
-    if (!currentUser) return false;
-
-    if (team.captainUid && (team.captainUid === currentUser.uid || team.captainUid === currentUser._docId)) {
-      return true;
-    }
-
-    const currentNames = new Set([currentUser.name, currentUser.displayName].filter(Boolean));
-    if (team.captain && currentNames.has(team.captain)) return true;
-
-    const captainUser = this._resolveTeamCaptainUser(team);
-    return !!(captainUser && currentUser.uid && captainUser.uid === currentUser.uid);
+    if (!currentUser || !currentUser.uid) return false;
+    return !!(team.captainUid && (team.captainUid === currentUser.uid || team.captainUid === currentUser._docId));
   },
 
   _canEditTeamByRoleOrCaptain(team) {
@@ -147,17 +117,13 @@ Object.assign(App, {
   // ── 從 team-detail.js 搬入 ──
 
   _canManageTeamMembers(team) {
+    if (!team) return false;
     const curUser = ApiService.getCurrentUser?.();
-    if (!team || !curUser) return false;
-    const myUid = curUser.uid || null;
-    const myNames = new Set([curUser.name, curUser.displayName].filter(Boolean));
-    if (team.captainUid && myUid && team.captainUid === myUid) return true;
-    if (!team.captainUid && team.captain && myNames.has(team.captain)) return true;
-    const leaderUids = team.leaderUids || (team.leaderUid ? [team.leaderUid] : []);
-    if (myUid && leaderUids.includes(myUid)) return true;
-    const leaderNames = team.leaders || (team.leader ? [team.leader] : []);
-    if (leaderNames.some(name => myNames.has(name))) return true;
-    if ((team.coaches || []).some(name => myNames.has(name))) return true;
+    if (!curUser || !curUser.uid) return false;
+    const myUid = curUser.uid;
+    if (team.captainUid === myUid) return true;
+    if (Array.isArray(team.leaderUids) && team.leaderUids.includes(myUid)) return true;
+    if (Array.isArray(team.coachUids) && team.coachUids.includes(myUid)) return true;
     return false;
   },
 

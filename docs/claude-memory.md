@@ -10,6 +10,29 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### [永久] 2026-04-14 — coachUids 欄位遷移（教練 UID 化）
+- **問題**：教練以名字（`coaches[]`）儲存，同名用戶會碰撞，且 Firestore Rules 無法驗證教練身分
+- **修復**：
+  - 新增 `coachUids[]` 欄位（UID 陣列），`coachNames[]` 做顯示快取
+  - 遷移腳本 `scripts/migrate-team-uids.js`（名字→UID，冪等，同名標記模糊不自動分配）
+  - Firestore Rules 新增 `isCurrentUserTeamStaff` 函式（隊長+領隊+教練超集），**不改名** `isCurrentUserTeamCaptainOrLeader`（11 處引用不動，避免教練靜默獲得賽事建立等權限）
+  - 前端 17 個函式移除名字 fallback，改用純 UID 比對
+  - CF `eduCheckin` / `registerForEvent` 改用 `coachUids` 比對
+- **教訓**：
+  - `isCurrentUserTeamStaff` 只用在明確需要教練權限的地方（feed 管理、課程、學員）
+  - 教育分組（groups）、賽事建立（tournaments create）、賽事申請仍用 `isCurrentUserTeamCaptainOrLeader`（不含教練）
+  - 未匹配教練 = 0 才可部署前端（否則教練永久失去權限）
+
+### 2026-04-14 — 俱樂部×賽事重構 Phase 3：資料架構遷移
+- **目標**：賽事內嵌陣列移除 + Cloud Function 級聯更新 + 教練 UID 化 + feed 規則收緊
+- **執行內容**：
+  - §9.1 賽事內嵌陣列移除：`_syncFriendlyTournamentCacheRecord` / `_persistFriendlyTournamentCompatState` / `_buildFriendlyTournamentRecord` 不再產生/寫入 `teamApplications`/`teamEntries`，只保留 `registeredTeams`。賽事建立/編輯改寫 entries 子集合
+  - §9.2 `onTeamUpdate` CF：v2 API，team.name/image 變更時級聯更新 hostTeamName/hostTeamImage
+  - §11.4-11.6 教練 UID 化：見上方 [永久] 條目
+  - §5.2 feed create 收緊為 `isCurrentUserInTeam(teamId)`（ID 統一後安全可用）
+  - feed update/delete 改用 `isCurrentUserTeamStaff`（含教練）
+- **影響範圍**：tournament-friendly-state.js、tournament-core.js、tournament-friendly-roster.js、tournament-manage.js、tournament-manage-edit.js、team-list-helpers.js、team-detail.js、team-form.js、team-form-validate.js、team-form-roles.js、team-form-join.js、tournament-helpers.js、tournament-friendly-notify.js、event-list-helpers.js、message-actions-team.js、api-service.js、firestore.rules、functions/index.js
+
 ### 2026-04-14 — 俱樂部×賽事重構 Phase 2B：列表效能優化
 - **目標**：俱樂部/賽事列表頁效能優化 + 動態牆走 ApiService + 前端權限守衛
 - **執行內容**：

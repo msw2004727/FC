@@ -11,19 +11,16 @@ Object.assign(App, {
     if (typeof this._isUserInTeam === 'function' && this._isUserInTeam(user, teamId)) return true;
     const team = ApiService.getTeam?.(teamId);
     if (!team) return false;
+    const uid = String(user.uid || '').trim();
+    if (!uid) return false;
     return this._isTournamentCaptainForTeam?.(team, user)
       || this._isTournamentLeaderForTeam?.(team, user)
-      || (team.coaches || []).includes(user.displayName || user.name || '');
+      || (Array.isArray(team.coachUids) && team.coachUids.includes(uid));
   },
 
   _syncFriendlyTournamentCacheRecord(tournamentId, applications, entries) {
     const live = ApiService.getTournament?.(tournamentId);
     if (!live) return;
-    live.teamApplications = applications.map(item => ({ ...item }));
-    live.teamEntries = entries.map(item => ({
-      ...item,
-      memberRoster: Array.isArray(item.memberRoster) ? item.memberRoster.map(member => ({ ...member })) : [],
-    }));
     live.registeredTeams = entries
       .filter(entry => entry.entryStatus === 'host' || entry.entryStatus === 'approved')
       .map(entry => entry.teamId);
@@ -35,38 +32,32 @@ Object.assign(App, {
     if (!tournament || !this._isFriendlyTournamentRecord(tournament)) return currentState;
     if (!this._canManageTournamentRecord?.(tournament)) return currentState;
 
-    const teamApplications = (currentState.applications || [])
+    const applications = (currentState.applications || [])
       .map(item => this._buildFriendlyTournamentApplicationRecord(item))
       .filter(item => item.id || item.teamId);
-    const teamEntries = (currentState.entries || [])
+    const entries = (currentState.entries || [])
       .map(item => this._buildFriendlyTournamentEntryRecord(item))
       .filter(item => item.teamId);
-    const registeredTeams = teamEntries
+    const registeredTeams = entries
       .filter(entry => entry.entryStatus === 'host' || entry.entryStatus === 'approved')
       .map(entry => entry.teamId);
 
     try {
-      await ApiService.updateTournamentAwait(tournamentId, {
-        teamApplications,
-        teamEntries,
-        registeredTeams,
-      });
+      await ApiService.updateTournamentAwait(tournamentId, { registeredTeams });
     } catch (err) {
       console.warn('[persistFriendlyTournamentCompatState] sync failed:', err);
     }
 
     const nextState = {
       ...currentState,
-      applications: teamApplications,
-      entries: teamEntries,
+      applications,
+      entries,
       tournament: this._buildFriendlyTournamentRecord({
         ...tournament,
-        teamApplications,
-        teamEntries,
         registeredTeams,
       }),
     };
-    this._syncFriendlyTournamentCacheRecord(tournamentId, teamApplications, teamEntries);
+    this._syncFriendlyTournamentCacheRecord(tournamentId, applications, entries);
     this._friendlyTournamentDetailStateById[tournamentId] = nextState;
     return nextState;
   },
@@ -120,8 +111,6 @@ Object.assign(App, {
 
     const tournament = this._buildFriendlyTournamentRecord({
       ...base,
-      teamApplications: applications,
-      teamEntries: entries,
       registeredTeams: entries
         .filter(entry => entry.entryStatus === 'host' || entry.entryStatus === 'approved')
         .map(entry => entry.teamId),

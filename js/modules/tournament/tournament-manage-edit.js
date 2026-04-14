@@ -146,10 +146,11 @@ Object.assign(App, {
       },
     };
 
-    if (!editTournament.hostTeamId && (!Array.isArray(editTournament.teamEntries) || editTournament.teamEntries.length === 0) && (!Array.isArray(editTournament.registeredTeams) || editTournament.registeredTeams.length === 0)) {
+    let pendingHostEntry = null;
+    if (!editTournament.hostTeamId && (!Array.isArray(editTournament.registeredTeams) || editTournament.registeredTeams.length === 0)) {
       const hostEntry = this._buildTournamentHostEntry(hostTeam, editUser);
       if (hostEntry) {
-        editUpdates.teamEntries = [hostEntry];
+        pendingHostEntry = hostEntry;
         editUpdates.registeredTeams = [hostTeam.id];
       }
     }
@@ -157,6 +158,11 @@ Object.assign(App, {
     editUpdates.status = this.getTournamentStatus({ ...editTournament, ...editUpdates });
     try {
       await ApiService.updateTournamentAwait(editId, editUpdates);
+      if (pendingHostEntry) {
+        await ApiService.upsertTournamentEntry(editId, hostTeam.id, pendingHostEntry).catch(err =>
+          console.warn('[editTournament] host entry subcollection write failed:', err)
+        );
+      }
     } catch (err) {
       this._showTournamentActionError?.('更新賽事', err);
       return;

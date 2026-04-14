@@ -23,13 +23,11 @@ Object.assign(App, {
     if (user && typeof this._isUserInTeam === 'function' && this._isUserInTeam(user, teamId)) return true;
     if (user && user.teamId === teamId) return true;
     const team = ApiService.getTeam(teamId);
-    if (!team || !user) return false;
-    if (team.captainUid && team.captainUid === user.uid) return true;
-    const myNames = new Set([user.name, user.displayName].filter(Boolean));
-    if (team.captain && myNames.has(team.captain)) return true;
-    if ((team.coaches || []).some(c => myNames.has(c))) return true;
-    const leaderUids = team.leaderUids || (team.leaderUid ? [team.leaderUid] : []);
+    if (!team || !user || !user.uid) return false;
+    if (team.captainUid === user.uid) return true;
+    const leaderUids = Array.isArray(team.leaderUids) ? team.leaderUids : (team.leaderUid ? [team.leaderUid] : []);
     if (leaderUids.includes(user.uid)) return true;
+    if (Array.isArray(team.coachUids) && team.coachUids.includes(user.uid)) return true;
     return false;
   },
 

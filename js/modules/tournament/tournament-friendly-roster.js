@@ -43,13 +43,15 @@ Object.assign(App, {
       const safeUid = String(uid || '').trim();
       if (safeUid) responsibleUids.add(safeUid);
     });
+    const coachUids = Array.isArray(team.coachUids) ? team.coachUids : [];
+    coachUids.forEach(uid => {
+      const safeUid = String(uid || '').trim();
+      if (safeUid) responsibleUids.add(safeUid);
+    });
 
-    const captainName = String(team.captain || '').trim();
-    const leaderName = String(team.leader || '').trim();
     return (entry.memberRoster || []).some(member => {
       const uid = String(member?.uid || '').trim();
-      const name = String(member?.name || '').trim();
-      return responsibleUids.has(uid) || (!!captainName && name === captainName) || (!!leaderName && name === leaderName);
+      return responsibleUids.has(uid);
     });
   },
 
@@ -95,7 +97,7 @@ Object.assign(App, {
     const nextState = {
       ...state,
       entries,
-      tournament: this._buildFriendlyTournamentRecord({ ...tournament, teamEntries: entries }),
+      tournament: this._buildFriendlyTournamentRecord({ ...tournament }),
     };
     if (typeof this._syncFriendlyTournamentCacheRecord === 'function') {
       this._syncFriendlyTournamentCacheRecord(tournamentId, nextState.applications || [], entries);

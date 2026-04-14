@@ -193,23 +193,11 @@ Object.assign(App, {
     const fee = feeEnabled ? Math.max(0, Number(base.fee || 0) || 0) : 0;
     const creatorName = String(base.creatorName || base.organizer || '').trim();
     const hostTeamName = String(base.hostTeamName || '').trim();
-    const teamEntries = Array.isArray(base.teamEntries)
-      ? base.teamEntries
-          .map(entry => this._buildFriendlyTournamentEntryRecord(entry))
-          .filter(entry => entry.teamId)
-      : [];
-    const teamApplications = Array.isArray(base.teamApplications)
-      ? base.teamApplications
-          .map(application => this._buildFriendlyTournamentApplicationRecord(application))
-          .filter(application => application.teamId)
-      : [];
-    const registeredTeams = Array.isArray(base.registeredTeams) && base.registeredTeams.length > 0
+    const registeredTeams = Array.isArray(base.registeredTeams)
       ? base.registeredTeams
           .map(teamId => String(teamId || '').trim())
           .filter(Boolean)
-      : teamEntries
-          .filter(entry => entry.entryStatus === 'host' || entry.entryStatus === 'approved')
-          .map(entry => entry.teamId);
+      : [];
 
     return {
       ...base,
@@ -233,8 +221,6 @@ Object.assign(App, {
         allowMemberSelfJoin: base?.friendlyConfig?.allowMemberSelfJoin !== false,
         pendingVisibleToThirdParty: base?.friendlyConfig?.pendingVisibleToThirdParty === true,
       },
-      teamApplications,
-      teamEntries,
       registeredTeams,
     };
   },

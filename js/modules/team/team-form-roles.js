@@ -24,10 +24,10 @@ Object.assign(App, {
       let highestTeamLevel = 0;
       ApiService.getTeams().forEach(t => {
         if (t.id === this._teamFormState.editId) return;
-        if (t.captainUid === uid || t.captain === u.name) {
+        if (t.captainUid === uid) {
           highestTeamLevel = Math.max(highestTeamLevel, ROLE_LEVEL_MAP['captain']);
         }
-        if ((t.coaches || []).includes(u.name)) {
+        if (Array.isArray(t.coachUids) && t.coachUids.includes(uid)) {
           highestTeamLevel = Math.max(highestTeamLevel, ROLE_LEVEL_MAP['coach']);
         }
         const tLeaderUids = t.leaderUids || (t.leaderUid ? [t.leaderUid] : []);

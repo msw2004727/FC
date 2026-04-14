@@ -174,9 +174,8 @@ Object.assign(App, {
       return;
     }
 
-    // 判斷是否教練（退隊後需更新 coaches 陣列）
-    const myNames = new Set([curUser?.name, curUser?.displayName].filter(Boolean));
-    const wasCoach = (t.coaches || []).some(c => myNames.has(c));
+    // 判斷是否教練（退隊後需更新 coachUids 陣列）
+    const wasCoach = !!(uid && Array.isArray(t.coachUids) && t.coachUids.includes(uid));
 
     // 清除用戶俱樂部資料
     const baseUser = ApiService.getCurrentUser() || null;
@@ -214,8 +213,8 @@ Object.assign(App, {
 
     // 俱樂部人數 -1（非關鍵，fire-and-forget 可接受）
     if (wasCoach) {
-      const newCoaches = (t.coaches || []).filter(c => !myNames.has(c));
-      ApiService.updateTeam(teamId, { coaches: newCoaches });
+      const newCoachUids = (t.coachUids || []).filter(u => u !== uid);
+      ApiService.updateTeam(teamId, { coachUids: newCoachUids });
     }
     const memberCount = this._calcTeamMemberCount(teamId);
     ApiService.updateTeam(teamId, { members: memberCount });

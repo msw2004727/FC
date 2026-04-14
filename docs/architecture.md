@@ -739,4 +739,31 @@ flowchart LR
 2. **搬移模組**：更新所有出現舊路徑的地方為新路徑（包含鎖定函式路徑表）
 3. **刪除模組**：從所有檔案中移除對應條目
 4. **子資料夾新增/合併**：更新 Mermaid 圖的 MODS 子圖、模組清單表、ScriptLoader 群組表
+
+---
+
+## 俱樂部×賽事重構 Phase 3 — 資料架構遷移 (2026-04-14)
+
+### 賽事內嵌陣列移除 (§9.1)
+- 所有讀寫路徑已使用子集合（`applications/`, `entries/`, `entries/{teamId}/members/`）
+- `_syncFriendlyTournamentCacheRecord` 不再寫入 `teamApplications`/`teamEntries` 到快取
+- `_persistFriendlyTournamentCompatState` 不再寫入 `teamApplications`/`teamEntries` 到 Firestore，只同步 `registeredTeams`
+- `_buildFriendlyTournamentRecord` 不再產生 `teamApplications`/`teamEntries` 陣列，只保留 `registeredTeams`
+- 賽事建立/編輯改為寫入 entries 子集合（`upsertTournamentEntry`），不再寫入內嵌 `teamEntries`
+- 舊資料的 fallback 讀取路徑保留 30 天（`base.teamApplications`/`base.teamEntries`）
+
+### Cloud Function onTeamUpdate (§9.2)
+- 新增 `functions/index.js` → `exports.onTeamUpdate`
+- 使用 v2 API `onDocumentWrittenWithAuthContext('teams/{teamId}')`
+- 當 `team.name` 或 `team.image` 變更時，批次更新所有 `hostTeamId == teamId` 的賽事
+
+### 教練 UID 化遷移 (§11.4-11.6)
+- 新增遷移腳本 `scripts/migrate-team-uids.js`（教練名字→UID）
+- 新增 Firestore Rules 函式 `isCurrentUserTeamStaff`（隊長+領隊+教練超集）
+- Feed create 規則收緊為 `isCurrentUserInTeam(teamId)`
+- Feed update/delete 改用 `isCurrentUserTeamStaff`（含教練）
+- `coursePlans` / `students` 子集合規則改用 `isCurrentUserTeamStaff`
+- 前端 17 個函式移除名字 fallback，改用純 UID 比對（`coachUids`）
+- Cloud Function `eduCheckin` / `registerForEvent` 改用 `coachUids` UID 比對
+- Team form 儲存時同步寫入 `coachUids`/`coachNames`/`captainName`/`leaderNames`
 5. **ScriptLoader 群組變更**：同步更新 `js/core/script-loader.js` 的 `_groups` 定義與本文件的群組表

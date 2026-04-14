@@ -77,18 +77,18 @@ Object.assign(App, {
   _isTournamentLeaderForTeam(team, user) {
     if (!team || !user) return false;
     const uid = String(user.uid || '').trim();
-    const displayName = String(user.displayName || user.name || '').trim();
+    if (!uid) return false;
     const leaderUids = Array.isArray(team.leaderUids)
       ? team.leaderUids
       : (team.leaderUid ? [team.leaderUid] : []);
-    return leaderUids.includes(uid) || (!!team.leader && team.leader === displayName);
+    return leaderUids.includes(uid);
   },
 
   _isTournamentCaptainForTeam(team, user) {
     if (!team || !user) return false;
     const uid = String(user.uid || '').trim();
-    const displayName = String(user.displayName || user.name || '').trim();
-    return (team.captainUid && team.captainUid === uid) || (!!team.captain && team.captain === displayName);
+    if (!uid) return false;
+    return !!(team.captainUid && team.captainUid === uid);
   },
 
   _getFriendlyResponsibleTeams(user = null) {

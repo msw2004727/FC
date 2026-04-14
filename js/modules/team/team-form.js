@@ -73,9 +73,10 @@ Object.assign(App, {
         const updates = {
           name, nameEn, nationality, region, founded, contact, bio,
           leader: leaderCompat, leaderUid: leaderUidCompat,
-          leaders: leaderNames, leaderUids: realLeaderUids,
-          captain, captainUid: captainUidForSave,
-          coaches, members,
+          leaders: leaderNames, leaderUids: realLeaderUids, leaderNames,
+          captain, captainUid: captainUidForSave, captainName: captain,
+          coaches, coachUids: newCoachUids, coachNames: coaches,
+          members,
           type: teamType, sportTag,
         };
         if (eduSettings) updates.eduSettings = eduSettings;
@@ -128,8 +129,10 @@ Object.assign(App, {
           name, nameEn, nationality,
           leader: leaderCompat, leaderUid: leaderUidCompat,
           leaders: leaderNames, leaderUids: realLeaderUids,
-          captain, captainUid: captainUidForSave,
-          coaches, members,
+          captain, captainUid: captainUidForSave, captainName: captain,
+          coaches, coachUids: newCoachUids, coachNames: coaches,
+          leaderNames,
+          members,
           region, founded, contact, bio, image,
           active: true, pinned: false, pinOrder: 0,
           wins: 0, draws: 0, losses: 0, gf: 0, ga: 0,
