@@ -1257,11 +1257,11 @@ describe("/tournaments/{id}/applications/{appId}", () => {
 //  tournaments/{id}/entries and entries/{id}/members
 // ═══════════════════════════════════════════════════════════════
 describe("/tournaments/{id}/entries/{teamId}", () => {
-  test("read: public", async () => {
+  test("read: authenticated only (Phase 0 tightened)", async () => {
     await assertByRole(
       ({ db }) =>
         getDoc(doc(db, "tournaments", "tourA", "entries", "teamA")),
-      allowAll
+      allowAuth
     );
   });
 
@@ -1304,12 +1304,12 @@ describe("/tournaments/{id}/entries/{teamId}", () => {
 });
 
 describe("/tournaments/{id}/entries/{teamId}/members/{memberUid}", () => {
-  test("read: public", async () => {
+  test("read: authenticated only (Phase 0 tightened)", async () => {
     await seedPath(
       ["tournaments", "tourA", "entries", "teamA", "members", "uidA"],
       { name: "Member A", joinedAt: new Date() }
     );
-    await assertSucceeds(
+    await assertFails(
       getDoc(
         doc(guest(), "tournaments", "tourA", "entries", "teamA", "members", "uidA")
       )
@@ -2881,19 +2881,61 @@ describe("/teams/{teamId}/feed/{postId}", () => {
     );
   });
 
-  test("CUD: authenticated can create/update/delete", async () => {
+  test("create: team member can create (Phase 3: isCurrentUserInTeam)", async () => {
     await assertSucceeds(
       setDoc(doc(memberA(), "teams", "teamA", "feed", "post_new"), {
         body: "New post",
+        uid: "uidA",
       })
     );
+  });
+
+  test("create: non-member cannot create", async () => {
+    await assertFails(
+      setDoc(doc(user(), "teams", "teamA", "feed", "post_user"), {
+        body: "Non-member post",
+        uid: "uidUser",
+      })
+    );
+  });
+
+  test("update/delete: author can update and delete own post", async () => {
+    await seedPath(["teams", "teamA", "feed", "post_author"], {
+      body: "My post",
+      uid: "uidA",
+    });
     await assertSucceeds(
-      updateDoc(doc(memberA(), "teams", "teamA", "feed", "post_new"), {
+      updateDoc(doc(memberA(), "teams", "teamA", "feed", "post_author"), {
         body: "Updated",
       })
     );
     await assertSucceeds(
-      deleteDoc(doc(memberA(), "teams", "teamA", "feed", "post_new"))
+      deleteDoc(doc(memberA(), "teams", "teamA", "feed", "post_author"))
+    );
+  });
+
+  test("update/delete: non-author non-staff cannot modify", async () => {
+    await seedPath(["teams", "teamA", "feed", "post_other"], {
+      body: "Someone else post",
+      uid: "uidB",
+    });
+    await assertFails(
+      updateDoc(doc(memberA(), "teams", "teamA", "feed", "post_other"), {
+        body: "Hacked",
+      })
+    );
+    await assertFails(
+      deleteDoc(doc(memberA(), "teams", "teamA", "feed", "post_other"))
+    );
+  });
+
+  test("update/delete: captain (staff) can manage any post", async () => {
+    await seedPath(["teams", "teamA", "feed", "post_staff"], {
+      body: "Member post",
+      uid: "uidA",
+    });
+    await assertSucceeds(
+      deleteDoc(doc(captain(), "teams", "teamA", "feed", "post_staff"))
     );
   });
 
