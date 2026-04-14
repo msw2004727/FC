@@ -186,6 +186,28 @@ Object.assign(App, {
         dropdown.classList.remove('open');
       }
     });
+
+    // 初次嘗試刷新光暈（資料可能尚未載入，_cloudReady 後會再呼叫一次）
+    try { this._refreshSportPickerGlow(); } catch (_) {}
+  },
+
+  _refreshSportPickerGlow() {
+    const listHost = document.getElementById('sport-picker-list');
+    if (!listHost) return;
+    const events = (typeof ApiService !== 'undefined' && ApiService.getEvents?.()) || [];
+    const activeBySport = new Set();
+    events.forEach(e => {
+      if (e.status === 'ended' || e.status === 'cancelled') return;
+      if (e.privateEvent) return;
+      const tag = e.sportTag || 'football';
+      activeBySport.add(tag);
+    });
+    const hasAny = activeBySport.size > 0;
+    listHost.querySelectorAll('.sport-picker-item[data-sport]').forEach(item => {
+      const key = item.dataset.sport;
+      const glow = key === 'all' ? hasAny : activeBySport.has(key);
+      item.classList.toggle('has-events', glow);
+    });
   },
 
 });

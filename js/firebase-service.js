@@ -197,6 +197,7 @@ const FirebaseService = {
       if (p === 'page-home') App.renderHotEvents?.();
       if (p === 'page-activities') App.renderActivityList?.();
       if (p === 'page-my-activities') App.renderMyActivities?.();
+      App._refreshSportPickerGlow?.();
       if (_s > 0) requestAnimationFrame(function() { window.scrollTo(0, _s); });
     }, 500);
   },

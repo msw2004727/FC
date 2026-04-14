@@ -338,6 +338,7 @@ const App = {
         document.getElementById('content-stall-hint').remove();
       }
     }
+    try { this._refreshSportPickerGlow?.(); } catch (_) {}
   },
 
   renderGlobalShell() {
