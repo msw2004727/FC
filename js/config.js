@@ -4,7 +4,7 @@
 
 // ─── Cache Version（更新此值以清除瀏覽器快取）───
 // 變更日誌已移除，請用 git log 查閱歷史部署記錄。
-const CACHE_VERSION = '20260414';
+const CACHE_VERSION = '20260414a';
 
 // ─── 即時監聽 limit 預設值（可在儀表板動態調整，存於 siteConfig/realtimeConfig）───
 const REALTIME_LIMIT_DEFAULTS = {
@@ -623,6 +623,9 @@ const ADMIN_PAGE_EXTRA_PERMISSION_ITEMS = {
     { code: 'admin.tournaments.create', name: '建立賽事' },
     { code: 'admin.tournaments.manage_all', name: '管理所有賽事' },
     { code: 'admin.tournaments.review', name: '審核參賽申請' },
+    { code: 'admin.tournaments.end', name: '結束賽事' },
+    { code: 'admin.tournaments.reopen', name: '重開賽事' },
+    { code: 'admin.tournaments.delete', name: '刪除賽事' },
   ],
   'page-team-manage': [
     { code: 'team.create', name: '建立俱樂部' },
@@ -752,7 +755,8 @@ function getDefaultRolePermissions(roleKey) {
   });
 
   if (roleLevel >= getRuntimeRoleLevel('admin')) {
-    defaults.push('team.create', 'team.manage_all', 'event.edit_all');
+    defaults.push('team.create', 'team.manage_all', 'event.edit_all',
+      'admin.tournaments.end', 'admin.tournaments.reopen', 'admin.tournaments.delete');
   }
 
   if (roleLevel >= getRuntimeRoleLevel('super_admin')) {

@@ -239,6 +239,10 @@ const ScriptLoader = {
       'js/modules/kickball/kickball-game-page.js',
     ],
     tournament: [
+      'js/modules/tournament/tournament-helpers.js',
+      'js/modules/tournament/tournament-core.js',
+      'js/modules/tournament/tournament-render.js',
+      'js/modules/tournament/tournament-share-builders.js',
       'js/modules/tournament/tournament-detail.js',
       'js/modules/tournament/tournament-friendly-detail.js',
       'js/modules/tournament/tournament-friendly-detail-view.js',
@@ -249,6 +253,7 @@ const ScriptLoader = {
     tournamentAdmin: [
       'js/modules/event/event-share-builders.js',
       'js/modules/event/event-share.js',
+      'js/modules/tournament/tournament-share-builders.js',
       'js/modules/tournament/tournament-manage-form.js',
       'js/modules/tournament/tournament-manage-host.js',
       'js/modules/tournament/tournament-manage-edit.js',

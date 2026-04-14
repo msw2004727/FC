@@ -27,9 +27,9 @@ Object.assign(App, {
     document.getElementById('ct-coach-suggest').innerHTML = '';
     document.getElementById('ct-coach-suggest').classList.remove('show');
     document.getElementById('ct-team-bio').value = '';
-    this._teamLeaderUids = [];
-    this._teamCaptainUid = null;
-    this._teamCoachUids = [];
+    this._teamFormState.leaders = [];
+    this._teamFormState.captain = null;
+    this._teamFormState.coaches = [];
     // 運動類型重置
     const sportSelect = document.getElementById('ct-team-sport-tag');
     if (sportSelect) sportSelect.value = '';
@@ -113,7 +113,7 @@ Object.assign(App, {
         return;
       }
     }
-    this._teamEditId = id || null;
+    this._teamFormState.editId = id || null;
     this._initTeamSportOptions();
     const titleEl = document.getElementById('ct-team-modal-title');
     const saveBtn = document.getElementById('ct-team-save-btn');
@@ -155,7 +155,7 @@ Object.assign(App, {
 
       // 編輯模式：載入已有領隊（複數）
       const users = ApiService.getAdminUsers();
-      this._teamLeaderUids = [];
+      this._teamFormState.leaders = [];
       document.getElementById('ct-leader-search').value = '';
       document.getElementById('ct-leader-suggest').innerHTML = '';
       document.getElementById('ct-leader-suggest').classList.remove('show');
@@ -163,13 +163,13 @@ Object.assign(App, {
       existingLeaderUids.forEach(lUid => {
         const found = users.find(u => u.uid === lUid || u._docId === lUid);
         if (found) {
-          this._teamLeaderUids.push(found.uid);
+          this._teamFormState.leaders.push(found.uid);
         }
       });
       // 若只有 leader 名稱無 uid，嘗試反查
-      if (this._teamLeaderUids.length === 0 && t.leader) {
+      if (this._teamFormState.leaders.length === 0 && t.leader) {
         const found = users.find(u => u.name === t.leader || u.displayName === t.leader);
-        if (found) this._teamLeaderUids.push(found.uid);
+        if (found) this._teamFormState.leaders.push(found.uid);
       }
       this._renderLeaderTags();
 
@@ -185,16 +185,16 @@ Object.assign(App, {
       if (captainHint) captainHint.style.display = '';
 
       // 預設保留原經理
-      this._teamCaptainUid = null;
+      this._teamFormState.captain = null;
       document.getElementById('ct-captain-search').value = '';
       document.getElementById('ct-captain-selected').innerHTML = '';
       if (t.captain) {
         const found = users.find(u => u.name === t.captain);
-        this._teamCaptainUid = found ? found.uid : null;
+        this._teamFormState.captain = found ? found.uid : null;
       }
 
       // Restore coaches
-      this._teamCoachUids = [];
+      this._teamFormState.coaches = [];
       document.getElementById('ct-coach-search').value = '';
       document.getElementById('ct-coach-tags').innerHTML = '';
       if (t.coaches && t.coaches.length) {
@@ -240,7 +240,7 @@ Object.assign(App, {
       // 自動設定創立者為俱樂部經理
       const me = ApiService.getCurrentUser();
       if (me) {
-        this._teamCaptainUid = me.uid;
+        this._teamFormState.captain = me.uid;
         captainDisplay.style.display = '';
         captainDisplay.innerHTML = `俱樂部經理（創立者）：<span style="color:var(--accent)">${escapeHTML(me.displayName || me.name || '')}</span>`;
         captainTransfer.style.display = 'none';
@@ -250,7 +250,7 @@ Object.assign(App, {
         captainDisplay.style.display = 'none';
         captainTransfer.style.display = '';
         document.getElementById('ct-captain-locked').style.display = 'none';
-        this._teamCaptainUid = null;
+        this._teamFormState.captain = null;
       }
     }
     this.showModal('create-team-modal');

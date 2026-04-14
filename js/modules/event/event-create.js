@@ -319,7 +319,7 @@ Object.assign(App, {
       const creatorUid = this._getEventCreatorUid();
       const initStatus = (regOpenTime && new Date(regOpenTime) > new Date()) ? 'upcoming' : 'open';
       const newEvent = {
-        id: 'ce_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+        id: generateId('ce_'),
         title, type, status: initStatus, location, date: fullDate,
         fee, feeEnabled, max, current: 0, waitlist: 0, minAge, notes, image, sportTag,
         regOpenTime: regOpenTime || null,

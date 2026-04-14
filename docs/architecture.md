@@ -42,7 +42,7 @@ flowchart TD
         subgraph MODS["modules/ — 14 功能子資料夾 + 24 獨立模組"]
             EVT["event/ (30)\n活動系統"]
             TEAM["team/ (11)\n俱樂部系統"]
-            TOUR["tournament/ (12)\n賽事系統"]
+            TOUR["tournament/ (14)\n賽事系統"]
             PROF["profile/ (9)\n個人資料"]
             MSG["message/ (9)\n訊息系統"]
             ACH["achievement/ (10)\n成就系統"]
@@ -219,19 +219,21 @@ CF 查詢：     admin.firestore().collectionGroup('registrations') + 去重（p
 | `team-form-init.js` | 俱樂部表單初始化與顯示 |
 | `team-form.js` | 俱樂部表單主模組（建立/編輯） |
 
-### tournament/ — 賽事系統（12 個模組 + README）
+### tournament/ — 賽事系統（14 個模組 + README）
 
 | 檔案 | 說明 |
 |------|------|
 | `README.md` | 賽事重構預留目錄說明 |
-| `tournament-core.js` | 賽事共用核心 helper（狀態判斷、主辦顯示、友誼賽資料正規化） |
-| `tournament-detail.js` | 賽事詳情頁主模組 |
+| `tournament-core.js` | 賽事共用核心 helper（狀態判斷、主辦顯示） |
+| `tournament-helpers.js` | 純工具函式（權限判斷、委託人正規化、主辦人解析等 9 個 helper） |
+| `tournament-detail.js` | 賽事詳情頁主模組（Phase 1b 移除 renderLeagueSchedule / renderBracket 死碼） |
 | `tournament-render.js` | 公開賽事頁與詳情頁 renderer |
 | `tournament-manage.js` | 賽事管理入口與管理列表權限過濾 |
 | `tournament-manage-form.js` | 賽事表單工具與 helper（場地管理等） |
 | `tournament-manage-host.js` | 賽事主辦俱樂部選擇與表單布局 |
 | `tournament-manage-edit.js` | 賽事編輯 Modal 與儲存處理 |
 | `tournament-share.js` | 賽事分享（LINE Flex Message） |
+| `tournament-share-builders.js` | 分享用 Flex Message / URL / altText 建構函式（3 個 builder） |
 | `tournament-friendly-detail.js` | 友誼賽詳情頁（俱樂部申請、主辦審核、聯繫主辦人） |
 | `tournament-friendly-detail-view.js` | 友誼賽詳情頁渲染（參加按鈕、俱樂部列表、待審列） |
 | `tournament-friendly-roster.js` | 友誼賽 roster（球員名單、加入/退出、多隊身份選擇） |

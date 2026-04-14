@@ -29,14 +29,14 @@ Object.assign(App, {
   searchTeamLeader() {
     const q = document.getElementById('ct-leader-search').value.trim();
     if (!q) { document.getElementById('ct-leader-suggest').classList.remove('show'); return; }
-    const exclude = [...this._teamLeaderUids];
+    const exclude = [...this._teamFormState.leaders];
     const results = this._teamSearchUsers(q, exclude);
     this._renderSuggestList('ct-leader-suggest', results, 'selectTeamLeader');
   },
 
   selectTeamLeader(uid) {
-    if (this._teamLeaderUids.includes(uid)) return;
-    this._teamLeaderUids.push(uid);
+    if (this._teamFormState.leaders.includes(uid)) return;
+    this._teamFormState.leaders.push(uid);
     document.getElementById('ct-leader-search').value = '';
     document.getElementById('ct-leader-suggest').innerHTML = '';
     document.getElementById('ct-leader-suggest').classList.remove('show');
@@ -44,13 +44,13 @@ Object.assign(App, {
   },
 
   _removeLeader(uid) {
-    this._teamLeaderUids = this._teamLeaderUids.filter(u => u !== uid);
+    this._teamFormState.leaders = this._teamFormState.leaders.filter(u => u !== uid);
     this._renderLeaderTags();
   },
 
   _renderLeaderTags() {
     const users = ApiService.getAdminUsers();
-    document.getElementById('ct-leaders-tags').innerHTML = this._teamLeaderUids.map(uid => {
+    document.getElementById('ct-leaders-tags').innerHTML = this._teamFormState.leaders.map(uid => {
       const u = users.find(u => u.uid === uid);
       return u ? `<span class="team-tag" data-no-translate>${escapeHTML(u.name)}<span class="team-tag-x" onclick="App._removeLeader('${escapeHTML(uid)}')">×</span></span>` : '';
     }).join('');
@@ -60,7 +60,7 @@ Object.assign(App, {
     const q = document.getElementById('ct-captain-search').value.trim();
     if (!q) { document.getElementById('ct-captain-suggest').classList.remove('show'); return; }
     const exclude = [];
-    if (this._teamCaptainUid) exclude.push(this._teamCaptainUid);
+    if (this._teamFormState.captain) exclude.push(this._teamFormState.captain);
     const results = this._teamSearchUsers(q, exclude);
     this._renderSuggestList('ct-captain-suggest', results, 'selectTeamCaptain');
   },
@@ -69,29 +69,29 @@ Object.assign(App, {
     const users = ApiService.getAdminUsers();
     const user = users.find(u => u.uid === uid);
     if (!user) return;
-    this._teamCaptainUid = uid;
+    this._teamFormState.captain = uid;
     document.getElementById('ct-captain-search').value = '';
     document.getElementById('ct-captain-suggest').innerHTML = '';
     document.getElementById('ct-captain-suggest').classList.remove('show');
-    const prefix = this._teamEditId ? '轉移至：' : '';
+    const prefix = this._teamFormState.editId ? '轉移至：' : '';
     document.getElementById('ct-captain-selected').innerHTML =
       `<span class="team-tag" data-no-translate>${prefix}${user.name}<span class="team-tag-x" onclick="App.clearTeamCaptain()">×</span></span>`;
   },
 
   clearTeamCaptain() {
     // 編輯模式：恢復原領隊
-    if (this._teamEditId) {
-      const t = ApiService.getTeam(this._teamEditId);
+    if (this._teamFormState.editId) {
+      const t = ApiService.getTeam(this._teamFormState.editId);
       if (t && t.captain) {
         const users = ApiService.getAdminUsers();
         const found = users.find(u => u.name === t.captain);
-        this._teamCaptainUid = found ? found.uid : null;
+        this._teamFormState.captain = found ? found.uid : null;
       } else {
-        this._teamCaptainUid = null;
+        this._teamFormState.captain = null;
       }
     } else {
       // 新增模式：清除至空
-      this._teamCaptainUid = null;
+      this._teamFormState.captain = null;
     }
     document.getElementById('ct-captain-selected').innerHTML = '';
   },
@@ -100,14 +100,14 @@ Object.assign(App, {
     if (this.hasPermission && !this.hasPermission('team.assign_coach') && !this.hasPermission('team.manage_all') && !this.hasPermission('admin.teams.entry')) { this.showToast('權限不足'); return; }
     const q = document.getElementById('ct-coach-search').value.trim();
     if (!q) { document.getElementById('ct-coach-suggest').classList.remove('show'); return; }
-    const exclude = [...this._teamCoachUids];
+    const exclude = [...this._teamFormState.coaches];
     const results = this._teamSearchUsers(q, exclude);
     this._renderSuggestList('ct-coach-suggest', results, 'selectTeamCoach');
   },
 
   selectTeamCoach(uid) {
-    if (this._teamCoachUids.includes(uid)) return;
-    this._teamCoachUids.push(uid);
+    if (this._teamFormState.coaches.includes(uid)) return;
+    this._teamFormState.coaches.push(uid);
     document.getElementById('ct-coach-search').value = '';
     document.getElementById('ct-coach-suggest').innerHTML = '';
     document.getElementById('ct-coach-suggest').classList.remove('show');
@@ -115,13 +115,13 @@ Object.assign(App, {
   },
 
   removeTeamCoach(uid) {
-    this._teamCoachUids = this._teamCoachUids.filter(u => u !== uid);
+    this._teamFormState.coaches = this._teamFormState.coaches.filter(u => u !== uid);
     this._renderCoachTags();
   },
 
   _renderCoachTags() {
     const users = ApiService.getAdminUsers();
-    document.getElementById('ct-coach-tags').innerHTML = this._teamCoachUids.map(uid => {
+    document.getElementById('ct-coach-tags').innerHTML = this._teamFormState.coaches.map(uid => {
       const u = users.find(u => u.uid === uid);
       return u ? `<span class="team-tag" data-no-translate>${escapeHTML(u.name)}<span class="team-tag-x" onclick="App.removeTeamCoach('${escapeHTML(uid)}')">×</span></span>` : '';
     }).join('');

@@ -169,9 +169,9 @@ Object.assign(App, {
       this.showToast('目前沒有可代表建立賽事的主辦俱樂部。');
       return;
     }
-    this._tfDelegates = [];
-    this._tfVenues = [];
-    this._tfMatchDates = [];
+    this._tournamentFormState.delegates = [];
+    this._tournamentFormState.venues = [];
+    this._tournamentFormState.matchDates = [];
     document.getElementById('tf-name').value = '';
     document.getElementById('tf-region').value = '';
     document.getElementById('tf-reg-start').value = '';
@@ -214,9 +214,9 @@ Object.assign(App, {
     const createTeamLimit = this._getTournamentTeamLimitValue('tf', 4);
     const hostTeamId = document.getElementById('tf-host-team')?.value || '';
     const hostTeam = ApiService.getTeam?.(hostTeamId);
-    const createMatchDates = [...this._tfMatchDates];
-    const createVenues = [...this._tfVenues];
-    const createDelegates = [...this._tfDelegates];
+    const createMatchDates = [...this._tournamentFormState.matchDates];
+    const createVenues = [...this._tournamentFormState.venues];
+    const createDelegates = [...this._tournamentFormState.delegates];
     let hasError = false;
     if (!createName) { this._tfSetError('tf-name', '請輸入賽事名稱。'); hasError = true; }
     if (!hostTeam) { this._tfSetError('tf-host-team', '請先選擇主辦俱樂部。'); hasError = true; }
@@ -241,7 +241,7 @@ Object.assign(App, {
     }
     const hostEntry = this._buildTournamentHostEntry(hostTeam, createUser);
     const createData = {
-      id: 'ct_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+      id: generateId('ct_'),
       name: createName,
       type: this._getTournamentModeLabel('friendly'),
       typeCode: 'friendly',
@@ -302,9 +302,9 @@ Object.assign(App, {
     document.getElementById('tf-match-date-picker').value = '';
     document.getElementById('tf-venue-input').value = '';
     document.getElementById('tf-delegate-search').value = '';
-    this._tfMatchDates = [];
-    this._tfVenues = [];
-    this._tfDelegates = [];
+    this._tournamentFormState.matchDates = [];
+    this._tournamentFormState.venues = [];
+    this._tournamentFormState.delegates = [];
     this._renderMatchDateTags('tf');
     this._renderVenueTags('tf');
     this._renderTournamentDelegateTags('tf');

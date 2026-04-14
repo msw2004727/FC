@@ -383,3 +383,15 @@
 
 *最後清理日期：2026-04-07*
 *原始檔案：449 行 → 清理後約 195 行*
+
+### 2026-04-14 — 俱樂部×賽事重構 Phase 1b — 賽事結構整理 + 全域任務
+- **問題**：賽事模組結構需要與俱樂部模組同步整理（Phase 1a 已完成俱樂部部分）
+- **修復**：
+  - 新建 `tournament-helpers.js`（9 個純工具函式從 tournament-core.js 抽出）
+  - 新建 `tournament-share-builders.js`（3 個 Builder 從 tournament-share.js 抽出）
+  - 刪除 `tournament-detail.js` 死代碼（renderLeagueSchedule / renderBracket）
+  - 全域狀態收進 `_tournamentFormState` / `_teamFormState` 物件
+  - 更新 `script-loader.js` — tournament group 新增 helpers / core / render / share-builders
+  - 統一 6 處 ID 生成為 `generateId(prefix)`（fp_ / fc_ / ct_ / ce_ / reg_ / ta_）
+  - 新增 3 個賽事權限碼：end / reopen / delete（config.js + user-admin-perm-info.js）
+- **教訓**：Phase 1 結構整理不改邏輯，舊入口保留為 facade，降低回歸風險

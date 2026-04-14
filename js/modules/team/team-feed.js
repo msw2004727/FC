@@ -51,7 +51,7 @@ Object.assign(App, {
     var now = new Date();
     var timeStr = App._formatDateTime(now);
     var post = {
-      id: 'f_' + Date.now(), uid: uid, name: name, content: content,
+      id: generateId('fp_'), uid: uid, name: name, content: content,
       time: timeStr, pinned: false, isPublic: isPublic,
       reactions: { like: [], heart: [], cheer: [] },
       comments: [], createdAt: now.toISOString()
@@ -159,7 +159,7 @@ Object.assign(App, {
     var name = (user && (user.displayName || user.name)) || '';
     var now = new Date();
     var timeStr = App._formatDateTime(now);
-    var comment = { id: 'c_' + Date.now(), uid: uid, name: name, text: text, time: timeStr };
+    var comment = { id: generateId('fc_'), uid: uid, name: name, text: text, time: timeStr };
 
     var cache = this._teamFeedCache[teamId] || [];
     var cached = cache.find(function (p) { return p.id === postId; });

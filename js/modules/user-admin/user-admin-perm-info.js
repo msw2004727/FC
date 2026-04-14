@@ -82,6 +82,19 @@ Object.assign(App, {
       title: '審核參賽申請',
       body: '允許審核俱樂部或個人提交的參賽申請，決定是否核准參賽資格。',
     },
+    'admin.tournaments.end': {
+      title: '結束賽事',
+      body: '允許將進行中的賽事標記為已結束，結束後賽事將移至「已結束」分頁。',
+    },
+    'admin.tournaments.reopen': {
+      title: '重開賽事',
+      body: '允許將已結束的賽事重新開放，賽事會恢復為進行中狀態。',
+    },
+    'admin.tournaments.delete': {
+      title: '刪除賽事',
+      body: '允許永久刪除賽事資料，包含所有報名申請與參賽紀錄。'
+        + '<p style="color:#d97706;font-size:.78rem;margin-top:.4rem">⚠ 此為高權限操作，刪除後無法復原。</p>',
+    },
 
     // ─ 俱樂部管理 ─
     'admin.teams.entry': {

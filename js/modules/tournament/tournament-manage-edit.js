@@ -24,9 +24,9 @@ Object.assign(App, {
     document.getElementById('tf-match-date-picker').value = '';
     document.getElementById('tf-venue-input').value = '';
     document.getElementById('tf-delegate-search').value = '';
-    this._tfVenues = [...(editRecord.venues || [])];
-    this._tfDelegates = [...(editRecord.delegates || [])];
-    this._tfMatchDates = [...(editRecord.matchDates || [])];
+    this._tournamentFormState.venues = [...(editRecord.venues || [])];
+    this._tournamentFormState.delegates = [...(editRecord.delegates || [])];
+    this._tournamentFormState.matchDates = [...(editRecord.matchDates || [])];
     this._renderVenueTags('tf');
     this._renderTournamentDelegateTags('tf');
     this._updateTournamentDelegateInput('tf');
@@ -103,9 +103,9 @@ Object.assign(App, {
       this.showToast('報名開始時間不能晚於或等於截止時間。');
       return;
     }
-    const editVenues = [...this._tfVenues];
-    const editDelegates = [...this._tfDelegates];
-    const editMatchDates = [...this._tfMatchDates];
+    const editVenues = [...this._tournamentFormState.venues];
+    const editDelegates = [...this._tournamentFormState.delegates];
+    const editMatchDates = [...this._tournamentFormState.matchDates];
     const editCoverPreview = document.getElementById('tf-upload-preview');
     const editImage = editCoverPreview?.querySelector('img')?.src || editTournament.image || null;
     const editContentPreview = document.getElementById('tf-content-upload-preview');

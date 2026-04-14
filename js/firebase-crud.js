@@ -217,8 +217,8 @@ Object.assign(FirebaseService, {
     const payload = (typeof App !== 'undefined' && typeof App._buildFriendlyTournamentApplicationRecord === 'function')
       ? App._buildFriendlyTournamentApplicationRecord(data)
       : { ...data };
-    const docRef = payload.id ? collectionRef.doc(payload.id) : collectionRef.doc();
-    payload.id = payload.id || docRef.id;
+    if (!payload.id) payload.id = generateId('ta_');
+    const docRef = collectionRef.doc(payload.id);
     await docRef.set({
       ..._stripDocId(payload),
       createdAt: firebase.firestore.FieldValue.serverTimestamp(),
@@ -822,7 +822,7 @@ Object.assign(FirebaseService, {
     const regDocRef = db.collection('events').doc(event._docId).collection('registrations').doc();
 
     const registration = {
-      id: 'reg_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5),
+      id: generateId('reg_'),
       eventId,
       userId,
       userName,
