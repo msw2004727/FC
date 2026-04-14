@@ -323,18 +323,22 @@
   color: var(--accent, #2563eb);
   letter-spacing: -.02em;
 }
-/* 有未結束活動的運動標籤：微光呼吸邊框 */
-.sport-picker-item.has-events {
-  box-shadow: inset 0 0 0 1px rgba(13,148,136,.25), 0 0 6px rgba(13,148,136,.12);
-  animation: sport-glow 3s ease-in-out infinite;
+/* 有未結束活動的運動標籤：呼吸脈動圓點 */
+.sp-pulse { display: none; position: relative; width: 8px; height: 8px; margin-left: auto; flex-shrink: 0; }
+.sport-picker-item.has-events .sp-pulse { display: block; }
+.sp-pulse::before, .sp-pulse::after {
+  content: ''; position: absolute; top: 50%; left: 50%;
+  width: 8px; height: 8px; border-radius: 50%;
+  transform: translate(-50%, -50%);
 }
-.sport-picker-item.has-events.active {
-  animation: none;
-  box-shadow: inset 0 0 0 1.5px var(--accent), 0 0 8px rgba(13,148,136,.18);
+.sp-pulse::before { background: var(--accent, #0d9488); }
+.sp-pulse::after {
+  background: var(--accent, #0d9488); opacity: .45;
+  animation: sp-pulse-ring 2s ease-out infinite;
 }
-@keyframes sport-glow {
-  0%, 100% { box-shadow: inset 0 0 0 1px rgba(13,148,136,.18), 0 0 4px rgba(13,148,136,.06); }
-  50%      { box-shadow: inset 0 0 0 1px rgba(13,148,136,.4), 0 0 10px rgba(13,148,136,.18); }
+@keyframes sp-pulse-ring {
+  0%   { width: 8px; height: 8px; opacity: .45; }
+  100% { width: 20px; height: 20px; opacity: 0; }
 }
 
 .sport-picker-item .sp-lock {

@@ -129,6 +129,7 @@ Object.assign(App, {
       return `<button class="sport-picker-item${item.key === initialSport ? ' active' : ''}" data-sport="${escapeHTML(item.key)}">
         <span class="sp-icon">${_sportIcon(item.key)}</span>
         <span>${escapeHTML(item.label)}</span>
+        <span class="sp-pulse"></span>
       </button>`;
     }).join('');
 
