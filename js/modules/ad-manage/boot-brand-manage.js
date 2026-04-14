@@ -34,7 +34,7 @@ Object.assign(App, {
             background:${bgMode === 'light' ? bgColor : bgMode === 'dark' ? '#1e1e2e' : 'var(--bg-card)'}
           ">
             <img id="boot-brand-preview-img" class="boot-loading__image" src="${escapeHTML(imgUrl)}" alt="" style="
-              height:${imgHeight}%;margin-top:${marginTop}%
+              transform:scale(${imgHeight / 100});object-position:center ${50 - marginTop}%
             ">
           </div>
         </div>
@@ -53,14 +53,14 @@ Object.assign(App, {
           </div>
         </div>
 
-        <!-- 圖片高度 -->
+        <!-- 圖片縮放 -->
         <div class="form-row">
-          <label>圖片大小 <span id="boot-brand-height-val">${imgHeight}%</span></label>
-          <input type="range" id="boot-brand-height" min="80" max="200" value="${imgHeight}"
+          <label>圖片縮放 <span id="boot-brand-height-val">${imgHeight}%</span></label>
+          <input type="range" id="boot-brand-height" min="60" max="200" value="${imgHeight}"
                  oninput="App._updateBootBrandPreview()">
         </div>
 
-        <!-- 垂直位置 -->
+        <!-- 垂直位置（正值=往上，負值=往下） -->
         <div class="form-row">
           <label>垂直位置 <span id="boot-brand-margin-val">${marginTop}%</span></label>
           <input type="range" id="boot-brand-margin" min="-30" max="30" value="${marginTop}"
@@ -132,8 +132,8 @@ Object.assign(App, {
     document.getElementById('boot-brand-height-val').textContent = h + '%';
     document.getElementById('boot-brand-margin-val').textContent = m + '%';
 
-    previewImg.style.height = h + '%';
-    previewImg.style.marginTop = m + '%';
+    previewImg.style.transform = 'scale(' + (h / 100) + ')';
+    previewImg.style.objectPosition = 'center ' + (50 - m) + '%';
 
     // 背景色
     if (mode === 'auto') {
