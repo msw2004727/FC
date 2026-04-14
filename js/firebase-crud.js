@@ -2459,7 +2459,12 @@ Object.assign(FirebaseService, {
     if (cached && cached._docId) return db.collection('teams').doc(cached._docId);
     const snapshot = await db.collection('teams').where('id', '==', safeId).limit(1).get();
     if (snapshot.empty) throw new Error('TEAM_DOC_NOT_FOUND');
-    return snapshot.docs[0].ref;
+    // Phase 2A §7.7：fallback 成功時注入快取（與 _getTournamentDocRefById 對齊）
+    const doc = snapshot.docs[0];
+    if (!this._cache.teams.find(t => t.id === safeId)) {
+      this._cache.teams.push({ ...doc.data(), _docId: doc.id });
+    }
+    return doc.ref;
   },
 
   async _getTeamSubcollectionRef(teamId, subcollectionName) {
