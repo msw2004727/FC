@@ -10,6 +10,12 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-04-15 — 俱樂部加入申請審核「找不到此俱樂部」
+- **問題**：職員從訊息頁審核俱樂部加入申請時顯示「找不到此俱樂部」，但從俱樂部頁進入則正常
+- **原因**：兩個 bug 疊加 — (1) `message-actions-team.js` 的 fallback `ensureCollectionsForPage('page-teams', {skipRealtimeStart:true})` 是死路（teams 在 `_pageScopedRealtimeMap` 中被排除靜態載入，同時 skipRealtimeStart 又不啟動即時監聽） (2) `firebase-service.js` init 中 `_teamSlices`/`_tournamentSlices` 的 `injected` 仍為 `new Set()`（Phase 2B 文件記載要改 Array 但 init 遺漏），導致 `fetchTeamIfMissing` 呼叫 `.findIndex()` 時 TypeError 靜默回傳 null
+- **修復**：`message-actions-team.js` 改用 `getTeamAsync(teamId)`（cache-first + Firestore 單筆補查）；`firebase-service.js` init 中 `injected: new Set()` → `injected: []`
+- **教訓**：Phase 2B 重構改了消費端但遺漏 init 初始化，Set/Array 不匹配被 try/catch 靜默吞掉不報錯
+
 ### [永久] 2026-04-14 — 首次登入個人資料強制填寫修復（Plan B + Plan C）
 - **問題**：18.7% 用戶（127/678）資料不完整。根因：首登表單依賴 ScriptLoader 載入 48 個不相關 script，網路差時 3 次重試全失敗後靜默放棄
 - **修復**：

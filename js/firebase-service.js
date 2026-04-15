@@ -2034,8 +2034,8 @@ const FirebaseService = {
 
     // ── Step 2: 並行啟動 — 公開資料 + Auth ──
     this._eventSlices = { active: [], terminal: [] };
-    this._teamSlices = { injected: new Set() };
-    this._tournamentSlices = { injected: new Set() };
+    this._teamSlices = { injected: [] };
+    this._tournamentSlices = { injected: [] };
 
     // 2a. Boot collections（全部公開讀取，不需 Auth）
     // 2b. 公開即時監聽器（events active + teams，不需 Auth）
