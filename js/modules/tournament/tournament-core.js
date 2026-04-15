@@ -235,7 +235,13 @@ Object.assign(App, {
       button.id = 'tournament-open-create-btn';
       button.className = 'primary-btn small';
       button.textContent = '建立賽事';
-      button.onclick = () => this.openCreateTournamentModal?.();
+      button.onclick = async () => {
+        if (typeof this.openCreateTournamentModal !== 'function') {
+          const scripts = ScriptLoader?._groups?.tournamentAdmin || [];
+          if (scripts.length) await ScriptLoader.loadGroup(scripts);
+        }
+        this.openCreateTournamentModal?.();
+      };
       header.appendChild(button);
     }
     button.style.display = this._canCreateFriendlyTournament() ? '' : 'none';
