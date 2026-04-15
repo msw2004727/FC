@@ -842,15 +842,13 @@ Object.assign(App, {
       }
     });
 
-    // 從 Firestore 查詢操作日誌：優先用 eventId 精確查，0 筆則 fallback 到 title 比對（相容舊日誌）
+    // 從 Firestore 查詢操作日誌：只用 eventId 精確查（不再 fallback 到 title 模糊比對，避免撈到其他場次）
     var _opLogActions = { 'force_promote': 'promote', 'auto_promote': 'promote', 'force_demote': 'demote', 'capacity_demote': 'demote' };
     var _opLogLabels = { 'force_promote': '\u624b\u52d5\u6b63\u53d6', 'auto_promote': '\u81ea\u52d5\u905e\u88dc', 'force_demote': '\u4e0b\u653e\u5019\u88dc', 'capacity_demote': '\u5bb9\u91cf\u964d\u7d1a' };
-    var _eventTitle = (ApiService.getEvent(eventId) || {}).title || '';
     var _addOpLogEntries = function(snap) {
       snap.forEach(function(doc) {
         var log = doc.data();
         if (!_opLogActions[log.type]) return;
-        if (!log.content || log.content.indexOf(_eventTitle) === -1) return;
         var logMs = _toMs(log.createdAt);
         if (!logMs) {
           var _m = String(doc.id).match(/op_(\d{13,})/);
@@ -867,17 +865,12 @@ Object.assign(App, {
         entries.push({ time: log.time || log.createdAt, ms: logMs, userName: _extractedName || _detail, action: _opLogActions[log.type], label: _opLogLabels[log.type] });
       });
     };
-    if (typeof db !== 'undefined' && _eventTitle) {
+    if (typeof db !== 'undefined') {
       var opTypes = Object.keys(_opLogActions);
       try {
-        // 精確查詢：有 eventId 的新日誌
+        // 只用 eventId 精確查詢（舊日誌沒有 eventId 的就不顯示，避免撈到其他同名場次的資料）
         var opSnap = await db.collection('operationLogs').where('type', 'in', opTypes).where('eventId', '==', eventId).get();
         _addOpLogEntries(opSnap);
-        // Fallback：0 筆時用舊方式（相容沒有 eventId 的歷史日誌）
-        if (opSnap.empty) {
-          var fallbackSnap = await db.collection('operationLogs').where('type', 'in', opTypes).limit(500).get();
-          _addOpLogEntries(fallbackSnap);
-        }
       } catch (err) {
         console.warn('[openEventRegLogModal] opLog query failed:', err);
       }
