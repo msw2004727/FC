@@ -44,6 +44,7 @@
   - 寫入路徑不對稱是資料完整性的最大敵人——`registrations` 和 `activityRecords` 成對寫入必須在同一 batch
   - 架構上 activityRecord 由 UI 層寫、CRUD 層不寫，讓 CRUD 的遞補路徑容易漏寫衍生資料
   - 遞補路徑有多處（取消觸發、容量變更觸發、管理員手動）需逐一檢查，不能假設「修了 cancelRegistration 就 OK」
+  - **自我審計必須包含 `npm run test:unit`**——B' 階段做了 50+ 視角審計卻漏掉這個最基本的關卡，造成 commit 76336d57 後才被用戶發現 `migration-path-coverage.test.js` 失敗（新增 4 處 `.collection('activityRecords')` 未更新 KNOWN_REFERENCES 白名單）。後續以 commit 修復測試並補 `docs/stateful-imagining-dahl.md` 的 migration plan 備註。未來鎖定函式修改必跑 unit tests 作為審計的必要步驟
 - **監測指標**（觀察 24 小時內）：
   - `console.warn` 含 `[cancelRegistration] no waitlisted activityRecord found` → 歷史特殊資料，可追蹤但非新 bug
   - `console.error` 含 `activityRecords query failed` → Firestore 問題，需立刻處理

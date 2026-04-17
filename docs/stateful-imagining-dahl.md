@@ -305,9 +305,9 @@ commit + push。
 | 函式 | 檔案:行 | 改法 |
 |------|---------|------|
 | `_doRegisterForEvent` | `firebase-crud.js:772` | transaction 內：主 ref 維持全域（不變動），額外 set 子集合 ref（registrations） |
-| `cancelRegistration` | `firebase-crud.js:887` | batch 中每個全域寫入後加對應子集合寫入（registrations :975,:992） |
+| `cancelRegistration` | `firebase-crud.js:887` | batch 中每個全域寫入後加對應子集合寫入（registrations :975,:992）；B' 階段新增 activityRecords 子集合 query + update（候補遞補 waitlisted → registered 同步） |
 | `batchRegisterForEvent` | `firebase-crud.js:1994` | 同 `_doRegisterForEvent` 模式（registrations） |
-| `cancelCompanionRegistrations` | `firebase-crud.js:2113` | 同 `cancelRegistration` 模式（registrations :2234,:2253） |
+| `cancelCompanionRegistrations` | `firebase-crud.js:2113` | 同 `cancelRegistration` 模式（registrations :2234,:2253）；B' 階段新增 activityRecords 子集合 query + update（候補遞補 waitlisted → registered 同步） |
 | CF `registerForEvent` | `functions/index.js:4441` | transaction 中雙寫：registrations(:4500) + **activityRecords(:4692)** |
 | CF `cancelRegistration` | `functions/index.js:4798` | transaction 中雙寫：registrations(:4916,:4946) + **activityRecords(:4966,:4975)** |
 

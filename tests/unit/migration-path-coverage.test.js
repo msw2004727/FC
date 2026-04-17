@@ -31,7 +31,7 @@ const PROJECT_ROOT = path.resolve(__dirname, '../..');
 //  that the migration plan doesn't cover.
 // ═══════════════════════════════════════════════════════════════
 const KNOWN_REFERENCES = {
-  'js/firebase-crud.js': { registrations: 11, attendanceRecords: 4, activityRecords: 0 }, // Phase 4b: 全部改為子集合路徑（regex 仍匹配 .collection('registrations') in subcollection chain）
+  'js/firebase-crud.js': { registrations: 11, attendanceRecords: 4, activityRecords: 4 }, // Phase 4b: 全部改為子集合路徑（regex 仍匹配 .collection('registrations') in subcollection chain）；B' 階段 (2026-04-17) 新增 4 處 activityRecords 子集合寫入（cancelRegistration + cancelCompanionRegistrations 候補遞補同步，修復 waitlisted → registered 漏同步 bug）
   'js/firebase-service.js': { registrations: 0, attendanceRecords: 0, activityRecords: 0 },
   'js/api-service.js': { registrations: 1, attendanceRecords: 2, activityRecords: 0 }, // fetchRegistrationsIfMissing + fetchAttendanceIfMissing
   'js/modules/achievement-batch.js': { registrations: 1, attendanceRecords: 0, activityRecords: 0 }, // Phase 4b: 寫入改子集合
