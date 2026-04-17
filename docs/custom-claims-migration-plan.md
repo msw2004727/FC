@@ -410,5 +410,231 @@
 
 ---
 
-**計劃書版本**：V1（多視角協作版）
-**下次修訂**：Phase 0 啟動前若有新發現會另外 append
+**計劃書版本**：V2（Round 4-6 深度審計補強版）
+**V1 基線**：2026-04-17 產生（前文 Round 1-3 保留不動）
+**V2 補充**：見下方章節（Round 4-6）及修訂摘要
+
+---
+
+# V2 補充審計（2026-04-17 第二輪）
+
+> **觸發原因**：使用者要求「繼續挑剔、各方專家繼續審計」
+> **關鍵發現**：Phase 2 bitmap 壓縮**技術不可行**（Firestore Rules 無位元運算）必須改法
+> **其他重大補強**：LIFF 整合、部署順序、DR Playbook、Refresh 兩階段、Runbook 擴展
+
+---
+
+## Round 4：7 個新視角專家初審
+
+### 【LIFF / LINE 平台專家】
+
+**致命觀察**：V1 **完全沒提 LIFF access token 與 Firebase custom token 的 lifecycle 衝突**。
+
+1. LIFF access token 有效期 ~60 天，Firebase custom token 1 小時 — 兩者不同步
+2. 用戶 LIFF session 被動過期但 Firebase session 還活 → claims 可能過時無人知
+3. LINE app 內 vs 外部瀏覽器，LIFF 可信度不同（`liff.isInClient()` 判斷）
+4. `liff.getAccessToken()` 失敗時，claims fallback 行為 V1 未定義
+5. 多裝置同一 LINE 帳號，claims 如何一致？
+
+**風險等級**：**高**（專案特有整合點，一般 Firebase 專案沒有）
+
+### 【DevOps / SRE】
+
+**觀察**：V1 沒討論部署順序的 atomic 問題。
+
+1. Firebase CF 和 Firestore rules 是**兩個獨立部署動作**，中間有 1-2 分鐘不一致窗口
+2. 若 CF 先部署（設新 claims）、rules 後部署（認識新 claims）→ 過渡期 rules 讀不懂新 claims → 寫入被拒
+3. 反之亦然：rules 先期待新 claims → CF 尚未產生 → 降級 Firestore fallback → 暫時 OK 但不到位
+4. 無 canary 異常自動回滾機制（永遠靠人工判斷）
+5. CF 冷啟動偶發（即使 `minInstances: 1` 也無法 100% 避免）
+
+**建議**：部署順序 **Rules 先 → CF 後**，Rules 改動需向下相容（同時支援新舊 claims 格式）
+
+### 【UX 專家】
+
+**觀察**：V1「refresh 顯示 toast 0.5-1 秒」太粗糙。
+
+1. 500ms 無感、1000ms 勉強、1500ms+ 卡頓（手機流量差時可能 3-5 秒）
+2. Refresh 失敗就 force logout → 用戶被憑空踢出 → UX 驚嚇
+3. 多分頁情境：一個 tab refresh 後，其他 tab 仍顯示舊權限 → 認知混亂
+4. 沒有「降級提示」：token 舊但 UI 未提示 → 用戶點按鈕後才發現失敗
+
+**建議**：refresh 超過 2 秒升級全屏 loading、logout 前給 modal 解釋、多 tab 用 BroadcastChannel 同步
+
+### 【災難復原專家】
+
+**觀察**：V1 提了「回退路徑」但**未涵蓋備份恢復**。
+
+1. Firestore 每日自動備份是否涵蓋 `claimsAuditLog`？V1 未明確
+2. `users.role` 誤改 + claims propagate → 30 分鐘內復原的 SOP 不存在
+3. Firebase Auth 本身被攻擊 → 所有 token 失效 → 無應變 playbook
+4. Backfill 若中途失敗（worker 5 死掉），如何判斷哪些已完成？
+5. 無 kill switch：緊急事件時無法全域凍結 claims 變更
+
+**建議**：新增 DR Playbook 章節（6 情境 + 30 分鐘 SOP）、Backfill 加 checkpoint、新增 `freezeAllClaims()` CF
+
+### 【Technical Writer】
+
+**觀察**：V1 Runbook 只寫兩條 SOP，遠遠不夠。
+
+1. FAQ 空缺：「用戶權限沒生效」「admin 看不到後台」「如何驗證 claims」
+2. 無新人 onboarding：工程師如何理解 claims 系統
+3. Runbook 未附指令範例（實際操作要查哪個 CF）
+4. Dev/staging/prod 分開的 SOP 未區分
+5. 無緊急聯絡人 / 值班表
+
+**建議**：擴展到 10+ SOP、FAQ 10 題、每個 CF 有「input/output/side effect」三段
+
+### 【技術債專家】
+
+**觀察**：V1 有 `schemaVersion: 1` 但**沒說 v2 遷移策略**。
+
+1. Claims 加新欄位時，舊 token 用 v1、新 CF 寫 v2 → Rules 要同時支援兩版 → 複雜度激增
+2. 無定期審計機制：半年後 `rolePermissions` 被改 N 次，claims 同步狀態誰監控？
+3. Permission ID bitmap 反序列化邏輯在 rules 和 CF 各一份 → 未來 CLAUDE.md 永久地雷 `INHERENT_ROLE_PERMISSIONS` 同名問題的新變體
+4. 長期「claims 欄位洩漏」：每加一個新 claim 就浪費幾 bytes
+
+**建議**：明訂 schema migration 策略（N 與 N+1 共存 3 個月）、Permission code source of truth 集中、每季度跑 claims health check
+
+### 【Firestore Rules 實戰專家】
+
+**致命觀察**：V1 對 Rules 實作細節**過度樂觀**。
+
+1. `request.auth.token.perms` 若是壓縮 bitmap，Rules 裡的 `hasAny` 不能用於 bitmap
+2. Bitmap 需位元運算（`&`, `|`, `>>`）但 **Firebase Rules 完全不支援**！
+3. 這意味 **Phase 2 bitmap 計劃技術上不可行**！
+4. Rules 部署後全球傳播需 1-2 分鐘，V1 未定義「過渡期」行為
+5. Rules `get()` 限制：單 request 最多 10 次，多層嵌套容易超限
+
+**風險等級**：**極高 / 致命**（bitmap 是計劃書重大技術錯誤必須修正）
+
+---
+
+## Round 5: 新專家互挑毛病（12 組衝突）
+
+### 16. Firestore Rules 實戰 → Firebase 架構師
+**致命質疑**：你的 bitmap 壓縮在 Rules 裡用不了！
+**解決**：Phase 2 改用 **permission code string array**，統一短碼 `<module>.<action>.<entry>`（約 20 字）。28 權限 × 20 字 = 560 bytes，符合 800 bytes budget。
+
+### 17. LIFF 平台 → 資安
+**質疑**：LIFF access token 過期後，claims 是否跟著失效？
+**解決**：`createCustomToken` 每次呼叫必**驗證 LIFF token 仍有效**，否則拒簽發新 Firebase token。
+
+### 18. DevOps → 後端
+**質疑**：部署順序沒定，rules 和 CF 部署間隔會不一致。
+**解決**：鎖定順序 **Rules 先 → CF 後**，Rules 必須向下相容新舊 claims。
+
+### 19. UX → 前端
+**質疑**：「refresh 失敗即 force logout」會讓用戶無預警斷線。
+**解決**：**兩階段 refresh** — (1) 第一次失敗 toast「權限更新中...」+ retry 3 次 (2) 三次失敗才 modal 提示登出。
+
+### 20. 災難復原 → 營運
+**質疑**：`revokeAllClaims(uid)` 只能對單 uid，**沒有全域凍結**。
+**解決**：新增 `freezeAllClaims()` CF callable，僅 super_admin 能呼叫，24 小時 freeze window。
+
+### 21. 技術債 → 產品
+**質疑**：Phase 3 沒明確啟動條件。
+**解決**：明訂 Phase 3 前置條件 — 2FA 上線 + Phase 1/2 穩定 3 個月無事故 + Claims schema 2 次以上無變動。
+
+### 22. Technical Writer → QA
+**質疑**：smoke test checklist 沒細節。
+**解決**：QA 補「逐步腳本」，每步驟附 Firebase console 截圖路徑。
+
+### 23. Firestore Rules 實戰 → QA
+**質疑**：Rules deploy 後同步 1-2 分鐘，canary 會測到過渡狀態還是穩態？
+**解決**：canary 開始前**等 5 分鐘**確認 rules 完全同步才測量。
+
+### 24. LIFF 平台 → 前端
+**質疑**：BroadcastChannel 在 LINE app vs 外部瀏覽器不通。
+**解決**：前端承認限制，**文件明確說明** LINE app 內/外 session 各自獨立，不跨同步。
+
+### 25. 災難復原 → 資料工程師
+**質疑**：Backfill checkpoint 若本身被寫壞會死循環。
+**解決**：checkpoint 用 WORM 結構（write-once-read-many），`{batch: N, timestamp, done: true}` 不可修改。
+
+### 26. DevOps → 資安
+**質疑**：CF deploy atomic，但中斷到一半會部分更新部分沒有。
+**解決**：每次 deploy 用 `firebase deploy --only functions:<list>` 明確列所有 CF，**一個失敗全部 abort**。
+
+### 27. 技術債 → Firestore Rules 實戰
+**質疑**：3-5 字短碼有重複風險（例如 `adm.t` 對應哪個）。
+**解決**：permission code 使用**階層式命名 + 固定 20 字上限**（如 `activity.manage.entry`）。
+
+---
+
+## Round 6: V1 的 11 項修訂清單
+
+### 致命級（必改，若不改 Phase 2 會爆）
+
+| # | 項目 | V1 狀態 | V2 修正 |
+|---|---|---|---|
+| 1 | **Phase 2 壓縮方式** | bitmap（Rules 不支援位元運算）| **改 string array + 20 字階層命名** |
+
+### 高優先級
+
+| # | 項目 | V1 狀態 | V2 修正 |
+|---|---|---|---|
+| 2 | 部署順序 | 未明訂 | Rules 先 → CF 後 → 5 分鐘觀察 |
+| 3 | LIFF 整合 | 完全缺失 | 新增專章（LIFF token 驗證 + lifecycle 同步）|
+| 4 | DR / 備份 | 僅提 `revokeAllClaims` | 新增 Playbook（6 情境 SOP）+ `freezeAllClaims` |
+| 5 | Refresh 失敗 | 一次失敗即 logout | 兩階段 retry 3 次才 logout |
+
+### 中優先級
+
+| # | 項目 | V1 狀態 | V2 修正 |
+|---|---|---|---|
+| 6 | Runbook | 2 條 SOP | 擴展 10+ 條 + FAQ 10 題 |
+| 7 | Schema migration | 僅提 version 1 | 新增 v1→v2 並存期規則（3 個月淘汰舊版）|
+| 8 | Multi-tab 同步 | 未提 | BroadcastChannel 通知其他 tab 同步 refresh |
+| 9 | Monitoring Alert | 僅描述性文字 | 具體門檻 + Cloud Monitoring 告警 |
+| 10 | Backfill 恢復 | 簡單 dry-run | WORM checkpoint + resume 機制 |
+
+### 低優先級
+
+| # | 項目 | V1 狀態 | V2 修正 |
+|---|---|---|---|
+| 11 | Permission code 命名 | 未定義 | `<module>.<action>.<entry>` 統一格式 |
+
+---
+
+## V2 對 V1 的關鍵變更（Phase 2 章節重寫）
+
+### Phase 2 原版（V1，錯誤）
+
+```
+Claims 存 bitmap 壓縮（如 perms: 0x1F2A...）
+Rules 用 perms.hasAny([bitmap])  ← 技術不可行
+```
+
+### Phase 2 修正版（V2）
+
+```
+Claims 存 permission code array
+  perms: ["activity.manage.entry", "admin.tournaments.entry", ...]
+
+Rules 用 array hasAny / hasAll
+  allow write: if request.auth.token.perms.hasAny(['activity.manage.entry'])
+```
+
+**預算檢算**：
+- 28 個 permission codes × 平均 20 字元 = **560 bytes**
+- 加 schemaVersion、role、uid 等欄位 = **約 700 bytes**
+- 仍在 1000 bytes 限制內（<80% 使用率）
+- 若未來超標，再考慮「permission group」壓縮
+
+---
+
+## 啟動條件（V2 新增）
+
+原 V1 啟動條件 4 項外再加：
+
+- [ ] V2 致命修正（bitmap → array）已整合進實作計劃
+- [ ] LIFF 整合章節已 review
+- [ ] 部署順序 Runbook 已撰寫
+- [ ] DR Playbook 6 情境 SOP 已完成
+- [ ] Refresh 兩階段策略已 prototype 過 UX
+
+---
+
+**V2 版本**：V2（Round 4-6 深度審計補強）
+**下次修訂**：若使用者要求再輪審計會持續 append Round 7+
