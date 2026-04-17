@@ -1144,3 +1144,33 @@ body.modal-open { overflow: hidden; }
   background-size: 200% 100%; animation: skel-shimmer 1.5s ease-in-out infinite;
 }
 @keyframes skel-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+/* ─── Multi-Tab Guard Overlay（偵測多分頁時顯示警告） ─── */
+.multi-tab-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+.multi-tab-modal {
+  background: var(--bg-card);
+  color: var(--text-primary);
+  padding: 1.4rem 1.2rem;
+  border-radius: 16px;
+  max-width: 340px;
+  width: 100%;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+}
+.multi-tab-title { font-weight: 700; font-size: 1rem; margin-bottom: .7rem; }
+.multi-tab-body { font-size: .85rem; line-height: 1.65; color: var(--text-secondary); margin-bottom: 1rem; }
+.multi-tab-actions { display: flex; gap: .5rem; justify-content: flex-end; }
+/* 降級：舊 Android WebView 不支援 backdrop-filter */
+@supports not ((backdrop-filter: blur(10px)) or (-webkit-backdrop-filter: blur(10px))) {
+  .multi-tab-overlay { background: rgba(0, 0, 0, 0.72); }
+}
