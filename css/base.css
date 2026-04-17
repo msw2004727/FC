@@ -206,9 +206,6 @@ img.img-preloaded, img[src=""], img:not([src]) { opacity: 1; transition: none; }
 .app-confirm-btns button { flex: 1; padding: .55rem; border: none; border-radius: var(--radius-sm); font-weight: 600; font-size: .88rem; cursor: pointer; }
 .app-confirm-cancel { background: var(--bg-elevated); color: var(--text-secondary); }
 .app-confirm-ok { background: var(--primary); color: #fff; }
-.app-confirm-msg.multiline { white-space: pre-line; }
-.app-confirm-btns.center { justify-content: center; }
-.app-confirm-btns.center button { flex: 0 1 auto; padding: .55rem 1.5rem; min-width: 5.5rem; }
 
 /* ─── Modal ─── */
 .modal-overlay {

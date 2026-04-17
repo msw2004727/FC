@@ -752,35 +752,17 @@ const App = {
   },
 
   /** 自訂確認 Modal（取代原生 confirm，不會被瀏覽器封鎖） */
-  // options: { okText?: string, cancelText?: string, centerButtons?: boolean }
-  // msg 含 \n 時自動以換行渲染（加 .multiline class）
-  appConfirm(msg, options = {}) {
+  appConfirm(msg) {
     return new Promise(resolve => {
       const modal = document.getElementById('app-confirm-modal');
-      const msgEl = document.getElementById('app-confirm-msg');
-      msgEl.textContent = msg;
-      if (typeof msg === 'string' && msg.includes('\n')) {
-        msgEl.classList.add('multiline');
-      } else {
-        msgEl.classList.remove('multiline');
-      }
+      document.getElementById('app-confirm-msg').textContent = msg;
       modal.classList.add('open');
       document.body.classList.add('modal-open');
       const ok = document.getElementById('app-confirm-ok');
       const cancel = document.getElementById('app-confirm-cancel');
-      const btns = modal.querySelector('.app-confirm-btns');
-      const origOkText = ok.textContent;
-      const origCancelText = cancel.textContent;
-      if (options.okText) ok.textContent = options.okText;
-      if (options.cancelText) cancel.textContent = options.cancelText;
-      if (options.centerButtons && btns) btns.classList.add('center');
       const cleanup = (result) => {
         modal.classList.remove('open');
         document.body.classList.remove('modal-open');
-        ok.textContent = origOkText;
-        cancel.textContent = origCancelText;
-        if (options.centerButtons && btns) btns.classList.remove('center');
-        msgEl.classList.remove('multiline');
         ok.replaceWith(ok.cloneNode(true));
         cancel.replaceWith(cancel.cloneNode(true));
         resolve(result);
