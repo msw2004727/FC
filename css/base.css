@@ -1170,7 +1170,7 @@ body.modal-open { overflow: hidden; }
 .multi-tab-title { font-weight: 700; font-size: 1rem; margin-bottom: .7rem; text-align: center; }
 .multi-tab-body { font-size: .85rem; line-height: 1.65; color: var(--text-secondary); margin-bottom: 1rem; text-align: center; }
 .multi-tab-divider { height: 1px; background: var(--border); margin: .6rem 0; }
-.multi-tab-actions { display: flex; gap: .5rem; justify-content: flex-end; }
+.multi-tab-actions { display: flex; gap: .5rem; justify-content: center; }
 /* 降級：舊 Android WebView 不支援 backdrop-filter */
 @supports not ((backdrop-filter: blur(10px)) or (-webkit-backdrop-filter: blur(10px))) {
   .multi-tab-overlay { background: rgba(0, 0, 0, 0.72); }
