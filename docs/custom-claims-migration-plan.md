@@ -1036,5 +1036,115 @@ Round 13+：極邊緣 — 邊際效益 < 工時
 ---
 
 **V5 版本**：V5（Round 13 實證審計補強）
+
+---
+
+# V6 延伸審計（2026-04-17 第六輪）
+
+> **觸發**：使用者要求「檢查先前未檢查過的項目延伸」
+> **掃描範圍**：Storage rules、Firestore indexes、Public endpoints、onCall auth pattern、Secret management、E2E 測試、Scheduled CF
+> **關鍵發現**：**1 個計劃範圍外的高級資安問題**（Storage rules 全網可讀 — 已另開獨立 task）
+> **計劃範圍內**：4 項中優先級補強
+
+## Round 14: 6 個延伸視角審計
+
+### 【Storage Rules 審計員】⚠️ 重大發現（已拆獨立 task）
+
+`storage.rules` 僅 11 行，`match /images/{allPaths=**} { allow read: if true; }` — **全網可讀**。
+
+Firebase Storage 內的所有用戶頭像、活動照片、徽章圖、贊助廣告圖等**全部公開**，無 auth 保護。
+
+**對 Custom Claims 計劃影響**：0（獨立領域）
+**獨立 task 紀錄**：`docs/storage-rules-security-task.md`
+
+### 【Public Endpoint 安全審計員】
+
+2 個 `onRequest` CF（`teamShareOg` / `eventShareOg`）為**完全公開 HTTP endpoint**。
+
+- 本質需公開（社交平台爬蟲無 auth）
+- 但需驗證：(1) rate limit 是否有 (2) 非公開活動（draft/cancelled）是否會洩漏
+- OG CF 接受 `teamId` / `eventId`，可被枚舉
+
+**建議**：加 IP-based rate limit、只回公開狀態活動的 OG、非公開回 410。
+
+### 【Firestore Indexes 分析師】
+
+✅ `registrations` / `attendanceRecords` / `activityRecords` 的 collection group indexes 齊備，Custom Claims 遷移後不受影響。
+
+⚠️ **未來若增加** `claimsAuditLog` 集合，需要預先部署兩個 compound indexes：
+- `{actor, timestamp desc}` — 查「某人改了誰」
+- `{targetUid, timestamp desc}` — 查「誰改了我」
+
+### 【Scheduled CF 專家】
+
+4 個 `onSchedule` CF（autoEndStartedEvents、fetchSportsNews、fetchUsageMetrics、calcNoShowCounts）與 Custom Claims **完全獨立**，Phase 1 實作時無時間衝突。
+
+### 【Auth Guard Consistency 專家】
+
+統計：22 個 onCall CF vs 21 個 `if (!request.auth)` guard → 至少 1 個 onCall 漏掉 auth 檢查，或模式不一致。
+
+**V5 的「35 CF auth 一致性審計」任務需更具體**：不只檢查有沒有 auth，還要檢查**pattern 統一**（throw 什麼錯誤 / 什麼 code）。
+
+### 【Secret / Config Management 專家】
+
+- `createCustomToken` 需驗證 LINE Access Token → 需 LINE secret
+- CF 呼叫 Google Translate、BigQuery、LINE Messaging API → 多個 external secret
+- V5 未審計 secret management 是否走 Firebase Secret Manager 或 env vars
+- 若 secrets hardcoded 於 functions/index.js，是嚴重資安問題
+
+**建議**：Phase 0 加任務「審計所有 external API secrets 管理方式」（1h）
+
+### 【E2E 測試覆蓋專家】
+
+- Playwright 已安裝，`tests/e2e/example.spec.js` 141 行但**是 template，非實測**
+- 無任何 user journey E2E 測試
+- Phase 1 Smoke test 無 E2E 自動化 → 每次變更都靠人工
+- **建議 Phase 1.5 加 3-5 個 Playwright E2E**（核心流程：登入/報名/取消/權限變更）
+
+## V6 新增任務清單（Custom Claims 計劃範圍內）
+
+### 中優先級（4 項）
+
+| # | 項目 | V5 狀態 | V6 補強 |
+|---|---|---|---|
+| 37 | `claimsAuditLog` compound indexes | 未提 | Phase 0 部署 2 個 index（actor+timestamp、targetUid+timestamp）|
+| 38 | onCall auth pattern 統一 | V5 有審計但不夠具體 | 強制統一 pattern（`if (!request.auth) throw new HttpsError('unauthenticated')`）|
+| 39 | External secrets 管理審計 | 未提 | Phase 0 驗證所有 LINE/Translate/BigQuery 等 secret 走 Secret Manager |
+| 40 | Playwright E2E 核心流程 | 未提 | Phase 1.5 加 3-5 個 E2E（+3-5h）|
+
+### 計劃範圍外（獨立 task）
+
+| 編號 | 項目 | 嚴重度 |
+|---|---|---|
+| A1 | **Storage rules 全網可讀** | **高（另開獨立 task）** |
+| A2 | OG CF 未驗公開狀態 | 中（可合併 A1 task） |
+
+## V6 工時更新
+
+| Phase | V5 估 | V6 估 | 差 |
+|---|---:|---:|---:|
+| Phase 0（前置）| 4h | **7h** | +3h（索引 + auth pattern + secrets）|
+| Phase 1（MVP）| 10h | 10h | 0 |
+| Phase 1.5（前端 + E2E）| 8h | **12h** | +4h（E2E）|
+| Phase 2（權限打包）| 6h | 6h | 0 |
+| Rules test 加 claims | 4h | 4h | 0 |
+| 35 CF auth 一致性 | 2h | 2h | 0 |
+| **總工時** | 34h | **41h** | +7h |
+
+## V6 總結
+
+| 維度 | 統計 |
+|---|---|
+| 新視角專家 | 6 位 |
+| 計劃內新增項目 | 4（全中優先級）|
+| 計劃外獨立 task | 1（Storage rules 高優先）|
+| 致命級 | 0 |
+| 連續 0 致命輪次 | V3 + V4 + V5 + V6 = **4 輪** |
+
+**重要**：Round 14 的最大貢獻 = 發現**計劃範圍外的高級資安問題**（Storage rules public read）。這是純理論審計無法發現的，只有實證掃描才能找到。
+
+---
+
+**V6 版本**：V6（Round 14 延伸審計，新增 4 項計劃內 + 1 獨立 task）
 **狀態**：**未啟動任何 Phase**（使用者決定暫不實作）
-**下次修訂**：若使用者要求再輪審計會 append Round 14+（聚焦先前未檢查的項目）
+**下次修訂**：若使用者要求再輪審計會 append Round 15+（邊際效益已相當低）
