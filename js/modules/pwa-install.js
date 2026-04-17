@@ -16,17 +16,17 @@ Object.assign(App, {
                     || window.navigator.standalone === true;
     if (isStandalone) { btn.style.display = 'none'; return; }
 
-    // 所有環境都顯示按鈕
+    // 功能暫停中（LIFF + PWA 登入流程規劃中）— 反灰顯示，點擊提示
+    // 原安裝流程（_handlePwaInstallClick / _showPwaSystemPicker 等）保留，待登入整合完成後恢復
     btn.style.display = '';
-
-    // Android Chrome：監聽 beforeinstallprompt
-    window.addEventListener('beforeinstallprompt', function (e) {
+    btn.style.opacity = '0.45';
+    btn.style.filter = 'grayscale(1)';
+    btn.style.cursor = 'not-allowed';
+    btn.setAttribute('aria-disabled', 'true');
+    btn.addEventListener('click', function (e) {
       e.preventDefault();
-      App._deferredInstallPrompt = e;
-    });
-
-    btn.addEventListener('click', function () {
-      App._handlePwaInstallClick();
+      e.stopPropagation();
+      if (typeof App !== 'undefined' && App.showToast) App.showToast('功能準備中');
     });
   },
 
