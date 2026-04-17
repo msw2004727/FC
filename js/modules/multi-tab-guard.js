@@ -65,8 +65,10 @@ Object.assign(App, {
       '<div class="multi-tab-modal">' +
         '<div class="multi-tab-title">偵測到多個分頁開啟</div>' +
         '<div class="multi-tab-body">' +
-          '為了穩定的登入與資料同步體驗，建議只保留一個分頁。' +
-          '<br>若已關閉其他分頁，請重整此頁以恢復完整快取。' +
+          '為了穩定的登入與資料同步體驗，<br>' +
+          '建議只保留一個分頁。<br>' +
+          '若已關閉其他分頁，<br>' +
+          '請重整此頁以恢復完整快取。' +
         '</div>' +
         '<div class="multi-tab-actions">' +
           '<button class="outline-btn" id="multi-tab-dismiss">我知道了</button>' +
