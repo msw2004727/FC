@@ -921,5 +921,120 @@ Round 13+：極邊緣 — 邊際效益 < 工時
 ---
 
 **V4 版本**：V4（Round 10-12 邊際補強，審計已達建議停止門檻）
+
+---
+
+# V5 實證審計補強（2026-04-17 第五輪）
+
+> **觸發**：使用者要求檢查 CF / 資料庫 / 部署結構 / 自動測試覆蓋
+> **手法**：Round 13 不是理論審計，而是**實際掃 code** 對照 V1-V4 假設
+> **關鍵發現**：**V4 高估了「要做」的工時、低估了「已有」的基礎、漏掉 Rules test 不測 claims 的重大盲點**
+
+## Round 13：實證審計（實際掃代碼）
+
+### 落差 1：計劃書以為要做、實際已存在（省 11-16h）
+
+| V4 計劃書項目 | 實際狀態 | 省工時 |
+|---|---|---|
+| 從零寫 backfill script | **已有 `backfillRoleClaims` CF**（functions/index.js:1471，含 dry-run + 分批 + cursor + 失敗回報）| 3-4h |
+| `setCustomUserClaims` 設計 | **已有單一呼叫點**（L622），`setRoleClaimMerged` 封裝妥當 | 1-2h |
+| Rules 單元測試基礎 | **已有 6 個 test 檔 / 7161 行**（firestore.rules.test.js + extended + subcollection + team-split 等）| 3-5h |
+| CI 跑 rules emulator | **已有 `.github/workflows/test.yml`**（unit-tests + firestore-rules-tests 兩 job + Java 21 + firebase-tools）| 2-3h |
+| Super admin 驗證 helper | 已有 `getCallerRoleWithFallback` + HttpsError 守衛 | 1h |
+| Firebase 部署結構 | `firebase.json` 已設 emulator + storage + firestore 完整 | 1h |
+
+### 落差 2：V4 完全沒發現的真實盲點
+
+| # | 盲點 | 證據 | 嚴重度 |
+|---|---|---|---|
+| 1 | **Rules test 0 處測 `request.auth.token`** | 4 個 test 檔 7161 行 grep 結果 0 | **高** |
+| 2 | Playwright E2E 只有 example | 141 行但是 template，非實測 | 中 |
+| 3 | `role` 相關寫入 14 處但 `setCustomUserClaims` 只 1 處 | 可能有路徑改 users.role 未同步 claims | 中 |
+| 4 | `writeAuditEntry` 呼叫覆蓋率 23%（8/35 CF） | 多數 CF 無 audit log | 中 |
+
+### 落差 3：計劃書假設的過度悲觀
+
+| V4 假設 | 實際 |
+|---|---|
+| 「反轉 `authRole()` 需大改」 | L41-52 **已寫好雙路徑**，只需調換幾行 fallback 順序 |
+| 「onUpdate trigger 要新寫」 | **已有 5 個 watch triggers**（watchUsersChanges、watchEventsChanges 等），擴充即可 |
+| 「部署 non-atomic 是技術問題」 | 實際是工程紀律問題，不是工具限制 |
+
+### 落差 4：計劃書低估的現有品質
+
+| 項目 | 實際狀態 |
+|---|---|
+| `backfillRoleClaims` 架構 | 含 dry-run、legacyResolved tracking、failures list、cursor pagination — **比 V4 建議還完整** |
+| CI workflow | unit-tests + firestore-rules-tests 分 job 設計合理 |
+
+## V5 真實 gap 清單（真正要做）
+
+### 技術面
+
+- [ ] 反轉 `authRole()` 優先順序（1h，原估 3h）
+- [ ] 擴充 claims 打包 perms array（3h）
+- [ ] **擴充現有 rules test 加 custom claims 覆蓋（新，3-5h）**
+- [ ] 新增 `freezeAllClaims` kill switch CF（2h）
+- [ ] Claims schema version 欄位 + 處理邏輯（2h）
+- [ ] **盤點 35 個 CF 的 auth 一致性抽樣審計（新，2h）**
+
+### 營運面
+
+- [ ] 新增 `setCustomClaimsForUid(uid)` callable（super_admin only，2h）
+- [ ] 擴充 `watchUsersChanges` trigger 把 role 變更自動同步 claims（1h）
+- [ ] `rolePermissions` 變更的批次同步邏輯（3h）
+
+### 監控面
+
+- [ ] SLI/SLO 量化定義（1h）
+- [ ] Honey role 偵測（1h）
+- [ ] Cloud Trace 整合（Phase 2 以後或暫緩）
+
+## V5 可以刪掉的事（已有）
+
+- ~~從零寫 backfill script~~（用 `backfillRoleClaims`）
+- ~~建立 rules 測試框架~~（已有 7161 行）
+- ~~設定 CI 跑 emulator~~（test.yml 已有）
+- ~~Super admin 驗證工具函式~~（`getCallerRoleWithFallback` 已有）
+
+## V5 工時重估
+
+| Phase | V4 估 | V5 修正 | 差 |
+|---|---:|---:|---:|
+| Phase 0（前置）| 8h | **4h** | -4h |
+| Phase 1（MVP）| 12h | **10h** | -2h |
+| Phase 1.5（前端硬編碼）| 8h | 8h | 0 |
+| Phase 2（權限打包）| 8h | **6h** | -2h |
+| **新增：Rules test 加 claims 覆蓋** | — | **+4h** | +4h |
+| **新增：35 CF auth 一致性審計** | — | **+2h** | +2h |
+| **總工時（純工程）** | 28h | **34h** | +6h |
+
+## V5 關鍵修訂重點
+
+| # | V4 項目 | V5 修正 |
+|---|---|---|
+| 29 | 「寫 backfill script」 | 改為「驗證 `backfillRoleClaims` 是否需擴充」|
+| 30 | 「寫 20+ rules 測試」 | 改為「擴充現有 6 個 test 檔加 custom claims 覆蓋」|
+| 31 | 「CI 加 rules emulator」 | 已有，改為「確認 claims 測試在 CI 跑過」|
+| 32 | 「Super admin 驗證」 | 已有 helper，改為「確認所有 claims CF 都用此 helper」|
+| 33 | 未提 | **新增**：盤點 35 個 CF 的 auth 一致性 |
+| 34 | 未提 | **新增**：擴充 `watchUsersChanges` trigger 自動同步 claims |
+| 35 | 未提 | **新增**：audit log 覆蓋率從 23% → 目標 80% |
+| 36 | 未提 | **新增**：Rules test 必須涵蓋 custom claims 路徑 |
+
+## V5 總結
+
+| 維度 | 統計 |
+|---|---|
+| 審計手法 | 實證（不是理論）|
+| 掃描範圍 | 35 CF + 7000 行 rules test + firebase.json + CI workflow |
+| 新發現「已有」項 | 6 項（省 11-16h 理論工時）|
+| 新發現「盲點」項 | 4 項（1 高 + 3 中）|
+| 最關鍵發現 | **Rules test 0 處測 claims 路徑**（V1-V4 都沒抓到）|
+| 計劃書品質 | V4→V5 大幅提升 realism |
+
+---
+
+**V5 版本**：V5（Round 13 實證審計補強）
 **狀態**：**未啟動任何 Phase**（使用者決定暫不實作）
-**下次修訂**：實作階段實際發現新議題時才 append Round 13+
+**下次修訂**：若使用者要求再輪審計會 append Round 14+（聚焦先前未檢查的項目）
