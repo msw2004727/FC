@@ -1168,7 +1168,7 @@ body.modal-open { overflow: hidden; }
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
 }
 .multi-tab-title { font-weight: 700; font-size: 1rem; margin-bottom: .7rem; text-align: center; }
-.multi-tab-body { font-size: .85rem; line-height: 1.65; color: var(--text-secondary); margin-bottom: 1rem; }
+.multi-tab-body { font-size: .85rem; line-height: 1.65; color: var(--text-secondary); margin-bottom: 1rem; text-align: center; }
 .multi-tab-divider { height: 1px; background: var(--border); margin: .6rem 0; }
 .multi-tab-actions { display: flex; gap: .5rem; justify-content: flex-end; }
 /* 降級：舊 Android WebView 不支援 backdrop-filter */
