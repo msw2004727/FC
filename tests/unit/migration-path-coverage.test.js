@@ -180,7 +180,7 @@ describe('Migration Path Coverage — Frontend JS', () => {
         'Migration plan coverage gap detected!\n' +
         'The following files have NEW db.collection() references not covered by the migration plan:\n\n' +
         errors.map(e => `  - ${e}`).join('\n') +
-        '\n\nAction: Update the migration plan (docs/stateful-imagining-dahl.md) to cover these references, ' +
+        '\n\nAction: Update the migration plan (docs/archive/stateful-imagining-dahl.md) to cover these references, ' +
         'then update KNOWN_REFERENCES in this test file.'
       );
     }

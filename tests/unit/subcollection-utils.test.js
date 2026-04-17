@@ -2,7 +2,7 @@
  * Subcollection Migration Utilities — unit tests
  *
  * Tests the utility functions that will be introduced in Phase 0 of the
- * subcollection migration (stateful-imagining-dahl.md).
+ * subcollection migration (archive/stateful-imagining-dahl.md).
  *
  * These functions don't exist in the codebase yet — the logic is extracted
  * from the migration plan and tested here BEFORE implementation, ensuring

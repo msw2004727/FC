@@ -116,7 +116,7 @@ flowchart TD
 
 ### 子集合遷移完成狀態
 
-`registrations`、`attendanceRecords`、`activityRecords` 三個集合已從根集合遷移至 `events/{docId}/` 子集合。完整計劃書見 `docs/stateful-imagining-dahl.md`。
+`registrations`、`attendanceRecords`、`activityRecords` 三個集合已從根集合遷移至 `events/{docId}/` 子集合。完整計劃書見 `docs/archive/stateful-imagining-dahl.md`（已歸檔）。
 
 | 項目 | 狀態 | 說明 |
 |------|------|------|
