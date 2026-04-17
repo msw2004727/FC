@@ -637,4 +637,155 @@ Rules 用 array hasAny / hasAll
 ---
 
 **V2 版本**：V2（Round 4-6 深度審計補強）
-**下次修訂**：若使用者要求再輪審計會持續 append Round 7+
+
+---
+
+# V3 補充審計（2026-04-17 第三輪）
+
+> **觸發**：使用者要求繼續深度審計
+> **關鍵發現**：0 個致命級、4 個高優先級（Super admin 互鎖 / Incident Response / 合規 / 前端硬編碼工時低估）
+> **邊際效益**：Round 7 未找到致命問題，代表 V2 的技術可行性已穩固
+
+## Round 7: 7 個新視角專家初審
+
+### 【Red Team / 攻擊者視角】
+
+1. 偽造 LIFF access token 挑戰 `createCustomToken` 驗證強度
+2. XSS 竊取 Firebase ID token（V2 未提 Secure cookie）
+3. JWT replay 攻擊（無 one-time-use 設計）
+4. 時間攻擊 audit log（timestamp 序推出 super_admin 在線時段）
+5. **降權打壓同層級** — 只保護「最後一個」super_admin 不夠，可降其他
+6. 偽造 `schemaVersion: 999` 看 rules 處理未知版本
+
+### 【事故響應 / SOC 專家】
+
+1. 只監測 `permission-denied` 抓不到**成功越權**攻擊
+2. V2 缺「事故中」SOP（隔離/取證/通知/修復）
+3. Forensics 能力有限（Firebase Auth log 保留期）
+4. GDPR 72 小時通知義務的技術實踐
+5. 回滾是破壞性操作，事故中的衝擊未估
+
+### 【合規 / 法規專家】
+
+1. Role 算個資（台灣 PDPA）→ 用戶有權查詢與要求刪除
+2. Claims 需隨 user doc 刪除自動 revoke
+3. Audit log TTL 未訂（GDPR 建議 ≤ 2 年）
+4. 跨境傳輸揭露（Firebase 資料儲存地點）
+5. 權限變更通知義務
+6. Data portability（匯出 role 歷史）
+
+### 【FinOps 成本工程師】
+
+精確成本模型：
+- Firestore reads 月省 ~$8.64 USD
+- CF invocations 新增 ~$0.01
+- Cloud Monitoring ~$1
+- Audit log reads/writes ~$0.50
+- **淨效益：~$7/月 = $84/年**
+- 工時成本 $1400 → 回收期 ~17 個月
+- **結論：財務面不是驅動，工程敏捷性是**
+
+### 【可觀測性 (Observability) 專家】
+
+1. Structured logging 未定義
+2. SLI/SLO 未量化（只有描述性告警）
+3. Tracing 完全缺（無 correlationId）
+4. Alert fatigue 風險未緩解
+5. On-call burden 未定
+
+### 【治理 / RACI 專家】
+
+1. `setCustomClaimsForUid` 權限邊界模糊（super_admin 具體名單或欄位？）
+2. Rules deploy 權限分離未做
+3. `rolePermissions` 改動影響全站但無 2 人審核
+4. Audit log review 責任人未定
+5. `freezeAllClaims` 授權不清
+
+### 【軟體考古學家】
+
+1. 前端 43 處硬編碼 role 檢查 — V1/V2 低估工時
+2. Demo 模式殘留可能（CLAUDE.md 提 2026-04 已移除）
+3. 'user' 預設 fallback 全域假設
+4. 鎖定函式風險（`_userStatsCache` / `ensureUserStatsLoaded`）
+5. INHERENT_ROLE_PERMISSIONS 從「兩地同步」升為「三地同步」複雜度
+
+## Round 8: Round 7 間互挑毛病（8 組）
+
+### 28. FinOps → 產品
+**質疑**：Phase 3 依賴 2FA，SMS 費用月 $50+。
+**解決**：Phase 3 啟動前做 ROI，優先 TOTP（免費）而非 SMS。
+
+### 29. 合規 → 技術債
+**質疑**：schemaVersion 共存 3 個月違反 data minimization。
+**解決**：改為「舊版只讀、不產新」，3 個月後全量升級。
+
+### 30. Red Team → 資安（Round 1）
+**質疑**：「最後一個 super_admin」不可被降級保護不夠，可降其他同層級。
+**解決**：**所有 super_admin 互鎖**，降級需 **2 個 super_admin 簽名**（銀行金庫模式）。
+
+### 31. 事故響應 → 營運
+**質疑**：permission-denied 告警抓不到成功越權。
+**解決**：加 **honey role**（`_canary_admin`）與 **異常權限使用頻率**告警。
+
+### 32. 可觀測性 → QA
+**質疑**：Rules 測試通過 ≠ production 相同行為，無 tracing 難追。
+**解決**：Phase 1 前加 **Cloud Trace**（至少 correlationId）。
+
+### 33. 治理 → 資安（Round 1）
+**質疑**：Super admin 降級保護在 CF 層，Rules deploy 權限未保護。
+**解決**：Rules deploy 需 **2 人審核**（GitHub branch protection + required reviewers）。
+
+### 34. 軟體考古學家 → Firebase 架構師（Round 1）
+**質疑**：低估前端 43 處硬編碼轉換工時。
+**解決**：**拆 Phase 1.5**（獨立 8h 工時），不綁 Phase 1。
+
+### 35. FinOps → 災難復原（Round 4）
+**質疑**：freezeAllClaims 24 小時業務衝擊未估。
+**解決**：預設 **1 小時**，super_admin 主動延長，加用戶可見 status page。
+
+## Round 9: V3 修訂清單（12 項）
+
+### 高優先級（4 項）
+
+| # | 項目 | V2 狀態 | V3 建議 |
+|---|---|---|---|
+| 12 | Super admin 互相保護 | 僅最後一個 | **互鎖 + 2 人簽名**降級 |
+| 13 | Incident Response Playbook | 僅 DR | 新增事件中 SOP |
+| 14 | 合規條款 | 完全未提 | Retention / TTL / 跨境傳輸 |
+| 15 | 前端硬編碼 role 轉換 | 低估 | **拆 Phase 1.5**（+8h）|
+
+### 中優先級（5 項）
+
+| # | 項目 | V2 狀態 | V3 建議 |
+|---|---|---|---|
+| 16 | SLI/SLO 量化定義 | 描述性 | 98% 成功、p95<500ms 等 |
+| 17 | Tracing 整合 | 完全缺 | Cloud Trace + correlationId |
+| 18 | Alert 分級 | 單一等級 | P0/P1/P2 + on-call 責任 |
+| 19 | RACI matrix | 未明訂 | 5 個關鍵動作 RACI 表 |
+| 20 | Honey role 偵測 | 未提 | `_canary_admin` 釣餌告警 |
+
+### 低優先級（3 項）
+
+| # | 項目 | V2 狀態 | V3 建議 |
+|---|---|---|---|
+| 21 | Audit log 時間 jitter | 精確時戳 | 秒級 jitter 防側信道 |
+| 22 | Data export | 未提 | role 歷史可下載 |
+| 23 | Schema version 白名單 | 未明訂 | rules 拒絕未知 schemaVersion |
+
+## V3 總結
+
+| 維度 | 統計 |
+|---|---|
+| 新視角專家 | 7 位 |
+| 新發現漏洞 | 30+ |
+| 互挑毛病組 | 8 組 |
+| 致命級錯誤 | **0**（V2 已修正 bitmap 後技術可行性穩固）|
+| 高優先級 | 4 項 |
+| 中 + 低優先級 | 8 項 |
+
+**結論**：V2 致命問題已清。V3 發現多為「錦上添花」與「邊緣 case」級別。**若繼續審計，邊際效益遞減明顯**。
+
+---
+
+**V3 版本**：V3（Round 7-9 邊際補強）
+**下次修訂**：若使用者要求再輪審計會 append Round 10+（但需注意 diminishing return）
