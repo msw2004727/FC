@@ -788,4 +788,138 @@ Rules 用 array hasAny / hasAll
 ---
 
 **V3 版本**：V3（Round 7-9 邊際補強）
-**下次修訂**：若使用者要求再輪審計會 append Round 10+（但需注意 diminishing return）
+
+---
+
+# V4 補充審計（2026-04-17 第四輪）
+
+> **觸發**：使用者要求繼續審計
+> **關鍵發現**：**0 致命 + 0 高優先級**，僅 5 個中優先級補強
+> **停止門檻**：V3+V4 連續 2 輪 0 致命 0 高，**達到「建議停止審計」門檻**
+
+## Round 10: 5 個新視角專家初審
+
+### 【容量規劃專家】
+
+1. 現在 678 用戶 backfill 7 分鐘 OK；10x (6780) ~17 分鐘勉強；100x (67800) **會卡**
+2. Firebase Auth `setCustomUserClaims` rate limit ~100 req/s
+3. rolePermissions 改動若影響 10 萬用戶，CF 執行時間可能超 9 分鐘限制
+4. `onUpdate(rolePermissions)` trigger fan-out 過載風險
+5. Token refresh 次數線性增長（即使 Firestore reads 不增）
+
+**建議**：Phase 1 前壓測 1 萬併發、大規模 update 改為背景批次 job、refresh 加 jitter 防驚群
+
+### 【API 設計專家】
+
+1. `setCustomClaimsForUid(uid)` 是否 idempotent？需明訂
+2. Claims schema 升級的 backward compat 細節
+3. CF error code 標準化（統一結構）
+4. Rate limiting per-uid 防濫用
+5. Input sanitization（uid 格式驗證）
+
+**建議**：統一 CF error code 規範、rate limit 分級（一般 vs super_admin）
+
+### 【瀏覽器相容性專家】
+
+1. Safari Private Mode：IndexedDB 受限 → Auth 無法持久化
+2. LINE WebView iOS 14 以下：BroadcastChannel 不支援
+3. Firefox Strict Tracking Protection：可能擋 third-party cookie
+4. Android Chrome < 90：邊界 case
+5. 桌面擴充套件干擾（廣告攔截器）
+
+**建議**：明訂支援瀏覽器矩陣、不支援環境顯示明確訊息
+
+### 【進階隱私 / 匿名化】
+
+1. `claimsAuditLog` before/after role 算個資揭露（GDPR Art. 15）
+2. IP 位址若記錄需明示（預設常記）
+3. Super admin 操作 log 需 pseudonymization 避免內部濫用
+4. 跨服務資料最小化
+5. 日誌保留與用戶刪除權衝突
+
+**建議**：Audit log 分層（技術 log 內部用 + 合規 log 對外匿名）、用戶刪帳號時 uid 改 hashed
+
+### 【CI/CD 自動化】
+
+1. Rules emulator 未加入 CI pipeline
+2. Backfill 腳本缺單元測試
+3. Deploy 非 atomic（Round 4 已提但未補 CI safety net）
+4. Canary 流量切換未自動化
+5. Rollback 不是 1 個指令
+
+**建議**：GitHub Actions 跑 Rules emulator、撰寫 rollback script、Firebase Remote Config 控制 canary
+
+## Round 11: Round 10 互挑毛病（5 組）
+
+### 36. 容量規劃 → API 設計
+**質疑**：「per-uid rate limit 5 秒 1 次」會擋 super_admin 批量改權限。
+**解決**：分級 rate limit — 一般 5 秒 1 次、super_admin 無限（靠 audit log 監控）。
+
+### 37. 瀏覽器相容 → 可觀測性（Round 7）
+**質疑**：Tracing 在 Safari Private Mode 抓不到（IndexedDB 受限）。
+**解決**：Tracing 失敗時 fallback 到 console.log，不阻擋主流程。
+
+### 38. 進階隱私 → 資安（Round 1）
+**質疑**：Audit log 匿名化 vs 資安可追蹤性衝突。
+**解決**：**分層 log** — 技術 log（完整 uid）內部 + 合規 log（匿名化）對外，內部受嚴格 ACL。
+
+### 39. CI/CD → QA（Round 1）
+**質疑**：20 Rules 測試太少。
+**解決**：目標提升至 **50+ test cases**（含 custom claims、schemaVersion、fallback）。
+
+### 40. 容量規劃 → 後端（Round 1）
+**質疑**：`onUpdate(rolePermissions)` trigger 在 100 萬用戶規模過載。
+**解決**：改為**延遲批次**——標記 dirty flag 後由 scheduled CF 每 15 分鐘批次處理。
+
+## Round 12: V4 修訂清單（5 項，全中優先級）
+
+### 中優先級（5 項）
+
+| # | 項目 | V3 狀態 | V4 建議 |
+|---|---|---|---|
+| 24 | 容量規劃 10x-100x | 未壓測 | Phase 1 前壓測 1 萬併發 |
+| 25 | Rate limiting per-uid | 未定 | 一般 5s/1、super_admin 無限 |
+| 26 | 瀏覽器支援矩陣 | 未明訂 | iOS 15+/Chrome 103+/Firefox 103+/Edge 103+ |
+| 27 | Audit log 分層 | 完整記 | 技術 vs 合規 log 分層 |
+| 28 | CI 加 rules emulator | 未做 | GitHub Actions 加 firebase emulators |
+
+### 致命 / 高優先級（0 項）
+
+**連續兩輪（V3、V4）皆 0 致命、0 高**。
+
+## V4 總結
+
+| 維度 | 統計 |
+|---|---|
+| 新視角專家 | 5 位 |
+| 新發現漏洞 | 20+ |
+| 互挑毛病組 | 5 組（量減少代表共識增加）|
+| 致命級錯誤 | **0** |
+| 高優先級 | **0** |
+| 中優先級 | 5 項 |
+
+## 審計停止門檻達成判定
+
+| 門檻 | 條件 | 狀態 |
+|---|---|---|
+| 必須停止（再審無益）| 連續 3 輪 0 致命 + 0 高 | V3+V4 達 2 輪，再 1 輪就滿足 |
+| **建議停止**（邊際遞減）| 連續 2 輪 0 致命 + 0 高 | **✅ 已達成** |
+| 可以停止（風險可控）| 1 輪 0 致命 | V3 即達成 |
+
+## 審計嚴重度曲線觀察
+
+```
+Round 1-3 (V1)：致命區 — 發現 Bitmap 技術不可行等根本性錯誤
+Round 4-6 (V2)：高區   — 發現 LIFF / DR / 部署順序等架構性補強
+Round 7-9 (V3)：中區   — 發現 Super admin 互鎖 / 合規等細節補強
+Round 10-12 (V4)：邊緣 — 發現容量規劃 / CI 等錦上添花
+Round 13+：極邊緣 — 邊際效益 < 工時
+```
+
+**結論**：V4 為止的計劃書已完整涵蓋致命到中優先級的所有已知風險，可用於執行決策依據。
+
+---
+
+**V4 版本**：V4（Round 10-12 邊際補強，審計已達建議停止門檻）
+**狀態**：**未啟動任何 Phase**（使用者決定暫不實作）
+**下次修訂**：實作階段實際發現新議題時才 append Round 13+
