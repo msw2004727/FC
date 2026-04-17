@@ -10,6 +10,28 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-04-17 — 多分頁權限加載衝突修復（Firestore 單 tab + BroadcastChannel 警告）
+- **問題**：PWA / 多瀏覽器分頁場景下權限加載卡住、LIFF session 錯亂。根因是 Firestore `enablePersistence({ synchronizeTabs: true })` 的多 tab IndexedDB leader election 競爭
+- **修復（commit 6e0daede，版號 20260417e）**：
+  - **Level 2（核心）**：`firebase-config.js` `synchronizeTabs: true → false`。第一個 tab 拿 IndexedDB 快取，後續 tab 自動走 memory cache（SDK 降級，catch handle `failed-precondition`）。消除 leader 競爭
+  - **Level 1（UX）**：新增 `js/modules/multi-tab-guard.js`。BroadcastChannel 偵測同站其他分頁，顯示毛玻璃警告 modal + 關閉提示
+  - CSS：`base.css` 新增 `.multi-tab-overlay` 樣式（CLAUDE.md 毛玻璃規範 + `@supports` fallback for 舊 Android WebView）
+  - 模組自動 init（DOMContentLoaded 後），不動 `app.js init()` 順序
+- **審計通過**：
+  - `npm run test:unit` 全過（51 suites / 2169 tests）
+  - `node --check` multi-tab-guard.js + firebase-config.js OK
+  - 符合 CLAUDE.md 毛玻璃規範（blur + webkit + rgba + radius + shadow + fallback）
+  - 跨瀏覽器 fallback：BroadcastChannel `typeof` 檢查，舊環境靜默降級
+  - 不動鎖定函式、不影響 LIFF（LIFF 靠 localStorage 跨 tab 同步，不受影響）、不影響 SW cache
+- **已知限制**：
+  - BroadcastChannel 跨 context 不通（iOS Safari PWA vs Safari 是獨立 WebKit，偵測不到）
+  - 後續 tab 無離線快取，切頁稍慢（比「卡住」好）
+- **Smoke test 待用戶驗證**：同站開兩分頁 → 應看到警告 modal + console.warn `failed-precondition`
+- **教訓**：
+  - Firestore multi-tab 持久化的 leader election 機制在正常情況 OK，但搭配 LIFF / PWA 多 tab 複雜情境會暴露競爭問題
+  - 單 tab 模式（`synchronizeTabs: false`）是小而有效的解法，第二 tab 犧牲離線快取換穩定
+  - BroadcastChannel 是標準 API，但 Safari 15.4+ 才全面支援，需 typeof 檢查
+
 ### 2026-04-17 — 用戶資料卡片頁加毛玻璃遮蔽（節省 Firestore 自動讀取）
 - **目標**：看別人名片預設自動拉 activityRecords + achievement subcollection（100-400 reads/次），成本隨用戶數線性成長；改為點擊才載入
 - **設計決策**：
