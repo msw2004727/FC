@@ -3,6 +3,11 @@
 .env.local
 .env.*.local
 
+# Firebase service account keys（不可上傳 GitHub）
+key*/
+*firebase-adminsdk*.json
+*service-account*.json
+
 # Firebase
 .firebase/
 .firebase-config/
