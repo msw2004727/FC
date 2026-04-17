@@ -66,7 +66,8 @@ Object.assign(App, {
         '<div class="multi-tab-title">偵測到多個分頁開啟</div>' +
         '<div class="multi-tab-body">' +
           '為了穩定的登入與資料同步體驗，<br>' +
-          '建議只保留一個分頁。<br>' +
+          '建議只保留一個分頁。' +
+          '<div class="multi-tab-divider"></div>' +
           '若已關閉其他分頁，<br>' +
           '請重整此頁以恢復完整快取。' +
         '</div>' +
