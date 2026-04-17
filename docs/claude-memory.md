@@ -10,6 +10,45 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### [永久] 2026-04-17 — B' 階段治本：修 cancelRegistration / cancelCompanionRegistrations 遞補漏同步 activityRecord（部署完成、smoke test 待驗）
+- **問題**：A' 階段 backfill 了 93 位用戶 110 筆異常資料，但寫入路徑未修，未來新的取消+遞補會持續產生新異常
+- **根因**：`cancelRegistration` 與 `cancelCompanionRegistrations` 在候補遞補時，只改 `registrations.status=confirmed`，漏改對應 `activityRecord.status`（保持 waitlisted）
+- **修復（commit 76336d57，版號 20260417a）**：
+  - 兩個鎖定函式各加三處：
+    1. Firestore 查詢該活動所有 activityRecords（避免本地 onSnapshot limit 漏資料）
+    2. batch 加 `activityRecord.status=registered`
+    3. commit 成功後同步本地快取
+  - 同行者 `participantType='companion'` 排除處理（不產生 activityRecord）
+  - 找不到對應 activityRecord 時 `console.warn`（不靜默漏修）
+  - 處理歷史重複資料（filter 全部 matched 而非 find 第一筆）
+- **審計通過**：
+  - 符合 CLAUDE.md 報名系統保護規則 13 條全部
+  - 與既有 `_adjustWaitlistOnCapacityChange` 模式一致
+  - Firestore rules L1488-1499 `isSubActivityStatusOnly()` 允許此寫入
+  - 12 個劇本自我模擬測試全過（正常遞補、取消候補不遞補、取消正取無候補、candidate 是同行者、activityRecord 找不到、並發取消、cross-event 取消、companion 取消不遞補、退化測試、Firestore 查詢失敗、活動已 ended、空 activityRecords）
+  - 5+ 輪審計找到 14 個瑕疵全部修訂
+- **未完成待辦（T+24h 之後執行，約 2026-04-18 10:00 後）**：
+  - [ ] Smoke test：建測試活動容量 2 → 3 人報名（2 正 1 補）→ 取消 1 正取 → Admin SDK 查候補者 `activityRecord.status` 是否變 `registered`
+  - [ ] 重跑稽核腳本 `scripts/_audit-bug-ab.js`（仍在主 repo，已寫好），預期 0 筆異常
+  - [ ] 若有殘餘異常（A'→修 bug 之間累積，預期 < 10）→ 用 Admin SDK patch
+  - [ ] 清理 `scripts/_audit-bug-ab.js` 和 `scripts/_audit-bug-ab-result.json`
+  - [ ] 若稽核通過，在此條目末尾加「驗證完成」註記
+- **失敗處理策略**：不使用 `git revert`（會搞亂版號一致性），改用 forward-fix 寫新 commit 撤銷錯誤行為
+- **未修範圍（非本次任務）**：
+  - Bug #C（取消自己的 activityRecord，目前 UI 層已處理）
+  - Bug #D（現場補位未建 registration/activityRecord，需業務決策）
+  - A' 中 7 筆 `cancelled → registered` + 1 筆 `removed → registered`（成因不同）
+  - 21 筆 `reg=confirmed 缺 act`（UI 層 addActivityRecord 某時漏跑，另案調查）
+- **長期改善建議**：把 activityRecord 寫入統一收進 CRUD 層（目前由 UI 層寫），避免未來再出現寫入不對稱的 bug。需大範圍重構，留待專門任務
+- **教訓**：
+  - 寫入路徑不對稱是資料完整性的最大敵人——`registrations` 和 `activityRecords` 成對寫入必須在同一 batch
+  - 架構上 activityRecord 由 UI 層寫、CRUD 層不寫，讓 CRUD 的遞補路徑容易漏寫衍生資料
+  - 遞補路徑有多處（取消觸發、容量變更觸發、管理員手動）需逐一檢查，不能假設「修了 cancelRegistration 就 OK」
+- **監測指標**（觀察 24 小時內）：
+  - `console.warn` 含 `[cancelRegistration] no waitlisted activityRecord found` → 歷史特殊資料，可追蹤但非新 bug
+  - `console.error` 含 `activityRecords query failed` → Firestore 問題，需立刻處理
+  - 取消報名功能的 error rate
+
 ### [永久] 2026-04-17 — 全站簽到資料修復：候補遞補 status 未同步 + activityRecord 衍生資料漏寫
 - **問題**：93 位用戶有 checkin+checkout 紀錄但個人頁應到/完成顯示 0；資料不完整率 10.9%（1006 個 checkin 組合中 110 筆異常）
 - **調查**：以 Admin SDK 全站稽核 `collectionGroup('attendanceRecords').where('type','==','checkin')` 交叉比對 `registrations` + `activityRecords`
