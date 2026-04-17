@@ -10,6 +10,23 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### [永久] 2026-04-17 — 全站簽到資料修復：候補遞補 status 未同步 + activityRecord 衍生資料漏寫
+- **問題**：93 位用戶有 checkin+checkout 紀錄但個人頁應到/完成顯示 0；資料不完整率 10.9%（1006 個 checkin 組合中 110 筆異常）
+- **調查**：以 Admin SDK 全站稽核 `collectionGroup('attendanceRecords').where('type','==','checkin')` 交叉比對 `registrations` + `activityRecords`
+- **兩種資料不一致模式**：
+  - Bug 1（63 筆）：有 activityRecord 但 status 未同步 — 55 筆 waitlisted（候補遞補路徑漏改）、7 筆 cancelled、1 筆 removed
+  - Bug 2（47 筆）：有 checkin 但完全缺 activityRecord — 21 筆 `reg=confirmed` 衍生資料漏寫、26 筆 `reg=(缺)` 多為 Phase 4b 前老資料或手動掃碼簽到流程
+- **修復**：全站 patch activityRecord 子集合，Bug 1 統一改 status=registered，Bug 2 補建 activityRecord（schema: eventId / name / date / status / uid / eventType / createdAt）
+- **驗證**：patch 後重跑稽核 0 筆異常；目標 UID `Ud822a6c5a...` 從 應到0/完成0 → 應到2/完成2、出席率 100%
+- **教訓**：
+  - `registrations` 是權威但 `activityRecords` 是前端統計依賴的衍生資料，寫入路徑有多處不對稱 → 必須在寫入路徑統一兩者狀態轉換（candidate 遞補、取消重報、removed 等 edge case）
+  - 全站稽核腳本用 `collectionGroup + parent.parent !== null` 過濾子集合是 Phase 4b 後的必備模式
+  - 邊界案例（cancelled/removed 有 checkin）反映業務流程（現場補位、取消後反悔）在資料模型沒有對應狀態 → B′ 階段需考慮新增中間狀態或明確業務規則
+- **B′ 待辦（未完成，下次觸碰報名系統時一起做）**：
+  - code review `js/firebase-crud.js` 的 `cancelRegistration` 遞補路徑、`batchRegisterForEvent` 衍生寫入、`registerForEvent` status 轉換
+  - code review `js/modules/event/event-create-waitlist.js` 的 `_adjustWaitlistOnCapacityChange` / `_promoteSingleCandidateLocal` / `_getPromotedArDocIds` 候補遞補是否正確同步 activityRecord
+  - 評估是否需要定期稽核 Cloud Function 當防線（類似 `calcNoShowCounts` 的做法）
+
 ### 2026-04-17 — 個人頁統計與報名紀錄首次進場顯示 0
 - **問題**：用戶有報名、簽到、簽退紀錄，但個人頁四格統計（應到/完成/出席率）與報名紀錄 tab 首次進場顯示為 0 或空白；反覆切頁或手動刷新才會正確
 - **原因**：`renderActivityRecords` / `renderProfileData` 在 `_userStatsCache` 未 ready 時直接把 `_calcScanStats(uid)` 的結果（0）寫入 DOM。`ensureUserStatsLoaded` 是 async collectionGroup 查詢，頁面先渲染、cache 後到位；fallback 讀 `_src('activityRecords')` 的根集合快取（Phase 4b 遷移後已凍結、無 onSnapshot 維護）回傳空陣列。完成後亦無 re-render 觸發機制
