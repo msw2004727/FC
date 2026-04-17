@@ -10,6 +10,33 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-04-17 — 用戶資料卡片頁加毛玻璃遮蔽（節省 Firestore 自動讀取）
+- **目標**：看別人名片預設自動拉 activityRecords + achievement subcollection（100-400 reads/次），成本隨用戶數線性成長；改為點擊才載入
+- **設計決策**：
+  - 自己/別人都遮，文字不同（isSelf 提示「本次進入需重新載入」）
+  - 徽章與活動紀錄都遮（但 isSelf 徽章例外，本地 cache 同步計算即可）
+  - 無中央按鈕，文字提示「點擊任一處載入」
+  - 只有需額外讀取才遮（用 `FirebaseService.getUserStatsCache().uid` 與 `_userAchievementProgressUid` 判斷，不建額外 set）
+- **實作（commit 6ba99723，版號 20260417b）**：
+  - `profile-core.js showUserProfile`：加 cache 命中判斷 + 動態遮蔽 HTML，移除自動 await ensureUserStatsLoaded
+  - `profile-core.js` 新增 `_loadUserCardUncovered(uid)`：遮蔽點擊觸發，並行載入 stats + badges，完成後移除遮蔽
+  - `profile.css` 新增 `.uc-blur-overlay` 樣式（CLAUDE.md 毛玻璃規範：blur(10px) + webkit 前綴 + rgba(0,0,0,.35) + radius + shadow；含 `@supports not (backdrop-filter)` fallback 用 rgba(0,0,0,.72) 為舊 Android WebView 降級）
+- **保護機制**：
+  - `_userCardLoading` flag 防連點
+  - `currentPage === 'page-user-card'` guard 防跨頁 DOM 競態
+  - 錯誤時遮蔽文字改「載入失敗，點擊重試」
+  - `targetUid` null guard（資料未同步時不遮直接走原流程）
+- **審計通過**：
+  - `npm run test:unit` 全過（51 suites / 2169 tests）— **吸取 B' 階段漏跑測試的教訓**
+  - `node --check` profile-core.js 語法 OK
+  - 不動鎖定函式（`_calcScanStats` / `ensureUserStatsLoaded`）
+  - 不動自己的 `#page-profile`（原本 `_userStatsCache` 機制保留）
+  - 不衝突 B' smoke test（B' 用 Admin SDK 直查 Firestore，不依賴 UI）
+- **未來潛在擴展**：
+  - 可延伸到 `#page-profile`（自己的 profile）
+  - 可加「顯示為 DNS 預拉」（hover 就 prefetch，點擊時瞬間顯示）
+  - 若用戶反映太煩人，可加「記住偏好」選項 persist 到 localStorage
+
 ### [永久] 2026-04-17 — B' 階段治本：修 cancelRegistration / cancelCompanionRegistrations 遞補漏同步 activityRecord（部署完成、smoke test 待驗）
 - **問題**：A' 階段 backfill 了 93 位用戶 110 筆異常資料，但寫入路徑未修，未來新的取消+遞補會持續產生新異常
 - **根因**：`cancelRegistration` 與 `cancelCompanionRegistrations` 在候補遞補時，只改 `registrations.status=confirmed`，漏改對應 `activityRecord.status`（保持 waitlisted）
