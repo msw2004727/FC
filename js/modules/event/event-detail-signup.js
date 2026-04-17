@@ -364,6 +364,12 @@ Object.assign(App, {
       void this.ensureCloudReady?.({ reason: 'cancel-signup' });
       return;
     }
+    // 取消前確認彈窗（外科手術式 pre-check，不觸動既有取消/遞補邏輯）
+    const _cancelConfirmOk = await this.appConfirm(
+      '確定要取消報名嗎？\n若稍後想再參加，活動滿額時只能排候補喔。',
+      { okText: '我確定', cancelText: '不取消', centerButtons: true }
+    );
+    if (!_cancelConfirmOk) return;
     this._cancelSignupBusyMap = this._cancelSignupBusyMap || {};
     if (this._cancelSignupBusyMap[id]) {
       this.showToast('取消處理中，請稍後');
