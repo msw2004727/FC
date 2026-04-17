@@ -93,12 +93,21 @@ Object.assign(App, {
     if (el('profile-exp-fill')) el('profile-exp-fill').style.width = `${Math.min(100, Math.round((progress / needed) * 100))}%`;
 
     // 統計數據（方向 B：以掃碼紀錄為依據）
+    // cache 未 ready 時顯示 "--"，由 renderActivityRecords 背景載入完成後重繪，避免首次進場顯示 0 誤導
     if (this._calcScanStats) {
       const _uid = user.uid || user.lineUserId || '';
-      const { expectedCount, completedCount, attendRate } = this._calcScanStats(_uid);
-      if (el('profile-stat-total')) el('profile-stat-total').textContent = expectedCount;
-      if (el('profile-stat-done')) el('profile-stat-done').textContent = completedCount;
-      if (el('profile-stat-rate')) el('profile-stat-rate').textContent = `${attendRate}%`;
+      const _usc = typeof FirebaseService !== 'undefined' && FirebaseService.getUserStatsCache?.();
+      const _statsReady = _usc && _usc.uid === _uid && _usc.attendanceRecords !== null;
+      if (_statsReady) {
+        const { expectedCount, completedCount, attendRate } = this._calcScanStats(_uid);
+        if (el('profile-stat-total')) el('profile-stat-total').textContent = expectedCount;
+        if (el('profile-stat-done')) el('profile-stat-done').textContent = completedCount;
+        if (el('profile-stat-rate')) el('profile-stat-rate').textContent = `${attendRate}%`;
+      } else {
+        if (el('profile-stat-total')) el('profile-stat-total').textContent = '--';
+        if (el('profile-stat-done')) el('profile-stat-done').textContent = '--';
+        if (el('profile-stat-rate')) el('profile-stat-rate').textContent = '--';
+      }
     }
     // 徽章數量：從成就資料動態計算
     if (el('profile-stat-badges')) {

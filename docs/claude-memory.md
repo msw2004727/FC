@@ -10,6 +10,18 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-04-17 — 個人頁統計與報名紀錄首次進場顯示 0
+- **問題**：用戶有報名、簽到、簽退紀錄，但個人頁四格統計（應到/完成/出席率）與報名紀錄 tab 首次進場顯示為 0 或空白；反覆切頁或手動刷新才會正確
+- **原因**：`renderActivityRecords` / `renderProfileData` 在 `_userStatsCache` 未 ready 時直接把 `_calcScanStats(uid)` 的結果（0）寫入 DOM。`ensureUserStatsLoaded` 是 async collectionGroup 查詢，頁面先渲染、cache 後到位；fallback 讀 `_src('activityRecords')` 的根集合快取（Phase 4b 遷移後已凍結、無 onSnapshot 維護）回傳空陣列。完成後亦無 re-render 觸發機制
+- **修復**：
+  - `profile-data-render.js` `renderProfileData`：4 格統計加 `statsReady` 檢查，未 ready 顯示 `--`
+  - `leaderboard.js` `renderActivityRecords`：cache 未 ready 時顯示「載入紀錄中...」+ stats `--`，並背景觸發 `ensureUserStatsLoaded(uid).then` 完成後於 `page-profile` 自動重繪
+  - 未動任何鎖定函式（`_calcScanStats / _categorizeRecords / getParticipantAttendanceStats / ensureUserStatsLoaded` 保持原狀）
+- **教訓**：
+  - `renderUserCardRecords`（看別人名片）早已有 `statsReady` 檢查顯示 `--`，自己的 profile 路徑缺失，造成不對稱 bug
+  - Async 資料載入後若缺 re-render 觸發，用戶會卡在初始值；fire-and-forget + `then(() => currentPage === X && re-render)` 是可重用修法
+  - 架構級根治方案為後端預算寫入 user doc（比照 `calcNoShowCounts`），已規劃為下一階段任務（含 UI 毛玻璃遮蔽 + 手動刷新按鈕設計）
+
 ### 2026-04-15 — 俱樂部加入申請審核「找不到此俱樂部」
 - **問題**：職員從訊息頁審核俱樂部加入申請時顯示「找不到此俱樂部」，但從俱樂部頁進入則正常
 - **原因**：兩個 bug 疊加 — (1) `message-actions-team.js` 的 fallback `ensureCollectionsForPage('page-teams', {skipRealtimeStart:true})` 是死路（teams 在 `_pageScopedRealtimeMap` 中被排除靜態載入，同時 skipRealtimeStart 又不啟動即時監聽） (2) `firebase-service.js` init 中 `_teamSlices`/`_tournamentSlices` 的 `injected` 仍為 `new Set()`（Phase 2B 文件記載要改 Array 但 init 遺漏），導致 `fetchTeamIfMissing` 呼叫 `.findIndex()` 時 TypeError 靜默回傳 null

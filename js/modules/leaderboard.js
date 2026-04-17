@@ -206,15 +206,29 @@ Object.assign(App, {
 
     const user = ApiService.getCurrentUser();
     const uid = user?.uid || '';
-    const filtered = this._getFilteredRecords(uid, f, false);
-    container.innerHTML = this._renderRecordListHtml(filtered, p, 'renderActivityRecords', f);
-
-    // 更新統計（方向 B：以掃碼紀錄為依據）
-    const { expectedCount, completedCount, attendRate } = this._calcScanStats(uid);
     const el = (id) => document.getElementById(id);
-    if (el('profile-stat-total')) el('profile-stat-total').textContent = expectedCount;
-    if (el('profile-stat-done')) el('profile-stat-done').textContent = completedCount;
-    if (el('profile-stat-rate')) el('profile-stat-rate').textContent = `${attendRate}%`;
+
+    // cache 未 ready 時顯示載入中 + "--"，背景載入完成後重繪，避免首次進場顯示 0 誤導
+    const usc = typeof FirebaseService !== 'undefined' && FirebaseService.getUserStatsCache?.();
+    const statsReady = usc && usc.uid === uid && usc.attendanceRecords !== null;
+    if (uid && !statsReady) {
+      if (typeof FirebaseService !== 'undefined' && FirebaseService.ensureUserStatsLoaded) {
+        FirebaseService.ensureUserStatsLoaded(uid).then(() => {
+          if (this.currentPage === 'page-profile') this.renderActivityRecords(f, p);
+        }).catch(() => {});
+      }
+      container.innerHTML = '<div style="font-size:.82rem;color:var(--text-muted);padding:.5rem 0">載入紀錄中...</div>';
+      if (el('profile-stat-total')) el('profile-stat-total').textContent = '--';
+      if (el('profile-stat-done')) el('profile-stat-done').textContent = '--';
+      if (el('profile-stat-rate')) el('profile-stat-rate').textContent = '--';
+    } else {
+      const filtered = this._getFilteredRecords(uid, f, false);
+      container.innerHTML = this._renderRecordListHtml(filtered, p, 'renderActivityRecords', f);
+      const { expectedCount, completedCount, attendRate } = this._calcScanStats(uid);
+      if (el('profile-stat-total')) el('profile-stat-total').textContent = expectedCount;
+      if (el('profile-stat-done')) el('profile-stat-done').textContent = completedCount;
+      if (el('profile-stat-rate')) el('profile-stat-rate').textContent = `${attendRate}%`;
+    }
 
     // 綁定頁籤（使用 recordBound 避免被 bindTabBars 的通用 bound flag 搶先佔位）
     const tabs = document.getElementById('record-tabs');
