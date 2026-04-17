@@ -86,7 +86,6 @@
     firebase.auth().setPersistence(firebase.auth.Auth.Persistence.LOCAL);
 
     var db = firebase.firestore();
-    var ADMIN_ROLES = ['admin','super_admin'];
     var cache = {}; // { "2026-04": { "2026-04-02": [...], ... } }
 
     // --- Tag classifier ---
@@ -202,27 +201,16 @@
       onFilterChange();
     }
 
-    // --- Auth gate ---
+    // --- Auth gate（所有登入用戶均可瀏覽更新日誌）---
     firebase.auth().onAuthStateChanged(function(user){
       if (!user) {
         document.getElementById('auth-spinner').style.display = 'none';
         document.getElementById('auth-msg').textContent = '請先在主站登入後再訪問此頁面';
         return;
       }
-      db.collection('users').doc(user.uid).get().then(function(doc){
-        var role = (doc.exists && doc.data().role) ? doc.data().role : 'user';
-        if (ADMIN_ROLES.indexOf(role) === -1) {
-          document.getElementById('auth-spinner').style.display = 'none';
-          document.getElementById('auth-msg').textContent = '權限不足：僅限管理員以上層級瀏覽';
-          return;
-        }
-        document.getElementById('auth-gate').style.display = 'none';
-        document.getElementById('app').style.display = 'block';
-        initApp();
-      }).catch(function(err){
-        document.getElementById('auth-spinner').style.display = 'none';
-        document.getElementById('auth-msg').textContent = '驗證失敗：' + err.message;
-      });
+      document.getElementById('auth-gate').style.display = 'none';
+      document.getElementById('app').style.display = 'block';
+      initApp();
     });
   })();
   </script>
