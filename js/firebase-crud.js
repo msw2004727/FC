@@ -1011,6 +1011,21 @@ Object.assign(FirebaseService, {
     const eventDocId = event?._docId || await this._getEventDocIdAsync(reg.eventId);
     if (!eventDocId) throw new Error('無法取得活動文件 ID，請重新整理後再試');
 
+    // 若有候補遞補，查該活動所有 activityRecords（Firestore 而非快取，避免 onSnapshot limit 漏資料）
+    // Bug #A 修復：遞補時必須同步 activityRecord.status，否則統計會少算
+    let eventActivityRecords = [];
+    if (promotedCandidates.length > 0) {
+      try {
+        const arSnap = await db.collection('events').doc(eventDocId).collection('activityRecords').get();
+        eventActivityRecords = arSnap.docs.map(d => ({ ...d.data(), _docId: d.id }));
+      } catch (err) {
+        console.warn('[cancelRegistration] activityRecords query failed, fallback to cache:', err);
+        const arSource = (typeof ApiService !== 'undefined' && ApiService._src)
+          ? ApiService._src('activityRecords') : [];
+        eventActivityRecords = arSource.filter(a => a.eventId === reg.eventId);
+      }
+    }
+
     // ── 所有 Firestore 寫入合併到同一個 batch ──
     const batch = db.batch();
 
@@ -1033,6 +1048,28 @@ Object.assign(FirebaseService, {
           }
         }
         batch.update(db.collection('events').doc(eventDocId).collection('registrations').doc(candidate._docId), promoUpdate);
+      }
+    }
+
+    // 2b. 同步遞補者的 activityRecord.status waitlisted → registered（Bug #A 修復）
+    // 同行者不產生 activityRecord（CLAUDE.md 規則 9），排除處理
+    const arDocIdsToSync = [];
+    for (const candidate of promotedCandidates) {
+      if (candidate.participantType === 'companion') continue;
+      const matchedArs = eventActivityRecords.filter(a =>
+        a.uid === candidate.userId && a.status === 'waitlisted'
+      );
+      if (matchedArs.length === 0) {
+        console.warn('[cancelRegistration] no waitlisted activityRecord found for candidate uid=' + candidate.userId + ' eventId=' + reg.eventId);
+        continue;
+      }
+      for (const ar of matchedArs) {
+        if (!ar._docId) continue;
+        batch.update(
+          db.collection('events').doc(eventDocId).collection('activityRecords').doc(ar._docId),
+          { status: 'registered' }
+        );
+        arDocIdsToSync.push(ar._docId);
       }
     }
 
@@ -1059,6 +1096,15 @@ Object.assign(FirebaseService, {
     for (const candidate of promotedCandidates) {
       const localCandidate = this._cache.registrations.find(r => r.id === candidate.id);
       if (localCandidate) localCandidate.status = 'confirmed';
+    }
+
+    // 同步 activityRecord.status 到本地快取（Bug #A 修復）
+    if (arDocIdsToSync.length > 0 && typeof ApiService !== 'undefined' && ApiService._src) {
+      const liveArSource = ApiService._src('activityRecords') || [];
+      for (const docId of arDocIdsToSync) {
+        const liveAr = liveArSource.find(a => a._docId === docId);
+        if (liveAr) liveAr.status = 'registered';
+      }
     }
 
     // 寫入 event 投影到快取
@@ -2294,6 +2340,22 @@ Object.assign(FirebaseService, {
       if (!eventDocIds[_evId]) throw new Error('無法取得活動文件 ID: ' + _evId);
     }
 
+    // 若有候補遞補（hadConfirmed），查受影響活動的 activityRecords（Firestore 而非快取，避免 onSnapshot limit 漏資料）
+    // Bug #B 修復：遞補時必須同步 activityRecord.status
+    const arsByEvent = {};
+    for (const _evId of affectedEventIds) {
+      if (!hadConfirmed.has(_evId)) continue;
+      try {
+        const arSnap = await db.collection('events').doc(eventDocIds[_evId]).collection('activityRecords').get();
+        arsByEvent[_evId] = arSnap.docs.map(d => ({ ...d.data(), _docId: d.id }));
+      } catch (err) {
+        console.warn('[cancelCompanionRegistrations] activityRecords query failed for event=' + _evId + ':', err);
+        const arSource = (typeof ApiService !== 'undefined' && ApiService._src)
+          ? ApiService._src('activityRecords') : [];
+        arsByEvent[_evId] = arSource.filter(a => a.eventId === _evId);
+      }
+    }
+
     // ── 階段 4：所有 Firestore 寫入合併到同一個 batch ──
     const batch = db.batch();
 
@@ -2319,6 +2381,30 @@ Object.assign(FirebaseService, {
           }
         }
         batch.update(db.collection('events').doc(eventDocIds[candidate.eventId]).collection('registrations').doc(candidate._docId), promoUpdate);
+      }
+    }
+
+    // 2b. 同步遞補者的 activityRecord.status waitlisted → registered（Bug #B 修復）
+    // 同行者不產生 activityRecord（CLAUDE.md 規則 9），排除處理
+    const arDocIdsToSyncByEvent = {};
+    for (const candidate of promotedCandidates) {
+      if (candidate.participantType === 'companion') continue;
+      const ars = arsByEvent[candidate.eventId] || [];
+      const matchedArs = ars.filter(a =>
+        a.uid === candidate.userId && a.status === 'waitlisted'
+      );
+      if (matchedArs.length === 0) {
+        console.warn('[cancelCompanionRegistrations] no waitlisted activityRecord found for candidate uid=' + candidate.userId + ' eventId=' + candidate.eventId);
+        continue;
+      }
+      for (const ar of matchedArs) {
+        if (!ar._docId) continue;
+        batch.update(
+          db.collection('events').doc(eventDocIds[candidate.eventId]).collection('activityRecords').doc(ar._docId),
+          { status: 'registered' }
+        );
+        if (!arDocIdsToSyncByEvent[candidate.eventId]) arDocIdsToSyncByEvent[candidate.eventId] = [];
+        arDocIdsToSyncByEvent[candidate.eventId].push(ar._docId);
       }
     }
 
@@ -2349,6 +2435,17 @@ Object.assign(FirebaseService, {
     for (const candidate of promotedCandidates) {
       const localReg = this._cache.registrations.find(r => r.id === candidate.id);
       if (localReg) localReg.status = 'confirmed';
+    }
+
+    // 同步 activityRecord.status 到本地快取（Bug #B 修復）
+    if (typeof ApiService !== 'undefined' && ApiService._src) {
+      const liveArSource = ApiService._src('activityRecords') || [];
+      for (const eventId of Object.keys(arDocIdsToSyncByEvent)) {
+        for (const docId of arDocIdsToSyncByEvent[eventId]) {
+          const liveAr = liveArSource.find(a => a._docId === docId);
+          if (liveAr) liveAr.status = 'registered';
+        }
+      }
     }
 
     // 寫入 event 投影到快取
