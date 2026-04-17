@@ -183,6 +183,21 @@ Object.assign(App, {
 
     const cardHeader = document.querySelector('#page-user-card .page-header h2');
     if (cardHeader) cardHeader.textContent = '用戶資料卡片';
+
+    // 計算 target uid 與 cache 命中狀態（決定是否顯示毛玻璃遮蔽 — 節省 Firestore 讀取）
+    const targetUid = user ? (user.uid || user.lineUserId) : null;
+    const _statsCache = (typeof FirebaseService !== 'undefined' && FirebaseService.getUserStatsCache?.()) || {};
+    const _statsCacheHit = targetUid && _statsCache.uid === targetUid && _statsCache.attendanceRecords !== null;
+    const _badgeCacheUid = (typeof FirebaseService !== 'undefined') ? FirebaseService._userAchievementProgressUid : null;
+    const _badgeCacheHit = targetUid && _badgeCacheUid === targetUid;
+    // isSelf 不遮徽章（本地 cache 已有，同步計算）；非 self 才考慮遮
+    const _showStatsBlur = targetUid && !_statsCacheHit;
+    const _showBadgesBlur = targetUid && !isSelf && !_badgeCacheHit;
+
+    const _blurOnClick = `App._loadUserCardUncovered('${escapeHTML(targetUid || '')}')`;
+    const _statsBlurHtml = _showStatsBlur ? `<div class="uc-blur-overlay" onclick="${_blurOnClick}"><div class="uc-blur-text">${isSelf ? '本次進入需重新載入您的活動紀錄<br>點擊任一處以載入（節省自動讀取）' : '此用戶活動紀錄預設不自動載入<br>點擊任一處以節省流量載入'}</div></div>` : '';
+    const _badgeBlurHtml = _showBadgesBlur ? `<div class="uc-blur-overlay" onclick="${_blurOnClick}"><div class="uc-blur-text">點擊載入此用戶的徽章</div></div>` : '';
+
     document.getElementById('user-card-full').innerHTML = `
       <div class="uc-header">
         <div class="uc-avatar-circle" style="margin:0 auto .6rem">${avatarHtml}</div>
@@ -208,6 +223,7 @@ Object.assign(App, {
       <div class="info-card">
         <div class="info-title">已獲得徽章</div>
         <div id="uc-badge-container">${badgeHtml}</div>
+        ${_badgeBlurHtml}
       </div>
       <div class="info-card">
         <div class="info-title" style="display:flex;align-items:center">活動紀錄<button id="uc-records-refresh" type="button" onclick="App.refreshUserCardRecords()" title="重新整理" style="width:1.8rem;height:1.8rem;border:1px solid var(--border);border-radius:50%;background:transparent;color:var(--text-muted);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;margin-left:auto"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></button></div>
@@ -223,6 +239,7 @@ Object.assign(App, {
           <button class="tab" data-filter="cancelled">取消</button>
         </div>
         <div class="mini-activity-list" id="uc-activity-records"></div>
+        ${_statsBlurHtml}
       </div>
       <div style="text-align:center;padding:.5rem 0 1rem">
         <button class="outline-btn" style="font-size:.78rem;padding:.4rem 1rem;display:inline-flex;align-items:center;gap:.3rem" onclick="App._shareUserCard('${escapeHTML(name)}')">
@@ -233,13 +250,13 @@ Object.assign(App, {
     `;
     this._bindAvatarFallbacks(document.getElementById('user-card-full'));
 
-    // 先顯示頁面（統計先顯示 "--"），再背景載入完整記錄
-    const targetUid = user ? (user.uid || user.lineUserId) : null;
+    // 顯示頁面（若 cache 命中則直接渲染；否則由毛玻璃遮蔽提示用戶點擊載入）
     this._ucRecordUid = targetUid || null;
     this.showPage('page-user-card');
 
-    // 異步更新其他用戶的徽章（從 per-user 子集合讀取）
-    if (!isSelf && user && achievementProfile?.buildEarnedBadgeListHtmlAsync) {
+    // 徽章異步載入：只在 cache 命中時才跑（避免自動讀取 Firestore）
+    // 非 self 且 cache 未命中時，等用戶點擊遮蔽觸發 _loadUserCardUncovered
+    if (!isSelf && user && _badgeCacheHit && achievementProfile?.buildEarnedBadgeListHtmlAsync) {
       achievementProfile.buildEarnedBadgeListHtmlAsync({
         useCategoryBorder: true,
         emptyText: '尚未獲得徽章',
@@ -250,8 +267,8 @@ Object.assign(App, {
       }).catch(() => { /* keep sync result */ });
     }
 
-    if (targetUid) {
-      await FirebaseService.ensureUserStatsLoaded(targetUid);
+    // 活動紀錄：只在 cache 命中時才渲染（否則遮蔽已在 HTML，等用戶點擊）
+    if (targetUid && _statsCacheHit) {
       this.renderUserCardRecords('all', 1);
     }
   },
@@ -272,6 +289,65 @@ Object.assign(App, {
       console.warn('[refreshUserCardRecords]', err);
     } finally {
       if (btn) { btn.disabled = false; btn.style.opacity = ''; }
+    }
+  },
+
+  /**
+   * 從毛玻璃遮蔽點擊觸發：首次載入用戶卡片的活動紀錄 + 徽章
+   * 設計目的：預設不自動讀 Firestore，由用戶點擊才載入以節省成本
+   */
+  async _loadUserCardUncovered(uid) {
+    if (!uid) return;
+    if (this._userCardLoading) return;
+    this._userCardLoading = true;
+
+    // 載入中提示（所有遮蔽層同步更新）
+    document.querySelectorAll('#page-user-card .uc-blur-overlay .uc-blur-text').forEach(el => {
+      el.innerHTML = '載入中...';
+    });
+
+    try {
+      // 並行載入 stats 與 badges
+      const statsTask = (typeof FirebaseService !== 'undefined' && FirebaseService.ensureUserStatsLoaded)
+        ? FirebaseService.ensureUserStatsLoaded(uid) : Promise.resolve();
+
+      const achievementProfile = this._getAchievementProfile?.();
+      const users = ApiService.getAdminUsers?.() || [];
+      const targetUser = users.find(u => u.uid === uid || u.lineUserId === uid);
+      let badgeTask = Promise.resolve(null);
+      if (targetUser && achievementProfile?.buildEarnedBadgeListHtmlAsync) {
+        badgeTask = achievementProfile.buildEarnedBadgeListHtmlAsync({
+          useCategoryBorder: true,
+          emptyText: '尚未獲得徽章',
+          targetUser,
+        });
+      }
+
+      const [, badgeHtml] = await Promise.all([statsTask, badgeTask]);
+
+      // 頁面若已切走，不動 DOM（防 race）
+      if (this.currentPage !== 'page-user-card') return;
+
+      // 更新徽章 container
+      if (typeof badgeHtml === 'string' && badgeHtml) {
+        const badgeContainer = document.getElementById('uc-badge-container');
+        if (badgeContainer) badgeContainer.innerHTML = badgeHtml;
+      }
+
+      // 移除所有遮蔽
+      document.querySelectorAll('#page-user-card .uc-blur-overlay').forEach(el => el.remove());
+
+      // 渲染活動紀錄（cache 已填好）
+      this.renderUserCardRecords('all', 1);
+    } catch (err) {
+      console.warn('[_loadUserCardUncovered]', err);
+      if (this.currentPage === 'page-user-card') {
+        document.querySelectorAll('#page-user-card .uc-blur-overlay .uc-blur-text').forEach(el => {
+          el.innerHTML = '載入失敗，點擊重試';
+        });
+      }
+    } finally {
+      this._userCardLoading = false;
     }
   },
 
