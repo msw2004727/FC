@@ -195,7 +195,7 @@ Object.assign(App, {
     const _showBadgesBlur = targetUid && !isSelf && !_badgeCacheHit;
 
     const _blurOnClick = `App._loadUserCardUncovered('${escapeHTML(targetUid || '')}')`;
-    const _statsBlurHtml = _showStatsBlur ? `<div class="uc-blur-overlay" onclick="${_blurOnClick}"><div class="uc-blur-text">${isSelf ? '本次進入需重新載入您的活動紀錄<br>點擊任一處以載入（節省自動讀取）' : '此用戶活動紀錄預設不自動載入<br>點擊任一處以節省流量載入'}</div></div>` : '';
+    const _statsBlurHtml = _showStatsBlur ? `<div class="uc-blur-overlay" onclick="${_blurOnClick}"><div class="uc-blur-text">點擊載入活動記錄</div></div>` : '';
     const _badgeBlurHtml = _showBadgesBlur ? `<div class="uc-blur-overlay" onclick="${_blurOnClick}"><div class="uc-blur-text">點擊載入此用戶的徽章</div></div>` : '';
 
     document.getElementById('user-card-full').innerHTML = `
