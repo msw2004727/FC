@@ -228,6 +228,10 @@ Object.assign(App, {
       }
     }
     try {
+      // 2026-04-19 UX: 記錄是否為「同活動 re-render」
+      // 必須在 _currentDetailEventId 被改寫前捕獲，作為後續保留 attendance DOM 的判斷依據
+      const _isSameEventRerender = this.currentPage === 'page-activity-detail'
+        && this._currentDetailEventId === id;
       // Fix 1：切換活動時重設重試計數，避免跨活動洩漏
       if (this._currentDetailEventId !== id) {
         this._regsLoadingRetryCount = 0;
@@ -462,6 +466,14 @@ Object.assign(App, {
 
       // ── 防跳頂：鎖定容器高度 + 保存 scroll ──
       var _savedScroll = window.scrollY || window.pageYOffset || (document.scrollingElement || document.documentElement).scrollTop || 0;
+      // 2026-04-19 UX：同活動 re-render 時捕獲舊名單 DOM，避免外框 innerHTML 改寫
+      // + _renderAttendanceTable 100ms debounce + fetch 造成「名單 → 空白 → 名單」的生硬閃爍。
+      // 稍後由 _renderAttendanceTable 做原子替換，舊 DOM 持續顯示直到新 DOM 組好。
+      // （僅 attendance-table 需要：waitlist/unreg 改寫後立即同步重渲染，無 debounce 空窗）
+      // 重要：只在「同活動」re-render 時保留，避免跨活動時看到前一活動的名單
+      var _preservedAttHtml = (_isSameEventRerender && !isGuestView)
+        ? (document.getElementById('detail-attendance-table')?.innerHTML || '')
+        : '';
       // 鎖住容器高度，防止 innerHTML 清空時頁面高度塌縮導致 scroll 被 clamp
       var _lockH = nodes.body.offsetHeight;
       if (_lockH > 0) nodes.body.style.minHeight = _lockH + 'px';
@@ -539,21 +551,28 @@ Object.assign(App, {
       if (requestSeq !== this._eventDetailRequestSeq || this.currentPage !== 'page-activity-detail') {
         return { ok: false, reason: 'stale' };
       }
-      // 2026-04-19 UX：切換到不同活動時立即清空 attendance-table 並顯示 loading skeleton
-      // 避免 await _renderAttendanceTable 期間用戶看到前一個活動的殘留名單（誤以為「被拉回 A」）
-      if (!isGuestView && !_isReRender) {
+      // 2026-04-19 UX：attendance-table 初始狀態處理
+      //  - 同活動 re-render：還原舊名單 DOM（避免 100ms debounce + fetch 期間閃空白）
+      //  - 切到新活動：顯示 loading skeleton（避免殘留前活動名單）
+      if (!isGuestView) {
         const _attSkel = document.getElementById('detail-attendance-table');
         if (_attSkel) {
-          const _expected = Number(e.current || 0)
-            || (Array.isArray(e.participantsWithUid) ? e.participantsWithUid.length : 0)
-            || (Array.isArray(e.participants) ? e.participants.length : 0);
-          if (_expected > 0) {
-            const _rowCount = Math.min(3, _expected);
-            const _rows = Array(_rowCount).fill('<div class="reg-loading-skeleton-row"></div>').join('');
-            _attSkel.innerHTML = '<div class="reg-loading">報名名單載入中...</div>'
-              + '<div class="reg-loading-skeleton">' + _rows + '</div>';
-          } else {
-            _attSkel.innerHTML = '';
+          if (_preservedAttHtml) {
+            // Re-render：還原舊內容（稍後由 _renderAttendanceTable 原子替換為新資料）
+            _attSkel.innerHTML = _preservedAttHtml;
+          } else if (!_isReRender) {
+            // 首次進入（不同活動或來自其他頁面）：skeleton 載入中
+            const _expected = Number(e.current || 0)
+              || (Array.isArray(e.participantsWithUid) ? e.participantsWithUid.length : 0)
+              || (Array.isArray(e.participants) ? e.participants.length : 0);
+            if (_expected > 0) {
+              const _rowCount = Math.min(3, _expected);
+              const _rows = Array(_rowCount).fill('<div class="reg-loading-skeleton-row"></div>').join('');
+              _attSkel.innerHTML = '<div class="reg-loading">報名名單載入中...</div>'
+                + '<div class="reg-loading-skeleton">' + _rows + '</div>';
+            } else {
+              _attSkel.innerHTML = '';
+            }
           }
         }
       }

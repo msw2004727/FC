@@ -10,6 +10,28 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-04-19 — 活動詳情頁 attendance-table「名單 → 空白 → 名單」生硬閃爍修復
+- **問題**：進入活動詳情頁時，先顯示快取名單，然後快取名單閃消失變空白，幾秒後才補上最新資料，轉場生硬
+- **根因**：`showEventDetail()` 被多個路徑重複呼叫（`_regsLoadingRetryTimer` 3 秒重試 /
+  Phase 3 安全網 / onSnapshot 觸發 / 第二次 showPage），每次都執行
+  `nodes.body.innerHTML = ...` 重寫整個外框，連帶把內部 `<div id="detail-attendance-table">`
+  清成空 div。然後 `_renderAttendanceTable` 有 **100ms debounce + fetch 等待**，
+  這段時間內 DOM 就是空白。等到 `_doRenderAttendanceTable` 寫入新名單才原子替換
+- **修復（commit pending）**：`js/modules/event/event-detail.js`
+  - 在 try 塊入口（line 232 前）捕獲 `_isSameEventRerender = (currentPage === 'page-activity-detail' && _currentDetailEventId === id)`
+  - 外框 innerHTML 改寫前，若 `_isSameEventRerender` 為 true，捕獲舊 attendance-table innerHTML
+  - 外框改寫後，若 preservation 有值：還原舊內容（稍後由 `_renderAttendanceTable` 原子替換）
+  - 若無 preservation（首次進入 / 切換到不同活動）：顯示 loading skeleton
+  - **注意**：只處理 attendance-table，waitlist/unreg 在 `nodes.body.innerHTML` 改寫後
+    立即同步重渲染（line 535-536），沒有 debounce 空窗，不需 preservation
+- **教訓**：
+  - 原子性 innerHTML 替換看似瞬間（舊 DOM 持續顯示直到新 DOM 組好），但**中間插入的
+    空白狀態**（如 `innerHTML = ''` 或外框改寫把子容器清空）會破壞原子性
+  - `_renderAttendanceTable` 的 100ms debounce 對連續多次呼叫是好的（coalesce），
+    但在 `nodes.body.innerHTML = ...` 改寫後會造成 debounce 期間空白可見
+  - 多個 re-render 觸發路徑（retry / safety net / snapshot）下游都走 `showEventDetail`
+    而不是 `_patchDetailTables`，長期來看該把 retry / safety net 改走局部更新
+
 ### 2026-04-19 — 活動詳情頁「幾秒後被拉回行事曆」連續修復 [永久]
 - **問題**：用戶回報「首頁／行事曆點活動卡進詳情頁，幾秒後被拉回行事曆」，
   剛刷新/剛開啟網站時最常發生
