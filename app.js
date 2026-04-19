@@ -1669,6 +1669,18 @@ const App = {
       return await this._pendingProtectedBootRoutePromise;
     }
 
+    // 2026-04-19 fix: 若用戶在 boot 期間已主動導航到非首頁、且當前頁 ≠ pending 目標頁，
+    // 取消 pending route 避免把用戶從他正在瀏覽的頁面強制拉走。
+    // 典型情境：用戶在行事曆點活動進詳情頁，幾秒後 Auth ready 觸發 flush，
+    // 原本會被拉回 pending 頁面（例如 page-activities），體驗是「被拉回行事曆」。
+    if (this.currentPage
+      && this.currentPage !== 'page-home'
+      && this.currentPage !== pending.pageId) {
+      console.log('[Boot] user navigated to', this.currentPage, '— cancelling pending boot route:', pending.pageId);
+      this._clearPendingProtectedBootRoute();
+      return false;
+    }
+
     const pageId = pending.pageId;
     const skipEnsureCloudReady = options.skipEnsureCloudReady === true;
     let restorePromise = null;
